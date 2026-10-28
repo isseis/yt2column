@@ -55,6 +55,17 @@ func (ts *testServer) publishOf(t *testing.T, key string) statusPublish {
 	return *job.Publish
 }
 
+// waitEntered waits until a request reaches hook's hold, failing the test
+// after five seconds instead of hanging when none ever does.
+func waitEntered(t *testing.T, hook *loopbackWebhook) {
+	t.Helper()
+	select {
+	case <-hook.entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("no request reached the Webhook")
+	}
+}
+
 // TestPublishPostsLikeArticles checks that the publish operation posts the
 // messages the legacy endpoint posts for the same article, here one that
 // splits into three messages.
@@ -99,7 +110,7 @@ func TestPublishRespondsBeforeWebhook(t *testing.T) {
 	}()
 
 	requireAccepted(t, ts.publishRequest(key))
-	<-hook.entered
+	waitEntered(t, hook)
 	if got := ts.publishOf(t, key); got.State != "posting" {
 		t.Errorf("publish while the Webhook holds = %+v, want posting", got)
 	}
@@ -117,11 +128,17 @@ func TestPublishIdempotent(t *testing.T) {
 	key := ts.seedDone(t, validBody(testValidVideoURL, testValidRaw)).String()
 	hold := make(chan struct{})
 	hook.set(0, hold)
+	var once sync.Once
+	release := func() { once.Do(func() { close(hold) }) }
+	defer func() {
+		release()
+		ts.waitJobs()
+	}()
 
 	requireAccepted(t, ts.publishRequest(key))
-	<-hook.entered
+	waitEntered(t, hook)
 	requireAccepted(t, ts.publishRequest(key))
-	close(hold)
+	release()
 	ts.waitJobs()
 	requireAccepted(t, ts.publishRequest(key))
 	ts.waitJobs()
@@ -163,6 +180,9 @@ func TestPublishResumesAfterFailure(t *testing.T) {
 			hook.set(0, nil)
 			requireAccepted(t, ts.publishRequest(key))
 			ts.waitJobs()
+			if !strings.Contains(ts.logs.String(), "outcome=started from="+strconv.Itoa(k-1)) {
+				t.Errorf("no accepted line names from=%d:\n%s", k-1, ts.logs.String())
+			}
 			if got := hook.received(); !slices.Equal(got, all[k-1:]) {
 				t.Errorf("retry posted %d messages, want messages %d to 3", len(got), k)
 			}
@@ -326,6 +346,14 @@ func TestPublishWithoutWebhook(t *testing.T) {
 			}
 		})
 	}
+	// The method is checked before the Webhook.
+	t.Run("get", func(t *testing.T) {
+		rec := ts.serve(newRequest(http.MethodGet, publishTarget(key), nil))
+		requireRejected(t, rec, http.StatusMethodNotAllowed, "method_not_allowed")
+		if got := rec.Header().Get("Allow"); got != http.MethodPost {
+			t.Errorf("Allow = %q, want POST", got)
+		}
+	})
 	if after := ts.cache.Lookup(seeded); after != before {
 		t.Errorf("a rejection changed the record: %+v, was %+v", after, before)
 	}
@@ -373,16 +401,25 @@ func TestPublishTargetRejections(t *testing.T) {
 			}
 		})
 	}
-	for name, mutate := range map[string]func(*http.Request){
-		"content_length": func(req *http.Request) { req.ContentLength = 1 },
-		"transfer_encoding": func(req *http.Request) {
+	bodies := []struct {
+		name    string
+		keyPart string
+		mutate  func(*http.Request)
+	}{
+		{"content_length", key, func(req *http.Request) { req.ContentLength = 1 }},
+		{"transfer_encoding", key, func(req *http.Request) {
 			req.ContentLength = -1
 			req.TransferEncoding = []string{"chunked"}
-		},
-	} {
-		t.Run("body_"+name, func(t *testing.T) {
+		}},
+		// The body is checked before the key, so the rejection that leaves
+		// the body unread is the one that closes the connection.
+		{"content_length_invalid_key", "nope", func(req *http.Request) { req.ContentLength = 1 }},
+	}
+	for _, tc := range bodies {
+		mutate := tc.mutate
+		t.Run("body_"+tc.name, func(t *testing.T) {
 			counter := &recordingReader{r: strings.NewReader("x")}
-			req := newRequest(http.MethodPost, publishTarget(key), io.NopCloser(counter))
+			req := newRequest(http.MethodPost, publishTarget(tc.keyPart), io.NopCloser(counter))
 			mutate(req)
 			rec := ts.serve(req)
 			requireRejected(t, rec, http.StatusBadRequest, "invalid_body")
@@ -462,6 +499,9 @@ func TestPublishHandlerPanicCleanup(t *testing.T) {
 	rec := ts.publishRequest(key)
 	ts.waitJobs()
 	requireRejected(t, rec, http.StatusInternalServerError, "internal_error")
+	if got := rec.Header().Get("Connection"); got != "close" {
+		t.Errorf("Connection = %q, want close", got)
+	}
 	if got := ts.publishOf(t, key); got != (statusPublish{State: "failed", Reason: "internal"}) {
 		t.Errorf("publish = %+v, want failed as internal", got)
 	}
@@ -525,7 +565,7 @@ func TestServeShutdownWaitsForPublish(t *testing.T) {
 	if status := publishOnUnix(t, path, key.String()); status != http.StatusAccepted {
 		t.Fatalf("publish status = %d, want 202", status)
 	}
-	<-hook.entered
+	waitEntered(t, hook)
 	cancel()
 	waitFor(t, "the shutdown to begin", func() bool { return ts.genCtx.Err() != nil })
 	select {
@@ -548,5 +588,72 @@ func TestServeShutdownWaitsForPublish(t *testing.T) {
 	}
 	if line := logLine(ts.logs.String(), "stopped accepting connections"); !strings.Contains(line, "postJobs=1") {
 		t.Errorf("the shutdown log line = %q, want postJobs=1", line)
+	}
+}
+
+// TestPublishConcurrentStartsOnce sends the same publish operation from many
+// goroutines at once while the Webhook holds the first message, and checks
+// that every one is answered 202 and the article is posted once.
+func TestPublishConcurrentStartsOnce(t *testing.T) {
+	const senders = 8
+	ts, hook := newWebhookTestServer(t)
+	key := ts.seedDone(t, validBody(testValidVideoURL, testValidRaw)).String()
+	hold := make(chan struct{})
+	hook.set(0, hold)
+	var once sync.Once
+	release := func() { once.Do(func() { close(hold) }) }
+	defer func() {
+		release()
+		ts.waitJobs()
+	}()
+
+	recs := make([]*httptest.ResponseRecorder, senders)
+	var wg sync.WaitGroup
+	gate := make(chan struct{})
+	for i := range senders {
+		wg.Go(func() {
+			<-gate
+			recs[i] = ts.publishRequest(key)
+		})
+	}
+	close(gate)
+	wg.Wait()
+	for _, rec := range recs {
+		requireAccepted(t, rec)
+	}
+	release()
+	ts.waitJobs()
+	if got := hook.received(); len(got) != 1 {
+		t.Errorf("Webhook messages = %d, want 1", len(got))
+	}
+}
+
+// TestJobsLogUnrecordedOutcome checks that a job whose handle no longer acts
+// when it reports its outcome writes the not-recorded line instead of a
+// success or failure line with values it could not record.
+func TestJobsLogUnrecordedOutcome(t *testing.T) {
+	ts := newJobsTestServer(t, jobsServerOptions{})
+	body := validBody(testValidVideoURL, testValidRaw)
+	input := ts.validInput(t, body)
+	key := ts.keyer.Key(input.key)
+	_, run, _ := ts.cache.Begin(key, func() bool { return true })
+	run.CompletePostable(testArticle())
+	ts.completeGeneration(run, key, input, testArticle())
+	ts.failGeneration(run, key, input, articlecache.FailureLLM, errors.New("late"))
+
+	_, pub := ts.cache.BeginPublish(key)
+	pub.Finish()
+	ts.runPublish(pub, key)
+	ts.publisher.PostErr = errors.New("late")
+	ts.runPublish(pub, key)
+
+	logs := ts.logs.String()
+	for _, line := range []string{"generation job succeeded", "generation job failed", "post job succeeded", "post job failed"} {
+		if strings.Contains(logs, line) {
+			t.Errorf("the log has %q for an outcome not recorded:\n%s", line, logs)
+		}
+	}
+	if got := strings.Count(logs, "outcome not recorded"); got != 4 {
+		t.Errorf("not-recorded lines = %d, want 4:\n%s", got, logs)
 	}
 }

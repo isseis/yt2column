@@ -3,10 +3,10 @@
 // APIs: the legacy /articles endpoint, which validates a request and runs the
 // article pipeline from generation through the Webhook post, and the job API,
 // which generates an article into the in-memory article cache, reports its
-// state, and posts it to the Webhook on request. It decides every response from fixed values,
-// the identifiers it generates, and a completed article, and it writes every
-// log line through a redacting writer, so no secret and no transcript text can
-// reach a response or a log.
+// state, and posts it to the Webhook on request. It decides every response
+// from fixed values, the identifiers it generates, and a completed article,
+// and it writes every log line through a redacting writer, so no secret and
+// no transcript text can reach a response or a log.
 package server
 
 import (
@@ -223,9 +223,9 @@ func (s *Server) webhookConfigured() bool {
 // cancels the job API's generation jobs, stops accepting connections, waits
 // for in-flight requests, jobs, failure notices, post jobs, and the canceled
 // generations, and returns. The legacy jobs, their notices, and the post jobs
-// are not canceled. It returns
-// nil after a cancellation and the listener error otherwise. Shutdown closes
-// the listener; for a *net.UnixListener that also removes the socket.
+// are not canceled. It returns nil after a cancellation and the listener
+// error otherwise. Shutdown closes the listener; for a *net.UnixListener that
+// also removes the socket.
 func (s *Server) Serve(ctx context.Context, listener net.Listener) error {
 	serveErr := make(chan error, 1)
 	go func() {

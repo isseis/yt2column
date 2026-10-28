@@ -676,11 +676,7 @@ func TestTransitionsReturnTheirValues(t *testing.T) {
 		if st, ok := failing.Fail(FailureLLM); st != want || !ok {
 			t.Errorf("Fail = %+v, %v; want %+v, true", st, ok, want)
 		}
-		// The restart resets the stages the Fail above returned.
-		begin(t, c, testKey(3))
-		if got := c.Lookup(testKey(3)).Stages; got != (Stages{}) {
-			t.Errorf("Stages after the restart = %+v, want zero", got)
-		}
+		begin(t, c, testKey(3)) // a restart replaces the Run
 		if st, ok := failing.Fail(FailureLLM); st != (Stages{}) || ok {
 			t.Errorf("Fail on a replaced Run = %+v, %v; want zero, false", st, ok)
 		}

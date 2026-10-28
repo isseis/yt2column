@@ -175,15 +175,9 @@ func (s *Server) statusHandler(w http.ResponseWriter, r *http.Request, requestID
 		responded = true
 		return
 	}
-	if rej := checkNoBody(r); rej != nil {
+	key, rej := checkKeyRequest(r, keyPart)
+	if rej != nil {
 		s.reject(w, requestID, *rej)
-		responded = true
-		return
-	}
-	key, err := articlecache.ParseKey(keyPart)
-	if err != nil {
-		// The key part is not echoed: it is not a key the server issued.
-		s.reject(w, requestID, rejection{reason: reasonInvalidKey, detail: detailInvalidKey})
 		responded = true
 		return
 	}
@@ -198,6 +192,22 @@ func (s *Server) statusHandler(w http.ResponseWriter, r *http.Request, requestID
 	if err := writeBody(w, http.StatusOK, data, nil); err != nil {
 		s.logger.Info("status response write failed", "requestId", requestID, "key", key.String(), "error", err)
 	}
+}
+
+// checkKeyRequest checks a request that names a key and carries no body: the
+// body first, refused without reading it, then the key part, which must be a
+// key in its one accepted form. Checking the body first is what lets an
+// invalid_key rejection keep the connection: no body is left unread. The key
+// part is never echoed: it is not a key the server issued.
+func checkKeyRequest(r *http.Request, keyPart string) (articlecache.Key, *rejection) {
+	if rej := checkNoBody(r); rej != nil {
+		return articlecache.Key{}, rej
+	}
+	key, err := articlecache.ParseKey(keyPart)
+	if err != nil {
+		return articlecache.Key{}, &rejection{reason: reasonInvalidKey, detail: detailInvalidKey}
+	}
+	return key, nil
 }
 
 // checkNoBody returns the invalid_body rejection for a request that carries a

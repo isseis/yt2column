@@ -42,15 +42,15 @@ func dumpValue(b *strings.Builder, v reflect.Value) {
 			b.WriteString("nil")
 			return
 		}
-		dumpValue(b, v.Elem())
-	case reflect.Struct:
-		if v.Type() == reflect.TypeFor[time.Time]() {
-			// A time's location is loaded lazily, the first time anything
-			// formats a local time, so following it would make two dumps of
-			// an unchanged record differ. The instant alone is the value.
-			fmt.Fprintf(b, "time(%d,%d)", v.FieldByName("wall").Uint(), v.FieldByName("ext").Int())
+		if v.Type() == reflect.TypeFor[*time.Location]() {
+			// A location is filled in lazily, the first time anything formats
+			// a local time, so following it would make two dumps of an
+			// unchanged record differ. It holds no record text.
+			b.WriteString("location")
 			return
 		}
+		dumpValue(b, v.Elem())
+	case reflect.Struct:
 		b.WriteByte('{')
 		for i := range v.NumField() {
 			fmt.Fprintf(b, "%s:", v.Type().Field(i).Name)

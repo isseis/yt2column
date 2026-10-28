@@ -61,15 +61,9 @@ func (s *Server) publishHandler(w http.ResponseWriter, r *http.Request, requestI
 		responded = true
 		return
 	}
-	if rej := checkNoBody(r); rej != nil {
+	key, rej := checkKeyRequest(r, keyPart)
+	if rej != nil {
 		s.reject(w, requestID, *rej)
-		responded = true
-		return
-	}
-	key, err := articlecache.ParseKey(keyPart)
-	if err != nil {
-		// The key part is not echoed: it is not a key the server issued.
-		s.reject(w, requestID, rejection{reason: reasonInvalidKey, detail: detailInvalidKey})
 		responded = true
 		return
 	}
@@ -82,8 +76,8 @@ func (s *Server) publishHandler(w http.ResponseWriter, r *http.Request, requestI
 		if s.beforePublishJob != nil {
 			s.beforePublishJob()
 		}
-		// The job owns the PublishRun from here. Start it before writing
-		// 202, so no response can be observed without its record posting.
+		// The job owns the PublishRun from here: once s.jobs.Go is called,
+		// only the job ends it.
 		s.startPublish(run, key)
 		run = nil
 		s.writePublishAccepted(w, requestID, key)
@@ -175,15 +169,29 @@ func (s *Server) runPublish(run *articlecache.PublishRun, key articlecache.Key) 
 		s.failPublish(run, key, total, reason, err)
 		return
 	}
-	posted, _ := run.Finish()
+	posted, ok := run.Finish()
+	if !ok {
+		s.logEndedElsewhere(key)
+		return
+	}
 	s.logger.Info("post job succeeded", "key", key.String(), "posted", posted, "total", total)
+}
+
+// logEndedElsewhere writes the line for a post job whose PublishRun was no
+// longer valid when it reported its outcome, so nothing was recorded.
+func (s *Server) logEndedElsewhere(key articlecache.Key) {
+	s.logger.Warn("post job outcome not recorded: the record moved on", "key", key.String())
 }
 
 // failPublish fails run with reason and writes the one line for it, with the
 // delivered count Fail returned. err comes from the publisher, whose errors
 // never hold the Webhook URL or the article text.
 func (s *Server) failPublish(run *articlecache.PublishRun, key articlecache.Key, total int, reason articlecache.PublishFailureReason, err error) {
-	posted, _ := run.Fail(reason)
+	posted, ok := run.Fail(reason)
+	if !ok {
+		s.logEndedElsewhere(key)
+		return
+	}
 	s.logger.Error("post job failed",
 		"key", key.String(),
 		"posted", posted,
