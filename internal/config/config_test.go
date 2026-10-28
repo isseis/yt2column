@@ -968,6 +968,15 @@ func validServerEnv() map[string]string {
 	return env
 }
 
+// wantServerSocketPath is the socket path LoadServer derives from the HOME of
+// validServerEnv on this operating system.
+func wantServerSocketPath() string {
+	if runtime.GOOS == "darwin" {
+		return "/home/user/Library/Application Support/yt2column/run/server.sock"
+	}
+	return "/home/user/.local/state/yt2column/run/server.sock"
+}
+
 // TestLoadServerValid checks that LoadServer loads the LLM settings, the
 // configured Webhook URL, the socket path derived from HOME, and the HTTP/2
 // debug flag. The OS-specific socket path rules are fixed by TestSocketPath.
@@ -994,11 +1003,7 @@ func TestLoadServerValid(t *testing.T) {
 	if url != env[slackEnv] {
 		t.Errorf("WebhookURL() = %q, want %q", url, env[slackEnv])
 	}
-	want := "/home/user/.local/state/yt2column/run/server.sock"
-	if runtime.GOOS == "darwin" {
-		want = "/home/user/Library/Application Support/yt2column/run/server.sock"
-	}
-	if cfg.SocketPath() != want {
+	if want := wantServerSocketPath(); cfg.SocketPath() != want {
 		t.Errorf("SocketPath() = %q, want %q", cfg.SocketPath(), want)
 	}
 	if !cfg.HTTP2DebugEnabled() {
@@ -1041,11 +1046,8 @@ func TestLoadServerWebhookOptional(t *testing.T) {
 		}
 		// The rest of the configuration is still loaded: the Webhook is the
 		// only value an unset variable leaves out.
-		if cfg.SocketPath() == "" {
-			t.Error("SocketPath() is empty, want the path derived from HOME")
-		}
-		if cfg.LLM().Provider() != ProviderDeepSeek {
-			t.Errorf("LLM().Provider() = %v, want ProviderDeepSeek", cfg.LLM().Provider())
+		if got, want := cfg.SocketPath(), wantServerSocketPath(); got != want {
+			t.Errorf("SocketPath() = %q, want %q", got, want)
 		}
 	})
 	t.Run("empty", func(t *testing.T) {

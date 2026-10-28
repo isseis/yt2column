@@ -116,6 +116,8 @@ func TestArticlesWithoutWebhook(t *testing.T) {
 			if body.n != 0 {
 				t.Errorf("the server read %d bytes of the body, want 0", body.n)
 			}
+			// The refusal releases no slot it did not take, so the two the
+			// test took are still held.
 			if len(ts.slots) != maxInFlight {
 				t.Errorf("slots held = %d, want the %d the test took", len(ts.slots), maxInFlight)
 			}

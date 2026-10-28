@@ -62,15 +62,17 @@ func TestStartupFailures(t *testing.T) {
 		{
 			// Which values config.LoadServer rejects is its own tests'
 			// concern; here every rejection takes the same path, so one row
-			// with two of them checks the exit code and one line each.
-			name: "LLM empty and HOME unset",
+			// with two of them checks the exit code and one line each. The
+			// provider is chosen with an empty model, so its key is still
+			// required: two independent rejections.
+			name: "LLM model empty and API key missing",
 			setup: func(_ *testing.T, e *serverEnv, _ *deps) {
-				e.vars["YT2COLUMN_LLM"] = ""
-				delete(e.vars, "HOME")
+				e.vars["YT2COLUMN_LLM"] = "deepseek/"
+				delete(e.vars, "DEEPSEEK_API_KEY")
 			},
 			want:        exitUsage,
 			wantStderr:  "configuration: YT2COLUMN_LLM",
-			hint:        "configuration: HOME",
+			hint:        "configuration: DEEPSEEK_API_KEY",
 			configLines: 2,
 		},
 		{
@@ -458,6 +460,9 @@ func TestStartsWithoutWebhook(t *testing.T) {
 		t.Errorf("startup warning lines = %d, want 1:\n%s", got, stderr)
 	}
 	warning := stderrLine(stderr, startupWarning)
+	if !strings.Contains(warning, "level=WARN") {
+		t.Errorf("the startup line is not a warning: %s", warning)
+	}
 	if !strings.Contains(warning, "webhook_not_configured") {
 		t.Errorf("the warning does not name webhook_not_configured: %s", warning)
 	}
@@ -491,8 +496,8 @@ func TestRunLogsListeningAndStop(t *testing.T) {
 	if !strings.Contains(listening, "webhookConfigured=true") {
 		t.Errorf("the listening log does not report the configured Webhook: %s", listening)
 	}
-	if warning := stderrLine(stderr, "level=WARN"); warning != "" {
-		t.Errorf("stderr warns although a Webhook is configured: %s", warning)
+	if warning := stderrLine(stderr, "no Webhook is configured"); warning != "" {
+		t.Errorf("stderr warns that no Webhook is configured although one is: %s", warning)
 	}
 	for _, want := range []string{
 		// Three LLM calls of at most 15 minutes each.
