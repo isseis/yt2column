@@ -325,7 +325,7 @@ func splitSlackText(post slackPost) ([]string, error)
 | `internal/publisher/reviewlog.go` | `modelVersionOrNone` の移動に追従する（出力は変えない） | - |
 | `internal/publisher/testutil/integration.go` | `integrationHeader` が Slack の新しい投稿の並びを写す | AC-05〜AC-07 |
 | `docs/tasks/0008_column_prompt/check_article.py` | `HEADER_RE` をフロントマターの形に合わせる（0022 のステップ 3-2 の前例） | - |
-| `README.md`、`docs/dev/project_overview.md`、`docs/dev/security.md`、`docs/dev/developer_guide/package_reference.md` | 出力の説明の更新 | AC-23〜AC-25 |
+| `README.md`、`docs/dev/project_overview.md`、`docs/dev/security.md`、`docs/dev/conventions/package_reference.md` | 出力の説明の更新 | AC-23〜AC-25 |
 
 更新が要る既存のテストは、次のとおりである（`renderArticle` などの旧い形を `grep` で列挙した。`slack_articles_test.go` には旧い形の期待値はない）。
 

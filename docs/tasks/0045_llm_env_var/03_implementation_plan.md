@@ -221,7 +221,7 @@
 
 #### ステップ 4-1: 文書を書き換える
 
-**変えるファイル**: `README.md`、`docs/dev/project_overview.md`、`docs/dev/production_profile.md`、`docs/dev/security.md`、`docs/dev/developer_guide/package_reference.md`
+**変えるファイル**: `README.md`、`docs/dev/project_overview.md`、`docs/dev/production_profile.md`、`docs/dev/security.md`、`docs/dev/conventions/package_reference.md`
 
 - [x] 設計書 §3.8 の表の各行（README の Configuration・Recommended configuration・Using DeepSeek（移行の節）・トラブルシューティング・段階の説明・再開の説明、`project_overview.md` の 3 か所、`production_profile.md`、`security.md` §3・§4、`package_reference.md`）のとおりに書き換える。結合テストの説明は 1-2 で書き換えている。
 - [x] README の移行の節の、書き換えた後の設定の例は、4-2 のガードが読み取れる形（`export` の行だけの `sh` のコードブロック）で書く。書き換える前の例は、`sh` 以外の情報文字列のコードブロックか表で書く（`checkExportBlock` は節の中の `sh` のブロックを 1 つだけ受け付ける。`docs_test.go:685`）。
@@ -320,12 +320,12 @@
 `make lint` と `make test` が見つけられないものだけを挙げる。PR-2 の 4-2 の後に行い、結果を PR-2 の説明に書く。
 
 - [x] 旧変数の名前（`YT2COLUMN_LLM_PROVIDER`・`YT2COLUMN_MODEL`・`YT2COLUMN_REVIEW_PROVIDER`・`YT2COLUMN_REVIEW_MODEL`）が `docs/tasks/` の外で現れる箇所を検索する。残ってよいのは、`retiredLLMVars` の表、旧変数を設定するテスト（`internal/config`・`cmd/yt2column`・`cmd/yt2column-server`・`cmd/yt2column-nmhost`）、README の移行の節とトラブルシューティング、`docs/dev/project_overview.md` の拒否の説明、`internal/maketestutil/make_test.go:12`、1-2 のガードテストと目印のテストだけである。Go のコメントに残っていないことも、この検索で確かめる。
-- [x] 除いた仕組みの名前（`settingOrigin`・`modelWithoutProvider`・`resolveProvider`・`parseProvider`・`defaultModel`・`loadModelOptional`・`loadReview`）が、`internal/config` のコメントと `docs/dev/developer_guide/package_reference.md` に残っていないことを確かめる。`internal/artifact/store.go` の `loadReview` は別の関数なので対象外である。
+- [x] 除いた仕組みの名前（`settingOrigin`・`modelWithoutProvider`・`resolveProvider`・`parseProvider`・`defaultModel`・`loadModelOptional`・`loadReview`）が、`internal/config` のコメントと `docs/dev/conventions/package_reference.md` に残っていないことを確かめる。`internal/artifact/store.go` の `loadReview` は別の関数なので対象外である。
 - [x] 文書の用語と文章の整合（旧変数を現行の設定として説明しないこと）は、PR のレビューで読んで確かめる（§9 の `manual`）。
 
 **結果（2026-10-27、PR-2 のブランチ）:**
 
-- 旧変数の名前が `docs/tasks/` の外で現れるのは、`README.md`（12 行。再開の説明の例外、トラブルシューティング、Configuration の拒否の説明、移行の節）、`docs/dev/project_overview.md`（1 行。拒否の説明）、`docs/dev/developer_guide/package_reference.md`（1 行。`internal/config` の行の拒否の説明）、`internal/config/config.go`（4 行。`retiredLLMVars` の表）、`internal/config/config_test.go`（12 行。旧変数の表と旧変数のテスト）、`internal/maketestutil/make_test.go:12` だけである。`cmd/` のテストと 1-2 のガードは、名前を `config.RetiredLLMVarsForTest()` から取るので、名前を書かない。`package_reference.md` の行は、許可した一覧にないが、拒否の説明であり、AC-26 に合う。
+- 旧変数の名前が `docs/tasks/` の外で現れるのは、`README.md`（12 行。再開の説明の例外、トラブルシューティング、Configuration の拒否の説明、移行の節）、`docs/dev/project_overview.md`（1 行。拒否の説明）、`docs/dev/conventions/package_reference.md`（1 行。`internal/config` の行の拒否の説明）、`internal/config/config.go`（4 行。`retiredLLMVars` の表）、`internal/config/config_test.go`（12 行。旧変数の表と旧変数のテスト）、`internal/maketestutil/make_test.go:12` だけである。`cmd/` のテストと 1-2 のガードは、名前を `config.RetiredLLMVarsForTest()` から取るので、名前を書かない。`package_reference.md` の行は、許可した一覧にないが、拒否の説明であり、AC-26 に合う。
 - 除いた仕組みの名前は、`internal/config` と `package_reference.md` のどちらにも現れない（`rg` の出力が空）。
 
 ## 6. リスク管理 (Risk Management)

@@ -501,7 +501,7 @@ func (v Value) AsArray() ([]Value, error)   // rejects null, other kinds, and ar
 | `testdata/deepseek_chat_completion_stop.json`・`testdata/deepseek_chat_completion_length.json` | 事前調査で保存した実応答（§1.4・AC-32） | 新設 |
 | `testdata/README.md` | 上記フィクスチャの出典（取得日・プロンプト・モデル名） | 変更 |
 | `Makefile` | `test-integration-deepseek` ターゲットの追加（§7.2） | 変更 |
-| `docs/dev/developer_guide/package_reference.md` | `internal/llm/deepseek`・`internal/strictjson` の追加、`internal/llm`・`internal/transcript` の責務の更新 | 変更 |
+| `docs/dev/conventions/package_reference.md` | `internal/llm/deepseek`・`internal/strictjson` の追加、`internal/llm`・`internal/transcript` の責務の更新 | 変更 |
 | `docs/dev/project_overview.md` | 想定ディレクトリ構成に `internal/strictjson/` を追加。`GenerateResponse` の説明に `ModelVersion` を加える | 変更 |
 | `CLAUDE.md` | Architecture Overview のパッケージの説明に `internal/strictjson` を追加 | 変更 |
 | `docs/dev/security.md` | §2 に、`GODEBUG=http2debug=2` で `Authorization` ヘッダーが標準エラー出力に出ることの注意（§5.4）と、統合テスト（F-006）に限って実在の API キーを使う例外とその安全策（§5.2）を追加 | 変更 |

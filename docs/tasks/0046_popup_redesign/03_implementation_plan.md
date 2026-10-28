@@ -86,7 +86,7 @@
 -   `test/render.test.ts::renderSummary`（`:33-161`）: 英語の名前をリテラルで固定する確認（`:34-50`）は、`renderPopup` の英語の行の名前と主ボタンの名前をリテラルで比べる確認に移す。数の書式（`:77-88`）、切り詰めた値の省略記号（`:103-112`）、手順を `ol > li` で描き、手順がなければ `<ol>` を描かないこと（`:125-149`）、2 回描いても要素が増えないこと（`:151-160`）は、`test/render.test.ts::renderPopup` に移す（ステップ 3-2）。
 -   `test/renderMetadata.test.ts`（全体）の、値を `textContent` で設定すること・表示の上限で切り詰めること・促しのメッセージの手順の確認は、`test/popupView.test.ts::buildCollectedView`（上限と切り詰め）と `test/render.test.ts::renderPopup`（`textContent`・手順）が引き継ぐ。概要欄の文章を表示する確認は、AC-15 で主張が逆になる。
 
-**テストの補助:** 拡張のテストの補助は `test/helpers/` に置く（`dom.ts`・`logger.ts`・`native.ts` など）。`docs/dev/developer_guide/test_organization.md` は Go の規則（`testutil/`・`test_helpers.go`・`//go:build test`）で、拡張には当たらない。本タスクは `test/helpers/dom.ts` に骨格の要素を作る補助を加える（ステップ 3-2）。新しい補助のファイルは加えない。
+**テストの補助:** 拡張のテストの補助は `test/helpers/` に置く（`dom.ts`・`logger.ts`・`native.ts` など）。`docs/dev/conventions/test_organization.md` は Go の規則（`testutil/`・`test_helpers.go`・`//go:build test`）で、拡張には当たらない。本タスクは `test/helpers/dom.ts` に骨格の要素を作る補助を加える（ステップ 3-2）。新しい補助のファイルは加えない。
 
 **jsdom の CSS の解釈:** `style.test.ts` は jsdom の CSSOM で `style.css` を読む（`test/style.test.ts:50-81`）。設計書 3.4・3.6 の規則が jsdom で読めることを、jsdom 30.1.2（`extension/node_modules`）で確かめた。`@media (prefers-color-scheme: dark)` の中の `:root` は `CSSMediaRule` の子として、`.x:has(> :dir(rtl))`・`-webkit-line-clamp`・`[hidden]` の `!important`・`:focus-visible` の `outline` と `var(--…)` は、どれも宣言のとおりに読める。`background` の一括指定は `getPropertyValue("background")` でしか読めないので、色の変数の参照を確かめる規則は `background-color` で書く。
 

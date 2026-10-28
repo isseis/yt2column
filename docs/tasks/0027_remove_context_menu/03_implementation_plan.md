@@ -93,7 +93,7 @@
 -   `docs/dev/security.md` §8.1 の `:102`・`:104` が、`contextMenus`・`chrome.storage.session`・結果のウィンドウに触れる。§8.1 のほかの行は触れない。
 -   `cmd/yt2column/extension_docs_test.go` は、`TestExtensionSendDocumentation` が README の節に `Context menu`・`Toolbar icon` を求める（`:184`・`:185`）。`TestExtensionDocumentation` は、manifest の権限と §8.1 の一覧の一致を両方向で確かめる（`:86-115`）。手動確認の表の各欄が埋まっていることの検査（`checkManualCheckTable`、`:552`）と、`acLabel`（`:595`）が既にある。`checkManualCheckTable` は、見出し `### 5.1. 手動の確認と記録` の下の 1 列目が `AC` の 5 列の表を読む。本計画 §5.1 はこの形で書き、記録が埋まっていることをこの関数で確かめる（ステップ 7-3）。
 -   拡張の node のテスト `metadataDocs.test.ts`・`serverReasons.test.ts` が README と §8.1 から読む語句は、設計書 3.9.1 の改め方では消えない。改めた後に `make ext-test` で確かめる。
--   `docs/translation_glossary.md`・`docs/dev/project_overview.md`・`docs/dev/developer_guide/package_reference.md`・`CLAUDE.md` には、メニューの経路・結果のウィンドウ・service worker への言及がない（HEAD で `rg -n -i "context menu|service worker|result window|結果のウィンドウ|メニューの経路"` を実行して確かめた）。このため、これらは改めない。
+-   `docs/translation_glossary.md`・`docs/dev/project_overview.md`・`docs/dev/conventions/package_reference.md`・`CLAUDE.md` には、メニューの経路・結果のウィンドウ・service worker への言及がない（HEAD で `rg -n -i "context menu|service worker|result window|結果のウィンドウ|メニューの経路"` を実行して確かめた）。このため、これらは改めない。
 
 **カバレッジの取り方の確かめ**
 
@@ -489,7 +489,7 @@ PR はフェーズと対応させ、次の 3 か所だけ変える。フェー�
 
 -   設計書 7.1 のとおりである。拡張のテストは `node --test` で、fake の依存と jsdom を使う。実際のブラウザもサーバも起動しない。
 -   ポップアップの経路の既存のテストは、期待値を変えずに通す（AC-06）。メニューの経路のテストだけが確かめていた振る舞いは、削除の前にポップアップの経路のテストで確かめるようにする（フェーズ 2）。§5.2 の対応の表で、削除・改める検査ごとに対応先を記録する。
--   ポップアップの経路の検査（フェーズ 2）と `summarize` の検査（ステップ 4-8）のほかに、新しく確かめるものは、manifest の複製の同一性（`checkDist.test.ts`）、lint の規則（`lintRules.test.ts`）、文書の語句（`extension_docs_test.go`）、§5.1 の記録（`TestContextMenuRemovalRecords`）である。新しいテストの補助のファイルは加えない（`docs/dev/developer_guide/test_organization.md` の `testutil/`・`test_helpers.go` の規則に当たるものはない）。
+-   ポップアップの経路の検査（フェーズ 2）と `summarize` の検査（ステップ 4-8）のほかに、新しく確かめるものは、manifest の複製の同一性（`checkDist.test.ts`）、lint の規則（`lintRules.test.ts`）、文書の語句（`extension_docs_test.go`）、§5.1 の記録（`TestContextMenuRemovalRecords`）である。新しいテストの補助のファイルは加えない（`docs/dev/conventions/test_organization.md` の `testutil/`・`test_helpers.go` の規則に当たるものはない）。
 
 ### 4.2. 統合テスト（手動）
 

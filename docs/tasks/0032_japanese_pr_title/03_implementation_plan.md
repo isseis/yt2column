@@ -57,7 +57,7 @@
 | `.claude/commands/mkplan2.md:62`・`:80`・`:129` | 英語の `feat(<task-id>)` の `推奨タイトル` | 設計書 3.9 | 3-5 |
 | `.claude/commands/mergepr.md:49-52` | `When the PR title already fits, use it.` と `plan-driven PR` | 設計書 3.7 | 4-1 |
 | `.claude/commands/mergepr.md:60`・`:107` | `plan-driven PR`・``when the PR came from `/runplan` `` | 設計書 3.2（「プランの PR」の語にそろえる） | 4-3 |
-| `docs/dev/developer_guide/mergepr_guide.md:93`・`mergepr_guide.ja.md:93` | 承認の質問で示す項目の列挙（PR の URL、base ブランチ、CI の結果、件名と本文） | 設計書 3.7 の末尾（接頭辞を決めた規則の記録を加える） | 4-3 |
+| `docs/dev/guides/mergepr_guide.md:93`・`mergepr_guide.ja.md:93` | 承認の質問で示す項目の列挙（PR の URL、base ブランチ、CI の結果、件名と本文） | 設計書 3.7 の末尾（接頭辞を決めた規則の記録を加える） | 4-3 |
 | `docs/translation_glossary.md:59` | 「材料」の備考 | 設計書 3.11 | 2-2 |
 
 変えない箇所は次のとおりである。
@@ -296,7 +296,7 @@
 
 #### ステップ 4-3: 接頭辞を決めた規則の表示とプランの PR の語
 
-**変更するファイル**: `.claude/commands/mergepr.md`、`docs/dev/developer_guide/mergepr_guide.md`、`docs/dev/developer_guide/mergepr_guide.ja.md`、`check_rules.sh`
+**変更するファイル**: `.claude/commands/mergepr.md`、`docs/dev/guides/mergepr_guide.md`、`docs/dev/guides/mergepr_guide.md`、`check_rules.sh`
 
 -   [x] 検査 `mergepr_subject` に、次のことを加える。
     -   step 3 で見せる項目が、接頭辞を決めた規則の記録を含む。

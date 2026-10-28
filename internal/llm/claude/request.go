@@ -26,7 +26,7 @@ const (
 	// twice the largest observed output, and producing it at the slowest observed
 	// output rate takes at most half of provider.LLMTimeout; a test in
 	// internal/llm/provider pins both conditions.
-	// docs/dev/developer_guide/claude_output_limit.md describes how to re-measure
+	// docs/dev/guides/claude_output_limit.md describes how to re-measure
 	// them.
 	defaultMaxOutputTokens = 40000
 )

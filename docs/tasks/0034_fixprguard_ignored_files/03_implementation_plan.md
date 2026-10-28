@@ -20,7 +20,7 @@
 -   **フェーズ 5〜7（設計書 8 章の 5〜7）:** 基準値を `v3` にし、`CheckState` と `begin` に組み込む。`Protocol` を `4` にし、`fixpr.md`・`runpr.md`・ガイド・`check_rules.sh` の番号を揃える。ガイド（日英）を改め、文書のガードを加える。
 -   **フェーズ 8（設計書 8 章の 8）:** 0030 の要件書と設計書の残余のリスクを改める（そのガードは、タスク 0038 の F-006 により加えない）。
 
-用語は、要件書 6 章と設計書 1.4 の定義に従う（監視の一覧、対象のファイル、状態、項目、ディレクトリの項目、走査したエントリ、エントリ、記録のファイル）。本書の「フェーズ」は実装の区切りを指し、`/fixpr` の「修正のフェーズ」とは別である。「ガイド」は `docs/dev/developer_guide/fixprguard_guide.ja.md`（日本語版）と `fixprguard_guide.md`（英語版）を指す。「規則の名前」は設計書 4 章の表の `git-failed` の診断の名前を指す。
+用語は、要件書 6 章と設計書 1.4 の定義に従う（監視の一覧、対象のファイル、状態、項目、ディレクトリの項目、走査したエントリ、エントリ、記録のファイル）。本書の「フェーズ」は実装の区切りを指し、`/fixpr` の「修正のフェーズ」とは別である。「ガイド」は `docs/dev/guides/fixprguard_guide.md`（日本語版）と `fixprguard_guide.md`（英語版）を指す。「規則の名前」は設計書 4 章の表の `git-failed` の診断の名前を指す。
 
 ### 1.2. 実装原則
 
@@ -74,7 +74,7 @@
 | `cmd/fixprguard/docs_test.go:91`（`guideTable`）・`:252`（`singleLine`）・`:269-292`（`section`・`subsection`・`cutSection`）・`:467-524`（`configScope`・`passage`・`checkPassages`） | 0036 と 0035 が置いたガードの部品 | 新しいガードで再利用する | 7-4・8-4 |
 | `cmd/fixprguard/docs_test.go:526-576`（`TestGuideDescribesConfigScope`） | 1 章の層 (3)（`"3. **"` で始まる行がちょうど 1 つ）、5 章の `inspect`・`push`、7.1 の行、7.2、8 章の `git-state-changed` の行の語を確かめる | 変えない。改める段落でもこの語と行の形を保つ（設計書 2.2） | 7-1・7-2 |
 | `cmd/yt2column/fixpr_docs_test.go:702`（`TestGlossaryTerms`） | fixprguard の用語の日英の組を確かめる | 加えた用語の組を加える | 7-3 |
-| `docs/dev/developer_guide/package_reference.md:19`（`internal/cmdrunner`）・`:21`（`internal/fixprguard`） | `Options` の 4 つの欄を挙げる | `StderrIsFailure`・`ErrUnexpectedStderr` と、対象のファイルの比較と記録のファイルを加える（設計書 2.2 に editorial correction で加える。1.4） | 7-5 |
+| `docs/dev/conventions/package_reference.md:19`（`internal/cmdrunner`）・`:21`（`internal/fixprguard`） | `Options` の 4 つの欄を挙げる | `StderrIsFailure`・`ErrUnexpectedStderr` と、対象のファイルの比較と記録のファイルを加える（設計書 2.2 に editorial correction で加える。1.4） | 7-5 |
 | `docs/translation_glossary.md:78` の近く | `基準値` はあるが、本タスクの用語はない | ガイドの翻訳で使った用語（監視の一覧、対象のファイル、記録のファイル）を加える（`mktrans.md`「Update Glossary」） | 7-3 |
 | 0030 `01_requirements.md:201`・`02_architecture.md:847` | 無視されるファイルを残余のリスクとする | 設計書 3.10 のとおり改め、`Comments` に記録する | 8-2・8-3 |
 
@@ -310,7 +310,7 @@
 
 ガードが `Protocol` と文書の番号の一致を求めるので、このステップは 1 つのコミットにする（設計書 3.9「同じ commit に入れる」）。
 
-**変更するファイル**: `internal/fixprguard/types.go`、`.claude/commands/fixpr.md`、`.claude/commands/runpr.md`、`docs/dev/developer_guide/fixprguard_guide.ja.md`、`fixprguard_guide.md`、`docs/tasks/0032_japanese_pr_title/check_rules.sh`
+**変更するファイル**: `internal/fixprguard/types.go`、`.claude/commands/fixpr.md`、`.claude/commands/runpr.md`、`docs/dev/guides/fixprguard_guide.md`、`fixprguard_guide.md`、`docs/tasks/0032_japanese_pr_title/check_rules.sh`
 
 -   [x] `Protocol` を `4` にする。コメントは変えない（`types.go:17-20` は契約と範囲の規則の版と述べており、基準値の形と `parts` は契約に含まれる）。
 -   [x] 1.3.1 の表の箇所の番号を、すべて `4` にする。ガイドの基準値の例 `'v2....'` を `'v3....'` にする。1.3.2 の `git grep` が 0 行になることと、`check_rules.sh fixpr_title` が通ることを確かめ、結果をコミットメッセージに書く。
@@ -331,7 +331,7 @@
 
 #### ステップ 7-1: ガイドの日本語版
 
-**変更するファイル**: `docs/dev/developer_guide/fixprguard_guide.ja.md`
+**変更するファイル**: `docs/dev/guides/fixprguard_guide.md`
 
 -   [x] 設計書 3.10 の表の、ガイドの 1 章・5 章・7.1・7.2・8 章の各行のとおり改める。7.1 の「監視の一覧」の小見出しの下の表は、`WatchListPatterns` と同じ表記にする。8 章の `git-state-changed` の行には `ignored` の意味と小見出しへの参照を書き、(a)〜(e) とコマンドは表の後の小見出しに置く（1.4）。(a)・(b) のコマンドは 1 つのコードブロックにまとめる（ステップ 7-4 のテストが取り出す）。`git-failed` の行は、設計書 4 章の規則の名前ごとの原因と対処を書く。
 -   [x] `TestGuideDescribesConfigScope` が確かめる語と、`3. **` で始まる行が 1 つであることを保つ（1.3.1）。
@@ -339,13 +339,13 @@
 
 #### ステップ 7-2: 9 章の `Protocol` の規則
 
-**変更するファイル**: `docs/dev/developer_guide/fixprguard_guide.ja.md`
+**変更するファイル**: `docs/dev/guides/fixprguard_guide.md`
 
 -   [x] 9 章に、`Protocol` の番号は上げるだけで、使った番号を再び使ったり下げたりしないことを書く（設計書 3.9・3.10）。監視の一覧を変えたら 7 章の表も変えることを、一覧の更新の項目（`:326`）に加える。`TestGuideDescribesReviewerList` が確かめる 9 章の但し書きは変えない。
 
 #### ステップ 7-3: ガイドの英語版と用語集
 
-**変更するファイル**: `docs/dev/developer_guide/fixprguard_guide.md`、`docs/translation_glossary.md`、`cmd/yt2column/fixpr_docs_test.go`
+**変更するファイル**: `docs/dev/guides/fixprguard_guide.md`、`docs/translation_glossary.md`、`cmd/yt2column/fixpr_docs_test.go`
 
 -   [x] ステップ 7-1・7-2 の日本語版をコミットしてから、英語版の同じ節を翻訳する（1.2）。翻訳の後に、日本語版と節ごとに突き合わせる。8 章のコードブロックは日本語版と同じバイト列にする。
 -   [x] 翻訳で使った用語のうち、用語集にないもの（監視の一覧、対象のファイル、記録のファイル）を用語集に加え、`TestGlossaryTerms`（`cmd/yt2column/fixpr_docs_test.go:702`）に日英の組を加える。
@@ -371,7 +371,7 @@
 
 #### ステップ 7-5: パッケージの説明
 
-**変更するファイル**: `docs/dev/developer_guide/package_reference.md`
+**変更するファイル**: `docs/dev/conventions/package_reference.md`
 
 -   [x] `internal/cmdrunner` の行に `StderrIsFailure` と `ErrUnexpectedStderr` を、`internal/fixprguard` の行に、基準値が監視の一覧に当たる無視されるファイルの状態を含むこと、`CheckState` がそれを比べること、記録のファイルを書くことを加える。書いた内容を `runner.go`・`ignored.go` のコードと突き合わせる。
 

@@ -56,7 +56,7 @@
 -   **共通の文書は新しい 1 つの文書にする:** `docs/dev/production_profile.md`（題は「本番の構成と品質」）を新しく作り、4 つの内容をまとめる（F-001）。4 つの内容は「本番の構成と、その構成で得られた結果」として一続きだからである。`project_overview.md` に節として加える案は採らなかった。決定済みの方針の文書に評価の数値が混ざるからである。2 つの文書に分ける案も採らなかった。
 -   **共通の文書の更新の規則を明記する:** 本番の構成・品質の目標・製品の制約を変えるタスクは、共通の文書も更新する。このことを共通の文書の冒頭に書く（AC-06）。`project_overview.md` の冒頭の規則（`docs/dev/project_overview.md:5`）と同じ形である。タスクの評価記録はその時点の記録として残る。共通の文書が最新の値を持ち続けるには、更新する者を決めておく必要がある。
 -   **未解決の関連 issue の一覧は共通の文書に載せない:** 共通の文書には、#171（claude の effort の既定と `max_tokens` の上限）・#146（話者の区別が難しい動画）を挙げる「未解決の関連 issue」の節や一覧を設けない。README の推奨構成の小節にも、#171 の注意を書かない（AC-07）。共通の文書は、評価で確かめた構成と結果を載せる文書であり、未解決の課題は issue で追うためである。ただし、製品の制約の項目の本文が出典の評価記録で issue に触れている場合（0008 評価記録 §6.3 の 4 が #146 に触れる）は、その言及を項目の本文の一部として写す。
--   **0008 評価記録 §6 は残し、参照を足す:** 0008 評価記録 §6 の中身は、2026-10-25 時点の記録として残し、共通の文書へ移さない。§6 には共通の文書への参照を足す（F-005）。共通の文書は構成が変わるたびに更新する文書であり、評価記録はその時点の判定の根拠だからである。参照を足すのは編集上の修正なので、0008 評価記録の status は `approved` のまま保ち、`Comments` に記録する（[requirements_process.md](../../dev/developer_guide/requirements_process.md)「Editing an approved document」）。
+-   **0008 評価記録 §6 は残し、参照を足す:** 0008 評価記録 §6 の中身は、2026-10-25 時点の記録として残し、共通の文書へ移さない。§6 には共通の文書への参照を足す（F-005）。共通の文書は構成が変わるたびに更新する文書であり、評価記録はその時点の判定の根拠だからである。参照を足すのは編集上の修正なので、0008 評価記録の status は `approved` のまま保ち、`Comments` に記録する（[requirements_process.md](../../dev/conventions/requirements_process.md)「Editing an approved document」）。
 -   **README は冒頭を書き直して Quick start を加え、既存の節の順序と見出しを保つ:** README の冒頭と Requirements を書き直す。拡張の経路の手順をたどる Quick start の節を冒頭の近くに加え、既存の節へリンクする。CLI の Usage は、開発・検証用の CLI として位置づけ直す（F-002）。既存の節は並べ替えず、見出しも変えない。README の見出しを頼りに節を読むテスト（`cmd/yt2column-server/docs_test.go:39-105`、`extension/test/metadataDocs.test.ts:25`）を壊すおそれを減らし、差分を読みやすくするためである。
 -   **README の推奨構成は小節として加える:** README の「Configuration」に推奨構成の小節を加え、本番の構成を表す環境変数と、共通の文書へのリンクを書く（F-003）。README は英語なので、日本語の共通の文書を読まない利用者にも値が伝わるようにするためである。現在の README には推奨構成の節がない。「Configuration」の表（`README.md:716-728`）が、例としてモデル名を挙げているだけである。
 -   **`project_overview.md` は冒頭・方針・パイプラインの説明を書き直す:** 冒頭の説明、決定済みの方針の「実行形式」「字幕取得」、パイプラインの説明を、ブラウザ拡張の経路を主、CLI と yt-dlp を補助として書き直す。書き直しは言い換えと並べ替えに限り、方針の決定を加えも除きもしない。「LLM」の項には、既定のプロバイダが Claude（本番の構成）であることと、本番の構成は共通の文書にあることを書き足す（F-004）。「LLM」の項の方針そのもの（「初期実装は DeepSeek」など）をどう改めるかは #490 で決め、本タスクはその決定に合わせて書く。冒頭だけを直すと、方針の項が CLI を主とする書き方のまま残り、文書の中で主経路の位置づけが食い違うためである。
@@ -91,7 +91,7 @@
 -   README の既存の節の並べ替えと、既存の見出しの変更（1 の「要件定義の際に決めたこと」）。
 -   0008 評価記録 §6 の中身の移動・削除と、0018 評価記録の変更。
 -   `security.md` の §1 以降（脅威の分析と対策）の変更。
--   主経路の位置づけに関わる記述を持たないことを確かめた文書（`docs/dev/developer_guide/package_reference.md`・`docs/dev/cache_consistency.md`）の変更。これらはパッケージの構成とキャッシュの保証を述べる文書である。
+-   主経路の位置づけに関わる記述を持たないことを確かめた文書（`docs/dev/conventions/package_reference.md`・`docs/dev/cache_consistency.md`）の変更。これらはパッケージの構成とキャッシュの保証を述べる文書である。
 -   新しい評価（記事の生成・採点）。主経路（コピーした字幕）での品質の評価を含む。共通の文書の数値は、0008 評価記録・0018 評価記録に記録済みの値だけを使う。
 -   英語の翻訳版の作成。`docs/` の文書は日本語だけとする（`CLAUDE.md`「Documents」）。
 
@@ -183,7 +183,7 @@ README の「Configuration」に、本番の構成を表す推奨構成の小節
 
 -   `docs/dev/project_overview.md` の「決定済みの方針」「前提・制約」に従う。本タスクは方針の書き方を変えるが、方針の決定は変えない（F-004）。
 -   文書の言語は `CLAUDE.md`「Documents」に従う（`docs/` は日本語、README と `CLAUDE.md` は英語）。
--   文書を読むテストは、値・構造・実行できる例を検査し、文の意味を検査しない（`CLAUDE.md`「Testing Strategy」の「Document tests check values, structure, and executable examples, never prose」）。文面だけを定める受け入れ基準は、PR のレビューでの読み取り（`manual`）で確かめる（[requirements_process.md](../../dev/developer_guide/requirements_process.md) §4）。
+-   文書を読むテストは、値・構造・実行できる例を検査し、文の意味を検査しない（`CLAUDE.md`「Testing Strategy」の「Document tests check values, structure, and executable examples, never prose」）。文面だけを定める受け入れ基準は、PR のレビューでの読み取り（`manual`）で確かめる（[requirements_process.md](../../dev/conventions/requirements_process.md) §4）。
 -   本タスクの文書は、#490 と #171 の既定の変更を前提にする。文書の変更（`/runplan` による実装）は、#490 と #171 の既定の変更が `main` に入った後に行う。その前に入れると、文書がコードの振る舞いと食い違うためである。
 -   0008 評価記録は `approved` の文書である。参照を足す編集は、決定の変更ではなく編集上の修正として扱う（F-005、AC-22）。
 

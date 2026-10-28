@@ -135,7 +135,7 @@ sequenceDiagram
 | パッケージ | 文書を読む guard | 読む文書 |
 |---|---|---|
 | `cmd/yt2column` | `extension_docs_test.go`・`docs_test.go`（`//go:build test`） | `README.md`・`CLAUDE.md`・`docs/`・`0007`/`0008`/`0010` のタスク文書 |
-| `internal/pipeline` | `pipeline_test.go`（`//go:build test`）の `package_reference.md` の検査と `TestPromptsREADMEMatchesContract` | `docs/dev/developer_guide/package_reference.md`・`prompts/README.md` |
+| `internal/pipeline` | `pipeline_test.go`（`//go:build test`）の `package_reference.md` の検査と `TestPromptsREADMEMatchesContract` | `docs/dev/conventions/package_reference.md`・`prompts/README.md` |
 
 これ以外のパッケージに、`*.md` を読む `_test.go` は見つからなかった（`internal/mergepr`・`internal/publisher`・`internal/job`・`cmd/yt2column` の `outpath_test.go` などの `.md` は、一時ディレクトリの出力ファイル名であり、リポジトリの文書ではない）。したがって対象はこの 2 パッケージで足りる。
 

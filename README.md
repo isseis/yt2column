@@ -1129,7 +1129,7 @@ make test-integration-cli-slack  # the CLI with the real DeepSeek API and a real
 
 Development follows a requirements → architecture → implementation-plan process
 with explicit acceptance criteria. See [CLAUDE.md](CLAUDE.md) and
-[docs/dev/developer_guide/requirements_process.md](docs/dev/developer_guide/requirements_process.md).
+[docs/dev/conventions/requirements_process.md](docs/dev/conventions/requirements_process.md).
 Design documents are written in Japanese; start with
 [docs/dev/project_overview.md](docs/dev/project_overview.md).
 

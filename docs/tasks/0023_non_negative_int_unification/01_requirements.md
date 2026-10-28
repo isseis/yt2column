@@ -47,7 +47,7 @@
 - 字幕（json3）の消費するイベントの `tStartMs` の読み取り（F-001）。
 - その拒否のエラーの契約（`ErrParseSubtitles`・`ErrNoSubtitles`・`*ParseError`、値の非包含。F-002）。
 - 上記を確かめるテスト（F-004）。
-- 関連する文書（`docs/dev/developer_guide/package_reference.md` の `internal/transcript`・`internal/strictjson` の説明など）の更新の要否は `02_architecture.md` で決める。
+- 関連する文書（`docs/dev/conventions/package_reference.md` の `internal/transcript`・`internal/strictjson` の説明など）の更新の要否は `02_architecture.md` で決める。
 
 ### 2.3. スコープ外 (Out of Scope)
 

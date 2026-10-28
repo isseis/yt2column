@@ -212,7 +212,7 @@ flowchart LR
 | `internal/nmhost` | メッセージの全体の読み込み、形の判定、操作の送り先への対応づけ、応答の上限、ログの段階 |
 | `internal/strictjson` | `Value.Raw`、`Object.Has` の契約 |
 | `.golangci.yml` | `internal/articlecache` の依存の規則、`nmhost-boundaries` の説明の更新 |
-| 文書 | README の「Localhost server」節と設定、`docs/dev/security.md` §8、`docs/dev/project_overview.md`、`docs/translation_glossary.md`、`docs/dev/developer_guide/package_reference.md`、`docs/dev/production_profile.md`、`CLAUDE.md`（§3.10.2 の例外） |
+| 文書 | README の「Localhost server」節と設定、`docs/dev/security.md` §8、`docs/dev/project_overview.md`、`docs/translation_glossary.md`、`docs/dev/conventions/package_reference.md`、`docs/dev/production_profile.md`、`CLAUDE.md`（§3.10.2 の例外） |
 
 `cmd/yt2column-nmhost` は変えない。中継の変更はすべて `internal/nmhost` の中にある。
 
@@ -1199,7 +1199,7 @@ const (
 -   **`docs/dev/security.md` §8:** §8.1 の「202 の後に結果を返す API がない」を、新しい API の状態の取得で結果を返すことに改める。§8.2 の残るリスク（再送による二重の生成と投稿）を、新しい API と旧 API に分けて書き直す（要件書 4.2「二重の投稿の防止」）。キャッシュがメモリに持つ値（記事を持ち、コピーした字幕と訂正の一覧を持たない）、ホストが操作の値を固定の送り先に対応づけ、キーをパスに入れないこと、返す記事が untrusted なテキストであること、を加える。§8.2 のホストの「上限」の項（`docs/dev/security.md:136`）の、サーバの応答の 64 KiB と、標準入力が止まった場合の例外を、§3.10 に合わせて改める。ホストの標準出力の項の、ログに書く値に、§3.10.5 の段階と属性を加える。§8.2 の枠の数（`2`）と本文の上限（4 MiB）のガード（`docs_test.go` の `security.md` のサブテスト）は値を変えないので、そのまま通る。
 -   **`docs/dev/project_overview.md`:** 要件書 5. の 3 か所（実行形式、`LoadServer` の段落、キャッシュの段落）を更新する。`ArticleWriter` の項の出力の形式（`project_overview.md:60`）に、表示用の Markdown を加え、ファイルの中身がその整形を共有すること（§3.6.2）を書く。
 -   **`docs/translation_glossary.md`:** 記事のキー、記事のキャッシュ、記録、ジョブの状態、工程、工程の状態、投稿の状態、生成の枠、読み込みの枠、完了の時点の検査を加える。「枠」の今の行（`translation_glossary.md:55`）は、旧 API と新しい API の生成のジョブが合わせて数えることを書き加える。「段階」の今の行（`writer.Stage` を訳す）と「工程」の関係は、要件書 6. の用語集のとおり、パイプラインの段階（`pipeline.Stage`）と記事の生成の中の工程（`writer.Stage`）を分ける形に揃える。
--   **`docs/dev/developer_guide/package_reference.md`:** `internal/articlecache` の行を加え、`internal/server`・`internal/writer`・`internal/publisher`・`internal/config`・`internal/nmhost`・`internal/strictjson`・`cmd/yt2column-server` の行を更新する。
+-   **`docs/dev/conventions/package_reference.md`:** `internal/articlecache` の行を加え、`internal/server`・`internal/writer`・`internal/publisher`・`internal/config`・`internal/nmhost`・`internal/strictjson`・`cmd/yt2column-server` の行を更新する。
 -   **`docs/dev/production_profile.md`:** 利用者が指定しなければならない変数の記述（`production_profile.md:42`）を、サーバでは `SLACK_WEBHOOK_URL` が投稿するときだけ要ることに改める。
 -   **`CLAUDE.md`:** 「Key Design Patterns」の「Declare, don't infer」に、§3.10.2 の例外を、今の例外（コピーした字幕の解析）と同じく方針・範囲・理由・境界の形で加える。範囲は `internal/nmhost` の 1 か所、境界は `v` を持つメッセージを今の形に戻さないこと、#503 の後に取り除くこと（§3.14 の 6）である。
 -   **AC-43:** 上の文書の記述は、PR のレビューで読む（`manual`）。`CLAUDE.md` の記述も同じく読む。
@@ -1257,7 +1257,7 @@ const (
 | `internal/strictjson/strictjson.go` | 変更 | `Value.Raw`、`Object.Has` の契約 |
 | `.golangci.yml` | 変更 | `internal/articlecache` の `depguard` の規則、`nmhost-boundaries` の説明 |
 | `cmd/yt2column-server/docs_test.go` | 変更 | コードの表のガード、新しい API の curl の例のガード |
-| `README.md`・`docs/dev/security.md`・`docs/dev/project_overview.md`・`docs/dev/production_profile.md`・`docs/translation_glossary.md`・`docs/dev/developer_guide/package_reference.md`・`CLAUDE.md` | 変更 | §3.15 |
+| `README.md`・`docs/dev/security.md`・`docs/dev/project_overview.md`・`docs/dev/production_profile.md`・`docs/translation_glossary.md`・`docs/dev/conventions/package_reference.md`・`CLAUDE.md` | 変更 | §3.15 |
 
 ## 4. エラーハンドリング設計 (Error Handling Design)
 

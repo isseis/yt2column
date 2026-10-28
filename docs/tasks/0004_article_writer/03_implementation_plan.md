@@ -42,7 +42,7 @@ HEAD `4194276`（ブランチ `issei/0004-article-writer-02`）で確認した�
 - **名前付きパイプ（FIFO）の作成。** 既存のテストに FIFO を作るものはない。`syscall.Mkfifo(path string, mode uint32) error` は darwin と linux にあり、windows にはない（`go doc syscall.Mkfifo` を `GOOS=linux`・既定（darwin）・`GOOS=windows` で実行して確認。go1.27.1）。requirements 4.4 の対象は macOS と Linux で、CI は `ubuntu-latest` だけである（`.github/workflows/ci.yml:14`・`:47`・`:68`）。`syscall.O_NONBLOCK`・`syscall.O_NOCTTY` は darwin・linux・windows のいずれでも定義されている（同じく `go doc` で確認）。
 - **lint の前提。** `.golangci.yml` は `gosec`・`err113`・`goconst`・`mnd`・`gocyclo`（`min-complexity: 20`）を有効にし、`_test.go` に限って `gosec`・`err113`・`goconst`・`gocyclo`・`errcheck`・`dupl` を除外している。`test_helpers.go` は `_test.go` でないので除外が効かない。上書きファイルを変数のパスで開く `os.OpenFile` は `gosec` の G304 に当たりうる。`make lint` は `--build-tags test,integration` で解析する（`Makefile:10`）。
 - **`deadcode`・`depguard`。** architecture §2.1 のとおり、`make deadcode` は `./cmd/yt2column` から読み込めるパッケージだけを解析し、現在の `main` は何も import しない。`prompts`・`internal/nilcheck` は `depguard` の `deps` ルール（`github.com/isseis/yt2column` の下を許可）で通る。`.golangci.yml`・`Makefile` は変更しない。
-- **ドキュメントの更新対象。** `docs/dev/project_overview.md:31`（`Article` の項目の列挙）・`:73-84`（想定ディレクトリ構成）、`docs/dev/developer_guide/package_reference.md:3-4`（対象の説明）・表の `internal/transcript`・`internal/writer` の行。英語版の文書（`*.en.md`）は存在しない（`find docs -name '*.en.md'` の結果が空。2026-10-04）。`CLAUDE.md` の Architecture Overview の `internal/writer` の説明（provider-independent prompt assembly and output post-processing）は本タスクの後も正しいので変更しない。
+- **ドキュメントの更新対象。** `docs/dev/project_overview.md:31`（`Article` の項目の列挙）・`:73-84`（想定ディレクトリ構成）、`docs/dev/conventions/package_reference.md:3-4`（対象の説明）・表の `internal/transcript`・`internal/writer` の行。英語版の文書（`*.en.md`）は存在しない（`find docs -name '*.en.md'` の結果が空。2026-10-04）。`CLAUDE.md` の Architecture Overview の `internal/writer` の説明（provider-independent prompt assembly and output post-processing）は本タスクの後も正しいので変更しない。
 - **`internal/pipeline` の `package_reference.md` の行。** 行の記述（`Pipeline`・`Stage`・`StageError`・`ErrNilStage`）は `isTypedNil` に触れていないので、移動の後も正しい。architecture §3.12 の記述は、編集上の修正で「`internal/pipeline` の行は変わらないことを確かめる」にした（ステップ 1-8）。
 - **具体型の構築の経路。** `templateWriter`（仮称）は `internal/writer` の非公開の型で、本番コードで値を作るのは `New` だけとする。この型で分岐する処理はないので、型をリーフのパッケージへ移すことはしない。テストも具体型の値を直接作らず、`New` を通す。構文の検査は `text/template/parse` のノードの具体型で分岐するが、ノードは標準ライブラリの解析だけが作り、本計画のコードは作らない。未知の種類は `default` で拒否する（ステップ 2-4）。
 - **architecture との整合。** 調査の範囲で、architecture の決定を変える必要のある不整合は見つかっていない。`package_reference.md` を更新する時期だけは、同ファイルの規則（パッケージを追加・変更するコミットで更新する）と architecture §8 の手順 5 が食い違っていたため、architecture §8 を編集上の修正として各手順に分けた。また、AC-01・AC-03・AC-04・AC-30 は `Write` が `LLMClient` に渡すプロンプトで確かめるため、それらのテストを architecture §8 の手順 2 から手順 3 へ移した（同じく編集上の修正）。いずれも同書の Comments に記録した。
@@ -71,7 +71,7 @@ design_handoff.md の H-01〜H-11 は、すべて architecture §3.13 に対応�
 
 **対象ファイル**
 - 新設: `internal/nilcheck/nilcheck.go`・`internal/nilcheck/nilcheck_test.go`（`//go:build test`）
-- 変更: `internal/pipeline/pipeline.go`・`internal/transcript/video_id.go`・`internal/transcript/video_id_test.go`・`internal/writer/writer.go`・`internal/pipeline/pipeline_test.go`・`docs/dev/project_overview.md`・`docs/dev/developer_guide/package_reference.md`
+- 変更: `internal/pipeline/pipeline.go`・`internal/transcript/video_id.go`・`internal/transcript/video_id_test.go`・`internal/writer/writer.go`・`internal/pipeline/pipeline_test.go`・`docs/dev/project_overview.md`・`docs/dev/conventions/package_reference.md`
 
 **タスク**
 - [x] **ステップ 1-1**: `nilcheck.go` に `IsNil`（architecture §3.11）を作る。判定は `v == nil` と、`isTypedNil` の `reflect` の判定（`Pointer`・`Func`・`Map`・`Slice`・`Chan`）を合わせたものとする。import は標準ライブラリだけとし、パッケージの doc コメントを書く。
@@ -111,7 +111,7 @@ design_handoff.md の H-01〜H-11 は、すべて architecture §3.13 に対応�
 - 新設: `prompts/prompts.go`・`prompts/system.tmpl`・`prompts/user.tmpl`・`prompts/README.md`
 - 新設: `internal/writer/errors.go`・`internal/writer/template.go`・`internal/writer/prompt.go`（`templateData` と定数 `maxPromptBytes` の定義だけ）
 - 新設: `internal/writer/test_helpers.go`（`//go:build test`）・`internal/writer/writer_test.go`・`internal/writer/template_test.go`（いずれも `//go:build test`）
-- 変更: `internal/writer/writer.go`・`internal/pipeline/pipeline_test.go`（`TestPromptsREADMEMatchesContract` を加える）・`docs/dev/developer_guide/package_reference.md`
+- 変更: `internal/writer/writer.go`・`internal/pipeline/pipeline_test.go`（`TestPromptsREADMEMatchesContract` を加える）・`docs/dev/conventions/package_reference.md`
 
 **タスク**
 - [x] **ステップ 2-1**: `prompts.go` に、`//go:embed` で 2 つのテンプレートを非公開の `string` 変数に埋め込み、`System`・`User` で返す実装を作る（architecture §3.2）。パッケージ変数を公開せず、検査もしない。
@@ -149,7 +149,7 @@ AC-01・AC-03・AC-04・AC-30（目印が `LLMClient` に渡ること）は `Wri
 **対象ファイル**
 - 新設: `internal/writer/output.go`
 - 新設: `internal/writer/prompt_test.go`・`internal/writer/output_test.go`（いずれも `//go:build test`）
-- 変更: `internal/writer/prompt.go`・`internal/writer/writer.go`・`internal/writer/errors.go`・`internal/writer/test_helpers.go`・`internal/writer/writer_test.go`・`internal/pipeline/pipeline_test.go`（`TestWriterImports` を加える）・`docs/dev/developer_guide/package_reference.md`
+- 変更: `internal/writer/prompt.go`・`internal/writer/writer.go`・`internal/writer/errors.go`・`internal/writer/test_helpers.go`・`internal/writer/writer_test.go`・`internal/pipeline/pipeline_test.go`（`TestWriterImports` を加える）・`docs/dev/conventions/package_reference.md`
 
 **タスク**
 - [x] **ステップ 3-1**: `prompt.go` に、`Transcript` の検証（architecture §3.5）、`Transcript` から `templateData` を作る処理と字幕本文の連結（同 §3.2・§3.5）、上限付きの書き込み先と展開（同 §3.6）、定数 `maxPromptBytes` を実装する（フェーズ 2 で `maxPromptBytes` に付けた `//nolint:unused` を外す）。上限付きの書き込み先は、累計が上限を超える書き込みを受け取ったら、受け取ったバイト列を保持せずに非公開の静的エラー `errPromptTooLarge`（`errors.go` に置く）を返す。展開時のエラー・上限の超過・空白文字だけの展開結果は `ErrInvalidTemplate` とし、ラップの方法とエラーの文言は architecture §4.1・§4.2 のとおりとする。`ErrInvalidTranscript` のエラーに `Transcript` の値を含めない。
@@ -192,7 +192,7 @@ AC-01・AC-03・AC-04・AC-30（目印が `LLMClient` に渡ること）は `Wri
 
 **対象ファイル**
 - 新設: `internal/writer/markdown.go`・`internal/writer/markdown_test.go`（`//go:build test`）
-- 変更: `internal/writer/output.go`・`internal/writer/output_test.go`・`docs/dev/developer_guide/package_reference.md`
+- 変更: `internal/writer/output.go`・`internal/writer/output_test.go`・`docs/dev/conventions/package_reference.md`
 
 **タスク**
 - [x] **ステップ 4-1**: `markdown.go` に、本文の部分の生の HTML と閉じていないコードフェンスの判定（architecture §3.8）を非公開の関数として実装する。行の区切り、開くフェンス・フェンスに見える行・閉じるフェンス、`<` の判定と例外（エスケープ・URI の自動リンク・コードスパンの 3 条件）は architecture §3.8 のとおりとする。判定は本文の部分の長さに比例する時間で行い、同じ長さのバッククォートの列を探すたびに行の残りを読み直す方法を採らない。`gocyclo` の上限を超えないよう関数を分ける。
@@ -225,7 +225,7 @@ AC-01・AC-03・AC-04・AC-30（目印が `LLMClient` に渡ること）は `Wri
 ### フェーズ 5: 文書
 
 **対象ファイル**
-- 変更（必要な場合だけ）: `docs/dev/developer_guide/package_reference.md`・`docs/dev/project_overview.md`
+- 変更（必要な場合だけ）: `docs/dev/conventions/package_reference.md`・`docs/dev/project_overview.md`
 
 **タスク**
 - [x] **ステップ 5-1**: `package_reference.md` の `prompts`・`internal/nilcheck`・`internal/transcript`・`internal/writer` の行と、`project_overview.md` の `:31` と想定ディレクトリ構成を、実装（各パッケージの公開 API と `writer.Article` のフィールド）と照らし合わせ、食い違いがあれば直す。確認の結果、食い違いはなかった（`go doc` の公開 API が各パッケージの行と一致し、`writer.Article` は `Title`・`Body`・`SourceURL`・`Model`・`ModelVersion` の 5 フィールドで、`project_overview.md:31` の列挙と一致する）。文書の変更はなし。

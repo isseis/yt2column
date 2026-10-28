@@ -579,7 +579,7 @@ func IsNil(v any) bool
 | `internal/pipeline/pipeline.go` | `isTypedNil` を削除し、`nilcheck.IsNil` を使う（§3.11） | 変更 |
 | `internal/pipeline/pipeline_test.go` | `TestCommonTypesFieldSets` の `Article` の期待値に `ModelVersion`（`string`）を加える（I-02） | 変更 |
 | `docs/dev/project_overview.md` | `ArticleWriter` の説明の `Article` の項目に、モデルの版の識別子を加える（I-02）。想定ディレクトリ構成に `internal/nilcheck/` を加える | 変更 |
-| `docs/dev/developer_guide/package_reference.md` | `prompts`・`internal/nilcheck` の追加。`internal/writer`・`internal/transcript` の責務の更新。`internal/pipeline` の行は `isTypedNil` に触れていないので、変わらないことを確かめる | 変更 |
+| `docs/dev/conventions/package_reference.md` | `prompts`・`internal/nilcheck` の追加。`internal/writer`・`internal/transcript` の責務の更新。`internal/pipeline` の行は `isTypedNil` に触れていないので、変わらないことを確かめる | 変更 |
 
 **既存テストへの影響。** 期待値を更新する既存のテストは `TestCommonTypesFieldSets` だけである。ほかの既存のテストは変更せずに通らなければならない。
 

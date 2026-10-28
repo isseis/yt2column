@@ -65,7 +65,7 @@
 
 | 箇所（`28cb00c`） | 今 | 変え方 | ステップ |
 |---|---|---|---|
-| `docs/dev/developer_guide/requirements_process.md:278` | 5 章の確認項目「At least one test per acceptance criterion」 | `:239` と同じ例外を反映する（1.4 の 7 つめ） | 1-4 |
+| `docs/dev/conventions/requirements_process.md:278` | 5 章の確認項目「At least one test per acceptance criterion」 | `:239` と同じ例外を反映する（1.4 の 7 つめ） | 1-4 |
 | `.claude/commands/weakreview.md:219-222` | AC の検証の節が、範囲が閉じるすべての AC に「real test locations (`path::TestName`) or real static commands」を挙げていることを確かめる項目 | 文書の自然言語の記述を定める AC は `manual` でよい、という例外を反映する（1.4 の 7 つめ） | 1-4 |
 | `.claude/commands/mkplan.md:71`・`:106`、`requirements_process.md:227` | AC ごとに実行される検証（テスト、`make` のターゲット、スクリプト）を挙げることを求め、「document review」のような札を禁じる項目（`mkplan.md:71`）。panel mode の Reviewer B の役目の「every AC has at least one concrete test/static verification task」（`:106`）。AC を「the test that proves it」に対応させる項目（`requirements_process.md:227`） | 文書の自然言語の記述を定める AC は `manual`（読み合わせ）でよい、という例外を反映する（1.4 の 7 つめ） | 1-3・1-4 |
 | `.claude/commands/mkplan.md:79` | 横断の検索の項目。「doc/glossary consistency」を含む項目を「Prefer converting such an item into a guard test」とする | 文書の自然言語の記述と用語集の一致は、文書のテストにせず読み合わせで確かめる、とする（1.4 の 7 つめ） | 1-3 |
@@ -159,7 +159,7 @@
 
 #### ステップ 1-4: `runplan.md`・`weakreview.md`・`requirements_process.md`
 
-**変更するファイル**: `.claude/commands/runplan.md`、`.claude/commands/weakreview.md`、`docs/dev/developer_guide/requirements_process.md`
+**変更するファイル**: `.claude/commands/runplan.md`、`.claude/commands/weakreview.md`、`docs/dev/conventions/requirements_process.md`
 
 -   [x] `runplan.md` の `:78`・`:158`・`:213` に、ステップ 1-3 と同じ例外を反映する（AC-24・AC-25）。
 -   [x] `weakreview.md` の `:219-222` に、同じ例外を反映する（1.3.3）。
@@ -433,7 +433,7 @@
 
 #### ステップ 4-5: 文書
 
-**変更するファイル**: 設計書 3.3.2 の表で PR-4 が担当するタスクの文書（0005、0006、0010、0011 の分、0012、0015、0016、0017、0019、0020 の分、0022、0024、0026 の分、0027 の分、0028、0033 の分）、`docs/dev/developer_guide/pricing_update.md`、`CLAUDE.md`
+**変更するファイル**: 設計書 3.3.2 の表で PR-4 が担当するタスクの文書（0005、0006、0010、0011 の分、0012、0015、0016、0017、0019、0020 の分、0022、0024、0026 の分、0027 の分、0028、0033 の分）、`docs/dev/guides/pricing_update.md`、`CLAUDE.md`
 
 -   [x] 各文書の AC の検証の行を、設計書 3.3.2 の規則で改め、`Comments` に記録する（AC-13・AC-14）。タスク 0017 の行は、1.3.3 の対応表のとおりに改め、設計書 `:862`（AC-33）も規則で改める。
 -   [x] `pricing_update.md:69-71` の、`package_reference.md` の `internal/pricing` の行を `TestTokenUsageDocsContract` が確かめる、という記述を改める（設計書 3.6）。

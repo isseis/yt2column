@@ -190,7 +190,7 @@ head; a record already made counts as made, never as absent.
     `Reviewer` to the user's GitHub name (`gh api user --jq .login`), and keep
     `Comments` (or `-`). This is the only way the commands set a document to
     `approved`, and only on the user's answer
-    (`docs/dev/developer_guide/requirements_process.md`, "LLM Constraints").
+    (`docs/dev/conventions/requirements_process.md`, "LLM Constraints").
   - **Checkpoint** (plan PR): "PR がマージされた" on that PR's record, and in
     the plan's PR checklist (§6) its `PR-N マージ済み`. On a checkpoint, also
     "次のブランチへ切り替えた": `[x]` when NEXT is set (step 5 creates the next

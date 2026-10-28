@@ -20,7 +20,7 @@
 -   **フェーズ 2（設計書 8 章の 2）:** `Protocol` を `3` に上げ、`fixpr.md`・`runpr.md`・ガイド・`check_rules.sh` の番号と、ガイド 9 章を合わせる。
 -   **フェーズ 3（設計書 8 章の 3）:** ガイド 7.2・8 章（日英）、用語集、0030 の文書の注記と、それらの記述を確かめるガード（AC-18・AC-21）を加える。AC-20 はガードを置かず、PR のレビューで確かめる（1.4）。
 
-用語は、要件書 6 章と設計書の冒頭の定義に従う（実行関連ファイル、拒否リスト、許可リスト、指示ファイル、Go のビルドの入力、規則 2・3 の位置、規則 1 の位置）。「規則 1〜6」はガイド 6 章の範囲の規則の番号を、「層」は拒否リストと許可リストのそれぞれを指す。許可リストの (a)〜(c) は設計書 1.5 の項目を、「順 1」〜「順 6」は設計書 3.3 の判定の順序を指す。本書の「フェーズ」は実装の区切りを指し、`/fixpr` の「修正のフェーズ」とは別である。「ガイド」は `docs/dev/developer_guide/fixprguard_guide.ja.md`（日本語版）と `fixprguard_guide.md`（英語版）を指す。
+用語は、要件書 6 章と設計書の冒頭の定義に従う（実行関連ファイル、拒否リスト、許可リスト、指示ファイル、Go のビルドの入力、規則 2・3 の位置、規則 1 の位置）。「規則 1〜6」はガイド 6 章の範囲の規則の番号を、「層」は拒否リストと許可リストのそれぞれを指す。許可リストの (a)〜(c) は設計書 1.5 の項目を、「順 1」〜「順 6」は設計書 3.3 の判定の順序を指す。本書の「フェーズ」は実装の区切りを指し、`/fixpr` の「修正のフェーズ」とは別である。「ガイド」は `docs/dev/guides/fixprguard_guide.md`（日本語版）と `fixprguard_guide.md`（英語版）を指す。
 
 ### 1.2. 実装原則
 
@@ -71,12 +71,12 @@
 -   `internal/fixprguard/worktree_test.go`・`worktree_flow_test.go`・`cmd/fixprguard/main_test.go` の既存の行。設計書 7.3 の試作で、すべて通ることを確かめた。`TestProtocolMismatch`（`main_test.go:43`）と `cmd/fixprguard/test_helpers.go:213` は `fixprguard.Protocol` を参照するので、番号を上げても変えない。
 -   `.claude/commands/fixpr.md`・`runpr.md` の手順（番号だけを変える）。範囲の規則は言い換えていない（`fixpr.md:476` は終了コード `3` の扱いだけを述べる）。
 -   `docs/tasks/` の下の `.md` の文書にある `--protocol` の番号と、ガイド 3 章の「例: タスク 0035 で `1` から `2`」（`:52`）、基準値の例の `'v2....'`（設計書 3.6「変えないもの」）。0032 の計画書の `:444`（0030 の後のツールが `check_rules.sh` を実行関連ファイルに分類しないというリスクの記録）も、当時の記録として変えない。
--   `docs/dev/developer_guide/package_reference.md`（設計書 2.2）。
+-   `docs/dev/conventions/package_reference.md`（設計書 2.2）。
 
 #### 1.3.2. 外部の前提の確かめ
 
 -   **Go のビルドの入力の拡張子:** 手元の Go 1.27.1 で `go help filetype` を実行し、設計書 1.3 の表と同じ拡張子が載っていることを確かめた（2026-10-22）。Fortran の拡張子は設計書 1.3 のとおり `go/build` による。
--   **インストール済みのツールの振る舞い（AC-16）:** インストール済みの `fixprguard`（`go version -m` の `vcs.revision` は `adcba30`、`Protocol` は `2`）で `fixprguard head --protocol 3 1` を実行すると、`fixprguard: usage: --protocol does not match this binary's 2 (see docs/dev/developer_guide/fixprguard_guide.md)` を出力し、終了コード `2` で終わった（2026-10-22）。引数の解析（`cmd/fixprguard/main.go:232-233`）で止まるので、ネットワークには接続しない。ステップ 2-2 で、PR-1 のブランチの文書から同じことを確かめる。
+-   **インストール済みのツールの振る舞い（AC-16）:** インストール済みの `fixprguard`（`go version -m` の `vcs.revision` は `adcba30`、`Protocol` は `2`）で `fixprguard head --protocol 3 1` を実行すると、`fixprguard: usage: --protocol does not match this binary's 2 (see docs/dev/guides/fixprguard_guide.md)` を出力し、終了コード `2` で終わった（2026-10-22）。引数の解析（`cmd/fixprguard/main.go:232-233`）で止まるので、ネットワークには接続しない。ステップ 2-2 で、PR-1 のブランチの文書から同じことを確かめる。
 -   **`check_rules.sh` の実行:** `sh docs/tasks/0032_japanese_pr_title/check_rules.sh fixpr_title` は、`d90437c` で `ok   fixpr_title` を出力し、終了コード `0` で終わった。
 -   **タスク 0034 の状態（2026-10-22、計画のレビューの時点）:** 要件定義書の PR #429 はマージされた（`09dc151`）。その後、PR #443（ブランチ `isseis/0034-fixprguard-ignored-files-02`、コミット `754bb63`・`554a6fc`）が開き、0034 の要件を改めている。対象を実行関連ファイルの定義の全体から「監視の一覧」に狭め、文書を `draft` に戻す。監視の一覧は Go のビルドの入力を含む。そのため、設計書 3.8 が挙げた具体的な食い違いの一部は、該当しなくなりうる。また、0034 が Go のビルドの入力の一覧を別に持つと、AC-03 の一覧と二重になる。設計もまだない。issue #424 は開いていて、コメントはない。申し送りの中身は、実装のとき（ステップ 1-1）の 0034 の文書から決める。伝える先は issue #424 である（1.4）。
 
@@ -170,7 +170,7 @@
 
 #### ステップ 1-4: ガイド 6 章
 
-**変更するファイル**: `docs/dev/developer_guide/fixprguard_guide.ja.md`、`fixprguard_guide.md`
+**変更するファイル**: `docs/dev/guides/fixprguard_guide.md`、`fixprguard_guide.md`
 
 -   [x] 日本語版の 6 章を、設計書 3.5「ガイド 6 章」の表のすべての行のとおり改める。実行関連ファイルの表と許可リストの表は、設計書 3.5 の例の構成にし、項目は `ExecutionFilePatterns`・`AllowListPatterns` の出力と突き合わせる。判定の順序は、ステップ 1-2 の `inScopeOf` と突き合わせる。
 -   [x] 6 章の用語を「実行関連ファイル」にそろえ、初出に「コマンドの実行に関わるファイル（実行関連ファイル）」と書く（設計書 3.5 の「用語」の行）。7 章・9 章の用語はフェーズ 2・3 でそろえる。英語版はすでに "execution-related file" を使っている（`fixprguard_guide.md:211`・`:219`・`:300`）。
@@ -201,7 +201,7 @@
 
 ガードが `Protocol` と文書の番号の一致を求めるので、このステップは 1 つのコミットにする（設計書 3.6「同じ commit に入れるもの」）。ガイド 9 章の文の改訂は、番号と別のコミットにしてよい。
 
-**変更するファイル**: `internal/fixprguard/types.go`、`.claude/commands/fixpr.md`、`.claude/commands/runpr.md`、`docs/dev/developer_guide/fixprguard_guide.ja.md`、`fixprguard_guide.md`、`docs/tasks/0032_japanese_pr_title/check_rules.sh`
+**変更するファイル**: `internal/fixprguard/types.go`、`.claude/commands/fixpr.md`、`.claude/commands/runpr.md`、`docs/dev/guides/fixprguard_guide.md`、`fixprguard_guide.md`、`docs/tasks/0032_japanese_pr_title/check_rules.sh`
 
 -   [x] `Protocol` を `3` にし、コメントに判定の規則を加える（設計書 3.6「上げる値」）。コメントは、`// Protocol is the version of the tool's input and output contract. The command` / `// documents pass it back with --protocol, so an installed binary that predates` / `// the documents stops instead of judging by older rules.` から、`// Protocol is the version of the tool's input and output contract and of the` / `// scope rules inspect applies. The command documents pass it back with` / `// --protocol, so an installed binary that predates the documents stops instead` / `// of judging by older rules.` に改める（` / ` は行の区切り）。
 -   [x] 設計書 3.6 の表の箇所の番号を、すべて `3` にする。そのうえで、設計書 3.6 の 2 つの正規表現でリポジトリ全体を `git grep` し、`2` が残るのが設計書 3.6「変えないもの」の箇所だけであることを確かめる（設計書 3.6「番号を固定している箇所の探し方」）。
@@ -248,7 +248,7 @@
 
 #### ステップ 3-1: ガイド 7.2 と 8 章
 
-**変更するファイル**: `docs/dev/developer_guide/fixprguard_guide.ja.md`、`fixprguard_guide.md`
+**変更するファイル**: `docs/dev/guides/fixprguard_guide.md`、`fixprguard_guide.md`
 
 -   [x] 日本語版の 7.2 に、設計書 3.5「ガイド 7.2」の項目（要件書 4.2 の 4 項目と、設計書 5.3 が加える 5 項目）を加える。今の `.gitignore` の項目（`:255`）と、`TestGuideDescribesConfigScope` が 7.2 で確かめる語（1.3.1）は残す。
 -   [x] 日本語版の 8 章の段落（`:281`）に、設計書 3.5「ガイド 8 章」の内容を加える。8 章の `git-state-changed` の行は変えず、`3. **` で始まる行を作らない（1.3.1）。

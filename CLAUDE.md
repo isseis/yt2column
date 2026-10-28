@@ -11,13 +11,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - [Cache Consistency](docs/dev/cache_consistency.md) - What the transcript cache guarantees across failures and power loss, and why (Japanese). Check its checklist before changing cache code.
 
 **Development Guides:**
-- Requirements and Acceptance Criteria Process: [requirements_process.md](docs/dev/developer_guide/requirements_process.md) - Process for implementing new features
-- Test Organization Guide: [test_organization.md](docs/dev/developer_guide/test_organization.md) - Test helper file organization
-- [Package Reference](docs/dev/developer_guide/package_reference.md) - Detailed package structure
-- [Updating the Pricing Table](docs/dev/developer_guide/pricing_update.md) - How to update the LLM rate table in `internal/pricing`
-- [Claude Output Limit](docs/dev/developer_guide/claude_output_limit.md) - When and how to re-measure the basis of the Claude adapter's default output limit (`max_tokens`)
-- [mergepr Guide](docs/dev/developer_guide/mergepr_guide.md) - Setup, usage, guarantees, and troubleshooting for the `/mergepr` tool
-- [fixprguard Guide](docs/dev/developer_guide/fixprguard_guide.md) - Setup, subcommands, guarantees, scope rules, and recovery for the `fixprguard` guard tool for `/fixpr` and `/runpr`
+- Requirements and Acceptance Criteria Process: [requirements_process.md](docs/dev/conventions/requirements_process.md) - Process for implementing new features
+- Test Organization Guide: [test_organization.md](docs/dev/conventions/test_organization.md) - Test helper file organization
+- [Package Reference](docs/dev/conventions/package_reference.md) - Detailed package structure
+- [Updating the Pricing Table](docs/dev/guides/pricing_update.md) - How to update the LLM rate table in `internal/pricing`
+- [Claude Output Limit](docs/dev/guides/claude_output_limit.md) - When and how to re-measure the basis of the Claude adapter's default output limit (`max_tokens`)
+- [mergepr Guide](docs/dev/guides/mergepr_guide.md) - Setup, usage, guarantees, and troubleshooting for the `/mergepr` tool
+- [fixprguard Guide](docs/dev/guides/fixprguard_guide.md) - Setup, subcommands, guarantees, scope rules, and recovery for the `fixprguard` guard tool for `/fixpr` and `/runpr`
 
 ## Documents
 
@@ -25,7 +25,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Default language is Japanese (exceptions: README.md, CLAUDE.md, docs/dev/developer_guide/\*.md)
 - Default format is markdown
 - Use Mermaid for diagrams, following the conventions in
-  [mermaid_reference.md](docs/dev/developer_guide/mermaid_reference.md) (node-label
+  [mermaid_reference.md](docs/dev/conventions/mermaid_reference.md) (node-label
   quoting, `<br>` line breaks, cylinder `[(...)]` data nodes, the standard classDef
   palette, and Legend blocks).
 - Each task lives in `docs/tasks/NNNN_<name>/` (four-digit sequence number).
@@ -208,7 +208,7 @@ request to the socket per send and manages its own manifest with `install` and
 `uninstall`.
 
 See [Project Overview](docs/dev/project_overview.md) for the decided policies and
-constraints, and [Package Reference](docs/dev/developer_guide/package_reference.md)
+constraints, and [Package Reference](docs/dev/conventions/package_reference.md)
 for the packages that exist today. The server's API and startup are documented in
 the [README](README.md) and `docs/dev/security.md` §8.
 
@@ -420,7 +420,7 @@ info.json parsers with real samples under `testdata/`.
   `diff` verification, a script under the task's `_checks/` directory run once
   against the merge-base (`requirements_process.md` §4).
 
-See [Test Organization Guide](docs/dev/developer_guide/test_organization.md) for test helper file structure.
+See [Test Organization Guide](docs/dev/conventions/test_organization.md) for test helper file structure.
 
 ## Development Notes
 
@@ -517,7 +517,7 @@ Only the conventions a linter does not check are worth stating:
 
 ## Requirements and Acceptance Criteria
 
-When implementing new features, follow the process documented in [Requirements Process Guide](docs/dev/developer_guide/requirements_process.md).
+When implementing new features, follow the process documented in [Requirements Process Guide](docs/dev/conventions/requirements_process.md).
 
 **Quick summary:**
 1. Create an issue, then run `/mkreq <issue>` to create `01_requirements.md` with explicit acceptance criteria

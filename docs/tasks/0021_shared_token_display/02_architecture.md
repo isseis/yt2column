@@ -161,7 +161,7 @@ flowchart LR
 | `internal/server/test_helpers.go` | 変更 | `newTestToken` の `created` の検査を、返った `Token` がファイルの値と一致する検査に置き換える（§3.2） |
 | `README.md` | 変更 | 起動のたびの表示、貼り付け、再確認の経路、リダイレクトの注意（§3.4。F-002） |
 | `docs/dev/security.md` §8.2 | 変更 | 表示のタイミング、露出の経路、ログへの非露出、標準出力と標準エラー出力の分離（§3.4。F-002） |
-| `docs/dev/developer_guide/package_reference.md` | 変更 | `cmd/yt2column-server` の行の、生成したトークンを一度だけ表示する旨の 2 か所（「a created token is written to standard output once, before listening, and nowhere else」「Standard error carries every line except the created token」）を、起動のたびに表示する形に改める（§3.4） |
+| `docs/dev/conventions/package_reference.md` | 変更 | `cmd/yt2column-server` の行の、生成したトークンを一度だけ表示する旨の 2 か所（「a created token is written to standard output once, before listening, and nowhere else」「Standard error carries every line except the created token」）を、起動のたびに表示する形に改める（§3.4） |
 | `docs/dev/project_overview.md`・`CLAUDE.md` | 変更なし | 起動時の表示の条件を記述していない（`CLAUDE.md:116-123` はサーバの部品を列挙するだけ、`project_overview.md` に共有トークンの表示の記述はない。要件書 §5 の「変える必要がある場合」に当たらない） |
 | `docs/tasks/0011_localhost_server/` の文書 | 変更なし | 当時の記録として残す（要件書 §1・F-002） |
 
@@ -238,7 +238,7 @@ func LoadOrCreate(path string, random io.Reader) (Token, error)
 |---|---|
 | `README.md` | 「Running the server」節: トークンが起動のたびに標準出力に表示されること（現在の「on the first start only」を改める）。「The shared token」節: 初回に生成し、2 回目以降は同じ値を読み込んで表示すること（現在の「prints it once」「does not print it」を改める）。値を再び確認する主たる経路を「起動し直す」とし、ファイルを読む手順を表示に失敗したときの補足として残す。標準出力をファイルにリダイレクトするとトークンがそのファイルに残る注意を加える（`2>>server.log` はログだけを残す形として維持する） |
 | `docs/dev/security.md` §8.2 | 「表示と作り直し」の記述を、生成した起動だけでなく起動のたびに表示する形に改める。露出の経路（標準出力、端末のスクロールバック、標準出力をリダイレクトしたファイル、起動した呼び出し元による出力の捕捉）、ログへの非露出、標準出力と標準エラー出力の分離、表示に失敗しても起動を続けることを記す。「生成」の行の「`created=false` を返し」を「その値を返し」に改める（§3.2） |
-| `docs/dev/developer_guide/package_reference.md` | `cmd/yt2column-server` の行の「a created token is written to standard output once, before listening, and nowhere else」を「the shared token is written to standard output on every start, before listening, and nowhere else」に、「Standard error carries every line except the created token」を「Standard error carries every line except the shared token」に改める |
+| `docs/dev/conventions/package_reference.md` | `cmd/yt2column-server` の行の「a created token is written to standard output once, before listening, and nowhere else」を「the shared token is written to standard output on every start, before listening, and nowhere else」に、「Standard error carries every line except the created token」を「Standard error carries every line except the shared token」に改める |
 
 -   **案内の文言（実装で確定する）。** 標準エラー出力に書く 1 行は、値を含まず、「標準出力に表示したこと」「拡張のオプションページに貼り付けること」「起動のたびに表示すること」「ファイルのパス」を述べる。表示に失敗した場合は、値を含まず、失敗の理由とファイルのパスを示して、ファイルを読むよう案内する。いずれも Go の文字列リテラル（英語）である（`_context.md` の Source-language rule）。
 -   **README の起動例。** `0011` §3.12 の `curl` の例（トークンを引数に置かず標準入力から渡す）は変えない。変えるのは表示のタイミングの説明と、リダイレクトの注意である。

@@ -618,7 +618,7 @@ yt2column: tokens: generation run unknown reason=not-read nomodel
 | `cmd/yt2column/run.go` | 変更 | トークン数の行の書式の定数と `reportTokens`、成功・失敗の要約での呼び出し | なし。既存のテストは標準エラーを部分文字列で照合する（`run_test.go` の `wantStderr`・`notStderr`）。出てはならない文字列として照合するもの（`the shorten step ran`・`the review step returned`・`the run failed:` など）は、トークン数の行に現れない。行の形を見る `requireSafeOutput`（`run_test.go:310-330`）は、行が `yt2column: ` で始まることだけを求め、トークン数の行もそれを満たす |
 | `cmd/yt2column/docs_test.go` | 変更 | README のトークン数の行の書式と、`run.go` の定数の一致を確かめる契約のテストの追加 | なし |
 | `README.md` | 変更 | トークン数の行の書式、区分の意味、再利用の印、不明の表し方と理由の語、モデル名のエスケープの戻し方、行の順序、更新後は新しい `--artifacts` のディレクトリを使うこと（要件 AC-15・AC-29） | なし |
-| `docs/dev/project_overview.md`・`docs/dev/security.md`・`docs/dev/developer_guide/package_reference.md` | 変更 | CLI の出力の説明、`usage` の受理の形と拒否の規則（`security.md` §6）、`internal/llm`・`internal/strictjson`・`internal/artifact` の記述（要件 AC-29） | なし |
+| `docs/dev/project_overview.md`・`docs/dev/security.md`・`docs/dev/conventions/package_reference.md` | 変更 | CLI の出力の説明、`usage` の受理の形と拒否の規則（`security.md` §6）、`internal/llm`・`internal/strictjson`・`internal/artifact` の記述（要件 AC-29） | なし |
 
 `internal/job`・`internal/server`・`cmd/yt2column-server`・`internal/publisher` は変更しない（要件 AC-28）。
 

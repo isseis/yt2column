@@ -261,7 +261,7 @@ const (
 
 手元では、`make test` をほかの重い処理（ほかの worktree の `make test` など）と同時に実行すると、時間の確認がその負荷を受ける。手元の `-race` なしの最大は 0.116 秒（要件書 1 章）であり、上限は 3.5 の規則で CI の最大の 10 倍になるので、手元で上限を超えることはまれと見込む。超えた場合は、負荷のない状態で `make test-parse-norace` を実行し直して確かめる。
 
-このターゲットは作業ツリーにファイルを書かない（カバレッジのファイルを作らない）。`fixprguard` は `make test` の後に git の状態を比べるが（`docs/dev/developer_guide/fixprguard_guide.md:162`）、この比較に影響しない。
+このターゲットは作業ツリーにファイルを書かない（カバレッジのファイルを作らない）。`fixprguard` は `make test` の後に git の状態を比べるが（`docs/dev/guides/fixprguard_guide.md:162`）、この比較に影響しない。
 
 `extension/test/repository.test.ts:246-250` は、`node` と `npm` のない環境で `make -n build test lint deadcode` を実行し、レシピが `node`・`npm`・`npx` を呼ばないことを確かめる。新しいターゲットは Go のコマンドだけを呼ぶので、このテストは通るはずである。ただし `Makefile` を変えるので、実装では `make ext-test` も実行して確かめる。
 
@@ -399,7 +399,7 @@ AC-01〜AC-03 の値から、パーサの処理、`-race` の負担、カバレ�
 | AC-01・AC-02・AC-03・AC-04・AC-06・AC-08・AC-13・AC-15 | `04_investigation.md`（調査の記録） |
 | AC-16（3 回の実行の URL） | `03_implementation_plan.md`（要件書 AC-16 が定める） |
 
-調査の記録は、計測の値・プロファイルの結果・結論を残す文書である。設計書は、承認の後に計測の値で書き換えると、決定の変更と記録の追加の区別がつきにくくなる（`docs/dev/developer_guide/requirements_process.md`「Editing an approved document」）。計画書は作業の進み具合を追う文書なので、表の多い計測の値を入れると読みにくくなる。そのため、記録だけを置く別の文書にする。調査の記録は `Document Status` を持たない。承認ではなく、PR のレビューで中身を確かめる。
+調査の記録は、計測の値・プロファイルの結果・結論を残す文書である。設計書は、承認の後に計測の値で書き換えると、決定の変更と記録の追加の区別がつきにくくなる（`docs/dev/conventions/requirements_process.md`「Editing an approved document」）。計画書は作業の進み具合を追う文書なので、表の多い計測の値を入れると読みにくくなる。そのため、記録だけを置く別の文書にする。調査の記録は `Document Status` を持たない。承認ではなく、PR のレビューで中身を確かめる。
 
 ### 3.9. 0015 の文書の扱い（H-06）
 

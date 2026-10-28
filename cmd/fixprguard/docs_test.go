@@ -22,13 +22,6 @@ import (
 // repoRoot is the repository root relative to this package's directory.
 const repoRoot = "../.."
 
-// guideFiles are the Japanese original and the English translation of the
-// fixprguard guide.
-var guideFiles = []string{
-	"docs/dev/developer_guide/fixprguard_guide.ja.md",
-	"docs/dev/developer_guide/fixprguard_guide.md",
-}
-
 func readRepoFile(t *testing.T, rel string) string {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join(repoRoot, filepath.FromSlash(rel)))
@@ -38,40 +31,32 @@ func readRepoFile(t *testing.T, rel string) string {
 	return string(data)
 }
 
-// TestGuideCoversStopKindsAndScope: both guides name, in code spans, every
-// stop kind the tool can print. In chapter 6, every deny-list item is in the
+// TestGuideCoversStopKindsAndScope: the guide names, in code spans, every stop
+// kind the tool can print. In chapter 6, every deny-list item is in the
 // execution-related file table and every allow-list item in the allow-list
 // table. The values come from internal/fixprguard, so a kind or an item added
 // there without the guide fails here. Reading the tables alone keeps a code
 // span in the prose around them from standing in for a row.
 func TestGuideCoversStopKindsAndScope(t *testing.T) {
-	for _, tc := range []struct {
-		rel             string
-		execMark, allow string
-	}{
-		{rel: guideFiles[0], execMark: "**実行関連ファイル。**", allow: "**許可リスト。**"},
-		{rel: guideFiles[1], execMark: "**Execution-related files.**", allow: "**Allow list.**"},
-	} {
-		guide := readRepoFile(t, tc.rel)
-		for _, kind := range fixprguard.StopKinds() {
-			if !strings.Contains(guide, "`"+kind+"`") {
-				t.Errorf("%s does not name stop kind `%s`", tc.rel, kind)
-			}
+	guide := readRepoFile(t, guidePath)
+	for _, kind := range fixprguard.StopKinds() {
+		if !strings.Contains(guide, "`"+kind+"`") {
+			t.Errorf("%s does not name stop kind `%s`", guidePath, kind)
 		}
-		scope := section(guide, "## 6.")
-		execTable := guideTable(scope, tc.execMark)
-		allowTable := guideTable(scope, tc.allow)
-		for _, table := range []struct {
-			name, text string
-			patterns   []string
-		}{
-			{"execution-related file", execTable, fixprguard.ExecutionFilePatterns()},
-			{"allow-list", allowTable, fixprguard.AllowListPatterns()},
-		} {
-			for _, pattern := range table.patterns {
-				if !strings.Contains(table.text, "`"+pattern+"`") {
-					t.Errorf("%s: the %s table in chapter 6 does not list `%s`", tc.rel, table.name, pattern)
-				}
+	}
+	scope := section(guide, "## 6.")
+	execTable := guideTable(scope, "**実行関連ファイル。**")
+	allowTable := guideTable(scope, "**許可リスト。**")
+	for _, table := range []struct {
+		name, text string
+		patterns   []string
+	}{
+		{"execution-related file", execTable, fixprguard.ExecutionFilePatterns()},
+		{"allow-list", allowTable, fixprguard.AllowListPatterns()},
+	} {
+		for _, pattern := range table.patterns {
+			if !strings.Contains(table.text, "`"+pattern+"`") {
+				t.Errorf("%s: the %s table in chapter 6 does not list `%s`", guidePath, table.name, pattern)
 			}
 		}
 	}
@@ -282,7 +267,7 @@ func cutSection(doc, heading string, ends ...string) string {
 }
 
 // TestGuideDescribesReviewerList: the subcommand headings that write
-// "--reviewer LOGIN ..." in either guide are exactly the subcommands whose
+// "--reviewer LOGIN ..." in the guide are exactly the subcommands whose
 // spec takes --reviewer, so a subcommand that starts or stops taking the flag
 // fails here until the guide changes too.
 func TestGuideDescribesReviewerList(t *testing.T) {
@@ -292,22 +277,18 @@ func TestGuideDescribesReviewerList(t *testing.T) {
 			takesReviewer[name] = struct{}{}
 		}
 	}
-	for _, rel := range guideFiles {
-		t.Run(filepath.Base(rel), func(t *testing.T) {
-			headed := map[string]struct{}{}
-			for line := range strings.Lines(readRepoFile(t, rel)) {
-				rest, ok := strings.CutPrefix(line, "### `")
-				if !ok {
-					continue
-				}
-				if name, _, _ := strings.Cut(rest, " "); strings.Contains(rest, "--reviewer LOGIN ...") {
-					headed[name] = struct{}{}
-				}
-			}
-			if !maps.Equal(headed, takesReviewer) {
-				t.Errorf("headings with --reviewer LOGIN ... are %v, want the subcommands taking --reviewer %v", slices.Sorted(maps.Keys(headed)), slices.Sorted(maps.Keys(takesReviewer)))
-			}
-		})
+	headed := map[string]struct{}{}
+	for line := range strings.Lines(readRepoFile(t, guidePath)) {
+		rest, ok := strings.CutPrefix(line, "### `")
+		if !ok {
+			continue
+		}
+		if name, _, _ := strings.Cut(rest, " "); strings.Contains(rest, "--reviewer LOGIN ...") {
+			headed[name] = struct{}{}
+		}
+	}
+	if !maps.Equal(headed, takesReviewer) {
+		t.Errorf("headings with --reviewer LOGIN ... are %v, want the subcommands taking --reviewer %v", slices.Sorted(maps.Keys(headed)), slices.Sorted(maps.Keys(takesReviewer)))
 	}
 }
 
@@ -319,10 +300,10 @@ var (
 )
 
 // TestDocumentedProtocolMatches: every protocol number the documents write
-// is the binary's Protocol: each --protocol N in both guides and in every
+// is the binary's Protocol: each --protocol N in the guide and in every
 // command document under .claude/commands (prose included, not only code
-// blocks), each "protocol":N of the guides' output examples, and the current
-// number chapter 4 of each guide states. The guides must write each at least
+// blocks), each "protocol":N of the guide's output examples, and the current
+// number chapter 4 of the guide states. The guide must write each at least
 // once, so a guide that stops writing them is not read as agreeing; that
 // fixpr.md and runpr.md write them is TestDocumentedInvocationsParse's check.
 func TestDocumentedProtocolMatches(t *testing.T) {
@@ -354,32 +335,22 @@ func TestDocumentedProtocolMatches(t *testing.T) {
 	for _, rel := range commandDocs {
 		check(rel, readRepoFile(t, rel), protocolFlag, false)
 	}
-	for _, tc := range []struct {
-		rel     string
-		current *regexp.Regexp
-	}{
-		{guideFiles[0], regexp.MustCompile("現在の番号は `([0-9]+)`")},
-		{guideFiles[1], regexp.MustCompile("The current number is `([0-9]+)`")},
-	} {
-		guide := readRepoFile(t, tc.rel)
-		check(tc.rel, guide, protocolFlag, true)
-		check(tc.rel, guide, protocolOutput, true)
-		check(tc.rel, singleLine(t, tc.rel, guide, "| `--protocol N` |"), tc.current, true)
-	}
+	guide := readRepoFile(t, guidePath)
+	check(guidePath, guide, protocolFlag, true)
+	check(guidePath, guide, protocolOutput, true)
+	check(guidePath, singleLine(t, guidePath, guide, "| `--protocol N` |"), regexp.MustCompile("現在の番号は `([0-9]+)`"), true)
 }
 
-// TestGuideDescribesMentionCheck: both guides name, in 7.1 and 7.2, the
+// TestGuideDescribesMentionCheck: the guide names, in 7.1 and 7.2, the
 // mention reply and edit-pr reject, taking the value from internal/fixprguard,
-// so changing the constant without the guides fails here. Whether the prose
+// so changing the constant without the guide fails here. Whether the prose
 // around it is right is checked by review, not pinned by wording.
 func TestGuideDescribesMentionCheck(t *testing.T) {
 	mention := "`" + fixprguard.CodexMention + "`"
-	for _, rel := range guideFiles {
-		guide := readRepoFile(t, rel)
-		for _, heading := range []string{"### 7.1", "### 7.2"} {
-			if !strings.Contains(subsection(guide, heading), mention) {
-				t.Errorf("%s %s does not name %s", rel, heading, mention)
-			}
+	guide := readRepoFile(t, guidePath)
+	for _, heading := range []string{"### 7.1", "### 7.2"} {
+		if !strings.Contains(subsection(guide, heading), mention) {
+			t.Errorf("%s %s does not name %s", guidePath, heading, mention)
 		}
 	}
 }
@@ -421,63 +392,50 @@ func codeSpans(text string) map[string]struct{} {
 	return spans
 }
 
-// TestGuideListsWatchList: in both guides, the table after the watch list
-// marker in 7.1 lists exactly the patterns WatchListPatterns returns, no
-// more and no fewer. Only the table is read: most items also appear in
-// chapter 6 and in prose, which would hide an item missing from the table.
+// TestGuideListsWatchList: the table after the watch list marker in 7.1 lists
+// exactly the patterns WatchListPatterns returns, no more and no fewer. Only
+// the table is read: most items also appear in chapter 6 and in prose, which
+// would hide an item missing from the table.
 func TestGuideListsWatchList(t *testing.T) {
 	want := map[string]struct{}{}
 	for _, p := range fixprguard.WatchListPatterns() {
 		want[p] = struct{}{}
 	}
-	for _, tc := range []struct{ rel, marker string }{
-		{guideFiles[0], "**監視の一覧。**"},
-		{guideFiles[1], "**Watch list.**"},
-	} {
-		t.Run(filepath.Base(tc.rel), func(t *testing.T) {
-			table := guideTable(subsection(readRepoFile(t, tc.rel), "### 7.1"), tc.marker)
-			if got := codeSpans(table); !maps.Equal(got, want) {
-				t.Errorf("the watch list table lists %v, want %v", slices.Sorted(maps.Keys(got)), slices.Sorted(maps.Keys(want)))
-			}
-		})
+	table := guideTable(subsection(readRepoFile(t, guidePath), "### 7.1"), "**監視の一覧。**")
+	if got := codeSpans(table); !maps.Equal(got, want) {
+		t.Errorf("the watch list table lists %v, want %v", slices.Sorted(maps.Keys(got)), slices.Sorted(maps.Keys(want)))
 	}
 }
 
 // TestGuideNamesGitStateParts: the list of parts in the git-state-changed
-// row of chapter 8 in both guides names every value parts can hold, and
+// row of chapter 8 in the guide names every value parts can hold, and
 // fixpr.md's list of the parts a git-state-changed stop names includes
 // ignored. Only the list is read, since the row's other cells name parts
 // too. fixpr.md words the other parts (HEAD, the remote branch, ...), so only
 // ignored is pinned there.
 func TestGuideNamesGitStateParts(t *testing.T) {
-	for _, tc := range []struct{ rel, open, closing string }{
-		{guideFiles[0], "`parts`（", "）"},
-		{guideFiles[1], "`parts` (", ")"},
-	} {
-		row := singleLine(t, tc.rel, readRepoFile(t, tc.rel), "| `git-state-changed` |")
-		_, rest, ok := strings.Cut(row, tc.open)
-		list, _, closed := strings.Cut(rest, tc.closing)
-		if !ok || !closed {
-			t.Errorf("%s: the git-state-changed row has no list after %q", tc.rel, tc.open)
-			continue
-		}
-		spans := codeSpans(list)
-		for _, part := range fixprguard.GitStateParts() {
-			if _, ok := spans[part]; !ok {
-				t.Errorf("%s: the git-state-changed row's parts do not name `%s`", tc.rel, part)
-			}
+	row := singleLine(t, guidePath, readRepoFile(t, guidePath), "| `git-state-changed` |")
+	_, rest, ok := strings.Cut(row, "`parts`（")
+	list, _, closed := strings.Cut(rest, "）")
+	if !ok || !closed {
+		t.Errorf("%s: the git-state-changed row has no list after %q", guidePath, "`parts`（")
+	}
+	spans := codeSpans(list)
+	for _, part := range fixprguard.GitStateParts() {
+		if _, ok := spans[part]; !ok {
+			t.Errorf("%s: the git-state-changed row's parts do not name `%s`", guidePath, part)
 		}
 	}
 	const fixprDoc = ".claude/commands/fixpr.md"
 	const partsList = "name the `parts` that differ from the baseline ("
-	_, rest, ok := strings.Cut(readRepoFile(t, fixprDoc), partsList)
-	list, _, closed := strings.Cut(rest, ")")
-	if !ok || !closed || !strings.Contains(list, "`"+fixprguard.PartIgnored+"`") {
+	_, docRest, docOK := strings.Cut(readRepoFile(t, fixprDoc), partsList)
+	docList, _, docClosed := strings.Cut(docRest, ")")
+	if !docOK || !docClosed || !strings.Contains(docList, "`"+fixprguard.PartIgnored+"`") {
 		t.Errorf("%s: the list after %q does not name `%s`", fixprDoc, partsList, fixprguard.PartIgnored)
 	}
 }
 
-// TestGuideDescribesIgnoredFiles: in 8.2 both guides list every rule
+// TestGuideDescribesIgnoredFiles: in 8.2 the guide lists every rule
 // IgnoredFailureRules names. fixpr.md recognizes an ignored-file rule by
 // "contains ignored, or is .git name below .claude", so every rule must fit
 // that.
@@ -488,19 +446,12 @@ func TestGuideDescribesIgnoredFiles(t *testing.T) {
 			t.Errorf("rule %q contains neither %q nor is %q, so fixpr.md would not recognize it", rule, fixprguard.PartIgnored, claudeGitRule)
 		}
 	}
-	for _, tc := range []struct{ rel, failedTable string }{
-		{guideFiles[0], "| 規則の名前 | 原因 | 対処 |"},
-		{guideFiles[1], "| Rule name | Cause | What to do |"},
-	} {
-		t.Run(filepath.Base(tc.rel), func(t *testing.T) {
-			guide := readRepoFile(t, tc.rel)
-			spans := codeSpans(guideTable(subsection(guide, "### 8.2"), tc.failedTable))
-			for _, rule := range fixprguard.IgnoredFailureRules() {
-				if _, ok := spans[rule]; !ok {
-					t.Errorf("%s: the 8.2 table does not list `%s`", tc.rel, rule)
-				}
-			}
-		})
+	guide := readRepoFile(t, guidePath)
+	spans := codeSpans(guideTable(subsection(guide, "### 8.2"), "| 規則の名前 | 原因 | 対処 |"))
+	for _, rule := range fixprguard.IgnoredFailureRules() {
+		if _, ok := spans[rule]; !ok {
+			t.Errorf("%s: the 8.2 table does not list `%s`", guidePath, rule)
+		}
 	}
 }
 
@@ -519,16 +470,15 @@ func guideBlock(t *testing.T, rel, heading string) string {
 	return block + "\n"
 }
 
-// TestGuideIgnoredCommands runs the Japanese guide's record check of 8.1 as
-// the user would, on records begin and inspect wrote: with the token begin
-// printed it reports a match and diff names the path that changed; with the
-// begin record rewritten it reports no match and runs no diff. The English
-// guide's block is neither compared with it nor run. The block prefers
-// sha256sum and falls
+// TestGuideIgnoredCommands runs the guide's record check of 8.1 as the user
+// would, on records begin and inspect wrote: with the token begin printed it
+// reports a match and diff names the path that changed; with the begin record
+// rewritten it reports no match and runs no diff. The block prefers sha256sum
+// and falls
 // back to shasum, so it is run once with each alone on PATH; each installed
 // tool runs, and at least one must be installed.
 func TestGuideIgnoredCommands(t *testing.T) {
-	block := guideBlock(t, guideFiles[0], "### 8.1")
+	block := guideBlock(t, guidePath, "### 8.1")
 	// pathWith is a PATH directory holding the block's tools and one of
 	// the two SHA-256 commands, so the block takes that command's branch.
 	pathWith := func(sha string) (string, bool) {

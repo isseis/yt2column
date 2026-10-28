@@ -14,7 +14,7 @@ Your goal is to create `02_architecture.md` for one task under `docs/tasks/`.
 
 Work in the following order.
 
-1. Identify the target task directory by following the rules in `docs/dev/developer_guide/task_identification.md`.
+1. Identify the target task directory by following the rules in `docs/dev/conventions/task_identification.md`.
 
 1.5. Prepare the branch: follow `.claude/commands/_lib/task-pr-handoff.md`, Part A,
    with **TASK_DIR** = the target task directory, **REPORT** = the step 11
@@ -29,13 +29,13 @@ Work in the following order.
 - In that case, stop and report that architecture work cannot begin until `01_requirements.md` is `approved`.
 
 4. Read the remaining required input documents.
-- `docs/dev/developer_guide/requirements_process.md`
-- `docs/dev/developer_guide/mermaid_reference.md`
+- `docs/dev/conventions/requirements_process.md`
+- `docs/dev/conventions/mermaid_reference.md`
 - `design_handoff.md` in the target task directory, if it exists (review concerns on the requirements document deferred to design; see `_context.md`)
 
 5. Read conditional guidance only when relevant.
 - Read the conditional guide (path in `_context.md`, Domain-specific) if the conditional-guide trigger applies (trigger also in `_context.md`, Domain-specific).
-- Read `docs/dev/developer_guide/package_reference.md` if that file exists and the task introduces new packages or modifies existing packages.
+- Read `docs/dev/conventions/package_reference.md` if that file exists and the task introduces new packages or modifies existing packages.
 
 6. Inspect the current codebase before writing the design.
 - Check the relevant packages under `cmd/` and `internal/`.
@@ -62,14 +62,14 @@ Work in the following order.
 7. Create `02_architecture.md` in the same task directory.
 - Write in Japanese.
 - Set the document status to `draft`.
-- Include all required sections defined in `docs/dev/developer_guide/requirements_process.md`.
+- Include all required sections defined in `docs/dev/conventions/requirements_process.md`.
 - Reflect all functional requirements and acceptance criteria from `01_requirements.md`.
 - If `design_handoff.md` exists, record for every `H-NN` item in it the approach the design takes or why the item does not apply, so no deferred concern is silently dropped.
 - For any flag, mode, or option that changes which side effects occur (e.g. `--dry-run`, `--force`, read-only mode), define explicitly which external side effects (writes, deletes, network sends) it suppresses or permits. An under-specified side-effect contract leads to inconsistent implementations.
 - Use Mermaid diagrams for the concept model, system structure, key processing flows, and a threat model when applicable.
 - Restrict code examples to high-level interfaces, type definitions, and error type definitions only.
 - Do not include implementation details, pseudocode, step-by-step algorithms, or low-level code.
-- When revising a document that is already `approved`, classify the edit before making it: a decision change returns the status to `draft` for re-approval, an editorial correction (a stale name, cross-reference, or summary row) keeps the status and is recorded in `Comments`. The rule and its rationale are in `docs/dev/developer_guide/requirements_process.md`, "Editing an approved document".
+- When revising a document that is already `approved`, classify the edit before making it: a decision change returns the status to `draft` for re-approval, an editorial correction (a stale name, cross-reference, or summary row) keeps the status and is recorded in `Comments`. The rule and its rationale are in `docs/dev/conventions/requirements_process.md`, "Editing an approved document".
 - **Claims about existing behavior carry their evidence.** Statements that a code path is unreachable, that a construction is unique, or that two paths produce the same value must cite `file:line` and the commit read, or be written as a requirement the design imposes rather than as an observed fact. Such statements are the ones a reader will trust without rechecking, and on task 0172 the same reachability claim was wrong twice in a row.
 - Write the body for an engineer meeting the current system for the first time: describe how it works now. Confine the rationale for removed or superseded designs, and cross-task decision history, to a bounded "decision history" appendix or a short blockquote pointing to git history — do not interleave it with current-state description. When editing a design document that earlier tasks have appended to, preserve this separation so the body does not become a changelog.
 

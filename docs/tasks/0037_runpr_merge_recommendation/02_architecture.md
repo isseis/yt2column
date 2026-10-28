@@ -30,7 +30,7 @@
 -   **NEXT を始める場所は次のブランチに限る。** `/clear` の案内は、step 5 が次のブランチを作り終えた後にだけ示し、そのブランチの名前と worktree を添える。作り終える前に止まったときは、案内の代わりに再開の方法を示す（AC-07）。案内どおりに同じ worktree で NEXT を実行したとき、NEXT は次のブランチで始まる（`_lib/task-pr-handoff.md` Part A step 3、`.claude/commands/_lib/task-pr-handoff.md:69-74`）。
 -   **報告は、実際にある状態を述べる。** 止まったときの最終報告は、次のブランチがどこまでできたか（ない、`origin` にだけある、チェックアウトされている）を確かめて述べる。推測で「作っていない」と書かない（3.4）。
 -   **利用者が見た値を報告する。** `/clear` の案内に添える `実装モデル要件` は、マージを決めた step 4 の質問で示した値をそのまま使う。マージの後に読み直さない（1.2）。
--   **実行時のコードを変えない。** 変えるのは、コマンドの定義と、`CLAUDE.md`・`docs/dev/developer_guide/requirements_process.md` の記述だけである。Go のコード・拡張のコードは変えない。Go のテストは、step 5 の見出しの定数（1.4）が見出しの変更に従うだけである。
+-   **実行時のコードを変えない。** 変えるのは、コマンドの定義と、`CLAUDE.md`・`docs/dev/conventions/requirements_process.md` の記述だけである。Go のコード・拡張のコードは変えない。Go のテストは、step 5 の見出しの定数（1.4）が見出しの変更に従うだけである。
 
 ### 1.2. 設計の際に決めたこと（2026-10-22）
 
@@ -290,7 +290,7 @@ step 5 が次のブランチを作り終える前に止まる場合は、たと�
 | `CLAUDE.md` | 「Claude Commands」の `/runpr` の行（`CLAUDE.md:86`） | 記録し、マージし、NEXT を示す（利用者が選んだときに実行する） |
 | `CLAUDE.md` | タスクの PR の流れの段落（`CLAUDE.md:98-102`） | 1 つの質問で記録とマージを決め、NEXT を示す。利用者が選んだときは続けて実行し、NEXT が次の PR を開いて止まる |
 | `.claude/commands/_lib/task-pr-handoff.md` | 冒頭の説明（`:19-23`） | 質問が扱うのは、マージ、その直前の記録、マージの後に示す NEXT であり、NEXT を実行するのは利用者が選んだときである |
-| `docs/dev/developer_guide/requirements_process.md` | 「Review Flow」の段落（`:55`） | 質問で承認とマージを決め、NEXT を示す。利用者が選んだときは続けて実行する |
+| `docs/dev/conventions/requirements_process.md` | 「Review Flow」の段落（`:55`） | 質問で承認とマージを決め、NEXT を示す。利用者が選んだときは続けて実行する |
 | `.claude/commands/mergepr.md` | step 3 の、`runpr.md` の中で実行するときの説明（`:122-125`） | `runpr.md` の step 4 が、この質問をマージ前の記録と NEXT の扱いと合わせて尋ねる |
 | `.claude/commands/_context.md` | 「PR marker conventions」の `実装モデル要件`（`:63`） | 値を示す場所として、マージの質問と、`runpr.md` の step 5 の最終報告の `/clear` の案内を挙げる。案内を示す条件は書かず、`runpr.md` の step 5 を参照する |
 
@@ -315,7 +315,7 @@ step 5 が次のブランチを作り終える前に止まる場合は、たと�
 | `.claude/commands/runpr.md` | step 4: 「Merge」の選択肢の順序と推奨（3.1）、次の PR マーカーと `実装モデル要件` の値がないときの扱い（3.2）。step 5: 最終報告の分け方、`/clear` の案内、止まったときの報告と再開の方法（3.3・3.4）。frontmatter・冒頭・step 5 の見出し（3.5） | AC-01〜AC-11 |
 | `CLAUDE.md` | 「Claude Commands」の `/runpr` の行と、タスクの PR の流れの段落（3.6） | AC-12・AC-14 |
 | `.claude/commands/_lib/task-pr-handoff.md` | 冒頭の説明（3.6） | AC-12・AC-14 |
-| `docs/dev/developer_guide/requirements_process.md` | 「Review Flow」の段落（3.6） | AC-12・AC-14 |
+| `docs/dev/conventions/requirements_process.md` | 「Review Flow」の段落（3.6） | AC-12・AC-14 |
 | `.claude/commands/mergepr.md` | step 3 の、`runpr.md` の中で実行するときの説明（3.6） | AC-12・AC-14 |
 | `.claude/commands/_context.md` | 「PR marker conventions」の `実装モデル要件`（3.6） | AC-13・AC-14 |
 

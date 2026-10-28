@@ -592,7 +592,7 @@ func loadAnthropicAPIKey(lookup LookupFunc, cfg *LLMConfig) error {
 // defaultClaudeEffort is the effort used when YT2COLUMN_CLAUDE_EFFORT is
 // unset and a stage the run needs uses the claude provider. The adapter's
 // default output limit was sized for this effort; changing it calls for the
-// re-measurement in docs/dev/developer_guide/claude_output_limit.md.
+// re-measurement in docs/dev/guides/claude_output_limit.md.
 const defaultClaudeEffort = claudeparam.EffortHigh
 
 // loadClaudeEffort validates YT2COLUMN_CLAUDE_EFFORT when the generation or

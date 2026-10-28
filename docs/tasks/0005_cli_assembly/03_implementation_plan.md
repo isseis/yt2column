@@ -131,7 +131,7 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 -   変更: `internal/llm/deepseek/errors.go`・`deepseek.go`・`deepseek_test.go`・`test_helpers.go`
 -   新設: `internal/llm/deepseek/test_helpers_endpoint.go`（`//go:build test`）
 -   変更: `internal/writer/output.go`・`output_test.go`。新設: `internal/writer/article.go`・`article_test.go`
--   変更: `internal/pipeline/pipeline_test.go`・`docs/dev/developer_guide/test_organization.md`・`docs/dev/developer_guide/package_reference.md`
+-   変更: `internal/pipeline/pipeline_test.go`・`docs/dev/conventions/test_organization.md`・`docs/dev/conventions/package_reference.md`
 
 **タスク**
 -   [x] **ステップ 1-1**: `validateVideoURL` を `ValidateVideoURL` に改名する（§1.4）。§1.3 に挙げた参照をすべて追従させ、doc コメントの先頭の名前と、`video_id_test.go` の失敗メッセージの関数名も改める。検証の内容は変えない。
@@ -207,7 +207,7 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 
 **対象ファイル**
 -   新設: `internal/config/config.go`・`cachedir.go`・`config_test.go`・`cachedir_test.go`・`envaccess_test.go`
--   変更: `docs/dev/developer_guide/package_reference.md`
+-   変更: `docs/dev/conventions/package_reference.md`
 
 **タスク**
 -   [x] **ステップ 2-1**: `config.go` に `Provider`・`Config` とその公開メソッド・`LookupFunc`・`Load`・`ErrMissing`・`ErrInvalid`・`VarError` を作る（設計書 3.1）。検証の規則は要件書 F-001 の表と箇条書きのとおりとし、値を補正しない。`VarError.Reason` は固定の文字列の定数から選び、値から組み立てない。拒否した変数ごとの `*VarError` を `errors.Join` で返す。
@@ -251,7 +251,7 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 
 **対象ファイル**
 -   新設: `internal/llm/provider/provider.go`・`provider_test.go`
--   変更: `docs/dev/developer_guide/package_reference.md`
+-   変更: `docs/dev/conventions/package_reference.md`
 
 **タスク**
 -   [x] **ステップ 3-1**: `provider.go` に `LLMTimeout`・`New`・非公開の `newClient`（プロバイダを直接受け取り、アダプタの構築関数を引数で受け取る）・`errUnknownProvider` を作る（設計書 3.2）。構築のエラーは `%w` で包む。
@@ -284,7 +284,7 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 
 **対象ファイル**
 -   新設: `internal/publisher/file.go`・`file_test.go`・`test_helpers.go`（`//go:build test`）
--   変更: `docs/dev/developer_guide/package_reference.md`
+-   変更: `docs/dev/conventions/package_reference.md`
 
 **タスク**
 -   [x] **ステップ 4-1**: `file.go` に `FilePublisher`・`NewFilePublisher`・`Publish`・`ErrOutputExists`・`ErrNoHardLink`・`KeptFileError` を作る（設計書 3.5 の検査・書式・作成の手段 1〜6）。I-03 の継ぎ目（§1.5）を非公開のフィールドに置き、本番の値は `NewFilePublisher` が設定する。`link` の失敗の分類は `errors.Is` で errno を判定する。一時ファイルを `0o644` にする呼び出しには、その行だけに `//nolint:gosec // the article is a non-secret document built from a public video` の形で理由を付ける（設計書 3.5 の 3）。
@@ -321,7 +321,7 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 
 **対象ファイル**
 -   新設: `internal/cachelock/cachelock.go`（`//go:build unix`）・`cachelock_test.go`・`test_helpers.go`（`//go:build test`）
--   変更: `docs/dev/developer_guide/package_reference.md`、本計画（ステップ 5-4 の記録）
+-   変更: `docs/dev/conventions/package_reference.md`、本計画（ステップ 5-4 の記録）
 
 **タスク**
 -   [x] **ステップ 5-1**: `cachelock.go` に `Lock`・`Acquire`・`File`・`Close`・`ErrLocked`・`LockedError` を作る（設計書 3.7）。排他のファイルは、シンボリックリンクをたどらず、名前付きパイプで待たずに読み取り専用で開き、開いた記述子で通常のファイルであることを確かめる。`gosec` が指摘する変数のパスでの `OpenFile` と、記述子の整数への変換には、その行だけに理由付きの `//nolint:gosec` を付ける。
@@ -361,7 +361,7 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 **対象ファイル**
 -   新設: `internal/transcript/testutil/helpers.go`（`//go:build test || integration`）
 -   新設: `internal/job/job.go`・`job_test.go`・`test_helpers.go`（`//go:build test`）
--   変更: `internal/pipeline/pipeline_test.go`（`TestFakesCarryBuildTag` の件数）・`docs/dev/developer_guide/package_reference.md`
+-   変更: `internal/pipeline/pipeline_test.go`（`TestFakesCarryBuildTag` の件数）・`docs/dev/conventions/package_reference.md`
 
 **タスク**
 -   [x] **ステップ 6-1**: `internal/transcript/testutil/helpers.go` に、偽の `yt-dlp` のスクリプトを一時ディレクトリに作る公開関数と、ディレクトリの内容の一覧を取る公開関数を置く。
@@ -407,7 +407,7 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 **対象ファイル**
 -   変更: `cmd/yt2column/main.go`。新設: `run.go`・`outpath.go`・`output.go`
 -   新設: `cmd/yt2column/main_test.go`・`run_test.go`・`outpath_test.go`・`output_test.go`・`signal_test.go`・`test_helpers.go`（いずれも `//go:build test`）・`test_helpers_integration.go`（`//go:build test || integration`）
--   変更: `docs/dev/developer_guide/package_reference.md`
+-   変更: `docs/dev/conventions/package_reference.md`
 
 **タスク**
 -   [x] **ステップ 7-1**: `output.go` に、エスケープ → 伏せ字化の順に処理する関数を作る（設計書 3.8「標準エラー出力の無害化」）。`output_test.go` の `TestSanitize` で、値と末尾 8 文字（文字単位とバイト単位）の伏せ字化（8 文字以下の値を含む）、制御文字・`U+202E`・不正な UTF-8・バックスラッシュのエスケープ、制御文字を含む秘密情報の値も伏せ字になること、エスケープが合成した値と印に含まれる値を伏せ字にすることを確かめる。
@@ -489,7 +489,7 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 -   新設: `internal/llm/deepseek/testutil/integration.go`（`//go:build test || integration`）・`make.go`（`//go:build test`）・`integration_settings_test.go`（`//go:build test`）
 -   変更: `internal/llm/deepseek/integration_env_test.go`・`integration_test.go`・`deepseek_test.go`・`makefile_test.go`
 -   新設: `cmd/yt2column/integration_test.go`（`//go:build integration`）・`cmd/yt2column/makefile_test.go`（`//go:build test`）。変更: `cmd/yt2column/test_helpers_integration.go`
--   変更: `Makefile`・`internal/pipeline/pipeline_test.go`（件数）・`docs/dev/developer_guide/package_reference.md`
+-   変更: `Makefile`・`internal/pipeline/pipeline_test.go`（件数）・`docs/dev/conventions/package_reference.md`
 
 **タスク**
 -   [x] **ステップ 8-1**: `integration.go` に、設計書 3.11 の型と `SettingsFrom`、§1.4 の公開の定数を作る（`package deepseektestutil`）。判定の順序と内容は既存の `integrationSettingsFrom` と同じとし、キーがない場合だけ `MissingKey` に従う。スキップと失敗の理由は `IntegrationOptions` のオプトインの変数名と make のターゲットを示す。
@@ -530,7 +530,7 @@ design_handoff.md の H-01〜H-03 は、すべて設計書 §3.13 に対応が�
 ### フェーズ 9: 文書と手動確認
 
 **対象ファイル**
--   変更: `README.md`・`docs/dev/project_overview.md`・`docs/dev/security.md`・`docs/dev/developer_guide/package_reference.md`
+-   変更: `README.md`・`docs/dev/project_overview.md`・`docs/dev/security.md`・`docs/dev/conventions/package_reference.md`
 -   新設: `cmd/yt2column/docs_test.go`（`//go:build test`）。変更: `internal/pipeline/pipeline_test.go`
 -   変更: 本計画（ステップ 9-5・9-6 の記録）
 

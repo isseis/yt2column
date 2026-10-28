@@ -38,7 +38,7 @@
 
 ### 1.3. 既存コード調査結果
 
-HEAD `0842685` で確認した。設計書は既存のファイルの行番号をコミット `c93a87b` で記している。`git diff --name-only c93a87b HEAD -- extension README.md docs/dev cmd .github Makefile` の出力は `cmd/yt2column/integration_slack_test.go`・`cmd/yt2column/integration_test.go`・`docs/dev/developer_guide/package_reference.md` の 3 件だけで、`extension/`・`README.md`・`docs/dev/security.md` は変わっていない（2026-10-18 に実行）。したがって設計書の `file:line` は HEAD `0842685` でもそのまま有効である。以下の `file:line` も HEAD `0842685` のものである。
+HEAD `0842685` で確認した。設計書は既存のファイルの行番号をコミット `c93a87b` で記している。`git diff --name-only c93a87b HEAD -- extension README.md docs/dev cmd .github Makefile` の出力は `cmd/yt2column/integration_slack_test.go`・`cmd/yt2column/integration_test.go`・`docs/dev/conventions/package_reference.md` の 3 件だけで、`extension/`・`README.md`・`docs/dev/security.md` は変わっていない（2026-10-18 に実行）。したがって設計書の `file:line` は HEAD `0842685` でもそのまま有効である。以下の `file:line` も HEAD `0842685` のものである。
 
 **再利用する既存の実装（変更しない、または振る舞いを変えずに広げるもの）**
 

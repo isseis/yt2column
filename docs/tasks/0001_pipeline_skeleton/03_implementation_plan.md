@@ -32,7 +32,7 @@
 リポジトリの現状を HEAD `4a2fde5` で確認した。
 
 - **Go ソース**: `cmd/yt2column/main.go` のみ（空の `main()`、`cmd/yt2column/main.go:4`）。`internal/` 以下のパッケージ・テスト・テストヘルパーは存在せず、再利用できる既存コンポーネントはない。本タスクで変更・削除する既存シンボルはなく、更新が必要になる既存テストもない（純粋な追加）。
-- **package_reference.md**: `docs/dev/developer_guide/package_reference.md:7` が「No packages exist yet」のまま。本タスクで新設する 10 パッケージ（`internal/secret`・`internal/transcript`・`internal/transcript/testutil`・`internal/llm`・`internal/llm/testutil`・`internal/writer`・`internal/writer/testutil`・`internal/publisher`・`internal/publisher/testutil`・`internal/pipeline`）を登録する。登録は同ファイル冒頭の「パッケージを追加するコミットと同じコミットで更新する」規則に従い、各パッケージを新設するフェーズで行う（フェーズ 5 にまとめない）。最初の行を追加するフェーズ 1 では、冒頭の「No packages exist yet」の記述と「Move each entry here」の案内も更新する。
+- **package_reference.md**: `docs/dev/conventions/package_reference.md:7` が「No packages exist yet」のまま。本タスクで新設する 10 パッケージ（`internal/secret`・`internal/transcript`・`internal/transcript/testutil`・`internal/llm`・`internal/llm/testutil`・`internal/writer`・`internal/writer/testutil`・`internal/publisher`・`internal/publisher/testutil`・`internal/pipeline`）を登録する。登録は同ファイル冒頭の「パッケージを追加するコミットと同じコミットで更新する」規則に従い、各パッケージを新設するフェーズで行う（フェーズ 5 にまとめない）。最初の行を追加するフェーズ 1 では、冒頭の「No packages exist yet」の記述と「Move each entry here」の案内も更新する。
 - **project_overview.md**: 旧表記の残存箇所を `rg` で列挙した（HEAD `4a2fde5`、`docs/dev/project_overview.md` のみを対象。`requirements_process.md:106` の `System Structure` は無関係な見出しのため対象外）。
   - `docs/dev/project_overview.md:37`: `Generate(ctx context.Context, req GenerateRequest) (string, error)`
   - `docs/dev/project_overview.md:39`: `// GenerateRequest: System, User, MaxOutputTokens, Temperature など、プロバイダ共通の最小限の項目のみ`
@@ -68,7 +68,7 @@
 
 **対象ファイル**
 - 新設: `internal/secret/secret.go`・`internal/secret/secret_test.go`
-- 変更: `docs/dev/developer_guide/package_reference.md`
+- 変更: `docs/dev/conventions/package_reference.md`
 
 **タスク**
 - [x] **ステップ 1-1**: `internal/secret/secret.go` を作成し、architecture §3.3 の型定義どおりに実装する。
@@ -81,7 +81,7 @@
   - `MarshalJSON() ([]byte, error)`: `"[REDACTED]"` を返す（AC-20）。
   - パッケージコメントとすべての公開識別子に英語のドキュメントコメントを付ける（revive の `package-comments` と `exported` が `make lint` で検査する）。`[REDACTED]` の繰り返しは goconst を避けるためパッケージ定数にまとめる。
 - [x] **ステップ 1-2**: `internal/secret/secret_test.go` を作成し、AC-18〜AC-26 のテストを置く（テスト関数名は §5）。`fmt` の直接書式化は固定文字列との完全一致で検証する（`[REDACTED]` の部分一致だけでは、長さやハッシュを付け足した出力を見逃す）。非公開フィールド経路は元の値が現れないことを検証し、出力される関数アドレスはゴールデンファイル化しない（architecture §7.1）。
-- [x] **ステップ 1-3**: `docs/dev/developer_guide/package_reference.md` の冒頭を更新し（「No packages exist yet」の記述と「Move each entry here」の案内）、`internal/secret` の行を追加する。プレースホルダの `| _(none yet)_ | |` 行（`package_reference.md:14`）は削除する。
+- [x] **ステップ 1-3**: `docs/dev/conventions/package_reference.md` の冒頭を更新し（「No packages exist yet」の記述と「Move each entry here」の案内）、`internal/secret` の行を追加する。プレースホルダの `| _(none yet)_ | |` 行（`package_reference.md:14`）は削除する。
 - [x] **ステップ 1-4**: 主要な対策を実装時に壊してテストが失敗することを確認し、コミットメッセージに記録する（例: `Format` を元の値を出力する実装に変えると `TestSecretFmtRedaction` が失敗する、`String()`・`GoString()` を元の値に変えると `TestSecretStringGoString` が失敗する、`LogValue` を元の値を返す実装に変えると `TestSecretSlogRedaction` が失敗する（`LogValue` を外すだけでは、slog が `fmt` 経由で `Format` を呼ぶため `[REDACTED]` のままになり失敗しない）、`MarshalJSON` を外すと `TestSecretJSONRedaction` が失敗する、クロージャ保持を素の `string` フィールドに変えると `TestSecretUnexportedFieldNoLeak` が失敗する、`New` の空文字列チェックを外すと `TestSecretNewEmpty` が失敗する）。
 - [x] **ステップ 1-5**: `make fmt` → `make test` → `make lint` を通す。
 
@@ -106,7 +106,7 @@
 
 **対象ファイル**
 - 新設: `internal/transcript/transcript.go`・`internal/llm/llm.go`・`internal/writer/writer.go`・`internal/publisher/publisher.go`
-- 変更: `docs/dev/developer_guide/package_reference.md`
+- 変更: `docs/dev/conventions/package_reference.md`
 
 **タスク**
 - [x] **ステップ 2-1**: `internal/transcript/transcript.go` に `Segment`・`Transcript` を architecture §3.1 のとおり定義する。
@@ -114,7 +114,7 @@
 - [x] **ステップ 2-3**: `internal/writer/writer.go` に `Article` を architecture §3.1 のとおり定義する。
 - [x] **ステップ 2-4**: 4 つの interface（`TranscriptSource`・`LLMClient`・`ArticleWriter`・`Publisher`）を architecture §3.2 の Go 定義どおりに定義する。すべてのメソッドの第 1 引数は `context.Context`。契約（失敗時はエラーを返す・空の結果を正常な結果として返さない・`Publisher` は不完全な記事を投稿しない）を英語のドキュメントコメントとして書く（AC-06〜AC-08）。コメントの文言は architecture §3.2 に従う。4 パッケージそれぞれに英語のパッケージコメントを付ける（revive の `package-comments`）。
 - [x] **ステップ 2-5**: この 4 パッケージにパッケージ本体の `_test.go` は置かない（architecture §7.1）。
-- [x] **ステップ 2-6**: `docs/dev/developer_guide/package_reference.md` に `internal/transcript`・`internal/llm`・`internal/writer`・`internal/publisher` の 4 行を追加する。
+- [x] **ステップ 2-6**: `docs/dev/conventions/package_reference.md` に `internal/transcript`・`internal/llm`・`internal/writer`・`internal/publisher` の 4 行を追加する。
 - [x] **ステップ 2-7**: `make fmt` → `make test` → `make lint` を通す。
 
 ### PR-2 作成ポイント: stage interfaces and common data types
@@ -141,10 +141,10 @@
 - 新設: `internal/llm/testutil/mocks.go`・`internal/llm/testutil/mocks_test.go`
 - 新設: `internal/writer/testutil/mocks.go`・`internal/writer/testutil/mocks_test.go`
 - 新設: `internal/publisher/testutil/mocks.go`・`internal/publisher/testutil/mocks_test.go`
-- 変更: `docs/dev/developer_guide/package_reference.md`
+- 変更: `docs/dev/conventions/package_reference.md`
 
 **共通パターン（4 つの fake すべてに適用）**
-- `mocks.go`・`mocks_test.go` の両方の先頭に `//go:build test` を付ける（AC-17。`docs/dev/developer_guide/test_organization.md:91-93`）。
+- `mocks.go`・`mocks_test.go` の両方の先頭に `//go:build test` を付ける（AC-17。`docs/dev/conventions/test_organization.md:91-93`）。
 - パッケージ名は `<domain>testutil`（`transcripttestutil`・`llmtestutil`・`writertestutil`・`publishertestutil`）とする（同ガイドの分類 A）。
 - 設定可能な `Result` と `Err`、および呼び出し記録用の `Calls []<Fake>Call`（各要素は `Ctx` と入力引数を持つ）をフィールドに持つ（`FakePublisher` は `Publish` が `error` のみを返すため `Result` を持たず `Err` のみを持つ）。メソッドは**ポインタレシーバ**で定義し、呼び出しごとに入力引数を `Calls` に追記する（AC-15・AC-16）。
 - コンパイル時アサーション `var _ <interface> = (*<Fake>)(nil)` を置く（AC-06）。
@@ -156,7 +156,7 @@
 - [x] **ステップ 3-3**: `internal/writer/testutil/mocks.go` に `FakeArticleWriter` を、`mocks_test.go` にその振る舞いのテストを作成する（記録する入力は `Transcript`）。
 - [x] **ステップ 3-4**: `internal/publisher/testutil/mocks.go` に `FakePublisher` を、`mocks_test.go` にその振る舞いのテストを作成する（記録する入力は `Article`）。
 - [x] **ステップ 3-5**: fake の振る舞い（戻り値・エラー・呼び出し記録）を実装時に壊し、各 `mocks_test.go` が失敗することを確認して、コミットメッセージに記録する（例: メソッドを値レシーバに変えると `Calls` が記録されず失敗する）。
-- [x] **ステップ 3-6**: `docs/dev/developer_guide/package_reference.md` に `testutil` 4 パッケージの行を追加する。
+- [x] **ステップ 3-6**: `docs/dev/conventions/package_reference.md` に `testutil` 4 パッケージの行を追加する。
 - [x] **ステップ 3-7**: タグなしのビルドに fake が含まれないことを `go list -e -f '{{.ImportPath}} {{len .GoFiles}} {{.Error}}' ./internal/transcript/testutil ./internal/llm/testutil ./internal/writer/testutil ./internal/publisher/testutil` で確認する。4 つの `testutil` パッケージそれぞれについて、`GoFiles` が 0 件であること、および `.Error` が「すべての Go ファイルがビルド制約で除外された」ことを示す（`build constraints exclude all Go files`）ことを出力とともに記録する（architecture §7.2 が本計画に委ねた `go list` のコマンド。AC-17）。`-e` はエラーを標準エラーではなくパッケージの `Error` フィールドに入れるため、テンプレートで `.Error` を描画しないと、存在しない import path の誤りも `0` とだけ表示されて期待結果と区別できない。`./internal/...` のようなパターンは、すべてのファイルがビルド制約で除外されたディレクトリを列挙しない（`go help packages` はパターンが「パッケージのディレクトリ」に展開されるとし、`go help list` は名前付きパッケージを 1 行ずつ列挙するとする）ため、`testutil` パッケージは import path を明示して `go list` に渡す。
 - [x] **ステップ 3-8**: `make fmt` → `make test` → `make lint` を通す。`make test` は `-tags test` で実行されるため、fake が同じタグでコンパイルされることをこのフェーズのゲートで確認する（`Makefile:63-64`）。
 
@@ -181,7 +181,7 @@
 
 **対象ファイル**
 - 新設: `internal/pipeline/pipeline.go`・`internal/pipeline/pipeline_test.go`
-- 変更: `docs/dev/developer_guide/package_reference.md`
+- 変更: `docs/dev/conventions/package_reference.md`
 
 **タスク**
 - [x] **ステップ 4-1**: `internal/pipeline/pipeline.go` を作成し、architecture §3.4 の定義どおりに実装する。
@@ -193,7 +193,7 @@
   - `Run` は冒頭で 3 つの段階の nil を再確認し、nil なら段階を呼び出さずに `ErrNilStage` をラップしたエラーを返す（ゼロ値の fail-closed、AC-14a）。各段階の呼び出し前に `ctx.Err()` を確認し、キャンセル済みなら `ctx.Err()` をそのまま返して以降の段階を呼ばない（AC-13）。段階の失敗は対応する `Stage` を付けた `StageError` で包む（AC-11・AC-12）。すべて成功した場合は投稿した `Article` を返す（AC-09・AC-10）。
   - パッケージコメントとすべての公開識別子に英語のドキュメントコメントを付ける。
 - [x] **ステップ 4-2**: `internal/pipeline/pipeline_test.go` を作成し、AC-09〜AC-14・AC-14a の振る舞いテストと、§5 に記載する guard テストを置く。テストはフェーズ 3 の fake を注入して行う。`TestPipelineSuccess` では、source fake が返す `Transcript` に順序つきの複数セグメントとメタ情報を持たせ、writer fake が記録した値が並び順・内容ともに一致することを検証する（AC-01・AC-02）。`pipeline_test.go` は `//go:build test` のタグ付き `testutil` パッケージを import するため、ファイル先頭に `//go:build test` を付ける（付けないと、タグを渡さない `go vet ./...` や IDE が `build constraints exclude all Go files` で失敗する。architecture §3.5 の AC-17 の注意と同じ理由）。AC-13 の段階間キャンセルは、`Fetch` の呼び出しを観測してから `ctx.Err()` が `context.Canceled` を返すよう切り替えるカスタム `context.Context`（`pipeline_test.go` 内で定義）という決定的な同期手段で実現し、タイマー待ちやスリープは使わない。`Stage` のゼロ値・既知の値・未知の値を検証する補助テスト（`TestStageString`。`StageError.Error()` が `Stage.String()` を使うことを含む）も置く。ファイルを読む guard（`TestInterfaceDocComments`・`TestFakesCarryBuildTag`）は、対象ファイルの集合（件数）が期待どおりであることを先に確認し、空集合で素通りしないようにする。`TestInterfaceDocComments` の英語判定（CJK 文字を含まない、など）は実装時に定義する。
-- [x] **ステップ 4-3**: `docs/dev/developer_guide/package_reference.md` に `internal/pipeline` の行を追加する。
+- [x] **ステップ 4-3**: `docs/dev/conventions/package_reference.md` に `internal/pipeline` の行を追加する。
 - [x] **ステップ 4-4**: 主要な分岐と guard を実装時に壊してテストが失敗することを確認し、コミットメッセージに記録する（例: `Run` の nil 検査を外すと `TestPipelineZeroValueRun` が失敗する、段階の失敗を包まずに返すと `TestPipelineStageError` が失敗する、guard 対象のフィールドを追加すると `TestCommonTypesFieldSets` が失敗する、`//go:build test` を外すと `TestFakesCarryBuildTag` が失敗する、interface の第 1 引数を `context.Context` 以外に変えると `TestInterfaceContracts` が失敗する、interface の契約コメントから条項を削ると `TestInterfaceDocComments` が失敗する、`Secret` に平文を返す公開メソッドを追加すると `TestSecretRevealExclusive` が失敗する、キャンセルの検出点を変えると `TestPipelineCanceled` が失敗する）。
 - [x] **ステップ 4-5**: `make fmt` → `make test` → `make lint` を通す。
 
@@ -355,7 +355,7 @@ AC ごとの検証は次のとおり。`test` は実行可能なテスト、`sta
 - [x] PR-5 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5）
 - [x] 各 PR で `make fmt` → `make test` → `make lint` が通る
 - [x] 各テストについて、対応する対策・分岐を実装時に壊し、テストが失敗することを確認済み（コミットメッセージに記録）
-- [x] `docs/dev/developer_guide/package_reference.md` に 10 パッケージが登録されている
+- [x] `docs/dev/conventions/package_reference.md` に 10 パッケージが登録されている
 - [x] `cmd/yt2column/main.go` が変更されていない
 
 ## 8. 成功基準 (Success Criteria)
@@ -363,7 +363,7 @@ AC ごとの検証は次のとおり。`test` は実行可能なテスト、`sta
 - 全 AC（AC-01〜AC-26 と AC-14a）に、§5 のとおり `test` または `static` の検証がある（AC-03 は挙動検証を #4 に引き継ぐ）。
 - `make test` と `make lint` が通る（green gate）。
 - 本番バイナリに fake が含まれない（`TestFakesCarryBuildTag` と `make build` の対象が `./cmd/yt2column` のみであることで確認）。
-- `docs/dev/project_overview.md` の `LLMClient` の記述が本設計に一致し、旧表記の残骸がない。`docs/dev/developer_guide/package_reference.md` に全新設パッケージが登録されている。
+- `docs/dev/project_overview.md` の `LLMClient` の記述が本設計に一致し、旧表記の残骸がない。`docs/dev/conventions/package_reference.md` に全新設パッケージが登録されている。
 - `cmd/yt2column/main.go` が変更されていない（CLI 配線は #6）。
 
 ## 9. 次のステップ (Next Steps)

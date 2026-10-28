@@ -17,7 +17,7 @@ Your goal is to design PR boundaries for an existing `03_implementation_plan.md`
 
 Work in the following order.
 
-1. Identify the target task directory by following the rules in `docs/dev/developer_guide/task_identification.md`.
+1. Identify the target task directory by following the rules in `docs/dev/conventions/task_identification.md`.
 
 1.5. Prepare the branch: follow `.claude/commands/_lib/task-pr-handoff.md`, Part A,
    with **TASK_DIR** = the target task directory, **REPORT** = the step 12
@@ -104,7 +104,7 @@ Work in the following order.
    …
    ```
 
-8.5. Set the plan's status back to `draft`, with `Review date` and `Reviewer` `-` and the past approval kept in `Comments` as history (`docs/dev/developer_guide/requirements_process.md`, "Editing an approved document"): adding PR boundaries reorders and renumbers steps and splits the work, which is a decision the reviewer approves (`docs/dev/developer_guide/requirements_process.md`, "Editing an approved document"). Record in `Comments` that the PR boundaries were added on YYYY-MM-DD. Then commit the inserted PR boundaries (the first version) with a message that explains the PR grouping rationale, so the review fixes that follow are visible as their own diff. `/runpr` offers the approval and `/runplan` as the next command at the merge.
+8.5. Set the plan's status back to `draft`, with `Review date` and `Reviewer` `-` and the past approval kept in `Comments` as history (`docs/dev/conventions/requirements_process.md`, "Editing an approved document"): adding PR boundaries reorders and renumbers steps and splits the work, which is a decision the reviewer approves (`docs/dev/conventions/requirements_process.md`, "Editing an approved document"). Record in `Comments` that the PR boundaries were added on YYYY-MM-DD. Then commit the inserted PR boundaries (the first version) with a message that explains the PR grouping rationale, so the review fixes that follow are visible as their own diff. `/runpr` offers the approval and `/runplan` as the next command at the merge.
 
 9. Run the critical-review subagent procedure in `.claude/commands/_lib/review-subagent-pattern.md` with these inputs:
     - **ARTIFACT**: the PR boundary design.

@@ -61,7 +61,7 @@
 
 **`fixprguard` のガイド（PR-1）**
 
--   日英のガイドの 7.2 節の最後の項目は「本文の内容。ツールはファイルの種類・大きさ・文字コードだけを検査する」と述べる（`docs/dev/developer_guide/fixprguard_guide.ja.md:259`、英語版の同じ行）。この項目を固定するガードはない。
+-   日英のガイドの 7.2 節の最後の項目は「本文の内容。ツールはファイルの種類・大きさ・文字コードだけを検査する」と述べる（`docs/dev/guides/fixprguard_guide.md:259`、英語版の同じ行）。この項目を固定するガードはない。
 -   `cmd/fixprguard/docs_test.go` には、日英のガイドの一覧 `guideFiles`（`:25`）、`readRepoFile`（`:31`）、`singleLine`（`:180`）、`section`・`subsection`（`:197`・`:201`）と、古い文が消えたことを確かめる `stale` の形（`TestGuideDescribesConfigScope`、`:454-503`）がある。9 章については、`:305-308` が既存の `Protocol` の但し書き（`tc.proviso`）を含むことを確かめている。新しい但し書きを加えても、既存の文を残せばこの確認は失敗しない。
 
 **コマンドの文書が GitHub に投稿する経路（PR-2）**
@@ -158,7 +158,7 @@
 
 #### ステップ 1-5: ガイド（日英）
 
-**変更するファイル**: `docs/dev/developer_guide/fixprguard_guide.ja.md`、`docs/dev/developer_guide/fixprguard_guide.md`、`cmd/fixprguard/docs_test.go`
+**変更するファイル**: `docs/dev/guides/fixprguard_guide.md`、`docs/dev/guides/fixprguard_guide.md`、`cmd/fixprguard/docs_test.go`
 
 - [x] 日本語版を設計書 3.8 の「ガイド」のとおりに改める: 5 章の `reply`・`edit-pr` の本文とタイトルの条件、4 章の終了コード `2` の説明、7.1 の保証の表に「メンションを含む文面を GitHub に送らない」行、7.2 の「本文の内容」の項目（内容はメンションだけを検査する。全角や幅のない文字を挟んだ形は検査しない）、9 章の `Protocol` の但し書き（設計書 1.4 の 2 行目）。9 章の既存の但し書きの文は残す。
 - [x] 英語版を、日本語版の翻訳として同じ構造で改める（`.claude/commands/mktrans.md` の原則と `docs/translation_glossary.md` に従う）。日英の見出しと表の行が対応していることを読み合わせる。
