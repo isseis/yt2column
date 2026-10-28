@@ -42,10 +42,15 @@ func TestGenerationStages(t *testing.T) {
 		})
 	}
 
-	key := ts.beginGeneration(t, validBody(testValidVideoURL, testValidRaw))
-	if got := ts.statusOf(t, key).Job; got.State != "running" || *got.Steps != (statusSteps{"pending", "pending", "pending"}) {
+	// Begin and start the job by hand, so the record is read before the job
+	// can report anything.
+	input := ts.validInput(t, validBody(testValidVideoURL, testValidRaw))
+	key := ts.keyer.Key(input.key)
+	_, run, _ := ts.cache.Begin(key, ts.acquireSlot)
+	if got := ts.statusOf(t, key).Job; got.State != "running" || got.Steps == nil || *got.Steps != (statusSteps{"pending", "pending", "pending"}) {
 		t.Errorf("before the first step: job = %+v, steps %+v, want running with every step pending", got, got.Steps)
 	}
+	ts.startGeneration(run, key, input)
 	for i, p := range points {
 		<-reached[i]
 		got := ts.statusOf(t, key).Job
@@ -56,7 +61,7 @@ func TestGenerationStages(t *testing.T) {
 	}
 	ts.waitJobs()
 	got := ts.statusOf(t, key).Job
-	if got.State != "done" || *got.Steps != (statusSteps{"done", "skipped", "done"}) {
+	if got.State != "done" || got.Steps == nil || *got.Steps != (statusSteps{"done", "skipped", "done"}) {
 		t.Errorf("after the job: state %q steps %+v, want done with draft and review done and shorten skipped", got.State, got.Steps)
 	}
 	if len(ts.slots) != 0 {
@@ -183,6 +188,8 @@ func TestGenerationKeepsNoTranscript(t *testing.T) {
 			t.Fatalf("the writer did not receive the transcript text: %+v", calls)
 		}
 	})
+	// The record keeps a failure's reason, not its error, so this subtest
+	// guards the record's shape against a later change that stores the error.
 	t.Run("failed", func(t *testing.T) {
 		ts := newJobsTestServer(t, jobsServerOptions{})
 		ts.writer.Err = fmt.Errorf("generation failed on %q", marker)
@@ -199,7 +206,7 @@ func TestGenerationKeepsNoTranscript(t *testing.T) {
 
 // TestGenerationFailureReasons checks that each generation failure the writer
 // or the completion check can produce is reported with its own reason code, and
-// that the eight codes differ.
+// that each row's code is its own.
 func TestGenerationFailureReasons(t *testing.T) {
 	invalid := testArticle()
 	invalid.Model = ""
@@ -220,7 +227,6 @@ func TestGenerationFailureReasons(t *testing.T) {
 		{"article_invalid", nil, invalid, "article_invalid"},
 		{"article_too_large", nil, tooLarge, "article_too_large"},
 	}
-	seen := map[string]string{}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ts := newJobsTestServer(t, jobsServerOptions{})
@@ -232,10 +238,6 @@ func TestGenerationFailureReasons(t *testing.T) {
 			if got.State != "failed" || got.Failure != tc.want {
 				t.Errorf("job = %+v, want failed with %s", got, tc.want)
 			}
-			if other, dup := seen[got.Failure]; dup {
-				t.Errorf("reason %q is shared with %s", got.Failure, other)
-			}
-			seen[got.Failure] = tc.name
 		})
 	}
 }
@@ -282,27 +284,20 @@ func TestStatusResponseWithinLimit(t *testing.T) {
 
 	snap.Duration = 1<<63 - 1
 	snap.Stages = articlecache.Stages{Draft: articlecache.StageSkipped, Shorten: articlecache.StageSkipped, Review: articlecache.StageSkipped}
-	states := []struct {
-		publish    articlecache.PublishState
-		failure    articlecache.PublishFailureReason
-		unpostable articlecache.UnpostableReason
-	}{
-		{publish: articlecache.PublishNotPosted},
-		{publish: articlecache.PublishPosting},
-		{publish: articlecache.PublishFailed, failure: articlecache.PublishFailureInternal},
-		{publish: articlecache.PublishFailed, failure: articlecache.PublishFailureWebhook},
-		{publish: articlecache.PublishPosted},
-		{publish: articlecache.PublishUnpostable, unpostable: articlecache.UnpostableOther},
-		{publish: articlecache.PublishUnpostable, unpostable: articlecache.UnpostableMention},
-	}
-	for _, st := range states {
-		snap.Publish, snap.PublishFailure, snap.Unpostable = st.publish, st.failure, st.unpostable
-		data, err := renderStatus(strings.Repeat("f", 2*requestIDBytes), false, snap)
-		if err != nil {
-			t.Fatalf("renderStatus: %v", err)
-		}
-		if len(data) > maxStatusResponseBytes {
-			t.Errorf("publish %+v: response is %d bytes, over the %d limit", st, len(data), maxStatusResponseBytes)
+	// The enumerations are walked as the server walks them; the values the
+	// server varies are this test's own choice of their longest.
+	for _, publish := range articlecache.PublishStates() {
+		for _, unpostable := range articlecache.UnpostableReasons() {
+			for _, failure := range articlecache.PublishFailureReasons() {
+				snap.Publish, snap.Unpostable, snap.PublishFailure = publish, unpostable, failure
+				data, err := renderStatus(strings.Repeat("f", 2*requestIDBytes), false, snap)
+				if err != nil {
+					t.Fatalf("renderStatus: %v", err)
+				}
+				if len(data) > maxStatusResponseBytes {
+					t.Errorf("publish %d/%d/%d: response is %d bytes, over the %d limit", publish, unpostable, failure, len(data), maxStatusResponseBytes)
+				}
+			}
 		}
 	}
 }

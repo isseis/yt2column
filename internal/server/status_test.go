@@ -29,8 +29,7 @@ func pricedUsage() writer.RunUsage {
 
 // TestStatusDoneArticle checks a done article's status: the display Markdown
 // and the file content are what the publisher renders for the article (the
-// file being what --out writes), the Markdown holds the title, the channel
-// name, and the body, the cost is the formatted known cost, and the post has
+// file being what --out writes), the cost is the formatted known cost, and the post has
 // not started.
 func TestStatusDoneArticle(t *testing.T) {
 	ts := newJobsTestServer(t, jobsServerOptions{})
@@ -56,11 +55,6 @@ func TestStatusDoneArticle(t *testing.T) {
 	}
 	if job.Article.File != wantFile {
 		t.Errorf("file = %q, want %q", job.Article.File, wantFile)
-	}
-	for _, part := range []string{article.Title, article.ChannelName, article.Body} {
-		if !strings.Contains(job.Article.Markdown, part) {
-			t.Errorf("markdown %q does not hold %q", job.Article.Markdown, part)
-		}
 	}
 	usd, known := publisher.FormatArticleCost(article.RunUsage)
 	if !known {

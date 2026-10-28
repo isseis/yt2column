@@ -237,14 +237,16 @@ func TestStartRetriesFailed(t *testing.T) {
 	}
 	ts.writer.Err = nil
 
-	ts.slots <- struct{}{}
-	ts.slots <- struct{}{}
+	for range maxInFlight {
+		ts.slots <- struct{}{}
+	}
 	requireRejected(t, ts.startBody(body), http.StatusTooManyRequests, "too_many_requests")
 	if job := ts.getStatus(t, key).Job; job.State != "failed" || job.Failure != "llm_failed" {
 		t.Errorf("job after the refused retry = %+v, want failed with llm_failed", job)
 	}
-	<-ts.slots
-	<-ts.slots
+	for range maxInFlight {
+		<-ts.slots
+	}
 
 	if again := acceptedKey(t, ts.startBody(body)); again != key {
 		t.Errorf("retry key = %s, want %s", again, key)
@@ -305,8 +307,9 @@ func TestStartGenerationSlotsShared(t *testing.T) {
 	}
 }
 
-// TestNewAPINeverNotifies checks that no generation failure and no rejection
-// of the job API posts a failure notice.
+// TestNewAPINeverNotifies checks that no generation failure and no key
+// rejection of the job API posts a failure notice. The body rejections are
+// checked for it by TestStartRejectsLikeArticles.
 func TestNewAPINeverNotifies(t *testing.T) {
 	ts := newJobsTestServer(t, jobsServerOptions{})
 	ts.writer.Err = errors.New("the provider refused")
@@ -314,9 +317,6 @@ func TestNewAPINeverNotifies(t *testing.T) {
 	ts.writer.Err = nil
 	ts.writer.Result = writer.Article{}
 	acceptedKey(t, ts.startBody(bodyWith("invalid article")))
-	requireRejected(t, ts.startBody(`{"videoUrl":1}`), http.StatusBadRequest, "invalid_body")
-	requireRejected(t, ts.startBody(validBody("http://example.com/v", testValidRaw)), http.StatusBadRequest, "invalid_video_url")
-	requireRejected(t, ts.startBody(validBody(testValidVideoURL, "not a transcript")), http.StatusBadRequest, "invalid_transcript")
 	requireRejected(t, ts.statusRequest("nope"), http.StatusBadRequest, "invalid_key")
 	if len(ts.notifier.Calls) != 0 {
 		t.Errorf("notifier calls = %+v, want none", ts.notifier.Calls)
@@ -363,11 +363,14 @@ func TestStartReadSlotsFull(t *testing.T) {
 // TestStartConcurrentSameKey sends the same input from as many goroutines at
 // once as there are reading slots (more would be refused by them, by design)
 // while the writer is held, for a new key and for a failed one, and checks
-// that every start gets the same key and the writer runs once.
+// that every start gets the same key and the writer runs once. It checks the
+// outcome only: the senders are not lined up at Begin, so the atomicity of
+// the check and the slot take is proven by articlecache's concurrent Begin
+// test.
 func TestStartConcurrentSameKey(t *testing.T) {
 	const senders = maxReading
 	body := validBody(testValidVideoURL, testValidRaw)
-	sendAll := func(t *testing.T, ts *testServer) []string {
+	sendAll := func(t *testing.T, ts *testServer) {
 		t.Helper()
 		recs := make([]*httptest.ResponseRecorder, senders)
 		var wg sync.WaitGroup
@@ -382,12 +385,12 @@ func TestStartConcurrentSameKey(t *testing.T) {
 				t.Errorf("start %d: key %s, want %s", i, keys[i], keys[0])
 			}
 		}
-		return keys
 	}
 
 	t.Run("new", func(t *testing.T) {
 		ts := newJobsTestServer(t, jobsServerOptions{})
 		_, release := holdAtDraft(ts.writer)
+		defer release()
 		sendAll(t, ts)
 		release()
 		ts.waitJobs()
@@ -401,6 +404,7 @@ func TestStartConcurrentSameKey(t *testing.T) {
 		acceptedKey(t, ts.startBody(body))
 		ts.writer.Err = nil
 		_, release := holdAtDraft(ts.writer)
+		defer release()
 		sendAll(t, ts)
 		release()
 		ts.waitJobs()
@@ -427,8 +431,8 @@ func TestStartEvictsOldest(t *testing.T) {
 			t.Errorf("key %s state = %q, want %q", key, got, want)
 		}
 	}
-	if !strings.Contains(ts.logs.String(), "key="+first) {
-		t.Errorf("the eviction log does not name the dropped key:\n%s", ts.logs.String())
+	if line := logLine(ts.logs.String(), "article record evicted"); !strings.Contains(line, "key="+first) || !strings.Contains(line, "state=done") {
+		t.Errorf("the eviction log line = %q, want the dropped key and state=done", line)
 	}
 }
 
