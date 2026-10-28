@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 	"maps"
+	"net/url"
 	"os"
 	"slices"
 	"strconv"
@@ -64,22 +65,20 @@ func TestServerDocsContract(t *testing.T) {
 			!hasLineContainingAll(section, "other Unix:", "$HOME"+config.SocketPathTailForTest("linux")) {
 			t.Error("README.md server section does not state the socket path for macOS and for other Unix")
 		}
-		// The curl example names the articles endpoint.
-		if !hasLineContainingAll(section, "curl", server.ArticlesPath) {
-			t.Error("README.md server section has no curl example for " + server.ArticlesPath)
-		}
-		// The job API's examples name each operation's method and its exact
-		// target, built from the server's path constants so a route or method
-		// change fails here. A command is read as the tokens of its lines,
-		// with a backslash continuation joined and shell quotes trimmed, so
-		// the example's quoting and line breaks do not decide the check.
-		for _, example := range []struct{ operation, method, target string }{
-			{"generation start", "POST", "http://localhost" + server.JobsPath},
-			{"status", "GET", "http://localhost" + server.JobsPath + "/$key"},
-			{"publish", "POST", "http://localhost" + server.JobsPath + "/$key" + server.PublishSuffix},
+		// The curl examples name each operation's method and a URL whose path
+		// has the form the server's path constants define, so a route or
+		// method change fails here. <key> stands for the job API's key
+		// segment, whatever spelling the example gives it. sectionByHeading is
+		// fence-unaware, so a line starting with "# " inside a fenced example
+		// would end the section: keep shell comments out of these examples.
+		for _, example := range []struct{ operation, method, path string }{
+			{"the articles endpoint", "POST", server.ArticlesPath},
+			{"the job API's generation start", "POST", server.JobsPath},
+			{"the job API's status", "GET", server.JobsPath + "/<key>"},
+			{"the job API's publish", "POST", server.JobsPath + "/<key>" + server.PublishSuffix},
 		} {
-			if !hasCurlCommand(section, example.method, example.target) {
-				t.Errorf("README.md server section has no curl example for the job API's %s (-X %s %s)", example.operation, example.method, example.target)
+			if !hasCurlCommand(section, example.method, example.path) {
+				t.Errorf("README.md server section has no curl example for %s (%s %s)", example.operation, example.method, example.path)
 			}
 		}
 		// The exit-code table must name every code the entry point defines.
@@ -245,11 +244,40 @@ func hasLineContainingAll(doc string, subs ...string) bool {
 	return false
 }
 
-// hasCurlCommand reports whether doc has a shell command that runs curl with
-// the given HTTP method and target as its URL. A trailing backslash joins the
-// next line, and shell quotes are trimmed from each token, so the example's
-// quoting and line breaks do not decide the check.
-func hasCurlCommand(doc, method, target string) bool {
+// TestHasCurlCommand pins the forms hasCurlCommand accepts and rejects, so the
+// README examples may be spelled in the ordinary shell ways while a wrong
+// method, a query, or a command quoted to another program still fails.
+func TestHasCurlCommand(t *testing.T) {
+	const status = "/jobs/<key>"
+	for _, tc := range []struct {
+		name string
+		doc  string
+		want bool
+	}{
+		{"double quoted target", "curl -X GET \"http://localhost/jobs/$key\"\n", true},
+		{"single quoted target", "curl -X GET 'http://localhost/jobs/${key}'\n", true},
+		{"joined method", "curl -XGET http://localhost/jobs/abc\n", true},
+		{"request flag", "curl --request GET http://localhost/jobs/abc\n", true},
+		{"url flag", "curl --url http://localhost/jobs/abc --request GET\n", true},
+		{"continuation", "curl -X GET \\\n  http://localhost/jobs/abc\n", true},
+		{"wrong method", "curl -X POST http://localhost/jobs/abc\n", false},
+		{"query", "curl -X GET \"http://localhost/jobs/abc?x=1\"\n", false},
+		{"quoted command", "echo 'curl -X GET http://localhost/jobs/abc'\n", false},
+		{"other path", "curl -X GET http://localhost/articles\n", false},
+		{"no curl", "wget -X GET http://localhost/jobs/abc\n", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := hasCurlCommand(tc.doc, "GET", status); got != tc.want {
+				t.Errorf("hasCurlCommand(%q) = %v, want %v", tc.doc, got, tc.want)
+			}
+		})
+	}
+}
+
+// hasCurlCommand reports whether doc has a line that runs curl with the given
+// HTTP method on a URL whose path has the given form. A trailing backslash
+// joins the next line, and shell quotes are trimmed from an argument.
+func hasCurlCommand(doc, method, path string) bool {
 	var command strings.Builder
 	for line := range strings.Lines(doc) {
 		line = strings.TrimSuffix(strings.TrimSuffix(line, "\n"), "\r")
@@ -260,33 +288,77 @@ func hasCurlCommand(doc, method, target string) bool {
 			continue
 		}
 		command.WriteString(line)
-		if hasCurlWords(strings.Fields(command.String()), method, target) {
+		if commandRunsCurl(strings.Fields(command.String()), method, path) {
 			return true
 		}
 		command.Reset()
 	}
-	return hasCurlWords(strings.Fields(command.String()), method, target)
+	return false
 }
 
-// hasCurlWords reports whether fields run curl with the given method and
-// target.
-func hasCurlWords(fields []string, method, target string) bool {
-	var hasCurl, hasMethod, hasTarget bool
-	for i := range fields {
-		field := strings.Trim(fields[i], "\"'")
+// commandRunsCurl reports whether fields run curl with the given method on a
+// URL whose path has the given form. The method and the URL must belong to the
+// same curl invocation; a quoted command given to another program does not
+// count.
+func commandRunsCurl(fields []string, method, path string) bool {
+	start := slices.Index(fields, "curl")
+	if start < 0 {
+		return false
+	}
+	args := fields[start+1:]
+	var hasMethod, hasURL bool
+	for i := 0; i < len(args); i++ {
+		arg := strings.Trim(args[i], "\"'")
 		switch {
-		case field == "curl":
-			hasCurl = true
-		case field == "-X" && i+1 < len(fields) && strings.Trim(fields[i+1], "\"'") == method:
+		case arg == "-X" || arg == "--request":
+			if i+1 < len(args) && strings.Trim(args[i+1], "\"'") == method {
+				hasMethod = true
+				i++
+			}
+		case strings.TrimPrefix(arg, "-X") == method && strings.HasPrefix(arg, "-X"):
 			hasMethod = true
-		case field == "-X"+method:
+		case strings.TrimPrefix(arg, "--request=") == method && strings.HasPrefix(arg, "--request="):
 			hasMethod = true
-		}
-		if field == target {
-			hasTarget = true
+		case arg == "--url":
+			if i+1 < len(args) && pathForm(strings.Trim(args[i+1], "\"'")) == path {
+				hasURL = true
+				i++
+			}
+		case strings.Contains(arg, "://"):
+			if pathForm(arg) == path {
+				hasURL = true
+			}
 		}
 	}
-	return hasCurl && hasMethod && hasTarget
+	return hasMethod && hasURL
+}
+
+// pathForm returns the path a documented URL names, with <key> standing for a
+// job API key segment, or "" for a path the server does not serve. A query or a
+// fragment is not part of an accepted target, so it returns "".
+func pathForm(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil || u.RawQuery != "" || u.Fragment != "" {
+		return ""
+	}
+	switch u.Path {
+	case server.ArticlesPath, server.JobsPath:
+		return u.Path
+	}
+	rest, ok := strings.CutPrefix(u.Path, server.JobsPath+"/")
+	if !ok || rest == "" {
+		return ""
+	}
+	if key, found := strings.CutSuffix(rest, server.PublishSuffix); found {
+		if key == "" || strings.Contains(key, "/") {
+			return ""
+		}
+		return server.JobsPath + "/<key>" + server.PublishSuffix
+	}
+	if strings.Contains(rest, "/") {
+		return ""
+	}
+	return server.JobsPath + "/<key>"
 }
 
 // The Markdown helpers below are duplicated from cmd/yt2column/docs_test.go.
