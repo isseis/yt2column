@@ -9,6 +9,7 @@ import {
   truncate,
   truncateTail,
 } from "../src/core/summary.ts";
+import type { DisplayText } from "../src/core/summary.ts";
 import { rejectionReasons } from "../src/core/types.ts";
 import type { RejectionReason } from "../src/core/types.ts";
 
@@ -24,48 +25,48 @@ function collected(
   return { kind: "collected", input };
 }
 
-describe("truncate", () => {
-  it("keeps text at exactly the limit intact", () => {
-    assert.deepEqual(truncate("abcde", 5), {
-      value: "abcde",
-      truncated: false,
+// Both cuts share the at-limit and surrogate-pair behaviour; only the side cut
+// one over the limit differs, so one table covers the pair.
+const cuts: {
+  name: string;
+  cut: (text: string, limit: number) => DisplayText;
+  over: { text: string; value: string };
+  pair: { text: string; value: string };
+}[] = [
+  {
+    name: "truncate",
+    cut: truncate,
+    over: { text: "abcde", value: "abcd" },
+    pair: { text: `a\u{1F600}b`, value: `a\u{1F600}` },
+  },
+  {
+    name: "truncateTail",
+    cut: truncateTail,
+    over: { text: "abcde", value: "bcde" },
+    pair: { text: `ab\u{1F600}`, value: `b\u{1F600}` },
+  },
+];
+for (const { name, cut, over, pair } of cuts) {
+  describe(name, () => {
+    it("keeps text at exactly the limit intact", () => {
+      assert.deepEqual(cut("abcde", 5), { value: "abcde", truncated: false });
+    });
+
+    it("cuts text one over the limit", () => {
+      assert.deepEqual(cut(over.text, 4), {
+        value: over.value,
+        truncated: true,
+      });
+    });
+
+    it("does not split a surrogate pair at the boundary", () => {
+      assert.deepEqual(cut(pair.text, 2), {
+        value: pair.value,
+        truncated: true,
+      });
     });
   });
-
-  it("cuts text one over the limit to its first code points", () => {
-    assert.deepEqual(truncate("abcde", 4), { value: "abcd", truncated: true });
-  });
-
-  it("does not split a surrogate pair at the boundary", () => {
-    assert.deepEqual(truncate(`a\u{1F600}b`, 2), {
-      value: `a\u{1F600}`,
-      truncated: true,
-    });
-  });
-});
-
-describe("truncateTail", () => {
-  it("keeps text at exactly the limit intact", () => {
-    assert.deepEqual(truncateTail("abcde", 5), {
-      value: "abcde",
-      truncated: false,
-    });
-  });
-
-  it("cuts text one over the limit to its last code points", () => {
-    assert.deepEqual(truncateTail("abcde", 4), {
-      value: "bcde",
-      truncated: true,
-    });
-  });
-
-  it("does not split a surrogate pair at the boundary", () => {
-    assert.deepEqual(truncateTail(`ab\u{1F600}`, 2), {
-      value: `b\u{1F600}`,
-      truncated: true,
-    });
-  });
-});
+}
 
 describe("countCharacters", () => {
   it("counts a surrogate pair as one character", () => {

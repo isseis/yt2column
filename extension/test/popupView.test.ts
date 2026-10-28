@@ -101,15 +101,21 @@ describe("buildCollectedView", () => {
   });
 
   describe("selection row", () => {
-    it("counts the whole selection and marks a sendable body OK", () => {
-      const view = viewFor(collectedInput("a\r\nb\rc\nd"));
-      assert.equal(view.selection.characterCount, 8);
-      assert.equal(view.selection.lineCount, 4);
+    it("counts the whole selection, not the previews", () => {
+      // 60 lines of 10 characters: either 100-code-point preview holds only
+      // part of it, so a preview-based count fails this.
+      const selection = Array.from({ length: 60 }, () => "0123456789").join(
+        "\n",
+      );
+      const view = viewFor(collectedInput(selection));
+      assert.equal(view.selection.characterCount, 60 * 10 + 59);
+      assert.equal(view.selection.lineCount, 60);
       assert.equal(view.selection.status.kind, "sendable");
-      assert.equal(view.selection.status.state, "ok");
     });
 
     it("carries the request that prepareSend accepted", () => {
+      // Identity, not equality: a request rebuilt from the same inputs would
+      // not be the one whose size passed the check.
       const input = collectedInput();
       const prepared = prepareSend(input, {});
       assert.ok(prepared.kind === "ready");

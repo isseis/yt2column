@@ -5,6 +5,7 @@ import { catalogs } from "../src/core/i18n/catalog.ts";
 import type { Catalog, Message } from "../src/core/i18n/catalog.ts";
 import { locales } from "../src/core/i18n/locale.ts";
 import type { Locale } from "../src/core/i18n/locale.ts";
+import { maxBodyBytes } from "../src/core/prepare.ts";
 
 const localeList = Object.keys(locales) as Locale[];
 
@@ -14,7 +15,7 @@ interface Entries {
   /** Every label string, by its path such as "details.summary". */
   readonly labels: Map<string, string>;
   /** Every function item, by its path, wrapped to take the row's numbers. */
-  readonly counts: Map<string, (count: number, second: number) => string>;
+  readonly counts: Map<string, (count: number, second: number) => unknown>;
 }
 
 function isMessage(value: unknown): value is Message {
@@ -30,19 +31,17 @@ function isMessage(value: unknown): value is Message {
 function entries(catalog: Catalog): Entries {
   const messages = new Map<string, Message>();
   const labels = new Map<string, string>();
-  const counts = new Map<string, (count: number, second: number) => string>();
+  const counts = new Map<string, (count: number, second: number) => unknown>();
   const walk = (value: unknown, path: string): void => {
     if (typeof value === "string") {
       labels.set(path, value);
     } else if (isMessage(value)) {
       messages.set(path, value);
     } else if (typeof value === "function") {
-      // A function item embeds numbers into its text; its declared parameter
-      // count says whether it takes the second count as well.
+      // A function item embeds numbers into its text; both counts are passed
+      // and a function that takes one simply ignores the second.
       const call = value as (...args: number[]) => unknown;
-      counts.set(path, (count, second) =>
-        String(call.length > 1 ? call(count, second) : call(count)),
-      );
+      counts.set(path, (count, second) => call(count, second));
     } else {
       assert.ok(typeof value === "object" && value !== null, path);
       for (const [key, child] of Object.entries(value)) {
@@ -78,7 +77,9 @@ describe("catalogs", () => {
           [12345, 420],
         ];
         for (const [first, second] of pairs) {
-          assert.notEqual(count(first, second).trim(), "", path);
+          const text = count(first, second);
+          assert.ok(typeof text === "string", path);
+          assert.notEqual(text.trim(), "", path);
         }
       }
     });
@@ -155,11 +156,14 @@ describe("catalogs", () => {
     }
   });
 
-  it("names the 4 MiB limit for body-too-large in every locale", () => {
+  it("states the body limit that prepareSend enforces in every locale", () => {
+    // The wording is the user-visible contract, and the limit it names is the
+    // code's own, so a changed byte limit without new wording fails here.
+    const limit = `${maxBodyBytes / 1024 / 1024} MiB`;
     for (const locale of localeList) {
       const message = catalogs[locale].preflight["body-too-large"];
       assert.ok(
-        [message.text, ...message.steps].join("\n").includes("4 MiB"),
+        [message.text, ...message.steps].join("\n").includes(limit),
         locale,
       );
     }
