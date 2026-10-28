@@ -285,9 +285,8 @@ describe("renderPopup", () => {
       ]) {
         assert.equal(section.hidden, false);
       }
-      // renderPopup never moves the containers, so these pin the skeleton the
-      // helper stands in for; the step that ships popup.html asserts the same
-      // order on the shipped file.
+      // renderPopup never moves the containers, so the shipped skeleton's
+      // order (popupHtml.test.ts) is the order the sections are shown in.
       assert.ok(precedes(elements.video, elements.checks));
       assert.ok(precedes(elements.checks, elements.action));
       assert.ok(precedes(elements.action, elements.details));

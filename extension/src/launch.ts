@@ -1,8 +1,7 @@
 import { collect } from "./core/collect.ts";
-import type { CollectOutcome, SelectionReader } from "./core/collect.ts";
+import type { SelectionReader } from "./core/collect.ts";
 import {
   acceptMetadata,
-  emptyMetadataResult,
   parsePageMetadata,
   readFailureResult,
 } from "./core/metadata.ts";
@@ -11,15 +10,17 @@ import { catalogs } from "./core/i18n/catalog.ts";
 import { resolveLocale } from "./core/i18n/locale.ts";
 import type { Locale } from "./core/i18n/locale.ts";
 import { nativeHostName } from "./core/native.ts";
+import { buildCollectedView } from "./core/popupView.ts";
+import type { PopupView } from "./core/popupView.ts";
 import { prepareSend } from "./core/prepare.ts";
 import { toSendOutcome } from "./core/response.ts";
 import type { SendResult } from "./core/response.ts";
-import { summarize } from "./core/summary.ts";
 import type { LaunchContext } from "./core/types.ts";
 import { sendArticle } from "./send.ts";
 import type { SendDeps } from "./send.ts";
 import { applyPageLocale } from "./ui/pageLocale.ts";
-import { messageNodes, renderMetadata, renderSummary } from "./ui/render.ts";
+import { messageNodes, renderPopup } from "./ui/render.ts";
+import type { ActionControls, PopupElements } from "./ui/render.ts";
 import { renderSendOutcome } from "./ui/renderSend.ts";
 
 /** Developer-facing log. The first argument is always a fixed label. */
@@ -39,14 +40,6 @@ export interface PopupLaunchDeps {
   readonly metadataReader: MetadataReader;
   activeTab(): Promise<chrome.tabs.Tab | undefined>;
   readonly log: Logger;
-  /** The display language; it selects displayed text only, never a log. */
-  readonly locale: Locale;
-}
-
-/** The popup launch's outcome and the metadata the send will carry. */
-export interface PopupLaunchResult {
-  readonly outcome: CollectOutcome;
-  readonly metadata: MetadataResult;
 }
 
 export interface PopupSendDeps {
@@ -65,7 +58,7 @@ export interface PopupStartDeps {
    * throw, so the entry point needs no failure path.
    */
   uiLanguage(): string | undefined;
-  readonly launch: Omit<PopupLaunchDeps, "locale">;
+  readonly launch: PopupLaunchDeps;
   readonly send: Omit<PopupSendDeps, "locale">;
 }
 
@@ -158,15 +151,15 @@ function logSend(
 }
 
 /**
- * Popup path. Collects the active tab's selection and renders the summary
- * into container; after a successful collection it reads the video metadata
- * once and renders it below the summary. Returns the outcome and the metadata
- * for the send controls. Never throws.
+ * Popup path. Collects the active tab's selection; after a successful
+ * collection it reads the video metadata once and checks the body size, then
+ * builds what the popup shows. A rejected collection becomes a rejected view
+ * without reading the metadata. It touches no DOM, so nothing is shown until
+ * the caller renders the returned view. Never throws.
  */
 export async function runPopupLaunch(
-  container: HTMLElement,
   deps: PopupLaunchDeps,
-): Promise<PopupLaunchResult> {
+): Promise<PopupView> {
   let tab: chrome.tabs.Tab | undefined;
   try {
     tab = await deps.activeTab();
@@ -177,9 +170,12 @@ export async function runPopupLaunch(
   const launch = launchContextFromTab(tab);
   const outcome = await collect(launch, deps.reader);
   deps.log.info(popupLogLabel, { outcome });
-  renderSummary(container, summarize(outcome), deps.locale);
-  if (outcome.kind !== "collected" || launch === undefined) {
-    return { outcome, metadata: emptyMetadataResult() };
+  if (outcome.kind === "rejected") {
+    return { kind: "rejected", reason: outcome.reason };
+  }
+  if (launch === undefined) {
+    // collect never collects without a launch context; this only narrows it.
+    return { kind: "rejected", reason: "collection-failed" };
   }
   const metadata = await readMetadata(
     launch.tabId,
@@ -187,71 +183,95 @@ export async function runPopupLaunch(
     deps.metadataReader,
     deps.log,
   );
-  renderMetadata(container, metadata, deps.locale);
-  return { outcome, metadata };
-}
-
-/**
- * Popup send controls below the summary. Checks once when the popup opens,
- * shows a disabled button while sending, and sends at most once per popup.
- * The expand prompt does not change the button: a send carries the metadata
- * read at launch. Never throws.
- */
-export async function runPopupSend(
-  container: HTMLElement,
-  result: PopupLaunchResult,
-  deps: PopupSendDeps,
-): Promise<void> {
-  const { outcome } = result;
-  if (outcome.kind === "rejected") {
-    // The summary region already shows the rejection reason.
-    container.replaceChildren();
-    return;
-  }
-  const prepared = prepareSend(outcome.input, result.metadata.values);
-  const catalog = catalogs[deps.locale];
-  const doc = container.ownerDocument;
+  const prepared = prepareSend(outcome.input, metadata.values);
   if (prepared.kind === "blocked") {
     // A blocked launch is normal, not a defect.
     deps.log.info(blockedLabel, { reason: prepared.reason });
-    container.replaceChildren(
-      ...messageNodes(doc, catalog.preflight[prepared.reason]),
-    );
+  }
+  return buildCollectedView(outcome.input, metadata, prepared);
+}
+
+/**
+ * Popup send path. Contract: the primary button becomes pressable only when
+ * the view is collected and its selection is sendable; for any other view it
+ * does nothing, so the button stays disabled as the skeleton and renderPopup
+ * left it. A press sends the view's request at most once per popup, disables
+ * the button at once, and shows the sending notice and then the result in the
+ * status region. It touches only the button and the status region, so the
+ * other sections never change, and it never moves the focus. Never throws.
+ */
+export function runPopupSend(
+  controls: ActionControls,
+  view: PopupView,
+  deps: PopupSendDeps,
+): void {
+  if (view.kind !== "collected" || view.selection.status.kind !== "sendable") {
     return;
   }
-  const status = doc.createElement("div");
-  status.className = "send-message";
-  const button = doc.createElement("button");
-  button.type = "button";
-  button.className = "send-button";
-  button.textContent = catalog.sendButton;
-  container.replaceChildren(button, status);
+  const { request } = view.selection.status;
+  const { primary, status } = controls;
+  const doc = primary.ownerDocument;
+  const catalog = catalogs[deps.locale];
 
   let state: "unused" | "sending" | "sent" = "unused";
-  button.addEventListener("click", () => {
+  primary.addEventListener("click", () => {
     void (async () => {
       if (state !== "unused") {
         return;
       }
       state = "sending";
-      button.disabled = true;
+      primary.disabled = true;
       status.replaceChildren(...messageNodes(doc, catalog.sending));
       const startedAt = deps.now();
-      const sendResult = await sendArticle(prepared.request, deps.send);
+      const sendResult = await sendArticle(request, deps.send);
       logSend(deps.log, deps.now, startedAt, sendResult);
       state = "sent";
       renderSendOutcome(status, toSendOutcome(sendResult), deps.locale);
     })();
   });
+  primary.disabled = false;
+}
+
+/**
+ * The skeleton's elements, found in doc by id. Contract: undefined unless every
+ * element is present and of its kind -- the primary button a button and the
+ * details a details element, checked against the document's own constructors
+ * -- so a partial skeleton is never drawn into.
+ */
+function findPopupElements(doc: Document): PopupElements | undefined {
+  const win = doc.defaultView;
+  const video = doc.getElementById("video");
+  const checks = doc.getElementById("checks");
+  const rejection = doc.getElementById("rejection");
+  const action = doc.getElementById("action");
+  const primary = doc.getElementById("primary");
+  const status = doc.getElementById("status");
+  const details = doc.getElementById("details");
+  if (
+    win === null ||
+    video === null ||
+    checks === null ||
+    rejection === null ||
+    action === null ||
+    status === null ||
+    !(primary instanceof win.HTMLButtonElement) ||
+    !(details instanceof win.HTMLDetailsElement)
+  ) {
+    return undefined;
+  }
+  return { video, checks, rejection, action, primary, status, details };
 }
 
 /**
  * Popup entry. Reads the browser's UI language and logs it as read, decides
  * the locale from it, and sets the page language before the first render so
- * the Japanese typography rules are in place from the first frame. Then runs
- * the launch path into the summary region and the send path into the send
- * region. The UI-language log keeps its fixed label in every locale, and the
- * value it records is never displayed or sent. Never throws.
+ * the Japanese typography rules are in place from the first frame. Then finds
+ * the skeleton in popup.html -- with any element missing it runs no path and
+ * draws nothing -- runs the launch path, draws the view it returns in one
+ * render, and runs the send path. Until that render every section stays
+ * hidden, so nothing shown is later replaced. The UI-language log keeps its
+ * fixed label in every locale, and the value it records is never displayed or
+ * sent. Never throws.
  */
 export async function startPopup(
   doc: Document,
@@ -261,14 +281,11 @@ export async function startPopup(
   deps.launch.log.info(uiLanguageLabel, uiLanguage);
   const locale = resolveLocale(uiLanguage);
   applyPageLocale(doc, locale);
-  const summaryRegion = doc.getElementById("summary");
-  const sendRegion = doc.getElementById("send");
-  if (summaryRegion === null || sendRegion === null) {
+  const elements = findPopupElements(doc);
+  if (elements === undefined) {
     return;
   }
-  const launched = await runPopupLaunch(summaryRegion, {
-    ...deps.launch,
-    locale,
-  });
-  await runPopupSend(sendRegion, launched, { ...deps.send, locale });
+  const view = await runPopupLaunch(deps.launch);
+  renderPopup(elements, view, locale);
+  runPopupSend(elements, view, { ...deps.send, locale });
 }

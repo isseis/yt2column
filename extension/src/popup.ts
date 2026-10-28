@@ -1,8 +1,9 @@
 // The popup entry point. It builds the real dependencies in chromeDeps.ts and
 // hands them to startPopup, which decides the language, sets the page language
-// before the first render and runs the popup and send paths; the path logic
-// lives in launch.ts. The summary goes into one region and the send controls
-// into the other.
+// before the first render, finds the skeleton in popup.html, and draws the
+// popup once the launch path has collected, read and checked everything; the
+// path logic lives in launch.ts. The send path then arms the primary button
+// only for a sendable selection.
 import {
   createActiveTabQuery,
   createLogger,

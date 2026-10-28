@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
 import { JSDOM } from "jsdom";
 
 import type { Message } from "../../src/core/i18n/catalog.ts";
 import { locales } from "../../src/core/i18n/locale.ts";
 import type { Locale } from "../../src/core/i18n/locale.ts";
 import type { PopupElements } from "../../src/ui/render.ts";
+import { extensionDir } from "./paths.ts";
 
 /** A fresh container element in its own document. */
 export function container(): HTMLElement {
@@ -24,24 +28,21 @@ function byId<T extends HTMLElement = HTMLElement>(
   return element as T;
 }
 
+/** A fresh document parsed from the shipped static/popup.html. */
+export function popupDocument(): Document {
+  const html = readFileSync(
+    path.join(extensionDir, "static", "popup.html"),
+    "utf8",
+  );
+  return new JSDOM(html).window.document;
+}
+
 /**
- * The popup's skeleton in a fresh document: five containers, all hidden, the
- * primary button disabled, and the status region inside the action section
- * after the button. The markup is written here until the step that ships
- * popup.html makes this helper read that file; both must keep this shape.
+ * The popup's skeleton elements in doc, by default a fresh copy of the shipped
+ * popup.html: five containers, all hidden, the primary button disabled, and
+ * the status region inside the action section after the button.
  */
-export function popupElements(): PopupElements {
-  const dom = new JSDOM(`<!DOCTYPE html><html lang="en"><body>
-    <section id="video" hidden></section>
-    <section id="checks" hidden></section>
-    <section id="rejection" aria-labelledby="rejection-text" hidden></section>
-    <section id="action" hidden>
-      <button id="primary" type="button" disabled></button>
-      <div id="status" role="status"></div>
-    </section>
-    <details id="details" hidden></details>
-  </body></html>`);
-  const doc = dom.window.document;
+export function popupElements(doc = popupDocument()): PopupElements {
   return {
     video: byId(doc, "video"),
     checks: byId(doc, "checks"),
