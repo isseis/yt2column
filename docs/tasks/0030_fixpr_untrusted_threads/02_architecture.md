@@ -40,7 +40,7 @@
 
 利用者に確かめて決めたこと:
 
--   **決定的な判定は Go の開発用ツール（`cmd/fixprguard` + `internal/fixprguard`）に置く。** 手順書（`fixpr.md`）にシェルの手順を書く案は採らない。理由は 1.3 に書く。先例は `cmd/mergepr` + `internal/mergepr` で、決定的な部分をツールに、順序の制御と利用者への確認をコマンドに分けている（`docs/dev/developer_guide/mergepr_guide.md` §1）。ツールは開発用であり、製品の 3 つのバイナリには入らない。
+-   **決定的な判定は Go の開発用ツール（`cmd/fixprguard` + `internal/fixprguard`）に置く。** 手順書（`fixpr.md`）にシェルの手順を書く案は採らない。理由は 1.3 に書く。先例は `cmd/mergepr` + `internal/mergepr` で、決定的な部分をツールに、順序の制御と利用者への確認をコマンドに分けている（`docs/dev/guides/mergepr_guide.md` §1）。ツールは開発用であり、製品の 3 つのバイナリには入らない。
 -   **commit される変更は、判定したパスだけを明示して stage する。** `git add -A` はやめる（AC-21a、H-05 の候補 (2)）。
 -   **GitHub API の挙動は、設計の前に観測して確かめた。** 結果は 3.3 に記録する。
 -   **1 つのスレッドから取得するコメントの数の上限は 100 件、1 ページとする。** GraphQL の `comments` の `first` の上限と同じである。100 件を超えるスレッドは、全コメントを取得できないものとして想定外の著者のスレッドとする（AC-05・AC-06）。
@@ -204,7 +204,7 @@ flowchart LR
 | `internal/fixprguard/scope.go` | 新設 | 変更範囲の規則と、コマンドの実行に関わるファイルの定義（H-10） |
 | `internal/fixprguard/gitstate.go` | 新設 | git の状態の基準値と比較、git の起動の制限（H-08） |
 | `internal/fixprguard/errors.go` | 新設 | センチネルエラー |
-| `internal/fixprguard/*_test.go`・`test_helpers.go` | 新設 | テストと、`//go:build test` の補助（`docs/dev/developer_guide/test_organization.md` の分類 B） |
+| `internal/fixprguard/*_test.go`・`test_helpers.go` | 新設 | テストと、`//go:build test` の補助（`docs/dev/conventions/test_organization.md` の分類 B） |
 | `internal/cmdrunner/runner.go` | 新設 | `Runner`・`InputRunner` と `NewOS`（出力の上限、`WaitDelay`、標準入力）。`internal/mergepr/runner.go` から移す |
 | `internal/cmdrunner/testutil/mocks.go` | 新設 | `Runner` の fake（期待するコマンドの列を再生し、順序の違いと余分な呼び出しで失敗する。`package cmdrunnertestutil`）。`internal/fixprguard` のテストが使う |
 | `internal/mergepr/mergepr.go`・`internal/mergepr/runner.go` | 変更 | `Runner` を `cmdrunner.Runner` の別名にし、`NewOSRunner` が `cmdrunner.NewOS` を返す。挙動は変えない。`internal/mergepr` の既存のテストと自前の fake（`internal/mergepr/test_helpers.go`）は、`Run` のメソッドだけを実装しているので、そのまま通る |
@@ -214,8 +214,8 @@ flowchart LR
 | `docs/translation_glossary.md` | 変更 | AC-37 の用語と、本書の用語を加える |
 | `Makefile` | 変更 | `install-fixprguard` を加える（`install-mergepr` と同じ形。`Makefile:66-69`） |
 | `CLAUDE.md` | 変更 | 「Quick Links」「Build Commands」に `fixprguard` の案内を加える |
-| `docs/dev/developer_guide/package_reference.md` | 変更 | `cmd/fixprguard`・`internal/fixprguard`・`internal/cmdrunner`（`testutil` を含む）の行を加え、`internal/strictjson` の行の共有先に `internal/fixprguard` を加える。`internal/pipeline` の `TestPackageReferenceListsPackages`（`internal/pipeline/pipeline_test.go:671`）が行が欠けていると失敗する |
-| `docs/dev/developer_guide/fixprguard_guide.md` | 新設 | ツールの使い方、保証すること・しないこと、止まったときの回復の手順、範囲の規則の一覧（英語。`mergepr_guide.md` に倣う） |
+| `docs/dev/conventions/package_reference.md` | 変更 | `cmd/fixprguard`・`internal/fixprguard`・`internal/cmdrunner`（`testutil` を含む）の行を加え、`internal/strictjson` の行の共有先に `internal/fixprguard` を加える。`internal/pipeline` の `TestPackageReferenceListsPackages`（`internal/pipeline/pipeline_test.go:671`）が行が欠けていると失敗する |
+| `docs/dev/guides/fixprguard_guide.md` | 新設 | ツールの使い方、保証すること・しないこと、止まったときの回復の手順、範囲の規則の一覧（英語。`mergepr_guide.md` に倣う） |
 | `cmd/yt2column/fixpr_docs_test.go` | 新設 | コマンドの文書の検査（7.4）。`doc-guard` ジョブの対象パッケージ（`CLAUDE.md`「Development Notes」）に入っており、CI の設定を変えずに文書だけの PR でも働く |
 
 本タスクの前に、`.claude/commands/fixpr.md` と `runpr.md` を読むテストは存在しない（`*_test.go` の中の `claude/commands`・`fixpr`・`runpr` を探したが、コミット `911b535` では見つからなかった）。したがって、既存のテストで更新が要るものはない。
@@ -563,7 +563,7 @@ nonce の値は、ガードツールが生成する。セッションが生成�
 
 ### 3.6. 変更範囲の確認と commit・push（F-004・H-05・H-10）
 
-> **注記（タスク 0036）:** 範囲の規則は、タスク 0036（[要件定義書](../0036_fixprguard_exec_file_scope/01_requirements.md)、[設計書](../0036_fixprguard_exec_file_scope/02_architecture.md)）で変わった。実行関連ファイル（本節の「コマンドの実行に関わるファイル」）の定義は、指示ファイルと `.` で始まる要素を含むパスと Go のビルドの入力を、どの階層でも含むようになり、規則 2・3 は許可リストに当たるファイルだけを範囲に入れる。本節の `.go` のファイルの規則は、実行関連ファイルの定義の一部ではなく、許可リストの (c) になった。本節の規則は 0030 の時点の決定の記録であり、今の規則は `docs/dev/developer_guide/fixprguard_guide.ja.md` の 6 章にある。
+> **注記（タスク 0036）:** 範囲の規則は、タスク 0036（[要件定義書](../0036_fixprguard_exec_file_scope/01_requirements.md)、[設計書](../0036_fixprguard_exec_file_scope/02_architecture.md)）で変わった。実行関連ファイル（本節の「コマンドの実行に関わるファイル」）の定義は、指示ファイルと `.` で始まる要素を含むパスと Go のビルドの入力を、どの階層でも含むようになり、規則 2・3 は許可リストに当たるファイルだけを範囲に入れる。本節の `.go` のファイルの規則は、実行関連ファイルの定義の一部ではなく、許可リストの (c) になった。本節の規則は 0030 の時点の決定の記録であり、今の規則は `docs/dev/guides/fixprguard_guide.md` の 6 章にある。
 
 **範囲の規則（`scope.go`）。** 修正のフェーズに渡したスレッドの `path` ごとに、範囲に入るファイルを決める。`path` は、`inspect` が GitHub から取り直す（1.2）。
 

@@ -191,7 +191,7 @@
 | 中間生成物の内容 | 宣言した要素だけを持つ、正しい UTF-8 の値。先頭に U+FEFF がなく、タイトルと本文は生成テキストの検証を通る | 生成テキストの上限と、検証・推敲の応答の上限（1 MiB・256 項目。`security.md` §6）を再利用する | 番兵エラーで拒否する。部分受理しない | AC-20・AC-22・AC-23 |
 | 入力の識別子 | いまの動画 ID・素材・前段の中間生成物の識別子と一致する | - | 番兵エラーで拒否する | AC-21 |
 
--   標準ライブラリが黙って修復・破棄・無視すれば受理できてしまう入力は、受理せず拒否する（[requirements_process.md](../../dev/developer_guide/requirements_process.md) の「Untrusted input boundaries」）。具体的な構文と上限の値、不正な入力の検出方法は [`02_architecture.md`](02_architecture.md) で決める（[design_handoff.md](design_handoff.md) H-01・H-05）。
+-   標準ライブラリが黙って修復・破棄・無視すれば受理できてしまう入力は、受理せず拒否する（[requirements_process.md](../../dev/conventions/requirements_process.md) の「Untrusted input boundaries」）。具体的な構文と上限の値、不正な入力の検出方法は [`02_architecture.md`](02_architecture.md) で決める（[design_handoff.md](design_handoff.md) H-01・H-05）。
 -   中間生成物の値によって実行する段階を選ばない。再開する段階は `--after` の値だけで決める（[CLAUDE.md](../../../CLAUDE.md)「Declare, don't infer」）。
 
 ## 4. 非機能要件 (Non-Functional Requirements)

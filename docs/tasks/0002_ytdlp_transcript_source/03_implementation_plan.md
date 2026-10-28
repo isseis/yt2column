@@ -40,7 +40,7 @@
 - **Makefile は lint のタグが `test` のみで、`test-integration` を持たない。** `Makefile:10` の `GOLINT` は `run --build-tags test`、`:63-64` の `test` は `go test -tags test -race -v ./...`、`:67-68` の `test-ci` は `-tags test -race -coverprofile`。architecture §3.8 のとおり `test-integration` の追加と lint タグの `test,integration` 化が必要である。
 - **pre-commit の lint タグだけが未変更。** `.pre-commit-config.yaml:23` は `run --build-tags test`。`testdata/` の除外は `check-added-large-files` が初期設定から（`:37`）、`trailing-whitespace`・`end-of-file-fixer` がコミット `4bf3ffd` で追加済み（`:32`・`:34`）のため、変更はタグの 1 箇所で足りる。
 - **CI の lint タグも未変更。** `.github/workflows/ci.yml:88` は `--build-tags test --timeout=5m`。`make test-ci` は `:61` で実行される。
-- **ドキュメントの更新対象。** `docs/dev/developer_guide/package_reference.md:14` の `internal/transcript` の行は現在「型と interface を定義する」であり、実装を追加する説明に更新する。`docs/dev/developer_guide/requirements_process.md:97` の境界チェックは「標準ライブラリが黙って修復・無視する入力は拒否する」と読め、消費しないメンバーを受理する本要件（requirements §3.2、AC-64・AC-67）と整合させる（`design_handoff.md` の H-13）。該当の言い回しは同ファイルにのみ現れる（`rg` で確認）。`docs/dev/project_overview.md:26-30` は最終的な起動引数と事前調査の実施時期を反映済みで、architecture §3.8 に変更対象として挙がっていない。
+- **ドキュメントの更新対象。** `docs/dev/conventions/package_reference.md:14` の `internal/transcript` の行は現在「型と interface を定義する」であり、実装を追加する説明に更新する。`docs/dev/conventions/requirements_process.md:97` の境界チェックは「標準ライブラリが黙って修復・無視する入力は拒否する」と読め、消費しないメンバーを受理する本要件（requirements §3.2、AC-64・AC-67）と整合させる（`design_handoff.md` の H-13）。該当の言い回しは同ファイルにのみ現れる（`rg` で確認）。`docs/dev/project_overview.md:26-30` は最終的な起動引数と事前調査の実施時期を反映済みで、architecture §3.8 に変更対象として挙がっていない。
 - **`cmd/yt2column/main.go` は変更しない。** 現在は空の `main()` のみで（`cmd/yt2column/main.go:1-4`）、設定読み込みと CLI 配線は #6 が行う。
 - **外部前提の確認。** `go.mod:3` は `go 1.26.5`、手元のツールチェーンは go1.27.1（`go version`、2026-09-30）。`exec.Cmd.WaitDelay`（Go 1.20 以降）と `errors.AsType`（Go 1.26、CLAUDE.md:206-215）が使える。依存追加は不要で、標準ライブラリのみ（`.golangci.yml:49-59` の depguard）。ベースラインの `go test -tags test ./...` は本計画作成時に成功した（2026-09-30、HEAD `7180e80`。全パッケージが `ok` または `[no test files]`）。
 - **architecture との整合。** 本計画は architecture §8 のフェーズ構成・順序をそのまま採用する。調査で architecture の修正が必要な不整合は見つかっていない。
@@ -65,7 +65,7 @@
 - 新設: `internal/transcript/video_id_test.go`・`internal/transcript/json3_test.go`・`internal/transcript/info_test.go`（すべて `//go:build test`）
 - 新設: `internal/transcript/test_helpers.go`（`//go:build test`。このフェーズでは `testdata/` のパス定数のみ。フェーズ 3 で fake executor とキャッシュ状態ヘルパーを追加する）
 - 新設: `testdata/invalid_utf8.json3`・`testdata/unpaired_surrogate.json3`・`testdata/invalid_utf8.info.json`・`testdata/unpaired_surrogate.info.json`（AC-52・AC-53 が要求する合成サンプル）
-- 変更: `testdata/README.md`・`docs/dev/developer_guide/package_reference.md`
+- 変更: `testdata/README.md`・`docs/dev/conventions/package_reference.md`
 
 **タスク**
 - [x] **ステップ 1-1**: `errors.go` に architecture §3.1 の 5 つの番兵と `ParseError`（`Path`・`Err`、`Error()`・`Unwrap()`）を定義する。`Unwrap` は `ErrParseSubtitles` または `ErrParseInfo` を返す契約を英語のドキュメントコメントに書く。
@@ -202,7 +202,7 @@
 ### フェーズ 5: ドキュメント（`requirements_process.md`）
 
 **対象ファイル**
-- 変更: `docs/dev/developer_guide/requirements_process.md`
+- 変更: `docs/dev/conventions/requirements_process.md`
 
 **タスク**
 - [x] **ステップ 5-1**: `requirements_process.md:97` の境界チェックの記述を、拒否の規則が「消費するフィールド」に適用されることを明示する形に修正する。要件が拡張可能と宣言する未消費メンバーは拒否理由にしないことを、同段落で分かるようにする（design_handoff H-13、requirements §3.2・AC-64・AC-67）。同ファイルの他の箇所（チェックリスト `:101-111`）に同じく対象を限定していない規則が残っていないか確認し、残っていれば同様に整合させる。
@@ -472,7 +472,7 @@ $ rg -n "silently repair or ignore" docs/   # 修正後: 本記録自身の引�
 - 全 AC（AC-01〜AC-75）に、§5 のとおり `test` または `static` の検証がある。`manual` は補助である。
 - `make test` と `make lint` が通る（グリーンゲート）。`make test-integration` が通り、その結果が §5.1 に記録されている。
 - ユニットテストは実 `yt-dlp` もネットワークも呼ばない。統合テストは既定のテストに含まれない。
-- `docs/dev/developer_guide/package_reference.md` と `requirements_process.md` が実装と整合している。
+- `docs/dev/conventions/package_reference.md` と `requirements_process.md` が実装と整合している。
 - `internal/transcript/transcript.go`・`internal/pipeline`・`cmd/yt2column/main.go` が変更されていない。
 
 ## 9. 次のステップ (Next Steps)

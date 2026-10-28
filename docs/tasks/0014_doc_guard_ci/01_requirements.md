@@ -20,7 +20,7 @@
 - ただし `ci.yml` の `check-changes`（`.github/workflows/ci.yml:36`）は `*.md`・`docs/`・`.claude/`・`LICENSE` だけの変更をコードの変更とみなさない。そのため文書だけの PR では Go のテストのジョブ（`test`）も拡張のジョブ（`extension`）も走らず、移した guard は CI で実行されない。移設の前後でこの状況は変わらない。
 - `0012` はこの点をスコープ外とし（`docs/tasks/0012_doc_sync_guards/01_requirements.md` §2.3・制約、`design_handoff.md` H-03）、ローカルの `make test`（`CLAUDE.md:209`）に委ねた。残るリスクは `0012` の `02_architecture.md` §7.4 に記してある。
 - 残るリスクは、手元でテストを実行しない経路（GitHub のウェブ画面での編集、bot）で文書の guard が壊れると、次にコードの変更を含む PR で `make test` が走ったときに初めて検出されることである。原因の PR とは別の PR で検出されるため、原因の特定が遅れる。
-- 文書を読む Go の guard は `cmd/yt2column` だけではない。`internal/pipeline/pipeline_test.go`（`//go:build test`）も、`:646` で `docs/dev/developer_guide/package_reference.md` を、`:696` で `prompts/README.md` を読んで同期を検査する。どちらも `check-changes` では非コード扱い（`*.md`・`docs/`）なので、文書だけの PR では `test` ジョブが走らず、同じ穴がある。
+- 文書を読む Go の guard は `cmd/yt2column` だけではない。`internal/pipeline/pipeline_test.go`（`//go:build test`）も、`:646` で `docs/dev/conventions/package_reference.md` を、`:696` で `prompts/README.md` を読んで同期を検査する。どちらも `check-changes` では非コード扱い（`*.md`・`docs/`）なので、文書だけの PR では `test` ジョブが走らず、同じ穴がある。
 
 対応 issue: [#181](https://github.com/isseis/yt2column/issues/181)（label: `devenv`）
 

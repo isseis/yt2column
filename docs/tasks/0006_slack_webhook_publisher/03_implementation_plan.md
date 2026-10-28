@@ -30,7 +30,7 @@
 
 -   設計書 §1.1 の設計原則に従う。特に、Webhook に固有のことを `internal/publisher` の Webhook 用のファイルに閉じ込めること、送る前に準備（記事の検査・分割・記法の検査）を終えること、Webhook URL をエラーにも構造体の表示にも入れないこと、投稿先を型で表すこと、URL の規則を 1 か所に置くことを守る。
 -   本番コードで新設・変更するファイルは、設計書 §3.14 の表に挙げたものに限る。`test` のタグのファイルに加える、設計書にない補助（ステップ 4-2 の準備の結果を返す関数と、`Transport` を受け取る構築の補助、ステップ 7-5 の上限値と最大の時間を返す補助）は本計画で定め、`package_reference.md` に記す（ステップ 4-4・7-11）。
--   ユニットテストのファイルの先頭には `//go:build test` を付ける。統合テストは `//go:build integration` とし、統合テストからも使う補助だけを `//go:build test || integration` とする（`docs/dev/developer_guide/test_organization.md` の例外）。
+-   ユニットテストのファイルの先頭には `//go:build test` を付ける。統合テストは `//go:build integration` とし、統合テストからも使う補助だけを `//go:build test || integration` とする（`docs/dev/conventions/test_organization.md` の例外）。
 -   Go のコメント・識別子・文字列リテラルは英語で書く。`AC-NN`・`F-NNN`・`H-NN` は Go のソースに書かず、本計画にだけ記録する（`requirements_process.md` §4）。
 -   **テスト用の補助の lint。** `_test.go` でないテスト用のビルドのファイル（`test_helpers*.go`、`testutil/` の `.go`、`internal/loopbacktest/loopbacktest.go`）には、`.golangci.yml` の `_test.go` 向けの除外（`gosec`・`err113`・`errcheck`・`goconst`・`gocyclo`・`dupl`）が効かない。これらのファイルを作るか変えるステップ（2-1・2-3・4-2・5-3・6-6・7-1・7-2・7-6）では、テストが注入するエラーをパッケージの静的なエラーとして宣言し（`err113`）、後始末で無視する戻り値を `_ =` で受け（`errcheck`）、`gosec` に当たる行にだけ理由を付けた `//nolint:gosec // <理由>` を付ける（既存の `internal/llm/deepseek/testutil/make.go:92` と同じ形）。
 -   テストの名前は計画上の名前である。実装で変える場合は、§5 を同じコミットで更新する。
@@ -151,7 +151,7 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
 
 **対象ファイル**
 -   新設: `internal/slackwebhook/slackwebhook.go`・`slackwebhook_test.go`
--   変更: `internal/config/config.go`・`config_test.go`、`docs/dev/developer_guide/package_reference.md`
+-   変更: `internal/config/config.go`・`config_test.go`、`docs/dev/conventions/package_reference.md`
 
 **タスク**
 -   [x] **ステップ 1-1**: `internal/slackwebhook/slackwebhook.go` に `ValidURL` と `SensitiveParts` を作る（設計書 3.2）。標準ライブラリだけに依存する。ホストが空でないことは `url.URL.Hostname()` で判定する（§1.3）。
@@ -191,7 +191,7 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
 
 **対象ファイル**
 -   新設: `internal/loopbacktest/loopbacktest.go`・`loopbacktest_test.go`（いずれも `//go:build test`）
--   変更: `internal/llm/deepseek/test_helpers.go`・`test_helpers_endpoint.go`・`deepseek_test.go`、`internal/pipeline/pipeline_test.go`、`docs/dev/developer_guide/package_reference.md`
+-   変更: `internal/llm/deepseek/test_helpers.go`・`test_helpers_endpoint.go`・`deepseek_test.go`、`internal/pipeline/pipeline_test.go`、`docs/dev/conventions/package_reference.md`
 
 **タスク**
 -   [x] **ステップ 2-1**: `internal/loopbacktest/loopbacktest.go` に `ValidateURL` を作る（設計書 3.3）。本体と 2 つの静的エラーは、`deepseek` の `validateLoopbackEndpoint`・`errTestEndpointNoHost`・`errTestEndpointNotLoopback`（`test_helpers.go:42-73`）を、振る舞いを変えずに移したものとする。
@@ -278,7 +278,7 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
 
 **対象ファイル**
 -   新設: `internal/publisher/slack.go`・`test_helpers_slack.go`（`//go:build test`）・`slack_test.go`
--   変更: `docs/dev/developer_guide/package_reference.md`
+-   変更: `docs/dev/conventions/package_reference.md`
 
 **タスク**
 -   [x] **ステップ 4-1**: `slack.go` に、`SlackPostTimeout`、`SlackWebhookPublisher`、`NewSlackWebhookPublisher`、`Publish` を作る（設計書 3.3・3.6・3.7・4.2）。
@@ -331,7 +331,7 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
 ### フェーズ 5: `internal/job` の `Output`
 
 **対象ファイル**
--   変更: `internal/job/job.go`・`job_test.go`・`test_helpers.go`、`cmd/yt2column/run.go`（`job.Request` の組み立てだけ）、`docs/dev/developer_guide/package_reference.md`
+-   変更: `internal/job/job.go`・`job_test.go`・`test_helpers.go`、`cmd/yt2column/run.go`（`job.Request` の組み立てだけ）、`docs/dev/conventions/package_reference.md`
 
 **タスク**
 -   [x] **ステップ 5-1**: `job.go` に `Output`・`FileOutput`・`RemoteOutput` を作り、`Request` の `OutPath`・`Publisher` を `Output` に置き換える（設計書 3.8）。`validateRequest` と事前確認を `Output` の種類の `switch` にし、`default`（ゼロ値）は `errInvalidRequest` で拒否する。`Run` と `Request` の doc コメントの `OutPath` への言及を、`Output` に合わせて直す。
@@ -363,7 +363,7 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
 ### フェーズ 6: `cmd/yt2column`
 
 **対象ファイル**
--   変更: `cmd/yt2column/run.go`・`run_test.go`・`test_helpers.go`・`signal_test.go`、`README.md`（フラグの表とその直前の文だけ）、`docs/dev/developer_guide/package_reference.md`
+-   変更: `cmd/yt2column/run.go`・`run_test.go`・`test_helpers.go`・`signal_test.go`、`README.md`（フラグの表とその直前の文だけ）、`docs/dev/conventions/package_reference.md`
 
 **タスク**
 -   [x] **ステップ 6-1**: `deps` の `newPublisher` を `newFilePublisher` と `newSlackPublisher` に分け、`productionDeps` の `newSlackPublisher` に、`publisher.NewSlackWebhookPublisher` を包み構築の失敗で nil のインターフェースを返す関数を設定する（設計書 3.10）。`run_test.go` の `e.d.newPublisher` のすべての差し替え（`run_test.go:474`・`:547`・`:647`・`:881`）を `e.d.newFilePublisher` に改める。
@@ -424,7 +424,7 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
 
 **対象ファイル**
 -   新設: `internal/publisher/testutil/integration.go`（`//go:build test || integration`）・`integration_settings_test.go`（`//go:build test`）、`internal/publisher/slack_integration_test.go`（`//go:build integration`、`package publisher_test`）・`slack_articles_test.go`・`makefile_test.go`（いずれも `//go:build test`、`package publisher_test`）、`cmd/yt2column/integration_slack_test.go`（`//go:build integration`）
--   変更: `internal/llm/deepseek/testutil/make.go`・`make_test.go`、`cmd/yt2column/integration_test.go`・`test_helpers_integration.go`・`makefile_test.go`、`internal/pipeline/pipeline_test.go`、`Makefile`、`docs/dev/developer_guide/package_reference.md`
+-   変更: `internal/llm/deepseek/testutil/make.go`・`make_test.go`、`cmd/yt2column/integration_test.go`・`test_helpers_integration.go`・`makefile_test.go`、`internal/pipeline/pipeline_test.go`、`Makefile`、`docs/dev/conventions/package_reference.md`
 
 **タスク**
 -   [x] **ステップ 7-1**: `RunMakeTarget` に、記録する変数の名前を呼び出し元が追加する可変長の引数を足す（設計書 3.12）。追加の名前も `validateEnvNames` で確かめ、`recordedEnv` と重なる名前は 1 回だけ記録する。`CheckChargedTarget` は `c.OptInEnv` を追加の名前として渡す（§1.3）。既存の 3 つの呼び出しは引数を変えない。`make_test.go` に、追加の名前が記録されることと、シェルの変数名でない追加の名前が拒否されることの行を足す。（実装: 名前の結合と検査を `recordedNames` に分け、`TestRecordedNames` で重複の除去と拒否を確かめた。追加の名前が記録されることは、それに依存する `TestMakeTestIntegrationSlack`・`TestMakeTestIntegrationCLISlack` が確かめる。拒否の規則そのものは既存の `TestValidateEnvNames` が確かめるので、追加の名前の拒否は 1 行だけとした。）
@@ -477,7 +477,7 @@ HEAD `44bc4df`（ブランチ `issei/0006-slack-webhook-publisher-02`）で確�
 ### フェーズ 8: 文書と手動確認
 
 **対象ファイル**
--   変更: `README.md`、`docs/dev/project_overview.md`、`docs/dev/security.md`、`docs/dev/developer_guide/package_reference.md`（最終確認）、`cmd/yt2column/docs_test.go`
+-   変更: `README.md`、`docs/dev/project_overview.md`、`docs/dev/security.md`、`docs/dev/conventions/package_reference.md`（最終確認）、`cmd/yt2column/docs_test.go`
 
 **タスク**
 -   [x] **ステップ 8-1**: `README.md` を、設計書 3.13 の表と要件書 F-010 の各項目のとおりに更新する。フラグの表の `--slack` の行（ステップ 6-2 で加えたもの）の説明を確かめ、設定の表の `SLACK_WEBHOOK_URL` の行を改め、`make test-integration-slack`・`make test-integration-cli-slack` の実行方法を加える。冒頭（`README.md:5-6`）と前提（`:24`）の未実装の記述も直す。

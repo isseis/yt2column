@@ -35,11 +35,11 @@ what changes under which condition:
 | Name | Value |
 |---|---|
 | Task root | `docs/tasks/` |
-| Task identification guide | `docs/dev/developer_guide/task_identification.md` |
-| Requirements process guide | `docs/dev/developer_guide/requirements_process.md` |
-| Test organization guide | `docs/dev/developer_guide/test_organization.md` |
-| Mermaid reference guide | `docs/dev/developer_guide/mermaid_reference.md` |
-| Package reference guide | `docs/dev/developer_guide/package_reference.md` |
+| Task identification guide | `docs/dev/conventions/task_identification.md` |
+| Requirements process guide | `docs/dev/conventions/requirements_process.md` |
+| Test organization guide | `docs/dev/conventions/test_organization.md` |
+| Mermaid reference guide | `docs/dev/conventions/mermaid_reference.md` |
+| Package reference guide | `docs/dev/conventions/package_reference.md` |
 | Requirements document | `01_requirements.md` |
 | Architecture document | `02_architecture.md` |
 | Implementation plan document | `03_implementation_plan.md` |
@@ -185,7 +185,7 @@ use this definition.
 | Automated reviewer list | `coderabbitai`, `chatgpt-codex-connector` — the automated reviewers, each in the GraphQL `author.login` form (without `[bot]`). `fixpr.md` and `runpr.md` pass every name on this list to `fixprguard`, each as its own `--reviewer`. A Bot's review-thread comments are trusted when its login is any name on this list |
 | Awaited PR reviewer | `chatgpt-codex-connector` — the automated reviewer whose PR review `runpr.md` step 3 and `_lib/task-pr-handoff.md` Part B step 5 wait for (Codex), in the GraphQL `author.login` form. The REST `user.login` form is this name followed by `[bot]`, which they filter the summary comment by |
 | PR review request | `@codex review` — the body of the comment that asks the awaited PR reviewer for a PR review. Its first word, `@codex`, is the mention. No other text a command posts to GitHub contains the mention, compared case-insensitively; to name the reviewer, write `Codex` without the `@`. The reason: a mention posted from the user's account can make Codex change code or create a branch |
-| Guard tool | `fixprguard`, installed with `make install-fixprguard` ([fixprguard_guide.md](../../docs/dev/developer_guide/fixprguard_guide.md)). `fixpr.md` and `runpr.md` call it for every author judgment, review-thread fetch, scope and git-state check, the fix round's commit and push, and every write to a review thread or the PR description |
+| Guard tool | `fixprguard`, installed with `make install-fixprguard` ([fixprguard_guide.md](../../docs/dev/guides/fixprguard_guide.md)). `fixpr.md` and `runpr.md` call it for every author judgment, review-thread fetch, scope and git-state check, the fix round's commit and push, and every write to a review thread or the PR description |
 
 ### Domain examples referenced by commands
 

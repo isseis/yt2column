@@ -42,7 +42,7 @@
 | 使い回す検査 | `internal/config/config_test.go:380` の `TestLoadIgnoresOtherProviderVars`、`:666` の `TestLoadErrorsOmitValues`、`:1015` の `TestLoadFor` を拡張・再利用する。`:578` の `assertVarError` は最初の `*VarError` を調べるため、複数の拒否の件数には全要素の検査が必要 | 2-2、3-1 |
 | API への受け渡し | `internal/llm/provider/provider_test.go:257` の `TestNewClaudeSendsConfiguredRequest` と `:314` の `claudeRequestFor` が生成のモデル・effort のリクエストを検査する。Claude の検証・推敲のモデルの受け渡しは、0041 が加えた `TestNewClaudeDefaultEffort` が確かめている。字数の調整が生成のクライアントを使う検査は `internal/writer/steps_test.go:43` の `TestWriteStepOrder` を再利用する | 3-2 |
 | 文書の値 | `cmd/yt2column/docs_test.go:184-280` に `readDoc`・`findTable`・`tableRow` などがある。`internal/config/test_helpers.go` の既存の `test` タグ付きファイルに既定を返すアクセサを加え、値の比較に使う | 4-1 |
-| 文書の説明 | `README.md:718-748`、`:626` 付近のサーバの案内、`docs/dev/project_overview.md:12`・`:67`・`:109-126`、`docs/dev/developer_guide/package_reference.md:27` が変更対象。履歴である過去のタスク文書・評価記録は書き換えない | 4-1 |
+| 文書の説明 | `README.md:718-748`、`:626` 付近のサーバの案内、`docs/dev/project_overview.md:12`・`:67`・`:109-126`、`docs/dev/conventions/package_reference.md:27` が変更対象。履歴である過去のタスク文書・評価記録は書き換えない | 4-1 |
 
 変更箇所の検索は `loadProvider`・`loadProviderOptional`・`parseProvider`・`loadModel`・`loadModelOptional`・`loadReview` の識別子、モデルとプロバイダの環境変数名、既定を述べる日本語・英語の表現で行った。同名の `internal/artifact` の `loadReview` は対象外である。
 
@@ -158,7 +158,7 @@
 
 #### ステップ 4-1: 既定と移行の案内を更新して値を検査する
 
-**変更ファイル:** `README.md`、`docs/dev/project_overview.md`、`docs/dev/developer_guide/package_reference.md`、`cmd/yt2column/docs_test.go`、`internal/config/test_helpers.go`。
+**変更ファイル:** `README.md`、`docs/dev/project_overview.md`、`docs/dev/conventions/package_reference.md`、`cmd/yt2column/docs_test.go`、`internal/config/test_helpers.go`。
 
 - [x] 設計書 §3.6 に挙げた表・説明・サーバのトラブル対処と、DeepSeek を使い続ける案内を更新する。`project_overview.md` の方針の 2 か所も改める。#171 の effort の記述を維持し、#488 が先に更新していれば、その版の説明に合わせる。
 - [x] `test_helpers.go` に `DefaultProviderValueForTest`・`DefaultClaudeModelForTest` を追加する。先頭の `//go:build test` を維持する。

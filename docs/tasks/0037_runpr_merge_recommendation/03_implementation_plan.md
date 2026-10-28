@@ -14,7 +14,7 @@
 
 ### 1.1. 目的
 
-[01_requirements.md](01_requirements.md)（以下、要件書）の F-001〜F-003 を、[02_architecture.md](02_architecture.md)（以下、設計書）のとおりに実装する。変えるのは、`.claude/commands/` の下のコマンドの定義（`runpr.md`・`_lib/task-pr-handoff.md`・`mergepr.md`・`_context.md`）と、`CLAUDE.md`・`docs/dev/developer_guide/requirements_process.md` の記述だけである。Go のコード・拡張のコードは変えない。Go のテストは、`cmd/yt2column/codex_review_docs_test.go` の step 5 の見出しの定数だけを、見出しの変更に合わせて改める（設計書 1.1・1.4・3.8）。このほかに、本書の検証の成果物として、検査のスクリプト `docs/tasks/0037_runpr_merge_recommendation/check_wording.sh` を新しく作る（1.4）。これは本書の検証の成果物で、文書の振る舞いを述べるファイルではない。そのため、設計書 3.8 の責務表（振る舞いを述べるファイルの一覧）と、そこにある「新しいファイルはない」の対象には含めない（タスク 0032 の 1.1 の先例）。設計書 3.8 と本書のどちらに従うかは食い違わない。
+[01_requirements.md](01_requirements.md)（以下、要件書）の F-001〜F-003 を、[02_architecture.md](02_architecture.md)（以下、設計書）のとおりに実装する。変えるのは、`.claude/commands/` の下のコマンドの定義（`runpr.md`・`_lib/task-pr-handoff.md`・`mergepr.md`・`_context.md`）と、`CLAUDE.md`・`docs/dev/conventions/requirements_process.md` の記述だけである。Go のコード・拡張のコードは変えない。Go のテストは、`cmd/yt2column/codex_review_docs_test.go` の step 5 の見出しの定数だけを、見出しの変更に合わせて改める（設計書 1.1・1.4・3.8）。このほかに、本書の検証の成果物として、検査のスクリプト `docs/tasks/0037_runpr_merge_recommendation/check_wording.sh` を新しく作る（1.4）。これは本書の検証の成果物で、文書の振る舞いを述べるファイルではない。そのため、設計書 3.8 の責務表（振る舞いを述べるファイルの一覧）と、そこにある「新しいファイルはない」の対象には含めない（タスク 0032 の 1.1 の先例）。設計書 3.8 と本書のどちらに従うかは食い違わない。
 
 設計書 8 章の 5 つの項目を、順にフェーズ 1〜5 とする。すべてのフェーズを 1 つの PR にまとめる（設計書 8 章）。
 
@@ -47,7 +47,7 @@
 | `CLAUDE.md:87` | `/runpr` の行の「..., merge it, and run the next command; ...」 | 設計書 3.6 の表の 1 行目 | 4-1 |
 | `CLAUDE.md:99-103` | 「... merge with `/mergepr`, and run the next command, which opens the next PR and stops again.」（`:102`） | 設計書 3.6 の表の 2 行目 | 4-1 |
 | `.claude/commands/_lib/task-pr-handoff.md:27-31` | 「... and the next command to run (`runpr.md` steps 2 and 4).」（`:30-31` で行をまたぐ） | 設計書 3.6 の表の 3 行目 | 4-2 |
-| `docs/dev/developer_guide/requirements_process.md:55` | 「... approve the document, merge, and run the next command. On that answer it commits the approval, merges, and starts the next command ...」 | 設計書 3.6 の表の 4 行目 | 4-3 |
+| `docs/dev/conventions/requirements_process.md:55` | 「... approve the document, merge, and run the next command. On that answer it commits the approval, merges, and starts the next command ...」 | 設計書 3.6 の表の 4 行目 | 4-3 |
 | `.claude/commands/mergepr.md:122-125` | 「... its step 4 asks this question together with the pre-merge bookkeeping and the next command, ...」（`:124`） | 設計書 3.6 の表の 5 行目 | 4-4 |
 | `.claude/commands/_context.md:63` | 「... and shown in the merge question when `/runpr` offers the next `/runplan`」 | 設計書 3.6 の表の 6 行目 | 4-5 |
 
@@ -186,7 +186,7 @@ done
 
 #### ステップ 4-3: `requirements_process.md`
 
-**変更するファイル**: `docs/dev/developer_guide/requirements_process.md`
+**変更するファイル**: `docs/dev/conventions/requirements_process.md`
 
 -   [x] 「Review Flow」の段落（`:55`）を、設計書 3.6 の表の 4 行目のとおりに改める（AC-12）。図（`:41-53`）は変えない。
 

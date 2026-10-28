@@ -21,7 +21,7 @@
 -   **フェーズ 3（設計書 8 章の 3）:** ネットワークを要する確かめ（I-01・I-02）と git の最低の版の確かめを行い、その結果を入れてガイド（英語・日本語）を改め、ガイドとコマンドの文書を確かめるガードを加える。
 -   **フェーズ 4（設計書 8 章の 4）:** 0030 の `01_requirements.md`・`02_architecture.md` を改め、その記述を確かめるガードを加える。
 
-用語は、要件書 3.1 と設計書の冒頭の定義に従う（設定の値の一覧、外す対象のブランチの設定、項目、比べる項目、基準値のブランチ、場所と種類のダイジェスト、一覧のダイジェスト）。本書の「フェーズ」は実装の区切りを指し、`/fixpr` の「修正のフェーズ」とは別である。「ガイド」は `docs/dev/developer_guide/fixprguard_guide.md` と日本語版の `fixprguard_guide.ja.md` を指す。
+用語は、要件書 3.1 と設計書の冒頭の定義に従う（設定の値の一覧、外す対象のブランチの設定、項目、比べる項目、基準値のブランチ、場所と種類のダイジェスト、一覧のダイジェスト）。本書の「フェーズ」は実装の区切りを指し、`/fixpr` の「修正のフェーズ」とは別である。「ガイド」は `docs/dev/guides/fixprguard_guide.md` と日本語版の `fixprguard_guide.ja.md` を指す。
 
 ### 1.2. 実装原則
 
@@ -70,7 +70,7 @@
 
 -   `cmd/fixprguard` のコード（設計書 2.2）。`CheckState` の呼び出し（`cmd/fixprguard/main.go:557`、`worktree.go:130`・`:243`・`:273`・`:326`・`:367`・`:383`・`:502`）は、そのまま新しい比較を使う。
 -   `infoDigest`・`hooksDigest` は、今のとおりファイルの内容を含める（設計書 2.3 の表で変わるのは config だけ）。
--   `docs/dev/developer_guide/package_reference.md`。`internal/fixprguard`・`cmd/fixprguard` の行は config の比較の範囲を述べていない（`:14`・`:21`）。
+-   `docs/dev/conventions/package_reference.md`。`internal/fixprguard`・`cmd/fixprguard` の行は config の比較の範囲を述べていない（`:14`・`:21`）。
 -   0033 の設計書（`02_architecture.md:65`）と、0030 の文書の当時の呼び出しの記録。0033 の設計書の番号の記述は、設計書 9 章のとおり 0033 の実装の PR が合わせる。
 
 #### 1.3.2. 名前を変えるものの一覧
@@ -119,7 +119,7 @@
 -   **`--protocol` の番号は、ガードのテストで確かめる（設計書 7.5 の 1 つめの項目）:** `cmd/fixprguard/docs_test.go` に、ガイドの現在の番号、ガイドと `.claude/commands/` のすべての文書のすべての `--protocol N`（コードブロックの外の文を含む）、ガイドの出力の例の `"protocol":N` が `Protocol` と一致することを確かめるテストを加える。理由: 今の `TestDocumentedInvocationsParse` は `fixpr.md`・`runpr.md` のコードブロックの中しか読まない。そのため、両文書の文の 2 か所と、ガイドの各版の 14 か所（両版で 28 か所）が食い違っても通る。文書に書いただけの確認は、誰も実行しないので守られない（`mkplan.md` step 6）。基準値の例の `'v2....'` は、版の文字列が公開されていないのでガードでは確かめず、ステップ 3-2 で `baselineVersion` と突き合わせる。
 -   **AC-18 も、ガードのテストで確かめる（AC-17 は 2026-10-22 の決定で `manual` に改めた。5 章）:** 対象の記述ごとに、要件書 AC-17 の (a)〜(c)（(a) 外す対象のブランチの設定は比べないこと、(b) 設定の値の一覧を変えない編集は検出しないこと、(c) 外す対象のブランチの設定の書き換えは残余のリスクであること）を述べる語が含まれ、書き改める前の範囲の記述（たとえばガイド 7.1 の今の文、0030 設計書 3.7 のファイルの内容のダイジェストの記述）が残っていないことを確かめる。文書の節や表の行を取り出して語を確かめる先例は、`cmd/yt2column/docs_test.go` の `sectionByHeading`・`bulletContaining`（`:730-747` で使う）と、`cmd/yt2column/fixpr_docs_test.go` の `requireSection`・`requirePhrases` である。これらは別の `main` パッケージにあり、import できないので、`cmd/fixprguard/docs_test.go` に取り出しの関数を置く。
 -   **0033 の計画の確かめの番号は、PR-1 で合わせる（ステップ 3-4）:** 0033 の計画の 1.3.4 とステップ 2-0 は、インストール済みのツールに `--protocol 1` を渡す確かめを、`protocol` の番号が変わらない前提で書いている。PR-1 のマージの後に 0033 のステップ 2-0 を実行すると、番号の不一致で違う診断が出る。再インストールを求める案内が繰り返されるだけで、先に進めなくなる。`--protocol` のガードは `docs/tasks/` を読まないので、この食い違いを見つけない。PR-1 が番号を変えるので、PR-1 で 0033 の計画を editorial correction で直す。
--   **設計書 2.2 の表に `cmd/fixprguard/test_helpers.go` を加えた（editorial correction、この計画の PR）:** `validBaseline`（`:358-369`）は `"v1"` のトークンを `ParseBaseline` に通すので、版を上げると変えなければならない。設計書は `main_test.go:25` だけを挙げていた。決定は変わらないので、`Status` を `approved` のまま、`Comments` に記録した（`docs/dev/developer_guide/requirements_process.md`「Editing an approved document」）。
+-   **設計書 2.2 の表に `cmd/fixprguard/test_helpers.go` を加えた（editorial correction、この計画の PR）:** `validBaseline`（`:358-369`）は `"v1"` のトークンを `ParseBaseline` に通すので、版を上げると変えなければならない。設計書は `main_test.go:25` だけを挙げていた。決定は変わらないので、`Status` を `approved` のまま、`Comments` に記録した（`docs/dev/conventions/requirements_process.md`「Editing an approved document」）。
 
 ### 1.5. 申し送りの項目への対応
 
@@ -241,7 +241,7 @@
 -   [x] 利用者の承認を得てから行う（`CLAUDE.md`「Tool Execution Safety」）。
 -   [x] I-01: `GIT_TRACE` に出力先のファイルを指定して、`ThreadPaths` と同じ `gh api graphql`（スレッドの照会）と権限の照会の `gh api` を直接実行する（1.5）。2 つの呼び出しは owner と name を明示して渡すので、`gh` が git を一度も起動しないこともありうる。そのため、まず同じ出力先で git を起動することが分かっている `gh repo view`（設計書 V-6）を実行し、trace に git の記録が出ることを確かめる（対照）。そのうえで、2 つの呼び出しが成功したこと（出力があること）と、起動された git とそれがブランチの設定を読むかを記録する。git の記録がなければ、「git を起動しなかった」を結果とする。
 -   [x] I-02: スクラッチのディレクトリに、このリポジトリを新しく clone する。手元のどの worktree でも checkout されていないブランチの PR を選び、その clone で `gh pr checkout` を実行する。前後の、その clone の `git config --list --show-origin` を比べて、書き込まれた設定の名前を記録する。共有の `.git/config` には書き込まない（ほかのセッションの `fixprguard` が止まるため）。`branch.<そのブランチ>.*` のほかに書き込む場合は、止まって利用者に尋ねる（1.5）。終わったら clone を消す。
--   [x] git の最低の版（2.12）の根拠（設計書 1.3「git の最低の版」の 3 つの機能が入った版）を、git のリリースノートで確かめ直す。違えば、最低の版を変えることは設計書の決定の変更なので、止まって `.claude/commands/runplan.md` の決定の変更の手順（`docs/dev/developer_guide/requirements_process.md`「Editing an approved document」）に従う。利用者の承認を得てから、設計書と、ステップ 2-2 で書いた `gitHardening` のコメントを直し、ステップ 3-2 に進む。
+-   [x] git の最低の版（2.12）の根拠（設計書 1.3「git の最低の版」の 3 つの機能が入った版）を、git のリリースノートで確かめ直す。違えば、最低の版を変えることは設計書の決定の変更なので、止まって `.claude/commands/runplan.md` の決定の変更の手順（`docs/dev/conventions/requirements_process.md`「Editing an approved document」）に従う。利用者の承認を得てから、設計書と、ステップ 2-2 で書いた `gitHardening` のコメントを直し、ステップ 3-2 に進む。
 -   [x] 結果を本書に追記する（1.6）（コマンド、`gh`・git の版、日付）。追記は実装の記録なので、`Status` は変えない。
 -   [-] （前提は外れなかったので不要）I-02 で前提が外れ、利用者が要件に戻すと決めた場合は、ステップ 2-3 の AC-01 のテストを見直す。I-01 の結果は、ガイドの記述だけに効く（1.5）。
 
@@ -249,7 +249,7 @@
 
 #### ステップ 3-2: ガイドの改訂
 
-**変更するファイル**: `docs/dev/developer_guide/fixprguard_guide.ja.md`、`fixprguard_guide.md`
+**変更するファイル**: `docs/dev/guides/fixprguard_guide.md`、`fixprguard_guide.md`
 
 -   [x] 日本語版を、設計書 3.5 の「ガイド（英語・日本語）」の表のすべての箇所について改める。8 章の `response-rejected` の行と 7.2 には、ステップ 3-1 の I-01・I-02 の結果（確かめた範囲と、fork の PR を確かめていないこと）を反映する。
 -   [x] 書いた記述を、ツールの振る舞いと突き合わせる。比べる範囲は `configListDigest`、止まり方は設計書 4 章の表とステップ 2-3 のテスト、最低の版はステップ 3-1 の結果、基準値の例の `'v2....'` は `baselineVersion` と比べる。

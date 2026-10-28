@@ -38,12 +38,12 @@ needs `git diff <range>` and `git log <range>` to work from.
 ## Procedure
 
 1. Identify the target task directory per
-   `docs/dev/developer_guide/task_identification.md`, and resolve the commit
+   `docs/dev/conventions/task_identification.md`, and resolve the commit
    range from `$ARGUMENTS` as above.
 
 2. Read the task's `01_requirements.md`, `02_architecture.md`,
-   `03_implementation_plan.md`, `docs/dev/developer_guide/test_organization.md`,
-   `docs/dev/developer_guide/requirements_process.md`, and
+   `03_implementation_plan.md`, `docs/dev/conventions/test_organization.md`,
+   `docs/dev/conventions/requirements_process.md`, and
    `docs/dev/security.md`. These are the documents whose rules the weak
    model was supposed to have followed while producing the diff.
 

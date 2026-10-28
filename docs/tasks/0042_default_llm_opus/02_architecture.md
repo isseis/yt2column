@@ -350,7 +350,7 @@ func DefaultClaudeModelForTest() string
 | `cmd/yt2column/docs_test.go` | 文書に書いた既定の値を確かめるテストを加える（7.3） | AC-25、H-02 |
 | `README.md` | 「Configuration」の表と本文、DeepSeek を使い続けるための案内、「Localhost server」の「Troubleshooting」の項目（3.6） | AC-25〜AC-27 |
 | `internal/llm/provider/provider_test.go` | 変えない。検証・推敲が `claude` のときモデルが Claude の構築に渡ることは、0041 が加えた `TestNewClaudeDefaultEffort` が確かめている（7.1） | AC-10 |
-| `docs/dev/developer_guide/package_reference.md` | `internal/config` の行を、既定のプロバイダとモデル、AC-10・AC-11 の規則、モデルだけの設定の拒否に合わせて直す（3.6） | AC-26 |
+| `docs/dev/conventions/package_reference.md` | `internal/config` の行を、既定のプロバイダとモデル、AC-10・AC-11 の規則、モデルだけの設定の拒否に合わせて直す（3.6） | AC-26 |
 | `docs/dev/project_overview.md` | 「決定済みの方針」の LLM の項、「前提・制約」のモデル名の方針、「設定（環境変数）」の表と本文、DeepSeek を使い続けるための案内（3.6） | AC-25〜AC-29 |
 
 変えないもの:
@@ -373,7 +373,7 @@ func DefaultClaudeModelForTest() string
     -   「決定済みの方針」の LLM の項（`:12`）を、既定の LLM が Claude（claude-opus-5-5）で DeepSeek も選べること、どちらも SDK を使わず標準ライブラリで呼ぶことに書き換える（AC-28）。
     -   「前提・制約」のモデル名の方針（`:67`）に、既定のモデル名をコードに持つ例外を、範囲（プロバイダが `claude` でモデルの変数が未設定のときの既定に限る）と理由（0008 の評価で本番の構成として決めたモデル）とともに書く（AC-29）。単価の表の注記と同じ書き方にする。
     -   「設定（環境変数）」の表（`:107-120`）と本文（`:126`）を、README と同じ内容に直し（AC-25・AC-26）、DeepSeek を使い続けるための案内を加える（AC-27）。
--   **`docs/dev/developer_guide/package_reference.md`:** `internal/config` の行（`:27`）の「each defaulting to the generation's; a set review provider requires a set review model」を、既定のプロバイダとモデル、AC-10・AC-11 の規則、モデルだけの設定の拒否に合わせて直す。
+-   **`docs/dev/conventions/package_reference.md`:** `internal/config` の行（`:27`）の「each defaulting to the generation's; a set review provider requires a set review model」を、既定のプロバイダとモデル、AC-10・AC-11 の規則、モデルだけの設定の拒否に合わせて直す。
 -   **#488 との関係:** #488（タスク 0040）の実装は本書の実装の後にマージする（要件書 §5）。本書の実装の時点で #488 の文書がすでに `main` にある場合は、その文書に合わせて書く（H-06）。
 
 ## 4. エラーハンドリング設計 (Error Handling Design)

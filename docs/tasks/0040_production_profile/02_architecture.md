@@ -101,7 +101,7 @@ flowchart LR
 本書は、ほかのタスクの設計書や `project_overview.md` が定めた方針に、例外を設けない。理由は次のとおりである。
 
 -   `project_overview.md` の「決定済みの方針」は、書き方を変えるが、決定は変えない（3.3 の対照表）。`project_overview.md:5` の「本書の方針を変更する場合は、タスクの要件定義書でその旨を明記し、本書も更新する」には当たらない。
--   0008 評価記録は `approved` の文書である。参照を足す編集は、要件書が決めたとおり編集上の修正として扱い、status を `approved` のまま保つ（`docs/dev/developer_guide/requirements_process.md`「Editing an approved document」）。これは規則のとおりの扱いで、例外ではない。
+-   0008 評価記録は `approved` の文書である。参照を足す編集は、要件書が決めたとおり編集上の修正として扱い、status を `approved` のまま保つ（`docs/dev/conventions/requirements_process.md`「Editing an approved document」）。これは規則のとおりの扱いで、例外ではない。
 -   `CLAUDE.md`「Key Design Patterns」の「Delegate the fragile part」（`CLAUDE.md:194-200`）は変えない。`project_overview.md` の「字幕取得」の項を並べ替えた後も、2 つは同じ決定を述べる（3.3、H-06）。
 
 ## 2. システム構成 (System Structure)

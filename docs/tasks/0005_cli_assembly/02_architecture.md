@@ -654,7 +654,7 @@ func SettingsFrom(getenv func(string) string, opts IntegrationOptions) Integrati
 -   **キーがない場合を選べるようにする理由:** 既存の DeepSeek の統合テストは、テスト用のキーがない場合にスキップすることを、0003 の要件（[0003 の 01_requirements.md](../0003_deepseek_llm_client/01_requirements.md) F-006・AC-23）として承認済みである。本タスクの AC-40 は失敗を求める。どちらも承認済みの要件なので、片方に揃えずに呼び出し側が選ぶ。既存のテストは `MissingKeySkip` を渡して振る舞いを変えない。
 -   ゼロ値は、`IntegrationAction` が「スキップ」、`MissingKeyAction` が「失敗」である。前者は「実行するかどうか」で、実行しないのが料金の発生しない側である。後者は「キーがないときにどう報告するか」で、スキップは成功と見分けにくいので、失敗が安全側である。どちらの場合も料金の発生する呼び出しはしない。
 -   `getenv` を `config.LookupFunc` にしないのは、統合テストの判定がプロセスの環境変数を読む（`os.Getenv`）ことを前提とし、空と未設定を区別しないという既存の判定の振る舞いを変えないためである。
--   ビルドタグは、テスト用パッケージの規則（[test_organization.md](../../dev/developer_guide/test_organization.md) の `//go:build test`）と異なり `test || integration` とする。統合テストは `-tags integration` だけでビルドされる（`Makefile` の `test-integration-deepseek`）ため、`test` のタグだけでは統合テストから使えない。既存の `integration_env_test.go` と同じ理由である。
+-   ビルドタグは、テスト用パッケージの規則（[test_organization.md](../../dev/conventions/test_organization.md) の `//go:build test`）と異なり `test || integration` とする。統合テストは `-tags integration` だけでビルドされる（`Makefile` の `test-integration-deepseek`）ため、`test` のタグだけでは統合テストから使えない。既存の `integration_env_test.go` と同じ理由である。
 -   この例外は、規則と、規則を確かめるテストを同じ変更で更新して明文化する。
     -   `test_organization.md` に、「統合テストからも使う補助（`testutil/` のファイルと `test_helpers_*.go`）は `//go:build test || integration` とする」という例外を足す。
     -   既存の `TestFakesCarryBuildTag`（`internal/pipeline/pipeline_test.go:514-534`）は、`../*/testutil/*.go` だけを数え、件数を 8 に固定している。`internal/llm/deepseek/testutil` のように 1 段深い `testutil/` は対象にならず、例外の行も黙って通り抜ける。このテストを、`internal` の下のすべての `testutil/` を数え、1 行目が `//go:build test` か `//go:build test || integration` のどちらかであることを確かめる形に改める。件数の固定は新しい件数に合わせる。
@@ -694,9 +694,9 @@ func SettingsFrom(getenv func(string) string, opts IntegrationOptions) Integrati
 | `internal/llm/deepseek/integration_env_test.go`・`integration_test.go`・`deepseek_test.go`・`makefile_test.go` | 変更 | 実行条件の判定と `make` の実行の補助の移動への追従 | F-009 |
 | `cmd/yt2column/makefile_test.go` | 新規 | `test-integration-cli` のターゲットのテスト | F-009 |
 | `internal/llm/deepseek/testutil/integration.go`・`make.go` | 新規 | 統合テストの実行条件、`make` を偽のコマンドで実行する補助 | F-009 |
-| `internal/pipeline/pipeline_test.go`・`docs/dev/developer_guide/test_organization.md` | 変更 | `testutil/` のビルドタグの規則の例外と、それを確かめるテスト（入れ子の `testutil/` も数える） | F-009 |
+| `internal/pipeline/pipeline_test.go`・`docs/dev/conventions/test_organization.md` | 変更 | `testutil/` のビルドタグの規則の例外と、それを確かめるテスト（入れ子の `testutil/` も数える） | F-009 |
 | `Makefile` | 変更 | `test-integration-cli`、`.PHONY`、`go vet -tags integration` の行のコメント | F-009 |
-| `README.md`・`docs/dev/project_overview.md`・`docs/dev/developer_guide/package_reference.md`・`docs/dev/security.md` | 変更 | 文書（README には、出力先のディレクトリにハードリンクを作れる必要があることも書く） | F-010 |
+| `README.md`・`docs/dev/project_overview.md`・`docs/dev/conventions/package_reference.md`・`docs/dev/security.md` | 変更 | 文書（README には、出力先のディレクトリにハードリンクを作れる必要があることも書く） | F-010 |
 
 ### 3.13. design_handoff の各項目への対応
 

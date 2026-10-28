@@ -129,7 +129,7 @@ var (
 )
 
 // guidePath is where the parse diagnostic points for the usage.
-const guidePath = "docs/dev/developer_guide/fixprguard_guide.md"
+const guidePath = "docs/dev/guides/fixprguard_guide.md"
 
 // env is what a run reaches outside the process; tests replace each part.
 type env struct {

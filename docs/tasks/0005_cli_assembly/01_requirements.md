@@ -43,7 +43,7 @@ yt2column は `URL → TranscriptSource → Transcript → ArticleWriter → Art
 -   `cmd/yt2column`: CLI 引数の解析、各段階の構築、パイプラインの実行、キャッシュの後始末、終了コード。
 -   同じキャッシュディレクトリに対する同時実行の排他。
 -   fake を使うユニットテストと、testdata から実 DeepSeek API を経てファイル出力までを行う統合テスト。
--   README・[project_overview.md](../../dev/project_overview.md)・[package_reference.md](../../dev/developer_guide/package_reference.md)・[security.md](../../dev/security.md) の更新（F-010）。
+-   README・[project_overview.md](../../dev/project_overview.md)・[package_reference.md](../../dev/conventions/package_reference.md)・[security.md](../../dev/security.md) の更新（F-010）。
 
 ### 2.3. スコープ外 (Out of Scope)
 
@@ -327,7 +327,7 @@ YouTube にアクセスせず、testdata の字幕から、実際の DeepSeek AP
 
 -   README に、CLI の使い方（呼び出し形式、フラグ、終了コード）、環境変数の表（未設定のときの値を含む）、同じキャッシュディレクトリでの同時実行は排他され後発が失敗すること、CLI を SIGKILL で終了させた場合は `yt-dlp` が残りうり、その終了まで次の実行は同時実行として失敗すること、キャッシュの内容が不正な場合は `--refresh` で回復できること、統合テストの実行方法を記す。
 -   [project_overview.md](../../dev/project_overview.md) の「設定（環境変数）」の表に、F-001 の未設定のときの値を反映する。
--   [package_reference.md](../../dev/developer_guide/package_reference.md) に、`internal/config` と `cmd/yt2column` を追加し、`internal/publisher` の責務に `FilePublisher` を加える。
+-   [package_reference.md](../../dev/conventions/package_reference.md) に、`internal/config` と `cmd/yt2column` を追加し、`internal/publisher` の責務に `FilePublisher` を加える。
 -   [security.md](../../dev/security.md) §2 の、実在の API キーを使う統合テストの例外に、F-009 の統合テストを加える。また、CLI は `GODEBUG` の `http2debug` の設定を拒否せず警告にとどめること（F-001・F-008）を §2 に書く。
 
 **Acceptance Criteria**:

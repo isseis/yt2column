@@ -53,7 +53,7 @@ requirements の機能要件（F-001〜F-008）を、architecture の設計ど�
 
 **サーバ（変更しない）。** `classify`（`internal/server/job.go:109-150`）は `errors.AsType[*pipeline.StageError]` と `errors.Is` だけで判定するので、`*TokenUsageError` で包んでも分類は変わらない。HEAD の Go のファイルで、`context.Canceled`・`context.DeadlineExceeded` をエラーの `==`・`!=` で比べるのは、テストの `pipeline_test.go:213`・`:239`・`:267` だけである（`rg -n '(!=|==) context\.(Canceled|DeadlineExceeded)' -g '*.go'` で確認。`:213`・`:239` は `Write` の前の中断で、包まないので変わらない）。
 
-**文書（フェーズ 5 で変える）。** `README.md` には、トークン数の行の説明がない（`## Post-generation steps` は `:72-121`）。`docs/dev/project_overview.md` の `## パイプライン`（`:18`）の `LLMClient` の項は、`GenerateResponse` を `Text`・`Model`・`ModelVersion` として説明する（`:42`）。`docs/dev/security.md` の `## 6. 信頼できないテキストの取り扱い`（`:68`）に、LLM の応答の検証と `--artifacts` の項目（`:77`。中間生成物に入る来歴を列挙し、トークン数を含まない）がある。`docs/dev/developer_guide/package_reference.md` の `internal/llm`（`:26`）・`internal/strictjson`（`:19`）・`internal/artifact`（`:33`。依存先を `internal/writer`・`internal/strictjson`・`internal/transcript` と書く）・`internal/writer`（`:34`）・`internal/llm/deepseek`（`:29`）・`internal/llm/claude`（`:28`）の行を更新する。翻訳（`*.en.md`）はない（`find docs -name '*.en.md'` で該当なし）。
+**文書（フェーズ 5 で変える）。** `README.md` には、トークン数の行の説明がない（`## Post-generation steps` は `:72-121`）。`docs/dev/project_overview.md` の `## パイプライン`（`:18`）の `LLMClient` の項は、`GenerateResponse` を `Text`・`Model`・`ModelVersion` として説明する（`:42`）。`docs/dev/security.md` の `## 6. 信頼できないテキストの取り扱い`（`:68`）に、LLM の応答の検証と `--artifacts` の項目（`:77`。中間生成物に入る来歴を列挙し、トークン数を含まない）がある。`docs/dev/conventions/package_reference.md` の `internal/llm`（`:26`）・`internal/strictjson`（`:19`）・`internal/artifact`（`:33`。依存先を `internal/writer`・`internal/strictjson`・`internal/transcript` と書く）・`internal/writer`（`:34`）・`internal/llm/deepseek`（`:29`）・`internal/llm/claude`（`:28`）の行を更新する。翻訳（`*.en.md`）はない（`find docs -name '*.en.md'` で該当なし）。
 
 **外部の前提の確認。** モジュールは `go 1.26.5`、ツールチェーンは `go1.27.1`（`go.mod`・`go version`）。`errors.AsType` は既存コードが使う（`cmd/yt2column/run.go:324`）。`http.ProxyFromEnvironment` は `localhost` とループバックの IP アドレスの宛先にプロキシを使わない（`go1.27.1` の `$(go env GOROOT)/src/vendor/golang.org/x/net/http/httpproxy/proxy.go:178-187` の `useProxy`。`go doc net/http.ProxyFromEnvironment` は `localhost` だけを述べる）。そのため、`cmd/yt2column` の `TestMain`（`main_test.go:22`）がプロキシの環境変数を閉じたアドレスに向けていても、`127.0.0.1` の `httptest` のサーバには届く。
 
@@ -282,7 +282,7 @@ requirements の機能要件（F-001〜F-008）を、architecture の設計ど�
 
 ### フェーズ 5: 文書
 
-**対象ファイル:** `README.md`、`cmd/yt2column/docs_test.go`、`docs/dev/project_overview.md`、`docs/dev/security.md`、`docs/dev/developer_guide/package_reference.md`
+**対象ファイル:** `README.md`、`cmd/yt2column/docs_test.go`、`docs/dev/project_overview.md`、`docs/dev/security.md`、`docs/dev/conventions/package_reference.md`
 
 - [x] **ステップ 5-1**: `README.md` に、トークン数の行の節（例: `## Token usage`。`## Post-generation steps` の後）を加える。書く内容は architecture §3.10 の `README.md` の行のとおりで、行の書式（2 つの形と位置ごとの語）、4 つの区分の意味、再利用の印、不明の表し方と理由の語、`nomodel`、モデル名のエスケープの戻し方、行の順序（成功では要約の最後、失敗では失敗の行の前）、行が出ない終わり方（architecture §3.6）、更新後は新しい `--artifacts` のディレクトリを使うこと、である。例の行は、ステップ 4-4 のテストの出力と同じ形にする。
 - [x] **ステップ 5-2**: `cmd/yt2column/docs_test.go` に、既存の `TestArtifactDocsContract` と同じ形の `TestTokenUsageDocsContract` を加える。`readDoc`・`sectionByHeading`・`bulletContaining` を使い、次を確かめる。
@@ -293,7 +293,7 @@ requirements の機能要件（F-001〜F-008）を、architecture の設計ど�
   - README から定数の語を 1 つ消すと失敗することを確かめる。
 - [x] **ステップ 5-3**: `docs/dev/project_overview.md` の `## パイプライン` の `ArticleWriter` の項に段階ごとの使用量と CLI の標準エラーの行を、`LLMClient` の項（`:35`）と `GenerateResponse` の説明（`:42`）に `Usage` と 3 つのエラーで返す値を加える。
 - [x] **ステップ 5-4**: `docs/dev/security.md` の `## 6. 信頼できないテキストの取り扱い` に、応答の `usage` を信頼できない入力として扱う規則（受理する形、不明にする場合、応答を拒否しないこと、理由に値を含めないこと）の項目を加える。また、`--artifacts` の項目（`:77`）の来歴の列挙にトークン数を加え、`usage` 要素の拒否の規則を加える（requirements §3.2、architecture §3.4・§3.7）。
-- [x] **ステップ 5-5**: `docs/dev/developer_guide/package_reference.md` の `internal/llm` の行に `TokenCounts`・`UnknownRule`・`Usage` を、`internal/strictjson` の行に `IsNull`・`AsNonNegativeInt64` を、`internal/writer` の行に `RunUsage`・`StageUsage`・`UsageOrigin`・`TokenUsageError` を加える。`internal/llm/deepseek`・`internal/llm/claude` の行に、応答の `usage` を読むことと、3 つのエラーで `Model` と `Usage` を返すことを加える。`internal/artifact` の行に形式の版 2 と `usage` を加え、依存先に `internal/llm` を加える。
+- [x] **ステップ 5-5**: `docs/dev/conventions/package_reference.md` の `internal/llm` の行に `TokenCounts`・`UnknownRule`・`Usage` を、`internal/strictjson` の行に `IsNull`・`AsNonNegativeInt64` を、`internal/writer` の行に `RunUsage`・`StageUsage`・`UsageOrigin`・`TokenUsageError` を加える。`internal/llm/deepseek`・`internal/llm/claude` の行に、応答の `usage` を読むことと、3 つのエラーで `Model` と `Usage` を返すことを加える。`internal/artifact` の行に形式の版 2 と `usage` を加え、依存先に `internal/llm` を加える。
 - [x] **ステップ 5-6**: 書いた文書を、正とするもの（コードとテストの出力）と照らす。README の書式・語・順序は `TestTokenUsageDocsContract` とステップ 4-4 のテストの出力で、`security.md`・`project_overview.md` の規則は、それぞれが述べる振る舞いを固定するテスト（ステップ 2-6・3-7 の名前）と、PR の差分で突き合わせる。
 
 **完了条件:** グリーンゲートが通る。`TestTokenUsageDocsContract`・`TestPackageReferenceListsPackages` が通る。

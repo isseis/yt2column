@@ -16,7 +16,7 @@
 
 **背景:**
 
-`fixprguard inspect` は、`/fixpr` の修正のフェーズが変えたファイルを、処理したスレッドの `path` から決まる範囲と照らす。範囲外の変更があれば、終了コード `3` で利用者の確認に回す（`docs/dev/developer_guide/fixprguard_guide.md:156`）。範囲の規則は、タスク 0030（[#395](https://github.com/isseis/yt2column/issues/395)）で決まった（0030 `02_architecture.md` 3.6）。次の 3 つのどれかに当たる変更が範囲に入る（`internal/fixprguard/scope.go:16-28`）。
+`fixprguard inspect` は、`/fixpr` の修正のフェーズが変えたファイルを、処理したスレッドの `path` から決まる範囲と照らす。範囲外の変更があれば、終了コード `3` で利用者の確認に回す（`docs/dev/guides/fixprguard_guide.md:156`）。範囲の規則は、タスク 0030（[#395](https://github.com/isseis/yt2column/issues/395)）で決まった（0030 `02_architecture.md` 3.6）。次の 3 つのどれかに当たる変更が範囲に入る（`internal/fixprguard/scope.go:16-28`）。
 
 1.  `path` そのもの。
 2.  `path` と同じディレクトリのファイル（サブディレクトリの中は含まない）。
@@ -64,7 +64,7 @@ issue #425 によれば、影響は次のとおりである。
 -   **指示ファイルと git の設定を、どの階層でも実行関連ファイルとする:** `claude.md`・`agents.md`・`claude.local.md`・`.claude/`（ディレクトリの名前として）・`.gitattributes`・`.gitignore` が対象である。
     -   理由: Claude Code はサブディレクトリの指示ファイルを読む。下の階層の `.gitignore` は、以後の変更を隠せる。
 -   **定義を変えたら、一覧・ガイド・ガードを合わせる:** `ExecutionFilePatterns`（`internal/fixprguard/scope.go:60-75`）、`fixprguard_guide.md` 6 章の表、`cmd/fixprguard/docs_test.go` のガードを更新する。
-    -   理由: ガイドは定義と同じ一覧を載せると約束している（`docs/dev/developer_guide/fixprguard_guide.md:219`）。
+    -   理由: ガイドは定義と同じ一覧を載せると約束している（`docs/dev/guides/fixprguard_guide.md:219`）。
 -   **表の各行をテストに入れる:** 壊して失敗を確かめる（`CLAUDE.md`「Testing Strategy」）。
 
 **要件定義の際に決めたこと（2026-10-22）:**
@@ -84,10 +84,10 @@ issue #425 によれば、影響は次のとおりである。
     -   理由: 信頼する自動レビュアーは `coderabbitai` と `chatgpt-codex-connector` である（`.claude/commands/_context.md:185`）。CodeRabbit は、既定で `AGENT.md`・`GEMINI.md` なども指示として読み、Codex は `AGENTS.override.md` も読む。以上の挙動は、要件定義の際のレビューで挙がった知識によるもので、ベンダーの文書では確かめていない。これらは `.md` なので、加えなければ許可リストを通る。すると、次のレビューのスレッド（信頼する著者のスレッド）を操作されうる。
 -   **`.` で始まる要素を、どの階層でも実行関連ファイルとする:** issue が挙げた `.claude/`・`.gitattributes`・`.gitignore` に限らない。パスのどの要素（ファイルの名前またはディレクトリの名前）でも、`.` で始まれば実行関連ファイルとする。
     -   理由: ツールは、下の階層の `.` で始まるファイルも読む。たとえば direnv は、下のディレクトリの `.envrc` を読む。`.npmrc` も下の階層に置ける。最上位で `.` で始まるファイルを実行関連ファイルとする今の規則（`internal/fixprguard/scope.go:119`）を、どの階層にも広げる。
--   **`inspect` の出力の形は変えない:** 範囲外になった理由（拒否リストか、許可リストに当たらないか）は出力しない。`outOfScope` の要素は今の項目のままである（`docs/dev/developer_guide/fixprguard_guide.md:156`）。
+-   **`inspect` の出力の形は変えない:** 範囲外になった理由（拒否リストか、許可リストに当たらないか）は出力しない。`outOfScope` の要素は今の項目のままである（`docs/dev/guides/fixprguard_guide.md:156`）。
     -   理由: 利用者は、一覧を見て続けるかを判断できる。出力の契約を変えずに済む。
 -   **`protocol` の番号を上げる:** 本タスクの前のツールは、新しい文書から呼ばれると終了コード `2` で止まる（AC-16）。
-    -   理由: 前のツールは範囲を広く判定する。番号が同じなら、入れ直していない利用者は、古い規則で判定されていることに気づけない（`docs/dev/developer_guide/fixprguard_guide.md:46`）。入れ直しの手順はガイド 3 章にある（`docs/dev/developer_guide/fixprguard_guide.md:52`）。
+    -   理由: 前のツールは範囲を広く判定する。番号が同じなら、入れ直していない利用者は、古い規則で判定されていることに気づけない（`docs/dev/guides/fixprguard_guide.md:46`）。入れ直しの手順はガイド 3 章にある（`docs/dev/guides/fixprguard_guide.md:52`）。
 -   **タスク 0034 の対象は 0034 で決める:** 本書の定義の変更は、範囲の規則に影響する。0034（PR #429、`draft`）が、git が無視するファイルのうちどれを対象にするか（本書の定義に従うか、部分集合を使うか）は、0034 の要件で決める。
     -   理由: 0034 の要件定義書は、対象を「実行関連ファイルの定義全体」とし、定義そのものは変えないとしている。AC-02 の規則に従えば、無視される `extension/node_modules/` の下の `.bin/` や `.DS_Store` も 0034 の対象になる。対象の数と止まり方への影響は、0034 の要件で扱うのが適切である。
 -   **指示として読まれる文書は、実行関連ファイルにしない:** 手順書や自動レビュアーが読んで従うよう指示されている文書は、実行関連ファイルとせず、残余のリスクとして記録する（4.2）。
@@ -100,10 +100,10 @@ issue #425 によれば、影響は次のとおりである。
 -   **`.` で始まるディレクトリの中は、すべて実行関連ファイルとする:** `.` で始まる要素の規則は、ディレクトリの名前にも当たる（AC-02）。
     -   理由: `.claude/`・`.github/` のように、`.` で始まるディレクトリはツールの設定を置く場所として使われる。issue が挙げた `.claude/` もこれに含まれる。
 -   **0030 の設計書と要件定義書に、規則が変わったことの注記を加える:** 対象は 0030 `02_architecture.md` 3.6 と 0030 `01_requirements.md` F-004 で、本タスクで規則が変わったことと、本書への参照を加える（AC-18）。
-    -   理由: ガイドは、設計の背景として 0030 の設計書を挙げる（`docs/dev/developer_guide/fixprguard_guide.md:5`）。古い規則のまま残すと、読み手が今の規則を誤解する。
+    -   理由: ガイドは、設計の背景として 0030 の設計書を挙げる（`docs/dev/guides/fixprguard_guide.md:5`）。古い規則のまま残すと、読み手が今の規則を誤解する。
     -   注記は決定を変えないので、0030 の文書の状態は `approved` のままとする（要件定義のプロセスのガイド「Editing an approved document」の Editorial correction）。
 -   **ガイドの説明と残余のリスク、用語集を改める:** ガイドの実行関連ファイルの説明に、指示ファイルを加える（AC-17）。4.2 の残余のリスクをガイド 7.2 に書く（AC-20）。新しい用語を用語集に加える（AC-21）。
-    -   理由: 定義が指示ファイルを含むようになるので、「build checks と CI が読むファイル」という今の説明（`docs/dev/developer_guide/fixprguard_guide.md:219`）は定義と合わなくなる。残余のリスクがガイドになければ、利用者がツールの守りを誤解する。
+    -   理由: 定義が指示ファイルを含むようになるので、「build checks と CI が読むファイル」という今の説明（`docs/dev/guides/fixprguard_guide.md:219`）は定義と合わなくなる。残余のリスクがガイドになければ、利用者がツールの守りを誤解する。
 
 ## 2. 目的とスコープ (Goals and Scope)
 
@@ -184,7 +184,7 @@ issue #425 によれば、影響は次のとおりである。
     -   スレッドの `path` が `docs/a.md` のとき、`docs/B.MD` は範囲外になる。
     -   `internal/x/TestData/a.json` のとき、`internal/x/TestData/b.json` は範囲外になる。
 - **AC-10**: 規則 1 には許可リストを適用しない。実行関連ファイルでない変更は、スレッドの `path` そのものなら、種類にかかわらず範囲に入る。名指しの有無は問わない。例: 変更したパスとスレッドの `path` がどちらも `extension/src/a.ts` のとき。
-- **AC-11**: 範囲の規則のうち、本書が変えないものは今までどおりである（`docs/dev/developer_guide/fixprguard_guide.md:208-217`）。
+- **AC-11**: 範囲の規則のうち、本書が変えないものは今までどおりである（`docs/dev/guides/fixprguard_guide.md:208-217`）。
     -   パスを検査する規則
     -   ASCII でない文字を含むパスは、バイト単位で `path` と一致するときだけ範囲に入ること
     -   名前の変更を、変更前の削除と変更後の追加として別々に判定すること
@@ -213,7 +213,7 @@ issue #425 によれば、影響は次のとおりである。
 #### F-004: 出力と終了コードを保ち、古いツールを止める
 
 **Acceptance Criteria**:
-- **AC-14**: `inspect` の出力の項目と終了コードの意味は、`protocol` の値を除いて変わらない（`docs/dev/developer_guide/fixprguard_guide.md:73-78`・`:156`）。新しい規則で範囲外になった変更も、今までの範囲外の変更と同じ形で `outOfScope` に入る。範囲外になった理由は出力しない。
+- **AC-14**: `inspect` の出力の項目と終了コードの意味は、`protocol` の値を除いて変わらない（`docs/dev/guides/fixprguard_guide.md:73-78`・`:156`）。新しい規則で範囲外になった変更も、今までの範囲外の変更と同じ形で `outOfScope` に入る。範囲外になった理由は出力しない。
 - **AC-15**: `/fixpr` と `/runpr` での範囲外の変更の扱いは変わらない（0030 `01_requirements.md` AC-23・AC-25・AC-31）。利用者に一覧を示して続けるかを確かめ、続けないと答えたら、変更を作業ツリーに残して止まる。
 - **AC-16**: `protocol` の番号が上がる。`/fixpr`・`/runpr` がツールを呼ぶときの `--protocol` の値と、文書が示す呼び出しの例も新しい番号になる。`--protocol` の値を確かめる既存の検査は、新しい番号で通る。本タスクの前のツールは、新しい文書の呼び出しを終了コード `2` で拒否し、範囲を判定しない。どのファイルを更新するかは設計で決める（design_handoff.md H-01）。
 
@@ -233,7 +233,7 @@ issue #425 によれば、影響は次のとおりである。
 
 ### 4.1. 性能 (Performance)
 
--   N/A。判定はパスの文字列だけを見る関数で、変更のあるファイルは 1000 個まで（`docs/dev/developer_guide/fixprguard_guide.md:272`）なので、実行時間は問題にならない。
+-   N/A。判定はパスの文字列だけを見る関数で、変更のあるファイルは 1000 個まで（`docs/dev/guides/fixprguard_guide.md:272`）なので、実行時間は問題にならない。
 
 ### 4.2. セキュリティ (Security)
 
@@ -265,7 +265,7 @@ issue #425 によれば、影響は次のとおりである。
     -   理由: 拒否リストでは網羅できない（1 章の決定）。
     -   0030 の理由への対応: Go のテストは (c) で今までどおり通る。Go でない隣のファイルでは確認が入ることを受け入れた。
     -   範囲を狭める変更なので、0030 が守ろうとしたこと（範囲外の変更を確認なしに commit しない）は弱まらない。
--   **インストール済みのツール:** 新しい規則は、マージの後に `make install-fixprguard` で入れ直すまで使われない（`docs/dev/developer_guide/fixprguard_guide.md:46`）。`protocol` の番号を上げるので（AC-16）、入れ直していないツールは終了コード `2` で止まる。
+-   **インストール済みのツール:** 新しい規則は、マージの後に `make install-fixprguard` で入れ直すまで使われない（`docs/dev/guides/fixprguard_guide.md:46`）。`protocol` の番号を上げるので（AC-16）、入れ直していないツールは終了コード `2` で止まる。
 -   **タスク 0034 との関係:** 0034 の対象と本書の定義の関係は、0034 で決める（1 章の決定）。
 
 ### 4.5. 保守性 (Maintainability)

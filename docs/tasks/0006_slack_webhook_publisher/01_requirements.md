@@ -54,7 +54,7 @@ Webhook URL は、それ自体が秘密情報である（[security.md](../../dev
 -   CLI のフラグによる投稿先の選択と、それに伴う実行の流れ・終了コード・標準エラー出力への表示の変更。
 -   `httptest` を使うユニットテスト。
 -   実際の Mattermost の Webhook を使う統合テスト（`make test` からは除外）と、実際の Mattermost での表示の手動確認。
--   README・[project_overview.md](../../dev/project_overview.md)・[package_reference.md](../../dev/developer_guide/package_reference.md)・[security.md](../../dev/security.md) の更新（F-010）。
+-   README・[project_overview.md](../../dev/project_overview.md)・[package_reference.md](../../dev/conventions/package_reference.md)・[security.md](../../dev/security.md) の更新（F-010）。
 
 **対応の範囲（Mattermost と Slack）:**
 
@@ -285,7 +285,7 @@ CLI の呼び出し形式は `yt2column [フラグ] <動画 URL>` のままと�
     -   分割投稿の途中で失敗した場合に、再実行すると最初から投稿し直されること（重複が起こりうること）
     -   統合テストの実行方法
 -   [project_overview.md](../../dev/project_overview.md) の、投稿先を Slack とする記述（概要、`Publisher` の初期実装、「前提・制約」の `markdown` ブロックと上限値の記述、「設定（環境変数）」の表の `SLACK_WEBHOOK_URL`）を、Slack 互換の Incoming Webhook（検証の対象は Mattermost）と、設計で確認した上限値と出典に改める。`SLACK_WEBHOOK_URL` には、`--slack` を指定した場合は必須であることと、Mattermost の URL を受理することを加える。
--   [package_reference.md](../../dev/developer_guide/package_reference.md) の `internal/publisher` の責務に `SlackWebhookPublisher` を加え、`internal/config` の Webhook URL の規則の記述を改める。
+-   [package_reference.md](../../dev/conventions/package_reference.md) の `internal/publisher` の責務に `SlackWebhookPublisher` を加え、`internal/config` の Webhook URL の規則の記述を改める。
 -   [security.md](../../dev/security.md) に、次を加える。
     -   §2: テスト用の Webhook URL（`YT2COLUMN_TEST_SLACK_WEBHOOK_URL`）を使う統合テストの例外と、統合テストの表への追加。`--slack` で `GODEBUG` の `http2debug` を設定した場合に Webhook URL が書かれうること。
     -   §3: Webhook への送信でリダイレクトに従わないこと、自動でリトライしないこと。

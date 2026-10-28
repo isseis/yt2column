@@ -46,7 +46,7 @@ HEAD `00573f2`（ブランチ `task/0003-deepseek-llm-client-02`）で確認し�
 - **フィクスチャ。** `testdata/deepseek_chat_completion_stop.json`（971 バイト、`finish_reason` `stop`、`system_fingerprint` あり）と `testdata/deepseek_chat_completion_length.json`（619 バイト、`finish_reason` `length`、`content` `""`）と、`testdata/README.md` の出典の節は、コミット `c287b7b` で追加済みである。architecture §3.8 の `testdata/README.md`「変更」は完了しており、本計画では変更しない。
 - **`deepseek` パッケージの利用者はいない。** `rg -n "deepseek" -g '*.go' .` の結果は `internal/llm/testutil/mocks_test.go:15` のモデル名の文字列 1 件だけ（2026-10-02、HEAD `00573f2`）。`cmd/yt2column/main.go` は配線を持たず、`deepseek.New` の呼び出し元は #6 で加わる（§9 を参照）。
 - **`README.md` は統合テストの実行方法を説明している**（`README.md:72` と `:81-90` の `make test-integration`、`:60` の `DEEPSEEK_API_KEY`）。`make test-integration-deepseek` とその環境変数は載っていない。
-- **ドキュメントの更新対象。** `docs/dev/developer_guide/package_reference.md:16-17`（`internal/transcript`・`internal/llm` の行）、`docs/dev/project_overview.md:40`（`GenerateResponse: Text, Model`）・`:70-84`（想定ディレクトリ構成。`testdata/` の行は「json3・info.json のサンプル」のままで、DeepSeek の実応答を含まない）、`CLAUDE.md:78-85`（Architecture Overview のパッケージの説明）、`docs/dev/security.md:16-20`（§2。「テストでは実在のキーや URL を使わない」）。英語版の文書（`*.en.md`）は存在せず、翻訳の更新は不要である。
+- **ドキュメントの更新対象。** `docs/dev/conventions/package_reference.md:16-17`（`internal/transcript`・`internal/llm` の行）、`docs/dev/project_overview.md:40`（`GenerateResponse: Text, Model`）・`:70-84`（想定ディレクトリ構成。`testdata/` の行は「json3・info.json のサンプル」のままで、DeepSeek の実応答を含まない）、`CLAUDE.md:78-85`（Architecture Overview のパッケージの説明）、`docs/dev/security.md:16-20`（§2。「テストでは実在のキーや URL を使わない」）。英語版の文書（`*.en.md`）は存在せず、翻訳の更新は不要である。
 - **外部前提の確認。**
   - `go.mod:3` は `go 1.26.5`、手元のツールチェーンは go1.27.1。`context.WithTimeoutCause`（Go 1.21）と `errors.AsType`（Go 1.26）が使える。依存の追加は不要である。
   - `http.DefaultTransport` の proxy は `httpproxy.FromEnvironment` が `HTTPS_PROXY`→`https_proxy`、`NO_PROXY`→`no_proxy` の順に最初の空でない値を採り（go1.27.1 `src/vendor/golang.org/x/net/http/httpproxy/proxy.go:90-106`）、ループバックと `localhost` は proxy を通さない（同 `:116`・`:178-185`）。環境変数はプロセス内で最初の 1 回だけ読まれる（`src/net/http/transport.go:1032-1047` の `envProxyOnce`）。ステップ 3-6 の `TestMain` はこれに依拠する。
@@ -91,7 +91,7 @@ HEAD `00573f2`（ブランチ `task/0003-deepseek-llm-client-02`）で確認し�
 
 **対象ファイル**
 - 新設: `internal/strictjson/strictjson.go`・`internal/strictjson/strictjson_test.go`（`//go:build test`）
-- 変更: `internal/transcript/json3.go`・`internal/transcript/info.go`・`docs/dev/developer_guide/package_reference.md`
+- 変更: `internal/transcript/json3.go`・`internal/transcript/info.go`・`docs/dev/conventions/package_reference.md`
 
 **タスク**
 - [x] **ステップ 1-1**: `strictjson.go` を作成し、§1.4 の一覧に従って部品を移し、architecture §3.5 の公開 API（`Object`・`Value`・`ParseObject`・`Object.Collect`・`Object.Has`・`Required`・`RequiredString`・`OptionalString`・`Value.AsString`・`AsInt64`・`AsObject`・`AsArray`）を実装する。`Object`・`Value` のフィールドは非公開とし、デコーダや `json.RawMessage` を受け取る関数は公開しない。ゼロ値の `Value` の `As...` はエラーを返す。パッケージの doc コメントに、検証を通った文書の値だけを扱うことを書く。import は標準ライブラリだけとする。
@@ -163,7 +163,7 @@ HEAD `00573f2`（ブランチ `task/0003-deepseek-llm-client-02`）で確認し�
 ### フェーズ 2: `internal/llm` の追加
 
 **対象ファイル**
-- 変更: `internal/llm/llm.go`・`internal/pipeline/pipeline_test.go`・`docs/dev/developer_guide/package_reference.md`
+- 変更: `internal/llm/llm.go`・`internal/pipeline/pipeline_test.go`・`docs/dev/conventions/package_reference.md`
 - 新設: `internal/llm/llm_test.go`（`//go:build test`）
 
 **タスク**
@@ -197,7 +197,7 @@ HEAD `00573f2`（ブランチ `task/0003-deepseek-llm-client-02`）で確認し�
 **対象ファイル**
 - 新設: `internal/llm/deepseek/errors.go`・`deepseek.go`・`request.go`・`response.go`（応答本文の読み取りまで）
 - 新設: `internal/llm/deepseek/test_helpers.go`（`//go:build test`）・`internal/llm/deepseek/deepseek_test.go`（`//go:build test`）
-- 変更: `docs/dev/developer_guide/package_reference.md`
+- 変更: `docs/dev/conventions/package_reference.md`
 
 **タスク**
 - [x] **ステップ 3-1**: `errors.go` に architecture §4.1 の 3 つの番兵（`ErrHTTPStatus`・`ErrInvalidResponse`・`ErrTransport`）と `HTTPStatusError`（`StatusCode` だけを持ち、`Unwrap` は `ErrHTTPStatus` を返す）を定義する。`Error()` はステータスコードと、architecture §4.2 のステータスごとの固定の案内を返す。構築のエラーとタイムアウトの cause に使う非公開の静的エラーも置く。
@@ -316,7 +316,7 @@ HEAD `00573f2`（ブランチ `task/0003-deepseek-llm-client-02`）で確認し�
 **対象ファイル**
 - 変更（PR-5）: `docs/dev/project_overview.md`・`CLAUDE.md`・`README.md`
 - 変更（`security.md` §2 のステップ 6-3・6-4 は、実キーを使う統合テストと同じ PR-4 で更新する）: `docs/dev/security.md`
-- 確認のみ（変更しない。フェーズ 1〜3 のステップ 1-7・2-5・3-8 で更新済み）: `docs/dev/developer_guide/package_reference.md`
+- 確認のみ（変更しない。フェーズ 1〜3 のステップ 1-7・2-5・3-8 で更新済み）: `docs/dev/conventions/package_reference.md`
 
 **タスク**
 

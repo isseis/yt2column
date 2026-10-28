@@ -23,7 +23,7 @@ Your goal is to implement one task under `docs/tasks/` by following its `03_impl
 
 Work in order.
 
-1. Identify the target task per `docs/dev/developer_guide/task_identification.md`.
+1. Identify the target task per `docs/dev/conventions/task_identification.md`.
 
 1.5. Prepare the branch before reading the plan, so it is read from the branch
    the work lands on: follow
@@ -38,7 +38,7 @@ Work in order.
    - Count `### フェーズ` headers in the plan. If there are 2 or more and no `### PR-` sections exist, stop and report: PR boundary design is missing (the plan predates `/mkplan` designing them). Ask the user to run `/mkplan2`, which opens a PR for the reviewer, before re-running `/runplan`. Do not invoke `/mkplan2` yourself.
    - If PR markers already exist, skip this step and continue.
 
-3. Read `01_requirements.md`, `02_architecture.md` (both in the target task directory), and `docs/dev/developer_guide/test_organization.md`.
+3. Read `01_requirements.md`, `02_architecture.md` (both in the target task directory), and `docs/dev/conventions/test_organization.md`.
 
 4. Select the next unit of work from `03_implementation_plan.md` checkboxes (`[ ]` not started, `[x]` done, `[-]` skipped).
 - If all phases and all PR markers are complete, skip to step 8 and follow the "If all phases are complete" bullet.
@@ -53,12 +53,12 @@ Work in order.
 - Follow the design in `02_architecture.md`.
 - Before writing new files in a package, read at least one existing file of the same kind (e.g. a `_test.go` in the target package) to confirm assertion library, import style, and helper conventions in use. Mismatches with the established style will be caught in review — reading first avoids the rework.
 - **State invariants before coding.** For any generated value (IDs/names), flag/mode, or side-effecting operation, write its contract in one line as a code comment above the implementation and implement to that — not to the first approach that compiles. Examples: a cache key → *derived only from the video ID, never from the raw URL* (the same video reached by `youtu.be/…` and `watch?v=…` must hit one entry); `--dry-run` → *no external side effects* (skip every Webhook send and every LLM API call, not just the final post); a yt-dlp working directory → *always removed before returning, even on error* (`defer os.RemoveAll`, not only on the success path).
-- Place test helpers per `docs/dev/developer_guide/test_organization.md`: cross-package helpers under `testutil/`; package-internal helpers in `test_helpers.go` (or `test_helpers_<category>.go`) with `//go:build test`.
+- Place test helpers per `docs/dev/conventions/test_organization.md`: cross-package helpers under `testutil/`; package-internal helpers in `test_helpers.go` (or `test_helpers_<category>.go`) with `//go:build test`.
 - After each file change (Go or otherwise), run `make test && make lint`; for Go file changes also run `make fmt` first. Fix errors before continuing. Exception: errors caused by the phase group's incomplete state (e.g. build or test failures from missing implementations that stubs depend on) need not be fixed until the group is complete; fix only errors unrelated to the in-progress group.
 - When removing multiple scattered code sites (e.g. several test functions), delete them one at a time using the exact text read from the file. Do not script bulk deletion (e.g. a brace-counting loop); nested literals make such heuristics over-consume adjacent code. After each removal, check IDE diagnostics for unintended breakage.
 - For any newly authored or substantially rewritten artifact in this group (runbook, command example, table, prose, translation, design-doc section), confirm it is correct before committing — do not rely on absence-search of removed terms. Run any documented command and check its exit code and output; cite the source implementation that prose describes; diff a translation against its source. For a design document such as an ADR, also keep the body on the current system and confine removed-design rationale to a bounded history note rather than interleaving it.
 - **Before committing each group, self-check** (catches common defects before the step 7 review):
-  - **If the implementation approach diverges from `02_architecture.md`, `01_requirements.md`, or the plan step descriptions** (e.g., a simpler alternative is adopted, an API turns out to have compatibility issues), classify the divergence as `docs/dev/developer_guide/requirements_process.md` "Editing an approved document" does:
+  - **If the implementation approach diverges from `02_architecture.md`, `01_requirements.md`, or the plan step descriptions** (e.g., a simpler alternative is adopted, an API turns out to have compatibility issues), classify the divergence as `docs/dev/conventions/requirements_process.md` "Editing an approved document" does:
     - **Editorial correction** (the documents say the same thing, but a name or a step description is stale): update (1) the plan step *description* text (not only the checkbox), (2) any architecture document section that no longer matches, and (3) the PR description if one exists, in the same commit, and record the correction in the document's `Comments`. A divergence that is only marked `[x]` without updating the description text will appear as a plan/code inconsistency to reviewers and generate stale review threads.
     - **Decision change** (what to build or why changes): stop before implementing it, and settle it with the human: follow `.claude/commands/_lib/settle-decisions.md` with **SCOPE** = this divergence and **RECORD** = the changed document's `Comments` (the decision, the date, and that the reviewer approved it in this session). On the reviewer's answer, update the document, and the later task documents whose content depends on the changed decision, in the same commit; keep their status `approved` (the answer is the re-approval), record it in each changed document's `Comments`, and name the change in the PR body. Do not implement a decision change the reviewer has not approved.
   - No planning-doc references (`AC-01`, `F-001`) in source comments or strings — put the *why* in plain English.

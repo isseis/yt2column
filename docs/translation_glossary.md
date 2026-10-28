@@ -39,7 +39,7 @@
 | 記事のキー | article key | サーバが生成の開始の入力から計算する、記事を指す不透明な値（64 文字の小文字の 16 進）。拡張とホストは、その形にも計算方法にも依存しない |
 | 記録 | record | 記事のキャッシュが 1 つのキーについて持つ値の組（ジョブ・工程・投稿の状態、記事、失敗の理由、時刻） |
 | ジョブの状態 | job state | `running`・`done`・`failed`・`unknown` |
-| 工程 | step | 記事の生成の中の 3 つの処理（下書き・本文の短縮・検証・推敲。`writer.Stage`）。API の `steps` のメンバ。パイプラインの「段階」（stage）とは区別する |
+| 工程 | step | 記事の生成の中の 3 つの処理（生成・字数の調整・検証・推敲。`writer.Stage`）。API の `steps` のメンバ。パイプラインの「段階」（stage）とは区別する |
 | 工程の状態 | step state | `pending`・`running`・`done`・`skipped`・`failed` |
 | 投稿の状態 | publish state | `not_posted`・`posting`・`posted`・`failed`・`unpostable` |
 | 生成の枠 | generation slot | 同時に走る記事の生成の数の上限（`2`）。旧 API のジョブと新しい API の生成が合算する |
@@ -126,3 +126,9 @@
 | 名指し | naming | 利用者が内容を確かめた想定外の著者のスレッドを、スレッド ID と指紋の組で指定して処理を求めること。動詞は "name"（例: a named thread） |
 | バックグラウンド | background | 端末の前面でなく裏で動くプロセスやジョブ（例: バックグラウンドのプロセス）。「背景」とは訳さない |
 | 確認 | check | 文書のテストなど 1 つのテストの中の、1 つの条件の検査。1 つのテストは複数の確認を含みうる（タスク 0038）。動詞は「確かめる」。画面の「確認のセクション」「確認の行」の「確認」は UI の区分の名前（checks section・check row）で、この語とは別 |
+| 料金表 | rate table | `internal/pricing` の `rateTable`。モデルごとの、トークンあたりの料金の表（`pricing_update.md`） |
+| 方式 | scheme | 料金表の項目が、料金を選ぶ方法。単一の料金、週ごとのピークの時間帯、プロンプトの長さのしきい値のいずれか（`pricing_update.md`） |
+| ピークの時間帯 | peak window | 時刻で料金が変わるモデルで、高い料金が適用される曜日と時刻の範囲（`pricing_update.md`） |
+| 出力の上限 | output limit | LLM への 1 回のリクエストで受け付ける出力のトークン数の上限。Claude のアダプタの既定値は `defaultMaxOutputTokens`（`claude_output_limit.md`） |
+| 実時間 | wall-clock time | 処理に実際にかかった時間。出力の速さを求める測定に使う（`claude_output_limit.md`） |
+| 打ち切り | truncate | LLM の応答が出力の上限に達して途中で終わること。打ち切られた実行の出力は、上限以上であることしか分からない |

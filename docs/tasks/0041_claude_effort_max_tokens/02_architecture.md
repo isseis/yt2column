@@ -18,7 +18,7 @@
 -   **既定の effort:** `YT2COLUMN_CLAUDE_EFFORT` が未設定のときに設定の読み込みが使う effort。本書では `high` である。
 -   **既定の上限:** Claude アダプタが、`llm.GenerateRequest` の `MaxOutputTokens` が 0 のときに送る `max_tokens`。今は 16,000 で、本書の変更の後は V（40,000）である。
 -   **最も遅い出力の速さ:** 本番の構成の測定（0018 評価記録 §4.7.2・§4.7.4）から計算した出力の速さ（1 回の CLI の実行の出力のトークン数 ÷ その実行の所要時間）のうち、最も小さい値。本書では 94.9 トークン/秒である（1.4）。
--   **上限のガイド:** 本タスクで新設する英語の開発者ガイド `docs/dev/developer_guide/claude_output_limit.md`。既定の上限の根拠を測り直す手順を書く（3.5）。
+-   **上限のガイド:** 本タスクで新設する英語の開発者ガイド `docs/dev/guides/claude_output_limit.md`。既定の上限の根拠を測り直す手順を書く（3.5）。
 
 ## 1. 設計の全体像 (Design Overview)
 
@@ -193,7 +193,7 @@ flowchart LR
 | 既定の上限 V | `internal/llm/claude/request.go` の `defaultMaxOutputTokens` | Messages API は `max_tokens` を必須とし、0 を受け付けない。そのため「0 のときに送る値」は Claude アダプタの事情で、アダプタの外に出さない（CLAUDE.md「Provider details stay in their adapter package」） |
 | タイムアウトの根拠のコメント | `internal/llm/provider/provider.go:16-19` | 値は変えず、根拠の記述だけを直す（3.3） |
 | V の (a)・(b) を固定するテスト | `internal/llm/provider/provider_test.go` | (b) は `LLMTimeout`（provider）と V（claude）の関係なので、両方を見られる provider のテストに置く（7.1） |
-| 上限のガイド | `docs/dev/developer_guide/claude_output_limit.md`（新設、英語） | 要件書「要件定義の際に決めたこと」と H-08 |
+| 上限のガイド | `docs/dev/guides/claude_output_limit.md`（新設、英語） | 要件書「要件定義の際に決めたこと」と H-08 |
 
 ### 2.3. データの流れ
 
@@ -240,7 +240,7 @@ sequenceDiagram
 // defaultClaudeEffort is the effort used when YT2COLUMN_CLAUDE_EFFORT is
 // unset and a stage the run needs uses the claude provider. The adapter's
 // default output limit was sized for this effort; changing it calls for the
-// re-measurement in docs/dev/developer_guide/claude_output_limit.md.
+// re-measurement in docs/dev/guides/claude_output_limit.md.
 const defaultClaudeEffort = claudeparam.EffortHigh
 ```
 
@@ -279,13 +279,13 @@ const defaultClaudeEffort = claudeparam.EffortHigh
 | README の `max` の注意の後 | 段落を足す。既定の `high` は claude-opus-5-5 に合わせて選んだ値であること、ほかのモデル（例: claude-sonnet-5-5）では `high` でも出力の上限に達して打ち切られうること、その場合は `YT2COLUMN_CLAUDE_EFFORT` で effort を下げられることを書く（AC-19） |
 | README の `--no-review` の段落（`README.md:116-121`） | 「`claude` its effort) are still required」を削り、API キーだけが必須である書き方にする（AC-14） |
 | `docs/dev/project_overview.md`「設定（環境変数）」の表の `YT2COLUMN_CLAUDE_EFFORT` の行（`:115`） | 「未設定のとき」を「生成または検証・推敲のプロバイダが `claude` なら `high`」に直す（AC-16） |
-| `docs/dev/developer_guide/package_reference.md` の `internal/config` の行（`:27`） | 「the Claude effort via `claudeparam.ParseEffort`」に、未設定なら `high` であることを加える |
+| `docs/dev/conventions/package_reference.md` の `internal/config` の行（`:27`） | 「the Claude effort via `claudeparam.ParseEffort`」に、未設定なら `high` であることを加える |
 
 README の打ち切りの料金（H-05）は書かない。料金は単価の表の改定で変わり、文書に写すと古くなるためである。本書 4.3 に記録するだけにする。
 
 ### 3.5. 上限のガイド（F-003・AC-17・AC-18・H-08）
 
-`docs/dev/developer_guide/claude_output_limit.md` を英語で新設する。`pricing_update.md` と同じく、繰り返し行う作業の手順を書く。節の構成は次のとおりである。
+`docs/dev/guides/claude_output_limit.md` を英語で新設する。`pricing_update.md` と同じく、繰り返し行う作業の手順を書く。節の構成は次のとおりである。
 
 | 節 | 内容 |
 |---|---|
@@ -327,8 +327,8 @@ README の打ち切りの料金（H-05）は書かない。料金は単価の表
 | `internal/writer/steps_test.go` | 変更 | `TestWriteStepOrder`（`:43`）に、字数の調整と検証・推敲の呼び出しが `MaxOutputTokens` 0 を渡すことの確認を足す（7.1）。生成は `writer_test.go:153` がすでに確かめている | — |
 | `README.md` | 変更 | 3.4 | なし（3.8） |
 | `docs/dev/project_overview.md` | 変更 | 3.4 | なし（3.8） |
-| `docs/dev/developer_guide/package_reference.md` | 変更 | 3.4 | なし（3.8） |
-| `docs/dev/developer_guide/claude_output_limit.md` | 新規 | 3.5 | — |
+| `docs/dev/conventions/package_reference.md` | 変更 | 3.4 | なし（3.8） |
+| `docs/dev/guides/claude_output_limit.md` | 新規 | 3.5 | — |
 | `CLAUDE.md` | 変更 | Quick Links にリンクを足す | なし（3.8） |
 
 `internal/writer` と `internal/llm/deepseek` のコードは変えない。

@@ -68,13 +68,13 @@ build:
 	$(GOBUILD) -trimpath -ldflags "-s -w" -o $(NMHOST_BINARY) $(NMHOST_PKG)
 
 # Install the /mergepr developer tool into $(go env GOPATH)/bin. Run from an
-# up-to-date main checkout (docs/dev/developer_guide/mergepr_guide.md).
+# up-to-date main checkout (docs/dev/guides/mergepr_guide.md).
 install-mergepr:
 	$(GOCMD) install ./cmd/mergepr
 
 # Install the fixprguard guard tool for /fixpr and /runpr into
 # $(go env GOPATH)/bin. Run from an up-to-date main checkout after every merge
-# that changes the tool (docs/dev/developer_guide/fixprguard_guide.md).
+# that changes the tool (docs/dev/guides/fixprguard_guide.md).
 install-fixprguard:
 	$(GOCMD) install ./cmd/fixprguard
 

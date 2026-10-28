@@ -32,7 +32,7 @@ an agent. They call the guard tool `fixprguard` (`_context.md`, "Guard tool"),
 which judges the thread authors, fetches the thread bodies, checks the change
 scope and the git state, runs the build checks, commits, pushes, and writes to
 GitHub. Its subcommands, outputs, and stop kinds are in
-`docs/dev/developer_guide/fixprguard_guide.md`.
+`docs/dev/guides/fixprguard_guide.md`.
 
 - Before Phase 1, check `command -v fixprguard`. If it finds nothing, stop and
   tell the user to run `make install-fixprguard` from an up-to-date `main`; do
@@ -450,7 +450,7 @@ blocks, the thread IDs to fix):
 > 4. Apply R3 to the Document Status of every process document you edited and
 >    every handoff item you added or changed, per "Editing an approved
 >    document" in the requirements process guide
->    (`docs/dev/developer_guide/requirements_process.md`): a decision change
+>    (`docs/dev/conventions/requirements_process.md`): a decision change
 >    (including any handoff item change) resets the affected approved document,
 >    and any later approved document after it, to `draft`; an editorial
 >    correction keeps the status and records the change in `Comments`, stating

@@ -19,7 +19,7 @@ import (
 // sized so that a non-streaming call producing that many tokens at the slowest
 // observed output rate finishes within half of this timeout; a test in this
 // package pins that relation, and
-// docs/dev/developer_guide/claude_output_limit.md describes how to re-measure
+// docs/dev/guides/claude_output_limit.md describes how to re-measure
 // it.
 const LLMTimeout = 15 * time.Minute
 

@@ -2,7 +2,7 @@
 
 要件定義の際に挙がった設計の事項である。`02_architecture.md` は、各項目にどう対応したか、または対応しない理由を記録する。
 
--   **H-01: `protocol` の番号を上げる手順.** 要件は番号を上げると決めた（AC-16）。上げる対象を決める。`internal/fixprguard` の `Protocol`、`fixpr.md`・`runpr.md` の `--protocol`、ガイドの例とその文書のガードである。今の `--protocol` の番号を文書から読んで確かめる既存の検査も、漏れなく対象に入れる。たとえば `docs/tasks/0032_japanese_pr_title/check_rules.sh:524` は、`fixpr.md` に `--protocol 2` があることを求める。更新から漏れると、番号を上げた時点でその検査が失敗する。タスク 0035 でも、番号を上げたときにこの検査を合わせて直した。番号を固定している箇所をリポジトリ全体から探す手段も決める（AC-16）。ガイド 3 章の手順（`docs/dev/developer_guide/fixprguard_guide.md:52`）に合わせて、マージと入れ直しの順序も決める。範囲の規則だけが変わる変更なので、ガイド 9 章の「番号を変えなくてよい 3 つの条件」（`docs/dev/developer_guide/fixprguard_guide.md:287-292`）との関係も書く。
+-   **H-01: `protocol` の番号を上げる手順.** 要件は番号を上げると決めた（AC-16）。上げる対象を決める。`internal/fixprguard` の `Protocol`、`fixpr.md`・`runpr.md` の `--protocol`、ガイドの例とその文書のガードである。今の `--protocol` の番号を文書から読んで確かめる既存の検査も、漏れなく対象に入れる。たとえば `docs/tasks/0032_japanese_pr_title/check_rules.sh:524` は、`fixpr.md` に `--protocol 2` があることを求める。更新から漏れると、番号を上げた時点でその検査が失敗する。タスク 0035 でも、番号を上げたときにこの検査を合わせて直した。番号を固定している箇所をリポジトリ全体から探す手段も決める（AC-16）。ガイド 3 章の手順（`docs/dev/guides/fixprguard_guide.md:52`）に合わせて、マージと入れ直しの順序も決める。範囲の規則だけが変わる変更なので、ガイド 9 章の「番号を変えなくてよい 3 つの条件」（`docs/dev/guides/fixprguard_guide.md:287-292`）との関係も書く。
 -   **H-02: 判定の順序.** 今の順序は、実行関連ファイル、`path` との一致、ASCII でない文字、`.go`、同じディレクトリ・タスクのディレクトリである（`internal/fixprguard/scope.go:169-190`）。許可リストをどこに入れるかを決める。`.go` のファイルには許可リストの (b)（`testdata`）を適用しない（AC-06）。
 -   **H-03: 定義を持つデータの形と、ガイドへの載せ方.**
     -   `ExecutionFilePatterns` が出力する形（`internal/fixprguard/scope.go:56-75`）では、`.claude/` は最上位のディレクトリを表す。どの階層でも当たる `.` で始まる要素、指示ファイルの名前、拡張子を、ガイドの表にどう表すかを決める。
