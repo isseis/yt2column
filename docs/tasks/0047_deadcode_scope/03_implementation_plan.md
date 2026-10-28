@@ -257,21 +257,34 @@
 | AC-14 | manual | `CLAUDE.md` の「Code Quality」の `make deadcode` の項目を PR のレビューで読む | 3-1 |
 | AC-15 | manual | `.claude/commands/runplan.md` の step 6 を PR のレビューで読む | 3-1 |
 
-**AC-01 の記録（4-1）:** コミット `28149686` の作業ツリーで `make deadcode` を変数の指定なしに実行した。終了コードは 0 で、標準出力も標準エラーも空だった（報告 0 件）。
+**AC-01 の記録（4-1）:** コミット `0b356d49` の作業ツリーで `make deadcode` を変数の指定なしに実行した。終了コードは 0 で、標準出力も標準エラーも空だった（報告 0 件）。
 
 - 実行したコマンド: `make deadcode`
 - 終了コード: 0
 - `command -v deadcode`: `/Users/issei/go/bin/deadcode`
 - `go version -m "$(command -v deadcode)"`: `mod golang.org/x/tools v0.47.0`（ビルドした Go は go1.27.1）
-- 実行したコミット: `28149686`（この記録を加えるコミットの親）
+- 実行したコミット: `0b356d49`
 
-**`TestMakeDeadcodeScope` の記録（4-1）:** コミット `28149686` で `go test -tags test ./cmd/yt2column -run 'TestMakeDeadcodeScope' -v -count=1` を実行し、スキップされずに PASS した（`ok github.com/isseis/yt2column/cmd/yt2column 4.612s`、`PASS`）。PASS したサブテストは次のとおりである。
+同じコミットで `make ext-test`（Node.js 24.21.0）も実行し、`tests 894`・`pass 894`・`fail 0` だった。`extension/test/repository.test.ts` の `make -n build test lint deadcode` の検査を含む。
 
-- `silent_success`
-- `isolation`: `other_entry_point_excluded`・`cli_entry_point_only`・`tests_excluded_helper`・`tests_excluded_only_test`・`integration_tag_excluded`
-- `reachable`: `OnlySrv`・`Helper`・`OnlyTest`・`OnlyIntegration`
-- `reported`: `package_function`・`other_entry_point_function`・`integration_tagged_function`
-- `compile_error`
+**`TestMakeDeadcodeScope` の記録（4-1）:** コミット `0b356d49` で `go test -tags test ./cmd/yt2column -run 'TestMakeDeadcodeScope' -v -count=1` を実行し、スキップされずに PASS した（`ok github.com/isseis/yt2column/cmd/yt2column 3.538s`、`PASS`）。出力の `--- PASS:` の行は次のとおりである。
+
+```
+--- PASS: TestMakeDeadcodeScope (3.26s)
+    --- PASS: TestMakeDeadcodeScope/silent_success (0.42s)
+    --- PASS: TestMakeDeadcodeScope/isolation (0.93s)
+        --- PASS: TestMakeDeadcodeScope/isolation/other_entry_point_excluded (0.38s)
+        --- PASS: TestMakeDeadcodeScope/isolation/cli_entry_point_only (0.06s)
+        --- PASS: TestMakeDeadcodeScope/isolation/tests_excluded_helper (0.06s)
+        --- PASS: TestMakeDeadcodeScope/isolation/tests_excluded_only_test (0.06s)
+        --- PASS: TestMakeDeadcodeScope/isolation/integration_tag_excluded (0.38s)
+    --- PASS: TestMakeDeadcodeScope/reported (1.62s)
+        --- PASS: TestMakeDeadcodeScope/reported/package_function (0.40s)
+        --- PASS: TestMakeDeadcodeScope/reported/other_entry_point_function (0.42s)
+        --- PASS: TestMakeDeadcodeScope/reported/integration_tagged_function (0.40s)
+        --- PASS: TestMakeDeadcodeScope/reported/package_outside_the_entry_points (0.40s)
+    --- PASS: TestMakeDeadcodeScope/compile_error (0.27s)
+```
 
 ## 10. 次のステップ (Next Steps)
 
