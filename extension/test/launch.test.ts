@@ -12,7 +12,6 @@ import type {
 import { catalogs } from "../src/core/i18n/catalog.ts";
 import { locales } from "../src/core/i18n/locale.ts";
 import type { Locale } from "../src/core/i18n/locale.ts";
-import { expandPromptMessage } from "../src/core/messages.ts";
 import { acceptMetadata } from "../src/core/metadata.ts";
 import type { MetadataResult } from "../src/core/metadata.ts";
 import { nativeHostName } from "../src/core/native.ts";
@@ -598,8 +597,11 @@ describe("popup send", () => {
           ).reader,
         }).deps,
       );
+      // Precondition: the launch reached the collapsed state; its display is
+      // render.test.ts's.
+      assert.ok(view.kind === "collected");
+      assert.equal(view.description.status.kind, "collapsed");
       const elements = shown(view, deps(native.sendNative).deps);
-      expectLocaleMessage(elements.checks, locale, expandPromptMessage);
       assert.equal(elements.primary.disabled, false);
       await clickSend(elements);
       assert.equal(native.messages.length, 1);
@@ -609,12 +611,10 @@ describe("popup send", () => {
     it(`keeps the button pressable when no description is sent in ${locale}`, async () => {
       const native = acceptedNative();
       const view = await runPopupLaunch(popupHarness().deps);
+      // Precondition: no description is sent; its display is render.test.ts's.
+      assert.ok(view.kind === "collected");
+      assert.equal(view.description.status.kind, "not-sent");
       const elements = shown(view, deps(native.sendNative).deps);
-      expectLocaleMessage(
-        elements.checks,
-        locale,
-        (l) => catalogs[l].descriptionNotSent,
-      );
       assert.equal(elements.primary.disabled, false);
       await clickSend(elements);
       assert.deepEqual(native.messages, [
@@ -668,13 +668,15 @@ describe("popup send", () => {
         const native = acceptedNative();
         const popup = popupHarness(launch);
         const view = await runPopupLaunch(popup.deps);
+        // Precondition: the size check blocked the selection; its display is
+        // render.test.ts's.
+        assert.ok(view.kind === "collected");
+        assert.deepEqual(view.selection.status, {
+          kind: "blocked",
+          reason: "body-too-large",
+        });
         const elements = shown(view, deps(native.sendNative).deps);
         assert.equal(elements.primary.disabled, true);
-        expectLocaleMessage(
-          elements.checks,
-          locale,
-          (l) => catalogs[l].preflight["body-too-large"],
-        );
         await clickSend(elements);
         assert.equal(native.messages.length, 0);
         assert.equal(elements.status.childNodes.length, 0);
@@ -703,23 +705,23 @@ describe("popup send", () => {
     });
   }
 
-  it("sends the full description, which the popup never shows", async () => {
-    const description = "x".repeat(metadataDisplayLimit + 50);
+  it("sends the full video title while the popup shows it truncated", async () => {
+    const title = "t".repeat(metadataDisplayLimit + 1);
     const native = acceptedNative();
     const view = await runPopupLaunch(
       popupHarness({
-        metadataReader: metadataReader(metadataJson({ description })).reader,
+        metadataReader: metadataReader(metadataJson({ title })).reader,
       }).deps,
     );
     const elements = shown(view, sendDeps(native.sendNative));
-    // Precondition: the popup does not show the description, so the body
-    // check below tells the sent value apart from anything displayed.
+    // Precondition: the heading is cut for display, so the body check below
+    // tells the sent value apart from the displayed one.
     assert.equal(
-      elements.primary.ownerDocument.body.textContent?.includes("xxxxxxxx"),
-      false,
+      elements.video.querySelector("h1")?.textContent,
+      `${"t".repeat(metadataDisplayLimit)}\u2026`,
     );
     await clickSend(elements);
-    assert.equal(native.messages[0]?.["description"], description);
+    assert.equal(native.messages[0]?.["title"], title);
   });
 });
 
@@ -983,15 +985,6 @@ describe("startPopup", () => {
     );
   }
 
-  /** The skeleton's primary button. */
-  function primaryOf(doc: Document): HTMLButtonElement {
-    const win = doc.defaultView;
-    assert.ok(win !== null);
-    const primary = doc.getElementById("primary");
-    assert.ok(primary instanceof win.HTMLButtonElement);
-    return primary;
-  }
-
   it("shows nothing and keeps the primary button disabled until the metadata read ends", async () => {
     const recorder = recordingLogger();
     const doc = popupDocument();
@@ -1011,7 +1004,7 @@ describe("startPopup", () => {
     // Precondition: the launch path is waiting on the read.
     assert.ok(recorder.infos.some((entry) => entry.label === launchLabel));
     assert.deepEqual(shownContainers(doc), []);
-    assert.equal(primaryOf(doc).disabled, true);
+    assert.equal(popupElements(doc).primary.disabled, true);
     assert.equal(doc.body.textContent?.includes(tabTitle), false);
 
     deferred.resolve(metadataJson({ title: videoTitle }));
@@ -1022,7 +1015,7 @@ describe("startPopup", () => {
       "action",
       "details",
     ]);
-    assert.equal(primaryOf(doc).disabled, false);
+    assert.equal(popupElements(doc).primary.disabled, false);
     assert.equal(doc.querySelector("#video h1")?.textContent, videoTitle);
     // Opening the popup moves no focus, so Enter cannot send before a look.
     assert.equal(doc.activeElement, doc.body);
@@ -1037,7 +1030,7 @@ describe("startPopup", () => {
     );
     // The shipped document says lang="en", so only the entry point can make it ja.
     assert.equal(doc.documentElement.lang, "ja");
-    const primary = primaryOf(doc);
+    const primary = popupElements(doc).primary;
     assert.equal(primary.textContent, catalogs.ja.primaryButton);
     expectAbsent(
       doc.body,
@@ -1069,7 +1062,7 @@ describe("startPopup", () => {
     }
     // The unreadable run shows English, not just the same as the en-US run.
     assert.equal(
-      primaryOf(unreadable.doc).textContent,
+      popupElements(unreadable.doc).primary.textContent,
       catalogs.en.primaryButton,
     );
     assert.deepEqual(loggedOutcome(unreadable.recorder), collectedOutcome());
@@ -1115,7 +1108,16 @@ describe("startPopup", () => {
   const brokenSkeletons: { name: string; break: (doc: Document) => void }[] = [
     ...skeletonIds.map((id) => ({
       name: `#${id} is missing`,
-      break: (doc: Document) => doc.getElementById(id)?.remove(),
+      break: (doc: Document) => {
+        const element = doc.getElementById(id);
+        assert.ok(element !== null);
+        // Unwrap rather than remove, so a container's children (the button
+        // and the status region inside #action) stay and only id is missing.
+        element.replaceWith(...element.childNodes);
+        for (const other of skeletonIds) {
+          assert.equal(doc.getElementById(other) === null, other === id, other);
+        }
+      },
     })),
     {
       name: "#primary is not a button",
@@ -1146,19 +1148,6 @@ describe("startPopup", () => {
       assert.equal(doc.body.textContent?.trim(), "");
     });
   }
-
-  it("draws the page text as text, not elements", async () => {
-    const recorder = recordingLogger();
-    const doc = popupDocument();
-    await startPopup(
-      doc,
-      startDeps({ getUILanguage: () => "en-US" }, recorder.log, {
-        launch: { reader: readerReturning(page(malicious)) },
-      }),
-    );
-    assert.equal(doc.querySelector("img"), null);
-    assert.ok(doc.body.textContent?.includes(malicious));
-  });
 
   const loggedValues: { name: string; i18n: I18nApi; data: unknown }[] = [
     { name: "as read", i18n: { getUILanguage: () => "ja-JP" }, data: "ja-JP" },

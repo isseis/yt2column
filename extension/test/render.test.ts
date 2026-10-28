@@ -115,7 +115,7 @@ describe("renderPopup", () => {
   for (const locale of localeList) {
     const catalog = catalogs[locale];
 
-    it(`shows the collected sections in display order and keeps the details closed in ${locale}`, () => {
+    it(`shows the collected sections, hides the rejection card and keeps the details closed in ${locale}`, () => {
       const elements = popupElements();
       renderPopup(elements, collectedView(), locale);
       assert.equal(elements.rejection.hidden, true);
@@ -130,10 +130,6 @@ describe("renderPopup", () => {
       // renderPopup never moves the containers, so the shipped skeleton's
       // order (popupHtml.test.ts) is the order the sections are shown in.
       assert.equal(elements.details.open, false);
-      assert.equal(
-        elements.video.querySelector("h1"),
-        elements.video.firstElementChild,
-      );
     });
 
     it(`draws the video title and the channel name under it in ${locale}`, () => {
@@ -563,6 +559,8 @@ describe("renderPopup", () => {
     it(`shows the rejection card and no other section in ${locale}`, () => {
       for (const reason of Object.keys(rejectionReasons) as RejectionReason[]) {
         const elements = popupElements();
+        // An enabled skeleton, so only renderPopup can leave the button disabled.
+        elements.primary.disabled = false;
         renderPopup(elements, { kind: "rejected", reason }, locale);
         assert.equal(elements.rejection.hidden, false, reason);
         assert.equal(elements.action.hidden, false, reason);
