@@ -32,21 +32,24 @@ const cuts: {
   cut: (text: string, limit: number) => DisplayText;
   over: { text: string; value: string };
   pair: { text: string; value: string };
+  lone: { text: string; value: string };
 }[] = [
   {
     name: "truncate",
     cut: truncate,
     over: { text: "abcde", value: "abcd" },
     pair: { text: `a\u{1F600}b`, value: `a\u{1F600}` },
+    lone: { text: "\uDE00\uD83Da", value: "\uDE00\uD83D" },
   },
   {
     name: "truncateTail",
     cut: truncateTail,
     over: { text: "abcde", value: "bcde" },
     pair: { text: `ab\u{1F600}`, value: `b\u{1F600}` },
+    lone: { text: "a\uDE00\uD83D", value: "\uDE00\uD83D" },
   },
 ];
-for (const { name, cut, over, pair } of cuts) {
+for (const { name, cut, over, pair, lone } of cuts) {
   describe(name, () => {
     it("keeps text at exactly the limit intact", () => {
       assert.deepEqual(cut("abcde", 5), { value: "abcde", truncated: false });
@@ -65,12 +68,24 @@ for (const { name, cut, over, pair } of cuts) {
         truncated: true,
       });
     });
+
+    it("counts each lone surrogate as one code point", () => {
+      // A low surrogate before a high one is not a pair.
+      assert.deepEqual(cut(lone.text, 2), {
+        value: lone.value,
+        truncated: true,
+      });
+    });
   });
 }
 
 describe("countCharacters", () => {
   it("counts a surrogate pair as one character", () => {
     assert.equal(countCharacters("ab\u{1F600}cd"), 5);
+  });
+
+  it("counts each lone surrogate as one character", () => {
+    assert.equal(countCharacters("\uDE00\uD83Da"), 3);
   });
 });
 
