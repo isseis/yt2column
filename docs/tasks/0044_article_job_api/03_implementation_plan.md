@@ -8,7 +8,7 @@
 | Created | 2026-10-27 |
 | Review date | 2026-10-27 |
 | Reviewer | isseis |
-| Comments | 2026-10-27 (editorial): `/runplan` の実装で、ステップ 2-3 の件数の上限の定数の名前を `defaultCapacity` から `DefaultCapacity` に改めた（設計書 §3.3.4 も同じ）。`internal/server` が別のパッケージから `articlecache.New` に渡すために公開が要るためで、値と決定は変えていない。 2026-10-28 (editorial): `/runplan` の PR-4 の実装で、ステップ 5-2 の説明に、`internal/articlecache` の 6 つの列挙のすべての値を返す関数を加えることを書き足した（設計書 §3.3.2 も同じ）。完了の時点の検査が投稿の状態とその理由のすべての値で最も長い応答を組み立て、ステップ 5-4 の `APICodesForTest` が列挙の最後の値の次までたどるために要るもので、決定は変えていない。 |
+| Comments | 2026-10-27 (editorial): `/runplan` の実装で、ステップ 2-3 の件数の上限の定数の名前を `defaultCapacity` から `DefaultCapacity` に改めた（設計書 §3.3.4 も同じ）。`internal/server` が別のパッケージから `articlecache.New` に渡すために公開が要るためで、値と決定は変えていない。 2026-10-28 (editorial): `/runplan` の PR-4 の実装で、ステップ 5-2 の説明に、`internal/articlecache` の 6 つの列挙のすべての値を返す関数を加えることを書き足した（設計書 §3.3.2 も同じ）。完了の時点の検査が投稿の状態とその理由のすべての値で最も長い応答を組み立て、ステップ 5-4 の `APICodesForTest` が列挙の最後の値の次までたどるために要るもので、決定は変えていない。 2026-10-28 (decision): `/runplan` の PR-4 の後、レビュアー（isseis）がセッションの中で、PR-4 のローカルのレビューで残した指摘のうち、ジョブのログが遷移の後に記録を読み直して古い値を書きうる件を、PR-5 のステップ 5-6 で直すと決め、作業の項目と PR-5 のレビュー観点を加えた（`Run.Fail`・`CompletePostable`・`CompleteUnpostable` の戻り値を変えるので、設計書 §3.3.2 はその実装のコミットで改める）。PR-5 の投稿のジョブも同じ形のログを書くので、同じ PR で揃える。 |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の項番、「設計書 §3.2」などは設計書の節を指す。既存のコードと文書についての記述は、コミット `c2ce520` で確かめた。`file:line` はこのコミットの行番号である。設計書が行番号を確かめたコミット `c3d20a7` と `c2ce520` の間では `docs/` の外のファイルが変わっていない（`git diff --stat c3d20a7 c2ce520 -- . ':!docs'` の出力が空）ので、設計書のコードの行番号はそのまま使える。用語は設計書の冒頭の「用語」に従う。
 
@@ -353,7 +353,7 @@
 
 #### ステップ 5-6: 投稿の操作と投稿のジョブ
 
--   **ファイル:** `internal/server/handler.go`・`jobs_api.go`・`publish.go`・`response.go`・`server.go`・`test_helpers.go`、テストは `publish_test.go`（新規）・`response_test.go`・`job_test.go`・`handler_test.go`・`jobs_api_test.go`、`cmd/yt2column-server/server_test.go`、`README.md`、`docs/dev/developer_guide/package_reference.md`
+-   **ファイル:** `internal/server/handler.go`・`jobs_api.go`・`publish.go`・`response.go`・`server.go`・`generation.go`・`test_helpers.go`、`internal/articlecache/record.go`・`cache_test.go`、テストは `publish_test.go`（新規）・`generation_test.go`・`response_test.go`・`job_test.go`・`handler_test.go`・`jobs_api_test.go`、`cmd/yt2column-server/server_test.go`、`README.md`、`docs/dev/developer_guide/package_reference.md`
 -   **作業:**
     -   [ ] 投稿の操作のパスの定数を加え、振り分けに `/jobs/{key}/publish` を加える。検査の順序と結果ごとの応答は設計書 §3.7.2 に従う。拒否の理由 `article_not_ready`・`article_not_found`・`article_not_postable` を加え、README の拒否の理由の表に 3 行を加え（3 列目は `unexpected reply`）、`TestRejectReasonSet`・`TestReasonToKind`・`TestRejectStatusCodes` に行を加える。
     -   [ ] 投稿のジョブを加える（設計書 §3.7.2「投稿のジョブ」「panic」「通知しない」）。投稿のジョブは `s.jobs` に数え、シャットダウンで取り消さずに待つ。シャットダウンのログに投稿のジョブの数を別の属性で出す（設計書 §6.4）。
@@ -361,6 +361,7 @@
     -   [ ] テスト（T-09）: `BeginPublish` の後でジョブに渡す前の差し込み口の panic で、記録が `投稿の失敗` になり、`internal_error` が返り、通知が送られないこと。
     -   [ ] 壊し方: やり直しを `From` ではなく 0 から送ると AC-21 の行が、`BeginPublish` が `PublishPosting` の記録にも新しいハンドルを返すと AC-20 の行が失敗することを確かめる。
     -   [ ] `TestServerEndToEnd` に、ループバックの Webhook で投稿の操作 → 状態の取得が `posted` を返すまでの流れを加える。
+    -   [ ] ハンドルが遷移の時点の記録の値を返す形にし、ジョブのログをその値で書く（PR-4 のレビューで残した指摘、2026-10-28 にレビュアーが決めた）。今の生成のジョブは、`Run.Fail`・`CompletePostable`・`CompleteUnpostable` の後に `Cache.Lookup` で記録を読み直してログの `step`・`duration` を書くので、その間に同じキーのやり直しや破棄があると、古い値（`step=""`、`duration=0s`）を書きうる。`Run.Fail` は失敗した工程を、`CompletePostable`・`CompleteUnpostable` は所要時間を、排他制御の中で取って返す（ハンドルが無効なら、何もしなかったことを返す）。投稿のジョブの `PublishRun.Delivered`・`Finish`・`Fail` の後のログも、記録を読み直さずに書く。設計書 §3.3.2 の型の節を同じコミットで改める。テスト: `articlecache` で、返す値が遷移の時点の値であり、遷移の後のやり直しや破棄で変わらないこと、無効なハンドルが何もしなかったことを返すこと。壊し方: 返す値を遷移の後に記録から読み直すと、このテストが失敗することを確かめる。
     -   [ ] `package_reference.md` の `internal/server` の行を改める（1.3）。
 -   **完了の条件:** グリーンゲートと `make ext-test` が通る。
 
@@ -370,7 +371,7 @@
 
 **推奨タイトル**: `feat(0044): サーバに投稿の操作の API を加える`
 
-**レビュー観点**: 投稿の冪等性と同時の投稿の操作 / 失敗と panic の後に届かなかった最初のメッセージから再開すること / 投稿の操作のパスの照合と検査の順序（Webhook・本文・キー） / 投稿の操作が Webhook を待たずに応答すること、シャットダウンで投稿のジョブを待つこと
+**レビュー観点**: 投稿の冪等性と同時の投稿の操作 / 失敗と panic の後に届かなかった最初のメッセージから再開すること / 投稿の操作のパスの照合と検査の順序（Webhook・本文・キー） / 投稿の操作が Webhook を待たずに応答すること、シャットダウンで投稿のジョブを待つこと / ハンドルが遷移の時点の値を返し、ジョブのログが記録を読み直さないこと
 
 **実装モデル要件**: frontier-recommended
 
