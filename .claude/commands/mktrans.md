@@ -73,6 +73,12 @@ carried over stays in the diff from the marker's blob.
 
 ## Mode Selection
 
+0. **Standalone only: `README.md` is committed.** When `README.md` differs from
+   `HEAD` (`git diff --quiet HEAD -- README.md` does not exit `0`), stop and ask
+   the user to commit it first: the marker would otherwise name content no
+   commit holds, and `README.en.md` would be committed against it. As a
+   sub-step, the caller commits `README.md` itself (`fixpr.md` commits it with
+   `README.en.md` in Phase 4), so this check does not apply.
 1. **`README.en.md` does not exist.** Standalone: go to "Full Translation". As
    a sub-step: change nothing; the result is `not applicable`.
 2. **Read the marker.** Stop without translating — the result is `stopped` —
@@ -230,8 +236,7 @@ As a sub-step, end with exactly one of these results, and do not commit.
 Before writing `README.en.md`, keep a copy of it outside the work tree; when
 this command stops after writing, put the copy back, so `README.en.md` is as
 the caller left it (a change the caller made to it, such as a `/fixpr` fix,
-stays). What
-the caller does with each is in the second column.
+stays). What the caller does with each is in the second column.
 
 | Result | The caller |
 |---|---|
