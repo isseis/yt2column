@@ -482,10 +482,10 @@ describe("layout", () => {
     assert.equal(effectiveValue(onScreen, "body", "min-width"), "");
   });
 
-  it("overrides the font Chrome injects into every extension page", () => {
-    // Chrome's extension_fonts.css gives the body the browser's font stack at
-    // 75% of the root size. A body declaration keeps the root's font stack and
-    // its 14px; without it the popup renders at 10.5px.
+  it("declares the body font that Chrome's injected extension style overrides", () => {
+    // jsdom cannot model extension_fonts.css, so this pins the declarations
+    // the fix relies on: the root's 14px and font stack, and the body rule
+    // that keeps them instead of the injected 75%.
     assert.equal(effectiveValue(onScreen, ":root", "font-size"), "14px");
     assert.equal(effectiveValue(onScreen, "body", "font-family"), "inherit");
     assert.equal(effectiveValue(onScreen, "body", "font-size"), "1rem");
