@@ -180,8 +180,10 @@ func TestPublishResumesAfterFailure(t *testing.T) {
 			hook.set(0, nil)
 			requireAccepted(t, ts.publishRequest(key))
 			ts.waitJobs()
-			if !strings.Contains(ts.logs.String(), "outcome=started from="+strconv.Itoa(k-1)) {
-				t.Errorf("no accepted line names from=%d:\n%s", k-1, ts.logs.String())
+			// The retry's accepted line names where it resumes; for k = 1 the
+			// first post's line has the same from, so it is the second one.
+			if got := strings.Count(ts.logs.String(), "outcome=started from="+strconv.Itoa(k-1)); got != 1+(2-k) {
+				t.Errorf("accepted lines naming from=%d = %d, want %d:\n%s", k-1, got, 1+(2-k), ts.logs.String())
 			}
 			if got := hook.received(); !slices.Equal(got, all[k-1:]) {
 				t.Errorf("retry posted %d messages, want messages %d to 3", len(got), k)
@@ -289,8 +291,18 @@ func TestPublishResponsesOmitInputs(t *testing.T) {
 		ts.publishRequest(key).Body.String(),
 	}
 	ts.waitJobs()
-	status := ts.getStatus(t, key)
-	status.Job.Article = nil // the article's own strings may hold anything it holds
+	// The raw status response with only the article removed, which may hold
+	// anything the article holds: decoding into a map keeps every other
+	// member, an undeclared one included.
+	var status map[string]any
+	if err := json.Unmarshal(ts.statusRequest(key).Body.Bytes(), &status); err != nil {
+		t.Fatalf("decode the status response: %v", err)
+	}
+	job, ok := status["job"].(map[string]any)
+	if !ok {
+		t.Fatalf("status response %v has no job object", status)
+	}
+	delete(job, "article")
 	rest, err := json.Marshal(status)
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
@@ -329,10 +341,9 @@ func TestPublishResponsesOmitInputs(t *testing.T) {
 // connection, before it checks the body or the key, and changes no record.
 func TestPublishWithoutWebhook(t *testing.T) {
 	ts := newJobsTestServer(t, jobsServerOptions{noWebhook: true})
-	seeded := ts.seedDone(t, validBody(testValidVideoURL, testValidRaw))
-	key := seeded.String()
+	key := ts.seedDone(t, validBody(testValidVideoURL, testValidRaw)).String()
 	withBody := newRequest(http.MethodPost, publishTarget(key), strings.NewReader("x"))
-	before := ts.cache.Lookup(seeded)
+	before := ts.cache.DumpRecordsForTest()
 	for name, req := range map[string]*http.Request{
 		"done_key":    newRequest(http.MethodPost, publishTarget(key), nil),
 		"invalid_key": newRequest(http.MethodPost, publishTarget("nope"), nil),
@@ -354,8 +365,8 @@ func TestPublishWithoutWebhook(t *testing.T) {
 			t.Errorf("Allow = %q, want POST", got)
 		}
 	})
-	if after := ts.cache.Lookup(seeded); after != before {
-		t.Errorf("a rejection changed the record: %+v, was %+v", after, before)
+	if after := ts.cache.DumpRecordsForTest(); after != before {
+		t.Errorf("a rejection changed the records:\nbefore %s\nafter  %s", before, after)
 	}
 }
 
@@ -364,8 +375,7 @@ func TestPublishWithoutWebhook(t *testing.T) {
 // done record: no rejection calls the Webhook or changes the record.
 func TestPublishTargetRejections(t *testing.T) {
 	ts := newJobsTestServer(t, jobsServerOptions{})
-	seeded := ts.seedDone(t, validBody(testValidVideoURL, testValidRaw))
-	key := seeded.String()
+	key := ts.seedDone(t, validBody(testValidVideoURL, testValidRaw)).String()
 	tests := []struct {
 		name    string
 		method  string
@@ -388,7 +398,7 @@ func TestPublishTargetRejections(t *testing.T) {
 		{"padded_key", http.MethodPost, publishTarget("%20" + key + "%20"), http.StatusBadRequest, "invalid_key", "", false},
 		{"get", http.MethodGet, publishTarget(key), http.StatusMethodNotAllowed, "method_not_allowed", http.MethodPost, true},
 	}
-	before := ts.cache.Lookup(seeded)
+	before := ts.cache.DumpRecordsForTest()
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			rec := ts.serve(newRequest(tc.method, tc.target, nil))
@@ -431,8 +441,8 @@ func TestPublishTargetRejections(t *testing.T) {
 			}
 		})
 	}
-	if after := ts.cache.Lookup(seeded); after != before {
-		t.Errorf("a rejection changed the record: %+v, was %+v", after, before)
+	if after := ts.cache.DumpRecordsForTest(); after != before {
+		t.Errorf("a rejection changed the records:\nbefore %s\nafter  %s", before, after)
 	}
 	if calls := ts.publisher.RecordedPostCalls(); len(calls) != 0 {
 		t.Errorf("PostMessages calls = %d, want 0", len(calls))
@@ -462,9 +472,15 @@ func (p *panickingPostPublisher) PostMessages(_ context.Context, _ publisher.Sla
 func TestPublishPanicResumes(t *testing.T) {
 	for _, delivered := range []int{1, 3} {
 		t.Run(strconv.Itoa(delivered), func(t *testing.T) {
-			ts := newJobsTestServer(t, jobsServerOptions{})
-			ts.writer.Result = messagesArticle(t, 3)
+			ts, hook := newWebhookTestServer(t)
+			article := messagesArticle(t, 3)
+			all, err := publisher.SlackMessagesForTest(article)
+			if err != nil {
+				t.Fatalf("SlackMessagesForTest: %v", err)
+			}
+			ts.writer.Result = article
 			key := acceptedKey(t, ts.startBody(validBody(testValidVideoURL, testValidRaw)))
+			webhookPublisher := ts.Server.publisher
 			ts.Server.publisher = &panickingPostPublisher{deliver: delivered}
 			requireAccepted(t, ts.publishRequest(key))
 			ts.waitJobs()
@@ -475,12 +491,11 @@ func TestPublishPanicResumes(t *testing.T) {
 				t.Errorf("the panic log line = %q, want posted=%d", line, delivered)
 			}
 
-			ts.Server.publisher = ts.publisher
+			ts.Server.publisher = webhookPublisher
 			requireAccepted(t, ts.publishRequest(key))
 			ts.waitJobs()
-			calls := ts.publisher.RecordedPostCalls()
-			if len(calls) != 1 || calls[0].From != delivered {
-				t.Fatalf("retry PostMessages calls = %+v, want one from %d", calls, delivered)
+			if got := hook.received(); !slices.Equal(got, all[delivered:]) {
+				t.Errorf("retry posted %d messages, want the %d after the delivered ones", len(got), len(all)-delivered)
 			}
 			if got := ts.publishOf(t, key); got.State != "posted" {
 				t.Errorf("publish after the retry = %+v, want posted", got)
@@ -588,43 +603,6 @@ func TestServeShutdownWaitsForPublish(t *testing.T) {
 	}
 	if line := logLine(ts.logs.String(), "stopped accepting connections"); !strings.Contains(line, "postJobs=1") {
 		t.Errorf("the shutdown log line = %q, want postJobs=1", line)
-	}
-}
-
-// TestPublishConcurrentStartsOnce sends the same publish operation from many
-// goroutines at once while the Webhook holds the first message, and checks
-// that every one is answered 202 and the article is posted once.
-func TestPublishConcurrentStartsOnce(t *testing.T) {
-	const senders = 8
-	ts, hook := newWebhookTestServer(t)
-	key := ts.seedDone(t, validBody(testValidVideoURL, testValidRaw)).String()
-	hold := make(chan struct{})
-	hook.set(0, hold)
-	var once sync.Once
-	release := func() { once.Do(func() { close(hold) }) }
-	defer func() {
-		release()
-		ts.waitJobs()
-	}()
-
-	recs := make([]*httptest.ResponseRecorder, senders)
-	var wg sync.WaitGroup
-	gate := make(chan struct{})
-	for i := range senders {
-		wg.Go(func() {
-			<-gate
-			recs[i] = ts.publishRequest(key)
-		})
-	}
-	close(gate)
-	wg.Wait()
-	for _, rec := range recs {
-		requireAccepted(t, rec)
-	}
-	release()
-	ts.waitJobs()
-	if got := hook.received(); len(got) != 1 {
-		t.Errorf("Webhook messages = %d, want 1", len(got))
 	}
 }
 

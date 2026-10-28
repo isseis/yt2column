@@ -702,3 +702,27 @@ func TestTransitionsReturnTheirValues(t *testing.T) {
 		}
 	})
 }
+
+func TestBeginPublishConcurrentStartsOnce(t *testing.T) {
+	c, _ := newTestCache(t, 1)
+	done(t, c, testKey(1))
+	var started, already atomic.Int32
+	var wg sync.WaitGroup
+	gate := make(chan struct{})
+	for range 16 {
+		wg.Go(func() {
+			<-gate
+			switch outcome, _ := c.BeginPublish(testKey(1)); outcome {
+			case PublishBeginStarted:
+				started.Add(1)
+			case PublishBeginAlready:
+				already.Add(1)
+			}
+		})
+	}
+	close(gate)
+	wg.Wait()
+	if started.Load() != 1 || already.Load() != 15 {
+		t.Errorf("started %d, already %d; want 1, 15", started.Load(), already.Load())
+	}
+}
