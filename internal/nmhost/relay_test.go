@@ -57,11 +57,14 @@ const (
 )
 
 // stdinFake is standard input holding a message length and a body. It records
-// how far it was read, so a test can tell whether the body was read.
+// how far it was read, so a test can tell whether the body was read. With
+// hold set, a read at the end of the data waits until hold is closed instead
+// of returning io.EOF, as a browser that stops writing mid-message does.
 type stdinFake struct {
 	mu   sync.Mutex
 	data []byte
 	pos  int
+	hold chan struct{}
 }
 
 func newStdin(length uint32, body []byte) *stdinFake {
@@ -73,12 +76,26 @@ func message(body []byte) *stdinFake {
 	return newStdin(uint32(len(body)), body)
 }
 
+// stalledStdin returns standard input that declares length but holds only
+// body, and then stalls until the test ends.
+func stalledStdin(t *testing.T, length uint32, body []byte) *stdinFake {
+	t.Helper()
+	s := newStdin(length, body)
+	s.hold = make(chan struct{})
+	t.Cleanup(func() { close(s.hold) })
+	return s
+}
+
 func (s *stdinFake) Read(p []byte) (int, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.pos >= len(s.data) {
+		s.mu.Unlock()
+		if s.hold != nil {
+			<-s.hold
+		}
 		return 0, io.EOF
 	}
+	defer s.mu.Unlock()
 	n := copy(p, s.data[s.pos:])
 	s.pos += n
 	return n, nil
@@ -148,12 +165,14 @@ func serveRaw(t *testing.T, serve func(net.Conn)) string {
 	return path
 }
 
-// received is what a recording server saw of the one request.
+// received is what a recording server saw of the last request, and how many
+// requests it saw.
 type received struct {
-	method, requestURI, expect string
-	contentLength              int64
-	transferEncoding           []string
-	body                       []byte
+	method, requestURI, expect, contentType string
+	contentLength                           int64
+	transferEncoding                        []string
+	body                                    []byte
+	requests                                int
 }
 
 // recordingServer answers every request with 202 and body and records the last
@@ -169,9 +188,11 @@ func recordingServer(t *testing.T, body []byte) (string, func() received) {
 			method:           r.Method,
 			requestURI:       r.RequestURI,
 			expect:           r.Header.Get("Expect"),
+			contentType:      r.Header.Get("Content-Type"),
 			contentLength:    r.ContentLength,
 			transferEncoding: r.TransferEncoding,
 			body:             data,
+			requests:         got.requests + 1,
 		}
 		mu.Unlock()
 		w.WriteHeader(http.StatusAccepted)
@@ -315,11 +336,57 @@ func TestRelayServerRejectsWithoutBody(t *testing.T) {
 		w.WriteHeader(http.StatusRequestEntityTooLarge)
 		_, _ = w.Write(rejected)
 	})
-	stdin := message(bytes.Repeat([]byte("a"), 64<<10))
+	body := bytes.Repeat([]byte("a"), 64<<10)
+	stdin := message(body)
 
 	requireResponse(t, runRelay(stdin, SocketDialer(path), testTimeout).reply(t), http.StatusRequestEntityTooLarge, rejected)
-	if n := stdin.bodyRead(); n != 0 {
-		t.Errorf("read %d body bytes, want none: the body must wait for 100 Continue", n)
+	// The host reads the whole message before it sends, so the server's
+	// early answer no longer leaves the body unread.
+	if n := stdin.bodyRead(); n != len(body) {
+		t.Errorf("read %d body bytes, want the whole message of %d", n, len(body))
+	}
+}
+
+// TestRelayMessageReadFailures checks a message that ends early or stalls:
+// the host has connected, reads the whole message before sending, and sends
+// nothing.
+func TestRelayMessageReadFailures(t *testing.T) {
+	msg := []byte(`{"videoUrl":"x","transcript":"y"}`)
+	tests := []struct {
+		name    string
+		stdin   func(t *testing.T) io.Reader
+		timeout time.Duration
+		want    HostError
+	}{
+		{
+			name:  "body shorter than the declared length",
+			stdin: func(*testing.T) io.Reader { return newStdin(uint32(len(msg))+10, msg) },
+			want:  HostErrorProtocol,
+		},
+		{
+			name:    "stdin stalls mid-message",
+			stdin:   func(t *testing.T) io.Reader { return stalledStdin(t, uint32(len(msg))+10, msg) },
+			timeout: shortTimeout,
+			want:    HostErrorServerTimeout,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path, got := recordingServer(t, []byte("{}"))
+			dial, dials := countDials(SocketDialer(path))
+
+			result := runRelay(tt.stdin(t), dial, cmp.Or(tt.timeout, testTimeout))
+			requireError(t, result.reply(t), tt.want)
+			if n := dials.Load(); n != 1 {
+				t.Errorf("Dial called %d times, want 1", n)
+			}
+			if n := got().requests; n != 0 {
+				t.Errorf("the server received %d requests, want none", n)
+			}
+			if !strings.Contains(result.log, "stage=read") {
+				t.Errorf("the log does not name the read stage:\n%s", result.log)
+			}
+		})
 	}
 }
 
@@ -384,7 +451,6 @@ func TestRelayHostErrors(t *testing.T) {
 	tests := []struct {
 		name    string
 		dial    func(t *testing.T) Dialer
-		stdin   func() *stdinFake
 		timeout time.Duration
 		want    HostError
 		// unread is whether the body must be left unread: nothing was sent.
@@ -485,23 +551,11 @@ func TestRelayHostErrors(t *testing.T) {
 			},
 			want: HostErrorProtocol,
 		},
-		{
-			name: "body shorter than the declared length",
-			dial: func(t *testing.T) Dialer {
-				path, _ := recordingServer(t, []byte("{}"))
-				return SocketDialer(path)
-			},
-			stdin: func() *stdinFake { return newStdin(uint32(len(msg))+10, msg) },
-			want:  HostErrorProtocol,
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dial, dials := countDials(tt.dial(t))
 			stdin := message(msg)
-			if tt.stdin != nil {
-				stdin = tt.stdin()
-			}
 			timeout := cmp.Or(tt.timeout, testTimeout)
 
 			result := runRelay(stdin, dial, timeout)

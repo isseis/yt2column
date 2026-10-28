@@ -1,6 +1,7 @@
 package nmhost
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -21,9 +22,9 @@ import (
 type Dialer func(ctx context.Context) (net.Conn, error)
 
 // RelayTimeout bounds one relay, from the length read to the end of the
-// server's reply. It cannot cut short a read of stdin that stalls mid-body:
-// the transport waits for its body read to return. The browser writes the
-// whole message at once and closes stdin when it gives up, so that read ends.
+// server's reply. Reading the message counts against it, so a stdin that
+// stalls mid-message ends the relay with server_timeout; the browser writes
+// the whole message at once, so the read normally ends at once.
 const RelayTimeout = 20 * time.Second
 
 const (
@@ -40,9 +41,10 @@ const (
 	dialTimeout = 2 * time.Second
 	// protocolVersion is the reply's "v" member.
 	protocolVersion = 1
-	// requestURL is the request target. The host is a fixed name the server
-	// does not check; the connection is the transport's only dial.
-	requestURL = "http://yt2column/articles"
+	// articlesURL is the target of a message in the current form. The host
+	// is a fixed name the server does not check; the connection is the
+	// transport's only dial.
+	articlesURL = "http://yt2column/articles"
 )
 
 // errInvalidOptions reports a RelayOptions with a missing field.
@@ -154,6 +156,7 @@ type stage string
 const (
 	stageLength   stage = "length"   // before connecting: the length decided it
 	stageConnect  stage = "connect"  // the connection attempt failed
+	stageRead     stage = "read"     // after connecting: reading the message failed
 	stageExchange stage = "exchange" // after connecting
 	stageReply    stage = "reply"    // writing the reply frame
 )
@@ -210,8 +213,9 @@ func Relay(ctx context.Context, stdin io.Reader, stdout io.Writer, opts RelayOpt
 // Contract: the host error is chosen by the stage reached, by control flow:
 // nothing is sent before the connection returns, so every failure up to it
 // is "not sent", and every failure after it may have reached the server. The
-// message is never retried, and stdin is read only while the transport sends
-// the body.
+// whole message is read after connecting and before sending, within the relay
+// limit: a failed connection leaves stdin unread, and a message that ends
+// early or stalls is never sent. The message is never retried.
 func forward(ctx context.Context, stdin io.Reader, length uint32, opts RelayOptions) outcome {
 	if length > maxMessageBytes {
 		return hostFailure(stageLength, HostErrorMessageTooLarge, nil)
@@ -227,15 +231,56 @@ func forward(ctx context.Context, stdin io.Reader, length uint32, opts RelayOpti
 	}
 	defer func() { _ = conn.Close() }()
 
-	transport := oneUseTransport(conn, opts.Timeout)
-	defer transport.CloseIdleConnections()
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, io.LimitReader(stdin, int64(length)))
+	msg, err := readMessage(ctx, stdin, length)
+	if err != nil {
+		return readFailure(ctx, err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, articlesURL, bytes.NewReader(msg))
 	if err != nil {
 		return hostFailure(stageExchange, HostErrorProtocol, nil)
 	}
-	req.ContentLength = int64(length)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Expect", "100-continue")
+	return exchange(ctx, conn, opts.Timeout, req)
+}
+
+// readMessage reads the message's length bytes from stdin.
+//
+// Contract: it returns by the end of ctx even when stdin stalls. The read
+// left waiting then ends with the process, which exits after its reply.
+func readMessage(ctx context.Context, stdin io.Reader, length uint32) ([]byte, error) {
+	type result struct {
+		msg []byte
+		err error
+	}
+	done := make(chan result, 1)
+	go func() {
+		msg := make([]byte, length)
+		_, err := io.ReadFull(stdin, msg)
+		done <- result{msg: msg, err: err}
+	}()
+	select {
+	case r := <-done:
+		return r.msg, r.err
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+// readFailure classifies a failed message read. Nothing was sent, but the
+// connection was open, so the rule after connecting applies: a passed
+// deadline is a timeout, and every other failure is a protocol error.
+func readFailure(ctx context.Context, err error) outcome {
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return hostFailure(stageRead, HostErrorServerTimeout, err)
+	}
+	return hostFailure(stageRead, HostErrorProtocol, err)
+}
+
+// exchange sends req over conn, exactly once, and reads the server's reply.
+func exchange(ctx context.Context, conn net.Conn, timeout time.Duration, req *http.Request) outcome {
+	transport := oneUseTransport(conn, timeout)
+	defer transport.CloseIdleConnections()
 	resp, err := transport.RoundTrip(req)
 	if err != nil {
 		return exchangeFailure(ctx, err)

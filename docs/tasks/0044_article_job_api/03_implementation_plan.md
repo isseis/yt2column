@@ -388,9 +388,9 @@
 
 -   **ファイル:** `internal/nmhost/relay.go`・`relay_test.go`
 -   **作業:**
-    -   [ ] 接続の後、送る前にメッセージの全体を、中継の時間の上限の中で読む形にする（設計書 §3.10.1 の 3）。読み込みの失敗はログの段階 `read` にする。
-    -   [ ] 今の形のメッセージは、読んだバイト列を変えずに `POST /articles` の本文として、今と同じヘッダで送る（設計書 §3.10.1「今の形の送り方」）。
-    -   [ ] テスト: 1.4 の `TestRelayServerRejectsWithoutBody`・`TestRelayHostErrors` の該当の場合を、設計書 §3.10.1「更新する既存のテスト」のとおりに改める。標準入力が止まると `server_timeout` を返し、リクエストを送らないこと。`TestRelayForwardsOneRequest` は期待値を変えずに通る。
+    -   [x] 接続の後、送る前にメッセージの全体を、中継の時間の上限の中で読む形にする（設計書 §3.10.1 の 3）。読み込みの失敗はログの段階 `read` にする。
+    -   [x] 今の形のメッセージは、読んだバイト列を変えずに `POST /articles` の本文として、今と同じヘッダで送る（設計書 §3.10.1「今の形の送り方」）。
+    -   [x] テスト: 1.4 の `TestRelayServerRejectsWithoutBody`・`TestRelayHostErrors` の該当の場合を、設計書 §3.10.1「更新する既存のテスト」のとおりに改める。標準入力が止まると `server_timeout` を返し、リクエストを送らないこと。`TestRelayForwardsOneRequest` は期待値を変えずに通る。
 -   **完了の条件:** グリーンゲートが通る。
 
 #### ステップ 6-2: 形の判定と新しい形
