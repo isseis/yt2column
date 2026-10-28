@@ -125,7 +125,10 @@ func (s *Server) startPublish(run *articlecache.PublishRun, key articlecache.Key
 // it, and ends run: posted on success, failed by the Webhook on a
 // *publisher.SlackPostError, and failed as internal on any other error or a
 // panic. The deliveries recorded before a failure or a panic stay recorded,
-// so a retry sends only what was not delivered. The log line names the counts
+// so a retry starts at the first message not recorded as delivered. A message
+// the Webhook accepted without the publisher seeing the acknowledgement (a
+// timeout after Slack took it) is not recorded, so the retry sends it again:
+// the requirements accept that one duplicate. The log line names the counts
 // the transition returned, never a value read back from the record, which a
 // later request may already have changed.
 func (s *Server) runPublish(run *articlecache.PublishRun, key articlecache.Key) {

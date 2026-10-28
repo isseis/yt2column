@@ -169,7 +169,7 @@ func (r *record) snapshot() Snapshot {
 		s.Failure = r.failure
 	case JobDone:
 		s.Article = r.article
-		s.Duration = r.ended.Sub(r.accepted)
+		s.Duration = r.duration()
 		s.Publish = r.publish
 		switch r.publish {
 		case PublishUnpostable:
@@ -179,6 +179,12 @@ func (r *record) snapshot() Snapshot {
 		}
 	}
 	return s
+}
+
+// duration is how long a done record took, from acceptance to its end; the
+// status response and the success log both report it.
+func (r *record) duration() time.Duration {
+	return r.ended.Sub(r.accepted)
 }
 
 // evictable reports whether the limit may drop the record: a running record
@@ -299,7 +305,7 @@ func (r *Run) complete(a writer.Article, publish PublishState, reason Unpostable
 	rec.unpostable = reason
 	rec.delivered = 0
 	r.cache.end(rec)
-	return rec.ended.Sub(rec.accepted), true
+	return rec.duration(), true
 }
 
 // Fail marks the record failed; the running stage, if any, becomes
