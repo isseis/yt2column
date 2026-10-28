@@ -117,6 +117,20 @@ Every `fixpr.md` and `mergepr.md` run below is given the resolved PR number
     `$(git merge-base origin/main HEAD)`, **SCOPE** = branch, **SUMMARY** = the
     final report. (The review reads the local checkout, so skip it for another
     branch.)
+  - **README sync.** When that branch is the checked-out one, check whether it
+    changes `README.md`: its commits and its work tree, compared with the
+    merge-base (`git diff --name-only "$(git merge-base origin/main HEAD)" -- README.md`
+    prints `README.md`). When it does not, do nothing. When it does, run
+    `.claude/commands/mktrans.md` on `README.md` as a sub-step and act on its
+    result as its "Sub-step results" says. For `translated`, commit
+    `README.en.md` alone, with a message such as
+    `docs: sync README.en.md with README.md`, and list the terms it reported as
+    missing from the glossary in the PR body. For `stopped`, stop before the
+    push. For another branch, the sync cannot run either (it changes the
+    checkout): when
+    `git diff --name-only "$(git merge-base origin/main <branch>)" <branch> -- README.md`
+    prints `README.md`, stop and report that the branch changes `README.md`
+    and must be synced from its own checkout.
   - Write the PR title and body to files first, as the paragraph after the
     commands says, then run the mention check on both files:
     **Mention check.** Before posting, run `grep -qiF -- '<review-mention>' <file>`
@@ -164,6 +178,12 @@ Every `fixpr.md` and `mergepr.md` run below is given the resolved PR number
   `git pull --ff-only`. A reviewer may have pushed since the branch was last
   checked out. If the branch is checked out in another worktree, the checkout
   fails: stop and tell the user to run this command in that worktree.
+- **Taking in `main`.** Whenever `main` is merged into the PR's branch during
+  this command (for example, to resolve a conflict before CI can run) and
+  `README.en.md` conflicts, resolve it as `mktrans.md`, "Taking in `main`",
+  says: take `main`'s `README.en.md` whole, resolve `README.md`, then run the
+  README sync that the standalone-change bullet above describes, on the
+  checked-out branch, and commit its result before pushing.
 
 ## 2. Decide the PR's bookkeeping and next command
 
@@ -511,6 +531,23 @@ rather than once per decision.
    For the task's final plan PR, the body ends with `Closes #<issue>` for the
    issue the requirements document names as its own (`対応 issue`); a task
    without one gets no such line.
+
+   **README marker check.** Then, before asking, check that `README.en.md`
+   carries the PR's `README.md`, using the `headRefOid` that `prepare`
+   recorded. Check only when the PR changes `README.md`
+   (`git diff --name-only "$(git merge-base origin/main <headRefOid>)" <headRefOid> -- README.md`
+   prints it) and `README.en.md` exists at that commit
+   (`git cat-file -e <headRefOid>:README.en.md` exits `0`). The check passes
+   when the first line of `git show <headRefOid>:README.en.md` is exactly
+   `<!-- translated-from: README.md <id> -->` with `<id>` the output of
+   `git rev-parse <headRefOid>:README.md` (`mktrans.md`, "The sync marker").
+   Otherwise run `mergepr discard --state <state-file>`, do not ask, and stop:
+   report that `README.en.md` does not carry the PR's `README.md`, to be
+   synced with `/mktrans README.md` and pushed before this command runs again.
+   Only check here; do not translate or commit: a commit in this step is
+   PRE_MERGE's alone. Every PR, a person's included, merges through this
+   step, so the marker on `main` keeps naming its `README.md`, whose blob
+   every clone can then read.
 2. Ask with one `AskUserQuestion` call. In your message, show what
    `mergepr.md` step 3 requires (PR URL, base branch, CI result, the full
    subject and body, the record of which rule decided the subject's prefix,

@@ -986,3 +986,76 @@ func TestRemovedCommandLiterals(t *testing.T) {
 		}
 	}
 }
+
+// readmeSyncMarker opens the README sync step in fixpr.md and
+// _lib/task-pr-handoff.md. The step is the paragraph that starts with it.
+const readmeSyncMarker = "**README sync.**"
+
+// mktransPath is the path from cmd/yt2column to mktrans.md, which the README
+// sync runs as a sub-step.
+const mktransPath = "../../.claude/commands/mktrans.md"
+
+// readmeSyncStep returns the README sync paragraph of doc: from the marker to
+// the first blank line after it. It fails t unless doc holds the marker
+// exactly once.
+func readmeSyncStep(t *testing.T, name, doc string) string {
+	t.Helper()
+	if n := strings.Count(doc, readmeSyncMarker); n != 1 {
+		t.Fatalf("%s holds %q %d times, want once", name, readmeSyncMarker, n)
+	}
+	_, step, _ := strings.Cut(doc, readmeSyncMarker)
+	step = readmeSyncMarker + step
+	if end := strings.Index(step, "\n\n"); end >= 0 {
+		step = step[:end]
+	}
+	return step
+}
+
+// TestReadmeSyncStepPlacement checks where the README sync runs /mktrans
+// inside the commands that push: in fixpr.md after the Fix agent and before
+// the scope check, so the guard tool judges README.en.md with the fix and its
+// own commit carries it; in _lib/task-pr-handoff.md Part B after the local
+// review and before CHECKS; and that mktrans.md tells only a standalone run to
+// commit, since a sub-step's caller owns the commit.
+func TestReadmeSyncStepPlacement(t *testing.T) {
+	t.Run("fixpr_between_phase_3_and_3_5", func(t *testing.T) {
+		fixpr := readDoc(t, fixprPath)
+		step := readmeSyncStep(t, "fixpr.md", fixpr)
+		if !strings.Contains(requireSection(t, "fixpr.md", fixpr, fixprPhase3), step) {
+			t.Errorf("fixpr.md runs the README sync outside %q", fixprPhase3)
+		}
+		for _, literal := range []string{"git add", "git commit", "git push"} {
+			if strings.Contains(step, literal) {
+				t.Errorf("fixpr.md's README sync runs %q instead of leaving the commit to Phase 4", literal)
+			}
+		}
+	})
+	t.Run("handoff_between_part_b_items_1_and_2", func(t *testing.T) {
+		handoff := readDoc(t, handoffPath)
+		step := readmeSyncStep(t, "_lib/task-pr-handoff.md", handoff)
+		item1 := itemSection("1. When LOCAL_REVIEW is `run`", "\n2. Run CHECKS.")(t, handoff)
+		if !strings.Contains(item1, step) {
+			t.Error("_lib/task-pr-handoff.md runs the README sync outside Part B item 1")
+		}
+	})
+	t.Run("mktrans_commits_only_standalone", func(t *testing.T) {
+		const commitSection = "## Commit (standalone only)"
+		mktrans := readDoc(t, mktransPath)
+		standalone := requireSection(t, "mktrans.md", mktrans, commitSection)
+		// The commit instructions are the lines that start "Commit the"; a
+		// sub-step section that gained one would commit on the caller's behalf.
+		found := 0
+		for line := range strings.Lines(mktrans) {
+			if !strings.Contains(line, "Commit the") {
+				continue
+			}
+			found++
+			if !strings.Contains(standalone, line) {
+				t.Errorf("mktrans.md gives a commit instruction outside %q: %q", commitSection, strings.TrimSpace(line))
+			}
+		}
+		if found == 0 {
+			t.Errorf("mktrans.md has no commit instruction in %q", commitSection)
+		}
+	})
+}

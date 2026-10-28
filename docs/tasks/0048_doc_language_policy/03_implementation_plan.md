@@ -8,7 +8,7 @@
 | Created | 2026-10-28 |
 | Review date | 2026-10-28 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-29: ステップ 3-4 の記述を、`runpr.md` に `main` を取り込む手順がないことに合わせて直した。衝突の規則は、`runpr.md` の手順 1 に加えた段落から `mktrans.md` の規則を参照する形にした。ステップ 3-1 で、`mktrans.md` の説明（frontmatter の `description`）と CLAUDE.md のコマンドの一覧の `/mktrans` の行も、README の組だけを扱う形に改めた（決定の変更なし。編集上の修正） |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の項番、「設計書 3.6」などは設計書の節を指す。既存のコードと文書についての記述は、コミット `c76eec26`（本書の作成時の `main`）で確かめた。`file:line` は、特に断らない限り、このコミットの行番号を指す。
 
@@ -229,9 +229,9 @@ AGENTS.md の変更（リンクのパス）は、ステップ 1-3 の置換に�
 
 **変更するファイル:** `.claude/commands/mktrans.md`
 
--   [ ] 設計書 3.8 の表と 6.1 の判定の流れのとおりに改める。翻訳の組は `README.md` → `README.en.md` だけにし、`.ja.md` の方向の規則（`:27-35`）と developer_guide への言及（`:20-22`）を消す。同期点は同期の印のブロブの ID にする（設計書 2.4 の印の形と求め方）。
--   [ ] 単独と下位の手順の違い（用語集の扱い、コミット、結果の報告の 4 つの値）を書く。コミットの指示は単独で呼んだときの節にだけ置く。
--   [ ] 止まったときの復旧の手順（設計書 4.3 の表）と、`main` を取り込むときの衝突の規則（設計書 4.3）を書く。
+-   [x] 設計書 3.8 の表と 6.1 の判定の流れのとおりに改める。翻訳の組は `README.md` → `README.en.md` だけにし、`.ja.md` の方向の規則（`:27-35`）と developer_guide への言及（`:20-22`）を消す。同期点は同期の印のブロブの ID にする（設計書 2.4 の印の形と求め方）。
+-   [x] 単独と下位の手順の違い（用語集の扱い、コミット、結果の報告の 4 つの値）を書く。コミットの指示は単独で呼んだときの節にだけ置く。
+-   [x] 止まったときの復旧の手順（設計書 4.3 の表）と、`main` を取り込むときの衝突の規則（設計書 4.3）を書く。
 
 **完了の条件:** 設計書 3.8 の表の 5 行と 6.1 の判定のそれぞれが、`mktrans.md` のどこに書かれているかを、PR の本文に挙げる。
 
@@ -239,8 +239,8 @@ AGENTS.md の変更（リンクのパス）は、ステップ 1-3 の置換に�
 
 **変更するファイル:** `.claude/commands/_lib/task-pr-handoff.md`・`.claude/commands/runplan.md`
 
--   [ ] Part B の手順 1 の後、手順 2 の前に、同期の手順を加える（設計書 4.3 の `/runplan` の項と結果の表）。手順 1 の中の番号のない段落として加え、Part B のどの項目の番号も変えない（`fixpr_docs_test.go:189`・`codex_review_docs_test.go:74`、CLAUDE.md の Development Notes が番号で参照する）。「README.md を変えた」の判定は、`$(git merge-base origin/main HEAD)..HEAD` のコミットと作業ツリーで行う。
--   [ ] `runplan.md` の手順 5a の CHECKS の説明（`:82`）を、同期のコミットがあれば green gate を走らせ直すと改める。
+-   [x] Part B の手順 1 の後、手順 2 の前に、同期の手順を加える（設計書 4.3 の `/runplan` の項と結果の表）。手順 1 の中の番号のない段落として加え、Part B のどの項目の番号も変えない（`fixpr_docs_test.go:189`・`codex_review_docs_test.go:74`、CLAUDE.md の Development Notes が番号で参照する）。「README.md を変えた」の判定は、`$(git merge-base origin/main HEAD)..HEAD` のコミットと作業ツリーで行う。
+-   [x] `runplan.md` の手順 5a の CHECKS の説明（`:82`）を、同期のコミットがあれば green gate を走らせ直すと改める。
 
 **完了の条件:** `make test` が通る。
 
@@ -248,10 +248,10 @@ AGENTS.md の変更（リンクのパス）は、ステップ 1-3 の置換に�
 
 **変更するファイル:** `.claude/commands/fixpr.md`
 
--   [ ] Phase 3 の後、Phase 3.5 の前に、このセッションが同期の手順を実行すると書く（設計書 4.3 の `/fixpr` の項）。`README.en.md` の変更は、Phase 4 のコミットに入る。
--   [ ] Phase 4.5 の修正のコミットが `README.md` を変えたときは、その `git push` の前に同期の手順をもう一度実行し、`README.en.md` の変更をコミットすると書く。コミットは `_lib/coderabbit-local-review.md` の修正のコミットと同じく文で指示し、`TestRemovedCommandLiterals` が禁じるコマンドの字句（`git add -A`・`git commit -m` など）を書かない。Authorization の段落（`fixpr.md:88-101`）に、このコミットを加える。
--   [ ] 止まったときに作業ツリーに残る変更の扱いを、最終の報告の項に加える。
--   [ ] 見出し（`fixpr_docs_test.go:30-37` の定数）は変えない。
+-   [x] Phase 3 の後、Phase 3.5 の前に、このセッションが同期の手順を実行すると書く（設計書 4.3 の `/fixpr` の項）。`README.en.md` の変更は、Phase 4 のコミットに入る。
+-   [x] Phase 4.5 の修正のコミットが `README.md` を変えたときは、その `git push` の前に同期の手順をもう一度実行し、`README.en.md` の変更をコミットすると書く。コミットは `_lib/coderabbit-local-review.md` の修正のコミットと同じく文で指示し、`TestRemovedCommandLiterals` が禁じるコマンドの字句（`git add -A`・`git commit -m` など）を書かない。Authorization の段落（`fixpr.md:88-101`）に、このコミットを加える。
+-   [x] 止まったときに作業ツリーに残る変更の扱いを、最終の報告の項に加える。
+-   [x] 見出し（`fixpr_docs_test.go:30-37` の定数）は変えない。
 
 **完了の条件:** `make test` が通る。
 
@@ -259,10 +259,10 @@ AGENTS.md の変更（リンクのパス）は、ステップ 1-3 の置換に�
 
 **変更するファイル:** `.claude/commands/runpr.md`
 
--   [ ] 手順 1 の単独の変更の PR を作る項で、ローカルのレビューの後、push の前に同期の手順を加える。チェックアウトしていないブランチで `README.md` の変更があれば止まると書く（設計書 4.3 の `/runpr` の項）。
--   [ ] 手順 4 のマージの質問の前に、印の検査を加える（設計書 2.4。検査だけで反映しない。`README.en.md` がなければ検査しない）。
--   [ ] `main` を取り込む手順に、`README.en.md` の衝突の規則（設計書 4.3）を加える。
--   [ ] 手順の見出し（`fixpr_docs_test.go:38-40`・`codex_review_docs_test.go:83` の定数）は変えない。
+-   [x] 手順 1 の単独の変更の PR を作る項で、ローカルのレビューの後、push の前に同期の手順を加える。チェックアウトしていないブランチで `README.md` の変更があれば止まると書く（設計書 4.3 の `/runpr` の項）。
+-   [x] 手順 4 のマージの質問の前に、印の検査を加える（設計書 2.4。検査だけで反映しない。`README.en.md` がなければ検査しない）。
+-   [x] `runpr.md` には `main` を取り込む手順がないので、手順 1 に、`main` を取り込むときに従う段落（「Taking in `main`」）を加え、`README.en.md` の衝突の規則（設計書 4.3）を `mktrans.md` の同名の段落に書いて参照する、`README.en.md` の衝突の規則（設計書 4.3）を加える。
+-   [x] 手順の見出し（`fixpr_docs_test.go:38-40`・`codex_review_docs_test.go:83` の定数）は変えない。
 
 **完了の条件:** `make test` が通る。
 
@@ -270,8 +270,8 @@ AGENTS.md の変更（リンクのパス）は、ステップ 1-3 の置換に�
 
 **変更するファイル:** `cmd/yt2column/fixpr_docs_test.go`
 
--   [ ] 同期の手順は `fixprguard` の境界の内側で `/mktrans` を呼ぶので、CLAUDE.md の Testing Strategy が文書のテストを残すとする「信頼の境界でエージェントが実行するコマンド」に当たる。次を確かめるテスト `TestReadmeSyncStepPlacement` を加える。(1) `fixpr.md` の同期の手順が Phase 3 と Phase 3.5 の見出しの間にあり、`git add`・`git commit`・`git push` を含まない。(2) `mktrans.md` のコミットの指示が、単独で呼んだときの節の中にだけある。(3) `_lib/task-pr-handoff.md` の同期の手順が、Part B の項目 1 と項目 2 の間にある。同期の手順の見つけ方（見出しか、決まった語か）は実装で決め、決めたものを 3 つの文書で同じにする。
--   [ ] 3 つの検査が、手順を別の Phase に移す、`mktrans.md` のコミットの指示を下位の手順の節に写す、同期の手順を Part B の項目 2 の後に移す、でそれぞれ失敗することを確かめる。
+-   [x] 同期の手順は `fixprguard` の境界の内側で `/mktrans` を呼ぶので、CLAUDE.md の Testing Strategy が文書のテストを残すとする「信頼の境界でエージェントが実行するコマンド」に当たる。次を確かめるテスト `TestReadmeSyncStepPlacement` を加える。(1) `fixpr.md` の同期の手順が Phase 3 と Phase 3.5 の見出しの間にあり、`git add`・`git commit`・`git push` を含まない。(2) `mktrans.md` のコミットの指示が、単独で呼んだときの節の中にだけある。(3) `_lib/task-pr-handoff.md` の同期の手順が、Part B の項目 1 と項目 2 の間にある。同期の手順の見つけ方（見出しか、決まった語か）は実装で決め、決めたものを 3 つの文書で同じにする。
+-   [x] 3 つの検査が、手順を別の Phase に移す、`mktrans.md` のコミットの指示を下位の手順の節に写す、同期の手順を Part B の項目 2 の後に移す、でそれぞれ失敗することを確かめる。
 
 **完了の条件（フェーズ 3）:** `make test` が通る（コマンドの文書を読む `cmd/yt2column/fixpr_docs_test.go`・`codex_review_docs_test.go` のテストを含む）。同期の手順は、`fixprguard` の新しい呼び出しも、Codex のメンションも書かない（設計書 5 章）。
 

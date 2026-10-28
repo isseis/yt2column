@@ -80,7 +80,9 @@ Work in order.
 - Open the PR and hand it over: follow `.claude/commands/_lib/task-pr-handoff.md`,
   Part B, with **TASK_DIR** and **REPORT** as in step 1.5, and:
   - **CHECKS** = the green gate verified above (the checkbox commit after it
-    changes only the plan, so it needs no rerun);
+    changes only the plan, so it needs no rerun). When the README sync of
+    Part B step 1 commits `README.en.md`, run the green gate again on that
+    commit;
   - **LOCAL_REVIEW** = `done` — step 7.7 reviewed each phase group of this PR.
     When step 7.7 could not run (the CodeRabbit CLI failed), it records
     `CodeRabbit local review: not run` in that group's checkbox commit message.
