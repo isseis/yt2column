@@ -182,3 +182,34 @@ Codex が実行したコマンドは、R1・R3 では JSONL の `command_executi
 -   範囲をレビューの指示（PROMPT）で伝える（観測していない。`--base` と PROMPT を同時に使えるかも確かめていない）。
 
 AC-01 の 1 で割り当てを共有すると判断したことは、AC-02 により、進むのを妨げない（要件定義書 1 節の決定）。
+
+## 設計の際の追加の観測（2026-10-28）
+
+`02_architecture.md` のレビューで挙がった疑問を確かめるために、設計の際に次の観測を行った。`codex` の各実行は、上と同じく実行の前に 1 回ずつ利用者の承認を得た。
+
+### 追加の実行
+
+対象は上の R2〜R5 と同じ一時 worktree（変更なし）、`<BASE>` も上と同じである。どちらの実行も、終了コードは 0 で、作業ツリーの `git status --short` は前後で空のままだった。
+
+| 実行 | 開始（UTC） | コマンド | 時間 |
+|---|---|---|---|
+| O1 | 13:12:31 | `codex exec review --base <BASE> --ignore-user-config <RO> --json -o <scratch>/o1/last.md` | 24 秒 |
+| O2 | 13:13:44 | O1 に `--ignore-rules` と、`--disable` で `apps`・`plugins`・`remote_plugin`・`hooks`・`browser_use`・`computer_use`・`image_generation`・`multi_agent`・`tool_suggest`・`skill_mcp_dependency_install` を加えたもの | 20 秒 |
+
+-   **利用者の設定を読まない実行（O1）:** 実行できた。認証は `CODEX_HOME` の認証情報で通った。モデルは `gpt-6.1-sol`（利用者の設定と同じ）、推論の強さは `null`（利用者の設定では `medium`）だった（レビューを行う側のスレッドの `turn_context`）。サンドボックスと承認の設定は、R1〜R3 と同じく `read-only` と `never` だった。
+-   **`--json` のときの標準エラー:** O1・O2 とも空だった。設定の表示（`sandbox: read-only` など）は、`--json` を付けると標準エラーに出ない。
+-   **完了の印:** O1・O2 とも、JSONL は `thread.started`、`turn.started`、`item.*`、`turn.completed` の順で、`error` と `turn.failed` の行はなかった。
+-   **`-o` の文面:** O1・O2 とも、上の 5 と同じ形（要約の段落、`Review comment:`、`- [P2] <題名> — <絶対パス>:5-7`、字下げした本文）だった。
+-   **プラグイン（O1 と O2 の比較）:** O1 では、`--ignore-user-config` を付けても、レビューの指示のスキルの一覧に `openai-curated-remote` のプラグインのスキル（`sites`・`work-pets`）と、インストールされていないプラグインの一覧（`<recommended_plugins>`）が入っていた。これらはアカウントの側から入るもので、利用者の設定ファイルを読まなくても残る。O2 では、スキルのルートが `~/.codex/skills/.system` の 1 つだけになり、`<recommended_plugins>` もなくなった。
+-   **指示ファイル（O2）:** `--ignore-rules` と `--disable` を付けた O2 でも、レビューを行う側のスレッドの指示に `# AGENTS.md instructions for <作業ディレクトリ>` の段落があり、Codex は `cat CLAUDE.md` と `find .. -name AGENTS.md -o -name AGENTS.override.md` を実行した。`--ignore-rules` が外すのは、ヘルプのとおり利用者とプロジェクトの execpolicy の `.rules` ファイルであり、`AGENTS.md` は外さない（`codex exec review --help`。0.163.0）。
+-   **観測できなかったこと:** モデルが使えるツールの一覧は、セッションの記録にも JSONL にも残らない。そのため、`--disable` を付けない実行で GitHub などのコネクタのツールが使えたかどうか、付けた実行で使えなくなったかどうかは、直接には確かめていない。どの実行でも、Codex が実際に使ったツールは `exec`（シェル）だけだった。シェルのネットワークは、どの実行でも `network: "restricted"` だった（`turn_context` の `permission_profile`）。
+-   **機能の一覧:** `codex features list`（0.163.0）では、上の `--disable` で外した機能が、どれも `true` だった。
+
+### CodeRabbit CLI の出力（既存の記録）
+
+`02_architecture.md` の H-04 の根拠として、ローカルのスクラッチパッドに残っていた、過去のセッション（2026-10）の `coderabbit review --agent ...` の出力 40 件を調べた（`coderabbit` 0.9.1）。`coderabbit` は実行していない。
+
+-   **形:** どれも、1 行目が案内の文（`Tip: …`）で、その後に 1 行に 1 つの JSON のオブジェクトが続く。最初のオブジェクトは `type: review_context`、途中に `type: heartbeat` と `type: finding` があり、最後のオブジェクトは `type: complete` か `type: error` だった。
+-   **成功（35 件）:** 最後が `{"type":"complete","status":"review_completed","findings":<件数>,"outcome":"completed",…}` だった。件数は 0〜4 だった。このうち 2 件は `"reused":true` と、新たにレビューしなかった旨の `message` を持っていた。
+-   **失敗（5 件）:** 最後が `{"type":"error","errorType":"rate_limit","message":"Rate limit exceeded","recoverable":true,…}` で、`complete` の行はなかった。`metadata.waitTime` は 1 分から 32 分だった。
+-   **終了コード:** これらのファイルには記録されていない。
