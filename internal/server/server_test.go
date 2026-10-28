@@ -19,9 +19,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/isseis/yt2column/internal/articlecache"
 	"github.com/isseis/yt2column/internal/failure"
 	failuretestutil "github.com/isseis/yt2column/internal/failure/testutil"
 	publishertestutil "github.com/isseis/yt2column/internal/publisher/testutil"
+	"github.com/isseis/yt2column/internal/transcript"
 	"github.com/isseis/yt2column/internal/udstest"
 	"github.com/isseis/yt2column/internal/writer"
 	writertestutil "github.com/isseis/yt2column/internal/writer/testutil"
@@ -363,5 +365,116 @@ func TestUnparsableRequestBypassesHandler(t *testing.T) {
 	if len(ts.notifier.Calls) != 0 || len(ts.writer.Calls) != 0 {
 		t.Errorf("an unparsable request caused a side effect: notifier=%d writer=%d",
 			len(ts.notifier.Calls), len(ts.writer.Calls))
+	}
+}
+
+// ctxRecordingWriter holds the legacy job's Write until release is closed and
+// then records whether its context was canceled; WriteWithProgress runs the
+// job API's generations through fake.
+type ctxRecordingWriter struct {
+	entered  chan struct{}
+	release  chan struct{}
+	canceled chan bool
+	fake     *writertestutil.FakeArticleWriter
+}
+
+func (w ctxRecordingWriter) Write(ctx context.Context, _ transcript.Transcript) (writer.Article, error) {
+	w.entered <- struct{}{}
+	<-w.release
+	w.canceled <- ctx.Err() != nil
+	return testArticle(), nil
+}
+
+func (w ctxRecordingWriter) WriteWithProgress(ctx context.Context, t transcript.Transcript, o writer.ProgressObserver) (writer.Article, error) {
+	return w.fake.WriteWithProgress(ctx, t, o)
+}
+
+// startOnUnix sends a generation start to the socket at path and returns the
+// key of its 202 response.
+func startOnUnix(t *testing.T, path, body string) string {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodPost, "http://yt2column"+JobsPath, strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	resp, err := (&http.Client{Transport: udstest.Transport(path)}).Do(req)
+	if err != nil {
+		t.Fatalf("send the request: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	var decoded responseBody
+	if err := json.NewDecoder(resp.Body).Decode(&decoded); err != nil {
+		t.Fatalf("decode the response body: %v", err)
+	}
+	if resp.StatusCode != http.StatusAccepted || decoded.Key == "" {
+		t.Fatalf("response = %d %+v, want 202 with a key", resp.StatusCode, decoded)
+	}
+	return decoded.Key
+}
+
+// TestServeShutdownCancelsGeneration checks a shutdown with a generation job
+// and a legacy job in flight: the generation's writer sees its context
+// canceled and the record fails, logging only the cancellation line, while the
+// legacy job runs on with a live context and Serve returns only after it.
+func TestServeShutdownCancelsGeneration(t *testing.T) {
+	fake := &writertestutil.FakeArticleWriter{Result: testArticle()}
+	reached, releaseGeneration := holdAtDraft(fake)
+	w := ctxRecordingWriter{
+		entered: make(chan struct{}, 1), release: make(chan struct{}),
+		canceled: make(chan bool, 1), fake: fake,
+	}
+	ts := newJobsTestServer(t, jobsServerOptions{})
+	ts.Server.writer = w
+	listener, path := listenUnix(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- ts.Serve(ctx, listener) }()
+	var once sync.Once
+	releaseLegacy := func() { once.Do(func() { close(w.release) }) }
+	defer func() {
+		cancel()
+		releaseGeneration()
+		releaseLegacy()
+	}()
+
+	if status, _ := postOnUnix(t, path); status != http.StatusAccepted {
+		t.Fatalf("legacy status = %d, want 202", status)
+	}
+	<-w.entered
+	key, err := articlecache.ParseKey(startOnUnix(t, path, bodyWith("generation")))
+	if err != nil {
+		t.Fatalf("ParseKey: %v", err)
+	}
+	<-reached
+
+	cancel()
+	deadline := time.Now().Add(5 * time.Second)
+	for ts.cache.Lookup(key).State != articlecache.JobFailed {
+		if time.Now().After(deadline) {
+			t.Fatalf("the generation was not canceled: state %d", ts.cache.Lookup(key).State)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	select {
+	case <-done:
+		t.Fatal("Serve returned before the legacy job finished")
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	releaseLegacy()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Errorf("Serve error = %v, want nil after cancellation", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Serve did not return after the legacy job finished")
+	}
+	if <-w.canceled {
+		t.Error("the legacy job's context was canceled")
+	}
+	logs := ts.logs.String()
+	if !strings.Contains(logs, "generation job canceled by the shutdown") || strings.Contains(logs, "generation job failed") {
+		t.Errorf("want the cancellation line and no failure line:\n%s", logs)
 	}
 }

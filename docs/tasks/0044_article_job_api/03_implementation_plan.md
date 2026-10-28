@@ -327,11 +327,11 @@
 
 -   **ファイル:** `internal/server/server.go`・`server_test.go`、`cmd/yt2column-server/run.go`・`run_test.go`・`server_test.go`、`docs/dev/developer_guide/package_reference.md`
 -   **作業:**
-    -   [ ] `Serve` が、まず `genCtx` を取り消し、取り消したジョブのログを書く形にする（設計書 §6.4・§3.12）。停止の案内に、新しい API の生成が取り消されることを加え、その文を確かめる行を `run_test.go` の停止の案内のテストに加える。
-    -   [ ] テスト（AC-46 の生成と旧 API の部分）: 生成のジョブの書き手が取り消しを受け取って終わり、記録が失敗になり、取り消しの行だけを書き、生成の失敗の行を書かないこと。同じときに旧 API のジョブの書き手の `ctx` は取り消されず、ジョブが完了してから `Serve` が戻ること。`TestServeShutdownWaitsForJobs` は期待値を変えずに通る。
-    -   [ ] 壊し方: `genCtx` を取り消さないと、このテストが失敗することを確かめる。
-    -   [ ] `TestServerEndToEnd` に、fake の LLM で生成の開始 → 状態の取得が `done` を返すまでの流れを加える（設計書 §7.2）。
-    -   [ ] `package_reference.md` の `internal/server` の行を改める（1.3）。
+    -   [x] `Serve` が、まず `genCtx` を取り消し、取り消したジョブのログを書く形にする（設計書 §6.4・§3.12）。停止の案内に、新しい API の生成が取り消されることを加え、その文を確かめる行を `run_test.go` の停止の案内のテストに加える。
+    -   [x] テスト（AC-46 の生成と旧 API の部分）: 生成のジョブの書き手が取り消しを受け取って終わり、記録が失敗になり、取り消しの行だけを書き、生成の失敗の行を書かないこと。同じときに旧 API のジョブの書き手の `ctx` は取り消されず、ジョブが完了してから `Serve` が戻ること。`TestServeShutdownWaitsForJobs` は期待値を変えずに通る。
+    -   [x] 壊し方: `genCtx` を取り消さないと、このテストが失敗することを確かめる。
+    -   [x] `TestServerEndToEnd` に、fake の LLM で生成の開始 → 状態の取得が `done` を返すまでの流れを加える（設計書 §7.2）。
+    -   [x] `package_reference.md` の `internal/server` の行を改める（1.3）。
 -   **完了の条件:** グリーンゲートが通る。
 
 ### PR-4 作成ポイント: generation start, status, and generation job
@@ -549,7 +549,7 @@ PR-1 と PR-2 は互いに依存しないが、PR は番号の順にマージす
 
 - [ ] 1.5 の表の今の名前（`TestLoadServerWebhookRequired`・`errNilPublisher`・`errNilNotifier`）が、コードと文書に残っていない（PR-3）。
 - [ ] Webhook を必須とする注釈（`always set`・`required`）が `internal/config` と `cmd/yt2column-server` に残っていない（PR-3）。
-- [ ] 1.4 の「注釈」の行の `internal/server` の注釈が、新しい API の生成のジョブと取り消しに合っている（PR-4）。
+- [x] 1.4 の「注釈」の行の `internal/server` の注釈が、新しい API の生成のジョブと取り消しに合っている（PR-4）。
 - [ ] 設計書 §3.10.2「説明の更新」の注釈に、メッセージを解析しない・標準入力の残りを読まない・64 KiB という記述が残っていない（PR-6）。
 - [ ] `package_reference.md` の各行が、その PR で変えたパッケージの責務と合っている（各 PR）。
 

@@ -213,8 +213,9 @@ func (s *Server) webhookConfigured() bool {
 }
 
 // Serve serves on listener until ctx is canceled or the listener fails, then
-// stops accepting connections, waits for in-flight requests, jobs, and failure
-// notices, and returns. It returns nil after a cancellation and the listener
+// cancels the job API's generation jobs, stops accepting connections, waits
+// for in-flight requests, jobs, failure notices, and the canceled generations,
+// and returns. The legacy jobs and their notices are not canceled. It returns nil after a cancellation and the listener
 // error otherwise. Shutdown closes the listener; for a *net.UnixListener that
 // also removes the socket.
 func (s *Server) Serve(ctx context.Context, listener net.Listener) error {
@@ -231,6 +232,12 @@ func (s *Server) Serve(ctx context.Context, listener net.Listener) error {
 		served = true
 	}
 
+	// The article cache is lost when the process exits, so a generation that
+	// finished from here on could never be read: cancel them first, so a
+	// running one stops its LLM call and a start accepted during the shutdown
+	// begins already canceled. Each canceled job logs one line.
+	s.genCancel()
+
 	// Shutdown with a context that is not canceled, so it waits for the
 	// handlers (bounded by WriteTimeout) instead of returning at once. It
 	// closes the listener, so the Serve call returns.
@@ -245,14 +252,14 @@ func (s *Server) Serve(ctx context.Context, listener net.Listener) error {
 		}
 	}
 
-	// Jobs and notices are not canceled: each is bounded by its own timeout
-	// (the LLM timeout, the per-message post timeout, and the notice timeout).
-	// Every handler has returned, so each slot still taken belongs to a job or
-	// a notice: their count is what the wait below waits for.
+	// The legacy jobs and notices are not canceled: each is bounded by its own
+	// timeout (the LLM timeout, the per-message post timeout, and the notice
+	// timeout). Every handler has returned, so each generation slot still
+	// taken belongs to a legacy job, a notice, or a canceled generation: their
+	// count is what the wait below waits for.
 	s.logger.Info("stopped accepting connections; waiting for in-flight jobs and failure notices", "pending", len(s.slots))
 	s.jobs.Wait()
 	s.jobCancel()
-	s.genCancel()
 	s.logger.Info("every job and failure notice has finished")
 	return cause
 }

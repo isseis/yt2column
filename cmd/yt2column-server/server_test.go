@@ -3,9 +3,12 @@
 package main
 
 import (
+	"net/http"
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/isseis/yt2column/internal/server"
 )
 
 // requestIDPattern is the form of the request ID the server generates and the
@@ -18,7 +21,8 @@ var requestIDPattern = regexp.MustCompile(`^[0-9a-f]{16}$`)
 // no header beyond what net/http adds is accepted and posts the article under
 // the normalized URL; and a rejected transcript yields a failure notice that
 // carries the response's request ID, so the server's ID and the notifier's
-// check agree. A second start with the same HOME, after a normal stop, serves
+// check agree; and a generation start on the job API returns a key whose
+// status becomes done with the generated article. A second start with the same HOME, after a normal stop, serves
 // on the same socket path.
 func TestServerEndToEnd(t *testing.T) {
 	webhook, webhookURL := newWebhookServer(t)
@@ -43,6 +47,16 @@ func TestServerEndToEnd(t *testing.T) {
 	notice := webhook.waitForMessage(t, "yt2column failure:", "request: "+rejected.RequestID)
 	if !strings.Contains(notice, "video: <"+testNormalizedURL+">") {
 		t.Errorf("the notice does not name the video:\n%s", notice)
+	}
+
+	started := doJobs(t, socket, http.MethodPost, server.JobsPath, strings.NewReader(requestBody(testValidRaw)), http.StatusAccepted)
+	if started.Status != "accepted" || started.Key == "" {
+		t.Fatalf("generation start response = %+v, want accepted with a key", started)
+	}
+	status := waitJobDone(t, socket, started.Key)
+	if status.Job.State != "done" || status.Job.Article == nil ||
+		!strings.Contains(status.Job.Article.Markdown, "A title") || !strings.Contains(status.Job.Article.File, testNormalizedURL) {
+		t.Errorf("job status = %+v, want done with the generated article", status.Job)
 	}
 
 	if code := first.stop(t); code != exitOK {

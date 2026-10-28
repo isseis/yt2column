@@ -502,6 +502,7 @@ func TestRunLogsListeningAndStop(t *testing.T) {
 	for _, want := range []string{
 		// Three LLM calls of at most 15 minutes each.
 		"up to about 45 minutes",
+		"the job API's in-flight generations are canceled",
 		"send the signal again to exit at once",
 	} {
 		if !strings.Contains(stderr, want) {
