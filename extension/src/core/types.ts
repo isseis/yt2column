@@ -17,6 +17,12 @@ export const rejectionReasons: Record<RejectionReason, true> = {
   "empty-title": true,
 };
 
+/** Whether a check row is shown with the tick or the warning symbol. */
+export type CheckState = "ok" | "warning";
+
+/** The check rows. */
+export type CheckName = "selection" | "description";
+
 /** The fields of the collected summary. */
 export type SummaryField = "title" | "url" | "characters" | "lines" | "preview";
 
