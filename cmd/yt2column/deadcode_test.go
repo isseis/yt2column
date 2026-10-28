@@ -5,7 +5,9 @@ package main
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -419,4 +421,398 @@ func envWithPath(path string) []string {
 // t.TempDir and contain a space.
 func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
+// deadcodeAssumedVersion is the golang.org/x/tools version whose reachability
+// decisions the fixture below records. A failure that names another version
+// points at the version as the cause.
+const deadcodeAssumedVersion = "v0.47.0"
+
+// deadcodeFixtureFiles is the fixture module the scope test analyses: a copy of
+// the module's shape, small enough to reason about. Each function is reachable
+// from exactly one kind of root, so a report about one says which root the
+// target failed to count.
+var deadcodeFixtureFiles = map[string]string{
+	// No require and no toolchain line, and a go line no newer than the
+	// repository's, so go list never downloads anything.
+	"go.mod": "module example.com/fixture\n\ngo 1.22\n",
+
+	// cmd/cli stands in for cmd/yt2column: the entry point the old arguments
+	// already analysed.
+	"cmd/cli/main.go": `package main
+
+import "example.com/fixture/internal/lib"
+
+func main() {
+	lib.FromCLI()
+}
+`,
+
+	// cmd/srv is a second main package: reachable only if the whole module is
+	// analysed.
+	"cmd/srv/main.go": `package main
+
+import "example.com/fixture/internal/lib"
+
+func main() {
+	lib.OnlySrv()
+}
+`,
+
+	"internal/lib/lib.go": `package lib
+
+// FromCLI is reached from the CLI main package.
+func FromCLI() {}
+
+// OnlySrv is reached only from the server main package.
+func OnlySrv() {}
+
+// OnlyTest is reached only from this package's test.
+func OnlyTest() {}
+
+// OnlyIntegration is reached only from a test built with the integration tag.
+func OnlyIntegration() {}
+`,
+
+	"internal/lib/lib_test.go": `package lib_test
+
+import (
+	"testing"
+
+	"example.com/fixture/internal/lib"
+)
+
+func TestOnlyTest(t *testing.T) {
+	lib.OnlyTest()
+}
+`,
+
+	"internal/lib/integration_test.go": `//go:build integration
+
+package lib_test
+
+import (
+	"testing"
+
+	"example.com/fixture/internal/lib"
+)
+
+func TestOnlyIntegration(t *testing.T) {
+	lib.OnlyIntegration()
+}
+`,
+
+	// internal/helper has no test of its own: only another package's test
+	// reaches Helper.
+	"internal/helper/helper.go": `//go:build test
+
+package helper
+
+// Helper is reached only from another package's test.
+func Helper() {}
+`,
+
+	"internal/other/other.go": `package other
+
+// Other is reached from this package's own test.
+func Other() {}
+`,
+
+	"internal/other/other_test.go": `package other_test
+
+import (
+	"testing"
+
+	"example.com/fixture/internal/helper"
+	"example.com/fixture/internal/other"
+)
+
+func TestOther(t *testing.T) {
+	other.Other()
+	helper.Helper()
+}
+`,
+}
+
+// deadcodeRun is one run of the deadcode target or of the deadcode command.
+type deadcodeRun struct {
+	err    error
+	stdout []byte
+	stderr []byte
+}
+
+// output returns both streams, labelled, for a failure message.
+func (r deadcodeRun) output() string {
+	return fmt.Sprintf("exit error: %v\nstandard output:\n%s\nstandard error:\n%s", r.err, r.stdout, r.stderr)
+}
+
+// deadcodeScope is where the scope test finds the real deadcode command.
+type deadcodeScope struct {
+	path    string
+	version string
+	make    string
+	// makefile is the absolute path of the repository's Makefile, passed with
+	// -f so -C can point make at the fixture module.
+	makefile string
+}
+
+// note says which deadcode version the failure was observed with, so a
+// reachability change between versions is not read as a defect in the target.
+func (s *deadcodeScope) note() string {
+	return "the deadcode command is " + s.version + "; this test records " + deadcodeAssumedVersion
+}
+
+// runTarget runs the repository's deadcode target in the fixture module root.
+func (s *deadcodeScope) runTarget(t *testing.T, root string) deadcodeRun {
+	t.Helper()
+	cmd := exec.Command(s.make, "-s", "-C", root, "-f", s.makefile, "deadcode")
+	cmd.Env = envWithPath(os.Getenv("PATH"))
+	return runDeadcodeCommand(t, cmd)
+}
+
+// run itself runs the deadcode command in root, to check a premise about which
+// root a function is reachable from.
+func (s *deadcodeScope) run(t *testing.T, root string, args ...string) deadcodeRun {
+	t.Helper()
+	cmd := exec.Command(s.path, args...)
+	cmd.Dir = root
+	cmd.Env = envWithPath(os.Getenv("PATH"))
+	return runDeadcodeCommand(t, cmd)
+}
+
+// runDeadcodeCommand runs cmd and captures both streams.
+func runDeadcodeCommand(t *testing.T, cmd *exec.Cmd) deadcodeRun {
+	t.Helper()
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	return deadcodeRun{err: err, stdout: stdout.Bytes(), stderr: stderr.Bytes()}
+}
+
+// TestMakeDeadcodeScope checks which functions the real deadcode command counts
+// as reachable through the deadcode target. It needs the deadcode command, so
+// it skips where that is not on PATH (CI does not install it); the environment
+// check is the PATH lookup alone.
+//
+// Each function in the fixture is reachable from exactly one kind of root: a
+// second main package, another package's test, its own package's test, or an
+// integration test. A report about one therefore names the root the target
+// failed to count. The isolation subtests first confirm that claim by excluding
+// that root from a direct deadcode run: without that, "not reported" would say
+// nothing, because every root would reach the function.
+func TestMakeDeadcodeScope(t *testing.T) {
+	deadcodePath, err := exec.LookPath("deadcode")
+	if err != nil {
+		t.Skip("the deadcode command is not on PATH; install it with go install golang.org/x/tools/cmd/deadcode@latest")
+	}
+	// Read the Makefile from this process so editing it alone cannot leave a
+	// cached PASS behind.
+	if _, err := os.ReadFile(filepath.Join(repositoryRoot, "Makefile")); err != nil {
+		t.Fatalf("read the Makefile: %v", err)
+	}
+	makePath, err := exec.LookPath("make")
+	if err != nil {
+		t.Fatalf("make is not on PATH: %v", err)
+	}
+	// The fixture's go list runs in the child, so go must be there too.
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Fatalf("go is not on PATH: %v", err)
+	}
+	makefile, err := filepath.Abs(filepath.Join(repositoryRoot, "Makefile"))
+	if err != nil {
+		t.Fatalf("resolve the Makefile path: %v", err)
+	}
+	scope := &deadcodeScope{
+		path:     deadcodePath,
+		version:  deadcodeModuleVersion(t, deadcodePath),
+		make:     makePath,
+		makefile: makefile,
+	}
+
+	t.Run("silent_success", func(t *testing.T) {
+		root := writeDeadcodeFixture(t, nil)
+		got := scope.runTarget(t, root)
+		if got.err != nil {
+			t.Fatalf("make deadcode failed on the fixture as written (%s):\n%s", scope.note(), got.output())
+		}
+		if len(got.stdout) != 0 || len(got.stderr) != 0 {
+			t.Fatalf("make deadcode printed on the fixture as written; success must be silent (%s):\n%s", scope.note(), got.output())
+		}
+	})
+
+	// The isolation premise: each function must be reported once its own root
+	// is left out of the analysis, so the silent success above shows the target
+	// counting that root.
+	t.Run("isolation", func(t *testing.T) {
+		root := writeDeadcodeFixture(t, nil)
+		for _, tc := range []struct {
+			name     string
+			function string
+			args     []string
+		}{
+			{
+				// The old argument list, widened only with the integration tag
+				// and the internal packages: cmd/srv is the one excluded.
+				name:     "other_entry_point_excluded",
+				function: "OnlySrv",
+				args:     []string{"-test", "-tags", "test,integration", "./cmd/cli", "./internal/..."},
+			},
+			{
+				// The previous target's argument list.
+				name:     "cli_entry_point_only",
+				function: "OnlySrv",
+				args:     []string{"-test", "-tags", "test", "./cmd/cli"},
+			},
+			{
+				// Tests are not roots without -test, so no test reaches Helper.
+				name:     "tests_excluded_helper",
+				function: "Helper",
+				args:     []string{"-tags", "test,integration", "./..."},
+			},
+			{
+				name:     "tests_excluded_only_test",
+				function: "OnlyTest",
+				args:     []string{"-tags", "test,integration", "./..."},
+			},
+			{
+				// Without the integration tag the integration test is not
+				// built, so nothing reaches OnlyIntegration.
+				name:     "integration_tag_excluded",
+				function: "OnlyIntegration",
+				args:     []string{"-test", "-tags", "test", "./..."},
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				got := scope.run(t, root, tc.args...)
+				if got.err != nil {
+					t.Fatalf("deadcode %q failed (%s):\n%s", tc.args, scope.note(), got.output())
+				}
+				if !bytes.Contains(got.stdout, []byte(tc.function)) {
+					t.Fatalf("deadcode %q did not report %s, so the fixture does not isolate it from the other roots (%s):\n%s",
+						tc.args, tc.function, scope.note(), got.output())
+				}
+			})
+		}
+	})
+
+	t.Run("reachable", func(t *testing.T) {
+		// One subtest per function, each on its own copy of the fixture, so a
+		// failure names the function and its root. The isolation subtests above
+		// are what make the silent success meaningful.
+		for _, function := range []string{"OnlySrv", "Helper", "OnlyTest", "OnlyIntegration"} {
+			t.Run(function, func(t *testing.T) {
+				root := writeDeadcodeFixture(t, nil)
+				got := scope.runTarget(t, root)
+				if got.err != nil || len(got.stdout) != 0 || len(got.stderr) != 0 {
+					t.Fatalf("make deadcode reported %s, which the fixture reaches from its documented root (%s):\n%s",
+						function, scope.note(), got.output())
+				}
+			})
+		}
+	})
+
+	t.Run("reported", func(t *testing.T) {
+		for _, tc := range []struct {
+			name     string
+			file     string
+			content  string
+			line     int
+			function string
+		}{
+			{
+				// A package-level function in an ordinary file that nothing
+				// references.
+				name:     "package_function",
+				file:     "internal/lib/unused.go",
+				content:  "package lib\n\nfunc Unused() {}\n",
+				line:     3,
+				function: "Unused",
+			},
+			{
+				// A function in a main package other than the CLI's, referenced
+				// by nothing.
+				name:     "other_entry_point_function",
+				file:     "cmd/srv/unused.go",
+				content:  "package main\n\nfunc unusedFromSrv() {}\n",
+				line:     3,
+				function: "unusedFromSrv",
+			},
+			{
+				// A function in an integration-tagged file, referenced by
+				// nothing.
+				name:     "integration_tagged_function",
+				file:     "internal/lib/unused_integration.go",
+				content:  "//go:build integration\n\npackage lib\n\nfunc UnusedIntegration() {}\n",
+				line:     5,
+				function: "UnusedIntegration",
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				root := writeDeadcodeFixture(t, map[string]string{tc.file: tc.content})
+				got := scope.runTarget(t, root)
+				if got.err == nil {
+					t.Fatalf("make deadcode succeeded although nothing reaches %s, so a report would be missed (%s):\n%s",
+						tc.function, scope.note(), got.output())
+				}
+				location := fmt.Sprintf("%s:%d:", tc.file, tc.line)
+				if !bytes.Contains(got.stdout, []byte(location)) || !bytes.Contains(got.stdout, []byte(tc.function)) {
+					t.Fatalf("make deadcode did not report %s at %s (%s):\n%s",
+						tc.function, location, scope.note(), got.output())
+				}
+			})
+		}
+	})
+
+	t.Run("compile_error", func(t *testing.T) {
+		root := writeDeadcodeFixture(t, map[string]string{
+			"internal/lib/broken.go": "package lib\n\nfunc Broken() { anywhere() }\n",
+		})
+		got := scope.runTarget(t, root)
+		if got.err == nil {
+			t.Fatalf("make deadcode succeeded although the fixture does not compile (%s):\n%s", scope.note(), got.output())
+		}
+		if !bytes.Contains(got.stderr, []byte("undefined: anywhere")) {
+			t.Fatalf("make deadcode did not show the deadcode command's compiler error (%s):\n%s", scope.note(), got.output())
+		}
+	})
+}
+
+// writeDeadcodeFixture writes the fixture module into a new temporary
+// directory and returns its root. extra holds files that replace or extend the
+// base fixture, keyed by slash-separated path.
+func writeDeadcodeFixture(t *testing.T, extra map[string]string) string {
+	t.Helper()
+	root := t.TempDir()
+	files := maps.Clone(deadcodeFixtureFiles)
+	maps.Copy(files, extra)
+	for name, content := range files {
+		path := filepath.Join(root, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("create the directory of %s: %v", name, err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
+	return root
+}
+
+// deadcodeModuleVersion returns the module and version the deadcode command was
+// built from, as go version -m reports them.
+func deadcodeModuleVersion(t *testing.T, path string) string {
+	t.Helper()
+	cmd := exec.Command("go", "version", "-m", path)
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("go version -m %s: %v", path, err)
+	}
+	for line := range strings.Lines(string(out)) {
+		fields := strings.Fields(line)
+		if len(fields) >= 3 && fields[0] == "mod" {
+			return fields[1] + " " + fields[2]
+		}
+	}
+	t.Fatalf("go version -m %s printed no module line:\n%s", path, out)
+	return ""
 }
