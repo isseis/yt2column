@@ -44,9 +44,12 @@ export function countCharacters(text: string): number {
   return Array.from(text).length;
 }
 
+/** Matches one line break written as \r\n, \r or \n. */
+export const lineBreak = /\r\n|\r|\n/g;
+
 /** Counts lines split on \r\n, \r or \n; leading and trailing blanks count. */
 export function countLines(text: string): number {
-  return text.split(/\r\n|\r|\n/).length;
+  return text.split(lineBreak).length;
 }
 
 /** Reduces a collect outcome to the display-only digest. */

@@ -8,7 +8,7 @@
 | Created | 2026-10-28 |
 | Review date | 2026-10-28 |
 | Reviewer | isseis |
-| Comments | 2026-10-28 (editorial): `/runplan` の PR-1 の実装で、3.2 の `SelectionStatus` を、`SendableSelection` と `BlockedSelection` の 2 つのインターフェースの共用体として示した。`PreparedRequest` はブランド型で、ESLint の規則（`eslint.config.js` の `brandSelectors`）が型エイリアスの中でのその参照を禁じるため、同じ判別共用体を名前のあるインターフェースで書く必要がある。型の意味と `buildCollectedView` の契約は変えていない。 |
+| Comments | 2026-10-28 (editorial): `/runplan` の PR-1 の実装で、3.2 の `SelectionStatus` を、`SendableSelection` と `BlockedSelection` の 2 つのインターフェースの共用体として示した。`PreparedRequest` はブランド型で、ESLint の規則（`eslint.config.js` の `brandSelectors`）が型エイリアスの中でのその参照を禁じるため、同じ判別共用体を名前のあるインターフェースで書く必要がある。型の意味と `buildCollectedView` の契約は変えていない。<br>2026-10-28（設計の変更、レビュアーの判断）: PR-1 のコードレビューの指摘を受けて、3.2 の `SelectionStatus`・`DescriptionStatus` から `state` をなくし、`kind` だけを持つ形にした。確認の状態は `kind` から一意に決まるので、`kind` から状態への対応を `selectionStates`・`descriptionStates` の 1 か所に置く。要件と、表示する ✓ と ⚠ は変えていない。 |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `f488112` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。拡張のファイルのパスは `extension/` を省いて書く（例: `src/launch.ts` は `extension/src/launch.ts`）。F-NNN・AC-NN は要件書の項番を指す。モックアップは、要件書が参照する issue #507 のモックアップを指す。要件のレビューで設計に申し送られた事項（[design_handoff.md](design_handoff.md) の H-01〜H-12）への対応は 3.11 にまとめる。
 
@@ -24,7 +24,7 @@
 ### 1.1. 設計原則
 
 -   **画面の内容を先に決め、そのあとで描く。** 経路の処理は、収集・動画メタデータの読み取り・本文の大きさの判定をすべて終えてから画面の内容を作り、`renderPopup` で骨格に描く。画面の内容ができる前は何も描かないので、表示した見出しと確認の状態は後で別の値に差し替わらない（AC-05）。
--   **状態と操作は画面の内容の型で宣言する。** 選択範囲の行・概要欄の行の理由（`SelectionStatus`・`DescriptionStatus`）は画面の内容の中に持ち、確認の状態（`CheckState`）は理由の型の各 `kind` にリテラル型で結び付ける。主ボタンを押せるかも、画面の内容だけで決まる。押せるのは、画面の内容が `collected` で、選択範囲の行の理由が `sendable` のときだけで、送るリクエスト（`PreparedRequest`）はその `sendable` の値の中にある。✓ と押せる主ボタンが同じ 1 つの値から決まるので、食い違わない。表示する文字列の中身を調べて状態を決めることはしない（`CLAUDE.md`「Declare, don't infer」「Enforce invariants with the type」、H-02）。
+-   **状態と操作は画面の内容の型で宣言する。** 選択範囲の行・概要欄の行の理由（`SelectionStatus`・`DescriptionStatus`）は画面の内容の中に持ち、確認の状態（`CheckState`）は理由の `kind` から、`Record` で書いた 1 つの対応で決める（3.2）。主ボタンを押せるかも、画面の内容だけで決まる。押せるのは、画面の内容が `collected` で、選択範囲の行の理由が `sendable` のときだけで、送るリクエスト（`PreparedRequest`）はその `sendable` の値の中にある。✓ と押せる主ボタンが同じ 1 つの値から決まるので、食い違わない。表示する文字列の中身を調べて状態を決めることはしない（`CLAUDE.md`「Declare, don't infer」「Enforce invariants with the type」、H-02）。
 -   **画面の内容を作る処理と、描く処理を分ける。** 画面の内容を作る関数（`buildCollectedView`）は DOM もブラウザの API も使わない純粋な関数で、状態・プレビュー・見出しの代替をすべてここで決める。`renderPopup` は画面の内容を骨格へ写すだけで、判断を持たない。判断のテストは DOM なしで書け、描く処理のテストは画面の内容を直接渡して書ける。
 -   **後続タスク #503 の状態（9 章）は、画面の内容の種類として加え、骨格の同じ入れ物に描く。** 画面の内容は `kind` で区別する判別共用体にし、#503 は種類（生成中・生成済み・失敗）を加える。収集に成功したときの 4 つの入れ物（動画のセクション・確認のセクション・操作のセクション・詳細）は変えず、#503 は確認のセクションに状態の表示を描き、操作のセクションの主ボタンを別の操作に変える（9 章、H-01）。
 -   **表示の安全の規則は変えない。** 値はすべて `textContent` で設定する。記号（✓・⚠）は、文字列を HTML として解釈せず、DOM の API（`createElementNS`）で作る SVG で描く。ESLint の、文字列を HTML として解釈する API の禁止（`eslint.config.js:7-15`）はそのまま適用される（AC-32・AC-34）。
@@ -277,14 +277,12 @@ export interface VideoView {
 /** The selection row's reason when the body can be sent. */
 export interface SendableSelection {
   readonly kind: "sendable";
-  readonly state: "ok";
   readonly request: PreparedRequest;
 }
 
 /** The selection row's reason when the body is over the limit. */
 export interface BlockedSelection {
   readonly kind: "blocked";
-  readonly state: "warning";
   readonly reason: PreflightReason;
 }
 
@@ -303,9 +301,17 @@ export interface SelectionCheck {
 
 /** Why the description row is ✓ or ⚠; declared, never inferred from text. */
 export type DescriptionStatus =
-  | { readonly kind: "full"; readonly state: "ok"; readonly characterCount: number }
-  | { readonly kind: "collapsed"; readonly state: "warning" }
-  | { readonly kind: "not-sent"; readonly state: "warning" };
+  | { readonly kind: "full"; readonly characterCount: number }
+  | { readonly kind: "collapsed" }
+  | { readonly kind: "not-sent" };
+
+/** The selection row's check state for each reason; the Record keeps it total. */
+export const selectionStates: Readonly<Record<SelectionStatus["kind"], CheckState>> =
+  { sendable: "ok", blocked: "warning" };
+
+/** The description row's check state for each reason; the Record keeps it total. */
+export const descriptionStates: Readonly<Record<DescriptionStatus["kind"], CheckState>> =
+  { full: "ok", collapsed: "warning", "not-sent": "warning" };
 
 export interface DescriptionCheck {
   readonly status: DescriptionStatus;
@@ -342,7 +348,7 @@ export function buildCollectedView(
 -   **見出し（AC-02・AC-03）:** 動画タイトルを送るとき（`metadata.values.title` があるとき）は動画タイトルを、送らないときはタブのタイトルを見出しにする。表示の上限は今と同じで、動画タイトルは 200 コードポイント（`metadataDisplayLimit`、`src/ui/render.ts:121`。`popupView.ts` へ移す）、タブのタイトルは 1000 コードポイントである。チャンネル名は、`metadata.values.channelName` があるときだけ持ち、200 コードポイントで切り詰める。見出しとチャンネル名の表示の行数は、どちらも 3.4 のとおり 2 行に制限する。
 -   **選択範囲の行（AC-07・AC-08・AC-10・AC-11）:** `prepared` が `ready` なら `sendable`（そのリクエストを持つ）、`blocked` なら `blocked`（その理由を持つ）とする。主ボタンを押せるのは `sendable` のときだけである（3.3）。
 -   **概要欄の行（AC-12〜AC-14）:** `metadata.values.description` がなければ `not-sent`、あって `metadata.showExpandPrompt` が真なら `collapsed`、それ以外は `full` とし、`full` のときだけ文字数（コードポイントの数）を持つ。`showExpandPrompt` は「概要欄が折りたたまれ、かつ受理した概要欄がある」ときに真になる（`src/core/metadata.ts:188-189`）。概要欄の文章そのものは画面の内容に入れない（AC-15）。
--   **確認の状態（AC-07・AC-11〜AC-14・AC-16）:** 理由の型の各 `kind` に、確認の状態をリテラル型で結び付ける。`sendable` と `full` は `ok`、`blocked`・`collapsed`・`not-sent` は `warning` である。`sendable` なのに `warning`、`blocked` なのに `ok` という値は型の検査を通らないので、記号を描く `renderPopup` と主ボタンを押せるようにする `runPopupSend` は、同じ理由の値から食い違わない判断を得る。
+-   **確認の状態（AC-07・AC-11〜AC-14・AC-16）:** 理由の型は `kind` だけを持ち、確認の状態は持たない。状態は `kind` から一意に決まるので、`kind` と並べて持つと同じことを 2 か所に書くことになる。`kind` から状態への対応は `selectionStates`・`descriptionStates` の 1 か所に置く。`sendable` と `full` は `ok`、`blocked`・`collapsed`・`not-sent` は `warning` である。どちらも `Record<…["kind"], CheckState>` なので、理由を加えて対応を書き忘れると型の検査を通らない。記号を描く `renderPopup` はこの対応から状態を得て、主ボタンを押せるようにする `runPopupSend` は `kind` が `sendable` かどうかで決める。どちらも同じ理由の値から判断するので、食い違わない。
 -   **詳細（AC-06）:** URL とタブのタイトルを、今と同じ 1000 コードポイントの上限で持つ。
 
 ### 3.3. 経路の処理（F-004・AC-05・AC-11・AC-13・AC-14・AC-17〜AC-21・AC-24、H-05）

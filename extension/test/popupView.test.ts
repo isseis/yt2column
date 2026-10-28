@@ -133,7 +133,6 @@ describe("buildCollectedView", () => {
       const view = buildCollectedView(input, metadata, prepared);
       assert.deepEqual(view.selection.status, {
         kind: "blocked",
-        state: "warning",
         reason: "body-too-large",
       });
     });
@@ -214,7 +213,6 @@ describe("buildCollectedView", () => {
       );
       assert.deepEqual(view.description.status, {
         kind: "full",
-        state: "ok",
         characterCount: 3,
       });
     });
@@ -226,7 +224,6 @@ describe("buildCollectedView", () => {
       );
       assert.deepEqual(view.description.status, {
         kind: "collapsed",
-        state: "warning",
       });
     });
 
@@ -237,7 +234,6 @@ describe("buildCollectedView", () => {
       );
       assert.deepEqual(view.description.status, {
         kind: "not-sent",
-        state: "warning",
       });
     });
   });

@@ -8,11 +8,12 @@ import type {
 import {
   countCharacters,
   countLines,
+  lineBreak,
   truncate,
   truncateTail,
 } from "./summary.ts";
 import type { DisplayText } from "./summary.ts";
-import type { RejectionReason } from "./types.ts";
+import type { CheckState, RejectionReason } from "./types.ts";
 
 /** The display limit for one metadata value, in code points. */
 export const metadataDisplayLimit = 200;
@@ -25,9 +26,6 @@ const urlLimit = 1000;
 
 /** The length of each selection preview, in code points. */
 const previewLimit = 100;
-
-/** Matches one line break written as \r\n, \r or \n. */
-const lineBreak = /\r\n|\r|\n/g;
 
 /** Shows every line break as one space; used only after the text is cut. */
 function withoutLineBreaks(text: string): string {
@@ -44,14 +42,12 @@ export interface VideoView {
 /** The selection row's reason when the body can be sent. */
 export interface SendableSelection {
   readonly kind: "sendable";
-  readonly state: "ok";
   readonly request: PreparedRequest;
 }
 
 /** The selection row's reason when the body is over the limit. */
 export interface BlockedSelection {
   readonly kind: "blocked";
-  readonly state: "warning";
   readonly reason: PreflightReason;
 }
 
@@ -70,13 +66,19 @@ export interface SelectionCheck {
 
 /** Why the description row is OK or wants attention; declared, never inferred from text. */
 export type DescriptionStatus =
-  | {
-      readonly kind: "full";
-      readonly state: "ok";
-      readonly characterCount: number;
-    }
-  | { readonly kind: "collapsed"; readonly state: "warning" }
-  | { readonly kind: "not-sent"; readonly state: "warning" };
+  | { readonly kind: "full"; readonly characterCount: number }
+  | { readonly kind: "collapsed" }
+  | { readonly kind: "not-sent" };
+
+/** The selection row's check state for each reason; the Record keeps it total. */
+export const selectionStates: Readonly<
+  Record<SelectionStatus["kind"], CheckState>
+> = { sendable: "ok", blocked: "warning" };
+
+/** The description row's check state for each reason; the Record keeps it total. */
+export const descriptionStates: Readonly<
+  Record<DescriptionStatus["kind"], CheckState>
+> = { full: "ok", collapsed: "warning", "not-sent": "warning" };
 
 export interface DescriptionCheck {
   readonly status: DescriptionStatus;
@@ -115,8 +117,8 @@ export function buildCollectedView(
 ): CollectedView {
   const status: SelectionStatus =
     prepared.kind === "ready"
-      ? { kind: "sendable", state: "ok", request: prepared.request }
-      : { kind: "blocked", state: "warning", reason: prepared.reason };
+      ? { kind: "sendable", request: prepared.request }
+      : { kind: "blocked", reason: prepared.reason };
   const description = metadata.values.description;
   return {
     kind: "collected",
@@ -177,14 +179,10 @@ function descriptionStatus(
   collapsed: boolean,
 ): DescriptionStatus {
   if (description === undefined) {
-    return { kind: "not-sent", state: "warning" };
+    return { kind: "not-sent" };
   }
   if (collapsed) {
-    return { kind: "collapsed", state: "warning" };
+    return { kind: "collapsed" };
   }
-  return {
-    kind: "full",
-    state: "ok",
-    characterCount: countCharacters(description),
-  };
+  return { kind: "full", characterCount: countCharacters(description) };
 }
