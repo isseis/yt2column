@@ -60,6 +60,9 @@ type verdictCase struct {
 	wantStderrHas []string
 	// wantStderrLacks are strings standard error must not contain.
 	wantStderrLacks []string
+	// wantStderrEmpty requires standard error to be empty, which is what a
+	// successful run prints: nothing on either stream.
+	wantStderrEmpty bool
 	// wantStubRan is whether the stub must have been executed.
 	wantStubRan bool
 	// wantTempFiles is how many temporary files the recipe must create.
@@ -74,11 +77,12 @@ func verdictCases() []verdictCase {
 	const buildError = "deadcode: cannot load packages: build failed\n"
 	return []verdictCase{
 		{
-			name:          "no_report",
-			status:        0,
-			wantSuccess:   true,
-			wantStubRan:   true,
-			wantTempFiles: 2,
+			name:            "no_report",
+			status:          0,
+			wantSuccess:     true,
+			wantStderrEmpty: true,
+			wantStubRan:     true,
+			wantTempFiles:   2,
 		},
 		{
 			name:          "unreachable_report",
@@ -101,6 +105,15 @@ func verdictCases() []verdictCase {
 			name:          "exit_status_only",
 			status:        1,
 			wantStderrHas: []string{deadcodeExitReason},
+			wantStubRan:   true,
+			wantTempFiles: 2,
+		},
+		{
+			// Another status, so the reason's number comes from the command
+			// rather than from a literal 1 in the recipe.
+			name:          "exit_status_other",
+			status:        7,
+			wantStderrHas: []string{"Error: deadcode failed with exit status 7"},
 			wantStubRan:   true,
 			wantTempFiles: 2,
 		},
@@ -231,6 +244,9 @@ func TestMakeDeadcodeVerdict(t *testing.T) {
 			if got := stdout.String(); got != tc.wantStdout {
 				t.Errorf("make stdout = %q, want %q", got, tc.wantStdout)
 			}
+			if tc.wantStderrEmpty && stderr.Len() != 0 {
+				t.Errorf("make stderr = %q, want it empty on success", stderr.String())
+			}
 			for _, want := range tc.wantStderrHas {
 				if !strings.Contains(stderr.String(), want) {
 					t.Errorf("make stderr does not contain %q; stderr:\n%s", want, stderr.String())
@@ -261,6 +277,53 @@ func TestMakeDeadcodeVerdict(t *testing.T) {
 			}
 		})
 	}
+
+	// The not-found message names DEADCODECMD's value, not the default command
+	// name: the value may be a path, spaces included.
+	t.Run("deadcode_not_found_named_value", func(t *testing.T) {
+		missing := filepath.Join(t.TempDir(), "absent dir", "deadcode")
+		cmd := exec.Command(makePath, "deadcode", "DEADCODECMD="+missing)
+		cmd.Dir = repositoryRoot
+		cmd.Env = envWithPath(os.Getenv("PATH"))
+		got := runDeadcodeCommand(t, cmd)
+		want := "Error: " + missing + " is required but not found\n" +
+			"Please install deadcode: go install golang.org/x/tools/cmd/deadcode@latest\n"
+		if got.err == nil || string(got.stdout) != want {
+			t.Fatalf("make error = %v, stdout = %q, want %q; stderr:\n%s",
+				got.err, got.stdout, want, got.stderr)
+		}
+	})
+
+	// DEADCODECMD is assigned with `=`, so a value in the environment cannot
+	// silently replace the command: only the command line can. A failing stub
+	// in the environment must be ignored in favour of the passing command on
+	// PATH.
+	t.Run("environment_does_not_replace_the_command", func(t *testing.T) {
+		dir := t.TempDir()
+		passing := writeDeadcodeStub(t, filepath.Join(dir, "passing stub"), "", "", 0)
+		failing := writeDeadcodeStub(t, filepath.Join(dir, "failing stub"), "", "", 1)
+		bin := filepath.Join(dir, "bin")
+		if err := os.MkdirAll(bin, 0o755); err != nil {
+			t.Fatalf("create the PATH directory: %v", err)
+		}
+		if err := os.Symlink(passing.path, filepath.Join(bin, "deadcode")); err != nil {
+			t.Fatalf("link the passing stub as deadcode: %v", err)
+		}
+		cmd := exec.Command(makePath, "deadcode")
+		cmd.Dir = repositoryRoot
+		cmd.Env = append(envWithPath(bin+string(os.PathListSeparator)+os.Getenv("PATH")), "DEADCODECMD="+failing.path)
+		got := runDeadcodeCommand(t, cmd)
+		if got.err != nil || len(got.stdout) != 0 || len(got.stderr) != 0 {
+			t.Fatalf("make deadcode did not ignore the environment's DEADCODECMD and succeed with the command on PATH:\n%s", got.output())
+		}
+		if _, ran := readStubArgs(failing.argsPath); ran {
+			t.Error("the recipe ran the command the environment named")
+		}
+		args, ran := readStubArgs(passing.argsPath)
+		if !ran || !slices.Equal(args, deadcodeArgs) {
+			t.Errorf("the command on PATH recorded %q (ran %t), want %q", args, ran, deadcodeArgs)
+		}
+	})
 }
 
 // deadcodeStub is the fake deadcode command: a shell script that records its
@@ -599,12 +662,17 @@ func runDeadcodeCommand(t *testing.T, cmd *exec.Cmd) deadcodeRun {
 // second main package, another package's test, its own package's test, or an
 // integration test. A report about one therefore names the root the target
 // failed to count. The isolation subtests first confirm that claim by excluding
-// that root from a direct deadcode run: without that, "not reported" would say
-// nothing, because every root would reach the function.
+// that root from a direct deadcode run: without that, a function another root
+// also reached would stay silent, and the silence would not show that the
+// target counted this root.
+//
+// A test result is cached on the files this process opened and the environment,
+// so installing or upgrading the deadcode command can leave a cached SKIP or
+// PASS behind: rerun with -count=1 after either.
 func TestMakeDeadcodeScope(t *testing.T) {
 	deadcodePath, err := exec.LookPath("deadcode")
 	if err != nil {
-		t.Skip("the deadcode command is not on PATH; install it with go install golang.org/x/tools/cmd/deadcode@latest")
+		t.Skip("the deadcode command is not on PATH; install it with go install golang.org/x/tools/cmd/deadcode@latest, then rerun with -count=1")
 	}
 	// Read the Makefile from this process so editing it alone cannot leave a
 	// cached PASS behind.
@@ -630,6 +698,13 @@ func TestMakeDeadcodeScope(t *testing.T) {
 		makefile: makefile,
 	}
 
+	// The fixture as written must be silent: nothing is reported, so all four
+	// functions its roots reach are counted as reachable. OnlySrv is reached
+	// from cmd/srv, Helper from another package's test, OnlyTest from its own
+	// package's test, and OnlyIntegration from an integration test. The
+	// isolation subtests below show each root is the only one reaching its
+	// function, so one run covers all four; a report names the function, and
+	// the failure message prints it.
 	t.Run("silent_success", func(t *testing.T) {
 		root := writeDeadcodeFixture(t, nil)
 		got := scope.runTarget(t, root)
@@ -637,7 +712,7 @@ func TestMakeDeadcodeScope(t *testing.T) {
 			t.Fatalf("make deadcode failed on the fixture as written (%s):\n%s", scope.note(), got.output())
 		}
 		if len(got.stdout) != 0 || len(got.stderr) != 0 {
-			t.Fatalf("make deadcode printed on the fixture as written; success must be silent (%s):\n%s", scope.note(), got.output())
+			t.Fatalf("make deadcode printed on the fixture as written; success must be silent, so a function the fixture reaches was reported (%s):\n%s", scope.note(), got.output())
 		}
 	})
 
@@ -696,22 +771,6 @@ func TestMakeDeadcodeScope(t *testing.T) {
 		}
 	})
 
-	t.Run("reachable", func(t *testing.T) {
-		// One subtest per function, each on its own copy of the fixture, so a
-		// failure names the function and its root. The isolation subtests above
-		// are what make the silent success meaningful.
-		for _, function := range []string{"OnlySrv", "Helper", "OnlyTest", "OnlyIntegration"} {
-			t.Run(function, func(t *testing.T) {
-				root := writeDeadcodeFixture(t, nil)
-				got := scope.runTarget(t, root)
-				if got.err != nil || len(got.stdout) != 0 || len(got.stderr) != 0 {
-					t.Fatalf("make deadcode reported %s, which the fixture reaches from its documented root (%s):\n%s",
-						function, scope.note(), got.output())
-				}
-			})
-		}
-	})
-
 	t.Run("reported", func(t *testing.T) {
 		for _, tc := range []struct {
 			name     string
@@ -746,6 +805,16 @@ func TestMakeDeadcodeScope(t *testing.T) {
 				content:  "//go:build integration\n\npackage lib\n\nfunc UnusedIntegration() {}\n",
 				line:     5,
 				function: "UnusedIntegration",
+			},
+			{
+				// A function in a package outside the entry points and apart
+				// from the packages they import, so a narrowed package list
+				// that still covers the CLI is caught.
+				name:     "package_outside_the_entry_points",
+				file:     "internal/other/unused.go",
+				content:  "package other\n\nfunc UnusedInOther() {}\n",
+				line:     3,
+				function: "UnusedInOther",
 			},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
@@ -799,13 +868,17 @@ func writeDeadcodeFixture(t *testing.T, extra map[string]string) string {
 }
 
 // deadcodeModuleVersion returns the module and version the deadcode command was
-// built from, as go version -m reports them.
+// built from, as go version -m reports them. The version is a diagnostic for a
+// failure that may come from a different deadcode version, not a premise of the
+// test, so a command that reports none (a wrapper script, or a binary built
+// without build info) yields a message instead of failing the test.
 func deadcodeModuleVersion(t *testing.T, path string) string {
 	t.Helper()
 	cmd := exec.Command("go", "version", "-m", path)
+	cmd.Env = envWithPath(os.Getenv("PATH"))
 	out, err := cmd.Output()
 	if err != nil {
-		t.Fatalf("go version -m %s: %v", path, err)
+		return fmt.Sprintf("%s: go version -m failed (%v)", path, err)
 	}
 	for line := range strings.Lines(string(out)) {
 		fields := strings.Fields(line)
@@ -813,6 +886,5 @@ func deadcodeModuleVersion(t *testing.T, path string) string {
 			return fields[1] + " " + fields[2]
 		}
 	}
-	t.Fatalf("go version -m %s printed no module line:\n%s", path, out)
-	return ""
+	return fmt.Sprintf("%s: go version -m printed no module line", path)
 }

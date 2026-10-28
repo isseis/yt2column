@@ -115,9 +115,9 @@ Work in order.
   method").
 
 6. Run `make deadcode`. Remove functions made unreachable by this phase group,
-   and leave the target passing: intentional scaffolding for future phases or
-   tasks must be reachable from a test, and scaffolding that no test reaches
-   waits for the PR that uses it. If changes were made, run
+   and re-run it until it passes: intentional scaffolding for future phases or
+   tasks must be reachable from a test, and do not add scaffolding that no test
+   reaches until the PR that uses it. If changes were made, run
    `make fmt && make test && make lint` and commit.
 
 6.5. Run programmatic pre-checks on the changed Go files before spawning the review agent. These checks are deterministic and cheaper than AI review — catch them here rather than in the review loop.

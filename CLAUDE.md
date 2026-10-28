@@ -77,8 +77,8 @@ structural consistency) and the glossary workflow live in
 ### Code Quality
 - `make lint` - Run golangci-lint (version pinned in `Makefile`; includes `govet`)
 - `make fmt` - Format changed Go files with gofumpt (`make fmt-all` for every file)
-- `make deadcode` - Report unreachable functions across the whole module and
-  its tests (`test` and `integration` tags); fail when anything is reported
+- `make deadcode` - Report unreachable functions across the whole module and its
+  tests (`test` and `integration` tags); any output or non-zero exit status fails
 
 ### Claude Commands (`.claude/commands/`)
 Project-specific values these commands depend on are defined once in
