@@ -127,8 +127,8 @@
 
 **変えるファイル**: `CLAUDE.md`、`.claude/commands/runplan.md`
 
-- [ ] `CLAUDE.md:80` の `` - `make deadcode` - Report unreachable functions `` を、次の 2 点を述べる 1 項目に書き換える（AC-14）。解析の範囲（モジュール全体と、そのテスト。ビルドタグ `test`・`integration`）と、報告が 1 件以上あれば失敗すること。ほかの項目と同じく英語で、1〜2 行に収める。
-- [ ] `.claude/commands/runplan.md:117` の step 6 を、次の 2 点を加えて書き換える（AC-15）。`make deadcode` が通ること。意図した足場を残すなら、テストから届くようにすること。テストから届かない足場は、使う PR まで加えないこと。このフェーズ群で到達できなくなった関数を削除することと、変えたら `make fmt && make test && make lint` を実行してコミットすることは残す。
+- [x] `CLAUDE.md:80` の `` - `make deadcode` - Report unreachable functions `` を、次の 2 点を述べる 1 項目に書き換える（AC-14）。解析の範囲（モジュール全体と、そのテスト。ビルドタグ `test`・`integration`）と、報告が 1 件以上あれば失敗すること。ほかの項目と同じく英語で、1〜2 行に収める。
+- [x] `.claude/commands/runplan.md:117` の step 6 を、次の 2 点を加えて書き換える（AC-15）。`make deadcode` が通ること。意図した足場を残すなら、テストから届くようにすること。テストから届かない足場は、使う PR まで加えないこと。このフェーズ群で到達できなくなった関数を削除することと、変えたら `make fmt && make test && make lint` を実行してコミットすることは残す。
 
 **完了の条件**: `make test` が通る（`CLAUDE.md` を読むガードを含む）。
 
