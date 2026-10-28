@@ -408,10 +408,15 @@ func TestRelayResponseOverLimit(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			body := bytes.Repeat([]byte("r"), tt.size)
-			path, _ := recordingServer(t, body)
+			path, got := recordingServer(t, body)
 			// A status request, whose response carries the largest article.
+			// At the limit, the reply must also fit the browser's message
+			// limit: encodeReply would turn a larger one into protocol_error.
 			msg := []byte(`{"v":1,"op":"status","key":"` + testKey + `"}`)
 			members := runRelay(message(msg), SocketDialer(path), testTimeout).reply(t)
+			if req := got(); req.method != http.MethodGet || req.requestURI != "/jobs/"+testKey {
+				t.Errorf("request line = %s %s, want the status request", req.method, req.requestURI)
+			}
 			if tt.over {
 				requireError(t, members, HostErrorProtocol)
 			} else {

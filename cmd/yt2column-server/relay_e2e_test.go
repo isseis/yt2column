@@ -322,15 +322,12 @@ func requireJobReply(t *testing.T, reply hostReply, want int) jobResponse {
 
 // TestStatusResponseFitsRelay checks that the host relays every status
 // response whole: the server's status response limit is within the host's
-// response limit, and the host's reply for a response at its limit fits the
-// browser's message limit.
+// response limit. That the host's reply at its own limit fits the browser's
+// message limit is internal/nmhost's TestRelayResponseOverLimit.
 func TestStatusResponseFitsRelay(t *testing.T) {
 	if server.MaxStatusResponseBytesForTest > nmhost.MaxResponseBytesForTest {
 		t.Errorf("the server's status response limit %d exceeds the host's response limit %d",
 			server.MaxStatusResponseBytesForTest, nmhost.MaxResponseBytesForTest)
-	}
-	if reply, limit := nmhost.LargestReplyForTest(t); reply > limit {
-		t.Errorf("the host's largest reply is %d bytes, over the browser's message limit of %d", reply, limit)
 	}
 }
 
