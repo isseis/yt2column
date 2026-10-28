@@ -90,8 +90,8 @@ The only translation pair is `README.md` (Japanese, primary) → `README.en.md`
 which carries the change into `README.en.md`. When `README.en.md` does not
 exist yet, `/mktrans` run by itself makes a full translation (and stops when
 `README.md` is not in Japanese), while the sub-step another command runs does
-nothing. The first line of `README.en.md` is a sync marker naming the blob of the `README.md` content it was translated from;
-`/mktrans` translates the difference between that blob and the current
+nothing. The first line of `README.en.md` is a sync marker naming the blob of
+the `README.md` content it was translated from; `/mktrans` translates the difference between that blob and the current
 `README.md` and then updates the marker. `/runplan`, `/fixpr`, and `/runpr` run
 this sync themselves before they push a change to `README.md`. `/mktrans` stops
 and asks on any other file. The translation principles (accuracy over fluency,
@@ -105,8 +105,8 @@ faithful translation, structural consistency) and the glossary workflow live in
   explanation of test results, tool output, and review findings.
 - **Code and commit messages in the git repository: English** — source code,
   comments, identifiers, string literals (with the literal exceptions in "Go
-  Idioms"), and commit messages. A squash commit's subject
-  and body are English too: `/mergepr` writes the subject from the PR material
+  Idioms"), and commit messages. A squash commit's subject and body are
+  English too: `/mergepr` writes the subject from the PR material
   (`.claude/commands/mergepr.md` step 2), not by copying the PR title.
   Documents in the repository (under `docs/`, the README, and the instruction
   files) follow "Document language" above.
