@@ -658,13 +658,13 @@ func runDeadcodeCommand(t *testing.T, cmd *exec.Cmd) deadcodeRun {
 // it skips where that is not on PATH (CI does not install it); the environment
 // check is the PATH lookup alone.
 //
-// Each function in the fixture is reachable from exactly one kind of root: a
-// second main package, another package's test, its own package's test, or an
-// integration test. A report about one therefore names the root the target
-// failed to count. The isolation subtests first confirm that claim by excluding
-// that root from a direct deadcode run: without that, a function another root
-// also reached would stay silent, and the silence would not show that the
-// target counted this root.
+// Each function in the fixture is reachable from exactly one root: the CLI main
+// package, a second main package, another package's test, its own package's
+// test, or an integration test. A report about one therefore names the root the
+// target failed to count. The isolation subtests first confirm that claim by
+// excluding that root from a direct deadcode run: without that, a function
+// another root also reached would stay silent, and the silence would not show
+// that the target counted this root.
 //
 // A test result is cached on the files this process opened and the environment,
 // so installing or upgrading the deadcode command can leave a cached SKIP or
