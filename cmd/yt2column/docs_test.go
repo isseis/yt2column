@@ -1120,12 +1120,7 @@ func TestReadmeLinks(t *testing.T) {
 	readme := readDoc(t, readmePath)
 	anchors := headingAnchors(t, "README.md", readme)
 	targets := markdownLinkTargets(readme)
-	openers := 0
-	for _, line := range scanDocLines(slices.Collect(strings.Lines(readme))) {
-		if !line.block {
-			openers += strings.Count(line.text, "](")
-		}
-	}
+	openers := linkOpenerCount(readme)
 	if len(targets) != openers {
 		t.Errorf("README has %d link openers outside code blocks but the extraction found %d targets; a link form it drops would go unchecked", openers, len(targets))
 	}

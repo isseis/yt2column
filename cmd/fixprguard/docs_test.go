@@ -31,9 +31,14 @@ func readRepoFile(t *testing.T, rel string) string {
 	return string(data)
 }
 
-// TestGuidePathExists: the guide the parse diagnostic points at exists, so a
-// user who sees the diagnostic can open it.
+// TestGuidePathExists: the parse diagnostic points at the guide in
+// docs/dev/guides, and that file exists, so a user who sees the diagnostic
+// can open it.
 func TestGuidePathExists(t *testing.T) {
+	const want = "docs/dev/guides/fixprguard_guide.md"
+	if guidePath != want {
+		t.Errorf("guidePath = %q, want %q", guidePath, want)
+	}
 	if _, err := os.Stat(filepath.Join(repoRoot, guidePath)); err != nil {
 		t.Errorf("guidePath %q does not exist: %v", guidePath, err)
 	}

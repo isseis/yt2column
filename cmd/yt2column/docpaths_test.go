@@ -42,8 +42,12 @@ func docPathRefs(doc string) []docRef {
 		if line.block {
 			continue
 		}
-		for _, match := range markdownLinkRE.FindAllStringSubmatch(line.text, -1) {
-			target := match[2]
+		spans := codeSpanRE.FindAllStringSubmatchIndex(line.text, -1)
+		for _, match := range markdownLinkRE.FindAllStringSubmatchIndex(line.text, -1) {
+			if inCodeSpan(spans, match[0]) {
+				continue
+			}
+			target := line.text[match[4]:match[5]]
 			if !isRelativeLinkTarget(target) {
 				continue
 			}
@@ -72,6 +76,30 @@ func isRelativeLinkTarget(target string) bool {
 		return false
 	}
 	return true
+}
+
+// inCodeSpan reports whether offset lies inside one of spans, the index
+// pairs FindAllStringSubmatchIndex returns for the code spans of a line.
+func inCodeSpan(spans [][]int, offset int) bool {
+	for _, span := range spans {
+		if offset >= span[0] && offset < span[1] {
+			return true
+		}
+	}
+	return false
+}
+
+// linkOpenerCount returns how many Markdown link openers doc has outside
+// fenced code blocks. A link form the extraction drops would leave the count
+// above the number of targets it found.
+func linkOpenerCount(doc string) int {
+	openers := 0
+	for _, line := range scanDocLines(slices.Collect(strings.Lines(doc))) {
+		if !line.block {
+			openers += strings.Count(line.text, "](")
+		}
+	}
+	return openers
 }
 
 // inlineCodeSpans returns the contents of the inline code spans of line.
@@ -125,12 +153,7 @@ func TestInstructionDocPaths(t *testing.T) {
 			path := filepath.Join(docRepoRoot, rel)
 			doc := readDoc(t, path)
 			targets := markdownLinkTargets(doc)
-			openers := 0
-			for _, line := range scanDocLines(slices.Collect(strings.Lines(doc))) {
-				if !line.block {
-					openers += strings.Count(line.text, "](")
-				}
-			}
+			openers := linkOpenerCount(doc)
 			if len(targets) != openers {
 				t.Errorf("%s has %d link openers outside code blocks but the extraction found %d targets; a link form it drops would go unchecked", rel, openers, len(targets))
 			}
@@ -164,13 +187,14 @@ func TestDocPathRefs(t *testing.T) {
 		"[d](mailto:someone@example.com)",
 		"[e](#section)",
 		"[f](<url>)",
-		"[g](docs/dev/production_profile.md)",
+		"`[g](docs/dev/missing.md)` is an example, not a link",
+		"[h](docs/dev/production_profile.md)",
 		"`docs/dev/security.md`",
 		"`docs/dev/conventions/requirements_process.md:12`",
 		"`docs/dev/guides/cli.md:3-5`",
 		"`docs/dev/`",
 		"```text",
-		"[h](docs/dev/missing.md)",
+		"[i](docs/dev/missing.md)",
 		"`docs/dev/missing.md`",
 		"```",
 	}, "\n")

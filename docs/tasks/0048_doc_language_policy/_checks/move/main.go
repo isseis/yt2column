@@ -1,4 +1,4 @@
-// Command _checks verifies the move of docs/dev/developer_guide into
+// Command move verifies the move of docs/dev/developer_guide into
 // docs/dev/conventions and docs/dev/guides. It compares the merge-base of
 // origin/main and HEAD with HEAD and prints one result per check, with the
 // line of each difference that does not hold:
@@ -6,7 +6,7 @@
 //   - the five convention documents are byte for byte the documents they were
 //     moved from;
 //   - the two Japanese guides are the documents they were renamed from, with
-//     the lines that differ listed for review, and no .ja.md file is left;
+//     no line that differs and no .ja.md file left;
 //   - docs/dev/developer_guide no longer exists;
 //   - no reference to one of the moved files by its old path remains outside
 //     this task's documents;
@@ -20,6 +20,10 @@
 // Run it once on the PR branch:
 //
 //	go run ./docs/tasks/0048_doc_language_policy/_checks/move/
+//
+// The Markdown scanning helpers are copies of the ones in
+// cmd/yt2column/docs_test.go; a later phase moves both to a test-only package
+// and this one-shot program is not maintained after the merge.
 //
 // make test and CI do not run it. It reads no environment variable and names
 // no secret: the directory starts with an underscore, which keeps it out of
@@ -153,9 +157,9 @@ func gitOutput(args ...string) (string, error) {
 	return strings.TrimSuffix(string(out), "\n"), nil
 }
 
-// fileAt returns the content of path at rev.
-func fileAt(rev, path string) (string, error) {
-	return gitOutput("show", rev+":"+path)
+// fileAt returns the content of name at rev.
+func fileAt(rev, name string) (string, error) {
+	return gitOutput("show", rev+":"+name)
 }
 
 // listTree returns every file path of rev, sorted.
@@ -170,9 +174,9 @@ func listTree(rev string) ([]string, error) {
 	return strings.Split(out, "\n"), nil
 }
 
-// exists reports whether tree holds path.
-func exists(tree []string, path string) bool {
-	_, ok := slices.BinarySearch(tree, path)
+// exists reports whether tree holds name.
+func exists(tree []string, name string) bool {
+	_, ok := slices.BinarySearch(tree, name)
 	return ok
 }
 
@@ -212,9 +216,10 @@ func checkConventions(base string, tree []string) (notes, problems []string) {
 	return nil, problems
 }
 
-// checkGuides compares each renamed guide with the Japanese original. The
-// lines that differ are printed for review; the check fails only when the
-// guide is missing or a .ja.md file remains.
+// checkGuides compares each renamed guide with the Japanese original and fails
+// on any differing line, so a guide that is not the moved file cannot pass.
+// A later change that adds the English content or rewrites a README section
+// reference needs an explicit exception here.
 func checkGuides(base string, tree []string) (notes, problems []string) {
 	for _, name := range tree {
 		if strings.HasPrefix(name, guides+"/") && strings.HasSuffix(name, ".ja.md") {
@@ -237,12 +242,8 @@ func checkGuides(base string, tree []string) (notes, problems []string) {
 			problems = append(problems, err.Error())
 			continue
 		}
-		diffs := diffLines(rewritePaths(before), rewritePaths(after))
-		for _, line := range diffs {
-			notes = append(notes, fmt.Sprintf("%s: %s", newPath, line))
-		}
-		if len(diffs) > 0 {
-			notes = append(notes, fmt.Sprintf("%s: %d differing line(s), read them as the guide comparison", newPath, len(diffs)))
+		for _, line := range diffLines(rewritePaths(before), rewritePaths(after)) {
+			problems = append(problems, fmt.Sprintf("%s: %s", newPath, line))
 		}
 	}
 	return notes, problems
@@ -284,7 +285,7 @@ func checkNoOldPaths(base string, tree []string) (notes, problems []string) {
 // and compares the result with the file at HEAD. A difference left after the
 // rewrites is a change beyond a path.
 func checkPastTasks(base string, tree []string) (notes, problems []string) {
-	out, err := gitOutput("diff", "--name-only", "--diff-filter=d", base, "HEAD", "--", "docs/tasks")
+	out, err := gitOutput("diff", "--name-only", base, "HEAD", "--", "docs/tasks")
 	if err != nil {
 		return nil, []string{fmt.Sprintf("git diff: %v", err)}
 	}
@@ -439,8 +440,8 @@ func structure(doc string) (levels []int, blocks []string, code []string) {
 	return levels, blocks, code
 }
 
-// normalizeBlocks strips link targets from the code blocks so a link whose
-// path changed is not a difference.
+// normalizeBlocks keeps only the text of each link in the code blocks, so a
+// link whose path changed is not a difference.
 func normalizeBlocks(blocks []string) []string {
 	normalized := make([]string, 0, len(blocks))
 	for _, block := range blocks {
@@ -468,9 +469,9 @@ func relativeLinkTargets(doc string) []string {
 				strings.Contains(target, "://"):
 				continue
 			}
-			path, _, _ := strings.Cut(target, "#")
-			if path != "" {
-				targets = append(targets, path)
+			file, _, _ := strings.Cut(target, "#")
+			if file != "" {
+				targets = append(targets, file)
 			}
 		}
 	}

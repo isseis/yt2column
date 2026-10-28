@@ -177,9 +177,9 @@ yt2column の実行時の振る舞いは変えない（要件書 4.1・4.3）。
 
 **変更するファイル:** なし（PR の本文）
 
--   [x] PR-1 の本文に、マージの後に `make install-fixprguard` で入れ直す必要があること（AC-18。入れ直すまでは、インストール済みの `fixprguard` が旧パスを示す）を書く。
--   [x] 開いている PR（0046 の PR-3・PR-4、0049 の PR など）は、`main` を取り込んで旧パスを直す必要があることを書く（設計書 8 章）。
--   [x] ステップ 1-6 の AC-09 の一覧に出た差分の行を、PR のレビューで読む行として挙げる。
+-   [ ] PR-1 の本文に、マージの後に `make install-fixprguard` で入れ直す必要があること（AC-18。入れ直すまでは、インストール済みの `fixprguard` が旧パスを示す）を書く。
+-   [ ] 開いている PR（0046 の PR-3・PR-4、0049 の PR など）は、`main` を取り込んで旧パスを直す必要があることを書く（設計書 8 章）。
+-   [ ] ステップ 1-6 の AC-09 の一覧に出た差分の行を、PR のレビューで読む行として挙げる。
 
 **完了の条件:** PR-1 の本文に 3 つの記述がある。
 
@@ -724,9 +724,9 @@ N/A（設計書 7.2）。
 - 節の対応: どちらの組も見出しが 1 対 1 で対応する（`mergepr_guide` は 18、`fixprguard_guide` は 28）。節ごとの段落、箇条書きの項目、表の行、コードブロックの数も一致した。
 - 英語版にだけあった記述: ない。そのため、日本語版に加えた記述はない。
 - `mergepr_guide` の 1 行の差: 英語版は `prepare [PR]` の手順 4 の続きの 3 文を別々の段落にしているが、日本語版は字下げした続きの行にしている。内容は同じで、`_checks/move` の差分の一覧にも現れない。
-- 残した記述: `fixprguard_guide.md` の最後の箇条書きは、ガードテストが「本書（日英）」を確かめると述べている。英語版の手引きを消した後は古い記述になるが、AC-09 はこの PR で日本語の手引きの文言を変えることを許していないため、そのままにした。PR の本文でレビュアーに判断を求める。
+- 残した記述: `fixprguard_guide.md` の最後の箇条書きは、ガードテストが「本書（日英）」を確かめると述べている。英語版の手引きを消した後は古い記述になるが、AC-09 はこの PR で日本語の手引きの文言を変えることを許していないため、そのままにした。この行は `.ja.md` の版と同一なので、`_checks/move` の差分の一覧には現れない。PR の本文でレビュアーに判断を求める。
 
-**差分の検査の実行の記録:** PR-1 で 2026-10-29 に、リポジトリのルートで `go run ./docs/tasks/0048_doc_language_policy/_checks/move/` を実行した。merge-base は `234da9bd3c73a9520f234c8c2784ebe632477034`、PR の先頭は `20456dbbb51ce0fa21cae49f2025cd7679228012`、終了コードは 0 である。
+**差分の検査の実行の記録:** PR-1 で 2026-10-29 に、リポジトリのルートで `go run ./docs/tasks/0048_doc_language_policy/_checks/move/` を実行した。merge-base は `234da9bd3c73a9520f234c8c2784ebe632477034`、実行した時点の HEAD は `20456dbbb51ce0fa21cae49f2025cd7679228012`、終了コードは 0 である。
 
 ```text
 merge-base 234da9bd3c73a9520f234c8c2784ebe632477034
@@ -762,7 +762,7 @@ OK   translations keep the structure
 `make lint`・`make test` では見つからない残りを確かめる。
 
 -   [ ] 1.5 の旧い補助関数の名前（小文字の `readDoc` など）が、`cmd/yt2column`・`cmd/yt2column-server` のコメントに残っていない（PR-3）。
--   [ ] `docs/translation_glossary.md` の訳語と、`cli.md`・`development.md`・`README.md`・`README.en.md` の用語が一致する（PR-4・PR-6 のレビューで読む）。
+-   [ ] `docs/translation_glossary.md` の訳語と、`cli.md`・`development.md`・`README.md`・`README.en.md`・`pricing_update.md`・`claude_output_limit.md` の用語が一致する（PR-1・PR-4・PR-6 のレビューで読む）。
 -   [ ] `has-extension-changes.sh` の先頭のコメントと、CLAUDE.md の Development Notes が、拡張のテストが読む文書の同じ一覧を述べる（PR-6 のレビューで読む）。
 
 ## 9. 成功基準 (Success Criteria)
