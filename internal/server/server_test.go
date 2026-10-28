@@ -7,10 +7,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -18,7 +21,6 @@ import (
 
 	"github.com/isseis/yt2column/internal/failure"
 	failuretestutil "github.com/isseis/yt2column/internal/failure/testutil"
-	"github.com/isseis/yt2column/internal/publisher"
 	publishertestutil "github.com/isseis/yt2column/internal/publisher/testutil"
 	"github.com/isseis/yt2column/internal/udstest"
 	"github.com/isseis/yt2column/internal/writer"
@@ -26,12 +28,11 @@ import (
 )
 
 // newServer builds a Server with the given collaborators and log output.
-func newServer(t *testing.T, w writer.ArticleWriter, p publisher.Publisher, n failure.Notifier, logs io.Writer) *Server {
+func newServer(t *testing.T, w writer.ProgressWriter, p WebhookPublisher, n failure.Notifier, logs io.Writer) *Server {
 	t.Helper()
 	s, err := New(Options{
 		Writer:    w,
-		Publisher: p,
-		Notifier:  n,
+		Webhook:   &WebhookOptions{Publisher: p, Notifier: n},
 		LogOutput: logs,
 	})
 	if err != nil {
@@ -83,6 +84,90 @@ func postOnUnix(t *testing.T, path string) (int, responseBody) {
 		t.Fatalf("decode the response body: %v", err)
 	}
 	return resp.StatusCode, decoded
+}
+
+// TestNewWebhookOptions checks that New treats a nil Webhook as a server
+// without a Webhook, refuses a WebhookOptions whose publisher or notifier is
+// missing, a typed nil included, and still refuses a missing writer or log
+// output.
+func TestNewWebhookOptions(t *testing.T) {
+	pub := &publishertestutil.FakePublisher{}
+	notifier := &failuretestutil.FakeNotifier{}
+	var nilPublisher *publishertestutil.FakePublisher
+	var nilNotifier *failuretestutil.FakeNotifier
+	fakeWriter := &writertestutil.FakeArticleWriter{}
+	logs := &bytes.Buffer{}
+	complete := &WebhookOptions{Publisher: pub, Notifier: notifier}
+	// all is every reason New can join, so each row pins the exact set: a
+	// reason the row does not name must be absent.
+	all := []error{errNilArticleWriter, errNilWebhookPublisher, errNilWebhookNotifier, errNilLogOutput}
+	tests := []struct {
+		name string
+		opts Options
+		want []error // empty means New accepts the options
+	}{
+		{"complete", Options{Writer: fakeWriter, Webhook: complete, LogOutput: logs}, nil},
+		{"no_webhook", Options{Writer: fakeWriter, LogOutput: logs}, nil},
+		{"no_publisher", Options{Writer: fakeWriter, Webhook: &WebhookOptions{Notifier: notifier}, LogOutput: logs}, []error{errNilWebhookPublisher}},
+		{"typed_nil_publisher", Options{Writer: fakeWriter, Webhook: &WebhookOptions{Publisher: nilPublisher, Notifier: notifier}, LogOutput: logs}, []error{errNilWebhookPublisher}},
+		{"no_notifier", Options{Writer: fakeWriter, Webhook: &WebhookOptions{Publisher: pub}, LogOutput: logs}, []error{errNilWebhookNotifier}},
+		{"typed_nil_notifier", Options{Writer: fakeWriter, Webhook: &WebhookOptions{Publisher: pub, Notifier: nilNotifier}, LogOutput: logs}, []error{errNilWebhookNotifier}},
+		{"neither", Options{Writer: fakeWriter, Webhook: &WebhookOptions{}, LogOutput: logs}, []error{errNilWebhookPublisher, errNilWebhookNotifier}},
+		{"no_writer", Options{Webhook: complete, LogOutput: logs}, []error{errNilArticleWriter}},
+		{"no_log_output", Options{Writer: fakeWriter, Webhook: complete}, []error{errNilLogOutput}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := New(tc.opts)
+			if len(tc.want) == 0 {
+				if err != nil {
+					t.Fatalf("New error = %v, want nil", err)
+				}
+				return
+			}
+			if !errors.Is(err, ErrInvalidOptions) {
+				t.Fatalf("New error = %v, want it to wrap ErrInvalidOptions", err)
+			}
+			for _, sentinel := range all {
+				want := slices.Contains(tc.want, sentinel)
+				if got := errors.Is(err, sentinel); got != want {
+					t.Errorf("New error = %v, wraps %v: %v, want %v", err, sentinel, got, want)
+				}
+			}
+		})
+	}
+}
+
+// TestNewCopiesWebhookOptions checks that the server keeps the two Webhook
+// collaborators it was built with, so a caller that clears its WebhookOptions
+// afterwards changes nothing.
+func TestNewCopiesWebhookOptions(t *testing.T) {
+	pub := &publishertestutil.FakePublisher{}
+	notifier := &failuretestutil.FakeNotifier{}
+	webhook := &WebhookOptions{Publisher: pub, Notifier: notifier}
+	s, err := New(Options{
+		Writer:    &writertestutil.FakeArticleWriter{},
+		Webhook:   webhook,
+		LogOutput: &bytes.Buffer{},
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	webhook.Publisher = nil
+	webhook.Notifier = nil
+	if !s.webhookConfigured() {
+		t.Error("webhookConfigured() = false after the caller cleared its options")
+	}
+	rec := httptest.NewRecorder()
+	s.handler(rec, newRequest(http.MethodPost, ArticlesPath, strings.NewReader(validBody(testValidVideoURL, testValidRaw))))
+	s.jobs.Wait()
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202 (body %q)", rec.Code, rec.Body.String())
+	}
+	if len(pub.Calls) != 1 || len(notifier.Calls) != 0 {
+		t.Errorf("publisher calls = %d, notifier calls = %d, want 1 and 0", len(pub.Calls), len(notifier.Calls))
+	}
 }
 
 // TestServeOnUnixListener checks that Serve answers a request that reaches it

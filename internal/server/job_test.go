@@ -192,6 +192,17 @@ func TestFailureClassification(t *testing.T) {
 	}
 }
 
+// TestNotifyWithoutWebhook checks that a failure notice on a server without a
+// Webhook is a no-op: there is no notifier to call, and the notice path must not
+// panic on the nil one.
+func TestNotifyWithoutWebhook(t *testing.T) {
+	ts := newTestServerWithoutWebhook(t)
+	ts.notify("0123456789abcdef", testVideoID, failure.KindInternal)
+	if got := ts.logs.String(); strings.Contains(got, "failure notice panicked") {
+		t.Errorf("the notice panicked without a notifier:\n%s", got)
+	}
+}
+
 // TestReasonToKind checks the rejectReason to failure.Kind mapping for every
 // reason value.
 func TestReasonToKind(t *testing.T) {
@@ -204,6 +215,8 @@ func TestReasonToKind(t *testing.T) {
 		reasonNotFound:          failure.KindUnknown,
 		reasonMethodNotAllowed:  failure.KindUnknown,
 		reasonTooManyRequests:   failure.KindUnknown,
+		// A server without a Webhook has no one to notify.
+		reasonWebhookNotConfigured: failure.KindUnknown,
 	}
 	for reason := range reasonCount {
 		expected, ok := want[reason]
@@ -296,8 +309,7 @@ func TestNotifyPanicLogged(t *testing.T) {
 	logs := &strings.Builder{}
 	s, err := New(Options{
 		Writer:    panickingWriter{},
-		Publisher: &publishertestutil.FakePublisher{},
-		Notifier:  panickingNotifier{},
+		Webhook:   &WebhookOptions{Publisher: &publishertestutil.FakePublisher{}, Notifier: panickingNotifier{}},
 		LogOutput: logs,
 	})
 	if err != nil {

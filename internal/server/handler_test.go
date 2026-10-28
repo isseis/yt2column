@@ -77,6 +77,57 @@ func TestAcceptsWithoutBrowserHeaders(t *testing.T) {
 	}
 }
 
+// TestArticlesWithoutWebhook checks that a server started without
+// SLACK_WEBHOOK_URL refuses /articles after the target and method checks,
+// without reading the body or starting anything: there is nowhere to post the
+// article or its failure notice.
+func TestArticlesWithoutWebhook(t *testing.T) {
+	tests := []struct {
+		name   string
+		method string
+		target string
+		status int
+		reason string
+	}{
+		{"post", http.MethodPost, ArticlesPath, http.StatusServiceUnavailable, "webhook_not_configured"},
+		// The method is checked first, so a wrong method is still 405.
+		{"get", http.MethodGet, ArticlesPath, http.StatusMethodNotAllowed, "method_not_allowed"},
+		{"other_path", http.MethodPost, "/other", http.StatusNotFound, "not_found"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ts := newTestServerWithoutWebhook(t)
+			// Both generation slots are taken, so a request refused after
+			// taking one would answer too_many_requests instead.
+			ts.slots <- struct{}{}
+			ts.slots <- struct{}{}
+			body := &recordingReader{r: strings.NewReader(validBody(testValidVideoURL, testValidRaw))}
+			rec := ts.serve(newRequest(tc.method, tc.target, body))
+			ts.waitJobs()
+			if rec.Code != tc.status {
+				t.Errorf("status = %d, want %d (body %q)", rec.Code, tc.status, rec.Body.String())
+			}
+			if got := decodeBody(t, rec); got.Status != "rejected" || got.Reason != tc.reason {
+				t.Errorf("body = %+v, want rejected %s", got, tc.reason)
+			}
+			if got := rec.Header().Get("Connection"); got != "close" {
+				t.Errorf("Connection = %q, want close", got)
+			}
+			if body.n != 0 {
+				t.Errorf("the server read %d bytes of the body, want 0", body.n)
+			}
+			// The refusal releases no slot it did not take, so the two the
+			// test took are still held.
+			if len(ts.slots) != maxInFlight {
+				t.Errorf("slots held = %d, want the %d the test took", len(ts.slots), maxInFlight)
+			}
+			if len(ts.writer.Calls) != 0 {
+				t.Errorf("writer calls = %d, want 0", len(ts.writer.Calls))
+			}
+		})
+	}
+}
+
 // TestRejectStatusCodes checks the status code, reason value, and extra headers
 // of every rejection reason, driven through the handler.
 func TestRejectStatusCodes(t *testing.T) {
@@ -87,36 +138,44 @@ func TestRejectStatusCodes(t *testing.T) {
 		reason string
 		allow  bool
 		close  bool
+		// noWebhook builds the server without SLACK_WEBHOOK_URL, as run does.
+		noWebhook bool
 	}{
 		{"not_found", func(_ *testing.T, _ *testServer) *http.Request {
 			return newRequest(http.MethodPost, "/nope", strings.NewReader("{}"))
-		}, http.StatusNotFound, "not_found", false, true},
+		}, http.StatusNotFound, "not_found", false, true, false},
 		{"method_not_allowed", func(_ *testing.T, _ *testServer) *http.Request {
 			return newRequest(http.MethodGet, ArticlesPath, nil)
-		}, http.StatusMethodNotAllowed, "method_not_allowed", true, true},
+		}, http.StatusMethodNotAllowed, "method_not_allowed", true, true, false},
 		{"too_many_requests", func(t *testing.T, ts *testServer) *http.Request {
 			ts.slots <- struct{}{}
 			ts.slots <- struct{}{}
 			return validHTTPRequest(t)
-		}, http.StatusTooManyRequests, "too_many_requests", false, true},
+		}, http.StatusTooManyRequests, "too_many_requests", false, true, false},
 		{"body_too_large", func(t *testing.T, _ *testServer) *http.Request {
 			req := validHTTPRequest(t)
 			req.ContentLength = maxBodyBytes + 1
 			return req
-		}, http.StatusRequestEntityTooLarge, "body_too_large", false, true},
+		}, http.StatusRequestEntityTooLarge, "body_too_large", false, true, false},
 		{"invalid_body", func(_ *testing.T, _ *testServer) *http.Request {
 			return newRequest(http.MethodPost, ArticlesPath, strings.NewReader(`{"videoUrl":1}`))
-		}, http.StatusBadRequest, "invalid_body", false, false},
+		}, http.StatusBadRequest, "invalid_body", false, false, false},
 		{"invalid_video_url", func(t *testing.T, _ *testServer) *http.Request {
 			return rejectRequest(t, validBody("http://example.com/video", testValidRaw))
-		}, http.StatusBadRequest, "invalid_video_url", false, false},
+		}, http.StatusBadRequest, "invalid_video_url", false, false, false},
 		{"invalid_transcript", func(t *testing.T, _ *testServer) *http.Request {
 			return rejectRequest(t, validBody(testValidVideoURL, "not a transcript"))
-		}, http.StatusBadRequest, "invalid_transcript", false, false},
+		}, http.StatusBadRequest, "invalid_transcript", false, false, false},
+		{"webhook_not_configured", func(t *testing.T, _ *testServer) *http.Request {
+			return validHTTPRequest(t)
+		}, http.StatusServiceUnavailable, "webhook_not_configured", false, true, true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ts := newTestServer(t)
+			if tc.noWebhook {
+				ts = newTestServerWithoutWebhook(t)
+			}
 			rec := ts.serve(tc.build(t, ts))
 			ts.waitJobs()
 			if rec.Code != tc.status {

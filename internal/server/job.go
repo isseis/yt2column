@@ -40,7 +40,8 @@ func (s *Server) releaseSlot() {
 
 // startJob records the job before it starts and runs it in its own goroutine.
 // The caller must hold a slot; ownership of it passes to the goroutine, which
-// releases it when the job and any notice are done.
+// releases it when the job and any notice are done. The caller must also have
+// confirmed webhookConfigured: the job posts and notifies through it.
 func (s *Server) startJob(input jobInput) {
 	s.jobs.Go(func() {
 		defer s.releaseSlot()
@@ -81,6 +82,11 @@ func (s *Server) runJob(input jobInput) {
 // server keeps running. The recover keeps a notifier panic from escaping into
 // the caller's own recovery, where it would crash the process.
 func (s *Server) notify(requestID, videoID string, kind failure.Kind) {
+	if !s.webhookConfigured() {
+		// No Webhook is configured, so there is no one to notify. The legacy
+		// endpoint refuses such a request before it reaches a job.
+		return
+	}
 	defer func() {
 		if p := recover(); p != nil {
 			s.logger.Error("failure notice panicked", "requestId", requestID, "kind", int(kind), "panic", p, "stack", string(debug.Stack()))

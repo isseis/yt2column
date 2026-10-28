@@ -54,6 +54,14 @@ func (s *Server) handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Without a Webhook there is nowhere to post the article or its failure
+	// notice, so the request is refused before any slot or body read.
+	if !s.webhookConfigured() {
+		s.reject(w, requestID, rejection{reason: reasonWebhookNotConfigured, detail: detailWebhookNotConfigured})
+		responded = true
+		return
+	}
+
 	if !s.acquireSlot() {
 		s.reject(w, requestID, rejection{reason: reasonTooManyRequests, detail: detailTooManyRequests})
 		responded = true

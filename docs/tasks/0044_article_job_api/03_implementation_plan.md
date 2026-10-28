@@ -231,32 +231,32 @@
 
 -   **ファイル:** `internal/config/config.go`・`config_test.go`、`cmd/yt2column-server/run.go`
 -   **作業:**
-    -   [ ] `LoadServer` が未設定をエラーにしない形にし、`ServerConfig.WebhookURL` を `(secret.Secret, bool)` を返す形にする（設計書 §3.8、1.5）。
-    -   [ ] `cmd/yt2column-server/run.go` の 3 つの呼び出し（`:159`・`:290`・`:294`）を新しい形に合わせる。このステップでは、未設定のときも今と同じく発行者と通知を組み立てようとして失敗する（組み立ての分岐はステップ 4-2 で加える）。
-    -   [ ] 注釈を改める: `config.go:249` の「always set」、`:259`、`:277` の「(required)」、`:745-746` の「LoadServer, where the Webhook is required」。
-    -   [ ] テスト: `TestLoadServerWebhookRequired` を `TestLoadServerWebhookOptional` に改め（1.5）、`unset` のサブテストは、エラーがなく `WebhookURL` が未設定を返すことを確かめる（AC-32）。`empty`・`invalid` のサブテストは期待値を変えない（AC-33）。`TestLoadServerValid` は新しい戻り値で設定済みを確かめる。`TestStartupFailures` の `model and webhook missing` を 1.4 のとおりに改める。
+    -   [x] `LoadServer` が未設定をエラーにしない形にし、`ServerConfig.WebhookURL` を `(secret.Secret, bool)` を返す形にする（設計書 §3.8、1.5）。
+    -   [x] `cmd/yt2column-server/run.go` の 3 つの呼び出し（`:159`・`:290`・`:294`）を新しい形に合わせる。このステップでは、未設定のときも今と同じく発行者と通知を組み立てようとして失敗する（組み立ての分岐はステップ 4-2 で加える）。
+    -   [x] 注釈を改める: `config.go:249` の「always set」、`:259`、`:277` の「(required)」、`:745-746` の「LoadServer, where the Webhook is required」。
+    -   [x] テスト: `TestLoadServerWebhookRequired` を `TestLoadServerWebhookOptional` に改め（1.5）、`unset` のサブテストは、エラーがなく `WebhookURL` が未設定を返すことを確かめる（AC-32）。`empty`・`invalid` のサブテストは期待値を変えない（AC-33）。`TestLoadServerValid` は新しい戻り値で設定済みを確かめる。`TestStartupFailures` の `model and webhook missing` を 1.4 のとおりに改める。
 -   **完了の条件:** グリーンゲートが通る。
 
 #### ステップ 4-2: `server.Options` と旧 API の `webhook_not_configured`
 
 -   **ファイル:** `internal/server/server.go`・`handler.go`・`response.go`・`job.go`・`publish.go`（新規）・`test_helpers.go`、`internal/server` のテスト、`cmd/yt2column-server/run.go`・`run_test.go`・`test_helpers.go`、`README.md`
 -   **作業:**
-    -   [ ] `Options`・`WebhookOptions` を設計書 §3.8 の形にし、`Options.Writer` を `writer.ProgressWriter` にする。`WebhookPublisher`（設計書 §3.7.1）を `publish.go` に置く（1.3）。`validateOptions` は設計書 §3.8 のとおり検査する（1.5）。
-    -   [ ] 拒否の理由 `webhook_not_configured`（503、`forceClose`、通知しない）を加え、`Webhook` が `nil` のとき、旧 API がパスとメソッドの検査の後、枠を取る前に、本文を読まずにこの理由で拒否する（設計書 §3.9）。
-    -   [ ] `cmd/yt2column-server` の `deps.newWriter`・`deps.newPublisher` の型と本番の値（`writer.NewProgressWriter`）を変え、`buildServer` が `cfg.WebhookURL()` が設定済みを返したときだけ発行者と通知を作って `WebhookOptions` を渡す形にする（設計書 §3.8）。
-    -   [ ] 注釈を改める: `server.go:51` の「Every field is required」。
-    -   [ ] テストの組み立てを、設計書 §3.13 の「`server.Options` の形」と「`cmd/yt2column-server` の `deps` の型」の行と、1.4 の「更新する既存のテスト」のとおりに改める。
-    -   [ ] テスト: Webhook のないサーバで `/articles` が `webhook_not_configured` と `Connection: close` を返し、本文を読まず、枠を取らず、書き手と通知を呼ばないこと（AC-34 の `/articles` の部分）。`New` が `WebhookOptions` のどちらかのフィールドが `nil`（型付きの `nil` を含む）のときに拒否すること。`TestRejectReasonSet`・`TestReasonToKind`・`TestRejectStatusCodes` に新しい理由の行を加える。
-    -   [ ] README の拒否の理由の表に `webhook_not_configured` の行を加える。3 列目は `unexpected reply` とする（設計書 §3.15）。
+    -   [x] `Options`・`WebhookOptions` を設計書 §3.8 の形にし、`Options.Writer` を `writer.ProgressWriter` にする。`WebhookPublisher`（設計書 §3.7.1）を `publish.go` に置く（1.3）。`validateOptions` は設計書 §3.8 のとおり検査する（1.5）。
+    -   [x] 拒否の理由 `webhook_not_configured`（503、`forceClose`、通知しない）を加え、`Webhook` が `nil` のとき、旧 API がパスとメソッドの検査の後、枠を取る前に、本文を読まずにこの理由で拒否する（設計書 §3.9）。
+    -   [x] `cmd/yt2column-server` の `deps.newWriter`・`deps.newPublisher` の型と本番の値（`writer.NewProgressWriter`）を変え、`buildServer` が `cfg.WebhookURL()` が設定済みを返したときだけ発行者と通知を作って `WebhookOptions` を渡す形にする（設計書 §3.8）。
+    -   [x] 注釈を改める: `server.go:51` の「Every field is required」。
+    -   [x] テストの組み立てを、設計書 §3.13 の「`server.Options` の形」と「`cmd/yt2column-server` の `deps` の型」の行と、1.4 の「更新する既存のテスト」のとおりに改める。
+    -   [x] テスト: Webhook のないサーバで `/articles` が `webhook_not_configured` と `Connection: close` を返し、本文を読まず、枠を取らず、書き手と通知を呼ばないこと（AC-34 の `/articles` の部分）。`New` が `WebhookOptions` のどちらかのフィールドが `nil`（型付きの `nil` を含む）のときに拒否すること。`TestRejectReasonSet`・`TestReasonToKind`・`TestRejectStatusCodes` に新しい理由の行を加える。
+    -   [x] README の拒否の理由の表に `webhook_not_configured` の行を加える。3 列目は `unexpected reply` とする（設計書 §3.15）。
 -   **完了の条件:** グリーンゲートと `make ext-test` が通り、旧 API の今のテスト（7 章の AC-36 の行）が期待値を変えずに通る。
 
 #### ステップ 4-3: 起動のログと、Webhook なしの起動のテスト
 
 -   **ファイル:** `cmd/yt2column-server/run.go`・`run_test.go`、`docs/dev/developer_guide/package_reference.md`
 -   **作業:**
-    -   [ ] `listening` の行に `webhookConfigured` を加え、未設定のときに WARN の行を 1 行書く（設計書 §3.8「起動のログ」）。
-    -   [ ] テスト: Webhook のない環境でサーバが起動し、`webhookConfigured=false` と WARN の行を書き、発行者と通知の組み立て関数を呼ばないことを確かめる `TestStartsWithoutWebhook` を加える（AC-32）。`TestRunLogsListeningAndStop` に、設定されているときの `webhookConfigured=true` と WARN の行がないことを加える。
-    -   [ ] `package_reference.md` の `cmd/yt2column-server`・`internal/server`・`internal/config` の行を改める（1.3）。
+    -   [x] `listening` の行に `webhookConfigured` を加え、未設定のときに WARN の行を 1 行書く（設計書 §3.8「起動のログ」）。
+    -   [x] テスト: Webhook のない環境でサーバが起動し、`webhookConfigured=false` と WARN の行を書き、発行者と通知の組み立て関数を呼ばないことを確かめる `TestStartsWithoutWebhook` を加える（AC-32）。`TestRunLogsListeningAndStop` に、設定されているときの `webhookConfigured=true` と WARN の行がないことを加える。
+    -   [x] `package_reference.md` の `cmd/yt2column-server`・`internal/server`・`internal/config` の行を改める（1.3）。
 -   **完了の条件:** グリーンゲートが通る。
 
 ### PR-3 作成ポイント: optional webhook and server options
@@ -271,10 +271,10 @@
 
 **判定理由**: 組み立ての型の変更と 1 つの拒否の追加で、競合する案もリスクの高いステップもなく、条件付きの検査の該当もない。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/536
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 5: サーバの新しい API
 
@@ -539,7 +539,7 @@ PR-1 と PR-2 は互いに依存しないが、PR は番号の順にマージす
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 2-1 / 2-2 / 2-3 / 2-4）
 - [x] PR-2 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3）
-- [ ] PR-3 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3）
+- [x] PR-3 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3）
 - [ ] PR-4 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5）
 - [ ] PR-5 マージ済み（対象ステップ: 5-6）
 - [ ] PR-6 マージ済み（対象ステップ: 6-1 / 6-2 / 6-3）

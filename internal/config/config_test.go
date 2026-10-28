@@ -968,8 +968,17 @@ func validServerEnv() map[string]string {
 	return env
 }
 
+// wantServerSocketPath is the socket path LoadServer derives from the HOME of
+// validServerEnv on this operating system.
+func wantServerSocketPath() string {
+	if runtime.GOOS == "darwin" {
+		return "/home/user/Library/Application Support/yt2column/run/server.sock"
+	}
+	return "/home/user/.local/state/yt2column/run/server.sock"
+}
+
 // TestLoadServerValid checks that LoadServer loads the LLM settings, the
-// required Webhook URL, the socket path derived from HOME, and the HTTP/2
+// configured Webhook URL, the socket path derived from HOME, and the HTTP/2
 // debug flag. The OS-specific socket path rules are fixed by TestSocketPath.
 func TestLoadServerValid(t *testing.T) {
 	env := with(validServerEnv(), godebugEnv, "http2debug=1")
@@ -983,18 +992,18 @@ func TestLoadServerValid(t *testing.T) {
 	if cfg.LLM().Model() != "deepseek-chat" {
 		t.Errorf("LLM().Model() = %q, want deepseek-chat", cfg.LLM().Model())
 	}
-	webhook, err := cfg.WebhookURL().Reveal()
+	webhook, configured := cfg.WebhookURL()
+	if !configured {
+		t.Fatal("WebhookURL() reports unset, want set")
+	}
+	url, err := webhook.Reveal()
 	if err != nil {
 		t.Fatalf("WebhookURL().Reveal() error = %v", err)
 	}
-	if webhook != env[slackEnv] {
-		t.Errorf("WebhookURL() = %q, want %q", webhook, env[slackEnv])
+	if url != env[slackEnv] {
+		t.Errorf("WebhookURL() = %q, want %q", url, env[slackEnv])
 	}
-	want := "/home/user/.local/state/yt2column/run/server.sock"
-	if runtime.GOOS == "darwin" {
-		want = "/home/user/Library/Application Support/yt2column/run/server.sock"
-	}
-	if cfg.SocketPath() != want {
+	if want := wantServerSocketPath(); cfg.SocketPath() != want {
 		t.Errorf("SocketPath() = %q, want %q", cfg.SocketPath(), want)
 	}
 	if !cfg.HTTP2DebugEnabled() {
@@ -1022,13 +1031,24 @@ func TestLoadServerLLMRejected(t *testing.T) {
 	}
 }
 
-// TestLoadServerWebhookRequired checks that SLACK_WEBHOOK_URL is required, that
-// an invalid value is rejected, and that neither rejection holds the value.
-func TestLoadServerWebhookRequired(t *testing.T) {
+// TestLoadServerWebhookOptional checks that an unset SLACK_WEBHOOK_URL is
+// accepted and reported as unconfigured, that an empty or invalid value is
+// rejected, and that neither rejection holds the value.
+func TestLoadServerWebhookOptional(t *testing.T) {
 	const mark = "MARK-SERVER-WEBHOOK-D4"
 	t.Run("unset", func(t *testing.T) {
-		_, err := LoadServer(envLookup(without(validServerEnv(), slackEnv)))
-		assertVarError(t, err, ErrMissing, slackEnv)
+		cfg, err := LoadServer(envLookup(without(validServerEnv(), slackEnv)))
+		if err != nil {
+			t.Fatalf("LoadServer() error = %v, want nil", err)
+		}
+		if _, configured := cfg.WebhookURL(); configured {
+			t.Error("WebhookURL() reports set, want unset")
+		}
+		// The rest of the configuration is still loaded: the Webhook is the
+		// only value an unset variable leaves out.
+		if got, want := cfg.SocketPath(), wantServerSocketPath(); got != want {
+			t.Errorf("SocketPath() = %q, want %q", got, want)
+		}
 	})
 	t.Run("empty", func(t *testing.T) {
 		_, err := LoadServer(envLookup(with(validServerEnv(), slackEnv, "")))

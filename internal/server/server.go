@@ -19,7 +19,6 @@ import (
 
 	"github.com/isseis/yt2column/internal/failure"
 	"github.com/isseis/yt2column/internal/nilcheck"
-	"github.com/isseis/yt2column/internal/publisher"
 	"github.com/isseis/yt2column/internal/redact"
 	"github.com/isseis/yt2column/internal/writer"
 )
@@ -42,26 +41,36 @@ var ErrInvalidOptions = errors.New("invalid server options")
 // The fixed reasons New rejects Options. Each names the missing or unusable
 // field, and none holds a value.
 var (
-	errNilArticleWriter = errors.New("writer is nil")
-	errNilPublisher     = errors.New("publisher is nil")
-	errNilNotifier      = errors.New("notifier is nil")
-	errNilLogOutput     = errors.New("log output is nil")
+	errNilArticleWriter    = errors.New("writer is nil")
+	errNilWebhookPublisher = errors.New("webhook publisher is nil")
+	errNilWebhookNotifier  = errors.New("webhook notifier is nil")
+	errNilLogOutput        = errors.New("log output is nil")
 )
 
-// Options configures a Server. Every field is required.
+// Options configures a Server. Writer and LogOutput are required.
 type Options struct {
-	Writer    writer.ArticleWriter
-	Publisher publisher.Publisher
-	Notifier  failure.Notifier
-	LogOutput io.Writer // usually os.Stderr; New wraps it in redact.Writer
-	Secrets   []string  // from redact.SecretStrings; redacted from every log line
+	Writer    writer.ProgressWriter
+	Webhook   *WebhookOptions // nil: SLACK_WEBHOOK_URL is not configured
+	LogOutput io.Writer       // usually os.Stderr; New wraps it in redact.Writer
+	Secrets   []string        // from redact.SecretStrings; redacted from every log line
+}
+
+// WebhookOptions holds what posts to the Webhook. Every field is required.
+type WebhookOptions struct {
+	Publisher WebhookPublisher // the legacy /articles job and the publish operation
+	Notifier  failure.Notifier // the legacy /articles failure notice
 }
 
 // Server is the article HTTP server. Build it with New and run it with Serve on
 // a listener the caller opened.
 type Server struct {
-	writer    writer.ArticleWriter
-	publisher publisher.Publisher
+	writer writer.ProgressWriter
+	// publisher and notifier post to the Webhook. Both are nil when
+	// SLACK_WEBHOOK_URL is not configured, in which case the legacy endpoint
+	// rejects every request: there is nowhere to post the article or its
+	// failure notice. New copies them from Options, so a caller that changes
+	// its WebhookOptions afterwards does not change this server.
+	publisher WebhookPublisher
 	notifier  failure.Notifier
 	logger    *slog.Logger
 	http      *http.Server
@@ -94,12 +103,14 @@ func New(opts Options) (*Server, error) {
 	jobCtx, jobCancel := context.WithCancel(context.Background())
 	s := &Server{
 		writer:    opts.Writer,
-		publisher: opts.Publisher,
-		notifier:  opts.Notifier,
 		logger:    logger,
 		slots:     make(chan struct{}, maxInFlight),
 		jobCtx:    jobCtx,
 		jobCancel: jobCancel,
+	}
+	if opts.Webhook != nil {
+		s.publisher = opts.Webhook.Publisher
+		s.notifier = opts.Webhook.Notifier
 	}
 	s.http = &http.Server{
 		Handler:                      http.HandlerFunc(s.handler),
@@ -120,11 +131,13 @@ func validateOptions(opts Options) error {
 	if nilcheck.IsNil(opts.Writer) {
 		errs = append(errs, errNilArticleWriter)
 	}
-	if nilcheck.IsNil(opts.Publisher) {
-		errs = append(errs, errNilPublisher)
-	}
-	if nilcheck.IsNil(opts.Notifier) {
-		errs = append(errs, errNilNotifier)
+	if opts.Webhook != nil {
+		if nilcheck.IsNil(opts.Webhook.Publisher) {
+			errs = append(errs, errNilWebhookPublisher)
+		}
+		if nilcheck.IsNil(opts.Webhook.Notifier) {
+			errs = append(errs, errNilWebhookNotifier)
+		}
 	}
 	if nilcheck.IsNil(opts.LogOutput) {
 		errs = append(errs, errNilLogOutput)
@@ -133,6 +146,14 @@ func validateOptions(opts Options) error {
 		return fmt.Errorf("%w: %w", ErrInvalidOptions, err)
 	}
 	return nil
+}
+
+// webhookConfigured reports whether this server can post to the Webhook, which
+// is what SLACK_WEBHOOK_URL being set means. A server without it rejects the
+// legacy endpoint instead of starting a job nothing can post. New keeps the two
+// collaborators either both set or both nil, so testing one is enough.
+func (s *Server) webhookConfigured() bool {
+	return s.publisher != nil
 }
 
 // Serve serves on listener until ctx is canceled or the listener fails, then

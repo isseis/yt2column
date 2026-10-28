@@ -281,7 +281,7 @@ func (c Config) HTTP2DebugEnabled() bool {
 // defaults.
 type ServerConfig struct {
 	llm               LLMConfig
-	webhookURL        secret.Secret // always set
+	webhookURL        secret.Secret // zero when SLACK_WEBHOOK_URL is unset
 	socketPath        string        // absolute, within the OS limit
 	http2DebugEnabled bool
 }
@@ -291,9 +291,13 @@ func (c ServerConfig) LLM() LLMConfig {
 	return c.llm
 }
 
-// WebhookURL returns the Webhook URL. It is always set.
-func (c ServerConfig) WebhookURL() secret.Secret {
-	return c.webhookURL
+// WebhookURL returns the Webhook URL and whether one is configured. The server
+// runs without one and rejects what needs it.
+func (c ServerConfig) WebhookURL() (secret.Secret, bool) {
+	if _, err := c.webhookURL.Reveal(); err != nil {
+		return secret.Secret{}, false
+	}
+	return c.webhookURL, true
 }
 
 // SocketPath returns the absolute path of the server's Unix domain socket,
@@ -309,7 +313,7 @@ func (c ServerConfig) HTTP2DebugEnabled() bool {
 }
 
 // LoadServer reads and validates the server's variables through lookup: the
-// LLM settings (shared with Load), SLACK_WEBHOOK_URL (required), and HOME, from
+// LLM settings (shared with Load), SLACK_WEBHOOK_URL (optional), and HOME, from
 // which the socket path is derived. It joins every rejection together and
 // returns the zero ServerConfig on any error, so a value that did not pass
 // validation never reaches a caller. It reads no variable the server does not
@@ -319,15 +323,14 @@ func (c ServerConfig) HTTP2DebugEnabled() bool {
 func LoadServer(lookup LookupFunc) (ServerConfig, error) {
 	llm, errs := loadLLM(lookup, Need{Generation: true, Review: true})
 	var cfg ServerConfig
-	webhook, set, webhookErr := loadSlackWebhook(lookup)
-	switch {
-	case webhookErr != nil:
-		errs = append(errs, webhookErr)
-	case !set:
-		errs = append(errs, missingVar(slackEnv))
-	}
+	webhook, webhookErr := loadSlackWebhook(lookup)
 	sockPath, sockErr := socketPath(runtime.GOOS, lookup)
+	if webhookErr != nil {
+		errs = append(errs, webhookErr)
+	}
 	if sockErr != nil {
+		// socketPath's *VarError is a typed nil on success, which errors.Join
+		// would keep as a non-nil error.
 		errs = append(errs, sockErr)
 	}
 	if err := errors.Join(errs...); err != nil {
@@ -410,7 +413,7 @@ type Need struct {
 func LoadFor(lookup LookupFunc, need Need) (Config, error) {
 	llm, errs := loadLLM(lookup, need)
 	var cfg Config
-	webhook, _, webhookErr := loadSlackWebhook(lookup)
+	webhook, webhookErr := loadSlackWebhook(lookup)
 	errs = append(errs,
 		webhookErr,
 		loadCacheDir(lookup, &cfg),
@@ -634,25 +637,25 @@ func loadAnthropicWorkspaceID(lookup LookupFunc, cfg *LLMConfig) error {
 	}
 }
 
-// loadSlackWebhook validates SLACK_WEBHOOK_URL and returns the value, whether
-// one is set, and any rejection. Unset is accepted here; a present value must
-// satisfy slackwebhook.ValidURL. Load treats unset as no Webhook; LoadServer,
-// where the Webhook is required, adds its own ErrMissing.
-func loadSlackWebhook(lookup LookupFunc) (secret.Secret, bool, error) {
+// loadSlackWebhook validates SLACK_WEBHOOK_URL and returns the value and any
+// rejection. Unset is accepted and returns the zero secret; a present value
+// must satisfy slackwebhook.ValidURL. Load and LoadServer both treat the zero
+// secret as no Webhook.
+func loadSlackWebhook(lookup LookupFunc) (secret.Secret, error) {
 	value, ok := lookup(slackEnv)
 	switch {
 	case !ok:
-		return secret.Secret{}, false, nil
+		return secret.Secret{}, nil
 	case value == "":
-		return secret.Secret{}, false, missingVar(slackEnv)
+		return secret.Secret{}, missingVar(slackEnv)
 	case !slackwebhook.ValidURL(value):
-		return secret.Secret{}, false, invalidVar(slackEnv, reasonSlackWebhook)
+		return secret.Secret{}, invalidVar(slackEnv, reasonSlackWebhook)
 	default:
 		url, err := secret.New(value)
 		if err != nil {
-			return secret.Secret{}, false, missingVar(slackEnv)
+			return secret.Secret{}, missingVar(slackEnv)
 		}
-		return url, true, nil
+		return url, nil
 	}
 }
 
