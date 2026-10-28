@@ -68,17 +68,18 @@ func TestServerDocsContract(t *testing.T) {
 		if !hasLineContainingAll(section, "curl", server.ArticlesPath) {
 			t.Error("README.md server section has no curl example for " + server.ArticlesPath)
 		}
-		// The job API's examples name each operation's target on the curl
-		// line, built from the server's path constants so a route change fails
-		// here. The start's target is followed by a space (its body flag); the
-		// quoted status and publish targets end their line.
-		for _, example := range []struct{ operation, target string }{
-			{"generation start", "http://localhost" + server.JobsPath + " "},
-			{"status", "http://localhost" + server.JobsPath + `/$key"`},
-			{"publish", "http://localhost" + server.JobsPath + `/$key` + server.PublishSuffix + `"`},
+		// The job API's examples name each operation's method and its exact
+		// target, built from the server's path constants so a route or method
+		// change fails here. A target is a whitespace-separated token, with
+		// its shell quotes trimmed, so the example's quoting and line
+		// continuation do not decide the check.
+		for _, example := range []struct{ operation, method, target string }{
+			{"generation start", "-X POST", "http://localhost" + server.JobsPath},
+			{"status", "-X GET", "http://localhost" + server.JobsPath + "/$key"},
+			{"publish", "-X POST", "http://localhost" + server.JobsPath + "/$key" + server.PublishSuffix},
 		} {
-			if !hasLineContainingAll(section, "curl", example.target) {
-				t.Errorf("README.md server section has no curl example for the job API's %s (%s)", example.operation, example.target)
+			if !hasCurlLine(section, example.method, example.target) {
+				t.Errorf("README.md server section has no curl example for the job API's %s (%s %s)", example.operation, example.method, example.target)
 			}
 		}
 		// The exit-code table must name every code the entry point defines.
@@ -239,6 +240,24 @@ func hasLineContainingAll(doc string, subs ...string) bool {
 		}
 		if all {
 			return true
+		}
+	}
+	return false
+}
+
+// hasCurlLine reports whether one line of doc contains curl and method, and
+// has target as one of its whitespace-separated tokens once the shell quotes
+// are trimmed. A verification command is checked as the whole line it is, so a
+// method or a target that a copy of the example would not send fails.
+func hasCurlLine(doc, method, target string) bool {
+	for line := range strings.Lines(doc) {
+		if !strings.Contains(line, "curl") || !strings.Contains(line, method) {
+			continue
+		}
+		for token := range strings.FieldsSeq(line) {
+			if strings.Trim(token, "\"'") == target {
+				return true
+			}
 		}
 	}
 	return false

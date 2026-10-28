@@ -555,7 +555,8 @@ server trusts them. It checks only the request path and method, not the
 
 ### Running the server
 
-Start it with the provider and Webhook variables set:
+Start it with the provider variables set, and `SLACK_WEBHOOK_URL` if you want to
+post:
 
 ```sh
 ./build/yt2column-server 2>>server.log
@@ -563,8 +564,10 @@ Start it with the provider and Webhook variables set:
 
 The server writes nothing to standard output; the logs go to standard error,
 so `2>>server.log` keeps a record. The first log line names the socket. Every
-request and job log line carries the `requestId` the response returns, so you
-can find a request's log with `grep <requestId> server.log`.
+request line carries the `requestId` the response returns, as do the `/articles`
+job lines, so `grep <requestId> server.log` finds them. The job API's generation
+and post jobs log the article key instead, so follow one with
+`grep <key> server.log`.
 
 On start the server creates the socket directory (`run`) with mode `0700` when
 it is missing, takes the start lock (the file `.yt2column.lock` in the socket
@@ -731,15 +734,19 @@ the user asks. The current extension does not use them yet (#503 moves it);
 
 `<key>` is the article key. It is an opaque value: send back the one a
 generation start returned, and do not depend on its shape or on how it is
-computed. A status or publish target whose key is not the accepted shape is
-rejected with `invalid_key`; neither operation takes a body, and any job API
-target with a query answers `not_found`.
+computed. It is also specific to the server process: after a restart, the same
+input gets a new key, so use the key a new generation start returns. A status or
+publish target whose key is not the accepted shape is rejected with
+`invalid_key`; neither operation takes a body, and any job API target with a
+query answers `not_found`.
 
 The status response reports the job as one of the codes below. A `running` job
 carries `steps`; a `done` job carries `steps` (only `done` or `skipped`),
-`article`, and `publish`; a `failed` job carries `steps` (the step it failed in
-is `failed`) and `failure`, the failure code; an unknown key carries no member
-besides `state`. The `article` member holds `markdown` (the display Markdown),
+`article`, and `publish`; a `failed` job carries `steps` and `failure`, the
+failure code. A step is `failed` only when the generation failed in that step; a
+completion-check failure (`article_invalid`, `article_too_large`) or a failure
+before the steps marks none. An unknown key carries no member besides `state`.
+The `article` member holds `markdown` (the display Markdown),
 `file` (byte for byte what `--out` writes), `cost`, and `durationMs` (from the
 accepted start that generated the article, or from the accepted retry after a
 failure). `cost` is `{"state":"known","usd":"…"}` or `{"state":"unknown"}`.
@@ -767,9 +774,12 @@ failure). `cost` is `{"state":"known","usd":"…"}` or `{"state":"unknown"}`.
 
 Sending the same input again returns the same key without calling the LLM
 while that article is being generated or is done; a failed key is generated
-again. At most two generations run at once, counting the `/articles` jobs, and
-at most two request bodies are read at once; past either limit the answer is
-`too_many_requests` and no job starts.
+again. At most two generations run at once, counting the `/articles` jobs. A
+generation start reads its body under two reading slots, and the `/articles`
+endpoint reads a body only while it holds one of its generation slots, so at
+most four bodies are read at once. A start refused for a full reading slot, a
+full set of generations, or a full cache with no record to drop answers
+`too_many_requests`, and no job starts.
 
 The articles live in the server's memory only. The cache holds at most 100
 records; when it is full it drops the oldest completed article or failure, and
@@ -780,23 +790,24 @@ posted: it still comes back as `done` (it can be displayed and saved), and only
 generating it again after a restart or after its record was dropped makes a
 postable article.
 
-The publish operation answers `202` before the Webhook replies and does not post
-an article twice: publishing a `posting` or `posted` article again sends
-nothing, and a `failed` post resumes from the first message not delivered (that
-one message may arrive twice). Posting needs `SLACK_WEBHOOK_URL`; without it the
-operation answers `webhook_not_configured`, the status response carries
+The publish operation answers `202` without waiting for the Webhook's reply and
+does not post an article twice: publishing a `posting` or `posted` article again
+sends nothing, and a `failed` post resumes from the first message not delivered
+(that one message may arrive twice). Posting needs `SLACK_WEBHOOK_URL`; without
+it the operation answers `webhook_not_configured`, the status response carries
 `"webhookConfigured": false`, and `/articles` is refused the same way.
 
-Status requests are not logged, because a viewer polls them every few seconds,
-so their `requestId` has no line in the log; every other operation logs one line
-with its `requestId` and the key.
+A status request that answers is not logged, because a viewer polls it every few
+seconds, so its `requestId` has no line in the log; a rejected status request
+logs the rejection. Every other operation logs a line with its `requestId`, and
+the job API's jobs log the key.
 
 With the socket from the previous section and the body in `request.json`, the
 three operations are:
 
 ```sh
 curl -sS --unix-socket "$socket" -X POST http://localhost/jobs --data-binary @request.json
-curl -sS --unix-socket "$socket" "http://localhost/jobs/$key"
+curl -sS --unix-socket "$socket" -X GET "http://localhost/jobs/$key"
 curl -sS --unix-socket "$socket" -X POST "http://localhost/jobs/$key/publish"
 ```
 
