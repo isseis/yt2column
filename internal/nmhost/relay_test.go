@@ -16,6 +16,7 @@ import (
 	"math"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -744,4 +745,228 @@ func TestRelayNoReplyFrame(t *testing.T) {
 			})
 		}
 	})
+}
+
+// newFormMessage marshals members as one message. A map marshals its keys in
+// sorted order, which the host must not depend on.
+func newFormMessage(t *testing.T, members map[string]any) []byte {
+	t.Helper()
+	msg, err := json.Marshal(members)
+	if err != nil {
+		t.Fatalf("marshal the message: %v", err)
+	}
+	return msg
+}
+
+func TestRelayNewFormOperations(t *testing.T) {
+	const key = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	// The input keeps whitespace, an escape, an undeclared member, and a
+	// member order no marshaller produces, so a host that rebuilt it would
+	// change its bytes.
+	input := `{ "transcript" : "\u3042" ,"videoUrl":"x","extra":[1]}`
+	tests := []struct {
+		name, msg, op         string
+		method, requestURI    string
+		body                  string
+		contentType, expect   string
+		wantContentLengthZero bool
+	}{
+		{
+			name: "start", msg: `{"v":1,"op":"start","input":` + input + `}`, op: "start",
+			method: http.MethodPost, requestURI: "/jobs", body: input,
+			contentType: "application/json", expect: "100-continue",
+		},
+		{
+			name: "status", msg: `{"key":"` + key + `","op":"status","v":1}`, op: "status",
+			method: http.MethodGet, requestURI: "/jobs/" + key,
+		},
+		{
+			name: "publish", msg: `{"v":1,"op":"publish","key":"` + key + `"}`, op: "publish",
+			method: http.MethodPost, requestURI: "/jobs/" + key + "/publish",
+			wantContentLengthZero: true,
+		},
+		{
+			// The version member's name is written with an escape.
+			name: "escaped version name", msg: `{"\u0076":1,"op":"status","key":"` + key + `"}`, op: "status",
+			method: http.MethodGet, requestURI: "/jobs/" + key,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			answer := []byte(`{"status":"ok"}`)
+			path, got := recordingServer(t, answer)
+			dial, dials := countDials(SocketDialer(path))
+
+			result := runRelay(message([]byte(tt.msg)), dial, testTimeout)
+			requireResponse(t, result.reply(t), http.StatusAccepted, answer)
+			req := got()
+			if req.requests != 1 || dials.Load() != 1 {
+				t.Errorf("the server received %d requests over %d dials, want 1 over 1", req.requests, dials.Load())
+			}
+			if req.method != tt.method || req.requestURI != tt.requestURI {
+				t.Errorf("request line = %s %s, want %s %s", req.method, req.requestURI, tt.method, tt.requestURI)
+			}
+			if string(req.body) != tt.body || req.contentLength != int64(len(tt.body)) || len(req.transferEncoding) != 0 {
+				t.Errorf("body = %q (Content-Length %d, Transfer-Encoding %v), want %q", req.body, req.contentLength, req.transferEncoding, tt.body)
+			}
+			if req.contentType != tt.contentType || req.expect != tt.expect {
+				t.Errorf("Content-Type = %q, Expect = %q; want %q, %q", req.contentType, req.expect, tt.contentType, tt.expect)
+			}
+			for _, attr := range []string{"form=new", "op=" + tt.op} {
+				if !strings.Contains(result.log, attr) {
+					t.Errorf("the log does not contain %s:\n%s", attr, result.log)
+				}
+			}
+		})
+	}
+}
+
+// TestRelayLegacyBytesUnchanged checks the messages that are the current
+// form: those without a top-level "v", and those that are not one strict JSON
+// object even when they hold what looks like "v".
+func TestRelayLegacyBytesUnchanged(t *testing.T) {
+	tests := []struct{ name, msg string }{
+		{"current extension message", `{"videoUrl":"x","transcript":"y","title":"t","channelName":"c","description":"d"}`},
+		{"v only below the top level", `{"videoUrl":"x","transcript":{"v":1,"op":"status","key":"k"}}`},
+		{"v with invalid UTF-8", "{\"v\":1,\"op\":\"status\",\"key\":\"\xff\"}"},
+		{"v with trailing data", `{"v":1,"op":"status","key":"k"} {}`},
+		{"v with an unpaired surrogate", `{"v":1,"op":"status","key":"\ud800"}`},
+		{"v inside an array", `[{"v":1,"op":"status","key":"k"}]`},
+		{"not JSON", `v=1&op=status`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path, got := recordingServer(t, []byte("{}"))
+			result := runRelay(message([]byte(tt.msg)), SocketDialer(path), testTimeout)
+			requireResponse(t, result.reply(t), http.StatusAccepted, []byte("{}"))
+			req := got()
+			if req.requests != 1 || req.method != http.MethodPost || req.requestURI != "/articles" {
+				t.Errorf("the server received %d requests, the last %s %s; want one POST /articles", req.requests, req.method, req.requestURI)
+			}
+			if !bytes.Equal(req.body, []byte(tt.msg)) {
+				t.Errorf("server received %q, want the message bytes %q", req.body, tt.msg)
+			}
+			if !strings.Contains(result.log, "form=legacy") {
+				t.Errorf("the log does not contain form=legacy:\n%s", result.log)
+			}
+		})
+	}
+}
+
+func TestRelayNewFormRejections(t *testing.T) {
+	tests := []struct {
+		name, msg string
+		rule      rule
+	}{
+		{"unknown version", `{"v":2,"op":"status","key":"k"}`, ruleVersion},
+		{"version zero", `{"v":0,"op":"status","key":"k"}`, ruleVersion},
+		{"version as a string", `{"v":"1","op":"status","key":"k"}`, ruleVersion},
+		{"version with a fraction", `{"v":1.0,"op":"status","key":"k"}`, ruleVersion},
+		{"version null", `{"v":null,"op":"status","key":"k"}`, ruleVersion},
+		{"escaped version name, unknown version", `{"\u0076":2,"op":"status","key":"k"}`, ruleVersion},
+		{"duplicate version", `{"v":1,"v":1,"op":"status","key":"k"}`, ruleMembers},
+		{"duplicate version, one escaped", `{"v":1,"\u0076":1,"op":"status","key":"k"}`, ruleMembers},
+		{"duplicate operation", `{"v":1,"op":"status","op":"status","key":"k"}`, ruleMembers},
+		{"undeclared member", `{"v":1,"op":"status","key":"k","path":"/articles"}`, ruleMembers},
+		{"operation missing", `{"v":1,"key":"k"}`, ruleOperation},
+		{"operation not in the set", `{"v":1,"op":"delete","key":"k"}`, ruleOperation},
+		{"operation in another case", `{"v":1,"op":"Status","key":"k"}`, ruleOperation},
+		{"operation not a string", `{"v":1,"op":1,"key":"k"}`, ruleOperation},
+		{"start without input", `{"v":1,"op":"start"}`, ruleMembers},
+		{"start with a key", `{"v":1,"op":"start","input":{},"key":"k"}`, ruleMembers},
+		{"start input not an object", `{"v":1,"op":"start","input":"{}"}`, ruleInput},
+		{"start input null", `{"v":1,"op":"start","input":null}`, ruleInput},
+		{"status without key", `{"v":1,"op":"status"}`, ruleMembers},
+		{"status with input", `{"v":1,"op":"status","key":"k","input":{}}`, ruleMembers},
+		{"publish without key", `{"v":1,"op":"publish"}`, ruleMembers},
+		{"publish key not a string", `{"v":1,"op":"publish","key":1}`, ruleKey},
+		{"status key null", `{"v":1,"op":"status","key":null}`, ruleKey},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path, got := recordingServer(t, []byte("{}"))
+			result := runRelay(message([]byte(tt.msg)), SocketDialer(path), testTimeout)
+			requireError(t, result.reply(t), HostErrorProtocol)
+			if n := got().requests; n != 0 {
+				t.Errorf("the server received %d requests, want none", n)
+			}
+			for _, attr := range []string{"stage=form", "form=new", "rule=" + string(tt.rule)} {
+				if !strings.Contains(result.log, attr) {
+					t.Errorf("the log does not contain %s:\n%s", attr, result.log)
+				}
+			}
+		})
+	}
+}
+
+// TestRelayKeyPassedUnchecked checks that any string key reaches the server
+// unchanged, escaped into exactly one path segment: a key can neither turn a
+// status request into another operation nor start a query.
+func TestRelayKeyPassedUnchecked(t *testing.T) {
+	keys := map[string]string{
+		"empty":           "",
+		"uppercase":       "ABC",
+		"long":            strings.Repeat("f", 1000),
+		"publish suffix":  "abc/publish",
+		"query":           "?x=1",
+		"query inside":    "a?x=1",
+		"dot segment":     "..",
+		"escaped slash":   "%2F",
+		"control":         "\x01",
+		"non-ASCII":       "\u3042",
+		"space and hash":  "a b#c",
+		"sub-delimiters":  "a;b,c:d@e&f=g+h$",
+		"parent and root": "../../articles",
+	}
+	for name, key := range keys {
+		for _, op := range []struct{ name, method, suffix string }{
+			{"status", http.MethodGet, ""},
+			{"publish", http.MethodPost, "/publish"},
+		} {
+			t.Run(name+"/"+op.name, func(t *testing.T) {
+				path, got := recordingServer(t, []byte("{}"))
+				msg := newFormMessage(t, map[string]any{"v": 1, "op": op.name, "key": key})
+				requireResponse(t, runRelay(message(msg), SocketDialer(path), testTimeout).reply(t), http.StatusAccepted, []byte("{}"))
+
+				req := got()
+				if req.requests != 1 || req.method != op.method {
+					t.Fatalf("the server received %d requests, the last %s; want one %s", req.requests, req.method, op.method)
+				}
+				segment, ok := strings.CutPrefix(req.requestURI, "/jobs/")
+				if ok {
+					segment, ok = strings.CutSuffix(segment, op.suffix)
+				}
+				if !ok || strings.ContainsAny(segment, "/?") {
+					t.Fatalf("request target = %q, want /jobs/, one path segment, then %q", req.requestURI, op.suffix)
+				}
+				if decoded, err := url.PathUnescape(segment); err != nil || decoded != key {
+					t.Errorf("the segment %q decodes to %q (%v), want the key %q", segment, decoded, err, key)
+				}
+			})
+		}
+	}
+}
+
+// TestRelayNewFormTimeout checks that a new-form request the server never
+// answers ends with server_timeout after exactly one request.
+func TestRelayNewFormTimeout(t *testing.T) {
+	const key = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	for _, msg := range []string{
+		`{"v":1,"op":"start","input":{"videoUrl":"x","transcript":"y"}}`,
+		`{"v":1,"op":"status","key":"` + key + `"}`,
+		`{"v":1,"op":"publish","key":"` + key + `"}`,
+	} {
+		t.Run(msg, func(t *testing.T) {
+			var requests atomic.Int32
+			path := serveRaw(t, func(conn net.Conn) {
+				requests.Add(1)
+				_, _ = io.Copy(io.Discard, conn)
+			})
+			dial, dials := countDials(SocketDialer(path))
+			requireError(t, runRelay(message([]byte(msg)), dial, shortTimeout).reply(t), HostErrorServerTimeout)
+			if n, d := requests.Load(), dials.Load(); n != 1 || d != 1 {
+				t.Errorf("the server read %d requests over %d dials, want 1 over 1", n, d)
+			}
+		})
+	}
 }
