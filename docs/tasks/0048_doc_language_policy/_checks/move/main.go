@@ -157,9 +157,20 @@ func gitOutput(args ...string) (string, error) {
 	return strings.TrimSuffix(string(out), "\n"), nil
 }
 
-// fileAt returns the content of name at rev.
+// fileAt returns the content of name at rev, without the trailing newline.
 func fileAt(rev, name string) (string, error) {
 	return gitOutput("show", rev+":"+name)
+}
+
+// fileAtRaw returns the bytes of name at rev as git prints them, for a
+// comparison that must also see a change in the trailing newline.
+func fileAtRaw(rev, name string) (string, error) {
+	cmd := exec.Command("git", "show", rev+":"+name)
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("git show %s:%s: %w", rev, name, err)
+	}
+	return string(out), nil
 }
 
 // listTree returns every file path of rev, sorted.
@@ -199,12 +210,12 @@ func checkConventions(base string, tree []string) (notes, problems []string) {
 			problems = append(problems, fmt.Sprintf("%s is missing", newPath))
 			continue
 		}
-		before, err := fileAt(base, oldPath)
+		before, err := fileAtRaw(base, oldPath)
 		if err != nil {
 			problems = append(problems, err.Error())
 			continue
 		}
-		after, err := fileAt("HEAD", newPath)
+		after, err := fileAtRaw("HEAD", newPath)
 		if err != nil {
 			problems = append(problems, err.Error())
 			continue
@@ -232,12 +243,12 @@ func checkGuides(base string, tree []string) (notes, problems []string) {
 			problems = append(problems, fmt.Sprintf("%s is missing", newPath))
 			continue
 		}
-		before, err := fileAt(base, oldDir+"/"+guide.from)
+		before, err := fileAtRaw(base, oldDir+"/"+guide.from)
 		if err != nil {
 			problems = append(problems, err.Error())
 			continue
 		}
-		after, err := fileAt("HEAD", newPath)
+		after, err := fileAtRaw("HEAD", newPath)
 		if err != nil {
 			problems = append(problems, err.Error())
 			continue
@@ -296,12 +307,12 @@ func checkPastTasks(base string, tree []string) (notes, problems []string) {
 		if strings.HasPrefix(name, taskDirPrefix+"/") {
 			continue
 		}
-		before, err := fileAt(base, name)
+		before, err := fileAtRaw(base, name)
 		if err != nil {
 			problems = append(problems, err.Error())
 			continue
 		}
-		after, err := fileAt("HEAD", name)
+		after, err := fileAtRaw("HEAD", name)
 		if err != nil {
 			problems = append(problems, err.Error())
 			continue
