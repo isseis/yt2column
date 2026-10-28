@@ -45,11 +45,16 @@
 }
 
 /* The body's width is the content width: the padding sits outside it, so the
-   popup is 392px wide, well inside Chrome's 800px limit. */
+   popup is 392px wide, well inside Chrome's 800px limit. Chrome injects
+   extension_fonts.css into every extension page, and its body rule would
+   otherwise give the page the browser's font stack at 75% of the root size
+   (10.5px); these two declarations keep the root's stack and its 14px. */
 body {
   margin: 0;
   padding: 0.75rem 1rem;
   width: 360px;
+  font-family: inherit;
+  font-size: 1rem;
   color: var(--text);
   background-color: var(--bg);
 }

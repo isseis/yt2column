@@ -8,7 +8,7 @@
 | Created | 2026-10-28 |
 | Review date | 2026-10-28 |
 | Reviewer | isseis |
-| Comments | 2026-10-28 (editorial): `/runplan` の PR-1 の実装で、3.2 の `SelectionStatus` を、`SendableSelection` と `BlockedSelection` の 2 つのインターフェースの共用体として示した。`PreparedRequest` はブランド型で、ESLint の規則（`eslint.config.js` の `brandSelectors`）が型エイリアスの中でのその参照を禁じるため、同じ判別共用体を名前のあるインターフェースで書く必要がある。型の意味と `buildCollectedView` の契約は変えていない。<br>2026-10-28（設計の変更、レビュアーの判断）: PR-1 のコードレビューの指摘を受けて、3.2 の `SelectionStatus`・`DescriptionStatus` から `state` をなくし、`kind` だけを持つ形にした。確認の状態は `kind` から一意に決まるので、`kind` から状態への対応を `selectionStates`・`descriptionStates` の 1 か所に置く。要件と、表示する ✓ と ⚠ は変えていない。 |
+| Comments | 2026-10-28 (editorial): `/runplan` の PR-1 の実装で、3.2 の `SelectionStatus` を、`SendableSelection` と `BlockedSelection` の 2 つのインターフェースの共用体として示した。`PreparedRequest` はブランド型で、ESLint の規則（`eslint.config.js` の `brandSelectors`）が型エイリアスの中でのその参照を禁じるため、同じ判別共用体を名前のあるインターフェースで書く必要がある。型の意味と `buildCollectedView` の契約は変えていない。<br>2026-10-28（設計の変更、レビュアーの判断）: PR-1 のコードレビューの指摘を受けて、3.2 の `SelectionStatus`・`DescriptionStatus` から `state` をなくし、`kind` だけを持つ形にした。確認の状態は `kind` から一意に決まるので、`kind` から状態への対応を `selectionStates`・`descriptionStates` の 1 か所に置く。要件と、表示する ✓ と ⚠ は変えていない。<br>2026-10-28（editorial）: ステップ 5-4 の手動の確認で、Chrome が拡張のページに注入する `extension_fonts.css` の `body` の規則が、`:root` の 14px と日本語の書体を打ち消し、ポップアップが 10.5px で表示されることを見つけた。3.7 に、`body` で `font-family: inherit` と `font-size: 1rem` を宣言して打ち消すことを加えた。決定は変えていない。 |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `f488112` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。拡張のファイルのパスは `extension/` を省いて書く（例: `src/launch.ts` は `extension/src/launch.ts`）。F-NNN・AC-NN は要件書の項番を指す。モックアップは、要件書が参照する issue #507 のモックアップを指す。要件のレビューで設計に申し送られた事項（[design_handoff.md](design_handoff.md) の H-01〜H-12）への対応は 3.11 にまとめる。
 
@@ -557,6 +557,7 @@ export interface Catalog {
 ### 3.7. 大きさとレイアウト（AC-04・AC-17・AC-28、H-09）
 
 -   `body` の幅を 360 CSS ピクセルに固定する。この幅は、Chrome のポップアップの大きさの上限（幅 800・高さ 600）に収まる。
+-   **Chrome が拡張のページに注入する書体の規則を打ち消す:** Chrome はすべての拡張のページに `extension_fonts.css` を注入し、`body` にブラウザの書体と `font-size: 75%` を当てる。`:root` の 14px と `:root:lang(ja)` の日本語の書体は、`body` の規則に負ける。そこで `style.css` の `body` の規則で `font-family: inherit` と `font-size: 1rem` を宣言し、ルートの書体と 14px を使う。この宣言がないと、ポップアップは 10.5px で表示される（ステップ 5-4 の手動の確認で見つけた）。
 -   主ボタンは幅いっぱい（`width: 100%`）で、高さを 44 CSS ピクセル以上（`min-height`）にする。`<summary>` は、開閉の印を残すため `display: list-item` のまま、上下の余白で高さを 44 CSS ピクセル以上にし、幅は内容の幅いっぱいにする（AC-28）。
 -   新しい規則は `line-height` を宣言しない。日本語の行間は今の `body:lang(ja)` の規則（`static/style.css:71-73`）で決まり、`test/style.test.ts:164-171` が、`line-height` を宣言するのはこの規則だけであることを確かめているためである。
 -   **主ボタンが見えること（AC-17）の見積もり:** 試作（6.3）で、日本語・行間 1.7・幅 360px、見出しが 2 行、選択範囲の行が ⚠（数・2 つのプレビュー・理由の文・手順 1 つ）、概要欄の行が ⚠（文・手順 2 つ）の場合に、主ボタンの下端はページの上端から 492px だった（チャンネル名を除く）。チャンネル名は 2 行に制限する（3.4）ので、上限まで長い日本語のチャンネル名でも 2 行（48px。行の高さ 23.8px × 2）で止まる。これを加えた約 540px を上限と見積もる。上限の 600px まで約 60px の余裕がある。英語は行間が狭いので、これより低い。この見積もりは、ブラウザの表示の倍率が 100% で、macOS の既定の書体の場合である。拡張のポップアップはブラウザの既定の倍率に従うので、倍率を 125% にすると約 675px になり、主ボタンの下端が上限を超えてスクロールが要る。AC-17 は倍率 100% で満たし、それより大きい倍率は保証の外とする。実装した画面での確認は手動で行う（7.2）。

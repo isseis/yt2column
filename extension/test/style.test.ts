@@ -482,6 +482,15 @@ describe("layout", () => {
     assert.equal(effectiveValue(onScreen, "body", "min-width"), "");
   });
 
+  it("overrides the font Chrome injects into every extension page", () => {
+    // Chrome's extension_fonts.css gives the body the browser's font stack at
+    // 75% of the root size. A body declaration keeps the root's font stack and
+    // its 14px; without it the popup renders at 10.5px.
+    assert.equal(effectiveValue(onScreen, ":root", "font-size"), "14px");
+    assert.equal(effectiveValue(onScreen, "body", "font-family"), "inherit");
+    assert.equal(effectiveValue(onScreen, "body", "font-size"), "1rem");
+  });
+
   it("fills the action section with the primary button and keeps it 44px tall", () => {
     assert.equal(effectiveValue(onScreen, "#primary", "width"), "100%");
     assert.ok(atLeast44(effectiveValue(onScreen, "#primary", "min-height")));
