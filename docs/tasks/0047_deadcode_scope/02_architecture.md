@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-28 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-10-28 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。このリポジトリのファイルについての記述は、コミット `9dbc1f4` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。`deadcode` についての記述は、`golang.org/x/tools` v0.47.0 のソース（Go のモジュールキャッシュにあるもの）と、手元の macOS（GNU Make 3.81、`/bin/sh` と `/bin/dash`）で v0.47.0 を実行した結果で確かめた。F-NNN（機能要件）・AC-NN（受け入れ基準）は要件書の項番を指す。要件のレビューで設計に申し送られた事項（[design_handoff.md](design_handoff.md) の H-01〜H-04）への対応は、付録 A にまとめる。
