@@ -32,10 +32,13 @@ const (
 	deadcodeTempError    = "Error: cannot create a temporary file for deadcode output"
 )
 
-// deadcodeNotFoundStdout is what the target prints, on standard output, when
-// the deadcode command is missing from PATH.
-const deadcodeNotFoundStdout = "Error: deadcode is required but not found\n" +
-	"Please install deadcode: go install golang.org/x/tools/cmd/deadcode@latest\n"
+// deadcodeNotFoundMessage is what the target prints, on standard output, when
+// the command DEADCODECMD names cannot be found. The first line names that
+// value, which may be a path.
+func deadcodeNotFoundMessage(command string) string {
+	return "Error: " + command + " is required but not found\n" +
+		"Please install deadcode: go install golang.org/x/tools/cmd/deadcode@latest\n"
+}
 
 // verdictCase is one way the deadcode command can end and what the target must
 // do about it.
@@ -52,6 +55,9 @@ type verdictCase struct {
 	// withoutDeadcode keeps the default command name and puts only make and sh
 	// on PATH, so the recipe cannot find the command.
 	withoutDeadcode bool
+	// namedNotFound instead names a DEADCODECMD value that does not exist, on
+	// the normal PATH, so the message must name that value.
+	namedNotFound bool
 	// wantSuccess is whether make must exit 0.
 	wantSuccess bool
 	// wantStdout is the exact standard output; the empty string means none.
@@ -175,11 +181,16 @@ func verdictCases() []verdictCase {
 			wantTempFiles: 1,
 		},
 		{
+			// The restricted PATH has no mktemp either, so this row also pins
+			// that the command is looked up before any temporary file is made.
 			name:            "deadcode_not_found",
 			withoutDeadcode: true,
-			wantStdout:      deadcodeNotFoundStdout,
-			wantStubRan:     false,
-			wantTempFiles:   0,
+			wantStdout:      deadcodeNotFoundMessage("deadcode"),
+			wantStderrLacks: []string{deadcodeTempError},
+		},
+		{
+			name:          "deadcode_not_found_named_value",
+			namedNotFound: true,
 		},
 	}
 }
@@ -218,7 +229,15 @@ func TestMakeDeadcodeVerdict(t *testing.T) {
 			recorder := writeRecordingMktemp(t, filepath.Join(dir, "bin"), realMktemp, tc.failMktempAt)
 
 			var cmd *exec.Cmd
+			wantStdout := tc.wantStdout
 			switch {
+			case tc.namedNotFound:
+				// The value is a path with a space, and the message must name
+				// it rather than the default command name.
+				missing := filepath.Join(dir, "absent dir", "deadcode")
+				wantStdout = deadcodeNotFoundMessage(missing)
+				cmd = exec.Command(makePath, "deadcode", "DEADCODECMD="+missing)
+				cmd.Env = envWithPath(os.Getenv("PATH"))
 			case tc.withoutDeadcode:
 				// make by absolute path, with only make and sh on PATH: the
 				// recipe's own commands are shell builtins, so it fails before
@@ -241,8 +260,8 @@ func TestMakeDeadcodeVerdict(t *testing.T) {
 				t.Fatalf("make error = %v (want success %t); stdout:\n%s\nstderr:\n%s",
 					err, tc.wantSuccess, stdout.String(), stderr.String())
 			}
-			if got := stdout.String(); got != tc.wantStdout {
-				t.Errorf("make stdout = %q, want %q", got, tc.wantStdout)
+			if got := stdout.String(); got != wantStdout {
+				t.Errorf("make stdout = %q, want %q", got, wantStdout)
 			}
 			if tc.wantStderrEmpty && stderr.Len() != 0 {
 				t.Errorf("make stderr = %q, want it empty on success", stderr.String())
@@ -278,26 +297,10 @@ func TestMakeDeadcodeVerdict(t *testing.T) {
 		})
 	}
 
-	// The not-found message names DEADCODECMD's value, not the default command
-	// name: the value may be a path, spaces included.
-	t.Run("deadcode_not_found_named_value", func(t *testing.T) {
-		missing := filepath.Join(t.TempDir(), "absent dir", "deadcode")
-		cmd := exec.Command(makePath, "deadcode", "DEADCODECMD="+missing)
-		cmd.Dir = repositoryRoot
-		cmd.Env = envWithPath(os.Getenv("PATH"))
-		got := runDeadcodeCommand(t, cmd)
-		want := "Error: " + missing + " is required but not found\n" +
-			"Please install deadcode: go install golang.org/x/tools/cmd/deadcode@latest\n"
-		if got.err == nil || string(got.stdout) != want {
-			t.Fatalf("make error = %v, stdout = %q, want %q; stderr:\n%s",
-				got.err, got.stdout, want, got.stderr)
-		}
-	})
-
 	// DEADCODECMD is assigned with `=`, so a value in the environment cannot
 	// silently replace the command: only the command line can. A failing stub
 	// in the environment must be ignored in favour of the passing command on
-	// PATH.
+	// PATH, which then records the expected arguments.
 	t.Run("environment_does_not_replace_the_command", func(t *testing.T) {
 		dir := t.TempDir()
 		passing := writeDeadcodeStub(t, filepath.Join(dir, "passing stub"), "", "", 0)
@@ -315,9 +318,6 @@ func TestMakeDeadcodeVerdict(t *testing.T) {
 		got := runDeadcodeCommand(t, cmd)
 		if got.err != nil || len(got.stdout) != 0 || len(got.stderr) != 0 {
 			t.Fatalf("make deadcode did not ignore the environment's DEADCODECMD and succeed with the command on PATH:\n%s", got.output())
-		}
-		if _, ran := readStubArgs(failing.argsPath); ran {
-			t.Error("the recipe ran the command the environment named")
 		}
 		args, ran := readStubArgs(passing.argsPath)
 		if !ran || !slices.Equal(args, deadcodeArgs) {
@@ -337,7 +337,7 @@ type deadcodeStub struct {
 	argsPath string
 }
 
-// writeDeadcodeStub writes the stub into dir, which must not exist yet.
+// writeDeadcodeStub writes the stub into dir, creating it.
 func writeDeadcodeStub(t *testing.T, dir, stdout, stderr string, status int) *deadcodeStub {
 	t.Helper()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -346,9 +346,6 @@ func writeDeadcodeStub(t *testing.T, dir, stdout, stderr string, status int) *de
 	stdoutPath := filepath.Join(dir, "stdout")
 	stderrPath := filepath.Join(dir, "stderr")
 	for path, content := range map[string]string{stdoutPath: stdout, stderrPath: stderr} {
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			t.Fatalf("create %s: %v", filepath.Dir(path), err)
-		}
 		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 			t.Fatalf("write %s: %v", path, err)
 		}
@@ -722,40 +719,36 @@ func TestMakeDeadcodeScope(t *testing.T) {
 	t.Run("isolation", func(t *testing.T) {
 		root := writeDeadcodeFixture(t, nil)
 		for _, tc := range []struct {
-			name     string
-			function string
-			args     []string
+			name      string
+			functions []string
+			args      []string
 		}{
 			{
 				// The old argument list, widened only with the integration tag
 				// and the internal packages: cmd/srv is the one excluded.
-				name:     "other_entry_point_excluded",
-				function: "OnlySrv",
-				args:     []string{"-test", "-tags", "test,integration", "./cmd/cli", "./internal/..."},
+				name:      "other_entry_point_excluded",
+				functions: []string{"OnlySrv"},
+				args:      []string{"-test", "-tags", "test,integration", "./cmd/cli", "./internal/..."},
 			},
 			{
 				// The previous target's argument list.
-				name:     "cli_entry_point_only",
-				function: "OnlySrv",
-				args:     []string{"-test", "-tags", "test", "./cmd/cli"},
+				name:      "cli_entry_point_only",
+				functions: []string{"OnlySrv"},
+				args:      []string{"-test", "-tags", "test", "./cmd/cli"},
 			},
 			{
-				// Tests are not roots without -test, so no test reaches Helper.
-				name:     "tests_excluded_helper",
-				function: "Helper",
-				args:     []string{"-tags", "test,integration", "./..."},
-			},
-			{
-				name:     "tests_excluded_only_test",
-				function: "OnlyTest",
-				args:     []string{"-tags", "test,integration", "./..."},
+				// Tests are not roots without -test, so no test reaches these
+				// two, whether the test is in the helper's package or another.
+				name:      "tests_excluded",
+				functions: []string{"Helper", "OnlyTest"},
+				args:      []string{"-tags", "test,integration", "./..."},
 			},
 			{
 				// Without the integration tag the integration test is not
 				// built, so nothing reaches OnlyIntegration.
-				name:     "integration_tag_excluded",
-				function: "OnlyIntegration",
-				args:     []string{"-test", "-tags", "test", "./..."},
+				name:      "integration_tag_excluded",
+				functions: []string{"OnlyIntegration"},
+				args:      []string{"-test", "-tags", "test", "./..."},
 			},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
@@ -763,9 +756,11 @@ func TestMakeDeadcodeScope(t *testing.T) {
 				if got.err != nil {
 					t.Fatalf("deadcode %q failed (%s):\n%s", tc.args, scope.note(), got.output())
 				}
-				if !bytes.Contains(got.stdout, []byte(tc.function)) {
-					t.Fatalf("deadcode %q did not report %s, so the fixture does not isolate it from the other roots (%s):\n%s",
-						tc.args, tc.function, scope.note(), got.output())
+				for _, function := range tc.functions {
+					if !bytes.Contains(got.stdout, []byte(function)) {
+						t.Errorf("deadcode %q did not report %s, so the fixture does not isolate it from the other roots (%s):\n%s",
+							tc.args, function, scope.note(), got.output())
+					}
 				}
 			})
 		}
@@ -842,6 +837,9 @@ func TestMakeDeadcodeScope(t *testing.T) {
 			t.Fatalf("make deadcode succeeded although the fixture does not compile (%s):\n%s", scope.note(), got.output())
 		}
 		if !bytes.Contains(got.stderr, []byte("undefined: anywhere")) {
+			// The compiler's diagnostic names the fixture's own undefined
+			// identifier, so the wording is the payload the recipe must forward
+			// unchanged; there is no error type to check.
 			t.Fatalf("make deadcode did not show the deadcode command's compiler error (%s):\n%s", scope.note(), got.output())
 		}
 	})

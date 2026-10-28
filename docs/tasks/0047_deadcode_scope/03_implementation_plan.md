@@ -267,23 +267,22 @@
 
 同じコミットで `make ext-test`（Node.js 24.21.0）も実行し、`tests 894`・`pass 894`・`fail 0` だった。`extension/test/repository.test.ts` の `make -n build test lint deadcode` の検査を含む。
 
-**`TestMakeDeadcodeScope` の記録（4-1）:** コミット `0b356d49` で `go test -tags test ./cmd/yt2column -run 'TestMakeDeadcodeScope' -v -count=1` を実行し、スキップされずに PASS した（`ok github.com/isseis/yt2column/cmd/yt2column 3.538s`、`PASS`）。出力の `--- PASS:` の行は次のとおりである。
+**`TestMakeDeadcodeScope` の記録（4-1）:** コミット `0b356d49` で `go test -tags test ./cmd/yt2column -run 'TestMakeDeadcodeScope' -v -count=1` を実行し、スキップされずに PASS した（`PASS`、`ok github.com/isseis/yt2column/cmd/yt2column 3.384s`）。その後の変更はテストのコメントとケースのまとめ方だけで、この記録を加えた時点で同じサブテストが PASS することを確かめた。出力の `--- PASS:` の行は次のとおりである。
 
 ```
---- PASS: TestMakeDeadcodeScope (3.26s)
+--- PASS: TestMakeDeadcodeScope (3.10s)
     --- PASS: TestMakeDeadcodeScope/silent_success (0.42s)
-    --- PASS: TestMakeDeadcodeScope/isolation (0.93s)
-        --- PASS: TestMakeDeadcodeScope/isolation/other_entry_point_excluded (0.38s)
+    --- PASS: TestMakeDeadcodeScope/isolation (0.85s)
+        --- PASS: TestMakeDeadcodeScope/isolation/other_entry_point_excluded (0.37s)
         --- PASS: TestMakeDeadcodeScope/isolation/cli_entry_point_only (0.06s)
-        --- PASS: TestMakeDeadcodeScope/isolation/tests_excluded_helper (0.06s)
-        --- PASS: TestMakeDeadcodeScope/isolation/tests_excluded_only_test (0.06s)
-        --- PASS: TestMakeDeadcodeScope/isolation/integration_tag_excluded (0.38s)
-    --- PASS: TestMakeDeadcodeScope/reported (1.62s)
-        --- PASS: TestMakeDeadcodeScope/reported/package_function (0.40s)
-        --- PASS: TestMakeDeadcodeScope/reported/other_entry_point_function (0.42s)
-        --- PASS: TestMakeDeadcodeScope/reported/integration_tagged_function (0.40s)
-        --- PASS: TestMakeDeadcodeScope/reported/package_outside_the_entry_points (0.40s)
-    --- PASS: TestMakeDeadcodeScope/compile_error (0.27s)
+        --- PASS: TestMakeDeadcodeScope/isolation/tests_excluded (0.06s)
+        --- PASS: TestMakeDeadcodeScope/isolation/integration_tag_excluded (0.37s)
+    --- PASS: TestMakeDeadcodeScope/reported (1.55s)
+        --- PASS: TestMakeDeadcodeScope/reported/package_function (0.38s)
+        --- PASS: TestMakeDeadcodeScope/reported/other_entry_point_function (0.39s)
+        --- PASS: TestMakeDeadcodeScope/reported/integration_tagged_function (0.39s)
+        --- PASS: TestMakeDeadcodeScope/reported/package_outside_the_entry_points (0.39s)
+    --- PASS: TestMakeDeadcodeScope/compile_error (0.26s)
 ```
 
 ## 10. 次のステップ (Next Steps)
