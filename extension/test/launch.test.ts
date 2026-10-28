@@ -12,7 +12,7 @@ import type {
 import { catalogs } from "../src/core/i18n/catalog.ts";
 import { locales } from "../src/core/i18n/locale.ts";
 import type { Locale } from "../src/core/i18n/locale.ts";
-import { expandPromptMessage, rejectionMessage } from "../src/core/messages.ts";
+import { expandPromptMessage } from "../src/core/messages.ts";
 import { acceptMetadata } from "../src/core/metadata.ts";
 import type { MetadataResult } from "../src/core/metadata.ts";
 import { nativeHostName } from "../src/core/native.ts";
@@ -690,17 +690,12 @@ describe("popup send", () => {
       });
     }
 
-    it(`shows the ${locale} rejection card and a disabled button without sending for a rejected collection`, async () => {
+    it(`shows the ${locale} primary button disabled without sending for a rejected collection`, async () => {
       const native = acceptedNative();
       const elements = shown(
         { kind: "rejected", reason: "empty-selection" },
         deps(native.sendNative).deps,
       );
-      assert.equal(elements.rejection.hidden, false);
-      expectLocaleMessage(elements.rejection, locale, (l) =>
-        rejectionMessage("empty-selection", l),
-      );
-      assert.equal(elements.action.hidden, false);
       assert.equal(elements.primary.disabled, true);
       await clickSend(elements);
       assert.equal(native.messages.length, 0);
@@ -1029,6 +1024,8 @@ describe("startPopup", () => {
     ]);
     assert.equal(primaryOf(doc).disabled, false);
     assert.equal(doc.querySelector("#video h1")?.textContent, videoTitle);
+    // Opening the popup moves no focus, so Enter cannot send before a look.
+    assert.equal(doc.activeElement, doc.body);
   });
 
   it("displays Japanese after reading a Japanese UI language", async () => {

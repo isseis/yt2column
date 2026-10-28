@@ -19,13 +19,10 @@ export function container(): HTMLElement {
 }
 
 /** The one element with id in doc, asserting it exists. */
-function byId<T extends HTMLElement = HTMLElement>(
-  doc: Document,
-  id: string,
-): T {
+function byId(doc: Document, id: string): HTMLElement {
   const element = doc.getElementById(id);
   assert.ok(element !== null, id);
-  return element as T;
+  return element;
 }
 
 /** A fresh document parsed from the shipped static/popup.html. */
@@ -43,13 +40,19 @@ export function popupDocument(): Document {
  * the status region inside the action section after the button.
  */
 export function popupElements(doc = popupDocument()): PopupElements {
+  const win = doc.defaultView;
+  assert.ok(win !== null);
+  const primary = byId(doc, "primary");
+  assert.ok(primary instanceof win.HTMLButtonElement, "primary");
+  const details = byId(doc, "details");
+  assert.ok(details instanceof win.HTMLDetailsElement, "details");
   return {
     video: byId(doc, "video"),
     checks: byId(doc, "checks"),
     rejection: byId(doc, "rejection"),
-    details: byId<HTMLDetailsElement>(doc, "details"),
+    details,
     action: byId(doc, "action"),
-    primary: byId<HTMLButtonElement>(doc, "primary"),
+    primary,
     status: byId(doc, "status"),
   };
 }

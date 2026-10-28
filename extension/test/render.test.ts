@@ -87,16 +87,6 @@ function checkRows(elements: PopupElements): HTMLLIElement[] {
   return Array.from(elements.checks.querySelectorAll("li.check-row"));
 }
 
-/** The document position flag meaning "the second node follows the first". */
-const documentPositionFollowing = 4;
-
-/** True when first comes before second in document order. */
-function precedes(first: Node, second: Node): boolean {
-  return (
-    (first.compareDocumentPosition(second) & documentPositionFollowing) !== 0
-  );
-}
-
 /** A check row's parts in document order: the symbol, then each child's class. */
 function rowParts(row: Element): string[] {
   return Array.from(row.children, (child) =>
@@ -139,9 +129,6 @@ describe("renderPopup", () => {
       }
       // renderPopup never moves the containers, so the shipped skeleton's
       // order (popupHtml.test.ts) is the order the sections are shown in.
-      assert.ok(precedes(elements.video, elements.checks));
-      assert.ok(precedes(elements.checks, elements.action));
-      assert.ok(precedes(elements.action, elements.details));
       assert.equal(elements.details.open, false);
       assert.equal(
         elements.video.querySelector("h1"),
@@ -180,8 +167,11 @@ describe("renderPopup", () => {
       assert.equal(elements.video.querySelector("p"), null);
     });
 
-    it(`draws the primary button's name without enabling it in ${locale}`, () => {
+    it(`draws the primary button's name and leaves it disabled even when the skeleton enabled it in ${locale}`, () => {
       const elements = popupElements();
+      // Only the send path may enable the button, so a skeleton that lost its
+      // disabled attribute must not make a drawn popup pressable.
+      elements.primary.disabled = false;
       renderPopup(elements, collectedView(), locale);
       assert.equal(elements.primary.textContent, catalog.primaryButton);
       assert.equal(elements.primary.disabled, true);

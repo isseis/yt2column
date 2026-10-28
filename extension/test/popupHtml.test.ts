@@ -35,6 +35,10 @@ describe("popup.html skeleton", () => {
     }
   });
 
+  it("starts in English until startPopup sets the display language", () => {
+    assert.equal(popupDocument().documentElement.lang, "en");
+  });
+
   it("names the rejection card by the reason's sentence", () => {
     const doc = popupDocument();
     assert.equal(

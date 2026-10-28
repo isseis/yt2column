@@ -285,10 +285,10 @@ function renderDetailsSection(
 /**
  * Draws the popup view into the skeleton. It replaces each container's
  * children, so drawing twice adds nothing, and shows the view's sections while
- * hiding the others; a rejected view also disables the primary button. Every string is set with textContent, so a value read
- * from the page stays text. It never opens the details and never removes the
- * primary button's disabled attribute: the send path does that, and only for a
- * sendable selection.
+ * hiding the others. Every string is set with textContent, so a value read
+ * from the page stays text. It never opens the details. It always leaves the
+ * primary button disabled, whatever the skeleton says: only the send path
+ * enables it, and only for a sendable selection.
  */
 export function renderPopup(
   elements: PopupElements,
@@ -303,9 +303,7 @@ export function renderPopup(
   elements.rejection.hidden = collected;
   elements.action.hidden = false;
   elements.primary.textContent = catalogs[locale].primaryButton;
-  if (!collected) {
-    elements.primary.disabled = true;
-  }
+  elements.primary.disabled = true;
   if (view.kind === "collected") {
     elements.rejection.replaceChildren();
     renderVideoSection(doc, elements.video, view.video);
