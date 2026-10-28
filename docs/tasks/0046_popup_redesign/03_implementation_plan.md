@@ -521,10 +521,11 @@ AC-36 のキーボードでの操作と AC-40 の色覚の模擬は、テスト�
 
 **差分の確認の実行の記録:**
 
-- PR-1（2026-10-28）: リポジトリのルートで `node docs/tasks/0046_popup_redesign/_checks/unchanged_values.ts` を実行し、終了コード 0。merge-base は `c0b4e3fe86335b0dcd89eaca3896911c1590b8c2`、確かめたコミットは `2af41f7cdfb49a8df12deec093079fe636556659`（記録のコミットは本書だけを変える。ステップ 2-2）。出力は次の 3 行である。
+- PR-1（2026-10-28）: リポジトリのルートで `node docs/tasks/0046_popup_redesign/_checks/unchanged_values.ts` を実行し、終了コード 0。merge-base は `c0b4e3fe86335b0dcd89eaca3896911c1590b8c2`、確かめたコミットは `ecb30952521eb5b1a764fca0ed058a5be36ffc5e`（記録のコミットは本書だけを変える。ステップ 2-2）。出力は次の 4 行である。
 
     ```
     merge-base c0b4e3fe86335b0dcd89eaca3896911c1590b8c2
+    head       ecb30952521eb5b1a764fca0ed058a5be36ffc5e
     PASS: the unchanged catalog items and the built bodies are identical
     PASS: extension/static/manifest.json is identical (sha256 47091ca6796f153ed03ffbbb55573067a88da30bbae1ea20186407b2e2bed8d5)
     ```
