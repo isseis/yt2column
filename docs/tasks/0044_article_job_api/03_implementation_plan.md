@@ -438,26 +438,26 @@
 
 -   **ファイル:** `README.md`、`cmd/yt2column-server/docs_test.go`
 -   **作業:**
-    -   [ ] 「Localhost server」節に、設計書 §3.15 の「README の「Localhost server」節」の項目と、新しい API の 3 つの操作の curl の例を加える。「Stopping the server」に、新しい API の処理中の生成が取り消されることを加える。
-    -   [ ] `SLACK_WEBHOOK_URL` を必須と書く `README.md:58`・`:86`・`:532`・`:810`（1.4）を、サーバでは任意で投稿の操作と `/articles` に要ることに改め、未設定の場合の振る舞いを書く（設計書 §3.15「README の設定の表と本文」）。
-    -   [ ] `TestServerDocsContract` の `README.md` のサブテストに、新しい API の curl の例が、サーバのパスの定数（ステップ 5-3・5-6）から作った生成の開始・状態の取得・投稿の操作のパスを持つことを確かめる検査を加える（1.3、今の `ArticlesPath` の検査と同じ形）。
-    -   [ ] 開発用のサーバ（README「Running a separate server for development」）を `SLACK_WEBHOOK_URL` なしで起動し、LLM と Webhook を呼ばない例（不明なキーの状態の取得、`invalid_key`、投稿の操作の `webhook_not_configured`）を実行して、記載の応答と合うことを確かめる。結果をコミットのメッセージに書く。生成の開始と投稿の例は実行しない（1.3）。
+    -   [x] 「Localhost server」節に、設計書 §3.15 の「README の「Localhost server」節」の項目と、新しい API の 3 つの操作の curl の例を加える。「Stopping the server」に、新しい API の処理中の生成が取り消されることを加える。
+    -   [x] `SLACK_WEBHOOK_URL` を必須と書く `README.md:58`・`:86`・`:532`・`:810`（1.4）を、サーバでは任意で投稿の操作と `/articles` に要ることに改め、未設定の場合の振る舞いを書く（設計書 §3.15「README の設定の表と本文」）。
+    -   [x] `TestServerDocsContract` の `README.md` のサブテストに、新しい API の curl の例が、サーバのパスの定数（ステップ 5-3・5-6）から作った生成の開始・状態の取得・投稿の操作のパスを持つことを確かめる検査を加える（1.3、今の `ArticlesPath` の検査と同じ形）。
+    -   [x] 開発用のサーバ（README「Running a separate server for development」）を `SLACK_WEBHOOK_URL` なしで起動し、LLM と Webhook を呼ばない例（不明なキーの状態の取得、`invalid_key`、投稿の操作の `webhook_not_configured`）を実行して、記載の応答と合うことを確かめる。結果をコミットのメッセージに書く。生成の開始と投稿の例は実行しない（1.3）。
 -   **完了の条件:** グリーンゲートと `make ext-test` が通る。
 
 #### ステップ 7-2: そのほかの文書
 
 -   **ファイル:** `docs/dev/security.md`・`docs/dev/project_overview.md`・`docs/dev/production_profile.md`・`docs/translation_glossary.md`
 -   **作業:**
-    -   [ ] 設計書 §3.15 の `security.md` §8・`project_overview.md`・`production_profile.md`・`translation_glossary.md` の項目のとおりに更新する（`CLAUDE.md` はステップ 6-2 で更新した）。
+    -   [x] 設計書 §3.15 の `security.md` §8・`project_overview.md`・`production_profile.md`・`translation_glossary.md` の項目のとおりに更新する（`CLAUDE.md` はステップ 6-2 で更新した）。
 -   **完了の条件:** グリーンゲートが通る。
 
 #### ステップ 7-3: 拡張が変わっていないことの差分の確認
 
 -   **ファイル:** `docs/tasks/0044_article_job_api/_checks/extension_unchanged.sh`（新規）
 -   **作業:**
-    -   [ ] 引数のコミットのそれぞれについて、その親との間で `extension/` に差分がないことを確かめ、差分があれば終了コード 1 でそのコミットとファイルを出すスクリプトを書く。
-    -   [ ] PR-1〜PR-6 の squash のコミットと、PR-7 のブランチの `origin/main` から先のコミットを入力にして実行し、出力とコミットの一覧を 7 章の AC-42 の行に記録する（1.3）。
-    -   [ ] 壊し方: `extension/` を変えた一時的なコミットを入力に加えると終了コード 1 になることを確かめ、そのコミットを捨てる。
+    -   [x] 引数のコミットのそれぞれについて、その親との間で `extension/` に差分がないことを確かめ、差分があれば終了コード 1 でそのコミットとファイルを出すスクリプトを書く。
+    -   [x] PR-1〜PR-6 の squash のコミットと、PR-7 のブランチの `origin/main` から先のコミットを入力にして実行し、出力とコミットの一覧を 7 章の AC-42 の行に記録する（1.3）。
+    -   [x] 壊し方: `extension/` を変えた一時的なコミットを入力に加えると終了コード 1 になることを確かめ、そのコミットを捨てる。
 -   **完了の条件:** スクリプトが終了コード 0 で終わる。
 
 ### PR-7 作成ポイント: documentation
@@ -548,11 +548,11 @@ PR-1 と PR-2 は互いに依存しないが、PR は番号の順にマージす
 
 **横断の確認（`make lint` と `make test` が見つけないもの）:**
 
-- [ ] 1.5 の表の今の名前（`TestLoadServerWebhookRequired`・`errNilPublisher`・`errNilNotifier`）が、コードと文書に残っていない（PR-3）。
-- [ ] Webhook を必須とする注釈（`always set`・`required`）が `internal/config` と `cmd/yt2column-server` に残っていない（PR-3）。
+- [x] 1.5 の表の今の名前（`TestLoadServerWebhookRequired`・`errNilPublisher`・`errNilNotifier`）が、コードと文書に残っていない（PR-3）。
+- [x] Webhook を必須とする注釈（`always set`・`required`）が `internal/config` と `cmd/yt2column-server` に残っていない（PR-3）。
 - [x] 1.4 の「注釈」の行の `internal/server` の注釈が、新しい API の生成のジョブと取り消しに合っている（PR-4）。
 - [x] 設計書 §3.10.2「説明の更新」の注釈に、メッセージを解析しない・標準入力の残りを読まない・64 KiB という記述が残っていない（PR-6）。
-- [ ] `package_reference.md` の各行が、その PR で変えたパッケージの責務と合っている（各 PR）。
+- [x] `package_reference.md` の各行が、その PR で変えたパッケージの責務と合っている（各 PR）。
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -608,7 +608,7 @@ PR-1 と PR-2 は互いに依存しないが、PR は番号の順にマージす
 | AC-40a | test | `internal/nmhost/relay_test.go::TestRelayKeyPassedUnchecked` | 6-2 |
 | AC-41 | test | `internal/server/generation_test.go::TestStatusResponseWithinLimit`、`internal/nmhost/relay_test.go::TestRelayResponseOverLimit`、`cmd/yt2column-server/relay_e2e_test.go::TestStatusResponseFitsRelay` | 5-2・6-3 |
 | AC-41a | test | `internal/nmhost/relay_test.go::TestRelayNewFormTimeout` | 6-2 |
-| AC-42 | static・diff | `cmd/yt2column-server/docs_test.go::TestServerDocsContract/rejection_reasons`、`make ext-test`（`extension/test/serverReasons.test.ts`）、`docs/tasks/0044_article_job_api/_checks/extension_unchanged.sh`（入力のコミットの一覧と出力はステップ 7-3 で記録する） | 4-2・5-3・5-6・7-3 |
+| AC-42 | static・diff | `cmd/yt2column-server/docs_test.go::TestServerDocsContract/rejection_reasons`、`make ext-test`（`extension/test/serverReasons.test.ts`）、`docs/tasks/0044_article_job_api/_checks/extension_unchanged.sh`（2026-10-28 に PR-7 のブランチで実行した。入力は PR-1〜PR-6 の 6 つの squash のコミット `29843fef`・`7161b660`・`9cfde0e0`・`f9890c10`・`6c11b46e`・`31cc50a2` と、PR-5 の後にマージされた本タスクの補足の PR #543 のコミット `de651e46`、および PR-7 のブランチのコミット `d45475ca`・`ad96abda`・`60d02201` の 10 個である。出力は各行が `<コミット>: extension/ unchanged` の 10 行で、終了コードは 0 である。分岐元（`git merge-base origin/main HEAD`）は `31cc50a2`、実行した時点の HEAD は `60d02201`） | 4-2・5-3・5-6・7-3 |
 | AC-43 | manual | PR-7 のレビューで、README・`security.md`・`project_overview.md`・`production_profile.md`・`translation_glossary.md` を F-001〜F-008 と照らして読む。PR-6 のレビューで `CLAUDE.md` の例外を、各 PR のレビューで `package_reference.md` の行を読む | 6-2・7-1・7-2 |
 | AC-44 | test | `internal/articlecache/key_test.go::TestParseKey`、`internal/server/jobs_api_test.go::TestJobsTargetRejections`（状態の取得）、`internal/server/publish_test.go::TestPublishTargetRejections`（投稿の操作）。本文を使う新しい操作はない（本文を持つのは生成の開始だけで、その検査は AC-08 の表で確かめる）ので、要件書 AC-44 の本文を使う操作の部分は当てはまらない | 2-2・5-3・5-6 |
 | AC-45 | test | `internal/server/generation_test.go::TestGenerationPanic`（記録が内部の失敗になること）、`internal/server/jobs_api_test.go::TestGenerationPanicServerResponds`（その後の要求に応答すること） | 5-2・5-3 |
