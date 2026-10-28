@@ -58,6 +58,17 @@ func TestServerEndToEnd(t *testing.T) {
 		!strings.Contains(status.Job.Article.Markdown, "A title") || !strings.Contains(status.Job.Article.File, testNormalizedURL) {
 		t.Errorf("job status = %+v, want done with the generated article", status.Job)
 	}
+	posted := len(webhook.messages())
+	publish := doJobs(t, socket, http.MethodPost, server.JobsPath+"/"+started.Key+server.PublishSuffix, nil, http.StatusAccepted)
+	if publish.Status != "accepted" {
+		t.Errorf("publish response = %+v, want accepted", publish)
+	}
+	if state := waitPublished(t, socket, started.Key); state != "posted" {
+		t.Errorf("publish state = %q, want posted", state)
+	}
+	if got := webhook.messages()[posted:]; len(got) != 1 || !strings.Contains(got[0], "A title") {
+		t.Errorf("messages posted by the publish operation = %q, want the one article", got)
+	}
 
 	if code := first.stop(t); code != exitOK {
 		t.Fatalf("first run exit code = %d, want %d\nstderr:\n%s", code, exitOK, first.stderr.String())

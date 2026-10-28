@@ -27,6 +27,9 @@ const (
 	reasonInvalidTranscript
 	reasonWebhookNotConfigured
 	reasonInvalidKey
+	reasonArticleNotReady
+	reasonArticleNotFound
+	reasonArticleNotPostable
 	// reasonCount is not a reason: it follows the last one, so the tests
 	// enumerate every reason, including one appended later.
 	reasonCount
@@ -54,6 +57,12 @@ func (r rejectReason) reasonValue() string {
 		return "webhook_not_configured"
 	case reasonInvalidKey:
 		return "invalid_key"
+	case reasonArticleNotReady:
+		return "article_not_ready"
+	case reasonArticleNotFound:
+		return "article_not_found"
+	case reasonArticleNotPostable:
+		return "article_not_postable"
 	default:
 		return "internal_error"
 	}
@@ -62,8 +71,10 @@ func (r rejectReason) reasonValue() string {
 // statusCode returns the HTTP status code of the rejection.
 func (r rejectReason) statusCode() int {
 	switch r {
-	case reasonNotFound:
+	case reasonNotFound, reasonArticleNotFound:
 		return http.StatusNotFound
+	case reasonArticleNotReady, reasonArticleNotPostable:
+		return http.StatusConflict
 	case reasonMethodNotAllowed:
 		return http.StatusMethodNotAllowed
 	case reasonTooManyRequests:
@@ -125,6 +136,9 @@ const (
 	detailInvalidTranscript    rejectDetail = "invalid_transcript"
 	detailWebhookNotConfigured rejectDetail = "webhook_not_configured"
 	detailInvalidKey           rejectDetail = "invalid_key"
+	detailArticleNotReady      rejectDetail = "article_not_ready"
+	detailArticleNotFound      rejectDetail = "article_not_found"
+	detailArticleNotPostable   rejectDetail = "article_not_postable"
 	detailInternalError        rejectDetail = "internal_error"
 )
 

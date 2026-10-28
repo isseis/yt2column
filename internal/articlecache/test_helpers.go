@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"time"
 )
 
 // JobStatesForTest returns every JobState value, in declaration order, so a
@@ -43,6 +44,13 @@ func dumpValue(b *strings.Builder, v reflect.Value) {
 		}
 		dumpValue(b, v.Elem())
 	case reflect.Struct:
+		if v.Type() == reflect.TypeFor[time.Time]() {
+			// A time's location is loaded lazily, the first time anything
+			// formats a local time, so following it would make two dumps of
+			// an unchanged record differ. The instant alone is the value.
+			fmt.Fprintf(b, "time(%d,%d)", v.FieldByName("wall").Uint(), v.FieldByName("ext").Int())
+			return
+		}
 		b.WriteByte('{')
 		for i := range v.NumField() {
 			fmt.Fprintf(b, "%s:", v.Type().Field(i).Name)

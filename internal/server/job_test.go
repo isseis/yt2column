@@ -219,6 +219,11 @@ func TestReasonToKind(t *testing.T) {
 		reasonWebhookNotConfigured: failure.KindUnknown,
 		// Only the job API, which never notifies, rejects a key.
 		reasonInvalidKey: failure.KindUnknown,
+		// Only the publish operation, which never notifies, refuses an
+		// article for its record's state.
+		reasonArticleNotReady:    failure.KindUnknown,
+		reasonArticleNotFound:    failure.KindUnknown,
+		reasonArticleNotPostable: failure.KindUnknown,
 	}
 	for reason := range reasonCount {
 		expected, ok := want[reason]

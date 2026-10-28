@@ -438,3 +438,124 @@ func codesOf[E any](values []E, code func(E) string) []string {
 	}
 	return codes
 }
+
+// publishTarget returns the request target of a publish operation for the key
+// part keyPart.
+func publishTarget(keyPart string) string {
+	return JobsPath + "/" + keyPart + PublishSuffix
+}
+
+// publishTestKey returns the key of validBody(testValidVideoURL,
+// testValidRaw) on ts, without touching the cache.
+func publishTestKey(t *testing.T, ts *testServer) articlecache.Key {
+	t.Helper()
+	return ts.keyer.Key(ts.validInput(t, validBody(testValidVideoURL, testValidRaw)).key)
+}
+
+// publishRequest runs a publish operation for the key part keyPart.
+func (ts *testServer) publishRequest(keyPart string) *httptest.ResponseRecorder {
+	return ts.serve(newRequest(http.MethodPost, publishTarget(keyPart), nil))
+}
+
+// messagesParagraphRunes is the length of one paragraph of messagesArticle:
+// more than half of a Slack message's 16,383 code points.
+const messagesParagraphRunes = 8500
+
+// loopbackWebhookTimeout is the per-message timeout of the publisher
+// loopbackWebhook.publisherFor builds.
+const loopbackWebhookTimeout = 5 * time.Second
+
+// messagesArticle returns a postable article whose Slack text splits into
+// exactly n messages: n paragraphs, each longer than half a message, so no
+// two share one.
+func messagesArticle(t *testing.T, n int) writer.Article {
+	t.Helper()
+	article := testArticle()
+	paragraph := strings.Repeat("a", messagesParagraphRunes) + "\n\n"
+	article.Body = strings.Repeat(paragraph, n) + article.Body
+	m, err := publisher.PrepareSlackMessages(article)
+	if err != nil || m.Len() != n {
+		t.Fatalf("PrepareSlackMessages = %d messages, %v; want %d", m.Len(), err, n)
+	}
+	return article
+}
+
+// loopbackWebhook is an httptest Webhook that records the text of every
+// message it receives. It answers ok, except that the failAt-th request (1-
+// based, 0 for none) is answered with a 500, and while hold is set every
+// request first reports on entered and waits until hold is closed.
+type loopbackWebhook struct {
+	srv     *httptest.Server
+	entered chan struct{}
+
+	mu       sync.Mutex
+	texts    []string
+	requests int
+	failAt   int
+	hold     chan struct{}
+}
+
+// newLoopbackWebhook starts a loopback Webhook that the test closes at its
+// end.
+func newLoopbackWebhook(t *testing.T) *loopbackWebhook {
+	t.Helper()
+	h := &loopbackWebhook{entered: make(chan struct{}, gateBuffer)}
+	h.srv = httptest.NewServer(http.HandlerFunc(h.serve))
+	t.Cleanup(h.srv.Close)
+	return h
+}
+
+func (h *loopbackWebhook) serve(w http.ResponseWriter, r *http.Request) {
+	var payload struct {
+		Text string `json:"text"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, "bad payload", http.StatusBadRequest)
+		return
+	}
+	h.mu.Lock()
+	h.requests++
+	n, failAt, hold := h.requests, h.failAt, h.hold
+	h.mu.Unlock()
+	if hold != nil {
+		h.entered <- struct{}{}
+		<-hold
+	}
+	if n == failAt {
+		http.Error(w, "failed", http.StatusInternalServerError)
+		return
+	}
+	h.mu.Lock()
+	h.texts = append(h.texts, payload.Text)
+	h.mu.Unlock()
+	_, _ = io.WriteString(w, "ok")
+}
+
+// set changes the request that fails, counted from the next request, and the
+// hold channel.
+func (h *loopbackWebhook) set(failAt int, hold chan struct{}) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.failAt = h.requests + failAt
+	if failAt == 0 {
+		h.failAt = 0
+	}
+	h.hold = hold
+}
+
+// received returns the texts of the messages acknowledged so far and clears
+// them.
+func (h *loopbackWebhook) received() []string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	texts := h.texts
+	h.texts = nil
+	return texts
+}
+
+// publisherFor builds the real Webhook publisher, posting to h with no
+// interval between messages.
+func (h *loopbackWebhook) publisherFor(t *testing.T) *publisher.SlackWebhookPublisher {
+	t.Helper()
+	return publisher.NewSlackWebhookPublisherForLoopbackTest(t, publisher.SlackTestOptions{Timeout: loopbackWebhookTimeout}, h.srv.URL)
+}

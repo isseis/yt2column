@@ -512,7 +512,6 @@ func TestJobsTargetRejections(t *testing.T) {
 		closeIt bool
 	}{
 		{"publish_extra_segment", http.MethodGet, JobsPath + "/" + key + "/publish/x", http.StatusNotFound, "not_found", "", true},
-		{"publish_not_yet", http.MethodPost, JobsPath + "/" + key + "/publish", http.StatusNotFound, "not_found", "", true},
 		{"other_segment", http.MethodGet, JobsPath + "/" + key + "/x", http.StatusNotFound, "not_found", "", true},
 		{"status_query", http.MethodGet, JobsPath + "/" + key + "?x", http.StatusNotFound, "not_found", "", true},
 		{"start_query", http.MethodPost, JobsPath + "?x=1", http.StatusNotFound, "not_found", "", true},

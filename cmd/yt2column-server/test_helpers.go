@@ -422,7 +422,8 @@ func postArticle(path string, body io.Reader) (int, apiResponse, error) {
 }
 
 // jobResponse is the part of a job API response the end-to-end test reads: a
-// generation start's key, and a status response's job state and article.
+// generation start's key, and a status response's job state, article, and
+// publish state.
 type jobResponse struct {
 	Status string `json:"status"`
 	Key    string `json:"key"`
@@ -432,6 +433,9 @@ type jobResponse struct {
 			Markdown string `json:"markdown"`
 			File     string `json:"file"`
 		} `json:"article"`
+		Publish *struct {
+			State string `json:"state"`
+		} `json:"publish"`
 	} `json:"job"`
 }
 
@@ -467,6 +471,23 @@ func waitJobDone(t *testing.T, path, key string) jobResponse {
 		resp := doJobs(t, path, http.MethodGet, server.JobsPath+"/"+key, nil, http.StatusOK)
 		if resp.Job.State != "running" || time.Now().After(deadline) {
 			return resp
+		}
+		time.Sleep(pollInterval)
+	}
+}
+
+// waitPublished polls the status of key on the socket at path until its
+// article is no longer posting, and returns its publish state.
+func waitPublished(t *testing.T, path, key string) string {
+	t.Helper()
+	deadline := time.Now().Add(blockLifetime)
+	for {
+		resp := doJobs(t, path, http.MethodGet, server.JobsPath+"/"+key, nil, http.StatusOK)
+		if resp.Job.Publish == nil {
+			t.Fatalf("job = %+v, want a done article with a publish state", resp.Job)
+		}
+		if resp.Job.Publish.State != "posting" || time.Now().After(deadline) {
+			return resp.Job.Publish.State
 		}
 		time.Sleep(pollInterval)
 	}
