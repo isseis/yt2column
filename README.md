@@ -1236,10 +1236,22 @@ popup text quoted in this README, such as the collapsed-description message
 below, is the English version.
 
 To send, open the transcript panel on a video page, select the caption lines,
-and click the extension's toolbar icon to open the popup. The popup shows what
-was collected, the video metadata, and a **Send to yt2column** button. It sends
-when you press the button. While sending the button is disabled, and after a
-send (whatever the result) it stays disabled: reopen the popup to send again.
+and click the extension's toolbar icon to open the popup. The popup has four
+parts, top to bottom:
+
+- The video section: the video title as the heading, with the channel name
+  below it. When the video title is not available, the tab title is the heading
+  instead, and the channel name is left out.
+- The checks section: a **Selected captions** row with the selection's
+  character and line counts and a preview of its first and last 100
+  characters, and a **Description** row with the description's state. A ⚠ row
+  says what needs attention and, when there is something to do, the steps that
+  fix it.
+- The action section: a **Generate article** button. It sends when you press
+  it. While sending the button is disabled, and after a send (whatever the
+  result) it stays disabled: reopen the popup to send again.
+- **Details**, folded away until you open it: the collected URL and the tab
+  title.
 
 The extension reads the video metadata from the page without changing it, so a
 collapsed description is read only up to what the page shows. When the
@@ -1251,14 +1263,19 @@ will be sent." with these steps:
 
 The button stays usable: pressing it sends the beginning that the page shows.
 
+A selection whose request body would be over 4 MiB is not sent: the
+**Selected captions** row becomes ⚠ with the reason and the steps, and the
+button stays disabled.
+
 Some values may not be available: when a video title, channel name, or
 description is missing or blank on the page, that value is left out of the
 request (a channel name that is not blank but has a control character or is
 longer than 200 code points is not left out: the server rejects the request with
-`invalid_body`), and when the page cannot be read at all — or the tab has moved to
-another video since the selection was read — all three are left out. The
-extension still sends the selection and the URL, and the article is generated
-from them.
+`invalid_body`). The description row then becomes ⚠ and says the description
+will not be sent, and the heading is the tab title. When the page cannot be
+read at all — or the tab has moved to another video since the selection was
+read — all three are left out. The extension still sends the selection and the
+URL, and the article is generated from them.
 
 How to read the result:
 

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { catalogs } from "../src/core/i18n/catalog.ts";
 import { expandPromptMessage } from "../src/core/messages.ts";
 import { markdownSection, readRepoFile } from "./helpers/repoFile.ts";
 
@@ -31,6 +32,17 @@ describe("video metadata documentation", () => {
     expectPhrases(readme, readmeWhere, [
       expandPromptMessage("en").text,
       ...expandPromptMessage("en").steps,
+    ]);
+  });
+
+  it("README names the parts of the new popup the catalog defines", () => {
+    // The README names the screen's controls so a user can find them; each
+    // name is compared with the catalog that defines it.
+    expectPhrases(readme, readmeWhere, [
+      catalogs.en.primaryButton,
+      catalogs.en.checkNames.selection,
+      catalogs.en.checkNames.description,
+      catalogs.en.details.summary,
     ]);
   });
 });
