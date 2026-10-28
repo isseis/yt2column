@@ -237,7 +237,7 @@ func releaseLock(errOut *stderrWriter, lock *serversock.Lock) {
 // stopNoticeLogger returns the function that logs the stop notice.
 func stopNoticeLogger(logger *slog.Logger) func() {
 	return func() {
-		logger.Info(fmt.Sprintf("stopping: in-flight jobs and failure notices are allowed to finish, which can take up to about %d minutes; send the signal again to exit at once, which drops them",
+		logger.Info(fmt.Sprintf("stopping: the job API's in-flight generations are canceled and their articles lost; in-flight /articles jobs and failure notices are allowed to finish, which can take up to about %d minutes; send the signal again to exit at once, which drops them",
 			int(llmCallsPerJob*provider.LLMTimeout/time.Minute)))
 	}
 }

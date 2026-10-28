@@ -26,6 +26,7 @@ const (
 	reasonInvalidVideoURL
 	reasonInvalidTranscript
 	reasonWebhookNotConfigured
+	reasonInvalidKey
 	// reasonCount is not a reason: it follows the last one, so the tests
 	// enumerate every reason, including one appended later.
 	reasonCount
@@ -51,6 +52,8 @@ func (r rejectReason) reasonValue() string {
 		return "invalid_transcript"
 	case reasonWebhookNotConfigured:
 		return "webhook_not_configured"
+	case reasonInvalidKey:
+		return "invalid_key"
 	default:
 		return "internal_error"
 	}
@@ -67,7 +70,7 @@ func (r rejectReason) statusCode() int {
 		return http.StatusTooManyRequests
 	case reasonBodyTooLarge:
 		return http.StatusRequestEntityTooLarge
-	case reasonInvalidBody, reasonInvalidVideoURL, reasonInvalidTranscript:
+	case reasonInvalidBody, reasonInvalidVideoURL, reasonInvalidTranscript, reasonInvalidKey:
 		return http.StatusBadRequest
 	case reasonWebhookNotConfigured:
 		return http.StatusServiceUnavailable
@@ -113,23 +116,32 @@ const (
 	detailNotFound             rejectDetail = "not_found"
 	detailMethodNotAllowed     rejectDetail = "method_not_allowed"
 	detailTooManyRequests      rejectDetail = "too_many_requests"
+	detailReadSlot             rejectDetail = "read_slot"
+	detailGenerationSlot       rejectDetail = "generation_slot"
+	detailCacheFull            rejectDetail = "cache_full"
 	detailBodyTooLarge         rejectDetail = "body_too_large"
 	detailInvalidBody          rejectDetail = "invalid_body"
 	detailInvalidVideoURL      rejectDetail = "invalid_video_url"
 	detailInvalidTranscript    rejectDetail = "invalid_transcript"
 	detailWebhookNotConfigured rejectDetail = "webhook_not_configured"
+	detailInvalidKey           rejectDetail = "invalid_key"
 	detailInternalError        rejectDetail = "internal_error"
 )
 
 // rejection is a response the handler writes plus the detail it logs. videoID
 // is set when a failure notice should name the video, which is only after the
 // video URL was accepted. readFailed marks a body-read failure, which is
-// answered with no response at all.
+// answered with no response at all. bodyUnread marks a rejection that left a
+// body unread whatever its reason, so the response closes the connection.
+// allow is the Allow header of a method_not_allowed rejection; empty means
+// POST.
 type rejection struct {
 	reason     rejectReason
 	detail     rejectDetail
 	videoID    string
 	readFailed bool
+	bodyUnread bool
+	allow      string
 	err        error
 }
 
@@ -139,6 +151,7 @@ type rejection struct {
 type responseBody struct {
 	Status    string `json:"status"`
 	Reason    string `json:"reason,omitempty"`
+	Key       string `json:"key,omitempty"` // a generation start's article key
 	RequestID string `json:"requestId"`
 }
 
@@ -157,13 +170,25 @@ func writeAccepted(w http.ResponseWriter, requestID string) error {
 	return writeJSON(w, http.StatusAccepted, responseBody{Status: "accepted", RequestID: requestID}, nil)
 }
 
+// writeAcceptedKey writes the 202 response for an accepted generation start,
+// with the article key.
+func writeAcceptedKey(w http.ResponseWriter, requestID, key string) error {
+	return writeJSON(w, http.StatusAccepted, responseBody{Status: "accepted", Key: key, RequestID: requestID}, nil)
+}
+
 // writeRejected writes the rejection response. closeConnection adds
 // `Connection: close` for a reason whose body was not fully read, and a
 // pre-slot internal error; the caller decides it from the slot it holds.
 func writeRejected(w http.ResponseWriter, requestID string, reason rejectReason, closeConnection bool) error {
+	return writeRejectedAllow(w, requestID, reason, closeConnection, http.MethodPost)
+}
+
+// writeRejectedAllow is writeRejected with the Allow header a
+// method_not_allowed rejection carries.
+func writeRejectedAllow(w http.ResponseWriter, requestID string, reason rejectReason, closeConnection bool, allow string) error {
 	var headers [][2]string
 	if reason == reasonMethodNotAllowed {
-		headers = append(headers, [2]string{"Allow", http.MethodPost})
+		headers = append(headers, [2]string{"Allow", allow})
 	}
 	if closeConnection {
 		headers = append(headers, [2]string{"Connection", "close"})
@@ -175,6 +200,16 @@ func writeRejected(w http.ResponseWriter, requestID string, reason rejectReason,
 // writeJSON writes the status, the fixed response headers, the extra headers,
 // and the marshalled body.
 func writeJSON(w http.ResponseWriter, status int, body responseBody, headers [][2]string) error {
+	data, err := json.Marshal(body)
+	if err != nil {
+		return fmt.Errorf("marshal the response body: %w", err)
+	}
+	return writeBody(w, status, data, headers)
+}
+
+// writeBody writes the status, the fixed response headers, the extra headers,
+// and data, a marshalled JSON body.
+func writeBody(w http.ResponseWriter, status int, data []byte, headers [][2]string) error {
 	header := w.Header()
 	header.Set("Content-Type", "application/json; charset=utf-8")
 	header.Set("Cache-Control", "no-store")
@@ -182,11 +217,8 @@ func writeJSON(w http.ResponseWriter, status int, body responseBody, headers [][
 	for _, kv := range headers {
 		header.Add(kv[0], kv[1])
 	}
-	data, err := json.Marshal(body)
-	if err != nil {
-		return fmt.Errorf("marshal the response body: %w", err)
-	}
 	w.WriteHeader(status)
+	//nolint:gosec // data is a marshalled JSON body served as application/json with nosniff, never HTML
 	if _, err := w.Write(data); err != nil {
 		return fmt.Errorf("write the response body: %w", err)
 	}

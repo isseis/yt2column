@@ -6,6 +6,7 @@ import (
 	"runtime/debug"
 	"time"
 
+	"github.com/isseis/yt2column/internal/articlecache"
 	"github.com/isseis/yt2column/internal/failure"
 	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/pipeline"
@@ -13,9 +14,11 @@ import (
 	"github.com/isseis/yt2column/internal/writer"
 )
 
-// maxInFlight bounds the requests in progress: from the body read
-// through the end of the job or of the failure notice. A request that cannot
-// take a slot is refused at once; there is no queue.
+// maxInFlight is the number of generation slots, which bound the article
+// generations in progress across both APIs: a legacy request holds one from
+// its body read through the end of its job or failure notice, and a
+// generation job holds one while it generates. A request that cannot take a
+// slot is refused at once; there is no queue.
 const maxInFlight = 2
 
 // notifyTimeout bounds one failure notice. The notifier has its own shorter
@@ -132,31 +135,52 @@ func classify(err error) failure.Kind {
 		}
 		return failure.KindPublish
 	case pipeline.StageWrite:
-		return classifyWrite(stageErr.Err)
+		return failureKind(classifyWrite(stageErr.Err))
 	default:
 		return failure.KindUnknown
 	}
 }
 
-// classifyWrite maps a write-stage failure to its kind. The order matters:
+// classifyWrite maps a write-stage failure to the job API's failure reason;
+// the legacy job maps that reason on with failureKind. The order matters:
 // writer wraps a prompt-too-large failure with ErrInvalidTemplate as well, so
 // ErrPromptTooLarge is checked first.
-func classifyWrite(err error) failure.Kind {
+func classifyWrite(err error) articlecache.FailureReason {
 	switch {
 	case errors.Is(err, writer.ErrPromptTooLarge):
-		return failure.KindTranscriptTooLong
+		return articlecache.FailureTranscriptTooLong
 	case errors.Is(err, context.DeadlineExceeded):
-		return failure.KindLLMTimeout
+		return articlecache.FailureLLMTimeout
 	case errors.Is(err, llm.ErrEmptyResponse):
-		return failure.KindLLMEmpty
+		return articlecache.FailureLLMEmpty
 	case errors.Is(err, llm.ErrTruncated):
-		return failure.KindLLMTruncated
+		return articlecache.FailureLLMTruncated
 	case errors.Is(err, writer.ErrInvalidTranscript), errors.Is(err, writer.ErrInvalidTemplate):
 		// With the embedded templates and a checked transcript these cannot
 		// happen, so a match means the server built something wrong.
-		return failure.KindInternal
+		return articlecache.FailureInternal
 	default:
+		return articlecache.FailureLLM
+	}
+}
+
+// failureKind maps a write-stage failure reason to the failure.Kind the legacy
+// notice reports. The two completion-check reasons never come from
+// classifyWrite; they and any reason added later map to KindInternal.
+func failureKind(reason articlecache.FailureReason) failure.Kind {
+	switch reason {
+	case articlecache.FailureTranscriptTooLong:
+		return failure.KindTranscriptTooLong
+	case articlecache.FailureLLMTimeout:
+		return failure.KindLLMTimeout
+	case articlecache.FailureLLMEmpty:
+		return failure.KindLLMEmpty
+	case articlecache.FailureLLMTruncated:
+		return failure.KindLLMTruncated
+	case articlecache.FailureLLM:
 		return failure.KindLLM
+	default:
+		return failure.KindInternal
 	}
 }
 

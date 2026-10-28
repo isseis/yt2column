@@ -169,6 +169,9 @@ func TestRejectStatusCodes(t *testing.T) {
 		{"webhook_not_configured", func(t *testing.T, _ *testServer) *http.Request {
 			return validHTTPRequest(t)
 		}, http.StatusServiceUnavailable, "webhook_not_configured", false, true, true},
+		{"invalid_key", func(_ *testing.T, _ *testServer) *http.Request {
+			return newRequest(http.MethodGet, JobsPath+"/not-a-key", nil)
+		}, http.StatusBadRequest, "invalid_key", false, false, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

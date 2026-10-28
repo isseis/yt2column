@@ -8,7 +8,7 @@
 | Created | 2026-10-27 |
 | Review date | 2026-10-27 |
 | Reviewer | isseis |
-| Comments | 2026-10-27 (editorial): `/runplan` の実装で、ステップ 2-3 の件数の上限の定数の名前を `defaultCapacity` から `DefaultCapacity` に改めた（設計書 §3.3.4 も同じ）。`internal/server` が別のパッケージから `articlecache.New` に渡すために公開が要るためで、値と決定は変えていない。 |
+| Comments | 2026-10-27 (editorial): `/runplan` の実装で、ステップ 2-3 の件数の上限の定数の名前を `defaultCapacity` から `DefaultCapacity` に改めた（設計書 §3.3.4 も同じ）。`internal/server` が別のパッケージから `articlecache.New` に渡すために公開が要るためで、値と決定は変えていない。 2026-10-28 (editorial): `/runplan` の PR-4 の実装で、ステップ 5-2 の説明に、`internal/articlecache` の 6 つの列挙のすべての値を返す関数を加えることを書き足した（設計書 §3.3.2 も同じ）。完了の時点の検査が投稿の状態とその理由のすべての値で最も長い応答を組み立て、ステップ 5-4 の `APICodesForTest` が列挙の最後の値の次までたどるために要るもので、決定は変えていない。 2026-10-28 (decision): `/runplan` の PR-4 の後、レビュアー（isseis）がセッションの中で、PR-4 のローカルのレビューで残した指摘のうち、ジョブのログが遷移の後に記録を読み直して古い値を書きうる件を、PR-5 のステップ 5-6 で直すと決め、作業の項目と PR-5 のレビュー観点を加えた（`Run.Fail`・`CompletePostable`・`CompleteUnpostable` の戻り値を変えるので、設計書 §3.3.2 はその実装のコミットで改める）。PR-5 の投稿のジョブも同じ形のログを書くので、同じ PR で揃える。 |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の項番、「設計書 §3.2」などは設計書の節を指す。既存のコードと文書についての記述は、コミット `c2ce520` で確かめた。`file:line` はこのコミットの行番号である。設計書が行番号を確かめたコミット `c3d20a7` と `c2ce520` の間では `docs/` の外のファイルが変わっていない（`git diff --stat c3d20a7 c2ce520 -- . ':!docs'` の出力が空）ので、設計書のコードの行番号はそのまま使える。用語は設計書の冒頭の「用語」に従う。
 
@@ -282,56 +282,56 @@
 
 -   **ファイル:** `internal/server/server.go`・`request.go`・`job.go`・`test_helpers.go`、テストは `request_test.go`・`job_test.go`
 -   **作業:**
-    -   [ ] `Server` に記事のキャッシュ、`Keyer`、読み込みの枠（`maxReading = 2`）、`genCtx` を持たせ、秘密を `New` で作る（設計書 §3.2・§3.4.2・§3.4.4）。テストの値を渡す内部の組み立て関数を設ける（1.3）。
-    -   [ ] `validateBody` が `KeyInput` を作って `jobInput` に入れる（設計書 §3.2）。
-    -   [ ] `classifyWrite` が `articlecache.FailureReason` を返し、`classify` がそれを `failure.Kind` に対応づける形にする（設計書 §3.11.3）。`TestFailureClassification` は期待値を変えずに通る。
-    -   [ ] 1.4 の「注釈」の行の注釈を改める。
-    -   [ ] テスト: `validateBody` が、省略した任意のメンバと空文字列のメンバで同じ `KeyInput` を作り、`videoUrl` に正規化した URL を入れること。
+    -   [x] `Server` に記事のキャッシュ、`Keyer`、読み込みの枠（`maxReading = 2`）、`genCtx` を持たせ、秘密を `New` で作る（設計書 §3.2・§3.4.2・§3.4.4）。テストの値を渡す内部の組み立て関数を設ける（1.3）。
+    -   [x] `validateBody` が `KeyInput` を作って `jobInput` に入れる（設計書 §3.2）。
+    -   [x] `classifyWrite` が `articlecache.FailureReason` を返し、`classify` がそれを `failure.Kind` に対応づける形にする（設計書 §3.11.3）。`TestFailureClassification` は期待値を変えずに通る。
+    -   [x] 1.4 の「注釈」の行の注釈を改める。
+    -   [x] テスト: `validateBody` が、省略した任意のメンバと空文字列のメンバで同じ `KeyInput` を作り、`videoUrl` に正規化した URL を入れること。
 -   **完了の条件:** グリーンゲートが通る。
 
 #### ステップ 5-2: 生成のジョブ・完了の時点の検査・状態の応答の組み立て
 
 -   **ファイル:** `internal/server/generation.go`・`status.go`（新規）、テストは `generation_test.go`（新規）、`internal/server/test_helpers.go`
 -   **作業:**
-    -   [ ] 設計書 §3.4.4 の生成のジョブ（取り消しの扱いと panic の回復を含む）と、§3.6.3 の完了の時点の検査を加える。
-    -   [ ] 状態の取得の応答を記録の写しから組み立てる関数を加える（設計書 §3.1.3・§3.11）。応答のコード（状態や理由を表す値）は網羅的な `switch` で選ぶ。完了の時点の検査の応答の大きさは、この関数で最も長い場合の応答を組み立てて確かめる（`maxStatusResponseBytes` = 256 KiB）。上限を `-tags test` の定数で公開する（ステップ 6-3 が使う）。
-    -   [ ] テスト（`Begin` で得た `Run` を生成のジョブに直接渡す）: 7 章の AC-10・AC-16・AC-17a・AC-23（完了の時点の判定。メンションを含む記事と分割できない本文の記事の両方）・AC-27・AC-30・AC-45 の行のテスト。AC-30 は、fake の書き手が返す番兵のエラー、公開できない記事、応答に収まらない記事を使い、8 つの失敗の理由がそれぞれ別の値で返ることを確かめる。AC-27 は、コピーした字幕と、fake の書き手が返す訂正の一覧の `Evidence` に同じ目印を入れ、完了の後の記録の全体（ステップ 2-3 の関数）に目印がないことを確かめる。目印を文言に含むエラーで失敗した後の記録も確かめる。
-    -   [ ] テスト（AC-41 の前提）: 応答の上限ちょうどの記事が受け付けられ、1 バイト超える記事が `article_too_large` になること。上限ちょうどの記事の応答が、投稿の状態を `posting`・`failed`（最も長い理由）・`posted` にしても上限以下であること。
-    -   [ ] 壊し方: 完了の時点の検査の 1 と 3 の順序を入れ替える、`Review.Revisions` を捨てずに記録に渡す、最も長い場合の組み立てから 1 つのメンバを外す、の 3 つでそれぞれのテストが失敗することを確かめる。
+    -   [x] 設計書 §3.4.4 の生成のジョブ（取り消しの扱いと panic の回復を含む）と、§3.6.3 の完了の時点の検査を加える。
+    -   [x] 状態の取得の応答を記録の写しから組み立てる関数を加える（設計書 §3.1.3・§3.11）。応答のコード（状態や理由を表す値）は網羅的な `switch` で選ぶ。完了の時点の検査の応答の大きさは、この関数で最も長い場合の応答を組み立てて確かめる（`maxStatusResponseBytes` = 256 KiB）。最も長い場合は、工程の状態、投稿の状態とその理由のすべての値でたどるので、`internal/articlecache` の 6 つの列挙に、最後の値の次を表す公開しない値と、すべての値を返す関数（本番のコードが使う 4 つは `StageStates`・`PublishStates`・`UnpostableReasons`・`PublishFailureReasons`、ほかの 2 つは `-tags test` の `JobStatesForTest`・`FailureReasonsForTest`、ステップ 5-4 も使う）を加える。上限を `-tags test` の定数で公開する（ステップ 6-3 が使う）。
+    -   [x] テスト（`Begin` で得た `Run` を生成のジョブに直接渡す）: 7 章の AC-10・AC-16・AC-17a・AC-23（完了の時点の判定。メンションを含む記事と分割できない本文の記事の両方）・AC-27・AC-30・AC-45 の行のテスト。AC-30 は、fake の書き手が返す番兵のエラー、公開できない記事、応答に収まらない記事を使い、8 つの失敗の理由がそれぞれ別の値で返ることを確かめる。AC-27 は、コピーした字幕と、fake の書き手が返す訂正の一覧の `Evidence` に同じ目印を入れ、完了の後の記録の全体（ステップ 2-3 の関数）に目印がないことを確かめる。目印を文言に含むエラーで失敗した後の記録も確かめる。
+    -   [x] テスト（AC-41 の前提）: 応答の上限ちょうどの記事が受け付けられ、1 バイト超える記事が `article_too_large` になること。上限ちょうどの記事の応答が、投稿の状態を `posting`・`failed`（最も長い理由）・`posted` にしても上限以下であること。
+    -   [x] 壊し方: 完了の時点の検査の 1 と 3 の順序を入れ替える、`Review.Revisions` を捨てずに記録に渡す、最も長い場合の組み立てから 1 つのメンバを外す、の 3 つでそれぞれのテストが失敗することを確かめる。
 -   **完了の条件:** グリーンゲートが通る。
 
 #### ステップ 5-3: 振り分けと、生成の開始・状態の取得の受け口
 
 -   **ファイル:** `internal/server/handler.go`・`jobs_api.go`（新規）・`response.go`・`test_helpers.go`、テストは `jobs_api_test.go`・`status_test.go`（新規）・`request_test.go`・`response_test.go`・`job_test.go`・`handler_test.go`、`README.md`
 -   **作業:**
-    -   [ ] 新しい API のパスの定数を `internal/server` に加え、振り分けを設計書 §3.1.1 の照合に置き換える。この PR では `/jobs/{key}/publish` を `not_found` にする（1.3）。本文がないことの検査、`invalid_key`（400）、`rejection` の本文を読み残したことを表す値、`too_many_requests` の新しい `detail` の値を加える（設計書 §3.1.1・§3.11.5・§3.12、1.3）。
-    -   [ ] 生成の開始の受け口（設計書 §3.4.1 の順序と表、§3.4.5 の持ち主と `recover`、§3.12 のログ）と、状態の取得の受け口を加える。新しい API の受け口から通知を呼ばない。
-    -   [ ] README の拒否の理由の表に `invalid_key` の行を加える（3 列目は `unexpected reply`）。`TestRejectReasonSet`・`TestReasonToKind`・`TestRejectStatusCodes` に新しい理由の行を加える。
-    -   [ ] テスト（パスと境界）: 設計書 §7.3 のサーバ単体のパスの照合（`/jobs/<64 文字>/publish/x`・`?` を含むターゲット・大文字や `%` を含むキーの部分・空のキーの部分）、63 文字・65 文字・`%20` で前後を埋めたキーの拒否（AC-44、T-02）、メソッドの拒否と `Allow`、`Content-Length` が 0 でない状態の取得と `Transfer-Encoding` を持つ状態の取得の `invalid_body` と `Connection: close`、どの拒否でも記録が変わらないこと（AC-44）。`TestRejectHeaders` は期待値を変えずに通る。
-    -   [ ] テスト（生成の開始）: 7 章の AC-01・AC-02・AC-03・AC-06・AC-07・AC-08・AC-09・AC-09a・AC-09b・AC-25・AC-26a・AC-37 の行のテスト。AC-03 は、メンバの順序・空白・エスケープ・宣言していないメンバ・`youtu.be` と `watch?v=` の URL・省略と空文字列の組を送り、同じキーが返ることを確かめる。AC-07 は、生成の枠を旧 API のジョブ（`gateWriter` で止める）と新しい API の生成のジョブ（進み具合の止める仕組みで止める）で埋め、新しいキーが拒否されて状態の取得が `unknown` を返し、処理中のキーと完了したキーがそれぞれキーを返すことを確かめる。AC-08 は、1.4 のとおりパッケージの変数に移した拒否の表で `/articles` と `/jobs` の両方を確かめ、拒否の後に記録がないことを確かめる。AC-09a は、読み込みに入ったことを知らせて止まる本文で読み込みの枠を埋め、3 つ目の要求の本文が読まれない（`recordingReader` の読んだ数が 0）ことを確かめる。AC-09b は、書き手を止めたまま同じ要求をすべて返させ、書き手の呼び出しが 1 回であることを、新しいキーと失敗したキーのそれぞれで確かめる。
-    -   [ ] テスト（状態の取得）: 7 章の AC-12・AC-13・AC-14・AC-15・AC-17・AC-28・AC-31・AC-34（生成の開始と状態の取得）・AC-35 の行のテスト。AC-28 は、1 つ目のサーバで記事を `done` にしてから、新しいサーバの値に同じキーを問い合わせる。AC-31 は、fake のエラーの文言・秘密の値・コピーした字幕・`videoUrl`・メタデータに目印を入れ、生成の開始と状態の取得のすべての応答（拒否を含む）に、完了した記事の 2 つの文字列以外には目印が現れないことを確かめる。
-    -   [ ] テスト（後始末、T-09）: `Begin` の後でジョブに渡す前の差し込み口の panic で、生成の枠と読み込みの枠が空になり、記録が `失敗` になり、`internal_error` が返り、通知が送られないこと。本文の検査の中の `panickingReader` の panic（`Begin` の前で、記録はまだない）で、読み込みの枠が空になり、`internal_error` が返り、記録が作られず、通知が送られないこと。生成のジョブが panic した後の要求にサーバが応答することを確かめる（AC-45）。
-    -   [ ] 壊し方: 新しい API に別の生成の枠を持たせると AC-07 の行が、キーの部分をデコードしてから照合すると T-02 の行が失敗することを確かめる。
+    -   [x] 新しい API のパスの定数を `internal/server` に加え、振り分けを設計書 §3.1.1 の照合に置き換える。この PR では `/jobs/{key}/publish` を `not_found` にする（1.3）。本文がないことの検査、`invalid_key`（400）、`rejection` の本文を読み残したことを表す値、`too_many_requests` の新しい `detail` の値を加える（設計書 §3.1.1・§3.11.5・§3.12、1.3）。
+    -   [x] 生成の開始の受け口（設計書 §3.4.1 の順序と表、§3.4.5 の持ち主と `recover`、§3.12 のログ）と、状態の取得の受け口を加える。新しい API の受け口から通知を呼ばない。
+    -   [x] README の拒否の理由の表に `invalid_key` の行を加える（3 列目は `unexpected reply`）。`TestRejectReasonSet`・`TestReasonToKind`・`TestRejectStatusCodes` に新しい理由の行を加える。
+    -   [x] テスト（パスと境界）: 設計書 §7.3 のサーバ単体のパスの照合（`/jobs/<64 文字>/publish/x`・`?` を含むターゲット・大文字や `%` を含むキーの部分・空のキーの部分）、63 文字・65 文字・`%20` で前後を埋めたキーの拒否（AC-44、T-02）、メソッドの拒否と `Allow`、`Content-Length` が 0 でない状態の取得と `Transfer-Encoding` を持つ状態の取得の `invalid_body` と `Connection: close`、どの拒否でも記録が変わらないこと（AC-44）。`TestRejectHeaders` は期待値を変えずに通る。
+    -   [x] テスト（生成の開始）: 7 章の AC-01・AC-02・AC-03・AC-06・AC-07・AC-08・AC-09・AC-09a・AC-09b・AC-25・AC-26a・AC-37 の行のテスト。AC-03 は、メンバの順序・空白・エスケープ・宣言していないメンバ・`youtu.be` と `watch?v=` の URL・省略と空文字列の組を送り、同じキーが返ることを確かめる。AC-07 は、生成の枠を旧 API のジョブ（`gateWriter` で止める）と新しい API の生成のジョブ（進み具合の止める仕組みで止める）で埋め、新しいキーが拒否されて状態の取得が `unknown` を返し、処理中のキーと完了したキーがそれぞれキーを返すことを確かめる。AC-08 は、1.4 のとおりパッケージの変数に移した拒否の表で `/articles` と `/jobs` の両方を確かめ、拒否の後に記録がないことを確かめる。AC-09a は、読み込みに入ったことを知らせて止まる本文で読み込みの枠を埋め、3 つ目の要求の本文が読まれない（`recordingReader` の読んだ数が 0）ことを確かめる。AC-09b は、書き手を止めたまま同じ要求をすべて返させ、書き手の呼び出しが 1 回であることを、新しいキーと失敗したキーのそれぞれで確かめる。
+    -   [x] テスト（状態の取得）: 7 章の AC-12・AC-13・AC-14・AC-15・AC-17・AC-28・AC-31・AC-34（生成の開始と状態の取得）・AC-35 の行のテスト。AC-28 は、1 つ目のサーバで記事を `done` にしてから、新しいサーバの値に同じキーを問い合わせる。AC-31 は、fake のエラーの文言・秘密の値・コピーした字幕・`videoUrl`・メタデータに目印を入れ、生成の開始と状態の取得のすべての応答（拒否を含む）に、完了した記事の 2 つの文字列以外には目印が現れないことを確かめる。
+    -   [x] テスト（後始末、T-09）: `Begin` の後でジョブに渡す前の差し込み口の panic で、生成の枠と読み込みの枠が空になり、記録が `失敗` になり、`internal_error` が返り、通知が送られないこと。本文の検査の中の `panickingReader` の panic（`Begin` の前で、記録はまだない）で、読み込みの枠が空になり、`internal_error` が返り、記録が作られず、通知が送られないこと。生成のジョブが panic した後の要求にサーバが応答することを確かめる（AC-45）。
+    -   [x] 壊し方: 新しい API に別の生成の枠を持たせると AC-07 の行が、キーの部分をデコードしてから照合すると T-02 の行が失敗することを確かめる。
 -   **完了の条件:** グリーンゲートと `make ext-test` が通る。
 
 #### ステップ 5-4: コードの表とそのガード
 
 -   **ファイル:** `internal/server/test_helpers.go`、`cmd/yt2column-server/docs_test.go`、`README.md`
 -   **作業:**
-    -   [ ] `APICodesForTest` を加える。6 つの集合のそれぞれについて、列挙のすべての値を（列挙の最後の値の次を表す値まで）たどり、状態の取得の応答と同じ符号化の関数でコードにする（`RejectReasonsForTest` と同じ形、`test_helpers.go:216-222`）。
-    -   [ ] README の「Localhost server」節にコードの 6 つの表を加え、`TestServerDocsContract` にサブテスト `api_codes` を加える（設計書 §3.15「コードの表のガード」、AC-29）。サブテストは「Localhost server」節の中だけを探し、6 つの見出しの表をそれぞれちょうど 1 つ見つける。表の見出しのセルは `reason`・`Code` にしない（1.4）。
-    -   [ ] 壊し方: README の表から 1 つの値を消す、列挙に値を加えて README に行を加えない、の 2 つで `api_codes` が失敗することを確かめる。
+    -   [x] `APICodesForTest` を加える。6 つの集合のそれぞれについて、列挙のすべての値を（列挙の最後の値の次を表す値まで）たどり、状態の取得の応答と同じ符号化の関数でコードにする（`RejectReasonsForTest` と同じ形、`test_helpers.go:216-222`）。
+    -   [x] README の「Localhost server」節にコードの 6 つの表を加え、`TestServerDocsContract` にサブテスト `api_codes` を加える（設計書 §3.15「コードの表のガード」、AC-29）。サブテストは「Localhost server」節の中だけを探し、6 つの見出しの表をそれぞれちょうど 1 つ見つける。集合の中のコードが重複しないことも確かめる（`switch` が名指ししない値は `default` のコードになり、ほかの値のコードと重なるため）。表の見出しのセルは `reason`・`Code` にしない（1.4）。
+    -   [x] 壊し方: README の表から 1 つの値を消す、列挙に値を加えて README に行を加えない、の 2 つで `api_codes` が失敗することを確かめる。
 -   **完了の条件:** グリーンゲートと `make ext-test` が通る。
 
 #### ステップ 5-5: シャットダウンでの生成の取り消しと、端から端までのテスト
 
 -   **ファイル:** `internal/server/server.go`・`server_test.go`、`cmd/yt2column-server/run.go`・`run_test.go`・`server_test.go`、`docs/dev/developer_guide/package_reference.md`
 -   **作業:**
-    -   [ ] `Serve` が、まず `genCtx` を取り消し、取り消したジョブのログを書く形にする（設計書 §6.4・§3.12）。停止の案内に、新しい API の生成が取り消されることを加え、その文を確かめる行を `run_test.go` の停止の案内のテストに加える。
-    -   [ ] テスト（AC-46 の生成と旧 API の部分）: 生成のジョブの書き手が取り消しを受け取って終わり、記録が失敗になり、取り消しの行だけを書き、生成の失敗の行を書かないこと。同じときに旧 API のジョブの書き手の `ctx` は取り消されず、ジョブが完了してから `Serve` が戻ること。`TestServeShutdownWaitsForJobs` は期待値を変えずに通る。
-    -   [ ] 壊し方: `genCtx` を取り消さないと、このテストが失敗することを確かめる。
-    -   [ ] `TestServerEndToEnd` に、fake の LLM で生成の開始 → 状態の取得が `done` を返すまでの流れを加える（設計書 §7.2）。
-    -   [ ] `package_reference.md` の `internal/server` の行を改める（1.3）。
+    -   [x] `Serve` が、まず `genCtx` を取り消し、取り消したジョブのログを書く形にする（設計書 §6.4・§3.12）。停止の案内に、新しい API の生成が取り消されることを加え、その文を確かめる行を `run_test.go` の停止の案内のテストに加える。
+    -   [x] テスト（AC-46 の生成と旧 API の部分）: 生成のジョブの書き手が取り消しを受け取って終わり、記録が失敗になり、取り消しの行だけを書き、生成の失敗の行を書かないこと。同じときに旧 API のジョブの書き手の `ctx` は取り消されず、ジョブが完了してから `Serve` が戻ること。`TestServeShutdownWaitsForJobs` は期待値を変えずに通る。
+    -   [x] 壊し方: `genCtx` を取り消さないと、このテストが失敗することを確かめる。
+    -   [x] `TestServerEndToEnd` に、fake の LLM で生成の開始 → 状態の取得が `done` を返すまでの流れを加える（設計書 §7.2）。
+    -   [x] `package_reference.md` の `internal/server` の行を改める（1.3）。
 -   **完了の条件:** グリーンゲートが通る。
 
 ### PR-4 作成ポイント: generation start, status, and generation job
@@ -346,14 +346,14 @@
 
 **判定理由**: ステップ 5-3 のパスの照合が信頼できない入力の境界（セキュリティの関門）で、ステップ 5-2・5-3 が並行のジョブと後始末を扱う。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/538
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 #### ステップ 5-6: 投稿の操作と投稿のジョブ
 
--   **ファイル:** `internal/server/handler.go`・`jobs_api.go`・`publish.go`・`response.go`・`server.go`・`test_helpers.go`、テストは `publish_test.go`（新規）・`response_test.go`・`job_test.go`・`handler_test.go`・`jobs_api_test.go`、`cmd/yt2column-server/server_test.go`、`README.md`、`docs/dev/developer_guide/package_reference.md`
+-   **ファイル:** `internal/server/handler.go`・`jobs_api.go`・`publish.go`・`response.go`・`server.go`・`generation.go`・`test_helpers.go`、`internal/articlecache/record.go`・`cache_test.go`、テストは `publish_test.go`（新規）・`generation_test.go`・`response_test.go`・`job_test.go`・`handler_test.go`・`jobs_api_test.go`、`cmd/yt2column-server/server_test.go`、`README.md`、`docs/dev/developer_guide/package_reference.md`
 -   **作業:**
     -   [ ] 投稿の操作のパスの定数を加え、振り分けに `/jobs/{key}/publish` を加える。検査の順序と結果ごとの応答は設計書 §3.7.2 に従う。拒否の理由 `article_not_ready`・`article_not_found`・`article_not_postable` を加え、README の拒否の理由の表に 3 行を加え（3 列目は `unexpected reply`）、`TestRejectReasonSet`・`TestReasonToKind`・`TestRejectStatusCodes` に行を加える。
     -   [ ] 投稿のジョブを加える（設計書 §3.7.2「投稿のジョブ」「panic」「通知しない」）。投稿のジョブは `s.jobs` に数え、シャットダウンで取り消さずに待つ。シャットダウンのログに投稿のジョブの数を別の属性で出す（設計書 §6.4）。
@@ -361,6 +361,7 @@
     -   [ ] テスト（T-09）: `BeginPublish` の後でジョブに渡す前の差し込み口の panic で、記録が `投稿の失敗` になり、`internal_error` が返り、通知が送られないこと。
     -   [ ] 壊し方: やり直しを `From` ではなく 0 から送ると AC-21 の行が、`BeginPublish` が `PublishPosting` の記録にも新しいハンドルを返すと AC-20 の行が失敗することを確かめる。
     -   [ ] `TestServerEndToEnd` に、ループバックの Webhook で投稿の操作 → 状態の取得が `posted` を返すまでの流れを加える。
+    -   [ ] ハンドルが遷移の時点の記録の値を返す形にし、ジョブのログをその値で書く（PR-4 のレビューで残した指摘、2026-10-28 にレビュアーが決めた）。今の生成のジョブは、`Run.Fail`・`CompletePostable`・`CompleteUnpostable` の後に `Cache.Lookup` で記録を読み直してログの `step`・`duration` を書くので、その間に同じキーのやり直しや破棄があると、古い値（`step=""`、`duration=0s`）を書きうる。`Run.Fail` は失敗した工程を、`CompletePostable`・`CompleteUnpostable` は所要時間を、排他制御の中で取って返す（ハンドルが無効なら、何もしなかったことを返す）。投稿のジョブの `PublishRun.Delivered`・`Finish`・`Fail` の後のログも、記録を読み直さずに書く。設計書 §3.3.2 の型の節を同じコミットで改める。テスト: `articlecache` で、返す値が遷移の時点の値であり、遷移の後のやり直しや破棄で変わらないこと、無効なハンドルが何もしなかったことを返すこと。壊し方: 返す値を遷移の後に記録から読み直すと、このテストが失敗することを確かめる。
     -   [ ] `package_reference.md` の `internal/server` の行を改める（1.3）。
 -   **完了の条件:** グリーンゲートと `make ext-test` が通る。
 
@@ -370,7 +371,7 @@
 
 **推奨タイトル**: `feat(0044): サーバに投稿の操作の API を加える`
 
-**レビュー観点**: 投稿の冪等性と同時の投稿の操作 / 失敗と panic の後に届かなかった最初のメッセージから再開すること / 投稿の操作のパスの照合と検査の順序（Webhook・本文・キー） / 投稿の操作が Webhook を待たずに応答すること、シャットダウンで投稿のジョブを待つこと
+**レビュー観点**: 投稿の冪等性と同時の投稿の操作 / 失敗と panic の後に届かなかった最初のメッセージから再開すること / 投稿の操作のパスの照合と検査の順序（Webhook・本文・キー） / 投稿の操作が Webhook を待たずに応答すること、シャットダウンで投稿のジョブを待つこと / ハンドルが遷移の時点の値を返し、ジョブのログが記録を読み直さないこと
 
 **実装モデル要件**: frontier-recommended
 
@@ -540,7 +541,7 @@ PR-1 と PR-2 は互いに依存しないが、PR は番号の順にマージす
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 2-1 / 2-2 / 2-3 / 2-4）
 - [x] PR-2 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3）
 - [x] PR-3 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3）
-- [ ] PR-4 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5）
+- [x] PR-4 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5）
 - [ ] PR-5 マージ済み（対象ステップ: 5-6）
 - [ ] PR-6 マージ済み（対象ステップ: 6-1 / 6-2 / 6-3）
 - [ ] PR-7 マージ済み（対象ステップ: 7-1 / 7-2 / 7-3）
@@ -549,7 +550,7 @@ PR-1 と PR-2 は互いに依存しないが、PR は番号の順にマージす
 
 - [ ] 1.5 の表の今の名前（`TestLoadServerWebhookRequired`・`errNilPublisher`・`errNilNotifier`）が、コードと文書に残っていない（PR-3）。
 - [ ] Webhook を必須とする注釈（`always set`・`required`）が `internal/config` と `cmd/yt2column-server` に残っていない（PR-3）。
-- [ ] 1.4 の「注釈」の行の `internal/server` の注釈が、新しい API の生成のジョブと取り消しに合っている（PR-4）。
+- [x] 1.4 の「注釈」の行の `internal/server` の注釈が、新しい API の生成のジョブと取り消しに合っている（PR-4）。
 - [ ] 設計書 §3.10.2「説明の更新」の注釈に、メッセージを解析しない・標準入力の残りを読まない・64 KiB という記述が残っていない（PR-6）。
 - [ ] `package_reference.md` の各行が、その PR で変えたパッケージの責務と合っている（各 PR）。
 
@@ -566,7 +567,7 @@ PR-1 と PR-2 は互いに依存しないが、PR は番号の順にマージす
 | AC-05 | test | `internal/articlecache/key_test.go::TestKeyValueBoundary` | 2-2 |
 | AC-06 | test | `internal/server/jobs_api_test.go::TestStartRetriesFailed`（枠に空きがある場合とない場合）、`internal/articlecache/cache_test.go::TestBeginOutcomes` | 5-3・2-3 |
 | AC-07 | test | `internal/server/jobs_api_test.go::TestStartGenerationSlotsShared` | 5-3 |
-| AC-08 | test | `internal/server/request_test.go` の拒否の表を `/articles` と `/jobs` の両方に当てるテスト（`TestRejectBodyTable` など、1.4） | 5-3 |
+| AC-08 | test | `internal/server/request_test.go::TestStartRejectsLikeArticles`（パッケージの変数に移した `TestRejectBodyTable` などの拒否の表を `/articles` と `/jobs` の両方に当てる、1.4） | 5-3 |
 | AC-09 | test | `internal/server/jobs_api_test.go::TestNewAPINeverNotifies` | 5-3 |
 | AC-09a | test | `internal/server/jobs_api_test.go::TestStartReadSlotsFull` | 5-3 |
 | AC-09b | test | `internal/server/jobs_api_test.go::TestStartConcurrentSameKey`（新しいキーと失敗したキー）、`internal/articlecache/cache_test.go::TestBeginConcurrentAcquiresOnce` | 5-3・2-3 |

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/isseis/yt2column/internal/articlecache"
 	"github.com/isseis/yt2column/internal/strictjson"
 	"github.com/isseis/yt2column/internal/transcript"
 	"github.com/isseis/yt2column/internal/writer"
@@ -24,6 +25,10 @@ type jobInput struct {
 	videoURL  string // the normalized URL derived from videoUrl
 	videoID   string
 	requestID string
+	// key is what the article key is computed from. validateBody is the only
+	// place that builds one, from the values that passed its checks, so the
+	// handler passes it to the Keyer as it is.
+	key articlecache.KeyInput
 }
 
 // readRequest reads and validates the body of a request that passed the header
@@ -106,7 +111,21 @@ func (s *Server) validateBody(body []byte, requestID string) (*jobInput, *reject
 		}
 		return nil, &rejection{reason: reasonInternal, detail: detailInternalError, videoID: videoID}
 	}
-	return &jobInput{source: source, videoURL: normalizedURL, videoID: videoID, requestID: requestID}, nil
+	return &jobInput{
+		source:    source,
+		videoURL:  normalizedURL,
+		videoID:   videoID,
+		requestID: requestID,
+		// An absent optional member is "", as optionalMember returns it, so
+		// an absent and an empty member give the same key.
+		key: articlecache.KeyInput{
+			VideoURL:    normalizedURL,
+			Transcript:  rawTranscript,
+			Title:       title,
+			ChannelName: channelName,
+			Description: description,
+		},
+	}, nil
 }
 
 // optionalMember returns the string value of a declared optional member, or ""

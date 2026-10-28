@@ -421,6 +421,57 @@ func postArticle(path string, body io.Reader) (int, apiResponse, error) {
 	return resp.StatusCode, decoded, nil
 }
 
+// jobResponse is the part of a job API response the end-to-end test reads: a
+// generation start's key, and a status response's job state and article.
+type jobResponse struct {
+	Status string `json:"status"`
+	Key    string `json:"key"`
+	Job    struct {
+		State   string `json:"state"`
+		Article *struct {
+			Markdown string `json:"markdown"`
+			File     string `json:"file"`
+		} `json:"article"`
+	} `json:"job"`
+}
+
+// doJobs sends method to target on the socket at path with body (nil for
+// none) and decodes the response, failing the test unless its status is want.
+func doJobs(t *testing.T, path, method, target string, body io.Reader, want int) jobResponse {
+	t.Helper()
+	req, err := http.NewRequest(method, "http://yt2column"+target, body)
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	resp, err := unixClient(path).Do(req)
+	if err != nil {
+		t.Fatalf("send %s %s: %v", method, target, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	var decoded jobResponse
+	if err := json.NewDecoder(resp.Body).Decode(&decoded); err != nil {
+		t.Fatalf("decode the response to %s %s: %v", method, target, err)
+	}
+	if resp.StatusCode != want {
+		t.Fatalf("%s %s status = %d (%+v), want %d", method, target, resp.StatusCode, decoded, want)
+	}
+	return decoded
+}
+
+// waitJobDone polls the status of key on the socket at path until its job is
+// no longer running, and returns that response.
+func waitJobDone(t *testing.T, path, key string) jobResponse {
+	t.Helper()
+	deadline := time.Now().Add(blockLifetime)
+	for {
+		resp := doJobs(t, path, http.MethodGet, server.JobsPath+"/"+key, nil, http.StatusOK)
+		if resp.Job.State != "running" || time.Now().After(deadline) {
+			return resp
+		}
+		time.Sleep(pollInterval)
+	}
+}
+
 // mustPostArticle is postArticle that fails the test on a transport error and
 // on a status other than want.
 func mustPostArticle(t *testing.T, path, body string, want int) apiResponse {

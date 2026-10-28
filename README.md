@@ -695,11 +695,63 @@ A rejected request answers a `4xx` or `5xx` with
 | `invalid_video_url` | 400 | fixed message |
 | `invalid_transcript` | 400 | fixed message |
 | `webhook_not_configured` | 503 | unexpected reply |
+| `invalid_key` | 400 | unexpected reply |
 | `internal_error` | 500 | fixed message (unexpected reply when `requestId` is empty) |
 
 `not_found` and `method_not_allowed` answer a wrong path or method; they start
 no job and post no failure notice. The host always sends `POST /articles`, so
 the extension shows either one as an unexpected reply.
+
+### Job API codes
+
+The job API's status response reports each value as one of these codes.
+
+| job state | meaning |
+|---|---|
+| `unknown` | the server holds no record for the key |
+| `running` | the article is being generated |
+| `done` | the article is generated and returned |
+| `failed` | the generation failed |
+
+| step | step of the generation |
+|---|---|
+| `draft` | the generation of the draft |
+| `shorten` | the shortening of a long body |
+| `review` | the review against the source material |
+
+| step state | meaning |
+|---|---|
+| `pending` | not started |
+| `running` | started and not finished |
+| `done` | finished |
+| `skipped` | not needed for this article |
+| `failed` | the step the generation failed in |
+
+| failure | meaning |
+|---|---|
+| `internal` | an internal failure |
+| `transcript_too_long` | the transcript is too long for the prompt |
+| `llm_timeout` | an LLM call timed out |
+| `llm_empty` | an LLM returned an empty response |
+| `llm_truncated` | an LLM response was cut off |
+| `llm_failed` | any other LLM failure |
+| `article_invalid` | the generated article cannot be published |
+| `article_too_large` | the generated article does not fit the status response |
+
+| publish state | meaning |
+|---|---|
+| `unpostable` | the Slack pre-send checks refuse the article |
+| `not_posted` | postable and never posted |
+| `posting` | being posted |
+| `posted` | every message was delivered |
+| `failed` | the last post stopped before the end |
+
+| publish reason | with publish state | meaning |
+|---|---|---|
+| `other` | `unpostable` | any pre-send refusal but a mention |
+| `mention` | `unpostable` | the article contains a mention |
+| `internal` | `failed` | the post job ended abnormally |
+| `webhook` | `failed` | the Webhook did not acknowledge a message |
 
 ### Troubleshooting
 

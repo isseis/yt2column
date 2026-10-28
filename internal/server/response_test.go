@@ -81,7 +81,7 @@ func rejectRequest(t *testing.T, body string) *http.Request {
 	return newRequest(http.MethodPost, ArticlesPath, strings.NewReader(body))
 }
 
-// TestRejectReasonSet checks that the server answers with exactly these nine
+// TestRejectReasonSet checks that the server answers with exactly these ten
 // rejection reasons and statuses: the reasons of the header checks it no
 // longer runs (the Host, the content type, the origin, and the token) are gone.
 func TestRejectReasonSet(t *testing.T) {
@@ -95,6 +95,7 @@ func TestRejectReasonSet(t *testing.T) {
 		{Value: "invalid_video_url", Status: http.StatusBadRequest}:              {},
 		{Value: "invalid_transcript", Status: http.StatusBadRequest}:             {},
 		{Value: "webhook_not_configured", Status: http.StatusServiceUnavailable}: {},
+		{Value: "invalid_key", Status: http.StatusBadRequest}:                    {},
 	}
 	got := map[RejectReasonForTest]struct{}{}
 	for _, reason := range RejectReasonsForTest() {

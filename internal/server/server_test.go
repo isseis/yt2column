@@ -14,14 +14,17 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/isseis/yt2column/internal/articlecache"
 	"github.com/isseis/yt2column/internal/failure"
 	failuretestutil "github.com/isseis/yt2column/internal/failure/testutil"
 	publishertestutil "github.com/isseis/yt2column/internal/publisher/testutil"
+	"github.com/isseis/yt2column/internal/transcript"
 	"github.com/isseis/yt2column/internal/udstest"
 	"github.com/isseis/yt2column/internal/writer"
 	writertestutil "github.com/isseis/yt2column/internal/writer/testutil"
@@ -282,6 +285,36 @@ func TestBodyReadFailureWritesNoResponse(t *testing.T) {
 	}
 }
 
+// TestStartBodyReadFailureWritesNoResponse checks on a real socket that a
+// generation start whose body the server cannot read (a malformed chunked
+// encoding) gets no response at all, and leaves no reading slot taken and no
+// record.
+func TestStartBodyReadFailureWritesNoResponse(t *testing.T) {
+	ts := newJobsTestServer(t, jobsServerOptions{})
+	conn := dialUnix(t, serveUnix(t, ts.Server))
+	request := "POST " + JobsPath + " HTTP/1.1\r\n" +
+		"Host: yt2column\r\n" +
+		"Transfer-Encoding: chunked\r\n\r\n" +
+		"zz\r\n"
+	if _, err := conn.Write([]byte(request)); err != nil {
+		t.Fatalf("write the request: %v", err)
+	}
+	data, err := io.ReadAll(conn)
+	if err != nil {
+		t.Fatalf("read the response: %v", err)
+	}
+	if len(data) != 0 {
+		t.Errorf("response = %q, want the connection closed with no response", data)
+	}
+	ts.waitJobs()
+	if len(ts.reading) != 0 || len(ts.slots) != 0 {
+		t.Errorf("slots held: reading %d, generation %d, want 0", len(ts.reading), len(ts.slots))
+	}
+	if dump := ts.cache.DumpRecordsForTest(); dump != "" {
+		t.Errorf("a failed body read added a record:\n%s", dump)
+	}
+}
+
 // dialUnix connects to the socket at path with a read deadline, and closes the
 // connection at cleanup.
 func dialUnix(t *testing.T, path string) net.Conn {
@@ -363,5 +396,194 @@ func TestUnparsableRequestBypassesHandler(t *testing.T) {
 	if len(ts.notifier.Calls) != 0 || len(ts.writer.Calls) != 0 {
 		t.Errorf("an unparsable request caused a side effect: notifier=%d writer=%d",
 			len(ts.notifier.Calls), len(ts.writer.Calls))
+	}
+}
+
+// ctxRecordingWriter holds the legacy job's Write until release is closed and
+// then records whether its context was canceled; WriteWithProgress runs the
+// job API's generations through fake.
+type ctxRecordingWriter struct {
+	entered  chan struct{}
+	release  chan struct{}
+	canceled chan bool
+	fake     *writertestutil.FakeArticleWriter
+}
+
+func (w ctxRecordingWriter) Write(ctx context.Context, _ transcript.Transcript) (writer.Article, error) {
+	w.entered <- struct{}{}
+	<-w.release
+	w.canceled <- ctx.Err() != nil
+	return testArticle(), nil
+}
+
+func (w ctxRecordingWriter) WriteWithProgress(ctx context.Context, t transcript.Transcript, o writer.ProgressObserver) (writer.Article, error) {
+	return w.fake.WriteWithProgress(ctx, t, o)
+}
+
+// startOnUnix sends a generation start to the socket at path and returns the
+// key of its 202 response.
+func startOnUnix(t *testing.T, path, body string) string {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodPost, "http://yt2column"+JobsPath, strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	resp, err := (&http.Client{Transport: udstest.Transport(path)}).Do(req)
+	if err != nil {
+		t.Fatalf("send the request: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	var decoded responseBody
+	if err := json.NewDecoder(resp.Body).Decode(&decoded); err != nil {
+		t.Fatalf("decode the response body: %v", err)
+	}
+	if resp.StatusCode != http.StatusAccepted || decoded.Key == "" {
+		t.Fatalf("response = %d %+v, want 202 with a key", resp.StatusCode, decoded)
+	}
+	return decoded.Key
+}
+
+// TestServeShutdownCancelsGeneration checks a shutdown with a generation job
+// and a legacy job in flight: the generation's writer sees its context
+// canceled and the record fails, logging only the cancellation line, while the
+// legacy job runs on with a live context and Serve returns only after it.
+func TestServeShutdownCancelsGeneration(t *testing.T) {
+	fake := &writertestutil.FakeArticleWriter{Result: testArticle()}
+	reached, releaseGeneration := holdAtDraft(fake)
+	w := ctxRecordingWriter{
+		entered: make(chan struct{}, 1), release: make(chan struct{}),
+		canceled: make(chan bool, 1), fake: fake,
+	}
+	ts := newJobsTestServer(t, jobsServerOptions{})
+	ts.Server.writer = w
+	listener, path := listenUnix(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- ts.Serve(ctx, listener) }()
+	var once sync.Once
+	releaseLegacy := func() { once.Do(func() { close(w.release) }) }
+	defer func() {
+		cancel()
+		releaseGeneration()
+		releaseLegacy()
+	}()
+
+	if status, _ := postOnUnix(t, path); status != http.StatusAccepted {
+		t.Fatalf("legacy status = %d, want 202", status)
+	}
+	<-w.entered
+	key, err := articlecache.ParseKey(startOnUnix(t, path, bodyWith("generation")))
+	if err != nil {
+		t.Fatalf("ParseKey: %v", err)
+	}
+	<-reached
+
+	cancel()
+	waitFor(t, "the generation to be canceled", func() bool { return ts.cache.Lookup(key).State == articlecache.JobFailed })
+	select {
+	case <-done:
+		t.Fatal("Serve returned before the legacy job finished")
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	releaseLegacy()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Errorf("Serve error = %v, want nil after cancellation", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Serve did not return after the legacy job finished")
+	}
+	if <-w.canceled {
+		t.Error("the legacy job's context was canceled")
+	}
+	logs := ts.logs.String()
+	if !strings.Contains(logs, "generation job canceled by the shutdown") || strings.Contains(logs, "generation job failed") {
+		t.Errorf("want the cancellation line and no failure line:\n%s", logs)
+	}
+}
+
+// TestServeShutdownCancelsLateStart checks a generation start that reaches
+// the cache only after the shutdown began: its request is held inside the body
+// read while Serve cancels the generations, and once the body arrives the start
+// is still accepted, but its job begins already canceled. The record fails, the
+// writer is never called, only the cancellation line is logged, and Serve
+// returns with every slot free.
+func TestServeShutdownCancelsLateStart(t *testing.T) {
+	ts := newJobsTestServer(t, jobsServerOptions{})
+	listener, path := listenUnix(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- ts.Serve(ctx, listener) }()
+
+	body := bodyWith("late")
+	conn := dialUnix(t, path)
+	header := "POST " + JobsPath + " HTTP/1.1\r\n" +
+		"Host: yt2column\r\n" +
+		"Content-Type: application/json\r\n" +
+		"Content-Length: " + strconv.Itoa(len(body)) + "\r\n\r\n"
+	if _, err := conn.Write([]byte(header)); err != nil {
+		t.Fatalf("write the header: %v", err)
+	}
+	// The handler holds a reading slot while it waits for the body.
+	waitFor(t, "the handler to start reading the body", func() bool { return len(ts.reading) == 1 })
+
+	cancel()
+	waitFor(t, "the generations to be canceled", func() bool { return ts.genCtx.Err() != nil })
+	if _, err := conn.Write([]byte(body)); err != nil {
+		t.Fatalf("write the body: %v", err)
+	}
+	resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
+	if err != nil {
+		t.Fatalf("read the response: %v", err)
+	}
+	var accepted responseBody
+	err = json.NewDecoder(resp.Body).Decode(&accepted)
+	_ = resp.Body.Close()
+	if err != nil {
+		t.Fatalf("decode the response: %v", err)
+	}
+	if resp.StatusCode != http.StatusAccepted || accepted.Key == "" {
+		t.Fatalf("response = %d %+v, want 202 with a key", resp.StatusCode, accepted)
+	}
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Errorf("Serve error = %v, want nil after cancellation", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Serve did not return")
+	}
+	key, err := articlecache.ParseKey(accepted.Key)
+	if err != nil {
+		t.Fatalf("ParseKey: %v", err)
+	}
+	if state := ts.cache.Lookup(key).State; state != articlecache.JobFailed {
+		t.Errorf("the late start's state = %d, want failed", state)
+	}
+	if calls := len(ts.writer.Calls); calls != 0 {
+		t.Errorf("writer calls = %d, want 0 for a canceled generation", calls)
+	}
+	logs := ts.logs.String()
+	if !strings.Contains(logs, "generation job canceled by the shutdown") || strings.Contains(logs, "generation job failed") {
+		t.Errorf("want the cancellation line and no failure line:\n%s", logs)
+	}
+	if len(ts.slots) != 0 || len(ts.reading) != 0 {
+		t.Errorf("slots held: generation %d, reading %d, want 0", len(ts.slots), len(ts.reading))
+	}
+}
+
+// waitFor polls cond until it holds, failing the test after five seconds.
+func waitFor(t *testing.T, what string, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for !cond() {
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for %s", what)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
