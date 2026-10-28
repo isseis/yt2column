@@ -8,7 +8,7 @@
 | Created | 2026-10-28 |
 | Review date | 2026-10-28 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-28 (editorial): `/runplan` の PR-1 の実装で、3.2 の `SelectionStatus` を、`SendableSelection` と `BlockedSelection` の 2 つのインターフェースの共用体として示した。`PreparedRequest` はブランド型で、ESLint の規則（`eslint.config.js` の `brandSelectors`）が型エイリアスの中でのその参照を禁じるため、同じ判別共用体を名前のあるインターフェースで書く必要がある。型の意味と `buildCollectedView` の契約は変えていない。 |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `f488112` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。拡張のファイルのパスは `extension/` を省いて書く（例: `src/launch.ts` は `extension/src/launch.ts`）。F-NNN・AC-NN は要件書の項番を指す。モックアップは、要件書が参照する issue #507 のモックアップを指す。要件のレビューで設計に申し送られた事項（[design_handoff.md](design_handoff.md) の H-01〜H-12）への対応は 3.11 にまとめる。
 
@@ -274,10 +274,22 @@ export interface VideoView {
   readonly channelName?: DisplayText;
 }
 
+/** The selection row's reason when the body can be sent. */
+export interface SendableSelection {
+  readonly kind: "sendable";
+  readonly state: "ok";
+  readonly request: PreparedRequest;
+}
+
+/** The selection row's reason when the body is over the limit. */
+export interface BlockedSelection {
+  readonly kind: "blocked";
+  readonly state: "warning";
+  readonly reason: PreflightReason;
+}
+
 /** Why the selection row is ✓ or ⚠; declared, never inferred from text. */
-export type SelectionStatus =
-  | { readonly kind: "sendable"; readonly state: "ok"; readonly request: PreparedRequest }
-  | { readonly kind: "blocked"; readonly state: "warning"; readonly reason: PreflightReason };
+export type SelectionStatus = SendableSelection | BlockedSelection;
 
 export interface SelectionCheck {
   readonly status: SelectionStatus;
