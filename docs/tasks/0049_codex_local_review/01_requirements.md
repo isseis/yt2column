@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-28 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-10-28 |
+| Reviewer | isseis |
 | Comments | 2026-10-28: isseis が承認した（PR #553）。2026-10-28（決定の変更）: 設計の際に、Codex CLI の実行と出力の判定を、`main` からインストールする Go の開発用ツールで行うと利用者が決めた（`02_architecture.md` の 1.2）。4.2 の「センチネルエラー」を改めた。あわせて、Codex CLI の実行の結果を確かめられないときも止めることにし、1 節の決定、AC-09、4.3 を改めた。用語「回」を「試行」に改めた（6 節）。`draft` に戻し、`02_architecture.md` と同じ PR で再び承認を受ける |
 
 ## 1. 概要 (Overview)
