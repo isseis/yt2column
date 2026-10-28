@@ -251,7 +251,7 @@ sequenceDiagram
 
 ### 4.2. 表示
 
--   **見つからないとき:** `check_gofumpt` と同じく標準出力に 2 行出す。`Error: deadcode is required but not found in PATH` と `Please install deadcode: go install golang.org/x/tools/cmd/deadcode@latest` である（1 行目のコマンド名は `DEADCODECMD` の値）。
+-   **見つからないとき:** `check_gofumpt` と同じく標準出力に 2 行出す。`Error: deadcode is required but not found` と `Please install deadcode: go install golang.org/x/tools/cmd/deadcode@latest` である（1 行目のコマンド名は `DEADCODECMD` の値）。`DEADCODECMD` には実行ファイルのパスも指定できるので、`check_gofumpt` の「in PATH」は付けない。
 -   **一時ファイルを作れないとき:** `mktemp` のエラーのメッセージに続けて、標準エラーに `Error: cannot create a temporary file for deadcode output` を出す。`deadcode` コマンドの失敗と取り違えないよう、`Error: deadcode failed with exit status <N>` の行は出さない。
 -   **`deadcode` コマンドが失敗したか、出力があったとき:** 受けた出力を、加工せずにすべて元のストリームへ出す（AC-11・AC-12）。続けて、標準エラーに理由を 1 行出す。
     -   終了コードが 0 でないとき: `Error: deadcode failed with exit status <N>`
