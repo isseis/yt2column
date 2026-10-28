@@ -193,8 +193,8 @@
 
 **変更するファイル:** `src/ui/icons.ts`（新規）、`test/render.test.ts`
 
--   [ ] `checkIcon` を、`createElementNS` で SVG を作る関数として書く（設計書 3.4「記号」）。`ok` は円の中のチェック、`warning` は三角の中の感嘆符で、どちらも `aria-hidden="true"` を持つ。色は CSS の変数で付けるので、SVG に色の値を書かない。
--   [ ] `test/render.test.ts` に `checkIcon` の describe を加え、2 つの状態で形の要素が異なること、`aria-hidden` を持つこと、文字（`✓`・`⚠`）を含まないことを確かめる。
+-   [x] `checkIcon` を、`createElementNS` で SVG を作る関数として書く（設計書 3.4「記号」）。`ok` は円の中のチェック、`warning` は三角の中の感嘆符で、どちらも `aria-hidden="true"` を持つ。色は CSS の変数で付けるので、SVG に色の値を書かない。
+-   [x] `test/render.test.ts` に `checkIcon` の describe を加え、2 つの状態で形の要素が異なること、`aria-hidden` を持つこと、文字（`✓`・`⚠`）を含まないことを確かめる。
 
 **完了の条件:** `make ext-check` が通る。
 
@@ -202,10 +202,10 @@
 
 **変更するファイル:** `src/ui/render.ts`、`static/style.css`、`test/render.test.ts`、`test/renderMetadata.test.ts`、`test/helpers/dom.ts`
 
--   [ ] `ActionControls`・`PopupElements`・`renderPopup` と、セクションごとの描き方を `src/ui/render.ts` に加える（設計書 3.4）。古い `renderSummary`・`renderMetadata` は、ステップ 4-3 まで残す。
--   [ ] `messageNodes` の要素の class（`summary-message`・`summary-steps`）を、要約とも `<summary>` 要素とも紛らわしくない名前に変える（設計書 3.4 の最後の項目）。`rg -n "summary-message|summary-steps" extension` で見つかる、テストのセレクタと `style.css` の規則をすべて新しい名前に変える。
--   [ ] `test/helpers/dom.ts` に、設計書 3.4 の骨格の要素を持つ文書を作り、`PopupElements` を返す補助を加える。この PR では骨格をこの補助の中の文字列で作り、ステップ 3-4 で出荷する `popup.html` を読む形に変える。
--   [ ] `test/render.test.ts` に `renderPopup` の describe を加え（設計書 3.10 の行）、次を確かめる。
+-   [x] `ActionControls`・`PopupElements`・`renderPopup` と、セクションごとの描き方を `src/ui/render.ts` に加える（設計書 3.4）。古い `renderSummary`・`renderMetadata` は、ステップ 4-3 まで残す。
+-   [x] `messageNodes` の要素の class（`summary-message`・`summary-steps`）を、要約とも `<summary>` 要素とも紛らわしくない名前に変える（設計書 3.4 の最後の項目）。`rg -n "summary-message|summary-steps" extension` で見つかる、テストのセレクタと `style.css` の規則をすべて新しい名前に変える。
+-   [x] `test/helpers/dom.ts` に、設計書 3.4 の骨格の要素を持つ文書を作り、`PopupElements` を返す補助を加える。この PR では骨格をこの補助の中の文字列で作り、ステップ 3-4 で出荷する `popup.html` を読む形に変える。
+-   [x] `test/render.test.ts` に `renderPopup` の describe を加え（設計書 3.10 の行）、次を確かめる。
     -   構造と属性: セクションの順序と表示・非表示（AC-01・AC-22）、詳細が閉じていることと、URL とタブのタイトルが詳細の外にないこと（AC-06）、見出しが `h1` であること、確認の行の DOM の順序（記号・行の名前・状態の語・内容）と記号の `aria-hidden`、⚠ の行だけが警告の class を持つこと（AC-16・AC-27・AC-38）。
     -   表示しないものと文言: 概要欄の文章を描かないこと（AC-15）、両方の言語の文言で、もう一方の言語の文言を描かないこと（AC-29）、AC-32 の文字列が要素にならないこと、値の要素の `dir="auto"`（AC-33 の構造）。
     -   拒否のカードと主ボタン: 拒否のカードの理由ごとの文と手順と、`aria-labelledby` の指す要素が理由の文であること（AC-23・AC-38）、主ボタンの名前と、`renderPopup` が `disabled` を外さないこと（AC-17・AC-22）、2 回描いても要素が増えないこと。
@@ -218,15 +218,15 @@
 
 **変更するファイル:** `static/style.css`、`test/style.test.ts`
 
--   [ ] 次の規則を `static/style.css` に書く。
+-   [x] 次の規則を `static/style.css` に書く。
     -   色の変数（設計書 3.6）: ライトの `:root` と、`@media (prefers-color-scheme: dark)` の中の `:root`。
     -   `[hidden]` の規則（設計書 3.4）。
     -   幅 360px・主ボタン・`<summary>` の高さ（設計書 3.7）。`<summary>` は上下の余白に加えて `min-height: 44px` を宣言し、高さが書体の行の高さに左右されないようにする。
     -   見出しとチャンネル名の 2 行の制限、プレビューの 1 行の規則と末尾のプレビューの向きの規則、見た目では隠す要素の規則、`:focus-visible` の輪郭、確認の行・拒否のカードの規則。
--   [ ] 規則は色を `var(--…)` で参照し、値を直接書かない。`body` の `min-width: 20rem` は幅の固定に置き換える。古い `.summary-*`・`.metadata-*` の規則は、ステップ 4-3 まで残す。
--   [ ] 末尾のプレビューの向きを戻す `:has(> :dir(rtl))` の規則は、ほかのセレクタと 1 つの規則にまとめない（設計書 1.1）。
--   [ ] 新しい規則は `line-height` を宣言しない（設計書 3.7、`test/style.test.ts:164-171`）。
--   [ ] `test/style.test.ts` に、設計書 3.6「テスト」のコントラスト比の計算（ライトとダークの両方で、設計書 3.6 の 9 組が基準以上）と、その組の変数を対象の規則が `var(--…)` で参照していることの確認を加える。設計書 3.10 の `style.test.ts` の行の残りの宣言の確認（`[hidden]` の `display: none !important`、主ボタンと `<summary>` の 44px 以上、`-webkit-line-clamp: 2`、プレビューの 1 行と末尾の向き、見た目では隠す要素が `display: none`・`visibility: hidden` を使わないこと、`:focus-visible` の輪郭）も加える。ライトとダークの規則を分けて読むため、`parseStyleSheet` の戻り値に、どの `@media` の中の規則かを持たせる。
+-   [x] 規則は色を `var(--…)` で参照し、値を直接書かない。`body` の `min-width: 20rem` は幅の固定に置き換える。古い `.summary-*`・`.metadata-*` の規則は、ステップ 4-3 まで残す。
+-   [x] 末尾のプレビューの向きを戻す `:has(> :dir(rtl))` の規則は、ほかのセレクタと 1 つの規則にまとめない（設計書 1.1）。
+-   [x] 新しい規則は `line-height` を宣言しない（設計書 3.7、`test/style.test.ts:164-171`）。
+-   [x] `test/style.test.ts` に、設計書 3.6「テスト」のコントラスト比の計算（ライトとダークの両方で、設計書 3.6 の 9 組が基準以上）と、その組の変数を対象の規則が `var(--…)` で参照していることの確認を加える。設計書 3.10 の `style.test.ts` の行の残りの宣言の確認（`[hidden]` の `display: none !important`、主ボタンと `<summary>` の 44px 以上、`-webkit-line-clamp: 2`、プレビューの 1 行と末尾の向き、見た目では隠す要素が `display: none`・`visibility: hidden` を使わないこと、`:focus-visible` の輪郭）も加える。ライトとダークの規則を分けて読むため、`parseStyleSheet` の戻り値に、どの `@media` の中の規則かを持たせる。
 
 **完了の条件:** `make ext-check` が通る。`--muted` のライトの値を `#9aa0a6` にして壊し、コントラスト比のテストが失敗することを確かめる。⚠ の行の背景の規則に `var(--warn-bg)` 以外の値を書いて壊し、変数の参照のテストが失敗することを確かめる。
 
@@ -242,10 +242,10 @@
 
 **判定理由**: 描き方と CSS は設計書と試作（設計書 6.3）が決めており、既存の部品を置き換えない追加で、`mkplan.md` の Conditional checks にも当たらない。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/552
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 #### ステップ 3-4: 骨格
 
@@ -466,7 +466,7 @@ AC-11・AC-20・AC-23 の文言、AC-19 のリクエストの本文、AC-35 の 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
 -   [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 2-1 / 2-2）
--   [ ] PR-2 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3）
+-   [x] PR-2 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3）
 -   [ ] PR-3 マージ済み（対象ステップ: 3-4 / 4-1 / 4-2 / 4-3 / 4-4）
 -   [ ] PR-4 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4）
 
