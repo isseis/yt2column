@@ -31,6 +31,14 @@ func readRepoFile(t *testing.T, rel string) string {
 	return string(data)
 }
 
+// TestGuidePathExists: the guide the parse diagnostic points at exists, so a
+// user who sees the diagnostic can open it.
+func TestGuidePathExists(t *testing.T) {
+	if _, err := os.Stat(filepath.Join(repoRoot, guidePath)); err != nil {
+		t.Errorf("guidePath %q does not exist: %v", guidePath, err)
+	}
+}
+
 // TestGuideCoversStopKindsAndScope: the guide names, in code spans, every stop
 // kind the tool can print. In chapter 6, every deny-list item is in the
 // execution-related file table and every allow-list item in the allow-list
