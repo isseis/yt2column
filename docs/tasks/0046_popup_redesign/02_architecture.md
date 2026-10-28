@@ -8,7 +8,7 @@
 | Created | 2026-10-28 |
 | Review date | 2026-10-28 |
 | Reviewer | isseis |
-| Comments | 2026-10-28 (editorial): `/runplan` の PR-1 の実装で、3.2 の `SelectionStatus` を、`SendableSelection` と `BlockedSelection` の 2 つのインターフェースの共用体として示した。`PreparedRequest` はブランド型で、ESLint の規則（`eslint.config.js` の `brandSelectors`）が型エイリアスの中でのその参照を禁じるため、同じ判別共用体を名前のあるインターフェースで書く必要がある。型の意味と `buildCollectedView` の契約は変えていない。<br>2026-10-28（設計の変更、レビュアーの判断）: PR-1 のコードレビューの指摘を受けて、3.2 の `SelectionStatus`・`DescriptionStatus` から `state` をなくし、`kind` だけを持つ形にした。確認の状態は `kind` から一意に決まるので、`kind` から状態への対応を `selectionStates`・`descriptionStates` の 1 か所に置く。要件と、表示する ✓ と ⚠ は変えていない。 |
+| Comments | 2026-10-28 (editorial): `/runplan` の PR-1 の実装で、3.2 の `SelectionStatus` を、`SendableSelection` と `BlockedSelection` の 2 つのインターフェースの共用体として示した。`PreparedRequest` はブランド型で、ESLint の規則（`eslint.config.js` の `brandSelectors`）が型エイリアスの中でのその参照を禁じるため、同じ判別共用体を名前のあるインターフェースで書く必要がある。型の意味と `buildCollectedView` の契約は変えていない。<br>2026-10-28（設計の変更、レビュアーの判断）: PR-1 のコードレビューの指摘を受けて、3.2 の `SelectionStatus`・`DescriptionStatus` から `state` をなくし、`kind` だけを持つ形にした。確認の状態は `kind` から一意に決まるので、`kind` から状態への対応を `selectionStates`・`descriptionStates` の 1 か所に置く。要件と、表示する ✓ と ⚠ は変えていない。<br>2026-10-28（editorial）: ステップ 5-4 の手動の確認で、Chrome が拡張のページに注入する `extension_fonts.css` の `body` の規則が、`:root` の 14px と日本語の書体を打ち消し、ポップアップが 10.5px で表示されることを見つけた。3.7 に、`body` で `font-family: inherit` と `font-size: 1rem` を宣言して打ち消すことを加えた。設計はすでに `:root` の 14px と日本語の書体を定めており、この追加はそれを Chrome の注入に対して成立させるための記述である。決定は変えていない。 |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `f488112` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。拡張のファイルのパスは `extension/` を省いて書く（例: `src/launch.ts` は `extension/src/launch.ts`）。F-NNN・AC-NN は要件書の項番を指す。モックアップは、要件書が参照する issue #507 のモックアップを指す。要件のレビューで設計に申し送られた事項（[design_handoff.md](design_handoff.md) の H-01〜H-12）への対応は 3.11 にまとめる。
 
@@ -557,6 +557,7 @@ export interface Catalog {
 ### 3.7. 大きさとレイアウト（AC-04・AC-17・AC-28、H-09）
 
 -   `body` の幅を 360 CSS ピクセルに固定する。この幅は、Chrome のポップアップの大きさの上限（幅 800・高さ 600）に収まる。
+-   **Chrome が拡張のページに注入する書体の規則を打ち消す:** Chrome はすべての拡張のページに `extension_fonts.css` を注入し、`body` にブラウザの書体と `font-size: 75%` を当てる。`:root` の 14px と `:root:lang(ja)` の日本語の書体は、`body` の規則に負ける。そこで `style.css` の `body` の規則で `font-family: inherit` と `font-size: 1rem` を宣言し、ルートの書体と 14px を使う。この宣言がないと、ポップアップは 10.5px で表示される（ステップ 5-4 の手動の確認で見つけた）。
 -   主ボタンは幅いっぱい（`width: 100%`）で、高さを 44 CSS ピクセル以上（`min-height`）にする。`<summary>` は、開閉の印を残すため `display: list-item` のまま、上下の余白で高さを 44 CSS ピクセル以上にし、幅は内容の幅いっぱいにする（AC-28）。
 -   新しい規則は `line-height` を宣言しない。日本語の行間は今の `body:lang(ja)` の規則（`static/style.css:71-73`）で決まり、`test/style.test.ts:164-171` が、`line-height` を宣言するのはこの規則だけであることを確かめているためである。
 -   **主ボタンが見えること（AC-17）の見積もり:** 試作（6.3）で、日本語・行間 1.7・幅 360px、見出しが 2 行、選択範囲の行が ⚠（数・2 つのプレビュー・理由の文・手順 1 つ）、概要欄の行が ⚠（文・手順 2 つ）の場合に、主ボタンの下端はページの上端から 492px だった（チャンネル名を除く）。チャンネル名は 2 行に制限する（3.4）ので、上限まで長い日本語のチャンネル名でも 2 行（48px。行の高さ 23.8px × 2）で止まる。これを加えた約 540px を上限と見積もる。上限の 600px まで約 60px の余裕がある。英語は行間が狭いので、これより低い。この見積もりは、ブラウザの表示の倍率が 100% で、macOS の既定の書体の場合である。拡張のポップアップはブラウザの既定の倍率に従うので、倍率を 125% にすると約 675px になり、主ボタンの下端が上限を超えてスクロールが要る。AC-17 は倍率 100% で満たし、それより大きい倍率は保証の外とする。実装した画面での確認は手動で行う（7.2）。
@@ -591,7 +592,7 @@ export interface Catalog {
 | `test/launch.test.ts`（変更） | 経路の処理 | 動画メタデータの読み取りを止めておき、その間は骨格がすべて `hidden` で主ボタンが `disabled` であること、終わった後にまとめて表示されること（AC-05）、送信が 1 回だけであること（AC-18）、状態の領域が操作のセクションの中、主ボタンの後にあり、`role="status"` を持つこと（AC-20・AC-39）、送信の前後で動画のセクション・確認のセクション・詳細の内容が変わらないこと（AC-21）、大きすぎるときに主ボタンが押せず送らないこと（AC-11）、折りたたまれているときと概要欄を送らないときも主ボタンが押せること（AC-13・AC-14）、拒否のときに動画メタデータを読まないこと（AC-24、今のテスト `:327`）、本文が今と同じであること（AC-19、今のテスト `:252`・`:647`）、ログが今と同じであること |
 | `test/prepare.test.ts`（変更） | `prepareSend` | 引数の型の変更に合わせる。大きさの判定（AC-11・AC-19） |
 | `test/catalog.test.ts`（変更） | 文言の集合 | 関数の項目も、両方の言語で空でない文字列を返すこと。英語の単数形 |
-| `test/style.test.ts`（変更） | `style.css` | コントラスト比と変数の参照（3.6、AC-26・AC-37）、`[hidden]` の規則（AC-05・AC-22）、主ボタンと `<summary>` の高さ 44px 以上の宣言（AC-28 の宣言の確認）、見出しとチャンネル名の `-webkit-line-clamp: 2`（AC-04・AC-17 の宣言の確認）、プレビューの 1 行の規則と末尾のプレビューの向きの規則（AC-09 の宣言の確認）、見た目では隠す要素が `display: none`・`visibility: hidden` を使わないこと（AC-27）、`:focus-visible` の輪郭（AC-37）、日本語の書体と行間の今の確認 |
+| `test/style.test.ts`（変更） | `style.css` | コントラスト比と変数の参照（3.6、AC-26・AC-37）、`[hidden]` の規則（AC-05・AC-22）、主ボタンと `<summary>` の高さ 44px 以上の宣言（AC-28 の宣言の確認）、見出しとチャンネル名の `-webkit-line-clamp: 2`（AC-04・AC-17 の宣言の確認）、プレビューの 1 行の規則と末尾のプレビューの向きの規則（AC-09 の宣言の確認）、見た目では隠す要素が `display: none`・`visibility: hidden` を使わないこと（AC-27）、`:focus-visible` の輪郭（AC-37）、`body` の `font-family: inherit`・`font-size: 1rem`（5-4、Chrome の注入の打ち消し）、日本語の書体と行間の今の確認 |
 | `test/metadataDocs.test.ts`（変更） | README | 主ボタンの名前と促しのメッセージの引用（AC-31） |
 
 jsdom はレイアウトを計算しないので、見た目（2 行の省略、プレビューの見え方、主ボタンが見えること、色、大きさ、フォーカスの表示）は、CSS の宣言の確認と手動の確認で確かめる（7.2）。

@@ -20,7 +20,7 @@
 | 実装計画書 | implementation plan | `03_implementation_plan.md` |
 | 要件定義書 | requirements document | `01_requirements.md` |
 | 文字起こし | transcript | `Transcript` 型。字幕から得た本文とメタ情報 |
-| 字幕 | subtitles | yt-dlp が出力する字幕ファイル（json3） |
+| 字幕 | subtitles | yt-dlp が出力する字幕ファイル（json3）。UI の文言では、文字起こしパネルの行も指し、英語の UI では captions と書く（例: `Selected captions`） |
 | 自動字幕 | auto-generated subtitles | YouTube が自動生成する字幕 |
 | 手動字幕 | manual subtitles | 投稿者がアップロードした字幕 |
 | コピーした字幕 | copied transcript | 利用者が文字起こしパネルで選択・コピーした文字列。形 A と形 B がある |
@@ -69,6 +69,24 @@
 | チャンネル名 | channel name | 動画を投稿したチャンネルの名前 |
 | 概要欄 | description | 動画の説明文。文脈が曖昧なときは "video description" とする |
 | 促しのメッセージ | expand prompt | 概要欄が折りたたまれているとき、ポップアップで「もっと見る」（"...more"）を開いてから開き直すよう促す固定の文言（`expandPromptMessage`） |
+| セクション | section | ポップアップの縦の区分。動画のセクション・確認のセクション・操作のセクションの 3 つ |
+| 動画のセクション | video section | 見出しとチャンネル名を表示するセクション |
+| 見出し | heading | 動画のセクションの先頭に表示する、動画タイトル（取れないときはタブのタイトル） |
+| 確認のセクション | checks section | 選択範囲の行と概要欄の行を表示するセクション |
+| 操作のセクション | action section | 主ボタンと、送信中と送信の結果を表示するセクション |
+| 確認の行 | check row | 確認のセクションの 1 行。✓ か ⚠ の状態を持つ。選択範囲の行と概要欄の行がある |
+| 選択範囲の行 | selection row | 選択範囲の文字数と行数、先頭と末尾のプレビューを表示する確認の行 |
+| 概要欄の行 | description row | 送る概要欄が全文か、冒頭だけか、送られないかを表示する確認の行 |
+| 主ボタン | primary button | 操作のセクションの、送信を始めるボタン（`Generate article`） |
+| 詳細 | details | URL とタブのタイトルを入れた、開閉できる区分 |
+| 拒否のカード | rejection card | 収集が拒否されたときに、収集の拒否の理由の文と手順をまとめて表示する 1 枚の区分 |
+| 収集の拒否の理由 | collection rejection reason | 拡張が収集を拒否する理由（`RejectionReason`。`not-watch-page` など）。サーバが返す拒否の理由（`rejectReason`）とは別 |
+| 先頭のプレビュー | head preview | 選択範囲の最初の 100 コードポイントの表示 |
+| 末尾のプレビュー | tail preview | 選択範囲の最後の 100 コードポイントの表示 |
+| 選択範囲 | selection | 利用者が文字起こしパネルで選んだ文字列。サーバへはコピーした字幕として送る。既存の大きすぎるときの文言では「選択したテキスト」と呼ぶ（AC-11 の文言は変えない） |
+| 支援技術 | assistive technology | スクリーンリーダーなど、画面の要素の名前と状態を利用者に伝える技術 |
+| フォーカスの表示 | focus indicator | キーボードの操作の対象になっている要素を示す、枠などの見た目 |
+| リクエストの本文 | request body | 拡張がサーバへ送る JSON の本文（`videoUrl`・`transcript` と動画メタデータ）。概要欄の文章とは別 |
 | リクエスト ID | request ID | サーバがリクエストごとに生成する 16 文字の識別子。応答・ログ・失敗の通知を結び付ける |
 | Unix ドメインソケット（UDS） | Unix domain socket (UDS) | ファイルシステム上のパスを介したプロセス間通信。localhost サーバの待ち受け手段。初出で「Unix ドメインソケット（UDS）」と書き、以降は「UDS」とする |
 | 片付け | cleanup | `/mergepr` のマージ後処理（base の更新、ローカル head ブランチの削除） |
@@ -86,6 +104,7 @@
 | 自動レビュアーの一覧 | automated reviewer list | `.claude/commands/_context.md` の「Automated reviewer list」に定める、スレッドを信頼する自動レビュアーの名前（GraphQL の `author.login` の形）の一覧。`fixprguard` には `--reviewer` で 1 つずつ渡す |
 | 完了を待つ PR レビュアー | awaited PR reviewer | `/runpr` がレビュー済みの判定に使う Bot。承認を待つのではなく、レビューがそのコミットまで完了したことを待つ。`.claude/commands/_context.md` の「Awaited PR reviewer」に、自動レビュアーの一覧とは別に定める |
 | 割り当て | quota | 自動レビュアーが一定時間に受け付けるレビューの回数の上限。localhost サーバの同時処理数の単位である「枠」（slot）とは別の概念 |
+| 試行 | attempt | ローカルの CLI レビューを 1 回試みること。CodeRabbit CLI の実行 1 回と、それが失敗したときの Codex CLI の実行 1 回から成る。範囲ごとに最大 2 回（タスク 0049） |
 | 指摘 | finding | レビューが挙げる個々の問題。スレッドとして投稿されるものと、レビューの本文にだけ書かれるものがある |
 | スレッド | thread | PR のファイル・行に紐づくレビューコメントの連なり。`/fixpr` が処理する単位 |
 | 信頼する著者のスレッド | trusted thread | すべてのコメントを取得でき、そのすべての著者が信頼する著者と確かめられたレビュースレッド |
@@ -106,7 +125,7 @@
 | 判定した集合 | judged set | `fixprguard inspect` が範囲と照らした変更の集合。その識別子は `judgedSet` |
 | 名指し | naming | 利用者が内容を確かめた想定外の著者のスレッドを、スレッド ID と指紋の組で指定して処理を求めること。動詞は "name"（例: a named thread） |
 | バックグラウンド | background | 端末の前面でなく裏で動くプロセスやジョブ（例: バックグラウンドのプロセス）。「背景」とは訳さない |
-| 確認 | check | 文書のテストなど 1 つのテストの中の、1 つの条件の検査。1 つのテストは複数の確認を含みうる（タスク 0038）。動詞は「確かめる」 |
+| 確認 | check | 文書のテストなど 1 つのテストの中の、1 つの条件の検査。1 つのテストは複数の確認を含みうる（タスク 0038）。動詞は「確かめる」。画面の「確認のセクション」「確認の行」の「確認」は UI の区分の名前（checks section・check row）で、この語とは別 |
 | 料金表 | rate table | `internal/pricing` の `rateTable`。モデルごとの、トークンあたりの料金の表（`pricing_update.md`） |
 | 方式 | scheme | 料金表の項目が、料金を選ぶ方法。単一の料金、週ごとのピークの時間帯、プロンプトの長さのしきい値のいずれか（`pricing_update.md`） |
 | ピークの時間帯 | peak window | 時刻で料金が変わるモデルで、高い料金が適用される曜日と時刻の範囲（`pricing_update.md`） |
