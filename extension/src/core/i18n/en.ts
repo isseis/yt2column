@@ -146,17 +146,4 @@ export const en: Catalog = {
     tabTitle: "Tab title",
   },
   primaryButton: "Generate article",
-  summaryLabels: {
-    title: "Title",
-    url: "URL",
-    characters: "Characters",
-    lines: "Lines",
-    preview: "Preview",
-  },
-  metadataLabels: {
-    title: "Video title",
-    channelName: "Channel",
-    description: "Description",
-  },
-  sendButton: "Send to yt2column",
 };

@@ -147,17 +147,4 @@ export const ja: Catalog = {
     tabTitle: "タブのタイトル",
   },
   primaryButton: "記事を生成する",
-  summaryLabels: {
-    title: "タブのタイトル",
-    url: "URL",
-    characters: "文字数",
-    lines: "行数",
-    preview: "プレビュー",
-  },
-  metadataLabels: {
-    title: "動画タイトル",
-    channelName: "チャンネル名",
-    description: "概要欄",
-  },
-  sendButton: "yt2column に送信",
 };

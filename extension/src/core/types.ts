@@ -23,27 +23,9 @@ export type CheckState = "ok" | "warning";
 /** The check rows. */
 export type CheckName = "selection" | "description";
 
-/** The fields of the collected summary. */
-export type SummaryField = "title" | "url" | "characters" | "lines" | "preview";
-
 /** What a launch path knows about the tab at the moment of the launch. */
 export interface LaunchContext {
   readonly tabId: number;
   readonly url: string | undefined;
   readonly title: string | undefined;
 }
-
-/** Display-only digest of an outcome; what the popup summary shows. */
-export type OutcomeSummary =
-  | {
-      readonly kind: "collected";
-      readonly title: string;
-      readonly titleTruncated: boolean;
-      readonly url: string;
-      readonly urlTruncated: boolean;
-      readonly characterCount: number;
-      readonly lineCount: number;
-      readonly preview: string;
-      readonly previewTruncated: boolean;
-    }
-  | { readonly kind: "rejected"; readonly reason: RejectionReason };

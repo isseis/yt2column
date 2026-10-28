@@ -83,12 +83,7 @@ body {
 .video-heading,
 .channel-name,
 .detail-value,
-.preview-head,
-.summary-title,
-.summary-preview,
-.metadata-title,
-.metadata-channel,
-.metadata-description {
+.preview-head {
   unicode-bidi: plaintext;
 }
 
@@ -168,31 +163,6 @@ body {
 .preview-tail {
   margin: 0;
   color: var(--muted);
-}
-
-/* The old summary and metadata rendering, still used until the launch path
-   switches to renderPopup; its rules go away with it. */
-.summary-field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.125rem;
-  margin-bottom: 0.75rem;
-}
-
-.summary-label {
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  opacity: 0.7;
-}
-
-.summary-value {
-  overflow-wrap: anywhere;
-}
-
-.summary-preview,
-.metadata-description {
-  white-space: pre-wrap;
 }
 
 /* The message text and its numbered steps; the warning row's reason and

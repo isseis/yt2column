@@ -294,14 +294,14 @@
 
 **変更するファイル:** `src/core/summary.ts`、`src/core/types.ts`、`src/core/i18n/catalog.ts`、`src/core/i18n/en.ts`、`src/core/i18n/ja.ts`、`src/ui/render.ts`、`static/style.css`、`test/summary.test.ts`、`test/render.test.ts`、`test/renderMetadata.test.ts`、`test/catalog.test.ts`、`test/helpers/dom.ts`
 
--   [ ] `summarize` と、`summary.ts` の `titleLimit`・`urlLimit`・`previewLimit` をなくす。
--   [ ] `types.ts` の `SummaryField`・`OutcomeSummary` をなくす。
--   [ ] `render.ts` の `renderSummary`・`renderMetadata`・`field`・`summaryStyles`・`collectedNodes`・`rejectedNodes`・`metadataRows` と、それだけが使う型と import（`MetadataField`・`MetadataResult`・`OutcomeSummary`・`SummaryField`）をなくす。
--   [ ] `Catalog` の `summaryLabels`・`metadataLabels`・`sendButton` と、`en.ts`・`ja.ts` のその値、`catalog.ts` の `MetadataField`・`SummaryField` の import をなくす。
--   [ ] `style.css` の古い `.summary-*`・`.metadata-*` の規則をなくす。
--   [ ] `test/catalog.test.ts:14` のコメントの例（`summaryLabels.url`）を、残る項目の例に変える。
--   [ ] `test/summary.test.ts::summarize` の describe、`test/render.test.ts::renderSummary` の describe、`test/renderMetadata.test.ts`（ファイル全体）、`test/helpers/dom.ts` の `valueElement`・`valueOf` をなくす。
--   [ ] 1.4 の表の部品の名前を `rg` で探し、`src/`・`test/`・`static/` に残りがないことを確かめる（8 章の横断の確認）。
+-   [x] `summarize` と、`summary.ts` の `titleLimit`・`urlLimit`・`previewLimit` をなくす。
+-   [x] `types.ts` の `SummaryField`・`OutcomeSummary` をなくす。
+-   [x] `render.ts` の `renderSummary`・`renderMetadata`・`field`・`summaryStyles`・`collectedNodes`・`rejectedNodes`・`metadataRows` と、それだけが使う型と import（`MetadataField`・`MetadataResult`・`OutcomeSummary`・`SummaryField`）をなくす。
+-   [x] `Catalog` の `summaryLabels`・`metadataLabels`・`sendButton` と、`en.ts`・`ja.ts` のその値、`catalog.ts` の `MetadataField`・`SummaryField` の import をなくす。
+-   [x] `style.css` の古い `.summary-*`・`.metadata-*` の規則をなくす。
+-   [x] `test/catalog.test.ts:14` のコメントの例（`summaryLabels.url`）を、残る項目の例に変える。PR-1 のステップ 2-1 で、例はすでに `details.summary` に変わっていた。
+-   [x] `test/summary.test.ts::summarize` の describe、`test/render.test.ts::renderSummary` の describe、`test/renderMetadata.test.ts`（ファイル全体）、`test/helpers/dom.ts` の `valueElement`・`valueOf` をなくす。
+-   [x] 1.4 の表の部品の名前を `rg` で探し、`src/`・`test/`・`static/` に残りがないことを確かめる（8 章の横断の確認）。
 
 **完了の条件:** `make ext-check` が通る。消したテストについて、1.2 の比較で、消した関数を除く `src/` の各関数の実行回数が 0 にならない。
 
