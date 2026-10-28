@@ -726,18 +726,18 @@ N/A（設計書 7.2）。
 - `mergepr_guide` の 1 行の差: 英語版は `prepare [PR]` の手順 4 の続きの 3 文を別々の段落にしているが、日本語版は字下げした続きの行にしている。内容は同じで、`_checks/move` の差分の一覧にも現れない。
 - 残した記述: `fixprguard_guide.md` の最後の箇条書きは、ガードテストが「本書（日英）」を確かめると述べている。英語版の手引きを消した後は古い記述になるが、AC-09 はこの PR で日本語の手引きの文言を変えることを許していないため、そのままにした。PR の本文でレビュアーに判断を求める。
 
-**差分の検査の実行の記録:** PR-1 で 2026-10-29 に、リポジトリのルートで `go run ./docs/tasks/0048_doc_language_policy/_checks/move/` を実行した。merge-base は `234da9bd3c73a9520f234c8c2784ebe632477034`、PR の先頭は `d61ef82d783f151ab7058648f79b1380910870b6`、終了コードは 0 である。
+**差分の検査の実行の記録:** PR-1 で 2026-10-29 に、リポジトリのルートで `go run ./docs/tasks/0048_doc_language_policy/_checks/move/` を実行した。merge-base は `234da9bd3c73a9520f234c8c2784ebe632477034`、PR の先頭は `20456dbbb51ce0fa21cae49f2025cd7679228012`、終了コードは 0 である。
 
 ```text
 merge-base 234da9bd3c73a9520f234c8c2784ebe632477034
-head       d61ef82d783f151ab7058648f79b1380910870b6
-OK   conventions unchanged (AC-08)
-OK   guides renamed from the Japanese originals (AC-09)
-OK   old directory is gone (AC-12)
-OK   no old file path remains (AC-13)
-OK   past task documents changed only at paths (AC-14)
-OK   relative links resolve (AC-15)
-OK   translations keep the structure (AC-10)
+head       20456dbbb51ce0fa21cae49f2025cd7679228012
+OK   conventions unchanged
+OK   guides renamed from the Japanese originals
+OK   old directory is gone
+OK   no old file path remains
+OK   past task documents changed only at paths
+OK   relative links resolve
+OK   translations keep the structure
 ```
 
 各検査が違反を見つけることは、PR の先頭とは別の一時的なコミットで 1 か所ずつ変えて確かめ、元に戻した。どれも終了コード 1 になった。
