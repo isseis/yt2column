@@ -88,7 +88,7 @@
 -   [ ] `TestGitEnvDropsInheritedGitVariables` を分ける。環境の変数を除くことと加えることの確かめは `internal/cmdrunner` に移し、`GIT_DIR` を受け継いでも `Worktree.Baseline` が正しいリポジトリを読むことの確かめは `internal/fixprguard` に残す。`go tool cover -func` の結果が、関数の名前ごとに（移した関数は移した先のパッケージで）変わらないことを確かめ、コミットメッセージに書く。
 -   [ ] 返したスライスを書き換えても、次に呼んだときの結果が変わらないことを確かめるテストを加える。
 
-**完了の条件**: `make test` と `make lint` が通る。`internal/fixprguard` と `cmd/fixprguard` の既存のテストが、参照の付け替えのほかは変わらずに通る。
+**完了の条件**: `make test`・`make lint`・`make deadcode` が通る。`internal/fixprguard` と `cmd/fixprguard` の既存のテストが、参照の付け替えのほかは変わらずに通る。
 
 #### ステップ 1-2: プロセスグループごと止めるオプションを加える
 
@@ -99,7 +99,7 @@
 -   [ ] 次の 4 つの壊し方のそれぞれで、新しいテストのどれかが失敗することを確かめる。オプションを外す、グループに送らずに直接の子だけに送る、強制の停止の段を外す、正常に終わったときのグループの停止を外す。壊した形で止まったままにならないように、テストには `WaitDelay` を付ける。
 -   [ ] `package_reference.md` の `internal/cmdrunner` の行にオプションを加える。
 
-**完了の条件**: `make test` と `make lint` が通る。
+**完了の条件**: `make test`・`make lint`・`make deadcode` が通る。
 
 ### PR-1 作成ポイント: cmdrunner process group and shared git environment
 
@@ -131,7 +131,7 @@
 -   [ ] `CLAUDE.md`「Declare, don't infer」に、設計書 1.4 の例外（範囲、理由、境界）を、既存の例外と同じ形で加える（1.2）。
 -   [ ] `package_reference.md` に `internal/codexreview` の行を加える。
 
-**完了の条件**: `make test` と `make lint` が通る。文法の判定と位置の確かめの各分岐を 1 つずつ外し、2 つのテストのどれかの行が失敗することを確かめる。
+**完了の条件**: `make test`・`make lint`・`make deadcode` が通る。文法の判定と位置の確かめの各分岐を 1 つずつ外し、2 つのテストのどれかの行が失敗することを確かめる。
 
 #### ステップ 2-2: 偽の `codex` と、本物の `codex` を見つけない環境
 
@@ -145,7 +145,7 @@
 -   [ ] `TestFakesCarryBuildTag` の数を、加えたファイルの数だけ増やす。
 -   [ ] `package_reference.md` に `internal/codexreview/testutil` の行を加える。
 
-**完了の条件**: ステップ 2-3 のテストで使われ、`make test` と `make lint` が通る。`TestMain` の入口の見分け（`codex` の名前のとき、変数がないとき）を、組み立てた引数で確かめるテストがある。
+**完了の条件**: ステップ 2-3 のテストで使われ、`make test`・`make lint`・`make deadcode` が通る。`TestMain` の入口の見分け（`codex` の名前のとき、変数がないとき）を、組み立てた引数で確かめるテストがある。
 
 #### ステップ 2-3: `codex` の実行と、前後の比較
 
@@ -166,7 +166,7 @@
     -   `TestRunDirKeepsOnlyLastMessage`: `<RUN_DIR>` は所有者だけが読み書きでき、最終メッセージのほかに何も残らない。
 -   [ ] 各分岐を 1 つずつ外して（比較の項目を 1 つ外す、git の出力の書式の指定を外す、引数を 1 つ外す、優先の順を変える、後の状態の読み取りを取り消されたコンテキストで行う）、対応するテストが失敗することを確かめる。
 
-**完了の条件**: `make test` と `make lint` が通る。
+**完了の条件**: `make test`・`make lint`・`make deadcode` が通る。
 
 ### PR-2 作成ポイント: codexreview core: grammar, run and state comparison
 
@@ -201,7 +201,7 @@
 -   [ ] `Makefile` に `install-codexreview`（`go install ./cmd/codexreview`）を、`install-fixprguard` と同じ形のコメントとともに加え、`.PHONY` にも加える。
 -   [ ] `package_reference.md` に `cmd/codexreview` の行を加える。
 
-**完了の条件**: `make test` と `make lint` と `make deadcode` が通る。
+**完了の条件**: `make test`・`make lint`・`make deadcode` が通る。
 
 ### フェーズ 3: 権限、文書のガード、CI（設計書 8 章の 3）
 
@@ -228,7 +228,7 @@
 -   [ ] `CLAUDE.md` の Commands の節に `make install-codexreview` の項目を加える（設計書 3.9。1.2）。
 -   [ ] `CLAUDE.md`「Testing Strategy」の文書のテストの例外に、`codexreview` の `--protocol` の値と、`codex` を直接実行する形がないことの 2 つを加える（設計書 1.4）。
 
-**完了の条件**: `make test` と `make lint` が通る。各ガードの判定を 1 つずつ外し、失敗することを確かめる。`TestDocumentedProtocolMatches`・`TestNoDirectCodexInvocation`・`cmd/fixprguard` の除外は組み立てた文書で、`TestSettingsAllowsTool`（許可の名前の比較、`codex` の許可の拒否）と `TestInstallTargetDocumented` は実物のファイルで確かめる。
+**完了の条件**: `make test`・`make lint`・`make deadcode` が通る。各ガードの判定を 1 つずつ外し、失敗することを確かめる。`TestDocumentedProtocolMatches`・`TestNoDirectCodexInvocation`・`cmd/fixprguard` の除外は組み立てた文書で、`TestSettingsAllowsTool`（許可の名前の比較、`codex` の許可の拒否）と `TestInstallTargetDocumented` は実物のファイルで確かめる。
 
 #### ステップ 3-3: CI の `doc-guard` の job
 
@@ -295,7 +295,7 @@
 -   [ ] `TestDocumentedInvocationsParse` を加える。コマンドの文書のすべての `codexreview` の呼び出しを、ツール自身の引数の解析に通す。`<BASE>` などの置き換える印は、40 桁の SHA に置き換えてから通す。
 -   [ ] `TestProcedureNamesKinds` を加える。共通手順は、設計書 4 章の扱いを、種類（`precondition` の `dirty_tree` を含む）と終了コードの表で書く（ステップ 5-1）。テストは、その表の行を、`internal/codexreview` の一覧の関数が返すすべての種類、`dirty_tree`、1.2 の終了コードと比べる（表の値と構造の比較なので、`CLAUDE.md` の文書のテストの規則の範囲に入る）。
 
-**完了の条件**: `make test` が通る。実物の文書で、共通手順の呼び出しを消す、`--protocol` の値を変える、フラグを 1 つ加える、種類の 1 つを書き換える、のそれぞれでガードが失敗することを確かめる。
+**完了の条件**: `make test`・`make lint`・`make deadcode` が通る。実物の文書で、共通手順の呼び出しを消す、`--protocol` の値を変える、フラグを 1 つ加える、種類の 1 つを書き換える、のそれぞれでガードが失敗することを確かめる。
 
 ### フェーズ 6: 呼び出し元と承認の記述（設計書 8 章の 6）
 
