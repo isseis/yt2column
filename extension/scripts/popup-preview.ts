@@ -4,13 +4,14 @@
 //
 //   node extension/scripts/popup-preview.ts <output-directory>
 //
-// Each named input set goes through the production functions -- collect,
+// Each collected input goes through the production functions -- collect,
 // acceptMetadata (readFailureResult for a failed read), prepareSend,
 // buildCollectedView and renderPopup -- so the preview cannot show a state the
-// popup cannot build. The skeleton is the shipped popup.html, the stylesheet
-// is copied next to the pages, and the written pages load no external resource
-// and run no script. This file never reaches dist/: the build compiles src/
-// only (tsconfig.build.json) and check-dist reports any extra file.
+// popup cannot build. A rejected case builds the RejectedView the launch path
+// returns for a collection it refuses. The skeleton is the shipped popup.html,
+// the stylesheet is copied next to the pages, and the written pages load no
+// external resource and run no script. This file never reaches dist/: the build
+// compiles src/ only (tsconfig.build.json) and check-dist reports any extra file.
 //
 // Text that must be Japanese, right-to-left, or a bidi control is written with
 // \u escapes so the source stays ASCII; each such value says what it is.
@@ -30,9 +31,9 @@ import { prepareSend } from "../src/core/prepare.ts";
 import { buildCollectedView } from "../src/core/popupView.ts";
 import type { PopupView } from "../src/core/popupView.ts";
 import type { RejectionReason } from "../src/core/types.ts";
+import { findPopupElements } from "../src/launch.ts";
 import { applyPageLocale } from "../src/ui/pageLocale.ts";
 import { renderPopup } from "../src/ui/render.ts";
-import type { PopupElements } from "../src/ui/render.ts";
 
 /** The directory holding static/, src/ and scripts/. */
 const extensionDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -127,6 +128,14 @@ export const previewCases: readonly PreviewCase[] = [
   })),
   {
     kind: "collected",
+    name: "rtl-all-en",
+    locale: "en",
+    selection: hebrewWord.repeat(30),
+    tabTitle: "A tab title",
+    metadata: acceptMetadata({ descriptionCollapsed: false }),
+  },
+  {
+    kind: "collected",
     name: "bidi-control-en",
     locale: "en",
     selection: `\u202e${"a".repeat(200)}\u202e`,
@@ -188,38 +197,6 @@ async function buildView(previewCase: PreviewCase): Promise<PopupView> {
   );
 }
 
-/** The skeleton's elements in doc, failing when popup.html would be incomplete. */
-function popupElements(doc: Document): PopupElements {
-  const win = doc.defaultView;
-  if (win === null) {
-    throw new Error("the popup document has no window");
-  }
-  const byId = (id: string): HTMLElement => {
-    const element = doc.getElementById(id);
-    if (element === null) {
-      throw new Error(`popup.html has no element with id ${id}`);
-    }
-    return element;
-  };
-  const primary = byId("primary");
-  const details = byId("details");
-  if (!(primary instanceof win.HTMLButtonElement)) {
-    throw new Error("popup.html's #primary is not a button");
-  }
-  if (!(details instanceof win.HTMLDetailsElement)) {
-    throw new Error("popup.html's #details is not a details element");
-  }
-  return {
-    video: byId("video"),
-    checks: byId("checks"),
-    rejection: byId("rejection"),
-    action: byId("action"),
-    primary,
-    status: byId("status"),
-    details,
-  };
-}
-
 /** The page for one view: the shipped skeleton, the locale, and the render. */
 function renderPage(view: PopupView, locale: Locale): string {
   const skeleton = readFileSync(
@@ -229,7 +206,11 @@ function renderPage(view: PopupView, locale: Locale): string {
   const dom = new JSDOM(skeleton);
   const doc = dom.window.document;
   applyPageLocale(doc, locale);
-  renderPopup(popupElements(doc), view, locale);
+  const elements = findPopupElements(doc);
+  if (elements === undefined) {
+    throw new Error("popup.html does not have the skeleton's elements");
+  }
+  renderPopup(elements, view, locale);
   // The preview is a static page: no script runs next to the rendered state.
   for (const script of doc.querySelectorAll("script")) {
     script.remove();

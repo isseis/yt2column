@@ -36,12 +36,14 @@ describe("video metadata documentation", () => {
   });
 
   it("README names the parts of the new popup the catalog defines", () => {
-    // The README names the screen's controls so a user can find them; each
-    // name is compared with the catalog that defines it.
-    expectPhrases(readme, readmeWhere, [
+    // The README names the screen's controls so a user can find them. The
+    // row names are matched with the word "row" so a stray occurrence of the
+    // bare word cannot stand in for the documented row.
+    const plain = readme.replaceAll("**", "");
+    expectPhrases(plain, readmeWhere, [
       catalogs.en.primaryButton,
-      catalogs.en.checkNames.selection,
-      catalogs.en.checkNames.description,
+      `${catalogs.en.checkNames.selection} row`,
+      `${catalogs.en.checkNames.description} row`,
       catalogs.en.details.summary,
     ]);
   });

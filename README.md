@@ -1240,13 +1240,13 @@ and click the extension's toolbar icon to open the popup. The popup has four
 parts, top to bottom:
 
 - The video section: the video title as the heading, with the channel name
-  below it. When the video title is not available, the tab title is the heading
-  instead, and the channel name is left out.
+  below it when the page provides one. When the video title is not available,
+  the heading is the tab title instead.
 - The checks section: a **Selected captions** row with the selection's
-  character and line counts and a preview of its first and last 100
-  characters, and a **Description** row with the description's state. A ⚠ row
-  says what needs attention and, when there is something to do, the steps that
-  fix it.
+  character and line counts and a preview of its first 100 characters (and,
+  when the selection is longer, its last 100), and a **Description** row with
+  the description's state. A ⚠ row says what needs attention and, when there
+  is something to do, the steps that fix it.
 - The action section: a **Generate article** button. It sends when you press
   it. While sending the button is disabled, and after a send (whatever the
   result) it stays disabled: reopen the popup to send again.
@@ -1267,15 +1267,16 @@ A selection whose request body would be over 4 MiB is not sent: the
 **Selected captions** row becomes ⚠ with the reason and the steps, and the
 button stays disabled.
 
-Some values may not be available: when a video title, channel name, or
+Some values may not be available. When a video title, channel name, or
 description is missing or blank on the page, that value is left out of the
 request (a channel name that is not blank but has a control character or is
 longer than 200 code points is not left out: the server rejects the request with
-`invalid_body`). The description row then becomes ⚠ and says the description
-will not be sent, and the heading is the tab title. When the page cannot be
-read at all — or the tab has moved to another video since the selection was
-read — all three are left out. The extension still sends the selection and the
-URL, and the article is generated from them.
+`invalid_body`). A missing video title makes the tab title the heading, a
+missing description makes the **Description** row ⚠ and says the description
+will not be sent, and a missing channel name leaves the channel-name row out.
+When the page cannot be read at all — or the tab has moved to another video
+since the selection was read — all three are left out. The extension still
+sends the selection and the URL, and the article is generated from them.
 
 How to read the result:
 

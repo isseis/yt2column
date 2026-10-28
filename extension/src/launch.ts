@@ -238,7 +238,7 @@ export function runPopupSend(
  * details a details element, checked against the document's own constructors
  * -- so a partial skeleton is never drawn into.
  */
-function findPopupElements(doc: Document): PopupElements | undefined {
+export function findPopupElements(doc: Document): PopupElements | undefined {
   const win = doc.defaultView;
   const video = doc.getElementById("video");
   const checks = doc.getElementById("checks");
