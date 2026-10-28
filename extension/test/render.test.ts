@@ -689,10 +689,17 @@ describe("renderPopup", () => {
         ),
         [...expandPromptMessage(locale).steps],
       );
-      // The collapsed row shows no count: only the prompt and its steps.
-      const shown =
-        description.querySelector(".check-content")?.textContent ?? "";
-      assert.ok(!shown.includes(catalog.descriptionFull(13)), shown);
+      // The collapsed row shows no count: exactly the prompt and its steps.
+      assert.deepEqual(
+        Array.from(
+          description.querySelectorAll(".message-text, .message-steps > li"),
+          (node) => node.textContent,
+        ),
+        [
+          expandPromptMessage(locale).text,
+          ...expandPromptMessage(locale).steps,
+        ],
+      );
     });
 
     it(`shows the not-sent wording without steps with the warning state in ${locale}`, () => {

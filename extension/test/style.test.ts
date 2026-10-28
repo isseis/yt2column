@@ -417,31 +417,46 @@ describe("colour variables", () => {
 
   it("takes every colour from a variable", () => {
     // A literal would pass a contrast check of the variable it shadows while
-    // the page shows something else.
-    const literal = /#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(/i;
+    // the page shows something else. Every colour-bearing property must name a
+    // variable; the few values that carry no colour are listed.
+    const colourless = new Set([
+      "",
+      "0",
+      "0px",
+      "currentcolor",
+      "transparent",
+      "none",
+      "inherit",
+    ]);
     const properties = [
       "color",
+      "background",
       "background-color",
+      "border",
       "border-color",
+      "border-top",
       "border-top-color",
       "border-bottom-color",
+      "border-left-color",
+      "border-right-color",
+      "outline",
       "outline-color",
       "text-decoration-color",
+      "column-rule-color",
+      "caret-color",
+      "box-shadow",
+      "text-shadow",
       "fill",
       "stroke",
-      "border",
-      "border-top",
-      "outline",
-      "background",
     ];
     for (const entry of onScreen) {
       if (selectorsOf(entry).includes(":root")) {
         continue;
       }
       for (const property of properties) {
-        const value = entry.rule.style.getPropertyValue(property);
+        const value = entry.rule.style.getPropertyValue(property).trim();
         assert.ok(
-          !literal.test(value),
+          value.includes("var(--") || colourless.has(value.toLowerCase()),
           `${entry.rule.selectorText} ${property}: ${value}`,
         );
       }
