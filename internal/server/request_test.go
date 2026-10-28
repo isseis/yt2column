@@ -14,6 +14,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"github.com/isseis/yt2column/internal/articlecache"
 	"github.com/isseis/yt2column/internal/failure"
 	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/llm/testutil"
@@ -366,5 +367,37 @@ func requireChannelNameRequestVerdict(t *testing.T, ts *testServer, body string,
 	}
 	if len(ts.writer.Calls) != 0 {
 		t.Errorf("writer called %d times for a rejected request, want 0", len(ts.writer.Calls))
+	}
+}
+
+// TestValidateBodyKeyInput checks the key input validateBody builds: an absent
+// optional member and an empty one give the same input, the video URL is the
+// normalized one rather than the request's string, and the other values are
+// the request's.
+func TestValidateBodyKeyInput(t *testing.T) {
+	ts := newTestServer(t)
+	keyInput := func(t *testing.T, body string) articlecache.KeyInput {
+		t.Helper()
+		input, rej := ts.validateBody([]byte(body), "0123456789abcdef")
+		if rej != nil {
+			t.Fatalf("validateBody rejected %s: %+v", body, *rej)
+		}
+		return input.key
+	}
+
+	absent := keyInput(t, validBody("https://youtu.be/dQw4w9WgXcQ", testValidRaw))
+	empty := keyInput(t, `{"videoUrl":"https://youtu.be/dQw4w9WgXcQ","transcript":"0:00\nHello\n","title":"","channelName":"","description":""}`)
+	want := articlecache.KeyInput{VideoURL: testValidVideoURL, Transcript: testValidRaw}
+	if absent != want {
+		t.Errorf("absent members: key input = %+v, want %+v", absent, want)
+	}
+	if empty != want {
+		t.Errorf("empty members: key input = %+v, want %+v", empty, want)
+	}
+
+	set := keyInput(t, `{"videoUrl":"`+testValidVideoURL+`","transcript":"0:00\nHello\n","title":"T","channelName":"C","description":"D"}`)
+	want = articlecache.KeyInput{VideoURL: testValidVideoURL, Transcript: testValidRaw, Title: "T", ChannelName: "C", Description: "D"}
+	if set != want {
+		t.Errorf("set members: key input = %+v, want %+v", set, want)
 	}
 }

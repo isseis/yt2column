@@ -282,11 +282,11 @@
 
 -   **ファイル:** `internal/server/server.go`・`request.go`・`job.go`・`test_helpers.go`、テストは `request_test.go`・`job_test.go`
 -   **作業:**
-    -   [ ] `Server` に記事のキャッシュ、`Keyer`、読み込みの枠（`maxReading = 2`）、`genCtx` を持たせ、秘密を `New` で作る（設計書 §3.2・§3.4.2・§3.4.4）。テストの値を渡す内部の組み立て関数を設ける（1.3）。
-    -   [ ] `validateBody` が `KeyInput` を作って `jobInput` に入れる（設計書 §3.2）。
-    -   [ ] `classifyWrite` が `articlecache.FailureReason` を返し、`classify` がそれを `failure.Kind` に対応づける形にする（設計書 §3.11.3）。`TestFailureClassification` は期待値を変えずに通る。
-    -   [ ] 1.4 の「注釈」の行の注釈を改める。
-    -   [ ] テスト: `validateBody` が、省略した任意のメンバと空文字列のメンバで同じ `KeyInput` を作り、`videoUrl` に正規化した URL を入れること。
+    -   [x] `Server` に記事のキャッシュ、`Keyer`、読み込みの枠（`maxReading = 2`）、`genCtx` を持たせ、秘密を `New` で作る（設計書 §3.2・§3.4.2・§3.4.4）。テストの値を渡す内部の組み立て関数を設ける（1.3）。
+    -   [x] `validateBody` が `KeyInput` を作って `jobInput` に入れる（設計書 §3.2）。
+    -   [x] `classifyWrite` が `articlecache.FailureReason` を返し、`classify` がそれを `failure.Kind` に対応づける形にする（設計書 §3.11.3）。`TestFailureClassification` は期待値を変えずに通る。
+    -   [x] 1.4 の「注釈」の行の注釈を改める。
+    -   [x] テスト: `validateBody` が、省略した任意のメンバと空文字列のメンバで同じ `KeyInput` を作り、`videoUrl` に正規化した URL を入れること。
 -   **完了の条件:** グリーンゲートが通る。
 
 #### ステップ 5-2: 生成のジョブ・完了の時点の検査・状態の応答の組み立て
