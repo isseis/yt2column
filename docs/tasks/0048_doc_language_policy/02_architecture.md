@@ -8,7 +8,7 @@
 | Created | 2026-10-28 |
 | Review date | 2026-10-28 |
 | Reviewer | isseis |
-| Comments | 2026-10-28: 冒頭の要件定義の状態の記述を承認後の状態に直した（決定の変更なし。編集上の修正） |
+| Comments | 2026-10-28: 冒頭の要件定義の状態の記述を承認後の状態に直した（決定の変更なし。編集上の修正）。2026-10-28: 実装計画の作成時に、8 章の表のフェーズ 5 の内容に、`development.md` の CI の判定の行と Browser extension の節の最上位化を加え、フェーズ 6 の「CI の判定」を `README.en.md` の行に絞った。フェーズ 2 の AGENTS.md の変更（リンクのパス）はフェーズ 1 の一括置換に含まれることを注に書いた。`development.md` を読むテストと、`## Development` の節を移した後の見出しの入れ子を、同じ PR で正しく保つためである（決定の変更なし。編集上の修正） |
 
 本書は [01_requirements.md](01_requirements.md) の設計である。要件定義は、本書のレビューで AC-27a を加えたため一度 `draft` に戻し、本書と一緒に承認し直した。要件定義から申し送られた設計事項は [design_handoff.md](design_handoff.md) にあり、各項目への対応は 10 章にまとめる。本書が引用するファイルの行番号は、特に断らない限り、コミット `364c95b8`（本書の作成時の `main`）のものである。
 
@@ -734,11 +734,11 @@ N/A（5 章）。
 | フェーズ | 内容 | 要件 | 前提 |
 |---|---|---|---|
 | 1 | developer_guide の分割。英語版の手引きの確かめと削除、`pricing_update.md`・`claude_output_limit.md` の翻訳、旧パスの一括置換、`fixprguard` と 2 つのガードテストのパスの変更、指示と規約の文書が示すパスの検査（4.2 節）、`_checks/` の AC-08〜AC-15 | F-002 | なし |
-| 2 | 言語の原則。CLAUDE.md・`_context.md`・AGENTS.md の改訂（README と開発者向けの文書に関わる記述は、それらを作るフェーズ 6 で合わせる） | F-001 | フェーズ 1（新しいパスを書くため） |
+| 2 | 言語の原則。CLAUDE.md・`_context.md`・AGENTS.md の改訂（README と開発者向けの文書に関わる記述は、それらを作るフェーズ 6 で合わせる。AGENTS.md の変更はリンクのパスだけなので、フェーズ 1 の一括置換に含まれる） | F-001 | フェーズ 1（新しいパスを書くため） |
 | 3 | `/mktrans` の改訂と、`/runplan`・`/fixpr`・`/runpr` と `_lib/task-pr-handoff.md` の同期の手順 | F-006 | なし |
 | 4 | 共有パッケージ `internal/doctestutil` の新設と、既存の補助関数とそのテストの移動。この PR では、今ある補助関数を移すだけで、README の版とロケータ、構造の抽出は加えない | F-004 の準備 | なし |
-| 5 | README の振り分け。`cli.md`・`development.md` の新設と、移った値を読むガードテストの付け替え | F-003 | 0046 の PR-4 のマージ、フェーズ 4 |
-| 6 | README の日本語化、`README.en.md` の作成、README の版とロケータ、両版のガードテスト、構造の抽出と構造の一致のテスト、CI の判定、用語集、UI の参照先の変更、CLAUDE.md の Development Notes | F-004・F-005 | フェーズ 3・5 |
+| 5 | README の振り分け。`cli.md`・`development.md` の新設と、移った値を読むガードテストの付け替え、`development.md` の CI の判定の行、Browser extension の節の最上位化 | F-003 | 0046 の PR-4 のマージ、フェーズ 4 |
+| 6 | README の日本語化、`README.en.md` の作成、README の版とロケータ、両版のガードテスト、構造の抽出と構造の一致のテスト、`README.en.md` の CI の判定の行、用語集、UI の参照先の変更、CLAUDE.md の Development Notes | F-004・F-005 | フェーズ 3・5 |
 
 -   **英語から日本語への翻訳（H-13）:** 改訂後の `/mktrans` は `README.md` から `README.en.md` への翻訳だけを扱う。そのため、`README.md` の日本語化、`pricing_update.md`・`claude_output_limit.md`・`cli.md`・`development.md` の日本語の内容は、`/mktrans` を使わずに書き、`/japrose` で整え、翻訳の正確さを `/mktrans` のレビューの手順（`.claude/commands/_lib/review-subagent-pattern.md` と `mktrans.md` の Accuracy checklist）で確かめる。改訂前の `/mktrans` は使わない（`README.ja.md` を出力してしまうため）。具体的な手段と順序は実装計画で決める。
 -   **途中の PR での README（H-02）:** フェーズ 5 の後、フェーズ 6 の前は、`README.md` は英語のままで、`README.en.md` はない。この間のガードテストは英語の `README.md` だけを読む。フェーズ 3 の同期の手順は、`README.en.md` がなければ何もしない（2.4 節）ので、この間に `README.md` を変える PR が英語の `README.en.md` を作ることはない。`README.en.md` は、フェーズ 6 で `README.md` を日本語にした後、`/mktrans` を単独で呼んで作る。英語のロケータを `README.en.md` に向け、日本語のロケータを加えるのは、その PR である。PR の分け方は実装計画で決める。
