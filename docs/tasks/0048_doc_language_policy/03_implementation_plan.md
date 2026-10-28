@@ -726,11 +726,11 @@ N/A（設計書 7.2）。
 - `mergepr_guide` の 1 行の差: 英語版は `prepare [PR]` の手順 4 の続きの 3 文を別々の段落にしているが、日本語版は字下げした続きの行にしている。内容は同じで、`_checks/move` の差分の一覧にも現れない。
 - 残した記述: `fixprguard_guide.md` の最後の箇条書きは、ガードテストが「本書（日英）」を確かめると述べている。英語版の手引きを消した後は古い記述になるが、AC-09 はこの PR で日本語の手引きの文言を変えることを許していないため、そのままにした。この行は `.ja.md` の版と同一なので、`_checks/move` の差分の一覧には現れない。PR の本文でレビュアーに判断を求める。
 
-**差分の検査の実行の記録:** PR-1 で 2026-10-29 に、リポジトリのルートで `go run ./docs/tasks/0048_doc_language_policy/_checks/move/` を実行した。merge-base は `234da9bd3c73a9520f234c8c2784ebe632477034`、実行した時点の HEAD は `20456dbbb51ce0fa21cae49f2025cd7679228012`、終了コードは 0 である。
+**差分の検査の実行の記録:** PR-1 で 2026-10-29 に、リポジトリのルートで `go run ./docs/tasks/0048_doc_language_policy/_checks/move/` を実行した。merge-base は `234da9bd3c73a9520f234c8c2784ebe632477034`、実行した時点の HEAD は `7763e4d1d8a7ded13c9c84198bdc7d6293718697`、終了コードは 0 である。
 
 ```text
 merge-base 234da9bd3c73a9520f234c8c2784ebe632477034
-head       20456dbbb51ce0fa21cae49f2025cd7679228012
+head       7763e4d1d8a7ded13c9c84198bdc7d6293718697
 OK   conventions unchanged
 OK   guides renamed from the Japanese originals
 OK   old directory is gone
