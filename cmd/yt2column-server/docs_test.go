@@ -68,6 +68,19 @@ func TestServerDocsContract(t *testing.T) {
 		if !hasLineContainingAll(section, "curl", server.ArticlesPath) {
 			t.Error("README.md server section has no curl example for " + server.ArticlesPath)
 		}
+		// The job API's examples name each operation's target on the curl
+		// line, built from the server's path constants so a route change fails
+		// here. The start's target is followed by a space (its body flag); the
+		// quoted status and publish targets end their line.
+		for _, example := range []struct{ operation, target string }{
+			{"generation start", "http://localhost" + server.JobsPath + " "},
+			{"status", "http://localhost" + server.JobsPath + `/$key"`},
+			{"publish", "http://localhost" + server.JobsPath + `/$key` + server.PublishSuffix + `"`},
+		} {
+			if !hasLineContainingAll(section, "curl", example.target) {
+				t.Errorf("README.md server section has no curl example for the job API's %s (%s)", example.operation, example.target)
+			}
+		}
 		// The exit-code table must name every code the entry point defines.
 		exitCodes := findTable(section, "Code")
 		if exitCodes == nil {
