@@ -4,6 +4,7 @@ import { formatCount } from "../core/i18n/locale.ts";
 import type { Locale } from "../core/i18n/locale.ts";
 import { expandPromptMessage, rejectionMessage } from "../core/messages.ts";
 import type { MetadataField, MetadataResult } from "../core/metadata.ts";
+import { metadataDisplayLimit } from "../core/popupView.ts";
 import { truncate } from "../core/summary.ts";
 import type { OutcomeSummary, SummaryField } from "../core/types.ts";
 
@@ -116,9 +117,6 @@ export function renderSummary(
       : rejectedNodes(doc, summary, locale);
   container.replaceChildren(...nodes);
 }
-
-/** The display limit for one metadata value, in code points. */
-export const metadataDisplayLimit = 200;
 
 /** One metadata row's value-element class; its label is in the catalog. */
 interface MetadataRow {

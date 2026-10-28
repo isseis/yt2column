@@ -1,4 +1,10 @@
 import type { Catalog } from "./catalog.ts";
+import { formatCount } from "./locale.ts";
+
+/** Formats a count and the English noun, singular at exactly one. */
+function englishCount(count: number, noun: string): string {
+  return `${formatCount(count, "en")} ${noun}${count === 1 ? "" : "s"}`;
+}
 
 /** The English catalog. */
 export const en: Catalog = {
@@ -115,12 +121,31 @@ export const en: Catalog = {
     ],
   },
   expandPrompt: {
-    text: "The video description is collapsed, so only its beginning will be sent.",
-    steps: [
-      'Click "...more" below the video to show the full description.',
-      "Reopen this popup, then send.",
-    ],
+    text: "Collapsed, so only the beginning will be sent.",
+    steps: ['Click "...more" below the video.', "Reopen this popup."],
   },
+  checkNames: {
+    selection: "Selected captions",
+    description: "Description",
+  },
+  checkStates: {
+    ok: "OK",
+    warning: "Warning",
+  },
+  selectionSize: (characters, lines) =>
+    `${englishCount(characters, "character")} \u00b7 ${englishCount(lines, "line")}`,
+  descriptionFull: (characters) =>
+    `Full text \u00b7 ${englishCount(characters, "character")}`,
+  descriptionNotSent: {
+    text: "Not available, so it will not be sent.",
+    steps: [],
+  },
+  details: {
+    summary: "Details",
+    url: "URL",
+    tabTitle: "Tab title",
+  },
+  primaryButton: "Generate article",
   summaryLabels: {
     title: "Title",
     url: "URL",

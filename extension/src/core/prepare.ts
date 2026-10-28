@@ -1,5 +1,4 @@
-import type { CollectedInput, CollectOutcome } from "./collect.ts";
-import type { RejectionReason } from "./types.ts";
+import type { CollectedInput } from "./collect.ts";
 
 /** Optional members of the request body: the video metadata read from the page. */
 export interface ArticleMetadata {
@@ -60,25 +59,20 @@ export const preflightReasons: Record<PreflightReason, true> = {
   "body-too-large": true,
 };
 
-/** Every reason a launch ends without a request: collection or preflight. */
-export type BlockReason = RejectionReason | PreflightReason;
-
+/** Every reason a send is blocked before it is sent. */
 export type PrepareOutcome =
   | { readonly kind: "ready"; readonly request: PreparedRequest }
-  | { readonly kind: "blocked"; readonly reason: BlockReason };
+  | { readonly kind: "blocked"; readonly reason: PreflightReason };
 
 /**
- * Checks the collected outcome, then the body size, and builds the request
- * only when both pass. Synchronous and reads no storage; never throws.
+ * Checks the size of the body built from the collected input and builds the
+ * request only when it passes. Synchronous and reads no storage; never throws.
  */
 export function prepareSend(
-  outcome: CollectOutcome,
+  input: CollectedInput,
   metadata: ArticleMetadata,
 ): PrepareOutcome {
-  if (outcome.kind === "rejected") {
-    return { kind: "blocked", reason: outcome.reason };
-  }
-  const body = buildArticleBody(outcome.input, metadata);
+  const body = buildArticleBody(input, metadata);
   if (body.byteLength > maxBodyBytes) {
     return { kind: "blocked", reason: "body-too-large" };
   }

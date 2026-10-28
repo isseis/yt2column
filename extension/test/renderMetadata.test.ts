@@ -6,7 +6,8 @@ import { locales } from "../src/core/i18n/locale.ts";
 import type { Locale } from "../src/core/i18n/locale.ts";
 import { expandPromptMessage } from "../src/core/messages.ts";
 import type { MetadataResult } from "../src/core/metadata.ts";
-import { metadataDisplayLimit, renderMetadata } from "../src/ui/render.ts";
+import { metadataDisplayLimit } from "../src/core/popupView.ts";
+import { renderMetadata } from "../src/ui/render.ts";
 import {
   container,
   expectAbsent,

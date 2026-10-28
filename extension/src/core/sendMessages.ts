@@ -1,40 +1,18 @@
-// Chooses the message for every way a send path ends: a launch that sends
-// nothing, a server rejection, and a send outcome. The wording lives in the
-// locale's catalog; these functions only decide which message applies. A
-// switch over a type that is not one catalog key ends in never, so adding a
-// value without deciding its message fails the type check.
+// Chooses the message for every way a send path ends: a server rejection and
+// a send outcome. The wording lives in the locale's catalog; these functions
+// only decide which message applies. A switch over a type that is not one
+// catalog key ends in never, so adding a value without deciding its message
+// fails the type check.
 
 import { catalogs } from "./i18n/catalog.ts";
 import type { Locale } from "./i18n/locale.ts";
-import { rejectionMessage } from "./messages.ts";
 import type { RejectionMessage } from "./messages.ts";
-import type { BlockReason } from "./prepare.ts";
 import type {
   NotSentCause,
   SendOutcome,
   ServerRejectReason,
   UnexpectedCheck,
 } from "./response.ts";
-
-/** Message for a launch that ends without a request. Collection reasons use rejectionMessage. */
-export function blockMessage(
-  reason: BlockReason,
-  locale: Locale,
-): RejectionMessage {
-  switch (reason) {
-    case "not-watch-page":
-    case "collection-failed":
-    case "empty-selection":
-    case "empty-title":
-      return rejectionMessage(reason, locale);
-    case "body-too-large":
-      return catalogs[locale].preflight[reason];
-    default: {
-      const exhaustive: never = reason;
-      throw new Error(`Unhandled block reason: ${String(exhaustive)}`);
-    }
-  }
-}
 
 /** Message for a server rejection; distinct for every reason. */
 export function serverRejectMessage(

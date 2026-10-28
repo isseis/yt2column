@@ -5,10 +5,8 @@ import { catalogs } from "../src/core/i18n/catalog.ts";
 import type { Catalog } from "../src/core/i18n/catalog.ts";
 import { locales } from "../src/core/i18n/locale.ts";
 import type { Locale } from "../src/core/i18n/locale.ts";
-import { rejectionMessage } from "../src/core/messages.ts";
 import type { RejectionMessage } from "../src/core/messages.ts";
 import { preflightReasons } from "../src/core/prepare.ts";
-import type { BlockReason } from "../src/core/prepare.ts";
 import { serverRejectStatus } from "../src/core/response.ts";
 import type {
   NotSentCause,
@@ -18,7 +16,6 @@ import type {
   UnexpectedCheck,
 } from "../src/core/response.ts";
 import {
-  blockMessage,
   sendOutcomeMessage,
   serverRejectMessage,
 } from "../src/core/sendMessages.ts";
@@ -59,64 +56,6 @@ const forbiddenWords: Record<Locale, RegExp> = {
   en: /option|token|\bport\b/iu,
   ja: /オプション|トークン|ポート番号/u,
 };
-
-describe("blockMessage", () => {
-  for (const locale of localeList) {
-    it(`delegates a collection reason to rejectionMessage in ${locale}`, () => {
-      for (const reason of rejectionReasonsList) {
-        assert.deepEqual(
-          blockMessage(reason, locale),
-          rejectionMessage(reason, locale),
-        );
-      }
-    });
-
-    it(`returns the ${locale} catalog's message for every block reason`, () => {
-      for (const reason of rejectionReasonsList) {
-        assert.equal(
-          blockMessage(reason, locale),
-          catalogs[locale].rejection[reason],
-          reason,
-        );
-      }
-      for (const reason of preflightReasonsList) {
-        assert.equal(
-          blockMessage(reason, locale),
-          catalogs[locale].preflight[reason],
-          reason,
-        );
-      }
-    });
-
-    it(`gives every block reason a distinct non-empty text in ${locale}`, () => {
-      const blockReasons: BlockReason[] = [
-        ...rejectionReasonsList,
-        ...preflightReasonsList,
-      ];
-      const texts = blockReasons.map(
-        (reason) => blockMessage(reason, locale).text,
-      );
-      for (const [index, text] of texts.entries()) {
-        assert.notEqual(text, "", blockReasons[index]);
-      }
-      assert.equal(new Set(texts).size, blockReasons.length);
-    });
-
-    it(`gives the watch-page URL example as written in English in ${locale}`, () => {
-      assert.ok(
-        textOf(blockMessage("not-watch-page", locale)).includes(
-          "https://www.youtube.com/watch?v=...",
-        ),
-      );
-    });
-
-    it(`names the limit for body-too-large in ${locale}`, () => {
-      assert.ok(
-        textOf(blockMessage("body-too-large", locale)).includes("4 MiB"),
-      );
-    });
-  }
-});
 
 describe("serverRejectMessage", () => {
   for (const locale of localeList) {
@@ -308,12 +247,16 @@ describe("sendOutcomeMessage", () => {
         ...serverRejectReasons.map((reason) =>
           serverRejectMessage(reason, locale),
         ),
-        ...[...rejectionReasonsList, ...preflightReasonsList].map((reason) =>
-          blockMessage(reason, locale),
+        ...rejectionReasonsList.map(
+          (reason) => catalogs[locale].rejection[reason],
+        ),
+        ...preflightReasonsList.map(
+          (reason) => catalogs[locale].preflight[reason],
         ),
         // The messages no dispatch function returns.
         catalogs[locale].sending,
         catalogs[locale].expandPrompt,
+        catalogs[locale].descriptionNotSent,
       ];
       for (const message of messages) {
         const text = textOf(message);

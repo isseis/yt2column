@@ -157,7 +157,7 @@ describe("a Catalog missing an item fails typecheck", () => {
     complete: "export const c: Catalog = full;\n",
     // A top-level item is missing.
     missingTopLevel:
-      'export const c: Catalog = full as Omit<Catalog, "sendButton">;\n',
+      'export const c: Catalog = full as Omit<Catalog, "primaryButton">;\n',
     // One key of a Record section is missing.
     missingRecordKey:
       "export const c: Catalog = {\n" +

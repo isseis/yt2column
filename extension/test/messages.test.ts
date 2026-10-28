@@ -41,6 +41,17 @@ describe("rejectionMessage", () => {
         );
       }
     });
+
+    it(`gives the watch-page URL example as written in English in ${locale}`, () => {
+      // Matching the URL text is matching the displayed contract: the step
+      // shows the URL form the user has to open, in English in both catalogs.
+      const message = rejectionMessage("not-watch-page", locale);
+      assert.ok(
+        [message.text, ...message.steps]
+          .join("\n")
+          .includes("https://www.youtube.com/watch?v=..."),
+      );
+    });
   }
 });
 

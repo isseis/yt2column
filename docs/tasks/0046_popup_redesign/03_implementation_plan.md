@@ -8,7 +8,7 @@
 | Created | 2026-10-28 |
 | Review date | 2026-10-28 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-28 (editorial): `/runplan` の PR-1 のレビューの指摘で、ステップ 1-4 の概要欄の文章の確認を改めた。画面の内容は、押せる主ボタンのために送るリクエスト（本文に概要欄を含む）を持つので、「画面の内容のどこにも入らない」とは言えない。概要欄の行が文章を持つ場所を持たないことを設計（3.2）のとおりにし、表示の確認はステップ 3-2 の描き方のテストで行う。7 章の AC-15 の行も、描き方のテストだけを挙げる形に直した。決定は変えていない。 |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の項番、「設計書 3.2」などは設計書の節を指す。既存のコードと文書についての記述は、コミット `a04e5d82` で確かめた。`file:line` はこのコミットの行番号を指す。拡張のファイルのパスは、設計書と同じく `extension/` を省いて書く（例: `src/launch.ts`）。テストの場所は `path::describe の名前` で示す。
 
@@ -104,8 +104,8 @@
 
 **変更するファイル:** `src/core/summary.ts`、`test/summary.test.ts`
 
--   [ ] `DisplayText` に名前を付け、`truncate` の戻り値の型にする。`truncateTail` を加え、`countCharacters`・`countLines` を export する（設計書 3.1）。`summarize` と古い上限の定数は、ステップ 4-3 までそのまま残す。
--   [ ] `test/summary.test.ts` に、`truncate`・`truncateTail`・`countCharacters`・`countLines` を直接呼ぶ describe を加える。後ろからの切り詰めの境界（ちょうど上限、上限を 1 超える、境界にサロゲートペアが来る場合）と、今 `summarize` を通して確かめている数え方と先頭の切り詰めの性質を、ここで確かめる（設計書 3.10）。
+-   [x] `DisplayText` に名前を付け、`truncate` の戻り値の型にする。`truncateTail` を加え、`countCharacters`・`countLines` を export する（設計書 3.1）。`summarize` と古い上限の定数は、ステップ 4-3 までそのまま残す。
+-   [x] `test/summary.test.ts` に、`truncate`・`truncateTail`・`countCharacters`・`countLines` を直接呼ぶ describe を加える。後ろからの切り詰めの境界（ちょうど上限、上限を 1 超える、境界にサロゲートペアが来る場合）と、今 `summarize` を通して確かめている数え方と先頭の切り詰めの性質を、ここで確かめる（設計書 3.10）。
 
 **完了の条件:** `make ext-check` が通る。`truncateTail` の上限の比較を 1 つずらして壊し、境界のテストが失敗することを確かめる。
 
@@ -113,7 +113,7 @@
 
 **変更するファイル:** `src/core/types.ts`
 
--   [ ] `CheckState` と `CheckName` を加える（設計書 3.2）。`SummaryField`・`OutcomeSummary` はステップ 4-3 でなくす。
+-   [x] `CheckState` と `CheckName` を加える（設計書 3.2）。`SummaryField`・`OutcomeSummary` はステップ 4-3 でなくす。
 
 **完了の条件:** `make ext-typecheck` が通る。
 
@@ -121,15 +121,15 @@
 
 **変更するファイル:** `src/core/prepare.ts`、`src/core/sendMessages.ts`、`src/core/i18n/catalog.ts`、`src/ui/renderSend.ts`、`src/launch.ts`、`test/prepare.test.ts`、`test/sendMessages.test.ts`、`test/renderSend.test.ts`、`test/messages.test.ts`、`test/catalog.test.ts`、`test/launch.test.ts`
 
--   [ ] `prepareSend` を `CollectedInput` を受け取る形にし、`PrepareOutcome` の `blocked` の理由を `PreflightReason` にする。`BlockReason` をなくす（設計書 3.3）。
--   [ ] `blockMessage` と、`sendMessages.ts` の先頭のコメントの「a launch that sends nothing」の記述をなくす。
--   [ ] `renderBlockReason` と、`renderSend.ts` の先頭のコメントの「and a block reason」をなくす。
--   [ ] `catalog.ts:26` の `preflight` のコメント（`Block reasons that are not collection reasons.`）を、`BlockReason` に触れない説明に変える。
--   [ ] `runPopupSend` を、`prepareSend(outcome.input, …)` を呼び、大きすぎるときは `messageNodes` で文言の集合の `preflight[reason]` を描く形にする（1.4）。ログ（`yt2column blocked`）は変えない。この形はステップ 4-1 で置き換える。
--   [ ] `test/prepare.test.ts::prepareSend` の 2 つのテスト（`passes a collection reason through without its cause`、`checks the collection before the body size`）をなくし、残りのテストの引数を `CollectedInput` に変える。
--   [ ] `test/sendMessages.test.ts::blockMessage` の describe をなくす。URL の例の確認を `test/messages.test.ts::rejectionMessage` に、`4 MiB` の確認を `test/catalog.test.ts::catalogs` に移す（1.4）。設定画面などに触れない確認を、文言の集合の `rejection`・`preflight` を直接たどる形に変える。
--   [ ] `test/renderSend.test.ts::renderBlockReason` の describe をなくす。
--   [ ] `test/launch.test.ts::popup send` の大きすぎるときのテスト（`:600-645`）の期待する文言を、`blockMessage("body-too-large", l)` から文言の集合の `preflight["body-too-large"]` に変える。
+-   [x] `prepareSend` を `CollectedInput` を受け取る形にし、`PrepareOutcome` の `blocked` の理由を `PreflightReason` にする。`BlockReason` をなくす（設計書 3.3）。
+-   [x] `blockMessage` と、`sendMessages.ts` の先頭のコメントの「a launch that sends nothing」の記述をなくす。
+-   [x] `renderBlockReason` と、`renderSend.ts` の先頭のコメントの「and a block reason」をなくす。
+-   [x] `catalog.ts:26` の `preflight` のコメント（`Block reasons that are not collection reasons.`）を、`BlockReason` に触れない説明に変える。
+-   [x] `runPopupSend` を、`prepareSend(outcome.input, …)` を呼び、大きすぎるときは `messageNodes` で文言の集合の `preflight[reason]` を描く形にする（1.4）。ログ（`yt2column blocked`）は変えない。この形はステップ 4-1 で置き換える。
+-   [x] `test/prepare.test.ts::prepareSend` の 2 つのテスト（`passes a collection reason through without its cause`、`checks the collection before the body size`）をなくし、残りのテストの引数を `CollectedInput` に変える。
+-   [x] `test/sendMessages.test.ts::blockMessage` の describe をなくす。URL の例の確認を `test/messages.test.ts::rejectionMessage` に、`4 MiB` の確認を `test/catalog.test.ts::catalogs` に移す（1.4）。設定画面などに触れない確認を、文言の集合の `rejection`・`preflight` を直接たどる形に変える。
+-   [x] `test/renderSend.test.ts::renderBlockReason` の describe をなくす。
+-   [x] `test/launch.test.ts::popup send` の大きすぎるときのテスト（`:600-645`）の期待する文言を、`blockMessage("body-too-large", l)` から文言の集合の `preflight["body-too-large"]` に変える。
 
 **完了の条件:** `make ext-check` が通る。消したテストについて、1.2 の比較で、消した関数（`blockMessage`・`renderBlockReason`）を除く `src/` の各関数の実行回数が 0 にならない。移した 2 つの確認について、対象の文言の URL の例と `4 MiB` をそれぞれ消して壊し、失敗することを確かめる。
 
@@ -137,10 +137,10 @@
 
 **変更するファイル:** `src/core/popupView.ts`（新規）、`src/ui/render.ts`、`test/popupView.test.ts`（新規）、`test/renderMetadata.test.ts`、`test/launch.test.ts`
 
--   [ ] `src/core/popupView.ts` に、設計書 3.2 の型（`VideoView`・`SelectionStatus`・`SelectionCheck`・`DescriptionStatus`・`DescriptionCheck`・`DetailsView`・`CollectedView`・`RejectedView`・`PopupView`）と `buildCollectedView` を書く。表示の上限は、`metadataDisplayLimit`（200）を `src/ui/render.ts:121` から移し、タブのタイトルと URL の上限（1000）をここに定義する。`summary.ts` の `titleLimit`・`urlLimit` は、ステップ 4-3 で `summarize` と一緒になくすまで残る（その間だけ、同じ値の定数が 2 か所にある）。
--   [ ] `src/ui/render.ts` の `renderMetadata` が `metadataDisplayLimit` を `popupView.ts` から import する形にし、`test/renderMetadata.test.ts:9` と `test/launch.test.ts:27` の import 元を変える。
--   [ ] 改行の置き換えは、切り詰めた後に画面の内容の中で行う（設計書 3.1 の順序）。
--   [ ] `test/popupView.test.ts` に `buildCollectedView` のテストを書く（設計書 3.10 の行）。見出しをタブのタイトルで代えることとチャンネル名の有無（AC-02・AC-03）、選択範囲の理由と確認の状態（AC-07・AC-11）、プレビューの切り詰めと改行の置き換えの順序と境界（AC-08・AC-10）、概要欄の 3 つの理由と文字数と確認の状態（AC-12〜AC-14・AC-16）、詳細の値と上限（AC-06）、概要欄の文章が画面の内容のどこにも入らないこと（AC-15）。`sendable` の理由が持つリクエストが、渡した `prepareSend` の結果のリクエストと同じであることも確かめる。
+-   [x] `src/core/popupView.ts` に、設計書 3.2 の型（`VideoView`・`SelectionStatus`・`SelectionCheck`・`DescriptionStatus`・`DescriptionCheck`・`DetailsView`・`CollectedView`・`RejectedView`・`PopupView`）と `buildCollectedView` を書く。表示の上限は、`metadataDisplayLimit`（200）を `src/ui/render.ts:121` から移し、タブのタイトルと URL の上限（1000）をここに定義する。`summary.ts` の `titleLimit`・`urlLimit` は、ステップ 4-3 で `summarize` と一緒になくすまで残る（その間だけ、同じ値の定数が 2 か所にある）。
+-   [x] `src/ui/render.ts` の `renderMetadata` が `metadataDisplayLimit` を `popupView.ts` から import する形にし、`test/renderMetadata.test.ts:9` と `test/launch.test.ts:27` の import 元を変える。
+-   [x] 改行の置き換えは、切り詰めた後に画面の内容の中で行う（設計書 3.1 の順序）。
+-   [x] `test/popupView.test.ts` に `buildCollectedView` のテストを書く（設計書 3.10 の行）。見出しをタブのタイトルで代えることとチャンネル名の有無（AC-02・AC-03）、選択範囲の理由と確認の状態（AC-07・AC-11）、プレビューの切り詰めと改行の置き換えの順序と境界（AC-08・AC-10）、概要欄の 3 つの理由と文字数と確認の状態（AC-12〜AC-14・AC-16）、詳細の値と上限（AC-06）。`sendable` の理由が持つリクエストが、渡した `prepareSend` の結果のリクエストと同じであることも確かめる。概要欄の文章を表示しないこと（AC-15）は、概要欄の行が文章を持つ場所を持たない型であることにし、表示の確認は描き方のテスト（ステップ 3-2）で行う。
 
 **完了の条件:** `make ext-check` が通る。改行の置き換えを切り詰めの前に移して壊し、境界のテスト（100 コードポイントの中に改行がある場合）が失敗することを確かめる。
 
@@ -150,12 +150,12 @@
 
 **変更するファイル:** `src/core/i18n/catalog.ts`、`src/core/i18n/en.ts`、`src/core/i18n/ja.ts`、`README.md`、`test/catalog.test.ts`、`test/typecheck.test.ts`、`test/sendMessages.test.ts`
 
--   [ ] `Catalog` に、設計書 3.5 の新しい項目（`checkNames`・`checkStates`・`selectionSize`・`descriptionFull`・`descriptionNotSent`・`details`・`primaryButton`）を加える。`summaryLabels`・`metadataLabels`・`sendButton` は、使う古い描き方がなくなるステップ 4-3 まで残す。
--   [ ] `en.ts`・`ja.ts` に、設計書 3.5 の表の文言を書き、促しのメッセージ（`expandPrompt`）を表の短い文言に変える。数を埋め込む関数は、その言語の `formatCount` で整形し、英語は数が 1 のときに単数形にする（設計書 3.5）。
--   [ ] `README.md:1136-1143` の促しのメッセージの引用を、新しい英語の文言に変える。引用の前後の文（`the popup says "…" with these steps:`、`The button stays usable: …`）は、引用に合わせて最小限だけ直す。ほかの説明はステップ 5-1 で書き直す（1.3）。
--   [ ] `test/catalog.test.ts` の、文言の集合をたどる処理が関数の項目を扱えるようにする。関数の項目は、代表の数（1 と 1 より大きい数）で呼んだ結果が空でない文字列であることを確かめる。英語の単数形と複数形を確かめるテストを加える（設計書 3.10）。促しのメッセージの手順が、言語ごとに 0043 AC-11 の YouTube のボタンの表記（英語 `"...more"`、日本語「もっと見る」）を含むことを確かめるテストも加える（AC-30。日本語の表記は、`CLAUDE.md` が認める日本語の文言の性質を確かめる語の表として書く）。
--   [ ] `test/typecheck.test.ts:160` の、項目が欠けたことを型の検査が見つける確認の対象を、`sendButton` から `primaryButton` に変える（設計書 3.9。`sendButton` はステップ 4-3 でなくなる）。
--   [ ] `test/sendMessages.test.ts` の、設定画面などに触れない確認に、`descriptionNotSent` を加える。
+-   [x] `Catalog` に、設計書 3.5 の新しい項目（`checkNames`・`checkStates`・`selectionSize`・`descriptionFull`・`descriptionNotSent`・`details`・`primaryButton`）を加える。`summaryLabels`・`metadataLabels`・`sendButton` は、使う古い描き方がなくなるステップ 4-3 まで残す。
+-   [x] `en.ts`・`ja.ts` に、設計書 3.5 の表の文言を書き、促しのメッセージ（`expandPrompt`）を表の短い文言に変える。数を埋め込む関数は、その言語の `formatCount` で整形し、英語は数が 1 のときに単数形にする（設計書 3.5）。
+-   [x] `README.md:1136-1143` の促しのメッセージの引用を、新しい英語の文言に変える。引用の前後の文（`the popup says "…" with these steps:`、`The button stays usable: …`）は、引用に合わせて最小限だけ直す。ほかの説明はステップ 5-1 で書き直す（1.3）。
+-   [x] `test/catalog.test.ts` の、文言の集合をたどる処理が関数の項目を扱えるようにする。関数の項目は、代表の数（1 と 1 より大きい数）で呼んだ結果が空でない文字列であることを確かめる。英語の単数形と複数形を確かめるテストを加える（設計書 3.10）。促しのメッセージの手順が、言語ごとに 0043 AC-11 の YouTube のボタンの表記（英語 `"...more"`、日本語「もっと見る」）を含むことを確かめるテストも加える（AC-30。日本語の表記は、`CLAUDE.md` が認める日本語の文言の性質を確かめる語の表として書く）。
+-   [x] `test/typecheck.test.ts:160` の、項目が欠けたことを型の検査が見つける確認の対象を、`sendButton` から `primaryButton` に変える（設計書 3.9。`sendButton` はステップ 4-3 でなくなる）。
+-   [x] `test/sendMessages.test.ts` の、設定画面などに触れない確認に、`descriptionNotSent` を加える。
 
 **完了の条件:** `make ext-check` が通る（`test/metadataDocs.test.ts` は README の新しい引用と新しい文言を比べて通る）。`selectionSize` の英語の単数形の分岐を外して壊し、単数形のテストが失敗することを確かめる。
 
@@ -163,10 +163,10 @@
 
 **変更するファイル:** `docs/tasks/0046_popup_redesign/_checks/unchanged_values.ts`（新規）、本書
 
--   [ ] merge-base と PR の先頭のコミットの 2 つで、次の 3 つが同じであることを確かめるスクリプトを書く。(1) 文言の集合のうち本タスクが変えない項目（`rejection`・`preflight`・`serverReject`・`notSent`・`accepted`・`noResponse`・`hostFailed`・`unexpected`・`sending`）の、英語と日本語の両方の値（AC-11・AC-20・AC-23）。(2) スクリプトに固定した数組の入力（動画メタデータのある・ない・空の値を含む）を `buildArticleBody` に渡した結果と、`maxBodyBytes` の値（AC-19）。(3) `extension/static/manifest.json` のバイト列（AC-35）。2 つのコミットの `extension/src` を一時的なディレクトリに取り出して読み込む方法は、0043 の `docs/tasks/0043_extension_i18n/_checks/english_text.ts` に倣う（0043 の実装計画書 1.4 に、`git archive` で取り出して `node_modules` をシンボリックリンクにした記録がある）。
--   [ ] リポジトリのルートで実行し、終了コードと出力を、merge-base と確かめたコミットの ID と一緒に 7 章の「差分の確認の実行の記録」に書く（PR-1）。記録のコミットは本書だけを変えるので、確かめたコミットと PR の先頭の違いは本書だけである。
--   [ ] スクリプトが差分を見つけることを、(1)〜(3) のそれぞれについて一時的に 1 か所を変えて確かめ、元に戻す。その結果をコミットのメッセージに書く。
--   [ ] PR-2 と PR-4 では実行しない。PR-2 は文言の集合・`prepare.ts`・manifest を変えず、PR-4 は README・用語集・スクリプトとそのテストだけを変えるためである。
+-   [x] merge-base と PR の先頭のコミットの 2 つで、次の 3 つが同じであることを確かめるスクリプトを書く。(1) 文言の集合のうち本タスクが変えない項目（`rejection`・`preflight`・`serverReject`・`notSent`・`accepted`・`noResponse`・`hostFailed`・`unexpected`・`sending`）の、英語と日本語の両方の値（AC-11・AC-20・AC-23）。(2) スクリプトに固定した数組の入力（動画メタデータのある・ない・空の値を含む）を `buildArticleBody` に渡した結果と、`maxBodyBytes` の値（AC-19）。(3) `extension/static/manifest.json` のバイト列（AC-35）。2 つのコミットの `extension/src` を一時的なディレクトリに取り出して読み込む方法は、0043 の `docs/tasks/0043_extension_i18n/_checks/english_text.ts` に倣う（0043 の実装計画書 1.4 に、`git archive` で取り出して `node_modules` をシンボリックリンクにした記録がある）。
+-   [x] リポジトリのルートで実行し、終了コードと出力を、merge-base と確かめたコミットの ID と一緒に 7 章の「差分の確認の実行の記録」に書く（PR-1）。記録のコミットは本書だけを変えるので、確かめたコミットと PR の先頭の違いは本書だけである。
+-   [x] スクリプトが差分を見つけることを、(1)〜(3) のそれぞれについて一時的に 1 か所を変えて確かめ、元に戻す。その結果をコミットのメッセージに書く。
+-   [x] PR-2 と PR-4 では実行しない。PR-2 は文言の集合・`prepare.ts`・manifest を変えず、PR-4 は README・用語集・スクリプトとそのテストだけを変えるためである。
 
 **完了の条件:** PR-1 のブランチで、スクリプトが終了コード 0 で終わる。`make test`・`make ext-test` と CI では実行しない（`requirements_process.md` §4）。
 
@@ -182,10 +182,10 @@
 
 **判定理由**: 型と関数の形は設計書が決めており、DOM を使わない追加と機械的な削除だけで、`mkplan.md` の Conditional checks にも当たらない。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/549
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 3: 骨格と描き方
 
@@ -465,7 +465,7 @@ AC-11・AC-20・AC-23 の文言、AC-19 のリクエストの本文、AC-35 の 
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
--   [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 2-1 / 2-2）
+-   [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 2-1 / 2-2）
 -   [ ] PR-2 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3）
 -   [ ] PR-3 マージ済み（対象ステップ: 3-4 / 4-1 / 4-2 / 4-3 / 4-4）
 -   [ ] PR-4 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4）
@@ -490,7 +490,7 @@ AC-11・AC-20・AC-23 の文言、AC-19 のリクエストの本文、AC-35 の 
 | AC-12 | test: `extension/test/popupView.test.ts::buildCollectedView`・`extension/test/render.test.ts::renderPopup` | 1-4・3-2 | ✓ と全文と文字数 |
 | AC-13 | test: `extension/test/popupView.test.ts::buildCollectedView`・`extension/test/render.test.ts::renderPopup`・`extension/test/launch.test.ts::popup send` | 1-4・3-2・4-2 | ⚠ と手順、文字数がないこと、主ボタンが押せて冒頭を送ること |
 | AC-14 | test: `extension/test/popupView.test.ts::buildCollectedView`・`extension/test/render.test.ts::renderPopup`・`extension/test/launch.test.ts::popup send` | 1-4・3-2・4-2 | ⚠ と手順がないこと、主ボタンが押せること |
-| AC-15 | test: `extension/test/popupView.test.ts::buildCollectedView`・`extension/test/render.test.ts::renderPopup` | 1-4・3-2 | 概要欄の文章が画面の内容にも表示にもないこと |
+| AC-15 | test: `extension/test/render.test.ts::renderPopup` | 3-2 | 概要欄の文章を表示しないこと |
 | AC-16 | test: `extension/test/render.test.ts::renderPopup`・`extension/test/style.test.ts` | 3-2・3-3 | ⚠ の行だけが警告の class を持ち、その規則だけが `--warn-bg` を参照すること |
 | AC-17 | test: `extension/test/render.test.ts::renderPopup`（名前）・`extension/test/style.test.ts`（幅と 2 行の宣言）＋ manual | 3-2・3-3・5-3・5-4 | 名前と宣言はテスト。主ボタンが見えることは、プレビューのスクリプトの最悪の場合で手動 |
 | AC-18 | test: `extension/test/launch.test.ts::popup send` | 4-2 | 1 回だけ送り、送信中と送信の後は押せないこと |
@@ -519,7 +519,16 @@ AC-11・AC-20・AC-23 の文言、AC-19 のリクエストの本文、AC-35 の 
 
 AC-36 のキーボードでの操作と AC-40 の色覚の模擬は、テストの後に手動でも確かめる。jsdom はフォーカスの移動とレイアウトを計算せず、色覚の模擬はブラウザの開発者ツールの機能だからである（設計書 3.10・7.2）。
 
-**差分の確認の実行の記録:** （ステップ 2-2・4-4 で記録する）
+**差分の確認の実行の記録:**
+
+- PR-1（2026-10-28）: リポジトリのルートで `node docs/tasks/0046_popup_redesign/_checks/unchanged_values.ts` を実行し、終了コード 0。merge-base は `c0b4e3fe86335b0dcd89eaca3896911c1590b8c2`、確かめたコミットは `ecb30952521eb5b1a764fca0ed058a5be36ffc5e`（記録のコミットは本書だけを変える。ステップ 2-2）。出力は次の 4 行である。
+
+    ```
+    merge-base c0b4e3fe86335b0dcd89eaca3896911c1590b8c2
+    head       ecb30952521eb5b1a764fca0ed058a5be36ffc5e
+    PASS: the unchanged catalog items and the built bodies are identical
+    PASS: extension/static/manifest.json is identical (sha256 47091ca6796f153ed03ffbbb55573067a88da30bbae1ea20186407b2e2bed8d5)
+    ```
 
 **手動の確認の記録:** （ステップ 5-4 で記録する）
 
