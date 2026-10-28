@@ -614,7 +614,7 @@ func (p *PublishRun) Finish()              // every message was delivered: poste
 func (p *PublishRun) Fail(reason PublishFailureReason)
 ```
 
--   **列挙のすべての値:** 6 つの列挙は、最後の値の次を表す公開しない値を持つ。投稿の状態・`投稿できない` の理由・投稿の失敗の理由のすべての値を返す `PublishStates`・`UnpostableReasons`・`PublishFailureReasons` を公開し、完了の時点の検査（§3.6.3）が、それぞれのすべての値で最も長い応答を組み立てる。ほかの 3 つ（ジョブの状態・工程の状態・生成の失敗の理由）は `-tags test` の関数で返し、コードの表のガード（§3.15）が使う。後で値を加えても、これらの関数がその値を含む。
+-   **列挙のすべての値:** 6 つの列挙は、最後の値の次を表す公開しない値を持つ。工程の状態・投稿の状態・`投稿できない` の理由・投稿の失敗の理由のすべての値を返す `StageStates`・`PublishStates`・`UnpostableReasons`・`PublishFailureReasons` を公開し、完了の時点の検査（§3.6.3）が、それぞれのすべての値で最も長い応答を組み立てる。ほかの 2 つ（ジョブの状態・生成の失敗の理由）は `-tags test` の関数で返し、コードの表のガード（§3.15）が使う。後で値を加えても、これらの関数がその値を含む。
 -   **排他制御:** `Cache` は 1 つの `sync.Mutex` で、記録の表と、破棄のための順序をまとめて守る。`Run` と `PublishRun` のメソッドも同じ排他制御の下で記録を書き換える。どのメソッドも、排他制御の解除を `defer` で行い、範囲外の入力（`writer.Stage` の範囲外の値、範囲外のメッセージの位置）では panic せずに何もしない。排他制御の区間の中で panic して、ほかの受け口がすべて止まることを防ぐためである。`Lookup` は記録の写しを返すので、呼び出し側は排他制御の外で応答を組み立てられる。
 -   **記事の写し:** `CompletePostable` と `CompleteUnpostable` は、記事の `Review.Revisions` を捨てた写しを記録に入れる。`Review` はポインタなので、生成のジョブが受け取った記事を書き換えず、新しい `ReviewResult` を作って写す。検証・推敲の訂正の一覧は、`Evidence` にコピーした字幕からの引用をそのまま持ち（`internal/writer/revision.go:43-49`）、新しい API の出力（ファイルの中身、表示用の Markdown、Slack のメッセージ、料金）のどれも使わない（使うのは CLI の検証・推敲のログだけ、`internal/publisher/reviewlog.go:76-93`）。`ReviewResult.Check` は空の一覧を受け入れる（`revision.go:27-40`）ので、写しも公開の検査に通る。
 -   **ハンドルの世代:** 記録は、作るたびと `Failed` から `Running` に戻るたびに新しい世代の番号を持ち、ハンドルは発行したときの番号を持つ。番号が合わないハンドル（古い生成のジョブの遅れた通知、破棄の後に同じキーで作り直した記録への古い `PublishRun` など）のメソッドは何もしない。

@@ -166,14 +166,14 @@ func publishStatus(snap articlecache.Snapshot) *statusPublish {
 // of a can get. The values other than the article that a response can carry
 // vary only within fixed bounds, so it renders a response with each of them at
 // its longest: a request ID of the generated length, a false
-// webhookConfigured, the longest duration, each step state a done record can
-// hold, and every publish state with every reason. The article's strings and
+// webhookConfigured, the longest duration, every step state, and every
+// publish state with every reason. The article's strings and
 // its cost do not change once it is stored.
 func maxStatusSize(a writer.Article) (int, error) {
 	requestID := strings.Repeat("0", hex.EncodedLen(requestIDBytes))
 	duration := time.Duration(math.MaxInt64)
 	largest := 0
-	for _, step := range []articlecache.StageState{articlecache.StageDone, articlecache.StageSkipped} {
+	for _, step := range articlecache.StageStates() {
 		for _, publish := range articlecache.PublishStates() {
 			for _, unpostable := range articlecache.UnpostableReasons() {
 				for _, publishFailure := range articlecache.PublishFailureReasons() {

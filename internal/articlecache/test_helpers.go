@@ -12,9 +12,6 @@ import (
 // test in another package enumerates them all, one appended later included.
 func JobStatesForTest() []JobState { return enumerate(jobStateEnd) }
 
-// StageStatesForTest returns every StageState value, in declaration order.
-func StageStatesForTest() []StageState { return enumerate(stageStateEnd) }
-
 // FailureReasonsForTest returns every FailureReason value, in declaration
 // order.
 func FailureReasonsForTest() []FailureReason { return enumerate(failureReasonEnd) }

@@ -87,6 +87,9 @@ func TestGenerationFailedStep(t *testing.T) {
 	if got.Article != nil || got.Publish != nil {
 		t.Errorf("a failed job carries article %+v and publish %+v, want neither", got.Article, got.Publish)
 	}
+	if line := logLine(ts.logs.String(), "generation job failed"); !strings.Contains(line, "failure=llm_truncated") || !strings.Contains(line, "step=review") {
+		t.Errorf("the failure log line = %q, want failure=llm_truncated and step=review", line)
+	}
 	if len(ts.slots) != 0 {
 		t.Errorf("generation slots held = %d, want 0 after the job", len(ts.slots))
 	}
@@ -140,6 +143,9 @@ func TestGenerationUnpostable(t *testing.T) {
 				}
 				if got.Publish == nil || *got.Publish != (statusPublish{State: "unpostable", Reason: tc.reason}) {
 					t.Errorf("publish = %+v, want unpostable with reason %s", got.Publish, tc.reason)
+				}
+				if line := logLine(ts.logs.String(), "generation job succeeded"); !strings.Contains(line, "publish=unpostable") {
+					t.Errorf("the success log line = %q, want publish=unpostable", line)
 				}
 			})
 		}
@@ -330,4 +336,14 @@ func articlesAtStatusLimit(t *testing.T) (at, over writer.Article) {
 		t.Fatalf("the larger article's largest status response is %d bytes, want %d", got, maxStatusResponseBytes+1)
 	}
 	return at, over
+}
+
+// logLine returns the first line of logs that contains msg, or "".
+func logLine(logs, msg string) string {
+	for line := range strings.Lines(logs) {
+		if strings.Contains(line, msg) {
+			return line
+		}
+	}
+	return ""
 }

@@ -95,6 +95,9 @@ const (
 	publishFailureReasonEnd                             // not a reason: follows the last one
 )
 
+// StageStates returns every StageState value, in declaration order.
+func StageStates() []StageState { return enumerate(stageStateEnd) }
+
 // PublishStates returns every PublishState value, in declaration order.
 func PublishStates() []PublishState { return enumerate(publishStateEnd) }
 

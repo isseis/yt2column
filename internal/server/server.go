@@ -2,8 +2,8 @@
 // that accepts the requests relayed from the browser extension. It serves two
 // APIs: the legacy /articles endpoint, which validates a request and runs the
 // article pipeline from generation through the Webhook post, and the job API,
-// which generates an article into the in-memory article cache, reports its
-// state, and posts it on request. It decides every response from fixed values,
+// which generates an article into the in-memory article cache and reports its
+// state. It decides every response from fixed values,
 // the identifiers it generates, and a completed article, and it writes every
 // log line through a redacting writer, so no secret and no transcript text can
 // reach a response or a log.
@@ -215,9 +215,9 @@ func (s *Server) webhookConfigured() bool {
 // Serve serves on listener until ctx is canceled or the listener fails, then
 // cancels the job API's generation jobs, stops accepting connections, waits
 // for in-flight requests, jobs, failure notices, and the canceled generations,
-// and returns. The legacy jobs and their notices are not canceled. It returns nil after a cancellation and the listener
-// error otherwise. Shutdown closes the listener; for a *net.UnixListener that
-// also removes the socket.
+// and returns. The legacy jobs and their notices are not canceled. It returns
+// nil after a cancellation and the listener error otherwise. Shutdown closes
+// the listener; for a *net.UnixListener that also removes the socket.
 func (s *Server) Serve(ctx context.Context, listener net.Listener) error {
 	serveErr := make(chan error, 1)
 	go func() {

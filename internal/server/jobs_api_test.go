@@ -175,6 +175,10 @@ func TestStartSameInputGeneratesOnce(t *testing.T) {
 	if calls := len(ts.writer.RecordedCalls()); calls != 1 {
 		t.Errorf("writer calls = %d, want 1", calls)
 	}
+	logs := ts.logs.String()
+	if !strings.Contains(logs, "outcome=started") || strings.Count(logs, "outcome=existing") != 2 {
+		t.Errorf("want one outcome=started and two outcome=existing lines:\n%s", logs)
+	}
 }
 
 // TestStartKeyEquivalence checks that bodies that differ only in what never

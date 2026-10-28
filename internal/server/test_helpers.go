@@ -415,7 +415,7 @@ func APICodesForTest() []APICodeSetForTest {
 	return []APICodeSetForTest{
 		{Name: "job state", Codes: codesOf(articlecache.JobStatesForTest(), jobStateCode)},
 		{Name: "step", Codes: steps},
-		{Name: "step state", Codes: codesOf(articlecache.StageStatesForTest(), stageStateCode)},
+		{Name: "step state", Codes: codesOf(articlecache.StageStates(), stageStateCode)},
 		{Name: "failure", Codes: codesOf(articlecache.FailureReasonsForTest(), failureCode)},
 		{Name: "publish state", Codes: codesOf(articlecache.PublishStates(), publishStateCode)},
 		{Name: "publish reason", Codes: publishReasons},

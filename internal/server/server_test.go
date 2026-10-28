@@ -284,6 +284,36 @@ func TestBodyReadFailureWritesNoResponse(t *testing.T) {
 	}
 }
 
+// TestStartBodyReadFailureWritesNoResponse checks on a real socket that a
+// generation start whose body the server cannot read (a malformed chunked
+// encoding) gets no response at all, and leaves no reading slot taken and no
+// record.
+func TestStartBodyReadFailureWritesNoResponse(t *testing.T) {
+	ts := newJobsTestServer(t, jobsServerOptions{})
+	conn := dialUnix(t, serveUnix(t, ts.Server))
+	request := "POST " + JobsPath + " HTTP/1.1\r\n" +
+		"Host: yt2column\r\n" +
+		"Transfer-Encoding: chunked\r\n\r\n" +
+		"zz\r\n"
+	if _, err := conn.Write([]byte(request)); err != nil {
+		t.Fatalf("write the request: %v", err)
+	}
+	data, err := io.ReadAll(conn)
+	if err != nil {
+		t.Fatalf("read the response: %v", err)
+	}
+	if len(data) != 0 {
+		t.Errorf("response = %q, want the connection closed with no response", data)
+	}
+	ts.waitJobs()
+	if len(ts.reading) != 0 || len(ts.slots) != 0 {
+		t.Errorf("slots held: reading %d, generation %d, want 0", len(ts.reading), len(ts.slots))
+	}
+	if dump := ts.cache.DumpRecordsForTest(); dump != "" {
+		t.Errorf("a failed body read added a record:\n%s", dump)
+	}
+}
+
 // dialUnix connects to the socket at path with a read deadline, and closes the
 // connection at cleanup.
 func dialUnix(t *testing.T, path string) net.Conn {
