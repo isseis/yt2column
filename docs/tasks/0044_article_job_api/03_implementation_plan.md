@@ -318,9 +318,9 @@
 
 -   **ファイル:** `internal/server/test_helpers.go`、`cmd/yt2column-server/docs_test.go`、`README.md`
 -   **作業:**
-    -   [ ] `APICodesForTest` を加える。6 つの集合のそれぞれについて、列挙のすべての値を（列挙の最後の値の次を表す値まで）たどり、状態の取得の応答と同じ符号化の関数でコードにする（`RejectReasonsForTest` と同じ形、`test_helpers.go:216-222`）。
-    -   [ ] README の「Localhost server」節にコードの 6 つの表を加え、`TestServerDocsContract` にサブテスト `api_codes` を加える（設計書 §3.15「コードの表のガード」、AC-29）。サブテストは「Localhost server」節の中だけを探し、6 つの見出しの表をそれぞれちょうど 1 つ見つける。表の見出しのセルは `reason`・`Code` にしない（1.4）。
-    -   [ ] 壊し方: README の表から 1 つの値を消す、列挙に値を加えて README に行を加えない、の 2 つで `api_codes` が失敗することを確かめる。
+    -   [x] `APICodesForTest` を加える。6 つの集合のそれぞれについて、列挙のすべての値を（列挙の最後の値の次を表す値まで）たどり、状態の取得の応答と同じ符号化の関数でコードにする（`RejectReasonsForTest` と同じ形、`test_helpers.go:216-222`）。
+    -   [x] README の「Localhost server」節にコードの 6 つの表を加え、`TestServerDocsContract` にサブテスト `api_codes` を加える（設計書 §3.15「コードの表のガード」、AC-29）。サブテストは「Localhost server」節の中だけを探し、6 つの見出しの表をそれぞれちょうど 1 つ見つける。集合の中のコードが重複しないことも確かめる（`switch` が名指ししない値は `default` のコードになり、ほかの値のコードと重なるため）。表の見出しのセルは `reason`・`Code` にしない（1.4）。
+    -   [x] 壊し方: README の表から 1 つの値を消す、列挙に値を加えて README に行を加えない、の 2 つで `api_codes` が失敗することを確かめる。
 -   **完了の条件:** グリーンゲートと `make ext-test` が通る。
 
 #### ステップ 5-5: シャットダウンでの生成の取り消しと、端から端までのテスト

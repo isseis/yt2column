@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -385,4 +386,47 @@ func RejectReasonsForTest() []RejectReasonForTest {
 		table = append(table, RejectReasonForTest{Value: reason.reasonValue(), Status: reason.statusCode()})
 	}
 	return table
+}
+
+// APICodeSetForTest is one set of codes the job API's status response uses,
+// with the name the documentation's table of the set carries.
+type APICodeSetForTest struct {
+	Name  string
+	Codes []string
+}
+
+// APICodesForTest returns every code of the six sets the status response
+// uses, so a documentation guard in another package reads them from the code.
+// Each set walks every value of its enumeration through the function the
+// response uses, so a value appended later is included; the step set is the
+// JSON member names of the steps object. Built only with the test tag.
+func APICodesForTest() []APICodeSetForTest {
+	var steps []string
+	for field := range reflect.TypeFor[statusSteps]().Fields() {
+		steps = append(steps, field.Tag.Get("json"))
+	}
+	var publishReasons []string
+	for _, r := range articlecache.UnpostableReasons() {
+		publishReasons = append(publishReasons, unpostableCode(r))
+	}
+	for _, r := range articlecache.PublishFailureReasons() {
+		publishReasons = append(publishReasons, publishFailureCode(r))
+	}
+	return []APICodeSetForTest{
+		{Name: "job state", Codes: codesOf(articlecache.JobStatesForTest(), jobStateCode)},
+		{Name: "step", Codes: steps},
+		{Name: "step state", Codes: codesOf(articlecache.StageStatesForTest(), stageStateCode)},
+		{Name: "failure", Codes: codesOf(articlecache.FailureReasonsForTest(), failureCode)},
+		{Name: "publish state", Codes: codesOf(articlecache.PublishStates(), publishStateCode)},
+		{Name: "publish reason", Codes: publishReasons},
+	}
+}
+
+// codesOf returns code(v) for every value in values.
+func codesOf[E any](values []E, code func(E) string) []string {
+	codes := make([]string, 0, len(values))
+	for _, v := range values {
+		codes = append(codes, code(v))
+	}
+	return codes
 }

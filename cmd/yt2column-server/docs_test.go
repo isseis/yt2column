@@ -4,7 +4,9 @@ package main
 
 import (
 	"fmt"
+	"maps"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -103,6 +105,35 @@ func TestServerDocsContract(t *testing.T) {
 		}
 		if len(byReason) != len(reasons) {
 			t.Errorf("README.md rejection table has %d rows, want %d", len(byReason), len(reasons))
+		}
+	})
+
+	t.Run("api_codes", func(t *testing.T) {
+		section := sectionByHeading(readme, "## Localhost server")
+		for _, set := range server.APICodesForTest() {
+			tables := tablesByFirstHeader(section, set.Name)
+			if len(tables) != 1 {
+				t.Errorf("README.md server section has %d tables headed %q, want 1", len(tables), set.Name)
+				continue
+			}
+			documented := map[string]struct{}{}
+			for _, row := range tables[0][1:] {
+				if len(row) > 0 {
+					documented[stripBackticks(row[0])] = struct{}{}
+				}
+			}
+			defined := map[string]struct{}{}
+			for _, code := range set.Codes {
+				defined[code] = struct{}{}
+			}
+			// One code per value: a value a code switch does not name falls
+			// to its default, which repeats another value's code.
+			if len(defined) != len(set.Codes) {
+				t.Errorf("the %q codes %v repeat a code", set.Name, set.Codes)
+			}
+			if !maps.Equal(documented, defined) {
+				t.Errorf("README.md %q table lists %v, want %v", set.Name, slices.Sorted(maps.Keys(documented)), slices.Sorted(maps.Keys(defined)))
+			}
 		}
 	})
 
@@ -267,6 +298,18 @@ func findTable(doc, header string) [][]string {
 		}
 	}
 	return nil
+}
+
+// tablesByFirstHeader returns every table whose first header cell equals
+// header, ignoring backticks and case.
+func tablesByFirstHeader(doc, header string) [][][]string {
+	var found [][][]string
+	for _, table := range markdownTables(doc) {
+		if len(table) > 0 && len(table[0]) > 0 && strings.EqualFold(stripBackticks(table[0][0]), header) {
+			found = append(found, table)
+		}
+	}
+	return found
 }
 
 // tableRow returns the first body row whose first cell equals first, ignoring
