@@ -218,15 +218,15 @@
 
 **変更するファイル:** `static/style.css`、`test/style.test.ts`
 
--   [ ] 次の規則を `static/style.css` に書く。
+-   [x] 次の規則を `static/style.css` に書く。
     -   色の変数（設計書 3.6）: ライトの `:root` と、`@media (prefers-color-scheme: dark)` の中の `:root`。
     -   `[hidden]` の規則（設計書 3.4）。
     -   幅 360px・主ボタン・`<summary>` の高さ（設計書 3.7）。`<summary>` は上下の余白に加えて `min-height: 44px` を宣言し、高さが書体の行の高さに左右されないようにする。
     -   見出しとチャンネル名の 2 行の制限、プレビューの 1 行の規則と末尾のプレビューの向きの規則、見た目では隠す要素の規則、`:focus-visible` の輪郭、確認の行・拒否のカードの規則。
--   [ ] 規則は色を `var(--…)` で参照し、値を直接書かない。`body` の `min-width: 20rem` は幅の固定に置き換える。古い `.summary-*`・`.metadata-*` の規則は、ステップ 4-3 まで残す。
--   [ ] 末尾のプレビューの向きを戻す `:has(> :dir(rtl))` の規則は、ほかのセレクタと 1 つの規則にまとめない（設計書 1.1）。
--   [ ] 新しい規則は `line-height` を宣言しない（設計書 3.7、`test/style.test.ts:164-171`）。
--   [ ] `test/style.test.ts` に、設計書 3.6「テスト」のコントラスト比の計算（ライトとダークの両方で、設計書 3.6 の 9 組が基準以上）と、その組の変数を対象の規則が `var(--…)` で参照していることの確認を加える。設計書 3.10 の `style.test.ts` の行の残りの宣言の確認（`[hidden]` の `display: none !important`、主ボタンと `<summary>` の 44px 以上、`-webkit-line-clamp: 2`、プレビューの 1 行と末尾の向き、見た目では隠す要素が `display: none`・`visibility: hidden` を使わないこと、`:focus-visible` の輪郭）も加える。ライトとダークの規則を分けて読むため、`parseStyleSheet` の戻り値に、どの `@media` の中の規則かを持たせる。
+-   [x] 規則は色を `var(--…)` で参照し、値を直接書かない。`body` の `min-width: 20rem` は幅の固定に置き換える。古い `.summary-*`・`.metadata-*` の規則は、ステップ 4-3 まで残す。
+-   [x] 末尾のプレビューの向きを戻す `:has(> :dir(rtl))` の規則は、ほかのセレクタと 1 つの規則にまとめない（設計書 1.1）。
+-   [x] 新しい規則は `line-height` を宣言しない（設計書 3.7、`test/style.test.ts:164-171`）。
+-   [x] `test/style.test.ts` に、設計書 3.6「テスト」のコントラスト比の計算（ライトとダークの両方で、設計書 3.6 の 9 組が基準以上）と、その組の変数を対象の規則が `var(--…)` で参照していることの確認を加える。設計書 3.10 の `style.test.ts` の行の残りの宣言の確認（`[hidden]` の `display: none !important`、主ボタンと `<summary>` の 44px 以上、`-webkit-line-clamp: 2`、プレビューの 1 行と末尾の向き、見た目では隠す要素が `display: none`・`visibility: hidden` を使わないこと、`:focus-visible` の輪郭）も加える。ライトとダークの規則を分けて読むため、`parseStyleSheet` の戻り値に、どの `@media` の中の規則かを持たせる。
 
 **完了の条件:** `make ext-check` が通る。`--muted` のライトの値を `#9aa0a6` にして壊し、コントラスト比のテストが失敗することを確かめる。⚠ の行の背景の規則に `var(--warn-bg)` 以外の値を書いて壊し、変数の参照のテストが失敗することを確かめる。
 
