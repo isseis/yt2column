@@ -202,10 +202,10 @@
 
 **変更するファイル:** `src/ui/render.ts`、`static/style.css`、`test/render.test.ts`、`test/renderMetadata.test.ts`、`test/helpers/dom.ts`
 
--   [ ] `ActionControls`・`PopupElements`・`renderPopup` と、セクションごとの描き方を `src/ui/render.ts` に加える（設計書 3.4）。古い `renderSummary`・`renderMetadata` は、ステップ 4-3 まで残す。
--   [ ] `messageNodes` の要素の class（`summary-message`・`summary-steps`）を、要約とも `<summary>` 要素とも紛らわしくない名前に変える（設計書 3.4 の最後の項目）。`rg -n "summary-message|summary-steps" extension` で見つかる、テストのセレクタと `style.css` の規則をすべて新しい名前に変える。
--   [ ] `test/helpers/dom.ts` に、設計書 3.4 の骨格の要素を持つ文書を作り、`PopupElements` を返す補助を加える。この PR では骨格をこの補助の中の文字列で作り、ステップ 3-4 で出荷する `popup.html` を読む形に変える。
--   [ ] `test/render.test.ts` に `renderPopup` の describe を加え（設計書 3.10 の行）、次を確かめる。
+-   [x] `ActionControls`・`PopupElements`・`renderPopup` と、セクションごとの描き方を `src/ui/render.ts` に加える（設計書 3.4）。古い `renderSummary`・`renderMetadata` は、ステップ 4-3 まで残す。
+-   [x] `messageNodes` の要素の class（`summary-message`・`summary-steps`）を、要約とも `<summary>` 要素とも紛らわしくない名前に変える（設計書 3.4 の最後の項目）。`rg -n "summary-message|summary-steps" extension` で見つかる、テストのセレクタと `style.css` の規則をすべて新しい名前に変える。
+-   [x] `test/helpers/dom.ts` に、設計書 3.4 の骨格の要素を持つ文書を作り、`PopupElements` を返す補助を加える。この PR では骨格をこの補助の中の文字列で作り、ステップ 3-4 で出荷する `popup.html` を読む形に変える。
+-   [x] `test/render.test.ts` に `renderPopup` の describe を加え（設計書 3.10 の行）、次を確かめる。
     -   構造と属性: セクションの順序と表示・非表示（AC-01・AC-22）、詳細が閉じていることと、URL とタブのタイトルが詳細の外にないこと（AC-06）、見出しが `h1` であること、確認の行の DOM の順序（記号・行の名前・状態の語・内容）と記号の `aria-hidden`、⚠ の行だけが警告の class を持つこと（AC-16・AC-27・AC-38）。
     -   表示しないものと文言: 概要欄の文章を描かないこと（AC-15）、両方の言語の文言で、もう一方の言語の文言を描かないこと（AC-29）、AC-32 の文字列が要素にならないこと、値の要素の `dir="auto"`（AC-33 の構造）。
     -   拒否のカードと主ボタン: 拒否のカードの理由ごとの文と手順と、`aria-labelledby` の指す要素が理由の文であること（AC-23・AC-38）、主ボタンの名前と、`renderPopup` が `disabled` を外さないこと（AC-17・AC-22）、2 回描いても要素が増えないこと。

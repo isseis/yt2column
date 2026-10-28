@@ -4,6 +4,7 @@ import { JSDOM } from "jsdom";
 import type { Message } from "../../src/core/i18n/catalog.ts";
 import { locales } from "../../src/core/i18n/locale.ts";
 import type { Locale } from "../../src/core/i18n/locale.ts";
+import type { PopupElements } from "../../src/ui/render.ts";
 
 /** A fresh container element in its own document. */
 export function container(): HTMLElement {
@@ -11,6 +12,46 @@ export function container(): HTMLElement {
   const element = dom.window.document.getElementById("root");
   assert.ok(element !== null);
   return element;
+}
+
+/** The one element with id in doc, asserting it exists. */
+function byId<T extends HTMLElement = HTMLElement>(
+  doc: Document,
+  id: string,
+): T {
+  const element = doc.getElementById(id);
+  assert.ok(element !== null, id);
+  return element as T;
+}
+
+/**
+ * The popup's skeleton in a fresh document, as the shipped popup.html holds
+ * it: five containers, all hidden, the primary button disabled, and the status
+ * region inside the action section after the button. The markup is written
+ * here until the popup reads the shipped popup.html; both must keep this
+ * shape.
+ */
+export function popupElements(): PopupElements {
+  const dom = new JSDOM(`<!DOCTYPE html><html lang="en"><body>
+    <section id="video" hidden></section>
+    <section id="checks" hidden></section>
+    <section id="rejection" aria-labelledby="rejection-text" hidden></section>
+    <section id="action" hidden>
+      <button id="primary" type="button" disabled></button>
+      <div id="status" role="status"></div>
+    </section>
+    <details id="details" hidden></details>
+  </body></html>`);
+  const doc = dom.window.document;
+  return {
+    video: byId(doc, "video"),
+    checks: byId(doc, "checks"),
+    rejection: byId(doc, "rejection"),
+    details: byId<HTMLDetailsElement>(doc, "details"),
+    action: byId(doc, "action"),
+    primary: byId<HTMLButtonElement>(doc, "primary"),
+    status: byId(doc, "status"),
+  };
 }
 
 /** The one element matching selector in root, asserting it exists. */

@@ -129,17 +129,17 @@ describe("renderMetadata", () => {
           result({ values: { description: "beginning" }, showExpandPrompt }),
           locale,
         );
-        const message = root.querySelector(".summary-message");
+        const message = root.querySelector(".message-text");
         assert.equal(message !== null, present, name);
         if (!present) {
-          assert.equal(root.querySelector("ol.summary-steps"), null, name);
+          assert.equal(root.querySelector("ol.message-steps"), null, name);
           continue;
         }
         const prompt = expandPromptMessage(locale);
         assert.equal(message?.textContent, prompt.text, name);
         assert.deepEqual(
           Array.from(
-            root.querySelectorAll("ol.summary-steps > li"),
+            root.querySelectorAll("ol.message-steps > li"),
             (item) => item.textContent,
           ),
           prompt.steps,
@@ -157,9 +157,9 @@ describe("renderMetadata", () => {
         result({ values: { description }, showExpandPrompt: true }),
         locale,
       );
-      assert.notEqual(root.querySelector(".summary-message"), null);
+      assert.notEqual(root.querySelector(".message-text"), null);
       const promptText = Array.from(
-        root.querySelectorAll(".summary-message, .summary-steps"),
+        root.querySelectorAll(".message-text, .message-steps"),
       )
         .map((node) => node.textContent)
         .join("");
