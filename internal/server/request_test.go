@@ -9,6 +9,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"regexp"
 	"strings"
 	"testing"
@@ -46,32 +47,35 @@ func TestAcceptValidRequest(t *testing.T) {
 	}
 }
 
+// invalidBodyCases are bodies the body checks reject as invalid_body. The
+// legacy endpoint and the generation start share them.
+var invalidBodyCases = []struct {
+	name string
+	body []byte
+}{
+	{"missing_video_url", []byte(`{"transcript":"0:00\nHello\n"}`)},
+	{"missing_transcript", []byte(`{"videoUrl":"` + testValidVideoURL + `"}`)},
+	{"video_url_number", []byte(`{"videoUrl":1,"transcript":"0:00\nHello\n"}`)},
+	{"video_url_null", []byte(`{"videoUrl":null,"transcript":"0:00\nHello\n"}`)},
+	{"video_url_empty", []byte(`{"videoUrl":"","transcript":"0:00\nHello\n"}`)},
+	{"video_url_whitespace", []byte(`{"videoUrl":"   ","transcript":"0:00\nHello\n"}`)},
+	{"transcript_number", []byte(`{"videoUrl":"` + testValidVideoURL + `","transcript":2}`)},
+	{"transcript_empty", []byte(`{"videoUrl":"` + testValidVideoURL + `","transcript":""}`)},
+	{"transcript_whitespace", []byte(`{"videoUrl":"` + testValidVideoURL + `","transcript":" \t "}`)},
+	{"duplicate_video_url", []byte(`{"videoUrl":"` + testValidVideoURL + `","videoUrl":"x","transcript":"0:00\nHello\n"}`)},
+	{"trailing_data", []byte(`{"videoUrl":"` + testValidVideoURL + `","transcript":"0:00\nHello\n"}{}`)},
+	{"not_object", []byte(`[]`)},
+	{"not_json", []byte(`not json`)},
+	{"invalid_utf8", []byte("{\"videoUrl\":\"" + testValidVideoURL + "\",\"transcript\":\"\xff\"}")},
+	{"unpaired_surrogate", []byte(`{"videoUrl":"` + testValidVideoURL + `","transcript":"\ud800"}`)},
+	{"unpaired_surrogate_undeclared", []byte(`{"videoUrl":"` + testValidVideoURL + `","transcript":"0:00\nHello\n","extra":"\ud800"}`)},
+	{"invalid_utf8_undeclared", []byte("{\"videoUrl\":\"" + testValidVideoURL + "\",\"transcript\":\"0:00\\nHello\\n\",\"extra\":\"\xff\"}")},
+}
+
 // TestRejectBodyTable checks the body-shape rejections that map to
 // invalid_body.
 func TestRejectBodyTable(t *testing.T) {
-	valid := `"` + testValidVideoURL + `"`
-	tests := []struct {
-		name string
-		body []byte
-	}{
-		{"missing_video_url", []byte(`{"transcript":"0:00\nHello\n"}`)},
-		{"missing_transcript", []byte(`{"videoUrl":` + valid + `}`)},
-		{"video_url_number", []byte(`{"videoUrl":1,"transcript":"0:00\nHello\n"}`)},
-		{"video_url_null", []byte(`{"videoUrl":null,"transcript":"0:00\nHello\n"}`)},
-		{"video_url_empty", []byte(`{"videoUrl":"","transcript":"0:00\nHello\n"}`)},
-		{"video_url_whitespace", []byte(`{"videoUrl":"   ","transcript":"0:00\nHello\n"}`)},
-		{"transcript_number", []byte(`{"videoUrl":` + valid + `,"transcript":2}`)},
-		{"transcript_empty", []byte(`{"videoUrl":` + valid + `,"transcript":""}`)},
-		{"transcript_whitespace", []byte(`{"videoUrl":` + valid + `,"transcript":" \t "}`)},
-		{"duplicate_video_url", []byte(`{"videoUrl":` + valid + `,"videoUrl":"x","transcript":"0:00\nHello\n"}`)},
-		{"trailing_data", []byte(`{"videoUrl":` + valid + `,"transcript":"0:00\nHello\n"}{}`)},
-		{"not_object", []byte(`[]`)},
-		{"not_json", []byte(`not json`)},
-		{"invalid_utf8", []byte("{\"videoUrl\":" + valid + ",\"transcript\":\"\xff\"}")},
-		{"unpaired_surrogate", []byte(`{"videoUrl":` + valid + `,"transcript":"\ud800"}`)},
-		{"unpaired_surrogate_undeclared", []byte(`{"videoUrl":` + valid + `,"transcript":"0:00\nHello\n","extra":"\ud800"}`)},
-		{"invalid_utf8_undeclared", []byte("{\"videoUrl\":" + valid + ",\"transcript\":\"0:00\\nHello\\n\",\"extra\":\"\xff\"}")},
-	}
+	tests := invalidBodyCases
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ts := newTestServer(t)
@@ -90,6 +94,13 @@ func TestRejectBodyTable(t *testing.T) {
 		})
 	}
 }
+
+// optionalMemberNames are the optional members, and nonStringValues the JSON
+// values that are not a string, which a body may not give one of them.
+var (
+	optionalMemberNames = []string{"title", "channelName", "description"}
+	nonStringValues     = []string{"1", "null", "true"}
+)
 
 // TestOptionalMembers checks that the optional metadata is accepted when
 // missing or empty and rejected when it is not a string.
@@ -117,8 +128,8 @@ func TestOptionalMembers(t *testing.T) {
 			t.Errorf("optional fields = %q/%q/%q, want empty", got.Title, got.ChannelName, got.Description)
 		}
 	})
-	for _, member := range []string{"title", "channelName", "description"} {
-		for _, value := range []string{"1", "null", "true"} {
+	for _, member := range optionalMemberNames {
+		for _, value := range nonStringValues {
 			t.Run(member+"_"+value, func(t *testing.T) {
 				ts := newTestServer(t)
 				body := `{"videoUrl":"` + testValidVideoURL + `","transcript":"0:00\nHello\n","` + member + `":` + value + `}`
@@ -152,20 +163,22 @@ func TestUnknownMemberIgnored(t *testing.T) {
 	}
 }
 
+// invalidVideoURLs are the video URLs the validator rejects.
+var invalidVideoURLs = []string{
+	"http://example.com/watch?v=dQw4w9WgXcQ",
+	"ftp://www.youtube.com/watch?v=dQw4w9WgXcQ",
+	"https://www.youtube.com/playlist?list=x",
+	"https://www.youtube.com/watch",
+	"https://www.youtube.com/watch?v=dQw4w9WgXcQ&v=abcdefghijk",
+	"https://user:pass@www.youtube.com/watch?v=dQw4w9WgXcQ",
+	" https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+	"https://www.youtube.com/watch?v=short",
+	"https://youtu.be/dQw4w9WgXcQ/extra",
+}
+
 // TestRejectVideoURLTable checks the video URLs the validator rejects.
 func TestRejectVideoURLTable(t *testing.T) {
-	urls := []string{
-		"http://example.com/watch?v=dQw4w9WgXcQ",
-		"ftp://www.youtube.com/watch?v=dQw4w9WgXcQ",
-		"https://www.youtube.com/playlist?list=x",
-		"https://www.youtube.com/watch",
-		"https://www.youtube.com/watch?v=dQw4w9WgXcQ&v=abcdefghijk",
-		"https://user:pass@www.youtube.com/watch?v=dQw4w9WgXcQ",
-		" https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-		"https://www.youtube.com/watch?v=short",
-		"https://youtu.be/dQw4w9WgXcQ/extra",
-	}
-	for _, raw := range urls {
+	for _, raw := range invalidVideoURLs {
 		t.Run(raw, func(t *testing.T) {
 			ts := newTestServer(t)
 			rec := ts.serve(ts.request(t, validBody(raw, testValidRaw)))
@@ -183,15 +196,17 @@ func TestRejectVideoURLTable(t *testing.T) {
 	}
 }
 
+// invalidTranscriptRaws are transcripts that do not match the copied format.
+var invalidTranscriptRaws = []string{
+	"not a transcript",
+	"0:00\n", // a timestamp with no text
+	"0:24MARKER_BODY",
+}
+
 // TestRejectInvalidTranscript checks that a transcript that does not match the
 // copied format is rejected as invalid_transcript.
 func TestRejectInvalidTranscript(t *testing.T) {
-	raws := []string{
-		"not a transcript",
-		"0:00\n", // a timestamp with no text
-		"0:24MARKER_BODY",
-	}
-	for _, raw := range raws {
+	for _, raw := range invalidTranscriptRaws {
 		t.Run(raw, func(t *testing.T) {
 			ts := newTestServer(t)
 			rec := ts.serve(ts.request(t, validBody(testValidVideoURL, raw)))
@@ -399,5 +414,73 @@ func TestValidateBodyKeyInput(t *testing.T) {
 	want = articlecache.KeyInput{VideoURL: testValidVideoURL, Transcript: testValidRaw, Title: "T", ChannelName: "C", Description: "D"}
 	if set != want {
 		t.Errorf("set members: key input = %+v, want %+v", set, want)
+	}
+}
+
+// TestStartRejectsLikeArticles sends every body the legacy endpoint's
+// rejection tables use to a generation start too, and checks that each is
+// rejected with the same status and reason, and that the start adds no record,
+// calls no writer, posts no notice, and leaves no slot taken.
+func TestStartRejectsLikeArticles(t *testing.T) {
+	type input struct {
+		name          string
+		body          func() io.Reader
+		contentLength int64 // 0 keeps the length the body gives
+	}
+	text := func(body string) func() io.Reader {
+		return func() io.Reader { return strings.NewReader(body) }
+	}
+	var inputs []input
+	for _, tc := range invalidBodyCases {
+		inputs = append(inputs, input{name: "body/" + tc.name, body: func() io.Reader { return bytes.NewReader(tc.body) }})
+	}
+	for _, member := range optionalMemberNames {
+		for _, value := range nonStringValues {
+			body := `{"videoUrl":"` + testValidVideoURL + `","transcript":"0:00\nHello\n","` + member + `":` + value + `}`
+			inputs = append(inputs, input{name: "optional/" + member + "_" + value, body: text(body)})
+		}
+	}
+	for _, raw := range invalidVideoURLs {
+		inputs = append(inputs, input{name: "video_url/" + raw, body: text(validBody(raw, testValidRaw))})
+	}
+	for _, raw := range invalidTranscriptRaws {
+		inputs = append(inputs, input{name: "transcript/" + raw, body: text(validBody(testValidVideoURL, raw))})
+	}
+	inputs = append(inputs,
+		input{name: "too_large/content_length", body: text("{}"), contentLength: maxBodyBytes + 1},
+		input{name: "too_large/no_content_length", body: text(strings.Repeat("x", maxBodyBytes+10)), contentLength: -1},
+	)
+
+	for _, in := range inputs {
+		t.Run(in.name, func(t *testing.T) {
+			send := func(ts *testServer, target string) *httptest.ResponseRecorder {
+				req := newRequest(http.MethodPost, target, in.body())
+				if in.contentLength != 0 {
+					req.ContentLength = in.contentLength
+				}
+				rec := ts.serve(req)
+				ts.waitJobs()
+				return rec
+			}
+			legacy := send(newTestServer(t), ArticlesPath)
+			ts := newTestServer(t)
+			got := send(ts, JobsPath)
+			if got.Code != legacy.Code || decodeBody(t, got).Reason != decodeBody(t, legacy).Reason {
+				t.Errorf("generation start: %d %s, want the legacy endpoint's %d %s",
+					got.Code, got.Body.String(), legacy.Code, legacy.Body.String())
+			}
+			if got.Code < http.StatusBadRequest {
+				t.Fatalf("the input was accepted: %d %s", got.Code, got.Body.String())
+			}
+			if dump := ts.cache.DumpRecordsForTest(); dump != "" {
+				t.Errorf("a rejected start added a record:\n%s", dump)
+			}
+			if len(ts.writer.Calls) != 0 || len(ts.notifier.Calls) != 0 {
+				t.Errorf("a rejected start caused a side effect: writer=%d notifier=%d", len(ts.writer.Calls), len(ts.notifier.Calls))
+			}
+			if len(ts.slots) != 0 || len(ts.reading) != 0 {
+				t.Errorf("slots held: generation %d, reading %d, want 0", len(ts.slots), len(ts.reading))
+			}
+		})
 	}
 }

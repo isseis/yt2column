@@ -304,14 +304,14 @@
 
 -   **ファイル:** `internal/server/handler.go`・`jobs_api.go`（新規）・`response.go`・`test_helpers.go`、テストは `jobs_api_test.go`・`status_test.go`（新規）・`request_test.go`・`response_test.go`・`job_test.go`・`handler_test.go`、`README.md`
 -   **作業:**
-    -   [ ] 新しい API のパスの定数を `internal/server` に加え、振り分けを設計書 §3.1.1 の照合に置き換える。この PR では `/jobs/{key}/publish` を `not_found` にする（1.3）。本文がないことの検査、`invalid_key`（400）、`rejection` の本文を読み残したことを表す値、`too_many_requests` の新しい `detail` の値を加える（設計書 §3.1.1・§3.11.5・§3.12、1.3）。
-    -   [ ] 生成の開始の受け口（設計書 §3.4.1 の順序と表、§3.4.5 の持ち主と `recover`、§3.12 のログ）と、状態の取得の受け口を加える。新しい API の受け口から通知を呼ばない。
-    -   [ ] README の拒否の理由の表に `invalid_key` の行を加える（3 列目は `unexpected reply`）。`TestRejectReasonSet`・`TestReasonToKind`・`TestRejectStatusCodes` に新しい理由の行を加える。
-    -   [ ] テスト（パスと境界）: 設計書 §7.3 のサーバ単体のパスの照合（`/jobs/<64 文字>/publish/x`・`?` を含むターゲット・大文字や `%` を含むキーの部分・空のキーの部分）、63 文字・65 文字・`%20` で前後を埋めたキーの拒否（AC-44、T-02）、メソッドの拒否と `Allow`、`Content-Length` が 0 でない状態の取得と `Transfer-Encoding` を持つ状態の取得の `invalid_body` と `Connection: close`、どの拒否でも記録が変わらないこと（AC-44）。`TestRejectHeaders` は期待値を変えずに通る。
-    -   [ ] テスト（生成の開始）: 7 章の AC-01・AC-02・AC-03・AC-06・AC-07・AC-08・AC-09・AC-09a・AC-09b・AC-25・AC-26a・AC-37 の行のテスト。AC-03 は、メンバの順序・空白・エスケープ・宣言していないメンバ・`youtu.be` と `watch?v=` の URL・省略と空文字列の組を送り、同じキーが返ることを確かめる。AC-07 は、生成の枠を旧 API のジョブ（`gateWriter` で止める）と新しい API の生成のジョブ（進み具合の止める仕組みで止める）で埋め、新しいキーが拒否されて状態の取得が `unknown` を返し、処理中のキーと完了したキーがそれぞれキーを返すことを確かめる。AC-08 は、1.4 のとおりパッケージの変数に移した拒否の表で `/articles` と `/jobs` の両方を確かめ、拒否の後に記録がないことを確かめる。AC-09a は、読み込みに入ったことを知らせて止まる本文で読み込みの枠を埋め、3 つ目の要求の本文が読まれない（`recordingReader` の読んだ数が 0）ことを確かめる。AC-09b は、書き手を止めたまま同じ要求をすべて返させ、書き手の呼び出しが 1 回であることを、新しいキーと失敗したキーのそれぞれで確かめる。
-    -   [ ] テスト（状態の取得）: 7 章の AC-12・AC-13・AC-14・AC-15・AC-17・AC-28・AC-31・AC-34（生成の開始と状態の取得）・AC-35 の行のテスト。AC-28 は、1 つ目のサーバで記事を `done` にしてから、新しいサーバの値に同じキーを問い合わせる。AC-31 は、fake のエラーの文言・秘密の値・コピーした字幕・`videoUrl`・メタデータに目印を入れ、生成の開始と状態の取得のすべての応答（拒否を含む）に、完了した記事の 2 つの文字列以外には目印が現れないことを確かめる。
-    -   [ ] テスト（後始末、T-09）: `Begin` の後でジョブに渡す前の差し込み口の panic で、生成の枠と読み込みの枠が空になり、記録が `失敗` になり、`internal_error` が返り、通知が送られないこと。本文の検査の中の `panickingReader` の panic（`Begin` の前で、記録はまだない）で、読み込みの枠が空になり、`internal_error` が返り、記録が作られず、通知が送られないこと。生成のジョブが panic した後の要求にサーバが応答することを確かめる（AC-45）。
-    -   [ ] 壊し方: 新しい API に別の生成の枠を持たせると AC-07 の行が、キーの部分をデコードしてから照合すると T-02 の行が失敗することを確かめる。
+    -   [x] 新しい API のパスの定数を `internal/server` に加え、振り分けを設計書 §3.1.1 の照合に置き換える。この PR では `/jobs/{key}/publish` を `not_found` にする（1.3）。本文がないことの検査、`invalid_key`（400）、`rejection` の本文を読み残したことを表す値、`too_many_requests` の新しい `detail` の値を加える（設計書 §3.1.1・§3.11.5・§3.12、1.3）。
+    -   [x] 生成の開始の受け口（設計書 §3.4.1 の順序と表、§3.4.5 の持ち主と `recover`、§3.12 のログ）と、状態の取得の受け口を加える。新しい API の受け口から通知を呼ばない。
+    -   [x] README の拒否の理由の表に `invalid_key` の行を加える（3 列目は `unexpected reply`）。`TestRejectReasonSet`・`TestReasonToKind`・`TestRejectStatusCodes` に新しい理由の行を加える。
+    -   [x] テスト（パスと境界）: 設計書 §7.3 のサーバ単体のパスの照合（`/jobs/<64 文字>/publish/x`・`?` を含むターゲット・大文字や `%` を含むキーの部分・空のキーの部分）、63 文字・65 文字・`%20` で前後を埋めたキーの拒否（AC-44、T-02）、メソッドの拒否と `Allow`、`Content-Length` が 0 でない状態の取得と `Transfer-Encoding` を持つ状態の取得の `invalid_body` と `Connection: close`、どの拒否でも記録が変わらないこと（AC-44）。`TestRejectHeaders` は期待値を変えずに通る。
+    -   [x] テスト（生成の開始）: 7 章の AC-01・AC-02・AC-03・AC-06・AC-07・AC-08・AC-09・AC-09a・AC-09b・AC-25・AC-26a・AC-37 の行のテスト。AC-03 は、メンバの順序・空白・エスケープ・宣言していないメンバ・`youtu.be` と `watch?v=` の URL・省略と空文字列の組を送り、同じキーが返ることを確かめる。AC-07 は、生成の枠を旧 API のジョブ（`gateWriter` で止める）と新しい API の生成のジョブ（進み具合の止める仕組みで止める）で埋め、新しいキーが拒否されて状態の取得が `unknown` を返し、処理中のキーと完了したキーがそれぞれキーを返すことを確かめる。AC-08 は、1.4 のとおりパッケージの変数に移した拒否の表で `/articles` と `/jobs` の両方を確かめ、拒否の後に記録がないことを確かめる。AC-09a は、読み込みに入ったことを知らせて止まる本文で読み込みの枠を埋め、3 つ目の要求の本文が読まれない（`recordingReader` の読んだ数が 0）ことを確かめる。AC-09b は、書き手を止めたまま同じ要求をすべて返させ、書き手の呼び出しが 1 回であることを、新しいキーと失敗したキーのそれぞれで確かめる。
+    -   [x] テスト（状態の取得）: 7 章の AC-12・AC-13・AC-14・AC-15・AC-17・AC-28・AC-31・AC-34（生成の開始と状態の取得）・AC-35 の行のテスト。AC-28 は、1 つ目のサーバで記事を `done` にしてから、新しいサーバの値に同じキーを問い合わせる。AC-31 は、fake のエラーの文言・秘密の値・コピーした字幕・`videoUrl`・メタデータに目印を入れ、生成の開始と状態の取得のすべての応答（拒否を含む）に、完了した記事の 2 つの文字列以外には目印が現れないことを確かめる。
+    -   [x] テスト（後始末、T-09）: `Begin` の後でジョブに渡す前の差し込み口の panic で、生成の枠と読み込みの枠が空になり、記録が `失敗` になり、`internal_error` が返り、通知が送られないこと。本文の検査の中の `panickingReader` の panic（`Begin` の前で、記録はまだない）で、読み込みの枠が空になり、`internal_error` が返り、記録が作られず、通知が送られないこと。生成のジョブが panic した後の要求にサーバが応答することを確かめる（AC-45）。
+    -   [x] 壊し方: 新しい API に別の生成の枠を持たせると AC-07 の行が、キーの部分をデコードしてから照合すると T-02 の行が失敗することを確かめる。
 -   **完了の条件:** グリーンゲートと `make ext-test` が通る。
 
 #### ステップ 5-4: コードの表とそのガード
@@ -566,7 +566,7 @@ PR-1 と PR-2 は互いに依存しないが、PR は番号の順にマージす
 | AC-05 | test | `internal/articlecache/key_test.go::TestKeyValueBoundary` | 2-2 |
 | AC-06 | test | `internal/server/jobs_api_test.go::TestStartRetriesFailed`（枠に空きがある場合とない場合）、`internal/articlecache/cache_test.go::TestBeginOutcomes` | 5-3・2-3 |
 | AC-07 | test | `internal/server/jobs_api_test.go::TestStartGenerationSlotsShared` | 5-3 |
-| AC-08 | test | `internal/server/request_test.go` の拒否の表を `/articles` と `/jobs` の両方に当てるテスト（`TestRejectBodyTable` など、1.4） | 5-3 |
+| AC-08 | test | `internal/server/request_test.go::TestStartRejectsLikeArticles`（パッケージの変数に移した `TestRejectBodyTable` などの拒否の表を `/articles` と `/jobs` の両方に当てる、1.4） | 5-3 |
 | AC-09 | test | `internal/server/jobs_api_test.go::TestNewAPINeverNotifies` | 5-3 |
 | AC-09a | test | `internal/server/jobs_api_test.go::TestStartReadSlotsFull` | 5-3 |
 | AC-09b | test | `internal/server/jobs_api_test.go::TestStartConcurrentSameKey`（新しいキーと失敗したキー）、`internal/articlecache/cache_test.go::TestBeginConcurrentAcquiresOnce` | 5-3・2-3 |

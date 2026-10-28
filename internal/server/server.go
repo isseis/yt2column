@@ -107,6 +107,11 @@ type Server struct {
 	// since the cache is lost on exit and no one could read the article.
 	genCtx    context.Context
 	genCancel context.CancelFunc
+
+	// beforeGenerationJob, when set, runs after Begin started a generation and
+	// before the job takes it over. It is always nil outside a test, which
+	// sets it to panic there to check the handler's cleanup.
+	beforeGenerationJob func()
 }
 
 // internals are the values New sets for production and a test sets itself:

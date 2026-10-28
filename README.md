@@ -695,6 +695,7 @@ A rejected request answers a `4xx` or `5xx` with
 | `invalid_video_url` | 400 | fixed message |
 | `invalid_transcript` | 400 | fixed message |
 | `webhook_not_configured` | 503 | unexpected reply |
+| `invalid_key` | 400 | unexpected reply |
 | `internal_error` | 500 | fixed message (unexpected reply when `requestId` is empty) |
 
 `not_found` and `method_not_allowed` answer a wrong path or method; they start

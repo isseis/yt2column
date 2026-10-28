@@ -217,6 +217,8 @@ func TestReasonToKind(t *testing.T) {
 		reasonTooManyRequests:   failure.KindUnknown,
 		// A server without a Webhook has no one to notify.
 		reasonWebhookNotConfigured: failure.KindUnknown,
+		// Only the job API, which never notifies, rejects a key.
+		reasonInvalidKey: failure.KindUnknown,
 	}
 	for reason := range reasonCount {
 		expected, ok := want[reason]

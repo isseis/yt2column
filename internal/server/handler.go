@@ -4,17 +4,57 @@ import (
 	"errors"
 	"net/http"
 	"runtime/debug"
+	"strings"
 
 	"github.com/isseis/yt2column/internal/failure"
 )
 
-// ArticlesPath is the request target of the one endpoint. The handler accepts
-// exactly this string, before any decoding, and no query.
+// ArticlesPath is the request target of the legacy endpoint. The handler
+// accepts exactly this string, before any decoding, and no query.
 const ArticlesPath = "/articles"
 
-// handler validates a request in a fixed order and, on success, starts the job
-// that generates and posts the article. Every request gets a request ID, which
-// is written to the response, the log, and any failure notice. The handler
+// JobsPath is the request target of a generation start. A status request
+// appends a slash and the article key: JobsPath + "/" + key.
+const JobsPath = "/jobs"
+
+// route is the operation a request target names. The zero value is
+// routeNotFound: a target that matched nothing.
+type route int
+
+const (
+	routeNotFound route = iota
+	routeArticles
+	routeStart
+	routeStatus
+)
+
+// matchTarget returns the operation target names, and for a status request the
+// key part of the target. It matches the request target as received, before
+// any decoding, so an escaped character in the key part stays escaped and can
+// never become a separator: a target with a query is not found, /articles and
+// /jobs match exactly, and a target under /jobs/ is a status request when the
+// rest holds no slash. The key part is not checked here; any string, the empty
+// one included, is the key check's to reject.
+func matchTarget(target string) (route, string) {
+	if strings.Contains(target, "?") {
+		return routeNotFound, ""
+	}
+	switch target {
+	case ArticlesPath:
+		return routeArticles, ""
+	case JobsPath:
+		return routeStart, ""
+	}
+	rest, ok := strings.CutPrefix(target, JobsPath+"/")
+	if !ok || strings.Contains(rest, "/") {
+		return routeNotFound, ""
+	}
+	return routeStatus, rest
+}
+
+// handler gives every request a request ID, which is written to the response
+// and the log (and, on the legacy endpoint, any failure notice), and hands the
+// request to the handler of the operation its target names. Each of those
 // recovers its own panics, so one request cannot take down the process.
 func (s *Server) handler(w http.ResponseWriter, r *http.Request) {
 	requestID, err := newRequestID()
@@ -23,7 +63,23 @@ func (s *Server) handler(w http.ResponseWriter, r *http.Request) {
 		_ = writeRejected(w, "", reasonInternal, true)
 		return
 	}
+	route, keyPart := matchTarget(r.RequestURI)
+	switch route {
+	case routeArticles:
+		s.articlesHandler(w, r, requestID)
+	case routeStart:
+		s.startHandler(w, r, requestID)
+	case routeStatus:
+		s.statusHandler(w, r, requestID, keyPart)
+	default:
+		s.reject(w, requestID, rejection{reason: reasonNotFound, detail: detailNotFound})
+	}
+}
 
+// articlesHandler serves the legacy endpoint: it validates a request in a
+// fixed order and, on success, starts the job that generates and posts the
+// article.
+func (s *Server) articlesHandler(w http.ResponseWriter, r *http.Request, requestID string) {
 	responded := false
 	slotHeld := false
 	defer func() {
@@ -48,7 +104,7 @@ func (s *Server) handler(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	if rej := s.checkHeaders(r); rej != nil {
+	if rej := checkMethod(r, http.MethodPost); rej != nil {
 		s.reject(w, requestID, *rej)
 		responded = true
 		return
@@ -107,7 +163,9 @@ func (s *Server) handler(w http.ResponseWriter, r *http.Request) {
 	s.logger.Info("request accepted", "requestId", requestID, "videoId", input.videoID)
 }
 
-// reject logs the rejection and writes its response.
+// reject logs the rejection and writes its response. The connection is closed
+// when the reason always closes it or when this rejection left the body
+// unread.
 func (s *Server) reject(w http.ResponseWriter, requestID string, rej rejection) {
 	s.logger.Warn("request rejected",
 		"requestId", requestID,
@@ -115,21 +173,23 @@ func (s *Server) reject(w http.ResponseWriter, requestID string, rej rejection) 
 		"reason", rej.reason.reasonValue(),
 		"detail", string(rej.detail),
 	)
-	if err := writeRejected(w, requestID, rej.reason, rej.reason.forceClose()); err != nil {
+	allow := rej.allow
+	if allow == "" {
+		allow = http.MethodPost
+	}
+	if err := writeRejectedAllow(w, requestID, rej.reason, rej.reason.forceClose() || rej.bodyUnread, allow); err != nil {
 		s.logger.Error("response write failed", "requestId", requestID, "error", err)
 	}
 }
 
-// checkHeaders runs the checks that need no body: the request target, then the
-// method. It returns nil when both pass. The Host, Origin, Content-Type, and
-// Authorization headers are not checked: any process that can connect to the
-// socket can set them to anything, so checking them excludes no one.
-func (s *Server) checkHeaders(r *http.Request) *rejection {
-	if r.RequestURI != ArticlesPath {
-		return &rejection{reason: reasonNotFound, detail: detailNotFound}
-	}
-	if r.Method != http.MethodPost {
-		return &rejection{reason: reasonMethodNotAllowed, detail: detailMethodNotAllowed}
+// checkMethod returns the method_not_allowed rejection, naming want in its
+// Allow header, when the request's method is not want, and nil otherwise. The
+// Host, Origin, Content-Type, and Authorization headers are not checked: any
+// process that can connect to the socket can set them to anything, so
+// checking them excludes no one.
+func checkMethod(r *http.Request, want string) *rejection {
+	if r.Method != want {
+		return &rejection{reason: reasonMethodNotAllowed, detail: detailMethodNotAllowed, allow: want}
 	}
 	return nil
 }

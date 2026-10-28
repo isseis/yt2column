@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -278,6 +279,39 @@ func (ts *testServer) serve(req *http.Request) *httptest.ResponseRecorder {
 	rec := httptest.NewRecorder()
 	ts.handler(rec, req)
 	return rec
+}
+
+// start runs a generation start with body.
+func (ts *testServer) start(body io.Reader) *httptest.ResponseRecorder {
+	return ts.serve(newRequest(http.MethodPost, JobsPath, body))
+}
+
+// startBody runs a generation start with body, waits for every job, and
+// returns the response.
+func (ts *testServer) startBody(body string) *httptest.ResponseRecorder {
+	rec := ts.start(strings.NewReader(body))
+	ts.waitJobs()
+	return rec
+}
+
+// statusRequest runs a status request for the key part keyPart.
+func (ts *testServer) statusRequest(keyPart string) *httptest.ResponseRecorder {
+	return ts.serve(newRequest(http.MethodGet, JobsPath+"/"+keyPart, nil))
+}
+
+// getStatus runs a status request for key and decodes the response, failing
+// the test unless it is a 200.
+func (ts *testServer) getStatus(t *testing.T, key string) statusResponse {
+	t.Helper()
+	rec := ts.statusRequest(key)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status request: %d %s, want 200", rec.Code, rec.Body.String())
+	}
+	var resp statusResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode the status response %q: %v", rec.Body.String(), err)
+	}
+	return resp
 }
 
 // serveAccepted runs a valid request and waits for its job to finish, so the
