@@ -189,7 +189,7 @@ README を拡張の利用者のための文書にする。CLI を使ったとき
     | Integration test、DeepSeek integration test、Claude integration test、CLI integration test、Webhook integration test、CLI webhook integration test | 全体 |
     | README に残す節の中の、curl に関わる文と句（例：Troubleshooting の、curl が出すメッセージ） | 全体 |
 
-- **AC-22**: 今の README の文・表の行・コードブロックの行は、どれも README・`cli.md`・`development.md` の少なくとも 1 つにある。表やコードブロックを 2 つの文書に分けてもよい。2 つ以上の文書に同じ内容があってよいのは、拒否の理由と拡張での表示の対応、ほかの文書の節を参照するための短い案内、今の README の中ですでに重複している記述（例：旧変数があれば実行が止まること、チャンネル名が `invalid_body` で拒否されること）だけである。
+- **AC-22**: 今の README の文・表の行・コードブロックの行は、どれも README・`cli.md`・`development.md` の少なくとも 1 つにある。表やコードブロックを 2 つの文書に分けてもよい。2 つ以上の文書に同じ内容があってよいのは、拒否の理由と拡張での表示の対応、ほかの文書の節を参照するための短い案内、README と `cli.md` の両方の出力に関わる説明（例：Output format の冒頭の、情報の並べ方の説明）、今の README の中ですでに重複している記述（例：旧変数があれば実行が止まること、チャンネル名が `invalid_body` で拒否されること）だけである。
 - **AC-23**: README に、開発者向けの文書として `cli.md` と `development.md` へのリンクがある。
 - **AC-24**: `cli.md` と `development.md` は日本語で書かれている。英語版のファイルはない。
 - **AC-25**: README・`README.en.md`・`cli.md`・`development.md` の相対リンクは、どれも存在するファイルを指している。見出しへのリンク（`#...`）は、どれも、リンク先の文書にある見出しを指している。README の節が移ったために、README の中のリンク（例：Requirements から「Setting up yt-dlp」へのリンク）の先が README にない場合は、移った先の文書の見出しを指す。
@@ -208,7 +208,7 @@ README を拡張の利用者のための文書にする。CLI を使ったとき
 - **AC-31a**: `README.md` が引用するポップアップの文言は日本語のメッセージカタログ（`extension/src/core/i18n/ja.ts`）の文言と、`README.en.md` が引用する文言は英語のカタログ（`extension/src/core/i18n/en.ts`）の文言と一致する。今の README の「the popup text quoted in this README ... is the English version」（`README.md:1124-1127`）に当たる説明は、各版で、その版が引用する言語を述べる。
 - **AC-32**: `cli.md` または `development.md` に移った値を読むガードテストは、移った先のファイルを検査する。本書の作成時にガードテストが README で検査していた値と表の行は、どれも、本タスクの後に、その値を持つ文書で検査される。この対応は、実装計画に、ガードテストごとの前後の表として記録し、PR のレビューで確かめる（`manual`）。
 - **AC-33**: 拡張のジョブを走らせるかどうかの CI の判定（`extension/scripts/has-extension-changes.sh:18`）が、`README.en.md` を変えた PR で拡張のジョブを走らせる。拡張のテストが読む文書のうち、開発者向けの文書（例：拒否の理由の完全な表を持つ `development.md`）を変えた PR でも、走らせる。`extension/test/ciChanges.test.ts` が、その判定を検査する。issue が二言語化の対象に挙げている `ciChanges.test.ts` の変更は、この判定の検査に対応する（このテストは README の内容を読まない）。
-- **AC-34**: 用語集（`docs/translation_glossary.md`）に、次の 3 つのうち、本タスクの前に用語集になかったものがすべてある。(1) README のすべての見出しの訳、(2) 本書の §6 の用語、(3) README の中で 2 つ以上の節に現れる用語。`README.en.md` は、用語集にある訳語を使っている。
+- **AC-34**: 用語集（`docs/translation_glossary.md`）に、次の 3 つのうち、本タスクの前に用語集になかったものがすべてある。(1) README のすべての見出しの訳、(2) 本書の §6 の用語、(3) README の中で 2 つ以上の節（`##` または `###` の見出しの下）の地の文に現れる、概念を表す語（バッククォートの中のコード・製品名などの固有名詞を除く）。`README.en.md` は、用語集にある訳語を使っている。
 
 #### F-005: 英語の UI からの参照
 
