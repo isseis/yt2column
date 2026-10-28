@@ -67,14 +67,11 @@ func newTestServer(t *testing.T) *testServer {
 }
 
 // newTestServerWithoutWebhook builds a Server the way run builds one without
-// SLACK_WEBHOOK_URL: with a recording writer and no Webhook options. The
-// publisher and notifier it records are not wired to the server, so a request
-// that reached them would be a bug this helper can still detect.
+// SLACK_WEBHOOK_URL: a recording writer, no Webhook options, and so no
+// publisher or notifier at all.
 func newTestServerWithoutWebhook(t *testing.T) *testServer {
 	t.Helper()
 	fakeWriter := &writertestutil.FakeArticleWriter{}
-	pub := &publishertestutil.FakePublisher{}
-	notifier := &failuretestutil.FakeNotifier{}
 	logs := &bytes.Buffer{}
 	s, err := New(Options{
 		Writer:    fakeWriter,
@@ -84,7 +81,7 @@ func newTestServerWithoutWebhook(t *testing.T) *testServer {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	return &testServer{Server: s, writer: fakeWriter, publisher: pub, notifier: notifier, logs: logs}
+	return &testServer{Server: s, writer: fakeWriter, logs: logs}
 }
 
 // newCustomServer builds a Server with the given collaborators, for tests that

@@ -65,12 +65,15 @@ type WebhookOptions struct {
 // a listener the caller opened.
 type Server struct {
 	writer writer.ProgressWriter
-	// webhook posts to the Webhook. It is nil when SLACK_WEBHOOK_URL is not
-	// configured, in which case the legacy endpoint rejects every request:
-	// there is nowhere to post the article or its failure notice.
-	webhook *WebhookOptions
-	logger  *slog.Logger
-	http    *http.Server
+	// publisher and notifier post to the Webhook. Both are nil when
+	// SLACK_WEBHOOK_URL is not configured, in which case the legacy endpoint
+	// rejects every request: there is nowhere to post the article or its
+	// failure notice. New copies them from Options, so a caller that changes
+	// its WebhookOptions afterwards does not change this server.
+	publisher WebhookPublisher
+	notifier  failure.Notifier
+	logger    *slog.Logger
+	http      *http.Server
 
 	// slots bounds the requests in progress. A request takes one
 	// after the header checks and holds it until the end of its job or its
@@ -100,11 +103,14 @@ func New(opts Options) (*Server, error) {
 	jobCtx, jobCancel := context.WithCancel(context.Background())
 	s := &Server{
 		writer:    opts.Writer,
-		webhook:   opts.Webhook,
 		logger:    logger,
 		slots:     make(chan struct{}, maxInFlight),
 		jobCtx:    jobCtx,
 		jobCancel: jobCancel,
+	}
+	if opts.Webhook != nil {
+		s.publisher = opts.Webhook.Publisher
+		s.notifier = opts.Webhook.Notifier
 	}
 	s.http = &http.Server{
 		Handler:                      http.HandlerFunc(s.handler),
@@ -144,9 +150,10 @@ func validateOptions(opts Options) error {
 
 // webhookConfigured reports whether this server can post to the Webhook, which
 // is what SLACK_WEBHOOK_URL being set means. A server without it rejects the
-// legacy endpoint instead of starting a job nothing can post.
+// legacy endpoint instead of starting a job nothing can post. New keeps the two
+// collaborators either both set or both nil, so testing one is enough.
 func (s *Server) webhookConfigured() bool {
-	return s.webhook != nil
+	return s.publisher != nil
 }
 
 // Serve serves on listener until ctx is canceled or the listener fails, then

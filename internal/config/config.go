@@ -324,11 +324,13 @@ func LoadServer(lookup LookupFunc) (ServerConfig, error) {
 	llm, errs := loadLLM(lookup, Need{Generation: true, Review: true})
 	var cfg ServerConfig
 	webhook, webhookErr := loadSlackWebhook(lookup)
+	sockPath, sockErr := socketPath(runtime.GOOS, lookup)
 	if webhookErr != nil {
 		errs = append(errs, webhookErr)
 	}
-	sockPath, sockErr := socketPath(runtime.GOOS, lookup)
 	if sockErr != nil {
+		// socketPath's *VarError is a typed nil on success, which errors.Join
+		// would keep as a non-nil error.
 		errs = append(errs, sockErr)
 	}
 	if err := errors.Join(errs...); err != nil {

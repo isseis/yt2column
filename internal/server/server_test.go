@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -85,33 +86,38 @@ func postOnUnix(t *testing.T, path string) (int, responseBody) {
 }
 
 // TestNewWebhookOptions checks that New treats a nil Webhook as a server
-// without a Webhook and refuses a WebhookOptions whose publisher or notifier is
-// missing, a typed nil included.
+// without a Webhook, refuses a WebhookOptions whose publisher or notifier is
+// missing, a typed nil included, and still refuses a missing writer or log
+// output.
 func TestNewWebhookOptions(t *testing.T) {
 	pub := &publishertestutil.FakePublisher{}
 	notifier := &failuretestutil.FakeNotifier{}
 	var nilPublisher *publishertestutil.FakePublisher
 	var nilNotifier *failuretestutil.FakeNotifier
+	writer := &writertestutil.FakeArticleWriter{}
+	logs := &bytes.Buffer{}
+	complete := &WebhookOptions{Publisher: pub, Notifier: notifier}
+	// all is every reason New can join, so each row pins the exact set: a
+	// reason the row does not name must be absent.
+	all := []error{errNilArticleWriter, errNilWebhookPublisher, errNilWebhookNotifier, errNilLogOutput}
 	tests := []struct {
-		name    string
-		webhook *WebhookOptions
-		want    []error // the reasons the error must wrap; empty means accepted
+		name string
+		opts Options
+		want []error // empty means New accepts the options
 	}{
-		{"none", nil, nil},
-		{"complete", &WebhookOptions{Publisher: pub, Notifier: notifier}, nil},
-		{"no_publisher", &WebhookOptions{Notifier: notifier}, []error{errNilWebhookPublisher}},
-		{"typed_nil_publisher", &WebhookOptions{Publisher: nilPublisher, Notifier: notifier}, []error{errNilWebhookPublisher}},
-		{"no_notifier", &WebhookOptions{Publisher: pub}, []error{errNilWebhookNotifier}},
-		{"typed_nil_notifier", &WebhookOptions{Publisher: pub, Notifier: nilNotifier}, []error{errNilWebhookNotifier}},
-		{"neither", &WebhookOptions{}, []error{errNilWebhookPublisher, errNilWebhookNotifier}},
+		{"complete", Options{Writer: writer, Webhook: complete, LogOutput: logs}, nil},
+		{"no_webhook", Options{Writer: writer, LogOutput: logs}, nil},
+		{"no_publisher", Options{Writer: writer, Webhook: &WebhookOptions{Notifier: notifier}, LogOutput: logs}, []error{errNilWebhookPublisher}},
+		{"typed_nil_publisher", Options{Writer: writer, Webhook: &WebhookOptions{Publisher: nilPublisher, Notifier: notifier}, LogOutput: logs}, []error{errNilWebhookPublisher}},
+		{"no_notifier", Options{Writer: writer, Webhook: &WebhookOptions{Publisher: pub}, LogOutput: logs}, []error{errNilWebhookNotifier}},
+		{"typed_nil_notifier", Options{Writer: writer, Webhook: &WebhookOptions{Publisher: pub, Notifier: nilNotifier}, LogOutput: logs}, []error{errNilWebhookNotifier}},
+		{"neither", Options{Writer: writer, Webhook: &WebhookOptions{}, LogOutput: logs}, []error{errNilWebhookPublisher, errNilWebhookNotifier}},
+		{"no_writer", Options{Webhook: complete, LogOutput: logs}, []error{errNilArticleWriter}},
+		{"no_log_output", Options{Writer: writer, Webhook: complete}, []error{errNilLogOutput}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := New(Options{
-				Writer:    &writertestutil.FakeArticleWriter{},
-				Webhook:   tc.webhook,
-				LogOutput: &bytes.Buffer{},
-			})
+			_, err := New(tc.opts)
 			if len(tc.want) == 0 {
 				if err != nil {
 					t.Fatalf("New error = %v, want nil", err)
@@ -121,9 +127,10 @@ func TestNewWebhookOptions(t *testing.T) {
 			if !errors.Is(err, ErrInvalidOptions) {
 				t.Fatalf("New error = %v, want it to wrap ErrInvalidOptions", err)
 			}
-			for _, want := range tc.want {
-				if !errors.Is(err, want) {
-					t.Errorf("New error = %v, want it to wrap %v", err, want)
+			for _, sentinel := range all {
+				want := slices.Contains(tc.want, sentinel)
+				if got := errors.Is(err, sentinel); got != want {
+					t.Errorf("New error = %v, wraps %v: %v, want %v", err, sentinel, got, want)
 				}
 			}
 		})

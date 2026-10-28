@@ -97,6 +97,10 @@ func TestArticlesWithoutWebhook(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ts := newTestServerWithoutWebhook(t)
+			// Both generation slots are taken, so a request refused after
+			// taking one would answer too_many_requests instead.
+			ts.slots <- struct{}{}
+			ts.slots <- struct{}{}
 			body := &recordingReader{r: strings.NewReader(validBody(testValidVideoURL, testValidRaw))}
 			rec := ts.serve(newRequest(tc.method, tc.target, body))
 			ts.waitJobs()
@@ -112,12 +116,11 @@ func TestArticlesWithoutWebhook(t *testing.T) {
 			if body.n != 0 {
 				t.Errorf("the server read %d bytes of the body, want 0", body.n)
 			}
-			if len(ts.slots) != 0 {
-				t.Errorf("slots held = %d, want 0", len(ts.slots))
+			if len(ts.slots) != maxInFlight {
+				t.Errorf("slots held = %d, want the %d the test took", len(ts.slots), maxInFlight)
 			}
-			if len(ts.writer.Calls) != 0 || len(ts.publisher.Calls) != 0 || len(ts.notifier.Calls) != 0 {
-				t.Errorf("a refused request caused a side effect: writer=%d publisher=%d notifier=%d",
-					len(ts.writer.Calls), len(ts.publisher.Calls), len(ts.notifier.Calls))
+			if len(ts.writer.Calls) != 0 {
+				t.Errorf("writer calls = %d, want 0", len(ts.writer.Calls))
 			}
 		})
 	}

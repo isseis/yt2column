@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"errors"
+	"net/http"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -417,8 +418,9 @@ func TestWriterOptionsMatchCLIDefaults(t *testing.T) {
 }
 
 // TestStartsWithoutWebhook checks that a server whose SLACK_WEBHOOK_URL is
-// unset starts, reports that no Webhook is configured and names what that
-// refuses, and never builds the publisher or the failure notifier.
+// unset starts, reports in one warning after the listening line that no Webhook
+// is configured and names what that refuses, rejects /articles on its socket,
+// and never builds the publisher or the failure notifier.
 func TestStartsWithoutWebhook(t *testing.T) {
 	e := newServerEnv(t)
 	delete(e.vars, "SLACK_WEBHOOK_URL")
@@ -434,6 +436,10 @@ func TestStartsWithoutWebhook(t *testing.T) {
 	}
 
 	srv := startServer(t, e, d)
+	// The server run built, not a hand-built one, refuses what needs a Webhook.
+	if resp := mustPostArticle(t, e.socketPath(t), requestBody(testValidRaw), http.StatusServiceUnavailable); resp.Reason != "webhook_not_configured" {
+		t.Errorf("reason = %q, want webhook_not_configured", resp.Reason)
+	}
 	if code := srv.stop(t); code != exitOK {
 		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, srv.stderr.String())
 	}
@@ -445,9 +451,18 @@ func TestStartsWithoutWebhook(t *testing.T) {
 	if !strings.Contains(listening, "webhookConfigured=false") {
 		t.Errorf("the listening log does not report no Webhook: %s", listening)
 	}
-	warning := stderrLine(stderr, "level=WARN")
-	if warning == "" || !strings.Contains(warning, "webhook_not_configured") {
-		t.Errorf("stderr has no warning naming webhook_not_configured:\n%s", stderr)
+	// The rejection the test causes logs a warning of its own, so the startup
+	// warning is counted by its own text.
+	const startupWarning = "no Webhook is configured"
+	if got := strings.Count(stderr, startupWarning); got != 1 {
+		t.Errorf("startup warning lines = %d, want 1:\n%s", got, stderr)
+	}
+	warning := stderrLine(stderr, startupWarning)
+	if !strings.Contains(warning, "webhook_not_configured") {
+		t.Errorf("the warning does not name webhook_not_configured: %s", warning)
+	}
+	if strings.Index(stderr, "msg=listening") > strings.Index(stderr, startupWarning) {
+		t.Errorf("the warning comes before the listening line:\n%s", stderr)
 	}
 	if publisherCalls != 0 || notifierCalls != 0 {
 		t.Errorf("constructors called without a Webhook: publisher=%d notifier=%d", publisherCalls, notifierCalls)
@@ -456,8 +471,9 @@ func TestStartsWithoutWebhook(t *testing.T) {
 }
 
 // TestRunLogsListeningAndStop checks the lines run itself logs: the socket
-// path when it listens, and, when the stop begins, the longest wait for
-// in-flight jobs and that a second signal exits at once.
+// path and the configured Webhook when it listens (with no warning about the
+// Webhook), and, when the stop begins, the longest wait for in-flight jobs and
+// that a second signal exits at once.
 func TestRunLogsListeningAndStop(t *testing.T) {
 	e := newServerEnv(t)
 	srv := startServer(t, e, testDeps(validResponseLLM()))

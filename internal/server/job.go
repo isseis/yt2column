@@ -40,7 +40,8 @@ func (s *Server) releaseSlot() {
 
 // startJob records the job before it starts and runs it in its own goroutine.
 // The caller must hold a slot; ownership of it passes to the goroutine, which
-// releases it when the job and any notice are done.
+// releases it when the job and any notice are done. The caller must also have
+// confirmed webhookConfigured: the job posts and notifies through it.
 func (s *Server) startJob(input jobInput) {
 	s.jobs.Go(func() {
 		defer s.releaseSlot()
@@ -60,7 +61,7 @@ func (s *Server) runJob(input jobInput) {
 		}
 	}()
 
-	p, err := pipeline.New(input.source, s.writer, s.webhook.Publisher)
+	p, err := pipeline.New(input.source, s.writer, s.publisher)
 	if err != nil {
 		s.logger.Error("pipeline construction failed", "requestId", input.requestID, "videoId", input.videoID, "error", err)
 		s.notify(input.requestID, input.videoID, failure.KindInternal)
@@ -94,7 +95,7 @@ func (s *Server) notify(requestID, videoID string, kind failure.Kind) {
 	ctx, cancel := context.WithTimeout(s.jobCtx, notifyTimeout)
 	defer cancel()
 	notice := failure.Notice{RequestID: requestID, VideoID: videoID, Kind: kind}
-	if err := s.webhook.Notifier.Notify(ctx, notice); err != nil {
+	if err := s.notifier.Notify(ctx, notice); err != nil {
 		s.logger.Error("failure notice failed", "requestId", requestID, "kind", int(kind), "error", err)
 	}
 }

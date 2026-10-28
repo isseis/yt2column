@@ -969,7 +969,7 @@ func validServerEnv() map[string]string {
 }
 
 // TestLoadServerValid checks that LoadServer loads the LLM settings, the
-// required Webhook URL, the socket path derived from HOME, and the HTTP/2
+// configured Webhook URL, the socket path derived from HOME, and the HTTP/2
 // debug flag. The OS-specific socket path rules are fixed by TestSocketPath.
 func TestLoadServerValid(t *testing.T) {
 	env := with(validServerEnv(), godebugEnv, "http2debug=1")
@@ -1038,6 +1038,14 @@ func TestLoadServerWebhookOptional(t *testing.T) {
 		}
 		if _, configured := cfg.WebhookURL(); configured {
 			t.Error("WebhookURL() reports set, want unset")
+		}
+		// The rest of the configuration is still loaded: the Webhook is the
+		// only value an unset variable leaves out.
+		if cfg.SocketPath() == "" {
+			t.Error("SocketPath() is empty, want the path derived from HOME")
+		}
+		if cfg.LLM().Provider() != ProviderDeepSeek {
+			t.Errorf("LLM().Provider() = %v, want ProviderDeepSeek", cfg.LLM().Provider())
 		}
 	})
 	t.Run("empty", func(t *testing.T) {
