@@ -2,11 +2,11 @@
 // that accepts the requests relayed from the browser extension. It serves two
 // APIs: the legacy /articles endpoint, which validates a request and runs the
 // article pipeline from generation through the Webhook post, and the job API,
-// which generates an article into the in-memory article cache and reports its
-// state. It decides every response from fixed values,
-// the identifiers it generates, and a completed article, and it writes every
-// log line through a redacting writer, so no secret and no transcript text can
-// reach a response or a log.
+// which generates an article into the in-memory article cache, reports its
+// state, and posts it to the Webhook on request. It decides every response
+// from fixed values, the identifiers it generates, and a completed article,
+// and it writes every log line through a redacting writer, so no secret and
+// no transcript text can reach a response or a log.
 package server
 
 import (
@@ -19,6 +19,7 @@ import (
 	"net"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/isseis/yt2column/internal/articlecache"
@@ -94,12 +95,15 @@ type Server struct {
 	// this process's secret, which New draws and nothing outputs.
 	cache *articlecache.Cache
 	keyer articlecache.Keyer
-	// jobs counts the in-flight jobs and failure notices, the generation jobs
-	// included, so Serve waits for them.
+	// jobs counts the in-flight jobs and failure notices, the generation and
+	// post jobs included, so Serve waits for them.
 	jobs sync.WaitGroup
-	// jobCtx is the parent of every legacy job and notice context. It is not
-	// the request context, which ends when the response is written, and Serve
-	// cancels it only after every job and notice has finished.
+	// postJobs counts the post jobs in flight, which take no generation slot,
+	// for the shutdown log.
+	postJobs atomic.Int64
+	// jobCtx is the parent of every legacy job, notice, and post job context.
+	// It is not the request context, which ends when the response is written,
+	// and Serve cancels it only after every job and notice has finished.
 	jobCtx    context.Context
 	jobCancel context.CancelFunc
 	// genCtx is the context of every generation job. Like jobCtx it outlives
@@ -112,6 +116,9 @@ type Server struct {
 	// before the job takes it over. It is always nil outside a test, which
 	// sets it to panic there to check the handler's cleanup.
 	beforeGenerationJob func()
+	// beforePublishJob is the same for a publish operation: it runs after
+	// BeginPublish started a post and before the job takes it over.
+	beforePublishJob func()
 }
 
 // internals are the values New sets for production and a test sets itself:
@@ -214,10 +221,11 @@ func (s *Server) webhookConfigured() bool {
 
 // Serve serves on listener until ctx is canceled or the listener fails, then
 // cancels the job API's generation jobs, stops accepting connections, waits
-// for in-flight requests, jobs, failure notices, and the canceled generations,
-// and returns. The legacy jobs and their notices are not canceled. It returns
-// nil after a cancellation and the listener error otherwise. Shutdown closes
-// the listener; for a *net.UnixListener that also removes the socket.
+// for in-flight requests, jobs, failure notices, post jobs, and the canceled
+// generations, and returns. The legacy jobs, their notices, and the post jobs
+// are not canceled. It returns nil after a cancellation and the listener
+// error otherwise. Shutdown closes the listener; for a *net.UnixListener that
+// also removes the socket.
 func (s *Server) Serve(ctx context.Context, listener net.Listener) error {
 	serveErr := make(chan error, 1)
 	go func() {
@@ -252,12 +260,14 @@ func (s *Server) Serve(ctx context.Context, listener net.Listener) error {
 		}
 	}
 
-	// The legacy jobs and notices are not canceled: each is bounded by its own
-	// timeout (the LLM timeout, the per-message post timeout, and the notice
-	// timeout). Every handler has returned, so each generation slot still
-	// taken belongs to a legacy job, a notice, or a canceled generation: their
-	// count is what the wait below waits for.
-	s.logger.Info("stopped accepting connections; waiting for in-flight jobs and failure notices", "pending", len(s.slots))
+	// The legacy jobs, the notices, and the post jobs are not canceled: each
+	// is bounded by its own timeout (the LLM timeout, the per-message post
+	// timeout, and the notice timeout). Every handler has returned, so each
+	// generation slot still taken belongs to a legacy job, a notice, or a
+	// canceled generation, and the post jobs, which take no slot, are counted
+	// apart: together they are what the wait below waits for.
+	s.logger.Info("stopped accepting connections; waiting for in-flight jobs and failure notices",
+		"pending", len(s.slots), "postJobs", s.postJobs.Load())
 	s.jobs.Wait()
 	s.jobCancel()
 	s.logger.Info("every job and failure notice has finished")

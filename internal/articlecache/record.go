@@ -269,23 +269,29 @@ func (r *Run) StageFinished(s writer.Stage) { r.setStage(s, StageDone) }
 // StageSkipped marks stage s skipped.
 func (r *Run) StageSkipped(s writer.Stage) { r.setStage(s, StageSkipped) }
 
-// CompletePostable stores a, with Review.Revisions dropped, as done and not posted.
-func (r *Run) CompletePostable(a writer.Article) {
-	r.complete(a, PublishNotPosted, UnpostableOther)
+// CompletePostable stores a, with Review.Revisions dropped, as done and not
+// posted. It returns the generation's duration as it stored it, and false
+// when the Run is no longer valid and nothing changed.
+func (r *Run) CompletePostable(a writer.Article) (time.Duration, bool) {
+	return r.complete(a, PublishNotPosted, UnpostableOther)
 }
 
-// CompleteUnpostable stores a, with Review.Revisions dropped, as done and unpostable.
-func (r *Run) CompleteUnpostable(a writer.Article, reason UnpostableReason) {
-	r.complete(a, PublishUnpostable, reason)
+// CompleteUnpostable stores a, with Review.Revisions dropped, as done and
+// unpostable. It returns what CompletePostable returns.
+func (r *Run) CompleteUnpostable(a writer.Article, reason UnpostableReason) (time.Duration, bool) {
+	return r.complete(a, PublishUnpostable, reason)
 }
 
-func (r *Run) complete(a writer.Article, publish PublishState, reason UnpostableReason) {
+// complete stores a as done and returns the duration it stored, read under
+// the same lock as the transition: once the lock is released a retry or an
+// eviction may replace the record, so the caller never reads it back.
+func (r *Run) complete(a writer.Article, publish PublishState, reason UnpostableReason) (time.Duration, bool) {
 	stored := withoutRevisions(a)
 	r.cache.mu.Lock()
 	defer r.cache.mu.Unlock()
 	rec := r.running()
 	if rec == nil {
-		return
+		return 0, false
 	}
 	rec.state = JobDone
 	rec.article = stored
@@ -293,15 +299,19 @@ func (r *Run) complete(a writer.Article, publish PublishState, reason Unpostable
 	rec.unpostable = reason
 	rec.delivered = 0
 	r.cache.end(rec)
+	return rec.ended.Sub(rec.accepted), true
 }
 
-// Fail marks the record failed; the running stage, if any, becomes StageFailed.
-func (r *Run) Fail(reason FailureReason) {
+// Fail marks the record failed; the running stage, if any, becomes
+// StageFailed. It returns the stages as it left them, the failed one marked
+// StageFailed, read under the same lock as the transition, and false when the
+// Run is no longer valid and nothing changed.
+func (r *Run) Fail(reason FailureReason) (Stages, bool) {
 	r.cache.mu.Lock()
 	defer r.cache.mu.Unlock()
 	rec := r.running()
 	if rec == nil {
-		return
+		return Stages{}, false
 	}
 	for _, field := range []*StageState{&rec.stages.Draft, &rec.stages.Shorten, &rec.stages.Review} {
 		if *field == StageRunning {
@@ -311,6 +321,7 @@ func (r *Run) Fail(reason FailureReason) {
 	rec.state = JobFailed
 	rec.failure = reason
 	r.cache.end(rec)
+	return rec.stages, true
 }
 
 // PublishRun is the handle a post job reports through, with the same
@@ -358,22 +369,30 @@ func (p *PublishRun) Delivered(index int) {
 }
 
 // Finish marks the article posted; the caller calls it once every message
-// was delivered.
-func (p *PublishRun) Finish() {
+// was delivered. It returns the number of messages recorded as delivered, read
+// under the same lock as the transition, and false when the PublishRun is no
+// longer valid and nothing changed.
+func (p *PublishRun) Finish() (int, bool) {
 	p.cache.mu.Lock()
 	defer p.cache.mu.Unlock()
-	if rec := p.posting(); rec != nil {
-		rec.publish = PublishPosted
+	rec := p.posting()
+	if rec == nil {
+		return 0, false
 	}
+	rec.publish = PublishPosted
+	return rec.delivered, true
 }
 
 // Fail marks the post failed. The delivered messages stay recorded, so a retry
-// starts from the first one not delivered.
-func (p *PublishRun) Fail(reason PublishFailureReason) {
+// starts from the first one not delivered. It returns what Finish returns.
+func (p *PublishRun) Fail(reason PublishFailureReason) (int, bool) {
 	p.cache.mu.Lock()
 	defer p.cache.mu.Unlock()
-	if rec := p.posting(); rec != nil {
-		rec.publish = PublishFailed
-		rec.publishFailure = reason
+	rec := p.posting()
+	if rec == nil {
+		return 0, false
 	}
+	rec.publish = PublishFailed
+	rec.publishFailure = reason
+	return rec.delivered, true
 }

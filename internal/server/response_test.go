@@ -96,6 +96,9 @@ func TestRejectReasonSet(t *testing.T) {
 		{Value: "invalid_transcript", Status: http.StatusBadRequest}:             {},
 		{Value: "webhook_not_configured", Status: http.StatusServiceUnavailable}: {},
 		{Value: "invalid_key", Status: http.StatusBadRequest}:                    {},
+		{Value: "article_not_ready", Status: http.StatusConflict}:                {},
+		{Value: "article_not_found", Status: http.StatusNotFound}:                {},
+		{Value: "article_not_postable", Status: http.StatusConflict}:             {},
 	}
 	got := map[RejectReasonForTest]struct{}{}
 	for _, reason := range RejectReasonsForTest() {

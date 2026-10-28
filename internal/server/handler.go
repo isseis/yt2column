@@ -17,6 +17,10 @@ const ArticlesPath = "/articles"
 // appends a slash and the article key: JobsPath + "/" + key.
 const JobsPath = "/jobs"
 
+// PublishSuffix ends the request target of a publish operation, which follows
+// the status request's target: JobsPath + "/" + key + PublishSuffix.
+const PublishSuffix = "/publish"
+
 // route is the operation a request target names. The zero value is
 // routeNotFound: a target that matched nothing.
 type route int
@@ -26,15 +30,18 @@ const (
 	routeArticles
 	routeStart
 	routeStatus
+	routePublish
 )
 
-// matchTarget returns the operation target names, and for a status request the
-// key part of the target. It matches the request target as received, before
-// any decoding, so an escaped character in the key part stays escaped and can
-// never become a separator: a target with a query is not found, /articles and
-// /jobs match exactly, and a target under /jobs/ is a status request when the
-// rest holds no slash. The key part is not checked here; any string, the empty
-// one included, is the key check's to reject.
+// matchTarget returns the operation target names, and for a status request or
+// a publish operation the key part of the target. It matches the request
+// target as received, before any decoding, so an escaped character in the key
+// part stays escaped and can never become a separator: a target with a query
+// is not found, /articles and /jobs match exactly, and the rest of a target
+// under /jobs/ is cut at its first slash: with no slash it is a status
+// request's key part, and when exactly "publish" follows the slash, what comes
+// before it is a publish operation's key part. The key part is not checked
+// here; any string, the empty one included, is the key check's to reject.
 func matchTarget(target string) (route, string) {
 	if strings.Contains(target, "?") {
 		return routeNotFound, ""
@@ -46,10 +53,18 @@ func matchTarget(target string) (route, string) {
 		return routeStart, ""
 	}
 	rest, ok := strings.CutPrefix(target, JobsPath+"/")
-	if !ok || strings.Contains(rest, "/") {
+	if !ok {
 		return routeNotFound, ""
 	}
-	return routeStatus, rest
+	keyPart, op, hasOp := strings.Cut(rest, "/")
+	switch {
+	case !hasOp:
+		return routeStatus, keyPart
+	case "/"+op == PublishSuffix:
+		return routePublish, keyPart
+	default:
+		return routeNotFound, ""
+	}
 }
 
 // handler gives every request a request ID, which is written to the response
@@ -71,6 +86,8 @@ func (s *Server) handler(w http.ResponseWriter, r *http.Request) {
 		s.startHandler(w, r, requestID)
 	case routeStatus:
 		s.statusHandler(w, r, requestID, keyPart)
+	case routePublish:
+		s.publishHandler(w, r, requestID, keyPart)
 	default:
 		s.reject(w, requestID, rejection{reason: reasonNotFound, detail: detailNotFound})
 	}

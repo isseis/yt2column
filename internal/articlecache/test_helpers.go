@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"time"
 )
 
 // JobStatesForTest returns every JobState value, in declaration order, so a
@@ -39,6 +40,13 @@ func dumpValue(b *strings.Builder, v reflect.Value) {
 	case reflect.Pointer, reflect.Interface:
 		if v.IsNil() {
 			b.WriteString("nil")
+			return
+		}
+		if v.Type() == reflect.TypeFor[*time.Location]() {
+			// A location is filled in lazily, the first time anything formats
+			// a local time, so following it would make two dumps of an
+			// unchanged record differ. It holds no record text.
+			b.WriteString("location")
 			return
 		}
 		dumpValue(b, v.Elem())

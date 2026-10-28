@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/isseis/yt2column/internal/articlecache"
 )
 
 // validHTTPRequest builds a request that passes the target and method checks.
@@ -172,6 +174,18 @@ func TestRejectStatusCodes(t *testing.T) {
 		{"invalid_key", func(_ *testing.T, _ *testServer) *http.Request {
 			return newRequest(http.MethodGet, JobsPath+"/not-a-key", nil)
 		}, http.StatusBadRequest, "invalid_key", false, false, false},
+		{"article_not_ready", func(t *testing.T, ts *testServer) *http.Request {
+			ts.cache.Begin(publishTestKey(t, ts), func() bool { return true })
+			return newRequest(http.MethodPost, publishTarget(publishTestKey(t, ts).String()), nil)
+		}, http.StatusConflict, "article_not_ready", false, false, false},
+		{"article_not_found", func(t *testing.T, ts *testServer) *http.Request {
+			return newRequest(http.MethodPost, publishTarget(publishTestKey(t, ts).String()), nil)
+		}, http.StatusNotFound, "article_not_found", false, false, false},
+		{"article_not_postable", func(t *testing.T, ts *testServer) *http.Request {
+			_, run, _ := ts.cache.Begin(publishTestKey(t, ts), func() bool { return true })
+			run.CompleteUnpostable(testArticle(), articlecache.UnpostableMention)
+			return newRequest(http.MethodPost, publishTarget(publishTestKey(t, ts).String()), nil)
+		}, http.StatusConflict, "article_not_postable", false, false, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

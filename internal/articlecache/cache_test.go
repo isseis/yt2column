@@ -647,3 +647,82 @@ func TestBeginConcurrentAcquiresOnce(t *testing.T) {
 		})
 	}
 }
+
+func TestTransitionsReturnTheirValues(t *testing.T) {
+	t.Run("run", func(t *testing.T) {
+		c, clock := newTestCache(t, 1)
+		run := begin(t, c, testKey(1))
+		clock.Advance(5 * time.Minute)
+		if d, ok := run.CompletePostable(testArticle("t")); d != 5*time.Minute || !ok {
+			t.Errorf("CompletePostable = %v, %v; want 5m, true", d, ok)
+		}
+		if d, ok := run.CompleteUnpostable(testArticle("t"), UnpostableOther); d != 0 || ok {
+			t.Errorf("CompleteUnpostable on an ended Run = %v, %v; want 0, false", d, ok)
+		}
+		if st, ok := run.Fail(FailureLLM); st != (Stages{}) || ok {
+			t.Errorf("Fail on an ended Run = %+v, %v; want zero, false", st, ok)
+		}
+
+		retry := begin(t, c, testKey(2)) // evicts key 1
+		clock.Advance(time.Minute)
+		if d, ok := retry.CompleteUnpostable(testArticle("t"), UnpostableMention); d != time.Minute || !ok {
+			t.Errorf("CompleteUnpostable = %v, %v; want 1m, true", d, ok)
+		}
+
+		failing := begin(t, c, testKey(3)) // evicts key 2
+		failing.StageFinished(writer.StageGeneration)
+		failing.StageStarted(writer.StageReview)
+		want := Stages{Draft: StageDone, Review: StageFailed}
+		if st, ok := failing.Fail(FailureLLM); st != want || !ok {
+			t.Errorf("Fail = %+v, %v; want %+v, true", st, ok, want)
+		}
+		begin(t, c, testKey(3)) // a restart replaces the Run
+		if st, ok := failing.Fail(FailureLLM); st != (Stages{}) || ok {
+			t.Errorf("Fail on a replaced Run = %+v, %v; want zero, false", st, ok)
+		}
+	})
+	t.Run("publish_run", func(t *testing.T) {
+		c, _ := newTestCache(t, 1)
+		pub := posting(t, c, testKey(1))
+		pub.Delivered(0)
+		pub.Delivered(1)
+		if n, ok := pub.Fail(PublishFailureWebhook); n != 2 || !ok {
+			t.Errorf("Fail = %d, %v; want 2, true", n, ok)
+		}
+		if n, ok := pub.Finish(); n != 0 || ok {
+			t.Errorf("Finish on an ended PublishRun = %d, %v; want 0, false", n, ok)
+		}
+		_, retry := c.BeginPublish(testKey(1))
+		retry.Delivered(2)
+		if n, ok := retry.Finish(); n != 3 || !ok {
+			t.Errorf("Finish = %d, %v; want 3, true", n, ok)
+		}
+		if n, ok := retry.Fail(PublishFailureInternal); n != 0 || ok {
+			t.Errorf("Fail on an ended PublishRun = %d, %v; want 0, false", n, ok)
+		}
+	})
+}
+
+func TestBeginPublishConcurrentStartsOnce(t *testing.T) {
+	c, _ := newTestCache(t, 1)
+	done(t, c, testKey(1))
+	var started, already atomic.Int32
+	var wg sync.WaitGroup
+	gate := make(chan struct{})
+	for range 16 {
+		wg.Go(func() {
+			<-gate
+			switch outcome, _ := c.BeginPublish(testKey(1)); outcome {
+			case PublishBeginStarted:
+				started.Add(1)
+			case PublishBeginAlready:
+				already.Add(1)
+			}
+		})
+	}
+	close(gate)
+	wg.Wait()
+	if started.Load() != 1 || already.Load() != 15 {
+		t.Errorf("started %d, already %d; want 1, 15", started.Load(), already.Load())
+	}
+}
