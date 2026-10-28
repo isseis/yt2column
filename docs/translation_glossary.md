@@ -86,6 +86,7 @@
 | 自動レビュアーの一覧 | automated reviewer list | `.claude/commands/_context.md` の「Automated reviewer list」に定める、スレッドを信頼する自動レビュアーの名前（GraphQL の `author.login` の形）の一覧。`fixprguard` には `--reviewer` で 1 つずつ渡す |
 | 完了を待つ PR レビュアー | awaited PR reviewer | `/runpr` がレビュー済みの判定に使う Bot。承認を待つのではなく、レビューがそのコミットまで完了したことを待つ。`.claude/commands/_context.md` の「Awaited PR reviewer」に、自動レビュアーの一覧とは別に定める |
 | 割り当て | quota | 自動レビュアーが一定時間に受け付けるレビューの回数の上限。localhost サーバの同時処理数の単位である「枠」（slot）とは別の概念 |
+| 試行 | attempt | ローカルの CLI レビューを 1 回試みること。CodeRabbit CLI の実行 1 回と、それが失敗したときの Codex CLI の実行 1 回から成る。範囲ごとに最大 2 回（タスク 0049） |
 | 指摘 | finding | レビューが挙げる個々の問題。スレッドとして投稿されるものと、レビューの本文にだけ書かれるものがある |
 | スレッド | thread | PR のファイル・行に紐づくレビューコメントの連なり。`/fixpr` が処理する単位 |
 | 信頼する著者のスレッド | trusted thread | すべてのコメントを取得でき、そのすべての著者が信頼する著者と確かめられたレビュースレッド |
