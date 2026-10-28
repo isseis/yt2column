@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { catalogs } from "../src/core/i18n/catalog.ts";
 import { expandPromptMessage } from "../src/core/messages.ts";
 import { markdownSection, readRepoFile } from "./helpers/repoFile.ts";
 
@@ -31,6 +32,18 @@ describe("video metadata documentation", () => {
     expectPhrases(readme, readmeWhere, [
       expandPromptMessage("en").text,
       ...expandPromptMessage("en").steps,
+    ]);
+  });
+
+  it("README quotes the popup names the catalog defines", () => {
+    // The README shows each name the screen displays in bold; compare those
+    // quoted names with the catalog. The explanatory prose is checked by
+    // reading it in the PR review, not by matching words here.
+    expectPhrases(readme, readmeWhere, [
+      `**${catalogs.en.primaryButton}**`,
+      `**${catalogs.en.checkNames.selection}**`,
+      `**${catalogs.en.checkNames.description}**`,
+      `**${catalogs.en.details.summary}**`,
     ]);
   });
 });
