@@ -29,8 +29,8 @@ func pricedUsage() writer.RunUsage {
 
 // TestStatusDoneArticle checks a done article's status: the display Markdown
 // and the file content are what the publisher renders for the article (the
-// file being what --out writes), the cost is the formatted known cost, and the post has
-// not started.
+// file being what --out writes), the cost is the formatted known cost, and
+// the post has not started.
 func TestStatusDoneArticle(t *testing.T) {
 	ts := newJobsTestServer(t, jobsServerOptions{})
 	article := testArticle()
