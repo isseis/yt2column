@@ -213,3 +213,14 @@ AC-01 の 1 で割り当てを共有すると判断したことは、AC-02 に�
 -   **成功（35 件）:** 最後が `{"type":"complete","status":"review_completed","findings":<件数>,"outcome":"completed",…}` だった。件数は 0〜4 だった。このうち 2 件は `"reused":true` と、新たにレビューしなかった旨の `message` を持っていた。
 -   **失敗（5 件）:** 最後が `{"type":"error","errorType":"rate_limit","message":"Rate limit exceeded","recoverable":true,…}` で、`complete` の行はなかった。`metadata.waitTime` は 1 分から 32 分だった。
 -   **終了コード:** これらのファイルには記録されていない。
+
+### 利用の上限での振る舞い（公開されている報告からの推測）
+
+利用の上限は観測していない（上の 6）。代わりに、2026-10-28 に `openai/codex` の issue と OpenAI のヘルプを調べ、振る舞いを推測した。どれも本リポジトリの環境で確かめたものではない。
+
+-   **拒否のされ方:** 上限に達した後のリクエストは、サーバーがすぐに `usage_limit_exceeded` で拒否する。報告された文言は "You've hit your usage limit. Review your workspace's usage settings to continue." や "Quota exceeded. Check your plan and billing details." である（[#48042](https://github.com/openai/codex/issues/48042)）。上限は 5 時間の区間と 1 週間の区間で数える（[OpenAI のヘルプ](https://help.openai.com/en/articles/11369540-using-codex-with-your-chatgpt-plan)）。
+-   **`--json` での出方:** `codex exec --json` は、型のあるエラーの区分（`codexErrorInfo`）を `error` と `turn.failed` の行に出さず、英語の文言だけを出す。そのため、利用の上限と認証の失敗は JSON の上で区別できない（[#36562](https://github.com/openai/codex/issues/36562)。2026-10-12 に [#22570](https://github.com/openai/codex/issues/22570) の重複として、修正されないまま閉じられた）。
+-   **終了コード:** `turn.failed` で終わった失敗が終了コード 1 で終わったという報告がある（[#37676](https://github.com/openai/codex/issues/37676)）。上の R4（認証の失敗）も 1 だった。利用の上限そのものの終了コードを示す報告は見つからなかった。
+-   **終わらない例:** クレジットが尽きた状態で CLI が終わらなくなったという報告がある（0.57.0、[#6512](https://github.com/openai/codex/issues/6512)。メンテナーは 0.55.0 以降は検出してループを抜けるはずだと答え、古い問題として閉じた）。また、`codex exec review` が内部の git の失敗で `error` の行を出した後、ターンを終えずに止まり続けるという報告がある（0.151.0・0.152.0、[#41984](https://github.com/openai/codex/issues/41984)。未修正）。
+-   **ターンの途中:** 実行中のターンが上限の時点で打ち切られるという報告がある（[#45444](https://github.com/openai/codex/issues/45444)）。
+-   **推測:** 最も起こりそうなのは、`error` か `turn.failed` の行を出して終了コード 1 で終わることである。次に、終わらずに止まり続けることがありうる。上限の通知はサーバーのエラーとして返り、モデルが最終メッセージとして書くものではないので、`turn.completed` の後に上限の文言だけが最終メッセージになる経路は見当たらない。
