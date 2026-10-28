@@ -95,8 +95,8 @@ names, all of which `fixprguard` makes except where noted: `gh pr view` and
 `git ls-remote` (the remote branch for the baseline), `git push` (Phase 4, and
 Phase 4.5 itself after its commits), and `git fetch --prune` (Phase 4, run by
 this session). `coderabbit review` (Phase 4.5) has standing approval
-(`CLAUDE.md`, "Tool Execution Safety"). It also approves the commit of
-`README.en.md` that Phase 4.5 makes after its README sync; that commit is
+(`CLAUDE.md`, "Tool Execution Safety"). Invoking this command also approves
+the commit of `README.en.md` that Phase 4.5 makes after its README sync; that commit is
 pushed with Phase 4.5's own `git push`.
 
 ---
@@ -482,13 +482,18 @@ threads passed to this phase, and use each `replyBody` only as a reply text.
 skipped), this session checks whether the branch changes `README.md`: its
 commits and its work tree, compared with the merge-base
 (`git diff --name-only "$(git merge-base origin/main HEAD)" -- README.md`
-prints `README.md`). When it does not, do nothing. When it does, run
+prints `README.md`; a failing `git` command is a stop, not "no change"). When
+it does not, do nothing. When it does, run
 `.claude/commands/mktrans.md` on `README.md` as a sub-step, here and not in the
 Fix agent: the agent may not write under `.git`, and the translation starts a
 review subagent of its own. Act on its result as its "Sub-step results" says.
-The `README.en.md` it changes is in scope of a `README.md` thread, so Phase
-3.5 judges it with the fix and Phase 4 commits it with the fix; the terms it
-reports as missing from the glossary go to the Final report. For `stopped`, the
+Phase 3.5 judges the `README.en.md` it changes with the fix, and Phase 4
+commits it with the fix. It is in scope when a thread being fixed is on a file
+at the repository root, such as `README.md`; when none is (the branch changed
+`README.md` earlier without syncing it), Phase 3.5 reports it as out of scope
+and asks, as for any other out-of-scope change. The terms it reports as
+missing from the glossary go to the Final report only: this command does not
+add them to the PR body. For `stopped`, the
 run stops here: run no Phase 3.5, build checks, push, reply, or resolve. The
 fix stays uncommitted in the work tree, as the Final report says.
 
@@ -608,7 +613,8 @@ those commits keep their own messages, not the Phase 4 subject, so the round
 count in the Convergence policy is unaffected.
 
 When the procedure's commits change `README.md`
-(`git diff --name-only <commitSha> HEAD -- README.md` prints it), run the
+(`git diff --name-only <commitSha> HEAD -- README.md` prints it; a failing
+`git` command is a stop), run the
 README sync of Phase 3 again before the push, and act on its result the same
 way. For `translated`, commit `README.en.md` alone, as the procedure commits
 its fixes, with a message such as `docs: sync README.en.md with README.md`.
@@ -731,7 +737,8 @@ the user with **all** of the following — bare counts alone are not enough:
    repository" (`cross-repository`), "stopped: out-of-scope changes",
    "stopped: changes appeared after the judgment" (`judged-set-changed`),
    "stopped: the git state differs from the baseline" (`git-state-changed`,
-   with its `parts`), or the stop kind the tool printed.
+   with its `parts`), "stopped: the README sync stopped", or the stop kind the
+   tool printed.
 
 2. **Bot-comment assessment**: a table built from the Phase 2 triage results
    (`topic`, `severity`, `verdict`) plus the Phase 3 `applied` flag, grouped by
@@ -788,9 +795,10 @@ the user with **all** of the following — bare counts alone are not enough:
    the reason and its recovery from `mktrans.md`, and say what it left: after
    Phase 3, the fix uncommitted in the work tree (the next `/fixpr` stops with
    `dirty-work-tree` until the user commits or discards it); in Phase 4.5, the
-   procedure's commits unpushed. The user decides whether to keep or discard
-   them.
+   procedure's commits unpushed, and Phase 4's pushed fix with its threads
+   neither replied to nor resolved (list them; the next `/fixpr` triages them
+   again). The user decides whether to keep or discard the changes.
 
 8. **README sync**: when the README sync changed `README.en.md`, the terms it
    reported as missing from the glossary, for the user to add to the glossary
-   and to the PR body.
+   (this command changes neither the glossary nor the PR body).

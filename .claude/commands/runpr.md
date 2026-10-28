@@ -120,7 +120,8 @@ Every `fixpr.md` and `mergepr.md` run below is given the resolved PR number
   - **README sync.** When that branch is the checked-out one, check whether it
     changes `README.md`: its commits and its work tree, compared with the
     merge-base (`git diff --name-only "$(git merge-base origin/main HEAD)" -- README.md`
-    prints `README.md`). When it does not, do nothing. When it does, run
+    prints `README.md`; a failing `git` command is a stop, not "no change").
+    When it does not, do nothing. When it does, run
     `.claude/commands/mktrans.md` on `README.md` as a sub-step and act on its
     result as its "Sub-step results" says. For `translated`, commit
     `README.en.md` alone, with a message such as
@@ -129,7 +130,8 @@ Every `fixpr.md` and `mergepr.md` run below is given the resolved PR number
     push. For another branch, the sync cannot run either (it changes the
     checkout): when
     `git diff --name-only "$(git merge-base origin/main <branch>)" <branch> -- README.md`
-    prints `README.md`, stop and report that the branch changes `README.md`
+    prints `README.md` and `git cat-file -e <branch>:README.en.md` exits `0`
+    (a failing `git diff` is a stop too), stop and report that the branch changes `README.md`
     and must be synced from its own checkout.
   - Write the PR title and body to files first, as the paragraph after the
     commands says, then run the mention check on both files:
@@ -537,7 +539,9 @@ rather than once per decision.
    recorded. Check only when the PR changes `README.md`
    (`git diff --name-only "$(git merge-base origin/main <headRefOid>)" <headRefOid> -- README.md`
    prints it) and `README.en.md` exists at that commit
-   (`git cat-file -e <headRefOid>:README.en.md` exits `0`). The check passes
+   (`git cat-file -e <headRefOid>:README.en.md` exits `0`). A `git` command
+   that fails (other than `cat-file -e` reporting that the file is absent) is
+   a failed check, never a skipped one. The check passes
    when the first line of `git show <headRefOid>:README.en.md` is exactly
    `<!-- translated-from: README.md <id> -->` with `<id>` the output of
    `git rev-parse <headRefOid>:README.md` (`mktrans.md`, "The sync marker").

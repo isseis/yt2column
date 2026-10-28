@@ -218,20 +218,27 @@ merging `main` into one of them always conflicts on the marker line of
 `README.en.md`. Do not pick either side's marker: the branch's marker would
 translate `main`'s change a second time, and `main`'s would translate the
 branch's change a second time. Replace `README.en.md` wholesale with `main`'s
-version (marker and text), resolve the conflict in `README.md`, then run this
-command. The diff from `main`'s marker is then only the branch's change.
+version (marker and text), resolve the conflict in `README.md`, and conclude
+the merge commit first; then run this command and commit its result
+separately. The diff from `main`'s marker is then only the branch's change. An
+edit the branch made to `README.en.md` alone (a translation fix) is lost this
+way: reapply it after the sync.
 
 ## Sub-step results
 
-As a sub-step, end with exactly one of these results, and do not commit. What
+As a sub-step, end with exactly one of these results, and do not commit.
+Before writing `README.en.md`, keep a copy of it outside the work tree; when
+this command stops after writing, put the copy back, so `README.en.md` is as
+the caller left it (a change the caller made to it, such as a `/fixpr` fix,
+stays). What
 the caller does with each is in the second column.
 
 | Result | The caller |
 |---|---|
-| `translated` — `README.en.md` was changed; lists the terms not in the glossary | Commits `README.en.md` with its own changes, as the caller's step says. Lists the terms in its final report and in the PR body. Continues |
+| `translated` — `README.en.md` was changed; lists the terms not in the glossary | Commits `README.en.md` and reports the terms, as the caller's step says. Continues |
 | `already in sync` | Continues |
 | `not applicable` (`README.en.md` does not exist) | Continues |
-| `stopped` — the reason and its recovery ("Recovery") | Discards what this command wrote, with `git restore README.en.md`. Pushes nothing and stops. Reports the reason, its recovery, and the changes left unpushed or uncommitted, which a person decides to keep or discard |
+| `stopped` — the reason and its recovery ("Recovery") | Pushes nothing and stops. Reports the reason, its recovery, and the changes left unpushed or uncommitted, which a person decides to keep or discard |
 
 ## Commit (standalone only)
 

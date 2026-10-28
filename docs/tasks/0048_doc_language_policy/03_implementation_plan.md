@@ -8,7 +8,7 @@
 | Created | 2026-10-28 |
 | Review date | 2026-10-28 |
 | Reviewer | isseis |
-| Comments | 2026-10-29: ステップ 3-4 の記述を、`runpr.md` に `main` を取り込む手順がないことに合わせて直した。衝突の規則は、`runpr.md` の手順 1 に加えた段落から `mktrans.md` の規則を参照する形にした。ステップ 3-1 で、`mktrans.md` の説明（frontmatter の `description`）と CLAUDE.md のコマンドの一覧の `/mktrans` の行も、README の組だけを扱う形に改めた（決定の変更なし。編集上の修正） |
+| Comments | 2026-10-29: ステップ 3-4 の記述を、`runpr.md` に `main` を取り込む手順がないことに合わせて直した。衝突の規則は、`runpr.md` の手順 1 に加えた段落から `mktrans.md` の規則を参照する形にした。ステップ 3-1 で、`mktrans.md` の説明（frontmatter の `description`）と CLAUDE.md のコマンドの一覧の `/mktrans` の行も、README の組だけを扱う形に改めた。止まったときに `/mktrans` が書きかけた `README.en.md` を戻す手段を、呼び出し元の `git restore` から、`/mktrans` が書く前に取った写しで自分で戻す形にした（設計書 4.3 も合わせた。呼び出し元の作業ツリーの `README.en.md` の変更を消さないため）（決定の変更なし。編集上の修正） |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の項番、「設計書 3.6」などは設計書の節を指す。既存のコードと文書についての記述は、コミット `c76eec26`（本書の作成時の `main`）で確かめた。`file:line` は、特に断らない限り、このコミットの行番号を指す。
 
@@ -261,7 +261,7 @@ AGENTS.md の変更（リンクのパス）は、ステップ 1-3 の置換に�
 
 -   [x] 手順 1 の単独の変更の PR を作る項で、ローカルのレビューの後、push の前に同期の手順を加える。チェックアウトしていないブランチで `README.md` の変更があれば止まると書く（設計書 4.3 の `/runpr` の項）。
 -   [x] 手順 4 のマージの質問の前に、印の検査を加える（設計書 2.4。検査だけで反映しない。`README.en.md` がなければ検査しない）。
--   [x] `runpr.md` には `main` を取り込む手順がないので、手順 1 に、`main` を取り込むときに従う段落（「Taking in `main`」）を加え、`README.en.md` の衝突の規則（設計書 4.3）を `mktrans.md` の同名の段落に書いて参照する、`README.en.md` の衝突の規則（設計書 4.3）を加える。
+-   [x] `runpr.md` には `main` を取り込む手順がないので、手順 1 に、`main` を取り込むときに従う段落（「Taking in `main`」）を加え、`README.en.md` の衝突の規則（設計書 4.3）を `mktrans.md` の同名の段落に書いて参照する。
 -   [x] 手順の見出し（`fixpr_docs_test.go:38-40`・`codex_review_docs_test.go:83` の定数）は変えない。
 
 **完了の条件:** `make test` が通る。
