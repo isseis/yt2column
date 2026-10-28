@@ -253,9 +253,9 @@
 
 ステップ 4-1・4-2 と同じ PR に入れる（1.3）。このステップだけでは、`startPopup` が新しい骨格の要素を探さないので、`test/launch.test.ts::startPopup` の出荷する `popup.html` を読むテストが失敗する。ステップ 4-1 だけでも、呼び出しの形が変わるので `test/launch.test.ts` が失敗する。そのため、ステップ 3-4・4-1・4-2 を 1 つのコミットにし、どのコミットでも `make ext-check` が通る状態を保つ。
 
--   [ ] `popup.html` の `<body>` を、設計書 3.4 の表の骨格に置き換える（5 つの入れ物を表の順に置き、どれも `hidden`、主ボタンは `disabled`、状態の領域は `role="status"`、拒否のカードは `aria-labelledby="rejection-text"`）。`lang="en"`・`style.css`・`popup.js` の読み込みは変えない。
--   [ ] `test/helpers/dom.ts` の骨格の補助を、出荷する `popup.html` を読む形に変える。
--   [ ] `test/popupHtml.test.ts` に、出荷する `popup.html` の骨格が設計書 3.4 の表のとおりであること（要素・`id`・順序・`hidden`・`disabled`・`role="status"` の位置が主ボタンの後で操作のセクションの中であること・`aria-labelledby`）と、押せる要素が主ボタン（`<button>`）と詳細の `<summary>` の 2 つだけで、どの要素も `tabindex` を持たないことを確かめるテストを書く（AC-05・AC-20・AC-36・AC-39 の構造）。
+-   [x] `popup.html` の `<body>` を、設計書 3.4 の表の骨格に置き換える（5 つの入れ物を表の順に置き、どれも `hidden`、主ボタンは `disabled`、状態の領域は `role="status"`、拒否のカードは `aria-labelledby="rejection-text"`）。`lang="en"`・`style.css`・`popup.js` の読み込みは変えない。
+-   [x] `test/helpers/dom.ts` の骨格の補助を、出荷する `popup.html` を読む形に変える。
+-   [x] `test/popupHtml.test.ts` に、出荷する `popup.html` の骨格が設計書 3.4 の表のとおりであること（要素・`id`・順序・`hidden`・`disabled`・`role="status"` の位置が主ボタンの後で操作のセクションの中であること・`aria-labelledby`）と、押せる要素が主ボタン（`<button>`）と詳細の `<summary>` の 2 つだけで、どの要素も `tabindex` を持たないことを確かめるテストを書く（AC-05・AC-20・AC-36・AC-39 の構造）。
 
 **完了の条件:** ステップ 4-1・4-2 と一緒に、`make ext-check` が通る。
 
@@ -265,10 +265,10 @@
 
 **変更するファイル:** `src/launch.ts`、`src/popup.ts`
 
--   [ ] `runPopupLaunch` を、DOM に触れず `PopupView` を返す形にする。`runPopupSend` を、`ActionControls` と `PopupView` を受け取り、`collected` で選択範囲の理由が `sendable` のときだけ主ボタンの `disabled` を外して押されたときの処理を付ける形にする。`startPopup` は、骨格の要素を探し、1 つでも欠けたら何も描かずに終わる形にする。主ボタンは `HTMLButtonElement`、詳細は `HTMLDetailsElement` であることを `doc.defaultView` のコンストラクタで確かめて型を絞り、違う種類の要素は欠けたものとして扱う（型の断定は使わない）。要素がそろったら `renderPopup` を呼び、その後に `runPopupSend` を呼ぶ（設計書 3.3・4.2・6.1）。`PopupLaunchResult` をなくす。
--   [ ] 主ボタンを押したときの処理（1 回だけ送る、すぐに `disabled` にする、状態の領域に送信中の案内と結果を描く）と、すべてのログのラベルと内容は今と同じにする（設計書 3.3、4.3）。経路の処理はフォーカスを動かさない（設計書 3.4）。
--   [ ] 大きすぎるときのログ（`yt2column blocked`）は `runPopupLaunch` で書く（設計書 3.3）。
--   [ ] `src/popup.ts` の先頭のコメントと、`src/launch.ts` の関数の説明を、新しい骨格と順序に合わせる。
+-   [x] `runPopupLaunch` を、DOM に触れず `PopupView` を返す形にする。`runPopupSend` を、`ActionControls` と `PopupView` を受け取り、`collected` で選択範囲の理由が `sendable` のときだけ主ボタンの `disabled` を外して押されたときの処理を付ける形にする。`startPopup` は、骨格の要素を探し、1 つでも欠けたら何も描かずに終わる形にする。主ボタンは `HTMLButtonElement`、詳細は `HTMLDetailsElement` であることを `doc.defaultView` のコンストラクタで確かめて型を絞り、違う種類の要素は欠けたものとして扱う（型の断定は使わない）。要素がそろったら `renderPopup` を呼び、その後に `runPopupSend` を呼ぶ（設計書 3.3・4.2・6.1）。`PopupLaunchResult` をなくす。
+-   [x] 主ボタンを押したときの処理（1 回だけ送る、すぐに `disabled` にする、状態の領域に送信中の案内と結果を描く）と、すべてのログのラベルと内容は今と同じにする（設計書 3.3、4.3）。経路の処理はフォーカスを動かさない（設計書 3.4）。
+-   [x] 大きすぎるときのログ（`yt2column blocked`）は `runPopupLaunch` で書く（設計書 3.3）。
+-   [x] `src/popup.ts` の先頭のコメントと、`src/launch.ts` の関数の説明を、新しい骨格と順序に合わせる。
 
 **完了の条件:** ステップ 4-2 と一緒に `make ext-check` が通る。
 
@@ -278,15 +278,15 @@
 
 設計書 3.9 の表の `test/launch.test.ts` の行と、3.10 の行に従って書き換える。
 
--   [ ] `runPopupLaunch` の呼び出しを、container を渡さず `PopupView` を受け取る形にし、`runPopupSend` の呼び出しを、骨格の補助の `ActionControls` と `PopupView` を渡す形にする。ボタンの探し方（`.send-button`）を、骨格の主ボタン（`#primary`）に変える。
--   [ ] 動画メタデータの読み取りを止めておき、その間は骨格がすべて `hidden` で主ボタンが `disabled` であること、読み取りを進めた後にまとめて表示され、見出しがタブのタイトルを経ずに動画タイトルであることを確かめるテストを加える（AC-05）。
--   [ ] 送信の前後で、動画のセクション・確認のセクション・詳細の内容が変わらないことを確かめるテストを加える（AC-21）。状態の領域が描いた後に送信中の案内と結果を持つこと（AC-20・AC-39）も確かめる。
--   [ ] 大きすぎるときに主ボタンが押せず送らないこと（AC-11）、折りたたまれているときと概要欄を送らないときも主ボタンが押せて送ること（AC-13・AC-14）を確かめる。今の `:553-575` は、AC-13 の確認として新しい画面に合わせて残す。
--   [ ] `:647-671`（表示を切り詰めても全文を送る）は、題名と前提の説明を、概要欄の文章を表示しないこと（AC-15）に合わせて直し、本文に全文が入ることの確認として残す。
--   [ ] `:673-690`（拒否のときに何も描かない）を、拒否のカードと押せない主ボタンを出し、送らないことの確認に変える（AC-22）。
--   [ ] `display` の describe（`:928-958`）と `startPopup` の describe（`:960-1122`）の、`#summary`・`#send`・`summaryLabels`・`sendButton` を使う確認を、新しい骨格と文言に変える。骨格の要素が 1 つでも欠けたら何も描かないこと（`:1093-1122` の置き換え）は、5 つの入れ物と主ボタンと状態の領域のそれぞれを欠かした文書で確かめる（設計書 4.2）。
--   [ ] 動画タイトルが取れないとき（ページにない・読み取りの失敗）も、主ボタンが押せて送ることを確かめる（AC-03）。
--   [ ] 拒否のときに動画メタデータを読まないこと（`:327` の describe）は、返った画面の内容が `rejected` で、動画メタデータの読み取りの呼び出しが 0 回であることを確かめる形に変える（`:341` の `emptyMetadataResult` との比較は、画面の内容が動画メタデータを持たないのでなくす）（AC-24）。本文が今と同じであること（`:252`・`:647`）と、ログが今と同じであること（`logs by locale`・`video metadata log`・`send log`）は、呼び出しの形だけを変え、期待する値は変えない（AC-19。期待する値を変えていないことはステップ 4-4 の差分の確認と PR-3 のレビューで確かめる）。
+-   [x] `runPopupLaunch` の呼び出しを、container を渡さず `PopupView` を受け取る形にし、`runPopupSend` の呼び出しを、骨格の補助の `ActionControls` と `PopupView` を渡す形にする。ボタンの探し方（`.send-button`）を、骨格の主ボタン（`#primary`）に変える。
+-   [x] 動画メタデータの読み取りを止めておき、その間は骨格がすべて `hidden` で主ボタンが `disabled` であること、読み取りを進めた後にまとめて表示され、見出しがタブのタイトルを経ずに動画タイトルであることを確かめるテストを加える（AC-05）。
+-   [x] 送信の前後で、動画のセクション・確認のセクション・詳細の内容が変わらないことを確かめるテストを加える（AC-21）。状態の領域が描いた後に送信中の案内と結果を持つこと（AC-20・AC-39）も確かめる。
+-   [x] 大きすぎるときに主ボタンが押せず送らないこと（AC-11）、折りたたまれているときと概要欄を送らないときも主ボタンが押せて送ること（AC-13・AC-14）を確かめる。今の `:553-575` は、AC-13 の確認として新しい画面に合わせて残す。
+-   [x] `:647-671`（表示を切り詰めても全文を送る）は、題名と前提の説明を、概要欄の文章を表示しないこと（AC-15）に合わせて直し、本文に全文が入ることの確認として残す。
+-   [x] `:673-690`（拒否のときに何も描かない）を、拒否のカードと押せない主ボタンを出し、送らないことの確認に変える（AC-22）。
+-   [x] `display` の describe（`:928-958`）と `startPopup` の describe（`:960-1122`）の、`#summary`・`#send`・`summaryLabels`・`sendButton` を使う確認を、新しい骨格と文言に変える。骨格の要素が 1 つでも欠けたら何も描かないこと（`:1093-1122` の置き換え）は、5 つの入れ物と主ボタンと状態の領域のそれぞれを欠かした文書で確かめる（設計書 4.2）。
+-   [x] 動画タイトルが取れないとき（ページにない・読み取りの失敗）も、主ボタンが押せて送ることを確かめる（AC-03）。
+-   [x] 拒否のときに動画メタデータを読まないこと（`:327` の describe）は、返った画面の内容が `rejected` で、動画メタデータの読み取りの呼び出しが 0 回であることを確かめる形に変える（`:341` の `emptyMetadataResult` との比較は、画面の内容が動画メタデータを持たないのでなくす）（AC-24）。本文が今と同じであること（`:252`・`:647`）と、ログが今と同じであること（`logs by locale`・`video metadata log`・`send log`）は、呼び出しの形だけを変え、期待する値は変えない（AC-19。期待する値を変えていないことはステップ 4-4 の差分の確認と PR-3 のレビューで確かめる）。
 
 **完了の条件:** ステップ 3-4・4-1 と一緒に `make ext-check` が通る。`runPopupSend` が `blocked` のときにも `disabled` を外すように壊し、AC-11 のテストが失敗することを確かめる。`startPopup` が `runPopupLaunch` を待つ前に `#video` の `hidden` か `#primary` の `disabled` を外すように壊し、AC-05 のテストが失敗することを確かめる。
 
@@ -294,14 +294,14 @@
 
 **変更するファイル:** `src/core/summary.ts`、`src/core/types.ts`、`src/core/i18n/catalog.ts`、`src/core/i18n/en.ts`、`src/core/i18n/ja.ts`、`src/ui/render.ts`、`static/style.css`、`test/summary.test.ts`、`test/render.test.ts`、`test/renderMetadata.test.ts`、`test/catalog.test.ts`、`test/helpers/dom.ts`
 
--   [ ] `summarize` と、`summary.ts` の `titleLimit`・`urlLimit`・`previewLimit` をなくす。
--   [ ] `types.ts` の `SummaryField`・`OutcomeSummary` をなくす。
--   [ ] `render.ts` の `renderSummary`・`renderMetadata`・`field`・`summaryStyles`・`collectedNodes`・`rejectedNodes`・`metadataRows` と、それだけが使う型と import（`MetadataField`・`MetadataResult`・`OutcomeSummary`・`SummaryField`）をなくす。
--   [ ] `Catalog` の `summaryLabels`・`metadataLabels`・`sendButton` と、`en.ts`・`ja.ts` のその値、`catalog.ts` の `MetadataField`・`SummaryField` の import をなくす。
--   [ ] `style.css` の古い `.summary-*`・`.metadata-*` の規則をなくす。
--   [ ] `test/catalog.test.ts:14` のコメントの例（`summaryLabels.url`）を、残る項目の例に変える。
--   [ ] `test/summary.test.ts::summarize` の describe、`test/render.test.ts::renderSummary` の describe、`test/renderMetadata.test.ts`（ファイル全体）、`test/helpers/dom.ts` の `valueElement`・`valueOf` をなくす。
--   [ ] 1.4 の表の部品の名前を `rg` で探し、`src/`・`test/`・`static/` に残りがないことを確かめる（8 章の横断の確認）。
+-   [x] `summarize` と、`summary.ts` の `titleLimit`・`urlLimit`・`previewLimit` をなくす。
+-   [x] `types.ts` の `SummaryField`・`OutcomeSummary` をなくす。
+-   [x] `render.ts` の `renderSummary`・`renderMetadata`・`field`・`summaryStyles`・`collectedNodes`・`rejectedNodes`・`metadataRows` と、それだけが使う型と import（`MetadataField`・`MetadataResult`・`OutcomeSummary`・`SummaryField`）をなくす。
+-   [x] `Catalog` の `summaryLabels`・`metadataLabels`・`sendButton` と、`en.ts`・`ja.ts` のその値、`catalog.ts` の `MetadataField`・`SummaryField` の import をなくす。
+-   [x] `style.css` の古い `.summary-*`・`.metadata-*` の規則をなくす。
+-   [x] `test/catalog.test.ts:14` のコメントの例（`summaryLabels.url`）を、残る項目の例に変える。PR-1 のステップ 2-1 で、例はすでに `details.summary` に変わっていた。
+-   [x] `test/summary.test.ts::summarize` の describe、`test/render.test.ts::renderSummary` の describe、`test/renderMetadata.test.ts`（ファイル全体）、`test/helpers/dom.ts` の `valueElement`・`valueOf` をなくす。
+-   [x] 1.4 の表の部品の名前を `rg` で探し、`src/`・`test/`・`static/` に残りがないことを確かめる（8 章の横断の確認）。
 
 **完了の条件:** `make ext-check` が通る。消したテストについて、1.2 の比較で、消した関数を除く `src/` の各関数の実行回数が 0 にならない。
 
@@ -309,7 +309,7 @@
 
 **変更するファイル:** 本書
 
--   [ ] PR-3 のブランチで `docs/tasks/0046_popup_redesign/_checks/unchanged_values.ts` を実行し、終了コードと出力を、merge-base と確かめたコミットの ID と一緒に 7 章に記録する（記録のコミットは本書だけを変える）。
+-   [x] PR-3 のブランチで `docs/tasks/0046_popup_redesign/_checks/unchanged_values.ts` を実行し、終了コードと出力を、merge-base と確かめたコミットの ID と一緒に 7 章に記録する（記録のコミットは本書だけを変える）。
 
 **完了の条件:** スクリプトが終了コード 0 で終わる。
 
@@ -325,10 +325,10 @@
 
 **判定理由**: ステップ 4-1 が、送信の状態の遷移（設計書 6.2）と、主ボタンを押せるようにする fail secure の判断を、新しい非同期の順序の後ろへ移す。`mkplan2.md` の「isolated high-risk/complex step（state machines）」に当たる。ステップ 4-1 は骨格（3-4）と呼び出しの形を変えるテスト（4-2）と同じコミットでしか通らないので、PR の中で切り離せない。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/556
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 5: 文書と手動の確認
 
@@ -467,7 +467,7 @@ AC-11・AC-20・AC-23 の文言、AC-19 のリクエストの本文、AC-35 の 
 
 -   [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 2-1 / 2-2）
 -   [x] PR-2 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3）
--   [ ] PR-3 マージ済み（対象ステップ: 3-4 / 4-1 / 4-2 / 4-3 / 4-4）
+-   [x] PR-3 マージ済み（対象ステップ: 3-4 / 4-1 / 4-2 / 4-3 / 4-4）
 -   [ ] PR-4 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
@@ -530,14 +530,23 @@ AC-36 のキーボードでの操作と AC-40 の色覚の模擬は、テスト�
     PASS: extension/static/manifest.json is identical (sha256 47091ca6796f153ed03ffbbb55573067a88da30bbae1ea20186407b2e2bed8d5)
     ```
 
+- PR-3（2026-10-28）: リポジトリのルートで `node docs/tasks/0046_popup_redesign/_checks/unchanged_values.ts` を実行し、終了コード 0。merge-base は `5489cf952c5a27acc52da462d8a46e24ef3022d0`、確かめたコミットは `f10554557d0886b77beaf1d5ee53aeec2d960ff4`（記録のコミットは本書だけを変える。ステップ 4-4）。出力は次の 4 行である。
+
+    ```
+    merge-base 5489cf952c5a27acc52da462d8a46e24ef3022d0
+    head       f10554557d0886b77beaf1d5ee53aeec2d960ff4
+    PASS: the unchanged catalog items and the built bodies are identical
+    PASS: extension/static/manifest.json is identical (sha256 47091ca6796f153ed03ffbbb55573067a88da30bbae1ea20186407b2e2bed8d5)
+    ```
+
 **手動の確認の記録:** （ステップ 5-4 で記録する）
 
 ## 8. 横断の確認 (Cross-Search Checklist)
 
 `make lint`・`make ext-check` では見つからない残りを、ステップ 4-3 で確かめる。
 
--   [ ] 1.4 の表の部品の名前（`summarize`・`OutcomeSummary`・`SummaryField`・`renderSummary`・`renderMetadata`・`summaryLabels`・`metadataLabels`・`sendButton`・`PopupLaunchResult`・`valueOf`・`valueElement`）と、フェーズ 1 でなくす名前（`BlockReason`・`blockMessage`・`renderBlockReason`）が、`extension/src`・`extension/test`・`extension/static` のコードとコメントに残っていない。
--   [ ] 古い class の名前（`summary-field`・`summary-label`・`summary-value`・`summary-title`・`summary-url`・`summary-preview`・`summary-message`・`summary-steps`・`metadata-title`・`metadata-channel`・`metadata-description`・`send-button`・`send-message`）と、古い入れ物の `id`（`summary`・`send`）が、`extension/src`・`extension/test`・`extension/static` に残っていない。
+-   [x] 1.4 の表の部品の名前（`summarize`・`OutcomeSummary`・`SummaryField`・`renderSummary`・`renderMetadata`・`summaryLabels`・`metadataLabels`・`sendButton`・`PopupLaunchResult`・`valueOf`・`valueElement`）と、フェーズ 1 でなくす名前（`BlockReason`・`blockMessage`・`renderBlockReason`）が、`extension/src`・`extension/test`・`extension/static` のコードとコメントに残っていない。
+-   [x] 古い class の名前（`summary-field`・`summary-label`・`summary-value`・`summary-title`・`summary-url`・`summary-preview`・`summary-message`・`summary-steps`・`metadata-title`・`metadata-channel`・`metadata-description`・`send-button`・`send-message`）と、古い入れ物の `id`（`summary`・`send`）が、`extension/src`・`extension/test`・`extension/static` に残っていない。
 -   [ ] `src/popup.ts`・`src/launch.ts`・`src/ui/render.ts`・`src/ui/renderSend.ts`・`src/core/sendMessages.ts` の先頭のコメントと関数の説明が、新しい骨格と経路の処理を述べている（PR-3 のレビューで読む）。
 -   [ ] 日本語の文言（`ja.ts` の新しい項目）が、用語集の用語（ステップ 5-2 で加える用語を含む）と一致する（PR-1・PR-4 のレビューで読む）。
 

@@ -11,13 +11,9 @@ import { buildCollectedView } from "../src/core/popupView.ts";
 import type { CollectedView, PopupView } from "../src/core/popupView.ts";
 import { maxBodyBytes, prepareSend } from "../src/core/prepare.ts";
 import { rejectionReasons } from "../src/core/types.ts";
-import type {
-  OutcomeSummary,
-  RejectionReason,
-  SummaryField,
-} from "../src/core/types.ts";
+import type { RejectionReason } from "../src/core/types.ts";
 import { checkIcon } from "../src/ui/icons.ts";
-import { renderPopup, renderSummary } from "../src/ui/render.ts";
+import { renderPopup } from "../src/ui/render.ts";
 import type { PopupElements } from "../src/ui/render.ts";
 import {
   container,
@@ -26,7 +22,6 @@ import {
   expectMessage,
   otherLocales,
   popupElements,
-  valueOf,
 } from "./helpers/dom.ts";
 
 const malicious = "<img src=x onerror=alert(1)>";
@@ -62,149 +57,6 @@ describe("checkIcon", () => {
   }
 });
 
-const collected: Extract<OutcomeSummary, { kind: "collected" }> = {
-  kind: "collected",
-  title: "A video",
-  titleTruncated: false,
-  url: "https://www.youtube.com/watch?v=abc",
-  urlTruncated: false,
-  characterCount: 12,
-  lineCount: 2,
-  preview: "00:00 hello\nworld",
-  previewTruncated: false,
-};
-
-describe("renderSummary", () => {
-  // The English labels stay literal strings: reading them from the catalog
-  // would let a changed English label pass unnoticed.
-  it("shows the title, URL, counts and preview with labels", () => {
-    const root = container();
-    renderSummary(root, collected, "en");
-    assert.equal(valueOf(root, "Title"), collected.title);
-    assert.equal(valueOf(root, "URL"), collected.url);
-    assert.equal(valueOf(root, "Characters"), "12");
-    assert.equal(valueOf(root, "Lines"), "2");
-    assert.equal(valueOf(root, "Preview"), collected.preview);
-    assert.deepEqual(
-      Array.from(
-        root.querySelectorAll(".summary-label"),
-        (node) => node.textContent,
-      ),
-      ["Title", "URL", "Characters", "Lines", "Preview"],
-    );
-  });
-
-  for (const locale of localeList) {
-    const labels = catalogs[locale].summaryLabels;
-
-    it(`shows the values unchanged under the ${locale} labels`, () => {
-      const root = container();
-      renderSummary(root, collected, locale);
-      assert.equal(valueOf(root, labels.title), collected.title);
-      assert.equal(valueOf(root, labels.url), collected.url);
-      assert.equal(valueOf(root, labels.characters), "12");
-      assert.equal(valueOf(root, labels.lines), "2");
-      assert.equal(valueOf(root, labels.preview), collected.preview);
-      // Only the labels whose wording differs between locales can be shown
-      // absent; the absence check asserts that they differ first.
-      const shown = Object.values(labels);
-      for (const other of otherLocales(locale)) {
-        const otherLabels = catalogs[other].summaryLabels;
-        const differing = (Object.keys(labels) as SummaryField[])
-          .filter((name) => otherLabels[name] !== labels[name])
-          .map((name) => otherLabels[name]);
-        assert.ok(differing.length > 0, other);
-        expectAbsent(root, differing, shown);
-      }
-    });
-
-    // en and ja group digits the same way, so this shows the grouping in each
-    // locale but cannot tell which locale reached formatCount.
-    it(`groups the digits of the counts in ${locale}`, () => {
-      const root = container();
-      renderSummary(
-        root,
-        { ...collected, characterCount: 12345, lineCount: 1234 },
-        locale,
-      );
-      assert.equal(valueOf(root, labels.characters), "12,345");
-      assert.equal(valueOf(root, labels.lines), "1,234");
-    });
-
-    it(`marks the title and preview for automatic direction in ${locale}`, () => {
-      const root = container();
-      renderSummary(root, collected, locale);
-      assert.equal(
-        root.querySelector(".summary-title")?.getAttribute("dir"),
-        "auto",
-      );
-      assert.equal(
-        root.querySelector(".summary-preview")?.getAttribute("dir"),
-        "auto",
-      );
-    });
-
-    it(`marks a shortened title or preview with an ellipsis in ${locale}`, () => {
-      const root = container();
-      renderSummary(
-        root,
-        { ...collected, titleTruncated: true, previewTruncated: true },
-        locale,
-      );
-      assert.equal(valueOf(root, labels.title), `${collected.title}\u2026`);
-      assert.equal(valueOf(root, labels.preview), `${collected.preview}\u2026`);
-    });
-
-    it(`displays markup in the title and preview as text, not elements, in ${locale}`, () => {
-      const root = container();
-      renderSummary(
-        root,
-        { ...collected, title: malicious, preview: malicious },
-        locale,
-      );
-      assert.equal(root.querySelector("img"), null);
-      assert.ok(root.textContent?.includes(malicious));
-    });
-
-    it(`shows the ${locale} rejection message and its steps as a numbered list`, () => {
-      const root = container();
-      renderSummary(
-        root,
-        { kind: "rejected", reason: "not-watch-page" },
-        locale,
-      );
-      expectLocaleMessage(root, locale, (l) =>
-        rejectionMessage("not-watch-page", l),
-      );
-      const items = root.querySelectorAll("ol.message-steps > li");
-      assert.equal(
-        items.length,
-        rejectionMessage("not-watch-page", locale).steps.length,
-      );
-    });
-
-    it(`shows no list when the rejection has no steps in ${locale}`, () => {
-      const root = container();
-      renderSummary(root, { kind: "rejected", reason: "empty-title" }, locale);
-      expectLocaleMessage(root, locale, (l) =>
-        rejectionMessage("empty-title", l),
-      );
-      assert.equal(root.querySelector("ol.message-steps"), null);
-    });
-
-    it(`replaces the previous content on each call in ${locale}`, () => {
-      const root = container();
-      renderSummary(root, collected, locale);
-      renderSummary(
-        root,
-        { kind: "rejected", reason: "empty-selection" },
-        locale,
-      );
-      assert.equal(root.querySelectorAll(".summary-field").length, 0);
-    });
-  }
-});
-
 const watchUrl = "https://www.youtube.com/watch?v=abc";
 
 /** A collected input fixture; tests may assert the branded type to build one. */
@@ -235,16 +87,6 @@ function checkRows(elements: PopupElements): HTMLLIElement[] {
   return Array.from(elements.checks.querySelectorAll("li.check-row"));
 }
 
-/** The document position flag meaning "the second node follows the first". */
-const documentPositionFollowing = 4;
-
-/** True when first comes before second in document order. */
-function precedes(first: Node, second: Node): boolean {
-  return (
-    (first.compareDocumentPosition(second) & documentPositionFollowing) !== 0
-  );
-}
-
 /** A check row's parts in document order: the symbol, then each child's class. */
 function rowParts(row: Element): string[] {
   return Array.from(row.children, (child) =>
@@ -273,7 +115,7 @@ describe("renderPopup", () => {
   for (const locale of localeList) {
     const catalog = catalogs[locale];
 
-    it(`shows the collected sections in display order and keeps the details closed in ${locale}`, () => {
+    it(`shows the collected sections, hides the rejection card and keeps the details closed in ${locale}`, () => {
       const elements = popupElements();
       renderPopup(elements, collectedView(), locale);
       assert.equal(elements.rejection.hidden, true);
@@ -285,17 +127,9 @@ describe("renderPopup", () => {
       ]) {
         assert.equal(section.hidden, false);
       }
-      // renderPopup never moves the containers, so these pin the skeleton the
-      // helper stands in for; the step that ships popup.html asserts the same
-      // order on the shipped file.
-      assert.ok(precedes(elements.video, elements.checks));
-      assert.ok(precedes(elements.checks, elements.action));
-      assert.ok(precedes(elements.action, elements.details));
+      // renderPopup never moves the containers, so the shipped skeleton's
+      // order (popupHtml.test.ts) is the order the sections are shown in.
       assert.equal(elements.details.open, false);
-      assert.equal(
-        elements.video.querySelector("h1"),
-        elements.video.firstElementChild,
-      );
     });
 
     it(`draws the video title and the channel name under it in ${locale}`, () => {
@@ -329,8 +163,11 @@ describe("renderPopup", () => {
       assert.equal(elements.video.querySelector("p"), null);
     });
 
-    it(`draws the primary button's name without enabling it in ${locale}`, () => {
+    it(`draws the primary button's name and leaves it disabled even when the skeleton enabled it in ${locale}`, () => {
       const elements = popupElements();
+      // Only the send path may enable the button, so a skeleton that lost its
+      // disabled attribute must not make a drawn popup pressable.
+      elements.primary.disabled = false;
       renderPopup(elements, collectedView(), locale);
       assert.equal(elements.primary.textContent, catalog.primaryButton);
       assert.equal(elements.primary.disabled, true);
@@ -722,6 +559,8 @@ describe("renderPopup", () => {
     it(`shows the rejection card and no other section in ${locale}`, () => {
       for (const reason of Object.keys(rejectionReasons) as RejectionReason[]) {
         const elements = popupElements();
+        // An enabled skeleton, so only renderPopup can leave the button disabled.
+        elements.primary.disabled = false;
         renderPopup(elements, { kind: "rejected", reason }, locale);
         assert.equal(elements.rejection.hidden, false, reason);
         assert.equal(elements.action.hidden, false, reason);

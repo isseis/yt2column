@@ -6,8 +6,14 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <div id="summary"></div>
-    <div id="send"></div>
+    <section id="video" hidden></section>
+    <section id="checks" hidden></section>
+    <section id="rejection" aria-labelledby="rejection-text" hidden></section>
+    <section id="action" hidden>
+      <button id="primary" type="button" disabled></button>
+      <div id="status" role="status"></div>
+    </section>
+    <details id="details" hidden></details>
     <script type="module" src="popup.js"></script>
   </body>
 </html>

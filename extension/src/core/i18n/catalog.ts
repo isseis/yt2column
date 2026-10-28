@@ -1,12 +1,6 @@
-import type { MetadataField } from "../metadata.ts";
 import type { PreflightReason } from "../prepare.ts";
 import type { NotSentCause, ServerRejectReason } from "../response.ts";
-import type {
-  CheckName,
-  CheckState,
-  RejectionReason,
-  SummaryField,
-} from "../types.ts";
+import type { CheckName, CheckState, RejectionReason } from "../types.ts";
 import { en } from "./en.ts";
 import { ja } from "./ja.ts";
 import type { Locale } from "./locale.ts";
@@ -66,11 +60,6 @@ export interface Catalog {
   };
   /** The primary button's name. */
   readonly primaryButton: string;
-  /** Field labels. */
-  readonly summaryLabels: Readonly<Record<SummaryField, string>>;
-  readonly metadataLabels: Readonly<Record<MetadataField, string>>;
-  /** The send button's label. */
-  readonly sendButton: string;
 }
 
 /** The catalog of every locale. */

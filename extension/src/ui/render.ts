@@ -1,14 +1,8 @@
 import { catalogs } from "../core/i18n/catalog.ts";
 import type { Message } from "../core/i18n/catalog.ts";
-import { formatCount } from "../core/i18n/locale.ts";
 import type { Locale } from "../core/i18n/locale.ts";
 import { expandPromptMessage, rejectionMessage } from "../core/messages.ts";
-import type { MetadataField, MetadataResult } from "../core/metadata.ts";
-import {
-  descriptionStates,
-  metadataDisplayLimit,
-  selectionStates,
-} from "../core/popupView.ts";
+import { descriptionStates, selectionStates } from "../core/popupView.ts";
 import type {
   CollectedView,
   DescriptionStatus,
@@ -18,14 +12,8 @@ import type {
   SelectionStatus,
   VideoView,
 } from "../core/popupView.ts";
-import { truncate } from "../core/summary.ts";
 import type { DisplayText } from "../core/summary.ts";
-import type {
-  CheckName,
-  CheckState,
-  OutcomeSummary,
-  SummaryField,
-} from "../core/types.ts";
+import type { CheckName, CheckState } from "../core/types.ts";
 import { checkIcon } from "./icons.ts";
 
 /** Appended to a value that was shortened for display. */
@@ -34,62 +22,6 @@ const ellipsis = "\u2026";
 /** The value shown for a field, marked with an ellipsis when shortened. */
 function displayValue(value: string, truncated: boolean): string {
   return truncated ? `${value}${ellipsis}` : value;
-}
-
-interface FieldStyle {
-  readonly className: string;
-  readonly dirAuto?: boolean;
-}
-
-/** One labelled field; the label and value are set with textContent only. */
-function field(
-  doc: Document,
-  label: string,
-  value: string,
-  style: FieldStyle,
-): HTMLElement {
-  const row = doc.createElement("div");
-  row.className = "summary-field";
-  const labelElement = doc.createElement("span");
-  labelElement.className = "summary-label";
-  labelElement.textContent = label;
-  const valueElement = doc.createElement("span");
-  valueElement.className = `summary-value ${style.className}`;
-  if (style.dirAuto === true) {
-    valueElement.setAttribute("dir", "auto");
-  }
-  valueElement.textContent = value;
-  row.append(labelElement, valueElement);
-  return row;
-}
-
-// A record keyed by every SummaryField, so adding a field fails the type check
-// here until it has a style; the key order is the display order.
-const summaryStyles: Record<SummaryField, FieldStyle> = {
-  title: { className: "summary-title", dirAuto: true },
-  url: { className: "summary-url" },
-  characters: { className: "summary-character-count" },
-  lines: { className: "summary-line-count" },
-  preview: { className: "summary-preview", dirAuto: true },
-};
-
-/** The collected fields, in display order; counts use the locale's number format. */
-function collectedNodes(
-  doc: Document,
-  summary: Extract<OutcomeSummary, { kind: "collected" }>,
-  locale: Locale,
-): HTMLElement[] {
-  const values: Record<SummaryField, string> = {
-    title: displayValue(summary.title, summary.titleTruncated),
-    url: displayValue(summary.url, summary.urlTruncated),
-    characters: formatCount(summary.characterCount, locale),
-    lines: formatCount(summary.lineCount, locale),
-    preview: displayValue(summary.preview, summary.previewTruncated),
-  };
-  const labels = catalogs[locale].summaryLabels;
-  return (Object.keys(summaryStyles) as SummaryField[]).map((name) =>
-    field(doc, labels[name], values[name], summaryStyles[name]),
-  );
 }
 
 /**
@@ -115,86 +47,6 @@ export function messageNodes(
     list.append(item);
   }
   return [text, list];
-}
-
-/** The rejection message and, when present, its numbered steps. */
-function rejectedNodes(
-  doc: Document,
-  summary: Extract<OutcomeSummary, { kind: "rejected" }>,
-  locale: Locale,
-): HTMLElement[] {
-  return messageNodes(doc, rejectionMessage(summary.reason, locale));
-}
-
-/**
- * Replaces the children of container with a text-only rendering of the
- * summary. Every string is set with textContent, so a value read from the
- * page is displayed as text and never parsed as HTML.
- */
-export function renderSummary(
-  container: HTMLElement,
-  summary: OutcomeSummary,
-  locale: Locale,
-): void {
-  const doc = container.ownerDocument;
-  const nodes =
-    summary.kind === "collected"
-      ? collectedNodes(doc, summary, locale)
-      : rejectedNodes(doc, summary, locale);
-  container.replaceChildren(...nodes);
-}
-
-/** One metadata row's value-element class; its label is in the catalog. */
-interface MetadataRow {
-  readonly className: string;
-}
-
-// A record keyed by every MetadataField, so adding a field fails the type check
-// here until it has a row; the key order is the display order.
-const metadataRows: Record<MetadataField, MetadataRow> = {
-  title: { className: "metadata-title" },
-  channelName: { className: "metadata-channel" },
-  description: { className: "metadata-description" },
-};
-
-/**
- * Appends the video metadata fields -- and the expand prompt when the
- * description is collapsed -- below whatever the container already holds.
- * renderSummary replaces the container's children, so this is called after it.
- * Values are set with textContent only and are truncated for display alone;
- * the values sent to the server are never truncated.
- */
-export function renderMetadata(
-  container: HTMLElement,
-  result: MetadataResult,
-  locale: Locale,
-): void {
-  const doc = container.ownerDocument;
-  const labels = catalogs[locale].metadataLabels;
-  const nodes: HTMLElement[] = [];
-  for (const name of Object.keys(metadataRows) as MetadataField[]) {
-    const value = result.values[name];
-    if (value === undefined) {
-      continue;
-    }
-    const row = metadataRows[name];
-    const shortened = truncate(value, metadataDisplayLimit);
-    nodes.push(
-      field(
-        doc,
-        labels[name],
-        displayValue(shortened.value, shortened.truncated),
-        {
-          className: row.className,
-          dirAuto: true,
-        },
-      ),
-    );
-  }
-  if (result.showExpandPrompt) {
-    nodes.push(...messageNodes(doc, expandPromptMessage(locale)));
-  }
-  container.append(...nodes);
 }
 
 /** The primary button and the status region; all the send path touches. */
@@ -433,10 +285,10 @@ function renderDetailsSection(
 /**
  * Draws the popup view into the skeleton. It replaces each container's
  * children, so drawing twice adds nothing, and shows the view's sections while
- * hiding the others; a rejected view also disables the primary button. Every string is set with textContent, so a value read
- * from the page stays text. It never opens the details and never removes the
- * primary button's disabled attribute: the send path does that, and only for a
- * sendable selection.
+ * hiding the others. Every string is set with textContent, so a value read
+ * from the page stays text. It never opens the details. It always leaves the
+ * primary button disabled, whatever the skeleton says: only the send path
+ * enables it, and only for a sendable selection.
  */
 export function renderPopup(
   elements: PopupElements,
@@ -451,9 +303,7 @@ export function renderPopup(
   elements.rejection.hidden = collected;
   elements.action.hidden = false;
   elements.primary.textContent = catalogs[locale].primaryButton;
-  if (!collected) {
-    elements.primary.disabled = true;
-  }
+  elements.primary.disabled = true;
   if (view.kind === "collected") {
     elements.rejection.replaceChildren();
     renderVideoSection(doc, elements.video, view.video);

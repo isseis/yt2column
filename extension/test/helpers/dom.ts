@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
 import { JSDOM } from "jsdom";
 
 import type { Message } from "../../src/core/i18n/catalog.ts";
 import { locales } from "../../src/core/i18n/locale.ts";
 import type { Locale } from "../../src/core/i18n/locale.ts";
 import type { PopupElements } from "../../src/ui/render.ts";
+import { extensionDir } from "./paths.ts";
 
 /** A fresh container element in its own document. */
 export function container(): HTMLElement {
@@ -15,40 +19,40 @@ export function container(): HTMLElement {
 }
 
 /** The one element with id in doc, asserting it exists. */
-function byId<T extends HTMLElement = HTMLElement>(
-  doc: Document,
-  id: string,
-): T {
+function byId(doc: Document, id: string): HTMLElement {
   const element = doc.getElementById(id);
   assert.ok(element !== null, id);
-  return element as T;
+  return element;
+}
+
+/** A fresh document parsed from the shipped static/popup.html. */
+export function popupDocument(): Document {
+  const html = readFileSync(
+    path.join(extensionDir, "static", "popup.html"),
+    "utf8",
+  );
+  return new JSDOM(html).window.document;
 }
 
 /**
- * The popup's skeleton in a fresh document: five containers, all hidden, the
- * primary button disabled, and the status region inside the action section
- * after the button. The markup is written here until the step that ships
- * popup.html makes this helper read that file; both must keep this shape.
+ * The popup's skeleton elements in doc, by default a fresh copy of the shipped
+ * popup.html: five containers, all hidden, the primary button disabled, and
+ * the status region inside the action section after the button.
  */
-export function popupElements(): PopupElements {
-  const dom = new JSDOM(`<!DOCTYPE html><html lang="en"><body>
-    <section id="video" hidden></section>
-    <section id="checks" hidden></section>
-    <section id="rejection" aria-labelledby="rejection-text" hidden></section>
-    <section id="action" hidden>
-      <button id="primary" type="button" disabled></button>
-      <div id="status" role="status"></div>
-    </section>
-    <details id="details" hidden></details>
-  </body></html>`);
-  const doc = dom.window.document;
+export function popupElements(doc = popupDocument()): PopupElements {
+  const win = doc.defaultView;
+  assert.ok(win !== null);
+  const primary = byId(doc, "primary");
+  assert.ok(primary instanceof win.HTMLButtonElement, "primary");
+  const details = byId(doc, "details");
+  assert.ok(details instanceof win.HTMLDetailsElement, "details");
   return {
     video: byId(doc, "video"),
     checks: byId(doc, "checks"),
     rejection: byId(doc, "rejection"),
-    details: byId<HTMLDetailsElement>(doc, "details"),
+    details,
     action: byId(doc, "action"),
-    primary: byId<HTMLButtonElement>(doc, "primary"),
+    primary,
     status: byId(doc, "status"),
   };
 }
@@ -61,24 +65,6 @@ export function query<T extends Element>(
   const element = root.querySelector(selector);
   assert.ok(element !== null, selector);
   return element as T;
-}
-
-/** The value element of the summary field labelled label, if any. */
-export function valueElement(
-  root: HTMLElement,
-  label: string,
-): HTMLElement | undefined {
-  for (const field of root.querySelectorAll(".summary-field")) {
-    if (field.querySelector(".summary-label")?.textContent === label) {
-      return field.querySelector<HTMLElement>(".summary-value") ?? undefined;
-    }
-  }
-  return undefined;
-}
-
-/** The displayed value of the summary field labelled label, if any. */
-export function valueOf(root: HTMLElement, label: string): string | undefined {
-  return valueElement(root, label)?.textContent ?? undefined;
 }
 
 /** Asserts the container's text shows the message and each of its steps. */
