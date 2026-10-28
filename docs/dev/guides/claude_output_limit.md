@@ -1,110 +1,64 @@
-# Re-measuring the Claude output limit
+# Claude の出力の上限の測り直し
 
-When a request leaves the output limit to the provider (`MaxOutputTokens` 0),
-the Claude adapter sends its own default `max_tokens`, the constant
-`defaultMaxOutputTokens` in `internal/llm/claude/request.go`. All three writer
-steps (generation, shorten, review) use that default. The value rests on
-measured output sizes and output rates, so it can go stale when what produces
-the output changes. This guide says when to measure again, how, and what to
-update. It copies neither the value nor the measurements: they live in the code
-and in the record named under "Current record".
+リクエストが出力の上限をプロバイダに任せるとき（`MaxOutputTokens` が 0）、Claude のアダプタは自身の既定の `max_tokens`、すなわち `internal/llm/claude/request.go` の定数 `defaultMaxOutputTokens` を送る。記事を書く 3 つの工程（生成、字数の調整、検証・推敲）は、どれもこの既定値を使う。値は、測定した出力の大きさと出力の速さに基づくので、出力を生み出す構成が変われば古くなりうる。本書では、いつ測り直すか、どう測るか、何を更新するかを説明する。値も測定値も本書には転記しない。それらはコードと、「現在の記録」で挙げる記録にある。
 
-## When to re-measure
+## 測り直すとき
 
-Re-measure when any of the three steps of the production configuration changes:
+本番の構成の 3 つの工程のいずれかで、次のどれかが変わったときに測り直す。
 
-- its template;
-- its effort, including a change to `defaultClaudeEffort` in
-  `internal/config/config.go`;
-- its model.
+- テンプレート。
+- effort（`internal/config/config.go` の `defaultClaudeEffort` の変更を含む）。
+- モデル。
 
-## Cost and approval
+## 費用と承認
 
-Measuring calls the real Anthropic API and is billed. Get a person's approval
-before running it (`CLAUDE.md`, "Tool Execution Safety"). For how to run an
-evaluation set of videos, follow
-`docs/tasks/0008_column_prompt/02_evaluation.md` §2.3 and
-`docs/tasks/0018_article_quality/02_evaluation.md` §3.
+測定は実際の Anthropic API を呼び、課金される。実行の前に人間の承認を得る（`CLAUDE.md` の "Tool Execution Safety"）。評価用の動画の組を実行する方法は、`docs/tasks/0008_column_prompt/02_evaluation.md` §2.3 と `docs/tasks/0018_article_quality/02_evaluation.md` §3 に従う。
 
-## How to measure
+## 測り方
 
-The rate is computed per LLM call, so each CLI run must call the LLM exactly
-once. Run each step separately and reuse the earlier step's saved output with
-`--after`. Give every run `--artifacts <dir>` (an existing directory outside
-the cache directory), `--keep-cache`, and `--out` with a fresh path:
+速さは LLM の呼び出しごとに求めるので、CLI の実行はそれぞれ LLM をちょうど 1 回呼ばなければならない。各工程を別々に実行し、前の工程が保存した出力を `--after` で再利用する。どの実行にも、`--artifacts <dir>`（キャッシュのディレクトリの外にある既存のディレクトリ）と `--keep-cache` を付け、`--out` には新しいパスを渡す。
 
-- `--keep-cache` keeps the video's cache after a successful run. Without it,
-  the next run fetches the transcript again, which adds network time to the
-  measured time, and a changed transcript makes the resume fail.
-- `--out` writes the article to a file, so a measurement never posts to the
-  Webhook.
-- Runs that share a cache directory run one at a time.
+- `--keep-cache` は、成功した実行の後も動画のキャッシュを残す。付けないと、次の実行が文字起こしを取得し直し、測った時間にネットワークの時間が加わる。さらに、取得し直した文字起こしが前と違うと、再開（`--after` による再利用）が失敗する。
+- `--out` は記事をファイルに書くので、測定の実行で Webhook に投稿されることはない。
+- 同じキャッシュのディレクトリを共有する実行は、1 つずつ行う。
 
-The steps:
+工程は次のとおり。
 
-1. Generation: `--no-review --no-shorten`.
-2. Shorten: `--after generation --no-review`. The shorten step runs only when
-   the generated body is over the length limit, so a run whose body is within
-   it calls no LLM and gives no shorten measurement.
-3. Review, after a run whose shorten step ran: `--after shorten`.
-4. Review, after a run whose shorten step did not run: `--after generation
-   --no-shorten`. `--after shorten` cannot be used there, because no shorten
-   artifact was saved and loading it fails. This form skips the shorten step
-   and the final length check, so use it only when the shorten step did not
-   run.
+1. 生成: `--no-review --no-shorten`。
+2. 字数の調整: `--after generation --no-review`。字数の調整の工程は、生成した本文が長さの上限を超えたときだけ走る。そのため、本文が上限に収まった実行は LLM を呼ばず、字数の調整の測定値が得られない。
+3. 検証・推敲（字数の調整の工程が走った実行の後）: `--after shorten`。
+4. 検証・推敲（字数の調整の工程が走らなかった実行の後）: `--after generation --no-shorten`。ここでは `--after shorten` を使えない。字数の調整の工程の出力が保存されておらず、読み込みが失敗するためである。この形は字数の調整の工程と最後の長さの検査を飛ばすので、字数の調整の工程が走らなかったときだけ使う。
 
-## What to collect
+## 集めるもの
 
-For each run:
+各実行について次を集める。
 
-- the output token count of the step: `output=` on the
-  `tokens: <stage> run` line of the step that called the LLM (README, "Token
-  usage"; a resumed run also writes `reused` lines for the earlier stages), or
-  `usage.output` in the step's saved file under the `--artifacts` directory;
-- the wall-clock time of the CLI invocation, for example with `time`, as the
-  recorded measurements were taken;
-- whether the run was truncated: the CLI reports an error that wraps
-  `llm.ErrTruncated` ("generation truncated by the output token limit").
+- その工程の出力のトークン数。LLM を呼んだ工程の `tokens: <stage> run` の行にある `output=`（README の "Token usage" を参照。再開した実行は、前の工程の `reused` の行も書く）か、`--artifacts` のディレクトリに保存されたその工程のファイルの `usage.output` から読み取る。
+- CLI の呼び出しの実時間。記録されている測定と同じ方法で、例えば `time` で測る。
+- 実行が打ち切られたかどうか。CLI は `llm.ErrTruncated` をラップしたエラー（"generation truncated by the output token limit"）を報告する。
 
-## How to judge
+## 判定の仕方
 
-Check the value against the three conditions of
-`docs/tasks/0041_claude_effort_max_tokens/01_requirements.md` F-002:
+値を、`docs/tasks/0041_claude_effort_max_tokens/01_requirements.md` の F-002 の 3 つの条件と照らす。
 
-- (a) The value is at least twice the largest observed output.
-- (b) Compute each run's rate as its output tokens divided by its wall-clock
-  time. The time includes work besides the LLM call, so the rate comes out
-  lower than the real one, which errs on the safe side. Producing the value at
-  the slowest rate must take at most half of `provider.LLMTimeout`.
-- (c) For each model F-002 (c) names (today `claude-opus-5-5` and
-  `claude-sonnet-5-5`), the model accepts the value as `max_tokens` in a
-  non-streaming request: it is at most the model's
-  maximum output in the Anthropic documentation, or an existing observation
-  shows the model accepting it.
+- (a) 値が、観測した最大の出力の 2 倍以上である。
+- (b) 最も遅い速さでその値のトークン数を生成するのに要する時間が、`provider.LLMTimeout` の半分以下である。速さは、各実行の出力のトークン数を実時間で割って求める。実時間には LLM の呼び出し以外の処理も含まれるので、求めた速さは実際より低く出るが、これは安全側の誤差である。
+- (c) F-002 の (c) が挙げる各モデル（現時点では `claude-opus-5-5` と `claude-sonnet-5-5`）が、値を非ストリーミングのリクエストの `max_tokens` として受け付ける。具体的には、値が Anthropic の文書に載るそのモデルの最大出力トークン数以下であるか、そのモデルが値を受け付けることを既存の観測が示している。
 
-A truncated run's output is known only to be at least the limit it was sent;
-record it as such.
+打ち切られた実行の出力は、送った上限以上であることしか分からない。その旨を記録する。
 
-When no value meets both (a) and (b), do not pick one: changing the call
-itself (streaming, or `provider.LLMTimeout`) is a decision of its own, so raise
-it as a new task.
+(a) と (b) の両方を満たす値がないときは、無理に値を選ばない。呼び出しそのものの変更（ストリーミング、または `provider.LLMTimeout`）は、それだけで独立した決定になるので、新しいタスクとして提起する。
 
-## What to update
+## 更新するもの
 
-When the value no longer meets the conditions, update in one change:
+値が条件を満たさなくなったときは、同じ変更の中で次をまとめて更新する。
 
-1. the constant `defaultMaxOutputTokens` in `internal/llm/claude/request.go`;
-2. the named measurements in `internal/llm/provider/provider_test.go` that
-   `TestClaudeDefaultMaxTokensFitsBudget` checks the value against:
-   `largestObservedOutputTokens`, `slowestRateTokens`, and
-   `slowestRateDuration`, with their source comment;
-3. the record of the basis: the `02_architecture.md` of the task that makes the
-   change;
-4. "Current record" below, to point at that record;
-5. the README's "Configuration" notes on `max` and on the default effort, when
-   the new measurements change what they say.
+1. `internal/llm/claude/request.go` の定数 `defaultMaxOutputTokens`。
+2. `internal/llm/provider/provider_test.go` の、`TestClaudeDefaultMaxTokensFitsBudget` が値と照らし合わせる測定値（`largestObservedOutputTokens`・`slowestRateTokens`・`slowestRateDuration`）と、その出どころを書いたコメント。
+3. 根拠の記録: この変更を行うタスクのアーキテクチャ設計書（`02_architecture.md`）。
+4. 下の「現在の記録」が、その記録を指すように直す。
+5. README の "Configuration" にある、`max` と既定の effort についての注記（新しい測定で記述の内容が変わる場合）。
 
-## Current record
+## 現在の記録
 
-The current basis is recorded in
-`docs/tasks/0041_claude_effort_max_tokens/02_architecture.md` §1.4.
+現在の根拠は `docs/tasks/0041_claude_effort_max_tokens/02_architecture.md` §1.4 に記録されている。

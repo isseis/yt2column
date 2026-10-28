@@ -1,71 +1,39 @@
-# Updating the pricing table
+# 料金表の更新
 
-`internal/pricing` estimates what an LLM call cost from the providers' published
-per-token rates. Those rates live as a constant table in
-`internal/pricing/rates.go`, and the estimates the CLI prints come from that
-table alone. When a rate changes, or a model is added, the table and the tests
-that pin it must be updated together, in one change.
+`internal/pricing` は、LLM を呼び出す費用を、プロバイダが公開するトークンあたりの料金から推定する。料金は `internal/pricing/rates.go` の定数の料金表にあり、CLI が出力する推定額はこの料金表だけから求まる。料金が変わったとき、またはモデルを追加したときは、料金表と、その値を固定するテストを 1 つの変更で一緒に更新する。
 
-## Confirm the rates at the source
+## 料金を出どころで確かめる
 
 - DeepSeek: <https://api-docs.deepseek.com/quick_start/pricing>
 - Anthropic (Claude): <https://platform.claude.com/docs/en/about-claude/pricing>
 
-On the page, confirm for the model:
+各ページで、対象のモデルについて次を確かめる。
 
-- the input, cache-read, cache-write, and output rates (per million tokens);
-- how its rate set is chosen: one rate (a flat scheme), a weekly peak window, or
-  a prompt-length threshold;
-- for a time-of-day model, the peak weekdays and the peak minute ranges, which
-  the CLI reads in UTC. DeepSeek's window is Monday through Friday, 01:00-04:00
-  and 06:00-10:00 UTC.
+- 入力、キャッシュの読み取り、キャッシュの書き込み、出力のそれぞれの料金（100 万トークンあたり）。
+- 料金の組の選び方（以下「方式」）。単一の料金（一律の方式）、週ごとのピークの時間帯、プロンプトの長さのしきい値のいずれかである。
+- 時刻で変わるモデルでは、ピークにあたる曜日と、分単位まで指定した時刻の範囲。CLI はこれらを UTC で読む。DeepSeek のピークの時間帯は月曜日から金曜日の 01:00-04:00 と 06:00-10:00 UTC である。
 
-## Update the table
+## 料金表を更新する
 
-1. Edit the entry in `rateTable` in `internal/pricing/rates.go`: its rates, and
-   the fields of its scheme only. A field the scheme does not use must stay zero;
-   `validate` rejects it.
-2. Update the `Source: <url> (checked <date>)` comment above the entry, and the
-   one above the peak rule of a time-of-day model, to the pages and the date you
-   confirmed. `TestRateTableSourceComments` checks that each entry has a source
-   line and a checked date.
-3. For a new model, add an entry with a scheme and the fields that scheme uses,
-   and add its name to the tests that enumerate the models
-   (`TestRateTableModels`). Run `TestRateTableValid` (`validate` on the real
-   table) and `TestValidateRejects` (each rule on a table that breaks only it).
+1. `internal/pricing/rates.go` の `rateTable` にある該当の項目について、料金と、その方式が使うフィールドだけを編集する。方式が使わないフィールドは 0 のままにする。0 以外の値は `validate` が拒否する。
+2. 項目の上の `Source: <url> (checked <date>)` のコメントと、時刻で変わるモデルのピークの規則の上のコメントを、確かめたページと日付に書き換える。`TestRateTableSourceComments` が、各項目に出どころの行と確認した日付があることを確かめる。
+3. 新しいモデルでは、方式とその方式が使うフィールドを持つ項目を加え、モデルを列挙するテスト（`TestRateTableModels`）にモデル名を加える。`TestRateTableValid`（実際の料金表に `validate` をかける）と `TestValidateRejects`（`validate` の各規則を、その規則だけに違反する表にかける）を実行する。
 
-## Update the hand-calculated tests
+## 手で計算したテストを更新する
 
-The expected amounts are computed by hand from the source rates, never derived
-from the table or the code:
+期待値の金額は、出どころで確かめた料金から手で計算する。料金表やコードから導いてはならない。
 
-- `TestEstimateCategories` in `internal/pricing/pricing_test.go`: the cost of one
-  stage of each model. Its comment shows the arithmetic
-  (`count * rate / 1e6 USD`); update the arithmetic and the `want` strings
-  together with the rates.
-- `TestEstimatePeakWindow`: the DeepSeek peak/off-peak boundary, if the window
-  moved.
-- `TestEstimatePromptTier`: the Claude Haiku prompt-length tiers, if the
-  threshold moved.
-- `TestAmountFormat` in `internal/pricing/amount_test.go`: the rounding of the
-  amount at six and four decimals.
+- `internal/pricing/pricing_test.go` の `TestEstimateCategories`: 各モデルの 1 工程の費用。そのテストのコメントに計算式（`count * rate / 1e6 USD`）を示している。計算式と `want` の文字列を、料金と一緒に更新する。
+- `TestEstimatePeakWindow`: 時間帯が変わったときの、DeepSeek のピークの時間帯とそれ以外の境界。
+- `TestEstimatePromptTier`: しきい値が変わったときの、Claude Haiku のプロンプトの長さに応じた料金の階層。
+- `internal/pricing/amount_test.go` の `TestAmountFormat`: 金額を小数点以下 6 桁と 4 桁に丸める処理。
 
-## What else a rate change touches
+## 料金の変更がほかに触れるもの
 
-`TestCostDocsContract` checks the README's "Estimated cost" section against the
-code's format constants, not against any list in the document, so a rate change
-does not force an edit there. Some spots still depend on the table by hand, so
-update them yourself:
+`TestCostDocsContract` は、README の "Estimated cost" 節を、README の中の一覧ではなくコードの書式の定数と照らす。そのため、料金の変更で README のその節を直す必要はない。それでも、料金表の内容に合わせて手で直さなければならない箇所が残るので、自分で更新する。
 
-- the README's "Estimated cost" section states the DeepSeek peak window
-  ("Monday through Friday during 01:00-04:00 and 06:00-10:00 UTC"); a window
-  that moves makes that prose stale;
-- the README's "Output format" examples show an estimated cost computed from
-  the rate table (`0.0094`); `TestOutputLayoutDocsContract` compares them with
-  the real output, so a rate change fails that test until the two example
-  amounts are updated;
-- the README's configuration section and `project_overview.md` name the models,
-  which change only when the set of models does.
+- README の "Estimated cost" 節は、DeepSeek のピークの時間帯（"Monday through Friday during 01:00-04:00 and 06:00-10:00 UTC"）を述べている。ピークの時間帯が変われば、その文は古くなる。
+- README の "Output format" の例は、料金表から求めた推定額（`0.0094`）を示している。`TestOutputLayoutDocsContract` が実際の出力と比べるので、料金が変われば、2 つの例の金額を更新するまでそのテストは失敗する。
+- README の "Configuration" の節と `project_overview.md` はモデルの名前を挙げているので、対応するモデルが増減したときだけ更新が必要になる。
 
-`package_reference.md`'s `internal/pricing` row lists the package's public types;
-a rate change leaves it alone. Check the row by reading it in the PR review.
+`package_reference.md` の `internal/pricing` の行は、パッケージが公開する型を列挙している。料金の変更では変えない。この行が古くなっていないかは、PR のレビューで読んで確かめる。
