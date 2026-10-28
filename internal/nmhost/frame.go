@@ -1,7 +1,9 @@
 // Package nmhost is the Native Messaging host: it relays one message from the
 // browser to the server's Unix domain socket and writes the server's reply, or
-// one of the host's fixed errors, back as one message. It never interprets the
-// article JSON or the server's reply.
+// one of the host's fixed errors, back as one message. It parses a message
+// only to tell its form and, in the new form, to check its members and take
+// its operation and key; it never interprets the article input (beyond
+// checking that a start's input is an object) or the server's reply.
 package nmhost
 
 import (
@@ -16,8 +18,8 @@ const (
 	// Messaging message, in the machine's native byte order.
 	lengthBytes = 4
 	// maxFrameBytes is the largest message the browser accepts from a host.
-	// No reply comes near it: the largest is the base64 of a 64 KiB server
-	// response plus the fixed members.
+	// No reply comes near it: the largest is the base64 of a 512 KiB server
+	// response (699,052 bytes) plus the fixed members.
 	maxFrameBytes = 1 << 20
 )
 

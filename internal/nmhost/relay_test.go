@@ -16,8 +16,10 @@ import (
 	"math"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -54,14 +56,19 @@ const (
 	testTimeout = 5 * time.Second
 	// shortTimeout is the relay limit of a test that waits for it to pass.
 	shortTimeout = 300 * time.Millisecond
+	// testKey is a key in the form the server accepts.
+	testKey = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 )
 
 // stdinFake is standard input holding a message length and a body. It records
-// how far it was read, so a test can tell whether the body was read.
+// how far it was read, so a test can tell whether the body was read. With
+// hold set, a read at the end of the data waits until hold is closed instead
+// of returning io.EOF, as a browser that stops writing mid-message does.
 type stdinFake struct {
 	mu   sync.Mutex
 	data []byte
 	pos  int
+	hold chan struct{}
 }
 
 func newStdin(length uint32, body []byte) *stdinFake {
@@ -73,12 +80,26 @@ func message(body []byte) *stdinFake {
 	return newStdin(uint32(len(body)), body)
 }
 
+// stalledStdin returns standard input that declares length but holds only
+// body, and then stalls until the test ends.
+func stalledStdin(t *testing.T, length uint32, body []byte) *stdinFake {
+	t.Helper()
+	s := newStdin(length, body)
+	s.hold = make(chan struct{})
+	t.Cleanup(func() { close(s.hold) })
+	return s
+}
+
 func (s *stdinFake) Read(p []byte) (int, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.pos >= len(s.data) {
+		s.mu.Unlock()
+		if s.hold != nil {
+			<-s.hold
+		}
 		return 0, io.EOF
 	}
+	defer s.mu.Unlock()
 	n := copy(p, s.data[s.pos:])
 	s.pos += n
 	return n, nil
@@ -148,12 +169,15 @@ func serveRaw(t *testing.T, serve func(net.Conn)) string {
 	return path
 }
 
-// received is what a recording server saw of the one request.
+// received is what a recording server saw of the last request, and how many
+// requests it saw.
 type received struct {
-	method, requestURI, expect string
-	contentLength              int64
-	transferEncoding           []string
-	body                       []byte
+	method, requestURI, expect, contentType string
+	contentLengthHeader                     []string // the raw Content-Length values, to tell 0 from absent
+	contentLength                           int64
+	transferEncoding                        []string
+	body                                    []byte
+	requests                                int
 }
 
 // recordingServer answers every request with 202 and body and records the last
@@ -166,12 +190,15 @@ func recordingServer(t *testing.T, body []byte) (string, func() received) {
 		data, _ := io.ReadAll(r.Body)
 		mu.Lock()
 		got = received{
-			method:           r.Method,
-			requestURI:       r.RequestURI,
-			expect:           r.Header.Get("Expect"),
-			contentLength:    r.ContentLength,
-			transferEncoding: r.TransferEncoding,
-			body:             data,
+			method:              r.Method,
+			requestURI:          r.RequestURI,
+			expect:              r.Header.Get("Expect"),
+			contentType:         r.Header.Get("Content-Type"),
+			contentLengthHeader: r.Header.Values("Content-Length"),
+			contentLength:       r.ContentLength,
+			transferEncoding:    r.TransferEncoding,
+			body:                data,
+			requests:            got.requests + 1,
 		}
 		mu.Unlock()
 		w.WriteHeader(http.StatusAccepted)
@@ -229,15 +256,39 @@ func requireError(t *testing.T, members map[string]any, want HostError) {
 
 // requireResponse checks that the reply is the response shape carrying status
 // and exactly body.
+// The body is compared decoded and reported by its length only, so a failure
+// with a body near the response limit stays readable.
 func requireResponse(t *testing.T, members map[string]any, status int, body []byte) {
 	t.Helper()
-	wantMembers := map[string]any{
-		"v": float64(protocolVersion), "kind": "response", "status": float64(status),
-		"body": base64.StdEncoding.EncodeToString(body),
+	wantMembers := map[string]any{"v": float64(protocolVersion), "kind": "response", "status": float64(status)}
+	encoded, isString := members["body"].(string)
+	others := maps.Clone(members)
+	delete(others, "body")
+	if !isString || !maps.Equal(others, wantMembers) {
+		// Every member but the body is short; the body's type alone tells
+		// whether it is present.
+		t.Errorf("reply members = %v and a body of type %T, want %v and a string body", others, members["body"], wantMembers)
+		return
 	}
-	if !maps.Equal(members, wantMembers) {
-		t.Errorf("reply = %v, want %v", members, wantMembers)
+	got, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		t.Errorf("the reply body of %d characters is not standard base64: %v", len(encoded), err)
+		return
 	}
+	if !bytes.Equal(got, body) {
+		t.Errorf("the reply body is %d bytes, want %d bytes; they differ from byte %d", len(got), len(body), firstDifference(got, body))
+	}
+}
+
+// firstDifference returns the offset of the first byte where a and b differ,
+// or the shorter length when one is a prefix of the other.
+func firstDifference(a, b []byte) int {
+	for i := range min(len(a), len(b)) {
+		if a[i] != b[i] {
+			return i
+		}
+	}
+	return min(len(a), len(b))
 }
 
 func TestRelayForwardsOneRequest(t *testing.T) {
@@ -263,8 +314,8 @@ func TestRelayForwardsOneRequest(t *testing.T) {
 	if req.contentLength != int64(len(msg)) || len(req.transferEncoding) != 0 {
 		t.Errorf("Content-Length = %d, Transfer-Encoding = %v; want Content-Length %d", req.contentLength, req.transferEncoding, len(msg))
 	}
-	if req.expect != "100-continue" {
-		t.Errorf("Expect = %q, want 100-continue", req.expect)
+	if req.expect != "100-continue" || req.contentType != "application/json" {
+		t.Errorf("Expect = %q, Content-Type = %q; want 100-continue, application/json", req.expect, req.contentType)
 	}
 	if !bytes.Equal(req.body, msg) {
 		t.Errorf("server received %q, want the message bytes %q", req.body, msg)
@@ -306,20 +357,93 @@ func TestRelayLengthChecks(t *testing.T) {
 	}
 }
 
-func TestRelayServerRejectsWithoutBody(t *testing.T) {
+// TestRelayServerEarlyRejection checks a server that answers from the
+// request head alone, as the server does for a Content-Length over its limit:
+// the host relays that answer, not a write failure, and sends no body bytes,
+// because the body waits for 100 Continue. It has still read the whole
+// message from stdin, since it reads before sending.
+func TestRelayServerEarlyRejection(t *testing.T) {
 	rejected := []byte(`{"status":"rejected","reason":"body_too_large","requestId":"0123456789abcdef"}`)
-	path := serveHTTP(t, func(w http.ResponseWriter, _ *http.Request) {
-		// Answer from the head alone, as the server does for a
-		// Content-Length over its limit.
-		w.Header().Set("Connection", "close")
-		w.WriteHeader(http.StatusRequestEntityTooLarge)
-		_, _ = w.Write(rejected)
-	})
-	stdin := message(bytes.Repeat([]byte("a"), 64<<10))
+	path := filepath.Join(udstest.Dir(t), "s.sock")
+	listener := udstest.Listen(t, path)
+	// sent receives the number of body bytes the host sent after the head.
+	sent := make(chan int64, 1)
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			return
+		}
+		defer func() { _ = conn.Close() }()
+		// The head is read through the same buffer the rest is counted
+		// from, so no body byte can hide in it.
+		br := bufio.NewReader(conn)
+		if _, err := http.ReadRequest(br); err != nil {
+			sent <- -1
+			return
+		}
+		_, _ = io.WriteString(conn, "HTTP/1.1 413 Request Entity Too Large\r\nConnection: close\r\n"+
+			"Content-Length: "+strconv.Itoa(len(rejected))+"\r\n\r\n"+string(rejected))
+		// The host closes the connection once it has the answer.
+		n, _ := io.Copy(io.Discard, br)
+		sent <- n
+	}()
+	body := bytes.Repeat([]byte("a"), 64<<10)
+	stdin := message(body)
 
 	requireResponse(t, runRelay(stdin, SocketDialer(path), testTimeout).reply(t), http.StatusRequestEntityTooLarge, rejected)
-	if n := stdin.bodyRead(); n != 0 {
-		t.Errorf("read %d body bytes, want none: the body must wait for 100 Continue", n)
+	select {
+	case n := <-sent:
+		if n != 0 {
+			t.Errorf("the host sent %d bytes after the request head, want none", n)
+		}
+	case <-time.After(testTimeout):
+		t.Fatal("the server did not see the host close the connection")
+	}
+	if n := stdin.bodyRead(); n != len(body) {
+		t.Errorf("read %d body bytes, want the whole message of %d", n, len(body))
+	}
+}
+
+// TestRelayMessageReadFailures checks a message that ends early or stalls:
+// the host has connected, reads the whole message before sending, and sends
+// nothing.
+func TestRelayMessageReadFailures(t *testing.T) {
+	msg := []byte(`{"videoUrl":"x","transcript":"y"}`)
+	tests := []struct {
+		name    string
+		stdin   func(t *testing.T) io.Reader
+		timeout time.Duration
+		want    HostError
+	}{
+		{
+			name:  "body shorter than the declared length",
+			stdin: func(*testing.T) io.Reader { return newStdin(uint32(len(msg))+10, msg) },
+			want:  HostErrorProtocol,
+		},
+		{
+			name:    "stdin stalls mid-message",
+			stdin:   func(t *testing.T) io.Reader { return stalledStdin(t, uint32(len(msg))+10, msg) },
+			timeout: shortTimeout,
+			want:    HostErrorServerTimeout,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path, got := recordingServer(t, []byte("{}"))
+			dial, dials := countDials(SocketDialer(path))
+
+			result := runRelay(tt.stdin(t), dial, cmp.Or(tt.timeout, testTimeout))
+			requireError(t, result.reply(t), tt.want)
+			if n := dials.Load(); n != 1 {
+				t.Errorf("Dial called %d times, want 1", n)
+			}
+			if n := got().requests; n != 0 {
+				t.Errorf("the server received %d requests, want none", n)
+			}
+			if !strings.Contains(result.log, "stage=read") {
+				t.Errorf("the log does not name the read stage:\n%s", result.log)
+			}
+		})
 	}
 }
 
@@ -335,8 +459,15 @@ func TestRelayResponseOverLimit(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			body := bytes.Repeat([]byte("r"), tt.size)
-			path, _ := recordingServer(t, body)
-			members := runRelay(message([]byte("{}")), SocketDialer(path), testTimeout).reply(t)
+			path, got := recordingServer(t, body)
+			// A status request, whose response carries the largest article.
+			// At the limit, the reply must also fit the browser's message
+			// limit: encodeReply would turn a larger one into protocol_error.
+			msg := []byte(`{"v":1,"op":"status","key":"` + testKey + `"}`)
+			members := runRelay(message(msg), SocketDialer(path), testTimeout).reply(t)
+			if req := got(); req.method != http.MethodGet || req.requestURI != "/jobs/"+testKey {
+				t.Errorf("request line = %s %s, want the status request", req.method, req.requestURI)
+			}
 			if tt.over {
 				requireError(t, members, HostErrorProtocol)
 			} else {
@@ -384,7 +515,6 @@ func TestRelayHostErrors(t *testing.T) {
 	tests := []struct {
 		name    string
 		dial    func(t *testing.T) Dialer
-		stdin   func() *stdinFake
 		timeout time.Duration
 		want    HostError
 		// unread is whether the body must be left unread: nothing was sent.
@@ -485,23 +615,11 @@ func TestRelayHostErrors(t *testing.T) {
 			},
 			want: HostErrorProtocol,
 		},
-		{
-			name: "body shorter than the declared length",
-			dial: func(t *testing.T) Dialer {
-				path, _ := recordingServer(t, []byte("{}"))
-				return SocketDialer(path)
-			},
-			stdin: func() *stdinFake { return newStdin(uint32(len(msg))+10, msg) },
-			want:  HostErrorProtocol,
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dial, dials := countDials(tt.dial(t))
 			stdin := message(msg)
-			if tt.stdin != nil {
-				stdin = tt.stdin()
-			}
 			timeout := cmp.Or(tt.timeout, testTimeout)
 
 			result := runRelay(stdin, dial, timeout)
@@ -690,4 +808,287 @@ func TestRelayNoReplyFrame(t *testing.T) {
 			})
 		}
 	})
+}
+
+// newFormMessage marshals members as one message. A map marshals its keys in
+// sorted order, which the host must not depend on.
+func newFormMessage(t *testing.T, members map[string]any) []byte {
+	t.Helper()
+	msg, err := json.Marshal(members)
+	if err != nil {
+		t.Fatalf("marshal the message: %v", err)
+	}
+	return msg
+}
+
+func TestRelayNewFormOperations(t *testing.T) {
+	const key = testKey
+	// The input keeps whitespace, an escape, an undeclared member, and a
+	// member order no marshaller produces, so a host that rebuilt it would
+	// change its bytes.
+	input := `{ "transcript" : "\u3042" ,"videoUrl":"x","extra":[1]}`
+	tests := []struct {
+		name, msg, op       string
+		method, requestURI  string
+		body                string
+		contentType, expect string
+		// contentLength is the raw Content-Length header, "" for none.
+		contentLength string
+	}{
+		{
+			name: "start", msg: `{"v":1,"op":"start","input":` + input + `}`, op: "start",
+			method: http.MethodPost, requestURI: "/jobs", body: input,
+			contentType: "application/json", expect: "100-continue", contentLength: strconv.Itoa(len(input)),
+		},
+		{
+			name: "status", msg: `{"key":"` + key + `","op":"status","v":1}`, op: "status",
+			method: http.MethodGet, requestURI: "/jobs/" + key,
+		},
+		{
+			name: "publish", msg: `{"v":1,"op":"publish","key":"` + key + `"}`, op: "publish",
+			method: http.MethodPost, requestURI: "/jobs/" + key + "/publish",
+			contentLength: "0",
+		},
+		{
+			// The version member's name is written with an escape.
+			name: "escaped version name", msg: `{"\u0076":1,"op":"status","key":"` + key + `"}`, op: "status",
+			method: http.MethodGet, requestURI: "/jobs/" + key,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			answer := []byte(`{"status":"ok"}`)
+			path, got := recordingServer(t, answer)
+			dial, dials := countDials(SocketDialer(path))
+
+			result := runRelay(message([]byte(tt.msg)), dial, testTimeout)
+			requireResponse(t, result.reply(t), http.StatusAccepted, answer)
+			req := got()
+			if req.requests != 1 || dials.Load() != 1 {
+				t.Errorf("the server received %d requests over %d dials, want 1 over 1", req.requests, dials.Load())
+			}
+			if req.method != tt.method || req.requestURI != tt.requestURI {
+				t.Errorf("request line = %s %s, want %s %s", req.method, req.requestURI, tt.method, tt.requestURI)
+			}
+			if string(req.body) != tt.body || req.contentLength != int64(len(tt.body)) || len(req.transferEncoding) != 0 {
+				t.Errorf("body = %q (Content-Length %d, Transfer-Encoding %v), want %q", req.body, req.contentLength, req.transferEncoding, tt.body)
+			}
+			if req.contentType != tt.contentType || req.expect != tt.expect {
+				t.Errorf("Content-Type = %q, Expect = %q; want %q, %q", req.contentType, req.expect, tt.contentType, tt.expect)
+			}
+			if got := strings.Join(req.contentLengthHeader, ","); got != tt.contentLength {
+				t.Errorf("Content-Length header = %q, want %q", got, tt.contentLength)
+			}
+			for _, attr := range []string{"form=new", "op=" + tt.op} {
+				if !strings.Contains(result.log, attr) {
+					t.Errorf("the log does not contain %s:\n%s", attr, result.log)
+				}
+			}
+		})
+	}
+}
+
+// TestRelayLegacyBytesUnchanged checks the messages that are the current
+// form: those without a top-level "v", and those that are not one strict JSON
+// object even when they hold what looks like "v".
+func TestRelayLegacyBytesUnchanged(t *testing.T) {
+	tests := []struct{ name, msg string }{
+		{"current extension message", `{"videoUrl":"x","transcript":"y","title":"t","channelName":"c","description":"d"}`},
+		{"v only below the top level", `{"videoUrl":"x","transcript":{"v":1,"op":"status","key":"k"}}`},
+		{"v with invalid UTF-8", "{\"v\":1,\"op\":\"status\",\"key\":\"\xff\"}"},
+		{"v with trailing data", `{"v":1,"op":"status","key":"k"} {}`},
+		{"v with an unpaired surrogate", `{"v":1,"op":"status","key":"\ud800"}`},
+		{"v inside an array", `[{"v":1,"op":"status","key":"k"}]`},
+		{"not JSON", `v=1&op=status`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path, got := recordingServer(t, []byte("{}"))
+			result := runRelay(message([]byte(tt.msg)), SocketDialer(path), testTimeout)
+			requireResponse(t, result.reply(t), http.StatusAccepted, []byte("{}"))
+			req := got()
+			if req.requests != 1 || req.method != http.MethodPost || req.requestURI != "/articles" {
+				t.Errorf("the server received %d requests, the last %s %s; want one POST /articles", req.requests, req.method, req.requestURI)
+			}
+			if !bytes.Equal(req.body, []byte(tt.msg)) || req.contentLength != int64(len(tt.msg)) {
+				t.Errorf("server received %q (Content-Length %d), want the message bytes %q", req.body, req.contentLength, tt.msg)
+			}
+			if req.contentType != "application/json" || req.expect != "100-continue" {
+				t.Errorf("Content-Type = %q, Expect = %q; want application/json, 100-continue", req.contentType, req.expect)
+			}
+			if !strings.Contains(result.log, "form=legacy") {
+				t.Errorf("the log does not contain form=legacy:\n%s", result.log)
+			}
+		})
+	}
+}
+
+func TestRelayNewFormRejections(t *testing.T) {
+	tests := []struct {
+		name, msg string
+		rule      rule
+	}{
+		{"unknown version", `{"v":2,"op":"status","key":"k"}`, ruleVersion},
+		{"version zero", `{"v":0,"op":"status","key":"k"}`, ruleVersion},
+		{"version as a string", `{"v":"1","op":"status","key":"k"}`, ruleVersion},
+		{"version with a fraction", `{"v":1.0,"op":"status","key":"k"}`, ruleVersion},
+		{"version null", `{"v":null,"op":"status","key":"k"}`, ruleVersion},
+		{"escaped version name, unknown version", `{"\u0076":2,"op":"status","key":"k"}`, ruleVersion},
+		{"duplicate version", `{"v":1,"v":1,"op":"status","key":"k"}`, ruleMembers},
+		{"duplicate version, one escaped", `{"v":1,"\u0076":1,"op":"status","key":"k"}`, ruleMembers},
+		{"duplicate operation", `{"v":1,"op":"status","op":"status","key":"k"}`, ruleMembers},
+		{"undeclared member", `{"v":1,"op":"status","key":"k","path":"/articles"}`, ruleMembers},
+		{"operation missing", `{"v":1,"key":"k"}`, ruleOperation},
+		{"operation not in the set", `{"v":1,"op":"delete","key":"k"}`, ruleOperation},
+		{"operation in another case", `{"v":1,"op":"Status","key":"k"}`, ruleOperation},
+		{"operation not a string", `{"v":1,"op":1,"key":"k"}`, ruleOperation},
+		{"start without input", `{"v":1,"op":"start"}`, ruleMembers},
+		{"start with a key", `{"v":1,"op":"start","input":{},"key":"k"}`, ruleMembers},
+		{"start input not an object", `{"v":1,"op":"start","input":"{}"}`, ruleInput},
+		{"start input null", `{"v":1,"op":"start","input":null}`, ruleInput},
+		{"status without key", `{"v":1,"op":"status"}`, ruleMembers},
+		{"status with input", `{"v":1,"op":"status","key":"k","input":{}}`, ruleMembers},
+		{"publish without key", `{"v":1,"op":"publish"}`, ruleMembers},
+		{"publish key not a string", `{"v":1,"op":"publish","key":1}`, ruleKey},
+		{"status key null", `{"v":1,"op":"status","key":null}`, ruleKey},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path, got := recordingServer(t, []byte("{}"))
+			dial, dials := countDials(SocketDialer(path))
+			result := runRelay(message([]byte(tt.msg)), dial, testTimeout)
+			requireError(t, result.reply(t), HostErrorProtocol)
+			// The host connects before it reads the message, so it has
+			// connected once; it sends nothing over the connection.
+			if n, d := got().requests, dials.Load(); n != 0 || d != 1 {
+				t.Errorf("the server received %d requests over %d dials, want none over 1", n, d)
+			}
+			for _, attr := range []string{"stage=form", "form=new", "rule=" + string(tt.rule)} {
+				if !strings.Contains(result.log, attr) {
+					t.Errorf("the log does not contain %s:\n%s", attr, result.log)
+				}
+			}
+		})
+	}
+}
+
+// TestRelayKeyPassedUnchecked checks that any string key reaches the server
+// unchanged, escaped into exactly one path segment: a key can neither turn a
+// status request into another operation nor start a query.
+func TestRelayKeyPassedUnchecked(t *testing.T) {
+	keys := map[string]string{
+		"empty":           "",
+		"uppercase":       "ABC",
+		"long":            strings.Repeat("f", 1000),
+		"publish suffix":  "abc/publish",
+		"query":           "?x=1",
+		"query inside":    "a?x=1",
+		"dot segment":     "..",
+		"escaped slash":   "%2F",
+		"control":         "\x01",
+		"non-ASCII":       "\u3042",
+		"space and hash":  "a b#c",
+		"sub-delimiters":  "a;b,c:d@e&f=g+h$",
+		"parent and root": "../../articles",
+	}
+	for name, key := range keys {
+		for _, op := range []struct{ name, method, suffix string }{
+			{"status", http.MethodGet, ""},
+			{"publish", http.MethodPost, "/publish"},
+		} {
+			t.Run(name+"/"+op.name, func(t *testing.T) {
+				path, got := recordingServer(t, []byte("{}"))
+				msg := newFormMessage(t, map[string]any{"v": 1, "op": op.name, "key": key})
+				requireResponse(t, runRelay(message(msg), SocketDialer(path), testTimeout).reply(t), http.StatusAccepted, []byte("{}"))
+
+				req := got()
+				if req.requests != 1 || req.method != op.method {
+					t.Fatalf("the server received %d requests, the last %s; want one %s", req.requests, req.method, op.method)
+				}
+				segment, ok := strings.CutPrefix(req.requestURI, "/jobs/")
+				if ok {
+					segment, ok = strings.CutSuffix(segment, op.suffix)
+				}
+				if !ok || strings.ContainsAny(segment, "/?") {
+					t.Fatalf("request target = %q, want /jobs/, one path segment, then %q", req.requestURI, op.suffix)
+				}
+				if decoded, err := url.PathUnescape(segment); err != nil || decoded != key {
+					t.Errorf("the segment %q decodes to %q (%v), want the key %q", segment, decoded, err, key)
+				}
+				// The client sends the escaped form as is: it neither
+				// normalizes the path nor escapes it again.
+				if want := "/jobs/" + url.PathEscape(key) + op.suffix; req.requestURI != want {
+					t.Errorf("request target = %q, want %q", req.requestURI, want)
+				}
+			})
+		}
+	}
+}
+
+// TestRelayNewFormTimeout checks that a new-form request the server never
+// answers ends with server_timeout after exactly one request.
+func TestRelayNewFormTimeout(t *testing.T) {
+	const key = testKey
+	for _, msg := range []string{
+		`{"v":1,"op":"start","input":{"videoUrl":"x","transcript":"y"}}`,
+		`{"v":1,"op":"status","key":"` + key + `"}`,
+		`{"v":1,"op":"publish","key":"` + key + `"}`,
+	} {
+		t.Run(msg, func(t *testing.T) {
+			var requests atomic.Int32
+			path := serveRaw(t, func(conn net.Conn) {
+				requests.Add(1)
+				_, _ = io.Copy(io.Discard, conn)
+			})
+			dial, dials := countDials(SocketDialer(path))
+			requireError(t, runRelay(message([]byte(msg)), dial, shortTimeout).reply(t), HostErrorServerTimeout)
+			if n, d := requests.Load(), dials.Load(); n != 1 || d != 1 {
+				t.Errorf("the server read %d requests over %d dials, want 1 over 1", n, d)
+			}
+		})
+	}
+}
+
+// TestRelayNewFormLogOmitsMessage checks that the new form's log attributes
+// are fixed values: no key, operation, member name, or input reaches the log,
+// whether the message is sent or rejected.
+func TestRelayNewFormLogOmitsMessage(t *testing.T) {
+	const marker = "marker-5d1e"
+	tests := []struct{ name, msg string }{
+		{"start input", `{"v":1,"op":"start","input":{"transcript":"` + marker + `","` + marker + `":1}}`},
+		{"status key", `{"v":1,"op":"status","key":"` + marker + `"}`},
+		{"publish key", `{"v":1,"op":"publish","key":"` + marker + `"}`},
+		{"unknown operation", `{"v":1,"op":"` + marker + `","key":"k"}`},
+		{"undeclared member", `{"v":1,"op":"status","key":"k","` + marker + `":1}`},
+		{"key not a string", `{"v":1,"op":"status","key":{"` + marker + `":1}}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path, _ := recordingServer(t, []byte("{}"))
+			result := runRelay(message([]byte(tt.msg)), SocketDialer(path), testTimeout)
+			result.reply(t)
+			if !strings.Contains(result.log, "form=new") {
+				t.Fatalf("the log does not contain form=new:\n%s", result.log)
+			}
+			if strings.Contains(result.log, marker) {
+				t.Errorf("the log contains the message's content:\n%s", result.log)
+			}
+		})
+	}
+}
+
+// TestRequestRefusesUnroutable checks the fail-secure defaults of request:
+// a destination route never returns builds no request.
+func TestRequestRefusesUnroutable(t *testing.T) {
+	for _, dest := range []destination{
+		{},
+		{form: "other", body: []byte("{}")},
+		{form: formNew},
+		{form: formNew, op: OperationPublish + 1, key: "k"},
+		{form: formNew, op: -1, key: "k"},
+	} {
+		if req, err := dest.request(context.Background()); !errors.Is(err, errUnroutable) {
+			t.Errorf("request(%+v) = %v, %v; want errUnroutable", dest, req, err)
+		}
+	}
 }

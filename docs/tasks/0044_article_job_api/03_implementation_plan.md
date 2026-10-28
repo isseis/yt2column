@@ -8,7 +8,7 @@
 | Created | 2026-10-27 |
 | Review date | 2026-10-27 |
 | Reviewer | isseis |
-| Comments | 2026-10-27 (editorial): `/runplan` の実装で、ステップ 2-3 の件数の上限の定数の名前を `defaultCapacity` から `DefaultCapacity` に改めた（設計書 §3.3.4 も同じ）。`internal/server` が別のパッケージから `articlecache.New` に渡すために公開が要るためで、値と決定は変えていない。 2026-10-28 (editorial): `/runplan` の PR-4 の実装で、ステップ 5-2 の説明に、`internal/articlecache` の 6 つの列挙のすべての値を返す関数を加えることを書き足した（設計書 §3.3.2 も同じ）。完了の時点の検査が投稿の状態とその理由のすべての値で最も長い応答を組み立て、ステップ 5-4 の `APICodesForTest` が列挙の最後の値の次までたどるために要るもので、決定は変えていない。 2026-10-28 (decision): `/runplan` の PR-4 の後、レビュアー（isseis）がセッションの中で、PR-4 のローカルのレビューで残した指摘のうち、ジョブのログが遷移の後に記録を読み直して古い値を書きうる件を、PR-5 のステップ 5-6 で直すと決め、作業の項目と PR-5 のレビュー観点を加えた（`Run.Fail`・`CompletePostable`・`CompleteUnpostable` の戻り値を変えるので、設計書 §3.3.2 はその実装のコミットで改める）。PR-5 の投稿のジョブも同じ形のログを書くので、同じ PR で揃える。 2026-10-28 (editorial): `/runplan` の PR-5 の実装で、ステップ 5-6 の遷移の時点の値のテストの壊し方を改めた。計画の壊し方（排他制御を解いた後に記録を読み直す）は、読み直すまでの間に別のゴルーチンが記録を変えたときにだけ結果が変わる。並行のテストを 200 回ずつ実行しても、読み直す側が排他制御を先に取り直し、一度も失敗しなかった。本番のコードにテストのための差し込み口を加えずに、決まった順序で割り込む手段はない。このため、返す値を誤って計算する 3 つの壊し方に替えた。決定（ログを戻り値で書くこと）は変えていない。 |
+| Comments | 2026-10-27 (editorial): `/runplan` の実装で、ステップ 2-3 の件数の上限の定数の名前を `defaultCapacity` から `DefaultCapacity` に改めた（設計書 §3.3.4 も同じ）。`internal/server` が別のパッケージから `articlecache.New` に渡すために公開が要るためで、値と決定は変えていない。 2026-10-28 (editorial): `/runplan` の PR-4 の実装で、ステップ 5-2 の説明に、`internal/articlecache` の 6 つの列挙のすべての値を返す関数を加えることを書き足した（設計書 §3.3.2 も同じ）。完了の時点の検査が投稿の状態とその理由のすべての値で最も長い応答を組み立て、ステップ 5-4 の `APICodesForTest` が列挙の最後の値の次までたどるために要るもので、決定は変えていない。 2026-10-28 (decision): `/runplan` の PR-4 の後、レビュアー（isseis）がセッションの中で、PR-4 のローカルのレビューで残した指摘のうち、ジョブのログが遷移の後に記録を読み直して古い値を書きうる件を、PR-5 のステップ 5-6 で直すと決め、作業の項目と PR-5 のレビュー観点を加えた（`Run.Fail`・`CompletePostable`・`CompleteUnpostable` の戻り値を変えるので、設計書 §3.3.2 はその実装のコミットで改める）。PR-5 の投稿のジョブも同じ形のログを書くので、同じ PR で揃える。 2026-10-28 (editorial): `/runplan` の PR-5 の実装で、ステップ 5-6 の遷移の時点の値のテストの壊し方を改めた。計画の壊し方（排他制御を解いた後に記録を読み直す）は、読み直すまでの間に別のゴルーチンが記録を変えたときにだけ結果が変わる。並行のテストを 200 回ずつ実行しても、読み直す側が排他制御を先に取り直し、一度も失敗しなかった。本番のコードにテストのための差し込み口を加えずに、決まった順序で割り込む手段はない。このため、返す値を誤って計算する 3 つの壊し方に替えた。決定（ログを戻り値で書くこと）は変えていない。 2026-10-28 (decision): `/runplan` の PR-6 の実装で、要件書の AC-40 の「サーバに接続せず」を、設計書 §3.10.1 の手順に合わせて「サーバにリクエストを送らずに」に改めることを、レビュアー（isseis）がセッションの中で決めた（要件書の `Comments`）。AC-40 の検証の `TestRelayNewFormRejections` は、接続が 1 回でリクエストが 0 件であることを確かめる。 2026-10-28 (editorial): 同じ実装のテストのレビューで、ステップ 6-3 の `TestStatusResponseFitsRelay` からフレームの上限の検査を除いた。`TestRelayResponseOverLimit` の上限ちょうどの行が同じ性質を確かめるためで、決定は変えていない。 2026-10-28 (editorial): PR-6 のレビューで、`TestRelayServerRejectsWithoutBody` を `TestRelayServerEarlyRejection` に改名した。サーバの早い拒否を中継し、本文を送らないことを確かめる形にしたためで、決定は変えていない。 |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の項番、「設計書 §3.2」などは設計書の節を指す。既存のコードと文書についての記述は、コミット `c2ce520` で確かめた。`file:line` はこのコミットの行番号である。設計書が行番号を確かめたコミット `c3d20a7` と `c2ce520` の間では `docs/` の外のファイルが変わっていない（`git diff --stat c3d20a7 c2ce520 -- . ':!docs'` の出力が空）ので、設計書のコードの行番号はそのまま使える。用語は設計書の冒頭の「用語」に従う。
 
@@ -78,7 +78,7 @@
 -   `internal/config/config_test.go`: `TestLoadServerWebhookRequired`\*（`:1031-1048`。`unset` のサブテストだけをエラーにならない形に変え、`empty`・`invalid` は残す。名前は 1.5 のとおり変える）、`TestLoadServerValid`（`:991`、新しい戻り値）。
 -   `cmd/yt2column-server/run_test.go` の `TestStartupFailures`: `model and webhook missing`\*（`:64-73`。Webhook の代わりにほかの必須の変数を欠かせ、設定の行が 2 行であることを保つ）、`writer not built`（`:127-133`、差し替えの関数の型）、`publisher not built`・`notifier not built`（`:135-150`、Webhook がある場合だけの組み立て）。`TestBuildsSlackPublisher`（`:350`）、`TestWriterOptionsMatchCLIDefaults`（`:384`、差し替えの関数の型）、`TestRunLogsListeningAndStop`（`:411`、`webhookConfigured=true` と WARN の行がないことを加える）。`cmd/yt2column-server/test_helpers.go` の `nopPublisher`（`:253-256`、`PostMessages` を加える）・`testDeps`・`loopbackDeps`（`:265-300`）。
 -   `internal/server`: `TestRejectReasonSet`（`response_test.go:87`）・`TestReasonToKind`（`job_test.go:197`）・`TestRejectStatusCodes`（`handler_test.go:82`）に、理由を加えるステップごとに新しい理由の行を加える。`TestRejectStatusCodes` の `build` は `newTestServer` の値を受け取るので、Webhook のないサーバを要る行のために、表に組み立ての選択を加える。`request_test.go` の拒否の表（`TestRejectBodyTable`・`TestOptionalMembers`・`TestRejectVideoURLTable`・`TestRejectInvalidTranscript`・`TestBodyTooLarge` の表）は、AC-08 で生成の開始にも送るために、入力と期待値を変えずにパッケージの変数へ移し、同じ表で `/articles` と `/jobs` の両方を確かめる形にする。
--   `internal/nmhost/relay_test.go`: `TestRelayServerRejectsWithoutBody`\*（`:309-324`）、`TestRelayHostErrors` の `body shorter than the declared length`\*（`:489`）。`TestRelayResponseOverLimit`（`:326`）は `maxResponseBytes` を名前で使うので期待値は変わらない。
+-   `internal/nmhost/relay_test.go`: `TestRelayServerEarlyRejection`\*（`:309-324`）、`TestRelayHostErrors` の `body shorter than the declared length`\*（`:489`）。`TestRelayResponseOverLimit`（`:326`）は `maxResponseBytes` を名前で使うので期待値は変わらない。
 
 **`internal/writer`（フェーズ 3）:** `ArticleWriter`（`writer.go:77-79`）と `templateWriter.Write`（`writer.go:325-407`）がある。工程の境目は、生成（`:352-362`）、短縮の条件 `w.shortenRuns() && bodyChars(body) > maxBodyChars`（`:367`）、検証・推敲（`:385-399`）、最後の長さの検査（`:401-405`）である。`writer.Stage`（`artifact.go:16-31`）を工程の値として使う。`writertestutil.FakeArticleWriter`（`internal/writer/testutil/mocks.go:16-34`）は `Write` だけを持ち、fake のテストは `internal/writer/testutil/mocks_test.go` にある。`ArticleWriter` の他の実装（CLI の `internal/job`、`internal/pipeline` の fake）は変えない。
 
@@ -388,31 +388,31 @@
 
 -   **ファイル:** `internal/nmhost/relay.go`・`relay_test.go`
 -   **作業:**
-    -   [ ] 接続の後、送る前にメッセージの全体を、中継の時間の上限の中で読む形にする（設計書 §3.10.1 の 3）。読み込みの失敗はログの段階 `read` にする。
-    -   [ ] 今の形のメッセージは、読んだバイト列を変えずに `POST /articles` の本文として、今と同じヘッダで送る（設計書 §3.10.1「今の形の送り方」）。
-    -   [ ] テスト: 1.4 の `TestRelayServerRejectsWithoutBody`・`TestRelayHostErrors` の該当の場合を、設計書 §3.10.1「更新する既存のテスト」のとおりに改める。標準入力が止まると `server_timeout` を返し、リクエストを送らないこと。`TestRelayForwardsOneRequest` は期待値を変えずに通る。
+    -   [x] 接続の後、送る前にメッセージの全体を、中継の時間の上限の中で読む形にする（設計書 §3.10.1 の 3）。読み込みの失敗はログの段階 `read` にする。
+    -   [x] 今の形のメッセージは、読んだバイト列を変えずに `POST /articles` の本文として、今と同じヘッダで送る（設計書 §3.10.1「今の形の送り方」）。
+    -   [x] テスト: 1.4 の `TestRelayServerEarlyRejection`・`TestRelayHostErrors` の該当の場合を、設計書 §3.10.1「更新する既存のテスト」のとおりに改める。標準入力が止まると `server_timeout` を返し、リクエストを送らないこと。`TestRelayForwardsOneRequest` は期待値を変えずに通る。
 -   **完了の条件:** グリーンゲートが通る。
 
 #### ステップ 6-2: 形の判定と新しい形
 
 -   **ファイル:** `internal/nmhost/relay.go`・`relay_test.go`、`CLAUDE.md`
 -   **作業:**
-    -   [ ] 設計書 §3.10.2 の判定、§3.10.3 の新しい形の検査・`Operation`・送り先・本文を加える。キーは `url.PathEscape` でエスケープし、送り先の形は `Operation` の網羅的な `switch` で選ぶ。ログの属性 `form`・`op`・`rule` と段階 `form` を加える（設計書 §3.10.5）。
-    -   [ ] テスト: 7 章の AC-38・AC-39・AC-40・AC-40a・AC-41a の行のテスト。AC-40 は、拒否のどの場合でもテストのサーバにリクエストが届かないことを確かめる。AC-39 は、`v` らしい文字列を含む不正な UTF-8 と後続のデータを持つメッセージを含める。
-    -   [ ] テスト（T-02）: キーが `abc/publish`・`?x=1` を含む・`..`・`%2F`・制御文字・ASCII でない文字のとき、テストのサーバが受け取る `RequestURI` が `/jobs/` とエスケープした 1 つのパスの部分だけからなること（1.4 の確認と同じ形）。
-    -   [ ] `CLAUDE.md` の「Declare, don't infer」に、この判定の例外を、今の例外（コピーした字幕の解析）と同じく方針・範囲・理由・境界の形で加える（設計書 §3.15、1.3）。
-    -   [ ] 壊し方: キーをエスケープせずに埋め込むと T-02 の行が、`v` を持つメッセージを今の形に戻すと AC-40 の行が失敗することを確かめる。
+    -   [x] 設計書 §3.10.2 の判定、§3.10.3 の新しい形の検査・`Operation`・送り先・本文を加える。キーは `url.PathEscape` でエスケープし、送り先の形は `Operation` の網羅的な `switch` で選ぶ。ログの属性 `form`・`op`・`rule` と段階 `form` を加える（設計書 §3.10.5）。
+    -   [x] テスト: 7 章の AC-38・AC-39・AC-40・AC-40a・AC-41a の行のテスト。AC-40 は、拒否のどの場合でもテストのサーバにリクエストが届かないことを確かめる。AC-39 は、`v` らしい文字列を含む不正な UTF-8 と後続のデータを持つメッセージを含める。
+    -   [x] テスト（T-02）: キーが `abc/publish`・`?x=1` を含む・`..`・`%2F`・制御文字・ASCII でない文字のとき、テストのサーバが受け取る `RequestURI` が `/jobs/` とエスケープした 1 つのパスの部分だけからなること（1.4 の確認と同じ形）。
+    -   [x] `CLAUDE.md` の「Declare, don't infer」に、この判定の例外を、今の例外（コピーした字幕の解析）と同じく方針・範囲・理由・境界の形で加える（設計書 §3.15、1.3）。
+    -   [x] 壊し方: キーをエスケープせずに埋め込むと T-02 の行が、`v` を持つメッセージを今の形に戻すと AC-40 の行が失敗することを確かめる。
 -   **完了の条件:** グリーンゲートが通る。
 
 #### ステップ 6-3: 応答の上限・注釈・端から端までのテスト
 
 -   **ファイル:** `internal/nmhost/relay.go`・`frame.go`・`relay_test.go`・`test_helpers.go`、`.golangci.yml`、`cmd/yt2column-server/relay_e2e_test.go`、`docs/dev/developer_guide/package_reference.md`
 -   **作業:**
-    -   [ ] `maxResponseBytes` を 512 KiB にする（設計書 §3.10.4）。`TestRelayResponseOverLimit` が新しい上限ちょうどの応答を切り詰めずに中継することを確かめる（AC-41）。
-    -   [ ] 設計書 §3.10.2「説明の更新」の注釈と `.golangci.yml` の `nmhost-boundaries` の説明を改める。
-    -   [ ] ホストの応答の上限を `-tags test` の定数で公開し、`cmd/yt2column-server` に、サーバの状態の取得の応答の上限（ステップ 5-2）がホストの上限以下で、ホストの上限の base64 と固定のメンバがフレームの上限に収まることを確かめる `TestStatusResponseFitsRelay` を加える（1.3、AC-41）。サーバの上限をホストの上限より大きくすると失敗することを確かめる。
-    -   [ ] `TestRelayEndToEnd` に、新しい形の 3 つの操作と、T-02 の注入のキー（`abc/publish` など）を実際のホストとサーバで通し、注入のキーに `invalid_key` が返る場合を加える（設計書 §7.2・§7.3）。
-    -   [ ] `package_reference.md` の `internal/nmhost` の行を改める（1.3）。
+    -   [x] `maxResponseBytes` を 512 KiB にする（設計書 §3.10.4）。`TestRelayResponseOverLimit` が新しい上限ちょうどの応答を切り詰めずに中継することを確かめる（AC-41）。
+    -   [x] 設計書 §3.10.2「説明の更新」の注釈と `.golangci.yml` の `nmhost-boundaries` の説明を改める。
+    -   [x] ホストの応答の上限を `-tags test` の定数で公開し、`cmd/yt2column-server` に、サーバの状態の取得の応答の上限（ステップ 5-2）がホストの上限以下であることを確かめる `TestStatusResponseFitsRelay` を加える（1.3、AC-41）。ホストの上限ちょうどの応答の base64 と固定のメンバがフレームの上限に収まることは、`TestRelayResponseOverLimit` の上限ちょうどの行が確かめる（フレームの上限を超える応答は `encodeReply` が `protocol_error` に替える）。サーバの上限をホストの上限より大きくすると失敗することを確かめる。
+    -   [x] `TestRelayEndToEnd` に、新しい形の 3 つの操作と、T-02 の注入のキー（`abc/publish` など）を実際のホストとサーバで通し、注入のキーに `invalid_key` が返る場合を加える（設計書 §7.2・§7.3）。
+    -   [x] `package_reference.md` の `internal/nmhost` の行を改める（1.3）。
 -   **完了の条件:** グリーンゲートが通る。
 
 ### PR-6 作成ポイント: host operation routing
@@ -427,10 +427,10 @@
 
 **判定理由**: ステップ 6-2 が、CLAUDE.md の例外となる形の判定とパスの注入を防ぐ関門（セキュリティの関門）を実装する。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/545
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 7: 文書
 
@@ -543,7 +543,7 @@ PR-1 と PR-2 は互いに依存しないが、PR は番号の順にマージす
 - [x] PR-3 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3）
 - [x] PR-4 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5）
 - [x] PR-5 マージ済み（対象ステップ: 5-6）
-- [ ] PR-6 マージ済み（対象ステップ: 6-1 / 6-2 / 6-3）
+- [x] PR-6 マージ済み（対象ステップ: 6-1 / 6-2 / 6-3）
 - [ ] PR-7 マージ済み（対象ステップ: 7-1 / 7-2 / 7-3）
 
 **横断の確認（`make lint` と `make test` が見つけないもの）:**
@@ -551,7 +551,7 @@ PR-1 と PR-2 は互いに依存しないが、PR は番号の順にマージす
 - [ ] 1.5 の表の今の名前（`TestLoadServerWebhookRequired`・`errNilPublisher`・`errNilNotifier`）が、コードと文書に残っていない（PR-3）。
 - [ ] Webhook を必須とする注釈（`always set`・`required`）が `internal/config` と `cmd/yt2column-server` に残っていない（PR-3）。
 - [x] 1.4 の「注釈」の行の `internal/server` の注釈が、新しい API の生成のジョブと取り消しに合っている（PR-4）。
-- [ ] 設計書 §3.10.2「説明の更新」の注釈に、メッセージを解析しない・標準入力の残りを読まない・64 KiB という記述が残っていない（PR-6）。
+- [x] 設計書 §3.10.2「説明の更新」の注釈に、メッセージを解析しない・標準入力の残りを読まない・64 KiB という記述が残っていない（PR-6）。
 - [ ] `package_reference.md` の各行が、その PR で変えたパッケージの責務と合っている（各 PR）。
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)

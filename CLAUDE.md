@@ -274,6 +274,25 @@ the [README](README.md) and `docs/dev/security.md` §8.
   widely but resolves to English. "Reject, don't normalize" does not apply: a
   UI language other than Japanese is not malformed input but a valid one that
   the extension shows in English.
+  Exception: the Native Messaging host chooses between the current message
+  form and the new form by inspecting the content of the message
+  (`route` in `internal/nmhost/relay.go`). Scope: the whole message is
+  validated by `strictjson.ParseObject`, and the choice is made only by
+  whether it passes and, if so, whether its top level has a `v` member
+  (compared after decoding escapes); this is the only place the message's
+  content selects behavior. Inside the new form the operation is the
+  declared `op` value, mapped to an `Operation` enum and dispatched by a
+  `switch`; the host checks only that a start's `input` is an object and a
+  key is a string. A current-form message's bytes are sent unchanged.
+  Reason: the current extension's message declares nothing, and the
+  extension does not change until #503, so the current form can only be told
+  apart by the absence of a declaration.
+  Boundary: a message with `v` is checked strictly as the new form and
+  rejected with `protocol_error`, without sending, when it breaks a rule; it
+  is never retried as the current form. A message that is not one strict
+  JSON object stays the current form and is relayed unchanged for the server
+  to reject. The current form and this exception are removed after #503
+  (#526).
 - **Enforce invariants with the type, not with convention**: if a value must pass
   validation before use (e.g. a video ID), make the compiler the thing that
   guarantees it — unexported fields plus a mandatory constructor — rather than
