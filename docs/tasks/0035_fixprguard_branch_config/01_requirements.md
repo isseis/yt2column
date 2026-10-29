@@ -16,7 +16,7 @@
 
 **背景:**
 
-`fixprguard` は、タスク 0030（[#395](https://github.com/isseis/yt2column/issues/395)）で作られた、`/fixpr` と `/runpr` のガードツールである。`begin` が基準値を取り、`inspect`・`finish`・`push` が git の状態を基準値と比べる（`docs/dev/developer_guide/fixprguard_guide.md` 5 章）。
+`fixprguard` は、タスク 0030（[#395](https://github.com/isseis/yt2column/issues/395)）で作られた、`/fixpr` と `/runpr` のガードツールである。`begin` が基準値を取り、`inspect`・`finish`・`push` が git の状態を基準値と比べる（`docs/dev/guides/fixprguard_guide.md` 5 章）。
 
 config については、今は次の 2 つを比べている。
 
@@ -199,7 +199,7 @@ AC-10 は、ファイルのバイト列をそのまま比べることを許さ�
 
 -   `docs/dev/project_overview.md` の「決定済みの方針」「前提・制約」に従う。外部のライブラリを加えない（CLAUDE.md「Dependencies」）。
 -   **先行するタスクの方針の例外:** 0030 `01_requirements.md` の AC-26 (c) は、「git の設定ファイル（リポジトリの config と、worktree の config）」が違えば止まると定めている。0030 `02_architecture.md` 3.7 は、config のファイルの内容のダイジェストを基準値に持つと定めている。本タスクは、外す対象のブランチの設定と、設定の値の一覧を変えない編集を、この比較から外す。理由は 1 章の「issue #431 で決めたこと」と「要件定義の際に決めたこと」のとおりである。0030 の文書は AC-17 のとおり改める。
--   **文書の改訂の規則の例外:** `docs/dev/developer_guide/requirements_process.md` の「Editing an approved document」は、承認済みの文書の決定を変えるときは、`Status` を `draft` に戻して承認し直すと定めている（例外は `/runplan` の実装の途中の決定だけである）。本タスクは、0030 の 2 つの文書の決定を変えるが、`Status` を `approved` のままにする（AC-17）。理由: 変更の決定は本書の承認で得られ、0030 の文書の改訂はその反映である。`Comments` の記録には `(decision)` を付け、本書を参照する。0030 の文書の改訂は、本書が承認された後に行う。
+-   **文書の改訂の規則の例外:** `docs/dev/conventions/requirements_process.md` の「Editing an approved document」は、承認済みの文書の決定を変えるときは、`Status` を `draft` に戻して承認し直すと定めている（例外は `/runplan` の実装の途中の決定だけである）。本タスクは、0030 の 2 つの文書の決定を変えるが、`Status` を `approved` のままにする（AC-17）。理由: 変更の決定は本書の承認で得られ、0030 の文書の改訂はその反映である。`Comments` の記録には `(decision)` を付け、本書を参照する。0030 の文書の改訂は、本書が承認された後に行う。
 -   タスク 0034（#424）より先に、実装まで終えてマージする。
 
 ## 6. 用語集 (Glossary)

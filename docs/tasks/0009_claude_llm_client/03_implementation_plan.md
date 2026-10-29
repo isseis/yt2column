@@ -47,7 +47,7 @@ HEAD `7864eec`（ブランチ `issei/llm-claude-02`）で確認した。architec
 - **Make の部品。** `internal/llm/deepseek/testutil/make.go` の公開の名前（`RunMakeTarget`・`MakeInvocation`・`ChargedTarget`・`CheckChargedTarget`・`FirstLineIs`・`ErrFirstLineMismatch`）は、`cmd/yt2column/makefile_test.go`・`internal/publisher/makefile_test.go`・`internal/llm/deepseek/makefile_test.go`・`internal/llm/deepseek/deepseek_test.go` が使う（`rg -n "FirstLineIs|RunMakeTarget|CheckChargedTarget"`）。公開の形を変えずにラッパーとして残す。`make_test.go` は非公開の `validateEnvNames`・`recordedNames` だけをテストしている。
 - **Makefile。** `test-integration-deepseek`（`Makefile:92-110`）が手本である。`.PHONY`（`:49`）と `lint` の前のコメント（`:163-167`）は統合テストのターゲットを列挙している。`make lint` は `go vet -tags integration ./...` も実行するため、`integration` タグだけのビルドの型の誤りも検出する（`Makefile:168-170`）。
 - **フィクスチャ。** `testdata/claude_messages_end_turn.json`（1459 バイト）と `testdata/claude_messages_max_tokens.json`（596 バイト）、および `testdata/README.md` の出典の節は、コミット `9e7d0db` で追加済みである。architecture §8 の 6 の「testdata の README」は完了しており、本計画は内容の確認だけを行う（ステップ 6-7）。
-- **ドキュメントの更新対象。** `README.md:142`・`:144`（設定の表）、`:160`・`:228-275`（統合テスト）。`docs/dev/project_overview.md:43`・`:79-82`（パッケージ構成）・`:95-97`（設定の表）・`:104`（空の値の扱い）。`docs/dev/security.md:18-41`（§2）・§4（`:52`）。`CLAUDE.md:95-99`（Architecture Overview）・`:210`（秘密情報の例）。`docs/dev/developer_guide/package_reference.md:18`・`:24-25`・`:32`・`:35`。英語版の文書（`*.en.md`）は存在しない。
+- **ドキュメントの更新対象。** `README.md:142`・`:144`（設定の表）、`:160`・`:228-275`（統合テスト）。`docs/dev/project_overview.md:43`・`:79-82`（パッケージ構成）・`:95-97`（設定の表）・`:104`（空の値の扱い）。`docs/dev/security.md:18-41`（§2）・§4（`:52`）。`CLAUDE.md:95-99`（Architecture Overview）・`:210`（秘密情報の例）。`docs/dev/conventions/package_reference.md:18`・`:24-25`・`:32`・`:35`。英語版の文書（`*.en.md`）は存在しない。
 - **外部前提の確認。**
   - `go.mod` は `go 1.26.5`、手元のツールチェーンは go1.27.1。`errors.AsType`（Go 1.26）と `context.WithTimeoutCause`（Go 1.21）が使える。外部モジュールは追加しない。
   - GNU Make 3.81（手元の `make --version`）。`?=`、ターゲット固有の `export`、コマンドラインの変数の優先の意味は、`0003_deepseek_llm_client` の実装計画 §1.3 で確認済みで、`test-integration-deepseek` が使っている意味と同じである。本計画の Make ターゲットもこれと同じ形にする。
@@ -99,7 +99,7 @@ HEAD `7864eec`（ブランチ `issei/llm-claude-02`）で確認した。architec
 **対象ファイル**
 - 新設: `internal/llm/llmhttp/llmhttp.go`・`llmhttp_test.go`（`//go:build test`）
 - 新設: `internal/llm/llmhttp/llmhttptest/llmhttptest.go`（`//go:build test`、パッケージ `llmhttptest`）
-- 変更: `internal/llm/deepseek/deepseek.go`・`response.go`・`errors.go`、`internal/pipeline/pipeline_test.go`、`docs/dev/developer_guide/package_reference.md`
+- 変更: `internal/llm/deepseek/deepseek.go`・`response.go`・`errors.go`、`internal/pipeline/pipeline_test.go`、`docs/dev/conventions/package_reference.md`
 
 **タスク**
 - [x] **ステップ 1-1**: `llmhttp.go` に architecture §3.4 の `MaxResponseBytes`・`NewClient`・`Errors`・`Call`・`Post` を実装する。手順は §1.3 に挙げた DeepSeek アダプタの処理を、振る舞いを変えずに移す。エラーメッセージの文言も変えない。これに加えて、architecture §3.4 の「リダイレクトの防止を呼び出し側に頼らない」と「不完全な `Call` では送らない」の 2 つを実装する。import は標準ライブラリだけとし、`internal/secret` を import しない。
@@ -143,7 +143,7 @@ HEAD `7864eec`（ブランチ `issei/llm-claude-02`）で確認した。architec
 
 **対象ファイル**
 - 新設: `internal/llm/claudeparam/claudeparam.go`・`claudeparam_test.go`
-- 変更: `docs/dev/developer_guide/package_reference.md`
+- 変更: `docs/dev/conventions/package_reference.md`
 
 **タスク**
 - [x] **ステップ 2-1**: `claudeparam.go` に architecture §3.2 の `Effort`・定数・`ParseEffort`・`String`・`WorkspaceID`・`ParseWorkspaceID`・`Value` と、§1.3 の `Valid` を実装する。`ParseEffort` と `String` は `switch` で書き、`default` を、`ParseEffort` では拒否、`String` では固定の文字列にする。5 つの値の一覧はこのファイルの外に持たない。import は標準ライブラリだけとする。
@@ -173,7 +173,7 @@ HEAD `7864eec`（ブランチ `issei/llm-claude-02`）で確認した。architec
 **対象ファイル**
 - 新設: `internal/llm/claude/claude.go`・`request.go`・`response.go`・`errors.go`
 - 新設: `internal/llm/claude/test_helpers.go`・`test_helpers_endpoint.go`（`//go:build test`）、`claude_test.go`・`response_test.go`（`//go:build test`）
-- 変更: `docs/dev/developer_guide/package_reference.md`
+- 変更: `docs/dev/conventions/package_reference.md`
 
 **タスク**
 - [x] **ステップ 3-1**: `errors.go` に architecture §4.1 の番兵・`HTTPStatusError`（`Error` は §4.2 の表の案内文をステータスコードから決める）と、構築時の非公開の静的エラーを作る。
@@ -209,7 +209,7 @@ HEAD `7864eec`（ブランチ `issei/llm-claude-02`）で確認した。architec
 - 変更: `internal/config/config.go`・`config_test.go`・`envaccess_test.go`
 - 変更: `internal/llm/provider/provider.go`・`provider_test.go`
 - 変更: `cmd/yt2column/run.go`・`run_test.go`
-- 変更: `internal/pipeline/pipeline_test.go`・`docs/dev/developer_guide/package_reference.md`
+- 変更: `internal/pipeline/pipeline_test.go`・`docs/dev/conventions/package_reference.md`
 
 **タスク**
 - [x] **ステップ 4-1**: 最初のコミットで、振る舞いを変えない改名だけを行う。§1.4 の表のとおり `apiKeyEnv`・`loadAPIKey` を改名し、`config_test.go` の参照を合わせる。このコミットの `config_test.go` の差分が識別子の置き換えだけで、期待値・アサーションを変えないことを、コミット前に差分で確認してコミットメッセージに書く（AC-27）。
@@ -255,7 +255,7 @@ HEAD `7864eec`（ブランチ `issei/llm-claude-02`）で確認した。architec
 - 変更: `internal/llm/deepseek/testutil/make.go`・`make_test.go`・`integration.go`
 - 新設: `internal/llm/claude/testutil/integration.go`（`//go:build test || integration`、パッケージ `claudetestutil`）・`integration_settings_test.go`（`//go:build test`）
 - 新設: `internal/llm/claude/integration_env_test.go`（`//go:build test || integration`）・`integration_test.go`（`//go:build integration`）・`makefile_test.go`（`//go:build test`）
-- 変更: `internal/llm/claude/claude_test.go`、`Makefile`、`cmd/yt2column/makefile_test.go`、`internal/pipeline/pipeline_test.go`、`docs/dev/developer_guide/package_reference.md`
+- 変更: `internal/llm/claude/claude_test.go`、`Makefile`、`cmd/yt2column/makefile_test.go`、`internal/pipeline/pipeline_test.go`、`docs/dev/conventions/package_reference.md`
 
 **タスク**
 - [x] **ステップ 5-1**: `internal/maketestutil/make.go` に、§1.4 の表の部品を移す。子プロセスの環境に渡す変数、記録する変数、表示の文言、モデル名などの変数と既定値は、呼び出し側が指定する。`CheckChargedTarget` の引数・`-timeout`・オプトインの検査も、DeepSeek と Claude の両方が使える形でここに置く。`make_test.go` に `TestValidateEnvNames`・`TestRecordedNames` を汎用の形で移す。`FirstLineIs` のエラーの経路は `deepseek_test.go:801-814` が既に検査しているため、`maketestutil` には同じテストを加えない。同じコミットで、`internal/pipeline/pipeline_test.go` の `testOnlyPackageDirs` に `internal/maketestutil` を加え、`package_reference.md` に行を加える。
@@ -312,7 +312,7 @@ HEAD `7864eec`（ブランチ `issei/llm-claude-02`）で確認した。architec
 ### フェーズ 6: ドキュメント
 
 **対象ファイル**
-- 変更: `README.md`・`docs/dev/project_overview.md`・`docs/dev/security.md`・`CLAUDE.md`・`AGENTS.md`・`docs/dev/developer_guide/package_reference.md`・`cmd/yt2column/docs_test.go`
+- 変更: `README.md`・`docs/dev/project_overview.md`・`docs/dev/security.md`・`CLAUDE.md`・`AGENTS.md`・`docs/dev/conventions/package_reference.md`・`cmd/yt2column/docs_test.go`
 
 **タスク**
 - [x] **ステップ 6-1**: `README.md` を更新する。設定の表（`YT2COLUMN_LLM_PROVIDER` に `claude`、`ANTHROPIC_API_KEY`・`YT2COLUMN_CLAUDE_EFFORT`・`ANTHROPIC_WORKSPACE_ID` の行、プロバイダ固有の変数は選んだプロバイダのときだけ検査すること）、effort `max` の注意（architecture §3.6）、`make test-integration-claude` の説明（テスト用の変数、既定のモデル・effort、料金）を書く。

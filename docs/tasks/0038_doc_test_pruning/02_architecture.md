@@ -111,7 +111,7 @@ Q2 を Q3 より先に置くのは、1.2 の 1 つめの決定（タスクの文
 
 -   **タスク 0034・0037 の進み具合:** 要件書 1 章は、タスク 0034 の計画が加えると定めたテストを未実装として扱う。2026-10-23 の本書の作成時点で、タスク 0034 の PR-2（PR #461）がそれらのテストを加えており、タスク 0037 の PR-1（PR #459）はマージ済みである（1.2、3.4）。
 
--   **`fixprguard_guide` の章番号:** 要件書 1 章と AC-22 は「10 章」と書くが、ツールを変更する場合の章は 9 章である（`docs/dev/developer_guide/fixprguard_guide.ja.md:338`、`fixprguard_guide.md:338`）。ガイドは 1〜9 章からなる。本書は 9 章と書く。
+-   **`fixprguard_guide` の章番号:** 要件書 1 章と AC-22 は「10 章」と書くが、ツールを変更する場合の章は 9 章である（`docs/dev/guides/fixprguard_guide.md:338`、`fixprguard_guide.md:338`）。ガイドは 1〜9 章からなる。本書は 9 章と書く。
 -   **行番号:** `extension/test/ciChanges.test.ts` の該当の行は `:28-29`、`has-extension-changes.sh` のパスのパターンは `:18` である（要件書は `:27-28`・`:17`）。タスク 0034 の計画の行は、`fa65bd4` で 1 行ずれ、`:325`・`:336`・`:358` になった（要件書は `:324`・`:335`・`:357`）。
 -   **タスク 0010 の古いパスの行:** 要件書 2.3 は、タスク 0010 の計画の `cmd/docs_test.go::TestReviewEvaluationRecords` を「本タスクが削除しない確認を指す」古い参照の例に挙げる。このテスト（`cmd/yt2column/docs_test.go:138`）はタスクの記録の確認（D4）であり、本タスクで削除する。そのため、0010 の計画の `:517-519` の行（AC-28〜AC-30）は F-005 で改める（3.3）。
 -   **AC の検証の行の数:** 要件書 1 章は 120 行とする。本書の数え方（3.3.1）では、承認済みの 23 のタスクで 127 行、取り下げたタスク 0029 で 4 行である。差は、0012 の「検査 N」の間接の行、0034 の未実装のテストの行、ファイル名だけの行を数えるかによる。
@@ -261,8 +261,8 @@ flowchart LR
 | Go の文書のテスト | `cmd/fixprguard/docs_test.go`、`cmd/yt2column/docs_test.go`・`copied_transcript_docs_test.go`・`extension_docs_test.go`・`fixpr_docs_test.go`・`output_layout_docs_test.go`・`codex_review_docs_test.go`・`run_test.go`、`cmd/yt2column-server/docs_test.go`、`internal/pipeline/relay_guard_test.go` |
 | node のテスト | `extension/test/metadataDocs.test.ts`、`extension/test/ciChanges.test.ts` |
 | 起動条件 | `extension/scripts/has-extension-changes.sh` |
-| 方針・手順の規則 | `CLAUDE.md`、`.claude/commands/mkplan.md`・`runplan.md`・`weakreview.md`、`docs/dev/developer_guide/requirements_process.md` |
-| 文書のテストを述べる文書 | `CLAUDE.md`、`docs/dev/developer_guide/pricing_update.md`、`docs/dev/developer_guide/fixprguard_guide.md`・`fixprguard_guide.ja.md`（必要な場合） |
+| 方針・手順の規則 | `CLAUDE.md`、`.claude/commands/mkplan.md`・`runplan.md`・`weakreview.md`、`docs/dev/conventions/requirements_process.md` |
+| 文書のテストを述べる文書 | `CLAUDE.md`、`docs/dev/guides/pricing_update.md`、`docs/dev/guides/fixprguard_guide.md`・`fixprguard_guide.ja.md`（必要な場合） |
 | タスクの文書 | 3.3.2 の 23 のタスクの `02_architecture.md`・`03_implementation_plan.md`、3.4 の未実装の計画、本タスクの `01_requirements.md`（1.4 の訂正） |
 
 変えないもの: `cmd/yt2column-nmhost/main_test.go`（`TestReadmeHostExitCodes` は残す）、`internal/pipeline/pipeline_test.go`（2 つのテストとも残す）、`extension/test/serverReasons.test.ts`、`extension/test/markdownSection.test.ts`、`.github/workflows/ci.yml`、取り下げたタスク 0029 の文書。
@@ -536,7 +536,7 @@ AC-05 の調べ: 要件書 1 章の一覧にないファイルに、文書を読
 各削除の PR は、自分が削除するテストと確認を述べる記述を、同じ PR で改める。
 
 -   **`CLAUDE.md`「Development Notes」（`:302-315`）:** node のテストが読む文書を README.md だけにし（PR-5）、text-sync guards の一覧から「the task records」を外し、「the `project_overview.md` notes」を残る確認（環境変数の名前、`costPrefix`、`16,383`）に合わせる（PR-4・PR-5）。`doc-guard` のコマンド（`:311-315`）は変えない（2.1）。ただし、一覧は `doc-guard` ジョブが走らせるテストを述べているので、`cmd/yt2column-nmhost` の README の終了コードの確認（`TestReadmeHostExitCodes`）は別に扱い、ローカルの `make test` と、コードの変更で走る CI の `test` ジョブだけが走らせる、と記す（2.1）。
--   **`docs/dev/developer_guide/pricing_update.md:69-71`:** `package_reference.md` の `internal/pricing` の行を `TestTokenUsageDocsContract` が確かめる、という記述を改める。この確認は D2 として削除する（PR-4）。`TestCostDocsContract` と `TestOutputLayoutDocsContract` を述べる `:55-66` は、残る確認（K1・K3）を述べているので変えない。
+-   **`docs/dev/guides/pricing_update.md:69-71`:** `package_reference.md` の `internal/pricing` の行を `TestTokenUsageDocsContract` が確かめる、という記述を改める。この確認は D2 として削除する（PR-4）。`TestCostDocsContract` と `TestOutputLayoutDocsContract` を述べる `:55-66` は、残る確認（K1・K3）を述べているので変えない。
 -   **`fixprguard_guide.md`・`fixprguard_guide.ja.md` 9 章（`:350-357`）:** 自動レビュアーの一覧を変える手順（`:350-355`）は K4 の手順であり、名前（`wantReviewers`、`TestContextReviewerRowsMalformed`）も残るので変えない。`:357` の「`cmd/fixprguard/docs_test.go` が、本書にすべての種類と項目があることを確かめる」は、残る K1 の確認（3.1.1）を述べているので変えない。PR-2 で、ほかに削除の対象を述べる箇所がないかを確かめる。
 -   AC-22 の対象（`CLAUDE.md`、`README.md`、`docs/dev/`、`.claude/commands/`）で、削除したテストや補助の名前を検索する作業は、各削除の PR の終わりに行う。
 
@@ -563,12 +563,12 @@ AC-05 の調べ: 要件書 1 章の一覧にないファイルに、文書を読
 |---|---|---|---|
 | `CLAUDE.md` | 変更 | 「Testing Strategy」に文書のテストの方針（AC-23）。「Development Notes」の文書のテストの説明（AC-20・AC-30） | PR-1・PR-4・PR-5 |
 | `.claude/commands/mkplan.md`・`runplan.md`・`weakreview.md` | 変更 | 自然言語の記述を定める AC に `manual` だけを認める（AC-24・AC-25） | PR-1 |
-| `docs/dev/developer_guide/requirements_process.md` | 変更 | 同上（`:239`） | PR-1 |
+| `docs/dev/conventions/requirements_process.md` | 変更 | 同上（`:239`） | PR-1 |
 | `cmd/fixprguard/docs_test.go` | 変更 | 3.1.1 の削除と、3.2 の補助の削除 | PR-2 |
-| `docs/dev/developer_guide/fixprguard_guide.md`・`.ja.md` | 確認（必要なら変更） | 9 章の記述が残るテストと一致することを確かめる | PR-2 |
+| `docs/dev/guides/fixprguard_guide.md`・`.ja.md` | 確認（必要なら変更） | 9 章の記述が残るテストと一致することを確かめる | PR-2 |
 | `cmd/yt2column/fixpr_docs_test.go`・`codex_review_docs_test.go` | 変更 | 3.1.2・3.1.3 の削除と、補助の削除 | PR-3 |
 | `cmd/yt2column/docs_test.go`・`output_layout_docs_test.go`・`run_test.go`・`copied_transcript_docs_test.go`・`extension_docs_test.go` | 変更 | 3.1.4・3.1.5 の削除と、補助の削除 | PR-4 |
-| `docs/dev/developer_guide/pricing_update.md` | 変更 | `:69-71` の記述 | PR-4 |
+| `docs/dev/guides/pricing_update.md` | 変更 | `:69-71` の記述 | PR-4 |
 | `cmd/yt2column-server/docs_test.go` | 変更 | 3.1.6 の削除と、パスの定数の削除 | PR-5 |
 | `internal/pipeline/relay_guard_test.go` | 変更 | `TestSharedTokenRemoved` の文書の部分、`withoutSection` などの補助と `TestWithoutSection` の削除 | PR-5 |
 | `extension/test/metadataDocs.test.ts` | 変更 | 2 つの確認の削除（3.1.7） | PR-5 |

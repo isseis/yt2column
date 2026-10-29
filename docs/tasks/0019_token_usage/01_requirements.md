@@ -91,7 +91,7 @@ Claude の `cache_read_input_tokens`・`cache_creation_input_tokens` が `null` 
 
 #### F-002: 応答の `usage` の検証
 
-応答の `usage` は、ネットワークから受け取る信頼できない入力である。既存の応答の検証（0003 の DeepSeek、0009 の Claude）と同じく `internal/strictjson` の規則で検証し、規則に合わない値を受理しない（[requirements_process.md](../../dev/developer_guide/requirements_process.md)「Untrusted input boundaries」）。ただし、`usage` の検証の失敗は、応答の拒否にしない。その呼び出しのトークン数を「不明」とし、応答のほかの部分は本タスクの前と同じに扱う。
+応答の `usage` は、ネットワークから受け取る信頼できない入力である。既存の応答の検証（0003 の DeepSeek、0009 の Claude）と同じく `internal/strictjson` の規則で検証し、規則に合わない値を受理しない（[requirements_process.md](../../dev/conventions/requirements_process.md)「Untrusted input boundaries」）。ただし、`usage` の検証の失敗は、応答の拒否にしない。その呼び出しのトークン数を「不明」とし、応答のほかの部分は本タスクの前と同じに扱う。
 
 **決定（issue #247 の検討事項 1）:** `usage` がない応答、または `usage` の消費する要素がない・形が不正な応答でも、記事の生成は続ける。その呼び出しのトークン数は「不明」として記録し、出力する。理由は次のとおり。
 

@@ -145,7 +145,7 @@ Codex が実行したコマンドは、R1・R3 では JSONL の `command_executi
 
 | 実行 | 読んだもの |
 |---|---|
-| R1 | `pwd`、`git diff --stat <BASE>`、`git diff <BASE>`、`git status --short`、`git log -3`、`ls -la internal/zztrial`、`outside.go`・`inside.go`、`AGENTS.md`、`CLAUDE.md`、`docs/dev/security.md`、`docs/dev/developer_guide/test_organization.md`、`docs/dev/developer_guide/requirements_process.md`、`internal` の下の `AGENTS.md` などの検索 |
+| R1 | `pwd`、`git diff --stat <BASE>`、`git diff <BASE>`、`git status --short`、`git log -3`、`ls -la internal/zztrial`、`outside.go`・`inside.go`、`AGENTS.md`、`CLAUDE.md`、`docs/dev/security.md`、`docs/dev/conventions/test_organization.md`、`docs/dev/conventions/requirements_process.md`、`internal` の下の `AGENTS.md` などの検索 |
 | R2 | `pwd`、`git diff --stat <BASE>`、`git diff <BASE>`、`git log -3`、`find .. -name AGENTS.md -o -name AGENTS.override.md`、`CLAUDE.md`（全文と一部の再読）、`AGENTS.md`、R1 と同じ 3 つの文書、`rg 'zztrial|func Counts' docs internal/zztrial`、`inside.go` |
 | R3 | `git status --short`、`git show --stat <CLEAN>`、`git show <CLEAN>`、`AGENTS.md`、`CLAUDE.md`、`ls internal/zztrial` と `internal/zztrial/*`（`inside.go`・`inside2.go`・`outside.go`）、`test_organization.md`、`requirements_process.md`、`internal` の下の `AGENTS.md` などの検索 |
 

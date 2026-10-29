@@ -36,7 +36,7 @@
     -   新しいツールは、`--reviewer` を 1 回だけ渡す今の文書と同じ結果を返し、出力の形も変えない（AC-04、要件書 4.4）。PR-1 のマージから PR-2 のマージまでの間も、どの worktree の文書でも今までどおり動く。
     -   古いツールは、`--reviewer` を 2 回渡されると引数の解析で止まり、使い方のエラー（終了コード `2`）になる（`cmd/fixprguard/main.go:186-195`）。誤った判定をせずに止まる。
     -   番号を上げると、呼び出しのガードが文書の `--protocol` をバイナリの番号で解析する（`cmd/fixprguard/docs_test.go:89-116`）ので、ツールと文書を同じ PR で変えることになる。すると、その PR 自体の `/runpr`・`/fixpr` が、ブランチの文書（`--protocol 2`）とインストール済みのツール（`1`）の食い違いで止まる。
-    -   これは、ガイドの「引数の契約を変えたら `Protocol` を上げる」（`docs/dev/developer_guide/fixprguard_guide.md:276`）の例外である。扱いは 1.4 に書く。
+    -   これは、ガイドの「引数の契約を変えたら `Protocol` を上げる」（`docs/dev/guides/fixprguard_guide.md:276`）の例外である。扱いは 1.4 に書く。
 -   **文書のコードブロックは `--reviewer <reviewer>` を 1 つだけ書き、定義の文で「一覧の名前ごとに 1 回ずつ繰り返す」と定める（AC-10）。** 名前の数を文書に書かないので、一覧を変えても文書を変えずに済む（要件書 4.5）。呼び出しのガードは、各呼び出しの `--reviewer` がちょうど 1 つのプレースホルダーであることを確かめる（3.4）。数を固定して `--reviewer <reviewer-1> --reviewer <reviewer-2>` と書く案は、一覧を変えるたびに文書を変えることになるので採らない。セッションが名前を渡し忘れても、その Bot のスレッドが理由 (b)（`other-bot`）で信頼されないだけで、安全側に倒れる（5.2）。
 -   **古いツールで止まったときの案内は、ガイドだけに書く（要件書 4.3）。** 解析の段階の使い方のエラーの診断は、すでにガイドのパスを示す（`cmd/fixprguard/main.go:255`）。ガイドの終了コード `2` の説明に、診断が `flag given twice: --reviewer` を含むときはツールが古いので `make install-fixprguard` で直ること、インストール済みのツールの版は `go version -m "$(command -v fixprguard)"` の `vcs.revision` で確かめられることを書き足す。新しいツールが同じ名前の重複を拒否するときの診断（4 章）はこの文字列を含まないので、2 つは取り違えない。`fixpr.md`・`runpr.md` には書き足さない。止まるのは再インストールまでの一時的な状態であり、手順書に恒久的な分岐を足すほどではないためである。
 
@@ -177,12 +177,12 @@ flowchart TD
 | `cmd/fixprguard/main.go` | `--reviewer` を値を集めるフラグにする。必須のフラグの確認が、値を集めるフラグにも働くようにする（今は `inv.values` だけを見る。`cmd/fixprguard/main.go:218-221`）。`githubFor` は `ParseReviewers` を呼び、エラーに `--reviewer` を付ける（AC-07）。`flagValue` のコメント（`main.go:175-177`）を改める | PR-1 |
 | `internal/fixprguard/*_test.go`・`test_helpers.go`、`cmd/fixprguard/main_test.go`・`test_helpers.go` | 7 章のテスト。`newTestGitHub`（`internal/fixprguard/test_helpers.go:205-213`）を `Reviewers` で作る | PR-1 |
 | `cmd/fixprguard/docs_test.go` | 呼び出しのガードが、`--reviewer` を取る各呼び出しで、`--reviewer` の値がちょうど 1 つで、それがプレースホルダー `<reviewer>` であることを確かめる（今は `inv.values` を読む。`cmd/fixprguard/docs_test.go:106`。直さないと、`--reviewer` の値が `inv.values` に入らなくなるので、この確認が何も検査しないまま通る）。`reviewerPlaceholder` のコメント（`docs_test.go:57-58`）を改める | PR-1 |
-| `docs/dev/developer_guide/fixprguard_guide.ja.md`・`fixprguard_guide.md` | ツールの振る舞いの記述（3.5 のガイドの PR-1 の項目） | PR-1 |
-| `docs/dev/developer_guide/package_reference.md` | `internal/fixprguard` の説明を `Reviewers` に合わせる（AC-12） | PR-1 |
+| `docs/dev/guides/fixprguard_guide.md`・`fixprguard_guide.md` | ツールの振る舞いの記述（3.5 のガイドの PR-1 の項目） | PR-1 |
+| `docs/dev/conventions/package_reference.md` | `internal/fixprguard` の説明を `Reviewers` に合わせる（AC-12） | PR-1 |
 | `.claude/commands/_context.md` | `Automated reviewer` の行を、`Automated reviewer list` と `Awaited PR reviewer` の 2 行に置き換える（AC-01・AC-03） | PR-2 |
 | `.claude/commands/fixpr.md` | `<reviewer>` の定義の文、「Untrusted threads」の信頼する著者の説明、ラウンド上限の説明（AC-10・AC-12） | PR-2 |
 | `.claude/commands/runpr.md` | `<reviewer>` の定義の文、step 3 の `<awaited-reviewer>`（AC-10・AC-11） | PR-2 |
-| `docs/dev/developer_guide/fixprguard_guide.ja.md`・`fixprguard_guide.md` | `_context.md` の一覧を参照する記述（3.5 のガイドの PR-2 の項目） | PR-2 |
+| `docs/dev/guides/fixprguard_guide.md`・`fixprguard_guide.md` | `_context.md` の一覧を参照する記述（3.5 のガイドの PR-2 の項目） | PR-2 |
 | `docs/translation_glossary.md` | 「信頼する著者」の定義を改め、「自動レビュアー」「自動レビュアーの一覧」「完了を待つ PR レビュアー」を加える（AC-13） | PR-2 |
 | `cmd/yt2column/fixpr_docs_test.go` | `reviewerSentence`、`TestContextAndCommandsAgree`、`TestGlossaryTerms` を一覧に合わせる（3.4。AC-02・AC-03・AC-10・AC-11・AC-13） | PR-2 |
 
@@ -340,7 +340,7 @@ func NewGitHub(run cmdrunner.InputRunner, reviewers Reviewers) (*GitHub, error)
     -   §7.2 の「保証しないこと」（`fixprguard_guide.md:246`）の `--reviewer` の値の行を、渡した値の集合について述べる形にする。
     -   §9 の `Protocol` の規則（`fixprguard_guide.md:276`）に、1.4 の 3 つの条件がすべて成り立つ変更だけは番号を上げなくてよい、という但し書きを加える。規則そのものは変えない。
 -   **ガイドの PR-2 の項目。** 信頼する著者の説明と `--reviewer` の行に、渡す名前は `_context.md` の `Automated reviewer list` のすべての名前であることを加える。自動レビュアーを一覧から外すときの手順（9 章）を加える。
--   **`package_reference.md`（PR-1）。** `internal/fixprguard` の説明（`docs/dev/developer_guide/package_reference.md:21`）の「the reviewer bot's `Login`」「by the reviewer bot」を、`ParseReviewers` が作る `Reviewers` と「一覧のどれかの Bot」に改める（AC-12）。
+-   **`package_reference.md`（PR-1）。** `internal/fixprguard` の説明（`docs/dev/conventions/package_reference.md:21`）の「the reviewer bot's `Login`」「by the reviewer bot」を、`ParseReviewers` が作る `Reviewers` と「一覧のどれかの Bot」に改める（AC-12）。
 
 ### 3.6. 副作用の契約
 

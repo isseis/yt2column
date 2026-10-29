@@ -42,7 +42,7 @@
 
 -   **PR は 7 つに分ける（レビュアーが選んだ）:** PR-1 はフェーズ 1・2（issue と土台）、PR-2 はフェーズ 3（`writer` と `publisher`）、PR-3 はフェーズ 4（設定と起動）、PR-4 はフェーズ 5 の前半（生成の開始・状態の取得・生成のジョブ・シャットダウンの取り消し）、PR-5 はフェーズ 5 の後半（投稿の操作と投稿のジョブ）、PR-6 はフェーズ 6（ホスト）、PR-7 はフェーズ 7（文書）とする。サーバの新しい API は最も大きく、リスクも最も高いので、2 つの PR に分けてレビューできるようにするためである。サーバを 1 つの PR にする案と、文書をホストの PR に含める案は採らなかった。
 -   **文書は、ガードが確かめる値をコードと同じ PR に、説明の文を最後の PR に置く（レビュアーが選んだ）:** `cmd/yt2column-server/docs_test.go:81-107` の `rejection_reasons` は、README の拒否の理由の表が `RejectReasonsForTest()` と過不足なく一致することを確かめる。このため、新しい拒否の理由の行は、その理由を加えるステップで README に加える（PR-3・PR-4・PR-5）。状態・工程・理由を表すコード（設計書 §3.11）の表とそのガード（AC-29）も、そのコードを返す PR-4 で加える。README の説明の文、`security.md`・`project_overview.md`・`production_profile.md`・`translation_glossary.md` は PR-7 でまとめて更新する。PR-3 のマージから PR-7 のマージまでの間、README は `SLACK_WEBHOOK_URL` を必須と書いたままになる。利用者は 1 人で、Webhook を設定したまま使う限り振る舞いは変わらないので、この間を許す。設計書 §8 もこの置き方に合わせた。
--   **`package_reference.md` は、パッケージを変える PR で更新する:** 同書は「パッケージを加える・取り除く・責務を変えるコミットで更新する」と定める（`docs/dev/developer_guide/package_reference.md:5-6`）。この規則に従い、上の決定の例外として、各 PR がその PR で変えるパッケージの行を更新する。
+-   **`package_reference.md` は、パッケージを変える PR で更新する:** 同書は「パッケージを加える・取り除く・責務を変えるコミットで更新する」と定める（`docs/dev/conventions/package_reference.md:5-6`）。この規則に従い、上の決定の例外として、各 PR がその PR で変えるパッケージの行を更新する。
 -   **ホストの形の判定を、CLAUDE.md の例外として書く（レビュアーが選んだ）:** 設計書 §3.14 の 6 は、#503 の後にこの例外を `CLAUDE.md` から取り除くとしたが、加える作業がどこにもなかった。設計書の §2.2・§3.15・§3.17・§8 に `CLAUDE.md` を加え、決定の変更として設計書を `draft` に戻した（設計書の `Comments`）。本計画の PR で設計書とともに承認し直す。`CLAUDE.md` の例外は、判定を実装する PR-6（ステップ 6-2）で書く。規則の例外を、それに当たるコードより後に書くと、PR-6 が単独では `CLAUDE.md` に合わないためである（上の文書の置き方の決定の例外で、設計書 §8 も合わせた）。同じ PR で、設計書 §3.12 と §3.16 の H-02 の行に残っていた「SHA-256」を §3.2 の HMAC-SHA256 に合わせ、`SLACK_WEBHOOK_URL` を必須と書く `docs/dev/production_profile.md:42` を設計書の更新する文書に加えた（編集上の修正）。
 -   **issue の起票は、`/runplan` がステップ 1-1 で行う:** 起票はネットワークの操作なので、`/runplan` が実行の前に承認を求める。本計画の作成（`/mkplan`）では起票しない。
 -   **フェーズ 5 は、部品を先に作り、受け口を後に作る:** 生成のジョブと状態の応答の組み立て（ステップ 5-2）を、振り分けと受け口（ステップ 5-3）より先に作る。部品はハンドルを直接渡すテストで確かめられるので、各ステップの後でグリーンゲートが通る。
@@ -150,7 +150,7 @@
 
 #### ステップ 2-4: `depguard` の規則と `package_reference.md`
 
--   **ファイル:** `.golangci.yml`・`docs/dev/developer_guide/package_reference.md`
+-   **ファイル:** `.golangci.yml`・`docs/dev/conventions/package_reference.md`
 -   **作業:**
     -   [x] `internal/articlecache` が `net/http`・`internal/llm`・`internal/publisher`・`internal/server` を import することを禁じる規則を加える（設計書 §2.1）。
     -   [x] 一時的に `_ "net/http"` を import して、`make lint` の出力が新しい規則の名前で失敗することを確かめ、元に戻す。結果をコミットのメッセージに書く。
@@ -198,7 +198,7 @@
 
 #### ステップ 3-3: 組み立て済みのメッセージと途中からの送信
 
--   **ファイル:** `internal/publisher/slack_message.go`・`slack.go`・`test_helpers_slack.go`・`slack_test.go`、`internal/publisher/testutil/mocks.go`・`mocks_test.go`、`docs/dev/developer_guide/package_reference.md`
+-   **ファイル:** `internal/publisher/slack_message.go`・`slack.go`・`test_helpers_slack.go`・`slack_test.go`、`internal/publisher/testutil/mocks.go`・`mocks_test.go`、`docs/dev/conventions/package_reference.md`
 -   **作業:**
     -   [x] `SlackMessages`・`PrepareSlackMessages` を加え、`SlackMessageCount` と `SlackMessagesForTest` をそれを呼ぶ形にする（設計書 §3.6.1）。
     -   [x] `PostMessages` を加え、`Publish` を `PrepareSlackMessages` と `PostMessages(ctx, m, 0, 何もしない関数)` の形にする（設計書 §3.7.1）。`PostMessages` も `Publish` と同じく、最初に Webhook の URL を持つかを確かめる。
@@ -252,7 +252,7 @@
 
 #### ステップ 4-3: 起動のログと、Webhook なしの起動のテスト
 
--   **ファイル:** `cmd/yt2column-server/run.go`・`run_test.go`、`docs/dev/developer_guide/package_reference.md`
+-   **ファイル:** `cmd/yt2column-server/run.go`・`run_test.go`、`docs/dev/conventions/package_reference.md`
 -   **作業:**
     -   [x] `listening` の行に `webhookConfigured` を加え、未設定のときに WARN の行を 1 行書く（設計書 §3.8「起動のログ」）。
     -   [x] テスト: Webhook のない環境でサーバが起動し、`webhookConfigured=false` と WARN の行を書き、発行者と通知の組み立て関数を呼ばないことを確かめる `TestStartsWithoutWebhook` を加える（AC-32）。`TestRunLogsListeningAndStop` に、設定されているときの `webhookConfigured=true` と WARN の行がないことを加える。
@@ -325,7 +325,7 @@
 
 #### ステップ 5-5: シャットダウンでの生成の取り消しと、端から端までのテスト
 
--   **ファイル:** `internal/server/server.go`・`server_test.go`、`cmd/yt2column-server/run.go`・`run_test.go`・`server_test.go`、`docs/dev/developer_guide/package_reference.md`
+-   **ファイル:** `internal/server/server.go`・`server_test.go`、`cmd/yt2column-server/run.go`・`run_test.go`・`server_test.go`、`docs/dev/conventions/package_reference.md`
 -   **作業:**
     -   [x] `Serve` が、まず `genCtx` を取り消し、取り消したジョブのログを書く形にする（設計書 §6.4・§3.12）。停止の案内に、新しい API の生成が取り消されることを加え、その文を確かめる行を `run_test.go` の停止の案内のテストに加える。
     -   [x] テスト（AC-46 の生成と旧 API の部分）: 生成のジョブの書き手が取り消しを受け取って終わり、記録が失敗になり、取り消しの行だけを書き、生成の失敗の行を書かないこと。同じときに旧 API のジョブの書き手の `ctx` は取り消されず、ジョブが完了してから `Serve` が戻ること。`TestServeShutdownWaitsForJobs` は期待値を変えずに通る。
@@ -353,7 +353,7 @@
 
 #### ステップ 5-6: 投稿の操作と投稿のジョブ
 
--   **ファイル:** `internal/server/handler.go`・`jobs_api.go`・`publish.go`・`response.go`・`server.go`・`generation.go`・`test_helpers.go`、`internal/articlecache/record.go`・`cache_test.go`、テストは `publish_test.go`（新規）・`generation_test.go`・`response_test.go`・`job_test.go`・`handler_test.go`・`jobs_api_test.go`、`cmd/yt2column-server/server_test.go`、`README.md`、`docs/dev/developer_guide/package_reference.md`
+-   **ファイル:** `internal/server/handler.go`・`jobs_api.go`・`publish.go`・`response.go`・`server.go`・`generation.go`・`test_helpers.go`、`internal/articlecache/record.go`・`cache_test.go`、テストは `publish_test.go`（新規）・`generation_test.go`・`response_test.go`・`job_test.go`・`handler_test.go`・`jobs_api_test.go`、`cmd/yt2column-server/server_test.go`、`README.md`、`docs/dev/conventions/package_reference.md`
 -   **作業:**
     -   [x] 投稿の操作のパスの定数を加え、振り分けに `/jobs/{key}/publish` を加える。検査の順序と結果ごとの応答は設計書 §3.7.2 に従う。拒否の理由 `article_not_ready`・`article_not_found`・`article_not_postable` を加え、README の拒否の理由の表に 3 行を加え（3 列目は `unexpected reply`）、`TestRejectReasonSet`・`TestReasonToKind`・`TestRejectStatusCodes` に行を加える。
     -   [x] 投稿のジョブを加える（設計書 §3.7.2「投稿のジョブ」「panic」「通知しない」）。投稿のジョブは `s.jobs` に数え、シャットダウンで取り消さずに待つ。シャットダウンのログに投稿のジョブの数を別の属性で出す（設計書 §6.4）。
@@ -406,7 +406,7 @@
 
 #### ステップ 6-3: 応答の上限・注釈・端から端までのテスト
 
--   **ファイル:** `internal/nmhost/relay.go`・`frame.go`・`relay_test.go`・`test_helpers.go`、`.golangci.yml`、`cmd/yt2column-server/relay_e2e_test.go`、`docs/dev/developer_guide/package_reference.md`
+-   **ファイル:** `internal/nmhost/relay.go`・`frame.go`・`relay_test.go`・`test_helpers.go`、`.golangci.yml`、`cmd/yt2column-server/relay_e2e_test.go`、`docs/dev/conventions/package_reference.md`
 -   **作業:**
     -   [x] `maxResponseBytes` を 512 KiB にする（設計書 §3.10.4）。`TestRelayResponseOverLimit` が新しい上限ちょうどの応答を切り詰めずに中継することを確かめる（AC-41）。
     -   [x] 設計書 §3.10.2「説明の更新」の注釈と `.golangci.yml` の `nmhost-boundaries` の説明を改める。

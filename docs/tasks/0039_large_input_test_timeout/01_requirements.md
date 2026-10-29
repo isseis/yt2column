@@ -145,7 +145,7 @@ AC-03 のプロファイルの結果を見て、パーサを改善するかど�
 
 -   時間の上限を超えたとき（AC-07）、開発者には、`go test` の失敗として、入力の名前・バイト数・かかった時間・上限が見える（今の `copied_format_test.go:1080-1082` の形を保つ）。
 -   `-race` 付きのビルドでは時間の上限がないため、解析が止まらないときは、`go test` のパッケージのタイムアウト（既定 10 分。`make test`・`make test-ci`・CI のジョブはタイムアウトを指定していない。`Makefile:83-89`、`.github/workflows/ci.yml`）で失敗する。時間の劣化は `-race` なしのビルドの確認（AC-07）で検出する。
--   原因の調査の結論が F-002 の前提に反するとき（AC-05）は、実装を進めずに要件の変更として扱う（`docs/dev/developer_guide/requirements_process.md`「Editing an approved document」）。
+-   原因の調査の結論が F-002 の前提に反するとき（AC-05）は、実装を進めずに要件の変更として扱う（`docs/dev/conventions/requirements_process.md`「Editing an approved document」）。
 
 ## 4. 非機能要件 (Non-Functional Requirements)
 

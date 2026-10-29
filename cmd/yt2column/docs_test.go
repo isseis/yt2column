@@ -63,7 +63,29 @@ func markdownLinkTargets(text string) []string {
 	return targets
 }
 
-// anchorFromHeading returns the anchor GitHub derives from a heading line:
+// linkOpenerCount returns how many Markdown link openers doc has outside
+// fenced code blocks. A link form the extraction drops would leave the count
+// above the number of targets it found.
+func linkOpenerCount(doc string) int {
+	openers := 0
+	for _, line := range scanDocLines(slices.Collect(strings.Lines(doc))) {
+		if !line.block {
+			openers += strings.Count(line.text, "](")
+		}
+	}
+	return openers
+}
+
+// checkLinkCount checks that the number of Markdown link openers outside code
+// blocks in doc equals the number of targets the extraction found, so a link
+// form it drops cannot go unchecked.
+func checkLinkCount(t *testing.T, name, doc string, targets int) {
+	t.Helper()
+	if openers := linkOpenerCount(doc); openers != targets {
+		t.Errorf("%s has %d link openers outside code blocks but the extraction found %d targets; a link form it drops would go unchecked", name, openers, targets)
+	}
+}
+
 // lowercase, with markup punctuation removed, each ASCII space turned into a
 // hyphen, and letters, numbers, marks, connector punctuation, and hyphens kept.
 // Any other character, a non-ASCII space included, is dropped.
@@ -1120,15 +1142,7 @@ func TestReadmeLinks(t *testing.T) {
 	readme := readDoc(t, readmePath)
 	anchors := headingAnchors(t, "README.md", readme)
 	targets := markdownLinkTargets(readme)
-	openers := 0
-	for _, line := range scanDocLines(slices.Collect(strings.Lines(readme))) {
-		if !line.block {
-			openers += strings.Count(line.text, "](")
-		}
-	}
-	if len(targets) != openers {
-		t.Errorf("README has %d link openers outside code blocks but the extraction found %d targets; a link form it drops would go unchecked", openers, len(targets))
-	}
+	checkLinkCount(t, "README", readme, len(targets))
 	for _, target := range targets {
 		if anchor, ok := strings.CutPrefix(target, "#"); ok {
 			if _, known := anchors[anchor]; !known {

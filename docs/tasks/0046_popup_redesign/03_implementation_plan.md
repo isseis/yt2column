@@ -8,7 +8,7 @@
 | Created | 2026-10-28 |
 | Review date | 2026-10-28 |
 | Reviewer | isseis |
-| Comments | 2026-10-28 (editorial): `/runplan` の PR-1 のレビューの指摘で、ステップ 1-4 の概要欄の文章の確認を改めた。画面の内容は、押せる主ボタンのために送るリクエスト（本文に概要欄を含む）を持つので、「画面の内容のどこにも入らない」とは言えない。概要欄の行が文章を持つ場所を持たないことを設計（3.2）のとおりにし、表示の確認はステップ 3-2 の描き方のテストで行う。7 章の AC-15 の行も、描き方のテストだけを挙げる形に直した。決定は変えていない。 |
+| Comments | 2026-10-28 (editorial): `/runplan` の PR-1 のレビューの指摘で、ステップ 1-4 の概要欄の文章の確認を改めた。画面の内容は、押せる主ボタンのために送るリクエスト（本文に概要欄を含む）を持つので、「画面の内容のどこにも入らない」とは言えない。概要欄の行が文章を持つ場所を持たないことを設計（3.2）のとおりにし、表示の確認はステップ 3-2 の描き方のテストで行う。7 章の AC-15 の行も、描き方のテストだけを挙げる形に直した。決定は変えていない。<br>2026-10-28 (editorial): ステップ 5-4 の手動の確認で、Chrome が拡張のページに注入する `extension_fonts.css` の `body` の規則（`font-size: 75%`）が `:root` の 14px と日本語の書体を打ち消し、日本語が 10.5px で表示されることを見つけた。設計書 3.7 に打ち消しの宣言を加え、ステップ 5-4 の変更するファイルに `static/style.css` と `test/style.test.ts` を加えた。設計はすでに `:root` の 14px と日本語の書体を定めており、この追加はそれを Chrome の注入に対して成立させるための記述である。決定は変えていない。 |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の項番、「設計書 3.2」などは設計書の節を指す。既存のコードと文書についての記述は、コミット `a04e5d82` で確かめた。`file:line` はこのコミットの行番号を指す。拡張のファイルのパスは、設計書と同じく `extension/` を省いて書く（例: `src/launch.ts`）。テストの場所は `path::describe の名前` で示す。
 
@@ -86,7 +86,7 @@
 -   `test/render.test.ts::renderSummary`（`:33-161`）: 英語の名前をリテラルで固定する確認（`:34-50`）は、`renderPopup` の英語の行の名前と主ボタンの名前をリテラルで比べる確認に移す。数の書式（`:77-88`）、切り詰めた値の省略記号（`:103-112`）、手順を `ol > li` で描き、手順がなければ `<ol>` を描かないこと（`:125-149`）、2 回描いても要素が増えないこと（`:151-160`）は、`test/render.test.ts::renderPopup` に移す（ステップ 3-2）。
 -   `test/renderMetadata.test.ts`（全体）の、値を `textContent` で設定すること・表示の上限で切り詰めること・促しのメッセージの手順の確認は、`test/popupView.test.ts::buildCollectedView`（上限と切り詰め）と `test/render.test.ts::renderPopup`（`textContent`・手順）が引き継ぐ。概要欄の文章を表示する確認は、AC-15 で主張が逆になる。
 
-**テストの補助:** 拡張のテストの補助は `test/helpers/` に置く（`dom.ts`・`logger.ts`・`native.ts` など）。`docs/dev/developer_guide/test_organization.md` は Go の規則（`testutil/`・`test_helpers.go`・`//go:build test`）で、拡張には当たらない。本タスクは `test/helpers/dom.ts` に骨格の要素を作る補助を加える（ステップ 3-2）。新しい補助のファイルは加えない。
+**テストの補助:** 拡張のテストの補助は `test/helpers/` に置く（`dom.ts`・`logger.ts`・`native.ts` など）。`docs/dev/conventions/test_organization.md` は Go の規則（`testutil/`・`test_helpers.go`・`//go:build test`）で、拡張には当たらない。本タスクは `test/helpers/dom.ts` に骨格の要素を作る補助を加える（ステップ 3-2）。新しい補助のファイルは加えない。
 
 **jsdom の CSS の解釈:** `style.test.ts` は jsdom の CSSOM で `style.css` を読む（`test/style.test.ts:50-81`）。設計書 3.4・3.6 の規則が jsdom で読めることを、jsdom 30.1.2（`extension/node_modules`）で確かめた。`@media (prefers-color-scheme: dark)` の中の `:root` は `CSSMediaRule` の子として、`.x:has(> :dir(rtl))`・`-webkit-line-clamp`・`[hidden]` の `!important`・`:focus-visible` の `outline` と `var(--…)` は、どれも宣言のとおりに読める。`background` の一括指定は `getPropertyValue("background")` でしか読めないので、色の変数の参照を確かめる規則は `background-color` で書く。
 
@@ -336,8 +336,8 @@
 
 **変更するファイル:** `README.md`、`test/metadataDocs.test.ts`
 
--   [ ] 「Browser extension」の節のポップアップの説明（`README.md:1129-1152`）を、設計書 3.8 のとおりに書き直す。主ボタンを **Generate article** と書き、動画のセクション・確認のセクション（選択範囲の行と概要欄の行、⚠ のときの理由と手順）・主ボタン・詳細を説明し、値が取れないときの説明に、概要欄の行が ⚠ になることと見出しがタブのタイトルになることを加える。
--   [ ] `test/metadataDocs.test.ts` に、README の節が `catalogs.en.primaryButton` を含むことの確認を加える（設計書 3.8）。促しのメッセージの比較は残す。README が画面の文言をほかにも引用するとき（行の名前、`Details` など）は、その文言ごとに同じ確認を加える。
+-   [x] 「Browser extension」の節のポップアップの説明（`README.md:1129-1152`）を、設計書 3.8 のとおりに書き直す。主ボタンを **Generate article** と書き、動画のセクション・確認のセクション（選択範囲の行と概要欄の行、⚠ のときの理由と手順）・主ボタン・詳細を説明し、値が取れないときの説明に、概要欄の行が ⚠ になることと見出しがタブのタイトルになることを加える。
+-   [x] `test/metadataDocs.test.ts` に、README の節が `catalogs.en.primaryButton` を含むことの確認を加える（設計書 3.8）。促しのメッセージの比較は残す。README が画面の文言をほかにも引用するとき（行の名前、`Details` など）は、その文言ごとに同じ確認を加える。
 
 **完了の条件:** `make ext-test` が通る。README の主ボタンの名前を `Send to yt2column` に戻して壊し、追加した確認が失敗することを確かめる。
 
@@ -345,7 +345,7 @@
 
 **変更するファイル:** `docs/translation_glossary.md`
 
--   [ ] 要件書 6 章の用語を加え、「字幕」の行に UI の文言での使い方を注記する（設計書 3.8）。
+-   [x] 要件書 6 章の用語を加え、「字幕」の行に UI の文言での使い方を注記する（設計書 3.8）。
 
 **完了の条件:** PR のレビューで、加えた用語と要件書 6 章を照らす。
 
@@ -353,24 +353,25 @@
 
 **変更するファイル:** `scripts/popup-preview.ts`（新規）、`test/popupPreview.test.ts`（新規）
 
--   [ ] `scripts/popup-preview.ts` を書く（1.3）。手動の確認（ステップ 5-4）に使う状態を、名前を付けた入力の組として持ち、それぞれを `buildCollectedView`（拒否は `RejectedView`）と、出荷する `popup.html` の骨格への `renderPopup` で描き、描く前に `applyPageLocale` でその入力の組の言語をページに設定し（日本語の行間 1.7 は `body:lang(ja)` で決まる、`static/style.css:71-73`）、静的な HTML のファイルとして引数のディレクトリに書き出す。`style.css` も同じディレクトリに写す。入力の組には、少なくとも次を含める。
+-   [x] `scripts/popup-preview.ts` を書く（1.3）。手動の確認（ステップ 5-4）に使う状態を、名前を付けた入力の組として持ち、それぞれを `buildCollectedView`（拒否は `RejectedView`）と、出荷する `popup.html` の骨格への `renderPopup` で描き、描く前に `applyPageLocale` でその入力の組の言語をページに設定し（日本語の行間 1.7 は `body:lang(ja)` で決まる、`static/style.css:71-73`）、静的な HTML のファイルとして引数のディレクトリに書き出す。`style.css` も同じディレクトリに写す。入力の組には、少なくとも次を含める。
     -   AC-17 の最悪の場合: 本文が 4 MiB を超え、概要欄が折りたたまれ、見出しが 2 行を超え、チャンネル名が 200 コードポイントの日本語。
-    -   AC-09: 末尾が左から右だけ・右から左だけ・向きが混ざった文・U+200F を含むもの。
+    -   AC-09: 末尾が左から右だけ・右から左だけ・向きが混ざった文・U+200F を含むもの。選択範囲の全体が右から左だけのもの（先頭のプレビューで最初の文字が見えること）。
     -   AC-33: U+202E を含む値。
     -   拒否。
     -   英語と日本語の両方。
--   [ ] `eslint.config.js:238-249` が `scripts/` でも `CollectedInput`・`PreparedRequest` への型の断定を禁じるので、入力は本番の関数で作る。`CollectedInput` は受け付ける URL と偽の `SelectionReader` を渡した `collect` で、動画メタデータは `acceptMetadata`（読み取りの失敗は `readFailureResult`）で、リクエストは `prepareSend` で作る。本文が大きすぎる状態は、4 MiB を超える選択範囲を実際に渡して作る。HTML は `JSDOM` の `serialize()` で書き出す（`outerHTML` は lint が禁じる）。
--   [ ] 書き出す HTML は、外部の資源を読み込まず、スクリプトを含まない。骨格の `<script src="popup.js">` は取り除き、`style.css` への相対の `<link>` は残す。
--   [ ] `test/popupPreview.test.ts` に、スクリプトを一時的なディレクトリに対して実行し、終了コードが 0 で、入力の組ごとの HTML のファイルと `style.css` ができ、各ファイルが主ボタンを持ち `<script>` を持たず、日本語の組のファイルの `<html>` が `lang="ja"` であることを確かめるテストを書く。
+-   [x] `eslint.config.js:238-249` が `scripts/` でも `CollectedInput`・`PreparedRequest` への型の断定を禁じるので、入力は本番の関数で作る。`CollectedInput` は受け付ける URL と偽の `SelectionReader` を渡した `collect` で、動画メタデータは `acceptMetadata`（読み取りの失敗は `readFailureResult`）で、リクエストは `prepareSend` で作る。本文が大きすぎる状態は、4 MiB を超える選択範囲を実際に渡して作る。HTML は `JSDOM` の `serialize()` で書き出す（`outerHTML` は lint が禁じる）。
+-   [x] 書き出す HTML は、外部の資源を読み込まず、スクリプトを含まない。骨格の `<script src="popup.js">` は取り除き、`style.css` への相対の `<link>` は残す。
+-   [x] `test/popupPreview.test.ts` に、スクリプトを一時的なディレクトリに対して実行し、終了コードが 0 で、入力の組ごとの HTML のファイルと `style.css` ができ、各ファイルが主ボタンを持ち `<script>` を持たず、日本語の組のファイルの `<html>` が `lang="ja"` であることを確かめるテストを書く。
 
 **完了の条件:** `make ext-check` が通る。`make ext-build` の後の `dist/` に `popup-preview` を名前に含むファイルがない（`make ext-build` が呼ぶ `check-dist` が通ることと合わせて、ステップ 5-4 の前に確かめる）。
 
 #### ステップ 5-4: 手動の確認
 
-**変更するファイル:** 本書
+**変更するファイル:** 本書、`static/style.css`、`test/style.test.ts`
 
--   [ ] 設計書 7.2 の表のすべての行を、Chrome と Brave、ライトとダーク、英語と日本語の組み合わせで確かめる。倍率は 100% とする。AC-04・AC-09・AC-17・AC-33・AC-40 は、ステップ 5-3 のスクリプトの出力を幅 360px のウィンドウで開いて確かめる。AC-17 は、通常のウィンドウにはポップアップの高さの上限がないので、開発者ツールで主ボタンの `getBoundingClientRect().bottom` を測り、英語と日本語の最悪の場合の組で 600 CSS ピクセル以下であることを合格の条件とする。そのうえで、実際のポップアップでも見出しが長い動画で AC-04 を確かめる。AC-25・AC-28・AC-36〜AC-39 は、ビルドした拡張を読み込んだ実際のポップアップで確かめる。
--   [ ] 結果を、確かめた日付・ブラウザのバージョン・確かめた人と一緒に 7 章の「手動の確認の記録」に書く。
+-   [x] 手動の確認で、Chrome が拡張のページに注入する `extension_fonts.css` の `body { font-family: …; font-size: 75% }` が `:root` の 14px と日本語の書体を打ち消し、日本語が 10.5px で表示されることを見つけた。`static/style.css` の `body` の規則に `font-family: inherit` と `font-size: 1rem` を加え、`test/style.test.ts` でその宣言を確かめる（設計書 3.7）。直したビルドで手動の確認をやり直す。
+-   [x] 設計書 7.2 の表のすべての行を、Chrome と Brave、ライトとダーク、英語と日本語の組み合わせで確かめる。倍率は 100% とする。AC-04・AC-09・AC-17・AC-33・AC-40 は、ステップ 5-3 のスクリプトの出力を幅 360px のウィンドウで開いて確かめる。AC-17 は、通常のウィンドウにはポップアップの高さの上限がないので、開発者ツールで主ボタンの `getBoundingClientRect().bottom` を測り、英語と日本語の最悪の場合の組で 600 CSS ピクセル以下であることを合格の条件とする。そのうえで、実際のポップアップでも見出しが長い動画で AC-04 を確かめる。AC-25・AC-28・AC-36〜AC-39 は、ビルドした拡張を読み込んだ実際のポップアップで確かめる。
+-   [x] 結果を、確かめた日付・ブラウザのバージョン・確かめた人と一緒に 7 章の「手動の確認の記録」に書く。
 
 **完了の条件:** 設計書 7.2 の表のすべての行に結果が記録されている。
 
@@ -386,10 +387,10 @@
 
 **判定理由**: 文書の更新と、既存の関数を呼ぶだけの開発用のスクリプトで、`mkplan.md` の Conditional checks にも当たらない。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/559
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ## 3. 実装の順序とマイルストーン (Implementation Order and Milestones)
 
@@ -402,7 +403,7 @@
 | M1（PR-1） | 画面の内容・`buildCollectedView`・新しい文言・変えない文言の差分の確認 | PR-1 のマージ。ポップアップは古い表示のまま動く |
 | M2（PR-2） | `renderPopup`・`checkIcon`・色の変数とコントラストのテスト | PR-2 のマージ。ポップアップは古い表示のまま動く |
 | M3（PR-3） | 骨格・経路の処理の切り替え・古い部品の削除 | PR-3 のマージ。ポップアップは新しい表示で動く |
-| M4（PR-4） | README・用語集・プレビューのスクリプト・手動の確認の記録 | PR-4 のマージ。7 章のすべての行が確かめられている |
+| M4（PR-4） | README・用語集・プレビューのスクリプト・手動の確認で見つけた書体の打ち消し・手動の確認の記録 | PR-4 のマージ。7 章のすべての行が確かめられている |
 
 ### 3.2 PR 構成
 
@@ -411,7 +412,7 @@
 | PR-1 | 1-1 / 1-2 / 1-3 / 1-4 / 2-1 / 2-2 | 画面の内容と `buildCollectedView`、`prepareSend` の引数の変更、文言の新しい項目と短い促しのメッセージ、差分の確認のスクリプト | standard |
 | PR-2 | 3-1 / 3-2 / 3-3 | `checkIcon`・`renderPopup`・色の変数とレイアウトの CSS を、古い表示と並べて加える | standard |
 | PR-3 | 3-4 / 4-1 / 4-2 / 4-3 / 4-4 | 骨格への置き換え、経路の処理の切り替え、古い部品の削除 | frontier-recommended |
-| PR-4 | 5-1 / 5-2 / 5-3 / 5-4 | README・用語集・プレビューのスクリプト・手動の確認 | standard |
+| PR-4 | 5-1 / 5-2 / 5-3 / 5-4 | README・用語集・プレビューのスクリプト・手動の確認で見つけた書体の打ち消し | standard |
 
 ## 4. テスト戦略 (Test Strategy)
 
@@ -428,7 +429,7 @@
 | `test/catalog.test.ts` | 1-3・2-1・4-3（コメント） |
 | `test/typecheck.test.ts` | 2-1 |
 | `test/render.test.ts` | 3-1・3-2（追加）・4-3（`renderSummary` の describe を削除） |
-| `test/style.test.ts` | 3-3 |
+| `test/style.test.ts` | 3-3・5-4（Chrome の注入の打ち消し） |
 | `test/popupHtml.test.ts`（新規） | 3-4 |
 | `test/launch.test.ts` | 1-3（期待する文言）・1-4（import 元）・4-2（書き換え） |
 | `test/renderMetadata.test.ts` | 1-4（import 元）・3-2（class の名前）・4-3（削除） |
@@ -468,7 +469,7 @@ AC-11・AC-20・AC-23 の文言、AC-19 のリクエストの本文、AC-35 の 
 -   [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 2-1 / 2-2）
 -   [x] PR-2 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3）
 -   [x] PR-3 マージ済み（対象ステップ: 3-4 / 4-1 / 4-2 / 4-3 / 4-4）
--   [ ] PR-4 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4）
+-   [x] PR-4 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -539,7 +540,21 @@ AC-36 のキーボードでの操作と AC-40 の色覚の模擬は、テスト�
     PASS: extension/static/manifest.json is identical (sha256 47091ca6796f153ed03ffbbb55573067a88da30bbae1ea20186407b2e2bed8d5)
     ```
 
-**手動の確認の記録:** （ステップ 5-4 で記録する）
+**手動の確認の記録（2026-10-28、確かめた人: isseis）:**
+
+Chrome 156.0.8078.48（公式ビルド、arm64）と Brave 1.98.60（Chromium 156.0.8078.48、公式ビルド、arm64）で、ライトとダーク、英語と日本語、倍率 100% で確かめた。プレビューは Brave で全ファイルを確かめ、AC-17 の高さは Chrome と Brave の両方で測った（同じ Chromium 156.0.8078.48 のビルドなので、プレビューの見え方は両方で同じとみなした）。実ポップアップは Chrome と Brave の両方で確かめた。書体の打ち消しの後、Chrome と Brave の 100% で、body の文字が 14px で日本語の書体（Hiragino Sans）になり、10.5px が解消したことを確かめた。
+
+| 確かめること | AC | 結果 |
+|---|---|---|
+| 見出しが長い動画で、見出しが 2 行に収まり、省略記号が付く | AC-04 | 合格（`worst-case-en`・`worst-case-ja`。見出しは 2 行で、2 行目の終わりに省略記号） |
+| 先頭と末尾のプレビューが 1 行で、先頭は最初の文字、末尾は最後の文字が見える。左から右だけ・右から左だけ・向きが混ざった文・U+200F を含む末尾で試す | AC-09 | 合格（`tail-ltr-en`・`tail-rtl-en`・`rtl-all-en`）。選択範囲の全体が右から左だけの `rtl-all-en` も、先頭のプレビューで最初の文字が見える。向きが混ざった文（`tail-mixed-en`）と U+200F（`tail-mark-en`）は保証の外で、想定どおりの見え方 |
+| 見出し 2 行、200 コードポイントのチャンネル名、確認の 2 行が ⚠ で手順を持つ画面で、スクロールせず主ボタンの全体が見える | AC-17 | 合格。`worst-case-en` の主ボタンの下端は 366px、`worst-case-ja` は 559.47px（上限 600px）。Chrome と Brave で同じ値 |
+| ライトとダークの配色で表示される | AC-25 | 合格（Chrome・Brave） |
+| 主ボタンと `<summary>` の大きさが 44×44 CSS ピクセル以上である | AC-28 | 合格（Chrome・Brave） |
+| U+202E を含む値でも、ほかの値・行の名前・状態の並びが変わらない | AC-33 | 合格（`bidi-control-en`） |
+| キーボードだけで、Tab・Shift+Tab で主ボタンと詳細の間を移動でき、Enter と Space で押せ、開閉できる。フォーカスの表示が見える | AC-36・AC-37 | 合格（Chrome・Brave） |
+| VoiceOver で、主ボタン（名前・押せない状態）、詳細（名前・開閉の状態）、見出し、確認の行（名前・状態の語・内容の順）、拒否のカード、送信中の案内と結果が伝わる | AC-38・AC-39 | 合格（Mac VoiceOver、Chrome・Brave）。VoiceOver は、表示の先頭・末尾の 100 コードポイントより長い文章を読む。見えない部分も要素に残しているため（設計書 3.4）で、意図どおり |
+| protanopia・deuteranopia の模擬で、⚠ の行と ✓ の行の区別がつき、記号の形を見分けられる | AC-40 | 合格（`tail-ltr-en`。✓ の行と ⚠ の行を並べて確かめた） |
 
 ## 8. 横断の確認 (Cross-Search Checklist)
 
@@ -547,8 +562,8 @@ AC-36 のキーボードでの操作と AC-40 の色覚の模擬は、テスト�
 
 -   [x] 1.4 の表の部品の名前（`summarize`・`OutcomeSummary`・`SummaryField`・`renderSummary`・`renderMetadata`・`summaryLabels`・`metadataLabels`・`sendButton`・`PopupLaunchResult`・`valueOf`・`valueElement`）と、フェーズ 1 でなくす名前（`BlockReason`・`blockMessage`・`renderBlockReason`）が、`extension/src`・`extension/test`・`extension/static` のコードとコメントに残っていない。
 -   [x] 古い class の名前（`summary-field`・`summary-label`・`summary-value`・`summary-title`・`summary-url`・`summary-preview`・`summary-message`・`summary-steps`・`metadata-title`・`metadata-channel`・`metadata-description`・`send-button`・`send-message`）と、古い入れ物の `id`（`summary`・`send`）が、`extension/src`・`extension/test`・`extension/static` に残っていない。
--   [ ] `src/popup.ts`・`src/launch.ts`・`src/ui/render.ts`・`src/ui/renderSend.ts`・`src/core/sendMessages.ts` の先頭のコメントと関数の説明が、新しい骨格と経路の処理を述べている（PR-3 のレビューで読む）。
--   [ ] 日本語の文言（`ja.ts` の新しい項目）が、用語集の用語（ステップ 5-2 で加える用語を含む）と一致する（PR-1・PR-4 のレビューで読む）。
+-   [x] `src/popup.ts`・`src/launch.ts`・`src/ui/render.ts`・`src/ui/renderSend.ts`・`src/core/sendMessages.ts` の先頭のコメントと関数の説明が、新しい骨格と経路の処理を述べている（PR-3 のレビューで読む）。
+-   [x] 日本語の文言（`ja.ts` の新しい項目）が、用語集の用語（ステップ 5-2 で加える用語を含む）と一致する（PR-1・PR-4 のレビューで読む）。
 
 ## 9. 成功基準 (Success Criteria)
 

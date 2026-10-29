@@ -52,7 +52,7 @@ effort には既定がない。生成または検証・推敲のプロバイダ�
 -   **effort の既定は、claude を使う段階すべてに当てる:** 生成または検証・推敲のプロバイダが `claude` で、今は `YT2COLUMN_CLAUDE_EFFORT` の未設定がエラーになる条件のとき、未設定なら `high` を使う。effort は今も 3 つの段階で 1 つの値を共有している（`internal/llm/provider/provider.go:67-78`）。段階ごとに分ける理由はないので、共有は変えない。空の値は、今までどおり拒否する（`docs/dev/project_overview.md`「設定（環境変数）」の、空の値を未設定とせずにエラーとする方針）。
 -   **使った effort を出力に出さない:** 0009 は、「どの effort で生成したかを、設定から常に読み取れるようにする」ために、effort に既定値を持たせなかった（0009 要件定義書 F-006）。本タスクの既定はこの判断を変える。それでも、effort を出力（標準エラーの要約、`--out` のファイルのフロントマター、Slack の投稿）に加えることはしない。既定値を README と `project_overview.md` に書くので、未設定なら `high` だと文書から分かるためである。出力の形も変わらない。
 -   **README の effort の案内は、既定を書き、`max` の注意を残す:** README「Configuration」の表に、未設定のときは `high` であることを書く。表の後の `max` の注意（`README.md:750-752`）は残す。その文が出力の上限について書く内容は、新しい値に合わせる（F-003）。
--   **測り直しの手順は開発者ガイドに書く:** テンプレートや effort を変えたときに出力の上限の根拠を測り直す手順は、`docs/dev/developer_guide/` に英語の開発者ガイドとして新設し、`CLAUDE.md` の Quick Links からリンクする（F-003）。単価の表の更新手順（`docs/dev/developer_guide/pricing_update.md`）と同じ形である。タスクの文書は経緯の記録なので、繰り返し行う作業の手順を置く場所に向かない。
+-   **測り直しの手順は開発者ガイドに書く:** テンプレートや effort を変えたときに出力の上限の根拠を測り直す手順は、`docs/dev/developer_guide/` に英語の開発者ガイドとして新設し、`CLAUDE.md` の Quick Links からリンクする（F-003）。単価の表の更新手順（`docs/dev/guides/pricing_update.md`）と同じ形である。タスクの文書は経緯の記録なので、繰り返し行う作業の手順を置く場所に向かない。
 
 ## 2. 目的とスコープ (Goals and Scope)
 

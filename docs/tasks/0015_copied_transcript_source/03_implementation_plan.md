@@ -51,7 +51,7 @@ requirements の F-001〜F-004 を、architecture の設計どおりに実装す
     | `mbyG85GZ0PI.transcript_copy.txt`（形 B） | 77824 | 1398 | 701 | 4（`51:07` が 889 行目、`52:06` が 906 行目、`52:13` が 907 行目、`1:18:57` が 1358 行目） |
 
     `mbyG85GZ0PI` の `1:00:07` は 1038 行目である。これらから、本文のあるセグメントの数は、`IkngpxCMmRQ` が 40、`Yoboo9g7saY` が 185、`mbyG85GZ0PI` が 697（701 − 4。行数 1398 = 701 + 697 と合う）と見込む。
-- **文書（フェーズ 5 で変える）。** CLAUDE.md の Architecture Overview の `TranscriptSource` の項は `:92-93`、「Delegate the fragile part」は `:128-129`、「Declare, don't infer」は `:132-138`。`docs/dev/project_overview.md` の字幕取得の方針は `:11`、パイプラインの `TranscriptSource` の実装は `:26`、想定ディレクトリ構成の `internal/transcript/` の注記は `:76`（architecture §3.4 の責務表にある）。`docs/dev/developer_guide/package_reference.md` の `internal/transcript` の行は `:22`（`internal/transcript/testutil` の行 `:38` は、`testutil/` を変えないので変えない）。`docs/translation_glossary.md` の用語の表に、architecture §3.4 の 6 語はまだない。
+- **文書（フェーズ 5 で変える）。** CLAUDE.md の Architecture Overview の `TranscriptSource` の項は `:92-93`、「Delegate the fragile part」は `:128-129`、「Declare, don't infer」は `:132-138`。`docs/dev/project_overview.md` の字幕取得の方針は `:11`、パイプラインの `TranscriptSource` の実装は `:26`、想定ディレクトリ構成の `internal/transcript/` の注記は `:76`（architecture §3.4 の責務表にある）。`docs/dev/conventions/package_reference.md` の `internal/transcript` の行は `:22`（`internal/transcript/testutil` の行 `:38` は、`testutil/` を変えないので変えない）。`docs/translation_glossary.md` の用語の表に、architecture §3.4 の 6 語はまだない。
 - **lint。** `make lint` は `golangci-lint run --build-tags test,integration`（`Makefile:10`）で、`//go:build test` のテストも対象になる。テストからの使用も使用として数えるので、フェーズ 1 のパーサがフェーズ 2 まで本番のコードから呼ばれなくても `unused` には当たらない。`.golangci.yml` は `mnd`（`:38`）、`gocyclo`（`:16`。`min-complexity: 20` は `:43`）、`err113`（`:34`）を有効にしており、本番のコードの `60`・`1000` などの数値、1 つの関数に詰めたパーサ、関数の中の `errors.New` が指摘されうる。数値は名前つきの定数に、パーサは形 A・形 B・入力全体の検査などの小さな関数に分け、エラーはすべてパッケージの番兵にする。
 - **`make deadcode`。** `deadcode -test -tags test $(MAIN_PKG)`（`Makefile:214`）の起点は `cmd/yt2column` とそのテストだけである。#109（サーバのタスク。本計画 §9 を参照）がまだないので、`NewCopiedSource`・`Fetch`・パーサは到達不能として報告される。これらは #109 が使う、意図した公開の型と関数であり、`make deadcode` の報告を理由に削除しない（`/runplan` の手順で到達不能な関数の削除が求められても、本タスクの部品は除く）。
 - **外部前提の確認。** fuzz のテストには Go 標準の `testing.F` を使う。`go test` は、fuzz のターゲットの種（`f.Add` と `testdata/fuzz/<Target>/`）を通常のテストとして実行する。fuzz で失敗が見つかると、その入力は `testdata/fuzz/<Target>/` に書き出され、以後は種になる（`testing` パッケージの文書の Fuzzing の節。`go help testflag` の `-fuzz` の説明が参照する）。`-fuzz` は 1 つのパッケージと 1 つの fuzz のターゲットにだけ使える（`go help testflag` の `-fuzz` の説明）。`internal/transcript/testdata/fuzz/` は `.gitignore` の対象ではない（`git check-ignore` で確認）。メモリの計測は `runtime.ReadMemStats` の `TotalAlloc`（割り当ての累計で、GC で減らない。`runtime` パッケージの文書）を使う。`make test` は `-race` 付き（`Makefile` の `test:`）なので、時間の上限は `-race` 付きの実行で満たす必要がある。
@@ -208,7 +208,7 @@ fuzz のターゲットは `NewCopiedSource`（フェーズ 2）を呼ぶので�
 
 ### フェーズ 5: 文書（F-004）
 
-**対象ファイル:** `CLAUDE.md`（変更）、`docs/dev/project_overview.md`（変更）、`docs/dev/developer_guide/package_reference.md`（変更）、`docs/translation_glossary.md`（変更）、`cmd/yt2column/copied_transcript_docs_test.go`（変更）
+**対象ファイル:** `CLAUDE.md`（変更）、`docs/dev/project_overview.md`（変更）、`docs/dev/conventions/package_reference.md`（変更）、`docs/translation_glossary.md`（変更）、`cmd/yt2column/copied_transcript_docs_test.go`（変更）
 
 - [x] **ステップ 5-1**: `translation_glossary.md` の用語の表に、「コピーした字幕」「形 A」「形 B」「時刻の行」「本文の行」「読み上げ用ラベル」の対訳を加える。ステップ 5-2〜5-6 の英語の記述は、この対訳を使う。
 - [x] **ステップ 5-2**: CLAUDE.md の「Declare, don't infer」の項（`:132-138`）に、architecture §3.6 の範囲・理由・境界を英語で加える（AC-14）。

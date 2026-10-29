@@ -39,7 +39,7 @@
 
 -   **設計に進む（AC-02）。** 観測の記録では、AC-01 の 2（コミットの範囲）が `--base` だけでは成り立たなかった（観測の記録の「AC-02 の判定」）。利用者はこの結果（PR #555）を受けて設計に進むことを選び、本書の作成の際に、範囲を実現する方法を次の項目のとおり選んだ。
 -   **範囲は、作業ツリーが clean であることを前提にして、本物の作業ツリーで `--base <BASE>` を使って実現する（H-01）。** `codex exec review --base <BASE>` は、Codex に `git diff <BASE>` で変更を見させる。この形は作業ツリーと BASE の差分を出す（観測の記録の 2、R1）。作業ツリーに変更がなく、追跡していないファイル（git-ignore されていないもの）もなければ、この差分は BASE から HEAD までのコミット済みの変更と同じになる。git-ignore されているファイルは `git diff` に含まれない（R1 の `untracked.go` と同じ理由）。共通手順の手順 1 は、もともと `git status --short` が空であることを前提にしている（`.claude/commands/_lib/coderabbit-local-review.md:34-35`）。`codexreview` は、Codex を実行する直前にも同じことを確かめ、成り立たなければ実行しない（3.3）。一時 worktree を作る方法（R2 で確かめた）は採らない。後片付けと、指摘のパスの読み替えが要るうえ、Codex は作業ディレクトリの外も読めるので（観測の記録の 7。R2 は `find ..` で親を探した）、秘密のファイルから遠ざけるという利点も薄いためである。
--   **`codex` は、`main` からインストールする Go のツール `codexreview` を通してだけ実行し、Claude Code の権限ではこのツールだけを許す（H-02・H-03）。** `Bash(codex review *)` のような前方一致の許可では、後ろに `--dangerously-bypass-approvals-and-sandbox` や `-c 'sandbox_mode="danger-full-access"'` を付けた実行まで許してしまう。作業ツリーの中にシェルスクリプトを置いて許す方法では、レビュー対象のブランチのコミットでスクリプトを書き換えれば、承認なしの実行の中身が変わる。`fixprguard` も、エージェントが手順を読んで行う判断を決定的なコードに移したツールで、`main` から `make install-fixprguard` でインストールして使う（`docs/dev/developer_guide/fixprguard_guide.md` の冒頭と 3）。`codexreview` はこれにならう。Go のツールにすれば、時間切れのときにプロセスグループごと止めること、上限をテストのときだけ差し替えられ、外からは差し替えられない形にすること、結果を構造化して返すことも、テストのあるコードで行える。
+-   **`codex` は、`main` からインストールする Go のツール `codexreview` を通してだけ実行し、Claude Code の権限ではこのツールだけを許す（H-02・H-03）。** `Bash(codex review *)` のような前方一致の許可では、後ろに `--dangerously-bypass-approvals-and-sandbox` や `-c 'sandbox_mode="danger-full-access"'` を付けた実行まで許してしまう。作業ツリーの中にシェルスクリプトを置いて許す方法では、レビュー対象のブランチのコミットでスクリプトを書き換えれば、承認なしの実行の中身が変わる。`fixprguard` も、エージェントが手順を読んで行う判断を決定的なコードに移したツールで、`main` から `make install-fixprguard` でインストールして使う（`docs/dev/guides/fixprguard_guide.md` の冒頭と 3）。`codexreview` はこれにならう。Go のツールにすれば、時間切れのときにプロセスグループごと止めること、上限をテストのときだけ差し替えられ、外からは差し替えられない形にすること、結果を構造化して返すことも、テストのあるコードで行える。
 -   **最終メッセージが受け入れる形かは、`codexreview` が判定する（H-05）。** 判定は文法だけで決まる機械的なものなので、エージェントではなくテストのあるコードで行う。これに合わせて、要件書 4.2 の「センチネルエラー」の「判定はコマンドの文書で行い、Go のコードを持たない」を改めた。あわせて、Codex CLI の実行の結果を確かめられないとき（結果がない、種類が分からない、実行の直前に作業ツリーが変わっていた）も、AC-08 に当たるおそれがあるとして止めることにし、要件書の 1 節の決定、AC-09、4.3 を改めた（4 章）。要件書は `draft` に戻り、本書と同じ PR で再び承認を受ける。
 -   **Codex CLI の完了は、`codex exec review --json` の `turn.completed` の行で判定し、文面は `-o` のファイル（最終メッセージ）から読む（H-05）。** 素の `codex review` の標準出力には、完了を示す欄がない。`--json` と `-o` の組み合わせは R1・R3・O1・O2 で確かめた。セッションの記録（`~/.codex/sessions/.../rollout-*.jsonl`）にある構造化された `review_output` は使わない。公開された仕様ではなく、実行ごとに 2 つできるファイルから、`thread_id` を手がかりに 1 つを選ぶ手順が要るためである（観測の記録の 5、「構造化された結果」）。
 -   **利用者の設定、規則のファイル、プラグインやコネクタの機能を外して実行する（H-02）。** 利用者の `~/.codex/config.toml` では、GitHub のプラグインが有効である。プラグインやコネクタのツールはシェルのコマンドではないので、`sandbox_mode="read-only"` の制限を受けない可能性がある。そのうえ `approval_policy="never"` なので、レビュー対象の文面に誘導された Codex が GitHub に書き込むおそれがある。また、利用者の設定の profile が `-c` の指定より優先されるかも確かめていない。そこで設計の前に O1・O2 を観測した（観測の記録の「設計の際の追加の観測」）。`--ignore-user-config` で利用者の設定ファイルを読まずに実行できた。`--disable` で機能を外すと、アカウントの側から入るプラグインのスキルも指示から消えた（O2）。この 2 つと `--ignore-rules` を、`codexreview` が固定する引数に入れる（3.3）。モデルが使えるツールの一覧は記録に残らないので、コネクタのツールが使えなくなったことは直接には確かめられていない（5.2）。
@@ -210,7 +210,7 @@ flowchart LR
 | `.claude/settings.json` | 変更 | `codexreview` の許可を加える（3.8） | AC-17 | — |
 | `CLAUDE.md` | 変更 | 「Tool Execution Safety」、Claude Commands と Commands の節、「Declare, don't infer」と「Testing Strategy」の例外、Development Notes の `doc-guard` の対象の列挙（1.4・3.8・3.9） | AC-16・AC-18 | — |
 | `.github/workflows/ci.yml` | 変更 | `doc-guard` の job の対象に `./cmd/codexreview` を加える（7.1） | AC-17 | — |
-| `docs/dev/developer_guide/package_reference.md` | 変更 | `cmd/codexreview` と `internal/codexreview` を加える | — | — |
+| `docs/dev/conventions/package_reference.md` | 変更 | `cmd/codexreview` と `internal/codexreview` を加える | — | — |
 | `.coderabbit.yaml` | 変更 | 注釈（3.9） | AC-18 | `cmd/yt2column/codex_review_docs_test.go:351-356` `TestCodeRabbitConfigStopsReview` の文 |
 | `cmd/codexreview/` と `internal/codexreview/` のテスト | 新規 | ツールの単体テスト、文書の呼び出しのガード（7.1） | AC-06・AC-08・AC-09・AC-17 | — |
 
@@ -312,7 +312,7 @@ sequenceDiagram
 codexreview --protocol <N> --base <BASE>
 ```
 
--   `--protocol`: 文書とインストールしたツールの版が合っていることを確かめる番号。`fixprguard` の `--protocol` と同じ役割である（`docs/dev/developer_guide/fixprguard_guide.md` の 3）。合わなければ実行しない。
+-   `--protocol`: 文書とインストールしたツールの版が合っていることを確かめる番号。`fixprguard` の `--protocol` と同じ役割である（`docs/dev/guides/fixprguard_guide.md` の 3）。合わなければ実行しない。
 -   `--base`: 範囲の始まりのコミット。40 桁の 16 進数でなければならない。
 -   ほかの引数、フラグ、位置引数は受け付けない。出力先や時間の上限を変える引数もない。
 
@@ -523,7 +523,7 @@ Codex CLI の指摘は、CodeRabbit CLI の指摘と同じく `.claude/commands/
 | `.claude/commands/_lib/task-pr-handoff.md:17`・`:175-177`・`:203` | 参照と記述 |
 | `.claude/commands/_lib/triage-pattern.md:7` | 参照と呼び出し元の列挙（5 か所） |
 | `.coderabbit.yaml:9-12` | ローカルの CLI レビュー（`coderabbit review`、失敗したときは Codex CLI）は、PR を開いた後の変更にも使う |
-| `docs/dev/developer_guide/package_reference.md` | `cmd/codexreview` と `internal/codexreview` を加える |
+| `docs/dev/conventions/package_reference.md` | `cmd/codexreview` と `internal/codexreview` を加える |
 | `.github/workflows/ci.yml` の `doc-guard` と、`CLAUDE.md` の Development Notes のその対象の列挙 | `./cmd/codexreview` を加える |
 
 割り当てについての記述は、観測の記録の 1 の結論（PR レビューと同じ割り当てを消費する）と一致させる。

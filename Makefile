@@ -54,7 +54,7 @@ define format_files_from_list
 	fi
 endef
 
-.PHONY: all build clean test test-ci test-parse-norace test-integration test-integration-deepseek test-integration-claude test-integration-cli test-integration-slack test-integration-cli-slack lint fmt fmt-all deadcode tidy install-mergepr install-fixprguard ext-install ext-typecheck ext-lint ext-fmt-check ext-fmt ext-test ext-build ext-check
+.PHONY: all build clean test test-ci test-parse-norace readme-sync-check test-integration test-integration-deepseek test-integration-claude test-integration-cli test-integration-slack test-integration-cli-slack lint fmt fmt-all deadcode tidy install-mergepr install-fixprguard ext-install ext-typecheck ext-lint ext-fmt-check ext-fmt ext-test ext-build ext-check
 
 all: build
 
@@ -68,13 +68,13 @@ build:
 	$(GOBUILD) -trimpath -ldflags "-s -w" -o $(NMHOST_BINARY) $(NMHOST_PKG)
 
 # Install the /mergepr developer tool into $(go env GOPATH)/bin. Run from an
-# up-to-date main checkout (docs/dev/developer_guide/mergepr_guide.md).
+# up-to-date main checkout (docs/dev/guides/mergepr_guide.md).
 install-mergepr:
 	$(GOCMD) install ./cmd/mergepr
 
 # Install the fixprguard guard tool for /fixpr and /runpr into
 # $(go env GOPATH)/bin. Run from an up-to-date main checkout after every merge
-# that changes the tool (docs/dev/developer_guide/fixprguard_guide.md).
+# that changes the tool (docs/dev/guides/fixprguard_guide.md).
 install-fixprguard:
 	$(GOCMD) install ./cmd/fixprguard
 
@@ -106,6 +106,17 @@ test-ci:
 # parallel with the -race run and so slow down the timed parse.
 test-parse-norace:
 	$(GOTEST) -tags test -count=1 -v -timeout 5m -run '^TestParseCopiedLargeInputs$$' ./internal/transcript
+
+# Check that README.en.md's sync marker names the blob of README.md, so the
+# English README carries the current README.md. make test runs the same test;
+# this target runs it alone, for the pre-commit hook and the commands' README
+# sync step.
+# It fails when the test did not run (renamed or moved), since go test exits 0
+# when -run matches nothing.
+readme-sync-check:
+	@out=$$($(GOTEST) -tags test -count=1 -v -run '^TestReadmeSyncMarker$$' ./cmd/yt2column 2>&1); status=$$?; \
+	printf '%s\n' "$$out"; \
+	[ $$status -eq 0 ] && printf '%s\n' "$$out" | grep -Eq -- '--- (PASS|SKIP): TestReadmeSyncMarker'
 
 # Integration test. Runs the real yt-dlp against the network, so it is kept
 # out of `make test` by the `integration` build tag. The video defaults below

@@ -482,6 +482,15 @@ describe("layout", () => {
     assert.equal(effectiveValue(onScreen, "body", "min-width"), "");
   });
 
+  it("declares the body font that Chrome's injected extension style overrides", () => {
+    // jsdom cannot model extension_fonts.css, so this pins the declarations
+    // the fix relies on: the root's 14px and font stack, and the body rule
+    // that keeps them instead of the injected 75%.
+    assert.equal(effectiveValue(onScreen, ":root", "font-size"), "14px");
+    assert.equal(effectiveValue(onScreen, "body", "font-family"), "inherit");
+    assert.equal(effectiveValue(onScreen, "body", "font-size"), "1rem");
+  });
+
   it("fills the action section with the primary button and keeps it 44px tall", () => {
     assert.equal(effectiveValue(onScreen, "#primary", "width"), "100%");
     assert.ok(atLeast44(effectiveValue(onScreen, "#primary", "min-height")));

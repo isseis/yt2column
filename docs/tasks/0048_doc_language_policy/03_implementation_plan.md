@@ -8,7 +8,7 @@
 | Created | 2026-10-28 |
 | Review date | 2026-10-28 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-29: ステップ 3-4 の記述を、`runpr.md` に `main` を取り込む手順がないことに合わせて直した。衝突の規則は、`runpr.md` の手順 1 に加えた段落から `mktrans.md` の規則を参照する形にした。ステップ 3-1 で、`mktrans.md` の説明（frontmatter の `description`）と CLAUDE.md のコマンドの一覧の `/mktrans` の行も、README の組だけを扱う形に改めた。止まったときに `/mktrans` が書きかけた `README.en.md` を戻す手段を、呼び出し元の `git restore` から、`/mktrans` が書く前に取った写しで自分で戻す形にした（設計書 4.3 も合わせた。呼び出し元の作業ツリーの `README.en.md` の変更を消さないため）（決定の変更なし。編集上の修正）。2026-10-29: PR-2 のレビューで、同期の印の検査を Go のテストにすることをレビュアー（isseis）が決め、このセッションで承認した（決定の変更）。1.3 に決定を加え、ステップ 3-4・3-6・6-7、4.1 のテストの表、7 章の AC-37 の行、PR-2 の対象ステップを改めた |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の項番、「設計書 3.6」などは設計書の節を指す。既存のコードと文書についての記述は、コミット `c76eec26`（本書の作成時の `main`）で確かめた。`file:line` は、特に断らない限り、このコミットの行番号を指す。
 
@@ -49,6 +49,7 @@ yt2column の実行時の振る舞いは変えない（要件書 4.1・4.3）。
 -   **まだないファイルを、指示と規約の文書に書かない。** PR-1 で加えるパスの検査（ステップ 1-5）は、相対リンクと、バッククォートの中の `docs/dev/…md` を確かめる。そのため PR-2 で CLAUDE.md とコマンドの文書に `docs/dev/guides/cli.md`・`development.md` のパスを書くと失敗する。PR-2 では、`README.en.md` だけを名前（バッククォート、リンクにしない）で書く。`cli.md`・`development.md`・`README.en.md` へのリンクと、AC-07・AC-41 の記述は PR-6 で書く（設計書 8 章のフェーズ 2 の注）。
 -   **日本語のリテラルの例外の範囲（AC-05）。** CLAUDE.md の Go Idioms の例外を、Go のガードテストと、そのロケータを持つテスト専用のパッケージ（`internal/doctestutil`）に及ぶ形で書く。リテラルの種類は、見出し、表のセル、項目の札（例：`TestServerDocsContract` が探す `macOS:` などの行頭の語）、太字の印（例：`cmd/fixprguard/docs_test.go` の `**実行関連ファイル。**`）である。ロケータは `_test.go` でないファイルに置くので、「ガードテストのリテラル」だけでは範囲が足りないためである。
 -   **同期の印の ID の長さ。** このリポジトリのオブジェクトの形式は SHA-1 である（`git rev-parse --show-object-format` の出力が `sha1`、`c76eec26`）。印を検査するテストは 40 文字の 16 進の小文字だけを受け入れる。形式が変わったら、テストを改める。
+-   **同期の印の検査を Go のテストにする（2026-10-29、PR-2 のレビューでレビュアーが決めた）。** プロンプトの判定は決定的でなく、手作業の変更は手順を通らないためである。`TestReadmeSyncMarker` を PR-6 から PR-2 に前に出し（ステップ 3-6）、印のブロブと `README.md` の一致も確かめるようにした。テストは `make test`・CI の `doc-guard`・pre-commit のフックで走る。`/runpr` の手順 4 の印の検査はなくした（ステップ 3-4）。
 -   **`doctestutil` の補助関数の最終の一覧**は、1.4 の呼び出し元の数で決めた。
 
 ### 1.4. 既存コード調査結果
@@ -114,9 +115,9 @@ yt2column の実行時の振る舞いは変えない（要件書 4.1・4.3）。
 
 **変更するファイル:** `docs/dev/developer_guide/mergepr_guide.ja.md`・`fixprguard_guide.ja.md`（英語版にだけある記述があれば）、本書
 
--   [ ] `mergepr_guide` と `fixprguard_guide` の英語版と日本語版を、節ごとに読み比べる（設計書 7.3 の事実を出発点にする）。
--   [ ] 英語版にだけある記述を、日本語版に加える。なければ加えない。
--   [ ] 結果（節ごとの対応、加えた記述とその場所、`mergepr_guide` の 1 行の差の理由）を 7 章の「読み比べの記録」に書く。
+-   [x] `mergepr_guide` と `fixprguard_guide` の英語版と日本語版を、節ごとに読み比べる（設計書 7.3 の事実を出発点にする）。
+-   [x] 英語版にだけある記述を、日本語版に加える。なければ加えない。
+-   [x] 結果（節ごとの対応、加えた記述とその場所、`mergepr_guide` の 1 行の差の理由）を 7 章の「読み比べの記録」に書く。
 
 **完了の条件:** 記録が 7 章にある。加えた記述が、ステップ 1-6 の実行結果の AC-09 の差分の行の一覧に出ることを確かめる。
 
@@ -124,8 +125,8 @@ yt2column の実行時の振る舞いは変えない（要件書 4.1・4.3）。
 
 **変更するファイル:** `docs/dev/developer_guide/` の 11 ファイル
 
--   [ ] 設計書 2.2・6.2 のとおり、`git mv` で移す。`mergepr_guide.ja.md`・`fixprguard_guide.ja.md` は `docs/dev/guides/` の `.ja` を外した名前にする。英語版の `mergepr_guide.md`・`fixprguard_guide.md` は `git rm` で消す。`pricing_update.md`・`claude_output_limit.md` は英語のまま `docs/dev/guides/` に移す（翻訳はステップ 1-4）。
--   [ ] 内容を変えずに、このステップだけでコミットする（このコミットではテストが失敗してよい。次のステップで直す）。
+-   [x] 設計書 2.2・6.2 のとおり、`git mv` で移す。`mergepr_guide.ja.md`・`fixprguard_guide.ja.md` は `docs/dev/guides/` の `.ja` を外した名前にする。英語版の `mergepr_guide.md`・`fixprguard_guide.md` は `git rm` で消す。`pricing_update.md`・`claude_output_limit.md` は英語のまま `docs/dev/guides/` に移す（翻訳はステップ 1-4）。
+-   [x] 内容を変えずに、このステップだけでコミットする（このコミットではテストが失敗してよい。次のステップで直す）。
 
 **完了の条件:** `docs/dev/developer_guide/` がなく、コミットの差分が改名と削除だけである。
 
@@ -133,10 +134,10 @@ yt2column の実行時の振る舞いは変えない（要件書 4.1・4.3）。
 
 **変更するファイル:** 1.4 の「旧パスの参照」のすべてのファイル、`docs/tasks/0032_japanese_pr_title/check_rules.sh`
 
--   [ ] 設計書 6.2 の対応表で、ファイル名を含む旧パスを新しいパスに置き換える。相対リンクはディレクトリの部分だけを置き換える。ディレクトリだけを指す記述（設計書 6.2 の 6 か所と、`CLAUDE.md:25`・`mktrans.md:21`）は置き換えない。`CLAUDE.md:25`・`mktrans.md:21` は PR-2 で書き直す。
--   [ ] `cmd/fixprguard/main.go:132` の `guidePath` を `"docs/dev/guides/fixprguard_guide.md"` にする（AC-16）。
--   [ ] `cmd/fixprguard/docs_test.go:27-30` の `guideFiles` を 1 つのファイルにし、英語の手引きの印を使う行（`"**Execution-related files.**"` など）を消す（AC-17、設計書 3.7）。消した行について、`go tool cover -func` の関数ごとの結果が変わらないことを確かめる。
--   [ ] `internal/pipeline/pipeline_test.go:707` のパスを `docs/dev/conventions/package_reference.md` にする（AC-17）。
+-   [x] 設計書 6.2 の対応表で、ファイル名を含む旧パスを新しいパスに置き換える。相対リンクはディレクトリの部分だけを置き換える。ディレクトリだけを指す記述（設計書 6.2 の 6 か所と、`CLAUDE.md:25`・`mktrans.md:21`）は置き換えない。`CLAUDE.md:25`・`mktrans.md:21` は PR-2 で書き直す。
+-   [x] `cmd/fixprguard/main.go:132` の `guidePath` を `"docs/dev/guides/fixprguard_guide.md"` にする（AC-16）。
+-   [x] `cmd/fixprguard/docs_test.go:27-30` の `guideFiles` を 1 つのファイルにし、英語の手引きの印を使う行（`"**Execution-related files.**"` など）を消す（AC-17、設計書 3.7）。消した行について、`go tool cover -func` の関数ごとの結果が変わらないことを確かめる。
+-   [x] `internal/pipeline/pipeline_test.go:707` のパスを `docs/dev/conventions/package_reference.md` にする（AC-17）。
 
 **完了の条件:** `make test` が通る。`git grep -n developer_guide` の残りが、本タスクの文書と、ディレクトリだけを指す記述だけである（AC-13 の検査そのものはステップ 1-6）。
 
@@ -144,9 +145,9 @@ yt2column の実行時の振る舞いは変えない（要件書 4.1・4.3）。
 
 **変更するファイル:** `docs/dev/guides/pricing_update.md`・`claude_output_limit.md`、`docs/translation_glossary.md`
 
--   [ ] 1.3 の手段で、全文を日本語に翻訳する。節の構成、手順、値、コマンドの例は変えない。README の節の参照は、今の英語の節の名前のまま訳す（付け替えは PR-4・PR-6。1.3）。
--   [ ] 新しい用語があれば、用語集に加える。
--   [ ] `/japrose` で整え、翻訳のレビューで指摘を直す。翻訳のコミットは、移動と置換のコミットと分ける。
+-   [x] 1.3 の手段で、全文を日本語に翻訳する。節の構成、手順、値、コマンドの例は変えない。README の節の参照は、今の英語の節の名前のまま訳す（付け替えは PR-4・PR-6。1.3）。
+-   [x] 新しい用語があれば、用語集に加える。
+-   [x] `/japrose` で整え、翻訳のレビューで指摘を直す。翻訳のコミットは、移動と置換のコミットと分ける。
 
 **完了の条件:** 翻訳のレビューに Critical と Major の指摘が残っていない。ステップ 1-6 の AC-10 の検査が通る。
 
@@ -154,11 +155,11 @@ yt2column の実行時の振る舞いは変えない（要件書 4.1・4.3）。
 
 **変更するファイル:** `cmd/yt2column/docpaths_test.go`（新規）、`cmd/fixprguard/docs_test.go`
 
--   [ ] 設計書 4.2 の「指示と規約の文書が示すパス」のテスト `TestInstructionDocPaths` を加える。対象は CLAUDE.md・AGENTS.md・`.claude/commands/` 配下・`docs/dev/` 配下の `.md` で、相対リンクの先とバッククォートの中の `docs/dev/…md`（`:NN` のような行番号の付いた形を含む）が存在するファイルであることを確かめる。コードブロックの中と、`<…>` の形の仮の値のリンクは対象にしない。
--   [ ] 1 つの文書から確かめる参照を抜き出す部分を、文書の文字列だけを受け取る関数にし、表のテストを持たせる。行は、相対リンク、`#` 付きのリンク、`<…>` のリンク、コードブロックの中のリンク、バッククォートのパス（行番号付きを含む）、外部の URL、`mailto:`、文書の中の `#` のリンクである。
--   [ ] 文書ごとに、`TestReadmeLinks` と同じく、コードブロックの外のリンクの開きの数と抜き出したリンクの数が等しいことを確かめる。
--   [ ] `guidePath` のファイルがリポジトリに存在することを確かめるテスト `TestGuidePathExists` を `cmd/fixprguard/docs_test.go` に加える（AC-16）。
--   [ ] `TestInstructionDocPaths` が、入れ子のディレクトリの文書（`.claude/commands/_lib/task-pr-handoff.md` と `docs/dev/conventions/` の 1 つ）の、存在しない相対リンクと存在しないバッククォートのパスで、それぞれ失敗することを、一時的に文書を変えて確かめる。`TestGuidePathExists` が、`guidePath` を旧パスに戻すと失敗することを確かめる。
+-   [x] 設計書 4.2 の「指示と規約の文書が示すパス」のテスト `TestInstructionDocPaths` を加える。対象は CLAUDE.md・AGENTS.md・`.claude/commands/` 配下・`docs/dev/` 配下の `.md` で、相対リンクの先とバッククォートの中の `docs/dev/…md`（`:NN` のような行番号の付いた形を含む）が存在するファイルであることを確かめる。コードブロックの中と、`<…>` の形の仮の値のリンクは対象にしない。
+-   [x] 1 つの文書から確かめる参照を抜き出す部分を、文書の文字列だけを受け取る関数にし、表のテストを持たせる。行は、相対リンク、`#` 付きのリンク、`<…>` のリンク、コードブロックの中のリンク、バッククォートのパス（行番号付きを含む）、外部の URL、`mailto:`、文書の中の `#` のリンクである。
+-   [x] 文書ごとに、`TestReadmeLinks` と同じく、コードブロックの外のリンクの開きの数と抜き出したリンクの数が等しいことを確かめる。
+-   [x] `guidePath` のファイルがリポジトリに存在することを確かめるテスト `TestGuidePathExists` を `cmd/fixprguard/docs_test.go` に加える（AC-16）。
+-   [x] `TestInstructionDocPaths` が、入れ子のディレクトリの文書（`.claude/commands/_lib/task-pr-handoff.md` と `docs/dev/conventions/` の 1 つ）の、存在しない相対リンクと存在しないバッククォートのパスで、それぞれ失敗することを、一時的に文書を変えて確かめる。`TestGuidePathExists` が、`guidePath` を旧パスに戻すと失敗することを確かめる。
 
 **完了の条件:** `go test -tags test ./cmd/yt2column ./cmd/fixprguard` が通る。
 
@@ -166,10 +167,10 @@ yt2column の実行時の振る舞いは変えない（要件書 4.1・4.3）。
 
 **変更するファイル:** `docs/tasks/0048_doc_language_policy/_checks/move/main.go`（新規）、本書
 
--   [ ] merge-base と PR の先頭のコミットを比べ、設計書 7.3 の表の AC-08・AC-09（の一部）・AC-12・AC-13・AC-14・AC-15 を確かめるプログラムを書く。AC-09 では、`docs/dev/guides/` に `.ja.md` で終わるファイルがないことも確かめ、`.ja.md` の版との差分の行を一覧で出力する。AC-13 は、ファイル名を含む旧パス（設計書 6.2 の対応表の 11 ファイル）だけを探し、本タスクのディレクトリを除く。
--   [ ] AC-10 の構造と値の部分を確かめる。`pricing_update.md`・`claude_output_limit.md` の翻訳の前後で、見出しのレベルの並びが同じで、コードブロックの内容がリンクのパスの違いを除いて同じで、インラインのコードの多重集合が同じであること。
--   [ ] 各検査が違反を見つけることを、一時的に 1 か所ずつ変えて確かめ、元に戻す（AC-08 の規約の 1 行を変える、`docs/dev/guides/` に `.ja.md` を置く、`docs/dev/developer_guide/` に空のファイルを置く、旧パスを 1 つ残す、過去のタスク文書の Status の行を変える、相対リンクの深さを変える、翻訳のコードブロックの 1 文字を変える）。結果をコミットのメッセージに書く。
--   [ ] リポジトリのルートで `go run ./docs/tasks/0048_doc_language_policy/_checks/move/` を実行し、終了コード、出力、2 つのコミットの ID を 7 章の「差分の検査の実行の記録」に書く。
+-   [x] merge-base と PR の先頭のコミットを比べ、設計書 7.3 の表の AC-08・AC-09（の一部）・AC-12・AC-13・AC-14・AC-15 を確かめるプログラムを書く。AC-09 では、`docs/dev/guides/` に `.ja.md` で終わるファイルがないことも確かめ、`.ja.md` の版との差分の行を一覧で出力する。AC-13 は、ファイル名を含む旧パス（設計書 6.2 の対応表の 11 ファイル）だけを探し、本タスクのディレクトリを除く。
+-   [x] AC-10 の構造と値の部分を確かめる。`pricing_update.md`・`claude_output_limit.md` の翻訳の前後で、見出しのレベルの並びが同じで、コードブロックの内容がリンクのパスの違いを除いて同じで、インラインのコードの多重集合が同じであること。
+-   [x] 各検査が違反を見つけることを、一時的に 1 か所ずつ変えて確かめ、元に戻す（AC-08 の規約の 1 行を変える、`docs/dev/guides/` に `.ja.md` を置く、`docs/dev/developer_guide/` に空のファイルを置く、旧パスを 1 つ残す、過去のタスク文書の Status の行を変える、相対リンクの深さを変える、翻訳のコードブロックの 1 文字を変える）。結果をコミットのメッセージに書く。
+-   [x] リポジトリのルートで `go run ./docs/tasks/0048_doc_language_policy/_checks/move/` を実行し、終了コード、出力、2 つのコミットの ID を 7 章の「差分の検査の実行の記録」に書く。
 
 **完了の条件:** PR-1 のブランチで、プログラムが終了コード 0 で終わる。`make test` と CI では実行しない（`requirements_process.md` §4）。
 
@@ -177,9 +178,9 @@ yt2column の実行時の振る舞いは変えない（要件書 4.1・4.3）。
 
 **変更するファイル:** なし（PR の本文）
 
--   [ ] PR-1 の本文に、マージの後に `make install-fixprguard` で入れ直す必要があること（AC-18。入れ直すまでは、インストール済みの `fixprguard` が旧パスを示す）を書く。
--   [ ] 開いている PR（0046 の PR-3・PR-4、0049 の PR など）は、`main` を取り込んで旧パスを直す必要があることを書く（設計書 8 章）。
--   [ ] ステップ 1-6 の AC-09 の一覧に出た差分の行を、PR のレビューで読む行として挙げる。
+-   [x] PR-1 の本文に、マージの後に `make install-fixprguard` で入れ直す必要があること（AC-18。入れ直すまでは、インストール済みの `fixprguard` が旧パスを示す）を書く。
+-   [x] 開いている PR（0046 の PR-3・PR-4、0049 の PR など）は、`main` を取り込んで旧パスを直す必要があることを書く（設計書 8 章）。
+-   [x] ステップ 1-6 の AC-09 の一覧に出た差分の行を、PR のレビューで読む行として挙げる。
 
 **完了の条件:** PR-1 の本文に 3 つの記述がある。
 
@@ -195,10 +196,10 @@ yt2column の実行時の振る舞いは変えない（要件書 4.1・4.3）。
 
 **判定理由**: 機械的な移動と置換が中心で、設計書が対応表と検査の内容を決めており、`mkplan.md` の Conditional checks の 2 つ以上には当たらない。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/561
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: 言語の原則
 
@@ -208,10 +209,10 @@ AGENTS.md の変更（リンクのパス）は、ステップ 1-3 の置換に�
 
 **変更するファイル:** `CLAUDE.md`
 
--   [ ] "Documents" 節に、3 つの原則（AC-01）、ディレクトリごとの言語（AC-02）、例外（AC-04・AC-04a。範囲と理由を含む）を書き、`CLAUDE.md:25` の例外の列挙を消す（設計書 1.2）。`README.en.md` は名前だけを書き、リンクにしない。`docs/dev/guides/cli.md`・`development.md` のパスは書かない（1.3）。
--   [ ] "Language" 節を、原則と矛盾しない形にする（AC-03）。
--   [ ] Go Idioms の例外（`CLAUDE.md:507-516`）を、1.3 の範囲（Go のガードテストと `internal/doctestutil`、4 種類のリテラル）で明記する（AC-05）。
--   [ ] "Translation Guidelines" 節を、`README.md` を先に変えて `/mktrans` で `README.en.md` に反映する流れに改める（AC-40）。
+-   [x] "Documents" 節に、3 つの原則（AC-01）、ディレクトリごとの言語（AC-02）、例外（AC-04・AC-04a。範囲と理由を含む）を書き、`CLAUDE.md:25` の例外の列挙を消す（設計書 1.2）。`README.en.md` は名前だけを書き、リンクにしない。`docs/dev/guides/cli.md`・`development.md` のパスは書かない（1.3）。
+-   [x] "Language" 節を、原則と矛盾しない形にする（AC-03）。
+-   [x] Go Idioms の例外（`CLAUDE.md:507-516`）を、1.3 の範囲（Go のガードテストと `internal/doctestutil`、4 種類のリテラル）で明記する（AC-05）。
+-   [x] "Translation Guidelines" 節を、`README.md` を先に変えて `/mktrans` で `README.en.md` に反映する流れに改める（AC-40）。
 
 **完了の条件:** `make test` が通る（`TestInstructionDocPaths` を含む）。
 
@@ -219,7 +220,7 @@ AGENTS.md の変更（リンクのパス）は、ステップ 1-3 の置換に�
 
 **変更するファイル:** `.claude/commands/_context.md`
 
--   [ ] 「Translation language pair」の行（`:54`）を、`README.md` → `README.en.md` の組だけを扱う `/mktrans` に合わせる。
+-   [x] 「Translation language pair」の行（`:54`）を、`README.md` → `README.en.md` の組だけを扱う `/mktrans` に合わせる。
 
 **完了の条件:** `make test` が通る（`_context.md` を読む `fixpr_docs_test.go` のテストを含む）。
 
@@ -229,9 +230,9 @@ AGENTS.md の変更（リンクのパス）は、ステップ 1-3 の置換に�
 
 **変更するファイル:** `.claude/commands/mktrans.md`
 
--   [ ] 設計書 3.8 の表と 6.1 の判定の流れのとおりに改める。翻訳の組は `README.md` → `README.en.md` だけにし、`.ja.md` の方向の規則（`:27-35`）と developer_guide への言及（`:20-22`）を消す。同期点は同期の印のブロブの ID にする（設計書 2.4 の印の形と求め方）。
--   [ ] 単独と下位の手順の違い（用語集の扱い、コミット、結果の報告の 4 つの値）を書く。コミットの指示は単独で呼んだときの節にだけ置く。
--   [ ] 止まったときの復旧の手順（設計書 4.3 の表）と、`main` を取り込むときの衝突の規則（設計書 4.3）を書く。
+-   [x] 設計書 3.8 の表と 6.1 の判定の流れのとおりに改める。翻訳の組は `README.md` → `README.en.md` だけにし、`.ja.md` の方向の規則（`:27-35`）と developer_guide への言及（`:20-22`）を消す。同期点は同期の印のブロブの ID にする（設計書 2.4 の印の形と求め方）。
+-   [x] 単独と下位の手順の違い（用語集の扱い、コミット、結果の報告の 4 つの値）を書く。コミットの指示は単独で呼んだときの節にだけ置く。
+-   [x] 止まったときの復旧の手順（設計書 4.3 の表）と、`main` を取り込むときの衝突の規則（設計書 4.3）を書く。
 
 **完了の条件:** 設計書 3.8 の表の 5 行と 6.1 の判定のそれぞれが、`mktrans.md` のどこに書かれているかを、PR の本文に挙げる。
 
@@ -239,8 +240,8 @@ AGENTS.md の変更（リンクのパス）は、ステップ 1-3 の置換に�
 
 **変更するファイル:** `.claude/commands/_lib/task-pr-handoff.md`・`.claude/commands/runplan.md`
 
--   [ ] Part B の手順 1 の後、手順 2 の前に、同期の手順を加える（設計書 4.3 の `/runplan` の項と結果の表）。手順 1 の中の番号のない段落として加え、Part B のどの項目の番号も変えない（`fixpr_docs_test.go:189`・`codex_review_docs_test.go:74`、CLAUDE.md の Development Notes が番号で参照する）。「README.md を変えた」の判定は、`$(git merge-base origin/main HEAD)..HEAD` のコミットと作業ツリーで行う。
--   [ ] `runplan.md` の手順 5a の CHECKS の説明（`:82`）を、同期のコミットがあれば green gate を走らせ直すと改める。
+-   [x] Part B の手順 1 の後、手順 2 の前に、同期の手順を加える（設計書 4.3 の `/runplan` の項と結果の表）。手順 1 の中の番号のない段落として加え、Part B のどの項目の番号も変えない（`fixpr_docs_test.go:189`・`codex_review_docs_test.go:74`、CLAUDE.md の Development Notes が番号で参照する）。「README.md を変えた」の判定は、`$(git merge-base origin/main HEAD)..HEAD` のコミットと作業ツリーで行う。
+-   [x] `runplan.md` の手順 5a の CHECKS の説明（`:82`）を、同期のコミットがあれば green gate を走らせ直すと改める。
 
 **完了の条件:** `make test` が通る。
 
@@ -248,10 +249,10 @@ AGENTS.md の変更（リンクのパス）は、ステップ 1-3 の置換に�
 
 **変更するファイル:** `.claude/commands/fixpr.md`
 
--   [ ] Phase 3 の後、Phase 3.5 の前に、このセッションが同期の手順を実行すると書く（設計書 4.3 の `/fixpr` の項）。`README.en.md` の変更は、Phase 4 のコミットに入る。
--   [ ] Phase 4.5 の修正のコミットが `README.md` を変えたときは、その `git push` の前に同期の手順をもう一度実行し、`README.en.md` の変更をコミットすると書く。コミットは `_lib/coderabbit-local-review.md` の修正のコミットと同じく文で指示し、`TestRemovedCommandLiterals` が禁じるコマンドの字句（`git add -A`・`git commit -m` など）を書かない。Authorization の段落（`fixpr.md:88-101`）に、このコミットを加える。
--   [ ] 止まったときに作業ツリーに残る変更の扱いを、最終の報告の項に加える。
--   [ ] 見出し（`fixpr_docs_test.go:30-37` の定数）は変えない。
+-   [x] Phase 3 の後、Phase 3.5 の前に、このセッションが同期の手順を実行すると書く（設計書 4.3 の `/fixpr` の項）。`README.en.md` の変更は、Phase 4 のコミットに入る。
+-   [x] Phase 4.5 の修正のコミットが `README.md` を変えたときは、その `git push` の前に同期の手順をもう一度実行し、`README.en.md` の変更をコミットすると書く。コミットは `_lib/coderabbit-local-review.md` の修正のコミットと同じく文で指示し、`TestRemovedCommandLiterals` が禁じるコマンドの字句（`git add -A`・`git commit -m` など）を書かない。Authorization の段落（`fixpr.md:88-101`）に、このコミットを加える。
+-   [x] 止まったときに作業ツリーに残る変更の扱いを、最終の報告の項に加える。
+-   [x] 見出し（`fixpr_docs_test.go:30-37` の定数）は変えない。
 
 **完了の条件:** `make test` が通る。
 
@@ -259,10 +260,10 @@ AGENTS.md の変更（リンクのパス）は、ステップ 1-3 の置換に�
 
 **変更するファイル:** `.claude/commands/runpr.md`
 
--   [ ] 手順 1 の単独の変更の PR を作る項で、ローカルのレビューの後、push の前に同期の手順を加える。チェックアウトしていないブランチで `README.md` の変更があれば止まると書く（設計書 4.3 の `/runpr` の項）。
--   [ ] 手順 4 のマージの質問の前に、印の検査を加える（設計書 2.4。検査だけで反映しない。`README.en.md` がなければ検査しない）。
--   [ ] `main` を取り込む手順に、`README.en.md` の衝突の規則（設計書 4.3）を加える。
--   [ ] 手順の見出し（`fixpr_docs_test.go:38-40`・`codex_review_docs_test.go:83` の定数）は変えない。
+-   [x] 手順 1 の単独の変更の PR を作る項で、ローカルのレビューの後、push の前に同期の手順を加える。チェックアウトしていないブランチでは同期できないので、CI の検査に任せると書く（設計書 4.3 の `/runpr` の項。2026-10-29 の決定で、止まる形から改めた）。
+-   [-] 手順 4 のマージの質問の前に、印の検査を加える。ステップ 3-6 のテストが CI ですべての PR を検査するので、加えない（2026-10-29 の決定。1.3）。
+-   [x] `runpr.md` には `main` を取り込む手順がないので、手順 1 に、`main` を取り込むときに従う段落（「Taking in `main`」）を加え、`README.en.md` の衝突の規則（設計書 4.3）を `mktrans.md` の同名の段落に書いて参照する。
+-   [x] 手順の見出し（`fixpr_docs_test.go:38-40`・`codex_review_docs_test.go:83` の定数）は変えない。
 
 **完了の条件:** `make test` が通る。
 
@@ -270,14 +271,23 @@ AGENTS.md の変更（リンクのパス）は、ステップ 1-3 の置換に�
 
 **変更するファイル:** `cmd/yt2column/fixpr_docs_test.go`
 
--   [ ] 同期の手順は `fixprguard` の境界の内側で `/mktrans` を呼ぶので、CLAUDE.md の Testing Strategy が文書のテストを残すとする「信頼の境界でエージェントが実行するコマンド」に当たる。次を確かめるテスト `TestReadmeSyncStepPlacement` を加える。(1) `fixpr.md` の同期の手順が Phase 3 と Phase 3.5 の見出しの間にあり、`git add`・`git commit`・`git push` を含まない。(2) `mktrans.md` のコミットの指示が、単独で呼んだときの節の中にだけある。(3) `_lib/task-pr-handoff.md` の同期の手順が、Part B の項目 1 と項目 2 の間にある。同期の手順の見つけ方（見出しか、決まった語か）は実装で決め、決めたものを 3 つの文書で同じにする。
--   [ ] 3 つの検査が、手順を別の Phase に移す、`mktrans.md` のコミットの指示を下位の手順の節に写す、同期の手順を Part B の項目 2 の後に移す、でそれぞれ失敗することを確かめる。
+-   [x] 同期の手順は `fixprguard` の境界の内側で `/mktrans` を呼ぶので、CLAUDE.md の Testing Strategy が文書のテストを残すとする「信頼の境界でエージェントが実行するコマンド」に当たる。次を確かめるテスト `TestReadmeSyncStepPlacement` を加える。(1) `fixpr.md` の同期の手順が Phase 3 と Phase 3.5 の見出しの間にあり、`git add`・`git commit`・`git push` を含まない。(2) `mktrans.md` のコミットの指示が、単独で呼んだときの節の中にだけある。(3) `_lib/task-pr-handoff.md` の同期の手順が、Part B の項目 1 と項目 2 の間にある。同期の手順の見つけ方（見出しか、決まった語か）は実装で決め、決めたものを 3 つの文書で同じにする。
+-   [x] 3 つの検査が、手順を別の Phase に移す、`mktrans.md` のコミットの指示を下位の手順の節に写す、同期の手順を Part B の項目 2 の後に移す、でそれぞれ失敗することを確かめる。
+
+#### ステップ 3-6: 同期の印の検査のテスト（2026-10-29 の決定。1.3）
+
+**変更するファイル:** `cmd/yt2column/readme_sync_test.go`（新規）、`Makefile`、`.pre-commit-config.yaml`、`.claude/commands/` の同期の手順、CLAUDE.md
+
+-   [x] `TestReadmeSyncMarker` を加える。`README.en.md` の 1 行目が同期の印の形で、印が 1 つだけで、印の ID が `README.md` の内容のブロブの ID と一致することを確かめる（設計書 2.4。ID の長さは 1.3）。`README.en.md` がないときは通る。印を読んで比べる部分を文字列だけを受け取る関数にし、表のテストを持たせる。行は、一致、古い ID、印がない、短い ID、41 文字の ID、大文字の 16 進、`README.md` の語がない、余分な空白、行末の空白、CR、2 行目の印、コードブロックの中の 2 つ目の印である。ブロブの ID の計算は、`git hash-object` が出す既知の値と比べる。
+-   [x] 検査だけを走らせる `make readme-sync-check`（テストが走らなければ失敗する）と、`README.md`・`README.en.md` を変えたコミットで走る pre-commit のフックを加え、`.gitattributes` で両方の README の改行を LF に固定する。`README.md` を変えるコミットに同期を含める規則を、`mktrans.md` と `_lib/coderabbit-local-review.md` に書く。
+-   [x] 3 つのコマンドの同期の手順を、検査が失敗したら `/mktrans` を呼ぶ形にし（呼び方は `mktrans.md` の 1 か所に書く）、`/runpr` の手順 4 の印の検査を消す。
+-   [x] 印のある `README.en.md` を一時的に置いて通り、`README.md` を 1 文字変えると失敗すること、2 つ目の印の検査とブロブの ID の計算を壊すと表のテストが失敗することを確かめる。
 
 **完了の条件（フェーズ 3）:** `make test` が通る（コマンドの文書を読む `cmd/yt2column/fixpr_docs_test.go`・`codex_review_docs_test.go` のテストを含む）。同期の手順は、`fixprguard` の新しい呼び出しも、Codex のメンションも書かない（設計書 5 章）。
 
 ### PR-2 作成ポイント: language principles and README sync procedure
 
-**対象ステップ**: 2-1 / 2-2 / 3-1 / 3-2 / 3-3 / 3-4 / 3-5
+**対象ステップ**: 2-1 / 2-2 / 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6
 
 **推奨タイトル**: `docs(0048): 文書の言語の原則を定め、README の同期の手順を加える`
 
@@ -287,10 +297,10 @@ AGENTS.md の変更（リンクのパス）は、ステップ 1-3 の置換に�
 
 **判定理由**: ステップ 3-2〜3-4 は、`/fixpr` の Phase 3.5 と `fixprguard`、`/runpr` の手順 4 の PRE_MERGE という、ほかの手順の不変条件と交わる位置に手順を加える。読み違えると push の前の検査を飛ばしうる。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/564
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 4: 共有パッケージ `internal/doctestutil`
 
@@ -508,7 +518,7 @@ AGENTS.md の変更（リンクのパス）は、ステップ 1-3 の置換に�
 **変更するファイル:** `cmd/yt2column/readme_structure_test.go`（新規）
 
 -   [ ] `TestReadmeVersionsShareStructure` を加える。両版を `ParseStructure` で読み、ステップ 6-1 の比較の結果をメッセージにして失敗する。ファイルがないとき（スキップしない）と、`ParseStructure` がエラーを返すときは、版のパスを示して失敗する。
--   [ ] `TestReadmeSyncMarker` を加える。`README.en.md` の 1 行目が同期の印の形で、印が 1 つだけであることを確かめる（設計書 2.4・4.1 の末尾。ID の長さは 1.3）。印を読む部分を文字列だけを受け取る関数にし、表のテストを持たせる。行は、正しい印、短い ID、41 文字の ID、大文字の 16 進、`README.md` の語がない、2 行目の印、コードブロックの中の 2 つ目の印、余分な空白である。
+-   [ ] `README.en.md` を作った後に、`TestReadmeSyncMarker`（PR-2 のステップ 3-6 で加えた）が通ることを確かめる。
 -   [ ] `TestReadmeVersionLinks` を加える。両版の最初の見出しより前に、もう一方の版へのリンクがあり、両版に `cli.md`・`development.md` へのリンクがあることを確かめる（設計書 7.1）。`cli.md` に、README の設定の節の見出し（ロケータの日本語の綴り）のアンカーへのリンクがあることも確かめる（AC-36）。
 -   [ ] 設計書 7.1 の例（`README.en.md` の見出しを 1 つ消す、`README.md` だけにコードブロックを加える、`README.en.md` を消す）と、印を消す、印を 2 つにする、先頭のリンクを消す、`cli.md` の設定の節へのリンクを消す、でそれぞれ失敗することを確かめる。
 
@@ -585,7 +595,7 @@ PR-1・PR-2・PR-3 は 0046 の PR-4 を待たずに進めてよい（要件書 
 | PR | 対象ステップ | 主な変更内容 | 実装モデル要件 |
 |---|---|---|---|
 | PR-1 | 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 | developer_guide の分割、旧パスの置換、2 つの手引きの翻訳、パスの検査のテスト、移動の差分の検査 | standard |
-| PR-2 | 2-1 / 2-2 / 3-1 / 3-2 / 3-3 / 3-4 / 3-5 | CLAUDE.md と `_context.md` の言語の原則、`/mktrans` の改訂、同期の手順とその位置のテスト | frontier-recommended |
+| PR-2 | 2-1 / 2-2 / 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 | CLAUDE.md と `_context.md` の言語の原則、`/mktrans` の改訂、同期の手順とその位置のテスト | frontier-recommended |
 | PR-3 | 4-1 / 4-2 / 4-3 | `internal/doctestutil` の新設と補助関数の移動 | standard |
 | PR-4 | 5-1 / 5-2 / 5-3 / 5-4 | README の振り分け、`cli.md`・`development.md`、移った値を読むガードテスト、Browser extension の最上位化 | frontier-recommended |
 | PR-5 | 6-1 | `ParseStructure` と構造の比較 | standard |
@@ -604,7 +614,8 @@ PR-1・PR-2・PR-3 は 0046 の PR-4 を待たずに進めてよい（要件書 
 | `internal/doctestutil` の移したテスト（`TestSectionByHeading`・`TestScanDocLines`・`TestFencedBlocks`・`TestAnchorFromHeading`・`TestSectionOutsideBlocks`） | 4-1 |
 | `internal/doctestutil` の区分に分類する関数・`ParseStructure`・構造の比較・`Locator.In` の表のテスト（新規） | 5-4・6-1・6-5 |
 | 4.2 の表のガードテスト | 5-2・5-4・6-6 |
-| `cmd/yt2column/readme_structure_test.go` の `TestReadmeVersionsShareStructure`・`TestReadmeSyncMarker`（印を読む関数の表のテストを含む）・`TestReadmeVersionLinks`（新規） | 6-7 |
+| `cmd/yt2column/readme_sync_test.go` の `TestReadmeSyncMarker`・`TestCheckReadmeSync`・`TestGitBlobIDMatchesGit`（新規） | 3-6 |
+| `cmd/yt2column/readme_structure_test.go` の `TestReadmeVersionsShareStructure`・`TestReadmeVersionLinks`（新規） | 6-7 |
 | `cmd/yt2column/run_test.go::TestRunHelp`、`cmd/yt2column-server/run_test.go::TestStartupFailures` | 6-8 |
 | `extension/test/markdownSection.test.ts`（改修するときだけ） | 6-2 |
 | `extension/test/serverReasons.test.ts` | 5-2・5-4 |
@@ -668,8 +679,8 @@ N/A（設計書 7.2）。
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
--   [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7）
--   [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 3-1 / 3-2 / 3-3 / 3-4 / 3-5）
+-   [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7）
+-   [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6）
 -   [ ] PR-3 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3）
 -   [ ] PR-4 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4）
 -   [ ] PR-5 マージ済み（対象ステップ: 6-1）
@@ -714,14 +725,46 @@ N/A（設計書 7.2）。
 | AC-35 | test: `extension/test/metadataDocs.test.ts`（英語のカタログの参照先） ＋ diff: `_checks/readme/` | 6-8・6-10 | 英語のメッセージが `README.en.md` を示す（test）。`ja.ts` が変わらない（diff） |
 | AC-35a | test: `cmd/yt2column-server/run_test.go::TestStartupFailures` | 6-8 | 診断が `README.en.md` を示し、ファイルがある |
 | AC-36 | test: `cmd/yt2column/run_test.go::TestRunHelp`・`cmd/yt2column/readme_structure_test.go::TestReadmeVersionLinks` | 5-2・6-7・6-8 | ヘルプの 2 か所が `cli.md` を示し、ファイルがある。`cli.md` に README の設定の節へのリンクがある |
-| AC-37 | test: `cmd/yt2column/fixpr_docs_test.go::TestReadmeSyncStepPlacement` ＋ manual | 3-2〜3-5 | 同期の手順の位置とコミットの指示の位置（test）。手順の内容（manual、PR-2） |
+| AC-37 | test: `cmd/yt2column/fixpr_docs_test.go::TestReadmeSyncStepPlacement`・`cmd/yt2column/readme_sync_test.go::TestReadmeSyncMarker` ＋ manual | 3-2〜3-6 | 同期の手順の位置とコミットの指示の位置（test）。手順の内容（manual、PR-2） |
 | AC-38・AC-39 | manual | 3-1 | `/mktrans` の振る舞い（PR-2）。ステップ 6-4 で全文の翻訳を実際に使う |
 | AC-40 | manual | 2-1・2-2 | CLAUDE.md と `_context.md` の記述（PR-2） |
 | AC-41 | manual | 6-9 | Development Notes の記述（PR-6） |
 
-**読み比べの記録（AC-11）:** （ステップ 1-1 で記録する）
+**読み比べの記録（AC-11）:** 2026-10-29 に、移動前の `mergepr_guide.md` と `mergepr_guide.ja.md`、`fixprguard_guide.md` と `fixprguard_guide.ja.md` を節ごとに読み比べた。
 
-**差分の検査の実行の記録:** （ステップ 1-6・5-3・5-4・6-10 で記録する）
+- 節の対応: どちらの組も見出しが 1 対 1 で対応する（`mergepr_guide` は 18、`fixprguard_guide` は 28）。節ごとの段落、箇条書きの項目、表の行、コードブロックの数も一致した。
+- 英語版にだけあった記述: ない。そのため、日本語版に加えた記述はない。
+- `mergepr_guide` の 1 行の差: 英語版は `prepare [PR]` の手順 4 の続きの 3 文を別々の段落にしているが、日本語版は字下げした続きの行にしている。内容は同じで、`_checks/move` の差分の一覧にも現れない。
+- 残した記述: `fixprguard_guide.md` の最後の箇条書きは、ガードテストが「本書（日英）」を確かめると述べている。英語版の手引きを消した後は古い記述になるが、AC-09 はこの PR で日本語の手引きの文言を変えることを許していないため、そのままにした。この行は `.ja.md` の版と同一なので、`_checks/move` の差分の一覧には現れない。PR の本文でレビュアーに判断を求める。
+
+**差分の検査の実行の記録:** PR-1 で 2026-10-29 に、リポジトリのルートで `go run ./docs/tasks/0048_doc_language_policy/_checks/move/` を実行した。merge-base は `234da9bd3c73a9520f234c8c2784ebe632477034`、実行した時点の HEAD は `7763e4d1d8a7ded13c9c84198bdc7d6293718697`、終了コードは 0 である。
+
+```text
+merge-base 234da9bd3c73a9520f234c8c2784ebe632477034
+head       7763e4d1d8a7ded13c9c84198bdc7d6293718697
+OK   conventions unchanged
+OK   guides renamed from the Japanese originals
+OK   old directory is gone
+OK   no old file path remains
+OK   past task documents changed only at paths
+OK   relative links resolve
+OK   translations keep the structure
+```
+
+各検査が違反を見つけることは、PR の先頭とは別の一時的なコミットで 1 か所ずつ変えて確かめ、元に戻した。どれも終了コード 1 になった。
+
+| 変えた 1 か所 | 失敗した検査 |
+|---|---|
+| `docs/dev/conventions/requirements_process.md` に 1 行を加える | AC-08 |
+| `docs/dev/guides/` に `extra.ja.md` を置く | AC-09 |
+| `docs/dev/developer_guide/` に `stub.md` を置く | AC-12 |
+| `CLAUDE.md` に旧パス `docs/dev/developer_guide/package_reference.md` を残す | AC-13 |
+| 過去のタスク文書の Status の行を `draft` に変える | AC-14 |
+| 過去のタスク文書の相対リンクの深さを 1 段変える | AC-15（AC-14 も失敗する） |
+| `pricing_update.md` のインラインのコード `` `0.0094` `` を `` `0.0095` `` に変える | AC-10 |
+| `pricing_update.md` だけにコードブロックを加える | AC-10 |
+
+翻訳のレビューでは、Critical 1 件（出力の上限の条件 (b) が比べる時間を示していない）と Major 3 件、Minor 多数の指摘を受け、すべて直した。直した後の再確認で、残る指摘はなかった。
 
 **CI の記録（AC-29）:** （ステップ 6-10 で記録する）
 
@@ -730,7 +773,7 @@ N/A（設計書 7.2）。
 `make lint`・`make test` では見つからない残りを確かめる。
 
 -   [ ] 1.5 の旧い補助関数の名前（小文字の `readDoc` など）が、`cmd/yt2column`・`cmd/yt2column-server` のコメントに残っていない（PR-3）。
--   [ ] `docs/translation_glossary.md` の訳語と、`cli.md`・`development.md`・`README.md`・`README.en.md` の用語が一致する（PR-4・PR-6 のレビューで読む）。
+-   [ ] `docs/translation_glossary.md` の訳語と、`cli.md`・`development.md`・`README.md`・`README.en.md`・`pricing_update.md`・`claude_output_limit.md` の用語が一致する（PR-1・PR-4・PR-6 のレビューで読む）。
 -   [ ] `has-extension-changes.sh` の先頭のコメントと、CLAUDE.md の Development Notes が、拡張のテストが読む文書の同じ一覧を述べる（PR-6 のレビューで読む）。
 
 ## 9. 成功基準 (Success Criteria)

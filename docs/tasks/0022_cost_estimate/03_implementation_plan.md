@@ -47,7 +47,7 @@ requirements の機能要件（F-001〜F-010）を、architecture の設計ど�
 
 **統合テスト（フェーズ 3 で変える）。** `internal/llm/deepseek/integration_test.go` と `internal/llm/claude/integration_test.go` は `//go:build integration` で、`generate`（`:45`・`:59`）と `truncated`（`:80`・`:90`）のサブテストを持つ。`generate` はモデル名をログに出す前に、API キーを含まないことを確かめる（DeepSeek `:62-75`、Claude `:79-87`）。`truncated` は応答を捨てており（`_, err :=`）、この確認を持たない。CLI の統合テストは、成功した実行の標準エラーをログに出さない。`runIntegrationCLI`（`cmd/yt2column/integration_test.go:46-65`）は標準エラーを `requireNoSecrets` にだけ渡し、`integration_slack_test.go:58-66` は失敗のときだけ標準エラー全体を、成功では投稿の要約の行だけを出す。そのため architecture §3.8 の「コードの変更は要らない」は事実でなく、§2.0 のとおり architecture を直した。
 
-**文書（フェーズ 1・2・4 で変える）。** `README.md` の `## Token usage`（`:122-185`）の最後の段落が「The artifact format is version 2」（`:183-185`）と書く。`docs/dev/developer_guide/package_reference.md` の `internal/artifact` の行（`:33`）は版 2 を書き、`cmd/yt2column/docs_test.go:751` がその行に `"version 2"` を求める。`docs/dev/project_overview.md` は中間生成物の形式の版を書いていない（`--artifacts` の項は `:34`、トークン数の行の項は `:35`、モデル名の制約は `:66`）ので、AC-42 の「形式の版」は改めるのではなく書き加える。`docs/dev/security.md` の `## 6.` の `--artifacts` の項は `:78` である。`TestPackageReferenceListsPackages`（`internal/pipeline/pipeline_test.go:669`）は `cmd/` と `internal/` のすべてのパッケージの行を `package_reference.md` に求めるので、`internal/pricing` の行はパッケージを作るフェーズ 1 で要る。`docs/dev/developer_guide/` の英語の文書に日本語訳を求める guard はない（`rg -n 'ja\.md' -g '*_test.go' cmd internal` で該当なし）。
+**文書（フェーズ 1・2・4 で変える）。** `README.md` の `## Token usage`（`:122-185`）の最後の段落が「The artifact format is version 2」（`:183-185`）と書く。`docs/dev/conventions/package_reference.md` の `internal/artifact` の行（`:33`）は版 2 を書き、`cmd/yt2column/docs_test.go:751` がその行に `"version 2"` を求める。`docs/dev/project_overview.md` は中間生成物の形式の版を書いていない（`--artifacts` の項は `:34`、トークン数の行の項は `:35`、モデル名の制約は `:66`）ので、AC-42 の「形式の版」は改めるのではなく書き加える。`docs/dev/security.md` の `## 6.` の `--artifacts` の項は `:78` である。`TestPackageReferenceListsPackages`（`internal/pipeline/pipeline_test.go:669`）は `cmd/` と `internal/` のすべてのパッケージの行を `package_reference.md` に求めるので、`internal/pricing` の行はパッケージを作るフェーズ 1 で要る。`docs/dev/developer_guide/` の英語の文書に日本語訳を求める guard はない（`rg -n 'ja\.md' -g '*_test.go' cmd internal` で該当なし）。
 
 **外部の前提の確認。** モジュールは `go 1.26.5`、ツールチェーンは `go1.27.1`（`go.mod:3`・`go version`）。architecture §3.5 の時刻の受理の規則の前提を、`go1.27.1` で書式 `2006-01-02T15:04:05Z` に対して、`time.Parse` と書き直しの比較（`time.Parse` が返した時刻を同じ書式で書き戻し、元の文字列と比べること）を実行して確かめた（scratchpad の一回限りのプログラム。2026-10-16）。結果は次のとおりである。`2026-02-30T00:00:00Z`・`24:00:00`・`23:59:60`・小文字の `z`・小文字の `t`・`+00:00` は、`time.Parse` が拒否した。`.5Z`（小数の秒）と `T1:00:00Z`（桁の欠け）は、`time.Parse` は受理したが、書き直しの比較で不一致になった。`0001-01-01T00:00:00Z` は往復も一致するので、ゼロの時刻は別に拒否する必要がある。`Asia/Tokyo` 相当の `time.FixedZone` の時刻をそのまま書くと、9 時間ずれた値に `Z` が付いた。architecture §3.4 の「`UTC()` と `Truncate` はモノトニック時計の読みを除く」は `go doc time` の "Monotonic Clocks" の節（"t.In, t.Local, and t.UTC ... strip any monotonic clock reading"、"t.Round(d) and t.Truncate(d) ... strip"）で確かめた。
 
@@ -64,7 +64,7 @@ requirements の機能要件（F-001〜F-010）を、architecture の設計ど�
 | `internal/pricing/testutil`（新規、`package pricingtestutil`、`//go:build test \|\| integration`） | 段階の料金を、適用した単価の種類か不明の理由とともに 1 行のログの文字列にする関数 | architecture §3.8（2 つのアダプタの統合テストが同じ語でログを出すため、本計画で置き場所を決める。CLI の語の対応は `package main` にあり、ほかのパッケージから使えない） |
 | `internal/artifact` | JSON のキー `call_time`。CLI の `at=` と同じ書式を使うための公開の定数 `CallTimeLayout`（値は `2006-01-02T15:04:05Z`） | architecture §3.5・§3.6（「時刻の書式の文字列は、`internal/artifact` の `call_time` の書式と同じ値を使う」の実現の仕方として、本計画で名前を決める） |
 | `cmd/yt2column` | `reportUsage` と、料金の行・合計の行の書式の定数（2 つの接頭辞・状態の語・合計の種類の語・`usd=`・`reason=`・`at=`・`none`）、列挙値を語に対応させる関数 | architecture §3.6 |
-| 文書 | `docs/dev/developer_guide/pricing_update.md`（新規・英語）、README の料金の節 | architecture §3.9 |
+| 文書 | `docs/dev/guides/pricing_update.md`（新規・英語）、README の料金の節 | architecture §3.9 |
 
 ### 1.5. 申し送りへの対応
 
@@ -100,12 +100,12 @@ requirements の機能要件（F-001〜F-010）を、architecture の設計ど�
 
 ### フェーズ 1: `internal/pricing`
 
-**対象ファイル:** `internal/pricing/rates.go`・`amount.go`・`pricing.go`（新規）、`internal/pricing/rates_test.go`・`amount_test.go`・`pricing_test.go`（新規）、`internal/writer/writer.go`、`docs/dev/developer_guide/package_reference.md`
+**対象ファイル:** `internal/pricing/rates.go`・`amount.go`・`pricing.go`（新規）、`internal/pricing/rates_test.go`・`amount_test.go`・`pricing_test.go`（新規）、`internal/writer/writer.go`、`docs/dev/conventions/package_reference.md`
 
 - [x] **ステップ 1-1**: `internal/pricing/rates.go` に、architecture §3.2 の非公開の型・単価の表・ピーク時間帯の規則・`validate` と §3.2 の表の番兵を置く。表に写す直前に、出典の 2 つのページ（requirements F-001）で単価とピーク時間帯をもう一度確かめ、各エントリとピーク時間帯の規則の直前のコメントに出典の URL と確認日（確かめた日）を書く。architecture §3.2 の表の値とページが食い違えば、実装を止めて architecture を直す（§9）。DeepSeek のキャッシュに書き込んだ入力の単価を 0 とすることは、アダプタの宣言に対応している。この対応関係をコメントに書く。
 - [x] **ステップ 1-2**: `internal/pricing/amount.go` に、architecture §3.1 の `Amount` と `Format`（§3.3 の四捨五入）を置く。
 - [x] **ステップ 1-3**: `internal/writer/writer.go` の `StageUsage` に、architecture §3.4 の `CallTime` のフィールドと文書だけを加える（`Totals` が時間帯の判定に読むため。architecture §8）。時刻を入れる処理はフェーズ 2 で加えるので、このフェーズでは常にゼロ値であり、既存のテストは変わらない。`internal/pricing/pricing.go` に、パッケージの文書と、architecture §3.1 の `RateBasis`・`UnknownReason`・`StageCost`・`Total`・`Estimate`・`Totals` を置く。`Estimate` の判定の順序と単価の組の選び方は §3.3 と図5、`Totals` の規則は §3.1 のとおりとする。プロンプトの長さの和の判定は桁あふれさせない（§3.3）。
-- [x] **ステップ 1-4**: `docs/dev/developer_guide/package_reference.md` に `internal/pricing` の行を、architecture §2.2 の責務と §3.1 の公開の型で書く（`TestPackageReferenceListsPackages` が新しいパッケージの行を求めるため、このフェーズで要る）。この行はフェーズ 4 で書き直さない。
+- [x] **ステップ 1-4**: `docs/dev/conventions/package_reference.md` に `internal/pricing` の行を、architecture §2.2 の責務と §3.1 の公開の型で書く（`TestPackageReferenceListsPackages` が新しいパッケージの行を求めるため、このフェーズで要る）。この行はフェーズ 4 で書き直さない。
 - [x] **ステップ 1-5**: テストを書く。期待値は出典のページの単価から手で計算した文字列とし、計算式をテストのコメントに書く。表の定数や算出のコードから期待値を導かない（AC-35）。
   - `rates_test.go`: `TestRateTableValid`（実際の表に `validate` を通す）、`TestValidateRejects`（§3.2 の規則ごとに、その規則だけを壊した表で、その番兵が `errors.Is` で返る）、`TestRateTableModels`（4 つのモデル名ごとの単価の選び方と組の数。閾値の値は `TestEstimatePromptTier` が振る舞いで固定するので、ここでは定数と同じ値のリテラルと比べない。AC-01）、`TestRateFieldsUnsigned`（`rates` の 4 つのフィールドと `microUSDPerMTok` の型の種類が符号なしの整数であることを `reflect` で確かめる。AC-03 の負の単価）、`TestRateTableSourceComments`（`go/parser` で `rates.go` を読み、表の各エントリとピーク時間帯の規則の直前のコメントが、出典の URL と `checked YYYY-MM-DD` の形の確認日を持つ。AC-02）。
   - `amount_test.go`: `TestAmountFormat`（0、ちょうど 0.5 の桁の切り上げ、0.5 未満の切り捨て、6 桁と 4 桁、整数部が 0 と 1 以上、指数を使わないこと）。
@@ -141,7 +141,7 @@ requirements の機能要件（F-001〜F-010）を、architecture の設計ど�
 
 ### フェーズ 2: 呼び出しの時刻と中間生成物
 
-**対象ファイル:** `internal/writer/writer.go`・`artifact.go`・`errors.go`・`shorten.go`・`review.go`、`internal/writer/usage_test.go`・`output_test.go`・`artifact_test.go`、`internal/writer/calltime_test.go`（新規）、`internal/artifact/artifact.go`・`format.go`・`format_test.go`・`chain_test.go`、`cmd/yt2column/run_test.go`・`docs_test.go`、`README.md`、`docs/dev/developer_guide/package_reference.md`
+**対象ファイル:** `internal/writer/writer.go`・`artifact.go`・`errors.go`・`shorten.go`・`review.go`、`internal/writer/usage_test.go`・`output_test.go`・`artifact_test.go`、`internal/writer/calltime_test.go`（新規）、`internal/artifact/artifact.go`・`format.go`・`format_test.go`・`chain_test.go`、`cmd/yt2column/run_test.go`・`docs_test.go`、`README.md`、`docs/dev/conventions/package_reference.md`
 
 - [x] **ステップ 2-1**: architecture §3.4 の残りの型を置く（`StageUsage.CallTime` はステップ 1-3 で加えた）。`StageRecord.CallTime`、`Options.Clock`、`errors.go` の `ErrMissingCallTime`。`ArtifactStore` の文書に「`Load` が返す各記録の `CallTime` はゼロでない」を加える。
 - [x] **ステップ 2-2**: `Write` に時刻の取得と受け渡しを加える。`New` が `Options.Clock`（nil は `time.Now`）を `templateWriter` に持たせ、`Generate` が戻った直後（成否にかかわらず）に時刻を取って `stageUsage` に渡す。`stageUsage` は UTC・秒に切り捨てて `CallTime` に入れ、保存する 3 つの `StageRecord` に同じ値を入れる。`reusedUsage` は記録の時刻を写す。`Write` は、読み込んだ連鎖の記録のどれかの `CallTime` がゼロなら、LLM を呼ばずに `ErrMissingCallTime` を包んだ `*ArtifactError` で失敗する（architecture §3.4）。この失敗も、ほかの `Write` の失敗と同じく `*TokenUsageError` で包む（`ArticleWriter` の契約）。
@@ -194,7 +194,7 @@ requirements の機能要件（F-001〜F-010）を、architecture の設計ど�
 
 ### フェーズ 3: 出力
 
-**対象ファイル:** `internal/publisher/file.go`・`file_test.go`・`slack_test.go`・`slack_message_test.go`、`internal/publisher/testutil/integration.go`、`docs/tasks/0008_column_prompt/check_article.py`、`internal/pipeline/pipeline_test.go`、`cmd/yt2column/run.go`、`cmd/yt2column/cost_test.go`（新規。CLI の料金のテストは `token_test.go` と同じパッケージの新しいファイルに置く）、`cmd/yt2column/integration_test.go`・`integration_slack_test.go`、`internal/pricing/testutil/helpers.go`・`helpers_test.go`（新規）、`internal/llm/deepseek/integration_test.go`、`internal/llm/claude/integration_test.go`、`docs/dev/developer_guide/package_reference.md`、`docs/tasks/0022_cost_estimate/03_implementation_plan.md`（手動の確認 M-1〜M-3 の日時と結果）
+**対象ファイル:** `internal/publisher/file.go`・`file_test.go`・`slack_test.go`・`slack_message_test.go`、`internal/publisher/testutil/integration.go`、`docs/tasks/0008_column_prompt/check_article.py`、`internal/pipeline/pipeline_test.go`、`cmd/yt2column/run.go`、`cmd/yt2column/cost_test.go`（新規。CLI の料金のテストは `token_test.go` と同じパッケージの新しいファイルに置く）、`cmd/yt2column/integration_test.go`・`integration_slack_test.go`、`internal/pricing/testutil/helpers.go`・`helpers_test.go`（新規）、`internal/llm/deepseek/integration_test.go`、`internal/llm/claude/integration_test.go`、`docs/dev/conventions/package_reference.md`、`docs/tasks/0022_cost_estimate/03_implementation_plan.md`（手動の確認 M-1〜M-3 の日時と結果）
 
 - [x] **ステップ 3-1**: `renderArticle` に、architecture §3.7 の料金の行を 1 行加える。金額は `pricing.Totals` の記事 1 本の料金の `Format(4)` と `USD`、不明は `unknown` だけとする。`renderArticle` の文書に行の位置と内容を加える。
 - [x] **ステップ 3-2**: 見出しの形を固定する既存のものを更新する（architecture §1.3 の例外 1）。`file_test.go:64` と `TestRenderArticleSteps` の期待値に不明の行を加え、`integrationHeader` に同じ行を加え、その文書（`testutil/integration.go:165-167`）に料金の行を写していることを加える。`check_article.py` の `HEADER_RE` を、モデル名の行の後に料金の行（分かった場合と不明の場合）を任意で受け付ける形にする。スクリプトの先頭のコメント（`:26-28`）にも料金の行を加える。
@@ -295,10 +295,10 @@ requirements の機能要件（F-001〜F-010）を、architecture の設計ど�
 
 ### フェーズ 4: 文書
 
-**対象ファイル:** `README.md`、`docs/dev/developer_guide/pricing_update.md`（新規）、`internal/pricing/rates.go`（先頭のコメント）、`CLAUDE.md`、`docs/dev/project_overview.md`、`docs/dev/security.md`、`docs/dev/developer_guide/package_reference.md`、`cmd/yt2column/docs_test.go`
+**対象ファイル:** `README.md`、`docs/dev/guides/pricing_update.md`（新規）、`internal/pricing/rates.go`（先頭のコメント）、`CLAUDE.md`、`docs/dev/project_overview.md`、`docs/dev/security.md`、`docs/dev/conventions/package_reference.md`、`cmd/yt2column/docs_test.go`
 
 - [x] **ステップ 4-1**: `README.md` の `## Token usage` の後に、料金の概算の節（例: `## Estimated cost`）を加える。内容は architecture §3.9 の README の項目のとおりで、版 3 の記述はステップ 2-8 で済んでいる。例の行は、ステップ 3-7 の `TestRunCostLinesGoldenFormat` が固定する綴りと同じ形にする。
-- [x] **ステップ 4-2**: `docs/dev/developer_guide/pricing_update.md`（英語）に、architecture §3.9 の単価の更新の手順を書く。`internal/pricing/rates.go` の先頭のコメントからこの文書を指し、`CLAUDE.md` の Development Guides の一覧に 1 行加える（AC-41）。
+- [x] **ステップ 4-2**: `docs/dev/guides/pricing_update.md`（英語）に、architecture §3.9 の単価の更新の手順を書く。`internal/pricing/rates.go` の先頭のコメントからこの文書を指し、`CLAUDE.md` の Development Guides の一覧に 1 行加える（AC-41）。
 - [x] **ステップ 4-3**: `docs/dev/project_overview.md` の `--artifacts` の項（`:34`）に形式の版 3 と呼び出しの時刻を、トークン数の行の項（`:35`）の後に料金の行と `--out`・Slack の行を加え、「前提・制約」のモデル名の項（`:67`）に、単価の表がこの方針の対象外であることの注記を加える（architecture §1.3 の例外 3）。
 - [x] **ステップ 4-4**: `docs/dev/security.md` の `## 6.` の `--artifacts` の項（`:78`）に、来歴の列挙への呼び出しの時刻と、`call_time` の受理の形と拒否の規則を加える（architecture §3.9）。
 - [x] **ステップ 4-5**: `package_reference.md` の `internal/writer` の行に `CallTime`・`Clock`・`ErrMissingCallTime` を、`internal/publisher` の行に料金の行を、`cmd/yt2column` の行に料金の行を加える。

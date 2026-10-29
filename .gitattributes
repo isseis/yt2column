@@ -1,2 +1,6 @@
 testdata/*.transcript_copy.txt -text
 internal/publisher/testdata/golden/** -text
+# The README sync marker test hashes the work-tree bytes, so both READMEs
+# keep LF line endings in every checkout.
+README.md text eol=lf
+README.en.md text eol=lf

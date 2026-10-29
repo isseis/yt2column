@@ -68,7 +68,7 @@
 
 ## H-08: 開発者ガイドの構成
 
--   ファイル名の候補: `docs/dev/developer_guide/claude_output_limit.md`。`pricing_update.md` と同じく、`docs/dev/developer_guide/*.md` は英語で書く（CLAUDE.md「Documents」）。
+-   ファイル名の候補: `docs/dev/guides/claude_output_limit.md`。`pricing_update.md` と同じく、`docs/dev/developer_guide/*.md` は英語で書く（CLAUDE.md「Documents」）。
 -   測り直しには実 API の呼び出しが要り、料金がかかる。ガイドには、人の承認を得てから実行すること（CLAUDE.md「Tool Execution Safety」）と、評価の手順（0008 評価記録 §2.3、0018 評価記録 §3）への参照を書く。
 -   集める値の出どころ: README「Token usage」の `tokens:` の行の `output=`、`--artifacts` の中間生成物に記録したトークン数、CLI の打ち切りのエラー（`generation truncated by the output token limit`）。
 -   ガイドの値（V、出力の速さ）を文書に写すと、コードと食い違いうる。ガイドは V の値を写さず、V を定義する場所と、その根拠の記録（`02_architecture.md`）を参照する形にするかを決める。値を写す場合は、値の一致を確かめるテストが要る（CLAUDE.md「Document tests check values, structure, and executable examples, never prose」）。

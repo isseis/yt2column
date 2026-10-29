@@ -704,7 +704,7 @@ func TestPackageReferenceListsPackages(t *testing.T) {
 		t.Fatal("found no packages with production code")
 	}
 
-	doc, err := os.ReadFile("../../docs/dev/developer_guide/package_reference.md")
+	doc, err := os.ReadFile("../../docs/dev/conventions/package_reference.md")
 	if err != nil {
 		t.Fatalf("read package_reference.md: %v", err)
 	}

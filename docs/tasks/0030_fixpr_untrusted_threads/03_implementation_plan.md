@@ -114,7 +114,7 @@
 
 #### ステップ 1-2: `internal/mergepr` を移す
 
-**変更するファイル**: `internal/mergepr/mergepr.go`、`internal/mergepr/runner.go`、`docs/dev/developer_guide/mergepr_guide.ja.md`、`docs/dev/developer_guide/mergepr_guide.md`
+**変更するファイル**: `internal/mergepr/mergepr.go`、`internal/mergepr/runner.go`、`docs/dev/guides/mergepr_guide.md`、`docs/dev/guides/mergepr_guide.md`
 
 -   [x] `Runner` を `cmdrunner.Runner` の別名にし、`NewOSRunner` が `cmdrunner.NewOS(cmdrunner.Options{})` を返すようにする（1.3.1 の台帳）。`osRunner` を取り除く。
 -   [x] `internal/mergepr` の既存のテスト（`runner_test.go` の `TestOSRunnerReturnsOutput`・`TestOSRunnerReportsFailure` を含む）を変えずに通す。これらが、既定の挙動（短い出力の成功と、終了の状態と標準エラーを含む失敗の文面）が変わらないことの確認になる。cmdrunner 側に同じ内容のテストを重ねない（上限なしの大きな出力はステップ 1-1 が試す）。
@@ -124,7 +124,7 @@
 
 #### ステップ 1-3: fake と文書のガード
 
-**変更するファイル**: `internal/cmdrunner/testutil/mocks.go`、`internal/cmdrunner/testutil/mocks_test.go`（ともに `package cmdrunnertestutil`、`//go:build test`）、`internal/pipeline/pipeline_test.go`、`docs/dev/developer_guide/package_reference.md`
+**変更するファイル**: `internal/cmdrunner/testutil/mocks.go`、`internal/cmdrunner/testutil/mocks_test.go`（ともに `package cmdrunnertestutil`、`//go:build test`）、`internal/pipeline/pipeline_test.go`、`docs/dev/conventions/package_reference.md`
 
 -   [x] 期待するコマンドの列を順に再生し、順序の違いと余分な呼び出しで失敗する fake を作る。`InputRunner` も実装し、標準入力の内容を記録する。各手順に、実行時の副作用を行う任意の関数を持てるようにする（`make` の fake が範囲内のファイルや git の設定を書き換える場面を、ステップ 3-5・3-7 のテストが作るため）。`internal/mergepr` の `fakeRunner`（`test_helpers.go:48`）は置き換えない。`Run` だけを実装する別の型で、移すと `mergepr` のテストの書き換えが増えるだけである。
 -   [x] `mocks_test.go` に、fake 自身のテスト（順序の違い、余分な呼び出し、標準入力の記録、副作用の関数）を書く（`test_organization.md` の分類 A）。
@@ -200,7 +200,7 @@
 
 #### ステップ 2-6: テストの補助と文書のガード（作業は 2-2 の前に始める。2-2〜2-5 のテストが使う）
 
-**変更するファイル**: `internal/fixprguard/test_helpers.go`（`//go:build test`）、`docs/dev/developer_guide/package_reference.md`
+**変更するファイル**: `internal/fixprguard/test_helpers.go`（`//go:build test`）、`docs/dev/conventions/package_reference.md`
 
 -   [x] GitHub の応答の組み立て（スレッド・コメント・権限）をまとめた補助を、`internal/cmdrunner/testutil` の fake の上に作る。
 -   [x] `package_reference.md` に `internal/fixprguard` の行を加え、`internal/strictjson` の行の共有先に `internal/fixprguard` を加える。
@@ -352,7 +352,7 @@
 
 #### ステップ 5-2: `Makefile` と案内
 
-**変更するファイル**: `Makefile`、`CLAUDE.md`、`docs/dev/developer_guide/package_reference.md`、`internal/config/envaccess_test.go`
+**変更するファイル**: `Makefile`、`CLAUDE.md`、`docs/dev/conventions/package_reference.md`、`internal/config/envaccess_test.go`
 
 -   [x] `install-fixprguard` を、`install-mergepr`（`Makefile:68`）と同じ形で加え、`.PHONY` の行（`Makefile:53`）にも加える。
 -   [x] `CLAUDE.md` の「Quick Links」と「Build Commands」に案内を加える。
@@ -361,7 +361,7 @@
 
 #### ステップ 5-3: 利用ガイド
 
-**変更するファイル**: `docs/dev/developer_guide/fixprguard_guide.ja.md`、`docs/dev/developer_guide/fixprguard_guide.md`、`cmd/fixprguard/docs_test.go`
+**変更するファイル**: `docs/dev/guides/fixprguard_guide.md`、`docs/dev/guides/fixprguard_guide.md`、`cmd/fixprguard/docs_test.go`
 
 -   [x] 日本語版を先に書き、コミットする。内容は、ツールの使い方、保証すること・しないこと（設計書 5.2・5.3）、止まったときの回復の手順、範囲の規則の一覧（設計書 3.6）、各サブコマンドを単独で実行する手順（設計書 5.4。毎回 `--protocol` と、必要な `--reviewer` を付ける）。
 -   [x] 英語版を `/mktrans` で翻訳する。
@@ -403,7 +403,7 @@
 
 #### ステップ 6-2: `fixpr.md`
 
-**変更するファイル**: `.claude/commands/fixpr.md`、`docs/dev/developer_guide/fixprguard_guide.ja.md`、`docs/dev/developer_guide/fixprguard_guide.md`
+**変更するファイル**: `.claude/commands/fixpr.md`、`docs/dev/guides/fixprguard_guide.md`、`docs/dev/guides/fixprguard_guide.md`
 
 -   [x] 設計書 3.10 の `fixpr.md` の表の各行を反映する（冒頭の説明、Authorization の新設、Convergence policy、Caller override、Shared rules の R6、Phase 1〜6、Final report）。
 -   [x] 1.3.2 の「コマンドの文書」の行に挙げた直書きを取り除く（`fixpr.md` の `git add -A`・`git commit -m`・Phase 4 の手順の `git push`・`REPLYBODY_EOF`・Phase 6 の `<<'EOF'` と `--title "`・`comments(first:10)`）。`runpr.md` の `git push -u` と `--title "`（自分の PR の作成）、`fixpr.md` の Authorization の `git push`・`gh pr edit` は、正当な記述なので残す。Phase 4 の commit の件名（`fix: address PR #NUMBER review comments`）は、ツールが組み立てる件名と一致させる。
@@ -493,7 +493,7 @@
 
 ### 4.1. ユニットテスト
 
-設計書 7.1 の分類に従い、各ステップがテストを作る（名前と境界は 2 章のステップの「テスト」の項）。置き場所は、`internal/cmdrunner/runner_test.go`、`internal/fixprguard/*_test.go`、`cmd/fixprguard/main_test.go`・`docs_test.go`、`cmd/yt2column/fixpr_docs_test.go`。fake は `internal/cmdrunner/testutil/mocks.go`（`package cmdrunnertestutil`、分類 A）、`internal/fixprguard` の補助は `test_helpers.go` / `test_helpers_git.go`（`//go:build test`、分類 B。`docs/dev/developer_guide/test_organization.md`）。表のテストの行や期待値は、コードを書くときに決める。
+設計書 7.1 の分類に従い、各ステップがテストを作る（名前と境界は 2 章のステップの「テスト」の項）。置き場所は、`internal/cmdrunner/runner_test.go`、`internal/fixprguard/*_test.go`、`cmd/fixprguard/main_test.go`・`docs_test.go`、`cmd/yt2column/fixpr_docs_test.go`。fake は `internal/cmdrunner/testutil/mocks.go`（`package cmdrunnertestutil`、分類 A）、`internal/fixprguard` の補助は `test_helpers.go` / `test_helpers_git.go`（`//go:build test`、分類 B。`docs/dev/conventions/test_organization.md`）。表のテストの行や期待値は、コードを書くときに決める。
 
 層が重なる経路では、片方の層だけが防げる入力を作り、先に、もう片方の層だけでは止まらないことを確かめる（`CLAUDE.md`「Testing Strategy」）。
 

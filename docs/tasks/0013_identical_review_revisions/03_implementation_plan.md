@@ -44,7 +44,7 @@ requirements が定める 2 つの機能要件（F-001・F-002）を、architect
   - `internal/writer/steps_test.go`: `TestWriteReviewApplies`（`:329`）と、`validTranscript`（`internal/writer/test_helpers.go:51`）・`withStepsEnabled`（同 `:99`）・`newStepClient`（同 `:108`）・`stepResult`（同 `:114`）・`mustNew`（同 `:119`）。`Write` の経路はここで確かめる。
   - `internal/publisher/reviewlog_test.go`: `TestReviewLogWriterFormat`（`:28`）と `reviewArticle`（`:19`）。`validArticle`（`file_test.go:17`）と `dirEntries`（同 `:28`）も再利用する。
 - **ガードテストは更新しない（architecture §7）。** `internal/pipeline/pipeline_test.go` の `TestCommonTypesFieldSets`（`:378`）は `Article` のフィールドを固定し、`Revision` のメソッドは対象にしない。本計画はフィールド集合を変えず、`exportedFieldTypes` はメソッドを見ないので通る。`TestInterfaceDocComments`（同 `:455`）は 4 つのインタフェースの doc コメントを固定し、`ReviewResult.Check` は対象外である。`TestFakesCarryBuildTag`（同 `:534`）は `testutil/` と `test_helpers*.go` の第一行を固定するが、本計画はそれらを追加しないので固定するファイル数は変わらない。
-- **更新しない文書（architecture §1.1 原則 3・§2.2）。** `docs/dev/security.md:75`（§6）は一覧のファイルに入る値を既に扱っており、追加する `No change.` は固定のリテラルなので変更を要しない。`docs/dev/developer_guide/package_reference.md` は一覧のファイルの書き出しの流れを述べるが書式は記述しない。0010 の `02_architecture.md` §3.8・`02_evaluation.md` は編集しない（現行の書式は 0010 §3.8 と architecture §3.2 の和とする）。
+- **更新しない文書（architecture §1.1 原則 3・§2.2）。** `docs/dev/security.md:75`（§6）は一覧のファイルに入る値を既に扱っており、追加する `No change.` は固定のリテラルなので変更を要しない。`docs/dev/conventions/package_reference.md` は一覧のファイルの書き出しの流れを述べるが書式は記述しない。0010 の `02_architecture.md` §3.8・`02_evaluation.md` は編集しない（現行の書式は 0010 §3.8 と architecture §3.2 の和とする）。
 - **外部前提。** 標準ライブラリの `strings` だけを使い、外部モジュール・外部コマンド・ネットワーク・CI のスキーマ・コンテナを新たに使わない（requirements §5・`CLAUDE.md`「Dependencies」）。検証は Go のテストだけであり、`make test` の実行以外に確かめる外部前提は無い。
 
 ### 1.4. 申し送りへの対応

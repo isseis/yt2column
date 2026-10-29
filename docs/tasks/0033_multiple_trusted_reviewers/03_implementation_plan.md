@@ -27,7 +27,7 @@
 -   Go のコメント・識別子・文字列リテラルは英語で書く。コマンドの文書（`.claude/commands/`）に書く文も英語で書く（`CLAUDE.md`「Language」「Go Idioms」）。例外は、日本語の文書の文字列と一致させる文書のガードのリテラルだけである。本タスクでは、`TestGlossaryTerms` と、ガイドの日本語版を読むテスト（ステップ 1-5・2-3）がこれに当たる。先例は `cmd/yt2column/docs_test.go:738`・`:747` である。
 -   テストは、対象の実装を壊して失敗することを確かめてからコミットし、壊し方と結果をコミットメッセージに書く（`CLAUDE.md`「Testing Strategy」）。各ステップの「壊して確かめる」は、その対象と、失敗するはずのテストを挙げる。壊し方は、実行のたびに同じ結果になる形にする。たとえば、集合の「最初の要素」には頼らず、テスト用の名前を直接書いて比べる。
 -   Go のファイルを変えたら `make fmt` を実行する。各フェーズの最後に `make test && make lint` を実行する。
--   ソースのコメントに `AC-NN`・`F-NNN` を書かない（要件書との対応は本書の 5 章に書く。`docs/dev/developer_guide/requirements_process.md` 4 節）。
+-   ソースのコメントに `AC-NN`・`F-NNN` を書かない（要件書との対応は本書の 5 章に書く。`docs/dev/conventions/requirements_process.md` 4 節）。
 
 ### 1.3. 既存コード調査結果
 
@@ -54,8 +54,8 @@
 | `cmd/fixprguard/test_helpers.go:22`・`:246-248`・`:322-339`、`main_test.go:504-512` | `testReviewer` は 1 つ。`reviewerThread`・`fingerprintOf`・`replyArgs` は `--reviewer testReviewer` を書き込んでいる | 2 つめのテスト用の名前を加え、`fingerprintOf`・`accept`・`replyArgs` が渡す `--reviewer` の並びを指定できるようにする | 1-3 |
 | `cmd/fixprguard/docs_test.go:57-59`・`:84-116` | `reviewerPlaceholder` のコメント。`inv.values[flagReviewer]` を確かめる | 確かめる処理を関数に切り出し、`inv.multi` の値がちょうど 1 つの `<reviewer>` であることを確かめる（設計書 3.4） | 1-4 |
 | `cmd/fixprguard/docs_test.go` | ガイドは、止まる理由の種類と範囲のファイルの定義だけを確かめる（`:38-55`） | ガイドの `--reviewer` の記述を確かめるテストを加える | 1-5・2-3 |
-| `docs/dev/developer_guide/fixprguard_guide.ja.md`・`fixprguard_guide.md` の `:11`・`:58`・`:60`・`:70`・`:87`・`:100`・`:106`・`:141`・`:175`・`:246`・`:276` | 1 つの `--reviewer` の記述 | 設計書 3.5 のガイドの PR-1 の項目（`:70` は終了コード `2` の行） | 1-5 |
-| `docs/dev/developer_guide/package_reference.md:21` | 「the reviewer bot's `Login`」「by the reviewer bot」 | 設計書 3.5 の `package_reference.md` の項目 | 1-5 |
+| `docs/dev/guides/fixprguard_guide.md`・`fixprguard_guide.md` の `:11`・`:58`・`:60`・`:70`・`:87`・`:100`・`:106`・`:141`・`:175`・`:246`・`:276` | 1 つの `--reviewer` の記述 | 設計書 3.5 のガイドの PR-1 の項目（`:70` は終了コード `2` の行） | 1-5 |
+| `docs/dev/conventions/package_reference.md:21` | 「the reviewer bot's `Login`」「by the reviewer bot」 | 設計書 3.5 の `package_reference.md` の項目 | 1-5 |
 | `cmd/yt2column/docs_test.go` | `package_reference.md` の行を読むテストの先例がある（`:754-781`） | `internal/fixprguard` の行を確かめるテストを加える | 1-5 |
 | `.claude/commands/_context.md:185` | `Automated reviewer` の行 | `Automated reviewer list` と `Awaited PR reviewer` の 2 行に置き換える（設計書 1.2・3.4） | 2-1 |
 | `cmd/yt2column/fixpr_docs_test.go:41-44`・`:75-86`・`:336-363` | `reviewerSentence`、最初に一致した行を返す `contextRow`、`TestContextAndCommandsAgree` | 設計書 3.4 の検査に改める（1.4 の決定） | 2-1 |
@@ -101,7 +101,7 @@
 -   **古いツールの診断:** インストール済みのツールの `vcs.revision` は `aedefac`（#416 のマージコミット）である（`go version -m "$(command -v fixprguard)"`）。これに、作業ツリーの外で `fixprguard list --protocol 1 --reviewer coderabbitai --reviewer chatgpt-codex-connector 1` を渡した。結果は終了コード `2` で、標準エラーは次の 1 行だった（2026-10-22）。
 
     ```
-    fixprguard: usage: invalid value "chatgpt-codex-connector" for flag -reviewer: flag given twice: --reviewer (see docs/dev/developer_guide/fixprguard_guide.md)
+    fixprguard: usage: invalid value "chatgpt-codex-connector" for flag -reviewer: flag given twice: --reviewer (see docs/dev/guides/fixprguard_guide.md)
     ```
 
     設計書 1.2 の 3 つめの項目が使う文字列 `flag given twice: --reviewer` が含まれる。ガイドの案内（ステップ 1-5）は、この文字列で古いツールを見分ける。新しいツールの診断がこの文字列を含まないことは、ステップ 1-3 のテストで確かめる。
@@ -127,7 +127,7 @@
 ### 1.4. 計画の際に決めたこと（2026-10-22）
 
 -   **内容のガードの `_context.md` の検査は、本文を受け取って問題を返す関数に切り出し、壊れた写しの表をテストとしてコミットする:** 設計書 7.3 は「`_context.md` の写しを壊して確かめる」と書くが、その確かめを残すテストにするかは決めていない。表にすれば、ガードの検査が後で緩められたときに CI で検出できる。実装のときに一時的に壊すだけでは、その時点の確かめにとどまる。同じ理由で、呼び出しのガードの検査も関数に切り出し、合成した呼び出しの表で確かめる（ステップ 1-4）。
--   **`cmd/fixprguard` の結合テストは、新しいテストとして加え、設計書 7.4 を本 PR で直す:** 設計書 7.4 は「既存の流れのテスト（`begin` から `reply` まで）」に場合を加えるとする。しかし、`begin` の後に同じテストで `reply` を実行する既存のテストはない（`cmd/fixprguard/main_test.go`、`819011a`）。続けて実行するテストには、`list` の出力の指紋で `inspect` を実行する `TestInspectExitCode`（`:340-371`）があるが、`begin` と `reply` は含まない。新しいテストを加えることは設計書の意図どおりなので、設計書の誤りは editorial correction として直し、承認を保つ（`docs/dev/developer_guide/requirements_process.md`「Editing an approved document」）。
+-   **`cmd/fixprguard` の結合テストは、新しいテストとして加え、設計書 7.4 を本 PR で直す:** 設計書 7.4 は「既存の流れのテスト（`begin` から `reply` まで）」に場合を加えるとする。しかし、`begin` の後に同じテストで `reply` を実行する既存のテストはない（`cmd/fixprguard/main_test.go`、`819011a`）。続けて実行するテストには、`list` の出力の指紋で `inspect` を実行する `TestInspectExitCode`（`:340-371`）があるが、`begin` と `reply` は含まない。新しいテストを加えることは設計書の意図どおりなので、設計書の誤りは editorial correction として直し、承認を保つ（`docs/dev/conventions/requirements_process.md`「Editing an approved document」）。
 -   **PR は設計書 8 章のとおり 2 つにする:** `NewGitHub` の引数の型が変わるので、`internal/fixprguard` と `cmd/fixprguard` は同じ PR でなければビルドが通らない。ガイドの PR-1 の項目はツールの振る舞いの記述なので、コードと同じ PR でレビューするほうが食い違いを見つけやすい。そのため、高リスクのステップ 1-2 は PR-1 の中で独立させず、ガイドと同じ PR に置く。ガイドを別の PR にして 3 つに分ける案は採らない。
 
 ### 1.5. 申し送りの項目への対応
@@ -234,7 +234,7 @@
 
 #### ステップ 1-5: ガイドと `package_reference.md`
 
-**変更するファイル**: `docs/dev/developer_guide/fixprguard_guide.ja.md`、`fixprguard_guide.md`、`package_reference.md`、`cmd/fixprguard/docs_test.go`、`cmd/yt2column/docs_test.go`
+**変更するファイル**: `docs/dev/guides/fixprguard_guide.md`、`fixprguard_guide.md`、`package_reference.md`、`cmd/fixprguard/docs_test.go`、`cmd/yt2column/docs_test.go`
 
 -   [x] 日本語版のガイドを、設計書 3.5 のガイドの PR-1 の項目のとおりに改める。`_context.md` の行の名前には触れない。終了コード `2` の説明には、1.3.4 で確かめた古いツールの診断の文字列 `flag given twice: --reviewer` と、`go version -m "$(command -v fixprguard)"` の `vcs.revision` での確かめ方を書く。
 -   [x] 日本語版をコミットしてから、英語版を `.claude/commands/mktrans.md` の原則で翻訳する（`CLAUDE.md`「Translation Guidelines」）。
@@ -336,7 +336,7 @@
 
 #### ステップ 2-3: ガイドの PR-2 の項目
 
-**変更するファイル**: `docs/dev/developer_guide/fixprguard_guide.ja.md`、`fixprguard_guide.md`、`cmd/fixprguard/docs_test.go`
+**変更するファイル**: `docs/dev/guides/fixprguard_guide.md`、`fixprguard_guide.md`、`cmd/fixprguard/docs_test.go`
 
 -   [x] 日本語版のガイドの信頼する著者の説明と `--reviewer` の行に、渡す名前は `_context.md` の `Automated reviewer list` のすべての名前であることを加える。
 -   [x] §9 に、自動レビュアーを一覧に加えるときと外すときの手順、急いで信頼をやめるときの手順を加える（設計書 3.5 のガイドの PR-2 の項目、9 章の 1・2 つめの項目）。一覧に加える手順と外す手順には、同じコミットで変えるものをすべて挙げる。`_context.md` の行、内容のガードの期待する名前、写しの表の名前がこれに当たる。そのうえで、文書のガードをそのコミットで実行すると書く。
