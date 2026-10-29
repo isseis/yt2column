@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -216,6 +217,13 @@ type Behavior struct {
 	// to this file instead.
 	LastMessageLink string `json:"last_message_link,omitempty"`
 
+	// PIDFile, when set, receives the PID of a review start. IgnoreTerm
+	// makes that start ignore SIGTERM, so only a kill stops it. The PID is
+	// written after SIGTERM is ignored, so a test that reads it may signal
+	// at once.
+	PIDFile    string `json:"pid_file,omitempty"`
+	IgnoreTerm bool   `json:"ignore_term,omitempty"`
+
 	// Hang makes the fake wait until it is killed; KillSelf makes it die by
 	// SIGKILL; otherwise it exits with Exit.
 	Hang     bool `json:"hang,omitempty"`
@@ -271,6 +279,14 @@ func (b Behavior) version() int {
 func (b Behavior) review(args []string) error {
 	if err := b.recordReview(args); err != nil {
 		return err
+	}
+	if b.IgnoreTerm {
+		signal.Ignore(syscall.SIGTERM)
+	}
+	if b.PIDFile != "" {
+		if err := os.WriteFile(b.PIDFile, []byte(strconv.Itoa(os.Getpid())), 0o600); err != nil {
+			return err
+		}
 	}
 	for path, content := range b.Writes {
 		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {

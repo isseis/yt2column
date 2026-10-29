@@ -70,6 +70,10 @@ var allowedEnvRefs = map[string]map[string]int{
 	// The fixprguard developer tool passes its environment, minus GIT_*, to
 	// git, and looks up GH_REPO and GH_HOST only to refuse them.
 	"cmd/fixprguard/main.go": {"call:os.Environ": 1, "value:os.LookupEnv": 1},
+	// The codexreview developer tool passes its environment to
+	// codexreview.Run, which gives git all of it minus GIT_* and codex only
+	// the variables it names.
+	"cmd/codexreview/main.go": {"call:os.Environ": 1},
 }
 
 // envAccessReport is the result of one scan.

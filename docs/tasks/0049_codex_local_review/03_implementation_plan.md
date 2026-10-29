@@ -8,7 +8,7 @@
 | Created | 2026-10-29 |
 | Review date | 2026-10-29 |
 | Reviewer | isseis |
-| Comments | 2026-10-29（PR-1 の実装の際の編集上の訂正。決定の変更はない）: 1.2 の `internal/transcript` の形にならう項目と、ステップ 1-2 の記述を、実装に合わせた。`Setpgid` で子をグループの長にする点はならい、グループへの停止は `cmd.Cancel` ではなく、自分で持つ出力のパイプとシグナルの送信で行う。`exec` のコピーの goroutine では、直接の子の終了とパイプの読み終わりの間にグループを止められないためである。猶予は直接の子が終わった時点で終わり、残った子孫はすぐに強制の停止を受ける。(a) の時間切れは、同じ `ctx.Done` の経路を通るコンテキストの取り消しで確かめた。2026-10-29（PR-2 の実装の際の編集上の訂正。決定の変更はない）: ステップ 2-3 の、git-ignore されたファイルを比べないことの確かめを、`TestRunStateChanged` の行から独立のテスト `TestRunIgnoresIgnoredFiles` に分けた（結果の種類が `state_changed` でないため）。`Run` はプロセスの環境を読まず、呼び出し元から受け取る（`internal/config` の `TestEnvAccessConfined` が、環境の読み取りを `main` に限るため。`fixprguard` と同じ形）。ステップ 2-2 の入口の見分けのテストの名前を `TestRoleOf` とし、9 章にテストのファイル名を書き戻した。1.2 の、`Detail` の値と種類を列挙する一覧の関数は、それを使うガード（ステップ 5-2）と同じ PR で加える（`make deadcode` が、どのテストからも届かない関数を拒むため）。2026-10-29（決定の変更。isseis がこのセッションで承認した）: Codex のシェルに環境変数を引き継がせない対策を採ることにした。環境変数を引き継ぐと、Codex が実行するどのコマンドも秘密の値を持ち、`env` の実行や環境を含むエラーの出力から、ファイルを読まなくても暗黙のうちに OpenAI に送られうる。`.envrc` を読む経路とは別の経路であり、「採っても残るリスクは変わらない」という設計書 1.2 の判断は誤りだった（PR #573 の CodeRabbit の指摘と利用者の指摘による）。ステップ 2-3 で `codex` に渡す環境を決めた名前の変数だけにし、固定の引数に `shell_environment_policy.inherit="core"` を加えた（`TestRunPassesOnlyAllowedEnvironment`、`TestRunPassesFixedArguments`）。ステップ 8-2 に、絞った環境での認証と、`env` による確かめを加えた。偽の `codex` は環境ではなく、リンクの隣のファイルと引数で振る舞いを受け取る形に改めた |
+| Comments | 2026-10-29（PR-1 の実装の際の編集上の訂正。決定の変更はない）: 1.2 の `internal/transcript` の形にならう項目と、ステップ 1-2 の記述を、実装に合わせた。`Setpgid` で子をグループの長にする点はならい、グループへの停止は `cmd.Cancel` ではなく、自分で持つ出力のパイプとシグナルの送信で行う。`exec` のコピーの goroutine では、直接の子の終了とパイプの読み終わりの間にグループを止められないためである。猶予は直接の子が終わった時点で終わり、残った子孫はすぐに強制の停止を受ける。(a) の時間切れは、同じ `ctx.Done` の経路を通るコンテキストの取り消しで確かめた。2026-10-29（PR-2 の実装の際の編集上の訂正。決定の変更はない）: ステップ 2-3 の、git-ignore されたファイルを比べないことの確かめを、`TestRunStateChanged` の行から独立のテスト `TestRunIgnoresIgnoredFiles` に分けた（結果の種類が `state_changed` でないため）。`Run` はプロセスの環境を読まず、呼び出し元から受け取る（`internal/config` の `TestEnvAccessConfined` が、環境の読み取りを `main` に限るため。`fixprguard` と同じ形）。ステップ 2-2 の入口の見分けのテストの名前を `TestRoleOf` とし、9 章にテストのファイル名を書き戻した。1.2 の、`Detail` の値と種類を列挙する一覧の関数は、それを使うガード（ステップ 5-2）と同じ PR で加える（`make deadcode` が、どのテストからも届かない関数を拒むため）。2026-10-29（決定の変更。isseis がこのセッションで承認した）: Codex のシェルに環境変数を引き継がせない対策を採ることにした。環境変数を引き継ぐと、Codex が実行するどのコマンドも秘密の値を持ち、`env` の実行や環境を含むエラーの出力から、ファイルを読まなくても暗黙のうちに OpenAI に送られうる。`.envrc` を読む経路とは別の経路であり、「採っても残るリスクは変わらない」という設計書 1.2 の判断は誤りだった（PR #573 の CodeRabbit の指摘と利用者の指摘による）。ステップ 2-3 で `codex` に渡す環境を決めた名前の変数だけにし、固定の引数に `shell_environment_policy.inherit="core"` を加えた（`TestRunPassesOnlyAllowedEnvironment`、`TestRunPassesFixedArguments`）。ステップ 8-2 に、絞った環境での認証と、`env` による確かめを加えた。偽の `codex` は環境ではなく、リンクの隣のファイルと引数で振る舞いを受け取る形に改めた。2026-10-30（PR-3 の実装の際の編集上の訂正。決定の変更はない）: ステップ 2-4 で、`usage` の結果を作る `BadArgumentsResult` と `ProtocolMismatchResult` を `internal/codexreview` に加え、`internal/config` の `TestEnvAccessConfined` の許可に `cmd/codexreview/main.go` の `os.Environ` を加えた。`main` は、`codex` のプロセスグループを止め終えるまで 2 回目のシグナルでも終わらないよう、シグナルを受け続ける（`TestSecondSignalStillStopsCodex`）。ツールへの SIGKILL は防げない。引数は 4 つの形だけを受け付け、`--protocol` を先に照合する。ステップ 3-2 で、`--protocol` をどのツールの呼び出しのものとするかの決め方と、コマンドの文書の一覧は `internal/doctestutil`（`ProtocolFlags`・`CommandBoundary`・`CommandDocs`）に置いて 2 つのガードで共有した。`TestSettingsAllowsTool` は、Bash の許可のコマンドの語を `coderabbit` と `codexreview` に限り、`defaultMode` を確認を求める値に限る形にした（`codex` の語の許可を拒むことを含み、それより広い）。「コマンドの位置」には、予約語（`if`・`then`・`!` など）、リダイレクト、`(`・`{` の後、ラッパーのオプションの値の後、`-lc` のようなオプションの組の `-c` の後も含め、`timeout`・`nice`・`sudo` などのラッパーも加えた。ラッパーとオプションの一覧は網羅でなく、見逃した形は権限の確認で止まる。テストの名前に `TestMayBypassTool`・`TestRunsCodex`・`TestCodexreviewProtocolMismatches`・`TestFixprguardProtocolMismatches`・`TestProtocolFlags` を加えた |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -194,15 +194,15 @@ PR-1・PR-2 のマージで `.claude/commands/` と `CLAUDE.md` の行番号が�
 
 **変えるファイル**: `cmd/codexreview/main.go`（新設）、`cmd/codexreview/main_test.go`（新設）、`Makefile`、`docs/dev/conventions/package_reference.md`
 
--   [ ] `main` を `internal/signalrun` の `Run` の下で動かす。引数は `--protocol` と `--base` を 1 回ずつだけ受け付け、ほかのフラグと位置引数を拒む（設計書 3.3）。`--protocol` の不一致と `--base` の形の誤りも `usage` として返す。結果の JSON を標準出力に 1 つだけ書き、1.2 の終了コードで終わる。
--   [ ] テストを書く。`TestMain` は、まず子のモード（下の `TestSignalStopsCodexProcessGroup` が使う）を見分け、子は親が渡した環境のまま動く。そうでなければステップ 2-2 の入口を呼ぶ（1.3 の `cmd/yt2column/main_test.go` の順）。
+-   [x] `main` を `internal/signalrun` の `Run` の下で動かす。引数は `--protocol` と `--base` を 1 回ずつだけ受け付け、ほかのフラグと位置引数を拒む（設計書 3.3）。`--protocol` の不一致と `--base` の形の誤りも `usage` として返す。結果の JSON を標準出力に 1 つだけ書き、1.2 の終了コードで終わる。
+-   [x] テストを書く。`TestMain` は、まず子のモード（下の `TestSignalStopsCodexProcessGroup` が使う）を見分け、子は親が渡した環境のまま動く。そうでなければステップ 2-2 の入口を呼ぶ（1.3 の `cmd/yt2column/main_test.go` の順）。
     -   `TestRunRejectsArguments`: 不正な引数、重なったフラグ、位置引数、`--protocol` の不一致、40 桁の 16 進数でない `--base` で `usage` になり、偽の `codex` が起動されない。
     -   `TestExitCodes`: すべての種類と、知らない種類について、終了コードが 1.2 のとおりになる。
     -   `TestOutputIsOneJSONObject`: 標準出力が 1 つの JSON のオブジェクトで、`protocol` が `Protocol` と一致する。
     -   `TestSignalStopsCodexProcessGroup`: テストのバイナリを子のモードで起動し直して `codexreview` として動かし（1.3 の `cmd/yt2column` の前例）、偽の `codex` の孫が起動したのを待ってから SIGTERM を送ると、孫も止まり、`codexreview` が結果を書かずに 1 で終わる。
--   [ ] 次の 4 つの壊し方のそれぞれで、対応するテストが失敗することを確かめる。`signalrun` を使わない、重なったフラグを受け付ける、知らない種類を 0 にする、JSON のオブジェクトを 2 つ書く。
--   [ ] `Makefile` に `install-codexreview`（`go install ./cmd/codexreview`）を、`install-fixprguard` と同じ形のコメントとともに加え、`.PHONY` にも加える。
--   [ ] `package_reference.md` に `cmd/codexreview` の行を加える。
+-   [x] 次の 4 つの壊し方のそれぞれで、対応するテストが失敗することを確かめる。`signalrun` を使わない、重なったフラグを受け付ける、知らない種類を 0 にする、JSON のオブジェクトを 2 つ書く。
+-   [x] `Makefile` に `install-codexreview`（`go install ./cmd/codexreview`）を、`install-fixprguard` と同じ形のコメントとともに加え、`.PHONY` にも加える。
+-   [x] `package_reference.md` に `cmd/codexreview` の行を加える。
 
 **完了の条件**: `make test`・`make lint`・`make deadcode` が通る。
 
@@ -212,7 +212,7 @@ PR-1・PR-2 のマージで `.claude/commands/` と `CLAUDE.md` の行番号が�
 
 **変えるファイル**: `.claude/settings.json`
 
--   [ ] `permissions.allow` に `Bash(codexreview *)` を加える。`codex` そのものの許可は加えない（設計書 3.8）。
+-   [x] `permissions.allow` に `Bash(codexreview *)` を加える。`codex` そのものの許可は加えない（設計書 3.8）。
 
 **完了の条件**: ステップ 3-2 の `TestSettingsAllowsTool` が通る。
 
@@ -220,16 +220,16 @@ PR-1・PR-2 のマージで `.claude/commands/` と `CLAUDE.md` の行番号が�
 
 **変えるファイル**: `cmd/codexreview/docs_test.go`（新設、`//go:build test`）、`cmd/fixprguard/docs_test.go`、`CLAUDE.md`
 
--   [ ] 設計書 7.1 の文書のガードを、`cmd/fixprguard/docs_test.go` の書き方にならって書く。
+-   [x] 設計書 7.1 の文書のガードを、`cmd/fixprguard/docs_test.go` の書き方にならって書く。
     -   `TestSettingsAllowsTool`: `.claude/settings.json` の `permissions.allow` に `Bash(<名前> *)` の項目があり、その名前が `cmd/` の下のこのツールのディレクトリの名前と一致する。コマンドの語が `codex` の項目（`Bash(codex *)`、`Bash(codex:*)` など）はない。
     -   `TestDocumentedProtocolMatches`: コマンドの文書の `codexreview` の呼び出しの `--protocol` の値が、`codexreview.Protocol` と一致する。`--protocol` がどのツールの呼び出しのものかは、同じコマンドの区切り（`|`・`;`・`&&` などで分けた部分）の中で、その前にある最も近いツールの語で決める。
     -   `TestNoDirectCodexInvocation`: コマンドの文書のコードブロックと、コマンドとして書いたコードスパンに、コマンドの位置にある `codex` がない。
     -   `TestInstallTargetDocumented`: `Makefile` に `install-codexreview` のターゲットがあり、`CLAUDE.md` の Commands の節に同じ名前の項目がある。
--   [ ] 「コマンドとして書いたコードスパン」は、空白で区切った引数を含むコードスパンとする。「コマンドの位置」は、行や文の初め、`|`・`||`・`;`・`&`・`&&`・`$(`・バッククォートの後、`env`・`exec`・`command`・`xargs`・`time`・`nohup`・`sh -c`／`bash -c` の引数の初めとし、パスを付けた形（`/opt/homebrew/bin/codex`、`./codex`）と引用符で囲んだ形を含む。`npx @openai/codex` も拒む。`:` や `==` の後の引用符で囲んだ `"codex"` は、コマンドの位置ではない。
--   [ ] 判定の関数を、組み立てた文書で確かめる。上の拒む形をそれぞれ 1 行にし、1.3 の既存の形（`runpr.md:270` の `kind: "codex"`、`runpr.md:293` のコードスパン `codex`、HTML の印、ログイン名、`_context.md:187` のメンション）を拒まないことを、それぞれ 1 行で確かめる。`TestDocumentedProtocolMatches` も、組み立てた文書で、値の違いを見つけることを確かめる。この時点では、共通手順はまだ `codexreview` を呼ばない（1.2）。
--   [ ] `cmd/fixprguard/docs_test.go` の `TestDocumentedProtocolMatches` が、上と同じ決め方で `codexreview` の呼び出しのものとした `--protocol` だけを除いて、今と同じくすべての `--protocol N` を確かめるようにする（1.3）。決め方は 2 つのガードで共有する。どの `--protocol N` も 2 つのガードのちょうど 1 つが確かめることを、組み立てた文書で確かめる（両方のツールの呼び出しを 1 行に含むもの、`--protocol` の前に別のフラグがあるもの、パイプを含むもの）。
--   [ ] `CLAUDE.md` の Commands の節に `make install-codexreview` の項目を加える（設計書 3.9。1.2）。
--   [ ] `CLAUDE.md`「Testing Strategy」の文書のテストの例外に、`codexreview` の `--protocol` の値と、`codex` を直接実行する形がないことの 2 つを加える（設計書 1.4）。
+-   [x] 「コマンドとして書いたコードスパン」は、空白で区切った引数を含むコードスパンとする。「コマンドの位置」は、行や文の初め、`|`・`||`・`;`・`&`・`&&`・`$(`・バッククォートの後、`env`・`exec`・`command`・`xargs`・`time`・`nohup`・`sh -c`／`bash -c` の引数の初めとし、パスを付けた形（`/opt/homebrew/bin/codex`、`./codex`）と引用符で囲んだ形を含む。`npx @openai/codex` も拒む。`:` や `==` の後の引用符で囲んだ `"codex"` は、コマンドの位置ではない。
+-   [x] 判定の関数を、組み立てた文書で確かめる。上の拒む形をそれぞれ 1 行にし、1.3 の既存の形（`runpr.md:270` の `kind: "codex"`、`runpr.md:293` のコードスパン `codex`、HTML の印、ログイン名、`_context.md:187` のメンション）を拒まないことを、それぞれ 1 行で確かめる。`TestDocumentedProtocolMatches` も、組み立てた文書で、値の違いを見つけることを確かめる。この時点では、共通手順はまだ `codexreview` を呼ばない（1.2）。
+-   [x] `cmd/fixprguard/docs_test.go` の `TestDocumentedProtocolMatches` が、上と同じ決め方で `codexreview` の呼び出しのものとした `--protocol` だけを除いて、今と同じくすべての `--protocol N` を確かめるようにする（1.3）。決め方は 2 つのガードで共有する。どの `--protocol N` も 2 つのガードのちょうど 1 つが確かめることを、組み立てた文書で確かめる（両方のツールの呼び出しを 1 行に含むもの、`--protocol` の前に別のフラグがあるもの、パイプを含むもの）。
+-   [x] `CLAUDE.md` の Commands の節に `make install-codexreview` の項目を加える（設計書 3.9。1.2）。
+-   [x] `CLAUDE.md`「Testing Strategy」の文書のテストの例外に、`codexreview` の `--protocol` の値と、`codex` を直接実行する形がないことの 2 つを加える（設計書 1.4）。
 
 **完了の条件**: `make test`・`make lint`・`make deadcode` が通る。各ガードの判定を 1 つずつ外し、失敗することを確かめる。`TestDocumentedProtocolMatches`・`TestNoDirectCodexInvocation`・`cmd/fixprguard` の除外は組み立てた文書で、`TestSettingsAllowsTool`（許可の名前の比較、`codex` の許可の拒否）と `TestInstallTargetDocumented` は実物のファイルで確かめる。
 
@@ -237,8 +237,8 @@ PR-1・PR-2 のマージで `.claude/commands/` と `CLAUDE.md` の行番号が�
 
 **変えるファイル**: `.github/workflows/ci.yml`、`CLAUDE.md`
 
--   [ ] `doc-guard` の job の `go test` の対象に `./cmd/codexreview` を加える（設計書 7.1）。このパッケージのほかのテスト（ステップ 2-4）も、この job で走る。
--   [ ] `CLAUDE.md` の Development Notes の、`doc-guard` の対象の列挙を同じに直す。文書を読むガードの列挙にも、`cmd/codexreview` のガードを加える。
+-   [x] `doc-guard` の job の `go test` の対象に `./cmd/codexreview` を加える（設計書 7.1）。このパッケージのほかのテスト（ステップ 2-4）も、この job で走る。
+-   [x] `CLAUDE.md` の Development Notes の、`doc-guard` の対象の列挙を同じに直す。文書を読むガードの列挙にも、`cmd/codexreview` のガードを加える。
 
 **完了の条件**: ローカルで `go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./cmd/codexreview ./internal/pipeline` が通る。PR の CI で `doc-guard` の job が通る。
 
@@ -254,10 +254,10 @@ PR-1・PR-2 のマージで `.claude/commands/` と `CLAUDE.md` の行番号が�
 
 **判定理由**: 3-1 の権限の許可と 3-2 の信頼の境界のガード（コマンドの位置の判定、`fixprguard` のガードの対象の変更）は安全のための守りであり、3-3 は CI を変える（mkplan の panel mode の契機）。2-4 はシグナルとプロセスグループという並行の処理を含む
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/581
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 4: インストール（設計書 8 章の 4）
 
@@ -513,7 +513,7 @@ PR-1・PR-2 のマージで `.claude/commands/` と `CLAUDE.md` の行番号が�
 
 -   [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2）
 -   [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3）
--   [ ] PR-3 マージ済み（対象ステップ: 2-4 / 3-1 / 3-2 / 3-3）
+-   [x] PR-3 マージ済み（対象ステップ: 2-4 / 3-1 / 3-2 / 3-3）
 -   [ ] PR-4 マージ済み（対象ステップ: 4-1 / 5-1 / 5-2 / 6-1 / 6-2 / 6-3 / 6-4）
 -   [ ] PR-5 マージ済み（対象ステップ: 7-1 / 8-1 / 8-2 / 8-3）
 

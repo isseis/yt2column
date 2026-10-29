@@ -132,6 +132,7 @@ faithful translation, structural consistency) and the glossary workflow live in
 - `make all` - Default build target
 - `make install-mergepr` - Install the `/mergepr` developer tool (`go install ./cmd/mergepr`)
 - `make install-fixprguard` - Install the `fixprguard` guard tool (`go install ./cmd/fixprguard`); rerun it after a merge that changes the tool
+- `make install-codexreview` - Install the `codexreview` developer tool, which runs Codex CLI's local review when the CodeRabbit CLI fails (`go install ./cmd/codexreview`); rerun it after a merge that changes the tool
 
 ### Test Commands
 - `make test` - Run all tests with race detection, then `make test-parse-norace`
@@ -492,12 +493,14 @@ info.json parsers with real samples under `testdata/`.
   reversed one. A change to a documented value or structure still needs the
   matching test. Two exceptions stay tested: the automated-reviewer list, and the
   commands the agents run at their trust boundary (the `fixprguard` call sites,
-  the commands that would bypass it, the mention check, and the `--jq` filters
-  that must not print a body). A mistake there disables a guard at run time, so
-  a test is worth its brittleness. A property of the change itself, such as
-  existing headings kept unchanged, is not a document test either: it is a
-  `diff` verification, a script under the task's `_checks/` directory run once
-  against the merge-base (`requirements_process.md` §4).
+  the commands that would bypass it, the mention check, the `--jq` filters
+  that must not print a body, the `--protocol` value of the `codexreview`
+  calls, and the absence of a command that runs `codex` directly). A mistake
+  there disables a guard at run time, so a test is worth its brittleness. A
+  property of the change itself, such as existing headings kept unchanged, is
+  not a document test either: it is a `diff` verification, a script under the
+  task's `_checks/` directory run once against the merge-base
+  (`requirements_process.md` §4).
 
 See [Test Organization Guide](docs/dev/conventions/test_organization.md) for test helper file structure.
 
@@ -516,13 +519,14 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
   `project_overview.md` notes (the environment variable names, `costPrefix`, and
   `16,383`), the production profile's configuration block and stage table in
   `docs/dev/production_profile.md`, the README's configuration block and Quick
-  start links, the `/fixpr` and `/runpr` command documents) are Go tests included
+  start links, the `/fixpr` and `/runpr` command documents, the `codexreview`
+  permission, install target, and command-document checks) are Go tests included
   in `make test` and need no node. `cmd/yt2column-nmhost`'s
   `TestReadmeHostExitCodes` reads the README too, but the `doc-guard` job does
   not run it: the local `make test`, and the CI `test` job when the change
   includes code, do. A README-only change is therefore checked by neither CI
   job for this test. The `doc-guard` CI job runs the other guards
-  (`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./internal/pipeline`)
+  (`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./cmd/codexreview ./internal/pipeline`)
   on every pull request, so a documentation-only change is checked in CI by
   those guards even though `check-changes` classifies it as non-code.
 - A change that touches only `.gitignore` can still break the extension's

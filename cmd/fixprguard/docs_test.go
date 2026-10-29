@@ -5,7 +5,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"io/fs"
 	"maps"
 	"os"
 	"os/exec"
@@ -16,6 +15,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/isseis/yt2column/internal/doctestutil"
 	"github.com/isseis/yt2column/internal/fixprguard"
 )
 
@@ -318,7 +318,8 @@ var (
 // TestDocumentedProtocolMatches: every protocol number the documents write
 // is the binary's Protocol: each --protocol N in the guide and in every
 // command document under .claude/commands (prose included, not only code
-// blocks), each "protocol":N of the guide's output examples, and the current
+// blocks) that is not in a codexreview call, which codexreview's own guard
+// checks, each "protocol":N of the guide's output examples, and the current
 // number chapter 4 of the guide states. The guide must write each at least
 // once, so a guide that stops writing them is not read as agreeing; that
 // fixpr.md and runpr.md write them is TestDocumentedInvocationsParse's check.
@@ -336,25 +337,53 @@ func TestDocumentedProtocolMatches(t *testing.T) {
 			}
 		}
 	}
-	var commandDocs []string
-	err := filepath.WalkDir(filepath.Join(repoRoot, ".claude", "commands"), func(path string, d fs.DirEntry, err error) error {
-		if err == nil && !d.IsDir() && strings.HasSuffix(path, ".md") {
-			rel, relErr := filepath.Rel(repoRoot, path)
-			commandDocs = append(commandDocs, filepath.ToSlash(rel))
-			return relErr
+	for _, rel := range doctestutil.CommandDocs(t, repoRoot) {
+		for _, text := range fixprguardProtocolMismatches(readRepoFile(t, rel)) {
+			t.Errorf("%s: %q, want %s", rel, text, want)
 		}
-		return err
-	})
-	if err != nil {
-		t.Fatalf("walk command documents: %v", err)
-	}
-	for _, rel := range commandDocs {
-		check(rel, readRepoFile(t, rel), protocolFlag, false)
 	}
 	guide := readRepoFile(t, guidePath)
 	check(guidePath, guide, protocolFlag, true)
 	check(guidePath, guide, protocolOutput, true)
 	check(guidePath, singleLine(t, guidePath, guide, "| `--protocol N` |"), regexp.MustCompile("現在の番号は `([0-9]+)`"), true)
+}
+
+// fixprguardProtocolMismatches returns the --protocol flags of doc that this
+// guard checks, every one doctestutil.ProtocolFlags does not give to
+// codexreview, whose value is not Protocol.
+func fixprguardProtocolMismatches(doc string) []string {
+	var mismatches []string
+	for _, f := range doctestutil.ProtocolFlags(doc) {
+		if f.Tool != doctestutil.ToolCodexreview && f.Value != strconv.Itoa(fixprguard.Protocol) {
+			mismatches = append(mismatches, f.Text)
+		}
+	}
+	return mismatches
+}
+
+// TestFixprguardProtocolMismatches: the check skips codexreview's flags
+// only, so a wrong number in a fixprguard call, or in prose naming no tool,
+// is still found next to a codexreview call.
+func TestFixprguardProtocolMismatches(t *testing.T) {
+	const sha = "0123456789abcdef0123456789abcdef01234567"
+	right := strconv.Itoa(fixprguard.Protocol)
+	wrong := strconv.Itoa(fixprguard.Protocol + 1)
+	for _, tc := range []struct {
+		name string
+		doc  string
+		want []string
+	}{
+		{"codexreview_call_skipped", "codexreview --protocol " + wrong + " --base " + sha + "\n", nil},
+		{"wrong_fixprguard_call_after_codexreview", "codexreview --protocol " + wrong + " --base " + sha + " && fixprguard head --protocol " + wrong + "\n", []string{"--protocol " + wrong}},
+		{"wrong_number_in_prose", "pass `--protocol=" + wrong + "`\n", []string{"--protocol=" + wrong}},
+		{"right_number", "fixprguard head --protocol " + right + "\n", nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := fixprguardProtocolMismatches(tc.doc); !slices.Equal(got, tc.want) {
+				t.Errorf("mismatches = %q, want %q", got, tc.want)
+			}
+		})
+	}
 }
 
 // TestGuideDescribesMentionCheck: the guide names, in 7.1 and 7.2, the
