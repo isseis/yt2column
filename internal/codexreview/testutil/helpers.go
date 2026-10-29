@@ -136,16 +136,20 @@ func linkGit(dir string) error {
 // fields: record the start, act on the repository, start the grandchild,
 // write the output, then hang or exit.
 type Behavior struct {
-	// StartsFile receives one line per start: "version" or "review".
+	// StartsFile receives one line per start: "version" or "review", and
+	// ArgsFile the arguments of a review start as a JSON array. Set fills
+	// both in, so Fake.Starts and Fake.Args read what was recorded.
 	StartsFile string `json:"starts_file"`
-	// ArgsFile receives the arguments of a review start as a JSON array.
-	ArgsFile string `json:"args_file"`
+	ArgsFile   string `json:"args_file"`
 
 	// Version is printed by codex --version, which exits with VersionExit or
 	// hangs when VersionHang is set.
 	Version     string `json:"version"`
 	VersionExit int    `json:"version_exit"`
 	VersionHang bool   `json:"version_hang"`
+	// VersionWrites maps an absolute path to the content codex --version
+	// writes there before it answers.
+	VersionWrites map[string]string `json:"version_writes,omitempty"`
 
 	// Writes maps an absolute path to the content written there.
 	Writes map[string]string `json:"writes,omitempty"`
@@ -156,7 +160,8 @@ type Behavior struct {
 	GitDir string     `json:"git_dir,omitempty"`
 
 	// GrandchildPIDFile, when set, makes the fake start a grandchild that
-	// writes its PID there and lives until it is killed.
+	// writes its PID there and lives until it is killed. The fake goes on
+	// only once the PID is written, so a test can always find it.
 	GrandchildPIDFile string `json:"grandchild_pid_file,omitempty"`
 
 	// Events are written to standard output, one per line, followed by
@@ -166,6 +171,9 @@ type Behavior struct {
 	StderrPadding int      `json:"stderr_padding,omitempty"`
 	// LastMessage, when set, is written to the file named by -o.
 	LastMessage *string `json:"last_message,omitempty"`
+	// LastMessageLink, when set, makes the path named by -o a symbolic link
+	// to this file instead.
+	LastMessageLink string `json:"last_message_link,omitempty"`
 
 	// Hang makes the fake wait until it is killed; otherwise it exits with Exit.
 	Hang bool `json:"hang,omitempty"`
@@ -195,6 +203,11 @@ func runFake(args []string) int {
 func (b Behavior) version() int {
 	if err := appendLine(b.StartsFile, "version"); err != nil {
 		return NoBehaviorExit
+	}
+	for path, content := range b.VersionWrites {
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil { //nolint:gosec // test-only fake writes the file its test named
+			return NoBehaviorExit
+		}
 	}
 	if b.VersionHang {
 		time.Sleep(lifetime)
@@ -239,6 +252,9 @@ func (b Behavior) review(args []string) error {
 		if err := grandchild.Start(); err != nil {
 			return err
 		}
+		if !waitForFile(b.GrandchildPIDFile) {
+			return errNoGrandchildPID
+		}
 	}
 	for _, event := range b.Events {
 		fmt.Println(event)
@@ -249,12 +265,35 @@ func (b Behavior) review(args []string) error {
 	if err := pad(os.Stderr, b.StderrPadding); err != nil {
 		return err
 	}
+	if b.LastMessageLink != "" {
+		if err := os.Symlink(b.LastMessageLink, argAfter(args, "-o")); err != nil {
+			return err
+		}
+	}
 	if b.LastMessage != nil {
 		if err := os.WriteFile(argAfter(args, "-o"), []byte(*b.LastMessage), 0o600); err != nil { //nolint:gosec // test-only fake writes where codexreview told it to
 			return err
 		}
 	}
 	return nil
+}
+
+// errNoGrandchildPID reports a grandchild that did not write its PID in time.
+var errNoGrandchildPID = errors.New("the grandchild wrote no PID")
+
+// waitForFile reports whether path exists and is not empty within
+// processGoneBound.
+func waitForFile(path string) bool {
+	deadline := time.Now().Add(processGoneBound)
+	for {
+		if info, err := os.Stat(path); err == nil && info.Size() > 0 {
+			return true
+		}
+		if time.Now().After(deadline) {
+			return false
+		}
+		time.Sleep(pollInterval)
+	}
 }
 
 // runGrandchild writes the process's PID to pidFile and waits to be killed.
@@ -332,19 +371,18 @@ func NewFake(t *testing.T) *Fake {
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 	t.Setenv("TMPDIR", tmp)
+	// A race-enabled binary sleeps a second at exit by default; every start
+	// of the fake would pay it.
+	t.Setenv("GORACE", "atexit_sleep_ms=0")
 	return f
 }
 
-// Set makes b the behavior of every later start of codex. It fills in the
-// starts and arguments files when b leaves them empty.
+// Set makes b the behavior of every later start of codex, with the starts
+// and arguments files that Starts and Args read.
 func (f *Fake) Set(b Behavior) {
 	f.t.Helper()
-	if b.StartsFile == "" {
-		b.StartsFile = filepath.Join(f.Dir, "starts")
-	}
-	if b.ArgsFile == "" {
-		b.ArgsFile = filepath.Join(f.Dir, "args.json")
-	}
+	b.StartsFile = filepath.Join(f.Dir, "starts")
+	b.ArgsFile = filepath.Join(f.Dir, "args.json")
 	encoded, err := json.Marshal(b)
 	if err != nil {
 		f.t.Fatalf("encode behavior: %v", err)

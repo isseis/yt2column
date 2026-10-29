@@ -49,8 +49,13 @@ const (
 	// lastMessageName is the file codex writes its final message to, in the
 	// run directory.
 	lastMessageName = "last-message.txt"
-	// codexCommand is the command looked up on PATH.
+	// codexCommand is the command looked up on PATH. The lookup, like every
+	// command the tool starts, uses the process's own PATH; main passes that
+	// same environment to Run.
 	codexCommand = "codex"
+	// gitFatalStatus is the exit status of a git command that dies, as
+	// rev-parse does outside a worktree.
+	gitFatalStatus = 128
 )
 
 // Detail tokens. Each names a cause within a Kind and is fixed text, never
@@ -66,7 +71,8 @@ const (
 	detailVersionTimeout      = "codex_version_timeout"
 	detailVersionUnreadable   = "codex_version_unreadable"
 	detailRunDirFailed        = "run_dir_failed"
-	detailStartFailed         = "start_failed"
+	detailRunFailed           = "run_failed"
+	detailPipeHeld            = "pipe_held"
 	detailSignaled            = "signaled"
 	detailOutput              = "output"
 	detailFinalMessage        = "final_message"
@@ -187,8 +193,8 @@ func prepare(ctx, preCtx context.Context, base string, env []string) (prepared, 
 	}
 	g := newGit(cwd, env)
 	root, err := worktreeRoot(preCtx, g, cwd)
-	if _, ok := errors.AsType[*cmdrunner.ExitError](err); ok || (err == nil && root == "") {
-		// git rev-parse exits unsuccessfully outside a worktree.
+	if exitErr, ok := errors.AsType[*cmdrunner.ExitError](err); (ok && exitErr.Code == gitFatalStatus && preCtx.Err() == nil) || (err == nil && root == "") {
+		// git rev-parse exits with its fatal status outside a worktree.
 		return stop(KindPrecondition, detailNotWorktreeRoot)
 	}
 	if err != nil {
@@ -221,9 +227,16 @@ func prepare(ctx, preCtx context.Context, base string, env []string) (prepared, 
 	if err != nil {
 		return stop(KindPrecondition, detailGitFailed)
 	}
+	// The state codex is compared against is read last, after codex
+	// --version, and it must itself be clean: a change made after the first
+	// check would otherwise be part of the baseline, reviewed and sent, and
+	// never found by the comparison.
 	before, err := readState(preCtx, g)
 	if err != nil {
 		return stop(KindPrecondition, detailGitFailed)
+	}
+	if before.status != "" {
+		return stop(KindPrecondition, detailDirtyTree)
 	}
 	runDir, err := os.MkdirTemp("", "codexreview-")
 	if err != nil {
@@ -321,6 +334,11 @@ func (p prepared) review(ctx context.Context) (Result, error) {
 	runCtx, cancelRun := context.WithTimeout(ctx, codexTimeout)
 	defer cancelRun()
 	stdout, runErr := codexRunner(p.root, p.env, maxStreamBytes).Run(runCtx, codexCommand, codexArgs(p.base, filepath.Join(p.runDir, lastMessageName))...)
+	// Judged now, by the tool's own clock: the limit keeps running while the
+	// state is read below, and a run that finished in time must not turn
+	// into a timeout then.
+	timedOut := errors.Is(runCtx.Err(), context.DeadlineExceeded)
+	cancelRun()
 
 	afterCtx, cancelAfter := context.WithTimeout(context.WithoutCancel(ctx), gitTimeout)
 	defer cancelAfter()
@@ -337,7 +355,7 @@ func (p prepared) review(ctx context.Context) (Result, error) {
 	if ctx.Err() != nil {
 		return Result{}, errInterrupted
 	}
-	if errors.Is(runCtx.Err(), context.DeadlineExceeded) {
+	if timedOut {
 		return p.result(KindTimeout, ""), nil
 	}
 	if runErr != nil {
@@ -361,7 +379,11 @@ func runFailure(err error) (Kind, string) {
 		}
 		return KindCodexFailed, detailExitStatusPrefix + strconv.Itoa(exitErr.Code)
 	}
-	return KindCodexFailed, detailStartFailed
+	if errors.Is(err, exec.ErrWaitDelay) {
+		// codex exited, but a process that left its group kept the output open.
+		return KindCodexFailed, detailPipeHeld
+	}
+	return KindCodexFailed, detailRunFailed
 }
 
 // checkEvents returns "" when the JSONL output declares exactly one completed

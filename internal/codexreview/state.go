@@ -200,8 +200,11 @@ func readChangedFiles(ctx context.Context, g git, base string) (map[string]struc
 // touchesInstructions reports whether any changed path is an instruction file
 // codex reads, in any directory.
 func touchesInstructions(changed map[string]struct{}) bool {
+	// Case is ignored: on a case-insensitive file system codex finds
+	// agents.md when it looks for AGENTS.md.
 	for name := range changed {
-		if slices.Contains(instructionFiles, filepath.Base(filepath.FromSlash(name))) {
+		base := filepath.Base(filepath.FromSlash(name))
+		if slices.ContainsFunc(instructionFiles, func(f string) bool { return strings.EqualFold(f, base) }) {
 			return true
 		}
 	}

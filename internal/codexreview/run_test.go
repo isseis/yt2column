@@ -115,7 +115,7 @@ func TestRunPreconditions(t *testing.T) {
 	tests := []struct {
 		name     string
 		prepare  func(t *testing.T, fx fixture) (base string)
-		behavior func(b *codexreviewtestutil.Behavior)
+		behavior func(fx fixture, b *codexreviewtestutil.Behavior)
 		kind     Kind
 		detail   string
 		// versionStarted: codex --version ran before the failed check.
@@ -203,18 +203,27 @@ func TestRunPreconditions(t *testing.T) {
 		},
 		{
 			name:     "version_fails",
-			behavior: func(b *codexreviewtestutil.Behavior) { b.VersionExit = 1 },
+			behavior: func(_ fixture, b *codexreviewtestutil.Behavior) { b.VersionExit = 1 },
 			kind:     KindPrecondition, detail: detailVersionFailed, versionStarted: true,
 		},
 		{
 			name:     "version_hangs",
-			behavior: func(b *codexreviewtestutil.Behavior) { b.VersionHang = true },
+			behavior: func(_ fixture, b *codexreviewtestutil.Behavior) { b.VersionHang = true },
 			kind:     KindPrecondition, detail: detailVersionTimeout, versionStarted: true,
 		},
 		{
 			name:     "version_not_one_line",
-			behavior: func(b *codexreviewtestutil.Behavior) { b.Version = "codex-cli\n0.163.0" },
+			behavior: func(_ fixture, b *codexreviewtestutil.Behavior) { b.Version = "codex-cli\n0.163.0" },
 			kind:     KindPrecondition, detail: detailVersionUnreadable, versionStarted: true,
+		},
+		{
+			// A change after the first clean check must still keep codex from
+			// reviewing: the baseline itself has to be clean.
+			name: "change_while_version_runs",
+			behavior: func(fx fixture, b *codexreviewtestutil.Behavior) {
+				b.VersionWrites = map[string]string{filepath.Join(fx.repo.Dir, "a.go"): "edited\n"}
+			},
+			kind: KindPrecondition, detail: detailDirtyTree, versionStarted: true,
 		},
 	}
 	for _, tt := range tests {
@@ -223,7 +232,7 @@ func TestRunPreconditions(t *testing.T) {
 			fx := newFixture(t)
 			b := completed(noFindingsMessage)
 			if tt.behavior != nil {
-				tt.behavior(&b)
+				tt.behavior(fx, &b)
 			}
 			fx.fake.Set(b)
 			base := fx.base
@@ -253,6 +262,8 @@ func TestRunKinds(t *testing.T) {
 		kind     Kind
 		detail   string
 		findings []Finding
+		// shortLimit runs the row with a one-second time limit.
+		shortLimit bool
 	}{
 		{
 			name:     "findings",
@@ -280,7 +291,18 @@ func TestRunKinds(t *testing.T) {
 				b.Hang = true
 				return b
 			},
-			kind: KindTimeout,
+			kind: KindTimeout, shortLimit: true,
+		},
+		{
+			// The tool's own clock is read before the output limits.
+			name: "timeout_with_output_over_limit",
+			behavior: func(_ fixture) codexreviewtestutil.Behavior {
+				b := completed(noFindingsMessage)
+				b.StdoutPadding = maxStreamBytes
+				b.Hang = true
+				return b
+			},
+			kind: KindTimeout, shortLimit: true,
 		},
 		{
 			name: "exit_status",
@@ -388,6 +410,20 @@ func TestRunKinds(t *testing.T) {
 			kind: KindOutputEmpty, detail: detailMessageMissing,
 		},
 		{
+			// The link's target holds a valid message; only the file-type check
+			// rejects it.
+			name: "final_message_is_symlink",
+			behavior: func(fx fixture) codexreviewtestutil.Behavior {
+				target := filepath.Join(fx.fake.Dir, "elsewhere.txt")
+				b := completed("")
+				b.LastMessage = nil
+				b.Writes = map[string]string{target: noFindingsMessage}
+				b.LastMessageLink = target
+				return b
+			},
+			kind: KindUnreadable, detail: detailMessageNotRegular,
+		},
+		{
 			name: "final_message_unreadable",
 			behavior: func(_ fixture) codexreviewtestutil.Behavior {
 				return completed("First paragraph.\n\nSecond paragraph.\n")
@@ -402,7 +438,11 @@ func TestRunKinds(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			shortenTimeouts(t, 2*time.Second, time.Second, versionTimeout, gitTimeout)
+			limit := 30 * time.Second
+			if tt.shortLimit {
+				limit = time.Second
+			}
+			shortenTimeouts(t, limit, time.Second, versionTimeout, gitTimeout)
 			fx := newFixture(t)
 			fx.fake.Set(tt.behavior(fx))
 			r := mustRun(t, fx.base)
@@ -432,6 +472,8 @@ func TestRunStateChanged(t *testing.T) {
 		changed []string
 		// refs returns the expected ChangedRefs.
 		refs func(fx fixture) []string
+		// shortLimit runs the row with a one-second time limit.
+		shortLimit bool
 	}{
 		{
 			name: "tracked_file",
@@ -475,6 +517,16 @@ func TestRunStateChanged(t *testing.T) {
 			},
 			changed: []string{itemRefs},
 			refs:    func(fixture) []string { return []string{"refs/heads/made-by-codex"} },
+		},
+		{
+			name: "deleted_branch",
+			act: func(_ *testing.T, fx fixture, b *codexreviewtestutil.Behavior) {
+				fx.repo.Git("branch", "old")
+				b.GitDir = fx.repo.Dir
+				b.Git = [][]string{{"branch", "-D", "old"}}
+			},
+			changed: []string{itemRefs},
+			refs:    func(fixture) []string { return []string{"refs/heads/old"} },
 		},
 		{
 			name: "tag",
@@ -521,12 +573,17 @@ func TestRunStateChanged(t *testing.T) {
 				b.Writes = map[string]string{filepath.Join(fx.repo.Dir, "a.go"): "edited\n"}
 				b.Hang = true
 			},
-			changed: []string{itemStatus},
+			changed:    []string{itemStatus},
+			shortLimit: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			shortenTimeouts(t, 2*time.Second, time.Second, versionTimeout, gitTimeout)
+			limit := 30 * time.Second
+			if tt.shortLimit {
+				limit = time.Second
+			}
+			shortenTimeouts(t, limit, time.Second, versionTimeout, gitTimeout)
 			fx := newFixture(t)
 			b := completed(noFindingsMessage)
 			tt.act(t, fx, &b)
@@ -658,6 +715,7 @@ func TestRunInstructionsChanged(t *testing.T) {
 		{name: "nested_agents", inRange: "internal/x/AGENTS.md", want: true},
 		{name: "agents_override", inRange: "AGENTS.override.md", want: true},
 		{name: "claude", inRange: "CLAUDE.md", want: true},
+		{name: "other_case", inRange: "sub/agents.md", want: true},
 		{name: "similar_name", inRange: "docs/AGENTS.md.bak", want: false},
 		{name: "before_base_only", before: "AGENTS.md", inRange: "b.go", want: false},
 		{name: "earlier_commit_of_range", inRange: "AGENTS.md", later: "c.go", want: true},
