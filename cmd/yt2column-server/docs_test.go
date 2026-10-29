@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"maps"
 	"net/url"
-	"os"
 	"slices"
 	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/isseis/yt2column/internal/config"
+	"github.com/isseis/yt2column/internal/doctestutil"
 	"github.com/isseis/yt2column/internal/nmhost"
 	"github.com/isseis/yt2column/internal/server"
 )
@@ -35,12 +35,12 @@ func TestServerDocsContract(t *testing.T) {
 	cacheDirEnv := config.CacheDirEnvForTest()
 	ytDlpEnv := config.YtDlpEnvForTest()
 
-	readme := readDoc(t, readmePath)
-	overview := readDoc(t, projectOverviewPath)
-	security := readDoc(t, securityPath)
+	readme := doctestutil.ReadDoc(t, readmePath)
+	overview := doctestutil.ReadDoc(t, projectOverviewPath)
+	security := doctestutil.ReadDoc(t, securityPath)
 
 	t.Run("README.md", func(t *testing.T) {
-		whole := sectionByHeading(readme, "## Localhost server")
+		whole := doctestutil.SectionByHeading(readme, "## Localhost server")
 		if whole == "" {
 			t.Fatal("README.md has no '## Localhost server' section")
 		}
@@ -50,7 +50,7 @@ func TestServerDocsContract(t *testing.T) {
 		// themselves are not checked.
 		const upgradeHeading = "### Upgrading from the shared-token version"
 		section := whole
-		if upgrade := sectionByHeading(whole, upgradeHeading); upgrade != "" {
+		if upgrade := doctestutil.SectionByHeading(whole, upgradeHeading); upgrade != "" {
 			section = strings.Replace(whole, upgradeHeading+"\n"+upgrade, "", 1)
 			if section == whole {
 				t.Fatal("README.md server section: the upgrade notes were not excluded")
@@ -68,9 +68,10 @@ func TestServerDocsContract(t *testing.T) {
 		// The curl examples name each operation's method and a URL whose path
 		// has the form the server's path constants define, so a route or
 		// method change fails here. <key> stands for the job API's key
-		// segment, whatever spelling the example gives it. sectionByHeading is
-		// fence-unaware, so a line starting with "# " inside a fenced example
-		// would end the section: keep shell comments out of these examples.
+		// segment, whatever spelling the example gives it. The shared
+		// SectionByHeading is fence-unaware, so a line starting with "# "
+		// inside a fenced example would end the section: keep shell comments
+		// out of these examples.
 		for _, example := range []struct{ operation, method, path string }{
 			{"the articles endpoint", "POST", server.ArticlesPath},
 			{"the job API's generation start", "POST", server.JobsPath},
@@ -82,19 +83,19 @@ func TestServerDocsContract(t *testing.T) {
 			}
 		}
 		// The exit-code table must name every code the entry point defines.
-		exitCodes := findTable(section, "Code")
+		exitCodes := doctestutil.FindTable(section, "Code")
 		if exitCodes == nil {
 			t.Fatal("README.md server section has no exit-code table")
 		}
 		for _, code := range []int{exitOK, exitFailure, exitUsage} {
-			if tableRow(exitCodes, strconv.Itoa(code)) == nil {
+			if doctestutil.TableRow(exitCodes, strconv.Itoa(code)) == nil {
 				t.Errorf("README.md server exit-code table has no code %d", code)
 			}
 		}
 	})
 
 	t.Run("rejection_reasons", func(t *testing.T) {
-		table := findTable(readme, "reason")
+		table := doctestutil.FindTable(readme, "reason")
 		if table == nil {
 			t.Fatal("README.md has no rejection reason table")
 		}
@@ -103,7 +104,7 @@ func TestServerDocsContract(t *testing.T) {
 			if len(row) < 2 {
 				continue
 			}
-			byReason[stripBackticks(row[0])] = parseStatus(t, row[1])
+			byReason[doctestutil.StripBackticks(row[0])] = parseStatus(t, row[1])
 		}
 		reasons := server.RejectReasonsForTest()
 		for _, reason := range reasons {
@@ -122,7 +123,7 @@ func TestServerDocsContract(t *testing.T) {
 	})
 
 	t.Run("api_codes", func(t *testing.T) {
-		section := sectionByHeading(readme, "## Localhost server")
+		section := doctestutil.SectionByHeading(readme, "## Localhost server")
 		for _, set := range server.APICodesForTest() {
 			tables := tablesByFirstHeader(section, set.Name)
 			if len(tables) != 1 {
@@ -134,7 +135,7 @@ func TestServerDocsContract(t *testing.T) {
 				if len(row) == 0 {
 					continue
 				}
-				code := stripBackticks(row[0])
+				code := doctestutil.StripBackticks(row[0])
 				if _, dup := documented[code]; dup {
 					t.Errorf("README.md %q table lists %q twice", set.Name, code)
 				}
@@ -144,7 +145,7 @@ func TestServerDocsContract(t *testing.T) {
 				if want, ok := set.States[code]; ok {
 					got := ""
 					if len(row) > 1 {
-						got = stripBackticks(row[1])
+						got = doctestutil.StripBackticks(row[1])
 					}
 					if got != want {
 						t.Errorf("README.md %q table gives %q the state %q, want %q", set.Name, code, got, want)
@@ -175,7 +176,7 @@ func TestServerDocsContract(t *testing.T) {
 	})
 
 	t.Run("security.md", func(t *testing.T) {
-		section := sectionByHeading(security, "### 8.2. localhost サーバ（#109）")
+		section := doctestutil.SectionByHeading(security, "### 8.2. localhost サーバ（#109）")
 		if section == "" {
 			t.Fatal("security.md has no 8.2 server section")
 		}
@@ -206,23 +207,6 @@ func parseStatus(t *testing.T, cell string) int {
 	}
 	t.Fatalf("no status code in table cell %q", cell)
 	return 0
-}
-
-// TestSectionByHeading pins the duplicated helper's boundaries, so the copy
-// cannot drift from cmd/yt2column's TestSectionByHeading.
-func TestSectionByHeading(t *testing.T) {
-	const doc = "# Top\ntop body\n## Middle\nmiddle body\n### Deep\ndeep body\n## Two\ntwo body\n"
-	for _, tc := range []struct {
-		heading, want string
-	}{
-		{"## Middle", "middle body\n### Deep\ndeep body\n"},
-		{"### Deep", "deep body\n"},
-		{"## Absent", ""},
-	} {
-		if got := sectionByHeading(doc, tc.heading); got != tc.want {
-			t.Errorf("sectionByHeading(doc, %q) = %q, want %q", tc.heading, got, tc.want)
-		}
-	}
 }
 
 // hasLineContainingAll reports whether one line of doc contains every one of
@@ -360,163 +344,14 @@ func pathForm(rawURL string) string {
 	return server.JobsPath + "/<key>"
 }
 
-// The Markdown helpers below are duplicated from cmd/yt2column/docs_test.go.
-// The two commands are separate main packages, so neither can import the
-// other's helpers; extracting them into a shared test-only package would add a
-// package and rewrite an existing 600-line guard for a documentation-only
-// change. Keep the two copies in step.
-
-// readDoc reads a repository document, failing the test on error.
-func readDoc(t *testing.T, path string) string {
-	t.Helper()
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read %s: %v", path, err)
-	}
-	return string(data)
-}
-
-// markdownTables returns every Markdown table in doc. Each table is a slice of
-// rows, and each row a slice of trimmed cells. A separator row is dropped, and
-// a blank or non-table line ends a table.
-func markdownTables(doc string) [][][]string {
-	var tables [][][]string
-	var rows [][]string
-	flush := func() {
-		if len(rows) > 0 {
-			tables = append(tables, rows)
-			rows = nil
-		}
-	}
-	for line := range strings.Lines(doc) {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "|") && strings.HasSuffix(trimmed, "|") {
-			cells := splitTableRow(trimmed)
-			if isTableSeparator(cells) {
-				continue
-			}
-			rows = append(rows, cells)
-			continue
-		}
-		flush()
-	}
-	flush()
-	return tables
-}
-
-// splitTableRow splits one Markdown table line into trimmed cells. Cells must
-// not contain an escaped pipe, which these documents do not use.
-func splitTableRow(line string) []string {
-	line = strings.TrimSuffix(strings.TrimPrefix(line, "|"), "|")
-	parts := strings.Split(line, "|")
-	cells := make([]string, 0, len(parts))
-	for _, part := range parts {
-		cells = append(cells, strings.TrimSpace(part))
-	}
-	return cells
-}
-
-// isTableSeparator reports whether cells are the "---" row under a header.
-func isTableSeparator(cells []string) bool {
-	dash := false
-	for _, cell := range cells {
-		if strings.Contains(cell, "-") {
-			dash = true
-		}
-		if strings.Trim(cell, "-: ") != "" {
-			return false
-		}
-	}
-	return dash
-}
-
-// findTable returns the first table whose header row contains header.
-func findTable(doc, header string) [][]string {
-	for _, table := range markdownTables(doc) {
-		if len(table) == 0 {
-			continue
-		}
-		for _, cell := range table[0] {
-			if strings.EqualFold(stripBackticks(cell), header) {
-				return table
-			}
-		}
-	}
-	return nil
-}
-
 // tablesByFirstHeader returns every table whose first header cell equals
 // header, ignoring backticks and case.
 func tablesByFirstHeader(doc, header string) [][][]string {
 	var found [][][]string
-	for _, table := range markdownTables(doc) {
-		if len(table) > 0 && len(table[0]) > 0 && strings.EqualFold(stripBackticks(table[0][0]), header) {
+	for _, table := range doctestutil.MarkdownTables(doc) {
+		if len(table) > 0 && len(table[0]) > 0 && strings.EqualFold(doctestutil.StripBackticks(table[0][0]), header) {
 			found = append(found, table)
 		}
 	}
 	return found
-}
-
-// tableRow returns the first body row whose first cell equals first, ignoring
-// backticks.
-func tableRow(table [][]string, first string) []string {
-	for _, row := range table[1:] {
-		if len(row) > 0 && stripBackticks(row[0]) == first {
-			return row
-		}
-	}
-	return nil
-}
-
-// stripBackticks removes the code-span backticks around a table cell.
-func stripBackticks(s string) string {
-	return strings.Trim(s, "`")
-}
-
-// headingLevel reports the level of a Markdown heading line: the number of
-// leading '#' characters when the line starts with one or more '#' followed by
-// a space or tab. It returns 0 for any other line.
-func headingLevel(line string) int {
-	line = strings.TrimRight(line, "\n")
-	n := 0
-	for n < len(line) && line[n] == '#' {
-		n++
-	}
-	if n == 0 || n == len(line) {
-		return 0
-	}
-	switch line[n] {
-	case ' ', '\t':
-		return n
-	}
-	return 0
-}
-
-// sectionByHeading returns the text under the first heading line whose trimmed
-// text equals heading, up to the next heading line of the same or a higher
-// level. The matching heading line is not included; it returns the empty string
-// when no line matches.
-func sectionByHeading(doc, heading string) string {
-	want := strings.TrimSpace(heading)
-	level := 0
-	inSection := false
-	var b strings.Builder
-	for line := range strings.Lines(doc) {
-		if l := headingLevel(line); l > 0 {
-			if !inSection {
-				if strings.TrimSpace(line) == want {
-					inSection = true
-					level = l
-				}
-				continue
-			}
-			if l <= level {
-				break
-			}
-		}
-		if inSection {
-			b.WriteString(line)
-		}
-	}
-	return b.String()
 }

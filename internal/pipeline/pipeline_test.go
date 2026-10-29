@@ -581,6 +581,7 @@ func TestSecretRevealExclusive(t *testing.T) {
 // constraint; TestPackageReferenceListsPackages requires a row for the
 // package.
 var testOnlyPackageDirs = []string{
+	"internal/doctestutil",
 	"internal/loopbacktest",
 	"internal/llm/llmhttp/llmhttptest",
 	"internal/maketestutil",

@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/isseis/yt2column/internal/doctestutil"
 	"github.com/isseis/yt2column/internal/fixprguard"
 )
 
@@ -75,9 +76,9 @@ func flat(s string) string {
 // whichever of its Name/Value tables holds it.
 func contextRow(t *testing.T, name string) []string {
 	t.Helper()
-	for _, table := range markdownTables(readDoc(t, contextPath)) {
+	for _, table := range doctestutil.MarkdownTables(doctestutil.ReadDoc(t, contextPath)) {
 		if len(table) > 0 && len(table[0]) > 0 && table[0][0] == "Name" {
-			if row := tableRow(table, name); len(row) >= 2 {
+			if row := doctestutil.TableRow(table, name); len(row) >= 2 {
 				return row
 			}
 		}
@@ -90,7 +91,7 @@ func contextRow(t *testing.T, name string) []string {
 // when it is missing or empty.
 func requireSection(t *testing.T, name, doc, heading string) string {
 	t.Helper()
-	section := sectionByHeading(doc, heading)
+	section := doctestutil.SectionByHeading(doc, heading)
 	if strings.TrimSpace(section) == "" {
 		t.Fatalf("%s has no section %q", name, heading)
 	}
@@ -129,7 +130,7 @@ func commitSubjectTemplate(t *testing.T) string {
 // states: the Convergence policy and Phase 4 write the subject finish commits
 // with, and Phase 3.5 names the stop a dirty work tree causes.
 func TestFixprDocContract(t *testing.T) {
-	doc := readDoc(t, fixprPath)
+	doc := doctestutil.ReadDoc(t, fixprPath)
 
 	t.Run("round_counting", func(t *testing.T) {
 		subject := "`" + commitSubjectTemplate(t) + "`"
@@ -150,7 +151,7 @@ func TestFixprDocContract(t *testing.T) {
 // queries review threads itself, step 3 names the stops fixpr reports, and
 // step 3's listings print no comment body (see checkListings).
 func TestRunprDocContract(t *testing.T) {
-	doc := readDoc(t, runprPath)
+	doc := doctestutil.ReadDoc(t, runprPath)
 	step3 := requireSection(t, "runpr.md", doc, runprStep3)
 
 	t.Run("head_before_checkout", func(t *testing.T) {
@@ -186,7 +187,7 @@ func TestRunprDocContract(t *testing.T) {
 // _lib/task-pr-handoff.md Part B step 5 polls for Codex's start marker prints
 // no comment body, as runpr.md step 3's listings do (see checkListings).
 func TestHandoffListingPrintsNoBody(t *testing.T) {
-	step5 := itemSection("5. Make sure Codex starts reviewing the PR.", "\n6. ")(t, readDoc(t, handoffPath))
+	step5 := itemSection("5. Make sure Codex starts reviewing the PR.", "\n6. ")(t, doctestutil.ReadDoc(t, handoffPath))
 	checkListings(t, "_lib/task-pr-handoff.md Part B step 5", step5, handoffListingFixtures(), handoffReadCalls)
 }
 
@@ -644,8 +645,8 @@ func checkListingOutput(t *testing.T, fixture listingFixture, response []map[str
 // TestFixprguardCallSites checks that each fixprguard subcommand is called in
 // the part of the command documents that the design assigns it to.
 func TestFixprguardCallSites(t *testing.T) {
-	fixpr := readDoc(t, fixprPath)
-	runpr := readDoc(t, runprPath)
+	fixpr := doctestutil.ReadDoc(t, fixprPath)
+	runpr := doctestutil.ReadDoc(t, runprPath)
 	for _, tc := range []struct {
 		name, doc, heading, call string
 	}{
@@ -680,7 +681,7 @@ func TestFixprBuildChecksMatchTool(t *testing.T) {
 	}
 	want := fixprguard.BuildCheckTargets()
 
-	fixpr := readDoc(t, fixprPath)
+	fixpr := doctestutil.ReadDoc(t, fixprPath)
 	_, after, found := strings.Cut(fixpr, "Build checks for this project")
 	if !found {
 		t.Fatal("fixpr.md does not state the build checks")
@@ -757,7 +758,7 @@ type contextReviewers struct {
 func checkContextReviewers(doc string) contextReviewers {
 	var got contextReviewers
 	count := map[string][][]string{}
-	for _, table := range markdownTables(doc) {
+	for _, table := range doctestutil.MarkdownTables(doc) {
 		if len(table) == 0 || len(table[0]) == 0 || table[0][0] != "Name" {
 			continue
 		}
@@ -852,7 +853,7 @@ func (c *contextReviewers) checkRequest(value string) {
 // mention fixprguard rejects, and fixpr.md, runpr.md, and
 // _lib/task-pr-handoff.md never write a reviewer's name.
 func TestContextAndCommandsAgree(t *testing.T) {
-	got := checkContextReviewers(readDoc(t, contextPath))
+	got := checkContextReviewers(doctestutil.ReadDoc(t, contextPath))
 	if len(got.problems) > 0 {
 		t.Fatalf("_context.md reviewer rows have problems %v", got.problems)
 	}
@@ -869,7 +870,7 @@ func TestContextAndCommandsAgree(t *testing.T) {
 		{"runpr.md", runprPath},
 		{"_lib/task-pr-handoff.md", handoffPath},
 	} {
-		doc := readDoc(t, tc.path)
+		doc := doctestutil.ReadDoc(t, tc.path)
 		for _, name := range append(slices.Clone(got.names), got.awaited) {
 			if strings.Contains(doc, name) {
 				t.Errorf("%s writes the reviewer name %q", tc.name, name)
@@ -883,7 +884,7 @@ func TestContextAndCommandsAgree(t *testing.T) {
 // row edited, and that it reads exactly two names from a description holding
 // backquoted code and a second separator.
 func TestContextReviewerRowsMalformed(t *testing.T) {
-	doc := readDoc(t, contextPath)
+	doc := doctestutil.ReadDoc(t, contextPath)
 	listLine := contextLine(t, doc, reviewerListRow)
 	awaitedLine := contextLine(t, doc, awaitedRow)
 	requestLine := contextLine(t, doc, requestRow)
@@ -967,7 +968,7 @@ func contextLine(t *testing.T, doc, name string) string {
 // and pushing by hand, fetching thread comments itself, and passing a PR title
 // inline.
 func TestRemovedCommandLiterals(t *testing.T) {
-	fixpr := readDoc(t, fixprPath)
+	fixpr := doctestutil.ReadDoc(t, fixprPath)
 	for _, literal := range []string{"git add -A", "git commit -m", "comments(first:", "reviewThreads"} {
 		if strings.Contains(fixpr, literal) {
 			t.Errorf("fixpr.md still contains %q", literal)
@@ -1025,7 +1026,7 @@ func readmeSyncIn(t *testing.T, name, doc, section, after string) string {
 // sentence in prose asks for a commit is left to the PR review.
 func TestReadmeSyncStepPlacement(t *testing.T) {
 	t.Run("fixpr_in_phase_3_after_the_fix_agent", func(t *testing.T) {
-		fixpr := readDoc(t, fixprPath)
+		fixpr := doctestutil.ReadDoc(t, fixprPath)
 		phase3 := requireSection(t, "fixpr.md", fixpr, fixprPhase3)
 		step := readmeSyncIn(t, "fixpr.md", fixpr, phase3, "Reply with only this JSON")
 		for _, literal := range []string{"git add", "git commit"} {
@@ -1035,13 +1036,13 @@ func TestReadmeSyncStepPlacement(t *testing.T) {
 		}
 	})
 	t.Run("handoff_in_part_b_item_1_after_the_local_review", func(t *testing.T) {
-		handoff := readDoc(t, handoffPath)
+		handoff := doctestutil.ReadDoc(t, handoffPath)
 		item1 := itemSection("1. When LOCAL_REVIEW is `run`", "\n2. Run CHECKS.")(t, handoff)
 		readmeSyncIn(t, "_lib/task-pr-handoff.md", handoff, item1, "coderabbit-local-review.md")
 	})
 	t.Run("mktrans_commits_only_standalone", func(t *testing.T) {
 		const commitSection = "## Commit (standalone only)"
-		mktrans := readDoc(t, mktransPath)
+		mktrans := doctestutil.ReadDoc(t, mktransPath)
 		// The commit steps are the numbered items of the standalone section.
 		steps := map[string]struct{}{}
 		for line := range strings.Lines(requireSection(t, "mktrans.md", mktrans, commitSection)) {
@@ -1056,7 +1057,7 @@ func TestReadmeSyncStepPlacement(t *testing.T) {
 		// for word into another section is found by where it is.
 		current := ""
 		for line := range strings.Lines(mktrans) {
-			if headingLevel(line) == 2 {
+			if doctestutil.HeadingLevel(line) == 2 {
 				current = strings.TrimSpace(line)
 				if current != commitSection && strings.Contains(strings.ToLower(current), "commit") {
 					t.Errorf("mktrans.md has a second commit section %q", current)

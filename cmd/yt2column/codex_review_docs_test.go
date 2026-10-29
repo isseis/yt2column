@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/isseis/yt2column/internal/doctestutil"
 	"github.com/isseis/yt2column/internal/fixprguard"
 )
 
@@ -91,7 +92,7 @@ const (
 func TestCodexMentionOnlyInRequestRow(t *testing.T) {
 	rows := 0
 	for _, path := range append(commandDocs(t), claudePath) {
-		for i, line := range strings.Split(readDoc(t, path), "\n") {
+		for i, line := range strings.Split(doctestutil.ReadDoc(t, path), "\n") {
 			if !strings.Contains(strings.ToLower(line), strings.ToLower(fixprguard.CodexMention)) {
 				continue
 			}
@@ -115,7 +116,7 @@ func TestPostingPathsCheckMention(t *testing.T) {
 	const label = "**Mention check.**"
 	for _, ps := range postingSections {
 		t.Run(ps.name, func(t *testing.T) {
-			_, rest, found := strings.Cut(flat(ps.section(t, readDoc(t, ps.path))), label)
+			_, rest, found := strings.Cut(flat(ps.section(t, doctestutil.ReadDoc(t, ps.path))), label)
 			if !found {
 				t.Fatalf("%s has no %s", ps.name, label)
 			}
@@ -201,7 +202,7 @@ func TestPostingCommandsInventory(t *testing.T) {
 	}
 	sections := map[string][]span{}
 	for _, ps := range postingSections {
-		doc := readDoc(t, ps.path)
+		doc := doctestutil.ReadDoc(t, ps.path)
 		section := ps.section(t, doc)
 		at := strings.Index(doc, section)
 		check := strings.Index(section, "**Mention check.**")
@@ -214,7 +215,7 @@ func TestPostingCommandsInventory(t *testing.T) {
 
 	posts := 0
 	for _, path := range commandDocs(t) {
-		doc := readDoc(t, path)
+		doc := doctestutil.ReadDoc(t, path)
 		key := filepath.Clean(path)
 		for _, m := range postingCommand.FindAllStringIndex(doc, -1) {
 			command := invocation(doc, m[0])
@@ -349,7 +350,7 @@ func autoReviewDisabled(text string) bool {
 // CodeRabbit's automatic PR review off and says why, and that
 // autoReviewDisabled tells the real file from copies broken in one place.
 func TestCodeRabbitConfigStopsReview(t *testing.T) {
-	doc := readDoc(t, coderabbitPath)
+	doc := doctestutil.ReadDoc(t, coderabbitPath)
 	requirePhrases(t, ".coderabbit.yaml", doc,
 		"CodeRabbit does not review PRs: Codex does the PR review",
 		"The local CLI review (`coderabbit review`) is still used",
@@ -390,7 +391,7 @@ func TestCodeRabbitConfigStopsReview(t *testing.T) {
 // TestAgentsCodeReviewRules checks that AGENTS.md holds exactly one heading of
 // the section Codex reads its review rules from.
 func TestAgentsCodeReviewRules(t *testing.T) {
-	doc := readDoc(t, agentsPath)
+	doc := doctestutil.ReadDoc(t, agentsPath)
 	const heading = "## Code Review Rules"
 	if n := strings.Count(doc, "\n"+heading+"\n"); n != 1 {
 		t.Errorf("AGENTS.md has %d %q headings, want 1", n, heading)
