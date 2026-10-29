@@ -1,148 +1,100 @@
-# CLI
+# CLI の使い方
 
-The CLI is the development path: use it to develop and check the LLM call and
-the posting, while the primary path is the one in
-[Quick start](../../../README.md#quick-start).
+CLI は補助の経路である。LLM の呼び出しと投稿を開発し確かめるために使う。主経路は
+[クイックスタート](../../../README.md#quick-start)の経路である。
 
-This document describes what only the CLI uses or shows. The environment
-variables the CLI shares with the localhost server are in the README's
-[Configuration](../../../README.md#configuration); the variables only the CLI
-reads are in [Configuration](#configuration) below.
+本書は、CLI だけが使う、または CLI だけが示すものを説明する。CLI が localhost サーバと共有する環境変数は README の
+[設定](../../../README.md#configuration)にあり、CLI だけが読む変数は下の[設定](#設定)にある。
 
-## Requirements
+## 必要なもの
 
-**For the CLI only:**
+**CLI だけに必要なもの:**
 
-- `yt-dlp` on `PATH` (or set `YT2COLUMN_YTDLP_PATH`); see
-  [Setting up yt-dlp](#setting-up-yt-dlp)
-- `SLACK_WEBHOOK_URL`, only when `--slack` is used
+- `PATH` 上の `yt-dlp`（または `YT2COLUMN_YTDLP_PATH` を設定する）。[yt-dlp の準備](#yt-dlp-の準備)を参照
+- `SLACK_WEBHOOK_URL`（`--slack` を使うときだけ）
 
-The other requirements, such as Go and the API key of the selected provider,
-are in the README's [Requirements](../../../README.md#requirements).
+Go や、選んだプロバイダの API キーなど、ほかに必要なものは README の
+[必要なもの](../../../README.md#requirements)にある。
 
-## Usage
+## 使い方
 
 ```
 yt2column [flags] <video URL>
 ```
 
-Flags must come before the video URL. Exactly one of `--out` (write the
-article to a file outside the cache directory) and `--slack` (post it to the
-configured webhook) is required.
+フラグは動画の URL より前に置く。`--out`（キャッシュのディレクトリの外のファイルに記事を書く）と
+`--slack`（設定した Webhook に投稿する）のちょうど 1 つが必要である。
 
-| Flag | Meaning |
+| フラグ | 意味 |
 |---|---|
-| `--out <path>` | File to write the article to. Use either this or `--slack`. It must not exist, its parent directory must exist, and it must be outside the cache directory. |
-| `--slack` | Post the article to the Slack-compatible Incoming Webhook (e.g. Mattermost) set in `SLACK_WEBHOOK_URL`. Use either this or `--out`. |
-| `--refresh` | Ignore the cached transcript, run `yt-dlp` again, and replace the cache. |
-| `--keep-cache` | Keep this video's cache after a successful run. |
-| `--system-prompt <path>` | Read the system prompt template from this file instead of the built-in one. |
-| `--user-prompt <path>` | Read the user prompt template from this file instead of the built-in one. |
-| `--no-shorten` | Do not shorten an over-long body, and do not check the final length. |
-| `--no-review` | Do not review the article against the source material. |
-| `--review-log <path>` | Write the review step's list of changes to this file. Requires the review step; with `--out`, the path must differ from it. |
-| `--shorten-system-prompt <path>` | Read the shorten system prompt template from this file instead of the built-in one. |
-| `--shorten-user-prompt <path>` | Read the shorten user prompt template from this file instead of the built-in one. |
-| `--review-system-prompt <path>` | Read the review system prompt template from this file instead of the built-in one. |
-| `--review-user-prompt <path>` | Read the review user prompt template from this file instead of the built-in one. |
-| `--artifacts <path>` | Save each stage's output (the generated article, the shortened article, and the review list with the applied article) to this directory, and reuse it to resume. The directory must exist and be outside the cache directory. |
-| `--after <stage>` | Run only the stages after `stage` (`generation`, `shorten`, or `review`), reusing that stage's saved output from `--artifacts`. Requires `--artifacts`; `--after review` does not accept `--review-log`. |
-| `-h`, `--help` | Show this usage and exit. |
+| `--out <path>` | 記事を書くファイル。これか `--slack` のどちらかを使う。まだ存在せず、親のディレクトリは存在し、キャッシュのディレクトリの外になければならない。 |
+| `--slack` | `SLACK_WEBHOOK_URL` に設定した Slack 互換の Incoming Webhook（例: Mattermost）に記事を投稿する。これか `--out` のどちらかを使う。 |
+| `--refresh` | キャッシュした文字起こしを使わず、`yt-dlp` を実行し直してキャッシュを置き換える。 |
+| `--keep-cache` | 実行が成功した後も、この動画のキャッシュを残す。 |
+| `--system-prompt <path>` | システムプロンプトのテンプレートを、組み込みのものではなくこのファイルから読む。 |
+| `--user-prompt <path>` | ユーザープロンプトのテンプレートを、組み込みのものではなくこのファイルから読む。 |
+| `--no-shorten` | 長すぎる本文を短くせず、最後の長さの検査もしない。 |
+| `--no-review` | 記事を元の資料と照らす検証・推敲をしない。 |
+| `--review-log <path>` | 検証・推敲の工程の変更の一覧をこのファイルに書く。検証・推敲の工程が必要である。`--out` と一緒に使うときは、そのパスと異なるパスにする。 |
+| `--shorten-system-prompt <path>` | 字数の調整のシステムプロンプトのテンプレートを、組み込みのものではなくこのファイルから読む。 |
+| `--shorten-user-prompt <path>` | 字数の調整のユーザープロンプトのテンプレートを、組み込みのものではなくこのファイルから読む。 |
+| `--review-system-prompt <path>` | 検証・推敲のシステムプロンプトのテンプレートを、組み込みのものではなくこのファイルから読む。 |
+| `--review-user-prompt <path>` | 検証・推敲のユーザープロンプトのテンプレートを、組み込みのものではなくこのファイルから読む。 |
+| `--artifacts <path>` | 各工程の出力（生成した記事、短くした記事、検証・推敲の一覧とそれを適用した記事）をこのディレクトリに保存し、再開に使う。ディレクトリは存在し、キャッシュのディレクトリの外になければならない。 |
+| `--after <stage>` | `stage`（`generation`・`shorten`・`review` のいずれか）より後の工程だけを実行し、その工程の保存した出力を `--artifacts` から再利用する。`--artifacts` が必要である。`--after review` は `--review-log` を受け付けない。 |
+| `-h`, `--help` | この使い方を表示して終わる。 |
 
-The article is written with file mode `0o644`. The output directory must allow
-creating a hard link: publishing uses `link(2)`, so an output path on a
-filesystem without hard-link support cannot be used, and a failed link leaves
-the finished article in a temporary file next to the output path (the path is
-printed to standard error).
+記事はファイルモード `0o644` で書く。出力先のディレクトリはハードリンクを作れなければならない。公開に
+`link(2)` を使うので、ハードリンクに対応しないファイルシステム上の出力先は使えない。リンクに失敗したときは、書き終えた記事が出力先の隣の一時ファイルに残る（そのパスは標準エラーに出力する）。
 
-### Exit codes
+### 終了コード
 
-| Code | Meaning |
+| コード | 意味 |
 |---|---|
-| `0` | The article was written to `--out` or posted to the configured webhook. Warnings about cache cleanup do not change this. `-h`/`--help` also exits `0`. |
-| `1` | A run failure: fetching the transcript, generating the article, or publishing failed; another run held the cache directory; the run was interrupted; an `--artifacts` directory was unusable or a saved artifact was missing, broken, or from another run; or the article was published but writing the review log failed. |
-| `2` | A usage or configuration error: bad arguments or video URL, a rejected environment variable, a forbidden `--artifacts`/`--after` combination, or a stage that could not be built. |
+| `0` | 記事を `--out` に書いた、または設定した Webhook に投稿した。キャッシュの片付けについての警告があっても変わらない。`-h`/`--help` も `0` で終わる。 |
+| `1` | 実行の失敗。文字起こしの取得、記事の生成、または公開が失敗した。別の実行がキャッシュのディレクトリを持っていた。実行が中断された。`--artifacts` のディレクトリが使えなかった、または保存した出力がない、壊れている、別の実行のものだった。または、記事は公開したが、検証・推敲の記録を書けなかった。 |
+| `2` | 使い方または設定の誤り。引数か動画の URL が正しくない、環境変数を拒否した、`--artifacts`/`--after` の組み合わせが許されない、または工程を組み立てられなかった。 |
 
-## Post-generation steps
+## 生成の後の工程
 
-What the shorten and review steps do, and why they cost more, is in the
-README's [Post-generation steps](../../../README.md#post-generation-steps).
+字数の調整と検証・推敲の工程が何をするか、なぜ費用が増えるかは、README の
+[Post-generation steps](../../../README.md#post-generation-steps)にある。
 
-With `--no-shorten` the shorten step and the final length
-check are skipped; with `--no-review` the review step is skipped.
-`--no-shorten --no-review` restores the single-call behavior of earlier
-versions, including the `--out` format.
+`--no-shorten` では、字数の調整の工程と最後の長さの検査を飛ばす。`--no-review` では、検証・推敲の工程を飛ばす。
+`--no-shorten --no-review` は、`--out` の書式を含めて、以前の版の 1 回だけ呼ぶ振る舞いに戻す。
 
-An article's model entries start with the generation model and add one entry per
-step that ran, in the order shorten, review (see [Output format](#output-format)).
-For unattended runs, pass
-`--review-log <path>` to record, in a separate file, what the review step
-changed; the log is written after the article is published, and if it cannot be
-written the run exits `1` with a message saying the article is already
-published.
+記事のモデルの項目は、生成のモデルから始まり、実行した工程ごとに 1 つずつ、字数の調整、検証・推敲の順に加わる（[出力の書式](#出力の書式)を参照）。
+無人で実行するときは、
+`--review-log <path>` を渡すと、検証・推敲の工程が何を変えたかを別のファイルに記録できる。記録は記事を公開した後に書く。書けなかったときは、実行は `1` で終わり、記事はすでに公開したと述べるメッセージを出す。
 
-With `--artifacts <dir>`, a run also saves each stage's output — the generated
-article, the shortened article, and the review list with the applied article —
-to its own file (`<video ID>.generation.json`, `.shorten.json`, `.review.json`)
-as the stage completes and before the article is published, so a later stage's
-failure still leaves the earlier stages on disk. `--after <stage>` restarts from
-a saved stage and runs only the stages after it, reusing the saved output
-instead of calling the LLM for the skipped stages; `--after review` calls no LLM
-and only checks the final length and publishes. A resumed run saves the stages
-it does execute, so the `--artifacts` directory must be writable. The directory
-lives outside the cache directory and is still there on the next run, which is
-what makes the resume work; see [Cache and concurrency](#cache-and-concurrency).
+`--artifacts <dir>` を付けると、実行は各工程の出力（生成した記事、短くした記事、検証・推敲の一覧とそれを適用した記事）も、工程が終わるたびに、記事を公開する前に、それぞれのファイル（`<video ID>.generation.json`・`.shorten.json`・`.review.json`）に保存する。そのため、後の工程が失敗しても、前の工程の出力はディスクに残る。`--after <stage>` は、保存した工程から再開し、その後の工程だけを実行する。飛ばした工程では LLM を呼ばず、保存した出力を再利用する。`--after review` は LLM を呼ばず、最後の長さの検査と公開だけを行う。再開した実行も実行した工程の出力を保存するので、`--artifacts` のディレクトリは書き込めなければならない。このディレクトリはキャッシュのディレクトリの外にあり、次の実行でも残っているので、再開ができる。[キャッシュと同時実行](#キャッシュと同時実行)を参照。
 
-The review step's configuration is validated even with `--no-review`, because
-the configuration is independent of the flags: `YT2COLUMN_REVIEW_LLM` is still
-checked, and if it selects a different provider, that provider's variables are
-checked too. Its API key is required, and for `claude` a set effort must still
-be valid (an unset one selects `high`). A resumed run validates only the
-settings of the stages it executes, so `--after review` requires no LLM
-settings at all. The one exception is the retired LLM variables
-(`YT2COLUMN_LLM_PROVIDER`, `YT2COLUMN_MODEL`, `YT2COLUMN_REVIEW_PROVIDER`,
-`YT2COLUMN_REVIEW_MODEL`): every run, `--after review` included, stops when
-one of them is set (see [Configuration](../../../README.md#configuration)).
+設定はフラグと関係なく決まるので、検証・推敲の工程の設定は `--no-review` でも検査する。`YT2COLUMN_REVIEW_LLM` は検査し、それが別のプロバイダを選ぶときは、そのプロバイダの変数も検査する。その API キーは必要であり、`claude` では、設定した effort が正しくなければならない（設定しなければ `high` になる）。再開した実行は、実行する工程の設定だけを検査するので、`--after review` には LLM の設定が一切要らない。ただ 1 つの例外は廃止した LLM の変数
+（`YT2COLUMN_LLM_PROVIDER`・`YT2COLUMN_MODEL`・`YT2COLUMN_REVIEW_PROVIDER`・
+`YT2COLUMN_REVIEW_MODEL`）で、どれか 1 つでも設定されていると、`--after review` を含むすべての実行が止まる（[Configuration](../../../README.md#configuration)を参照）。
 
-## Token usage
+## トークンの使用量
 
-Every run reports the token usage the LLM API returned, one line per stage, on
-standard error. A successful run writes the lines after its other summary lines;
-a failed run writes them before the line that names the failure. A stage that
-neither ran nor reused an artifact writes no line. The line is:
+すべての実行は、LLM の API が返したトークンの使用量を、工程ごとに 1 行ずつ標準エラーに出力する。成功した実行は、ほかの要約の行の後にこれらの行を書く。失敗した実行は、失敗を示す行の前に書く。実行も出力の再利用もしなかった工程は行を書かない。行の形は次のとおり。
 
 ```text
 yt2column: tokens: <stage> <origin> known input=<n> cache_read=<n> cache_write=<n> output=<n> <model-field>
 yt2column: tokens: <stage> <origin> unknown reason=<reason> <model-field>
 ```
 
-- `<stage>` is `generation`, `shorten`, or `review`.
-- `<origin>` is `run` when this run called the stage's LLM, or `reused` when the
-  stage came from a `--after` artifact.
-- `known` means the four counts are known; they are, in order, `input=`
-  (neither read from nor written to the prompt cache), `cache_read=` (read from
-  the prompt cache), `cache_write=` (written to the prompt cache; always 0 for
-  DeepSeek, which has no such category), and `output=` (the output, reasoning
-  and thinking included). For a `reused` stage they are the counts the saved
-  artifact recorded.
-- `unknown` means the usage could not be read or did not meet the rules. No
-  number is written, and `reason=` gives one space-free word: `not-read` (no
-  usage could be read: a call that failed before its usage was read, or a client
-  that reports none), `recorded-unknown` (a saved artifact stored the stage as
-  unknown), `invalid-rule` (a rule outside the set of known rules), or, for the
-  usage member or one of the consumed members that broke a rule, `usage:missing`,
-  `usage:duplicate`, `usage:not-an-object`,
-  `usage:not-a-non-negative-integer` and their `usage.<member>:missing`,
-  `usage.<member>:duplicate`, `usage.<member>:not-a-non-negative-integer` forms.
-- `<model-field>` is `model=<model>`, the model name, or the fixed word
-  `nomodel` when the stage reported no model that passed the model-name rules.
-  The model name is escaped the way `redact.Line` escapes every standard-error
-  line, so a `"` or a `\` in it is escaped; to recover it, wrap everything after
-  `model=` in double quotes and pass the result to `strconv.Unquote`. A model
-  name that contains a configured secret (or its last eight characters) is
-  replaced by the redaction marker and cannot be recovered.
+- `<stage>` は `generation`・`shorten`・`review` のいずれかである。
+- `<origin>` は、この実行がその工程の LLM を呼んだときは `run`、その工程が `--after` の保存した出力から来たときは `reused` である。
+- `known` は 4 つの数が分かっていることを示す。数は順に、`input=`
+  （プロンプトのキャッシュから読まず、キャッシュにも書かなかった分）、`cache_read=`（プロンプトのキャッシュから読んだ分）、`cache_write=`（プロンプトのキャッシュに書いた分。この区分を持たない DeepSeek では常に 0）、`output=`（出力。推論と思考を含む）である。`reused` の工程では、保存した出力が記録した数である。
+- `unknown` は、使用量を読めなかったか、規則を満たさなかったことを示す。数は書かず、`reason=` が空白を含まない 1 語を示す。`not-read`（使用量を読めなかった。使用量を読む前に失敗した呼び出し、または使用量を報告しないクライアント）、`recorded-unknown`（保存した出力が、その工程を不明として記録していた）、`invalid-rule`（既知の規則の外の規則）、または、規則を破った使用量のメンバか、読み取るメンバの 1 つについての `usage:missing`・
+  `usage:duplicate`・`usage:not-an-object`・
+  `usage:not-a-non-negative-integer` と、その `usage.<member>:missing`・
+  `usage.<member>:duplicate`・`usage.<member>:not-a-non-negative-integer` の形である。
+- `<model-field>` は、モデルの名前を示す `model=<model>` か、モデルの名前の規則を満たすモデルを工程が報告しなかったときの固定の語
+  `nomodel` である。モデルの名前は、`redact.Line` が標準エラーのすべての行をエスケープするのと同じ方法でエスケープするので、名前の中の `"` と `\` はエスケープされる。元に戻すには、
+  `model=` の後のすべてを二重引用符で囲み、`strconv.Unquote` に渡す。設定した秘密情報（またはその末尾の 8 文字）を含むモデルの名前は、伏せ字の印に置き換わり、元に戻せない。
 
-For example:
+例:
 
 ```text
 yt2column: tokens: generation reused known input=46 cache_read=0 cache_write=0 output=85 model=deepseek-flash
@@ -151,40 +103,22 @@ yt2column: tokens: review run unknown reason=usage.output_tokens:not-a-non-negat
 yt2column: tokens: generation run unknown reason=not-read nomodel
 ```
 
-An invalid `usage` alone does not fail the run: the call still succeeds, and
-whether the article is published and the exit code is 0 depend on the rest of
-the processing. A failed call fails the run (the exit code is non-zero), but its
-line is not always `unknown`: a truncation, an unexpected finish reason, or an
-empty response still carries the rejected response's model and usage, so the
-line can be `known`. `reason=not-read` is written only when no usage could be
-read.
+正しくない `usage` だけでは実行は失敗しない。呼び出しは成功し、記事を公開するかどうかと、終了コードが 0 かどうかは、残りの処理で決まる。失敗した呼び出しは実行を失敗させる（終了コードは 0 以外）が、その行が `unknown` になるとは限らない。打ち切り、想定外の終了の理由、空の応答は、拒否した応答のモデルと使用量を持っているので、行は `known` になりうる。`reason=not-read` を書くのは、使用量をまったく読めなかったときだけである。
 
-A run that ends before it calls any LLM (a usage or configuration error, a
-transcript-fetch failure, a rejected `--after` input, an unusable `--artifacts`
-directory, or a stage that could not be built) writes no token line. A run that
-is stopped without writing its summary (a second signal, `kill -9`, or a panic)
-writes none either.
+LLM を 1 度も呼ばずに終わった実行（使い方または設定の誤り、文字起こしの取得の失敗、`--after` の入力の拒否、使えない `--artifacts` のディレクトリ、または組み立てられなかった工程）は、トークンの行を書かない。要約を書かずに止められた実行（2 度目のシグナル、`kill -9`、panic）も書かない。
 
-The counts are also stored, as the `usage` element, in a `--artifacts` file. A
-stage's call time is stored next to it, as the `call_time` element: the moment
-the stage's LLM call returned, in UTC and whole seconds. The artifact format is
-version 3: a version 1 or version 2 file is rejected on resume, so after
-updating, use a new `--artifacts` directory or move the old one away.
+数は、`--artifacts` のファイルにも `usage` の要素として保存する。工程の呼び出しの時刻はその隣に `call_time` の要素として保存する。工程の LLM の呼び出しが戻った時点を、UTC の秒単位で表す。保存の形式は版 3 である。版 1 と版 2 のファイルは再開のときに拒否するので、更新した後は、新しい `--artifacts` のディレクトリを使うか、古いディレクトリを移す。
 
-## Output format
+## 出力の書式
 
-The article is the same text in both outputs, but each output arranges the
-information differently: the reader's part (title, channel name, body, source
-link) comes first, and the development part (models, estimated cost) comes last
-in a Slack post and in the front matter of a file.
+記事の本文はどちらの出力でも同じだが、情報の並べ方は出力ごとに異なる。読み手のための部分（タイトル、チャンネル名、本文、出典リンク）が先に来て、開発のための部分（モデル、推定の料金）は、Slack への投稿では最後に、ファイルではフロントマターに置く。
 
-The Slack post is shown in the README's
-[The Slack post](../../../README.md#the-slack-post).
+Slack への投稿は README の
+[The Slack post](../../../README.md#the-slack-post)にある。
 
-### The `--out` file
+### `--out` のファイル
 
-The file starts with a YAML front matter, then the title, the channel name (when
-there is one), and the body:
+ファイルは YAML のフロントマターで始まり、タイトル、チャンネル名（あるとき）、本文が続く。
 
 ```text
 ---
@@ -212,30 +146,17 @@ Two URLs for one video share one entry.
 出典: <https://www.youtube.com/watch?v=abcdefghijk>
 ```
 
-- The keys appear in this order. `channel` appears only when the video has a
-  channel name; `shorten_*` only when the article went through the shorten step (run now or
-  reused with `--after`); `review_*` only when it went through the review step.
-- Every value is a double-quoted string, quoted with Go's `strconv.Quote`, so a
-  value that contains a quote, a backslash, `:`, `#`, or `---` cannot change the
-  structure. `estimated_cost_usd` is a string too: four decimals, or `unknown`
-  (see [Estimated cost](#estimated-cost)). An empty model version is written as
-  `(none)`.
-- The channel name appears again under the title, so a Markdown viewer that
-  hides the front matter still shows it. A name that starts like a Markdown block
-  (`# `, `- `, `> `, and so on) gets a backslash at the start (after the digits
-  for a numbered-list marker) so that the rendered line is the name; leading
-  whitespace is dropped.
-- This format replaces the earlier one, which listed the models and the cost
-  under the title (`- Model: …`).
+- キーはこの順に並ぶ。`channel` は動画がチャンネル名を持つときだけ、`shorten_*` は記事が字数の調整の工程を経たとき（今回の実行か、`--after` での再利用）だけ、`review_*` は検証・推敲の工程を経たときだけ現れる。
+- どの値も Go の `strconv.Quote` で二重引用符に囲んだ文字列なので、引用符、バックスラッシュ、`:`、`#`、`---` を含む値でも構造を変えられない。`estimated_cost_usd` も文字列で、小数 4 桁か `unknown` である
+  （[推定の料金](#推定の料金)を参照）。空のモデルの版は
+  `(none)` と書く。
+- チャンネル名はタイトルの下にもう一度現れるので、フロントマターを隠す Markdown のビューアでも表示される。Markdown のブロックのように始まる名前
+  （`# `、`- `、`> ` など）は、表示した行が名前そのものになるよう、先頭（番号付きの箇条書きの印では数字の後）にバックスラッシュを付ける。先頭の空白は落とす。
+- この書式は、モデルと料金をタイトルの下に並べていた以前の書式（`- Model: …`）に代わるものである。
 
-## Estimated cost
+## 推定の料金
 
-Every run that calls or reuses at least one LLM stage also reports an estimated
-cost on standard error: one line per stage, then two total lines. A successful
-run writes them after the other summary lines; a failed run writes them before
-the line that names the failure. A stage that neither ran nor reused an artifact
-writes no cost line, and a run that writes no token line writes no cost line
-either. The lines are:
+LLM の工程を少なくとも 1 つ呼ぶか再利用したすべての実行は、推定の料金も標準エラーに出力する。工程ごとに 1 行、その後に合計の 2 行である。成功した実行は、ほかの要約の行の後にこれらの行を書く。失敗した実行は、失敗を示す行の前に書く。実行も出力の再利用もしなかった工程は料金の行を書かず、トークンの行を書かない実行は料金の行も書かない。行の形は次のとおり。
 
 ```text
 yt2column: cost: <stage> <origin> known usd=<amount> <basis> at=<time>
@@ -244,32 +165,19 @@ yt2column: cost-total: <total> known usd=<amount>
 yt2column: cost-total: <total> unknown
 ```
 
-- `<stage>` and `<origin>` are the same words as the token-usage line:
-  `generation`, `shorten`, or `review`, and `run` or `reused`.
-- `known` is followed by the amount as `usd=` and six decimals, then `basis`,
-  the rate basis the estimate applied: `flat` (the model has one rate),
-  `off-peak` or `peak` (the two windows of DeepSeek's time-of-day rate), or
-  `short-prompt` or `long-prompt` (Claude Haiku's two prompt-length tiers).
-  `invalid` in this position, like the one under `unknown`, marks a broken
-  invariant and does not occur in a correct build.
-- `unknown` means the cost could not be estimated. No number is written, and
-  `reason` gives one word: `usage-unknown` (the stage's token counts are
-  unknown), `no-model` (the stage reported no model name), or `unpriced-model`
-  (the model name is not in the rate table). `invalid` means the CLI broke an
-  invariant of the pricing package; it does not occur in a correct build.
-- `at` is the call time the estimate used, in UTC as `YYYY-MM-DDTHH:MM:SSZ`. A
-  reused stage shows the time its artifact recorded; `none` marks a broken
-  invariant and does not occur in a correct build.
-- The `cost-total` lines are two totals: `run` is this run's cost, from the
-  stages this run called, and `article` is the whole article's cost, from those
-  stages plus the ones reused from `--after`. A total is `unknown` when any
-  stage in its set is unknown, and the `article` total is also `unknown` when
-  the generation stage is neither run nor reused (an article always has a
-  generation stage). Without `--after` the two totals are equal. The totals
-  round the exact sum of the stages, not the already-rounded stage amounts, so a
-  total can differ from the sum of the printed stage lines in the last digit.
+- `<stage>` と `<origin>` は、トークンの使用量の行と同じ語である。
+  `generation`・`shorten`・`review` のいずれかと、`run` か `reused` である。
+- `known` の後には、`usd=` と小数 6 桁の金額、その後に `basis`、すなわち推定に適用した料金の区分が続く。`flat`（モデルの料金が 1 つ）、
+  `off-peak` か `peak`（DeepSeek の時間帯による料金の 2 つの時間帯）、または
+  `short-prompt` か `long-prompt`（Claude Haiku のプロンプトの長さによる 2 つの段階）である。
+  この位置の `invalid` は、`unknown` の下のものと同じく、不変条件が破れたことを示し、正しいビルドでは起こらない。
+- `unknown` は、料金を推定できなかったことを示す。数は書かず、
+  `reason` が 1 語を示す。`usage-unknown`（工程のトークン数が不明）、`no-model`（工程がモデルの名前を報告しなかった）、`unpriced-model`
+  （モデルの名前が料金表にない）である。`invalid` は、CLI が料金のパッケージの不変条件を破ったことを示し、正しいビルドでは起こらない。
+- `at` は、推定に使った呼び出しの時刻で、UTC の `YYYY-MM-DDTHH:MM:SSZ` の形である。再利用した工程は、保存した出力が記録した時刻を示す。`none` は不変条件が破れたことを示し、正しいビルドでは起こらない。
+- `cost-total` の行は 2 つの合計である。`run` はこの実行の料金で、この実行が呼んだ工程から求める。`article` は記事全体の料金で、それらの工程に `--after` で再利用した工程を加えて求める。合計は、その集合のどれか 1 つの工程が不明なら `unknown` になる。`article` の合計は、生成の工程を実行も再利用もしなかったときも `unknown` になる（記事には必ず生成の工程がある）。`--after` がなければ 2 つの合計は等しい。合計は、丸めた後の工程の金額ではなく、工程の正確な和を丸めるので、表示した工程の行の和と最後の桁で異なりうる。
 
-For example:
+例:
 
 ```text
 yt2column: cost: generation reused known usd=0.000158 peak at=2026-10-16T01:12:09Z
@@ -279,86 +187,58 @@ yt2column: cost-total: run unknown
 yt2column: cost-total: article unknown
 ```
 
-Both outputs carry the article's cost, with four decimals, or `unknown`: the
-`--out` file as the front matter key `estimated_cost_usd` (`"0.0023"` or
-`"unknown"`), and the Slack post as the end of its footnote, which the README's
-[Estimated cost](../../../README.md#estimated-cost) shows.
+どちらの出力も記事の料金を、小数 4 桁か `unknown` で持つ。
+`--out` のファイルはフロントマターのキー `estimated_cost_usd`（`"0.0023"` か
+`"unknown"`）として、Slack への投稿は脚注の末尾として持つ。脚注の形は README の
+[Estimated cost](../../../README.md#estimated-cost)にある。
 
-See [Output format](#output-format) for both layouts.
+2 つの出力の並びは[出力の書式](#出力の書式)を参照。
 
-Why the estimate can differ from the provider's invoice is in the README's
-[Estimated cost](../../../README.md#estimated-cost). A reused stage is priced with
-the rate table of the CLI that resumes, not the one that saved the artifact, so
-a run that resumes after a rate change reports a different article cost for the
-same saved text: the artifact records the call time, not the rate.
+推定がプロバイダの請求額と異なりうる理由は、README の
+[Estimated cost](../../../README.md#estimated-cost)にある。再利用した工程の料金は、出力を保存した CLI ではなく、再開した CLI の料金表で求める。そのため、料金が変わった後に再開した実行は、同じ保存した文章について異なる記事の料金を示す。保存した出力が記録するのは呼び出しの時刻であり、料金ではない。
 
-A Slack post from the localhost server cannot show why an unknown cost is
-unknown. To find the
-reason, run the CLI with the same model setting and read the `reason` word on
-its cost line.
+localhost サーバからの Slack への投稿は、不明な料金がなぜ不明かを示せない。理由を調べるには、同じモデルの設定で CLI を実行し、料金の行の `reason` の語を読む。
 
-## Cache and concurrency
+## キャッシュと同時実行
 
-Every run takes an exclusive lock on the cache directory, so runs that share a
-cache directory are serialized: a second run fails immediately, without waiting,
-while the first holds the lock. Different cache directories do not affect each
-other.
+すべての実行はキャッシュのディレクトリに排他のロックを取るので、キャッシュのディレクトリを共有する実行は 1 つずつ動く。最初の実行がロックを持つ間、2 つ目の実行は待たずにすぐ失敗する。異なるキャッシュのディレクトリは互いに影響しない。
 
-The artifacts saved with `--artifacts` live outside the cache directory, so
-removing the cache does not remove them and they are still there for a resume.
-The CLI neither prunes nor deletes them; delete the directory yourself when it
-is no longer needed.
+`--artifacts` で保存した出力はキャッシュのディレクトリの外にあるので、キャッシュを消しても消えず、再開に使える。
+CLI はそれらを間引くことも消すこともない。要らなくなったら、ディレクトリを自分で消す。
 
-If the CLI is killed with SIGKILL, `yt-dlp` may keep running. The lock stays held
-until that `yt-dlp` exits, so until then the next run fails as a concurrent run
-(the message names the lock file and suggests `lsof` on it); it succeeds once
-the leftover `yt-dlp` has exited.
+CLI が SIGKILL で止められると、`yt-dlp` が動き続けることがある。その `yt-dlp` が終わるまでロックは持たれたままなので、それまでの間、次の実行は同時の実行として失敗する（メッセージはロックのファイルを示し、それに `lsof` を使うよう勧める）。残った `yt-dlp` が終われば成功する。
 
-If the cache is corrupt (for example a truncated transcript or `info.json`), the
-run fails with a message saying so. Run again with `--refresh` to fetch the
-transcript again and replace the cache.
+キャッシュが壊れている（例えば文字起こしや `info.json` が途中で切れている）と、実行はそう述べるメッセージで失敗する。`--refresh` を付けて実行し直すと、文字起こしを取得し直してキャッシュを置き換える。
 
-The channel name in a saved `info.json` is checked before the LLM is called: a
-name that is only whitespace, contains a control character (or a bidirectional
-control character such as U+202E), or is longer than 200 code points makes the
-run fail, where earlier versions accepted it. Run with
-`--refresh` to fetch the video again and replace the cache. The localhost
-server rejects such a `channelName` with `invalid_body`.
+保存した `info.json` のチャンネル名は、LLM を呼ぶ前に検査する。空白だけの名前、制御文字（または U+202E のような双方向の制御文字）を含む名前、200 コードポイントを超える名前は、実行を失敗させる。以前の版は受け付けていた。
+`--refresh` を付けて実行し、動画を取得し直してキャッシュを置き換える。localhost サーバは、そのような `channelName` を `invalid_body` で拒否する。
 
-## Webhook publishing
+## Webhook への投稿
 
-With `--slack`, the article is posted to the Slack-compatible Incoming Webhook
-in `SLACK_WEBHOOK_URL` instead of a file. The rules for the URL, the split into
-several messages, `silent`, and the check for syntax that would become a
-mention are in the README's
-[Webhook publishing](../../../README.md#webhook-publishing).
+`--slack` を付けると、記事はファイルではなく、`SLACK_WEBHOOK_URL` の Slack 互換の Incoming Webhook
+に投稿する。URL の規則、複数のメッセージへの分割、`silent`、メンションになりうる書式の検査は、README の
+[Webhook publishing](../../../README.md#webhook-publishing)にある。
 
-A URL those rules reject is a configuration error with exit code `2`, and
-because the variable is validated whenever it is set, this also stops an
-`--out` run.
+それらの規則が拒否する URL は終了コード `2` の設定の誤りになる。変数は設定されていれば必ず検査するので、これは
+`--out` の実行も止める。
 
-When a mention target is posted with U+200B inserted, the file written by
-`--out` and the article itself are not changed.
+メンションの対象の後に U+200B を入れて投稿するときも、
+`--out` が書くファイルと記事そのものは変わらない。
 
-A rejected article's error gives the line and column in the post (the lines
-differ from a file written by `--out`, which starts with front matter). Running
-again generates a different article, which may not have the problem; run with
-`--out` to inspect what the model generated.
+拒否した記事のエラーは、投稿の中の行と桁を示す（フロントマターで始まる `--out` のファイルとは行が異なる）。実行し直すと別の記事を生成するので、問題がなくなることがある。モデルが生成したものを確かめるには、
+`--out` を付けて実行する。
 
-## Setting up yt-dlp
+## yt-dlp の準備
 
-yt2column fetches subtitles by running `yt-dlp`, which needs to reach YouTube
-reliably. Beyond `yt-dlp` itself that means two optional pieces; without them
-`yt-dlp` warns about them, and YouTube is more likely to answer with HTTP 429
-(Too Many Requests):
+yt2column は `yt-dlp` を実行して字幕を取得するので、`yt-dlp` が YouTube に安定して届く必要がある。それには `yt-dlp` 本体のほかに、2 つの任意の部品が要る。部品がないと
+`yt-dlp` がそのことを警告し、YouTube が HTTP 429
+（Too Many Requests）を返しやすくなる。
 
-- a JavaScript runtime ([deno](https://deno.com/) is the one `yt-dlp` enables
-  by default), and
-- [curl_cffi](https://github.com/lexiforest/curl_cffi) for browser
-  impersonation.
+- JavaScript のランタイム（[deno](https://deno.com/) は `yt-dlp` が既定で使うもの）
+- ブラウザのなりすましのための [curl_cffi](https://github.com/lexiforest/curl_cffi)
 
-On macOS the Homebrew formula brings both (it depends on `deno` and bundles
-`curl_cffi`):
+macOS では、Homebrew の formula が両方を入れる（`deno` に依存し、
+`curl_cffi` を同梱する）。
 
 ```sh
 brew install yt-dlp
@@ -366,39 +246,33 @@ command -v yt-dlp                   # must be the Homebrew one, not an older cop
 yt-dlp --list-impersonate-targets   # lists targets whose Source is curl_cffi
 ```
 
-If another `yt-dlp` comes first on `PATH`, remove it or point
-`YT2COLUMN_YTDLP_PATH` at the one to use.
+別の `yt-dlp` が `PATH` で先に見つかるときは、それを消すか、
+`YT2COLUMN_YTDLP_PATH` で使う方を指す。
 
-On other platforms, see the yt-dlp
-[installation](https://github.com/yt-dlp/yt-dlp/wiki/Installation),
-[EJS (JavaScript runtime)](https://github.com/yt-dlp/yt-dlp/wiki/EJS) and
-[impersonation](https://github.com/yt-dlp/yt-dlp#impersonation) documentation.
+ほかのプラットフォームでは、yt-dlp の
+[インストール](https://github.com/yt-dlp/yt-dlp/wiki/Installation)、
+[EJS（JavaScript のランタイム）](https://github.com/yt-dlp/yt-dlp/wiki/EJS)、
+[なりすまし](https://github.com/yt-dlp/yt-dlp#impersonation)の文書を参照。
 
-## Configuration
+## 設定
 
-The CLI reads the variables in the README's
-[Configuration](../../../README.md#configuration), and these two, which only the
-CLI reads:
+CLI は README の
+[Configuration](../../../README.md#configuration)の変数と、CLI だけが読む次の 2 つの変数を読む。
 
-| Variable | Description | When unset |
+| 変数 | 説明 | 未設定のとき |
 |---|---|---|
-| `YT2COLUMN_CACHE_DIR` | Cache directory for subtitles and video metadata | `$HOME/Library/Caches/yt2column` on macOS; `$XDG_CACHE_HOME/yt2column` or `$HOME/.cache/yt2column` on other Unix |
-| `YT2COLUMN_YTDLP_PATH` | Path to `yt-dlp` | `yt-dlp` on `PATH` |
+| `YT2COLUMN_CACHE_DIR` | 字幕と動画のメタデータのキャッシュのディレクトリ | macOS では `$HOME/Library/Caches/yt2column`。ほかの Unix では `$XDG_CACHE_HOME/yt2column` か `$HOME/.cache/yt2column` |
+| `YT2COLUMN_YTDLP_PATH` | `yt-dlp` のパス | `PATH` 上の `yt-dlp` |
 
-`yt2column-server` reads neither `YT2COLUMN_CACHE_DIR` nor `YT2COLUMN_YTDLP_PATH`,
-because it never calls `yt-dlp`.
+`yt2column-server` は、`yt-dlp` を呼ばないので、`YT2COLUMN_CACHE_DIR` も `YT2COLUMN_YTDLP_PATH` も読まない。
 
-`SLACK_WEBHOOK_URL` is required with `--slack`; optional with `--out` (no
-value).
+`SLACK_WEBHOOK_URL` は、`--slack` では必要で、`--out` では任意である（値は使わない）。
 
-A model ID with surrounding white space is rejected, before any request, when
-the step's client is built: the CLI builds its clients before the run starts.
+前後に空白のあるモデルの ID は、工程のクライアントを組み立てるときに、リクエストの前に拒否する。CLI は実行が始まる前にクライアントを組み立てる。
 
-With `YT2COLUMN_REVIEW_LLM` unset, the review step uses generation's provider and
-model also in a resumed run that only reviews; a resumed run that only reviews
-and has `YT2COLUMN_REVIEW_LLM` set does not read `YT2COLUMN_LLM`.
+`YT2COLUMN_REVIEW_LLM` を設定しなければ、検証・推敲だけを行う再開した実行でも、検証・推敲の工程は生成のプロバイダとモデルを使う。検証・推敲だけを行い、
+`YT2COLUMN_REVIEW_LLM` を設定した再開した実行は、`YT2COLUMN_LLM` を読まない。
 
-The retired LLM variables stop every run, including runs that read no LLM
-setting such as `--after review`; a CLI run exits with `2` before it starts.
-See the README's
-[Migrating from the retired LLM variables](../../../README.md#migrating-from-the-retired-llm-variables).
+廃止した LLM の変数は、`--after review` のように LLM の設定を読まない実行を含めて、すべての実行を止める。CLI の実行は始まる前に `2` で終わる。
+README の
+[Migrating from the retired LLM variables](../../../README.md#migrating-from-the-retired-llm-variables)を参照。

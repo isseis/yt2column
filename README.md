@@ -91,7 +91,7 @@ An API key for the selected provider is required: `DEEPSEEK_API_KEY` for
 different provider, that provider's key is required too.
 
 The CLI's requirements are in
-[docs/dev/guides/cli.md](docs/dev/guides/cli.md#requirements).
+[docs/dev/guides/cli.md](docs/dev/guides/cli.md#必要なもの).
 
 ## Post-generation steps
 
@@ -116,7 +116,7 @@ generation alone.
 
 The CLI's flags that skip a step, record the review's changes, or save and
 resume the stages are in
-[docs/dev/guides/cli.md](docs/dev/guides/cli.md#post-generation-steps).
+[docs/dev/guides/cli.md](docs/dev/guides/cli.md#生成の後の工程).
 
 ## Output format
 
@@ -126,7 +126,7 @@ link) comes first, and the development part (models, estimated cost) comes last
 in a Slack post and in the front matter of a file.
 
 The file the CLI writes is in
-[docs/dev/guides/cli.md](docs/dev/guides/cli.md#the---out-file).
+[docs/dev/guides/cli.md](docs/dev/guides/cli.md#--out-のファイル).
 
 ### The Slack post
 
@@ -195,7 +195,7 @@ A Slack post from the localhost server cannot show why an unknown cost is
 unknown, because the server's logs and HTTP responses do not change.
 
 The CLI's cost lines on standard error, which give the reason, are in
-[docs/dev/guides/cli.md](docs/dev/guides/cli.md#estimated-cost).
+[docs/dev/guides/cli.md](docs/dev/guides/cli.md#推定の料金).
 
 ## Webhook publishing
 
@@ -253,7 +253,7 @@ of the old article and all of the new one.
 
 How the CLI posts with `--slack`, and how to inspect a rejected article with
 `--out`, is in
-[docs/dev/guides/cli.md](docs/dev/guides/cli.md#webhook-publishing).
+[docs/dev/guides/cli.md](docs/dev/guides/cli.md#webhook-への投稿).
 
 ## Localhost server
 
@@ -262,7 +262,7 @@ generates the article, and returns it, keeping it in memory. Posting it to the
 Slack-compatible Webhook is an operation of its own: the extension's current
 `/articles` request generates and posts in one go as before. The server's HTTP
 API, including the job API that generates, returns, and posts on request, is in
-[docs/dev/guides/development.md](docs/dev/guides/development.md#localhost-server-api).
+[docs/dev/guides/development.md](docs/dev/guides/development.md#localhost-サーバの-api).
 The extension does not connect
 to the server itself: the browser starts the native messaging host,
 `yt2column-nmhost`, which relays the request to the server's socket (see
@@ -428,7 +428,7 @@ What the extension shows for each reason:
 | `internal_error` | fixed message (unexpected reply when `requestId` is empty) |
 
 The status code of each reason, and how to check the server with `curl`, are in
-[docs/dev/guides/development.md](docs/dev/guides/development.md#checking-the-server-with-curl).
+[docs/dev/guides/development.md](docs/dev/guides/development.md#curl-でサーバを確かめる).
 
 ### Troubleshooting
 
@@ -523,7 +523,7 @@ post, and starts without it (see [Localhost server](#localhost-server)). It deri
 [Localhost server](#localhost-server)).
 
 The variables only the CLI reads, and how the CLI reads the ones above, are in
-[docs/dev/guides/cli.md](docs/dev/guides/cli.md#configuration).
+[docs/dev/guides/cli.md](docs/dev/guides/cli.md#設定).
 
 The value of an environment variable is never trimmed or otherwise corrected;
 an empty value is treated as set and rejected, not as unset.

@@ -21,7 +21,7 @@ import (
 // guide (cli.md) and the Slack post in README.md. The guard finds each example
 // as the first fenced code block after its heading line.
 const (
-	cliFileExampleHeading     = "### The `--out` file"
+	cliFileExampleHeading     = doctestutil.CLIOutFileHeading
 	readmeSlackExampleHeading = "### The Slack post"
 )
 

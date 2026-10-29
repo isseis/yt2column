@@ -142,7 +142,7 @@ func numberedItems(section string) []string {
 // here, so a new flag fails this test until cli.md names it.
 func TestREADMEDocumentsFlags(t *testing.T) {
 	doc := doctestutil.ReadDoc(t, cliDocPath)
-	table := doctestutil.FindTable(doc, "Flag")
+	table := doctestutil.FindTable(doc, doctestutil.CLIFlagColumn)
 	if table == nil {
 		t.Fatal("cli.md has no flags table")
 	}
@@ -237,17 +237,17 @@ func TestDeepSeekDocsContract(t *testing.T) {
 	}{
 		{
 			name:    "deepseek",
-			heading: "### DeepSeek integration test",
+			heading: doctestutil.DevDeepSeekIntegrationHeading,
 			values:  []string{deepseektestutil.APIKeyEnv, deepseektestutil.DeepSeekOptInEnv, deepseektestutil.ModelEnv},
 		},
 		{
 			name:    "cli",
-			heading: "### CLI integration test",
+			heading: doctestutil.DevCLIIntegrationHeading,
 			values:  []string{deepseektestutil.APIKeyEnv, deepseektestutil.CLIOptInEnv, deepseektestutil.ModelEnv},
 		},
 		{
 			name:    "cli_slack",
-			heading: "### CLI webhook integration test",
+			heading: doctestutil.DevCLIWebhookIntegrationHeading,
 			values:  []string{deepseektestutil.APIKeyEnv, publishertestutil.CLISlackOptInEnv, deepseektestutil.ModelEnv},
 		},
 	} {
@@ -866,7 +866,7 @@ func checkExampleLines(t *testing.T, section, prefix string, allowed map[string]
 // internal/artifact's TestParseRecordRejectsUsage.
 func TestTokenUsageDocsContract(t *testing.T) {
 	cli := doctestutil.ReadDoc(t, cliDocPath)
-	section := doctestutil.SectionByHeading(cli, "## Token usage")
+	section := doctestutil.SectionByHeading(cli, doctestutil.CLIUsageHeading)
 	if section == "" {
 		t.Fatal("cli.md has no Token usage section")
 	}
@@ -924,7 +924,7 @@ func TestTokenUsageDocsContract(t *testing.T) {
 // test: the line format by cmd/yt2column's TestRunCostLinesGoldenFormat.
 func TestCostDocsContract(t *testing.T) {
 	cli := doctestutil.ReadDoc(t, cliDocPath)
-	section := doctestutil.SectionByHeading(cli, "## Estimated cost")
+	section := doctestutil.SectionByHeading(cli, doctestutil.CLIEstimatedCostHeading)
 	if section == "" {
 		t.Fatal("cli.md has no Estimated cost section")
 	}

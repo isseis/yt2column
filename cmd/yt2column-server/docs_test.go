@@ -80,7 +80,7 @@ func TestServerDocsContract(t *testing.T) {
 	})
 
 	// The server's HTTP API is in the development guide, under one section.
-	const apiHeading = "## Localhost server API"
+	const apiHeading = doctestutil.DevAPIHeading
 	api := doctestutil.SectionByHeading(development, apiHeading)
 
 	t.Run("development.md", func(t *testing.T) {
@@ -106,17 +106,34 @@ func TestServerDocsContract(t *testing.T) {
 		}
 	})
 
+	// rejection_reasons checks development.md's full rejection table against
+	// the server's reasons and status codes, and the README's two-column table
+	// against both: the same set of reasons, each shown in the category
+	// development.md gives it.
 	t.Run("rejection_reasons", func(t *testing.T) {
-		table := doctestutil.FindTable(api, "reason")
+		table := doctestutil.FindTable(api, doctestutil.DevReasonColumn)
 		if table == nil {
 			t.Fatal("development.md has no rejection reason table")
 		}
-		byReason := map[string]int{}
+		reasonCol := columnIndex(t, "development.md", table[0], doctestutil.DevReasonColumn)
+		statusCol := columnIndex(t, "development.md", table[0], doctestutil.DevStatusColumn)
+		displayCol := columnIndex(t, "development.md", table[0], doctestutil.DevDisplayColumn)
+		type documented struct {
+			status  int
+			display doctestutil.RejectionDisplay
+		}
+		byReason := map[string]documented{}
 		for _, row := range table[1:] {
-			if len(row) < 2 {
+			if len(row) <= max(reasonCol, statusCol, displayCol) {
+				t.Errorf("development.md rejection table row %q has too few cells", row)
 				continue
 			}
-			byReason[doctestutil.StripBackticks(row[0])] = parseStatus(t, row[1])
+			reason := doctestutil.StripBackticks(row[reasonCol])
+			display, err := doctestutil.RejectionDisplayJA.Category(row[displayCol])
+			if err != nil {
+				t.Errorf("development.md rejection table, %s: %v", reason, err)
+			}
+			byReason[reason] = documented{status: parseStatus(t, row[statusCol]), display: display}
 		}
 		reasons := server.RejectReasonsForTest()
 		for _, reason := range reasons {
@@ -125,20 +142,63 @@ func TestServerDocsContract(t *testing.T) {
 				t.Errorf("development.md rejection table has no reason %q", reason.Value)
 				continue
 			}
-			if got != reason.Status {
-				t.Errorf("development.md lists %s with status %d, want %d", reason.Value, got, reason.Status)
+			if got.status != reason.Status {
+				t.Errorf("development.md lists %s with status %d, want %d", reason.Value, got.status, reason.Status)
 			}
 		}
 		if len(byReason) != len(reasons) {
 			t.Errorf("development.md rejection table has %d rows, want %d", len(byReason), len(reasons))
 		}
+
+		// The README is English until it gets its Japanese version, so its
+		// table is read with the English column names and spellings.
+		shown := doctestutil.FindTable(readme, "reason")
+		if shown == nil {
+			t.Fatal("README.md has no rejection reason table")
+		}
+		shownReasonCol := columnIndex(t, "README.md", shown[0], "reason")
+		shownDisplayCol := columnIndex(t, "README.md", shown[0], "extension shows")
+		listed := map[string]struct{}{}
+		for _, row := range shown[1:] {
+			if len(row) <= max(shownReasonCol, shownDisplayCol) {
+				t.Errorf("README.md rejection table row %q has too few cells", row)
+				continue
+			}
+			reason := doctestutil.StripBackticks(row[shownReasonCol])
+			if _, dup := listed[reason]; dup {
+				t.Errorf("README.md rejection table lists %q twice", reason)
+			}
+			listed[reason] = struct{}{}
+			display, err := doctestutil.RejectionDisplayEN.Category(row[shownDisplayCol])
+			if err != nil {
+				t.Errorf("README.md rejection table, %s: %v", reason, err)
+				continue
+			}
+			// A development.md cell in no category has already failed above.
+			if want, ok := byReason[reason]; ok && want.display != 0 && display != want.display {
+				t.Errorf("README.md shows %s as %v, development.md as %v", reason, display, want.display)
+			}
+		}
+		for _, reason := range reasons {
+			if _, ok := listed[reason.Value]; !ok {
+				t.Errorf("README.md rejection table has no reason %q", reason.Value)
+			}
+		}
+		if len(listed) != len(reasons) {
+			t.Errorf("README.md rejection table has %d reasons, want %d", len(listed), len(reasons))
+		}
 	})
 
 	t.Run("api_codes", func(t *testing.T) {
 		for _, set := range server.APICodesForTest() {
-			tables := tablesByFirstHeader(api, set.Name)
+			header, ok := doctestutil.DevAPICodeTableHeader(set.Name)
+			if !ok {
+				t.Errorf("doctestutil has no development.md table header for the %q codes", set.Name)
+				continue
+			}
+			tables := tablesByFirstHeader(api, header)
 			if len(tables) != 1 {
-				t.Errorf("development.md %s has %d tables headed %q, want 1", apiHeading, len(tables), set.Name)
+				t.Errorf("development.md %s has %d tables headed %q, want 1", apiHeading, len(tables), header)
 				continue
 			}
 			documented := map[string]struct{}{}
@@ -206,6 +266,19 @@ func TestServerDocsContract(t *testing.T) {
 			t.Error("security.md 8.2 does not name the host's allowed origin")
 		}
 	})
+}
+
+// columnIndex returns the index of the header cell equal to name, ignoring case
+// and backticks, failing the test when doc's table has no such column.
+func columnIndex(t *testing.T, doc string, header []string, name string) int {
+	t.Helper()
+	i := slices.IndexFunc(header, func(cell string) bool {
+		return strings.EqualFold(doctestutil.StripBackticks(cell), name)
+	})
+	if i < 0 {
+		t.Fatalf("%s: the table headed %q has no %q column", doc, header, name)
+	}
+	return i
 }
 
 // parseStatus reads the first integer in cell, failing the test otherwise.

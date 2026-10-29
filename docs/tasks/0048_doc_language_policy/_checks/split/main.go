@@ -5,7 +5,7 @@
 // commits, the merge-base and the commit that moved the text in English, and
 // reads the documents at each:
 //
-//	go run -tags test ./docs/tasks/0048_doc_language_policy/_checks/split/ <merge-base> <english-move-commit>
+//	go run -tags test ./docs/tasks/0048_doc_language_policy/_checks/split/ <merge-base> <english-move-commit> [<translated>]
 //
 // Every sentence, table row, and code block line of the README at the
 // merge-base must be in at least one of the three documents at the move
@@ -29,6 +29,11 @@
 // nowhere. Only a unit found nowhere, a split entry that does not hold, or a
 // second version of cli.md or development.md under docs/dev/guides (AC-24)
 // fails the run.
+//
+// With a third commit, the one where cli.md and development.md are in
+// Japanese, it also checks that the translation kept each guide's structure:
+// the sequence of heading levels, the content of every code block, and the
+// number of rows of every table are the same as at the move commit.
 //
 // Run it from the repository root, once on the PR branch. make test and CI do
 // not run it, and it is not maintained after the merge. It reads no
@@ -114,8 +119,8 @@ type split struct {
 }
 
 func main() {
-	if len(os.Args) != 3 {
-		fmt.Fprintln(os.Stderr, "usage: split <merge-base> <english-move-commit>")
+	if len(os.Args) != 3 && len(os.Args) != 4 {
+		fmt.Fprintln(os.Stderr, "usage: split <merge-base> <english-move-commit> [<translated>]")
 		os.Exit(2)
 	}
 	base, move := os.Args[1], os.Args[2]
@@ -204,6 +209,24 @@ func main() {
 		fmt.Printf("NG   other versions of the guides: %s\n", strings.Join(problems, ", "))
 	} else {
 		fmt.Println("OK   no other version of cli.md or development.md")
+	}
+	if len(os.Args) == 4 {
+		translatedID, err := gitOutput("rev-parse", os.Args[3])
+		if err != nil {
+			fail("rev-parse", err)
+		}
+		fmt.Printf("translated %s\n", translatedID)
+		for _, path := range []string{cliPath, developmentPath} {
+			if problems := checkTranslation(moveID, translatedID, path); len(problems) > 0 {
+				failed = true
+				fmt.Printf("NG   %s keeps its structure: %d problem(s)\n", path, len(problems))
+				for _, p := range problems {
+					fmt.Printf("     %s\n", p)
+				}
+			} else {
+				fmt.Printf("OK   %s keeps its structure\n", path)
+			}
+		}
 	}
 	if failed {
 		os.Exit(1)
@@ -426,6 +449,58 @@ func checkOtherVersions(rev string) []string {
 		}
 	}
 	return problems
+}
+
+// checkTranslation compares path at the move commit with path at the
+// translated commit: the sequence of heading levels outside code blocks, the
+// info string and lines of every code block, and the row count of every
+// table, in order.
+func checkTranslation(move, translated, path string) []string {
+	before, err := gitOutput("show", move+":"+path)
+	if err != nil {
+		fail("read "+path, err)
+	}
+	after, err := gitOutput("show", translated+":"+path)
+	if err != nil {
+		fail("read "+path, err)
+	}
+	var problems []string
+	if b, a := headingLevels(before), headingLevels(after); !slices.Equal(b, a) {
+		problems = append(problems, fmt.Sprintf("heading levels %v, were %v", a, b))
+	}
+	b, a := doctestutil.FencedBlocks(before), doctestutil.FencedBlocks(after)
+	if len(b) != len(a) {
+		problems = append(problems, fmt.Sprintf("%d code blocks, were %d", len(a), len(b)))
+	} else {
+		for i := range b {
+			if b[i].Info != a[i].Info || !slices.Equal(b[i].Lines, a[i].Lines) {
+				problems = append(problems, fmt.Sprintf("code block %d differs", i+1))
+			}
+		}
+	}
+	if b, a := tableSizes(before), tableSizes(after); !slices.Equal(b, a) {
+		problems = append(problems, fmt.Sprintf("table row counts %v, were %v", a, b))
+	}
+	return problems
+}
+
+// headingLevels returns the level of each heading of doc outside code blocks.
+func headingLevels(doc string) []int {
+	var levels []int
+	for _, heading := range doctestutil.HeadingsOutsideBlocks(doc) {
+		levels = append(levels, doctestutil.HeadingLevel(heading))
+	}
+	return levels
+}
+
+// tableSizes returns the number of rows, the header included, of each table of
+// doc.
+func tableSizes(doc string) []int {
+	var sizes []int
+	for _, table := range doctestutil.MarkdownTables(doc) {
+		sizes = append(sizes, len(table))
+	}
+	return sizes
 }
 
 // truncate shortens text for a problem line.
