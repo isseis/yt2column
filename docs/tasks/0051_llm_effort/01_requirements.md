@@ -140,7 +140,7 @@ issue は「決めること（要件定義で確定する）」として 4 つ�
 - **AC-14**: `YT2COLUMN_LLM=claude/claude-opus-5-5+low` と `YT2COLUMN_REVIEW_LLM=claude/claude-opus-5-5+xhigh` を設定すると、生成と字数の調整は effort `low` で、検証・推敲は effort `xhigh` で、Claude の API に要求を送る。`YT2COLUMN_LLM=deepseek/deepseek-flash+low` と `YT2COLUMN_REVIEW_LLM=claude/claude-opus-5-5+xhigh` のように、プロバイダが異なる場合も、それぞれの工程が自分の effort を送る。
 - **AC-15**: `YT2COLUMN_REVIEW_LLM` が未設定なら、検証・推敲は、生成のプロバイダ・モデル・effort をそのまま使う。たとえば `YT2COLUMN_LLM=claude/claude-sonnet-5-5+medium` だけを設定すると、検証・推敲も `claude-sonnet-5-5` を effort `medium` で使う。生成の effort を省いた場合は、検証・推敲も 3.1 の表の「effort を省いたとき」に従う。
 - **AC-16**: `YT2COLUMN_REVIEW_LLM` を設定し、その effort を省いた場合は、生成の effort を受け継がず、3.1 の表の「effort を省いたとき」に従う。たとえば `YT2COLUMN_LLM=claude/claude-opus-5-5+low` と `YT2COLUMN_REVIEW_LLM=claude/claude-opus-5-5` なら、検証・推敲の effort は `high` である。
-- **AC-17**: 字数の調整は、生成と同じ effort を使う（今と同じく、生成と同じクライアントを使う）。
+- **AC-17**: 字数の調整は、生成と同じ effort を使う。
 - **AC-18**: `YT2COLUMN_LLM`・`YT2COLUMN_REVIEW_LLM`・`YT2COLUMN_CLAUDE_EFFORT` がどれも未設定で、`ANTHROPIC_API_KEY` だけを設定すれば、生成・字数の調整・検証・推敲のすべてを、`claude` の `claude-opus-5-5`、effort `high` で行う（今の振る舞い。`docs/dev/project_overview.md:153`、タスク 0045 の AC-21）。
 - **AC-19**: `YT2COLUMN_REVIEW_LLM` が未設定で、`YT2COLUMN_LLM` が AC-05 の値なら、生成と検証・推敲の両方の設定を検査する実行でも、`YT2COLUMN_LLM` の拒否は 1 回だけ報告する（今の振る舞い。`config.go:465-469`）。
 - **AC-20**: 検証・推敲の設定を検査し、生成の設定を検査しない実行（`--after shorten` など。タスク 0045 の AC-10）で、`YT2COLUMN_REVIEW_LLM` が未設定なら、検証・推敲は `YT2COLUMN_LLM` の effort（effort を省いていれば 3.1 の表の「effort を省いたとき」）を使う。`YT2COLUMN_LLM` が AC-05 の値なら、`YT2COLUMN_LLM` を名指しして実行を止める。`YT2COLUMN_REVIEW_LLM` が設定されていれば、今と同じく `YT2COLUMN_LLM` を読まない。
@@ -222,7 +222,7 @@ effort を値に含めても、プロバイダ固有の変数とエラーの報�
 -   標準ライブラリの外のモジュールを加えない（CLAUDE.md「Dependencies」）。
 -   拒否のエラーは `*VarError` の形を保ち、値を持たない（`config.go:132-149`）。
 -   プロバイダの API の要求の形（Claude の effort、DeepSeek の `reasoning_effort`）は、そのアダプタのパッケージにとどめる（CLAUDE.md「Provider details stay in their adapter package」）。
--   **「実行に使わない変数は読まない」方針の例外の範囲を広げる:** 方針の所在は、README の「A resumed run validates only the settings of the stages it executes」（`README.md:194-195`）、`docs/dev/project_overview.md`「設定（環境変数）」の「中断した実行の再開では、実行する段階の LLM の変数だけを読む」（`docs/dev/project_overview.md:155`）、`LoadServer` の「It reads no variable the server does not use」（`config.go:319-322`）である。タスク 0045 は、旧変数 4 つが設定されているかどうかの検査を、この方針の例外とした（`docs/tasks/0045_llm_env_var/01_requirements.md` §1）。本タスクは、例外の対象に `YT2COLUMN_CLAUDE_EFFORT` を加える（AC-21）。理由はタスク 0045 と同じく、古い設定が残っていることに、いつ実行しても気づけるようにするためである。例外の範囲は、設定されているかどうかの検査だけであり、値は使わない（AC-23）。そのため、`YT2COLUMN_CLAUDE_EFFORT` は、今は Claude を使わない実行では読まない（`config.go:548-556`）が、本タスクの後は、どの実行でも設定されているかどうかだけを調べる。
+-   **「実行に使わない変数は読まない」方針の例外の範囲を広げる:** 方針の所在は、README の「A resumed run validates only the settings of the stages it executes」（`README.md:194-195`）、`docs/dev/project_overview.md`「設定（環境変数）」の「中断した実行の再開では、実行する段階の LLM の変数だけを読む」（`docs/dev/project_overview.md:155`）、`LoadServer` の「It reads no variable the server does not use」（`config.go:319-322`）である。タスク 0045 は、旧変数 4 つが設定されているかどうかの検査を、この方針の例外とした（`docs/tasks/0045_llm_env_var/01_requirements.md` §1）。本タスクは、例外の対象に `YT2COLUMN_CLAUDE_EFFORT` を加える（AC-21）。理由はタスク 0045 と同じく、古い設定が残っていることに、いつ実行しても気づけるようにするためである。例外の範囲は、設定されているかどうかの検査だけであり、値は使わない（AC-23）。そのため、`YT2COLUMN_CLAUDE_EFFORT` は、今は Claude を使わない実行では読まない（`config.go:548-556`）が、本タスクの後は、CLI とサーバのどの実行でも設定されているかどうかだけを調べる（ホストは調べない。AC-26）。
 -   タスク 0045 とタスク 0003 の決定は、1 章「先行タスクの決定の変更」のとおり変更する。
 
 ## 6. 用語集 (Glossary)
