@@ -284,7 +284,7 @@ func TestParseIgnoredListing(t *testing.T) {
 // TestCollectTargetsGitFailures: a listing git fails, warns about, or
 // overflows stops the pass, each with its own rule.
 func TestCollectTargetsGitFailures(t *testing.T) {
-	listCall := cmdrunnertestutil.Step{Name: gitCommand, Args: slices.Concat(gitHardening, listIgnoredArgs)}
+	listCall := cmdrunnertestutil.Step{Name: gitCommand, Args: slices.Concat(cmdrunner.GitHardening(), listIgnoredArgs)}
 	t.Run("unreadable_directory_warning", func(t *testing.T) {
 		requireNonRoot(t)
 		for _, dir := range []string{"build/locked", ".claude/locked"} {
@@ -317,7 +317,7 @@ func TestCollectTargetsGitFailures(t *testing.T) {
 		r.ignore("build/")
 		r.Write("build/0123456789.txt", "x")
 		w, router := newTestWorktree(t)
-		router.List = cmdrunner.NewOS(cmdrunner.Options{Env: GitEnv(os.Environ()), StderrIsFailure: true, MaxOutput: 8})
+		router.List = cmdrunner.NewOS(cmdrunner.Options{Env: cmdrunner.GitEnv(os.Environ()), StderrIsFailure: true, MaxOutput: 8})
 		if _, err := w.collectTargets(t.Context(), wideLimits()); !errors.Is(err, errListIgnoredCap) {
 			t.Errorf("error = %v, want %v", err, errListIgnoredCap)
 		}

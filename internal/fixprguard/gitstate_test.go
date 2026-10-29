@@ -427,22 +427,13 @@ func TestConfigFileTypeCheckedBeforeGit(t *testing.T) {
 	}
 }
 
-func TestGitEnvDropsInheritedGitVariables(t *testing.T) {
+// TestGitEnvKeepsGitOnTheWorktree checks, with real git, that the environment
+// cmdrunner.GitEnv returns (which the test worktree's runner uses, as
+// cmd/fixprguard's does) keeps an inherited GIT_DIR from pointing Baseline at
+// another repository.
+func TestGitEnvKeepsGitOnTheWorktree(t *testing.T) {
 	r := newTestRepo(t)
-	// Inherited, these would point git at another repository and config.
 	t.Setenv("GIT_DIR", filepath.Join(r.Home, "nowhere"))
-	t.Setenv("GIT_CONFIG_PARAMETERS", "'core.fsmonitor'='true'")
-	env := GitEnv(os.Environ())
-	for _, entry := range env {
-		if strings.HasPrefix(entry, "GIT_") && entry != "GIT_OPTIONAL_LOCKS=0" && entry != "GIT_TERMINAL_PROMPT=0" {
-			t.Errorf("GitEnv kept %q", entry)
-		}
-	}
-	for _, want := range []string{"GIT_OPTIONAL_LOCKS=0", "GIT_TERMINAL_PROMPT=0", "HOME=" + r.Home} {
-		if !slices.Contains(env, want) {
-			t.Errorf("GitEnv lacks %q", want)
-		}
-	}
 	w, _ := newTestWorktree(t)
 	if _, err := w.Baseline(t.Context()); err != nil {
 		t.Errorf("Baseline with GIT_DIR inherited = %v", err)
