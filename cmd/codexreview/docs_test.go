@@ -49,7 +49,10 @@ var launchFree = set("coderabbit", "codexreview")
 
 // allowsCodex reports whether a permission rule may let codex run without the
 // approval prompt: a Bash rule whose command word is not one of launchFree,
-// written as is (a wildcard or a path is another word).
+// written as is (a wildcard or a path is another word). Only the first word
+// is read: Claude Code matches each command of a compound command against
+// the rules on its own, so a rule's later words cannot allow a second
+// command.
 func allowsCodex(rule string) bool {
 	if rule != "Bash" && !strings.HasPrefix(rule, "Bash(") {
 		return false
@@ -201,7 +204,7 @@ var (
 	// next word as their value (env -u NAME, xargs -I REPLACE, timeout -k
 	// DURATION).
 	wrappers = map[string]map[string]struct{}{
-		"env": set("-u", "-C", "-S"), "xargs": set("-I", "-n", "-P", "-L", "-s", "-E", "-d"),
+		"env": set("-u", "-C", "-S", "-P"), "xargs": set("-I", "-n", "-P", "-L", "-s", "-E", "-d"),
 		"timeout": set("-k", "-s"), "gtimeout": set("-k", "-s"), "nice": set("-n"),
 		"sudo": set("-u", "-g", "-C", "-h", "-p"), "exec": set("-a"),
 		"command": nil, "builtin": nil, "time": nil, "nohup": nil, "stdbuf": nil, "caffeinate": nil,
@@ -333,6 +336,7 @@ func TestRunsCodex(t *testing.T) {
 		{"sudo_preserve_env", "```bash\nsudo -E codex review\n```\n", true},
 		{"caffeinate", "```bash\ncaffeinate -i codex review\n```\n", true},
 		{"subshell_no_argument", "```bash\n(cd x && codex)\n```\n", true},
+		{"env_path", "```bash\nenv -P /bin codex review\n```\n", true},
 		{"env_unset", "```bash\nenv -u FOO codex review\n```\n", true},
 		{"assignment", "```bash\nFOO=1 codex review\n```\n", true},
 		{"redirection", "```bash\n2>/dev/null codex review\n```\n", true},
