@@ -134,32 +134,37 @@ func TestMayBypassTool(t *testing.T) {
 }
 
 // codexreviewProtocolMismatches returns the --protocol flags of doc in a
-// codexreview call whose value is not Protocol. The flags of other calls are
-// the fixprguard guard's (doctestutil.ProtocolFlags).
+// codexreview call not written as wantProtocolFlag, the one form the tool
+// accepts: a wrong value, or --protocol=N, which it refuses as bad
+// arguments. The flags of other calls are the fixprguard guard's
+// (doctestutil.ProtocolFlags).
 func codexreviewProtocolMismatches(doc string) []string {
 	var mismatches []string
 	for _, f := range doctestutil.ProtocolFlags(doc) {
-		if f.Tool == doctestutil.ToolCodexreview && f.Value != strconv.Itoa(codexreview.Protocol) {
+		if f.Tool == doctestutil.ToolCodexreview && f.Text != wantProtocolFlag() {
 			mismatches = append(mismatches, f.Text)
 		}
 	}
 	return mismatches
 }
 
+func wantProtocolFlag() string { return "--protocol " + strconv.Itoa(codexreview.Protocol) }
+
 // TestDocumentedProtocolMatches: every --protocol N of a codexreview call in
-// the command documents, prose included, is the binary's Protocol, so the
-// installed tool refuses a document written for another contract.
+// the command documents, prose included, is the binary's Protocol in the form
+// the tool reads, so the installed tool refuses a document written for
+// another contract and accepts one written for its own.
 func TestDocumentedProtocolMatches(t *testing.T) {
 	for _, rel := range doctestutil.CommandDocs(t, repoRoot) {
 		for _, text := range codexreviewProtocolMismatches(readRepoFile(t, rel)) {
-			t.Errorf("%s: %q, want --protocol %d", rel, text, codexreview.Protocol)
+			t.Errorf("%s: %q, want %q", rel, text, wantProtocolFlag())
 		}
 	}
 }
 
-// TestCodexreviewProtocolMismatches: a wrong number in a codexreview call is
-// found, in a code block or a code span, and a fixprguard call's number is
-// left to its own guard.
+// TestCodexreviewProtocolMismatches: a wrong number or the --protocol=N form
+// in a codexreview call is found, in a code block or a code span, and a
+// fixprguard call's number is left to its own guard.
 func TestCodexreviewProtocolMismatches(t *testing.T) {
 	const sha = "0123456789abcdef0123456789abcdef01234567"
 	right := strconv.Itoa(codexreview.Protocol)
@@ -171,7 +176,10 @@ func TestCodexreviewProtocolMismatches(t *testing.T) {
 	}{
 		{"right_number", "```bash\ncodexreview --protocol " + right + " --base " + sha + "\n```\n", nil},
 		{"wrong_number_in_block", "```bash\ncodexreview --protocol " + wrong + " --base " + sha + "\n```\n", []string{"--protocol " + wrong}},
-		{"wrong_number_in_span", "Run `codexreview --base <BASE> --protocol=" + wrong + "`.\n", []string{"--protocol=" + wrong}},
+		{"wrong_number_in_span", "Run `codexreview --base <BASE> --protocol " + wrong + "`.\n", []string{"--protocol " + wrong}},
+		// The tool reads only "--protocol N", so the right number after "="
+		// is refused as bad arguments.
+		{"equals_form", "Run `codexreview --base <BASE> --protocol=" + right + "`.\n", []string{"--protocol=" + right}},
 		{"fixprguard_call_skipped", "fixprguard head --protocol " + wrong + " && codexreview --protocol " + right + " --base " + sha + "\n", nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -204,7 +212,7 @@ var (
 	// next word as their value (env -u NAME, xargs -I REPLACE, timeout -k
 	// DURATION).
 	wrappers = map[string]map[string]struct{}{
-		"env": set("-u", "-C", "-S", "-P"), "xargs": set("-I", "-n", "-P", "-L", "-s", "-E", "-d"),
+		"env": set("-u", "-C", "-P"), "xargs": set("-I", "-n", "-P", "-L", "-s", "-E", "-d"),
 		"timeout": set("-k", "-s"), "gtimeout": set("-k", "-s"), "nice": set("-n"),
 		"sudo": set("-u", "-g", "-C", "-h", "-p"), "exec": set("-a"),
 		"command": nil, "builtin": nil, "time": nil, "nohup": nil, "stdbuf": nil, "caffeinate": nil,
@@ -231,10 +239,11 @@ func isShell(name string) bool   { _, ok := shells[name]; return ok }
 // a code span, has codex at a command position: the start of a command,
 // after a separator (doctestutil.CommandBoundary), after the reserved words,
 // variable assignments, and redirections that may precede a command, or as
-// the command a wrapper or a shell's -c script runs. codex counts by name, by
-// path (/opt/homebrew/bin/codex, ./codex, @openai/codex), quoted, escaped
-// with a backslash, or opening a group. The list of wrappers and of options
-// with a value is not complete; the permission prompt stops a form it misses.
+// the command a wrapper, env -S's split string, or a shell's -c script
+// runs. codex counts by name, by path (/opt/homebrew/bin/codex, ./codex,
+// @openai/codex), quoted, escaped with a backslash, or opening a group. The
+// list of wrappers and of options with a value is not complete; the
+// permission prompt stops a form it misses.
 func runsCodex(text string) bool {
 	for _, command := range doctestutil.CommandBoundary.Split(text, -1) {
 		if commandRunsCodex(strings.Fields(command)) {
@@ -255,6 +264,12 @@ func commandRunsCodex(words []string) bool {
 		case isWrapper(name):
 			valued := wrappers[name]
 			for i+1 < len(words) && (strings.HasPrefix(words[i+1], "-") || optionValue.MatchString(words[i+1])) {
+				if split, ok := envSplitString(name, words[i+1]); ok {
+					// The split string is env's own arguments, so read it
+					// and the words after it as one env command.
+					rest := slices.Concat([]string{"env"}, strings.Fields(strings.Trim(split, `"'`)), words[i+2:])
+					return commandRunsCodex(rest)
+				}
 				if isSetMember(valued, words[i+1]) {
 					i++
 				}
@@ -272,6 +287,30 @@ func commandRunsCodex(words []string) bool {
 		}
 	}
 	return false
+}
+
+// envSplitString reports whether opt is env's -S (alone, in an option
+// cluster such as -iS, or as --split-string), and returns the part of its
+// value written in opt; the rest of the value is the words after opt.
+func envSplitString(wrapper, opt string) (string, bool) {
+	if wrapper != "env" {
+		return "", false
+	}
+	if v, ok := strings.CutPrefix(opt, "--split-string"); ok && (v == "" || v[0] == '=') {
+		return strings.TrimPrefix(v, "="), true
+	}
+	if !strings.HasPrefix(opt, "-") || strings.HasPrefix(opt, "--") {
+		return "", false
+	}
+	for j, c := range opt[1:] {
+		switch {
+		case c == 'S':
+			return opt[j+2:], true
+		case isSetMember(wrappers["env"], "-"+string(c)):
+			return "", false
+		}
+	}
+	return "", false
 }
 
 // commandTexts returns the texts of doc that are written as commands: each
@@ -338,6 +377,13 @@ func TestRunsCodex(t *testing.T) {
 		{"subshell_no_argument", "```bash\n(cd x && codex)\n```\n", true},
 		{"env_path", "```bash\nenv -P /bin codex review\n```\n", true},
 		{"env_unset", "```bash\nenv -u FOO codex review\n```\n", true},
+		// env -S splits its value into env's own arguments.
+		{"env_split_string", "```bash\nenv -S \"codex exec review\"\n```\n", true},
+		{"env_split_string_attached", "```bash\nenv -S'-i codex exec'\n```\n", true},
+		{"env_split_string_in_cluster", "```bash\nenv -iScodex exec\n```\n", true},
+		{"env_split_string_long", "```bash\nenv --split-string='codex exec'\n```\n", true},
+		// -u takes the rest of its cluster as the name, so this S is no -S.
+		{"env_unset_cluster_holds_s", "```bash\nenv -uScodex echo\n```\n", false},
 		{"assignment", "```bash\nFOO=1 codex review\n```\n", true},
 		{"redirection", "```bash\n2>/dev/null codex review\n```\n", true},
 		{"exec", "```bash\nexec codex review\n```\n", true},
