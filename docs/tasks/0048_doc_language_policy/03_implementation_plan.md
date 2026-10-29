@@ -807,18 +807,18 @@ split    13
 | 一覧の 1 文から `cli.md` に移った部分を消す | 部分を合わせても元の文にならないとして失敗 |
 | `cli.md` の移った部分の 1 語を変える | `cli.md` がその部分を持たないとして失敗 |
 
-**翻訳の前後の構造の検査（PR-4、AC-24）:** 2026-10-29 に、`go run -tags test ./docs/tasks/0048_doc_language_policy/_checks/split/ 9764155a 03bfdf6c f6b02bee` を実行した。英語の移動のコミットは `03bfdf6c32c351e502bfb81d9da619f19cf5f7e9`、翻訳と文章の整理の後のコミットは `f6b02beed9e8ab95d0692b11aab6f55ca68e4f64`、終了コードは 0 である。
+**翻訳の前後の構造の検査（PR-4、AC-24）:** 2026-10-29 に、`go run -tags test ./docs/tasks/0048_doc_language_policy/_checks/split/ 9764155a 03bfdf6c 047399db` を実行した。英語の移動のコミットは `03bfdf6c32c351e502bfb81d9da619f19cf5f7e9`、翻訳・文章の整理・フェーズのレビューの修正の後のコミットは `047399dbaa87e6e3ad931f01531e7b8ca5e74621`、終了コードは 0 である。検査は、見出しのレベルの並び、コードブロックの内容、表の行の数に加えて、コードブロックの外のインラインのコードが 1 つも失われていないこと（翻訳で増えるのはよい）を確かめる。
 
 ```text
 OK   split list: 15 sentences
 OK   every unit of the old README is in a document
 OK   no other version of cli.md or development.md
-translated f6b02beed9e8ab95d0692b11aab6f55ca68e4f64
+translated 047399dbaa87e6e3ad931f01531e7b8ca5e74621
 OK   docs/dev/guides/cli.md keeps its structure
 OK   docs/dev/guides/development.md keeps its structure
 ```
 
-この検査が違反を見つけることは、翻訳のコミットから作った一時的なコミットで確かめた。`cli.md` の `### 終了コード` を `##` にする、`development.md` のコードブロックの 1 行の空白を変える、`development.md` のコードの表から 1 行を消す、のそれぞれで終了コード 1 になった。
+この検査が違反を見つけることは、翻訳のコミットから作った一時的なコミットで確かめた。`cli.md` の `### 終了コード` を `##` にする、`development.md` のコードブロックの 1 行の空白を変える、`development.md` のコードの表から 1 行を消す、`cli.md` のインラインのコード `` `0o644` `` のバッククォートを外す、のそれぞれで終了コード 1 になった。
 
 翻訳は、`/japrose` の手順のレビュー（2 つの文書を並行して Sonnet で）と、`mktrans.md` の Accuracy checklist による翻訳のレビューを経た。翻訳のレビューの Major 5 件（U+200B の位置の追加、`--out` の「(no value)」、「記事の本文」への狭め、`usage` のメンバの訳、「still … your environment」の欠落）を直し、確認のレビューで残った Major 1 件（`usage` メンバの表記）も直した。
 
