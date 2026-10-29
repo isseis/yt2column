@@ -1,0 +1,12 @@
+The change brings two defects into the loader. Both reproduce through the existing callers.
+
+Full review comments:
+
+- [P1] Writes to a nil map — /work/repo/internal/sample/inside.go:5-7
+  Counts writes to a map it never initialized, so the first call panics.
+  Create it with make before writing.
+
+- [P2] Boundary — the limit itself is rejected — /work/repo/internal/sample/limit.go:12-12
+  An input exactly as long as the limit should be accepted, but the comparison uses <= instead of <.
+
+  The tests only try a value one below the limit.

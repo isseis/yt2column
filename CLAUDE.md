@@ -360,6 +360,19 @@ the [README](README.md) and `docs/dev/security.md` §8.
   JSON object stays the current form and is relayed unchanged for the server
   to reject. The current form and this exception are removed after #503
   (#526).
+  Exception: `codexreview` chooses whether Codex CLI's final message reports
+  findings, reports none, or cannot be read by inspecting the content of that
+  message (`parseFinalMessage` in `internal/codexreview/message.go`). Scope:
+  the parse of the final message only — the summary paragraph, the heading
+  line, and the shape of each finding line and its indented body decide the
+  findings' boundaries and the message's form. Telling a completed run from
+  `codex exec review --json` output is not part of it: those lines are chosen
+  by their declared `type` member. Reason: the final message is an external
+  value written by `codex`, which the tool cannot express in a type, and the
+  published output has no structured member that declares completion or the
+  list of findings. Boundary: a message that matches neither accepted form is
+  not read more widely but is reported as unreadable, with none of the
+  findings read before the line that broke the form.
 - **Enforce invariants with the type, not with convention**: if a value must pass
   validation before use (e.g. a video ID), make the compiler the thing that
   guarantees it — unexported fields plus a mandatory constructor — rather than
