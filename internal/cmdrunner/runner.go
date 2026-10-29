@@ -43,8 +43,10 @@ type InputRunner interface {
 // asks the group to terminate (SIGTERM) and kills it (SIGKILL) when the direct
 // child has not exited after GroupStopGrace (at once when it is zero), and the
 // direct child's exit is followed by a kill of the group before the output is
-// drained. With ProcessGroup, WaitDelay bounds only the wait for the output
-// pipes after the group is killed. The zero value means no bound, the current
+// drained; the grace ends when the direct child exits, so descendants still
+// running then are killed without one. With ProcessGroup, WaitDelay bounds
+// only the wait for the output pipes after the group is killed, and a context
+// already done starts nothing. The zero value means no bound, the current
 // directory, the inherited environment, standard error discarded on success,
 // and only the direct child stopped on cancellation.
 type Options struct {
@@ -165,8 +167,20 @@ func (r osRunner) runDirect(ctx context.Context, stdin []byte, stdout, stderr io
 //
 // The output goes through pipes this function owns, not through exec's copy
 // goroutines, so Wait returns when the direct child exits instead of when the
-// pipes close; the group kill comes between the two.
+// pipes close; the group kill comes between the two. Standard input still goes
+// through exec's copy, which Wait also waits for, so it must fit in a pipe
+// buffer when a descendant may inherit it without reading it (the callers pass
+// none or an empty one).
+//
+// The group is signaled by the leader's PID after Wait has reaped the leader.
+// While any member is alive the ID cannot be reused; once the group is empty
+// the kill finds no group, and only a new group that took the same number in
+// between could be hit, a risk the standard library offers no way to close.
 func (r osRunner) runGroup(ctx context.Context, stdin []byte, stdout, stderr io.Writer, name string, args []string) error {
+	// A done context starts nothing, as on the direct path.
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	cmd := exec.Command(name, args...) //nolint:gosec // the callers' commands are fixed tools and no argument passes through a shell
 	cmd.Dir = r.opts.Dir
 	cmd.Env = r.opts.Env

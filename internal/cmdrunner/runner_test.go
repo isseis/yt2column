@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"flag"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -288,33 +289,58 @@ func startGroupRun(t *testing.T, opts Options, script string) (grand int, cancel
 		done <- groupRun{out, err}
 	}()
 	leader := waitForPID(t, leaderPath, done)
-	t.Cleanup(func() { _ = syscall.Kill(-leader, syscall.SIGKILL) })
+	t.Cleanup(func() { killIfAlive(leader, -leader) })
 	grand = waitForPID(t, grandPath, done)
-	t.Cleanup(func() { _ = syscall.Kill(grand, syscall.SIGKILL) })
+	t.Cleanup(func() { killIfAlive(grand, grand) })
 	return grand, cancel, done
 }
 
 // waitForPID polls path until it holds a PID. It fails the test when the run
-// ends first or the bound passes.
-func waitForPID(t *testing.T, path string, done <-chan groupRun) int {
+// ends without the file written or the bound passes. A run that ended right
+// after writing it is put back on done for awaitRun.
+func waitForPID(t *testing.T, path string, done chan groupRun) int {
 	t.Helper()
 	deadline := time.Now().Add(groupStopBound)
 	for time.Now().Before(deadline) {
-		if data, err := os.ReadFile(path); err == nil {
-			pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
-			if err != nil {
-				t.Fatalf("PID file %s = %q: %v", path, data, err)
-			}
+		if pid, ok := readPID(t, path); ok {
 			return pid
 		}
 		select {
 		case r := <-done:
-			t.Fatalf("run ended before %s was written: %v", path, r.err)
+			pid, ok := readPID(t, path)
+			if !ok {
+				t.Fatalf("run ended before %s was written: %v", path, r.err)
+			}
+			done <- r
+			return pid
 		case <-time.After(20 * time.Millisecond):
 		}
 	}
 	t.Fatalf("%s was not written within %v", path, groupStopBound)
 	return 0
+}
+
+// readPID reads the PID recorded in path, reporting false while it is absent.
+func readPID(t *testing.T, path string) (int, bool) {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return 0, false
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	if err != nil {
+		t.Fatalf("PID file %s = %q: %v", path, data, err)
+	}
+	return pid, true
+}
+
+// killIfAlive sends SIGKILL to target (a negative value names a group) only
+// while pid is still running, so a cleanup does not signal a number the
+// system may have handed to another process since.
+func killIfAlive(pid, target int) {
+	if processExists(pid) {
+		_ = syscall.Kill(target, syscall.SIGKILL)
+	}
 }
 
 // awaitRun returns the run's result, failing the test when it does not end
@@ -344,7 +370,7 @@ func TestProcessGroupStoppedOnCancel(t *testing.T) {
 		ignoreTerm bool
 		grace      time.Duration
 	}{
-		// The group exits on SIGTERM.
+		// The group exits on SIGTERM, well before the grace ends.
 		{"terminate", false, 5 * time.Second},
 		// Both processes ignore SIGTERM; only the SIGKILL after the grace
 		// stops them.
@@ -360,10 +386,12 @@ func TestProcessGroupStoppedOnCancel(t *testing.T) {
 			if !errors.Is(r.err, context.Canceled) {
 				t.Errorf("error = %v, want context.Canceled", r.err)
 			}
-			if tt.ignoreTerm {
-				if elapsed := time.Since(cancelled); elapsed < tt.grace {
-					t.Errorf("run returned %v after cancellation, want SIGKILL only after the %v grace", elapsed, tt.grace)
-				}
+			elapsed := time.Since(cancelled)
+			if tt.ignoreTerm && elapsed < tt.grace {
+				t.Errorf("run returned %v after cancellation, want SIGKILL only after the %v grace", elapsed, tt.grace)
+			}
+			if !tt.ignoreTerm && elapsed >= tt.grace/2 {
+				t.Errorf("run returned %v after cancellation, want SIGTERM to end it well within the %v grace", elapsed, tt.grace)
 			}
 			assertGone(t, grand, "grandchild")
 		})
@@ -428,5 +456,136 @@ func waitProcessGone(pid int, limit time.Duration) bool {
 			return false
 		}
 		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+func TestProcessGroupNotStartedWhenDone(t *testing.T) {
+	marker := filepath.Join(t.TempDir(), "started")
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	args := sh(`touch "$MARK"`)
+	opts := Options{ProcessGroup: true, Env: append(os.Environ(), "MARK="+marker)}
+	_, err := NewOS(opts).Run(ctx, args[0], args[1:]...)
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("error = %v, want context.Canceled", err)
+	}
+	if _, ok := errors.AsType[*ExitError](err); ok {
+		t.Errorf("error = %v, want no *ExitError: nothing ran", err)
+	}
+	if _, statErr := os.Stat(marker); statErr == nil {
+		t.Error("the command ran although the context was already done")
+	}
+}
+
+// TestProcessGroupResults runs the result cases of the direct path through
+// the group path, which has its own pipes, copies and standard input.
+func TestProcessGroupResults(t *testing.T) {
+	tests := []struct {
+		name      string
+		maxOutput int
+		stdin     []byte
+		script    string
+		wantErr   error
+		wantOut   string
+		wantExit  *ExitError
+	}{
+		{"stdin", 0, []byte("payload"), "cat", nil, "payload", nil},
+		{"exit_error", 0, nil, "printf out; printf boom >&2; exit 3", nil, "", &ExitError{Code: 3, Stdout: []byte("out"), Stderr: []byte("boom")}},
+		{"stdout_over_cap", 16, nil, "head -c 17 /dev/zero", ErrOutputTooLarge, "", nil},
+		{"stderr_over_cap", 16, nil, "head -c 17 /dev/zero >&2", ErrOutputTooLarge, "", nil},
+		{"stdout_at_cap", 16, nil, "printf 0123456789abcdef", nil, "0123456789abcdef", nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out, err := run(t, Options{ProcessGroup: true, MaxOutput: tt.maxOutput}, tt.stdin, tt.script)
+			if tt.wantExit != nil {
+				exitErr, ok := errors.AsType[*ExitError](err)
+				if !ok {
+					t.Fatalf("error = %v, want *ExitError", err)
+				}
+				if exitErr.Code != tt.wantExit.Code || !bytes.Equal(exitErr.Stdout, tt.wantExit.Stdout) || !bytes.Equal(exitErr.Stderr, tt.wantExit.Stderr) {
+					t.Errorf("ExitError = %+v, want %+v", exitErr, tt.wantExit)
+				}
+				return
+			}
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("error = %v, want %v", err, tt.wantErr)
+			}
+			if string(out) != tt.wantOut {
+				t.Errorf("output = %q, want %q", out, tt.wantOut)
+			}
+		})
+	}
+	t.Run("start_failure", func(t *testing.T) {
+		_, err := NewOS(Options{ProcessGroup: true}).Run(t.Context(), "no-such-command-for-cmdrunner")
+		if !errors.Is(err, exec.ErrNotFound) {
+			t.Errorf("error = %v, want exec.ErrNotFound", err)
+		}
+	})
+}
+
+// escapedDescendantMode selects the role of the re-executed test binary in
+// TestEscapedDescendantHelperProcess; escapedHelperLifetime caps how long the
+// descendant lives when nothing kills it.
+const (
+	escapedDescendantMode = "descendant"
+	escapedHelperLifetime = time.Minute
+)
+
+// TestEscapedDescendantHelperProcess is not a regular test: it is re-executed
+// by TestProcessGroupWaitDelayBoundsEscapedDescendant. Started with a PID file
+// path, it starts itself again in descendant mode in a process group of its
+// own, with standard output inherited, records the descendant's PID, and
+// exits 0. In descendant mode it sleeps for its lifetime cap. A normal test
+// pass has no positional arguments and skips it.
+func TestEscapedDescendantHelperProcess(t *testing.T) {
+	args := flag.Args()
+	switch {
+	case len(args) == 1 && args[0] == escapedDescendantMode:
+		time.Sleep(escapedHelperLifetime)
+	case len(args) == 1:
+		executable, err := os.Executable()
+		if err != nil {
+			t.Fatalf("resolve test binary: %v", err)
+		}
+		descendant := exec.Command(executable, "-test.run=^TestEscapedDescendantHelperProcess$", "--", escapedDescendantMode) //nolint:gosec // re-executes the running test binary
+		descendant.Stdout = os.Stdout
+		descendant.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+		if err := descendant.Start(); err != nil {
+			t.Fatalf("start descendant: %v", err)
+		}
+		pidPath := args[0]
+		if err := os.WriteFile(pidPath+".tmp", []byte(strconv.Itoa(descendant.Process.Pid)), 0o600); err != nil {
+			t.Fatalf("record descendant PID: %v", err)
+		}
+		if err := os.Rename(pidPath+".tmp", pidPath); err != nil {
+			t.Fatalf("record descendant PID: %v", err)
+		}
+	default:
+		t.Skip("helper process for TestProcessGroupWaitDelayBoundsEscapedDescendant")
+	}
+}
+
+func TestProcessGroupWaitDelayBoundsEscapedDescendant(t *testing.T) {
+	// The direct child exits 0, but a descendant that moved to another
+	// process group escapes the group kill and keeps standard output open;
+	// WaitDelay must end the wait and report it.
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	pidPath := filepath.Join(t.TempDir(), "descendant")
+	start := time.Now()
+	_, err = NewOS(Options{ProcessGroup: true, WaitDelay: 200 * time.Millisecond}).Run(t.Context(), executable, "-test.run=^TestEscapedDescendantHelperProcess$", "--", pidPath)
+	if pid, ok := readPID(t, pidPath); ok {
+		t.Cleanup(func() { killIfAlive(pid, pid) })
+	} else {
+		t.Fatalf("the helper recorded no descendant PID: %v", err)
+	}
+	if elapsed := time.Since(start); elapsed > groupStopBound {
+		t.Errorf("Run took %v, want it bounded by WaitDelay", elapsed)
+	}
+	if !errors.Is(err, exec.ErrWaitDelay) {
+		t.Errorf("error = %v, want exec.ErrWaitDelay", err)
 	}
 }
