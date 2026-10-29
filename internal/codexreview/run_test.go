@@ -31,6 +31,10 @@ const (
 	changedFileContents = "one\ntwo\nthree\n"
 )
 
+// shortLimit is the time limit of a test that waits for a timeout: long
+// enough for a race-enabled fake to start and act under load.
+const shortLimit = 3 * time.Second
+
 var completedEvents = []string{eventThreadStarted, eventTurnStarted, eventAgentMessage, eventTurnCompleted}
 
 // fixture is a repository whose BASE..HEAD adds a.go, with the fake codex on
@@ -262,7 +266,7 @@ func TestRunKinds(t *testing.T) {
 		kind     Kind
 		detail   string
 		findings []Finding
-		// shortLimit runs the row with a one-second time limit.
+		// shortLimit runs the row with the short time limit.
 		shortLimit bool
 	}{
 		{
@@ -283,15 +287,6 @@ func TestRunKinds(t *testing.T) {
 			name:     "no_findings",
 			behavior: func(_ fixture) codexreviewtestutil.Behavior { return completed(noFindingsMessage) },
 			kind:     KindNoFindings,
-		},
-		{
-			name: "timeout",
-			behavior: func(_ fixture) codexreviewtestutil.Behavior {
-				b := completed(noFindingsMessage)
-				b.Hang = true
-				return b
-			},
-			kind: KindTimeout, shortLimit: true,
 		},
 		{
 			// The tool's own clock is read before the output limits.
@@ -321,51 +316,6 @@ func TestRunKinds(t *testing.T) {
 				return b
 			},
 			kind: KindIncomplete, detail: detailNoTurnCompleted,
-		},
-		{
-			name: "two_turns_completed",
-			behavior: func(_ fixture) codexreviewtestutil.Behavior {
-				b := completed(noFindingsMessage)
-				b.Events = append(slices.Clone(completedEvents), eventTurnCompleted)
-				return b
-			},
-			kind: KindIncomplete, detail: detailManyTurnsCompleted,
-		},
-		{
-			name: "error_event",
-			behavior: func(_ fixture) codexreviewtestutil.Behavior {
-				b := completed(noFindingsMessage)
-				b.Events = []string{eventThreadStarted, eventError, eventTurnCompleted}
-				return b
-			},
-			kind: KindIncomplete, detail: detailErrorEvent,
-		},
-		{
-			name: "turn_failed",
-			behavior: func(_ fixture) codexreviewtestutil.Behavior {
-				b := completed(noFindingsMessage)
-				b.Events = []string{eventThreadStarted, eventTurnFailed, eventTurnCompleted}
-				return b
-			},
-			kind: KindIncomplete, detail: detailTurnFailed,
-		},
-		{
-			name: "event_not_json",
-			behavior: func(_ fixture) codexreviewtestutil.Behavior {
-				b := completed(noFindingsMessage)
-				b.Events = append([]string{"Reading files"}, completedEvents...)
-				return b
-			},
-			kind: KindIncomplete, detail: detailUnreadableEvent,
-		},
-		{
-			name: "event_with_duplicate_type",
-			behavior: func(_ fixture) codexreviewtestutil.Behavior {
-				b := completed(noFindingsMessage)
-				b.Events = []string{eventThreadStarted, `{"type":"turn.completed","type":"error"}`}
-				return b
-			},
-			kind: KindIncomplete, detail: detailUnreadableEvent,
 		},
 		{
 			name: "stdout_too_large",
@@ -440,7 +390,7 @@ func TestRunKinds(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			limit := 30 * time.Second
 			if tt.shortLimit {
-				limit = time.Second
+				limit = shortLimit
 			}
 			shortenTimeouts(t, limit, time.Second, versionTimeout, gitTimeout)
 			fx := newFixture(t)
@@ -462,8 +412,7 @@ func TestRunKinds(t *testing.T) {
 }
 
 // TestRunStateChanged checks that every compared item codex changes is
-// reported as state_changed, ahead of the run's own result, and that a change
-// git ignores is not compared.
+// reported as state_changed, ahead of the run's own result.
 func TestRunStateChanged(t *testing.T) {
 	tests := []struct {
 		name string
@@ -472,7 +421,7 @@ func TestRunStateChanged(t *testing.T) {
 		changed []string
 		// refs returns the expected ChangedRefs.
 		refs func(fx fixture) []string
-		// shortLimit runs the row with a one-second time limit.
+		// shortLimit runs the row with the short time limit.
 		shortLimit bool
 	}{
 		{
@@ -581,7 +530,7 @@ func TestRunStateChanged(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			limit := 30 * time.Second
 			if tt.shortLimit {
-				limit = time.Second
+				limit = shortLimit
 			}
 			shortenTimeouts(t, limit, time.Second, versionTimeout, gitTimeout)
 			fx := newFixture(t)
@@ -608,11 +557,16 @@ func TestRunStateChanged(t *testing.T) {
 // the read-only sandbox, not the comparison, protects it.
 func TestRunIgnoresIgnoredFiles(t *testing.T) {
 	fx := newFixture(t)
-	fx.repo.Write(".gitignore", "ignored.txt\n")
-	fx.repo.CommitAll("ignore a file")
-	fx.repo.Write("ignored.txt", "before\n")
+	fx.repo.Write(".gitignore", "*.ignored\n")
+	fx.repo.CommitAll("ignore a pattern")
+	fx.repo.Write("old.ignored", "before\n")
 	b := completed(noFindingsMessage)
-	b.Writes = map[string]string{filepath.Join(fx.repo.Dir, "ignored.txt"): "after\n"}
+	// Editing an ignored file and creating a new one: listing ignored files
+	// in the comparison would show the new one.
+	b.Writes = map[string]string{
+		filepath.Join(fx.repo.Dir, "old.ignored"): "after\n",
+		filepath.Join(fx.repo.Dir, "new.ignored"): "new\n",
+	}
 	fx.fake.Set(b)
 	assertKind(t, mustRun(t, fx.base), KindNoFindings, "")
 }
@@ -620,7 +574,7 @@ func TestRunIgnoresIgnoredFiles(t *testing.T) {
 // TestRunTimeoutStopsProcessGroup checks that the timeout stops codex's
 // process group, including a grandchild codex started.
 func TestRunTimeoutStopsProcessGroup(t *testing.T) {
-	shortenTimeouts(t, time.Second, time.Second, versionTimeout, gitTimeout)
+	shortenTimeouts(t, shortLimit, time.Second, versionTimeout, gitTimeout)
 	fx := newFixture(t)
 	b := completed(noFindingsMessage)
 	b.Hang = true
@@ -682,7 +636,7 @@ func TestRunCancelStopsProcessGroup(t *testing.T) {
 				assertKind(t, got.r, KindStateChanged, "")
 				return
 			}
-			if !errors.Is(got.err, errInterrupted) {
+			if !errors.Is(got.err, errInterrupted) || !reflect.DeepEqual(got.r, Result{}) {
 				t.Errorf("Run = %+v, %v, want %v", got.r, got.err, errInterrupted)
 			}
 		})
@@ -697,8 +651,8 @@ func TestRunAfterStateUnreadable(t *testing.T) {
 	b.Removes = []string{filepath.Join(fx.fake.BinDir, "git")}
 	fx.fake.Set(b)
 	r, err := Run(context.Background(), fx.base, os.Environ())
-	if !errors.Is(err, errAfterStateUnreadable) {
-		t.Errorf("Run = %+v, %v, want %v", r, err, errAfterStateUnreadable)
+	if !errors.Is(err, errAfterStateUnreadable) || !reflect.DeepEqual(r, Result{}) {
+		t.Errorf("Run = %+v, %v, want no result and %v", r, err, errAfterStateUnreadable)
 	}
 }
 
@@ -771,5 +725,101 @@ func TestRunDirKeepsOnlyLastMessage(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join(r.RunDir, "last-message.txt"))
 	if err != nil || string(data) != message {
 		t.Errorf("kept final message = %q, %v, want the message codex wrote", data, err)
+	}
+}
+
+// TestCheckEvents checks the rules that decide, from the JSONL output alone,
+// whether a run completed. TestRunKinds shows that a broken rule makes the run
+// incomplete.
+func TestCheckEvents(t *testing.T) {
+	lines := func(events ...string) []byte { return []byte(strings.Join(events, "\n") + "\n") }
+	tests := []struct {
+		name   string
+		stdout []byte
+		detail string
+	}{
+		{"completed", lines(completedEvents...), ""},
+		{"blank_lines_between_events", []byte(eventTurnStarted + "\n\n" + eventTurnCompleted + "\n\n"), ""},
+		{"no_turn_completed", lines(eventThreadStarted, eventTurnStarted), detailNoTurnCompleted},
+		{"two_turns_completed", lines(eventTurnCompleted, eventTurnCompleted), detailManyTurnsCompleted},
+		{"error_event", lines(eventThreadStarted, eventError, eventTurnCompleted), detailErrorEvent},
+		{"turn_failed", lines(eventThreadStarted, eventTurnFailed, eventTurnCompleted), detailTurnFailed},
+		{"not_json", lines("Reading files", eventTurnCompleted), detailUnreadableEvent},
+		{"duplicate_type", lines(`{"type":"turn.completed","type":"error"}`), detailUnreadableEvent},
+		{"type_not_string", lines(`{"type":1}`, eventTurnCompleted), detailUnreadableEvent},
+		{"no_type", lines(`{"item":{}}`, eventTurnCompleted), detailUnreadableEvent},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := checkEvents(tt.stdout); got != tt.detail {
+				t.Errorf("checkEvents = %q, want %q", got, tt.detail)
+			}
+		})
+	}
+}
+
+// TestRunCodexFailedDetails checks the Details of a codex run that ends
+// without the tool stopping it: killed by a signal, or exited while a
+// process that left its group keeps the output open.
+func TestRunCodexFailedDetails(t *testing.T) {
+	t.Run("signaled", func(t *testing.T) {
+		fx := newFixture(t)
+		b := completed(noFindingsMessage)
+		b.KillSelf = true
+		fx.fake.Set(b)
+		assertKind(t, mustRun(t, fx.base), KindCodexFailed, detailSignaled)
+	})
+	t.Run("pipe_held", func(t *testing.T) {
+		fx := newFixture(t)
+		b := completed(noFindingsMessage)
+		b.GrandchildPIDFile = filepath.Join(fx.fake.Dir, "grandchild.pid")
+		b.GrandchildEscapes = true
+		fx.fake.Set(b)
+		r := mustRun(t, fx.base)
+		// Registered after Run so the grandchild, which escaped the group,
+		// is killed when the test ends.
+		codexreviewtestutil.ReadPID(t, b.GrandchildPIDFile)
+		assertKind(t, r, KindCodexFailed, detailPipeHeld)
+	})
+}
+
+// TestRunInterruptedBeforeReview checks that a cancellation while the
+// preconditions run returns no result and never starts the review.
+func TestRunInterruptedBeforeReview(t *testing.T) {
+	shortenTimeouts(t, codexTimeout, stopGrace, 30*time.Second, gitTimeout)
+	fx := newFixture(t)
+	b := completed(noFindingsMessage)
+	b.VersionHang = true
+	fx.fake.Set(b)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	type outcome struct {
+		r   Result
+		err error
+	}
+	done := make(chan outcome, 1)
+	go func() {
+		r, err := Run(ctx, fx.base, os.Environ())
+		done <- outcome{r, err}
+	}()
+	deadline := time.Now().Add(10 * time.Second)
+	for !slices.Equal(fx.fake.Starts(), []string{"version"}) {
+		if time.Now().After(deadline) {
+			t.Fatal("codex --version did not start")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	cancel()
+	var got outcome
+	select {
+	case got = <-done:
+	case <-time.After(30 * time.Second):
+		t.Fatal("Run did not return after cancellation")
+	}
+	if !errors.Is(got.err, errInterrupted) || !reflect.DeepEqual(got.r, Result{}) {
+		t.Errorf("Run = %+v, %v, want no result and %v", got.r, got.err, errInterrupted)
+	}
+	if starts := fx.fake.Starts(); !slices.Equal(starts, []string{"version"}) {
+		t.Errorf("codex starts = %q, want version alone", starts)
 	}
 }

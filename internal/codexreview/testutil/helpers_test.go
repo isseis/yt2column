@@ -23,6 +23,8 @@ func TestRoleOf(t *testing.T) {
 		{"bare_codex_with_behavior", []string{"codex", "--version"}, map[string]string{BehaviorEnv: "{}"}, roleFakeCodex},
 		{"codex_without_behavior", []string{"/tmp/bin/codex", "-test.run=TestRun"}, nil, roleNoBehavior},
 		{"grandchild", []string{"/tmp/bin/codex"}, map[string]string{BehaviorEnv: "{}", grandchildEnv: "/tmp/pid"}, roleGrandchild},
+		{"grandchild_without_behavior", []string{"/tmp/bin/codex"}, map[string]string{grandchildEnv: "/tmp/pid"}, roleGrandchild},
+		{"test_binary_with_grandchild_variable", []string{"/tmp/go-build/codexreview.test"}, map[string]string{grandchildEnv: "/tmp/pid"}, roleTests},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

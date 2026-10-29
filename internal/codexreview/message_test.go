@@ -87,6 +87,8 @@ func TestParseFinalMessage(t *testing.T) {
 		{name: "finding_line_in_summary", text: finding + "\nReview comment:\n" + finding, form: formUnreadable},
 		{name: "two_paragraphs_without_heading", text: "First paragraph.\n\nSecond paragraph.\n", form: formUnreadable},
 		{name: "list_marker_without_heading", text: "Notes on the change.\n- one item\n", form: formUnreadable},
+		{name: "star_marker_without_heading", text: "Notes on the change.\n* one item\n", form: formUnreadable},
+		{name: "plus_marker_without_heading", text: "Notes on the change.\n+ one item\n", form: formUnreadable},
 		{name: "numbered_item_without_heading", text: "Notes on the change.\n1. one item\n", form: formUnreadable},
 		{name: "priority_marker_without_heading", text: "One issue [P1] is in a.go.\n", form: formUnreadable},
 		{name: "colon_at_end_without_heading", text: "The findings are:\n", form: formUnreadable},

@@ -161,8 +161,11 @@ type Behavior struct {
 
 	// GrandchildPIDFile, when set, makes the fake start a grandchild that
 	// writes its PID there and lives until it is killed. The fake goes on
-	// only once the PID is written, so a test can always find it.
+	// only once the PID is written, so a test can always find it. With
+	// GrandchildEscapes the grandchild starts in a new session, outside
+	// codex's process group, and keeps the fake's standard output open.
 	GrandchildPIDFile string `json:"grandchild_pid_file,omitempty"`
+	GrandchildEscapes bool   `json:"grandchild_escapes,omitempty"`
 
 	// Events are written to standard output, one per line, followed by
 	// StdoutPadding bytes; StderrPadding bytes go to standard error.
@@ -175,9 +178,11 @@ type Behavior struct {
 	// to this file instead.
 	LastMessageLink string `json:"last_message_link,omitempty"`
 
-	// Hang makes the fake wait until it is killed; otherwise it exits with Exit.
-	Hang bool `json:"hang,omitempty"`
-	Exit int  `json:"exit,omitempty"`
+	// Hang makes the fake wait until it is killed; KillSelf makes it die by
+	// SIGKILL; otherwise it exits with Exit.
+	Hang     bool `json:"hang,omitempty"`
+	KillSelf bool `json:"kill_self,omitempty"`
+	Exit     int  `json:"exit,omitempty"`
 }
 
 // runFake acts as codex, following the Behavior in the environment.
@@ -195,6 +200,10 @@ func runFake(args []string) int {
 		return NoBehaviorExit
 	}
 	if b.Hang {
+		time.Sleep(lifetime)
+	}
+	if b.KillSelf {
+		_ = syscall.Kill(os.Getpid(), syscall.SIGKILL)
 		time.Sleep(lifetime)
 	}
 	return b.Exit
@@ -245,15 +254,8 @@ func (b Behavior) review(args []string) error {
 		}
 	}
 	if b.GrandchildPIDFile != "" {
-		// Started under this process's own name, so it answers as the
-		// grandchild and never runs the tests.
-		grandchild := exec.Command(os.Args[0]) //nolint:gosec // test-only fake re-executes itself
-		grandchild.Env = append(os.Environ(), grandchildEnv+"="+b.GrandchildPIDFile)
-		if err := grandchild.Start(); err != nil {
+		if err := b.startGrandchild(); err != nil {
 			return err
-		}
-		if !waitForFile(b.GrandchildPIDFile) {
-			return errNoGrandchildPID
 		}
 	}
 	for _, event := range b.Events {
@@ -274,6 +276,25 @@ func (b Behavior) review(args []string) error {
 		if err := os.WriteFile(argAfter(args, "-o"), []byte(*b.LastMessage), 0o600); err != nil { //nolint:gosec // test-only fake writes where codexreview told it to
 			return err
 		}
+	}
+	return nil
+}
+
+// startGrandchild starts the grandchild and waits until it writes its PID.
+func (b Behavior) startGrandchild() error {
+	// Started under this process's own name, so it answers as the
+	// grandchild and never runs the tests.
+	grandchild := exec.Command(os.Args[0]) //nolint:gosec // test-only fake re-executes itself
+	grandchild.Env = append(os.Environ(), grandchildEnv+"="+b.GrandchildPIDFile)
+	if b.GrandchildEscapes {
+		grandchild.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+		grandchild.Stdout = os.Stdout
+	}
+	if err := grandchild.Start(); err != nil {
+		return err
+	}
+	if !waitForFile(b.GrandchildPIDFile) {
+		return errNoGrandchildPID
 	}
 	return nil
 }
