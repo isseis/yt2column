@@ -8,7 +8,7 @@
 | Created | 2026-10-29 |
 | Review date | 2026-10-29 |
 | Reviewer | isseis |
-| Comments | 2026-10-29（PR-1 の実装の際の編集上の訂正。決定の変更はない）: 1.2 の `internal/transcript` の形にならう項目と、ステップ 1-2 の記述を、実装に合わせた。`Setpgid` で子をグループの長にする点はならい、グループへの停止は `cmd.Cancel` ではなく、自分で持つ出力のパイプとシグナルの送信で行う。`exec` のコピーの goroutine では、直接の子の終了とパイプの読み終わりの間にグループを止められないためである。猶予は直接の子が終わった時点で終わり、残った子孫はすぐに強制の停止を受ける。(a) の時間切れは、同じ `ctx.Done` の経路を通るコンテキストの取り消しで確かめた |
+| Comments | 2026-10-29（PR-1 の実装の際の編集上の訂正。決定の変更はない）: 1.2 の `internal/transcript` の形にならう項目と、ステップ 1-2 の記述を、実装に合わせた。`Setpgid` で子をグループの長にする点はならい、グループへの停止は `cmd.Cancel` ではなく、自分で持つ出力のパイプとシグナルの送信で行う。`exec` のコピーの goroutine では、直接の子の終了とパイプの読み終わりの間にグループを止められないためである。猶予は直接の子が終わった時点で終わり、残った子孫はすぐに強制の停止を受ける。(a) の時間切れは、同じ `ctx.Done` の経路を通るコンテキストの取り消しで確かめた。2026-10-29（PR-2 の実装の際の編集上の訂正。決定の変更はない）: ステップ 2-3 の、git-ignore されたファイルを比べないことの確かめを、`TestRunStateChanged` の行から独立のテスト `TestRunIgnoresIgnoredFiles` に分けた（結果の種類が `state_changed` でないため）。`Run` はプロセスの環境を読まず、呼び出し元から受け取る（`internal/config` の `TestEnvAccessConfined` が、環境の読み取りを `main` に限るため。`fixprguard` と同じ形）。ステップ 2-2 の入口の見分けのテストの名前を `TestRoleOf` とし、9 章にテストのファイル名を書き戻した。1.2 の、`Detail` の値と種類を列挙する一覧の関数は、それを使うガード（ステップ 5-2）と同じ PR で加える（`make deadcode` が、どのテストからも届かない関数を拒むため）。2026-10-29（決定の変更。isseis がこのセッションで承認した）: Codex のシェルに環境変数を引き継がせない対策を採ることにした。環境変数を引き継ぐと、Codex が実行するどのコマンドも秘密の値を持ち、`env` の実行や環境を含むエラーの出力から、ファイルを読まなくても暗黙のうちに OpenAI に送られうる。`.envrc` を読む経路とは別の経路であり、「採っても残るリスクは変わらない」という設計書 1.2 の判断は誤りだった（PR #573 の CodeRabbit の指摘と利用者の指摘による）。ステップ 2-3 で `codex` に渡す環境を決めた名前の変数だけにし、固定の引数に `shell_environment_policy.inherit="core"` を加えた（`TestRunPassesOnlyAllowedEnvironment`、`TestRunPassesFixedArguments`）。ステップ 8-2 に、絞った環境での認証と、`env` による確かめを加えた。偽の `codex` は環境ではなく、リンクの隣のファイルと引数で振る舞いを受け取る形に改めた |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -126,12 +126,12 @@ PR-1・PR-2 のマージで `.claude/commands/` と `CLAUDE.md` の行番号が�
 
 **変えるファイル**: `internal/codexreview/`（新設。最終メッセージの解析のファイル）とそのテスト、`internal/codexreview/testdata/`、`CLAUDE.md`、`docs/dev/conventions/package_reference.md`
 
--   [ ] 最終メッセージを、設計書 3.4 の形と照らす関数を書く。結果は「指摘あり」「指摘なし」「読み取れない」のどれかで、「読み取れない」のときは指摘を 1 つも返さない。
--   [ ] 指摘の位置を確かめる関数を書く（設計書 3.4「位置の確かめ」）。シンボリックリンクを解いた形でルートと比べる。ルートの外のパスを指す指摘が 1 つでもあれば、最終メッセージ全体を「読み取れない」とする。`BASE..HEAD` で変わったファイルにあり、ファイルがあり、行の範囲がファイルの中にあるときだけ `InRange` を真にする。
--   [ ] テスト `TestParseFinalMessage` を書く。入力は、観測の記録の 5 と O1・O2 の形（見出しが `Full review comments:` で指摘 2 件、`Review comment:` で指摘 1 件、指摘なしの 1 段落）を架空の文面で作り、`testdata/` に置く。題名に ` — ` を含む指摘（最後の区切りより後ろが位置になる）も受け入れる。設計書 3.4 の「読み取れない」の各例、開始行が終了行より大きい指摘の行、「指摘なし」から除く 3 つの行の形も、それぞれ「読み取れない」になることを確かめる。
--   [ ] テスト `TestLocateFindings` を書く。ルートの外のパス、シンボリックリンクを経たルート、範囲で変わっていないファイル、範囲で消されたファイル、ファイルの外の行を扱う。
--   [ ] `CLAUDE.md`「Declare, don't infer」に、設計書 1.4 の例外（範囲、理由、境界）を、既存の例外と同じ形で加える（1.2）。
--   [ ] `package_reference.md` に `internal/codexreview` の行を加える。
+-   [x] 最終メッセージを、設計書 3.4 の形と照らす関数を書く。結果は「指摘あり」「指摘なし」「読み取れない」のどれかで、「読み取れない」のときは指摘を 1 つも返さない。
+-   [x] 指摘の位置を確かめる関数を書く（設計書 3.4「位置の確かめ」）。シンボリックリンクを解いた形でルートと比べる。ルートの外のパスを指す指摘が 1 つでもあれば、最終メッセージ全体を「読み取れない」とする。`BASE..HEAD` で変わったファイルにあり、ファイルがあり、行の範囲がファイルの中にあるときだけ `InRange` を真にする。
+-   [x] テスト `TestParseFinalMessage` を書く。入力は、観測の記録の 5 と O1・O2 の形（見出しが `Full review comments:` で指摘 2 件、`Review comment:` で指摘 1 件、指摘なしの 1 段落）を架空の文面で作り、`testdata/` に置く。題名に ` — ` を含む指摘（最後の区切りより後ろが位置になる）も受け入れる。設計書 3.4 の「読み取れない」の各例、開始行が終了行より大きい指摘の行、「指摘なし」から除く 3 つの行の形も、それぞれ「読み取れない」になることを確かめる。
+-   [x] テスト `TestLocateFindings` を書く。ルートの外のパス、シンボリックリンクを経たルート、範囲で変わっていないファイル、範囲で消されたファイル、ファイルの外の行を扱う。
+-   [x] `CLAUDE.md`「Declare, don't infer」に、設計書 1.4 の例外（範囲、理由、境界）を、既存の例外と同じ形で加える（1.2）。
+-   [x] `package_reference.md` に `internal/codexreview` の行を加える。
 
 **完了の条件**: `make test`・`make lint`・`make deadcode` が通る。文法の判定と位置の確かめの各分岐を 1 つずつ外し、2 つのテストのどれかの行が失敗することを確かめる。
 
@@ -139,34 +139,35 @@ PR-1・PR-2 のマージで `.claude/commands/` と `CLAUDE.md` の行番号が�
 
 **変えるファイル**: `internal/codexreview/testutil/helpers.go`（新設、`package codexreviewtestutil`、1 行目は `//go:build test`）、`internal/pipeline/pipeline_test.go`（`TestFakesCarryBuildTag` の数）、`docs/dev/conventions/package_reference.md`
 
--   [ ] テストのバイナリを偽の `codex` にする補助を書く（1.2）。`internal/codexreview` と `cmd/codexreview` の両方のテストから使うので、`testutil` に置く（`test_organization.md` の分類 A）。
--   [ ] `TestMain` から最初に呼ぶ入口を用意する。`os.Args[0]` の名前が `codex` なら、フラグを読む前に偽の `codex` として動いて終わる。振る舞いを選ぶ変数がなければ、決まった 0 以外の終了コードで終わり、テストを走らせ直さない。そうでなければ、プロセスの `PATH` を `git` だけを置いたディレクトリにし、`exec.LookPath("codex")` が失敗することを確かめてから `m.Run` を呼ぶ（1.3 の `cmd/yt2column/main_test.go` の前例）。テストが作るどの子のプロセスの環境も、この環境から作る。
--   [ ] テストが使う準備用の関数を用意する。`codex` という名前の symlink（テストのバイナリへ）と `git` への symlink を置いたディレクトリを `PATH` にする。`git` は本物の実行ファイルを指すようにし、macOS の `/usr/bin/git` で動くことを実装の際に確かめる。`HOME` と `XDG_CONFIG_HOME` を空のディレクトリに向け、`TMPDIR` を `t.TempDir()` に向ける（1.3 の `fixprguard` の補助と同じ形。それらはパッケージの中の非公開の補助なので、共有せずに同じ形で書く）。一時的な git のリポジトリを作る関数も置き、リポジトリの設定で署名を止め、`user.name` と `user.email` を設定する。テストが自分で実行する git には `GIT_CONFIG_NOSYSTEM=1` も付ける。
--   [ ] 偽の `codex` の振る舞いを、設計書 7.1 の一覧のとおりに選べるようにする（引数の記録、終了コード、`turn.completed` を出さない、2 つ出す、`error` か `turn.failed` の行を出す、`-o` のファイルを書かない、上限を超えて書く、作業ツリーのファイルを変える、追跡していないファイルを作る、git-ignore されたファイルを変える、ブランチを作る、タグを作る、stash を作る、孫のプロセスを起動して終わらない）。`--version` にも答える。記録やプロセス ID のファイルは、作業ツリーの外に書く。起動されたことは、作業ツリーの外の印のファイルで分かるようにする（`--version` の起動も数える）。孫には生きる時間の上限を持たせる。
--   [ ] `os.Executable()` の実行、symlink の作成、変数のパスの読み書きで `gosec` が当たる文には、文ごとに `//nolint:gosec` と、テストのためだけの理由を書く（1.3）。
--   [ ] `TestFakesCarryBuildTag` の数を、加えたファイルの数だけ増やす。
--   [ ] `package_reference.md` に `internal/codexreview/testutil` の行を加える。
+-   [x] テストのバイナリを偽の `codex` にする補助を書く（1.2）。`internal/codexreview` と `cmd/codexreview` の両方のテストから使うので、`testutil` に置く（`test_organization.md` の分類 A）。
+-   [x] `TestMain` から最初に呼ぶ入口を用意する。`os.Args[0]` の名前が `codex` なら、フラグを読む前に偽の `codex` として動いて終わる。`codex` のリンクの隣に振る舞いのファイルがなければ、決まった 0 以外の終了コードで終わり、テストを走らせ直さない。そうでなければ、プロセスの `PATH` を `git` だけを置いたディレクトリにし、`exec.LookPath("codex")` が失敗することを確かめてから `m.Run` を呼ぶ（1.3 の `cmd/yt2column/main_test.go` の前例）。テストが作るどの子のプロセスの環境も、この環境から作る。
+-   [x] テストが使う準備用の関数を用意する。`codex` という名前の symlink（テストのバイナリへ）と `git` への symlink を置いたディレクトリを `PATH` にする。`git` は本物の実行ファイルを指すようにし、macOS の `/usr/bin/git` で動くことを実装の際に確かめる。`HOME` と `XDG_CONFIG_HOME` を空のディレクトリに向け、`TMPDIR` を `t.TempDir()` に向ける（1.3 の `fixprguard` の補助と同じ形。それらはパッケージの中の非公開の補助なので、共有せずに同じ形で書く）。一時的な git のリポジトリを作る関数も置き、リポジトリの設定で署名を止め、`user.name` と `user.email` を設定する。テストが自分で実行する git には `GIT_CONFIG_NOSYSTEM=1` も付ける。
+-   [x] 偽の `codex` の振る舞いを、設計書 7.1 の一覧のとおりに選べるようにする（引数の記録、終了コード、`turn.completed` を出さない、2 つ出す、`error` か `turn.failed` の行を出す、`-o` のファイルを書かない、上限を超えて書く、作業ツリーのファイルを変える、追跡していないファイルを作る、git-ignore されたファイルを変える、ブランチを作る、タグを作る、stash を作る、孫のプロセスを起動して終わらない）。`--version` にも答える。記録やプロセス ID のファイルは、作業ツリーの外に書く。起動されたことは、作業ツリーの外の印のファイルで分かるようにする（`--version` の起動も数える）。孫には生きる時間の上限を持たせる。
+-   [x] `os.Executable()` の実行、symlink の作成、変数のパスの読み書きで `gosec` が当たる文には、文ごとに `//nolint:gosec` と、テストのためだけの理由を書く（1.3）。
+-   [x] `TestFakesCarryBuildTag` の数を、加えたファイルの数だけ増やす。
+-   [x] `package_reference.md` に `internal/codexreview/testutil` の行を加える。
 
-**完了の条件**: ステップ 2-3 のテストで使われ、`make test`・`make lint`・`make deadcode` が通る。`TestMain` の入口の見分け（`codex` の名前のとき、変数がないとき）を、組み立てた引数で確かめるテストがある。
+**完了の条件**: ステップ 2-3 のテストで使われ、`make test`・`make lint`・`make deadcode` が通る。`TestMain` の入口の見分け（`codex` の名前のとき、振る舞いのファイルがないとき）を、組み立てた引数で確かめるテスト（`internal/codexreview/testutil/helpers_test.go` の `TestRoleOf`）がある。
 
 #### ステップ 2-3: `codex` の実行と、前後の比較
 
 **変えるファイル**: `internal/codexreview/`（実行のファイル、`test_helpers.go`（1 行目は `//go:build test`））とそのテスト
 
--   [ ] 設計書 3.3 のとおりに、実行の前の確かめ、前の状態の記録、固定した引数での `codex` の実行、完了の判定、最終メッセージの読み取りと判定、後の状態との比較、指示ファイルの変更の確かめ、ツールの結果の組み立てを書く。`Kind`・`Result`・`Finding`・`Protocol` は設計書 3.3 の形とする。時間の配分、優先の順、シグナルと自身の失敗の扱いは 1.2 のとおりにする。
--   [ ] `codex` の実行には、ステップ 1-2 のオプションを付けた `internal/cmdrunner` を使う。環境は `GitEnv`、標準入力は空、標準出力の上限は 16 MiB とする。git の実行には、ステップ 1-1 の設定の上書きを付ける。
--   [ ] 比べる git の出力は、利用者の git の設定に左右されない形で読む（1.3）。使うのは次の 3 つである。追跡していないファイルをすべて出し、サブモジュールの変更を無視しない `status`。`--no-ext-diff`・`--no-textconv`・`--no-renames` を付けた `diff --name-only`。書式を指定した参照と stash の一覧。
--   [ ] 時間の上限を短くする関数を `test_helpers.go` に置く。この差し替えは、テストのときだけビルドされ、引数や環境変数からは使えない（設計書 7.1）。`t.Cleanup` で元に戻す。`t.Setenv` とこの差し替えを使うテストは並行に走らせない。
--   [ ] テストを書く。どれも、ステップ 2-2 の準備用の関数を使う。各テストは、設計書 3.3・3.4 の分岐ごとに 1 つ以上の行を持つ。
+-   [x] 設計書 3.3 のとおりに、実行の前の確かめ、前の状態の記録、固定した引数での `codex` の実行、完了の判定、最終メッセージの読み取りと判定、後の状態との比較、指示ファイルの変更の確かめ、ツールの結果の組み立てを書く。`Kind`・`Result`・`Finding`・`Protocol` は設計書 3.3 の形とする。時間の配分、優先の順、シグナルと自身の失敗の扱いは 1.2 のとおりにする。
+-   [x] `codex` の実行には、ステップ 1-2 のオプションを付けた `internal/cmdrunner` を使う。環境は、呼び出し元（`cmd/codexreview` の `main`）が渡すプロセスの環境から、決めた名前の変数だけを残したもの（設計書 1.2・3.3。`TestRunPassesOnlyAllowedEnvironment`）、標準入力は空、標準出力の上限は 16 MiB とする。git の実行には、ステップ 1-1 の設定の上書きを付ける。
+-   [x] 比べる git の出力は、利用者の git の設定に左右されない形で読む（1.3）。使うのは次の 3 つである。追跡していないファイルをすべて出し、サブモジュールの変更を無視しない `status`。`--no-ext-diff`・`--no-textconv`・`--no-renames` を付けた `diff --name-only`。書式を指定した参照と stash の一覧。
+-   [x] 時間の上限を短くする関数を `test_helpers.go` に置く。この差し替えは、テストのときだけビルドされ、引数や環境変数からは使えない（設計書 7.1）。`t.Cleanup` で元に戻す。`t.Setenv` とこの差し替えを使うテストは並行に走らせない。
+-   [x] テストを書く。どれも、ステップ 2-2 の準備用の関数を使う。各テストは、設計書 3.3・3.4 の分岐ごとに 1 つ以上の行を持つ。
     -   `TestRunPassesFixedArguments`: 偽の `codex` に渡る引数が、設計書 3.3 の固定した形と一致する。
     -   `TestRunPreconditions`: 設計書 3.3 の「実行の前の確かめ」の各行（`codex_not_found` を含む）と、`codex --version` の失敗と時間切れで、偽の `codex` のレビューが一度も起動されず、決めた種類と `Detail` が返る。
     -   `TestRunKinds`: `findings`・`no_findings`・`timeout`・`codex_failed`（`Detail` の `exit_status_<n>`）・`incomplete`（完了の行がない、2 つある、`error` の行、`turn.failed` の行）・`output_too_large`（標準出力、標準エラー、最終メッセージ。最終メッセージは 64 KiB ちょうどと 1 バイト超え）・`output_empty`（空のファイル、ファイルがない）・`unreadable` が、それぞれの条件で返る。
-    -   `TestRunStateChanged`: 作業ツリーのファイル、追跡していないファイル（リポジトリに `status.showUntrackedFiles=no` を設定しても）、`HEAD`、ブランチ、タグ、stash のそれぞれを偽の `codex` が変えると、`state_changed` になり、`Changed` が違った項目を示す。git-ignore されたファイルの変更だけでは `state_changed` にならない。2 つ目の worktree を作り、そこで checkout しているブランチが変わると、`ChangedRefs` がその worktree を示す（パスはシンボリックリンクを解いて比べる）。状態の変化と、0 以外の終了、時間切れが重なると、`state_changed` が優先する。
+    -   `TestRunStateChanged`: 作業ツリーのファイル、追跡していないファイル（リポジトリに `status.showUntrackedFiles=no` を設定しても）、`HEAD`、ブランチ、タグ、stash のそれぞれを偽の `codex` が変えると、`state_changed` になり、`Changed` が違った項目を示す。2 つ目の worktree を作り、そこで checkout しているブランチが変わると、`ChangedRefs` がその worktree を示す（パスはシンボリックリンクを解いて比べる）。状態の変化と、0 以外の終了、時間切れが重なると、`state_changed` が優先する。
+    -   `TestRunIgnoresIgnoredFiles`: git-ignore されたファイルの変更だけでは `state_changed` にならない。
     -   `TestRunTimeoutStopsProcessGroup`・`TestRunCancelStopsProcessGroup`: 時間切れでは種類が `timeout` になり、偽の `codex` が起動した孫のプロセスも止まる。取り消しでも孫が止まり、状態が変わっていれば `state_changed` を返し、変わっていなければ結果を返さない（1.2）。
     -   `TestRunAfterStateUnreadable`: `codex` を起動した後に後の状態を読めないとき、結果を返さずに失敗する（1.2）。
     -   `TestRunInstructionsChanged`: 範囲が下のディレクトリの `AGENTS.md` などを変えたときだけ、`InstructionsChanged` が真になる。
     -   `TestRunDirKeepsOnlyLastMessage`: `<RUN_DIR>` は所有者だけが読み書きでき、最終メッセージのほかに何も残らない。
--   [ ] 各分岐を 1 つずつ外して（比較の項目を 1 つ外す、git の出力の書式の指定を外す、引数を 1 つ外す、優先の順を変える、後の状態の読み取りを取り消されたコンテキストで行う）、対応するテストが失敗することを確かめる。
+-   [x] 各分岐を 1 つずつ外して（比較の項目を 1 つ外す、git の出力の書式の指定を外す、引数を 1 つ外す、優先の順を変える、後の状態の読み取りを取り消されたコンテキストで行う）、対応するテストが失敗することを確かめる。
 
 **完了の条件**: `make test`・`make lint`・`make deadcode` が通る。
 
@@ -182,10 +183,10 @@ PR-1・PR-2 のマージで `.claude/commands/` と `CLAUDE.md` の行番号が�
 
 **判定理由**: 信頼できない出力の判定と作業ツリーの変化の検出という、安全のための守り（mkplan の panel mode の契機）を実装し、外部のプロセスを扱うテストの基盤も作る
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/573
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2（続き）: `cmd/codexreview`
 
@@ -383,7 +384,9 @@ PR-1・PR-2 のマージで `.claude/commands/` と `CLAUDE.md` の行番号が�
 **変えるファイル**: `docs/tasks/0049_codex_local_review/03_implementation_plan.md`（9 章の記録）
 
 -   [ ] 利用者の承認を得てから、このブランチで `codexreview` を本物の `codex` で 1 回実行し、`findings` か `no_findings` が返ることを確かめる。割り当てを 1 回分使う（設計書 7.2）。
--   [ ] 結果（日付、`codex` の版、種類、かかった時間、指摘の数）を 9 章に記録する。Codex の文面は写さない。
+-   [ ] この実行で、`codexreview` が絞った環境でも `codex` の認証と接続が通ることを確かめる（設計書 3.3）。
+-   [ ] 利用者の承認を得てから、`codexreview` と同じ環境と `-c 'shell_environment_policy.inherit="core"'` の下で `codex exec` に `env` を実行させ、`codexreview` が渡す変数のほかと秘密の変数が出ないことを確かめる。割り当てを 1 回分使う。記録には変数の名前だけを書き、値は写さない（設計書 1.2）。
+-   [ ] 結果（日付、`codex` の版、種類、かかった時間、指摘の数、`env` の確かめの結果）を 9 章に記録する。Codex の文面は写さない。
 
 **完了の条件**: 9 章に記録がある。
 
@@ -495,7 +498,7 @@ PR-1・PR-2 のマージで `.claude/commands/` と `CLAUDE.md` の行番号が�
 | リスク | 影響 | 対策 |
 |---|---|---|
 | テストが本物の `codex` を起動する | 割り当てを使い、差分を OpenAI に送る | テストのパッケージの `TestMain` が、`codex` の見つからない `PATH` にしたことを確かめてから `m.Run` を呼ぶ。テストが作る子のプロセスの環境は、この環境から作る（2-2） |
-| 偽の `codex` がテストを走らせ直す | テストが自分を起動し続ける | `os.Args[0]` の名前で見分け、振る舞いの変数がなければ 0 以外で終わる（2-2） |
+| 偽の `codex` がテストを走らせ直す | テストが自分を起動し続ける | `os.Args[0]` の名前で見分け、振る舞いのファイルがなければ 0 以外で終わる（2-2） |
 | 利用者の git の設定（署名、`status.showUntrackedFiles`）がテストや比較に効く | テストが手元だけで失敗するか、比較が変化を見逃す | テストでは `HOME` と `XDG_CONFIG_HOME` を空にする。本番の比較は、設定に左右されない引数で読む（2-2・2-3） |
 | 孫のプロセスがテストの後に残る | 手元と CI に、止まらないプロセスが残る | 起動したらすぐにグループを止める `t.Cleanup` を登録し、孫に生きる時間の上限を持たせる（1-2・2-2） |
 | プロセスの停止の確かめが、時間やゾンビで不安定になる | テストがまれに失敗するか、何も確かめずに通る | 孫がプロセス ID を書くのを待ってから止め、停止は期限まで繰り返し確かめる（1-2・2-3） |
@@ -509,7 +512,7 @@ PR-1・PR-2 のマージで `.claude/commands/` と `CLAUDE.md` の行番号が�
 ## 7. 実装チェックリスト (Implementation Checklist)
 
 -   [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2）
--   [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3）
+-   [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3）
 -   [ ] PR-3 マージ済み（対象ステップ: 2-4 / 3-1 / 3-2 / 3-3）
 -   [ ] PR-4 マージ済み（対象ステップ: 4-1 / 5-1 / 5-2 / 6-1 / 6-2 / 6-3 / 6-4）
 -   [ ] PR-5 マージ済み（対象ステップ: 7-1 / 8-1 / 8-2 / 8-3）
@@ -533,17 +536,17 @@ PR-1・PR-2 のマージで `.claude/commands/` と `CLAUDE.md` の行番号が�
 | AC-03 | manual | 共通手順の、CodeRabbit CLI の成否の判定と、同じ試行の中での代替の記述 | 5-1 |
 | AC-04 | manual | 共通手順の、CodeRabbit CLI が成功したときに `codexreview` を実行しない記述 | 5-1 |
 | AC-05 | manual | 共通手順の、どちらの CLI の指摘も同じ規則でトリアージする記述 | 5-1 |
-| AC-06 | test | `internal/codexreview/…_test.go::TestLocateFindings` | 2-1 |
+| AC-06 | test | `internal/codexreview/locate_test.go::TestLocateFindings` | 2-1 |
 | AC-06 | manual | 共通手順の、`InRange` が偽の指摘を `invalid` とし、指摘の文面の指示を実行しない記述 | 5-1 |
 | AC-07 | manual | 共通手順の、回数の記述 | 5-1 |
-| AC-08 | test | `internal/codexreview/…_test.go::TestRunStateChanged`、`::TestRunPreconditions`（`dirty_tree`）、`internal/cmdrunner/runner_test.go` のプロセスグループのテスト（正常な終了の後の停止） | 1-2・2-3 |
+| AC-08 | test | `internal/codexreview/run_test.go::TestRunStateChanged`、`::TestRunIgnoresIgnoredFiles`、`::TestRunPreconditions`（`dirty_tree`）、`internal/cmdrunner/runner_test.go` のプロセスグループのテスト（正常な終了の後の停止） | 1-2・2-3 |
 | AC-08 | static | `cmd/codexreview/docs_test.go::TestProcedureNamesKinds`（`state_changed`・`dirty_tree`） | 5-2 |
 | AC-08 | manual | 共通手順の、止めて元に戻さない記述 | 5-1 |
-| AC-09 | test | `internal/codexreview/…_test.go::TestRunKinds`、`::TestRunPreconditions`、`::TestRunTimeoutStopsProcessGroup`、`::TestRunAfterStateUnreadable`、`::TestParseFinalMessage`（読み取れないときに指摘を返さない）、`internal/cmdrunner/runner_test.go` のプロセスグループのテスト、`cmd/codexreview/main_test.go::TestExitCodes`・`::TestSignalStopsCodexProcessGroup` | 1-2・2-1・2-3・2-4 |
+| AC-09 | test | `internal/codexreview/run_test.go::TestRunKinds`、`::TestRunPreconditions`、`::TestRunTimeoutStopsProcessGroup`、`::TestRunCancelStopsProcessGroup`、`::TestRunAfterStateUnreadable`、`internal/codexreview/message_test.go::TestParseFinalMessage`（読み取れないときに指摘を返さない）、`internal/cmdrunner/runner_test.go` のプロセスグループのテスト、`cmd/codexreview/main_test.go::TestExitCodes`・`::TestSignalStopsCodexProcessGroup` | 1-2・2-1・2-3・2-4 |
 | AC-09 | static | `cmd/codexreview/docs_test.go::TestProcedureNamesKinds` | 5-2 |
 | AC-09 | manual | 共通手順の、設計書 4 章の 3 つの扱いの記述 | 5-1 |
 | AC-10 | manual | 5 か所の呼び出し元が共通手順を呼び、代替を自分で書いていないこと | 5-1・6-1〜6-3 |
-| AC-11 | test | `internal/codexreview/…_test.go::TestRunKinds`（失敗の種類と `Detail`） | 2-3 |
+| AC-11 | test | `internal/codexreview/run_test.go::TestRunKinds`（失敗の種類と `Detail`） | 2-3 |
 | AC-11 | manual | 共通手順の SUMMARY の記述と、`runplan.md` 手順 8 の要約 | 5-1・6-1 |
 | AC-12 | static | `cmd/yt2column/codex_review_docs_test.go::TestCodexMentionOnlyInRequestRow`（既存。コマンドの文書にメンションがない。補助の確かめ） | 5-1 |
 | AC-12 | manual | 共通手順の記録の行、残す場所、原文を写さないこと、メンションの確認 | 5-1 |
@@ -552,7 +555,7 @@ PR-1・PR-2 のマージで `.claude/commands/` と `CLAUDE.md` の行番号が�
 | AC-15 | manual | `runplan.md` の手順 7.7・5a・8 と、Part B 手順 3 | 6-1・6-2 |
 | AC-16 | manual | `CLAUDE.md`「Tool Execution Safety」、共通手順の Authorization、`runpr.md`・`fixpr.md`・`_lib/task-pr-handoff.md` の承認の記述 | 5-1・6-2〜6-4 |
 | AC-17 | static | `cmd/codexreview/docs_test.go::TestSettingsAllowsTool`（`codex` の許可がないことを含む）、`::TestNoDirectCodexInvocation`、`::TestDocumentedInvocationsParse` | 3-1・3-2・5-2 |
-| AC-17 | test | `cmd/codexreview/main_test.go::TestRunRejectsArguments`、`internal/codexreview/…_test.go::TestRunPassesFixedArguments` | 2-3・2-4 |
+| AC-17 | test | `cmd/codexreview/main_test.go::TestRunRejectsArguments`、`internal/codexreview/run_test.go::TestRunPassesFixedArguments` | 2-3・2-4 |
 | AC-17 | manual | ステップ 8-1 の記録（下） | 8-1 |
 | AC-18 | manual | 設計書 3.9 の表の記述と、`runpr.md:9-10`、5 章の横断検索 | 5-1・6-1〜6-3・7-1 |
 | AC-18 | test | `cmd/yt2column/codex_review_docs_test.go::TestCodeRabbitConfigStopsReview`（改めた文。補助の確かめで、割り当ての記述の中身は `manual` で確かめる） | 7-1 |

@@ -1,0 +1,6 @@
+The change adds one function, which reads out of range in one place.
+
+Review comment:
+
+- [P2] Allows a negative index — /work/repo/internal/sample/index.go:3-4
+  When the argument is 0, i-1 is -1 and the read goes out of range.
