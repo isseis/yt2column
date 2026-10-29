@@ -140,14 +140,14 @@ PR-1・PR-2 のマージで `.claude/commands/` と `CLAUDE.md` の行番号が�
 **変えるファイル**: `internal/codexreview/testutil/helpers.go`（新設、`package codexreviewtestutil`、1 行目は `//go:build test`）、`internal/pipeline/pipeline_test.go`（`TestFakesCarryBuildTag` の数）、`docs/dev/conventions/package_reference.md`
 
 -   [x] テストのバイナリを偽の `codex` にする補助を書く（1.2）。`internal/codexreview` と `cmd/codexreview` の両方のテストから使うので、`testutil` に置く（`test_organization.md` の分類 A）。
--   [x] `TestMain` から最初に呼ぶ入口を用意する。`os.Args[0]` の名前が `codex` なら、フラグを読む前に偽の `codex` として動いて終わる。振る舞いを選ぶ変数がなければ、決まった 0 以外の終了コードで終わり、テストを走らせ直さない。そうでなければ、プロセスの `PATH` を `git` だけを置いたディレクトリにし、`exec.LookPath("codex")` が失敗することを確かめてから `m.Run` を呼ぶ（1.3 の `cmd/yt2column/main_test.go` の前例）。テストが作るどの子のプロセスの環境も、この環境から作る。
+-   [x] `TestMain` から最初に呼ぶ入口を用意する。`os.Args[0]` の名前が `codex` なら、フラグを読む前に偽の `codex` として動いて終わる。`codex` のリンクの隣に振る舞いのファイルがなければ、決まった 0 以外の終了コードで終わり、テストを走らせ直さない。そうでなければ、プロセスの `PATH` を `git` だけを置いたディレクトリにし、`exec.LookPath("codex")` が失敗することを確かめてから `m.Run` を呼ぶ（1.3 の `cmd/yt2column/main_test.go` の前例）。テストが作るどの子のプロセスの環境も、この環境から作る。
 -   [x] テストが使う準備用の関数を用意する。`codex` という名前の symlink（テストのバイナリへ）と `git` への symlink を置いたディレクトリを `PATH` にする。`git` は本物の実行ファイルを指すようにし、macOS の `/usr/bin/git` で動くことを実装の際に確かめる。`HOME` と `XDG_CONFIG_HOME` を空のディレクトリに向け、`TMPDIR` を `t.TempDir()` に向ける（1.3 の `fixprguard` の補助と同じ形。それらはパッケージの中の非公開の補助なので、共有せずに同じ形で書く）。一時的な git のリポジトリを作る関数も置き、リポジトリの設定で署名を止め、`user.name` と `user.email` を設定する。テストが自分で実行する git には `GIT_CONFIG_NOSYSTEM=1` も付ける。
 -   [x] 偽の `codex` の振る舞いを、設計書 7.1 の一覧のとおりに選べるようにする（引数の記録、終了コード、`turn.completed` を出さない、2 つ出す、`error` か `turn.failed` の行を出す、`-o` のファイルを書かない、上限を超えて書く、作業ツリーのファイルを変える、追跡していないファイルを作る、git-ignore されたファイルを変える、ブランチを作る、タグを作る、stash を作る、孫のプロセスを起動して終わらない）。`--version` にも答える。記録やプロセス ID のファイルは、作業ツリーの外に書く。起動されたことは、作業ツリーの外の印のファイルで分かるようにする（`--version` の起動も数える）。孫には生きる時間の上限を持たせる。
 -   [x] `os.Executable()` の実行、symlink の作成、変数のパスの読み書きで `gosec` が当たる文には、文ごとに `//nolint:gosec` と、テストのためだけの理由を書く（1.3）。
 -   [x] `TestFakesCarryBuildTag` の数を、加えたファイルの数だけ増やす。
 -   [x] `package_reference.md` に `internal/codexreview/testutil` の行を加える。
 
-**完了の条件**: ステップ 2-3 のテストで使われ、`make test`・`make lint`・`make deadcode` が通る。`TestMain` の入口の見分け（`codex` の名前のとき、変数がないとき）を、組み立てた引数で確かめるテスト（`internal/codexreview/testutil/helpers_test.go` の `TestRoleOf`）がある。
+**完了の条件**: ステップ 2-3 のテストで使われ、`make test`・`make lint`・`make deadcode` が通る。`TestMain` の入口の見分け（`codex` の名前のとき、振る舞いのファイルがないとき）を、組み立てた引数で確かめるテスト（`internal/codexreview/testutil/helpers_test.go` の `TestRoleOf`）がある。
 
 #### ステップ 2-3: `codex` の実行と、前後の比較
 
