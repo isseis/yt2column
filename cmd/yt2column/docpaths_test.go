@@ -10,6 +10,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/isseis/yt2column/internal/doctestutil"
 )
 
 // docRef is one path a document must resolve: a relative Markdown link
@@ -35,16 +37,16 @@ var lineSuffixRE = regexp.MustCompile(`:[0-9]+(?:-[0-9]+)?$`)
 // references.
 func docPathRefs(doc string) []docRef {
 	var refs []docRef
-	for _, line := range scanDocLines(slices.Collect(strings.Lines(doc))) {
-		if line.block {
+	for _, line := range doctestutil.ScanDocLines(slices.Collect(strings.Lines(doc))) {
+		if line.Block {
 			continue
 		}
-		spans := codeSpanRE.FindAllStringSubmatchIndex(line.text, -1)
-		for _, match := range markdownLinkRE.FindAllStringSubmatchIndex(line.text, -1) {
+		spans := codeSpanRE.FindAllStringSubmatchIndex(line.Text, -1)
+		for _, match := range markdownLinkRE.FindAllStringSubmatchIndex(line.Text, -1) {
 			if inCodeSpan(spans, match[0]) {
 				continue
 			}
-			target := line.text[match[4]:match[5]]
+			target := line.Text[match[4]:match[5]]
 			if !isRelativeLinkTarget(target) {
 				continue
 			}
@@ -52,7 +54,7 @@ func docPathRefs(doc string) []docRef {
 			refs = append(refs, docRef{path: file, relative: true})
 		}
 		for _, span := range spans {
-			content := strings.TrimSpace(line.text[span[0]+1 : span[1]-1])
+			content := strings.TrimSpace(line.Text[span[0]+1 : span[1]-1])
 			if !repoDocPathRE.MatchString(content) {
 				continue
 			}
@@ -126,7 +128,7 @@ func TestInstructionDocPaths(t *testing.T) {
 	for _, rel := range instructionDocs(t) {
 		t.Run(rel, func(t *testing.T) {
 			path := filepath.Join(repositoryRoot, rel)
-			doc := readDoc(t, path)
+			doc := doctestutil.ReadDoc(t, path)
 			checkLinkCount(t, rel, doc, len(markdownLinkTargets(doc)))
 			for _, ref := range docPathRefs(doc) {
 				base := repositoryRoot

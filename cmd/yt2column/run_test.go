@@ -23,6 +23,7 @@ import (
 
 	"github.com/isseis/yt2column/internal/artifact"
 	"github.com/isseis/yt2column/internal/config"
+	"github.com/isseis/yt2column/internal/doctestutil"
 	"github.com/isseis/yt2column/internal/llm"
 	llmtestutil "github.com/isseis/yt2column/internal/llm/testutil"
 	"github.com/isseis/yt2column/internal/publisher"
@@ -2889,7 +2890,7 @@ func TestRunEvaluationProcedureFlags(t *testing.T) {
 // list after the program name, with line continuations joined.
 func evaluationProcedureCommands(t *testing.T) [][]string {
 	t.Helper()
-	section := sectionByHeading(readDoc(t, reviewEvaluationPath), "### 2.6. 中間生成物を固定した比較（タスク 0017 以降）")
+	section := doctestutil.SectionByHeading(doctestutil.ReadDoc(t, reviewEvaluationPath), "### 2.6. 中間生成物を固定した比較（タスク 0017 以降）")
 	if section == "" {
 		t.Fatal("02_evaluation.md has no 2.6 section")
 	}

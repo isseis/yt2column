@@ -8,7 +8,7 @@
 | Created | 2026-10-28 |
 | Review date | 2026-10-28 |
 | Reviewer | isseis |
-| Comments | 2026-10-29: ステップ 3-4 の記述を、`runpr.md` に `main` を取り込む手順がないことに合わせて直した。衝突の規則は、`runpr.md` の手順 1 に加えた段落から `mktrans.md` の規則を参照する形にした。ステップ 3-1 で、`mktrans.md` の説明（frontmatter の `description`）と CLAUDE.md のコマンドの一覧の `/mktrans` の行も、README の組だけを扱う形に改めた。止まったときに `/mktrans` が書きかけた `README.en.md` を戻す手段を、呼び出し元の `git restore` から、`/mktrans` が書く前に取った写しで自分で戻す形にした（設計書 4.3 も合わせた。呼び出し元の作業ツリーの `README.en.md` の変更を消さないため）（決定の変更なし。編集上の修正）。2026-10-29: PR-2 のレビューで、同期の印の検査を Go のテストにすることをレビュアー（isseis）が決め、このセッションで承認した（決定の変更）。1.3 に決定を加え、ステップ 3-4・3-6・6-7、4.1 のテストの表、7 章の AC-37 の行、PR-2 の対象ステップを改めた |
+| Comments | 2026-10-29: ステップ 3-4 の記述を、`runpr.md` に `main` を取り込む手順がないことに合わせて直した。衝突の規則は、`runpr.md` の手順 1 に加えた段落から `mktrans.md` の規則を参照する形にした。ステップ 3-1 で、`mktrans.md` の説明（frontmatter の `description`）と CLAUDE.md のコマンドの一覧の `/mktrans` の行も、README の組だけを扱う形に改めた。止まったときに `/mktrans` が書きかけた `README.en.md` を戻す手段を、呼び出し元の `git restore` から、`/mktrans` が書く前に取った写しで自分で戻す形にした（設計書 4.3 も合わせた。呼び出し元の作業ツリーの `README.en.md` の変更を消さないため）（決定の変更なし。編集上の修正）。2026-10-29: PR-2 のレビューで、同期の印の検査を Go のテストにすることをレビュアー（isseis）が決め、このセッションで承認した（決定の変更）。1.3 に決定を加え、ステップ 3-4・3-6・6-7、4.1 のテストの表、7 章の AC-37 の行、PR-2 の対象ステップを改めた。2026-10-29: ステップ 4-2 の網羅の比較を、`go tool cover -func` が `_test.go` の関数を計測せず移す前の関数ごとの網羅を取れないことに合わせ、移したテストの本体が名前のほかは同じであること、消したテストの見ていた境界が移したテストの行で確かめられていること、移した後の `-coverpkg=./internal/doctestutil` の結果の確認に改めた（1.2 の項目と 9 章の品質の行も合わせた）。ステップ 4-1 の例外の一覧に `FencedBlock` の公開を加え、ステップ 4-2 の (2) を、消した行と同じ行があるという形から、消した行の境界を移した行が確かめているという形に直した（決定の変更なし。編集上の修正） |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の項番、「設計書 3.6」などは設計書の節を指す。既存のコードと文書についての記述は、コミット `c76eec26`（本書の作成時の `main`）で確かめた。`file:line` は、特に断らない限り、このコミットの行番号を指す。
 
@@ -34,7 +34,7 @@ yt2column の実行時の振る舞いは変えない（要件書 4.1・4.3）。
 -   **設計は設計書に従い、本書は繰り返さない。** 置き場所は設計書 2.2、ファイルごとの変更は 3.1、README の振り分けは 3.6、ガードテストの振り分けは 3.7、`/mktrans` の振る舞いは 3.8、同期の手順は 4.3、旧パスの対応表は 6.2 が定める。本書のステップは、どの節に従って何を変え、どう確かめるかだけを示す。
 -   **移動と内容の変更を別のコミットにする。** `git mv` だけのコミット、パスの置換のコミット、翻訳のコミットを分け、レビューで差分を読み分けられるようにする。README の振り分けも、英語のまま移すコミットと翻訳のコミットを分ける（1.3）。途中のコミットでテストが失敗してよいのは、本書がそう書くコミット（ステップ 1-2、6-2〜6-4）だけである。PR は squash でマージされ、グリーンゲートは PR の先頭で確かめる。
 -   **テストは壊して確かめる。** 新しいテストと、検査の対象を変えたテストは、守る対象を壊して失敗することを確かめてからコミットし、そのことをコミットのメッセージに書く（CLAUDE.md、Testing Strategy）。
--   **消すテストは、関数ごとの網羅を比べる。** テストや表の行を消すときは、`go tool cover -func` の関数ごとの結果が前後で変わらないことを確かめ、コミットのメッセージに書く。関数を移すときは、1.5 の対応表で古い名前と新しい名前を対応させて比べる。
+-   **消すテストは、失った確認がないことを示す。** `go tool cover -func` は `_test.go` の関数を計測しないので、テスト専用の関数には移す前の関数ごとの網羅がない（ステップ 4-2 で確かめた）。テストや表の行を消すときは、残るテストが、消した行の見ていた境界を確かめていることを示し、コミットのメッセージに書く。関数を移すときは、1.5 の対応表で古い名前と新しい名前を対応させ、本体が名前のほかは同じであることを比べる。
 -   **新しい Go のテストのファイルと `_checks/` のプログラム。** 新しい `_test.go` には、ほかのテストと同じく `//go:build test` を付ける。`_checks/` のプログラムは環境変数を読まない（リポジトリ全体の環境変数の読み取りの検査は、`_` で始まるディレクトリにも及ぶ。`docs/tasks/0040_production_profile/_checks/main.go` の先頭のコメント）。コメントと文字列は英語にする。
 
 ### 1.3. 計画の際に決めたこと（2026-10-28）
@@ -310,11 +310,11 @@ AGENTS.md の変更（リンクのパス）は、ステップ 1-3 の置換に�
 
 **変更するファイル:** `internal/doctestutil/`（新規。ファイルの分け方は実装で決める）、`cmd/yt2column/docs_test.go`
 
--   [ ] すべてのファイルに `//go:build test` を付けた `package doctestutil` を作る。
--   [ ] 1.5 の対応表の関数と型を移し、公開する。`splitTableRow`・`isTableSeparator`・`isClosingFence` は公開せずに移す。本体は変えない。例外は、`ReadDoc` が `testing.TB` を受け取ること、`FencedBlocks` が文書の文字列を受け取ること、`DocLine` のフィールドを公開することの 3 つである（設計書 3.3）。
--   [ ] `ReadDoc` の `os.ReadFile` に、行の単位の `//nolint:gosec` を付ける。理由として、読むパスはガードテストが指定するリポジトリ内の文書であることを、テストの文脈に限って書く（1.4 の前例）。ほかの移した関数で、`_test.go` の除外がなくなって出る lint の指摘も直す。
--   [ ] `TestSectionByHeading`（`cmd/yt2column/docs_test.go:347`）・`TestScanDocLines`・`TestFencedBlocks`・`TestAnchorFromHeading`・`TestSectionOutsideBlocks` を移す。
--   [ ] `TestAnchorFromHeading` の表に、設計書 3.4 で確かめた日本語の見出しの行を加える（設計書 3.4 の「確かめた文字」だけを使う）。
+-   [x] すべてのファイルに `//go:build test` を付けた `package doctestutil` を作る。
+-   [x] 1.5 の対応表の関数と型を移し、公開する。`splitTableRow`・`isTableSeparator`・`isClosingFence` は公開せずに移す。本体は変えない。例外は 4 つである。`ReadDoc` が `testing.TB` を受け取ること、`FencedBlocks` が文書の文字列を受け取ること（呼び出し元の `slices.Collect(strings.Lines(…))` が中に入る）、`DocLine` のフィールドを公開すること、`FencedBlock` を公開してそのフィールドも公開すること（設計書 3.3 の「`fencedBlock` を公開した型」）である。
+-   [x] `ReadDoc` の `os.ReadFile` に、行の単位の `//nolint:gosec` を付ける。理由として、読むパスはガードテストが指定するリポジトリ内の文書であることを、テストの文脈に限って書く（1.4 の前例）。ほかの移した関数で、`_test.go` の除外がなくなって出る lint の指摘も直す。
+-   [x] `TestSectionByHeading`（`cmd/yt2column/docs_test.go:369`）・`TestScanDocLines`・`TestFencedBlocks`・`TestAnchorFromHeading`・`TestSectionOutsideBlocks` を移す。
+-   [x] `TestAnchorFromHeading` の表に、設計書 3.4 で確かめた日本語の見出しの行を加える（設計書 3.4 の「確かめた文字」だけを使う）。
 
 **完了の条件:** `go test -tags test ./internal/doctestutil` が通る。
 
@@ -322,10 +322,10 @@ AGENTS.md の変更（リンクのパス）は、ステップ 1-3 の置換に�
 
 **変更するファイル:** `cmd/yt2column/*_test.go`（1.4 の呼び出し元のあるもの）、`cmd/yt2column-server/docs_test.go`
 
--   [ ] `cmd/yt2column` と `cmd/yt2column-server` の呼び出しを `doctestutil` の関数にする。
--   [ ] `cmd/yt2column-server/docs_test.go` の 9 つのコピー（1.5 の表の関数。`tablesByFirstHeader` は残す）と、重複を説明するコメント（`:363-368`）を消す。
--   [ ] `cmd/yt2column-server/docs_test.go:213` の `TestSectionByHeading` を消す。
--   [ ] 網羅を比べる。移す前に `cmd/yt2column` のテストで `cmd/yt2column` の関数の `go tool cover -func` を取り、移した後に 3 つのパッケージ（`internal/doctestutil`・`cmd/yt2column`・`cmd/yt2column-server`）のテストで `doctestutil` の関数について同じものを取る。両者を 1.5 の対応表で同じ関数どうしに対応させて比べる。消したサーバのコピーは比べない（関数ごとなくなるため）。使った `-coverpkg` と結果をコミットのメッセージに書く。
+-   [x] `cmd/yt2column` と `cmd/yt2column-server` の呼び出しを `doctestutil` の関数にする。
+-   [x] `cmd/yt2column-server/docs_test.go` の 9 つのコピー（1.5 の表の関数。`tablesByFirstHeader` は残す）と、重複を説明するコメント（`:363-368`）を消す。
+-   [x] `cmd/yt2column-server/docs_test.go:213` の `TestSectionByHeading` を消す。
+-   [x] 網羅を比べる。`go tool cover -func` は `_test.go` の関数を計測しない（`-coverpkg=./cmd/yt2column` の結果に `docs_test.go` の関数は 1 つも出ない）ので、移す前の関数ごとの網羅は取れない。代わりに、(1) 移したテストの本体が、公開した名前とフィールド名のほかは移す前と同じであること、(2) 消したサーバの `TestSectionByHeading` が見ていた境界（同じか高いレベルの次の見出しで節が終わることと、見出しがないときは空の文字列）が、移した `TestSectionByHeading` の「level two ends before the next level two」「level three includes a lower level four」「missing heading yields the empty string」の行で確かめられていること（移した行の入力は `#### Deeper` と後続の `##` を足した、より広いもの）、(3) 移した後に `-coverpkg=./internal/doctestutil` で 3 つのパッケージ（`internal/doctestutil`・`cmd/yt2column`・`cmd/yt2column-server`）のテストを走らせた関数ごとの網羅と、`internal/doctestutil` のテストだけを走らせた場合の網羅（表の読み取りと `ReadDoc` の失敗のテストをこのパッケージにも置く）、を確かめる。使った `-coverpkg` と結果をコミットのメッセージに書く。
 
 **完了の条件:** `make test` が通る。
 
@@ -333,9 +333,9 @@ AGENTS.md の変更（リンクのパス）は、ステップ 1-3 の置換に�
 
 **変更するファイル:** `internal/pipeline/pipeline_test.go`、`docs/dev/conventions/package_reference.md`
 
--   [ ] `testOnlyPackageDirs`（`:583`）に `internal/doctestutil` を加える。
--   [ ] `package_reference.md` に `internal/doctestutil` の行を加える（`TestPackageReferenceListsPackages` が求める）。
--   [ ] `internal/doctestutil` の 1 つのファイルから `//go:build test` を一時的に外し、`TestFakesCarryBuildTag` が失敗することを確かめる。
+-   [x] `testOnlyPackageDirs`（`:583`）に `internal/doctestutil` を加える。
+-   [x] `package_reference.md` に `internal/doctestutil` の行を加える（`TestPackageReferenceListsPackages` が求める）。
+-   [x] `internal/doctestutil` の 1 つのファイルから `//go:build test` を一時的に外し、`TestFakesCarryBuildTag` が失敗することを確かめる。
 
 **完了の条件（フェーズ 4）:** `make test`・`make lint`・`make deadcode` が通る。
 
@@ -772,14 +772,14 @@ OK   translations keep the structure
 
 `make lint`・`make test` では見つからない残りを確かめる。
 
--   [ ] 1.5 の旧い補助関数の名前（小文字の `readDoc` など）が、`cmd/yt2column`・`cmd/yt2column-server` のコメントに残っていない（PR-3）。
+-   [x] 1.5 の旧い補助関数の名前（小文字の `readDoc` など）が、`cmd/yt2column`・`cmd/yt2column-server` のコメントに残っていない（PR-3）。
 -   [ ] `docs/translation_glossary.md` の訳語と、`cli.md`・`development.md`・`README.md`・`README.en.md`・`pricing_update.md`・`claude_output_limit.md` の用語が一致する（PR-1・PR-4・PR-6 のレビューで読む）。
 -   [ ] `has-extension-changes.sh` の先頭のコメントと、CLAUDE.md の Development Notes が、拡張のテストが読む文書の同じ一覧を述べる（PR-6 のレビューで読む）。
 
 ## 9. 成功基準 (Success Criteria)
 
 -   **機能の完全性:** 7 章のすべての AC の確かめ方が実行され、`test`・`static`・`diff` が合格し、`manual` の行が PR のレビューで確かめられている。
--   **品質:** 各 PR で `make test`・`make lint` が通り、拡張を変える PR で `make ext-check`、Go のテスト専用のパッケージを変える PR で `make deadcode` が通る。新しいテストと、検査の対象を変えたテストは、守る対象を壊して失敗することが確かめられ、コミットのメッセージに書かれている。消したテストと表の行について、網羅の比較の結果がコミットのメッセージに書かれている。
+-   **品質:** 各 PR で `make test`・`make lint` が通り、拡張を変える PR で `make ext-check`、Go のテスト専用のパッケージを変える PR で `make deadcode` が通る。新しいテストと、検査の対象を変えたテストは、守る対象を壊して失敗することが確かめられ、コミットのメッセージに書かれている。消したテストと表の行について、網羅が変わらないことをどう確かめたかと、その結果がコミットのメッセージに書かれている。
 -   **セキュリティ:** `fixprguard` の範囲の判定とメンションの検査は変わらない（設計書 5 章）。
 -   **文書:** 新しい文書を追加するとき、CLAUDE.md の原則とディレクトリの規則から言語が一つに決まる（要件書 4.5）。
 
