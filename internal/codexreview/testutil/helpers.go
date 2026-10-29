@@ -5,7 +5,8 @@
 //
 // A test package that runs codexreview calls Main from its TestMain. Started
 // under the name codex (through a symbolic link that NewFake puts on PATH),
-// the test binary acts as the fake codex and never runs the tests. Started
+// the test binary acts as the fake codex, following the behavior file Set
+// writes next to the link, and never runs the tests. Started
 // normally, it puts on PATH a directory that holds only git, confirms that
 // codex cannot be found, and then runs the tests, so a test that forgets
 // NewFake cannot reach the real codex, which would spend the Codex allowance
@@ -30,12 +31,16 @@ import (
 	"github.com/isseis/yt2column/internal/cmdrunner"
 )
 
+// The fake learns what to do from files and arguments, not from the
+// environment, because codexreview passes codex only the variables it
+// allows.
 const (
-	// BehaviorEnv holds the fake codex's Behavior as JSON.
-	BehaviorEnv = "CODEXREVIEW_FAKE_CODEX"
-	// grandchildEnv makes a process started as codex the grandchild a fake
-	// codex starts; its value is the file the grandchild writes its PID to.
-	grandchildEnv = "CODEXREVIEW_FAKE_GRANDCHILD"
+	// behaviorFile, next to the codex link, holds the fake's Behavior as JSON.
+	behaviorFile = "behavior.json"
+	// grandchildFlag, as the first argument after the name codex, makes a
+	// start the grandchild a fake starts; the next argument is the file the
+	// grandchild writes its PID to.
+	grandchildFlag = "--fake-codex-grandchild"
 	// NoBehaviorExit is the exit status of a process started as codex with
 	// no behavior to follow.
 	NoBehaviorExit = 97
@@ -56,31 +61,61 @@ const (
 	roleNoBehavior
 )
 
-// roleOf decides the role from the arguments and the environment alone,
-// before any flag is parsed: a process named codex never runs the tests.
-func roleOf(args []string, lookup func(string) (string, bool)) role {
+// roleOf decides the role from the arguments alone, and from whether the
+// behavior file exists next to the command, before any flag is parsed: a
+// process named codex never runs the tests.
+func roleOf(args []string, exists func(string) bool) role {
 	if len(args) == 0 || filepath.Base(args[0]) != fakeName {
 		return roleTests
 	}
-	if _, ok := lookup(grandchildEnv); ok {
+	if len(args) == 3 && args[1] == grandchildFlag {
 		return roleGrandchild
 	}
-	if _, ok := lookup(BehaviorEnv); ok {
+	if exists(behaviorPath(args[0])) {
 		return roleFakeCodex
 	}
 	return roleNoBehavior
 }
 
+// behaviorPath returns the behavior file of the codex started as command.
+func behaviorPath(command string) string {
+	return filepath.Join(filepath.Dir(command), behaviorFile)
+}
+
+// commandPath returns where command was found: exec.Command keeps the bare
+// name as the first argument, so a name without a slash is looked up on PATH
+// as the starting process did.
+func commandPath(command string) string {
+	if strings.Contains(command, "/") {
+		return command
+	}
+	if path, err := exec.LookPath(command); err == nil {
+		return path
+	}
+	return command
+}
+
+// fileExists reports whether path exists.
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
 // Main is what a TestMain calls before anything else; it returns the exit
-// status for os.Exit.
+// status for os.Exit. A start as codex exits here, through syscall.Exit, so a
+// race-enabled binary skips the second it otherwise sleeps at exit.
 func Main(m *testing.M) int {
-	switch roleOf(os.Args, os.LookupEnv) {
+	args := slices.Clone(os.Args)
+	if len(args) > 0 {
+		args[0] = commandPath(args[0])
+	}
+	switch roleOf(args, fileExists) {
 	case roleFakeCodex:
-		return runFake(os.Args[1:])
+		syscall.Exit(runFake(args[0], args[1:]))
 	case roleGrandchild:
-		return runGrandchild(os.Getenv(grandchildEnv))
+		syscall.Exit(runGrandchild(os.Args[2]))
 	case roleNoBehavior:
-		return NoBehaviorExit
+		syscall.Exit(NoBehaviorExit)
 	}
 	dir, err := isolatePath()
 	if err != nil {
@@ -141,6 +176,9 @@ type Behavior struct {
 	// both in, so Fake.Starts and Fake.Args read what was recorded.
 	StartsFile string `json:"starts_file"`
 	ArgsFile   string `json:"args_file"`
+	// EnvFile receives the environment of a review start as a JSON array;
+	// Set fills it in for Fake.Env.
+	EnvFile string `json:"env_file"`
 
 	// Version is printed by codex --version, which exits with VersionExit or
 	// hangs when VersionHang is set.
@@ -185,10 +223,15 @@ type Behavior struct {
 	Exit     int  `json:"exit,omitempty"`
 }
 
-// runFake acts as codex, following the Behavior in the environment.
-func runFake(args []string) int {
+// runFake acts as codex, following the Behavior in the file next to command.
+func runFake(command string, args []string) int {
 	var b Behavior
-	if err := json.Unmarshal([]byte(os.Getenv(BehaviorEnv)), &b); err != nil {
+	data, err := os.ReadFile(behaviorPath(command)) //nolint:gosec // test-only fake reads the file its test wrote
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "fake codex: behavior: %v\n", err)
+		return NoBehaviorExit
+	}
+	if err := json.Unmarshal(data, &b); err != nil {
 		fmt.Fprintf(os.Stderr, "fake codex: behavior: %v\n", err)
 		return NoBehaviorExit
 	}
@@ -226,14 +269,7 @@ func (b Behavior) version() int {
 }
 
 func (b Behavior) review(args []string) error {
-	if err := appendLine(b.StartsFile, "review"); err != nil {
-		return err
-	}
-	encoded, err := json.Marshal(args)
-	if err != nil {
-		return err
-	}
-	if err := os.WriteFile(b.ArgsFile, encoded, 0o600); err != nil { //nolint:gosec // test-only fake writes the file its test named
+	if err := b.recordReview(args); err != nil {
 		return err
 	}
 	for path, content := range b.Writes {
@@ -280,12 +316,28 @@ func (b Behavior) review(args []string) error {
 	return nil
 }
 
+// recordReview records a review start, its arguments, and its environment.
+func (b Behavior) recordReview(args []string) error {
+	if err := appendLine(b.StartsFile, "review"); err != nil {
+		return err
+	}
+	for path, value := range map[string][]string{b.ArgsFile: args, b.EnvFile: os.Environ()} {
+		encoded, err := json.Marshal(value)
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(path, encoded, 0o600); err != nil { //nolint:gosec // test-only fake writes the file its test named
+			return err
+		}
+	}
+	return nil
+}
+
 // startGrandchild starts the grandchild and waits until it writes its PID.
 func (b Behavior) startGrandchild() error {
 	// Started under this process's own name, so it answers as the
 	// grandchild and never runs the tests.
-	grandchild := exec.Command(os.Args[0]) //nolint:gosec // test-only fake re-executes itself
-	grandchild.Env = append(os.Environ(), grandchildEnv+"="+b.GrandchildPIDFile)
+	grandchild := exec.Command(os.Args[0], grandchildFlag, b.GrandchildPIDFile) //nolint:gosec // test-only fake re-executes itself
 	if b.GrandchildEscapes {
 		grandchild.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 		grandchild.Stdout = os.Stdout
@@ -392,23 +444,37 @@ func NewFake(t *testing.T) *Fake {
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 	t.Setenv("TMPDIR", tmp)
-	// A race-enabled binary sleeps a second at exit by default; every start
-	// of the fake would pay it.
-	t.Setenv("GORACE", "atexit_sleep_ms=0")
 	return f
 }
 
-// Set makes b the behavior of every later start of codex, with the starts
-// and arguments files that Starts and Args read.
+// Set makes b the behavior of every later start of codex, with the starts,
+// arguments, and environment files that Starts, Args, and Env read.
 func (f *Fake) Set(b Behavior) {
 	f.t.Helper()
 	b.StartsFile = filepath.Join(f.Dir, "starts")
 	b.ArgsFile = filepath.Join(f.Dir, "args.json")
+	b.EnvFile = filepath.Join(f.Dir, "env.json")
 	encoded, err := json.Marshal(b)
 	if err != nil {
 		f.t.Fatalf("encode behavior: %v", err)
 	}
-	f.t.Setenv(BehaviorEnv, string(encoded))
+	if err := os.WriteFile(filepath.Join(f.BinDir, behaviorFile), encoded, 0o600); err != nil {
+		f.t.Fatalf("write behavior: %v", err)
+	}
+}
+
+// Env returns the environment of the last review start.
+func (f *Fake) Env() []string {
+	f.t.Helper()
+	data, err := os.ReadFile(filepath.Join(f.Dir, "env.json"))
+	if err != nil {
+		f.t.Fatalf("read env: %v", err)
+	}
+	var env []string
+	if err := json.Unmarshal(data, &env); err != nil {
+		f.t.Fatalf("decode env: %v", err)
+	}
+	return env
 }
 
 // Starts returns the recorded starts of codex in order: "version" or "review".

@@ -8,7 +8,7 @@
 | Created | 2026-10-29 |
 | Review date | 2026-10-29 |
 | Reviewer | isseis |
-| Comments | 2026-10-29（PR-1 の実装の際の編集上の訂正。決定の変更はない）: 1.2 の `internal/transcript` の形にならう項目と、ステップ 1-2 の記述を、実装に合わせた。`Setpgid` で子をグループの長にする点はならい、グループへの停止は `cmd.Cancel` ではなく、自分で持つ出力のパイプとシグナルの送信で行う。`exec` のコピーの goroutine では、直接の子の終了とパイプの読み終わりの間にグループを止められないためである。猶予は直接の子が終わった時点で終わり、残った子孫はすぐに強制の停止を受ける。(a) の時間切れは、同じ `ctx.Done` の経路を通るコンテキストの取り消しで確かめた。2026-10-29（PR-2 の実装の際の編集上の訂正。決定の変更はない）: ステップ 2-3 の、git-ignore されたファイルを比べないことの確かめを、`TestRunStateChanged` の行から独立のテスト `TestRunIgnoresIgnoredFiles` に分けた（結果の種類が `state_changed` でないため）。`Run` はプロセスの環境を読まず、呼び出し元から受け取る（`internal/config` の `TestEnvAccessConfined` が、環境の読み取りを `main` に限るため。`fixprguard` と同じ形）。ステップ 2-2 の入口の見分けのテストの名前を `TestRoleOf` とし、9 章にテストのファイル名を書き戻した。1.2 の、`Detail` の値と種類を列挙する一覧の関数は、それを使うガード（ステップ 5-2）と同じ PR で加える（`make deadcode` が、どのテストからも届かない関数を拒むため） |
+| Comments | 2026-10-29（PR-1 の実装の際の編集上の訂正。決定の変更はない）: 1.2 の `internal/transcript` の形にならう項目と、ステップ 1-2 の記述を、実装に合わせた。`Setpgid` で子をグループの長にする点はならい、グループへの停止は `cmd.Cancel` ではなく、自分で持つ出力のパイプとシグナルの送信で行う。`exec` のコピーの goroutine では、直接の子の終了とパイプの読み終わりの間にグループを止められないためである。猶予は直接の子が終わった時点で終わり、残った子孫はすぐに強制の停止を受ける。(a) の時間切れは、同じ `ctx.Done` の経路を通るコンテキストの取り消しで確かめた。2026-10-29（PR-2 の実装の際の編集上の訂正。決定の変更はない）: ステップ 2-3 の、git-ignore されたファイルを比べないことの確かめを、`TestRunStateChanged` の行から独立のテスト `TestRunIgnoresIgnoredFiles` に分けた（結果の種類が `state_changed` でないため）。`Run` はプロセスの環境を読まず、呼び出し元から受け取る（`internal/config` の `TestEnvAccessConfined` が、環境の読み取りを `main` に限るため。`fixprguard` と同じ形）。ステップ 2-2 の入口の見分けのテストの名前を `TestRoleOf` とし、9 章にテストのファイル名を書き戻した。1.2 の、`Detail` の値と種類を列挙する一覧の関数は、それを使うガード（ステップ 5-2）と同じ PR で加える（`make deadcode` が、どのテストからも届かない関数を拒むため）。2026-10-29（決定の変更。isseis がこのセッションで承認した）: Codex のシェルに環境変数を引き継がせない対策を採ることにした。環境変数を引き継ぐと、Codex が実行するどのコマンドも秘密の値を持ち、`env` の実行や環境を含むエラーの出力から、ファイルを読まなくても暗黙のうちに OpenAI に送られうる。`.envrc` を読む経路とは別の経路であり、「採っても残るリスクは変わらない」という設計書 1.2 の判断は誤りだった（PR #573 の CodeRabbit の指摘と利用者の指摘による）。ステップ 2-3 で `codex` に渡す環境を決めた名前の変数だけにし、固定の引数に `shell_environment_policy.inherit="core"` を加えた（`TestRunPassesOnlyAllowedEnvironment`、`TestRunPassesFixedArguments`）。ステップ 8-2 に、絞った環境での認証と、`env` による確かめを加えた。偽の `codex` は環境ではなく、リンクの隣のファイルと引数で振る舞いを受け取る形に改めた |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -154,7 +154,7 @@ PR-1・PR-2 のマージで `.claude/commands/` と `CLAUDE.md` の行番号が�
 **変えるファイル**: `internal/codexreview/`（実行のファイル、`test_helpers.go`（1 行目は `//go:build test`））とそのテスト
 
 -   [x] 設計書 3.3 のとおりに、実行の前の確かめ、前の状態の記録、固定した引数での `codex` の実行、完了の判定、最終メッセージの読み取りと判定、後の状態との比較、指示ファイルの変更の確かめ、ツールの結果の組み立てを書く。`Kind`・`Result`・`Finding`・`Protocol` は設計書 3.3 の形とする。時間の配分、優先の順、シグナルと自身の失敗の扱いは 1.2 のとおりにする。
--   [x] `codex` の実行には、ステップ 1-2 のオプションを付けた `internal/cmdrunner` を使う。環境は、呼び出し元（`cmd/codexreview` の `main`）が渡すプロセスの環境に `GitEnv` を当てたもの、標準入力は空、標準出力の上限は 16 MiB とする。git の実行には、ステップ 1-1 の設定の上書きを付ける。
+-   [x] `codex` の実行には、ステップ 1-2 のオプションを付けた `internal/cmdrunner` を使う。環境は、呼び出し元（`cmd/codexreview` の `main`）が渡すプロセスの環境から、決めた名前の変数だけを残したもの（設計書 1.2・3.3。`TestRunPassesOnlyAllowedEnvironment`）、標準入力は空、標準出力の上限は 16 MiB とする。git の実行には、ステップ 1-1 の設定の上書きを付ける。
 -   [x] 比べる git の出力は、利用者の git の設定に左右されない形で読む（1.3）。使うのは次の 3 つである。追跡していないファイルをすべて出し、サブモジュールの変更を無視しない `status`。`--no-ext-diff`・`--no-textconv`・`--no-renames` を付けた `diff --name-only`。書式を指定した参照と stash の一覧。
 -   [x] 時間の上限を短くする関数を `test_helpers.go` に置く。この差し替えは、テストのときだけビルドされ、引数や環境変数からは使えない（設計書 7.1）。`t.Cleanup` で元に戻す。`t.Setenv` とこの差し替えを使うテストは並行に走らせない。
 -   [x] テストを書く。どれも、ステップ 2-2 の準備用の関数を使う。各テストは、設計書 3.3・3.4 の分岐ごとに 1 つ以上の行を持つ。
@@ -384,7 +384,9 @@ PR-1・PR-2 のマージで `.claude/commands/` と `CLAUDE.md` の行番号が�
 **変えるファイル**: `docs/tasks/0049_codex_local_review/03_implementation_plan.md`（9 章の記録）
 
 -   [ ] 利用者の承認を得てから、このブランチで `codexreview` を本物の `codex` で 1 回実行し、`findings` か `no_findings` が返ることを確かめる。割り当てを 1 回分使う（設計書 7.2）。
--   [ ] 結果（日付、`codex` の版、種類、かかった時間、指摘の数）を 9 章に記録する。Codex の文面は写さない。
+-   [ ] この実行で、`codexreview` が絞った環境でも `codex` の認証と接続が通ることを確かめる（設計書 3.3）。
+-   [ ] 利用者の承認を得てから、`codexreview` と同じ環境と `-c 'shell_environment_policy.inherit="core"'` の下で `codex exec` に `env` を実行させ、`codexreview` が渡す変数のほかと秘密の変数が出ないことを確かめる。割り当てを 1 回分使う。記録には変数の名前だけを書き、値は写さない（設計書 1.2）。
+-   [ ] 結果（日付、`codex` の版、種類、かかった時間、指摘の数、`env` の確かめの結果）を 9 章に記録する。Codex の文面は写さない。
 
 **完了の条件**: 9 章に記録がある。
 

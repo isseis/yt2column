@@ -100,6 +100,7 @@ func TestRunPassesFixedArguments(t *testing.T) {
 		"--disable", "browser_use", "--disable", "computer_use", "--disable", "image_generation",
 		"--disable", "multi_agent", "--disable", "tool_suggest", "--disable", "skill_mcp_dependency_install",
 		"-c", `sandbox_mode="read-only"`, "-c", `approval_policy="never"`,
+		"-c", `shell_environment_policy.inherit="core"`,
 		"--json", "-o", filepath.Join(r.RunDir, "last-message.txt"),
 	}
 	if got := fx.fake.Args(); !slices.Equal(got, want) {
@@ -110,6 +111,45 @@ func TestRunPassesFixedArguments(t *testing.T) {
 	}
 	if r.CodexVersion != fakeVersion {
 		t.Errorf("CodexVersion = %q, want %q", r.CodexVersion, fakeVersion)
+	}
+}
+
+// TestRunPassesOnlyAllowedEnvironment checks that codex receives only the
+// allowed variables: a secret in the caller's environment, or any other
+// variable, never reaches codex or the commands it runs.
+func TestRunPassesOnlyAllowedEnvironment(t *testing.T) {
+	fx := newFixture(t)
+	t.Setenv("DEEPSEEK_API_KEY", "secret-key")
+	t.Setenv("SLACK_WEBHOOK_URL", "https://hooks.example.com/secret")
+	t.Setenv("GIT_DIR", "/elsewhere")
+	t.Setenv("LANG", "C.UTF-8")
+	t.Setenv("HTTPS_PROXY", "http://proxy.example.com:8080")
+	fx.fake.Set(completed(noFindingsMessage))
+	assertKind(t, mustRun(t, fx.base), KindNoFindings, "")
+	got := map[string]string{}
+	for _, entry := range fx.fake.Env() {
+		name, value, _ := strings.Cut(entry, "=")
+		got[name] = value
+	}
+	want := map[string]string{
+		"PATH":                os.Getenv("PATH"),
+		"HOME":                os.Getenv("HOME"),
+		"XDG_CONFIG_HOME":     os.Getenv("XDG_CONFIG_HOME"),
+		"TMPDIR":              os.Getenv("TMPDIR"),
+		"LANG":                "C.UTF-8",
+		"HTTPS_PROXY":         "http://proxy.example.com:8080",
+		"GIT_OPTIONAL_LOCKS":  "0",
+		"GIT_TERMINAL_PROMPT": "0",
+	}
+	for name, value := range want {
+		if got[name] != value {
+			t.Errorf("codex environment %s = %q, want %q", name, got[name], value)
+		}
+	}
+	for name := range got {
+		if !slices.Contains(codexEnvNames, name) && name != "GIT_OPTIONAL_LOCKS" && name != "GIT_TERMINAL_PROMPT" {
+			t.Errorf("codex received %s, which is not an allowed variable", name)
+		}
 	}
 }
 

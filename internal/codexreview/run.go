@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -51,7 +52,7 @@ const (
 	lastMessageName = "last-message.txt"
 	// codexCommand is the command looked up on PATH. The lookup, like every
 	// command the tool starts, uses the process's own PATH; main passes that
-	// same environment to Run.
+	// same environment to Run, and codexEnv keeps PATH.
 	codexCommand = "codex"
 	// gitFatalStatus is the exit status of a git command that dies, as
 	// rev-parse does outside a worktree.
@@ -107,7 +108,38 @@ func codexArgs(base, lastMessage string) []string {
 	}
 	return append(args,
 		"-c", `sandbox_mode="read-only"`, "-c", `approval_policy="never"`,
+		"-c", `shell_environment_policy.inherit="core"`,
 		"--json", "-o", lastMessage)
+}
+
+// codexEnvNames are the only variables codex receives from the tool's
+// environment: what it needs to find its programs and its login, to write
+// temporary files, to read text, and to reach OpenAI through a proxy.
+var codexEnvNames = []string{
+	"PATH", "HOME", "USER", "LOGNAME", "SHELL", "TMPDIR",
+	"LANG", "LC_ALL", "LC_CTYPE",
+	"CODEX_HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME",
+	"HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "ALL_PROXY", "all_proxy", "NO_PROXY", "no_proxy",
+	"SSL_CERT_FILE", "SSL_CERT_DIR",
+}
+
+// codexEnv returns the environment codex runs with.
+//
+// Contract: only the variables named in codexEnvNames pass, so a secret the
+// caller's environment holds (an API key, a Webhook URL) is not in the
+// environment of codex or of any command it runs, where printing the
+// environment would send it to OpenAI. Optional git locks and terminal
+// prompts are off, as for the tool's own git.
+func codexEnv(environ []string) []string {
+	added := []string{"GIT_OPTIONAL_LOCKS=0", "GIT_TERMINAL_PROMPT=0"}
+	env := make([]string, 0, len(codexEnvNames)+len(added))
+	for _, entry := range environ {
+		name, _, _ := strings.Cut(entry, "=")
+		if slices.Contains(codexEnvNames, name) {
+			env = append(env, entry)
+		}
+	}
+	return append(env, added...)
 }
 
 // disabledFeatures are the codex features turned off for the review.
@@ -133,8 +165,9 @@ var (
 )
 
 // Run runs one review of base..HEAD in the current directory, which must be a
-// worktree root, and returns its result. environ is the tool's environment;
-// git and codex run with it minus every GIT_* variable (cmdrunner.GitEnv).
+// worktree root, and returns its result. environ is the tool's environment:
+// git runs with it minus every GIT_* variable (cmdrunner.GitEnv), and codex
+// with only the variables codexEnv keeps.
 //
 // Contract: codex runs at most once, and only after every precondition holds;
 // a run that returns before it never consumes the Codex allowance. Once codex
@@ -151,7 +184,7 @@ func Run(ctx context.Context, base string, environ []string) (Result, error) {
 	}
 	preCtx, cancelPre := context.WithTimeout(context.WithoutCancel(ctx), gitTimeout)
 	defer cancelPre()
-	p, stop := prepare(ctx, preCtx, base, cmdrunner.GitEnv(environ))
+	p, stop := prepare(ctx, preCtx, base, environ)
 	if ctx.Err() != nil {
 		// Nothing has run that could change the state, and nobody waits for
 		// the result.
@@ -168,21 +201,20 @@ func Run(ctx context.Context, base string, environ []string) (Result, error) {
 
 // prepared is what the preconditions established.
 type prepared struct {
-	base    string
-	env     []string
-	root    string
-	git     git
-	version string
-	changed map[string]struct{}
-	before  gitState
-	runDir  string
+	base     string
+	codexEnv []string
+	root     string
+	git      git
+	version  string
+	changed  map[string]struct{}
+	before   gitState
+	runDir   string
 }
 
 // prepare checks the preconditions and records the state before the review.
 // The git reads run under preCtx, which ctx does not cancel; codex --version
-// runs under ctx. env is the environment of git and codex. A non-nil result
-// means codex must not run.
-func prepare(ctx, preCtx context.Context, base string, env []string) (prepared, *Result) {
+// runs under ctx. A non-nil result means codex must not run.
+func prepare(ctx, preCtx context.Context, base string, environ []string) (prepared, *Result) {
 	stop := func(kind Kind, detail string) (prepared, *Result) {
 		r := newResult(kind, detail)
 		return prepared{}, &r
@@ -191,7 +223,8 @@ func prepare(ctx, preCtx context.Context, base string, env []string) (prepared, 
 	if err != nil {
 		return stop(KindPrecondition, detailNotWorktreeRoot)
 	}
-	g := newGit(cwd, env)
+	g := newGit(cwd, cmdrunner.GitEnv(environ))
+	cEnv := codexEnv(environ)
 	root, err := worktreeRoot(preCtx, g, cwd)
 	if exitErr, ok := errors.AsType[*cmdrunner.ExitError](err); (ok && exitErr.Code == gitFatalStatus && preCtx.Err() == nil) || (err == nil && root == "") {
 		// git rev-parse exits with its fatal status outside a worktree.
@@ -219,7 +252,7 @@ func prepare(ctx, preCtx context.Context, base string, env []string) (prepared, 
 	if _, err := exec.LookPath(codexCommand); err != nil {
 		return stop(KindCodexNotFound, "")
 	}
-	version, detail := codexVersion(ctx, root, env)
+	version, detail := codexVersion(ctx, root, cEnv)
 	if detail != "" {
 		return stop(KindPrecondition, detail)
 	}
@@ -242,7 +275,7 @@ func prepare(ctx, preCtx context.Context, base string, env []string) (prepared, 
 	if err != nil {
 		return stop(KindPrecondition, detailRunDirFailed)
 	}
-	return prepared{base: base, env: env, root: root, git: g, version: version, changed: changed, before: before, runDir: runDir}, nil
+	return prepared{base: base, codexEnv: cEnv, root: root, git: g, version: version, changed: changed, before: before, runDir: runDir}, nil
 }
 
 // newGit returns the git runner the tool reads the repository with.
@@ -333,7 +366,7 @@ func codexRunner(root string, env []string, maxOutput int) cmdrunner.Runner {
 func (p prepared) review(ctx context.Context) (Result, error) {
 	runCtx, cancelRun := context.WithTimeout(ctx, codexTimeout)
 	defer cancelRun()
-	stdout, runErr := codexRunner(p.root, p.env, maxStreamBytes).Run(runCtx, codexCommand, codexArgs(p.base, filepath.Join(p.runDir, lastMessageName))...)
+	stdout, runErr := codexRunner(p.root, p.codexEnv, maxStreamBytes).Run(runCtx, codexCommand, codexArgs(p.base, filepath.Join(p.runDir, lastMessageName))...)
 	// Judged now, by the tool's own clock: the limit keeps running while the
 	// state is read below, and a run that finished in time must not turn
 	// into a timeout then.
