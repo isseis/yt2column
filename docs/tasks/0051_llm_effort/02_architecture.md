@@ -30,7 +30,7 @@
 -   **不正な effort を補わない。** effort の部分が空・不正・`+` が 2 つ以上のどれでも、既定の effort で補ったり、モデル ID の一部とみなしたりせず、設定エラーにする（`CLAUDE.md`「Reject, don't normalize」、AC-05・AC-08）。
 -   **effort を省いたときの扱いは、プロバイダごとに表す。** Claude は、今と同じく設定の読み込みが既定の定数 `defaultClaudeEffort`（`config.go:596`）を当てる。DeepSeek は、`deepseekparam` の型のゼロ値を「指定なし」とし、アダプタはこのときに `reasoning_effort` を送らない。ゼロ値は、入力について最も少なく仮定する解釈（今と同じ要求を送る）である（`CLAUDE.md`「Declare, don't infer」）。範囲外の値は、アダプタの構築と要求本文の組み立ての両方で拒否する（3.5）。
 -   **`YT2COLUMN_CLAUDE_EFFORT` は旧変数の一覧に加える。** 既存の旧変数の仕組み（`retiredLLMVars`。`config.go:113-118`）をそのまま使い、新しい検査の仕組みを作らない。
--   **既存の拒否の型を保つ。** 拒否はすべて `*VarError`（`config.go:135-149`）で返し、番兵は既存の `ErrMissing`・`ErrInvalid`（`config.go:127-130`）だけを使う。理由（`Reason`）は固定の文から選び、利用者の値を含めない（要件書 5 章）。
+-   **既存の拒否の型を保つ。** 設定の読み込みの拒否はすべて `*VarError`（`config.go:135-149`）で返し、番兵は既存の `ErrMissing`・`ErrInvalid`（`config.go:127-130`）だけを使う。アダプタが範囲外の effort を拒否するエラーは、今のアダプタの構築のエラーと同じく、アダプタの非公開の番兵で返す（3.5）。理由（`Reason`）は固定の文から選び、利用者の値を含めない（要件書 5 章）。
 
 ### 1.2. 設計の際に決めたこと（2026-10-30）
 
@@ -494,7 +494,7 @@ YT2COLUMN_LLM: the effort after "+" is not accepted for provider claude; accepte
 ANTHROPIC_API_KEY: is unset or empty
 ```
 
-どの行も、設定された値（`low`・`ultra`）を含まない。
+どの行も、利用者が設定した値をそのまま含まない。2 行目の `accepted values:` の後の値は、パッケージの固定の一覧であり、設定した値ではない。
 
 DeepSeek の API が `reasoning_effort` を拒否した場合は、設定エラーではなく、今と同じ HTTP の状態のエラーとして、工程の失敗になる（要件書 4.4）。その行は、モデル・`max_tokens`・`reasoning_effort` を示す。thinking を有効にした結果の打ち切りや空の応答のエラーも、`reasoning_effort` を示す（3.5）。
 
