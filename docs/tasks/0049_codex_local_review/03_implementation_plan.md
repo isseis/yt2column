@@ -184,7 +184,7 @@ PR-1・PR-2 のマージで `.claude/commands/` と `CLAUDE.md` の行番号が�
 **判定理由**: 信頼できない出力の判定と作業ツリーの変化の検出という、安全のための守り（mkplan の panel mode の契機）を実装し、外部のプロセスを扱うテストの基盤も作る
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/573
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
