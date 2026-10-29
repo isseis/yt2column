@@ -88,10 +88,21 @@ func inCodeSpan(spans [][]int, offset int) bool {
 	return false
 }
 
+// readmeGuides are the developer guides split out of the README. TestReadmeLinks
+// checks their links, anchors included, and their code-span paths, so
+// instructionDocs leaves them out.
+var readmeGuides = []string{cliGuide, developmentGuide}
+
+// The developer guides' paths from the repository root.
+const (
+	cliGuide         = "docs/dev/guides/cli.md"
+	developmentGuide = "docs/dev/guides/development.md"
+)
+
 // instructionDocs returns the documents that tell an agent what to do, from
 // the repository root: CLAUDE.md, AGENTS.md, the command definitions, and the
-// documents under docs/dev/. Past task documents are records of the work when
-// it was done, so they are not targets.
+// documents under docs/dev/ other than readmeGuides. Past task documents are
+// records of the work when it was done, so they are not targets.
 func instructionDocs(t *testing.T) []string {
 	t.Helper()
 	docs := []string{"CLAUDE.md", "AGENTS.md"}
@@ -107,7 +118,9 @@ func instructionDocs(t *testing.T) []string {
 			if relErr != nil {
 				return relErr
 			}
-			docs = append(docs, filepath.ToSlash(rel))
+			if rel = filepath.ToSlash(rel); !slices.Contains(readmeGuides, rel) {
+				docs = append(docs, rel)
+			}
 			return nil
 		})
 		if err != nil {

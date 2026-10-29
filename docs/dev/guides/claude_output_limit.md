@@ -33,7 +33,7 @@
 
 各実行について次を集める。
 
-- その工程の出力のトークン数。LLM を呼んだ工程の `tokens: <stage> run` の行にある `output=`（README の "Token usage" を参照。再開した実行は、前の工程の `reused` の行も書く）か、`--artifacts` のディレクトリに保存されたその工程のファイルの `usage.output` から読み取る。
+- その工程の出力のトークン数。LLM を呼んだ工程の `tokens: <stage> run` の行にある `output=`（[cli.md の「トークンの使用量」](cli.md#トークンの使用量)を参照。再開した実行は、前の工程の `reused` の行も書く）か、`--artifacts` のディレクトリに保存されたその工程のファイルの `usage.output` から読み取る。
 - CLI の呼び出しの実時間。記録されている測定と同じ方法で、例えば `time` で測る。
 - 実行が打ち切られたかどうか。CLI は `llm.ErrTruncated` をラップしたエラー（"generation truncated by the output token limit"）を報告する。
 

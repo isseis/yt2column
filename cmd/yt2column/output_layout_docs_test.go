@@ -17,16 +17,17 @@ import (
 	"github.com/isseis/yt2column/internal/writer"
 )
 
-// Headings that label the README's two output examples. The guard finds each
-// example as the first fenced code block after its heading line.
+// Headings that label the two output examples: the --out file in the CLI
+// guide (cli.md) and the Slack post in README.md. The guard finds each example
+// as the first fenced code block after its heading line.
 const (
-	readmeFileExampleHeading  = "### The `--out` file"
+	cliFileExampleHeading     = doctestutil.CLIOutFileHeading
 	readmeSlackExampleHeading = "### The Slack post"
 )
 
-// outputLayoutArticle returns the fixed article the README's output examples
-// show: a channel name, a mixed set of step models, and a known cost. The
-// values are fictional.
+// outputLayoutArticle returns the fixed article the two output examples show:
+// a channel name, a mixed set of step models, and a known cost. The values are
+// fictional.
 func outputLayoutArticle() writer.Article {
 	callTime := time.Date(2026, time.January, 5, 0, 0, 0, 0, time.UTC) // Monday 00:00 UTC, off-peak
 	usage := func(model string, input, output uint64) writer.StageUsage {
@@ -88,11 +89,10 @@ func firstCodeBlockAfter(doc, heading string) (string, bool) {
 	return "", false
 }
 
-// TestOutputLayoutDocsContract checks that the README's two output examples
-// equal the real output for the fixed article.
+// TestOutputLayoutDocsContract checks that the two output examples equal the
+// real output for the fixed article.
 func TestOutputLayoutDocsContract(t *testing.T) {
 	article := outputLayoutArticle()
-	readme := doctestutil.ReadDoc(t, readmePath)
 
 	// The --out example is what FilePublisher writes.
 	path := filepath.Join(t.TempDir(), "article.md")
@@ -107,7 +107,7 @@ func TestOutputLayoutDocsContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	checkReadmeExample(t, readme, readmeFileExampleHeading, string(written))
+	checkDocExample(t, "cli.md", doctestutil.ReadDoc(t, cliDocPath), cliFileExampleHeading, string(written))
 
 	// The Slack example is the single message the article is posted as.
 	messages, err := publisher.SlackMessagesForTest(article)
@@ -117,19 +117,19 @@ func TestOutputLayoutDocsContract(t *testing.T) {
 	if len(messages) != 1 {
 		t.Fatalf("the fixed article posts as %d messages, want 1 so the example is the whole post", len(messages))
 	}
-	checkReadmeExample(t, readme, readmeSlackExampleHeading, messages[0])
+	checkDocExample(t, "README.md", doctestutil.ReadDoc(t, readmePath), readmeSlackExampleHeading, messages[0])
 }
 
-// checkReadmeExample fails the test unless the example under heading equals
-// want, ignoring trailing newlines.
-func checkReadmeExample(t *testing.T, readme, heading, want string) {
+// checkDocExample fails the test unless the example under heading in the
+// document named name equals want, ignoring trailing newlines.
+func checkDocExample(t *testing.T, name, doc, heading, want string) {
 	t.Helper()
-	got, ok := firstCodeBlockAfter(readme, heading)
+	got, ok := firstCodeBlockAfter(doc, heading)
 	if !ok {
-		t.Fatalf("README has no code block under %q", heading)
+		t.Fatalf("%s has no code block under %q", name, heading)
 	}
 	if strings.TrimRight(got, "\n") != strings.TrimRight(want, "\n") {
-		t.Errorf("README example under %q differs from the real output.\nREADME:\n%s\nreal:\n%s", heading, got, want)
+		t.Errorf("%s example under %q differs from the real output.\n%s:\n%s\nreal:\n%s", name, heading, name, got, want)
 	}
 }
 

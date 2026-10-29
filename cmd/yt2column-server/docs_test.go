@@ -20,6 +20,7 @@ import (
 // Paths from cmd/yt2column-server to the documents this test checks.
 const (
 	readmePath          = "../../README.md"
+	developmentDocPath  = "../../docs/dev/guides/development.md"
 	projectOverviewPath = "../../docs/dev/project_overview.md"
 	securityPath        = "../../docs/dev/security.md"
 )
@@ -36,6 +37,7 @@ func TestServerDocsContract(t *testing.T) {
 	ytDlpEnv := config.YtDlpEnvForTest()
 
 	readme := doctestutil.ReadDoc(t, readmePath)
+	development := doctestutil.ReadDoc(t, developmentDocPath)
 	overview := doctestutil.ReadDoc(t, projectOverviewPath)
 	security := doctestutil.ReadDoc(t, securityPath)
 
@@ -59,11 +61,30 @@ func TestServerDocsContract(t *testing.T) {
 		if !strings.Contains(section, slackEnv) {
 			t.Errorf("README.md server section does not mention %q", slackEnv)
 		}
-		// The socket path for each operating system, each on its own line; the
-		// curl recipe repeats them, so a bare Contains would pass without it.
+		// The socket path for each operating system, each on its own line with
+		// its label, so a path stated under the wrong label does not pass.
 		if !hasLineContainingAll(section, "macOS:", "$HOME"+config.SocketPathTailForTest("darwin")) ||
 			!hasLineContainingAll(section, "other Unix:", "$HOME"+config.SocketPathTailForTest("linux")) {
 			t.Error("README.md server section does not state the socket path for macOS and for other Unix")
+		}
+		// The exit-code table must name every code the entry point defines.
+		exitCodes := doctestutil.FindTable(section, "Code")
+		if exitCodes == nil {
+			t.Fatal("README.md server section has no exit-code table")
+		}
+		for _, code := range []int{exitOK, exitFailure, exitUsage} {
+			if doctestutil.TableRow(exitCodes, strconv.Itoa(code)) == nil {
+				t.Errorf("README.md server exit-code table has no code %d", code)
+			}
+		}
+	})
+
+	// The server's HTTP API is in the development guide, under one section.
+	api := doctestutil.SectionByHeading(development, doctestutil.DevAPIHeading)
+
+	t.Run("development.md", func(t *testing.T) {
+		if api == "" {
+			t.Fatalf("development.md has no %q section", doctestutil.DevAPIHeading)
 		}
 		// The curl examples name each operation's method and a URL whose path
 		// has the form the server's path constants define, so a route or
@@ -78,56 +99,108 @@ func TestServerDocsContract(t *testing.T) {
 			{"the job API's status", "GET", server.JobsPath + "/<key>"},
 			{"the job API's publish", "POST", server.JobsPath + "/<key>" + server.PublishSuffix},
 		} {
-			if !hasCurlCommand(section, example.method, example.path) {
-				t.Errorf("README.md server section has no curl example for %s (%s %s)", example.operation, example.method, example.path)
-			}
-		}
-		// The exit-code table must name every code the entry point defines.
-		exitCodes := doctestutil.FindTable(section, "Code")
-		if exitCodes == nil {
-			t.Fatal("README.md server section has no exit-code table")
-		}
-		for _, code := range []int{exitOK, exitFailure, exitUsage} {
-			if doctestutil.TableRow(exitCodes, strconv.Itoa(code)) == nil {
-				t.Errorf("README.md server exit-code table has no code %d", code)
+			if !hasCurlCommand(api, example.method, example.path) {
+				t.Errorf("development.md %s has no curl example for %s (%s %s)", doctestutil.DevAPIHeading, example.operation, example.method, example.path)
 			}
 		}
 	})
 
+	// rejection_reasons checks development.md's full rejection table against
+	// the server's reasons and status codes, and the README's two-column table
+	// against both: the same set of reasons, each shown in the category
+	// development.md gives it.
 	t.Run("rejection_reasons", func(t *testing.T) {
-		table := doctestutil.FindTable(readme, "reason")
+		table := doctestutil.FindTable(api, doctestutil.DevReasonColumn)
 		if table == nil {
-			t.Fatal("README.md has no rejection reason table")
+			t.Fatal("development.md has no rejection reason table")
 		}
-		byReason := map[string]int{}
+		reasonCol := columnIndex(t, "development.md", table[0], doctestutil.DevReasonColumn)
+		statusCol := columnIndex(t, "development.md", table[0], doctestutil.DevStatusColumn)
+		displayCol := columnIndex(t, "development.md", table[0], doctestutil.DevDisplayColumn)
+		type documented struct {
+			status  int
+			display doctestutil.RejectionDisplay
+		}
+		byReason := map[string]documented{}
 		for _, row := range table[1:] {
-			if len(row) < 2 {
+			if len(row) <= max(reasonCol, statusCol, displayCol) {
+				t.Errorf("development.md rejection table row %q has too few cells", row)
 				continue
 			}
-			byReason[doctestutil.StripBackticks(row[0])] = parseStatus(t, row[1])
+			reason := doctestutil.StripBackticks(row[reasonCol])
+			if _, dup := byReason[reason]; dup {
+				t.Errorf("development.md rejection table lists %q twice", reason)
+			}
+			display, err := doctestutil.RejectionDisplayJA.Category(row[displayCol])
+			if err != nil {
+				t.Errorf("development.md rejection table, %s: %v", reason, err)
+			}
+			byReason[reason] = documented{status: parseStatus(t, row[statusCol]), display: display}
 		}
 		reasons := server.RejectReasonsForTest()
 		for _, reason := range reasons {
 			got, ok := byReason[reason.Value]
 			if !ok {
-				t.Errorf("README.md rejection table has no reason %q", reason.Value)
+				t.Errorf("development.md rejection table has no reason %q", reason.Value)
 				continue
 			}
-			if got != reason.Status {
-				t.Errorf("README.md lists %s with status %d, want %d", reason.Value, got, reason.Status)
+			if got.status != reason.Status {
+				t.Errorf("development.md lists %s with status %d, want %d", reason.Value, got.status, reason.Status)
 			}
 		}
 		if len(byReason) != len(reasons) {
-			t.Errorf("README.md rejection table has %d rows, want %d", len(byReason), len(reasons))
+			t.Errorf("development.md rejection table has %d rows, want %d", len(byReason), len(reasons))
+		}
+
+		// The README is English until it gets its Japanese version, so its
+		// table is read with the English column names and spellings.
+		shown := doctestutil.FindTable(readme, "reason")
+		if shown == nil {
+			t.Fatal("README.md has no rejection reason table")
+		}
+		shownReasonCol := columnIndex(t, "README.md", shown[0], "reason")
+		shownDisplayCol := columnIndex(t, "README.md", shown[0], "extension shows")
+		listed := map[string]struct{}{}
+		for _, row := range shown[1:] {
+			if len(row) <= max(shownReasonCol, shownDisplayCol) {
+				t.Errorf("README.md rejection table row %q has too few cells", row)
+				continue
+			}
+			reason := doctestutil.StripBackticks(row[shownReasonCol])
+			if _, dup := listed[reason]; dup {
+				t.Errorf("README.md rejection table lists %q twice", reason)
+			}
+			listed[reason] = struct{}{}
+			display, err := doctestutil.RejectionDisplayEN.Category(row[shownDisplayCol])
+			if err != nil {
+				t.Errorf("README.md rejection table, %s: %v", reason, err)
+				continue
+			}
+			// A development.md cell in no category has already failed above.
+			if want, ok := byReason[reason]; ok && want.display != 0 && display != want.display {
+				t.Errorf("README.md shows %s as %v, development.md as %v", reason, display, want.display)
+			}
+		}
+		for _, reason := range reasons {
+			if _, ok := listed[reason.Value]; !ok {
+				t.Errorf("README.md rejection table has no reason %q", reason.Value)
+			}
+		}
+		if len(listed) != len(reasons) {
+			t.Errorf("README.md rejection table has %d reasons, want %d", len(listed), len(reasons))
 		}
 	})
 
 	t.Run("api_codes", func(t *testing.T) {
-		section := doctestutil.SectionByHeading(readme, "## Localhost server")
 		for _, set := range server.APICodesForTest() {
-			tables := tablesByFirstHeader(section, set.Name)
+			header, ok := doctestutil.DevAPICodeTableHeader(set.Name)
+			if !ok {
+				t.Errorf("doctestutil has no development.md table header for the %q codes", set.Name)
+				continue
+			}
+			tables := tablesByFirstHeader(api, header)
 			if len(tables) != 1 {
-				t.Errorf("README.md server section has %d tables headed %q, want 1", len(tables), set.Name)
+				t.Errorf("development.md %s has %d tables headed %q, want 1", doctestutil.DevAPIHeading, len(tables), header)
 				continue
 			}
 			documented := map[string]struct{}{}
@@ -137,7 +210,7 @@ func TestServerDocsContract(t *testing.T) {
 				}
 				code := doctestutil.StripBackticks(row[0])
 				if _, dup := documented[code]; dup {
-					t.Errorf("README.md %q table lists %q twice", set.Name, code)
+					t.Errorf("development.md %q table lists %q twice", set.Name, code)
 				}
 				documented[code] = struct{}{}
 				// A set that names each code's state documents it in the
@@ -148,7 +221,7 @@ func TestServerDocsContract(t *testing.T) {
 						got = doctestutil.StripBackticks(row[1])
 					}
 					if got != want {
-						t.Errorf("README.md %q table gives %q the state %q, want %q", set.Name, code, got, want)
+						t.Errorf("development.md %q table gives %q the state %q, want %q", set.Name, code, got, want)
 					}
 				}
 			}
@@ -162,7 +235,7 @@ func TestServerDocsContract(t *testing.T) {
 				t.Errorf("the %q codes %v repeat a code", set.Name, set.Codes)
 			}
 			if !maps.Equal(documented, defined) {
-				t.Errorf("README.md %q table lists %v, want %v", set.Name, slices.Sorted(maps.Keys(documented)), slices.Sorted(maps.Keys(defined)))
+				t.Errorf("development.md %q table lists %v, want %v", set.Name, slices.Sorted(maps.Keys(documented)), slices.Sorted(maps.Keys(defined)))
 			}
 		}
 	})
@@ -197,6 +270,17 @@ func TestServerDocsContract(t *testing.T) {
 	})
 }
 
+// columnIndex returns the index of the header cell equal to name, ignoring case
+// and backticks, failing the test when doc's table has no such column.
+func columnIndex(t *testing.T, doc string, header []string, name string) int {
+	t.Helper()
+	i := doctestutil.ColumnIndex(header, name)
+	if i < 0 {
+		t.Fatalf("%s: the table headed %q has no %q column", doc, header, name)
+	}
+	return i
+}
+
 // parseStatus reads the first integer in cell, failing the test otherwise.
 func parseStatus(t *testing.T, cell string) int {
 	t.Helper()
@@ -229,8 +313,8 @@ func hasLineContainingAll(doc string, subs ...string) bool {
 }
 
 // TestHasCurlCommand pins the forms hasCurlCommand accepts and rejects, so the
-// README examples may be spelled in the ordinary shell ways while a wrong
-// method, a query, or a command quoted to another program still fails.
+// development.md examples may be spelled in the ordinary shell ways while a
+// wrong method, a query, or a command quoted to another program still fails.
 func TestHasCurlCommand(t *testing.T) {
 	const status = "/jobs/<key>"
 	for _, tc := range []struct {

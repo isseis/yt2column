@@ -9,8 +9,9 @@ export function readRepoFile(file: string): string {
 }
 
 /**
- * The body of a level-3 Markdown section, from its heading line to the next
- * heading of level 3 or higher; "" when no line is exactly the heading.
+ * The body of a Markdown section, from its heading line to the next heading of
+ * level 1 to 3; "" when no line is exactly the heading. A level-2 section that
+ * holds a level-3 heading therefore ends at that heading.
  */
 export function markdownSection(markdown: string, heading: string): string {
   const text = `\n${markdown}`;
