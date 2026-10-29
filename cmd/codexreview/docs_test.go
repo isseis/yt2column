@@ -47,13 +47,13 @@ var bashRule = regexp.MustCompile(`^Bash\((.*)\)$`)
 // means checking the command and naming it here.
 var launchFree = set("coderabbit", "codexreview")
 
-// allowsCodex reports whether a permission rule may let codex run without the
+// mayBypassTool reports whether a permission rule may let codex run without the
 // approval prompt: a Bash rule whose command word is not one of launchFree,
 // written as is (a wildcard or a path is another word). Only the first word
 // is read: Claude Code matches each command of a compound command against
 // the rules on its own, so a rule's later words cannot allow a second
 // command.
-func allowsCodex(rule string) bool {
+func mayBypassTool(rule string) bool {
 	if rule != "Bash" && !strings.HasPrefix(rule, "Bash(") {
 		return false
 	}
@@ -91,7 +91,7 @@ func TestSettingsAllowsTool(t *testing.T) {
 		t.Errorf("permissions.allow %q does not contain %q", settings.Permissions.Allow, want)
 	}
 	for _, rule := range settings.Permissions.Allow {
-		if allowsCodex(rule) {
+		if mayBypassTool(rule) {
 			t.Errorf("permissions.allow has %q, which may run codex without the tool", rule)
 		}
 	}
@@ -102,9 +102,9 @@ func TestSettingsAllowsTool(t *testing.T) {
 
 func isSetMember(m map[string]struct{}, key string) bool { _, ok := m[key]; return ok }
 
-// TestAllowsCodex: the rules that may let codex run without the tool are
+// TestMayBypassTool: the rules that may let codex run without the tool are
 // found, and the two existing Bash rules are not.
-func TestAllowsCodex(t *testing.T) {
+func TestMayBypassTool(t *testing.T) {
 	for _, tc := range []struct {
 		rule string
 		want bool
@@ -127,8 +127,8 @@ func TestAllowsCodex(t *testing.T) {
 		{"Bash(coderabbit review *)", false},
 		{"Read(codex)", false},
 	} {
-		if got := allowsCodex(tc.rule); got != tc.want {
-			t.Errorf("allowsCodex(%q) = %v, want %v", tc.rule, got, tc.want)
+		if got := mayBypassTool(tc.rule); got != tc.want {
+			t.Errorf("mayBypassTool(%q) = %v, want %v", tc.rule, got, tc.want)
 		}
 	}
 }
