@@ -5,7 +5,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"io/fs"
 	"maps"
 	"os"
 	"os/exec"
@@ -338,19 +337,7 @@ func TestDocumentedProtocolMatches(t *testing.T) {
 			}
 		}
 	}
-	var commandDocs []string
-	err := filepath.WalkDir(filepath.Join(repoRoot, ".claude", "commands"), func(path string, d fs.DirEntry, err error) error {
-		if err == nil && !d.IsDir() && strings.HasSuffix(path, ".md") {
-			rel, relErr := filepath.Rel(repoRoot, path)
-			commandDocs = append(commandDocs, filepath.ToSlash(rel))
-			return relErr
-		}
-		return err
-	})
-	if err != nil {
-		t.Fatalf("walk command documents: %v", err)
-	}
-	for _, rel := range commandDocs {
+	for _, rel := range doctestutil.CommandDocs(t, repoRoot) {
 		for _, text := range fixprguardProtocolMismatches(readRepoFile(t, rel)) {
 			t.Errorf("%s: %q, want %s", rel, text, want)
 		}

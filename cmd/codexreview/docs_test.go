@@ -4,7 +4,6 @@ package main
 
 import (
 	"encoding/json"
-	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
@@ -37,34 +36,14 @@ func readRepoFile(t *testing.T, rel string) string {
 	return doctestutil.ReadDoc(t, filepath.Join(repoRoot, filepath.FromSlash(rel)))
 }
 
-// commandDocs returns the repository-relative paths of every command document
-// under .claude/commands.
-func commandDocs(t *testing.T) []string {
-	t.Helper()
-	var docs []string
-	err := filepath.WalkDir(filepath.Join(repoRoot, ".claude", "commands"), func(p string, d fs.DirEntry, err error) error {
-		if err == nil && !d.IsDir() && strings.HasSuffix(p, ".md") {
-			rel, relErr := filepath.Rel(repoRoot, p)
-			docs = append(docs, filepath.ToSlash(rel))
-			return relErr
-		}
-		return err
-	})
-	if err != nil {
-		t.Fatalf("walk command documents: %v", err)
-	}
-	if len(docs) == 0 {
-		t.Fatal("no command documents found")
-	}
-	return docs
-}
-
 // bashRule matches a Bash permission rule and captures its command pattern.
 var bashRule = regexp.MustCompile(`^Bash\((.*)\)$`)
 
-// allowsCodex reports whether a permission rule lets the codex command run
-// without the approval prompt: a rule for all of Bash, or one whose command
-// word is codex, by name or by path, in the "codex *" or "codex:*" form.
+// allowsCodex reports whether a permission rule lets codex run without the
+// approval prompt: a rule for all of Bash; a rule whose command word is codex,
+// by name or by path, in the "codex *" or "codex:*" form; a wildcard in the
+// command word that matches codex or a path to it; or a rule for a wrapper or
+// a shell, which runs any command it is given, codex included.
 func allowsCodex(rule string) bool {
 	if rule == "Bash" {
 		return true
@@ -75,17 +54,27 @@ func allowsCodex(rule string) bool {
 	}
 	word, _, _ := strings.Cut(strings.TrimSpace(m[1]), " ")
 	word, _, _ = strings.Cut(word, ":")
-	return word == "*" || path.Base(word) == "codex"
+	if prefix, _, wild := strings.Cut(word, "*"); wild {
+		// A command word of codex, or of a path ending in it, starts with the
+		// prefix the wildcard leaves.
+		// The order is deliberate: the prefix is what codex must start with.
+		const codex = "codex"
+		dir, base := path.Split(prefix)
+		return strings.HasPrefix(codex, prefix) || (dir != "" && strings.HasPrefix(codex, base))
+	}
+	name := path.Base(word)
+	return name == "codex" || isWrapper(name) || isShell(name)
 }
 
 // TestSettingsAllowsTool: .claude/settings.json allows the tool, under the
 // name go install gives it, without the approval prompt, and allows no rule
-// that runs codex itself: the tool is the only way the agents start codex,
-// so its fixed arguments cannot be bypassed.
+// that runs codex itself, nor a mode that skips the prompt: the tool is the
+// only way the agents start codex, so its fixed arguments cannot be bypassed.
 func TestSettingsAllowsTool(t *testing.T) {
 	var settings struct {
 		Permissions struct {
-			Allow []string `json:"allow"`
+			Allow       []string `json:"allow"`
+			DefaultMode string   `json:"defaultMode"`
 		} `json:"permissions"`
 	}
 	if err := json.Unmarshal([]byte(readRepoFile(t, ".claude/settings.json")), &settings); err != nil {
@@ -99,6 +88,9 @@ func TestSettingsAllowsTool(t *testing.T) {
 		if allowsCodex(rule) {
 			t.Errorf("permissions.allow has %q, which runs codex without the tool", rule)
 		}
+	}
+	if mode := settings.Permissions.DefaultMode; mode == "bypassPermissions" {
+		t.Errorf("permissions.defaultMode is %q, which runs codex without the prompt", mode)
 	}
 }
 
@@ -115,8 +107,16 @@ func TestAllowsCodex(t *testing.T) {
 		{"Bash(/opt/homebrew/bin/codex *)", true},
 		{"Bash(*)", true},
 		{"Bash", true},
+		{"Bash(codex*)", true},
+		{"Bash(c*)", true},
+		{"Bash(/opt/homebrew/bin/*)", true},
+		{"Bash(npx *)", true},
+		{"Bash(env *)", true},
+		{"Bash(timeout *)", true},
+		{"Bash(bash -c *)", true},
 		{"Bash(codexreview *)", false},
 		{"Bash(coderabbit review *)", false},
+		{"Bash(git status*)", false},
 		{"Read(codex)", false},
 	} {
 		if got := allowsCodex(tc.rule); got != tc.want {
@@ -142,7 +142,7 @@ func codexreviewProtocolMismatches(doc string) []string {
 // the command documents, prose included, is the binary's Protocol, so the
 // installed tool refuses a document written for another contract.
 func TestDocumentedProtocolMatches(t *testing.T) {
-	for _, rel := range commandDocs(t) {
+	for _, rel := range doctestutil.CommandDocs(t, repoRoot) {
 		for _, text := range codexreviewProtocolMismatches(readRepoFile(t, rel)) {
 			t.Errorf("%s: %q, want --protocol %d", rel, text, codexreview.Protocol)
 		}
@@ -175,32 +175,56 @@ func TestCodexreviewProtocolMismatches(t *testing.T) {
 }
 
 var (
-	// commandSeparator ends a command and starts the next at a command
-	// position: a line break, a pipe, a list operator, a command
-	// substitution, or a backquote.
-	commandSeparator = regexp.MustCompile("[\n|;&`]|\\$\\(")
 	// assignment is a variable assignment before a command word.
 	assignment = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*=`)
+	// redirection is a redirection word, which may come before a command.
+	redirection = regexp.MustCompile(`^[0-9]*[<>]`)
+	// shellScriptFlag is a shell option cluster that holds -c, such as -lc.
+	shellScriptFlag = regexp.MustCompile(`^-[A-Za-z]*c[A-Za-z]*$`)
+	// optionValue is a number or a duration, the value an option such as
+	// xargs -n or timeout takes before the command.
+	optionValue = regexp.MustCompile(`^[0-9]+(\.[0-9]+)?[smhd]?$`)
 	// codeSpan matches one inline code span.
 	codeSpan = regexp.MustCompile("`([^`\n]+)`")
 	// quoteMarker is the blockquote marker of a line inside an agent prompt.
 	quoteMarker = regexp.MustCompile(`^\s*(>\s?)+`)
 )
 
-// wrappers run the command named by their first argument that is not an
-// option; shells run the script given after -c.
 var (
-	wrappers = map[string]struct{}{"env": {}, "exec": {}, "command": {}, "xargs": {}, "time": {}, "nohup": {}, "npx": {}}
-	shells   = map[string]struct{}{"sh": {}, "bash": {}, "zsh": {}}
+	// wrappers run the command named by their first argument that is not an
+	// option or an option's value.
+	wrappers = set("env", "exec", "command", "builtin", "xargs", "time", "nohup", "timeout", "gtimeout",
+		"nice", "stdbuf", "caffeinate", "sudo", "npx", "bunx", "pnpx", "pnpm", "dlx")
+	// shells run the script given after -c.
+	shells = set("sh", "bash", "zsh", "dash")
+	// reservedWords may come before a command at a command position.
+	reservedWords = set("if", "then", "else", "elif", "while", "until", "do", "!", "{", "(")
+	// optionsWithValue take the next word as their value: env -u NAME,
+	// xargs -I REPLACE, timeout -k DURATION, and the like.
+	optionsWithValue = set("-u", "-I", "-i", "-n", "-P", "-L", "-s", "-k", "-S", "-C", "-E")
 )
 
+func set(words ...string) map[string]struct{} {
+	m := make(map[string]struct{}, len(words))
+	for _, w := range words {
+		m[w] = struct{}{}
+	}
+	return m
+}
+
+func isWrapper(name string) bool { _, ok := wrappers[name]; return ok }
+func isShell(name string) bool   { _, ok := shells[name]; return ok }
+
 // runsCodex reports whether text, a code block line or a command written as
-// a code span, has codex at a command position: the start of a command, after
-// a separator, after the variable assignments that precede a command, or as
+// a code span, has codex at a command position: the start of a command,
+// after a separator (doctestutil.CommandBoundary), after the reserved words,
+// variable assignments, and redirections that may precede a command, or as
 // the command a wrapper or a shell's -c script runs. codex counts by name, by
-// path (/opt/homebrew/bin/codex, ./codex, @openai/codex), and quoted.
+// path (/opt/homebrew/bin/codex, ./codex, @openai/codex), quoted, escaped
+// with a backslash, or opening a group. The list of wrappers and of options
+// with a value is not complete; the permission prompt stops a form it misses.
 func runsCodex(text string) bool {
-	for _, command := range commandSeparator.Split(text, -1) {
+	for _, command := range doctestutil.CommandBoundary.Split(text, -1) {
 		if commandRunsCodex(strings.Fields(command)) {
 			return true
 		}
@@ -211,16 +235,23 @@ func runsCodex(text string) bool {
 // commandRunsCodex reports whether the command made of words runs codex.
 func commandRunsCodex(words []string) bool {
 	for i := 0; i < len(words); i++ {
-		word := strings.Trim(words[i], `"'`)
+		if _, ok := reservedWords[words[i]]; ok {
+			continue
+		}
+		word := strings.TrimLeft(strings.Trim(words[i], `"'`), `({\`)
+		word = strings.Trim(word, `"'`)
 		name := path.Base(word)
 		switch {
-		case assignment.MatchString(word):
+		case word == "", assignment.MatchString(word), redirection.MatchString(word):
 		case isWrapper(name):
-			for i+1 < len(words) && isOption(words[i+1]) {
+			for i+1 < len(words) && (strings.HasPrefix(words[i+1], "-") || optionValue.MatchString(words[i+1])) {
+				if _, ok := optionsWithValue[words[i+1]]; ok {
+					i++
+				}
 				i++
 			}
 		case isShell(name):
-			j := slices.Index(words[i+1:], "-c")
+			j := slices.IndexFunc(words[i+1:], shellScriptFlag.MatchString)
 			if j < 0 {
 				return false
 			}
@@ -231,19 +262,6 @@ func commandRunsCodex(words []string) bool {
 		}
 	}
 	return false
-}
-
-func isWrapper(name string) bool { _, ok := wrappers[name]; return ok }
-func isShell(name string) bool   { _, ok := shells[name]; return ok }
-
-// isOption reports whether word is an option, or the number an option such as
-// xargs -n takes, which a wrapper skips before its command.
-func isOption(word string) bool {
-	if strings.HasPrefix(word, "-") {
-		return true
-	}
-	_, err := strconv.Atoi(word)
-	return err == nil
 }
 
 // commandTexts returns the texts of doc that are written as commands: each
@@ -274,9 +292,10 @@ func commandTexts(doc string) []string {
 
 // TestNoDirectCodexInvocation: no command document writes codex as a
 // command to run, so every run of Codex CLI goes through the tool and its
-// fixed arguments, the only form the permission settings allow.
+// fixed arguments, the only form the permission settings allow. A document
+// names it in prose as Codex CLI.
 func TestNoDirectCodexInvocation(t *testing.T) {
-	for _, rel := range commandDocs(t) {
+	for _, rel := range doctestutil.CommandDocs(t, repoRoot) {
 		for _, text := range commandTexts(readRepoFile(t, rel)) {
 			if runsCodex(text) {
 				t.Errorf("%s runs codex directly: %q", rel, text)
@@ -303,22 +322,42 @@ func TestRunsCodex(t *testing.T) {
 		{"substitution", "```bash\nout=$(codex review)\n```\n", true},
 		{"backquote", "```bash\nout=`codex review`\n```\n", true},
 		{"env", "```bash\nenv FOO=1 codex review\n```\n", true},
+		{"env_unset", "```bash\nenv -u FOO codex review\n```\n", true},
 		{"assignment", "```bash\nFOO=1 codex review\n```\n", true},
+		{"redirection", "```bash\n2>/dev/null codex review\n```\n", true},
 		{"exec", "```bash\nexec codex review\n```\n", true},
 		{"command", "```bash\ncommand codex review\n```\n", true},
 		{"xargs", "```bash\nprintf x | xargs -n 1 codex review\n```\n", true},
+		{"xargs_replace", "```bash\nprintf x | xargs -I {} codex review {}\n```\n", true},
 		{"time", "```bash\ntime codex review\n```\n", true},
+		{"timeout", "```bash\ntimeout 600 codex exec review\n```\n", true},
+		{"timeout_kill_after", "```bash\ntimeout -k 5s 10m codex exec review\n```\n", true},
+		{"nice", "```bash\nnice -n 5 codex review\n```\n", true},
+		{"sudo", "```bash\nsudo codex review\n```\n", true},
 		{"nohup", "```bash\nnohup codex review\n```\n", true},
+		{"if", "```bash\nif codex exec review; then\n```\n", true},
+		{"if_not", "```bash\nif ! codex exec review; then\n```\n", true},
+		{"then_after_semicolon", "```bash\nif true; then codex review; fi\n```\n", true},
+		{"group", "```bash\n{ codex review; }\n```\n", true},
+		{"subshell", "```bash\n(codex review)\n```\n", true},
+		{"backslash", "```bash\n\\codex review\n```\n", true},
 		{"sh_c", "```bash\nsh -c 'codex review'\n```\n", true},
+		{"zsh_c", "```bash\nzsh -c 'codex review'\n```\n", true},
+		{"bash_lc", "```bash\nbash -lc 'codex review'\n```\n", true},
 		{"bash_c_later_command", "```bash\nbash -c \"cd x && codex review\"\n```\n", true},
 		{"absolute_path", "```bash\n/opt/homebrew/bin/codex review\n```\n", true},
 		{"relative_path", "```bash\n./codex review\n```\n", true},
 		{"quoted", "```bash\n\"codex\" review\n```\n", true},
 		{"npx", "```bash\nnpx @openai/codex review\n```\n", true},
 		{"npx_option", "```bash\nnpx -y @openai/codex review\n```\n", true},
+		{"bunx", "```bash\nbunx @openai/codex review\n```\n", true},
+		{"pnpm_dlx", "```bash\npnpm dlx @openai/codex review\n```\n", true},
 		{"blockquoted_block", "> ```bash\n> codex review\n> ```\n", true},
 		{"code_span", "Run `codex exec review --base <BASE>` once.\n", true},
 		{"other_language_block", "```text\ncodex exec review --base <BASE>\n```\n", true},
+		// A block line that starts with the quoted word is read as a command,
+		// so a jq continuation must not start with it.
+		{"quoted_line_start", "```bash\n  \"codex\" as $k\n```\n", true},
 
 		// The uses of the word in the command documents today.
 		{"jq_kind", "```bash\n  else {kind: \"codex\", url: .html_url, created_at} end\n```\n", false},
@@ -341,17 +380,22 @@ func TestRunsCodex(t *testing.T) {
 	}
 }
 
-// TestInstallTargetDocumented: the Makefile has the install target of the
-// tool's name, and the Commands section of CLAUDE.md lists it, so the user
-// finds how to install the tool the documents run.
+// TestInstallTargetDocumented: the Makefile's install target of the tool's
+// name installs this package, and the Commands section of CLAUDE.md lists the
+// target with the same go install command, so the user finds how to install
+// the tool the documents run.
 func TestInstallTargetDocumented(t *testing.T) {
 	target := "install-" + toolName(t)
-	makefile := readRepoFile(t, "Makefile")
-	if !slices.ContainsFunc(strings.Split(makefile, "\n"), func(line string) bool { return strings.HasPrefix(line, target+":") }) {
-		t.Errorf("Makefile has no %s target", target)
+	install := "go install ./cmd/" + toolName(t)
+	lines := strings.Split(readRepoFile(t, "Makefile"), "\n")
+	i := slices.IndexFunc(lines, func(line string) bool { return strings.HasPrefix(line, target+":") })
+	if i < 0 || i+1 >= len(lines) || lines[i+1] != "\t$(GOCMD) install ./cmd/"+toolName(t) {
+		t.Errorf("Makefile has no %s target whose recipe is $(GOCMD) install ./cmd/%s", target, toolName(t))
 	}
 	commands := doctestutil.SectionByHeading(readRepoFile(t, "CLAUDE.md"), "## Commands")
-	if !slices.ContainsFunc(strings.Split(commands, "\n"), func(line string) bool { return strings.HasPrefix(line, "- `make "+target+"` - ") }) {
-		t.Errorf("the Commands section of CLAUDE.md has no item for make %s", target)
+	if !slices.ContainsFunc(strings.Split(commands, "\n"), func(line string) bool {
+		return strings.HasPrefix(line, "- `make "+target+"` - ") && strings.Contains(line, "(`"+install+"`)")
+	}) {
+		t.Errorf("the Commands section of CLAUDE.md has no item for make %s naming (`%s`)", target, install)
 	}
 }

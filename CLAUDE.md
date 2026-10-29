@@ -495,11 +495,12 @@ info.json parsers with real samples under `testdata/`.
   commands the agents run at their trust boundary (the `fixprguard` call sites,
   the commands that would bypass it, the mention check, the `--jq` filters
   that must not print a body, the `--protocol` value of the `codexreview`
-  calls, and the absence of a command that runs `codex` directly). A mistake there disables a guard at run time, so
-  a test is worth its brittleness. A property of the change itself, such as
-  existing headings kept unchanged, is not a document test either: it is a
-  `diff` verification, a script under the task's `_checks/` directory run once
-  against the merge-base (`requirements_process.md` §4).
+  calls, and the absence of a command that runs `codex` directly). A mistake
+  there disables a guard at run time, so a test is worth its brittleness. A
+  property of the change itself, such as existing headings kept unchanged, is
+  not a document test either: it is a `diff` verification, a script under the
+  task's `_checks/` directory run once against the merge-base
+  (`requirements_process.md` §4).
 
 See [Test Organization Guide](docs/dev/conventions/test_organization.md) for test helper file structure.
 

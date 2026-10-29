@@ -34,6 +34,28 @@ func TestProtocolFlags(t *testing.T) {
 			[]ProtocolFlag{{"--protocol 1", "1", ToolCodexreview}, {"--protocol 9", "9", ""}},
 		},
 		{
+			"semicolon",
+			"codexreview --base " + sha + "; tee --protocol 9\n",
+			[]ProtocolFlag{{"--protocol 9", "9", ""}},
+		},
+		{
+			"and_list",
+			"codexreview --base " + sha + " && tee --protocol 9\n",
+			[]ProtocolFlag{{"--protocol 9", "9", ""}},
+		},
+		{
+			// A substitution ends the command too, so the flag after one is
+			// not the call's: the documents write a call's values literally.
+			"substitution",
+			"codexreview --base \"$(git rev-parse HEAD)\" --protocol 1\n",
+			[]ProtocolFlag{{"--protocol 1", "1", ""}},
+		},
+		{
+			"backquote_in_block",
+			"codexreview --base `git rev-parse HEAD` --protocol 1\n",
+			[]ProtocolFlag{{"--protocol 1", "1", ""}},
+		},
+		{
 			// Each code span is its own command.
 			"code_spans_in_prose",
 			"Run `codexreview --protocol 1 --base <BASE>`, then `fixprguard begin --protocol 4`.\n",
