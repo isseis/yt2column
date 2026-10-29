@@ -25,9 +25,9 @@
 //
 // The output is the destination of each unit (R for README.md, C for cli.md, D
 // for development.md, or the split list), the units found in two or more
-// documents (read against AC-22's allowed duplicates), and the units found
+// documents (read against the duplicates the requirements allow), and the units found
 // nowhere. Only a unit found nowhere, a split entry that does not hold, or a
-// second version of cli.md or development.md under docs/dev/guides (AC-24)
+// second version of cli.md or development.md under docs/dev/guides
 // fails the run.
 //
 // With a third commit, the one where cli.md and development.md are in
@@ -506,7 +506,7 @@ func tableSizes(doc string) []int {
 // truncate shortens text for a problem line.
 func truncate(text string) string {
 	if len(text) > 60 {
-		return text[:60] + "…"
+		return text[:60] + "..."
 	}
 	return text
 }
