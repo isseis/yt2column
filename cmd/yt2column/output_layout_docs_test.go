@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/isseis/yt2column/internal/doctestutil"
 	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/publisher"
 	"github.com/isseis/yt2column/internal/writer"
@@ -61,24 +62,24 @@ func outputLayoutArticle() writer.Article {
 // after the heading are then scanned for fences from their first line.
 func firstCodeBlockAfter(doc, heading string) (string, bool) {
 	lines := slices.Collect(strings.Lines(doc))
-	for i, line := range scanDocLines(lines) {
-		if line.block || strings.TrimSpace(line.text) != heading {
+	for i, line := range doctestutil.ScanDocLines(lines) {
+		if line.Block || strings.TrimSpace(line.Text) != heading {
 			continue
 		}
 		var b strings.Builder
 		opened := false
-		for _, scanned := range scanDocLines(lines[i+1:]) {
+		for _, scanned := range doctestutil.ScanDocLines(lines[i+1:]) {
 			switch {
-			case scanned.fence && opened:
+			case scanned.Fence && opened:
 				return b.String(), true
-			case scanned.fence:
+			case scanned.Fence:
 				opened = true
-			case !scanned.block && headingLevel(scanned.text) > 0:
+			case !scanned.Block && doctestutil.HeadingLevel(scanned.Text) > 0:
 				// The next heading ends the search, so a deleted example does
 				// not pick up a later block.
 				return "", false
 			case opened:
-				b.WriteString(scanned.text)
+				b.WriteString(scanned.Text)
 				b.WriteString("\n")
 			}
 		}
@@ -91,7 +92,7 @@ func firstCodeBlockAfter(doc, heading string) (string, bool) {
 // equal the real output for the fixed article.
 func TestOutputLayoutDocsContract(t *testing.T) {
 	article := outputLayoutArticle()
-	readme := readDoc(t, readmePath)
+	readme := doctestutil.ReadDoc(t, readmePath)
 
 	// The --out example is what FilePublisher writes.
 	path := filepath.Join(t.TempDir(), "article.md")

@@ -16,6 +16,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/isseis/yt2column/internal/doctestutil"
 	"github.com/isseis/yt2column/internal/nmhost"
 )
 
@@ -55,10 +56,10 @@ func TestExtensionDocumentation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("derive the extension ID from the manifest key: %v", err)
 	}
-	readme := readDoc(t, readmePath)
-	security := readDoc(t, securityPath)
-	claude := readDoc(t, claudePath)
-	makefile := readDoc(t, makefilePath)
+	readme := doctestutil.ReadDoc(t, readmePath)
+	security := doctestutil.ReadDoc(t, securityPath)
+	claude := doctestutil.ReadDoc(t, claudePath)
+	makefile := doctestutil.ReadDoc(t, makefilePath)
 
 	t.Run("records the fixed extension ID in README and security.md", func(t *testing.T) {
 		for _, doc := range []struct{ name, text string }{
@@ -86,7 +87,7 @@ func TestExtensionDocumentation(t *testing.T) {
 		if len(manifest.Permissions) == 0 {
 			t.Fatal("manifest.json requests no permissions")
 		}
-		section := sectionByHeading(security, "### 8.1. ブラウザ拡張（#110）")
+		section := doctestutil.SectionByHeading(security, "### 8.1. ブラウザ拡張（#110）")
 		if section == "" {
 			t.Fatal("security.md has no 8.1 extension section")
 		}
@@ -159,7 +160,7 @@ func TestNativeHostContract(t *testing.T) {
 		}
 	})
 	t.Run("host name and reply values", func(t *testing.T) {
-		source := readDoc(t, extensionNativePath)
+		source := doctestutil.ReadDoc(t, extensionNativePath)
 		name := nativeHostNameRE.FindStringSubmatch(source)
 		if name == nil {
 			t.Fatalf("%s has no nativeHostName declaration", extensionNativePath)
@@ -193,7 +194,7 @@ func TestNativeHostContract(t *testing.T) {
 		}
 	})
 	t.Run("relay timeout", func(t *testing.T) {
-		m := sendTimeoutRE.FindStringSubmatch(readDoc(t, extensionSendPath))
+		m := sendTimeoutRE.FindStringSubmatch(doctestutil.ReadDoc(t, extensionSendPath))
 		if m == nil {
 			t.Fatalf("%s has no sendTimeoutMs declaration", extensionSendPath)
 		}
@@ -297,7 +298,7 @@ func TestDeclaredPermissions(t *testing.T) {
 func readExtensionManifest(t *testing.T) extensionManifest {
 	t.Helper()
 	var manifest extensionManifest
-	if err := json.Unmarshal([]byte(readDoc(t, extensionManifestPath)), &manifest); err != nil {
+	if err := json.Unmarshal([]byte(doctestutil.ReadDoc(t, extensionManifestPath)), &manifest); err != nil {
 		t.Fatalf("parse %s: %v", extensionManifestPath, err)
 	}
 	return manifest
