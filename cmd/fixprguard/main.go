@@ -154,7 +154,7 @@ func main() {
 // standard error output: git skips an unreadable directory with only a
 // warning there.
 func osEnv() env {
-	gitEnv := fixprguard.GitEnv(os.Environ())
+	gitEnv := cmdrunner.GitEnv(os.Environ())
 	return env{
 		gh:        cmdrunner.NewOS(cmdrunner.Options{MaxOutput: ghMaxOutput, WaitDelay: waitDelay, Env: gitEnv}),
 		git:       cmdrunner.NewOS(cmdrunner.Options{MaxOutput: gitMaxOutput, WaitDelay: waitDelay, Env: gitEnv}),

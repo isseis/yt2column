@@ -74,8 +74,9 @@ func (r *gitRouter) Run(ctx context.Context, name string, args ...string) ([]byt
 // git config --get calls that read one value.
 const gitConfigList = gitCommand + " config --list"
 
-// gitSubcommand skips the global options gitHardening and Worktree add. It
-// names config --list in full, so a test can tell it from config --get.
+// gitSubcommand skips the global options cmdrunner.GitHardening and Worktree
+// add. It names config --list in full, so a test can tell it from config
+// --get.
 func gitSubcommand(args []string) string {
 	for i := 0; i < len(args); i++ {
 		switch {
@@ -170,7 +171,7 @@ func (r *testRepo) gitIn(dir string, args ...string) string {
 	r.t.Helper()
 	cmd := exec.Command(gitCommand, args...) //nolint:gosec // test setup runs git with fixed arguments
 	cmd.Dir = dir
-	cmd.Env = GitEnv(os.Environ())
+	cmd.Env = cmdrunner.GitEnv(os.Environ())
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		r.t.Fatalf("git %v: %v: %s", args, err, out)
@@ -182,9 +183,9 @@ func (r *testRepo) gitIn(dir string, args ...string) string {
 // so a test can tell whether a change reached the listed values.
 func (r *testRepo) ConfigList() string {
 	r.t.Helper()
-	cmd := exec.Command(gitCommand, append(append([]string{}, gitHardening...), configListArgs...)...) //nolint:gosec // test setup runs git with fixed arguments
+	cmd := exec.Command(gitCommand, append(cmdrunner.GitHardening(), configListArgs...)...) //nolint:gosec // test setup runs git with fixed arguments
 	cmd.Dir = r.Dir
-	cmd.Env = GitEnv(os.Environ())
+	cmd.Env = cmdrunner.GitEnv(os.Environ())
 	out, err := cmd.Output()
 	if err != nil {
 		r.t.Fatalf("git config --list: %v", err)
@@ -243,13 +244,14 @@ func (r *testRepo) RemoteHead() string {
 	return strings.TrimSpace(r.gitIn(r.Remote, "rev-parse", headsPrefix+testBranch))
 }
 
-// newTestWorktree returns a Worktree whose git runs for real with GitEnv and
-// whose other commands run through a fake expecting exactly steps.
+// newTestWorktree returns a Worktree whose git runs for real with
+// cmdrunner.GitEnv and whose other commands run through a fake expecting
+// exactly steps.
 func newTestWorktree(t *testing.T, steps ...cmdrunnertestutil.Step) (*Worktree, *gitRouter) {
 	t.Helper()
 	router := &gitRouter{
-		real: cmdrunner.NewOS(cmdrunner.Options{Env: GitEnv(os.Environ())}),
-		List: cmdrunner.NewOS(cmdrunner.Options{Env: GitEnv(os.Environ()), StderrIsFailure: true}),
+		real: cmdrunner.NewOS(cmdrunner.Options{Env: cmdrunner.GitEnv(os.Environ())}),
+		List: cmdrunner.NewOS(cmdrunner.Options{Env: cmdrunner.GitEnv(os.Environ()), StderrIsFailure: true}),
 		fake: cmdrunnertestutil.New(t, steps...),
 	}
 	return NewWorktree(router, router.ListRunner(), router), router

@@ -84,11 +84,11 @@ PR-1・PR-2 のマージで `.claude/commands/` と `CLAUDE.md` の行番号が�
 
 **変えるファイル**: `internal/cmdrunner/`（新しいファイル `git.go` を想定）とそのテスト、`internal/fixprguard/gitstate.go`・`gitstate_test.go`・`ignored.go`・`ignored_test.go`・`test_helpers_git.go`・`worktree.go`、`cmd/fixprguard/main.go`・`test_helpers.go`、`docs/dev/conventions/package_reference.md`
 
--   [ ] `GitEnv` と git の設定の上書きを `internal/cmdrunner` に移す。設定の上書きは、Go の呼び出し側が書き換えられないように、呼ぶたびに新しいスライスを返す関数として公開する。
--   [ ] コメントは、git に共通の理由（別のリポジトリを見ない、コマンドを起動する設定を止める、git 2.12 以上が要る）を移した先に置く。`CheckState` が設定を確かめるという `fixprguard` に固有の理由は、`fixprguard` の使う場所に残す。パッケージのコメント（`runner.go:1-3`）に、git の環境と設定の上書きと、新しく使う側になる `codexreview` を加える。
--   [ ] 1.3 の使用箇所と、名前を挙げるコメントを、すべて付け替える。`fixprguard` の振る舞いは変えない。
--   [ ] `TestGitEnvDropsInheritedGitVariables` を分ける。環境の変数を除くことと加えることの確かめは `internal/cmdrunner` に移し、`GIT_DIR` を受け継いでも `Worktree.Baseline` が正しいリポジトリを読むことの確かめは `internal/fixprguard` に残す。`go tool cover -func` の結果が、関数の名前ごとに（移した関数は移した先のパッケージで）変わらないことを確かめ、コミットメッセージに書く。
--   [ ] 返したスライスを書き換えても、次に呼んだときの結果が変わらないことを確かめるテストを加える。
+-   [x] `GitEnv` と git の設定の上書きを `internal/cmdrunner` に移す。設定の上書きは、Go の呼び出し側が書き換えられないように、呼ぶたびに新しいスライスを返す関数として公開する。
+-   [x] コメントは、git に共通の理由（別のリポジトリを見ない、コマンドを起動する設定を止める、git 2.12 以上が要る）を移した先に置く。`CheckState` が設定を確かめるという `fixprguard` に固有の理由は、`fixprguard` の使う場所に残す。パッケージのコメント（`runner.go:1-3`）に、git の環境と設定の上書きと、新しく使う側になる `codexreview` を加える。
+-   [x] 1.3 の使用箇所と、名前を挙げるコメントを、すべて付け替える。`fixprguard` の振る舞いは変えない。
+-   [x] `TestGitEnvDropsInheritedGitVariables` を分ける。環境の変数を除くことと加えることの確かめは `internal/cmdrunner` に移し、`GIT_DIR` を受け継いでも `Worktree.Baseline` が正しいリポジトリを読むことの確かめは `internal/fixprguard` に残す。`go tool cover -func` の結果が、関数の名前ごとに（移した関数は移した先のパッケージで）変わらないことを確かめ、コミットメッセージに書く。
+-   [x] 返したスライスを書き換えても、次に呼んだときの結果が変わらないことを確かめるテストを加える。
 
 **完了の条件**: `make test`・`make lint`・`make deadcode` が通る。`internal/fixprguard` と `cmd/fixprguard` の既存のテストが、参照の付け替えのほかは変わらずに通る。
 

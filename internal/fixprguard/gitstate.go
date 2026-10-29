@@ -63,51 +63,6 @@ func GitStateParts() []string {
 	return []string{PartHead, PartRemote, PartHooks, PartConfig, PartInfo, PartIgnored}
 }
 
-// gitHardening comes before every git subcommand the tool runs. It reads
-// objects as stored, never through refs/replace, so every tree the tool
-// compares is the real one. It also turns off configuration that would launch
-// a command during the read-only operations the tool performs: the fsmonitor
-// hook, a configured SSH command, the ext transport, and automatic gc and
-// maintenance (which run hooks of their own). Every other setting, from any
-// file git reads, is held to the baseline by CheckState before any git but
-// git config --list runs, except the branch settings of branches other than
-// main and the baseline branch, which no git the tool runs uses to pick a
-// destination or a command. A pager and colors are off so output is parsed
-// as git wrote it, and diff commands also pass --no-ext-diff and
-// --no-textconv.
-//
-// git 2.12 or later is required: it is the first to read
-// protocol.<name>.allow, without which protocol.ext.allow=never is silently
-// ignored. The other options and subcommands used here
-// (--literal-pathspecs, --no-replace-objects, config --show-origin -z, status
-// --porcelain=v1, rev-parse --git-path, ls-files -v, cat-file, diff-tree,
-// push --no-follow-tags) exist by then.
-var gitHardening = []string{
-	"--no-pager",
-	"--no-replace-objects",
-	"-c", "core.fsmonitor=false",
-	"-c", "core.sshCommand=ssh",
-	"-c", "protocol.ext.allow=never",
-	"-c", "gc.auto=0",
-	"-c", "maintenance.auto=false",
-	"-c", "color.ui=false",
-}
-
-// GitEnv returns environ without any inherited GIT_* variable, which could
-// point git at another repository, index or configuration, and with optional
-// locks and terminal prompts turned off. The runner a Worktree is given for
-// git must run commands with this environment.
-func GitEnv(environ []string) []string {
-	added := []string{"GIT_OPTIONAL_LOCKS=0", "GIT_TERMINAL_PROMPT=0"}
-	env := make([]string, 0, len(environ)+len(added))
-	for _, entry := range environ {
-		if !strings.HasPrefix(entry, "GIT_") {
-			env = append(env, entry)
-		}
-	}
-	return append(env, added...)
-}
-
 // Baseline holds the git state taken at begin: the HEAD commit, a digest of
 // the branch HEAD is on, the push target's branch OID ("none" when the branch
 // does not exist there), and digests of the hooks, of where the git
@@ -465,9 +420,9 @@ func digestString(fields ...string) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-// git runs a git subcommand behind gitHardening under gitTimeout. A failure
-// becomes ErrGitFailed naming the rule only; the command's arguments and
-// standard error are dropped.
+// git runs a git subcommand behind cmdrunner.GitHardening under gitTimeout. A
+// failure becomes ErrGitFailed naming the rule only; the command's arguments
+// and standard error are dropped.
 func (w *Worktree) git(ctx context.Context, rule string, args ...string) ([]byte, error) {
 	out, err := w.gitRaw(ctx, args...)
 	if err != nil {
@@ -476,10 +431,20 @@ func (w *Worktree) git(ctx context.Context, rule string, args ...string) ([]byte
 	return out, nil
 }
 
+// gitRaw runs git behind cmdrunner.GitHardening, which turns off only the
+// settings that would launch a command. Every other setting, from any file
+// git reads, is held to the baseline by CheckState before any git but git
+// config --list runs, except the branch settings of branches other than main
+// and the baseline branch, which no git the tool runs uses to pick a
+// destination or a command. Diff commands also pass --no-ext-diff and
+// --no-textconv. The other options and subcommands used here
+// (--literal-pathspecs, config --show-origin -z, status --porcelain=v1,
+// rev-parse --git-path, ls-files -v, cat-file, diff-tree, push
+// --no-follow-tags) exist by git 2.12, the version GitHardening requires.
 func (w *Worktree) gitRaw(ctx context.Context, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, gitTimeout)
 	defer cancel()
-	return w.gitRun.Run(ctx, gitCommand, append(append([]string{}, gitHardening...), args...)...)
+	return w.gitRun.Run(ctx, gitCommand, append(cmdrunner.GitHardening(), args...)...)
 }
 
 func gitFailure(rule string, err error) error {
@@ -666,9 +631,9 @@ func (w *Worktree) headState(ctx context.Context) (oid, branch string, err error
 	return oid, branch, nil
 }
 
-// commitObject reads a commit object as stored (gitHardening turns replace
-// refs off, and cat-file does not consult the commit-graph) and returns its
-// tree and parents.
+// commitObject reads a commit object as stored (cmdrunner.GitHardening turns
+// replace refs off, and cat-file does not consult the commit-graph) and
+// returns its tree and parents.
 func (w *Worktree) commitObject(ctx context.Context, oid string) (tree string, parents []string, err error) {
 	out, err := w.git(ctx, "cat-file", "cat-file", "commit", oid)
 	if err != nil {

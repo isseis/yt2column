@@ -1,6 +1,8 @@
 // Package cmdrunner runs external commands without a shell. It is the shared
-// execution boundary of the developer tools (internal/mergepr and
-// internal/fixprguard); tests substitute the fake in internal/cmdrunner/testutil.
+// execution boundary of the developer tools (internal/mergepr,
+// internal/fixprguard, and internal/codexreview); tests substitute the fake in
+// internal/cmdrunner/testutil. It also holds the environment and the global
+// options those tools run git with (GitEnv and GitHardening).
 package cmdrunner
 
 import (
