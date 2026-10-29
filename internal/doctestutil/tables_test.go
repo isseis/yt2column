@@ -91,3 +91,21 @@ func TestStripBackticks(t *testing.T) {
 		}
 	}
 }
+
+// TestColumnIndex checks the header lookup: a cell matches ignoring case and
+// backticks, the first matching cell wins, and a miss is -1.
+func TestColumnIndex(t *testing.T) {
+	header := []string{"`reason`", "Status Code", "status code"}
+	for _, tc := range []struct {
+		name string
+		want int
+	}{
+		{"reason", 0},
+		{"status code", 1},
+		{"extension shows", -1},
+	} {
+		if got := ColumnIndex(header, tc.name); got != tc.want {
+			t.Errorf("ColumnIndex(header, %q) = %d, want %d", tc.name, got, tc.want)
+		}
+	}
+}

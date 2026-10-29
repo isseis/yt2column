@@ -1,0 +1,114 @@
+[
+  {
+    "original": "Both outputs carry the article's cost, with four decimals, or `unknown`: the `--out` file as the front matter key `estimated_cost_usd` (`\"0.0023\"` or `\"unknown\"`), and the Slack post as the end of its footnote:",
+    "parts": [
+      {"doc": "R", "text": "Both outputs carry the article's cost, with four decimals, or `unknown`:"},
+      {"doc": "C", "text": " the `--out` file as the front matter key `estimated_cost_usd` (`\"0.0023\"` or `\"unknown\"`),"},
+      {"doc": "R", "text": " and the Slack post as the end of its footnote:"}
+    ]
+  },
+  {
+    "original": "With `--slack`, the article is posted to the Slack-compatible Incoming Webhook in `SLACK_WEBHOOK_URL` instead of a file.",
+    "parts": [
+      {"doc": "C", "text": "With `--slack`,"},
+      {"doc": "R", "text": " the article is posted to the Slack-compatible Incoming Webhook in `SLACK_WEBHOOK_URL`", "as": "The article is posted to the Slack-compatible Incoming Webhook in `SLACK_WEBHOOK_URL`"},
+      {"doc": "C", "text": " instead of a file."}
+    ]
+  },
+  {
+    "original": "A value that does not — for example `https://hooks.slack.com/services/%zz`, `https://hooks.slack.com/%`, or a value ending in a control character — is rejected as a configuration error with exit code `2`, and because the variable is validated whenever it is set, this also stops an `--out` run.",
+    "parts": [
+      {"doc": "R", "text": "A value that does not — for example `https://hooks.slack.com/services/%zz`, `https://hooks.slack.com/%`, or a value ending in a control character — is rejected as a configuration error with exit code `2`"},
+      {"doc": "C", "text": ", and because the variable is validated whenever it is set, this also stops an `--out` run."}
+    ]
+  },
+  {
+    "original": "The file written by `--out` and the article itself are not changed.",
+    "parts": [
+      {"doc": "C", "text": "The file written by `--out` and", "as": "the file written by `--out` and the article itself are not changed"},
+      {"doc": "R", "text": " the article itself are not changed.", "as": "The article itself is not changed."}
+    ]
+  },
+  {
+    "original": "A rejected article is not posted at all, and the error gives the line and column in the post (the lines differ from a file written by `--out`, which starts with front matter).",
+    "parts": [
+      {"doc": "R", "text": "A rejected article is not posted at all, and the error gives the line and column in the post"},
+      {"doc": "C", "text": " (the lines differ from a file written by `--out`, which starts with front matter)."}
+    ]
+  },
+  {
+    "original": "Running again generates a different article, which may not have the problem; run with `--out` to inspect what the model generated.",
+    "parts": [
+      {"doc": "R", "text": "Running again generates a different article, which may not have the problem;"},
+      {"doc": "C", "text": " run with `--out` to inspect what the model generated."}
+    ]
+  },
+  {
+    "original": "Posting it to the Slack-compatible Webhook is an operation of its own: the extension's current `/articles` request generates and posts in one go as before, and the job API below generates, returns, and posts on request.",
+    "parts": [
+      {"doc": "R", "text": "Posting it to the Slack-compatible Webhook is an operation of its own: the extension's current `/articles` request generates and posts in one go as before,"},
+      {"doc": "D", "text": " and the job API below generates, returns, and posts on request."}
+    ]
+  },
+  {
+    "original": "`SLACK_WEBHOOK_URL` is optional for the server: without it the server still starts and generates articles, but posting (the job API's publish operation and `/articles`) is refused with `webhook_not_configured`, and the current extension shows that refusal as an unexpected reply.",
+    "parts": [
+      {"doc": "R", "text": "`SLACK_WEBHOOK_URL` is optional for the server: without it the server still starts and generates articles, but posting"},
+      {"doc": "D", "text": " (the job API's publish operation and `/articles`)"},
+      {"doc": "R", "text": " is refused with `webhook_not_configured`, and the current extension shows that refusal as an unexpected reply."}
+    ]
+  },
+  {
+    "original": "The first `SIGINT`, `SIGTERM`, or `SIGHUP` (one ignored at startup is not subscribed) stops accepting connections, removes the socket, cancels the job API's in-flight generations (their LLM calls stop and their articles are lost, because the cache goes away with the server), and lets the other in-flight jobs finish: the `/articles` jobs, which can take up to about 45 minutes (three LLM calls of 15 minutes each), and the publish jobs.",
+    "parts": [
+      {"doc": "R", "text": "The first `SIGINT`, `SIGTERM`, or `SIGHUP` (one ignored at startup is not subscribed) stops accepting connections, removes the socket,"},
+      {"doc": "D", "text": " cancels the job API's in-flight generations (their LLM calls stop and their articles are lost, because the cache goes away with the server),"},
+      {"doc": "R", "text": " and lets the other in-flight jobs finish: the `/articles` jobs, which can take up to about 45 minutes (three LLM calls of 15 minutes each)"},
+      {"doc": "D", "text": ", and the publish jobs."}
+    ]
+  },
+  {
+    "original": "A CLI run exits with `2` before it starts; a server exits with `2` before it listens, and the extension can only report that the server is not running.",
+    "parts": [
+      {"doc": "C", "text": "A CLI run exits with `2` before it starts;", "as": "a CLI run exits with `2` before it starts"},
+      {"doc": "R", "text": " a server exits with `2` before it listens, and the extension can only report that the server is not running.", "as": "A server exits with `2` before it listens, and the extension can only report that the server is not running."}
+    ]
+  },
+  {
+    "original": "| `SLACK_WEBHOOK_URL` | Slack-compatible Incoming Webhook URL (Mattermost is the verified target) | Required with `--slack`; optional with `--out` (no value); the server starts without it, but then cannot post |",
+    "parts": [
+      {"doc": "R", "text": "| `SLACK_WEBHOOK_URL` | Slack-compatible Incoming Webhook URL (Mattermost is the verified target) |"},
+      {"doc": "C", "text": " Required with `--slack`; optional with `--out` (no value);", "as": "required with `--slack`; optional with `--out` (no value)"},
+      {"doc": "R", "text": " the server starts without it, but then cannot post |", "as": "The server starts without it, but then cannot post |"}
+    ]
+  },
+  {
+    "original": "It reads neither `YT2COLUMN_CACHE_DIR` nor `YT2COLUMN_YTDLP_PATH`, because it never calls `yt-dlp`.",
+    "parts": [
+      {"doc": "C", "text": "It reads neither `YT2COLUMN_CACHE_DIR` nor `YT2COLUMN_YTDLP_PATH`, because it never calls `yt-dlp`.", "as": "`yt2column-server` reads neither `YT2COLUMN_CACHE_DIR` nor `YT2COLUMN_YTDLP_PATH`, because it never calls `yt-dlp`."}
+    ]
+  },
+  {
+    "original": "A model ID with surrounding white space is accepted here but rejected, before any request, when a run that executes the step builds that step's client: the CLI builds its clients before the run starts, and the server builds both at startup, before it listens.",
+    "parts": [
+      {"doc": "R", "text": "A model ID with surrounding white space is accepted here but rejected, before any request, when a run that executes the step builds that step's client:"},
+      {"doc": "C", "text": " the CLI builds its clients before the run starts, and", "as": "the CLI builds its clients before the run starts"},
+      {"doc": "R", "text": " the server builds both at startup, before it listens."}
+    ]
+  },
+  {
+    "original": "With `YT2COLUMN_REVIEW_LLM` unset, the review step uses the same provider and model as generation, the default included, also in a resumed run that only reviews; a resumed run that only reviews and has `YT2COLUMN_REVIEW_LLM` set does not read `YT2COLUMN_LLM`.",
+    "parts": [
+      {"doc": "R", "text": "With `YT2COLUMN_REVIEW_LLM` unset, the review step uses the same provider and model as generation, the default included,"},
+      {"doc": "C", "text": " also in a resumed run that only reviews; a resumed run that only reviews and has `YT2COLUMN_REVIEW_LLM` set does not read `YT2COLUMN_LLM`."}
+    ]
+  },
+  {
+    "original": "When any of them is set, even to an empty value, the CLI and the server stop with a configuration error naming it, on every run, including runs that read no LLM setting such as `--after review`; their values are never used.",
+    "parts": [
+      {"doc": "R", "text": "When any of them is set, even to an empty value, the CLI and the server stop with a configuration error naming it, on every run,"},
+      {"doc": "C", "text": " including runs that read no LLM setting such as `--after review`;"},
+      {"doc": "R", "text": " their values are never used."}
+    ]
+  }
+]

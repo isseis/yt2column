@@ -27,6 +27,8 @@ import (
 // Paths from cmd/yt2column to the documents these tests check.
 const (
 	readmePath            = "../../README.md"
+	cliDocPath            = "../../" + cliGuide
+	developmentDocPath    = "../../" + developmentGuide
 	projectOverviewPath   = "../../docs/dev/project_overview.md"
 	securityPath          = "../../docs/dev/security.md"
 	productionProfilePath = "../../docs/dev/production_profile.md"
@@ -135,14 +137,14 @@ func numberedItems(section string) []string {
 	return items
 }
 
-// TestREADMEDocumentsFlags checks that README.md documents every flag run
-// defines. The flag names come from newFlagSet, not from a list kept here, so a
-// new flag fails this test until README names it.
+// TestREADMEDocumentsFlags checks that the CLI guide (cli.md) documents every
+// flag run defines. The flag names come from newFlagSet, not from a list kept
+// here, so a new flag fails this test until cli.md names it.
 func TestREADMEDocumentsFlags(t *testing.T) {
-	doc := doctestutil.ReadDoc(t, readmePath)
-	table := doctestutil.FindTable(doc, "Flag")
+	doc := doctestutil.ReadDoc(t, cliDocPath)
+	table := doctestutil.FindTable(doc, doctestutil.CLIFlagColumn)
 	if table == nil {
-		t.Fatal("README has no flags table")
+		t.Fatal("cli.md has no flags table")
 	}
 	fs, _ := newFlagSet()
 	fs.VisitAll(func(f *flag.Flag) {
@@ -153,9 +155,10 @@ func TestREADMEDocumentsFlags(t *testing.T) {
 }
 
 // TestSlackDocsContract pins the machine-checkable contract values of webhook
-// publishing: the test environment variables, the make targets, and the
-// per-message limit. The values come from the publisher's exported test
-// constants, not from the documents.
+// publishing: the test environment variables and the make targets, which the
+// development guide (development.md) and security.md name, and the per-message
+// limit, which README.md and project_overview.md state. The values come from
+// the publisher's exported test constants, not from the documents.
 func TestSlackDocsContract(t *testing.T) {
 	// The documents state the limit with a thousands separator, so the
 	// literal below is pinned to the publisher's own exported test constant:
@@ -163,7 +166,6 @@ func TestSlackDocsContract(t *testing.T) {
 	if publisher.SlackMaxMessageRunesForTest != 16383 {
 		t.Fatalf("the publisher per-message limit is %d, not 16,383; update the documents and this test", publisher.SlackMaxMessageRunesForTest)
 	}
-	readme := doctestutil.ReadDoc(t, readmePath)
 	values := []string{
 		publishertestutil.SlackOptInEnv,
 		publishertestutil.CLISlackOptInEnv,
@@ -174,7 +176,7 @@ func TestSlackDocsContract(t *testing.T) {
 	for _, doc := range []struct {
 		name, text string
 	}{
-		{"README.md", readme},
+		{"development.md", doctestutil.ReadDoc(t, developmentDocPath)},
 		{"security.md", doctestutil.ReadDoc(t, securityPath)},
 	} {
 		requireMentions(t, doc.name, doc.text, values)
@@ -182,7 +184,7 @@ func TestSlackDocsContract(t *testing.T) {
 	for _, doc := range []struct {
 		name, text string
 	}{
-		{"README.md", readme},
+		{"README.md", doctestutil.ReadDoc(t, readmePath)},
 		{"project_overview.md", doctestutil.ReadDoc(t, projectOverviewPath)},
 	} {
 		if !strings.Contains(doc.text, "16,383") {
@@ -213,7 +215,7 @@ func TestClaudeDocsContract(t *testing.T) {
 	for _, doc := range []struct {
 		name, text string
 	}{
-		{"README.md", doctestutil.ReadDoc(t, readmePath)},
+		{"development.md", doctestutil.ReadDoc(t, developmentDocPath)},
 		{"security.md", doctestutil.ReadDoc(t, securityPath)},
 	} {
 		requireMentions(t, doc.name, doc.text, values)
@@ -222,12 +224,12 @@ func TestClaudeDocsContract(t *testing.T) {
 
 // TestDeepSeekDocsContract pins the machine-checkable contract values of the
 // DeepSeek integration tests: the key they read, the opt-in that arms each
-// one, and the model variable. Every integration-test section of README.md
-// names its own values, so a section left behind by a rename fails. The values
-// come from the deepseek and publisher test packages' exported constants, not
-// from the document.
+// one, and the model variable. Every integration-test section of the
+// development guide (development.md) names its own values, so a section left
+// behind by a rename fails. The values come from the deepseek and publisher
+// test packages' exported constants, not from the document.
 func TestDeepSeekDocsContract(t *testing.T) {
-	readme := doctestutil.ReadDoc(t, readmePath)
+	development := doctestutil.ReadDoc(t, developmentDocPath)
 	for _, section := range []struct {
 		name    string
 		heading string
@@ -235,26 +237,26 @@ func TestDeepSeekDocsContract(t *testing.T) {
 	}{
 		{
 			name:    "deepseek",
-			heading: "### DeepSeek integration test",
+			heading: doctestutil.DevDeepSeekIntegrationHeading,
 			values:  []string{deepseektestutil.APIKeyEnv, deepseektestutil.DeepSeekOptInEnv, deepseektestutil.ModelEnv},
 		},
 		{
 			name:    "cli",
-			heading: "### CLI integration test",
+			heading: doctestutil.DevCLIIntegrationHeading,
 			values:  []string{deepseektestutil.APIKeyEnv, deepseektestutil.CLIOptInEnv, deepseektestutil.ModelEnv},
 		},
 		{
 			name:    "cli_slack",
-			heading: "### CLI webhook integration test",
+			heading: doctestutil.DevCLIWebhookIntegrationHeading,
 			values:  []string{deepseektestutil.APIKeyEnv, publishertestutil.CLISlackOptInEnv, deepseektestutil.ModelEnv},
 		},
 	} {
 		t.Run(section.name, func(t *testing.T) {
-			text := doctestutil.SectionOutsideBlocks(readme, section.heading)
+			text := doctestutil.SectionOutsideBlocks(development, section.heading)
 			if text == "" {
-				t.Fatalf("README.md has no %q section", section.heading)
+				t.Fatalf("development.md has no %q section", section.heading)
 			}
-			requireMentions(t, "README.md "+section.heading, text, section.values)
+			requireMentions(t, "development.md "+section.heading, text, section.values)
 		})
 	}
 }
@@ -475,18 +477,6 @@ func productionProfileVars() []string {
 	}
 }
 
-// tableColumn returns the index of the column whose header equals name,
-// ignoring case and backticks, or -1. It matches the way doctestutil.FindTable
-// and tableRowsWithFirstCell read a header cell.
-func tableColumn(header []string, name string) int {
-	for i, cell := range header {
-		if strings.EqualFold(doctestutil.StripBackticks(cell), name) {
-			return i
-		}
-	}
-	return -1
-}
-
 // checkProfileTable checks the shared document's profile table: each stage has
 // exactly one row, and the first code spans of its provider and model cells,
 // joined by "/" into one LLM variable value, and of its effort cell, loaded
@@ -503,7 +493,7 @@ func checkProfileTable(t *testing.T, section string, defaults config.LLMConfig) 
 	names := []string{"プロバイダ", "モデル", "effort"}
 	columns := make([]int, len(names))
 	for i, name := range names {
-		if columns[i] = tableColumn(table[0], name); columns[i] < 0 {
+		if columns[i] = doctestutil.ColumnIndex(table[0], name); columns[i] < 0 {
 			t.Fatalf("production_profile.md: the profile table has no %s column", name)
 		}
 	}
@@ -756,28 +746,65 @@ func TestProductionProfileLinks(t *testing.T) {
 	}
 }
 
-// TestReadmeLinks checks the README's links: every relative link points at an
-// existing path, and every in-page link resolves to an anchor the helper
-// produces. GitHub resolves those, so they are the oracle for the anchor rule.
+// TestReadmeLinks checks the links of the README and of the two developer
+// guides split out of it (cli.md and development.md): every relative link
+// points at an existing path, and every link to a heading, in the same
+// document or in another one, resolves to an anchor the helper produces from
+// the target document's headings. GitHub resolves those, so they are the
+// oracle for the anchor rule. A repository path under docs/dev/ written in a
+// code span must exist too, as TestInstructionDocPaths checks for the other
+// documents under docs/dev/.
 func TestReadmeLinks(t *testing.T) {
-	readme := doctestutil.ReadDoc(t, readmePath)
-	anchors := headingAnchors(t, "README.md", readme)
-	targets := markdownLinkTargets(readme)
-	checkLinkCount(t, "README", readme, len(targets))
-	for _, target := range targets {
-		if anchor, ok := strings.CutPrefix(target, "#"); ok {
-			if _, known := anchors[anchor]; !known {
-				t.Errorf("README links to %q, which the anchor helper does not produce", target)
+	targetAnchors := map[string]map[string]struct{}{}
+	anchorsOf := func(t *testing.T, path string) map[string]struct{} {
+		t.Helper()
+		if anchors, ok := targetAnchors[path]; ok {
+			return anchors
+		}
+		anchors := headingAnchors(t, path, doctestutil.ReadDoc(t, path))
+		targetAnchors[path] = anchors
+		return anchors
+	}
+	for _, doc := range []struct{ name, path string }{
+		{"README.md", readmePath},
+		{"cli.md", cliDocPath},
+		{"development.md", developmentDocPath},
+	} {
+		t.Run(doc.name, func(t *testing.T) {
+			text := doctestutil.ReadDoc(t, doc.path)
+			anchors := anchorsOf(t, filepath.Clean(doc.path))
+			targets := markdownLinkTargets(text)
+			checkLinkCount(t, doc.name, text, len(targets))
+			for _, target := range targets {
+				if strings.Contains(target, "://") || strings.HasPrefix(target, "mailto:") {
+					continue
+				}
+				path, anchor, hasAnchor := strings.Cut(target, "#")
+				known := anchors
+				if path != "" {
+					resolved := filepath.Join(filepath.Dir(doc.path), path)
+					if _, err := os.Stat(resolved); err != nil {
+						t.Errorf("%s links to %q, which does not exist", doc.name, target)
+						continue
+					}
+					if !hasAnchor {
+						continue
+					}
+					known = anchorsOf(t, filepath.Clean(resolved))
+				}
+				if _, ok := known[anchor]; !ok {
+					t.Errorf("%s links to %q, which the anchor helper does not produce", doc.name, target)
+				}
 			}
-			continue
-		}
-		if strings.Contains(target, "://") || strings.HasPrefix(target, "mailto:") {
-			continue
-		}
-		path, _, _ := strings.Cut(target, "#")
-		if _, err := os.Stat(filepath.Join(filepath.Dir(readmePath), path)); err != nil {
-			t.Errorf("README links to %q, which does not exist", target)
-		}
+			for _, ref := range docPathRefs(text) {
+				if ref.relative {
+					continue
+				}
+				if _, err := os.Stat(filepath.Join(repositoryRoot, filepath.FromSlash(ref.path))); err != nil {
+					t.Errorf("%s names %q, which does not exist", doc.name, ref.path)
+				}
+			}
+		})
 	}
 }
 
@@ -838,18 +865,18 @@ func checkExampleLines(t *testing.T, section, prefix string, allowed map[string]
 	}
 }
 
-// TestTokenUsageDocsContract checks that the README's Token usage section
-// contains the line's words and every reason llm.Usage can produce.
+// TestTokenUsageDocsContract checks that the CLI guide's (cli.md) Token usage
+// section contains the line's words and every reason llm.Usage can produce.
 //
 // The behavior these words describe is pinned by running tests, not by this
 // test: the line format by cmd/yt2column's TestRunTokenLinesGoldenFormat, and
 // the usage validation by the adapters' TestGenerateUsageUnknown and
 // internal/artifact's TestParseRecordRejectsUsage.
 func TestTokenUsageDocsContract(t *testing.T) {
-	readme := doctestutil.ReadDoc(t, readmePath)
-	section := doctestutil.SectionByHeading(readme, "## Token usage")
+	cli := doctestutil.ReadDoc(t, cliDocPath)
+	section := doctestutil.SectionByHeading(cli, doctestutil.CLIUsageHeading)
 	if section == "" {
-		t.Fatal("README has no Token usage section")
+		t.Fatal("cli.md has no Token usage section")
 	}
 	// Every format word run.go defines, plus the three stage names. The
 	// value-carrying fields are matched as substrings; the fixed words are
@@ -857,7 +884,7 @@ func TestTokenUsageDocsContract(t *testing.T) {
 	// "run" is not satisfied by "runs".
 	for _, word := range []string{tokensInput, tokensCacheRead, tokensCacheWrite, tokensOutput, tokensReason, tokensModel} {
 		if !strings.Contains(section, word) {
-			t.Errorf("README Token usage section does not contain %q", word)
+			t.Errorf("cli.md Token usage section does not contain %q", word)
 		}
 	}
 	for _, word := range []string{
@@ -865,11 +892,11 @@ func TestTokenUsageDocsContract(t *testing.T) {
 		writer.StageGeneration.String(), writer.StageShorten.String(), writer.StageReview.String(),
 	} {
 		if !containsToken(section, word) {
-			t.Errorf("README Token usage section does not contain the token %q", word)
+			t.Errorf("cli.md Token usage section does not contain the token %q", word)
 		}
 	}
 	// Every member-less reason llm.Usage can produce, obtained from the code so
-	// the test does not spell them. The README also documents the member-named
+	// the test does not spell them. cli.md also documents the member-named
 	// forms (`usage.<member>:<rule>`) in prose.
 	reasons := []llm.Usage{
 		llm.UnknownUsage(llm.RuleNotRead, ""),
@@ -882,7 +909,7 @@ func TestTokenUsageDocsContract(t *testing.T) {
 	}
 	for _, usage := range reasons {
 		if reason := usage.UnknownReason(); !strings.Contains(section, reason) {
-			t.Errorf("README Token usage section does not contain the reason %q", reason)
+			t.Errorf("cli.md Token usage section does not contain the reason %q", reason)
 		}
 	}
 	// Each example line's first three words after the prefix are known words.
@@ -892,11 +919,11 @@ func TestTokenUsageDocsContract(t *testing.T) {
 	for _, stage := range []writer.Stage{writer.StageGeneration, writer.StageShorten, writer.StageReview} {
 		allowed[stage.String()] = true
 	}
-	checkExampleLines(t, section, tokensPrefix, allowed, "README Token usage section")
+	checkExampleLines(t, section, tokensPrefix, allowed, "cli.md Token usage section")
 }
 
-// TestCostDocsContract checks that the README's Estimated cost section uses
-// every word run.go's cost format defines, that its example lines use only
+// TestCostDocsContract checks that the CLI guide's (cli.md) Estimated cost
+// section uses every word run.go's cost format defines, that its example lines use only
 // those words and the stage names in the fixed positions, that
 // project_overview.md contains the cost prefix, and that the rate table's
 // leading comment points at the update procedure.
@@ -904,16 +931,16 @@ func TestTokenUsageDocsContract(t *testing.T) {
 // The behavior these words describe is pinned by running tests, not by this
 // test: the line format by cmd/yt2column's TestRunCostLinesGoldenFormat.
 func TestCostDocsContract(t *testing.T) {
-	readme := doctestutil.ReadDoc(t, readmePath)
-	section := doctestutil.SectionByHeading(readme, "## Estimated cost")
+	cli := doctestutil.ReadDoc(t, cliDocPath)
+	section := doctestutil.SectionByHeading(cli, doctestutil.CLIEstimatedCostHeading)
 	if section == "" {
-		t.Fatal("README has no Estimated cost section")
+		t.Fatal("cli.md has no Estimated cost section")
 	}
 	// The value-carrying fields of the cost lines, taken from run.go so the
 	// test does not spell them.
 	for _, word := range []string{costPrefix, costTotalPrefix, costUSD, costReason, costAt} {
 		if !strings.Contains(section, word) {
-			t.Errorf("README Estimated cost section does not contain %q", word)
+			t.Errorf("cli.md Estimated cost section does not contain %q", word)
 		}
 	}
 	// The fixed words of the lines, matched as whole tokens so "known" is not
@@ -924,13 +951,13 @@ func TestCostDocsContract(t *testing.T) {
 		writer.StageGeneration.String(), writer.StageShorten.String(), writer.StageReview.String(),
 	} {
 		if !containsToken(section, word) {
-			t.Errorf("README Estimated cost section does not contain the token %q", word)
+			t.Errorf("cli.md Estimated cost section does not contain the token %q", word)
 		}
 	}
 	// Each total kind must appear on a cost-total line, not only in prose.
 	for _, kind := range []string{costTotalRun, costTotalArticle} {
 		if !strings.Contains(section, costTotalPrefix+kind) {
-			t.Errorf("README Estimated cost section has no %q total line", costTotalPrefix+kind)
+			t.Errorf("cli.md Estimated cost section has no %q total line", costTotalPrefix+kind)
 		}
 	}
 	// Every rate basis and unknown reason the word mapping returns, obtained
@@ -942,7 +969,7 @@ func TestCostDocsContract(t *testing.T) {
 		pricing.BasisShortPrompt, pricing.BasisLongPrompt, pricing.RateBasis(99),
 	} {
 		if word := costBasisWord(basis); word != costInvalid && !containsToken(section, word) {
-			t.Errorf("README Estimated cost section does not contain the rate-basis word %q", word)
+			t.Errorf("cli.md Estimated cost section does not contain the rate-basis word %q", word)
 		}
 	}
 	for _, reason := range []pricing.UnknownReason{
@@ -950,7 +977,7 @@ func TestCostDocsContract(t *testing.T) {
 		pricing.ReasonUnpricedModel, pricing.ReasonInvalid, pricing.UnknownReason(99),
 	} {
 		if word := costReasonWord(reason); word != costInvalid && !containsToken(section, word) {
-			t.Errorf("README Estimated cost section does not contain the reason word %q", word)
+			t.Errorf("cli.md Estimated cost section does not contain the reason word %q", word)
 		}
 	}
 	// Each example line's first three words after the prefix are the stage, the
@@ -961,7 +988,7 @@ func TestCostDocsContract(t *testing.T) {
 	for _, stage := range []writer.Stage{writer.StageGeneration, writer.StageShorten, writer.StageReview} {
 		allowed[stage.String()] = true
 	}
-	checkExampleLines(t, section, costPrefix, allowed, "README Estimated cost section")
+	checkExampleLines(t, section, costPrefix, allowed, "cli.md Estimated cost section")
 
 	overview := doctestutil.ReadDoc(t, projectOverviewPath)
 	if !strings.Contains(overview, costPrefix) {
