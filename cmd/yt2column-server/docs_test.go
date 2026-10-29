@@ -80,12 +80,11 @@ func TestServerDocsContract(t *testing.T) {
 	})
 
 	// The server's HTTP API is in the development guide, under one section.
-	const apiHeading = doctestutil.DevAPIHeading
-	api := doctestutil.SectionByHeading(development, apiHeading)
+	api := doctestutil.SectionByHeading(development, doctestutil.DevAPIHeading)
 
 	t.Run("development.md", func(t *testing.T) {
 		if api == "" {
-			t.Fatalf("development.md has no %q section", apiHeading)
+			t.Fatalf("development.md has no %q section", doctestutil.DevAPIHeading)
 		}
 		// The curl examples name each operation's method and a URL whose path
 		// has the form the server's path constants define, so a route or
@@ -101,7 +100,7 @@ func TestServerDocsContract(t *testing.T) {
 			{"the job API's publish", "POST", server.JobsPath + "/<key>" + server.PublishSuffix},
 		} {
 			if !hasCurlCommand(api, example.method, example.path) {
-				t.Errorf("development.md %s has no curl example for %s (%s %s)", apiHeading, example.operation, example.method, example.path)
+				t.Errorf("development.md %s has no curl example for %s (%s %s)", doctestutil.DevAPIHeading, example.operation, example.method, example.path)
 			}
 		}
 	})
@@ -201,7 +200,7 @@ func TestServerDocsContract(t *testing.T) {
 			}
 			tables := tablesByFirstHeader(api, header)
 			if len(tables) != 1 {
-				t.Errorf("development.md %s has %d tables headed %q, want 1", apiHeading, len(tables), header)
+				t.Errorf("development.md %s has %d tables headed %q, want 1", doctestutil.DevAPIHeading, len(tables), header)
 				continue
 			}
 			documented := map[string]struct{}{}

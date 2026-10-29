@@ -27,8 +27,8 @@ import (
 // Paths from cmd/yt2column to the documents these tests check.
 const (
 	readmePath            = "../../README.md"
-	cliDocPath            = "../../docs/dev/guides/cli.md"
-	developmentDocPath    = "../../docs/dev/guides/development.md"
+	cliDocPath            = "../../" + cliGuide
+	developmentDocPath    = "../../" + developmentGuide
 	projectOverviewPath   = "../../docs/dev/project_overview.md"
 	securityPath          = "../../docs/dev/security.md"
 	productionProfilePath = "../../docs/dev/production_profile.md"
@@ -772,7 +772,7 @@ func TestReadmeLinks(t *testing.T) {
 	} {
 		t.Run(doc.name, func(t *testing.T) {
 			text := doctestutil.ReadDoc(t, doc.path)
-			anchors := headingAnchors(t, doc.name, text)
+			anchors := anchorsOf(t, filepath.Clean(doc.path))
 			targets := markdownLinkTargets(text)
 			checkLinkCount(t, doc.name, text, len(targets))
 			for _, target := range targets {

@@ -5,7 +5,6 @@ package doctestutil
 import (
 	"errors"
 	"fmt"
-	"strings"
 )
 
 // RejectionDisplay is the category of what the extension shows for a reason
@@ -65,21 +64,18 @@ var (
 	}
 )
 
-// Category returns the category whose spelling equals cell, ignoring the
-// space around it. A cell that is none of the spellings, the empty cell
-// included, is an error wrapping ErrUnknownRejectionDisplay: it is not taken
-// for the nearest category.
+// Category returns the category whose spelling equals cell exactly; the table
+// scan has already trimmed the cell. A cell that is none of the spellings is
+// an error wrapping ErrUnknownRejectionDisplay: it is not taken for the
+// nearest category.
 func (s RejectionDisplaySpelling) Category(cell string) (RejectionDisplay, error) {
-	cell = strings.TrimSpace(cell)
-	if cell != "" {
-		switch cell {
-		case s.FixedMessage:
-			return DisplayFixedMessage, nil
-		case s.UnexpectedReply:
-			return DisplayUnexpectedReply, nil
-		case s.FixedMessageUnlessNoRequestID:
-			return DisplayFixedMessageUnlessNoRequestID, nil
-		}
+	switch cell {
+	case s.FixedMessage:
+		return DisplayFixedMessage, nil
+	case s.UnexpectedReply:
+		return DisplayUnexpectedReply, nil
+	case s.FixedMessageUnlessNoRequestID:
+		return DisplayFixedMessageUnlessNoRequestID, nil
 	}
 	return 0, fmt.Errorf("%w: %q", ErrUnknownRejectionDisplay, cell)
 }

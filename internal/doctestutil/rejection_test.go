@@ -9,9 +9,9 @@ import (
 )
 
 // TestRejectionDisplayCategory checks the classification of a display cell:
-// each category's spelling in each language maps to that category, with the
-// space around a cell ignored, and a spelling the language does not use maps
-// to no category.
+// each category's spelling in each language maps to that category, and any
+// other cell, a padded spelling included, maps to no category. The empty row
+// also fails when a category's spelling is empty.
 func TestRejectionDisplayCategory(t *testing.T) {
 	for _, lang := range []struct {
 		name     string
@@ -30,7 +30,6 @@ func TestRejectionDisplayCategory(t *testing.T) {
 			{"fixed message", s.FixedMessage, DisplayFixedMessage},
 			{"unexpected reply", s.UnexpectedReply, DisplayUnexpectedReply},
 			{"conditional form", s.FixedMessageUnlessNoRequestID, DisplayFixedMessageUnlessNoRequestID},
-			{"space around the cell", "  " + s.UnexpectedReply + " ", DisplayUnexpectedReply},
 		} {
 			t.Run(lang.name+"/"+tc.name, func(t *testing.T) {
 				got, err := s.Category(tc.cell)
@@ -41,6 +40,7 @@ func TestRejectionDisplayCategory(t *testing.T) {
 		}
 		unknown := []struct{ name, cell string }{
 			{"empty", ""},
+			{"space around a spelling", " " + s.UnexpectedReply + " "},
 			{"the other language's spelling", lang.other.FixedMessage},
 			{"extra text after a spelling", s.FixedMessage + " x"},
 			{"the conditional form without its closing parenthesis", dropLastRune(s.FixedMessageUnlessNoRequestID)},
