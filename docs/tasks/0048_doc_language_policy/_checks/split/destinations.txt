@@ -1,0 +1,709 @@
+merge-base 9764155adbbb5a04475dc91ce738838940ba8e52
+move       03bfdf6c32c351e502bfb81d9da619f19cf5f7e9
+OK   split list: 15 sentences
+---- destinations
+L3     R        sentence yt2column turns a YouTube video into a magazine-column-style article with an LLM.
+L3     R        sentence The primary path starts in the browser: the extension collects the transcript you copy from YouTube's transcript panel, the native messaging host relays it to the localhost server, and the server generates the article and posts it to the configured webhook.
+L3     R        sentence A CLI is included as a development path: it takes a video URL and fetches the transcript with [yt-dlp], which is how the LLM call and the posting are developed and checked.
+L13    R        code     flowchart LR
+L14    R        code         classDef data fill:#e6f7ff,stroke:#1f77b4,stroke-width:1px,color:#0b3d91;
+L15    R        code         classDef process fill:#fff1e6,stroke:#ff7f0e,stroke-width:1px,color:#8a3e00;
+L17    R        code         COPIED[("Copied transcript<br>(browser extension → native messaging host → localhost server)")]
+L18    R        code         YTDLP[("URL<br>(the CLI fetches the transcript with yt-dlp)")]
+L19    R        code         SRC["TranscriptSource"]
+L20    R        code         TR[("Transcript")]
+L21    R        code         WRITER["ArticleWriter"]
+L22    R        code         ART[("Article")]
+L23    R        code         PUB["Publisher"]
+L25    R        code         COPIED -->|"primary path"| SRC
+L26    R        code         YTDLP -->|"development path (CLI)"| SRC
+L27    R        code         SRC --> TR --> WRITER --> ART --> PUB
+L29    R        code         class COPIED,YTDLP,TR,ART data
+L30    R        code         class SRC,WRITER,PUB process
+L32    R        code         subgraph Legend["Legend"]
+L33    R        code             L1[("Inputs and the data passed between stages")]
+L34    R        code             L2["Stage (interface)"]
+L35    R        code         end
+L36    R        code         class L1 data
+L37    R        code         class L2 process
+L40    R        sentence The primary path uses the transcript copied from the transcript panel; only the CLI uses yt-dlp.
+L42    R        sentence The default is the production profile: `claude` with `claude-opus-5-5` at effort `high` for generation, shortening, and review.
+L42    R        sentence See [Recommended configuration] and [production_profile.md] (Japanese).
+L42    R        sentence DeepSeek is also available; providers are pluggable.
+L47    R        sentence Designed for local execution.
+L49    R        sentence **Status:** early development — no release yet.
+L53    R        sentence These steps post a first article through the primary path.
+L53    R        sentence Each step links to the section that has the details.
+L56    R        sentence Build the binaries with `make build`; they go into `build/` and nothing is installed.
+L56    R        sentence See [Localhost server].
+L58    R        sentence Set `ANTHROPIC_API_KEY` and, because these steps post the article, `SLACK_WEBHOOK_URL` in the shell that starts the server.
+L58    R        sentence No other LLM variable is needed: the default is the production profile (see [Recommended configuration]).
+L58    R        sentence Unset `YT2COLUMN_*` variables left from an earlier setup: a model variable without its provider variable stops the server with a configuration error.
+L58    R        sentence See [Configuration].
+L65    R        sentence Start the server with `./build/yt2column-server 2>>server.log`.
+L65    R        sentence It keeps running in the foreground (stop it with a signal), so run the next steps in another terminal.
+L65    R        sentence See [Running the server].
+L68    R        sentence Register the host with `./build/yt2column-nmhost install chrome` (or `install brave`) after starting that browser once.
+L68    R        sentence On macOS, keep the built binary outside `~/Desktop`, `~/Documents`, and `~/Downloads`.
+L68    R        sentence See [Installing the native messaging host].
+L72    R        sentence Run `make ext-install` once, then `make ext-build`, and load `extension/dist` with **Load unpacked** on the extensions page.
+L72    R        sentence See [Browser extension].
+L75    R        sentence Open a video's description ("...more") and its transcript panel, select the caption lines, and send from the extension's toolbar icon.
+L75    R        sentence The article arrives in the webhook's channel.
+L75    R        sentence See [Browser extension].
+L81    R        sentence **For the primary path (browser extension and localhost server):**
+L83    R        sentence Go (see `go.mod`)
+L84    R        sentence Node.js, pinned in `extension/.node-version` (used to build the extension)
+L85    R        sentence Chrome or Brave
+L86    R        sentence `ANTHROPIC_API_KEY` for the default provider
+L87    R        sentence `SLACK_WEBHOOK_URL` (needed to post; the server starts without it)
+L89    C        sentence **For the CLI only:**
+L91    C        sentence `yt-dlp` on `PATH` (or set `YT2COLUMN_YTDLP_PATH`); see [Setting up yt-dlp]
+L93    C        sentence `SLACK_WEBHOOK_URL`, only when `--slack` is used
+L95    R        sentence An API key for the selected provider is required: `DEEPSEEK_API_KEY` for `deepseek`, `ANTHROPIC_API_KEY` for `claude`.
+L95    R        sentence When the review step uses a different provider, that provider's key is required too.
+L101   C        sentence The CLI is the development path: use it to develop and check the LLM call and the posting, while the primary path is the one in [Quick start].
+L106   C        code     yt2column [flags] <video URL>
+L109   C        sentence Flags must come before the video URL.
+L109   C        sentence Exactly one of `--out` (write the article to a file outside the cache directory) and `--slack` (post it to the configured webhook) is required.
+L113   C        row      | Flag | Meaning |
+L115   C        row      | `--out <path>` | File to write the article to. Use either this or `--slack`. It must not exist, its parent directory must exist, and it must be outside the cache directory. |
+L116   C        row      | `--slack` | Post the article to the Slack-compatible Incoming Webhook (e.g. Mattermost) set in `SLACK_WEBHOOK_URL`. Use either this or `--out`. |
+L117   C        row      | `--refresh` | Ignore the cached transcript, run `yt-dlp` again, and replace the cache. |
+L118   C        row      | `--keep-cache` | Keep this video's cache after a successful run. |
+L119   C        row      | `--system-prompt <path>` | Read the system prompt template from this file instead of the built-in one. |
+L120   C        row      | `--user-prompt <path>` | Read the user prompt template from this file instead of the built-in one. |
+L121   C        row      | `--no-shorten` | Do not shorten an over-long body, and do not check the final length. |
+L122   C        row      | `--no-review` | Do not review the article against the source material. |
+L123   C        row      | `--review-log <path>` | Write the review step's list of changes to this file. Requires the review step; with `--out`, the path must differ from it. |
+L124   C        row      | `--shorten-system-prompt <path>` | Read the shorten system prompt template from this file instead of the built-in one. |
+L125   C        row      | `--shorten-user-prompt <path>` | Read the shorten user prompt template from this file instead of the built-in one. |
+L126   C        row      | `--review-system-prompt <path>` | Read the review system prompt template from this file instead of the built-in one. |
+L127   C        row      | `--review-user-prompt <path>` | Read the review user prompt template from this file instead of the built-in one. |
+L128   C        row      | `--artifacts <path>` | Save each stage's output (the generated article, the shortened article, and the review list with the applied article) to this directory, and reuse it to resume. The directory must exist and be outside the cache directory. |
+L129   C        row      | `--after <stage>` | Run only the stages after `stage` (`generation`, `shorten`, or `review`), reusing that stage's saved output from `--artifacts`. Requires `--artifacts`; `--after review` does not accept `--review-log`. |
+L130   C        row      | `-h`, `--help` | Show this usage and exit. |
+L132   C        sentence The article is written with file mode `0o644`.
+L132   C        sentence The output directory must allow creating a hard link: publishing uses `link(2)`, so an output path on a filesystem without hard-link support cannot be used, and a failed link leaves the finished article in a temporary file next to the output path (the path is printed to standard error).
+L140   R C      row      | Code | Meaning |
+L142   C        row      | `0` | The article was written to `--out` or posted to the configured webhook. Warnings about cache cleanup do not change this. `-h`/`--help` also exits `0`. |
+L143   C        row      | `1` | A run failure: fetching the transcript, generating the article, or publishing failed; another run held the cache directory; the run was interrupted; an `--artifacts` directory was unusable or a saved artifact was missing, broken, or from another run; or the article was published but writing the review log failed. |
+L144   C        row      | `2` | A usage or configuration error: bad arguments or video URL, a rejected environment variable, a forbidden `--artifacts`/`--after` combination, or a stage that could not be built. |
+L148   R        sentence After the article is generated, two steps run by default.
+L150   R        sentence **Shorten.**
+L150   R        sentence If the body is longer than 4,000 characters, the generation model shortens it toward a target of 3,600.
+L150   R        sentence If it is still over 4,000 characters after shortening — or after the review step — the run fails with a length error and the article is neither written nor posted.
+L154   R        sentence **Review.**
+L154   R        sentence The review model compares the article with the video's title, channel name, description, and transcript, and returns a list of corrections to claims with no basis in the material, meaning-changing paraphrases, wrong speaker attributions, copied speech-recognition errors, and sentences whose meaning cannot be made out.
+L154   R        sentence The writer applies the list to the article.
+L154   R        sentence The review step can use a provider and a model of its own, set in `YT2COLUMN_REVIEW_LLM`; by default it uses the generation provider and model.
+L163   R        sentence Both steps call the LLM (the shorten step only when the body is over the limit), so the default uses up to two more calls, and more cost, than generation alone.
+L163   C        sentence With `--no-shorten` the shorten step and the final length check are skipped; with `--no-review` the review step is skipped.
+L163   C        sentence `--no-shorten --no-review` restores the single-call behavior of earlier versions, including the `--out` format.
+L170   C        sentence An article's model entries start with the generation model and add one entry per step that ran, in the order shorten, review (see [Output format]).
+L170   C        sentence For unattended runs, pass `--review-log <path>` to record, in a separate file, what the review step changed; the log is written after the article is published, and if it cannot be written the run exits `1` with a message saying the article is already published.
+L178   C        sentence With `--artifacts <dir>`, a run also saves each stage's output — the generated article, the shortened article, and the review list with the applied article — to its own file (`<video ID>.generation.json`, `.shorten.json`, `.review.json`) as the stage completes and before the article is published, so a later stage's failure still leaves the earlier stages on disk.
+L178   C        sentence `--after <stage>` restarts from a saved stage and runs only the stages after it, reusing the saved output instead of calling the LLM for the skipped stages; `--after review` calls no LLM and only checks the final length and publishes.
+L178   C        sentence A resumed run saves the stages it does execute, so the `--artifacts` directory must be writable.
+L178   C        sentence The directory lives outside the cache directory and is still there on the next run, which is what makes the resume work; see [Cache and concurrency].
+L190   C        sentence The review step's configuration is validated even with `--no-review`, because the configuration is independent of the flags: `YT2COLUMN_REVIEW_LLM` is still checked, and if it selects a different provider, that provider's variables are checked too.
+L190   C        sentence Its API key is required, and for `claude` a set effort must still be valid (an unset one selects `high`).
+L190   C        sentence A resumed run validates only the settings of the stages it executes, so `--after review` requires no LLM settings at all.
+L190   C        sentence The one exception is the retired LLM variables (`YT2COLUMN_LLM_PROVIDER`, `YT2COLUMN_MODEL`, `YT2COLUMN_REVIEW_PROVIDER`, `YT2COLUMN_REVIEW_MODEL`): every run, `--after review` included, stops when one of them is set (see [Configuration]).
+L203   C        sentence Every run reports the token usage the LLM API returned, one line per stage, on standard error.
+L203   C        sentence A successful run writes the lines after its other summary lines; a failed run writes them before the line that names the failure.
+L203   C        sentence A stage that neither ran nor reused an artifact writes no line.
+L203   C        sentence The line is:
+L209   C        code     yt2column: tokens: <stage> <origin> known input=<n> cache_read=<n> cache_write=<n> output=<n> <model-field>
+L210   C        code     yt2column: tokens: <stage> <origin> unknown reason=<reason> <model-field>
+L213   C        sentence `<stage>` is `generation`, `shorten`, or `review`.
+L214   C        sentence `<origin>` is `run` when this run called the stage's LLM, or `reused` when the stage came from a `--after` artifact.
+L216   C        sentence `known` means the four counts are known; they are, in order, `input=` (neither read from nor written to the prompt cache), `cache_read=` (read from the prompt cache), `cache_write=` (written to the prompt cache; always 0 for DeepSeek, which has no such category), and `output=` (the output, reasoning and thinking included).
+L216   C        sentence For a `reused` stage they are the counts the saved artifact recorded.
+L222   C        sentence `unknown` means the usage could not be read or did not meet the rules.
+L222   C        sentence No number is written, and `reason=` gives one space-free word: `not-read` (no usage could be read: a call that failed before its usage was read, or a client that reports none), `recorded-unknown` (a saved artifact stored the stage as unknown), `invalid-rule` (a rule outside the set of known rules), or, for the usage member or one of the consumed members that broke a rule, `usage:missing`, `usage:duplicate`, `usage:not-an-object`, `usage:not-a-non-negative-integer` and their `usage.<member>:missing`, `usage.<member>:duplicate`, `usage.<member>:not-a-non-negative-integer` forms.
+L231   C        sentence `<model-field>` is `model=<model>`, the model name, or the fixed word `nomodel` when the stage reported no model that passed the model-name rules.
+L231   C        sentence The model name is escaped the way `redact.Line` escapes every standard-error line, so a `"` or a `\` in it is escaped; to recover it, wrap everything after `model=` in double quotes and pass the result to `strconv.Unquote`.
+L231   C        sentence A model name that contains a configured secret (or its last eight characters) is replaced by the redaction marker and cannot be recovered.
+L239   C        sentence For example:
+L242   C        code     yt2column: tokens: generation reused known input=46 cache_read=0 cache_write=0 output=85 model=deepseek-flash
+L243   C        code     yt2column: tokens: shorten run known input=1800 cache_read=0 cache_write=0 output=2400 model=deepseek-flash
+L244   C        code     yt2column: tokens: review run unknown reason=usage.output_tokens:not-a-non-negative-integer model=claude-opus-5-5
+L245   C        code     yt2column: tokens: generation run unknown reason=not-read nomodel
+L248   C        sentence An invalid `usage` alone does not fail the run: the call still succeeds, and whether the article is published and the exit code is 0 depend on the rest of the processing.
+L248   C        sentence A failed call fails the run (the exit code is non-zero), but its line is not always `unknown`: a truncation, an unexpected finish reason, or an empty response still carries the rejected response's model and usage, so the line can be `known`.
+L248   C        sentence `reason=not-read` is written only when no usage could be read.
+L256   C        sentence A run that ends before it calls any LLM (a usage or configuration error, a transcript-fetch failure, a rejected `--after` input, an unusable `--artifacts` directory, or a stage that could not be built) writes no token line.
+L256   C        sentence A run that is stopped without writing its summary (a second signal, `kill -9`, or a panic) writes none either.
+L262   C        sentence The counts are also stored, as the `usage` element, in a `--artifacts` file.
+L262   C        sentence A stage's call time is stored next to it, as the `call_time` element: the moment the stage's LLM call returned, in UTC and whole seconds.
+L262   C        sentence The artifact format is version 3: a version 1 or version 2 file is rejected on resume, so after updating, use a new `--artifacts` directory or move the old one away.
+L270   R C      sentence The article is the same text in both outputs, but each output arranges the information differently: the reader's part (title, channel name, body, source link) comes first, and the development part (models, estimated cost) comes last in a Slack post and in the front matter of a file.
+L277   C        sentence The file starts with a YAML front matter, then the title, the channel name (when there is one), and the body:
+L281   C        code     ---
+L282   C        code     channel: "Example Channel"
+L283   C        code     source: "https://www.youtube.com/watch?v=abcdefghijk"
+L284   C        code     model: "deepseek-flash"
+L285   C        code     model_version: "v4"
+L286   C        code     shorten_model: "deepseek-flash"
+L287   C        code     shorten_model_version: "v4"
+L288   C        code     review_model: "claude-haiku-5-5"
+L289   C        code     review_model_version: "2026-01-01"
+L290   C        code     estimated_cost_usd: "0.0094"
+L291   C        code     ---
+L293   C        code     # Caching transcripts by video ID
+L295   C        code     Example Channel
+L297   R C      code     The cache key comes from the video ID alone.
+L299   R C      code     ## One key per video
+L301   R C      code     Two URLs for one video share one entry.
+L303   R C      code     出典: <https://www.youtube.com/watch?v=abcdefghijk>
+L306   C        sentence The keys appear in this order.
+L306   C        sentence `channel` appears only when the video has a channel name; `shorten_*` only when the article went through the shorten step (run now or reused with `--after`); `review_*` only when it went through the review step.
+L309   C        sentence Every value is a double-quoted string, quoted with Go's `strconv.Quote`, so a value that contains a quote, a backslash, `:`, `#`, or `---` cannot change the structure.
+L309   C        sentence `estimated_cost_usd` is a string too: four decimals, or `unknown` (see [Estimated cost]).
+L309   C        sentence An empty model version is written as `(none)`.
+L314   C        sentence The channel name appears again under the title, so a Markdown viewer that hides the front matter still shows it.
+L314   C        sentence A name that starts like a Markdown block (`# `, `- `, `> `, and so on) gets a backslash at the start (after the digits for a numbered-list marker) so that the rendered line is the name; leading whitespace is dropped.
+L319   C        sentence This format replaces the earlier one, which listed the models and the cost under the title (`- Model: …`).
+L324   R        sentence The post starts with the title and the channel name, then the body, and ends with a one-line footnote:
+L328   R        code     # Caching transcripts by video ID（Example Channel）
+L330   R C      code     The cache key comes from the video ID alone.
+L332   R C      code     ## One key per video
+L334   R C      code     Two URLs for one video share one entry.
+L336   R C      code     出典: <https://www.youtube.com/watch?v=abcdefghijk>
+L338   R        code     Models: deepseek-flash (generation, shorten) · claude-haiku-5-5 (review) · Estimated cost: 0.0094 USD
+L341   R        sentence Without a channel name, the first line is `# <title>` alone.
+L342   R        sentence The footnote names each model once with the stages that used it, in the order generation, shorten, review; a step the article did not go through (for example the shorten step on a short body, or a disabled review) is not listed.
+L342   R        sentence It never shows the model version.
+L342   R        sentence The cost is four decimals and `USD`, or `Estimated cost: unknown`.
+L347   R        sentence When the post is longer than one message (see [Webhook publishing]), the first line is in the first message and the footnote is in the last.
+L347   R        sentence The last message always holds the last line of the body together with the footnote, so no message is the footnote alone.
+L355   C        sentence Every run that calls or reuses at least one LLM stage also reports an estimated cost on standard error: one line per stage, then two total lines.
+L355   C        sentence A successful run writes them after the other summary lines; a failed run writes them before the line that names the failure.
+L355   C        sentence A stage that neither ran nor reused an artifact writes no cost line, and a run that writes no token line writes no cost line either.
+L355   C        sentence The lines are:
+L363   C        code     yt2column: cost: <stage> <origin> known usd=<amount> <basis> at=<time>
+L364   C        code     yt2column: cost: <stage> <origin> unknown reason=<reason> at=<time>
+L365   C        code     yt2column: cost-total: <total> known usd=<amount>
+L366   C        code     yt2column: cost-total: <total> unknown
+L369   C        sentence `<stage>` and `<origin>` are the same words as the token-usage line: `generation`, `shorten`, or `review`, and `run` or `reused`.
+L371   C        sentence `known` is followed by the amount as `usd=` and six decimals, then `basis`, the rate basis the estimate applied: `flat` (the model has one rate), `off-peak` or `peak` (the two windows of DeepSeek's time-of-day rate), or `short-prompt` or `long-prompt` (Claude Haiku's two prompt-length tiers).
+L371   C        sentence `invalid` in this position, like the one under `unknown`, marks a broken invariant and does not occur in a correct build.
+L377   C        sentence `unknown` means the cost could not be estimated.
+L377   C        sentence No number is written, and `reason` gives one word: `usage-unknown` (the stage's token counts are unknown), `no-model` (the stage reported no model name), or `unpriced-model` (the model name is not in the rate table).
+L377   C        sentence `invalid` means the CLI broke an invariant of the pricing package; it does not occur in a correct build.
+L382   C        sentence `at` is the call time the estimate used, in UTC as `YYYY-MM-DDTHH:MM:SSZ`.
+L382   C        sentence A reused stage shows the time its artifact recorded; `none` marks a broken invariant and does not occur in a correct build.
+L385   C        sentence The `cost-total` lines are two totals: `run` is this run's cost, from the stages this run called, and `article` is the whole article's cost, from those stages plus the ones reused from `--after`.
+L385   C        sentence A total is `unknown` when any stage in its set is unknown, and the `article` total is also `unknown` when the generation stage is neither run nor reused (an article always has a generation stage).
+L385   C        sentence Without `--after` the two totals are equal.
+L385   C        sentence The totals round the exact sum of the stages, not the already-rounded stage amounts, so a total can differ from the sum of the printed stage lines in the last digit.
+L394   C        sentence For example:
+L397   C        code     yt2column: cost: generation reused known usd=0.000158 peak at=2026-10-16T01:12:09Z
+L398   C        code     yt2column: cost: shorten run known usd=0.001710 off-peak at=2026-10-16T04:02:41Z
+L399   C        code     yt2column: cost: review run unknown reason=unpriced-model at=2026-10-16T04:03:15Z
+L400   C        code     yt2column: cost-total: run unknown
+L401   C        code     yt2column: cost-total: article unknown
+L404   split    sentence Both outputs carry the article's cost, with four decimals, or `unknown`: the `--out` file as the front matter key `estimated_cost_usd` (`"0.0023"` or `"unknown"`), and the Slack post as the end of its footnote:
+L409   R        code     Estimated cost: 0.0023 USD
+L410   R        code     Estimated cost: unknown
+L413   R C      sentence See [Output format] for both layouts.
+L415   R        sentence The estimate is an estimate, not the billed amount.
+L415   R        sentence It can differ from the provider's invoice:
+L418   R        sentence DeepSeek's peak window is a weekly rule in UTC: the alternate rate applies on Monday through Friday during 01:00-04:00 and 06:00-10:00 UTC.
+L418   R        sentence The CLI judges the window from its own clock in UTC and does not know Chinese public holidays, so a call on a holiday is billed at the off-peak rate but estimated as peak: the estimate leans high.
+L423   R        sentence A call that crosses a window boundary can be judged at a different minute than the provider billed it, because the CLI's time is when the response was read and validated, and the provider's billing time is not documented.
+L426   R        sentence A CLI on a machine whose clock is wrong judges the window wrongly.
+L427   R        sentence The rate table can be stale, for example when the provider changes a rate or when the `deepseek-flash` alias starts to point at a model with different rates.
+L427   R        sentence Each entry records its source and checked date, and the update procedure is a developer document.
+L432   R        sentence Check the actual charge in the provider's console.
+L432   C        sentence A reused stage is priced with the rate table of the CLI that resumes, not the one that saved the artifact, so a run that resumes after a rate change reports a different article cost for the same saved text: the artifact records the call time, not the rate.
+L437   R        sentence A Slack post from the localhost server cannot show why an unknown cost is unknown, because the server's logs and HTTP responses do not change.
+L437   C        sentence To find the reason, run the CLI with the same model setting and read the `reason` word on its cost line.
+L444   C        sentence Every run takes an exclusive lock on the cache directory, so runs that share a cache directory are serialized: a second run fails immediately, without waiting, while the first holds the lock.
+L444   C        sentence Different cache directories do not affect each other.
+L449   C        sentence The artifacts saved with `--artifacts` live outside the cache directory, so removing the cache does not remove them and they are still there for a resume.
+L449   C        sentence The CLI neither prunes nor deletes them; delete the directory yourself when it is no longer needed.
+L454   C        sentence If the CLI is killed with SIGKILL, `yt-dlp` may keep running.
+L454   C        sentence The lock stays held until that `yt-dlp` exits, so until then the next run fails as a concurrent run (the message names the lock file and suggests `lsof` on it); it succeeds once the leftover `yt-dlp` has exited.
+L459   C        sentence If the cache is corrupt (for example a truncated transcript or `info.json`), the run fails with a message saying so.
+L459   C        sentence Run again with `--refresh` to fetch the transcript again and replace the cache.
+L463   C        sentence The channel name in a saved `info.json` is checked before the LLM is called: a name that is only whitespace, contains a control character (or a bidirectional control character such as U+202E), or is longer than 200 code points makes the run fail, where earlier versions accepted it.
+L463   C        sentence Run with `--refresh` to fetch the video again and replace the cache.
+L463   C        sentence The localhost server rejects such a `channelName` with `invalid_body`.
+L472   C        sentence With `--slack`, the article is posted to the Slack-compatible Incoming Webhook in `SLACK_WEBHOOK_URL` instead of a file.
+L472   R        sentence Mattermost is the verified target; a Slack Incoming Webhook is accepted but is best effort.
+L472   R        sentence The URL must parse as an `https` URL with a host.
+L472   split    sentence A value that does not — for example `https://hooks.slack.com/services/%zz`, `https://hooks.slack.com/%`, or a value ending in a control character — is rejected as a configuration error with exit code `2`, and because the variable is validated whenever it is set, this also stops an `--out` run.
+L481   R        sentence The article is posted as Markdown, laid out as in [Output format].
+L481   R        sentence A post longer than 16,383 code points — the limit Mattermost counts — is split into several messages, each at most 16,383 code points and beginning with a `(k/N)` marker.
+L481   R        sentence An article that cannot be split — because a fragment would be only whitespace, because it would need more than ten messages, or because the last line of the body and the footnote together do not fit in one message — is rejected before anything is sent.
+L481   R        sentence Each message is sent with `silent` set, so Mattermost shows it without a notification, an unread marker, or a `New Messages` line; on a Mattermost version that predates `silent`, notifications can still appear.
+L492   R        sentence Before anything is sent, the post is checked for syntax a server would turn into a mention or rewrite.
+L492   R        sentence A *target `@`* is an `@` (or a look-alike such as the full-width `＠`) followed by a name character (a letter, a digit, `_`, `.`, or `-`) when the character before it is not a letter or a digit, so `@everyone`, `(@here)`, and `_@name` are targets but `Tech@Work` and `user@example.com` are not.
+L492   R        sentence What happens depends on where it is:
+L499   R        sentence A target `@` in the first line (the title and the channel name), in the footnote (the model names), or in the body outside code is posted with U+200B (zero width space) inserted right after the `@`, which keeps the server from reading it as a mention.
+L499   split    sentence The file written by `--out` and the article itself are not changed.
+L499   R        sentence The U+200B is invisible but is copied with the text.
+L504   R        sentence A target `@` inside a code span or a fenced code block of the body, or directly after a `/` (it may belong to a URL such as `youtube.com/@name`), is not changed: the article is rejected.
+L504   R        sentence So is a body whose code blocks cannot be told apart reliably (for example an unclosed fence) if it has a target `@`.
+L508   R        sentence A `<!` or `<@` sequence, an HTML character reference such as `&#64;`, and a `<a|b>` link are rejected wherever they are.
+L510   R        sentence A split never starts a message with the part of a word after an `@` that was in the middle of a word (`x@here` is not cut into `x` and `@here`); when no such cut exists, the post is rejected.
+L514   split    sentence A rejected article is not posted at all, and the error gives the line and column in the post (the lines differ from a file written by `--out`, which starts with front matter).
+L514   C        sentence Running again generates a different article, which may not have the problem; run with `--out` to inspect what the model generated.
+L514   R        sentence The localhost server reports this rejection in its failure notice as its own reason, separate from other publishing failures.
+L521   R        sentence If a post fails partway through a split article, the messages already sent stay in the channel.
+L521   R        sentence There is no retry or resume: running again generates a new article and posts it from the first message, so the channel can end up with part of the old article and all of the new one.
+L528   R        sentence `yt2column-server` accepts the transcript the browser extension collects, generates the article, and returns it, keeping it in memory.
+L528   split    sentence Posting it to the Slack-compatible Webhook is an operation of its own: the extension's current `/articles` request generates and posts in one go as before, and the job API below generates, returns, and posts on request.
+L528   R        sentence The extension does not connect to the server itself: the browser starts the native messaging host, `yt2column-nmhost`, which relays the request to the server's socket (see [Installing the native messaging host]).
+L528   R        sentence `make build` builds `build/yt2column`, `build/yt2column-server`, and `build/yt2column-nmhost`; it installs nothing.
+L539   R        sentence It reads the same LLM variables as the CLI.
+L539   split    sentence `SLACK_WEBHOOK_URL` is optional for the server: without it the server still starts and generates articles, but posting (the job API's publish operation and `/articles`) is refused with `webhook_not_configured`, and the current extension shows that refusal as an unexpected reply.
+L539   R        sentence It never calls `yt-dlp` and reads neither `YT2COLUMN_CACHE_DIR` nor `YT2COLUMN_YTDLP_PATH`.
+L539   R        sentence It listens on a Unix domain socket only, never on a TCP port, at a path derived from `HOME` alone:
+L547   R        sentence macOS: `$HOME/Library/Application Support/yt2column/run/server.sock`
+L548   R        sentence other Unix: `$HOME/.local/state/yt2column/run/server.sock`
+L550   R        sentence No other variable (such as `XDG_STATE_HOME` or `TMPDIR`) changes the path.
+L550   R        sentence The server needs no shared token: the socket directory has mode `0700` and the socket mode `0600`, so only processes running as your user can connect, and the server trusts them.
+L550   R        sentence It checks only the request path and method, not the `Host`, `Origin`, `Content-Type`, or `Authorization` headers.
+L558   R        sentence Start it with the provider variables set, and `SLACK_WEBHOOK_URL` if you want to post:
+L562   R        code     ./build/yt2column-server 2>>server.log
+L565   R        sentence The server writes nothing to standard output; the logs go to standard error, so `2>>server.log` keeps a record.
+L565   R        sentence The first log line names the socket.
+L565   R        sentence Every request line carries the `requestId` the response returns, as do the `/articles` job lines, so `grep "$requestId" server.log` finds them.
+L565   D        sentence The job API's generation and post jobs log the article key instead, so follow one with `grep "$key" server.log`.
+L572   R        sentence On start the server creates the socket directory (`run`) with mode `0700` when it is missing, takes the start lock (the file `.yt2column.lock` in the socket directory, which stays), removes a stale socket left by a server that was killed, and creates the socket with mode `0600`.
+L572   R        sentence Only one server per `HOME` (normally one per user) can run: the start lock is held until the server has stopped and its in-flight jobs have finished.
+L572   R        sentence The server repairs nothing: a socket directory that is not yours, is a symbolic link, or does not have exactly mode `0700`, and a name at the socket path that is not a socket, stop the start until you fix them by hand.
+L582   R        sentence The socket path must fit the operating system's limit (107 bytes on Linux, 103 on macOS and other Unix).
+L582   R        sentence On macOS the part after `HOME` is 54 bytes, so `HOME` can be at most 49 bytes; a longer one stops the start with exit code `2`.
+L586   R        sentence Exit codes:
+L588   R C      row      | Code | Meaning |
+L590   R        row      | `0` | The server stopped after a signal. |
+L591   R        row      | `1` | Preparing the socket directory, taking the start lock, creating the socket, or serving failed (for example, another server is already running). |
+L592   R        row      | `2` | The server was given arguments, or the configuration (including `HOME` and the socket path derived from it) or building the components failed before listening. |
+L596   R        sentence The server logs to standard error.
+L596   split    sentence The first `SIGINT`, `SIGTERM`, or `SIGHUP` (one ignored at startup is not subscribed) stops accepting connections, removes the socket, cancels the job API's in-flight generations (their LLM calls stop and their articles are lost, because the cache goes away with the server), and lets the other in-flight jobs finish: the `/articles` jobs, which can take up to about 45 minutes (three LLM calls of 15 minutes each), and the publish jobs.
+L596   R        sentence A second signal exits at once.
+L596   R        sentence Until the jobs have finished, a new server refuses to start.
+L607   R        sentence The browser starts `yt2column-nmhost` for each send from the extension.
+L607   R        sentence The host reads one request from the browser, sends it to the server's socket, writes the server's response back to the browser, and exits; it starts nothing and keeps nothing.
+L607   R        sentence It reads `HOME` as the browser passes it and no other variable, so it derives the same socket path as a server started with the same `HOME`, and it never reads the API keys or the Webhook URL.
+L607   R        sentence Its standard output is the channel to the browser; its log goes to standard error.
+L615   R        sentence The host exits with `0` once it has written its reply, a host error included, and with `1` when it could not write one.
+L618   R        sentence Register the host with each browser you use by running the built binary:
+L621   R        code     ./build/yt2column-nmhost install chrome
+L622   R        code     ./build/yt2column-nmhost install brave
+L625   R        sentence `install` writes the host manifest `io.github.isseis.yt2column.json`, which names the binary's absolute path (symbolic links resolved) and allows only the yt2column extension to start the host.
+L625   R        sentence It writes the manifest path to standard error.
+L625   R        sentence The manifest goes to:
+L630   R        sentence macOS, Chrome and Brave: `$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts/io.github.isseis.yt2column.json`
+L631   R        sentence other Unix, Chrome: `$HOME/.config/google-chrome/NativeMessagingHosts/io.github.isseis.yt2column.json`
+L632   R        sentence other Unix, Brave: `$HOME/.config/BraveSoftware/Brave-Browser/NativeMessagingHosts/io.github.isseis.yt2column.json`
+L634   R        sentence On macOS, Brave reads Chrome's manifest directory, so Chrome and Brave share one manifest file: `install chrome` and `install brave` write the same file, and `uninstall` for either browser removes the host from both.
+L634   R        sentence If you keep using the other browser, run `install` for it again.
+L634   R        sentence The host says this on standard error on macOS too.
+L640   R        sentence `install` refuses, changing nothing, when:
+L642   R        sentence the browser's user data directory does not exist (macOS: `$HOME/Library/Application Support/Google/Chrome` or `$HOME/Library/Application Support/BraveSoftware/Brave-Browser`; other Unix: `$HOME/.config/google-chrome` or `$HOME/.config/BraveSoftware/Brave-Browser`).
+L642   R        sentence Start the browser once, then install again;
+L647   R        sentence the binary is under the temporary directory, as with `go run`.
+L647   R        sentence Install from the binary `make build` built;
+L649   R        sentence a file at the manifest path was not written by this host.
+L649   R        sentence Check that file by hand.
+L652   R        sentence Running `install` again replaces the manifest this host wrote.
+L652   R        sentence The manifest points at the binary where it was when you installed it: after moving or renaming the binary, run `install` again.
+L652   R        sentence On macOS, keep the binary outside the folders the system protects (TCC), such as `~/Desktop`, `~/Documents`, and `~/Downloads`: a host started from there can be refused access.
+L658   R        sentence To remove the host from a browser:
+L661   R        code     ./build/yt2column-nmhost uninstall chrome
+L662   R        code     ./build/yt2column-nmhost uninstall brave
+L665   R        sentence `uninstall` removes only a manifest this host wrote, and leaves the `NativeMessagingHosts` directory, which other hosts' manifests may share.
+L665   R        sentence With no manifest it does nothing and succeeds.
+L665   R        sentence Neither command touches the server, its socket, or its configuration.
+L670   R        sentence Host exit codes for `install` and `uninstall`:
+L672   R C      row      | Code | Meaning |
+L674   R        row      | `0` | The manifest was written or removed (or there was none to remove). |
+L675   R        row      | `1` | `install` or `uninstall` refused, or writing or removing the file failed. |
+L676   R        row      | `2` | The arguments are wrong (the browser is not exactly `chrome` or `brave`), or `HOME` is unset, empty, or relative. |
+L680   D        sentence Write a request body to `request.json` (a video URL and the copied transcript):
+L683   D        code     {"videoUrl":"https://www.youtube.com/watch?v=dQw4w9WgXcQ","transcript":"0:00\nHello\n"}
+L686   D        sentence Send it to the socket.
+L686   D        sentence The path contains a space on macOS, so keep it in double quotes:
+L690   D        code     socket="$HOME/.local/state/yt2column/run/server.sock"
+L691   D        code     if [ "$(uname -s)" = Darwin ]; then socket="$HOME/Library/Application Support/yt2column/run/server.sock"; fi
+L692   D        code     curl -sS --unix-socket "$socket" -X POST http://localhost/articles \
+L693   D        code       -H 'Content-Type: application/json' \
+L694   D        code       --data-binary @request.json
+L697   D        sentence An accepted request answers `202` with `{"status":"accepted","requestId":"…"}`.
+L697   D        sentence A rejected request answers a `4xx` or `5xx` with `{"status":"rejected","reason":"…","requestId":"…"}`, where `reason` is one of:
+L701   D        row      | reason | status code | extension shows |
+L703   D        row      | `not_found` | 404 | unexpected reply |
+L704   D        row      | `method_not_allowed` | 405 | unexpected reply |
+L705   D        row      | `too_many_requests` | 429 | fixed message |
+L706   D        row      | `body_too_large` | 413 | fixed message |
+L707   D        row      | `invalid_body` | 400 | fixed message |
+L708   D        row      | `invalid_video_url` | 400 | fixed message |
+L709   D        row      | `invalid_transcript` | 400 | fixed message |
+L710   D        row      | `webhook_not_configured` | 503 | unexpected reply |
+L711   D        row      | `invalid_key` | 400 | unexpected reply |
+L712   D        row      | `article_not_ready` | 409 | unexpected reply |
+L713   D        row      | `article_not_found` | 404 | unexpected reply |
+L714   D        row      | `article_not_postable` | 409 | unexpected reply |
+L715   D        row      | `internal_error` | 500 | fixed message (unexpected reply when `requestId` is empty) |
+L717   D        sentence `not_found` and `method_not_allowed` answer a wrong path or method; they start no job and post no failure notice.
+L717   D        sentence The current extension's message declares no `v` member, so the host relays it to `POST /articles` unchanged and the extension shows either rejection as an unexpected reply.
+L724   D        sentence Besides `/articles`, the server accepts three operations that keep generation and posting apart, so that a viewer can show the article and post it only when the user asks.
+L724   D        sentence The current extension does not use them yet (#503 moves it); `/articles` keeps working until then and is removed afterwards.
+L729   D        row      | operation | request | success response |
+L731   D        row      | generation start | `POST /jobs`, the same JSON object as `/articles` | `202`, `{"status":"accepted","key":"…","requestId":"…"}` |
+L732   D        row      | status | `GET /jobs/<key>`, no body | `200`, `{"status":"ok","requestId":"…","webhookConfigured":true,"job":{…}}` |
+L733   D        row      | publish | `POST /jobs/<key>/publish`, no body | `202`, `{"status":"accepted","requestId":"…"}` |
+L735   D        sentence `<key>` is the article key.
+L735   D        sentence It is an opaque value: send back the one a generation start returned, and do not depend on its shape or on how it is computed.
+L735   D        sentence It is also specific to the server process: after a restart, the same input gets a new key, so use the key a new generation start returns.
+L735   D        sentence A status or publish target whose key is not the accepted shape is rejected with `invalid_key`; neither operation takes a body, and any job API target with a query answers `not_found`.
+L743   D        sentence The status response reports the job as one of the codes below.
+L743   D        sentence A `running` job carries `steps`; a `done` job carries `steps` (only `done` or `skipped`), `article`, and `publish`; a `failed` job carries `steps` and `failure`, the failure code.
+L743   D        sentence A step is `failed` only when the generation failed in that step; a completion-check failure (`article_invalid`, `article_too_large`) or a failure before the steps marks none.
+L743   D        sentence An unknown key carries no member besides `state`.
+L743   D        sentence The `article` member holds `markdown` (the display Markdown), `file` (byte for byte what `--out` writes), `cost`, and `durationMs` (from the accepted start that generated the article, or from the accepted retry after a failure).
+L743   D        sentence `cost` is `{"state":"known","usd":"…"}` or `{"state":"unknown"}`.
+L743   D        sentence `publish` is `{"state":"…"}`, with a `reason` for `failed` and `unpostable`.
+L743   D        sentence `webhookConfigured` says whether this server can post.
+L757   D        code     {
+L758   D        code       "status": "ok",
+L759   D        code       "requestId": "0123456789abcdef",
+L760   D        code       "webhookConfigured": true,
+L761   D        code       "job": {
+L762   D        code         "state": "done",
+L763   D        code         "steps": { "draft": "done", "shorten": "skipped", "review": "done" },
+L764   D        code         "article": {
+L765   D        code           "markdown": "# …",
+L766   D        code           "file": "---\n…",
+L767   D        code           "cost": { "state": "known", "usd": "0.1234" },
+L768   D        code           "durationMs": 81234
+L769   D        code         },
+L770   D        code         "publish": { "state": "not_posted" }
+L771   D        code       }
+L772   D        code     }
+L775   D        sentence Sending the same input again returns the same key without calling the LLM while that article is being generated or is done; a failed key is generated again.
+L775   D        sentence At most two generations run at once, counting the `/articles` jobs.
+L775   D        sentence A generation start reads its body under two reading slots, and the `/articles` endpoint reads a body only while it holds one of its generation slots, so at most four bodies are read at once.
+L775   D        sentence A start refused for a full reading slot, a full set of generations, or a full cache with no record to drop answers `too_many_requests`, and no job starts.
+L784   D        sentence The articles live in the server's memory only.
+L784   D        sentence The cache holds at most 100 records; when it is full it drops the oldest completed article or failure, and never a record that is being generated or posted.
+L784   D        sentence A restart loses every article and every publish state, so a status request then answers `unknown`.
+L784   D        sentence An article whose pre-send checks refuse it has the publish state `unpostable` and cannot be posted: it still comes back as `done` (it can be displayed and saved), and only generating it again after a restart or after its record was dropped makes a postable article.
+L793   D        sentence The publish operation answers `202` without waiting for the Webhook's reply and does not post an article twice: publishing a `posting` or `posted` article again sends nothing, and a `failed` post resumes from the first message not delivered (that one message may arrive twice).
+L793   D        sentence Posting needs `SLACK_WEBHOOK_URL`; without it the operation answers `webhook_not_configured`, the status response carries `"webhookConfigured": false`, and `/articles` is refused the same way.
+L800   D        sentence A status request that answers is not logged, because a viewer polls it every few seconds, so its `requestId` has no line in the log; a rejected status request logs the rejection.
+L800   D        sentence Every other operation logs a line with its `requestId`, and the job API's jobs log the key.
+L805   D        sentence With the socket from the previous section and the body in `request.json`, the three operations are:
+L809   D        code     curl -sS --unix-socket "$socket" -X POST http://localhost/jobs --data-binary @request.json
+L810   D        code     curl -sS --unix-socket "$socket" -X GET "http://localhost/jobs/$key"
+L811   D        code     curl -sS --unix-socket "$socket" -X POST "http://localhost/jobs/$key/publish"
+L814   D        sentence `$key` is the key the generation start returned.
+L818   D        sentence The job API's status response reports each value as one of these codes.
+L820   D        row      | job state | meaning |
+L822   D        row      | `unknown` | the server holds no record for the key |
+L823   D        row      | `running` | the article is being generated |
+L824   D        row      | `done` | the article is generated and returned |
+L825   D        row      | `failed` | the generation failed |
+L827   D        row      | step | step of the generation |
+L829   D        row      | `draft` | the generation of the draft |
+L830   D        row      | `shorten` | the shortening of a long body |
+L831   D        row      | `review` | the review against the source material |
+L833   D        row      | step state | meaning |
+L835   D        row      | `pending` | not started |
+L836   D        row      | `running` | started and not finished |
+L837   D        row      | `done` | finished |
+L838   D        row      | `skipped` | not needed for this article |
+L839   D        row      | `failed` | the step the generation failed in |
+L841   D        row      | failure | meaning |
+L843   D        row      | `internal` | an internal failure |
+L844   D        row      | `transcript_too_long` | the transcript is too long for the prompt |
+L845   D        row      | `llm_timeout` | an LLM call timed out |
+L846   D        row      | `llm_empty` | an LLM returned an empty response |
+L847   D        row      | `llm_truncated` | an LLM response was cut off |
+L848   D        row      | `llm_failed` | any other LLM failure |
+L849   D        row      | `article_invalid` | the generated article cannot be published |
+L850   D        row      | `article_too_large` | the generated article does not fit the status response |
+L852   D        row      | publish state | meaning |
+L854   D        row      | `unpostable` | the Slack pre-send checks refuse the article |
+L855   D        row      | `not_posted` | postable and never posted |
+L856   D        row      | `posting` | being posted |
+L857   D        row      | `posted` | every message was delivered |
+L858   D        row      | `failed` | the last post stopped before the end |
+L860   D        row      | publish reason | with publish state | meaning |
+L862   D        row      | `other` | `unpostable` | any pre-send refusal but a mention |
+L863   D        row      | `mention` | `unpostable` | the article contains a mention |
+L864   D        row      | `internal` | `failed` | the post job ended abnormally |
+L865   D        row      | `webhook` | `failed` | the Webhook did not acknowledge a message |
+L869   D        sentence **The server is not running.**
+L869   D        sentence `curl` reports `Couldn't connect to server` (its message names `localhost port 80`, the URL's host and default port; the connection itself goes to the socket).
+L869   D        sentence Start the server as above; the first log line names the socket it listens on.
+L873   R        sentence **`another server holds the socket directory lock`.**
+L873   R        sentence Another server is running, or a stopped one is still waiting for its in-flight jobs.
+L873   R        sentence The message names the lock file; `lsof` on it shows which process holds it.
+L876   R        sentence **`another process accepts connections on the socket path`.**
+L876   R        sentence A process other than a server listens on the socket path.
+L876   R        sentence Stop it, or check the file at that path.
+L879   R        sentence **`... nothing was repaired or removed, so fix it by hand`.**
+L879   R        sentence The socket directory, its parent, or the name at the socket path is not in the accepted form (the message names the path and the reason).
+L879   R        sentence Fix it by hand, for example by restoring mode `0700` on the socket directory, and start again.
+L883   R        sentence **`HOME: the socket path derived from HOME exceeds the operating system's limit`.**
+L883   R        sentence `HOME` is too long for the socket path; see the limit above.
+L885   R        sentence **`configuration: YT2COLUMN_LLM_PROVIDER: is no longer supported` (or `YT2COLUMN_MODEL`, `YT2COLUMN_REVIEW_PROVIDER`, `YT2COLUMN_REVIEW_MODEL`) after an update.**
+L885   R        sentence The provider and model are now set in one variable per step, and the four old variables are rejected whenever they are set, even empty.
+L885   split    sentence A CLI run exits with `2` before it starts; a server exits with `2` before it listens, and the extension can only report that the server is not running.
+L885   R        sentence Unset each old variable and set `YT2COLUMN_LLM`; if you unset them without setting it, the default `claude/claude-opus-5-5` is used and the transcript goes to Anthropic.
+L885   R        sentence If any `YT2COLUMN_REVIEW_*` variable was set, also set `YT2COLUMN_REVIEW_LLM` to the provider and model the review step actually used.
+L885   R        sentence See [Migrating from the retired LLM variables], then start the server again.
+L898   R        sentence **`build the LLM client` or `build the review LLM client` with a model error.**
+L898   R        sentence The provider's client rejects a model ID with surrounding white space or invalid UTF-8 when it is built, without naming the variable.
+L898   R        sentence The server builds both clients at startup, so it exits with `2` before it listens, and the extension can only report that the server is not running.
+L898   R        sentence Fix the model ID in `YT2COLUMN_LLM` for the first; for the second, fix it in `YT2COLUMN_REVIEW_LLM`, or in `YT2COLUMN_LLM` when `YT2COLUMN_REVIEW_LLM` is unset.
+L906   R        sentence **The native messaging host is not found.**
+L906   R        sentence The browser gives the extension `Specified native messaging host not found.` (shown in the extension's developer log) when there is no manifest for it, or the manifest's binary is gone.
+L906   R        sentence Run `yt2column-nmhost install` for that browser from the binary you want it to start (see [Installing the native messaging host]), again after moving the binary.
+L913   R        sentence **Access to the host is forbidden.**
+L913   R        sentence The browser gives the extension `Access to the specified native messaging host is forbidden.` when the extension's ID is not the one the manifest allows.
+L913   R        sentence Load the extension built from this repository's `extension/`, whose manifest key fixes its ID.
+L917   R        sentence **Reading the host's log.**
+L917   R        sentence The host logs to standard error, which goes to the browser's own standard error, out of sight when the browser was started from the Dock or a menu.
+L917   R        sentence Quit the browser completely, then start its executable from a terminal; the host's log lines then appear in that terminal:
+L922   R        sentence macOS Chrome: `"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"`
+L923   R        sentence macOS Brave: `"/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"`
+L924   R        sentence other Unix: `google-chrome` or `brave-browser`
+L926   R        sentence The host logs the socket path it derived, how far the relay got, and the host error or the server's status code, never the request or the response.
+L926   R        sentence If its socket path differs from the one in the server's first log line, the browser and the server see different values of `HOME`.
+L933   R        sentence Stop the old server before starting this one.
+L933   R        sentence The old server listened on a TCP port and does not take the start lock, so the new one cannot detect it.
+L935   R        sentence The server no longer reads the shared token file.
+L935   R        sentence It can be deleted:
+L936   R        sentence macOS: `$HOME/Library/Application Support/yt2column/server-token`
+L937   R        sentence other Unix: `${XDG_CONFIG_HOME:-$HOME/.config}/yt2column/server-token`
+L938   R        sentence The server no longer reads the variable that chose its port; it can be removed from your environment.
+L940   R        sentence The extension no longer has an options page or the storage permission, so it cannot read or delete the token and port an earlier version saved in the browser; nothing accepts them anymore.
+L940   R        sentence To remove them anyway, remove the extension on `chrome://extensions/` (Brave: `brave://extensions/`) and load `extension/dist` again.
+L940   R        sentence Its ID stays the same, so the host needs no new `install`.
+L949   C        sentence yt2column fetches subtitles by running `yt-dlp`, which needs to reach YouTube reliably.
+L949   C        sentence Beyond `yt-dlp` itself that means two optional pieces; without them `yt-dlp` warns about them, and YouTube is more likely to answer with HTTP 429 (Too Many Requests):
+L954   C        sentence a JavaScript runtime ([deno] is the one `yt-dlp` enables by default), and
+L956   C        sentence [curl_cffi] for browser impersonation.
+L959   C        sentence On macOS the Homebrew formula brings both (it depends on `deno` and bundles `curl_cffi`):
+L963   C        code     brew install yt-dlp
+L964   C        code     command -v yt-dlp                   # must be the Homebrew one, not an older copy earlier on PATH
+L965   C        code     yt-dlp --list-impersonate-targets   # lists targets whose Source is curl_cffi
+L968   C        sentence If another `yt-dlp` comes first on `PATH`, remove it or point `YT2COLUMN_YTDLP_PATH` at the one to use.
+L971   C        sentence On other platforms, see the yt-dlp [installation], [EJS (JavaScript runtime)] and [impersonation] documentation.
+L978   R C      row      | Variable | Description | When unset |
+L980   R        row      | `YT2COLUMN_LLM` | Provider and model of generation and shortening, as `<provider>/<model ID>`; the provider is `deepseek` or `claude` (e.g. `deepseek/deepseek-flash`, `claude/claude-sonnet-5-5`) | `claude/claude-opus-5-5` |
+L981   R        row      | `YT2COLUMN_REVIEW_LLM` | Provider and model of the review step, in the same form as `YT2COLUMN_LLM` | The same as generation (`YT2COLUMN_LLM`, or its default) |
+L982   R        row      | `DEEPSEEK_API_KEY` | DeepSeek API key | Required when the generation or review provider is `deepseek` (an error) |
+L983   R        row      | `ANTHROPIC_API_KEY` | Anthropic API key | Required when the generation or review provider is `claude` (an error) |
+L984   R        row      | `YT2COLUMN_CLAUDE_EFFORT` | Claude effort; `low`, `medium`, `high`, `xhigh`, or `max` | `high` when the generation or review provider is `claude` |
+L985   R        row      | `ANTHROPIC_WORKSPACE_ID` | Anthropic workspace ID, for an API key not bound to a workspace | No workspace ID is sent |
+L986   split    row      | `SLACK_WEBHOOK_URL` | Slack-compatible Incoming Webhook URL (Mattermost is the verified target) | Required with `--slack`; optional with `--out` (no value); the server starts without it, but then cannot post |
+L987   C        row      | `YT2COLUMN_CACHE_DIR` | Cache directory for subtitles and video metadata | `$HOME/Library/Caches/yt2column` on macOS; `$XDG_CACHE_HOME/yt2column` or `$HOME/.cache/yt2column` on other Unix |
+L988   C        row      | `YT2COLUMN_YTDLP_PATH` | Path to `yt-dlp` | `yt-dlp` on `PATH` |
+L990   R        sentence `yt2column-server` reads the LLM variables; it needs `SLACK_WEBHOOK_URL` only to post, and starts without it (see [Localhost server]).
+L990   split    sentence It reads neither `YT2COLUMN_CACHE_DIR` nor `YT2COLUMN_YTDLP_PATH`, because it never calls `yt-dlp`.
+L990   R        sentence It derives its socket path from `HOME` alone (see [Localhost server]).
+L996   R        sentence The value of an environment variable is never trimmed or otherwise corrected; an empty value is treated as set and rejected, not as unset.
+L999   R        sentence `YT2COLUMN_LLM` and `YT2COLUMN_REVIEW_LLM` are split at the first `/`: the part before it is the provider, which must be exactly `deepseek` or `claude`, and everything after it is the model ID, sent to the provider's API as it is, including any further `/` (`claude/vendor/model-x` sends the model `vendor/model-x`).
+L999   R        sentence The model ID must not be empty, so `claude` and `claude/` are rejected, as are `/claude-opus-5-5`, `Claude/claude-opus-5-5`, and ` claude/claude-opus-5-5`.
+L999   split    sentence A model ID with surrounding white space is accepted here but rejected, before any request, when a run that executes the step builds that step's client: the CLI builds its clients before the run starts, and the server builds both at startup, before it listens.
+L1010  R        sentence With `YT2COLUMN_LLM` unset, generation and shortening use `claude/claude-opus-5-5`.
+L1010  split    sentence With `YT2COLUMN_REVIEW_LLM` unset, the review step uses the same provider and model as generation, the default included, also in a resumed run that only reviews; a resumed run that only reviews and has `YT2COLUMN_REVIEW_LLM` set does not read `YT2COLUMN_LLM`.
+L1010  R        sentence An empty value of either variable is rejected and never replaced by the default or by the generation setting.
+L1018  R        sentence The variables `YT2COLUMN_LLM_PROVIDER`, `YT2COLUMN_MODEL`, `YT2COLUMN_REVIEW_PROVIDER`, and `YT2COLUMN_REVIEW_MODEL` are retired.
+L1018  split    sentence When any of them is set, even to an empty value, the CLI and the server stop with a configuration error naming it, on every run, including runs that read no LLM setting such as `--after review`; their values are never used.
+L1018  R        sentence Each error is reported together with the other configuration errors of the run.
+L1018  R        sentence See [Migrating from the retired LLM variables].
+L1026  R        sentence Only the variables of the selected providers are read and checked: a provider's variables are read when the generation or the review provider is that provider.
+L1026  R        sentence The other provider's variables are ignored whatever their value, so exporting `ANTHROPIC_API_KEY=` for another tool does not stop a run that uses only `deepseek`.
+L1026  R        sentence When the provider part of `YT2COLUMN_LLM` is rejected (an empty value, no `/`, or a provider that is not accepted) and `YT2COLUMN_REVIEW_LLM` is unset, no provider-specific variable is checked, but errors for common variables are still reported.
+L1026  R        sentence A value whose provider is accepted but whose model ID is empty, such as `claude/`, still has that provider's variables checked.
+L1037  R        sentence With `claude`, `max` is accepted, but in this use case it is expected to spend even the default output limit on reasoning alone and return no article text, so the run fails as truncated.
+L1037  R        sentence Use `low` through `xhigh` for column generation.
+L1041  R        sentence The default effort `high` was chosen for `claude-opus-5-5`.
+L1041  R        sentence With another model, such as `claude-sonnet-5-5`, `high` can also reach the output limit, and the run fails as truncated; in that case set `YT2COLUMN_CLAUDE_EFFORT` to a lower effort.
+L1049  R        code     export YT2COLUMN_LLM=claude/claude-opus-5-5
+L1050  R        code     export YT2COLUMN_CLAUDE_EFFORT=high
+L1053  R        sentence These two values are the production profile: generation, shortening, and review all use `claude` with `claude-opus-5-5` and the effort `high`.
+L1053  R        sentence They are also the code's defaults (see [#490] and [#171]), so they can be left unset: with `ANTHROPIC_API_KEY` as the only LLM variable, generation, shortening, and review all use this profile.
+L1053  R        sentence Exporting them pins the profile in the shell even if a default changes later.
+L1062  R        sentence `ANTHROPIC_API_KEY` is required.
+L1062  R        sentence Leave `YT2COLUMN_REVIEW_LLM` unset to review with the generation profile; to use another profile, set the environment variables instead of relying on the defaults.
+L1066  R        sentence The quality target, the results, and the product limitations of this profile are in [production_profile.md] (Japanese).
+L1071  R        sentence The provider and model of each step used to be set in two variables: `YT2COLUMN_LLM_PROVIDER` and `YT2COLUMN_MODEL` for generation and shortening, and `YT2COLUMN_REVIEW_PROVIDER` and `YT2COLUMN_REVIEW_MODEL` for the review step.
+L1071  R        sentence They are now one variable per step, `YT2COLUMN_LLM` and `YT2COLUMN_REVIEW_LLM`, and the old variables are rejected.
+L1071  R        sentence For example, a DeepSeek setting that was
+L1079  R        code     YT2COLUMN_LLM_PROVIDER=deepseek
+L1080  R        code     YT2COLUMN_MODEL=deepseek-flash
+L1083  R        sentence becomes
+L1086  R        code     export YT2COLUMN_LLM=deepseek/deepseek-flash
+L1089  R        sentence If any `YT2COLUMN_REVIEW_*` variable was set, set `YT2COLUMN_REVIEW_LLM` to the provider and model the review step actually used; otherwise leave it unset, and the review step uses generation's.
+L1089  R        sentence Two old settings carried a part that is now written out, even when the provider looks the same as generation's:
+L1094  R        row      | Old setting | New setting |
+L1096  R        row      | `YT2COLUMN_REVIEW_PROVIDER` alone (the review step used that provider's default model) | `YT2COLUMN_REVIEW_LLM=<provider>/<model ID>`, with the model ID written out, for example `claude/claude-opus-5-5` |
+L1097  R        row      | `YT2COLUMN_REVIEW_MODEL` alone (the review step used the generation provider) | `YT2COLUMN_REVIEW_LLM=<generation provider>/<model ID>`, with the generation provider written out, for example `deepseek/deepseek-chat` |
+L1099  R        sentence Unset the old variables rather than only deleting them from a file: a shell that already exported them keeps them, and an empty value is rejected too.
+L1099  R        sentence Check every place that may set them: `.envrc`, `.env`, the shell's startup files, and the script that starts the server.
+L1104  R        sentence Removing the old variables without setting `YT2COLUMN_LLM` selects the default `claude`, and the transcript is then sent to Anthropic.
+L1104  R        sentence The error lines for `YT2COLUMN_LLM_PROVIDER` and `YT2COLUMN_MODEL` say so, and when `ANTHROPIC_API_KEY` is unset an `ANTHROPIC_API_KEY` error appears next to them for the same reason.
+L1104  R        sentence To keep using DeepSeek, set `YT2COLUMN_LLM` as above; setting an Anthropic key does not keep DeepSeek.
+L1111  R        sentence A running server keeps the configuration it started with.
+L1111  R        sentence After changing the variables, stop the server and start it again; it then checks them before it listens.
+L1118  D        code     make build   # build the three binaries into build/
+L1119  D        code     make test    # unit tests (no network, no yt-dlp)
+L1120  D        code     make lint    # golangci-lint (pinned version)
+L1121  D        code     make fmt     # gofumpt on changed files
+L1122  D        code     make test-integration  # real yt-dlp + network; see below
+L1123  D        code     make test-integration-deepseek  # real DeepSeek API; see below
+L1124  D        code     make test-integration-claude  # real Anthropic API; see below
+L1125  D        code     make test-integration-cli  # the CLI with the real DeepSeek API; see below
+L1126  D        code     make test-integration-slack  # posts fixed articles to a real Mattermost test Webhook; see below
+L1127  D        code     make test-integration-cli-slack  # the CLI with the real DeepSeek API and a real Webhook; see below
+L1130  D        sentence Development follows a requirements → architecture → implementation-plan process with explicit acceptance criteria.
+L1130  D        sentence See [CLAUDE.md] and [docs/dev/conventions/requirements_process.md].
+L1130  D        sentence Design documents are written in Japanese; start with [docs/dev/project_overview.md].
+L1138  D        sentence The socket path depends only on `HOME`, and one server per `HOME` can run.
+L1138  D        sentence To run a server built from a worktree beside your own, give it its own `HOME` in a short directory under `/tmp` (on macOS, the default directory of `mktemp -d` makes the socket path too long), and send to its socket:
+L1144  D        code     dev_home="$(mktemp -d /tmp/y2c.XXXXXX)"
+L1145  D        code     HOME="$dev_home" ./build/yt2column-server 2>>"$dev_home/server.log" &
+L1146  D        code     server_pid=$!
+L1147  D        code     socket="$dev_home/.local/state/yt2column/run/server.sock"
+L1148  D        code     if [ "$(uname -s)" = Darwin ]; then socket="$dev_home/Library/Application Support/yt2column/run/server.sock"; fi
+L1149  D        code     until [ -S "$socket" ] || ! kill -0 "$server_pid" 2>/dev/null; do sleep 0.1; done
+L1150  D        code     if [ -S "$socket" ]; then
+L1151  D        code       curl -sS --unix-socket "$socket" -X GET http://localhost/articles
+L1152  D        code     else
+L1153  D        code       echo "server exited at startup; $dev_home/server.log:" >&2; cat "$dev_home/server.log" >&2
+L1154  D        code     fi
+L1155  D        code     kill "$server_pid" 2>/dev/null; wait "$server_pid"; rm -rf "$dev_home"
+L1158  D        sentence The loop stops waiting when the server exits at startup (a configuration error, or another server holding the start lock for that `HOME`); its log is then printed instead of sending the request, because the last line removes it.
+L1158  D        sentence The last line works whether or not the server is still running.
+L1163  D        sentence Each worktree's server with a different `HOME` runs at the same time as the others.
+L1163  D        sentence The server still reads the LLM and Webhook variables from your environment: with the real ones, an accepted request generates an article and posts it.
+L1163  D        sentence With fake values (any API key, and an `https` Webhook URL such as `https://example.invalid/hook`), send only requests that are rejected before a job starts, such as the wrong method above (`method_not_allowed`) or a wrong path (`not_found`); an accepted request would try to call the LLM API and post a failure notice.
+L1172  D        sentence The extension cannot reach such a server.
+L1172  D        sentence The browser starts the native messaging host with your real `HOME`, so the host connects only to the socket of a server started with your real `HOME`.
+L1172  D        sentence The host manifest is one file per browser (on macOS, one file shared by Chrome and Brave), so installing the host from one worktree's build replaces the manifest another worktree installed; check a build from the extension one worktree at a time.
+L1181  R        sentence A Chrome/Brave extension (Manifest V3) lives in `extension/`; it is written in TypeScript and built with Node.js.
+L1181  R        sentence It is not published to a store — you build it and load the build as an unpacked extension.
+L1181  R        sentence It collects a selection, the tab URL, and the tab title, and reads the video metadata — the video title, the channel name, and the description — from the video page.
+L1181  R        sentence It sends the selection, the URL, and the video metadata to the localhost server, and shows the response.
+L1181  R        sentence The tab title is shown for checking (and must not be empty); it is not sent.
+L1189  R        sentence Node.js 24 is required, and every `ext-*` target refuses to run when `node --version` does not match `extension/.node-version`.
+L1189  R        sentence The version file sits inside `extension/`, so a version manager that reads the current directory (such as [fnm]) must be activated from there; run the targets from the repository root with that version still active:
+L1196  R        code     cd extension && fnm use && cd ..
+L1197  R        code     make ext-install   # install the pinned dev dependencies (npm ci; needs network)
+L1198  R        code     make ext-build     # build extension/dist/
+L1199  D        code     make ext-check     # typecheck, lint, format check, tests, then build
+L1202  R        sentence Load the build in Chrome or Brave:
+L1204  R        sentence Open `chrome://extensions/` (Brave: `brave://extensions/`).
+L1205  R        sentence Turn on **Developer mode**.
+L1206  R        sentence Click **Load unpacked** and select the `extension/dist` directory.
+L1208  R        sentence To update from an earlier build, run `make ext-build` to rebuild `extension/dist/` first, then click the extension's reload button on `chrome://extensions/` (Brave: `brave://extensions/`).
+L1208  R        sentence `extension/dist/` is build output that pulling new source does not update, so reloading without rebuilding keeps running the earlier build, which may send without asking for confirmation.
+L1215  R        sentence The extension ID is fixed to `clfmbbcdpnjcefbdihdoahomaifbabkk`, so it is the same on every machine and from every directory.
+L1218  R        sentence The extension sends through the native messaging host, so before the first send start the server and register the host for your browser from the binary `make build` built (see [Installing the native messaging host]):
+L1224  R        code     ./build/yt2column-nmhost install chrome   # or: install brave
+L1227  R        sentence There is nothing to set in the extension: it has no settings page and stores nothing.
+L1227  R        sentence If the popup says the native messaging host could not be started, the host is most often not installed for that browser, or its binary was moved since it was installed: run `yt2column-nmhost install` again from the built binary (see [Troubleshooting]).
+L1233  R        sentence The popup is displayed in Japanese when the browser's UI language is Japanese, and in English otherwise.
+L1233  R        sentence There is no language setting in the extension.
+L1233  R        sentence The popup text quoted in this README, such as the collapsed-description message below, is the English version.
+L1238  R        sentence To send, open the transcript panel on a video page, select the caption lines, and click the extension's toolbar icon to open the popup.
+L1238  R        sentence The popup has four parts, top to bottom:
+L1242  R        sentence The video section: the video title as the heading, with the channel name below it when the page provides one.
+L1242  R        sentence When the video title is not available, the heading is the tab title instead.
+L1245  R        sentence The checks section: a **Selected captions** row with the selection's character and line counts and a preview of its first 100 characters (and, when the selection is longer, its last 100), and a **Description** row with the description's state.
+L1245  R        sentence A ⚠ row says what needs attention and, when there is something to do, the steps that fix it.
+L1250  R        sentence The action section: a **Generate article** button.
+L1250  R        sentence It sends when you press it.
+L1250  R        sentence While sending the button is disabled, and after a send (whatever the result) it stays disabled: reopen the popup to send again.
+L1253  R        sentence **Details**, folded away until you open it: the collected URL and the tab title.
+L1256  R        sentence The extension reads the video metadata from the page without changing it, so a collapsed description is read only up to what the page shows.
+L1256  R        sentence When the description is collapsed, the popup says "Collapsed, so only the beginning will be sent." with these steps:
+L1261  R        sentence Click "...more" below the video.
+L1262  R        sentence Reopen this popup.
+L1264  R        sentence The button stays usable: pressing it sends the beginning that the page shows.
+L1266  R        sentence A selection whose request body would be over 4 MiB is not sent: the **Selected captions** row becomes ⚠ with the reason and the steps, and the button stays disabled.
+L1270  R        sentence Some values may not be available.
+L1270  R        sentence When a video title, channel name, or description is missing or blank on the page, that value is left out of the request (a channel name that is not blank but has a control character or is longer than 200 code points is not left out: the server rejects the request with `invalid_body`).
+L1270  R        sentence A missing video title makes the tab title the heading, a missing description makes the **Description** row ⚠ and says the description will not be sent, and a missing channel name is left out of the video section.
+L1270  R        sentence When the page cannot be read at all — or the tab has moved to another video since the selection was read — all three are left out.
+L1270  R        sentence The extension still sends the selection and the URL, and the article is generated from them.
+L1281  R        sentence How to read the result:
+L1283  R        sentence **Accepted** (`202`): the server took the request.
+L1283  R        sentence It shows a `requestId` and says the result of generating and posting the article will arrive in Slack.
+L1285  R        sentence **Rejected**: it shows the reason and a `requestId`.
+L1286  R        sentence **Not sent**: the server is not running, or the request is too large for the host.
+L1286  R        sentence The request did not reach the server, so it says what to fix and does not ask you to check Slack.
+L1289  R        sentence **Result unknown**: the server did not respond in time, the host could not be started or exited without replying, or the reply could not be interpreted.
+L1289  R        sentence The request may have reached the server.
+L1289  R        sentence It does not resend automatically, and it tells you to check Slack before sending again, because the server may already be processing the request.
+L1295  R        sentence The `requestId` matches the extension's display with the server log and with a failure notice in Slack.
+L1295  R        sentence A successfully generated article carries no `requestId`, so match it by the video or the time; a failure with no `requestId` is matched by the time.
+L1295  R        sentence Do not close the popup while it is sending: if you close it the result is not shown, and sending again could post the same article twice.
+L1302  R        sentence The selection is sent exactly as copied from the transcript panel; the extension does not trim it.
+L1302  R        sentence You can select the whole panel: the server skips the lines the panel adds around the captions — the lines before the first timestamp (such as the panel's title), chapter heading lines, and, at the end, blank lines and the `Sync to video time` (`動画の時間と同期`) button label.
+L1302  R        sentence When the timestamp and the text are on separate lines, a heading directly after a timestamp with no text is taken as that timestamp's text.
+L1302  R        sentence Other lines are still rejected: an unknown line among captions that put the timestamp and the text on one line, an empty or whitespace-only line among the captions, a tab or other control character in any line, and, before the first timestamp or where a timestamp line is expected, a line containing an ASCII digit, a colon, and a digit in a row (such as a malformed timestamp).
+L1315  R        sentence To see what was collected and the send result, open the popup's console from the moment the popup opens: right-click the toolbar icon and choose **Inspect popup** (shown while Developer mode is on; pin the extension first if its icon is in the Extensions menu).
+L1315  R        sentence The send log names the host, and for a host that could not be started it records the browser's error text, such as `Specified native messaging host not found.`.
+L1315  R        sentence The log is lost when the popup closes, so after closing it, find the result of a send in Slack and in the server log by the time.
+L1326  D        sentence `make test-integration` runs the real `yt-dlp` against the network, so it needs `yt-dlp` set up as in [Setting up yt-dlp] and on `PATH`.
+L1326  D        sentence It fetches a real video (by default `https://www.youtube.com/watch?v=EQCUZyB4DqE`) and sends YouTube two requests two minutes apart, so a run takes a few minutes.
+L1326  D        sentence Override the video with `make test-integration YT2COLUMN_TEST_VIDEO_URL=...
+L1326  D        sentence YT2COLUMN_TEST_VIDEO_ID=...` (an empty `YT2COLUMN_TEST_VIDEO_ID` skips the video ID check).
+L1326  D        sentence Leave some time between runs to stay clear of YouTube's rate limit.
+L1337  D        sentence `make test-integration-deepseek` calls the real DeepSeek API, so it incurs charges.
+L1337  D        sentence It needs `YT2COLUMN_TEST_DEEPSEEK_API_KEY` set to a DeepSeek API key for testing; this is separate from the production `DEEPSEEK_API_KEY`, which the test never reads.
+L1337  D        sentence A missing or empty `YT2COLUMN_TEST_DEEPSEEK_API_KEY` skips the test with a message naming the variable, so setting only `DEEPSEEK_API_KEY` does not run it.
+L1337  D        sentence The model comes from `YT2COLUMN_TEST_DEEPSEEK_MODEL`, defaulting to `deepseek-flash` when that variable is undefined (an empty value is passed through and fails the test).
+L1337  D        sentence The target exports the opt-in variable `YT2COLUMN_DEEPSEEK_INTEGRATION=1` for the integration test alone; without it the test skips with a message naming the variable, so a plain `go test -tags integration` or an IDE run does not call the API.
+L1337  D        sentence A run makes two generations — an ordinary one and one truncated by `MaxOutputTokens` — each bounded by a 15-minute timeout, so it can take a few minutes under API load.
+L1353  D        sentence `make test-integration-claude` calls the real Anthropic Messages API, so it incurs charges.
+L1353  D        sentence It needs `YT2COLUMN_TEST_ANTHROPIC_API_KEY` set to an Anthropic API key for testing; this is separate from the production `ANTHROPIC_API_KEY`, which the test never reads.
+L1353  D        sentence A missing or empty `YT2COLUMN_TEST_ANTHROPIC_API_KEY` skips the test with a message naming the variable, so setting only `ANTHROPIC_API_KEY` does not run it.
+L1353  D        sentence The model and effort come from `YT2COLUMN_TEST_CLAUDE_MODEL` and `YT2COLUMN_TEST_CLAUDE_EFFORT`, defaulting to `claude-haiku-5-5` and `low` when undefined (an empty value is passed through and fails the test).
+L1353  D        sentence A workspace ID is read from `YT2COLUMN_TEST_ANTHROPIC_WORKSPACE_ID` when set, never from the production `ANTHROPIC_WORKSPACE_ID`; unset means no workspace ID is sent, while an empty or malformed value fails the test.
+L1353  D        sentence The target exports the opt-in variable `YT2COLUMN_CLAUDE_INTEGRATION=1` for the integration test alone; without it the test skips with a message naming the variable, so a plain `go test -tags integration` or an IDE run does not call the API.
+L1353  D        sentence A run makes two generations — an ordinary one and one truncated by `MaxOutputTokens` — each bounded by a 5-minute timeout, so the target's `-timeout` is 15 minutes.
+L1373  D        sentence `make test-integration-cli` runs the CLI's own assembly from a seeded transcript cache to the `--out` file, calling the real DeepSeek API (so it incurs charges) and never starting `yt-dlp`.
+L1373  D        sentence Like the DeepSeek integration test it reads `YT2COLUMN_TEST_DEEPSEEK_API_KEY`, defaults `YT2COLUMN_TEST_DEEPSEEK_MODEL` to `deepseek-flash` when undefined, and exports its opt-in variable `YT2COLUMN_CLI_INTEGRATION=1` for its target alone; unlike it, a missing test API key fails the test rather than skipping it, so an opted-in run cannot pass without calling the API.
+L1384  D        sentence `make test-integration-slack` posts two fixed articles (no LLM call) to the real Incoming Webhook of a Mattermost test channel, so it needs `YT2COLUMN_TEST_SLACK_WEBHOOK_URL` set to that channel's Webhook URL.
+L1384  D        sentence This is separate from the production `SLACK_WEBHOOK_URL`, which the test never reads.
+L1384  D        sentence The target exports the opt-in variable `YT2COLUMN_SLACK_INTEGRATION=1` for the integration test alone; without it the test skips with a message naming the variable, so a plain `go test -tags integration` or an IDE run does not post.
+L1384  D        sentence A missing or invalid test Webhook URL, or a `GODEBUG` that enables `http2debug`, fails the test rather than skipping it and posts nothing.
+L1384  D        sentence Message text never includes the URL, and failure messages redact the URL, its path, query, and userinfo, and the last eight characters of the URL; a transport failure can still name the destination host and port, which are not treated as secret.
+L1399  D        sentence `make test-integration-cli-slack` runs the CLI's own assembly with `--slack`, generating the article with the real DeepSeek API (so it incurs charges) and posting it to the real test Webhook; it never starts `yt-dlp`.
+L1399  D        sentence It needs both `YT2COLUMN_TEST_DEEPSEEK_API_KEY` and `YT2COLUMN_TEST_SLACK_WEBHOOK_URL` and fails when either is missing.
+L1399  D        sentence Like the other CLI targets it defaults `YT2COLUMN_TEST_DEEPSEEK_MODEL` to `deepseek-flash` when undefined, and it exports `YT2COLUMN_CLI_SLACK_INTEGRATION=1` for its target alone.
+---- counts
+C        144
+D        182
+R        329
+R C      14
+split    13
+---- in two or more documents: 14
+L140   R C      row      | Code | Meaning |
+L270   R C      sentence The article is the same text in both outputs, but each output arranges the information differently: the reader's part (title, channel name, body, source link) comes first, and the development part (models, estimated cost) comes last in a Slack post and in the front matter of a file.
+L297   R C      code     The cache key comes from the video ID alone.
+L299   R C      code     ## One key per video
+L301   R C      code     Two URLs for one video share one entry.
+L303   R C      code     出典: <https://www.youtube.com/watch?v=abcdefghijk>
+L330   R C      code     The cache key comes from the video ID alone.
+L332   R C      code     ## One key per video
+L334   R C      code     Two URLs for one video share one entry.
+L336   R C      code     出典: <https://www.youtube.com/watch?v=abcdefghijk>
+L413   R C      sentence See [Output format] for both layouts.
+L588   R C      row      | Code | Meaning |
+L672   R C      row      | Code | Meaning |
+L978   R C      row      | Variable | Description | When unset |
+OK   every unit of the old README is in a document
+OK   no other version of cli.md or development.md
