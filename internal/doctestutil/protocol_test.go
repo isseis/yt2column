@@ -73,6 +73,13 @@ func TestProtocolFlags(t *testing.T) {
 			[]ProtocolFlag{{"--protocol 2", "2", ""}},
 		},
 		{
+			// The value is the whole word, so a guard rejects one with a
+			// tail the tool would reject.
+			"value_with_a_tail",
+			"codexreview --protocol 1junk --base " + sha + "\nfixprguard head --protocol=4x\n",
+			[]ProtocolFlag{{"--protocol 1junk", "1junk", ToolCodexreview}, {"--protocol=4x", "4x", ToolFixprguard}},
+		},
+		{
 			// A flag in prose with no tool before it is the fixprguard
 			// guard's, as all flags were.
 			"no_tool",

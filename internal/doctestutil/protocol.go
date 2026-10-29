@@ -25,7 +25,8 @@ var protocolTools = []string{ToolFixprguard, ToolCodexreview}
 type ProtocolFlag struct {
 	// Text is the flag as written, such as "--protocol 4".
 	Text string
-	// Value is N.
+	// Value is N: the whole word after the flag, so a word such as "1junk",
+	// which the tool rejects, is not read as 1.
 	Value string
 	// Tool is the tool whose call the flag belongs to: the nearest of
 	// ToolFixprguard and ToolCodexreview written as a word before it in the
@@ -34,8 +35,10 @@ type ProtocolFlag struct {
 }
 
 var (
-	// protocolFlag matches the spellings the documents use.
-	protocolFlag = regexp.MustCompile("--protocol[ =]([0-9]+)")
+	// protocolFlag matches the spellings the documents use. The value is a
+	// word that starts with a digit, which leaves out placeholders such as
+	// "N", and runs to the next space, so a guard compares all of it.
+	protocolFlag = regexp.MustCompile(`--protocol[ =]([0-9]\S*)`)
 	// CommandBoundary ends a command and starts the next: a line break, a
 	// pipe, a list operator, a command substitution, or a backquote, which in
 	// prose also closes a code span. The protocol guards and the codex
