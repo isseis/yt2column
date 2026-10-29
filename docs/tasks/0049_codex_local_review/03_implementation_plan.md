@@ -212,7 +212,7 @@ PR-1・PR-2 のマージで `.claude/commands/` と `CLAUDE.md` の行番号が�
 
 **変えるファイル**: `.claude/settings.json`
 
--   [ ] `permissions.allow` に `Bash(codexreview *)` を加える。`codex` そのものの許可は加えない（設計書 3.8）。
+-   [x] `permissions.allow` に `Bash(codexreview *)` を加える。`codex` そのものの許可は加えない（設計書 3.8）。
 
 **完了の条件**: ステップ 3-2 の `TestSettingsAllowsTool` が通る。
 
@@ -220,16 +220,16 @@ PR-1・PR-2 のマージで `.claude/commands/` と `CLAUDE.md` の行番号が�
 
 **変えるファイル**: `cmd/codexreview/docs_test.go`（新設、`//go:build test`）、`cmd/fixprguard/docs_test.go`、`CLAUDE.md`
 
--   [ ] 設計書 7.1 の文書のガードを、`cmd/fixprguard/docs_test.go` の書き方にならって書く。
+-   [x] 設計書 7.1 の文書のガードを、`cmd/fixprguard/docs_test.go` の書き方にならって書く。
     -   `TestSettingsAllowsTool`: `.claude/settings.json` の `permissions.allow` に `Bash(<名前> *)` の項目があり、その名前が `cmd/` の下のこのツールのディレクトリの名前と一致する。コマンドの語が `codex` の項目（`Bash(codex *)`、`Bash(codex:*)` など）はない。
     -   `TestDocumentedProtocolMatches`: コマンドの文書の `codexreview` の呼び出しの `--protocol` の値が、`codexreview.Protocol` と一致する。`--protocol` がどのツールの呼び出しのものかは、同じコマンドの区切り（`|`・`;`・`&&` などで分けた部分）の中で、その前にある最も近いツールの語で決める。
     -   `TestNoDirectCodexInvocation`: コマンドの文書のコードブロックと、コマンドとして書いたコードスパンに、コマンドの位置にある `codex` がない。
     -   `TestInstallTargetDocumented`: `Makefile` に `install-codexreview` のターゲットがあり、`CLAUDE.md` の Commands の節に同じ名前の項目がある。
--   [ ] 「コマンドとして書いたコードスパン」は、空白で区切った引数を含むコードスパンとする。「コマンドの位置」は、行や文の初め、`|`・`||`・`;`・`&`・`&&`・`$(`・バッククォートの後、`env`・`exec`・`command`・`xargs`・`time`・`nohup`・`sh -c`／`bash -c` の引数の初めとし、パスを付けた形（`/opt/homebrew/bin/codex`、`./codex`）と引用符で囲んだ形を含む。`npx @openai/codex` も拒む。`:` や `==` の後の引用符で囲んだ `"codex"` は、コマンドの位置ではない。
--   [ ] 判定の関数を、組み立てた文書で確かめる。上の拒む形をそれぞれ 1 行にし、1.3 の既存の形（`runpr.md:270` の `kind: "codex"`、`runpr.md:293` のコードスパン `codex`、HTML の印、ログイン名、`_context.md:187` のメンション）を拒まないことを、それぞれ 1 行で確かめる。`TestDocumentedProtocolMatches` も、組み立てた文書で、値の違いを見つけることを確かめる。この時点では、共通手順はまだ `codexreview` を呼ばない（1.2）。
--   [ ] `cmd/fixprguard/docs_test.go` の `TestDocumentedProtocolMatches` が、上と同じ決め方で `codexreview` の呼び出しのものとした `--protocol` だけを除いて、今と同じくすべての `--protocol N` を確かめるようにする（1.3）。決め方は 2 つのガードで共有する。どの `--protocol N` も 2 つのガードのちょうど 1 つが確かめることを、組み立てた文書で確かめる（両方のツールの呼び出しを 1 行に含むもの、`--protocol` の前に別のフラグがあるもの、パイプを含むもの）。
--   [ ] `CLAUDE.md` の Commands の節に `make install-codexreview` の項目を加える（設計書 3.9。1.2）。
--   [ ] `CLAUDE.md`「Testing Strategy」の文書のテストの例外に、`codexreview` の `--protocol` の値と、`codex` を直接実行する形がないことの 2 つを加える（設計書 1.4）。
+-   [x] 「コマンドとして書いたコードスパン」は、空白で区切った引数を含むコードスパンとする。「コマンドの位置」は、行や文の初め、`|`・`||`・`;`・`&`・`&&`・`$(`・バッククォートの後、`env`・`exec`・`command`・`xargs`・`time`・`nohup`・`sh -c`／`bash -c` の引数の初めとし、パスを付けた形（`/opt/homebrew/bin/codex`、`./codex`）と引用符で囲んだ形を含む。`npx @openai/codex` も拒む。`:` や `==` の後の引用符で囲んだ `"codex"` は、コマンドの位置ではない。
+-   [x] 判定の関数を、組み立てた文書で確かめる。上の拒む形をそれぞれ 1 行にし、1.3 の既存の形（`runpr.md:270` の `kind: "codex"`、`runpr.md:293` のコードスパン `codex`、HTML の印、ログイン名、`_context.md:187` のメンション）を拒まないことを、それぞれ 1 行で確かめる。`TestDocumentedProtocolMatches` も、組み立てた文書で、値の違いを見つけることを確かめる。この時点では、共通手順はまだ `codexreview` を呼ばない（1.2）。
+-   [x] `cmd/fixprguard/docs_test.go` の `TestDocumentedProtocolMatches` が、上と同じ決め方で `codexreview` の呼び出しのものとした `--protocol` だけを除いて、今と同じくすべての `--protocol N` を確かめるようにする（1.3）。決め方は 2 つのガードで共有する。どの `--protocol N` も 2 つのガードのちょうど 1 つが確かめることを、組み立てた文書で確かめる（両方のツールの呼び出しを 1 行に含むもの、`--protocol` の前に別のフラグがあるもの、パイプを含むもの）。
+-   [x] `CLAUDE.md` の Commands の節に `make install-codexreview` の項目を加える（設計書 3.9。1.2）。
+-   [x] `CLAUDE.md`「Testing Strategy」の文書のテストの例外に、`codexreview` の `--protocol` の値と、`codex` を直接実行する形がないことの 2 つを加える（設計書 1.4）。
 
 **完了の条件**: `make test`・`make lint`・`make deadcode` が通る。各ガードの判定を 1 つずつ外し、失敗することを確かめる。`TestDocumentedProtocolMatches`・`TestNoDirectCodexInvocation`・`cmd/fixprguard` の除外は組み立てた文書で、`TestSettingsAllowsTool`（許可の名前の比較、`codex` の許可の拒否）と `TestInstallTargetDocumented` は実物のファイルで確かめる。
 
@@ -237,8 +237,8 @@ PR-1・PR-2 のマージで `.claude/commands/` と `CLAUDE.md` の行番号が�
 
 **変えるファイル**: `.github/workflows/ci.yml`、`CLAUDE.md`
 
--   [ ] `doc-guard` の job の `go test` の対象に `./cmd/codexreview` を加える（設計書 7.1）。このパッケージのほかのテスト（ステップ 2-4）も、この job で走る。
--   [ ] `CLAUDE.md` の Development Notes の、`doc-guard` の対象の列挙を同じに直す。文書を読むガードの列挙にも、`cmd/codexreview` のガードを加える。
+-   [x] `doc-guard` の job の `go test` の対象に `./cmd/codexreview` を加える（設計書 7.1）。このパッケージのほかのテスト（ステップ 2-4）も、この job で走る。
+-   [x] `CLAUDE.md` の Development Notes の、`doc-guard` の対象の列挙を同じに直す。文書を読むガードの列挙にも、`cmd/codexreview` のガードを加える。
 
 **完了の条件**: ローカルで `go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./cmd/codexreview ./internal/pipeline` が通る。PR の CI で `doc-guard` の job が通る。
 
