@@ -8,7 +8,7 @@
 | Created | 2026-10-28 |
 | Review date | 2026-10-28 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-29（実装計画の作成の際の編集上の訂正。決定の変更はない）: 3.3 が実装計画に委ねた共有の場所を、実装計画（`03_implementation_plan.md` の 1.2）が `internal/cmdrunner` に決めた。それに伴う `fixprguard` の参照の付け替えと、`cmd/fixprguard/docs_test.go` の `TestDocumentedProtocolMatches` の変更を 2.2 の表と 7.1 の改めるテストに加え、「変えないもの」の `fixprguard` の項目と 3.3 の該当の文をそれに合わせた。8 章の 1 に共有の移動を加え、7 に、3.9 の項目のうちテストや方針の上で前の項目で書くもの（`package_reference.md` の行、`CLAUDE.md` の 2 つの例外と Commands の節と `doc-guard` の列挙）を書き添えた。どの項目を書くかは変えていない |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。要件書の 1 節の決定の 1 つ、AC-09、4.2 の「センチネルエラー」、4.3 は、本書を書く際に改めた（要件書の Comments、本書の 1.2）。本書は改めた後の要件書に従う。既存のファイルに関する記述は、コミット `c76eec2` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md) の項番を指す。`codex` CLI と CodeRabbit CLI の振る舞いに関する記述は、[observations.md](observations.md)（観測の記録）の項目番号と実行の番号（R1〜R5、O1・O2）で根拠を示す。申し送りへの対応は付録 A に、受け入れ基準との対応は付録 B にまとめる。
 
@@ -196,7 +196,9 @@ flowchart LR
 |---|---|---|---|---|
 | `cmd/codexreview/` | 新規 | `codexreview` の入口。引数の検査、`--protocol` の照合、結果の JSON の出力 | AC-03・AC-09・AC-17 | — |
 | `internal/codexreview/` | 新規 | 前提の確かめ、`codex` の実行、前後の比較、完了の判定、最終メッセージの解析、位置の確かめ（3.3・3.4） | AC-06・AC-08・AC-09 | — |
-| `internal/cmdrunner/runner.go` | 変更 | 時間切れのときに、子のプロセスグループごと止めるオプションを加える（3.3） | AC-09 | — |
+| `internal/cmdrunner/` | 変更 | 時間切れのときに、子のプロセスグループごと止めるオプションを加える。`internal/fixprguard` から `GitEnv` と git の設定の上書きを移す（3.3） | AC-09 | `internal/fixprguard/gitstate_test.go` の `TestGitEnvDropsInheritedGitVariables`（`internal/cmdrunner` に移す） |
+| `internal/fixprguard/`・`cmd/fixprguard/main.go` | 変更 | `GitEnv` と git の設定の上書きの参照を `internal/cmdrunner` に付け替える。振る舞いは変えない | — | — |
+| `cmd/fixprguard/docs_test.go` | 変更 | `--protocol` の照合から、`codexreview` の呼び出しを除く（7.1） | AC-17 | `TestDocumentedProtocolMatches` |
 | `Makefile` | 変更 | `install-codexreview` を加える | AC-17 | — |
 | `.claude/commands/_lib/coderabbit-local-review.md` → `_lib/local-cli-review.md` | 改名と変更 | 代替、CodeRabbit CLI の成否の判定、ツールの結果の扱い、トリアージ、回数、記録の行（3.1〜3.6） | AC-03〜AC-12・AC-18 | — |
 | `.claude/commands/runplan.md` | 変更 | 手順 4.5・7.7・5a・8 の記述と参照（3.7・3.9） | AC-10・AC-11・AC-15・AC-18 | — |
@@ -218,7 +220,7 @@ flowchart LR
 -   PR レビュー（Codex の GitHub 連携）の依頼と判定、エスカレーションの基準（要件書 2.3）。
 -   `/runplan` の手順 7 と 7.5 のサブエージェントのレビュー（要件書 2.3）。
 -   `/runpr` の手順 1 の単独の変更の PR 本文（要件書 2.3）。
--   `fixprguard` と `mergepr`。`codexreview` は `internal/cmdrunner` を共有するだけで、これらに依存しない。
+-   `fixprguard` と `mergepr` の振る舞い。`fixprguard` は、`GitEnv` と git の設定の上書きの参照を `internal/cmdrunner` に付け替えるだけである。`codexreview` は `internal/cmdrunner` を共有するだけで、これらに依存しない。
 
 ### 2.3. データフロー: 1 回のローカルの CLI レビュー
 
@@ -387,7 +389,7 @@ codex exec review --base <BASE>
 
 -   この形は O2 で観測した。`sandbox_mode="read-only"` は書き込みを止め（観測の記録の 3）、`approval_policy="never"` は承認を求めて止まらないようにする（観測の記録の 4）。`--ignore-user-config` で、利用者の設定ファイルの profile、プラグイン、MCP のサーバの設定を読まない。`--disable` で、アカウントの側から入るプラグインとコネクタの機能を外す（O2）。
 -   標準入力は空にする。標準出力（JSONL）はメモリに読み込み、上限は 16 MiB である。`--json` のときの標準エラーは空だった（O1・O2）。標準エラーもメモリに読み込み、上限を超えれば `output_too_large` とする。
--   環境変数は、`fixprguard.GitEnv`（`internal/fixprguard/gitstate.go:96-110`）と同じものにする。`GIT_` で始まる変数を除き、`GIT_OPTIONAL_LOCKS=0` と `GIT_TERMINAL_PROMPT=0` を加える。継承した `GIT_DIR` などで、Codex が別のリポジトリを見ないようにする。`codexreview` 自身の git の実行も、この環境と、`fixprguard` と同じ git の設定の上書き（`gitHardening`、`internal/fixprguard/gitstate.go:85-94`）の下で行う。これらを共有する場所は、実装計画で決める。
+-   環境変数は、`fixprguard.GitEnv`（`internal/fixprguard/gitstate.go:96-110`）と同じものにする。`GIT_` で始まる変数を除き、`GIT_OPTIONAL_LOCKS=0` と `GIT_TERMINAL_PROMPT=0` を加える。継承した `GIT_DIR` などで、Codex が別のリポジトリを見ないようにする。`codexreview` 自身の git の実行も、この環境と、`fixprguard` と同じ git の設定の上書き（`gitHardening`、`internal/fixprguard/gitstate.go:85-94`）の下で行う。これらを共有する場所は、実装計画で `internal/cmdrunner` に決めた。
 -   時間の上限は 480 秒である（1.2）。`codex` を自分のプロセスグループで起動し、上限に達したら、グループごと止める（まず終了を求め、少し待っても残れば強制的に止める）。`codex` が実行中のシェルのコマンドも止めるためである。時間切れかどうかは、ツール自身の時計で判定し、終了コードからは推し量らない。`internal/cmdrunner` に、プロセスグループごと止めるオプションを加えて使う。
 -   `codexreview` 自身が終了のシグナル（利用者の中断、Bash ツールの打ち切りなど）を受けたときも、`codex` のプロセスグループを同じように止めてから終わる。`codex` は別のプロセスグループにいるので、そうしなければシグナルが届かず、ネットワークの障害のときには終わらないまま残る（R5）。シグナルの扱いは `internal/signalrun` を使う。`codex --version` の実行にも短い時間の上限を設ける。
 -   `<RUN_DIR>` は、ツールが実行ごとに一時ディレクトリの下に新しく作る、所有者だけが読み書きできるディレクトリである。共通手順は場所を指定しない。ここに残すのは最終メッセージ（上限 64 KiB）だけで、`--json` の出力は残さない。`--json` の出力には、Codex が読んだファイルの中身がそのまま入るためである（観測の記録の 5）。`codex --version` の出力は、ツールの結果の `CodexVersion` に入れる。
@@ -688,7 +690,7 @@ flowchart TD
     -   コマンドの文書のコードの中（コードブロックと、コマンドとして書いたコードスパン）に、コマンドの位置にある `codex` の語（`codexreview` を除く。`env codex` や引用符で囲んだ `"codex"` も含む）がない。
     -   `Makefile` に `install-codexreview` があり、`CLAUDE.md` の Commands の節の記述と一致する。
 -   **CI:** `cmd/codexreview` の文書のガードは、`doc-guard` の job でも実行する。文書だけを変える PR（共通手順や `.claude/settings.json` の変更）こそ、このガードが守る対象だからである。
--   **改めるテスト:** `TestCodeRabbitConfigStopsReview`（`cmd/yt2column/codex_review_docs_test.go:351-356`）が求める `.coderabbit.yaml` の文を、改めた注釈の文に合わせる（3.9）。
+-   **改めるテスト:** `TestCodeRabbitConfigStopsReview`（`cmd/yt2column/codex_review_docs_test.go:351-356`）が求める `.coderabbit.yaml` の文を、改めた注釈の文に合わせる（3.9）。`cmd/fixprguard/docs_test.go` の `TestDocumentedProtocolMatches` は、`codexreview` の呼び出しの `--protocol` を照合から除く。`internal/fixprguard/gitstate_test.go` の `TestGitEnvDropsInheritedGitVariables` のうち、環境の変数の確かめは `internal/cmdrunner` に移す。
 
 どのテストも、確かめる対象を 1 つずつ外して失敗することを確かめる（`CLAUDE.md`「Every test must be able to fail for its stated reason」）。
 
@@ -707,13 +709,13 @@ flowchart TD
 
 ツールが先にあれば、文書は存在するツールを参照できる。また、`main` からインストールするツールは、文書が参照する前にマージされている必要がある。次の順に実装する。PR の区切りは実装計画で決める。
 
-1.  `internal/cmdrunner` のプロセスグループのオプション（3.3、7.1）。
+1.  `internal/cmdrunner` のプロセスグループのオプション（3.3、7.1）と、`GitEnv` と git の設定の上書きの移動（3.3）。
 2.  `internal/codexreview` と `cmd/codexreview`、`Makefile` の `install-codexreview`（3.3・3.4、7.1）。
 3.  `.claude/settings.json` の許可と、文書のガード、`doc-guard` の job の対象（3.8、7.1）。
 4.  ツールのマージの後、利用者が `make install-codexreview` で入れる。
 5.  共通手順の改名と書き換え（3.1〜3.6）。参照の付け替えを同じ変更で行う（3.9）。
 6.  呼び出し元の変更（3.7）と承認の記述（3.8）。
-7.  `CLAUDE.md`、`.coderabbit.yaml`、`_lib/pr-review-escalation.md`、`_lib/triage-pattern.md`、`package_reference.md` の記述（3.9）と、`TestCodeRabbitConfigStopsReview` の文の更新。
+7.  `CLAUDE.md`、`.coderabbit.yaml`、`_lib/pr-review-escalation.md`、`_lib/triage-pattern.md`、`package_reference.md` の記述（3.9）と、`TestCodeRabbitConfigStopsReview` の文の更新。このうち、`package_reference.md` の行（パッケージと同じコミットでテストが求める）、`CLAUDE.md` の 2 つの例外と Commands の節と `doc-guard` の列挙（それに頼るコードやガードと同じ変更で読めるようにする）は、1〜3 で書く。
 8.  手動の確かめ（7.2）。
 
 ## 9. 将来の拡張 (Future Extensibility)
