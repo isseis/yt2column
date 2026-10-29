@@ -250,19 +250,43 @@ const (
 	processGoneBound = 5 * time.Second
 )
 
+// termHandling selects how the processes of groupScript handle SIGTERM.
+type termHandling int
+
+const (
+	// termDefault leaves SIGTERM's default action.
+	termDefault termHandling = iota
+	// termIgnore makes the direct child and the grandchild ignore SIGTERM;
+	// an ignored signal stays ignored across exec.
+	termIgnore
+	// termRecord makes the grandchild record SIGTERM in $GRAND.term and exit,
+	// and the direct child exit 0 on SIGTERM only once that record exists. The
+	// record appears only when the grandchild itself got SIGTERM, which a
+	// SIGKILL cannot cause, so it shows the group, not only the direct child,
+	// was asked to terminate.
+	termRecord
+)
+
 // groupScript starts a grandchild in the background that records its PID in
 // $GRAND and then sleeps (a bounded lifetime, so a failed stop cannot leave it
 // running for long). The direct child records its own PID, the group ID, in
 // $LEADER first. Each PID is written to a temporary file and renamed, so a
-// reader never sees a partial number. ignoreTerm makes both ignore SIGTERM;
-// an ignored signal stays ignored across exec.
-func groupScript(ignoreTerm bool, tail string) string {
-	trap := ""
-	if ignoreTerm {
-		trap = `trap "" TERM; `
+// reader never sees a partial number.
+func groupScript(term termHandling, tail string) string {
+	leaderTrap, grandTrap, grandSleep := "", "", "exec sleep 60"
+	switch term {
+	case termDefault:
+	case termIgnore:
+		leaderTrap, grandTrap = `trap "" TERM; `, `trap "" TERM; `
+	case termRecord:
+		leaderTrap = `trap 'while [ ! -f "$GRAND.term" ]; do sleep 0.05; done; exit 0' TERM; `
+		grandTrap = `trap "touch \"\$GRAND.term\"; exit 0" TERM; `
+		// A trap runs only in the shell itself, so the shell waits instead of
+		// replacing itself with sleep.
+		grandSleep = "sleep 60 & wait"
 	}
-	return trap + `echo $$ > "$LEADER.tmp" && mv "$LEADER.tmp" "$LEADER"; ` +
-		`sh -c '` + trap + `echo $$ > "$GRAND.tmp" && mv "$GRAND.tmp" "$GRAND"; exec sleep 60' & ` + tail
+	return leaderTrap + `echo $$ > "$LEADER.tmp" && mv "$LEADER.tmp" "$LEADER"; ` +
+		`sh -c '` + grandTrap + `echo $$ > "$GRAND.tmp" && mv "$GRAND.tmp" "$GRAND"; ` + grandSleep + `' & ` + tail
 }
 
 type groupRun struct {
@@ -366,20 +390,20 @@ func assertGone(t *testing.T, pid int, what string) {
 
 func TestProcessGroupStoppedOnCancel(t *testing.T) {
 	tests := []struct {
-		name       string
-		ignoreTerm bool
-		grace      time.Duration
+		name  string
+		term  termHandling
+		grace time.Duration
 	}{
 		// The group exits on SIGTERM, well before the grace ends.
-		{"terminate", false, 5 * time.Second},
+		{"terminate", termRecord, 5 * time.Second},
 		// Both processes ignore SIGTERM; only the SIGKILL after the grace
 		// stops them.
-		{"ignores_terminate", true, 200 * time.Millisecond},
+		{"ignores_terminate", termIgnore, 200 * time.Millisecond},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			opts := Options{ProcessGroup: true, GroupStopGrace: tt.grace, WaitDelay: time.Second}
-			grand, cancel, result := startGroupRun(t, opts, groupScript(tt.ignoreTerm, "wait"))
+			grand, cancel, result := startGroupRun(t, opts, groupScript(tt.term, "wait"))
 			cancelled := time.Now()
 			cancel()
 			r := awaitRun(t, result)
@@ -387,10 +411,10 @@ func TestProcessGroupStoppedOnCancel(t *testing.T) {
 				t.Errorf("error = %v, want context.Canceled", r.err)
 			}
 			elapsed := time.Since(cancelled)
-			if tt.ignoreTerm && elapsed < tt.grace {
+			if tt.term == termIgnore && elapsed < tt.grace {
 				t.Errorf("run returned %v after cancellation, want SIGKILL only after the %v grace", elapsed, tt.grace)
 			}
-			if !tt.ignoreTerm && elapsed >= tt.grace/2 {
+			if tt.term == termRecord && elapsed >= tt.grace/2 {
 				t.Errorf("run returned %v after cancellation, want SIGTERM to end it well within the %v grace", elapsed, tt.grace)
 			}
 			assertGone(t, grand, "grandchild")
@@ -404,7 +428,7 @@ func TestProcessGroupKilledAfterChildExits(t *testing.T) {
 	// exit, WaitDelay would end the wait with exec.ErrWaitDelay.
 	opts := Options{ProcessGroup: true, WaitDelay: 2 * time.Second}
 	tail := `while [ ! -f "$GRAND" ]; do sleep 0.05; done; printf out`
-	grand, _, result := startGroupRun(t, opts, groupScript(false, tail))
+	grand, _, result := startGroupRun(t, opts, groupScript(termDefault, tail))
 	r := awaitRun(t, result)
 	if r.err != nil {
 		t.Fatalf("error = %v, want success", r.err)
@@ -491,9 +515,9 @@ func TestProcessGroupResults(t *testing.T) {
 	}{
 		{"stdin", 0, []byte("payload"), "cat", nil, "payload", nil},
 		{"exit_error", 0, nil, "printf out; printf boom >&2; exit 3", nil, "", &ExitError{Code: 3, Stdout: []byte("out"), Stderr: []byte("boom")}},
-		{"stdout_over_cap", 16, nil, "head -c 17 /dev/zero", ErrOutputTooLarge, "", nil},
+		// The cap itself is shared with the direct path and tested there; this
+		// row catches standard error not being copied, which no other row does.
 		{"stderr_over_cap", 16, nil, "head -c 17 /dev/zero >&2", ErrOutputTooLarge, "", nil},
-		{"stdout_at_cap", 16, nil, "printf 0123456789abcdef", nil, "0123456789abcdef", nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -505,6 +529,9 @@ func TestProcessGroupResults(t *testing.T) {
 				}
 				if exitErr.Code != tt.wantExit.Code || !bytes.Equal(exitErr.Stdout, tt.wantExit.Stdout) || !bytes.Equal(exitErr.Stderr, tt.wantExit.Stderr) {
 					t.Errorf("ExitError = %+v, want %+v", exitErr, tt.wantExit)
+				}
+				if out != nil {
+					t.Errorf("output = %q, want none on failure", out)
 				}
 				return
 			}
