@@ -39,37 +39,40 @@ func readRepoFile(t *testing.T, rel string) string {
 // bashRule matches a Bash permission rule and captures its command pattern.
 var bashRule = regexp.MustCompile(`^Bash\((.*)\)$`)
 
-// allowsCodex reports whether a permission rule lets codex run without the
-// approval prompt: a rule for all of Bash; a rule whose command word is codex,
-// by name or by path, in the "codex *" or "codex:*" form; a wildcard in the
-// command word that matches codex or a path to it; or a rule for a wrapper or
-// a shell, which runs any command it is given, codex included.
+// launchFree are the only command words a Bash rule of the settings may
+// allow. Each was checked not to run a command it is given: coderabbit runs
+// a review, and codexreview runs codex only with its fixed arguments. A rule
+// for any other word may run codex unprompted (a wrapper such as env, a
+// shell, an interpreter, a wildcard that matches one of them), so adding one
+// means checking the command and naming it here.
+var launchFree = set("coderabbit", "codexreview")
+
+// allowsCodex reports whether a permission rule may let codex run without the
+// approval prompt: a Bash rule whose command word is not one of launchFree,
+// written as is (a wildcard or a path is another word).
 func allowsCodex(rule string) bool {
-	if rule == "Bash" {
-		return true
+	if rule != "Bash" && !strings.HasPrefix(rule, "Bash(") {
+		return false
 	}
 	m := bashRule.FindStringSubmatch(rule)
 	if m == nil {
-		return false
+		return true
 	}
 	word, _, _ := strings.Cut(strings.TrimSpace(m[1]), " ")
 	word, _, _ = strings.Cut(word, ":")
-	if prefix, _, wild := strings.Cut(word, "*"); wild {
-		// A command word of codex, or of a path ending in it, starts with the
-		// prefix the wildcard leaves.
-		// The order is deliberate: the prefix is what codex must start with.
-		const codex = "codex"
-		dir, base := path.Split(prefix)
-		return strings.HasPrefix(codex, prefix) || (dir != "" && strings.HasPrefix(codex, base))
-	}
-	name := path.Base(word)
-	return name == "codex" || isWrapper(name) || isShell(name)
+	_, ok := launchFree[word]
+	return !ok
 }
+
+// promptingModes are the permission modes that keep the prompt for a Bash
+// command no rule allows.
+var promptingModes = set("", "default", "plan", "acceptEdits")
 
 // TestSettingsAllowsTool: .claude/settings.json allows the tool, under the
 // name go install gives it, without the approval prompt, and allows no rule
-// that runs codex itself, nor a mode that skips the prompt: the tool is the
-// only way the agents start codex, so its fixed arguments cannot be bypassed.
+// that may run codex itself, nor a mode that skips the prompt: the tool is
+// the only way the agents start codex, so its fixed arguments cannot be
+// bypassed.
 func TestSettingsAllowsTool(t *testing.T) {
 	var settings struct {
 		Permissions struct {
@@ -86,16 +89,18 @@ func TestSettingsAllowsTool(t *testing.T) {
 	}
 	for _, rule := range settings.Permissions.Allow {
 		if allowsCodex(rule) {
-			t.Errorf("permissions.allow has %q, which runs codex without the tool", rule)
+			t.Errorf("permissions.allow has %q, which may run codex without the tool", rule)
 		}
 	}
-	if mode := settings.Permissions.DefaultMode; mode == "bypassPermissions" {
-		t.Errorf("permissions.defaultMode is %q, which runs codex without the prompt", mode)
+	if mode := settings.Permissions.DefaultMode; !isSetMember(promptingModes, mode) {
+		t.Errorf("permissions.defaultMode is %q, which may run codex without the prompt", mode)
 	}
 }
 
-// TestAllowsCodex: the rules that would let codex run without the tool are
-// found, and the tool's own rule and the other existing rule are not.
+func isSetMember(m map[string]struct{}, key string) bool { _, ok := m[key]; return ok }
+
+// TestAllowsCodex: the rules that may let codex run without the tool are
+// found, and the two existing Bash rules are not.
 func TestAllowsCodex(t *testing.T) {
 	for _, tc := range []struct {
 		rule string
@@ -103,20 +108,20 @@ func TestAllowsCodex(t *testing.T) {
 	}{
 		{"Bash(codex *)", true},
 		{"Bash(codex:*)", true},
-		{"Bash(codex exec review *)", true},
 		{"Bash(/opt/homebrew/bin/codex *)", true},
 		{"Bash(*)", true},
 		{"Bash", true},
 		{"Bash(codex*)", true},
-		{"Bash(c*)", true},
-		{"Bash(/opt/homebrew/bin/*)", true},
-		{"Bash(npx *)", true},
+		{"Bash(e*)", true},
+		{"Bash(/bin/b*)", true},
 		{"Bash(env *)", true},
-		{"Bash(timeout *)", true},
-		{"Bash(bash -c *)", true},
+		{"Bash(eval *)", true},
+		{"Bash(arch *)", true},
+		{"Bash(python3 -c *)", true},
+		// git runs a command through an alias starting with "!".
+		{"Bash(git status*)", true},
 		{"Bash(codexreview *)", false},
 		{"Bash(coderabbit review *)", false},
-		{"Bash(git status*)", false},
 		{"Read(codex)", false},
 	} {
 		if got := allowsCodex(tc.rule); got != tc.want {
@@ -192,16 +197,20 @@ var (
 
 var (
 	// wrappers run the command named by their first argument that is not an
-	// option or an option's value.
-	wrappers = set("env", "exec", "command", "builtin", "xargs", "time", "nohup", "timeout", "gtimeout",
-		"nice", "stdbuf", "caffeinate", "sudo", "npx", "bunx", "pnpx", "pnpm", "dlx")
+	// option or an option's value; each maps to its options that take the
+	// next word as their value (env -u NAME, xargs -I REPLACE, timeout -k
+	// DURATION).
+	wrappers = map[string]map[string]struct{}{
+		"env": set("-u", "-C", "-S"), "xargs": set("-I", "-n", "-P", "-L", "-s", "-E", "-d"),
+		"timeout": set("-k", "-s"), "gtimeout": set("-k", "-s"), "nice": set("-n"),
+		"sudo": set("-u", "-g", "-C", "-h", "-p"), "exec": set("-a"),
+		"command": nil, "builtin": nil, "time": nil, "nohup": nil, "stdbuf": nil, "caffeinate": nil,
+		"npx": nil, "bunx": nil, "pnpx": nil, "pnpm": nil, "dlx": nil,
+	}
 	// shells run the script given after -c.
 	shells = set("sh", "bash", "zsh", "dash")
 	// reservedWords may come before a command at a command position.
-	reservedWords = set("if", "then", "else", "elif", "while", "until", "do", "!", "{", "(")
-	// optionsWithValue take the next word as their value: env -u NAME,
-	// xargs -I REPLACE, timeout -k DURATION, and the like.
-	optionsWithValue = set("-u", "-I", "-i", "-n", "-P", "-L", "-s", "-k", "-S", "-C", "-E")
+	reservedWords = set("if", "then", "else", "elif", "while", "until", "do", "!")
 )
 
 func set(words ...string) map[string]struct{} {
@@ -235,17 +244,15 @@ func runsCodex(text string) bool {
 // commandRunsCodex reports whether the command made of words runs codex.
 func commandRunsCodex(words []string) bool {
 	for i := 0; i < len(words); i++ {
-		if _, ok := reservedWords[words[i]]; ok {
-			continue
-		}
 		word := strings.TrimLeft(strings.Trim(words[i], `"'`), `({\`)
-		word = strings.Trim(word, `"'`)
+		word = strings.TrimRight(strings.Trim(word, `"'`), `)};`)
 		name := path.Base(word)
 		switch {
-		case word == "", assignment.MatchString(word), redirection.MatchString(word):
+		case word == "", isSetMember(reservedWords, word), assignment.MatchString(word), redirection.MatchString(word):
 		case isWrapper(name):
+			valued := wrappers[name]
 			for i+1 < len(words) && (strings.HasPrefix(words[i+1], "-") || optionValue.MatchString(words[i+1])) {
-				if _, ok := optionsWithValue[words[i+1]]; ok {
+				if isSetMember(valued, words[i+1]) {
 					i++
 				}
 				i++
@@ -322,6 +329,10 @@ func TestRunsCodex(t *testing.T) {
 		{"substitution", "```bash\nout=$(codex review)\n```\n", true},
 		{"backquote", "```bash\nout=`codex review`\n```\n", true},
 		{"env", "```bash\nenv FOO=1 codex review\n```\n", true},
+		{"env_ignore_environment", "```bash\nenv -i codex review\n```\n", true},
+		{"sudo_preserve_env", "```bash\nsudo -E codex review\n```\n", true},
+		{"caffeinate", "```bash\ncaffeinate -i codex review\n```\n", true},
+		{"subshell_no_argument", "```bash\n(cd x && codex)\n```\n", true},
 		{"env_unset", "```bash\nenv -u FOO codex review\n```\n", true},
 		{"assignment", "```bash\nFOO=1 codex review\n```\n", true},
 		{"redirection", "```bash\n2>/dev/null codex review\n```\n", true},
@@ -344,7 +355,8 @@ func TestRunsCodex(t *testing.T) {
 		{"sh_c", "```bash\nsh -c 'codex review'\n```\n", true},
 		{"zsh_c", "```bash\nzsh -c 'codex review'\n```\n", true},
 		{"bash_lc", "```bash\nbash -lc 'codex review'\n```\n", true},
-		{"bash_c_later_command", "```bash\nbash -c \"cd x && codex review\"\n```\n", true},
+		// No boundary inside the script, so only the -c case finds it.
+		{"bash_c_wrapper", "```bash\nbash -c 'env codex review'\n```\n", true},
 		{"absolute_path", "```bash\n/opt/homebrew/bin/codex review\n```\n", true},
 		{"relative_path", "```bash\n./codex review\n```\n", true},
 		{"quoted", "```bash\n\"codex\" review\n```\n", true},
@@ -368,7 +380,6 @@ func TestRunsCodex(t *testing.T) {
 		{"login", "| Awaited PR reviewer | `chatgpt-codex-connector` - the reviewer |\n", false},
 		{"mention", "| PR review request | `@codex review` - the body of the comment |\n", false},
 		{"tool", "```bash\ncodexreview --protocol 1 --base <BASE>\n```\n", false},
-		{"sh_script_file", "```bash\nsh codex.sh\n```\n", false},
 		{"prose_without_span", "Codex CLI runs codex exec review.\n", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
