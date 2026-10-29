@@ -231,7 +231,7 @@ Report the recovery for the reason this command stopped:
 | Reason | Recovery |
 |---|---|
 | `missing`, `malformed`, `more than one` | A person finds which `README.md` content `README.en.md` reflects, and writes the blob ID of the `README.md` of that commit on `main` (`git rev-parse <commit>:README.md`) as the marker; the PR review checks it |
-| `not a blob`, `not found` | Run `git fetch origin 'refs/pull/*/head'` to bring in the PR head commits, and run this command again. If the blob is still missing, a person writes the marker as in the row above. As a last resort, delete `README.en.md` and run this command standalone for a full translation |
+| `not a blob`, `not found` | Run `git fetch origin '+refs/pull/*/head:refs/remotes/origin/pr/*'` to bring in the PR head commits, and run this command again. If the blob is still missing, a person writes the marker as in the row above. As a last resort, delete `README.en.md` and run this command standalone for a full translation |
 | `unresolved review findings` | List the findings; a person decides |
 
 **Taking in `main`.** When two branches both change `README.md` and sync it,
