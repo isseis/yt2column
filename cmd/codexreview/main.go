@@ -4,21 +4,24 @@
 // result.
 //
 // The command line is exactly --protocol N --base SHA, each once. Standard
-// output is one JSON object, the internal/codexreview Result; a one-line
-// diagnostic goes to standard error. The exit code is 0 for findings and
-// no_findings, 3 for state_changed, and 1 for every other kind and for a run
-// that ends without a result, which leaves standard output empty.
+// output is one JSON object, the internal/codexreview Result. A refusal and a
+// run that ends without a result write a one-line diagnostic to standard
+// error. The exit code is 0 for findings and no_findings, 3 for
+// state_changed, and 1 for every other kind and for a run that ends without
+// a result, which leaves standard output empty.
 package main
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
+	"slices"
 	"strconv"
+	"syscall"
 
 	"github.com/isseis/yt2column/internal/codexreview"
 	"github.com/isseis/yt2column/internal/signalrun"
@@ -33,66 +36,68 @@ const (
 	exitStateChanged = 3
 )
 
-// The flags.
+// The flags, each given once, as its own argument followed by its value.
 const (
-	flagProtocol = "protocol"
-	flagBase     = "base"
+	flagProtocol = "--protocol"
+	flagBase     = "--base"
+	// argCount is the length of the one accepted command line: two flags,
+	// each followed by its value.
+	argCount = 4
 )
 
-var (
-	errUsage     = errors.New("usage: codexreview --protocol N --base SHA")
-	errFlagTwice = errors.New("flag given twice")
-)
+var errUsage = errors.New("usage: codexreview --protocol N --base SHA")
 
+// heldSignals are the signals main keeps subscribed for the whole run.
+var heldSignals = []os.Signal{syscall.SIGTERM, os.Interrupt, syscall.SIGHUP}
+
+// main runs the tool under signalrun.Run, whose first signal cancels the run.
+//
+// Contract: no signal ends the process before Run has stopped codex's
+// process group. signalrun lets a second signal terminate a stuck process by
+// default; here that would end the tool during the grace before the group
+// is killed, leaving codex and its shell commands running. Holding the
+// signals subscribed keeps them from terminating the process, and the run
+// stays bounded by its own limits. A SIGKILL to the tool is not covered.
 func main() {
+	held := make(chan os.Signal, 1)
+	for _, sig := range heldSignals {
+		// An ignored signal stays ignored, as signalrun leaves it.
+		if !signal.Ignored(sig) {
+			signal.Notify(held, sig)
+		}
+	}
 	os.Exit(signalrun.Run(func(ctx context.Context) int {
 		return run(ctx, os.Args[1:], os.Environ(), os.Stdout, os.Stderr)
 	}))
 }
 
-// onceValue stores a flag that may be given only once, so a later value
-// cannot silently replace an earlier one.
-type onceValue struct {
-	name  string
-	value *string
-	set   *bool
-}
-
-func (v onceValue) String() string { return "" }
-
-func (v onceValue) Set(s string) error {
-	if *v.set {
-		return fmt.Errorf("%w: --%s", errFlagTwice, v.name)
-	}
-	*v.value, *v.set = s, true
-	return nil
-}
-
-// parse checks the command line's shape: only --protocol and --base, each
-// exactly once, and no positional argument. It returns the refusal's result
-// when the line is refused; the base's form is checked by codexreview.Run.
+// parse checks the command line: exactly --protocol N --base SHA, in either
+// order, each once, with no other argument and no other spelling of a flag.
+// A --protocol other than Protocol is reported first, so a stale install is
+// named even when a newer document adds a flag. It returns the refusal's
+// result when the line is refused; the base's form is checked by
+// codexreview.Run.
 func parse(args []string) (string, *codexreview.Result, error) {
-	var protocol, base string
-	var protocolSet, baseSet bool
-	flags := flag.NewFlagSet("codexreview", flag.ContinueOnError)
-	flags.SetOutput(io.Discard)
-	flags.Var(onceValue{name: flagProtocol, value: &protocol, set: &protocolSet}, flagProtocol, "")
-	flags.Var(onceValue{name: flagBase, value: &base, set: &baseSet}, flagBase, "")
-	refuse := func(err error) (string, *codexreview.Result, error) {
-		r := codexreview.BadArgumentsResult()
-		return "", &r, err
-	}
-	if err := flags.Parse(args); err != nil {
-		return refuse(fmt.Errorf("%w: %w", errUsage, err))
-	}
-	if !protocolSet || !baseSet || flags.NArg() != 0 {
-		return refuse(errUsage)
-	}
-	if protocol != strconv.Itoa(codexreview.Protocol) {
+	if i := slices.Index(args, flagProtocol); i >= 0 && i+1 < len(args) && args[i+1] != strconv.Itoa(codexreview.Protocol) {
 		r := codexreview.ProtocolMismatchResult()
 		return "", &r, fmt.Errorf("%w: --protocol does not match this binary's %d", errUsage, codexreview.Protocol)
 	}
-	return base, nil, nil
+	refuse := func() (string, *codexreview.Result, error) {
+		r := codexreview.BadArgumentsResult()
+		return "", &r, errUsage
+	}
+	if len(args) != argCount {
+		return refuse()
+	}
+	values := map[string]string{}
+	for i := 0; i < len(args); i += 2 {
+		name := args[i]
+		if _, dup := values[name]; dup || (name != flagProtocol && name != flagBase) {
+			return refuse()
+		}
+		values[name] = args[i+1]
+	}
+	return values[flagBase], nil, nil
 }
 
 // run parses args, runs the review, writes its result, and returns the exit
@@ -121,6 +126,7 @@ func write(stdout, stderr io.Writer, r codexreview.Result) int {
 		return exitFailure
 	}
 	if _, err := stdout.Write(append(data, '\n')); err != nil {
+		_, _ = fmt.Fprintln(stderr, "codexreview: write the result:", err)
 		return exitFailure
 	}
 	return exitCode(r.Kind)
