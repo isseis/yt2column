@@ -45,17 +45,19 @@
     -   `CLAUDE.md`「Tool Execution Safety」は、設計書 3.8 の項目なので、承認の記述と同じフェーズ 6 で書く。
 -   **共通手順が `codexreview` を呼ぶことを求めるガードと、文書の呼び出しを解析するガードは、フェーズ 5 で加える。** フェーズ 3 の時点では、共通手順はまだツールを呼ばない。フェーズ 3 のガードは、組み立てた文書で確かめる。
 -   **文書の `codexreview` の呼び出しでは、`--base` に 40 桁の SHA をそのまま書く。** 共通手順は、BASE を先に `git rev-parse` で 40 桁の SHA にし、その値を呼び出しに書き入れる。`$(...)`、変数、`cd ... &&` のような組み合わせは使わない。これらは権限の確認で止まるからである（ステップ 8-1 で確かめる）。
--   **`_lib/task-pr-handoff.md:40` の CHECKS と、`fixprguard_guide.md`・`fixprguard_guide.ja.md` の 454 行目にある文書のガードのコマンドには、`./cmd/codexreview` を加えない。** CHECKS は、タスクの文書（`docs/tasks/` の下）だけを変えるコマンドが push の前に実行するものである。`cmd/codexreview` のガードが読むファイル（コマンドの文書、`.claude/settings.json`、`Makefile`、`CLAUDE.md`）を、それらのコマンドは変えない。`fixprguard_guide` の行は、自動レビュアーの一覧を変えるときのガードを指す。CI の `doc-guard` の job には加える（ステップ 3-3）。
+-   **`_lib/task-pr-handoff.md:40` の CHECKS と、`docs/dev/guides/fixprguard_guide.md` の 454 行目にある文書のガードのコマンドには、`./cmd/codexreview` を加えない。** CHECKS は、タスクの文書（`docs/tasks/` の下）だけを変えるコマンドが push の前に実行するものである。`cmd/codexreview` のガードが読むファイル（コマンドの文書、`.claude/settings.json`、`Makefile`、`CLAUDE.md`）を、それらのコマンドは変えない。`fixprguard_guide` の行は、自動レビュアーの一覧を変えるときのガードを指す。CI の `doc-guard` の job には加える（ステップ 3-3）。
 -   **`internal/transcript/exec.go:94-116` の、プロセスグループごと止める実装は変えない。** `internal/transcript` は、受け継ぐファイルや標準エラーの扱いが違う独自の実行の経路を持つ。統合は本タスクの範囲の外である。`internal/cmdrunner` の新しいオプションは、この実装の形（`Setpgid` と `cmd.Cancel` でグループに送る）にならう。
 -   **設計書を、編集上の訂正として補った（本 PR）。** 2.2 の表、3.3、7.1 の改めるテスト、8 章の 1 と 7 を、上の決定に合わせた。決定は変えていないので、設計書の状態は `approved` のままとし、Comments に記録した。`cmd/fixprguard/docs_test.go` の `TestDocumentedProtocolMatches` の変更（1.3）は、`fixprguard` の文書のガードの対象を狭めるものなので、レビュアーはこれを編集上の訂正とみなせるかを確かめる。
 
 ### 1.3. 既存コード調査結果
 
+PR-1・PR-2 のマージで `.claude/commands/` と `CLAUDE.md` の行番号が動いた。以下の行番号は `0d7283e` 時点のものである（`cmd/fixprguard/docs_test.go` の行番号も同様に動いた）。ただし、文書のガードのコマンドの列挙と `package_reference.md` のパスは、マージ後のものに直した。2 章以降が引く行番号は、マージ後のものである。
+
 コミット `0d7283e` で調べた。設計書が根拠にしたコミット `c76eec2` から、下に挙げるファイルは変わっていない（`git diff --stat c76eec2 0d7283e` に、これらのファイルはない）。
 
 -   **`internal/cmdrunner`:** `osRunner.RunInput` は `exec.CommandContext` で直接の子だけを止め、プロセスグループは扱わない（`internal/cmdrunner/runner.go:89-93`）。`WaitDelay` の後に Go が送る強制の停止も、直接の子だけに届く。時間切れのときは、コンテキストのエラーと `*ExitError` を `errors.Join` で返す（同 `:115-119`）。出力の上限は、コンテキストのエラーより先に見る（同 `:102-105`）。パッケージのコメント（同 `:1-3`）は、使う側のツールとして `mergepr` と `fixprguard` を挙げている。既存のテストは `sh -c` で子のプロセスを作る（`internal/cmdrunner/runner_test.go:17`）。**足りないもの:** プロセスグループごと止めるオプション。**変えること:** オプションを加え、零値の振る舞いは変えない。`GitEnv` と git の設定の上書きを、ここに移す。
 -   **プロセスグループごと止める既存の実装:** `internal/transcript/exec.go:94-116`（`Setpgid` と `cmd.Cancel`、`killProcessGroup`）。取り消しのときだけグループに SIGKILL を送り、正常に終わったときは送らない（同 `:97-100` のコメント）。
--   **`GitEnv` と `gitHardening` の使用箇所:** 定義は `internal/fixprguard/gitstate.go:66-110`。本番のコードの使用は `cmd/fixprguard/main.go:157`、`internal/fixprguard/gitstate.go:482`、`internal/fixprguard/ignored.go:272`。テストと補助の使用は `cmd/fixprguard/test_helpers.go:102,124,130`、`internal/fixprguard/test_helpers_git.go:173,185,187,251,252`、`internal/fixprguard/ignored_test.go:287,320`、`internal/fixprguard/gitstate_test.go:430-450`（`TestGitEnvDropsInheritedGitVariables`。`newTestRepo` と `Worktree.Baseline` を使い、`GIT_DIR` を受け継いでも正しいリポジトリを読むことも確かめる）。名前を挙げるコメントは `internal/fixprguard/gitstate.go:468,669`、`internal/fixprguard/test_helpers_git.go:77,246`、`internal/fixprguard/worktree.go:48`。文書では `docs/dev/developer_guide/package_reference.md:14`（`fixprguard.GitEnv`）だけである。`gitHardening` のコメント（`gitstate.go:66-84`）は、ほかの設定は `CheckState` が確かめること、diff のコマンドには `--no-ext-diff` と `--no-textconv` を付けることを述べている。`codexreview` には `CheckState` がないので、利用者の git の設定（`status.showUntrackedFiles` など）が比較を変えないようにする（ステップ 2-3）。
+-   **`GitEnv` と `gitHardening` の使用箇所:** 定義は `internal/fixprguard/gitstate.go:66-110`。本番のコードの使用は `cmd/fixprguard/main.go:157`、`internal/fixprguard/gitstate.go:482`、`internal/fixprguard/ignored.go:272`。テストと補助の使用は `cmd/fixprguard/test_helpers.go:102,124,130`、`internal/fixprguard/test_helpers_git.go:173,185,187,251,252`、`internal/fixprguard/ignored_test.go:287,320`、`internal/fixprguard/gitstate_test.go:430-450`（`TestGitEnvDropsInheritedGitVariables`。`newTestRepo` と `Worktree.Baseline` を使い、`GIT_DIR` を受け継いでも正しいリポジトリを読むことも確かめる）。名前を挙げるコメントは `internal/fixprguard/gitstate.go:468,669`、`internal/fixprguard/test_helpers_git.go:77,246`、`internal/fixprguard/worktree.go:48`。文書では `docs/dev/conventions/package_reference.md:14`（`fixprguard.GitEnv`）だけである。`gitHardening` のコメント（`gitstate.go:66-84`）は、ほかの設定は `CheckState` が確かめること、diff のコマンドには `--no-ext-diff` と `--no-textconv` を付けることを述べている。`codexreview` には `CheckState` がないので、利用者の git の設定（`status.showUntrackedFiles` など）が比較を変えないようにする（ステップ 2-3）。
 -   **テストの git の隔離:** `internal/fixprguard/test_helpers_git.go:104-128` と `cmd/fixprguard/test_helpers.go:42-58` は、`HOME` と `XDG_CONFIG_HOME` を空のディレクトリに向け、利用者の git の設定（コミットの署名、フック）がテストに届かないようにする。どちらもパッケージの中の非公開の補助である。
 -   **テストのバイナリを子として起動し直す前例:** `cmd/yt2column/main_test.go:22-45` の `TestMain` は、子のモードを最初に見分け、そうでなければパッケージ全体のプロキシの変数を閉じたアドレスに向けてから `m.Run` を呼ぶ。本物の外部のサービスに届かないようにするためである。`cmd/yt2column-server/main_test.go:12-17` も子のモードを持つ。孫の生死の確かめは、`internal/transcript/exec_test.go:437-530`（`detachedHelperLifetime`、`processExists`・`waitProcessGone`。ゾンビを止まったものとみなす）と `cmd/yt2column/test_helpers.go:392`（`waitForProcessGone`）にある。
 -   **`internal/signalrun`:** `Run` は、最初のシグナルでコンテキストを取り消す（`internal/signalrun/signalrun.go:44-66`）。`cmd/codexreview` の `main` はこれを使う。
@@ -64,7 +66,7 @@
 -   **`internal/pipeline` のガード:** `TestPackageReferenceListsPackages`（`internal/pipeline/pipeline_test.go:671`）は、`cmd/` と `internal/` の下の、テスト以外のソースを持つすべてのパッケージと、すべての `testutil` に、`package_reference.md` の行を求める。`TestFakesCarryBuildTag` は、`testutil/` の下のファイルの数を 23 に固定し（同 `:619`）、`testutil/` と `test_helpers*.go` の 1 行目を `//go:build test` か `//go:build test || integration` に限る（同 `:628-634`）。
 -   **`gosec` の除外:** `.golangci.yml:180-188` は、`gosec` を `_test.go` のファイルだけで除く。`testutil/` と `test_helpers.go` には効かない。前例は `internal/transcript/exec_test.go:461` の、文ごとの `//nolint:gosec`。
 -   **`Makefile`:** `install-mergepr`・`install-fixprguard`（`Makefile:72-79`）にならう。`.PHONY`（`Makefile:57`）にも加える。`TestMakeBuildBuildsEveryBinary`（`cmd/yt2column/makefile_test.go:479`）は `build` と `all` だけを見るので、影響はない。
--   **文書のガードのコマンドの列挙:** `.github/workflows/ci.yml:187`、`CLAUDE.md:446`、`.claude/commands/_lib/task-pr-handoff.md:40`、`docs/dev/developer_guide/fixprguard_guide.md:454`・`fixprguard_guide.ja.md:454` の 5 か所にある。これらが一致することを確かめるテストはない。直すのは前の 2 か所である（1.2）。
+-   **文書のガードのコマンドの列挙:** `.github/workflows/ci.yml:187`、`CLAUDE.md:512`、`.claude/commands/_lib/task-pr-handoff.md:40`、`docs/dev/guides/fixprguard_guide.md:454` の 4 か所にある。これらが一致することを確かめるテストはない。直すのは前の 2 か所である（1.2）。
 -   **コマンドの文書にある `codex` の語:** `.claude/commands/runpr.md:240-278`（jq の文字列。`:255` の `kind: "codex"` を含む）、`:278`・`:339`・`:341`・`:404`（コメントの種類の名前としてのコードスパン `codex`）、`.claude/commands/_lib/task-pr-handoff.md:221,228`（HTML の印）、`.claude/commands/_context.md:185-187`（ログイン名と、`@codex review` のメンション）。どれも、`codex` をコマンドとして実行する形ではない。ステップ 3-2 のガードは、これらを拒まない。
 -   **共通手順の今のファイル名と、CodeRabbit CLI だけを述べる記述:** `git grep -l coderabbit-local-review -- ':!docs/tasks'` の出力は、`.claude/commands/_lib/coderabbit-local-review.md`、`_lib/pr-review-escalation.md`、`_lib/task-pr-handoff.md`、`_lib/triage-pattern.md`、`fixpr.md`、`runplan.md`、`runpr.md` の 7 つだった（`0d7283e`）。テストはない。設計書 3.9 の表の箇所に加えて、`runpr.md:9-10`（「The local CodeRabbit review is」）と `runplan.md:217`（PR の区切りのない計画で PR を開く経路）も改める。
 -   **最終メッセージの実物:** 観測の記録には、形（観測の記録の 5、O1・O2）だけがあり、文面そのものはコミットされていない。テストの入力は、同じ形の架空の文面で作る。
@@ -80,7 +82,7 @@
 
 #### ステップ 1-1: `GitEnv` と git の設定の上書きを `internal/cmdrunner` に移す
 
-**変えるファイル**: `internal/cmdrunner/`（新しいファイル `git.go` を想定）とそのテスト、`internal/fixprguard/gitstate.go`・`gitstate_test.go`・`ignored.go`・`ignored_test.go`・`test_helpers_git.go`・`worktree.go`、`cmd/fixprguard/main.go`・`test_helpers.go`、`docs/dev/developer_guide/package_reference.md`
+**変えるファイル**: `internal/cmdrunner/`（新しいファイル `git.go` を想定）とそのテスト、`internal/fixprguard/gitstate.go`・`gitstate_test.go`・`ignored.go`・`ignored_test.go`・`test_helpers_git.go`・`worktree.go`、`cmd/fixprguard/main.go`・`test_helpers.go`、`docs/dev/conventions/package_reference.md`
 
 -   [ ] `GitEnv` と git の設定の上書きを `internal/cmdrunner` に移す。設定の上書きは、Go の呼び出し側が書き換えられないように、呼ぶたびに新しいスライスを返す関数として公開する。
 -   [ ] コメントは、git に共通の理由（別のリポジトリを見ない、コマンドを起動する設定を止める、git 2.12 以上が要る）を移した先に置く。`CheckState` が設定を確かめるという `fixprguard` に固有の理由は、`fixprguard` の使う場所に残す。パッケージのコメント（`runner.go:1-3`）に、git の環境と設定の上書きと、新しく使う側になる `codexreview` を加える。
@@ -92,7 +94,7 @@
 
 #### ステップ 1-2: プロセスグループごと止めるオプションを加える
 
-**変えるファイル**: `internal/cmdrunner/runner.go`、`internal/cmdrunner/runner_test.go`、`docs/dev/developer_guide/package_reference.md`
+**変えるファイル**: `internal/cmdrunner/runner.go`、`internal/cmdrunner/runner_test.go`、`docs/dev/conventions/package_reference.md`
 
 -   [ ] `Options` に、子を自分のプロセスグループで起動するオプションを加える（設計書 3.3、1.3 の `internal/transcript` の形）。コンテキストが取り消されたら、グループに終了を求め、猶予の後もグループが残っていれば、グループに強制の停止を送る。直接の子が終わったら、出力のパイプが閉じるのを待つ前にグループに強制の停止を送り、子の終了コードで結果を決める。残った孫が出力のパイプを持ち続けても `exec.ErrWaitDelay` の失敗にはせず、孫が後の状態の比較と同時に動き続けることもないようにするためである（1.3 の `runner.go:89-93` は出力を `os.File` でない書き込み先で受けるので、`Wait` はパイプが閉じるまで待つ）。猶予は `WaitDelay` とは別に持つ。`WaitDelay` は、グループを止めた後にパイプを待つ上限として残す。零値のときは今と同じ振る舞いにする。
 -   [ ] テストを加える。オプションを付けると、次の 3 つの場合に孫のプロセスが止まる。(a) 時間切れ、(b) 終了の求めを無視する孫（猶予の後に止まる）、(c) 直接の子は 0 で終わり、孫だけが残って出力のパイプを持ち続ける場合（結果は成功で、標準出力も返る）。直接の子はグループの ID として自分のプロセス ID を、孫は自分のプロセス ID をファイルに書いてから待つので、テストはその書き込みを待ってから取り消す。停止は、期限まで繰り返し確かめ、ゾンビを止まったものとみなす（1.3 の既存の補助にならう）。直接の子のプロセス ID が分かったらすぐに、そのグループに強制の停止を送る `t.Cleanup` を登録し、孫自身にも生きる時間の上限を持たせる。オプションがないときの振る舞いは、既存のテストのまま確かめる。
@@ -122,7 +124,7 @@
 
 #### ステップ 2-1: 最終メッセージの文法と、指摘の位置の確かめ
 
-**変えるファイル**: `internal/codexreview/`（新設。最終メッセージの解析のファイル）とそのテスト、`internal/codexreview/testdata/`、`CLAUDE.md`、`docs/dev/developer_guide/package_reference.md`
+**変えるファイル**: `internal/codexreview/`（新設。最終メッセージの解析のファイル）とそのテスト、`internal/codexreview/testdata/`、`CLAUDE.md`、`docs/dev/conventions/package_reference.md`
 
 -   [ ] 最終メッセージを、設計書 3.4 の形と照らす関数を書く。結果は「指摘あり」「指摘なし」「読み取れない」のどれかで、「読み取れない」のときは指摘を 1 つも返さない。
 -   [ ] 指摘の位置を確かめる関数を書く（設計書 3.4「位置の確かめ」）。シンボリックリンクを解いた形でルートと比べる。ルートの外のパスを指す指摘が 1 つでもあれば、最終メッセージ全体を「読み取れない」とする。`BASE..HEAD` で変わったファイルにあり、ファイルがあり、行の範囲がファイルの中にあるときだけ `InRange` を真にする。
@@ -135,7 +137,7 @@
 
 #### ステップ 2-2: 偽の `codex` と、本物の `codex` を見つけない環境
 
-**変えるファイル**: `internal/codexreview/testutil/helpers.go`（新設、`package codexreviewtestutil`、1 行目は `//go:build test`）、`internal/pipeline/pipeline_test.go`（`TestFakesCarryBuildTag` の数）、`docs/dev/developer_guide/package_reference.md`
+**変えるファイル**: `internal/codexreview/testutil/helpers.go`（新設、`package codexreviewtestutil`、1 行目は `//go:build test`）、`internal/pipeline/pipeline_test.go`（`TestFakesCarryBuildTag` の数）、`docs/dev/conventions/package_reference.md`
 
 -   [ ] テストのバイナリを偽の `codex` にする補助を書く（1.2）。`internal/codexreview` と `cmd/codexreview` の両方のテストから使うので、`testutil` に置く（`test_organization.md` の分類 A）。
 -   [ ] `TestMain` から最初に呼ぶ入口を用意する。`os.Args[0]` の名前が `codex` なら、フラグを読む前に偽の `codex` として動いて終わる。振る舞いを選ぶ変数がなければ、決まった 0 以外の終了コードで終わり、テストを走らせ直さない。そうでなければ、プロセスの `PATH` を `git` だけを置いたディレクトリにし、`exec.LookPath("codex")` が失敗することを確かめてから `m.Run` を呼ぶ（1.3 の `cmd/yt2column/main_test.go` の前例）。テストが作るどの子のプロセスの環境も、この環境から作る。
@@ -189,7 +191,7 @@
 
 #### ステップ 2-4: `cmd/codexreview` と `install-codexreview`
 
-**変えるファイル**: `cmd/codexreview/main.go`（新設）、`cmd/codexreview/main_test.go`（新設）、`Makefile`、`docs/dev/developer_guide/package_reference.md`
+**変えるファイル**: `cmd/codexreview/main.go`（新設）、`cmd/codexreview/main_test.go`（新設）、`Makefile`、`docs/dev/conventions/package_reference.md`
 
 -   [ ] `main` を `internal/signalrun` の `Run` の下で動かす。引数は `--protocol` と `--base` を 1 回ずつだけ受け付け、ほかのフラグと位置引数を拒む（設計書 3.3）。`--protocol` の不一致と `--base` の形の誤りも `usage` として返す。結果の JSON を標準出力に 1 つだけ書き、1.2 の終了コードで終わる。
 -   [ ] テストを書く。`TestMain` は、まず子のモード（下の `TestSignalStopsCodexProcessGroup` が使う）を見分け、子は親が渡した環境のまま動く。そうでなければステップ 2-2 の入口を呼ぶ（1.3 の `cmd/yt2column/main_test.go` の順）。
@@ -223,7 +225,7 @@
     -   `TestNoDirectCodexInvocation`: コマンドの文書のコードブロックと、コマンドとして書いたコードスパンに、コマンドの位置にある `codex` がない。
     -   `TestInstallTargetDocumented`: `Makefile` に `install-codexreview` のターゲットがあり、`CLAUDE.md` の Commands の節に同じ名前の項目がある。
 -   [ ] 「コマンドとして書いたコードスパン」は、空白で区切った引数を含むコードスパンとする。「コマンドの位置」は、行や文の初め、`|`・`||`・`;`・`&`・`&&`・`$(`・バッククォートの後、`env`・`exec`・`command`・`xargs`・`time`・`nohup`・`sh -c`／`bash -c` の引数の初めとし、パスを付けた形（`/opt/homebrew/bin/codex`、`./codex`）と引用符で囲んだ形を含む。`npx @openai/codex` も拒む。`:` や `==` の後の引用符で囲んだ `"codex"` は、コマンドの位置ではない。
--   [ ] 判定の関数を、組み立てた文書で確かめる。上の拒む形をそれぞれ 1 行にし、1.3 の既存の形（`runpr.md:255` の `kind: "codex"`、`runpr.md:278` のコードスパン `codex`、HTML の印、ログイン名、`_context.md:187` のメンション）を拒まないことを、それぞれ 1 行で確かめる。`TestDocumentedProtocolMatches` も、組み立てた文書で、値の違いを見つけることを確かめる。この時点では、共通手順はまだ `codexreview` を呼ばない（1.2）。
+-   [ ] 判定の関数を、組み立てた文書で確かめる。上の拒む形をそれぞれ 1 行にし、1.3 の既存の形（`runpr.md:270` の `kind: "codex"`、`runpr.md:293` のコードスパン `codex`、HTML の印、ログイン名、`_context.md:187` のメンション）を拒まないことを、それぞれ 1 行で確かめる。`TestDocumentedProtocolMatches` も、組み立てた文書で、値の違いを見つけることを確かめる。この時点では、共通手順はまだ `codexreview` を呼ばない（1.2）。
 -   [ ] `cmd/fixprguard/docs_test.go` の `TestDocumentedProtocolMatches` が、上と同じ決め方で `codexreview` の呼び出しのものとした `--protocol` だけを除いて、今と同じくすべての `--protocol N` を確かめるようにする（1.3）。決め方は 2 つのガードで共有する。どの `--protocol N` も 2 つのガードのちょうど 1 つが確かめることを、組み立てた文書で確かめる（両方のツールの呼び出しを 1 行に含むもの、`--protocol` の前に別のフラグがあるもの、パイプを含むもの）。
 -   [ ] `CLAUDE.md` の Commands の節に `make install-codexreview` の項目を加える（設計書 3.9。1.2）。
 -   [ ] `CLAUDE.md`「Testing Strategy」の文書のテストの例外に、`codexreview` の `--protocol` の値と、`codex` を直接実行する形がないことの 2 つを加える（設計書 1.4）。
@@ -305,7 +307,7 @@
 
 **変えるファイル**: `.claude/commands/runplan.md`
 
--   [ ] 手順 4.5（`coderabbit` が `--base-commit` として受け取るという記述）、手順 7.7、手順 5a、手順 8（要約と、PR の区切りのない計画で PR を開く経路 `:217`）を、設計書 3.7 の表と 3.9 の表のとおりに改める。手順 5a と `:217` の経路は、`Local CLI review: not run` か `CodeRabbit local review: not run` の行があるときだけ、ブランチ全体を改めてレビューする（AC-15）。手順 8 の要約は、試行ごとの結果と Codex CLI の実行回数を示す（AC-11）。
+-   [ ] 手順 4.5（`coderabbit` が `--base-commit` として受け取るという記述）、手順 7.7、手順 5a、手順 8（要約と、PR の区切りのない計画で PR を開く経路 `:220`）を、設計書 3.7 の表と 3.9 の表のとおりに改める。手順 5a と `:220` の経路は、`Local CLI review: not run` か `CodeRabbit local review: not run` の行があるときだけ、ブランチ全体を改めてレビューする（AC-15）。手順 8 の要約は、試行ごとの結果と Codex CLI の実行回数を示す（AC-11）。
 
 **完了の条件**: `make test` が通る。
 
@@ -322,7 +324,7 @@
 **変えるファイル**: `.claude/commands/runpr.md`、`.claude/commands/fixpr.md`
 
 -   [ ] `runpr.md` の冒頭の注記（`:9-10`）を、ローカルの CLI レビューの記述に改める。手順 1 で、異系統のレビューを受けていない範囲を最終報告に示す（AC-14）。PR 本文は変えない。承認の記述（`:82-83`）に `codexreview` を加える（AC-16）。
--   [ ] `fixpr.md` の Phase 4.5 の見出しと本文（割り当ての記述 `:584-586` を含む）を、ローカルの CLI レビューに改める。異系統のレビューを受けていない範囲を Final report に示す（AC-14）。承認の記述（`:97-98`）に `codexreview` を加える（AC-16）。
+-   [ ] `fixpr.md` の Phase 4.5 の見出しと本文（割り当ての記述 `:603-605` を含む）を、ローカルの CLI レビューに改める。異系統のレビューを受けていない範囲を Final report に示す（AC-14）。承認の記述（`:97-98`）に `codexreview` を加える（AC-16）。
 
 **完了の条件**: `make test` が通る。
 
@@ -359,7 +361,7 @@
 
 **変えるファイル**: `CLAUDE.md`、`.coderabbit.yaml`、`.claude/commands/_lib/pr-review-escalation.md`、`.claude/commands/_lib/triage-pattern.md`、`cmd/yt2column/codex_review_docs_test.go`
 
--   [ ] 設計書 3.9 の表の残りの行を改める。`CLAUDE.md:101` と `:115-117`、`_lib/pr-review-escalation.md:10-12`、`_lib/triage-pattern.md:7`（呼び出し元の 5 か所の列挙）、`.coderabbit.yaml:9-12` である。割り当ての記述は、観測の記録の 1 の結論（PR レビューと同じ割り当てを消費する）と一致させる。
+-   [ ] 設計書 3.9 の表の残りの行を改める。`CLAUDE.md:167` と `:181-183`、`_lib/pr-review-escalation.md:10-12`、`_lib/triage-pattern.md:7`（呼び出し元の 5 か所の列挙）、`.coderabbit.yaml:9-12` である。割り当ての記述は、観測の記録の 1 の結論（PR レビューと同じ割り当てを消費する）と一致させる。
 -   [ ] `TestCodeRabbitConfigStopsReview` が求める文を、改めた `.coderabbit.yaml` の注釈の文に合わせる（設計書 7.1）。
 
 **完了の条件**: `make test` と `make lint` が通る。`.coderabbit.yaml` の新しい文を消すと `TestCodeRabbitConfigStopsReview` が失敗することを確かめる。
