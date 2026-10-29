@@ -194,15 +194,15 @@ PR-1・PR-2 のマージで `.claude/commands/` と `CLAUDE.md` の行番号が�
 
 **変えるファイル**: `cmd/codexreview/main.go`（新設）、`cmd/codexreview/main_test.go`（新設）、`Makefile`、`docs/dev/conventions/package_reference.md`
 
--   [ ] `main` を `internal/signalrun` の `Run` の下で動かす。引数は `--protocol` と `--base` を 1 回ずつだけ受け付け、ほかのフラグと位置引数を拒む（設計書 3.3）。`--protocol` の不一致と `--base` の形の誤りも `usage` として返す。結果の JSON を標準出力に 1 つだけ書き、1.2 の終了コードで終わる。
--   [ ] テストを書く。`TestMain` は、まず子のモード（下の `TestSignalStopsCodexProcessGroup` が使う）を見分け、子は親が渡した環境のまま動く。そうでなければステップ 2-2 の入口を呼ぶ（1.3 の `cmd/yt2column/main_test.go` の順）。
+-   [x] `main` を `internal/signalrun` の `Run` の下で動かす。引数は `--protocol` と `--base` を 1 回ずつだけ受け付け、ほかのフラグと位置引数を拒む（設計書 3.3）。`--protocol` の不一致と `--base` の形の誤りも `usage` として返す。結果の JSON を標準出力に 1 つだけ書き、1.2 の終了コードで終わる。
+-   [x] テストを書く。`TestMain` は、まず子のモード（下の `TestSignalStopsCodexProcessGroup` が使う）を見分け、子は親が渡した環境のまま動く。そうでなければステップ 2-2 の入口を呼ぶ（1.3 の `cmd/yt2column/main_test.go` の順）。
     -   `TestRunRejectsArguments`: 不正な引数、重なったフラグ、位置引数、`--protocol` の不一致、40 桁の 16 進数でない `--base` で `usage` になり、偽の `codex` が起動されない。
     -   `TestExitCodes`: すべての種類と、知らない種類について、終了コードが 1.2 のとおりになる。
     -   `TestOutputIsOneJSONObject`: 標準出力が 1 つの JSON のオブジェクトで、`protocol` が `Protocol` と一致する。
     -   `TestSignalStopsCodexProcessGroup`: テストのバイナリを子のモードで起動し直して `codexreview` として動かし（1.3 の `cmd/yt2column` の前例）、偽の `codex` の孫が起動したのを待ってから SIGTERM を送ると、孫も止まり、`codexreview` が結果を書かずに 1 で終わる。
--   [ ] 次の 4 つの壊し方のそれぞれで、対応するテストが失敗することを確かめる。`signalrun` を使わない、重なったフラグを受け付ける、知らない種類を 0 にする、JSON のオブジェクトを 2 つ書く。
--   [ ] `Makefile` に `install-codexreview`（`go install ./cmd/codexreview`）を、`install-fixprguard` と同じ形のコメントとともに加え、`.PHONY` にも加える。
--   [ ] `package_reference.md` に `cmd/codexreview` の行を加える。
+-   [x] 次の 4 つの壊し方のそれぞれで、対応するテストが失敗することを確かめる。`signalrun` を使わない、重なったフラグを受け付ける、知らない種類を 0 にする、JSON のオブジェクトを 2 つ書く。
+-   [x] `Makefile` に `install-codexreview`（`go install ./cmd/codexreview`）を、`install-fixprguard` と同じ形のコメントとともに加え、`.PHONY` にも加える。
+-   [x] `package_reference.md` に `cmd/codexreview` の行を加える。
 
 **完了の条件**: `make test`・`make lint`・`make deadcode` が通る。
 

@@ -63,6 +63,7 @@ const (
 // taken from codex's output.
 const (
 	detailBadArguments        = "bad_arguments"
+	detailProtocolMismatch    = "protocol_mismatch"
 	detailNotWorktreeRoot     = "not_worktree_root"
 	detailBaseNotAncestor     = "base_not_ancestor"
 	detailDirtyTree           = "dirty_tree"
@@ -519,6 +520,15 @@ func (p prepared) result(kind Kind, detail string) Result {
 	r.InstructionsChanged = touchesInstructions(p.changed)
 	return r
 }
+
+// BadArgumentsResult returns the result of a command line codexreview
+// refuses for its shape: an unknown or repeated flag, a missing flag, or a
+// positional argument.
+func BadArgumentsResult() Result { return newResult(KindUsage, detailBadArguments) }
+
+// ProtocolMismatchResult returns the result of a command line whose
+// --protocol is not Protocol.
+func ProtocolMismatchResult() Result { return newResult(KindUsage, detailProtocolMismatch) }
 
 // newResult returns a Result with empty, not null, lists.
 func newResult(kind Kind, detail string) Result {
