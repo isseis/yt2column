@@ -89,7 +89,8 @@ func inCodeSpan(spans [][]int, offset int) bool {
 }
 
 // readmeGuides are the developer guides split out of the README. TestReadmeLinks
-// checks their links, anchors included, so instructionDocs leaves them out.
+// checks their links, anchors included, and their code-span paths, so
+// instructionDocs leaves them out.
 var readmeGuides = []string{"docs/dev/guides/cli.md", "docs/dev/guides/development.md"}
 
 // instructionDocs returns the documents that tell an agent what to do, from

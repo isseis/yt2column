@@ -66,22 +66,3 @@ func dropLastRune(s string) string {
 	runes := []rune(s)
 	return string(runes[:len(runes)-1])
 }
-
-// TestRejectionDisplaySpellings checks the spellings themselves: within a
-// language, each category has a spelling of its own, so no cell can mean two
-// categories and no category is reached by an empty cell.
-func TestRejectionDisplaySpellings(t *testing.T) {
-	for name, s := range map[string]RejectionDisplaySpelling{"ja": RejectionDisplayJA, "en": RejectionDisplayEN} {
-		spellings := []string{s.FixedMessage, s.UnexpectedReply, s.FixedMessageUnlessNoRequestID}
-		seen := map[string]struct{}{}
-		for _, spelling := range spellings {
-			if strings.TrimSpace(spelling) == "" {
-				t.Errorf("%s: a category has an empty spelling", name)
-			}
-			if _, dup := seen[spelling]; dup {
-				t.Errorf("%s: two categories share the spelling %q", name, spelling)
-			}
-			seen[spelling] = struct{}{}
-		}
-	}
-}

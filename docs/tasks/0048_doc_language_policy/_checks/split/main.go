@@ -32,8 +32,9 @@
 //
 // With a third commit, the one where cli.md and development.md are in
 // Japanese, it also checks that the translation kept each guide's structure:
-// the sequence of heading levels, the content of every code block, and the
-// number of rows of every table are the same as at the move commit.
+// the sequence of heading levels, the content of every code block, the number
+// of rows of every table, and the multiset of inline code spans outside code
+// blocks are the same as at the move commit.
 //
 // Run it from the repository root, once on the PR branch. make test and CI do
 // not run it, and it is not maintained after the merge. It reads no
@@ -481,7 +482,31 @@ func checkTranslation(move, translated, path string) []string {
 	if b, a := tableSizes(before), tableSizes(after); !slices.Equal(b, a) {
 		problems = append(problems, fmt.Sprintf("table row counts %v, were %v", a, b))
 	}
+	b2, a2 := inlineCode(before), inlineCode(after)
+	for span, n := range b2 {
+		if a2[span] < n {
+			problems = append(problems, fmt.Sprintf("inline code %s: %d, was %d", span, a2[span], n))
+		}
+	}
 	return problems
+}
+
+// codeSpanRE matches an inline code span of single backticks.
+var codeSpanRE = regexp.MustCompile("`[^`]+`")
+
+// inlineCode counts the inline code spans of doc outside code blocks. A
+// translation may add a span but must not lose one.
+func inlineCode(doc string) map[string]int {
+	counts := map[string]int{}
+	for _, line := range doctestutil.ScanDocLines(slices.Collect(strings.Lines(doc))) {
+		if line.Block {
+			continue
+		}
+		for _, span := range codeSpanRE.FindAllString(line.Text, -1) {
+			counts[span]++
+		}
+	}
+	return counts
 }
 
 // headingLevels returns the level of each heading of doc outside code blocks.

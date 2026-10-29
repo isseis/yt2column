@@ -408,8 +408,7 @@ Host exit codes for `install` and `uninstall`:
 
 ### Rejection reasons
 
-When the server rejects a request, the popup shows the rejection's `reason`.
-What the extension shows for each reason:
+What the extension shows when the server rejects a request with each reason:
 
 | reason | extension shows |
 |---|---|

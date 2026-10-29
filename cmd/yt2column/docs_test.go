@@ -477,18 +477,6 @@ func productionProfileVars() []string {
 	}
 }
 
-// tableColumn returns the index of the column whose header equals name,
-// ignoring case and backticks, or -1. It matches the way doctestutil.FindTable
-// and tableRowsWithFirstCell read a header cell.
-func tableColumn(header []string, name string) int {
-	for i, cell := range header {
-		if strings.EqualFold(doctestutil.StripBackticks(cell), name) {
-			return i
-		}
-	}
-	return -1
-}
-
 // checkProfileTable checks the shared document's profile table: each stage has
 // exactly one row, and the first code spans of its provider and model cells,
 // joined by "/" into one LLM variable value, and of its effort cell, loaded
@@ -505,7 +493,7 @@ func checkProfileTable(t *testing.T, section string, defaults config.LLMConfig) 
 	names := []string{"プロバイダ", "モデル", "effort"}
 	columns := make([]int, len(names))
 	for i, name := range names {
-		if columns[i] = tableColumn(table[0], name); columns[i] < 0 {
+		if columns[i] = doctestutil.ColumnIndex(table[0], name); columns[i] < 0 {
 			t.Fatalf("production_profile.md: the profile table has no %s column", name)
 		}
 	}
@@ -763,8 +751,20 @@ func TestProductionProfileLinks(t *testing.T) {
 // points at an existing path, and every link to a heading, in the same
 // document or in another one, resolves to an anchor the helper produces from
 // the target document's headings. GitHub resolves those, so they are the
-// oracle for the anchor rule.
+// oracle for the anchor rule. A repository path under docs/dev/ written in a
+// code span must exist too, as TestInstructionDocPaths checks for the other
+// documents under docs/dev/.
 func TestReadmeLinks(t *testing.T) {
+	targetAnchors := map[string]map[string]struct{}{}
+	anchorsOf := func(t *testing.T, path string) map[string]struct{} {
+		t.Helper()
+		if anchors, ok := targetAnchors[path]; ok {
+			return anchors
+		}
+		anchors := headingAnchors(t, path, doctestutil.ReadDoc(t, path))
+		targetAnchors[path] = anchors
+		return anchors
+	}
 	for _, doc := range []struct{ name, path string }{
 		{"README.md", readmePath},
 		{"cli.md", cliDocPath},
@@ -790,10 +790,18 @@ func TestReadmeLinks(t *testing.T) {
 					if !hasAnchor {
 						continue
 					}
-					known = headingAnchors(t, path, doctestutil.ReadDoc(t, resolved))
+					known = anchorsOf(t, filepath.Clean(resolved))
 				}
 				if _, ok := known[anchor]; !ok {
 					t.Errorf("%s links to %q, which the anchor helper does not produce", doc.name, target)
+				}
+			}
+			for _, ref := range docPathRefs(text) {
+				if ref.relative {
+					continue
+				}
+				if _, err := os.Stat(filepath.Join(repositoryRoot, filepath.FromSlash(ref.path))); err != nil {
+					t.Errorf("%s names %q, which does not exist", doc.name, ref.path)
 				}
 			}
 		})

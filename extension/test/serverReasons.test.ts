@@ -33,6 +33,7 @@ function documentedFixedMessageReasons(): Map<string, number> {
     return rows;
   }
   const { display } = developmentDoc;
+  const seen = new Set<string>();
   // Skip the header and the separator row.
   for (const line of lines.slice(start + 2)) {
     if (!line.startsWith("|")) {
@@ -40,6 +41,11 @@ function documentedFixedMessageReasons(): Map<string, number> {
     }
     const [reasonCell = "", statusCell = "", displayCell = ""] = cells(line);
     const reason = reasonCell.replaceAll("`", "");
+    assert.ok(
+      !seen.has(reason),
+      `${developmentDoc.path} lists ${reason} twice`,
+    );
+    seen.add(reason);
     switch (displayCell) {
       case display.fixedMessage:
       case display.fixedMessageUnlessNoRequestId:

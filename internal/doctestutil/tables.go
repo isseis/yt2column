@@ -74,6 +74,17 @@ func FindTable(doc, header string) [][]string {
 	return nil
 }
 
+// ColumnIndex returns the index of the header cell equal to name, ignoring
+// case and backticks as FindTable does, or -1 when there is none.
+func ColumnIndex(header []string, name string) int {
+	for i, cell := range header {
+		if strings.EqualFold(StripBackticks(cell), name) {
+			return i
+		}
+	}
+	return -1
+}
+
 // TableRow returns the first body row whose first cell equals first, ignoring
 // backticks, or nil when there is none.
 func TableRow(table [][]string, first string) []string {

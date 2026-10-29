@@ -129,6 +129,9 @@ func TestServerDocsContract(t *testing.T) {
 				continue
 			}
 			reason := doctestutil.StripBackticks(row[reasonCol])
+			if _, dup := byReason[reason]; dup {
+				t.Errorf("development.md rejection table lists %q twice", reason)
+			}
 			display, err := doctestutil.RejectionDisplayJA.Category(row[displayCol])
 			if err != nil {
 				t.Errorf("development.md rejection table, %s: %v", reason, err)
@@ -272,9 +275,7 @@ func TestServerDocsContract(t *testing.T) {
 // and backticks, failing the test when doc's table has no such column.
 func columnIndex(t *testing.T, doc string, header []string, name string) int {
 	t.Helper()
-	i := slices.IndexFunc(header, func(cell string) bool {
-		return strings.EqualFold(doctestutil.StripBackticks(cell), name)
-	})
+	i := doctestutil.ColumnIndex(header, name)
 	if i < 0 {
 		t.Fatalf("%s: the table headed %q has no %q column", doc, header, name)
 	}
