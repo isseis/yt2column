@@ -115,6 +115,9 @@ func TestRunRejectsArguments(t *testing.T) {
 		// Four arguments, the right count, with one flag twice.
 		{"protocol_twice_no_base", []string{"--protocol", p, "--protocol", p}, "bad_arguments"},
 		{"base_twice_no_protocol", []string{"--base", fx.base, "--base", fx.base}, "bad_arguments"},
+		// Four arguments with an unknown flag in place of --protocol: only
+		// the name check refuses it, since the base is well formed.
+		{"unknown_flag_four_arguments", []string{"--model", "m", "--base", fx.base}, "bad_arguments"},
 		{"positional_argument", []string{"--protocol", p, "--base", fx.base, "extra"}, "bad_arguments"},
 		{"help", []string{"-h"}, "bad_arguments"},
 		{"single_dash", []string{"-protocol", p, "-base", fx.base}, "bad_arguments"},
@@ -124,8 +127,7 @@ func TestRunRejectsArguments(t *testing.T) {
 		{"protocol_not_a_number", []string{"--protocol", "x", "--base", fx.base}, "protocol_mismatch"},
 		// A newer document may add a flag; the stale install is still named.
 		{"protocol_mismatch_with_new_flag", []string{"--protocol", strconv.Itoa(codexreview.Protocol + 1), "--base", fx.base, "--new", "v"}, "protocol_mismatch"},
-		// The base's form is Run's check (internal/codexreview); this row
-		// shows the value reaches it unchanged.
+		// A malformed base is refused by Run's check (internal/codexreview).
 		{"base_ref", []string{"--protocol", p, "--base", "main"}, "bad_arguments"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

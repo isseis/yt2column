@@ -218,7 +218,9 @@ type Behavior struct {
 	LastMessageLink string `json:"last_message_link,omitempty"`
 
 	// PIDFile, when set, receives the PID of a review start. IgnoreTerm
-	// makes that start ignore SIGTERM, so only a kill stops it.
+	// makes that start ignore SIGTERM, so only a kill stops it. The PID is
+	// written after SIGTERM is ignored, so a test that reads it may signal
+	// at once.
 	PIDFile    string `json:"pid_file,omitempty"`
 	IgnoreTerm bool   `json:"ignore_term,omitempty"`
 
