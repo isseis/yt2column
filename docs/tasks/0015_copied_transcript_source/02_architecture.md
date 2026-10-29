@@ -453,7 +453,7 @@ var ErrCopiedTranscriptFormat = errors.New("copied transcript does not match the
 | `.gitattributes` | 新規（コミット `4fe06e0` で追加済み） | `testdata/*.transcript_copy.txt -text`。`core.autocrlf` の設定で、チェックアウト時に行の区切りが CRLF に書き換わらないようにする（§3.5） |
 | `CLAUDE.md` | 変更 | 「Declare, don't infer」と「Delegate the fragile part」の例外（§1.3.1・§3.6）。Architecture Overview の `TranscriptSource` の説明に `CopiedSource` を加える |
 | `docs/dev/project_overview.md` | 変更 | 「決定済みの方針」の字幕取得（`:11`）に例外 2（§1.3.1）を加える。「パイプライン」の `TranscriptSource` の実装と、「想定ディレクトリ構成」の `internal/transcript/` の注記（`:76`）に `CopiedSource` を加える |
-| `docs/dev/developer_guide/package_reference.md` | 変更 | `internal/transcript` の行に `CopiedSource`・`NewCopiedSource`・`ErrCopiedTranscriptFormat` を加える |
+| `docs/dev/conventions/package_reference.md` | 変更 | `internal/transcript` の行に `CopiedSource`・`NewCopiedSource`・`ErrCopiedTranscriptFormat` を加える |
 | `docs/translation_glossary.md` | 変更 | 「コピーした字幕」「形 A」「形 B」「時刻の行」「本文の行」「読み上げ用ラベル」の対訳 |
 
 **更新が必要な既存のテスト。** ない。`TestCommonTypesFieldSets`（`internal/pipeline/pipeline_test.go:378`）は、`Transcript`・`Segment` を変えないので変更なしで通る。`TestPackageReferenceListsPackages`（同 `:610`）は、パッケージを増やさないので行の追加を求めない（`internal/transcript` の行の文面は更新する）。`TestFakesCarryBuildTag`（同 `:534`）は、`testutil/` にファイルを加えないので件数を変えない。

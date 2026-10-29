@@ -68,7 +68,7 @@ flowchart LR
 
 ### 1.3. 既存コードとの関係
 
-リポジトリの Go ソースは `cmd/yt2column/main.go` の空の `main()` だけであり（`cmd/yt2column/main.go:4`。執筆時点の HEAD `1ce67e5` で確認）、`docs/dev/developer_guide/package_reference.md:7` も「No packages exist yet」としている。テストファイル（`*_test.go`）も存在しない（同じ HEAD で `git ls-files '*.go'` が返すのは `cmd/yt2column/main.go` のみ）。したがって本タスクで再利用できる既存コンポーネントはなく、すべてのパッケージを新設する。既存の実装を置き換える設計はなく、更新が必要になる既存テストもない。
+リポジトリの Go ソースは `cmd/yt2column/main.go` の空の `main()` だけであり（`cmd/yt2column/main.go:4`。執筆時点の HEAD `1ce67e5` で確認）、`docs/dev/conventions/package_reference.md:7` も「No packages exist yet」としている。テストファイル（`*_test.go`）も存在しない（同じ HEAD で `git ls-files '*.go'` が返すのは `cmd/yt2column/main.go` のみ）。したがって本タスクで再利用できる既存コンポーネントはなく、すべてのパッケージを新設する。既存の実装を置き換える設計はなく、更新が必要になる既存テストもない。
 
 `cmd/yt2column/main.go` は本タスクのスコープ外（CLI 配線は #6）で変更しない。
 
@@ -442,7 +442,7 @@ func (p *Pipeline) Run(ctx context.Context, videoURL string) (writer.Article, er
 
 ### 3.5. テスト用の fake
 
-4 つの interface それぞれに、戻り値とエラーを指定でき、呼び出しを記録する fake を用意する（F-004）。配置は `docs/dev/developer_guide/test_organization.md` の分類 A（`testutil/` サブディレクトリ）に従い、interface を定義するパッケージの `testutil/mocks.go` に置く。
+4 つの interface それぞれに、戻り値とエラーを指定でき、呼び出しを記録する fake を用意する（F-004）。配置は `docs/dev/conventions/test_organization.md` の分類 A（`testutil/` サブディレクトリ）に従い、interface を定義するパッケージの `testutil/mocks.go` に置く。
 
 | interface | fake の置き場所 | パッケージ名 |
 |---|---|---|
@@ -477,7 +477,7 @@ var _ transcript.TranscriptSource = (*FakeTranscriptSource)(nil)
 
 - **AC-15**: テストから戻り値（`Result`）とエラー（`Err`）を指定できる。
 - **AC-16**: 呼び出しごとに引数を `Calls` に追記し、呼ばれた回数（`len(Calls)`）と引数をテストから参照できる。
-- **AC-17**: すべての fake ファイルは `//go:build test` を付け、本番バイナリに含めない。`testutil/` 配下のすべてのファイル（`mocks_test.go` を含む）にタグを付ける。テストファイルへのタグ付けを忘れると、タグを渡さない `go vet ./...` や IDE が `undefined:` で失敗する（`docs/dev/developer_guide/test_organization.md:91-93`）。
+- **AC-17**: すべての fake ファイルは `//go:build test` を付け、本番バイナリに含めない。`testutil/` 配下のすべてのファイル（`mocks_test.go` を含む）にタグを付ける。テストファイルへのタグ付けを忘れると、タグを渡さない `go vet ./...` や IDE が `undefined:` で失敗する（`docs/dev/conventions/test_organization.md:91-93`）。
 
 他の 3 つの fake も同じ形をとる（`LLMClient` は `GenerateRequest` を、`ArticleWriter` は `Transcript` を、`Publisher` は `Article` を記録する）。
 
@@ -501,7 +501,7 @@ var _ transcript.TranscriptSource = (*FakeTranscriptSource)(nil)
 | `internal/publisher/testutil/mocks_test.go` | fake の振る舞いのテスト（AC-15・AC-16） | 新設 |
 | `internal/pipeline/pipeline.go` | `Pipeline`・`New`・`Run`・`Stage`・`StageError`・`ErrNilStage` | 新設 |
 | `internal/pipeline/pipeline_test.go` | AC-09〜AC-14 のテスト | 新設 |
-| `docs/dev/developer_guide/package_reference.md` | 新設パッケージの登録（各パッケージを追加するコミットと同じコミットで更新する。package_reference.md 冒頭の規則） | 変更 |
+| `docs/dev/conventions/package_reference.md` | 新設パッケージの登録（各パッケージを追加するコミットと同じコミットで更新する。package_reference.md 冒頭の規則） | 変更 |
 | `docs/dev/project_overview.md` | 「パイプライン」の節の `LLMClient` 周り（戻り値・責務の記述・`GenerateRequest` のフィールド名・想定ディレクトリ構成の `internal/secret/`）を本設計に合わせて更新（01_requirements.md §5.1、付録A） | 変更 |
 
 `cmd/yt2column/main.go` は本タスクでは変更しない（CLI 配線は #6）。既存テストの更新は不要（既存テストが存在しない。§1.3）。
@@ -733,7 +733,7 @@ fake 自体の振る舞い（指定した戻り値を返す・呼び出しを記
 4. **フェーズ 4: `internal/pipeline`** — `Stage`・`StageError`・`ErrNilStage`・`New`・`Run` と AC-09〜AC-14・AC-14a のテスト。fake を注入して検証する。
 5. **フェーズ 5: ドキュメント更新** — `docs/dev/project_overview.md` の `LLMClient` 周りの更新（01_requirements.md §5.1 と付録A のとおり）。
 
-各フェーズで `make fmt` → `make test` → `make lint` を実行する。`docs/dev/developer_guide/package_reference.md` への登録はフェーズ 5 にまとめず、各パッケージを新設するフェーズ（1・2・3・4）のコミットで行う（package_reference.md 冒頭の「パッケージを追加するコミットと同じコミットで更新する」規則）。
+各フェーズで `make fmt` → `make test` → `make lint` を実行する。`docs/dev/conventions/package_reference.md` への登録はフェーズ 5 にまとめず、各パッケージを新設するフェーズ（1・2・3・4）のコミットで行う（package_reference.md 冒頭の「パッケージを追加するコミットと同じコミットで更新する」規則）。
 
 ---
 

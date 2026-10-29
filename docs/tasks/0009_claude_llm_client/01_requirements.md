@@ -50,7 +50,7 @@ DeepSeek アダプタと共通する規則（秘密情報の保護、通信の�
 -   `internal/llm/provider` での Claude アダプタの構築
 -   Claude の API とネットワークを使わないユニットテスト
 -   実 API を使う手動実行の統合テスト（既定のテストからは除外）
--   文書の更新（[project_overview.md](../../dev/project_overview.md) の設定の表とパッケージ構成、[security.md](../../dev/security.md) §4、[package_reference.md](../../dev/developer_guide/package_reference.md)、`README.md` の設定の説明）
+-   文書の更新（[project_overview.md](../../dev/project_overview.md) の設定の表とパッケージ構成、[security.md](../../dev/security.md) §4、[package_reference.md](../../dev/conventions/package_reference.md)、`README.md` の設定の説明）
 
 ### 2.3. スコープ外 (Out of Scope)
 

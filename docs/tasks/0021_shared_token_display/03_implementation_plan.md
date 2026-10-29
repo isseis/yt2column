@@ -19,7 +19,7 @@
 -   `cmd/yt2column-server` の `run` の手順 2（トークンの読み込みと表示）で、生成した起動だけでなく起動のたびに表示し、表示に失敗しても起動を止めない（設計書 3.1）。
 -   標準出力が閉じたパイプのときもプロセスが終了しないようにし（設計書 3.1）、表示に失敗しても待ち受けるテストと、閉じたパイプでも待ち受けるテストを加える（設計書 7）。
 -   使われなくなる `created` を `internal/authtoken.LoadOrCreate` の戻り値から外し、表示に合わせて `Token.Value` のコメントを改める（設計書 2.2・3.2）。
--   README・`docs/dev/security.md` §8.2・`docs/dev/developer_guide/package_reference.md` を改め、README・`security.md` §8.2 の記載を `cmd/yt2column-server/docs_test.go` のガードのテストで固定する（設計書 3.4・7）。
+-   README・`docs/dev/security.md` §8.2・`docs/dev/conventions/package_reference.md` を改め、README・`security.md` §8.2 の記載を `cmd/yt2column-server/docs_test.go` のガードのテストで固定する（設計書 3.4・7）。
 
 本計画で使う略号は次のとおりである。AC-NN は要件書の受け入れ基準、F-NNN は要件書の機能要件、H-NN は [design_handoff.md](design_handoff.md) の項目を指す。「§N」は本計画の節、「設計書 N」は設計書の節を指す。
 
@@ -72,7 +72,7 @@ HEAD `f40a831` で確認した。設計書は既存のファイルの行番号�
 
 -   README の生成した起動だけを前提にした記述は `README.md:196`（「(on the first start only)」）、`:214`（「prints it once」）、`:217-218`（「On later starts the server reads the same token and does not print it」）にある。ステップ 3-1 で起動のたびの表示に改める。
 -   `security.md` §8.2 の「表示と作り直し」は `docs/dev/security.md:119` にあり、「生成した起動だけ」を前提にする。ステップ 3-2 で改める。同じ節の「拡張への受け渡し」の行（`:120`）の「生成時に表示されたトークン」も、起動のたびの表示に合わせて改める（要件書 F-002 の「`security.md` §8.2 を起動のたびに表示する形に改める」に含まれる）。
--   `docs/dev/developer_guide/package_reference.md:16` の `cmd/yt2column-server` の行の 2 か所を、§1.3 の名前の台帳のとおりに改める。
+-   `docs/dev/conventions/package_reference.md:16` の `cmd/yt2column-server` の行の 2 か所を、§1.3 の名前の台帳のとおりに改める。
 
 **名前の台帳**
 
@@ -89,7 +89,7 @@ HEAD `f40a831` で確認した。設計書は既存のファイルの行番号�
 | 表のフィールド | `TestStartupFailures.stdoutFails` | 削除（表示の失敗で終了しなくなる） | 同上 | 1-5 |
 | 文書の語句 | 「他方が先に作ったファイルを読んで `created=false` を返し、上書きしない」 | 「他方が先に作ったファイルを読んでその値を返し、上書きしない」 | `docs/dev/security.md:116` | 3-2 |
 | 文書の語句 | 「生成時に表示されたトークン」 | 「起動時に表示されたトークン」 | `docs/dev/security.md:120` | 3-2 |
-| 文書の語句 | 「a created token is written to standard output once, before listening, and nowhere else」・「Standard error carries every line except the created token」 | 「the shared token is written to standard output on every start, before listening, and nowhere else」・「Standard error carries every line except the shared token」 | `docs/dev/developer_guide/package_reference.md:16` | 3-3 |
+| 文書の語句 | 「a created token is written to standard output once, before listening, and nowhere else」・「Standard error carries every line except the created token」 | 「the shared token is written to standard output on every start, before listening, and nowhere else」・「Standard error carries every line except the shared token」 | `docs/dev/conventions/package_reference.md:16` | 3-3 |
 
 **改名の残余参照の確認（横断検索）**
 
@@ -218,7 +218,7 @@ HEAD `f40a831` で確認した。設計書は既存のファイルの行番号�
 ### フェーズ 3: 文書
 
 **対象ファイル**
--   変更: `README.md`、`docs/dev/security.md`、`docs/dev/developer_guide/package_reference.md`、`cmd/yt2column-server/docs_test.go`
+-   変更: `README.md`、`docs/dev/security.md`、`docs/dev/conventions/package_reference.md`、`cmd/yt2column-server/docs_test.go`
 
 **タスク**
 -   [x] **ステップ 3-1**: README を設計書 3.4 の `README.md` の行のとおりに改める（F-002）。「Running the server」節の「(on the first start only)」を、起動のたびに標準出力へ表示される形に改める。「The shared token」節の「prints it once」「does not print it」を改め、値を再び確認する主たる経路を「起動し直す」とし、ファイルを読む手順を表示に失敗したときの補足として残す。標準出力をファイルにリダイレクトするとトークンがそのファイルに残る注意を加え、`2>>server.log` の起動例（標準エラー出力だけをファイルに残す形）を維持する。
@@ -226,7 +226,7 @@ HEAD `f40a831` で確認した。設計書は既存のファイルの行番号�
 -   [x] **ステップ 3-2**: `security.md` §8.2 の「表示と作り直し」の記述を、生成した起動だけでなく起動のたびに表示する形に改める（設計書 3.4。F-002）。露出の経路（標準出力、端末のスクロールバック、標準出力をリダイレクトしたファイル、起動した呼び出し元による出力の捕捉）、ログへの非露出、標準出力と標準エラー出力の分離、表示に失敗しても起動を続けることを記す。同じ節の「拡張への受け渡し」の行（`security.md:120`）の「生成時に表示されたトークン」も、起動のたびの表示に合わせて「起動時に表示されたトークン」に改める。「生成」の行（`security.md:116`）の「`created=false` を返し」は、ステップ 1-1 で外した戻り値に触れているので「その値を返し」に改める（いずれも §1.3 の名前の台帳）。見出し「### 8.2. localhost サーバ（#109）」は変えない（`docs_test.go` の `sectionByHeading` が読むため）。
     -   **対象:** `docs/dev/security.md`。**完了:** `make test`（`security.md` を読む Go のテスト）が通る。
 -   [x] **ステップ 3-3**: `package_reference.md` の `cmd/yt2column-server` の行の 2 か所を、§1.3 の名前の台帳のとおりに改める（設計書 3.4）。この行の文面は `internal/pipeline` のガードが固定しない（`TestPackageReferenceListsPackages` はパッケージの行の有無だけを確かめる）ので、文面の正しさはレビューで確かめ、§5 の AC には数えない。
-    -   **対象:** `docs/dev/developer_guide/package_reference.md`。**完了:** `make test`（`internal/pipeline` の `TestPackageReferenceListsPackages` ほか）が通る。
+    -   **対象:** `docs/dev/conventions/package_reference.md`。**完了:** `make test`（`internal/pipeline` の `TestPackageReferenceListsPackages` ほか）が通る。
 -   [x] **ステップ 3-4**: `docs_test.go` の `TestServerDocsContract` に、README・`security.md` §8.2 の新しい記載を固定する検査を加える（AC-08・AC-09。設計書 3.4・7）。既存の検査（`tokenName`・`0600`・`O_NOFOLLOW`・`link(2)` など）は維持する。照合する語句は実装で決め、文書の書きぶりに合わせる。README は「起動のたびの表示」「貼り付け」「再確認（起動し直す）」「ファイルを読む補足」「リダイレクトの注意」を、`security.md` §8.2 は「起動のたびの表示」「露出の経路」「ログへの非露出」「標準出力と標準エラー出力の分離」を含むことを確かめる。
     -   **対象:** `cmd/yt2column-server/docs_test.go`。**完了:** `make test` が通る。
 -   [x] **ステップ 3-5**: 壊して失敗することを確かめ、コミットメッセージに記録する。README の「on the first start only」を戻す。`security.md` §8.2 を「生成した起動だけ表示する」に戻す。`security.md:120` の「起動時に表示されたトークン」を「生成時に表示されたトークン」に戻す。ステップ 3-4 の確かめる語句を含む文を README・`security.md` から 1 つずつ消す（いずれも `TestServerDocsContract`）。`security.md:120` を戻すことが検出されない場合は、その語句の検査をステップ 3-4 に加える。続けて `make fmt` → `make test` → `make lint` を通す。**対象:** なし（確認のみ）。**完了:** 各対象を壊して失敗することを確認し、コミットメッセージに記録する。

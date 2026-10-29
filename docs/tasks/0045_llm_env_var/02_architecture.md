@@ -445,7 +445,7 @@ type LLMConfig struct {
 | `docs/dev/production_profile.md`「本番の構成」 | `export` の例を 2 行にし、変数の数を述べる 2 つの文（「次の 3 つ」と、`:42` の「上の 3 つの変数を指定しなくても」）を例に合わせる。検証・推敲の変数の説明（`:39`）を `YT2COLUMN_REVIEW_LLM` に書き換える。段階の表の列は保つ（1.2） | AC-22・AC-26 |
 | `docs/dev/security.md` §4 | 検証・推敲のプロバイダを別にする変数を `YT2COLUMN_REVIEW_LLM` に書き換える（`security.md:58`） | AC-26 |
 | `docs/dev/security.md` §3 | 「モデル ID は要求本文（JSON）の値としてだけ送り、要求の URL には入れない。URL のパスにモデルを入れる API のプロバイダを加えるときは、モデル ID の中の `/` や `..` がパスを変えないようにする」という項目を加える | H-07 |
-| `docs/dev/developer_guide/package_reference.md` | `internal/config` の行（`:27`）の LLM の設定の説明を、新しい変数、既定値、継承、旧変数の拒否に書き換える。`internal/llm/provider` の行（`:36`）は、アクセサを保つので変えない | AC-26 |
+| `docs/dev/conventions/package_reference.md` | `internal/config` の行（`:27`）の LLM の設定の説明を、新しい変数、既定値、継承、旧変数の拒否に書き換える。`internal/llm/provider` の行（`:36`）は、アクセサを保つので変えない | AC-26 |
 | `Makefile` のコメント | 3.9 | AC-30 |
 
 README と `project_overview.md` の「`YT2COLUMN_REVIEW_LLM`」の行の「未設定のとき」の列には、「生成と同じ」と書く。コードの既定値の定数に当たる値はないので、ガードテストはこの列の値を検査せず、行がちょうど 1 つあることだけを検査する（7.3）。

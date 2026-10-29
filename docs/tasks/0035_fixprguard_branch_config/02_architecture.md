@@ -10,7 +10,7 @@
 | Reviewer | isseis |
 | Comments | 2026-10-22 (editorial): 2.2 の表に `cmd/fixprguard/test_helpers.go` の行を加えた（実装計画の調査で見つけた漏れ）。決定は変えていない。2026-10-22 (decision): AC-17 の確かめを、ガードのテスト（`static`）から PR のレビューでの読み合わせ（`manual`）に改めた。自然言語の記述はテストで保証できない（必須の語を含んでいても、否定を反転した文が通る。PR #438 のレビューの指摘）ため、7.5 の AC-17 を `manual` にした。PR #438 で、このセッションでレビュアーが指示し、承認した。AC-18 のガード（PR-1 でマージ済み）は変えていない。2026-10-23 (decision): タスク 0038 の F-005 により、7.5 の AC-18 を `manual` に改めた（`TestGuideDescribesConfigScope` を削除したため）。決定はタスク 0038 の要件の承認で得たので、`Status` は `approved` のままとする。 |
 
-本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `b8038b4` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md) の項番を、I-NN は [implementation_handoff.md](implementation_handoff.md)（実装計画への申し送り）の項番を指す。申し送り H-01〜H-09 への対応は付録 A にまとめる。「ガイド」は `docs/dev/developer_guide/fixprguard_guide.md`（と日本語版の `fixprguard_guide.ja.md`）を指す。
+本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `b8038b4` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md) の項番を、I-NN は [implementation_handoff.md](implementation_handoff.md)（実装計画への申し送り）の項番を指す。申し送り H-01〜H-09 への対応は付録 A にまとめる。「ガイド」は `docs/dev/guides/fixprguard_guide.md`（と日本語版の `fixprguard_guide.ja.md`）を指す。
 
 本書は、要件書 3.1 で定義した次の用語を同じ意味で使う: ブランチの設定、今のブランチ、外す対象のブランチの設定、設定の値の一覧。「基準値」「ガードツール」「ダイジェスト」は、0030 の文書と同じ意味で使う。ほかに次の用語を定義して使う。
 
@@ -211,7 +211,7 @@ flowchart LR
 | `cmd/fixprguard/main_test.go` | 変更 | AC-15 の、前の版の基準値で終了コード `2` になるテスト。`:25` の解析だけに使う `"v1.x"` を `"v2.x"` にする（そのままでも通るが、誤解を招く） |
 | `cmd/fixprguard/test_helpers.go` | 変更 | `validBaseline`（`:358-369`）が作るトークンの版の `"v1"` を `"v2"` にする。このヘルパーは作ったトークンを `ParseBaseline` に通し、受け付けられなければテストの準備で失敗する |
 | `.claude/commands/fixpr.md`・`.claude/commands/runpr.md` | 変更 | `--protocol 1` をすべて `--protocol 2` にする（AC-19）。手順は変えない |
-| `docs/dev/developer_guide/fixprguard_guide.md`・`fixprguard_guide.ja.md` | 変更 | 3.5 の箇所（AC-18・AC-19・H-08） |
+| `docs/dev/guides/fixprguard_guide.md`・`fixprguard_guide.ja.md` | 変更 | 3.5 の箇所（AC-18・AC-19・H-08） |
 | `docs/tasks/0030_fixpr_untrusted_threads/01_requirements.md`・`02_architecture.md` | 変更 | 3.5 の箇所（AC-17）。`Status` は `approved` のまま、`Comments` に `(decision)` を記録する |
 
 `cmd/fixprguard` のコードは変えない。`inspect` の `CheckState` の呼び出し（`cmd/fixprguard/main.go:557`）と、`finish`・`push` の中の呼び出し（`worktree.go:130`・`243`・`273`・`326`・`367`・`383`・`502`）は、そのまま新しい比較を使う。`cmd/fixprguard/docs_test.go` の `TestDocumentedInvocationsParse` は、コマンドの文書の `--protocol` がバイナリの `Protocol` と一致することを確かめる（`docs_test.go:84-116`）。`Protocol` を上げて文書を直さなければ、このテストが失敗する。ガイドの番号を確かめるテストを加えるかは、計画で決める（7.5）。

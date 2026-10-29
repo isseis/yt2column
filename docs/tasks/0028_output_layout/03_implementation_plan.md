@@ -69,7 +69,7 @@
 -   メンションの旧い期待値: `slack_message_test.go` の `TestSlackMentionRejected:235`・`TestSlackMentionAccepted:273`・`TestSlackMentionPosition:428`・`TestSlackMentionMessagesFollowPosted:460`。
 -   失敗の種類: `failure_test.go` の `TestKindConstants:65`、`job_test.go` の `TestFailureClassification:160`、`slack_failure_test.go` の `TestSlackFailureNotifyText:115`。
 -   `cmd/yt2column`: `run_test.go:1489`（`TestRunSlackFailureHints:1449` の中の `mention` の行）、`run_test.go:1622`・`:2150`、`cost_test.go:165`、`integration_test.go`（`checkIntegrationArticle:236`。ビルドタグ `integration`）。
--   文書: `README.md`（Estimated cost の節 `:189`・`:241-245`、M2 の説明 `:317-319`）、`docs/dev/project_overview.md:36`、`docs/dev/security.md:74`、`docs/dev/developer_guide/package_reference.md:37`（`renderArticle` の説明）、`cmd/yt2column/docs_test.go:795`（`TestCostDocsContract`）。`docs/tasks/0008_column_prompt/check_article.py:31`（`HEADER_RE`）。
+-   文書: `README.md`（Estimated cost の節 `:189`・`:241-245`、M2 の説明 `:317-319`）、`docs/dev/project_overview.md:36`、`docs/dev/security.md:74`、`docs/dev/conventions/package_reference.md:37`（`renderArticle` の説明）、`cmd/yt2column/docs_test.go:795`（`TestCostDocsContract`）。`docs/tasks/0008_column_prompt/check_article.py:31`（`HEADER_RE`）。
 -   `internal/publisher/slack_articles_test.go` と `makefile_test.go` は `IntegrationArticles` の出力の大きさに依存する。
 
 **ビルドタグを要するファイルのコンパイルの確認。** 次のコマンドを、HEAD `6506807` で実行した。終了コードは 0 で、出力の全行が `ok` または `no test files` だった。`integration_test.go` と `slack_integration_test.go` は、タグ `integration` を付けたときだけコンパイルされる。このコマンドは `test` と `integration` を同時に付けるので、`integration` だけのビルドは `make lint`（`go vet -tags integration ./...`）が確かめる。`testutil/integration.go` は両方のタグでコンパイルされるので、`test` だけのシンボルに依存しない。
@@ -163,7 +163,7 @@ go test -run '^$' -tags test,integration ./...
 -   [x] `internal/writer/steps_test.go` に、`Article.ChannelName` が、`--after` なしの実行と `--after generation`・`shorten`・`review` の再開のどれでも入力と同じであることを確かめるテストを加える。
 -   [x] `internal/writer/prompt_test.go` の `TestWriteRejectsInvalidTranscript:38` に、チャンネル名の拒否の行を加える。
 -   [x] `internal/server/request_test.go` に `parseRequest` のチャンネル名の拒否のテストを加える。
--   [x] 3 つの呼び出し元の一致を確かめるテストを加える。同じ入力の表を `CheckPublishable`・`validateTranscript`・`parseRequest` に通し、受理と拒否が一致することを確かめる。表は 1 つにし、複数のパッケージのテストが使うので、既存の `internal/writer/testutil/` に置く（`docs/dev/developer_guide/test_organization.md` の分類 A。公開の API だけを使う）。`CheckPublishable` は直接、`validateTranscript` は `writer.Write`（fake の `LLMClient`）を通して、`parseRequest` は `server` のパッケージの中から、それぞれ呼ぶ。
+-   [x] 3 つの呼び出し元の一致を確かめるテストを加える。同じ入力の表を `CheckPublishable`・`validateTranscript`・`parseRequest` に通し、受理と拒否が一致することを確かめる。表は 1 つにし、複数のパッケージのテストが使うので、既存の `internal/writer/testutil/` に置く（`docs/dev/conventions/test_organization.md` の分類 A。公開の API だけを使う）。`CheckPublishable` は直接、`validateTranscript` は `writer.Write`（fake の `LLMClient`）を通して、`parseRequest` は `server` のパッケージの中から、それぞれ呼ぶ。
     -   実装では、表を `internal/writer/testutil/helpers.go` の `ChannelNameCases` に置き、3 つの呼び出しをまとめて 1 つのテスト（`internal/server/request_test.go` の `TestChannelNameAgreesWithWriter`）で確かめた。`writer` の内部のテストは `writertestutil` を import できない（循環する）ので、`CheckChannelName` の個別の規則と境界（200・201 コードポイント）は `output_test.go` の `TestCheckChannelName` が別に持つ。
 -   [x] 違反したチャンネル名の記事を書き出し・通信の前に拒否することを、既存の拒否の表（`file_test.go::TestFilePublisherRejectsArticle:320`、`slack_message_test.go::TestSlackPrepareRejectsInvalidArticle:327`、`slack_test.go` の送信 0 件の表）に行として加える。一時ファイルが残らないことと、リクエストが 0 件であることをその行で確かめる。
     -   `displayStringProblem` が UTF-8 を検査するようになったので、`TestSlackPrepareRejectsInvalidArticle` の `Body` 以外の不正な UTF-8 の行は `CheckPublishable` の段階で拒否される。行の `checkPublishableOK` を false に改めた。`prepareSlackMessages` 側の重複した検査は、ステップ 4-4 が `Body` だけに絞る。
@@ -250,7 +250,7 @@ PR-6 のマージの後に加えたステップである。§3.2 の PR 構成�
 -   [x] 代表的な記事について、`renderFileArticle` の出力の全文を `testdata/golden/<case>.md` に置き、バイト単位で比べる（`TestRenderGolden`）。`go test -tags test ./internal/publisher -run Golden -update` で書き直せるようにする。`TestRenderFileArticleGolden` はこのテストに置き換え、その 2 つのファイルを移す。置き換えの前後で `go tool cover -func` の関数ごとの値が変わらないことを確かめる。
 -   [x] 場合は次のとおり（入力は架空の値。`docs/dev/security.md` §7）: チャンネル名ありで 3 つの段階が同じモデル・コストが既知（`same_model`）、チャンネル名なし（`without_channel`）、段階ごとにモデルが違う（`mixed_models`）、字数の調整を飛ばした（`shorten_skipped`）、コストが `unknown` で版が `(none)`（`cost_unknown`）、チャンネル名の先頭がブロックの記法（`channel_heading`・`channel_list`）、末尾が `#`（`channel_trailing_hash`）、タイトル・チャンネル名・本文のコードの外の対象の `@`（`mentions`）、語の途中の `@`（`mid_word_at`）。各場合の入力が `CheckPublishable` を通ることも確かめる。
 -   [x] golden file をツールに書き換えさせない: pre-commit の `trailing-whitespace`・`end-of-file-fixer` の対象から `internal/publisher/testdata/golden/` を外し、`.gitattributes` で `-text` にする。
--   [x] `docs/dev/developer_guide/test_organization.md` に、golden file の場所と再生成の手順を加える。
+-   [x] `docs/dev/conventions/test_organization.md` に、golden file の場所と再生成の手順を加える。
 -   [x] golden file は人が読むための補助であり、ステップ 3-3 の要素ごとのテストは削らない。
 -   [x] フロントマターの後の空行を 1 行増やす、`source` と `model` のキーの順序を入れ替える、の 2 つの変更で `TestRenderGolden` が失敗することを確かめ、コミットメッセージに記す。
 
@@ -508,11 +508,11 @@ PR-6 のマージの後に加えたステップである。§3.2 の PR 構成�
     -   実装では、README に「Output format」の節（見出し `### The \`--out\` file`・`### The Slack post` の下に例のコードブロック）を加え、互換性の変化は「Cache and concurrency」の節に書いた。
 -   [x] `docs/dev/project_overview.md:36`: `Article` が持つ値と、料金の行の置き場所を新しい構成に合わせる。
 -   [x] `docs/dev/security.md`: チャンネル名が外部由来の表示用の文字列であること、検査の 3 か所、フロントマターの引用符、メンションの規則（`:74`）を、設計書 5 章と 3.7 に合わせる。
--   [x] `docs/dev/developer_guide/package_reference.md:37`: `renderArticle` の説明を、`renderFileArticle`・`renderSlackPost` と共有の `format.go` の説明に直す。
+-   [x] `docs/dev/conventions/package_reference.md:37`: `renderArticle` の説明を、`renderFileArticle`・`renderSlackPost` と共有の `format.go` の説明に直す。
 -   [x] `cmd/yt2column/docs_test.go` の `TestCostDocsContract:795` が、更新した README の Estimated cost の節に合うことを確かめる。合わない語があれば、文書を直す（テストの期待値を文書に合わせて緩めない）。
 -   [x] 出力の構成を確かめる文書のガードを `cmd/yt2column/docs_test.go` に加える（既存の `readDoc` を使う）。確かめる内容は次の 3 つである。(1) README のフロントマターの例と Slack の投稿の例の各コードブロックが、固定の `Article` を `FilePublisher`（一時ディレクトリ）と `publisher.SlackMessagesForTest`（既存の公開の補助）に通した実際の出力と一致すること。ガードが各ブロックを見つけられるように、README の例のコードブロックには見出しを付ける。(2) `security.md` がチャンネル名・U+200B による無効化・フロントマターの引用符を述べていること、`project_overview.md` が `Article` のチャンネル名と、脚注・フロントマターの料金を述べていること。(3) `README.md` と `project_overview.md` が旧い記述（`- Estimated cost:` の行、`heading metadata`、`見出しのメタデータ`）を含まないこと。(2)(3) で照合する語句は、コードを書くときに決める。
     -   実装では、`cmd/yt2column/output_layout_docs_test.go` の `TestOutputLayoutDocsContract` に置いた（コードブロックを見出しの後から取り出す `firstCodeBlockAfter` は、ブロックの中の `#` の行で節が切れる `sectionByHeading` を避けるための別の補助で、`TestFirstCodeBlockAfter` が確かめる）。README の例の料金は単価の表から算出されるので、単価の変更でガードが失敗する。`pricing_update.md` に、その場合に例を直すことを書いた。
--   [x] `docs/dev/developer_guide/package_reference.md` の `internal/writer` の行（`CheckPublishable` の規則）と `internal/failure` の行に、チャンネル名の検査・`ProseRanges`・`KindPublishMention` を加える。
+-   [x] `docs/dev/conventions/package_reference.md` の `internal/writer` の行（`CheckPublishable` の規則）と `internal/failure` の行に、チャンネル名の検査・`ProseRanges`・`KindPublishMention` を加える。
 
 #### ステップ 5-2: フェーズ 5 の確認
 
@@ -573,7 +573,7 @@ PR は番号順にマージする。PR-1 のチャンネル名が PR-2 と PR-6 
 
 ### 4.1. ユニットテスト
 
-設計書 7.1 の表のとおりである。テストは `yt-dlp`・LLM の API・Webhook を呼ばない。`LLMClient` は fake を、HTTP は `net/http/httptest` を使う。新しい補助の関数が要る場合は、同じパッケージの内部だけが使うなら `test_helpers.go`（`//go:build test`）に、複数のパッケージが使うなら `testutil/` に置く（`docs/dev/developer_guide/test_organization.md`）。チャンネル名の表は `internal/writer/testutil/` に置く（ステップ 1-6）。補助のファイルは、必要になったときだけ加える。
+設計書 7.1 の表のとおりである。テストは `yt-dlp`・LLM の API・Webhook を呼ばない。`LLMClient` は fake を、HTTP は `net/http/httptest` を使う。新しい補助の関数が要る場合は、同じパッケージの内部だけが使うなら `test_helpers.go`（`//go:build test`）に、複数のパッケージが使うなら `testutil/` に置く（`docs/dev/conventions/test_organization.md`）。チャンネル名の表は `internal/writer/testutil/` に置く（ステップ 1-6）。補助のファイルは、必要になったときだけ加える。
 
 ### 4.2. 統合テスト（手動）
 

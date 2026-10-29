@@ -50,7 +50,7 @@ Work in the following order.
 
 2. Resolve the task directory.
    - With `[task]`: resolve it under the task root on `origin/main` as
-     `docs/dev/developer_guide/task_identification.md` rule 1 describes. Stop if
+     `docs/dev/conventions/task_identification.md` rule 1 describes. Stop if
      it does not exist there or already contains `01_requirements.md`.
    - Without it: choose the name `NNNN_<name>` (the directory is created in
      step 3). `NNNN` is one above the highest task number in use, looking at

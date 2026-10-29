@@ -108,7 +108,7 @@ flowchart LR
 | `internal/publisher`（`renderArticle`、`ReviewLogWriter`） | 変更しない。モデルの行は `Article` から作られ、再開では成果物の来歴が入る（AC-27。§3.5） |
 | `internal/job`・`internal/pipeline` | 変更しない。保存・読み込みは `Write` の中（`ArtifactStore` の実装）で起きる |
 | `cmd/yt2column/run.go` | フラグ `--artifacts`・`--after`、組み合わせの検査、`config.Need` の算出、`writer.Options` の組み立て、要約と案内を加える（§3.8） |
-| `docs/dev/developer_guide/package_reference.md` | `internal/artifact` の行を加える |
+| `docs/dev/conventions/package_reference.md` | `internal/artifact` の行を加える |
 
 **他のタスクの方針への例外。** 次の 2 つは、既存の設計書が定めた方針を、本タスクの要件に従って変える。
 
@@ -544,7 +544,7 @@ func Load(lookup LookupFunc) (Config, error)
 | `internal/llm/provider/provider.go` | なし | 変更しない（呼び出し側が段階に応じて `New`・`NewReview` を呼ぶ） | なし |
 | `cmd/yt2column/run.go` | 変更 | フラグ、組み合わせの検査、`config.Need` と `writer.Options` の組み立て、要約 | `run_test.go`・`signal_test.go`・`main_test.go`：`Options{}` に `Artifacts` が加わるが、ゼロ値は保存も再開もしないので既存の期待は変わらない |
 | `internal/writer/test_helpers.go` | 変更 | fake の `ArtifactStore`（`//go:build test`。`testutil/` の外に置き、`TestFakesCarryBuildTag` の固定の数（17）を変えない） | — |
-| `docs/dev/developer_guide/package_reference.md` | 変更 | `internal/artifact` の行、`internal/writer`・`internal/config` の記述 | `TestPackageReferenceListsPackages`（行を加えれば通る） |
+| `docs/dev/conventions/package_reference.md` | 変更 | `internal/artifact` の行、`internal/writer`・`internal/config` の記述 | `TestPackageReferenceListsPackages`（行を加えれば通る） |
 | `README.md`・`docs/dev/project_overview.md`・`docs/dev/security.md` | 変更 | フラグ、設定、保存する中間生成物と読み込みの境界 | `cmd/yt2column/docs_test.go` の `TestREADMEDocumentsFlags`（README にフラグを加える） |
 | `docs/tasks/0010_post_generation_review/02_evaluation.md` | 変更 | 評価の手順（§2）に、成果物を固定した比較を加える（AC-34） | なし |
 

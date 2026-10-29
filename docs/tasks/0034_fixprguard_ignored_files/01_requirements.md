@@ -280,7 +280,7 @@
 -   `docs/dev/project_overview.md` の「決定済みの方針」「前提・制約」に従う。
 -   `CLAUDE.md` の「Reject, don't normalize」「Declare, don't infer」「Enforce invariants with the type, not with convention」に従う。基準値は厳密に解析し、補正しない（`internal/fixprguard/gitstate.go:128-145`）。
 -   標準ライブラリ以外のモジュールを加えない（`CLAUDE.md`「Dependencies」）。
--   0030 の要件定義書とアーキテクチャ設計書は承認済みの文書である。改めるときは `docs/dev/developer_guide/requirements_process.md`「Editing an approved document」に従う（H-06）。
+-   0030 の要件定義書とアーキテクチャ設計書は承認済みの文書である。改めるときは `docs/dev/conventions/requirements_process.md`「Editing an approved document」に従う（H-06）。
 
 ## 6. 用語集 (Glossary)
 

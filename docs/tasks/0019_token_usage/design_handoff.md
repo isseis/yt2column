@@ -53,5 +53,5 @@
 ## H-06: 数値の検証の方法
 
 -   **事項:** `usage` と中間生成物のトークン数の値を、負でない `int64` として検証する方法を決める。`internal/strictjson` の `Value.AsInt64` が、小数（`1.0`・`1.5`）・指数表記（`1e3`）・`int64` を超える数・負のゼロ（`-0`）をどう扱うかを確かめ、要件定義書の「負でない整数で `int64` で表せる」を満たすようにする。負数の拒否は、`AsInt64` の後に呼び出し側で行うか、`strictjson` に負でない整数を読む関数を加えるか（DeepSeek・Claude・中間生成物の 3 か所で共有する）。
--   **理由:** [requirements_process.md](../../dev/developer_guide/requirements_process.md) の型ごとの確認表（Numbers）。数の表記の受理の範囲は、要件定義書では「負でない整数」とだけ定め、具体的な構文の扱いを設計で決める。
+-   **理由:** [requirements_process.md](../../dev/conventions/requirements_process.md) の型ごとの確認表（Numbers）。数の表記の受理の範囲は、要件定義書では「負でない整数」とだけ定め、具体的な構文の扱いを設計で決める。
 -   **関連:** F-002、F-006、AC-05・AC-22

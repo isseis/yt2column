@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Guidance for automated agents, including code reviewers, working on this repository. The project's conventions, design principles and testing rules are in [CLAUDE.md](CLAUDE.md); follow them. The review-relevant guides are [requirements_process.md](docs/dev/developer_guide/requirements_process.md) (approval gates, AC traceability), [test_organization.md](docs/dev/developer_guide/test_organization.md), and [security.md](docs/dev/security.md).
+Guidance for automated agents, including code reviewers, working on this repository. The project's conventions, design principles and testing rules are in [CLAUDE.md](CLAUDE.md); follow them. The review-relevant guides are [requirements_process.md](docs/dev/conventions/requirements_process.md) (approval gates, AC traceability), [test_organization.md](docs/dev/conventions/test_organization.md), and [security.md](docs/dev/security.md).
 
 ## Code Review Rules
 

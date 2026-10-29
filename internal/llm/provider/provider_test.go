@@ -403,7 +403,7 @@ func TestNewClaudeDefaultEffort(t *testing.T) {
 // Measurements the Claude adapter's default output limit is sized against
 // (docs/tasks/0041_claude_effort_max_tokens/02_architecture.md section 1.4,
 // from docs/tasks/0018_article_quality/02_evaluation.md sections 4.7.2 and
-// 4.7.4). docs/dev/developer_guide/claude_output_limit.md says when and how to
+// 4.7.4). docs/dev/guides/claude_output_limit.md says when and how to
 // re-measure them.
 const (
 	// largestObservedOutputTokens is the largest output of a successful

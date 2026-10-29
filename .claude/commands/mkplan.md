@@ -17,7 +17,7 @@ Your goal is to create `03_implementation_plan.md` for one task under `docs/task
 
 Work in the following order.
 
-1. Identify the target task directory by following the rules in `docs/dev/developer_guide/task_identification.md`.
+1. Identify the target task directory by following the rules in `docs/dev/conventions/task_identification.md`.
 
 1.5. Prepare the branch: follow `.claude/commands/_lib/task-pr-handoff.md`, Part A,
    with **TASK_DIR** = the target task directory, **REPORT** = the step 11
@@ -33,8 +33,8 @@ Work in the following order.
 
 4. Read the remaining required input documents.
 - `01_requirements.md` in the target task directory
-- `docs/dev/developer_guide/requirements_process.md`
-- `docs/dev/developer_guide/test_organization.md`
+- `docs/dev/conventions/requirements_process.md`
+- `docs/dev/conventions/test_organization.md`
 - `design_handoff.md` and `implementation_handoff.md` in the target task directory, if they exist (review concerns deferred to design and to implementation; see `_context.md`)
 
 5. Inspect the current codebase before writing the plan.
@@ -65,7 +65,7 @@ Work in the following order.
 
    **[Always required] structural and traceability rules — apply to every plan:**
    - Write in Japanese; set the document status to `draft`.
-   - Include all required sections from `docs/dev/developer_guide/requirements_process.md`, plus explicit top-level sections for: Implementation Order and Milestones, Test Strategy, Implementation Checklist, Acceptance Criteria Verification. Do not let phase task lists implicitly substitute for these.
+   - Include all required sections from `docs/dev/conventions/requirements_process.md`, plus explicit top-level sections for: Implementation Order and Milestones, Test Strategy, Implementation Checklist, Acceptance Criteria Verification. Do not let phase task lists implicitly substitute for these.
    - Add a `既存コード調査結果` subsection under the implementation overview (§1) with the findings from step 5. If none, state explicitly that no existing code changes are required.
    - Organize work into small, phase-based steps with checkboxes. When a step deletes multiple distinct, separately-named entities (e.g. several test functions), give each its own checkbox rather than a batch instruction (`Test*_全件削除`). (Uniform edits across many call sites may still be described by one pattern — see "change sites" below.)
    - Map each acceptance criterion to the tasks and tests that verify it. Every AC row in the Acceptance Criteria Verification section must name a **verification that will be executed**: a test location in `path::TestName` format, a `make` target, a committed script, or, for a `diff` verification, a script under the task's `_checks/` directory. Do not use vague labels ("compile passes", "document review", "grep check", "none") — but do not answer vagueness with an unexecuted shell pipeline either. An AC that specifies only the natural-language content of a document (it states no behavior, value, structure, or executable example) is the exception: its verification is a `manual` reading in the PR review, and it needs no document test or `rg` check. A mixed AC still needs the test, static, or diff verification for its value or structure part.
@@ -79,7 +79,7 @@ Work in the following order.
    - Add a cross-search checklist **only** for items that `make lint` and `make test` cannot detect: deleted/renamed symbols with potential residual references, cross-package naming conflicts for generic identifiers, and doc/glossary consistency. Prefer converting a mechanical item into a guard test; document prose and glossary consistency are checked by reading them in the PR review (`manual`), not by a document test. Do not duplicate items already covered by the AC verification table — if the same check appears in both the AC table and a cross-search section, keep it in the AC table only. For purely additive tasks (new symbols with a unique prefix, single-package scope), a cross-search checklist is likely unnecessary.
    - **Renames get a ledger, not scattered edits.** When the plan renames a symbol, a file, or a test, put one table in the plan listing old name → new name, and make every other reference — task text, AC rows, cross-search checklist, and the architecture's component table — follow from that table in the same change. A rename spread across a long document leaves stragglers that no build check sees: task 0172's `ValidateGroupNames` → `ValidateIdentifiers` was flagged three separate times, in three different sections, after the rename had been "done".
    - If `implementation_handoff.md` exists, record for every `I-NN` item in it the task that addresses it or why it does not apply, so no deferred concern is silently dropped. If `design_handoff.md` has an `H-NN` item that `02_architecture.md` does not record, treat it as the architecture being stale (next rule).
-   - **When the architecture is wrong, stop rather than diverge.** If planning reveals that the approved architecture is mistaken or stale, either get it corrected first or record a single blocking task saying so. Do not write the corrected version into the plan and leave the architecture saying something else — two documents that disagree generate a review finding every time either is read, and the implementer follows the design source (see `docs/dev/developer_guide/requirements_process.md`, "Editing an approved document", for which corrections need a re-approval and which do not).
+   - **When the architecture is wrong, stop rather than diverge.** If planning reveals that the approved architecture is mistaken or stale, either get it corrected first or record a single blocking task saying so. Do not write the corrected version into the plan and leave the architecture saying something else — two documents that disagree generate a review finding every time either is read, and the implementer follows the design source (see `docs/dev/conventions/requirements_process.md`, "Editing an approved document", for which corrections need a re-approval and which do not).
    - **Keep the plan at planning altitude.** The plan says what to build and what must be verified, and where each lives. It does not write the test table row by row, the exact assertions, the shell pipeline, or the wording of an error message. Those are decided while writing the code, where they are executed and where a mistake surfaces in seconds; written a phase early they are unexecutable claims that only a careful reader can catch, and each one is a place for the plan to be wrong. As a rule of thumb, a phase whose task text runs past about 40 lines is holding detail that belongs in the code — move it there and leave the obligation behind.
    - Any planned Go source comment, identifier, or string literal must be written in English (the plan prose itself may be Japanese).
    - Reconcile templated/boilerplate sections with the document's actual state: the "next steps"/remaining-work section must not list steps already completed for this document (e.g. do not list reviewing or approving this plan when its status is past `draft`).
@@ -92,7 +92,7 @@ Work in the following order.
      - Good: "Change `ErrNoSubtitles`'s message from `"transcript: no subtitles available for this video (see yt-dlp output)"` to `"transcript: no subtitles available for this video"`."
    - Change sites spread across many locations: describe them by grep pattern (e.g. "all `_ = notifyXxx(...)` call sites"), not line numbers, which go stale. Use line numbers only when the pattern alone cannot locate the spot.
 
-7. Apply test helper planning rules from `docs/dev/developer_guide/test_organization.md`.
+7. Apply test helper planning rules from `docs/dev/conventions/test_organization.md`.
 - If new cross-package helpers or mocks are needed, plan them under `testutil/` with the correct file naming and package naming rules.
 - If package-internal helpers are needed, plan them as `test_helpers.go` or `test_helpers_<category>.go` with `//go:build test`.
 - Do not add helper files in the plan unless they are actually needed.
@@ -130,7 +130,7 @@ Work in the following order.
 - [ ] The plan references architecture sections instead of duplicating design details.
 - [ ] No phase specifies detail that belongs in the code — per-row test tables, exact assertion text, shell pipelines, message wording. Phases whose task text runs well past ~40 lines are checked for this.
 - [ ] The plan does not imply Japanese text in Go source comments, identifiers, or string literals.
-- [ ] Any planned test helper files follow `docs/dev/developer_guide/test_organization.md`.
+- [ ] Any planned test helper files follow `docs/dev/conventions/test_organization.md`.
 - [ ] Planned file paths are specific where known and do not conflict with existing package responsibilities.
 - [ ] Every non-trivial external assumption (container image contents, CI platform schema, tool flag semantics, protocol/server behavior) is verified against an authoritative source (image Dockerfile, platform docs, `go help`/`--help`, RFC), and the plan uses runtimes already available in the project's dev/CI environment rather than introducing new dependencies.
 - [ ] When a correctness rule, setup step, constraint, or suppression applies to one instance of a duplicated pattern (sibling tests, parallel helpers, repeated CLI invocations), it is applied to ALL analogous instances — no instance is left out.

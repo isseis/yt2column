@@ -31,7 +31,7 @@
 -   `.claude/commands/mkplan.md:88`: 文書だけの AC に、`rg` で語の有無を確かめる検証の作業を求める。
 -   `.claude/commands/mkplan.md:122`: 計画のレビューの確認項目で、同じ規則を確かめる。
 -   `.claude/commands/runplan.md:78`・`:158`・`:213`: PR グループの確認と、タスクの最後の確認で、同じ規則を確かめる。
--   `docs/dev/developer_guide/requirements_process.md:239`: 同じ規則を述べる。
+-   `docs/dev/conventions/requirements_process.md:239`: 同じ規則を述べる。
 
 そのため、文書の記述を定める AC にも、語の有無を確かめる `static` の文書のテストが書かれてきた。
 
@@ -50,7 +50,7 @@
 -   `doc-guard` CI ジョブの対象パッケージ（`.github/workflows/ci.yml:183-184`、`CLAUDE.md:311-315`）
 -   `fixprguard_guide.md`・`fixprguard_guide.ja.md` の 9 章で、文書のテストに言及する箇所（`fixprguard_guide.ja.md:350-357`）
 
-`docs/dev/developer_guide/test_organization.md` の節の見出しは、`testutil/`・`test_helpers.go`・新しい補助の指針・golden files である（同 `:5`・`:43`・`:65`・`:107`）。文書のテストは扱っていない。
+`docs/dev/conventions/test_organization.md` の節の見出しは、`testutil/`・`test_helpers.go`・新しい補助の指針・golden files である（同 `:5`・`:43`・`:65`・`:107`）。文書のテストは扱っていない。
 
 対応 issue: [#455](https://github.com/isseis/yt2column/issues/455)（関連: [#440](https://github.com/isseis/yt2column/issues/440)。タスク 0035・[#431](https://github.com/isseis/yt2column/issues/431)）
 

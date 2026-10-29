@@ -863,7 +863,7 @@ func Run(run func(ctx context.Context) int) int
 | `docs/dev/project_overview.md` | 「決定済みの方針」の実行形式に localhost サーバを加える。「パイプライン」にサーバの入力元（拡張が送る字幕、#107 の `TranscriptSource`）。「想定ディレクトリ構成」に新しいパッケージ。「設定（環境変数）」に `YT2COLUMN_SERVER_PORT` の行と、サーバが `YT2COLUMN_CACHE_DIR`・`YT2COLUMN_YTDLP_PATH` を読まないこと、`SLACK_WEBHOOK_URL` が必須であること |
 | `docs/dev/security.md` §8 | サーバの節（§8.2 として新設）: loopback への bind、`Host`・`Origin`・`Content-Type`・共有トークンの検査とその順序、認証前に本文を読まず副作用を起こさないこと、秘密情報の扱い（応答・ログ・通知に載せない）、受け取る入力の境界（§5.3 の表）、共有トークンのファイルの場所・権限・検査、拡張への受け渡しと拡張側の保存先（0007 §3.12.3）、残余のリスク（§5.4） |
 | `README.md` | サーバの節: 必要な環境変数、`make build`、起動（標準エラー出力をファイルにも残す例 `2>>server.log` と、リクエスト ID でログを探す方法を含む）、初回に表示される共有トークンを拡張のオプションページに貼ること、トークンを再び表示する手順（ファイルを読む）、作り直す手順（ファイルを削除して再起動）、一時ファイルの残骸は削除してよいこと、終了の方法（シグナル 1 回で処理中のジョブを待ち、最悪で 45 分程度かかること、2 回で直ちに終わること）、`curl` による確認の例（下記）、拒否の理由の一覧 |
-| `docs/dev/developer_guide/package_reference.md` | 新しいパッケージの行（`cmd/yt2column-server`・`internal/server`・`internal/authtoken`・`internal/failure`・`internal/redact`・`internal/signalrun`）と、既存の `internal/publisher` の行への失敗の通知の実装（`publisher.SlackFailureNotifier`。#108 が同じパッケージに加える）の追記 |
+| `docs/dev/conventions/package_reference.md` | 新しいパッケージの行（`cmd/yt2column-server`・`internal/server`・`internal/authtoken`・`internal/failure`・`internal/redact`・`internal/signalrun`）と、既存の `internal/publisher` の行への失敗の通知の実装（`publisher.SlackFailureNotifier`。#108 が同じパッケージに加える）の追記 |
 | `docs/translation_glossary.md` | 「共有トークン」「枠」「拒否の理由」などの対訳 |
 
 README の `curl` の例は次の形とする。トークンを `curl` の引数に置くと、同じマシンの他の利用者から `ps` で見えるので、ヘッダは標準入力から渡す（`printf` はシェルの組み込みのコマンドなので、そのプロセスの引数として現れない）。
@@ -914,7 +914,7 @@ printf 'Authorization: Bearer %s\n' "$(cat "$HOME/Library/Application Support/yt
 | `cmd/yt2column/main.go`・`test_helpers.go` | 変更 | `runWithSignals` を `signalrun.Run` に置き換える |
 | `cmd/yt2column/output.go` | 削除 | `internal/redact` へ移す |
 | `Makefile` | 変更 | `build` で `build/yt2column-server` も作る。サーバの統合テストは `//go:build test` で `make test` に含まれるので、専用のターゲットは加えない（§7.2） |
-| `CLAUDE.md`・`README.md`・`docs/dev/project_overview.md`・`docs/dev/security.md`・`docs/dev/developer_guide/package_reference.md`・`docs/translation_glossary.md` | 変更 | §3.12 |
+| `CLAUDE.md`・`README.md`・`docs/dev/project_overview.md`・`docs/dev/security.md`・`docs/dev/conventions/package_reference.md`・`docs/translation_glossary.md` | 変更 | §3.12 |
 
 **更新が必要な既存のテスト。**
 

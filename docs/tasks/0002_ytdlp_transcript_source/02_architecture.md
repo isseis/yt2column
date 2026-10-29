@@ -480,8 +480,8 @@ json3 と info.json のパーサは、外部コマンドの起動から分離し
 | `Makefile` | `test-integration` ターゲットの追加、lint のビルドタグを `test,integration` に変更（AC-38・AC-43） | 変更 |
 | `.pre-commit-config.yaml` | golangci-lint フックのビルドタグを `test,integration` に変更（AC-43）。`trailing-whitespace`・`end-of-file-fixer` と `check-added-large-files` の対象から `^testdata/` を除外し、`testdata/` のバイト列を書き換えないようにする | 変更 |
 | `.github/workflows/ci.yml` | lint ジョブのビルドタグを `test,integration` に変更（AC-43） | 変更 |
-| `docs/dev/developer_guide/package_reference.md` | `internal/transcript` の責務の更新（実装追加） | 変更 |
-| `docs/dev/developer_guide/requirements_process.md` | 境界チェックの「黙って無視する入力」の記述を、消費するフィールドに限定し、拡張可能な未消費メンバーを除外するよう整合（design_handoff H-13） | 変更 |
+| `docs/dev/conventions/package_reference.md` | `internal/transcript` の責務の更新（実装追加） | 変更 |
+| `docs/dev/conventions/requirements_process.md` | 境界チェックの「黙って無視する入力」の記述を、消費するフィールドに限定し、拡張可能な未消費メンバーを除外するよう整合（design_handoff H-13） | 変更 |
 
 `internal/transcript/transcript.go` と `internal/pipeline` は変更しない。既存テストの更新は不要である。
 

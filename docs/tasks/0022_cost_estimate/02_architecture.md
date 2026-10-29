@@ -597,7 +597,7 @@ yt2column: cost-total: article known usd=0.032610
     -   DeepSeek のピーク時間帯の判定。CLI の時計の UTC で判定すること、中国の祝日を判定しないので概算が実際より多くなり得ること、境界をまたぐ呼び出しの判定がプロバイダと食い違い得ること。
     -   料金は概算であり、請求額はコンソールで確かめること。再利用した段階は、その実行の CLI の単価の表で算出されること（§5.2）。サーバの投稿の `unknown` の理由を CLI で調べる手順（§5.2）。
     -   版 2 の中間生成物を再開に使えないこと（新しい `--artifacts` のディレクトリを使う）。`README.md:183-184` の版の記述を 3 に改める。
--   **単価の更新の手順（要件 AC-41）。** 開発者向けの新しい文書 `docs/dev/developer_guide/pricing_update.md`（英語。CLAUDE.md の文書の言語の例外に従う）に置く。内容は、出典のページで単価と時間帯の規則を確かめる、`internal/pricing/rates.go` の表と確認日のコメントを更新する、手で計算した期待値のテスト（§7.1）を更新する、新しいモデルを加えるときは単価の選び方を宣言して `validate` のテストを通す、の手順である。`rates.go` の先頭のコメントからこの文書を指し、`CLAUDE.md` の Development Guides の一覧に 1 行加える。置き場所を `rates.go` のコメントだけにしない理由は、手順が表の外の作業（出典の確認、テストの期待値の更新、README の対象モデルの一覧）を含むためである。
+-   **単価の更新の手順（要件 AC-41）。** 開発者向けの新しい文書 `docs/dev/guides/pricing_update.md`（英語。CLAUDE.md の文書の言語の例外に従う）に置く。内容は、出典のページで単価と時間帯の規則を確かめる、`internal/pricing/rates.go` の表と確認日のコメントを更新する、手で計算した期待値のテスト（§7.1）を更新する、新しいモデルを加えるときは単価の選び方を宣言して `validate` のテストを通す、の手順である。`rates.go` の先頭のコメントからこの文書を指し、`CLAUDE.md` の Development Guides の一覧に 1 行加える。置き場所を `rates.go` のコメントだけにしない理由は、手順が表の外の作業（出典の確認、テストの期待値の更新、README の対象モデルの一覧）を含むためである。
 -   **`project_overview.md`・`package_reference.md`（要件 AC-42）。** `project_overview.md` では、CLI の出力の説明に料金の行を加え、中間生成物の形式の版を 3 に改め、「前提・制約」のモデル名の項に、単価の表が対象外であることの注記を加える（§1.3 の例外 3）。`package_reference.md` に `internal/pricing` の行を加え、`internal/artifact` の行（:33）の形式の版を 3 と `call_time` に改める。`cmd/yt2column/docs_test.go:750` 付近の、`package_reference.md` に型の名前が書かれていることを確かめる表に、`internal/pricing` の公開の型を加える。
 -   **`security.md`。** §6（信頼できない入力）に、中間生成物の `call_time` の受理の形と拒否の規則を加える。
 
@@ -630,9 +630,9 @@ yt2column: cost-total: article known usd=0.032610
 | `internal/llm/deepseek/integration_test.go`・`internal/llm/claude/integration_test.go` | 変更 | トークン数と料金の概算のログ | なし |
 | `cmd/yt2column/integration_test.go`・`cmd/yt2column/integration_slack_test.go` | 変更 | 秘密情報の検査の後に、料金の行と合計の行をログに出す（§3.8） | なし |
 | `README.md` | 変更 | §3.9 の内容 | なし |
-| `docs/dev/developer_guide/pricing_update.md` | 新規 | 単価の更新の手順（英語） | なし |
+| `docs/dev/guides/pricing_update.md` | 新規 | 単価の更新の手順（英語） | なし |
 | `CLAUDE.md` | 変更 | Development Guides に `pricing_update.md` を加える | なし |
-| `docs/dev/project_overview.md`・`docs/dev/security.md`・`docs/dev/developer_guide/package_reference.md` | 変更 | §3.9 の内容 | なし |
+| `docs/dev/project_overview.md`・`docs/dev/security.md`・`docs/dev/conventions/package_reference.md` | 変更 | §3.9 の内容 | なし |
 
 `internal/llm`（本番のコード）・`internal/pipeline`・`internal/job`・`internal/server`・`cmd/yt2column-server` は変更しない。
 

@@ -651,10 +651,10 @@ check_mergepr_subject() {
 ALL_CHECKS="$ALL_CHECKS mergepr_subject"
 
 check_mergepr_guide_items() {
-	load docs/dev/developer_guide/mergepr_guide.ja.md || return 0
+	load docs/dev/guides/mergepr_guide.md || return 0
 	has "$(printf '%s\n' "$ctx" | flat)" '件名と本文、接頭辞を決めた規則の記録を示して承認を求める' \
 		'the Japanese guide lists the prefix-rule record in the approval question'
-	load docs/dev/developer_guide/mergepr_guide.md || return 0
+	load docs/dev/guides/mergepr_guide.md || return 0
 	has "$(printf '%s\n' "$ctx" | flat)" 'the subject and body, and the record of which rule decided the subject.s prefix' \
 		'the English guide lists the prefix-rule record in the approval question'
 }

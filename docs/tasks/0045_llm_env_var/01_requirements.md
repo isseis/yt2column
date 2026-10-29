@@ -67,7 +67,7 @@
 
 -   `YT2COLUMN_LLM`・`YT2COLUMN_REVIEW_LLM` の読み込み、検証、既定値、継承（CLI と localhost サーバ）
 -   旧変数（`YT2COLUMN_LLM_PROVIDER`・`YT2COLUMN_MODEL`・`YT2COLUMN_REVIEW_PROVIDER`・`YT2COLUMN_REVIEW_MODEL`）の拒否
--   README、`docs/dev/project_overview.md`、`docs/dev/production_profile.md`、`docs/dev/security.md`、`docs/dev/developer_guide/package_reference.md` の環境変数の記載の更新と、これらの文書を検査するガードテストの更新
+-   README、`docs/dev/project_overview.md`、`docs/dev/production_profile.md`、`docs/dev/security.md`、`docs/dev/conventions/package_reference.md` の環境変数の記載の更新と、これらの文書を検査するガードテストの更新
 -   DeepSeek の結合テストのモデルの変数の改名（Makefile と README の結合テストの説明を含む）
 
 ### 2.3. スコープ外 (Out of Scope)
@@ -155,7 +155,7 @@ CLI が検査する設定は、フラグの組み合わせで決まる（現行�
 - **AC-23**: README の Configuration と `docs/dev/project_overview.md` は、値の構文（最初の `/` で区切ること、モデル ID の中の `/` を保持すること、前後の空白を取り除かないこと）、未設定のときの既定値と継承、空の値を拒否すること、旧変数を拒否すること（LLM の変数を読まない実行でも拒否すること）を説明する。「`--after review` は LLM の設定を必要としない」「再開の実行では実行する段階の変数だけを読む」という現行の記述（`README.md:193-195`・`docs/dev/project_overview.md`「設定（環境変数）」）は、旧変数の検査だけは例外であることがわかる形にする。`docs/dev/project_overview.md`「前提・制約」の既定のモデル名の例外は、範囲を「`YT2COLUMN_LLM` が未設定のとき（`YT2COLUMN_REVIEW_LLM` が受け継ぐ場合を含む）」に書き換える（4.5）。
 - **AC-24**: README は、旧変数を使っていた利用者が新しい変数に移る方法を示す。少なくとも、生成のプロバイダとモデル（`YT2COLUMN_LLM_PROVIDER=deepseek` と `YT2COLUMN_MODEL=deepseek-flash`）を `YT2COLUMN_LLM=deepseek/deepseek-flash` に書き換える例を示す。あわせて、次の 2 つの場合の書き換えを示す。`YT2COLUMN_REVIEW_PROVIDER` だけを設定していた場合（そのプロバイダの既定のモデルを使っていた場合）は、`YT2COLUMN_REVIEW_LLM` にモデル ID も書く必要がある。`YT2COLUMN_REVIEW_MODEL` だけを設定していた場合（生成のプロバイダを使っていた場合）は、`YT2COLUMN_REVIEW_LLM` に生成のプロバイダも書く必要がある。
 - **AC-25**: README のトラブルシューティングは、旧変数を名指しする設定エラーで CLI またはサーバが止まった場合（サーバなら、拡張からは「サーバが動いていない」としか見えない場合）の対処を示す。現行の `configuration: YT2COLUMN_LLM_PROVIDER` の項目は、この内容に置き換える。
-- **AC-26**: README、`docs/dev/project_overview.md`、`docs/dev/production_profile.md`、`docs/dev/security.md`、`docs/dev/developer_guide/package_reference.md` は、旧変数を現行の設定として説明しない（旧変数に触れるのは、拒否と移行の説明だけである）。旧変数を現行の設定として説明している箇所（`docs/dev/security.md` の検証・推敲のプロバイダの記述、`docs/dev/developer_guide/package_reference.md` の `internal/config` の行を含む）は、新しい変数と本書の規則で書き直す。
+- **AC-26**: README、`docs/dev/project_overview.md`、`docs/dev/production_profile.md`、`docs/dev/security.md`、`docs/dev/conventions/package_reference.md` は、旧変数を現行の設定として説明しない（旧変数に触れるのは、拒否と移行の説明だけである）。旧変数を現行の設定として説明している箇所（`docs/dev/security.md` の検証・推敲のプロバイダの記述、`docs/dev/conventions/package_reference.md` の `internal/config` の行を含む）は、新しい変数と本書の規則で書き直す。
 - **AC-27**: 文書の環境変数の名前と既定値を検査している既存のガードテスト（CLAUDE.md「Development Notes」の `project_overview.md` の注記、`production_profile.md` の設定の例、README の設定の例）は、新しい変数の名前と既定値を検査する。
 
 #### F-006: DeepSeek の結合テストのモデルの変数
@@ -178,7 +178,7 @@ DeepSeek の結合テストを動かす 3 つの make ターゲットが、テ�
 
 -   **送り先を利用者が選んだものに限る:** 設定の誤り（空の値、構文の誤り、旧変数の残り）を既定のプロバイダで補わない。誤りがあれば、LLM の API に何も送らずに実行を止める（AC-04・AC-05・AC-06・AC-09・AC-12・AC-13・AC-16）。security.md §4 が述べるとおり、検証・推敲のプロバイダを生成と別にすると送り先の事業者が増える。この性質は変わらない。
 -   **値をメッセージに出さない:** 設定の読み込みの拒否のメッセージは、変数の名前と固定の理由だけからなり、値を含まない（AC-05・AC-14）。秘密情報を誤って別の変数に設定した場合でも、エラーの出力から漏れない（`config.go:106-113` の方針）。
--   **モデル ID は要求本文の値としてだけ送る:** AC-03 により、モデル ID は `/` を含んだまま API に送る。モデル ID は要求本文（JSON）の値としてだけ送り、要求の URL には入れない。現行の 2 つのアダプタも、モデルを要求本文にだけ入れる（`docs/dev/developer_guide/package_reference.md` の `internal/llm/claude`・`internal/llm/deepseek`）。
+-   **モデル ID は要求本文の値としてだけ送る:** AC-03 により、モデル ID は `/` を含んだまま API に送る。モデル ID は要求本文（JSON）の値としてだけ送り、要求の URL には入れない。現行の 2 つのアダプタも、モデルを要求本文にだけ入れる（`docs/dev/conventions/package_reference.md` の `internal/llm/claude`・`internal/llm/deepseek`）。
 -   **秘密情報の扱いは変えない:** API キーの読み込み、`secret.Secret` による保持、出力の伏せ字（`internal/redact`）は変えない。
 -   本タスクの入力は利用者が設定する環境変数であり、信頼できない入力（ネットワークの応答、外部コマンドの出力、それらから作ったファイル）を新たに読まない。要件定義の手順の「信頼できない入力の境界」は当てはまらない。
 

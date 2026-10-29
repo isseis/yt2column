@@ -755,7 +755,7 @@ func (e *ReviewLogError) Unwrap() error
   - 無人で実行する場合は、`--review-log` を付けて、検証・推敲が何を変えたかを残すとよいこと。
 - `docs/dev/project_overview.md`: パイプラインの説明と設定の表（要件 §5）。
 - `docs/dev/security.md`: §4（LLM に送るデータ）に、字数の調整と検証・推敲の段階が、生成した文面も LLM に送ること、検証・推敲のプロバイダを生成と別にすると送り先が増えることを加える。§6（信頼できないテキスト）に、検証・推敲の応答の境界（§3.5.3）と一覧のファイル（§3.8）を加える。
-- `docs/dev/developer_guide/package_reference.md`: `internal/writer`（LLM を最大 3 回呼ぶこと、3 組のテンプレート）、`internal/strictjson`（`CollectOnly`・`AsBool`）、`internal/publisher`（`ReviewLogWriter`）の記述。
+- `docs/dev/conventions/package_reference.md`: `internal/writer`（LLM を最大 3 回呼ぶこと、3 組のテンプレート）、`internal/strictjson`（`CollectOnly`・`AsBool`）、`internal/publisher`（`ReviewLogWriter`）の記述。
 - `docs/tasks/0008_column_prompt/check_article.py`: `--out` の先頭の書式の正規表現を、段階のモデルの行を任意で受け付ける形にする（評価で使うため。AC-28）。
 
 ### 3.11. design_handoff の各項目への対応
@@ -794,7 +794,7 @@ func (e *ReviewLogError) Unwrap() error
 | `cmd/yt2column/test_helpers.go` | 変更 | `deps` の追加の fake | — |
 | `cmd/yt2column/integration_test.go`・`integration_slack_test.go` | 変更 | 引数に `--no-shorten --no-review` を加える（`Generate` の回数 1 の確認を保つ）| 同左 |
 | `cmd/yt2column/docs_test.go` | 変更 | 散文を固定する文書のテストを PR-9 で外した（設定の表の `configDocRows` など）。残るのはフラグの表の `TestREADMEDocumentsFlags`、`TestSlackDocsContract`・`TestClaudeDocsContract`、評価の記録の `TestReviewEvaluationRecords` | 同左 |
-| `README.md`・`docs/dev/project_overview.md`・`docs/dev/security.md`・`docs/dev/developer_guide/package_reference.md` | 変更 | §3.10 | — |
+| `README.md`・`docs/dev/project_overview.md`・`docs/dev/security.md`・`docs/dev/conventions/package_reference.md` | 変更 | §3.10 | — |
 | `docs/tasks/0008_column_prompt/check_article.py` | 変更 | §3.10 | — |
 | `docs/tasks/0010_post_generation_review/02_evaluation.md` | 新設 | 評価の手順と記録（F-008）| — |
 

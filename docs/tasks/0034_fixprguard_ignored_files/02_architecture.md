@@ -208,11 +208,11 @@ flowchart LR
 | `.claude/commands/fixpr.md` | 変更 | `--protocol` を `4` にする。`parts` の列挙に `ignored` を加え、無視されるファイルにかかわる止まり方（`begin`・`inspect`・`finish`・`push` の `ignored` と、4 章の無視されるファイルの規則の `git-failed`）では、セッションが無視されるファイルを一覧にしたり読んだりせず、利用者にガイド 8 章の手順を案内するよう書く（`:255-262`・`:492-493`・`:524-525`・`:663-664`。3.9・3.10） |
 | `.claude/commands/runpr.md` | 変更 | `--protocol` を `4` にする（3.9）。`git-state-changed` の扱い（`:273-278`）は `fixpr` の報告を示して止まるだけなので変えない |
 | `docs/tasks/0032_japanese_pr_title/check_rules.sh` | 変更 | `:524` の `--protocol` の番号（タスク 0036 の後は `3`）を `4` にする（3.9） |
-| `docs/dev/developer_guide/fixprguard_guide.ja.md`・`fixprguard_guide.md` | 変更 | 1 章・4 章・5 章・7 章・8 章・9 章（3.10） |
+| `docs/dev/guides/fixprguard_guide.md`・`fixprguard_guide.md` | 変更 | 1 章・4 章・5 章・7 章・8 章・9 章（3.10） |
 | `docs/tasks/0034_fixprguard_ignored_files/01_requirements.md` | 変更済み（設計書の PR #447） | 3 章と 4.4 の照合の記述、AC-19 と 4.2 の記録と基準値の記述、`Comments`（1.2 の照合と記録の決定。3.10） |
 | `docs/tasks/0030_fixpr_untrusted_threads/01_requirements.md` | 変更 | 4.2 の残余のリスクの項目（AC-20a。3.10） |
 | `docs/tasks/0030_fixpr_untrusted_threads/02_architecture.md` | 変更 | 5.3「無視されるファイル」（AC-20。3.10） |
-| `docs/dev/developer_guide/package_reference.md` | 変更 | `internal/cmdrunner` の行に新しい設定とエラーを、`internal/fixprguard` の行に対象のファイルの比較と記録のファイルを加える |
+| `docs/dev/conventions/package_reference.md` | 変更 | `internal/cmdrunner` の行に新しい設定とエラーを、`internal/fixprguard` の行に対象のファイルの比較と記録のファイルを加える |
 | `docs/translation_glossary.md` | 変更 | ガイドの翻訳で使った本タスクの用語を加える（`.claude/commands/mktrans.md`「Update Glossary」） |
 
 本タスクの変更で直す既存のテストと、満たし続けるガードは次のとおりである。

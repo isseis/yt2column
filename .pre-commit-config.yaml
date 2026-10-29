@@ -8,6 +8,15 @@ repos:
         types: [go]
         pass_filenames: false
 
+    # The go-test hook above runs only when a Go file changes; this one runs
+    # the README sync check when either README changes.
+    -   id: readme-sync
+        name: README.en.md sync marker
+        entry: make readme-sync-check
+        language: system
+        files: ^README(\.en)?\.md$
+        pass_filenames: false
+
     -   id: go-tidy
         name: go tidy
         entry: go mod tidy

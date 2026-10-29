@@ -176,6 +176,16 @@ Run this after the calling command's last commit, with a clean working tree.
    follow `.claude/commands/_lib/coderabbit-local-review.md` with
    **BASE** = `$(git merge-base origin/main HEAD)`, **SCOPE** = branch,
    **SUMMARY** = REPORT.
+
+   **README sync.** Run this paragraph even when the sentence above does not
+   apply (LOCAL_REVIEW is `done`). Run the README sync check as
+   `.claude/commands/mktrans.md`, "When a caller runs it", says. For
+   `translated`, commit `README.en.md` alone, with a message such as
+   `docs: sync README.en.md with README.md`, which also carries any
+   `CodeRabbit local review:` lines step 1 has not yet recorded; CHECKS then
+   runs on that commit, and step 3 lists the reported terms in the PR body.
+   For `stopped`, stop before step 2: nothing is pushed.
+
 2. Run CHECKS. If they fail, fix, commit, and run them again; do not go on to
    the push until they pass.
 3. Push and create the PR for the current branch. Ignore the calling command's
@@ -202,6 +212,8 @@ Run this after the calling command's last commit, with a clean working tree.
      messages on the branch (`git log origin/main..HEAD`, the
      `CodeRabbit local review:` lines `_lib/coderabbit-local-review.md` step 5
      writes);
+   - lists the terms the README sync (step 1) reported as missing from the
+     translation glossary, if any;
    - contains `Refs #<issue>` for the issue the requirements document names as
      its own (`対応 issue`), never a closing keyword (`Closes`, `Fixes`,
      `Resolves`): the issue stays open until the task is implemented. The

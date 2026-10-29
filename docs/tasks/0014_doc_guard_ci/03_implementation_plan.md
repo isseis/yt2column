@@ -103,7 +103,7 @@ requirements が定める 4 つの機能要件（F-001〜F-004）を、architect
 **対象ファイル:** `docs/tasks/0014_doc_guard_ci/03_implementation_plan.md`（§5.1 に記録）
 
 - [x] **ステップ 3-1**: フェーズ 1 が `main` にマージされた後、`main` から捨てブランチを切り、文書だけを変える（例: `CLAUDE.md` に無害な 1 行を足す）。PR を出し、`doc-guard` ジョブが走って成功すること（`check-changes` が `has-code-changes=false` でも走ること）を確かめる。確認の後、PR を閉じる（マージしない）。workflow の実行 URL を控える（AC-06）。
-- [x] **ステップ 3-2**: `main` から捨てブランチを切り、(a) `cmd/yt2column` の文書 guard が読むテキストを壊す（例: `CLAUDE.md` の `ext-` ターゲットの一覧から 1 つ削る）、(b) `internal/pipeline` の文書 guard が読むテキストを壊す（例: `docs/dev/developer_guide/package_reference.md` からパッケージの行を 1 つ削る）を別々に行う。(a)・(b) それぞれの PR で `doc-guard` ジョブが赤になることを確かめる。これは、`doc-guard` が `cmd/yt2column` と `internal/pipeline` の両方を対象にし、`-run` で絞っていないことの確認でもある（AC-07・AC-02）。確認の後、PR を閉じ、`main` に戻す。
+- [x] **ステップ 3-2**: `main` から捨てブランチを切り、(a) `cmd/yt2column` の文書 guard が読むテキストを壊す（例: `CLAUDE.md` の `ext-` ターゲットの一覧から 1 つ削る）、(b) `internal/pipeline` の文書 guard が読むテキストを壊す（例: `docs/dev/conventions/package_reference.md` からパッケージの行を 1 つ削る）を別々に行う。(a)・(b) それぞれの PR で `doc-guard` ジョブが赤になることを確かめる。これは、`doc-guard` が `cmd/yt2column` と `internal/pipeline` の両方を対象にし、`-run` で絞っていないことの確認でもある（AC-07・AC-02）。確認の後、PR を閉じ、`main` に戻す。
 - [x] **ステップ 3-3**: ステップ 3-1・3-2 の結果（対象・実行 URL・日付・結果）を §5.1 に記録する。記録の欄は空にしない。
 
 **完了条件:** §5.1 に AC-06・AC-07 の記録がそろっている。
@@ -204,7 +204,7 @@ GitHub Actions は手元で再現できないので、捨てコミットの PR �
 |---|---|---|---|
 | AC-06（文書だけの PR で `doc-guard` が走る） | PR #198（branch `issei/doc-check-on-ci-verify-docs`、workflow run https://github.com/isseis/yt2column/actions/runs/38498139931） | 2026-10-14 | `check-changes` は `has-code-changes=false` を出力し `test`・`lint`・`extension` は skipping。`doc-guard` は走って pass（38 秒、`cmd/yt2column`・`internal/pipeline` とも ok）。確認の後に PR を閉じた（マージしない） |
 | AC-07(a)（`cmd/yt2column` の guard を壊すと赤） | PR #199（branch `issei/doc-check-on-ci-break-claude`、workflow run https://github.com/isseis/yt2column/actions/runs/38498294920） | 2026-10-14 | `CLAUDE.md` の `ext-` ターゲットの一覧から `make ext-fmt` を 1 つ削った。`doc-guard` は fail（`cmd/yt2column` の `TestExtensionDocumentation/lists_every_ext-_target_the_Makefile_defines,_and_no_others` が失敗、`internal/pipeline` は ok）。確認の後に PR を閉じた（マージしない） |
-| AC-07(b)（`internal/pipeline` の guard を壊すと赤） | PR #200（branch `issei/doc-check-on-ci-break-pipeline`、workflow run https://github.com/isseis/yt2column/actions/runs/38498458195） | 2026-10-14 | `docs/dev/developer_guide/package_reference.md` から `prompts` の行を 1 つ削った。`doc-guard` は fail（`internal/pipeline` の `TestPackageReferenceListsPackages` が失敗、`cmd/yt2column` は ok）。確認の後に PR を閉じた（マージしない） |
+| AC-07(b)（`internal/pipeline` の guard を壊すと赤） | PR #200（branch `issei/doc-check-on-ci-break-pipeline`、workflow run https://github.com/isseis/yt2column/actions/runs/38498458195） | 2026-10-14 | `docs/dev/conventions/package_reference.md` から `prompts` の行を 1 つ削った。`doc-guard` は fail（`internal/pipeline` の `TestPackageReferenceListsPackages` が失敗、`cmd/yt2column` は ok）。確認の後に PR を閉じた（マージしない） |
 
 ## 6. リスク管理 (Risk Management)
 

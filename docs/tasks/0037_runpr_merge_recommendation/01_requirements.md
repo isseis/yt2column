@@ -108,7 +108,7 @@ NEXT が `/runplan` のときは、次の PR マーカーの `実装モデル要
 - **AC-12**: 次の記述は、`/runpr` がマージの後に NEXT を示し、利用者が選んだときに実行すると述べる。マージの後に NEXT を必ず実行する、または既定で実行するとは述べない。
     -   `CLAUDE.md` の「Claude Commands」の `/runpr` の行（`CLAUDE.md:86`）と、タスクの PR の流れを説明する段落（`CLAUDE.md:98-102`）。
     -   `_lib/task-pr-handoff.md` の冒頭の説明（`.claude/commands/_lib/task-pr-handoff.md:19-23`）。
-    -   `docs/dev/developer_guide/requirements_process.md` の「Review Flow」の説明（`requirements_process.md:55`）。
+    -   `docs/dev/conventions/requirements_process.md` の「Review Flow」の説明（`requirements_process.md:55`）。
     -   `mergepr.md` step 3 の、`runpr.md` の中で実行するときの説明（`.claude/commands/mergepr.md:122-125`）。
 - **AC-13**: `_context.md` の「PR marker conventions」の `実装モデル要件` の説明（`.claude/commands/_context.md:63`）は、値を示す場所として、マージの質問と AC-05 の案内の両方を挙げる。
 - **AC-14**: AC-11〜AC-13 で変更する文書は英語で書く（`CLAUDE.md` の「Language」と「Documents」。`requirements_process.md` は `docs/dev/developer_guide/*.md` の例外に当たる）。

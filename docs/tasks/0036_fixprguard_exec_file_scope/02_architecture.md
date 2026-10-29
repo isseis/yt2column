@@ -10,7 +10,7 @@
 | Reviewer | isseis |
 | Comments | 2026-10-22 (editorial): 7.5 の `TestInspectExitCode` の行番号を `:493-520` から `:495-527` に直し、`TestInspectExitCode`・`TestInspectListsOutOfScope` の表に新しい規則でだけ範囲外になる入力を加えることを書き足した（実装計画 1.4。既存のテストの表に行を加えるだけで、結合テストは加えない）。8 章の 1 に、英語版のガイドは日本語版の commit の後の commit に入れることを書き足した（CLAUDE.md の翻訳の順序）。決定は変えていない。2026-10-22 (decision): 7.4 の AC-20 の確かめを、文書のガード（`static`）から PR のレビューでの読み合わせ（`manual`）だけに改めた（理由: 7.2 の項目は自然言語の文で、ガードが固定できるのは項目の書き出しの語句だけである。語句を固定すると、言い回しを直すたびに失敗し、中身が誤っていても通るので、確かめとしての信頼性が低い）。要件定義のプロセスのガイドの「各 AC に `test` か `static` を 1 つ以上」の例外になる。PR-2 の実装の際に、このセッションでレビュアーが決めた。実装計画 1.4・5 章も同じ commit で改めた。2026-10-23 (decision): タスク 0038 の F-005 により、7.4 の AC-18 を PR のレビューでの読み合わせ（`manual`）に改めた（`TestTask0030NotesScopeChange` を削除したため）。決定はタスク 0038 の要件の承認で得たので、`Status` は `approved` のままとする。 |
 
-本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `3ed049b` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md) の項番を指す。申し送り H-01〜H-06 への対応は付録 A にまとめる。「ガイド」は `docs/dev/developer_guide/fixprguard_guide.md`（と日本語版の `fixprguard_guide.ja.md`）を指す。行番号は日本語版のものである。
+本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `3ed049b` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md) の項番を指す。申し送り H-01〜H-06 への対応は付録 A にまとめる。「ガイド」は `docs/dev/guides/fixprguard_guide.md`（と日本語版の `fixprguard_guide.ja.md`）を指す。行番号は日本語版のものである。
 
 本書は、要件書 6 章で定義した用語を同じ意味で使う: 実行関連ファイル、拒否リスト、許可リスト、指示ファイル、Go のビルドの入力。「範囲外の変更」「信頼する著者のスレッド」「名指し」「ガードツール」は、用語集（`docs/translation_glossary.md`）の定義どおりに使う。「名指しのスレッド」は、名指しされた想定外の著者のスレッドの略である。規則 1〜6 は、ガイド 6 章の番号を指す（規則 1 は `path` そのもの、規則 2 は同じディレクトリ、規則 3 はタスクのディレクトリの下、規則 4 は実行関連ファイルの扱い）。ほかに次の用語を定義して使う。
 
@@ -175,11 +175,11 @@ flowchart LR
 | `cmd/fixprguard/docs_test.go` | 変更 | `TestGuideCoversStopKindsAndScope`（`:45-62`）が、`AllowListPatterns` の項目も確かめ、範囲を 6 章に限る（3.5）。文書の AC の記述の有無と構造を確かめるガードを加える（AC-18・AC-21。7.4） |
 | `.claude/commands/fixpr.md`・`.claude/commands/runpr.md` | 変更 | `--protocol 2` をすべて `--protocol 3` にする（3.6）。手順は変えない |
 | `docs/tasks/0032_japanese_pr_title/check_rules.sh` | 変更 | `:524` の `--protocol 2` を `3` にする（3.6） |
-| `docs/dev/developer_guide/fixprguard_guide.ja.md`・`fixprguard_guide.md` | 変更 | 4 章・5 章の番号、6 章の規則と表、7.2 の残余のリスク、9 章（3.5・3.6） |
+| `docs/dev/guides/fixprguard_guide.md`・`fixprguard_guide.md` | 変更 | 4 章・5 章の番号、6 章の規則と表、7.2 の残余のリスク、9 章（3.5・3.6） |
 | `docs/translation_glossary.md` | 変更 | 要件書 6 章の 5 つの用語を加える（AC-21。3.7） |
 | `docs/tasks/0030_fixpr_untrusted_threads/02_architecture.md`・`01_requirements.md` | 変更 | 3.6 と F-004 に、範囲の規則が本タスクで変わったことの注記を加える。`Comments` に editorial correction として記録する（AC-18。3.7） |
 
-`cmd/fixprguard` の本番のコード（テスト以外）は変えない。`inspect` の流れ（`worktree.go:141`）と出力の形（`worktree.go:119-138`）はそのままで、判定の結果だけが変わる。`docs/dev/developer_guide/package_reference.md` は変えない。`internal/fixprguard` と `cmd/fixprguard` の行（`:14`・`:21`）は、範囲の規則の中身を述べていない。
+`cmd/fixprguard` の本番のコード（テスト以外）は変えない。`inspect` の流れ（`worktree.go:141`）と出力の形（`worktree.go:119-138`）はそのままで、判定の結果だけが変わる。`docs/dev/conventions/package_reference.md` は変えない。`internal/fixprguard` と `cmd/fixprguard` の行（`:14`・`:21`）は、範囲の規則の中身を述べていない。
 
 ### 2.3. データフロー: `inspect` の判定
 

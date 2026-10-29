@@ -516,7 +516,7 @@ func Post(ctx context.Context, call Call) ([]byte, error)
 | `README.md` | 変更 | 設定の表（プロバイダ固有の変数は選んだプロバイダのときだけ検査すること）、`max` の注意、統合テスト | - |
 | `docs/dev/project_overview.md` | 変更 | 設定の表、パッケージ構成。設定の節に「選択したプロバイダに関係しない変数は読まず、検査しない」原則を加える（要件定義書 §5.1）| - |
 | `docs/dev/security.md` | 変更 | §2 の統合テストの例外の表とキーの説明（テスト用のキーは利用上限を設けたワークスペースのものにする）、http2debug の説明（`x-api-key`）、§4 の送るデータ | - |
-| `docs/dev/developer_guide/package_reference.md` | 変更 | 新設のパッケージ | - |
+| `docs/dev/conventions/package_reference.md` | 変更 | 新設のパッケージ | - |
 | `CLAUDE.md` | 変更 | Architecture Overview に `internal/llm/llmhttp`・`internal/llm/claude` を、秘密情報の変数名の例に `ANTHROPIC_API_KEY` を加える | - |
 | `internal/llm/deepseek/testutil/integration.go` | 変更 | http2debug の説明（`:33-37`）を、キーの種類によらない表現に改める | なし |
 

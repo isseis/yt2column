@@ -11,44 +11,109 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - [Cache Consistency](docs/dev/cache_consistency.md) - What the transcript cache guarantees across failures and power loss, and why (Japanese). Check its checklist before changing cache code.
 
 **Development Guides:**
-- Requirements and Acceptance Criteria Process: [requirements_process.md](docs/dev/developer_guide/requirements_process.md) - Process for implementing new features
-- Test Organization Guide: [test_organization.md](docs/dev/developer_guide/test_organization.md) - Test helper file organization
-- [Package Reference](docs/dev/developer_guide/package_reference.md) - Detailed package structure
-- [Updating the Pricing Table](docs/dev/developer_guide/pricing_update.md) - How to update the LLM rate table in `internal/pricing`
-- [Claude Output Limit](docs/dev/developer_guide/claude_output_limit.md) - When and how to re-measure the basis of the Claude adapter's default output limit (`max_tokens`)
-- [mergepr Guide](docs/dev/developer_guide/mergepr_guide.md) - Setup, usage, guarantees, and troubleshooting for the `/mergepr` tool
-- [fixprguard Guide](docs/dev/developer_guide/fixprguard_guide.md) - Setup, subcommands, guarantees, scope rules, and recovery for the `fixprguard` guard tool for `/fixpr` and `/runpr`
+- Requirements and Acceptance Criteria Process: [requirements_process.md](docs/dev/conventions/requirements_process.md) - Process for implementing new features
+- Test Organization Guide: [test_organization.md](docs/dev/conventions/test_organization.md) - Test helper file organization
+- [Package Reference](docs/dev/conventions/package_reference.md) - Detailed package structure
+- [Updating the Pricing Table](docs/dev/guides/pricing_update.md) - How to update the LLM rate table in `internal/pricing`
+- [Claude Output Limit](docs/dev/guides/claude_output_limit.md) - When and how to re-measure the basis of the Claude adapter's default output limit (`max_tokens`)
+- [mergepr Guide](docs/dev/guides/mergepr_guide.md) - Setup, usage, guarantees, and troubleshooting for the `/mergepr` tool
+- [fixprguard Guide](docs/dev/guides/fixprguard_guide.md) - Setup, subcommands, guarantees, scope rules, and recovery for the `fixprguard` guard tool for `/fixpr` and `/runpr`
 
 ## Documents
 
-- Documents should be placed under docs
-- Default language is Japanese (exceptions: README.md, CLAUDE.md, docs/dev/developer_guide/\*.md)
+- Documents should be placed under docs. Exception: `README.md` and its
+  English version `README.en.md` sit at the repository root (see "Document
+  language" below).
+- A document's language follows "Document language" below.
 - Default format is markdown
 - Use Mermaid for diagrams, following the conventions in
-  [mermaid_reference.md](docs/dev/developer_guide/mermaid_reference.md) (node-label
+  [mermaid_reference.md](docs/dev/conventions/mermaid_reference.md) (node-label
   quoting, `<br>` line breaks, cylinder `[(...)]` data nodes, the standard classDef
   palette, and Legend blocks).
 - Each task lives in `docs/tasks/NNNN_<name>/` (four-digit sequence number).
   `docs/tasks/0000_template/requirements.md` is the starting point for
   `01_requirements.md`.
 
+### Document language
+
+A document's language follows from who reads it and who approves it, not from
+where it lives. Three principles decide it:
+
+- **(a) Japanese: documents a human decides on or approves, and guides for
+  humans.** Task documents under `docs/tasks/`, the documents directly under
+  `docs/dev/` (such as `project_overview.md` and `security.md`),
+  `docs/translation_glossary.md`, the guides under `docs/dev/guides/`, and
+  `prompts/README.md` and `testdata/README.md`.
+- **(b) English: instructions that control an agent's run, and the code in the
+  repository.** `CLAUDE.md`, `AGENTS.md`, the command definitions under
+  `.claude/commands/`, the conventions under `docs/dev/conventions/` that agents
+  follow, and source code with its comments, identifiers, and string literals
+  ("Language" below, and "Go Idioms" for the literal exceptions). The
+  principle governs the language of the instruction text itself: an
+  instruction may give an agent a principle-(a) document to read as material,
+  such as a task document to implement or `security.md` to check against.
+- **(c) The end-user document: Japanese primary, English kept in sync.** The
+  end users are the users of the browser extension, and their document is the
+  README: `README.md` is the primary version, in Japanese, and `README.en.md`
+  is its English version.
+
+Applied to directories: `docs/dev/conventions/` is English, and
+`docs/dev/guides/` is Japanese. A new document takes the language its reader and
+approver give it under these principles.
+
+Exceptions:
+
+- **The bilingual README.** The README is the only document kept in two
+  languages (`README.md` and `README.en.md`). Change `README.md` first, then
+  carry the change to `README.en.md` with `/mktrans` ("Translation Guidelines"
+  below).
+- **Where `README.en.md` lives.** It sits at the repository root next to
+  `README.md`, not under `docs/`. Reason: an English reader moves from the link
+  at the top of `README.md` to the English version at the same level, and
+  GitHub lists it next to the README it shows at the root.
+- **Japanese guides an agent reads.** A command definition under
+  `.claude/commands/` (`_context.md` and `_lib/` included) may refer an agent to
+  a Japanese guide under `docs/dev/guides/` as the manual of a tool the command
+  drives (today `fixpr.md` and `_context.md` refer to `fixprguard_guide.md`, and
+  `mergepr.md` to `mergepr_guide.md`), an exception to principle (b), because
+  the agent follows the guide as instructions rather than reading it as
+  material. Scope: only a command definition's reference to a guide under
+  `docs/dev/guides/`; every other instruction an agent follows stays English.
+  Reason: a guide is written for a human using a tool, and keeping the same
+  content in English as well would bring back the double maintenance the
+  guides left behind. An agent reads Japanese.
+
 ### Translation Guidelines (Japanese to English)
 
-Create and commit the Japanese version first, then write the English version from
-it. The translation principles (accuracy over fluency, faithful translation,
-structural consistency) and the glossary workflow live in
-[mktrans.md](.claude/commands/mktrans.md), which automates this; the glossary is
+The only translation pair is `README.md` (Japanese, primary) → `README.en.md`
+(English). Change `README.md` first, then run `/mktrans README.md`, which
+carries the change into `README.en.md`, and commit both in one commit. When `README.en.md` does not
+exist yet, `/mktrans` run by itself makes a full translation (and stops when
+`README.md` is not in Japanese), while the sub-step another command runs does
+nothing. The first line of `README.en.md` is a sync marker naming the blob of
+the `README.md` content it was translated from; `/mktrans` translates the difference between that blob and the current
+`README.md` and then updates the marker. `TestReadmeSyncMarker` checks the
+marker against the current `README.md`; it runs in `make test`, in CI's
+`doc-guard` job, and in a pre-commit hook for the two READMEs
+(`make readme-sync-check` runs it alone), so a `README.md` change is not
+committed or merged without the sync, whoever makes it. `/runplan`, `/fixpr`,
+and `/runpr` run `/mktrans` when the check fails. `/mktrans` stops
+and asks on any other file. The translation principles (accuracy over fluency,
+faithful translation, structural consistency) and the glossary workflow live in
+[mktrans.md](.claude/commands/mktrans.md); the glossary is
 [docs/translation_glossary.md](docs/translation_glossary.md).
 
 ## Language
 
 - **Conversation in a Claude Code session: Japanese.** This includes the
   explanation of test results, tool output, and review findings.
-- **What stays in the git repository: English** — source code, comments,
-  identifiers, string literals, and commit messages. A squash commit's subject
-  and body are English too: `/mergepr` writes the subject from the PR material
+- **Code and commit messages in the git repository: English** — source code,
+  comments, identifiers, string literals (with the literal exceptions in "Go
+  Idioms"), and commit messages. A squash commit's subject and body are
+  English too: `/mergepr` writes the subject from the PR material
   (`.claude/commands/mergepr.md` step 2), not by copying the PR title.
-  Documents under `docs/` follow "Documents" above.
+  Documents in the repository (under `docs/`, the README, and the instruction
+  files) follow "Document language" above.
 - **Prompts to AI: English** — subagent prompts, review prompts, and the
   command definitions under `.claude/commands/`.
 - **What lives on GitHub: Japanese** — PR titles, PR descriptions, issues,
@@ -70,6 +135,7 @@ structural consistency) and the glossary workflow live in
 
 ### Test Commands
 - `make test` - Run all tests with race detection, then `make test-parse-norace`
+- `make readme-sync-check` - Run `TestReadmeSyncMarker` alone: `README.en.md`'s sync marker names the blob of `README.md` (passes while `README.en.md` does not exist); the pre-commit hook for the READMEs runs it
 - `make test-parse-norace` - Run `TestParseCopiedLargeInputs` alone without race detection; the parse-time deadline is checked only in builds without race detection, so this target and the plain `go test` commands below check it and `make test`'s race run does not
 - `go test -tags test -v ./...` - Run all tests directly
 - `go test -tags test -v ./internal/specific/package` - Run tests for specific package
@@ -93,7 +159,7 @@ Project-specific values these commands depend on are defined once in
 - `/fixpr [PR]` - Resolve unresolved PR review threads
 - `/mergepr [PR]` - Squash-merge a PR with a generated commit message and clean up its branch
 - `/japrose <file>` - Japanese prose-quality pass
-- `/mktrans <file>` - Japanese ⇄ English translation
+- `/mktrans README.md` - Carry `README.md` changes into `README.en.md` (the only translation pair)
 
 Each task PR is handled by two commands. The command that produces it —
 `/mkreq`, `/mkarch`, `/mkplan`, `/mkplan2`, or `/runplan` — works on its own
@@ -208,7 +274,7 @@ request to the socket per send and manages its own manifest with `install` and
 `uninstall`.
 
 See [Project Overview](docs/dev/project_overview.md) for the decided policies and
-constraints, and [Package Reference](docs/dev/developer_guide/package_reference.md)
+constraints, and [Package Reference](docs/dev/conventions/package_reference.md)
 for the packages that exist today. The server's API and startup are documented in
 the [README](README.md) and `docs/dev/security.md` §8.
 
@@ -420,7 +486,7 @@ info.json parsers with real samples under `testdata/`.
   `diff` verification, a script under the task's `_checks/` directory run once
   against the merge-base (`requirements_process.md` §4).
 
-See [Test Organization Guide](docs/dev/developer_guide/test_organization.md) for test helper file structure.
+See [Test Organization Guide](docs/dev/conventions/test_organization.md) for test helper file structure.
 
 ## Development Notes
 
@@ -503,21 +569,33 @@ Only the conventions a linter does not check are worth stating:
 - Use `map[T]struct{}` rather than `map[T]bool` for set semantics.
 - In tests, prefer `t.Cleanup` over manual `defer` chains and `t.TempDir` over
   `os.MkdirTemp` + `defer os.RemoveAll`.
-- Go comments, identifiers, and string literals are English.
+- Go comments, identifiers, and string literals are English. One exception, the
+  guard-test literal exception: a guard test's literal that must match text in
+  a Japanese document. Scope: the Go guard tests (`_test.go` files that read a
+  document) and the test-only package `internal/doctestutil` that holds their
+  locators (the headings and
+  column names they find a section or table by); the literal is a heading, a
+  table cell, an item label at the start of a line (such as the socket-path
+  labels `TestServerDocsContract` finds), or a bold marker (such as
+  `**実行関連ファイル。**` in `cmd/fixprguard/docs_test.go`). Reason: the
+  literal has to equal the document's text, and the document is Japanese
+  ("Document language" above). Comments and identifiers in those files stay
+  English.
 - The same rule applies to the browser extension: its comments, identifiers,
   and string literals are English. There are three exceptions: the messages in
   a catalog file for a language other than English under
   `extension/src/core/i18n/` or `extension/static/_locales/` (today `ja.ts`
   and `ja/messages.json`); a string literal in a test that checks the
-  properties of such a catalog's messages (a per-language word table); and a
-  guard test's literal that must match a Japanese document heading or table
-  cell. Every string shown to the user lives in the message catalogs, and both
-  the English and the Japanese catalog must have it. Logs written for
+  properties of such a catalog's messages (a per-language word table); and the
+  guard-test literal exception above, applied to the extension's guard tests
+  and their helpers under `extension/test/`. Every string shown to the user
+  lives in the message catalogs, and both the English and the Japanese catalog
+  must have it. Logs written for
   developers stay in English.
 
 ## Requirements and Acceptance Criteria
 
-When implementing new features, follow the process documented in [Requirements Process Guide](docs/dev/developer_guide/requirements_process.md).
+When implementing new features, follow the process documented in [Requirements Process Guide](docs/dev/conventions/requirements_process.md).
 
 **Quick summary:**
 1. Create an issue, then run `/mkreq <issue>` to create `01_requirements.md` with explicit acceptance criteria
