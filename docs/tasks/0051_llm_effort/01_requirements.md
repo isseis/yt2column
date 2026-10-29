@@ -25,6 +25,8 @@
 
 対応 issue: [#566](https://github.com/isseis/yt2column/issues/566)（前提: タスク 0045 `docs/tasks/0045_llm_env_var/`。完了済み）
 
+**README の参照の仕方:** README は、タスク 0048 で日本語の正本（`README.md`）と英語版（`README.en.md`）に分かれ、見出しと文が日本語になる（`docs/tasks/0048_doc_language_policy/01_requirements.md`）。そのため本書は、README の節を、英語の見出しではなく役割で呼ぶ（設定の節、推奨構成の節、旧変数からの移行の節、トラブルシューティングの節）。行番号は 2026-10-29 の `main`（README の開発者向けの内容を `docs/dev/guides/cli.md`・`development.md` に移した後）のものである。
+
 **本書の記述範囲:** 本書は、観測できる振る舞いを定める。対象は、どの値を受理し、どの値を拒否するか、拒否したときに利用者に何を示すか、どの工程がどのプロバイダ・モデル・effort を使い、プロバイダに何を送るか、文書に何を書くかである。拒否を分類する番兵エラー、エラーの理由（`VarError` の `Reason`）の正確な文言、effort を設定のどの型に持たせるか、受理する値の一覧をどのパッケージに置くか、既存の仕組み（`ClaudeEffort` のアクセサ、旧変数の一覧など）をどう整理するか、テストの手段は、設計（`02_architecture.md`）で決める。要件の検討で挙がった設計事項は [design_handoff.md](design_handoff.md) に申し送る。以下で使う「プロバイダの部分」「後半」「モデル ID」「effort の部分」「設定エラー」は、3.1 で定義する。
 
 **issue #566 で決めたこと:**
@@ -42,11 +44,11 @@ issue は「決めること（要件定義で確定する）」として 4 つ�
 
 -   **文法（issue の案のとおり）:** 最初の `/` より後ろに `+` が 1 つあれば、その後ろを effort とする。`+` が 2 つ以上あれば設定エラーにする。`+` の後ろが effort の値として不正なら拒否し、モデル ID の一部とみなして受理することはしない（CLAUDE.md の「Reject, don't normalize」）。effort の部分が空の値（`claude/claude-opus-5-5+`）も拒否する。
 -   **字数の調整（issue の案のとおり）:** 今と同じく、生成と同じクライアント（同じ effort）を使う。
--   **移行（issue の案のとおり）:** README の「Migrating from the retired LLM variables」に、`YT2COLUMN_CLAUDE_EFFORT` から移る手順を足す。
+-   **移行（issue の案のとおり）:** README の旧変数からの移行の節（今の見出しは「Migrating from the retired LLM variables」）に、`YT2COLUMN_CLAUDE_EFFORT` から移る手順を足す。
 -   **DeepSeek も effort を受理する（issue の案を変更）:** issue の案は、DeepSeek に effort を付けた値を設定エラーにするものだった。レビュアーの判断で、DeepSeek でも effort を指定できるようにする。DeepSeek の Chat Completions API は、要求本文の `reasoning_effort` で thinking の有無と強さを指定でき、受け付ける値は `none`・`low`・`high`・`max` の 4 つ、既定は `high` である（`none` は thinking を無効にし、ほかの 3 つは有効にする）。2026-10-29 に DeepSeek の公式文書（[Chat Completions API](https://api-docs.deepseek.com/api/create-chat-completion/)・[Thinking Mode](https://api-docs.deepseek.com/guides/thinking_mode/)）で確かめた。プロジェクトの概要も、DeepSeek の thinking を「初期は API のデフォルトのままにし、必要に応じて設定可能にする」としている（`docs/dev/project_overview.md:88`）。
     -   **受理する値は API の仕様の 4 つに限る:** Thinking Mode のガイドは、ほかの値（`minimal`・`medium`・`xhigh`・`ultra`）を API の側で 3 つのどれかに読み替えると記している。これらを受理すると、`deepseek/deepseek-flash+medium` が黙って `high` として動く。指定と異なる振る舞いを隠さないよう、仕様の値以外は拒否する（「Reject, don't normalize」）。
     -   **effort を省いたら何も送らない:** effort を省いた DeepSeek の値では、今と同じ要求を送り、thinking の扱いを API の既定に任せる。今の DeepSeek の設定が、そのまま同じ要求を送り続けるためである。
--   **推奨構成の例には effort まで書く:** 本番の構成を表す環境変数の例（`docs/dev/production_profile.md`「本番の構成」、README の Recommended configuration）は、`export YT2COLUMN_LLM=claude/claude-opus-5-5+high` の 1 行にする。今の例は `YT2COLUMN_LLM` と `YT2COLUMN_CLAUDE_EFFORT` の 2 行である（`docs/dev/production_profile.md:33-36`・`README.md:1048-1051`）。README は、この例を export すれば、後で既定が変わっても構成が固定されると説明している（`README.md:1059-1060`）。effort を省くと effort だけが既定に任されて固定されなくなるので、effort まで書く。
+-   **推奨構成の例には effort まで書く:** 本番の構成を表す環境変数の例（`docs/dev/production_profile.md`「本番の構成」、README の推奨構成の節）は、`export YT2COLUMN_LLM=claude/claude-opus-5-5+high` の 1 行にする。今の例は `YT2COLUMN_LLM` と `YT2COLUMN_CLAUDE_EFFORT` の 2 行である（`docs/dev/production_profile.md:33-36`・`README.md:575-578`）。README は、この例を export すれば、後で既定が変わっても構成が固定されると説明している（`README.md:586-587`）。effort を省くと effort だけが既定に任されて固定されなくなるので、effort まで書く。
 -   **`YT2COLUMN_CLAUDE_EFFORT` を拒否するメッセージには、2 つの変数と既定を示す:** メッセージは、代わりに `YT2COLUMN_LLM` と `YT2COLUMN_REVIEW_LLM` の値に `+<effort>` を付けることと、effort を省けばプロバイダの既定（Claude なら `high`）を使うことを示す。旧変数は検証・推敲にも効いていたので、`YT2COLUMN_REVIEW_LLM` を設定している利用者は、その値にも effort を付ける必要がある。たとえば、`low` を指定していた利用者が、旧変数を外しただけで気づかないまま `high` に戻ってしまうことを防ぐためである。今の旧変数のメッセージも、代わりの変数と、それが未設定のときに使われるものを示している（`config.go:92-100`）。メッセージと移行の説明は、2 つの変数を、プロバイダによって区別せずに示す（レビュアーの判断）。
 -   **effort の部分が不正なときは、受理する値の一覧を示す:** メッセージは、そのプロバイダが受理する effort の値を示す。今の `YT2COLUMN_CLAUDE_EFFORT` の理由は「must be a supported effort value」だけで、値の一覧を示さない（`config.go:84`）。effort はプロバイダとモデルを合わせた 1 つの値の一部になり、受理する値がプロバイダごとに異なるので、一覧を示す。一覧は固定の文であり、利用者が設定した値を含まない。
 -   **effort の表示はスコープ外とする:** サーバの起動時のログと記事に載るモデルの表記は変えず、effort を加えない（2.3）。
@@ -70,7 +72,7 @@ issue は「決めること（要件定義で確定する）」として 4 つ�
 -   `YT2COLUMN_LLM`・`YT2COLUMN_REVIEW_LLM` の値の effort の部分の解釈、検証、既定、継承（CLI と localhost サーバ）
 -   effort を工程ごとに LLM のクライアントへ渡し、Claude と DeepSeek の要求に載せること
 -   `YT2COLUMN_CLAUDE_EFFORT` を旧変数として拒否すること
--   README、`docs/dev/project_overview.md`、`docs/dev/production_profile.md`、`docs/dev/conventions/package_reference.md`、`docs/dev/guides/claude_output_limit.md` の effort の記載の更新と、これらの文書の値を検査するガードテストの追従。`README.en.md` があれば、CLAUDE.md「Translation Guidelines」に従って `README.md` の変更を反映する
+-   README、`docs/dev/guides/cli.md`、`docs/dev/project_overview.md`、`docs/dev/production_profile.md`、`docs/dev/conventions/package_reference.md`、`docs/dev/guides/claude_output_limit.md` の effort の記載の更新と、これらの文書の値を検査するガードテストの追従。`README.en.md` があれば、CLAUDE.md「Translation Guidelines」に従って `README.md` の変更を反映する
 
 ### 2.3. スコープ外 (Out of Scope)
 
@@ -81,8 +83,8 @@ issue は「決めること（要件定義で確定する）」として 4 つ�
 -   `YT2COLUMN_CLAUDE_EFFORT` を読み替える互換層。issue #566 は、廃止して設定エラーで止めると決めているためである。
 -   DeepSeek の要求の `thinking` のメンバーを送ること。thinking の有無は `reasoning_effort` の `none` で指定でき、2 つのメンバーで同じことを指定する必要がないためである。
 -   サーバの起動時のログ（`cmd/yt2column-server/run.go:186-191`）、記事の出力（`--out` のファイルの front matter、Slack の投稿）、成果物ファイルに載るモデルの表記の変更。モデル ID だけを載せる今の形を保ち、effort を加えない。issue は出力の変更を求めておらず、タスク 0045 も同じ理由で表記を変えなかったためである（1 章「要件定義の際に決めたこと」）。
--   Claude の結合テストが effort を取る変数 `YT2COLUMN_TEST_CLAUDE_EFFORT`（README「Claude integration test」・`Makefile:162-178`）の変更。テスト専用の変数で、廃止する `YT2COLUMN_CLAUDE_EFFORT` とは名前が異なるためである。DeepSeek の結合テストに effort を指定する手段を加えることも、issue が求めていないので含めない。
--   Claude が受理する effort の値と既定、`max` の扱い（README「Configuration」の注記）の変更。issue が求めておらず、変えるときは出力の上限の測り直しが要るためである（`docs/dev/guides/claude_output_limit.md`）。
+-   Claude の結合テストが effort を取る変数 `YT2COLUMN_TEST_CLAUDE_EFFORT`（`docs/dev/guides/development.md` の「Claude の統合テスト」・`Makefile:166-178`）の変更。テスト専用の変数で、廃止する `YT2COLUMN_CLAUDE_EFFORT` とは名前が異なるためである。DeepSeek の結合テストに effort を指定する手段を加えることも、issue が求めていないので含めない。
+-   Claude が受理する effort の値と既定、`max` の扱い（README の設定の節の注記）の変更。issue が求めておらず、変えるときは出力の上限の測り直しが要るためである（`docs/dev/guides/claude_output_limit.md`）。
 -   完了したタスクの文書（`docs/tasks/` の下）に残る `YT2COLUMN_CLAUDE_EFFORT` の記載の書き換え。当時の記録だからである。
 
 ## 3. 機能要件 (Functional Requirements)
@@ -171,17 +173,17 @@ effort を値に含めても、プロバイダ固有の変数とエラーの報�
 利用者と開発者が読む文書の effort の記載を、新しい規則に合わせる。`YT2COLUMN_CLAUDE_EFFORT` を現行の設定として載せたままにすると、文書のとおりに設定した利用者の実行が F-004 で止まるためである。`YT2COLUMN_CLAUDE_EFFORT` を使っていた利用者には、移行の方法を示す。
 
 **Acceptance Criteria**:
-- **AC-30**: README の Configuration の表と `docs/dev/project_overview.md` の「設定（環境変数）」の表は、`YT2COLUMN_CLAUDE_EFFORT` を現行の設定として載せない。`YT2COLUMN_LLM` の行は、値に `+<effort>` を付けられることを示す。
-- **AC-31**: README の Configuration と `docs/dev/project_overview.md` の「設定（環境変数）」は、effort の部分の規則を説明する。説明は、`+` で区切ること、`+` を探すのは後半だけで、1 つまで許すこと、3.1 の表の内容（プロバイダごとに受理する値と、省いたときの扱い）、空の effort と不正な effort を拒否すること、`YT2COLUMN_REVIEW_LLM` が未設定なら effort も生成から受け継ぎ、設定して effort を省けば 3.1 の表に従うことを含む。
-- **AC-32**: 生成と検証・推敲の継承を述べる既存の文（`README.md:1010-1016`、`docs/dev/production_profile.md:38`、`docs/dev/project_overview.md:151`）は、プロバイダとモデルに加えて effort も受け継ぐことがわかる形にする。プロバイダの部分が正しくモデル ID だけが空ならそのプロバイダの変数を検査する、と述べる文（`README.md:1033-1035`、`docs/dev/project_overview.md:153`）は、effort の部分が不正な場合も同じであることがわかる形にする（AC-28）。
-- **AC-33**: 旧変数を列挙する文と、「実行に使わない変数は読まない」方針の例外を述べる文（`README.md:196-199`、`README.md:1018-1024`、`docs/dev/project_overview.md:155-157`）は、`YT2COLUMN_CLAUDE_EFFORT` を旧変数に含める。README の `--no-review` の段落のうち effort を述べる文（`README.md:193-194`）と、`max` および既定の effort の注記（`README.md:1037-1044`）は、`YT2COLUMN_CLAUDE_EFFORT` ではなく値の effort の部分で説明する。
-- **AC-34**: 本番の構成を表す環境変数の例（`docs/dev/production_profile.md`「本番の構成」、README の Recommended configuration）は、`export YT2COLUMN_LLM=claude/claude-opus-5-5+high` の 1 行にする。例の変数の数を述べる文（「次の 2 つ」「These two values」「上の 2 つの変数」）は、例に合わせる。`docs/dev/production_profile.md` の「effort は 3 つの段階で共通である」という記述は、effort を工程ごとに指定できることと、本番の構成では 3 つの工程が同じ `high` であることがわかる形にする。
-- **AC-35**: README の「Migrating from the retired LLM variables」は、`YT2COLUMN_CLAUDE_EFFORT` から移る方法を示す。少なくとも、`YT2COLUMN_CLAUDE_EFFORT=low` と `YT2COLUMN_LLM=claude/claude-sonnet-5-5` を `YT2COLUMN_LLM=claude/claude-sonnet-5-5+low` に書き換える例と、`YT2COLUMN_REVIEW_LLM` を設定していた場合は、その値にも effort を付ける必要があること（付けなければ既定の `high` になること）を示す。
-- **AC-36**: README のトラブルシューティングで旧変数を名指しする設定エラーを扱う項目（`README.md:885-897`）は、`YT2COLUMN_CLAUDE_EFFORT` を名指しする設定エラーも扱い、その対処（AC-35 の移行の方法）を示す。
+- **AC-30**: README の設定の節の表と `docs/dev/project_overview.md` の「設定（環境変数）」の表は、`YT2COLUMN_CLAUDE_EFFORT` を現行の設定として載せない。`YT2COLUMN_LLM` の行は、値に `+<effort>` を付けられることを示す。
+- **AC-31**: README の設定の節と `docs/dev/project_overview.md` の「設定（環境変数）」は、effort の部分の規則を説明する。説明は、`+` で区切ること、`+` を探すのは後半だけで、1 つまで許すこと、3.1 の表の内容（プロバイダごとに受理する値と、省いたときの扱い）、空の effort と不正な effort を拒否すること、`YT2COLUMN_REVIEW_LLM` が未設定なら effort も生成から受け継ぎ、設定して effort を省けば 3.1 の表に従うことを含む。
+- **AC-32**: 生成と検証・推敲の継承を述べる既存の文（`README.md:540-544`、`docs/dev/guides/cli.md:273`、`docs/dev/production_profile.md:38`、`docs/dev/project_overview.md:151`）は、プロバイダとモデルに加えて effort も受け継ぐことがわかる形にする。プロバイダの部分が正しくモデル ID だけが空ならそのプロバイダの変数を検査する、と述べる文（`README.md:560-562`、`docs/dev/project_overview.md:153`）は、effort の部分が不正な場合も同じであることがわかる形にする（AC-28）。
+- **AC-33**: 旧変数を列挙する文と、「実行に使わない変数は読まない」方針の例外を述べる文（`README.md:546-551`、`docs/dev/guides/cli.md:72-74`・`:276-278`、`docs/dev/project_overview.md:155-157`）は、`YT2COLUMN_CLAUDE_EFFORT` を旧変数に含める。`docs/dev/guides/cli.md` の `--no-review` の段落のうち effort を述べる文（`docs/dev/guides/cli.md:72`）と、README の `max` および既定の effort の注記（`README.md:564-571`）は、`YT2COLUMN_CLAUDE_EFFORT` ではなく値の effort の部分で説明する。
+- **AC-34**: 本番の構成を表す環境変数の例（`docs/dev/production_profile.md`「本番の構成」、README の推奨構成の節）は、`export YT2COLUMN_LLM=claude/claude-opus-5-5+high` の 1 行にする。例の変数の数を述べる文（`docs/dev/production_profile.md` の「次の 2 つ」「上の 2 つの変数」と、README の推奨構成の節でそれに当たる文）は、例に合わせる。`docs/dev/production_profile.md` の「effort は 3 つの段階で共通である」という記述は、effort を工程ごとに指定できることと、本番の構成では 3 つの工程が同じ `high` であることがわかる形にする。
+- **AC-35**: README の旧変数からの移行の節は、`YT2COLUMN_CLAUDE_EFFORT` から移る方法を示す。少なくとも、`YT2COLUMN_CLAUDE_EFFORT=low` と `YT2COLUMN_LLM=claude/claude-sonnet-5-5` を `YT2COLUMN_LLM=claude/claude-sonnet-5-5+low` に書き換える例と、`YT2COLUMN_REVIEW_LLM` を設定していた場合は、その値にも effort を付ける必要があること（付けなければ既定の `high` になること）を示す。
+- **AC-36**: README のトラブルシューティングで旧変数を名指しする設定エラーを扱う項目（`README.md:446-457`）は、`YT2COLUMN_CLAUDE_EFFORT` を名指しする設定エラーも扱い、その対処（AC-35 の移行の方法）を示す。
 - **AC-37**: `docs/dev/project_overview.md` の DeepSeek の thinking の記述（`docs/dev/project_overview.md:88`）は、effort を付けた値で `reasoning_effort` を指定でき、省けば API の既定のままであることがわかる形にする。
 - **AC-38**: `docs/dev/conventions/package_reference.md` の `internal/config`・`internal/llm/provider`・`internal/llm/deepseek` の行（`docs/dev/conventions/package_reference.md:27`・`:37` など）は、effort が工程ごとの値から決まること、プロバイダごとに受理する値と省いたときの扱い（3.1 の表）、`YT2COLUMN_CLAUDE_EFFORT` が旧変数であることを述べる。`docs/dev/guides/claude_output_limit.md` の既定の effort の所在の記述（`docs/dev/guides/claude_output_limit.md:10`）は、Claude の既定の effort を定義している箇所を指す。
-- **AC-39**: README、`docs/dev/project_overview.md`、`docs/dev/production_profile.md`、`docs/dev/conventions/package_reference.md`、`docs/dev/guides/claude_output_limit.md` は、`YT2COLUMN_CLAUDE_EFFORT` を現行の設定として説明しない（触れるのは、拒否と移行の説明だけである）。
-- **AC-40**: 文書に書く値は、コードと一致する。`docs/dev/production_profile.md` の設定のブロックと工程の表、README の Recommended configuration の effort は、effort を省いたときに Claude の工程が使う effort と一致する。README と `docs/dev/project_overview.md` の環境変数の名前と既定値は、設定の読み込みが読む変数と既定値に一致する。README と `docs/dev/project_overview.md` が挙げる、プロバイダごとに受理する effort の値は、設定の読み込みが受理する値と一致する。
+- **AC-39**: README、`docs/dev/guides/cli.md`、`docs/dev/project_overview.md`、`docs/dev/production_profile.md`、`docs/dev/conventions/package_reference.md`、`docs/dev/guides/claude_output_limit.md` は、`YT2COLUMN_CLAUDE_EFFORT` を現行の設定として説明しない（触れるのは、拒否と移行の説明だけである）。
+- **AC-40**: 文書に書く値は、コードと一致する。`docs/dev/production_profile.md` の設定のブロックと工程の表、README の推奨構成の節の effort は、effort を省いたときに Claude の工程が使う effort と一致する。README と `docs/dev/project_overview.md` の環境変数の名前と既定値は、設定の読み込みが読む変数と既定値に一致する。README と `docs/dev/project_overview.md` が挙げる、プロバイダごとに受理する effort の値は、設定の読み込みが受理する値と一致する。
 - **AC-41**: AC-06 のメッセージが示す effort の値の一覧は、設定の読み込みがそのプロバイダについて受理する値と一致する。
 
 ## 4. 非機能要件 (Non-Functional Requirements)
@@ -222,7 +224,7 @@ effort を値に含めても、プロバイダ固有の変数とエラーの報�
 -   標準ライブラリの外のモジュールを加えない（CLAUDE.md「Dependencies」）。
 -   拒否のエラーは `*VarError` の形を保ち、値を持たない（`config.go:132-149`）。
 -   プロバイダの API の要求の形（Claude の effort、DeepSeek の `reasoning_effort`）は、そのアダプタのパッケージにとどめる（CLAUDE.md「Provider details stay in their adapter package」）。
--   **「実行に使わない変数は読まない」方針の例外の範囲を広げる:** 方針の所在は、README の「A resumed run validates only the settings of the stages it executes」（`README.md:194-195`）、`docs/dev/project_overview.md`「設定（環境変数）」の「中断した実行の再開では、実行する段階の LLM の変数だけを読む」（`docs/dev/project_overview.md:155`）、`LoadServer` の「It reads no variable the server does not use」（`config.go:319-322`）である。タスク 0045 は、旧変数 4 つが設定されているかどうかの検査を、この方針の例外とした（`docs/tasks/0045_llm_env_var/01_requirements.md` §1）。本タスクは、例外の対象に `YT2COLUMN_CLAUDE_EFFORT` を加える（AC-21）。理由はタスク 0045 と同じく、古い設定が残っていることに、いつ実行しても気づけるようにするためである。例外の範囲は、設定されているかどうかの検査だけであり、値は使わない（AC-23）。そのため、`YT2COLUMN_CLAUDE_EFFORT` は、今は Claude を使わない実行では読まない（`config.go:548-556`）が、本タスクの後は、CLI とサーバのどの実行でも設定されているかどうかだけを調べる（ホストは調べない。AC-26）。
+-   **「実行に使わない変数は読まない」方針の例外の範囲を広げる:** 方針の所在は、`docs/dev/guides/cli.md` の「再開した実行は、実行する工程の設定だけを検査する」（`docs/dev/guides/cli.md:72`）、`docs/dev/project_overview.md`「設定（環境変数）」の「中断した実行の再開では、実行する段階の LLM の変数だけを読む」（`docs/dev/project_overview.md:155`）、`LoadServer` の「It reads no variable the server does not use」（`config.go:319-322`）である。タスク 0045 は、旧変数 4 つが設定されているかどうかの検査を、この方針の例外とした（`docs/tasks/0045_llm_env_var/01_requirements.md` §1）。本タスクは、例外の対象に `YT2COLUMN_CLAUDE_EFFORT` を加える（AC-21）。理由はタスク 0045 と同じく、古い設定が残っていることに、いつ実行しても気づけるようにするためである。例外の範囲は、設定されているかどうかの検査だけであり、値は使わない（AC-23）。そのため、`YT2COLUMN_CLAUDE_EFFORT` は、今は Claude を使わない実行では読まない（`config.go:548-556`）が、本タスクの後は、CLI とサーバのどの実行でも設定されているかどうかだけを調べる（ホストは調べない。AC-26）。
 -   タスク 0045 とタスク 0003 の決定は、1 章「先行タスクの決定の変更」のとおり変更する。
 
 ## 6. 用語集 (Glossary)
