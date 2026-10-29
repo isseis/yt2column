@@ -8,7 +8,7 @@
 | Created | 2026-10-28 |
 | Review date | 2026-10-28 |
 | Reviewer | isseis |
-| Comments | 2026-10-28: 冒頭の要件定義の状態の記述を承認後の状態に直した（決定の変更なし。編集上の修正）。2026-10-28: 実装計画の作成時に、8 章の表のフェーズ 5 の内容に、`development.md` の CI の判定の行と Browser extension の節の最上位化を加え、フェーズ 6 の「CI の判定」を `README.en.md` の行に絞った。フェーズ 2 の AGENTS.md の変更（リンクのパス）はフェーズ 1 の一括置換に含まれることを注に書いた。`development.md` を読むテストと、`## Development` の節を移した後の見出しの入れ子を、同じ PR で正しく保つためである（決定の変更なし。編集上の修正） |
+| Comments | 2026-10-28: 冒頭の要件定義の状態の記述を承認後の状態に直した（決定の変更なし。編集上の修正）。2026-10-28: 実装計画の作成時に、8 章の表のフェーズ 5 の内容に、`development.md` の CI の判定の行と Browser extension の節の最上位化を加え、フェーズ 6 の「CI の判定」を `README.en.md` の行に絞った。フェーズ 2 の AGENTS.md の変更（リンクのパス）はフェーズ 1 の一括置換に含まれることを注に書いた。`development.md` を読むテストと、`## Development` の節を移した後の見出しの入れ子を、同じ PR で正しく保つためである（決定の変更なし。編集上の修正）。2026-10-29: 実装の際に、4.3 節の表の「止まった」の行で、書きかけた `README.en.md` を戻す手段を、呼び出し元の `git restore` から `/mktrans` が書く前の写しに改めた。呼び出し元の作業ツリーにあった `README.en.md` の変更（`/fixpr` の修正など）を消さないためである（決定の変更なし。編集上の修正）。2026-10-29: PR-2 のレビューで、レビュアー（isseis）の判断により、同期の印の検査をプロンプトの手順から Go のテスト `TestReadmeSyncMarker` に移した（決定の変更。レビュアーがこのセッションで承認した）。テストは `make test`・CI の `doc-guard`・pre-commit のフックで走り、`/runpr` の手順 4 の印の検査をなくし、3 つのコマンドの同期の手順は検査の失敗で `/mktrans` を呼ぶ形にした。プロンプトの判定は決定的でなく、手作業の変更が手順を通らないためである（2.4 節・3.1 節・4.3 節）。2026-10-29: PR-2 のレビューで、4.3 節の復旧の表の「印の ID が取り出せない」の行の `git fetch` の refspec に転送先（`refs/remotes/origin/pr/*`）を加えた。転送先のないワイルドカードの refspec は git が拒否するためである（決定の変更なし。編集上の修正） |
 
 本書は [01_requirements.md](01_requirements.md) の設計である。要件定義は、本書のレビューで AC-27a を加えたため一度 `draft` に戻し、本書と一緒に承認し直した。要件定義から申し送られた設計事項は [design_handoff.md](design_handoff.md) にあり、各項目への対応は 10 章にまとめる。本書が引用するファイルの行番号は、特に断らない限り、コミット `364c95b8`（本書の作成時の `main`）のものである。
 
@@ -189,15 +189,15 @@ flowchart LR
 sequenceDiagram
     participant C as 呼び出し元のコマンド<br>(/runplan・/fixpr・/runpr)
     participant T as /mktrans
-    participant G as git
+    participant G as git・同期の印の検査
     participant E as README.en.md
 
-    C->>G: この実行の変更に README.md があるか
-    alt README.md を変えていない
-        G-->>C: ない
+    C->>G: make readme-sync-check
+    alt 検査が通る
+        G-->>C: 通る
         Note over C: 何もしない
-    else README.md を変えた
-        G-->>C: ある
+    else 検査が失敗する
+        G-->>C: 失敗
         C->>T: README.md (下位の手順として)
         alt README.en.md がない
             T-->>C: 対象外
@@ -230,10 +230,12 @@ sequenceDiagram
 
 **印のブロブを取り出せることの保ち方。** PR は squash でマージされ、ブランチのコミットは `main` に残らない。`main` に残るのは、PR の先頭のコミットの `README.md` の内容のブロブである。そのため、印が `main` の `README.md` の内容と一致していれば、印のブロブはどの複製でも取り出せる。これを次の 2 つで保つ。
 
--   同期の手順（4.3 節）を、各コマンドで `README.md` を変えうる最後の手順の後、push の前に置く。
--   `/runpr` は、手順 4 でマージの質問をする前に、印を検査する。検査するのは、PR の先頭のコミットに `README.en.md` があり、PR の変更に `README.md` がある場合である（`README.en.md` がないときは、同期の手順と同じく検査しない）。印が PR の先頭のコミット（`headRefOid`）の `README.md` のブロブ（`git rev-parse <headRefOid>:README.md`）と一致しないときは、マージせずに止まり、`/mktrans` で反映して push するよう報告する。手順 4 では反映もコミットもしない。手順 4 のコミットは、`runpr.md` で PRE_MERGE として定めたファイルの変更に限られ、先頭のコミットが動くと手順 2 に戻るためである（`.claude/commands/runpr.md` の手順 4）。人間が直接変えた PR も `/runpr` でマージするので、この検査により `main` の上の印は `README.md` の内容と一致する。
+-   同期の印の検査をテスト `TestReadmeSyncMarker`（`cmd/yt2column/readme_sync_test.go`）にする。テストは、`README.en.md` の 1 行目が唯一の印で、印の ID が隣の `README.md` の内容のブロブの ID（Go の中で `git hash-object` と同じ方法で計算する）と一致することを確かめる。`README.en.md` がないときは通る（消えた場合は構造の一致のテストが失敗させる。4.1 節）。テストは `make test`、CI の `doc-guard` のジョブ（README だけを変えた PR を含むすべての PR）、`README.md`・`README.en.md` を変えたコミットの pre-commit のフック（`make readme-sync-check`）で走る。CI は PR のマージの結果（その時点の `main` に取り込んだ形）で一致を確かめるので、squash の後の `main` でも印は `README.md` の内容と一致する。CI の後に `main` が `README.md` を変えた場合は、`README.en.md` の 1 行目が衝突するので、取り込み直して CI が走り直す。`README.md` を変えるコミットは、同じコミットに `README.en.md` の同期を含める（pre-commit のフックと `make test` がそうでないコミットを断る）。両方の README は `.gitattributes` で LF に固定し、作業ツリーのバイトがブロブのバイトと同じになるようにする。人間が直接変えた PR も、`README.en.md` だけを変えた PR も、同じ検査を通る。
+-   同期の手順（4.3 節）は、この検査が失敗したときに `/mktrans` を呼ぶ。検査は決定的なので、いつ同期するかをプロンプトの判定に頼らない。
 
-それでも印のブロブを取り出せない場合（`/runpr` を使わずにマージした場合など）の復旧の手順は、4.3 節にある。
+検査が確かめるのは印と `README.md` の対応だけで、`README.en.md` の本文が翻訳されているかは確かめない。印だけを書き換えた変更は、構造の一致のテスト（4.1 節）と PR のレビューで見つける。pre-commit のフックは飛ばせるので、確実な関門は CI である。
+
+それでも印のブロブを取り出せない場合（CI を通さずにマージした場合など）の復旧の手順は、4.3 節にある。
 
 ### 2.5. `fixprguard` の範囲の判定（H-07）
 
@@ -277,6 +279,8 @@ sequenceDiagram
 | `docs/dev/conventions/package_reference.md` | `internal/doctestutil` の行を加える（`TestPackageReferenceListsPackages` が要求する。AC-08 の検査の対象外。7.3 節） | 変更 |
 | `cmd/yt2column/*_test.go`（`docs_test.go`・`output_layout_docs_test.go`・`extension_docs_test.go`・`fixpr_docs_test.go`・`codex_review_docs_test.go`・`copied_transcript_docs_test.go`）、`cmd/yt2column-server/docs_test.go`、`cmd/yt2column-nmhost/main_test.go` | 3.7 節のとおり、読む文書とロケータを改める。共有パッケージに移した補助関数の呼び出し元を改める。サーバのパッケージの補助関数のコピー（`docs_test.go:363-522`）と、その一致を固定する `TestSectionByHeading`（同 `:213`）は消す（3.3 節） | 変更 |
 | `cmd/yt2column/readme_structure_test.go`（新設、名前は計画で決める） | 構造の一致のテスト（AC-29。4.1 節） | 新設 |
+| `cmd/yt2column/readme_sync_test.go`（新設） | 同期の印の検査 `TestReadmeSyncMarker`（2.4 節） | 新設 |
+| `Makefile`・`.pre-commit-config.yaml`・`.gitattributes` | 同期の印の検査を単独で走らせるターゲット `readme-sync-check`（テストが走らなければ失敗する）、`README.md`・`README.en.md` を変えたコミットで走る pre-commit のフック、両方の README の改行を LF に固定する規則（2.4 節） | 変更 |
 | `cmd/yt2column/docpaths_test.go`（新設、名前は計画で決める） | 文書が示すパスの存在の検査（4.2 節） | 新設 |
 | `cmd/fixprguard/docs_test.go` | `guideFiles`（`:27-30`）を 1 つのファイル `docs/dev/guides/fixprguard_guide.md` にし、英語の手引きの印（`"**Execution-related files.**"` など）の行を消す（AC-17） | 変更 |
 | `extension/test/serverReasons.test.ts`・`metadataDocs.test.ts`、`extension/test/helpers/` | 3.5 節・3.7 節のとおり改める | 変更 |
@@ -570,7 +574,7 @@ var ErrUnsupportedHeading = errors.New("unsupported heading")
 
 テストの検査は `errors.Is` で行い、エラーの文言は比べない（CLAUDE.md、Testing Strategy）。表の数や行の数は比べない（H-04 の最後の点。比べると要件の変更になる）。HTML のブロックと引用の中の見出しは、README が使っていないので扱わない。
 
-あわせて、`README.en.md` の 1 行目が同期の印の形（2.4 節）であり、印が 1 つだけであることを検査する。AC-38 の差分翻訳が印に頼るので、印が壊れたことを `/mktrans` を呼ぶ前に CI で知るためである。印のブロブが今の `README.md` と一致することは検査しない（AC-29 が求めるのは構造の一致だけで、内容の対応は AC-37 の手順とレビューで保つ。要件 §4.5）。
+同期の印の形と、印のブロブが今の `README.md` と一致することは、構造の一致のテストではなく、別のテスト `TestReadmeSyncMarker` が検査する（2.4 節）。
 
 ### 4.2. リンクとパスの検査（AC-15・AC-25）
 
@@ -583,19 +587,19 @@ var ErrUnsupportedHeading = errors.New("unsupported heading")
 
 ### 4.3. 同期の手順の止まり方（AC-37）
 
-`/runplan`・`/fixpr`・`/runpr` は、`README.md` を変えた実行で `/mktrans README.md` を下位の手順として呼ぶ。「`README.md` を変えた」は、PR のブランチの変更（`$(git merge-base origin/main HEAD)..HEAD` のコミットと作業ツリー）に `README.md` があることで判定する。フェーズのグループの範囲（`${PHASE_START}..HEAD`）は使わない。同じ PR の前のグループや前のセッションの変更を見落とすためである。
+`/runplan`・`/fixpr`・`/runpr` は、同期の印の検査（`make readme-sync-check`。2.4 節）を走らせ、失敗したときに `/mktrans README.md` を下位の手順として呼ぶ。検査は作業ツリーの `README.md` と `README.en.md` を比べるので、同じ PR の前のグループや前のセッションの変更も含めて判定できる。検査が失敗したのに `/mktrans` が「反映済み」か「対象外」を返したときは、検査がほかの理由で失敗しているので、止まって検査の出力を報告する。
 
 | `/mktrans` の結果 | 呼び出し元の振る舞い |
 |---|---|
 | 反映した | `README.en.md` を自分のコミットに含める。用語集にない語を最終の報告と PR の本文に挙げる。手順を続ける |
-| 反映済み・対象外 | 何もせずに続ける |
-| 止まった（理由） | push せずに止まり、理由と復旧の手順を報告する。`/mktrans` が書きかけた `README.en.md` の変更は `git restore README.en.md` で戻す。`/runplan` と `/runpr` では、`README.md` を変えたコミットは push されずに手元に残る。`/fixpr` では、Phase 3 の修正はまだコミットされていないので、作業ツリーに残る。そのため、次の `/fixpr` は、Phase 3.5 で範囲の外の変更を断って止まったときと同じく、汚れた作業ツリーで止まる。報告に、残った変更とその扱い（コミットするか捨てるか）を人間が決めることを書く |
+| 反映済み・対象外 | 検査が失敗したのにこの結果なら、検査はほかの理由で失敗しているので、止まって検査の出力を報告する |
+| 止まった（理由） | push せずに止まり、理由と復旧の手順を報告する。`/mktrans` が書きかけた `README.en.md` の変更は、`/mktrans` が書く前に取った写しで自分で戻す（呼び出し元の作業ツリーにあった `README.en.md` の変更は消さない）。`/runplan` と `/runpr` では、`README.md` を変えたコミットは push されずに手元に残る。`/fixpr` では、Phase 3 の修正はまだコミットされていないので、作業ツリーに残る。そのため、次の `/fixpr` は、Phase 3.5 で範囲の外の変更を断って止まったときと同じく、汚れた作業ツリーで止まる。報告に、残った変更とその扱い（コミットするか捨てるか）を人間が決めることを書く |
 
 各コマンドで手順を置く場所は、`README.md` を変えうる最後の手順の後、検査と push の前である。
 
--   **`/runplan`:** `_lib/task-pr-handoff.md` の Part B の手順 1（ローカルの CodeRabbit のレビュー。レビューの修正で `README.md` が変わりうる）の後、手順 2（CHECKS）の前。同期でコミットしたときは、`runplan.md` が CHECKS として渡す green gate（`:82`）を走らせ直す。この位置は、Part B を使う文書のコマンド（`mkreq` など）にも当たるが、それらは `README.md` を変えないので、手順は何もしない。
--   **`/fixpr`:** Phase 3 の修正のエージェントが戻った後、Phase 3.5（範囲の検査）の前に、このセッションが実行する。修正のエージェントは `.git` に書く git のコマンドを使えず、`/mktrans` も自分のレビューのサブエージェントを起こすためである。Phase 4.5（ローカルの CodeRabbit のレビュー）が `README.md` を変えるコミットをしたときは、その push の前に、もう一度同期の手順を実行する。`README.en.md` の変更は、2.5 節のとおり範囲に入る。
--   **`/runpr`:** 単独の変更の PR を作る手順 1 で、ローカルのレビュー（`.claude/commands/runpr.md:115-118`）の後、push（同 `:131`）の前。チェックアウトしていないブランチを渡されたときは、ローカルのレビューと同じく同期の手順も実行できないので、そのブランチの変更に `README.md` があれば止まって報告する。加えて、手順 4 のマージの質問の前に、印を検査する（2.4 節。検査だけで、反映はしない。`README.en.md` がなければ検査しない）。`/runpr` が呼ぶ `/fixpr` の中の変更は、`/fixpr` の手順が扱う。
+-   **`/runplan`:** フェーズのグループで `README.md` を変えて `make test` が検査で失敗したとき、そのグループのコミットに `README.en.md` を含める。加えて、`_lib/task-pr-handoff.md` の Part B の手順 1（ローカルの CodeRabbit のレビュー。レビューの修正で `README.md` が変わりうる）の後、手順 2（CHECKS）の前。同期でコミットしたときは、`runplan.md` が CHECKS として渡す green gate（`:82`）を走らせ直す。この位置は、Part B を使う文書のコマンド（`mkreq` など）にも当たるが、それらは `README.md` を変えないので、手順は何もしない。
+-   **`/fixpr`:** Phase 3 の修正のエージェントが戻った後、Phase 3.5（範囲の検査）の前に、このセッションが実行する。修正のエージェントは `.git` に書く git のコマンドを使えず、`/mktrans` も自分のレビューのサブエージェントを起こすためである。Phase 4.5（ローカルの CodeRabbit のレビュー）がコミットしたときは、その push の前に、もう一度同期の手順を実行する。Phase 4 の build checks（`make test`）も同じ検査を含む。`README.en.md` の変更は、2.5 節のとおり範囲に入る。
+-   **`/runpr`:** 単独の変更の PR を作る手順 1 で、ローカルのレビュー（`.claude/commands/runpr.md:115-118`）の後、push（同 `:131`）の前。チェックアウトしていないブランチを渡されたときは、ローカルのレビューと同じく同期の手順も実行できない。同期していなければ CI の検査が失敗し、`/runpr` は手順 3 で CI の失敗で止まる。手順 4 の印の検査は置かない（CI の検査が同じことを、すべての PR で確かめる）。`/runpr` が呼ぶ `/fixpr` の中の変更は、`/fixpr` の手順が扱う。
 
 **`main` を取り込むときの衝突。** 2 つの PR がどちらも `README.md` を変えて同期すると、`README.en.md` の 1 行目の印が必ず衝突する。どちらか一方の印を選ぶと、印と本文の対応が崩れる（ブランチの印を選ぶと `main` の変更を 2 度訳し、`main` の印を選ぶとブランチの変更を 2 度訳す）。衝突したときは、`README.en.md` を `main` の内容（印と本文）で丸ごと置き換え、`README.md` の衝突を解いてから、同期の手順を実行する。これで差分はブランチの変更だけになる。この規則を `/runpr` の `main` を取り込む手順と、`/mktrans` の復旧の手順に書く。
 
@@ -604,7 +608,7 @@ var ErrUnsupportedHeading = errors.New("unsupported heading")
 | 理由 | 復旧 |
 |---|---|
 | 印がない・形が違う・2 つある | 人間が、`README.en.md` が反映している `README.md` の内容を特定し、その `main` のコミットの `README.md` のブロブの ID（`git rev-parse <commit>:README.md`）を印に書く。PR のレビューで確かめる |
-| 印の ID が取り出せない | `git fetch origin 'refs/pull/*/head'` で PR の先頭のコミットを取り込んでから、もう一度実行する。それでもなければ、上の行と同じく人間が印を書く。最後の手段として、`README.en.md` を消して `/mktrans` を単独で呼び、全文を翻訳する |
+| 印の ID が取り出せない | `git fetch origin '+refs/pull/*/head:refs/remotes/origin/pr/*'` で PR の先頭のコミットを取り込んでから、もう一度実行する。それでもなければ、上の行と同じく人間が印を書く。最後の手段として、`README.en.md` を消して `/mktrans` を単独で呼び、全文を翻訳する |
 | 翻訳のレビューで解消できない指摘 | 指摘を報告に挙げ、人間が判断する |
 
 ## 5. セキュリティ考慮事項 (Security Considerations)

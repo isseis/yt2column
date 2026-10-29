@@ -66,7 +66,10 @@ on every change, so run it without asking the user.
    - Apply the Convergence rules in `review-subagent-pattern.md`: prefer deleting
      to adding when closing a finding, and do not chase a mirror case of a rule
      just fixed.
-   - After fixing, run the build checks (`_context.md`) and commit.
+   - After fixing, run the build checks (`_context.md`) and commit. When a fix
+     changes `README.md`, run the README sync check as
+     `.claude/commands/mktrans.md`, "When a caller runs it", says before the
+     commit, and include `README.en.md` in it.
 
 4. Run `coderabbit review --agent ...` at most twice per SCOPE. Run the second
    time only if the first led to a fix; from the second run on, act on
