@@ -23,7 +23,7 @@ function expectPhrases(
 }
 
 describe("video metadata documentation", () => {
-  const readme = flatSection("README.md", "### Browser extension");
+  const readme = flatSection("README.md", "## Browser extension");
   const readmeWhere = "README's Browser extension section";
 
   it("README gives the expand prompt word for word", () => {

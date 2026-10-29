@@ -86,62 +86,12 @@ the section that has the details.
 - `ANTHROPIC_API_KEY` for the default provider
 - `SLACK_WEBHOOK_URL` (needed to post; the server starts without it)
 
-**For the CLI only:**
-
-- `yt-dlp` on `PATH` (or set `YT2COLUMN_YTDLP_PATH`); see
-  [Setting up yt-dlp](#setting-up-yt-dlp)
-- `SLACK_WEBHOOK_URL`, only when `--slack` is used
-
 An API key for the selected provider is required: `DEEPSEEK_API_KEY` for
 `deepseek`, `ANTHROPIC_API_KEY` for `claude`. When the review step uses a
 different provider, that provider's key is required too.
 
-## Usage
-
-The CLI is the development path: use it to develop and check the LLM call and
-the posting, while the primary path is the one in
-[Quick start](#quick-start).
-
-```
-yt2column [flags] <video URL>
-```
-
-Flags must come before the video URL. Exactly one of `--out` (write the
-article to a file outside the cache directory) and `--slack` (post it to the
-configured webhook) is required.
-
-| Flag | Meaning |
-|---|---|
-| `--out <path>` | File to write the article to. Use either this or `--slack`. It must not exist, its parent directory must exist, and it must be outside the cache directory. |
-| `--slack` | Post the article to the Slack-compatible Incoming Webhook (e.g. Mattermost) set in `SLACK_WEBHOOK_URL`. Use either this or `--out`. |
-| `--refresh` | Ignore the cached transcript, run `yt-dlp` again, and replace the cache. |
-| `--keep-cache` | Keep this video's cache after a successful run. |
-| `--system-prompt <path>` | Read the system prompt template from this file instead of the built-in one. |
-| `--user-prompt <path>` | Read the user prompt template from this file instead of the built-in one. |
-| `--no-shorten` | Do not shorten an over-long body, and do not check the final length. |
-| `--no-review` | Do not review the article against the source material. |
-| `--review-log <path>` | Write the review step's list of changes to this file. Requires the review step; with `--out`, the path must differ from it. |
-| `--shorten-system-prompt <path>` | Read the shorten system prompt template from this file instead of the built-in one. |
-| `--shorten-user-prompt <path>` | Read the shorten user prompt template from this file instead of the built-in one. |
-| `--review-system-prompt <path>` | Read the review system prompt template from this file instead of the built-in one. |
-| `--review-user-prompt <path>` | Read the review user prompt template from this file instead of the built-in one. |
-| `--artifacts <path>` | Save each stage's output (the generated article, the shortened article, and the review list with the applied article) to this directory, and reuse it to resume. The directory must exist and be outside the cache directory. |
-| `--after <stage>` | Run only the stages after `stage` (`generation`, `shorten`, or `review`), reusing that stage's saved output from `--artifacts`. Requires `--artifacts`; `--after review` does not accept `--review-log`. |
-| `-h`, `--help` | Show this usage and exit. |
-
-The article is written with file mode `0o644`. The output directory must allow
-creating a hard link: publishing uses `link(2)`, so an output path on a
-filesystem without hard-link support cannot be used, and a failed link leaves
-the finished article in a temporary file next to the output path (the path is
-printed to standard error).
-
-### Exit codes
-
-| Code | Meaning |
-|---|---|
-| `0` | The article was written to `--out` or posted to the configured webhook. Warnings about cache cleanup do not change this. `-h`/`--help` also exits `0`. |
-| `1` | A run failure: fetching the transcript, generating the article, or publishing failed; another run held the cache directory; the run was interrupted; an `--artifacts` directory was unusable or a saved artifact was missing, broken, or from another run; or the article was published but writing the review log failed. |
-| `2` | A usage or configuration error: bad arguments or video URL, a rejected environment variable, a forbidden `--artifacts`/`--after` combination, or a stage that could not be built. |
+The CLI's requirements are in
+[docs/dev/guides/cli.md](docs/dev/guides/cli.md#requirements).
 
 ## Post-generation steps
 
@@ -162,108 +112,11 @@ After the article is generated, two steps run by default.
 
 Both steps call the LLM (the shorten step only when the body is over the
 limit), so the default uses up to two more calls, and more cost, than
-generation alone. With `--no-shorten` the shorten step and the final length
-check are skipped; with `--no-review` the review step is skipped.
-`--no-shorten --no-review` restores the single-call behavior of earlier
-versions, including the `--out` format.
+generation alone.
 
-An article's model entries start with the generation model and add one entry per
-step that ran, in the order shorten, review (see [Output format](#output-format)).
-For unattended runs, pass
-`--review-log <path>` to record, in a separate file, what the review step
-changed; the log is written after the article is published, and if it cannot be
-written the run exits `1` with a message saying the article is already
-published.
-
-With `--artifacts <dir>`, a run also saves each stage's output — the generated
-article, the shortened article, and the review list with the applied article —
-to its own file (`<video ID>.generation.json`, `.shorten.json`, `.review.json`)
-as the stage completes and before the article is published, so a later stage's
-failure still leaves the earlier stages on disk. `--after <stage>` restarts from
-a saved stage and runs only the stages after it, reusing the saved output
-instead of calling the LLM for the skipped stages; `--after review` calls no LLM
-and only checks the final length and publishes. A resumed run saves the stages
-it does execute, so the `--artifacts` directory must be writable. The directory
-lives outside the cache directory and is still there on the next run, which is
-what makes the resume work; see [Cache and concurrency](#cache-and-concurrency).
-
-The review step's configuration is validated even with `--no-review`, because
-the configuration is independent of the flags: `YT2COLUMN_REVIEW_LLM` is still
-checked, and if it selects a different provider, that provider's variables are
-checked too. Its API key is required, and for `claude` a set effort must still
-be valid (an unset one selects `high`). A resumed run validates only the
-settings of the stages it executes, so `--after review` requires no LLM
-settings at all. The one exception is the retired LLM variables
-(`YT2COLUMN_LLM_PROVIDER`, `YT2COLUMN_MODEL`, `YT2COLUMN_REVIEW_PROVIDER`,
-`YT2COLUMN_REVIEW_MODEL`): every run, `--after review` included, stops when
-one of them is set (see [Configuration](#configuration)).
-
-## Token usage
-
-Every run reports the token usage the LLM API returned, one line per stage, on
-standard error. A successful run writes the lines after its other summary lines;
-a failed run writes them before the line that names the failure. A stage that
-neither ran nor reused an artifact writes no line. The line is:
-
-```text
-yt2column: tokens: <stage> <origin> known input=<n> cache_read=<n> cache_write=<n> output=<n> <model-field>
-yt2column: tokens: <stage> <origin> unknown reason=<reason> <model-field>
-```
-
-- `<stage>` is `generation`, `shorten`, or `review`.
-- `<origin>` is `run` when this run called the stage's LLM, or `reused` when the
-  stage came from a `--after` artifact.
-- `known` means the four counts are known; they are, in order, `input=`
-  (neither read from nor written to the prompt cache), `cache_read=` (read from
-  the prompt cache), `cache_write=` (written to the prompt cache; always 0 for
-  DeepSeek, which has no such category), and `output=` (the output, reasoning
-  and thinking included). For a `reused` stage they are the counts the saved
-  artifact recorded.
-- `unknown` means the usage could not be read or did not meet the rules. No
-  number is written, and `reason=` gives one space-free word: `not-read` (no
-  usage could be read: a call that failed before its usage was read, or a client
-  that reports none), `recorded-unknown` (a saved artifact stored the stage as
-  unknown), `invalid-rule` (a rule outside the set of known rules), or, for the
-  usage member or one of the consumed members that broke a rule, `usage:missing`,
-  `usage:duplicate`, `usage:not-an-object`,
-  `usage:not-a-non-negative-integer` and their `usage.<member>:missing`,
-  `usage.<member>:duplicate`, `usage.<member>:not-a-non-negative-integer` forms.
-- `<model-field>` is `model=<model>`, the model name, or the fixed word
-  `nomodel` when the stage reported no model that passed the model-name rules.
-  The model name is escaped the way `redact.Line` escapes every standard-error
-  line, so a `"` or a `\` in it is escaped; to recover it, wrap everything after
-  `model=` in double quotes and pass the result to `strconv.Unquote`. A model
-  name that contains a configured secret (or its last eight characters) is
-  replaced by the redaction marker and cannot be recovered.
-
-For example:
-
-```text
-yt2column: tokens: generation reused known input=46 cache_read=0 cache_write=0 output=85 model=deepseek-flash
-yt2column: tokens: shorten run known input=1800 cache_read=0 cache_write=0 output=2400 model=deepseek-flash
-yt2column: tokens: review run unknown reason=usage.output_tokens:not-a-non-negative-integer model=claude-opus-5-5
-yt2column: tokens: generation run unknown reason=not-read nomodel
-```
-
-An invalid `usage` alone does not fail the run: the call still succeeds, and
-whether the article is published and the exit code is 0 depend on the rest of
-the processing. A failed call fails the run (the exit code is non-zero), but its
-line is not always `unknown`: a truncation, an unexpected finish reason, or an
-empty response still carries the rejected response's model and usage, so the
-line can be `known`. `reason=not-read` is written only when no usage could be
-read.
-
-A run that ends before it calls any LLM (a usage or configuration error, a
-transcript-fetch failure, a rejected `--after` input, an unusable `--artifacts`
-directory, or a stage that could not be built) writes no token line. A run that
-is stopped without writing its summary (a second signal, `kill -9`, or a panic)
-writes none either.
-
-The counts are also stored, as the `usage` element, in a `--artifacts` file. A
-stage's call time is stored next to it, as the `call_time` element: the moment
-the stage's LLM call returned, in UTC and whole seconds. The artifact format is
-version 3: a version 1 or version 2 file is rejected on resume, so after
-updating, use a new `--artifacts` directory or move the old one away.
+The CLI's flags that skip a step, record the review's changes, or save and
+resume the stages are in
+[docs/dev/guides/cli.md](docs/dev/guides/cli.md#post-generation-steps).
 
 ## Output format
 
@@ -272,52 +125,8 @@ information differently: the reader's part (title, channel name, body, source
 link) comes first, and the development part (models, estimated cost) comes last
 in a Slack post and in the front matter of a file.
 
-### The `--out` file
-
-The file starts with a YAML front matter, then the title, the channel name (when
-there is one), and the body:
-
-```text
----
-channel: "Example Channel"
-source: "https://www.youtube.com/watch?v=abcdefghijk"
-model: "deepseek-flash"
-model_version: "v4"
-shorten_model: "deepseek-flash"
-shorten_model_version: "v4"
-review_model: "claude-haiku-5-5"
-review_model_version: "2026-01-01"
-estimated_cost_usd: "0.0094"
----
-
-# Caching transcripts by video ID
-
-Example Channel
-
-The cache key comes from the video ID alone.
-
-## One key per video
-
-Two URLs for one video share one entry.
-
-出典: <https://www.youtube.com/watch?v=abcdefghijk>
-```
-
-- The keys appear in this order. `channel` appears only when the video has a
-  channel name; `shorten_*` only when the article went through the shorten step (run now or
-  reused with `--after`); `review_*` only when it went through the review step.
-- Every value is a double-quoted string, quoted with Go's `strconv.Quote`, so a
-  value that contains a quote, a backslash, `:`, `#`, or `---` cannot change the
-  structure. `estimated_cost_usd` is a string too: four decimals, or `unknown`
-  (see [Estimated cost](#estimated-cost)). An empty model version is written as
-  `(none)`.
-- The channel name appears again under the title, so a Markdown viewer that
-  hides the front matter still shows it. A name that starts like a Markdown block
-  (`# `, `- `, `> `, and so on) gets a backslash at the start (after the digits
-  for a numbered-list marker) so that the rendered line is the name; leading
-  whitespace is dropped.
-- This format replaces the earlier one, which listed the models and the cost
-  under the title (`- Model: …`).
+The file the CLI writes is in
+[docs/dev/guides/cli.md](docs/dev/guides/cli.md#the---out-file).
 
 ### The Slack post
 
@@ -352,58 +161,9 @@ Models: deepseek-flash (generation, shorten) · claude-haiku-5-5 (review) · Est
 
 ## Estimated cost
 
-Every run that calls or reuses at least one LLM stage also reports an estimated
-cost on standard error: one line per stage, then two total lines. A successful
-run writes them after the other summary lines; a failed run writes them before
-the line that names the failure. A stage that neither ran nor reused an artifact
-writes no cost line, and a run that writes no token line writes no cost line
-either. The lines are:
-
-```text
-yt2column: cost: <stage> <origin> known usd=<amount> <basis> at=<time>
-yt2column: cost: <stage> <origin> unknown reason=<reason> at=<time>
-yt2column: cost-total: <total> known usd=<amount>
-yt2column: cost-total: <total> unknown
-```
-
-- `<stage>` and `<origin>` are the same words as the token-usage line:
-  `generation`, `shorten`, or `review`, and `run` or `reused`.
-- `known` is followed by the amount as `usd=` and six decimals, then `basis`,
-  the rate basis the estimate applied: `flat` (the model has one rate),
-  `off-peak` or `peak` (the two windows of DeepSeek's time-of-day rate), or
-  `short-prompt` or `long-prompt` (Claude Haiku's two prompt-length tiers).
-  `invalid` in this position, like the one under `unknown`, marks a broken
-  invariant and does not occur in a correct build.
-- `unknown` means the cost could not be estimated. No number is written, and
-  `reason` gives one word: `usage-unknown` (the stage's token counts are
-  unknown), `no-model` (the stage reported no model name), or `unpriced-model`
-  (the model name is not in the rate table). `invalid` means the CLI broke an
-  invariant of the pricing package; it does not occur in a correct build.
-- `at` is the call time the estimate used, in UTC as `YYYY-MM-DDTHH:MM:SSZ`. A
-  reused stage shows the time its artifact recorded; `none` marks a broken
-  invariant and does not occur in a correct build.
-- The `cost-total` lines are two totals: `run` is this run's cost, from the
-  stages this run called, and `article` is the whole article's cost, from those
-  stages plus the ones reused from `--after`. A total is `unknown` when any
-  stage in its set is unknown, and the `article` total is also `unknown` when
-  the generation stage is neither run nor reused (an article always has a
-  generation stage). Without `--after` the two totals are equal. The totals
-  round the exact sum of the stages, not the already-rounded stage amounts, so a
-  total can differ from the sum of the printed stage lines in the last digit.
-
-For example:
-
-```text
-yt2column: cost: generation reused known usd=0.000158 peak at=2026-10-16T01:12:09Z
-yt2column: cost: shorten run known usd=0.001710 off-peak at=2026-10-16T04:02:41Z
-yt2column: cost: review run unknown reason=unpriced-model at=2026-10-16T04:03:15Z
-yt2column: cost-total: run unknown
-yt2column: cost-total: article unknown
-```
-
 Both outputs carry the article's cost, with four decimals, or `unknown`: the
-`--out` file as the front matter key `estimated_cost_usd` (`"0.0023"` or
-`"unknown"`), and the Slack post as the end of its footnote:
+CLI's `--out` file in its front matter, and the Slack post as the end of its
+footnote:
 
 ```text
 Estimated cost: 0.0023 USD
@@ -429,54 +189,23 @@ provider's invoice:
   rates. Each entry records its source and checked date, and the update
   procedure is a developer document.
 
-Check the actual charge in the provider's console. A reused stage is priced with
-the rate table of the CLI that resumes, not the one that saved the artifact, so
-a run that resumes after a rate change reports a different article cost for the
-same saved text: the artifact records the call time, not the rate.
+Check the actual charge in the provider's console.
 
 A Slack post from the localhost server cannot show why an unknown cost is
-unknown, because the server's logs and HTTP responses do not change. To find the
-reason, run the CLI with the same model setting and read the `reason` word on
-its cost line.
+unknown, because the server's logs and HTTP responses do not change.
 
-## Cache and concurrency
-
-Every run takes an exclusive lock on the cache directory, so runs that share a
-cache directory are serialized: a second run fails immediately, without waiting,
-while the first holds the lock. Different cache directories do not affect each
-other.
-
-The artifacts saved with `--artifacts` live outside the cache directory, so
-removing the cache does not remove them and they are still there for a resume.
-The CLI neither prunes nor deletes them; delete the directory yourself when it
-is no longer needed.
-
-If the CLI is killed with SIGKILL, `yt-dlp` may keep running. The lock stays held
-until that `yt-dlp` exits, so until then the next run fails as a concurrent run
-(the message names the lock file and suggests `lsof` on it); it succeeds once
-the leftover `yt-dlp` has exited.
-
-If the cache is corrupt (for example a truncated transcript or `info.json`), the
-run fails with a message saying so. Run again with `--refresh` to fetch the
-transcript again and replace the cache.
-
-The channel name in a saved `info.json` is checked before the LLM is called: a
-name that is only whitespace, contains a control character (or a bidirectional
-control character such as U+202E), or is longer than 200 code points makes the
-run fail, where earlier versions accepted it. Run with
-`--refresh` to fetch the video again and replace the cache. The localhost
-server rejects such a `channelName` with `invalid_body`.
+The CLI's cost lines on standard error, which give the reason, are in
+[docs/dev/guides/cli.md](docs/dev/guides/cli.md#estimated-cost).
 
 ## Webhook publishing
 
-With `--slack`, the article is posted to the Slack-compatible Incoming Webhook
-in `SLACK_WEBHOOK_URL` instead of a file. Mattermost is the verified target; a
+The article is posted to the Slack-compatible Incoming Webhook
+in `SLACK_WEBHOOK_URL`. Mattermost is the verified target; a
 Slack Incoming Webhook is accepted but is best effort. The URL must parse as an
 `https` URL with a host. A value that does not — for example
 `https://hooks.slack.com/services/%zz`, `https://hooks.slack.com/%`, or a value
 ending in a control character — is rejected as a configuration error with exit
-code `2`, and because the variable is validated whenever it is set, this also
-stops an `--out` run.
+code `2`.
 
 The article is posted as Markdown, laid out as in [Output format](#output-format). A post longer than 16,383 code points — the
 limit Mattermost counts — is split into several messages, each at most 16,383
@@ -499,8 +228,8 @@ not. What happens depends on where it is:
 - A target `@` in the first line (the title and the channel name), in the
   footnote (the model names), or in the body outside code is posted with
   U+200B (zero width space) inserted right after the `@`, which keeps the server
-  from reading it as a mention. The file written by `--out` and the article
-  itself are not changed. The U+200B is invisible but is copied with the text.
+  from reading it as a mention. The article itself is not changed. The U+200B
+  is invisible but is copied with the text.
 - A target `@` inside a code span or a fenced code block of the body, or
   directly after a `/` (it may belong to a URL such as `youtube.com/@name`), is
   not changed: the article is rejected. So is a body whose code blocks cannot be
@@ -512,9 +241,8 @@ not. What happens depends on where it is:
   such cut exists, the post is rejected.
 
 A rejected article is not posted at all, and the error gives the line and column
-in the post (the lines differ from a file written by `--out`, which starts with front
-matter). Running again generates a different article, which
-may not have the problem; run with `--out` to inspect what the model generated.
+in the post. Running again generates a different article, which
+may not have the problem.
 The localhost server reports this rejection in its failure notice as its own
 reason, separate from other publishing failures.
 
@@ -523,13 +251,19 @@ in the channel. There is no retry or resume: running again generates a new
 article and posts it from the first message, so the channel can end up with part
 of the old article and all of the new one.
 
+How the CLI posts with `--slack`, and how to inspect a rejected article with
+`--out`, is in
+[docs/dev/guides/cli.md](docs/dev/guides/cli.md#webhook-publishing).
+
 ## Localhost server
 
 `yt2column-server` accepts the transcript the browser extension collects,
 generates the article, and returns it, keeping it in memory. Posting it to the
 Slack-compatible Webhook is an operation of its own: the extension's current
-`/articles` request generates and posts in one go as before, and the job API
-below generates, returns, and posts on request. The extension does not connect
+`/articles` request generates and posts in one go as before. The server's HTTP
+API, including the job API that generates, returns, and posts on request, is in
+[docs/dev/guides/development.md](docs/dev/guides/development.md#localhost-server-api).
+The extension does not connect
 to the server itself: the browser starts the native messaging host,
 `yt2column-nmhost`, which relays the request to the server's socket (see
 [Installing the native messaging host](#installing-the-native-messaging-host)).
@@ -538,7 +272,7 @@ to the server itself: the browser starts the native messaging host,
 
 It reads the same LLM variables as the CLI. `SLACK_WEBHOOK_URL` is optional for
 the server: without it the server still starts and generates articles, but
-posting (the job API's publish operation and `/articles`) is refused with
+posting is refused with
 `webhook_not_configured`, and the current extension shows that refusal as an
 unexpected reply. It never calls `yt-dlp` and reads neither `YT2COLUMN_CACHE_DIR`
 nor `YT2COLUMN_YTDLP_PATH`. It listens on a Unix domain socket only, never on a
@@ -565,9 +299,7 @@ post:
 The server writes nothing to standard output; the logs go to standard error,
 so `2>>server.log` keeps a record. The first log line names the socket. Every
 request line carries the `requestId` the response returns, as do the `/articles`
-job lines, so `grep "$requestId" server.log` finds them. The job API's generation
-and post jobs log the article key instead, so follow one with
-`grep "$key" server.log`.
+job lines, so `grep "$requestId" server.log` finds them.
 
 On start the server creates the socket directory (`run`) with mode `0700` when
 it is missing, takes the start lock (the file `.yt2column.lock` in the socket
@@ -595,10 +327,9 @@ Exit codes:
 
 The server logs to standard error. The first `SIGINT`, `SIGTERM`, or `SIGHUP`
 (one ignored at startup is not subscribed) stops accepting connections, removes
-the socket, cancels the job API's in-flight generations (their LLM calls stop
-and their articles are lost, because the cache goes away with the server), and
+the socket, and
 lets the other in-flight jobs finish: the `/articles` jobs, which can take up to
-about 45 minutes (three LLM calls of 15 minutes each), and the publish jobs. A
+about 45 minutes (three LLM calls of 15 minutes each). A
 second signal exits at once. Until the jobs have finished, a new server refuses
 to start.
 
@@ -675,201 +406,32 @@ Host exit codes for `install` and `uninstall`:
 | `1` | `install` or `uninstall` refused, or writing or removing the file failed. |
 | `2` | The arguments are wrong (the browser is not exactly `chrome` or `brave`), or `HOME` is unset, empty, or relative. |
 
-### Checking the server with curl
+### Rejection reasons
 
-Write a request body to `request.json` (a video URL and the copied transcript):
+When the server rejects a request, the popup shows the rejection's `reason`.
+What the extension shows for each reason:
 
-```json
-{"videoUrl":"https://www.youtube.com/watch?v=dQw4w9WgXcQ","transcript":"0:00\nHello\n"}
-```
-
-Send it to the socket. The path contains a space on macOS, so keep it in
-double quotes:
-
-```sh
-socket="$HOME/.local/state/yt2column/run/server.sock"
-if [ "$(uname -s)" = Darwin ]; then socket="$HOME/Library/Application Support/yt2column/run/server.sock"; fi
-curl -sS --unix-socket "$socket" -X POST http://localhost/articles \
-  -H 'Content-Type: application/json' \
-  --data-binary @request.json
-```
-
-An accepted request answers `202` with `{"status":"accepted","requestId":"…"}`.
-A rejected request answers a `4xx` or `5xx` with
-`{"status":"rejected","reason":"…","requestId":"…"}`, where `reason` is one of:
-
-| reason | status code | extension shows |
-|---|---|---|
-| `not_found` | 404 | unexpected reply |
-| `method_not_allowed` | 405 | unexpected reply |
-| `too_many_requests` | 429 | fixed message |
-| `body_too_large` | 413 | fixed message |
-| `invalid_body` | 400 | fixed message |
-| `invalid_video_url` | 400 | fixed message |
-| `invalid_transcript` | 400 | fixed message |
-| `webhook_not_configured` | 503 | unexpected reply |
-| `invalid_key` | 400 | unexpected reply |
-| `article_not_ready` | 409 | unexpected reply |
-| `article_not_found` | 404 | unexpected reply |
-| `article_not_postable` | 409 | unexpected reply |
-| `internal_error` | 500 | fixed message (unexpected reply when `requestId` is empty) |
-
-`not_found` and `method_not_allowed` answer a wrong path or method; they start
-no job and post no failure notice. The current extension's message declares no
-`v` member, so the host relays it to `POST /articles` unchanged and the
-extension shows either rejection as an unexpected reply.
-
-### The job API
-
-Besides `/articles`, the server accepts three operations that keep generation
-and posting apart, so that a viewer can show the article and post it only when
-the user asks. The current extension does not use them yet (#503 moves it);
-`/articles` keeps working until then and is removed afterwards.
-
-| operation | request | success response |
-|---|---|---|
-| generation start | `POST /jobs`, the same JSON object as `/articles` | `202`, `{"status":"accepted","key":"…","requestId":"…"}` |
-| status | `GET /jobs/<key>`, no body | `200`, `{"status":"ok","requestId":"…","webhookConfigured":true,"job":{…}}` |
-| publish | `POST /jobs/<key>/publish`, no body | `202`, `{"status":"accepted","requestId":"…"}` |
-
-`<key>` is the article key. It is an opaque value: send back the one a
-generation start returned, and do not depend on its shape or on how it is
-computed. It is also specific to the server process: after a restart, the same
-input gets a new key, so use the key a new generation start returns. A status or
-publish target whose key is not the accepted shape is rejected with
-`invalid_key`; neither operation takes a body, and any job API target with a
-query answers `not_found`.
-
-The status response reports the job as one of the codes below. A `running` job
-carries `steps`; a `done` job carries `steps` (only `done` or `skipped`),
-`article`, and `publish`; a `failed` job carries `steps` and `failure`, the
-failure code. A step is `failed` only when the generation failed in that step; a
-completion-check failure (`article_invalid`, `article_too_large`) or a failure
-before the steps marks none. An unknown key carries no member besides `state`.
-The `article` member holds `markdown` (the display Markdown),
-`file` (byte for byte what `--out` writes), `cost`, and `durationMs` (from the
-accepted start that generated the article, or from the accepted retry after a
-failure). `cost` is `{"state":"known","usd":"…"}` or `{"state":"unknown"}`.
-`publish` is `{"state":"…"}`, with a `reason` for `failed` and `unpostable`.
-`webhookConfigured` says whether this server can post.
-
-```json
-{
-  "status": "ok",
-  "requestId": "0123456789abcdef",
-  "webhookConfigured": true,
-  "job": {
-    "state": "done",
-    "steps": { "draft": "done", "shorten": "skipped", "review": "done" },
-    "article": {
-      "markdown": "# …",
-      "file": "---\n…",
-      "cost": { "state": "known", "usd": "0.1234" },
-      "durationMs": 81234
-    },
-    "publish": { "state": "not_posted" }
-  }
-}
-```
-
-Sending the same input again returns the same key without calling the LLM
-while that article is being generated or is done; a failed key is generated
-again. At most two generations run at once, counting the `/articles` jobs. A
-generation start reads its body under two reading slots, and the `/articles`
-endpoint reads a body only while it holds one of its generation slots, so at
-most four bodies are read at once. A start refused for a full reading slot, a
-full set of generations, or a full cache with no record to drop answers
-`too_many_requests`, and no job starts.
-
-The articles live in the server's memory only. The cache holds at most 100
-records; when it is full it drops the oldest completed article or failure, and
-never a record that is being generated or posted. A restart loses every article
-and every publish state, so a status request then answers `unknown`. An article
-whose pre-send checks refuse it has the publish state `unpostable` and cannot be
-posted: it still comes back as `done` (it can be displayed and saved), and only
-generating it again after a restart or after its record was dropped makes a
-postable article.
-
-The publish operation answers `202` without waiting for the Webhook's reply and
-does not post an article twice: publishing a `posting` or `posted` article again
-sends nothing, and a `failed` post resumes from the first message not delivered
-(that one message may arrive twice). Posting needs `SLACK_WEBHOOK_URL`; without
-it the operation answers `webhook_not_configured`, the status response carries
-`"webhookConfigured": false`, and `/articles` is refused the same way.
-
-A status request that answers is not logged, because a viewer polls it every few
-seconds, so its `requestId` has no line in the log; a rejected status request
-logs the rejection. Every other operation logs a line with its `requestId`, and
-the job API's jobs log the key.
-
-With the socket from the previous section and the body in `request.json`, the
-three operations are:
-
-```sh
-curl -sS --unix-socket "$socket" -X POST http://localhost/jobs --data-binary @request.json
-curl -sS --unix-socket "$socket" -X GET "http://localhost/jobs/$key"
-curl -sS --unix-socket "$socket" -X POST "http://localhost/jobs/$key/publish"
-```
-
-`$key` is the key the generation start returned.
-
-### Job API codes
-
-The job API's status response reports each value as one of these codes.
-
-| job state | meaning |
+| reason | extension shows |
 |---|---|
-| `unknown` | the server holds no record for the key |
-| `running` | the article is being generated |
-| `done` | the article is generated and returned |
-| `failed` | the generation failed |
+| `not_found` | unexpected reply |
+| `method_not_allowed` | unexpected reply |
+| `too_many_requests` | fixed message |
+| `body_too_large` | fixed message |
+| `invalid_body` | fixed message |
+| `invalid_video_url` | fixed message |
+| `invalid_transcript` | fixed message |
+| `webhook_not_configured` | unexpected reply |
+| `invalid_key` | unexpected reply |
+| `article_not_ready` | unexpected reply |
+| `article_not_found` | unexpected reply |
+| `article_not_postable` | unexpected reply |
+| `internal_error` | fixed message (unexpected reply when `requestId` is empty) |
 
-| step | step of the generation |
-|---|---|
-| `draft` | the generation of the draft |
-| `shorten` | the shortening of a long body |
-| `review` | the review against the source material |
-
-| step state | meaning |
-|---|---|
-| `pending` | not started |
-| `running` | started and not finished |
-| `done` | finished |
-| `skipped` | not needed for this article |
-| `failed` | the step the generation failed in |
-
-| failure | meaning |
-|---|---|
-| `internal` | an internal failure |
-| `transcript_too_long` | the transcript is too long for the prompt |
-| `llm_timeout` | an LLM call timed out |
-| `llm_empty` | an LLM returned an empty response |
-| `llm_truncated` | an LLM response was cut off |
-| `llm_failed` | any other LLM failure |
-| `article_invalid` | the generated article cannot be published |
-| `article_too_large` | the generated article does not fit the status response |
-
-| publish state | meaning |
-|---|---|
-| `unpostable` | the Slack pre-send checks refuse the article |
-| `not_posted` | postable and never posted |
-| `posting` | being posted |
-| `posted` | every message was delivered |
-| `failed` | the last post stopped before the end |
-
-| publish reason | with publish state | meaning |
-|---|---|---|
-| `other` | `unpostable` | any pre-send refusal but a mention |
-| `mention` | `unpostable` | the article contains a mention |
-| `internal` | `failed` | the post job ended abnormally |
-| `webhook` | `failed` | the Webhook did not acknowledge a message |
+The status code of each reason, and how to check the server with `curl`, are in
+[docs/dev/guides/development.md](docs/dev/guides/development.md#checking-the-server-with-curl).
 
 ### Troubleshooting
 
-- **The server is not running.** `curl` reports `Couldn't connect to server`
-  (its message names `localhost port 80`, the URL's host and default port; the
-  connection itself goes to the socket). Start the server as above; the first
-  log line names the socket it listens on.
 - **`another server holds the socket directory lock`.** Another server is
   running, or a stopped one is still waiting for its in-flight jobs. The
   message names the lock file; `lsof` on it shows which process holds it.
@@ -886,7 +448,7 @@ The job API's status response reports each value as one of these codes.
   `YT2COLUMN_MODEL`, `YT2COLUMN_REVIEW_PROVIDER`, `YT2COLUMN_REVIEW_MODEL`)
   after an update.** The provider and model are now set in one variable per
   step, and the four old variables are rejected whenever they are set, even
-  empty. A CLI run exits with `2` before it starts; a server exits with `2`
+  empty. A server exits with `2`
   before it listens, and the extension can only report that the server is not
   running. Unset each old variable and set `YT2COLUMN_LLM`; if you unset them
   without setting it, the default `claude/claude-opus-5-5` is used and the
@@ -944,35 +506,6 @@ The job API's status response reports each value as one of these codes.
   `extension/dist` again. Its ID stays the same, so the host needs no new
   `install`.
 
-## Setting up yt-dlp
-
-yt2column fetches subtitles by running `yt-dlp`, which needs to reach YouTube
-reliably. Beyond `yt-dlp` itself that means two optional pieces; without them
-`yt-dlp` warns about them, and YouTube is more likely to answer with HTTP 429
-(Too Many Requests):
-
-- a JavaScript runtime ([deno](https://deno.com/) is the one `yt-dlp` enables
-  by default), and
-- [curl_cffi](https://github.com/lexiforest/curl_cffi) for browser
-  impersonation.
-
-On macOS the Homebrew formula brings both (it depends on `deno` and bundles
-`curl_cffi`):
-
-```sh
-brew install yt-dlp
-command -v yt-dlp                   # must be the Homebrew one, not an older copy earlier on PATH
-yt-dlp --list-impersonate-targets   # lists targets whose Source is curl_cffi
-```
-
-If another `yt-dlp` comes first on `PATH`, remove it or point
-`YT2COLUMN_YTDLP_PATH` at the one to use.
-
-On other platforms, see the yt-dlp
-[installation](https://github.com/yt-dlp/yt-dlp/wiki/Installation),
-[EJS (JavaScript runtime)](https://github.com/yt-dlp/yt-dlp/wiki/EJS) and
-[impersonation](https://github.com/yt-dlp/yt-dlp#impersonation) documentation.
-
 ## Configuration
 
 | Variable | Description | When unset |
@@ -983,15 +516,14 @@ On other platforms, see the yt-dlp
 | `ANTHROPIC_API_KEY` | Anthropic API key | Required when the generation or review provider is `claude` (an error) |
 | `YT2COLUMN_CLAUDE_EFFORT` | Claude effort; `low`, `medium`, `high`, `xhigh`, or `max` | `high` when the generation or review provider is `claude` |
 | `ANTHROPIC_WORKSPACE_ID` | Anthropic workspace ID, for an API key not bound to a workspace | No workspace ID is sent |
-| `SLACK_WEBHOOK_URL` | Slack-compatible Incoming Webhook URL (Mattermost is the verified target) | Required with `--slack`; optional with `--out` (no value); the server starts without it, but then cannot post |
-| `YT2COLUMN_CACHE_DIR` | Cache directory for subtitles and video metadata | `$HOME/Library/Caches/yt2column` on macOS; `$XDG_CACHE_HOME/yt2column` or `$HOME/.cache/yt2column` on other Unix |
-| `YT2COLUMN_YTDLP_PATH` | Path to `yt-dlp` | `yt-dlp` on `PATH` |
+| `SLACK_WEBHOOK_URL` | Slack-compatible Incoming Webhook URL (Mattermost is the verified target) | The server starts without it, but then cannot post |
 
 `yt2column-server` reads the LLM variables; it needs `SLACK_WEBHOOK_URL` only to
-post, and starts without it (see [Localhost server](#localhost-server)). It
-reads neither `YT2COLUMN_CACHE_DIR` nor `YT2COLUMN_YTDLP_PATH`, because it never
-calls `yt-dlp`. It derives its socket path from `HOME` alone (see
+post, and starts without it (see [Localhost server](#localhost-server)). It derives its socket path from `HOME` alone (see
 [Localhost server](#localhost-server)).
+
+The variables only the CLI reads, and how the CLI reads the ones above, are in
+[docs/dev/guides/cli.md](docs/dev/guides/cli.md#configuration).
 
 The value of an environment variable is never trimmed or otherwise corrected;
 an empty value is treated as set and rejected, not as unset.
@@ -1004,22 +536,18 @@ including any further `/` (`claude/vendor/model-x` sends the model
 are rejected, as are `/claude-opus-5-5`, `Claude/claude-opus-5-5`, and
 ` claude/claude-opus-5-5`. A model ID with surrounding white space is accepted
 here but rejected, before any request, when a run that executes the step
-builds that step's client: the CLI builds its clients before the run starts,
-and the server builds both at startup, before it listens.
+builds that step's client: the server builds both at startup, before it listens.
 
 With `YT2COLUMN_LLM` unset, generation and shortening use
 `claude/claude-opus-5-5`. With `YT2COLUMN_REVIEW_LLM` unset, the review step
-uses the same provider and model as generation, the default included, also in
-a resumed run that only reviews; a resumed run that only reviews and has
-`YT2COLUMN_REVIEW_LLM` set does not read `YT2COLUMN_LLM`. An empty value of
+uses the same provider and model as generation, the default included. An empty value of
 either variable is rejected and never replaced by the default or by the
 generation setting.
 
 The variables `YT2COLUMN_LLM_PROVIDER`, `YT2COLUMN_MODEL`,
 `YT2COLUMN_REVIEW_PROVIDER`, and `YT2COLUMN_REVIEW_MODEL` are retired. When any
 of them is set, even to an empty value, the CLI and the server stop with a
-configuration error naming it, on every run, including runs that read no LLM
-setting such as `--after review`; their values are never used. Each error is
+configuration error naming it, on every run; their values are never used. Each error is
 reported together with the other configuration errors of the run. See
 [Migrating from the retired LLM variables](#migrating-from-the-retired-llm-variables).
 
@@ -1112,71 +640,7 @@ A running server keeps the configuration it started with. After changing the
 variables, stop the server and start it again; it then checks them before it
 listens.
 
-## Development
-
-```sh
-make build   # build the three binaries into build/
-make test    # unit tests (no network, no yt-dlp)
-make lint    # golangci-lint (pinned version)
-make fmt     # gofumpt on changed files
-make test-integration  # real yt-dlp + network; see below
-make test-integration-deepseek  # real DeepSeek API; see below
-make test-integration-claude  # real Anthropic API; see below
-make test-integration-cli  # the CLI with the real DeepSeek API; see below
-make test-integration-slack  # posts fixed articles to a real Mattermost test Webhook; see below
-make test-integration-cli-slack  # the CLI with the real DeepSeek API and a real Webhook; see below
-```
-
-Development follows a requirements → architecture → implementation-plan process
-with explicit acceptance criteria. See [CLAUDE.md](CLAUDE.md) and
-[docs/dev/conventions/requirements_process.md](docs/dev/conventions/requirements_process.md).
-Design documents are written in Japanese; start with
-[docs/dev/project_overview.md](docs/dev/project_overview.md).
-
-### Running a separate server for development
-
-The socket path depends only on `HOME`, and one server per `HOME` can run. To
-run a server built from a worktree beside your own, give it its own `HOME` in a
-short directory under `/tmp` (on macOS, the default directory of `mktemp -d`
-makes the socket path too long), and send to its socket:
-
-```sh
-dev_home="$(mktemp -d /tmp/y2c.XXXXXX)"
-HOME="$dev_home" ./build/yt2column-server 2>>"$dev_home/server.log" &
-server_pid=$!
-socket="$dev_home/.local/state/yt2column/run/server.sock"
-if [ "$(uname -s)" = Darwin ]; then socket="$dev_home/Library/Application Support/yt2column/run/server.sock"; fi
-until [ -S "$socket" ] || ! kill -0 "$server_pid" 2>/dev/null; do sleep 0.1; done
-if [ -S "$socket" ]; then
-  curl -sS --unix-socket "$socket" -X GET http://localhost/articles
-else
-  echo "server exited at startup; $dev_home/server.log:" >&2; cat "$dev_home/server.log" >&2
-fi
-kill "$server_pid" 2>/dev/null; wait "$server_pid"; rm -rf "$dev_home"
-```
-
-The loop stops waiting when the server exits at startup (a configuration error,
-or another server holding the start lock for that `HOME`); its log is then
-printed instead of sending the request, because the last line removes it. The
-last line works whether or not the server is still running.
-
-Each worktree's server with a different `HOME` runs at the same time as the
-others. The server still reads the LLM and Webhook variables from your
-environment: with the real ones, an accepted request generates an article and
-posts it. With fake values (any API key, and an `https` Webhook URL such as
-`https://example.invalid/hook`), send only requests that are rejected before a
-job starts, such as the wrong method above (`method_not_allowed`) or a wrong
-path (`not_found`); an accepted request would try to call the LLM API and post
-a failure notice.
-
-The extension cannot reach such a server. The browser starts the native
-messaging host with your real `HOME`, so the host connects only to the socket
-of a server started with your real `HOME`. The host manifest is one file per
-browser (on macOS, one file shared by Chrome and Brave), so installing the host
-from one worktree's build replaces the manifest another worktree installed;
-check a build from the extension one worktree at a time.
-
-### Browser extension
+## Browser extension
 
 A Chrome/Brave extension (Manifest V3) lives in `extension/`; it is written in
 TypeScript and built with Node.js. It is not published to a store — you build it
@@ -1196,8 +660,10 @@ targets from the repository root with that version still active:
 cd extension && fnm use && cd ..
 make ext-install   # install the pinned dev dependencies (npm ci; needs network)
 make ext-build     # build extension/dist/
-make ext-check     # typecheck, lint, format check, tests, then build
 ```
+
+The development targets, such as the checks CI runs, are in
+[docs/dev/guides/development.md](docs/dev/guides/development.md).
 
 Load the build in Chrome or Brave:
 
@@ -1320,86 +786,3 @@ host that could not be started it records the browser's error text, such as
 `Specified native messaging host not found.`. The log is lost when the popup
 closes, so after closing it, find the result of a send in Slack and in the
 server log by the time.
-
-### Integration test
-
-`make test-integration` runs the real `yt-dlp` against the network, so it needs
-`yt-dlp` set up as in [Setting up yt-dlp](#setting-up-yt-dlp) and on `PATH`.
-It fetches a real video (by default
-`https://www.youtube.com/watch?v=EQCUZyB4DqE`) and sends YouTube two requests
-two minutes apart, so a run takes a few minutes. Override the video with
-`make test-integration YT2COLUMN_TEST_VIDEO_URL=... YT2COLUMN_TEST_VIDEO_ID=...`
-(an empty `YT2COLUMN_TEST_VIDEO_ID` skips the video ID check). Leave some
-time between runs to stay clear of YouTube's rate limit.
-
-### DeepSeek integration test
-
-`make test-integration-deepseek` calls the real DeepSeek API, so it incurs
-charges. It needs `YT2COLUMN_TEST_DEEPSEEK_API_KEY` set to a DeepSeek API key
-for testing; this is separate from the production `DEEPSEEK_API_KEY`, which the
-test never reads. A missing or empty `YT2COLUMN_TEST_DEEPSEEK_API_KEY` skips
-the test with a message naming the variable, so setting only `DEEPSEEK_API_KEY`
-does not run it. The model comes from `YT2COLUMN_TEST_DEEPSEEK_MODEL`,
-defaulting to `deepseek-flash` when that variable is undefined (an empty value
-is passed through and fails the test). The target exports the opt-in variable
-`YT2COLUMN_DEEPSEEK_INTEGRATION=1` for the integration test alone; without it
-the test skips with a message naming the variable, so a plain
-`go test -tags integration` or an IDE run does not call the API. A run makes two
-generations — an ordinary one and one truncated by `MaxOutputTokens` — each
-bounded by a 15-minute timeout, so it can take a few minutes under API load.
-
-### Claude integration test
-
-`make test-integration-claude` calls the real Anthropic Messages API, so it
-incurs charges. It needs `YT2COLUMN_TEST_ANTHROPIC_API_KEY` set to an Anthropic
-API key for testing; this is separate from the production `ANTHROPIC_API_KEY`,
-which the test never reads. A missing or empty `YT2COLUMN_TEST_ANTHROPIC_API_KEY`
-skips the test with a message naming the variable, so setting only
-`ANTHROPIC_API_KEY` does not run it. The model and effort come from
-`YT2COLUMN_TEST_CLAUDE_MODEL` and `YT2COLUMN_TEST_CLAUDE_EFFORT`, defaulting to
-`claude-haiku-5-5` and `low` when undefined (an empty value is passed through
-and fails the test). A workspace ID is read from
-`YT2COLUMN_TEST_ANTHROPIC_WORKSPACE_ID` when set, never from the production
-`ANTHROPIC_WORKSPACE_ID`; unset means no workspace ID is sent, while an empty or
-malformed value fails the test. The target exports the opt-in variable
-`YT2COLUMN_CLAUDE_INTEGRATION=1` for the integration test alone; without it the
-test skips with a message naming the variable, so a plain
-`go test -tags integration` or an IDE run does not call the API. A run makes two
-generations — an ordinary one and one truncated by `MaxOutputTokens` — each
-bounded by a 5-minute timeout, so the target's `-timeout` is 15 minutes.
-
-### CLI integration test
-
-`make test-integration-cli` runs the CLI's own assembly from a seeded transcript
-cache to the `--out` file, calling the real DeepSeek API (so it incurs charges)
-and never starting `yt-dlp`. Like the DeepSeek integration test it reads
-`YT2COLUMN_TEST_DEEPSEEK_API_KEY`, defaults `YT2COLUMN_TEST_DEEPSEEK_MODEL` to
-`deepseek-flash` when undefined, and exports its opt-in variable
-`YT2COLUMN_CLI_INTEGRATION=1` for its target alone; unlike it, a missing test
-API key fails the test rather than skipping it, so an opted-in run cannot pass
-without calling the API.
-
-### Webhook integration test
-
-`make test-integration-slack` posts two fixed articles (no LLM call) to the real
-Incoming Webhook of a Mattermost test channel, so it needs
-`YT2COLUMN_TEST_SLACK_WEBHOOK_URL` set to that channel's Webhook URL. This is
-separate from the production `SLACK_WEBHOOK_URL`, which the test never reads.
-The target exports the opt-in variable `YT2COLUMN_SLACK_INTEGRATION=1` for the
-integration test alone; without it the test skips with a message naming the
-variable, so a plain `go test -tags integration` or an IDE run does not post. A
-missing or invalid test Webhook URL, or a `GODEBUG` that enables `http2debug`,
-fails the test rather than skipping it and posts nothing. Message text never
-includes the URL, and failure messages redact the URL, its path, query, and
-userinfo, and the last eight characters of the URL; a transport failure can
-still name the destination host and port, which are not treated as secret.
-
-### CLI webhook integration test
-
-`make test-integration-cli-slack` runs the CLI's own assembly with `--slack`,
-generating the article with the real DeepSeek API (so it incurs charges) and
-posting it to the real test Webhook; it never starts `yt-dlp`. It needs both
-`YT2COLUMN_TEST_DEEPSEEK_API_KEY` and `YT2COLUMN_TEST_SLACK_WEBHOOK_URL` and
-fails when either is missing. Like the other CLI targets it defaults
-`YT2COLUMN_TEST_DEEPSEEK_MODEL` to `deepseek-flash` when undefined, and it
-exports `YT2COLUMN_CLI_SLACK_INTEGRATION=1` for its target alone.
