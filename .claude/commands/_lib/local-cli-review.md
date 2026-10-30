@@ -226,7 +226,7 @@ the tool (`make install-codexreview`, `go build`): the user installs it from
    |---|---|---|
    | `CodeRabbit local review:` | a rejected finding and its reason, or a `deferred` or `unclear` finding | for each such CodeRabbit CLI finding |
    | `Codex local review:` | `Codex local review: <path>:<start>-<end> <handling>: <summary>`, where `<handling>` is `rejected (<reason>)`, `deferred`, or `unclear (<why>)`; for a finding with `in_range` false, `Codex local review: (not in range) rejected (not in range)` | for each such Codex CLI finding |
-   | `Local CLI review: not run` | `Local CLI review: not run <START12>..<END12> (coderabbit: <kind>; codex: <kind>)`: the unreviewed range (BASE..HEAD1 or HEAD1..HEAD2, see Terms), with both SHAs cut to 12 characters, and the failure kinds of steps 2 and 3. For HEAD2..HEAD3, `Local CLI review: not run <START12>..<END12> (after the second attempt, reviewed by <coderabbit or codex>)`, with both SHAs cut to 12 characters: no failure kind is written, because the second attempt reviewed | for each unreviewed range; for HEAD2..HEAD3, in the next commit after HEAD3 (the fix commit cannot name its own SHA), or in SUMMARY when that commit is the caller's |
+   | `Local CLI review: not run` | `Local CLI review: not run <START12>..<END12> (coderabbit: <kind>; codex: <kind>)`: the unreviewed range (BASE..HEAD1 or HEAD1..HEAD2, see Terms), with both SHAs cut to 12 characters, and the failure kinds of steps 2 and 3. For HEAD2..HEAD3, `Local CLI review: not run <START12>..<END12> (after the second attempt, reviewed by <coderabbit or codex>)`, with both SHAs cut to 12 characters: no failure kind is written, because the second attempt reviewed | for each unreviewed range; for HEAD2..HEAD3, in the next commit after HEAD3 (the fix commit cannot name its own SHA), or in SUMMARY when that commit is the caller's or when no commit follows before the procedure returns |
 
    - The `<path>` of a `Codex local review:` line is written only for a
      finding with `in_range` true, whose path is a file changed in BASE..HEAD;
@@ -243,7 +243,8 @@ the tool (`make install-codexreview`, `go build`): the user installs it from
      more. When that run does not exit 1, stop and report instead of
      committing. Removing your own summary is not rewriting the text to get
      past the check.
-   - When the next commit is the caller's, not this procedure's, return the
+   - When the next commit is the caller's, not this procedure's, or the
+     procedure makes no commit after the record's range ends, return the
      lines in SUMMARY: the caller copies them as its own instructions say. A
      record whose range ends at a fix commit cannot go in that commit: the
      second attempt's result is one such, and so is the range of the fix
