@@ -132,3 +132,35 @@
 | 出力の上限 | output limit | LLM への 1 回のリクエストで受け付ける出力のトークン数の上限。Claude のアダプタの既定値は `defaultMaxOutputTokens`（`claude_output_limit.md`） |
 | 実時間 | wall-clock time | 処理に実際にかかった時間。出力の速さを求める測定に使う（`claude_output_limit.md`） |
 | 打ち切り | truncate | LLM の応答が出力の上限に達して途中で終わること。打ち切られた実行の出力は、上限以上であることしか分からない |
+| 生成の後の工程 | post-generation steps | 生成の後に既定で走る、字数の調整と検証・推敲の 2 つの工程（`cli.md`） |
+| 推定の料金 | estimated cost | 料金表から求めた記事の料金の推定。CLI は標準エラーの `cost:` の行に、投稿は脚注に、`--out` のファイルは `estimated_cost_usd` に書く。請求額とは別 |
+| トークンの使用量 | token usage | LLM の API が返したトークンの数。CLI は工程ごとに標準エラーの `tokens:` の行に書く（`cli.md`） |
+| 保存した出力 | artifact | `--artifacts` のディレクトリに工程ごとに保存した出力。`--after` で再開するときに再利用する |
+| 再開した実行 | resumed run | `--after` で、保存した出力から再開した CLI の実行 |
+| 廃止した LLM の変数 | retired LLM variables | `YT2COLUMN_LLM_PROVIDER`・`YT2COLUMN_MODEL`・`YT2COLUMN_REVIEW_PROVIDER`・`YT2COLUMN_REVIEW_MODEL`。設定されていると実行が止まる |
+| 同意の変数 | opt-in variable | 統合テストが実際の API を呼ぶ前に求める環境変数（`YT2COLUMN_DEEPSEEK_INTEGRATION=1` など）。`make` のターゲットがそのテストのためだけに export する（`development.md`） |
+| ソケット | socket | localhost サーバが待ち受ける UDS のファイル。パスは `HOME` だけから決まる |
+| ソケットのディレクトリ | socket directory | ソケットと起動のロックのファイルを置くディレクトリ（`run`）。モードは `0700` |
+| manifest | manifest | ブラウザがホストを見つけるための JSON のファイル（ホストの manifest）、または拡張の `manifest.json`。日本語の文でも英語のまま書く |
+| 終了コード | exit code | プロセスが終了するときに返す数値 |
+| 設定エラー | configuration error | 環境変数の値を拒否したときのエラー。サーバは待ち受ける前に、CLI は実行が始まる前に、終了コード `2` で終わる |
+| 脚注 | footnote | Slack への投稿の最後の 1 行。モデルと推定の料金を示す |
+| フロントマター | front matter | `--out` のファイルの先頭の YAML の部分 |
+| 処理中のジョブ | in-flight job | サーバが受け付け、まだ終わっていないジョブ。サーバの停止と起動のロックはその完了を待つ |
+| ポップアップ | popup | 拡張のツールバーのアイコンから開く画面 |
+| 文字起こしパネル | transcript panel | YouTube の動画ページで、字幕の行を時刻とともに一覧にするパネル |
+| モデルの ID | model ID | プロバイダの API に送るモデルの名前。`YT2COLUMN_LLM` の `/` より後の部分 |
+| クイックスタート | Quick start | README の見出し |
+| 必要なもの | Requirements | README と `cli.md` の見出し |
+| 出力の書式 | Output format | README と `cli.md` の見出し |
+| Slack への投稿 | The Slack post | README の見出し。Slack 互換の Webhook に投稿する記事のメッセージ |
+| Webhook への投稿 | Webhook publishing | README と `cli.md` の見出し |
+| localhost サーバ | Localhost server | README の見出し。本文では "localhost server"（`yt2column-server`） |
+| サーバの起動 | Running the server | README の見出し |
+| サーバの停止 | Stopping the server | README の見出し |
+| Native Messaging のホストのインストール | Installing the native messaging host | README の見出し |
+| トラブルシューティング | Troubleshooting | README の見出し |
+| 共有トークンの版からの更新 | Upgrading from the shared-token version | README の見出し |
+| 設定 | Configuration | README と `cli.md` の見出し。環境変数による設定 |
+| 廃止した LLM の変数からの移行 | Migrating from the retired LLM variables | README の見出し |
+| ブラウザ拡張 | Browser extension | README の見出し。本文では "browser extension"、文脈が明らかなら "extension" |

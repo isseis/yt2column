@@ -1,0 +1,1 @@
+The change only adds one small function and affects neither the existing callers nor the types. No defects were found.

@@ -11,21 +11,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/isseis/yt2column/internal/doctestutil"
 	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/publisher"
 	"github.com/isseis/yt2column/internal/writer"
 )
 
-// Headings that label the README's two output examples. The guard finds each
-// example as the first fenced code block after its heading line.
-const (
-	readmeFileExampleHeading  = "### The `--out` file"
-	readmeSlackExampleHeading = "### The Slack post"
-)
+// cliFileExampleHeading labels the --out file example in the CLI guide
+// (cli.md); doctestutil.ReadmeSlackPostHeading labels the Slack post example in
+// each README version. The guard finds each example as the first fenced code
+// block after its heading line.
+const cliFileExampleHeading = doctestutil.CLIOutFileHeading
 
-// outputLayoutArticle returns the fixed article the README's output examples
-// show: a channel name, a mixed set of step models, and a known cost. The
-// values are fictional.
+// outputLayoutArticle returns the fixed article the two output examples show:
+// a channel name, a mixed set of step models, and a known cost. The values are
+// fictional.
 func outputLayoutArticle() writer.Article {
 	callTime := time.Date(2026, time.January, 5, 0, 0, 0, 0, time.UTC) // Monday 00:00 UTC, off-peak
 	usage := func(model string, input, output uint64) writer.StageUsage {
@@ -61,24 +61,24 @@ func outputLayoutArticle() writer.Article {
 // after the heading are then scanned for fences from their first line.
 func firstCodeBlockAfter(doc, heading string) (string, bool) {
 	lines := slices.Collect(strings.Lines(doc))
-	for i, line := range scanDocLines(lines) {
-		if line.block || strings.TrimSpace(line.text) != heading {
+	for i, line := range doctestutil.ScanDocLines(lines) {
+		if line.Block || strings.TrimSpace(line.Text) != heading {
 			continue
 		}
 		var b strings.Builder
 		opened := false
-		for _, scanned := range scanDocLines(lines[i+1:]) {
+		for _, scanned := range doctestutil.ScanDocLines(lines[i+1:]) {
 			switch {
-			case scanned.fence && opened:
+			case scanned.Fence && opened:
 				return b.String(), true
-			case scanned.fence:
+			case scanned.Fence:
 				opened = true
-			case !scanned.block && headingLevel(scanned.text) > 0:
+			case !scanned.Block && doctestutil.HeadingLevel(scanned.Text) > 0:
 				// The next heading ends the search, so a deleted example does
 				// not pick up a later block.
 				return "", false
 			case opened:
-				b.WriteString(scanned.text)
+				b.WriteString(scanned.Text)
 				b.WriteString("\n")
 			}
 		}
@@ -87,11 +87,10 @@ func firstCodeBlockAfter(doc, heading string) (string, bool) {
 	return "", false
 }
 
-// TestOutputLayoutDocsContract checks that the README's two output examples
-// equal the real output for the fixed article.
+// TestOutputLayoutDocsContract checks that the two output examples equal the
+// real output for the fixed article.
 func TestOutputLayoutDocsContract(t *testing.T) {
 	article := outputLayoutArticle()
-	readme := readDoc(t, readmePath)
 
 	// The --out example is what FilePublisher writes.
 	path := filepath.Join(t.TempDir(), "article.md")
@@ -106,7 +105,7 @@ func TestOutputLayoutDocsContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	checkReadmeExample(t, readme, readmeFileExampleHeading, string(written))
+	checkDocExample(t, "cli.md", doctestutil.ReadDoc(t, cliDocPath), cliFileExampleHeading, string(written))
 
 	// The Slack example is the single message the article is posted as.
 	messages, err := publisher.SlackMessagesForTest(article)
@@ -116,19 +115,21 @@ func TestOutputLayoutDocsContract(t *testing.T) {
 	if len(messages) != 1 {
 		t.Fatalf("the fixed article posts as %d messages, want 1 so the example is the whole post", len(messages))
 	}
-	checkReadmeExample(t, readme, readmeSlackExampleHeading, messages[0])
+	readmeVersionsUnder(t, func(t *testing.T, v doctestutil.ReadmeVersion, readme string) {
+		checkDocExample(t, v.Path, readme, doctestutil.ReadmeSlackPostHeading.In(t, v.Lang), messages[0])
+	})
 }
 
-// checkReadmeExample fails the test unless the example under heading equals
-// want, ignoring trailing newlines.
-func checkReadmeExample(t *testing.T, readme, heading, want string) {
+// checkDocExample fails the test unless the example under heading in the
+// document named name equals want, ignoring trailing newlines.
+func checkDocExample(t *testing.T, name, doc, heading, want string) {
 	t.Helper()
-	got, ok := firstCodeBlockAfter(readme, heading)
+	got, ok := firstCodeBlockAfter(doc, heading)
 	if !ok {
-		t.Fatalf("README has no code block under %q", heading)
+		t.Fatalf("%s has no code block under %q", name, heading)
 	}
 	if strings.TrimRight(got, "\n") != strings.TrimRight(want, "\n") {
-		t.Errorf("README example under %q differs from the real output.\nREADME:\n%s\nreal:\n%s", heading, got, want)
+		t.Errorf("%s example under %q differs from the real output.\n%s:\n%s\nreal:\n%s", name, heading, name, got, want)
 	}
 }
 

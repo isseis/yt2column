@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/isseis/yt2column/internal/doctestutil"
 )
 
 // Path from cmd/yt2column to the copied-transcript sample records.
@@ -16,7 +18,7 @@ const copiedTranscriptReadmePath = repositoryRoot + "/testdata/README.md"
 // testdata/, so a newly saved sample without a record fails this guard.
 func TestCopiedTranscriptSurveyRecords(t *testing.T) {
 	sampleIDs := copiedTranscriptSampleIDs(t)
-	readmeSection := sectionByHeading(readDoc(t, copiedTranscriptReadmePath), "## コピーした字幕（文字起こしパネルからのコピー）")
+	readmeSection := doctestutil.SectionByHeading(doctestutil.ReadDoc(t, copiedTranscriptReadmePath), "## コピーした字幕（文字起こしパネルからのコピー）")
 	if readmeSection == "" {
 		t.Fatal("testdata/README.md has no copied-transcript section")
 	}

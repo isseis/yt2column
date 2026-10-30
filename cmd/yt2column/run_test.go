@@ -23,6 +23,7 @@ import (
 
 	"github.com/isseis/yt2column/internal/artifact"
 	"github.com/isseis/yt2column/internal/config"
+	"github.com/isseis/yt2column/internal/doctestutil"
 	"github.com/isseis/yt2column/internal/llm"
 	llmtestutil "github.com/isseis/yt2column/internal/llm/testutil"
 	"github.com/isseis/yt2column/internal/publisher"
@@ -1284,7 +1285,25 @@ func TestRunHelp(t *testing.T) {
 					t.Errorf("usage does not list %q:\n%s", flag, stdout.String())
 				}
 			}
+			// The help points at the CLI guide for the configuration: in the
+			// usage text before the flag list, and in the --slack flag's
+			// description, the line after the flag's name.
+			intro, flags, ok := strings.Cut(stdout.String(), "\nFlags:\n")
+			if !ok {
+				t.Fatalf("usage has no flag list:\n%s", stdout.String())
+			}
+			if !strings.Contains(intro, cliGuide) {
+				t.Errorf("the usage text before the flags does not point at %s:\n%s", cliGuide, intro)
+			}
+			_, afterSlack, ok := strings.Cut(flags, "  --slack\n")
+			description, _, _ := strings.Cut(afterSlack, "\n")
+			if !ok || !strings.Contains(description, cliGuide) {
+				t.Errorf("the --slack flag's description %q does not point at %s", description, cliGuide)
+			}
 		})
+	}
+	if _, err := os.Stat(cliDocPath); err != nil {
+		t.Errorf("the help points at %s, which does not exist: %v", cliGuide, err)
 	}
 }
 
@@ -2889,7 +2908,7 @@ func TestRunEvaluationProcedureFlags(t *testing.T) {
 // list after the program name, with line continuations joined.
 func evaluationProcedureCommands(t *testing.T) [][]string {
 	t.Helper()
-	section := sectionByHeading(readDoc(t, reviewEvaluationPath), "### 2.6. 中間生成物を固定した比較（タスク 0017 以降）")
+	section := doctestutil.SectionByHeading(doctestutil.ReadDoc(t, reviewEvaluationPath), "### 2.6. 中間生成物を固定した比較（タスク 0017 以降）")
 	if section == "" {
 		t.Fatal("02_evaluation.md has no 2.6 section")
 	}

@@ -222,7 +222,7 @@ func newFlagSet() (*flag.FlagSet, *cliOptions) {
 	fs.SetOutput(io.Discard)
 	opts := &cliOptions{}
 	fs.StringVar(&opts.out, "out", "", "write the article to this `path`; it must not exist, its directory must exist, and it must be outside the cache directory")
-	fs.BoolVar(&opts.slack, "slack", false, "post the article to the Slack-compatible Incoming Webhook (e.g. Mattermost) configured in the environment (see README)")
+	fs.BoolVar(&opts.slack, "slack", false, "post the article to the Slack-compatible Incoming Webhook (e.g. Mattermost) configured in the environment (see docs/dev/guides/cli.md)")
 	fs.BoolVar(&opts.refresh, "refresh", false, "ignore the cached transcript, run yt-dlp again, and replace the cache")
 	fs.BoolVar(&opts.keepCache, "keep-cache", false, "keep this video's cache after a successful run")
 	fs.StringVar(&opts.systemPrompt, "system-prompt", "", "read the system prompt template from this `path` instead of the built-in one")
@@ -256,7 +256,7 @@ func writeUsage(w io.Writer, fs *flag.FlagSet) {
 	fmt.Fprintf(&b, "Usage: %s [flags] <video URL>\n\n", programName)
 	b.WriteString("Generates a column article from a YouTube video's subtitles and either writes it to the --out file\n")
 	b.WriteString("or posts it to a webhook with --slack; exactly one of the two is required.\n")
-	b.WriteString("Flags must come before the video URL. The configuration is read from environment variables; see README.md.\n\n")
+	b.WriteString("Flags must come before the video URL. The configuration is read from environment variables; see docs/dev/guides/cli.md.\n\n")
 	b.WriteString("Flags:\n")
 	fs.VisitAll(func(f *flag.Flag) {
 		name, usage := flag.UnquoteUsage(f)

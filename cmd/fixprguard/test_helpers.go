@@ -99,7 +99,7 @@ func (r *testRepo) gitIn(dir string, args ...string) string {
 	r.t.Helper()
 	cmd := exec.Command("git", args...) //nolint:gosec // test setup runs git with fixed arguments
 	cmd.Dir = dir
-	cmd.Env = fixprguard.GitEnv(os.Environ())
+	cmd.Env = cmdrunner.GitEnv(os.Environ())
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		r.t.Fatalf("git %v: %v: %s", args, err, out)
@@ -121,13 +121,13 @@ func (r *testRepo) Write(name, content string) {
 
 // realGit runs git for real with the tool's environment.
 func realGit() cmdrunner.Runner {
-	return cmdrunner.NewOS(cmdrunner.Options{Env: fixprguard.GitEnv(os.Environ())})
+	return cmdrunner.NewOS(cmdrunner.Options{Env: cmdrunner.GitEnv(os.Environ())})
 }
 
 // realGitList runs git for real as osEnv's runner for the listing of ignored
 // files does: standard error output fails it.
 func realGitList() cmdrunner.Runner {
-	return cmdrunner.NewOS(cmdrunner.Options{Env: fixprguard.GitEnv(os.Environ()), StderrIsFailure: true})
+	return cmdrunner.NewOS(cmdrunner.Options{Env: cmdrunner.GitEnv(os.Environ()), StderrIsFailure: true})
 }
 
 // Baseline takes a baseline of the repository as begin would.

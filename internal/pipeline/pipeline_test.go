@@ -581,6 +581,7 @@ func TestSecretRevealExclusive(t *testing.T) {
 // constraint; TestPackageReferenceListsPackages requires a row for the
 // package.
 var testOnlyPackageDirs = []string{
+	"internal/doctestutil",
 	"internal/loopbacktest",
 	"internal/llm/llmhttp/llmhttptest",
 	"internal/maketestutil",
@@ -616,8 +617,8 @@ func TestFakesCarryBuildTag(t *testing.T) {
 			t.Fatalf("walk %s: %v", root, err)
 		}
 	}
-	if len(testutilFiles) != 23 {
-		t.Fatalf("found %d testutil files, want 23: %v", len(testutilFiles), testutilFiles)
+	if len(testutilFiles) != 25 {
+		t.Fatalf("found %d testutil files, want 25: %v", len(testutilFiles), testutilFiles)
 	}
 	if len(helperFiles) == 0 {
 		t.Fatal("found no test_helpers*.go files")

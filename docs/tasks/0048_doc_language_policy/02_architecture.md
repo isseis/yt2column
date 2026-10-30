@@ -8,7 +8,7 @@
 | Created | 2026-10-28 |
 | Review date | 2026-10-28 |
 | Reviewer | isseis |
-| Comments | 2026-10-28: 冒頭の要件定義の状態の記述を承認後の状態に直した（決定の変更なし。編集上の修正）。2026-10-28: 実装計画の作成時に、8 章の表のフェーズ 5 の内容に、`development.md` の CI の判定の行と Browser extension の節の最上位化を加え、フェーズ 6 の「CI の判定」を `README.en.md` の行に絞った。フェーズ 2 の AGENTS.md の変更（リンクのパス）はフェーズ 1 の一括置換に含まれることを注に書いた。`development.md` を読むテストと、`## Development` の節を移した後の見出しの入れ子を、同じ PR で正しく保つためである（決定の変更なし。編集上の修正）。2026-10-29: 実装の際に、4.3 節の表の「止まった」の行で、書きかけた `README.en.md` を戻す手段を、呼び出し元の `git restore` から `/mktrans` が書く前の写しに改めた。呼び出し元の作業ツリーにあった `README.en.md` の変更（`/fixpr` の修正など）を消さないためである（決定の変更なし。編集上の修正）。2026-10-29: PR-2 のレビューで、レビュアー（isseis）の判断により、同期の印の検査をプロンプトの手順から Go のテスト `TestReadmeSyncMarker` に移した（決定の変更。レビュアーがこのセッションで承認した）。テストは `make test`・CI の `doc-guard`・pre-commit のフックで走り、`/runpr` の手順 4 の印の検査をなくし、3 つのコマンドの同期の手順は検査の失敗で `/mktrans` を呼ぶ形にした。プロンプトの判定は決定的でなく、手作業の変更が手順を通らないためである（2.4 節・3.1 節・4.3 節）。2026-10-29: PR-2 のレビューで、4.3 節の復旧の表の「印の ID が取り出せない」の行の `git fetch` の refspec に転送先（`refs/remotes/origin/pr/*`）を加えた。転送先のないワイルドカードの refspec は git が拒否するためである（決定の変更なし。編集上の修正） |
+| Comments | 2026-10-28: 冒頭の要件定義の状態の記述を承認後の状態に直した（決定の変更なし。編集上の修正）。2026-10-28: 実装計画の作成時に、8 章の表のフェーズ 5 の内容に、`development.md` の CI の判定の行と Browser extension の節の最上位化を加え、フェーズ 6 の「CI の判定」を `README.en.md` の行に絞った。フェーズ 2 の AGENTS.md の変更（リンクのパス）はフェーズ 1 の一括置換に含まれることを注に書いた。`development.md` を読むテストと、`## Development` の節を移した後の見出しの入れ子を、同じ PR で正しく保つためである（決定の変更なし。編集上の修正）。2026-10-29: 実装の際に、4.3 節の表の「止まった」の行で、書きかけた `README.en.md` を戻す手段を、呼び出し元の `git restore` から `/mktrans` が書く前の写しに改めた。呼び出し元の作業ツリーにあった `README.en.md` の変更（`/fixpr` の修正など）を消さないためである（決定の変更なし。編集上の修正）。2026-10-29: PR-2 のレビューで、レビュアー（isseis）の判断により、同期の印の検査をプロンプトの手順から Go のテスト `TestReadmeSyncMarker` に移した（決定の変更。レビュアーがこのセッションで承認した）。テストは `make test`・CI の `doc-guard`・pre-commit のフックで走り、`/runpr` の手順 4 の印の検査をなくし、3 つのコマンドの同期の手順は検査の失敗で `/mktrans` を呼ぶ形にした。プロンプトの判定は決定的でなく、手作業の変更が手順を通らないためである（2.4 節・3.1 節・4.3 節）。2026-10-29: PR-2 のレビューで、4.3 節の復旧の表の「印の ID が取り出せない」の行の `git fetch` の refspec に転送先（`refs/remotes/origin/pr/*`）を加えた。転送先のないワイルドカードの refspec は git が拒否するためである（決定の変更なし。編集上の修正）。2026-10-30: PR-5 の実装で、4.1 節の拒否する形の一覧を確かめ直した。4 個以上のバッククォートは開くフェンスだけを拒否する（3 個で開いたブロックを 4 個で閉じる行は、走査と GitHub が同じく閉じるので拒否しない）。字下げした ATX の見出し、`#` だけの行、リスト項目の中の見出しは、GitHub が描画するのに走査が数えないため、拒否する形に加えた。あわせて、Setext の下線とみなす前の行を、段落の文だけにした（リスト項目・引用・表の行・字下げしたコードの行の後は、`---` を区切り線として受け入れる）。PR-5 のレビュー観点が尋ねた字下げした見出しの扱いは、4.1 節の「走査と GitHub の解釈がずれうる形を拒否する」という規則に従って拒否とする（規則の適用であり、決定の変更なし） |
 
 本書は [01_requirements.md](01_requirements.md) の設計である。要件定義は、本書のレビューで AC-27a を加えたため一度 `draft` に戻し、本書と一緒に承認し直した。要件定義から申し送られた設計事項は [design_handoff.md](design_handoff.md) にあり、各項目への対応は 10 章にまとめる。本書が引用するファイルの行番号は、特に断らない限り、コミット `364c95b8`（本書の作成時の `main`）のものである。
 
@@ -551,14 +551,15 @@ README を読まない、次のテストも本タスクの影響を受ける。
 そのため、`ParseStructure` は、README で走査と GitHub の解釈がずれうる形を、数える前にエラーとして拒否する。README は今どの形も使っていない（`364c95b8` で確かめた）。黙って数え方を決めると、両版の構造が違うのに一致と判定しうるためである（CLAUDE.md、"Reject, don't normalize"）。
 
 -   **見出し:** コードブロックの外にある ATX 形式の見出し（行頭の 1〜6 個の `#` と空白）を数える。Mermaid のブロックやコードの中の `#` で始まる行（`README.md:293`・`:299`・`:328`・`:332`）は数えない。
--   **拒否する形:** 閉じていないフェンス、行頭に空白のあるフェンス、`~~~` のフェンス、4 個以上のバッククォートのフェンス、7 個以上の `#` で始まる行、コードブロックの外の Setext 形式の見出し（文の行の直後の、`=` または `-` だけの行）。Setext の判定はコードブロックの外だけで行う（`README.md:281`・`:291` の `---` は ```` ```text ```` のブロックの中にある）。
+-   **拒否する形:** 閉じていないフェンス、行頭に空白のあるフェンス、`~~~` のフェンス、4 個以上のバッククォートで開くフェンス、情報の文字列にバッククォートを含むフェンス、7 個以上の `#` で始まる行、`#` だけの行、1〜3 個の空白で字下げした ATX の見出し、リスト項目の中の ATX の見出し、コードブロックの外の Setext 形式の見出し（文の行の直後の、`=` または `-` だけの行）。Setext の判定はコードブロックの外だけで行う（`README.md:281`・`:291` の `---` は ```` ```text ```` のブロックの中にある）。
 
 ```go
 // ErrUnclosedFence reports a fenced code block with no closing fence.
 var ErrUnclosedFence = errors.New("unclosed fenced code block")
 
 // ErrUnsupportedFence reports a fence the README does not use: indented,
-// opened with tildes, or longer than three backticks.
+// opened with tildes, longer than three backticks, or with a backtick in its
+// info string.
 var ErrUnsupportedFence = errors.New("unsupported code fence")
 
 // ErrUnsupportedHeading reports a Setext heading, or a line of seven or more

@@ -11,6 +11,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/isseis/yt2column/internal/doctestutil"
 )
 
 // readmeEnPath is the path from cmd/yt2column to the English README, which
@@ -75,7 +77,7 @@ func checkReadmeSync(readme []byte, en string) error {
 // README.en.md does not exist (before the README becomes bilingual) it skips;
 // once it exists, the README structure test fails when it is missing.
 func TestReadmeSyncMarker(t *testing.T) {
-	readme := []byte(readDoc(t, readmePath))
+	readme := []byte(doctestutil.ReadDoc(t, readmePath))
 	en, err := os.ReadFile(readmeEnPath)
 	if errors.Is(err, os.ErrNotExist) {
 		t.Skip("README.en.md does not exist; nothing to check")

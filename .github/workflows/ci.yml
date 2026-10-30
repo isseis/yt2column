@@ -184,7 +184,7 @@ jobs:
           cache: true
 
       - name: Run documentation sync guards
-        run: go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./internal/pipeline
+        run: go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./cmd/codexreview ./internal/pipeline
 
   # Runs on every pull request, independent of the change classification, so a
   # private key committed anywhere in the repository fails CI.

@@ -132,6 +132,7 @@ faithful translation, structural consistency) and the glossary workflow live in
 - `make all` - Default build target
 - `make install-mergepr` - Install the `/mergepr` developer tool (`go install ./cmd/mergepr`)
 - `make install-fixprguard` - Install the `fixprguard` guard tool (`go install ./cmd/fixprguard`); rerun it after a merge that changes the tool
+- `make install-codexreview` - Install the `codexreview` developer tool, which runs Codex CLI's local review when the CodeRabbit CLI fails (`go install ./cmd/codexreview`); rerun it after a merge that changes the tool
 
 ### Test Commands
 - `make test` - Run all tests with race detection, then `make test-parse-norace`
@@ -275,8 +276,10 @@ request to the socket per send and manages its own manifest with `install` and
 
 See [Project Overview](docs/dev/project_overview.md) for the decided policies and
 constraints, and [Package Reference](docs/dev/conventions/package_reference.md)
-for the packages that exist today. The server's API and startup are documented in
-the [README](README.md) and `docs/dev/security.md` §8.
+for the packages that exist today. The server's startup is documented in the
+[README](README.md) (and its English version, `README.en.md`), its HTTP API in
+[development.md](docs/dev/guides/development.md), and both in
+`docs/dev/security.md` §8.
 
 ### Key Design Patterns
 - **Separation of Concerns**: Each package has a single responsibility. Core logic
@@ -360,6 +363,19 @@ the [README](README.md) and `docs/dev/security.md` §8.
   JSON object stays the current form and is relayed unchanged for the server
   to reject. The current form and this exception are removed after #503
   (#526).
+  Exception: `codexreview` chooses whether Codex CLI's final message reports
+  findings, reports none, or cannot be read by inspecting the content of that
+  message (`parseFinalMessage` in `internal/codexreview/message.go`). Scope:
+  the parse of the final message only — the summary paragraph, the heading
+  line, and the shape of each finding line and its indented body decide the
+  findings' boundaries and the message's form. Telling a completed run from
+  `codex exec review --json` output is not part of it: those lines are chosen
+  by their declared `type` member. Reason: the final message is an external
+  value written by `codex`, which the tool cannot express in a type, and the
+  published output has no structured member that declares completion or the
+  list of findings. Boundary: a message that matches neither accepted form is
+  not read more widely but is reported as unreadable, with none of the
+  findings read before the line that broke the form.
 - **Enforce invariants with the type, not with convention**: if a value must pass
   validation before use (e.g. a video ID), make the compiler the thing that
   guarantees it — unexported fields plus a mandatory constructor — rather than
@@ -479,12 +495,14 @@ info.json parsers with real samples under `testdata/`.
   reversed one. A change to a documented value or structure still needs the
   matching test. Two exceptions stay tested: the automated-reviewer list, and the
   commands the agents run at their trust boundary (the `fixprguard` call sites,
-  the commands that would bypass it, the mention check, and the `--jq` filters
-  that must not print a body). A mistake there disables a guard at run time, so
-  a test is worth its brittleness. A property of the change itself, such as
-  existing headings kept unchanged, is not a document test either: it is a
-  `diff` verification, a script under the task's `_checks/` directory run once
-  against the merge-base (`requirements_process.md` §4).
+  the commands that would bypass it, the mention check, the `--jq` filters
+  that must not print a body, the `--protocol` value of the `codexreview`
+  calls, and the absence of a command that runs `codex` directly). A mistake
+  there disables a guard at run time, so a test is worth its brittleness. A
+  property of the change itself, such as existing headings kept unchanged, is
+  not a document test either: it is a `diff` verification, a script under the
+  task's `_checks/` directory run once against the merge-base
+  (`requirements_process.md` §4).
 
 See [Test Organization Guide](docs/dev/conventions/test_organization.md) for test helper file structure.
 
@@ -494,22 +512,26 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
 - After editing go files, make sure to run `make fmt` to format the files.
 - After editing files, make sure to run `make test` and `make lint` and fix errors.
 - After changing the browser extension under `extension/`, run `make ext-check`.
-- A change that touches only documents (`README.md`, `CLAUDE.md`, `docs/`) does
-  not need `make ext-test`, except `README.md`: the extension's node tests read
-  its rejection-reason table (`serverReasons.test.ts`) and the expand prompt in
-  its "Browser extension" section (`metadataDocs.test.ts`), so a change to it
-  needs `make ext-test`. The other text-sync guards that read documents (the
+- A change that touches only documents (`README.md`, `README.en.md`,
+  `CLAUDE.md`, `docs/`) does not need `make ext-test`, except the two READMEs
+  and `docs/dev/guides/development.md`: the extension's node tests read the
+  expand prompt and the popup names in each README's browser extension section
+  (`metadataDocs.test.ts`) and the rejection-reason table of `development.md`
+  (`serverReasons.test.ts`), so a change to them needs `make ext-test`. The
+  other text-sync guards that read documents (the
   extension ID, the `ext-` targets in this file, the manifest permissions, the
   `project_overview.md` notes (the environment variable names, `costPrefix`, and
   `16,383`), the production profile's configuration block and stage table in
-  `docs/dev/production_profile.md`, the README's configuration block and Quick
-  start links, the `/fixpr` and `/runpr` command documents) are Go tests included
+  `docs/dev/production_profile.md`, the configuration block and Quick start
+  links of both READMEs, the values `cli.md` and `development.md` hold, the
+  `/fixpr` and `/runpr` command documents, the `codexreview`
+  permission, install target, and command-document checks) are Go tests included
   in `make test` and need no node. `cmd/yt2column-nmhost`'s
-  `TestReadmeHostExitCodes` reads the README too, but the `doc-guard` job does
-  not run it: the local `make test`, and the CI `test` job when the change
-  includes code, do. A README-only change is therefore checked by neither CI
-  job for this test. The `doc-guard` CI job runs the other guards
-  (`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./internal/pipeline`)
+  `TestReadmeHostExitCodes` reads both READMEs too, but the `doc-guard` job
+  does not run it: the local `make test`, and the CI `test` job when the change
+  includes code, do. A change to the READMEs alone is therefore checked by
+  neither CI job for this test. The `doc-guard` CI job runs the other guards
+  (`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./cmd/codexreview ./internal/pipeline`)
   on every pull request, so a documentation-only change is checked in CI by
   those guards even though `check-changes` classifies it as non-code.
 - A change that touches only `.gitignore` can still break the extension's
@@ -618,3 +640,10 @@ reviewer sets the previous one to `approved`.
 - `coderabbit review` (the local CodeRabbit CLI, a development tool used on every
   change) may be executed without explicit approval, although it sends the diff to
   CodeRabbit's service
+- `codexreview` (the developer tool the local CLI review runs only when the
+  CodeRabbit CLI fails, as its fallback) may be executed without explicit approval,
+  in the form `.claude/commands/_lib/local-cli-review.md` gives, although it runs
+  Codex CLI (`codex exec review`), which sends the diff and whatever Codex reads
+  during the review to OpenAI's service and spends the Codex allowance the PR
+  review shares. Codex CLI itself is never run directly, and the agents never
+  install or build `codexreview`: the user installs it from `main`

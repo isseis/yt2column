@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(coderabbit review *)"
+      "Bash(coderabbit review *)",
+      "Bash(codexreview *)"
     ]
   }
 }

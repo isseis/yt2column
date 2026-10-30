@@ -12,9 +12,9 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"unicode"
 
 	"github.com/isseis/yt2column/internal/config"
+	"github.com/isseis/yt2column/internal/doctestutil"
 	"github.com/isseis/yt2column/internal/llm"
 	claudetestutil "github.com/isseis/yt2column/internal/llm/claude/testutil"
 	deepseektestutil "github.com/isseis/yt2column/internal/llm/deepseek/testutil"
@@ -27,6 +27,8 @@ import (
 // Paths from cmd/yt2column to the documents these tests check.
 const (
 	readmePath            = "../../README.md"
+	cliDocPath            = "../../" + cliGuide
+	developmentDocPath    = "../../" + developmentGuide
 	projectOverviewPath   = "../../docs/dev/project_overview.md"
 	securityPath          = "../../docs/dev/security.md"
 	productionProfilePath = "../../docs/dev/production_profile.md"
@@ -35,12 +37,20 @@ const (
 	pricingRatesPath      = "../../internal/pricing/rates.go"
 )
 
-// The headings test (a) and test (b) read.
-const (
-	productionProfileSection = "## 本番の構成"
-	quickStartHeading        = "## Quick start"
-	recommendedConfigHeading = "### Recommended configuration"
-)
+// productionProfileSection is the production profile document's section with
+// the profile's configuration block and stage table.
+const productionProfileSection = "## 本番の構成"
+
+// readmeVersionsUnder runs check once per README version, as a subtest named
+// by the version's path, with the version's text read from the repository.
+func readmeVersionsUnder(t *testing.T, check func(t *testing.T, v doctestutil.ReadmeVersion, readme string)) {
+	t.Helper()
+	for _, v := range doctestutil.ReadmeVersions() {
+		t.Run(v.Path, func(t *testing.T) {
+			check(t, v, doctestutil.ReadDoc(t, v.From(repositoryRoot)))
+		})
+	}
+}
 
 // markdownLinkRE matches an inline Markdown link and captures its text and
 // target. These documents use no reference links, and a link text or target
@@ -52,11 +62,11 @@ var markdownLinkRE = regexp.MustCompile(`\[([^\]]*)\]\(([^)\s]+)\)`)
 // is not a link.
 func markdownLinkTargets(text string) []string {
 	var targets []string
-	for _, line := range scanDocLines(slices.Collect(strings.Lines(text))) {
-		if line.block {
+	for _, line := range doctestutil.ScanDocLines(slices.Collect(strings.Lines(text))) {
+		if line.Block {
 			continue
 		}
-		for _, match := range markdownLinkRE.FindAllStringSubmatch(line.text, -1) {
+		for _, match := range markdownLinkRE.FindAllStringSubmatch(line.Text, -1) {
 			targets = append(targets, match[2])
 		}
 	}
@@ -68,9 +78,9 @@ func markdownLinkTargets(text string) []string {
 // above the number of targets it found.
 func linkOpenerCount(doc string) int {
 	openers := 0
-	for _, line := range scanDocLines(slices.Collect(strings.Lines(doc))) {
-		if !line.block {
-			openers += strings.Count(line.text, "](")
+	for _, line := range doctestutil.ScanDocLines(slices.Collect(strings.Lines(doc))) {
+		if !line.Block {
+			openers += strings.Count(line.Text, "](")
 		}
 	}
 	return openers
@@ -86,74 +96,20 @@ func checkLinkCount(t *testing.T, name, doc string, targets int) {
 	}
 }
 
-// lowercase, with markup punctuation removed, each ASCII space turned into a
-// hyphen, and letters, numbers, marks, connector punctuation, and hyphens kept.
-// Any other character, a non-ASCII space included, is dropped.
-func anchorFromHeading(heading string) string {
-	text := strings.TrimSpace(strings.TrimLeft(strings.TrimSpace(heading), "#"))
-	var b strings.Builder
-	for _, r := range strings.ToLower(text) {
-		switch {
-		case r == '-' || unicode.IsLetter(r) || unicode.IsNumber(r) || unicode.IsMark(r) || unicode.In(r, unicode.Pc):
-			b.WriteRune(r)
-		case r == ' ':
-			b.WriteRune('-')
-		}
-	}
-	return b.String()
-}
-
-// headingsOutsideBlocks returns the heading lines of doc that lie outside a
-// fenced code block, in order.
-func headingsOutsideBlocks(doc string) []string {
-	var headings []string
-	for _, line := range scanDocLines(slices.Collect(strings.Lines(doc))) {
-		if !line.block && headingLevel(line.text) > 0 {
-			headings = append(headings, line.text)
-		}
-	}
-	return headings
-}
-
 // headingAnchors returns the set of anchors the heading lines of doc outside
 // code blocks produce. It fails the test when two headings share an anchor:
 // the suffix GitHub adds to a repeated heading is not modelled.
 func headingAnchors(t *testing.T, docName, doc string) map[string]struct{} {
 	t.Helper()
 	anchors := make(map[string]struct{})
-	for _, heading := range headingsOutsideBlocks(doc) {
-		anchor := anchorFromHeading(heading)
+	for _, heading := range doctestutil.HeadingsOutsideBlocks(doc) {
+		anchor := doctestutil.AnchorFromHeading(heading)
 		if _, seen := anchors[anchor]; seen {
 			t.Errorf("%s has two headings with the anchor %q, which this helper does not model", docName, anchor)
 		}
 		anchors[anchor] = struct{}{}
 	}
 	return anchors
-}
-
-// sectionOutsideBlocks returns the lines after the first heading line equal to
-// heading and outside a fenced code block, up to the next heading line outside
-// a block whose level is the same or higher. It returns the empty string when
-// no such heading line exists.
-func sectionOutsideBlocks(doc, heading string) string {
-	scanned := scanDocLines(slices.Collect(strings.Lines(doc)))
-	want := strings.TrimSpace(heading)
-	for i, line := range scanned {
-		if line.block || strings.TrimSpace(line.text) != want {
-			continue
-		}
-		level := headingLevel(line.text)
-		var b strings.Builder
-		for _, rest := range scanned[i+1:] {
-			if l := headingLevel(rest.text); !rest.block && l > 0 && l <= level {
-				break
-			}
-			b.WriteString(rest.text)
-			b.WriteString("\n")
-		}
-		return b.String()
-	}
-	return ""
 }
 
 // numberedItemRE matches the first line of a top-level numbered list item.
@@ -170,33 +126,33 @@ func numberedItems(section string) []string {
 			current = nil
 		}
 	}
-	for _, line := range scanDocLines(slices.Collect(strings.Lines(section))) {
+	for _, line := range doctestutil.ScanDocLines(slices.Collect(strings.Lines(section))) {
 		switch {
-		case line.block:
+		case line.Block:
 			if current != nil {
-				current = append(current, line.text)
+				current = append(current, line.Text)
 			}
-		case numberedItemRE.MatchString(line.text):
+		case numberedItemRE.MatchString(line.Text):
 			flush()
-			current = []string{line.text}
-		case strings.TrimSpace(line.text) == "":
+			current = []string{line.Text}
+		case strings.TrimSpace(line.Text) == "":
 			flush()
 		case current != nil:
-			current = append(current, line.text)
+			current = append(current, line.Text)
 		}
 	}
 	flush()
 	return items
 }
 
-// TestREADMEDocumentsFlags checks that README.md documents every flag run
-// defines. The flag names come from newFlagSet, not from a list kept here, so a
-// new flag fails this test until README names it.
+// TestREADMEDocumentsFlags checks that the CLI guide (cli.md) documents every
+// flag run defines. The flag names come from newFlagSet, not from a list kept
+// here, so a new flag fails this test until cli.md names it.
 func TestREADMEDocumentsFlags(t *testing.T) {
-	doc := readDoc(t, readmePath)
-	table := findTable(doc, "Flag")
+	doc := doctestutil.ReadDoc(t, cliDocPath)
+	table := doctestutil.FindTable(doc, doctestutil.CLIFlagColumn)
 	if table == nil {
-		t.Fatal("README has no flags table")
+		t.Fatal("cli.md has no flags table")
 	}
 	fs, _ := newFlagSet()
 	fs.VisitAll(func(f *flag.Flag) {
@@ -207,9 +163,10 @@ func TestREADMEDocumentsFlags(t *testing.T) {
 }
 
 // TestSlackDocsContract pins the machine-checkable contract values of webhook
-// publishing: the test environment variables, the make targets, and the
-// per-message limit. The values come from the publisher's exported test
-// constants, not from the documents.
+// publishing: the test environment variables and the make targets, which the
+// development guide (development.md) and security.md name, and the per-message
+// limit, which README.md and project_overview.md state. The values come from
+// the publisher's exported test constants, not from the documents.
 func TestSlackDocsContract(t *testing.T) {
 	// The documents state the limit with a thousands separator, so the
 	// literal below is pinned to the publisher's own exported test constant:
@@ -217,7 +174,6 @@ func TestSlackDocsContract(t *testing.T) {
 	if publisher.SlackMaxMessageRunesForTest != 16383 {
 		t.Fatalf("the publisher per-message limit is %d, not 16,383; update the documents and this test", publisher.SlackMaxMessageRunesForTest)
 	}
-	readme := readDoc(t, readmePath)
 	values := []string{
 		publishertestutil.SlackOptInEnv,
 		publishertestutil.CLISlackOptInEnv,
@@ -228,21 +184,19 @@ func TestSlackDocsContract(t *testing.T) {
 	for _, doc := range []struct {
 		name, text string
 	}{
-		{"README.md", readme},
-		{"security.md", readDoc(t, securityPath)},
+		{"development.md", doctestutil.ReadDoc(t, developmentDocPath)},
+		{"security.md", doctestutil.ReadDoc(t, securityPath)},
 	} {
 		requireMentions(t, doc.name, doc.text, values)
 	}
-	for _, doc := range []struct {
-		name, text string
-	}{
-		{"README.md", readme},
-		{"project_overview.md", readDoc(t, projectOverviewPath)},
-	} {
-		if !strings.Contains(doc.text, "16,383") {
-			t.Errorf("%s does not state the per-message limit 16,383", doc.name)
-		}
+	if !strings.Contains(doctestutil.ReadDoc(t, projectOverviewPath), "16,383") {
+		t.Error("project_overview.md does not state the per-message limit 16,383")
 	}
+	readmeVersionsUnder(t, func(t *testing.T, v doctestutil.ReadmeVersion, readme string) {
+		if !strings.Contains(readme, "16,383") {
+			t.Errorf("%s does not state the per-message limit 16,383", v.Path)
+		}
+	})
 }
 
 // requireMentions fails the test for each value that text does not contain.
@@ -267,8 +221,8 @@ func TestClaudeDocsContract(t *testing.T) {
 	for _, doc := range []struct {
 		name, text string
 	}{
-		{"README.md", readDoc(t, readmePath)},
-		{"security.md", readDoc(t, securityPath)},
+		{"development.md", doctestutil.ReadDoc(t, developmentDocPath)},
+		{"security.md", doctestutil.ReadDoc(t, securityPath)},
 	} {
 		requireMentions(t, doc.name, doc.text, values)
 	}
@@ -276,12 +230,12 @@ func TestClaudeDocsContract(t *testing.T) {
 
 // TestDeepSeekDocsContract pins the machine-checkable contract values of the
 // DeepSeek integration tests: the key they read, the opt-in that arms each
-// one, and the model variable. Every integration-test section of README.md
-// names its own values, so a section left behind by a rename fails. The values
-// come from the deepseek and publisher test packages' exported constants, not
-// from the document.
+// one, and the model variable. Every integration-test section of the
+// development guide (development.md) names its own values, so a section left
+// behind by a rename fails. The values come from the deepseek and publisher
+// test packages' exported constants, not from the document.
 func TestDeepSeekDocsContract(t *testing.T) {
-	readme := readDoc(t, readmePath)
+	development := doctestutil.ReadDoc(t, developmentDocPath)
 	for _, section := range []struct {
 		name    string
 		heading string
@@ -289,26 +243,26 @@ func TestDeepSeekDocsContract(t *testing.T) {
 	}{
 		{
 			name:    "deepseek",
-			heading: "### DeepSeek integration test",
+			heading: doctestutil.DevDeepSeekIntegrationHeading,
 			values:  []string{deepseektestutil.APIKeyEnv, deepseektestutil.DeepSeekOptInEnv, deepseektestutil.ModelEnv},
 		},
 		{
 			name:    "cli",
-			heading: "### CLI integration test",
+			heading: doctestutil.DevCLIIntegrationHeading,
 			values:  []string{deepseektestutil.APIKeyEnv, deepseektestutil.CLIOptInEnv, deepseektestutil.ModelEnv},
 		},
 		{
 			name:    "cli_slack",
-			heading: "### CLI webhook integration test",
+			heading: doctestutil.DevCLIWebhookIntegrationHeading,
 			values:  []string{deepseektestutil.APIKeyEnv, publishertestutil.CLISlackOptInEnv, deepseektestutil.ModelEnv},
 		},
 	} {
 		t.Run(section.name, func(t *testing.T) {
-			text := sectionOutsideBlocks(readme, section.heading)
+			text := doctestutil.SectionOutsideBlocks(development, section.heading)
 			if text == "" {
-				t.Fatalf("README.md has no %q section", section.heading)
+				t.Fatalf("development.md has no %q section", section.heading)
 			}
-			requireMentions(t, "README.md "+section.heading, text, section.values)
+			requireMentions(t, "development.md "+section.heading, text, section.values)
 		})
 	}
 }
@@ -326,14 +280,19 @@ func TestLLMDefaultsDocsContract(t *testing.T) {
 		{config.LLMEnvForTest(), config.DefaultLLMValueForTest()},
 		{config.ReviewLLMEnvForTest(), ""}, // presence only
 	}
-	for _, doc := range []struct {
+	docs := []struct {
 		name, path, nameHeader, unsetHeader string
 	}{
-		{"README.md", readmePath, "Variable", "When unset"},
 		{"project_overview.md", projectOverviewPath, "変数", "未設定のとき"},
-	} {
+	}
+	for _, v := range doctestutil.ReadmeVersions() {
+		docs = append(docs, struct{ name, path, nameHeader, unsetHeader string }{
+			v.Path, v.From(repositoryRoot), doctestutil.ReadmeVariableColumn.In(t, v.Lang), doctestutil.ReadmeUnsetColumn.In(t, v.Lang),
+		})
+	}
+	for _, doc := range docs {
 		t.Run(doc.name, func(t *testing.T) {
-			table := findTable(readDoc(t, doc.path), doc.nameHeader)
+			table := doctestutil.FindTable(doctestutil.ReadDoc(t, doc.path), doc.nameHeader)
 			if table == nil {
 				t.Fatalf("%s has no table with a %q column", doc.name, doc.nameHeader)
 			}
@@ -362,173 +321,13 @@ func TestLLMDefaultsDocsContract(t *testing.T) {
 	}
 }
 
-// TestSectionByHeading pins sectionByHeading's boundaries: the heading line is
-// excluded, the section ends before the next heading of the same or a higher
-// level, a missing heading returns the empty string, and a '#' not followed by
-// whitespace is not a heading.
-func TestSectionByHeading(t *testing.T) {
-	const doc = `# Top
-top body
-## Middle
-middle body
-### Deep
-deep body
-#### Deeper
-deeper body
-## Middle two
-middle two body
-#109 note
-note body
-###
-hash body
-# Top two
-top two body`
-	for _, tc := range []struct {
-		name    string
-		heading string
-		want    string
-	}{
-		{
-			name:    "level two ends before the next level two",
-			heading: "## Middle",
-			want:    "middle body\n### Deep\ndeep body\n#### Deeper\ndeeper body\n",
-		},
-		{
-			name:    "level three includes a lower level four",
-			heading: "### Deep",
-			want:    "deep body\n#### Deeper\ndeeper body\n",
-		},
-		{
-			name:    "level four keeps only its own body",
-			heading: "#### Deeper",
-			want:    "deeper body\n",
-		},
-		{
-			name:    "level one ends before the next level one",
-			heading: "# Top",
-			want:    "top body\n## Middle\nmiddle body\n### Deep\ndeep body\n#### Deeper\ndeeper body\n## Middle two\nmiddle two body\n#109 note\nnote body\n###\nhash body\n",
-		},
-		{
-			name:    "missing heading yields the empty string",
-			heading: "## Absent",
-			want:    "",
-		},
-		{
-			name:    "hash without following whitespace is not a heading",
-			heading: "#109 note",
-			want:    "",
-		},
-		{
-			name:    "bare hashes are not a heading",
-			heading: "###",
-			want:    "",
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := sectionByHeading(doc, tc.heading); got != tc.want {
-				t.Errorf("sectionByHeading(doc, %q) = %q, want %q", tc.heading, got, tc.want)
-			}
-		})
-	}
-}
-
-// readDoc reads a repository document, failing the test on error.
-func readDoc(t *testing.T, path string) string {
-	t.Helper()
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read %s: %v", path, err)
-	}
-	return string(data)
-}
-
-// markdownTables returns every Markdown table in doc. Each table is a slice of
-// rows, and each row a slice of trimmed cells. A separator row is dropped, and
-// a blank or non-table line ends a table.
-func markdownTables(doc string) [][][]string {
-	var tables [][][]string
-	var rows [][]string
-	flush := func() {
-		if len(rows) > 0 {
-			tables = append(tables, rows)
-			rows = nil
-		}
-	}
-	for line := range strings.Lines(doc) {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "|") && strings.HasSuffix(trimmed, "|") {
-			cells := splitTableRow(trimmed)
-			if isTableSeparator(cells) {
-				continue
-			}
-			rows = append(rows, cells)
-			continue
-		}
-		flush()
-	}
-	flush()
-	return tables
-}
-
-// splitTableRow splits one Markdown table line into trimmed cells. Cells must
-// not contain an escaped pipe, which these documents do not use.
-func splitTableRow(line string) []string {
-	line = strings.TrimSuffix(strings.TrimPrefix(line, "|"), "|")
-	parts := strings.Split(line, "|")
-	cells := make([]string, 0, len(parts))
-	for _, part := range parts {
-		cells = append(cells, strings.TrimSpace(part))
-	}
-	return cells
-}
-
-// isTableSeparator reports whether cells are the "---" row under a header.
-func isTableSeparator(cells []string) bool {
-	dash := false
-	for _, cell := range cells {
-		if strings.Contains(cell, "-") {
-			dash = true
-		}
-		if strings.Trim(cell, "-: ") != "" {
-			return false
-		}
-	}
-	return dash
-}
-
-// findTable returns the first table whose header row contains header.
-func findTable(doc, header string) [][]string {
-	for _, table := range markdownTables(doc) {
-		if len(table) == 0 {
-			continue
-		}
-		for _, cell := range table[0] {
-			if strings.EqualFold(stripBackticks(cell), header) {
-				return table
-			}
-		}
-	}
-	return nil
-}
-
-// tableRow returns the first body row whose first cell equals first, ignoring
-// backticks.
-func tableRow(table [][]string, first string) []string {
-	for _, row := range table[1:] {
-		if len(row) > 0 && stripBackticks(row[0]) == first {
-			return row
-		}
-	}
-	return nil
-}
-
 // tableRowsWithFirstCell returns every body row whose first cell equals first,
-// ignoring backticks. It is tableRow for a table that can hold more than one row
-// per key, such as the review-log item table.
+// ignoring backticks. It is doctestutil.TableRow for a table that can hold more
+// than one row per key, such as the review-log item table.
 func tableRowsWithFirstCell(table [][]string, first string) [][]string {
 	var rows [][]string
 	for _, row := range table[1:] {
-		if len(row) > 0 && stripBackticks(row[0]) == first {
+		if len(row) > 0 && doctestutil.StripBackticks(row[0]) == first {
 			rows = append(rows, row)
 		}
 	}
@@ -554,100 +353,6 @@ func tableFlagContains(table [][]string, want string) bool {
 	return false
 }
 
-// stripBackticks removes the code-span backticks around a table cell.
-func stripBackticks(s string) string {
-	return strings.Trim(s, "`")
-}
-
-// headingLevel reports the level of a Markdown heading line: the number of
-// leading '#' characters when the line starts with one or more '#' followed by
-// a space or tab. It returns 0 for any other line, so a line such as
-// "#109 note" (no whitespace after '#') is not a heading.
-func headingLevel(line string) int {
-	line = strings.TrimRight(line, "\n")
-	n := 0
-	for n < len(line) && line[n] == '#' {
-		n++
-	}
-	if n == 0 || n == len(line) {
-		return 0
-	}
-	switch line[n] {
-	case ' ', '\t':
-		return n
-	}
-	return 0
-}
-
-// sectionByHeading returns the text under the first heading line whose trimmed
-// text equals heading, up to the next heading line of the same or a higher
-// level. The matching heading line is not included; it returns the empty string
-// when no line matches. The caller passes the whole heading line (for example
-// "## Heading"), so the helper works for any level.
-func sectionByHeading(doc, heading string) string {
-	want := strings.TrimSpace(heading)
-	level := 0
-	inSection := false
-	var b strings.Builder
-	for line := range strings.Lines(doc) {
-		if l := headingLevel(line); l > 0 {
-			if !inSection {
-				if strings.TrimSpace(line) == want {
-					inSection = true
-					level = l
-				}
-				continue
-			}
-			if l <= level {
-				break
-			}
-		}
-		if inSection {
-			b.WriteString(line)
-		}
-	}
-	return b.String()
-}
-
-// TestScanDocLines checks the flags of the fence scan: a fence line and the
-// lines it encloses are in a block, and a '#' line inside a block stays in it.
-// TestFencedBlocks and TestFirstCodeBlockAfter observe the same scan through
-// its consumers, so they cannot tell a wrong flag from a wrong consumer.
-func TestScanDocLines(t *testing.T) {
-	lines := []string{"intro\n", "```sh\n", "# not a heading\n", "export A=1\n", "```not-closed\n", "```\n", "## Heading\n", "```text\n", "tail"}
-	want := []docLine{
-		{text: "intro", fence: false, block: false},
-		{text: "```sh", fence: true, block: true},
-		{text: "# not a heading", fence: false, block: true},
-		{text: "export A=1", fence: false, block: true},
-		{text: "```not-closed", fence: false, block: true},
-		{text: "```", fence: true, block: true},
-		{text: "## Heading", fence: false, block: false},
-		{text: "```text", fence: true, block: true},
-		{text: "tail", fence: false, block: true},
-	}
-	if got := scanDocLines(lines); !slices.Equal(got, want) {
-		t.Errorf("scanDocLines = %#v, want %#v", got, want)
-	}
-}
-
-// TestFencedBlocks checks the block extraction: a closing fence ends a block,
-// an indented fence is a fence, blocks come back in order with their info
-// string, and a block left unclosed at the end is reported as not closed.
-func TestFencedBlocks(t *testing.T) {
-	doc := "intro\n```sh\nexport A=1\n```\ntext\n  ```text\nx\n  ```\n```json\n{}\n"
-	want := []fencedBlock{
-		{info: "sh", lines: []string{"export A=1"}, closed: true},
-		{info: "text", lines: []string{"x"}, closed: true},
-		{info: "json", lines: []string{"{}"}, closed: false},
-	}
-	if got := fencedBlocks(slices.Collect(strings.Lines(doc))); !slices.EqualFunc(got, want, func(a, b fencedBlock) bool {
-		return a.info == b.info && a.closed == b.closed && slices.Equal(a.lines, b.lines)
-	}) {
-		t.Errorf("fencedBlocks = %#v, want %#v", got, want)
-	}
-}
-
 // codeSpanRE matches one Markdown code span and captures its content. These
 // documents do not nest code spans.
 var codeSpanRE = regexp.MustCompile("`([^`]*)`")
@@ -659,77 +364,6 @@ func firstCodeSpan(cell string) (string, bool) {
 		return "", false
 	}
 	return match[1], true
-}
-
-// docLine is one line of a Markdown document as the code-fence scan classifies
-// it: the text without its newline, whether the line is a fence, and whether
-// the line is part of a fenced code block. An opening fence, the lines it
-// encloses, and its closing fence are all part of the block.
-type docLine struct {
-	text  string
-	fence bool
-	block bool
-}
-
-// scanDocLines classifies lines, starting outside a code block. Passing only
-// the lines after a heading therefore scans them from their first line: a
-// fence opened earlier in the document does not change the result. An opening
-// fence may carry an info string; a closing fence is backticks alone, so a
-// line such as "```not-closed" inside a block stays part of the block.
-func scanDocLines(lines []string) []docLine {
-	scanned := make([]docLine, 0, len(lines))
-	inBlock := false
-	for _, line := range lines {
-		text := strings.TrimSuffix(line, "\n")
-		trimmed := strings.TrimSpace(text)
-		fence := false
-		switch {
-		case !inBlock && strings.HasPrefix(trimmed, "```"):
-			fence, inBlock = true, true
-		case inBlock && isClosingFence(trimmed):
-			fence, inBlock = true, false
-		}
-		scanned = append(scanned, docLine{text: text, fence: fence, block: fence || inBlock})
-	}
-	return scanned
-}
-
-// isClosingFence reports whether line is a closing code fence: three or more
-// backticks and nothing else.
-func isClosingFence(line string) bool {
-	return len(line) >= 3 && strings.Trim(line, "`") == ""
-}
-
-// fencedBlock is one fenced code block: the info string after its opening
-// fence's backticks, its content lines without the fence lines, and whether a
-// closing fence was found.
-type fencedBlock struct {
-	info   string
-	lines  []string
-	closed bool
-}
-
-// fencedBlocks returns every fenced code block in lines, in order. A block with
-// no closing fence runs to the end of lines and is returned with closed false.
-func fencedBlocks(lines []string) []fencedBlock {
-	var blocks []fencedBlock
-	var current *fencedBlock
-	for _, line := range scanDocLines(lines) {
-		switch {
-		case line.fence && current == nil:
-			current = &fencedBlock{info: strings.TrimPrefix(strings.TrimSpace(line.text), "```")}
-		case line.fence:
-			current.closed = true
-			blocks = append(blocks, *current)
-			current = nil
-		case current != nil:
-			current.lines = append(current.lines, line.text)
-		}
-	}
-	if current != nil {
-		blocks = append(blocks, *current)
-	}
-	return blocks
 }
 
 // exportLineRE matches one line of a configuration block: "export", one space,
@@ -744,20 +378,20 @@ var exportLineRE = regexp.MustCompile(`^export ([A-Z][A-Z0-9_]*)=([A-Za-z0-9._/-
 // written into the block by mistake must not reach the log.
 func checkExportBlock(t *testing.T, docName, sectionName, section string, want []string) map[string]string {
 	t.Helper()
-	var shBlocks []fencedBlock
-	for _, block := range fencedBlocks(slices.Collect(strings.Lines(section))) {
-		if block.info == "sh" {
+	var shBlocks []doctestutil.FencedBlock
+	for _, block := range doctestutil.FencedBlocks(section) {
+		if block.Info == "sh" {
 			shBlocks = append(shBlocks, block)
 		}
 	}
 	if len(shBlocks) != 1 {
 		t.Fatalf("%s %s: %d sh code blocks, want exactly one", docName, sectionName, len(shBlocks))
 	}
-	if !shBlocks[0].closed {
+	if !shBlocks[0].Closed {
 		t.Fatalf("%s %s: the sh code block has no closing fence; an unclosed fence runs to the end of the document", docName, sectionName)
 	}
 	values := make(map[string]string, len(want))
-	for i, line := range shBlocks[0].lines {
+	for i, line := range shBlocks[0].Lines {
 		match := exportLineRE.FindStringSubmatch(line)
 		if match == nil {
 			t.Errorf("%s %s: block line %d is not an export line of the form export <NAME>=<value>", docName, sectionName, i+1)
@@ -854,18 +488,6 @@ func productionProfileVars() []string {
 	}
 }
 
-// tableColumn returns the index of the column whose header equals name,
-// ignoring case and backticks, or -1. It matches the way findTable and
-// tableRowsWithFirstCell read a header cell.
-func tableColumn(header []string, name string) int {
-	for i, cell := range header {
-		if strings.EqualFold(stripBackticks(cell), name) {
-			return i
-		}
-	}
-	return -1
-}
-
 // checkProfileTable checks the shared document's profile table: each stage has
 // exactly one row, and the first code spans of its provider and model cells,
 // joined by "/" into one LLM variable value, and of its effort cell, loaded
@@ -875,19 +497,19 @@ func tableColumn(header []string, name string) int {
 // is compared with the generation values.
 func checkProfileTable(t *testing.T, section string, defaults config.LLMConfig) {
 	t.Helper()
-	table := findTable(section, "段階")
+	table := doctestutil.FindTable(section, "段階")
 	if table == nil {
 		t.Fatal("production_profile.md: the profile section has no table with a 段階 column")
 	}
 	names := []string{"プロバイダ", "モデル", "effort"}
 	columns := make([]int, len(names))
 	for i, name := range names {
-		if columns[i] = tableColumn(table[0], name); columns[i] < 0 {
+		if columns[i] = doctestutil.ColumnIndex(table[0], name); columns[i] < 0 {
 			t.Fatalf("production_profile.md: the profile table has no %s column", name)
 		}
 	}
 	for _, row := range table[1:] {
-		if len(row) > 0 && !slices.Contains(profileStages, stripBackticks(row[0])) {
+		if len(row) > 0 && !slices.Contains(profileStages, doctestutil.StripBackticks(row[0])) {
 			t.Errorf("production_profile.md: the profile table has a row for %q, which is not a stage of the profile", row[0])
 		}
 	}
@@ -956,8 +578,8 @@ func checkProfileTable(t *testing.T, section string, defaults config.LLMConfig) 
 func TestProductionProfileDocsContract(t *testing.T) {
 	want := productionProfileVars()
 
-	doc := readDoc(t, productionProfilePath)
-	section := sectionOutsideBlocks(doc, productionProfileSection)
+	doc := doctestutil.ReadDoc(t, productionProfilePath)
+	section := doctestutil.SectionOutsideBlocks(doc, productionProfileSection)
 	if section == "" {
 		t.Fatalf("production_profile.md has no %q section", productionProfileSection)
 	}
@@ -965,28 +587,27 @@ func TestProductionProfileDocsContract(t *testing.T) {
 	defaults := checkExportBlockMatchesDefaults(t, "production_profile.md", productionProfileSection, values)
 	checkProfileTable(t, section, defaults)
 
-	readme := readDoc(t, readmePath)
-	recommended := sectionOutsideBlocks(readme, recommendedConfigHeading)
-	if recommended == "" {
-		t.Fatalf("README has no %q section", recommendedConfigHeading)
-	}
-	configSection := sectionOutsideBlocks(readme, "## Configuration")
-	inConfiguration := false
-	for _, line := range scanDocLines(slices.Collect(strings.Lines(configSection))) {
-		if !line.block && strings.TrimSpace(line.text) == recommendedConfigHeading {
-			inConfiguration = true
+	readmeVersionsUnder(t, func(t *testing.T, v doctestutil.ReadmeVersion, readme string) {
+		heading := doctestutil.ReadmeRecommendedConfigHeading.In(t, v.Lang)
+		configHeading := doctestutil.ReadmeConfigurationHeading.In(t, v.Lang)
+		recommended := doctestutil.SectionOutsideBlocks(readme, heading)
+		if recommended == "" {
+			t.Fatalf("%s has no %q section", v.Path, heading)
 		}
-	}
-	if !inConfiguration {
-		t.Errorf("README: %q is not inside the Configuration section", recommendedConfigHeading)
-	}
-	readmeValues := checkExportBlock(t, "README.md", recommendedConfigHeading, recommended, want)
-	checkExportBlockMatchesDefaults(t, "README.md", recommendedConfigHeading, readmeValues)
+		configSection := doctestutil.SectionOutsideBlocks(readme, configHeading)
+		inConfiguration := false
+		for _, line := range doctestutil.ScanDocLines(slices.Collect(strings.Lines(configSection))) {
+			if !line.Block && strings.TrimSpace(line.Text) == heading {
+				inConfiguration = true
+			}
+		}
+		if !inConfiguration {
+			t.Errorf("%s: %q is not inside the %q section", v.Path, heading, configHeading)
+		}
+		readmeValues := checkExportBlock(t, v.Path, heading, recommended, want)
+		checkExportBlockMatchesDefaults(t, v.Path, heading, readmeValues)
+	})
 }
-
-// migrationHeading is the README section that shows how to move from the
-// retired LLM variables to the new ones.
-const migrationHeading = "### Migrating from the retired LLM variables"
 
 // TestMigrationDocsContract checks the README's migration example: the
 // section holds one text block of the retired generation variables and one sh
@@ -996,38 +617,47 @@ const migrationHeading = "### Migrating from the retired LLM variables"
 // package, whose table orders the generation provider variable first and the
 // generation model variable second.
 func TestMigrationDocsContract(t *testing.T) {
-	section := sectionOutsideBlocks(readDoc(t, readmePath), migrationHeading)
+	readmeVersionsUnder(t, func(t *testing.T, v doctestutil.ReadmeVersion, readme string) {
+		checkMigrationSection(t, v.Path, doctestutil.ReadmeMigrationHeading.In(t, v.Lang), readme)
+	})
+}
+
+// checkMigrationSection checks the migration section headed migrationHeading
+// of one README version, named name in failures.
+func checkMigrationSection(t *testing.T, name, migrationHeading, readme string) {
+	t.Helper()
+	section := doctestutil.SectionOutsideBlocks(readme, migrationHeading)
 	if section == "" {
-		t.Fatalf("README has no %q section", migrationHeading)
+		t.Fatalf("%s has no %q section", name, migrationHeading)
 	}
-	after := checkExportBlock(t, "README.md", migrationHeading, section, []string{config.LLMEnvForTest()})
+	after := checkExportBlock(t, name, migrationHeading, section, []string{config.LLMEnvForTest()})
 
 	retired := config.RetiredLLMVarsForTest()
 	providerVar, modelVar := retired[0], retired[1]
 	var before map[string]string
-	for _, block := range fencedBlocks(slices.Collect(strings.Lines(section))) {
-		if block.info != "text" {
+	for _, block := range doctestutil.FencedBlocks(section) {
+		if block.Info != "text" {
 			continue
 		}
 		if before != nil {
-			t.Fatalf("README %s: more than one text block, want exactly one", migrationHeading)
+			t.Fatalf("%s %s: more than one text block, want exactly one", name, migrationHeading)
 		}
 		before = map[string]string{}
-		for i, line := range block.lines {
-			name, value, ok := strings.Cut(strings.TrimRight(line, "\n"), "=")
-			if !ok || !slices.Contains(retired, name) {
-				t.Errorf("README %s: text block line %d is not <retired variable>=<value>", migrationHeading, i+1)
+		for i, line := range block.Lines {
+			variable, value, ok := strings.Cut(strings.TrimRight(line, "\n"), "=")
+			if !ok || !slices.Contains(retired, variable) {
+				t.Errorf("%s %s: text block line %d is not <retired variable>=<value>", name, migrationHeading, i+1)
 				continue
 			}
-			before[name] = value
+			before[variable] = value
 		}
 	}
 	if before == nil {
-		t.Fatalf("README %s: no text block of the retired variables", migrationHeading)
+		t.Fatalf("%s %s: no text block of the retired variables", name, migrationHeading)
 	}
 	if len(before) != 2 || before[providerVar] == "" || before[modelVar] == "" {
-		t.Fatalf("README %s: the text block sets %d variables, want exactly %s and %s",
-			migrationHeading, len(before), providerVar, modelVar)
+		t.Fatalf("%s %s: the text block sets %d variables, want exactly %s and %s",
+			name, migrationHeading, len(before), providerVar, modelVar)
 	}
 
 	load := func(value string) config.LLMConfig {
@@ -1037,7 +667,7 @@ func TestMigrationDocsContract(t *testing.T) {
 		env[config.LLMEnvForTest()] = value
 		cfg, err := config.LoadServer(lookupFrom(env))
 		if err != nil {
-			t.Fatalf("README %s: LoadServer rejects a value of the example: %v", migrationHeading, err)
+			t.Fatalf("%s %s: LoadServer rejects a value of the example: %v", name, migrationHeading, err)
 		}
 		return cfg.LLM()
 	}
@@ -1047,51 +677,53 @@ func TestMigrationDocsContract(t *testing.T) {
 	// whether they are equal: a secret pasted into the block by mistake must
 	// not reach the log.
 	if got.Provider() != want.Provider() || got.Model() != want.Model() {
-		t.Errorf("README %s: the new setting gives provider %v (want %v), model equal %t; want the retired setting's",
-			migrationHeading, got.Provider(), want.Provider(), got.Model() == want.Model())
+		t.Errorf("%s %s: the new setting gives provider %v (want %v), model equal %t; want the retired setting's",
+			name, migrationHeading, got.Provider(), want.Provider(), got.Model() == want.Model())
 	}
 }
 
-// TestQuickStartLinks checks the README's Quick start section: it comes before
-// Requirements, every numbered item links to a README heading, and every link
-// in the section is either such an anchor or an existing relative path.
+// TestQuickStartLinks checks the quick start section of each README version:
+// it comes before the requirements section, every numbered item links to a
+// heading of the same version, and no link in the section is an external URL.
 func TestQuickStartLinks(t *testing.T) {
-	readme := readDoc(t, readmePath)
-	section := sectionOutsideBlocks(readme, quickStartHeading)
-	if section == "" {
-		t.Fatalf("README has no %q section", quickStartHeading)
-	}
-	headings := headingsOutsideBlocks(readme)
-	at, requirements := slices.Index(headings, quickStartHeading), slices.Index(headings, "## Requirements")
-	if at < 0 || requirements < 0 || at > requirements {
-		t.Errorf("README: %q is at heading %d, Requirements at %d; Quick start must come first", quickStartHeading, at, requirements)
-	}
-	anchors := headingAnchors(t, "README.md", readme)
-	items := numberedItems(section)
-	if len(items) == 0 {
-		t.Fatalf("README %s has no numbered list", quickStartHeading)
-	}
-	for _, item := range items {
-		linked := false
-		for _, target := range markdownLinkTargets(item) {
-			if anchor, ok := strings.CutPrefix(target, "#"); ok {
-				if _, known := anchors[anchor]; known {
-					linked = true
+	readmeVersionsUnder(t, func(t *testing.T, v doctestutil.ReadmeVersion, readme string) {
+		quickStart := doctestutil.ReadmeQuickStartHeading.In(t, v.Lang)
+		section := doctestutil.SectionOutsideBlocks(readme, quickStart)
+		if section == "" {
+			t.Fatalf("%s has no %q section", v.Path, quickStart)
+		}
+		headings := doctestutil.HeadingsOutsideBlocks(readme)
+		at, requirements := slices.Index(headings, quickStart), slices.Index(headings, doctestutil.ReadmeRequirementsHeading.In(t, v.Lang))
+		if at < 0 || requirements < 0 || at > requirements {
+			t.Errorf("%s: %q is at heading %d, the requirements at %d; the quick start must come first", v.Path, quickStart, at, requirements)
+		}
+		anchors := headingAnchors(t, v.Path, readme)
+		items := numberedItems(section)
+		if len(items) == 0 {
+			t.Fatalf("%s %s has no numbered list", v.Path, quickStart)
+		}
+		for _, item := range items {
+			linked := false
+			for _, target := range markdownLinkTargets(item) {
+				if anchor, ok := strings.CutPrefix(target, "#"); ok {
+					if _, known := anchors[anchor]; known {
+						linked = true
+					}
 				}
 			}
+			if !linked {
+				first, _, _ := strings.Cut(item, "\n")
+				t.Errorf("%s quick start item %q has no link to a heading of the same document", v.Path, first)
+			}
 		}
-		if !linked {
-			first, _, _ := strings.Cut(item, "\n")
-			t.Errorf("README Quick start item %q has no link to a README heading", first)
+		// TestReadmeLinks checks that every link in the README, this section's
+		// included, resolves; only the step guidance's own rule is checked here.
+		for _, target := range markdownLinkTargets(section) {
+			if strings.Contains(target, "://") {
+				t.Errorf("%s quick start links to the external URL %q; link to a section of the same document instead", v.Path, target)
+			}
 		}
-	}
-	// TestReadmeLinks checks that every link in the README, this section's
-	// included, resolves; only the step guidance's own rule is checked here.
-	for _, target := range markdownLinkTargets(section) {
-		if strings.Contains(target, "://") {
-			t.Errorf("README Quick start links to the external URL %q; link to a README section instead", target)
-		}
-	}
+	})
 }
 
 // TestProductionProfileLinks checks that every document that describes the
@@ -1103,16 +735,19 @@ func TestProductionProfileLinks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve %s: %v", productionProfilePath, err)
 	}
-	for _, tc := range []struct{ name, path, heading string }{
-		{"README.md", readmePath, recommendedConfigHeading},
+	docs := []struct{ name, path, heading string }{
 		{"project_overview.md", projectOverviewPath, "## 決定済みの方針"},
 		{"CLAUDE.md", claudePath, "## Quick Links"},
 		{"prompts/README.md", promptsReadmePath, ""},
-	} {
+	}
+	for _, v := range doctestutil.ReadmeVersions() {
+		docs = append(docs, struct{ name, path, heading string }{v.Path, v.From(repositoryRoot), doctestutil.ReadmeRecommendedConfigHeading.In(t, v.Lang)})
+	}
+	for _, tc := range docs {
 		t.Run(tc.name, func(t *testing.T) {
-			text := readDoc(t, tc.path)
+			text := doctestutil.ReadDoc(t, tc.path)
 			if tc.heading != "" {
-				if text = sectionOutsideBlocks(text, tc.heading); text == "" {
+				if text = doctestutil.SectionOutsideBlocks(text, tc.heading); text == "" {
 					t.Fatalf("%s has no %q section", tc.name, tc.heading)
 				}
 			}
@@ -1135,51 +770,68 @@ func TestProductionProfileLinks(t *testing.T) {
 	}
 }
 
-// TestReadmeLinks checks the README's links: every relative link points at an
-// existing path, and every in-page link resolves to an anchor the helper
-// produces. GitHub resolves those, so they are the oracle for the anchor rule.
+// TestReadmeLinks checks the links of both README versions and of the two
+// developer guides split out of them (cli.md and development.md): every relative link
+// points at an existing path, and every link to a heading, in the same
+// document or in another one, resolves to an anchor the helper produces from
+// the target document's headings. GitHub resolves those, so they are the
+// oracle for the anchor rule. A repository path under docs/dev/ written in a
+// code span must exist too, as TestInstructionDocPaths checks for the other
+// documents under docs/dev/.
 func TestReadmeLinks(t *testing.T) {
-	readme := readDoc(t, readmePath)
-	anchors := headingAnchors(t, "README.md", readme)
-	targets := markdownLinkTargets(readme)
-	checkLinkCount(t, "README", readme, len(targets))
-	for _, target := range targets {
-		if anchor, ok := strings.CutPrefix(target, "#"); ok {
-			if _, known := anchors[anchor]; !known {
-				t.Errorf("README links to %q, which the anchor helper does not produce", target)
-			}
-			continue
+	targetAnchors := map[string]map[string]struct{}{}
+	anchorsOf := func(t *testing.T, path string) map[string]struct{} {
+		t.Helper()
+		if anchors, ok := targetAnchors[path]; ok {
+			return anchors
 		}
-		if strings.Contains(target, "://") || strings.HasPrefix(target, "mailto:") {
-			continue
-		}
-		path, _, _ := strings.Cut(target, "#")
-		if _, err := os.Stat(filepath.Join(filepath.Dir(readmePath), path)); err != nil {
-			t.Errorf("README links to %q, which does not exist", target)
-		}
+		anchors := headingAnchors(t, path, doctestutil.ReadDoc(t, path))
+		targetAnchors[path] = anchors
+		return anchors
 	}
-}
-
-// TestAnchorFromHeading pins the anchor rule: lowercase, markup punctuation
-// dropped, spaces turned into hyphens, digits and connector punctuation kept.
-// The rows for headings the README already has were checked against GitHub's
-// rendering of the README on 2026-10-26; the others pin the same rule for a
-// heading the README does not have yet.
-func TestAnchorFromHeading(t *testing.T) {
-	for _, tc := range []struct{ heading, want string }{
-		{"## Setting up yt-dlp", "setting-up-yt-dlp"},
-		{"### Installing the native messaging host", "installing-the-native-messaging-host"},
-		{"## Cache and concurrency", "cache-and-concurrency"},
-		{"### The `--out` file", "the---out-file"},
-		{"### The Slack post", "the-slack-post"},
-		{"### Using DeepSeek", "using-deepseek"},
-		{"## Step 2", "step-2"},
-		{"## prompt_v2 notes", "prompt_v2-notes"},
-		{"## Step\u00a0²", "step²"},
-	} {
-		if got := anchorFromHeading(tc.heading); got != tc.want {
-			t.Errorf("anchorFromHeading(%q) = %q, want %q", tc.heading, got, tc.want)
-		}
+	docs := []struct{ name, path string }{
+		{"cli.md", cliDocPath},
+		{"development.md", developmentDocPath},
+	}
+	for _, v := range doctestutil.ReadmeVersions() {
+		docs = append(docs, struct{ name, path string }{v.Path, v.From(repositoryRoot)})
+	}
+	for _, doc := range docs {
+		t.Run(doc.name, func(t *testing.T) {
+			text := doctestutil.ReadDoc(t, doc.path)
+			anchors := anchorsOf(t, filepath.Clean(doc.path))
+			targets := markdownLinkTargets(text)
+			checkLinkCount(t, doc.name, text, len(targets))
+			for _, target := range targets {
+				if strings.Contains(target, "://") || strings.HasPrefix(target, "mailto:") {
+					continue
+				}
+				path, anchor, hasAnchor := strings.Cut(target, "#")
+				known := anchors
+				if path != "" {
+					resolved := filepath.Join(filepath.Dir(doc.path), path)
+					if _, err := os.Stat(resolved); err != nil {
+						t.Errorf("%s links to %q, which does not exist", doc.name, target)
+						continue
+					}
+					if !hasAnchor {
+						continue
+					}
+					known = anchorsOf(t, filepath.Clean(resolved))
+				}
+				if _, ok := known[anchor]; !ok {
+					t.Errorf("%s links to %q, which the anchor helper does not produce", doc.name, target)
+				}
+			}
+			for _, ref := range docPathRefs(text) {
+				if ref.relative {
+					continue
+				}
+				if _, err := os.Stat(filepath.Join(repositoryRoot, filepath.FromSlash(ref.path))); err != nil {
+					t.Errorf("%s names %q, which does not exist", doc.name, ref.path)
+				}
+			}
+		})
 	}
 }
 
@@ -1196,25 +848,6 @@ func TestNumberedItems(t *testing.T) {
 	wantWithBlock := []string{"1. run this\n   ```sh\n   3. not an item\n\n   make test\n   ```", "2. next"}
 	if got := numberedItems(withBlock); !slices.Equal(got, wantWithBlock) {
 		t.Errorf("numberedItems with a block inside an item = %q, want %q", got, wantWithBlock)
-	}
-}
-
-// TestSectionOutsideBlocks checks the fence-aware section extraction: a '#' or
-// '##' line inside a code block neither ends the section nor starts one.
-func TestSectionOutsideBlocks(t *testing.T) {
-	const doc = "# Top\ntop\n## Middle\nmiddle\n```text\n# not a heading\n## also not\n```\n### Deep\ndeep\n## Next\nnext\n"
-	for _, tc := range []struct {
-		name, heading, want string
-	}{
-		{"in-block headings do not end the section", "## Middle", "middle\n```text\n# not a heading\n## also not\n```\n### Deep\ndeep\n"},
-		{"an in-block heading is not a section start", "## also not", ""},
-		{"a missing heading yields the empty string", "## Absent", ""},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := sectionOutsideBlocks(doc, tc.heading); got != tc.want {
-				t.Errorf("sectionOutsideBlocks(doc, %q) = %q, want %q", tc.heading, got, tc.want)
-			}
-		})
 	}
 }
 
@@ -1259,18 +892,18 @@ func checkExampleLines(t *testing.T, section, prefix string, allowed map[string]
 	}
 }
 
-// TestTokenUsageDocsContract checks that the README's Token usage section
-// contains the line's words and every reason llm.Usage can produce.
+// TestTokenUsageDocsContract checks that the CLI guide's (cli.md) Token usage
+// section contains the line's words and every reason llm.Usage can produce.
 //
 // The behavior these words describe is pinned by running tests, not by this
 // test: the line format by cmd/yt2column's TestRunTokenLinesGoldenFormat, and
 // the usage validation by the adapters' TestGenerateUsageUnknown and
 // internal/artifact's TestParseRecordRejectsUsage.
 func TestTokenUsageDocsContract(t *testing.T) {
-	readme := readDoc(t, readmePath)
-	section := sectionByHeading(readme, "## Token usage")
+	cli := doctestutil.ReadDoc(t, cliDocPath)
+	section := doctestutil.SectionByHeading(cli, doctestutil.CLIUsageHeading)
 	if section == "" {
-		t.Fatal("README has no Token usage section")
+		t.Fatal("cli.md has no Token usage section")
 	}
 	// Every format word run.go defines, plus the three stage names. The
 	// value-carrying fields are matched as substrings; the fixed words are
@@ -1278,7 +911,7 @@ func TestTokenUsageDocsContract(t *testing.T) {
 	// "run" is not satisfied by "runs".
 	for _, word := range []string{tokensInput, tokensCacheRead, tokensCacheWrite, tokensOutput, tokensReason, tokensModel} {
 		if !strings.Contains(section, word) {
-			t.Errorf("README Token usage section does not contain %q", word)
+			t.Errorf("cli.md Token usage section does not contain %q", word)
 		}
 	}
 	for _, word := range []string{
@@ -1286,11 +919,11 @@ func TestTokenUsageDocsContract(t *testing.T) {
 		writer.StageGeneration.String(), writer.StageShorten.String(), writer.StageReview.String(),
 	} {
 		if !containsToken(section, word) {
-			t.Errorf("README Token usage section does not contain the token %q", word)
+			t.Errorf("cli.md Token usage section does not contain the token %q", word)
 		}
 	}
 	// Every member-less reason llm.Usage can produce, obtained from the code so
-	// the test does not spell them. The README also documents the member-named
+	// the test does not spell them. cli.md also documents the member-named
 	// forms (`usage.<member>:<rule>`) in prose.
 	reasons := []llm.Usage{
 		llm.UnknownUsage(llm.RuleNotRead, ""),
@@ -1303,7 +936,7 @@ func TestTokenUsageDocsContract(t *testing.T) {
 	}
 	for _, usage := range reasons {
 		if reason := usage.UnknownReason(); !strings.Contains(section, reason) {
-			t.Errorf("README Token usage section does not contain the reason %q", reason)
+			t.Errorf("cli.md Token usage section does not contain the reason %q", reason)
 		}
 	}
 	// Each example line's first three words after the prefix are known words.
@@ -1313,11 +946,11 @@ func TestTokenUsageDocsContract(t *testing.T) {
 	for _, stage := range []writer.Stage{writer.StageGeneration, writer.StageShorten, writer.StageReview} {
 		allowed[stage.String()] = true
 	}
-	checkExampleLines(t, section, tokensPrefix, allowed, "README Token usage section")
+	checkExampleLines(t, section, tokensPrefix, allowed, "cli.md Token usage section")
 }
 
-// TestCostDocsContract checks that the README's Estimated cost section uses
-// every word run.go's cost format defines, that its example lines use only
+// TestCostDocsContract checks that the CLI guide's (cli.md) Estimated cost
+// section uses every word run.go's cost format defines, that its example lines use only
 // those words and the stage names in the fixed positions, that
 // project_overview.md contains the cost prefix, and that the rate table's
 // leading comment points at the update procedure.
@@ -1325,16 +958,16 @@ func TestTokenUsageDocsContract(t *testing.T) {
 // The behavior these words describe is pinned by running tests, not by this
 // test: the line format by cmd/yt2column's TestRunCostLinesGoldenFormat.
 func TestCostDocsContract(t *testing.T) {
-	readme := readDoc(t, readmePath)
-	section := sectionByHeading(readme, "## Estimated cost")
+	cli := doctestutil.ReadDoc(t, cliDocPath)
+	section := doctestutil.SectionByHeading(cli, doctestutil.CLIEstimatedCostHeading)
 	if section == "" {
-		t.Fatal("README has no Estimated cost section")
+		t.Fatal("cli.md has no Estimated cost section")
 	}
 	// The value-carrying fields of the cost lines, taken from run.go so the
 	// test does not spell them.
 	for _, word := range []string{costPrefix, costTotalPrefix, costUSD, costReason, costAt} {
 		if !strings.Contains(section, word) {
-			t.Errorf("README Estimated cost section does not contain %q", word)
+			t.Errorf("cli.md Estimated cost section does not contain %q", word)
 		}
 	}
 	// The fixed words of the lines, matched as whole tokens so "known" is not
@@ -1345,13 +978,13 @@ func TestCostDocsContract(t *testing.T) {
 		writer.StageGeneration.String(), writer.StageShorten.String(), writer.StageReview.String(),
 	} {
 		if !containsToken(section, word) {
-			t.Errorf("README Estimated cost section does not contain the token %q", word)
+			t.Errorf("cli.md Estimated cost section does not contain the token %q", word)
 		}
 	}
 	// Each total kind must appear on a cost-total line, not only in prose.
 	for _, kind := range []string{costTotalRun, costTotalArticle} {
 		if !strings.Contains(section, costTotalPrefix+kind) {
-			t.Errorf("README Estimated cost section has no %q total line", costTotalPrefix+kind)
+			t.Errorf("cli.md Estimated cost section has no %q total line", costTotalPrefix+kind)
 		}
 	}
 	// Every rate basis and unknown reason the word mapping returns, obtained
@@ -1363,7 +996,7 @@ func TestCostDocsContract(t *testing.T) {
 		pricing.BasisShortPrompt, pricing.BasisLongPrompt, pricing.RateBasis(99),
 	} {
 		if word := costBasisWord(basis); word != costInvalid && !containsToken(section, word) {
-			t.Errorf("README Estimated cost section does not contain the rate-basis word %q", word)
+			t.Errorf("cli.md Estimated cost section does not contain the rate-basis word %q", word)
 		}
 	}
 	for _, reason := range []pricing.UnknownReason{
@@ -1371,7 +1004,7 @@ func TestCostDocsContract(t *testing.T) {
 		pricing.ReasonUnpricedModel, pricing.ReasonInvalid, pricing.UnknownReason(99),
 	} {
 		if word := costReasonWord(reason); word != costInvalid && !containsToken(section, word) {
-			t.Errorf("README Estimated cost section does not contain the reason word %q", word)
+			t.Errorf("cli.md Estimated cost section does not contain the reason word %q", word)
 		}
 	}
 	// Each example line's first three words after the prefix are the stage, the
@@ -1382,14 +1015,14 @@ func TestCostDocsContract(t *testing.T) {
 	for _, stage := range []writer.Stage{writer.StageGeneration, writer.StageShorten, writer.StageReview} {
 		allowed[stage.String()] = true
 	}
-	checkExampleLines(t, section, costPrefix, allowed, "README Estimated cost section")
+	checkExampleLines(t, section, costPrefix, allowed, "cli.md Estimated cost section")
 
-	overview := readDoc(t, projectOverviewPath)
+	overview := doctestutil.ReadDoc(t, projectOverviewPath)
 	if !strings.Contains(overview, costPrefix) {
 		t.Errorf("project_overview.md does not contain %q", costPrefix)
 	}
 
-	rates := readDoc(t, pricingRatesPath)
+	rates := doctestutil.ReadDoc(t, pricingRatesPath)
 	head, _, _ := strings.Cut(rates, "\npackage ")
 	if !strings.Contains(head, "pricing_update.md") {
 		t.Error("internal/pricing/rates.go's leading comment does not point at pricing_update.md")

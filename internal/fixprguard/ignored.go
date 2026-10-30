@@ -269,7 +269,7 @@ func (w *Worktree) collectTargetsWith(ctx context.Context, lim targetLimits, lst
 }
 
 func (w *Worktree) scanTargets(ctx context.Context, lim targetLimits, lstat lstatFunc) (targetState, error) {
-	out, err := w.listRun.Run(ctx, gitCommand, slices.Concat(gitHardening, listIgnoredArgs)...)
+	out, err := w.listRun.Run(ctx, gitCommand, slices.Concat(cmdrunner.GitHardening(), listIgnoredArgs)...)
 	if err != nil {
 		return targetState{}, listIgnoredFailure(err)
 	}

@@ -30,10 +30,10 @@
 
 ## 料金の変更がほかに触れるもの
 
-`TestCostDocsContract` は、README の "Estimated cost" 節を、README の中の一覧ではなくコードの書式の定数と照らす。そのため、料金の変更で README のその節を直す必要はない。それでも、料金表の内容に合わせて手で直さなければならない箇所が残るので、自分で更新する。
+`TestCostDocsContract` は、[cli.md の「推定の料金」](cli.md#推定の料金)の節を、その節の中の一覧ではなくコードの書式の定数と照らす。そのため、料金の変更で `cli.md` のその節を直す必要はない。それでも、料金表の内容に合わせて手で直さなければならない箇所が残るので、自分で更新する。
 
-- README の "Estimated cost" 節は、DeepSeek のピークの時間帯（"Monday through Friday during 01:00-04:00 and 06:00-10:00 UTC"）を述べている。ピークの時間帯が変われば、その文は古くなる。
-- README の "Output format" の例は、料金表から求めた推定額（`0.0094`）を示している。`TestOutputLayoutDocsContract` が実際の出力と比べるので、料金が変われば、2 つの例の金額を更新するまでそのテストは失敗する。
-- README の "Configuration" の節と `project_overview.md` はモデルの名前を挙げているので、対応するモデルが増減したときだけ更新が必要になる。
+- README の「推定の料金」の節は、DeepSeek のピークの時間帯（「月曜から金曜の UTC の 01:00-04:00 と 06:00-10:00」）を述べている。ピークの時間帯が変われば、その文は古くなる。
+- README の「出力の書式」の Slack への投稿の例と、[cli.md の「`--out` のファイル」](cli.md#--out-のファイル)の例は、料金表から求めた推定額（`0.0094`）を示している。`TestOutputLayoutDocsContract` が実際の出力と比べるので、料金が変われば、2 つの例の金額を更新するまでそのテストは失敗する。
+- README の「設定」の節と `project_overview.md` はモデルの名前を挙げているので、対応するモデルが増減したときだけ更新が必要になる。
 
 `package_reference.md` の `internal/pricing` の行は、パッケージが公開する型を列挙している。料金の変更では変えない。この行が古くなっていないかは、PR のレビューで読んで確かめる。

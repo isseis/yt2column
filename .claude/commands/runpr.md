@@ -6,8 +6,8 @@ argument-hint: "[#PR | branch | task]"
 > **Project context (read first)**: Read `.claude/commands/_context.md`. The
 > fix and merge mechanics are in `.claude/commands/fixpr.md` and
 > `.claude/commands/mergepr.md`; follow them rather than copying their content
-> here. The local CodeRabbit review is
-> `.claude/commands/_lib/coderabbit-local-review.md`.
+> here. The local CLI review (the CodeRabbit CLI, or Codex CLI when the
+> CodeRabbit CLI fails) is `.claude/commands/_lib/local-cli-review.md`.
 
 This command reads the PR's review threads only through the guard tool
 `fixprguard` (`_context.md`, "Guard tool"; `head` in step 1, `list` in steps 3
@@ -79,8 +79,10 @@ and resolutions. After the task's final plan PR merges, it also approves
 case). It also covers what `fixpr.md` and `mergepr.md` authorize when run from
 here, and the next command (NEXT) when the user chooses to run it in step 4.
 It does **not** approve the merge itself: only the user's answer in step 4
-does (`CLAUDE.md`, "Tool Execution Safety"). `coderabbit review` has standing
-approval.
+does (`CLAUDE.md`, "Tool Execution Safety"). `coderabbit review` and
+`codexreview` have standing approval: the local CLI review runs `codexreview`,
+which runs Codex CLI and sends the diff and what Codex reads to OpenAI's
+service, only when the CodeRabbit CLI fails.
 
 Every `fixpr.md` and `mergepr.md` run below is given the resolved PR number
 (`<number>`), never `$ARGUMENTS`, which may be a task ID or a branch.
@@ -113,10 +115,13 @@ Every `fixpr.md` and `mergepr.md` run below is given the resolved PR number
     a branch, otherwise the current branch) is `main`, a detached `HEAD`, or has
     no commits beyond `origin/main` (`git rev-list --count origin/main..<branch>`).
   - When that branch is the checked-out one, review it locally first: follow
-    `.claude/commands/_lib/coderabbit-local-review.md` with **BASE** =
+    `.claude/commands/_lib/local-cli-review.md` with **BASE** =
     `$(git merge-base origin/main HEAD)`, **SCOPE** = branch, **SUMMARY** = the
     final report. (The review reads the local checkout, so skip it for another
-    branch.)
+    branch.) When it stops, stop before the push. When it leaves a range
+    neither CLI reviewed, give that range (its `Local CLI review: not run`
+    line) in the final report; the PR body stays as below and does not carry
+    the review's record.
   - **README sync.** When that branch is the checked-out one, run the README
     sync check as `.claude/commands/mktrans.md`, "When a caller runs it",
     says. For `translated`, commit

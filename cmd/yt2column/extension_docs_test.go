@@ -16,6 +16,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/isseis/yt2column/internal/doctestutil"
 	"github.com/isseis/yt2column/internal/nmhost"
 )
 
@@ -55,20 +56,19 @@ func TestExtensionDocumentation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("derive the extension ID from the manifest key: %v", err)
 	}
-	readme := readDoc(t, readmePath)
-	security := readDoc(t, securityPath)
-	claude := readDoc(t, claudePath)
-	makefile := readDoc(t, makefilePath)
+	security := doctestutil.ReadDoc(t, securityPath)
+	claude := doctestutil.ReadDoc(t, claudePath)
+	makefile := doctestutil.ReadDoc(t, makefilePath)
 
 	t.Run("records the fixed extension ID in README and security.md", func(t *testing.T) {
-		for _, doc := range []struct{ name, text string }{
-			{"README.md", readme},
-			{"security.md", security},
-		} {
-			if !strings.Contains(doc.text, extensionID) {
-				t.Errorf("%s does not record the extension ID %s", doc.name, extensionID)
-			}
+		if !strings.Contains(security, extensionID) {
+			t.Errorf("security.md does not record the extension ID %s", extensionID)
 		}
+		readmeVersionsUnder(t, func(t *testing.T, v doctestutil.ReadmeVersion, readme string) {
+			if !strings.Contains(readme, extensionID) {
+				t.Errorf("%s does not record the extension ID %s", v.Path, extensionID)
+			}
+		})
 	})
 
 	t.Run("lists every ext- target the Makefile defines, and no others", func(t *testing.T) {
@@ -86,7 +86,7 @@ func TestExtensionDocumentation(t *testing.T) {
 		if len(manifest.Permissions) == 0 {
 			t.Fatal("manifest.json requests no permissions")
 		}
-		section := sectionByHeading(security, "### 8.1. ブラウザ拡張（#110）")
+		section := doctestutil.SectionByHeading(security, "### 8.1. ブラウザ拡張（#110）")
 		if section == "" {
 			t.Fatal("security.md has no 8.1 extension section")
 		}
@@ -159,7 +159,7 @@ func TestNativeHostContract(t *testing.T) {
 		}
 	})
 	t.Run("host name and reply values", func(t *testing.T) {
-		source := readDoc(t, extensionNativePath)
+		source := doctestutil.ReadDoc(t, extensionNativePath)
 		name := nativeHostNameRE.FindStringSubmatch(source)
 		if name == nil {
 			t.Fatalf("%s has no nativeHostName declaration", extensionNativePath)
@@ -193,7 +193,7 @@ func TestNativeHostContract(t *testing.T) {
 		}
 	})
 	t.Run("relay timeout", func(t *testing.T) {
-		m := sendTimeoutRE.FindStringSubmatch(readDoc(t, extensionSendPath))
+		m := sendTimeoutRE.FindStringSubmatch(doctestutil.ReadDoc(t, extensionSendPath))
 		if m == nil {
 			t.Fatalf("%s has no sendTimeoutMs declaration", extensionSendPath)
 		}
@@ -297,7 +297,7 @@ func TestDeclaredPermissions(t *testing.T) {
 func readExtensionManifest(t *testing.T) extensionManifest {
 	t.Helper()
 	var manifest extensionManifest
-	if err := json.Unmarshal([]byte(readDoc(t, extensionManifestPath)), &manifest); err != nil {
+	if err := json.Unmarshal([]byte(doctestutil.ReadDoc(t, extensionManifestPath)), &manifest); err != nil {
 		t.Fatalf("parse %s: %v", extensionManifestPath, err)
 	}
 	return manifest

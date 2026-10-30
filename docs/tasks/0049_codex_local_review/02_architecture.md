@@ -8,7 +8,7 @@
 | Created | 2026-10-28 |
 | Review date | 2026-10-28 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-29（実装計画の作成の際の編集上の訂正。決定の変更はない）: 3.3 が実装計画に委ねた共有の場所を、実装計画（`03_implementation_plan.md` の 1.2）が `internal/cmdrunner` に決めた。それに伴う `fixprguard` の参照の付け替えと、`cmd/fixprguard/docs_test.go` の `TestDocumentedProtocolMatches` の変更を 2.2 の表と 7.1 の改めるテストに加え、「変えないもの」の `fixprguard` の項目と 3.3 の該当の文をそれに合わせた。8 章の 1 に共有の移動を加え、7 に、3.9 の項目のうちテストや方針の上で前の項目で書くもの（`package_reference.md` の行、`CLAUDE.md` の 2 つの例外と Commands の節と `doc-guard` の列挙）を書き添えた。どの項目を書くかは変えていない。2026-10-29（決定の変更。isseis がこのセッションで承認した）: Codex のシェルに環境変数を引き継がせない対策を採ることにした。環境変数を引き継ぐと、Codex が実行するどのコマンドも秘密の値を持ち、`env` の実行や環境を含むエラーの出力から、ファイルを読まなくても暗黙のうちに OpenAI に送られうる。`.envrc` を読む経路とは別の経路であり、「採っても残るリスクは変わらない」という設計書 1.2 の判断は誤りだった（PR #573 の CodeRabbit の指摘と利用者の指摘による）。1.2、3.3、5.1、5.2、9 章、付録 A を改めた。状態は `approved` のままとする。2026-10-30（実装の際の編集上の訂正。決定の変更はない）: 1.2 の確かめの後に加わった `cmd/yt2column/fixpr_docs_test.go` の `TestReadmeSyncStepPlacement` が、共通手順を今のファイル名で探していた。2.2 の表の共通手順の行の「改めるテスト」に加えた。3.6 の `Codex local review:` の行の形に、`InRange` が偽の指摘の形を加えた。偽のときのパスは、範囲で変わったファイルとは限らない Codex の文面なので、原文を写さないという同じ節の規則（AC-12 の 3）をこの位置にも当てはめた。3.7 の `runplan.md` 手順 7.7 の写し先を「次のコミット（チェックボックスのコミット）」から改めた。チェックボックスのコミットは手順 7.7 より前に作られるので、その後の次のコミットを名指し、PR の区切りのない計画で次のコミットがないときは記録の行だけのコミットを作ることにした。こうしないと、記録の行が `git log` に残らず、手順 5a・8 の再レビューと PR 本文から落ちる（AC-15・AC-13）。2026-10-30（実装の際の編集上の訂正。決定の変更はない）: 3.6 の「異系統のレビューを受けていない範囲」が、2 回目がレビューした後の must-fix の修正のコミットを漏らしていた。要件書 6 節の定義は、どのレビューも覆っていないコミットを異系統のレビューを受けていない範囲とするので、この範囲は既に要件書に含まれている。AC-12・AC-13 の 2 は、その範囲を記録して PR 本文に載せることを求める。そこで 3.6 に、この範囲と、その記録の行の形（失敗の種類の代わりに 2 回目の試行の結果を書き、最後の修正のコミットの次のコミットか、次のコミットがないときか、呼び出し元のものなら SUMMARY に書く）を加えた。共通手順 `_lib/local-cli-review.md` の用語の定義と手順 7 も同じように改めた |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。要件書の 1 節の決定の 1 つ、AC-09、4.2 の「センチネルエラー」、4.3 は、本書を書く際に改めた（要件書の Comments、本書の 1.2）。本書は改めた後の要件書に従う。既存のファイルに関する記述は、コミット `c76eec2` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md) の項番を指す。`codex` CLI と CodeRabbit CLI の振る舞いに関する記述は、[observations.md](observations.md)（観測の記録）の項目番号と実行の番号（R1〜R5、O1・O2）で根拠を示す。申し送りへの対応は付録 A に、受け入れ基準との対応は付録 B にまとめる。
 
@@ -54,7 +54,7 @@
 -   **時間の上限は 480 秒とする（AC-09 の 3）。** 観測では 15〜36 秒で終わったが、どの差分も数十行だった（観測の記録の 8）。大きな差分の例として、0031 で観測した Codex の PR レビューは、完了まで最長 3 分 14 秒だった（`docs/tasks/0031_codex_pr_review/02_architecture.md` の 1.2、「待つ時間」）。480 秒はその約 2.5 倍である。エージェントの Bash ツールは、既定では 120 秒で、最大でも 600 秒でコマンドを打ち切る。共通手順は `codexreview` をフォアグラウンドで、時間の上限を 600 秒に指定して実行する。こうすれば、Bash ツールより先に `codexreview` が `codex` を打ち切り、結果を返せる（3.1）。
 -   **大きさの上限は、最終メッセージで 64 KiB、`--json` の出力で 16 MiB とする（AC-09 の 5）。** 観測した最終メッセージは最大 1,079 バイト、`--json` の出力は最大約 127 KB だった（観測の記録の 5）。`--json` の出力の大きさのほとんどは、Codex が読んだファイルの中身である。どちらの上限も、観測の数十倍以上の余裕がある。
 -   **作業ツリーのルートに `.codex/` があるときは、Codex を実行しない。** プロジェクトの `.codex/` の設定を `codex` が読むか、`--ignore-user-config` がそれも外すかは観測していない。レビュー対象のブランチが `.codex/` を加えれば、設定を変えられるおそれがある。今のリポジトリには `.codex/` がないので、この確かめで代替が動かなくなることはない。
--   **Codex のシェルに環境変数を引き継がない設定（H-08）は採らない。** 効くかどうかは観測していない。採っても `.envrc` のファイルを読む経路は残るので、要件書 4.2 の残るリスクは変わらない。9 章で扱う。
+-   **Codex に渡す環境は、決めた名前の変数だけにする。あわせて、Codex のシェルに環境変数を引き継がない設定（H-08）も固定する（2026-10-29 に改めた）。** 環境変数を引き継ぐと、Codex が実行するどのコマンドも秘密の値を持ち、`env` の実行や環境を含むエラーの出力から、ファイルを読まなくても暗黙のうちに OpenAI に送られうる。これは `.envrc` のファイルを読む経路とは別の経路であり、塞げばリスクは小さくなる。主な守りは、`codexreview` が `codex` に渡す環境を絞ることである。`codex` の設定に頼らず、ツール自身のコードとテストで守れる。`-c 'shell_environment_policy.inherit="core"'` は多重の防御で、効くかどうかは実装計画のステップ 8-2 で確かめる。`.envrc` のファイルを読む経路は残る（5.2）。
 -   **`--ephemeral` は付けない。** 観測していない。セッションの記録は、利用者が普段 `codex` を使うときにも残るものであり、本タスクで新たに増えるリスクではない。
 
 ### 1.3. なぜ今の仕組みのままでは足りないか
@@ -196,9 +196,11 @@ flowchart LR
 |---|---|---|---|---|
 | `cmd/codexreview/` | 新規 | `codexreview` の入口。引数の検査、`--protocol` の照合、結果の JSON の出力 | AC-03・AC-09・AC-17 | — |
 | `internal/codexreview/` | 新規 | 前提の確かめ、`codex` の実行、前後の比較、完了の判定、最終メッセージの解析、位置の確かめ（3.3・3.4） | AC-06・AC-08・AC-09 | — |
-| `internal/cmdrunner/runner.go` | 変更 | 時間切れのときに、子のプロセスグループごと止めるオプションを加える（3.3） | AC-09 | — |
+| `internal/cmdrunner/` | 変更 | 時間切れのときに、子のプロセスグループごと止めるオプションを加える。`internal/fixprguard` から `GitEnv` と git の設定の上書きを移す（3.3） | AC-09 | `internal/fixprguard/gitstate_test.go` の `TestGitEnvDropsInheritedGitVariables`（`internal/cmdrunner` に移す） |
+| `internal/fixprguard/`・`cmd/fixprguard/main.go` | 変更 | `GitEnv` と git の設定の上書きの参照を `internal/cmdrunner` に付け替える。振る舞いは変えない | — | — |
+| `cmd/fixprguard/docs_test.go` | 変更 | `--protocol` の照合から、`codexreview` の呼び出しを除く（7.1） | AC-17 | `TestDocumentedProtocolMatches` |
 | `Makefile` | 変更 | `install-codexreview` を加える | AC-17 | — |
-| `.claude/commands/_lib/coderabbit-local-review.md` → `_lib/local-cli-review.md` | 改名と変更 | 代替、CodeRabbit CLI の成否の判定、ツールの結果の扱い、トリアージ、回数、記録の行（3.1〜3.6） | AC-03〜AC-12・AC-18 | — |
+| `.claude/commands/_lib/coderabbit-local-review.md` → `_lib/local-cli-review.md` | 改名と変更 | 代替、CodeRabbit CLI の成否の判定、ツールの結果の扱い、トリアージ、回数、記録の行（3.1〜3.6） | AC-03〜AC-12・AC-18 | `cmd/yt2column/fixpr_docs_test.go` の `TestReadmeSyncStepPlacement`（Part B 手順 1 をファイル名で探す） |
 | `.claude/commands/runplan.md` | 変更 | 手順 4.5・7.7・5a・8 の記述と参照（3.7・3.9） | AC-10・AC-11・AC-15・AC-18 | — |
 | `.claude/commands/runpr.md` | 変更 | 手順 1 の参照と最終報告、承認の記述（3.7・3.8） | AC-10・AC-14・AC-16 | — |
 | `.claude/commands/fixpr.md` | 変更 | Phase 4.5 の見出しと本文、Final report、承認の記述（3.7・3.8） | AC-10・AC-14・AC-16・AC-18 | — |
@@ -218,7 +220,7 @@ flowchart LR
 -   PR レビュー（Codex の GitHub 連携）の依頼と判定、エスカレーションの基準（要件書 2.3）。
 -   `/runplan` の手順 7 と 7.5 のサブエージェントのレビュー（要件書 2.3）。
 -   `/runpr` の手順 1 の単独の変更の PR 本文（要件書 2.3）。
--   `fixprguard` と `mergepr`。`codexreview` は `internal/cmdrunner` を共有するだけで、これらに依存しない。
+-   `fixprguard` と `mergepr` の振る舞い。`fixprguard` は、`GitEnv` と git の設定の上書きの参照を `internal/cmdrunner` に付け替えるだけである。`codexreview` は `internal/cmdrunner` を共有するだけで、これらに依存しない。
 
 ### 2.3. データフロー: 1 回のローカルの CLI レビュー
 
@@ -382,12 +384,13 @@ codex exec review --base <BASE>
   --disable browser_use --disable computer_use --disable image_generation
   --disable multi_agent --disable tool_suggest --disable skill_mcp_dependency_install
   -c 'sandbox_mode="read-only"' -c 'approval_policy="never"'
+  -c 'shell_environment_policy.inherit="core"'
   --json -o <RUN_DIR>/last-message.txt
 ```
 
 -   この形は O2 で観測した。`sandbox_mode="read-only"` は書き込みを止め（観測の記録の 3）、`approval_policy="never"` は承認を求めて止まらないようにする（観測の記録の 4）。`--ignore-user-config` で、利用者の設定ファイルの profile、プラグイン、MCP のサーバの設定を読まない。`--disable` で、アカウントの側から入るプラグインとコネクタの機能を外す（O2）。
 -   標準入力は空にする。標準出力（JSONL）はメモリに読み込み、上限は 16 MiB である。`--json` のときの標準エラーは空だった（O1・O2）。標準エラーもメモリに読み込み、上限を超えれば `output_too_large` とする。
--   環境変数は、`fixprguard.GitEnv`（`internal/fixprguard/gitstate.go:96-110`）と同じものにする。`GIT_` で始まる変数を除き、`GIT_OPTIONAL_LOCKS=0` と `GIT_TERMINAL_PROMPT=0` を加える。継承した `GIT_DIR` などで、Codex が別のリポジトリを見ないようにする。`codexreview` 自身の git の実行も、この環境と、`fixprguard` と同じ git の設定の上書き（`gitHardening`、`internal/fixprguard/gitstate.go:85-94`）の下で行う。これらを共有する場所は、実装計画で決める。
+-   `codex` に渡す環境変数は、決めた名前のものだけにする。`codex` がプログラムとログインの情報を見つけ、一時ファイルを書き、文字を読み、プロキシを通って OpenAI に届くための変数（`PATH`・`HOME`・`CODEX_HOME`・`TMPDIR`・ロケール・`XDG_*`・プロキシ・証明書の変数など）である。これに `GIT_OPTIONAL_LOCKS=0` と `GIT_TERMINAL_PROMPT=0` を加える。秘密の値（API キー、Webhook の URL）と、継承した `GIT_DIR` などは渡らない（1.2）。`-c 'shell_environment_policy.inherit="core"'` は、`codex` がシェルのコマンドに渡す環境をさらに絞る（多重の防御）。`codexreview` 自身の git の実行は、`fixprguard.GitEnv`（`internal/fixprguard/gitstate.go:96-110`）と同じ環境（`GIT_` で始まる変数を除き、`GIT_OPTIONAL_LOCKS=0` と `GIT_TERMINAL_PROMPT=0` を加える）と、`fixprguard` と同じ git の設定の上書き（`gitHardening`、`internal/fixprguard/gitstate.go:85-94`）の下で行う。これらを共有する場所は、実装計画で `internal/cmdrunner` に決めた。
 -   時間の上限は 480 秒である（1.2）。`codex` を自分のプロセスグループで起動し、上限に達したら、グループごと止める（まず終了を求め、少し待っても残れば強制的に止める）。`codex` が実行中のシェルのコマンドも止めるためである。時間切れかどうかは、ツール自身の時計で判定し、終了コードからは推し量らない。`internal/cmdrunner` に、プロセスグループごと止めるオプションを加えて使う。
 -   `codexreview` 自身が終了のシグナル（利用者の中断、Bash ツールの打ち切りなど）を受けたときも、`codex` のプロセスグループを同じように止めてから終わる。`codex` は別のプロセスグループにいるので、そうしなければシグナルが届かず、ネットワークの障害のときには終わらないまま残る（R5）。シグナルの扱いは `internal/signalrun` を使う。`codex --version` の実行にも短い時間の上限を設ける。
 -   `<RUN_DIR>` は、ツールが実行ごとに一時ディレクトリの下に新しく作る、所有者だけが読み書きできるディレクトリである。共通手順は場所を指定しない。ここに残すのは最終メッセージ（上限 64 KiB）だけで、`--json` の出力は残さない。`--json` の出力には、Codex が読んだファイルの中身がそのまま入るためである（観測の記録の 5）。`codex --version` の出力は、ツールの結果の `CodexVersion` に入れる。
@@ -466,11 +469,11 @@ Codex CLI の指摘は、CodeRabbit CLI の指摘と同じく `.claude/commands/
 | 行 | 形 | 書くとき |
 |---|---|---|
 | `CodeRabbit local review:` | 今と同じ（却下した指摘とその理由、`deferred`・`unclear` の指摘） | CodeRabbit CLI の指摘について（変えない） |
-| `Codex local review:` | `Codex local review: <Path>:<Start>-<End> <扱い>: <エージェントが自分の言葉で書いた要約>`。`<扱い>` は `rejected (<理由>)`・`deferred`・`unclear (<不確かな理由>)` のどれか | Codex CLI の指摘のうち、却下・`deferred`・`unclear` のもの |
-| `Local CLI review: not run` | `Local CLI review: not run <BASE>..<HEAD> (coderabbit: <種類>; codex: <種類>)`。SHA は 12 桁に縮める。codex の種類はツールの結果の `kind`（必要なら `/<Detail>`）であり、`codexreview` がインストールされていないときは `not_installed` とする。coderabbit の種類は `errorType` の値が `[a-z_]{1,32}` に当たるときだけその値とし、当たらなければ `other`、`error` の行がなければ `exit_status_<n>` とする。いずれの種類も、CLI が出力した文面そのものではない | 異系統のレビューを受けていない範囲ができたとき |
+| `Codex local review:` | `Codex local review: <Path>:<Start>-<End> <扱い>: <エージェントが自分の言葉で書いた要約>`。`<扱い>` は `rejected (<理由>)`・`deferred`・`unclear (<不確かな理由>)` のどれか。`InRange` が偽の指摘は、位置が Codex の文面なので写さず、`Codex local review: (not in range) rejected (not in range)` とする | Codex CLI の指摘のうち、却下・`deferred`・`unclear` のもの |
+| `Local CLI review: not run` | `Local CLI review: not run <BASE>..<HEAD> (coderabbit: <種類>; codex: <種類>)`。SHA は 12 桁に縮める。codex の種類はツールの結果の `kind`（必要なら `/<Detail>`）であり、`codexreview` がインストールされていないときは `not_installed` とする。coderabbit の種類は `errorType` の値が `[a-z_]{1,32}` に当たるときだけその値とし、当たらなければ `other`、`error` の行がなければ `exit_status_<n>` とする。いずれの種類も、CLI が出力した文面そのものではない。2 回目がレビューした後の修正のコミットの範囲は、失敗の種類の代わりに、2 回目の試行の結果を書く（`Local CLI review: not run <BASE>..<HEAD> (after the second attempt, reviewed by <coderabbit か codex>)`）。2 回目がレビューしたので、失敗の種類はない | 異系統のレビューを受けていない範囲ができたとき。2 回目がレビューした後の修正のコミットの範囲の行は、その修正のコミットの次のコミットに書く（修正のコミットは自分の SHA を書けない）。次のコミットがないとき、または次のコミットが呼び出し元のものなら SUMMARY に入れる |
 
--   **異系統のレビューを受けていない範囲:** 1 回目が「異系統のレビューなし」なら、範囲の全体（BASE から、そのときの HEAD まで）である。1 回目が成功して修正し、2 回目が「異系統のレビューなし」なら、1 回目の後の修正のコミット（1 回目のときの HEAD から、2 回目のときの HEAD まで）である（要件書 6 節）。
--   **作る役割と残す場所（AC-12 の 2）:** 記録の行を作るのは共通手順だけである。共通手順は、修正のコミットを自分で作るときは、そのメッセージに入れる。入れる先のコミットがないとき（2 回目の結果は修正のコミットの後に分かる。修正がない試行もある）は、SUMMARY に入れて呼び出し元に返す。呼び出し元は、SUMMARY の記録の行を、3.7 の表の「記録の行の写し先」に写す。表で「なし」の呼び出し元（ブランチ全体のレビュー）は、SUMMARY を Part B 手順 3 に渡し、記録は PR 本文に残る。その後に作るコミット（PR を作った後の記録のコミットなど）には写さない。
+-   **異系統のレビューを受けていない範囲:** 1 回目が「異系統のレビューなし」なら、範囲の全体（BASE から、そのときの HEAD まで）である。1 回目が成功して修正し、2 回目が「異系統のレビューなし」なら、1 回目の後の修正のコミット（1 回目のときの HEAD から、2 回目のときの HEAD まで）である（要件書 6 節）。2 回目がレビューして、その後に must-fix を修正したなら、その修正のコミット（2 回目のときの HEAD から、共通手順が最後の修正のコミットを作った後の HEAD まで）である。2 回目の後に修正がなければ、この範囲は空であり、行を作らない。
+-   **作る役割と残す場所（AC-12 の 2）:** 記録の行を作るのは共通手順だけである。共通手順は、修正のコミットを自分で作るときは、そのメッセージに入れる。入れる先のコミットがないとき（2 回目の結果は修正のコミットの後に分かり、2 回目の後に修正した範囲の終わりも最後の修正のコミット自身である。修正がない試行もある）は、SUMMARY に入れて呼び出し元に返す。呼び出し元は、SUMMARY の記録の行を、3.7 の表の「記録の行の写し先」に写す。表で「なし」の呼び出し元（ブランチ全体のレビュー）は、SUMMARY を Part B 手順 3 に渡し、記録は PR 本文に残る。その後に作るコミット（PR を作った後の記録のコミットなど）には写さない。
 -   **原文を写さない（AC-12 の 3）:** `Codex local review:` の行の要約は、Codex の文面を引用せず、エージェントが自分の言葉で書く。Codex へのメンションを含めない。SUMMARY と PR 本文でも同じである。
 -   **メンションの確認:** `Codex local review:` の行を含むコミットのメッセージは、コミットの前にファイルに書き、メンションの確認（`_lib/task-pr-handoff.md` の Part B 手順 3 と同じ `grep -qiF -- '<review-mention>' <file>`）を行う。メンションが見つかったら、その行の要約を消し、位置と扱いだけを残す。要約はエージェント自身の文なので、消すことは「確認を通すために書き直す」ことには当たらない。
 -   **前のセッションの行（要件書 4.4）:** 前のセッションが残した `CodeRabbit local review: not run` の行（範囲を持たない）は、`Local CLI review: not run` と同じく「異系統のレビューを受けていない範囲がある」ことを示すものとして読み、範囲はブランチ全体とみなす。この行は `CodeRabbit local review:` で始まるが、指摘の行としては読まない。
@@ -479,7 +482,7 @@ Codex CLI の指摘は、CodeRabbit CLI の指摘と同じく `.claude/commands/
 
 | 呼び出し元 | 変えること | 記録の行の写し先 |
 |---|---|---|
-| `runplan.md` 手順 7.7 | 手順の名前を、ローカルの CLI レビューに改める。CodeRabbit CLI が失敗しても Codex CLI で代替できたときは、`not run` の行は作られない（AC-15） | 次のコミット（チェックボックスのコミット）のメッセージ |
+| `runplan.md` 手順 7.7 | 手順の名前を、ローカルの CLI レビューに改める。CodeRabbit CLI が失敗しても Codex CLI で代替できたときは、`not run` の行は作られない（AC-15） | ブランチの次のコミットのメッセージ（次のフェーズ群の最初のコミットか、手順 5a のグリーンゲートのチェックボックスのコミット。PR を開くまでに次のコミットがないときは、記録の行だけを持つコミットを作る） |
 | `runplan.md` 手順 5a | `git log origin/main..HEAD` に `Local CLI review: not run` か `CodeRabbit local review: not run` の行があるときだけ、ブランチ全体を共通手順でレビューする（AC-15）。手順 8 の、PR の区切りのない計画で PR を開く経路も、手順 5a と同じくこの規則に従う | なし（SUMMARY を Part B 手順 3 に渡す） |
 | `runplan.md` 手順 8 | 要約の「CodeRabbit result」を、試行ごとの結果と Codex CLI の実行回数に改める（AC-11） | — |
 | `_lib/task-pr-handoff.md` Part B 手順 1 | 参照と「local CodeRabbit CLI」の記述を改める | なし（SUMMARY を手順 3 に渡す） |
@@ -602,10 +605,11 @@ flowchart LR
 | 形の変わった出力を「指摘なし」と取り違え、レビュー済みとして進む | 完了の行を求め、「指摘なし」の形を 1 段落の文に限る（3.3・3.4） |
 | `codex` が終わらず、無人の実行が止まったままになる | 480 秒でプロセスグループごと止める（3.3） |
 | 巨大な出力でエージェントの文脈やディスクがあふれる | 出力ごとに上限を設け、`--json` の出力はディスクに残さない（3.3） |
+| 秘密の環境変数が、Codex の実行するコマンドの出力に混じって OpenAI に送られる | `codexreview` が `codex` に渡す環境を決めた名前の変数だけにし、`shell_environment_policy.inherit="core"` を固定する（1.2、3.3） |
 
 ### 5.2. 残るリスク
 
--   **秘密のファイルと環境変数:** 書き込みを止める設定でも、読み取りはファイルシステム全体に許される（観測の記録の 3）。Codex は `.envrc`・`.env` や、それらから読み込まれた環境変数を読み、OpenAI に送りうる。観測では `.env` を読んだ跡はなかった（観測の記録の 7）。本タスクでは対策を求めない（要件書 1 節の決定・4.2）。
+-   **秘密のファイル:** 書き込みを止める設定でも、読み取りはファイルシステム全体に許される（観測の記録の 3）。Codex は `.envrc`・`.env` のファイルを読み、OpenAI に送りうる。観測では `.env` を読んだ跡はなかった（観測の記録の 7）。本タスクではこの経路への対策を求めない（要件書 1 節の決定・4.2）。秘密の環境変数は `codex` に渡さないので、ファイルを読まずに見える経路は塞いでいる（1.2、3.3）。
 -   **完了した後の、文だけの最終メッセージ:** Codex が完了を示したうえで、1 段落の文（レビューできなかった旨の文、拒否の文、レビュー対象に誘導された「問題なし」の文など）を最終メッセージにすると、「指摘なし」になる。文の意味を見ないと区別できない。利用の上限がこの形になる見込みは低い。公開されている報告では、上限はサーバーのエラーとして `error` か `turn.failed` の行に出て、終了コード 1 で終わるか、終わらずに止まり続ける（観測の記録の「利用の上限での振る舞い」）。前者は `codex_failed` か `incomplete`、後者は `timeout` になる。
 -   **指示ファイルの変更:** Codex は `AGENTS.md` と `CLAUDE.md` から自分の指示を読む。範囲がそれらを変えると、レビュー対象のブランチが、自分自身をレビューする際の指示を変えられる。`codexreview` は範囲がそれらを変えたことを示し、共通手順は SUMMARY に書く（3.1・3.3）が、レビューは止めない。
 -   **コネクタのツール:** モデルが使えるツールの一覧は記録に残らないので、`--disable` でコネクタのツールが使えなくなったことは直接には確かめていない（観測の記録の「設計の際の追加の観測」）。
@@ -688,7 +692,7 @@ flowchart TD
     -   コマンドの文書のコードの中（コードブロックと、コマンドとして書いたコードスパン）に、コマンドの位置にある `codex` の語（`codexreview` を除く。`env codex` や引用符で囲んだ `"codex"` も含む）がない。
     -   `Makefile` に `install-codexreview` があり、`CLAUDE.md` の Commands の節の記述と一致する。
 -   **CI:** `cmd/codexreview` の文書のガードは、`doc-guard` の job でも実行する。文書だけを変える PR（共通手順や `.claude/settings.json` の変更）こそ、このガードが守る対象だからである。
--   **改めるテスト:** `TestCodeRabbitConfigStopsReview`（`cmd/yt2column/codex_review_docs_test.go:351-356`）が求める `.coderabbit.yaml` の文を、改めた注釈の文に合わせる（3.9）。
+-   **改めるテスト:** `TestCodeRabbitConfigStopsReview`（`cmd/yt2column/codex_review_docs_test.go:351-356`）が求める `.coderabbit.yaml` の文を、改めた注釈の文に合わせる（3.9）。`cmd/fixprguard/docs_test.go` の `TestDocumentedProtocolMatches` は、`codexreview` の呼び出しの `--protocol` を照合から除く。`internal/fixprguard/gitstate_test.go` の `TestGitEnvDropsInheritedGitVariables` のうち、環境の変数の確かめは `internal/cmdrunner` に移す。
 
 どのテストも、確かめる対象を 1 つずつ外して失敗することを確かめる（`CLAUDE.md`「Every test must be able to fail for its stated reason」）。
 
@@ -707,18 +711,17 @@ flowchart TD
 
 ツールが先にあれば、文書は存在するツールを参照できる。また、`main` からインストールするツールは、文書が参照する前にマージされている必要がある。次の順に実装する。PR の区切りは実装計画で決める。
 
-1.  `internal/cmdrunner` のプロセスグループのオプション（3.3、7.1）。
+1.  `internal/cmdrunner` のプロセスグループのオプション（3.3、7.1）と、`GitEnv` と git の設定の上書きの移動（3.3）。
 2.  `internal/codexreview` と `cmd/codexreview`、`Makefile` の `install-codexreview`（3.3・3.4、7.1）。
 3.  `.claude/settings.json` の許可と、文書のガード、`doc-guard` の job の対象（3.8、7.1）。
 4.  ツールのマージの後、利用者が `make install-codexreview` で入れる。
 5.  共通手順の改名と書き換え（3.1〜3.6）。参照の付け替えを同じ変更で行う（3.9）。
 6.  呼び出し元の変更（3.7）と承認の記述（3.8）。
-7.  `CLAUDE.md`、`.coderabbit.yaml`、`_lib/pr-review-escalation.md`、`_lib/triage-pattern.md`、`package_reference.md` の記述（3.9）と、`TestCodeRabbitConfigStopsReview` の文の更新。
+7.  `CLAUDE.md`、`.coderabbit.yaml`、`_lib/pr-review-escalation.md`、`_lib/triage-pattern.md`、`package_reference.md` の記述（3.9）と、`TestCodeRabbitConfigStopsReview` の文の更新。このうち、`package_reference.md` の行（パッケージと同じコミットでテストが求める）、`CLAUDE.md` の 2 つの例外と Commands の節と `doc-guard` の列挙（それに頼るコードやガードと同じ変更で読めるようにする）は、1〜3 で書く。
 8.  手動の確かめ（7.2）。
 
 ## 9. 将来の拡張 (Future Extensibility)
 
--   **環境変数を引き継がない設定（H-08）:** `-c shell_environment_policy.inherit=...` が効くことを観測で確かめられれば、`codexreview` の固定した引数に加えられる。ツールの中だけの変更で済む。
 -   **構造化された結果:** `codex` が公開された仕様で構造化された結果（完了と指摘の一覧）を出すようになれば、3.4 の文法をそれに置き換えられる。5.2 の「完了した後の、文だけの最終メッセージ」のリスクもなくなる。
 -   **CodeRabbit CLI の廃止や、常に併用すること:** 要件書 2.3 のとおり対象外である。共通手順の試行の構造（CLI を順に試す）は変えずに、試す順を変えることで対応できる。
 -   **利用の上限での `codex` の振る舞い:** 観測していない。公開されている報告から推測した振る舞いは、どれも `codex_failed`・`incomplete`・`timeout` のどれかとして失敗に倒れる（5.2、観測の記録の「利用の上限での振る舞い」）。`codex exec --json` は利用の上限と認証の失敗を区別する型のある値を出さないので、今は `Detail` で利用の上限を示せない。`codex` がその値を `error` か `turn.failed` の行に出すようになれば（[#22570](https://github.com/openai/codex/issues/22570)）、`Detail` に加えられる。
@@ -734,7 +737,7 @@ flowchart TD
 | H-05 Codex CLI の出力の取り込み | `codex exec review --json -o` を使い、完了は `turn.completed` で、文面は最終メッセージで判定する。判定は `codexreview` が行う。時間の上限は 480 秒、大きさの上限は最終メッセージで 64 KiB、`--json` の出力で 16 MiB。プロジェクトの規則は Codex が `AGENTS.md` から読むので、別に渡さない。申し送りは「出力の区別はエージェントが行う判断であり、Go のコードではない」としていたが、利用者の決定で Go のツールに移し、要件書 4.2 を改めた（1.2、3.3、3.4） |
 | H-06 コミットのメッセージの記録の形式 | `CodeRabbit local review:`、`Codex local review:`、`Local CLI review: not run <BASE>..<HEAD> (<種類>)` の 3 種。前のセッションの `CodeRabbit local review: not run` も読む（3.6） |
 | H-07 共通手順のファイル名 | `_lib/local-cli-review.md` に変える。今の名前を参照するテストはない（1.2、3.9） |
-| H-08 環境変数の引き継ぎ（任意） | 採らない。観測していないうえ、`.envrc` のファイルを読む経路は残るため（1.2、9 章） |
+| H-08 環境変数の引き継ぎ（任意） | 採る。`codexreview` が `codex` に渡す環境を決めた名前の変数だけにし、`shell_environment_policy.inherit="core"` も固定する。`.envrc` のファイルを読む経路は残る（1.2、3.3、5.2）。当初は採らないとしたが、2026-10-29 に改めた |
 
 ## 付録 B: 受け入れ基準との対応
 
