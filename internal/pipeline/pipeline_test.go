@@ -892,11 +892,7 @@ func TestConfigImports(t *testing.T) {
 		{"../llm/claudeparam/*.go", true},
 		{"../llm/deepseekparam/*.go", true},
 	}
-	type scannedFile struct {
-		path             string
-		parameterPackage bool
-	}
-	var scanned []scannedFile
+	fset := token.NewFileSet()
 	for _, pattern := range patterns {
 		matches, err := filepath.Glob(pattern.glob)
 		if err != nil {
@@ -907,38 +903,34 @@ func TestConfigImports(t *testing.T) {
 		if len(matches) == 0 {
 			t.Fatalf("glob %s matched no files", pattern.glob)
 		}
-		for _, match := range matches {
-			scanned = append(scanned, scannedFile{path: match, parameterPackage: pattern.parameterPackage})
-		}
-	}
-	fset := token.NewFileSet()
-	for _, source := range scanned {
-		if strings.HasSuffix(source.path, "_test.go") {
-			continue
-		}
-		file, err := parser.ParseFile(fset, source.path, nil, parser.ImportsOnly|parser.ParseComments)
-		if err != nil {
-			t.Fatalf("parse %s: %v", source.path, err)
-		}
-		if isTestOnlyFile(file) {
-			continue
-		}
-		for _, imp := range file.Imports {
-			ipath, err := strconv.Unquote(imp.Path.Value)
-			if err != nil {
-				t.Fatalf("%s: unquote %s: %v", source.path, imp.Path.Value, err)
+		for _, path := range matches {
+			if strings.HasSuffix(path, "_test.go") {
+				continue
 			}
-			switch {
-			case ipath == "net" || strings.HasPrefix(ipath, "net/"):
-				t.Errorf("%s imports %s", source.path, ipath)
-			case !strings.HasPrefix(ipath, llmPrefix):
-				// A package outside internal/llm, including the standard library.
-			case ipath == claudeparamPath, ipath == deepseekparamPath:
-				if source.parameterPackage {
-					t.Errorf("%s imports %s; a parameter package must not import another parameter package", source.path, ipath)
+			file, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly|parser.ParseComments)
+			if err != nil {
+				t.Fatalf("parse %s: %v", path, err)
+			}
+			if isTestOnlyFile(file) {
+				continue
+			}
+			for _, imp := range file.Imports {
+				ipath, err := strconv.Unquote(imp.Path.Value)
+				if err != nil {
+					t.Fatalf("%s: unquote %s: %v", path, imp.Path.Value, err)
 				}
-			default:
-				t.Errorf("%s imports %s", source.path, ipath)
+				switch {
+				case ipath == "net" || strings.HasPrefix(ipath, "net/"):
+					t.Errorf("%s imports %s", path, ipath)
+				case !strings.HasPrefix(ipath, llmPrefix):
+					// A package outside internal/llm, including the standard library.
+				case ipath == claudeparamPath, ipath == deepseekparamPath:
+					if pattern.parameterPackage {
+						t.Errorf("%s imports %s; a parameter package must not import another parameter package", path, ipath)
+					}
+				default:
+					t.Errorf("%s imports %s", path, ipath)
+				}
 			}
 		}
 	}

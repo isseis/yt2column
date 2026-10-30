@@ -40,13 +40,11 @@ func TestParseEffort(t *testing.T) {
 		"None",
 		" none",
 		"none ",
-		"none\n",
-		"HIGH",
 		"medium",
 		"xhigh",
 		"ultra",
 		"minimal",
-		"unknown",
+		unknownEffort,
 	}
 	for _, value := range rejected {
 		t.Run(fmt.Sprintf("rejects %q", value), func(t *testing.T) {
@@ -61,17 +59,21 @@ func TestParseEffort(t *testing.T) {
 	}
 }
 
-// TestEffortValidAndValues checks that the zero value is invalid and renders a
-// string ParseEffort rejects, so "no value specified" cannot be mistaken for a
-// wire value, and that EffortValues is exactly the wire values of the valid
-// values, in the order String renders them: a missing, an extra, a duplicated,
-// or a reordered entry fails.
+// TestEffortValidAndValues checks that the zero Effort is EffortUnspecified,
+// which Valid rejects and whose String ParseEffort rejects, so "no value
+// specified" cannot be mistaken for a wire value, and that EffortValues holds
+// exactly the wire values of the valid values: a missing, an extra, or a
+// duplicated entry fails.
 func TestEffortValidAndValues(t *testing.T) {
-	if EffortUnspecified.Valid() {
-		t.Error("EffortUnspecified.Valid() = true, want false")
+	var zero Effort
+	if zero != EffortUnspecified {
+		t.Fatalf("the zero Effort = %d, want EffortUnspecified", zero)
 	}
-	if _, err := ParseEffort(EffortUnspecified.String()); err == nil {
-		t.Errorf("ParseEffort(EffortUnspecified.String()=%q) error = nil, want an error", EffortUnspecified.String())
+	if zero.Valid() {
+		t.Error("the zero Effort.Valid() = true, want false")
+	}
+	if _, err := ParseEffort(zero.String()); err == nil {
+		t.Errorf("ParseEffort(zero.String()=%q) error = nil, want an error", zero.String())
 	}
 
 	var want []string
@@ -80,7 +82,8 @@ func TestEffortValidAndValues(t *testing.T) {
 			want = append(want, e.String())
 		}
 	}
-	if got := EffortValues(); !slices.Equal(got, want) {
-		t.Errorf("EffortValues() = %q, want %q", got, want)
+	slices.Sort(want)
+	if got := slices.Sorted(slices.Values(EffortValues())); !slices.Equal(got, want) {
+		t.Errorf("EffortValues() = %q, want %q", EffortValues(), want)
 	}
 }

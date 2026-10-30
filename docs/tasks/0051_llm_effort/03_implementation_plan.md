@@ -398,7 +398,7 @@ M2 は M3 の作業より前に終える。M2 で問題があれば、M3 に進�
 | AC | 種類 | 確かめ方 | 実装 |
 |---|---|---|---|
 | AC-01 | test | `internal/config/config_test.go::TestLoadParsesLLMValue`（effort の行）、`internal/llm/provider/provider_test.go::TestNewClaudeSendsConfiguredRequest` と設定から要求本文までのテスト（本文の `model`。ステップ 4-3） | ステップ 4-1・4-3 |
-| AC-02 | test | `internal/config/config_test.go::TestLoadParsesLLMValue`、`internal/llm/deepseekparam/deepseekparam_test.go::TestParseEffort`・`::TestEffortValidAndValues`、`internal/llm/claudeparam/claudeparam_test.go::TestEffortValues` | ステップ 1-1・1-2・4-1 |
+| AC-02 | test | `internal/config/config_test.go::TestLoadParsesLLMValue`、`internal/llm/deepseekparam/deepseekparam_test.go::TestParseEffort`・`::TestEffortValidAndValues`、`internal/llm/claudeparam/claudeparam_test.go::TestParseEffort` | ステップ 1-1・1-2・4-1 |
 | AC-03 | test | `internal/config/config_test.go::TestLoadParsesLLMValue`、`internal/llm/provider/provider_test.go::TestNewClaudeDefaultEffort` | ステップ 4-1・4-3 |
 | AC-04 | test | `internal/config/config_test.go::TestLoadParsesLLMValue`（`claude/vendor/model-x+medium`） | ステップ 4-1 |
 | AC-05 | test | `internal/config/config_test.go::TestLoadParsesLLMValue`（拒否の行）、`TestLoadErrorsOmitValues`、`internal/llm/deepseekparam/deepseekparam_test.go::TestParseEffort`（大文字・前後の空白・空・`medium`・`xhigh`・`ultra`・`minimal` の拒否） | ステップ 1-1・4-1 |
@@ -437,7 +437,7 @@ M2 は M3 の作業より前に終える。M2 で問題があれば、M3 に進�
 | AC-38 | manual | PR のレビューで、`package_reference.md` の行と `claude_output_limit.md:10` を読む。`TestPackageReferenceListsPackages` が `deepseekparam` の行の存在を確かめる | ステップ 1-3・2-4・4-6 |
 | AC-39 | manual | PR のレビューで、6 つの文書が `YT2COLUMN_CLAUDE_EFFORT` を拒否と移行の説明でだけ扱うことを読む | ステップ 4-6 |
 | AC-40 | test | `cmd/yt2column/docs_test.go::TestProductionProfileDocsContract`・`TestLLMDefaultsDocsContract`・effort の値の一覧のガード（ステップ 4-5） | ステップ 4-5・4-6 |
-| AC-41 | test | `internal/config/config_test.go` の理由の一覧のテスト（ステップ 4-2）、`internal/llm/deepseekparam/deepseekparam_test.go::TestEffortValidAndValues`・`internal/llm/claudeparam/claudeparam_test.go::TestEffortValues`（一覧のテスト） | ステップ 1-1・1-2・4-1 |
+| AC-41 | test | `internal/config/config_test.go` の理由の一覧のテスト（ステップ 4-2）、`internal/llm/deepseekparam/deepseekparam_test.go::TestEffortValidAndValues`・`internal/llm/claudeparam/claudeparam_test.go::TestEffortStringAndValid`（一覧のテスト） | ステップ 1-1・1-2・4-1 |
 
 「実装」の列は、本番のコードを変えるステップを示す。テストを書くステップは、2 章の各ステップにある（`internal/config` のテストはステップ 4-2、`cmd/` のテストはステップ 4-4、文書のガードはステップ 4-5）。新しく加えるテストの関数名は実装で決める。実装した後、この表の「ステップ 4-2」などの記述を `path::TestName` の形に書き換える。
 
