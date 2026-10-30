@@ -353,8 +353,8 @@ func TestCodeRabbitConfigStopsReview(t *testing.T) {
 	doc := doctestutil.ReadDoc(t, coderabbitPath)
 	requirePhrases(t, ".coderabbit.yaml", doc,
 		"CodeRabbit does not review PRs: Codex does the PR review",
-		"The local CLI review (`coderabbit review`) is still used",
-		"with Codex CLI as its fallback",
+		"The local CLI review (the CodeRabbit CLI, or Codex CLI when it fails)",
+		"is still used for the changes after the PR opens.",
 	)
 	// Each broken copy keeps a reviews.auto_review key, so only where
 	// enabled sits decides the result.
