@@ -63,10 +63,13 @@ func declaredConstants(t *testing.T) (kinds []Kind, details []string) {
 	return kinds, details
 }
 
-// TestKindsListsEveryConstant: Kinds lists every declared Kind, and every
-// declared Detail token under some kind, so the guard that checks the shared
-// procedure's table against Kinds cannot miss a kind or a token added later.
-// The exit_status_ prefix is listed in its <n> form.
+// TestKindsListsEveryConstant: Kinds lists every constant declared with type
+// Kind, and every string constant named detail*, each under some kind, so a
+// kind or token declared that way and not listed fails here before the guard
+// that checks the shared procedure's table against Kinds can miss it. Which
+// kind a token is listed under is not checked here; the procedure acts on one
+// token, dirty_tree, whose kind TestRunPreconditions shows. The exit_status_
+// prefix is listed in its <n> form.
 func TestKindsListsEveryConstant(t *testing.T) {
 	declaredKinds, declaredDetails := declaredConstants(t)
 	if len(declaredKinds) == 0 || len(declaredDetails) == 0 {

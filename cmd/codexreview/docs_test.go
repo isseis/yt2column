@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"slices"
 	"strconv"
@@ -178,54 +179,84 @@ var placeholder = regexp.MustCompile(`<[A-Za-z_]+>`)
 // placeholderSHA is the full commit ID a placeholder stands for in a call.
 const placeholderSHA = "0123456789abcdef0123456789abcdef01234567"
 
-// invocations returns the arguments of each call of tool that doc writes as
-// a command (commandTexts): the words after the tool's name, by name or
-// path, up to the end of its command (doctestutil.CommandBoundary).
-func invocations(doc, tool string) [][]string {
-	var calls [][]string
+// invocation is one call of the tool a document writes as a command.
+type invocation struct {
+	// lead is the words of the command before the tool's word.
+	lead []string
+	// word is the tool's word as written: its name, a path, or quoted.
+	word string
+	// args is the words after the tool's word, up to the end of its command.
+	args []string
+}
+
+// invocations returns each call of tool that doc writes as a command
+// (commandTexts): a command (doctestutil.CommandBoundary) holding a word that
+// is the tool by name or path.
+func invocations(doc, tool string) []invocation {
+	var calls []invocation
 	for _, text := range commandTexts(doc) {
 		for _, command := range doctestutil.CommandBoundary.Split(text, -1) {
 			words := strings.Fields(command)
 			i := slices.IndexFunc(words, func(w string) bool { return path.Base(strings.Trim(w, `"'`)) == tool })
-			if i >= 0 {
-				calls = append(calls, words[i+1:])
+			if i < 0 {
+				continue
 			}
+			call := invocation{word: words[i], args: words[i+1:]}
+			if i > 0 {
+				call.lead = words[:i]
+			}
+			calls = append(calls, call)
 		}
 	}
 	return calls
 }
 
 // TestInvocations: a call is found in a code block and in a code span, by
-// name or path and after a separator, and a word that only contains the
-// name is not a call.
+// name or path, after a separator or a prefix, and a word that only contains
+// the name is not a call.
 func TestInvocations(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		doc  string
-		want [][]string
+		want []invocation
 	}{
-		{"block", "```bash\ncodexreview --protocol 1 --base <BASE_SHA>\n```\n", [][]string{{"--protocol", "1", "--base", "<BASE_SHA>"}}},
-		{"span", "Run `codexreview --base x --protocol 1` once.\n", [][]string{{"--base", "x", "--protocol", "1"}}},
-		{"after_and_by_path", "```bash\ncd x && ~/go/bin/codexreview --protocol 1\n```\n", [][]string{{"--protocol", "1"}}},
+		{"block", "```bash\ncodexreview --protocol 1 --base <BASE_SHA>\n```\n", []invocation{{nil, "codexreview", []string{"--protocol", "1", "--base", "<BASE_SHA>"}}}},
+		{"span", "Run `codexreview --base x --protocol 1` once.\n", []invocation{{nil, "codexreview", []string{"--base", "x", "--protocol", "1"}}}},
+		{"after_and_by_path", "```bash\ncd x && ~/go/bin/codexreview --protocol 1\n```\n", []invocation{{nil, "~/go/bin/codexreview", []string{"--protocol", "1"}}}},
+		{"after_prefix", "```bash\ntimeout 600 codexreview --protocol 1\n```\n", []invocation{{[]string{"timeout", "600"}, "codexreview", []string{"--protocol", "1"}}}},
 		{"install_target", "Run `make install-codexreview` first.\n", nil},
 		{"name_alone_in_span", "The `codexreview` tool.\n", nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got := invocations(tc.doc, "codexreview")
-			if !slices.EqualFunc(got, tc.want, slices.Equal) {
-				t.Errorf("invocations = %q, want %q", got, tc.want)
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("invocations = %+v, want %+v", got, tc.want)
 			}
 		})
 	}
 }
 
+// promptFree reports whether call is written in the one form the permission
+// rule Bash(<tool> *) allows without the prompt: the tool's bare name first
+// in its command, with nothing before it.
+func promptFree(call invocation, tool string) bool {
+	return len(call.lead) == 0 && call.word == tool
+}
+
 // TestDocumentedInvocationsParse: every call of the tool in the command
-// documents passes the tool's own argument check, with each placeholder
+// documents is written in the form the permission rule allows without the
+// prompt and passes the tool's own argument check, with each placeholder
 // filled in as a full commit ID, so the installed tool runs the review
-// instead of returning usage on every attempt.
+// unattended instead of stopping at the prompt or returning usage on every
+// attempt. A redirection or a pipe after the arguments is a refused argument
+// or a command boundary.
 func TestDocumentedInvocationsParse(t *testing.T) {
 	for _, rel := range doctestutil.CommandDocs(t, repoRoot) {
-		for _, args := range invocations(readRepoFile(t, rel), toolName(t)) {
+		for _, call := range invocations(readRepoFile(t, rel), toolName(t)) {
+			args := call.args
+			if !promptFree(call, toolName(t)) {
+				t.Errorf("%s: %q %s is not the bare tool name first in its command", rel, call.lead, call.word)
+			}
 			filled := make([]string, len(args))
 			for i, arg := range args {
 				filled[i] = placeholder.ReplaceAllString(arg, placeholderSHA)

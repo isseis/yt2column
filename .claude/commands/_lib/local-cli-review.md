@@ -57,15 +57,19 @@ the tool (`make install-codexreview`, `go build`): the user installs it from
 - **Attempt result** — `coderabbit` (the CodeRabbit CLI reviewed), `codex`
   (Codex CLI reviewed as the fallback), or `none` (neither reviewed).
 - **Unreviewed range** — the commits of SCOPE no successful review covered:
-  BASE..HEAD at the first attempt when it is `none`; the fix commits between
-  the first and the second attempt when the second is `none`.
+  BASE..HEAD1 when the first attempt is `none`, and HEAD1..HEAD2 (the fix
+  commits made after the first attempt) when the second is `none`, where
+  HEAD1 and HEAD2 are the HEADs step 1 records for each attempt.
 
 ## Procedure
 
 1. **Before each attempt.** Confirm `git status --short` is empty: both CLIs
    review only committed changes, and `codexreview` refuses to run otherwise.
-   Resolve BASE to its full 40-hex SHA with `git rev-parse <BASE>`, and record
-   the current `git rev-parse HEAD`; the record lines use both.
+   When it is not empty, stop and report; do not commit or discard anything to
+   clean it. Resolve BASE to its full 40-hex SHA with `git rev-parse <BASE>`,
+   and record the current `git rev-parse HEAD` as this attempt's HEAD (HEAD1
+   for the first attempt, HEAD2 for the second); keep HEAD1 through the second
+   attempt, since the record lines use these values.
 
 2. **Run the CodeRabbit CLI** and keep its output:
 
@@ -92,20 +96,26 @@ the tool (`make install-codexreview`, `go build`): the user installs it from
    On success, go to step 4 even with zero findings; do not run `codexreview`.
 
 3. **On a CodeRabbit CLI failure, run `codexreview`** in the same attempt,
-   from the worktree root, in the foreground, with the Bash tool's timeout set
+   from the worktree root (when the current directory is not
+   `git rev-parse --show-toplevel`, change to it first with a `cd` call of its
+   own), in the foreground, with the Bash tool's timeout set
    to 600000 ms (the tool stops Codex CLI after 480 seconds and still returns a
    result). Never run it in the background: the worktree must not change while
    Codex reads it. Write the 40-hex SHA of step 1 into the command, and run the
    command exactly in this form, alone, with no redirection, pipe, `$(...)`,
-   variable, or `cd ... &&`, each of which brings back the permission prompt:
+   variable, or `cd ... &&`, each of which brings back the permission prompt.
+   Just before it, confirm `git rev-parse HEAD` is still this attempt's HEAD;
+   when it is not, stop and report.
 
    ```bash
    codexreview --protocol 1 --base <BASE_SHA>
    ```
 
-   Its standard output is one JSON object (the tool result) and the Bash tool
-   reports its exit status. Handle the result by its `kind` with the table
-   below; the `detail` column matters only for `precondition`, where
+   The Bash tool shows standard output and standard error together, and
+   reports the exit status. The tool result is the one output line that is a
+   JSON object. A line starting with `codexreview:` is the tool's diagnostic on
+   standard error; ignore it, and never treat it as the result. Handle the
+   result by its `kind` with the table below; the `detail` column matters only for `precondition`, where
    `dirty_tree` stops and every other value is recorded.
 
    | Kind | Detail | Exit code | Handling |
@@ -125,13 +135,15 @@ the tool (`make install-codexreview`, `go build`): the user installs it from
    | `unreadable` | | 1 | `record` |
 
    Two cases have no row:
-   - **Not installed.** Exit status 127 with empty standard output: the shell
+   - **Not installed.** Exit status 127 and no output line that is a JSON
+     object (the shell's "command not found" message may be shown): the shell
      did not find the tool, so Codex CLI did not run. Handle it as `record`,
      with the kind `not_installed`.
-   - **No usable result.** Anything else that is not one row: standard output
-     is empty or is not one JSON object, the `kind` is not in the table, or
-     the exit status is not the row's. Handle it as `stop`: whether Codex CLI
-     ran and changed the worktree is unknown.
+   - **No usable result.** Anything else that is not one row: no output line
+     is a JSON object, or more than one is, the `kind` is not in the table, or
+     the exit status is not the row's (this includes the Bash tool stopping
+     the command). Handle it as `stop`: whether Codex CLI ran and changed the
+     worktree is unknown.
 
    The handlings:
    - **`triage`** — the attempt result is `codex`. Go to step 4 with the
@@ -141,7 +153,10 @@ the tool (`make install-codexreview`, `go build`): the user installs it from
      Go to step 6.
    - **`stop`** — stop this procedure and the calling command, and report to
      the user: the `kind`, `detail`, `changed`, `changed_refs`, and `run_dir`
-     of the result (or that there was no usable result). Do not revert the
+     of the result (or that there was no usable result), the CodeRabbit CLI's
+     failure kind, and how many times Codex CLI has run in this SCOPE (step 8;
+     a run without a usable result counts as one that may have run). Do not
+     revert the
      difference, do not commit, and do not push. A `state_changed` caused by
      another session's commit or stash in another worktree (`changed_refs`
      names the worktree) is still a stop: the user decides.
@@ -207,22 +222,24 @@ the tool (`make install-codexreview`, `go build`): the user installs it from
    | Line | Form | When |
    |---|---|---|
    | `CodeRabbit local review:` | a rejected finding and its reason, or a `deferred` or `unclear` finding | for each such CodeRabbit CLI finding |
-   | `Codex local review:` | `Codex local review: <path>:<start>-<end> <handling>: <summary>`, where `<handling>` is `rejected (<reason>)`, `deferred`, or `unclear (<why>)` | for each such Codex CLI finding |
-   | `Local CLI review: not run` | `Local CLI review: not run <BASE12>..<HEAD12> (coderabbit: <kind>; codex: <kind>)`, with both SHAs cut to 12 characters and the failure kinds of steps 2 and 3 | for each unreviewed range |
+   | `Codex local review:` | `Codex local review: <path>:<start>-<end> <handling>: <summary>`, where `<handling>` is `rejected (<reason>)`, `deferred`, or `unclear (<why>)`; for a finding with `in_range` false, `Codex local review: (not in range) rejected (not in range)` | for each such Codex CLI finding |
+   | `Local CLI review: not run` | `Local CLI review: not run <START12>..<END12> (coderabbit: <kind>; codex: <kind>)`: the unreviewed range (BASE..HEAD1 or HEAD1..HEAD2, see Terms), with both SHAs cut to 12 characters, and the failure kinds of steps 2 and 3 | for each unreviewed range |
 
-   - The `<summary>` of a `Codex local review:` line is written in your own
-     words. Never copy Codex's text into a commit message, SUMMARY, or a PR
+   - The `<path>` of a `Codex local review:` line is written only for a
+     finding with `in_range` true, whose path is a file changed in BASE..HEAD;
+     the path of a finding with `in_range` false is Codex's text. The
+     `<summary>` is written in your own words. Never copy Codex's text into a commit message, SUMMARY, or a PR
      body, in any form: it may carry a secret or the mention. The same holds
      for any description of a Codex finding in SUMMARY.
    - **Mention check.** Before committing a message with a
      `Codex local review:` line, write the message to a file and run
      `grep -qiF -- '<review-mention>' <file>`. Exit code 1 means it is clear.
-     Exit code 0 means the text contains the mention: remove the `<summary>`
-     of every `Codex local review:` line, keeping the location and the
-     handling, and run the check again. Any other code means the check failed:
-     remove those summaries the same way and run it again; when it still does
-     not exit 1, stop and report instead of committing. Removing your own
-     summary is not rewriting the text to get past the check.
+     Any other exit code (0, the text contains the mention; above 1, the
+     check failed): remove the `<summary>` of every `Codex local review:`
+     line, keeping the location and the handling, and run the check once
+     more. When that run does not exit 1, stop and report instead of
+     committing. Removing your own summary is not rewriting the text to get
+     past the check.
    - When the next commit is the caller's, not this procedure's (the second
      attempt's result is known only after its fix commit, and an attempt may
      have no fix), return the lines in SUMMARY: the caller copies them as its
