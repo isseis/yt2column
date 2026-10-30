@@ -137,7 +137,7 @@
 | トークンの使用量 | token usage | LLM の API が返したトークンの数。CLI は工程ごとに標準エラーの `tokens:` の行に書く（`cli.md`） |
 | 保存した出力 | artifact | `--artifacts` のディレクトリに工程ごとに保存した出力。`--after` で再開するときに再利用する |
 | 再開した実行 | resumed run | `--after` で、保存した出力から再開した CLI の実行 |
-| 廃止した LLM の変数 | retired LLM variables | `YT2COLUMN_LLM_PROVIDER`・`YT2COLUMN_MODEL`・`YT2COLUMN_REVIEW_PROVIDER`・`YT2COLUMN_REVIEW_MODEL`。設定されていると実行が止まる |
+| 廃止した LLM の変数 | retired LLM variables | `YT2COLUMN_LLM_PROVIDER`・`YT2COLUMN_MODEL`・`YT2COLUMN_REVIEW_PROVIDER`・`YT2COLUMN_REVIEW_MODEL`・`YT2COLUMN_CLAUDE_EFFORT`。設定されていると実行が止まる |
 | 同意の変数 | opt-in variable | 統合テストが実際の API を呼ぶ前に求める環境変数（`YT2COLUMN_DEEPSEEK_INTEGRATION=1` など）。`make` のターゲットがそのテストのためだけに export する（`development.md`） |
 | ソケット | socket | localhost サーバが待ち受ける UDS のファイル。パスは `HOME` だけから決まる |
 | ソケットのディレクトリ | socket directory | ソケットと起動のロックのファイルを置くディレクトリ（`run`）。モードは `0700` |
@@ -149,7 +149,7 @@
 | 処理中のジョブ | in-flight job | サーバが受け付け、まだ終わっていないジョブ。サーバの停止と起動のロックはその完了を待つ |
 | ポップアップ | popup | 拡張のツールバーのアイコンから開く画面 |
 | 文字起こしパネル | transcript panel | YouTube の動画ページで、字幕の行を時刻とともに一覧にするパネル |
-| モデルの ID | model ID | プロバイダの API に送るモデルの名前。`YT2COLUMN_LLM` の最初の `/` より後の部分。そこに `+` があれば `+` より前の部分 |
+| モデルの ID | model ID | プロバイダの API に送るモデルの名前。`YT2COLUMN_LLM`・`YT2COLUMN_REVIEW_LLM` の最初の `/` より後の部分。そこに `+` があれば `+` より前の部分 |
 | effort の部分 | effort part | `YT2COLUMN_LLM`・`YT2COLUMN_REVIEW_LLM` の値の、最初の `/` より後ろの `+` より後の部分。工程の effort を指定する |
 | クイックスタート | Quick start | README の見出し |
 | 必要なもの | Requirements | README と `cli.md` の見出し |

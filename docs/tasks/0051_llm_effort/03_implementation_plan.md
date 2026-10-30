@@ -439,7 +439,7 @@ M2 は M3 の作業より前に終える。M2 で問題があれば、M3 に進�
 | AC-26 | test | `cmd/yt2column-nmhost/main_test.go::TestRelayUsesDerivedSocket`・`TestInstallAndUninstall`、`internal/config/socketpath_test.go::TestLoadHost` | ステップ 4-1（テストは変えない） |
 | AC-27 | test | `internal/config/config_test.go::TestLoadIgnoresOtherProviderVars`・`TestLoadProviderVarsFollowSelection` | ステップ 4-1・4-2 |
 | AC-28 | test | `internal/config/config_test.go::TestLoadProviderVarsFollowSelection`（effort の行） | ステップ 4-1 |
-| AC-29 | test・diff | `internal/config/config_test.go::TestLoadParsesLLMValue`（`+` を含まない既存の行）・`TestParseLLMProvider`。diff: `docs/tasks/0051_llm_effort/_checks/no_effort_compat.go`（`+` を含まない値の読み込みの結果を merge-base と PR の head で比べる。ステップ 4-2）。実行の記録: merge-base（未実行）、head（未実行）、出力（未実行） | ステップ 4-1 |
+| AC-29 | test・diff | `internal/config/config_test.go::TestLoadParsesLLMValue`（`+` を含まない既存の行）・`TestParseLLMProvider`。diff: `docs/tasks/0051_llm_effort/_checks/no_effort_compat.go`（`+` を含まない値の読み込みの結果を merge-base と PR の head で比べる。ステップ 4-2）。実行の記録（2026-10-31、PR のブランチで `go run ./docs/tasks/0051_llm_effort/_checks/`）: merge-base `7e98069ba00a82471dd3d954d7f415212d2e15e7`、head `39dbcfbf01a117a01dec94dc012f6830c5710d24`、出力「17 values x 2 variables: 34 results compared, 0 differ」（`+` を含まない 17 の値を 2 つの変数に与え、受理・拒否、プロバイダ・モデル ID・各工程の effort、拒否の変数・番兵・理由がすべて一致した）。PR を作る前に、この後のコミットで設定の読み込みが変わっていれば実行し直す | ステップ 4-1 |
 | AC-30 | manual | PR のレビューで、README の設定の節の表と `project_overview.md` の表を読む | ステップ 4-6 |
 | AC-31 | manual | PR のレビューで、effort の部分の規則の説明を読む | ステップ 4-6 |
 | AC-32 | manual | PR のレビューで、継承の文とプロバイダの変数の検査の文を読む | ステップ 4-6 |
