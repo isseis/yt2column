@@ -1,13 +1,13 @@
+[English](README.en.md)
+
+開発者向けの文書: [CLI の使い方](docs/dev/guides/cli.md)・[開発の手順](docs/dev/guides/development.md)
+
 # yt2column
 
-yt2column turns a YouTube video into a magazine-column-style article with an
-LLM. The primary path starts in the browser: the extension collects the
-transcript you copy from YouTube's transcript panel, the native messaging host
-relays it to the localhost server, and the server generates the article and
-posts it to the configured webhook. A CLI is included as a development path:
-it takes a video URL and fetches the transcript with
-[yt-dlp](https://github.com/yt-dlp/yt-dlp), which is how the LLM call and the
-posting are developed and checked.
+yt2column は、YouTube の動画を、LLM で雑誌のコラム風の記事にする。主経路はブラウザから始まる。利用者が
+YouTube の文字起こしパネルからコピーした字幕を拡張が集め、Native Messaging のホストがそれを localhost サーバに中継し、サーバが記事を生成して、設定した
+Webhook に投稿する。補助の経路として CLI も含む。CLI は動画の URL を受け取り、
+[yt-dlp](https://github.com/yt-dlp/yt-dlp) で文字起こしを取得する。LLM の呼び出しと投稿は、CLI で開発し確かめる。
 
 ```mermaid
 flowchart LR
@@ -37,101 +37,77 @@ flowchart LR
     class L2 process
 ```
 
-- The primary path uses the transcript copied from the transcript panel; only
-  the CLI uses yt-dlp.
-- The default is the production profile: `claude` with
-  `claude-opus-5-5` at effort `high` for generation, shortening, and review.
-  See [Recommended configuration](#recommended-configuration) and
-  [production_profile.md](docs/dev/production_profile.md) (Japanese).
-  DeepSeek is also available; providers are pluggable.
-- Designed for local execution.
+- 主経路は、文字起こしパネルからコピーした字幕を使う。yt-dlp を使うのは CLI だけである。
+- 既定は本番の構成である。生成・字数の調整・検証・推敲のどれも、`claude` の
+  `claude-opus-5-5` を effort `high` で使う。
+  [推奨構成](#推奨構成)と
+  [production_profile.md](docs/dev/production_profile.md)（日本語）を参照。
+  DeepSeek も使える。プロバイダは差し替えられる。
+- ローカルでの実行を想定している。
 
-> **Status:** early development — no release yet.
+> **状態:** 開発の初期段階。まだリリースしていない。
 
-## Quick start
+## クイックスタート
 
-These steps post a first article through the primary path. Each step links to
-the section that has the details.
+次の手順で、主経路で最初の記事を投稿する。各手順は、詳しく説明する節にリンクしている。
 
-1. Build the binaries with `make build`; they go into `build/` and nothing is
-   installed. See [Localhost server](#localhost-server).
-2. Set `ANTHROPIC_API_KEY` and, because these steps post the article,
-   `SLACK_WEBHOOK_URL` in the shell that starts the server. No other LLM
-   variable is needed: the default is the production
-   profile (see [Recommended configuration](#recommended-configuration)). Unset
-   `YT2COLUMN_*` variables left from an earlier setup: a model variable without
-   its provider variable stops the server with a configuration error. See
-   [Configuration](#configuration).
-3. Start the server with `./build/yt2column-server 2>>server.log`. It keeps
-   running in the foreground (stop it with a signal), so run the next steps in
-   another terminal. See [Running the server](#running-the-server).
-4. Register the host with `./build/yt2column-nmhost install chrome` (or
-   `install brave`) after starting that browser once. On macOS, keep the built
-   binary outside `~/Desktop`, `~/Documents`, and `~/Downloads`. See
-   [Installing the native messaging host](#installing-the-native-messaging-host).
-5. Run `make ext-install` once, then `make ext-build`, and load
-   `extension/dist` with **Load unpacked** on the extensions page. See
-   [Browser extension](#browser-extension).
-6. Open a video's description ("...more") and its transcript panel, select the
-   caption lines, and send from the extension's toolbar icon. The article
-   arrives in the webhook's channel. See [Browser extension](#browser-extension).
+1. `make build` でバイナリをビルドする。バイナリは `build/` に置かれ、何もインストールされない。
+   [localhost サーバ](#localhost-サーバ)を参照。
+2. サーバを起動するシェルで、`ANTHROPIC_API_KEY` と、これらの手順では記事を投稿するので
+   `SLACK_WEBHOOK_URL` を設定する。ほかの LLM の変数は要らない。既定は本番の構成である（[推奨構成](#推奨構成)を参照）。以前の設定から残った
+   `YT2COLUMN_*` の変数は外す（unset）。プロバイダの変数がなく、モデルの変数だけが設定されていると、設定エラーでサーバが止まる。
+   [設定](#設定)を参照。
+3. `./build/yt2column-server 2>>server.log` でサーバを起動する。サーバはフォアグラウンドで動き続ける（シグナルで止める）ので、次の手順は別の端末で実行する。
+   [サーバの起動](#サーバの起動)を参照。
+4. 使うブラウザを一度起動した後で、`./build/yt2column-nmhost install chrome`（または
+   `install brave`）でホストを登録する。macOS では、ビルドしたバイナリを `~/Desktop`・`~/Documents`・`~/Downloads`
+   の外に置く。
+   [Native Messaging のホストのインストール](#native-messaging-のホストのインストール)を参照。
+5. `make ext-install` を一度実行し、続けて `make ext-build` を実行して、拡張機能のページの
+   **パッケージ化されていない拡張機能を読み込む**（**Load unpacked**）で `extension/dist` を読み込む。
+   [ブラウザ拡張](#ブラウザ拡張)を参照。
+6. 動画の概要欄（「もっと見る」）と文字起こしパネルを開き、字幕の行を選択して、拡張のツールバーのアイコンから送る。記事は
+   Webhook のチャンネルに届く。[ブラウザ拡張](#ブラウザ拡張)を参照。
 
-## Requirements
+## 必要なもの
 
-**For the primary path (browser extension and localhost server):**
+**主経路（ブラウザ拡張と localhost サーバ）に必要なもの:**
 
-- Go (see `go.mod`)
-- Node.js, pinned in `extension/.node-version` (used to build the extension)
-- Chrome or Brave
-- `ANTHROPIC_API_KEY` for the default provider
-- `SLACK_WEBHOOK_URL` (needed to post; the server starts without it)
+- Go（`go.mod` を参照）
+- Node.js。版は `extension/.node-version` で固定している（拡張のビルドに使う）
+- Chrome または Brave
+- 既定のプロバイダのための `ANTHROPIC_API_KEY`
+- `SLACK_WEBHOOK_URL`（投稿に必要。なくてもサーバは起動する）
 
-An API key for the selected provider is required: `DEEPSEEK_API_KEY` for
-`deepseek`, `ANTHROPIC_API_KEY` for `claude`. When the review step uses a
-different provider, that provider's key is required too.
+選んだプロバイダの API キーが必要である。`deepseek` では `DEEPSEEK_API_KEY`、`claude` では
+`ANTHROPIC_API_KEY` である。検証・推敲の工程が別のプロバイダを使うときは、そのプロバイダのキーも必要である。
 
-The CLI's requirements are in
-[docs/dev/guides/cli.md](docs/dev/guides/cli.md#必要なもの).
+CLI に必要なものは
+[docs/dev/guides/cli.md](docs/dev/guides/cli.md#必要なもの)にある。
 
-## Post-generation steps
+## 生成の後の工程
 
-After the article is generated, two steps run by default.
+記事を生成した後、既定で 2 つの工程が走る。
 
-1. **Shorten.** If the body is longer than 4,000 characters, the generation
-   model shortens it toward a target of 3,600. If it is still over 4,000
-   characters after shortening — or after the review step — the run fails with
-   a length error and the article is neither written nor posted.
-2. **Review.** The review model compares the article with the video's title,
-   channel name, description, and transcript, and returns a list of corrections
-   to claims with no basis in the material, meaning-changing paraphrases, wrong
-   speaker attributions, copied speech-recognition errors, and sentences whose
-   meaning cannot be made out. The writer applies the list to the article. The
-   review step can use a provider and a model of its own, set in
-   `YT2COLUMN_REVIEW_LLM`; by default it uses the generation provider and
-   model.
+1. **字数の調整。** 本文が 4,000 文字より長いとき、生成のモデルが目標の 3,600 文字に向けて本文を短くする。短くした後でも、検証・推敲の工程の後でも
+   4,000 文字を超えるときは、実行は長さのエラーで失敗し、記事は書き出しも投稿もされない。
+2. **検証・推敲。** 検証・推敲のモデルが、記事を動画タイトル・チャンネル名・概要欄・文字起こしと照らし、修正の一覧を返す。修正の対象は、資料に根拠のない主張、意味を変える言い換え、話者の取り違え、音声認識の誤りの写し、意味の取れない文である。記事を書く処理（writer）がその一覧を記事に適用する。検証・推敲の工程には、`YT2COLUMN_REVIEW_LLM` で、この工程だけのプロバイダとモデルを設定できる。既定では、生成のプロバイダとモデルを使う。
 
-Both steps call the LLM (the shorten step only when the body is over the
-limit), so the default uses up to two more calls, and more cost, than
-generation alone.
+どちらの工程も LLM を呼ぶ（字数の調整は、本文が上限を超えるときだけ）ので、既定では生成だけのときより最大 2 回多く呼び、そのぶん費用も増える。
 
-The CLI's flags that skip a step, record the review's changes, or save and
-resume the stages are in
-[docs/dev/guides/cli.md](docs/dev/guides/cli.md#生成の後の工程).
+工程を飛ばす、検証・推敲の変更を記録する、工程の出力を保存して再開する、といった CLI のフラグは
+[docs/dev/guides/cli.md](docs/dev/guides/cli.md#生成の後の工程)にある。
 
-## Output format
+## 出力の書式
 
-The article is the same text in both outputs, but each output arranges the
-information differently: the reader's part (title, channel name, body, source
-link) comes first, and the development part (models, estimated cost) comes last
-in a Slack post and in the front matter of a file.
+記事はどちらの出力でも同じ文章だが、情報の並べ方は出力ごとに異なる。読み手のための部分（タイトル、チャンネル名、本文、出典リンク）を先に置き、開発のための部分（モデル、推定の料金）は、Slack への投稿では最後に、ファイルではフロントマターに置く。
 
-The file the CLI writes is in
-[docs/dev/guides/cli.md](docs/dev/guides/cli.md#--out-のファイル).
+CLI が書くファイルは
+[docs/dev/guides/cli.md](docs/dev/guides/cli.md#--out-のファイル)にある。
 
-### The Slack post
+### Slack への投稿
 
-The post starts with the title and the channel name, then the body, and ends
-with a one-line footnote:
+投稿はタイトルとチャンネル名で始まり、本文が続き、1 行の脚注で終わる。
 
 ```text
 # Caching transcripts by video ID（Example Channel）
@@ -147,513 +123,381 @@ Two URLs for one video share one entry.
 Models: deepseek-flash (generation, shorten) · claude-haiku-5-5 (review) · Estimated cost: 0.0094 USD
 ```
 
-- Without a channel name, the first line is `# <title>` alone.
-- The footnote names each model once with the stages that used it, in the order
-  generation, shorten, review; a step the article did not go through (for example the
-  shorten step on a short body, or a disabled review) is not listed. It never shows the
-  model version. The cost is four decimals and `USD`, or
-  `Estimated cost: unknown`.
-- When the post is longer than one message (see
-  [Webhook publishing](#webhook-publishing)), the first line is in the first
-  message and the footnote is in the last. The last message always holds the
-  last line of the body together with the footnote, so no message is the footnote
-  alone.
+- チャンネル名がないときは、最初の行は `# <title>` だけになる。
+- 脚注は、各モデルを、それを使った工程とともに 1 度ずつ、生成・字数の調整・検証・推敲の順に挙げる。記事が通らなかった工程（例えば、短い本文での字数の調整や、無効にした検証・推敲）は挙げない。モデルの版は示さない。料金は小数
+  4 桁と `USD`、または `Estimated cost: unknown` である。
+- 投稿が 1 つのメッセージより長いとき（[Webhook への投稿](#webhook-への投稿)を参照）は、最初の行は最初のメッセージに、脚注は最後のメッセージに入る。最後のメッセージは、本文の最後の行を必ず脚注と一緒に持つので、脚注だけのメッセージはない。
 
-## Estimated cost
+## 推定の料金
 
-Both outputs carry the article's cost, with four decimals, or `unknown`: the
-CLI's `--out` file in its front matter, and the Slack post as the end of its
-footnote:
+どちらの出力も記事の料金を、小数 4 桁か `unknown` で持つ。CLI の `--out`
+のファイルはフロントマターに、Slack への投稿は脚注の末尾として持つ。
 
 ```text
 Estimated cost: 0.0023 USD
 Estimated cost: unknown
 ```
 
-See [Output format](#output-format) for both layouts.
+2 つの出力の並びは[出力の書式](#出力の書式)を参照。
 
-The estimate is an estimate, not the billed amount. It can differ from the
-provider's invoice:
+推定は推定であり、請求額ではない。プロバイダの請求書とは異なりうる。
 
-- DeepSeek's peak window is a weekly rule in UTC: the alternate rate applies on
-  Monday through Friday during 01:00-04:00 and 06:00-10:00 UTC. The CLI judges
-  the window from its own clock in UTC and does not know Chinese public
-  holidays, so a call on a holiday is billed at the off-peak rate but estimated
-  as peak: the estimate leans high.
-- A call that crosses a window boundary can be judged at a different minute than
-  the provider billed it, because the CLI's time is when the response was read
-  and validated, and the provider's billing time is not documented.
-- A CLI on a machine whose clock is wrong judges the window wrongly.
-- The rate table can be stale, for example when the provider changes a rate or
-  when the `deepseek-flash` alias starts to point at a model with different
-  rates. Each entry records its source and checked date, and the update
-  procedure is a developer document.
+- DeepSeek のピークの時間帯は、UTC の週ごとの規則である。月曜から金曜の UTC の 01:00-04:00 と
+  06:00-10:00 に、別の料金が適用される。サーバは自分の時計の UTC で時間帯を判定し、中国の祝日を知らない。そのため、祝日の呼び出しはオフピークの料金で請求されるが、ピークとして推定され、推定は高めに寄る。
+- 時間帯の境界をまたぐ呼び出しは、プロバイダが請求した時刻とは別の分で判定されることがある。サーバの時刻は応答を読み取って検査した時刻であり、プロバイダの請求の時刻は文書化されていないためである。
+- 時計がずれたマシンのサーバは、時間帯を誤って判定する。
+- 料金表が古くなることがある。例えば、プロバイダが料金を変えたときや、`deepseek-flash`
+  のエイリアスが料金の異なるモデルを指すようになったときである。各項目は出典と確かめた日付を記録しており、更新の手順は開発者向けの文書にある。
 
-Check the actual charge in the provider's console.
+実際の請求額はプロバイダのコンソールで確かめる。
 
-A Slack post from the localhost server cannot show why an unknown cost is
-unknown, because the server's logs and HTTP responses do not change.
+localhost サーバからの Slack への投稿は、不明な料金がなぜ不明かを示せない。サーバのログと HTTP の応答を変えていないためである。
 
-The CLI's cost lines on standard error, which give the reason, are in
-[docs/dev/guides/cli.md](docs/dev/guides/cli.md#推定の料金).
+理由を示す、CLI が標準エラーに書く料金の行は
+[docs/dev/guides/cli.md](docs/dev/guides/cli.md#推定の料金)にある。
 
-## Webhook publishing
+## Webhook への投稿
 
-The article is posted to the Slack-compatible Incoming Webhook
-in `SLACK_WEBHOOK_URL`. Mattermost is the verified target; a
-Slack Incoming Webhook is accepted but is best effort. The URL must parse as an
-`https` URL with a host. A value that does not — for example
-`https://hooks.slack.com/services/%zz`, `https://hooks.slack.com/%`, or a value
-ending in a control character — is rejected as a configuration error with exit
-code `2`.
+記事は、`SLACK_WEBHOOK_URL` の Slack 互換の Incoming Webhook
+に投稿する。動作を確かめた送り先は Mattermost である。Slack の Incoming Webhook
+も受け付けるが、ベストエフォートである。URL は、ホストを持つ `https` の URL として解析できなければならない。解析できない値、例えば
+`https://hooks.slack.com/services/%zz`、`https://hooks.slack.com/%`、制御文字で終わる値は、終了コード
+`2` の設定エラーとして拒否する。
 
-The article is posted as Markdown, laid out as in [Output format](#output-format). A post longer than 16,383 code points — the
-limit Mattermost counts — is split into several messages, each at most 16,383
-code points and beginning with a `(k/N)` marker. An article that cannot be
-split — because a fragment would be only whitespace, because it would need
-more than ten messages, or because the last line of the body and the footnote
-together do not fit in one message — is rejected before anything is sent. Each message is
-sent with
-`silent` set, so Mattermost shows it without a notification, an unread marker,
-or a `New Messages` line; on a Mattermost version that predates `silent`,
-notifications can still appear.
+記事は Markdown として、[出力の書式](#出力の書式)のとおりに並べて投稿する。16,383 コードポイント（Mattermost が数える上限）より長い投稿は、複数のメッセージに分割する。各メッセージは
+16,383 コードポイント以下で、`(k/N)` の印で始まる。分割できない記事は、何かを送る前に拒否する。分割できないのは、断片が空白だけになる場合、10 を超えるメッセージが必要になる場合、本文の最後の行と脚注が合わせて 1 つのメッセージに収まらない場合である。各メッセージは
+`silent` を設定して送るので、Mattermost は通知、未読の印、`New Messages`
+の行なしにメッセージを表示する。`silent` より前の版の Mattermost では、通知が出ることがある。
 
-Before anything is sent, the post is checked for syntax a server would turn
-into a mention or rewrite. A *target `@`* is an `@` (or a look-alike such as the
-full-width `＠`) followed by a name character (a letter, a digit, `_`, `.`, or
-`-`) when the character before it is not a letter or a digit, so `@everyone`,
-`(@here)`, and `_@name` are targets but `Tech@Work` and `user@example.com` are
-not. What happens depends on where it is:
+何かを送る前に、受け取ったサーバがメンションに変えたり書き換えたりする書式がないかを、投稿について検査する。*対象の `@`* とは、`@`（または全角の
+`＠` のような似た文字）のうち、名前の文字（文字、数字、`_`、`.`、`-`）が続き、直前の文字が文字でも数字でもないものである。そのため、`@everyone`、`(@here)`、`_@name`
+は対象だが、`Tech@Work` と `user@example.com` は対象ではない。どう扱うかは、その位置で決まる。
 
-- A target `@` in the first line (the title and the channel name), in the
-  footnote (the model names), or in the body outside code is posted with
-  U+200B (zero width space) inserted right after the `@`, which keeps the server
-  from reading it as a mention. The article itself is not changed. The U+200B
-  is invisible but is copied with the text.
-- A target `@` inside a code span or a fenced code block of the body, or
-  directly after a `/` (it may belong to a URL such as `youtube.com/@name`), is
-  not changed: the article is rejected. So is a body whose code blocks cannot be
-  told apart reliably (for example an unclosed fence) if it has a target `@`.
-- A `<!` or `<@` sequence, an HTML character reference such as `&#64;`, and a
-  `<a|b>` link are rejected wherever they are.
-- A split never starts a message with the part of a word after an `@` that was
-  in the middle of a word (`x@here` is not cut into `x` and `@here`); when no
-  such cut exists, the post is rejected.
+- 最初の行（タイトルとチャンネル名）、脚注（モデルの名前）、本文のコードの外にある対象の `@` は、`@` の直後に
+  U+200B（ゼロ幅スペース）を入れて投稿する。これで、受け取ったサーバがメンションとして読まなくなる。記事そのものは変えない。U+200B
+  は目に見えないが、文章と一緒にコピーされる。
+- 本文のコードスパンかフェンスで囲んだコードブロックの中にある対象の `@`、または `/` の直後にある対象の `@`（`youtube.com/@name`
+  のような URL の一部かもしれない）は、変えずに記事を拒否する。コードブロックを確実に見分けられない本文（例えば閉じていないフェンス）も、対象の
+  `@` を持てば同じく拒否する。
+- `<!` や `<@` の並び、`&#64;` のような HTML の文字参照、`<a|b>` の形のリンクは、どこにあっても拒否する。
+- 分割は、語の途中にあった `@` の後の部分でメッセージを始めない（`x@here` を `x` と `@here`
+  に切らない）。そのような切れ目がないときは、投稿を拒否する。
 
-A rejected article is not posted at all, and the error gives the line and column
-in the post. Running again generates a different article, which
-may not have the problem.
-The localhost server reports this rejection in its failure notice as its own
-reason, separate from other publishing failures.
+拒否した記事は一切投稿しない。エラーは、投稿の中の行と桁を示す。実行し直すと別の記事を生成するので、問題がなくなることがある。
+localhost サーバは、この拒否を、ほかの投稿の失敗と区別した独自の理由として失敗の通知で報告する。
 
-If a post fails partway through a split article, the messages already sent stay
-in the channel. There is no retry or resume: running again generates a new
-article and posts it from the first message, so the channel can end up with part
-of the old article and all of the new one.
+分割した記事の投稿が途中で失敗したときは、送り終えたメッセージはチャンネルに残る。再送も再開もない。実行し直すと新しい記事を生成して最初のメッセージから投稿するので、チャンネルには古い記事の一部と新しい記事の全体が残りうる。
 
-How the CLI posts with `--slack`, and how to inspect a rejected article with
-`--out`, is in
-[docs/dev/guides/cli.md](docs/dev/guides/cli.md#webhook-への投稿).
+CLI が `--slack` で投稿する方法と、拒否された記事を `--out` で確かめる方法は
+[docs/dev/guides/cli.md](docs/dev/guides/cli.md#webhook-への投稿)にある。
 
-## Localhost server
+## localhost サーバ
 
-`yt2column-server` accepts the transcript the browser extension collects,
-generates the article, and returns it, keeping it in memory. Posting it to the
-Slack-compatible Webhook is an operation of its own: the extension's current
-`/articles` request generates and posts in one go as before. The server's HTTP
-API, including the job API that generates, returns, and posts on request, is in
-[docs/dev/guides/development.md](docs/dev/guides/development.md#localhost-サーバの-api).
-The extension does not connect
-to the server itself: the browser starts the native messaging host,
-`yt2column-nmhost`, which relays the request to the server's socket (see
-[Installing the native messaging host](#installing-the-native-messaging-host)).
-`make build` builds `build/yt2column`, `build/yt2column-server`, and
-`build/yt2column-nmhost`; it installs nothing.
+`yt2column-server` は、ブラウザ拡張が集めた字幕を受け取り、記事を生成して返し、記事をメモリに持つ。Slack 互換の
+Webhook への投稿は、それとは別の操作である。拡張の今の
+`/articles` のリクエストは、これまでどおり 1 度で生成と投稿を行う。サーバの HTTP
+の API は、求めに応じて生成・返却・投稿を行うジョブの API を含めて、
+[docs/dev/guides/development.md](docs/dev/guides/development.md#localhost-サーバの-api)にある。拡張はサーバに直接はつながらない。ブラウザが Native Messaging のホスト
+`yt2column-nmhost` を起動し、ホストがリクエストをサーバのソケットに中継する（[Native Messaging のホストのインストール](#native-messaging-のホストのインストール)を参照）。
+`make build` は `build/yt2column`、`build/yt2column-server`、
+`build/yt2column-nmhost` をビルドし、何もインストールしない。
 
-It reads the same LLM variables as the CLI. `SLACK_WEBHOOK_URL` is optional for
-the server: without it the server still starts and generates articles, but
-posting is refused with
-`webhook_not_configured`, and the current extension shows that refusal as an
-unexpected reply. It never calls `yt-dlp` and reads neither `YT2COLUMN_CACHE_DIR`
-nor `YT2COLUMN_YTDLP_PATH`. It listens on a Unix domain socket only, never on a
-TCP port, at a path derived from `HOME` alone:
+サーバは LLM の変数を読む。サーバにとって `SLACK_WEBHOOK_URL` は任意である。設定しなくてもサーバは起動して記事を生成するが、投稿は
+`webhook_not_configured` で断られ、今の拡張はその拒否を想定外の応答として表示する。サーバは `yt-dlp` を呼ばず、`YT2COLUMN_CACHE_DIR`
+も `YT2COLUMN_YTDLP_PATH` も読まない。待ち受けるのは Unix ドメインソケット（UDS）だけで、TCP
+のポートでは待ち受けない。ソケットのパスは `HOME` だけから決まる。
 
 - macOS: `$HOME/Library/Application Support/yt2column/run/server.sock`
-- other Unix: `$HOME/.local/state/yt2column/run/server.sock`
+- ほかの Unix: `$HOME/.local/state/yt2column/run/server.sock`
 
-No other variable (such as `XDG_STATE_HOME` or `TMPDIR`) changes the path. The
-server needs no shared token: the socket directory has mode `0700` and the
-socket mode `0600`, so only processes running as your user can connect, and the
-server trusts them. It checks only the request path and method, not the
-`Host`, `Origin`, `Content-Type`, or `Authorization` headers.
+ほかの変数（`XDG_STATE_HOME` や `TMPDIR` など）はパスを変えない。サーバは共有のトークンを必要としない。ソケットのディレクトリのモードは
+`0700`、ソケットのモードは `0600` なので、自分のユーザーとして動くプロセスだけが接続でき、サーバはそれらを信頼する。サーバが検査するのはリクエストのパスとメソッドだけで、
+`Host`、`Origin`、`Content-Type`、`Authorization` のヘッダは検査しない。
 
-### Running the server
+### サーバの起動
 
-Start it with the provider variables set, and `SLACK_WEBHOOK_URL` if you want to
-post:
+プロバイダの変数と、投稿したいなら `SLACK_WEBHOOK_URL` を設定して起動する。
 
 ```sh
 ./build/yt2column-server 2>>server.log
 ```
 
-The server writes nothing to standard output; the logs go to standard error,
-so `2>>server.log` keeps a record. The first log line names the socket. Every
-request line carries the `requestId` the response returns, as do the `/articles`
-job lines, so `grep "$requestId" server.log` finds them.
+サーバは標準出力に何も書かない。ログは標準エラーに出るので、`2>>server.log`
+で記録が残る。ログの最初の行がソケットを示す。リクエストの各行は応答が返す `requestId` を持ち、`/articles`
+のジョブの行も同じなので、`grep "$requestId" server.log` で見つかる。
 
-On start the server creates the socket directory (`run`) with mode `0700` when
-it is missing, takes the start lock (the file `.yt2column.lock` in the socket
-directory, which stays), removes a stale socket left by a server that was
-killed, and creates the socket with mode `0600`. Only one server per `HOME`
-(normally one per user) can run: the start lock is held until the server has stopped and its in-flight jobs
-have finished. The server repairs nothing: a socket directory that is not
-yours, is a symbolic link, or does not have exactly mode `0700`, and a name at
-the socket path that is not a socket, stop the start until you fix them by
-hand.
+起動するとき、サーバは、ソケットのディレクトリ（`run`）がなければモード `0700`
+で作り、起動のロック（ソケットのディレクトリのファイル `.yt2column.lock`。このファイルは残る）を取り、強制終了したサーバが残した古いソケットを消し、モード
+`0600` でソケットを作る。1 つの `HOME`
+につき（ふつうはユーザーごとに）1 つのサーバだけが動ける。サーバは、止まって処理中のジョブが終わるまで、起動のロックを持ち続ける。サーバは何も直さない。ソケットのディレクトリが自分のものでない、シンボリックリンクである、またはモードがちょうど
+`0700` でない場合や、ソケットのパスにソケットでない名前がある場合は、手で直すまで起動を止める。
 
-The socket path must fit the operating system's limit (107 bytes on Linux, 103
-on macOS and other Unix). On macOS the part after `HOME` is 54 bytes, so `HOME` can be at
-most 49 bytes; a longer one stops the start with exit code `2`.
+ソケットのパスは、オペレーティングシステムの上限（Linux では 107 バイト、macOS とほかの Unix では
+103 バイト）に収まらなければならない。macOS では `HOME` の後の部分が 54 バイトなので、`HOME`
+は最大 49 バイトである。それより長いと、終了コード `2` で起動を止める。
 
-Exit codes:
+終了コード:
 
-| Code | Meaning |
+| コード | 意味 |
 |---|---|
-| `0` | The server stopped after a signal. |
-| `1` | Preparing the socket directory, taking the start lock, creating the socket, or serving failed (for example, another server is already running). |
-| `2` | The server was given arguments, or the configuration (including `HOME` and the socket path derived from it) or building the components failed before listening. |
+| `0` | シグナルを受けてサーバが止まった。 |
+| `1` | ソケットのディレクトリの準備、起動のロックの取得、ソケットの作成、またはリクエストの処理（serving）が失敗した（例えば、別のサーバがすでに動いている）。 |
+| `2` | サーバに引数を渡した、または待ち受ける前に、設定（`HOME` と、それから決まるソケットのパスを含む）か構成要素の組み立てが失敗した。 |
 
-### Stopping the server
+### サーバの停止
 
-The server logs to standard error. The first `SIGINT`, `SIGTERM`, or `SIGHUP`
-(one ignored at startup is not subscribed) stops accepting connections, removes
-the socket, and
-lets the other in-flight jobs finish: the `/articles` jobs, which can take up to
-about 45 minutes (three LLM calls of 15 minutes each). A
-second signal exits at once. Until the jobs have finished, a new server refuses
-to start.
+サーバは標準エラーにログを書く。最初の `SIGINT`、`SIGTERM`、`SIGHUP`
+（起動時に無視されていたシグナルは購読しない）で、接続の受け付けをやめ、ソケットを消し、ほかの処理中のジョブが最後まで終わるのを待つ。対象は `/articles` のジョブで、最大でおよそ 45 分（15 分ずつの LLM の呼び出し 3 回）かかることがある。
+2 つ目のシグナルですぐに終わる。ジョブが終わるまで、新しいサーバは起動を断る。
 
-### Installing the native messaging host
+### Native Messaging のホストのインストール
 
-The browser starts `yt2column-nmhost` for each send from the extension. The
-host reads one request from the browser, sends it to the server's socket,
-writes the server's response back to the browser, and exits; it starts nothing
-and keeps nothing. It reads `HOME` as the browser passes it and no other
-variable, so it derives the same socket path as a server started with the same
-`HOME`, and it never reads the API keys or the Webhook URL. Its standard output
-is the channel to the browser; its log goes to standard error.
+ブラウザは、拡張からの送信ごとに `yt2column-nmhost` を起動する。ホストはブラウザから 1 つのリクエストを読み、サーバのソケットに送り、サーバの応答をブラウザに書き戻して終わる。何も起動せず、何も持ち続けない。ホストはブラウザが渡す
+`HOME` を読み、ほかの変数は読まない。そのため、同じ `HOME`
+で起動したサーバと同じソケットのパスを求め、API キーも Webhook の URL も読まない。ホストの標準出力はブラウザへの通信路で、ログは標準エラーに出る。
 
-The host exits with `0` once it has written its reply, a host error
-included, and with `1` when it could not write one.
+ホストは、応答を書き終えたら（ホストのエラーを含む）`0` で、書けなかったときは `1`
+で終わる。
 
-Register the host with each browser you use by running the built binary:
+使う各ブラウザに、ビルドしたバイナリを実行してホストを登録する。
 
 ```sh
 ./build/yt2column-nmhost install chrome
 ./build/yt2column-nmhost install brave
 ```
 
-`install` writes the host manifest `io.github.isseis.yt2column.json`, which
-names the binary's absolute path (symbolic links resolved) and allows only the
-yt2column extension to start the host. It writes the manifest path to standard
-error. The manifest goes to:
+`install` は、ホストの manifest `io.github.isseis.yt2column.json` を書く。manifest
+は、バイナリの絶対パス（シンボリックリンクを解決したもの）を示し、yt2column の拡張だけにホストの起動を許す。`install`
+は manifest のパスを標準エラーに書く。manifest の置き場所は次のとおり。
 
-- macOS, Chrome and Brave: `$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts/io.github.isseis.yt2column.json`
-- other Unix, Chrome: `$HOME/.config/google-chrome/NativeMessagingHosts/io.github.isseis.yt2column.json`
-- other Unix, Brave: `$HOME/.config/BraveSoftware/Brave-Browser/NativeMessagingHosts/io.github.isseis.yt2column.json`
+- macOS の Chrome と Brave: `$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts/io.github.isseis.yt2column.json`
+- ほかの Unix の Chrome: `$HOME/.config/google-chrome/NativeMessagingHosts/io.github.isseis.yt2column.json`
+- ほかの Unix の Brave: `$HOME/.config/BraveSoftware/Brave-Browser/NativeMessagingHosts/io.github.isseis.yt2column.json`
 
-On macOS, Brave reads Chrome's manifest directory, so Chrome and Brave share
-one manifest file: `install chrome` and `install brave` write the same file,
-and `uninstall` for either browser removes the host from both. If you keep
-using the other browser, run `install` for it again. The host says this on
-standard error on macOS too.
+macOS の Brave は Chrome の manifest のディレクトリを読むので、Chrome と Brave は 1 つの manifest
+のファイルを共有する。`install chrome` と `install brave` は同じファイルを書き、どちらのブラウザの
+`uninstall` も、両方からホストを外す。もう一方のブラウザを使い続けるなら、そのブラウザの `install`
+をもう一度実行する。macOS では、ホストもこのことを標準エラーで伝える。
 
-`install` refuses, changing nothing, when:
+次のとき、`install` は何も変えずに断る。
 
-- the browser's user data directory does not exist (macOS:
-  `$HOME/Library/Application Support/Google/Chrome` or
-  `$HOME/Library/Application Support/BraveSoftware/Brave-Browser`; other Unix:
-  `$HOME/.config/google-chrome` or `$HOME/.config/BraveSoftware/Brave-Browser`).
-  Start the browser once, then install again;
-- the binary is under the temporary directory, as with `go run`. Install from
-  the binary `make build` built;
-- a file at the manifest path was not written by this host. Check that file by
-  hand.
+- ブラウザのユーザーデータのディレクトリがない（macOS:
+  `$HOME/Library/Application Support/Google/Chrome` または
+  `$HOME/Library/Application Support/BraveSoftware/Brave-Browser`。ほかの Unix:
+  `$HOME/.config/google-chrome` または `$HOME/.config/BraveSoftware/Brave-Browser`）。ブラウザを一度起動してから、もう一度インストールする。
+- `go run` のときのように、バイナリが一時ディレクトリの下にある。`make build`
+  がビルドしたバイナリからインストールする。
+- manifest のパスにあるファイルを、このホストが書いていない。そのファイルを手で確かめる。
 
-Running `install` again replaces the manifest this host wrote. The manifest
-points at the binary where it was when you installed it: after moving or
-renaming the binary, run `install` again. On macOS, keep the binary outside the
-folders the system protects (TCC), such as `~/Desktop`, `~/Documents`, and
-`~/Downloads`: a host started from there can be refused access.
+`install` をもう一度実行すると、このホストが書いた manifest を置き換える。manifest
+は、インストールしたときのバイナリの場所を指す。バイナリを移動したり名前を変えたりした後は、`install` をもう一度実行する。macOS
+では、システムが保護するフォルダ（TCC）、例えば `~/Desktop`、`~/Documents`、`~/Downloads`
+の外にバイナリを置く。そこから起動したホストは、アクセスを断られることがある。
 
-To remove the host from a browser:
+ブラウザからホストを外すには:
 
 ```sh
 ./build/yt2column-nmhost uninstall chrome
 ./build/yt2column-nmhost uninstall brave
 ```
 
-`uninstall` removes only a manifest this host wrote, and leaves the
-`NativeMessagingHosts` directory, which other hosts' manifests may share. With
-no manifest it does nothing and succeeds. Neither command touches the server,
-its socket, or its configuration.
+`uninstall` は、このホストが書いた manifest だけを消し、ほかのホストの manifest も置かれうる
+`NativeMessagingHosts` のディレクトリは残す。manifest がなければ何もせずに成功する。どちらのコマンドも、サーバ、そのソケット、その設定には触れない。
 
-Host exit codes for `install` and `uninstall`:
+`install` と `uninstall` のホストの終了コード:
 
-| Code | Meaning |
+| コード | 意味 |
 |---|---|
-| `0` | The manifest was written or removed (or there was none to remove). |
-| `1` | `install` or `uninstall` refused, or writing or removing the file failed. |
-| `2` | The arguments are wrong (the browser is not exactly `chrome` or `brave`), or `HOME` is unset, empty, or relative. |
+| `0` | manifest を書いた、または消した（消すものがなかった場合を含む）。 |
+| `1` | `install` か `uninstall` が断った、またはファイルの書き込みか削除が失敗した。 |
+| `2` | 引数が正しくない（ブラウザがちょうど `chrome` か `brave` でない）、または `HOME` が未設定・空・相対パスである。 |
 
-### Rejection reasons
+### 拒否の理由
 
-What the extension shows when the server rejects a request with each reason:
+サーバがリクエストを各理由で拒否したときに、拡張が表示するもの:
 
-| reason | extension shows |
+| reason | 拡張の表示 |
 |---|---|
-| `not_found` | unexpected reply |
-| `method_not_allowed` | unexpected reply |
-| `too_many_requests` | fixed message |
-| `body_too_large` | fixed message |
-| `invalid_body` | fixed message |
-| `invalid_video_url` | fixed message |
-| `invalid_transcript` | fixed message |
-| `webhook_not_configured` | unexpected reply |
-| `invalid_key` | unexpected reply |
-| `article_not_ready` | unexpected reply |
-| `article_not_found` | unexpected reply |
-| `article_not_postable` | unexpected reply |
-| `internal_error` | fixed message (unexpected reply when `requestId` is empty) |
+| `not_found` | 想定外の応答 |
+| `method_not_allowed` | 想定外の応答 |
+| `too_many_requests` | 固定のメッセージ |
+| `body_too_large` | 固定のメッセージ |
+| `invalid_body` | 固定のメッセージ |
+| `invalid_video_url` | 固定のメッセージ |
+| `invalid_transcript` | 固定のメッセージ |
+| `webhook_not_configured` | 想定外の応答 |
+| `invalid_key` | 想定外の応答 |
+| `article_not_ready` | 想定外の応答 |
+| `article_not_found` | 想定外の応答 |
+| `article_not_postable` | 想定外の応答 |
+| `internal_error` | 固定のメッセージ（`requestId` が空のときは想定外の応答） |
 
-The status code of each reason, and how to check the server with `curl`, are in
-[docs/dev/guides/development.md](docs/dev/guides/development.md#curl-でサーバを確かめる).
+各理由のステータスコードと、`curl` でサーバを確かめる方法は
+[docs/dev/guides/development.md](docs/dev/guides/development.md#curl-でサーバを確かめる)にある。
 
-### Troubleshooting
+### トラブルシューティング
 
-- **`another server holds the socket directory lock`.** Another server is
-  running, or a stopped one is still waiting for its in-flight jobs. The
-  message names the lock file; `lsof` on it shows which process holds it.
-- **`another process accepts connections on the socket path`.** A process other
-  than a server listens on the socket path. Stop it, or check the file at that
-  path.
-- **`... nothing was repaired or removed, so fix it by hand`.** The socket
-  directory, its parent, or the name at the socket path is not in the accepted
-  form (the message names the path and the reason). Fix it by hand, for
-  example by restoring mode `0700` on the socket directory, and start again.
+- **`another server holds the socket directory lock`。** 別のサーバが動いている、または止めたサーバが処理中のジョブをまだ待っている。メッセージはロックのファイルを示す。そのファイルに
+  `lsof` を使うと、どのプロセスがロックを持っているかがわかる。
+- **`another process accepts connections on the socket path`。** サーバでないプロセスが、ソケットのパスで待ち受けている。そのプロセスを止めるか、そのパスのファイルを確かめる。
+- **`... nothing was repaired or removed, so fix it by hand`。** ソケットのディレクトリ、その親、またはソケットのパスにある名前が、受け付ける形でない（メッセージがパスと理由を示す）。手で直し、例えばソケットのディレクトリのモードを
+  `0700` に戻して、もう一度起動する。
 - **`HOME: the socket path derived from HOME exceeds the operating system's
-  limit`.** `HOME` is too long for the socket path; see the limit above.
-- **`configuration: YT2COLUMN_LLM_PROVIDER: is no longer supported` (or
-  `YT2COLUMN_MODEL`, `YT2COLUMN_REVIEW_PROVIDER`, `YT2COLUMN_REVIEW_MODEL`)
-  after an update.** The provider and model are now set in one variable per
-  step, and the four old variables are rejected whenever they are set, even
-  empty. A server exits with `2`
-  before it listens, and the extension can only report that the server is not
-  running. Unset each old variable and set `YT2COLUMN_LLM`; if you unset them
-  without setting it, the default `claude/claude-opus-5-5` is used and the
-  transcript goes to Anthropic. If any `YT2COLUMN_REVIEW_*` variable was set,
-  also set `YT2COLUMN_REVIEW_LLM` to the provider and model the review step
-  actually used. See
-  [Migrating from the retired LLM variables](#migrating-from-the-retired-llm-variables),
-  then start the server again.
-- **`build the LLM client` or `build the review LLM client` with a model
-  error.** The provider's client rejects a model ID with surrounding white space
-  or invalid UTF-8 when it is built, without naming the variable. The server
-  builds both clients at startup, so it exits with `2` before it listens, and
-  the extension can only report that the server is not running. Fix the model
-  ID in `YT2COLUMN_LLM` for the first; for the second, fix it in
-  `YT2COLUMN_REVIEW_LLM`, or in `YT2COLUMN_LLM` when `YT2COLUMN_REVIEW_LLM` is
-  unset.
-- **The native messaging host is not found.** The browser gives the extension
-  `Specified native messaging host not found.` (shown in the extension's
-  developer log) when there is no manifest for it, or the manifest's binary is
-  gone. Run `yt2column-nmhost install` for that browser from the binary you
-  want it to start (see
-  [Installing the native messaging host](#installing-the-native-messaging-host)),
-  again after moving the binary.
-- **Access to the host is forbidden.** The browser gives the extension
-  `Access to the specified native messaging host is forbidden.` when the
-  extension's ID is not the one the manifest allows. Load the extension built
-  from this repository's `extension/`, whose manifest key fixes its ID.
-- **Reading the host's log.** The host logs to standard error, which goes to
-  the browser's own standard error, out of sight when the browser was started
-  from the Dock or a menu. Quit the browser completely, then start its
-  executable from a terminal; the host's log lines then appear in that
-  terminal:
-  - macOS Chrome: `"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"`
-  - macOS Brave: `"/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"`
-  - other Unix: `google-chrome` or `brave-browser`
+  limit`。** `HOME` がソケットのパスには長すぎる。上の上限を参照。
+- **更新の後の `configuration: YT2COLUMN_LLM_PROVIDER: is no longer supported`（または
+  `YT2COLUMN_MODEL`、`YT2COLUMN_REVIEW_PROVIDER`、`YT2COLUMN_REVIEW_MODEL`）。** プロバイダとモデルは工程ごとに 1 つの変数で設定するようになり、4 つの古い変数は、設定されていれば空でも必ず拒否する。サーバは待ち受ける前に
+  `2` で終わり、拡張はサーバが動いていないとしか報告できない。古い変数をそれぞれ外し（unset）、`YT2COLUMN_LLM`
+  を設定する。`YT2COLUMN_LLM` を設定せずに古い変数だけを外すと、既定の `claude/claude-opus-5-5` を使い、文字起こしは Anthropic
+  に送られる。`YT2COLUMN_REVIEW_*` の変数をどれか設定していたなら、`YT2COLUMN_REVIEW_LLM`
+  も、検証・推敲の工程が実際に使っていたプロバイダとモデルに設定する。
+  [廃止した LLM の変数からの移行](#廃止した-llm-の変数からの移行)を参照し、それからサーバをもう一度起動する。
+- **モデルのエラーを伴う `build the LLM client` または `build the review LLM client`。** プロバイダのクライアントは、前後に空白のあるモデルの
+  ID や不正な UTF-8 のモデルの ID を、組み立てるときに、変数を名指しせずに拒否する。サーバは起動時に両方のクライアントを組み立てるので、待ち受ける前に
+  `2` で終わり、拡張はサーバが動いていないとしか報告できない。前者は `YT2COLUMN_LLM`
+  のモデルの ID を直す。後者は `YT2COLUMN_REVIEW_LLM` のモデルの ID を直す。`YT2COLUMN_REVIEW_LLM`
+  が未設定なら `YT2COLUMN_LLM` のモデルの ID を直す。
+- **Native Messaging のホストが見つからない。** そのブラウザの manifest がないとき、または manifest のバイナリがなくなったとき、ブラウザは拡張に
+  `Specified native messaging host not found.` を返す（拡張の開発者向けのログに出る）。起動させたいバイナリから、そのブラウザについて
+  `yt2column-nmhost install` を実行する（[Native Messaging のホストのインストール](#native-messaging-のホストのインストール)を参照）。バイナリを移動した後も、もう一度実行する。
+- **ホストへのアクセスが禁じられている。** 拡張の ID が manifest の許す ID でないとき、ブラウザは拡張に
+  `Access to the specified native messaging host is forbidden.` を返す。このリポジトリの
+  `extension/` からビルドした拡張を読み込む。拡張の manifest の `key` が ID を固定している。
+- **ホストのログを読む。** ホストは標準エラーにログを書く。標準エラーはブラウザ自身の標準エラーに出るので、ブラウザを
+  Dock やメニューから起動したときは見えない。ブラウザを完全に終了し、端末からその実行ファイルを起動する。すると、ホストのログの行がその端末に出る。
+  - macOS の Chrome: `"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"`
+  - macOS の Brave: `"/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"`
+  - ほかの Unix: `google-chrome` または `brave-browser`
 
-  The host logs the socket path it derived, how far the relay got, and the
-  host error or the server's status code, never the request or the response.
-  If its socket path differs from the one in the server's first log line, the
-  browser and the server see different values of `HOME`.
+  ホストは、求めたソケットのパス、中継がどこまで進んだか、ホストのエラーかサーバのステータスコードをログに書く。リクエストや応答は書かない。ホストのソケットのパスがサーバのログの最初の行のパスと異なるときは、ブラウザとサーバが異なる
+  `HOME` の値を見ている。
 
-### Upgrading from the shared-token version
+### 共有トークンの版からの更新
 
-- Stop the old server before starting this one. The old server listened on a
-  TCP port and does not take the start lock, so the new one cannot detect it.
-- The server no longer reads the shared token file. It can be deleted:
+- この版を起動する前に、古いサーバを止める。古いサーバは TCP
+  のポートで待ち受け、起動のロックを取らないので、新しいサーバはそれを検出できない。
+- サーバは、共有トークンのファイルをもう読まない。消してよい。
   - macOS: `$HOME/Library/Application Support/yt2column/server-token`
-  - other Unix: `${XDG_CONFIG_HOME:-$HOME/.config}/yt2column/server-token`
-- The server no longer reads the variable that chose its port; it can be
-  removed from your environment.
-- The extension no longer has an options page or the storage permission, so it
-  cannot read or delete the token and port an earlier version saved in the
-  browser; nothing accepts them anymore. To remove them anyway, remove the
-  extension on `chrome://extensions/` (Brave: `brave://extensions/`) and load
-  `extension/dist` again. Its ID stays the same, so the host needs no new
-  `install`.
+  - ほかの Unix: `${XDG_CONFIG_HOME:-$HOME/.config}/yt2column/server-token`
+- サーバは、ポートを選んでいた変数をもう読まない。環境から外してよい。
+- 拡張には設定のページも storage の権限もなくなったので、以前の版がブラウザに保存したトークンとポートを、拡張は読むことも消すこともできない。サーバがそれらを受け付けることはもうない。それでも消すには、
+  `chrome://extensions/`（Brave: `brave://extensions/`）で拡張を削除し、
+  `extension/dist` をもう一度読み込む。拡張の ID は変わらないので、ホストの
+  `install` をし直す必要はない。
 
-## Configuration
+## 設定
 
-| Variable | Description | When unset |
+| 変数 | 説明 | 未設定のとき |
 |---|---|---|
-| `YT2COLUMN_LLM` | Provider and model of generation and shortening, as `<provider>/<model ID>`; the provider is `deepseek` or `claude` (e.g. `deepseek/deepseek-flash`, `claude/claude-sonnet-5-5`) | `claude/claude-opus-5-5` |
-| `YT2COLUMN_REVIEW_LLM` | Provider and model of the review step, in the same form as `YT2COLUMN_LLM` | The same as generation (`YT2COLUMN_LLM`, or its default) |
-| `DEEPSEEK_API_KEY` | DeepSeek API key | Required when the generation or review provider is `deepseek` (an error) |
-| `ANTHROPIC_API_KEY` | Anthropic API key | Required when the generation or review provider is `claude` (an error) |
-| `YT2COLUMN_CLAUDE_EFFORT` | Claude effort; `low`, `medium`, `high`, `xhigh`, or `max` | `high` when the generation or review provider is `claude` |
-| `ANTHROPIC_WORKSPACE_ID` | Anthropic workspace ID, for an API key not bound to a workspace | No workspace ID is sent |
-| `SLACK_WEBHOOK_URL` | Slack-compatible Incoming Webhook URL (Mattermost is the verified target) | The server starts without it, but then cannot post |
+| `YT2COLUMN_LLM` | 生成と字数の調整のプロバイダとモデル。`<provider>/<model ID>` の形で書く。プロバイダは `deepseek` か `claude`（例: `deepseek/deepseek-flash`、`claude/claude-sonnet-5-5`） | `claude/claude-opus-5-5` |
+| `YT2COLUMN_REVIEW_LLM` | 検証・推敲の工程のプロバイダとモデル。形は `YT2COLUMN_LLM` と同じ | 生成と同じ（`YT2COLUMN_LLM`、またはその既定） |
+| `DEEPSEEK_API_KEY` | DeepSeek の API キー | 生成か検証・推敲のプロバイダが `deepseek` のときは必須（エラー） |
+| `ANTHROPIC_API_KEY` | Anthropic の API キー | 生成か検証・推敲のプロバイダが `claude` のときは必須（エラー） |
+| `YT2COLUMN_CLAUDE_EFFORT` | Claude の effort。`low`、`medium`、`high`、`xhigh`、`max` のいずれか | 生成か検証・推敲のプロバイダが `claude` のときは `high` |
+| `ANTHROPIC_WORKSPACE_ID` | Anthropic のワークスペースの ID。ワークスペースに結び付いていない API キーのためのもの | ワークスペースの ID を送らない |
+| `SLACK_WEBHOOK_URL` | Slack 互換の Incoming Webhook の URL（動作を確かめた送り先は Mattermost） | サーバは起動するが、投稿はできない |
 
-`yt2column-server` reads the LLM variables; it needs `SLACK_WEBHOOK_URL` only to
-post, and starts without it (see [Localhost server](#localhost-server)). It derives its socket path from `HOME` alone (see
-[Localhost server](#localhost-server)).
+`yt2column-server` は LLM の変数を読む。`SLACK_WEBHOOK_URL` は投稿にだけ必要で、なくても起動する（[localhost サーバ](#localhost-サーバ)を参照）。ソケットのパスは
+`HOME` だけから求める（[localhost サーバ](#localhost-サーバ)を参照）。
 
-The variables only the CLI reads, and how the CLI reads the ones above, are in
-[docs/dev/guides/cli.md](docs/dev/guides/cli.md#設定).
+CLI だけが読む変数と、CLI が上の変数をどう読むかは
+[docs/dev/guides/cli.md](docs/dev/guides/cli.md#設定)にある。
 
-The value of an environment variable is never trimmed or otherwise corrected;
-an empty value is treated as set and rejected, not as unset.
+環境変数の値は、前後の空白を除くことも、ほかの方法で直すこともしない。空の値は未設定ではなく設定として扱い、拒否する。
 
-`YT2COLUMN_LLM` and `YT2COLUMN_REVIEW_LLM` are split at the first `/`: the
-part before it is the provider, which must be exactly `deepseek` or `claude`,
-and everything after it is the model ID, sent to the provider's API as it is,
-including any further `/` (`claude/vendor/model-x` sends the model
-`vendor/model-x`). The model ID must not be empty, so `claude` and `claude/`
-are rejected, as are `/claude-opus-5-5`, `Claude/claude-opus-5-5`, and
-` claude/claude-opus-5-5`. A model ID with surrounding white space is accepted
-here but rejected, before any request, when a run that executes the step
-builds that step's client: the server builds both at startup, before it listens.
+`YT2COLUMN_LLM` と `YT2COLUMN_REVIEW_LLM` は、最初の `/` で分ける。その前の部分はプロバイダで、ちょうど
+`deepseek` か `claude` でなければならない。その後のすべてはモデルの ID で、さらに `/`
+があってもそのまま、プロバイダの API に送る（`claude/vendor/model-x` はモデル
+`vendor/model-x` を送る）。モデルの ID は空であってはならないので、`claude` と `claude/`
+は拒否する。`/claude-opus-5-5`、`Claude/claude-opus-5-5`、
+` claude/claude-opus-5-5` も拒否する。前後に空白のあるモデルの ID は、ここでは受け付けるが、その工程を含む実行がその工程のクライアントを組み立てるときに、リクエストを送る前に拒否する。サーバは待ち受ける前の起動時に両方を組み立てる。
 
-With `YT2COLUMN_LLM` unset, generation and shortening use
-`claude/claude-opus-5-5`. With `YT2COLUMN_REVIEW_LLM` unset, the review step
-uses the same provider and model as generation, the default included. An empty value of
-either variable is rejected and never replaced by the default or by the
-generation setting.
+`YT2COLUMN_LLM` を設定しなければ、生成と字数の調整は
+`claude/claude-opus-5-5` を使う。`YT2COLUMN_REVIEW_LLM` を設定しなければ、検証・推敲の工程は、既定を含めて、生成と同じプロバイダとモデルを使う。どちらの変数も、空の値は拒否し、既定や生成の設定で置き換えることはない。
 
-The variables `YT2COLUMN_LLM_PROVIDER`, `YT2COLUMN_MODEL`,
-`YT2COLUMN_REVIEW_PROVIDER`, and `YT2COLUMN_REVIEW_MODEL` are retired. When any
-of them is set, even to an empty value, the CLI and the server stop with a
-configuration error naming it, on every run; their values are never used. Each error is
-reported together with the other configuration errors of the run. See
-[Migrating from the retired LLM variables](#migrating-from-the-retired-llm-variables).
+`YT2COLUMN_LLM_PROVIDER`、`YT2COLUMN_MODEL`、
+`YT2COLUMN_REVIEW_PROVIDER`、`YT2COLUMN_REVIEW_MODEL` の変数は廃止した。どれかが設定されていれば、空の値でも、CLI もサーバも、すべての実行で、その変数を名指しする設定エラーで止まる。その値は使わない。各エラーは、その実行のほかの設定エラーと合わせて報告する。
+[廃止した LLM の変数からの移行](#廃止した-llm-の変数からの移行)を参照。
 
-Only the variables of the selected providers are read and checked: a provider's
-variables are read when the generation or the review provider is that provider.
-The other provider's variables are ignored whatever their value, so exporting
-`ANTHROPIC_API_KEY=` for another tool does not stop a run that uses only
-`deepseek`. When the provider part of `YT2COLUMN_LLM` is rejected (an empty
-value, no `/`, or a provider that is not accepted) and `YT2COLUMN_REVIEW_LLM`
-is unset, no provider-specific variable is checked, but errors for common
-variables are still reported. A value whose provider is accepted but whose
-model ID is empty, such as `claude/`, still has that provider's variables
-checked.
+読んで検査するのは、選んだプロバイダの変数だけである。あるプロバイダの変数は、生成か検証・推敲のプロバイダがそのプロバイダであるときに読む。もう一方のプロバイダの変数は、値が何であれ無視する。そのため、別のツールのために
+`ANTHROPIC_API_KEY=` を export していても、`deepseek` だけを使う実行は止まらない。`YT2COLUMN_LLM`
+のプロバイダの部分が拒否され（空の値、`/` がない、または受け付けないプロバイダ）、`YT2COLUMN_REVIEW_LLM`
+が未設定のときは、プロバイダ固有の変数は検査しないが、共通の変数のエラーは報告する。`claude/`
+のように、プロバイダは受け付けるがモデルの ID が空の値でも、そのプロバイダの変数は検査する。
 
-With `claude`, `max` is accepted, but in this use case it is expected to spend
-even the default output limit on reasoning alone and return no article text, so
-the run fails as truncated. Use `low` through `xhigh` for column generation.
+`claude` では `max` を受け付けるが、この用途では、モデルが既定の出力の上限まで推論だけに使い、記事の文章を返さないと見込まれるので、実行は打ち切りとして失敗する。コラムの生成には
+`low` から `xhigh` までを使う。
 
-The default effort `high` was chosen for `claude-opus-5-5`. With another model,
-such as `claude-sonnet-5-5`, `high` can also reach the output limit, and the run
-fails as truncated; in that case set `YT2COLUMN_CLAUDE_EFFORT` to a lower
-effort.
+既定の effort の `high` は、`claude-opus-5-5` のために選んだ。`claude-sonnet-5-5`
+のような別のモデルでは、`high` でも出力の上限に達して、実行が打ち切りとして失敗することがある。その場合は
+`YT2COLUMN_CLAUDE_EFFORT` を低い effort に設定する。
 
-### Recommended configuration
+### 推奨構成
 
 ```sh
 export YT2COLUMN_LLM=claude/claude-opus-5-5
 export YT2COLUMN_CLAUDE_EFFORT=high
 ```
 
-These two values are the production profile: generation, shortening, and
-review all use `claude` with `claude-opus-5-5` and the effort `high`. They are
-also the code's defaults (see
-[#490](https://github.com/isseis/yt2column/issues/490) and
-[#171](https://github.com/isseis/yt2column/issues/171)), so they can be left
-unset: with `ANTHROPIC_API_KEY` as the only LLM variable, generation,
-shortening, and review all use this profile. Exporting them pins the profile in
-the shell even if a default changes later.
+この 2 つの値が本番の構成である。生成・字数の調整・検証・推敲のどれも、`claude` の `claude-opus-5-5` を effort
+`high` で使う。これらはコードの既定でもある（[#490](https://github.com/isseis/yt2column/issues/490) と
+[#171](https://github.com/isseis/yt2column/issues/171) を参照）ので、設定しなくてよい。LLM
+の変数が `ANTHROPIC_API_KEY` だけなら、生成・字数の調整・検証・推敲のどれもこの構成を使う。export
+しておけば、後で既定が変わっても、シェルの中で構成を固定できる。
 
-`ANTHROPIC_API_KEY` is required. Leave `YT2COLUMN_REVIEW_LLM` unset to review
-with the generation profile; to use another profile, set the environment
-variables instead of relying on the defaults.
+`ANTHROPIC_API_KEY` は必須である。生成の構成で検証・推敲するには、`YT2COLUMN_REVIEW_LLM`
+を設定しない。別の構成を使うには、既定に頼らず環境変数を設定する。
 
-The quality target, the results, and the product limitations of this profile
-are in [production_profile.md](docs/dev/production_profile.md) (Japanese).
+この構成の品質の目標、結果、製品の制約は
+[production_profile.md](docs/dev/production_profile.md)（日本語）にある。
 
-### Migrating from the retired LLM variables
+### 廃止した LLM の変数からの移行
 
-The provider and model of each step used to be set in two variables:
-`YT2COLUMN_LLM_PROVIDER` and `YT2COLUMN_MODEL` for generation and shortening,
-and `YT2COLUMN_REVIEW_PROVIDER` and `YT2COLUMN_REVIEW_MODEL` for the review
-step. They are now one variable per step, `YT2COLUMN_LLM` and
-`YT2COLUMN_REVIEW_LLM`, and the old variables are rejected. For example, a
-DeepSeek setting that was
+各工程のプロバイダとモデルは、以前は 2 つの変数で設定していた。生成と字数の調整は
+`YT2COLUMN_LLM_PROVIDER` と `YT2COLUMN_MODEL`、検証・推敲の工程は
+`YT2COLUMN_REVIEW_PROVIDER` と `YT2COLUMN_REVIEW_MODEL` である。今は工程ごとに 1 つの変数、
+`YT2COLUMN_LLM` と `YT2COLUMN_REVIEW_LLM` で設定し、古い変数は拒否する。例えば、以前の
+DeepSeek の設定
 
 ```text
 YT2COLUMN_LLM_PROVIDER=deepseek
 YT2COLUMN_MODEL=deepseek-flash
 ```
 
-becomes
+は、次のようになる。
 
 ```sh
 export YT2COLUMN_LLM=deepseek/deepseek-flash
 ```
 
-If any `YT2COLUMN_REVIEW_*` variable was set, set `YT2COLUMN_REVIEW_LLM` to the
-provider and model the review step actually used; otherwise leave it unset, and
-the review step uses generation's. Two old settings carried a part that is now
-written out, even when the provider looks the same as generation's:
+`YT2COLUMN_REVIEW_*` の変数をどれか設定していたなら、`YT2COLUMN_REVIEW_LLM`
+を、検証・推敲の工程が実際に使っていたプロバイダとモデルに設定する。そうでなければ設定せず、検証・推敲の工程は生成のものを使う。次の 2 つの古い設定は、今は書き出す部分を暗に含んでいた。プロバイダが生成と同じに見えるときも、その部分を書き出す。
 
-| Old setting | New setting |
+| 古い設定 | 新しい設定 |
 |---|---|
-| `YT2COLUMN_REVIEW_PROVIDER` alone (the review step used that provider's default model) | `YT2COLUMN_REVIEW_LLM=<provider>/<model ID>`, with the model ID written out, for example `claude/claude-opus-5-5` |
-| `YT2COLUMN_REVIEW_MODEL` alone (the review step used the generation provider) | `YT2COLUMN_REVIEW_LLM=<generation provider>/<model ID>`, with the generation provider written out, for example `deepseek/deepseek-chat` |
+| `YT2COLUMN_REVIEW_PROVIDER` だけ（検証・推敲の工程は、そのプロバイダの既定のモデルを使っていた） | `YT2COLUMN_REVIEW_LLM=<provider>/<model ID>`。モデルの ID を書き出す。例えば `claude/claude-opus-5-5` |
+| `YT2COLUMN_REVIEW_MODEL` だけ（検証・推敲の工程は、生成のプロバイダを使っていた） | `YT2COLUMN_REVIEW_LLM=<generation provider>/<model ID>`。生成のプロバイダを書き出す。例えば `deepseek/deepseek-chat` |
 
-Unset the old variables rather than only deleting them from a file: a shell
-that already exported them keeps them, and an empty value is rejected too.
-Check every place that may set them: `.envrc`, `.env`, the shell's startup
-files, and the script that starts the server.
+古い変数は、ファイルから消すだけでなく外す（unset）。すでに export したシェルは古い変数を持ち続け、空の値も拒否するためである。古い変数を設定しうるすべての場所、すなわち `.envrc`、`.env`、シェルの起動ファイル、サーバを起動するスクリプトを確かめる。
 
-Removing the old variables without setting `YT2COLUMN_LLM` selects the default
-`claude`, and the transcript is then sent to Anthropic. The error lines for
-`YT2COLUMN_LLM_PROVIDER` and `YT2COLUMN_MODEL` say so, and when `ANTHROPIC_API_KEY` is unset an
-`ANTHROPIC_API_KEY` error appears next to them for the same reason. To keep
-using DeepSeek, set `YT2COLUMN_LLM` as above; setting an Anthropic key does not
-keep DeepSeek.
+`YT2COLUMN_LLM` を設定せずに古い変数を消すと、既定の
+`claude` を選び、文字起こしは Anthropic に送られる。`YT2COLUMN_LLM_PROVIDER` と `YT2COLUMN_MODEL`
+のエラーの行はそのことを伝え、`ANTHROPIC_API_KEY` が未設定のときは、同じ理由で
+`ANTHROPIC_API_KEY` のエラーがその隣に出る。DeepSeek を使い続けるには、上のとおり `YT2COLUMN_LLM`
+を設定する。Anthropic のキーを設定するだけでは、DeepSeek を使い続けることにならない。
 
-A running server keeps the configuration it started with. After changing the
-variables, stop the server and start it again; it then checks them before it
-listens.
+動いているサーバは、起動したときの設定を持ち続ける。変数を変えた後は、サーバを止めてもう一度起動する。サーバは、そのとき待ち受ける前に変数を検査する。
 
-## Browser extension
+## ブラウザ拡張
 
-A Chrome/Brave extension (Manifest V3) lives in `extension/`; it is written in
-TypeScript and built with Node.js. It is not published to a store — you build it
-and load the build as an unpacked extension. It collects a selection, the tab
-URL, and the tab title, and reads the video metadata — the video title, the
-channel name, and the description — from the video page. It sends the selection,
-the URL, and the video metadata to the localhost server, and shows the response.
-The tab title is shown for checking (and must not be empty); it is not sent.
+Chrome/Brave の拡張（Manifest V3）は `extension/` にある。TypeScript で書き、Node.js
+でビルドする。ストアでは公開しておらず、自分でビルドし、ビルドしたものをパッケージ化されていない拡張機能として読み込む。拡張は、選択範囲、タブの
+URL、タブのタイトルを集め、動画メタデータ（動画タイトル、チャンネル名、概要欄）を動画ページから読む。選択範囲、URL、動画メタデータを
+localhost サーバに送り、応答を表示する。タブのタイトルは確認のために表示する（空であってはならない）が、送らない。
 
-Node.js 24 is required, and every `ext-*` target refuses to run when
-`node --version` does not match `extension/.node-version`. The version file sits
-inside `extension/`, so a version manager that reads the current directory (such
-as [fnm](https://github.com/Schniz/fnm)) must be activated from there; run the
-targets from the repository root with that version still active:
+Node.js 24 が必要で、`node --version` が `extension/.node-version`
+と一致しないときは、どの `ext-*` のターゲットも実行を断る。版のファイルは `extension/`
+の中にあるので、カレントディレクトリを読む Node.js の版の管理ツール（[fnm](https://github.com/Schniz/fnm)
+など）は、`extension/` の中で有効にしなければならない。その版を有効にしたまま、リポジトリのルートからターゲットを実行する。
 
 ```sh
 cd extension && fnm use && cd ..
@@ -661,127 +505,79 @@ make ext-install   # install the pinned dev dependencies (npm ci; needs network)
 make ext-build     # build extension/dist/
 ```
 
-The development targets, such as the checks CI runs, are in
-[docs/dev/guides/development.md](docs/dev/guides/development.md).
+CI が実行する検査など、開発のためのターゲットは
+[docs/dev/guides/development.md](docs/dev/guides/development.md)にある。
 
-Load the build in Chrome or Brave:
+ビルドしたものを Chrome か Brave で読み込む。
 
-1. Open `chrome://extensions/` (Brave: `brave://extensions/`).
-2. Turn on **Developer mode**.
-3. Click **Load unpacked** and select the `extension/dist` directory.
+1. `chrome://extensions/`（Brave: `brave://extensions/`）を開く。
+2. **デベロッパー モード**（**Developer mode**）をオンにする。
+3. **パッケージ化されていない拡張機能を読み込む**（**Load unpacked**）をクリックし、`extension/dist` のディレクトリを選ぶ。
 
-To update from an earlier build, run `make ext-build` to rebuild
-`extension/dist/` first, then click the extension's reload button on
-`chrome://extensions/` (Brave: `brave://extensions/`). `extension/dist/` is
-build output that pulling new source does not update, so reloading without
-rebuilding keeps running the earlier build, which may send without asking for
-confirmation.
+以前のビルドから更新するには、まず `make ext-build` を実行して
+`extension/dist/` をビルドし直し、それから
+`chrome://extensions/`（Brave: `brave://extensions/`）で拡張の再読み込みのボタンをクリックする。`extension/dist/`
+はビルドの出力で、新しいソースを取り込んでも更新されない。そのため、ビルドし直さずに再読み込みすると以前のビルドが動き続け、確認を求めずに送ることがある。
 
-The extension ID is fixed to `clfmbbcdpnjcefbdihdoahomaifbabkk`, so it is the
-same on every machine and from every directory.
+拡張の ID は `clfmbbcdpnjcefbdihdoahomaifbabkk` に固定してあり、どのマシンでも、どのディレクトリからでも同じである。
 
-The extension sends through the native messaging host, so before the first
-send start the server and register the host for your browser from the binary
-`make build` built (see
-[Installing the native messaging host](#installing-the-native-messaging-host)):
+拡張は Native Messaging のホストを通して送るので、最初の送信の前に、サーバを起動し、`make build`
+がビルドしたバイナリから、使うブラウザにホストを登録する（[Native Messaging のホストのインストール](#native-messaging-のホストのインストール)を参照）。
 
 ```sh
 ./build/yt2column-nmhost install chrome   # or: install brave
 ```
 
-There is nothing to set in the extension: it has no settings page and stores
-nothing. If the popup says the native messaging host could not be started, the
-host is most often not installed for that browser, or its binary was moved
-since it was installed: run `yt2column-nmhost install` again from the built
-binary (see [Troubleshooting](#troubleshooting)).
+拡張で設定するものはない。拡張には設定のページがなく、何も保存しない。Native Messaging
+のホストを起動できなかったとポップアップが示すときは、多くの場合、そのブラウザにホストがインストールされていないか、インストールした後にバイナリが移動されている。ビルドしたバイナリから
+`yt2column-nmhost install` をもう一度実行する（[トラブルシューティング](#トラブルシューティング)を参照）。
 
-The popup is displayed in Japanese when the browser's UI language is Japanese,
-and in English otherwise. There is no language setting in the extension. The
-popup text quoted in this README, such as the collapsed-description message
-below, is the English version.
+ポップアップは、ブラウザの UI の言語が日本語のときは日本語で、それ以外のときは英語で表示する。拡張に言語の設定はない。この
+README が引用するポップアップの文言（下の、概要欄が折りたたまれているときのメッセージなど）は日本語の版である。
 
-To send, open the transcript panel on a video page, select the caption lines,
-and click the extension's toolbar icon to open the popup. The popup has four
-parts, top to bottom:
+送るには、動画ページで文字起こしパネルを開き、字幕の行を選択し、拡張のツールバーのアイコンをクリックしてポップアップを開く。ポップアップは、上から順に 4 つの部分からなる。
 
-- The video section: the video title as the heading, with the channel name
-  below it when the page provides one. When the video title is not available,
-  the heading is the tab title instead.
-- The checks section: a **Selected captions** row with the selection's
-  character and line counts and a preview of its first 100 characters (and,
-  when the selection is longer, its last 100), and a **Description** row with
-  the description's state. A ⚠ row says what needs attention and, when there
-  is something to do, the steps that fix it.
-- The action section: a **Generate article** button. It sends when you press
-  it. While sending the button is disabled, and after a send (whatever the
-  result) it stays disabled: reopen the popup to send again.
-- **Details**, folded away until you open it: the collected URL and the tab
-  title.
+- 動画のセクション: 動画タイトルを見出しとし、ページから取れるときはその下にチャンネル名を表示する。動画タイトルが取れないときは、見出しはタブのタイトルになる。
+- 確認のセクション: 選択範囲の文字数と行数、最初の 100 文字のプレビュー（選択範囲がそれより長いときは最後の 100 文字のプレビューも）を表示する
+  **選択した字幕** の行と、概要欄の状態を表示する **概要欄** の行がある。⚠
+  の行は、注意が必要な点を示し、対処することがあるときはその手順も示す。
+- 操作のセクション: **記事を生成する** のボタンがある。押すと送る。送信中はボタンが無効になり、送った後は（結果がどうであれ）無効のままである。もう一度送るには、ポップアップを開き直す。
+- **詳細**: 開くまで折りたたまれている。集めた URL とタブのタイトルを表示する。
 
-The extension reads the video metadata from the page without changing it, so a
-collapsed description is read only up to what the page shows. When the
-description is collapsed, the popup says "Collapsed, so only the beginning
-will be sent." with these steps:
+拡張は、ページを変更せずに動画メタデータを読むので、折りたたまれた概要欄は、ページが表示している部分までしか読めない。概要欄が折りたたまれているとき、ポップアップは「折りたたまれているため、冒頭だけが送られます。」と示し、次の手順を添える。
 
-1. Click "...more" below the video.
-2. Reopen this popup.
+1. 動画の下の「もっと見る」をクリックしてください。
+2. このポップアップを開き直してください。
 
-The button stays usable: pressing it sends the beginning that the page shows.
+ボタンは使えるままである。押すと、ページが表示している冒頭を送る。
 
-A selection whose request body would be over 4 MiB is not sent: the
-**Selected captions** row becomes ⚠ with the reason and the steps, and the
-button stays disabled.
+リクエストの本文が 4 MiB を超える選択範囲は送らない。**選択した字幕**
+の行が理由と手順を伴う ⚠ になり、ボタンは無効のままである。
 
-Some values may not be available. When a video title, channel name, or
-description is missing or blank on the page, that value is left out of the
-request (a channel name that is not blank but has a control character or is
-longer than 200 code points is not left out: the server rejects the request with
-`invalid_body`). A missing video title makes the tab title the heading, a
-missing description makes the **Description** row ⚠ and says the description
-will not be sent, and a missing channel name is left out of the video section.
-When the page cannot be read at all — or the tab has moved to another video
-since the selection was read — all three are left out. The extension still
-sends the selection and the URL, and the article is generated from them.
+取得できない値があることもある。動画タイトル、チャンネル名、概要欄がページにない、または空白だけのときは、その値をリクエストから外す（空白だけではないが、制御文字を含む、または
+200 コードポイントより長いチャンネル名は外さない。サーバがリクエストを
+`invalid_body` で拒否する）。動画タイトルがないときはタブのタイトルが見出しになり、概要欄がないときは
+**概要欄** の行が ⚠ になって概要欄が送られないことを示し、チャンネル名がないときは動画のセクションにチャンネル名を表示しない。ページをまったく読めないとき、または選択範囲を読んだ後にタブが別の動画に移ったときは、3 つすべてを外す。それでも拡張は選択範囲と URL を送り、記事はそれらから生成される。
 
-How to read the result:
+結果の読み方:
 
-- **Accepted** (`202`): the server took the request. It shows a `requestId` and
-  says the result of generating and posting the article will arrive in Slack.
-- **Rejected**: it shows the reason and a `requestId`.
-- **Not sent**: the server is not running, or the request is too large for the
-  host. The request did not reach the server, so it says what to fix and does
-  not ask you to check Slack.
-- **Result unknown**: the server did not respond in time, the host could not be
-  started or exited without replying, or the reply could not be interpreted.
-  The request may have reached the server. It does not resend automatically,
-  and it tells you to check Slack before sending again, because the server may
-  already be processing the request.
+- **受け付けた**（`202`）: サーバがリクエストを受け取った。`requestId` を示し、記事の生成と投稿の結果が
+  Slack に届くと伝える。
+- **拒否された**: 理由と `requestId` を示す。
+- **未送信**: サーバが動いていない、またはリクエストがホストには大きすぎる。リクエストはサーバに届いていないので、何を直すかを示し、Slack
+  を確かめるようには求めない。
+- **結果不明**: サーバが時間内に応答しなかった、ホストを起動できなかったか応答せずに終わった、または応答を解釈できなかった。リクエストはサーバに届いた可能性がある。自動では送り直さず、サーバがすでにリクエストを処理しているかもしれないので、送り直す前に
+  Slack を確かめるよう伝える。
 
-The `requestId` matches the extension's display with the server log and with a
-failure notice in Slack. A successfully generated article carries no
-`requestId`, so match it by the video or the time; a failure with no `requestId`
-is matched by the time. Do not close the popup while it is sending: if you
-close it the result is not shown, and sending again could post the same article
-twice.
+`requestId` は、拡張の表示を、サーバのログと Slack の失敗の通知に結び付ける。生成に成功した記事は
+`requestId` を持たないので、動画か時刻で結び付ける。`requestId` のない失敗は時刻で結び付ける。送信中はポップアップを閉じない。閉じると結果は表示されず、送り直すと同じ記事を
+2 回投稿することがある。
 
-The selection is sent exactly as copied from the transcript panel; the extension
-does not trim it. You can select the whole panel: the server skips the lines the
-panel adds around the captions — the lines before the first timestamp (such as
-the panel's title), chapter heading lines, and, at the end, blank lines and the
-`Sync to video time` (`動画の時間と同期`) button label. When the timestamp and
-the text are on separate lines, a heading directly after a timestamp with no
-text is taken as that timestamp's text. Other lines are still rejected: an
-unknown line among captions that put the timestamp and the text on one line, an
-empty or whitespace-only line among the captions, a tab or other control
-character in any line, and, before the first timestamp or where a timestamp line
-is expected, a line containing an ASCII digit, a colon, and a digit in a row
-(such as a malformed timestamp).
+選択範囲は、文字起こしパネルからコピーしたとおりに送る。拡張は前後の空白を除かない。パネル全体を選択してもよい。サーバは、パネルが字幕の周りに加える行を飛ばす。それは、最初の時刻より前の行（パネルのタイトルなど）、チャプターの見出しの行、末尾の空行と
+`Sync to video time`（`動画の時間と同期`）のボタンのラベルである。時刻と本文が別の行にあるときは、本文のない時刻の直後の見出しを、その時刻の本文とみなす。ただし、それ以外の行は拒否する。拒否するのは、時刻と本文を 1 行に置く字幕の中の未知の行、字幕の中の空行または空白だけの行、いずれかの行にあるタブなどの制御文字、そして、最初の時刻より前または時刻の行があるはずの位置にある、ASCII
+の数字・コロン・数字が続けて並ぶ部分を含む行（不正な形の時刻など）である。
 
-To see what was collected and the send result, open the popup's console from
-the moment the popup opens: right-click the toolbar icon and choose
-**Inspect popup** (shown while Developer mode is on; pin the extension first if
-its icon is in the Extensions menu). The send log names the host, and for a
-host that could not be started it records the browser's error text, such as
-`Specified native messaging host not found.`. The log is lost when the popup
-closes, so after closing it, find the result of a send in Slack and in the
-server log by the time.
+集めたものと送信の結果を見るには、ポップアップが開いた時点から、ポップアップのコンソールを開く。ツールバーのアイコンを右クリックし、
+**ポップアップを検証**（**Inspect popup**）を選ぶ（デベロッパー モードがオンのときに表示される。アイコンが拡張機能のメニューの中にあるときは、先に拡張を固定する）。送信のログはホストを示し、起動できなかったホストについては、`Specified native messaging host not found.`
+のような、ブラウザのエラーの文言を記録する。ログはポップアップを閉じると失われるので、閉じた後は、送信の結果を時刻で
+Slack とサーバのログから探す。

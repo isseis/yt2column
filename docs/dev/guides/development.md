@@ -50,7 +50,7 @@ kill "$server_pid" 2>/dev/null; wait "$server_pid"; rm -rf "$dev_home"
 ## 拡張の検査
 
 拡張のビルドと読み込みは、README の
-[Browser extension](../../../README.md#browser-extension)にある。同じ Node.js の版を有効にしたまま、もう 1 つのターゲットで CI と同じ検査を走らせる。
+[ブラウザ拡張](../../../README.md#ブラウザ拡張)にある。同じ Node.js の版を有効にしたまま、もう 1 つのターゲットで CI と同じ検査を走らせる。
 
 ```sh
 make ext-check     # typecheck, lint, format check, tests, then build
@@ -59,7 +59,7 @@ make ext-check     # typecheck, lint, format check, tests, then build
 ## localhost サーバの API
 
 localhost サーバの起動と停止は、README の
-[Localhost server](../../../README.md#localhost-server)にある。この節では、サーバの HTTP の API を説明する。
+[localhost サーバ](../../../README.md#localhost-サーバ)にある。この節では、サーバの HTTP の API を説明する。
 
 ### curl でサーバを確かめる
 
@@ -162,7 +162,7 @@ curl -sS --unix-socket "$socket" -X POST http://localhost/articles \
 
 受け付けて応答した状態の取得はログに書かない。ビューアが数秒ごとに問い合わせるためで、その応答の `requestId` に対応するログの行はない。拒否した状態の取得は、その拒否をログに書く。ほかの操作はどれも `requestId` を付けた行をログに書き、ジョブの API のジョブはキーを書く。
 
-サーバのログのリクエストの行は、応答が返す `requestId` を持つ（README の [Running the server](../../../README.md#running-the-server) を参照）。
+サーバのログのリクエストの行は、応答が返す `requestId` を持つ（README の [サーバの起動](../../../README.md#サーバの起動) を参照）。
 ジョブの API の生成と投稿のジョブは、代わりに記事のキーをログに書くので、1 つのジョブは
 `grep "$key" server.log` で追う。
 
