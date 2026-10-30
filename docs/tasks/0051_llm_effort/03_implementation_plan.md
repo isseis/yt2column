@@ -203,7 +203,7 @@
 **判定理由**: `mkplan` のパネルモード（2 人のレビュアーによる分担レビュー）にする条件に該当する手順がなく、既存コード調査結果に競合する案もない。Conditional checks で当たるのは、ステップ 2-3 のビルドタグ付きのテスト補助（`test_helpers.go`）の 1 つだけである（`make lint`・`make deadcode` が `test,integration` のタグでコンパイルする）
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/588
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
