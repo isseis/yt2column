@@ -873,9 +873,10 @@ func TestWriterImports(t *testing.T) {
 // TestConfigImports checks that the configuration loader and the parameter
 // packages stay independent of the network and of the LLM adapters: no
 // non-test Go file directly in internal/config, internal/llm/claudeparam, or
-// internal/llm/deepseekparam directly imports the network packages or an
-// internal/llm package other than the two parameter packages. A direct import
-// of an adapter would pull net/http into the CLI's startup path.
+// internal/llm/deepseekparam directly imports the network packages. A direct
+// import of an adapter would pull net/http into the CLI's startup path. The two
+// parameter packages may import neither parameter package nor an adapter;
+// internal/config may import the two parameter packages.
 func TestConfigImports(t *testing.T) {
 	const (
 		module            = "github.com/isseis/yt2column/"
@@ -883,25 +884,41 @@ func TestConfigImports(t *testing.T) {
 		claudeparamPath   = module + "internal/llm/claudeparam"
 		deepseekparamPath = module + "internal/llm/deepseekparam"
 	)
-	var paths []string
-	for _, pattern := range []string{"../config/*.go", "../llm/claudeparam/*.go", "../llm/deepseekparam/*.go"} {
-		matches, err := filepath.Glob(pattern)
-		if err != nil {
-			t.Fatalf("glob %s: %v", pattern, err)
-		}
-		paths = append(paths, matches...)
+	patterns := []struct {
+		glob             string
+		parameterPackage bool
+	}{
+		{"../config/*.go", false},
+		{"../llm/claudeparam/*.go", true},
+		{"../llm/deepseekparam/*.go", true},
 	}
-	if len(paths) == 0 {
-		t.Fatal("found no Go files in internal/config, internal/llm/claudeparam, and internal/llm/deepseekparam")
+	type scannedFile struct {
+		path             string
+		parameterPackage bool
+	}
+	var scanned []scannedFile
+	for _, pattern := range patterns {
+		matches, err := filepath.Glob(pattern.glob)
+		if err != nil {
+			t.Fatalf("glob %s: %v", pattern.glob, err)
+		}
+		// A pattern that matches nothing would silently drop its package from
+		// the check, so a renamed or moved package must fail here.
+		if len(matches) == 0 {
+			t.Fatalf("glob %s matched no files", pattern.glob)
+		}
+		for _, match := range matches {
+			scanned = append(scanned, scannedFile{path: match, parameterPackage: pattern.parameterPackage})
+		}
 	}
 	fset := token.NewFileSet()
-	for _, path := range paths {
-		if strings.HasSuffix(path, "_test.go") {
+	for _, source := range scanned {
+		if strings.HasSuffix(source.path, "_test.go") {
 			continue
 		}
-		file, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly|parser.ParseComments)
+		file, err := parser.ParseFile(fset, source.path, nil, parser.ImportsOnly|parser.ParseComments)
 		if err != nil {
-			t.Fatalf("parse %s: %v", path, err)
+			t.Fatalf("parse %s: %v", source.path, err)
 		}
 		if isTestOnlyFile(file) {
 			continue
@@ -909,14 +926,19 @@ func TestConfigImports(t *testing.T) {
 		for _, imp := range file.Imports {
 			ipath, err := strconv.Unquote(imp.Path.Value)
 			if err != nil {
-				t.Fatalf("%s: unquote %s: %v", path, imp.Path.Value, err)
+				t.Fatalf("%s: unquote %s: %v", source.path, imp.Path.Value, err)
 			}
 			switch {
 			case ipath == "net" || strings.HasPrefix(ipath, "net/"):
-				t.Errorf("%s imports %s", path, ipath)
+				t.Errorf("%s imports %s", source.path, ipath)
+			case !strings.HasPrefix(ipath, llmPrefix):
+				// A package outside internal/llm, including the standard library.
 			case ipath == claudeparamPath, ipath == deepseekparamPath:
-			case strings.HasPrefix(ipath, llmPrefix):
-				t.Errorf("%s imports %s", path, ipath)
+				if source.parameterPackage {
+					t.Errorf("%s imports %s; a parameter package depends on the standard library only", source.path, ipath)
+				}
+			default:
+				t.Errorf("%s imports %s", source.path, ipath)
 			}
 		}
 	}

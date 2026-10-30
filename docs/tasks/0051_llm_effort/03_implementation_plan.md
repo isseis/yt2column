@@ -8,7 +8,7 @@
 | Created | 2026-10-30 |
 | Review date | 2026-10-30 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-30（編集上の訂正。`/runplan` の PR-1 のレビューで判明）: 執筆後に 66222946 で `README.en.md` が入った。そのためステップ 4-6 の「存在すれば」の留保を外し、`README.en.md` を同じコミットで `/mktrans README.md` により反映することを必須にした。あわせて、README のガードテストは 2 つの版（`README.md`・`README.en.md`）を版ごと・言語ごとの列名で回るようになったことをステップ 4-5 に書き、`docs/dev/project_overview.md` の想定ディレクトリ構成と `CLAUDE.md` の `LLMClient` の記述（`deepseekparam` の追加）をステップ 4-6 の対象に加えた。設計の判断は変えていない。 |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の項番を、「設計書 3.2」などは設計書の節を指す。用語は設計書の冒頭の定義（工程の選択、パラメータのパッケージ、設定されている、など）と同じ意味で使う。既存のコードについての記述は、コミット `0f1c59b3` で確かめた。`file:line` はこのコミットの行番号である。設計書が確かめたコミット `be657abc` から `0f1c59b3` までの間に、次のものは変わっていない。`internal/config/config.go`・`internal/llm/`・`cmd/yt2column/`・`cmd/yt2column-server/` の本体と、本書で変えるテストである。`git diff --stat be657abc 0f1c59b3 -- internal cmd` で変わったのは、`cmd/codexreview`・`cmd/fixprguard`・`internal/codexreview`・`internal/doctestutil`・`internal/config/envaccess_test.go` だけだった。そのため、設計書の行番号もそのまま使える。
 
@@ -306,16 +306,17 @@
 -   [ ] `exportLineRE`（`:361`）の値の文字に `+` を加え、コメント（`:358-360`）を直す（1.4）。
 -   [ ] 本番の構成のガードを、設計書 7.4 の 1 つ目の項のとおりに直す。`productionProfileVars` は `YT2COLUMN_LLM` だけを返す。`checkExportBlockMatchesDefaults` と `checkProfileTable` は、工程の選択をプロバイダ・モデル・`ClaudeEffort`・`DeepSeekEffort` で比べる。表のセルは `<プロバイダ>/<モデル>+<effort>` につないで読み込む。モデルの値を失敗の文に出さない今の形は保つ。
 -   [ ] 移行の節のガードを、設計書 7.4 の 2 つ目の項のとおりに直す。変更前の `text` ブロックと続く `sh` ブロックを組にし、組の種類を旧変数で決める。
--   [ ] effort の値の一覧のガードを加える（設計書 7.4 の 3 つ目の項、AC-40）。表の列名は 1.4 のとおり、`TestLLMDefaultsDocsContract` が探す列名と重ならないものにする。プロバイダの名前はコードから得る（`config` の `test_helpers.go` に `…ForTest` の関数を加える）。各文書の表に、各プロバイダの行がちょうど 1 つあり、知らないプロバイダの行がないことも確かめる。`project_overview.md` の表を探す日本語の列名は、`CLAUDE.md`「Go Idioms」のガードテストのリテラルの例外に該当する。
+-   [ ] effort の値の一覧のガードを加える（設計書 7.4 の 3 つ目の項、AC-40）。表の列名は 1.4 のとおり、`TestLLMDefaultsDocsContract` が探す列名と重ならないものにする。`README.md` のガードは 2 つの版（`README.md`・`README.en.md`）を回る（`doctestutil.ReadmeVersions`。版ごとに言語の列名を `doctestutil.ReadmeVariableColumn.In` などで得る）ので、新しいガードも版ごとに、その版の言語の列名で表を探して検査する。`TestReadmeVersionsShareStructure` が 2 つの版の見出しと表の形の一致を確かめるので、`README.en.md` にも同じ表を置く。プロバイダの名前はコードから得る（`config` の `test_helpers.go` に `…ForTest` の関数を加える）。各文書の表に、各プロバイダの行がちょうど 1 つあり、知らないプロバイダの行がないことも確かめる。`project_overview.md` の表を探す日本語の列名は、`CLAUDE.md`「Go Idioms」のガードテストのリテラルの例外に該当する。
 
 #### ステップ 4-6: 文書
 
-**変更するファイル:** `README.md`、`docs/dev/project_overview.md`、`docs/dev/production_profile.md`、`docs/dev/guides/cli.md`、`docs/dev/conventions/package_reference.md`、`docs/dev/security.md`
+**変更するファイル:** `README.md`、`README.en.md`、`docs/dev/project_overview.md`、`docs/dev/production_profile.md`、`docs/dev/guides/cli.md`、`docs/dev/conventions/package_reference.md`、`docs/dev/security.md`、`CLAUDE.md`
 
 -   [ ] 設計書 3.7 の表のとおりに、各文書を直す。`docs/dev/guides/claude_output_limit.md` は変えない（設計書 1.2）。
 -   [ ] `README.md` の変更は、その節に関わる AC（AC-30〜AC-36・AC-39・AC-40）を満たすように書く。`README.md` を変えるので、`make ext-test` を走らせる（`CLAUDE.md`「Development Notes」）。
--   [ ] `README.en.md` がこの時点で存在すれば、`/mktrans README.md` で反映する（2026-10-30 の時点では存在しない）。
+-   [ ] `README.en.md` を `/mktrans README.md` で反映し、同じコミットに入れる。`TestReadmeSyncMarker` が同期の印を確かめ、`TestReadmeVersionsShareStructure` が 2 つの版の見出しと表の形の一致を確かめるので、`README.en.md` を残したままでは `make test` が通らない。
 -   [ ] `docs/dev/project_overview.md` の DeepSeek の thinking の記述（`:88`）を、AC-37 を満たすように直す。
+-   [ ] `docs/dev/project_overview.md` の想定ディレクトリ構成（`:114-120`）に `internal/llm/deepseekparam` の行を加え、`CLAUDE.md` の `LLMClient` の記述（`internal/llm/claudeparam` を共有の型の置き場所として挙げている箇所）にも `deepseekparam` を加える。PR-1 で加えたパッケージが、パッケージの配置を述べる 2 つの文書に載っていないためである。
 -   [ ] `package_reference.md` の `internal/config`・`internal/llm/provider` の行を直す（AC-38）。
 -   [ ] 文書を直した後、ステップ 4-5 の各ガードについて、文書の値を一時的に壊して失敗することを確かめる（例: 設定のブロックの effort を `low` に、effort の表から 1 つの値を消す、`deepseek` の行を消す、`claude` の行を重ねる、移行の例の変更後の effort を変える）。
 
@@ -397,10 +398,10 @@ M2 は M3 の作業より前に終える。M2 で問題があれば、M3 に進�
 | AC | 種類 | 確かめ方 | 実装 |
 |---|---|---|---|
 | AC-01 | test | `internal/config/config_test.go::TestLoadParsesLLMValue`（effort の行）、`internal/llm/provider/provider_test.go::TestNewClaudeSendsConfiguredRequest` と設定から要求本文までのテスト（本文の `model`。ステップ 4-3） | ステップ 4-1・4-3 |
-| AC-02 | test | `internal/config/config_test.go::TestLoadParsesLLMValue`、`internal/llm/deepseekparam/deepseekparam_test.go`、`internal/llm/claudeparam/claudeparam_test.go` | ステップ 1-1・1-2・4-1 |
+| AC-02 | test | `internal/config/config_test.go::TestLoadParsesLLMValue`、`internal/llm/deepseekparam/deepseekparam_test.go::TestParseEffort`・`::TestEffortValidAndValues`、`internal/llm/claudeparam/claudeparam_test.go::TestEffortValues` | ステップ 1-1・1-2・4-1 |
 | AC-03 | test | `internal/config/config_test.go::TestLoadParsesLLMValue`、`internal/llm/provider/provider_test.go::TestNewClaudeDefaultEffort` | ステップ 4-1・4-3 |
 | AC-04 | test | `internal/config/config_test.go::TestLoadParsesLLMValue`（`claude/vendor/model-x+medium`） | ステップ 4-1 |
-| AC-05 | test | `internal/config/config_test.go::TestLoadParsesLLMValue`（拒否の行）、`TestLoadErrorsOmitValues` | ステップ 4-1 |
+| AC-05 | test | `internal/config/config_test.go::TestLoadParsesLLMValue`（拒否の行）、`TestLoadErrorsOmitValues`、`internal/llm/deepseekparam/deepseekparam_test.go::TestParseEffort`（大文字・前後の空白・空・`medium`・`xhigh`・`ultra`・`minimal` の拒否） | ステップ 1-1・4-1 |
 | AC-06 | test・manual | `internal/config/config_test.go` の理由の文のテスト（ステップ 4-2）と `TestLoadParsesLLMValue` の `Reason`。理由の文の意味は PR のレビューで読む | ステップ 4-1 |
 | AC-07 | test | `internal/config/config_test.go::TestLoadParsesLLMValue`（`claude/+`・`claude/+ultra`・`deepseek/deepseek-flash+a+b`） | ステップ 4-1 |
 | AC-08 | test | `internal/config/config_test.go::TestLoadParsesLLMValue`、`cmd/yt2column/run_test.go` の不正な effort の部分のテスト（ステップ 4-4） | ステップ 4-1 |
@@ -436,7 +437,7 @@ M2 は M3 の作業より前に終える。M2 で問題があれば、M3 に進�
 | AC-38 | manual | PR のレビューで、`package_reference.md` の行と `claude_output_limit.md:10` を読む。`TestPackageReferenceListsPackages` が `deepseekparam` の行の存在を確かめる | ステップ 1-3・2-4・4-6 |
 | AC-39 | manual | PR のレビューで、6 つの文書が `YT2COLUMN_CLAUDE_EFFORT` を拒否と移行の説明でだけ扱うことを読む | ステップ 4-6 |
 | AC-40 | test | `cmd/yt2column/docs_test.go::TestProductionProfileDocsContract`・`TestLLMDefaultsDocsContract`・effort の値の一覧のガード（ステップ 4-5） | ステップ 4-5・4-6 |
-| AC-41 | test | `internal/config/config_test.go` の理由の一覧のテスト（ステップ 4-2）、`internal/llm/deepseekparam/deepseekparam_test.go`・`internal/llm/claudeparam/claudeparam_test.go` の一覧のテスト | ステップ 1-1・1-2・4-1 |
+| AC-41 | test | `internal/config/config_test.go` の理由の一覧のテスト（ステップ 4-2）、`internal/llm/deepseekparam/deepseekparam_test.go::TestEffortValidAndValues`・`internal/llm/claudeparam/claudeparam_test.go::TestEffortValues`（一覧のテスト） | ステップ 1-1・1-2・4-1 |
 
 「実装」の列は、本番のコードを変えるステップを示す。テストを書くステップは、2 章の各ステップにある（`internal/config` のテストはステップ 4-2、`cmd/` のテストはステップ 4-4、文書のガードはステップ 4-5）。新しく加えるテストの関数名は実装で決める。実装した後、この表の「ステップ 4-2」などの記述を `path::TestName` の形に書き換える。
 

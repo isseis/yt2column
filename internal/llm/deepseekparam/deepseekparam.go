@@ -47,7 +47,8 @@ var errUnknownEffort = errors.New("unknown effort")
 
 // ParseEffort returns the Effort for one of "none", "low", "high", "max". Any
 // other string, the empty string and differently cased or padded ones
-// included, returns an error.
+// included, returns an error. On error it returns EffortUnspecified, which a
+// caller must not use: a client built with it sends no reasoning_effort.
 func ParseEffort(value string) (Effort, error) {
 	switch value {
 	case effortNone:

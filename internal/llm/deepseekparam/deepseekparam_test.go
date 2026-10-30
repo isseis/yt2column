@@ -61,41 +61,26 @@ func TestParseEffort(t *testing.T) {
 	}
 }
 
-// TestEffortValidAndValues checks that Valid, String, and EffortValues agree
-// over the whole domain in both directions: a value Valid accepts renders a
-// string the list holds, and every string the list holds parses to a Valid
-// value. It also checks that the zero value is invalid and renders a string
-// ParseEffort rejects, so "no value specified" cannot be mistaken for a wire
-// value.
+// TestEffortValidAndValues checks that the zero value is invalid and renders a
+// string ParseEffort rejects, so "no value specified" cannot be mistaken for a
+// wire value, and that EffortValues is exactly the wire values of the valid
+// values, in the order String renders them: a missing, an extra, a duplicated,
+// or a reordered entry fails.
 func TestEffortValidAndValues(t *testing.T) {
-	values := EffortValues()
 	if EffortUnspecified.Valid() {
 		t.Error("EffortUnspecified.Valid() = true, want false")
 	}
 	if _, err := ParseEffort(EffortUnspecified.String()); err == nil {
 		t.Errorf("ParseEffort(EffortUnspecified.String()=%q) error = nil, want an error", EffortUnspecified.String())
 	}
-	if slices.Contains(values, EffortUnspecified.String()) {
-		t.Errorf("EffortValues() contains %q, the placeholder of EffortUnspecified", EffortUnspecified.String())
-	}
 
+	var want []string
 	for e := Effort(-1); e <= EffortMax+2; e++ {
-		if got, want := slices.Contains(values, e.String()), e.Valid(); got != want {
-			t.Errorf("Effort(%d): EffortValues() contains %q = %v, Valid() = %v", e, e.String(), got, want)
+		if e.Valid() {
+			want = append(want, e.String())
 		}
 	}
-
-	for _, value := range values {
-		parsed, err := ParseEffort(value)
-		if err != nil {
-			t.Errorf("EffortValues() holds %q, which ParseEffort rejects: %v", value, err)
-			continue
-		}
-		if !parsed.Valid() {
-			t.Errorf("ParseEffort(%q).Valid() = false, want true", value)
-		}
-		if round := parsed.String(); round != value {
-			t.Errorf("ParseEffort(%q).String() = %q, want %q", value, round, value)
-		}
+	if got := EffortValues(); !slices.Equal(got, want) {
+		t.Errorf("EffortValues() = %q, want %q", got, want)
 	}
 }
