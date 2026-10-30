@@ -374,8 +374,8 @@ PR-1・PR-2 のマージで `.claude/commands/` と `CLAUDE.md` の行番号が�
 **変えるファイル**: `docs/tasks/0049_codex_local_review/03_implementation_plan.md`（9 章の記録）
 
 -   [x] ステップ 4-1 で確かめた、共通手順が書く形の `--protocol` の値を 1 つ違えた形（`--protocol 0`）の実行の結果を記録する（設計書 7.2）。
--   [ ] `$(...)` やリダイレクトを含む形で実行しようとすると、権限の確認で止まることを確かめる。
--   [ ] 結果（実行した形、止まったかどうか、返った種類）を 9 章に記録する。
+-   [x] `$(...)` やリダイレクトを含む形で実行しようとすると、権限の確認で止まることを確かめる。
+-   [x] 結果（実行した形、止まったかどうか、返った種類）を 9 章に記録する。
 
 **完了の条件**: 9 章に記録がある。
 
@@ -560,7 +560,7 @@ PR-1・PR-2 のマージで `.claude/commands/` と `CLAUDE.md` の行番号が�
 | AC-18 | manual | 設計書 3.9 の表の記述と、`runpr.md:9-10`、5 章の横断検索 | 5-1・6-1〜6-3・7-1 |
 | AC-18 | test | `cmd/yt2column/codex_review_docs_test.go::TestCodeRabbitConfigStopsReview`（改めた文。補助の確かめで、割り当ての記述の中身は `manual` で確かめる） | 7-1 |
 
-**ステップ 8-1 の記録:** （実装の際に書く）ステップ 4-1 の結果（2026-10-30）: `command -v codexreview` は `/Users/<user>/go/bin/codexreview`、`go version -m` は `vcs.revision=81990175a716152fb53a1b039cfcb3ce6d130787`（PR-3 のマージのコミットそのもの）・`vcs.modified=false`。共通手順が書く形の `--protocol` の値を 1 つ違えた `codexreview --protocol 0 --base 81990175a716152fb53a1b039cfcb3ce6d130787` を Bash ツールで 1 回実行し、権限の確認で止まらず、終了コード 1 で `{"kind":"usage","detail":"protocol_mismatch",...}` が返った（`codex` は起動されない）。
+**ステップ 8-1 の記録:** （実装の際に書く）ステップ 4-1 の結果（2026-10-30）: `command -v codexreview` は `/Users/<user>/go/bin/codexreview`、`go version -m` は `vcs.revision=81990175a716152fb53a1b039cfcb3ce6d130787`（PR-3 のマージのコミットそのもの）・`vcs.modified=false`。共通手順が書く形の `--protocol` の値を 1 つ違えた `codexreview --protocol 0 --base 81990175a716152fb53a1b039cfcb3ce6d130787` を Bash ツールで 1 回実行し、権限の確認で止まらず、終了コード 1 で `{"kind":"usage","detail":"protocol_mismatch",...}` が返った（`codex` は起動されない）。止まるべき形の確かめ（同じ 2026-10-30、manual モードの Claude Code）: `codexreview --protocol 0 --base 1c8f78f2b8092e332d6a490197713bc9575359f5 $(true)` は「入れ子のコマンドは実行前に確かめられない」として、`codexreview --protocol 0 --base 1c8f78f2b8092e332d6a490197713bc9575359f5 > /tmp/codexreview-out.txt` はリダイレクトを含むとして、どちらも実行の前の確認で止まった。実行していないので結果の種類はない。
 
 **ステップ 8-2 の記録:** 2026-10-30。`codex-cli 0.163.0`。このブランチの `1c8f78f2b8092e332d6a490197713bc9575359f5`（`origin/main`）を BASE として、`codexreview --protocol 1 --base 1c8f78f2b8092e332d6a490197713bc9575359f5` を 1 回実行した。約 18 秒、種類は `no_findings`、指摘は 0 件。絞った環境でも `codex` の認証と接続は通り、`codex_version` は `codex-cli 0.163.0` だった。`instructions_changed` は真（範囲が `CLAUDE.md` を変える）。`env` の確かめは、`codexreview` が渡す環境と同じ変数だけを与え、`-c 'shell_environment_policy.inherit="core"'` の下で `codex exec` に `env` を実行させた。`DEEPSEEK_API_KEY`・`ANTHROPIC_API_KEY`・`SLACK_WEBHOOK_URL` と、与えていない変数 `ENVCHECK_UNLISTED` は出ず、出たのは与えた変数と、`codex` とシェルが自分で加える変数（`CODEX_*`・`PAGER`・`TERM` など）だけだった。値は写さない。
 
