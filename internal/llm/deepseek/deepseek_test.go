@@ -19,6 +19,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -27,6 +28,7 @@ import (
 
 	"github.com/isseis/yt2column/internal/llm"
 	deepseektestutil "github.com/isseis/yt2column/internal/llm/deepseek/testutil"
+	"github.com/isseis/yt2column/internal/llm/deepseekparam"
 	"github.com/isseis/yt2column/internal/secret"
 )
 
@@ -153,6 +155,35 @@ func TestNew(t *testing.T) {
 		}
 	})
 
+	t.Run("accepts every effort value", func(t *testing.T) {
+		efforts := []deepseekparam.Effort{
+			deepseekparam.EffortUnspecified,
+			deepseekparam.EffortNone,
+			deepseekparam.EffortLow,
+			deepseekparam.EffortHigh,
+			deepseekparam.EffortMax,
+		}
+		for _, effort := range efforts {
+			options := validOptions(t)
+			options.Effort = effort
+			if _, err := New(options); err != nil {
+				t.Errorf("New(Effort: %d) error = %v, want nil", effort, err)
+			}
+		}
+	})
+
+	t.Run("rejects efforts outside the accepted set", func(t *testing.T) {
+		for _, effort := range []deepseekparam.Effort{-1, deepseekparam.EffortMax + 1} {
+			options := validOptions(t)
+			options.Effort = effort
+			value, err := New(options)
+			assertConstructionFailure(t, value, err, "")
+			if !errors.Is(err, errInvalidEffort) {
+				t.Errorf("New(Effort: %d) error = %v, want errInvalidEffort", effort, err)
+			}
+		}
+	})
+
 	t.Run("rejects non-positive timeouts", func(t *testing.T) {
 		for _, timeout := range []time.Duration{0, -time.Second} {
 			options := validOptions(t)
@@ -272,15 +303,85 @@ func TestGenerateSendsRequest(t *testing.T) {
 		t.Errorf("stream = %v, want false", body.Stream)
 	}
 
-	var raw map[string]json.RawMessage
-	if err := json.Unmarshal(recorded.body, &raw); err != nil {
-		t.Fatalf("decode request body members: %v", err)
+	members := decodeMembers(t, recorded.body)
+	if want := []string{"messages", "model", "stream"}; !slices.Equal(memberNames(members), want) {
+		t.Errorf("request body members = %v, want %v", memberNames(members), want)
 	}
-	if _, ok := raw["thinking"]; ok {
+	if _, ok := members["thinking"]; ok {
 		t.Error("request body contains a thinking member")
 	}
-	if _, ok := raw["max_tokens"]; ok {
+	if _, ok := members["max_tokens"]; ok {
 		t.Error("request body contains max_tokens for MaxOutputTokens 0")
+	}
+}
+
+// TestGenerateSendsReasoningEffort checks that each effort the user can specify
+// reaches the request body as reasoning_effort, that the wire values are the
+// API's, and that the body gains no other member (thinking in particular).
+func TestGenerateSendsReasoningEffort(t *testing.T) {
+	cases := []struct {
+		effort deepseekparam.Effort
+		wire   string
+	}{
+		{deepseekparam.EffortNone, "none"},
+		{deepseekparam.EffortLow, "low"},
+		{deepseekparam.EffortHigh, "high"},
+		{deepseekparam.EffortMax, "max"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.wire, func(t *testing.T) {
+			server, recorder := newRecordingServer(t, readFixture(t, testdataStopFixture))
+			response, err := generateAgainst(t, server.URL, validRequest(), func(options *Options) {
+				options.Effort = tc.effort
+			})
+			if err != nil {
+				t.Fatalf("Generate() error = %v", err)
+			}
+			if response.Text == "" {
+				t.Error("Generate() returned an empty Text, want the fixture content")
+			}
+
+			members := decodeMembers(t, recorder.only(t).body)
+			got, ok := members["reasoning_effort"]
+			if !ok {
+				t.Fatalf("request body has no reasoning_effort member; members = %v", memberNames(members))
+			}
+			if want := `"` + tc.wire + `"`; string(got) != want {
+				t.Errorf("reasoning_effort = %s, want %s", got, want)
+			}
+			if want := []string{"messages", "model", "reasoning_effort", "stream"}; !slices.Equal(memberNames(members), want) {
+				t.Errorf("request body members = %v, want %v", memberNames(members), want)
+			}
+			if _, ok := members["thinking"]; ok {
+				t.Error("request body contains a thinking member")
+			}
+		})
+	}
+}
+
+// TestGenerateRejectsUnsupportedEffort checks that an effort outside the
+// accepted set is rejected before anything is sent, even when it is set on a
+// client New already returned. New itself rejects it, so the field is written
+// directly here.
+func TestGenerateRejectsUnsupportedEffort(t *testing.T) {
+	server, recorder := newRecordingServer(t, readFixture(t, testdataStopFixture))
+	client := newTestClient(t, server.URL, nil)
+	client.effort = deepseekparam.EffortMax + 1
+
+	response, err := client.Generate(context.Background(), validRequest())
+	if err == nil {
+		t.Fatal("Generate() error = nil, want an error")
+	}
+	if !errors.Is(err, errInvalidEffort) {
+		t.Errorf("Generate() error = %v, want errInvalidEffort", err)
+	}
+	assertErrorPrefix(t, err)
+	assertNoAPIKey(t, err)
+	if response != (llm.GenerateResponse{}) {
+		t.Errorf("Generate() response = %+v, want the zero value", response)
+	}
+	if count := recorder.count(); count != 0 {
+		t.Errorf("server received %d requests, want 0", count)
 	}
 }
 
@@ -301,11 +402,8 @@ func TestGenerateMaxTokens(t *testing.T) {
 			if _, err := generateAgainst(t, server.URL, req, nil); err != nil {
 				t.Fatalf("Generate() error = %v", err)
 			}
-			var raw map[string]json.RawMessage
-			if err := json.Unmarshal(recorder.only(t).body, &raw); err != nil {
-				t.Fatalf("decode request body: %v", err)
-			}
-			value, ok := raw["max_tokens"]
+			members := decodeMembers(t, recorder.only(t).body)
+			value, ok := members["max_tokens"]
 			if !tc.wantSent {
 				if ok {
 					t.Errorf("max_tokens = %s, want it omitted", value)
@@ -463,6 +561,56 @@ func TestGenerateHTTPStatus(t *testing.T) {
 			}
 			assertRejected(t, response, err)
 		})
+	}
+}
+
+// TestGenerateErrorsNameEffort checks that every failure the response handling
+// reports names the reasoning_effort the request carried: the wire value when
+// one was specified, and "not sent" otherwise. The effort is not a secret and
+// appears nowhere else in the output, so this line is how a failed stage tells
+// which effort it used.
+func TestGenerateErrorsNameEffort(t *testing.T) {
+	stop := readFixture(t, testdataStopFixture)
+	unexpected := replaceOnce(t, stop, `"finish_reason":"stop"`, `"finish_reason":"content_filter"`)
+	empty := documentOf(t, stop)
+	messageOf(t, empty)[keyContent] = ""
+
+	cases := []struct {
+		name   string
+		status int
+		body   []byte
+		want   error
+	}{
+		{"http status", http.StatusBadRequest, []byte("boom"), ErrHTTPStatus},
+		{"truncated", http.StatusOK, readFixture(t, testdataLengthFixture), llm.ErrTruncated},
+		{"unexpected finish reason", http.StatusOK, unexpected, llm.ErrUnexpectedFinishReason},
+		{"empty response", http.StatusOK, encodeDocument(t, empty), llm.ErrEmptyResponse},
+	}
+	efforts := []struct {
+		name   string
+		effort deepseekparam.Effort
+		want   string
+	}{
+		{"unspecified", deepseekparam.EffortUnspecified, "reasoning_effort not sent"},
+		{"specified", deepseekparam.EffortHigh, "reasoning_effort high"},
+	}
+	for _, tc := range cases {
+		for _, effortCase := range efforts {
+			t.Run(tc.name+" "+effortCase.name, func(t *testing.T) {
+				server := newResponseServer(t, tc.status, tc.body)
+				_, err := generateAgainst(t, server.URL, validRequest(), func(options *Options) {
+					options.Effort = effortCase.effort
+				})
+				if !errors.Is(err, tc.want) {
+					t.Errorf("Generate() error = %v, want %v", err, tc.want)
+				}
+				if !strings.Contains(err.Error(), effortCase.want) {
+					t.Errorf("error %q does not contain %q", err, effortCase.want)
+				}
+				assertErrorPrefix(t, err)
+				assertNoAPIKey(t, err)
+			})
+		}
 	}
 }
 

@@ -8,7 +8,7 @@
 | Created | 2026-10-30 |
 | Review date | 2026-10-30 |
 | Reviewer | isseis |
-| Comments | 2026-10-30（編集上の訂正。`/runplan` の PR-1 のレビューで判明）: 執筆後に 66222946 で `README.en.md` が入った。そのためステップ 4-6 の「存在すれば」の留保を外し、`README.en.md` を同じコミットで `/mktrans README.md` により反映することを必須にした。あわせて、README のガードテストは 2 つの版（`README.md`・`README.en.md`）を版ごと・言語ごとの列名で回るようになったことをステップ 4-5 に書き、`docs/dev/project_overview.md` の想定ディレクトリ構成と `CLAUDE.md` の `LLMClient` の記述（`deepseekparam` の追加）をステップ 4-6 の対象に加えた。設計の判断は変えていない。 |
+| Comments | 2026-10-30（編集上の訂正。`/runplan` の PR-1 のレビューで判明）: 執筆後に 66222946 で `README.en.md` が入った。そのためステップ 4-6 の「存在すれば」の留保を外し、`README.en.md` を同じコミットで `/mktrans README.md` により反映することを必須にした。あわせて、README のガードテストは 2 つの版（`README.md`・`README.en.md`）を版ごと・言語ごとの列名で回るようになったことをステップ 4-5 に書き、`docs/dev/project_overview.md` の想定ディレクトリ構成と `CLAUDE.md` の `LLMClient` の記述（`deepseekparam` の追加）をステップ 4-6 の対象に加えた。2026-10-30（編集上の訂正。フェーズ 2 の実装時）: ステップ 2-3 のテストの置き場所を、4 種類のエラー × effort の有無を 1 つの表で確かめる形（`TestGenerateErrorsNameEffort`）に直し、`assertBodyRejectedResponse` を effort 用に広げる項目を、使われない補助を増やさない方針に直した。設計の判断は変えていない。 |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の項番を、「設計書 3.2」などは設計書の節を指す。用語は設計書の冒頭の定義（工程の選択、パラメータのパッケージ、設定されている、など）と同じ意味で使う。既存のコードについての記述は、コミット `0f1c59b3` で確かめた。`file:line` はこのコミットの行番号である。設計書が確かめたコミット `be657abc` から `0f1c59b3` までの間に、次のものは変わっていない。`internal/config/config.go`・`internal/llm/`・`cmd/yt2column/`・`cmd/yt2column-server/` の本体と、本書で変えるテストである。`git diff --stat be657abc 0f1c59b3 -- internal cmd` で変わったのは、`cmd/codexreview`・`cmd/fixprguard`・`internal/codexreview`・`internal/doctestutil`・`internal/config/envaccess_test.go` だけだった。そのため、設計書の行番号もそのまま使える。
 
@@ -156,37 +156,37 @@
 
 **変更するファイル:** `internal/llm/deepseek/deepseek.go`、`internal/llm/deepseek/errors.go`、`internal/llm/deepseek/deepseek_test.go`
 
--   [ ] `Options` に `Effort deepseekparam.Effort` を加え、`client` に保持する（設計書 3.5）。`Options` のコメントを設計書 3.5 の形に直す。
--   [ ] `New` は、`Effort` がゼロ値でも有効な値（`Valid()` が真）でもない場合、新しい非公開の番兵で拒否する。番兵は `errors.go` の既存の番兵に並べる。
--   [ ] `TestNew` の表に、4 つの値とゼロ値の受理、範囲外の値（境界の `EffortMax+1` と `Effort(-1)`）の拒否を加える。
+-   [x] `Options` に `Effort deepseekparam.Effort` を加え、`client` に保持する（設計書 3.5）。`Options` のコメントを設計書 3.5 の形に直す。
+-   [x] `New` は、`Effort` がゼロ値でも有効な値（`Valid()` が真）でもない場合、新しい非公開の番兵で拒否する。番兵は `errors.go` の既存の番兵に並べる。
+-   [x] `TestNew` の表に、4 つの値とゼロ値の受理、範囲外の値（境界の `EffortMax+1` と `Effort(-1)`）の拒否を加える。
 
 #### ステップ 2-2: 要求本文の `reasoning_effort`
 
 **変更するファイル:** `internal/llm/deepseek/request.go`、`internal/llm/deepseek/deepseek.go`、`internal/llm/deepseek/deepseek_test.go`
 
--   [ ] `chatRequest` に `reasoning_effort` のフィールドを加える。effort が `Valid()` なら `String()` の値を入れ、ゼロ値なら本文に現れない。ゼロ値でも有効な値でもなければ、本文を作らずにエラーを返す（設計書 3.5）。`thinking` は加えない。
--   [ ] `chatRequest` のコメント（`request.go:20-22`）を、`reasoning_effort` だけを例外として持つ形に直す。
--   [ ] `TestGenerateSendsRequest`（`deepseek_test.go:216-`）に、effort を指定しないクライアントの本文に `reasoning_effort` がないことを加える。`thinking` がないことの確認（`:279-280`）は残す。
--   [ ] 4 つの値のそれぞれで、`httptest` のサーバが受けた本文の `reasoning_effort` がその値であり、`thinking` がないことを確かめるテストを加える（AC-12）。
--   [ ] 要求本文の組み立てが範囲外の値で返すエラーは、ステップ 2-1 の番兵と同じものにする（2 つの拒否の箇所を同じ分類にする）。
--   [ ] 範囲外の値で何も送らないことを確かめる。`New` はこの値を通さないので、同じパッケージのテストで、`New` で作ったクライアントの effort のフィールドを範囲外の値に書き換え、記録するループバックのサーバに対して `Generate` を呼ぶ。サーバが要求を 1 つも受けないことと、エラーが番兵に当たる（`errors.Is`）ことを確かめる。
--   [ ] `TestGenerateSendsRequest` では、effort を指定しないクライアントの要求本文の最上位のメンバーの集合が `model`・`messages`・`stream` にちょうど等しいことを確かめる（AC-13）。4 つの値のテストでは、その集合に `reasoning_effort` を加えたものにちょうど等しいことを確かめる。値は、`String()` ではなく API の仕様の文字列（`none`・`low`・`high`・`max`）と比べる。
+-   [x] `chatRequest` に `reasoning_effort` のフィールドを加える。effort が `Valid()` なら `String()` の値を入れ、ゼロ値なら本文に現れない。ゼロ値でも有効な値でもなければ、本文を作らずにエラーを返す（設計書 3.5）。`thinking` は加えない。
+-   [x] `chatRequest` のコメント（`request.go:20-22`）を、`reasoning_effort` だけを例外として持つ形に直す。
+-   [x] `TestGenerateSendsRequest`（`deepseek_test.go:216-`）に、effort を指定しないクライアントの本文に `reasoning_effort` がないことを加える。`thinking` がないことの確認（`:279-280`）は残す。
+-   [x] 4 つの値のそれぞれで、`httptest` のサーバが受けた本文の `reasoning_effort` がその値であり、`thinking` がないことを確かめるテストを加える（AC-12）。
+-   [x] 要求本文の組み立てが範囲外の値で返すエラーは、ステップ 2-1 の番兵と同じものにする（2 つの拒否の箇所を同じ分類にする）。
+-   [x] 範囲外の値で何も送らないことを確かめる。`New` はこの値を通さないので、同じパッケージのテストで、`New` で作ったクライアントの effort のフィールドを範囲外の値に書き換え、記録するループバックのサーバに対して `Generate` を呼ぶ。サーバが要求を 1 つも受けないことと、エラーが番兵に当たる（`errors.Is`）ことを確かめる。
+-   [x] `TestGenerateSendsRequest` では、effort を指定しないクライアントの要求本文の最上位のメンバーの集合が `model`・`messages`・`stream` にちょうど等しいことを確かめる（AC-13）。4 つの値のテストでは、その集合に `reasoning_effort` を加えたものにちょうど等しいことを確かめる。値は、`String()` ではなく API の仕様の文字列（`none`・`low`・`high`・`max`）と比べる。
 
 #### ステップ 2-3: エラーに送った `reasoning_effort` を示す
 
-**変更するファイル:** `internal/llm/deepseek/deepseek.go`、`internal/llm/deepseek/errors.go`、`internal/llm/deepseek/response.go`、`internal/llm/deepseek/deepseek_test.go`、`internal/llm/deepseek/response_test.go`、`internal/llm/deepseek/test_helpers.go`
+**変更するファイル:** `internal/llm/deepseek/deepseek.go`、`internal/llm/deepseek/errors.go`、`internal/llm/deepseek/response.go`、`internal/llm/deepseek/deepseek_test.go`、`internal/llm/deepseek/test_helpers.go`
 
--   [ ] `statusError` に、送った `reasoning_effort`（送らなかったときはそのこと）を加える（設計書 1.2・3.5）。今のモデルと `max_tokens` の表示は変えない。
--   [ ] `400`・`422` の固定の案内（`statusGuidance`。`errors.go:54-57` の "check the model name, max_tokens, and prompt length"）に `reasoning_effort` を加える。API が値を拒否した場合（設計書 5.2 の残るリスク）に、利用者が原因の候補として見られるようにする。
--   [ ] 応答を拒否するテストの補助 `assertBodyRejectedResponse`（`test_helpers.go:265-`）は、クライアントの組み立てを固定している。effort を指定したクライアントでも使えるように補助を直すか、補助を加える（同じファイル、`//go:build test`）。
--   [ ] `parseResponse` が送った要求の要約を受け取り、打ち切り・想定外の終了理由・空の応答のエラーに `reasoning_effort` を加える。要約の型は Claude の `requestSummary` と同じ形にする。応答の解釈の規則は変えない（設計書 3.5）。
--   [ ] `TestGenerateHTTPStatus`（`deepseek_test.go:424-`）と、`response_test.go` の打ち切り・終了理由・空の応答のテスト（`TestGenerateFinishReason`・`TestGenerateEmptyContent`）に、effort を指定したときと指定しないときのエラーの表示の確認を加える。
+-   [x] `statusError` に、送った `reasoning_effort`（送らなかったときはそのこと）を加える（設計書 1.2・3.5）。今のモデルと `max_tokens` の表示は変えない。
+-   [x] `400`・`422` の固定の案内（`statusGuidance`。`errors.go:54-57` の "check the model name, max_tokens, and prompt length"）に `reasoning_effort` を加える。API が値を拒否した場合（設計書 5.2 の残るリスク）に、利用者が原因の候補として見られるようにする。
+-   [x] 応答の拒否のテストの補助 `assertBodyRejectedResponse`（`test_helpers.go:265-`）は、既定のクライアントの組み立てを固定している。effort の表示を確かめるテストは、応答の契約ではなくエラーの文を見るので、補助に頼らず自分でクライアントを組み立てる（使われない補助を増やさない）。
+-   [x] `parseResponse` が送った要求の要約を受け取り、打ち切り・想定外の終了理由・空の応答のエラーに `reasoning_effort` を加える。要約の型は Claude の `requestSummary` と同じ形にする。応答の解釈の規則は変えない（設計書 3.5）。
+-   [x] `TestGenerateHTTPStatus`（`deepseek_test.go:424-`）・`TestGenerateFinishReason`・`TestGenerateEmptyContent` が扱う 4 種類のエラー（HTTP の状態・打ち切り・想定外の終了理由・空の応答）について、effort を指定したときと指定しないときの表示を 1 つの表で確かめる（`TestGenerateErrorsNameEffort`。4 種類 × 2 の組を 4 つのテストに書き分けない）。
 
 #### ステップ 2-4: 文書の行を直す
 
 **変更するファイル:** `docs/dev/conventions/package_reference.md`
 
--   [ ] `internal/llm/deepseek` の行に、`Options.Effort`、`reasoning_effort` を指定があるときだけ送ること、エラーに送った値を示すことを加える（設計書 3.7）。
+-   [x] `internal/llm/deepseek` の行に、`Options.Effort`、`reasoning_effort` を指定があるときだけ送ること、エラーに送った値を示すことを加える（設計書 3.7）。
 
 **フェーズ 2 の完了の条件:** `make fmt`、`make test`、`make lint`、`make deadcode` が通る。`Options` を組み立てる `integration` タグのファイル（`internal/llm/deepseek/integration_test.go:43`）は、`make lint`（`test,integration` のタグで解析する）と `make deadcode`（同じタグ。`Makefile:286`）がコンパイルする。effort を指定しないクライアントの要求本文が今と同じであることを `TestGenerateSendsRequest` が確かめている。
 

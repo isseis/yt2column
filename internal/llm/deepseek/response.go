@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/isseis/yt2column/internal/llm"
+	"github.com/isseis/yt2column/internal/llm/deepseekparam"
 	"github.com/isseis/yt2column/internal/strictjson"
 )
 
@@ -46,13 +47,20 @@ const maxReasonBytes = 64
 // jsonWhitespace is the set of insignificant whitespace bytes of RFC 8259.
 const jsonWhitespace = " \t\r\n"
 
+// requestSummary carries the request-side values that a truncation, an
+// unexpected finish reason, or an empty response names: the reasoning_effort
+// that was sent, or that none was sent. It is not a secret.
+type requestSummary struct {
+	effort deepseekparam.Effort
+}
+
 // parseResponse validates one response body and builds the GenerateResponse.
 // The checks run in the requirement order: body shape, usage, finish reason,
 // content. A body-shape rejection returns the zero GenerateResponse, whose
 // usage is unknown. A truncation, an unexpected finish reason, or an empty
 // response carries the rejected response's model and token usage with the
-// error.
-func parseResponse(data []byte) (llm.GenerateResponse, error) {
+// error, and names the reasoning_effort the request carried.
+func parseResponse(data []byte, summary requestSummary) (llm.GenerateResponse, error) {
 	// Only JSON whitespace counts: bytes.TrimSpace would also strip Unicode
 	// spaces such as U+00A0, which are not JSON whitespace.
 	if len(bytes.Trim(data, jsonWhitespace)) == 0 {
@@ -100,15 +108,18 @@ func parseResponse(data []byte) (llm.GenerateResponse, error) {
 	switch finishReason {
 	case finishReasonLength:
 		return llm.GenerateResponse{Model: model, Usage: usage},
-			fmt.Errorf("%w: finish_reason is %s", llm.ErrTruncated, quoteReason(finishReason))
+			fmt.Errorf("%w: finish_reason is %s, reasoning_effort %s",
+				llm.ErrTruncated, quoteReason(finishReason), effortSummary(summary.effort))
 	case finishReasonStop:
 	default:
 		return llm.GenerateResponse{Model: model, Usage: usage},
-			fmt.Errorf("%w: finish_reason is %s", llm.ErrUnexpectedFinishReason, quoteReason(finishReason))
+			fmt.Errorf("%w: finish_reason is %s, reasoning_effort %s",
+				llm.ErrUnexpectedFinishReason, quoteReason(finishReason), effortSummary(summary.effort))
 	}
 	if strings.TrimSpace(content) == "" {
 		return llm.GenerateResponse{Model: model, Usage: usage},
-			fmt.Errorf("%w: content is empty or whitespace only", llm.ErrEmptyResponse)
+			fmt.Errorf("%w: content is empty or whitespace only, reasoning_effort %s",
+				llm.ErrEmptyResponse, effortSummary(summary.effort))
 	}
 	return llm.GenerateResponse{
 		Text:         content,

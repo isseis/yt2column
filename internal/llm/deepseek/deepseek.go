@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/isseis/yt2column/internal/llm"
+	"github.com/isseis/yt2column/internal/llm/deepseekparam"
 	"github.com/isseis/yt2column/internal/llm/llmhttp"
 	"github.com/isseis/yt2column/internal/secret"
 )
@@ -29,10 +30,13 @@ const (
 	errorPrefix = "deepseek: "
 )
 
-// Options configures the DeepSeek adapter. All fields are required.
+// Options configures the DeepSeek adapter. APIKey, Model, and Timeout are
+// required. The zero Effort sends no reasoning_effort member; any other value
+// must be one deepseekparam accepts.
 type Options struct {
 	APIKey  secret.Secret
 	Model   string
+	Effort  deepseekparam.Effort
 	Timeout time.Duration
 }
 
@@ -42,6 +46,7 @@ type Options struct {
 type client struct {
 	apiKey     secret.Secret
 	model      string
+	effort     deepseekparam.Effort
 	timeout    time.Duration
 	endpoint   string
 	httpClient *http.Client
@@ -63,12 +68,16 @@ func New(opts Options) (llm.LLMClient, error) {
 	if !utf8.ValidString(opts.Model) {
 		return nil, wrapError(errInvalidModel)
 	}
+	if opts.Effort != deepseekparam.EffortUnspecified && !opts.Effort.Valid() {
+		return nil, wrapError(errInvalidEffort)
+	}
 	if opts.Timeout <= 0 {
 		return nil, wrapError(errNonPositiveTimeout)
 	}
 	return &client{
 		apiKey:     opts.APIKey,
 		model:      opts.Model,
+		effort:     opts.Effort,
 		timeout:    opts.Timeout,
 		endpoint:   endpoint,
 		httpClient: llmhttp.NewClient(),
@@ -101,7 +110,7 @@ func (c *client) generate(ctx context.Context, req llm.GenerateRequest) (llm.Gen
 	if err := req.Validate(); err != nil {
 		return llm.GenerateResponse{}, err
 	}
-	body, err := newChatRequestBody(c.model, req)
+	body, err := newChatRequestBody(c.model, req, c.effort)
 	if err != nil {
 		return llm.GenerateResponse{}, err
 	}
@@ -122,16 +131,29 @@ func (c *client) generate(ctx context.Context, req llm.GenerateRequest) (llm.Gen
 	if err != nil {
 		return llm.GenerateResponse{}, err
 	}
-	return parseResponse(data)
+	return parseResponse(data, requestSummary{effort: c.effort})
 }
 
-// statusError builds the HTTP status failure. The model name and the
-// max_tokens value that was sent (or that none was sent) help the caller
-// match the fixed guidance to the configuration; neither is a secret.
+// statusError builds the HTTP status failure. The model name, the max_tokens
+// value that was sent (or that none was sent), and the reasoning_effort that
+// was sent (or that none was sent) help the caller match the fixed guidance to
+// the configuration; none of them is a secret.
 func (c *client) statusError(status, maxTokens int) error {
 	limit := "not sent"
 	if maxTokens > 0 {
 		limit = strconv.Itoa(maxTokens)
 	}
-	return fmt.Errorf("model %q, max_tokens %s: %w", c.model, limit, &HTTPStatusError{StatusCode: status})
+	return fmt.Errorf("model %q, max_tokens %s, reasoning_effort %s: %w",
+		c.model, limit, effortSummary(c.effort), &HTTPStatusError{StatusCode: status})
+}
+
+// effortSummary renders the reasoning_effort a request carries: the wire value
+// when one was specified, "not sent" otherwise. The alternative is unreachable
+// because New and the request body accept the same values, and it reads as
+// "not sent" rather than inventing a value the request does not carry.
+func effortSummary(effort deepseekparam.Effort) string {
+	if effort == deepseekparam.EffortUnspecified {
+		return "not sent"
+	}
+	return effort.String()
 }
