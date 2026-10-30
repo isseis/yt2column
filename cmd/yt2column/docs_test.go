@@ -189,17 +189,14 @@ func TestSlackDocsContract(t *testing.T) {
 	} {
 		requireMentions(t, doc.name, doc.text, values)
 	}
-	limitDocs := []struct{ name, text string }{
-		{"project_overview.md", doctestutil.ReadDoc(t, projectOverviewPath)},
+	if !strings.Contains(doctestutil.ReadDoc(t, projectOverviewPath), "16,383") {
+		t.Error("project_overview.md does not state the per-message limit 16,383")
 	}
-	for _, v := range doctestutil.ReadmeVersions() {
-		limitDocs = append(limitDocs, struct{ name, text string }{v.Path, doctestutil.ReadDoc(t, v.From(repositoryRoot))})
-	}
-	for _, doc := range limitDocs {
-		if !strings.Contains(doc.text, "16,383") {
-			t.Errorf("%s does not state the per-message limit 16,383", doc.name)
+	readmeVersionsUnder(t, func(t *testing.T, v doctestutil.ReadmeVersion, readme string) {
+		if !strings.Contains(readme, "16,383") {
+			t.Errorf("%s does not state the per-message limit 16,383", v.Path)
 		}
-	}
+	})
 }
 
 // requireMentions fails the test for each value that text does not contain.

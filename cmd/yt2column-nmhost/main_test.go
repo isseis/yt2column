@@ -426,6 +426,9 @@ func TestInstallFailures(t *testing.T) {
 	}
 }
 
+// repositoryRoot is the path from cmd/yt2column-nmhost to the repository root.
+const repositoryRoot = "../.."
+
 // TestReadmeHostExitCodes checks that the host exit-code table of each README
 // version, under the native messaging host section, lists exactly the host's
 // exit codes, so a changed or added code fails until both versions follow.
@@ -434,7 +437,7 @@ func TestReadmeHostExitCodes(t *testing.T) {
 	for _, v := range doctestutil.ReadmeVersions() {
 		t.Run(v.Path, func(t *testing.T) {
 			heading := doctestutil.ReadmeInstallHostHeading.In(t, v.Lang)
-			section := doctestutil.SectionOutsideBlocks(doctestutil.ReadDoc(t, v.From("../..")), heading)
+			section := doctestutil.SectionOutsideBlocks(doctestutil.ReadDoc(t, v.From(repositoryRoot)), heading)
 			if section == "" {
 				t.Fatalf("%s has no %q section", v.Path, heading)
 			}

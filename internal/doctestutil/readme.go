@@ -63,6 +63,8 @@ func (l Locator) In(t testing.TB, lang Lang) string {
 	case LangEN:
 		spelling = l.EN
 	default:
+		// The empty-spelling check below would also reject it; failing here
+		// names the cause and keeps the switch failing secure on its own.
 		t.Fatalf("locator %+v: no spelling for language %d", l, int(lang))
 		return ""
 	}

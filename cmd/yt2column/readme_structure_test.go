@@ -19,7 +19,7 @@ import (
 // rejects fails naming that version. The doc-guard CI job runs this package,
 // so a pull request that changes only a README is checked too.
 func TestReadmeVersionsShareStructure(t *testing.T) {
-	versions := doctestutil.ReadmeVersions()
+	versions := twoReadmeVersions(t)
 	structures := make([]doctestutil.Structure, len(versions))
 	for i, v := range versions {
 		s, err := doctestutil.ParseStructure(doctestutil.ReadDoc(t, v.From(repositoryRoot)))
@@ -40,7 +40,7 @@ func TestReadmeVersionsShareStructure(t *testing.T) {
 // README.md, which holds the variables the CLI shares with the server.
 // TestReadmeLinks checks that every one of these links resolves.
 func TestReadmeVersionLinks(t *testing.T) {
-	versions := doctestutil.ReadmeVersions()
+	versions := twoReadmeVersions(t)
 	for i, v := range versions {
 		other := versions[1-i]
 		t.Run(v.Path, func(t *testing.T) {
@@ -50,9 +50,9 @@ func TestReadmeVersionLinks(t *testing.T) {
 				t.Errorf("%s has no link to %s before its first heading", v.Path, other.Path)
 			}
 			targets := markdownLinkTargets(doc)
-			for _, guide := range []string{cliDocPath, developmentDocPath} {
-				if !linksTo(targets, path, guide, "") {
-					t.Errorf("%s has no link to %s", v.Path, filepath.Base(guide))
+			for _, guide := range readmeGuides {
+				if !linksTo(targets, path, filepath.Join(repositoryRoot, guide), "") {
+					t.Errorf("%s has no link to %s", v.Path, guide)
 				}
 			}
 		})
@@ -65,6 +65,17 @@ func TestReadmeVersionLinks(t *testing.T) {
 			t.Errorf("cli.md has no link to %s#%s", readme.Path, anchor)
 		}
 	})
+}
+
+// twoReadmeVersions returns the README versions, the primary version first,
+// failing t unless there are exactly two: these tests compare one pair.
+func twoReadmeVersions(t *testing.T) []doctestutil.ReadmeVersion {
+	t.Helper()
+	versions := doctestutil.ReadmeVersions()
+	if len(versions) != 2 || versions[0].Lang != doctestutil.LangJA {
+		t.Fatalf("want the Japanese primary README and its English version, got %+v", versions)
+	}
+	return versions
 }
 
 // beforeFirstHeading returns the lines of doc before its first heading outside

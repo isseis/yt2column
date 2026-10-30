@@ -61,15 +61,14 @@ func TestExtensionDocumentation(t *testing.T) {
 	makefile := doctestutil.ReadDoc(t, makefilePath)
 
 	t.Run("records the fixed extension ID in README and security.md", func(t *testing.T) {
-		docs := []struct{ name, text string }{{"security.md", security}}
-		for _, v := range doctestutil.ReadmeVersions() {
-			docs = append(docs, struct{ name, text string }{v.Path, doctestutil.ReadDoc(t, v.From(repositoryRoot))})
+		if !strings.Contains(security, extensionID) {
+			t.Errorf("security.md does not record the extension ID %s", extensionID)
 		}
-		for _, doc := range docs {
-			if !strings.Contains(doc.text, extensionID) {
-				t.Errorf("%s does not record the extension ID %s", doc.name, extensionID)
+		readmeVersionsUnder(t, func(t *testing.T, v doctestutil.ReadmeVersion, readme string) {
+			if !strings.Contains(readme, extensionID) {
+				t.Errorf("%s does not record the extension ID %s", v.Path, extensionID)
 			}
-		}
+		})
 	})
 
 	t.Run("lists every ext- target the Makefile defines, and no others", func(t *testing.T) {
