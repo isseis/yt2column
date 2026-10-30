@@ -127,14 +127,17 @@ var (
 	// what parseLLM accepts.
 	reasonClaudeEffortPart   = effortPartReason(providerClaude, claudeparam.EffortValues())
 	reasonDeepSeekEffortPart = effortPartReason(providerDeepSeek, deepseekparam.EffortValues())
-	// reasonRetiredClaudeEffort rejects YT2COLUMN_CLAUDE_EFFORT. A user who
-	// changed only the effort with it may have no YT2COLUMN_LLM to append to,
-	// so it gives the value to set in that case, built from the defaults.
+	// reasonRetiredClaudeEffort rejects YT2COLUMN_CLAUDE_EFFORT. The variable
+	// applied only to claude stages, so the effort moves only to the LLM
+	// variables whose provider is claude; appending it to a deepseek value
+	// would change what that stage sends. A user who changed only the effort
+	// may have no YT2COLUMN_LLM to append to, so the reason gives the value to
+	// set in that case, built from the defaults.
 	reasonRetiredClaudeEffort = "is no longer supported and must be unset (an empty value counts as set); append " +
-		effortSeparator + "<effort> to " + llmEnv + " (while it is unset, set " +
-		llmEnv + "=" + defaultLLMValue + effortSeparator + "<effort>) and to " + reviewLLMEnv +
-		" if it is set; without " + effortSeparator + "<effort>, each stage uses its provider's default (" +
-		defaultClaudeEffort.String() + " for " + providerClaude + ")"
+		effortSeparator + "<effort> to the value of each of " + llmEnv + " and " + reviewLLMEnv +
+		" whose provider is " + providerClaude + " (while " + llmEnv + " is unset, set " +
+		llmEnv + "=" + defaultLLMValue + effortSeparator + "<effort>); without " + effortSeparator +
+		"<effort>, a " + providerClaude + " stage uses " + defaultClaudeEffort.String()
 )
 
 // effortPartReason builds the rejection of an effort part for provider, which

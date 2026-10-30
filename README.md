@@ -350,9 +350,10 @@ macOS の Brave は Chrome の manifest のディレクトリを読むので、C
   を設定する。`YT2COLUMN_LLM` を設定せずに古い変数だけを外すと、既定の `claude/claude-opus-5-5` を使い、文字起こしは Anthropic
   に送られる。`YT2COLUMN_REVIEW_*` の変数をどれか設定していたなら、`YT2COLUMN_REVIEW_LLM`
   も、検証・推敲の工程が実際に使っていたプロバイダとモデルに設定する。`YT2COLUMN_CLAUDE_EFFORT`
-  を外すときは、使っていた effort を `YT2COLUMN_LLM` の値の後ろに `+<effort>` で付ける（`YT2COLUMN_LLM`
-  を設定していなければ `claude/claude-opus-5-5+<effort>` を設定する）。`YT2COLUMN_REVIEW_LLM`
-  を設定しているなら、その値にも付ける。付けなければ、その工程は既定の effort（`claude` では `high`）を使う。
+  を外すときは、使っていた effort を、`YT2COLUMN_LLM` と `YT2COLUMN_REVIEW_LLM` のうちプロバイダが
+  `claude` の値の後ろに `+<effort>` で付ける（`YT2COLUMN_LLM` を設定していなければ
+  `claude/claude-opus-5-5+<effort>` を設定する）。付けなければ、その工程は既定の effort の `high`
+  を使う。古い変数は `deepseek` の工程には効いていなかったので、`deepseek` の値には付けない。
   [廃止した LLM の変数からの移行](#廃止した-llm-の変数からの移行)を参照し、それからサーバをもう一度起動する。
 - **モデルのエラーを伴う `build the LLM client` または `build the review LLM client`。** プロバイダのクライアントは、前後に空白のあるモデルの
   ID や不正な UTF-8 のモデルの ID を、組み立てるときに、変数を名指しせずに拒否する。サーバは起動時に両方のクライアントを組み立てるので、待ち受ける前に
@@ -495,7 +496,7 @@ export YT2COLUMN_LLM=deepseek/deepseek-flash
 | `YT2COLUMN_REVIEW_PROVIDER` だけ（検証・推敲の工程は、そのプロバイダの既定のモデルを使っていた） | `YT2COLUMN_REVIEW_LLM=<provider>/<model ID>`。モデルの ID を書き出す。例えば `claude/claude-opus-5-5` |
 | `YT2COLUMN_REVIEW_MODEL` だけ（検証・推敲の工程は、生成のプロバイダを使っていた） | `YT2COLUMN_REVIEW_LLM=<generation provider>/<model ID>`。生成のプロバイダを書き出す。例えば `deepseek/deepseek-chat` |
 
-Claude の effort は、以前は `YT2COLUMN_CLAUDE_EFFORT` で設定し、生成と検証・推敲の両方に効いていた。今は
+Claude の effort は、以前は `YT2COLUMN_CLAUDE_EFFORT` で設定し、生成と検証・推敲のうち `claude` を使う工程に効いていた。今は
 `YT2COLUMN_LLM` と `YT2COLUMN_REVIEW_LLM` の値の後ろに `+<effort>` を付けて工程ごとに設定し、`YT2COLUMN_CLAUDE_EFFORT`
 は拒否する。例えば、以前の設定
 
@@ -512,8 +513,9 @@ export YT2COLUMN_LLM=claude/claude-sonnet-5-5+low
 
 `YT2COLUMN_LLM` を設定していなかったなら、既定に effort を付けた
 `YT2COLUMN_LLM=claude/claude-opus-5-5+<effort>` を設定する。`YT2COLUMN_REVIEW_LLM`
-を設定していたなら、その値にも同じ effort を付ける。付けなければ、検証・推敲の工程は既定の `high`
-を使う。この版より前の版は `+<effort>` をモデルの ID の一部とみなしてプロバイダに送るので、そうした版に戻すときは
+に `claude` の値を設定していたなら、その値にも同じ effort を付ける。付けなければ、検証・推敲の工程は既定の `high`
+を使う。プロバイダが `deepseek` の値には付けない。古い変数は `deepseek` の工程に効いておらず、付けると、それまで送っていなかった
+`reasoning_effort` を送る。この版より前の版は `+<effort>` をモデルの ID の一部とみなしてプロバイダに送るので、そうした版に戻すときは
 `+<effort>` を外す。外さなければ、最初の LLM の呼び出しが失敗する。
 
 古い変数は、ファイルから消すだけでなく外す（unset）。すでに export したシェルは古い変数を持ち続け、空の値も拒否するためである。古い変数を設定しうるすべての場所、すなわち `.envrc`、`.env`、シェルの起動ファイル、サーバを起動するスクリプトを確かめる。

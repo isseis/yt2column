@@ -1,4 +1,4 @@
-<!-- translated-from: README.md 20ad1745f47e0cecae9063732299ce6ffaa7ca0c -->
+<!-- translated-from: README.md 994c09546f2af72503f65d50419f9b120c967de1 -->
 [日本語](README.md)
 
 Developer documents: [Using the CLI](docs/dev/guides/cli.md) · [Development procedures](docs/dev/guides/development.md)
@@ -461,10 +461,11 @@ The status code of each reason, and how to check the server with `curl`, are in
   transcript goes to Anthropic. If any `YT2COLUMN_REVIEW_*` variable was set,
   also set `YT2COLUMN_REVIEW_LLM` to the provider and model the review step
   actually used. When you unset `YT2COLUMN_CLAUDE_EFFORT`, append the effort you
-  used to the value of `YT2COLUMN_LLM` as `+<effort>` (if `YT2COLUMN_LLM` is not
-  set, set it to `claude/claude-opus-5-5+<effort>`). If `YT2COLUMN_REVIEW_LLM`
-  is set, append the effort to that value too. If you do not append it, that
-  step uses the default effort (`high` for `claude`). See
+  used as `+<effort>` to the values of `YT2COLUMN_LLM` and `YT2COLUMN_REVIEW_LLM`
+  whose provider is `claude` (if `YT2COLUMN_LLM` is not set, set it to
+  `claude/claude-opus-5-5+<effort>`). If you do not append it, that step uses
+  the default effort `high`. The old variable did not apply to `deepseek` steps,
+  so do not append it to a `deepseek` value. See
   [Migrating from the retired LLM variables](#migrating-from-the-retired-llm-variables),
   then start the server again.
 - **`build the LLM client` or `build the review LLM client` with a model
@@ -664,7 +665,7 @@ provider looks the same as generation's.
 | `YT2COLUMN_REVIEW_MODEL` alone (the review step used the generation provider) | `YT2COLUMN_REVIEW_LLM=<generation provider>/<model ID>`, with the generation provider written out, for example `deepseek/deepseek-chat` |
 
 The Claude effort used to be set in `YT2COLUMN_CLAUDE_EFFORT`, which applied to
-both generation and review. It is now set per step by appending `+<effort>` to
+whichever of the generation and review steps used `claude`. It is now set per step by appending `+<effort>` to
 the values of `YT2COLUMN_LLM` and `YT2COLUMN_REVIEW_LLM`, and
 `YT2COLUMN_CLAUDE_EFFORT` is rejected. For example, a setting that was
 
@@ -681,8 +682,11 @@ export YT2COLUMN_LLM=claude/claude-sonnet-5-5+low
 
 If `YT2COLUMN_LLM` was not set, set the default with the effort appended,
 `YT2COLUMN_LLM=claude/claude-opus-5-5+<effort>`. If `YT2COLUMN_REVIEW_LLM` was
-set, append the same effort to its value too. If you do not append it, the
-review step uses the default `high`. Versions before this one send `+<effort>` to the provider
+set to a `claude` value, append the same effort to its value too. If you do not
+append it, the review step uses the default `high`. Do not append it to a value
+whose provider is `deepseek`. The old variable did not apply to `deepseek`
+steps, and appending it sends a `reasoning_effort` that was not sent before.
+Versions before this one send `+<effort>` to the provider
 as part of the model ID, so when going back to such a version, remove
 `+<effort>`. Otherwise, the first LLM call fails.
 

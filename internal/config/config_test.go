@@ -1733,15 +1733,17 @@ func TestEffortPartReasonsListValues(t *testing.T) {
 }
 
 // TestRetiredClaudeEffortReason checks the code values the rejection of
-// YT2COLUMN_CLAUDE_EFFORT names: both LLM variables, the value to set while
-// YT2COLUMN_LLM is unset, and the claude default effort. The default effort is
-// searched for with its delimiters, because "high" is part of "xhigh".
+// YT2COLUMN_CLAUDE_EFFORT names: both LLM variables, the claude provider the
+// effort moves to, the value to set while YT2COLUMN_LLM is unset, and the
+// claude default effort. The default effort is searched for with the words in
+// front of it, because "high" is part of "xhigh".
 func TestRetiredClaudeEffortReason(t *testing.T) {
 	fragments := []string{
 		llmEnv,
 		reviewLLMEnv,
+		"whose provider is " + providerClaude,
 		llmEnv + "=" + defaultLLMValue + effortSeparator + "<effort>",
-		"(" + defaultClaudeEffort.String() + " for " + providerClaude + ")",
+		"a " + providerClaude + " stage uses " + defaultClaudeEffort.String(),
 	}
 	for _, fragment := range fragments {
 		if !strings.Contains(reasonRetiredClaudeEffort, fragment) {
