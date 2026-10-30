@@ -213,16 +213,30 @@
 
 **変更するファイル:** なし（一時的なテストはコミットしない）。結果は本書のこのステップに記録する。
 
--   [ ] 実際の API を呼ぶ前に、呼び出しの回数と内容を示して人間の承認を得る（`CLAUDE.md`「Tool Execution Safety」）。
--   [ ] 1.3 の手段で、設計書 7.6 の 3 点を確かめる。モデルは `deepseek-flash` とする。呼び出しはちょうど 6 回である（アダプタ経由の 4 つの値で 4 回、長いプロンプトの `max` で 1 回、生の要求の `none` で 1 回）。
+-   [x] 実際の API を呼ぶ前に、呼び出しの回数と内容を示して人間の承認を得る（`CLAUDE.md`「Tool Execution Safety」）。
+-   [x] 1.3 の手段で、設計書 7.6 の 3 点を確かめる。モデルは `deepseek-flash` とする。呼び出しはちょうど 6 回である（アダプタ経由の 4 つの値で 4 回、長いプロンプトの `max` で 1 回、生の要求の `none` で 1 回）。
     -   4 つの値（`none`・`low`・`high`・`max`）のそれぞれで、API が `200` を返し、アダプタが応答を受理すること。
     -   `none` の生の応答に `reasoning_content` がないか空であること。
     -   `max` を `testdata/mbyG85GZ0PI.transcript_copy.txt`（`testdata/` の字幕のうち最も大きい）の全文をユーザーのプロンプトにして送ったとき、1 回の呼び出しの時間の上限（タイムアウト）の中で終わり、`max_tokens` を送らない要求で打ち切りにならないこと。時間の上限には、本番の `provider.LLMTimeout`（`provider.go:24`、15 分）と同じ値の `integrationGenerateTimeout`（`internal/llm/deepseek/integration_env_test.go:28`、15 分）を使う。`deepseek` のパッケージのテストは `provider` を import できない（`provider` が `deepseek` を import する。`provider.go:13`）ので、`provider.LLMTimeout` は使えない。所要時間を記録する。
--   [ ] 一時的なテストは、ほかのテストを走らせない形で実行する。`make test-integration-deepseek` は使わない。この対象はパッケージ全体を走らせ、課金される `TestIntegrationGenerate` の 2 回の呼び出しが加わり、`-timeout` も 2 回分（`Makefile:156-161`）だからである。実行の形は `YT2COLUMN_DEEPSEEK_INTEGRATION=1 YT2COLUMN_TEST_DEEPSEEK_MODEL=deepseek-flash go test -tags integration -count=1 -run '^<一時的なテストの名前>$' -timeout 120m -v ./internal/llm/deepseek` とし、API キーは `YT2COLUMN_TEST_DEEPSEEK_API_KEY` で与える（`deepseektestutil.SettingsFrom` が読む変数。`internal/llm/deepseek/testutil/integration.go:21-26`）。
--   [ ] 生の要求は、同じパッケージの中から、アダプタの `newRequest` と `httpClient`（`llmhttp.NewClient` が作る、リダイレクトを拒否するクライアント）で送る。応答の本文は上限を付けて読み、応答を受け取った箇所で `Body.Close` を登録する。ログには `reasoning_content` の有無と長さだけを出し、要求・応答の本文とヘッダは出さない。
--   [ ] 一時的なテストのファイルを消し、作業ツリーに残っていないことを `git status` で確かめる。
--   [ ] 結果（日付、各値の状態コードと受理の可否、`none` の `reasoning_content` の有無、`max` の所要時間と `finish_reason`）を、このステップの下に記録する。API キーとそこから作った値は記録しない。
--   [ ] 受け付けられない値や、`max` での時間切れ・打ち切りがあれば、フェーズ 4 に進まず、要件の変更として人間に諮る（設計書 7.6）。
+-   [x] 一時的なテストは、ほかのテストを走らせない形で実行する。`make test-integration-deepseek` は使わない。この対象はパッケージ全体を走らせ、課金される `TestIntegrationGenerate` の 2 回の呼び出しが加わり、`-timeout` も 2 回分（`Makefile:156-161`）だからである。実行の形は `YT2COLUMN_DEEPSEEK_INTEGRATION=1 YT2COLUMN_TEST_DEEPSEEK_MODEL=deepseek-flash go test -tags integration -count=1 -run '^<一時的なテストの名前>$' -timeout 120m -v ./internal/llm/deepseek` とし、API キーは `YT2COLUMN_TEST_DEEPSEEK_API_KEY` で与える（`deepseektestutil.SettingsFrom` が読む変数。`internal/llm/deepseek/testutil/integration.go:21-26`）。
+-   [x] 生の要求は、同じパッケージの中から、アダプタの `newRequest` と `httpClient`（`llmhttp.NewClient` が作る、リダイレクトを拒否するクライアント）で送る。応答の本文は上限を付けて読み、応答を受け取った箇所で `Body.Close` を登録する。ログには `reasoning_content` の有無と長さだけを出し、要求・応答の本文とヘッダは出さない。
+-   [x] 一時的なテストのファイルを消し、作業ツリーに残っていないことを `git status` で確かめる。
+-   [x] 結果（日付、各値の状態コードと受理の可否、`none` の `reasoning_content` の有無、`max` の所要時間と `finish_reason`）を、このステップの下に記録する。API キーとそこから作った値は記録しない。
+-   [x] 受け付けられない値や、`max` での時間切れ・打ち切りがあれば、フェーズ 4 に進まず、要件の変更として人間に諮る（設計書 7.6）。 → 該当なし（下の記録のとおり、3 点がすべて満たされた）。
+
+**記録（2026-10-31、人間の承認の後に実行）:** 一時的なテスト `TestEffortProbe`（`integration` タグ、`internal/llm/deepseek`）を上の実行の形で 1 回走らせ、呼び出しはちょうど 6 回だった。API キーは `.envrc` の `YT2COLUMN_TEST_DEEPSEEK_API_KEY` から与えた。応答のモデルは `deepseek-flash`、モデルの版（`system_fingerprint`）は 6 回とも同じだった。アダプタは `200` 以外の状態を `Generate` のエラーにし、終了理由は `stop` だけを受理するので、アダプタ経由の呼び出しがエラーを返さなかったことは、状態が `200` で終了理由が `stop` だったことを意味する。
+
+| 呼び出し | effort | 状態 | アダプタの受理 | 所要時間 | 入力・出力のトークン |
+|---|---|---|---|---|---|
+| アダプタ経由・短いプロンプト | `none` | `200` | 受理 | 0.86 秒 | 22・21 |
+| アダプタ経由・短いプロンプト | `low` | `200` | 受理 | 0.69 秒 | 47・45 |
+| アダプタ経由・短いプロンプト | `high` | `200` | 受理 | 0.76 秒 | 47・61 |
+| アダプタ経由・短いプロンプト | `max` | `200` | 受理 | 0.95 秒 | 47・62 |
+| アダプタ経由・長いプロンプト（`mbyG85GZ0PI.transcript_copy.txt` の全文、77,824 バイト。日本語で約 4000 字のコラムを依頼） | `max` | `200` | 受理（`finish_reason` は `stop`。打ち切りなし） | 29.8 秒（上限 15 分） | 19,753・3,828（本文 2,727 字） |
+| 生の要求・短いプロンプト | `none` | `200` | （アダプタを通さない） | 0.97 秒 | — |
+
+-   `none` の生の応答: `reasoning_content` はない（メンバーがないか `null`）。`finish_reason` は `stop` で、`content` は空でなかった。thinking は無効になっている。同じプロンプトで `none` の入力のトークンだけが少ない（22 と 47）ことも、`none` が別の扱いを受けていることと合う。
+-   要求・応答の本文とヘッダはログに出していない。費用は 6 回の合計で約 0.0054 米ドル（オフピーク）だった。
 
 **完了の条件:** 3 点がすべて満たされたことが記録されている。または、人間が判断した結果が記録されている。
 
@@ -385,7 +399,7 @@ M2 は M3 の作業より前に終える。M2 で問題があれば、M3 に進�
   - [x] フェーズ 1 完了
   - [x] フェーズ 2 完了
 - [ ] PR-2 マージ済み（対象ステップ: 3-1 / 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6）
-  - [ ] フェーズ 3 完了（ステップ 3-1 の記録あり）
+  - [x] フェーズ 3 完了（ステップ 3-1 の記録あり）
   - [ ] フェーズ 4 完了
 
 **横断の確認（`make lint` と `make test` では検出できないもの）:**
