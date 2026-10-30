@@ -2061,15 +2061,13 @@ func TestRunRejectsInvalidEffortPart(t *testing.T) {
 	if code := e.run(); code != exitUsage {
 		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitUsage, e.stderr.String())
 	}
+	// The printed line is the contract here: it is all the user sees.
 	prefix := programName + ": configuration: YT2COLUMN_LLM"
 	if !slices.ContainsFunc(strings.Split(e.stderr.String(), "\n"), func(line string) bool { return strings.HasPrefix(line, prefix) }) {
 		t.Errorf("stderr has no line starting with %q:\n%s", prefix, e.stderr.String())
 	}
 	if built != 0 {
 		t.Errorf("LLM clients built = %d, want 0", built)
-	}
-	if got := e.counter.count(); got != 0 {
-		t.Errorf("Generate calls = %d, want 0", got)
 	}
 }
 

@@ -753,6 +753,14 @@ func checkMigrationSection(t *testing.T, name, migrationHeading, readme string) 
 					name, migrationHeading, effortVar, len(before), effortVar, llmVar)
 				continue
 			}
+			// The retired variable applied only to a claude stage, so the
+			// example's value must select claude for the effort to have
+			// meant anything.
+			if load(before[llmVar]).Provider() != config.ProviderClaude {
+				t.Errorf("%s %s: the %s example's %s does not select claude, the only provider the retired variable applied to",
+					name, migrationHeading, effortVar, llmVar)
+				continue
+			}
 			old = before[llmVar] + "+" + before[effortVar]
 		default:
 			examples[providerVar]++

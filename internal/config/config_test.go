@@ -393,17 +393,7 @@ func TestLoadClaudeReportsAllInvalid(t *testing.T) {
 	env := with(validClaudeEnv(), anthropicWorkspaceIDEnv, " wrkspc_x")
 	env = without(env, anthropicAPIKeyEnv)
 	_, err := Load(envLookup(env))
-	if !errors.Is(err, ErrMissing) {
-		t.Errorf("Load() error = %v, want it to wrap ErrMissing", err)
-	}
-	if !errors.Is(err, ErrInvalid) {
-		t.Errorf("Load() error = %v, want it to wrap ErrInvalid", err)
-	}
-	for _, name := range []string{anthropicAPIKeyEnv, anthropicWorkspaceIDEnv} {
-		if !strings.Contains(err.Error(), name) {
-			t.Errorf("Load() error = %q, want it to name %q", err, name)
-		}
-	}
+	assertVarErrors(t, err, wantMissing(anthropicAPIKeyEnv), wantInvalid(anthropicWorkspaceIDEnv, reasonAnthropicWorkspaceID))
 }
 
 // TestLoadClaudeIgnoresDeepSeekKey checks that DEEPSEEK_API_KEY's value never
@@ -1725,8 +1715,15 @@ func TestEffortPartReasonsListValues(t *testing.T) {
 			if !found {
 				t.Fatalf("reason %q has no %q", tc.reason, effortValuesPrefix)
 			}
-			if got := strings.Split(list, effortValuesSeparator); !slices.Equal(got, tc.want) {
+			got := strings.Split(list, effortValuesSeparator)
+			if !slices.Equal(got, tc.want) {
 				t.Errorf("listed values = %q, want %q", got, tc.want)
+			}
+			// Each listed value is one parseLLM accepts for the provider.
+			for _, value := range got {
+				if _, err := parseLLM(llmEnv, tc.name+"/model+"+value); err != nil {
+					t.Errorf("parseLLM(%s/model+%s) error = %v, want the listed value accepted", tc.name, value, err)
+				}
 			}
 		})
 	}
@@ -1738,8 +1735,9 @@ func TestEffortPartReasonsListValues(t *testing.T) {
 // claude default effort. The default effort is searched for with the words in
 // front of it, because "high" is part of "xhigh".
 func TestRetiredClaudeEffortReason(t *testing.T) {
+	// The wording "whose provider is claude" is the observable contract of
+	// the line a user reads, so it is matched as written.
 	fragments := []string{
-		llmEnv,
 		reviewLLMEnv,
 		"whose provider is " + providerClaude,
 		llmEnv + "=" + defaultLLMValue + effortSeparator + "<effort>",

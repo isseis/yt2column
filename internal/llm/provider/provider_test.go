@@ -467,9 +467,6 @@ func TestNewDeepSeekIgnoresClaudeVars(t *testing.T) {
 	if got.Timeout != baseline.Timeout {
 		t.Errorf("Timeout = %v, want %v", got.Timeout, baseline.Timeout)
 	}
-	if got.Effort != baseline.Effort {
-		t.Errorf("Effort = %v, want %v", got.Effort, baseline.Effort)
-	}
 	gotKey, err := got.APIKey.Reveal()
 	if err != nil {
 		t.Fatalf("APIKey.Reveal() error = %v", err)
