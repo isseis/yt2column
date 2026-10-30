@@ -685,9 +685,9 @@ func checkMigrationSection(t *testing.T, name, migrationHeading, readme string) 
 	}
 }
 
-// TestQuickStartLinks checks the README's Quick start section: it comes before
-// Requirements, every numbered item links to a README heading, and every link
-// in the section is either such an anchor or an existing relative path.
+// TestQuickStartLinks checks the quick start section of each README version:
+// it comes before the requirements section, every numbered item links to a
+// heading of the same version, and no link in the section is an external URL.
 func TestQuickStartLinks(t *testing.T) {
 	readmeVersionsUnder(t, func(t *testing.T, v doctestutil.ReadmeVersion, readme string) {
 		quickStart := doctestutil.ReadmeQuickStartHeading.In(t, v.Lang)
@@ -773,8 +773,8 @@ func TestProductionProfileLinks(t *testing.T) {
 	}
 }
 
-// TestReadmeLinks checks the links of the README and of the two developer
-// guides split out of it (cli.md and development.md): every relative link
+// TestReadmeLinks checks the links of both README versions and of the two
+// developer guides split out of them (cli.md and development.md): every relative link
 // points at an existing path, and every link to a heading, in the same
 // document or in another one, resolves to an anchor the helper produces from
 // the target document's headings. GitHub resolves those, so they are the
