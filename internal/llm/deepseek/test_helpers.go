@@ -134,14 +134,15 @@ func memberNames(members map[string]json.RawMessage) []string {
 	return names
 }
 
-// assertMemberSet checks that a JSON object body carries exactly the named
+// assertMemberSet checks that a decoded JSON object carries exactly the named
 // top-level members, whatever order it wrote them in.
-func assertMemberSet(t *testing.T, body []byte, want ...string) {
+func assertMemberSet(t *testing.T, members map[string]json.RawMessage, want ...string) {
 	t.Helper()
-	got := memberNames(decodeMembers(t, body))
-	slices.Sort(want)
-	if !slices.Equal(got, want) {
-		t.Errorf("request body members = %v, want %v", got, want)
+	got := memberNames(members)
+	sorted := slices.Clone(want)
+	slices.Sort(sorted)
+	if !slices.Equal(got, sorted) {
+		t.Errorf("request body members = %v, want %v", got, sorted)
 	}
 }
 

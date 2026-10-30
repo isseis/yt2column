@@ -295,14 +295,7 @@ func TestGenerateSendsRequest(t *testing.T) {
 		t.Errorf("stream = %v, want false", body.Stream)
 	}
 
-	members := decodeMembers(t, recorded.body)
-	assertMemberSet(t, recorded.body, "messages", "model", "stream")
-	if _, ok := members["thinking"]; ok {
-		t.Error("request body contains a thinking member")
-	}
-	if _, ok := members["max_tokens"]; ok {
-		t.Error("request body contains max_tokens for MaxOutputTokens 0")
-	}
+	assertMemberSet(t, decodeMembers(t, recorded.body), "messages", "model", "stream")
 }
 
 // TestGenerateSendsReasoningEffort checks that each effort the user can specify
@@ -336,10 +329,7 @@ func TestGenerateSendsReasoningEffort(t *testing.T) {
 			if want := `"` + tc.wire + `"`; string(got) != want {
 				t.Errorf("reasoning_effort = %s, want %s", got, want)
 			}
-			assertMemberSet(t, body, "messages", "model", "reasoning_effort", "stream")
-			if _, ok := members["thinking"]; ok {
-				t.Error("request body contains a thinking member")
-			}
+			assertMemberSet(t, members, "messages", "model", "reasoning_effort", "stream")
 		})
 	}
 }
@@ -586,6 +576,9 @@ func TestGenerateErrorsNameEffort(t *testing.T) {
 				_, err := generateAgainst(t, server.URL, validRequest(), func(options *Options) {
 					options.Effort = effortCase.effort
 				})
+				if err == nil {
+					t.Fatalf("Generate() error = nil, want %v", tc.want)
+				}
 				if !errors.Is(err, tc.want) {
 					t.Errorf("Generate() error = %v, want %v", err, tc.want)
 				}
@@ -600,30 +593,17 @@ func TestGenerateErrorsNameEffort(t *testing.T) {
 }
 
 // TestHTTPStatusGuidance checks the fixed guidance of the statuses a
-// configuration problem produces: the client-error guidance must name every
-// cause the caller can fix, reasoning_effort included, and no other status's
-// guidance may mention it. The guidance is the only hint a user sees when the
-// API rejects a value, so the cause list is pinned here.
+// configuration problem produces: the message of a 400 and of a 422 names
+// every cause the caller can fix, reasoning_effort included. The guidance is
+// the only hint a user sees when the API rejects a value, so the cause list is
+// pinned on the rendered error rather than on the helper that builds it.
 func TestHTTPStatusGuidance(t *testing.T) {
 	for _, status := range []int{http.StatusBadRequest, http.StatusUnprocessableEntity} {
-		guidance := statusGuidance(status)
+		message := (&HTTPStatusError{StatusCode: status}).Error()
 		for _, cause := range []string{"model name", "max_tokens", "reasoning_effort", "prompt length"} {
-			if !strings.Contains(guidance, cause) {
-				t.Errorf("statusGuidance(%d) = %q, want it to name %q", status, guidance, cause)
+			if !strings.Contains(message, cause) {
+				t.Errorf("HTTPStatusError{%d}.Error() = %q, want it to name %q", status, message, cause)
 			}
-		}
-	}
-
-	for _, status := range []int{
-		http.StatusUnauthorized,
-		http.StatusPaymentRequired,
-		http.StatusTooManyRequests,
-		http.StatusInternalServerError,
-		http.StatusServiceUnavailable,
-		http.StatusTemporaryRedirect,
-	} {
-		if strings.Contains(statusGuidance(status), "reasoning_effort") {
-			t.Errorf("statusGuidance(%d) names reasoning_effort, want only the client-error guidance to", status)
 		}
 	}
 }

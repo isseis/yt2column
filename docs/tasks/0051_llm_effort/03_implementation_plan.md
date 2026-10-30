@@ -166,7 +166,7 @@
 
 -   [x] `chatRequest` に `reasoning_effort` のフィールドを加える。effort が `Valid()` なら `String()` の値を入れ、ゼロ値なら本文に現れない。ゼロ値でも有効な値でもなければ、本文を作らずにエラーを返す（設計書 3.5）。`thinking` は加えない。
 -   [x] `chatRequest` のコメント（`request.go:20-22`）を、`reasoning_effort` だけを例外として持つ形に直す。
--   [x] `TestGenerateSendsRequest`（`deepseek_test.go:216-`）に、effort を指定しないクライアントの本文に `reasoning_effort` がないことを加える。`thinking` がないことの確認（`:279-280`）は残す。
+-   [x] `TestGenerateSendsRequest`（`deepseek_test.go:216-`）に、effort を指定しないクライアントの本文に `reasoning_effort` がないことを加える。`thinking` がないことは、下の項目の最上位のメンバーの集合の確認に含める。
 -   [x] 4 つの値のそれぞれで、`httptest` のサーバが受けた本文の `reasoning_effort` がその値であり、`thinking` がないことを確かめるテストを加える（AC-12）。
 -   [x] 要求本文の組み立てが範囲外の値で返すエラーは、ステップ 2-1 の番兵と同じものにする（2 つの拒否の箇所を同じ分類にする）。
 -   [x] 範囲外の値で何も送らないことを確かめる。`New` はこの値を通さないので、同じパッケージのテストで、`New` で作ったクライアントの effort のフィールドを範囲外の値に書き換え、記録するループバックのサーバに対して `Generate` を呼ぶ。サーバが要求を 1 つも受けないことと、エラーが番兵に当たる（`errors.Is`）ことを確かめる。

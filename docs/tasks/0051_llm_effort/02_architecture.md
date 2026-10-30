@@ -145,7 +145,7 @@ flowchart TD
 -   **元の方針と所在:** `docs/tasks/0003_deepseek_llm_client/01_requirements.md` 2.3。コードでは、要求本文の型 `chatRequest` のコメントが「要件の外のパラメータ（thinking など）のフィールドを持たない」としている（`internal/llm/deepseek/request.go:20-22`）。
 -   **例外の内容:** `chatRequest` に `reasoning_effort` のフィールドを 1 つ加える。effort を付けた値のときだけ送り、省いた値では要求本文に現れない（AC-12・AC-13）。`thinking` のフィールドは、今と同じく持たない。
 -   **例外にする理由:** 要件書 1 章「要件定義の際に決めたこと」のとおり、DeepSeek でも effort を指定できるようにするためである。
--   **古い振る舞いを確かめている既存のテスト:** `internal/llm/deepseek/deepseek_test.go:216-` の `TestGenerateSendsRequest`。要求本文に `thinking` がないことを確かめている（`:279-280`）。この確認は残し、effort を指定しないクライアントでは `reasoning_effort` もないことを加える。effort を指定したときの確認は新しいテストにする（7.2）。
+-   **古い振る舞いを確かめている既存のテスト:** `internal/llm/deepseek/deepseek_test.go:216-` の `TestGenerateSendsRequest`。要求本文に `thinking` がないことを確かめている（`:279-280`）。effort を指定しないクライアントでは `reasoning_effort` もないことを加える。`thinking` がないことは、要求本文の最上位のメンバーの集合を `model`・`messages`・`stream` にちょうど等しいと確かめる形に含める（7.2）。effort を指定したときの確認は新しいテストにする（7.2）。
 
 ## 2. システム構成 (System Structure)
 
