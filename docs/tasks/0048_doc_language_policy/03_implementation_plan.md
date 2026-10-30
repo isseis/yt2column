@@ -583,7 +583,7 @@ AGENTS.md の変更（リンクのパス）は、ステップ 1-3 の置換に�
 **判定理由**: 2 つの翻訳と十数のガードテストの変更が 1 つの PR に入り、Conditional checks のうち CI の判定とテストの build tag の 2 つに当たる。
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/586
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
