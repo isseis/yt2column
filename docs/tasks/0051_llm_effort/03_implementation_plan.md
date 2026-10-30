@@ -249,7 +249,7 @@
 
 #### ステップ 4-2: 設定の読み込みのテスト
 
-**変更するファイル:** `internal/config/config_test.go`
+**変更するファイル:** `internal/config/config_test.go`、`docs/tasks/0051_llm_effort/_checks/no_effort_compat.go`（新規）
 
 -   [ ] 共通の環境 `validClaudeEnv`・`defaultsBaseEnv` から `claudeEffortEnv` を消し、設計書 3.6 の表が挙げる 14 のテストを追従させる。テストごとの扱いは次のとおりである。
     -   effort の値の受理と拒否を `YT2COLUMN_CLAUDE_EFFORT` で確かめていた行（`TestLoadClaude` の 5 つの値、`TestLoadClaudeInvalid` の部分テスト `effort`、`TestLoadClaudeMissing` の「effort empty」「API key and effort unset」、`TestLoadClaudeReportsAllInvalid` の設定と名前の一覧の `claudeEffortEnv`、`TestLoadErrorsOmitValues` の「claude effort invalid」）は消し、その確認を `TestLoadParsesLLMValue` の effort の行（下の項目）に移す。同じ値を 2 つの表に書かない。API キーなど effort 以外を確かめる行は残す。
@@ -259,7 +259,8 @@
     -   消した後、`go tool cover -func` の結果が `internal/config` の関数ごとに変わらないことを確かめ、コミットメッセージに書く（`CLAUDE.md`「Testing Strategy」）。
 -   [ ] 台帳のアクセサの呼び出しを、`Generation()`・`Review()` の値のアクセサに置き換える。`TestLoadParsesLLMValue` の工程の選び方（`:1630` の `reviewLLMEnv` の行）も同じく置き換える。
 -   [ ] `retiredLLMVarsWant`（`:1712-1717`）に `YT2COLUMN_CLAUDE_EFFORT` の行を加える。
--   [ ] `TestLoadParsesLLMValue` の表に、AC-01〜AC-07・AC-09 の値の行を加え、工程の選択の `ClaudeEffort`・`DeepSeekEffort` も比べる（設計書 7.1）。表は両方の LLM の変数について回るので、AC-10 もこの表で確かめる。受理の行は、プロバイダごとに受理するすべての値（`claude` の 5 つ、`deepseek` の 4 つ）を含める（AC-02）。拒否の行は、AC-05 と AC-07 の値をすべて含め、`Reason` と番兵を確かめる。`+` を含まない既存の行は、値・プロバイダ・モデル・エラーの組を変えずに残し、effort の期待値だけを加える（AC-29）。PR のレビューで、既存の行の組が変わっていないことを差分で読む。
+-   [ ] `TestLoadParsesLLMValue` の表に、AC-01〜AC-07・AC-09 の値の行を加え、工程の選択の `ClaudeEffort`・`DeepSeekEffort` も比べる（設計書 7.1）。表は両方の LLM の変数について回るので、AC-10 もこの表で確かめる。受理の行は、プロバイダごとに受理するすべての値（`claude` の 5 つ、`deepseek` の 4 つ）を含める（AC-02）。拒否の行は、AC-05 と AC-07 の値をすべて含め、`Reason` と番兵を確かめる。`+` を含まない既存の行は、値・プロバイダ・モデル・エラーの組を変えずに残し、effort の期待値だけを加える（AC-29）。このステップはテスト自身も書き換えるので、変更後のテストが通るだけでは AC-29 の前後の関係を確かめられない。前後の比較は次の項目の `diff` の確認で行う。
+-   [ ] AC-29 の `diff` の確認のスクリプトを、Go で `docs/tasks/0051_llm_effort/_checks/no_effort_compat.go` に置く（`requirements_process.md` §4）。スクリプトは、`+` を含まない LLM の変数の値の一覧（merge-base の `TestLoadParsesLLMValue` の `+` を含まない行の値、空の値、未設定）を、`YT2COLUMN_LLM` と `YT2COLUMN_REVIEW_LLM` の両方について、merge-base と PR の head の設定の読み込みに与え、値ごとの観測できる結果（受理か拒否か、受理ならプロバイダとモデル ID、拒否なら番兵と理由）が両方のコミットで同じであることを比べる。理由は文で比べるが、`reasonLLMForm` だけは AC-29 が文の変更を認めている（AC-06）ので、文ではなく、両方のコミットでそれぞれの `reasonLLMForm` に当たることで比べる。スクリプトは PR-2 のすべての変更をコミットした後、PR を作る前に PR のブランチで一度実行し、出力と両方のコミット ID を本書 7 章の AC-29 の行に記録する。`make test` と CI はこのスクリプトを実行しない。
 -   [ ] `TestParseLLMProvider`（`:1657-`）に、設計書 3.2 の手順 4〜6 で拒否した値でもプロバイダを返し、モデル ID と effort を持たないことを確かめる行を加える。
 -   [ ] effort の理由の一覧を、固定の前置きの後ろから取り出して区切り文字で分け、`claudeparam.EffortValues()`・`deepseekparam.EffortValues()` の並びと比べるテストを加える（設計書 7.1、AC-41）。部分文字列で探さない。
 -   [ ] 理由の文のうちコードの値に当たる部分を確かめる（AC-06・AC-24）。`reasonRetiredClaudeEffort` は、2 つの LLM の変数の名前と、`defaultLLMValue` と `defaultClaudeEffort.String()` から作った値を含むことを、コードの値から作った文字列で確かめる。`high` は `xhigh` の部分文字列なので、既定の effort は前後の区切りを含めた断片で探す。文の意味は PR のレビューで読む（本書 7 章）。
@@ -362,7 +363,7 @@ M2 は M3 の作業より前に終える。M2 で問題があれば、M3 に進�
 
 -   **ユニットテスト:** LLM の API を呼ばない。DeepSeek と Claude の要求本文は `httptest` のループバックのサーバで受ける。設定は `LookupFunc` で与え、プロセスの環境を変えない。
 -   **層をまたぐテスト:** 工程の取り違えは、設定の文字列から要求本文までを通すテスト（ステップ 4-3）で捉える。`newClient` を直接呼ぶテストでは捉えられない（設計書 7.2）。
--   **後方互換:** `+` を含まない値の既存のテストの行は変えずに通す（AC-29）。effort を指定しない DeepSeek の要求本文が今と同じであることを、`TestGenerateSendsRequest` が確かめる（AC-13）。
+-   **後方互換:** `+` を含まない値の既存のテストの行は変えずに通す（AC-29）。前後の振る舞いが同じであることは、ステップ 4-2 の `diff` の確認のスクリプトで merge-base と PR の head を比べて確かめる。effort を指定しない DeepSeek の要求本文が今と同じであることを、`TestGenerateSendsRequest` が確かめる（AC-13）。
 -   **結合テスト:** 恒久の結合テストに effort を指定する手段は加えない（要件書 2.3）。実際の API での確認はステップ 3-1 だけで行う。
 -   **テストを消すとき:** `TestNewUnknownProvider` の `Provider(99)` の行を消した後、`go tool cover -func` の結果が関数ごとに変わらないことを確かめる。
 
@@ -423,7 +424,7 @@ M2 は M3 の作業より前に終える。M2 で問題があれば、M3 に進�
 | AC-26 | test | `cmd/yt2column-nmhost/main_test.go::TestRelayUsesDerivedSocket`・`TestInstallAndUninstall`、`internal/config/socketpath_test.go::TestLoadHost` | ステップ 4-1（テストは変えない） |
 | AC-27 | test | `internal/config/config_test.go::TestLoadIgnoresOtherProviderVars`・`TestLoadProviderVarsFollowSelection` | ステップ 4-1・4-2 |
 | AC-28 | test | `internal/config/config_test.go::TestLoadProviderVarsFollowSelection`（effort の行） | ステップ 4-1 |
-| AC-29 | test・manual | `internal/config/config_test.go::TestLoadParsesLLMValue`（`+` を含まない既存の行）・`TestParseLLMProvider`。既存の行の組が変わっていないことは PR のレビューで差分を読む | ステップ 4-1 |
+| AC-29 | test・diff | `internal/config/config_test.go::TestLoadParsesLLMValue`（`+` を含まない既存の行）・`TestParseLLMProvider`。diff: `docs/tasks/0051_llm_effort/_checks/no_effort_compat.go`（`+` を含まない値の読み込みの結果を merge-base と PR の head で比べる。ステップ 4-2）。実行の記録: merge-base（未実行）、head（未実行）、出力（未実行） | ステップ 4-1 |
 | AC-30 | manual | PR のレビューで、README の設定の節の表と `project_overview.md` の表を読む | ステップ 4-6 |
 | AC-31 | manual | PR のレビューで、effort の部分の規則の説明を読む | ステップ 4-6 |
 | AC-32 | manual | PR のレビューで、継承の文とプロバイダの変数の検査の文を読む | ステップ 4-6 |
@@ -444,7 +445,7 @@ M2 は M3 の作業より前に終える。M2 で問題があれば、M3 に進�
 -   **機能:** 要件書の AC-01〜AC-41 が、7 章の確かめ方で満たされている。
 -   **品質:** `make test`・`make lint`・`make deadcode`・`make ext-test` が通る。加えたテストは、対象を壊して失敗することを確かめ、コミットメッセージに記録している。
 -   **セキュリティ:** 拒否のメッセージが設定した値を含まないこと（`TestLoadErrorsOmitValues`）、DeepSeek の要求に列挙値だけが入ること（ステップ 2-2 のテスト）、拒否した実行が LLM に何も送らないこと（`TestRunRejectsRetiredLLMVars` とステップ 4-4 のテスト）を確かめている。
--   **文書:** 本書 7 章の `manual` の行を、PR-2 のレビューで読んでいる。ステップ 3-1 の結果が本書に記録されている。
+-   **文書:** 本書 7 章の `manual` の行を、PR-2 のレビューで読んでいる。ステップ 3-1 の結果と、AC-29 の `diff` の確認の実行の記録が本書に記録されている。
 
 ## 9. 次のステップ (Next Steps)
 
