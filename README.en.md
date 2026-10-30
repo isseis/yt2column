@@ -1,4 +1,4 @@
-<!-- translated-from: README.md 6365a32233292a2133341d960b9ccd859f74172a -->
+<!-- translated-from: README.md 20ad1745f47e0cecae9063732299ce6ffaa7ca0c -->
 [日本語](README.md)
 
 Developer documents: [Using the CLI](docs/dev/guides/cli.md) · [Development procedures](docs/dev/guides/development.md)
@@ -451,16 +451,20 @@ The status code of each reason, and how to check the server with `curl`, are in
 - **`HOME: the socket path derived from HOME exceeds the operating system's
   limit`.** `HOME` is too long for the socket path; see the limit above.
 - **`configuration: YT2COLUMN_LLM_PROVIDER: is no longer supported` (or
-  `YT2COLUMN_MODEL`, `YT2COLUMN_REVIEW_PROVIDER`, `YT2COLUMN_REVIEW_MODEL`)
-  after an update.** The provider and model are now set in one variable per
-  step, and the four old variables are rejected whenever they are set, even
-  empty. The server exits with `2` before it listens, and the extension can
+  `YT2COLUMN_MODEL`, `YT2COLUMN_REVIEW_PROVIDER`, `YT2COLUMN_REVIEW_MODEL`,
+  `YT2COLUMN_CLAUDE_EFFORT`) after an update.** The provider, model, and effort
+  are now set in one variable per step, and the five old variables are rejected
+  whenever they are set, even empty. The server exits with `2` before it listens, and the extension can
   only report that the server is not running. Unset each old variable and set
   `YT2COLUMN_LLM`. If you unset only the old variables without setting
   `YT2COLUMN_LLM`, the default `claude/claude-opus-5-5` is used and the
   transcript goes to Anthropic. If any `YT2COLUMN_REVIEW_*` variable was set,
   also set `YT2COLUMN_REVIEW_LLM` to the provider and model the review step
-  actually used. See
+  actually used. When you unset `YT2COLUMN_CLAUDE_EFFORT`, append the effort you
+  used to the value of `YT2COLUMN_LLM` as `+<effort>` (if `YT2COLUMN_LLM` is not
+  set, set it to `claude/claude-opus-5-5+<effort>`). If `YT2COLUMN_REVIEW_LLM`
+  is set, append the effort to that value too. If you do not append it, that
+  step uses the default effort (`high` for `claude`). See
   [Migrating from the retired LLM variables](#migrating-from-the-retired-llm-variables),
   then start the server again.
 - **`build the LLM client` or `build the review LLM client` with a model
@@ -517,11 +521,10 @@ The status code of each reason, and how to check the server with `curl`, are in
 
 | Variable | Description | When unset |
 |---|---|---|
-| `YT2COLUMN_LLM` | Provider and model of generation and shortening, written as `<provider>/<model ID>`; the provider is `deepseek` or `claude` (e.g. `deepseek/deepseek-flash`, `claude/claude-sonnet-5-5`) | `claude/claude-opus-5-5` |
-| `YT2COLUMN_REVIEW_LLM` | Provider and model of the review step, in the same form as `YT2COLUMN_LLM` | The same as generation (`YT2COLUMN_LLM`, or its default) |
+| `YT2COLUMN_LLM` | Provider, model, and effort of generation and shortening, written as `<provider>/<model ID>`, optionally followed by `+<effort>`; the provider is `deepseek` or `claude` (e.g. `deepseek/deepseek-flash`, `claude/claude-sonnet-5-5+low`) | `claude/claude-opus-5-5` |
+| `YT2COLUMN_REVIEW_LLM` | Provider, model, and effort of the review step, in the same form as `YT2COLUMN_LLM` | The same as generation (`YT2COLUMN_LLM`, or its default, including the effort) |
 | `DEEPSEEK_API_KEY` | DeepSeek API key | Required when the generation or review provider is `deepseek` (an error) |
 | `ANTHROPIC_API_KEY` | Anthropic API key | Required when the generation or review provider is `claude` (an error) |
-| `YT2COLUMN_CLAUDE_EFFORT` | Claude effort; one of `low`, `medium`, `high`, `xhigh`, or `max` | `high` when the generation or review provider is `claude` |
 | `ANTHROPIC_WORKSPACE_ID` | Anthropic workspace ID, for an API key not bound to a workspace | No workspace ID is sent |
 | `SLACK_WEBHOOK_URL` | Slack-compatible Incoming Webhook URL (Mattermost is the verified target) | The server starts, but cannot post |
 
@@ -547,14 +550,40 @@ here, but rejected, before any request is sent, when a run that includes the
 step builds that step's client. The server builds both at startup, before it
 listens.
 
+When there is a `+` after the first `/`, the part before the `+` is the model
+ID and the part after it is the effort. The `+` is looked for only after the
+first `/`, and at most one `+` may be written there
+(`claude/claude-opus-5-5+high+low` is rejected). The effort must exactly match
+one of the provider's values in the table below. An empty effort
+(`claude/claude-opus-5-5+`), an effort with uppercase letters or surrounding
+whitespace (`claude/claude-opus-5-5+High`), and a value the provider does not
+accept (`deepseek/deepseek-flash+medium`) are rejected, and never treated as
+part of the model ID and sent to the provider. A value whose model ID before the `+` is
+empty (`claude/+high`) is rejected too. The model ID is the part before the
+`+`, so the model ID of `claude/claude-opus-5-5 +high` contains a trailing
+space and is rejected when the client is built, as above.
+
+| Provider | Accepted efforts | Without an effort |
+|---|---|---|
+| `claude` | `low`, `medium`, `high`, `xhigh`, `max` | Sends `high` |
+| `deepseek` | `none`, `low`, `high`, `max` | Sends nothing (thinking stays at the API's default) |
+
+With `claude`, the effort is sent as the request's effort. With `deepseek`, it
+is sent as the request's `reasoning_effort`. `none` turns thinking off, and the
+other values turn it on.
+
 With `YT2COLUMN_LLM` unset, generation and shortening use
-`claude/claude-opus-5-5`. With `YT2COLUMN_REVIEW_LLM` unset, the review step
-uses the same provider and model as generation, the default included. An empty
+`claude/claude-opus-5-5` at effort `high`. With `YT2COLUMN_REVIEW_LLM` unset,
+the review step uses the same provider, model, and effort as generation, the
+default included. When `YT2COLUMN_REVIEW_LLM` is set without an effort, the
+generation effort is not inherited, and the "Without an effort" column of the
+table above applies. An empty
 value of either variable is rejected and never replaced by the default or by
 the generation setting.
 
 The variables `YT2COLUMN_LLM_PROVIDER`, `YT2COLUMN_MODEL`,
-`YT2COLUMN_REVIEW_PROVIDER`, and `YT2COLUMN_REVIEW_MODEL` are retired. When any
+`YT2COLUMN_REVIEW_PROVIDER`, `YT2COLUMN_REVIEW_MODEL`, and
+`YT2COLUMN_CLAUDE_EFFORT` are retired. When any
 of them is set, even to an empty value, the CLI and the server stop with a
 configuration error naming it, on every run. Their values are never used. Each
 error is reported together with the other configuration errors of the run. See
@@ -568,32 +597,32 @@ The other provider's variables are ignored whatever their value, so exporting
 value, no `/`, or a provider that is not accepted) and `YT2COLUMN_REVIEW_LLM`
 is unset, no provider-specific variable is checked, but errors for common
 variables are still reported. A value whose provider is accepted but whose
-model ID is empty, such as `claude/`, still has that provider's variables
-checked.
+model ID is empty, such as `claude/`, and a value whose effort part is
+rejected, such as `claude/claude-opus-5-5+ultra`, still have that provider's
+variables checked.
 
-With `claude`, `max` is accepted, but in this use case the model is expected to
+With `claude`, the effort `max` is accepted, but in this use case the model is expected to
 spend the whole default output limit on reasoning alone and return no article
 text, so the run fails as truncated. Use `low` through `xhigh` for column
 generation.
 
 The default effort `high` was chosen for `claude-opus-5-5`. With another model,
 such as `claude-sonnet-5-5`, even `high` can reach the output limit, and the run
-fails as truncated. In that case, set `YT2COLUMN_CLAUDE_EFFORT` to a lower
-effort.
+fails as truncated. In that case, append a lower effort to the value of
+`YT2COLUMN_LLM` (for example, `claude/claude-sonnet-5-5+medium`).
 
 ### Recommended configuration
 
 ```sh
-export YT2COLUMN_LLM=claude/claude-opus-5-5
-export YT2COLUMN_CLAUDE_EFFORT=high
+export YT2COLUMN_LLM=claude/claude-opus-5-5+high
 ```
 
-These two values are the production profile: generation, shortening, and
-review all use `claude` with `claude-opus-5-5` at effort `high`. They are also
-the code's defaults (see [#490](https://github.com/isseis/yt2column/issues/490)
-and [#171](https://github.com/isseis/yt2column/issues/171)), so they can be left
+This value is the production profile: generation, shortening, and review all
+use `claude` with `claude-opus-5-5` at effort `high`. It is also the code's
+default (see [#490](https://github.com/isseis/yt2column/issues/490)
+and [#171](https://github.com/isseis/yt2column/issues/171)), so it can be left
 unset: with `ANTHROPIC_API_KEY` as the only LLM variable, generation,
-shortening, and review all use this profile. Exporting them pins the profile in
+shortening, and review all use this profile. Exporting it pins the profile in
 the shell even if a default changes later.
 
 `ANTHROPIC_API_KEY` is required. To review with the generation profile, leave
@@ -633,6 +662,29 @@ provider looks the same as generation's.
 |---|---|
 | `YT2COLUMN_REVIEW_PROVIDER` alone (the review step used that provider's default model) | `YT2COLUMN_REVIEW_LLM=<provider>/<model ID>`, with the model ID written out, for example `claude/claude-opus-5-5` |
 | `YT2COLUMN_REVIEW_MODEL` alone (the review step used the generation provider) | `YT2COLUMN_REVIEW_LLM=<generation provider>/<model ID>`, with the generation provider written out, for example `deepseek/deepseek-chat` |
+
+The Claude effort used to be set in `YT2COLUMN_CLAUDE_EFFORT`, which applied to
+both generation and review. It is now set per step by appending `+<effort>` to
+the values of `YT2COLUMN_LLM` and `YT2COLUMN_REVIEW_LLM`, and
+`YT2COLUMN_CLAUDE_EFFORT` is rejected. For example, a setting that was
+
+```text
+YT2COLUMN_CLAUDE_EFFORT=low
+YT2COLUMN_LLM=claude/claude-sonnet-5-5
+```
+
+becomes:
+
+```sh
+export YT2COLUMN_LLM=claude/claude-sonnet-5-5+low
+```
+
+If `YT2COLUMN_LLM` was not set, set the default with the effort appended,
+`YT2COLUMN_LLM=claude/claude-opus-5-5+<effort>`. If `YT2COLUMN_REVIEW_LLM` was
+set, append the same effort to its value too. If you do not append it, the
+review step uses the default `high`. Versions before this one send `+<effort>` to the provider
+as part of the model ID, so when going back to such a version, remove
+`+<effort>`. Otherwise, the first LLM call fails.
 
 Unset the old variables rather than only deleting them from a file: a shell
 that already exported them keeps them, and an empty value is rejected too.

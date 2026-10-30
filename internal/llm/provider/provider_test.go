@@ -20,6 +20,7 @@ import (
 	"github.com/isseis/yt2column/internal/config"
 	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/llm/claude"
+	"github.com/isseis/yt2column/internal/llm/claudeparam"
 	"github.com/isseis/yt2column/internal/llm/deepseek"
 	"github.com/isseis/yt2column/internal/llm/llmhttp/llmhttptest"
 	llmtestutil "github.com/isseis/yt2column/internal/llm/testutil"
@@ -98,10 +99,9 @@ func validEnv() map[string]string {
 // provider.
 func claudeValidEnv() map[string]string {
 	return map[string]string{
-		"YT2COLUMN_LLM":           "claude/" + testClaudeModel,
-		"ANTHROPIC_API_KEY":       testAPIKey,
-		"YT2COLUMN_CLAUDE_EFFORT": "high",
-		"YT2COLUMN_CACHE_DIR":     "/tmp/yt2column-provider-test",
+		"YT2COLUMN_LLM":       "claude/" + testClaudeModel,
+		"ANTHROPIC_API_KEY":   testAPIKey,
+		"YT2COLUMN_CACHE_DIR": "/tmp/yt2column-provider-test",
 	}
 }
 
@@ -171,7 +171,7 @@ func newRecordingServer(t *testing.T) (*httptest.Server, *requestLog) {
 	return server, log
 }
 
-// TestNewDeepSeekSendsConfiguredRequest verifies that newClient builds the
+// TestNewDeepSeekSendsConfiguredRequest verifies that newGeneration builds the
 // DeepSeek adapter with the configured API key, model, and LLMTimeout, and
 // that the built client sends those values to the loopback destination.
 func TestNewDeepSeekSendsConfiguredRequest(t *testing.T) {
@@ -184,9 +184,9 @@ func TestNewDeepSeekSendsConfiguredRequest(t *testing.T) {
 		return deepseek.NewForLoopbackTest(t, opts, server.URL), nil
 	}
 
-	client, err := newClient(cfg.LLM().Provider(), cfg.LLM().Model(), cfg.LLM(), builders{deepseek: build})
+	client, err := newGeneration(cfg.LLM(), builders{deepseek: build})
 	if err != nil {
-		t.Fatalf("newClient() error = %v", err)
+		t.Fatalf("newGeneration() error = %v", err)
 	}
 	if receivedTimeout != 15*time.Minute {
 		t.Errorf("build received Timeout = %v, want 15m", receivedTimeout)
@@ -221,9 +221,9 @@ func TestNewUsesDeepSeekAdapter(t *testing.T) {
 	}
 }
 
-// TestNewUnknownProvider verifies that the zero and out-of-range provider
-// values fail with errUnknownProvider and never call either adapter
-// constructor.
+// TestNewUnknownProvider verifies that a selection with no enumerated provider
+// (the zero LLMSelection, the only one outside config that can be made) fails
+// with errUnknownProvider and never calls either adapter constructor.
 func TestNewUnknownProvider(t *testing.T) {
 	deepseekCalled, claudeCalled := false, false
 	build := builders{
@@ -237,23 +237,22 @@ func TestNewUnknownProvider(t *testing.T) {
 		},
 	}
 	cfg := loadConfig(t, validEnv())
-	for _, provider := range []config.Provider{config.ProviderUnset, config.Provider(99)} {
-		client, err := newClient(provider, cfg.LLM().Model(), cfg.LLM(), build)
-		if !errors.Is(err, errUnknownProvider) {
-			t.Errorf("newClient(%d) error = %v, want errUnknownProvider", provider, err)
-		}
-		if client != nil {
-			t.Errorf("newClient(%d) = %v, want nil", provider, client)
-		}
+	client, err := newClient(config.LLMSelection{}, cfg.LLM(), build)
+	if !errors.Is(err, errUnknownProvider) {
+		t.Errorf("newClient() error = %v, want errUnknownProvider", err)
+	}
+	if client != nil {
+		t.Errorf("newClient() = %v, want nil", client)
 	}
 	if deepseekCalled || claudeCalled {
 		t.Error("newClient called an adapter constructor for an unknown provider")
 	}
 }
 
-// TestNewClaudeSendsConfiguredRequest verifies that newClient builds the Claude
-// adapter with the configured API key, model, effort, and workspace ID, and
-// that the built client sends those values to the loopback destination.
+// TestNewClaudeSendsConfiguredRequest verifies that newGeneration builds the
+// Claude adapter with the configured API key, model, effort (the effort part
+// of YT2COLUMN_LLM), and workspace ID, and that the built client sends those
+// values to the loopback destination.
 func TestNewClaudeSendsConfiguredRequest(t *testing.T) {
 	body, err := os.ReadFile(claudeEndTurnFixture) //nolint:gosec // the path names a committed testdata fixture
 	if err != nil {
@@ -263,8 +262,8 @@ func TestNewClaudeSendsConfiguredRequest(t *testing.T) {
 	for _, effort := range efforts {
 		t.Run(effort, func(t *testing.T) {
 			env := claudeValidEnv()
-			env["YT2COLUMN_CLAUDE_EFFORT"] = effort
-			recorded := claudeRequestFor(t, env, body, generationStage)
+			env["YT2COLUMN_LLM"] = "claude/" + testClaudeModel + "+" + effort
+			recorded := claudeRequestFor(t, env, body, newGeneration)
 			if got := recorded.Header.Get("x-api-key"); got != testAPIKey {
 				t.Errorf("x-api-key = %q, want the test key", got)
 			}
@@ -299,7 +298,7 @@ func TestNewClaudeSendsConfiguredRequest(t *testing.T) {
 			if workspace.value != "" {
 				env["ANTHROPIC_WORKSPACE_ID"] = workspace.value
 			}
-			recorded := claudeRequestFor(t, env, body, generationStage)
+			recorded := claudeRequestFor(t, env, body, newGeneration)
 			if got := recorded.Header.Get("anthropic-workspace-id"); got != workspace.value {
 				t.Errorf("anthropic-workspace-id = %q, want %q", got, workspace.value)
 			}
@@ -307,24 +306,16 @@ func TestNewClaudeSendsConfiguredRequest(t *testing.T) {
 	}
 }
 
-// stageSelector picks the provider and model of one stage, as New and
-// NewReview do, so a test can build either stage's adapter through newClient.
-type stageSelector func(config.LLMConfig) (config.Provider, string)
+// stageBuilder is newGeneration or newReview: it builds one stage's client
+// from the stage selection, as New and NewReview do.
+type stageBuilder func(config.LLMConfig, builders) (llm.LLMClient, error)
 
-func generationStage(cfg config.LLMConfig) (config.Provider, string) {
-	return cfg.Provider(), cfg.Model()
-}
-
-func reviewStage(cfg config.LLMConfig) (config.Provider, string) {
-	return cfg.ReviewProvider(), cfg.ReviewModel()
-}
-
-// claudeRequestFor builds the Claude adapter of the stage that pick selects
-// for env through newClient against a recording loopback server that answers
+// claudeRequestFor builds the Claude adapter of the stage that stage builds
+// for env against a recording loopback server that answers
 // with body, sends one Generate with MaxOutputTokens 0 (so the adapter sends
 // its default max_tokens), and returns the recorded request. It checks the
 // LLMTimeout the constructor received, which no request field exposes.
-func claudeRequestFor(t *testing.T, env map[string]string, body []byte, pick stageSelector) llmhttptest.Recorded {
+func claudeRequestFor(t *testing.T, env map[string]string, body []byte, stage stageBuilder) llmhttptest.Recorded {
 	t.Helper()
 	cfg := loadConfig(t, env)
 	server, recorder := llmhttptest.NewRecordingServer(t, body)
@@ -334,10 +325,9 @@ func claudeRequestFor(t *testing.T, env map[string]string, body []byte, pick sta
 		}
 		return claude.NewForLoopbackTest(t, opts, server.URL), nil
 	}
-	provider, model := pick(cfg.LLM())
-	client, err := newClient(provider, model, cfg.LLM(), builders{claude: build})
+	client, err := stage(cfg.LLM(), builders{claude: build})
 	if err != nil {
-		t.Fatalf("newClient() error = %v", err)
+		t.Fatalf("building the stage client: %v", err)
 	}
 	if _, err := client.Generate(context.Background(), llm.GenerateRequest{SystemPrompt: "system", UserPrompt: "user"}); err != nil {
 		t.Fatalf("Generate() error = %v", err)
@@ -345,9 +335,9 @@ func claudeRequestFor(t *testing.T, env map[string]string, body []byte, pick sta
 	return recorder.Only(t)
 }
 
-// TestNewClaudeDefaultEffort verifies end to end that, with
-// YT2COLUMN_CLAUDE_EFFORT unset, every claude stage's adapter sends the high
-// effort on the wire. The per-environment default itself is covered by
+// TestNewClaudeDefaultEffort verifies end to end that, with no effort part in
+// the LLM variables, every claude stage's adapter sends the high effort on the
+// wire. The per-environment default itself is covered by
 // config's TestLoadClaudeEffortDefault; these rows check what the built
 // adapters send, and the request model shows which stage's adapter was built.
 func TestNewClaudeDefaultEffort(t *testing.T) {
@@ -356,7 +346,6 @@ func TestNewClaudeDefaultEffort(t *testing.T) {
 		t.Fatalf("read fixture: %v", err)
 	}
 	claudeBoth := claudeValidEnv()
-	delete(claudeBoth, "YT2COLUMN_CLAUDE_EFFORT")
 	// A review model of its own shows that the review row built the review
 	// stage's adapter, not a second generation adapter.
 	claudeBoth["YT2COLUMN_REVIEW_LLM"] = "claude/" + testClaudeReviewModel
@@ -370,17 +359,17 @@ func TestNewClaudeDefaultEffort(t *testing.T) {
 		name  string
 		env   map[string]string
 		stage string
-		pick  stageSelector
+		build stageBuilder
 		model string
 	}{
-		{"both stages claude", claudeBoth, "generation", generationStage, testClaudeModel},
-		{"both stages claude", claudeBoth, "review", reviewStage, testClaudeReviewModel},
-		{"review claude only", reviewClaude, "review", reviewStage, testClaudeModel},
-		{"generation claude only", generationClaude, "generation", generationStage, testClaudeModel},
+		{"both stages claude", claudeBoth, "generation", newGeneration, testClaudeModel},
+		{"both stages claude", claudeBoth, "review", newReview, testClaudeReviewModel},
+		{"review claude only", reviewClaude, "review", newReview, testClaudeModel},
+		{"generation claude only", generationClaude, "generation", newGeneration, testClaudeModel},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name+" "+tc.stage, func(t *testing.T) {
-			recorded := claudeRequestFor(t, tc.env, body, tc.pick)
+			recorded := claudeRequestFor(t, tc.env, body, tc.build)
 			var decoded struct {
 				Model        string `json:"model"`
 				OutputConfig struct {
@@ -424,7 +413,7 @@ func TestClaudeDefaultMaxTokensFitsBudget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read fixture: %v", err)
 	}
-	recorded := claudeRequestFor(t, claudeValidEnv(), body, generationStage)
+	recorded := claudeRequestFor(t, claudeValidEnv(), body, newGeneration)
 	var decoded struct {
 		MaxTokens int `json:"max_tokens"`
 	}
@@ -463,12 +452,11 @@ func TestNewUsesClaudeAdapter(t *testing.T) {
 }
 
 // TestNewDeepSeekIgnoresClaudeVars verifies that the claude provider variables
-// do not change the deepseek.Options newClient builds for the deepseek
+// do not change the deepseek.Options newGeneration builds for the deepseek
 // provider.
 func TestNewDeepSeekIgnoresClaudeVars(t *testing.T) {
 	modified := maps.Clone(validEnv())
 	modified["ANTHROPIC_API_KEY"] = "sk-ant-key"
-	modified["YT2COLUMN_CLAUDE_EFFORT"] = "high"
 	modified["ANTHROPIC_WORKSPACE_ID"] = "wrkspc_x"
 
 	baseline := deepseekOptionsFor(t, validEnv())
@@ -478,6 +466,9 @@ func TestNewDeepSeekIgnoresClaudeVars(t *testing.T) {
 	}
 	if got.Timeout != baseline.Timeout {
 		t.Errorf("Timeout = %v, want %v", got.Timeout, baseline.Timeout)
+	}
+	if got.Effort != baseline.Effort {
+		t.Errorf("Effort = %v, want %v", got.Effort, baseline.Effort)
 	}
 	gotKey, err := got.APIKey.Reveal()
 	if err != nil {
@@ -492,8 +483,8 @@ func TestNewDeepSeekIgnoresClaudeVars(t *testing.T) {
 	}
 }
 
-// deepseekOptionsFor builds the deepseek adapter for env through newClient and
-// returns the Options the constructor received.
+// deepseekOptionsFor builds the deepseek generation adapter for env through
+// newGeneration and returns the Options the constructor received.
 func deepseekOptionsFor(t *testing.T, env map[string]string) deepseek.Options {
 	t.Helper()
 	cfg := loadConfig(t, env)
@@ -502,8 +493,8 @@ func deepseekOptionsFor(t *testing.T, env map[string]string) deepseek.Options {
 		received = opts
 		return &llmtestutil.FakeLLMClient{}, nil
 	}
-	if _, err := newClient(cfg.LLM().Provider(), cfg.LLM().Model(), cfg.LLM(), builders{deepseek: build}); err != nil {
-		t.Fatalf("newClient() error = %v", err)
+	if _, err := newGeneration(cfg.LLM(), builders{deepseek: build}); err != nil {
+		t.Fatalf("newGeneration() error = %v", err)
 	}
 	return received
 }
@@ -535,17 +526,65 @@ func TestUnitTestsCannotReachProductionEndpoint(t *testing.T) {
 }
 
 // TestNewPaddedModel verifies that New reports the adapter's padded-model
-// rejection so a caller can tell it apart with errors.Is.
+// rejection so a caller can tell it apart with errors.Is, also when the white
+// space sits before the "+" of an effort part, which keeps it in the model ID.
 func TestNewPaddedModel(t *testing.T) {
-	env := validEnv()
-	env["YT2COLUMN_LLM"] = "deepseek/ deepseek-flash"
+	for _, value := range []string{"deepseek/ deepseek-flash", "deepseek/deepseek-flash +high"} {
+		t.Run(value, func(t *testing.T) {
+			env := validEnv()
+			env["YT2COLUMN_LLM"] = value
+			cfg := loadConfig(t, env)
+			client, err := New(cfg.LLM())
+			if !errors.Is(err, deepseek.ErrPaddedModel) {
+				t.Errorf("New() error = %v, want it to wrap deepseek.ErrPaddedModel", err)
+			}
+			if client != nil {
+				t.Errorf("New() = %v, want nil", client)
+			}
+		})
+	}
+}
+
+// TestNewClaudePaddedModelSendsNothing verifies that a claude value whose
+// model ID ends in white space before the "+" reaches the real claude.New with
+// that model ID and the effort part, and that the build fails before anything
+// is sent. The claude rejection's sentinel is unexported, so the constructor's
+// input and the empty loopback server show where the run stopped.
+func TestNewClaudePaddedModelSendsNothing(t *testing.T) {
+	body, err := os.ReadFile(claudeEndTurnFixture) //nolint:gosec // the path names a committed testdata fixture
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+	env := claudeValidEnv()
+	env["YT2COLUMN_LLM"] = "claude/" + testClaudeModel + " +high"
 	cfg := loadConfig(t, env)
-	client, err := New(cfg.LLM())
-	if !errors.Is(err, deepseek.ErrPaddedModel) {
-		t.Errorf("New() error = %v, want it to wrap deepseek.ErrPaddedModel", err)
+	server, recorder := llmhttptest.NewRecordingServer(t, body)
+	var received claude.Options
+	build := func(opts claude.Options) (llm.LLMClient, error) {
+		received = opts
+		if _, err := claude.New(opts); err != nil {
+			return nil, err
+		}
+		// Reached only if claude.New accepted the model: the client then
+		// sends to the loopback server, which the check below would see.
+		return claude.NewForLoopbackTest(t, opts, server.URL), nil
+	}
+	client, err := newGeneration(cfg.LLM(), builders{claude: build})
+	if err == nil {
+		t.Error("newGeneration() error = nil, want the padded model rejected")
 	}
 	if client != nil {
-		t.Errorf("New() = %v, want nil", client)
+		if _, genErr := client.Generate(context.Background(), llm.GenerateRequest{SystemPrompt: "system", UserPrompt: "user"}); genErr != nil {
+			t.Logf("Generate() error = %v", genErr)
+		}
+		t.Errorf("newGeneration() = %v, want nil", client)
+	}
+	if received.Model != testClaudeModel+" " || received.Effort != claudeparam.EffortHigh {
+		t.Errorf("claude.New received model %q effort %v, want %q and %v",
+			received.Model, received.Effort, testClaudeModel+" ", claudeparam.EffortHigh)
+	}
+	if got := recorder.Count(); got != 0 {
+		t.Errorf("the loopback server received %d requests, want none", got)
 	}
 }
 
@@ -586,7 +625,6 @@ func TestNewReviewUsesReviewModel(t *testing.T) {
 		env := validEnv()
 		env["YT2COLUMN_REVIEW_LLM"] = "claude/" + testClaudeModel
 		env["ANTHROPIC_API_KEY"] = testAPIKey
-		env["YT2COLUMN_CLAUDE_EFFORT"] = "high"
 		cfg := loadConfig(t, env)
 
 		reviewClient, err := NewReview(cfg.LLM())
@@ -609,4 +647,166 @@ func TestNewReviewUsesReviewModel(t *testing.T) {
 			t.Errorf("New() returned %v, want a client from %q", genType, wantGenPkg)
 		}
 	})
+}
+
+// sentEffort is what one stage's client sent: the provider whose loopback
+// server received the request, the request's model, and its effort member
+// (output_config.effort for claude, reasoning_effort for deepseek), which may
+// be absent.
+type sentEffort struct {
+	provider config.Provider
+	model    string
+	effort   string
+	present  bool
+}
+
+// sentByStage builds one stage's client from cfg with stage, against a
+// loopback server per provider, sends one Generate, and returns what the one
+// server that received a request saw.
+func sentByStage(t *testing.T, cfg config.LLMConfig, stage stageBuilder) sentEffort {
+	t.Helper()
+	deepseekBody, err := os.ReadFile(stopFixture) //nolint:gosec // the path names a committed testdata fixture
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+	claudeBody, err := os.ReadFile(claudeEndTurnFixture) //nolint:gosec // the path names a committed testdata fixture
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+	deepseekServer, deepseekRecorder := llmhttptest.NewRecordingServer(t, deepseekBody)
+	claudeServer, claudeRecorder := llmhttptest.NewRecordingServer(t, claudeBody)
+	client, err := stage(cfg, builders{
+		deepseek: func(opts deepseek.Options) (llm.LLMClient, error) {
+			return deepseek.NewForLoopbackTest(t, opts, deepseekServer.URL), nil
+		},
+		claude: func(opts claude.Options) (llm.LLMClient, error) {
+			return claude.NewForLoopbackTest(t, opts, claudeServer.URL), nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("building the stage client: %v", err)
+	}
+	if _, err := client.Generate(context.Background(), llm.GenerateRequest{SystemPrompt: "system", UserPrompt: "user"}); err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	var members map[string]json.RawMessage
+	var got sentEffort
+	switch {
+	case deepseekRecorder.Count() == 1 && claudeRecorder.Count() == 0:
+		got.provider = config.ProviderDeepSeek
+		if err := json.Unmarshal(deepseekRecorder.Only(t).Body, &members); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
+		if raw, ok := members["reasoning_effort"]; ok {
+			got.present = true
+			if err := json.Unmarshal(raw, &got.effort); err != nil {
+				t.Fatalf("decode reasoning_effort: %v", err)
+			}
+		}
+	case claudeRecorder.Count() == 1 && deepseekRecorder.Count() == 0:
+		got.provider = config.ProviderClaude
+		if err := json.Unmarshal(claudeRecorder.Only(t).Body, &members); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
+		var outputConfig struct {
+			Effort *string `json:"effort"`
+		}
+		if raw, ok := members["output_config"]; ok {
+			if err := json.Unmarshal(raw, &outputConfig); err != nil {
+				t.Fatalf("decode output_config: %v", err)
+			}
+		}
+		if outputConfig.Effort != nil {
+			got.present, got.effort = true, *outputConfig.Effort
+		}
+	default:
+		t.Fatalf("deepseek server received %d requests and claude server %d, want exactly one in total",
+			deepseekRecorder.Count(), claudeRecorder.Count())
+	}
+	if err := json.Unmarshal(members["model"], &got.model); err != nil {
+		t.Fatalf("decode model: %v", err)
+	}
+	return got
+}
+
+// TestNewSendsStageEffort verifies, from the configuration strings to the
+// request bodies, that each stage's client sends its own stage's effort: the
+// values are loaded with config.LoadServer and the clients built through
+// newGeneration and newReview, the stage selection New and NewReview use, so
+// a mix-up between the two stages' selections is caught. A dropped deepseek
+// effort is not caught by any constructor, because no effort is a valid
+// value, so the rows cover each deepseek value and both orders of providers.
+// The model sent never carries the effort part.
+func TestNewSendsStageEffort(t *testing.T) {
+	type stage = sentEffort
+	claudeAt := func(model, effort string) stage { return stage{config.ProviderClaude, model, effort, true} }
+	deepseekAt := func(effort string) stage { return stage{config.ProviderDeepSeek, testModel, effort, true} }
+	deepseekNone := stage{config.ProviderDeepSeek, testModel, "", false}
+	cases := []struct {
+		name                       string
+		llm, reviewLLM             string // reviewLLM "" leaves YT2COLUMN_REVIEW_LLM unset
+		wantGeneration, wantReview stage
+	}{
+		{
+			"claude stages with different efforts",
+			"claude/" + testClaudeModel + "+low", "claude/" + testClaudeReviewModel + "+xhigh",
+			claudeAt(testClaudeModel, "low"), claudeAt(testClaudeReviewModel, "xhigh"),
+		},
+		{
+			"deepseek generation, claude review",
+			"deepseek/" + testModel + "+low", "claude/" + testClaudeModel + "+xhigh",
+			deepseekAt("low"), claudeAt(testClaudeModel, "xhigh"),
+		},
+		{
+			"claude generation, deepseek review",
+			"claude/" + testClaudeModel + "+low", "deepseek/" + testModel + "+none",
+			claudeAt(testClaudeModel, "low"), deepseekAt("none"),
+		},
+		{
+			"deepseek effort and no effort",
+			"deepseek/" + testModel + "+high", "deepseek/" + testModel,
+			deepseekAt("high"), deepseekNone,
+		},
+		{
+			"deepseek without an effort, inherited",
+			"deepseek/" + testModel, "",
+			deepseekNone, deepseekNone,
+		},
+		{
+			"claude without an effort, inherited",
+			"claude/" + testClaudeModel, "",
+			claudeAt(testClaudeModel, "high"), claudeAt(testClaudeModel, "high"),
+		},
+	}
+	// Each deepseek value, inherited by the review stage.
+	for _, effort := range []string{"none", "low", "high", "max"} {
+		cases = append(cases, struct {
+			name                       string
+			llm, reviewLLM             string
+			wantGeneration, wantReview stage
+		}{"deepseek " + effort + ", inherited", "deepseek/" + testModel + "+" + effort, "", deepseekAt(effort), deepseekAt(effort)})
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := map[string]string{
+				"HOME":              "/home/provider-test",
+				"YT2COLUMN_LLM":     tc.llm,
+				"ANTHROPIC_API_KEY": testAPIKey,
+				"DEEPSEEK_API_KEY":  testAPIKey,
+			}
+			if tc.reviewLLM != "" {
+				env["YT2COLUMN_REVIEW_LLM"] = tc.reviewLLM
+			}
+			cfg, err := config.LoadServer(lookupFrom(env))
+			if err != nil {
+				t.Fatalf("config.LoadServer() error = %v", err)
+			}
+			if got := sentByStage(t, cfg.LLM(), newGeneration); got != tc.wantGeneration {
+				t.Errorf("generation sent %+v, want %+v", got, tc.wantGeneration)
+			}
+			if got := sentByStage(t, cfg.LLM(), newReview); got != tc.wantReview {
+				t.Errorf("review sent %+v, want %+v", got, tc.wantReview)
+			}
+		})
+	}
 }

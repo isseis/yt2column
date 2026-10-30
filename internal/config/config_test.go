@@ -16,6 +16,7 @@ import (
 	"testing"
 
 	"github.com/isseis/yt2column/internal/llm/claudeparam"
+	"github.com/isseis/yt2column/internal/llm/deepseekparam"
 )
 
 // envLookup returns a LookupFunc over env. A key absent from env reports unset,
@@ -44,7 +45,6 @@ func validClaudeEnv() map[string]string {
 	return map[string]string{
 		llmEnv:                  "claude/claude-opus-5-5",
 		anthropicAPIKeyEnv:      "sk-ant-test-key",
-		claudeEffortEnv:         "high",
 		anthropicWorkspaceIDEnv: "wrkspc_test0123456789",
 		cacheDirEnv:             "/tmp/yt2column-test-cache",
 	}
@@ -72,11 +72,11 @@ func TestLoadValid(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load() error = %v, want nil", err)
 	}
-	if cfg.LLM().Provider() != ProviderDeepSeek {
-		t.Errorf("Provider() = %v, want ProviderDeepSeek", cfg.LLM().Provider())
+	if cfg.LLM().Generation().Provider() != ProviderDeepSeek {
+		t.Errorf("Provider() = %v, want ProviderDeepSeek", cfg.LLM().Generation().Provider())
 	}
-	if cfg.LLM().Model() != "deepseek-chat" {
-		t.Errorf("Model() = %q, want deepseek-chat", cfg.LLM().Model())
+	if cfg.LLM().Generation().Model() != "deepseek-chat" {
+		t.Errorf("Model() = %q, want deepseek-chat", cfg.LLM().Generation().Model())
 	}
 	key, err := cfg.LLM().DeepSeekAPIKey().Reveal()
 	if err != nil {
@@ -213,48 +213,34 @@ func TestLoadInvalid(t *testing.T) {
 	}
 }
 
-// TestLoadClaude checks that a claude environment loads with every effort
-// value and each accessor, with and without a workspace ID.
+// TestLoadClaude checks that a claude environment loads, with and without a
+// workspace ID, and each provider accessor. The effort values are in
+// TestLoadParsesLLMValue.
 func TestLoadClaude(t *testing.T) {
-	efforts := []struct {
-		value string
-		want  claudeparam.Effort
-	}{
-		{"low", claudeparam.EffortLow},
-		{"medium", claudeparam.EffortMedium},
-		{"high", claudeparam.EffortHigh},
-		{"xhigh", claudeparam.EffortXHigh},
-		{"max", claudeparam.EffortMax},
-	}
-	for _, effort := range efforts {
-		t.Run(effort.value, func(t *testing.T) {
-			env := with(validClaudeEnv(), claudeEffortEnv, effort.value)
-			cfg, err := Load(envLookup(env))
-			if err != nil {
-				t.Fatalf("Load() error = %v, want nil", err)
-			}
-			if cfg.LLM().Provider() != ProviderClaude {
-				t.Errorf("Provider() = %v, want ProviderClaude", cfg.LLM().Provider())
-			}
-			if cfg.LLM().ClaudeEffort() != effort.want {
-				t.Errorf("ClaudeEffort() = %v, want %v", cfg.LLM().ClaudeEffort(), effort.want)
-			}
-			key, err := cfg.LLM().AnthropicAPIKey().Reveal()
-			if err != nil {
-				t.Fatalf("AnthropicAPIKey().Reveal() error = %v", err)
-			}
-			if key != env[anthropicAPIKeyEnv] {
-				t.Errorf("AnthropicAPIKey() = %q, want %q", key, env[anthropicAPIKeyEnv])
-			}
-			workspace, ok := cfg.LLM().AnthropicWorkspaceID().Value()
-			if !ok {
-				t.Fatal("AnthropicWorkspaceID() reports unset, want set")
-			}
-			if workspace != env[anthropicWorkspaceIDEnv] {
-				t.Errorf("AnthropicWorkspaceID() = %q, want %q", workspace, env[anthropicWorkspaceIDEnv])
-			}
-		})
-	}
+	t.Run("workspace id set", func(t *testing.T) {
+		env := validClaudeEnv()
+		cfg, err := Load(envLookup(env))
+		if err != nil {
+			t.Fatalf("Load() error = %v, want nil", err)
+		}
+		if cfg.LLM().Generation().Provider() != ProviderClaude {
+			t.Errorf("Provider() = %v, want ProviderClaude", cfg.LLM().Generation().Provider())
+		}
+		key, err := cfg.LLM().AnthropicAPIKey().Reveal()
+		if err != nil {
+			t.Fatalf("AnthropicAPIKey().Reveal() error = %v", err)
+		}
+		if key != env[anthropicAPIKeyEnv] {
+			t.Errorf("AnthropicAPIKey() = %q, want %q", key, env[anthropicAPIKeyEnv])
+		}
+		workspace, ok := cfg.LLM().AnthropicWorkspaceID().Value()
+		if !ok {
+			t.Fatal("AnthropicWorkspaceID() reports unset, want set")
+		}
+		if workspace != env[anthropicWorkspaceIDEnv] {
+			t.Errorf("AnthropicWorkspaceID() = %q, want %q", workspace, env[anthropicWorkspaceIDEnv])
+		}
+	})
 
 	t.Run("workspace id unset", func(t *testing.T) {
 		cfg, err := Load(envLookup(without(validClaudeEnv(), anthropicWorkspaceIDEnv)))
@@ -277,7 +263,6 @@ func TestLoadClaudeMissing(t *testing.T) {
 	}{
 		{"API key unset", without(validClaudeEnv(), anthropicAPIKeyEnv), anthropicAPIKeyEnv},
 		{"API key empty", with(validClaudeEnv(), anthropicAPIKeyEnv, ""), anthropicAPIKeyEnv},
-		{"effort empty", with(validClaudeEnv(), claudeEffortEnv, ""), claudeEffortEnv},
 		{"workspace id empty", with(validClaudeEnv(), anthropicWorkspaceIDEnv, ""), anthropicWorkspaceIDEnv},
 		{
 			"only the deepseek key",
@@ -291,25 +276,6 @@ func TestLoadClaudeMissing(t *testing.T) {
 			assertVarError(t, err, ErrMissing, tc.wantVar)
 		})
 	}
-
-	// The effort default must not make the API key optional, nor add a
-	// rejection of the unset effort next to the API key's.
-	t.Run("API key and effort unset", func(t *testing.T) {
-		_, err := Load(envLookup(without(validClaudeEnv(), anthropicAPIKeyEnv, claudeEffortEnv)))
-		assertVarError(t, err, ErrMissing, anthropicAPIKeyEnv)
-		if slices.Contains(varErrorNames(err), claudeEffortEnv) {
-			t.Errorf("Load() error = %v, names %s", err, claudeEffortEnv)
-		}
-	})
-}
-
-// varErrorNames returns the variable name of every *VarError in err's tree.
-func varErrorNames(err error) []string {
-	var names []string
-	for _, varErr := range varErrors(err) {
-		names = append(names, varErr.Name)
-	}
-	return names
 }
 
 // varErrors returns every *VarError in err's tree. errors.AsType stops at the
@@ -354,21 +320,24 @@ func assertVarErrors(t *testing.T, err error, want ...VarError) {
 	}
 }
 
-// TestLoadClaudeEffortDefault checks that an unset YT2COLUMN_CLAUDE_EFFORT
-// selects the high effort whenever a stage uses claude, for both entry points.
+// TestLoadClaudeEffortDefault checks that a claude LLM value without an effort
+// part selects the high effort for exactly the stages that use claude, for
+// both entry points, and that a deepseek stage gets no claude effort.
 func TestLoadClaudeEffortDefault(t *testing.T) {
-	claudeBoth := without(validClaudeEnv(), claudeEffortEnv)
+	claudeBoth := validClaudeEnv()
 	reviewClaude := with(validEnv(), reviewLLMEnv, "claude/claude-review")
 	reviewClaude = with(reviewClaude, anthropicAPIKeyEnv, "sk-ant-test-key")
 	generationClaude := with(claudeBoth, reviewLLMEnv, "deepseek/deepseek-review")
 	generationClaude = with(generationClaude, deepSeekAPIKeyEnv, "sk-test-key")
+	high, unset := claudeparam.EffortHigh, claudeparam.EffortUnset
 	cases := []struct {
-		name string
-		env  map[string]string
+		name                       string
+		env                        map[string]string
+		wantGeneration, wantReview claudeparam.Effort
 	}{
-		{"both stages claude", claudeBoth},
-		{"review claude only", reviewClaude},
-		{"generation claude only", generationClaude},
+		{"both stages claude", claudeBoth, high, high},
+		{"review claude only", reviewClaude, unset, high},
+		{"generation claude only", generationClaude, high, unset},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -376,9 +345,7 @@ func TestLoadClaudeEffortDefault(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Load() error = %v, want nil", err)
 			}
-			if cfg.LLM().ClaudeEffort() != claudeparam.EffortHigh {
-				t.Errorf("ClaudeEffort() = %v, want EffortHigh", cfg.LLM().ClaudeEffort())
-			}
+			assertClaudeEfforts(t, cfg.LLM(), tc.wantGeneration, tc.wantReview)
 		})
 	}
 
@@ -392,23 +359,24 @@ func TestLoadClaudeEffortDefault(t *testing.T) {
 		if err != nil {
 			t.Fatalf("LoadServer() error = %v, want nil", err)
 		}
-		if cfg.LLM().ClaudeEffort() != claudeparam.EffortHigh {
-			t.Errorf("ClaudeEffort() = %v, want EffortHigh", cfg.LLM().ClaudeEffort())
-		}
+		assertClaudeEfforts(t, cfg.LLM(), high, high)
 	})
+}
+
+// assertClaudeEfforts checks the claude effort of each stage's selection.
+func assertClaudeEfforts(t *testing.T, llm LLMConfig, wantGeneration, wantReview claudeparam.Effort) {
+	t.Helper()
+	if got := llm.Generation().ClaudeEffort(); got != wantGeneration {
+		t.Errorf("Generation().ClaudeEffort() = %v, want %v", got, wantGeneration)
+	}
+	if got := llm.Review().ClaudeEffort(); got != wantReview {
+		t.Errorf("Review().ClaudeEffort() = %v, want %v", got, wantReview)
+	}
 }
 
 // TestLoadClaudeInvalid checks that an unusable claude provider variable wraps
 // ErrInvalid and names the variable.
 func TestLoadClaudeInvalid(t *testing.T) {
-	t.Run("effort", func(t *testing.T) {
-		for _, value := range []string{"High", " high", "high\n", "none", "min", "medium-high"} {
-			t.Run(fmt.Sprintf("%q", value), func(t *testing.T) {
-				_, err := Load(envLookup(with(validClaudeEnv(), claudeEffortEnv, value)))
-				assertVarError(t, err, ErrInvalid, claudeEffortEnv)
-			})
-		}
-	})
 	t.Run("workspace id", func(t *testing.T) {
 		for _, value := range []string{" wrkspc_x", "wrkspc_x\n", "wrkspc é"} {
 			t.Run(fmt.Sprintf("%q", value), func(t *testing.T) {
@@ -422,8 +390,7 @@ func TestLoadClaudeInvalid(t *testing.T) {
 // TestLoadClaudeReportsAllInvalid checks that a claude environment with several
 // rejected provider variables reports every one, not only the first.
 func TestLoadClaudeReportsAllInvalid(t *testing.T) {
-	env := with(validClaudeEnv(), claudeEffortEnv, "High")
-	env = with(env, anthropicWorkspaceIDEnv, " wrkspc_x")
+	env := with(validClaudeEnv(), anthropicWorkspaceIDEnv, " wrkspc_x")
 	env = without(env, anthropicAPIKeyEnv)
 	_, err := Load(envLookup(env))
 	if !errors.Is(err, ErrMissing) {
@@ -432,7 +399,7 @@ func TestLoadClaudeReportsAllInvalid(t *testing.T) {
 	if !errors.Is(err, ErrInvalid) {
 		t.Errorf("Load() error = %v, want it to wrap ErrInvalid", err)
 	}
-	for _, name := range []string{anthropicAPIKeyEnv, claudeEffortEnv, anthropicWorkspaceIDEnv} {
+	for _, name := range []string{anthropicAPIKeyEnv, anthropicWorkspaceIDEnv} {
 		if !strings.Contains(err.Error(), name) {
 			t.Errorf("Load() error = %q, want it to name %q", err, name)
 		}
@@ -457,8 +424,8 @@ func TestLoadClaudeIgnoresDeepSeekKey(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Load() error = %v, want nil", err)
 				}
-				if cfg.LLM().Provider() != ProviderClaude {
-					t.Errorf("Provider() = %v, want ProviderClaude", cfg.LLM().Provider())
+				if cfg.LLM().Generation().Provider() != ProviderClaude {
+					t.Errorf("Provider() = %v, want ProviderClaude", cfg.LLM().Generation().Provider())
 				}
 			})
 		}
@@ -497,12 +464,6 @@ func TestLoadIgnoresOtherProviderVars(t *testing.T) {
 			{"empty", "", true},
 			{"present", "sk-ant-key", true},
 		}},
-		{claudeEffortEnv, []variant{
-			{"unset", "", false},
-			{"empty", "", true},
-			{"invalid", "High", true},
-			{"valid", "high", true},
-		}},
 		{anthropicWorkspaceIDEnv, []variant{
 			{"unset", "", false},
 			{"empty", "", true},
@@ -523,15 +484,13 @@ func TestLoadIgnoresOtherProviderVars(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Load() error = %v, want nil", err)
 				}
-				if cfg.LLM().Provider() != ProviderDeepSeek {
-					t.Errorf("Provider() = %v, want ProviderDeepSeek", cfg.LLM().Provider())
+				if cfg.LLM().Generation().Provider() != ProviderDeepSeek {
+					t.Errorf("Provider() = %v, want ProviderDeepSeek", cfg.LLM().Generation().Provider())
 				}
 				if _, err := cfg.LLM().AnthropicAPIKey().Reveal(); err == nil {
 					t.Error("AnthropicAPIKey() is set for the deepseek provider")
 				}
-				if cfg.LLM().ClaudeEffort() != claudeparam.EffortUnset {
-					t.Errorf("ClaudeEffort() = %v, want EffortUnset", cfg.LLM().ClaudeEffort())
-				}
+				assertClaudeEfforts(t, cfg.LLM(), claudeparam.EffortUnset, claudeparam.EffortUnset)
 				if _, ok := cfg.LLM().AnthropicWorkspaceID().Value(); ok {
 					t.Error("AnthropicWorkspaceID() is set for the deepseek provider")
 				}
@@ -542,7 +501,6 @@ func TestLoadIgnoresOtherProviderVars(t *testing.T) {
 	t.Run("invalid provider reports only the LLM variable", func(t *testing.T) {
 		env := with(validEnv(), llmEnv, "gemini/x")
 		env = with(env, anthropicAPIKeyEnv, "sk-ant-key")
-		env = with(env, claudeEffortEnv, "High")
 		env = with(env, anthropicWorkspaceIDEnv, " wrkspc_x")
 		_, err := Load(envLookup(env))
 		assertVarErrors(t, err, wantInvalid(llmEnv, reasonLLMProvider))
@@ -559,9 +517,9 @@ func TestLoadReview(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Load() error = %v, want nil", err)
 		}
-		if cfg.LLM().ReviewProvider() != ProviderDeepSeek || cfg.LLM().ReviewModel() != "deepseek-chat" {
+		if cfg.LLM().Review().Provider() != ProviderDeepSeek || cfg.LLM().Review().Model() != "deepseek-chat" {
 			t.Errorf("review = %v/%q, want the generation's deepseek/deepseek-chat",
-				cfg.LLM().ReviewProvider(), cfg.LLM().ReviewModel())
+				cfg.LLM().Review().Provider(), cfg.LLM().Review().Model())
 		}
 	})
 
@@ -582,12 +540,12 @@ func TestLoadReview(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Load() error = %v, want nil", err)
 			}
-			if cfg.LLM().Provider() != ProviderDeepSeek || cfg.LLM().Model() != "deepseek-chat" {
-				t.Errorf("generation = %v/%q, want deepseek/deepseek-chat", cfg.LLM().Provider(), cfg.LLM().Model())
+			if cfg.LLM().Generation().Provider() != ProviderDeepSeek || cfg.LLM().Generation().Model() != "deepseek-chat" {
+				t.Errorf("generation = %v/%q, want deepseek/deepseek-chat", cfg.LLM().Generation().Provider(), cfg.LLM().Generation().Model())
 			}
-			if cfg.LLM().ReviewProvider() != tc.wantProvider || cfg.LLM().ReviewModel() != tc.wantModel {
+			if cfg.LLM().Review().Provider() != tc.wantProvider || cfg.LLM().Review().Model() != tc.wantModel {
 				t.Errorf("review = %v/%q, want %v/%q",
-					cfg.LLM().ReviewProvider(), cfg.LLM().ReviewModel(), tc.wantProvider, tc.wantModel)
+					cfg.LLM().Review().Provider(), cfg.LLM().Review().Model(), tc.wantProvider, tc.wantModel)
 			}
 		})
 	}
@@ -600,7 +558,6 @@ func TestLoadReviewProviderRequiresItsKey(t *testing.T) {
 	claudeReview := func() map[string]string {
 		env := validEnv()
 		env = with(env, reviewLLMEnv, "claude/claude-review")
-		env = with(env, claudeEffortEnv, "high")
 		return env
 	}
 	deepseekReview := func() map[string]string {
@@ -724,12 +681,14 @@ func TestLoadErrorsOmitValues(t *testing.T) {
 		markSlack           = "MARK-SLACK-D4"
 		markCache           = "MARK-CACHE-E5"
 		markYtDlp           = "MARK-YTDLP-F6"
-		markClaudeEffort    = "MARK-CLAUDE-EFFORT-G7"
 		markClaudeWorkspace = "MARK-CLAUDE-WKS-C8"
+		markEffort          = "MARK-EFFORT-G7"
+		markLLMModel        = "MARK-LLM-MODEL-H1"
+		markSecret          = "MARK-SECRET-K2"
 	)
 	marks := []string{
 		markLLM, markModel, markReviewLLM, markRetired, markAPIKey, markSlack,
-		markCache, markYtDlp, markClaudeEffort, markClaudeWorkspace,
+		markCache, markYtDlp, markClaudeWorkspace, markEffort, markLLMModel, markSecret,
 	}
 	base := map[string]string{
 		llmEnv:            "deepseek/" + markModel,
@@ -743,7 +702,6 @@ func TestLoadErrorsOmitValues(t *testing.T) {
 	claudeBase := map[string]string{
 		llmEnv:                  "claude/" + markModel,
 		anthropicAPIKeyEnv:      markAPIKey,
-		claudeEffortEnv:         "high",
 		anthropicWorkspaceIDEnv: "wrkspc_ok",
 		cacheDirEnv:             "/tmp/" + markCache,
 		ytDlpEnv:                "/bin/" + markYtDlp,
@@ -759,6 +717,21 @@ func TestLoadErrorsOmitValues(t *testing.T) {
 		{"LLM empty", with(base, llmEnv, ""), nil},
 		{"review LLM provider invalid", with(base, reviewLLMEnv, "gemini/"+markReviewLLM), nil},
 		{"review LLM without a separator", with(base, reviewLLMEnv, markReviewLLM), nil},
+		// The effort-part rows mark the effort part and the model ID apart, so
+		// a rejection leaking either is caught; searching for the rejected
+		// value itself could match the accepted values the reason lists. Each
+		// of the three effort rules (too many "+", an empty model ID, an
+		// unaccepted effort part) has a row for each LLM variable.
+		{"claude effort part invalid", with(claudeBase, llmEnv, "claude/"+markLLMModel+"+"+markEffort), nil},
+		{"deepseek effort part invalid", with(base, llmEnv, "deepseek/"+markLLMModel+"+"+markEffort), nil},
+		{"LLM with two effort separators", with(base, llmEnv, "deepseek/"+markLLMModel+"+high+"+markEffort), nil},
+		{"LLM with an empty model ID and an effort", with(claudeBase, llmEnv, "claude/+"+markEffort), nil},
+		{"LLM effort part shaped like a secret", with(claudeBase, llmEnv, "claude/claude-opus-5-5+sk-ant-"+markSecret), nil},
+		{"LLM model ID shaped like a secret", with(base, llmEnv, "deepseek/sk-"+markSecret+"+ultra"), nil},
+		{"review claude effort part invalid", with(base, reviewLLMEnv, "claude/"+markLLMModel+"+"+markEffort), nil},
+		{"review deepseek effort part invalid", with(base, reviewLLMEnv, "deepseek/"+markLLMModel+"+"+markEffort), nil},
+		{"review LLM with two effort separators", with(base, reviewLLMEnv, "claude/"+markLLMModel+"+"+markEffort+"+low"), nil},
+		{"review LLM with an empty model ID and an effort", with(base, reviewLLMEnv, "deepseek/+"+markEffort), nil},
 		{"API key empty", with(base, deepSeekAPIKeyEnv, ""), nil},
 		// Each slack webhook row also names the last 8 bytes of its value, so a
 		// rejection that leaked only the tail would still be caught.
@@ -770,7 +743,6 @@ func TestLoadErrorsOmitValues(t *testing.T) {
 		{"cache dir relative", with(base, cacheDirEnv, markCache), nil},
 		{"cache dir absent", without(base, cacheDirEnv), nil},
 		{"yt-dlp path empty", with(base, ytDlpEnv, ""), nil},
-		{"claude effort invalid", with(claudeBase, claudeEffortEnv, "High-"+markClaudeEffort), nil},
 		{"claude workspace invalid", with(claudeBase, anthropicWorkspaceIDEnv, " "+markClaudeWorkspace), nil},
 	}
 	for _, v := range retiredLLMVars {
@@ -818,18 +790,34 @@ func TestLoadReportsAllInvalid(t *testing.T) {
 				llmEnv:                   "gemini/x",
 				// The review provider part is accepted, so claude's own
 				// variables are still checked.
-				reviewLLMEnv:    "claude/",
-				claudeEffortEnv: "High",
-				cacheDirEnv:     "relative",
+				reviewLLMEnv:              "claude/",
+				"YT2COLUMN_CLAUDE_EFFORT": "High",
+				cacheDirEnv:               "relative",
 			},
 			[]VarError{
 				wantInvalid("YT2COLUMN_LLM_PROVIDER", reasonRetiredLLM),
 				wantInvalid("YT2COLUMN_REVIEW_MODEL", reasonRetiredReviewLLM),
+				wantInvalid("YT2COLUMN_CLAUDE_EFFORT", reasonRetiredClaudeEffort),
 				wantInvalid(llmEnv, reasonLLMProvider),
 				wantInvalid(reviewLLMEnv, reasonLLMForm),
 				wantMissing(anthropicAPIKeyEnv),
-				wantInvalid(claudeEffortEnv, reasonClaudeEffort),
 				wantInvalid(cacheDirEnv, reasonDirRelative),
+			},
+		},
+		{
+			// The retired effort variable next to its replacement with an
+			// unaccepted effort part: both are reported, and the provider part
+			// still selects claude, whose key is required.
+			"retired claude effort and an invalid effort part",
+			map[string]string{
+				"YT2COLUMN_CLAUDE_EFFORT": "low",
+				llmEnv:                    "claude/claude-opus-5-5+ultra",
+				cacheDirEnv:               "/tmp/yt2column-test-cache",
+			},
+			[]VarError{
+				wantInvalid("YT2COLUMN_CLAUDE_EFFORT", reasonRetiredClaudeEffort),
+				wantInvalid(llmEnv, reasonClaudeEffortPart),
+				wantMissing(anthropicAPIKeyEnv),
 			},
 		},
 		{
@@ -986,11 +974,11 @@ func TestLoadServerValid(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadServer() error = %v, want nil", err)
 	}
-	if cfg.LLM().Provider() != ProviderDeepSeek {
-		t.Errorf("LLM().Provider() = %v, want ProviderDeepSeek", cfg.LLM().Provider())
+	if cfg.LLM().Generation().Provider() != ProviderDeepSeek {
+		t.Errorf("LLM().Generation().Provider() = %v, want ProviderDeepSeek", cfg.LLM().Generation().Provider())
 	}
-	if cfg.LLM().Model() != "deepseek-chat" {
-		t.Errorf("LLM().Model() = %q, want deepseek-chat", cfg.LLM().Model())
+	if cfg.LLM().Generation().Model() != "deepseek-chat" {
+		t.Errorf("LLM().Generation().Model() = %q, want deepseek-chat", cfg.LLM().Generation().Model())
 	}
 	webhook, configured := cfg.WebhookURL()
 	if !configured {
@@ -1096,9 +1084,9 @@ func TestLoadServerSocketPathUnderivable(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg, err := LoadServer(envLookup(tc.env))
 			assertVarError(t, err, tc.sentinel, "HOME")
-			if cfg.SocketPath() != "" || cfg.LLM().Model() != "" {
+			if cfg.SocketPath() != "" || cfg.LLM().Generation().Model() != "" {
 				t.Errorf("LoadServer() returned a non-zero ServerConfig on error: socketPath=%q model=%q",
-					cfg.SocketPath(), cfg.LLM().Model())
+					cfg.SocketPath(), cfg.LLM().Generation().Model())
 			}
 		})
 	}
@@ -1145,8 +1133,8 @@ func TestLoadFor(t *testing.T) {
 		if err != nil {
 			t.Fatalf("LoadFor() error = %v, want nil", err)
 		}
-		if cfg.LLM().Provider() != ProviderDeepSeek || cfg.LLM().ReviewProvider() != ProviderDeepSeek {
-			t.Errorf("providers = %v/%v, want deepseek/deepseek", cfg.LLM().Provider(), cfg.LLM().ReviewProvider())
+		if cfg.LLM().Generation().Provider() != ProviderDeepSeek || cfg.LLM().Review().Provider() != ProviderDeepSeek {
+			t.Errorf("providers = %v/%v, want deepseek/deepseek", cfg.LLM().Generation().Provider(), cfg.LLM().Review().Provider())
 		}
 	})
 
@@ -1158,11 +1146,11 @@ func TestLoadFor(t *testing.T) {
 		if err != nil {
 			t.Fatalf("LoadFor() error = %v, want nil", err)
 		}
-		if cfg.LLM().ReviewProvider() != ProviderUnset {
-			t.Errorf("ReviewProvider() = %v, want ProviderUnset (not read)", cfg.LLM().ReviewProvider())
+		if cfg.LLM().Review().Provider() != ProviderUnset {
+			t.Errorf("Review().Provider() = %v, want ProviderUnset (not read)", cfg.LLM().Review().Provider())
 		}
-		if cfg.LLM().ReviewModel() != "" {
-			t.Errorf("ReviewModel() = %q, want empty (not read)", cfg.LLM().ReviewModel())
+		if cfg.LLM().Review().Model() != "" {
+			t.Errorf("Review().Model() = %q, want empty (not read)", cfg.LLM().Review().Model())
 		}
 	})
 
@@ -1199,53 +1187,52 @@ func TestLoadFor(t *testing.T) {
 		if err != nil {
 			t.Fatalf("LoadFor() error = %v, want nil", err)
 		}
-		if cfg.LLM().ReviewProvider() != ProviderClaude || cfg.LLM().ReviewModel() != "claude-opus-5-5" {
-			t.Errorf("review = %v/%q, want claude/claude-opus-5-5", cfg.LLM().ReviewProvider(), cfg.LLM().ReviewModel())
+		if cfg.LLM().Review().Provider() != ProviderClaude || cfg.LLM().Review().Model() != "claude-opus-5-5" {
+			t.Errorf("review = %v/%q, want claude/claude-opus-5-5", cfg.LLM().Review().Provider(), cfg.LLM().Review().Model())
 		}
-		if cfg.LLM().ClaudeEffort() == claudeparam.EffortUnset {
-			t.Error("ClaudeEffort() is unset, want the checked value")
+		if got := cfg.LLM().Review().ClaudeEffort(); got != claudeparam.EffortHigh {
+			t.Errorf("Review().ClaudeEffort() = %v, want the inherited EffortHigh", got)
 		}
 	})
 
-	// The effort is neither read nor defaulted when the claude stage is the
-	// one the run skips.
+	// The value of the stage the run skips is not read, so neither an
+	// accepted nor an unaccepted effort part reaches its selection or rejects
+	// the run: the skipped stage holds the zero selection.
 	skippedClaude := []struct {
 		name string
-		env  map[string]string
+		env  func(suffix string) map[string]string
 		need Need
+		// skipped returns the selection of the stage the run skips.
+		skipped func(LLMConfig) LLMSelection
 	}{
 		{
 			"generation only with a claude review",
-			with(with(validEnv(), reviewLLMEnv, "claude/claude-review"), anthropicAPIKeyEnv, "sk-ant-test-key"),
+			func(suffix string) map[string]string {
+				return with(validEnv(), reviewLLMEnv, "claude/claude-review"+suffix)
+			},
 			Need{Generation: true},
+			LLMConfig.Review,
 		},
 		{
 			"review only with a claude generation",
-			with(with(without(validClaudeEnv(), claudeEffortEnv), reviewLLMEnv, "deepseek/deepseek-review"), deepSeekAPIKeyEnv, "sk-test-key"),
+			func(suffix string) map[string]string {
+				env := with(validClaudeEnv(), llmEnv, "claude/claude-opus-5-5"+suffix)
+				env = with(env, reviewLLMEnv, "deepseek/deepseek-review")
+				return with(env, deepSeekAPIKeyEnv, "sk-test-key")
+			},
 			Need{Review: true},
+			LLMConfig.Generation,
 		},
 	}
 	for _, tc := range skippedClaude {
-		for _, effort := range []struct {
-			name  string
-			value string
-			set   bool
-		}{
-			{"unset", "", false},
-			{"empty", "", true},
-			{"invalid", "High", true},
-		} {
-			t.Run(tc.name+" effort "+effort.name, func(t *testing.T) {
-				env := without(tc.env, claudeEffortEnv)
-				if effort.set {
-					env = with(env, claudeEffortEnv, effort.value)
-				}
-				cfg, err := LoadFor(envLookup(env), tc.need)
+		for _, suffix := range []string{"", "+low", "+ultra"} {
+			t.Run(tc.name+" "+suffix, func(t *testing.T) {
+				cfg, err := LoadFor(envLookup(tc.env(suffix)), tc.need)
 				if err != nil {
 					t.Fatalf("LoadFor() error = %v, want nil", err)
 				}
-				if cfg.LLM().ClaudeEffort() != claudeparam.EffortUnset {
-					t.Errorf("ClaudeEffort() = %v, want EffortUnset", cfg.LLM().ClaudeEffort())
+				if got := tc.skipped(cfg.LLM()); got != (LLMSelection{}) {
+					t.Errorf("skipped stage selection = %+v, want the zero LLMSelection", got)
 				}
 			})
 		}
@@ -1257,10 +1244,9 @@ func TestLoadFor(t *testing.T) {
 		// retired variables is checked, whatever the stages.
 		envs := map[string]map[string]string{
 			"invalid values": {
-				llmEnv:          "gemini/x",
-				reviewLLMEnv:    "",
-				claudeEffortEnv: "High",
-				cacheDirEnv:     "/tmp/yt2column-test-cache",
+				llmEnv:       "gemini/x",
+				reviewLLMEnv: "",
+				cacheDirEnv:  "/tmp/yt2column-test-cache",
 			},
 			"no LLM variable": {
 				cacheDirEnv: "/tmp/yt2column-test-cache",
@@ -1268,7 +1254,7 @@ func TestLoadFor(t *testing.T) {
 		}
 		llmVars := []string{
 			llmEnv, reviewLLMEnv,
-			deepSeekAPIKeyEnv, anthropicAPIKeyEnv, claudeEffortEnv, anthropicWorkspaceIDEnv,
+			deepSeekAPIKeyEnv, anthropicAPIKeyEnv, anthropicWorkspaceIDEnv,
 		}
 		for name, env := range envs {
 			t.Run(name, func(t *testing.T) {
@@ -1293,11 +1279,11 @@ func TestLoadFor(t *testing.T) {
 					}
 				}
 				llm := cfg.LLM()
-				if llm.Provider() != ProviderUnset || llm.ReviewProvider() != ProviderUnset {
-					t.Errorf("providers = %v/%v, want ProviderUnset/ProviderUnset", llm.Provider(), llm.ReviewProvider())
+				if llm.Generation().Provider() != ProviderUnset || llm.Review().Provider() != ProviderUnset {
+					t.Errorf("providers = %v/%v, want ProviderUnset/ProviderUnset", llm.Generation().Provider(), llm.Review().Provider())
 				}
-				if llm.Model() != "" || llm.ReviewModel() != "" {
-					t.Errorf("models = %q/%q, want empty", llm.Model(), llm.ReviewModel())
+				if llm.Generation().Model() != "" || llm.Review().Model() != "" {
+					t.Errorf("models = %q/%q, want empty", llm.Generation().Model(), llm.Review().Model())
 				}
 			})
 		}
@@ -1311,8 +1297,8 @@ func TestLoadFor(t *testing.T) {
 
 	t.Run("review only ignores an unused generation provider's variables", func(t *testing.T) {
 		// The review step has its own deepseek selection, so the claude
-		// generation provider and its API key, effort, and workspace are not
-		// read even though YT2COLUMN_LLM is set.
+		// generation provider and its API key and workspace are not read even
+		// though YT2COLUMN_LLM is set.
 		env := map[string]string{
 			llmEnv:            "claude/claude-opus-5-5",
 			reviewLLMEnv:      "deepseek/deepseek-review",
@@ -1323,20 +1309,18 @@ func TestLoadFor(t *testing.T) {
 		if err != nil {
 			t.Fatalf("LoadFor() error = %v, want nil (the unused claude provider is not checked)", err)
 		}
-		if cfg.LLM().ReviewProvider() != ProviderDeepSeek {
-			t.Errorf("ReviewProvider() = %v, want ProviderDeepSeek", cfg.LLM().ReviewProvider())
+		if cfg.LLM().Review().Provider() != ProviderDeepSeek {
+			t.Errorf("Review().Provider() = %v, want ProviderDeepSeek", cfg.LLM().Review().Provider())
 		}
 	})
 }
 
 // defaultsBaseEnv is an environment with no LLM variable: the API keys of both
-// providers, an explicit effort (so the tests do not depend on the effort
-// default), and the non-LLM variable Load needs. A row adds the LLM variables
+// providers and the non-LLM variable Load needs. A row adds the LLM variables
 // it is about.
 func defaultsBaseEnv() map[string]string {
 	return map[string]string{
 		anthropicAPIKeyEnv: "sk-ant-test-key",
-		claudeEffortEnv:    "high",
 		deepSeekAPIKeyEnv:  "sk-test-key",
 		cacheDirEnv:        "/tmp/yt2column-test-cache",
 	}
@@ -1397,10 +1381,10 @@ func TestLoadGenerationDefaults(t *testing.T) {
 				if err != nil {
 					return
 				}
-				if got := cfg.LLM().Provider(); got != tc.wantProvider {
+				if got := cfg.LLM().Generation().Provider(); got != tc.wantProvider {
 					t.Errorf("Provider() = %v, want %v", got, tc.wantProvider)
 				}
-				if got := cfg.LLM().Model(); got != tc.wantModel {
+				if got := cfg.LLM().Generation().Model(); got != tc.wantModel {
 					t.Errorf("Model() = %q, want %q", got, tc.wantModel)
 				}
 			})
@@ -1493,7 +1477,7 @@ func TestLoadReviewDefaults(t *testing.T) {
 				return
 			}
 			llm := cfg.LLM()
-			got := want{llm.Provider(), llm.Model(), llm.ReviewProvider(), llm.ReviewModel()}
+			got := want{llm.Generation().Provider(), llm.Generation().Model(), llm.Review().Provider(), llm.Review().Model()}
 			if got != tc.want {
 				t.Errorf("provider/model/review provider/review model = %+v, want %+v", got, tc.want)
 			}
@@ -1519,7 +1503,6 @@ func TestLoadDefaultProviderVariables(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			env := map[string]string{
-				claudeEffortEnv:   "high",
 				deepSeekAPIKeyEnv: "",
 				cacheDirEnv:       "/tmp/yt2column-test-cache",
 			}
@@ -1531,7 +1514,7 @@ func TestLoadDefaultProviderVariables(t *testing.T) {
 			}
 			_, err := LoadFor(lookup, tc.need)
 			assertVarErrors(t, err, tc.wantErrs...)
-			for _, name := range []string{anthropicAPIKeyEnv, claudeEffortEnv, anthropicWorkspaceIDEnv} {
+			for _, name := range []string{anthropicAPIKeyEnv, anthropicWorkspaceIDEnv} {
 				if !slices.Contains(read, name) {
 					t.Errorf("LoadFor() did not read %s", name)
 				}
@@ -1551,7 +1534,6 @@ func TestLoadServerLLMDefaults(t *testing.T) {
 	env := map[string]string{
 		"HOME":             "/home/user",
 		slackEnv:           "https://hooks.slack.com/services/T000/B000/XXXX",
-		claudeEffortEnv:    "high",
 		anthropicAPIKeyEnv: "sk-ant-test-key",
 	}
 	cfg, err := LoadServer(envLookup(env))
@@ -1559,19 +1541,17 @@ func TestLoadServerLLMDefaults(t *testing.T) {
 		t.Fatalf("LoadServer() error = %v, want nil", err)
 	}
 	llm := cfg.LLM()
-	if llm.Provider() != ProviderClaude || llm.ReviewProvider() != ProviderClaude {
-		t.Errorf("providers = %v/%v, want ProviderClaude/ProviderClaude", llm.Provider(), llm.ReviewProvider())
+	if llm.Generation().Provider() != ProviderClaude || llm.Review().Provider() != ProviderClaude {
+		t.Errorf("providers = %v/%v, want ProviderClaude/ProviderClaude", llm.Generation().Provider(), llm.Review().Provider())
 	}
-	if llm.Model() != defaultClaudeModel || llm.ReviewModel() != defaultClaudeModel {
-		t.Errorf("models = %q/%q, want %q", llm.Model(), llm.ReviewModel(), defaultClaudeModel)
+	if llm.Generation().Model() != defaultClaudeModel || llm.Review().Model() != defaultClaudeModel {
+		t.Errorf("models = %q/%q, want %q", llm.Generation().Model(), llm.Review().Model(), defaultClaudeModel)
 	}
 }
 
 // TestLoadProductionDefaults checks that, with the Anthropic API key as the
 // only LLM variable, every stage uses the production configuration: the claude
-// provider, the default model, and the high effort. It is the one LLM test
-// that leaves YT2COLUMN_CLAUDE_EFFORT unset, so it also depends on the effort
-// default.
+// provider, the default model, and the high effort.
 func TestLoadProductionDefaults(t *testing.T) {
 	env := map[string]string{
 		anthropicAPIKeyEnv: "sk-ant-test-key",
@@ -1582,52 +1562,95 @@ func TestLoadProductionDefaults(t *testing.T) {
 		t.Fatalf("Load() error = %v, want nil", err)
 	}
 	llm := cfg.LLM()
-	if llm.Provider() != ProviderClaude || llm.ReviewProvider() != ProviderClaude {
-		t.Errorf("providers = %v/%v, want ProviderClaude/ProviderClaude", llm.Provider(), llm.ReviewProvider())
+	if llm.Generation().Provider() != ProviderClaude || llm.Review().Provider() != ProviderClaude {
+		t.Errorf("providers = %v/%v, want ProviderClaude/ProviderClaude", llm.Generation().Provider(), llm.Review().Provider())
 	}
-	if llm.Model() != defaultClaudeModel || llm.ReviewModel() != defaultClaudeModel {
-		t.Errorf("models = %q/%q, want %q", llm.Model(), llm.ReviewModel(), defaultClaudeModel)
+	if llm.Generation().Model() != defaultClaudeModel || llm.Review().Model() != defaultClaudeModel {
+		t.Errorf("models = %q/%q, want %q", llm.Generation().Model(), llm.Review().Model(), defaultClaudeModel)
 	}
-	if llm.ClaudeEffort() != claudeparam.EffortHigh {
-		t.Errorf("ClaudeEffort() = %v, want EffortHigh", llm.ClaudeEffort())
-	}
+	assertClaudeEfforts(t, llm, claudeparam.EffortHigh, claudeparam.EffortHigh)
 }
 
 // TestLoadParsesLLMValue checks each value shape of architecture section 3.2
-// for both LLM variables: an accepted value selects its provider and the
-// model ID after the first "/" as it is, white space and invalid UTF-8
-// included (the adapters reject those when a client is built); a rejected
-// value names the variable with its sentinel and fixed reason.
+// for both LLM variables: an accepted value selects its provider, the model ID
+// after the first "/" and before the "+" as it is, white space and invalid
+// UTF-8 included (the adapters reject those when a client is built), and the
+// effort part, or the provider's default without one; a rejected value names
+// the variable with its sentinel and fixed reason, once, for the first rule it
+// breaks.
 func TestLoadParsesLLMValue(t *testing.T) {
+	// claude and deepSeek build an accepted row's selection.
+	claude := func(model string, effort claudeparam.Effort) LLMSelection {
+		return LLMSelection{provider: ProviderClaude, model: model, claudeEffort: effort}
+	}
+	deepSeek := func(model string, effort deepseekparam.Effort) LLMSelection {
+		return LLMSelection{provider: ProviderDeepSeek, model: model, deepSeekEffort: effort}
+	}
+	rejected := func(reason string) *VarError { return &VarError{Reason: reason, Err: ErrInvalid} }
 	cases := []struct {
-		value        string
-		wantProvider Provider
-		wantModel    string
-		wantErr      *VarError // nil when accepted; Name is filled per variable
+		value   string
+		want    LLMSelection
+		wantErr *VarError // nil when accepted; Name is filled per variable
 	}{
-		{"deepseek/deepseek-flash", ProviderDeepSeek, "deepseek-flash", nil},
-		{"claude/claude-sonnet-5-5", ProviderClaude, "claude-sonnet-5-5", nil},
-		{"claude/vendor/model-x", ProviderClaude, "vendor/model-x", nil},
-		{"claude/claude-opus-5-5 ", ProviderClaude, "claude-opus-5-5 ", nil},
-		{"claude/ claude-opus-5-5", ProviderClaude, " claude-opus-5-5", nil},
-		{"claude/\xffmodel", ProviderClaude, "\xffmodel", nil},
-		{"", 0, "", &VarError{Reason: reasonUnset, Err: ErrMissing}},
-		{"claude", 0, "", &VarError{Reason: reasonLLMForm, Err: ErrInvalid}},
-		{"claude/", 0, "", &VarError{Reason: reasonLLMForm, Err: ErrInvalid}},
-		{"deepseek/", 0, "", &VarError{Reason: reasonLLMForm, Err: ErrInvalid}},
-		{"/claude-opus-5-5", 0, "", &VarError{Reason: reasonLLMProvider, Err: ErrInvalid}},
-		{"gemini/x", 0, "", &VarError{Reason: reasonLLMProvider, Err: ErrInvalid}},
-		{"gemini/", 0, "", &VarError{Reason: reasonLLMProvider, Err: ErrInvalid}},
-		{"Claude/claude-opus-5-5", 0, "", &VarError{Reason: reasonLLMProvider, Err: ErrInvalid}},
-		{" claude/claude-opus-5-5", 0, "", &VarError{Reason: reasonLLMProvider, Err: ErrInvalid}},
-		{"claude /claude-opus-5-5", 0, "", &VarError{Reason: reasonLLMProvider, Err: ErrInvalid}},
+		// Values without "+": the effort is the provider's default.
+		{"deepseek/deepseek-flash", deepSeek("deepseek-flash", deepseekparam.EffortUnspecified), nil},
+		{"claude/claude-sonnet-5-5", claude("claude-sonnet-5-5", claudeparam.EffortHigh), nil},
+		{"claude/vendor/model-x", claude("vendor/model-x", claudeparam.EffortHigh), nil},
+		{"claude/claude-opus-5-5 ", claude("claude-opus-5-5 ", claudeparam.EffortHigh), nil},
+		{"claude/ claude-opus-5-5", claude(" claude-opus-5-5", claudeparam.EffortHigh), nil},
+		{"claude/\xffmodel", claude("\xffmodel", claudeparam.EffortHigh), nil},
+		{"", LLMSelection{}, &VarError{Reason: reasonUnset, Err: ErrMissing}},
+		{"claude", LLMSelection{}, rejected(reasonLLMForm)},
+		{"claude/", LLMSelection{}, rejected(reasonLLMForm)},
+		{"deepseek/", LLMSelection{}, rejected(reasonLLMForm)},
+		{"/claude-opus-5-5", LLMSelection{}, rejected(reasonLLMProvider)},
+		{"gemini/x", LLMSelection{}, rejected(reasonLLMProvider)},
+		{"gemini/", LLMSelection{}, rejected(reasonLLMProvider)},
+		{"Claude/claude-opus-5-5", LLMSelection{}, rejected(reasonLLMProvider)},
+		{" claude/claude-opus-5-5", LLMSelection{}, rejected(reasonLLMProvider)},
+		{"claude /claude-opus-5-5", LLMSelection{}, rejected(reasonLLMProvider)},
+		// Every effort each provider accepts.
+		{"claude/claude-sonnet-5-5+low", claude("claude-sonnet-5-5", claudeparam.EffortLow), nil},
+		{"claude/claude-opus-5-5+medium", claude("claude-opus-5-5", claudeparam.EffortMedium), nil},
+		{"claude/claude-opus-5-5+high", claude("claude-opus-5-5", claudeparam.EffortHigh), nil},
+		{"claude/claude-opus-5-5+xhigh", claude("claude-opus-5-5", claudeparam.EffortXHigh), nil},
+		{"claude/claude-opus-5-5+max", claude("claude-opus-5-5", claudeparam.EffortMax), nil},
+		{"deepseek/deepseek-flash+none", deepSeek("deepseek-flash", deepseekparam.EffortNone), nil},
+		{"deepseek/deepseek-flash+low", deepSeek("deepseek-flash", deepseekparam.EffortLow), nil},
+		{"deepseek/deepseek-flash+high", deepSeek("deepseek-flash", deepseekparam.EffortHigh), nil},
+		{"deepseek/deepseek-flash+max", deepSeek("deepseek-flash", deepseekparam.EffortMax), nil},
+		// "+" is looked for after the first "/" only, and the model ID keeps
+		// its later "/" and its white space.
+		{"claude/vendor/model-x+medium", claude("vendor/model-x", claudeparam.EffortMedium), nil},
+		{"claude/claude-opus-5-5 +high", claude("claude-opus-5-5 ", claudeparam.EffortHigh), nil},
+		{"claude+high/claude-opus-5-5", LLMSelection{}, rejected(reasonLLMProvider)},
+		// Too many "+".
+		{"claude/claude-opus-5-5+high+low", LLMSelection{}, rejected(reasonLLMEffortSeparator)},
+		{"claude/claude-opus-5-5++high", LLMSelection{}, rejected(reasonLLMEffortSeparator)},
+		// An empty effort part, or one the provider does not accept exactly.
+		{"claude/claude-opus-5-5+", LLMSelection{}, rejected(reasonClaudeEffortPart)},
+		{"deepseek/deepseek-flash+", LLMSelection{}, rejected(reasonDeepSeekEffortPart)},
+		{"claude/claude-opus-5-5+High", LLMSelection{}, rejected(reasonClaudeEffortPart)},
+		{"claude/claude-opus-5-5+ high", LLMSelection{}, rejected(reasonClaudeEffortPart)},
+		{"claude/claude-opus-5-5+high ", LLMSelection{}, rejected(reasonClaudeEffortPart)},
+		{"claude/claude-opus-5-5+none", LLMSelection{}, rejected(reasonClaudeEffortPart)},
+		{"claude/model+x/y", LLMSelection{}, rejected(reasonClaudeEffortPart)},
+		{"deepseek/deepseek-flash+medium", LLMSelection{}, rejected(reasonDeepSeekEffortPart)},
+		{"deepseek/deepseek-flash+xhigh", LLMSelection{}, rejected(reasonDeepSeekEffortPart)},
+		{"deepseek/deepseek-flash+ultra", LLMSelection{}, rejected(reasonDeepSeekEffortPart)},
+		// An empty model ID with an effort.
+		{"claude/+high", LLMSelection{}, rejected(reasonLLMForm)},
+		// Values breaking several rules: the first rule in the order decides.
+		{"claude/+", LLMSelection{}, rejected(reasonLLMForm)},
+		{"claude/+ultra", LLMSelection{}, rejected(reasonLLMForm)},
+		{"deepseek/deepseek-flash+a+b", LLMSelection{}, rejected(reasonLLMEffortSeparator)},
 	}
 	stages := []struct {
 		name     string
-		selected func(LLMConfig) (Provider, string)
+		selected func(LLMConfig) LLMSelection
 	}{
-		{llmEnv, func(c LLMConfig) (Provider, string) { return c.Provider(), c.Model() }},
-		{reviewLLMEnv, func(c LLMConfig) (Provider, string) { return c.ReviewProvider(), c.ReviewModel() }},
+		{llmEnv, LLMConfig.Generation},
+		{reviewLLMEnv, LLMConfig.Review},
 	}
 	for _, stage := range stages {
 		for _, tc := range cases {
@@ -1642,9 +1665,8 @@ func TestLoadParsesLLMValue(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Load() error = %v, want nil", err)
 				}
-				provider, model := stage.selected(cfg.LLM())
-				if provider != tc.wantProvider || model != tc.wantModel {
-					t.Errorf("selection = %v/%q, want %v/%q", provider, model, tc.wantProvider, tc.wantModel)
+				if got := stage.selected(cfg.LLM()); got != tc.want {
+					t.Errorf("selection = %+v, want %+v", got, tc.want)
 				}
 			})
 		}
@@ -1653,7 +1675,8 @@ func TestLoadParsesLLMValue(t *testing.T) {
 
 // TestParseLLMProvider checks parseLLM's contract on a rejected value: the
 // selection keeps a provider part that was accepted, so that provider's own
-// variables are still checked, and holds ProviderUnset otherwise.
+// variables are still checked, with no model ID and no effort, and holds
+// ProviderUnset otherwise.
 func TestParseLLMProvider(t *testing.T) {
 	cases := []struct {
 		value string
@@ -1661,6 +1684,11 @@ func TestParseLLMProvider(t *testing.T) {
 	}{
 		{"claude/", ProviderClaude},
 		{"deepseek/", ProviderDeepSeek},
+		{"claude/+high", ProviderClaude},
+		{"claude/claude-opus-5-5+high+low", ProviderClaude},
+		{"claude/claude-opus-5-5+ultra", ProviderClaude},
+		{"deepseek/deepseek-flash+a+b", ProviderDeepSeek},
+		{"deepseek/deepseek-flash+medium", ProviderDeepSeek},
 		{"", ProviderUnset},
 		{"claude", ProviderUnset},
 		{"gemini/x", ProviderUnset},
@@ -1671,8 +1699,159 @@ func TestParseLLMProvider(t *testing.T) {
 			if err == nil {
 				t.Fatal("parseLLM() error = nil, want a rejection")
 			}
-			if selection.provider != tc.want || selection.model != "" {
-				t.Errorf("parseLLM() = %+v, want provider %v and no model", selection, tc.want)
+			if want := (LLMSelection{provider: tc.want}); selection != want {
+				t.Errorf("parseLLM() = %+v, want %+v", selection, want)
+			}
+		})
+	}
+}
+
+// TestEffortPartReasonsListValues checks that each effort-part rejection lists
+// exactly the values its provider's parameter package accepts, in order. The
+// list is split out of the reason rather than searched for: "high" is part of
+// "xhigh", so a substring search would pass with "high" missing.
+func TestEffortPartReasonsListValues(t *testing.T) {
+	cases := []struct {
+		name   string
+		reason string
+		want   []string
+	}{
+		{providerClaude, reasonClaudeEffortPart, claudeparam.EffortValues()},
+		{providerDeepSeek, reasonDeepSeekEffortPart, deepseekparam.EffortValues()},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, list, found := strings.Cut(tc.reason, effortValuesPrefix)
+			if !found {
+				t.Fatalf("reason %q has no %q", tc.reason, effortValuesPrefix)
+			}
+			if got := strings.Split(list, effortValuesSeparator); !slices.Equal(got, tc.want) {
+				t.Errorf("listed values = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestRetiredClaudeEffortReason checks the code values the rejection of
+// YT2COLUMN_CLAUDE_EFFORT names: both LLM variables, the value to set while
+// YT2COLUMN_LLM is unset, and the claude default effort. The default effort is
+// searched for with its delimiters, because "high" is part of "xhigh".
+func TestRetiredClaudeEffortReason(t *testing.T) {
+	fragments := []string{
+		llmEnv,
+		reviewLLMEnv,
+		llmEnv + "=" + defaultLLMValue + effortSeparator + "<effort>",
+		"(" + defaultClaudeEffort.String() + " for " + providerClaude + ")",
+	}
+	for _, fragment := range fragments {
+		if !strings.Contains(reasonRetiredClaudeEffort, fragment) {
+			t.Errorf("reasonRetiredClaudeEffort = %q, want it to contain %q", reasonRetiredClaudeEffort, fragment)
+		}
+	}
+}
+
+// TestLoadInheritsEffort checks the effort of each stage for each Need: an
+// unset YT2COLUMN_REVIEW_LLM inherits the generation selection, effort
+// included, and an inherited rejection is reported once; a set one uses its
+// own value, whose omitted effort is the provider's default rather than the
+// generation's. A stage the run does not need holds the zero selection.
+func TestLoadInheritsEffort(t *testing.T) {
+	claude := func(model string, effort claudeparam.Effort) LLMSelection {
+		return LLMSelection{provider: ProviderClaude, model: model, claudeEffort: effort}
+	}
+	deepSeek := func(effort deepseekparam.Effort) LLMSelection {
+		return LLMSelection{provider: ProviderDeepSeek, model: "deepseek-flash", deepSeekEffort: effort}
+	}
+	cases := []struct {
+		name                       string
+		need                       Need
+		vars                       map[string]string
+		wantGeneration, wantReview LLMSelection
+		wantErrs                   []VarError
+	}{
+		{
+			"both, review unset inherits the effort", needBoth,
+			map[string]string{llmEnv: "claude/claude-sonnet-5-5+medium"},
+			claude("claude-sonnet-5-5", claudeparam.EffortMedium), claude("claude-sonnet-5-5", claudeparam.EffortMedium), nil,
+		},
+		{
+			"both, review unset inherits no effort", needBoth,
+			map[string]string{llmEnv: "claude/claude-sonnet-5-5"},
+			claude("claude-sonnet-5-5", claudeparam.EffortHigh), claude("claude-sonnet-5-5", claudeparam.EffortHigh), nil,
+		},
+		{
+			"both, review unset inherits a deepseek effort", needBoth,
+			map[string]string{llmEnv: "deepseek/deepseek-flash+max"},
+			deepSeek(deepseekparam.EffortMax), deepSeek(deepseekparam.EffortMax), nil,
+		},
+		{
+			"both, review set without an effort uses the claude default", needBoth,
+			map[string]string{llmEnv: "claude/claude-opus-5-5+low", reviewLLMEnv: "claude/claude-opus-5-5"},
+			claude("claude-opus-5-5", claudeparam.EffortLow), claude("claude-opus-5-5", claudeparam.EffortHigh), nil,
+		},
+		{
+			"both, review set without an effort sends none to deepseek", needBoth,
+			map[string]string{llmEnv: "deepseek/deepseek-flash+low", reviewLLMEnv: "deepseek/deepseek-flash"},
+			deepSeek(deepseekparam.EffortLow), deepSeek(deepseekparam.EffortUnspecified), nil,
+		},
+		{
+			"both, review unset, LLM effort rejected once", needBoth,
+			map[string]string{llmEnv: "claude/claude-opus-5-5+ultra"},
+			LLMSelection{},
+			LLMSelection{},
+			[]VarError{wantInvalid(llmEnv, reasonClaudeEffortPart)},
+		},
+		{
+			"generation only, review not read", needGeneration,
+			map[string]string{llmEnv: "claude/claude-opus-5-5+low", reviewLLMEnv: "claude/claude-opus-5-5+ultra"},
+			claude("claude-opus-5-5", claudeparam.EffortLow),
+			LLMSelection{},
+			nil,
+		},
+		{
+			"review only, review unset inherits the effort", needReview,
+			map[string]string{llmEnv: "claude/claude-sonnet-5-5+medium"},
+			LLMSelection{},
+			claude("claude-sonnet-5-5", claudeparam.EffortMedium), nil,
+		},
+		{
+			"review only, review unset inherits a deepseek effort", needReview,
+			map[string]string{llmEnv: "deepseek/deepseek-flash+none"},
+			LLMSelection{},
+			deepSeek(deepseekparam.EffortNone), nil,
+		},
+		{
+			"review only, review set without an effort uses the claude default", needReview,
+			map[string]string{llmEnv: "claude/claude-opus-5-5+low", reviewLLMEnv: "claude/claude-opus-5-5"},
+			LLMSelection{},
+			claude("claude-opus-5-5", claudeparam.EffortHigh), nil,
+		},
+		{
+			"review only, review unset, LLM effort rejected", needReview,
+			map[string]string{llmEnv: "claude/claude-opus-5-5+ultra"},
+			LLMSelection{},
+			LLMSelection{},
+			[]VarError{wantInvalid(llmEnv, reasonClaudeEffortPart)},
+		},
+		{
+			"review only, review set, LLM not read", needReview,
+			map[string]string{llmEnv: "claude/claude-opus-5-5+ultra", reviewLLMEnv: "deepseek/deepseek-flash+high"},
+			LLMSelection{},
+			deepSeek(deepseekparam.EffortHigh), nil,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg, err := LoadFor(envLookup(withVars(defaultsBaseEnv(), tc.vars)), tc.need)
+			assertVarErrors(t, err, tc.wantErrs...)
+			if err != nil {
+				return
+			}
+			if got := cfg.LLM().Generation(); got != tc.wantGeneration {
+				t.Errorf("Generation() = %+v, want %+v", got, tc.wantGeneration)
+			}
+			if got := cfg.LLM().Review(); got != tc.wantReview {
+				t.Errorf("Review() = %+v, want %+v", got, tc.wantReview)
 			}
 		})
 	}
@@ -1715,6 +1894,7 @@ var retiredLLMVarsWant = []retiredLLMVar{
 	{"YT2COLUMN_MODEL", reasonRetiredLLM},
 	{"YT2COLUMN_REVIEW_PROVIDER", reasonRetiredReviewLLM},
 	{"YT2COLUMN_REVIEW_MODEL", reasonRetiredReviewLLM},
+	{"YT2COLUMN_CLAUDE_EFFORT", reasonRetiredClaudeEffort},
 }
 
 // TestRetiredLLMVars checks the table of retired variables against the list
@@ -1772,10 +1952,10 @@ func TestLoadRejectsRetiredLLMVars(t *testing.T) {
 // TestLoadProviderVarsFollowSelection checks which provider variables a load
 // reads when an LLM variable is rejected: none for a stage whose provider part
 // was rejected, and the provider's own when the provider part was accepted
-// (an empty model ID). The selection that is accepted still has its provider's
-// variables checked.
+// (an empty model ID, too many "+", or an unaccepted effort part). The
+// selection that is accepted still has its provider's variables checked.
 func TestLoadProviderVarsFollowSelection(t *testing.T) {
-	claudeVars := []string{anthropicAPIKeyEnv, claudeEffortEnv, anthropicWorkspaceIDEnv}
+	claudeVars := []string{anthropicAPIKeyEnv, anthropicWorkspaceIDEnv}
 	cases := []struct {
 		name        string
 		need        Need
@@ -1811,6 +1991,39 @@ func TestLoadProviderVarsFollowSelection(t *testing.T) {
 			[]VarError{wantInvalid(llmEnv, reasonLLMForm), wantMissing(anthropicAPIKeyEnv)},
 			claudeVars,
 			[]string{deepSeekAPIKeyEnv},
+		},
+		{
+			// Exactly two rejections: the effort part and the key of the
+			// provider it still selects.
+			"LLM with an unaccepted claude effort part", needBoth,
+			map[string]string{llmEnv: "claude/claude-opus-5-5+ultra"},
+			[]VarError{wantInvalid(llmEnv, reasonClaudeEffortPart), wantMissing(anthropicAPIKeyEnv)},
+			claudeVars,
+			[]string{deepSeekAPIKeyEnv},
+		},
+		{
+			"LLM with an unaccepted deepseek effort part", needBoth,
+			map[string]string{llmEnv: "deepseek/deepseek-flash+medium"},
+			[]VarError{wantInvalid(llmEnv, reasonDeepSeekEffortPart), wantMissing(deepSeekAPIKeyEnv)},
+			[]string{deepSeekAPIKeyEnv},
+			claudeVars,
+		},
+		{
+			"LLM with an empty model ID and an effort", needBoth,
+			map[string]string{llmEnv: "claude/+high"},
+			[]VarError{wantInvalid(llmEnv, reasonLLMForm), wantMissing(anthropicAPIKeyEnv)},
+			claudeVars,
+			[]string{deepSeekAPIKeyEnv},
+		},
+		{
+			"review LLM with two effort separators", needBoth,
+			map[string]string{llmEnv: "claude/claude-opus-5-5", reviewLLMEnv: "deepseek/deepseek-flash+a+b"},
+			[]VarError{
+				wantInvalid(reviewLLMEnv, reasonLLMEffortSeparator),
+				wantMissing(anthropicAPIKeyEnv), wantMissing(deepSeekAPIKeyEnv),
+			},
+			append([]string{deepSeekAPIKeyEnv}, claudeVars...),
+			nil,
 		},
 		{
 			"LLM provider invalid, review set", needBoth,

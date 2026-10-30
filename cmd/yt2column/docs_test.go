@@ -4,6 +4,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
@@ -321,6 +322,65 @@ func TestLLMDefaultsDocsContract(t *testing.T) {
 	}
 }
 
+// TestEffortValuesDocsContract checks the tables of accepted effort values in
+// both README versions and project_overview.md: each provider the
+// configuration accepts has exactly one row, no other provider has one, and
+// the code spans of the row's accepted-values cell are exactly the values the
+// configuration accepts for that provider.
+func TestEffortValuesDocsContract(t *testing.T) {
+	docs := []struct {
+		name, path, providerHeader, valuesHeader string
+	}{
+		{"project_overview.md", projectOverviewPath, "プロバイダ", "受理する effort"},
+	}
+	for _, v := range doctestutil.ReadmeVersions() {
+		docs = append(docs, struct{ name, path, providerHeader, valuesHeader string }{
+			v.Path, v.From(repositoryRoot),
+			doctestutil.ReadmeEffortProviderColumn.In(t, v.Lang), doctestutil.ReadmeEffortValuesColumn.In(t, v.Lang),
+		})
+	}
+	want := config.EffortValuesByProviderForTest()
+	for _, doc := range docs {
+		t.Run(doc.name, func(t *testing.T) {
+			table := doctestutil.FindTable(doctestutil.ReadDoc(t, doc.path), doc.valuesHeader)
+			if table == nil {
+				t.Fatalf("%s has no table with a %q column", doc.name, doc.valuesHeader)
+			}
+			providerColumn := doctestutil.ColumnIndex(table[0], doc.providerHeader)
+			valuesColumn := doctestutil.ColumnIndex(table[0], doc.valuesHeader)
+			if providerColumn < 0 {
+				t.Fatalf("%s: the %q table has no %q column", doc.name, doc.valuesHeader, doc.providerHeader)
+			}
+			seen := map[string]int{}
+			for _, row := range table[1:] {
+				if len(row) <= max(providerColumn, valuesColumn) {
+					t.Errorf("%s: a row of the %q table has %d cells", doc.name, doc.valuesHeader, len(row))
+					continue
+				}
+				provider := doctestutil.StripBackticks(row[providerColumn])
+				seen[provider]++
+				values, known := want[provider]
+				if !known {
+					t.Errorf("%s: the %q table has a row for %q, which is not a provider", doc.name, doc.valuesHeader, provider)
+					continue
+				}
+				var got []string
+				for _, match := range codeSpanRE.FindAllStringSubmatch(row[valuesColumn], -1) {
+					got = append(got, match[1])
+				}
+				if !slices.Equal(slices.Sorted(slices.Values(got)), slices.Sorted(slices.Values(values))) {
+					t.Errorf("%s: the %s row lists %q, want %q", doc.name, provider, got, values)
+				}
+			}
+			for _, provider := range slices.Sorted(maps.Keys(want)) {
+				if seen[provider] != 1 {
+					t.Errorf("%s: %d rows for %s in the %q table, want exactly one", doc.name, seen[provider], provider, doc.valuesHeader)
+				}
+			}
+		})
+	}
+}
+
 // tableRowsWithFirstCell returns every body row whose first cell equals first,
 // ignoring backticks. It is doctestutil.TableRow for a table that can hold more
 // than one row per key, such as the review-log item table.
@@ -368,14 +428,12 @@ func firstCodeSpan(cell string) (string, bool) {
 
 // exportLineRE matches one line of a configuration block: "export", one space,
 // an uppercase variable name, "=", and a value of letters, digits, ".", "_",
-// "-", and "/" (the separator of an LLM variable's provider and model ID).
-var exportLineRE = regexp.MustCompile(`^export ([A-Z][A-Z0-9_]*)=([A-Za-z0-9._/-]+)$`)
+// "-", "/" (the separator of an LLM variable's provider and model ID), and "+"
+// (the separator of its model ID and effort).
+var exportLineRE = regexp.MustCompile(`^export ([A-Z][A-Z0-9_]*)=([A-Za-z0-9._/+-]+)$`)
 
-// checkExportBlock checks that section holds exactly one sh code block and that
-// every line of it has the export-line shape, names one of want, and does not
-// repeat a variable. It returns the block's values. The failure messages name
-// the document, section, line, and variable, never a line's value: a secret
-// written into the block by mistake must not reach the log.
+// checkExportBlock checks that section holds exactly one sh code block and
+// checks that block with checkExportLines, returning its values.
 func checkExportBlock(t *testing.T, docName, sectionName, section string, want []string) map[string]string {
 	t.Helper()
 	var shBlocks []doctestutil.FencedBlock
@@ -387,11 +445,21 @@ func checkExportBlock(t *testing.T, docName, sectionName, section string, want [
 	if len(shBlocks) != 1 {
 		t.Fatalf("%s %s: %d sh code blocks, want exactly one", docName, sectionName, len(shBlocks))
 	}
-	if !shBlocks[0].Closed {
+	return checkExportLines(t, docName, sectionName, shBlocks[0], want)
+}
+
+// checkExportLines checks that the sh block is closed and that every line of
+// it has the export-line shape, names one of want, and does not repeat a
+// variable. It returns the block's values. The failure messages name the
+// document, section, line, and variable, never a line's value: a secret
+// written into the block by mistake must not reach the log.
+func checkExportLines(t *testing.T, docName, sectionName string, block doctestutil.FencedBlock, want []string) map[string]string {
+	t.Helper()
+	if !block.Closed {
 		t.Fatalf("%s %s: the sh code block has no closing fence; an unclosed fence runs to the end of the document", docName, sectionName)
 	}
 	values := make(map[string]string, len(want))
-	for i, line := range shBlocks[0].Lines {
+	for i, line := range block.Lines {
 		match := exportLineRE.FindStringSubmatch(line)
 		if match == nil {
 			t.Errorf("%s %s: block line %d is not an export line of the form export <NAME>=<value>", docName, sectionName, i+1)
@@ -436,10 +504,25 @@ func docsProfileEnv() map[string]string {
 	}
 }
 
+// selectionMismatch compares a stage selection loaded from a document with
+// the one the code gives, and returns "" when they are equal or a description
+// of the difference. The model ID comes from the document, so the description
+// says only whether it is equal: a secret pasted into the document by mistake
+// must not reach the log.
+func selectionMismatch(got, want config.LLMSelection) string {
+	if got == want {
+		return ""
+	}
+	return fmt.Sprintf("provider %v (want %v), model equal %t, claude effort %v (want %v), deepseek effort %v (want %v)",
+		got.Provider(), want.Provider(), got.Model() == want.Model(),
+		got.ClaudeEffort(), want.ClaudeEffort(), got.DeepSeekEffort(), want.DeepSeekEffort())
+}
+
 // checkExportBlockMatchesDefaults loads the server configuration without the
 // block's variables and with them, and fails unless both load and their
-// generation and review provider, model, and effort are equal. It returns the
-// configuration loaded without the block, which is the code's default profile.
+// generation and review selections (provider, model, and effort) are equal.
+// It returns the configuration loaded without the block, which is the code's
+// default profile.
 func checkExportBlockMatchesDefaults(t *testing.T, docName, sectionName string, block map[string]string) config.LLMConfig {
 	t.Helper()
 	without, err := config.LoadServer(lookupFrom(docsProfileEnv()))
@@ -452,20 +535,12 @@ func checkExportBlockMatchesDefaults(t *testing.T, docName, sectionName string, 
 	if err != nil {
 		t.Fatalf("%s %s: LoadServer rejected the block's variables: %v", docName, sectionName, err)
 	}
-	// The model names are document values, so a mismatch says only whether
-	// they are equal: a secret pasted into the block by mistake must not reach
-	// the log.
 	got, want := loaded.LLM(), without.LLM()
-	modelEqual := got.Model() == want.Model()
-	reviewModelEqual := got.ReviewModel() == want.ReviewModel()
-	if got.Provider() != want.Provider() || !modelEqual ||
-		got.ReviewProvider() != want.ReviewProvider() || !reviewModelEqual ||
-		got.ClaudeEffort() != want.ClaudeEffort() {
-		t.Errorf("%s %s: the block's profile differs from the code's default profile "+
-			"(provider %v/%v, model equal %t, review provider %v/%v, review model equal %t, effort %v/%v)",
-			docName, sectionName, got.Provider(), want.Provider(), modelEqual,
-			got.ReviewProvider(), want.ReviewProvider(), reviewModelEqual,
-			got.ClaudeEffort(), want.ClaudeEffort())
+	if diff := selectionMismatch(got.Generation(), want.Generation()); diff != "" {
+		t.Errorf("%s %s: the block's generation selection differs from the code's default profile: %s", docName, sectionName, diff)
+	}
+	if diff := selectionMismatch(got.Review(), want.Review()); diff != "" {
+		t.Errorf("%s %s: the block's review selection differs from the code's default profile: %s", docName, sectionName, diff)
 	}
 	return without.LLM()
 }
@@ -479,22 +554,19 @@ var profileStages = []string{"生成", "字数の調整", reviewProfileStage}
 const reviewProfileStage = "検証・推敲"
 
 // productionProfileVars returns the variables that describe the production
-// profile: the generation provider and model, which the review step inherits,
-// and the Claude effort, which all three stages share.
+// profile: the generation provider, model, and effort, which the review step
+// inherits.
 func productionProfileVars() []string {
-	return []string{
-		config.LLMEnvForTest(),
-		config.ClaudeEffortEnvForTest(),
-	}
+	return []string{config.LLMEnvForTest()}
 }
 
 // checkProfileTable checks the shared document's profile table: each stage has
-// exactly one row, and the first code spans of its provider and model cells,
-// joined by "/" into one LLM variable value, and of its effort cell, loaded
-// through LoadServer, give the default profile's values for that stage. The
-// review row's value goes into YT2COLUMN_REVIEW_LLM and the other rows' into
-// YT2COLUMN_LLM. The shortening stage calls the generation client, so its row
-// is compared with the generation values.
+// exactly one row, and the first code spans of its provider, model, and effort
+// cells, joined into one LLM variable value "<provider>/<model>+<effort>" and
+// loaded through LoadServer, give the default profile's selection for that
+// stage. The review row's value goes into YT2COLUMN_REVIEW_LLM and the other
+// rows' into YT2COLUMN_LLM. The shortening stage calls the generation client,
+// so its row is compared with the generation selection.
 func checkProfileTable(t *testing.T, section string, defaults config.LLMConfig) {
 	t.Helper()
 	table := doctestutil.FindTable(section, "段階")
@@ -538,33 +610,19 @@ func checkProfileTable(t *testing.T, section string, defaults config.LLMConfig) 
 		if !complete {
 			continue
 		}
-		review := stage == reviewProfileStage
-		llmEnv := config.LLMEnvForTest()
-		if review {
-			llmEnv = config.ReviewLLMEnvForTest()
+		stageOf, llmEnv := config.LLMConfig.Generation, config.LLMEnvForTest()
+		if stage == reviewProfileStage {
+			stageOf, llmEnv = config.LLMConfig.Review, config.ReviewLLMEnvForTest()
 		}
 		env := docsProfileEnv()
-		env[llmEnv] = values[0] + "/" + values[1]
-		env[config.ClaudeEffortEnvForTest()] = values[2]
+		env[llmEnv] = values[0] + "/" + values[1] + "+" + values[2]
 		cfg, err := config.LoadServer(lookupFrom(env))
 		if err != nil {
 			t.Errorf("production_profile.md: LoadServer rejects the %q row's values: %v", stage, err)
 			continue
 		}
-		got := cfg.LLM()
-		gotProvider, gotModel := got.Provider(), got.Model()
-		wantProvider, wantModel := defaults.Provider(), defaults.Model()
-		if review {
-			gotProvider, gotModel = got.ReviewProvider(), got.ReviewModel()
-			wantProvider, wantModel = defaults.ReviewProvider(), defaults.ReviewModel()
-		}
-		// The model name comes from the document, so the diagnostic says only
-		// whether it matches: a secret pasted into the cell by mistake must not
-		// reach the log.
-		modelEqual := gotModel == wantModel
-		if gotProvider != wantProvider || !modelEqual || got.ClaudeEffort() != defaults.ClaudeEffort() {
-			t.Errorf("production_profile.md: the %q row gives provider %v, model equal %t, effort %v; the default profile gives provider %v, effort %v",
-				stage, gotProvider, modelEqual, got.ClaudeEffort(), wantProvider, defaults.ClaudeEffort())
+		if diff := selectionMismatch(stageOf(cfg.LLM()), stageOf(defaults)); diff != "" {
+			t.Errorf("production_profile.md: the %q row differs from the default profile: %s", stage, diff)
 		}
 	}
 }
@@ -609,13 +667,15 @@ func TestProductionProfileDocsContract(t *testing.T) {
 	})
 }
 
-// TestMigrationDocsContract checks the README's migration example: the
-// section holds one text block of the retired generation variables and one sh
-// block setting YT2COLUMN_LLM alone, and the sh block loads, through
-// LoadServer, to the generation provider and model the retired block named.
-// The retired names come from the config
-// package, whose table orders the generation provider variable first and the
-// generation model variable second.
+// TestMigrationDocsContract checks the README's migration examples. Each is a
+// text block of the old setting followed by an sh block setting YT2COLUMN_LLM
+// alone, and the section holds exactly one example of each kind: the retired
+// generation provider and model variables, and the retired Claude effort
+// variable next to the YT2COLUMN_LLM it was used with. The sh block of each
+// loads, through LoadServer, to the selection the old setting named. The
+// retired names come from the config package, whose table orders the
+// generation provider variable first, the generation model variable second,
+// and the Claude effort variable last.
 func TestMigrationDocsContract(t *testing.T) {
 	readmeVersionsUnder(t, func(t *testing.T, v doctestutil.ReadmeVersion, readme string) {
 		checkMigrationSection(t, v.Path, doctestutil.ReadmeMigrationHeading.In(t, v.Lang), readme)
@@ -630,55 +690,68 @@ func checkMigrationSection(t *testing.T, name, migrationHeading, readme string) 
 	if section == "" {
 		t.Fatalf("%s has no %q section", name, migrationHeading)
 	}
-	after := checkExportBlock(t, name, migrationHeading, section, []string{config.LLMEnvForTest()})
-
 	retired := config.RetiredLLMVarsForTest()
-	providerVar, modelVar := retired[0], retired[1]
-	var before map[string]string
-	for _, block := range doctestutil.FencedBlocks(section) {
+	providerVar, modelVar, effortVar := retired[0], retired[1], retired[len(retired)-1]
+	llmVar := config.LLMEnvForTest()
+
+	load := func(value string) config.LLMSelection {
+		t.Helper()
+		env := docsProfileEnv()
+		env[config.DeepSeekAPIKeyEnvForTest()] = "docs-test-api-key"
+		env[llmVar] = value
+		cfg, err := config.LoadServer(lookupFrom(env))
+		if err != nil {
+			t.Fatalf("%s %s: LoadServer rejects a value of an example: %v", name, migrationHeading, err)
+		}
+		return cfg.LLM().Generation()
+	}
+
+	blocks := doctestutil.FencedBlocks(section)
+	examples := map[string]int{}
+	for i, block := range blocks {
 		if block.Info != "text" {
 			continue
 		}
-		if before != nil {
-			t.Fatalf("%s %s: more than one text block, want exactly one", name, migrationHeading)
+		if i+1 >= len(blocks) || blocks[i+1].Info != "sh" {
+			t.Fatalf("%s %s: text block %d is not followed by an sh block", name, migrationHeading, i+1)
 		}
-		before = map[string]string{}
-		for i, line := range block.Lines {
+		after := checkExportLines(t, name, migrationHeading, blocks[i+1], []string{llmVar})
+		before := map[string]string{}
+		for j, line := range block.Lines {
 			variable, value, ok := strings.Cut(strings.TrimRight(line, "\n"), "=")
-			if !ok || !slices.Contains(retired, variable) {
-				t.Errorf("%s %s: text block line %d is not <retired variable>=<value>", name, migrationHeading, i+1)
+			if !ok || (!slices.Contains(retired, variable) && variable != llmVar) {
+				t.Errorf("%s %s: text block line %d is not <retired variable or %s>=<value>", name, migrationHeading, j+1, llmVar)
 				continue
 			}
 			before[variable] = value
 		}
-	}
-	if before == nil {
-		t.Fatalf("%s %s: no text block of the retired variables", name, migrationHeading)
-	}
-	if len(before) != 2 || before[providerVar] == "" || before[modelVar] == "" {
-		t.Fatalf("%s %s: the text block sets %d variables, want exactly %s and %s",
-			name, migrationHeading, len(before), providerVar, modelVar)
-	}
-
-	load := func(value string) config.LLMConfig {
-		t.Helper()
-		env := docsProfileEnv()
-		env[config.DeepSeekAPIKeyEnvForTest()] = "docs-test-api-key"
-		env[config.LLMEnvForTest()] = value
-		cfg, err := config.LoadServer(lookupFrom(env))
-		if err != nil {
-			t.Fatalf("%s %s: LoadServer rejects a value of the example: %v", name, migrationHeading, err)
+		var old string
+		switch _, hasEffort := before[effortVar]; {
+		case hasEffort:
+			examples[effortVar]++
+			if len(before) != 2 || before[effortVar] == "" || before[llmVar] == "" {
+				t.Errorf("%s %s: the %s example sets %d variables, want exactly %s and %s",
+					name, migrationHeading, effortVar, len(before), effortVar, llmVar)
+				continue
+			}
+			old = before[llmVar] + "+" + before[effortVar]
+		default:
+			examples[providerVar]++
+			if len(before) != 2 || before[providerVar] == "" || before[modelVar] == "" {
+				t.Errorf("%s %s: the provider and model example sets %d variables, want exactly %s and %s",
+					name, migrationHeading, len(before), providerVar, modelVar)
+				continue
+			}
+			old = before[providerVar] + "/" + before[modelVar]
 		}
-		return cfg.LLM()
+		if diff := selectionMismatch(load(after[llmVar]), load(old)); diff != "" {
+			t.Errorf("%s %s: the new setting differs from the old one it replaces: %s", name, migrationHeading, diff)
+		}
 	}
-	got := load(after[config.LLMEnvForTest()])
-	want := load(before[providerVar] + "/" + before[modelVar])
-	// The model names come from the document, so the diagnostic says only
-	// whether they are equal: a secret pasted into the block by mistake must
-	// not reach the log.
-	if got.Provider() != want.Provider() || got.Model() != want.Model() {
-		t.Errorf("%s %s: the new setting gives provider %v (want %v), model equal %t; want the retired setting's",
-			name, migrationHeading, got.Provider(), want.Provider(), got.Model() == want.Model())
+	for _, kind := range []string{providerVar, effortVar} {
+		if examples[kind] != 1 {
+			t.Errorf("%s %s: %d examples migrating %s, want exactly one", name, migrationHeading, examples[kind], kind)
+		}
 	}
 }
 

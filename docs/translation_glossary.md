@@ -149,7 +149,8 @@
 | 処理中のジョブ | in-flight job | サーバが受け付け、まだ終わっていないジョブ。サーバの停止と起動のロックはその完了を待つ |
 | ポップアップ | popup | 拡張のツールバーのアイコンから開く画面 |
 | 文字起こしパネル | transcript panel | YouTube の動画ページで、字幕の行を時刻とともに一覧にするパネル |
-| モデルの ID | model ID | プロバイダの API に送るモデルの名前。`YT2COLUMN_LLM` の `/` より後の部分 |
+| モデルの ID | model ID | プロバイダの API に送るモデルの名前。`YT2COLUMN_LLM` の最初の `/` より後の部分。そこに `+` があれば `+` より前の部分 |
+| effort の部分 | effort part | `YT2COLUMN_LLM`・`YT2COLUMN_REVIEW_LLM` の値の、最初の `/` より後ろの `+` より後の部分。工程の effort を指定する |
 | クイックスタート | Quick start | README の見出し |
 | 必要なもの | Requirements | README と `cli.md` の見出し |
 | 出力の書式 | Output format | README と `cli.md` の見出し |

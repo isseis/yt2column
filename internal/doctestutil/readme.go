@@ -93,6 +93,11 @@ var (
 	// table's first and third columns.
 	ReadmeVariableColumn = Locator{JA: "変数", EN: "Variable"}
 	ReadmeUnsetColumn    = Locator{JA: "未設定のとき", EN: "When unset"}
+	// ReadmeEffortProviderColumn and ReadmeEffortValuesColumn head the first
+	// two columns of the configuration section's table of accepted effort
+	// values. The values column finds the table: no other table has it.
+	ReadmeEffortProviderColumn = Locator{JA: "プロバイダ", EN: "Provider"}
+	ReadmeEffortValuesColumn   = Locator{JA: "受理する effort", EN: "Accepted efforts"}
 	// ReadmeExitCodeColumn heads the first column of the server's and the
 	// host's exit-code tables.
 	ReadmeExitCodeColumn = Locator{JA: "コード", EN: "Code"}

@@ -185,8 +185,8 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stderr io
 	logger := slog.New(slog.NewTextHandler(redact.Writer(stderr, secrets), nil))
 	logger.Info("listening",
 		"socket", cfg.SocketPath(),
-		"model", llmCfg.Model(),
-		"reviewModel", llmCfg.ReviewModel(),
+		"model", llmCfg.Generation().Model(),
+		"reviewModel", llmCfg.Review().Model(),
 		"webhookConfigured", webhookConfigured,
 	)
 	if !webhookConfigured {

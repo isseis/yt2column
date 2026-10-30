@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/isseis/yt2column/internal/llm/claudeparam"
+	"github.com/isseis/yt2column/internal/llm/deepseekparam"
 	"github.com/isseis/yt2column/internal/secret"
 	"github.com/isseis/yt2column/internal/slackwebhook"
 )
@@ -33,7 +34,6 @@ const (
 	reviewLLMEnv            = "YT2COLUMN_REVIEW_LLM"
 	deepSeekAPIKeyEnv       = "DEEPSEEK_API_KEY"  //nolint:gosec // the variable's name, not a credential value
 	anthropicAPIKeyEnv      = "ANTHROPIC_API_KEY" //nolint:gosec // the variable's name, not a credential value
-	claudeEffortEnv         = "YT2COLUMN_CLAUDE_EFFORT"
 	anthropicWorkspaceIDEnv = "ANTHROPIC_WORKSPACE_ID"
 	slackEnv                = "SLACK_WEBHOOK_URL"
 	cacheDirEnv             = "YT2COLUMN_CACHE_DIR"
@@ -51,6 +51,12 @@ const (
 // Only its first occurrence separates them; a later one belongs to the model
 // ID.
 const llmSeparator = "/"
+
+// effortSeparator separates the model ID from the effort part in the part of
+// an LLM variable after llmSeparator. That part may hold at most one; it is
+// looked for only there, so a "+" in the provider part is a provider
+// rejection.
+const effortSeparator = "+"
 
 // The default applied when YT2COLUMN_LLM is unset. Each value is written here
 // alone, so changing the default touches one line of code and the documents
@@ -75,13 +81,16 @@ const (
 )
 
 // Fixed reasons for a rejected variable. A reason is chosen from these
-// constants and built from nothing else, so a rejected value cannot reach an
-// error message.
+// constants and the package variables below them, which are built once from
+// code values alone, so a rejected value cannot reach an error message.
 const (
-	reasonUnset                = "is unset or empty"
-	reasonLLMForm              = `must be "<provider>/<model ID>" with a non-empty model ID`
+	reasonUnset   = "is unset or empty"
+	reasonLLMForm = `must be "<provider>/<model ID>", optionally followed by "+<effort>", with a non-empty model ID`
+	// reasonLLMEffortSeparator rejects a second "+" after the first "/",
+	// which leaves the boundary between the model ID and the effort part
+	// undecided.
+	reasonLLMEffortSeparator   = `may contain at most one "+" after the first "/", which separates the model ID from the effort`
 	reasonLLMProvider          = `the provider before the first "/" must be exactly "` + providerDeepSeek + `" or "` + providerClaude + `"`
-	reasonClaudeEffort         = "must be a supported effort value"
 	reasonAnthropicWorkspaceID = "must be a non-empty string of printable ASCII characters other than space"
 	reasonSlackWebhook         = "must be an https URL with a host"
 	reasonDirRelative          = "must be an absolute path"
@@ -100,12 +109,47 @@ const (
 		reviewLLMEnv + "=<provider>/<model ID> instead; while " + reviewLLMEnv + " is unset, the review step uses " + llmEnv
 )
 
-// retiredLLMVar is a variable that selected a provider or a model before
-// YT2COLUMN_LLM and YT2COLUMN_REVIEW_LLM. Its presence is a rejection; its
-// value is never used.
+// The fixed parts of an effort-part rejection: the accepted values follow
+// effortValuesPrefix, joined by effortValuesSeparator, so a test can split
+// the list back out.
+const (
+	effortValuesPrefix    = "accepted values: "
+	effortValuesSeparator = ", "
+)
+
+// Reasons built from code values when the package is initialized. They are
+// variables only because a method call cannot appear in a constant; like the
+// constants above, they hold no value a user set.
+var (
+	// reasonClaudeEffortPart and reasonDeepSeekEffortPart reject an effort
+	// part the provider does not accept, an empty one included. The list
+	// comes from the provider's parameter package, so it cannot drift from
+	// what parseLLM accepts.
+	reasonClaudeEffortPart   = effortPartReason(providerClaude, claudeparam.EffortValues())
+	reasonDeepSeekEffortPart = effortPartReason(providerDeepSeek, deepseekparam.EffortValues())
+	// reasonRetiredClaudeEffort rejects YT2COLUMN_CLAUDE_EFFORT. A user who
+	// changed only the effort with it may have no YT2COLUMN_LLM to append to,
+	// so it gives the value to set in that case, built from the defaults.
+	reasonRetiredClaudeEffort = "is no longer supported and must be unset (an empty value counts as set); append " +
+		effortSeparator + "<effort> to " + llmEnv + " (while it is unset, set " +
+		llmEnv + "=" + defaultLLMValue + effortSeparator + "<effort>) and to " + reviewLLMEnv +
+		" if it is set; without " + effortSeparator + "<effort>, each stage uses its provider's default (" +
+		defaultClaudeEffort.String() + " for " + providerClaude + ")"
+)
+
+// effortPartReason builds the rejection of an effort part for provider, which
+// lists the values it accepts.
+func effortPartReason(provider string, values []string) string {
+	return `the effort after "` + effortSeparator + `" is not accepted for provider ` + provider + "; " +
+		effortValuesPrefix + strings.Join(values, effortValuesSeparator)
+}
+
+// retiredLLMVar is a variable that selected a provider, a model, or the Claude
+// effort before the LLM variables carried them. Its presence is a rejection;
+// its value is never used.
 type retiredLLMVar struct {
 	name   string
-	reason string // reasonRetiredLLM or reasonRetiredReviewLLM
+	reason string // reasonRetiredLLM, reasonRetiredReviewLLM, or reasonRetiredClaudeEffort
 }
 
 // retiredLLMVars lists the retired variables, each with the reason naming its
@@ -115,6 +159,7 @@ var retiredLLMVars = []retiredLLMVar{
 	{"YT2COLUMN_MODEL", reasonRetiredLLM},
 	{"YT2COLUMN_REVIEW_PROVIDER", reasonRetiredReviewLLM},
 	{"YT2COLUMN_REVIEW_MODEL", reasonRetiredReviewLLM},
+	{"YT2COLUMN_CLAUDE_EFFORT", reasonRetiredClaudeEffort},
 }
 
 // LookupFunc has the signature of os.LookupEnv. Load reads every variable
@@ -148,56 +193,73 @@ func (e *VarError) Unwrap() error {
 	return e.Err
 }
 
-// llmSelection is one stage's provider and model ID. In an accepted selection
-// both are set. parseLLM also returns the provider of a rejected value whose
-// provider part was accepted (an empty model ID), so that provider's own
-// variables are still checked; such a selection never leaves loadLLM, because
-// the load then fails. ProviderUnset means the stage was not resolved or its
-// provider part was rejected.
-type llmSelection struct {
-	provider Provider
-	model    string
+// LLMSelection is one stage's provider, model ID, and effort. Its fields are
+// unexported, so a non-zero LLMSelection can only come from Load, LoadFor, or
+// LoadServer. In an accepted selection the provider and the model ID are set,
+// and only the effort of that provider is meaningful. parseLLM also returns
+// the provider of a rejected value whose provider part was accepted, so that
+// provider's own variables are still checked; such a selection never leaves
+// loadLLM, because the load then fails. ProviderUnset means the stage was not
+// resolved or its provider part was rejected.
+type LLMSelection struct {
+	provider       Provider
+	model          string
+	claudeEffort   claudeparam.Effort
+	deepSeekEffort deepseekparam.Effort
+}
+
+// Provider returns the stage's provider: the provider part of its LLM
+// variable, or of defaultLLMValue.
+func (s LLMSelection) Provider() Provider {
+	return s.provider
+}
+
+// Model returns the stage's model ID: the part of the value after the first
+// "/" and before the "+", if any. It is non-empty exactly when Provider is
+// set.
+func (s LLMSelection) Model() string {
+	return s.model
+}
+
+// ClaudeEffort is not claudeparam.EffortUnset exactly when Provider is
+// ProviderClaude: the effort part of the value, or defaultClaudeEffort when
+// the value has none.
+func (s LLMSelection) ClaudeEffort() claudeparam.Effort {
+	return s.claudeEffort
+}
+
+// DeepSeekEffort is the effort part of the value when Provider is
+// ProviderDeepSeek and the value has one; otherwise it is
+// deepseekparam.EffortUnspecified, which sends no reasoning_effort.
+func (s LLMSelection) DeepSeekEffort() deepseekparam.Effort {
+	return s.deepSeekEffort
 }
 
 // LLMConfig is the validated configuration of the generation and review LLM
 // calls. Its fields are unexported, so a non-zero LLMConfig can only come from
 // Load, LoadFor, or LoadServer.
 type LLMConfig struct {
-	generation           llmSelection
-	review               llmSelection
+	generation           LLMSelection
+	review               LLMSelection
 	deepSeekAPIKey       secret.Secret
 	anthropicAPIKey      secret.Secret
-	claudeEffort         claudeparam.Effort
 	anthropicWorkspaceID claudeparam.WorkspaceID
 }
 
-// Provider returns the LLM provider of the generation and the shorten step:
-// the provider of YT2COLUMN_LLM, or of defaultLLMValue when the variable is
-// unset. It is set only when the run needs the generation stage
-// (Need.Generation); otherwise it is ProviderUnset and no generation client is
-// built.
-func (c LLMConfig) Provider() Provider {
-	return c.generation.provider
+// Generation returns the selection of the generation and the shorten step:
+// from YT2COLUMN_LLM, or from defaultLLMValue when the variable is unset. It
+// is the zero LLMSelection unless the run needs the generation stage
+// (Need.Generation), and then no generation client is built.
+func (c LLMConfig) Generation() LLMSelection {
+	return c.generation
 }
 
-// Model returns the model ID of the generation and the shorten step, from the
-// same value as Provider. It is non-empty exactly when Provider is set.
-func (c LLMConfig) Model() string {
-	return c.generation.model
-}
-
-// ReviewProvider returns the provider of the review step: the provider of
-// YT2COLUMN_REVIEW_LLM, or, when that variable is unset, the generation
-// selection (YT2COLUMN_LLM or its default). It is set only when the run needs
-// the review stage (Need.Review); otherwise it is ProviderUnset.
-func (c LLMConfig) ReviewProvider() Provider {
-	return c.review.provider
-}
-
-// ReviewModel returns the model ID of the review step, from the same value as
-// ReviewProvider. It is non-empty exactly when ReviewProvider is set.
-func (c LLMConfig) ReviewModel() string {
-	return c.review.model
+// Review returns the selection of the review step: from YT2COLUMN_REVIEW_LLM,
+// or, when that variable is unset, the generation selection, effort included.
+// It is the zero LLMSelection unless the run needs the review stage
+// (Need.Review).
+func (c LLMConfig) Review() LLMSelection {
+	return c.review
 }
 
 // DeepSeekAPIKey returns the API key. It is non-zero when the generation or the
@@ -210,13 +272,6 @@ func (c LLMConfig) DeepSeekAPIKey() secret.Secret {
 // generation or the review provider is ProviderClaude.
 func (c LLMConfig) AnthropicAPIKey() secret.Secret {
 	return c.anthropicAPIKey
-}
-
-// ClaudeEffort returns the effort: the value of YT2COLUMN_CLAUDE_EFFORT, or
-// defaultClaudeEffort when it is unset. It is not claudeparam.EffortUnset when
-// the generation or the review provider is ProviderClaude.
-func (c LLMConfig) ClaudeEffort() claudeparam.Effort {
-	return c.claudeEffort
 }
 
 // AnthropicWorkspaceID returns the workspace ID. It is the zero value when
@@ -319,7 +374,7 @@ func (c ServerConfig) HTTP2DebugEnabled() bool {
 // validation never reaches a caller. It reads no variable the server does not
 // use, with one exception: it checks whether each retired LLM variable is
 // present (never its value), so a leftover setting stops the server instead of
-// silently changing the provider.
+// silently changing the provider, the model, or the effort.
 func LoadServer(lookup LookupFunc) (ServerConfig, error) {
 	llm, errs := loadLLM(lookup, Need{Generation: true, Review: true})
 	var cfg ServerConfig
@@ -409,7 +464,8 @@ type Need struct {
 // inherits its selection. The one exception to reading only what the run
 // needs: whatever need is, LoadFor checks whether each retired LLM variable is
 // present (never its value) and rejects the run if one is, so a leftover
-// setting is noticed even by a run that calls no LLM.
+// setting is noticed even by a run that calls no LLM, YT2COLUMN_CLAUDE_EFFORT
+// included when no stage uses claude.
 func LoadFor(lookup LookupFunc, need Need) (Config, error) {
 	llm, errs := loadLLM(lookup, need)
 	var cfg Config
@@ -438,8 +494,8 @@ func LoadFor(lookup LookupFunc, need Need) (Config, error) {
 // the run needs. A rejected value is never replaced by a default, so a run
 // with any rejection sends nothing to a provider. The generation selection is
 // resolved at most once: for the generation stage, or for a review stage that
-// inherits it because YT2COLUMN_REVIEW_LLM is unset; it is stored in the
-// generation accessors only when need.Generation is true.
+// inherits it, effort included, because YT2COLUMN_REVIEW_LLM is unset; it is
+// stored as the Generation selection only when need.Generation is true.
 func loadLLM(lookup LookupFunc, need Need) (LLMConfig, []error) {
 	var cfg LLMConfig
 	errs := retiredLLMErrors(lookup)
@@ -448,7 +504,7 @@ func loadLLM(lookup LookupFunc, need Need) (LLMConfig, []error) {
 	if need.Review {
 		reviewValue, reviewSet = lookup(reviewLLMEnv)
 	}
-	var generation llmSelection
+	var generation LLMSelection
 	if need.Generation || (need.Review && !reviewSet) {
 		var err error
 		generation, err = resolveGeneration(lookup)
@@ -489,7 +545,7 @@ func retiredLLMErrors(lookup LookupFunc) []error {
 // defaultLLMValue instead, with the same parseLLM as a present value, so the
 // default goes through the one string-to-Provider mapping. A rejection names
 // YT2COLUMN_LLM.
-func resolveGeneration(lookup LookupFunc) (llmSelection, error) {
+func resolveGeneration(lookup LookupFunc) (LLMSelection, error) {
 	value, ok := lookup(llmEnv)
 	if !ok {
 		value = defaultLLMValue
@@ -497,22 +553,30 @@ func resolveGeneration(lookup LookupFunc) (llmSelection, error) {
 	return parseLLM(llmEnv, value)
 }
 
-// parseLLM converts a present LLM variable's value, "<provider>/<model ID>",
-// into a selection. name is the variable being read, so a rejection names it.
-// The value is split at its first "/"; the model ID is the rest, kept as it is
-// (a later "/" and surrounding white space included; the adapters reject a
-// model ID they cannot send). Nothing is trimmed or case-folded.
+// parseLLM converts a present LLM variable's value,
+// "<provider>/<model ID>" optionally followed by "+<effort>", into a
+// selection. name is the variable being read, so a rejection names it. The
+// value is split at its first "/"; in the rest, a single "+" separates the
+// model ID from the effort part. The model ID is kept as it is (a later "/"
+// and surrounding white space included; the adapters reject a model ID they
+// cannot send). Nothing is trimmed or case-folded, and the checks run in a
+// fixed order, so a value that breaks several rules is reported once, by the
+// first: the number of "+", then an empty model ID, then the effort part. The
+// effort part must match one of the provider's values exactly; an invalid one
+// is never read as part of the model ID. Without an effort part, claude gets
+// defaultClaudeEffort and deepseek gets deepseekparam.EffortUnspecified.
 //
 // Contract: when the provider part is accepted, the returned selection holds
-// that provider even with an error (an empty model ID), so the provider's own
-// variables are still checked; otherwise its provider is ProviderUnset.
-func parseLLM(name, value string) (llmSelection, error) {
+// that provider even with an error (too many "+", an empty model ID, or an
+// unaccepted effort part), so the provider's own variables are still checked;
+// otherwise its provider is ProviderUnset.
+func parseLLM(name, value string) (LLMSelection, error) {
 	if value == "" {
-		return llmSelection{}, missingVar(name)
+		return LLMSelection{}, missingVar(name)
 	}
-	providerPart, model, found := strings.Cut(value, llmSeparator)
+	providerPart, rest, found := strings.Cut(value, llmSeparator)
 	if !found {
-		return llmSelection{}, invalidVar(name, reasonLLMForm)
+		return LLMSelection{}, invalidVar(name, reasonLLMForm)
 	}
 	var provider Provider
 	switch providerPart {
@@ -521,12 +585,44 @@ func parseLLM(name, value string) (llmSelection, error) {
 	case providerClaude:
 		provider = ProviderClaude
 	default:
-		return llmSelection{}, invalidVar(name, reasonLLMProvider)
+		return LLMSelection{}, invalidVar(name, reasonLLMProvider)
 	}
+	rejected := LLMSelection{provider: provider}
+	if strings.Count(rest, effortSeparator) > 1 {
+		return rejected, invalidVar(name, reasonLLMEffortSeparator)
+	}
+	model, effort, hasEffort := strings.Cut(rest, effortSeparator)
 	if model == "" {
-		return llmSelection{provider: provider}, invalidVar(name, reasonLLMForm)
+		return rejected, invalidVar(name, reasonLLMForm)
 	}
-	return llmSelection{provider: provider, model: model}, nil
+	sel := LLMSelection{provider: provider, model: model}
+	// The conversion errors are dropped: they quote the input, which must not
+	// reach an error message.
+	switch provider {
+	case ProviderClaude:
+		sel.claudeEffort = defaultClaudeEffort
+		if hasEffort {
+			parsed, err := claudeparam.ParseEffort(effort)
+			if err != nil {
+				return rejected, invalidVar(name, reasonClaudeEffortPart)
+			}
+			sel.claudeEffort = parsed
+		}
+	case ProviderDeepSeek:
+		if hasEffort {
+			parsed, err := deepseekparam.ParseEffort(effort)
+			if err != nil {
+				return rejected, invalidVar(name, reasonDeepSeekEffortPart)
+			}
+			sel.deepSeekEffort = parsed
+		}
+	default:
+		// Unreachable: the provider switch above returns for any other
+		// provider part. Kept so a provider added there without an effort
+		// rule here is rejected instead of accepted with no effort.
+		return LLMSelection{}, invalidVar(name, reasonLLMProvider)
+	}
+	return sel, nil
 }
 
 // loadProviderVars returns the rejections of the selected providers' variables
@@ -550,7 +646,6 @@ func loadProviderVars(lookup LookupFunc, cfg *LLMConfig, need Need) []error {
 	if claude {
 		errs = append(errs,
 			loadAnthropicAPIKey(lookup, cfg),
-			loadClaudeEffort(lookup, cfg),
 			loadAnthropicWorkspaceID(lookup, cfg),
 		)
 	}
@@ -589,32 +684,11 @@ func loadAnthropicAPIKey(lookup LookupFunc, cfg *LLMConfig) error {
 	return nil
 }
 
-// defaultClaudeEffort is the effort used when YT2COLUMN_CLAUDE_EFFORT is
-// unset and a stage the run needs uses the claude provider. The adapter's
-// default output limit was sized for this effort; changing it calls for the
-// re-measurement in docs/dev/guides/claude_output_limit.md.
+// defaultClaudeEffort is the effort a claude stage uses when its LLM
+// variable's value has no effort part. The adapter's default output limit was
+// sized for this effort; changing it calls for the re-measurement in
+// docs/dev/guides/claude_output_limit.md.
 const defaultClaudeEffort = claudeparam.EffortHigh
-
-// loadClaudeEffort validates YT2COLUMN_CLAUDE_EFFORT when the generation or
-// the review provider is claude. It is called only when one of them is. Unset
-// selects defaultClaudeEffort; an empty value is rejected, not treated as
-// unset. The accepted values live in claudeparam and are not repeated here.
-func loadClaudeEffort(lookup LookupFunc, cfg *LLMConfig) error {
-	value, ok := lookup(claudeEffortEnv)
-	if !ok {
-		cfg.claudeEffort = defaultClaudeEffort
-		return nil
-	}
-	if value == "" {
-		return missingVar(claudeEffortEnv)
-	}
-	effort, err := claudeparam.ParseEffort(value)
-	if err != nil {
-		return invalidVar(claudeEffortEnv, reasonClaudeEffort)
-	}
-	cfg.claudeEffort = effort
-	return nil
-}
 
 // loadAnthropicWorkspaceID validates ANTHROPIC_WORKSPACE_ID, which is optional
 // when the generation or the review provider is claude. It is called only when

@@ -85,7 +85,7 @@ flowchart LR
 - 記事の末尾には必ず元動画へのリンク（出典）を付ける。
 - 字幕と info.json は動画 ID ごとにキャッシュする。同じ動画の処理をやり直すとき（記事生成・投稿の失敗後の再実行、プロンプトの調整）に再取得しないようにするため。処理を終えた動画の文字起こしをローカルに残し続けないよう、投稿の成功後は既定でその動画のキャッシュを削除し、残すオプションを設ける。中断などで残った不要なエントリは、CLI の各実行で掃除する。中間生成物（`--artifacts`）はキャッシュの外の利用者が指定したディレクトリに保存し、利用者が削除するまで残す（キャッシュの削除で消えない）。これとは別に、localhost サーバは生成した記事をメモリに持つ（キーごとに、ジョブ・工程・投稿の状態と記事。件数の上限は 100 件で、超えるときは完了または失敗した時刻の古い記録から捨て、処理中と投稿中の記録は捨てない）。サーバはそれをディスクに書かず、再起動で失う。
 - LLM はエラーを返さずに空の応答や途中で打ち切られた応答を返すことがある。`finish_reason` を確認し（`stop` 以外、特に `length` は打ち切り）、空の応答とともにエラーとして扱うこと。
-- DeepSeek の現行モデルは thinking（推論）モードがデフォルトで有効で、レイテンシとコストに影響する。推論過程は `reasoning_content` として本文（`content`）とは別に返るので、記事には `content` だけを使う。thinking モードでは `temperature` が無視される。初期は API のデフォルト（thinking 有効）のままにし、必要に応じて設定可能にする（リクエストの `thinking` パラメータで切り替えられる）。
+- DeepSeek の現行モデルは thinking（推論）モードがデフォルトで有効で、レイテンシとコストに影響する。推論過程は `reasoning_content` として本文（`content`）とは別に返るので、記事には `content` だけを使う。thinking モードでは `temperature` が無視される。`YT2COLUMN_LLM`・`YT2COLUMN_REVIEW_LLM` の値に effort（`+none`・`+low`・`+high`・`+max`）を付けると、その値をリクエストの `reasoning_effort` として送る。`none` は thinking を無効にし、ほかの値は有効にする。effort を省けば `reasoning_effort` を送らず、API のデフォルト（thinking 有効）のままにする。`thinking` パラメータは送らない。
 - DeepSeek は平日のピーク時間帯（UTC 01:00–04:00 と 06:00–10:00、日本時間では 10–13 時と 15–19 時）の料金が2倍になる。
 - DeepSeek の API への入力は中国で処理・保存され、プライバシーポリシー上はデフォルトでモデルの学習に使われる（オプトアウトあり）。送るのは公開動画の字幕・メタ情報とプロンプトであり、機密情報を送らないこと（[security.md](security.md) を参照）。
 - モデル名は頻繁に更新される。コードにハードコードせず設定で与える。ただし、既定のモデル名 `claude-opus-5-5`（`internal/config` の `defaultClaudeModel`）はこの方針の例外としてコードに持つ。範囲は、`YT2COLUMN_LLM` が未設定のとき（`YT2COLUMN_REVIEW_LLM` が受け継ぐ場合を含む）の既定値 `claude/claude-opus-5-5` に限り、設定したモデル名はそのまま使う。何も設定しなければ本番の構成で動くようにするためで、値はタスク 0008 の評価で本番の構成として決めたモデルである。本番の構成を見直したときは、この値と README・本書の表を変える。再現性のため、`-latest` 系のエイリアスより具体的なモデル名を推奨。ただし DeepSeek の `deepseek-flash`（2026-09 時点で DeepSeek-V4.1-Flash を指す）は提供元が指し示すモデルを切り替えるエイリアスで、バージョンを固定した ID は提供されていない。どのモデルで生成したかを追えるよう、応答に含まれる `model` の値と、モデルの版の識別子（`ModelVersion`。DeepSeek では `system_fingerprint`）を記録すること。ただし `internal/pricing` の単価の表はこの方針の対象外である。単価の表は、応答が報告したモデル名に対する単価を引くためのコード内の参照表であり、使うモデルを選ぶ設定ではない。表にないモデルを選んでも生成と公開は変わらず、料金が不明になるだけである。
@@ -117,6 +117,7 @@ internal/llm/             # LLMClient interface と共通型
 internal/llm/deepseek/    # DeepSeek 実装（標準ライブラリで OpenAI 互換 API を呼ぶ）
 internal/llm/claude/      # Claude 実装（標準ライブラリで Anthropic Messages API を呼ぶ）
 internal/llm/claudeparam/ # Claude の effort・ワークスペース ID の型（config と claude が共有）
+internal/llm/deepseekparam/ # DeepSeek の reasoning_effort の型（config と deepseek が共有）
 internal/llm/llmhttp/     # LLM アダプタ共通の HTTP 送信（リダイレクト防止・本文の上限・失敗の分類）
 internal/llm/gemini/      # Gemini 実装（将来追加。google.golang.org/genai）
 internal/secret/          # 秘密情報（API キー・Webhook URL）を保持する型
@@ -131,11 +132,10 @@ extension/                # ブラウザ拡張（TypeScript。開発環境・Man
 
 | 変数 | 説明 | 未設定のとき |
 |---|---|---|
-| `YT2COLUMN_LLM` | 生成と字数の調整のプロバイダとモデルを `<プロバイダ>/<モデル ID>` の形で指定する。プロバイダは `deepseek`／`claude` を受理。将来 `gemini` を追加（例: `deepseek/deepseek-flash`・`claude/claude-sonnet-5-5`） | `claude/claude-opus-5-5` |
-| `YT2COLUMN_REVIEW_LLM` | 検証・推敲のプロバイダとモデル。形と受理するプロバイダは `YT2COLUMN_LLM` と同じ | 生成と同じ（`YT2COLUMN_LLM`、またはその既定値） |
+| `YT2COLUMN_LLM` | 生成と字数の調整のプロバイダ・モデル・effort を `<プロバイダ>/<モデル ID>` の形で指定し、後ろに省略できる `+<effort>` を付ける。プロバイダは `deepseek`／`claude` を受理。将来 `gemini` を追加（例: `deepseek/deepseek-flash`・`claude/claude-sonnet-5-5+low`） | `claude/claude-opus-5-5` |
+| `YT2COLUMN_REVIEW_LLM` | 検証・推敲のプロバイダ・モデル・effort。形と受理するプロバイダは `YT2COLUMN_LLM` と同じ | 生成と同じ（`YT2COLUMN_LLM`、またはその既定値。effort を含む） |
 | `DEEPSEEK_API_KEY` | DeepSeek 用 | 生成または検証・推敲のプロバイダが `deepseek` ならエラー |
 | `ANTHROPIC_API_KEY` | Anthropic（Claude）用 | 生成または検証・推敲のプロバイダが `claude` ならエラー |
-| `YT2COLUMN_CLAUDE_EFFORT` | Claude の effort。`low`・`medium`・`high`・`xhigh`・`max` | 生成または検証・推敲のプロバイダが `claude` なら `high` |
 | `ANTHROPIC_WORKSPACE_ID` | ワークスペースに紐付かない Anthropic の API キー用のワークスペース ID（任意） | ワークスペース ID を送らない |
 | `GEMINI_API_KEY` | Gemini 実装を追加したとき用 | （未実装） |
 | `SLACK_WEBHOOK_URL` | 投稿先の Slack 互換 Incoming Webhook URL（Mattermost を検証済み）。`--out` の場合も、設定されていれば `https` の URL として検証する | `--slack` では必須。`--out` では値なし。サーバでは任意で、投稿するときだけ要る |
@@ -148,13 +148,20 @@ extension/                # ブラウザ拡張（TypeScript。開発環境・Man
 
 `YT2COLUMN_LLM` と `YT2COLUMN_REVIEW_LLM` の値は、最初の `/` で区切る。前半がプロバイダで、`deepseek` か `claude` に完全に一致しなければならない。残りの全体がモデル ID で、その中の `/` も含めて、変換せずにそのまま API に送る（`claude/vendor/model-x` ならモデルは `vendor/model-x`）。モデル ID が空の値（`claude`・`claude/`）、プロバイダの部分が空か不正な値（`/claude-opus-5-5`・`Claude/claude-opus-5-5`・` claude/claude-opus-5-5`）は設定エラーにする。前後の空白は取り除かない。前後に空白があるモデル ID は、設定の読み込みでは拒否せず、その段階のクライアントを作るときに、通信の前にアダプタが拒否する。
 
-`YT2COLUMN_LLM` が未設定なら、生成と字数の調整は `claude/claude-opus-5-5` を使う。`YT2COLUMN_REVIEW_LLM` が未設定なら、検証・推敲は生成と同じプロバイダとモデル（既定値を含む）を使う。どちらも、空の値は既定値や生成の組で補わずに設定エラーにする。
+最初の `/` より後ろ（後半）に `+` があれば、`+` より前がモデル ID、後ろが effort の部分である。`+` を探すのは後半だけで、後半の `+` は 1 つまでとする（2 つ以上は設定エラー）。effort の部分は、プロバイダごとに次の表の値に完全に一致しなければならない。空の effort の部分（`claude/claude-opus-5-5+`）と、一致しない値（`claude/claude-opus-5-5+High`・`deepseek/deepseek-flash+medium`）は、既定の effort で補わず、モデル ID の一部ともみなさずに設定エラーにする。`+` より前のモデル ID が空の値（`claude/+high`）も設定エラーにする。
 
-プロバイダ固有の変数は、生成と検証・推敲のどちらかが選んだプロバイダのものを読んで検査する。他のプロバイダの変数は、未設定・空・不正な値のいずれでも拒否しない。`YT2COLUMN_LLM` のプロバイダの部分が決まらず（空の値、`/` を含まない値、プロバイダの部分が空か不正な値）、`YT2COLUMN_REVIEW_LLM` も未設定の場合は、どのプロバイダ固有の変数も検査しない。プロバイダの部分は正しく、モデル ID だけが空の値（`claude/`）なら、そのプロバイダの変数は検査する。LLM の変数が `ANTHROPIC_API_KEY` だけなら、生成・字数の調整・検証・推敲のすべてを `claude` の `claude-opus-5-5`（effort `high`）で行う。`--no-review` を指定しても検証・推敲の設定は検査する。
+| プロバイダ | 受理する effort | effort を省いたとき |
+|---|---|---|
+| `claude` | `low`・`medium`・`high`・`xhigh`・`max` | `high` を送る |
+| `deepseek` | `none`・`low`・`high`・`max` | 何も送らない（thinking は API のデフォルト） |
+
+`YT2COLUMN_LLM` が未設定なら、生成と字数の調整は `claude/claude-opus-5-5` を effort `high` で使う。`YT2COLUMN_REVIEW_LLM` が未設定なら、検証・推敲は生成と同じプロバイダ・モデル・effort（既定値を含む）を使う。`YT2COLUMN_REVIEW_LLM` を設定して effort を省けば、生成の effort は受け継がず、上の表の「effort を省いたとき」に従う。どちらも、空の値は既定値や生成の組で補わずに設定エラーにする。
+
+プロバイダ固有の変数は、生成と検証・推敲のどちらかが選んだプロバイダのものを読んで検査する。他のプロバイダの変数は、未設定・空・不正な値のいずれでも拒否しない。`YT2COLUMN_LLM` のプロバイダの部分が決まらず（空の値、`/` を含まない値、プロバイダの部分が空か不正な値）、`YT2COLUMN_REVIEW_LLM` も未設定の場合は、どのプロバイダ固有の変数も検査しない。プロバイダの部分は正しく、モデル ID だけが空の値（`claude/`）や、effort の部分だけが不正な値（`claude/claude-opus-5-5+ultra`）なら、そのプロバイダの変数は検査する。LLM の変数が `ANTHROPIC_API_KEY` だけなら、生成・字数の調整・検証・推敲のすべてを `claude` の `claude-opus-5-5`（effort `high`）で行う。`--no-review` を指定しても検証・推敲の設定は検査する。
 
 中断した実行の再開では、実行する段階の LLM の変数だけを読む。`YT2COLUMN_REVIEW_LLM` を設定して検証・推敲だけを実行する場合は、`YT2COLUMN_LLM` を読まない。ただし、次に述べる旧変数の検査だけは例外で、実行する段階によらず行う。
 
-旧変数（`YT2COLUMN_LLM_PROVIDER`・`YT2COLUMN_MODEL`・`YT2COLUMN_REVIEW_PROVIDER`・`YT2COLUMN_REVIEW_MODEL`）は廃止した。いずれかが設定されていれば（空の値を含む）、CLI もサーバも、その変数を名指しする設定エラーで止まる。LLM の変数を読まない実行（`--after review` など）でも止まる。旧変数の値は使わず、ほかの設定エラーと合わせて報告する。旧変数の値は使わないので、旧変数だけで DeepSeek を指定していた設定では `YT2COLUMN_LLM` が未設定として扱われ、既定の `claude` が選ばれる。生成または検証・推敲の設定を検査する実行では、`ANTHROPIC_API_KEY` が未設定ならそのエラーも出る。旧変数の行も、代わりに設定する新しい変数と、それが未設定のときに使われるもの（`YT2COLUMN_LLM` なら `claude`）を示す。DeepSeek を使い続けるには、旧変数を外し（unset）、`YT2COLUMN_LLM=deepseek/<モデル ID>` を設定する。移行の手順は README の「廃止した LLM の変数からの移行」にある。ホスト（`yt2column-nmhost`）は LLM の設定を読まないので、旧変数があっても止まらない。
+旧変数（`YT2COLUMN_LLM_PROVIDER`・`YT2COLUMN_MODEL`・`YT2COLUMN_REVIEW_PROVIDER`・`YT2COLUMN_REVIEW_MODEL`・`YT2COLUMN_CLAUDE_EFFORT`）は廃止した。いずれかが設定されていれば（空の値を含む）、CLI もサーバも、その変数を名指しする設定エラーで止まる。LLM の変数を読まない実行（`--after review` など）でも止まる。旧変数の値は使わず、ほかの設定エラーと合わせて報告する。旧変数の値は使わないので、旧変数だけで DeepSeek を指定していた設定では `YT2COLUMN_LLM` が未設定として扱われ、既定の `claude` が選ばれる。生成または検証・推敲の設定を検査する実行では、`ANTHROPIC_API_KEY` が未設定ならそのエラーも出る。旧変数の行も、代わりに設定する新しい変数と、それが未設定のときに使われるもの（`YT2COLUMN_LLM` なら `claude`）を示す。`YT2COLUMN_CLAUDE_EFFORT` の行は、代わりに `YT2COLUMN_LLM` と（設定していれば）`YT2COLUMN_REVIEW_LLM` の値に `+<effort>` を付けることと、付けなければプロバイダの既定（`claude` なら `high`）を使うことを示す。DeepSeek を使い続けるには、旧変数を外し（unset）、`YT2COLUMN_LLM=deepseek/<モデル ID>` を設定する。移行の手順は README の「廃止した LLM の変数からの移行」にある。ホスト（`yt2column-nmhost`）は LLM の設定を読まないので、旧変数があっても止まらない。
 
 ## 開発ルール
 

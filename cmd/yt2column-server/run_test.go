@@ -97,6 +97,18 @@ func TestStartupFailures(t *testing.T) {
 			configLines: 1,
 		},
 		{
+			// The last retired variable, YT2COLUMN_CLAUDE_EFFORT, also stops
+			// the server before it listens (architecture section 7.3).
+			name: "the retired Claude effort variable",
+			setup: func(_ *testing.T, e *serverEnv, _ *deps) {
+				retired := config.RetiredLLMVarsForTest()
+				e.vars[retired[len(retired)-1]] = "low"
+			},
+			want:        exitUsage,
+			wantStderr:  "configuration: " + config.RetiredLLMVarErrorForTest(config.RetiredLLMVarsForTest()[len(config.RetiredLLMVarsForTest())-1]),
+			configLines: 1,
+		},
+		{
 			name: "HOME unset",
 			setup: func(_ *testing.T, e *serverEnv, _ *deps) {
 				delete(e.vars, "HOME")
@@ -341,7 +353,6 @@ func TestOutputsOmitSecrets(t *testing.T) {
 	e := newServerEnv(t)
 	e.vars["YT2COLUMN_REVIEW_LLM"] = "claude/fake-review-model"
 	e.vars["ANTHROPIC_API_KEY"] = testAnthropicKey
-	e.vars["YT2COLUMN_CLAUDE_EFFORT"] = "low"
 	leaking := funcLLM(func(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {
 		return llm.GenerateResponse{}, errors.New("leak " + testAPIKey + " " + testAnthropicKey + " " + testWebhook)
 	})

@@ -345,11 +345,14 @@ macOS の Brave は Chrome の manifest のディレクトリを読むので、C
 - **`HOME: the socket path derived from HOME exceeds the operating system's
   limit`。** `HOME` がソケットのパスには長すぎる。上の上限を参照。
 - **更新の後の `configuration: YT2COLUMN_LLM_PROVIDER: is no longer supported`（または
-  `YT2COLUMN_MODEL`、`YT2COLUMN_REVIEW_PROVIDER`、`YT2COLUMN_REVIEW_MODEL`）。** プロバイダとモデルは工程ごとに 1 つの変数で設定するようになり、4 つの古い変数は、設定されていれば空でも必ず拒否する。サーバは待ち受ける前に
+  `YT2COLUMN_MODEL`、`YT2COLUMN_REVIEW_PROVIDER`、`YT2COLUMN_REVIEW_MODEL`、`YT2COLUMN_CLAUDE_EFFORT`）。** プロバイダ・モデル・effort は工程ごとに 1 つの変数で設定するようになり、5 つの古い変数は、設定されていれば空でも必ず拒否する。サーバは待ち受ける前に
   `2` で終わり、拡張はサーバが動いていないとしか報告できない。古い変数をそれぞれ外し（unset）、`YT2COLUMN_LLM`
   を設定する。`YT2COLUMN_LLM` を設定せずに古い変数だけを外すと、既定の `claude/claude-opus-5-5` を使い、文字起こしは Anthropic
   に送られる。`YT2COLUMN_REVIEW_*` の変数をどれか設定していたなら、`YT2COLUMN_REVIEW_LLM`
-  も、検証・推敲の工程が実際に使っていたプロバイダとモデルに設定する。
+  も、検証・推敲の工程が実際に使っていたプロバイダとモデルに設定する。`YT2COLUMN_CLAUDE_EFFORT`
+  を外すときは、使っていた effort を `YT2COLUMN_LLM` の値の後ろに `+<effort>` で付ける（`YT2COLUMN_LLM`
+  を設定していなければ `claude/claude-opus-5-5+<effort>` を設定する）。`YT2COLUMN_REVIEW_LLM`
+  を設定しているなら、その値にも付ける。付けなければ、その工程は既定の effort（`claude` では `high`）を使う。
   [廃止した LLM の変数からの移行](#廃止した-llm-の変数からの移行)を参照し、それからサーバをもう一度起動する。
 - **モデルのエラーを伴う `build the LLM client` または `build the review LLM client`。** プロバイダのクライアントは、前後に空白のあるモデルの
   ID や不正な UTF-8 のモデルの ID を、組み立てるときに、変数を名指しせずに拒否する。サーバは起動時に両方のクライアントを組み立てるので、待ち受ける前に
@@ -388,11 +391,10 @@ macOS の Brave は Chrome の manifest のディレクトリを読むので、C
 
 | 変数 | 説明 | 未設定のとき |
 |---|---|---|
-| `YT2COLUMN_LLM` | 生成と字数の調整のプロバイダとモデル。`<provider>/<model ID>` の形で書く。プロバイダは `deepseek` か `claude`（例: `deepseek/deepseek-flash`、`claude/claude-sonnet-5-5`） | `claude/claude-opus-5-5` |
-| `YT2COLUMN_REVIEW_LLM` | 検証・推敲の工程のプロバイダとモデル。形は `YT2COLUMN_LLM` と同じ | 生成と同じ（`YT2COLUMN_LLM`、またはその既定） |
+| `YT2COLUMN_LLM` | 生成と字数の調整のプロバイダ・モデル・effort。`<provider>/<model ID>` の形で書き、後ろに `+<effort>` を付けられる。プロバイダは `deepseek` か `claude`（例: `deepseek/deepseek-flash`、`claude/claude-sonnet-5-5+low`） | `claude/claude-opus-5-5` |
+| `YT2COLUMN_REVIEW_LLM` | 検証・推敲の工程のプロバイダ・モデル・effort。形は `YT2COLUMN_LLM` と同じ | 生成と同じ（`YT2COLUMN_LLM`、またはその既定。effort も含む） |
 | `DEEPSEEK_API_KEY` | DeepSeek の API キー | 生成か検証・推敲のプロバイダが `deepseek` のときは必須（エラー） |
 | `ANTHROPIC_API_KEY` | Anthropic の API キー | 生成か検証・推敲のプロバイダが `claude` のときは必須（エラー） |
-| `YT2COLUMN_CLAUDE_EFFORT` | Claude の effort。`low`、`medium`、`high`、`xhigh`、`max` のいずれか | 生成か検証・推敲のプロバイダが `claude` のときは `high` |
 | `ANTHROPIC_WORKSPACE_ID` | Anthropic のワークスペースの ID。ワークスペースに結び付いていない API キーのためのもの | ワークスペースの ID を送らない |
 | `SLACK_WEBHOOK_URL` | Slack 互換の Incoming Webhook の URL（動作を確かめた送り先は Mattermost） | サーバは起動するが、投稿はできない |
 
@@ -411,35 +413,51 @@ CLI だけが読む変数と、CLI が上の変数をどう読むかは
 は拒否する。`/claude-opus-5-5`、`Claude/claude-opus-5-5`、
 ` claude/claude-opus-5-5` も拒否する。前後に空白のあるモデルの ID は、ここでは受け付けるが、その工程を含む実行がその工程のクライアントを組み立てるときに、リクエストを送る前に拒否する。サーバは待ち受ける前の起動時に両方を組み立てる。
 
+最初の `/` より後ろに `+` があれば、`+` より前がモデルの ID、後ろが effort である。`+` を探すのは最初の `/`
+より後ろだけで、そこには `+` を 1 つまでしか書けない（`claude/claude-opus-5-5+high+low`
+は拒否する）。effort は、プロバイダごとに次の表の値のどれかと完全に一致しなければならない。空の effort（`claude/claude-opus-5-5+`）、大文字や前後の空白を含む
+effort（`claude/claude-opus-5-5+High`）、そのプロバイダが受け付けない値（`deepseek/deepseek-flash+medium`）は拒否し、モデルの
+ID の一部とみなしてプロバイダに送ることはない。`+` より前のモデルの ID が空の値（`claude/+high`）も拒否する。モデルの ID
+は `+` より前の部分なので、`claude/claude-opus-5-5 +high` のモデルの ID は後ろに空白を含み、上のとおりクライアントを組み立てるときに拒否する。
+
+| プロバイダ | 受理する effort | effort を省いたとき |
+|---|---|---|
+| `claude` | `low`、`medium`、`high`、`xhigh`、`max` | `high` を送る |
+| `deepseek` | `none`、`low`、`high`、`max` | 何も送らない（thinking は API の既定のまま） |
+
+`claude` では、effort を要求の effort として送る。`deepseek` では、要求の `reasoning_effort` として送る。`none`
+は thinking を無効にし、ほかの値は有効にする。
+
 `YT2COLUMN_LLM` を設定しなければ、生成と字数の調整は
-`claude/claude-opus-5-5` を使う。`YT2COLUMN_REVIEW_LLM` を設定しなければ、検証・推敲の工程は、既定を含めて、生成と同じプロバイダとモデルを使う。どちらの変数も、空の値は拒否し、既定や生成の設定で置き換えることはない。
+`claude/claude-opus-5-5` を effort `high` で使う。`YT2COLUMN_REVIEW_LLM` を設定しなければ、検証・推敲の工程は、既定を含めて、生成と同じプロバイダ・モデル・effort を使う。`YT2COLUMN_REVIEW_LLM`
+を設定して effort を省けば、生成の effort は受け継がず、上の表の「effort を省いたとき」に従う。どちらの変数も、空の値は拒否し、既定や生成の設定で置き換えることはない。
 
 `YT2COLUMN_LLM_PROVIDER`、`YT2COLUMN_MODEL`、
-`YT2COLUMN_REVIEW_PROVIDER`、`YT2COLUMN_REVIEW_MODEL` の変数は廃止した。どれかが設定されていれば、空の値でも、CLI もサーバも、すべての実行で、その変数を名指しする設定エラーで止まる。その値は使わない。各エラーは、その実行のほかの設定エラーと合わせて報告する。
+`YT2COLUMN_REVIEW_PROVIDER`、`YT2COLUMN_REVIEW_MODEL`、`YT2COLUMN_CLAUDE_EFFORT` の変数は廃止した。どれかが設定されていれば、空の値でも、CLI もサーバも、すべての実行で、その変数を名指しする設定エラーで止まる。その値は使わない。各エラーは、その実行のほかの設定エラーと合わせて報告する。
 [廃止した LLM の変数からの移行](#廃止した-llm-の変数からの移行)を参照。
 
 読んで検査するのは、選んだプロバイダの変数だけである。あるプロバイダの変数は、生成か検証・推敲のプロバイダがそのプロバイダであるときに読む。もう一方のプロバイダの変数は、値が何であれ無視する。そのため、別のツールのために
 `ANTHROPIC_API_KEY=` を export していても、`deepseek` だけを使う実行は止まらない。`YT2COLUMN_LLM`
 のプロバイダの部分が拒否され（空の値、`/` がない、または受け付けないプロバイダ）、`YT2COLUMN_REVIEW_LLM`
 が未設定のときは、プロバイダ固有の変数は検査しないが、共通の変数のエラーは報告する。`claude/`
-のように、プロバイダは受け付けるがモデルの ID が空の値でも、そのプロバイダの変数は検査する。
+のように、プロバイダは受け付けるがモデルの ID が空の値でも、`claude/claude-opus-5-5+ultra`
+のように effort の部分を拒否した値でも、そのプロバイダの変数は検査する。
 
-`claude` では `max` を受け付けるが、この用途では、モデルが既定の出力の上限まで推論だけに使い、記事の文章を返さないと見込まれるので、実行は打ち切りとして失敗する。コラムの生成には
+`claude` の effort では `max` を受け付けるが、この用途では、モデルが既定の出力の上限まで推論だけに使い、記事の文章を返さないと見込まれるので、実行は打ち切りとして失敗する。コラムの生成には
 `low` から `xhigh` までを使う。
 
 既定の effort の `high` は、`claude-opus-5-5` のために選んだ。`claude-sonnet-5-5`
 のような別のモデルでは、`high` でも出力の上限に達して、実行が打ち切りとして失敗することがある。その場合は
-`YT2COLUMN_CLAUDE_EFFORT` を低い effort に設定する。
+`YT2COLUMN_LLM` の値に低い effort を付ける（例: `claude/claude-sonnet-5-5+medium`）。
 
 ### 推奨構成
 
 ```sh
-export YT2COLUMN_LLM=claude/claude-opus-5-5
-export YT2COLUMN_CLAUDE_EFFORT=high
+export YT2COLUMN_LLM=claude/claude-opus-5-5+high
 ```
 
-この 2 つの値が本番の構成である。生成・字数の調整・検証・推敲のどれも、`claude` の `claude-opus-5-5` を effort
-`high` で使う。これらはコードの既定でもある（[#490](https://github.com/isseis/yt2column/issues/490) と
+この値が本番の構成である。生成・字数の調整・検証・推敲のどれも、`claude` の `claude-opus-5-5` を effort
+`high` で使う。これはコードの既定でもある（[#490](https://github.com/isseis/yt2column/issues/490) と
 [#171](https://github.com/isseis/yt2column/issues/171) を参照）ので、設定しなくてよい。LLM
 の変数が `ANTHROPIC_API_KEY` だけなら、生成・字数の調整・検証・推敲のどれもこの構成を使う。export
 しておけば、後で既定が変わっても、シェルの中で構成を固定できる。
@@ -476,6 +494,27 @@ export YT2COLUMN_LLM=deepseek/deepseek-flash
 |---|---|
 | `YT2COLUMN_REVIEW_PROVIDER` だけ（検証・推敲の工程は、そのプロバイダの既定のモデルを使っていた） | `YT2COLUMN_REVIEW_LLM=<provider>/<model ID>`。モデルの ID を書き出す。例えば `claude/claude-opus-5-5` |
 | `YT2COLUMN_REVIEW_MODEL` だけ（検証・推敲の工程は、生成のプロバイダを使っていた） | `YT2COLUMN_REVIEW_LLM=<generation provider>/<model ID>`。生成のプロバイダを書き出す。例えば `deepseek/deepseek-chat` |
+
+Claude の effort は、以前は `YT2COLUMN_CLAUDE_EFFORT` で設定し、生成と検証・推敲の両方に効いていた。今は
+`YT2COLUMN_LLM` と `YT2COLUMN_REVIEW_LLM` の値の後ろに `+<effort>` を付けて工程ごとに設定し、`YT2COLUMN_CLAUDE_EFFORT`
+は拒否する。例えば、以前の設定
+
+```text
+YT2COLUMN_CLAUDE_EFFORT=low
+YT2COLUMN_LLM=claude/claude-sonnet-5-5
+```
+
+は、次のようになる。
+
+```sh
+export YT2COLUMN_LLM=claude/claude-sonnet-5-5+low
+```
+
+`YT2COLUMN_LLM` を設定していなかったなら、既定に effort を付けた
+`YT2COLUMN_LLM=claude/claude-opus-5-5+<effort>` を設定する。`YT2COLUMN_REVIEW_LLM`
+を設定していたなら、その値にも同じ effort を付ける。付けなければ、検証・推敲の工程は既定の `high`
+を使う。この版より前の版は `+<effort>` をモデルの ID の一部とみなしてプロバイダに送るので、そうした版に戻すときは
+`+<effort>` を外す。外さなければ、最初の LLM の呼び出しが失敗する。
 
 古い変数は、ファイルから消すだけでなく外す（unset）。すでに export したシェルは古い変数を持ち続け、空の値も拒否するためである。古い変数を設定しうるすべての場所、すなわち `.envrc`、`.env`、シェルの起動ファイル、サーバを起動するスクリプトを確かめる。
 

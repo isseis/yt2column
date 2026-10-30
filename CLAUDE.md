@@ -258,9 +258,11 @@ flowchart LR
 - `LLMClient` (`internal/llm`, implementations in `internal/llm/<provider>`):
   thin per-provider adapter — system + user prompt in, text out. `deepseek` and
   `claude` exist today; `internal/llm/llmhttp` holds the HTTP send path they
-  share (redirect refusal, body cap, failure classification), and
+  share (redirect refusal, body cap, failure classification),
   `internal/llm/claudeparam` holds the Claude effort and workspace-ID types that
-  `internal/config` and `internal/llm/claude` share.
+  `internal/config` and `internal/llm/claude` share, and
+  `internal/llm/deepseekparam` holds the DeepSeek `reasoning_effort` type that
+  `internal/config` and `internal/llm/deepseek` share.
 - `Publisher` (`internal/publisher`): Slack Incoming Webhook and local file.
 - `internal/pipeline` orchestrates the stages; `internal/config` reads environment
   variables; `cmd/yt2column` wires everything together.
