@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-30 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-10-30 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の項番を、「設計書 3.2」などは設計書の節を指す。用語は設計書の冒頭の定義（工程の選択、パラメータのパッケージ、設定されている、など）と同じ意味で使う。既存のコードについての記述は、コミット `0f1c59b3` で確かめた。`file:line` はこのコミットの行番号である。設計書が確かめたコミット `be657abc` から `0f1c59b3` までの間に、次のものは変わっていない。`internal/config/config.go`・`internal/llm/`・`cmd/yt2column/`・`cmd/yt2column-server/` の本体と、本書で変えるテストである。`git diff --stat be657abc 0f1c59b3 -- internal cmd` で変わったのは、`cmd/codexreview`・`cmd/fixprguard`・`internal/codexreview`・`internal/doctestutil`・`internal/config/envaccess_test.go` だけだった。そのため、設計書の行番号もそのまま使える。
