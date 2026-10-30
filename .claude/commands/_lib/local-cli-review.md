@@ -57,9 +57,12 @@ the tool (`make install-codexreview`, `go build`): the user installs it from
 - **Attempt result** — `coderabbit` (the CodeRabbit CLI reviewed), `codex`
   (Codex CLI reviewed as the fallback), or `none` (neither reviewed).
 - **Unreviewed range** — the commits of SCOPE no successful review covered:
-  BASE..HEAD1 when the first attempt is `none`, and HEAD1..HEAD2 (the fix
-  commits made after the first attempt) when the second is `none`, where
-  HEAD1 and HEAD2 are the HEADs step 1 records for each attempt.
+  BASE..HEAD1 when the first attempt is `none`; HEAD1..HEAD2 (the fix
+  commits made after the first attempt) when the second is `none`; and
+  HEAD2..HEAD3 (the fix commits made after the second attempt, if any) when
+  the second attempt reviewed. HEAD1 and HEAD2 are the HEADs step 1 records
+  for each attempt; HEAD3 is the HEAD when this procedure returns, after its
+  last fix commit of SCOPE.
 
 ## Procedure
 
@@ -223,7 +226,7 @@ the tool (`make install-codexreview`, `go build`): the user installs it from
    |---|---|---|
    | `CodeRabbit local review:` | a rejected finding and its reason, or a `deferred` or `unclear` finding | for each such CodeRabbit CLI finding |
    | `Codex local review:` | `Codex local review: <path>:<start>-<end> <handling>: <summary>`, where `<handling>` is `rejected (<reason>)`, `deferred`, or `unclear (<why>)`; for a finding with `in_range` false, `Codex local review: (not in range) rejected (not in range)` | for each such Codex CLI finding |
-   | `Local CLI review: not run` | `Local CLI review: not run <START12>..<END12> (coderabbit: <kind>; codex: <kind>)`: the unreviewed range (BASE..HEAD1 or HEAD1..HEAD2, see Terms), with both SHAs cut to 12 characters, and the failure kinds of steps 2 and 3 | for each unreviewed range |
+   | `Local CLI review: not run` | `Local CLI review: not run <START12>..<END12> (coderabbit: <kind>; codex: <kind>)`: the unreviewed range (BASE..HEAD1 or HEAD1..HEAD2, see Terms), with both SHAs cut to 12 characters, and the failure kinds of steps 2 and 3. For HEAD2..HEAD3, `Local CLI review: not run <START12>..<END12> (after the second attempt, reviewed by <coderabbit or codex>)`, with both SHAs cut to 12 characters: no failure kind is written, because the second attempt reviewed | for each unreviewed range; for HEAD2..HEAD3, in the next commit after HEAD3 (the fix commit cannot name its own SHA), or in SUMMARY when that commit is the caller's |
 
    - The `<path>` of a `Codex local review:` line is written only for a
      finding with `in_range` true, whose path is a file changed in BASE..HEAD;
@@ -240,10 +243,11 @@ the tool (`make install-codexreview`, `go build`): the user installs it from
      more. When that run does not exit 1, stop and report instead of
      committing. Removing your own summary is not rewriting the text to get
      past the check.
-   - When the next commit is the caller's, not this procedure's (the second
-     attempt's result is known only after its fix commit, and an attempt may
-     have no fix), return the lines in SUMMARY: the caller copies them as its
-     own instructions say.
+   - When the next commit is the caller's, not this procedure's, return the
+     lines in SUMMARY: the caller copies them as its own instructions say. A
+     record whose range ends at a fix commit cannot go in that commit: the
+     second attempt's result is one such, and so is the range of the fix
+     commits made after the second attempt; an attempt may also have no fix.
    - The record is not passed to the PR review or to `/fixpr`, so a finding
      rejected locally may be raised again there and is reclassified there; the
      open ones reach the PR body even when the PR is opened in a later session
