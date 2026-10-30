@@ -13,8 +13,8 @@ Part A" (before it writes anything) and "Part B" (after its last commit), and
 supplies the inputs below.
 
 Project-specific values (feature branch name, reviewer ping, task root, green
-gate) are in `.claude/commands/_context.md`. The local review is
-`.claude/commands/_lib/local-cli-review.md`.
+gate) are in `.claude/commands/_context.md`. The local review is the local CLI
+review, `.claude/commands/_lib/local-cli-review.md`.
 
 `<awaited-reviewer>[bot]` is the REST form of the awaited PR reviewer's name
 (`_context.md`, "Awaited PR reviewer"): that name followed by `[bot]`.
@@ -63,8 +63,10 @@ operations this file names: `gh api user`, `gh pr list`, `gh pr view`,
 sub-issues only), `git push` (including `-u`), `gh pr create`, `gh api` to
 read the PR's comments and, with `gh api -i`, the `Date` header (Part B step
 5), and `gh pr comment` for the PR review request to Codex. `coderabbit review`
-has standing approval (`CLAUDE.md`,
-"Tool Execution Safety"). Anything else that touches the network is asked for
+and `codexreview` have standing approval (`CLAUDE.md`, "Tool Execution
+Safety"): the local CLI review runs `codexreview`, which runs Codex CLI and
+sends the diff and what Codex reads to OpenAI's service, only when the
+CodeRabbit CLI fails. Anything else that touches the network is asked for
 first.
 
 ## Part A — prepare the branch
@@ -172,17 +174,19 @@ holding them (a **link sub-issue**), not to ISSUE itself.
 
 Run this after the calling command's last commit, with a clean working tree.
 
-1. When LOCAL_REVIEW is `run`, review the branch with the local CodeRabbit CLI:
+1. When LOCAL_REVIEW is `run`, review the branch with the local CLI review
+   (the CodeRabbit CLI, or Codex CLI when the CodeRabbit CLI fails):
    follow `.claude/commands/_lib/local-cli-review.md` with
    **BASE** = `$(git merge-base origin/main HEAD)`, **SCOPE** = branch,
-   **SUMMARY** = REPORT.
+   **SUMMARY** = REPORT. When it stops, stop before step 2: nothing is pushed.
 
    **README sync.** Run this paragraph even when the sentence above does not
    apply (LOCAL_REVIEW is `done`). Run the README sync check as
    `.claude/commands/mktrans.md`, "When a caller runs it", says. For
    `translated`, commit `README.en.md` alone, with a message such as
-   `docs: sync README.en.md with README.md`, which also carries any
-   `CodeRabbit local review:` lines step 1 has not yet recorded; CHECKS then
+   `docs: sync README.en.md with README.md`, which also carries any record
+   lines (`_lib/local-cli-review.md` step 7) step 1 has not yet recorded;
+   CHECKS then
    runs on that commit, and step 3 lists the reported terms in the PR body.
    For `stopped`, stop before step 2: nothing is pushed.
 
@@ -208,10 +212,23 @@ Run this after the calling command's last commit, with a clean working tree.
    - lists the decisions made with the reviewer during this run, if any;
    - names the points the reviewer should check (for `runplan.md`, the
      `レビュー観点`), including every `unclear` or `deferred` finding of the
-     local reviews: this run's, and those earlier sessions recorded in commit
-     messages on the branch (`git log origin/main..HEAD`, the
-     `CodeRabbit local review:` lines `_lib/local-cli-review.md` step 7
-     writes);
+     local CLI reviews, from either CLI: this run's SUMMARY, and the finding
+     lines earlier sessions recorded in commit messages on the branch
+     (`git log origin/main..HEAD`; the `CodeRabbit local review:` and
+     `Codex local review:` lines, read as `_lib/local-cli-review.md`,
+     "Reading the record lines", says; a `not run` line is not a finding).
+     Describe a Codex CLI finding only by its location and your own summary,
+     as the record line does, never with Codex's text;
+   - names the commits of this PR that neither CLI reviewed, if any. When this
+     session reviewed the whole branch (step 1, or `runplan.md` step 5a), give
+     only the unreviewed ranges in that review's SUMMARY: a range that review
+     covered counts as reviewed even when a commit message has a `not run`
+     line. Otherwise give the ranges of the `not run` lines in
+     `git log origin/main..HEAD`, of either form (`Local CLI review: not run`,
+     or an earlier session's `CodeRabbit local review: not run`, which stands
+     for the whole branch);
+   - gives how many times Codex CLI ran in this session's local CLI reviews,
+     from their SUMMARY;
    - lists the terms the README sync (step 1) reported as missing from the
      translation glossary, if any;
    - contains `Refs #<issue>` for the issue the requirements document names as

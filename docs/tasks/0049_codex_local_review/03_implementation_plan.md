@@ -308,7 +308,7 @@ PR-1・PR-2 のマージで `.claude/commands/` と `CLAUDE.md` の行番号が�
 
 **変えるファイル**: `.claude/commands/runplan.md`
 
--   [ ] 手順 4.5（`coderabbit` が `--base-commit` として受け取るという記述）、手順 7.7、手順 5a、手順 8（要約と、PR の区切りのない計画で PR を開く経路 `:220`）を、設計書 3.7 の表と 3.9 の表のとおりに改める。手順 5a と `:220` の経路は、`Local CLI review: not run` か `CodeRabbit local review: not run` の行があるときだけ、ブランチ全体を改めてレビューする（AC-15）。手順 8 の要約は、試行ごとの結果と Codex CLI の実行回数を示す（AC-11）。
+-   [x] 手順 4.5（`coderabbit` が `--base-commit` として受け取るという記述）、手順 7.7、手順 5a、手順 8（要約と、PR の区切りのない計画で PR を開く経路 `:220`）を、設計書 3.7 の表と 3.9 の表のとおりに改める。手順 5a と `:220` の経路は、`Local CLI review: not run` か `CodeRabbit local review: not run` の行があるときだけ、ブランチ全体を改めてレビューする（AC-15）。手順 8 の要約は、試行ごとの結果と Codex CLI の実行回数を示す（AC-11）。
 
 **完了の条件**: `make test` が通る。
 
@@ -316,7 +316,7 @@ PR-1・PR-2 のマージで `.claude/commands/` と `CLAUDE.md` の行番号が�
 
 **変えるファイル**: `.claude/commands/_lib/task-pr-handoff.md`
 
--   [ ] Part B 手順 1 の「local CodeRabbit CLI」の記述を改める。Part B 手順 3 が PR 本文に載せるものを、設計書 3.7「Part B 手順 3 が PR 本文に載せるもの」のとおりにする（AC-13・AC-15）。Authorization の `coderabbit review` の記述（`:65-67`）に `codexreview` を加える（AC-16）。
+-   [x] Part B 手順 1 の「local CodeRabbit CLI」の記述を改める。Part B 手順 3 が PR 本文に載せるものを、設計書 3.7「Part B 手順 3 が PR 本文に載せるもの」のとおりにする（AC-13・AC-15）。Authorization の `coderabbit review` の記述（`:65-67`）に `codexreview` を加える（AC-16）。
 
 **完了の条件**: `make test` が通る。
 
@@ -324,8 +324,8 @@ PR-1・PR-2 のマージで `.claude/commands/` と `CLAUDE.md` の行番号が�
 
 **変えるファイル**: `.claude/commands/runpr.md`、`.claude/commands/fixpr.md`
 
--   [ ] `runpr.md` の冒頭の注記（`:9-10`）を、ローカルの CLI レビューの記述に改める。手順 1 で、異系統のレビューを受けていない範囲を最終報告に示す（AC-14）。PR 本文は変えない。承認の記述（`:82-83`）に `codexreview` を加える（AC-16）。
--   [ ] `fixpr.md` の Phase 4.5 の見出しと本文（割り当ての記述 `:603-605` を含む）を、ローカルの CLI レビューに改める。異系統のレビューを受けていない範囲を Final report に示す（AC-14）。承認の記述（`:97-98`）に `codexreview` を加える（AC-16）。
+-   [x] `runpr.md` の冒頭の注記（`:9-10`）を、ローカルの CLI レビューの記述に改める。手順 1 で、異系統のレビューを受けていない範囲を最終報告に示す（AC-14）。PR 本文は変えない。承認の記述（`:82-83`）に `codexreview` を加える（AC-16）。
+-   [x] `fixpr.md` の Phase 4.5 の見出しと本文（割り当ての記述 `:603-605` を含む）を、ローカルの CLI レビューに改める。異系統のレビューを受けていない範囲を Final report に示す（AC-14）。承認の記述（`:97-98`）に `codexreview` を加える（AC-16）。
 
 **完了の条件**: `make test` が通る。
 
@@ -333,7 +333,7 @@ PR-1・PR-2 のマージで `.claude/commands/` と `CLAUDE.md` の行番号が�
 
 **変えるファイル**: `CLAUDE.md`
 
--   [ ] `coderabbit review` の項目の後に、`codexreview` を承認なしに実行してよい項目を加える。その実行が Codex CLI（`codex exec review`）を起動し、差分と Codex が読んだ内容を OpenAI のサービスに送ること、CodeRabbit CLI が失敗したときの代替であることを述べる（設計書 3.8、AC-16）。`CLAUDE.md` はコマンドの文書ではないので、ステップ 3-2 のガードの対象の外である。
+-   [x] `coderabbit review` の項目の後に、`codexreview` を承認なしに実行してよい項目を加える。その実行が Codex CLI（`codex exec review`）を起動し、差分と Codex が読んだ内容を OpenAI のサービスに送ること、CodeRabbit CLI が失敗したときの代替であることを述べる（設計書 3.8、AC-16）。`CLAUDE.md` はコマンドの文書ではないので、ステップ 3-2 のガードの対象の外である。
 
 **完了の条件**: `make test` と `make lint` が通る。
 

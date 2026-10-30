@@ -635,3 +635,10 @@ reviewer sets the previous one to `approved`.
 - `coderabbit review` (the local CodeRabbit CLI, a development tool used on every
   change) may be executed without explicit approval, although it sends the diff to
   CodeRabbit's service
+- `codexreview` (the developer tool the local CLI review runs only when the
+  CodeRabbit CLI fails, as its fallback) may be executed without explicit approval,
+  in the form `.claude/commands/_lib/local-cli-review.md` gives, although it runs
+  Codex CLI (`codex exec review`), which sends the diff and whatever Codex reads
+  during the review to OpenAI's service and spends the Codex allowance the PR
+  review shares. Codex CLI itself is never run directly, and the agents never
+  install or build `codexreview`: the user installs it from `main`
