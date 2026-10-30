@@ -46,6 +46,16 @@ const maxFenceBackticks = 3
 // four or more start an indented code block instead.
 const maxHeadingIndent = 3
 
+// maxHeadingLevel is the deepest ATX heading: seven or more '#' are not one.
+const maxHeadingLevel = 6
+
+// codeBlockIndent is the number of leading spaces that start an indented code
+// block, and the width a tab counts as where indentation is measured.
+const codeBlockIndent = 4
+
+// maxOrderedMarkerDigits is the most digits an ordered list marker may have.
+const maxOrderedMarkerDigits = 9
+
 // listHeading matches a list item whose content begins with an ATX heading:
 // one or more bullet or ordered markers, then the heading. GitHub renders it
 // as a heading inside the item, which HeadingLevel does not see.
@@ -58,15 +68,22 @@ var listHeading = regexp.MustCompile(`^[ \t]*(?:(?:[-*+]|[0-9]{1,9}[.)])[ \t]+)+
 // that scan and GitHub's Markdown can read the document differently, instead of
 // counting them under one reading: the README uses none of them, and a silent
 // choice could call two versions equal when GitHub renders them differently.
+// Two of those forms depend on the surrounding lines rather than on the line
+// alone: the content indentation of the list item a heading is in, and the
+// paragraph an indented line continues instead of interrupting.
 func ParseStructure(doc string) (Structure, error) {
 	var structure Structure
 	inBlock, textBefore, openLine := false, false, 0
+	var listIndents []int
 	for i, line := range ScanDocLines(slices.Collect(strings.Lines(doc))) {
 		lineNo := i + 1
 		if line.Fence {
 			if err := checkFence(line.Text, lineNo, inBlock); err != nil {
 				return Structure{}, err
 			}
+			// A fence outside a list item ends the item, so a heading indented
+			// below the fence does not belong to it.
+			listIndents = updateListIndents(listIndents, line.Text)
 			if inBlock {
 				inBlock = false
 			} else {
@@ -87,12 +104,16 @@ func ParseStructure(doc string) (Structure, error) {
 		if strings.HasPrefix(line.Text, "#######") {
 			return Structure{}, fmt.Errorf("line %d: %w: seven or more '#'", lineNo, ErrUnsupportedHeading)
 		}
+		// A list item ends at a line indented less than its content, and stays
+		// open across a blank line. GitHub reads a heading indented into an open
+		// item as the item's heading, not as an indented code block.
+		listIndents = updateListIndents(listIndents, line.Text)
 		if level := HeadingLevel(line.Text); level > 0 {
 			structure.Headings = append(structure.Headings, HeadingPos{Line: lineNo, Level: level})
 			textBefore = false
 			continue
 		}
-		if githubHeadingLevel(line.Text) > 0 || listHeading.MatchString(line.Text) {
+		if githubHeadingLevel(line.Text) > 0 || listHeading.MatchString(line.Text) || headingInListItem(line.Text, innermostIndent(listIndents)) > 0 {
 			return Structure{}, fmt.Errorf("line %d: %w: a heading HeadingLevel does not count", lineNo, ErrUnsupportedHeading)
 		}
 		if isSetextUnderline(trimmed) {
@@ -102,7 +123,7 @@ func ParseStructure(doc string) (Structure, error) {
 			textBefore = false
 			continue
 		}
-		textBefore = startsParagraph(line.Text)
+		textBefore = startsParagraph(line.Text) || (textBefore && isParagraphContinuation(line.Text))
 	}
 	if inBlock {
 		return Structure{}, fmt.Errorf("line %d: %w", openLine, ErrUnclosedFence)
@@ -137,21 +158,147 @@ func checkFence(text string, lineNo int, closing bool) error {
 // hashes with no text; both are headings GitHub renders and HeadingLevel does
 // not count, so ParseStructure rejects them instead of counting them as text.
 func githubHeadingLevel(line string) int {
-	rest := strings.TrimLeft(line, " ")
-	if len(line)-len(rest) > maxHeadingIndent {
+	return atxHeadingLevel(lineIndent(line), strings.TrimLeft(line, " \t"))
+}
+
+// headingInListItem reports the level GitHub gives an ATX heading on line when
+// the line is in a list item whose content starts at column contentIndent, or 0.
+// GitHub strips the item's indentation before reading the line, so a heading
+// below four or more spaces is the item's heading, not an indented code block.
+func headingInListItem(line string, contentIndent int) int {
+	if contentIndent <= 0 {
+		return 0
+	}
+	indent := lineIndent(line)
+	if indent < contentIndent {
+		return 0
+	}
+	return atxHeadingLevel(indent-contentIndent, strings.TrimLeft(line, " \t"))
+}
+
+// atxHeadingLevel reports the level of an ATX heading whose indentation is
+// indent columns and whose remaining text is rest, or 0 for anything else.
+func atxHeadingLevel(indent int, rest string) int {
+	if indent > maxHeadingIndent {
 		return 0
 	}
 	n := 0
 	for n < len(rest) && rest[n] == '#' {
 		n++
 	}
-	if n == 0 || n > 6 {
+	if n == 0 || n > maxHeadingLevel {
 		return 0
 	}
 	if n == len(rest) || rest[n] == ' ' || rest[n] == '\t' {
 		return n
 	}
 	return 0
+}
+
+// lineIndent returns the column width of line's leading spaces and tabs, a tab
+// counting as codeBlockIndent columns.
+func lineIndent(line string) int {
+	indent := 0
+	for _, r := range line {
+		switch r {
+		case ' ':
+			indent++
+		case '\t':
+			indent += codeBlockIndent
+		default:
+			return indent
+		}
+	}
+	return indent
+}
+
+// listItemContent returns the column where the content of the innermost list
+// item that line opens starts, and whether line opens one. Continuation lines
+// indented to that column belong to the item, so a heading there is the item's
+// heading even when its indentation would start an indented code block at the
+// top level.
+func listItemContent(line string) (int, bool) {
+	i := 0
+	for i < len(line) && (line[i] == ' ' || line[i] == '\t') {
+		i++
+	}
+	content := lineIndent(line[:i])
+	found := false
+	for {
+		width, ok := listMarkerWidth(line[i:])
+		if !ok {
+			break
+		}
+		found = true
+		content += width
+		i += width
+	}
+	return content, found
+}
+
+// innermostIndent returns the content column of the innermost open list item,
+// or 0 when no list item is open.
+func innermostIndent(indents []int) int {
+	if len(indents) == 0 {
+		return 0
+	}
+	return indents[len(indents)-1]
+}
+
+// updateListIndents returns the open list items after line: the items a line
+// indented less than their content ends are dropped, and the item line opens, if
+// any, is pushed. A blank line keeps the open items, so a loose item stays open
+// across it.
+func updateListIndents(indents []int, line string) []int {
+	if strings.TrimSpace(line) != "" {
+		indent := lineIndent(line)
+		for len(indents) > 0 && indent < indents[len(indents)-1] {
+			indents = indents[:len(indents)-1]
+		}
+	}
+	content, ok := listItemContent(line)
+	if !ok || isThematicBreak(line) {
+		return indents
+	}
+	for len(indents) > 0 && indents[len(indents)-1] >= content {
+		indents = indents[:len(indents)-1]
+	}
+	return append(indents, content)
+}
+
+// listMarkerWidth returns the number of bytes from the start of s to the end of
+// a bullet or ordered list marker and the spaces after it, and whether s starts
+// with one.
+func listMarkerWidth(s string) (int, bool) {
+	i := 0
+	if i < len(s) && (s[i] == '-' || s[i] == '*' || s[i] == '+') {
+		i++
+	} else {
+		digits := 0
+		for i < len(s) && digits < maxOrderedMarkerDigits && s[i] >= '0' && s[i] <= '9' {
+			i, digits = i+1, digits+1
+		}
+		if digits == 0 || i == len(s) || (s[i] != '.' && s[i] != ')') {
+			return 0, false
+		}
+		i++
+	}
+	start := i
+	for i < len(s) && s[i] == ' ' {
+		i++
+	}
+	if i == start {
+		return 0, false
+	}
+	return i, true
+}
+
+// isParagraphContinuation reports whether line continues an open paragraph
+// although it would start a block of its own: an indented code block cannot
+// interrupt a paragraph, so GitHub reads the line as paragraph text and a
+// following '=' or '-' line underlines the whole paragraph.
+func isParagraphContinuation(line string) bool {
+	return strings.TrimSpace(line) != "" && lineIndent(line) >= codeBlockIndent
 }
 
 // isSetextUnderline reports whether line is a non-empty run of '=' or '-',
@@ -165,7 +312,7 @@ func isSetextUnderline(line string) bool {
 // item, a blockquote, a table, an indented code block, an HTML block, or a
 // thematic break starts another block instead.
 func startsParagraph(line string) bool {
-	if strings.TrimSpace(line) == "" || strings.HasPrefix(line, "    ") || strings.HasPrefix(line, "\t") {
+	if strings.TrimSpace(line) == "" || lineIndent(line) >= codeBlockIndent {
 		return false
 	}
 	if isThematicBreak(line) || isTableDelimiterRow(line) {
@@ -212,7 +359,7 @@ func isThematicBreak(line string) bool {
 // one to nine digits, '.' or ')', and a space or tab, or the end of the line.
 func orderedListMarker(line string) bool {
 	i := 0
-	for i < len(line) && i < 9 && line[i] >= '0' && line[i] <= '9' {
+	for i < len(line) && i < maxOrderedMarkerDigits && line[i] >= '0' && line[i] <= '9' {
 		i++
 	}
 	if i == 0 || i == len(line) || (line[i] != '.' && line[i] != ')') {

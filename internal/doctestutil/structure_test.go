@@ -114,6 +114,11 @@ func TestParseStructure(t *testing.T) {
 			want: Structure{},
 		},
 		{
+			name: "an indented hash line is code after a heading ends the list",
+			doc:  "- item\n\n# Heading\n    ## code\n",
+			want: Structure{Headings: []HeadingPos{{Line: 3, Level: 1}}},
+		},
+		{
 			name: "an empty document has no structure",
 			doc:  "",
 			want: Structure{},
@@ -149,6 +154,11 @@ func TestParseStructure(t *testing.T) {
 			wantErr: ErrUnsupportedHeading,
 		},
 		{
+			name:    "a heading on a list item's continuation line",
+			doc:     "- item\n\n    ## Nested\n",
+			wantErr: ErrUnsupportedHeading,
+		},
+		{
 			name:    "a setext equals underline",
 			doc:     "Title\n===\n",
 			wantErr: ErrUnsupportedHeading,
@@ -156,6 +166,11 @@ func TestParseStructure(t *testing.T) {
 		{
 			name:    "a setext dash underline",
 			doc:     "Title\n---\n",
+			wantErr: ErrUnsupportedHeading,
+		},
+		{
+			name:    "a setext underline under an indented paragraph continuation",
+			doc:     "Title\n    continuation\n---\n",
 			wantErr: ErrUnsupportedHeading,
 		},
 		{
