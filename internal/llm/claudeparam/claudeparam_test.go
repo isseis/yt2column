@@ -95,8 +95,8 @@ func TestEffortStringAndValid(t *testing.T) {
 		var want []string
 		for e := Effort(-2); e <= EffortMax+3; e++ {
 			_, err := ParseEffort(e.String())
-			if got, want := e.Valid(), err == nil; got != want {
-				t.Errorf("Effort(%d): Valid() = %v, ParseEffort(String()=%q) error = %v", e, got, e.String(), err)
+			if gotValid, wantValid := e.Valid(), err == nil; gotValid != wantValid {
+				t.Errorf("Effort(%d): Valid() = %v, ParseEffort(String()=%q) error = %v", e, gotValid, e.String(), err)
 			}
 			if e.Valid() {
 				want = append(want, e.String())
