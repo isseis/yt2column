@@ -56,16 +56,16 @@ func TestExtensionDocumentation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("derive the extension ID from the manifest key: %v", err)
 	}
-	readme := doctestutil.ReadDoc(t, readmePath)
 	security := doctestutil.ReadDoc(t, securityPath)
 	claude := doctestutil.ReadDoc(t, claudePath)
 	makefile := doctestutil.ReadDoc(t, makefilePath)
 
 	t.Run("records the fixed extension ID in README and security.md", func(t *testing.T) {
-		for _, doc := range []struct{ name, text string }{
-			{"README.md", readme},
-			{"security.md", security},
-		} {
+		docs := []struct{ name, text string }{{"security.md", security}}
+		for _, v := range doctestutil.ReadmeVersions() {
+			docs = append(docs, struct{ name, text string }{v.Path, doctestutil.ReadDoc(t, v.From(repositoryRoot))})
+		}
+		for _, doc := range docs {
 			if !strings.Contains(doc.text, extensionID) {
 				t.Errorf("%s does not record the extension ID %s", doc.name, extensionID)
 			}

@@ -17,13 +17,11 @@ import (
 	"github.com/isseis/yt2column/internal/writer"
 )
 
-// Headings that label the two output examples: the --out file in the CLI
-// guide (cli.md) and the Slack post in README.md. The guard finds each example
-// as the first fenced code block after its heading line.
-const (
-	cliFileExampleHeading     = doctestutil.CLIOutFileHeading
-	readmeSlackExampleHeading = "### The Slack post"
-)
+// cliFileExampleHeading labels the --out file example in the CLI guide
+// (cli.md); doctestutil.ReadmeSlackPostHeading labels the Slack post example in
+// each README version. The guard finds each example as the first fenced code
+// block after its heading line.
+const cliFileExampleHeading = doctestutil.CLIOutFileHeading
 
 // outputLayoutArticle returns the fixed article the two output examples show:
 // a channel name, a mixed set of step models, and a known cost. The values are
@@ -117,7 +115,9 @@ func TestOutputLayoutDocsContract(t *testing.T) {
 	if len(messages) != 1 {
 		t.Fatalf("the fixed article posts as %d messages, want 1 so the example is the whole post", len(messages))
 	}
-	checkDocExample(t, "README.md", doctestutil.ReadDoc(t, readmePath), readmeSlackExampleHeading, messages[0])
+	readmeVersionsUnder(t, func(t *testing.T, v doctestutil.ReadmeVersion, readme string) {
+		checkDocExample(t, v.Path, readme, doctestutil.ReadmeSlackPostHeading.In(t, v.Lang), messages[0])
+	})
 }
 
 // checkDocExample fails the test unless the example under heading in the
