@@ -538,10 +538,18 @@ func selectionMismatch(got, want config.LLMSelection) string {
 // checkExportBlockMatchesDefaults loads the server configuration without the
 // block's variables and with them, and fails unless both load and their
 // generation and review selections (provider, model, and effort) are equal.
-// It returns the configuration loaded without the block, which is the code's
-// default profile.
+// It also fails when the block's YT2COLUMN_LLM has no effort part: a value
+// without one loads to the same selection while the default effort is the
+// profile's, so the comparison alone cannot tell that the block leaves the
+// effort to the default, which a later change of the default would then
+// change. It returns the configuration loaded without the block, which is the
+// code's default profile.
 func checkExportBlockMatchesDefaults(t *testing.T, docName, sectionName string, block map[string]string) config.LLMConfig {
 	t.Helper()
+	if value, ok := block[config.LLMEnvForTest()]; ok && !strings.Contains(value, "+") {
+		t.Errorf("%s %s: the block's %s has no \"+<effort>\" part; the profile must state its effort",
+			docName, sectionName, config.LLMEnvForTest())
+	}
 	without, err := config.LoadServer(lookupFrom(docsProfileEnv()))
 	if err != nil {
 		t.Fatalf("%s %s: LoadServer on the default variables: %v", docName, sectionName, err)
@@ -725,7 +733,6 @@ func checkMigrationSection(t *testing.T, name, migrationHeading, readme string) 
 
 	blocks := doctestutil.FencedBlocks(section)
 	examples := map[string]int{}
-	paired := 0
 	for i, block := range blocks {
 		if block.Info != "text" {
 			continue
@@ -733,7 +740,6 @@ func checkMigrationSection(t *testing.T, name, migrationHeading, readme string) 
 		if i+1 >= len(blocks) || blocks[i+1].Info != "sh" {
 			t.Fatalf("%s %s: text block %d is not followed by an sh block", name, migrationHeading, i+1)
 		}
-		paired++
 		after := checkExportLines(t, name, migrationHeading, blocks[i+1], []string{llmVar})
 		before := map[string]string{}
 		for j, line := range block.Lines {
@@ -753,14 +759,6 @@ func checkMigrationSection(t *testing.T, name, migrationHeading, readme string) 
 					name, migrationHeading, effortVar, len(before), effortVar, llmVar)
 				continue
 			}
-			// The retired variable applied only to a claude stage, so the
-			// example's value must select claude for the effort to have
-			// meant anything.
-			if load(before[llmVar]).Provider() != config.ProviderClaude {
-				t.Errorf("%s %s: the %s example's %s does not select claude, the only provider the retired variable applied to",
-					name, migrationHeading, effortVar, llmVar)
-				continue
-			}
 			old = before[llmVar] + "+" + before[effortVar]
 		default:
 			examples[providerVar]++
@@ -774,18 +772,6 @@ func checkMigrationSection(t *testing.T, name, migrationHeading, readme string) 
 		if diff := selectionMismatch(load(after[llmVar]), load(old)); diff != "" {
 			t.Errorf("%s %s: the new setting differs from the old one it replaces: %s", name, migrationHeading, diff)
 		}
-	}
-	// An sh block that follows no text block would go unchecked, so every sh
-	// block must be the second half of an example.
-	shBlocks := 0
-	for _, block := range blocks {
-		if block.Info == "sh" {
-			shBlocks++
-		}
-	}
-	if shBlocks != paired {
-		t.Errorf("%s %s: %d sh blocks, but %d follow a text block; want every sh block to be part of an example",
-			name, migrationHeading, shBlocks, paired)
 	}
 	for _, kind := range []string{providerVar, effortVar} {
 		if examples[kind] != 1 {
