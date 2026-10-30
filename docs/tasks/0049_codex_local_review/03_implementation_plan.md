@@ -373,7 +373,7 @@ PR-1・PR-2 のマージで `.claude/commands/` と `CLAUDE.md` の行番号が�
 
 **変えるファイル**: `docs/tasks/0049_codex_local_review/03_implementation_plan.md`（9 章の記録）
 
--   [ ] ステップ 4-1 で確かめた、共通手順が書く形の `--protocol` の値を 1 つ違えた形（`--protocol 0`）の実行の結果を記録する（設計書 7.2）。
+-   [x] ステップ 4-1 で確かめた、共通手順が書く形の `--protocol` の値を 1 つ違えた形（`--protocol 0`）の実行の結果を記録する（設計書 7.2）。
 -   [ ] `$(...)` やリダイレクトを含む形で実行しようとすると、権限の確認で止まることを確かめる。
 -   [ ] 結果（実行した形、止まったかどうか、返った種類）を 9 章に記録する。
 
@@ -383,10 +383,10 @@ PR-1・PR-2 のマージで `.claude/commands/` と `CLAUDE.md` の行番号が�
 
 **変えるファイル**: `docs/tasks/0049_codex_local_review/03_implementation_plan.md`（9 章の記録）
 
--   [ ] 利用者の承認を得てから、このブランチで `codexreview` を本物の `codex` で 1 回実行し、`findings` か `no_findings` が返ることを確かめる。割り当てを 1 回分使う（設計書 7.2）。
--   [ ] この実行で、`codexreview` が絞った環境でも `codex` の認証と接続が通ることを確かめる（設計書 3.3）。
--   [ ] 利用者の承認を得てから、`codexreview` と同じ環境と `-c 'shell_environment_policy.inherit="core"'` の下で `codex exec` に `env` を実行させ、`codexreview` が渡す変数のほかと秘密の変数が出ないことを確かめる。割り当てを 1 回分使う。記録には変数の名前だけを書き、値は写さない（設計書 1.2）。
--   [ ] 結果（日付、`codex` の版、種類、かかった時間、指摘の数、`env` の確かめの結果）を 9 章に記録する。Codex の文面は写さない。
+-   [x] 利用者の承認を得てから、このブランチで `codexreview` を本物の `codex` で 1 回実行し、`findings` か `no_findings` が返ることを確かめる。割り当てを 1 回分使う（設計書 7.2）。
+-   [x] この実行で、`codexreview` が絞った環境でも `codex` の認証と接続が通ることを確かめる（設計書 3.3）。
+-   [x] 利用者の承認を得てから、`codexreview` と同じ環境と `-c 'shell_environment_policy.inherit="core"'` の下で `codex exec` に `env` を実行させ、`codexreview` が渡す変数のほかと秘密の変数が出ないことを確かめる。割り当てを 1 回分使う。記録には変数の名前だけを書き、値は写さない（設計書 1.2）。
+-   [x] 結果（日付、`codex` の版、種類、かかった時間、指摘の数、`env` の確かめの結果）を 9 章に記録する。Codex の文面は写さない。
 
 **完了の条件**: 9 章に記録がある。
 
@@ -395,7 +395,7 @@ PR-1・PR-2 のマージで `.claude/commands/` と `CLAUDE.md` の行番号が�
 **変えるファイル**: なし
 
 -   [x] 5 章の横断検索を行い、結果を確かめる。
--   [ ] グリーンゲート（`make test && make lint`）が通る。
+-   [x] グリーンゲート（`make test && make lint`）が通る。
 
 **完了の条件**: 上の 2 つが済んだ。
 
@@ -562,7 +562,7 @@ PR-1・PR-2 のマージで `.claude/commands/` と `CLAUDE.md` の行番号が�
 
 **ステップ 8-1 の記録:** （実装の際に書く）ステップ 4-1 の結果（2026-10-30）: `command -v codexreview` は `/Users/<user>/go/bin/codexreview`、`go version -m` は `vcs.revision=81990175a716152fb53a1b039cfcb3ce6d130787`（PR-3 のマージのコミットそのもの）・`vcs.modified=false`。共通手順が書く形の `--protocol` の値を 1 つ違えた `codexreview --protocol 0 --base 81990175a716152fb53a1b039cfcb3ce6d130787` を Bash ツールで 1 回実行し、権限の確認で止まらず、終了コード 1 で `{"kind":"usage","detail":"protocol_mismatch",...}` が返った（`codex` は起動されない）。
 
-**ステップ 8-2 の記録:** （実装の際に書く）
+**ステップ 8-2 の記録:** 2026-10-30。`codex-cli 0.163.0`。このブランチの `1c8f78f2b8092e332d6a490197713bc9575359f5`（`origin/main`）を BASE として、`codexreview --protocol 1 --base 1c8f78f2b8092e332d6a490197713bc9575359f5` を 1 回実行した。約 18 秒、種類は `no_findings`、指摘は 0 件。絞った環境でも `codex` の認証と接続は通り、`codex_version` は `codex-cli 0.163.0` だった。`instructions_changed` は真（範囲が `CLAUDE.md` を変える）。`env` の確かめは、`codexreview` が渡す環境と同じ変数だけを与え、`-c 'shell_environment_policy.inherit="core"'` の下で `codex exec` に `env` を実行させた。`DEEPSEEK_API_KEY`・`ANTHROPIC_API_KEY`・`SLACK_WEBHOOK_URL` と、与えていない変数 `ENVCHECK_UNLISTED` は出ず、出たのは与えた変数と、`codex` とシェルが自分で加える変数（`CODEX_*`・`PAGER`・`TERM` など）だけだった。値は写さない。
 
 ## 10. 次のステップ (Next Steps)
 
