@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -110,6 +111,39 @@ func documentOf(t *testing.T, body []byte) map[string]any {
 		t.Fatalf("decode fixture: %v", err)
 	}
 	return document
+}
+
+// decodeMembers decodes a JSON object into its raw members.
+func decodeMembers(t *testing.T, body []byte) map[string]json.RawMessage {
+	t.Helper()
+	var members map[string]json.RawMessage
+	if err := json.Unmarshal(body, &members); err != nil {
+		t.Fatalf("decode members: %v", err)
+	}
+	return members
+}
+
+// memberNames returns the sorted member names of a decoded JSON object, so a
+// test can pin exactly which members a body carries.
+func memberNames(members map[string]json.RawMessage) []string {
+	names := make([]string, 0, len(members))
+	for name := range members {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	return names
+}
+
+// assertMemberSet checks that a decoded JSON object carries exactly the named
+// top-level members, whatever order it wrote them in.
+func assertMemberSet(t *testing.T, members map[string]json.RawMessage, want ...string) {
+	t.Helper()
+	got := memberNames(members)
+	sorted := slices.Clone(want)
+	slices.Sort(sorted)
+	if !slices.Equal(got, sorted) {
+		t.Errorf("request body members = %v, want %v", got, sorted)
+	}
 }
 
 // encodeDocument marshals a mutated document back to JSON bytes.

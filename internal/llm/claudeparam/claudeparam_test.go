@@ -5,6 +5,7 @@ package claudeparam
 import (
 	"fmt"
 	"reflect"
+	"slices"
 	"testing"
 )
 
@@ -61,8 +62,10 @@ func TestParseEffort(t *testing.T) {
 }
 
 // TestEffortStringAndValid checks that the accepted values are Valid and that
-// EffortUnset and out-of-range values are not, and that String renders those
-// invalid values as a string ParseEffort rejects.
+// EffortUnset and out-of-range values are not, that String renders those
+// invalid values as a string ParseEffort rejects, and that EffortValues holds
+// exactly the wire values of the valid values: a missing, an extra, or a
+// duplicated entry fails.
 func TestEffortStringAndValid(t *testing.T) {
 	for _, e := range []Effort{EffortLow, EffortMedium, EffortHigh, EffortXHigh, EffortMax} {
 		t.Run("valid "+e.String(), func(t *testing.T) {
@@ -86,13 +89,22 @@ func TestEffortStringAndValid(t *testing.T) {
 
 	// Valid and ParseEffort must agree over the whole domain, not only at the
 	// values listed above: a value Valid accepts must be one String renders as
-	// a wire value ParseEffort accepts, and the reverse.
-	t.Run("agrees with ParseEffort", func(t *testing.T) {
+	// a wire value ParseEffort accepts, and the reverse. The same walk builds
+	// the list EffortValues must hold.
+	t.Run("agrees with ParseEffort and EffortValues", func(t *testing.T) {
+		var want []string
 		for e := Effort(-2); e <= EffortMax+3; e++ {
 			_, err := ParseEffort(e.String())
-			if got, want := e.Valid(), err == nil; got != want {
-				t.Errorf("Effort(%d): Valid() = %v, ParseEffort(String()=%q) error = %v", e, got, e.String(), err)
+			if gotValid, wantValid := e.Valid(), err == nil; gotValid != wantValid {
+				t.Errorf("Effort(%d): Valid() = %v, ParseEffort(String()=%q) error = %v", e, gotValid, e.String(), err)
 			}
+			if e.Valid() {
+				want = append(want, e.String())
+			}
+		}
+		slices.Sort(want)
+		if got := slices.Sorted(slices.Values(EffortValues())); !slices.Equal(got, want) {
+			t.Errorf("EffortValues() = %q, want %q", EffortValues(), want)
 		}
 	})
 }

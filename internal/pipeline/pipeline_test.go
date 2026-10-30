@@ -870,52 +870,67 @@ func TestWriterImports(t *testing.T) {
 	}
 }
 
-// TestConfigImports checks that the configuration loader and the Claude
-// parameter types stay independent of the network and of the LLM adapters: no
-// non-test Go file directly in internal/config or internal/llm/claudeparam
-// directly imports the network packages or an internal/llm package other than
-// claudeparam. A direct import of an adapter would pull net/http into the CLI's
-// startup path.
+// TestConfigImports checks that the configuration loader and the parameter
+// packages stay independent of the network and of the LLM adapters: no
+// non-test Go file directly in internal/config, internal/llm/claudeparam, or
+// internal/llm/deepseekparam directly imports the network packages. A direct
+// import of an adapter would pull net/http into the CLI's startup path. The two
+// parameter packages may import neither parameter package nor an adapter;
+// internal/config may import the two parameter packages.
 func TestConfigImports(t *testing.T) {
 	const (
-		module          = "github.com/isseis/yt2column/"
-		llmPrefix       = module + "internal/llm/"
-		claudeparamPath = module + "internal/llm/claudeparam"
+		module            = "github.com/isseis/yt2column/"
+		llmPrefix         = module + "internal/llm/"
+		claudeparamPath   = module + "internal/llm/claudeparam"
+		deepseekparamPath = module + "internal/llm/deepseekparam"
 	)
-	var paths []string
-	for _, pattern := range []string{"../config/*.go", "../llm/claudeparam/*.go"} {
-		matches, err := filepath.Glob(pattern)
-		if err != nil {
-			t.Fatalf("glob %s: %v", pattern, err)
-		}
-		paths = append(paths, matches...)
-	}
-	if len(paths) == 0 {
-		t.Fatal("found no Go files in internal/config and internal/llm/claudeparam")
+	patterns := []struct {
+		glob             string
+		parameterPackage bool
+	}{
+		{"../config/*.go", false},
+		{"../llm/claudeparam/*.go", true},
+		{"../llm/deepseekparam/*.go", true},
 	}
 	fset := token.NewFileSet()
-	for _, path := range paths {
-		if strings.HasSuffix(path, "_test.go") {
-			continue
-		}
-		file, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly|parser.ParseComments)
+	for _, pattern := range patterns {
+		matches, err := filepath.Glob(pattern.glob)
 		if err != nil {
-			t.Fatalf("parse %s: %v", path, err)
+			t.Fatalf("glob %s: %v", pattern.glob, err)
 		}
-		if isTestOnlyFile(file) {
-			continue
+		// A pattern that matches nothing would silently drop its package from
+		// the check, so a renamed or moved package must fail here.
+		if len(matches) == 0 {
+			t.Fatalf("glob %s matched no files", pattern.glob)
 		}
-		for _, imp := range file.Imports {
-			ipath, err := strconv.Unquote(imp.Path.Value)
-			if err != nil {
-				t.Fatalf("%s: unquote %s: %v", path, imp.Path.Value, err)
+		for _, path := range matches {
+			if strings.HasSuffix(path, "_test.go") {
+				continue
 			}
-			switch {
-			case ipath == "net" || strings.HasPrefix(ipath, "net/"):
-				t.Errorf("%s imports %s", path, ipath)
-			case ipath == claudeparamPath:
-			case strings.HasPrefix(ipath, llmPrefix):
-				t.Errorf("%s imports %s", path, ipath)
+			file, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly|parser.ParseComments)
+			if err != nil {
+				t.Fatalf("parse %s: %v", path, err)
+			}
+			if isTestOnlyFile(file) {
+				continue
+			}
+			for _, imp := range file.Imports {
+				ipath, err := strconv.Unquote(imp.Path.Value)
+				if err != nil {
+					t.Fatalf("%s: unquote %s: %v", path, imp.Path.Value, err)
+				}
+				switch {
+				case ipath == "net" || strings.HasPrefix(ipath, "net/"):
+					t.Errorf("%s imports %s", path, ipath)
+				case !strings.HasPrefix(ipath, llmPrefix):
+					// A package outside internal/llm, including the standard library.
+				case ipath == claudeparamPath, ipath == deepseekparamPath:
+					if pattern.parameterPackage {
+						t.Errorf("%s imports %s; a parameter package must not import another parameter package", path, ipath)
+					}
+				default:
+					t.Errorf("%s imports %s", path, ipath)
+				}
 			}
 		}
 	}

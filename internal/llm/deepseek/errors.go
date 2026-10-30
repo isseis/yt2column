@@ -27,6 +27,7 @@ var (
 	errInvalidAPIKey      = errors.New("the API key contains a character outside printable ASCII (0x21-0x7E)")
 	errEmptyModel         = errors.New("the model is empty")
 	errInvalidModel       = errors.New("the model is not valid UTF-8")
+	errInvalidEffort      = errors.New("the effort is not a supported reasoning_effort value")
 	errNonPositiveTimeout = errors.New("the timeout must be positive")
 	errRevealAPIKey       = errors.New("the API key cannot be revealed")
 	errChoiceCount        = errors.New("choices must have exactly one element")
@@ -54,7 +55,7 @@ func (e *HTTPStatusError) Unwrap() error {
 func statusGuidance(status int) string {
 	switch status {
 	case http.StatusBadRequest, http.StatusUnprocessableEntity:
-		return "check the model name, max_tokens, and prompt length"
+		return "check the model name, max_tokens, reasoning_effort, and prompt length"
 	case http.StatusUnauthorized:
 		return "check the API key"
 	case http.StatusPaymentRequired:

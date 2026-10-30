@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/isseis/yt2column/internal/llm"
+	"github.com/isseis/yt2column/internal/llm/deepseekparam"
 	"github.com/isseis/yt2column/internal/secret"
 )
 
@@ -17,14 +18,17 @@ const (
 	roleUser   = "user"
 )
 
-// chatRequest is the request body sent to the Chat Completions API. It has no
-// fields for parameters outside the requirements (thinking, temperature, n,
-// ...), so none of them can be sent.
+// chatRequest is the request body sent to the Chat Completions API. Its only
+// member outside the requirements is reasoning_effort, which the user selects
+// with the effort part of the LLM variable; it has no fields for the other
+// parameters outside the requirements (thinking, temperature, n, ...), so none
+// of them can be sent.
 type chatRequest struct {
-	Model     string        `json:"model"`
-	Messages  []chatMessage `json:"messages"`
-	Stream    bool          `json:"stream"`
-	MaxTokens *int          `json:"max_tokens,omitempty"`
+	Model           string        `json:"model"`
+	Messages        []chatMessage `json:"messages"`
+	Stream          bool          `json:"stream"`
+	MaxTokens       *int          `json:"max_tokens,omitempty"`
+	ReasoningEffort string        `json:"reasoning_effort,omitempty"`
 }
 
 // chatMessage is one message of the request. Prompts are carried unmodified.
@@ -36,8 +40,12 @@ type chatMessage struct {
 // newChatRequestBody builds the JSON request body. It never assembles the
 // prompts by string concatenation and never includes the API key.
 // max_tokens is sent only for a positive MaxOutputTokens; a zero value leaves
-// the output limit to the provider.
-func newChatRequestBody(model string, req llm.GenerateRequest) ([]byte, error) {
+// the output limit to the provider. reasoning_effort is sent only for an effort
+// the user specified: EffortUnspecified leaves thinking to the provider's
+// default, as the request always has. Any other effort is rejected here too, so
+// a value New rejected cannot reach the API even if it is set on a client
+// afterwards.
+func newChatRequestBody(model string, req llm.GenerateRequest, effort deepseekparam.Effort) ([]byte, error) {
 	body := chatRequest{
 		Model: model,
 		Messages: []chatMessage{
@@ -49,6 +57,13 @@ func newChatRequestBody(model string, req llm.GenerateRequest) ([]byte, error) {
 	if req.MaxOutputTokens > 0 {
 		limit := req.MaxOutputTokens
 		body.MaxTokens = &limit
+	}
+	switch {
+	case effort == deepseekparam.EffortUnspecified:
+	case effort.Valid():
+		body.ReasoningEffort = effort.String()
+	default:
+		return nil, fmt.Errorf("%w: %d", errInvalidEffort, effort)
 	}
 	data, err := json.Marshal(body)
 	if err != nil {

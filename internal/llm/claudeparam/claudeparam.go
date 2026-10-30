@@ -99,6 +99,11 @@ func (e Effort) Valid() bool {
 	return e >= EffortLow && e <= EffortMax
 }
 
+// EffortValues returns the accepted wire values in a fixed order.
+func EffortValues() []string {
+	return []string{effortLow, effortMedium, effortHigh, effortXHigh, effortMax}
+}
+
 // WorkspaceID is an Anthropic workspace ID. The zero value means none was
 // specified; a non-zero value can only come from ParseWorkspaceID.
 type WorkspaceID struct {

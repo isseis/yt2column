@@ -8,7 +8,7 @@
 | Created | 2026-10-30 |
 | Review date | 2026-10-30 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-30（編集上の訂正。実装の PR-1 のレビューで判明）: 執筆後に 66222946 で `README.en.md` が入った。3.7 の `README.en.md` の行と 7.4 の README のガードの記述を、2 つの版を版ごとに検査する現状に合わせた。あわせて 3.7 の `docs/dev/project_overview.md` の行に、想定ディレクトリ構成への `internal/llm/deepseekparam` の追加を含めた。2026-10-30（編集上の訂正。フェーズ 2 の実装時）: 3.6 の DeepSeek のテストの行を、実際に変えたファイル（`deepseek_test.go`・`test_helpers.go`）に合わせた。4 種類のエラーの表示は 1 つの表で確かめるので、`response_test.go` は変えない。設計の判断は変えていない。 |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルについての記述は、コミット `be657abc` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を指す。要件のレビューで設計に申し送られた事項（[design_handoff.md](design_handoff.md) の H-01〜H-09）への対応は、付録 A にまとめる。
 
@@ -145,7 +145,7 @@ flowchart TD
 -   **元の方針と所在:** `docs/tasks/0003_deepseek_llm_client/01_requirements.md` 2.3。コードでは、要求本文の型 `chatRequest` のコメントが「要件の外のパラメータ（thinking など）のフィールドを持たない」としている（`internal/llm/deepseek/request.go:20-22`）。
 -   **例外の内容:** `chatRequest` に `reasoning_effort` のフィールドを 1 つ加える。effort を付けた値のときだけ送り、省いた値では要求本文に現れない（AC-12・AC-13）。`thinking` のフィールドは、今と同じく持たない。
 -   **例外にする理由:** 要件書 1 章「要件定義の際に決めたこと」のとおり、DeepSeek でも effort を指定できるようにするためである。
--   **古い振る舞いを確かめている既存のテスト:** `internal/llm/deepseek/deepseek_test.go:216-` の `TestGenerateSendsRequest`。要求本文に `thinking` がないことを確かめている（`:279-280`）。この確認は残し、effort を指定しないクライアントでは `reasoning_effort` もないことを加える。effort を指定したときの確認は新しいテストにする（7.2）。
+-   **古い振る舞いを確かめている既存のテスト:** `internal/llm/deepseek/deepseek_test.go:216-` の `TestGenerateSendsRequest`。要求本文に `thinking` がないことを確かめている（`:279-280`）。effort を指定しないクライアントでは `reasoning_effort` もないことを加える。`thinking` がないことは、要求本文の最上位のメンバーの集合を `model`・`messages`・`stream` にちょうど等しいと確かめる形に含める（7.2）。effort を指定したときの確認は新しいテストにする（7.2）。
 
 ## 2. システム構成 (System Structure)
 
@@ -437,7 +437,7 @@ type Options struct {
 | `internal/llm/deepseek/deepseek.go` | `Options.Effort`、`New` の検査、`statusError` | AC-12・AC-13 |
 | `internal/llm/deepseek/request.go` | `chatRequest` に `reasoning_effort` を加え、範囲外の値を拒否する。コメントを直す | AC-12・AC-13、H-08 |
 | `internal/llm/deepseek/response.go` | 打ち切り・想定外の終了理由・空の応答のエラーに、送った要求の要約を加える | - |
-| `internal/llm/deepseek/deepseek_test.go`・`response_test.go` | `TestGenerateSendsRequest` に「指定なしでは `reasoning_effort` がない」を加え、指定ありのテスト、範囲外の値の拒否、エラーに effort が出ることのテストを加える | AC-12・AC-13 |
+| `internal/llm/deepseek/deepseek_test.go`・`internal/llm/deepseek/test_helpers.go` | `TestGenerateSendsRequest` に「指定なしでは `reasoning_effort` がない」を加え、指定ありのテスト、範囲外の値の拒否、エラーに effort が出ることのテストを加える。本文のメンバーの集合を確かめる補助を `test_helpers.go` に置く | AC-12・AC-13 |
 | `internal/pipeline/pipeline_test.go` | `TestConfigImports`（`:879-922`）で、調べるファイルに `../llm/deepseekparam/*.go` を加え、`config` からの `deepseekparam` の import を許す。テストのコメントとエラーの文を合わせる | H-08 |
 | `cmd/yt2column/run_test.go` | `:635`・`:1985-2007` の `YT2COLUMN_CLAUDE_EFFORT` を LLM の変数の `+<effort>` に置き換え、旧変数として止まることを確かめる行を加える。不正な effort の部分で止まり、LLM の偽物が呼ばれないことを確かめる行を加える。`:2019-2022` の 4 つのアクセサの呼び出しを置き換える（1.2） | AC-08・AC-21・AC-23、H-06 |
 | `cmd/yt2column/integration_env_test.go` | `:76` の一覧から `YT2COLUMN_CLAUDE_EFFORT` を外す（1.4 (2)）。このファイルにこの変数の名前の文字列を書かない。`:59-68` の 4 つのアクセサの呼び出しを置き換える（1.2） | H-06 |
@@ -458,8 +458,8 @@ type Options struct {
 | README の推奨構成の節 | 設定のブロックを `export YT2COLUMN_LLM=claude/claude-opus-5-5+high` の 1 行にし、変数の数を述べる文を合わせる | AC-34・AC-40 |
 | README の旧変数からの移行の節 | `YT2COLUMN_CLAUDE_EFFORT` から移る例を加える（変更前の `text` ブロックと変更後の `sh` ブロック）。`YT2COLUMN_REVIEW_LLM` にも effort を付ける必要を述べる。`YT2COLUMN_LLM` を設定していなかった場合の書き方（既定値に `+<effort>` を付ける）を述べる。`+<effort>` を含む値は本書より前の版では受理されず、その版ではモデル ID の一部として API に送られて失敗することを述べる | AC-35 |
 | README のトラブルシューティング | 旧変数を名指しする設定エラーの項目（`README.md:446-457`）に `YT2COLUMN_CLAUDE_EFFORT` を加え、移行の節へ案内する | AC-36 |
-| `README.en.md` | 存在すれば `/mktrans README.md` で反映する（`CLAUDE.md`「Translation Guidelines」） | 要件書 2.2 |
-| `docs/dev/project_overview.md` | 「設定（環境変数）」の表と規則の文（README と同じ内容）、DeepSeek の thinking の記述（`:88`） | AC-30〜AC-33・AC-37・AC-39・AC-40 |
+| `README.en.md` | `/mktrans README.md` で `README.md` の変更を反映し、同じコミットに入れる（`CLAUDE.md`「Translation Guidelines」）。同期の印（`TestReadmeSyncMarker`）と 2 つの版の構造の一致（`TestReadmeVersionsShareStructure`）が `make test` で検査される | 要件書 2.2 |
+| `docs/dev/project_overview.md` | 「設定（環境変数）」の表と規則の文（README と同じ内容）、DeepSeek の thinking の記述（`:88`）、想定ディレクトリ構成への `internal/llm/deepseekparam` の行 | AC-30〜AC-33・AC-37・AC-39・AC-40 |
 | `docs/dev/production_profile.md` | 「本番の構成」の設定のブロックを 1 行にし、「次の 2 つ」「上の 2 つの変数」を直す。「effort は 3 つの段階で共通である」（`:39`）を、工程ごとに指定でき、本番の構成では 3 つとも `high` である、と直す。文書の見出しの「段階」の表は、今の列（プロバイダ・モデル・effort）を保つ | AC-34・AC-40 |
 | `docs/dev/guides/cli.md` | `--no-review` の段落の effort の文（`:72`）、旧変数の列挙と例外の文（`:72-74`・`:276-278`）、継承の文（`:273`） | AC-32・AC-33・AC-39 |
 | `docs/dev/conventions/package_reference.md` | `internal/config`・`internal/llm/provider`・`internal/llm/deepseek` の行を直し、`internal/llm/deepseekparam` の行を加える。`internal/llm/claudeparam` の行に `EffortValues` を加える | AC-38 |
@@ -689,7 +689,7 @@ flowchart TD
     -   今の「`text` ブロックのすべての行が旧変数である」という検査は、`YT2COLUMN_CLAUDE_EFFORT` の組では `YT2COLUMN_LLM` の行を許すように緩める。
     -   組の種類は、`text` ブロックが含む旧変数で決める。旧変数のうち一覧の先頭の 2 つ（プロバイダとモデル）を含む組は今の検査をそのまま行う。`YT2COLUMN_CLAUDE_EFFORT` を含む組は、`text` ブロックが `YT2COLUMN_CLAUDE_EFFORT` と `YT2COLUMN_LLM` のちょうど 2 行であることを確かめる。そのうえで、変更前の `YT2COLUMN_LLM` の値に `+` と変更前の effort をつないだ値と、変更後の値を、どちらも `LoadServer` で読み込み、工程の選択（プロバイダ・モデル・effort）が等しいことを比べる。
     -   旧変数の名前は `RetiredLLMVarsForTest` から得る。どちらの組も 1 つずつあることを確かめる。
--   **effort の値の一覧のガード（新規）:** README の設定の節と `docs/dev/project_overview.md`「設定（環境変数）」にある、プロバイダごとの effort の表を見出しの列名で探し、各プロバイダの行の受理する値のセルのコードスパンの集合が、`claudeparam.EffortValues()`・`deepseekparam.EffortValues()` と一致することを確かめる（AC-40）。
+-   **effort の値の一覧のガード（新規）:** README の 2 つの版（`README.md`・`README.en.md`）の設定の節と `docs/dev/project_overview.md`「設定（環境変数）」にある、プロバイダごとの effort の表を見出しの列名で探し、各プロバイダの行の受理する値のセルのコードスパンの集合が、`claudeparam.EffortValues()`・`deepseekparam.EffortValues()` と一致することを確かめる（AC-40）。README の列名は版の言語から得る（`doctestutil.ReadmeVersion`・`ReadmeVariableColumn.In` と同じ形）。
 -   **既定値のガード（`TestLLMDefaultsDocsContract`）:** 変えない。`defaultLLMValue` を変えないので（1.2）、そのまま通る。
 
 ### 7.5. セキュリティのテスト

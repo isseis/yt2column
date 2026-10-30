@@ -8,7 +8,7 @@
 | Created | 2026-10-30 |
 | Review date | 2026-10-30 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-30（編集上の訂正。`/runplan` の PR-1 のレビューで判明）: 執筆後に 66222946 で `README.en.md` が入った。そのためステップ 4-6 の「存在すれば」の留保を外し、`README.en.md` を同じコミットで `/mktrans README.md` により反映することを必須にした。あわせて、README のガードテストは 2 つの版（`README.md`・`README.en.md`）を版ごと・言語ごとの列名で回るようになったことをステップ 4-5 に書き、`docs/dev/project_overview.md` の想定ディレクトリ構成と `CLAUDE.md` の `LLMClient` の記述（`deepseekparam` の追加）をステップ 4-6 の対象に加えた。2026-10-30（編集上の訂正。フェーズ 2 の実装時）: ステップ 2-3 のテストの置き場所を、4 種類のエラー × effort の有無を 1 つの表で確かめる形（`TestGenerateErrorsNameEffort`）に直し、`assertBodyRejectedResponse` を effort 用に広げる項目を、使われない補助を増やさない方針に直した。設計の判断は変えていない。 |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の項番を、「設計書 3.2」などは設計書の節を指す。用語は設計書の冒頭の定義（工程の選択、パラメータのパッケージ、設定されている、など）と同じ意味で使う。既存のコードについての記述は、コミット `0f1c59b3` で確かめた。`file:line` はこのコミットの行番号である。設計書が確かめたコミット `be657abc` から `0f1c59b3` までの間に、次のものは変わっていない。`internal/config/config.go`・`internal/llm/`・`cmd/yt2column/`・`cmd/yt2column-server/` の本体と、本書で変えるテストである。`git diff --stat be657abc 0f1c59b3 -- internal cmd` で変わったのは、`cmd/codexreview`・`cmd/fixprguard`・`internal/codexreview`・`internal/doctestutil`・`internal/config/envaccess_test.go` だけだった。そのため、設計書の行番号もそのまま使える。
 
@@ -125,9 +125,9 @@
 
 **変更するファイル:** `internal/llm/deepseekparam/deepseekparam.go`（新規）、`internal/llm/deepseekparam/deepseekparam_test.go`（新規）
 
--   [ ] 設計書 3.1 の `Effort`・定数・`ParseEffort`・`String`・`Valid`・`EffortValues` を書く。値の文字列は非公開の定数に 1 回だけ書き、`ParseEffort`・`String`・`EffortValues` がそれを使う（`claudeparam` と同じ形）。
--   [ ] `ParseEffort` のエラーは、`claudeparam` と同じく非公開の番兵で返す。
--   [ ] テストを書く（設計書 7.2）。一覧の各値の往復（`ParseEffort` → `String`）、`Effort(-1)` から `EffortMax+2` までの各値について、`Valid` が真ならその文字列が一覧にあること（両方向）、`EffortUnspecified` の `Valid` が偽で `String` が `ParseEffort` の拒否する値であること、大文字・前後の空白・空・`medium`・`xhigh`・`ultra`・`minimal` の拒否。
+-   [x] 設計書 3.1 の `Effort`・定数・`ParseEffort`・`String`・`Valid`・`EffortValues` を書く。値の文字列は非公開の定数に 1 回だけ書き、`ParseEffort`・`String`・`EffortValues` がそれを使う（`claudeparam` と同じ形）。
+-   [x] `ParseEffort` のエラーは、`claudeparam` と同じく非公開の番兵で返す。
+-   [x] テストを書く（設計書 7.2）。一覧の各値の往復（`ParseEffort` → `String`）、`Effort(-1)` から `EffortMax+2` までの各値について、`Valid` が真ならその文字列が一覧にあること（両方向）、`EffortUnspecified` の `Valid` が偽で `String` が `ParseEffort` の拒否する値であること、大文字・前後の空白・空・`medium`・`xhigh`・`ultra`・`minimal` の拒否。
 
 **完了の条件:** `go test -tags test ./internal/llm/deepseekparam` が通る。
 
@@ -135,8 +135,8 @@
 
 **変更するファイル:** `internal/llm/claudeparam/claudeparam.go`、`internal/llm/claudeparam/claudeparam_test.go`
 
--   [ ] `EffortValues` を加える（設計書 3.1）。`effortLow` などの既存の定数から作る。
--   [ ] ステップ 1-1 と同じ両方向の一致のテストを加える。既存の `TestParseEffort`・`TestEffortStringAndValid` の行と重なる確認は加えない。
+-   [x] `EffortValues` を加える（設計書 3.1）。`effortLow` などの既存の定数から作る。
+-   [x] ステップ 1-1 と同じ両方向の一致のテストを加える。既存の `TestParseEffort`・`TestEffortStringAndValid` の行と重なる確認は加えない。
 
 **完了の条件:** `go test -tags test ./internal/llm/claudeparam` が通る。
 
@@ -144,9 +144,9 @@
 
 **変更するファイル:** `internal/pipeline/pipeline_test.go`、`docs/dev/conventions/package_reference.md`
 
--   [ ] `TestConfigImports` の調べるファイルに `../llm/deepseekparam/*.go` を加え、`deepseekparam` の import を許す。テストのコメントと失敗の文を合わせる（設計書 3.6）。
--   [ ] `package_reference.md` に `internal/llm/deepseekparam` の行を加え、`internal/llm/claudeparam` の行に `EffortValues` を加える。`internal/config`・`internal/llm/provider`・`internal/llm/deepseek` の行はフェーズ 2 とフェーズ 4 で直す。
--   [ ] `deepseekparam` のファイルに `net/http` の import を、`internal/config` のファイルに `internal/llm/deepseek` の import を、それぞれ一時的に書き加え、どちらでも `TestConfigImports` が失敗することを確かめる（コミットしない）。許可を広げたのが `deepseekparam` だけであることを確かめるためである。
+-   [x] `TestConfigImports` の調べるファイルに `../llm/deepseekparam/*.go` を加え、`deepseekparam` の import を許す。テストのコメントと失敗の文を合わせる（設計書 3.6）。
+-   [x] `package_reference.md` に `internal/llm/deepseekparam` の行を加え、`internal/llm/claudeparam` の行に `EffortValues` を加える。`internal/config`・`internal/llm/provider`・`internal/llm/deepseek` の行はフェーズ 2 とフェーズ 4 で直す。
+-   [x] `deepseekparam` のファイルに `net/http` の import を、`internal/config` のファイルに `internal/llm/deepseek` の import を、それぞれ一時的に書き加え、どちらでも `TestConfigImports` が失敗することを確かめる（コミットしない）。許可を広げたのが `deepseekparam` だけであることを確かめるためである。
 
 **完了の条件:** `go test -tags test ./internal/pipeline` が通る。
 
@@ -156,37 +156,37 @@
 
 **変更するファイル:** `internal/llm/deepseek/deepseek.go`、`internal/llm/deepseek/errors.go`、`internal/llm/deepseek/deepseek_test.go`
 
--   [ ] `Options` に `Effort deepseekparam.Effort` を加え、`client` に保持する（設計書 3.5）。`Options` のコメントを設計書 3.5 の形に直す。
--   [ ] `New` は、`Effort` がゼロ値でも有効な値（`Valid()` が真）でもない場合、新しい非公開の番兵で拒否する。番兵は `errors.go` の既存の番兵に並べる。
--   [ ] `TestNew` の表に、4 つの値とゼロ値の受理、範囲外の値（境界の `EffortMax+1` と `Effort(-1)`）の拒否を加える。
+-   [x] `Options` に `Effort deepseekparam.Effort` を加え、`client` に保持する（設計書 3.5）。`Options` のコメントを設計書 3.5 の形に直す。
+-   [x] `New` は、`Effort` がゼロ値でも有効な値（`Valid()` が真）でもない場合、新しい非公開の番兵で拒否する。番兵は `errors.go` の既存の番兵に並べる。
+-   [x] `TestNew` の表に、4 つの値とゼロ値の受理、範囲外の値（境界の `EffortMax+1` と `Effort(-1)`）の拒否を加える。
 
 #### ステップ 2-2: 要求本文の `reasoning_effort`
 
 **変更するファイル:** `internal/llm/deepseek/request.go`、`internal/llm/deepseek/deepseek.go`、`internal/llm/deepseek/deepseek_test.go`
 
--   [ ] `chatRequest` に `reasoning_effort` のフィールドを加える。effort が `Valid()` なら `String()` の値を入れ、ゼロ値なら本文に現れない。ゼロ値でも有効な値でもなければ、本文を作らずにエラーを返す（設計書 3.5）。`thinking` は加えない。
--   [ ] `chatRequest` のコメント（`request.go:20-22`）を、`reasoning_effort` だけを例外として持つ形に直す。
--   [ ] `TestGenerateSendsRequest`（`deepseek_test.go:216-`）に、effort を指定しないクライアントの本文に `reasoning_effort` がないことを加える。`thinking` がないことの確認（`:279-280`）は残す。
--   [ ] 4 つの値のそれぞれで、`httptest` のサーバが受けた本文の `reasoning_effort` がその値であり、`thinking` がないことを確かめるテストを加える（AC-12）。
--   [ ] 要求本文の組み立てが範囲外の値で返すエラーは、ステップ 2-1 の番兵と同じものにする（2 つの拒否の箇所を同じ分類にする）。
--   [ ] 範囲外の値で何も送らないことを確かめる。`New` はこの値を通さないので、同じパッケージのテストで、`New` で作ったクライアントの effort のフィールドを範囲外の値に書き換え、記録するループバックのサーバに対して `Generate` を呼ぶ。サーバが要求を 1 つも受けないことと、エラーが番兵に当たる（`errors.Is`）ことを確かめる。
--   [ ] `TestGenerateSendsRequest` では、effort を指定しないクライアントの要求本文の最上位のメンバーの集合が `model`・`messages`・`stream` にちょうど等しいことを確かめる（AC-13）。4 つの値のテストでは、その集合に `reasoning_effort` を加えたものにちょうど等しいことを確かめる。値は、`String()` ではなく API の仕様の文字列（`none`・`low`・`high`・`max`）と比べる。
+-   [x] `chatRequest` に `reasoning_effort` のフィールドを加える。effort が `Valid()` なら `String()` の値を入れ、ゼロ値なら本文に現れない。ゼロ値でも有効な値でもなければ、本文を作らずにエラーを返す（設計書 3.5）。`thinking` は加えない。
+-   [x] `chatRequest` のコメント（`request.go:20-22`）を、`reasoning_effort` だけを例外として持つ形に直す。
+-   [x] `TestGenerateSendsRequest`（`deepseek_test.go:216-`）に、effort を指定しないクライアントの本文に `reasoning_effort` がないことを加える。`thinking` がないことは、下の項目の最上位のメンバーの集合の確認に含める。
+-   [x] 4 つの値のそれぞれで、`httptest` のサーバが受けた本文の `reasoning_effort` がその値であり、`thinking` がないことを確かめるテストを加える（AC-12）。
+-   [x] 要求本文の組み立てが範囲外の値で返すエラーは、ステップ 2-1 の番兵と同じものにする（2 つの拒否の箇所を同じ分類にする）。
+-   [x] 範囲外の値で何も送らないことを確かめる。`New` はこの値を通さないので、同じパッケージのテストで、`New` で作ったクライアントの effort のフィールドを範囲外の値に書き換え、記録するループバックのサーバに対して `Generate` を呼ぶ。サーバが要求を 1 つも受けないことと、エラーが番兵に当たる（`errors.Is`）ことを確かめる。
+-   [x] `TestGenerateSendsRequest` では、effort を指定しないクライアントの要求本文の最上位のメンバーの集合が `model`・`messages`・`stream` にちょうど等しいことを確かめる（AC-13）。4 つの値のテストでは、その集合に `reasoning_effort` を加えたものにちょうど等しいことを確かめる。値は、`String()` ではなく API の仕様の文字列（`none`・`low`・`high`・`max`）と比べる。
 
 #### ステップ 2-3: エラーに送った `reasoning_effort` を示す
 
-**変更するファイル:** `internal/llm/deepseek/deepseek.go`、`internal/llm/deepseek/errors.go`、`internal/llm/deepseek/response.go`、`internal/llm/deepseek/deepseek_test.go`、`internal/llm/deepseek/response_test.go`、`internal/llm/deepseek/test_helpers.go`
+**変更するファイル:** `internal/llm/deepseek/deepseek.go`、`internal/llm/deepseek/errors.go`、`internal/llm/deepseek/response.go`、`internal/llm/deepseek/deepseek_test.go`、`internal/llm/deepseek/test_helpers.go`
 
--   [ ] `statusError` に、送った `reasoning_effort`（送らなかったときはそのこと）を加える（設計書 1.2・3.5）。今のモデルと `max_tokens` の表示は変えない。
--   [ ] `400`・`422` の固定の案内（`statusGuidance`。`errors.go:54-57` の "check the model name, max_tokens, and prompt length"）に `reasoning_effort` を加える。API が値を拒否した場合（設計書 5.2 の残るリスク）に、利用者が原因の候補として見られるようにする。
--   [ ] 応答を拒否するテストの補助 `assertBodyRejectedResponse`（`test_helpers.go:265-`）は、クライアントの組み立てを固定している。effort を指定したクライアントでも使えるように補助を直すか、補助を加える（同じファイル、`//go:build test`）。
--   [ ] `parseResponse` が送った要求の要約を受け取り、打ち切り・想定外の終了理由・空の応答のエラーに `reasoning_effort` を加える。要約の型は Claude の `requestSummary` と同じ形にする。応答の解釈の規則は変えない（設計書 3.5）。
--   [ ] `TestGenerateHTTPStatus`（`deepseek_test.go:424-`）と、`response_test.go` の打ち切り・終了理由・空の応答のテスト（`TestGenerateFinishReason`・`TestGenerateEmptyContent`）に、effort を指定したときと指定しないときのエラーの表示の確認を加える。
+-   [x] `statusError` に、送った `reasoning_effort`（送らなかったときはそのこと）を加える（設計書 1.2・3.5）。今のモデルと `max_tokens` の表示は変えない。
+-   [x] `400`・`422` の固定の案内（`statusGuidance`。`errors.go:54-57` の "check the model name, max_tokens, and prompt length"）に `reasoning_effort` を加える。API が値を拒否した場合（設計書 5.2 の残るリスク）に、利用者が原因の候補として見られるようにする。
+-   [x] 応答の拒否のテストの補助 `assertBodyRejectedResponse`（`test_helpers.go:265-`）は、既定のクライアントの組み立てを固定している。effort の表示を確かめるテストは、応答の契約ではなくエラーの文を見るので、補助に頼らず自分でクライアントを組み立てる（使われない補助を増やさない）。
+-   [x] `parseResponse` が送った要求の要約を受け取り、打ち切り・想定外の終了理由・空の応答のエラーに `reasoning_effort` を加える。要約の型は Claude の `requestSummary` と同じ形にする。応答の解釈の規則は変えない（設計書 3.5）。
+-   [x] `TestGenerateHTTPStatus`（`deepseek_test.go:424-`）・`TestGenerateFinishReason`・`TestGenerateEmptyContent` が扱う 4 種類のエラー（HTTP の状態・打ち切り・想定外の終了理由・空の応答）について、effort を指定したときと指定しないときの表示を 1 つの表で確かめる（`TestGenerateErrorsNameEffort`。4 種類 × 2 の組を 4 つのテストに書き分けない）。
 
 #### ステップ 2-4: 文書の行を直す
 
 **変更するファイル:** `docs/dev/conventions/package_reference.md`
 
--   [ ] `internal/llm/deepseek` の行に、`Options.Effort`、`reasoning_effort` を指定があるときだけ送ること、エラーに送った値を示すことを加える（設計書 3.7）。
+-   [x] `internal/llm/deepseek` の行に、`Options.Effort`、`reasoning_effort` を指定があるときだけ送ること、エラーに送った値を示すことを加える（設計書 3.7）。
 
 **フェーズ 2 の完了の条件:** `make fmt`、`make test`、`make lint`、`make deadcode` が通る。`Options` を組み立てる `integration` タグのファイル（`internal/llm/deepseek/integration_test.go:43`）は、`make lint`（`test,integration` のタグで解析する）と `make deadcode`（同じタグ。`Makefile:286`）がコンパイルする。effort を指定しないクライアントの要求本文が今と同じであることを `TestGenerateSendsRequest` が確かめている。
 
@@ -202,10 +202,10 @@
 
 **判定理由**: `mkplan` のパネルモード（2 人のレビュアーによる分担レビュー）にする条件に該当する手順がなく、既存コード調査結果に競合する案もない。Conditional checks で当たるのは、ステップ 2-3 のビルドタグ付きのテスト補助（`test_helpers.go`）の 1 つだけである（`make lint`・`make deadcode` が `test,integration` のタグでコンパイルする）
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/588
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 3: 実際の API での確認（設計書 8 章の手順 3、設計書 7.6）
 
@@ -306,16 +306,17 @@
 -   [ ] `exportLineRE`（`:361`）の値の文字に `+` を加え、コメント（`:358-360`）を直す（1.4）。
 -   [ ] 本番の構成のガードを、設計書 7.4 の 1 つ目の項のとおりに直す。`productionProfileVars` は `YT2COLUMN_LLM` だけを返す。`checkExportBlockMatchesDefaults` と `checkProfileTable` は、工程の選択をプロバイダ・モデル・`ClaudeEffort`・`DeepSeekEffort` で比べる。表のセルは `<プロバイダ>/<モデル>+<effort>` につないで読み込む。モデルの値を失敗の文に出さない今の形は保つ。
 -   [ ] 移行の節のガードを、設計書 7.4 の 2 つ目の項のとおりに直す。変更前の `text` ブロックと続く `sh` ブロックを組にし、組の種類を旧変数で決める。
--   [ ] effort の値の一覧のガードを加える（設計書 7.4 の 3 つ目の項、AC-40）。表の列名は 1.4 のとおり、`TestLLMDefaultsDocsContract` が探す列名と重ならないものにする。プロバイダの名前はコードから得る（`config` の `test_helpers.go` に `…ForTest` の関数を加える）。各文書の表に、各プロバイダの行がちょうど 1 つあり、知らないプロバイダの行がないことも確かめる。`project_overview.md` の表を探す日本語の列名は、`CLAUDE.md`「Go Idioms」のガードテストのリテラルの例外に該当する。
+-   [ ] effort の値の一覧のガードを加える（設計書 7.4 の 3 つ目の項、AC-40）。表の列名は 1.4 のとおり、`TestLLMDefaultsDocsContract` が探す列名と重ならないものにする。README のガードは 2 つの版（`README.md`・`README.en.md`）を回る（`doctestutil.ReadmeVersions`。版ごとに言語の列名を `doctestutil.ReadmeVariableColumn.In` などで得る）ので、新しいガードも版ごとに、その版の言語の列名で表を探して検査する。`README.en.md` にも同じ表を置く必要がある（`TestReadmeVersionsShareStructure` は見出しの並びとコードブロックの数だけを比べるので、表の欠落は新しいガードが捉える）。プロバイダの名前はコードから得る（`config` の `test_helpers.go` に `…ForTest` の関数を加える）。各文書の表に、各プロバイダの行がちょうど 1 つあり、知らないプロバイダの行がないことも確かめる。`project_overview.md` の表を探す日本語の列名は、`CLAUDE.md`「Go Idioms」のガードテストのリテラルの例外に該当する。
 
 #### ステップ 4-6: 文書
 
-**変更するファイル:** `README.md`、`docs/dev/project_overview.md`、`docs/dev/production_profile.md`、`docs/dev/guides/cli.md`、`docs/dev/conventions/package_reference.md`、`docs/dev/security.md`
+**変更するファイル:** `README.md`、`README.en.md`、`docs/dev/project_overview.md`、`docs/dev/production_profile.md`、`docs/dev/guides/cli.md`、`docs/dev/conventions/package_reference.md`、`docs/dev/security.md`、`CLAUDE.md`
 
 -   [ ] 設計書 3.7 の表のとおりに、各文書を直す。`docs/dev/guides/claude_output_limit.md` は変えない（設計書 1.2）。
 -   [ ] `README.md` の変更は、その節に関わる AC（AC-30〜AC-36・AC-39・AC-40）を満たすように書く。`README.md` を変えるので、`make ext-test` を走らせる（`CLAUDE.md`「Development Notes」）。
--   [ ] `README.en.md` がこの時点で存在すれば、`/mktrans README.md` で反映する（2026-10-30 の時点では存在しない）。
+-   [ ] `README.en.md` を `/mktrans README.md` で反映し、同じコミットに入れる。`TestReadmeSyncMarker` が同期の印を確かめ、`TestReadmeVersionsShareStructure` が 2 つの版の見出しの並びとコードブロックの数の一致を確かめるので、`README.en.md` を残したままでは `make test` が通らない。
 -   [ ] `docs/dev/project_overview.md` の DeepSeek の thinking の記述（`:88`）を、AC-37 を満たすように直す。
+-   [ ] `docs/dev/project_overview.md` の想定ディレクトリ構成（`:114-120`）に `internal/llm/deepseekparam` の行を加え、`CLAUDE.md` の `LLMClient` の記述（`internal/llm/claudeparam` を共有の型の置き場所として挙げている箇所）にも `deepseekparam` を加える。PR-1 で加えたパッケージが、パッケージの配置を述べる 2 つの文書に載っていないためである。
 -   [ ] `package_reference.md` の `internal/config`・`internal/llm/provider` の行を直す（AC-38）。
 -   [ ] 文書を直した後、ステップ 4-5 の各ガードについて、文書の値を一時的に壊して失敗することを確かめる（例: 設定のブロックの effort を `low` に、effort の表から 1 つの値を消す、`deepseek` の行を消す、`claude` の行を重ねる、移行の例の変更後の effort を変える）。
 
@@ -380,9 +381,9 @@ M2 は M3 の作業より前に終える。M2 で問題があれば、M3 に進�
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
-- [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 2-1 / 2-2 / 2-3 / 2-4）
-  - [ ] フェーズ 1 完了
-  - [ ] フェーズ 2 完了
+- [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 2-1 / 2-2 / 2-3 / 2-4）
+  - [x] フェーズ 1 完了
+  - [x] フェーズ 2 完了
 - [ ] PR-2 マージ済み（対象ステップ: 3-1 / 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6）
   - [ ] フェーズ 3 完了（ステップ 3-1 の記録あり）
   - [ ] フェーズ 4 完了
@@ -397,17 +398,17 @@ M2 は M3 の作業より前に終える。M2 で問題があれば、M3 に進�
 | AC | 種類 | 確かめ方 | 実装 |
 |---|---|---|---|
 | AC-01 | test | `internal/config/config_test.go::TestLoadParsesLLMValue`（effort の行）、`internal/llm/provider/provider_test.go::TestNewClaudeSendsConfiguredRequest` と設定から要求本文までのテスト（本文の `model`。ステップ 4-3） | ステップ 4-1・4-3 |
-| AC-02 | test | `internal/config/config_test.go::TestLoadParsesLLMValue`、`internal/llm/deepseekparam/deepseekparam_test.go`、`internal/llm/claudeparam/claudeparam_test.go` | ステップ 1-1・1-2・4-1 |
+| AC-02 | test | `internal/config/config_test.go::TestLoadParsesLLMValue`、`internal/llm/deepseekparam/deepseekparam_test.go::TestParseEffort`・`::TestEffortValidAndValues`、`internal/llm/claudeparam/claudeparam_test.go::TestParseEffort` | ステップ 1-1・1-2・4-1 |
 | AC-03 | test | `internal/config/config_test.go::TestLoadParsesLLMValue`、`internal/llm/provider/provider_test.go::TestNewClaudeDefaultEffort` | ステップ 4-1・4-3 |
 | AC-04 | test | `internal/config/config_test.go::TestLoadParsesLLMValue`（`claude/vendor/model-x+medium`） | ステップ 4-1 |
-| AC-05 | test | `internal/config/config_test.go::TestLoadParsesLLMValue`（拒否の行）、`TestLoadErrorsOmitValues` | ステップ 4-1 |
+| AC-05 | test | `internal/config/config_test.go::TestLoadParsesLLMValue`（拒否の行）、`TestLoadErrorsOmitValues`、`internal/llm/deepseekparam/deepseekparam_test.go::TestParseEffort`（大文字・前後の空白・空・`medium`・`xhigh`・`ultra`・`minimal` の拒否） | ステップ 1-1・4-1 |
 | AC-06 | test・manual | `internal/config/config_test.go` の理由の文のテスト（ステップ 4-2）と `TestLoadParsesLLMValue` の `Reason`。理由の文の意味は PR のレビューで読む | ステップ 4-1 |
 | AC-07 | test | `internal/config/config_test.go::TestLoadParsesLLMValue`（`claude/+`・`claude/+ultra`・`deepseek/deepseek-flash+a+b`） | ステップ 4-1 |
 | AC-08 | test | `internal/config/config_test.go::TestLoadParsesLLMValue`、`cmd/yt2column/run_test.go` の不正な effort の部分のテスト（ステップ 4-4） | ステップ 4-1 |
 | AC-09 | test | `internal/config/config_test.go::TestLoadParsesLLMValue`、`internal/llm/provider/provider_test.go::TestNewPaddedModel` と Claude の場合のテスト（ステップ 4-3） | ステップ 4-1・4-3 |
 | AC-10 | test | `internal/config/config_test.go::TestLoadParsesLLMValue`（両方の LLM の変数を回す） | ステップ 4-1 |
 | AC-11 | test | `internal/llm/provider/provider_test.go::TestNewClaudeSendsConfiguredRequest`・`TestNewClaudeDefaultEffort` | ステップ 4-3 |
-| AC-12 | test | `internal/llm/deepseek/deepseek_test.go` の `reasoning_effort` のテスト（ステップ 2-2）、`internal/llm/provider/provider_test.go` の設定から要求本文までのテスト | ステップ 2-2・4-3 |
+| AC-12 | test | `internal/llm/deepseek/deepseek_test.go::TestGenerateSendsReasoningEffort`、`internal/llm/provider/provider_test.go` の設定から要求本文までのテスト | ステップ 2-2・4-3 |
 | AC-13 | test | `internal/llm/deepseek/deepseek_test.go::TestGenerateSendsRequest`（最上位のメンバーの集合）、`internal/llm/provider/provider_test.go` の設定から要求本文までのテスト | ステップ 2-2・4-3 |
 | AC-14 | test | `internal/llm/provider/provider_test.go` の設定から要求本文までのテスト（工程ごとに effort が異なる組） | ステップ 4-3 |
 | AC-15 | test | `internal/config/config_test.go` の継承のテスト（ステップ 4-2）、`internal/llm/provider/provider_test.go` の受け継ぐ組 | ステップ 4-1・4-3 |
@@ -436,9 +437,11 @@ M2 は M3 の作業より前に終える。M2 で問題があれば、M3 に進�
 | AC-38 | manual | PR のレビューで、`package_reference.md` の行と `claude_output_limit.md:10` を読む。`TestPackageReferenceListsPackages` が `deepseekparam` の行の存在を確かめる | ステップ 1-3・2-4・4-6 |
 | AC-39 | manual | PR のレビューで、6 つの文書が `YT2COLUMN_CLAUDE_EFFORT` を拒否と移行の説明でだけ扱うことを読む | ステップ 4-6 |
 | AC-40 | test | `cmd/yt2column/docs_test.go::TestProductionProfileDocsContract`・`TestLLMDefaultsDocsContract`・effort の値の一覧のガード（ステップ 4-5） | ステップ 4-5・4-6 |
-| AC-41 | test | `internal/config/config_test.go` の理由の一覧のテスト（ステップ 4-2）、`internal/llm/deepseekparam/deepseekparam_test.go`・`internal/llm/claudeparam/claudeparam_test.go` の一覧のテスト | ステップ 1-1・1-2・4-1 |
+| AC-41 | test | `internal/config/config_test.go` の理由の一覧のテスト（ステップ 4-2）、`internal/llm/deepseekparam/deepseekparam_test.go::TestEffortValidAndValues`・`internal/llm/claudeparam/claudeparam_test.go::TestEffortStringAndValid`（一覧のテスト） | ステップ 1-1・1-2・4-1 |
 
 「実装」の列は、本番のコードを変えるステップを示す。テストを書くステップは、2 章の各ステップにある（`internal/config` のテストはステップ 4-2、`cmd/` のテストはステップ 4-4、文書のガードはステップ 4-5）。新しく加えるテストの関数名は実装で決める。実装した後、この表の「ステップ 4-2」などの記述を `path::TestName` の形に書き換える。
+
+設計書 1.2 が決めた「DeepSeek のエラーの表示に送った `reasoning_effort` を含める」ことは、要件書の AC を持たない。そのためこの表に行を置かず、`internal/llm/deepseek/deepseek_test.go::TestGenerateErrorsNameEffort`（4 種類のエラー × effort の有無）と `::TestHTTPStatusGuidance`（`400`・`422` の案内が `reasoning_effort` を挙げること）で確かめる。
 
 ## 8. 成功基準 (Success Criteria)
 
