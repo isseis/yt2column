@@ -1,6 +1,6 @@
-// Command _checks verifies the before/after relation of task 0051's AC-29: an
-// LLM variable value without "+" loads to the same observable result before
-// and after the change. It compares the merge-base of origin/main and HEAD
+// Command _checks verifies a before/after relation of task 0051: an LLM
+// variable value without "+" loads to the same observable result before and
+// after the change. It compares the merge-base of origin/main and HEAD
 // with HEAD.
 //
 // The values are the rows of the merge-base's TestLoadParsesLLMValue (none of
@@ -11,7 +11,7 @@
 // and prints the result, runs it, and removes the worktree. A result is
 // "accepted" with the stage's provider and model ID, or the list of
 // rejections, each with its variable, sentinel, and reason. The reason of
-// reasonLLMForm is printed as a placeholder, because AC-06 changes its text:
+// reasonLLMForm is printed as a placeholder, because the task changes its text:
 // it is compared by being each commit's own reasonLLMForm, not by wording.
 //
 // Run it once on the PR branch, after every change of the PR is committed:
@@ -93,7 +93,7 @@ func run() error {
 
 // baseValues returns the values of the merge-base's TestLoadParsesLLMValue
 // rows, followed by the empty value and unset. It fails if a row contains "+",
-// which AC-29 does not cover.
+// which this check does not cover.
 func baseValues(base string) ([]string, error) {
 	source, err := git("show", base+":"+testFile)
 	if err != nil {
