@@ -5,8 +5,8 @@
 # embedded newline cannot split a path into a fragment that matches. The job
 # runs for the extension itself, the Makefile that drives it, any workflow,
 # go.mod (whose ignore directive keeps extension/node_modules out of ./...),
-# and the files the extension tests read: README.md (its Browser extension
-# section), docs/dev/guides/development.md (its rejection-reason table), and
+# and the files the extension tests read: README.md and README.en.md (their
+# browser extension sections), docs/dev/guides/development.md (its rejection-reason table), and
 # internal/server/response.go (which that table mirrors).
 set -euo pipefail
 
@@ -15,7 +15,7 @@ set -euo pipefail
 matched=false
 while IFS= read -r -d '' path; do
   case "$path" in
-    extension/* | Makefile | .github/workflows/* | go.mod | README.md | docs/dev/guides/development.md | internal/server/response.go)
+    extension/* | Makefile | .github/workflows/* | go.mod | README.md | README.en.md | docs/dev/guides/development.md | internal/server/response.go)
       matched=true
       ;;
   esac

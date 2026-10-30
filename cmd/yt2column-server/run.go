@@ -142,7 +142,7 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stderr io
 	stderr = &lockedWriter{w: stderr}
 	errOut := &stderrWriter{w: stderr}
 	if len(args) != 0 {
-		errOut.line("%s: takes no arguments; the configuration is read from environment variables (see README.md)", programName)
+		errOut.line("%s: takes no arguments; the configuration is read from environment variables (see README.en.md)", programName)
 		return exitUsage
 	}
 

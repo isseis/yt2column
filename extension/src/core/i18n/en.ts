@@ -80,7 +80,7 @@ export const en: Catalog = {
       text: "Could not connect to the yt2column server, so nothing was sent.",
       steps: [
         "Start yt2column-server. A server that is stopping waits for its jobs, and a new one cannot start until they finish.",
-        "If the server is running, check that it runs as your user and that its socket directory has the permissions the README describes.",
+        "If the server is running, check that it runs as your user and that its socket directory has the permissions README.en.md describes.",
       ],
     },
     "message-too-large": {

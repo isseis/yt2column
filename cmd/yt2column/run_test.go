@@ -1285,7 +1285,21 @@ func TestRunHelp(t *testing.T) {
 					t.Errorf("usage does not list %q:\n%s", flag, stdout.String())
 				}
 			}
+			// The help points at the CLI guide for the configuration: the
+			// usage text before the flag list, and the --slack flag's own
+			// description. The guide must exist.
+			intro, _, _ := strings.Cut(stdout.String(), "\n  -")
+			if !strings.Contains(intro, cliGuide) {
+				t.Errorf("the usage text before the flags does not point at %s:\n%s", cliGuide, intro)
+			}
 		})
+	}
+	fs, _ := newFlagSet()
+	if slack := fs.Lookup("slack"); slack == nil || !strings.Contains(slack.Usage, cliGuide) {
+		t.Errorf("the --slack flag's description does not point at %s", cliGuide)
+	}
+	if _, err := os.Stat(cliDocPath); err != nil {
+		t.Errorf("the help points at %s, which does not exist: %v", cliGuide, err)
 	}
 }
 
