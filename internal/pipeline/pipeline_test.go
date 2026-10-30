@@ -935,7 +935,7 @@ func TestConfigImports(t *testing.T) {
 				// A package outside internal/llm, including the standard library.
 			case ipath == claudeparamPath, ipath == deepseekparamPath:
 				if source.parameterPackage {
-					t.Errorf("%s imports %s; a parameter package depends on the standard library only", source.path, ipath)
+					t.Errorf("%s imports %s; a parameter package must not import another parameter package", source.path, ipath)
 				}
 			default:
 				t.Errorf("%s imports %s", source.path, ipath)

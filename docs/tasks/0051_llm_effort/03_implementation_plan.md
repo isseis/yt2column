@@ -306,7 +306,7 @@
 -   [ ] `exportLineRE`（`:361`）の値の文字に `+` を加え、コメント（`:358-360`）を直す（1.4）。
 -   [ ] 本番の構成のガードを、設計書 7.4 の 1 つ目の項のとおりに直す。`productionProfileVars` は `YT2COLUMN_LLM` だけを返す。`checkExportBlockMatchesDefaults` と `checkProfileTable` は、工程の選択をプロバイダ・モデル・`ClaudeEffort`・`DeepSeekEffort` で比べる。表のセルは `<プロバイダ>/<モデル>+<effort>` につないで読み込む。モデルの値を失敗の文に出さない今の形は保つ。
 -   [ ] 移行の節のガードを、設計書 7.4 の 2 つ目の項のとおりに直す。変更前の `text` ブロックと続く `sh` ブロックを組にし、組の種類を旧変数で決める。
--   [ ] effort の値の一覧のガードを加える（設計書 7.4 の 3 つ目の項、AC-40）。表の列名は 1.4 のとおり、`TestLLMDefaultsDocsContract` が探す列名と重ならないものにする。`README.md` のガードは 2 つの版（`README.md`・`README.en.md`）を回る（`doctestutil.ReadmeVersions`。版ごとに言語の列名を `doctestutil.ReadmeVariableColumn.In` などで得る）ので、新しいガードも版ごとに、その版の言語の列名で表を探して検査する。`TestReadmeVersionsShareStructure` が 2 つの版の見出しと表の形の一致を確かめるので、`README.en.md` にも同じ表を置く。プロバイダの名前はコードから得る（`config` の `test_helpers.go` に `…ForTest` の関数を加える）。各文書の表に、各プロバイダの行がちょうど 1 つあり、知らないプロバイダの行がないことも確かめる。`project_overview.md` の表を探す日本語の列名は、`CLAUDE.md`「Go Idioms」のガードテストのリテラルの例外に該当する。
+-   [ ] effort の値の一覧のガードを加える（設計書 7.4 の 3 つ目の項、AC-40）。表の列名は 1.4 のとおり、`TestLLMDefaultsDocsContract` が探す列名と重ならないものにする。README のガードは 2 つの版（`README.md`・`README.en.md`）を回る（`doctestutil.ReadmeVersions`。版ごとに言語の列名を `doctestutil.ReadmeVariableColumn.In` などで得る）ので、新しいガードも版ごとに、その版の言語の列名で表を探して検査する。`README.en.md` にも同じ表を置く必要がある（`TestReadmeVersionsShareStructure` は見出しの並びとコードブロックの数だけを比べるので、表の欠落は新しいガードが捉える）。プロバイダの名前はコードから得る（`config` の `test_helpers.go` に `…ForTest` の関数を加える）。各文書の表に、各プロバイダの行がちょうど 1 つあり、知らないプロバイダの行がないことも確かめる。`project_overview.md` の表を探す日本語の列名は、`CLAUDE.md`「Go Idioms」のガードテストのリテラルの例外に該当する。
 
 #### ステップ 4-6: 文書
 
@@ -314,7 +314,7 @@
 
 -   [ ] 設計書 3.7 の表のとおりに、各文書を直す。`docs/dev/guides/claude_output_limit.md` は変えない（設計書 1.2）。
 -   [ ] `README.md` の変更は、その節に関わる AC（AC-30〜AC-36・AC-39・AC-40）を満たすように書く。`README.md` を変えるので、`make ext-test` を走らせる（`CLAUDE.md`「Development Notes」）。
--   [ ] `README.en.md` を `/mktrans README.md` で反映し、同じコミットに入れる。`TestReadmeSyncMarker` が同期の印を確かめ、`TestReadmeVersionsShareStructure` が 2 つの版の見出しと表の形の一致を確かめるので、`README.en.md` を残したままでは `make test` が通らない。
+-   [ ] `README.en.md` を `/mktrans README.md` で反映し、同じコミットに入れる。`TestReadmeSyncMarker` が同期の印を確かめ、`TestReadmeVersionsShareStructure` が 2 つの版の見出しの並びとコードブロックの数の一致を確かめるので、`README.en.md` を残したままでは `make test` が通らない。
 -   [ ] `docs/dev/project_overview.md` の DeepSeek の thinking の記述（`:88`）を、AC-37 を満たすように直す。
 -   [ ] `docs/dev/project_overview.md` の想定ディレクトリ構成（`:114-120`）に `internal/llm/deepseekparam` の行を加え、`CLAUDE.md` の `LLMClient` の記述（`internal/llm/claudeparam` を共有の型の置き場所として挙げている箇所）にも `deepseekparam` を加える。PR-1 で加えたパッケージが、パッケージの配置を述べる 2 つの文書に載っていないためである。
 -   [ ] `package_reference.md` の `internal/config`・`internal/llm/provider` の行を直す（AC-38）。
