@@ -19,7 +19,7 @@ import (
 
 // Paths from cmd/yt2column-server to the documents this test checks.
 const (
-	readmePath          = "../../README.md"
+	repositoryRoot      = "../.."
 	developmentDocPath  = "../../docs/dev/guides/development.md"
 	projectOverviewPath = "../../docs/dev/project_overview.md"
 	securityPath        = "../../docs/dev/security.md"
@@ -36,48 +36,58 @@ func TestServerDocsContract(t *testing.T) {
 	cacheDirEnv := config.CacheDirEnvForTest()
 	ytDlpEnv := config.YtDlpEnvForTest()
 
-	readme := doctestutil.ReadDoc(t, readmePath)
 	development := doctestutil.ReadDoc(t, developmentDocPath)
 	overview := doctestutil.ReadDoc(t, projectOverviewPath)
 	security := doctestutil.ReadDoc(t, securityPath)
 
-	t.Run("README.md", func(t *testing.T) {
-		whole := doctestutil.SectionByHeading(readme, "## Localhost server")
-		if whole == "" {
-			t.Fatal("README.md has no '## Localhost server' section")
-		}
-		// The upgrade notes describe retired leftovers, not the current server,
-		// so the checks below read the section without them, as before. The
-		// heading is used only to find the range to exclude; the notes
-		// themselves are not checked.
-		const upgradeHeading = "### Upgrading from the shared-token version"
-		section := whole
-		if upgrade := doctestutil.SectionByHeading(whole, upgradeHeading); upgrade != "" {
-			section = strings.Replace(whole, upgradeHeading+"\n"+upgrade, "", 1)
-			if section == whole {
-				t.Fatal("README.md server section: the upgrade notes were not excluded")
+	// The server section of each README version states the variable, the
+	// socket paths, and the exit codes.
+	for _, v := range doctestutil.ReadmeVersions() {
+		t.Run(v.Path, func(t *testing.T) {
+			readme := doctestutil.ReadDoc(t, v.From(repositoryRoot))
+			heading := doctestutil.ReadmeServerHeading.In(t, v.Lang)
+			whole := doctestutil.SectionByHeading(readme, heading)
+			if whole == "" {
+				t.Fatalf("%s has no %q section", v.Path, heading)
 			}
-		}
-		if !strings.Contains(section, slackEnv) {
-			t.Errorf("README.md server section does not mention %q", slackEnv)
-		}
-		// The socket path for each operating system, each on its own line with
-		// its label, so a path stated under the wrong label does not pass.
-		if !hasLineContainingAll(section, "macOS:", "$HOME"+config.SocketPathTailForTest("darwin")) ||
-			!hasLineContainingAll(section, "other Unix:", "$HOME"+config.SocketPathTailForTest("linux")) {
-			t.Error("README.md server section does not state the socket path for macOS and for other Unix")
-		}
-		// The exit-code table must name every code the entry point defines.
-		exitCodes := doctestutil.FindTable(section, "Code")
-		if exitCodes == nil {
-			t.Fatal("README.md server section has no exit-code table")
-		}
-		for _, code := range []int{exitOK, exitFailure, exitUsage} {
-			if doctestutil.TableRow(exitCodes, strconv.Itoa(code)) == nil {
-				t.Errorf("README.md server exit-code table has no code %d", code)
+			// The upgrade notes describe retired leftovers, not the current
+			// server, so the checks below read the section without them. The
+			// heading is used only to find the range to exclude; the notes
+			// themselves are not checked.
+			upgradeHeading := doctestutil.ReadmeUpgradeHeading.In(t, v.Lang)
+			section := whole
+			if upgrade := doctestutil.SectionByHeading(whole, upgradeHeading); upgrade != "" {
+				section = strings.Replace(whole, upgradeHeading+"\n"+upgrade, "", 1)
+				if section == whole {
+					t.Fatalf("%s server section: the upgrade notes were not excluded", v.Path)
+				}
 			}
-		}
-	})
+			if !strings.Contains(section, slackEnv) {
+				t.Errorf("%s server section does not mention %q", v.Path, slackEnv)
+			}
+			// The socket path for each operating system, each on its own line
+			// with its label, so a path stated under the wrong label does not
+			// pass.
+			if !hasLineContainingAll(section, doctestutil.ReadmeMacOSLabel.In(t, v.Lang), "$HOME"+config.SocketPathTailForTest("darwin")) ||
+				!hasLineContainingAll(section, doctestutil.ReadmeOtherUnixLabel.In(t, v.Lang), "$HOME"+config.SocketPathTailForTest("linux")) {
+				t.Errorf("%s server section does not state the socket path for macOS and for other Unix", v.Path)
+			}
+			// The exit-code table must name every code the entry point
+			// defines. It is looked for in the subsection on running the
+			// server only: the host's exit-code table, later in the same
+			// section, has the same column and the same codes.
+			running := doctestutil.ReadmeRunServerHeading.In(t, v.Lang)
+			exitCodes := doctestutil.FindTable(doctestutil.SectionByHeading(section, running), doctestutil.ReadmeExitCodeColumn.In(t, v.Lang))
+			if exitCodes == nil {
+				t.Fatalf("%s %s has no exit-code table", v.Path, running)
+			}
+			for _, code := range []int{exitOK, exitFailure, exitUsage} {
+				if doctestutil.TableRow(exitCodes, strconv.Itoa(code)) == nil {
+					t.Errorf("%s server exit-code table has no code %d", v.Path, code)
+				}
+			}
+		})
+	}
 
 	// The server's HTTP API is in the development guide, under one section.
 	api := doctestutil.SectionByHeading(development, doctestutil.DevAPIHeading)
@@ -152,42 +162,19 @@ func TestServerDocsContract(t *testing.T) {
 			t.Errorf("development.md rejection table has %d rows, want %d", len(byReason), len(reasons))
 		}
 
-		// The README is English until it gets its Japanese version, so its
-		// table is read with the English column names and spellings.
-		shown := doctestutil.FindTable(readme, "reason")
-		if shown == nil {
-			t.Fatal("README.md has no rejection reason table")
-		}
-		shownReasonCol := columnIndex(t, "README.md", shown[0], "reason")
-		shownDisplayCol := columnIndex(t, "README.md", shown[0], "extension shows")
-		listed := map[string]struct{}{}
-		for _, row := range shown[1:] {
-			if len(row) <= max(shownReasonCol, shownDisplayCol) {
-				t.Errorf("README.md rejection table row %q has too few cells", row)
-				continue
-			}
-			reason := doctestutil.StripBackticks(row[shownReasonCol])
-			if _, dup := listed[reason]; dup {
-				t.Errorf("README.md rejection table lists %q twice", reason)
-			}
-			listed[reason] = struct{}{}
-			display, err := doctestutil.RejectionDisplayEN.Category(row[shownDisplayCol])
-			if err != nil {
-				t.Errorf("README.md rejection table, %s: %v", reason, err)
-				continue
-			}
-			// A development.md cell in no category has already failed above.
-			if want, ok := byReason[reason]; ok && want.display != 0 && display != want.display {
-				t.Errorf("README.md shows %s as %v, development.md as %v", reason, display, want.display)
+		// A development.md cell in no category has already failed above, so
+		// its reason is left out of the comparison.
+		displays := map[string]doctestutil.RejectionDisplay{}
+		for reason, d := range byReason {
+			if d.display != 0 {
+				displays[reason] = d.display
 			}
 		}
-		for _, reason := range reasons {
-			if _, ok := listed[reason.Value]; !ok {
-				t.Errorf("README.md rejection table has no reason %q", reason.Value)
-			}
-		}
-		if len(listed) != len(reasons) {
-			t.Errorf("README.md rejection table has %d reasons, want %d", len(listed), len(reasons))
+		// Each README version writes its table in its own language.
+		for _, v := range doctestutil.ReadmeVersions() {
+			t.Run(v.Path, func(t *testing.T) {
+				checkReadmeRejectionTable(t, v, displays, reasons)
+			})
 		}
 	})
 
@@ -438,4 +425,48 @@ func tablesByFirstHeader(doc, header string) [][][]string {
 		}
 	}
 	return found
+}
+
+// checkReadmeRejectionTable checks the two-column rejection table of one README
+// version: it lists each of the server's reasons once, and shows each in the
+// category development.md gives it (displays).
+func checkReadmeRejectionTable(t *testing.T, v doctestutil.ReadmeVersion, displays map[string]doctestutil.RejectionDisplay, reasons []server.RejectReasonForTest) {
+	t.Helper()
+	readme := doctestutil.ReadDoc(t, v.From(repositoryRoot))
+	reasonHeader := doctestutil.ReadmeReasonColumn.In(t, v.Lang)
+	shown := doctestutil.FindTable(readme, reasonHeader)
+	if shown == nil {
+		t.Fatalf("%s has no rejection reason table", v.Path)
+	}
+	reasonCol := columnIndex(t, v.Path, shown[0], reasonHeader)
+	displayCol := columnIndex(t, v.Path, shown[0], doctestutil.ReadmeDisplayColumn.In(t, v.Lang))
+	spelling := doctestutil.RejectionDisplayIn(t, v.Lang)
+	listed := map[string]struct{}{}
+	for _, row := range shown[1:] {
+		if len(row) <= max(reasonCol, displayCol) {
+			t.Errorf("%s rejection table row %q has too few cells", v.Path, row)
+			continue
+		}
+		reason := doctestutil.StripBackticks(row[reasonCol])
+		if _, dup := listed[reason]; dup {
+			t.Errorf("%s rejection table lists %q twice", v.Path, reason)
+		}
+		listed[reason] = struct{}{}
+		display, err := spelling.Category(row[displayCol])
+		if err != nil {
+			t.Errorf("%s rejection table, %s: %v", v.Path, reason, err)
+			continue
+		}
+		if want, ok := displays[reason]; ok && display != want {
+			t.Errorf("%s shows %s as %v, development.md as %v", v.Path, reason, display, want)
+		}
+	}
+	for _, reason := range reasons {
+		if _, ok := listed[reason.Value]; !ok {
+			t.Errorf("%s rejection table has no reason %q", v.Path, reason.Value)
+		}
+	}
+	if len(listed) != len(reasons) {
+		t.Errorf("%s rejection table has %d reasons, want %d", v.Path, len(listed), len(reasons))
+	}
 }

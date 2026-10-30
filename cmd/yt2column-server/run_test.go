@@ -28,6 +28,10 @@ import (
 	writertestutil "github.com/isseis/yt2column/internal/writer/testutil"
 )
 
+// configDocument is the document the argument diagnostic points at for the
+// configuration: the English README, since the diagnostic is in English.
+const configDocument = "README.en.md"
+
 // errBuildRefused is what a constructor substituted by TestStartupFailures
 // returns.
 var errBuildRefused = errors.New("the test refuses to build this component")
@@ -37,6 +41,11 @@ var errBuildRefused = errors.New("the test refuses to build this component")
 // no secret reaches it, and that the socket path is left as it was: no socket
 // is created where none was, and an existing one is not removed.
 func TestStartupFailures(t *testing.T) {
+	// The argument diagnostic points the user at the configuration document,
+	// which must exist.
+	if _, err := os.Stat(filepath.Join(repositoryRoot, configDocument)); err != nil {
+		t.Errorf("the diagnostic points at %s, which does not exist: %v", configDocument, err)
+	}
 	for _, tc := range []struct {
 		name string
 		args []string
@@ -58,6 +67,7 @@ func TestStartupFailures(t *testing.T) {
 			args:       []string{"--port", "8765"},
 			want:       exitUsage,
 			wantStderr: "takes no arguments",
+			hint:       configDocument,
 		},
 		{
 			// Which values config.LoadServer rejects is its own tests'

@@ -26,6 +26,7 @@ describe("has-extension-changes", () => {
     [".github/workflows/release.yml"],
     ["go.mod"],
     ["README.md"],
+    ["README.en.md"],
     ["docs/dev/guides/development.md"],
     ["internal/server/response.go"],
   ];
@@ -72,6 +73,8 @@ describe("has-extension-changes", () => {
     // The document and server paths match whole paths only.
     ["docs/README.md"],
     ["README.md.bak"],
+    ["docs/README.en.md"],
+    ["README.en.md.bak"],
     ["x/docs/dev/guides/development.md"],
     ["docs/dev/guides/development.md.orig"],
     ["x/internal/server/response.go"],

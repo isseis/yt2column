@@ -3,7 +3,6 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/base64"
 	"encoding/binary"
@@ -14,7 +13,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"slices"
 	"strconv"
@@ -23,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/isseis/yt2column/internal/config"
+	"github.com/isseis/yt2column/internal/doctestutil"
 	"github.com/isseis/yt2column/internal/nmhost"
 	"github.com/isseis/yt2column/internal/udstest"
 )
@@ -427,33 +426,44 @@ func TestInstallFailures(t *testing.T) {
 	}
 }
 
-// hostExitCodeRowRE matches a row of the README host exit-code table.
-var hostExitCodeRowRE = regexp.MustCompile("^\\| `([0-9]+)` \\|")
+// repositoryRoot is the path from cmd/yt2column-nmhost to the repository root.
+const repositoryRoot = "../.."
 
-// TestReadmeHostExitCodes checks that the README's host exit-code table, under
-// "### Installing the native messaging host", lists exactly this command's
-// exit codes, so a changed or added code fails until the README follows.
+// TestReadmeHostExitCodes checks that the host exit-code table of each README
+// version, under the native messaging host section, lists exactly the host's
+// exit codes, so a changed or added code fails until both versions follow.
 func TestReadmeHostExitCodes(t *testing.T) {
-	f, err := os.Open("../../README.md")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = f.Close() })
-	var codes []int
-	inSection := false
-	for scanner := bufio.NewScanner(f); scanner.Scan(); {
-		line := scanner.Text()
-		if strings.HasPrefix(line, "#") {
-			inSection = line == "### Installing the native messaging host"
-			continue
-		}
-		if m := hostExitCodeRowRE.FindStringSubmatch(line); inSection && m != nil {
-			code, _ := strconv.Atoi(m[1])
-			codes = append(codes, code)
-		}
-	}
-	slices.Sort(codes)
-	if want := []int{exitOK, exitFailure, exitUsage}; !slices.Equal(codes, want) {
-		t.Errorf("README host exit-code table lists %v, want %v", codes, want)
+	want := []int{exitOK, exitFailure, exitUsage}
+	for _, v := range doctestutil.ReadmeVersions() {
+		t.Run(v.Path, func(t *testing.T) {
+			heading := doctestutil.ReadmeInstallHostHeading.In(t, v.Lang)
+			section := doctestutil.SectionOutsideBlocks(doctestutil.ReadDoc(t, v.From(repositoryRoot)), heading)
+			if section == "" {
+				t.Fatalf("%s has no %q section", v.Path, heading)
+			}
+			column := doctestutil.ReadmeExitCodeColumn.In(t, v.Lang)
+			table := doctestutil.FindTable(section, column)
+			if table == nil {
+				t.Fatalf("%s %s has no exit-code table", v.Path, heading)
+			}
+			at := slices.Index(table[0], column)
+			var codes []int
+			for _, row := range table[1:] {
+				if at < 0 || at >= len(row) {
+					t.Errorf("%s host exit-code table row %q has no %q cell", v.Path, row, column)
+					continue
+				}
+				code, err := strconv.Atoi(doctestutil.StripBackticks(row[at]))
+				if err != nil {
+					t.Errorf("%s host exit-code table row %q does not start with a code", v.Path, row)
+					continue
+				}
+				codes = append(codes, code)
+			}
+			slices.Sort(codes)
+			if !slices.Equal(codes, want) {
+				t.Errorf("%s host exit-code table lists %v, want %v", v.Path, codes, want)
+			}
+		})
 	}
 }

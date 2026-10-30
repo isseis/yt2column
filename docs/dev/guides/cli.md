@@ -1,10 +1,10 @@
 # CLI の使い方
 
 CLI は補助の経路である。LLM の呼び出しと投稿を開発し確かめるために使う。主経路は
-[Quick start](../../../README.md#quick-start)の経路である。
+[クイックスタート](../../../README.md#クイックスタート)の経路である。
 
 本書は、CLI だけが使う、または CLI だけが示すものを説明する。CLI が localhost サーバと共有する環境変数は README の
-[Configuration](../../../README.md#configuration)にあり、CLI だけが読む変数は下の[設定](#設定)にある。
+[設定](../../../README.md#設定)にあり、CLI だけが読む変数は下の[設定](#設定)にある。
 
 ## 必要なもの
 
@@ -14,7 +14,7 @@ CLI は補助の経路である。LLM の呼び出しと投稿を開発し確か
 - `SLACK_WEBHOOK_URL`（`--slack` を使うときだけ）
 
 Go や、選んだプロバイダの API キーなど、ほかに必要なものは README の
-[Requirements](../../../README.md#requirements)にある。
+[必要なもの](../../../README.md#必要なもの)にある。
 
 ## 使い方
 
@@ -58,7 +58,7 @@ yt2column [flags] <video URL>
 ## 生成の後の工程
 
 字数の調整と検証・推敲の工程が何をするか、なぜ費用が増えるかは、README の
-[Post-generation steps](../../../README.md#post-generation-steps)にある。
+[生成の後の工程](../../../README.md#生成の後の工程)にある。
 
 `--no-shorten` では、字数の調整の工程と最後の長さの検査を飛ばす。`--no-review` では、検証・推敲の工程を飛ばす。
 `--no-shorten --no-review` は、`--out` の書式を含めて、以前の版の 1 回だけ呼ぶ振る舞いに戻す。
@@ -71,7 +71,7 @@ yt2column [flags] <video URL>
 
 設定はフラグと関係なく決まるので、検証・推敲の工程の設定は `--no-review` でも検査する。`YT2COLUMN_REVIEW_LLM` は検査し、これが別のプロバイダを選ぶときは、そのプロバイダの変数も検査する。そのプロバイダの API キーは必要であり、`claude` では、設定した effort はこの場合も正しくなければならない（設定しなければ `high` になる）。再開した実行は、実行する工程の設定だけを検査するので、`--after review` には LLM の設定が一切要らない。唯一の例外は廃止した LLM の変数
 （`YT2COLUMN_LLM_PROVIDER`・`YT2COLUMN_MODEL`・`YT2COLUMN_REVIEW_PROVIDER`・
-`YT2COLUMN_REVIEW_MODEL`）で、どれか 1 つでも設定されていると、`--after review` を含むすべての実行が止まる（[Configuration](../../../README.md#configuration)を参照）。
+`YT2COLUMN_REVIEW_MODEL`）で、どれか 1 つでも設定されていると、`--after review` を含むすべての実行が止まる（[設定](../../../README.md#設定)を参照）。
 
 ## トークンの使用量
 
@@ -114,7 +114,7 @@ LLM を 1 度も呼ばずに終わった実行（使い方または設定の誤�
 記事はどちらの出力でも同じ文章だが、情報の並べ方は出力ごとに異なる。読み手のための部分（タイトル、チャンネル名、本文、出典リンク）を先に置き、開発のための部分（モデル、推定の料金）は、Slack への投稿では最後に、ファイルではフロントマターに置く。
 
 Slack への投稿は README の
-[The Slack post](../../../README.md#the-slack-post)にある。
+[Slack への投稿](../../../README.md#slack-への投稿)にある。
 
 ### `--out` のファイル
 
@@ -190,12 +190,12 @@ yt2column: cost-total: article unknown
 どちらの出力も記事の料金を、小数 4 桁か `unknown` で持つ。
 `--out` のファイルはフロントマターのキー `estimated_cost_usd`（`"0.0023"` か
 `"unknown"`）として、Slack への投稿は脚注の末尾として持つ。脚注の形は README の
-[Estimated cost](../../../README.md#estimated-cost)にある。
+[推定の料金](../../../README.md#推定の料金)にある。
 
 2 つの出力の並びは[出力の書式](#出力の書式)を参照。
 
 推定がプロバイダの請求額と異なりうる理由は、README の
-[Estimated cost](../../../README.md#estimated-cost)にある。再利用した工程の料金は、出力を保存した CLI ではなく、再開した CLI の料金表で求める。そのため、料金が変わった後に再開した実行は、同じ保存した出力から異なる記事の料金を示す。保存した出力が記録するのは呼び出しの時刻であり、料金ではない。
+[推定の料金](../../../README.md#推定の料金)にある。再利用した工程の料金は、出力を保存した CLI ではなく、再開した CLI の料金表で求める。そのため、料金が変わった後に再開した実行は、同じ保存した出力から異なる記事の料金を示す。保存した出力が記録するのは呼び出しの時刻であり、料金ではない。
 
 localhost サーバからの Slack への投稿は、不明な料金がなぜ不明かを示せない。理由を調べるには、同じモデルの設定で CLI を実行し、料金の行の `reason` の語を読む。
 
@@ -217,7 +217,7 @@ CLI が SIGKILL で止められると、`yt-dlp` が動き続けることがあ�
 
 `--slack` を付けると、記事はファイルではなく、`SLACK_WEBHOOK_URL` の Slack 互換の Incoming Webhook
 に投稿する。URL の規則、複数のメッセージへの分割、`silent`、メンションになりうる書式の検査は、README の
-[Webhook publishing](../../../README.md#webhook-publishing)にある。
+[Webhook への投稿](../../../README.md#webhook-への投稿)にある。
 
 それらの規則が拒否する URL は終了コード `2` の設定の誤りになる。変数は設定されていれば必ず検査するので、これは
 `--out` の実行も止める。
@@ -257,7 +257,7 @@ yt-dlp --list-impersonate-targets   # lists targets whose Source is curl_cffi
 ## 設定
 
 CLI は README の
-[Configuration](../../../README.md#configuration)の変数と、CLI だけが読む次の 2 つの変数を読む。
+[設定](../../../README.md#設定)の変数と、CLI だけが読む次の 2 つの変数を読む。
 
 | 変数 | 説明 | 未設定のとき |
 |---|---|---|
@@ -275,4 +275,4 @@ CLI は README の
 
 廃止した LLM の変数は、`--after review` のように LLM の設定を読まない実行を含めて、すべての実行を止める。CLI の実行は、始まる前に終了コード `2` で終わる。
 README の
-[Migrating from the retired LLM variables](../../../README.md#migrating-from-the-retired-llm-variables)を参照。
+[廃止した LLM の変数からの移行](../../../README.md#廃止した-llm-の変数からの移行)を参照。

@@ -8,7 +8,7 @@
 | Created | 2026-10-28 |
 | Review date | 2026-10-28 |
 | Reviewer | isseis |
-| Comments | 2026-10-29: ステップ 3-4 の記述を、`runpr.md` に `main` を取り込む手順がないことに合わせて直した。衝突の規則は、`runpr.md` の手順 1 に加えた段落から `mktrans.md` の規則を参照する形にした。ステップ 3-1 で、`mktrans.md` の説明（frontmatter の `description`）と CLAUDE.md のコマンドの一覧の `/mktrans` の行も、README の組だけを扱う形に改めた。止まったときに `/mktrans` が書きかけた `README.en.md` を戻す手段を、呼び出し元の `git restore` から、`/mktrans` が書く前に取った写しで自分で戻す形にした（設計書 4.3 も合わせた。呼び出し元の作業ツリーの `README.en.md` の変更を消さないため）（決定の変更なし。編集上の修正）。2026-10-29: PR-2 のレビューで、同期の印の検査を Go のテストにすることをレビュアー（isseis）が決め、このセッションで承認した（決定の変更）。1.3 に決定を加え、ステップ 3-4・3-6・6-7、4.1 のテストの表、7 章の AC-37 の行、PR-2 の対象ステップを改めた。2026-10-29: ステップ 4-2 の網羅の比較を、`go tool cover -func` が `_test.go` の関数を計測せず移す前の関数ごとの網羅を取れないことに合わせ、移したテストの本体が名前のほかは同じであること、消したテストの見ていた境界が移したテストの行で確かめられていること、移した後の `-coverpkg=./internal/doctestutil` の結果の確認に改めた（1.2 の項目と 9 章の品質の行も合わせた）。ステップ 4-1 の例外の一覧に `FencedBlock` の公開を加え、ステップ 4-2 の (2) を、消した行と同じ行があるという形から、消した行の境界を移した行が確かめているという形に直した（決定の変更なし。編集上の修正） |
+| Comments | 2026-10-29: ステップ 3-4 の記述を、`runpr.md` に `main` を取り込む手順がないことに合わせて直した。衝突の規則は、`runpr.md` の手順 1 に加えた段落から `mktrans.md` の規則を参照する形にした。ステップ 3-1 で、`mktrans.md` の説明（frontmatter の `description`）と CLAUDE.md のコマンドの一覧の `/mktrans` の行も、README の組だけを扱う形に改めた。止まったときに `/mktrans` が書きかけた `README.en.md` を戻す手段を、呼び出し元の `git restore` から、`/mktrans` が書く前に取った写しで自分で戻す形にした（設計書 4.3 も合わせた。呼び出し元の作業ツリーの `README.en.md` の変更を消さないため）（決定の変更なし。編集上の修正）。2026-10-29: PR-2 のレビューで、同期の印の検査を Go のテストにすることをレビュアー（isseis）が決め、このセッションで承認した（決定の変更）。1.3 に決定を加え、ステップ 3-4・3-6・6-7、4.1 のテストの表、7 章の AC-37 の行、PR-2 の対象ステップを改めた。2026-10-29: ステップ 4-2 の網羅の比較を、`go tool cover -func` が `_test.go` の関数を計測せず移す前の関数ごとの網羅を取れないことに合わせ、移したテストの本体が名前のほかは同じであること、消したテストの見ていた境界が移したテストの行で確かめられていること、移した後の `-coverpkg=./internal/doctestutil` の結果の確認に改めた（1.2 の項目と 9 章の品質の行も合わせた）。ステップ 4-1 の例外の一覧に `FencedBlock` の公開を加え、ステップ 4-2 の (2) を、消した行と同じ行があるという形から、消した行の境界を移した行が確かめているという形に直した（決定の変更なし。編集上の修正）。2026-10-30: PR-6 の実装で、ステップ 6-10 の見出しの検査に、両版で同じ ASCII の製品名の見出しを用語集の対象から外すことと、英語の見出しを用語集の英語の複数形とも比べること（`### Reject reasons`）を加えた。ステップ 6-5 と 6-6 は、pre-commit のフックの `go test` が日本語の README で古いガードテストを失敗させるため、1 つのコミットにした。ステップ 6-2 の `markdownSection` の改修は、小節を置かなかったので行わなかった（決定の変更なし。編集上の修正） |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の項番、「設計書 3.6」などは設計書の節を指す。既存のコードと文書についての記述は、コミット `c76eec26`（本書の作成時の `main`）で確かめた。`file:line` は、特に断らない限り、このコミットの行番号を指す。
 
@@ -480,12 +480,12 @@ AGENTS.md の変更（リンクのパス）は、ステップ 1-3 の置換に�
 
 **変更するファイル:** `README.md`、`docs/dev/guides/cli.md`・`development.md`、必要なら `extension/test/helpers/repoFile.ts`・`markdownSection.test.ts`
 
--   [ ] 1.3 の手段で、`README.md` を日本語にする。翻訳の元はこの PR の merge-base の `README.md` である。内容を加えも削りもしない（AC-27 の例外を除く）。AC-27a の書き換えは、設計書 3.6 の「CLI を主語や比較の対象にした文」の一覧のとおりにする。
--   [ ] ポップアップの文言は、日本語のカタログ（`ja.ts`）の文言を引用し、引用の言語の説明を日本語の版に合わせる（AC-31a）。
--   [ ] 先頭（最初の見出しより前）に、`README.en.md` へのリンク（AC-28）と、`cli.md`・`development.md` へのリンク（AC-23）を置く。
--   [ ] `cli.md`・`development.md` の中の、README の見出しへのリンクのアンカーを、日本語の見出しのアンカーにする（AC-25・AC-36）。
--   [ ] 見出しには、設計書 3.4 で確かめた文字だけを使う。使えないときは、設計書 3.4 の方法で確かめ、結果を 7 章に記録する。
--   [ ] Browser extension の節の中に `###` の小節を置くときは、`markdownSection` を、見出しと同じか高いレベルの次の見出しで節を終える形に改め（設計書 3.5）、`markdownSection.test.ts` に、`##` の節の中の `###` で切れない行と、次の `##`・`#` で終わる行を加える。今の行は変えずに通す。
+-   [x] 1.3 の手段で、`README.md` を日本語にする。翻訳の元はこの PR の merge-base の `README.md` である。内容を加えも削りもしない（AC-27 の例外を除く）。AC-27a の書き換えは、設計書 3.6 の「CLI を主語や比較の対象にした文」の一覧のとおりにする。
+-   [x] ポップアップの文言は、日本語のカタログ（`ja.ts`）の文言を引用し、引用の言語の説明を日本語の版に合わせる（AC-31a）。
+-   [x] 先頭（最初の見出しより前）に、`README.en.md` へのリンク（AC-28）と、`cli.md`・`development.md` へのリンク（AC-23）を置く。
+-   [x] `cli.md`・`development.md` の中の、README の見出しへのリンクのアンカーを、日本語の見出しのアンカーにする（AC-25・AC-36）。
+-   [x] 見出しには、設計書 3.4 で確かめた文字だけを使う。使えないときは、設計書 3.4 の方法で確かめ、結果を 7 章に記録する。
+-   [-] （ブラウザ拡張の節に `###` の小節を置かなかったので、`markdownSection` は改めていない）Browser extension の節の中に `###` の小節を置くときは、`markdownSection` を、見出しと同じか高いレベルの次の見出しで節を終える形に改め（設計書 3.5）、`markdownSection.test.ts` に、`##` の節の中の `###` で切れない行と、次の `##`・`#` で終わる行を加える。今の行は変えずに通す。
 
 **完了の条件:** 翻訳のレビューに Critical と Major の指摘が残っていない。
 
@@ -493,7 +493,7 @@ AGENTS.md の変更（リンクのパス）は、ステップ 1-3 の置換に�
 
 **変更するファイル:** `docs/translation_glossary.md`
 
--   [ ] AC-34 の (1)〜(3) のうち、用語集にないものを加える。(3) の候補は、`README.md` の 2 つ以上の節の地の文に現れる、概念を表す語である。加えた語と、候補から外した語とその理由を、PR の本文に挙げる。
+-   [x] AC-34 の (1)〜(3) のうち、用語集にないものを加える。(3) の候補は、`README.md` の 2 つ以上の節の地の文に現れる、概念を表す語である。加えた語と、候補から外した語とその理由を、PR の本文に挙げる。
 
 **完了の条件:** PR の本文に一覧がある。(1) はステップ 6-10 の検査が確かめる。
 
@@ -501,8 +501,8 @@ AGENTS.md の変更（リンクのパス）は、ステップ 1-3 の置換に�
 
 **変更するファイル:** `README.en.md`（新規）、`docs/translation_glossary.md`
 
--   [ ] 改訂した `/mktrans` を単独で `README.md` に対して呼び、全文を翻訳させる。1 行目に同期の印、先頭に `README.md` へのリンクがあることを確かめる（AC-27・AC-28）。`/mktrans` のコミットの手順（翻訳と用語集を別のコミット）に従う。
--   [ ] ポップアップの文言が英語のカタログ（`en.ts`）の文言であることを確かめる（AC-31a）。
+-   [x] 改訂した `/mktrans` を単独で `README.md` に対して呼び、全文を翻訳させる。1 行目に同期の印、先頭に `README.md` へのリンクがあることを確かめる（AC-27・AC-28）。`/mktrans` のコミットの手順（翻訳と用語集を別のコミット）に従う。
+-   [x] ポップアップの文言が英語のカタログ（`en.ts`）の文言であることを確かめる（AC-31a）。
 
 **完了の条件:** `/mktrans` の翻訳のレビューに Critical と Major の指摘が残っていない。
 
@@ -510,9 +510,9 @@ AGENTS.md の変更（リンクのパス）は、ステップ 1-3 の置換に�
 
 **変更するファイル:** `internal/doctestutil/`、`extension/test/helpers/`
 
--   [ ] 設計書 3.3 の `Lang`・`ReadmeVersion`・`ReadmeVersions`・`Locator`・`In` と、README のロケータの表を加える。ロケータは、4.2 の表で「両版」を読むテストが使う見出し、列名、項目の札（`TestServerDocsContract` のソケットのパスの札など）である。`ReadmeVersion.Path` はリポジトリのルートからのパスなので、各テストのパッケージのディレクトリから読めるよう、ルートのパスと結合する関数も用意する。
--   [ ] `Locator.In` の表のテストを加える。行は、日本語と英語の綴り、`LangUnknown`、範囲の外の値、空の綴りである。失敗させる行は、`testing.TB` の偽物（`internal/llm/claude/claude_test.go:196-207` の形）で確かめる。偽物の `Fatalf` は処理を止めないので、`In` は失敗を報告した後に戻ることを確かめる。
--   [ ] `extension/test/helpers/` に、README の版（パスと `Locale`）と、Browser extension の節の見出しの英日の組を置く（設計書 3.5）。
+-   [x] 設計書 3.3 の `Lang`・`ReadmeVersion`・`ReadmeVersions`・`Locator`・`In` と、README のロケータの表を加える。ロケータは、4.2 の表で「両版」を読むテストが使う見出し、列名、項目の札（`TestServerDocsContract` のソケットのパスの札など）である。`ReadmeVersion.Path` はリポジトリのルートからのパスなので、各テストのパッケージのディレクトリから読めるよう、ルートのパスと結合する関数も用意する。
+-   [x] `Locator.In` の表のテストを加える。行は、日本語と英語の綴り、`LangUnknown`、範囲の外の値、空の綴りである。失敗させる行は、`testing.TB` の偽物（`internal/llm/claude/claude_test.go:196-207` の形）で確かめる。偽物の `Fatalf` は処理を止めないので、`In` は失敗を報告した後に戻ることを確かめる。
+-   [x] `extension/test/helpers/` に、README の版（パスと `Locale`）と、Browser extension の節の見出しの英日の組を置く（設計書 3.5）。
 
 **完了の条件:** `go test -tags test ./internal/doctestutil` が通る。
 
@@ -520,10 +520,10 @@ AGENTS.md の変更（リンクのパス）は、ステップ 1-3 の置換に�
 
 **変更するファイル:** 4.2 の表で PR-6 の行のテストのファイル、`cmd/yt2column-nmhost/main_test.go`、`extension/test/metadataDocs.test.ts`
 
--   [ ] 4.2 の表の PR-6 の行のテストを、`ReadmeVersions()` で回す版ごとのサブテスト（`t.Run` の名前に版のパス）にする。`TestReadmeHostExitCodes` は `doctestutil` を使う形にする。
--   [ ] `TestReadmeLinks` に `README.en.md` を加える。
--   [ ] `metadataDocs.test.ts` を、`README.md` は日本語のカタログ、`README.en.md` は英語のカタログと比べるようにする（AC-31a、設計書 3.5）。0046 の PR-4 が加えた確認も同じにする。
--   [ ] 各テストが、片方の版だけで値を壊したときに、その版の名前で失敗することを確かめる（例：`README.en.md` の拡張の ID を変える、`README.md` のホストの終了コードの表から 1 行消す）。`TestReadmeLinks` が、`docs/dev/guides/cli.md` から見て存在しない相対パスと、存在しないアンカー（`../../../README.md#x` の形）で失敗することを確かめる。
+-   [x] 4.2 の表の PR-6 の行のテストを、`ReadmeVersions()` で回す版ごとのサブテスト（`t.Run` の名前に版のパス）にする。`TestReadmeHostExitCodes` は `doctestutil` を使う形にする。
+-   [x] `TestReadmeLinks` に `README.en.md` を加える。
+-   [x] `metadataDocs.test.ts` を、`README.md` は日本語のカタログ、`README.en.md` は英語のカタログと比べるようにする（AC-31a、設計書 3.5）。0046 の PR-4 が加えた確認も同じにする。
+-   [x] 各テストが、片方の版だけで値を壊したときに、その版の名前で失敗することを確かめる（例：`README.en.md` の拡張の ID を変える、`README.md` のホストの終了コードの表から 1 行消す）。`TestReadmeLinks` が、`docs/dev/guides/cli.md` から見て存在しない相対パスと、存在しないアンカー（`../../../README.md#x` の形）で失敗することを確かめる。
 
 **完了の条件:** `make test`・`make ext-check` が通る。
 
@@ -531,10 +531,10 @@ AGENTS.md の変更（リンクのパス）は、ステップ 1-3 の置換に�
 
 **変更するファイル:** `cmd/yt2column/readme_structure_test.go`（新規）
 
--   [ ] `TestReadmeVersionsShareStructure` を加える。両版を `ParseStructure` で読み、ステップ 6-1 の比較の結果をメッセージにして失敗する。ファイルがないとき（スキップしない）と、`ParseStructure` がエラーを返すときは、版のパスを示して失敗する。
--   [ ] `README.en.md` を作った後に、`TestReadmeSyncMarker`（PR-2 のステップ 3-6 で加えた）が通ることを確かめる。
--   [ ] `TestReadmeVersionLinks` を加える。両版の最初の見出しより前に、もう一方の版へのリンクがあり、両版に `cli.md`・`development.md` へのリンクがあることを確かめる（設計書 7.1）。`cli.md` に、README の設定の節の見出し（ロケータの日本語の綴り）のアンカーへのリンクがあることも確かめる（AC-36）。
--   [ ] 設計書 7.1 の例（`README.en.md` の見出しを 1 つ消す、`README.md` だけにコードブロックを加える、`README.en.md` を消す）と、印を消す、印を 2 つにする、先頭のリンクを消す、`cli.md` の設定の節へのリンクを消す、でそれぞれ失敗することを確かめる。
+-   [x] `TestReadmeVersionsShareStructure` を加える。両版を `ParseStructure` で読み、ステップ 6-1 の比較の結果をメッセージにして失敗する。ファイルがないとき（スキップしない）と、`ParseStructure` がエラーを返すときは、版のパスを示して失敗する。
+-   [x] `README.en.md` を作った後に、`TestReadmeSyncMarker`（PR-2 のステップ 3-6 で加えた）が通ることを確かめる。
+-   [x] `TestReadmeVersionLinks` を加える。両版の最初の見出しより前に、もう一方の版へのリンクがあり、両版に `cli.md`・`development.md` へのリンクがあることを確かめる（設計書 7.1）。`cli.md` に、README の設定の節の見出し（ロケータの日本語の綴り）のアンカーへのリンクがあることも確かめる（AC-36）。
+-   [x] 設計書 7.1 の例（`README.en.md` の見出しを 1 つ消す、`README.md` だけにコードブロックを加える、`README.en.md` を消す）と、印を消す、印を 2 つにする、先頭のリンクを消す、`cli.md` の設定の節へのリンクを消す、でそれぞれ失敗することを確かめる。
 
 **完了の条件:** `go test -tags test ./cmd/yt2column` が通る。
 
@@ -542,11 +542,11 @@ AGENTS.md の変更（リンクのパス）は、ステップ 1-3 の置換に�
 
 **変更するファイル:** `extension/scripts/has-extension-changes.sh`、`extension/test/ciChanges.test.ts`、`cmd/yt2column/run.go`・`run_test.go`、`cmd/yt2column-server/run.go`・`run_test.go`、`extension/src/core/i18n/en.ts`、`extension/test/metadataDocs.test.ts`
 
--   [ ] `has-extension-changes.sh` に `README.en.md` を加え、先頭のコメントを合わせる。`ciChanges.test.ts` の走らせる表に `README.en.md` を、走らせない表に似ているが違うパス（例：`docs/README.en.md`・`README.en.md.bak`）を加える。
--   [ ] `run.go:225` を、`(see README)` が `(see docs/dev/guides/cli.md)` になる形に、`:259` を、`see README.md.` が `see docs/dev/guides/cli.md.` になる形にする。`TestRunHelp` に、`--slack` のフラグの行と使い方の文のそれぞれが `docs/dev/guides/cli.md` を示し、そのファイルが存在することの検査を加える（AC-36）。2 か所を 1 つずつ元に戻し、それぞれで失敗することを確かめる。
--   [ ] `cmd/yt2column-server/run.go:145` を、`(see README.md)` が `(see README.en.md)` になる形にする。`TestStartupFailures` の引数の行で、診断が `README.en.md` を示し、そのファイルが存在することを確かめる（AC-35a）。
--   [ ] `en.ts:83` を、`the permissions the README describes.` が `the permissions README.en.md describes.` になる形にする（文全体の最終の形は、英語の文として実装で整える）。`ja.ts:81` は変えない。英語のカタログのこのメッセージが `README.en.md` を含み、そのファイルが存在することを確かめるテストを `metadataDocs.test.ts` に加える（AC-35）。
--   [ ] サーバの診断と拡張のメッセージのテストが、文字列を元に戻すと失敗することを確かめる。
+-   [x] `has-extension-changes.sh` に `README.en.md` を加え、先頭のコメントを合わせる。`ciChanges.test.ts` の走らせる表に `README.en.md` を、走らせない表に似ているが違うパス（例：`docs/README.en.md`・`README.en.md.bak`）を加える。
+-   [x] `run.go:225` を、`(see README)` が `(see docs/dev/guides/cli.md)` になる形に、`:259` を、`see README.md.` が `see docs/dev/guides/cli.md.` になる形にする。`TestRunHelp` に、`--slack` のフラグの行と使い方の文のそれぞれが `docs/dev/guides/cli.md` を示し、そのファイルが存在することの検査を加える（AC-36）。2 か所を 1 つずつ元に戻し、それぞれで失敗することを確かめる。
+-   [x] `cmd/yt2column-server/run.go:145` を、`(see README.md)` が `(see README.en.md)` になる形にする。`TestStartupFailures` の引数の行で、診断が `README.en.md` を示し、そのファイルが存在することを確かめる（AC-35a）。
+-   [x] `en.ts:83` を、`the permissions the README describes.` が `the permissions README.en.md describes.` になる形にする（文全体の最終の形は、英語の文として実装で整える）。`ja.ts:81` は変えない。英語のカタログのこのメッセージが `README.en.md` を含み、そのファイルが存在することを確かめるテストを `metadataDocs.test.ts` に加える（AC-35）。
+-   [x] サーバの診断と拡張のメッセージのテストが、文字列を元に戻すと失敗することを確かめる。
 
 **完了の条件:** `make test`・`make ext-check` が通る。
 
@@ -554,9 +554,9 @@ AGENTS.md の変更（リンクのパス）は、ステップ 1-3 の置換に�
 
 **変更するファイル:** `CLAUDE.md`、`docs/dev/project_overview.md`、`docs/dev/production_profile.md`、`docs/translation_glossary.md`、`docs/dev/guides/pricing_update.md`・`claude_output_limit.md`
 
--   [ ] `CLAUDE.md:212-213` を、サーバの API は `development.md`、起動は README に書く形にする（AC-07）。
--   [ ] Development Notes の文書を読むガードテストの説明（`CLAUDE.md:431-448`）を、4.2 の表の後の状態に合わせる。`TestReadmeHostExitCodes` が両版を読み、`doc-guard` では走らないことを書く（AC-41）。
--   [ ] `project_overview.md:157`、`production_profile.md:5`、`translation_glossary.md:53`、`pricing_update.md`・`claude_output_limit.md` の README に残る節への参照を、日本語の見出しにする（AC-26）。過去のタスク文書以外で README の節を名前で参照する箇所をほかにも探し（`git grep -n README` を `docs/tasks/` を除いて読む）、同じにする。
+-   [x] `CLAUDE.md:212-213` を、サーバの API は `development.md`、起動は README に書く形にする（AC-07）。
+-   [x] Development Notes の文書を読むガードテストの説明（`CLAUDE.md:431-448`）を、4.2 の表の後の状態に合わせる。`TestReadmeHostExitCodes` が両版を読み、`doc-guard` では走らないことを書く（AC-41）。
+-   [x] `project_overview.md:157`、`production_profile.md:5`、`translation_glossary.md:53`、`pricing_update.md`・`claude_output_limit.md` の README に残る節への参照を、日本語の見出しにする（AC-26）。過去のタスク文書以外で README の節を名前で参照する箇所をほかにも探し（`git grep -n README` を `docs/tasks/` を除いて読む）、同じにする。
 
 **完了の条件:** `make test` が通る。
 
@@ -564,9 +564,9 @@ AGENTS.md の変更（リンクのパス）は、ステップ 1-3 の置換に�
 
 **変更するファイル:** `docs/tasks/0048_doc_language_policy/_checks/readme/main.go`（新規）、本書
 
--   [ ] merge-base と PR の先頭のコミットを比べるプログラムを書く。(1) `extension/src/core/i18n/ja.ts` が同じであること（AC-35）。(2) `README.md` の翻訳の前後で、見出しのレベルの並び、コードブロックの内容、表の行の数が同じであること。例外は、AC-31a の引用、リンクの先、先頭の 2 つのリンク、AC-27a の書き換えで、例外の箇所は一覧で出力する（AC-27）。(3) `README.md` の各見出しが用語集の日本語の欄にあり、同じ位置の `README.en.md` の見出しが、その行の英語の欄と大文字と小文字を除いて同じであること（AC-34 の (1)）。
--   [ ] 3 つの検査が、`ja.ts` を変える、`README.md` のコードブロックの 1 文字を変える、用語集から見出しの 1 行を消す、でそれぞれ失敗することを確かめる。
--   [ ] 実行し、出力と 2 つのコミットの ID を 7 章の記録に書く。
+-   [x] merge-base と PR の先頭のコミットを比べるプログラムを書く。(1) `extension/src/core/i18n/ja.ts` が同じであること（AC-35）。(2) `README.md` の翻訳の前後で、見出しのレベルの並び、コードブロックの内容、表の行の数が同じであること。例外は、AC-31a の引用、リンクの先、先頭の 2 つのリンク、AC-27a の書き換えで、例外の箇所は一覧で出力する（AC-27）。(3) `README.md` の各見出しが用語集の日本語の欄にあり、同じ位置の `README.en.md` の見出しが、その行の英語の欄と大文字と小文字を除いて同じであること（AC-34 の (1)）。
+-   [x] 3 つの検査が、`ja.ts` を変える、`README.md` のコードブロックの 1 文字を変える、用語集から見出しの 1 行を消す、でそれぞれ失敗することを確かめる。
+-   [x] 実行し、出力と 2 つのコミットの ID を 7 章の記録に書く。
 
 **完了の条件（フェーズ 6）:** プログラムが終了コード 0 で終わる。`make test`・`make test-parse-norace`・`make lint`・`make deadcode`・`make ext-check` が通る。7 章のすべての行が確かめられている。PR-6 の `doc-guard` のジョブのログで、`TestReadmeVersionsShareStructure` が走ったことを確かめ、7 章に記録する（AC-29 の CI の部分）。
 
@@ -582,10 +582,10 @@ AGENTS.md の変更（リンクのパス）は、ステップ 1-3 の置換に�
 
 **判定理由**: 2 つの翻訳と十数のガードテストの変更が 1 つの PR に入り、Conditional checks のうち CI の判定とテストの build tag の 2 つに当たる。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/586
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ## 3. 実装の順序とマイルストーン (Implementation Order and Milestones)
 
@@ -698,7 +698,7 @@ N/A（設計書 7.2）。
 -   [x] PR-3 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3）
 -   [x] PR-4 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4）
 -   [x] PR-5 マージ済み（対象ステップ: 6-1）
--   [ ] PR-6 マージ済み（対象ステップ: 6-2 / 6-3 / 6-4 / 6-5 / 6-6 / 6-7 / 6-8 / 6-9 / 6-10）
+-   [x] PR-6 マージ済み（対象ステップ: 6-2 / 6-3 / 6-4 / 6-5 / 6-6 / 6-7 / 6-8 / 6-9 / 6-10）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -822,15 +822,57 @@ OK   docs/dev/guides/development.md keeps its structure
 
 翻訳は、`/japrose` の手順のレビュー（2 つの文書を並行して Sonnet で）と、`mktrans.md` の Accuracy checklist による翻訳のレビューを経た。翻訳のレビューの Major 5 件（U+200B の位置の追加、`--out` の「(no value)」、「記事の本文」への狭め、`usage` のメンバの訳、「still … your environment」の欠落）を直し、確認のレビューで残った Major 1 件（`usage` メンバの表記）も直した。
 
-**CI の記録（AC-29）:** （ステップ 6-10 で記録する）
+**README の差分の検査の実行の記録（PR-6、AC-27・AC-34・AC-35）:** 2026-10-30 に、リポジトリのルートで `go run -tags test ./docs/tasks/0048_doc_language_policy/_checks/readme/ baa299ee 9bd40645` を実行した。merge-base は `baa299ee294cab5d9115f6e6b6b1af9b37f7a84d`、PR の先頭は `9bd4064545afb9e1ad5de5ebd617ba1c83f3228c`、終了コードは 0 である。
+
+```text
+merge-base baa299ee294cab5d9115f6e6b6b1af9b37f7a84d
+head       9bd4064545afb9e1ad5de5ebd617ba1c83f3228c
+OK   ja.ts unchanged
+OK   README.md keeps its structure
+OK   README headings are in the glossary
+---- exceptions to read in the review
+text before the first heading of README.md:
+     | [English](README.en.md)
+     | 開発者向けの文書: [CLI の使い方](docs/dev/guides/cli.md)・[開発の手順](docs/dev/guides/development.md)
+link targets that changed after the first heading (old -> new, in order):
+     2: #recommended-configuration -> #推奨構成
+     4: #localhost-server -> #localhost-サーバ
+     5: #recommended-configuration -> #推奨構成
+     6: #configuration -> #設定
+     7: #running-the-server -> #サーバの起動
+     8: #installing-the-native-messaging-host -> #native-messaging-のホストのインストール
+     9: #browser-extension -> #ブラウザ拡張
+     10: #browser-extension -> #ブラウザ拡張
+     14: #webhook-publishing -> #webhook-への投稿
+     15: #output-format -> #出力の書式
+     17: #output-format -> #出力の書式
+     20: #installing-the-native-messaging-host -> #native-messaging-のホストのインストール
+     22: #migrating-from-the-retired-llm-variables -> #廃止した-llm-の変数からの移行
+     23: #installing-the-native-messaging-host -> #native-messaging-のホストのインストール
+     24: #localhost-server -> #localhost-サーバ
+     25: #localhost-server -> #localhost-サーバ
+     27: #migrating-from-the-retired-llm-variables -> #廃止した-llm-の変数からの移行
+     33: #installing-the-native-messaging-host -> #native-messaging-のホストのインストール
+     34: #troubleshooting -> #トラブルシューティング
+headings exempt as proper nouns:
+     | # yt2column
+```
+
+- 変わったリンクの先は、どれも README の見出しのアンカーを日本語の見出しのアンカーにしたものである。最初の見出しより前の 2 行は、AC-28・AC-23 のリンクである。
+- 見出しの検査には、2 つの扱いを加えた（編集上の修正）。(a) 両版で同じ ASCII の見出し（`# yt2column`）は製品名で、用語集の行を求めない（AC-34 (3) が固有名詞を除くのと同じ）。(b) `### 拒否の理由` は用語集の既存の行（拒否の理由 | reject reason）に当たり、`README.en.md` では複数形の `### Reject reasons` にした。そのため、英語の見出しは用語集の英語か、その複数形と比べる。当初は `### 拒否の理由と拡張の表示` としたが、翻訳のレビューで原文にない語の追加と指摘され、改めた。
+- 検査が違反を見つけることは、別のワークツリーの一時的なコミットで確かめた。`ja.ts` の 1 語を変える、`README.md` のコードブロックの 1 文字を変える、用語集から見出しの 1 行（トラブルシューティング）を消す、のそれぞれで終了コード 1 になった。
+
+翻訳の記録: `README.md` は 1.3 の手段で直接書き、翻訳の正確さのレビュー（`mktrans.md` の Accuracy checklist）と、`/japrose` の手順のレビュー（Sonnet）を並行して受けた。Major の指摘（停止のときにジョブを「終わらせる」と読める訳、「どの行にもある」制御文字、見出しへの語の追加、移行の節の文、Webhook の受け手と localhost サーバの「サーバ」の混同など、合わせて約 15 件）を直し、確認のレビューで残る Major がないことを確かめた。`README.en.md` は改訂した `/mktrans` の単独の手順で全文を翻訳し、翻訳のレビューの Major 1 件（出力ごとの開発のための部分の置き場所）と Minor の多くを直した。用語集は、ステップ 6-3 で加えた行のほかに変えていない。
+
+**CI の記録（AC-29）:** PR-6 の `doc-guard` のジョブのログで `TestReadmeVersionsShareStructure` が走ったことを、PR を作った後に確かめて記録する。
 
 ## 8. 横断の確認 (Cross-Search Checklist)
 
 `make lint`・`make test` では見つからない残りを確かめる。
 
 -   [x] 1.5 の旧い補助関数の名前（小文字の `readDoc` など）が、`cmd/yt2column`・`cmd/yt2column-server` のコメントに残っていない（PR-3）。
--   [ ] `docs/translation_glossary.md` の訳語と、`cli.md`・`development.md`・`README.md`・`README.en.md`・`pricing_update.md`・`claude_output_limit.md` の用語が一致する（PR-1・PR-4・PR-6 のレビューで読む）。
--   [ ] `has-extension-changes.sh` の先頭のコメントと、CLAUDE.md の Development Notes が、拡張のテストが読む文書の同じ一覧を述べる（PR-6 のレビューで読む）。
+-   [x] `docs/translation_glossary.md` の訳語と、`cli.md`・`development.md`・`README.md`・`README.en.md`・`pricing_update.md`・`claude_output_limit.md` の用語が一致する（PR-1・PR-4・PR-6 のレビューで読む）。
+-   [x] `has-extension-changes.sh` の先頭のコメントと、CLAUDE.md の Development Notes が、拡張のテストが読む文書の同じ一覧を述べる（PR-6 のレビューで読む）。
 
 ## 9. 成功基準 (Success Criteria)
 

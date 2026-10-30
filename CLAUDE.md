@@ -276,8 +276,10 @@ request to the socket per send and manages its own manifest with `install` and
 
 See [Project Overview](docs/dev/project_overview.md) for the decided policies and
 constraints, and [Package Reference](docs/dev/conventions/package_reference.md)
-for the packages that exist today. The server's API and startup are documented in
-the [README](README.md) and `docs/dev/security.md` §8.
+for the packages that exist today. The server's startup is documented in the
+[README](README.md) (and its English version, `README.en.md`), its HTTP API in
+[development.md](docs/dev/guides/development.md), and both in
+`docs/dev/security.md` §8.
 
 ### Key Design Patterns
 - **Separation of Concerns**: Each package has a single responsibility. Core logic
@@ -510,22 +512,25 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
 - After editing go files, make sure to run `make fmt` to format the files.
 - After editing files, make sure to run `make test` and `make lint` and fix errors.
 - After changing the browser extension under `extension/`, run `make ext-check`.
-- A change that touches only documents (`README.md`, `CLAUDE.md`, `docs/`) does
-  not need `make ext-test`, except `README.md`: the extension's node tests read
-  its rejection-reason table (`serverReasons.test.ts`) and the expand prompt in
-  its "Browser extension" section (`metadataDocs.test.ts`), so a change to it
-  needs `make ext-test`. The other text-sync guards that read documents (the
+- A change that touches only documents (`README.md`, `README.en.md`,
+  `CLAUDE.md`, `docs/`) does not need `make ext-test`, except the two READMEs
+  and `docs/dev/guides/development.md`: the extension's node tests read the
+  expand prompt and the popup names in each README's browser extension section
+  (`metadataDocs.test.ts`) and the rejection-reason table of `development.md`
+  (`serverReasons.test.ts`), so a change to them needs `make ext-test`. The
+  other text-sync guards that read documents (the
   extension ID, the `ext-` targets in this file, the manifest permissions, the
   `project_overview.md` notes (the environment variable names, `costPrefix`, and
   `16,383`), the production profile's configuration block and stage table in
-  `docs/dev/production_profile.md`, the README's configuration block and Quick
-  start links, the `/fixpr` and `/runpr` command documents, the `codexreview`
+  `docs/dev/production_profile.md`, the configuration block and Quick start
+  links of both READMEs, the values `cli.md` and `development.md` hold, the
+  `/fixpr` and `/runpr` command documents, the `codexreview`
   permission, install target, and command-document checks) are Go tests included
   in `make test` and need no node. `cmd/yt2column-nmhost`'s
-  `TestReadmeHostExitCodes` reads the README too, but the `doc-guard` job does
-  not run it: the local `make test`, and the CI `test` job when the change
-  includes code, do. A README-only change is therefore checked by neither CI
-  job for this test. The `doc-guard` CI job runs the other guards
+  `TestReadmeHostExitCodes` reads both READMEs too, but the `doc-guard` job
+  does not run it: the local `make test`, and the CI `test` job when the change
+  includes code, do. A change to the READMEs alone is therefore checked by
+  neither CI job for this test. The `doc-guard` CI job runs the other guards
   (`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./cmd/codexreview ./internal/pipeline`)
   on every pull request, so a documentation-only change is checked in CI by
   those guards even though `check-changes` classifies it as non-code.
