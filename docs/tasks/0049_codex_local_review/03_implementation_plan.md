@@ -8,7 +8,7 @@
 | Created | 2026-10-29 |
 | Review date | 2026-10-29 |
 | Reviewer | isseis |
-| Comments | 2026-10-29（PR-1 の実装の際の編集上の訂正。決定の変更はない）: 1.2 の `internal/transcript` の形にならう項目と、ステップ 1-2 の記述を、実装に合わせた。`Setpgid` で子をグループの長にする点はならい、グループへの停止は `cmd.Cancel` ではなく、自分で持つ出力のパイプとシグナルの送信で行う。`exec` のコピーの goroutine では、直接の子の終了とパイプの読み終わりの間にグループを止められないためである。猶予は直接の子が終わった時点で終わり、残った子孫はすぐに強制の停止を受ける。(a) の時間切れは、同じ `ctx.Done` の経路を通るコンテキストの取り消しで確かめた。2026-10-29（PR-2 の実装の際の編集上の訂正。決定の変更はない）: ステップ 2-3 の、git-ignore されたファイルを比べないことの確かめを、`TestRunStateChanged` の行から独立のテスト `TestRunIgnoresIgnoredFiles` に分けた（結果の種類が `state_changed` でないため）。`Run` はプロセスの環境を読まず、呼び出し元から受け取る（`internal/config` の `TestEnvAccessConfined` が、環境の読み取りを `main` に限るため。`fixprguard` と同じ形）。ステップ 2-2 の入口の見分けのテストの名前を `TestRoleOf` とし、9 章にテストのファイル名を書き戻した。1.2 の、`Detail` の値と種類を列挙する一覧の関数は、それを使うガード（ステップ 5-2）と同じ PR で加える（`make deadcode` が、どのテストからも届かない関数を拒むため）。2026-10-29（決定の変更。isseis がこのセッションで承認した）: Codex のシェルに環境変数を引き継がせない対策を採ることにした。環境変数を引き継ぐと、Codex が実行するどのコマンドも秘密の値を持ち、`env` の実行や環境を含むエラーの出力から、ファイルを読まなくても暗黙のうちに OpenAI に送られうる。`.envrc` を読む経路とは別の経路であり、「採っても残るリスクは変わらない」という設計書 1.2 の判断は誤りだった（PR #573 の CodeRabbit の指摘と利用者の指摘による）。ステップ 2-3 で `codex` に渡す環境を決めた名前の変数だけにし、固定の引数に `shell_environment_policy.inherit="core"` を加えた（`TestRunPassesOnlyAllowedEnvironment`、`TestRunPassesFixedArguments`）。ステップ 8-2 に、絞った環境での認証と、`env` による確かめを加えた。偽の `codex` は環境ではなく、リンクの隣のファイルと引数で振る舞いを受け取る形に改めた。2026-10-30（PR-3 の実装の際の編集上の訂正。決定の変更はない）: ステップ 2-4 で、`usage` の結果を作る `BadArgumentsResult` と `ProtocolMismatchResult` を `internal/codexreview` に加え、`internal/config` の `TestEnvAccessConfined` の許可に `cmd/codexreview/main.go` の `os.Environ` を加えた。`main` は、`codex` のプロセスグループを止め終えるまで 2 回目のシグナルでも終わらないよう、シグナルを受け続ける（`TestSecondSignalStillStopsCodex`）。ツールへの SIGKILL は防げない。引数は 4 つの形だけを受け付け、`--protocol` を先に照合する。ステップ 3-2 で、`--protocol` をどのツールの呼び出しのものとするかの決め方と、コマンドの文書の一覧は `internal/doctestutil`（`ProtocolFlags`・`CommandBoundary`・`CommandDocs`）に置いて 2 つのガードで共有した。`TestSettingsAllowsTool` は、Bash の許可のコマンドの語を `coderabbit` と `codexreview` に限り、`defaultMode` を確認を求める値に限る形にした（`codex` の語の許可を拒むことを含み、それより広い）。「コマンドの位置」には、予約語（`if`・`then`・`!` など）、リダイレクト、`(`・`{` の後、ラッパーのオプションの値の後、`-lc` のようなオプションの組の `-c` の後も含め、`timeout`・`nice`・`sudo` などのラッパーも加えた。ラッパーとオプションの一覧は網羅でなく、見逃した形は権限の確認で止まる。テストの名前に `TestMayBypassTool`・`TestRunsCodex`・`TestCodexreviewProtocolMismatches`・`TestFixprguardProtocolMismatches`・`TestProtocolFlags` を加えた。2026-10-30（PR-4 の実装の際の編集上の訂正。決定の変更はない）: ステップ 5-2 の一覧の関数を `internal/codexreview` の `Kinds`（種類ごとに、その種類が持ちうる `Detail` を返す）とし、宣言した種類と `Detail` をすべて載せていることを `TestKindsListsEveryConstant` で確かめた。`TestDocumentedInvocationsParse` が `--base` の形を確かめるのに使う `ValidBase` を公開し、`Run` もそれを使う。呼び出しの取り出しを `TestInvocations` で確かめた。共通手順の種類の表には、終了コードに加えて扱い（`triage`・`record`・`stop`）の列を置き、`TestProcedureNamesKinds` が終了コードと `dirty_tree` から決まる扱いと比べる。設計書 1.2 は今のファイル名を参照するテストはないとしたが、その後に加わった `cmd/yt2column/fixpr_docs_test.go` の `TestReadmeSyncStepPlacement` が Part B 手順 1 をファイル名で探していたので、ステップ 5-1 で新しい名前に付け替えた。`_lib/task-pr-handoff.md` の「`_lib/coderabbit-local-review.md` step 5」は、記録の行を書く手順の番号に合わせて step 7 とした。設計書 3.6 の `Codex local review:` の行に、`InRange` が偽の指摘の位置を写さない形を加えた（AC-12 の 3 の適用。設計書の Comments）。`TestDocumentedInvocationsParse` は、呼び出しがツールの名前で始まり前に何もない形（権限の確認で止まらない形）であることも確かめる。共通手順に呼び出しがあることの確かめは、`TestDocumentedProtocolMatches` ではなく `TestDocumentedInvocationsParse` に置いた。共通手順が振る舞いを選ぶ `dirty_tree` は、`internal/codexreview` の `DetailDirtyTree` として公開し、ガードはそれを使う。ステップ 6-1 の手順 7.7 の記録の行の写し先を、設計書 3.7 の編集上の訂正（設計書の Comments）に合わせた。 |
+| Comments | 2026-10-29（PR-1 の実装の際の編集上の訂正。決定の変更はない）: 1.2 の `internal/transcript` の形にならう項目と、ステップ 1-2 の記述を、実装に合わせた。`Setpgid` で子をグループの長にする点はならい、グループへの停止は `cmd.Cancel` ではなく、自分で持つ出力のパイプとシグナルの送信で行う。`exec` のコピーの goroutine では、直接の子の終了とパイプの読み終わりの間にグループを止められないためである。猶予は直接の子が終わった時点で終わり、残った子孫はすぐに強制の停止を受ける。(a) の時間切れは、同じ `ctx.Done` の経路を通るコンテキストの取り消しで確かめた。2026-10-29（PR-2 の実装の際の編集上の訂正。決定の変更はない）: ステップ 2-3 の、git-ignore されたファイルを比べないことの確かめを、`TestRunStateChanged` の行から独立のテスト `TestRunIgnoresIgnoredFiles` に分けた（結果の種類が `state_changed` でないため）。`Run` はプロセスの環境を読まず、呼び出し元から受け取る（`internal/config` の `TestEnvAccessConfined` が、環境の読み取りを `main` に限るため。`fixprguard` と同じ形）。ステップ 2-2 の入口の見分けのテストの名前を `TestRoleOf` とし、9 章にテストのファイル名を書き戻した。1.2 の、`Detail` の値と種類を列挙する一覧の関数は、それを使うガード（ステップ 5-2）と同じ PR で加える（`make deadcode` が、どのテストからも届かない関数を拒むため）。2026-10-29（決定の変更。isseis がこのセッションで承認した）: Codex のシェルに環境変数を引き継がせない対策を採ることにした。環境変数を引き継ぐと、Codex が実行するどのコマンドも秘密の値を持ち、`env` の実行や環境を含むエラーの出力から、ファイルを読まなくても暗黙のうちに OpenAI に送られうる。`.envrc` を読む経路とは別の経路であり、「採っても残るリスクは変わらない」という設計書 1.2 の判断は誤りだった（PR #573 の CodeRabbit の指摘と利用者の指摘による）。ステップ 2-3 で `codex` に渡す環境を決めた名前の変数だけにし、固定の引数に `shell_environment_policy.inherit="core"` を加えた（`TestRunPassesOnlyAllowedEnvironment`、`TestRunPassesFixedArguments`）。ステップ 8-2 に、絞った環境での認証と、`env` による確かめを加えた。偽の `codex` は環境ではなく、リンクの隣のファイルと引数で振る舞いを受け取る形に改めた。2026-10-30（PR-3 の実装の際の編集上の訂正。決定の変更はない）: ステップ 2-4 で、`usage` の結果を作る `BadArgumentsResult` と `ProtocolMismatchResult` を `internal/codexreview` に加え、`internal/config` の `TestEnvAccessConfined` の許可に `cmd/codexreview/main.go` の `os.Environ` を加えた。`main` は、`codex` のプロセスグループを止め終えるまで 2 回目のシグナルでも終わらないよう、シグナルを受け続ける（`TestSecondSignalStillStopsCodex`）。ツールへの SIGKILL は防げない。引数は 4 つの形だけを受け付け、`--protocol` を先に照合する。ステップ 3-2 で、`--protocol` をどのツールの呼び出しのものとするかの決め方と、コマンドの文書の一覧は `internal/doctestutil`（`ProtocolFlags`・`CommandBoundary`・`CommandDocs`）に置いて 2 つのガードで共有した。`TestSettingsAllowsTool` は、Bash の許可のコマンドの語を `coderabbit` と `codexreview` に限り、`defaultMode` を確認を求める値に限る形にした（`codex` の語の許可を拒むことを含み、それより広い）。「コマンドの位置」には、予約語（`if`・`then`・`!` など）、リダイレクト、`(`・`{` の後、ラッパーのオプションの値の後、`-lc` のようなオプションの組の `-c` の後も含め、`timeout`・`nice`・`sudo` などのラッパーも加えた。ラッパーとオプションの一覧は網羅でなく、見逃した形は権限の確認で止まる。テストの名前に `TestMayBypassTool`・`TestRunsCodex`・`TestCodexreviewProtocolMismatches`・`TestFixprguardProtocolMismatches`・`TestProtocolFlags` を加えた。2026-10-30（PR-4 の実装の際の編集上の訂正。決定の変更はない）: ステップ 5-2 の一覧の関数を `internal/codexreview` の `Kinds`（種類ごとに、その種類が持ちうる `Detail` を返す）とし、宣言した種類と `Detail` をすべて載せていることを `TestKindsListsEveryConstant` で確かめた。`TestDocumentedInvocationsParse` が `--base` の形を確かめるのに使う `ValidBase` を公開し、`Run` もそれを使う。呼び出しの取り出しを `TestInvocations` で確かめた。共通手順の種類の表には、終了コードに加えて扱い（`triage`・`record`・`stop`）の列を置き、`TestProcedureNamesKinds` が終了コードと `dirty_tree` から決まる扱いと比べる。設計書 1.2 は今のファイル名を参照するテストはないとしたが、その後に加わった `cmd/yt2column/fixpr_docs_test.go` の `TestReadmeSyncStepPlacement` が Part B 手順 1 をファイル名で探していたので、ステップ 5-1 で新しい名前に付け替えた。`_lib/task-pr-handoff.md` の「`_lib/coderabbit-local-review.md` step 5」は、記録の行を書く手順の番号に合わせて step 7 とした。設計書 3.6 の `Codex local review:` の行に、`InRange` が偽の指摘の位置を写さない形を加えた（AC-12 の 3 の適用。設計書の Comments）。`TestDocumentedInvocationsParse` は、呼び出しがツールの名前で始まり前に何もない形（権限の確認で止まらない形）であることも確かめる。共通手順に呼び出しがあることの確かめは、`TestDocumentedProtocolMatches` ではなく `TestDocumentedInvocationsParse` に置いた。共通手順が振る舞いを選ぶ `dirty_tree` は、`internal/codexreview` の `DetailDirtyTree` として公開し、ガードはそれを使う。ステップ 6-1 の手順 7.7 の記録の行の写し先を、設計書 3.7 の編集上の訂正（設計書の Comments）に合わせた。2026-10-30（PR-5 の実装の際の編集上の訂正。決定の変更はない）: ステップ 4-1・8-1 の、実行を確かめる形の記述を直した。共通手順が書く形の `--protocol` は 1 だが、計画は `--protocol 0` を「共通手順が書く形」としていた。0 はツールの値と違うので `usage` が返り、`codex` は起動されない（設計書 7.2 の「不正な引数」）。記述を「共通手順が書く形の `--protocol` の値を 1 つ違えた形」と改め、9 章の記録の文も同じにした。 |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -266,7 +266,7 @@ PR-1・PR-2 のマージで `.claude/commands/` と `CLAUDE.md` の行番号が�
 **変えるファイル**: なし
 
 -   [x] PR-3 のマージの後、利用者が最新の `main` で `make install-codexreview` を実行する。エージェントはインストールを実行しない（設計書 3.8）。
--   [x] エージェントは、共通手順が書く形（`codexreview --protocol 0 --base <40 桁の SHA>`）でインストールした `codexreview` を Bash ツールで 1 回実行し、権限の確認で止まらずに `usage` が返ることを確かめる（`codex` は起動されない）。止まるなら、フェーズ 5 に進まずに利用者に報告する。結果はステップ 8-1 で記録する。
+-   [x] エージェントは、共通手順が書く形の `--protocol` の値を 1 つ違えた形（`--protocol 0 --base <40 桁の SHA>`）で、インストールした `codexreview` を Bash ツールで 1 回実行し、権限の確認で止まらずに `usage` が返ることを確かめる（`codex` は起動されない）。止まるなら、フェーズ 5 に進まずに利用者に報告する。結果はステップ 8-1 で記録する。
 -   [x] エージェントは、`command -v codexreview` でツールがあることと、`go version -m "$(command -v codexreview)"` の `vcs.modified` が `false` で、`vcs.revision` が PR-3 のマージのコミットを祖先に持つこと（`git merge-base --is-ancestor`）を確かめる。マージのコミットが手元にないときの `git fetch` は、利用者の承認を得て行う。どれかが成り立たなければ、利用者にインストールを頼んで止まる。
 
 **完了の条件**: 上の確かめが通った。
@@ -362,8 +362,8 @@ PR-1・PR-2 のマージで `.claude/commands/` と `CLAUDE.md` の行番号が�
 
 **変えるファイル**: `CLAUDE.md`、`.coderabbit.yaml`、`.claude/commands/_lib/pr-review-escalation.md`、`.claude/commands/_lib/triage-pattern.md`、`cmd/yt2column/codex_review_docs_test.go`
 
--   [ ] 設計書 3.9 の表の残りの行を改める。`CLAUDE.md:167` と `:181-183`、`_lib/pr-review-escalation.md:10-12`、`_lib/triage-pattern.md:7`（呼び出し元の 5 か所の列挙）、`.coderabbit.yaml:9-12` である。割り当ての記述は、観測の記録の 1 の結論（PR レビューと同じ割り当てを消費する）と一致させる。
--   [ ] `TestCodeRabbitConfigStopsReview` が求める文を、改めた `.coderabbit.yaml` の注釈の文に合わせる（設計書 7.1）。
+-   [x] 設計書 3.9 の表の残りの行を改める。`CLAUDE.md:167` と `:181-183`、`_lib/pr-review-escalation.md:10-12`、`_lib/triage-pattern.md:7`（呼び出し元の 5 か所の列挙）、`.coderabbit.yaml:9-12` である。割り当ての記述は、観測の記録の 1 の結論（PR レビューと同じ割り当てを消費する）と一致させる。
+-   [x] `TestCodeRabbitConfigStopsReview` が求める文を、改めた `.coderabbit.yaml` の注釈の文に合わせる（設計書 7.1）。
 
 **完了の条件**: `make test` と `make lint` が通る。`.coderabbit.yaml` の新しい文を消すと `TestCodeRabbitConfigStopsReview` が失敗することを確かめる。
 
@@ -373,7 +373,7 @@ PR-1・PR-2 のマージで `.claude/commands/` と `CLAUDE.md` の行番号が�
 
 **変えるファイル**: `docs/tasks/0049_codex_local_review/03_implementation_plan.md`（9 章の記録）
 
--   [ ] ステップ 4-1 で確かめた、共通手順が書く形（`--protocol 0`）の実行の結果を記録する（設計書 7.2）。
+-   [ ] ステップ 4-1 で確かめた、共通手順が書く形の `--protocol` の値を 1 つ違えた形（`--protocol 0`）の実行の結果を記録する（設計書 7.2）。
 -   [ ] `$(...)` やリダイレクトを含む形で実行しようとすると、権限の確認で止まることを確かめる。
 -   [ ] 結果（実行した形、止まったかどうか、返った種類）を 9 章に記録する。
 
@@ -394,7 +394,7 @@ PR-1・PR-2 のマージで `.claude/commands/` と `CLAUDE.md` の行番号が�
 
 **変えるファイル**: なし
 
--   [ ] 5 章の横断検索を行い、結果を確かめる。
+-   [x] 5 章の横断検索を行い、結果を確かめる。
 -   [ ] グリーンゲート（`make test && make lint`）が通る。
 
 **完了の条件**: 上の 2 つが済んだ。
@@ -490,8 +490,8 @@ PR-1・PR-2 のマージで `.claude/commands/` と `CLAUDE.md` の行番号が�
 `make lint` と `make test` では見つけられないものだけを挙げる。
 
 1.  [x] 共通手順の古いファイル名の参照: `git grep -l coderabbit-local-review -- ':!docs/tasks'` の出力が空である。`0d7283e` では 1.3 の 7 つのファイルが出た。
-2.  [ ] `GitEnv` と `gitHardening` の古い参照: コメントと `package_reference.md` に、`fixprguard.GitEnv` と `gitHardening` の古い名前が残っていない。`0d7283e` では、`git grep -n "gitHardening\|GitEnv" -- ':!docs/tasks'` が 1.3 の箇所を出した。
-3.  [ ] 文書のガードのコマンドの列挙: `.github/workflows/ci.yml` と `CLAUDE.md` の Development Notes の対象が一致する（読んで確かめる）。
+2.  [x] `GitEnv` と `gitHardening` の古い参照: コメントと `package_reference.md` に、`fixprguard.GitEnv` と `gitHardening` の古い名前が残っていない。`0d7283e` では、`git grep -n "gitHardening\|GitEnv" -- ':!docs/tasks'` が 1.3 の箇所を出した。
+3.  [x] 文書のガードのコマンドの列挙: `.github/workflows/ci.yml` と `CLAUDE.md` の Development Notes の対象が一致する（読んで確かめる）。
 
 ## 6. リスク管理 (Risk Management)
 
@@ -560,7 +560,7 @@ PR-1・PR-2 のマージで `.claude/commands/` と `CLAUDE.md` の行番号が�
 | AC-18 | manual | 設計書 3.9 の表の記述と、`runpr.md:9-10`、5 章の横断検索 | 5-1・6-1〜6-3・7-1 |
 | AC-18 | test | `cmd/yt2column/codex_review_docs_test.go::TestCodeRabbitConfigStopsReview`（改めた文。補助の確かめで、割り当ての記述の中身は `manual` で確かめる） | 7-1 |
 
-**ステップ 8-1 の記録:** （実装の際に書く）ステップ 4-1 の結果（2026-10-30）: `command -v codexreview` は `/Users/<user>/go/bin/codexreview`、`go version -m` は `vcs.revision=81990175a716152fb53a1b039cfcb3ce6d130787`（PR-3 のマージのコミットそのもの）・`vcs.modified=false`。共通手順が書く形 `codexreview --protocol 0 --base 81990175a716152fb53a1b039cfcb3ce6d130787` を Bash ツールで 1 回実行し、権限の確認で止まらず、終了コード 1 で `{"kind":"usage","detail":"protocol_mismatch",...}` が返った（`codex` は起動されない）。
+**ステップ 8-1 の記録:** （実装の際に書く）ステップ 4-1 の結果（2026-10-30）: `command -v codexreview` は `/Users/<user>/go/bin/codexreview`、`go version -m` は `vcs.revision=81990175a716152fb53a1b039cfcb3ce6d130787`（PR-3 のマージのコミットそのもの）・`vcs.modified=false`。共通手順が書く形の `--protocol` の値を 1 つ違えた `codexreview --protocol 0 --base 81990175a716152fb53a1b039cfcb3ce6d130787` を Bash ツールで 1 回実行し、権限の確認で止まらず、終了コード 1 で `{"kind":"usage","detail":"protocol_mismatch",...}` が返った（`codex` は起動されない）。
 
 **ステップ 8-2 の記録:** （実装の際に書く）
 

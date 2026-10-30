@@ -165,7 +165,8 @@ Project-specific values these commands depend on are defined once in
 Each task PR is handled by two commands. The command that produces it —
 `/mkreq`, `/mkarch`, `/mkplan`, `/mkplan2`, or `/runplan` — works on its own
 feature branch, reviews its work (subagent review, `japrose` for documents,
-local CodeRabbit), opens the PR, pings the reviewer, and stops. `/mkreq`,
+the local CLI review — the CodeRabbit CLI, or Codex CLI when it fails —),
+opens the PR, pings the reviewer, and stops. `/mkreq`,
 `/mkarch`, and `/mkplan` first ask the human about the decisions their input
 leaves open; `/runplan` asks when implementation meets a decision change. After reviewing, the reviewer runs `/runpr`, which drives
 it: it waits for Codex's PR review and CI and resolves the threads with `/fixpr`. It
@@ -180,7 +181,10 @@ opens. Codex is set up outside the repository, by the user: it reviews
 automatically only when a PR is created, never on a push, and its thorough
 code review is off.
 `.coderabbit.yaml` turns CodeRabbit's automatic review off, so the PR is not
-reviewed twice. Later changes are reviewed with the local CodeRabbit CLI, and `/runpr` requests another PR review only when
+reviewed twice. Later changes are reviewed with the local CLI review — the
+CodeRabbit CLI, or Codex CLI when it fails. The CodeRabbit CLI's allowance is
+separate from the PR review's, but the fallback Codex CLI spends the same
+allowance as the PR review. `/runpr` requests another PR review only when
 the changes are of a kind the local review cannot stand in for
 ([pr-review-escalation.md](.claude/commands/_lib/pr-review-escalation.md)) or
 when the user asks in its one question.
