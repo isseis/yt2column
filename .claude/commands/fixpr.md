@@ -94,8 +94,10 @@ names, all of which `fixprguard` makes except where noted: `gh pr view` and
 (the authors' permission lookups and posting a reply), `gh pr edit` (Phase 6),
 `git ls-remote` (the remote branch for the baseline), `git push` (Phase 4, and
 Phase 4.5 itself after its commits), and `git fetch --prune` (Phase 4, run by
-this session). `coderabbit review` (Phase 4.5) has standing approval
-(`CLAUDE.md`, "Tool Execution Safety"). Invoking this command also approves
+this session). `coderabbit review` and `codexreview` (Phase 4.5) have standing
+approval (`CLAUDE.md`, "Tool Execution Safety"): the local CLI review runs
+`codexreview`, which runs Codex CLI and sends the diff and what Codex reads to
+OpenAI's service, only when the CodeRabbit CLI fails. Invoking this command also approves
 the commit of `README.en.md` that Phase 4.5 makes after its README sync; that commit is
 pushed with Phase 4.5's own `git push`.
 
@@ -596,18 +598,22 @@ The result is `{"success": true, "commitSha": "...", "pushed": bool}`, or
 failed step and its error (distinguishing build-check failures from push
 failures), and stop — do not run Phase 4.5, 5, or 6.
 
-## Phase 4.5 — Local CodeRabbit review of the fix (model: default)
+## Phase 4.5 — Local CLI review of the fix (model: default)
 
 Skip this phase when Phase 4 made no commit (`commitSha` is empty).
 
-The fix is not seen by a PR review, so review it here with the
-`coderabbit` CLI, whose allowance is separate from the PR review's. Do it
-yourself in this session, not in a subagent: it follows
-`.claude/commands/_lib/coderabbit-local-review.md` with **BASE** =
+The fix is not seen by a PR review, so review it here with the local CLI
+review: the CodeRabbit CLI, whose allowance is separate from the PR review's,
+or, when it fails, Codex CLI, which spends the allowance the Codex PR review
+shares. Do it yourself in this session, not in a subagent: it follows
+`.claude/commands/_lib/local-cli-review.md` with **BASE** =
 `$(git rev-parse <commitSha>^)` (the head before the fix), **SCOPE** = "fixpr
 round", and **SUMMARY** = the Final report. The procedure commits what it fixes;
 those commits keep their own messages, not the Phase 4 subject, so the round
-count in the Convergence policy is unaffected.
+count in the Convergence policy is unaffected. When the procedure stops, push
+nothing and run no Phase 5 or 6, and report as it says. When it leaves a range
+neither CLI reviewed, give that range (its `Local CLI review: not run` line)
+in the Final report.
 
 When the procedure made commits, run the README sync check of Phase 3 again
 before the push, and act on its result the same way. For `translated`, commit `README.en.md` alone, as the procedure commits
@@ -731,8 +737,8 @@ the user with **all** of the following — bare counts alone are not enough:
    repository" (`cross-repository`), "stopped: out-of-scope changes",
    "stopped: changes appeared after the judgment" (`judged-set-changed`),
    "stopped: the git state differs from the baseline" (`git-state-changed`,
-   with its `parts`), "stopped: the README sync stopped", or the stop kind the
-   tool printed.
+   with its `parts`), "stopped: the README sync stopped", "stopped: the local
+   CLI review stopped" (Phase 4.5), or the stop kind the tool printed.
 
 2. **Bot-comment assessment**: a table built from the Phase 2 triage results
    (`topic`, `severity`, `verdict`) plus the Phase 3 `applied` flag, grouped by
@@ -791,8 +797,18 @@ the user with **all** of the following — bare counts alone are not enough:
    `dirty-work-tree` until the user commits or discards it); in Phase 4.5, the
    procedure's commits unpushed, and Phase 4's pushed fix with its threads
    neither replied to nor resolved (list them; the next `/fixpr` triages them
-   again). The user decides whether to keep or discard the changes.
+   again). The user decides whether to keep or discard the changes. When the
+   local CLI review stopped in Phase 4.5, give what it reported, and say what
+   it left: the procedure's commits unpushed, Phase 4's pushed fix with its
+   threads neither replied to nor resolved (list them), and any difference in
+   the worktree or refs it found, which the user examines before the next
+   `/fixpr` (a changed work tree makes it stop with `dirty-work-tree`).
 
 8. **README sync**: when the README sync changed `README.en.md`, the terms it
    reported as missing from the glossary, for the user to add to the glossary
    (this command changes neither the glossary nor the PR body).
+
+9. **Local CLI review**: when Phase 4.5 ran, the SUMMARY of
+   `_lib/local-cli-review.md`: each attempt's result with each failed CLI's
+   failure kind, how many times Codex CLI ran, the findings by CLI, and every
+   range neither CLI reviewed (its `Local CLI review: not run` line).

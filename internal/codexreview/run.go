@@ -60,13 +60,16 @@ const (
 )
 
 // Detail tokens. Each names a cause within a Kind and is fixed text, never
-// taken from codex's output.
+// taken from codex's output. Each is a string constant named detail* (or
+// Detail*, for one a caller acts on), the form kinds_test.go finds them by.
 const (
-	detailBadArguments        = "bad_arguments"
-	detailProtocolMismatch    = "protocol_mismatch"
-	detailNotWorktreeRoot     = "not_worktree_root"
-	detailBaseNotAncestor     = "base_not_ancestor"
-	detailDirtyTree           = "dirty_tree"
+	detailBadArguments     = "bad_arguments"
+	detailProtocolMismatch = "protocol_mismatch"
+	detailNotWorktreeRoot  = "not_worktree_root"
+	detailBaseNotAncestor  = "base_not_ancestor"
+	// DetailDirtyTree is the one precondition Detail the shared procedure acts
+	// on: the worktree changed after the procedure checked it was clean.
+	DetailDirtyTree           = "dirty_tree"
 	detailProjectCodexConfig  = "project_codex_config"
 	detailGitFailed           = "git_failed"
 	detailVersionFailed       = "codex_version_failed"
@@ -94,6 +97,38 @@ const (
 	eventTypeError            = "error"
 	projectCodexConfigDirName = ".codex"
 )
+
+// detailExitStatus is how Kinds lists the exit_status_<n> Detail tokens.
+const detailExitStatus = detailExitStatusPrefix + "<n>"
+
+// Kinds returns every Kind a run ends in, each with the Detail tokens a
+// result of that kind may carry; a kind listed with none carries an empty
+// Detail. The exit_status_<n> tokens are listed once, as detailExitStatus.
+// The shared procedure's table of kinds is checked against it, so a kind
+// added here and not to the table fails that guard.
+func Kinds() map[Kind][]string {
+	return map[Kind][]string{
+		KindFindings:     nil,
+		KindNoFindings:   nil,
+		KindStateChanged: nil,
+		KindUsage:        {detailBadArguments, detailProtocolMismatch},
+		KindPrecondition: {
+			detailNotWorktreeRoot, detailBaseNotAncestor, DetailDirtyTree, detailProjectCodexConfig,
+			detailGitFailed, detailVersionFailed, detailVersionTimeout, detailVersionUnreadable,
+			detailRunDirFailed,
+		},
+		KindCodexNotFound: nil,
+		KindTimeout:       nil,
+		KindCodexFailed:   {detailExitStatus, detailSignaled, detailPipeHeld, detailRunFailed},
+		KindIncomplete: {
+			detailNoTurnCompleted, detailManyTurnsCompleted, detailErrorEvent, detailTurnFailed,
+			detailUnreadableEvent,
+		},
+		KindOutputTooLarge: {detailOutput, detailFinalMessage},
+		KindOutputEmpty:    {detailMessageMissing, detailMessageEmpty},
+		KindUnreadable:     {detailMessageNotRegular, detailMessageGrammar, detailFindingOutsideRoot},
+	}
+}
 
 // codexArgs returns the fixed arguments of the review. The base is the only
 // value that varies; lastMessage is the file in the run directory.
@@ -165,6 +200,10 @@ var (
 	errAfterStateUnreadable = errors.New("the git state after the review cannot be read")
 )
 
+// ValidBase reports whether base has the one form Run accepts: a full SHA-1
+// commit ID in lowercase hex. The command documents' calls are checked with it.
+func ValidBase(base string) bool { return baseSHA.MatchString(base) }
+
 // Run runs one review of base..HEAD in the current directory, which must be a
 // worktree root, and returns its result. environ is the tool's environment:
 // git runs with it minus every GIT_* variable (cmdrunner.GitEnv), and codex
@@ -180,7 +219,7 @@ var (
 // writes only the run directory it creates; it never changes the worktree, a
 // ref, or the stash.
 func Run(ctx context.Context, base string, environ []string) (Result, error) {
-	if !baseSHA.MatchString(base) {
+	if !ValidBase(base) {
 		return newResult(KindUsage, detailBadArguments), nil
 	}
 	preCtx, cancelPre := context.WithTimeout(context.WithoutCancel(ctx), gitTimeout)
@@ -242,7 +281,7 @@ func prepare(ctx, preCtx context.Context, base string, environ []string) (prepar
 		return stop(KindPrecondition, detailGitFailed)
 	}
 	if len(status) > 0 {
-		return stop(KindPrecondition, detailDirtyTree)
+		return stop(KindPrecondition, DetailDirtyTree)
 	}
 	// Whether codex reads a project's .codex directory, and whether
 	// --ignore-user-config covers it, is not known, so a branch that adds
@@ -270,7 +309,7 @@ func prepare(ctx, preCtx context.Context, base string, environ []string) (prepar
 		return stop(KindPrecondition, detailGitFailed)
 	}
 	if before.status != "" {
-		return stop(KindPrecondition, detailDirtyTree)
+		return stop(KindPrecondition, DetailDirtyTree)
 	}
 	runDir, err := os.MkdirTemp("", "codexreview-")
 	if err != nil {

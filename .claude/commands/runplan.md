@@ -47,7 +47,7 @@ Work in order.
   - Otherwise go to step 5a instead of step 5.
 - Otherwise, select the next implementation group: use one phase by default unless it cannot pass `make test` alone (e.g. stub-only or tightly coupled); then extend the group until it can pass. Stop the group at the next `### PR-N 作成ポイント` boundary — do not include the PR checkpoint checkboxes in the implementation group. Briefly note the reason for any grouping before starting work.
 
-4.5. Record the starting commit of the phase group: `PHASE_START=$(git rev-parse HEAD)`. Keep it until the reviews in steps 7, 7.5, and 7.7 are done, and pass `${PHASE_START}..HEAD` as their commit range (`coderabbit` takes it as `--base-commit`), so the range covers exactly this phase group's commits and not the previous group's.
+4.5. Record the starting commit of the phase group: `PHASE_START=$(git rev-parse HEAD)`. Keep it until the reviews in steps 7, 7.5, and 7.7 are done, and pass `${PHASE_START}..HEAD` as their commit range (step 7.7 passes `${PHASE_START}` as BASE, which both CLIs of the local CLI review take as the start of the range), so the range covers exactly this phase group's commits and not the previous group's.
 
 5. Implement the selected phase group.
 - Follow the design in `02_architecture.md`.
@@ -81,16 +81,23 @@ Work in order.
 - Open the PR and hand it over: follow `.claude/commands/_lib/task-pr-handoff.md`,
   Part B, with **TASK_DIR** and **REPORT** as in step 1.5, and:
   - **CHECKS** = the green gate verified above (the checkbox commit after it
-    changes only the plan, so it needs no rerun). When the README sync of
+    changes only the plan, so it needs no rerun; run it again when the branch
+    review below made commits). When the README sync of
     Part B step 1 commits `README.en.md`, run the green gate again on that
     commit;
   - **LOCAL_REVIEW** = `done` — step 7.7 reviewed each phase group of this PR.
-    When step 7.7 could not run (the CodeRabbit CLI failed), it records
-    `CodeRabbit local review: not run` in that group's checkbox commit message.
-    If `git log origin/main..HEAD` shows that line, run
-    `.claude/commands/_lib/coderabbit-local-review.md` now with **BASE** =
-    `$(git merge-base origin/main HEAD)`, **SCOPE** = branch, **SUMMARY** =
-    REPORT;
+    A phase group neither CLI reviewed is recorded by a `Local CLI review: not
+    run` line in a commit message after it (step 7.7); an earlier session
+    recorded it as `CodeRabbit local review: not run`. Read the lines as
+    `_lib/local-cli-review.md`, "Reading the record lines", says. Only when
+    `git log origin/main..HEAD` shows either line, review the whole branch
+    again: follow `.claude/commands/_lib/local-cli-review.md` now with
+    **BASE** = `$(git merge-base origin/main HEAD)`, **SCOPE** = branch,
+    **SUMMARY** = REPORT. A phase group the Codex CLI fallback reviewed leaves
+    no such line and needs no branch review. When the branch review stops,
+    stop before Part B: nothing is pushed. Copy no record line of this review
+    into a commit of your own (the procedure's own fix commits keep theirs):
+    its SUMMARY goes to Part B step 3, which puts it in the PR body;
   - **PR_TEXT** = a plan PR title (`_context.md`, "PR title and squash
     subject") written from the PR marker's `推奨タイトル`, which is a draft,
     and the marker's `レビュー観点` in the body. The value is the text inside
@@ -212,9 +219,9 @@ Test-review checklist (use verbatim as evaluation criteria in the step 7.5 promp
 - [ ] Each test asserts observable behavior rather than restating an
       implementation detail.
 
-7.7. CodeRabbit review and triage. Run it after step 7.5, so CodeRabbit reviews the code and tests as they stand after the subagent-review fixes. Follow `.claude/commands/_lib/coderabbit-local-review.md` with **BASE** = `${PHASE_START}`, **SCOPE** = phase group, **SUMMARY** = the step 8 summary. If the CodeRabbit CLI fails and the review does not run, put the line `CodeRabbit local review: not run` in the next commit's message (step 5a reads it).
+7.7. Local CLI review and triage. Run it after step 7.5, so the local CLI review (the CodeRabbit CLI, or Codex CLI when the CodeRabbit CLI fails) sees the code and tests as they stand after the subagent-review fixes. Follow `.claude/commands/_lib/local-cli-review.md` with **BASE** = `${PHASE_START}`, **SCOPE** = phase group, **SUMMARY** = the step 8 summary. When it stops, stop this command and report as it says. Put the record lines it returns in SUMMARY, including any `Local CLI review: not run` line, into the message of the first commit made on the branch after step 7.7 returns: a commit of the next phase group, or the green-gate checkbox commit of step 5a. When no commit follows before Part B (step 8's path for a plan without PR markers), make one that holds only the lines (`git commit --allow-empty -F <file>`). Before a commit that carries a `Codex local review:` line, run the mention check of `_lib/local-cli-review.md` step 7. Step 5a and step 8 read these lines from `git log`.
 
 8. Decide whether to continue or finish.
-- If implementation ran this iteration: summarize implementation, verified ACs, assumptions, and deferred items, plus the CodeRabbit result (run or failed; counts of fixed / rejected / deferred findings and the reason for each rejection).
+- If implementation ran this iteration: summarize implementation, verified ACs, assumptions, and deferred items, plus the local CLI review result: each attempt's result (CodeRabbit CLI, Codex CLI as the fallback, or neither) with each failed CLI's failure kind, how many times Codex CLI ran, any range neither CLI reviewed, the counts of fixed / rejected / deferred / unclear findings by CLI with the reason for each rejection and the open question of each `unclear` one, and the note when the reviewed range changes a file Codex reads its instructions from.
 - If phases remain: return to step 4 without asking. The next unit is either another phase group of the same PR, or its PR checkpoint (step 5a), where this command opens the PR and stops; the reviewer's checkpoint is the PR review, not a question between phase groups.
-- If all phases are complete: verify every AC in `01_requirements.md` is satisfied by the implementation and has at least one `test`, `static`, or `diff` verification, or a `manual` reading where the AC specifies only the natural-language content of a document, as labeled in the plan's Acceptance Criteria Verification section; each `diff` script was run on this branch and its output and both commit IDs are recorded in the plan. Report the final status and any gaps. If the plan has no PR markers (a single-phase plan), open the PR with `_lib/task-pr-handoff.md` Part B as step 5a does, with these differences: first check `gh pr view` and `git rev-list --count origin/main..HEAD`, and stop if the branch already has a PR or has no commits; the title is a plan PR title (`_context.md`, "PR title and squash subject"): with no `推奨タイトル`, the prefix is `<type>(<task-id>): ` with a `<type>` from the prefix table that fits the change, and the summary is in Japanese; the body names the plan's main review points; **AFTER_CREATE** = append to the plan's checklist section (§6) the single-PR record `- [x] PR を作成した: <PR URL>` and `- [ ] PR がマージされた`, commit, and `git push`. `/runpr` reads that record: the PR is the task's final plan PR, so NEXT is none and the merge closes the issue.
+- If all phases are complete: verify every AC in `01_requirements.md` is satisfied by the implementation and has at least one `test`, `static`, or `diff` verification, or a `manual` reading where the AC specifies only the natural-language content of a document, as labeled in the plan's Acceptance Criteria Verification section; each `diff` script was run on this branch and its output and both commit IDs are recorded in the plan. Report the final status and any gaps. If the plan has no PR markers (a single-phase plan), open the PR with `_lib/task-pr-handoff.md` Part B as step 5a does (including its LOCAL_REVIEW rule: the whole branch is reviewed again only when a `not run` line is present), with these differences: first check `gh pr view` and `git rev-list --count origin/main..HEAD`, and stop if the branch already has a PR or has no commits; the title is a plan PR title (`_context.md`, "PR title and squash subject"): with no `推奨タイトル`, the prefix is `<type>(<task-id>): ` with a `<type>` from the prefix table that fits the change, and the summary is in Japanese; the body names the plan's main review points; **AFTER_CREATE** = append to the plan's checklist section (§6) the single-PR record `- [x] PR を作成した: <PR URL>` and `- [ ] PR がマージされた`, commit, and `git push`. `/runpr` reads that record: the PR is the task's final plan PR, so NEXT is none and the merge closes the issue.

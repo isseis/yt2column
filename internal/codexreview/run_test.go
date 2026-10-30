@@ -215,7 +215,7 @@ func TestRunPreconditions(t *testing.T) {
 				fx.repo.Write("a.go", "changed\n")
 				return fx.base
 			},
-			kind: KindPrecondition, detail: detailDirtyTree,
+			kind: KindPrecondition, detail: DetailDirtyTree,
 		},
 		{
 			name: "untracked_file_hidden_by_configuration",
@@ -224,7 +224,7 @@ func TestRunPreconditions(t *testing.T) {
 				fx.repo.Write("new/untracked.go", "u\n")
 				return fx.base
 			},
-			kind: KindPrecondition, detail: detailDirtyTree,
+			kind: KindPrecondition, detail: DetailDirtyTree,
 		},
 		{
 			name: "project_codex_directory",
@@ -267,7 +267,7 @@ func TestRunPreconditions(t *testing.T) {
 			behavior: func(fx fixture, b *codexreviewtestutil.Behavior) {
 				b.VersionWrites = map[string]string{filepath.Join(fx.repo.Dir, "a.go"): "edited\n"}
 			},
-			kind: KindPrecondition, detail: detailDirtyTree, versionStarted: true,
+			kind: KindPrecondition, detail: DetailDirtyTree, versionStarted: true,
 		},
 	}
 	for _, tt := range tests {

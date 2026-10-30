@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"slices"
 	"strconv"
@@ -159,6 +160,213 @@ func TestDocumentedProtocolMatches(t *testing.T) {
 		for _, text := range codexreviewProtocolMismatches(readRepoFile(t, rel)) {
 			t.Errorf("%s: %q, want %q", rel, text, wantProtocolFlag())
 		}
+	}
+}
+
+// procedurePath is the shared procedure, the one document that runs the tool.
+const procedurePath = ".claude/commands/_lib/local-cli-review.md"
+
+// placeholder is a value a document leaves for the agent to fill in, such
+// as <BASE_SHA>.
+var placeholder = regexp.MustCompile(`<[A-Za-z_]+>`)
+
+// placeholderSHA is the full commit ID a placeholder stands for in a call.
+const placeholderSHA = "0123456789abcdef0123456789abcdef01234567"
+
+// invocation is one call of the tool a document writes as a command.
+type invocation struct {
+	// lead is the words of the command before the tool's word.
+	lead []string
+	// word is the tool's word as written: its name, a path, or quoted.
+	word string
+	// args is the words after the tool's word, up to the end of its command.
+	args []string
+	// joined reports that the command is one of several in its text (after
+	// cd x && or before a pipe), which the Bash tool runs as one call.
+	joined bool
+}
+
+// invocations returns each call of tool that doc writes as a command
+// (commandTexts): a command (doctestutil.CommandBoundary) holding a word that
+// is the tool by name or path.
+func invocations(doc, tool string) []invocation {
+	var calls []invocation
+	for _, text := range commandTexts(doc) {
+		commands := doctestutil.CommandBoundary.Split(text, -1)
+		for _, command := range commands {
+			words := strings.Fields(command)
+			i := slices.IndexFunc(words, func(w string) bool { return path.Base(strings.Trim(w, `"'`)) == tool })
+			if i < 0 {
+				continue
+			}
+			call := invocation{word: words[i], args: words[i+1:], joined: len(commands) > 1}
+			if i > 0 {
+				call.lead = words[:i]
+			}
+			calls = append(calls, call)
+		}
+	}
+	return calls
+}
+
+// TestInvocations: a call is found in a code block and in a code span, by
+// name or path, after a separator or a prefix, and a word that only contains
+// the name is not a call.
+func TestInvocations(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		doc  string
+		want []invocation
+	}{
+		{"block", "```bash\ncodexreview --protocol 1 --base <BASE_SHA>\n```\n", []invocation{{nil, "codexreview", []string{"--protocol", "1", "--base", "<BASE_SHA>"}, false}}},
+		{"span", "Run `codexreview --base x --protocol 1` once.\n", []invocation{{nil, "codexreview", []string{"--base", "x", "--protocol", "1"}, false}}},
+		{"after_separator", "```bash\ncd x && codexreview --protocol 1\n```\n", []invocation{{nil, "codexreview", []string{"--protocol", "1"}, true}}},
+		{"before_pipe", "```bash\ncodexreview --protocol 1 | jq .kind\n```\n", []invocation{{nil, "codexreview", []string{"--protocol", "1"}, true}}},
+		{"by_path", "```bash\n~/go/bin/codexreview --protocol 1\n```\n", []invocation{{nil, "~/go/bin/codexreview", []string{"--protocol", "1"}, false}}},
+		{"quoted", "```bash\n\"codexreview\" --protocol 1\n```\n", []invocation{{nil, `"codexreview"`, []string{"--protocol", "1"}, false}}},
+		{"after_prefix", "```bash\ntimeout 600 codexreview --protocol 1\n```\n", []invocation{{[]string{"timeout", "600"}, "codexreview", []string{"--protocol", "1"}, false}}},
+		{"install_target", "Run `make install-codexreview` first.\n", nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := invocations(tc.doc, "codexreview")
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("invocations = %+v, want %+v", got, tc.want)
+			}
+		})
+	}
+}
+
+// promptFree reports whether call is written in the one form the permission
+// rule Bash(<tool> *) allows without the prompt: the tool's bare name first
+// in its command, with nothing before it, and no other command in the same
+// text.
+func promptFree(call invocation, tool string) bool {
+	return len(call.lead) == 0 && call.word == tool && !call.joined
+}
+
+// TestDocumentedInvocationsParse: every call of the tool in the command
+// documents is written in the form the permission rule allows without the
+// prompt and passes the tool's own argument check, with each placeholder
+// filled in as a full commit ID, so the installed tool runs the review
+// unattended instead of stopping at the prompt or returning usage on every
+// attempt. A redirection or a pipe after the arguments is a refused argument
+// or a command boundary. The shared procedure must hold a call: a procedure
+// that lost its call would pass every check of the calls.
+func TestDocumentedInvocationsParse(t *testing.T) {
+	if len(invocations(readRepoFile(t, procedurePath), toolName(t))) == 0 {
+		t.Errorf("%s writes no %s call", procedurePath, toolName(t))
+	}
+	for _, rel := range doctestutil.CommandDocs(t, repoRoot) {
+		for _, call := range invocations(readRepoFile(t, rel), toolName(t)) {
+			args := call.args
+			if !promptFree(call, toolName(t)) {
+				t.Errorf("%s: %q %s %q is not the bare tool name alone in its command", rel, call.lead, call.word, call.args)
+			}
+			filled := make([]string, len(args))
+			for i, arg := range args {
+				filled[i] = placeholder.ReplaceAllString(arg, placeholderSHA)
+			}
+			base, refused, err := parse(filled)
+			if refused != nil {
+				t.Errorf("%s: %s %q is refused: %v", rel, toolName(t), args, err)
+				continue
+			}
+			if !codexreview.ValidBase(base) {
+				t.Errorf("%s: %s %q passes --base %q, not a full commit ID", rel, toolName(t), args, base)
+			}
+		}
+	}
+}
+
+// The handlings the shared procedure's table of kinds names. The three
+// words are a fixed vocabulary: which one means stop is what the guard
+// checks, and a test cannot learn that from the document.
+const (
+	handlingTriage   = "triage"
+	handlingRecord   = "record"
+	handlingStop     = "stop"
+	detailOtherValue = "any other"
+)
+
+// wantHandling is the handling the procedure must give a kind and Detail:
+// triage a review, stop on a changed state and on a tree that changed
+// before the run, and record every other failure. It is chosen by the kind,
+// not by the exit code, so the table's two columns are checked separately.
+func wantHandling(kind codexreview.Kind, detail string) string {
+	switch {
+	case kind == codexreview.KindFindings, kind == codexreview.KindNoFindings:
+		return handlingTriage
+	case kind == codexreview.KindStateChanged, kind == codexreview.KindPrecondition && detail == codexreview.DetailDirtyTree:
+		return handlingStop
+	default:
+		return handlingRecord
+	}
+}
+
+// TestProcedureNamesKinds: the shared procedure's table of kinds has a row
+// for every kind the tool returns, a row for precondition with dirty_tree,
+// and for each row the exit code the tool exits with and the handling the
+// kind needs, so the agent stops where the worktree may have changed and
+// reads an exit code that disagrees with the kind as no result.
+func TestProcedureNamesKinds(t *testing.T) {
+	table := doctestutil.FindTable(readRepoFile(t, procedurePath), "Kind")
+	if table == nil {
+		t.Fatalf("%s has no table with a Kind column", procedurePath)
+	}
+	col := map[string]int{}
+	for _, name := range []string{"Kind", "Detail", "Exit code", "Handling"} {
+		if col[name] = doctestutil.ColumnIndex(table[0], name); col[name] < 0 {
+			t.Fatalf("%s: the table of kinds has no %q column", procedurePath, name)
+		}
+	}
+	catalog := codexreview.Kinds()
+	seen := map[codexreview.Kind]map[string]struct{}{}
+	for _, row := range table[1:] {
+		if len(row) != len(table[0]) {
+			t.Errorf("%s: row %q has %d cells, want %d", procedurePath, row, len(row), len(table[0]))
+			continue
+		}
+		kind := codexreview.Kind(doctestutil.StripBackticks(row[col["Kind"]]))
+		detail := doctestutil.StripBackticks(row[col["Detail"]])
+		details, ok := catalog[kind]
+		if !ok {
+			t.Errorf("%s: row for %q, which the tool does not return", procedurePath, kind)
+			continue
+		}
+		if detail != "" && detail != detailOtherValue && !slices.Contains(details, detail) {
+			t.Errorf("%s: row for %s with Detail %q, which %s does not carry", procedurePath, kind, detail, kind)
+		}
+		if _, dup := seen[kind][detail]; dup {
+			t.Errorf("%s: two rows for %s with Detail %q", procedurePath, kind, detail)
+		}
+		if seen[kind] == nil {
+			seen[kind] = map[string]struct{}{}
+		}
+		seen[kind][detail] = struct{}{}
+		if got, want := row[col["Exit code"]], strconv.Itoa(exitCode(kind)); got != want {
+			t.Errorf("%s: %s exits with %s, the table says %q", procedurePath, kind, want, got)
+		}
+		if got, want := doctestutil.StripBackticks(row[col["Handling"]]), wantHandling(kind, detail); got != want {
+			t.Errorf("%s: %s %q is handled as %q, want %q", procedurePath, kind, detail, got, want)
+		}
+	}
+	for kind := range catalog {
+		details, ok := seen[kind]
+		if !ok {
+			t.Errorf("%s: the table of kinds has no row for %s", procedurePath, kind)
+			continue
+		}
+		_, whole := details[""]
+		_, other := details[detailOtherValue]
+		if !whole && !other {
+			t.Errorf("%s: the rows for %s name only some Details, with no %q row", procedurePath, kind, detailOtherValue)
+		}
+		if whole && len(details) > 1 {
+			t.Errorf("%s: %s has a row for every Detail and rows for some", procedurePath, kind)
+		}
+	}
+	if _, ok := seen[codexreview.KindPrecondition][codexreview.DetailDirtyTree]; !ok {
+		t.Errorf("%s: the table of kinds has no row for %s with %s", procedurePath, codexreview.KindPrecondition, codexreview.DetailDirtyTree)
 	}
 }
 
