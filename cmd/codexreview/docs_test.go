@@ -181,6 +181,9 @@ type invocation struct {
 	word string
 	// args is the words after the tool's word, up to the end of its command.
 	args []string
+	// joined reports that the command is one of several in its text (after
+	// cd x && or before a pipe), which the Bash tool runs as one call.
+	joined bool
 }
 
 // invocations returns each call of tool that doc writes as a command
@@ -189,13 +192,14 @@ type invocation struct {
 func invocations(doc, tool string) []invocation {
 	var calls []invocation
 	for _, text := range commandTexts(doc) {
-		for _, command := range doctestutil.CommandBoundary.Split(text, -1) {
+		commands := doctestutil.CommandBoundary.Split(text, -1)
+		for _, command := range commands {
 			words := strings.Fields(command)
 			i := slices.IndexFunc(words, func(w string) bool { return path.Base(strings.Trim(w, `"'`)) == tool })
 			if i < 0 {
 				continue
 			}
-			call := invocation{word: words[i], args: words[i+1:]}
+			call := invocation{word: words[i], args: words[i+1:], joined: len(commands) > 1}
 			if i > 0 {
 				call.lead = words[:i]
 			}
@@ -214,12 +218,13 @@ func TestInvocations(t *testing.T) {
 		doc  string
 		want []invocation
 	}{
-		{"block", "```bash\ncodexreview --protocol 1 --base <BASE_SHA>\n```\n", []invocation{{nil, "codexreview", []string{"--protocol", "1", "--base", "<BASE_SHA>"}}}},
-		{"span", "Run `codexreview --base x --protocol 1` once.\n", []invocation{{nil, "codexreview", []string{"--base", "x", "--protocol", "1"}}}},
-		{"after_separator", "```bash\ncd x && codexreview --protocol 1\n```\n", []invocation{{nil, "codexreview", []string{"--protocol", "1"}}}},
-		{"by_path", "```bash\n~/go/bin/codexreview --protocol 1\n```\n", []invocation{{nil, "~/go/bin/codexreview", []string{"--protocol", "1"}}}},
-		{"quoted", "```bash\n\"codexreview\" --protocol 1\n```\n", []invocation{{nil, `"codexreview"`, []string{"--protocol", "1"}}}},
-		{"after_prefix", "```bash\ntimeout 600 codexreview --protocol 1\n```\n", []invocation{{[]string{"timeout", "600"}, "codexreview", []string{"--protocol", "1"}}}},
+		{"block", "```bash\ncodexreview --protocol 1 --base <BASE_SHA>\n```\n", []invocation{{nil, "codexreview", []string{"--protocol", "1", "--base", "<BASE_SHA>"}, false}}},
+		{"span", "Run `codexreview --base x --protocol 1` once.\n", []invocation{{nil, "codexreview", []string{"--base", "x", "--protocol", "1"}, false}}},
+		{"after_separator", "```bash\ncd x && codexreview --protocol 1\n```\n", []invocation{{nil, "codexreview", []string{"--protocol", "1"}, true}}},
+		{"before_pipe", "```bash\ncodexreview --protocol 1 | jq .kind\n```\n", []invocation{{nil, "codexreview", []string{"--protocol", "1"}, true}}},
+		{"by_path", "```bash\n~/go/bin/codexreview --protocol 1\n```\n", []invocation{{nil, "~/go/bin/codexreview", []string{"--protocol", "1"}, false}}},
+		{"quoted", "```bash\n\"codexreview\" --protocol 1\n```\n", []invocation{{nil, `"codexreview"`, []string{"--protocol", "1"}, false}}},
+		{"after_prefix", "```bash\ntimeout 600 codexreview --protocol 1\n```\n", []invocation{{[]string{"timeout", "600"}, "codexreview", []string{"--protocol", "1"}, false}}},
 		{"install_target", "Run `make install-codexreview` first.\n", nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -233,9 +238,10 @@ func TestInvocations(t *testing.T) {
 
 // promptFree reports whether call is written in the one form the permission
 // rule Bash(<tool> *) allows without the prompt: the tool's bare name first
-// in its command, with nothing before it.
+// in its command, with nothing before it, and no other command in the same
+// text.
 func promptFree(call invocation, tool string) bool {
-	return len(call.lead) == 0 && call.word == tool
+	return len(call.lead) == 0 && call.word == tool && !call.joined
 }
 
 // TestDocumentedInvocationsParse: every call of the tool in the command
@@ -254,7 +260,7 @@ func TestDocumentedInvocationsParse(t *testing.T) {
 		for _, call := range invocations(readRepoFile(t, rel), toolName(t)) {
 			args := call.args
 			if !promptFree(call, toolName(t)) {
-				t.Errorf("%s: %q %s is not the bare tool name first in its command", rel, call.lead, call.word)
+				t.Errorf("%s: %q %s %q is not the bare tool name alone in its command", rel, call.lead, call.word, call.args)
 			}
 			filled := make([]string, len(args))
 			for i, arg := range args {
