@@ -8,8 +8,8 @@ inheritance: true
 reviews:
   # CodeRabbit does not review PRs: Codex does the PR review, and a second
   # automatic review of the same PR would spend both allowances for one
-  # review. The local CLI review (the CodeRabbit CLI, or Codex CLI when it fails)
-  # is still used for the changes after the PR opens.
+  # review. The local CLI review still covers the changes after the PR opens:
+  # the CodeRabbit CLI, or Codex CLI when it fails.
   auto_review:
     enabled: false
   pre_merge_checks:
