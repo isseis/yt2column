@@ -125,9 +125,9 @@
 
 **変更するファイル:** `internal/llm/deepseekparam/deepseekparam.go`（新規）、`internal/llm/deepseekparam/deepseekparam_test.go`（新規）
 
--   [ ] 設計書 3.1 の `Effort`・定数・`ParseEffort`・`String`・`Valid`・`EffortValues` を書く。値の文字列は非公開の定数に 1 回だけ書き、`ParseEffort`・`String`・`EffortValues` がそれを使う（`claudeparam` と同じ形）。
--   [ ] `ParseEffort` のエラーは、`claudeparam` と同じく非公開の番兵で返す。
--   [ ] テストを書く（設計書 7.2）。一覧の各値の往復（`ParseEffort` → `String`）、`Effort(-1)` から `EffortMax+2` までの各値について、`Valid` が真ならその文字列が一覧にあること（両方向）、`EffortUnspecified` の `Valid` が偽で `String` が `ParseEffort` の拒否する値であること、大文字・前後の空白・空・`medium`・`xhigh`・`ultra`・`minimal` の拒否。
+-   [x] 設計書 3.1 の `Effort`・定数・`ParseEffort`・`String`・`Valid`・`EffortValues` を書く。値の文字列は非公開の定数に 1 回だけ書き、`ParseEffort`・`String`・`EffortValues` がそれを使う（`claudeparam` と同じ形）。
+-   [x] `ParseEffort` のエラーは、`claudeparam` と同じく非公開の番兵で返す。
+-   [x] テストを書く（設計書 7.2）。一覧の各値の往復（`ParseEffort` → `String`）、`Effort(-1)` から `EffortMax+2` までの各値について、`Valid` が真ならその文字列が一覧にあること（両方向）、`EffortUnspecified` の `Valid` が偽で `String` が `ParseEffort` の拒否する値であること、大文字・前後の空白・空・`medium`・`xhigh`・`ultra`・`minimal` の拒否。
 
 **完了の条件:** `go test -tags test ./internal/llm/deepseekparam` が通る。
 
@@ -135,8 +135,8 @@
 
 **変更するファイル:** `internal/llm/claudeparam/claudeparam.go`、`internal/llm/claudeparam/claudeparam_test.go`
 
--   [ ] `EffortValues` を加える（設計書 3.1）。`effortLow` などの既存の定数から作る。
--   [ ] ステップ 1-1 と同じ両方向の一致のテストを加える。既存の `TestParseEffort`・`TestEffortStringAndValid` の行と重なる確認は加えない。
+-   [x] `EffortValues` を加える（設計書 3.1）。`effortLow` などの既存の定数から作る。
+-   [x] ステップ 1-1 と同じ両方向の一致のテストを加える。既存の `TestParseEffort`・`TestEffortStringAndValid` の行と重なる確認は加えない。
 
 **完了の条件:** `go test -tags test ./internal/llm/claudeparam` が通る。
 
@@ -144,9 +144,9 @@
 
 **変更するファイル:** `internal/pipeline/pipeline_test.go`、`docs/dev/conventions/package_reference.md`
 
--   [ ] `TestConfigImports` の調べるファイルに `../llm/deepseekparam/*.go` を加え、`deepseekparam` の import を許す。テストのコメントと失敗の文を合わせる（設計書 3.6）。
--   [ ] `package_reference.md` に `internal/llm/deepseekparam` の行を加え、`internal/llm/claudeparam` の行に `EffortValues` を加える。`internal/config`・`internal/llm/provider`・`internal/llm/deepseek` の行はフェーズ 2 とフェーズ 4 で直す。
--   [ ] `deepseekparam` のファイルに `net/http` の import を、`internal/config` のファイルに `internal/llm/deepseek` の import を、それぞれ一時的に書き加え、どちらでも `TestConfigImports` が失敗することを確かめる（コミットしない）。許可を広げたのが `deepseekparam` だけであることを確かめるためである。
+-   [x] `TestConfigImports` の調べるファイルに `../llm/deepseekparam/*.go` を加え、`deepseekparam` の import を許す。テストのコメントと失敗の文を合わせる（設計書 3.6）。
+-   [x] `package_reference.md` に `internal/llm/deepseekparam` の行を加え、`internal/llm/claudeparam` の行に `EffortValues` を加える。`internal/config`・`internal/llm/provider`・`internal/llm/deepseek` の行はフェーズ 2 とフェーズ 4 で直す。
+-   [x] `deepseekparam` のファイルに `net/http` の import を、`internal/config` のファイルに `internal/llm/deepseek` の import を、それぞれ一時的に書き加え、どちらでも `TestConfigImports` が失敗することを確かめる（コミットしない）。許可を広げたのが `deepseekparam` だけであることを確かめるためである。
 
 **完了の条件:** `go test -tags test ./internal/pipeline` が通る。
 

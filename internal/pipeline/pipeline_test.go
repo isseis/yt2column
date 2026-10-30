@@ -870,20 +870,21 @@ func TestWriterImports(t *testing.T) {
 	}
 }
 
-// TestConfigImports checks that the configuration loader and the Claude
-// parameter types stay independent of the network and of the LLM adapters: no
-// non-test Go file directly in internal/config or internal/llm/claudeparam
-// directly imports the network packages or an internal/llm package other than
-// claudeparam. A direct import of an adapter would pull net/http into the CLI's
-// startup path.
+// TestConfigImports checks that the configuration loader and the parameter
+// packages stay independent of the network and of the LLM adapters: no
+// non-test Go file directly in internal/config, internal/llm/claudeparam, or
+// internal/llm/deepseekparam directly imports the network packages or an
+// internal/llm package other than the two parameter packages. A direct import
+// of an adapter would pull net/http into the CLI's startup path.
 func TestConfigImports(t *testing.T) {
 	const (
-		module          = "github.com/isseis/yt2column/"
-		llmPrefix       = module + "internal/llm/"
-		claudeparamPath = module + "internal/llm/claudeparam"
+		module            = "github.com/isseis/yt2column/"
+		llmPrefix         = module + "internal/llm/"
+		claudeparamPath   = module + "internal/llm/claudeparam"
+		deepseekparamPath = module + "internal/llm/deepseekparam"
 	)
 	var paths []string
-	for _, pattern := range []string{"../config/*.go", "../llm/claudeparam/*.go"} {
+	for _, pattern := range []string{"../config/*.go", "../llm/claudeparam/*.go", "../llm/deepseekparam/*.go"} {
 		matches, err := filepath.Glob(pattern)
 		if err != nil {
 			t.Fatalf("glob %s: %v", pattern, err)
@@ -891,7 +892,7 @@ func TestConfigImports(t *testing.T) {
 		paths = append(paths, matches...)
 	}
 	if len(paths) == 0 {
-		t.Fatal("found no Go files in internal/config and internal/llm/claudeparam")
+		t.Fatal("found no Go files in internal/config, internal/llm/claudeparam, and internal/llm/deepseekparam")
 	}
 	fset := token.NewFileSet()
 	for _, path := range paths {
@@ -913,7 +914,7 @@ func TestConfigImports(t *testing.T) {
 			switch {
 			case ipath == "net" || strings.HasPrefix(ipath, "net/"):
 				t.Errorf("%s imports %s", path, ipath)
-			case ipath == claudeparamPath:
+			case ipath == claudeparamPath, ipath == deepseekparamPath:
 			case strings.HasPrefix(ipath, llmPrefix):
 				t.Errorf("%s imports %s", path, ipath)
 			}

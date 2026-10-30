@@ -5,6 +5,7 @@ package claudeparam
 import (
 	"fmt"
 	"reflect"
+	"slices"
 	"testing"
 )
 
@@ -95,6 +96,32 @@ func TestEffortStringAndValid(t *testing.T) {
 			}
 		}
 	})
+}
+
+// TestEffortValues checks that the exported list and the typed values agree in
+// both directions: every listed string parses to a Valid value, and a value is
+// in the list exactly when Valid accepts it.
+func TestEffortValues(t *testing.T) {
+	values := EffortValues()
+	for _, value := range values {
+		parsed, err := ParseEffort(value)
+		if err != nil {
+			t.Errorf("EffortValues() holds %q, which ParseEffort rejects: %v", value, err)
+			continue
+		}
+		if !parsed.Valid() {
+			t.Errorf("ParseEffort(%q).Valid() = false, want true", value)
+		}
+		if round := parsed.String(); round != value {
+			t.Errorf("ParseEffort(%q).String() = %q, want %q", value, round, value)
+		}
+	}
+
+	for e := Effort(-2); e <= EffortMax+3; e++ {
+		if got, want := slices.Contains(values, e.String()), e.Valid(); got != want {
+			t.Errorf("Effort(%d): EffortValues() contains %q = %v, Valid() = %v", e, e.String(), got, want)
+		}
+	}
 }
 
 // TestParseWorkspaceID checks the printable ASCII boundaries are accepted and
