@@ -134,6 +134,17 @@ func memberNames(members map[string]json.RawMessage) []string {
 	return names
 }
 
+// assertMemberSet checks that a JSON object body carries exactly the named
+// top-level members, whatever order it wrote them in.
+func assertMemberSet(t *testing.T, body []byte, want ...string) {
+	t.Helper()
+	got := memberNames(decodeMembers(t, body))
+	slices.Sort(want)
+	if !slices.Equal(got, want) {
+		t.Errorf("request body members = %v, want %v", got, want)
+	}
+}
+
 // encodeDocument marshals a mutated document back to JSON bytes.
 func encodeDocument(t *testing.T, document map[string]any) []byte {
 	t.Helper()

@@ -408,7 +408,7 @@ M2 は M3 の作業より前に終える。M2 で問題があれば、M3 に進�
 | AC-09 | test | `internal/config/config_test.go::TestLoadParsesLLMValue`、`internal/llm/provider/provider_test.go::TestNewPaddedModel` と Claude の場合のテスト（ステップ 4-3） | ステップ 4-1・4-3 |
 | AC-10 | test | `internal/config/config_test.go::TestLoadParsesLLMValue`（両方の LLM の変数を回す） | ステップ 4-1 |
 | AC-11 | test | `internal/llm/provider/provider_test.go::TestNewClaudeSendsConfiguredRequest`・`TestNewClaudeDefaultEffort` | ステップ 4-3 |
-| AC-12 | test | `internal/llm/deepseek/deepseek_test.go` の `reasoning_effort` のテスト（ステップ 2-2）、`internal/llm/provider/provider_test.go` の設定から要求本文までのテスト | ステップ 2-2・4-3 |
+| AC-12 | test | `internal/llm/deepseek/deepseek_test.go::TestGenerateSendsReasoningEffort`、`internal/llm/provider/provider_test.go` の設定から要求本文までのテスト | ステップ 2-2・4-3 |
 | AC-13 | test | `internal/llm/deepseek/deepseek_test.go::TestGenerateSendsRequest`（最上位のメンバーの集合）、`internal/llm/provider/provider_test.go` の設定から要求本文までのテスト | ステップ 2-2・4-3 |
 | AC-14 | test | `internal/llm/provider/provider_test.go` の設定から要求本文までのテスト（工程ごとに effort が異なる組） | ステップ 4-3 |
 | AC-15 | test | `internal/config/config_test.go` の継承のテスト（ステップ 4-2）、`internal/llm/provider/provider_test.go` の受け継ぐ組 | ステップ 4-1・4-3 |
@@ -440,6 +440,8 @@ M2 は M3 の作業より前に終える。M2 で問題があれば、M3 に進�
 | AC-41 | test | `internal/config/config_test.go` の理由の一覧のテスト（ステップ 4-2）、`internal/llm/deepseekparam/deepseekparam_test.go::TestEffortValidAndValues`・`internal/llm/claudeparam/claudeparam_test.go::TestEffortStringAndValid`（一覧のテスト） | ステップ 1-1・1-2・4-1 |
 
 「実装」の列は、本番のコードを変えるステップを示す。テストを書くステップは、2 章の各ステップにある（`internal/config` のテストはステップ 4-2、`cmd/` のテストはステップ 4-4、文書のガードはステップ 4-5）。新しく加えるテストの関数名は実装で決める。実装した後、この表の「ステップ 4-2」などの記述を `path::TestName` の形に書き換える。
+
+設計書 1.2 が決めた「DeepSeek のエラーの表示に送った `reasoning_effort` を含める」ことは、要件書の AC を持たない。そのためこの表に行を置かず、`internal/llm/deepseek/deepseek_test.go::TestGenerateErrorsNameEffort`（4 種類のエラー × effort の有無）と `::TestHTTPStatusGuidance`（`400`・`422` の案内が `reasoning_effort` を挙げること）で確かめる。
 
 ## 8. 成功基準 (Success Criteria)
 

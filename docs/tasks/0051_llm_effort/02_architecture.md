@@ -8,7 +8,7 @@
 | Created | 2026-10-30 |
 | Review date | 2026-10-30 |
 | Reviewer | isseis |
-| Comments | 2026-10-30（編集上の訂正。実装の PR-1 のレビューで判明）: 執筆後に 66222946 で `README.en.md` が入った。3.7 の `README.en.md` の行と 7.4 の README のガードの記述を、2 つの版を版ごとに検査する現状に合わせた。あわせて 3.7 の `docs/dev/project_overview.md` の行に、想定ディレクトリ構成への `internal/llm/deepseekparam` の追加を含めた。設計の判断は変えていない。 |
+| Comments | 2026-10-30（編集上の訂正。実装の PR-1 のレビューで判明）: 執筆後に 66222946 で `README.en.md` が入った。3.7 の `README.en.md` の行と 7.4 の README のガードの記述を、2 つの版を版ごとに検査する現状に合わせた。あわせて 3.7 の `docs/dev/project_overview.md` の行に、想定ディレクトリ構成への `internal/llm/deepseekparam` の追加を含めた。2026-10-30（編集上の訂正。フェーズ 2 の実装時）: 3.6 の DeepSeek のテストの行を、実際に変えたファイル（`deepseek_test.go`・`test_helpers.go`）に合わせた。4 種類のエラーの表示は 1 つの表で確かめるので、`response_test.go` は変えない。設計の判断は変えていない。 |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルについての記述は、コミット `be657abc` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を指す。要件のレビューで設計に申し送られた事項（[design_handoff.md](design_handoff.md) の H-01〜H-09）への対応は、付録 A にまとめる。
 
@@ -437,7 +437,7 @@ type Options struct {
 | `internal/llm/deepseek/deepseek.go` | `Options.Effort`、`New` の検査、`statusError` | AC-12・AC-13 |
 | `internal/llm/deepseek/request.go` | `chatRequest` に `reasoning_effort` を加え、範囲外の値を拒否する。コメントを直す | AC-12・AC-13、H-08 |
 | `internal/llm/deepseek/response.go` | 打ち切り・想定外の終了理由・空の応答のエラーに、送った要求の要約を加える | - |
-| `internal/llm/deepseek/deepseek_test.go`・`response_test.go` | `TestGenerateSendsRequest` に「指定なしでは `reasoning_effort` がない」を加え、指定ありのテスト、範囲外の値の拒否、エラーに effort が出ることのテストを加える | AC-12・AC-13 |
+| `internal/llm/deepseek/deepseek_test.go`・`internal/llm/deepseek/test_helpers.go` | `TestGenerateSendsRequest` に「指定なしでは `reasoning_effort` がない」を加え、指定ありのテスト、範囲外の値の拒否、エラーに effort が出ることのテストを加える。本文のメンバーの集合を確かめる補助を `test_helpers.go` に置く | AC-12・AC-13 |
 | `internal/pipeline/pipeline_test.go` | `TestConfigImports`（`:879-922`）で、調べるファイルに `../llm/deepseekparam/*.go` を加え、`config` からの `deepseekparam` の import を許す。テストのコメントとエラーの文を合わせる | H-08 |
 | `cmd/yt2column/run_test.go` | `:635`・`:1985-2007` の `YT2COLUMN_CLAUDE_EFFORT` を LLM の変数の `+<effort>` に置き換え、旧変数として止まることを確かめる行を加える。不正な effort の部分で止まり、LLM の偽物が呼ばれないことを確かめる行を加える。`:2019-2022` の 4 つのアクセサの呼び出しを置き換える（1.2） | AC-08・AC-21・AC-23、H-06 |
 | `cmd/yt2column/integration_env_test.go` | `:76` の一覧から `YT2COLUMN_CLAUDE_EFFORT` を外す（1.4 (2)）。このファイルにこの変数の名前の文字列を書かない。`:59-68` の 4 つのアクセサの呼び出しを置き換える（1.2） | H-06 |

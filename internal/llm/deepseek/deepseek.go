@@ -148,9 +148,10 @@ func (c *client) statusError(status, maxTokens int) error {
 }
 
 // effortSummary renders the reasoning_effort a request carries: the wire value
-// when one was specified, "not sent" otherwise. The alternative is unreachable
-// because New and the request body accept the same values, and it reads as
-// "not sent" rather than inventing a value the request does not carry.
+// when one was specified, "not sent" otherwise. The default branch is
+// unreachable, because New and the request body reject the same values; if it
+// is ever reached, deepseekparam renders the value as its placeholder, never as
+// a wire value the request did not carry.
 func effortSummary(effort deepseekparam.Effort) string {
 	if effort == deepseekparam.EffortUnspecified {
 		return "not sent"

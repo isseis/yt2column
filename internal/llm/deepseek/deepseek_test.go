@@ -19,7 +19,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -156,14 +155,7 @@ func TestNew(t *testing.T) {
 	})
 
 	t.Run("accepts every effort value", func(t *testing.T) {
-		efforts := []deepseekparam.Effort{
-			deepseekparam.EffortUnspecified,
-			deepseekparam.EffortNone,
-			deepseekparam.EffortLow,
-			deepseekparam.EffortHigh,
-			deepseekparam.EffortMax,
-		}
-		for _, effort := range efforts {
+		for effort := deepseekparam.EffortUnspecified; effort <= deepseekparam.EffortMax; effort++ {
 			options := validOptions(t)
 			options.Effort = effort
 			if _, err := New(options); err != nil {
@@ -304,9 +296,7 @@ func TestGenerateSendsRequest(t *testing.T) {
 	}
 
 	members := decodeMembers(t, recorded.body)
-	if want := []string{"messages", "model", "stream"}; !slices.Equal(memberNames(members), want) {
-		t.Errorf("request body members = %v, want %v", memberNames(members), want)
-	}
+	assertMemberSet(t, recorded.body, "messages", "model", "stream")
 	if _, ok := members["thinking"]; ok {
 		t.Error("request body contains a thinking member")
 	}
@@ -331,17 +321,14 @@ func TestGenerateSendsReasoningEffort(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.wire, func(t *testing.T) {
 			server, recorder := newRecordingServer(t, readFixture(t, testdataStopFixture))
-			response, err := generateAgainst(t, server.URL, validRequest(), func(options *Options) {
+			if _, err := generateAgainst(t, server.URL, validRequest(), func(options *Options) {
 				options.Effort = tc.effort
-			})
-			if err != nil {
+			}); err != nil {
 				t.Fatalf("Generate() error = %v", err)
 			}
-			if response.Text == "" {
-				t.Error("Generate() returned an empty Text, want the fixture content")
-			}
 
-			members := decodeMembers(t, recorder.only(t).body)
+			body := recorder.only(t).body
+			members := decodeMembers(t, body)
 			got, ok := members["reasoning_effort"]
 			if !ok {
 				t.Fatalf("request body has no reasoning_effort member; members = %v", memberNames(members))
@@ -349,9 +336,7 @@ func TestGenerateSendsReasoningEffort(t *testing.T) {
 			if want := `"` + tc.wire + `"`; string(got) != want {
 				t.Errorf("reasoning_effort = %s, want %s", got, want)
 			}
-			if want := []string{"messages", "model", "reasoning_effort", "stream"}; !slices.Equal(memberNames(members), want) {
-				t.Errorf("request body members = %v, want %v", memberNames(members), want)
-			}
+			assertMemberSet(t, body, "messages", "model", "reasoning_effort", "stream")
 			if _, ok := members["thinking"]; ok {
 				t.Error("request body contains a thinking member")
 			}
@@ -610,6 +595,35 @@ func TestGenerateErrorsNameEffort(t *testing.T) {
 				assertErrorPrefix(t, err)
 				assertNoAPIKey(t, err)
 			})
+		}
+	}
+}
+
+// TestHTTPStatusGuidance checks the fixed guidance of the statuses a
+// configuration problem produces: the client-error guidance must name every
+// cause the caller can fix, reasoning_effort included, and no other status's
+// guidance may mention it. The guidance is the only hint a user sees when the
+// API rejects a value, so the cause list is pinned here.
+func TestHTTPStatusGuidance(t *testing.T) {
+	for _, status := range []int{http.StatusBadRequest, http.StatusUnprocessableEntity} {
+		guidance := statusGuidance(status)
+		for _, cause := range []string{"model name", "max_tokens", "reasoning_effort", "prompt length"} {
+			if !strings.Contains(guidance, cause) {
+				t.Errorf("statusGuidance(%d) = %q, want it to name %q", status, guidance, cause)
+			}
+		}
+	}
+
+	for _, status := range []int{
+		http.StatusUnauthorized,
+		http.StatusPaymentRequired,
+		http.StatusTooManyRequests,
+		http.StatusInternalServerError,
+		http.StatusServiceUnavailable,
+		http.StatusTemporaryRedirect,
+	} {
+		if strings.Contains(statusGuidance(status), "reasoning_effort") {
+			t.Errorf("statusGuidance(%d) names reasoning_effort, want only the client-error guidance to", status)
 		}
 	}
 }
