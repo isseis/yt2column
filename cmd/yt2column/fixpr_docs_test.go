@@ -1038,7 +1038,7 @@ func TestReadmeSyncStepPlacement(t *testing.T) {
 	t.Run("handoff_in_part_b_item_1_after_the_local_review", func(t *testing.T) {
 		handoff := doctestutil.ReadDoc(t, handoffPath)
 		item1 := itemSection("1. When LOCAL_REVIEW is `run`", "\n2. Run CHECKS.")(t, handoff)
-		readmeSyncIn(t, "_lib/task-pr-handoff.md", handoff, item1, "coderabbit-local-review.md")
+		readmeSyncIn(t, "_lib/task-pr-handoff.md", handoff, item1, "local-cli-review.md")
 	})
 	t.Run("mktrans_commits_only_standalone", func(t *testing.T) {
 		const commitSection = "## Commit (standalone only)"

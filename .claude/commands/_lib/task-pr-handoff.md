@@ -14,7 +14,7 @@ supplies the inputs below.
 
 Project-specific values (feature branch name, reviewer ping, task root, green
 gate) are in `.claude/commands/_context.md`. The local review is
-`.claude/commands/_lib/coderabbit-local-review.md`.
+`.claude/commands/_lib/local-cli-review.md`.
 
 `<awaited-reviewer>[bot]` is the REST form of the awaited PR reviewer's name
 (`_context.md`, "Awaited PR reviewer"): that name followed by `[bot]`.
@@ -173,7 +173,7 @@ holding them (a **link sub-issue**), not to ISSUE itself.
 Run this after the calling command's last commit, with a clean working tree.
 
 1. When LOCAL_REVIEW is `run`, review the branch with the local CodeRabbit CLI:
-   follow `.claude/commands/_lib/coderabbit-local-review.md` with
+   follow `.claude/commands/_lib/local-cli-review.md` with
    **BASE** = `$(git merge-base origin/main HEAD)`, **SCOPE** = branch,
    **SUMMARY** = REPORT.
 
@@ -210,7 +210,7 @@ Run this after the calling command's last commit, with a clean working tree.
      `レビュー観点`), including every `unclear` or `deferred` finding of the
      local reviews: this run's, and those earlier sessions recorded in commit
      messages on the branch (`git log origin/main..HEAD`, the
-     `CodeRabbit local review:` lines `_lib/coderabbit-local-review.md` step 5
+     `CodeRabbit local review:` lines `_lib/local-cli-review.md` step 7
      writes);
    - lists the terms the README sync (step 1) reported as missing from the
      translation glossary, if any;

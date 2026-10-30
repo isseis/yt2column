@@ -603,7 +603,7 @@ Skip this phase when Phase 4 made no commit (`commitSha` is empty).
 The fix is not seen by a PR review, so review it here with the
 `coderabbit` CLI, whose allowance is separate from the PR review's. Do it
 yourself in this session, not in a subagent: it follows
-`.claude/commands/_lib/coderabbit-local-review.md` with **BASE** =
+`.claude/commands/_lib/local-cli-review.md` with **BASE** =
 `$(git rev-parse <commitSha>^)` (the head before the fix), **SCOPE** = "fixpr
 round", and **SUMMARY** = the Final report. The procedure commits what it fixes;
 those commits keep their own messages, not the Phase 4 subject, so the round

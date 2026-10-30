@@ -7,7 +7,7 @@ argument-hint: "[#PR | branch | task]"
 > fix and merge mechanics are in `.claude/commands/fixpr.md` and
 > `.claude/commands/mergepr.md`; follow them rather than copying their content
 > here. The local CodeRabbit review is
-> `.claude/commands/_lib/coderabbit-local-review.md`.
+> `.claude/commands/_lib/local-cli-review.md`.
 
 This command reads the PR's review threads only through the guard tool
 `fixprguard` (`_context.md`, "Guard tool"; `head` in step 1, `list` in steps 3
@@ -113,7 +113,7 @@ Every `fixpr.md` and `mergepr.md` run below is given the resolved PR number
     a branch, otherwise the current branch) is `main`, a detached `HEAD`, or has
     no commits beyond `origin/main` (`git rev-list --count origin/main..<branch>`).
   - When that branch is the checked-out one, review it locally first: follow
-    `.claude/commands/_lib/coderabbit-local-review.md` with **BASE** =
+    `.claude/commands/_lib/local-cli-review.md` with **BASE** =
     `$(git merge-base origin/main HEAD)`, **SCOPE** = branch, **SUMMARY** = the
     final report. (The review reads the local checkout, so skip it for another
     branch.)

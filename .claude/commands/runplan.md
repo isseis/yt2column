@@ -88,7 +88,7 @@ Work in order.
     When step 7.7 could not run (the CodeRabbit CLI failed), it records
     `CodeRabbit local review: not run` in that group's checkbox commit message.
     If `git log origin/main..HEAD` shows that line, run
-    `.claude/commands/_lib/coderabbit-local-review.md` now with **BASE** =
+    `.claude/commands/_lib/local-cli-review.md` now with **BASE** =
     `$(git merge-base origin/main HEAD)`, **SCOPE** = branch, **SUMMARY** =
     REPORT;
   - **PR_TEXT** = a plan PR title (`_context.md`, "PR title and squash
@@ -212,7 +212,7 @@ Test-review checklist (use verbatim as evaluation criteria in the step 7.5 promp
 - [ ] Each test asserts observable behavior rather than restating an
       implementation detail.
 
-7.7. CodeRabbit review and triage. Run it after step 7.5, so CodeRabbit reviews the code and tests as they stand after the subagent-review fixes. Follow `.claude/commands/_lib/coderabbit-local-review.md` with **BASE** = `${PHASE_START}`, **SCOPE** = phase group, **SUMMARY** = the step 8 summary. If the CodeRabbit CLI fails and the review does not run, put the line `CodeRabbit local review: not run` in the next commit's message (step 5a reads it).
+7.7. CodeRabbit review and triage. Run it after step 7.5, so CodeRabbit reviews the code and tests as they stand after the subagent-review fixes. Follow `.claude/commands/_lib/local-cli-review.md` with **BASE** = `${PHASE_START}`, **SCOPE** = phase group, **SUMMARY** = the step 8 summary. If the CodeRabbit CLI fails and the review does not run, put the line `CodeRabbit local review: not run` in the next commit's message (step 5a reads it).
 
 8. Decide whether to continue or finish.
 - If implementation ran this iteration: summarize implementation, verified ACs, assumptions, and deferred items, plus the CodeRabbit result (run or failed; counts of fixed / rejected / deferred findings and the reason for each rejection).

@@ -9,7 +9,7 @@ user's other ChatGPT use, and its size is not published, so after the review
 made when the PR opens, a PR review is requested only when it is needed. Codex
 is set to review only when the PR is created, never on a push (`CLAUDE.md`).
 Changes after that are reviewed locally with the `coderabbit` CLI (`fixpr.md`
-Phase 4.5, `_lib/coderabbit-local-review.md`), whose allowance is separate.
+Phase 4.5, `_lib/local-cli-review.md`), whose allowance is separate.
 
 A further PR review is requested in exactly two cases: the user asks for it
 (`runpr.md` step 4 offers it), or this file's judgement says the changes since

@@ -154,11 +154,185 @@ func wantProtocolFlag() string { return "--protocol " + strconv.Itoa(codexreview
 // the command documents, prose included, is the binary's Protocol in the form
 // the tool reads, so the installed tool refuses a document written for
 // another contract and accepts one written for its own.
+//
+// The shared procedure must hold a call: the guards below check the calls
+// the documents write, and a procedure that lost its call would pass them all.
 func TestDocumentedProtocolMatches(t *testing.T) {
 	for _, rel := range doctestutil.CommandDocs(t, repoRoot) {
 		for _, text := range codexreviewProtocolMismatches(readRepoFile(t, rel)) {
 			t.Errorf("%s: %q, want %q", rel, text, wantProtocolFlag())
 		}
+	}
+	if len(invocations(readRepoFile(t, procedurePath), toolName(t))) == 0 {
+		t.Errorf("%s writes no %s call", procedurePath, toolName(t))
+	}
+}
+
+// procedurePath is the shared procedure, the one document that runs the tool.
+const procedurePath = ".claude/commands/_lib/local-cli-review.md"
+
+// placeholder is a value a document leaves for the agent to fill in, such
+// as <BASE_SHA>.
+var placeholder = regexp.MustCompile(`<[A-Za-z_]+>`)
+
+// placeholderSHA is the full commit ID a placeholder stands for in a call.
+const placeholderSHA = "0123456789abcdef0123456789abcdef01234567"
+
+// invocations returns the arguments of each call of tool that doc writes as
+// a command (commandTexts): the words after the tool's name, by name or
+// path, up to the end of its command (doctestutil.CommandBoundary).
+func invocations(doc, tool string) [][]string {
+	var calls [][]string
+	for _, text := range commandTexts(doc) {
+		for _, command := range doctestutil.CommandBoundary.Split(text, -1) {
+			words := strings.Fields(command)
+			i := slices.IndexFunc(words, func(w string) bool { return path.Base(strings.Trim(w, `"'`)) == tool })
+			if i >= 0 {
+				calls = append(calls, words[i+1:])
+			}
+		}
+	}
+	return calls
+}
+
+// TestInvocations: a call is found in a code block and in a code span, by
+// name or path and after a separator, and a word that only contains the
+// name is not a call.
+func TestInvocations(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		doc  string
+		want [][]string
+	}{
+		{"block", "```bash\ncodexreview --protocol 1 --base <BASE_SHA>\n```\n", [][]string{{"--protocol", "1", "--base", "<BASE_SHA>"}}},
+		{"span", "Run `codexreview --base x --protocol 1` once.\n", [][]string{{"--base", "x", "--protocol", "1"}}},
+		{"after_and_by_path", "```bash\ncd x && ~/go/bin/codexreview --protocol 1\n```\n", [][]string{{"--protocol", "1"}}},
+		{"install_target", "Run `make install-codexreview` first.\n", nil},
+		{"name_alone_in_span", "The `codexreview` tool.\n", nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := invocations(tc.doc, "codexreview")
+			if !slices.EqualFunc(got, tc.want, slices.Equal) {
+				t.Errorf("invocations = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestDocumentedInvocationsParse: every call of the tool in the command
+// documents passes the tool's own argument check, with each placeholder
+// filled in as a full commit ID, so the installed tool runs the review
+// instead of returning usage on every attempt.
+func TestDocumentedInvocationsParse(t *testing.T) {
+	for _, rel := range doctestutil.CommandDocs(t, repoRoot) {
+		for _, args := range invocations(readRepoFile(t, rel), toolName(t)) {
+			filled := make([]string, len(args))
+			for i, arg := range args {
+				filled[i] = placeholder.ReplaceAllString(arg, placeholderSHA)
+			}
+			base, refused, err := parse(filled)
+			if refused != nil {
+				t.Errorf("%s: %s %q is refused: %v", rel, toolName(t), args, err)
+				continue
+			}
+			if !codexreview.ValidBase(base) {
+				t.Errorf("%s: %s %q passes --base %q, not a full commit ID", rel, toolName(t), args, base)
+			}
+		}
+	}
+}
+
+// The handlings the shared procedure's table of kinds names, and the one
+// Detail it acts on.
+const (
+	handlingTriage   = "triage"
+	handlingRecord   = "record"
+	handlingStop     = "stop"
+	detailDirtyTree  = "dirty_tree"
+	detailOtherValue = "any other"
+)
+
+// wantHandling is the handling the procedure must give a kind and Detail:
+// triage a review, stop on a changed state and on a tree that changed
+// before the run, and record every other failure.
+func wantHandling(kind codexreview.Kind, detail string) string {
+	switch {
+	case exitCode(kind) == exitReviewed:
+		return handlingTriage
+	case exitCode(kind) == exitStateChanged, kind == codexreview.KindPrecondition && detail == detailDirtyTree:
+		return handlingStop
+	default:
+		return handlingRecord
+	}
+}
+
+// TestProcedureNamesKinds: the shared procedure's table of kinds has a row
+// for every kind the tool returns, a row for precondition with dirty_tree,
+// and for each row the exit code the tool exits with and the handling the
+// kind needs, so the agent stops where the worktree may have changed and
+// reads an exit code that disagrees with the kind as no result.
+func TestProcedureNamesKinds(t *testing.T) {
+	table := doctestutil.FindTable(readRepoFile(t, procedurePath), "Kind")
+	if table == nil {
+		t.Fatalf("%s has no table with a Kind column", procedurePath)
+	}
+	col := map[string]int{}
+	for _, name := range []string{"Kind", "Detail", "Exit code", "Handling"} {
+		if col[name] = doctestutil.ColumnIndex(table[0], name); col[name] < 0 {
+			t.Fatalf("%s: the table of kinds has no %q column", procedurePath, name)
+		}
+	}
+	catalog := codexreview.Kinds()
+	if !slices.Contains(catalog[codexreview.KindPrecondition], detailDirtyTree) {
+		t.Fatalf("codexreview.Kinds() lists no %s under %s", detailDirtyTree, codexreview.KindPrecondition)
+	}
+	seen := map[codexreview.Kind]map[string]struct{}{}
+	for _, row := range table[1:] {
+		if len(row) != len(table[0]) {
+			t.Errorf("%s: row %q has %d cells, want %d", procedurePath, row, len(row), len(table[0]))
+			continue
+		}
+		kind := codexreview.Kind(doctestutil.StripBackticks(row[col["Kind"]]))
+		detail := doctestutil.StripBackticks(row[col["Detail"]])
+		details, ok := catalog[kind]
+		if !ok {
+			t.Errorf("%s: row for %q, which the tool does not return", procedurePath, kind)
+			continue
+		}
+		if detail != "" && detail != detailOtherValue && !slices.Contains(details, detail) {
+			t.Errorf("%s: row for %s with Detail %q, which %s does not carry", procedurePath, kind, detail, kind)
+		}
+		if _, dup := seen[kind][detail]; dup {
+			t.Errorf("%s: two rows for %s with Detail %q", procedurePath, kind, detail)
+		}
+		if seen[kind] == nil {
+			seen[kind] = map[string]struct{}{}
+		}
+		seen[kind][detail] = struct{}{}
+		if got, want := row[col["Exit code"]], strconv.Itoa(exitCode(kind)); got != want {
+			t.Errorf("%s: %s exits with %s, the table says %q", procedurePath, kind, want, got)
+		}
+		if got, want := doctestutil.StripBackticks(row[col["Handling"]]), wantHandling(kind, detail); got != want {
+			t.Errorf("%s: %s %q is handled as %q, want %q", procedurePath, kind, detail, got, want)
+		}
+	}
+	for kind := range catalog {
+		details, ok := seen[kind]
+		if !ok {
+			t.Errorf("%s: the table of kinds has no row for %s", procedurePath, kind)
+			continue
+		}
+		_, whole := details[""]
+		_, other := details[detailOtherValue]
+		if !whole && !other {
+			t.Errorf("%s: the rows for %s name only some Details, with no %q row", procedurePath, kind, detailOtherValue)
+		}
+		if whole && len(details) > 1 {
+			t.Errorf("%s: %s has a row for every Detail and rows for some", procedurePath, kind)
+		}
+	}
+	if _, ok := seen[codexreview.KindPrecondition][detailDirtyTree]; !ok {
+		t.Errorf("%s: the table of kinds has no row for %s with %s", procedurePath, codexreview.KindPrecondition, detailDirtyTree)
 	}
 }
 
