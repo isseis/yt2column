@@ -66,6 +66,7 @@ func TestRejectionDisplayIn(t *testing.T) {
 		{"japanese", LangJA, RejectionDisplayJA, false},
 		{"english", LangEN, RejectionDisplayEN, false},
 		{"unknown language", LangUnknown, RejectionDisplaySpelling{}, true},
+		{"out of range", LangEN + 1, RejectionDisplaySpelling{}, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			recorder := &fatalRecorder{TB: t}

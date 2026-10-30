@@ -82,6 +82,7 @@ var (
 	ReadmeRequirementsHeading      = Locator{JA: "## 必要なもの", EN: "## Requirements"}
 	ReadmeSlackPostHeading         = Locator{JA: "### Slack への投稿", EN: "### The Slack post"}
 	ReadmeServerHeading            = Locator{JA: "## localhost サーバ", EN: "## Localhost server"}
+	ReadmeRunServerHeading         = Locator{JA: "### サーバの起動", EN: "### Running the server"}
 	ReadmeInstallHostHeading       = Locator{JA: "### Native Messaging のホストのインストール", EN: "### Installing the native messaging host"}
 	ReadmeUpgradeHeading           = Locator{JA: "### 共有トークンの版からの更新", EN: "### Upgrading from the shared-token version"}
 	ReadmeConfigurationHeading     = Locator{JA: "## 設定", EN: "## Configuration"}

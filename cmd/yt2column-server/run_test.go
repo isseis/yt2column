@@ -43,7 +43,7 @@ var errBuildRefused = errors.New("the test refuses to build this component")
 func TestStartupFailures(t *testing.T) {
 	// The argument diagnostic points the user at the configuration document,
 	// which must exist.
-	if _, err := os.Stat(filepath.Join("../..", configDocument)); err != nil {
+	if _, err := os.Stat(filepath.Join(repositoryRoot, configDocument)); err != nil {
 		t.Errorf("the diagnostic points at %s, which does not exist: %v", configDocument, err)
 	}
 	for _, tc := range []struct {

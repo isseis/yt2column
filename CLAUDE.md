@@ -523,7 +523,8 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
   `project_overview.md` notes (the environment variable names, `costPrefix`, and
   `16,383`), the production profile's configuration block and stage table in
   `docs/dev/production_profile.md`, the configuration block and Quick start
-  links of both READMEs, the values `cli.md` and `development.md` hold, the `/fixpr` and `/runpr` command documents, the `codexreview`
+  links of both READMEs, the values `cli.md` and `development.md` hold, the
+  `/fixpr` and `/runpr` command documents, the `codexreview`
   permission, install target, and command-document checks) are Go tests included
   in `make test` and need no node. `cmd/yt2column-nmhost`'s
   `TestReadmeHostExitCodes` reads both READMEs too, but the `doc-guard` job

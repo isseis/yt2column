@@ -73,10 +73,13 @@ func TestServerDocsContract(t *testing.T) {
 				t.Errorf("%s server section does not state the socket path for macOS and for other Unix", v.Path)
 			}
 			// The exit-code table must name every code the entry point
-			// defines.
-			exitCodes := doctestutil.FindTable(section, doctestutil.ReadmeExitCodeColumn.In(t, v.Lang))
+			// defines. It is looked for in the subsection on running the
+			// server only: the host's exit-code table, later in the same
+			// section, has the same column and the same codes.
+			running := doctestutil.ReadmeRunServerHeading.In(t, v.Lang)
+			exitCodes := doctestutil.FindTable(doctestutil.SectionByHeading(section, running), doctestutil.ReadmeExitCodeColumn.In(t, v.Lang))
 			if exitCodes == nil {
-				t.Fatalf("%s server section has no exit-code table", v.Path)
+				t.Fatalf("%s %s has no exit-code table", v.Path, running)
 			}
 			for _, code := range []int{exitOK, exitFailure, exitUsage} {
 				if doctestutil.TableRow(exitCodes, strconv.Itoa(code)) == nil {
