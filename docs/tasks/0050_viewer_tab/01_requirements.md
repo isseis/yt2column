@@ -22,11 +22,11 @@
 
 -   拡張は受け付けの応答を表示するだけで、記事は Slack にだけ届く。受け付けの文言は「生成と投稿の結果は Slack に届く」と案内する（`extension/src/core/i18n/en.ts:92`）。
 -   結果不明のとき（応答がない、ホストが失敗した、想定外の応答）は、送り直す前に Slack を確かめるよう案内し、自動では再送しない。送信中の文言も、ポップアップを閉じたら Slack を確かめるよう案内する（`en.ts:95-122`、`docs/dev/security.md` §8.1）。送り直すと、同じ記事が二重に生成・投稿されうるためである（`security.md` §8.2）。
--   送信中にポップアップを閉じると、結果は表示されない（README「Browser extension」）。
+-   送信中にポップアップを閉じると、結果は表示されない（README「ブラウザ拡張」）。
 -   拡張は、サーバの応答を `/articles` の形（`status` と `requestId`、拒否なら `reason`）だけ受理し、本文の上限は 1,024 バイトである（`extension/src/core/response.ts:57`・`:158-223`）。
 -   拡張の権限は `activeTab`・`scripting`・`nativeMessaging` だけで（`extension/static/manifest.json:12`）、manifest は Service Worker（`background`）を宣言しない（`manifest.json:1-13`）。拡張は何も保存しない（`security.md` §8.1）。
 
-タスク `0044_article_job_api`（[#502](https://github.com/isseis/yt2column/issues/502)）は、サーバとホストに新しい API を加えた。ホストは、版のメンバ `v` を持つ新しい形のメッセージ（`{"v":1,"op":"start"|"status"|"publish",...}`）を、操作ごとに決めた送り先（`POST /jobs`・`GET /jobs/{key}`・`POST /jobs/{key}/publish`）へ中継する（`internal/nmhost/relay.go:389-394`・`:466-510`）。状態の取得は、ジョブの状態・工程の状態・投稿の状態・失敗の理由をコードで返す（README「The job API」「Job API codes」）。状態の取得の応答の本文は最大 256 KiB で（`internal/server/status.go:20`）、ホストは 512 KiB までの応答を中継する（`relay.go:43`）。記事のキーは、生成の開始の入力の検査を通った後の値（`videoUrl`・`transcript`・`title`・`channelName`・`description`）のすべてから計算する（`0044` F-001）。拡張がこの API に移るまで、サーバは `/articles` を残している（`0044` F-007）。
+タスク `0044_article_job_api`（[#502](https://github.com/isseis/yt2column/issues/502)）は、サーバとホストに新しい API を加えた。ホストは、版のメンバ `v` を持つ新しい形のメッセージ（`{"v":1,"op":"start"|"status"|"publish",...}`）を、操作ごとに決めた送り先（`POST /jobs`・`GET /jobs/{key}`・`POST /jobs/{key}/publish`）へ中継する（`internal/nmhost/relay.go:389-394`・`:466-510`）。状態の取得は、ジョブの状態・工程の状態・投稿の状態・失敗の理由をコードで返す（`docs/dev/guides/development.md`「ジョブの API」「ジョブの API のコード」）。状態の取得の応答の本文は最大 256 KiB で（`internal/server/status.go:20`）、ホストは 512 KiB までの応答を中継する（`relay.go:43`）。記事のキーは、生成の開始の入力の検査を通った後の値（`videoUrl`・`transcript`・`title`・`channelName`・`description`）のすべてから計算する（`0044` F-001）。拡張がこの API に移るまで、サーバは `/articles` を残している（`0044` F-007）。
 
 タスク `0046_popup_redesign`（[#507](https://github.com/isseis/yt2column/issues/507)）は、ポップアップを動画のセクション・確認のセクション・操作のセクション・詳細の構成に作り直した。生成中・生成済み・失敗の状態は本タスクで加える前提で、画面の内容の種類として加えられる構造にしてある（`docs/tasks/0046_popup_redesign/02_architecture.md` 9 章）。
 
@@ -51,12 +51,12 @@
 
 **要件定義の際に決めたこと（2026-10-29）:**
 
--   **Viewer は背面のタブで開き、ポップアップは開いたまま状態を表示する:** 主ボタンを押すと、Viewer を新しいタブで、作業中のタブを切り替えずに開く。ポップアップは閉じずに、生成中・生成済み・失敗の状態を表示し、Viewer のタブを前面に出す操作を持つ。前面で開くとポップアップがすぐに閉じ、#507 で決めたポップアップの状態が表示されないためである。ポップアップと Viewer の両方が状態を取得することになるが、状態の取得は LLM を呼ばず、サーバのログにも残らない（README「The job API」）ので許容する。
+-   **Viewer は背面のタブで開き、ポップアップは開いたまま状態を表示する:** 主ボタンを押すと、Viewer を新しいタブで、作業中のタブを切り替えずに開く。ポップアップは閉じずに、生成中・生成済み・失敗の状態を表示し、Viewer のタブを前面に出す操作を持つ。前面で開くとポップアップがすぐに閉じ、#507 で決めたポップアップの状態が表示されないためである。ポップアップと Viewer の両方が状態を取得することになるが、状態の取得は LLM を呼ばず、サーバのログにも残らない（`docs/dev/guides/development.md`「ジョブの API」）ので許容する。
 -   **Viewer は送信と同時に開き、生成の開始の結果も表示する:** キーを受け取れなかった場合（拒否・未送信・結果不明）も、Viewer に理由と手順を表示する。キーを受け取ってから開くと、応答（最大で約 20 秒。`relay.go:31`）を待つ間にポップアップを閉じた場合、拒否の理由がどこにも表示されず、issue の「ポップアップを閉じても結果は失われない」を満たせないためである。
 -   **Viewer の URL に記事のキーと表示に使う値を持たせ、拡張は何も保存しない:** Viewer を再読み込みしても、閉じたタブを復元しても、履歴から開いても、同じ記事を表示する。Viewer のタブを閉じた後に開き直す手段は、閉じたタブの復元・履歴と、ポップアップから同じ入力を送り直す（キャッシュに当たれば LLM を呼ばない）ことである。拡張は `chrome.storage` を使わない。「設定を保存しない」という今の性質（`security.md` §8.1）を保ち、権限を加えずに済ませるためである。最近の記事の一覧は設けない。
 -   **権限を加えない:** 権限は今の `activeTab`・`scripting`・`nativeMessaging` のままとする。`.md` の保存は拡張のページからのダウンロードで、コピーは利用者の操作の中のクリップボードへの書き込みで行い、`downloads`・`clipboardWrite`・`tabs`・`storage`・host permission を加えない。権限の範囲を今より広げないためである。権限なしで実現できるかは設計で確かめる（H-05・H-06・H-07）。
 -   **送信を新しい API に全面的に移し、自動で再送しない:** 拡張は今の形のメッセージ（`/articles` の経路）を送らない。生成の開始と投稿の操作を、拡張が自動で送り直すことはしない。状態の取得は、ポーリングとして繰り返す（F-003）。生成の開始の結果不明では、Slack を確かめる手順を示さず、同じ入力を送り直しても、その記事が処理中か完了していれば、二重には生成されないことを示す。新しい API の生成の開始は、処理中または完了したキーを返すだけで LLM を呼ばない（`0044` F-001）ためである。サーバの `/articles` の削除は #526 で行う。
--   **処理中の経過時間は、その Viewer を開いた送信の時刻から数える:** 送信の時刻を Viewer の URL に持たせ、再読み込みでも保つ。完了した後は、サーバが返す所要時間（`durationMs`）を表示する。状態の取得は、処理中には経過時間を返さないためである（README「The job API」）。処理中の記事に送り直しで当たった Viewer は、送り直した時刻から数えるので、実際の経過より短く表示されうる。これは許容する。
+-   **処理中の経過時間は、その Viewer を開いた送信の時刻から数える:** 送信の時刻を Viewer の URL に持たせ、再読み込みでも保つ。完了した後は、サーバが返す所要時間（`durationMs`）を表示する。状態の取得は、処理中には経過時間を返さないためである（`docs/dev/guides/development.md`「ジョブの API」）。処理中の記事に送り直しで当たった Viewer は、送り直した時刻から数えるので、実際の経過より短く表示されうる。これは許容する。
 -   **`.md` のファイル名は動画タイトルから作る:** ファイル名に使えない文字を `_` に置き換え、長さに上限を設ける。動画タイトルがないとき、または空のときは `<動画 ID>.md` にする。動画 ID は、収集した URL の `v` の値である。使えない文字の集合と長さの上限は設計で決める（H-05）。
 -   **「Markdown をコピー」は表示用の Markdown をコピーする:** 状態の取得が返す表示用の Markdown（`article.markdown`。見出し・チャンネル名・本文）を、変えずにコピーする。フロントマター付きのファイルの中身は、`.md` の保存で手に入るためである。
 -   **やり直しはポップアップから行い、Viewer にはやり直しのボタンを置かない:** 生成の失敗・記事が失われた場合・キーを受け取れなかった場合、Viewer は、理由に応じた手順（送り直しで解決する場合は、ポップアップから送り直す手順）を表示する。Viewer は入力（コピーした字幕）を持たず、拡張は何も保存しないためである。ポップアップは選択範囲を持っているので、失敗の状態でやり直しの操作を持つ（#507 のモックアップの「Try again」）。
@@ -92,7 +92,7 @@
 -   `.md` ファイルへの保存（F-007）。
 -   Markdown のコピー（F-008）。
 -   新しい API のコードと拒否の理由ごとの文言（英語と日本語。F-009）。
--   文書: README の「Browser extension」節と拒否の理由の表、`docs/dev/security.md` §8、`docs/dev/project_overview.md`、`CLAUDE.md` の「Architecture Overview」、`docs/translation_glossary.md`（F-010）。
+-   文書: README（`README.md` と英語版の `README.en.md`）の「ブラウザ拡張」節・「localhost サーバ」節・拒否の理由の表、`docs/dev/guides/development.md` の「ジョブの API」と拒否の理由の表、`docs/dev/security.md` §8、`docs/dev/project_overview.md`、`CLAUDE.md` の「Architecture Overview」、`docs/translation_glossary.md`（F-010）。
 
 ### 2.3. スコープ外 (Out of Scope)
 
@@ -194,7 +194,7 @@ Viewer は、生成の開始の結果と、キーの状態を表示する。
 
 -   動画のセクションと詳細はそのまま残し、確認のセクションの位置に状態を表示し、操作のセクションの主ボタンを状態に応じた操作にする（`0046` `02_architecture.md` 9 章）。
 -   送信中: 主ボタンは押せず、送信中であることと、ポップアップを閉じてもよいことを示す。
--   キーを受け取れなかった（拒否・未送信・結果不明）: やり取りの結果と理由と手順を示す（文言は F-001）。主ボタンは押せないままで、送り直すにはポップアップを開き直す（今と同じ。README「Browser extension」）。
+-   キーを受け取れなかった（拒否・未送信・結果不明）: やり取りの結果と理由と手順を示す（文言は F-001）。主ボタンは押せないままで、送り直すにはポップアップを開き直す（今と同じ。README「ブラウザ拡張」）。
 -   処理中: 3 つの工程のチェックリストと経過時間を示す。経過時間は、この送信の時刻から数える。主ボタンは「Viewer を開く」操作になり、ポップアップを閉じてよいことを示す。
 -   完了: 記事ができたことと、推定の料金と所要時間を示す。主ボタンは「Viewer を開く」操作になる。
 -   失敗・不明: 理由（失敗の理由、または記事が失われたこと）と、理由に応じた手順を示す。主ボタンは「やり直す」操作になり、押すと、同じ入力で生成の開始を送り直し、新しい Viewer のタブを開く（F-001・F-002 と同じ振る舞い）。
@@ -285,25 +285,26 @@ Viewer は、完了した記事の表示用の Markdown をクリップボード
     -   投稿の状態: `not_posted`・`posting`・`posted`・`failed`・`unpostable`
     -   投稿の理由: `mention`・`other`・`webhook`・`internal`
     -   新しい拒否の理由: `invalid_key`・`article_not_ready`・`article_not_found`・`article_not_postable`・`webhook_not_configured`
--   README の拒否の理由の表の「extension shows」の列を、拡張が新しい理由を固定の文言で表示することに合わせる。`not_found` と `method_not_allowed` は、拡張が正しい操作だけを送るので、今と同じく想定外の応答とする。
+-   README「拒否の理由」の表と、`docs/dev/guides/development.md` の拒否の理由の表の「拡張の表示」の列を、拡張が新しい理由を固定の文言で表示することに合わせる。`not_found` と `method_not_allowed` は、拡張が正しい操作だけを送るので、今と同じく想定外の応答とする。
 -   英語と日本語の文言の用語は、`docs/translation_glossary.md` に合わせる。
 
 **Acceptance Criteria**:
 - **AC-37**: 上に挙げた値のそれぞれに、英語と日本語の両方の文言がある。
-- **AC-38**: README の拒否の理由の表の「extension shows」の列は、拡張が固定の文言で表示する理由の集合と一致する（`extension/test/serverReasons.test.ts` の突き合わせを新しい理由に合わせる）。
+- **AC-38**: README「拒否の理由」の表と `docs/dev/guides/development.md` の拒否の理由の表の「拡張の表示」の列は、拡張が固定の文言で表示する理由の集合と一致する（`extension/test/serverReasons.test.ts` の突き合わせを新しい理由に合わせる）。
 
 #### F-010: 文書
 
--   README の「Browser extension」節を、新しい送信の経路、Viewer（状態、投稿、保存、コピー）、結果の読み方、開き直す手段（キーを受け取る前に Viewer とポップアップを閉じた場合を含む）、拡張とサーバとホストを同じ版に更新する必要があることに合わせて書き直す。「結果は Slack に届く」「Slack を確かめてから送り直す」などの、今の経路の案内を取り除く。
--   README の「Localhost server」節のうち、今の拡張が `/articles` を使うという記述（「The job API」の「The current extension does not use them yet」など）を改める。`/articles` そのものの記述は #526 で取り除く。
+-   README の変更は `README.md` に行い、`/mktrans` で `README.en.md` に反映する（[CLAUDE.md](../../../CLAUDE.md)「Translation Guidelines」）。
+-   README の「ブラウザ拡張」節を、新しい送信の経路、Viewer（状態、投稿、保存、コピー）、結果の読み方、開き直す手段（キーを受け取る前に Viewer とポップアップを閉じた場合を含む）、拡張とサーバとホストを同じ版に更新する必要があることに合わせて書き直す。「結果は Slack に届く」「Slack を確かめてから送り直す」などの、今の経路の案内を取り除く。
+-   README の「localhost サーバ」節と `docs/dev/guides/development.md` の「ジョブの API」のうち、今の拡張が `/articles` を使うという記述（README の「拡張の今の `/articles` のリクエストは」「今の拡張はその拒否を想定外の応答として表示する」、`docs/dev/guides/development.md` の「今の拡張はまだこれらを使わない」など）を改める。`/articles` そのものの記述は #526 で取り除く。
 -   `docs/dev/security.md` §8.1 を更新する: Service Worker と Viewer の追加、拡張のページへの記事（untrusted なテキスト）の表示、権限が変わらないこと、Viewer の URL に持たせる値がブラウザの履歴に残ること、結果不明の案内の変更、ポーリングでホストを繰り返し起動すること、応答の文字列のうち記事だけを表示に使うこと（5. 制約条件）。§8.2 の、`/articles` の再送による二重の生成と投稿が残るというリスクの記述を、拡張が `/articles` を使わなくなったことに合わせる。
 -   `docs/dev/project_overview.md` の、ツールの説明（記事を Slack に投稿するツール）と、`extension/` の説明を、記事をブラウザに表示し、投稿と保存を利用者が選ぶ形に改める。
 -   `CLAUDE.md` の「Architecture Overview」の、主経路の説明（サーバが記事を生成して Webhook に投稿する）を改める。
 -   `docs/translation_glossary.md` に Viewer・Service Worker・Viewer の URL・送信の時刻・ポーリング・やり取りの結果の用語を加え、「結果不明」（Slack を確かめるよう案内する）と「主ボタン」（送信を始めるボタン）の定義を、本タスクの振る舞いに合わせて改める。
 
 **Acceptance Criteria**:
-- **AC-39**: README・`security.md`・`project_overview.md`・`CLAUDE.md`・`translation_glossary.md` の記述が、F-001 から F-009 の振る舞いと合っている（PR のレビューで読む。`manual`）。
-- **AC-40**: README の拡張に関する記述を読む既存のガードのテスト（`serverReasons.test.ts`・`metadataDocs.test.ts`、拡張の ID・権限・`ext-` のターゲットのガード）が通る。
+- **AC-39**: README（`README.md`・`README.en.md`）・`docs/dev/guides/development.md`・`security.md`・`project_overview.md`・`CLAUDE.md`・`translation_glossary.md` の記述が、F-001 から F-009 の振る舞いと合っている（PR のレビューで読む。`manual`）。
+- **AC-40**: 文書の拡張に関する記述を読む既存のガードのテスト（`docs/dev/guides/development.md` の拒否の理由の表を読む `serverReasons.test.ts`、両方の README の「ブラウザ拡張」節を読む `metadataDocs.test.ts`、README の同期の印を確かめる `TestReadmeSyncMarker`、拡張の ID・権限・`ext-` のターゲットのガード）が通る。
 
 ### 3.2. 信頼できない入力の境界 (Untrusted Input Boundaries)
 
@@ -312,7 +313,7 @@ Viewer は、完了した記事の表示用の Markdown をクリップボード
 | 境界 | 受理する形 | 上限 | 失敗・拒否時の扱い | 主な AC |
 |---|---|---|---|---|
 | ホストの応答（外側の形） | 今と同じ（`v` が 1、`kind` が `response` か `error`、`kind` ごとのメンバの集合と型、本文は正規の標準の base64。`extension/src/core/native.ts:114-171`） | ブラウザの 1 MiB（ホストのフレームの上限） | 想定外の応答。今と同じ | AC-41 |
-| サーバの応答の本文（生成の開始・状態の取得・投稿の操作） | 先頭に BOM を持たない正しい UTF-8 で、後続のデータのない 1 つの JSON オブジェクト。どの階層でもメンバの重複がなく、対になっていないサロゲートのエスケープを含まない。メンバの集合は、操作と `status`・`job.state`・投稿の状態ごとに README「The job API」の形と過不足なく一致する（拡張可能と宣言するメンバはない）。コードの値は README「Job API codes」の閉じた集合に限る。`requestId` は 16 進 16 文字。`durationMs` は、符号・小数点・指数を持たない 10 進の整数の表記で、2^53−1 以下。`cost.usd` は、数字の並び・`.`・4 桁の数字の形（`internal/publisher/format.go:26-31`）。`article.markdown` と `article.file` は空でない文字列（[CLAUDE.md](../../../CLAUDE.md)「Empty is an error」）。状態コードと `status`・`reason` の組は README の表に合う。キーは空でない JSON の文字列で、形は検査しない（`0044` 3.2） | サーバの状態の取得の上限（256 KiB。`status.go:20`）を下回らず、ホストの中継の上限（512 KiB。`relay.go:43`）を超えない値（設計で決める。H-03） | 想定外の応答。記事・コード・数値の一部だけを表示に使うことはしない | AC-41・AC-42 |
+| サーバの応答の本文（生成の開始・状態の取得・投稿の操作） | 先頭に BOM を持たない正しい UTF-8 で、後続のデータのない 1 つの JSON オブジェクト。どの階層でもメンバの重複がなく、対になっていないサロゲートのエスケープを含まない。メンバの集合は、操作と `status`・`job.state`・投稿の状態ごとに `docs/dev/guides/development.md`「ジョブの API」の形と過不足なく一致する（拡張可能と宣言するメンバはない）。コードの値は `docs/dev/guides/development.md`「ジョブの API のコード」の閉じた集合に限る。`requestId` は 16 進 16 文字。`durationMs` は、符号・小数点・指数を持たない 10 進の整数の表記で、2^53−1 以下。`cost.usd` は、数字の並び・`.`・4 桁の数字の形（`internal/publisher/format.go:26-31`）。`article.markdown` と `article.file` は空でない文字列（[CLAUDE.md](../../../CLAUDE.md)「Empty is an error」）。状態コードと `status`・`reason` の組は `docs/dev/guides/development.md` の表に合う。キーは空でない JSON の文字列で、形は検査しない（`0044` 3.2） | サーバの状態の取得の上限（256 KiB。`status.go:20`）を下回らず、ホストの中継の上限（512 KiB。`relay.go:43`）を超えない値（設計で決める。H-03） | 想定外の応答。記事・コード・数値の一部だけを表示に使うことはしない | AC-41・AC-42 |
 | Viewer の URL が持つ値 | 設計で決めた形（H-02）。見出し・収集した URL・送信の時刻は必須で、キー・チャンネル名・動画タイトルは任意。各値は 1 回だけ現れる。宣言していない値・重複する値・必須の値の欠け・不正なパーセントエンコーディング・正しくない UTF-8 になる値を拒否し、補正しない（`+` を空白として読む、不正なバイトを U+FFFD に置き換えるなどの、標準の解析が黙って行う補正を受理しない）。収集した URL は、拡張が受け付ける動画ページの URL でなければ拒否する。送信の時刻は 0 以上の整数で、Viewer を開いた時刻より後でない。キーは空でない文字列で、形は検査しない（`0044` 3.2） | 各値の長さの上限（設計で決める。H-02） | Viewer のリンクが正しくないことを表示し、記事を表示せず、状態の取得を送らない | AC-43 |
 | Service Worker が受け取る生成の開始の求め | 拡張自身のポップアップからの、設計で決めた形の求め（H-01） | 今のリクエストの本文の 4 MiB | 何も送らず、タブも開かずに無視する | AC-05 |
 | Viewer が受け取る生成の開始の結果 | 拡張自身の Service Worker からの、その Viewer のタブに宛てた、設計で決めた形の結果（H-01） | - | 無視する。決めた時間のうちに受理できる結果がなければ、結果不明を表示する（F-002） | AC-10 |
@@ -328,7 +329,7 @@ Viewer は、完了した記事の表示用の Markdown をクリップボード
 ## 4. 非機能要件 (Non-Functional Requirements)
 
 ### 4.1. 性能 (Performance)
--   ポーリングの間隔は設計で決める固定の値とし、1 秒より短くしない（H-04）。状態の取得は LLM を呼ばず、サーバのログにも残らない（README「The job API」）。1 回の状態の取得でホストのプロセスが 1 つ起動し（`security.md` §8.2）、ポップアップと開いている Viewer のそれぞれがポーリングするが、1 つのページが同時に送る状態の取得は 1 つまでで（F-003）、繰り返しても直らない結果では止める。これに加えて、間隔を広げる仕組みや、取得を省く仕組みは設けない（[CLAUDE.md](../../../CLAUDE.md)「Performance」）。
+-   ポーリングの間隔は設計で決める固定の値とし、1 秒より短くしない（H-04）。状態の取得は LLM を呼ばず、サーバのログにも残らない（`docs/dev/guides/development.md`「ジョブの API」）。1 回の状態の取得でホストのプロセスが 1 つ起動し（`security.md` §8.2）、ポップアップと開いている Viewer のそれぞれがポーリングするが、1 つのページが同時に送る状態の取得は 1 つまでで（F-003）、繰り返しても直らない結果では止める。これに加えて、間隔を広げる仕組みや、取得を省く仕組みは設けない（[CLAUDE.md](../../../CLAUDE.md)「Performance」）。
 -   1 回のホストとのやり取りの上限は、今と同じ 25 秒（`extension/src/send.ts:21`）とする。
 
 ### 4.2. セキュリティ (Security)
