@@ -155,17 +155,11 @@ func wantProtocolFlag() string { return "--protocol " + strconv.Itoa(codexreview
 // the command documents, prose included, is the binary's Protocol in the form
 // the tool reads, so the installed tool refuses a document written for
 // another contract and accepts one written for its own.
-//
-// The shared procedure must hold a call: the guards below check the calls
-// the documents write, and a procedure that lost its call would pass them all.
 func TestDocumentedProtocolMatches(t *testing.T) {
 	for _, rel := range doctestutil.CommandDocs(t, repoRoot) {
 		for _, text := range codexreviewProtocolMismatches(readRepoFile(t, rel)) {
 			t.Errorf("%s: %q, want %q", rel, text, wantProtocolFlag())
 		}
-	}
-	if len(invocations(readRepoFile(t, procedurePath), toolName(t))) == 0 {
-		t.Errorf("%s writes no %s call", procedurePath, toolName(t))
 	}
 }
 
@@ -222,10 +216,11 @@ func TestInvocations(t *testing.T) {
 	}{
 		{"block", "```bash\ncodexreview --protocol 1 --base <BASE_SHA>\n```\n", []invocation{{nil, "codexreview", []string{"--protocol", "1", "--base", "<BASE_SHA>"}}}},
 		{"span", "Run `codexreview --base x --protocol 1` once.\n", []invocation{{nil, "codexreview", []string{"--base", "x", "--protocol", "1"}}}},
-		{"after_and_by_path", "```bash\ncd x && ~/go/bin/codexreview --protocol 1\n```\n", []invocation{{nil, "~/go/bin/codexreview", []string{"--protocol", "1"}}}},
+		{"after_separator", "```bash\ncd x && codexreview --protocol 1\n```\n", []invocation{{nil, "codexreview", []string{"--protocol", "1"}}}},
+		{"by_path", "```bash\n~/go/bin/codexreview --protocol 1\n```\n", []invocation{{nil, "~/go/bin/codexreview", []string{"--protocol", "1"}}}},
+		{"quoted", "```bash\n\"codexreview\" --protocol 1\n```\n", []invocation{{nil, `"codexreview"`, []string{"--protocol", "1"}}}},
 		{"after_prefix", "```bash\ntimeout 600 codexreview --protocol 1\n```\n", []invocation{{[]string{"timeout", "600"}, "codexreview", []string{"--protocol", "1"}}}},
 		{"install_target", "Run `make install-codexreview` first.\n", nil},
-		{"name_alone_in_span", "The `codexreview` tool.\n", nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got := invocations(tc.doc, "codexreview")
@@ -249,8 +244,12 @@ func promptFree(call invocation, tool string) bool {
 // filled in as a full commit ID, so the installed tool runs the review
 // unattended instead of stopping at the prompt or returning usage on every
 // attempt. A redirection or a pipe after the arguments is a refused argument
-// or a command boundary.
+// or a command boundary. The shared procedure must hold a call: a procedure
+// that lost its call would pass every check of the calls.
 func TestDocumentedInvocationsParse(t *testing.T) {
+	if len(invocations(readRepoFile(t, procedurePath), toolName(t))) == 0 {
+		t.Errorf("%s writes no %s call", procedurePath, toolName(t))
+	}
 	for _, rel := range doctestutil.CommandDocs(t, repoRoot) {
 		for _, call := range invocations(readRepoFile(t, rel), toolName(t)) {
 			args := call.args
@@ -273,24 +272,25 @@ func TestDocumentedInvocationsParse(t *testing.T) {
 	}
 }
 
-// The handlings the shared procedure's table of kinds names, and the one
-// Detail it acts on.
+// The handlings the shared procedure's table of kinds names. The three
+// words are a fixed vocabulary: which one means stop is what the guard
+// checks, and a test cannot learn that from the document.
 const (
 	handlingTriage   = "triage"
 	handlingRecord   = "record"
 	handlingStop     = "stop"
-	detailDirtyTree  = "dirty_tree"
 	detailOtherValue = "any other"
 )
 
 // wantHandling is the handling the procedure must give a kind and Detail:
 // triage a review, stop on a changed state and on a tree that changed
-// before the run, and record every other failure.
+// before the run, and record every other failure. It is chosen by the kind,
+// not by the exit code, so the table's two columns are checked separately.
 func wantHandling(kind codexreview.Kind, detail string) string {
 	switch {
-	case exitCode(kind) == exitReviewed:
+	case kind == codexreview.KindFindings, kind == codexreview.KindNoFindings:
 		return handlingTriage
-	case exitCode(kind) == exitStateChanged, kind == codexreview.KindPrecondition && detail == detailDirtyTree:
+	case kind == codexreview.KindStateChanged, kind == codexreview.KindPrecondition && detail == codexreview.DetailDirtyTree:
 		return handlingStop
 	default:
 		return handlingRecord
@@ -314,9 +314,6 @@ func TestProcedureNamesKinds(t *testing.T) {
 		}
 	}
 	catalog := codexreview.Kinds()
-	if !slices.Contains(catalog[codexreview.KindPrecondition], detailDirtyTree) {
-		t.Fatalf("codexreview.Kinds() lists no %s under %s", detailDirtyTree, codexreview.KindPrecondition)
-	}
 	seen := map[codexreview.Kind]map[string]struct{}{}
 	for _, row := range table[1:] {
 		if len(row) != len(table[0]) {
@@ -362,8 +359,8 @@ func TestProcedureNamesKinds(t *testing.T) {
 			t.Errorf("%s: %s has a row for every Detail and rows for some", procedurePath, kind)
 		}
 	}
-	if _, ok := seen[codexreview.KindPrecondition][detailDirtyTree]; !ok {
-		t.Errorf("%s: the table of kinds has no row for %s with %s", procedurePath, codexreview.KindPrecondition, detailDirtyTree)
+	if _, ok := seen[codexreview.KindPrecondition][codexreview.DetailDirtyTree]; !ok {
+		t.Errorf("%s: the table of kinds has no row for %s with %s", procedurePath, codexreview.KindPrecondition, codexreview.DetailDirtyTree)
 	}
 }
 

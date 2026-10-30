@@ -267,7 +267,7 @@ the tool (`make install-codexreview`, `go build`): the user installs it from
 Callers that read record lines from `git log origin/main..HEAD` (`runplan.md`
 step 5a, `_lib/task-pr-handoff.md` Part B step 3) read them this way:
 
-- A `Local CLI review: not run <BASE12>..<HEAD12> (...)` line names an
+- A `Local CLI review: not run <START12>..<END12> (...)` line names an
   unreviewed range.
 - A `CodeRabbit local review: not run` line, which an earlier session wrote
   when the CodeRabbit CLI failed and has no range, also means an unreviewed

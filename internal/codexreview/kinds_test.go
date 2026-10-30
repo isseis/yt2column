@@ -16,7 +16,7 @@ import (
 
 // declaredConstants parses the package's non-test sources and returns the
 // string values of the constants declared with type Kind, and of those whose
-// name starts with "detail" and whose value is a string literal.
+// name starts with "detail" or "Detail" and whose value is a string literal.
 func declaredConstants(t *testing.T) (kinds []Kind, details []string) {
 	t.Helper()
 	entries, err := os.ReadDir(".")
@@ -53,7 +53,7 @@ func declaredConstants(t *testing.T) (kinds []Kind, details []string) {
 					}
 					if typ, ok := vs.Type.(*ast.Ident); ok && typ.Name == "Kind" {
 						kinds = append(kinds, Kind(value))
-					} else if strings.HasPrefix(name.Name, "detail") {
+					} else if strings.HasPrefix(strings.ToLower(name.Name), "detail") {
 						details = append(details, value)
 					}
 				}
@@ -64,7 +64,7 @@ func declaredConstants(t *testing.T) (kinds []Kind, details []string) {
 }
 
 // TestKindsListsEveryConstant: Kinds lists every constant declared with type
-// Kind, and every string constant named detail*, each under some kind, so a
+// Kind, and every string constant named detail* or Detail*, each under some kind, so a
 // kind or token declared that way and not listed fails here before the guard
 // that checks the shared procedure's table against Kinds can miss it. Which
 // kind a token is listed under is not checked here; the procedure acts on one

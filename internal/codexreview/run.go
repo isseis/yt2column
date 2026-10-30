@@ -60,13 +60,16 @@ const (
 )
 
 // Detail tokens. Each names a cause within a Kind and is fixed text, never
-// taken from codex's output.
+// taken from codex's output. Each is a string constant named detail* (or
+// Detail*, for one a caller acts on), the form kinds_test.go finds them by.
 const (
-	detailBadArguments        = "bad_arguments"
-	detailProtocolMismatch    = "protocol_mismatch"
-	detailNotWorktreeRoot     = "not_worktree_root"
-	detailBaseNotAncestor     = "base_not_ancestor"
-	detailDirtyTree           = "dirty_tree"
+	detailBadArguments     = "bad_arguments"
+	detailProtocolMismatch = "protocol_mismatch"
+	detailNotWorktreeRoot  = "not_worktree_root"
+	detailBaseNotAncestor  = "base_not_ancestor"
+	// DetailDirtyTree is the one precondition Detail the shared procedure acts
+	// on: the worktree changed after the procedure checked it was clean.
+	DetailDirtyTree           = "dirty_tree"
 	detailProjectCodexConfig  = "project_codex_config"
 	detailGitFailed           = "git_failed"
 	detailVersionFailed       = "codex_version_failed"
@@ -110,7 +113,7 @@ func Kinds() map[Kind][]string {
 		KindStateChanged: nil,
 		KindUsage:        {detailBadArguments, detailProtocolMismatch},
 		KindPrecondition: {
-			detailNotWorktreeRoot, detailBaseNotAncestor, detailDirtyTree, detailProjectCodexConfig,
+			detailNotWorktreeRoot, detailBaseNotAncestor, DetailDirtyTree, detailProjectCodexConfig,
 			detailGitFailed, detailVersionFailed, detailVersionTimeout, detailVersionUnreadable,
 			detailRunDirFailed,
 		},
@@ -278,7 +281,7 @@ func prepare(ctx, preCtx context.Context, base string, environ []string) (prepar
 		return stop(KindPrecondition, detailGitFailed)
 	}
 	if len(status) > 0 {
-		return stop(KindPrecondition, detailDirtyTree)
+		return stop(KindPrecondition, DetailDirtyTree)
 	}
 	// Whether codex reads a project's .codex directory, and whether
 	// --ignore-user-config covers it, is not known, so a branch that adds
@@ -306,7 +309,7 @@ func prepare(ctx, preCtx context.Context, base string, environ []string) (prepar
 		return stop(KindPrecondition, detailGitFailed)
 	}
 	if before.status != "" {
-		return stop(KindPrecondition, detailDirtyTree)
+		return stop(KindPrecondition, DetailDirtyTree)
 	}
 	runDir, err := os.MkdirTemp("", "codexreview-")
 	if err != nil {
