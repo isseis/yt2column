@@ -265,12 +265,16 @@ the tool (`make install-codexreview`, `go build`): the user installs it from
 ## Reading the record lines
 
 Callers that read record lines from `git log origin/main..HEAD` (`runplan.md`
-step 5a, `_lib/task-pr-handoff.md` Part B step 3) read them this way:
+step 5a, `_lib/task-pr-handoff.md` Part B step 3) read them this way. A record
+line is a whole line of a commit message, starting at its first column, in
+the full form of step 7; a line that only mentions a prefix in prose, or is
+indented, is not one. In a commit message's prose, never start a line with one
+of these prefixes.
 
 - A `Local CLI review: not run <START12>..<END12> (...)` line names an
   unreviewed range.
-- A `CodeRabbit local review: not run` line, which an earlier session wrote
-  when the CodeRabbit CLI failed and has no range, also means an unreviewed
+- A line that is exactly `CodeRabbit local review: not run`, which an earlier
+  session wrote when the CodeRabbit CLI failed and has no range, also means an unreviewed
   range; take its range as the whole branch. It is not a finding line.
 - Every other `CodeRabbit local review:` and `Codex local review:` line is a
   finding line; its handling (rejected, `deferred`, `unclear`) is in the line.

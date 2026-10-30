@@ -797,8 +797,18 @@ the user with **all** of the following — bare counts alone are not enough:
    `dirty-work-tree` until the user commits or discards it); in Phase 4.5, the
    procedure's commits unpushed, and Phase 4's pushed fix with its threads
    neither replied to nor resolved (list them; the next `/fixpr` triages them
-   again). The user decides whether to keep or discard the changes.
+   again). The user decides whether to keep or discard the changes. When the
+   local CLI review stopped in Phase 4.5, give what it reported, and say what
+   it left: the procedure's commits unpushed, Phase 4's pushed fix with its
+   threads neither replied to nor resolved (list them), and any difference in
+   the worktree or refs it found, which the user examines before the next
+   `/fixpr` (a changed work tree makes it stop with `dirty-work-tree`).
 
 8. **README sync**: when the README sync changed `README.en.md`, the terms it
    reported as missing from the glossary, for the user to add to the glossary
    (this command changes neither the glossary nor the PR body).
+
+9. **Local CLI review**: when Phase 4.5 ran, the SUMMARY of
+   `_lib/local-cli-review.md`: each attempt's result with each failed CLI's
+   failure kind, how many times Codex CLI ran, the findings by CLI, and every
+   range neither CLI reviewed (its `Local CLI review: not run` line).
