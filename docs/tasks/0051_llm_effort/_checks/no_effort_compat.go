@@ -9,7 +9,9 @@
 // the commit out into a temporary worktree, adds a probe test to
 // internal/config that loads every value with LoadFor (both stages needed)
 // and prints the result, runs it, and removes the worktree. A result is
-// "accepted" with the stage's provider and model ID, or the list of
+// "accepted" with each stage's provider, model ID, Claude effort, and
+// DeepSeek effort (the merge-base has one Claude effort, which a claude stage
+// uses, and no DeepSeek effort, printed as the zero value), or the list of
 // rejections, each with its variable, sentinel, and reason. The reason of
 // reasonLLMForm is printed as a placeholder, because the task changes its text:
 // it is compared by being each commit's own reasonLLMForm, not by wording.
@@ -66,11 +68,11 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	before, err := probe(base, values)
+	before, err := probe(base, values, baseEfforts)
 	if err != nil {
 		return fmt.Errorf("merge-base: %w", err)
 	}
-	after, err := probe(head, values)
+	after, err := probe(head, values, headEfforts)
 	if err != nil {
 		return fmt.Errorf("head: %w", err)
 	}
@@ -133,9 +135,18 @@ func baseValues(base string) ([]string, error) {
 	return unique, nil
 }
 
+// The probe's expressions for a stage s's Claude and DeepSeek effort, as int
+// values, at each commit. The merge-base stores one Claude effort for the run,
+// which the claude stages use.
+const (
+	baseEfforts = "efforts := func(s llmSelection) (int, int) { if s.provider != ProviderClaude { return 0, 0 }; return int(cfg.llm.claudeEffort), 0 }"
+	headEfforts = "efforts := func(s LLMSelection) (int, int) { return int(s.claudeEffort), int(s.deepSeekEffort) }"
+)
+
 // probe checks commit out into a temporary worktree, runs the probe test
-// there, and returns its result lines.
-func probe(commit string, values []string) ([]string, error) {
+// there with efforts as the commit's effort expression, and returns its
+// result lines.
+func probe(commit string, values []string, efforts string) ([]string, error) {
 	dir, err := os.MkdirTemp("", "no-effort-compat-")
 	if err != nil {
 		return nil, err
@@ -146,7 +157,7 @@ func probe(commit string, values []string) ([]string, error) {
 		return nil, err
 	}
 	defer git("worktree", "remove", "--force", tree) //nolint:errcheck // best-effort cleanup of a temporary worktree
-	if err := os.WriteFile(filepath.Join(tree, probeFile), []byte(probeSource(values)), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(tree, probeFile), []byte(probeSource(values, efforts)), 0o600); err != nil {
 		return nil, err
 	}
 	cmd := exec.Command("go", "test", "-tags", "test", "-count=1", "-run", "^TestCompatProbe$", "-v", "./internal/config/")
@@ -164,11 +175,11 @@ func probe(commit string, values []string) ([]string, error) {
 	return results, nil
 }
 
-// probeSource is the probe test added to internal/config. It uses only names
-// both commits define: LoadFor, Need, the stage fields generation and review
-// with their provider and model fields, the variable-name constants, and
-// reasonLLMForm.
-func probeSource(values []string) string {
+// probeSource is the probe test added to internal/config. Apart from efforts,
+// it uses only names both commits define: LoadFor, Need, the stage fields
+// generation and review with their provider and model fields, the
+// variable-name constants, and reasonLLMForm.
+func probeSource(values []string, efforts string) string {
 	var list strings.Builder
 	for _, v := range values {
 		fmt.Fprintf(&list, "\t%q,\n", v)
@@ -201,9 +212,13 @@ func TestCompatProbe(t *testing.T) {
 			cfg, err := LoadFor(lookup, Need{Generation: true, Review: true})
 			result := ""
 			if err == nil {
+				` + efforts + `
 				generation, review := cfg.llm.generation, cfg.llm.review
-				result = fmt.Sprintf("accepted generation %d %q review %d %q",
-					generation.provider, generation.model, review.provider, review.model)
+				genClaude, genDeepSeek := efforts(generation)
+				reviewClaude, reviewDeepSeek := efforts(review)
+				result = fmt.Sprintf("accepted generation %d %q %d %d review %d %q %d %d",
+					generation.provider, generation.model, genClaude, genDeepSeek,
+					review.provider, review.model, reviewClaude, reviewDeepSeek)
 			} else {
 				result = "rejected " + strings.Join(compatRejections(err), " ")
 			}

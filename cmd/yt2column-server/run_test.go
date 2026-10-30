@@ -101,11 +101,10 @@ func TestStartupFailures(t *testing.T) {
 			// the server before it listens (architecture section 7.3).
 			name: "the retired Claude effort variable",
 			setup: func(_ *testing.T, e *serverEnv, _ *deps) {
-				retired := config.RetiredLLMVarsForTest()
-				e.vars[retired[len(retired)-1]] = "low"
+				e.vars[lastRetiredLLMVar()] = "low"
 			},
 			want:        exitUsage,
-			wantStderr:  "configuration: " + config.RetiredLLMVarErrorForTest(config.RetiredLLMVarsForTest()[len(config.RetiredLLMVarsForTest())-1]),
+			wantStderr:  "configuration: " + config.RetiredLLMVarErrorForTest(lastRetiredLLMVar()),
 			configLines: 1,
 		},
 		{
@@ -334,6 +333,13 @@ func stderrLine(output, sub string) string {
 		}
 	}
 	return ""
+}
+
+// lastRetiredLLMVar returns the last retired LLM variable,
+// YT2COLUMN_CLAUDE_EFFORT; config's TestRetiredLLMVars pins the order.
+func lastRetiredLLMVar() string {
+	retired := config.RetiredLLMVarsForTest()
+	return retired[len(retired)-1]
 }
 
 // noticeSignal is a notifier that reports each notice on a channel.

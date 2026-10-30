@@ -326,7 +326,8 @@ func TestLLMDefaultsDocsContract(t *testing.T) {
 // both README versions and project_overview.md: each provider the
 // configuration accepts has exactly one row, no other provider has one, and
 // the code spans of the row's accepted-values cell are exactly the values the
-// configuration accepts for that provider.
+// configuration accepts for that provider. The claude row's next cell, the
+// effort sent when the value has none, starts with the code's default effort.
 func TestEffortValuesDocsContract(t *testing.T) {
 	docs := []struct {
 		name, path, providerHeader, valuesHeader string
@@ -340,6 +341,12 @@ func TestEffortValuesDocsContract(t *testing.T) {
 		})
 	}
 	want := config.EffortValuesByProviderForTest()
+	// claudeProvider is the provider part whose omitted effort has a code
+	// default; deepseek sends none.
+	const claudeProvider = "claude"
+	if _, ok := want[claudeProvider]; !ok {
+		t.Fatalf("the configuration accepts no %q provider", claudeProvider)
+	}
 	for _, doc := range docs {
 		t.Run(doc.name, func(t *testing.T) {
 			table := doctestutil.FindTable(doctestutil.ReadDoc(t, doc.path), doc.valuesHeader)
@@ -370,6 +377,16 @@ func TestEffortValuesDocsContract(t *testing.T) {
 				}
 				if !slices.Equal(slices.Sorted(slices.Values(got)), slices.Sorted(slices.Values(values))) {
 					t.Errorf("%s: the %s row lists %q, want %q", doc.name, provider, got, values)
+				}
+				if provider == claudeProvider {
+					if len(row) <= valuesColumn+1 {
+						t.Errorf("%s: the %s row has no cell after the accepted values", doc.name, provider)
+						continue
+					}
+					if first, ok := firstCodeSpan(row[valuesColumn+1]); !ok || first != config.DefaultClaudeEffortForTest() {
+						t.Errorf("%s: the %s row's omitted-effort cell starts with %q, want the default %q",
+							doc.name, provider, first, config.DefaultClaudeEffortForTest())
+					}
 				}
 			}
 			for _, provider := range slices.Sorted(maps.Keys(want)) {
@@ -708,6 +725,7 @@ func checkMigrationSection(t *testing.T, name, migrationHeading, readme string) 
 
 	blocks := doctestutil.FencedBlocks(section)
 	examples := map[string]int{}
+	paired := 0
 	for i, block := range blocks {
 		if block.Info != "text" {
 			continue
@@ -715,6 +733,7 @@ func checkMigrationSection(t *testing.T, name, migrationHeading, readme string) 
 		if i+1 >= len(blocks) || blocks[i+1].Info != "sh" {
 			t.Fatalf("%s %s: text block %d is not followed by an sh block", name, migrationHeading, i+1)
 		}
+		paired++
 		after := checkExportLines(t, name, migrationHeading, blocks[i+1], []string{llmVar})
 		before := map[string]string{}
 		for j, line := range block.Lines {
@@ -747,6 +766,18 @@ func checkMigrationSection(t *testing.T, name, migrationHeading, readme string) 
 		if diff := selectionMismatch(load(after[llmVar]), load(old)); diff != "" {
 			t.Errorf("%s %s: the new setting differs from the old one it replaces: %s", name, migrationHeading, diff)
 		}
+	}
+	// An sh block that follows no text block would go unchecked, so every sh
+	// block must be the second half of an example.
+	shBlocks := 0
+	for _, block := range blocks {
+		if block.Info == "sh" {
+			shBlocks++
+		}
+	}
+	if shBlocks != paired {
+		t.Errorf("%s %s: %d sh blocks, but %d follow a text block; want every sh block to be part of an example",
+			name, migrationHeading, shBlocks, paired)
 	}
 	for _, kind := range []string{providerVar, effortVar} {
 		if examples[kind] != 1 {

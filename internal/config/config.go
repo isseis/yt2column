@@ -247,9 +247,9 @@ type LLMConfig struct {
 }
 
 // Generation returns the selection of the generation and the shorten step:
-// from YT2COLUMN_LLM, or from defaultLLMValue when the variable is unset. It
-// is the zero LLMSelection unless the run needs the generation stage
-// (Need.Generation), and then no generation client is built.
+// from YT2COLUMN_LLM, or from defaultLLMValue when the variable is unset.
+// When the run does not need the generation stage (Need.Generation is false),
+// it is the zero LLMSelection and no generation client is built.
 func (c LLMConfig) Generation() LLMSelection {
 	return c.generation
 }

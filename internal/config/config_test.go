@@ -1888,7 +1888,9 @@ func TestLoadReviewOnlyReadsLLM(t *testing.T) {
 // retiredLLMVarsWant is the retired variables and the replacement each one's
 // reason names, written out here rather than read from retiredLLMVars, so a
 // variable dropped from that table fails TestRetiredLLMVars instead of
-// shrinking the cases of TestLoadRejectsRetiredLLMVars with it.
+// shrinking the cases of TestLoadRejectsRetiredLLMVars with it. The order is
+// pinned too: the CLI's and the server's tests take YT2COLUMN_CLAUDE_EFFORT as
+// the last entry of RetiredLLMVarsForTest.
 var retiredLLMVarsWant = []retiredLLMVar{
 	{"YT2COLUMN_LLM_PROVIDER", reasonRetiredLLM},
 	{"YT2COLUMN_MODEL", reasonRetiredLLM},
@@ -1934,6 +1936,11 @@ func TestLoadRejectsRetiredLLMVars(t *testing.T) {
 	}{
 		{"LLM unset", defaultsBaseEnv()},
 		{"LLM set", with(defaultsBaseEnv(), llmEnv, "claude/claude-opus-5-5")},
+		// Both stages deepseek: the retired claude effort variable stops even
+		// a run in which no stage uses claude.
+		{"both stages deepseek", withVars(defaultsBaseEnv(), map[string]string{
+			llmEnv: "deepseek/deepseek-flash", reviewLLMEnv: "deepseek/deepseek-flash",
+		})},
 	}
 	for _, v := range retiredLLMVarsWant {
 		for _, value := range []string{"deepseek", ""} {

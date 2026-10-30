@@ -549,12 +549,20 @@ func TestNewPaddedModel(t *testing.T) {
 // model ID ends in white space before the "+" reaches the real claude.New with
 // that model ID and the effort part, and that the build fails before anything
 // is sent. The claude rejection's sentinel is unexported, so the constructor's
-// input and the empty loopback server show where the run stopped.
+// input and the empty loopback server show where the run stopped, and a
+// control row without the space shows that the same environment and
+// constructor build a client, so the space alone is what is rejected.
 func TestNewClaudePaddedModelSendsNothing(t *testing.T) {
 	body, err := os.ReadFile(claudeEndTurnFixture) //nolint:gosec // the path names a committed testdata fixture
 	if err != nil {
 		t.Fatalf("read fixture: %v", err)
 	}
+	control := claudeValidEnv()
+	control["YT2COLUMN_LLM"] = "claude/" + testClaudeModel + "+high"
+	if _, err := newGeneration(loadConfig(t, control).LLM(), builders{claude: claude.New}); err != nil {
+		t.Fatalf("control: newGeneration() without the space error = %v, want nil", err)
+	}
+
 	env := claudeValidEnv()
 	env["YT2COLUMN_LLM"] = "claude/" + testClaudeModel + " +high"
 	cfg := loadConfig(t, env)
@@ -739,14 +747,15 @@ func sentByStage(t *testing.T, cfg config.LLMConfig, stage stageBuilder) sentEff
 // The model sent never carries the effort part.
 func TestNewSendsStageEffort(t *testing.T) {
 	type stage = sentEffort
-	claudeAt := func(model, effort string) stage { return stage{config.ProviderClaude, model, effort, true} }
-	deepseekAt := func(effort string) stage { return stage{config.ProviderDeepSeek, testModel, effort, true} }
-	deepseekNone := stage{config.ProviderDeepSeek, testModel, "", false}
-	cases := []struct {
+	type testCase struct {
 		name                       string
 		llm, reviewLLM             string // reviewLLM "" leaves YT2COLUMN_REVIEW_LLM unset
 		wantGeneration, wantReview stage
-	}{
+	}
+	claudeAt := func(model, effort string) stage { return stage{config.ProviderClaude, model, effort, true} }
+	deepseekAt := func(effort string) stage { return stage{config.ProviderDeepSeek, testModel, effort, true} }
+	deepseekNone := stage{config.ProviderDeepSeek, testModel, "", false}
+	cases := []testCase{
 		{
 			"claude stages with different efforts",
 			"claude/" + testClaudeModel + "+low", "claude/" + testClaudeReviewModel + "+xhigh",
@@ -780,11 +789,7 @@ func TestNewSendsStageEffort(t *testing.T) {
 	}
 	// Each deepseek value, inherited by the review stage.
 	for _, effort := range []string{"none", "low", "high", "max"} {
-		cases = append(cases, struct {
-			name                       string
-			llm, reviewLLM             string
-			wantGeneration, wantReview stage
-		}{"deepseek " + effort + ", inherited", "deepseek/" + testModel + "+" + effort, "", deepseekAt(effort), deepseekAt(effort)})
+		cases = append(cases, testCase{"deepseek " + effort + ", inherited", "deepseek/" + testModel + "+" + effort, "", deepseekAt(effort), deepseekAt(effort)})
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
