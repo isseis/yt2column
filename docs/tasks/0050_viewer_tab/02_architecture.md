@@ -8,7 +8,7 @@
 | Created | 2026-10-31 |
 | Review date | 2026-10-31 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-31 (decision, approved in session): `/mkplan` の調査で、`extension/test/secretsAbsent.test.ts` が `webhook` と `SLACK_WEBHOOK_URL` の語を禁じ、本設計の応答のメンバ・拒否と投稿の理由・文言と両立しないことが分かった。3.17 に「秘密情報の語のガード」の項目を、3.18 に同じテストの行を加えた。ガードの狭め方は、レビュアー（isseis）が `/mkplan` のセッションの中で選び、承認した。そのため状態は `approved` のままとする。ほかの決定は変えていない。 |
 
 本書は [01_requirements.md](01_requirements.md)（以下「要件」）を満たす設計を定める。要件の用語（新しい API、ビューア、ビューアの URL、送信の時刻、やり取りの結果、結果不明など）は要件 6 章の定義に従う。各節の見出しの括弧にある F-…・AC-…・H-… と、数字だけの節番号（3.2、4.5 など）は、要件の項目と章を指す。本文の「（3.3）」のような参照は、本書の節を指す。既存のコードの行番号は、コミット `577e7b51` で確かめた。
 
@@ -1319,6 +1319,12 @@ export function renderArticleBody(doc: Document, markdown: string): HTMLElement;
         -   主ボタンの名前（`catalog.primaryButton`）
     -   未送信の文言の場所を、3.13 の操作ごとの節（生成の開始の節）に改める。
     -   主ボタンの名前は 3 つ（記事を生成する・ビューアを開く・やり直す）になる。README がその 3 つを引用し、テストもその 3 つを確かめる形にする。
+-   **秘密情報の語のガード（2026-10-31 の実装計画で加えた）。**
+    -   今のテスト: `extension/test/secretsAbsent.test.ts:10-18` は、`src/` と `static/` のすべてのファイルで、`webhook` と `SLACK_WEBHOOK_URL` の語を、大文字と小文字を区別せずに禁じる。目的は、拡張が API キーや Webhook の URL の設定・入力欄・保存の名前を持たないことである。
+    -   変わること: 本設計では、拡張のソースに次のものが入る。
+        -   応答のメンバ `webhookConfigured`、拒否の理由 `webhook_not_configured`、投稿の理由 `webhook`（3.3）
+        -   要件 F-006 の表の 5 行目の、`SLACK_WEBHOOK_URL` を設定してサーバを起動し直す手順の文言（3.13）
+    -   改め方: 単独の語 `webhook` の禁止をやめ、URL の設定を指す語（`webhook url`・`webhookurl`・`webhook_url`）の禁止に置き換える。`SLACK_WEBHOOK_URL` は、文言の 2 つのファイル（`src/core/i18n/en.ts`・`ja.ts`）でだけ許し、その 2 つは、走査の前にこの語を取り除いてから調べる。API キーの語と、トークン・ポートの語の禁止は変えない。拡張が Webhook の URL を持たないこと（要件 4.2）は、この狭めた語の禁止と、拡張が `chrome.storage` を使わないこと（lint の規則）で保つ。
 -   **`0046` の「送信の経路と文言を変えない」**は、本タスクで変える前提の決定であり、方針の変更ではない（要件 5 章）。
 
 ### 3.18. コンポーネント責務表
@@ -1372,6 +1378,7 @@ export function renderArticleBody(doc: Document, markdown: string): HTMLElement;
 | `extension/test/` の新しいテスト | 新規 | 新しいモジュールのテスト | `strictJson`・`viewerUrl`・`extensionMessages`・`poll`・`poller`・`jobView`・`fileName`・`startCoordinator`・`viewerApp`・`renderJob`・`renderViewer`・`articleBody` |
 | `extension/test/serverReasons.test.ts` | 変更 | 拒否の理由の表のガード | 3.17 |
 | `extension/test/metadataDocs.test.ts` | 変更 | README のガード | 3.17 |
+| `extension/test/secretsAbsent.test.ts` | 変更 | 秘密情報の語のガード | 3.17 |
 | `extension/test/jobCodes.test.ts` | 新規 | コードの表のガード | `development.md`「ジョブの API のコード」の表と、拡張の `Record<…, true>` の集合を突き合わせる（7.1） |
 | `cmd/yt2column/extension_docs_test.go` | 変更 | Go のガード | 応答の上限がホストの上限と等しいことを確かめる（3.3）。`sendTimeoutMs` の読み取りは変えない |
 | `README.md`・`README.en.md` | 変更 | 利用者向けの文書 | 「ブラウザ拡張」節（Chrome 110、拡張の更新、ビューアの見出しは URL の値であること）、「localhost サーバ」節、拒否の理由の表（F-010）。`README.en.md` は `/mktrans` で更新する |
