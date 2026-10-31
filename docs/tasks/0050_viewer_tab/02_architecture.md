@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-31 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-10-31 |
+| Reviewer | isseis |
 | Comments | 2026-10-31 (decision, approved in session): `/mkplan` の調査で、`extension/test/secretsAbsent.test.ts` が `webhook` と `SLACK_WEBHOOK_URL` の語を禁じ、本設計の応答のメンバ・拒否と投稿の理由・文言と両立しないことが分かった。3.17 に「秘密情報の語のガード」の項目を、3.18 に同じテストの行を加えた。ガードの狭め方は、レビュアー（isseis）が `/mkplan` のセッションの中で選び、承認した。その時点では状態を `approved` のままとした（その後、下の項目のとおり `draft` に戻した）。ほかの決定は変えていない。<br>2026-10-31 (decision, approved in session): `/mkplan` のレビューで、`extension/eslint.config.js` のブランドの型の別名の規則が、本設計の判別共用体を lint で拒否することが分かった。3.17 に「ブランドの型の別名の lint の規則」の項目を加えた。規則の狭め方は、レビュアー（isseis）が `/mkplan` のセッションの中で選び、承認した。その時点では状態を `approved` のままとした（その後、下の項目のとおり `draft` に戻した）。ほかの決定は変えていない。<br>2026-10-31 (editorial): ローカルの CLI のレビューの指摘で、上の 2 つの項目の書き方を、レビュアーが選んだ原則（オブジェクトの型の中の参照だけを許す、文言の中の `SLACK_WEBHOOK_URL` だけを許す）に合わせて正確にした。交差型の別名と、文言のファイルのコードの中の語を、許さないことを明記した。決定は変えていない。<br>2026-10-31 (decision, approved in session): 3.17「README を読むガード」を改めた。`extension/test/metadataDocs.test.ts:64-78` の socket directory の確認は README を読まず、英語の未送信の文言が `README.en.md` を名指すことと、そのファイルの存在を確かめるので、記述を実際の確認に合わせた。この確認は付け替えずに消す（直書きのリテラルで、タスク 0048 の 1 回の変更を確かめるだけであるため）。レビュアー（isseis）が `/mkplan` のセッションの中で承認した。その時点では状態を `approved` のままとした（その後、下の項目のとおり `draft` に戻した）。ほかの決定は変えていない。<br>2026-10-31 (decision, reset to draft): 上の 3 つの「セッションの中で承認した」は、決定変更を `approved` のまま残した点で誤りであった。`docs/dev/conventions/requirements_process.md`「Editing an approved document」が `approved` のままの再承認を許すのは、`/runplan` の実装中に見つかった決定変更を、その場でレビュアーが承認した場合だけである。3.17 のガードの緩和と、既存のテストの削除は決定変更であり、`/mkplan` での承認はこの例外に当たらない。そこで状態を `draft` に戻し、`Review date` と `Reviewer` を `-` にした。再承認は `/runpr` のマージの質問で受ける。決定の内容（3.17 の 3 つの項目と、テストの削除）は変えていない。 |
 
 本書は [01_requirements.md](01_requirements.md)（以下「要件」）を満たす設計を定める。要件の用語（新しい API、ビューア、ビューアの URL、送信の時刻、やり取りの結果、結果不明など）は要件 6 章の定義に従う。各節の見出しの括弧にある F-…・AC-…・H-… と、数字だけの節番号（3.2、4.5 など）は、要件の項目と章を指す。本文の「（3.3）」のような参照は、本書の節を指す。既存のコードの行番号は、コミット `577e7b51` で確かめた。
