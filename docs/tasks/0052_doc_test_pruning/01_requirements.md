@@ -229,9 +229,10 @@ N/A。`docs/dev/security.md` の条件付きガイドの対象外である。本
 
 -   `docs/dev/project_overview.md` の「決定済みの方針」「前提・制約」に従う。
 -   **実装の開始の条件:** 本タスクの実装（`/runplan`）は、タスク 0051 の最後の PR がマージされてから始める（1 章「実装は 0051 の完了の後に始める」）。本書が挙げる行番号と対象は `66222946` の時点のものであり、設計は、実装を始める時点のテストに基準を当てはめる。
--   `CLAUDE.md`「Deleting a test is a claim that must be checked」に従い、カバレッジを比べる（F-004）。この規則は関数ごとの結果が変わらないことを求め、対象の関数を限っていない。本タスクは比べる対象を製品のコードの関数に限る（AC-11）。本タスクは補助（`internal/doctestutil` など、テストのためのコード）そのものを取り除くので、補助の関数の結果は必ず変わるからである。issue #591 も「テスト対象のコードについて」と限っている。
+-   `CLAUDE.md`「Deleting a test is a claim that must be checked」に従い、カバレッジを比べる（F-004）。比べる対象は、下の例外のとおり製品のコードの関数に限る。
 -   拡張の node のテストを変えるので、`make ext-check` を通す（`CLAUDE.md`「Development Notes」）。
 -   本タスクは、既存の方針に対して次の例外を設ける。
+    -   **カバレッジの比較の対象:** `CLAUDE.md`「Deleting a test is a claim that must be checked」は、関数ごとの結果が変わらないことを求め、対象の関数を限っていない。本タスクは比べる対象を製品のコードの関数に限る（AC-11）。本タスクは補助（`internal/doctestutil` など、テストのためのコード）そのものを取り除くので、補助の関数の結果は必ず変わるからである。issue #591 も「テスト対象のコードについて」と限っている。
     -   **承認済みの文書の編集:** `docs/dev/conventions/requirements_process.md`「Editing an approved document」は、承認済みの文書の決定を変える場合、Status を `draft` に戻して再承認を求める。本タスクは、実装中の計画（F-006）を `approved` のまま改め、`Comments` に `(decision)` として記録する。検証方法を変える決定は本書で定め、本書の承認がその再承認に当たるためである。0038 F-006 が先例である。
 
 ## 6. 用語集 (Glossary)
