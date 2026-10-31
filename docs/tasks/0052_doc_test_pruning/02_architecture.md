@@ -118,7 +118,7 @@ Q0 で、設定ファイルやコードのコメントの自然言語も「読�
 -   **0051 の進み具合:** 要件書 1 章は、0051 の次の PR が `cmd/yt2column/docs_test.go` を変えると書く。`bf314092` の時点で、その PR（#590）はマージされている（本書の冒頭）。
 -   **`TestGuideIgnoredCommands` の日英のブロックの一致:** 0038 の設計書（3.4）が削除すると見込んだ確認は、すでに `2f0c00f0`（#471）で消えている。今は K3 の確認だけが残る（3.1.4）。
 -   **タスク 0048 の `_checks/` が `doctestutil` を使う:** `docs/tasks/0048_doc_language_policy/_checks/readme/main.go` と `split/main.go` は、`doctestutil` の `HeadingsOutsideBlocks`・`HeadingLevel`・`ScanDocLines`・`FencedBlocks`・`MarkdownTables`・`FindTable` を使う。`go list ./...` は `_` で始まるディレクトリを含まない（`bf314092` で `go list -tags test ./...` に `_checks` の行は 0 件）ので、`make test`・`make lint`・`make deadcode` はこれらをビルドしない。本書が取り除く補助は、どれもこれらの関数ではない（3.4）。
--   **タスク 0050 の計画の草稿:** `main` にはないが、ローカルのブランチ `isseis/0050-viewer-tab-03` に、0050 の計画の草稿（`b7d5e257`、2026-10-31 の時点で未 push）がある。その `03_implementation_plan.md:386` は、本書が取り除く確認を保つ作業を含む（3.5）。
+-   **タスク 0050 の計画:** `main` にはないが、0050 の計画の草稿が PR #595（ブランチ `isseis/0050-viewer-tab-03`）にある。草稿は当初、本書が取り除く確認を保つ作業を含んでいた。本書の設計のレビューの後、`782174fd` で、その確認を消す作業に改められた（3.5）。
 
 ## 2. システム構成 (System Structure)
 
@@ -275,7 +275,7 @@ flowchart LR
 | Go の文書のテスト（そのほか） | `cmd/fixprguard/docs_test.go`、`cmd/codexreview/docs_test.go`、`internal/pipeline/pipeline_test.go` | PR-3 |
 | node のテスト | `extension/test/metadataDocs.test.ts` | PR-3 |
 | 文書のテストを述べる記述 | `CLAUDE.md`「Development Notes」（PR-2・PR-3） | PR-2・PR-3 |
-| 実装中の計画・設計書 | タスク 0050 の設計書または計画（3.5。実装の時点の状態による） | PR-3（0050 の計画の PR で扱う場合は変えない） |
+| 実装中の計画・設計書 | タスク 0050 の設計書または計画。PR #595 が今の形でマージされれば変えない（3.5） | PR-3 |
 | 本タスクの文書 | `03_implementation_plan.md`（実装の記録） | 各 PR |
 
 変えないもの: `.github/workflows/ci.yml`、`extension/scripts/has-extension-changes.sh`、`extension/test/ciChanges.test.ts`・`serverReasons.test.ts`・`markdownSection.test.ts`・`helpers/`、`cmd/yt2column-server/docs_test.go`、`cmd/yt2column-nmhost/main_test.go`、`cmd/yt2column` の `output_layout_docs_test.go`・`copied_transcript_docs_test.go`・`docpaths_test.go`・`readme_sync_test.go`・`extension_docs_test.go`、`internal/doctestutil/structure.go`、`docs/dev/conventions/package_reference.md`・`test_organization.md`（3.7）、完了したタスクの文書（AC-17）。
@@ -537,9 +537,16 @@ flowchart LR
 
 -   承認済みの計画で未チェックの項目が残るのは、0038（`#440` を閉じること。`:655`）と 0047（マージの記録と次のブランチ。`:162-163`・`:229`）だけで、どちらも後始末である。
 -   計画のない承認済みの設計書は、タスク 0050 の `02_architecture.md` だけである。その 3.17 は、`metadataDocs.test.ts` の socket directory の確認（3.1.7 で取り除く）について、`catalogs.en.notSent["server-unavailable"]`（`:1318`）を挙げ、「未送信の文言の場所を、3.13 の操作ごとの節に改める」（`:1320`）としている。これは、取り除く確認を保つ作業に当たる。
--   0050 の計画の草稿（ローカルのブランチ `isseis/0050-viewer-tab-03` の `b7d5e257`。未 push）の `03_implementation_plan.md:386` も、同じ作業（「`test/metadataDocs.test.ts` の未送信の文言の場所を生成の開始の節に改め」）を含む。
+-   0050 の計画の草稿（PR #595 の `b7d5e257`）の `03_implementation_plan.md:386` も、同じ作業（「`test/metadataDocs.test.ts` の未送信の文言の場所を生成の開始の節に改め」）を含んでいた。
 
-**0050 の扱い:** 最も手間が少ないのは、0050 の計画の草稿のレビューで、この作業を草稿から除くことである。そうすれば、承認済みの文書を改める必要がない。本書はそれをレビュアーに勧める。草稿で除かれなかった場合は、socket directory の確認を取り除く PR-3 の始めに、0050 の状態に応じて次のどれかを行う。
+**その後の状態（2026-10-31、PR #595 の `782174fd`）:** 0050 の側で、この作業を、確認を付け替えずに消す作業に改めた。計画のステップ 7-2（`03_implementation_plan.md:576`）は socket directory の確認（`metadataDocs.test.ts:64-78`）を消すとし、`:48`・`:86` もそれに合わせた。設計書 3.17（`:1316-1320`）は、確認の説明を実際の内容に直し、消す理由（直書きのリテラルで、タスク 0048 の 1 回の変更を確かめるだけであること）を記した。設計書の Status は `approved` のままで、`Comments` にレビュアーがセッションで承認した決定として記録されている。ステップ 7-1 がこの確認の読む `notSent` の節を消すので、0050 は確認を付け替えるか消すかのどちらかをする必要があり、消す方を選んだ。
+
+**0050 の扱い:** PR #595 がこの形でマージされれば、本タスクは 0050 の文書を変えない。PR-3 の始めに、0050 の状態に応じて次のどちらかになる。
+
+-   0050 のステップ 7-2 がすでに実装されている場合: 確認はもうないので、PR-3 は `metadataDocs.test.ts` を変えない。3.1.7 の判定の一覧には、0050 で消えたことを記す。
+-   まだ実装されていない場合: PR-3 が確認を消す。0050 のステップ 7-2 の削除は、実装の時点で消す対象がないことになるだけで、0050 の文書を改める必要はない。
+
+PR #595 がこの形でマージされなかった場合（取り除く確認を保つ作業が計画に戻った場合）は、PR-3 の始めに、0050 の状態に応じて次のどれかを行う。
 
 -   0050 に計画がまだない場合: 0050 の設計書 3.17 から、この確認を保つ作業（`:1318`・`:1320`）を除く。要件書 AC-16 のとおり、Status は `approved` のままとし、`Comments` に日付、`(decision)`、本タスク（0052）で改めたこと、改めた節を記録する。0050 の AC の検証の表（設計書 7 章）は、この確認を挙げていない（`:1850` は `serverReasons.test.ts` だけを挙げる）ので変えない。
 -   0050 の計画があり、この作業がまだ実装されていない場合: 計画から当該の作業を除き、同じく `Comments` に記録する。
@@ -608,7 +615,7 @@ AC-20 の確かめ（`docs/tasks/` の外の文書、`.claude/commands/`、残�
 | `cmd/codexreview/docs_test.go` | 変更 | `TestInstallTargetDocumented` の `CLAUDE.md` の部分の削除 | PR-3 |
 | `internal/pipeline/pipeline_test.go` | 変更 | `TestInterfaceDocComments` と `interfaceDoc`・`hasCJK` の削除、文書の読み込みと `markdownSections` の置き換え | PR-3 |
 | `extension/test/metadataDocs.test.ts` | 変更 | socket directory の確認の削除 | PR-3 |
-| `docs/tasks/0050_viewer_tab/` の設計書または計画 | 状態による | 取り除く確認を保つ作業を除き、`Comments` に記録する。0050 の計画の草稿のレビューで除かれていれば変えない（3.5） | PR-3 |
+| `docs/tasks/0050_viewer_tab/` の設計書または計画 | 状態による | PR #595 が今の形（確認を消す）でマージされれば変えない。取り除く確認を保つ作業が戻った場合に限り、それを除いて `Comments` に記録する（3.5） | PR-3 |
 | `docs/tasks/0052_doc_test_pruning/03_implementation_plan.md` | 変更 | 実装の記録（カバレッジの比較、調べ直しの結果） | 各 PR |
 
 ## 4. エラーハンドリング設計 (Error Handling Design)
