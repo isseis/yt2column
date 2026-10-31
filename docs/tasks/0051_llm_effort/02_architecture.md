@@ -8,7 +8,7 @@
 | Created | 2026-10-30 |
 | Review date | 2026-10-30 |
 | Reviewer | isseis |
-| Comments | 2026-10-30（編集上の訂正。実装の PR-1 のレビューで判明）: 執筆後に 66222946 で `README.en.md` が入った。3.7 の `README.en.md` の行と 7.4 の README のガードの記述を、2 つの版を版ごとに検査する現状に合わせた。あわせて 3.7 の `docs/dev/project_overview.md` の行に、想定ディレクトリ構成への `internal/llm/deepseekparam` の追加を含めた。2026-10-30（編集上の訂正。フェーズ 2 の実装時）: 3.6 の DeepSeek のテストの行を、実際に変えたファイル（`deepseek_test.go`・`test_helpers.go`）に合わせた。4 種類のエラーの表示は 1 つの表で確かめるので、`response_test.go` は変えない。設計の判断は変えていない。 |
+| Comments | 2026-10-30（編集上の訂正。実装の PR-1 のレビューで判明）: 執筆後に 66222946 で `README.en.md` が入った。3.7 の `README.en.md` の行と 7.4 の README のガードの記述を、2 つの版を版ごとに検査する現状に合わせた。あわせて 3.7 の `docs/dev/project_overview.md` の行に、想定ディレクトリ構成への `internal/llm/deepseekparam` の追加を含めた。2026-10-30（編集上の訂正。フェーズ 2 の実装時）: 3.6 の DeepSeek のテストの行を、実際に変えたファイル（`deepseek_test.go`・`test_helpers.go`）に合わせた。4 種類のエラーの表示は 1 つの表で確かめるので、`response_test.go` は変えない。設計の判断は変えていない。2026-10-31（決定の変更。`/runplan` の PR-2 のコードレビューで判明し、この日のセッションでレビュアーが承認した）: 要件書の決定の変更に合わせ、1.2 の `YT2COLUMN_CLAUDE_EFFORT` の理由の項目、3.7 の移行の節の行、4.1 の `reasonRetiredClaudeEffort` の行、4.2 の例を、`+<effort>` を付ける先をプロバイダが `claude` の値に限る形に直した。 |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルについての記述は、コミット `be657abc` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を指す。要件のレビューで設計に申し送られた事項（[design_handoff.md](design_handoff.md) の H-01〜H-09）への対応は、付録 A にまとめる。
 
@@ -50,7 +50,7 @@
 -   **`YT2COLUMN_CLAUDE_EFFORT` の定数と、そのテスト用のアクセサをなくす（H-05）:** 旧変数の一覧のほかの 4 つは、一覧に名前を直接書いている（`config.go:114-117`）。`YT2COLUMN_CLAUDE_EFFORT` も同じく一覧の末尾に書き、定数 `claudeEffortEnv`（`config.go:36`）と `ClaudeEffortEnvForTest`（`internal/config/test_helpers.go`）は消す。テストと文書のガードは、旧変数の名前を `RetiredLLMVarsForTest` から得る。末尾に加えるのは、一覧を位置で引くテスト（`cmd/yt2column/docs_test.go:616-617` の `retired[0]`・`retired[1]`）があるためである。
 -   **4 つのアクセサを消し、`Generation()`・`Review()` に一本化する:** `LLMConfig` の `Provider()`・`Model()`・`ReviewProvider()`・`ReviewModel()`（`config.go:179-201`）は消す。残すと、同じ値を読む方法が 2 つになり、effort だけが工程の選択からしか読めない非対称も残る。呼び出し側は、本番のコードではサーバの起動のログ（`cmd/yt2column-server/run.go:188-189`）と `provider.New`・`NewReview`（`provider.go:35`・`:42`）だけで、後者は本設計でもともと書き換える。ほかはテスト（`internal/config/config_test.go`、`cmd/yt2column/docs_test.go`・`integration_env_test.go`・`run_test.go`、`internal/llm/provider/provider_test.go`）で、どれも本タスクで変えるファイルである。`.Provider()` を `.Generation().Provider()` に、`.ReviewModel()` を `.Review().Model()` に置き換えるだけで済む（3.6）。なお、同じパッケージに `Need.Generation`・`Need.Review`（`bool`。`config.go:397-401`）があるが、型が異なり取り違えはコンパイルで止まるので、名前は変えない。
 -   **DeepSeek のアダプタのエラーに、送った `reasoning_effort` を含める:** 要件書 2.3 のとおり、effort はログにも記事にも成果物にも出ない。そのため、ある工程が失敗したときに、その工程がどの effort を送ったかを示せる場所はエラーの行だけである。Claude のアダプタは、HTTP の状態のエラー・打ち切り・想定外の終了理由のエラーに effort を含めている（`internal/llm/claude/claude.go:134-141`、`internal/llm/claude/response.go:69-74`・`:300-316`）。DeepSeek のアダプタも同じく、HTTP の状態のエラー（今はモデルと `max_tokens` だけを示す。`internal/llm/deepseek/deepseek.go:131-137`）、打ち切り（`finish_reason` が `length`）・想定外の終了理由・空の応答のエラーに、送った `reasoning_effort`（または送らなかったこと）を含める。effort は秘密情報ではない。時間切れ（`LLMTimeout`）のエラーは `internal/llm/llmhttp` が作る共通のもので、今の Claude のアダプタも effort を含めていないので、本書でも変えない（5.2 の残るリスク）。
--   **`YT2COLUMN_CLAUDE_EFFORT` の拒否の理由は、既定値を使っていた利用者が書くべき値を示す:** この変数で effort だけを変え、`YT2COLUMN_LLM` を設定していなかった利用者が、最も多く拒否に当たると考えられる。そうした利用者は、「`YT2COLUMN_LLM` の値に `+<effort>` を付ける」と言われても、付け足す先の値がない。理由に、`YT2COLUMN_LLM` が未設定なら `defaultLLMValue` に `+<effort>` を付けた値を設定すること、`YT2COLUMN_REVIEW_LLM` は設定していれば付けることを含める（4.1）。サーバでは、標準エラー出力のこの 1 行が唯一の手がかりである。今の旧変数の理由も、1 行だけで直し方が分かることを狙っている（`config.go:88-91`）。
+-   **`YT2COLUMN_CLAUDE_EFFORT` の拒否の理由は、既定値を使っていた利用者が書くべき値を示す:** この変数で effort だけを変え、`YT2COLUMN_LLM` を設定していなかった利用者が、最も多く拒否に当たると考えられる。そうした利用者は、「`YT2COLUMN_LLM` の値に `+<effort>` を付ける」と言われても、付け足す先の値がない。理由に、`YT2COLUMN_LLM` が未設定なら `defaultLLMValue` に `+<effort>` を付けた値を設定すること、付ける先はプロバイダが `claude` の LLM の変数の値に限ることを含める（4.1）。旧変数は `deepseek` の工程には効いていなかったので、`deepseek` の値に付けると、それまで送っていなかった `reasoning_effort` を送ることになる。サーバでは、標準エラー出力のこの 1 行が唯一の手がかりである。今の旧変数の理由も、1 行だけで直し方が分かることを狙っている（`config.go:88-91`）。
 -   **`docs/dev/security.md` §3 のモデル ID の定義を直す:** `docs/dev/security.md:53` は、モデル ID を「`YT2COLUMN_LLM`・`YT2COLUMN_REVIEW_LLM` の最初の `/` より後ろ」と定義している。本書の変更後は、後半に `+` があれば `+` より前がモデル ID なので、この括弧の中を要件書 6 章の定義に合わせる。要件書 2.2 の文書の一覧にはないが、定義が古いまま残ると、`/` の扱いを確かめる人がモデル ID の範囲を取り違える。文の意味（モデル ID は要求本文にだけ入れる）は変えない。
 -   **生成と検証・推敲の継承は、工程の選択をまるごと写す:** `YT2COLUMN_REVIEW_LLM` が未設定なら、検証・推敲の選択は生成の選択と同じ値になる（`config.go:465-469` の今の写し方のまま）。effort は工程の選択の中にあるので、継承の規則を書き換えなくても effort が受け継がれる（AC-15・AC-20）。
 
@@ -456,7 +456,7 @@ type Options struct {
 |---|---|---|
 | README の設定の節 | 表から `YT2COLUMN_CLAUDE_EFFORT` の行を消し、`YT2COLUMN_LLM` の行に `+<effort>` を加える。表の下に、effort の部分の規則と、プロバイダごとの受理する値・省いたときの扱いの表（要件書 3.1 の表と同じ列）を置く。継承の文・プロバイダの変数の検査の文・旧変数の文・`max` と既定の effort の注記を直す | AC-30〜AC-33・AC-39・AC-40 |
 | README の推奨構成の節 | 設定のブロックを `export YT2COLUMN_LLM=claude/claude-opus-5-5+high` の 1 行にし、変数の数を述べる文を合わせる | AC-34・AC-40 |
-| README の旧変数からの移行の節 | `YT2COLUMN_CLAUDE_EFFORT` から移る例を加える（変更前の `text` ブロックと変更後の `sh` ブロック）。`YT2COLUMN_REVIEW_LLM` にも effort を付ける必要を述べる。`YT2COLUMN_LLM` を設定していなかった場合の書き方（既定値に `+<effort>` を付ける）を述べる。`+<effort>` を含む値は本書より前の版では受理されず、その版ではモデル ID の一部として API に送られて失敗することを述べる | AC-35 |
+| README の旧変数からの移行の節 | `YT2COLUMN_CLAUDE_EFFORT` から移る例を加える（変更前の `text` ブロックと変更後の `sh` ブロック）。`YT2COLUMN_REVIEW_LLM` に `claude` の値を設定していればその値にも effort を付ける必要と、`deepseek` の値には付けないことを述べる。`YT2COLUMN_LLM` を設定していなかった場合の書き方（既定値に `+<effort>` を付ける）を述べる。`+<effort>` を含む値は本書より前の版では受理されず、その版ではモデル ID の一部として API に送られて失敗することを述べる | AC-35 |
 | README のトラブルシューティング | 旧変数を名指しする設定エラーの項目（`README.md:446-457`）に `YT2COLUMN_CLAUDE_EFFORT` を加え、移行の節へ案内する | AC-36 |
 | `README.en.md` | `/mktrans README.md` で `README.md` の変更を反映し、同じコミットに入れる（`CLAUDE.md`「Translation Guidelines」）。同期の印（`TestReadmeSyncMarker`）と 2 つの版の構造の一致（`TestReadmeVersionsShareStructure`）が `make test` で検査される | 要件書 2.2 |
 | `docs/dev/project_overview.md` | 「設定（環境変数）」の表と規則の文（README と同じ内容）、DeepSeek の thinking の記述（`:88`）、想定ディレクトリ構成への `internal/llm/deepseekparam` の行 | AC-30〜AC-33・AC-37・AC-39・AC-40 |
@@ -478,7 +478,7 @@ type Options struct {
 | `reasonLLMEffortSeparator`（新規） | `ErrInvalid` | 後半に `+` が 2 つ以上（手順 4） | `+` は 1 つまでで、モデル ID と effort を区切ること（AC-06） |
 | `reasonClaudeEffortPart`（新規） | `ErrInvalid` | `claude` で effort の部分が空か不正（手順 6） | `+` の後ろの effort が受理されないことと、`claude` が受理する値の一覧（AC-06） |
 | `reasonDeepSeekEffortPart`（新規） | `ErrInvalid` | `deepseek` で effort の部分が空か不正（手順 6） | 同上、`deepseek` の一覧 |
-| `reasonRetiredClaudeEffort`（新規） | `ErrInvalid` | `YT2COLUMN_CLAUDE_EFFORT` が設定されている | 外す必要があること（空の値も設定されているとみなす）、代わりに `YT2COLUMN_LLM` の値に `+<effort>` を付けること（未設定なら既定値 `claude/claude-opus-5-5` に付けた値を設定すること）、`YT2COLUMN_REVIEW_LLM` も設定していればその値に付けること、省けばプロバイダの既定（`claude` なら `high`）を使うこと（AC-24、1.2） |
+| `reasonRetiredClaudeEffort`（新規） | `ErrInvalid` | `YT2COLUMN_CLAUDE_EFFORT` が設定されている | 外す必要があること（空の値も設定されているとみなす）、代わりに `YT2COLUMN_LLM`・`YT2COLUMN_REVIEW_LLM` のうちプロバイダが `claude` の値に `+<effort>` を付けること（`YT2COLUMN_LLM` が未設定なら既定値 `claude/claude-opus-5-5` に付けた値を設定すること）、省けば `claude` の既定の `high` を使うこと（AC-24、1.2） |
 | `reasonClaudeEffort`（消す） | - | - | - |
 
 -   effort の値の一覧を含む 2 つの理由は、`claudeparam.EffortValues()`・`deepseekparam.EffortValues()` から、パッケージの初期化のときに 1 回だけ組み立てる。一覧は、文の中の固定の前置き（4.2 の例では `accepted values: `）の後に、値を固定の区切り文字でつないで置く。この文は実行時に組み立てるので Go の定数にはできず、パッケージの変数にする。組み立てに使うのはパッケージの値の一覧だけであり、利用者の値は入らない（要件書 4.2）。一覧を文に二重に書かないので、値を足したときに文が古くならない（AC-41）。
@@ -490,7 +490,7 @@ type Options struct {
 CLI もサーバも、今と同じく、設定エラーを 1 件ずつ `<変数名>: <理由>` の 1 行で出し、終了コード `2` で止まる。たとえば `YT2COLUMN_CLAUDE_EFFORT=low` と `YT2COLUMN_LLM=claude/claude-opus-5-5+ultra` を両方設定し、`ANTHROPIC_API_KEY` が未設定なら、次の 3 行が出る（文は例）。
 
 ```text
-YT2COLUMN_CLAUDE_EFFORT: is no longer supported and must be unset (an empty value counts as set); append +<effort> to YT2COLUMN_LLM (while it is unset, set YT2COLUMN_LLM=claude/claude-opus-5-5+<effort>) and to YT2COLUMN_REVIEW_LLM if it is set; without +<effort>, each stage uses its provider's default (high for claude)
+YT2COLUMN_CLAUDE_EFFORT: is no longer supported and must be unset (an empty value counts as set); append +<effort> to the value of each of YT2COLUMN_LLM and YT2COLUMN_REVIEW_LLM whose provider is claude (while YT2COLUMN_LLM is unset, set YT2COLUMN_LLM=claude/claude-opus-5-5+<effort>); without +<effort>, a claude stage uses high
 YT2COLUMN_LLM: the effort after "+" is not accepted for provider claude; accepted values: low, medium, high, xhigh, max
 ANTHROPIC_API_KEY: is unset or empty
 ```

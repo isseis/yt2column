@@ -56,16 +56,16 @@ func TestIntegrationRunProviderSelection(t *testing.T) {
 		t.Fatalf("LoadFor: %v", err)
 	}
 	llmCfg := cfg.LLM()
-	if got := llmCfg.Provider(); got != config.ProviderDeepSeek {
+	if got := llmCfg.Generation().Provider(); got != config.ProviderDeepSeek {
 		t.Errorf("generation provider = %d, want %d", got, config.ProviderDeepSeek)
 	}
-	if got := llmCfg.Model(); got != integrationEnvTestModel {
+	if got := llmCfg.Generation().Model(); got != integrationEnvTestModel {
 		t.Errorf("generation model = %q, want %q", got, integrationEnvTestModel)
 	}
-	if got := llmCfg.ReviewProvider(); got != config.ProviderDeepSeek {
+	if got := llmCfg.Review().Provider(); got != config.ProviderDeepSeek {
 		t.Errorf("review provider = %d, want %d", got, config.ProviderDeepSeek)
 	}
-	if got := llmCfg.ReviewModel(); got != integrationEnvTestModel {
+	if got := llmCfg.Review().Model(); got != integrationEnvTestModel {
 		t.Errorf("review model = %q, want %q", got, integrationEnvTestModel)
 	}
 	// The positive check keeps the negative one below meaningful: a run that
@@ -73,7 +73,7 @@ func TestIntegrationRunProviderSelection(t *testing.T) {
 	if !slices.Contains(read, "DEEPSEEK_API_KEY") {
 		t.Error("the environment read no DEEPSEEK_API_KEY, so it read no provider variable at all")
 	}
-	for _, name := range []string{"ANTHROPIC_API_KEY", "YT2COLUMN_CLAUDE_EFFORT", "ANTHROPIC_WORKSPACE_ID"} {
+	for _, name := range []string{"ANTHROPIC_API_KEY", "ANTHROPIC_WORKSPACE_ID"} {
 		if slices.Contains(read, name) {
 			t.Errorf("the environment read %s, but both stages use DeepSeek", name)
 		}

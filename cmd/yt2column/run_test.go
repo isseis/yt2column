@@ -632,7 +632,6 @@ func executionPathRows() []pathRow {
 				delete(e.env, "DEEPSEEK_API_KEY")
 				e.env["YT2COLUMN_LLM"] = "claude/fake-model"
 				e.env["ANTHROPIC_API_KEY"] = testAnthropicKey
-				e.env["YT2COLUMN_CLAUDE_EFFORT"] = "low"
 				e.client = funcLLM(func(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {
 					return llm.GenerateResponse{}, fmt.Errorf("%w: the server rejected %s", errStubLLM, testAnthropicKey)
 				})
@@ -1997,16 +1996,17 @@ func TestRunInvalidStepTemplate(t *testing.T) {
 // them as one line with an escaped newline.
 func TestRunClaudeConfigurationErrorsOneLineEach(t *testing.T) {
 	e := newRunEnv(t)
-	e.env["YT2COLUMN_LLM"] = "claude/fake-model"
+	// The effort part is rejected, but the provider part still selects
+	// claude, whose missing key is the second rejection.
+	e.env["YT2COLUMN_LLM"] = "claude/fake-model+High"
 	delete(e.env, "DEEPSEEK_API_KEY")
 	delete(e.env, "ANTHROPIC_API_KEY")
-	e.env["YT2COLUMN_CLAUDE_EFFORT"] = "High"
 	if code := e.run(); code != exitUsage {
 		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitUsage, e.stderr.String())
 	}
 	stderr := e.stderr.String()
 	lines := strings.Split(stderr, "\n")
-	for _, name := range []string{"ANTHROPIC_API_KEY", "YT2COLUMN_CLAUDE_EFFORT"} {
+	for _, name := range []string{"ANTHROPIC_API_KEY", "YT2COLUMN_LLM"} {
 		prefix := programName + ": configuration: " + name
 		if !slices.ContainsFunc(lines, func(line string) bool { return strings.HasPrefix(line, prefix) }) {
 			t.Errorf("stderr has no line starting with %q:\n%s", prefix, stderr)
@@ -2022,7 +2022,6 @@ func TestRunDefaultLLMConfig(t *testing.T) {
 	delete(e.env, "YT2COLUMN_LLM")
 	delete(e.env, "DEEPSEEK_API_KEY")
 	e.env["ANTHROPIC_API_KEY"] = testAnthropicKey
-	e.env["YT2COLUMN_CLAUDE_EFFORT"] = "high"
 	var built []config.LLMConfig
 	e.d.newLLMClient = func(cfg config.LLMConfig) (llm.LLMClient, error) {
 		built = append(built, cfg)
@@ -2034,11 +2033,41 @@ func TestRunDefaultLLMConfig(t *testing.T) {
 	if len(built) != 1 {
 		t.Fatalf("generation clients built = %d, want 1", len(built))
 	}
-	if got := built[0].Provider(); got != config.ProviderClaude {
+	if got := built[0].Generation().Provider(); got != config.ProviderClaude {
 		t.Errorf("Provider() = %v, want ProviderClaude", got)
 	}
-	if got, want := built[0].Model(), config.DefaultClaudeModelForTest(); got != want {
+	if got, want := built[0].Generation().Model(), config.DefaultClaudeModelForTest(); got != want {
 		t.Errorf("Model() = %q, want %q", got, want)
+	}
+}
+
+// TestRunRejectsInvalidEffortPart checks that an LLM value whose effort part
+// the provider does not accept stops the run with the usage exit code before
+// any LLM client is built, so the value is never sent as a model ID.
+func TestRunRejectsInvalidEffortPart(t *testing.T) {
+	e := newRunEnv(t)
+	e.env["YT2COLUMN_LLM"] = "claude/claude-opus-5-5+ultra"
+	delete(e.env, "DEEPSEEK_API_KEY")
+	e.env["ANTHROPIC_API_KEY"] = testAnthropicKey
+	built := 0
+	e.d.newLLMClient = func(config.LLMConfig) (llm.LLMClient, error) {
+		built++
+		return e.counter.wrap(e.client), nil
+	}
+	e.d.newReviewLLMClient = func(config.LLMConfig) (llm.LLMClient, error) {
+		built++
+		return e.counter.wrap(e.client), nil
+	}
+	if code := e.run(); code != exitUsage {
+		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitUsage, e.stderr.String())
+	}
+	// The printed line is the contract here: it is all the user sees.
+	prefix := programName + ": configuration: YT2COLUMN_LLM"
+	if !slices.ContainsFunc(strings.Split(e.stderr.String(), "\n"), func(line string) bool { return strings.HasPrefix(line, prefix) }) {
+		t.Errorf("stderr has no line starting with %q:\n%s", prefix, e.stderr.String())
+	}
+	if built != 0 {
+		t.Errorf("LLM clients built = %d, want 0", built)
 	}
 }
 

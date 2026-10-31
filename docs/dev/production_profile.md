@@ -28,16 +28,15 @@ LLM を呼ぶ 3 つの段階の構成を示す。値は [0008 評価記録](../t
 | 字数の調整 | 既定（`prompts/shorten_system.tmpl`・`prompts/shorten_user.tmpl`） | `claude` | `claude-opus-5-5` | `high` |
 | 検証・推敲 | 既定（`prompts/review_system.tmpl`・`prompts/review_user.tmpl`） | `claude` | `claude-opus-5-5` | `high` |
 
-本番の構成を表す環境変数は、次の 2 つである。プロバイダとモデルは、`YT2COLUMN_LLM` の 1 つの値 `<プロバイダ>/<モデル ID>` で指定する。
+本番の構成を表す環境変数は、次の 1 つである。プロバイダ・モデル・effort は、`YT2COLUMN_LLM` の 1 つの値 `<プロバイダ>/<モデル ID>+<effort>` で指定する。
 
 ```sh
-export YT2COLUMN_LLM=claude/claude-opus-5-5
-export YT2COLUMN_CLAUDE_EFFORT=high
+export YT2COLUMN_LLM=claude/claude-opus-5-5+high
 ```
 
-- 検証・推敲のプロバイダとモデルは、`YT2COLUMN_REVIEW_LLM` を指定しなければ、生成と同じになる。
-- effort は 3 つの段階で共通である（`YT2COLUMN_CLAUDE_EFFORT`）。
-- 本番の構成はコード上の既定である（[#490](https://github.com/isseis/yt2column/issues/490)・[#171](https://github.com/isseis/yt2column/issues/171)）。上の 2 つの変数を指定しなくても、同じ構成で記事を作る。
+- 検証・推敲のプロバイダ・モデル・effort は、`YT2COLUMN_REVIEW_LLM` を指定しなければ、生成と同じになる。
+- effort は段階ごとに指定できる（生成と字数の調整は `YT2COLUMN_LLM`、検証・推敲は `YT2COLUMN_REVIEW_LLM` の `+<effort>`）。本番の構成では、3 つの段階のどれも `high` である。
+- 本番の構成はコード上の既定である（[#490](https://github.com/isseis/yt2column/issues/490)・[#171](https://github.com/isseis/yt2column/issues/171)）。上の変数を指定しなくても、同じ構成で記事を作る。
 - 利用者が指定しなければならない変数は、`ANTHROPIC_API_KEY` である。`SLACK_WEBHOOK_URL` は、Slack へ投稿するときだけ要る（CLI の `--slack`、および localhost サーバの投稿の操作と `/articles`）。サーバは未設定でも起動し、そのときは投稿を `webhook_not_configured` で拒否する。値は、利用者が自分の環境で設定する。
 
 ## 品質の目標と結果

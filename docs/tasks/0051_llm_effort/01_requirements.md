@@ -8,7 +8,7 @@
 | Created | 2026-10-29 |
 | Review date | 2026-10-29 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-31（決定の変更。`/runplan` の PR-2 のコードレビューで判明し、この日のセッションでレビュアーが承認した）: `YT2COLUMN_CLAUDE_EFFORT` は `claude` の工程にだけ効いていたので、拒否のメッセージと移行の説明は、`+<effort>` を付ける先を「プロバイダが `claude` の LLM の変数の値」に限ると改めた。区別せずに示すと、生成が `deepseek` の利用者が `deepseek` の値にも effort を付け、それまで送っていなかった `reasoning_effort` を送るか、値が拒否されるためである。1 章「要件定義の際に決めたこと」の該当の項目、AC-24、AC-35 を直した。 |
 
 ## 1. 概要 (Overview)
 
@@ -49,7 +49,7 @@ issue は「決めること（要件定義で確定する）」として 4 つ�
     -   **受理する値は API の仕様の 4 つに限る:** Thinking Mode のガイドは、ほかの値（`minimal`・`medium`・`xhigh`・`ultra`）を API の側で 3 つのどれかに読み替えると記している。これらを受理すると、`deepseek/deepseek-flash+medium` が黙って `high` として動く。指定と異なる振る舞いを隠さないよう、仕様の値以外は拒否する（「Reject, don't normalize」）。
     -   **effort を省いたら何も送らない:** effort を省いた DeepSeek の値では、今と同じ要求を送り、thinking の扱いを API の既定に任せる。今の DeepSeek の設定が、そのまま同じ要求を送り続けるためである。
 -   **推奨構成の例には effort まで書く:** 本番の構成を表す環境変数の例（`docs/dev/production_profile.md`「本番の構成」、README の推奨構成の節）は、`export YT2COLUMN_LLM=claude/claude-opus-5-5+high` の 1 行にする。今の例は `YT2COLUMN_LLM` と `YT2COLUMN_CLAUDE_EFFORT` の 2 行である（`docs/dev/production_profile.md:33-36`・`README.md:575-578`）。README は、この例を export すれば、後で既定が変わっても構成が固定されると説明している（`README.md:586-587`）。effort を省くと effort だけが既定に任されて固定されなくなるので、effort まで書く。
--   **`YT2COLUMN_CLAUDE_EFFORT` を拒否するメッセージには、2 つの変数と既定を示す:** メッセージは、代わりに `YT2COLUMN_LLM` と `YT2COLUMN_REVIEW_LLM` の値に `+<effort>` を付けることと、effort を省けばプロバイダの既定（Claude なら `high`）を使うことを示す。旧変数は検証・推敲にも効いていたので、`YT2COLUMN_REVIEW_LLM` を設定している利用者は、その値にも effort を付ける必要がある。たとえば、`low` を指定していた利用者が、旧変数を外しただけで気づかないまま `high` に戻ってしまうことを防ぐためである。今の旧変数のメッセージも、代わりの変数と、それが未設定のときに使われるものを示している（`config.go:92-100`）。メッセージと移行の説明は、2 つの変数を、プロバイダによって区別せずに示す（レビュアーの判断）。
+-   **`YT2COLUMN_CLAUDE_EFFORT` を拒否するメッセージには、2 つの変数と既定を示す:** メッセージは、代わりに `YT2COLUMN_LLM` と `YT2COLUMN_REVIEW_LLM` のうちプロバイダが `claude` の値に `+<effort>` を付けることと、effort を省けば Claude の既定の `high` を使うことを示す。旧変数は検証・推敲の Claude の工程にも効いていたので、`YT2COLUMN_REVIEW_LLM` に `claude` を設定している利用者は、その値にも effort を付ける必要がある。たとえば、`low` を指定していた利用者が、旧変数を外しただけで気づかないまま `high` に戻ってしまうことを防ぐためである。今の旧変数のメッセージも、代わりの変数と、それが未設定のときに使われるものを示している（`config.go:92-100`）。メッセージと移行の説明は、`+<effort>` を付ける先を、プロバイダが `claude` の値に限って示す（2026-10-31 のレビュアーの判断。旧変数は `deepseek` の工程には効いておらず、`deepseek` の値に付けると、それまで送っていなかった `reasoning_effort` を送るためである）。
 -   **effort の部分が不正なときは、受理する値の一覧を示す:** メッセージは、そのプロバイダが受理する effort の値を示す。今の `YT2COLUMN_CLAUDE_EFFORT` の理由は「must be a supported effort value」だけで、値の一覧を示さない（`config.go:84`）。effort はプロバイダとモデルを合わせた 1 つの値の一部になり、受理する値がプロバイダごとに異なるので、一覧を示す。一覧は固定の文であり、利用者が設定した値を含まない。
 -   **effort の表示はスコープ外とする:** サーバの起動時のログと記事に載るモデルの表記は変えず、effort を加えない（2.3）。
 
@@ -155,7 +155,7 @@ issue は「決めること（要件定義で確定する）」として 4 つ�
 - **AC-21**: `YT2COLUMN_CLAUDE_EFFORT` が設定されていれば（空の値を含む）、CLI は実行を止める。タスク 0045 の 3.1 の表のどの行の実行でも止める（`--after review`、`--no-review` を含む）。生成と検証・推敲のプロバイダがどちらも `deepseek` の実行でも止める。`-h` と使い方の誤りは、今と同じく設定を読む前に報告する。
 - **AC-22**: `YT2COLUMN_CLAUDE_EFFORT` が設定されていれば（空の値を含む）、localhost サーバは待ち受ける前に実行を止める。
 - **AC-23**: `YT2COLUMN_CLAUDE_EFFORT` が設定されている実行は、その値によらず、LLM の API に何も送らない。`YT2COLUMN_LLM` などのほかの変数がすべて正しくても同じである。
-- **AC-24**: メッセージは `YT2COLUMN_CLAUDE_EFFORT` を名指しし、その値を含まない。メッセージは、ほかの旧変数のメッセージと同じく、この変数を外さなければならないこと（空の値も設定されているとみなすこと）を示す（`config.go:97-100`）。あわせて、代わりに `YT2COLUMN_LLM` と `YT2COLUMN_REVIEW_LLM` の値に `+<effort>` を付けることと、effort を省けばプロバイダの既定（Claude なら `high`）を使うことを示す（1 章「要件定義の際に決めたこと」）。
+- **AC-24**: メッセージは `YT2COLUMN_CLAUDE_EFFORT` を名指しし、その値を含まない。メッセージは、ほかの旧変数のメッセージと同じく、この変数を外さなければならないこと（空の値も設定されているとみなすこと）を示す（`config.go:97-100`）。あわせて、代わりに `YT2COLUMN_LLM` と `YT2COLUMN_REVIEW_LLM` のうちプロバイダが `claude` の値に `+<effort>` を付けることと、effort を省けば Claude の既定の `high` を使うことを示す（1 章「要件定義の際に決めたこと」）。
 - **AC-25**: `YT2COLUMN_CLAUDE_EFFORT` の拒否は、ほかの旧変数の拒否、ほかの設定の読み込みのエラーと合わせて、1 回の実行でまとめて報告する（タスク 0045 の AC-15・AC-20 と同じ）。
 - **AC-26**: ホスト（`yt2column-nmhost` の中継、`install`、`uninstall`）は、`YT2COLUMN_CLAUDE_EFFORT` が設定されていても、そのために止まらない（タスク 0045 の AC-17 と同じ）。
 
@@ -178,7 +178,7 @@ effort を値に含めても、プロバイダ固有の変数とエラーの報�
 - **AC-32**: 生成と検証・推敲の継承を述べる既存の文（`README.md:540-544`、`docs/dev/guides/cli.md:273`、`docs/dev/production_profile.md:38`、`docs/dev/project_overview.md:151`）は、プロバイダとモデルに加えて effort も受け継ぐことがわかる形にする。プロバイダの部分が正しくモデル ID だけが空ならそのプロバイダの変数を検査する、と述べる文（`README.md:560-562`、`docs/dev/project_overview.md:153`）は、effort の部分が不正な場合も同じであることがわかる形にする（AC-28）。
 - **AC-33**: 旧変数を列挙する文と、「実行に使わない変数は読まない」方針の例外を述べる文（`README.md:546-551`、`docs/dev/guides/cli.md:72-74`・`:276-278`、`docs/dev/project_overview.md:155-157`）は、`YT2COLUMN_CLAUDE_EFFORT` を旧変数に含める。`docs/dev/guides/cli.md` の `--no-review` の段落のうち effort を述べる文（`docs/dev/guides/cli.md:72`）と、README の `max` および既定の effort の注記（`README.md:564-571`）は、`YT2COLUMN_CLAUDE_EFFORT` ではなく値の effort の部分で説明する。
 - **AC-34**: 本番の構成を表す環境変数の例（`docs/dev/production_profile.md`「本番の構成」、README の推奨構成の節）は、`export YT2COLUMN_LLM=claude/claude-opus-5-5+high` の 1 行にする。例の変数の数を述べる文（`docs/dev/production_profile.md` の「次の 2 つ」「上の 2 つの変数」と、README の推奨構成の節でそれに当たる文）は、例に合わせる。`docs/dev/production_profile.md` の「effort は 3 つの段階で共通である」という記述は、effort を工程ごとに指定できることと、本番の構成では 3 つの工程が同じ `high` であることがわかる形にする。
-- **AC-35**: README の旧変数からの移行の節は、`YT2COLUMN_CLAUDE_EFFORT` から移る方法を示す。少なくとも、`YT2COLUMN_CLAUDE_EFFORT=low` と `YT2COLUMN_LLM=claude/claude-sonnet-5-5` を `YT2COLUMN_LLM=claude/claude-sonnet-5-5+low` に書き換える例と、`YT2COLUMN_REVIEW_LLM` を設定していた場合は、その値にも effort を付ける必要があること（付けなければ既定の `high` になること）を示す。
+- **AC-35**: README の旧変数からの移行の節は、`YT2COLUMN_CLAUDE_EFFORT` から移る方法を示す。少なくとも、`YT2COLUMN_CLAUDE_EFFORT=low` と `YT2COLUMN_LLM=claude/claude-sonnet-5-5` を `YT2COLUMN_LLM=claude/claude-sonnet-5-5+low` に書き換える例と、`YT2COLUMN_REVIEW_LLM` に `claude` の値を設定していた場合は、その値にも effort を付ける必要があること（付けなければ既定の `high` になること）と、プロバイダが `deepseek` の値には付けないことを示す。
 - **AC-36**: README のトラブルシューティングで旧変数を名指しする設定エラーを扱う項目（`README.md:446-457`）は、`YT2COLUMN_CLAUDE_EFFORT` を名指しする設定エラーも扱い、その対処（AC-35 の移行の方法）を示す。
 - **AC-37**: `docs/dev/project_overview.md` の DeepSeek の thinking の記述（`docs/dev/project_overview.md:88`）は、effort を付けた値で `reasoning_effort` を指定でき、省けば API の既定のままであることがわかる形にする。
 - **AC-38**: `docs/dev/conventions/package_reference.md` の `internal/config`・`internal/llm/provider`・`internal/llm/deepseek` の行（`docs/dev/conventions/package_reference.md:27`・`:37` など）は、effort が工程ごとの値から決まること、プロバイダごとに受理する値と省いたときの扱い（3.1 の表）、`YT2COLUMN_CLAUDE_EFFORT` が旧変数であることを述べる。`docs/dev/guides/claude_output_limit.md` の既定の effort の所在の記述（`docs/dev/guides/claude_output_limit.md:10`）は、Claude の既定の effort を定義している箇所を指す。

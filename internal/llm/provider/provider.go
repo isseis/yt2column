@@ -28,18 +28,18 @@ const LLMTimeout = 15 * time.Minute
 // config.Load, so only a package test needs to tell this rejection apart.
 var errUnknownProvider = errors.New("unknown LLM provider")
 
-// New builds the generation LLMClient from cfg.Provider() and cfg.Model(). It
-// never reads environment variables; every value comes from the
-// already-validated LLMConfig.
+// New builds the generation LLMClient from cfg.Generation(): its provider,
+// model ID, and effort. It never reads environment variables; every value
+// comes from the already-validated LLMConfig.
 func New(cfg config.LLMConfig) (llm.LLMClient, error) {
-	return newClient(cfg.Provider(), cfg.Model(), cfg, builders{deepseek: deepseek.New, claude: claude.New})
+	return newGeneration(cfg, productionBuilders())
 }
 
-// NewReview builds the review LLMClient from cfg.ReviewProvider() and
-// cfg.ReviewModel(). It never reads environment variables; every value comes
-// from the already-validated LLMConfig.
+// NewReview builds the review LLMClient from cfg.Review(): its provider, model
+// ID, and effort. It never reads environment variables; every value comes from
+// the already-validated LLMConfig.
 func NewReview(cfg config.LLMConfig) (llm.LLMClient, error) {
-	return newClient(cfg.ReviewProvider(), cfg.ReviewModel(), cfg, builders{deepseek: deepseek.New, claude: claude.New})
+	return newReview(cfg, productionBuilders())
 }
 
 // builders are the adapter constructors. Production passes deepseek.New and
@@ -49,19 +49,39 @@ type builders struct {
 	claude   func(claude.Options) (llm.LLMClient, error)
 }
 
-// newClient builds the adapter for provider and model, so New and NewReview
-// share it; the other adapter values come from cfg. It takes the provider
-// directly so a package test can exercise the unknown-provider branch, which a
-// Config from Load cannot produce. build holds the adapter constructors:
-// production passes deepseek.New and claude.New, a test passes loopback
-// constructors or spies. An unknown provider returns errUnknownProvider without
-// calling any of them.
-func newClient(provider config.Provider, model string, cfg config.LLMConfig, build builders) (llm.LLMClient, error) {
-	switch provider {
+// productionBuilders returns the real adapter constructors.
+func productionBuilders() builders {
+	return builders{deepseek: deepseek.New, claude: claude.New}
+}
+
+// newGeneration builds the generation client from cfg.Generation(). It is New
+// with the constructors as a parameter, so a test sends to a loopback server
+// through the same stage selection as production.
+func newGeneration(cfg config.LLMConfig, build builders) (llm.LLMClient, error) {
+	return newClient(cfg.Generation(), cfg, build)
+}
+
+// newReview builds the review client from cfg.Review(). It is NewReview with
+// the constructors as a parameter, for the same reason as newGeneration.
+func newReview(cfg config.LLMConfig, build builders) (llm.LLMClient, error) {
+	return newClient(cfg.Review(), cfg, build)
+}
+
+// newClient builds the adapter for one stage's selection, so newGeneration
+// and newReview share it. Contract: the provider, the model ID, and the effort
+// all come from sel, never from the other stage, so one stage's effort cannot
+// reach the other's client; only the values the stages share (the API keys
+// and the workspace ID) come from cfg. build holds the adapter constructors.
+// A selection whose provider is not enumerated (the zero LLMSelection, which
+// a Config from Load never holds for a stage it builds) returns
+// errUnknownProvider without calling any of them.
+func newClient(sel config.LLMSelection, cfg config.LLMConfig, build builders) (llm.LLMClient, error) {
+	switch sel.Provider() {
 	case config.ProviderDeepSeek:
 		client, err := build.deepseek(deepseek.Options{
 			APIKey:  cfg.DeepSeekAPIKey(),
-			Model:   model,
+			Model:   sel.Model(),
+			Effort:  sel.DeepSeekEffort(),
 			Timeout: LLMTimeout,
 		})
 		if err != nil {
@@ -71,8 +91,8 @@ func newClient(provider config.Provider, model string, cfg config.LLMConfig, bui
 	case config.ProviderClaude:
 		client, err := build.claude(claude.Options{
 			APIKey:      cfg.AnthropicAPIKey(),
-			Model:       model,
-			Effort:      cfg.ClaudeEffort(),
+			Model:       sel.Model(),
+			Effort:      sel.ClaudeEffort(),
 			WorkspaceID: cfg.AnthropicWorkspaceID(),
 			Timeout:     LLMTimeout,
 		})
@@ -81,6 +101,6 @@ func newClient(provider config.Provider, model string, cfg config.LLMConfig, bui
 		}
 		return client, nil
 	default:
-		return nil, fmt.Errorf("%w: %d", errUnknownProvider, provider)
+		return nil, fmt.Errorf("%w: %d", errUnknownProvider, sel.Provider())
 	}
 }

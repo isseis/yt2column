@@ -5,6 +5,9 @@ package config
 import (
 	"path/filepath"
 	"slices"
+
+	"github.com/isseis/yt2column/internal/llm/claudeparam"
+	"github.com/isseis/yt2column/internal/llm/deepseekparam"
 )
 
 // The server-relevant variable names and the socket path rule, exposed so the
@@ -65,14 +68,24 @@ func LLMEnvForTest() string { return llmEnv }
 // ReviewLLMEnvForTest returns the name of the review LLM variable.
 func ReviewLLMEnvForTest() string { return reviewLLMEnv }
 
-// ClaudeEffortEnvForTest returns the name of the Claude effort variable.
-func ClaudeEffortEnvForTest() string { return claudeEffortEnv }
-
 // AnthropicAPIKeyEnvForTest returns the name of the Anthropic API key variable.
 func AnthropicAPIKeyEnvForTest() string { return anthropicAPIKeyEnv }
 
 // DeepSeekAPIKeyEnvForTest returns the name of the DeepSeek API key variable.
 func DeepSeekAPIKeyEnvForTest() string { return deepSeekAPIKeyEnv }
+
+// DefaultClaudeEffortForTest returns the effort a claude stage uses when its
+// LLM variable's value has no effort part.
+func DefaultClaudeEffortForTest() string { return defaultClaudeEffort.String() }
+
+// EffortValuesByProviderForTest returns, for each provider part the LLM
+// variables accept, the effort values parseLLM accepts for it.
+func EffortValuesByProviderForTest() map[string][]string {
+	return map[string][]string{
+		providerClaude:   claudeparam.EffortValues(),
+		providerDeepSeek: deepseekparam.EffortValues(),
+	}
+}
 
 // RetiredLLMVarsForTest returns the names of the retired LLM variables, in the
 // order their rejections are reported.

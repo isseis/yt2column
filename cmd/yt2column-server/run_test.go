@@ -97,6 +97,17 @@ func TestStartupFailures(t *testing.T) {
 			configLines: 1,
 		},
 		{
+			// The last retired variable, YT2COLUMN_CLAUDE_EFFORT, also stops
+			// the server before it listens (architecture section 7.3).
+			name: "the retired Claude effort variable",
+			setup: func(_ *testing.T, e *serverEnv, _ *deps) {
+				e.vars[lastRetiredLLMVar()] = "low"
+			},
+			want:        exitUsage,
+			wantStderr:  "configuration: " + config.RetiredLLMVarErrorForTest(lastRetiredLLMVar()),
+			configLines: 1,
+		},
+		{
 			name: "HOME unset",
 			setup: func(_ *testing.T, e *serverEnv, _ *deps) {
 				delete(e.vars, "HOME")
@@ -324,6 +335,13 @@ func stderrLine(output, sub string) string {
 	return ""
 }
 
+// lastRetiredLLMVar returns the last retired LLM variable,
+// YT2COLUMN_CLAUDE_EFFORT; config's TestRetiredLLMVars pins the order.
+func lastRetiredLLMVar() string {
+	retired := config.RetiredLLMVarsForTest()
+	return retired[len(retired)-1]
+}
+
 // noticeSignal is a notifier that reports each notice on a channel.
 type noticeSignal chan failure.Notice
 
@@ -341,7 +359,6 @@ func TestOutputsOmitSecrets(t *testing.T) {
 	e := newServerEnv(t)
 	e.vars["YT2COLUMN_REVIEW_LLM"] = "claude/fake-review-model"
 	e.vars["ANTHROPIC_API_KEY"] = testAnthropicKey
-	e.vars["YT2COLUMN_CLAUDE_EFFORT"] = "low"
 	leaking := funcLLM(func(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {
 		return llm.GenerateResponse{}, errors.New("leak " + testAPIKey + " " + testAnthropicKey + " " + testWebhook)
 	})
