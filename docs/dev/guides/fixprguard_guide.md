@@ -451,7 +451,7 @@ find . -path ./.git -prune -o -type l -print | LC_ALL=C sed 's/\^/^^/g' | LC_ALL
   この場合は、古いツールが止まったときの診断と再インストールの案内を、4 章の終了コード `2` の説明に書く。
 
   また、本文とタイトルのファイルの受け付ける内容を狭めるだけの変更は、狭めた分がコマンドの文書の送らない内容に限って、上の 3 つの条件によらず `Protocol` を上げなくてよい。古いツールはその内容を受け付けるが、文書はそれを送らないので誤った投稿にはならず、新しいツールが古い文書の呼び出しで拒否するのは送ってはならない内容だけだからである。`@codex` のメンションの拒否（タスク 0031）はこれに当たる。
-- 自動レビュアーを一覧に加えるとき、または一覧から外すときは、次のものを同じコミットで変え、そのコミットで文書のガード（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./internal/pipeline`）を実行する。`fixpr.md`・`runpr.md` は名前も数も書かず、ツールは名前の数に上限を設けないので、どちらも変えなくてよい。
+- 自動レビュアーを一覧に加えるとき、または一覧から外すときは、次のものを同じコミットで変え、そのコミットで文書のガード（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./cmd/codexreview ./internal/pipeline`）を実行する。`fixpr.md`・`runpr.md` は名前も数も書かず、ツールは名前の数に上限を設けないので、どちらも変えなくてよい。
     1. `.claude/commands/_context.md` の `Automated reviewer list` の行。
     2. 内容のガード（`cmd/yt2column/fixpr_docs_test.go`）の、期待する名前（`wantReviewers`）。
     3. 同じファイルの、壊した写しの表（`TestContextReviewerRowsMalformed`）の行に書いた名前。

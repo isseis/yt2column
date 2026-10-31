@@ -116,20 +116,29 @@
 
 **変更するファイル:** `docs/tasks/0052_doc_test_pruning/03_implementation_plan.md`（このステップの記録）
 
--   [ ] `main` の HEAD で、要件書 2.2 と設計書 3.1 の対象のファイルが `bf314092` から変わったかを `git diff --stat` で調べる。変わったテストがあれば、その行に設計書 3.1 の基準を当てはめ直し、新しい判断の候補はレビュアーに諮る（設計書 3.2 の末尾）。
--   [ ] 設計書 3.5 の 3 つの方法で、実装中の計画を探す。開いている PR の一覧（`gh pr list`）はネットワークを使うので、レビュアーの承認を得てから実行する。タスク 0050 の PR #595 の状態（マージされたか。取り除く確認を保つ作業が 0050 の計画に入っていないか）を記録する。
--   [ ] 調べたコミットと結果を、このステップの下に記録する（AC-05）。
+-   [x] `main` の HEAD で、要件書 2.2 と設計書 3.1 の対象のファイルが `bf314092` から変わったかを `git diff --stat` で調べる。変わったテストがあれば、その行に設計書 3.1 の基準を当てはめ直し、新しい判断の候補はレビュアーに諮る（設計書 3.2 の末尾）。
+-   [x] 設計書 3.5 の 3 つの方法で、実装中の計画を探す。開いている PR の一覧（`gh pr list`）はネットワークを使うので、レビュアーの承認を得てから実行する。タスク 0050 の PR #595 の状態（マージされたか。取り除く確認を保つ作業が 0050 の計画に入っていないか）を記録する。
+-   [x] 調べたコミットと結果を、このステップの下に記録する（AC-05）。
 
 **完了の条件:** 調べたコミット、変わったテストの有無、実装中の計画の有無が本書に記録されている。
+
+**調べ直しの記録（2026-11-01）:**
+
+-   調べたコミット: `b467905e`（`main` の HEAD。本計画の PR #597 のマージ後）。要件書 2.2 と設計書 3.1 の対象のファイルは、`git diff --stat bf314092 b467905e` が `docs/tasks/0050_viewer_tab/02_architecture.md`・`03_implementation_plan.md` と、本タスクの `02_architecture.md`・`03_implementation_plan.md` の 4 ファイルだけを示したので、`bf314092` から変わっていない。設計書 3.1 の判定の一覧を当てはめ直す必要はない。
+-   実装中の計画（設計書 3.5 の 3 つの方法）:
+    -   `main` の承認済みの計画で未チェックの項目が残るものは、0002・0009・0011・0012・0014・0017・0019〜0023・0026・0027・0030・0031・0038・0047・0050・0052 である。このうち 0050 と 0052 を除くものの未チェックの項目は、PR のマージの記録・ブランチの切り替え・issue を閉じることと、完了の条件の再掲だけで、文書のテストを加える作業を含まない（設計書 3.5 の対象外）。0052 は本タスクである。
+    -   計画のない承認済みの設計書はない（`docs/tasks/*/02_architecture.md` の Status と、同じディレクトリの `03_implementation_plan.md` の有無を調べた）。
+    -   開いている PR はない（`gh pr list --state open`。`/runplan` の実行の承認に含まれるネットワークの操作）。`docs/tasks/*/02_architecture.md`・`03_implementation_plan.md` を `main` と変えるブランチは `isseis/0043-extension-i18n-03` だけで、それはタスク 0043 の計画のブランチであり、`main` の計画は PR #517 でマージ済みで未チェックの項目がないので、実装中の計画ではない。`isseis/0050-viewer-tab-04` と `origin/claude/festive-bardeen-cw14ci` は `origin/main` より先のコミットを持たない。
+-   タスク 0050: PR #595 は 2026-10-31 にマージされた。その計画のステップ 7-2（`03_implementation_plan.md:576`）は `metadataDocs.test.ts` の socket directory の確認（`:64-78`）を消すとしているので、設計書 3.5 の「PR #595 がこの形でマージされれば、本タスクは 0050 の文書を変えない」に当たる。0050 の実装のブランチ `isseis/0050-viewer-tab-04` はまだコミットを持たない。PR-3 の始め（ステップ 3-1）に状態を調べ直す。
 
 #### ステップ 1-2: `scope` と `guards` のスクリプトを加える
 
 **変更するファイル:** `docs/tasks/0052_doc_test_pruning/_checks/scope/main.go`（新規）、`docs/tasks/0052_doc_test_pruning/_checks/guards/main.go`（新規）
 
--   [ ] 1.6 の表のとおりに 2 つのスクリプトを書く。冒頭のコメントに、実行の仕方と、確かめることを英語で書く（`0048` の `split/main.go` と同じ形）。
--   [ ] `scope` について、失敗とする条件を一度ずつ作って（許さないファイルを変えた一時的なコミット、PR-1 での 0050 の文書の変更、`CLAUDE.md` の項の既存の文を消した変更）、失敗することを確かめる。一時的な変更はコミットしない。
--   [ ] `guards` を `main` の HEAD に対して実行し、2 か所が `./cmd/codexreview` を欠くので失敗することを確かめる（ステップ 1-4 の前の状態が、この失敗の例になる）。
--   [ ] 確かめたことをコミットメッセージに記す。
+-   [x] 1.6 の表のとおりに 2 つのスクリプトを書く。冒頭のコメントに、実行の仕方と、確かめることを英語で書く（`0048` の `split/main.go` と同じ形）。
+-   [x] `scope` について、失敗とする条件を一度ずつ作って（許さないファイルを変えた一時的なコミット、PR-1 での 0050 の文書の変更、`CLAUDE.md` の項の既存の文を消した変更）、失敗することを確かめる。一時的な変更はコミットしない。
+-   [x] `guards` を `main` の HEAD に対して実行し、2 か所が `./cmd/codexreview` を欠くので失敗することを確かめる（ステップ 1-4 の前の状態が、この失敗の例になる）。
+-   [x] 確かめたことをコミットメッセージに記す。
 
 **完了の条件:** `scope` が `main` の HEAD を merge-base と head の両方にした実行で通り、上の条件で失敗する。`guards` が `main` の HEAD で失敗する。
 
@@ -137,8 +146,8 @@
 
 **変更するファイル:** `CLAUDE.md`
 
--   [ ] 「Testing Strategy」の「Document tests check values, structure, and executable examples, never prose」の項（`CLAUDE.md:492-511`）に、設計書 3.6 の 3 つの規則（D5・D7 (a)・D7 (c)）を、それぞれの理由とともに加える。既存の文は変えない（AC-24）。
--   [ ] 加えた文が、`TestCodexMentionOnlyInRequestRow` の確かめる言及を含まないことを、`make test` で確かめる。
+-   [x] 「Testing Strategy」の「Document tests check values, structure, and executable examples, never prose」の項（`CLAUDE.md:492-511`）に、設計書 3.6 の 3 つの規則（D5・D7 (a)・D7 (c)）を、それぞれの理由とともに加える。既存の文は変えない（AC-24）。
+-   [x] 加えた文が、`TestCodexMentionOnlyInRequestRow` の確かめる言及を含まないことを、`make test` で確かめる。
 
 **完了の条件:** 文が加わり、`make test` が通る。
 
@@ -146,9 +155,9 @@
 
 **変更するファイル:** `.claude/commands/_lib/task-pr-handoff.md`、`docs/dev/guides/fixprguard_guide.md`
 
--   [ ] `task-pr-handoff.md:40` の CHECKS のコマンドを、`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./internal/pipeline` から `go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./cmd/codexreview/... ./internal/pipeline` に変える。`/...` を付ける理由は 1.3 のとおりである。
--   [ ] `fixprguard_guide.md:454` のコマンドを `go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./cmd/codexreview ./internal/pipeline` に変える。同じ箇所のほかの文は変えない。`:461` の古い記述（「本書（日英）」）は、設計書 4.3 のとおり変えない。
--   [ ] 変えた後の 2 つのコマンドを、リポジトリのルートで一度ずつ実行して通ることを確かめる。`go test -tags test ./cmd/codexreview` で、`TestDocumentedInvocationsParse` が `task-pr-handoff.md` の行を呼び出しとみなさないことも確かめる。
+-   [x] `task-pr-handoff.md:40` の CHECKS のコマンドを、`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./internal/pipeline` から `go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./cmd/codexreview/... ./internal/pipeline` に変える。`/...` を付ける理由は 1.3 のとおりである。
+-   [x] `fixprguard_guide.md:454` のコマンドを `go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./cmd/codexreview ./internal/pipeline` に変える。同じ箇所のほかの文は変えない。`:461` の古い記述（「本書（日英）」）は、設計書 4.3 のとおり変えない。
+-   [x] 変えた後の 2 つのコマンドを、リポジトリのルートで一度ずつ実行して通ることを確かめる。`go test -tags test ./cmd/codexreview` で、`TestDocumentedInvocationsParse` が `task-pr-handoff.md` の行を呼び出しとみなさないことも確かめる。
 
 **完了の条件:** `go run -tags test ./docs/tasks/0052_doc_test_pruning/_checks/guards/` が通る。
 
@@ -381,7 +390,7 @@
 |---|---|---|---|
 | AC-01 | diff・manual | diff: `tests`（変えると決めていない宣言が同じ）。manual: PR の説明の判定の一覧と、変えたテストの差分を読む | ステップ 2-2・2-3・3-2・3-3 |
 | AC-02 | diff・manual | diff: `tests`（K4・K5 の確認を持つテストとその補助は、置き換えを受けるもの以外が同じ）。置き換えを受けるテストは、壊して確かめた記録で確かめる。`TestCodexMentionOnlyInRequestRow`・`TestPostingCommandsInventory` はステップ 2-3 の記録、`readRepoFile` の置き換えを受ける `cmd/fixprguard` の K5 のテストはステップ 3-3 の記録である。manual: PR の説明の設計書 3.3 の対応表 | ステップ 2-3・2-4・3-3・3-4 |
-| AC-03 | diff | `scope`（`cmd/yt2column/readme_sync_test.go` が変わったファイルにない） | 全 PR |
+| AC-03 | diff | `scope`（`cmd/yt2column/readme_sync_test.go` が変わったファイルにない） | 全 PR（PR-1 の実行: 7.1） |
 | AC-04 | manual | 設計書 3.1 の一覧と、各 PR の説明の該当の行を読む | ステップ 2-4・3-4 |
 | AC-05 | manual | ステップ 1-1・2-1・3-1 の調べ直しの記録（調べたコミットを含む）を読む | ステップ 1-1・2-1・3-1 |
 | AC-06 | manual | 設計書 3.2 の判断の一覧を読む | -（設計書） |
@@ -393,16 +402,16 @@
 | AC-12 | diff・manual | diff: `coverage`。結果が違ったときは、設計書 6.1 の流れで残した部分と例外を、PR の説明に載せた判定の一覧の行（例外として記したもの）で読む | ステップ 2-2・3-2 |
 | AC-13 | static・manual | static: `make ext-check`。manual: PR-3 の説明の、取り除いた確認が `extension/src/` の関数を通らないことの記述（設計書 3.1.7） | ステップ 3-2 |
 | AC-14 | static | `make test`・`make lint`・`make deadcode`・`make ext-check`（各 PR） | 全 PR |
-| AC-15 | diff | `scope`（各 PR） | 全 PR |
+| AC-15 | diff | `scope`（各 PR） | 全 PR（PR-1 の実行: 7.1） |
 | AC-16 | diff・manual | diff: `scope`（0050 の文書の変更を一覧として出力する）。manual: 0050 の文書を変えた場合に、その `Comments` を読む | ステップ 3-1・3-4 |
-| AC-17 | diff | `scope`（`docs/tasks/` の下で 0052 と 0050 の外が変わらない） | 全 PR |
+| AC-17 | diff | `scope`（`docs/tasks/` の下で 0052 と 0050 の外が変わらない） | 全 PR（PR-1 の実行: 7.1） |
 | AC-18 | manual | `CLAUDE.md`「Development Notes」の一覧を、取り除いた後のテストと照らして読む | ステップ 2-4・3-4 |
-| AC-19 | static | `guards`（PR-1 は 4 か所の一致、PR-3 は `-final` で文書のテストが残るパッケージとの一致） | ステップ 1-4・3-4 |
+| AC-19 | static | `guards`（PR-1 は 4 か所の一致、PR-3 は `-final` で文書のテストが残るパッケージとの一致） | ステップ 1-4・3-4（PR-1 の実行: 7.1） |
 | AC-20 | diff・manual | diff: `tests`（各 PR は、その PR が取り除いた名前が `docs/tasks/` の外の Go のファイルに識別子として残らないことを確かめ、PR-3 の `tests -final` で全削除対象の不在を確かめる）。manual: `tests` が出すコメントと文書の中の名前の一覧と、一部を削除したテストの doc comment を読む | ステップ 2-2・2-4・3-2・3-4 |
-| AC-21 | diff・static・manual | diff: `scope`（`extension/scripts/has-extension-changes.sh`・`extension/test/ciChanges.test.ts`・`.github/workflows/`・`Makefile`・`go.mod` が変わらない）。static: `make ext-check`（`ciChanges.test.ts`）。manual: ステップ 3-4 の読み合わせの記述 | ステップ 3-4 |
+| AC-21 | diff・static・manual | diff: `scope`（`extension/scripts/has-extension-changes.sh`・`extension/test/ciChanges.test.ts`・`.github/workflows/`・`Makefile`・`go.mod` が変わらない）。static: `make ext-check`（`ciChanges.test.ts`）。manual: ステップ 3-4 の読み合わせの記述 | ステップ 3-4（`scope` の PR-1 の実行: 7.1） |
 | AC-22 | manual | `CLAUDE.md` の加えた文を読む | ステップ 1-3 |
 | AC-23 | manual | 同上 | ステップ 1-3 |
-| AC-24 | diff・manual | diff: `scope`（項の既存の文が残る）。manual: K4・K5 の例外の理由が残ることを読む | ステップ 1-3 |
+| AC-24 | diff・manual | diff: `scope`（項の既存の文が残る）。manual: K4・K5 の例外の理由が残ることを読む | ステップ 1-3（PR-1 の実行: 7.1） |
 
 ## 8. 成功基準 (Success Criteria)
 
