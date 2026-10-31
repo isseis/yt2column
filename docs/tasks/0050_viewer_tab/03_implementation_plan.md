@@ -45,7 +45,7 @@
 -   **フェーズ 1 の試作と道具は、リポジトリに入れない（レビュアーが選んだ）:** 設計書 3.16 の確認に使う試作の拡張、応答を約 19 秒遅らせるテスト用のサーバ、25 秒応答しないテスト用のホストは、作業ツリーの外（スクラッチ）で作る。本書には、手順の要点、ブラウザの版、確かめた結果だけを記録する（4.3）。捨てるコードをレビューする手間に見合わないためである。
 -   **ポップアップの切り替え（ステップ 6-3）と、古い部品の削除・文書（フェーズ 7）は、同じ PR にする（レビュアーが選んだ）:** 切り替えると、README の「結果は Slack に届く」などの案内が画面と食い違う。同じ PR にすれば、main の文書と挙動が食い違う期間がない。ポップアップの画面の内容と描画（6-1・6-2）は、まだ到達しない種類を加えるだけなので、その前の PR に分ける（3.2）。
 -   **最小の Chrome の版は、README より先に上げる:** `minimum_chrome_version` は PR-5（ステップ 4-4）で 110 になり、README の版の記述とそのガードは PR-9（ステップ 7-2・7-3）で加わる。その間、main の拡張は Chrome 103〜109 に読み込めないが、README はそれを書いていない。利用者は 1 人で、使うブラウザは 110 より新しいので、この間を許す。
--   **ステップ 7-1〜7-4 は 1 つのコミットにする:** 古い文言の節をなくすと、それを読むガード（`test/metadataDocs.test.ts:51`・`:66`）の書き換えと、README の書き直しが要る。ガードの突き合わせの相手を新しい理由の集合に替えると、`development.md` の表の書き直しが要る。README の変更は `/mktrans` の `README.en.md` と同じコミットにする決まりもある（`CLAUDE.md`「Translation Guidelines」）。そのため、これらを 1 つの単位にし、1 回のゲートで確かめる。
+-   **ステップ 7-1〜7-4 は 1 つのコミットにする:** 古い文言の節をなくすと、それを読むガード（`test/metadataDocs.test.ts:51` の主ボタンの名前）の書き換えと README の書き直しが要り、`:66` を読む確認を消すことになる。ガードの突き合わせの相手を新しい理由の集合に替えると、`development.md` の表の書き直しが要る。README の変更は `/mktrans` の `README.en.md` と同じコミットにする決まりもある（`CLAUDE.md`「Translation Guidelines」）。そのため、これらを 1 つの単位にし、1 回のゲートで確かめる。
 -   **秘密情報の語のガードを狭める（レビュアーが選び、設計書 3.17 に加えた）:** `test/secretsAbsent.test.ts:10-18` は `webhook` と `SLACK_WEBHOOK_URL` の語を禁じ、本設計の応答のメンバ・理由・文言と両立しない。設計書 3.17「秘密情報の語のガード」のとおりに狭める（ステップ 2-3）。
 -   **ブランドの型の別名の lint の規則を狭める（レビュアーが選び、設計書 3.17 に加えた）:** `eslint.config.js:110-147` の規則は、作り手でないファイルで、ブランドの名前を右辺のどこかに含む型の別名を禁じる。`type X = { readonly id: RequestId } | …` が `no-restricted-syntax` の違反になることを、`bf314092` で `npx eslint --stdin --stdin-filename src/core/sample.ts` に通して確かめた（同じ内容の `interface` は通る）。本設計の判別共用体と、ステップ 2-1 で `articlesResponse.ts` に移す `SendOutcome`（`RequestId` を含む）がこれに当たるので、設計書 3.17「ブランドの型の別名の lint の規則」のとおりに狭める（ステップ 2-1）。
 -   **`docs/dev/production_profile.md` も改める（レビュアーが選んだ）:** `production_profile.md:62-65` は「拡張のポップアップは受理（`202`）を示し、失敗の通知が Webhook へ投稿される」と書く。要件書 F-010 の文書の一覧にないが、本タスクの後は古くなるので、ステップ 7-4 で改め、AC-39 の読む対象に含める。要件書の一覧の漏れを補うもので、決定は変えない。
@@ -83,7 +83,7 @@
 | `sendArticle` | `src/send.ts:28-55` | `test/send.test.ts:38` の describe | 7-1 |
 | `renderSendOutcome` | `src/ui/renderSend.ts:26-34` | `test/renderSend.test.ts`（全体） | 7-1 |
 | `serverRejectMessage`・`sendOutcomeMessage` | `src/core/sendMessages.ts:18-23`・`:57-80` | `src/ui/renderSend.ts:7`、`test/sendMessages.test.ts:60`・`:84` の describe | 7-1 |
-| 文言の節 `serverReject`・`notSent`・`accepted`・`noResponse`・`hostFailed`・`unexpected` | `catalog.ts:27-37`、`en.ts:40-115`、`ja.ts` の対応する行 | `src/core/sendMessages.ts`、`test/catalog.test.ts`、`test/sendMessages.test.ts`、`test/metadataDocs.test.ts:66` | 7-1 |
+| 文言の節 `serverReject`・`notSent`・`accepted`・`noResponse`・`hostFailed`・`unexpected` | `catalog.ts:27-37`、`en.ts:40-115`、`ja.ts` の対応する行 | `src/core/sendMessages.ts`、`test/catalog.test.ts`、`test/sendMessages.test.ts`、`test/metadataDocs.test.ts:66`（7-2 で確認ごと消す） | 7-1 |
 | `/articles` の Slack の案内のコメント | `catalog.ts:29-32`、`sendMessages.ts:25` | - | 7-1 |
 
 **書き換える・なくすテストが守っていた性質の行き先:** 1.2 の lcov の比べ方は関数の実行回数しか見ないので、文言や表示の否定の確認が消えても気付かない。そのため、確認ごとの行き先を次の表に決める。
@@ -573,7 +573,7 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 **変更するファイル:** `test/serverReasons.test.ts`、`test/metadataDocs.test.ts`、`test/typecheck.test.ts`、`test/manifest.test.ts`
 
 -   [ ] `test/serverReasons.test.ts` の突き合わせの相手を、新しい `ServerRejectReason` の集合と、理由から状態コードへの `Record` に改める（設計書 3.17、AC-38）。
--   [ ] `test/metadataDocs.test.ts` の未送信の文言の場所を生成の開始の節に改め、主ボタンの 3 つの名前を確かめる形にする（設計書 3.17）。
+-   [ ] `test/metadataDocs.test.ts` の主ボタンの名前の確認を、3 つの名前を確かめる形にする。「socket directory documentation reference」の確認（`:64-78`）は、付け替えずに消す（設計書 3.17）。消す確認が守っていた `README.en.md` の存在は、`cmd/yt2column::TestReadmeVersionsShareStructure` と `cmd/yt2column-server::TestStartupFailures` が引き続き確かめるので、カバレッジは狭まらない。このことを、2 つのテストの名前とともにコミットのメッセージに書く。
 -   [ ] `test/typecheck.test.ts` に、`SendDeps.sendNative` に今の形の本文（`StartInput`）を渡すコードが型の検査を通らない例と、`HostMessage` を渡すコードが通る対照を、`:155` の今の形と同じく加える（AC-01）。
 -   [ ] `test/manifest.test.ts` に、両方の README が書く最小の Chrome の版が `minimum_chrome_version` と等しいことを確かめるテストを加える（ステップ 7-3 で README に書く値）。
 

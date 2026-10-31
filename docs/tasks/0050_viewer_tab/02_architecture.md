@@ -8,7 +8,7 @@
 | Created | 2026-10-31 |
 | Review date | 2026-10-31 |
 | Reviewer | isseis |
-| Comments | 2026-10-31 (decision, approved in session): `/mkplan` の調査で、`extension/test/secretsAbsent.test.ts` が `webhook` と `SLACK_WEBHOOK_URL` の語を禁じ、本設計の応答のメンバ・拒否と投稿の理由・文言と両立しないことが分かった。3.17 に「秘密情報の語のガード」の項目を、3.18 に同じテストの行を加えた。ガードの狭め方は、レビュアー（isseis）が `/mkplan` のセッションの中で選び、承認した。そのため状態は `approved` のままとする。ほかの決定は変えていない。<br>2026-10-31 (decision, approved in session): `/mkplan` のレビューで、`extension/eslint.config.js` のブランドの型の別名の規則が、本設計の判別共用体を lint で拒否することが分かった。3.17 に「ブランドの型の別名の lint の規則」の項目を加えた。規則の狭め方は、レビュアー（isseis）が `/mkplan` のセッションの中で選び、承認した。そのため状態は `approved` のままとする。ほかの決定は変えていない。<br>2026-10-31 (editorial): ローカルの CLI のレビューの指摘で、上の 2 つの項目の書き方を、レビュアーが選んだ原則（オブジェクトの型の中の参照だけを許す、文言の中の `SLACK_WEBHOOK_URL` だけを許す）に合わせて正確にした。交差型の別名と、文言のファイルのコードの中の語を、許さないことを明記した。決定は変えていない。 |
+| Comments | 2026-10-31 (decision, approved in session): `/mkplan` の調査で、`extension/test/secretsAbsent.test.ts` が `webhook` と `SLACK_WEBHOOK_URL` の語を禁じ、本設計の応答のメンバ・拒否と投稿の理由・文言と両立しないことが分かった。3.17 に「秘密情報の語のガード」の項目を、3.18 に同じテストの行を加えた。ガードの狭め方は、レビュアー（isseis）が `/mkplan` のセッションの中で選び、承認した。そのため状態は `approved` のままとする。ほかの決定は変えていない。<br>2026-10-31 (decision, approved in session): `/mkplan` のレビューで、`extension/eslint.config.js` のブランドの型の別名の規則が、本設計の判別共用体を lint で拒否することが分かった。3.17 に「ブランドの型の別名の lint の規則」の項目を加えた。規則の狭め方は、レビュアー（isseis）が `/mkplan` のセッションの中で選び、承認した。そのため状態は `approved` のままとする。ほかの決定は変えていない。<br>2026-10-31 (editorial): ローカルの CLI のレビューの指摘で、上の 2 つの項目の書き方を、レビュアーが選んだ原則（オブジェクトの型の中の参照だけを許す、文言の中の `SLACK_WEBHOOK_URL` だけを許す）に合わせて正確にした。交差型の別名と、文言のファイルのコードの中の語を、許さないことを明記した。決定は変えていない。<br>2026-10-31 (decision, approved in session): 3.17「README を読むガード」を改めた。`extension/test/metadataDocs.test.ts:64-78` の socket directory の確認は README を読まず、英語の未送信の文言が `README.en.md` を名指すことと、そのファイルの存在を確かめるので、記述を実際の確認に合わせた。この確認は付け替えずに消す（直書きのリテラルで、タスク 0048 の 1 回の変更を確かめるだけであるため）。レビュアー（isseis）が `/mkplan` のセッションの中で承認した。そのため状態は `approved` のままとする。ほかの決定は変えていない。 |
 
 本書は [01_requirements.md](01_requirements.md)（以下「要件」）を満たす設計を定める。要件の用語（新しい API、ビューア、ビューアの URL、送信の時刻、やり取りの結果、結果不明など）は要件 6 章の定義に従う。各節の見出しの括弧にある F-…・AC-…・H-… と、数字だけの節番号（3.2、4.5 など）は、要件の項目と章を指す。本文の「（3.3）」のような参照は、本書の節を指す。既存のコードの行番号は、コミット `577e7b51` で確かめた。
 
@@ -1314,11 +1314,10 @@ export function renderArticleBody(doc: Document, markdown: string): HTMLElement;
     -   変わること: 本タスクで拡張は、新しい理由（`invalid_key`・`webhook_not_configured`・`article_not_ready`・`article_not_found`・`article_not_postable`）も固定の文言で表示する。
     -   改め方: 表の「拡張の表示」の列を改める（要件 F-009）。テストの突き合わせの相手は、`ServerRejectReason` の集合と、理由から状態コードへの `Record` に改める（3.3）。`not_found`・`method_not_allowed` は、「想定外の応答」のまま残す（AC-38）。
 -   **README を読むガード。**
-    -   `extension/test/metadataDocs.test.ts` は、README の「ブラウザ拡張」節が、次の文言を引用していることを確かめる。
-        -   `catalogs.en.notSent["server-unavailable"]`（`:66`）
-        -   主ボタンの名前（`catalog.primaryButton`）
-    -   未送信の文言の場所を、3.13 の操作ごとの節（生成の開始の節）に改める。
-    -   主ボタンの名前は 3 つ（記事を生成する・ビューアを開く・やり直す）になる。README がその 3 つを引用し、テストもその 3 つを確かめる形にする。
+    -   `extension/test/metadataDocs.test.ts` は、README の「ブラウザ拡張」節が、展開の促しと、画面の名前（主ボタンの名前 `catalog.primaryButton` など）を引用していることを確かめる。主ボタンの名前は 3 つ（記事を生成する・ビューアを開く・やり直す）になる。README がその 3 つを引用し、テストもその 3 つを確かめる形にする。
+    -   同じファイルの「socket directory documentation reference」の確認（`:64-78`）は、README を読まない。英語の未送信の文言（`catalogs.en.notSent["server-unavailable"]`）が `README.en.md` を名指していることと、そのファイルが存在することを確かめる。タスク `0048` の AC-35 のために加えたものである。この確認は、生成の開始の節に付け替えずに消す。
+        -   理由: 期待する値の `"README.en.md"` はテストに直書きしたリテラルで、コードから導いていない。また、`0048` の 1 回の変更が入ったことだけを確かめている。
+        -   ほかの守り: `README.en.md` がなくなれば、`cmd/yt2column::TestReadmeVersionsShareStructure` と `cmd/yt2column-server::TestStartupFailures` が失敗する（`TestReadmeSyncMarker` は、そのファイルがないときは skip する）。
 -   **秘密情報の語のガード（2026-10-31 の実装計画で加えた）。**
     -   今のテスト: `extension/test/secretsAbsent.test.ts:10-18` は、`src/` と `static/` のすべてのファイルで、`webhook` と `SLACK_WEBHOOK_URL` の語を、大文字と小文字を区別せずに禁じる。目的は、拡張が API キーや Webhook の URL の設定・入力欄・保存の名前を持たないことである。
     -   変わること: 本設計では、拡張のソースに次のものが入る。
