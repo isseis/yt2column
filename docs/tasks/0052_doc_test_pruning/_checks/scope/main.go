@@ -220,10 +220,12 @@ func checkPolicy(base, head string) []string {
 	if !ok {
 		return []string{"the section itself is gone"}
 	}
-	newText := normalize(newSection)
+	// Compare whole sentences: a sentence that gained a prefix is not the
+	// sentence that was there, even though it still contains it.
+	newSentences := sentences(normalize(newSection))
 	var missing []string
 	for _, sentence := range sentences(normalize(oldSection)) {
-		if !strings.Contains(newText, sentence) {
+		if !slices.Contains(newSentences, sentence) {
 			missing = append(missing, truncate(sentence))
 		}
 	}

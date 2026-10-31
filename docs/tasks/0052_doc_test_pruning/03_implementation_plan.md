@@ -432,12 +432,12 @@
     OK   every sentence of the CLAUDE.md policy section is still there
     ```
 
-    この記録を加えるコミットは本計画だけを変える。`scope` が許すファイルなので、PR の head を比べても上の一覧は同じになる（PR の説明に、head での実行結果を記す）。
+    この記録を加えるコミットと、その後のレビューの修正のコミットは、`scope` が許すファイルだけを変える。そのため PR の head を比べても上の一覧は同じになる（PR の説明に、head での実行結果を記す）。
 
     失敗とする条件は、それぞれ一時的なコミットを作って確かめた（確かめた後に `git reset --hard` で戻し、ブランチには残っていない）。
 
     -   許さないファイル（`README.md`）を変えた実行と、PR-1 で 0050 の文書を変えた実行は、どちらも `NG files outside the pull request's change set` で終了コード 1 になった。同じ 0050 の変更は PR-3 では `LIST` として通り、終了コード 0 になった。
-    -   `CLAUDE.md` の項の既存の文 3 つを消した実行は `NG CLAUDE.md policy section: 3 sentence(s) lost` で、項の見出しの文を書き換えて項自体をなくした実行は同じ検査の `the section itself is gone` で、どちらも終了コード 1 になった。
+    -   `CLAUDE.md` の項の既存の文 3 つを消した実行は `NG CLAUDE.md policy section: 3 sentence(s) lost` で、項の見出しの文を書き換えて項自体をなくした実行は同じ検査の `the section itself is gone` で、どちらも終了コード 1 になった。既存の文に `Usually, ` を前置した実行も、文を単位に比べるので `NG CLAUDE.md policy section: 1 sentence(s) lost` で終了コード 1 になった。
     -   `README.md` を `docs/tasks/0052_doc_test_pruning/_checks/moved/README.md` へ `git mv` した実行は、`--no-renames` により移した先（許すパス）と元のパスの両方を一覧に出し、`NG README.md` で終了コード 1 になった。
 
 -   **`guards`:** `go run -tags test ./docs/tasks/0052_doc_test_pruning/_checks/guards/ 1eac7553`。出力:
