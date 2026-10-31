@@ -413,6 +413,55 @@
 | AC-23 | manual | 同上 | ステップ 1-3 |
 | AC-24 | diff・manual | diff: `scope`（項の既存の文が残る）。manual: K4・K5 の例外の理由が残ることを読む | ステップ 1-3（PR-1 の実行: 7.1） |
 
+### 7.1. PR-1 の一度きりの確かめの実行の記録（2026-11-01）
+
+-   **`scope`:** `go run -tags test ./docs/tasks/0052_doc_test_pruning/_checks/scope/ -pr 1 b467905e 1eac7553`。比べたコミットは merge-base `b467905e`（`origin/main`）と head `1eac7553`。出力:
+
+    ```
+    pull request 1
+    merge-base   b467905e8c87cf46a97d42bf884f6e0e18719c26
+    head         1eac7553b64249befc5a397ef4783bfa9f821974
+    ---- changed files
+    OK   .claude/commands/_lib/task-pr-handoff.md
+    OK   CLAUDE.md
+    OK   docs/dev/guides/fixprguard_guide.md
+    OK   docs/tasks/0052_doc_test_pruning/03_implementation_plan.md
+    OK   docs/tasks/0052_doc_test_pruning/_checks/guards/main.go
+    OK   docs/tasks/0052_doc_test_pruning/_checks/scope/main.go
+    OK   every changed file is in the pull request's change set
+    OK   every sentence of the CLAUDE.md policy section is still there
+    ```
+
+    この記録を加えるコミットは本計画だけを変える。`scope` が許すファイルなので、PR の head を比べても上の一覧は同じになる（PR の説明に、head での実行結果を記す）。
+
+    失敗とする条件は、それぞれ一時的なコミットを作って確かめた（確かめた後に `git reset --hard` で戻し、ブランチには残っていない）。
+
+    -   許さないファイル（`README.md`）を変えた実行と、PR-1 で 0050 の文書を変えた実行は、どちらも `NG files outside the pull request's change set` で終了コード 1 になった。同じ 0050 の変更は PR-3 では `LIST` として通り、終了コード 0 になった。
+    -   `CLAUDE.md` の項の既存の文 3 つを消した実行は `NG CLAUDE.md policy section: 3 sentence(s) lost` で、項の見出しの文を書き換えて項自体をなくした実行は同じ検査の `the section itself is gone` で、どちらも終了コード 1 になった。
+    -   `README.md` を `docs/tasks/0052_doc_test_pruning/_checks/moved/README.md` へ `git mv` した実行は、`--no-renames` により移した先（許すパス）と元のパスの両方を一覧に出し、`NG README.md` で終了コード 1 になった。
+
+-   **`guards`:** `go run -tags test ./docs/tasks/0052_doc_test_pruning/_checks/guards/ 1eac7553`。出力:
+
+    ```
+    commit 1eac7553b64249befc5a397ef4783bfa9f821974
+    ---- commands
+    OK   .github/workflows/ci.yml                 doc-guard job: ./cmd/codexreview ./cmd/fixprguard ./cmd/yt2column ./cmd/yt2column-server ./internal/pipeline
+    OK   CLAUDE.md                                Development Notes: ./cmd/codexreview ./cmd/fixprguard ./cmd/yt2column ./cmd/yt2column-server ./internal/pipeline
+    OK   .claude/commands/_lib/task-pr-handoff.md CHECKS: ./cmd/codexreview ./cmd/fixprguard ./cmd/yt2column ./cmd/yt2column-server ./internal/pipeline
+    OK   docs/dev/guides/fixprguard_guide.md      automated reviewer list procedure: ./cmd/codexreview ./cmd/fixprguard ./cmd/yt2column ./cmd/yt2column-server ./internal/pipeline
+    ---- comparison
+    OK   the four places name the same 5 package(s): ./cmd/codexreview ./cmd/fixprguard ./cmd/yt2column ./cmd/yt2column-server ./internal/pipeline
+    ```
+
+    失敗とする条件も、一時的なコミットで確かめた。
+
+    -   ステップ 1-4 の前の `b467905e` に対しては、`task-pr-handoff.md` と `fixprguard_guide.md` が `./cmd/codexreview` を欠くので、`NG ... differs from .github/workflows/ci.yml` で終了コード 1 になった。
+    -   `task-pr-handoff.md` に 2 つ目のコマンドを書き加えた実行は `NG ... CHECKS: 2 documentation guard commands` で、コマンドを `./cmd/yt2column` を挙げない形に変えた実行は `NG ... CHECKS: no documentation guard command` で、どちらも終了コード 1 になった。
+
+-   **`guards -final`:** PR-3 で使う。`1eac7553` に対しては、テストが `internal/doctestutil` を import するパッケージを `./cmd/codexreview`・`./cmd/fixprguard`・`./cmd/yt2column`・`./cmd/yt2column-server` と数え、`./internal/pipeline` を欠くので、`NG the guard commands do not name the packages whose tests read documents through doctestutil` で終了コード 1 になった。`internal/pipeline` は PR-3 の置き換え（設計書 3.4.2）で `doctestutil` を import するので、`-final` は PR-3 で通る。
+
+-   **AC-14（`1eac7553`）:** `make test`、`make lint`、`make deadcode`、`make ext-check` が通った。`make ext-check` は `extension/.node-version` のとおり Node.js 24.21.0 で実行した（手元の既定の Node.js 26.12.0 は `Makefile` の版の確認で止まる）。node のテストは 975 件が通り、失敗はない。
+
 ## 8. 成功基準 (Success Criteria)
 
 -   **機能:** 設計書 3.1 の判定の一覧のとおりに取り除かれ、AC-01〜AC-24 が 7 章の確かめ方で満たされている。
