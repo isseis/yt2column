@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-10-31 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-10-31 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルについての記述は、コミット `bf314092`（2026-10-31 の `main`）のファイルで確かめた。`file:line` はこのコミットの行番号を指す。要件書が挙げる行番号は `66222946` のものなので、本書の行番号とずれている箇所がある。F-NNN・AC-NN・K1〜K5・D1〜D7 は要件書の項番と分類を指す。要件のレビューで設計に申し送られた事項（[design_handoff.md](design_handoff.md) の H-01〜H-08）への対応は 3.8 にまとめる。
