@@ -8,7 +8,7 @@
 | Created | 2026-10-31 |
 | Review date | 2026-10-31 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-10-31（編集上の訂正。実装計画のレビューで判明。決定は変えていない）: 2.2 と 3.9 に、`task-pr-handoff.md` では `./cmd/codexreview/...` と書くこと（`./cmd/codexreview` では K5 のテスト `TestDocumentedInvocationsParse` が `go test` の行を `codexreview` の呼び出しとして拒否するため）を加えた。3.7 の表と 8 章の PR-1 の項は「`./cmd/codexreview` を加える（2.2）」と 2.2 を参照するので、綴りは 2.2 に従う。対象のパッケージは同じで、AC-19 の決定は変わらない。レビュアー（isseis）がセッションで確かめた。 |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルについての記述は、コミット `bf314092`（2026-10-31 の `main`）のファイルで確かめた。`file:line` はこのコミットの行番号を指す。要件書が挙げる行番号は `66222946` のものなので、本書の行番号とずれている箇所がある。F-NNN・AC-NN・K1〜K5・D1〜D7 は要件書の項番と分類を指す。要件のレビューで設計に申し送られた事項（[design_handoff.md](design_handoff.md) の H-01〜H-08）への対応は 3.8 にまとめる。
 
@@ -254,7 +254,7 @@ flowchart LR
 ```
 
 -   `ci.yml:187` と `CLAUDE.md:540` は、5 つのパッケージを挙げていて、本タスクの後の集合と一致する。変えない。
--   `.claude/commands/_lib/task-pr-handoff.md:40` と `docs/dev/guides/fixprguard_guide.md:454` は、`./cmd/codexreview` を欠く（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./internal/pipeline`）。今すでに AC-19 と食い違っているので、PR-1 で `./cmd/codexreview` を加える。
+-   `.claude/commands/_lib/task-pr-handoff.md:40` と `docs/dev/guides/fixprguard_guide.md:454` は、`./cmd/codexreview` を欠く（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./internal/pipeline`）。今すでに AC-19 と食い違っているので、PR-1 で `./cmd/codexreview` を加える。`task-pr-handoff.md` はコマンドの文書なので、`./cmd/codexreview/...` と書く。`./cmd/codexreview` と書くと、`cmd/codexreview` の K5 のテスト `TestDocumentedInvocationsParse` の走査（`cmd/codexreview/docs_test.go:192-209` の `invocations`。`path.Base` が `codexreview` の語を呼び出しとみなす）が、`go test` の行を `codexreview` の呼び出しとして拒否する。`go list ./cmd/codexreview/...` は `cmd/codexreview` だけを返す（`db9986c6`）ので、対象のパッケージは変わらない。
 -   `cmd/yt2column-nmhost` は加えない（要件書 2.3）。
 
 **拡張の CI ジョブの起動条件（AC-21）。** 本タスクの後も、node のテストが読む文書は今と同じである。
@@ -602,7 +602,7 @@ AC-20 の確かめ（`docs/tasks/` の外の文書、`.claude/commands/`、残�
 | ファイル | 変更 | 責務・変更の内容 | 担当 |
 |---|---|---|---|
 | `CLAUDE.md` | 変更 | 「Testing Strategy」の方針（3.6）。「Development Notes」の text-sync guards の一覧（3.7） | PR-1・PR-2・PR-3 |
-| `.claude/commands/_lib/task-pr-handoff.md` | 変更 | CHECKS の文書のガードのコマンドに `./cmd/codexreview` を加える | PR-1 |
+| `.claude/commands/_lib/task-pr-handoff.md` | 変更 | CHECKS の文書のガードのコマンドに `./cmd/codexreview/...` を加える（2.2） | PR-1 |
 | `docs/dev/guides/fixprguard_guide.md` | 変更 | 自動レビュアーの一覧の手順のコマンドに `./cmd/codexreview` を加える | PR-1 |
 | `cmd/yt2column/docs_test.go` | 変更 | 3.1.1 の取り除きと、3.4.1 の補助の削除 | PR-2 |
 | `cmd/yt2column/readme_structure_test.go` | 変更 | `TestReadmeVersionLinks` とその補助の削除 | PR-2 |
