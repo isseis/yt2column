@@ -167,7 +167,7 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **変更するファイル:** `src/core/articlesResponse.ts`（新規、一時的）、`src/core/response.ts`、`src/core/exchange.ts`（新規）、`src/core/articleKey.ts`（新規）、`src/core/hostMessage.ts`（新規）、`src/core/prepare.ts`、`src/core/native.ts`、`src/core/sendMessages.ts`、`src/core/i18n/catalog.ts`、`src/ui/renderSend.ts`、`src/send.ts`、`src/launch.ts`、`src/browser/chromeDeps.ts`、`eslint.config.js`、`test/articlesResponse.test.ts`（新規、一時的）、`test/response.test.ts`、`test/native.test.ts`、`test/send.test.ts`、`test/renderSend.test.ts`、`test/sendMessages.test.ts`、`test/launch.test.ts`、`test/serverReasons.test.ts`、`test/prepare.test.ts`、`test/helpers/native.ts`、`test/lintRules.test.ts`、`test/exchange.test.ts`（新規）、`test/articleKey.test.ts`（新規）、`test/hostMessage.test.ts`（新規）
 
--   [ ] `eslint.config.js` のブランドの型の別名の規則を、設計書 3.17 のとおりに狭める。`test/lintRules.test.ts:147` の describe に、許す例（オブジェクトの型の中の参照）と禁じる例（ブランドそのものの別名、共用体の直接の要素）を置く。
+-   [ ] `eslint.config.js` のブランドの型の別名の規則を、設計書 3.17 のとおりに狭める。`test/lintRules.test.ts:147` の describe に、許す例（オブジェクトの型のメンバの中の参照）と禁じる例（ブランドそのものの別名、共用体・交差型の要素）を置く。
 -   [ ] 1.4 の台帳のとおりに、今の `/articles` の検査を `articlesResponse.ts` に、`hasExactKeys` を `exchange.ts` に移し、古い部品の import を移す。古い経路の振る舞いは変えない。`test/serverReasons.test.ts` の突き合わせの相手は `articlesRejectStatus` にする（`development.md` の表は、ポップアップを切り替えるまで今のまま正しい）。
 -   [ ] `exchange.ts` に、設計書 3.1 の `NotSentCause`・`ExchangeFailure`・`ExchangeFailureLog`・`HostOutcome`・`maxResponseBytes`（`524_288`）と、3.3 の新しい `UnexpectedCheck` を置く。どのモジュールも import しない。
 -   [ ] `articleKey.ts` に `ArticleKey`・`maxKeyLength`・`parseArticleKey` を置き、`brandNames` に `ArticleKey` を、`creatorConfig` に `articleKey.ts` を加える（設計書 3.1）。
@@ -210,7 +210,7 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 -   [ ] `response.ts` に、設計書 3.3 の型、受理する形の表、拒否の理由の 3 つの `Record`、`classifyStart`・`classifyStatus`・`classifyPublish`、`toStartOutcome`・`toStatusOutcome`・`toPublishOutcome` を作る。集合はどれも `Record<…, true>` の定数とともに宣言する（設計書 3.3）。
 -   [ ] 同じ `response.ts` に、設計書 4.4 の `startLogView`・`statusLogView`・`publishLogView` を置く（1.3）。
 -   [ ] `eslint.config.js` の `brandNames` に `UsdAmount` を加え、`response.ts` の `creatorConfig` が作ってよい型に加える。
--   [ ] `test/secretsAbsent.test.ts` を、設計書 3.17「秘密情報の語のガード」のとおりに狭める。狭めた語が、`webhook url` などの設定の名前と、文言の 2 つのファイルの外の `SLACK_WEBHOOK_URL` を拒否し続けることを確かめるテストを加える。
+-   [ ] `test/secretsAbsent.test.ts` を、設計書 3.17「秘密情報の語のガード」のとおりに狭める。狭めた語が、`webhook url` などの設定の名前と、文言の文字列リテラルの外の `SLACK_WEBHOOK_URL`（文言のファイルの中の識別子を含む）を拒否し続けることを確かめるテストを加える。
 -   [ ] テスト（`test/response.test.ts` を新しい検査のテストにする）: AC-41 の各項目に 1 つ以上の入力、1.4 の Go の表のうち最上位がオブジェクトでない 4 行、古いホストの応答（`/articles` の `invalid_body`）が生成の開始の `invalid_body` の拒否になること（設計書 7.1）、3 つの操作の拒否の理由の集合と状態コードの組、ログの関数が記事・キーを返す値に含めないこと（目印の文字列で確かめる。設計書 7.3）。
 -   [ ] テスト（AC-42）: 256 KiB いっぱいの完了した記事の応答を、ホストの応答の外側（`classifyHostReply`、ステップ 2-4）を通して `classifyStatus` に渡し、記事が一致することを確かめる。本文は、Go の `encoding/json` の `Marshal` が書くエスケープ（`<`・`>`・`&` に対する `\u003c`・`\u003e`・`\u0026`、U+2028・U+2029 に対する `\u2028`・`\u2029`。`encoding/json` の文書の `Marshal` の項）を含める。ステップ 2-4 の前は、このテストを `classifyStatus` だけで書き、2-4 で外側を通す形にする。
 

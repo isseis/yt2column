@@ -8,7 +8,7 @@
 | Created | 2026-10-31 |
 | Review date | 2026-10-31 |
 | Reviewer | isseis |
-| Comments | 2026-10-31 (decision, approved in session): `/mkplan` の調査で、`extension/test/secretsAbsent.test.ts` が `webhook` と `SLACK_WEBHOOK_URL` の語を禁じ、本設計の応答のメンバ・拒否と投稿の理由・文言と両立しないことが分かった。3.17 に「秘密情報の語のガード」の項目を、3.18 に同じテストの行を加えた。ガードの狭め方は、レビュアー（isseis）が `/mkplan` のセッションの中で選び、承認した。そのため状態は `approved` のままとする。ほかの決定は変えていない。<br>2026-10-31 (decision, approved in session): `/mkplan` のレビューで、`extension/eslint.config.js` のブランドの型の別名の規則が、本設計の判別共用体を lint で拒否することが分かった。3.17 に「ブランドの型の別名の lint の規則」の項目を加えた。規則の狭め方は、レビュアー（isseis）が `/mkplan` のセッションの中で選び、承認した。そのため状態は `approved` のままとする。ほかの決定は変えていない。 |
+| Comments | 2026-10-31 (decision, approved in session): `/mkplan` の調査で、`extension/test/secretsAbsent.test.ts` が `webhook` と `SLACK_WEBHOOK_URL` の語を禁じ、本設計の応答のメンバ・拒否と投稿の理由・文言と両立しないことが分かった。3.17 に「秘密情報の語のガード」の項目を、3.18 に同じテストの行を加えた。ガードの狭め方は、レビュアー（isseis）が `/mkplan` のセッションの中で選び、承認した。そのため状態は `approved` のままとする。ほかの決定は変えていない。<br>2026-10-31 (decision, approved in session): `/mkplan` のレビューで、`extension/eslint.config.js` のブランドの型の別名の規則が、本設計の判別共用体を lint で拒否することが分かった。3.17 に「ブランドの型の別名の lint の規則」の項目を加えた。規則の狭め方は、レビュアー（isseis）が `/mkplan` のセッションの中で選び、承認した。そのため状態は `approved` のままとする。ほかの決定は変えていない。<br>2026-10-31 (editorial): ローカルの CLI のレビューの指摘で、上の 2 つの項目の書き方を、レビュアーが選んだ原則（オブジェクトの型の中の参照だけを許す、文言の中の `SLACK_WEBHOOK_URL` だけを許す）に合わせて正確にした。交差型の別名と、文言のファイルのコードの中の語を、許さないことを明記した。決定は変えていない。 |
 
 本書は [01_requirements.md](01_requirements.md)（以下「要件」）を満たす設計を定める。要件の用語（新しい API、ビューア、ビューアの URL、送信の時刻、やり取りの結果、結果不明など）は要件 6 章の定義に従う。各節の見出しの括弧にある F-…・AC-…・H-… と、数字だけの節番号（3.2、4.5 など）は、要件の項目と章を指す。本文の「（3.3）」のような参照は、本書の節を指す。既存のコードの行番号は、コミット `577e7b51` で確かめた。
 
@@ -1324,11 +1324,11 @@ export function renderArticleBody(doc: Document, markdown: string): HTMLElement;
     -   変わること: 本設計では、拡張のソースに次のものが入る。
         -   応答のメンバ `webhookConfigured`、拒否の理由 `webhook_not_configured`、投稿の理由 `webhook`（3.3）
         -   要件 F-006 の表の 5 行目の、`SLACK_WEBHOOK_URL` を設定してサーバを起動し直す手順の文言（3.13）
-    -   改め方: 単独の語 `webhook` の禁止をやめ、URL の設定を指す語（`webhook url`・`webhookurl`・`webhook_url`）の禁止に置き換える。`SLACK_WEBHOOK_URL` は、文言の 2 つのファイル（`src/core/i18n/en.ts`・`ja.ts`）でだけ許し、その 2 つは、走査の前にこの語を取り除いてから調べる。API キーの語と、トークン・ポートの語の禁止は変えない。拡張が Webhook の URL を持たないこと（要件 4.2）は、この狭めた語の禁止と、拡張が `chrome.storage` を使わないこと（lint の規則）で保つ。
+    -   改め方: 単独の語 `webhook` の禁止をやめ、URL の設定を指す語（`webhook url`・`webhookurl`・`webhook_url`）の禁止に置き換える。`SLACK_WEBHOOK_URL` は、文言の 2 つのファイル（`src/core/i18n/en.ts`・`ja.ts`）の文字列リテラルの中でだけ許す。その 2 つのファイルは、走査の前に文字列リテラルの中のこの語だけを取り除いてから調べるので、同じファイルのコード（識別子など）に現れれば拒否する。API キーの語と、トークン・ポートの語の禁止は変えない。拡張が Webhook の URL を持たないこと（要件 4.2）は、この狭めた語の禁止と、拡張が `chrome.storage` を使わないこと（lint の規則）で保つ。
 -   **ブランドの型の別名の lint の規則（2026-10-31 の実装計画で加えた）。**
     -   今の規則: `extension/eslint.config.js:110-147` の `brandSelectors` は、作り手のファイルの外で、ブランドの名前を右辺のどこかに含む型の別名を禁じる。例えば `type X = { readonly id: RequestId } | …` も禁じる。目的は、`type R = RequestId; x as R` のように、別名を通して型の断定の検出をすり抜けることを防ぐことである。一方、`interface Y { readonly id: RequestId }` は今も許されている。
     -   変わること: 本設計の判別共用体（`StartOutcome`・`HostMessage`・`ViewerChannelMessage`・`PublishOpNotice` など）は、作り手でないファイルで、オブジェクトの型の中に `RequestId`・`ArticleKey` を持つ。
-    -   改め方: 型の別名の規則を、右辺がブランドそのものの場合と、ブランドが共用体の直接の要素である場合に狭める。オブジェクトの型の中の参照は、`interface` と同じく許す。そのため、守りは今より弱まらない。`extension/test/lintRules.test.ts` に、許す例と禁じる例の両方を置く。
+    -   改め方: 型の別名の右辺で、オブジェクトの型のメンバの型の中にある参照だけを、`interface` と同じく許す。それ以外の位置の参照（ブランドそのもの、共用体・交差型の要素、条件型・添字のアクセスの型の中など）は、今と同じく禁じる。そのため、守りは今より弱まらない。`extension/test/lintRules.test.ts` に、許す例と禁じる例（`type A = RequestId & {}` などの交差型を含む）の両方を置く。
 -   **`0046` の「送信の経路と文言を変えない」**は、本タスクで変える前提の決定であり、方針の変更ではない（要件 5 章）。
 
 ### 3.18. コンポーネント責務表
