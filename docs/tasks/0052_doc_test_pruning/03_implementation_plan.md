@@ -102,7 +102,7 @@
 | `scope` | PR-1 | 本計画の PR の番号（PR-1〜PR-3 の `1`〜`3`。`-pr 1` など）、merge-base、head | 2 つのコミットの間で変わったファイル（AC-03・AC-15〜AC-17・AC-21）と、`CLAUDE.md` の「Document tests check values, structure, and executable examples, never prose」の項の既存の文（AC-24） | 変わったファイルが、その PR に許すファイルの外にある。許すファイルは、設計書 2.3 の表のその PR の行に挙がるファイル、本書と `docs/tasks/0052_doc_test_pruning/_checks/` の下のファイル、および PR-3 に限り `docs/tasks/0050_viewer_tab/` の `02_architecture.md`・`03_implementation_plan.md` である（0050 の文書を変えるのは、ステップ 3-1 で変えると決めた場合だけ）。0050 の変更は、許したうえで一覧として出力する。0052 のほかの文書（要件書・設計書・`design_handoff.md`）の変更は失敗とする。`CLAUDE.md` が変わったとき、merge-base のその項の文が、head の同じ項にない |
 | `guards` | PR-1 | 1 つのコミット（省略すると作業ツリー）と、PR-3 では `-final` | 4 か所の文書のガードのコマンド（設計書 2.2）が挙げるパッケージの集合（AC-19）。`./cmd/codexreview/...` と `./cmd/codexreview` は同じパッケージとして扱う（1.3） | 4 か所の集合が一致しない。`-final` を付けたとき、その集合が、テストのファイルが `internal/doctestutil` を import するパッケージ（`cmd/yt2column-nmhost` と `docs/tasks/` の下を除く）の集合と一致しない |
 | `coverage` | PR-2 | `go tool cover -func` の 2 つの出力のファイル（前と後） | 製品のコードの関数ごとの結果（AC-11・AC-12） | 製品のコードの関数で、結果が違うものがある。製品のコードへの絞り込みは設計書 7.1 のとおり（`//go:build test` で始まる制約を持つファイルと `total:` の行を除き、モジュールのパスの接頭辞を外す） |
-| `tests` | PR-2 | merge-base、head | 要件書 2.2 の対象のファイルのうち Go のもの（`internal/doctestutil/` と `internal/config/test_helpers.go` を含む）の、トップレベルの宣言の変化（AC-01〜AC-03・AC-07・AC-10）と、比べる 2 つのコミットの間で取り除いた名前の残り（AC-09・AC-20。後の PR で取り除く名前は、その PR の head に残っているのが正しいので対象にしない。全削除対象の不在は PR-3 の最終実行で確かめる）。宣言は、関数・メソッド・型と、`var`・`const` の 1 つずつの名前を単位とし、import は含めない。比べるのは、gofmt で整えた後の宣言の本文（doc comment を含む）である | (1) 「変える宣言の一覧」にない宣言が、変わった、消えた、または加わった。<br>一覧は、設計書 3.1 の「削除する」「一部を削除する」「統合する」の行のテスト、3.4.1・3.4.2 の補助、置き換えを受けるテスト（`TestCodexMentionOnlyInRequestRow`・`TestPostingCommandsInventory`・`TestPackageReferenceListsPackages`・`TestPromptsREADMEMatchesContract`）、`cmd/fixprguard` の `readRepoFile`、1.5 の台帳の両方の名前から作る。<br>(2) 比べる merge-base と head の間で取り除いた名前（設計書 3.4.1・3.4.2 の補助、取り除くテスト、1.5 の今の名前のうち、その範囲で消えたもの）が、`docs/tasks/` の外の Go のファイルに識別子として残る。後の PR で取り除く名前が head に残っていることは、失敗としない。全削除対象の不在は、PR-3 の最終実行（ステップ 3-4）の対象である。<br>コメントと文書（`docs/tasks/` の外の `.md` と `.claude/commands/`）に現れる名前は、失敗とせず一覧として出力する。`numbered` のような普通の英単語がコメントに現れることがあるため、読んで判断する（1.4）。<br>出力には、消えた宣言と変わった宣言の一覧も含める |
+| `tests` | PR-2 | merge-base、head、PR-3 では `-final` | 要件書 2.2 の対象のファイルのうち Go のもの（`internal/doctestutil/` と `internal/config/test_helpers.go` を含む）の、トップレベルの宣言の変化（AC-01〜AC-03・AC-07・AC-10）と、比べる 2 つのコミットの間で取り除いた名前の残り（AC-09・AC-20。後の PR で取り除く名前は、その PR の head に残っているのが正しいので対象にしない）。`-final` を付けたときは、設計書 3.4.1・3.4.2 の全削除対象の不在も、比べる範囲で消えたかによらず確かめる。宣言は、関数・メソッド・型と、`var`・`const` の 1 つずつの名前を単位とし、import は含めない。比べるのは、gofmt で整えた後の宣言の本文（doc comment を含む）である | (1) 「変える宣言の一覧」にない宣言が、変わった、消えた、または加わった。<br>一覧は、設計書 3.1 の「削除する」「一部を削除する」「統合する」の行のテスト、3.4.1・3.4.2 の補助、置き換えを受けるテスト（`TestCodexMentionOnlyInRequestRow`・`TestPostingCommandsInventory`・`TestPackageReferenceListsPackages`・`TestPromptsREADMEMatchesContract`）、`cmd/fixprguard` の `readRepoFile`、1.5 の台帳の両方の名前から作る。<br>(2) 比べる merge-base と head の間で取り除いた名前（設計書 3.4.1・3.4.2 の補助、取り除くテスト、1.5 の今の名前のうち、その範囲で消えたもの）が、`docs/tasks/` の外の Go のファイルに識別子として残る。後の PR で取り除く名前が head に残っていることは、失敗としない。<br>(3) `-final` を付けたとき、設計書 3.4.1・3.4.2 の全削除対象が、比べる範囲で消えたかによらず、`docs/tasks/` の外の Go のファイルに識別子として残る。全削除対象の不在は、この `-final` の実行（ステップ 3-4）で確かめる。<br>コメントと文書（`docs/tasks/` の外の `.md` と `.claude/commands/`）に現れる名前は、失敗とせず一覧として出力する。`numbered` のような普通の英単語がコメントに現れることがあるため、読んで判断する（1.4）。<br>出力には、消えた宣言と変わった宣言の一覧も含める |
 
 `metadataDocs.test.ts` は `tests` の対象にしない。その変更は、`make ext-check` と PR のレビューでの読み合わせで確かめる（ステップ 3-2）。
 
@@ -298,7 +298,7 @@
 -   [ ] `CLAUDE.md`「Development Notes」の「the `codexreview` permission, install target, and command-document checks」から「install target」を外す（設計書 3.7。`db9986c6` の `:533-534`。文で探す）。
 -   [ ] ステップ 3-1 で 0050 の文書を変えると決めた場合は、設計書 3.5 のとおりに変え、`Comments` に日付・`(decision)`・本タスクで改めたこと・改めた節を記録する（AC-16）。
 -   [ ] `extension/scripts/has-extension-changes.sh`（`:2-11`・`:19`）、`extension/test/ciChanges.test.ts`（`:21-32`・`:62-89`）、`CLAUDE.md`「Development Notes」の node のテストが読む文書の説明（`db9986c6` の `:521-526`）が、取り除いた後の node のテストが読む文書と一致することを読んで確かめ、PR の説明に記す（設計書 2.2、AC-21）。
--   [ ] `scope -pr 3`・`tests` を PR の merge-base と head で、`guards` を `-final` を付けて実行し、通ることを確かめ、出力と 2 つのコミットを 7 章の該当の行に記録する。PR-3 の `tests` は、設計書 3.4.1・3.4.2 の全削除対象が残っていないことを確かめる最後の実行でもある（AC-09・AC-20。1.6）。
+-   [ ] `scope -pr 3`・`tests -final` を PR の merge-base と head で、`guards` を `-final` を付けて実行し、通ることを確かめ、出力と 2 つのコミットを 7 章の該当の行に記録する。`tests -final` は、設計書 3.4.1・3.4.2 の全削除対象が残っていないことを確かめる最後の実行でもある（AC-09・AC-20。1.6）。
 -   [ ] PR の説明に、設計書 3.1.4〜3.1.7 の判定の一覧の行、3.3 の K4・K5 の対応表のうち PR-3 が触れる行、ステップ 3-2・3-3 のカバレッジの比較の結果を載せる。
 
 **フェーズ 3 の完了の条件:** `make test`、`make lint`、`make deadcode`、`make ext-check` が通る（AC-14）。`scope`・`tests`・`guards` の実行の記録が本書にある。PR-3 をマージする直前に、設計書 3.5 の実装中の計画の調べをもう一度行い、結果を記録した。
@@ -370,8 +370,8 @@
 
 **横断の確認（`make lint` と `make test` では検出できないもの）:**
 
--   取り除いた名前の残りは、Go のファイルについては `tests` が確かめる（7 章の AC-09・AC-20）。`tests` の残存の検査は、比べる merge-base と head の間で取り除いた名前を対象とし、後の PR で取り除く名前が head に残っていることは失敗としない。全削除対象の不在は PR-3 の最終実行で確かめる。文書については、`tests` が出す一覧を PR のレビューで読む。
--   公開されたロケータ（`doctestutil.Readme*Heading`）と、単体テストからだけ呼ばれる補助は、`make deadcode` と `make lint` が報告しない（設計書 3.4.1 の「検出の限り」）。そのため、`tests` が残存を検査する名前の一覧に、設計書 3.4.1・3.4.2 の表で取り除くすべての補助（`commandDocs`・`commandsDir`・`markdownSections` を含む）を入れ、PR-3 の最終実行でそのすべての不在を確かめる。
+-   取り除いた名前の残りは、Go のファイルについては `tests` が確かめる（7 章の AC-09・AC-20）。`tests` の残存の検査は、比べる merge-base と head の間で取り除いた名前を対象とし、後の PR で取り除く名前が head に残っていることは失敗としない。全削除対象の不在は、`-final` を付けた PR-3 の実行で確かめる。文書については、`tests` が出す一覧を PR のレビューで読む。
+-   公開されたロケータ（`doctestutil.Readme*Heading`）と、単体テストからだけ呼ばれる補助は、`make deadcode` と `make lint` が報告しない（設計書 3.4.1 の「検出の限り」）。そのため、`tests` が残存を検査する名前の一覧に、設計書 3.4.1・3.4.2 の表で取り除くすべての補助（`commandDocs`・`commandsDir`・`markdownSections` を含む）を入れ、PR-3 の `tests -final` でそのすべての不在を確かめる。
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -387,7 +387,7 @@
 | AC-06 | manual | 設計書 3.2 の判断の一覧を読む | -（設計書） |
 | AC-07 | diff・manual | diff: `tests`（取り除いた宣言の一覧を出力する）。manual: その一覧を設計書 3.2 の「取り除く」の行と、本書の `Comments` の新しい決定と照らして読む | ステップ 2-2・3-1・3-2 |
 | AC-08 | manual | 設計書 3.1 の D5・D6 の行の仕様とタスクの番号を読む | -（設計書） |
-| AC-09 | static・diff | static: `make deadcode`・`make lint`。diff: `tests`（各 PR は、その PR が取り除いた補助の名前が `docs/tasks/` の外の Go のファイルに識別子として残らないことを確かめ、PR-3 の最終実行で設計書 3.4.1・3.4.2 の全削除対象の不在を確かめる） | ステップ 2-2・3-2・3-4 |
+| AC-09 | static・diff | static: `make deadcode`・`make lint`。diff: `tests`（各 PR は、その PR が取り除いた補助の名前が `docs/tasks/` の外の Go のファイルに識別子として残らないことを確かめ、PR-3 の `tests -final` で設計書 3.4.1・3.4.2 の全削除対象の不在を確かめる） | ステップ 2-2・3-2・3-4 |
 | AC-10 | diff | `tests`（`TestNumberedItems` が補助と一緒に消え、残る補助の単体テストは変わらない） | ステップ 2-2 |
 | AC-11 | diff | `coverage`（取り除きと置き換えのコミットごと）。結果をコミットメッセージと PR の説明に記す | ステップ 2-2・2-3・3-2・3-3 |
 | AC-12 | diff・manual | diff: `coverage`。結果が違ったときは、設計書 6.1 の流れで残した部分と例外を、PR の説明に載せた判定の一覧の行（例外として記したもの）で読む | ステップ 2-2・3-2 |
@@ -398,7 +398,7 @@
 | AC-17 | diff | `scope`（`docs/tasks/` の下で 0052 と 0050 の外が変わらない） | 全 PR |
 | AC-18 | manual | `CLAUDE.md`「Development Notes」の一覧を、取り除いた後のテストと照らして読む | ステップ 2-4・3-4 |
 | AC-19 | static | `guards`（PR-1 は 4 か所の一致、PR-3 は `-final` で文書のテストが残るパッケージとの一致） | ステップ 1-4・3-4 |
-| AC-20 | diff・manual | diff: `tests`（各 PR は、その PR が取り除いた名前が `docs/tasks/` の外の Go のファイルに識別子として残らないことを確かめ、PR-3 の最終実行で全削除対象の不在を確かめる）。manual: `tests` が出すコメントと文書の中の名前の一覧と、一部を削除したテストの doc comment を読む | ステップ 2-2・2-4・3-2・3-4 |
+| AC-20 | diff・manual | diff: `tests`（各 PR は、その PR が取り除いた名前が `docs/tasks/` の外の Go のファイルに識別子として残らないことを確かめ、PR-3 の `tests -final` で全削除対象の不在を確かめる）。manual: `tests` が出すコメントと文書の中の名前の一覧と、一部を削除したテストの doc comment を読む | ステップ 2-2・2-4・3-2・3-4 |
 | AC-21 | diff・static・manual | diff: `scope`（`extension/scripts/has-extension-changes.sh`・`extension/test/ciChanges.test.ts`・`.github/workflows/`・`Makefile`・`go.mod` が変わらない）。static: `make ext-check`（`ciChanges.test.ts`）。manual: ステップ 3-4 の読み合わせの記述 | ステップ 3-4 |
 | AC-22 | manual | `CLAUDE.md` の加えた文を読む | ステップ 1-3 |
 | AC-23 | manual | 同上 | ステップ 1-3 |
