@@ -1,6 +1,7 @@
-// Renders the popup's states for the manual checks that jsdom cannot make:
-// the line clamping, the previews' direction, the colours and the focus
-// indicator. Run from the repository root, with the directory to write into:
+// Renders the popup's and the viewer's states for the manual checks that jsdom
+// cannot make: the line clamping, the previews' direction, the colours, the
+// focus indicator and the motion. Run from the repository root, with the
+// directory to write into:
 //
 //   node extension/scripts/popup-preview.ts <output-directory>
 //
@@ -8,9 +9,11 @@
 // acceptMetadata (readFailureResult for a failed read), prepareSend,
 // buildCollectedView and renderPopup -- so the preview cannot show a state the
 // popup cannot build. A rejected case builds the RejectedView the launch path
-// returns for a collection it refuses. The skeleton is the shipped popup.html,
-// the stylesheets are copied next to the pages, and the written pages load no
-// external resource and run no script. This file never reaches dist/: the build
+// returns for a collection it refuses. A viewer page draws a ViewerView with
+// renderViewerHeader and renderViewer, the functions the viewer uses. The
+// skeletons are the shipped popup.html and viewer.html, the stylesheets are
+// copied next to the pages, and the written pages load no external resource
+// and run no script. This file never reaches dist/: the build
 // compiles src/ only (tsconfig.build.json) and check-dist reports any extra file.
 //
 // Text that must be Japanese, right-to-left, or a bidi control is written with
@@ -31,9 +34,15 @@ import { prepareSend } from "../src/core/prepare.ts";
 import { buildCollectedView } from "../src/core/popupView.ts";
 import type { PopupView } from "../src/core/popupView.ts";
 import type { RejectionReason } from "../src/core/types.ts";
+import type { JobDisplay } from "../src/core/jobView.ts";
+import { classifyStatus } from "../src/core/response.ts";
+import type { Article, PublishStatus, Steps } from "../src/core/response.ts";
 import { findPopupElements } from "../src/launch.ts";
 import { applyPageLocale } from "../src/ui/pageLocale.ts";
 import { renderPopup } from "../src/ui/render.ts";
+import { renderViewer, renderViewerHeader } from "../src/ui/renderViewer.ts";
+import type { ViewerHeader, ViewerView } from "../src/ui/renderViewer.ts";
+import { findViewerElements } from "../src/viewerApp.ts";
 
 /** The directory holding static/, src/ and scripts/. */
 const extensionDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -169,6 +178,191 @@ export const previewCases: readonly PreviewCase[] = [
   },
 ];
 
+const runningSteps: Steps = {
+  draft: "done",
+  shorten: "running",
+  review: "pending",
+};
+const doneSteps: Steps = { draft: "done", shorten: "skipped", review: "done" };
+const failedSteps: Steps = {
+  draft: "done",
+  shorten: "failed",
+  review: "pending",
+};
+
+/**
+ * The article of a done status response, checked by classifyStatus as the
+ * viewer checks every status, so its branded cost is built by its parser.
+ */
+function previewArticleFrom(): Article {
+  const body = {
+    status: "ok",
+    requestId: "0123456789abcdef",
+    webhookConfigured: true,
+    job: {
+      state: "done",
+      steps: doneSteps,
+      article: {
+        markdown:
+          "# A video title\n\nA channel\n\nThe article's first paragraph, long enough to wrap on a narrow page. ".repeat(
+            3,
+          ),
+        file: "---\ntitle: A video title\n---\n\nThe article\n",
+        cost: { state: "known", usd: "0.1234" },
+        durationMs: 81_234,
+      },
+      publish: { state: "not_posted" },
+    },
+  };
+  const result = classifyStatus({
+    kind: "response",
+    status: 200,
+    bytes: new TextEncoder().encode(JSON.stringify(body)),
+  });
+  if (result.kind !== "ok" || result.job.state !== "done") {
+    throw new Error(`the preview article was refused: ${result.kind}`);
+  }
+  return result.job.article;
+}
+
+const previewArticle = previewArticleFrom();
+
+function doneJob(publish: PublishStatus, webhookConfigured = true): JobDisplay {
+  return {
+    kind: "done",
+    steps: doneSteps,
+    article: previewArticle,
+    publish,
+    webhookConfigured,
+  };
+}
+
+/** A viewer state drawn on the shipped viewer.html, one file each. */
+export interface ViewerPreviewCase {
+  readonly name: string;
+  readonly locale: Locale;
+  /** The URL's values; absent for a link that failed the URL check. */
+  readonly header?: ViewerHeader;
+  readonly view: ViewerView;
+}
+
+const viewerHeader: ViewerHeader = {
+  heading: "A video title",
+  channelName: "A channel",
+  url: watchUrl,
+};
+
+/** A job view with no notice. */
+function jobView(job: JobDisplay, elapsedMs = 0): ViewerView {
+  return {
+    state: { kind: "job", job, notice: { kind: "none" } },
+    elapsedMs,
+    publishing: false,
+  };
+}
+
+/**
+ * Every viewer state kind, every job kind and every row of the publish
+ * button's table, one page each; the running job also in Japanese.
+ */
+export const viewerPreviewCases: readonly ViewerPreviewCase[] = [
+  {
+    name: "viewer-invalid-link-en",
+    locale: "en",
+    view: { state: { kind: "invalid-link" }, elapsedMs: 0, publishing: false },
+  },
+  {
+    name: "viewer-sending-en",
+    locale: "en",
+    header: viewerHeader,
+    view: { state: { kind: "sending" }, elapsedMs: 0, publishing: false },
+  },
+  {
+    name: "viewer-start-failed-en",
+    locale: "en",
+    header: viewerHeader,
+    view: {
+      state: { kind: "start-failed", failure: { kind: "no-result" } },
+      elapsedMs: 0,
+      publishing: false,
+    },
+  },
+  {
+    name: "viewer-loading-en",
+    locale: "en",
+    header: viewerHeader,
+    view: {
+      state: { kind: "loading", notice: { kind: "none" } },
+      elapsedMs: 0,
+      publishing: false,
+    },
+  },
+  {
+    name: "viewer-running-en",
+    locale: "en",
+    header: viewerHeader,
+    view: jobView({ kind: "running", steps: runningSteps }, 65_000),
+  },
+  {
+    name: "viewer-running-ja",
+    locale: "ja",
+    header: viewerHeader,
+    view: jobView({ kind: "running", steps: runningSteps }, 65_000),
+  },
+  {
+    name: "viewer-failed-en",
+    locale: "en",
+    header: viewerHeader,
+    view: jobView({
+      kind: "failed",
+      steps: failedSteps,
+      failure: "llm_failed",
+    }),
+  },
+  {
+    name: "viewer-lost-en",
+    locale: "en",
+    header: viewerHeader,
+    view: jobView({ kind: "lost", kept: previewArticle }),
+  },
+  {
+    name: "viewer-posted-en",
+    locale: "en",
+    header: viewerHeader,
+    view: jobView(doneJob({ state: "posted" })),
+  },
+  {
+    name: "viewer-posting-en",
+    locale: "en",
+    header: viewerHeader,
+    view: jobView(doneJob({ state: "posting" })),
+  },
+  {
+    name: "viewer-unpostable-en",
+    locale: "en",
+    header: viewerHeader,
+    view: jobView(doneJob({ state: "unpostable", reason: "mention" })),
+  },
+  {
+    name: "viewer-webhook-not-configured-en",
+    locale: "en",
+    header: viewerHeader,
+    view: jobView(doneJob({ state: "not_posted" }, false)),
+  },
+  {
+    name: "viewer-publish-failed-en",
+    locale: "en",
+    header: viewerHeader,
+    view: jobView(doneJob({ state: "failed", reason: "webhook" })),
+  },
+  {
+    name: "viewer-not-posted-en",
+    locale: "en",
+    header: viewerHeader,
+    view: jobView(doneJob({ state: "not_posted" })),
+  },
+];
+
 /** A reader that returns text as the page's selection at the watch URL. */
 function readerReturning(text: string): SelectionReader {
   return {
@@ -214,8 +408,28 @@ function renderPage(skeleton: string, view: PopupView, locale: Locale): string {
   return dom.serialize();
 }
 
-/** The stylesheets popup.html loads, copied next to the pages. */
-const stylesheets = ["theme.css", "style.css"] as const;
+/** The viewer page for one case: the shipped skeleton, the locale, and the render. */
+function renderViewerPage(
+  skeleton: string,
+  previewCase: ViewerPreviewCase,
+): string {
+  const dom = new JSDOM(skeleton);
+  const doc = dom.window.document;
+  applyPageLocale(doc, previewCase.locale);
+  const elements = findViewerElements(doc);
+  if (elements === undefined) {
+    throw new Error("viewer.html does not have the skeleton's elements");
+  }
+  renderViewerHeader(elements, previewCase.header, previewCase.locale);
+  renderViewer(elements, previewCase.view, previewCase.locale);
+  for (const script of doc.querySelectorAll("script")) {
+    script.remove();
+  }
+  return dom.serialize();
+}
+
+/** The stylesheets popup.html and viewer.html load, copied next to the pages. */
+const stylesheets = ["theme.css", "style.css", "viewer.css"] as const;
 
 /** Writes one page per input set plus the stylesheets into outputDir. */
 async function writePreviews(outputDir: string): Promise<void> {
@@ -235,6 +449,16 @@ async function writePreviews(outputDir: string): Promise<void> {
     writeFileSync(
       path.join(outputDir, `${previewCase.name}.html`),
       renderPage(skeleton, view, previewCase.locale),
+    );
+  }
+  const viewerSkeleton = readFileSync(
+    path.join(extensionDir, "static", "viewer.html"),
+    "utf8",
+  );
+  for (const previewCase of viewerPreviewCases) {
+    writeFileSync(
+      path.join(outputDir, `${previewCase.name}.html`),
+      renderViewerPage(viewerSkeleton, previewCase),
     );
   }
 }

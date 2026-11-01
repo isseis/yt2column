@@ -477,8 +477,8 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **変更するファイル:** `scripts/popup-preview.ts`、`test/popupPreview.test.ts`
 
--   [ ] ビューアの各状態（`ViewerState` の 5 種類、`job` の 4 種類、`PublishRow` の 7 行）のページを書き出す（設計書 3.18）。ポップアップの新しい状態のページは、ステップ 6-2 で加える。
--   [ ] テスト: 書き出したページが状態ごとに 1 つずつあり、`theme.css` と `viewer.css` を参照すること。
+-   [x] ビューアの各状態（`ViewerState` の 5 種類、`job` の 4 種類、`PublishRow` の 7 行）のページを書き出す（設計書 3.18）。ポップアップの新しい状態のページは、ステップ 6-2 で加える。
+-   [x] テスト: 書き出したページが状態ごとに 1 つずつあり、`theme.css` と `viewer.css` を参照すること。
 
 **完了の条件:** `make ext-check` が通る。ビューアの状態の 1 つを書き出さないように壊し、状態ごとのページの数のテストが失敗することを確かめる。
 
