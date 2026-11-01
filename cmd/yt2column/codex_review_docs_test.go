@@ -3,7 +3,6 @@
 package main
 
 import (
-	"io/fs"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -13,9 +12,6 @@ import (
 	"github.com/isseis/yt2column/internal/doctestutil"
 	"github.com/isseis/yt2column/internal/fixprguard"
 )
-
-// commandsDir is the directory of the command documents, _lib/ included.
-const commandsDir = repositoryRoot + "/.claude/commands"
 
 // mentionCheckCommand is the command every section that posts text to GitHub
 // runs in its mention check before its posting command, so the user's account
@@ -90,8 +86,12 @@ const (
 // _context.md's "PR review request" row: a document that wrote it would lead
 // a session to post it from the user's account.
 func TestCodexMentionOnlyInRequestRow(t *testing.T) {
+	var paths []string
+	for _, rel := range doctestutil.CommandDocs(t, repositoryRoot) {
+		paths = append(paths, filepath.Join(repositoryRoot, rel))
+	}
 	rows := 0
-	for _, path := range append(commandDocs(t), claudePath) {
+	for _, path := range append(paths, claudePath) {
 		for i, line := range strings.Split(doctestutil.ReadDoc(t, path), "\n") {
 			if !strings.Contains(strings.ToLower(line), strings.ToLower(fixprguard.CodexMention)) {
 				continue
@@ -214,7 +214,8 @@ func TestPostingCommandsInventory(t *testing.T) {
 	}
 
 	posts := 0
-	for _, path := range commandDocs(t) {
+	for _, rel := range doctestutil.CommandDocs(t, repositoryRoot) {
+		path := filepath.Join(repositoryRoot, rel)
 		doc := doctestutil.ReadDoc(t, path)
 		key := filepath.Clean(path)
 		for _, m := range postingCommand.FindAllStringIndex(doc, -1) {
@@ -287,22 +288,6 @@ const (
 	coderabbitPath = repositoryRoot + "/.coderabbit.yaml"
 )
 
-// commandDocs returns the paths of every command document, _lib/ included.
-func commandDocs(t *testing.T) []string {
-	t.Helper()
-	var paths []string
-	err := filepath.WalkDir(commandsDir, func(path string, d fs.DirEntry, err error) error {
-		if err == nil && !d.IsDir() && strings.HasSuffix(path, ".md") {
-			paths = append(paths, path)
-		}
-		return err
-	})
-	if err != nil {
-		t.Fatalf("walk %s: %v", commandsDir, err)
-	}
-	return paths
-}
-
 // autoReviewDisabled reports whether the .coderabbit.yaml text sets
 // reviews.auto_review.enabled to false, with exactly one auto_review under
 // reviews. The standard library has no YAML parser, so it reads the nesting
@@ -347,17 +332,10 @@ func autoReviewDisabled(text string) bool {
 }
 
 // TestCodeRabbitConfigStopsReview checks that .coderabbit.yaml turns
-// CodeRabbit's automatic PR review off, records that the local CLI review
-// (the CodeRabbit CLI, or Codex CLI when it fails) still covers the changes
-// after the PR opens, and that autoReviewDisabled tells the real file from
-// copies broken in one place.
+// CodeRabbit's automatic PR review off, and that autoReviewDisabled tells the
+// real file from copies broken in one place.
 func TestCodeRabbitConfigStopsReview(t *testing.T) {
 	doc := doctestutil.ReadDoc(t, coderabbitPath)
-	requirePhrases(t, ".coderabbit.yaml", doc,
-		"CodeRabbit does not review PRs: Codex does the PR review",
-		"The local CLI review still covers the changes after the PR opens",
-		"the CodeRabbit CLI, or Codex CLI when it fails",
-	)
 	// Each broken copy keeps a reviews.auto_review key, so only where
 	// enabled sits decides the result.
 	const enabled = "  auto_review:\n    enabled: false\n"

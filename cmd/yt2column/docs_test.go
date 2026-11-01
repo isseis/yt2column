@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -33,9 +32,6 @@ const (
 	projectOverviewPath   = "../../docs/dev/project_overview.md"
 	securityPath          = "../../docs/dev/security.md"
 	productionProfilePath = "../../docs/dev/production_profile.md"
-	promptsReadmePath     = "../../prompts/README.md"
-	reviewEvaluationPath  = "../../docs/tasks/0010_post_generation_review/02_evaluation.md"
-	pricingRatesPath      = "../../internal/pricing/rates.go"
 )
 
 // productionProfileSection is the production profile document's section with
@@ -113,39 +109,6 @@ func headingAnchors(t *testing.T, docName, doc string) map[string]struct{} {
 	return anchors
 }
 
-// numberedItemRE matches the first line of a top-level numbered list item.
-var numberedItemRE = regexp.MustCompile(`^\d+\.\s`)
-
-// numberedItems returns the top-level numbered list items of section. An item
-// starts at a line outside a code block that begins with a number and a period
-// at column 0, and continues to the next item or the next blank line.
-func numberedItems(section string) []string {
-	var items, current []string
-	flush := func() {
-		if len(current) > 0 {
-			items = append(items, strings.Join(current, "\n"))
-			current = nil
-		}
-	}
-	for _, line := range doctestutil.ScanDocLines(slices.Collect(strings.Lines(section))) {
-		switch {
-		case line.Block:
-			if current != nil {
-				current = append(current, line.Text)
-			}
-		case numberedItemRE.MatchString(line.Text):
-			flush()
-			current = []string{line.Text}
-		case strings.TrimSpace(line.Text) == "":
-			flush()
-		case current != nil:
-			current = append(current, line.Text)
-		}
-	}
-	flush()
-	return items
-}
-
 // TestREADMEDocumentsFlags checks that the CLI guide (cli.md) documents every
 // flag run defines. The flag names come from newFlagSet, not from a list kept
 // here, so a new flag fails this test until cli.md names it.
@@ -167,7 +130,9 @@ func TestREADMEDocumentsFlags(t *testing.T) {
 // publishing: the test environment variables and the make targets, which the
 // development guide (development.md) and security.md name, and the per-message
 // limit, which README.md and project_overview.md state. The values come from
-// the publisher's exported test constants, not from the documents.
+// the publisher's exported test constants, not from the documents. The CLI
+// Slack opt-in is checked in security.md only: TestDeepSeekDocsContract checks
+// it in development.md, inside the section that names it.
 func TestSlackDocsContract(t *testing.T) {
 	// The documents state the limit with a thousands separator, so the
 	// literal below is pinned to the publisher's own exported test constant:
@@ -177,19 +142,13 @@ func TestSlackDocsContract(t *testing.T) {
 	}
 	values := []string{
 		publishertestutil.SlackOptInEnv,
-		publishertestutil.CLISlackOptInEnv,
 		publishertestutil.WebhookURLEnv,
 		publishertestutil.SlackIntegrationOptions.MakeTarget,
 		publishertestutil.CLISlackIntegrationOptions.MakeTarget,
 	}
-	for _, doc := range []struct {
-		name, text string
-	}{
-		{"development.md", doctestutil.ReadDoc(t, developmentDocPath)},
-		{"security.md", doctestutil.ReadDoc(t, securityPath)},
-	} {
-		requireMentions(t, doc.name, doc.text, values)
-	}
+	requireMentions(t, "development.md", doctestutil.ReadDoc(t, developmentDocPath), values)
+	requireMentions(t, "security.md", doctestutil.ReadDoc(t, securityPath),
+		append(slices.Clone(values), publishertestutil.CLISlackOptInEnv))
 	if !strings.Contains(doctestutil.ReadDoc(t, projectOverviewPath), "16,383") {
 		t.Error("project_overview.md does not state the per-message limit 16,383")
 	}
@@ -655,9 +614,8 @@ func checkProfileTable(t *testing.T, section string, defaults config.LLMConfig) 
 // TestProductionProfileDocsContract checks the shared production-profile
 // document's profile section and the README's recommended configuration
 // section: each configuration block holds exactly the variables of the
-// production profile and loads to the code's default profile, the README's
-// subsection lies inside Configuration, and the shared document's table names
-// the same profile for each stage.
+// production profile and loads to the code's default profile, and the shared
+// document's table names the same profile for each stage.
 func TestProductionProfileDocsContract(t *testing.T) {
 	want := productionProfileVars()
 
@@ -672,200 +630,13 @@ func TestProductionProfileDocsContract(t *testing.T) {
 
 	readmeVersionsUnder(t, func(t *testing.T, v doctestutil.ReadmeVersion, readme string) {
 		heading := doctestutil.ReadmeRecommendedConfigHeading.In(t, v.Lang)
-		configHeading := doctestutil.ReadmeConfigurationHeading.In(t, v.Lang)
 		recommended := doctestutil.SectionOutsideBlocks(readme, heading)
 		if recommended == "" {
 			t.Fatalf("%s has no %q section", v.Path, heading)
 		}
-		configSection := doctestutil.SectionOutsideBlocks(readme, configHeading)
-		inConfiguration := false
-		for _, line := range doctestutil.ScanDocLines(slices.Collect(strings.Lines(configSection))) {
-			if !line.Block && strings.TrimSpace(line.Text) == heading {
-				inConfiguration = true
-			}
-		}
-		if !inConfiguration {
-			t.Errorf("%s: %q is not inside the %q section", v.Path, heading, configHeading)
-		}
 		readmeValues := checkExportBlock(t, v.Path, heading, recommended, want)
 		checkExportBlockMatchesDefaults(t, v.Path, heading, readmeValues)
 	})
-}
-
-// TestMigrationDocsContract checks the README's migration examples. Each is a
-// text block of the old setting followed by an sh block setting YT2COLUMN_LLM
-// alone, and the section holds exactly one example of each kind: the retired
-// generation provider and model variables, and the retired Claude effort
-// variable next to the YT2COLUMN_LLM it was used with. The sh block of each
-// loads, through LoadServer, to the selection the old setting named. The
-// retired names come from the config package, whose table orders the
-// generation provider variable first, the generation model variable second,
-// and the Claude effort variable last.
-func TestMigrationDocsContract(t *testing.T) {
-	readmeVersionsUnder(t, func(t *testing.T, v doctestutil.ReadmeVersion, readme string) {
-		checkMigrationSection(t, v.Path, doctestutil.ReadmeMigrationHeading.In(t, v.Lang), readme)
-	})
-}
-
-// checkMigrationSection checks the migration section headed migrationHeading
-// of one README version, named name in failures.
-func checkMigrationSection(t *testing.T, name, migrationHeading, readme string) {
-	t.Helper()
-	section := doctestutil.SectionOutsideBlocks(readme, migrationHeading)
-	if section == "" {
-		t.Fatalf("%s has no %q section", name, migrationHeading)
-	}
-	retired := config.RetiredLLMVarsForTest()
-	providerVar, modelVar, effortVar := retired[0], retired[1], retired[len(retired)-1]
-	llmVar := config.LLMEnvForTest()
-
-	load := func(value string) config.LLMSelection {
-		t.Helper()
-		env := docsProfileEnv()
-		env[config.DeepSeekAPIKeyEnvForTest()] = "docs-test-api-key"
-		env[llmVar] = value
-		cfg, err := config.LoadServer(lookupFrom(env))
-		if err != nil {
-			t.Fatalf("%s %s: LoadServer rejects a value of an example: %v", name, migrationHeading, err)
-		}
-		return cfg.LLM().Generation()
-	}
-
-	blocks := doctestutil.FencedBlocks(section)
-	examples := map[string]int{}
-	for i, block := range blocks {
-		if block.Info != "text" {
-			continue
-		}
-		if i+1 >= len(blocks) || blocks[i+1].Info != "sh" {
-			t.Fatalf("%s %s: text block %d is not followed by an sh block", name, migrationHeading, i+1)
-		}
-		after := checkExportLines(t, name, migrationHeading, blocks[i+1], []string{llmVar})
-		before := map[string]string{}
-		for j, line := range block.Lines {
-			variable, value, ok := strings.Cut(strings.TrimRight(line, "\n"), "=")
-			if !ok || (!slices.Contains(retired, variable) && variable != llmVar) {
-				t.Errorf("%s %s: text block line %d is not <retired variable or %s>=<value>", name, migrationHeading, j+1, llmVar)
-				continue
-			}
-			before[variable] = value
-		}
-		var old string
-		switch _, hasEffort := before[effortVar]; {
-		case hasEffort:
-			examples[effortVar]++
-			if len(before) != 2 || before[effortVar] == "" || before[llmVar] == "" {
-				t.Errorf("%s %s: the %s example sets %d variables, want exactly %s and %s",
-					name, migrationHeading, effortVar, len(before), effortVar, llmVar)
-				continue
-			}
-			old = before[llmVar] + "+" + before[effortVar]
-		default:
-			examples[providerVar]++
-			if len(before) != 2 || before[providerVar] == "" || before[modelVar] == "" {
-				t.Errorf("%s %s: the provider and model example sets %d variables, want exactly %s and %s",
-					name, migrationHeading, len(before), providerVar, modelVar)
-				continue
-			}
-			old = before[providerVar] + "/" + before[modelVar]
-		}
-		if diff := selectionMismatch(load(after[llmVar]), load(old)); diff != "" {
-			t.Errorf("%s %s: the new setting differs from the old one it replaces: %s", name, migrationHeading, diff)
-		}
-	}
-	for _, kind := range []string{providerVar, effortVar} {
-		if examples[kind] != 1 {
-			t.Errorf("%s %s: %d examples migrating %s, want exactly one", name, migrationHeading, examples[kind], kind)
-		}
-	}
-}
-
-// TestQuickStartLinks checks the quick start section of each README version:
-// it comes before the requirements section, every numbered item links to a
-// heading of the same version, and no link in the section is an external URL.
-func TestQuickStartLinks(t *testing.T) {
-	readmeVersionsUnder(t, func(t *testing.T, v doctestutil.ReadmeVersion, readme string) {
-		quickStart := doctestutil.ReadmeQuickStartHeading.In(t, v.Lang)
-		section := doctestutil.SectionOutsideBlocks(readme, quickStart)
-		if section == "" {
-			t.Fatalf("%s has no %q section", v.Path, quickStart)
-		}
-		headings := doctestutil.HeadingsOutsideBlocks(readme)
-		at, requirements := slices.Index(headings, quickStart), slices.Index(headings, doctestutil.ReadmeRequirementsHeading.In(t, v.Lang))
-		if at < 0 || requirements < 0 || at > requirements {
-			t.Errorf("%s: %q is at heading %d, the requirements at %d; the quick start must come first", v.Path, quickStart, at, requirements)
-		}
-		anchors := headingAnchors(t, v.Path, readme)
-		items := numberedItems(section)
-		if len(items) == 0 {
-			t.Fatalf("%s %s has no numbered list", v.Path, quickStart)
-		}
-		for _, item := range items {
-			linked := false
-			for _, target := range markdownLinkTargets(item) {
-				if anchor, ok := strings.CutPrefix(target, "#"); ok {
-					if _, known := anchors[anchor]; known {
-						linked = true
-					}
-				}
-			}
-			if !linked {
-				first, _, _ := strings.Cut(item, "\n")
-				t.Errorf("%s quick start item %q has no link to a heading of the same document", v.Path, first)
-			}
-		}
-		// TestReadmeLinks checks that every link in the README, this section's
-		// included, resolves; only the step guidance's own rule is checked here.
-		for _, target := range markdownLinkTargets(section) {
-			if strings.Contains(target, "://") {
-				t.Errorf("%s quick start links to the external URL %q; link to a section of the same document instead", v.Path, target)
-			}
-		}
-	})
-}
-
-// TestProductionProfileLinks checks that every document that describes the
-// production profile links to the shared document by a relative path that
-// resolves to the file the test reads. The expected target comes from the path
-// constant, not from a literal copied out of a document.
-func TestProductionProfileLinks(t *testing.T) {
-	want, err := filepath.Abs(productionProfilePath)
-	if err != nil {
-		t.Fatalf("resolve %s: %v", productionProfilePath, err)
-	}
-	docs := []struct{ name, path, heading string }{
-		{"project_overview.md", projectOverviewPath, "## 決定済みの方針"},
-		{"CLAUDE.md", claudePath, "## Quick Links"},
-		{"prompts/README.md", promptsReadmePath, ""},
-	}
-	for _, v := range doctestutil.ReadmeVersions() {
-		docs = append(docs, struct{ name, path, heading string }{v.Path, v.From(repositoryRoot), doctestutil.ReadmeRecommendedConfigHeading.In(t, v.Lang)})
-	}
-	for _, tc := range docs {
-		t.Run(tc.name, func(t *testing.T) {
-			text := doctestutil.ReadDoc(t, tc.path)
-			if tc.heading != "" {
-				if text = doctestutil.SectionOutsideBlocks(text, tc.heading); text == "" {
-					t.Fatalf("%s has no %q section", tc.name, tc.heading)
-				}
-			}
-			for _, target := range markdownLinkTargets(text) {
-				if strings.Contains(target, "://") {
-					continue
-				}
-				path, _, _ := strings.Cut(target, "#")
-				got, err := filepath.Abs(filepath.Join(filepath.Dir(tc.path), path))
-				if err == nil && got == want {
-					return
-				}
-			}
-			where := "the whole document"
-			if tc.heading != "" {
-				where = strconv.Quote(tc.heading)
-			}
-			t.Errorf("%s has no link that resolves to %s in %s", tc.name, productionProfilePath, where)
-		})
-	}
 }
 
 // TestReadmeLinks checks the links of both README versions and of the two
@@ -930,22 +701,6 @@ func TestReadmeLinks(t *testing.T) {
 				}
 			}
 		})
-	}
-}
-
-// TestNumberedItems checks the numbered-list extraction: an item ends at a
-// blank line or the next item, a fenced block that belongs to an item stays in
-// it, and an indented number is not a top-level item.
-func TestNumberedItems(t *testing.T) {
-	const section = "intro\n1. first\n   continued\n2. second\n\n   3. indented\n\n```text\n3. not an item\n```\n3. third\n"
-	want := []string{"1. first\n   continued", "2. second", "3. third"}
-	if got := numberedItems(section); !slices.Equal(got, want) {
-		t.Errorf("numberedItems = %q, want %q", got, want)
-	}
-	const withBlock = "1. run this\n   ```sh\n   3. not an item\n\n   make test\n   ```\n2. next\n"
-	wantWithBlock := []string{"1. run this\n   ```sh\n   3. not an item\n\n   make test\n   ```", "2. next"}
-	if got := numberedItems(withBlock); !slices.Equal(got, wantWithBlock) {
-		t.Errorf("numberedItems with a block inside an item = %q, want %q", got, wantWithBlock)
 	}
 }
 
@@ -1049,9 +804,8 @@ func TestTokenUsageDocsContract(t *testing.T) {
 
 // TestCostDocsContract checks that the CLI guide's (cli.md) Estimated cost
 // section uses every word run.go's cost format defines, that its example lines use only
-// those words and the stage names in the fixed positions, that
-// project_overview.md contains the cost prefix, and that the rate table's
-// leading comment points at the update procedure.
+// those words and the stage names in the fixed positions, and that
+// project_overview.md contains the cost prefix.
 //
 // The behavior these words describe is pinned by running tests, not by this
 // test: the line format by cmd/yt2column's TestRunCostLinesGoldenFormat.
@@ -1118,11 +872,5 @@ func TestCostDocsContract(t *testing.T) {
 	overview := doctestutil.ReadDoc(t, projectOverviewPath)
 	if !strings.Contains(overview, costPrefix) {
 		t.Errorf("project_overview.md does not contain %q", costPrefix)
-	}
-
-	rates := doctestutil.ReadDoc(t, pricingRatesPath)
-	head, _, _ := strings.Cut(rates, "\npackage ")
-	if !strings.Contains(head, "pricing_update.md") {
-		t.Error("internal/pricing/rates.go's leading comment does not point at pricing_update.md")
 	}
 }

@@ -71,9 +71,6 @@ func ReviewLLMEnvForTest() string { return reviewLLMEnv }
 // AnthropicAPIKeyEnvForTest returns the name of the Anthropic API key variable.
 func AnthropicAPIKeyEnvForTest() string { return anthropicAPIKeyEnv }
 
-// DeepSeekAPIKeyEnvForTest returns the name of the DeepSeek API key variable.
-func DeepSeekAPIKeyEnvForTest() string { return deepSeekAPIKeyEnv }
-
 // DefaultClaudeEffortForTest returns the effort a claude stage uses when its
 // LLM variable's value has no effort part.
 func DefaultClaudeEffortForTest() string { return defaultClaudeEffort.String() }
