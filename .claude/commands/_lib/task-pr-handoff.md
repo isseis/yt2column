@@ -232,6 +232,14 @@ Run this after the calling command's last commit, with a clean working tree.
      from their SUMMARY;
    - lists the terms the README sync (step 1) reported as missing from the
      translation glossary, if any;
+   - when the branch makes editorial corrections to approved task documents,
+     carries the correction paragraph written from the correction lines of
+     `git log origin/main..HEAD`, and when the branch's change-history lines
+     (`git diff origin/main...HEAD`) record a `draft` revert or a session
+     re-approval, names those decision changes; both as
+     `docs/dev/conventions/requirements_process.md`, "Recording in the PR
+     description", says. The correction paragraph is in the body file the
+     mention check reads;
    - contains `Refs #<issue>` for the issue the requirements document names as
      its own (`対応 issue`), never a closing keyword (`Closes`, `Fixes`,
      `Resolves`): the issue stays open until the task is implemented. The

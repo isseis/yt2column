@@ -154,7 +154,10 @@ Every `fixpr.md` and `mergepr.md` run below is given the resolved PR number
     history. When the branch is named for a task (the feature branch
     convention in `_context.md`) or changes files in a task directory, the
     body contains `Refs #<issue>` for that task's `対応 issue`, as
-    `_lib/task-pr-handoff.md` Part B step 3 says. (A branch created by hand is
+    `_lib/task-pr-handoff.md` Part B step 3 says. Like that step, the body
+    also carries the correction paragraph and the decision changes of the
+    branch, as `docs/dev/conventions/requirements_process.md`, "Recording in
+    the PR description", says. (A branch created by hand is
     not linked to the issue, so the PR does not appear in its Development
     section.) Write the title and the body to files in the scratchpad with the
     Write tool (`_context.md`, "Passing a title to `gh`"). Do not pause for the
@@ -219,9 +222,6 @@ head; a record already made counts as made, never as absent.
     rule" says. This is the only way the commands set a document to
     `approved`, and only on the user's answer
     (`docs/dev/conventions/requirements_process.md`, "LLM Constraints").
-  - **Checkpoint** (plan PR): "PR がマージされた" on that PR's record, and in
-    the plan's PR checklist (§6) its `PR-N マージ済み`. On a checkpoint, also
-    "次のブランチへ切り替えた": `[x]` when NEXT is set (step 5 creates the next
   - **PR number fill-in** (any kind): in the change-history lines of task
     documents that this PR added (`git diff $(git merge-base origin/main HEAD)`),
     replace the not-yet-filled marker `#未記入` (the rule's "Change history",
@@ -229,6 +229,9 @@ head; a record already made counts as made, never as absent.
     `main` belongs to another PR and is only shown in step 4's question, and
     the marker's text outside a change history (a quotation of the rule) is not
     a marker.
+  - **Checkpoint** (plan PR): "PR がマージされた" on that PR's record, and in
+    the plan's PR checklist (§6) its `PR-N マージ済み`. On a checkpoint, also
+    "次のブランチへ切り替えた": `[x]` when NEXT is set (step 5 creates the next
     branch only then), `[-]` (not applicable) on the final PR.
 - **NEXT** — the command offered after the merge:
   - plan PR: `/runplan <task>` unless it is the final PR; none on the final

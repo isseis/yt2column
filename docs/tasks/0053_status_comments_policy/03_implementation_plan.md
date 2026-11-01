@@ -202,8 +202,8 @@ PR-1 の本文には、マージの直後に `make install-fixprguard` で再イ
 
 **変更するファイル:** `.claude/commands/_lib/task-pr-handoff.md`、`.claude/commands/runpr.md`
 
--   [ ] `task-pr-handoff.md` Part B 手順 3 の PR 本文の一覧に、訂正の段落と決定の変更の 2 つを加える（設計書 3.6 節の表の該当の行）。形は規則の節を参照する。
--   [ ] `runpr.md` 手順 1 の単独の変更の PR の本文（`runpr.md:149-162`）にも、同じ 2 つを入れることを加える。
+-   [x] `task-pr-handoff.md` Part B 手順 3 の PR 本文の一覧に、訂正の段落と決定の変更の 2 つを加える（設計書 3.6 節の表の該当の行）。形は規則の節を参照する。
+-   [x] `runpr.md` 手順 1 の単独の変更の PR の本文（`runpr.md:149-162`）にも、同じ 2 つを入れることを加える。
 
 **完了の条件:** 文書のガード（`TestPostingPathsCheckMention` を含む）が通る。
 
