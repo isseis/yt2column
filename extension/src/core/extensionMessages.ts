@@ -50,7 +50,10 @@ export type AwaitStartReply =
   // The worker holds no send for this tab and sentAt.
   | { readonly kind: "none" };
 
-/** BroadcastChannel "yt2column-viewers". */
+/** The name of the BroadcastChannel the viewers answer queries on. */
+export const viewerChannelName = "yt2column-viewers";
+
+/** A message on the BroadcastChannel named viewerChannelName. */
 export type ViewerChannelMessage =
   | {
       readonly type: "find";

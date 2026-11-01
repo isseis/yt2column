@@ -330,11 +330,11 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **変更するファイル:** `src/browser/chromeDeps.ts`、`eslint.config.js`、`test/chromeDeps.test.ts`、`test/lintRules.test.ts`、`test/helpers/chrome.ts`（新規）、`test/helpers/clock.ts`（新規）、`test/fakes.test.ts`（新規）
 
--   [ ] `chromeDeps.ts` に、設計書 3.18 の行のラッパー（`runtime.sendMessage`・`onMessage`、`tabs.create/update/remove/get/getCurrent`、ウィンドウを前面に出す操作、`BroadcastChannel`、クリップボード、ダウンロード、問い合わせの ID の乱数）を加える。Promise の拒否と例外は、どれも失敗の値に変える（設計書 4.1）。`chrome.windows` は 1.3 のとおり `chromeDeps.ts` だけが読む。
--   [ ] `eslint.config.js` で、`windows` を `chromeDeps.ts` でだけ許し、`menuPathMessage` の「the extension sends only from the popup」を改める（設計書 3.17）。`test/lintRules.test.ts:382` の `windows` の行を、ほかのファイルで禁止され `chromeDeps.ts` で許される形にする。
--   [ ] `test/helpers/clock.ts` に、`now()`・`schedule()`・`advance(ms)`（期限の順に、期限の来た処理だけを呼ぶ）を持つ fake の時計を作る（1.4）。
--   [ ] `test/helpers/chrome.ts` に、ラッパーのインタフェースの形の fake を作る（設計書 7.1）。順序のテストのために、次のことができる形にする: `tabs.create` の完了をテストが進める、`tabs.remove` などを失敗させる、閉じたポップアップへの `sendResponse` が届かない、リスナーが `false` を返すと送り手の `sendMessage` が失敗する、`runtime.id` と `getURL` を持つ。`BroadcastChannel` の fake は、同じテストの中の複数の端点の間で非同期に届き、送った端点自身には届かず、`close` の後は届かない。
--   [ ] テスト: 各ラッパーが拒否と例外を失敗の値に変えること。`test/fakes.test.ts` で、`BroadcastChannel` の fake の届き方と、時計の `advance` の順を確かめる。
+-   [x] `chromeDeps.ts` に、設計書 3.18 の行のラッパー（`runtime.sendMessage`・`onMessage`、`tabs.create/update/remove/get/getCurrent`、ウィンドウを前面に出す操作、`BroadcastChannel`、クリップボード、ダウンロード、問い合わせの ID の乱数）を加える。Promise の拒否と例外は、どれも失敗の値に変える（設計書 4.1）。`chrome.windows` は 1.3 のとおり `chromeDeps.ts` だけが読む。
+-   [x] `eslint.config.js` で、`windows` を `chromeDeps.ts` でだけ許し、`menuPathMessage` の「the extension sends only from the popup」を改める（設計書 3.17）。`test/lintRules.test.ts:382` の `windows` の行を、ほかのファイルで禁止され `chromeDeps.ts` で許される形にする。
+-   [x] `test/helpers/clock.ts` に、`now()`・`schedule()`・`advance(ms)`（期限の順に、期限の来た処理だけを呼ぶ）を持つ fake の時計を作る（1.4）。
+-   [x] `test/helpers/chrome.ts` に、ラッパーのインタフェースの形の fake を作る（設計書 7.1）。順序のテストのために、次のことができる形にする: `tabs.create` の完了をテストが進める、`tabs.remove` などを失敗させる、閉じたポップアップへの `sendResponse` が届かない、リスナーが `false` を返すと送り手の `sendMessage` が失敗する、`runtime.id` と `getURL` を持つ。`BroadcastChannel` の fake は、同じテストの中の複数の端点の間で非同期に届き、送った端点自身には届かず、`close` の後は届かない。
+-   [x] テスト: 各ラッパーが拒否と例外を失敗の値に変えること。`test/fakes.test.ts` で、`BroadcastChannel` の fake の届き方と、時計の `advance` の順を確かめる。
 
 **完了の条件:** `make ext-check` が通る。`tabs.remove` のラッパーが拒否をそのまま投げるように壊し、そのテストが失敗することを確かめる。`BroadcastChannel` の fake が送った端点自身にも届けるように壊し、`test/fakes.test.ts` が失敗することを確かめる。
 

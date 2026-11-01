@@ -91,14 +91,15 @@ const sendNativeSelectors = memberNameSelectors(
   "Only browser/chromeDeps.ts may call chrome.runtime.sendNativeMessage.",
 );
 
-// The extension sends only from the popup. These APIs served the removed
-// context-menu path (the menu, the result window, its session store and the
-// toolbar badge). windows and action need no permission, so only this rule
-// keeps them from coming back. Like the storage rule, it guards against accidental
-// reuse, not deliberate evasion.
+// These APIs served the removed context-menu path (the menu, the result
+// window, its session store and the toolbar badge). windows and action need no
+// permission, so only this rule keeps them from coming back. Like the storage
+// rule, it guards against accidental reuse, not deliberate evasion. The one
+// exception is windows in browser/chromeDeps.ts, whose wrapper brings a viewer
+// tab's window to the front; its config below leaves windows out of the list.
 const menuPathNames = ["contextMenus", "session", "windows", "setBadgeText"];
 const menuPathMessage =
-  "Do not use chrome.contextMenus, chrome.windows or chrome.action.setBadgeText; the extension sends only from the popup.";
+  "Do not use chrome.contextMenus, chrome.session or chrome.action.setBadgeText, or chrome.windows outside browser/chromeDeps.ts; they served the removed context-menu path.";
 
 // The branded types hide their brand symbol, so only the function named here
 // may assert the type to create a value. Every other reference form (an alias
@@ -170,9 +171,10 @@ const brandNames = [
   "UsdAmount",
 ];
 
-// Selectors shared by every file. The files-scoped config below reuses this
-// list because a later config with files/ignores replaces the whole rule.
-const restrictedSyntax = [
+// Selectors shared by every file but the menu-path names. The files-scoped
+// configs below reuse these lists because a later config with files/ignores
+// replaces the whole rule.
+const commonSyntax = [
   {
     selector: `MemberExpression[computed=false][property.name=${htmlParsingPattern}]`,
     message: htmlParsingMessage,
@@ -214,7 +216,18 @@ const restrictedSyntax = [
   ...storageSelectors,
   ...networkSelectors,
   ...connectNativeSelectors,
+];
+const restrictedSyntax = [
+  ...commonSyntax,
   ...memberNameSelectors(menuPathNames, menuPathMessage),
+];
+// browser/chromeDeps.ts may reference windows; the other names stay forbidden.
+const chromeDepsSyntax = [
+  ...commonSyntax,
+  ...memberNameSelectors(
+    menuPathNames.filter((name) => name !== "windows"),
+    menuPathMessage,
+  ),
 ];
 
 /** A config that forbids the listed brands (and the common selectors) in file. */
@@ -270,12 +283,13 @@ export default defineConfig(
     },
   },
   {
-    // The one file that calls chrome.runtime.sendNativeMessage.
+    // The one file that calls chrome.runtime.sendNativeMessage and the one
+    // that references chrome.windows.
     files: ["src/browser/chromeDeps.ts"],
     rules: {
       "no-restricted-syntax": [
         "error",
-        ...restrictedSyntax,
+        ...chromeDepsSyntax,
         ...brandSelectors(brandNames),
       ],
     },
