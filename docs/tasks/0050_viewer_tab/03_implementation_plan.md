@@ -6,9 +6,9 @@
 |---|---|
 | Status | `approved` |
 | Created | 2026-10-31 |
-| Review date | 2026-10-31 |
+| Review date | 2026-11-01 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-11-01 (decision, approved in session): ステップ 1-1 の確認で、設計書 3.16 の行 10 が崩れた（凍結されたタブは問いに答え、破棄されたタブには新しいタブの ID が付く）。レビュアー（isseis）がセッションの中で扱いを選び、承認した。凍結されたタブは期待を観察に合わせ、破棄されたタブは「ビューアを開く」の重複を制約として受け入れた（要件 F-004・AC-21、設計書 3.16・4.2・6.6・7.2）。これに合わせて 4.3.2 の AC-08 の行を改めた。行 6 は、送り方を変えないことをレビュアーが選んだ（設計書 3.4.1 の項目 5）。ほかの決定は変えていない。 |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の項番、「設計書 3.2」などは設計書の節を指す。既存のコードと文書についての記述は、コミット `bf314092` で確かめた。`file:line` はこのコミットの行番号を指す。設計書は行番号をコミット `577e7b51` で確かめている。`git diff --stat 577e7b51 bf314092 -- extension cmd/yt2column/extension_docs_test.go internal/nmhost internal/server docs/dev/guides/development.md` の出力は空なので、設計書の拡張・Go のガード・ホスト・サーバ・`development.md` の行番号は、そのまま使える（`README.md` と `docs/dev/security.md` は、タスク `0051` の変更で行がずれている）。拡張のファイルのパスは、設計書と同じく `extension/` を省いて書く（例: `src/launch.ts`）。テストの場所は `path::describe の名前` で示す。まだないテストの describe の名前は、実装のときに決める仮の名前である。
 
@@ -135,12 +135,12 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 #### ステップ 1-1: 設計書 3.16 の振る舞いを試作で確かめる
 
-**変更するファイル:** `docs/tasks/0050_viewer_tab/03_implementation_plan.md`（4.3 の記録）、崩れた行がある場合は `docs/tasks/0050_viewer_tab/02_architecture.md`
+**変更するファイル:** `docs/tasks/0050_viewer_tab/03_implementation_plan.md`（4.3 の記録）、崩れた行がある場合は `docs/tasks/0050_viewer_tab/02_architecture.md`（崩れた行の扱いが要件を変える場合は `docs/tasks/0050_viewer_tab/01_requirements.md` も。行 10 で改めた）
 
--   [ ] 作業ツリーの外に試作の拡張を作る。manifest に `background`（`type: "module"`）と `viewer.html` を持ち、権限は今の 3 つのままにする。manifest の `key` は今の拡張と同じにする（1.4 のテスト用のホストの登録）。設計書 3.16 の表の各行の API を呼ぶ最小の処理だけを持つ。
--   [ ] 応答を約 19 秒遅らせるテスト用のサーバと、25 秒応答しないテスト用のホストを、作業ツリーの外に作る。確かめの後、`yt2column-nmhost install <browser>` で本物のホストの登録に戻し、戻らなければテスト用の manifest を手で消してから入れ直す。
--   [ ] 利用者が、Chrome（110 以降の今の版）と Brave で、設計書 3.16 の表の 10 行を表の「確かめ方」のとおりに確かめる。結果を 4.3.1 の表に記録する（ブラウザと版、確かめた日、結果）。
--   [ ] 崩れた行があれば、設計書 3.16 の「崩れた場合の方法」に切り替えることを、レビュアーとその場で決め、設計書を改める（`requirements_process.md`「Editing an approved document」）。「なし」の行（`tabs` の API、`<a download>`）が崩れたら、フェーズ 2 に進まず、レビュアーと扱いを決める。
+-   [x] 作業ツリーの外に試作の拡張を作る。manifest に `background`（`type: "module"`）と `viewer.html` を持ち、権限は今の 3 つのままにする。manifest の `key` は今の拡張と同じにする（1.4 のテスト用のホストの登録）。設計書 3.16 の表の各行の API を呼ぶ最小の処理だけを持つ。
+-   [x] 応答を約 19 秒遅らせるテスト用のサーバと、25 秒応答しないテスト用のホストを、作業ツリーの外に作る。確かめの後、`yt2column-nmhost install <browser>` で本物のホストの登録に戻し、戻らなければテスト用の manifest を手で消してから入れ直す。
+-   [x] 利用者が、Chrome（110 以降の今の版）と Brave で、設計書 3.16 の表の 10 行を表の「確かめ方」のとおりに確かめる。結果を 4.3.1 の表に記録する（ブラウザと版、確かめた日、結果）。
+-   [x] 崩れた行があれば、設計書 3.16 の「崩れた場合の方法」に切り替えることを、レビュアーとその場で決め、設計書を改める（`requirements_process.md`「Editing an approved document」）。「なし」の行（`tabs` の API、`<a download>`）が崩れたら、フェーズ 2 に進まず、レビュアーと扱いを決める。
 
 **完了の条件:** 4.3.1 の表のすべての行に結果がある。崩れた行の扱いが、設計書と本書に記録されている。
 
@@ -156,10 +156,10 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **判定理由**: ステップ 1-1 が試作による実現性の確認（Phase 0 型の PoC）であるため
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/600
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: やり取りと検査
 
@@ -683,18 +683,26 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 試作は作業ツリーの外に作る（1.3）。各行の確かめ方は設計書 3.16 の表のとおりである。
 
+手順の要点:
+
+-   試作の拡張は、manifest の `key` を今の拡張と同じにし（拡張の ID は `clfmbbcdpnjcefbdihdoahomaifbabkk`）、権限を今の 3 つのままにした。ポップアップが SW に生成の開始を送り、SW が背面にビューアのタブを開いて、ホストに新しい形の `start` を送る。結果は `BroadcastChannel` でビューアに送り、ページに表示する。そのため、SW の DevTools を開かずに確かめた。SW の停止は `chrome://serviceworker-internals` で見た。
+-   応答を遅らせるテスト用のサーバは、本物のソケットのパスで待ち受け、どの要求にも 19 秒後に `202` を返す。本物のホストを通して届いた（19.0〜19.1 秒）。
+-   25 秒応答しないテスト用のホストは、40 秒眠るだけのスクリプトである。ホストの manifest の `path` だけをこれに替え、確かめた後に `yt2column-nmhost install chrome` で本物のホストに戻した。macOS では Chrome と Brave が同じ manifest のファイル（`~/Library/Application Support/Google/Chrome/NativeMessagingHosts/`）を使う。
+-   行 6 は、送り方と閉じ方を変えて、SW が止まった後に 1 回ずつ確かめた。`sendMessage` の直後に同期的に `window.close`、ポートで送った直後に同期的に `window.close`、`sendMessage` の 100 ms 後に `window.close`、送った後に利用者が手で閉じる、の 4 つである。
+-   行 10 は、試作のポップアップから、問い合わせと `tabs.get` を同時に行って確かめた。凍結は `chrome://discards` で、破棄は `tabs.discard` で行った。
+
 | 振る舞い（設計書 3.16 の行） | ブラウザと版 | 確かめた日 | 結果 |
 |---|---|---|---|
-| `tabs` の権限なしの `tabs.create`・`update`・`remove`・`get` | - | - | 未実施 |
-| `tabs.getCurrent()` が自分のタブを返す | - | - | 未実施 |
-| `windows.update` が権限なしで使える | - | - | 未実施 |
-| SW の `BroadcastChannel` | - | - | 未実施 |
-| SW の寿命（19 秒遅らせるサーバ、25 秒応答しないホスト） | - | - | 未実施 |
-| 止まっていた SW が、閉じたポップアップのメッセージを受け取る | - | - | 未実施 |
-| `<a download>` と Blob の URL の保存 | - | - | 未実施 |
-| 権限なしの `navigator.clipboard.writeText` | - | - | 未実施 |
-| `Intl.NumberFormat.prototype.format` の 10 進の文字列 | - | - | 未実施 |
-| 凍結・破棄されたタブが問いに答えない | - | - | 未実施 |
+| `tabs` の権限なしの `tabs.create`・`update`・`remove`・`get` | Chrome 156.0.8078.74・Brave 1.98.62（Chromium 156.0.8078.74） | 2026-11-01 | 期待どおり。`create` は `active:false`・`index`・`openerTabId` のとおりに背面で開き、作業中のタブは切り替わらない。同じキーの引き継ぎで、`get`・`update`・`remove` も成功した |
+| `tabs.getCurrent()` が自分のタブを返す | Chrome 156.0.8078.74・Brave 1.98.62（Chromium 156.0.8078.74） | 2026-11-01 | 期待どおり |
+| `windows.update` が権限なしで使える | Chrome 156.0.8078.74・Brave 1.98.62（Chromium 156.0.8078.74） | 2026-11-01 | 期待どおり。別のウィンドウに移した既存のビューアのウィンドウが前面に出た |
+| SW の `BroadcastChannel` | Chrome 156.0.8078.74・Brave 1.98.62（Chromium 156.0.8078.74） | 2026-11-01 | 期待どおり。SW とビューアの間で、問い合わせ・答え・結果が届いた |
+| SW の寿命（19 秒遅らせるサーバ、25 秒応答しないホスト） | Chrome 156.0.8078.74・Brave 1.98.62（Chromium 156.0.8078.74） | 2026-11-01 | 期待どおり。どちらも止まっていた SW が送信で起き、同じ SW のまま終わった（サーバ: 20.0〜20.1 秒、ホスト: 26.0 秒） |
+| 止まっていた SW が、閉じたポップアップのメッセージを受け取る | Chrome 156.0.8078.74・Brave 1.98.62（Chromium 156.0.8078.74） | 2026-11-01 | 設計書の使い方では期待どおり。100 ms の後に閉じた場合と、利用者が手で閉じた場合は届く。送った直後に同期的に `window.close` した場合は、SW が起きても届かない（ポートで送っても同じ）。送り方は変えない（設計書 3.4.1 の項目 5） |
+| `<a download>` と Blob の URL の保存 | Chrome 156.0.8078.74・Brave 1.98.62（Chromium 156.0.8078.74） | 2026-11-01 | 期待どおり。日本語の本文が崩れずに保存された |
+| 権限なしの `navigator.clipboard.writeText` | Chrome 156.0.8078.74・Brave 1.98.62（Chromium 156.0.8078.74） | 2026-11-01 | 期待どおり |
+| `Intl.NumberFormat.prototype.format` の 10 進の文字列 | Chrome 156.0.8078.74・Brave 1.98.62（Chromium 156.0.8078.74） | 2026-11-01 | 期待どおり。`"123456789012345.6789"` は `$123,456,789,012,345.6789` になった（数に変えると `…6700`）。`en-US` と `ja` で同じ |
+| 凍結・破棄されたタブが問いに答えない | Chrome 156.0.8078.74・Brave 1.98.62（Chromium 156.0.8078.74） | 2026-11-01 | 崩れた。凍結されたタブは問いに答える。破棄されたタブは答えないが、新しいタブの ID が付き、前の ID は `tabs.get` で見つからない（新しい ID なら `discarded true` で見つかる）。Brave の `brave://discards` は拡張のページを破棄しない。扱いは設計書 3.16 の結果のとおり（Comments） |
 
 #### 4.3.2. 統合の確認（ステップ 7-5）
 
@@ -702,7 +710,7 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 |---|---|---|---|
 | 主ボタンの直後にポップアップを閉じても記事が出る（SW が止まった後の最初の送信を含む） | AC-02 | - | 未実施 |
 | 背面のタブで開き、作業中のタブが切り替わらない | AC-06 | - | 未実施 |
-| 同じ入力の送り直しで新しいタブが閉じる。破棄・凍結した既存のタブでは残る | AC-08 | - | 未実施 |
+| 同じ入力の送り直しで新しいタブが閉じる。凍結した既存のタブでも閉じ、破棄した既存のタブでは残る（設計書 7.2） | AC-08 | - | 未実施 |
 | 「ビューアを開く」の 3 つの分岐 | AC-21 | - | 未実施 |
 | 保存したファイルを `cmp` で `--out` のファイルと比べる | AC-33 | - | 未実施 |
 | コピーした文字列を貼り付けて比べる | AC-35 | - | 未実施 |
@@ -737,7 +745,7 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
--   [ ] PR-1 マージ済み（対象ステップ: 1-1）
+-   [x] PR-1 マージ済み（対象ステップ: 1-1）
 -   [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2）
 -   [ ] PR-3 マージ済み（対象ステップ: 2-3 / 2-4 / 2-5）
 -   [ ] PR-4 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5）
