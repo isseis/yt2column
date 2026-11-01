@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-01 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-01 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の項番、H-NN は [design_handoff.md](design_handoff.md) の項目、「設計書 3.4.1 節」などは設計書の節を指す。「規則」「対象のコマンドの定義」「状態の遷移」「変更履歴」は、設計書の冒頭の定義と同じ意味で使う。本タスクに `implementation_handoff.md` はない。
