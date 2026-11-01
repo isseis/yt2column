@@ -231,7 +231,7 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **変更するファイル:** `cmd/yt2column/extension_docs_test.go`
 
--   [ ] `TestNativeHostContract` に、`extension/src/core/exchange.ts` の `export const maxResponseBytes = 524_288;` を `sendTimeoutMs`（`:120`）と同じ固定の形で読み、`nmhost.MaxResponseBytesForTest` と等しいことを確かめる subtest を加える（設計書 3.3）。読み取りのパスの定数は、今の `extensionSendPath`（`:29`）と同じ形で加える。
+-   [x] `TestNativeHostContract` に、`extension/src/core/exchange.ts` の `export const maxResponseBytes = 524_288;` を `sendTimeoutMs`（`:120`）と同じ固定の形で読み、`nmhost.MaxResponseBytesForTest` と等しいことを確かめる subtest を加える（設計書 3.3）。読み取りのパスの定数は、今の `extensionSendPath`（`:29`）と同じ形で加える。
 
 **完了の条件:** `make fmt`・`make test`・`make lint` が通る。`exchange.ts` の値を 1 だけ変えて、この subtest が失敗することを確かめる。
 
