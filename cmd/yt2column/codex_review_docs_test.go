@@ -15,8 +15,9 @@ import (
 
 // mentionCheckCommand is the command every section that posts text to GitHub
 // runs in its mention check before its posting command, so the user's account
-// never posts the mention. The guard tool checks the text only for reply and
-// edit-pr, so on every other posting path this command is what stops it.
+// never posts the mention. The guard tool checks the text only for reply,
+// edit-pr, append-pr, and finish's body, so on every other posting path this
+// command is what stops it.
 const mentionCheckCommand = "`grep -qiF -- '<review-mention>' <file>`"
 
 // postingSection is a section of a command document that posts text to
@@ -53,10 +54,13 @@ func itemSection(first, next string) func(t *testing.T, doc string) string {
 	}
 }
 
-// postingSections are the seven sections that post text to GitHub.
+// postingSections are the eight sections that post text to GitHub. fixpr.md
+// Phase 4 is one: the correction lines finish commits reach GitHub with the
+// push.
 var postingSections = []postingSection{
+	{"fixpr.md Phase 4", fixprPath, headingSection(fixprPhase4), []string{"fixprguard finish "}},
 	{"fixpr.md Phase 5", fixprPath, headingSection(fixprPhase5), []string{"fixprguard reply "}},
-	{"fixpr.md Phase 6", fixprPath, headingSection(fixprPhase6), []string{"fixprguard edit-pr "}},
+	{"fixpr.md Phase 6", fixprPath, headingSection(fixprPhase6), []string{"fixprguard edit-pr ", "fixprguard append-pr "}},
 	{"runpr.md step 1", runprPath, headingSection(runprStep1), []string{"gh pr create "}},
 	{
 		"runpr.md step 4", runprPath, headingSection(runprStep4),
@@ -129,7 +133,7 @@ func TestPostingPathsCheckMention(t *testing.T) {
 
 var (
 	// postingCommand matches a command that can write text to GitHub.
-	postingCommand = regexp.MustCompile(`gh (issue (create|comment|close|edit)|pr (comment|create|edit|review|merge)|api)\b|fixprguard (reply|edit-pr)\b`)
+	postingCommand = regexp.MustCompile(`gh (issue (create|comment|close|edit)|pr (comment|create|edit|review|merge)|api)\b|fixprguard (reply|edit-pr|append-pr|finish)\b`)
 	// textFlag marks a match as an invocation: a sentence that only names a
 	// command passes none of these.
 	textFlag = regexp.MustCompile(`(^|\s)(--(body|body-file|title|title-file|subject|comment|protocol|field|raw-field|input)|-[bFtcf])(\s|=|$)`)
@@ -269,12 +273,20 @@ func TestIsPost(t *testing.T) {
 		{"review_body", "gh pr review <n> -b x", true},
 		{"merge_subject", "gh pr merge <n> --subject x", true},
 		{"guard_reply", "fixprguard reply --protocol 3 <n>", true},
+		{"guard_append_pr", "fixprguard append-pr --protocol 4 --body-file <f> <n>", true},
+		{"guard_finish", "fixprguard finish --protocol 4 --baseline <b> --judged-set <j> <n>", true},
+		{"guard_finish_body", "fixprguard finish --protocol 4 --baseline <b> --judged-set <j> --body-file <f> <n>", true},
 		{"name_only", "gh issue comment`, and", false},
 		{"api_read", "gh api --paginate repos/o/r/issues/1/comments --jq '.[]'", false},
 		{"api_get_with_field", "gh api -X GET repos/o/r/issues -f state=open", false},
 		{"backquote_ends_command", "gh pr comment` (the request) --body-file", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			// A post must also be found by postingCommand, which the
+			// inventory scans the documents with.
+			if loc := postingCommand.FindStringIndex(tc.doc); tc.want && (loc == nil || loc[0] != 0) {
+				t.Errorf("postingCommand does not match %q at its start", tc.doc)
+			}
 			if got := isPost(invocation(tc.doc, 0)); got != tc.want {
 				t.Errorf("isPost(%q) = %v, want %v", invocation(tc.doc, 0), got, tc.want)
 			}

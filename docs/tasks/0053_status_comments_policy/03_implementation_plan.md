@@ -242,10 +242,10 @@ PR-1 の本文には、マージの直後に `make install-fixprguard` で再イ
 
 **変更するファイル:** `cmd/yt2column/fixpr_docs_test.go`、`cmd/yt2column/codex_review_docs_test.go`、`cmd/fixprguard/docs_test.go`
 
--   [ ] `TestFixprguardCallSites` の表に、Phase 6 の `fixprguard append-pr ` の行を加える。
--   [ ] Phase 6 の訂正の段落の数を取得する式を確かめるテストを、`runJQ` と `bodyMarker` を使って加える（4.1 節の 4-4 の行）。
--   [ ] `postingCommand` に `append-pr` と `finish` を加え、`postingSections` の Phase 6 の行に `fixprguard append-pr ` を、新しい Phase 4 の行に `fixprguard finish ` を加え、冒頭のコメントを直す（1.4 節「投稿のコマンドとメンションの確認」）。`TestIsPost` の表に、1.4 節の 3 つの形の行を加える。
--   [ ] `TestDocumentedInvocationsParse` の、`fixpr.md` の期待するサブコマンドの一覧に `append-pr` を加える。
+-   [x] `TestFixprguardCallSites` の表に、Phase 6 の `fixprguard append-pr ` の行を加える。
+-   [x] Phase 6 の訂正の段落の数を取得する式を確かめるテストを、`runJQ` と `bodyMarker` を使って加える（4.1 節の 4-4 の行）。
+-   [x] `postingCommand` に `append-pr` と `finish` を加え、`postingSections` の Phase 6 の行に `fixprguard append-pr ` を、新しい Phase 4 の行に `fixprguard finish ` を加え、冒頭のコメントを直す（1.4 節「投稿のコマンドとメンションの確認」）。`TestIsPost` の表に、1.4 節の 3 つの形の行を加える。
+-   [x] `TestDocumentedInvocationsParse` の、`fixpr.md` の期待するサブコマンドの一覧に `append-pr` を加える。
 
 **完了の条件:** 文書のガードが通る。4.1 節の 4-4 の行の「壊して確かめる」の各項目で該当のテストが落ちることを確かめ、コミットメッセージに書いた。
 
