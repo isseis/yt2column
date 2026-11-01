@@ -3,8 +3,9 @@ import { describe, it } from "node:test";
 
 import { classifyNativeReply } from "../src/core/native.ts";
 import type { NativeReply } from "../src/core/native.ts";
-import { maxResponseBytes } from "../src/core/response.ts";
-import type { RequestId, SendResult } from "../src/core/response.ts";
+import { maxArticlesResponseBytes } from "../src/core/articlesResponse.ts";
+import type { SendResult } from "../src/core/articlesResponse.ts";
+import type { RequestId } from "../src/core/response.ts";
 import { bytesReply, errorReply, responseReply } from "./helpers/native.ts";
 
 // Tests may assert a branded type to build fixtures.
@@ -271,7 +272,7 @@ describe("classifyNativeReply", () => {
 
   it("accepts a decoded body exactly at the limit", () => {
     const padded =
-      acceptedBody + " ".repeat(maxResponseBytes - acceptedBody.length);
+      acceptedBody + " ".repeat(maxArticlesResponseBytes - acceptedBody.length);
     assert.deepEqual(classifyNativeReply(responseReply(202, padded)), {
       kind: "accepted",
       requestId,
@@ -280,7 +281,8 @@ describe("classifyNativeReply", () => {
 
   it("passes a decoded body one byte over the limit as body-over-limit", () => {
     const padded =
-      acceptedBody + " ".repeat(maxResponseBytes + 1 - acceptedBody.length);
+      acceptedBody +
+      " ".repeat(maxArticlesResponseBytes + 1 - acceptedBody.length);
     assert.deepEqual(classifyNativeReply(responseReply(202, padded)), {
       kind: "unexpected",
       check: "body-over-limit",

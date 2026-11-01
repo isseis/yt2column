@@ -132,6 +132,7 @@ const brands: Brand[] = [
   { type: "CollectedInput", creator: "src/core/collect.ts" },
   { type: "PreparedRequest", creator: "src/core/prepare.ts" },
   { type: "RequestId", creator: "src/core/response.ts" },
+  { type: "ArticleKey", creator: "src/core/articleKey.ts" },
 ];
 
 const creatorFiles = [...new Set(brands.map((brand) => brand.creator))];
@@ -417,6 +418,7 @@ describe("chrome.runtime.sendNativeMessage", () => {
     "src/core/collect.ts",
     "src/core/prepare.ts",
     "src/core/response.ts",
+    "src/core/articleKey.ts",
   ]) {
     it(`forbids the call in ${filePath}`, async () => {
       assert.ok(

@@ -167,13 +167,13 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **変更するファイル:** `src/core/articlesResponse.ts`（新規、一時的）、`src/core/response.ts`、`src/core/exchange.ts`（新規）、`src/core/articleKey.ts`（新規）、`src/core/hostMessage.ts`（新規）、`src/core/prepare.ts`、`src/core/native.ts`、`src/core/sendMessages.ts`、`src/core/i18n/catalog.ts`、`src/ui/renderSend.ts`、`src/send.ts`、`src/launch.ts`、`src/browser/chromeDeps.ts`、`eslint.config.js`、`test/articlesResponse.test.ts`（新規、一時的）、`test/response.test.ts`、`test/native.test.ts`、`test/send.test.ts`、`test/renderSend.test.ts`、`test/sendMessages.test.ts`、`test/launch.test.ts`、`test/serverReasons.test.ts`、`test/prepare.test.ts`、`test/helpers/native.ts`、`test/lintRules.test.ts`、`test/exchange.test.ts`（新規）、`test/articleKey.test.ts`（新規）、`test/hostMessage.test.ts`（新規）
 
--   [ ] `eslint.config.js` のブランドの型の別名の規則を、設計書 3.17 のとおりに狭める。`test/lintRules.test.ts:147` の describe に、許す例（オブジェクトの型のメンバの中の参照）と禁じる例（ブランドそのものの別名、共用体・交差型の要素）を置く。
--   [ ] 1.4 の台帳のとおりに、今の `/articles` の検査を `articlesResponse.ts` に、`hasExactKeys` を `exchange.ts` に移し、古い部品の import を移す。古い経路の振る舞いは変えない。`test/serverReasons.test.ts` の突き合わせの相手は `articlesRejectStatus` にする（`development.md` の表は、ポップアップを切り替えるまで今のまま正しい）。
--   [ ] `exchange.ts` に、設計書 3.1 の `NotSentCause`・`ExchangeFailure`・`ExchangeFailureLog`・`HostOutcome`・`maxResponseBytes`（`524_288`）と、3.3 の新しい `UnexpectedCheck` を置く。どのモジュールも import しない。
--   [ ] `articleKey.ts` に `ArticleKey`・`maxKeyLength`・`parseArticleKey` を置き、`brandNames` に `ArticleKey` を、`creatorConfig` に `articleKey.ts` を加える（設計書 3.1）。
--   [ ] `prepare.ts` に `StartInput` を加え、`ArticleBody.message` の型を `StartInput` にする。`StartInput` の UTF-8 の大きさを測る関数を 1 つ置き、`buildArticleBody` と新しい `prepareStartInput` の両方がそれを使う（設計書 3.1）。
--   [ ] `hostMessage.ts` に `HostMessage` と `startMessage`・`statusMessage`・`publishMessage` を置く（設計書 3.1）。`SendDeps.sendNative` の引数の型を、並べて加える間は `HostMessage | StartInput`（古い経路の本文は `StartInput` である）にし（`src/send.ts:16`、`chromeDeps.ts` の `createSendDeps`、`test/helpers/native.ts`）、フェーズ 7 で `HostMessage` だけにする。
--   [ ] テスト: `hasExactKeys` の過不足と継承したメンバ（`test/exchange.test.ts`、新規。今は呼び出し側のテストからしか通らない）、`parseArticleKey` の空・上限の境目・上限を超える値・文字列でない値、`prepareStartInput` が `prepareSend` と同じ大きさの判定をすること、3 つのメッセージの形（期待する値はリテラルで書く）。
+-   [x] `eslint.config.js` のブランドの型の別名の規則を、設計書 3.17 のとおりに狭める。`test/lintRules.test.ts:147` の describe に、許す例（オブジェクトの型のメンバの中の参照）と禁じる例（ブランドそのものの別名、共用体・交差型の要素）を置く。
+-   [x] 1.4 の台帳のとおりに、今の `/articles` の検査を `articlesResponse.ts` に、`hasExactKeys` を `exchange.ts` に移し、古い部品の import を移す。古い経路の振る舞いは変えない。`test/serverReasons.test.ts` の突き合わせの相手は `articlesRejectStatus` にする（`development.md` の表は、ポップアップを切り替えるまで今のまま正しい）。
+-   [x] `exchange.ts` に、設計書 3.1 の `NotSentCause`・`ExchangeFailure`・`ExchangeFailureLog`・`HostOutcome`・`maxResponseBytes`（`524_288`）と、3.3 の新しい `UnexpectedCheck` を置く。どのモジュールも import しない。
+-   [x] `articleKey.ts` に `ArticleKey`・`maxKeyLength`・`parseArticleKey` を置き、`brandNames` に `ArticleKey` を、`creatorConfig` に `articleKey.ts` を加える（設計書 3.1）。
+-   [x] `prepare.ts` に `StartInput` を加え、`ArticleBody.message` の型を `StartInput` にする。`StartInput` の UTF-8 の大きさを測る関数を 1 つ置き、`buildArticleBody` と新しい `prepareStartInput` の両方がそれを使う（設計書 3.1）。
+-   [x] `hostMessage.ts` に `HostMessage` と `startMessage`・`statusMessage`・`publishMessage` を置く（設計書 3.1）。`SendDeps.sendNative` の引数の型を、並べて加える間は `HostMessage | StartInput`（古い経路の本文は `StartInput` である）にし（`src/send.ts:16`、`chromeDeps.ts` の `createSendDeps`、`test/helpers/native.ts`）、フェーズ 7 で `HostMessage` だけにする。
+-   [x] テスト: `hasExactKeys` の過不足と継承したメンバ（`test/exchange.test.ts`、新規。今は呼び出し側のテストからしか通らない）、`parseArticleKey` の空・上限の境目・上限を超える値・文字列でない値、`prepareStartInput` が `prepareSend` と同じ大きさの判定をすること、3 つのメッセージの形（期待する値はリテラルで書く）。
 
 **完了の条件:** `make ext-check` と `make test` が通る。1.2 の lcov の比べ方で、移したテストの関数の実行回数が変わらないことを確かめる。`prepareStartInput` の大きさの判定を `>=` に変えるように壊し、4 MiB ちょうどの入力のテストが失敗することを確かめる。型の別名の規則を元に戻すように壊し、許す例のテストが失敗することを確かめる。
 

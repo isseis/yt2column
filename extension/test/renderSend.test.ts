@@ -3,7 +3,8 @@ import { describe, it } from "node:test";
 
 import { locales } from "../src/core/i18n/locale.ts";
 import type { Locale } from "../src/core/i18n/locale.ts";
-import type { RequestId, SendOutcome } from "../src/core/response.ts";
+import type { SendOutcome } from "../src/core/articlesResponse.ts";
+import type { RequestId } from "../src/core/response.ts";
 import { sendOutcomeMessage } from "../src/core/sendMessages.ts";
 import { renderSendOutcome } from "../src/ui/renderSend.ts";
 import { container, expectLocaleMessage, query } from "./helpers/dom.ts";

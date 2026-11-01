@@ -160,7 +160,12 @@ function brandSelectors(names) {
   ];
 }
 
-const brandNames = ["CollectedInput", "PreparedRequest", "RequestId"];
+const brandNames = [
+  "CollectedInput",
+  "PreparedRequest",
+  "RequestId",
+  "ArticleKey",
+];
 
 // Selectors shared by every file. The files-scoped config below reuses this
 // list because a later config with files/ignores replaces the whole rule.
@@ -275,4 +280,5 @@ export default defineConfig(
   creatorConfig("src/core/collect.ts", ["CollectedInput"]),
   creatorConfig("src/core/prepare.ts", ["PreparedRequest"]),
   creatorConfig("src/core/response.ts", ["RequestId"]),
+  creatorConfig("src/core/articleKey.ts", ["ArticleKey"]),
 );

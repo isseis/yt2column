@@ -8,15 +8,15 @@ import { catalogs } from "./i18n/catalog.ts";
 import type { Locale } from "./i18n/locale.ts";
 import type { RejectionMessage } from "./messages.ts";
 import type {
-  NotSentCause,
+  ArticlesRejectReason,
+  ArticlesUnexpectedCheck,
   SendOutcome,
-  ServerRejectReason,
-  UnexpectedCheck,
-} from "./response.ts";
+} from "./articlesResponse.ts";
+import type { NotSentCause } from "./exchange.ts";
 
 /** Message for a server rejection; distinct for every reason. */
 export function serverRejectMessage(
-  reason: ServerRejectReason,
+  reason: ArticlesRejectReason,
   locale: Locale,
 ): RejectionMessage {
   return catalogs[locale].serverReject[reason];
@@ -29,7 +29,7 @@ function notSentMessage(cause: NotSentCause, locale: Locale): RejectionMessage {
 
 /** The one message for every unexpected reply; the check is for the developer log only. */
 function unexpectedMessage(
-  check: UnexpectedCheck,
+  check: ArticlesUnexpectedCheck,
   locale: Locale,
 ): RejectionMessage {
   switch (check) {

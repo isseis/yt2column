@@ -344,7 +344,10 @@ function recordingRuntime(
 }
 
 describe("send dependencies", () => {
-  const message = { videoUrl: "https://www.youtube.com/watch?v=abc" };
+  const message = {
+    videoUrl: "https://www.youtube.com/watch?v=abc",
+    transcript: "x",
+  };
 
   it("sends the message to the fixed host once and resolves its reply", async () => {
     const reply = { v: 1, kind: "error", error: "server_timeout" };

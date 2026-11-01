@@ -6,13 +6,18 @@
 // becomes a displayed outcome, never a thrown error.
 
 import { classifyNativeReply } from "./core/native.ts";
+import type { HostMessage } from "./core/hostMessage.ts";
 import type { NativeReply } from "./core/native.ts";
-import type { PreparedRequest } from "./core/prepare.ts";
-import type { SendResult } from "./core/response.ts";
+import type { PreparedRequest, StartInput } from "./core/prepare.ts";
+import type { SendResult } from "./core/articlesResponse.ts";
 
 export interface SendDeps {
-  /** Calls chrome.runtime.sendNativeMessage(nativeHostName, message) once. Never rejects. */
-  sendNative(message: Readonly<Record<string, string>>): Promise<NativeReply>;
+  /**
+   * Calls chrome.runtime.sendNativeMessage(nativeHostName, message) once.
+   * Never rejects. StartInput is the popup's current /articles body; it is
+   * dropped once the popup sends a HostMessage.
+   */
+  sendNative(message: HostMessage | StartInput): Promise<NativeReply>;
   /** Runs callback once after ms milliseconds; returns a function that cancels it. */
   schedule(ms: number, callback: () => void): () => void;
 }

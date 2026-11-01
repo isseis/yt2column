@@ -3,7 +3,7 @@
 // as HTML; the response body's text never reaches here.
 
 import type { Locale } from "../core/i18n/locale.ts";
-import type { SendOutcome } from "../core/response.ts";
+import type { SendOutcome } from "../core/articlesResponse.ts";
 import { sendOutcomeMessage } from "../core/sendMessages.ts";
 import { messageNodes } from "./render.ts";
 
