@@ -267,7 +267,7 @@ PR-1 の本文には、マージの直後に `make install-fixprguard` で再イ
 
 **変更するファイル:** 本書 7.2 節
 
--   [ ] PR-2 のブランチで、ほかの作業がすべて終わった後に、ステップ 1-5 のスクリプトを実行する。出力・終了コード・マージベースと、実行した時点の head のコミット ID を本書 7.2 節に記録する。記録を書くコミットが本書だけを変えることも、あわせて記録する。
+-   [x] PR-2 のブランチで、ほかの作業がすべて終わった後に、ステップ 1-5 のスクリプトを実行する。出力・終了コード・マージベースと、実行した時点の head のコミット ID を本書 7.2 節に記録する。記録を書くコミットが本書だけを変えることも、あわせて記録する。
 
 **完了の条件:** スクリプトの終了コードが 0 で、その記録が本書 7.2 節にある。
 
@@ -433,7 +433,15 @@ docs/tasks/: only docs/tasks/0053_status_comments_policy/ changed
 
 ### 7.2. PR-2 の差分の確かめの実行の記録
 
-（ステップ 5-1 で記録する。）
+ほかの作業をすべて終えた後、ブランチ `isseis/0053-status-comments-policy-05` で `docs/tasks/0053_status_comments_policy/_checks/task_docs_unchanged.sh origin/main HEAD` を実行した（2026-11-02）。マージベースは `ed795e8a58e8165f83c9e7953431dbec5432aa2a`、実行した時点の head は `40381287a49c22f457342ac7dec71099d944d0ea` である。終了コードは `0`、出力は次のとおり。
+
+```text
+merge-base: ed795e8a58e8165f83c9e7953431dbec5432aa2a
+head: 40381287a49c22f457342ac7dec71099d944d0ea
+docs/tasks/: only docs/tasks/0053_status_comments_policy/ changed
+```
+
+この記録を書くコミットは本書だけを変える。
 
 ## 8. 成功基準 (Success Criteria)
 
