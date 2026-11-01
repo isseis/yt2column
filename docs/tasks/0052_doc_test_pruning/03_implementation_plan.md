@@ -284,8 +284,8 @@
 
 -   調べたコミット: `4df7b94f`（`main` の HEAD。PR-2 の #601 のマージ後）。`git diff --stat bf314092 4df7b94f -- cmd/ internal/ extension/test/ testutil/` は PR-2 が変えた 7 ファイル（`cmd/yt2column` の 5 つ、`internal/config/test_helpers.go`、`internal/doctestutil/readme.go`）だけを示し、`bf314092` から加わったファイル（`--diff-filter=A`）は 0050 と 0052 のタスクの文書と `_checks/` だけだった。
 -   AC-05 の調べ（設計書 3.1 の冒頭の方法）: テストのファイルのうち `doctestutil` を使うもの（`docs/tasks/` の下を除く 14 ファイル）と、`.md` のパスの文字列を持つもの（Go と拡張のテストの 38 ファイル）を `git grep` で挙げた。どれも `bf314092` からあるファイルで、PR-2 のほかに変わっていないので、設計書 3.1 の判定と一覧の外のファイルの扱い（設定・ソース・一時的なファイル名だけを読む）は変わらない。一覧の外に文書を読むテストは加わっておらず、新しい判断の候補はない。
--   実装中の計画（設計書 3.5 の 3 つの方法）: 未チェックの項目が残る承認済みの計画は、ステップ 1-1 の記録と同じ 19 件で、0050 と 0052 を除くものは後始末だけである。計画のない承認済みの設計書はない。開いている PR は 0050 の PR #600（`isseis/0050-viewer-tab-04`）だけである（`gh pr list --state open`）。`docs/tasks/*/02_architecture.md`・`03_implementation_plan.md` を `origin/main` と変えるブランチは、`isseis/0043-extension-i18n-03`（ステップ 1-1 のとおり実装中の計画ではない）と、PR #600 のブランチ（ローカルと `origin`）だけである。
--   タスク 0050: PR #600 は開いたままで、5 つのコミット（`fdee613a`..`c1c40d23`）で 0050 の要件書・設計書・計画だけを変える。設計書 3.16 の試作の結果、`Comments`、付録 B「決定の履歴」を記録するもので、`metadataDocs.test.ts` の socket directory の確認を消す方針（計画のステップ 7-2、`03_implementation_plan.md:576`）は `main` でも PR #600 のブランチでも変わっていない。本タスクが PR-3 で取り除く確認・補助（`TestGuideNamesGitStateParts` の `fixpr.md` の部分、`TestInstallTargetDocumented` の `CLAUDE.md` の部分、`TestInterfaceDocComments`・`interfaceDoc`・`hasCJK`、`markdownSections`）を保つ作業も、どちらにもない。
+-   実装中の計画（設計書 3.5 の 3 つの方法）: 未チェックの項目が残る承認済みの計画は、ステップ 1-1 の記録と同じ 19 件で、0050 と 0052 を除くものは後始末だけである。計画のない承認済みの設計書はない。調べた時点で開いていた PR は 0050 の PR #600（`isseis/0050-viewer-tab-04`）だけである（`gh pr list --state open`）。`docs/tasks/*/02_architecture.md`・`03_implementation_plan.md` を `origin/main` と変えるブランチは、`isseis/0043-extension-i18n-03`（ステップ 1-1 のとおり実装中の計画ではない）と、PR #600 のブランチ（ローカルと `origin`）だけである。
+-   タスク 0050: PR #600 は、調べた時点では開いていて、5 つのコミット（`fdee613a`..`c1c40d23`）で 0050 の要件書・設計書・計画だけを変えていた。その後、2026-11-01 20:07（JST）に `ce24c4a7` として `main` にマージされた（`git diff --stat 4df7b94f ce24c4a7` は 0050 の 3 つの文書だけを示す）。設計書 3.16 の試作の結果、`Comments`、付録 B「決定の履歴」を記録するもので、`metadataDocs.test.ts` の socket directory の確認を消す方針（計画のステップ 7-2、`03_implementation_plan.md:576`）は、`4df7b94f` でも PR #600 のブランチでもマージ後の `ce24c4a7` でも変わらず、ステップ 7-2 は未チェックのままである。本タスクが PR-3 で取り除く確認・補助（`TestGuideNamesGitStateParts` の `fixpr.md` の部分、`TestInstallTargetDocumented` の `CLAUDE.md` の部分、`TestInterfaceDocComments`・`interfaceDoc`・`hasCJK`、`markdownSections`）を保つ作業も、どちらにもない。
 -   0050 の扱い: 0050 のステップ 7-2 は未実装（未チェック）で、`metadataDocs.test.ts:64-78` に確認が残っている。設計書 3.5 の「まだ実装されていない場合」に当たるので、PR-3 が確認を消し、0050 の文書は変えない（0050 のステップ 7-2 の削除は、実装の時点で消す対象がないことになるだけである）。0050 の文書を変えないので、担当への確認は要らない。
 
 #### ステップ 3-2: ほかのパッケージと拡張の確認・テスト・補助を取り除く
@@ -298,7 +298,7 @@
 -   [x] `metadataDocs.test.ts` の「socket directory documentation reference」の `describe`（`:64-78`）を消す。ステップ 3-1 で、0050 がすでに消していた場合は変えず、その旨を記録する（設計書 3.5）。
 -   [x] 一部を削除した 2 つのテストについて、残す確認の値を一度壊して落ちることを確かめる（設計書 7.2）。`TestGuideNamesGitStateParts` は 8 章の行から `GitStateParts` の値を 1 つ消した写しで、`TestInstallTargetInMakefile` は `Makefile` の `install-codexreview:` の次の行を変えた写しで落ちること。
 -   [x] 取り除いた後の出力を取り、`coverage` で比べる。
--   [x] `make ext-check` を通す。取り除いた node の確認が `extension/src/` の関数を通らないこと（設計書 3.1.7）を、PR の説明に記す（AC-13）。
+-   [ ] `make ext-check` を通す。取り除いた node の確認が `extension/src/` の関数を通らないこと（設計書 3.1.7）を、PR の説明に記す（AC-13）。
 -   [x] 1 つのコミットにし、コミットメッセージに、取り除いたもの、名前の変更、カバレッジの比較の結果、壊して確かめたことを記す。
 
 **完了の条件:** `make test`、`make lint`、`make deadcode`、`make ext-check` が通り、`coverage` が通る。
@@ -323,7 +323,7 @@
 -   [-] ステップ 3-1 で 0050 の文書を変えると決めた場合は、設計書 3.5 のとおりに変え、`Comments` に日付・`(decision)`・本タスクで改めたこと・改めた節を記録する（AC-16）。ステップ 3-1 で 0050 の文書を変えないと決めたので、行わない。
 -   [x] `extension/scripts/has-extension-changes.sh`（`:2-11`・`:19`）、`extension/test/ciChanges.test.ts`（`:21-32`・`:62-89`）、`CLAUDE.md`「Development Notes」の node のテストが読む文書の説明（`db9986c6` の `:521-526`）が、取り除いた後の node のテストが読む文書と一致することを読んで確かめ、PR の説明に記す（設計書 2.2、AC-21）。
 -   [x] `scope -pr 3`・`tests -final` を PR の merge-base と head で、`guards` を `-final` を付けて実行し、通ることを確かめ、出力と 2 つのコミットを 7 章の該当の行に記録する。`tests -final` は、設計書 3.4.1・3.4.2 の全削除対象が残っていないことを確かめる最後の実行でもある（AC-09・AC-20。1.6）。
--   [x] PR の説明に、設計書 3.1.4〜3.1.7 の判定の一覧の行、3.3 の K4・K5 の対応表のうち PR-3 が触れる行、ステップ 3-2・3-3 のカバレッジの比較の結果を載せる。
+-   [ ] PR の説明に、設計書 3.1.4〜3.1.7 の判定の一覧の行、3.3 の K4・K5 の対応表のうち PR-3 が触れる行、ステップ 3-2・3-3 のカバレッジの比較の結果を載せる。
 
 **フェーズ 3 の完了の条件:** `make test`、`make lint`、`make deadcode`、`make ext-check` が通る（AC-14）。`scope`・`tests`・`guards` の実行の記録が本書にある。PR-3 をマージする直前に、設計書 3.5 の実装中の計画の調べをもう一度行い、結果を記録した。
 
@@ -600,7 +600,7 @@
 
 ### 7.3. PR-3 の一度きりの確かめの実行の記録（2026-11-01）
 
--   **`scope`:** `go run -tags test ./docs/tasks/0052_doc_test_pruning/_checks/scope/ -pr 3 4df7b94f d2452959`。比べたコミットは merge-base `4df7b94f`（`origin/main`）と head `d2452959`（ステップ 3-4 の `CLAUDE.md` のコミット）。終了コード 0。出力:
+-   **`scope`:** `go run -tags test ./docs/tasks/0052_doc_test_pruning/_checks/scope/ -pr 3 4df7b94f d2452959`。比べたコミットは merge-base `4df7b94f`（`origin/main` との merge-base）と head `d2452959`（ステップ 3-4 の `CLAUDE.md` のコミット）。終了コード 0。出力:
 
     ```
     pull request 3
@@ -683,9 +683,11 @@
     -   ステップ 3-2: 前は `4df7b94f`、後は `1470b4a3` と同じ Go のファイルの作業ツリー。`coverage` の出力は `before ... (1068 product functions)`・`after ... (1068 product functions)`・`OK   all 1068 product functions have the same coverage` だった。
     -   ステップ 3-3: 前は上の後の出力（`1470b4a3` の Go のファイル）、後は `746d565b` と同じ Go のファイルの作業ツリー。`coverage` の出力は `NG   1 product function(s) differ`・`internal/cmdrunner/runner.go:286 signalGroup: 66.7% -> 100.0%` だった。`1470b4a3` で、置き換えを受ける 11 のテスト（`cmd/fixprguard` の 9 つと `internal/pipeline` の 2 つ）だけに `-run` で絞って測ると `signalGroup` は 0.0% だったので、違いは設計書 7.1 の揺れである（7.2 のステップ 2-2 と同じ関数）。
 
--   **AC-13:** 取り除いた node の確認（`metadataDocs.test.ts` の「socket directory documentation reference」）は、`catalogs`（`extension/src/core/i18n/en.ts` のデータ）を読み込むだけで、`extension/src/` の関数を呼ばない。`catalogs` は `metadataDocs.test.ts` の残す確認とほかの 7 つのテストが読み込み続ける。`make ext-check` は通り、node のテストは 974 件（取り除いた 1 件の分だけ 975 件から減った）が通った。
+-   **AC-13:** 取り除いた node の確認（`metadataDocs.test.ts` の「socket directory documentation reference」）は、`catalogs`（`extension/src/core/i18n/en.ts` のデータ）を読み込むだけで、`extension/src/` の関数を呼ばない。`catalogs` は `metadataDocs.test.ts` の残す確認と、ほかの 6 つのテストのファイル（`catalog`・`launch`・`messages`・`popupPreview`・`render`・`sendMessages`）が読み込み続ける（設計書 3.1.7 は `manifest` を含めて 7 つと書くが、`manifest.test.ts` は `src/core/i18n/catalog.ts` を import せず、`_locales` の JSON を自分で読む。通る範囲が狭まらないという結論は変わらない）。`make ext-check` は通り、node のテストは 974 件（取り除いた 1 件の分だけ 975 件から減った）が通った。
 
 -   **AC-21:** `extension/scripts/has-extension-changes.sh`（`:2-11`・`:19`）、`extension/test/ciChanges.test.ts`（`:21-32`・`:62-89`）、`CLAUDE.md`「Development Notes」の node のテストが読む文書の説明（`d2452959` の `:531-535`）を読み、取り除いた後の node のテストが読む文書と一致することを確かめた。取り除いた後も、`metadataDocs.test.ts` は `README.md`・`README.en.md` の「ブラウザ拡張」の節を、`serverReasons.test.ts` は `docs/dev/guides/development.md` の拒否理由の表を読み、その表が `internal/server/response.go` と対応する。取り除いた確認は文書の本文を読まず（`README.en.md` の存在だけを見ていた）、起動条件の 4 つの文書・ソースのパスは変わらない。
+
+-   **AC-18:** `CLAUDE.md`「Development Notes」の text-sync guards の一覧を、取り除いた後のテストと照らして読んだ。「the `codexreview` permission and command-document checks」は、`TestSettingsAllowsTool` と `cmd/codexreview` のコマンドの文書のテストに当たり、`CLAUDE.md` を読まなくなった install target の確認は挙げていない。ほかの項目は PR-3 で変えたテストに触れない。
 
 -   **実装中の計画の調べ（PR を作る前）:** ステップ 3-1 の記録のとおりである（2026-11-01、`4df7b94f`）。フェーズ 3 の完了の条件のとおり、PR-3 をマージする直前（`/runpr`）にもう一度行い、結果を本書に記録する。
 
