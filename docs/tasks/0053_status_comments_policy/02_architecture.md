@@ -85,53 +85,52 @@ flowchart LR
 
 ### 2.1. 全体の構成
 
-図 2-1 は、記録の場所ごとに、どのコマンドの定義が書き込むかを示す。矢印 A → B は「A が B に書き込む」を表し、ラベルで書き込む手順を示す。
+図 2-1 は、書き込む手順を PR の流れの中の時期で 4 つの段に分け、各段がどの記録の場所に書くかを示す。段は上から時間の順に並ぶ。矢印 A → B は「段 A の手順が、記録の場所 B に書き込む」を表し、ラベルで書く内容を示す。手順ごとの書き込みは、図の下の表に示す。
 
 ```mermaid
-flowchart LR
+flowchart TB
     classDef data fill:#e6f7ff,stroke:#1f77b4,stroke-width:1px,color:#0b3d91;
     classDef process fill:#fff1e6,stroke:#ff7f0e,stroke-width:1px,color:#8a3e00;
     classDef enhanced fill:#e8f5e8,stroke:#2e8b57,stroke-width:2px,color:#006400;
 
-    RUNPR["runpr.md"]
-    HANDOFF["_lib/task-pr-handoff.md"]
-    FIXPR["fixpr.md"]
-    LCR["_lib/local-cli-review.md"]
-    RUNPLAN["runplan.md"]
-    MKARCH["mkarch.md"]
-    MKPLAN2["mkplan2.md"]
-    HUMAN["手作業の取り下げ"]
-    GUARD["fixprguard"]
+    subgraph S1["段 1: PR を作る前（ブランチでの作業）"]
+        RUNPLAN["runplan.md"]
+        MKARCH["mkarch.md"]
+        MKPLAN2["mkplan2.md"]
+        HUMAN["手作業の取り下げ"]
+    end
 
-    STATUS[("状態表")]
-    HIST[("変更履歴")]
-    DECIDED[("本文の<br>決めたことの節")]
-    MSG[("コミットメッセージ")]
-    PRB[("PR 本文")]
+    subgraph S2["段 2: PR を作るとき"]
+        HANDOFF["_lib/task-pr-handoff.md<br>Part B 手順 3"]
+        RUNPR1["runpr.md 手順 1"]
+    end
 
-    RUNPR -->|"PRE_MERGE: 承認"| STATUS
-    RUNPR -->|"PRE_MERGE: 承認の行・印の置き換え"| HIST
-    RUNPR -->|"手順 1: 単独の変更の PR"| PRB
-    HANDOFF -->|"Part B 手順 3"| PRB
-    FIXPR -->|"Phase 3: draft への戻し"| STATUS
-    FIXPR -->|"Phase 3: draft への戻しの行"| HIST
-    FIXPR -->|"Phase 4・Phase 6"| GUARD
-    GUARD -->|"finish --body-file"| MSG
-    GUARD -->|"append-pr"| PRB
-    LCR -->|"修正のコミットの訂正の行"| MSG
-    RUNPLAN -->|"セッション中の再承認"| STATUS
-    RUNPLAN -->|"セッション中の再承認の行"| HIST
-    RUNPLAN -->|"実装の際に決めたこと"| DECIDED
-    RUNPLAN -->|"訂正の行"| MSG
-    MKARCH -->|"draft への戻し"| STATUS
-    MKARCH -->|"draft への戻しの行"| HIST
-    MKPLAN2 -->|"draft への戻し"| STATUS
-    MKPLAN2 -->|"draft への戻しの行"| HIST
-    HUMAN -->|"withdrawn"| STATUS
-    HUMAN -->|"withdrawn の行"| HIST
+    subgraph S3["段 3: PR を作った後"]
+        FIXPR["fixpr.md"]
+        LCR["_lib/local-cli-review.md"]
+        GUARD["fixprguard<br>finish・append-pr"]
+    end
 
-    class STATUS,HIST,DECIDED,MSG,PRB data
-    class RUNPR,HANDOFF,FIXPR,LCR,RUNPLAN,MKARCH,MKPLAN2,GUARD enhanced
+    subgraph S4["段 4: マージの直前"]
+        PREMERGE["runpr.md PRE_MERGE"]
+    end
+
+    subgraph REC["記録の場所"]
+        DOC[("タスク文書<br>(状態表・変更履歴・本文)")]
+        MSG[("コミットメッセージ")]
+        PRB[("PR 本文")]
+    end
+
+    S1 -->|"状態の遷移・#未記入 の行"| DOC
+    S1 -->|"訂正の行"| MSG
+    S2 -->|"訂正の段落・決定の変更"| PRB
+    S3 -->|"draft への戻し・#PR 番号 の行"| DOC
+    S3 -->|"訂正の行"| MSG
+    S3 -->|"訂正の段落"| PRB
+    S4 -->|"承認・#未記入 の置き換え"| DOC
+
+    class DOC,MSG,PRB data
+    class RUNPLAN,MKARCH,MKPLAN2,HANDOFF,RUNPR1,FIXPR,LCR,GUARD,PREMERGE enhanced
     class HUMAN process
 ```
 
@@ -143,7 +142,7 @@ flowchart LR
     classDef process fill:#fff1e6,stroke:#ff7f0e,stroke-width:1px,color:#8a3e00;
     classDef enhanced fill:#e8f5e8,stroke:#2e8b57,stroke-width:2px,color:#006400;
 
-    L1[("文書・記録の場所")]
+    L1[("記録の場所")]
     L2["本タスクで変えるコマンドの定義とツール"]
     L3["規則に従って書く人の作業"]
 
@@ -152,7 +151,18 @@ flowchart LR
     class L3 process
 ```
 
-どの書き込みも、書式は規則の節を参照する（AC-20）。図を読みやすくするため、規則への参照の矢印は描かない。`mkarch.md` と `mkplan2.md` も、承認済みの文書に編集上の訂正を加えるときは訂正の行を書くが、規則の一般の求めに従うだけなので、矢印を省いた。
+| 段 | 手順 | 書く場所と内容 |
+|---|---|---|
+| 1 | `runplan.md` | 状態表（セッション中の再承認）、変更履歴（セッション中の再承認の行）、本文（実装の際に決めたこと）、コミットメッセージ（訂正の行） |
+| 1 | `mkarch.md`・`mkplan2.md` | 状態表（`draft` への戻し）、変更履歴（`draft` への戻しの行）、コミットメッセージ（訂正の行） |
+| 1 | 手作業の取り下げ | 状態表（`withdrawn`）、変更履歴（`withdrawn` の行） |
+| 2 | `task-pr-handoff.md` Part B 手順 3、`runpr.md` 手順 1（単独の変更の PR） | PR 本文（訂正の段落、決定の変更） |
+| 3 | `fixpr.md` Phase 3 | 状態表（`draft` への戻し）、変更履歴（`draft` への戻しの行。PR 番号を書く） |
+| 3 | `fixpr.md` Phase 4・Phase 6（`fixprguard` の `finish --body-file`・`append-pr` を通す） | コミットメッセージ（訂正の行）、PR 本文（訂正の段落） |
+| 3 | `local-cli-review.md` 手順 7 | コミットメッセージ（修正のコミットの訂正の行） |
+| 4 | `runpr.md` PRE_MERGE | 状態表（承認）、変更履歴（承認の行、`#未記入` の置き換え） |
+
+どの書き込みも、書式は規則の節を参照する（AC-20）。図を読みやすくするため、規則への参照の矢印は描かない。
 
 ### 2.2. コンポーネントの配置
 
