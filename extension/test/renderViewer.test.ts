@@ -383,6 +383,23 @@ describe("publish rows", () => {
 
 describe("status regions", () => {
   for (const locale of localeList) {
+    it(`announces every step's name with its state while the job runs in ${locale}`, () => {
+      const catalog = catalogs[locale];
+      const elements = drawn(view(jobState(running)), locale);
+      assert.deepEqual(
+        Array.from(elements.stateStatus.children, (p) => p.textContent),
+        [
+          catalog.viewer.running,
+          new Intl.ListFormat(locale, { type: "conjunction" }).format(
+            (["draft", "shorten", "review"] as const).map(
+              (name) =>
+                `${catalog.stepNames[name]} ${catalog.stepStates[runningSteps[name]]}`,
+            ),
+          ),
+        ],
+      );
+    });
+
     it(`writes the state summary only when it changes, not when the elapsed time does, in ${locale}`, () => {
       const elements = drawn(view(jobState(running), 1_000), locale);
       const written = elements.stateStatus.firstChild;
@@ -525,22 +542,34 @@ describe("publish state announcements", () => {
     it(`announces each publish state as the post starts, finishes or fails in ${locale}`, () => {
       const catalog = catalogs[locale];
       const elements = viewerElements();
-      const summaries: string[] = [];
-      for (const publish of [
-        { state: "not_posted" },
-        { state: "posting" },
-        { state: "posted" },
-        { state: "failed", reason: "webhook" },
+      for (const [publish, sentences] of [
+        [{ state: "not_posted" }, [catalog.publishStates.not_posted.text]],
+        [{ state: "posting" }, [catalog.publishStates.posting.text]],
+        [{ state: "posted" }, [catalog.publishStates.posted.text]],
+        [
+          { state: "failed", reason: "webhook" },
+          [
+            catalog.publishStates.failed.text,
+            catalog.publishReasons.webhook.text,
+          ],
+        ],
       ] as const) {
         renderViewer(elements, view(jobState(doneJob(publish))), locale);
-        const summary = elements.stateStatus.textContent ?? "";
-        assert.ok(
-          summary.includes(catalog.publishStates[publish.state].text),
+        assert.deepEqual(
+          Array.from(elements.stateStatus.children, (p) => p.textContent),
+          [catalog.popup.articleReady.text, ...sentences],
           publish.state,
         );
-        summaries.push(summary);
+        // A poll that repeats the state, even while a publish is in flight,
+        // writes nothing.
+        const written = elements.stateStatus.firstChild;
+        renderViewer(
+          elements,
+          view(jobState(doneJob(publish)), 0, true),
+          locale,
+        );
+        assert.equal(elements.stateStatus.firstChild, written, publish.state);
       }
-      assert.equal(new Set(summaries).size, summaries.length);
     });
   }
 });
