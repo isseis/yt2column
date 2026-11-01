@@ -11,6 +11,7 @@ import { catalogs } from "../src/core/i18n/catalog.ts";
 import { metadataDisplayLimit } from "../src/core/popupView.ts";
 import { truncate } from "../src/core/summary.ts";
 import { previewCases } from "../scripts/popup-preview.ts";
+import { popupDocument } from "./helpers/dom.ts";
 import { extensionDir } from "./helpers/paths.ts";
 
 /** What one input set's page must show beyond the common structure. */
@@ -106,11 +107,19 @@ describe("popup preview script", () => {
       { cwd: extensionDir, encoding: "utf8" },
     );
     assert.equal(result.status, 0, result.stderr);
-    assert.equal(
-      readFileSync(path.join(output, "style.css")).toString("utf8"),
-      readFileSync(path.join(extensionDir, "static", "style.css"), "utf8"),
-      "style.css is not the shipped stylesheet",
-    );
+    // The pages load the stylesheets the shipped popup.html loads, in its
+    // order, and each copy beside them is the shipped file.
+    const stylesheets = [
+      ...popupDocument().querySelectorAll("link[rel=stylesheet]"),
+    ].map((link) => link.getAttribute("href") ?? "");
+    assert.deepEqual(stylesheets, ["theme.css", "style.css"]);
+    for (const stylesheet of stylesheets) {
+      assert.equal(
+        readFileSync(path.join(output, stylesheet)).toString("utf8"),
+        readFileSync(path.join(extensionDir, "static", stylesheet), "utf8"),
+        `${stylesheet} is not the shipped stylesheet`,
+      );
+    }
 
     for (const name of Object.keys(expectations)) {
       assert.ok(
@@ -145,13 +154,13 @@ describe("popup preview script", () => {
         previewCase.locale,
         `${file}: wrong page language`,
       );
-      // The preview loads only the stylesheet copied beside it.
-      const links = [...doc.querySelectorAll("link")];
-      assert.equal(links.length, 1, `${file}: link count`);
-      assert.equal(
-        links[0]?.getAttribute("href"),
-        "style.css",
-        `${file}: stylesheet`,
+      // The preview loads only the stylesheets copied beside it.
+      assert.deepEqual(
+        [...doc.querySelectorAll("link")].map((link) =>
+          link.getAttribute("href"),
+        ),
+        stylesheets,
+        `${file}: stylesheets`,
       );
       assert.equal(
         doc.querySelectorAll("img, iframe, object, embed").length,

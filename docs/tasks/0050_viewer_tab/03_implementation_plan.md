@@ -8,7 +8,7 @@
 | Created | 2026-10-31 |
 | Review date | 2026-11-01 |
 | Reviewer | isseis |
-| Comments | 2026-11-01 (decision, approved in session): ステップ 1-1 の確認で、設計書 3.16 の行 10 が崩れた（凍結されたタブは問いに答え、破棄されたタブには新しいタブの ID が付く）。レビュアー（isseis）がセッションの中で扱いを選び、承認した。凍結されたタブは期待を観察に合わせ、破棄されたタブは「ビューアを開く」の重複を制約として受け入れた（要件 F-004・AC-21、設計書 3.16・4.2・6.6・7.2）。これに合わせて 4.3.2 の AC-08 の行を改めた。行 6 は、送り方を変えないことをレビュアーが選んだ（設計書 3.4.1 の項目 5）。ほかの決定は変えていない。<br>2026-11-01 (editorial correction): PR-4 の実装のレビューで、ステップ 3-3 の `afterStatus` の記述に、直前が `kept` を持つ `lost` の場合を加えた（設計書 3.6 の同じ訂正。AC-15）。あわせて設計書 3.9 の `PublishOpNotice` の `unknown` にやり取りの結果を持たせた。決定は変えていない。<br>2026-11-01 (editorial correction): PR-5 の実装で、ステップ 4-3 の求めの検査に合わせ、`parseStartRequest`（ステップ 3-2）が、落ちた検査の種類（`shape`・`size`）と、通ったときは測った `PreparedRequest` を返す形にした（設計書 3.4 の同じ訂正。4.4 のログのため）。検査の内容は変えていない。決定は変えていない。 |
+| Comments | 2026-11-01 (decision, approved in session): ステップ 1-1 の確認で、設計書 3.16 の行 10 が崩れた（凍結されたタブは問いに答え、破棄されたタブには新しいタブの ID が付く）。レビュアー（isseis）がセッションの中で扱いを選び、承認した。凍結されたタブは期待を観察に合わせ、破棄されたタブは「ビューアを開く」の重複を制約として受け入れた（要件 F-004・AC-21、設計書 3.16・4.2・6.6・7.2）。これに合わせて 4.3.2 の AC-08 の行を改めた。行 6 は、送り方を変えないことをレビュアーが選んだ（設計書 3.4.1 の項目 5）。ほかの決定は変えていない。<br>2026-11-01 (editorial correction): PR-4 の実装のレビューで、ステップ 3-3 の `afterStatus` の記述に、直前が `kept` を持つ `lost` の場合を加えた（設計書 3.6 の同じ訂正。AC-15）。あわせて設計書 3.9 の `PublishOpNotice` の `unknown` にやり取りの結果を持たせた。決定は変えていない。<br>2026-11-01 (editorial correction): PR-5 の実装で、ステップ 4-3 の求めの検査に合わせ、`parseStartRequest`（ステップ 3-2）が、落ちた検査の種類（`shape`・`size`）と、通ったときは測った `PreparedRequest` を返す形にした（設計書 3.4 の同じ訂正。4.4 のログのため）。検査の内容は変えていない。決定は変えていない。<br>2026-11-02 (editorial correction): PR-6 の実装で、7 章の `renderViewer.test.ts`・`renderJob.test.ts` の仮の describe の名前を、実装で決めた名前に改めた。あわせて、設計書 3.14 の状態の表示の要約に投稿の状態の変化を加えた訂正（AC-47）に合わせ、AC-47 の行に `publish state announcements` を加えた。決定は変えていない。 |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の項番、「設計書 3.2」などは設計書の節を指す。既存のコードと文書についての記述は、コミット `bf314092` で確かめた。`file:line` はこのコミットの行番号を指す。設計書は行番号をコミット `577e7b51` で確かめている。`git diff --stat 577e7b51 bf314092 -- extension cmd/yt2column/extension_docs_test.go internal/nmhost internal/server docs/dev/guides/development.md` の出力は空なので、設計書の拡張・Go のガード・ホスト・サーバ・`development.md` の行番号は、そのまま使える（`README.md` と `docs/dev/security.md` は、タスク `0051` の変更で行がずれている）。拡張のファイルのパスは、設計書と同じく `extension/` を省いて書く（例: `src/launch.ts`）。テストの場所は `path::describe の名前` で示す。まだないテストの describe の名前は、実装のときに決める仮の名前である。
 
@@ -405,12 +405,12 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **変更するファイル:** `static/theme.css`（新規）、`static/style.css`、`static/viewer.css`（新規）、`static/viewer.html`（新規）、`static/popup.html`、`scripts/popup-preview.ts`、`test/style.test.ts`、`test/popupHtml.test.ts`、`test/popupPreview.test.ts`、`test/helpers/dom.ts`、`docs/tasks/0050_viewer_tab/_checks/presend_popup_styles.ts`（新規）
 
--   [ ] 色の変数と共有の規則を `style.css` から `theme.css` に移し、ビューアの配置を `viewer.css` に置く（設計書 3.14）。送る前のポップアップの値は変えない（設計書 3.8）。
--   [ ] `viewer.html` に、見出し・状態・記事・操作の各要素と、2 つの `role="status"` を置く（設計書 3.18）。`<script>` はステップ 5-5 で加える（`viewer.js` がないと `check-dist.ts` の参照の検査が失敗するため）。`popup.html` と `viewer.html` は、`theme.css` を先に読み込む。
--   [ ] `scripts/popup-preview.ts` が `theme.css` も写して参照するようにし、`test/popupPreview.test.ts:149-153` の `<link>` の確かめを改める。
--   [ ] `test/helpers/dom.ts` に、出荷する `viewer.html` から骨格を作る補助を加える。
--   [ ] テスト: `test/style.test.ts` のコントラストの計算を `theme.css` の変数と新しい組（ビューアの失敗の色、工程の記号、ロード中の印、フォーカスの印）に広げる。ライトとダークの両方、`prefers-reduced-motion` で印と `running` の記号の `animation` を止める規則、押せる要素の幅と高さの最小値（AC-45・AC-48・AC-50・AC-51）。
--   [ ] `_checks/presend_popup_styles.ts` を作る。マージベースの `style.css` と、PR の head の `theme.css`＋`style.css` を jsdom で読み、送る前のポップアップの骨格の各要素（プレビューが描く状態）に当たる宣言の値が変わらないことを確かめる（`requirements_process.md` §4 の `diff`）。PR の作成の前に一度走らせ、出力と 2 つのコミットの ID を 7 章の AC-24 の行に記録する。
+-   [x] 色の変数と共有の規則を `style.css` から `theme.css` に移し、ビューアの配置を `viewer.css` に置く（設計書 3.14）。送る前のポップアップの値は変えない（設計書 3.8）。
+-   [x] `viewer.html` に、見出し・状態・記事・操作の各要素と、2 つの `role="status"` を置く（設計書 3.18）。`<script>` はステップ 5-5 で加える（`viewer.js` がないと `check-dist.ts` の参照の検査が失敗するため）。`popup.html` と `viewer.html` は、`theme.css` を先に読み込む。
+-   [x] `scripts/popup-preview.ts` が `theme.css` も写して参照するようにし、`test/popupPreview.test.ts:149-153` の `<link>` の確かめを改める。
+-   [x] `test/helpers/dom.ts` に、出荷する `viewer.html` から骨格を作る補助を加える。
+-   [x] テスト: `test/style.test.ts` のコントラストの計算を `theme.css` の変数と新しい組（ビューアの失敗の色、工程の記号、ロード中の印、フォーカスの印）に広げる。ライトとダークの両方、`prefers-reduced-motion` で印と `running` の記号の `animation` を止める規則、押せる要素の幅と高さの最小値（AC-45・AC-48・AC-50・AC-51）。
+-   [x] `_checks/presend_popup_styles.ts` を作る。マージベースの `style.css` と、PR の head の `theme.css`＋`style.css` を jsdom で読み、送る前のポップアップの骨格の各要素（プレビューが描く状態）に当たる宣言の値が変わらないことを確かめる（`requirements_process.md` §4 の `diff`）。PR の作成の前に一度走らせ、出力と 2 つのコミットの ID を 7 章の AC-24 の行に記録する。
 
 **完了の条件:** `make ext-check` が通る。`theme.css` のダークの失敗の色の明るさを下げて、そのコントラストのテストが失敗することを確かめる。`_checks/presend_popup_styles.ts` が、`theme.css` の今の変数の値を 1 つ変えると差分を報告することを確かめる。
 
@@ -418,10 +418,10 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **変更するファイル:** `src/ui/icons.ts`、`src/ui/renderJob.ts`（新規）、`src/ui/articleBody.ts`（新規）、`test/renderJob.test.ts`（新規）、`test/articleBody.test.ts`（新規）
 
--   [ ] `icons.ts` に、工程の状態の 5 つの記号とロード中の印を加える（設計書 3.14）。
--   [ ] `renderJob.ts` に、工程のチェックリスト、経過時間、料金、所要時間、ロード中の表示、`requestId` の表示を描く関数を作る（設計書 3.14）。文言は `messageNodes`（`src/ui/render.ts:32`）で描く。
--   [ ] `articleBody.ts` に `renderArticleBody` を作る（設計書 3.12）。
--   [ ] テスト: 工程の状態ごとに記号の形と状態の語が違うこと（AC-11・AC-46・AC-48）、経過時間の要素が状態の領域の外で `aria-live` を持たないこと（AC-47）、1.4 の行き先の表の `renderSend.test.ts` の 3 つの確認、`renderArticleBody` に AC-25 の入力を与えると子の要素が 1 つもできず `textContent` が一致すること。
+-   [x] `icons.ts` に、工程の状態の 5 つの記号とロード中の印を加える（設計書 3.14）。
+-   [x] `renderJob.ts` に、工程のチェックリスト、経過時間、料金、所要時間、ロード中の表示、`requestId` の表示を描く関数を作る（設計書 3.14）。文言は `messageNodes`（`src/ui/render.ts:32`）で描く。
+-   [x] `articleBody.ts` に `renderArticleBody` を作る（設計書 3.12）。
+-   [x] テスト: 工程の状態ごとに記号の形と状態の語が違うこと（AC-11・AC-46・AC-48）、経過時間の要素が状態の領域の外で `aria-live` を持たないこと（AC-47）、1.4 の行き先の表の `renderSend.test.ts` の 3 つの確認、`renderArticleBody` に AC-25 の入力を与えると子の要素が 1 つもできず `textContent` が一致すること。
 
 **完了の条件:** `make ext-check` が通る。`renderArticleBody` が記事の中の Markdown のリンクを `<a>` の要素にするように壊し、AC-25 のテストが失敗することを確かめる。
 
@@ -429,8 +429,8 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **変更するファイル:** `src/ui/renderViewer.ts`（新規）、`test/renderViewer.test.ts`（新規）
 
--   [ ] `renderViewer.ts` に、見出し・チャンネル名・元動画へのリンク・`ViewerState` ごとの状態・記事・投稿と保存とコピーの操作・操作の結果を描く関数を作る（設計書 3.6・3.9・3.12・3.14）。投稿のボタンは `publishControl` の結果で `disabled` と表示を決める。状態の領域には、表示が変わったときだけ書く。
--   [ ] テスト: `ViewerState` の各種類の要素と文言、AC-26 のリンクの属性、AC-27 の見出しとチャンネル名、`PublishRow` の各行の `disabled` と表示（AC-28・AC-32）、`lost` で記事と保存・コピーを残すこと（AC-15）、DOM の順（AC-44）、2 つの状態の領域の書き分け（AC-47）、ロード中の表示と文言（AC-52）。
+-   [x] `renderViewer.ts` に、見出し・チャンネル名・元動画へのリンク・`ViewerState` ごとの状態・記事・投稿と保存とコピーの操作・操作の結果を描く関数を作る（設計書 3.6・3.9・3.12・3.14）。投稿のボタンは `publishControl` の結果で `disabled` と表示を決める。状態の領域には、表示が変わったときだけ書く。
+-   [x] テスト: `ViewerState` の各種類の要素と文言、AC-26 のリンクの属性、AC-27 の見出しとチャンネル名、`PublishRow` の各行の `disabled` と表示（AC-28・AC-32）、`lost` で記事と保存・コピーを残すこと（AC-15）、DOM の順（AC-44）、2 つの状態の領域の書き分け（AC-47）、ロード中の表示と文言（AC-52）。
 
 **完了の条件:** `make ext-check` が通る。投稿のボタンの `disabled` を `publishControl` によらず外すように壊し、AC-32 のテストが失敗することを確かめる。
 
@@ -446,10 +446,10 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **判定理由**: ステップ 5-2 の `renderArticleBody` が、信頼できない LLM の出力を文字としてだけ表示する境界（設計書 3.12、AC-25）であるため
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/616
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 #### ステップ 5-4: ポーリングの部品
 
@@ -750,7 +750,7 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 -   [x] PR-3 マージ済み（対象ステップ: 2-3 / 2-4 / 2-5）
 -   [x] PR-4 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5）
 -   [x] PR-5 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5）
--   [ ] PR-6 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3）
+-   [x] PR-6 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3）
 -   [ ] PR-7 マージ済み（対象ステップ: 5-4 / 5-5 / 5-6）
 -   [ ] PR-8 マージ済み（対象ステップ: 6-1 / 6-2）
 -   [ ] PR-9 マージ済み（対象ステップ: 6-3 / 7-1 / 7-2 / 7-3 / 7-4 / 7-5）
@@ -780,21 +780,21 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 | AC-10 | `extension/test/viewerApp.test.ts::start result deadline` | test | 5-5 |
 | AC-11 | `extension/test/poll.test.ts::afterStatus`、`extension/test/renderJob.test.ts::step checklist` | test | 3-3・5-2 |
 | AC-12 | `extension/test/viewerApp.test.ts::elapsed time`（fake の時計、再読み込みの後） | test | 5-5 |
-| AC-13 | `extension/test/poll.test.ts::afterStatus`、`extension/test/renderViewer.test.ts::done` | test | 3-3・5-3 |
-| AC-14 | `extension/test/poll.test.ts::afterStatus`、`extension/test/renderViewer.test.ts::failed`、`extension/test/catalog.test.ts::catalogs`（8 つの文言が互いに違う） | test | 3-3・3-5・5-3 |
-| AC-15 | `extension/test/poll.test.ts::afterStatus`（`kept`）、`extension/test/renderViewer.test.ts::lost` | test | 3-3・5-3 |
+| AC-13 | `extension/test/poll.test.ts::afterStatus`、`extension/test/renderViewer.test.ts::renderViewer states` | test | 3-3・5-3 |
+| AC-14 | `extension/test/poll.test.ts::afterStatus`、`extension/test/renderViewer.test.ts::renderViewer states`、`extension/test/catalog.test.ts::catalogs`（8 つの文言が互いに違う） | test | 3-3・3-5・5-3 |
+| AC-15 | `extension/test/poll.test.ts::afterStatus`（`kept`）、`extension/test/renderViewer.test.ts::renderViewer states` | test | 3-3・5-3 |
 | AC-16 | `extension/test/poll.test.ts::afterStatus`、`extension/test/viewerApp.test.ts::status exchange failures` | test | 3-3・5-5 |
-| AC-17 | `extension/test/viewerApp.test.ts::start failed`、`extension/test/renderViewer.test.ts::start-failed` | test | 5-3・5-5 |
+| AC-17 | `extension/test/viewerApp.test.ts::start failed`、`extension/test/renderViewer.test.ts::renderViewer states` | test | 5-3・5-5 |
 | AC-18 | `extension/test/poll.test.ts::afterStatus`（`posting`）、`extension/test/viewerApp.test.ts::posting on load` | test | 3-3・5-5 |
 | AC-19 | `extension/test/poller.test.ts::one in flight` | test | 5-4 |
 | AC-20 | `extension/test/popupView.test.ts::primaryAction`、`extension/test/render.test.ts::job view`、`extension/test/launch.test.ts::popup job states` | test | 6-1・6-2・6-3 |
 | AC-21 | `extension/test/launch.test.ts::open viewer`（3 つの分岐と、生成の開始を送らないこと）、`extension/test/viewerQuery.test.ts::findViewers`、4.3.2 | test・manual | 4-2・6-3・7-5 |
 | AC-22 | `extension/test/launch.test.ts::retry`、`extension/test/startCoordinator.test.ts::reuse`、`extension/test/viewerApp.test.ts::take-over`（失敗か不明から `loading` に戻り、新しい送信の時刻で数える） | test | 4-3・5-5・6-3 |
 | AC-23 | `extension/test/popupView.test.ts::primaryAction`、`extension/test/render.test.ts::job view`、`extension/test/launch.test.ts::popup job states` | test | 6-1・6-2・6-3 |
-| AC-24 | `extension/test/launch.test.ts::popup job send`（開き直したポップアップは押すまで何も送らない）、`docs/tasks/0050_viewer_tab/_checks/presend_popup_styles.ts`（送る前のポップアップの CSS の値。出力と 2 つのコミットの ID を PR の作成の前に記録する）、4.3.2 | test・diff・manual | 5-1・6-3・7-5 |
+| AC-24 | `extension/test/launch.test.ts::popup job send`（開き直したポップアップは押すまで何も送らない）、`docs/tasks/0050_viewer_tab/_checks/presend_popup_styles.ts`（送る前のポップアップの CSS の値。2026-11-02 に PR-6 の作成の前に実行: マージベース `ed795e8a58e8165f83c9e7953431dbec5432aa2a`、head `369bcd79590db90ff4701a7f91d492a7e87d13e4`、出力 `PASS: 60400 computed declarations identical across 11 pages x 16 variants`、終了コード 0）、4.3.2 | test・diff・manual | 5-1・6-3・7-5 |
 | AC-25 | `extension/test/articleBody.test.ts::renderArticleBody` | test | 5-2 |
-| AC-26 | `extension/test/renderViewer.test.ts::video link`、`extension/test/viewerUrl.test.ts::parseViewerUrl`（受け付けない URL を拒否する） | test | 3-1・5-3 |
-| AC-27 | `extension/test/renderViewer.test.ts::heading`、`extension/test/viewerApp.test.ts::page title` | test | 5-3・5-5 |
+| AC-26 | `extension/test/renderViewer.test.ts::renderViewerHeader`、`extension/test/viewerUrl.test.ts::parseViewerUrl`（受け付けない URL を拒否する） | test | 3-1・5-3 |
+| AC-27 | `extension/test/renderViewer.test.ts::renderViewerHeader`、`extension/test/viewerApp.test.ts::page title` | test | 5-3・5-5 |
 | AC-28 | `extension/test/jobView.test.ts::publishControl`、`extension/test/renderViewer.test.ts::publish rows` | test | 3-3・5-3 |
 | AC-29 | `extension/test/viewerApp.test.ts::publish` | test | 5-5 |
 | AC-30 | `extension/test/jobView.test.ts::publishControl`、`extension/test/viewerApp.test.ts::publish` | test | 3-3・5-5 |
@@ -811,15 +811,15 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 | AC-41 | `extension/test/response.test.ts::classifyStatus`、`extension/test/strictJson.test.ts::parseStrictJson`、`extension/test/native.test.ts::classifyHostReply`（上限を超える本文） | test | 2-2・2-3・2-4 |
 | AC-42 | `extension/test/response.test.ts::classifyStatus`（256 KiB いっぱいの完了した記事を `classifyHostReply` から通す） | test | 2-3・2-4 |
 | AC-43 | `extension/test/viewerUrl.test.ts::parseViewerUrl`、`extension/test/viewerApp.test.ts::invalid link`（状態の取得を送らない） | test | 3-1・5-5 |
-| AC-44 | `extension/test/renderViewer.test.ts::order`（ビューアの DOM の順と、ネイティブの要素）、`extension/test/render.test.ts::job view`（ポップアップの DOM の順）、4.3.2 | test・manual | 5-3・6-2・7-5 |
+| AC-44 | `extension/test/popupHtml.test.ts::viewer.html skeleton`（ビューアの DOM の順）、`extension/test/renderViewer.test.ts::order and controls`（押せる要素の順と、ネイティブの要素）、`extension/test/render.test.ts::job view`（ポップアップの DOM の順）、4.3.2 | test・manual | 5-3・6-2・7-5 |
 | AC-45 | `extension/test/style.test.ts`（フォーカスの印のコントラスト、ライトとダーク）、4.3.2 | test・manual | 5-1・7-5 |
-| AC-46 | `extension/test/renderJob.test.ts::step checklist`（状態の語）、`extension/test/renderViewer.test.ts::controls`、`extension/test/render.test.ts::job view` | test | 5-2・5-3・6-2 |
-| AC-47 | `extension/test/renderViewer.test.ts::status regions`、`extension/test/renderJob.test.ts::elapsed time`（`aria-live` なし）、`extension/test/viewerApp.test.ts::announces on change`、4.3.2 | test・manual | 5-2・5-3・5-5・7-5 |
+| AC-46 | `extension/test/renderJob.test.ts::step checklist`（状態の語）、`extension/test/renderViewer.test.ts::order and controls`、`extension/test/render.test.ts::job view` | test | 5-2・5-3・6-2 |
+| AC-47 | `extension/test/renderViewer.test.ts::status regions`・`publish state announcements`、`extension/test/renderJob.test.ts::job state`（`aria-live` なし）、`extension/test/viewerApp.test.ts::announces on change`、4.3.2 | test・manual | 5-2・5-3・5-5・7-5 |
 | AC-48 | `extension/test/style.test.ts`（文字と図形のコントラスト）、`extension/test/renderJob.test.ts::step checklist`（形の違い） | test | 5-1・5-2 |
 | AC-49 | `extension/test/viewerApp.test.ts::page language` | test | 5-5 |
 | AC-50 | `extension/test/style.test.ts`（押せる要素の幅と高さの規則） | test | 5-1 |
 | AC-51 | `extension/test/style.test.ts`（`prefers-reduced-motion` の規則）、4.3.2 | test・manual | 5-1・7-5 |
-| AC-52 | `extension/test/renderViewer.test.ts::loading`、`extension/test/viewerApp.test.ts::loading` | test | 5-3・5-5 |
+| AC-52 | `extension/test/renderViewer.test.ts::renderViewer states`、`extension/test/viewerApp.test.ts::loading` | test | 5-3・5-5 |
 
 `design_handoff.md` の H-01〜H-14 は、どれも設計書の付録 A に扱いが記録されている。`implementation_handoff.md` はない。
 

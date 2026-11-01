@@ -9,7 +9,7 @@
 // buildCollectedView and renderPopup -- so the preview cannot show a state the
 // popup cannot build. A rejected case builds the RejectedView the launch path
 // returns for a collection it refuses. The skeleton is the shipped popup.html,
-// the stylesheet is copied next to the pages, and the written pages load no
+// the stylesheets are copied next to the pages, and the written pages load no
 // external resource and run no script. This file never reaches dist/: the build
 // compiles src/ only (tsconfig.build.json) and check-dist reports any extra file.
 //
@@ -214,13 +214,18 @@ function renderPage(skeleton: string, view: PopupView, locale: Locale): string {
   return dom.serialize();
 }
 
-/** Writes one page per input set plus the stylesheet into outputDir. */
+/** The stylesheets popup.html loads, copied next to the pages. */
+const stylesheets = ["theme.css", "style.css"] as const;
+
+/** Writes one page per input set plus the stylesheets into outputDir. */
 async function writePreviews(outputDir: string): Promise<void> {
   mkdirSync(outputDir, { recursive: true });
-  copyFileSync(
-    path.join(extensionDir, "static", "style.css"),
-    path.join(outputDir, "style.css"),
-  );
+  for (const stylesheet of stylesheets) {
+    copyFileSync(
+      path.join(extensionDir, "static", stylesheet),
+      path.join(outputDir, stylesheet),
+    );
+  }
   const skeleton = readFileSync(
     path.join(extensionDir, "static", "popup.html"),
     "utf8",

@@ -48,22 +48,33 @@ function appliesToScreen(mediaText: string): boolean {
   return mediaText.split(",").some(queryAppliesToScreen);
 }
 
+/** The stylesheets popup.html loads, in its order. */
+const popupSheets = ["theme.css", "style.css"];
+
+/** The stylesheets viewer.html loads, in its order. */
+const viewerSheets = ["theme.css", "viewer.css"];
+
+/** Every stylesheet under static/, each once. */
+const everySheet = ["theme.css", "style.css", "viewer.css"];
+
 /**
- * The style rules of static/style.css, parsed by jsdom's CSSOM. `all` includes
- * the rules of conditional and layered blocks, so no rule can escape the
- * selector checks; `onScreen` drops the print-only blocks, so the value checks
- * read what the popup displays. A layered block applies, so its rules stay.
- * Each rule keeps the media query list of the blocks around it, so the light
- * and dark declarations can be read apart.
+ * The style rules of the given files under static/, in that order, parsed by
+ * jsdom's CSSOM as one sheet: the order is the order a page loading them
+ * applies. `all` includes the rules of conditional and layered blocks, so no
+ * rule can escape the selector checks; `onScreen` drops the print-only blocks,
+ * so the value checks read what the page displays. A layered block applies,
+ * so its rules stay. Each rule keeps the media query list of the blocks around
+ * it, so the light and dark declarations can be read apart.
  */
-function parseStyleSheet(): {
+function parseStyleSheet(files: readonly string[]): {
   all: ParsedRule[];
   onScreen: ParsedRule[];
 } {
-  const css = readFileSync(
-    path.join(extensionDir, "static", "style.css"),
-    "utf8",
-  );
+  const css = files
+    .map((file) =>
+      readFileSync(path.join(extensionDir, "static", file), "utf8"),
+    )
+    .join("\n");
   const dom = new JSDOM(
     `<!DOCTYPE html><html><head><style>${css}</style></head><body></body></html>`,
   );
@@ -167,12 +178,19 @@ function references(
   );
 }
 
+/** True when the rule sits in a block whose media query is exactly query. */
+function inMedia({ media }: ParsedRule, query: string): boolean {
+  return media.some((text) => text.toLowerCase().replace(/\s+/g, "") === query);
+}
+
 /** True when the rule sits in a prefers-color-scheme: dark block. */
-function isDark({ media }: ParsedRule): boolean {
-  return media.some(
-    (query) =>
-      query.toLowerCase().replace(/\s+/g, "") === "(prefers-color-scheme:dark)",
-  );
+function isDark(entry: ParsedRule): boolean {
+  return inMedia(entry, "(prefers-color-scheme:dark)");
+}
+
+/** True when the rule sits in a prefers-reduced-motion: reduce block. */
+function isReducedMotion(entry: ParsedRule): boolean {
+  return inMedia(entry, "(prefers-reduced-motion:reduce)");
 }
 
 /** The last value the :root rules give the colour variable, or "". */
@@ -243,7 +261,7 @@ const contrastPairs = [
     foreground: "--muted",
     background: "--bg",
     minimum: 4.5,
-    foregroundRules: [".channel-name"],
+    foregroundRules: [".channel-name", "#channel"],
     foregroundProperty: "color",
     backgroundRules: ["body"],
   },
@@ -275,18 +293,39 @@ const contrastPairs = [
     backgroundRules: [".check-row-warning"],
   },
   {
+    foreground: "--fail",
+    background: "--bg",
+    minimum: 4.5,
+    foregroundRules: [".failure .message-text"],
+    foregroundProperty: "color",
+    backgroundRules: ["body"],
+  },
+  {
+    foreground: "--link",
+    background: "--bg",
+    minimum: 4.5,
+    foregroundRules: ["#video-link"],
+    foregroundProperty: "color",
+    backgroundRules: ["body"],
+  },
+  {
     foreground: "--primary-text",
     background: "--primary-bg",
     minimum: 4.5,
-    foregroundRules: ["#primary"],
+    foregroundRules: ["#primary", ".action-button"],
     foregroundProperty: "color",
-    backgroundRules: ["#primary"],
+    backgroundRules: ["#primary", ".action-button"],
   },
   {
     foreground: "--ok",
     background: "--bg",
     minimum: 3,
-    foregroundRules: [".check-icon-ok"],
+    foregroundRules: [
+      ".check-icon-ok",
+      ".step-icon-running",
+      ".step-icon-done",
+      ".loading-icon",
+    ],
     foregroundProperty: "color",
     backgroundRules: ["body"],
   },
@@ -299,6 +338,22 @@ const contrastPairs = [
     backgroundRules: [".check-row-warning"],
   },
   {
+    foreground: "--muted",
+    background: "--bg",
+    minimum: 3,
+    foregroundRules: [".step-icon-pending", ".step-icon-skipped"],
+    foregroundProperty: "color",
+    backgroundRules: ["body"],
+  },
+  {
+    foreground: "--fail",
+    background: "--bg",
+    minimum: 3,
+    foregroundRules: [".step-icon-failed"],
+    foregroundProperty: "color",
+    backgroundRules: ["body"],
+  },
+  {
     foreground: "--focus",
     background: "--bg",
     minimum: 3,
@@ -309,7 +364,9 @@ const contrastPairs = [
 ];
 
 describe("colour variables", () => {
-  const { onScreen } = parseStyleSheet();
+  // Every stylesheet at once: the variables live in theme.css, and a pair's
+  // rules may be in any of the three files.
+  const { onScreen } = parseStyleSheet(everySheet);
   const light = onScreen.filter((entry) => !isDark(entry));
   const dark = onScreen.filter(isDark);
 
@@ -322,6 +379,8 @@ describe("colour variables", () => {
     "--warn-text",
     "--ok",
     "--warn",
+    "--fail",
+    "--link",
     "--primary-bg",
     "--primary-text",
     "--disabled-bg",
@@ -353,18 +412,17 @@ describe("colour variables", () => {
     });
   }
 
-  it("gives the disabled primary button its own colours", () => {
-    assert.ok(
-      references(
-        onScreen,
-        "#primary:disabled",
-        "background-color",
-        "--disabled-bg",
-      ),
-    );
-    assert.ok(
-      references(onScreen, "#primary:disabled", "color", "--disabled-text"),
-    );
+  it("gives a disabled button its own colours", () => {
+    for (const selector of ["#primary:disabled", ".action-button:disabled"]) {
+      assert.ok(
+        references(onScreen, selector, "background-color", "--disabled-bg"),
+        selector,
+      );
+      assert.ok(
+        references(onScreen, selector, "color", "--disabled-text"),
+        selector,
+      );
+    }
   });
 
   it("paints every pair with the pair's own variables", () => {
@@ -470,7 +528,7 @@ describe("colour variables", () => {
 });
 
 describe("layout", () => {
-  const { onScreen } = parseStyleSheet();
+  const { onScreen } = parseStyleSheet(popupSheets);
 
   it("hides a [hidden] element whatever display rule it has", () => {
     assert.equal(effectiveValue(onScreen, "[hidden]", "display"), "none");
@@ -613,8 +671,99 @@ describe("layout", () => {
   });
 });
 
+describe("viewer layout", () => {
+  const { onScreen } = parseStyleSheet(viewerSheets);
+
+  it("does not fix the viewer body's width", () => {
+    // The popup's 360px body would make the viewer a narrow strip in a tab.
+    assert.equal(effectiveValue(onScreen, "body", "width"), "");
+  });
+
+  it("makes every pressable element at least 44 CSS pixels wide and tall", () => {
+    for (const selector of [".action-button", "#video-link"]) {
+      assert.ok(
+        atLeast44(effectiveValue(onScreen, selector, "min-height")),
+        `${selector} min-height`,
+      );
+      assert.ok(
+        atLeast44(effectiveValue(onScreen, selector, "min-width")),
+        `${selector} min-width`,
+      );
+    }
+    // An inline element ignores min-height and min-width.
+    assert.equal(
+      effectiveValue(onScreen, "#video-link", "display"),
+      "inline-flex",
+    );
+  });
+
+  it("keeps the article's line breaks and spaces and its text direction", () => {
+    assert.equal(
+      effectiveValue(onScreen, ".article-body", "white-space"),
+      "pre-wrap",
+    );
+    assert.equal(
+      effectiveValue(onScreen, ".article-body", "unicode-bidi"),
+      "plaintext",
+    );
+  });
+
+  it("keeps bidirectional control characters inside the heading and the channel name", () => {
+    for (const selector of ["#heading", "#channel"]) {
+      assert.equal(
+        effectiveValue(onScreen, selector, "unicode-bidi"),
+        "plaintext",
+        selector,
+      );
+    }
+  });
+});
+
+describe("motion", () => {
+  const { onScreen } = parseStyleSheet(everySheet);
+  const moving = [".loading-icon", ".step-icon-running"];
+
+  it("turns the loading mark and the running step's symbol", () => {
+    const normal = onScreen.filter((entry) => !isReducedMotion(entry));
+    for (const selector of moving) {
+      const animation = effectiveValue(normal, selector, "animation");
+      assert.ok(
+        animation !== "" && animation !== "none",
+        `${selector}: ${animation}`,
+      );
+    }
+  });
+
+  it("puts the reduced-motion rule after the rule it overrides", () => {
+    // Both rules have the same specificity, so the later one wins in a
+    // browser: placed first, the reduced-motion rule would never apply.
+    for (const selector of moving) {
+      const setting = rulesFor(onScreen, selector).filter(
+        ({ rule }) => rule.style.getPropertyValue("animation") !== "",
+      );
+      const lastNormal = setting.reduce(
+        (last, entry, index) => (isReducedMotion(entry) ? last : index),
+        -1,
+      );
+      const firstReduced = setting.findIndex(isReducedMotion);
+      assert.ok(lastNormal >= 0 && firstReduced > lastNormal, selector);
+    }
+  });
+
+  it("stops both under prefers-reduced-motion: reduce", () => {
+    const reduced = onScreen.filter(isReducedMotion);
+    for (const selector of moving) {
+      assert.equal(
+        effectiveValue(reduced, selector, "animation"),
+        "none",
+        selector,
+      );
+    }
+  });
+});
+
 describe("Japanese typography", () => {
-  const { all, onScreen } = parseStyleSheet();
+  const { all, onScreen } = parseStyleSheet(everySheet);
 
   it("puts the Japanese font candidates first on a Japanese page", () => {
     assert.deepEqual(

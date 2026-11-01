@@ -1,0 +1,67 @@
+/* The viewer's layout. The colour variables and the shared rules are in
+   theme.css, which viewer.html loads first. */
+
+/* The page reads in one column of a comfortable width, centred in the tab. */
+body {
+  margin: 0 auto;
+  padding: 1.5rem 1rem;
+  max-width: 48rem;
+}
+
+/* Keep bidirectional control characters in a value from reordering the
+   surrounding text. */
+#heading,
+#channel {
+  unicode-bidi: plaintext;
+  overflow-wrap: anywhere;
+}
+
+#heading {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+#channel {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+}
+
+/* The link to the video is at least 44 CSS pixels in both directions. */
+#video-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  min-width: 44px;
+  color: var(--link);
+}
+
+#state,
+#article,
+#actions {
+  margin-top: 1rem;
+}
+
+/* The article is text: line breaks and spaces are kept, and a right-to-left
+   line does not reorder the text around it. */
+.article-body {
+  white-space: pre-wrap;
+  unicode-bidi: plaintext;
+  overflow-wrap: anywhere;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+}
+
+#actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* The publish row's sentence takes a line of its own under the publish
+   button, and the operation result one under the save and copy buttons. */
+#publish-row,
+#action-status {
+  flex-basis: 100%;
+}
