@@ -296,7 +296,7 @@ export function parseStrictJson(bytes: Uint8Array): StrictJsonResult {
   } catch {
     return { ok: false, error: "encoding" };
   }
-  if (text.startsWith("﻿")) {
+  if (text.startsWith("\uFEFF")) {
     return { ok: false, error: "bom" };
   }
   try {
