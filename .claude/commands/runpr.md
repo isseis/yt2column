@@ -564,8 +564,8 @@ rather than once per decision.
    accumulated across rounds), and, for each task document this PR changes
    that exists on `origin/main`, the lines of its change history (the rule's
    "Change history" definition) in `git show origin/main:<document>` that hold
-   the marker `#未記入`. Fixing such a marker needs a separate PR, never part
-   of PRE_MERGE; the rule's "PR number" bullet says how its PR is found, the `deferred` threads (each
+   the marker `#未記入` (fixing such a marker needs a separate PR, never part
+   of PRE_MERGE, as the rule's "PR number" bullet says), the `deferred` threads (each
    with its number, topic, what fixing it would change, and its URL), and NEXT.
    When NEXT is `/runplan`, also show the `実装モデル要件` of the next PR
    marker: the `### PR-N 作成ポイント` marker of the PR that NEXT will open,
