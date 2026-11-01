@@ -599,3 +599,35 @@ func TestConfigListFailureKinds(t *testing.T) {
 		})
 	}
 }
+
+// TestCommitObjectMessage reads the message of a stored commit whose signature
+// header spans several lines, one of them blank but for the leading space, and
+// whose message holds an empty line of its own and trailing spaces.
+func TestCommitObjectMessage(t *testing.T) {
+	r := newTestRepo(t)
+	tree := strings.TrimSpace(r.Git("rev-parse", "HEAD^{tree}"))
+	parent := r.Head()
+	const message = "subject\n\nbody line  \nlast\n"
+	object := "tree " + tree + "\n" +
+		"parent " + parent + "\n" +
+		"author Test <test@example.com> 1700000000 +0000\n" +
+		"committer Test <test@example.com> 1700000000 +0000\n" +
+		"gpgsig -----BEGIN PGP SIGNATURE-----\n \n iQEzBAABCAAdFiEE\n -----END PGP SIGNATURE-----\n" +
+		"\n" + message
+	file := filepath.Join(t.TempDir(), "commit")
+	if err := os.WriteFile(file, []byte(object), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	oid := strings.TrimSpace(r.Git("hash-object", "-t", "commit", "-w", file))
+	w, _ := newTestWorktree(t)
+	gotTree, parents, got, err := w.commitObject(t.Context(), oid)
+	if err != nil {
+		t.Fatalf("commitObject = %v", err)
+	}
+	if gotTree != tree || !slices.Equal(parents, []string{parent}) {
+		t.Errorf("tree %s, parents %v; want %s, [%s]", gotTree, parents, tree, parent)
+	}
+	if got != message {
+		t.Errorf("message = %q, want %q", got, message)
+	}
+}

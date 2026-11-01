@@ -157,7 +157,7 @@ func (w *Worktree) Inspect(ctx context.Context, base Baseline, threads []ThreadP
 
 // changesAgainst lists the changes against the tree of the baseline's commit.
 func (w *Worktree) changesAgainst(ctx context.Context, base Baseline) ([]change, error) {
-	tree, _, err := w.commitObject(ctx, base.head)
+	tree, _, _, err := w.commitObject(ctx, base.head)
 	if err != nil {
 		return nil, err
 	}
@@ -400,14 +400,14 @@ func (w *Worktree) checkCommit(ctx context.Context, base Baseline, want []change
 	if err != nil {
 		return "", err
 	}
-	tree, parents, err := w.commitObject(ctx, commit)
+	tree, parents, _, err := w.commitObject(ctx, commit)
 	if err != nil {
 		return "", err
 	}
 	if branch == "" || digestString(branch) != base.branch || !slices.Equal(parents, []string{base.head}) {
 		return "", &GitStateError{Parts: []string{PartHead}}
 	}
-	baseTree, _, err := w.commitObject(ctx, base.head)
+	baseTree, _, _, err := w.commitObject(ctx, base.head)
 	if err != nil {
 		return "", err
 	}
@@ -516,7 +516,7 @@ func (w *Worktree) Push(ctx context.Context, base Baseline, commit string) (Push
 	if err != nil {
 		return PushResult{}, err
 	}
-	if _, parents, err := w.commitObject(ctx, commit); err != nil {
+	if _, parents, _, err := w.commitObject(ctx, commit); err != nil {
 		return PushResult{}, err
 	} else if !slices.Equal(parents, []string{base.head}) {
 		return PushResult{}, &GitStateError{Parts: []string{PartHead}}

@@ -633,32 +633,34 @@ func (w *Worktree) headState(ctx context.Context) (oid, branch string, err error
 
 // commitObject reads a commit object as stored (cmdrunner.GitHardening turns
 // replace refs off, and cat-file does not consult the commit-graph) and
-// returns its tree and parents.
-func (w *Worktree) commitObject(ctx context.Context, oid string) (tree string, parents []string, err error) {
+// returns its tree, its parents, and its message: every byte after the first
+// empty line, which ends the header. A multi-line header such as gpgsig
+// starts each continuation line with a space, so it holds no empty line.
+func (w *Worktree) commitObject(ctx context.Context, oid string) (tree string, parents []string, message string, err error) {
 	out, err := w.git(ctx, "cat-file", "cat-file", "commit", oid)
 	if err != nil {
-		return "", nil, err
+		return "", nil, "", err
 	}
-	header, _, _ := bytes.Cut(out, []byte("\n\n"))
+	header, body, _ := bytes.Cut(out, []byte("\n\n"))
 	for line := range strings.Lines(string(header)) {
 		key, value, _ := strings.Cut(strings.TrimSuffix(line, "\n"), " ")
 		switch key {
 		case "tree":
 			if tree != "" || !validOID(value) {
-				return "", nil, fmt.Errorf("%w: commit object", ErrGitFailed)
+				return "", nil, "", fmt.Errorf("%w: commit object", ErrGitFailed)
 			}
 			tree = value
 		case "parent":
 			if !validOID(value) {
-				return "", nil, fmt.Errorf("%w: commit object", ErrGitFailed)
+				return "", nil, "", fmt.Errorf("%w: commit object", ErrGitFailed)
 			}
 			parents = append(parents, value)
 		}
 	}
 	if tree == "" {
-		return "", nil, fmt.Errorf("%w: commit object", ErrGitFailed)
+		return "", nil, "", fmt.Errorf("%w: commit object", ErrGitFailed)
 	}
-	return tree, parents, nil
+	return tree, parents, string(body), nil
 }
 
 // pushTarget is where push sends the branch: the remote git resolves for the
