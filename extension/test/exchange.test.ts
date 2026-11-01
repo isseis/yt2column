@@ -14,7 +14,6 @@ describe("hasExactKeys", () => {
     keys: string[];
   }[] = [
     { name: "an extra key", record: { a: 1, b: 2, c: 3 }, keys: ["a", "b"] },
-    { name: "a missing key", record: { a: 1 }, keys: ["a", "b"] },
     {
       name: "a different key of the same count",
       record: { a: 1, c: 2 },

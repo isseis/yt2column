@@ -260,7 +260,11 @@ describe("parseStrictJson", () => {
     expectRejected([
       { name: "an unknown escape", bytes: utf8('"\\x41"'), error: "syntax" },
       { name: "an escaped quote mark", bytes: utf8('"\\\'"'), error: "syntax" },
-      { name: "a short \\u escape", bytes: utf8('"\\u12"'), error: "syntax" },
+      {
+        name: "a non-hex \\u escape",
+        bytes: utf8('"\\u00G0"'),
+        error: "syntax",
+      },
       {
         name: "a raw control character",
         bytes: utf8('"a\u0001b"'),

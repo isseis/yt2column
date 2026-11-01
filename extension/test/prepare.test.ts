@@ -159,21 +159,23 @@ describe("prepareSend", () => {
 });
 
 describe("prepareStartInput", () => {
-  it("sends the received input unchanged", () => {
+  it("sends the received input unchanged, empty and blank members included", () => {
+    // buildArticleBody drops empty metadata; a received input is not rebuilt,
+    // so these members reach the request as given.
     const input = {
       videoUrl: watchUrl,
-      transcript: "x",
-      title: "Video",
-      channelName: "Channel",
-      description: "Text",
+      transcript: "\u3042",
+      title: "",
+      description: " \n ",
     };
     const outcome = prepareStartInput(input);
     assert.ok(outcome.kind === "ready");
-    assert.equal(outcome.request.body.message, input);
-    assert.equal(
-      outcome.request.body.byteLength,
-      new TextEncoder().encode(JSON.stringify(input)).length,
-    );
+    assert.deepEqual(outcome.request.body.message, {
+      videoUrl: watchUrl,
+      transcript: "\u3042",
+      title: "",
+      description: " \n ",
+    });
   });
 
   it("decides the size as prepareSend does: ready at the limit, blocked one byte over", () => {

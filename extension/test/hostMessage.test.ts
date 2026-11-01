@@ -31,19 +31,17 @@ describe("host messages", () => {
     });
   });
 
-  it("builds the status query for a key", () => {
-    assert.deepEqual(statusMessage(key), {
-      v: 1,
-      op: "status",
-      key: "0123456789abcdef0123456789abcdef",
+  const keyMessages = [
+    { op: "status", build: statusMessage },
+    { op: "publish", build: publishMessage },
+  ] as const;
+  for (const { op, build } of keyMessages) {
+    it(`builds the ${op} message for a key`, () => {
+      assert.deepEqual(build(key), {
+        v: 1,
+        op,
+        key: "0123456789abcdef0123456789abcdef",
+      });
     });
-  });
-
-  it("builds the publish operation for a key", () => {
-    assert.deepEqual(publishMessage(key), {
-      v: 1,
-      op: "publish",
-      key: "0123456789abcdef0123456789abcdef",
-    });
-  });
+  }
 });

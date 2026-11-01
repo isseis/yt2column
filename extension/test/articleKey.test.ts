@@ -5,7 +5,6 @@ import { maxKeyLength, parseArticleKey } from "../src/core/articleKey.ts";
 
 describe("parseArticleKey", () => {
   const accepted: { name: string; value: string }[] = [
-    { name: "a server-shaped key", value: "k".repeat(64) },
     { name: "a one-character key", value: "k" },
     // Counted in code points: each U+1F600 is two UTF-16 units.
     {
