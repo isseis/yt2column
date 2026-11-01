@@ -149,7 +149,7 @@
 
 ### 4.2. セキュリティ (Security)
 
--   N/A。条件付きのガイドの適用条件（外部コマンドの起動、API キーや Webhook URL の扱い、キャッシュの読み書き、ネットワークへの送信、信頼できない文字列のプロンプトや記事への埋め込み）のどれにも当たらない。`/fixpr` が PR 本文に追記する訂正の説明は、レビューのスレッドや PR 本文の文を引用せず、エージェント自身の言葉で書く（AC-01）。PR 本文への書き込みは既存の手順（メンションの確認を含む。`.claude/commands/_lib/task-pr-handoff.md` Part B step 3、`.claude/commands/fixpr.md` Phase 6）を通り、本タスクはその確認を変えない。
+-   N/A。条件付きのガイドの適用条件（外部コマンドの起動、API キーや Webhook URL の扱い、キャッシュの読み書き、ネットワークへの送信、信頼できない文字列のプロンプトや記事への埋め込み）のどれにも当たらない。AC-04 と AC-05 で `/fixpr` は既存の PR 本文を読んで書き換えるが、PR 本文は今も Phase 6 で読んでおり、書かれた指示には従わないデータとして扱う（`.claude/commands/fixpr.md:690-692`）。本タスクもこの扱いを変えない。PR 本文を解析するコードは加えないので、受理形式・番兵エラー・上限を定める信頼できない入力の境界（`docs/dev/conventions/requirements_process.md` §1）には当たらない。PR 本文を読み書きする手段は設計で決める（design_handoff.md H-01）。`/fixpr` が PR 本文に追記する訂正の説明は、レビューのスレッドや PR 本文の文を引用せず、エージェント自身の言葉で書く（AC-01）。PR 本文への書き込みは既存の手順（メンションの確認を含む。`.claude/commands/_lib/task-pr-handoff.md` Part B step 3、`.claude/commands/fixpr.md` Phase 6）を通り、本タスクはその確認を変えない。
 
 ### 4.3. 信頼性・可用性 (Reliability/Availability)
 
