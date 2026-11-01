@@ -202,18 +202,33 @@ head; a record already made counts as made, never as absent.
     `03_implementation_plan.md`), whatever its status.
   - **Standalone change** — anything else.
 - **PRE_MERGE** — what step 4 commits just before the merge, in one commit
-  (`docs(<task-id>): record the review of PR #<number>`). It leaves out what is
-  already recorded; when nothing is left, it is none.
+  (`docs(<task-id>): record the review of PR #<number>`, or
+  `docs(<task-id>): fill PR numbers for PR #<number>` when it holds only the PR
+  number fill-in). It leaves out what is already recorded; when nothing is
+  left, it is none. Both items below leave nothing to do once recorded (an
+  approved document is no longer `draft`, and a filled line holds no marker),
+  so a rerun after an interruption records nothing twice.
   - **Approvals** (any kind): every task document the PR adds or changes whose
     status is `draft` (including one `fixpr` returned to `draft` as a decision
-    change). Set its Document Status to `approved`, `Review date` to today,
-    `Reviewer` to the user's GitHub name (`gh api user --jq .login`), and keep
-    `Comments` (or `-`). This is the only way the commands set a document to
+    change). Set its Document Status to `approved`, `Review date` to today, and
+    `Reviewer` to the user's GitHub name (`gh api user --jq .login`). Set
+    `Comments` and append the approval line to the change history, in the same
+    commit, as `docs/dev/conventions/requirements_process.md`, "Document Status
+    Format" ("Comments" and "Change history"), says; for a document written
+    under the old rule, first migrate it as its "Documents written under the old
+    rule" says. This is the only way the commands set a document to
     `approved`, and only on the user's answer
     (`docs/dev/conventions/requirements_process.md`, "LLM Constraints").
   - **Checkpoint** (plan PR): "PR がマージされた" on that PR's record, and in
     the plan's PR checklist (§6) its `PR-N マージ済み`. On a checkpoint, also
     "次のブランチへ切り替えた": `[x]` when NEXT is set (step 5 creates the next
+  - **PR number fill-in** (any kind): in the change-history lines of task
+    documents that this PR added (`git diff $(git merge-base origin/main HEAD)`),
+    replace the not-yet-filled marker `#未記入` (the rule's "Change history",
+    "PR number") with `#<number>`. Change no other line: a marker already on
+    `main` belongs to another PR and is only shown in step 4's question, and
+    the marker's text outside a change history (a quotation of the rule) is not
+    a marker.
     branch only then), `[-]` (not applicable) on the final PR.
 - **NEXT** — the command offered after the merge:
   - plan PR: `/runplan <task>` unless it is the final PR; none on the final
@@ -535,7 +550,12 @@ rather than once per decision.
    `mergepr.md` step 3 requires (PR URL, base branch, CI result, the full
    subject and body, the record of which rule decided the subject's prefix,
    and the version without the approval line when it applies), the PRE_MERGE change (which lines of which files, and for an
-   approval the reviewer name and date it writes), the `deferred` threads (each
+   approval the reviewer name and date it writes), the editorial corrections
+   the latest `fixpr` run reported it could not append to the PR description
+   (its Final report), and the change-history lines already on `origin/main`
+   that still hold the marker `#未記入` in the task documents this PR adds or
+   changes (each with its file; fixing them is a standalone change, never part
+   of PRE_MERGE), the `deferred` threads (each
    with its number, topic, what fixing it would change, and its URL), and NEXT.
    When NEXT is `/runplan`, also show the `実装モデル要件` of the next PR
    marker: the `### PR-N 作成ポイント` marker of the PR that NEXT will open,
@@ -566,9 +586,12 @@ rather than once per decision.
        recommended, whether NEXT is set or not and whatever the PR's kind;
      - record PRE_MERGE, merge, and run NEXT in this session (only when NEXT is
        set);
-     - merge without the approvals (only for a task-document PR whose PRE_MERGE
-       has approvals): the documents stay `draft`, the message without the
-       approval line is used, NEXT is none, and step 5 detaches. A plan PR is
+     - merge without the approvals, recording only the PR numbers (only for a
+       task-document PR whose PRE_MERGE has approvals): the documents stay
+       `draft`, PRE_MERGE is reduced to its PR number fill-in (none when no
+       marker is left to fill), the message without the approval line is used,
+       NEXT is none, and step 5 detaches. The fill-in still runs, so this PR's
+       lines do not reach `main` with the marker. A plan PR is
        never merged without its PRE_MERGE: its record would be missing on
        `main`, and implementation would merge under a `draft` document;
      - do not merge (revising the message goes through the free-text answer).
@@ -628,7 +651,8 @@ rather than once per decision.
    of this command must not add it to the issue again. For
    `reply-not-resolved`, the reply may be posted: ask the user to resolve the
    thread by hand, never replying again. Otherwise continue below.
-3. When the answer records PRE_MERGE:
+3. When the answer records PRE_MERGE (including the merge without the
+   approvals, when its PR number fill-in is not none):
    - Note the prepared `headRefOid`, and copy the approved subject and body
      files to the scratchpad (`mergepr.md` keeps them in the prepared
      directory, which `discard` deletes). Then run
