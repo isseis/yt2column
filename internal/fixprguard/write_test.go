@@ -93,9 +93,9 @@ func TestBodyFileChecks(t *testing.T) {
 	}
 }
 
-// TestCommitBodyChecks holds the boundary of the accepted forms: one line or
-// several, ending in no LF or one, but not two. The other rejections are
-// TestFinishRejectsBodyFile's rows, through finish.
+// TestCommitBodyChecks holds the boundary of the trailing LFs: none and one
+// are accepted, two are not. TestFinishCommitBody passes the other accepted
+// forms through finish, and TestFinishRejectsBodyFile the other rejections.
 func TestCommitBodyChecks(t *testing.T) {
 	const line = "Editorial correction: docs/x.md: a; no decision changed"
 	for _, tc := range []struct {
@@ -104,15 +104,17 @@ func TestCommitBodyChecks(t *testing.T) {
 		wantErr bool
 	}{
 		{name: "one_line", body: line},
-		{name: "one_line_lf", body: line + "\n"},
-		{name: "two_lines", body: line + "\n" + line},
 		{name: "two_lines_lf", body: line + "\n" + line + "\n"},
 		{name: "two_lfs", body: line + "\n\n", wantErr: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			err := checkCommitBody(tc.body)
-			if tc.wantErr != errors.Is(err, ErrInvalidInput) || (!tc.wantErr && err != nil) {
-				t.Errorf("checkCommitBody(%q) = %v, want error %t", tc.body, err, tc.wantErr)
+			if tc.wantErr {
+				if !errors.Is(err, ErrInvalidInput) {
+					t.Errorf("checkCommitBody(%q) = %v, want ErrInvalidInput", tc.body, err)
+				}
+			} else if err != nil {
+				t.Errorf("checkCommitBody(%q) = %v, want nil", tc.body, err)
 			}
 		})
 	}
@@ -665,14 +667,6 @@ func TestAppendPR(t *testing.T) {
 			t.Errorf("wrote %d bytes, want %d", got, maxTextFileBytes)
 		}
 	})
-	t.Run("gh_failure", func(t *testing.T) {
-		step := appendStep()
-		step.Err = &cmdrunner.ExitError{Code: ghExitFailure}
-		g, _ := newTestGitHub(t, viewBodyStep(bodyResponse(t, "x")), step)
-		if err := g.AppendPR(t.Context(), appendRequest(t, appended)); !errors.Is(err, ErrResponseRejected) {
-			t.Errorf("AppendPR = %v, want ErrResponseRejected", err)
-		}
-	})
 }
 
 // TestAppendPRRejects: a file AppendPR refuses stops it before gh runs; a
@@ -686,7 +680,6 @@ func TestAppendPRRejects(t *testing.T) {
 	for name, text := range map[string]string{
 		"at_sign":            "see a@b\n",
 		"angle_bracket":      "<!-- hidden -->\n",
-		"mention":            "ask @Codex\n",
 		"rejected_as_a_file": "",
 	} {
 		t.Run("file/"+name, func(t *testing.T) {
@@ -696,6 +689,14 @@ func TestAppendPRRejects(t *testing.T) {
 			}
 		})
 	}
+	t.Run("file/mention", func(t *testing.T) {
+		// The '@' rule would refuse a mention too; errCodexMention shows the
+		// mention check itself refused it.
+		g, _ := newTestGitHub(t)
+		if err := g.AppendPR(t.Context(), appendRequest(t, "ask @Codex\n")); !errors.Is(err, errCodexMention) {
+			t.Errorf("AppendPR = %v, want errCodexMention", err)
+		}
+	})
 	t.Run("zero_pr", func(t *testing.T) {
 		g, _ := newTestGitHub(t)
 		req := appendRequest(t, appended)
@@ -705,18 +706,29 @@ func TestAppendPRRejects(t *testing.T) {
 		}
 	})
 	overCap := marker + strings.Repeat("a", maxTextFileBytes-len("\n\n")-len(appended)-len(marker)+1)
-	for name, current := range map[string]string{
-		"over_size_cap":   overCap,
-		"current_mention": "## Summary\n" + marker + " @codex review\n",
+	for name, row := range map[string]struct {
+		current string
+		want    error
+	}{
+		"over_size_cap":   {overCap, ErrInvalidInput},
+		"current_mention": {"## Summary\n" + marker + " @codex review\n", errCodexMention},
 	} {
 		t.Run("result/"+name, func(t *testing.T) {
-			g, _ := newTestGitHub(t, viewBodyStep(bodyResponse(t, current)))
+			g, _ := newTestGitHub(t, viewBodyStep(bodyResponse(t, row.current)))
 			err := g.AppendPR(t.Context(), appendRequest(t, appended))
-			if !errors.Is(err, ErrInvalidInput) || strings.Contains(err.Error(), marker) {
-				t.Errorf("AppendPR = %v, want ErrInvalidInput without the body", err)
+			if !errors.Is(err, row.want) || strings.Contains(err.Error(), marker) {
+				t.Errorf("AppendPR = %v, want %v without the body", err, row.want)
 			}
 		})
 	}
+	t.Run("edit_fails", func(t *testing.T) {
+		step := appendStep()
+		step.Err = &cmdrunner.ExitError{Code: ghExitFailure}
+		g, _ := newTestGitHub(t, viewBodyStep(bodyResponse(t, "x")), step)
+		if err := g.AppendPR(t.Context(), appendRequest(t, appended)); !errors.Is(err, ErrResponseRejected) {
+			t.Errorf("AppendPR = %v, want ErrResponseRejected", err)
+		}
+	})
 	failed := viewBodyStep("")
 	failed.Err = &cmdrunner.ExitError{Code: ghExitFailure, Stderr: []byte(marker)}
 	for name, view := range map[string]cmdrunnertestutil.Step{

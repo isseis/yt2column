@@ -404,7 +404,6 @@ func TestFinishCommitBody(t *testing.T) {
 // any make target (the fake has no step) and before any commit.
 func TestFinishRejectsBodyFile(t *testing.T) {
 	for name, body := range map[string]string{
-		"mention":             correction + " @codex\n",
 		"other_line":          correction + "\nSigned-off-by: x\n",
 		"no_description":      "Editorial correction:  \n",
 		"at_sign":             correction + " a@b\n",
@@ -414,7 +413,6 @@ func TestFinishRejectsBodyFile(t *testing.T) {
 		"bidi_override":       correction + " a\u202eb\n",
 		"noncharacter":        correction + " a\ufffeb\n",
 		"empty_line":          correction + "\n\n" + correction + "\n",
-		"two_trailing_lfs":    correction + "\n\n",
 		"rejected_as_a_file":  "",
 		"leading_empty_line":  "\n" + correction + "\n",
 		"prefix_not_at_start": " " + correction + "\n",
@@ -429,6 +427,17 @@ func TestFinishRejectsBodyFile(t *testing.T) {
 			p.wantNoCommit(t, head)
 		})
 	}
+	t.Run("mention", func(t *testing.T) {
+		// The '@' rule would refuse a mention too; errCodexMention shows the
+		// mention check itself refused it.
+		p := prepareRound(t, fixTestFile)
+		head := p.r.Head()
+		_, _, err := p.finishBody(t, writeTextFile(t, correction+" @codex\n"))
+		if !errors.Is(err, errCodexMention) {
+			t.Errorf("Finish = %v, want errCodexMention", err)
+		}
+		p.wantNoCommit(t, head)
+	})
 	t.Run("checked_before_the_work_tree", func(t *testing.T) {
 		// The work tree no longer matches the judged set, so a comparison
 		// made first would stop with a judged-set change instead.

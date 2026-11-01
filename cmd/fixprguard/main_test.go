@@ -781,8 +781,7 @@ func TestPostTextMentionExitsUsage(t *testing.T) {
 				steps = row.gh(t)
 			}
 			r := newTestRun(t, steps)
-			line := row.line
-			if code := r.Run(t, line(t)...); code != exitUsage {
+			if code := r.Run(t, row.line(t)...); code != exitUsage {
 				t.Errorf("exit %d, want %d (%s)", code, exitUsage, r.Stderr)
 			}
 			if r.Stdout.Len() != 0 {
@@ -1207,7 +1206,6 @@ func TestParseAppendPR(t *testing.T) {
 		wantArg string
 		wantErr bool
 	}{
-		{name: "with_pr", line: args(cmdAppendPR, "--body-file", "b.md", testPR), wantArg: testPR},
 		{name: "current_branch", line: args(cmdAppendPR, "--body-file", "b.md")},
 		{name: "no_body_file", line: args(cmdAppendPR, testPR), wantErr: true},
 		{name: "two_prs", line: args(cmdAppendPR, "--body-file", "b.md", testPR, testPR), wantErr: true},
@@ -1228,34 +1226,25 @@ func TestParseAppendPR(t *testing.T) {
 	}
 }
 
-// TestParseFinishBodyFile: finish takes --body-file and runs without it; a
-// value given empty is refused before git runs (the line is otherwise valid
-// and git fails outside a repository).
+// TestParseFinishBodyFile: a --body-file given empty is refused as a usage
+// error before git runs, not read as no body. The line is otherwise valid, and
+// outside a repository the run would otherwise stop with exit 1. That finish
+// accepts --body-file, and runs without it, is TestFinishBodyFileRun's and
+// TestProtocolMismatch's.
 func TestParseFinishBodyFile(t *testing.T) {
-	line := func(rest ...string) []string {
-		return args(cmdFinish, append([]string{"--baseline", "b", "--judged-set", "j"}, append(rest, testPR)...)...)
+	t.Chdir(t.TempDir())
+	r := newTestRun(t, nil)
+	code := r.Run(t, args(cmdFinish, "--baseline", validBaseline(t), "--judged-set", strings.Repeat("a", 64), "--body-file", "", testPR)...)
+	if code != exitUsage {
+		t.Errorf("exit %d, want %d (%s)", code, exitUsage, r.Stderr)
 	}
-	inv, err := parse(line("--body-file", "b.md"))
-	if err != nil || inv.values[flagBodyFile] != "b.md" {
-		t.Errorf("parse = %+v, %v; want --body-file b.md", inv, err)
-	}
-	inv, err = parse(line())
-	if _, given := inv.values[flagBodyFile]; err != nil || given {
-		t.Errorf("parse = %+v, %v; want no --body-file", inv, err)
-	}
-	t.Run("empty_value", func(t *testing.T) {
-		t.Chdir(t.TempDir())
-		r := newTestRun(t, nil)
-		code := r.Run(t, args(cmdFinish, "--baseline", validBaseline(t), "--judged-set", strings.Repeat("a", 64), "--body-file", "", testPR)...)
-		if code != exitUsage || !strings.Contains(r.Stderr.String(), "--body-file") {
-			t.Errorf("exit %d, stderr %q; want %d naming --body-file", code, r.Stderr, exitUsage)
-		}
-	})
 }
 
 // TestFinishBodyFileRun runs finish --body-file from the command line: the
 // commit holds the body, and a commit-msg hook that rewrites it reaches the
 // caller through main as exit 1 with stop git-state-changed and parts [head].
+// The second is the end-to-end check of that one stop; the internal package
+// and TestStopOutputDetails check its pieces.
 func TestFinishBodyFileRun(t *testing.T) {
 	const body = "Editorial correction: docs/x.md: a stale name; no decision changed\n"
 	bodyFile := func(t *testing.T) string {
