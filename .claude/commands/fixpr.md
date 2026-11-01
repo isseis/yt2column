@@ -78,7 +78,8 @@ GitHub. Its subcommands, outputs, and stop kinds are in
 - The tool prints no thread body except inside the fenced block of `begin`'s
   `threads`, and only for the threads to process.
 - Files this session writes for the tool (the triage output for `fence`, reply
-  bodies, the PR title and body) go in a directory outside the work tree: this
+  bodies, the PR title and body, the correction lines for `finish`, and the
+  correction paragraph for `append-pr`) go in a directory outside the work tree: this
   session's scratchpad directory, or one made with `mktemp -d`. Never write
   them inside the repository, whose changes Phase 3.5 checks. Write them with
   the Write tool.
@@ -579,16 +580,31 @@ both `valid` and `off-level` were empty in Phase 2.
 Push here, before the reply phase, so a reviewer asked to re-check sees the fix
 on the remote branch (not the pre-fix revision).
 
-1. Run the build checks and commit:
+1. When items remain from Phase 3's correction list, write their correction
+   lines, one per item in the form
+   `docs/dev/conventions/requirements_process.md`, "Recording in the PR
+   description", gives, to a body file outside the work tree ("The guard
+   tool"): the commit carries them, and the push takes them to GitHub.
+   **Mention check.** Before posting, run `grep -qiF -- '<review-mention>' <file>`
+   on each file of text to post. Post only when it exits `1` for every file: exit
+   code `0` means the text contains the mention, and any other code means the
+   check failed. Never rewrite the text to get past the check. When the check fails, drop every item, keep them for the Final
+   report, and write no body file. With no item left, there is no file to
+   check: skip the check.
+
+   Run the build checks and commit, without `--body-file` when there is no
+   body file:
 
    ```
    fixprguard finish --protocol 4 --baseline <baseline> --judged-set <judgedSet> <number>
+   fixprguard finish --protocol 4 --baseline <baseline> --judged-set <judgedSet> --body-file <correction-file> <number>
    ```
 
    It checks that the work tree still matches the judged set and the git state
    the baseline, runs `make fmt`, `make test`, and `make lint` (fixed in the
    tool), checks the match again, stages only the judged paths, and commits
-   them with the subject `fix: address PR #NUMBER review comments`. Its output
+   them with the subject `fix: address PR #NUMBER review comments` (and, with
+   `--body-file`, the file's lines as the body). Its output
    `committed` says whether a commit was made (`false` when there was nothing
    to commit), and `commit` is its SHA.
    - On a stop, the phase failed: report it and stop; do not run Phase 4.5, 5,
@@ -601,6 +617,13 @@ on the remote branch (not the pre-fix revision).
      commit was made, compare `git log -1 --format=%s` with the round's
      subject and HEAD with the baseline's commit; if a commit was made, tell
      the user to examine that commit and undo it.
+   - Exit code `2` stops before the build checks, with the fix left in the
+     work tree. Report its one-line diagnostic. When the diagnostic contains
+     `flag provided but not defined: -body-file`, the installed tool predates
+     `--body-file`: tell the user to run `make install-fixprguard` from an
+     up-to-date `main` and run `/fixpr` again after examining the work tree
+     (the next run stops with `dirty-work-tree` until the fix is committed or
+     discarded).
 2. Only if a commit was made, push it:
 
    ```
