@@ -243,7 +243,7 @@
 **変更するファイル:** `CLAUDE.md`、本書（記録）
 
 -   [x] `CLAUDE.md`「Development Notes」の text-sync guards の一覧の「the configuration block and Quick start links of both READMEs」から「Quick start links」を外す（設計書 3.7。`db9986c6` の `:531-532`。PR-1 で行がずれるので、文で探す）。「the configuration block」は残す。
--   [ ] `scope -pr 2`・`tests` を PR の merge-base と head で実行して通ることを確かめ、出力と 2 つのコミットを 7 章の該当の行に記録する。PR-3 で取り除く名前は PR-2 の head に残っているのが正しいので、`tests` の残存の検査の対象にしない（1.6）。`tests` が一覧として出すコメントと文書の中の名前は、PR のレビューで読むものとして PR の説明に載せる（AC-20）。
+-   [x] `scope -pr 2`・`tests` を PR の merge-base と head で実行して通ることを確かめ、出力と 2 つのコミットを 7 章の該当の行に記録する。PR-3 で取り除く名前は PR-2 の head に残っているのが正しいので、`tests` の残存の検査の対象にしない（1.6）。`tests` が一覧として出すコメントと文書の中の名前は、PR のレビューで読むものとして PR の説明に載せる（AC-20）。
 -   [ ] PR の説明に、設計書 3.1.1〜3.1.3 の判定の一覧の行（AC-04）、3.3 の K4・K5 の対応表のうち PR-2 が触れる行（AC-02）、ステップ 2-2・2-3 のカバレッジの比較の結果（AC-11）を載せる。
 
 **フェーズ 2 の完了の条件:** `make test`、`make lint`、`make deadcode`、`make ext-check` が通る（AC-14）。`scope`・`tests` の実行の記録が本書にある。
@@ -467,6 +467,125 @@
 -   **`guards -final`:** PR-3 で使う。`1eac7553` に対しては、テストが `internal/doctestutil` を import するパッケージを `./cmd/codexreview`・`./cmd/fixprguard`・`./cmd/yt2column`・`./cmd/yt2column-server` と数え、`./internal/pipeline` を欠くので、`NG the guard commands do not name the packages whose tests read documents through doctestutil` で終了コード 1 になった。`internal/pipeline` は PR-3 の置き換え（設計書 3.4.2）で `doctestutil` を import するので、`-final` は PR-3 で通る。
 
 -   **AC-14（`1eac7553`）:** `make test`、`make lint`、`make deadcode`、`make ext-check` が通った。`make ext-check` は `extension/.node-version` のとおり Node.js 24.21.0 で実行した（手元の既定の Node.js 26.12.0 は `Makefile` の版の確認で止まる）。node のテストは 975 件が通り、失敗はない。
+
+### 7.2. PR-2 の一度きりの確かめの実行の記録（2026-11-01）
+
+-   **`scope`:** `go run -tags test ./docs/tasks/0052_doc_test_pruning/_checks/scope/ -pr 2 af49e4c3 fab2b54a`。比べたコミットは merge-base `af49e4c3`（`origin/main`）と head `fab2b54a`（ステップ 2-4 の `CLAUDE.md` のコミット）。出力:
+
+    ```
+    pull request 2
+    merge-base   af49e4c35914888c7a0205582d94e5f9a020d86c
+    head         fab2b54a7f565070fdc5c095421c2fedadef16f9
+    ---- changed files
+    OK   CLAUDE.md
+    OK   cmd/yt2column/codex_review_docs_test.go
+    OK   cmd/yt2column/docs_test.go
+    OK   cmd/yt2column/fixpr_docs_test.go
+    OK   cmd/yt2column/readme_structure_test.go
+    OK   cmd/yt2column/run_test.go
+    OK   docs/tasks/0052_doc_test_pruning/03_implementation_plan.md
+    OK   docs/tasks/0052_doc_test_pruning/_checks/coverage/main.go
+    OK   docs/tasks/0052_doc_test_pruning/_checks/tests/main.go
+    OK   internal/config/test_helpers.go
+    OK   internal/doctestutil/readme.go
+    OK   every changed file is in the pull request's change set
+    OK   every sentence of the CLAUDE.md policy section is still there
+    ```
+
+    この記録を加えるコミットと、その後のレビューの修正のコミットは、本書と `_checks/` のほかは、`scope` が PR-2 に許すファイルだけを変える。PR の説明に、PR の head での実行結果を記す。
+
+-   **`tests`:** `go run -tags test ./docs/tasks/0052_doc_test_pruning/_checks/tests/ af49e4c3 fab2b54a`。終了コード 0。出力:
+
+    ```
+    merge-base   af49e4c35914888c7a0205582d94e5f9a020d86c
+    head         fab2b54a7f565070fdc5c095421c2fedadef16f9
+    ---- removed declarations: 29
+    OK   cmd/yt2column/codex_review_docs_test.go::commandDocs
+    OK   cmd/yt2column/codex_review_docs_test.go::commandsDir
+    OK   cmd/yt2column/docs_test.go::TestMigrationDocsContract
+    OK   cmd/yt2column/docs_test.go::TestNumberedItems
+    OK   cmd/yt2column/docs_test.go::TestProductionProfileLinks
+    OK   cmd/yt2column/docs_test.go::TestQuickStartLinks
+    OK   cmd/yt2column/docs_test.go::checkMigrationSection
+    OK   cmd/yt2column/docs_test.go::numberedItemRE
+    OK   cmd/yt2column/docs_test.go::numberedItems
+    OK   cmd/yt2column/docs_test.go::pricingRatesPath
+    OK   cmd/yt2column/docs_test.go::promptsReadmePath
+    OK   cmd/yt2column/docs_test.go::reviewEvaluationPath
+    OK   cmd/yt2column/fixpr_docs_test.go::TestReadmeSyncStepPlacement
+    OK   cmd/yt2column/fixpr_docs_test.go::mktransPath
+    OK   cmd/yt2column/fixpr_docs_test.go::numbered
+    OK   cmd/yt2column/fixpr_docs_test.go::readmeSyncIn
+    OK   cmd/yt2column/fixpr_docs_test.go::readmeSyncMarker
+    OK   cmd/yt2column/readme_structure_test.go::TestReadmeVersionLinks
+    OK   cmd/yt2column/readme_structure_test.go::beforeFirstHeading
+    OK   cmd/yt2column/readme_structure_test.go::linksTo
+    OK   cmd/yt2column/run_test.go::TestRunEvaluationProcedureFlags
+    OK   cmd/yt2column/run_test.go::evaluationProcedureCommands
+    OK   cmd/yt2column/run_test.go::fencedCode
+    OK   cmd/yt2column/run_test.go::procedureArgs
+    OK   internal/config/test_helpers.go::DeepSeekAPIKeyEnvForTest
+    OK   internal/doctestutil/readme.go::ReadmeConfigurationHeading
+    OK   internal/doctestutil/readme.go::ReadmeMigrationHeading
+    OK   internal/doctestutil/readme.go::ReadmeQuickStartHeading
+    OK   internal/doctestutil/readme.go::ReadmeRequirementsHeading
+    ---- changed declarations: 6
+    OK   cmd/yt2column/codex_review_docs_test.go::TestCodeRabbitConfigStopsReview
+    OK   cmd/yt2column/codex_review_docs_test.go::TestCodexMentionOnlyInRequestRow
+    OK   cmd/yt2column/codex_review_docs_test.go::TestPostingCommandsInventory
+    OK   cmd/yt2column/docs_test.go::TestCostDocsContract
+    OK   cmd/yt2column/docs_test.go::TestProductionProfileDocsContract
+    OK   cmd/yt2column/docs_test.go::TestSlackDocsContract
+    ---- added declarations: 0
+    OK   every changed declaration is on the change list
+    ---- names removed in this range: 29
+         cmd/yt2column/docs_test.go::TestMigrationDocsContract
+         cmd/yt2column/docs_test.go::TestQuickStartLinks
+         cmd/yt2column/docs_test.go::TestProductionProfileLinks
+         cmd/yt2column/readme_structure_test.go::TestReadmeVersionLinks
+         cmd/yt2column/run_test.go::TestRunEvaluationProcedureFlags
+         cmd/yt2column/fixpr_docs_test.go::TestReadmeSyncStepPlacement
+         cmd/yt2column/docs_test.go::checkMigrationSection
+         cmd/yt2column/docs_test.go::numberedItems
+         cmd/yt2column/docs_test.go::numberedItemRE
+         cmd/yt2column/docs_test.go::TestNumberedItems
+         cmd/yt2column/docs_test.go::promptsReadmePath
+         cmd/yt2column/docs_test.go::reviewEvaluationPath
+         cmd/yt2column/docs_test.go::pricingRatesPath
+         cmd/yt2column/readme_structure_test.go::beforeFirstHeading
+         cmd/yt2column/readme_structure_test.go::linksTo
+         cmd/yt2column/run_test.go::evaluationProcedureCommands
+         cmd/yt2column/run_test.go::fencedCode
+         cmd/yt2column/run_test.go::procedureArgs
+         cmd/yt2column/fixpr_docs_test.go::readmeSyncIn
+         cmd/yt2column/fixpr_docs_test.go::readmeSyncMarker
+         cmd/yt2column/fixpr_docs_test.go::mktransPath
+         cmd/yt2column/fixpr_docs_test.go::numbered
+         internal/doctestutil/readme.go::ReadmeMigrationHeading
+         internal/doctestutil/readme.go::ReadmeQuickStartHeading
+         internal/doctestutil/readme.go::ReadmeRequirementsHeading
+         internal/doctestutil/readme.go::ReadmeConfigurationHeading
+         internal/config/test_helpers.go::DeepSeekAPIKeyEnvForTest
+         cmd/yt2column/codex_review_docs_test.go::commandsDir
+         cmd/yt2column/codex_review_docs_test.go::commandDocs
+    OK   no name removed in this range remains as an identifier
+    ---- mentions in comments and documents, to read: 6
+    LIST internal/codexreview/message.go:38:2: numbered: // numberedItem is a numbered list marker at the start of a line.
+    LIST internal/publisher/testutil/integration.go:175:1: numbered: // followed by numbered lines, cut at n. The body never ends with a newline,
+    LIST numbered: .claude/commands/fixpr.md:247:next numbered item (`H-NN` in `design_handoff.md`, `I-NN` in
+    LIST numbered: extension/src/core/i18n/catalog.ts:8:/** The shape of a message: a sentence and optional numbered steps. */
+    LIST numbered: extension/src/ui/render.ts:28: * The message text and, when present, its numbered steps; textContent only.
+    LIST numbered: extension/static/style.css:173:/* The message text and its numbered steps; the warning row's reason and
+    ```
+
+    一覧として出た 6 件は、どれも普通の英語の `numbered`（番号付きの）で、取り除いた補助 `numbered` を指さない。PR-3 で取り除く名前（`TestInterfaceDocComments`・`interfaceDoc`・`hasCJK`・`markdownSections`・`TestInstallTargetDocumented`）は、この範囲で消えていないので、残存の検査の対象にならない（1.6）。
+
+-   **カバレッジの比較（AC-11）:** 設計書 7.1 のコマンド（`go test -tags test -count=1 -coverpkg=./... -coverprofile=<file> ./...` と `go tool cover -func=<file>`）の出力を `coverage` で比べた。
+    -   ステップ 2-2: 前は `af49e4c3`、後は取り除いた作業ツリー。1068 の製品のコードの関数のうち、`internal/cmdrunner/runner.go:286` の `signalGroup`（100.0% → 66.7%）だけが違った。`af49e4c3` で、取り除くテストと一部を削除するテストだけに `-run` で絞って測ると `signalGroup` は 0.0% だったので、違いは設計書 7.1 の揺れである。変更のない `af49e4c3` を 2 回測った結果も、同じ関数だけで違った（66.7% と 100.0%）。
+    -   ステップ 2-3: 前はステップ 2-2 の後、後は置き換えた作業ツリー。1068 の関数がすべて同じだった。
+    -   カバレッジ付きの実行のうち 2 回は、変更と関係しない `internal/transcript` の `TestCommandExecutorDrainsStderr`（2 秒の打ち切りのある、時間に依存するテスト）が落ちた。設計書 7.1 のとおり無効な結果として捨て、取り直した。
+
+-   **AC-14（`fab2b54a`）:** `make test`、`make lint`、`make deadcode`、`make ext-check` が通った。`make ext-check` は Node.js 24.21.0 で実行し、node のテストは 975 件が通り、失敗はない。
 
 ## 8. 成功基準 (Success Criteria)
 
