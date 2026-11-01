@@ -181,8 +181,8 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **変更するファイル:** `src/core/strictJson.ts`（新規）、`test/strictJson.test.ts`（新規）
 
--   [ ] 設計書 3.2 の `JsonValue`・`StrictJsonError`・`parseStrictJson` と、表の 6 つの規則を作る。`StrictJsonError` の種類が `exchange.ts` の `UnexpectedCheck` に含まれることを、型の検査で確かめる形にする（設計書 3.3）。
--   [ ] テスト: 表の規則ごとに、拒否する入力と受理する入力を置く。1.4 の Go の拒否の表の 9 行の入力を、同じバイト列で拒否する。重複したメンバ（入れ子の中も）と BOM は、拡張の側だけの行として置く。深さの上限の境目（16 段と 17 段）も置く。
+-   [x] 設計書 3.2 の `JsonValue`・`StrictJsonError`・`parseStrictJson` と、表の 6 つの規則を作る。`StrictJsonError` の種類が `exchange.ts` の `UnexpectedCheck` に含まれることを、型の検査で確かめる形にする（設計書 3.3）。
+-   [x] テスト: 表の規則ごとに、拒否する入力と受理する入力を置く。1.4 の Go の拒否の表の 9 行の入力を、同じバイト列で拒否する。重複したメンバ（入れ子の中も）と BOM は、拡張の側だけの行として置く。深さの上限の境目（16 段と 17 段）も置く。
 
 **完了の条件:** `make ext-check` と `make test`（`TestSharedTokenRemoved`）が通る。重複したメンバの検査を外すように壊し、重複のテストが失敗することを確かめる。
 
