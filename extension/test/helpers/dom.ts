@@ -8,6 +8,7 @@ import type { Message } from "../../src/core/i18n/catalog.ts";
 import { locales } from "../../src/core/i18n/locale.ts";
 import type { Locale } from "../../src/core/i18n/locale.ts";
 import type { PopupElements } from "../../src/ui/render.ts";
+import type { ViewerElements } from "../../src/ui/renderViewer.ts";
 import { extensionDir } from "./paths.ts";
 
 /** A fresh container element in its own document. */
@@ -61,6 +62,33 @@ export function popupElements(doc = popupDocument()): PopupElements {
     action: byId(doc, "action"),
     primary,
     status: byId(doc, "status"),
+  };
+}
+
+/** The viewer's skeleton elements in doc, by default a fresh copy of the shipped viewer.html. */
+export function viewerElements(doc = viewerDocument()): ViewerElements {
+  const win = doc.defaultView;
+  assert.ok(win !== null);
+  const button = (id: string): HTMLButtonElement => {
+    const element = byId(doc, id);
+    assert.ok(element instanceof win.HTMLButtonElement, id);
+    return element;
+  };
+  const videoLink = byId(doc, "video-link");
+  assert.ok(videoLink instanceof win.HTMLAnchorElement, "video-link");
+  return {
+    heading: byId(doc, "heading"),
+    channel: byId(doc, "channel"),
+    videoLink,
+    state: byId(doc, "state"),
+    stateStatus: byId(doc, "state-status"),
+    article: byId(doc, "article"),
+    actions: byId(doc, "actions"),
+    publish: button("publish"),
+    publishRow: byId(doc, "publish-row"),
+    save: button("save"),
+    copy: button("copy"),
+    actionStatus: byId(doc, "action-status"),
   };
 }
 

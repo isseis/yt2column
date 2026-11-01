@@ -429,8 +429,8 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **変更するファイル:** `src/ui/renderViewer.ts`（新規）、`test/renderViewer.test.ts`（新規）
 
--   [ ] `renderViewer.ts` に、見出し・チャンネル名・元動画へのリンク・`ViewerState` ごとの状態・記事・投稿と保存とコピーの操作・操作の結果を描く関数を作る（設計書 3.6・3.9・3.12・3.14）。投稿のボタンは `publishControl` の結果で `disabled` と表示を決める。状態の領域には、表示が変わったときだけ書く。
--   [ ] テスト: `ViewerState` の各種類の要素と文言、AC-26 のリンクの属性、AC-27 の見出しとチャンネル名、`PublishRow` の各行の `disabled` と表示（AC-28・AC-32）、`lost` で記事と保存・コピーを残すこと（AC-15）、DOM の順（AC-44）、2 つの状態の領域の書き分け（AC-47）、ロード中の表示と文言（AC-52）。
+-   [x] `renderViewer.ts` に、見出し・チャンネル名・元動画へのリンク・`ViewerState` ごとの状態・記事・投稿と保存とコピーの操作・操作の結果を描く関数を作る（設計書 3.6・3.9・3.12・3.14）。投稿のボタンは `publishControl` の結果で `disabled` と表示を決める。状態の領域には、表示が変わったときだけ書く。
+-   [x] テスト: `ViewerState` の各種類の要素と文言、AC-26 のリンクの属性、AC-27 の見出しとチャンネル名、`PublishRow` の各行の `disabled` と表示（AC-28・AC-32）、`lost` で記事と保存・コピーを残すこと（AC-15）、DOM の順（AC-44）、2 つの状態の領域の書き分け（AC-47）、ロード中の表示と文言（AC-52）。
 
 **完了の条件:** `make ext-check` が通る。投稿のボタンの `disabled` を `publishControl` によらず外すように壊し、AC-32 のテストが失敗することを確かめる。
 

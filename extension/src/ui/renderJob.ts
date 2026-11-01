@@ -112,6 +112,30 @@ export function loadingIndicator(
   return indicator;
 }
 
+/**
+ * The steps and their states as one sentence for the state summary, such as
+ * "Draft Done, Shorten In progress, Review Not started".
+ */
+export function stepsSummary(steps: Steps, locale: Locale): string {
+  const catalog = catalogs[locale];
+  return new Intl.ListFormat(locale, { type: "unit" }).format(
+    stepOrder.map(
+      (name) => `${catalog.stepNames[name]} ${catalog.stepStates[steps[name]]}`,
+    ),
+  );
+}
+
+/** The server's request id as text, one click away from a full copy. */
+export function requestIdNode(
+  doc: Document,
+  requestId: RequestId,
+): HTMLParagraphElement {
+  const id = doc.createElement("p");
+  id.className = "send-request-id";
+  id.textContent = requestId;
+  return id;
+}
+
 /** A message followed, when the server gave one, by its request id as text. */
 function messageWithRequestId(
   doc: Document,
@@ -123,10 +147,7 @@ function messageWithRequestId(
   block.className = className;
   block.append(...messageNodes(doc, message));
   if (requestId !== undefined) {
-    const id = doc.createElement("p");
-    id.className = "send-request-id";
-    id.textContent = requestId;
-    block.append(id);
+    block.append(requestIdNode(doc, requestId));
   }
   return block;
 }
