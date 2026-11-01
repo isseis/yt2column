@@ -290,6 +290,16 @@ describe("branded type assertions", () => {
       name: "a namespace reference outside an object type member",
       code: (type) => `${namespace}export type A = ns.${type} | undefined;\n`,
     },
+    {
+      name: "a namespace reference in an indexed access",
+      code: (type) =>
+        `${namespace}export type A = { readonly id: ns.${type} }["id"];\n`,
+    },
+    {
+      name: "a namespace reference in a conditional type",
+      code: (type) =>
+        `${namespace}export type A = string extends number ? { readonly id: ns.${type} } : never;\n`,
+    },
   ];
   for (const { type } of brands) {
     for (const { name, code } of allowedAliases) {

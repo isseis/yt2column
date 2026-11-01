@@ -169,7 +169,7 @@ describe("prepareStartInput", () => {
     };
     const outcome = prepareStartInput(input);
     assert.ok(outcome.kind === "ready");
-    assert.deepEqual(outcome.request.body.message, input);
+    assert.equal(outcome.request.body.message, input);
     assert.equal(
       outcome.request.body.byteLength,
       new TextEncoder().encode(JSON.stringify(input)).length,

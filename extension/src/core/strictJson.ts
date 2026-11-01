@@ -147,7 +147,7 @@ class Reader {
       this.skipWhitespace();
       const value = this.value(depth);
       // Names are compared after their escapes are decoded, so "a" and
-      // "a" are the same member.
+      // "\u0061" are the same member.
       if (members.has(name)) {
         throw new Rejected("duplicate-member");
       }
@@ -263,6 +263,13 @@ class Reader {
       throw new Rejected("syntax");
     }
     this.pos += match[0].length;
+    // The pattern takes the longest valid prefix, so a malformed number such
+    // as 01, 1. or 1e leaves its rest behind; report it as the number's own
+    // syntax error rather than as data after the value.
+    const next = this.text[this.pos];
+    if (next !== undefined && /[0-9.eE]/.test(next)) {
+      throw new Rejected("syntax");
+    }
     return match[0];
   }
 

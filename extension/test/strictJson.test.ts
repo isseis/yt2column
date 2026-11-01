@@ -235,6 +235,16 @@ describe("parseStrictJson", () => {
   });
 
   describe("strings", () => {
+    it("decodes an escaped backslash before u as text, not as a surrogate", () => {
+      // The accepted row of internal/strictjson's TestParseObject.
+      const value = valueOf(parseStrictJson(utf8('"\\\\ud800"')));
+      assert.deepEqual(value, { kind: "string", value: "\\ud800" });
+    });
+
+    expectAccepted([
+      { name: "a raw space and U+007F", bytes: utf8('" \u007F"') },
+    ]);
+
     it("decodes the eight escapes and \\u escapes", () => {
       const value = valueOf(
         parseStrictJson(
@@ -257,6 +267,7 @@ describe("parseStrictJson", () => {
         error: "syntax",
       },
       { name: "a raw line feed", bytes: utf8('"a\nb"'), error: "syntax" },
+      { name: "a raw U+001F", bytes: utf8('"a\u001Fb"'), error: "syntax" },
       {
         name: "a high surrogate followed by a non-surrogate escape",
         bytes: utf8('"\\ud800\\u0041"'),
@@ -276,6 +287,21 @@ describe("parseStrictJson", () => {
     ]);
   });
 
+  describe("literals", () => {
+    expectRejected([
+      { name: "a misspelled true", bytes: utf8("[trux]"), error: "syntax" },
+      { name: "a misspelled null", bytes: utf8("[nulL]"), error: "syntax" },
+      { name: "a misspelled false", bytes: utf8("[falsy]"), error: "syntax" },
+    ]);
+  });
+
+  describe("arrays", () => {
+    expectRejected([
+      { name: "a trailing comma", bytes: utf8("[1,]"), error: "syntax" },
+      { name: "a missing comma", bytes: utf8("[1 2]"), error: "syntax" },
+    ]);
+  });
+
   describe("numbers", () => {
     expectRejected([
       { name: "a leading plus", bytes: utf8("[+1]"), error: "syntax" },
@@ -283,6 +309,8 @@ describe("parseStrictJson", () => {
       { name: "a bare fraction", bytes: utf8("[.5]"), error: "syntax" },
       { name: "a trailing point", bytes: utf8("[1.]"), error: "syntax" },
       { name: "NaN", bytes: utf8("[NaN]"), error: "syntax" },
+      { name: "a top-level leading zero", bytes: utf8("01"), error: "syntax" },
+      { name: "a top-level bare exponent", bytes: utf8("1e"), error: "syntax" },
     ]);
     expectAccepted([
       { name: "zero", bytes: utf8("0") },

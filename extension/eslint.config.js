@@ -131,8 +131,10 @@ function brandSelectors(names) {
     // interface may: { readonly id: RequestId } names a member, not the brand.
     // Every other position (the brand itself, a union or intersection member,
     // a generic argument) is an alias of the brand and is rejected, and so is
-    // any reference under an indexed access or a conditional type, which can
-    // take the member's type back out.
+    // a reference written directly under an indexed access or a conditional
+    // type. The rule sees only the alias's own syntax: taking a member's type
+    // back out through a second alias (W["id"] for an alias or interface W, or
+    // a generic infer) is not caught, as it is not for an interface.
     {
       selector: `TSTypeAliasDeclaration TSTypeReference[typeName.name=${name}]:not(TSTypeLiteral > TSPropertySignature TSTypeReference)`,
       message: brandMessage,
