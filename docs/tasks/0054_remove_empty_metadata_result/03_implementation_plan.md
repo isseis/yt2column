@@ -197,18 +197,18 @@ N/A（設計書 5 章、7.3 節）。
 
 **`_checks/removal_only.ts` の実行の結果（AC-01・AC-02・AC-03）**
 
-merge-base は `git merge-base origin/main HEAD` の `ed795e8a58e8165f83c9e7953431dbec5432aa2a`、head はスクリプトを加えたコミット `2b0d67db8212cc4c1f25e236a3667435b428c593` である。終了コードは `0` だった。
+merge-base は `git merge-base origin/main HEAD` の `ed795e8a58e8165f83c9e7953431dbec5432aa2a`、head はスクリプトの最後の変更を含むコミット `245029ef7df343bf933d4aa57d4fb2e2ea9532a9` である。終了コードは `0` だった。このコミットより後のコミットは `docs/tasks/0054_remove_empty_metadata_result/` だけを変え、`extension/` を変えない。
 
 ```text
 base ed795e8a58e8165f83c9e7953431dbec5432aa2a
-head 2b0d67db8212cc4c1f25e236a3667435b428c593
+head 245029ef7df343bf933d4aa57d4fb2e2ea9532a9
 PASS: changed files under extension/ are exactly the two files
   changed: extension/src/core/metadata.ts, extension/test/metadata.test.ts
 PASS: each file at head equals the base file with only the removed lines taken out
 PASS: no tracked file under extension/src or extension/test names emptyMetadataResult at head
 ```
 
-失敗を確かめる head の結果は次のとおりである。(b)〜(d) は `git commit-tree` でテストを削除するコミットの上に作った一時的なコミットで、ブランチには載せていない。
+失敗を確かめる head の結果は次のとおりである。(b)〜(e) は `git commit-tree` でテストを削除するコミットの上に作った一時的なコミットで、ブランチには載せていない。
 
 | head | 内容 | 変わったファイル | 削除だけ | 名前がない | 終了コード |
 |---|---|---|---|---|---|
@@ -216,6 +216,7 @@ PASS: no tracked file under extension/src or extension/test names emptyMetadataR
 | (b) | 削除に加えて `extension/src/background.ts` の 1 行を変えた | FAIL | PASS | PASS | `1` |
 | (c) | 削除に加えて `metadata.ts` の `readFailureResult` の宣言の行を変えた | PASS | FAIL | PASS | `1` |
 | (d) | 削除に加えて `metadata.ts` に `// emptyMetadataResult` のコメントの行を加えた | PASS | FAIL | FAIL | `1` |
+| (e) | 削除に加えて `metadata.ts` のファイルのモードだけを `100755` にした（ステップ 1-4 の (a)〜(d) に加えた） | PASS | FAIL | PASS | `1` |
 
 このほか、base と head にテストを削除するコミットを渡すと、取り除く行の並びが 0 か所しか見つからないので、確かめられないとして終了コード `2` で止まった。
 
