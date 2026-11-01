@@ -13,10 +13,11 @@
 //      extension/test/metadata.test.ts.
 //   2. removal only: each of those two files at the base commit, with the
 //      removed lines taken out, equals the file at the head commit byte for
-//      byte. The removed lines are found by their content, not by their line
-//      numbers: in metadata.ts the blank line, the doc comment and the
-//      definition of emptyMetadataResult; in metadata.test.ts the import line
-//      and the blank line followed by describe("emptyMetadataResult").
+//      byte, with the same file mode. The removed lines are found by their
+//      content, not by their line numbers: in metadata.ts the blank line, the
+//      doc comment and the definition of emptyMetadataResult; in
+//      metadata.test.ts the import line and the blank line followed by
+//      describe("emptyMetadataResult").
 //   3. name absent: no file tracked under extension/src or extension/test at
 //      the head commit contains the name emptyMetadataResult.
 //
@@ -70,12 +71,21 @@ function git(...args: string[]): string {
   return execFileSync("git", args, { encoding: "utf8" });
 }
 
-/** The bytes of path at rev as a string, or undefined when rev has no such file. */
+/**
+ * The bytes of path at rev, one character per byte (latin1 decodes every byte
+ * losslessly, so string equality is byte equality), or undefined when rev has
+ * no such file.
+ */
 function show(rev: string, path: string): string | undefined {
   const result = spawnSync("git", ["cat-file", "blob", `${rev}:${path}`], {
-    encoding: "utf8",
+    encoding: "latin1",
   });
   return result.status === 0 ? result.stdout : undefined;
+}
+
+/** The file mode of path at rev (such as 100644), or "" when rev has no such file. */
+function mode(rev: string, path: string): string {
+  return git("ls-tree", rev, "--", path).split(" ")[0] ?? "";
 }
 
 /** The start indexes of every occurrence of run in lines. */
@@ -153,7 +163,18 @@ function check(baseArg: string, headArg: string): void {
   };
 
   // 1. changed files
-  const changed = git("diff", "--name-only", base, head, "--", "extension")
+  // diff-tree is plumbing: user configuration such as diff.renames does not
+  // change its output.
+  const changed = git(
+    "diff-tree",
+    "-r",
+    "--no-renames",
+    "--name-only",
+    base,
+    head,
+    "--",
+    "extension",
+  )
     .split("\n")
     .filter((line) => line !== "")
     .sort();
@@ -168,12 +189,20 @@ function check(baseArg: string, headArg: string): void {
   // 2. removal only
   const differing: string[] = [];
   for (const path of wanted) {
-    const want = expected[path] ?? "";
+    const want = expected[path];
+    if (want === undefined) {
+      throw new Error(`no expected content for ${path}`);
+    }
     const actual = show(head, path);
     if (actual === undefined) {
       differing.push(`${path}: missing at the head commit`);
     } else if (actual !== want) {
       differing.push(`${path}: ${firstDifference(want, actual)}`);
+    }
+    if (actual !== undefined && mode(base, path) !== mode(head, path)) {
+      differing.push(
+        `${path}: mode ${mode(base, path)} at base, ${mode(head, path)} at head`,
+      );
     }
   }
   report(
