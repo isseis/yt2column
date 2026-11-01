@@ -1,7 +1,9 @@
+import type { HostMessage } from "../../src/core/hostMessage.ts";
 import type { NativeReply } from "../../src/core/native.ts";
+import type { StartInput } from "../../src/core/prepare.ts";
 import type { SendDeps } from "../../src/send.ts";
 
-type Message = Readonly<Record<string, string>>;
+type Message = HostMessage | StartInput;
 
 export interface NativeRecorder {
   readonly sendNative: SendDeps["sendNative"];

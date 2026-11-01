@@ -7,11 +7,25 @@ export interface ArticleMetadata {
   readonly description?: string | undefined;
 }
 
+/** The generation start's input: the members of the request body. */
+export interface StartInput {
+  readonly videoUrl: string;
+  readonly transcript: string;
+  readonly title?: string;
+  readonly channelName?: string;
+  readonly description?: string;
+}
+
 /** The request body as the object the browser serializes, and its measured UTF-8 size. */
 export interface ArticleBody {
-  readonly message: Readonly<Record<string, string>>;
+  readonly message: StartInput;
   /** UTF-8 byte length of JSON.stringify(message): the extension's own 4 MiB check. */
   readonly byteLength: number;
+}
+
+/** The UTF-8 byte length of input's JSON text: the one way the body size is measured. */
+function startInputBytes(input: StartInput): number {
+  return new TextEncoder().encode(JSON.stringify(input)).length;
 }
 
 const metadataKeys = ["title", "channelName", "description"] as const;
@@ -26,7 +40,7 @@ export function buildArticleBody(
   input: CollectedInput,
   metadata: ArticleMetadata,
 ): ArticleBody {
-  const body: Record<string, string> = {
+  const body: { -readonly [K in keyof StartInput]: StartInput[K] } = {
     videoUrl: input.url,
     transcript: input.selection,
   };
@@ -36,8 +50,7 @@ export function buildArticleBody(
       body[key] = value;
     }
   }
-  const byteLength = new TextEncoder().encode(JSON.stringify(body)).length;
-  return { message: body, byteLength };
+  return { message: body, byteLength: startInputBytes(body) };
 }
 
 /** The server's body limit: 4 MiB, counted in UTF-8 bytes. */
@@ -45,7 +58,7 @@ export const maxBodyBytes = 4_194_304;
 
 declare const preparedBrand: unique symbol;
 
-/** A request that passed every check. Only prepareSend creates it. */
+/** A request that passed every check. Only prepareSend and prepareStartInput create it. */
 export interface PreparedRequest {
   readonly body: ArticleBody;
   readonly [preparedBrand]: true;
@@ -72,10 +85,23 @@ export function prepareSend(
   input: CollectedInput,
   metadata: ArticleMetadata,
 ): PrepareOutcome {
-  const body = buildArticleBody(input, metadata);
+  return checkBodySize(buildArticleBody(input, metadata));
+}
+
+/** Builds the request only when the body fits the server's limit. */
+function checkBodySize(body: ArticleBody): PrepareOutcome {
   if (body.byteLength > maxBodyBytes) {
     return { kind: "blocked", reason: "body-too-large" };
   }
   const request = { body } as PreparedRequest;
   return { kind: "ready", request };
+}
+
+/**
+ * Measures an input received from another extension page again and builds the
+ * request only when it fits, with the same size check as prepareSend. The
+ * input is sent as given: its members are not rebuilt or trimmed. Never throws.
+ */
+export function prepareStartInput(input: StartInput): PrepareOutcome {
+  return checkBodySize({ message: input, byteLength: startInputBytes(input) });
 }

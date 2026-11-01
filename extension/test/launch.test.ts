@@ -22,7 +22,8 @@ import {
   metadataDisplayLimit,
 } from "../src/core/popupView.ts";
 import type { PopupView } from "../src/core/popupView.ts";
-import type { RequestId, SendOutcome } from "../src/core/response.ts";
+import type { SendOutcome } from "../src/core/articlesResponse.ts";
+import type { RequestId } from "../src/core/response.ts";
 import { sendOutcomeMessage } from "../src/core/sendMessages.ts";
 import {
   launchContextFromTab,
@@ -605,7 +606,9 @@ describe("popup send", () => {
       assert.equal(elements.primary.disabled, false);
       await clickSend(elements);
       assert.equal(native.messages.length, 1);
-      assert.equal(native.messages[0]?.["description"], "first lines");
+      const sent = native.messages[0];
+      assert.ok(sent !== undefined && !("op" in sent));
+      assert.equal(sent.description, "first lines");
     });
 
     it(`keeps the button pressable when no description is sent in ${locale}`, async () => {
@@ -721,7 +724,9 @@ describe("popup send", () => {
       `${"t".repeat(metadataDisplayLimit)}\u2026`,
     );
     await clickSend(elements);
-    assert.equal(native.messages[0]?.["title"], title);
+    const sent = native.messages[0];
+    assert.ok(sent !== undefined && !("op" in sent));
+    assert.equal(sent.title, title);
   });
 });
 

@@ -127,12 +127,28 @@ function brandSelectors(names) {
       selector: `TSTypePredicate TSQualifiedName[right.name=${name}]`,
       message: brandMessage,
     },
+    // A type alias may hold a brand inside an object type member's type, as an
+    // interface may: { readonly id: RequestId } names a member, not the brand.
+    // Every other position (the brand itself, a union or intersection member,
+    // a generic argument) is an alias of the brand and is rejected, and so is
+    // a reference written directly under an indexed access or a conditional
+    // type. The rule sees only the alias's own syntax: taking a member's type
+    // back out through a second alias (W["id"] for an alias or interface W, or
+    // a generic infer) is not caught, as it is not for an interface.
     {
-      selector: `TSTypeAliasDeclaration TSTypeReference[typeName.name=${name}]`,
+      selector: `TSTypeAliasDeclaration TSTypeReference[typeName.name=${name}]:not(TSTypeLiteral > TSPropertySignature TSTypeReference)`,
       message: brandMessage,
     },
     {
-      selector: `TSTypeAliasDeclaration TSQualifiedName[right.name=${name}]`,
+      selector: `TSTypeAliasDeclaration TSQualifiedName[right.name=${name}]:not(TSTypeLiteral > TSPropertySignature TSQualifiedName)`,
+      message: brandMessage,
+    },
+    {
+      selector: `TSTypeAliasDeclaration :matches(TSIndexedAccessType, TSConditionalType) TSTypeReference[typeName.name=${name}]`,
+      message: brandMessage,
+    },
+    {
+      selector: `TSTypeAliasDeclaration :matches(TSIndexedAccessType, TSConditionalType) TSQualifiedName[right.name=${name}]`,
       message: brandMessage,
     },
     {
@@ -146,7 +162,12 @@ function brandSelectors(names) {
   ];
 }
 
-const brandNames = ["CollectedInput", "PreparedRequest", "RequestId"];
+const brandNames = [
+  "CollectedInput",
+  "PreparedRequest",
+  "RequestId",
+  "ArticleKey",
+];
 
 // Selectors shared by every file. The files-scoped config below reuses this
 // list because a later config with files/ignores replaces the whole rule.
@@ -261,4 +282,5 @@ export default defineConfig(
   creatorConfig("src/core/collect.ts", ["CollectedInput"]),
   creatorConfig("src/core/prepare.ts", ["PreparedRequest"]),
   creatorConfig("src/core/response.ts", ["RequestId"]),
+  creatorConfig("src/core/articleKey.ts", ["ArticleKey"]),
 );

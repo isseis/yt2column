@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { serverRejectStatus } from "../src/core/response.ts";
+import { articlesRejectStatus } from "../src/core/articlesResponse.ts";
 import { developmentDoc } from "./helpers/developmentDoc.ts";
 import { readRepoFile } from "./helpers/repoFile.ts";
 
@@ -71,7 +71,7 @@ describe("server reasons match the development guide", () => {
     const sorted = (map: Map<string, number>) =>
       [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
     assert.deepEqual(
-      sorted(new Map(Object.entries(serverRejectStatus))),
+      sorted(new Map(Object.entries(articlesRejectStatus))),
       sorted(documented),
     );
   });

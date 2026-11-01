@@ -1,17 +1,17 @@
 // Interprets what one sendNativeMessage call delivered. The host's reply is
 // untrusted: its version is read as an own property, its kind picks the
 // member set it must have exactly (checked with Object.keys), the server's
-// response it wraps goes through classifyResponse, and no string from the
+// response it wraps goes through classifyArticlesResponse, and no string from the
 // reply or the browser's error is carried into a displayed value. A browser
 // error is never told apart by its text: the text is a browser-internal
 // constant, not an API contract.
 
 import {
-  classifyResponse,
-  hasExactKeys,
-  maxResponseBytes,
-} from "./response.ts";
-import type { SendResult } from "./response.ts";
+  classifyArticlesResponse,
+  maxArticlesResponseBytes,
+} from "./articlesResponse.ts";
+import type { SendResult } from "./articlesResponse.ts";
+import { hasExactKeys } from "./exchange.ts";
 
 /** The host name the extension sends to; the same as the host's manifest "name". */
 export const nativeHostName = "io.github.isseis.yt2column";
@@ -109,7 +109,7 @@ function decodeBase64(text: string): Uint8Array | undefined {
 /**
  * Interprets a reply in a fixed order: the browser's outcome, the reply's
  * shape and version, then its kind. A wrapped server response is checked by
- * classifyResponse. Never throws.
+ * classifyArticlesResponse. Never throws.
  */
 export function classifyNativeReply(reply: NativeReply): SendResult {
   if (reply.kind === "timed-out") {
@@ -159,10 +159,10 @@ export function classifyNativeReply(reply: NativeReply): SendResult {
       if (bytes === undefined) {
         return { kind: "unexpected", check: "envelope-shape" };
       }
-      if (bytes.byteLength > maxResponseBytes) {
-        return classifyResponse({ kind: "body-over-limit", status });
+      if (bytes.byteLength > maxArticlesResponseBytes) {
+        return classifyArticlesResponse({ kind: "body-over-limit", status });
       }
-      return classifyResponse({ kind: "body", status, bytes });
+      return classifyArticlesResponse({ kind: "body", status, bytes });
     }
     default: {
       const exhaustive: never = kind;

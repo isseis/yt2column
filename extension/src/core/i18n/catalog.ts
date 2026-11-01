@@ -1,5 +1,6 @@
 import type { PreflightReason } from "../prepare.ts";
-import type { NotSentCause, ServerRejectReason } from "../response.ts";
+import type { ArticlesRejectReason } from "../articlesResponse.ts";
+import type { NotSentCause } from "../exchange.ts";
 import type { CheckName, CheckState, RejectionReason } from "../types.ts";
 import { en } from "./en.ts";
 import { ja } from "./ja.ts";
@@ -25,7 +26,7 @@ export interface Catalog {
   /** Blocked sends: the body size check. */
   readonly preflight: Readonly<Record<PreflightReason, Message>>;
   /** Server rejection reasons. */
-  readonly serverReject: Readonly<Record<ServerRejectReason, Message>>;
+  readonly serverReject: Readonly<Record<ArticlesRejectReason, Message>>;
   /** Causes of a request known not to have reached the server; no Slack check. */
   readonly notSent: Readonly<Record<NotSentCause, Message>>;
   // The other send outcomes. Every result that is not known (noResponse,

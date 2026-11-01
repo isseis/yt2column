@@ -6,6 +6,7 @@ import {
   buildArticleBody,
   maxBodyBytes,
   prepareSend,
+  prepareStartInput,
 } from "../src/core/prepare.ts";
 import type { PrepareOutcome } from "../src/core/prepare.ts";
 
@@ -24,6 +25,14 @@ function collectedInput(
 function blockedReason(outcome: PrepareOutcome): string {
   assert.ok(outcome.kind === "blocked");
   return outcome.reason;
+}
+
+/** A collected input whose body is size UTF-8 bytes, mixing three-byte and ASCII characters. */
+function inputOfSize(size: number): CollectedInput {
+  const remaining = size - buildArticleBody(collectedInput(""), {}).byteLength;
+  const multibyte = Math.floor(remaining / 3);
+  const ascii = remaining - multibyte * 3;
+  return collectedInput("\u3042".repeat(multibyte) + "a".repeat(ascii));
 }
 
 describe("buildArticleBody", () => {
@@ -78,7 +87,7 @@ describe("buildArticleBody", () => {
       title: "",
       description: undefined,
     });
-    const parsed: Record<string, unknown> = body.message;
+    const parsed: object = body.message;
     assert.deepEqual(Object.keys(parsed), ["videoUrl", "transcript"]);
     assert.equal("title" in parsed, false);
     assert.equal("description" in parsed, false);
@@ -134,24 +143,48 @@ describe("prepareSend", () => {
   });
 
   it("sends at exactly the body limit and blocks one byte over", () => {
-    const base = buildArticleBody(collectedInput(""), {}).byteLength;
-    const at = (size: number): CollectedInput => {
-      const remaining = size - base;
-      const multibyte = Math.floor(remaining / 3);
-      const ascii = remaining - multibyte * 3;
-      return collectedInput("\u3042".repeat(multibyte) + "a".repeat(ascii));
-    };
     assert.equal(
-      buildArticleBody(at(maxBodyBytes), {}).byteLength,
+      buildArticleBody(inputOfSize(maxBodyBytes), {}).byteLength,
       maxBodyBytes,
     );
     assert.equal(
-      buildArticleBody(at(maxBodyBytes + 1), {}).byteLength,
+      buildArticleBody(inputOfSize(maxBodyBytes + 1), {}).byteLength,
       maxBodyBytes + 1,
     );
 
-    assert.equal(prepareSend(at(maxBodyBytes), {}).kind, "ready");
-    const over = prepareSend(at(maxBodyBytes + 1), {});
+    assert.equal(prepareSend(inputOfSize(maxBodyBytes), {}).kind, "ready");
+    const over = prepareSend(inputOfSize(maxBodyBytes + 1), {});
     assert.equal(blockedReason(over), "body-too-large");
+  });
+});
+
+describe("prepareStartInput", () => {
+  it("sends the received input unchanged, empty and blank members included", () => {
+    // buildArticleBody drops empty metadata; a received input is not rebuilt,
+    // so these members reach the request as given.
+    const input = {
+      videoUrl: watchUrl,
+      transcript: "\u3042",
+      title: "",
+      description: " \n ",
+    };
+    const outcome = prepareStartInput(input);
+    assert.ok(outcome.kind === "ready");
+    assert.deepEqual(outcome.request.body.message, {
+      videoUrl: watchUrl,
+      transcript: "\u3042",
+      title: "",
+      description: " \n ",
+    });
+  });
+
+  it("decides the size as prepareSend does: ready at the limit, blocked one byte over", () => {
+    const atLimit = buildArticleBody(inputOfSize(maxBodyBytes), {}).message;
+    const overLimit = buildArticleBody(
+      inputOfSize(maxBodyBytes + 1),
+      {},
+    ).message;
+    assert.equal(prepareStartInput(atLimit).kind, "ready");
+    assert.equal(blockedReason(prepareStartInput(overLimit)), "body-too-large");
   });
 });

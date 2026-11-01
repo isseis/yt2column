@@ -7,14 +7,14 @@ import { locales } from "../src/core/i18n/locale.ts";
 import type { Locale } from "../src/core/i18n/locale.ts";
 import type { RejectionMessage } from "../src/core/messages.ts";
 import { preflightReasons } from "../src/core/prepare.ts";
-import { serverRejectStatus } from "../src/core/response.ts";
+import { articlesRejectStatus } from "../src/core/articlesResponse.ts";
 import type {
-  NotSentCause,
-  RequestId,
+  ArticlesRejectReason,
+  ArticlesUnexpectedCheck,
   SendOutcome,
-  ServerRejectReason,
-  UnexpectedCheck,
-} from "../src/core/response.ts";
+} from "../src/core/articlesResponse.ts";
+import type { NotSentCause } from "../src/core/exchange.ts";
+import type { RequestId } from "../src/core/response.ts";
 import {
   sendOutcomeMessage,
   serverRejectMessage,
@@ -39,8 +39,8 @@ const preflightReasonsList = Object.keys(
   preflightReasons,
 ) as (keyof typeof preflightReasons)[];
 const serverRejectReasons = Object.keys(
-  serverRejectStatus,
-) as ServerRejectReason[];
+  articlesRejectStatus,
+) as ArticlesRejectReason[];
 
 // The properties whose wording differs by locale, as per-locale word tables.
 // Each pattern must match the text of every message for a result that is not
@@ -131,7 +131,7 @@ describe("sendOutcomeMessage", () => {
   }
 
   // Every check, as a Record so that a new check must be listed here.
-  const unexpectedChecks: Record<UnexpectedCheck, true> = {
+  const unexpectedChecks: Record<ArticlesUnexpectedCheck, true> = {
     "extension-timeout": true,
     "envelope-shape": true,
     "envelope-version": true,
@@ -232,7 +232,9 @@ describe("sendOutcomeMessage", () => {
         { kind: "unexpected", check: "extension-timeout" },
         locale,
       );
-      for (const check of Object.keys(unexpectedChecks) as UnexpectedCheck[]) {
+      for (const check of Object.keys(
+        unexpectedChecks,
+      ) as ArticlesUnexpectedCheck[]) {
         assert.deepEqual(
           sendOutcomeMessage({ kind: "unexpected", check }, locale),
           message,
