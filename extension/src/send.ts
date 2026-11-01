@@ -2,8 +2,8 @@
 // back. The request is sent exactly once and never retried: the server
 // keeps working after a 202, so a resend could post the article twice. Each
 // call starts the host for one message and one reply, so no connection stays
-// open while the job runs. Anything that is not a complete, accepted reply
-// becomes a displayed outcome, never a thrown error.
+// open while the job runs. Whatever comes back, or does not, becomes a
+// result value, never a thrown error.
 
 import { classifyHostReply, classifyNativeReply } from "./core/native.ts";
 import type { HostOutcome } from "./core/exchange.ts";

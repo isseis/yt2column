@@ -123,8 +123,9 @@ describe("classifyStart", () => {
     );
   });
 
-  // The extension's version of the host relays a start to /articles; the
-  // server reads no videoUrl and answers this, the form of a valid rejection.
+  // An older host relays a start to /articles; with the Webhook set and a
+  // generation slot free, the server reads no videoUrl and answers this, the
+  // form of a valid rejection.
   it("reads an old host's /articles answer as an invalid_body rejection", () => {
     const answer = `{"status":"rejected","reason":"invalid_body","requestId":"${requestId}"}`;
     assert.deepEqual(classifyStart(response(400, answer)), {
@@ -157,6 +158,11 @@ describe("classifyStart", () => {
       name: "a key that is not a string",
       received: json(202, { status: "accepted", key: 1, requestId }),
       check: "value-shape",
+    },
+    {
+      name: "an accepted response with an undeclared member",
+      received: json(202, { status: "accepted", key, requestId, extra: 1 }),
+      check: "member-set",
     },
     {
       name: "an accepted response without a key",
@@ -276,7 +282,7 @@ describe("reject reasons", () => {
         it(`${name} refuses ${reason}, outside its set`, () => {
           assert.deepEqual(
             classify(json(status, body)),
-            unexpected("status-pairing", status),
+            unexpected("value-shape", status),
           );
         });
       }
@@ -293,6 +299,31 @@ describe("reject reasons", () => {
       assert.deepEqual(
         classify(json(500, body)),
         unexpected("request-id", 500),
+      );
+    }
+  });
+
+  it("refuses a rejection with an undeclared member", () => {
+    const body = {
+      status: "rejected",
+      reason: "internal_error",
+      requestId,
+      detail: "x",
+    };
+    for (const { classify } of reasonTable) {
+      assert.deepEqual(
+        classify(json(500, body)),
+        unexpected("member-set", 500),
+      );
+    }
+  });
+
+  it("refuses a status that is not a string", () => {
+    const body = { status: 1, reason: "internal_error", requestId };
+    for (const { classify } of reasonTable) {
+      assert.deepEqual(
+        classify(json(500, body)),
+        unexpected("value-shape", 500),
       );
     }
   });
@@ -492,6 +523,20 @@ describe("classifyStatus refuses each malformed response as unexpected", () => {
       name: "a missing step",
       change: (b) => void delete at(b, "job", "steps").review,
       check: "member-set",
+    },
+    {
+      name: "a failed job without its failure",
+      change: (b) =>
+        void (b.job = {
+          state: "failed",
+          steps: { draft: "failed", shorten: "pending", review: "pending" },
+        }),
+      check: "member-set",
+    },
+    {
+      name: "a job state that is not a string",
+      change: (b) => void (at(b, "job").state = 1),
+      check: "value-shape",
     },
     {
       name: "a failed publish without a reason",
@@ -798,7 +843,22 @@ describe("a status response at the server's 256 KiB limit", () => {
   it("is accepted through the host reply with the article unchanged", () => {
     const result = classifyStatus(classifyHostReply(responseReply(200, text)));
     assert.equal(result.kind, "ok");
-    assert.deepEqual(result.job, body.job);
+    assert.equal(result.job.state, "done");
+    // The texts are compared with ok, not deepEqual: a failure report of a
+    // quarter of a megabyte would not finish.
+    const expected = at(body, "job", "article");
+    assert.ok(result.job.article.markdown === expected.markdown, "markdown");
+    assert.ok(result.job.article.file === expected.file, "file");
+    assert.deepEqual(
+      {
+        ...result.job,
+        article: { ...result.job.article, markdown: "", file: "" },
+      },
+      {
+        ...(body.job as Json),
+        article: { ...expected, markdown: "", file: "" },
+      },
+    );
   });
 });
 

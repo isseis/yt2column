@@ -12,9 +12,6 @@ import { extensionDir } from "./helpers/paths.ts";
 // The word "webhook" alone is allowed: the job API's member, reasons and the
 // messages about posting name the Webhook without naming its URL.
 const secretWords = [
-  "webhook url",
-  "webhookurl",
-  "webhook_url",
   "api key",
   "apikey",
   "api_key",
@@ -22,6 +19,11 @@ const secretWords = [
   "ANTHROPIC_API_KEY",
   "SLACK_WEBHOOK_URL",
 ];
+
+// "webhook" and "url" joined by nothing or by one separator a setting name or
+// label uses: "webhookUrl", "webhook_url", "webhook-url", "webhook.url" and
+// "Webhook URL". Matched case-insensitively.
+const webhookUrlPattern = /webhook[ _.-]?url/i;
 
 // The server's environment variable a message may tell the user to set. It is
 // allowed only inside the string literals of the message files, so the same
@@ -56,7 +58,11 @@ function listFiles(dir: string): string[] {
   return files.sort();
 }
 
-/** True when node is a string literal or template text, not a property name. */
+/**
+ * True when node is a string literal or template text used as a value: not
+ * the name of a declaration or member, a computed or accessed key, or a
+ * literal type.
+ */
 function isMessageText(node: ts.Node): boolean {
   const isText =
     ts.isStringLiteral(node) ||
@@ -64,9 +70,16 @@ function isMessageText(node: ts.Node): boolean {
     ts.isTemplateHead(node) ||
     ts.isTemplateMiddle(node) ||
     ts.isTemplateTail(node);
+  if (!isText) {
+    return false;
+  }
+  const parent = node.parent;
+  const named = (parent as { readonly name?: ts.Node }).name === node;
   return (
-    isText &&
-    !(ts.isPropertyAssignment(node.parent) && node.parent.name === node)
+    !named &&
+    !ts.isLiteralTypeNode(parent) &&
+    !ts.isComputedPropertyName(parent) &&
+    !ts.isElementAccessExpression(parent)
   );
 }
 
@@ -100,7 +113,9 @@ function secretWordsIn(file: string, text: string): string[] {
   const scanned = messageFiles.includes(file)
     ? withoutLiteralEnvName(file, text)
     : text;
-  return wordsIn(scanned, secretWords);
+  const found = wordsIn(scanned, secretWords);
+  const url = webhookUrlPattern.exec(scanned);
+  return url === null ? found : [...found, url[0]];
 }
 
 /** The words that text contains, compared case-insensitively. */
@@ -149,6 +164,16 @@ describe("secretWordsIn", () => {
       text: "const webhookUrl = '';",
     },
     {
+      name: "a webhook-url input id",
+      file: "static/popup.html",
+      text: '<input id="webhook-url">',
+    },
+    {
+      name: "a webhook.url path",
+      file: "src/sample.ts",
+      text: "const path = 'settings.webhook.url';",
+    },
+    {
       name: "a webhook_url storage key",
       file: "src/sample.ts",
       text: "const key = 'webhook_url';",
@@ -173,6 +198,31 @@ describe("secretWordsIn", () => {
       file: "src/core/i18n/en.ts",
       text: `const m = { "${messageEnvName}": "x" };`,
     },
+    {
+      name: "the environment name as an interface key in a message file",
+      file: "src/core/i18n/en.ts",
+      text: `interface M { "${messageEnvName}": string }`,
+    },
+    {
+      name: "the environment name as an accessed key in a message file",
+      file: "src/core/i18n/ja.ts",
+      text: `const v = m["${messageEnvName}"];`,
+    },
+    {
+      name: "the environment name as a computed key in a message file",
+      file: "src/core/i18n/ja.ts",
+      text: `const m = { ["${messageEnvName}"]: "x" };`,
+    },
+    {
+      name: "the environment name as a literal type in a message file",
+      file: "src/core/i18n/en.ts",
+      text: `type K = "${messageEnvName}";`,
+    },
+    {
+      name: "the environment name as an enum member in a message file",
+      file: "src/core/i18n/en.ts",
+      text: `enum E { "${messageEnvName}" = 1 }`,
+    },
   ];
   for (const { name, file, text } of refused) {
     it(`refuses ${name}`, () => {
@@ -190,6 +240,11 @@ describe("secretWordsIn", () => {
       name: "the environment name in a message string",
       file: "src/core/i18n/en.ts",
       text: `const m = { setUp: "Set ${messageEnvName} and restart." };`,
+    },
+    {
+      name: "the environment name in a message's steps",
+      file: "src/core/i18n/en.ts",
+      text: `const m = { steps: ["Set ${messageEnvName}."] };`,
     },
     {
       name: "the environment name in message template text",

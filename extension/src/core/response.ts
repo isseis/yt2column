@@ -34,7 +34,7 @@ export function parseRequestId(value: unknown): RequestId | undefined {
 
 // The closed sets of the job API's codes. Each is declared with a
 // Record<..., true>, so a value added to the type without its entry fails the
-// type check, and a test compares the sets with the development guide.
+// type check, and the sets can be compared with the development guide.
 
 export type JobState = "unknown" | "running" | "done" | "failed";
 
@@ -337,8 +337,11 @@ function discriminant(value: JsonValue, name: string): string {
     throw new Rejected("value-shape");
   }
   const found = value.members.get(name);
-  if (found === undefined || found.kind !== "string") {
+  if (found === undefined) {
     throw new Rejected("member-set");
+  }
+  if (found.kind !== "string") {
+    throw new Rejected("value-shape");
   }
   return found.value;
 }
@@ -371,9 +374,10 @@ function rejection<R extends string>(
   const members = exactMembers(value, ["status", "reason", "requestId"]);
   const reason = stringMember(members, "reason");
   const requestId = requestIdMember(members);
-  if (!isIn(reasons, reason) || reasons[reason] !== status) {
-    throw new Rejected("status-pairing");
+  if (!isIn(reasons, reason)) {
+    throw new Rejected("value-shape");
   }
+  requirePairing(status, reasons[reason]);
   return { kind: "rejected", reason, requestId };
 }
 
@@ -692,13 +696,20 @@ export type StartLogView =
   | ExchangeFailureLog;
 
 /** A job as logged: its codes and whether its cost is known; the article is left out. */
-export interface JobLogView {
-  readonly state: JobState;
-  readonly steps?: Steps;
-  readonly publish?: PublishStatus;
-  readonly failure?: FailureCode;
-  readonly costKnown?: boolean;
-}
+export type JobLogView =
+  | { readonly state: "unknown" }
+  | { readonly state: "running"; readonly steps: Steps }
+  | {
+      readonly state: "done";
+      readonly steps: Steps;
+      readonly publish: PublishStatus;
+      readonly costKnown: boolean;
+    }
+  | {
+      readonly state: "failed";
+      readonly steps: Steps;
+      readonly failure: FailureCode;
+    };
 
 /** A status query's result as logged. */
 export type StatusLogView =
