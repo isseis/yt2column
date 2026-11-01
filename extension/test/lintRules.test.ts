@@ -510,10 +510,15 @@ describe("removed menu-path APIs", () => {
   }
 
   // The window focus wrapper in browser/chromeDeps.ts is the one place that
-  // may reference windows; the other names stay forbidden there.
+  // may reference windows; the other names stay forbidden there. The forms
+  // come from the same selector generator as above, so one form proves each
+  // forbidden name and every form is tried for the allowed one.
   const chromeDeps = "src/browser/chromeDeps.ts";
   for (const { api, name } of references) {
-    for (const { form, code } of referenceForms(api, name)) {
+    const forms = referenceForms(api, name);
+    for (const { form, code } of name === "windows"
+      ? forms
+      : forms.slice(0, 1)) {
       if (name === "windows") {
         it(`allows ${name} as ${form} in ${chromeDeps}`, async () => {
           assert.deepEqual(await ruleIds(code, chromeDeps), []);

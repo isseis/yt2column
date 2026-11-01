@@ -7,7 +7,7 @@ import type {
   BrowserCall,
   ExtensionIdentity,
   FocusWindow,
-  MessageListener,
+  MessageEventsApi,
   MessageSender,
   NewTab,
   OpenViewerChannel,
@@ -46,8 +46,8 @@ const ok = <T>(value: T): BrowserCall<T> => ({ ok: true, value });
 const failed = <T>(error: string): BrowserCall<T> => ({ ok: false, error });
 
 export interface FakeRuntime {
-  /** Registers listener, as listenForMessages does for chrome.runtime.onMessage. */
-  listen(listener: MessageListener): void;
+  /** The onMessage event: listenForMessages registers on it, as on chrome.runtime. */
+  readonly events: MessageEventsApi;
   /**
    * Sends message from sender, as runtime.sendMessage does, except that the
    * listener runs synchronously instead of as a task; the code under test
@@ -56,7 +56,8 @@ export interface FakeRuntime {
    * when no listener is registered or the listener returns false without
    * responding, and resolves the response otherwise. A closed sender is a
    * page that closed after sending: the response never reaches it, and its
-   * promise resolves as a failure once the listener has returned.
+   * promise resolves as a failure once the listener has returned. As in the
+   * browser, a sendResponse to a closed sender throws.
    */
   send(
     sender: MessageSender,
@@ -69,8 +70,10 @@ export interface FakeRuntime {
   readonly returned: boolean[];
 }
 
+type RawListener = Parameters<MessageEventsApi["onMessage"]["addListener"]>[0];
+
 export function fakeRuntime(): FakeRuntime {
-  let registered: MessageListener | undefined;
+  let registered: RawListener | undefined;
   const returned: boolean[] = [];
   const send: FakeRuntime["send"] = (sender, message, options = {}) => {
     const listener = registered;
@@ -80,13 +83,14 @@ export function fakeRuntime(): FakeRuntime {
     return new Promise((resolve) => {
       let responded = false;
       const answer = listener(message, sender, (response) => {
+        if (options.closed === true) {
+          throw new Error("Attempting to use a disconnected port object");
+        }
         if (responded) {
           return;
         }
         responded = true;
-        if (options.closed !== true) {
-          resolve(ok(response));
-        }
+        resolve(ok(response));
       });
       returned.push(answer);
       if (options.closed === true) {
@@ -97,8 +101,12 @@ export function fakeRuntime(): FakeRuntime {
     });
   };
   return {
-    listen: (listener) => {
-      registered = listener;
+    events: {
+      onMessage: {
+        addListener: (listener) => {
+          registered = listener;
+        },
+      },
     },
     send,
     senderFor: (sender) => (message) => send(sender, message),

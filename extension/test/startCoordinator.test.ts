@@ -17,6 +17,7 @@ import {
 } from "../src/core/poll.ts";
 import { maxBodyBytes } from "../src/core/prepare.ts";
 import { sendTimeoutMs } from "../src/send.ts";
+import { listenForMessages } from "../src/browser/chromeDeps.ts";
 import { createStartCoordinator } from "../src/startCoordinator.ts";
 import {
   fakeChannels,
@@ -97,11 +98,20 @@ interface Setup {
   readonly logger: RecordingLogger;
 }
 
-/** A coordinator on fakes, listening on runtime; the host answers with respond. */
+interface SetupOptions {
+  /** What the host answers to each start; accepted by default. */
+  readonly respond?: () => Promise<NativeReply>;
+  /** The clock's time when the test starts; the send time by default. */
+  readonly clockStart?: number;
+}
+
+/**
+ * A coordinator on fakes, registered on runtime through listenForMessages as
+ * background.ts registers it; the host answers with reply.
+ */
 function setup(
   reply: NativeReply = accepted(),
-  respond: () => Promise<NativeReply> = async () => reply,
-  clockStart = sentAt,
+  { respond = async () => reply, clockStart = sentAt }: SetupOptions = {},
 ): Setup {
   const runtime = fakeRuntime();
   const tabs = fakeTabs(newTab);
@@ -110,7 +120,8 @@ function setup(
   const native = recordingNative(respond);
   const logger = recordingLogger();
   let queries = 0;
-  runtime.listen(
+  listenForMessages(
+    runtime.events,
     createStartCoordinator({
       identity: fakeIdentity,
       tabs,
@@ -200,6 +211,17 @@ async function runQueries(clock: FakeClock): Promise<void> {
   await settle();
   clock.advance(viewerQueryWindowMs);
   await settle();
+}
+
+/**
+ * Runs every timer the worker may hold to its end, so a send scheduled for
+ * later would be seen, and checks that none is left.
+ */
+async function runOut(clock: FakeClock): Promise<void> {
+  await settle();
+  clock.advance(startResultDeadlineMs + sendTimeoutMs);
+  await settle();
+  assert.equal(clock.pending(), 0, "a timer is left running");
 }
 
 /** The new viewer's wait for its result, sent once the tab exists. */
@@ -313,10 +335,23 @@ describe("start request sender checks", () => {
     });
   }
 
-  it("ignores a message of another type", async () => {
-    const { runtime, native, tabs } = setup();
+  it("ignores a start request of another declared type without checking it", async () => {
+    const { runtime, native, tabs, logger } = setup();
     await runtime.send(popupSender, { ...startRequest(), type: "publish" });
     assert.deepEqual(runtime.returned, [false]);
+    assert.deepEqual(native.messages, []);
+    assert.deepEqual(tabs.calls, []);
+    // The start check logs every request it rejects; this one never reached it.
+    assert.deepEqual(logger.errors, []);
+  });
+
+  it("does not take a popup's wait for a viewer's", async () => {
+    const { runtime, native, tabs } = setup();
+    const reply = await runtime.send(popupSender, {
+      type: "await-start",
+      sentAt,
+    });
+    assert.equal(reply.ok, false);
     assert.deepEqual(native.messages, []);
     assert.deepEqual(tabs.calls, []);
   });
@@ -416,15 +451,15 @@ describe("no resend", () => {
         ok: true,
         value: { outcome, viewerTabId: newTab },
       });
+      await runOut(clock);
       assert.equal(native.messages.length, 1);
     });
   }
 
   it("sends nothing again when the host does not answer within the limit", async () => {
-    const { runtime, clock, native } = setup(
-      accepted(),
-      () => new Promise<NativeReply>(() => {}),
-    );
+    const { runtime, clock, native } = setup(accepted(), {
+      respond: () => new Promise<NativeReply>(() => {}),
+    });
     const popup = runtime.send(popupSender, startRequest());
     await settle();
     clock.advance(sendTimeoutMs);
@@ -433,6 +468,7 @@ describe("no resend", () => {
       ok: true,
       value: { outcome: { kind: "no-response" }, viewerTabId: newTab },
     });
+    await runOut(clock);
     assert.equal(native.messages.length, 1);
   });
 });
@@ -440,10 +476,9 @@ describe("no resend", () => {
 describe("popup closed", () => {
   it("gives the result to the viewer when the popup closed after sending", async () => {
     const { runtime, clock, native } = setup();
-    const popup = await runtime.send(popupSender, startRequest(), {
-      closed: true,
-    });
-    assert.equal(popup.ok, false);
+    // The response to the closed popup throws, as in the browser, once the
+    // result is known; the viewer must get the result all the same.
+    void runtime.send(popupSender, startRequest(), { closed: true });
     await settle();
     const viewer = awaitStart(runtime);
     await runQueries(clock);
@@ -521,7 +556,9 @@ describe("reuse", () => {
     assert.deepEqual(
       tabs.calls.map(({ op }) => op),
       ["create", "remove"],
-      "the take-over neither selects a tab nor focuses a window",
+      // The worker has no window focus at all; of the tab operations, only
+      // the create and the remove happen.
+      "the take-over activates no tab",
     );
     assert.equal(tabs.open.has(newTab), false);
     clock.advance(startResultDeadlineMs);
@@ -535,34 +572,48 @@ describe("reuse", () => {
 
   const kept: {
     name: string;
-    viewers: (channels: FakeChannels) => void;
+    /** Sets up the viewers and returns the one showing the key (or another key). */
+    viewers: (channels: FakeChannels) => {
+      readonly takeOvers: ViewerChannelMessage[];
+    };
+    /** How many take-overs that viewer is asked for. */
+    takeOvers: number;
     failRemove?: boolean;
   }[] = [
     {
       name: "the new tab does not answer that it waits",
+      takeOvers: 0,
       viewers: (channels) => {
-        fakeViewer(channels, { tabId: 20, sentAt: 5, key });
+        return fakeViewer(channels, { tabId: 20, sentAt: 5, key });
       },
     },
     {
       name: "the new tab waits for another send",
+      takeOvers: 0,
       viewers: (channels) => {
         fakeViewer(channels, { tabId: newTab, sentAt: sentAt - 1 });
-        fakeViewer(channels, { tabId: 20, sentAt: 5, key });
+        return fakeViewer(channels, { tabId: 20, sentAt: 5, key });
       },
     },
     {
       name: "the other viewer does not confirm the take-over",
+      takeOvers: 1,
       viewers: (channels) => {
         fakeViewer(channels, { tabId: newTab, sentAt });
-        fakeViewer(channels, { tabId: 20, sentAt: 5, key, takesOver: false });
+        return fakeViewer(channels, {
+          tabId: 20,
+          sentAt: 5,
+          key,
+          takesOver: false,
+        });
       },
     },
     {
       name: "the take-over is confirmed for another tab",
+      takeOvers: 1,
       viewers: (channels) => {
         fakeViewer(channels, { tabId: newTab, sentAt });
-        fakeViewer(channels, {
+        return fakeViewer(channels, {
           tabId: 20,
           sentAt: 5,
           key,
@@ -572,9 +623,10 @@ describe("reuse", () => {
     },
     {
       name: "the take-over is confirmed for another query",
+      takeOvers: 1,
       viewers: (channels) => {
         fakeViewer(channels, { tabId: newTab, sentAt });
-        fakeViewer(channels, {
+        return fakeViewer(channels, {
           tabId: 20,
           sentAt: 5,
           key,
@@ -584,34 +636,42 @@ describe("reuse", () => {
     },
     {
       name: "no viewer shows the key",
+      takeOvers: 0,
       viewers: (channels) => {
         fakeViewer(channels, { tabId: newTab, sentAt });
-        fakeViewer(channels, { tabId: 20, sentAt: 5, key: "key-2" });
+        return fakeViewer(channels, { tabId: 20, sentAt: 5, key: "key-2" });
       },
     },
     {
       name: "the viewer of the key does not answer (discarded)",
+      takeOvers: 0,
       viewers: (channels) => {
         fakeViewer(channels, { tabId: newTab, sentAt });
-        fakeViewer(channels, { tabId: 20, sentAt: 5, key, answers: false });
+        return fakeViewer(channels, {
+          tabId: 20,
+          sentAt: 5,
+          key,
+          answers: false,
+        });
       },
     },
     {
       name: "the new tab cannot be closed",
+      takeOvers: 1,
       viewers: (channels) => {
         fakeViewer(channels, { tabId: newTab, sentAt });
-        fakeViewer(channels, { tabId: 20, sentAt: 5, key });
+        return fakeViewer(channels, { tabId: 20, sentAt: 5, key });
       },
       failRemove: true,
     },
   ];
-  for (const { name, viewers, failRemove } of kept) {
+  for (const { name, viewers, takeOvers, failRemove } of kept) {
     it(`keeps the new tab and gives it the result when ${name}`, async () => {
       const { runtime, tabs, channels, clock } = setup();
       if (failRemove === true) {
         tabs.fail("remove");
       }
-      viewers(channels);
+      const existing = viewers(channels);
       const popup = runtime.send(popupSender, startRequest());
       await settle();
       const viewer = awaitStart(runtime);
@@ -625,8 +685,36 @@ describe("reuse", () => {
         value: { outcome: acceptedOutcome, viewerTabId: newTab },
       });
       assert.equal(tabs.open.has(newTab), true);
+      assert.equal(existing.takeOvers.length, takeOvers);
+      assert.ok(!tabs.calls.some(({ op }) => op === "activate"));
     });
   }
+});
+
+describe("viewer tab log", () => {
+  it("logs a removal that failed at error, with each step's outcome", async () => {
+    const { runtime, tabs, channels, clock, logger } = setup();
+    tabs.fail("remove");
+    fakeViewer(channels, { tabId: newTab, sentAt });
+    fakeViewer(channels, { tabId: 20, sentAt: 5, key });
+    void runtime.send(popupSender, startRequest());
+    await runQueries(clock);
+    assert.deepEqual(
+      logger.errors.filter(({ label }) => label === "yt2column viewer tab"),
+      [
+        {
+          label: "yt2column viewer tab",
+          data: {
+            created: true,
+            present: 1,
+            waiting: 1,
+            tookOver: true,
+            remove: "failed",
+          },
+        },
+      ],
+    );
+  });
 });
 
 describe("viewer waits", () => {
@@ -664,7 +752,9 @@ describe("viewer waits", () => {
 
   it("drops the record at the deadline from the send time, not from arrival", async () => {
     // The request arrives 3 seconds after its send time.
-    const { runtime, clock } = setup(accepted(), undefined, sentAt + 3_000);
+    const { runtime, clock } = setup(accepted(), {
+      clockStart: sentAt + 3_000,
+    });
     void runtime.send(popupSender, startRequest());
     await runQueries(clock);
     clock.advance(sentAt + startResultDeadlineMs - clock.now() - 1);
@@ -682,11 +772,9 @@ describe("viewer waits", () => {
   });
 
   it("drops at once a record whose deadline passed before it arrived", async () => {
-    const { runtime, clock } = setup(
-      rejected,
-      undefined,
-      sentAt + startResultDeadlineMs + 1,
-    );
+    const { runtime, clock } = setup(rejected, {
+      clockStart: sentAt + startResultDeadlineMs + 1,
+    });
     const popup = runtime.send(popupSender, startRequest());
     await settle();
     await runQueries(clock);
@@ -776,12 +864,13 @@ describe("start logs", () => {
     await settle();
     const viewer = awaitStart(runtime);
     await runQueries(clock);
-    const replies = JSON.stringify([await popup, await viewer]);
+    // The replies carry no error text: the "a host failure" row of no resend
+    // compares them whole.
+    await popup;
+    await viewer;
     const logs = JSON.stringify([logger.infos, logger.errors]);
     assert.ok(!logs.includes(marker), logs);
     assert.ok(logs.includes("BROWSER-ERROR"), logs);
-    assert.ok(replies.includes("host-failed"), replies);
-    assert.ok(!replies.includes("BROWSER-ERROR"), replies);
   });
 
   it("logs no key of an accepted start and no key of a reuse", async () => {
@@ -791,10 +880,30 @@ describe("start logs", () => {
     fakeViewer(channels, { tabId: 20, sentAt: 5, key: markedKey });
     const popup = runtime.send(popupSender, startRequest());
     await runQueries(clock);
-    assert.ok(JSON.stringify(await popup).includes(markedKey));
+    assert.deepEqual(await popup, {
+      ok: true,
+      value: {
+        outcome: { kind: "accepted", key: markedKey, requestId },
+        viewerTabId: 20,
+      },
+    });
     const logs = JSON.stringify([logger.infos, logger.errors]);
     assert.ok(!logs.includes(marker), logs);
-    assert.ok(logs.includes('"remove":"ok"'), logs);
+    assert.deepEqual(
+      logger.infos.filter(({ label }) => label === "yt2column viewer tab"),
+      [
+        {
+          label: "yt2column viewer tab",
+          data: {
+            created: true,
+            present: 1,
+            waiting: 1,
+            tookOver: true,
+            remove: "ok",
+          },
+        },
+      ],
+    );
   });
 });
 
@@ -802,9 +911,10 @@ describe("concurrent sends", () => {
   /** A setup whose host answers rejected to the first start and not-sent to the second. */
   function twoAnswers(): Setup {
     let starts = 0;
-    return setup(rejected, async () =>
-      (starts += 1) === 1 ? rejected : errorReply("server_unavailable"),
-    );
+    return setup(undefined, {
+      respond: async () =>
+        (starts += 1) === 1 ? rejected : errorReply("server_unavailable"),
+    });
   }
 
   const second = (): unknown => withViewer({ sentAt: sentAt + 1 });

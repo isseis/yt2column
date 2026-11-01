@@ -472,19 +472,21 @@ describe("runtime message listener", () => {
     return callbacks[0]!;
   }
 
-  it("passes the message, the sender and what the listener returned", () => {
-    const seen: unknown[] = [];
-    const callback = registered((message, sender) => {
-      seen.push(message, sender);
-      return true;
+  for (const answer of [true, false]) {
+    it(`passes the message and the sender, and returns the listener's ${answer}`, () => {
+      const seen: unknown[] = [];
+      const callback = registered((message, sender) => {
+        seen.push(message, sender);
+        return answer;
+      });
+      const sender = { id: "x", url: "u" };
+      assert.equal(
+        callback("m", sender, () => {}),
+        answer,
+      );
+      assert.deepEqual(seen, ["m", sender]);
     });
-    const sender = { id: "x", url: "u" };
-    assert.equal(
-      callback("m", sender, () => {}),
-      true,
-    );
-    assert.deepEqual(seen, ["m", sender]);
-  });
+  }
 
   it("leaves the message unanswered when the listener throws", () => {
     const callback = registered(() => {

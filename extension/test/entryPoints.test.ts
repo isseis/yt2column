@@ -9,7 +9,10 @@ import { extensionDir } from "./helpers/paths.ts";
 
 // Static checks of where the extension may receive messages and send to the
 // host. They read the syntax trees of src/, so a later change that moves a
-// registration or a send fails here instead of slipping past review.
+// registration or a send fails here instead of slipping past review. Like
+// the lint rules, they guard against accidental use, not deliberate evasion:
+// they match calls and the onMessage member as written, so a value passed
+// around under another name (an alias, a function reference) is not followed.
 
 /** The extension source files under src/, as "/"-separated paths relative to extension/. */
 function sourceFiles(): string[] {
