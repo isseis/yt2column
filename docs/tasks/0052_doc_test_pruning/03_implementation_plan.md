@@ -319,7 +319,7 @@
 
 **変更するファイル:** `CLAUDE.md`、本書（記録）。ステップ 3-1 で決めた場合は 0050 の文書。
 
--   [ ] `CLAUDE.md`「Development Notes」の「the `codexreview` permission, install target, and command-document checks」から「install target」を外す（設計書 3.7。`db9986c6` の `:533-534`。文で探す）。
+-   [x] `CLAUDE.md`「Development Notes」の「the `codexreview` permission, install target, and command-document checks」から「install target」を外す（設計書 3.7。`db9986c6` の `:533-534`。文で探す）。
 -   [ ] ステップ 3-1 で 0050 の文書を変えると決めた場合は、設計書 3.5 のとおりに変え、`Comments` に日付・`(decision)`・本タスクで改めたこと・改めた節を記録する（AC-16）。
 -   [ ] `extension/scripts/has-extension-changes.sh`（`:2-11`・`:19`）、`extension/test/ciChanges.test.ts`（`:21-32`・`:62-89`）、`CLAUDE.md`「Development Notes」の node のテストが読む文書の説明（`db9986c6` の `:521-526`）が、取り除いた後の node のテストが読む文書と一致することを読んで確かめ、PR の説明に記す（設計書 2.2、AC-21）。
 -   [ ] `scope -pr 3`・`tests -final` を PR の merge-base と head で、`guards` を `-final` を付けて実行し、通ることを確かめ、出力と 2 つのコミットを 7 章の該当の行に記録する。`tests -final` は、設計書 3.4.1・3.4.2 の全削除対象が残っていないことを確かめる最後の実行でもある（AC-09・AC-20。1.6）。
