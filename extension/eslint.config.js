@@ -127,12 +127,26 @@ function brandSelectors(names) {
       selector: `TSTypePredicate TSQualifiedName[right.name=${name}]`,
       message: brandMessage,
     },
+    // A type alias may hold a brand inside an object type member's type, as an
+    // interface may: { readonly id: RequestId } names a member, not the brand.
+    // Every other position (the brand itself, a union or intersection member,
+    // a generic argument) is an alias of the brand and is rejected, and so is
+    // any reference under an indexed access or a conditional type, which can
+    // take the member's type back out.
     {
-      selector: `TSTypeAliasDeclaration TSTypeReference[typeName.name=${name}]`,
+      selector: `TSTypeAliasDeclaration TSTypeReference[typeName.name=${name}]:not(TSTypeLiteral > TSPropertySignature TSTypeReference)`,
       message: brandMessage,
     },
     {
-      selector: `TSTypeAliasDeclaration TSQualifiedName[right.name=${name}]`,
+      selector: `TSTypeAliasDeclaration TSQualifiedName[right.name=${name}]:not(TSTypeLiteral > TSPropertySignature TSQualifiedName)`,
+      message: brandMessage,
+    },
+    {
+      selector: `TSTypeAliasDeclaration :matches(TSIndexedAccessType, TSConditionalType) TSTypeReference[typeName.name=${name}]`,
+      message: brandMessage,
+    },
+    {
+      selector: `TSTypeAliasDeclaration :matches(TSIndexedAccessType, TSConditionalType) TSQualifiedName[right.name=${name}]`,
       message: brandMessage,
     },
     {

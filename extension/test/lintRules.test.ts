@@ -227,6 +227,86 @@ describe("branded type assertions", () => {
       });
     }
   }
+
+  // A type alias may name a brand as an object type member's type, as an
+  // interface may; every position that aliases the brand itself stays
+  // forbidden.
+  const named = (type: string): string =>
+    `import type { ${type} } from "./x.ts";\n`;
+  const namespace = 'import type * as ns from "./x.ts";\n';
+  const allowedAliases: { name: string; code: (type: string) => string }[] = [
+    {
+      name: "an object type member",
+      code: (type) =>
+        `${named(type)}export type A = { readonly id: ${type} };\n`,
+    },
+    {
+      name: "a member of an object type in a union",
+      code: (type) =>
+        `${named(type)}export type A =\n  | { readonly kind: "a"; readonly id: ${type} }\n  | { readonly kind: "b" };\n`,
+    },
+    {
+      name: "a nested object type member",
+      code: (type) =>
+        `${named(type)}export type A = { readonly b: { readonly id: ${type} } };\n`,
+    },
+    {
+      name: "a generic wrapper inside an object type member",
+      code: (type) =>
+        `${named(type)}export type A = { readonly id: Readonly<${type}> };\n`,
+    },
+    {
+      name: "a namespace reference inside an object type member",
+      code: (type) =>
+        `${namespace}export type A = { readonly id: ns.${type} };\n`,
+    },
+  ];
+  const forbiddenAliases: { name: string; code: (type: string) => string }[] = [
+    {
+      name: "a union member next to an object type",
+      code: (type) =>
+        `${named(type)}export type A = { readonly id: ${type} } | ${type};\n`,
+    },
+    {
+      name: "an intersection",
+      code: (type) => `${named(type)}export type A = ${type} & {};\n`,
+    },
+    {
+      name: "a generic argument",
+      code: (type) => `${named(type)}export type A = Readonly<${type}>;\n`,
+    },
+    {
+      name: "an indexed access of an object type member",
+      code: (type) =>
+        `${named(type)}export type A = { readonly id: ${type} }["id"];\n`,
+    },
+    {
+      name: "an object type member in a conditional type",
+      code: (type) =>
+        `${named(type)}export type A = string extends number ? { readonly id: ${type} } : never;\n`,
+    },
+    {
+      name: "a namespace reference outside an object type member",
+      code: (type) => `${namespace}export type A = ns.${type} | undefined;\n`,
+    },
+  ];
+  for (const { type } of brands) {
+    for (const { name, code } of allowedAliases) {
+      it(`allows a type alias with ${type} in ${name} in a source file`, async () => {
+        assert.deepEqual(await ruleIds(code(type), "src/sample.ts"), []);
+      });
+    }
+    for (const { name, code } of forbiddenAliases) {
+      it(`forbids a type alias with ${type} in ${name} in a source file`, async () => {
+        assert.ok(
+          (await ruleIds(code(type), "src/sample.ts")).includes(
+            "no-restricted-syntax",
+          ),
+          name,
+        );
+      });
+    }
+  }
 });
 
 /** Declares one violation test per reference form of obj.name, in src and test files. */
