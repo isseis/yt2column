@@ -3,7 +3,6 @@ import { describe, it } from "node:test";
 
 import {
   acceptMetadata,
-  emptyMetadataResult,
   parsePageMetadata,
   readFailureResult,
 } from "../src/core/metadata.ts";
@@ -330,16 +329,6 @@ describe("readFailureResult", () => {
       showExpandPrompt: false,
       omissions: failures,
       check: "duplicate-member",
-    });
-  });
-});
-
-describe("emptyMetadataResult", () => {
-  it("has no values, no prompt, no omissions, and no check", () => {
-    assert.deepEqual(emptyMetadataResult(), {
-      values: {},
-      showExpandPrompt: false,
-      omissions: [],
     });
   });
 });
