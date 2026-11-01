@@ -242,7 +242,7 @@
 
 **変更するファイル:** `CLAUDE.md`、本書（記録）
 
--   [ ] `CLAUDE.md`「Development Notes」の text-sync guards の一覧の「the configuration block and Quick start links of both READMEs」から「Quick start links」を外す（設計書 3.7。`db9986c6` の `:531-532`。PR-1 で行がずれるので、文で探す）。「the configuration block」は残す。
+-   [x] `CLAUDE.md`「Development Notes」の text-sync guards の一覧の「the configuration block and Quick start links of both READMEs」から「Quick start links」を外す（設計書 3.7。`db9986c6` の `:531-532`。PR-1 で行がずれるので、文で探す）。「the configuration block」は残す。
 -   [ ] `scope -pr 2`・`tests` を PR の merge-base と head で実行して通ることを確かめ、出力と 2 つのコミットを 7 章の該当の行に記録する。PR-3 で取り除く名前は PR-2 の head に残っているのが正しいので、`tests` の残存の検査の対象にしない（1.6）。`tests` が一覧として出すコメントと文書の中の名前は、PR のレビューで読むものとして PR の説明に載せる（AC-20）。
 -   [ ] PR の説明に、設計書 3.1.1〜3.1.3 の判定の一覧の行（AC-04）、3.3 の K4・K5 の対応表のうち PR-2 が触れる行（AC-02）、ステップ 2-2・2-3 のカバレッジの比較の結果（AC-11）を載せる。
 
