@@ -1,0 +1,10 @@
+# 設計への申し送り（0054）
+
+要件の作成で挙がった、設計（`02_architecture.md`）で扱う事項。`02_architecture.md` は、各項目の扱い（採った方針、または当てはまらない理由）を記録する。
+
+## H-01: 網羅の報告の取り方と比べ方（AC-05・AC-06）
+
+-   **論点:** 既定の網羅の報告はファイルごとの割合を示す。`metadata.ts` は行を削除するので分母が変わり、割合では関数ごとの到達の有無を比べられない。
+-   **先例:** 0027 `02_architecture.md` 3.11 と 0046 `03_implementation_plan.md` 1 章は、`node --test --experimental-test-coverage --test-reporter=lcov` で削除の前後の lcov を取り、関数ごとの `FN`・`FNDA` を比べた。node は `extension/.node-version` の版を使った。
+-   **注意:** 名前のない関数は `anonymous_<番号>` で報告される（0027 `03_implementation_plan.md` 1.3）。削除で番号がずれると、名前だけでは前後の関数を対応させられない。`emptyMetadataResult` は `metadata.ts` の最後の関数（`:218-220`）なので、その後ろの行はずれないと見込まれるが、比べ方で確かめる。
+-   **決めること:** 基準の時点（削除の前のコミット）、報告の出力先（リポジトリの外）、関数の対応の付け方、Makefile の対象に加えないこと（一度きりの確認のため。0027 の先例と同じ）。
