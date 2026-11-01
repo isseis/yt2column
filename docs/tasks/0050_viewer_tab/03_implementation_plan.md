@@ -220,10 +220,10 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **変更するファイル:** `src/core/native.ts`、`src/core/articlesResponse.ts`、`src/send.ts`、`src/core/sendMessages.ts`、`test/native.test.ts`、`test/send.test.ts`、`test/sendMessages.test.ts`、`test/articlesResponse.test.ts`、`test/response.test.ts`
 
--   [ ] `native.ts` に `classifyHostReply` を作り、本文のバイト列と状態コードを返す。拡張自身の時間切れを応答なしにする（設計書 3.1）。
--   [ ] 古い `classifyNativeReply` を、`classifyHostReply` の結果を `SendResult` に変える包みにする。包みは、本文に 1,024 バイトの上限を当て（超えれば今と同じ `body-over-limit`）、`classifyArticlesResponse` に渡す。外側の検査の種類は、同じ名前の `ArticlesUnexpectedCheck` に写す。時間切れは応答なしになるので、`ArticlesUnexpectedCheck` から `extension-timeout` を除き、`sendMessages.ts:36` の行を除く（1.3）。
--   [ ] `send.ts` に `exchange`（`HostMessage` を受け取る。設計書 3.1）を作る。`sendTimeoutMs` の宣言の形は変えない。`sendArticle` は、ポップアップを切り替えるまで残し、`exchange` と同じ 1 回の送信の処理を共有する。
--   [ ] テスト: `classifyHostReply` の検査の順と内容が今の `classifyNativeReply` と同じであること（`test/native.test.ts:37` の describe を移す）、512 KiB の境目、時間切れが応答なしになること。古い包みの 1,024 バイトの境目（1.4 の行き先の表）。`exchange` が 1 回だけ送り送り直さないこと、25 秒の後に届いた応答を無視すること、1.4 の行き先の表の `send.test.ts` の 4 つの確認。
+-   [x] `native.ts` に `classifyHostReply` を作り、本文のバイト列と状態コードを返す。拡張自身の時間切れを応答なしにする（設計書 3.1）。
+-   [x] 古い `classifyNativeReply` を、`classifyHostReply` の結果を `SendResult` に変える包みにする。包みは、本文に 1,024 バイトの上限を当て（超えれば今と同じ `body-over-limit`）、`classifyArticlesResponse` に渡す。外側の検査の種類は、同じ名前の `ArticlesUnexpectedCheck` に写す。時間切れは応答なしになるので、`ArticlesUnexpectedCheck` から `extension-timeout` を除き、`sendMessages.ts:36` の行を除く（1.3）。
+-   [x] `send.ts` に `exchange`（`HostMessage` を受け取る。設計書 3.1）を作る。`sendTimeoutMs` の宣言の形は変えない。`sendArticle` は、ポップアップを切り替えるまで残し、`exchange` と同じ 1 回の送信の処理を共有する。
+-   [x] テスト: `classifyHostReply` の検査の順と内容が今の `classifyNativeReply` と同じであること（`test/native.test.ts:37` の describe を移す）、512 KiB の境目、時間切れが応答なしになること。古い包みの 1,024 バイトの境目（1.4 の行き先の表）。`exchange` が 1 回だけ送り送り直さないこと、25 秒の後に届いた応答を無視すること、1.4 の行き先の表の `send.test.ts` の 4 つの確認。
 
 **完了の条件:** `make ext-check` と `make test`（`TestNativeHostContract`）が通る。1.2 の lcov の比べ方で、移したテストの関数の実行回数が変わらないことを確かめる。`exchange` が時間切れの後にもう一度送るように壊し、送り直さないことのテストが失敗することを確かめる。
 

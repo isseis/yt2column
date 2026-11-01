@@ -15,11 +15,13 @@ import {
 } from "../src/core/response.ts";
 import type { RequestId, StatusOutcomeLog } from "../src/core/response.ts";
 import type { ArticleKey } from "../src/core/articleKey.ts";
+import { classifyHostReply } from "../src/core/native.ts";
 import type {
   ExchangeFailureLog,
   HostOutcome,
   UnexpectedCheck,
 } from "../src/core/exchange.ts";
+import { responseReply } from "./helpers/native.ts";
 
 // Tests may assert a branded type to build fixtures.
 const requestId = "0123456789abcdef" as RequestId;
@@ -792,8 +794,8 @@ describe("a status response at the server's 256 KiB limit", () => {
     }
   });
 
-  it("is accepted with the article unchanged", () => {
-    const result = classifyStatus(response(200, text));
+  it("is accepted through the host reply with the article unchanged", () => {
+    const result = classifyStatus(classifyHostReply(responseReply(200, text)));
     assert.equal(result.kind, "ok");
     assert.deepEqual(result.job, body.job);
   });

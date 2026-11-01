@@ -132,7 +132,6 @@ describe("sendOutcomeMessage", () => {
 
   // Every check, as a Record so that a new check must be listed here.
   const unexpectedChecks: Record<ArticlesUnexpectedCheck, true> = {
-    "extension-timeout": true,
     "envelope-shape": true,
     "envelope-version": true,
     "host-protocol-error": true,
@@ -229,7 +228,7 @@ describe("sendOutcomeMessage", () => {
 
     it(`shows one message for every unexpected check in ${locale}`, () => {
       const message = sendOutcomeMessage(
-        { kind: "unexpected", check: "extension-timeout" },
+        { kind: "unexpected", check: "envelope-shape" },
         locale,
       );
       for (const check of Object.keys(

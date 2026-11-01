@@ -5,8 +5,10 @@ import type { CollectedInput } from "../src/core/collect.ts";
 import type { NativeReply } from "../src/core/native.ts";
 import { buildArticleBody } from "../src/core/prepare.ts";
 import type { PreparedRequest } from "../src/core/prepare.ts";
+import type { ArticleKey } from "../src/core/articleKey.ts";
+import { statusMessage } from "../src/core/hostMessage.ts";
 import type { RequestId } from "../src/core/response.ts";
-import { sendArticle, sendTimeoutMs } from "../src/send.ts";
+import { exchange, sendArticle, sendTimeoutMs } from "../src/send.ts";
 import {
   deferredNative,
   manualSchedule,
@@ -17,6 +19,8 @@ import {
 
 const requestId = "0123456789abcdef" as RequestId;
 const accepted = JSON.stringify({ status: "accepted", requestId });
+const acceptedBytes = new TextEncoder().encode(accepted);
+const message = statusMessage("key-0123" as ArticleKey);
 
 // Tests may assert a branded type to build fixtures.
 const request: PreparedRequest = {
@@ -35,36 +39,38 @@ async function flush(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-describe("sendArticle", () => {
-  it("sends the body once, bounds the exchange and cancels the bound", async () => {
+describe("exchange", () => {
+  it("sends the message once, bounds the exchange and cancels the bound", async () => {
     const native = recordingNative(async () => responseReply(202, accepted));
     const timer = manualSchedule();
-    const result = await sendArticle(
-      request,
+    const result = await exchange(
+      message,
       testSendDeps(native.sendNative, timer.schedule),
     );
 
-    assert.deepEqual(result, { kind: "accepted", requestId });
-    assert.equal(native.messages.length, 1);
-    assert.equal(native.messages[0], request.body.message);
+    assert.deepEqual(result, {
+      kind: "response",
+      status: 202,
+      bytes: acceptedBytes,
+    });
+    assert.deepEqual(native.messages, [message]);
     assert.deepEqual(timer.delays, [sendTimeoutMs]);
     assert.equal(timer.cancelled(), 1);
   });
 
-  it("returns extension-timeout when the bound passes first and ignores a later reply", async () => {
+  it("returns no-response when the bound passes first, ignores a later reply and does not resend", async () => {
     const native = deferredNative();
     const timer = manualSchedule();
-    const pending = sendArticle(
-      request,
+    const pending = exchange(
+      message,
       testSendDeps(native.sendNative, timer.schedule),
     );
     await flush();
     timer.fire();
     native.resolve(responseReply(202, accepted));
-    assert.deepEqual(await pending, {
-      kind: "unexpected",
-      check: "extension-timeout",
-    });
+    assert.deepEqual(await pending, { kind: "no-response" });
+    await flush();
+    assert.equal(native.messages.length, 1);
   });
 
   it("does not resend after a host failure", async () => {
@@ -72,10 +78,11 @@ describe("sendArticle", () => {
       kind: "failed",
       lastError: "Native host has exited.",
     }));
-    assert.deepEqual(
-      await sendArticle(request, testSendDeps(native.sendNative)),
-      { kind: "host-failed", lastError: "Native host has exited." },
-    );
+    assert.deepEqual(await exchange(message, testSendDeps(native.sendNative)), {
+      kind: "host-failed",
+      lastError: "Native host has exited.",
+    });
+    await flush();
     assert.equal(native.messages.length, 1);
   });
 
@@ -83,17 +90,17 @@ describe("sendArticle", () => {
     const native = recordingNative(async () => {
       throw new Error("broken");
     });
-    assert.deepEqual(
-      await sendArticle(request, testSendDeps(native.sendNative)),
-      { kind: "host-failed", lastError: "Error: broken" },
-    );
+    assert.deepEqual(await exchange(message, testSendDeps(native.sendNative)), {
+      kind: "host-failed",
+      lastError: "Error: broken",
+    });
   });
 
   it("returns host-failed when sendNative throws against its contract", async () => {
     const deps = testSendDeps(() => {
       throw new Error("thrown");
     });
-    assert.deepEqual(await sendArticle(request, deps), {
+    assert.deepEqual(await exchange(message, deps), {
       kind: "host-failed",
       lastError: "Error: thrown",
     });
@@ -111,9 +118,34 @@ describe("sendArticle", () => {
       kind: "message",
       value,
     }));
-    assert.deepEqual(
-      await sendArticle(request, testSendDeps(native.sendNative)),
-      { kind: "unexpected", check: "classification-error" },
+    assert.deepEqual(await exchange(message, testSendDeps(native.sendNative)), {
+      kind: "unexpected",
+      check: "classification-error",
+    });
+  });
+});
+
+// The popup's /articles send, until it moves to exchange; the send itself is
+// exchange's, tested above.
+describe("sendArticle", () => {
+  it("sends the body once and classifies the reply as /articles", async () => {
+    const native = recordingNative(async () => responseReply(202, accepted));
+    const result = await sendArticle(request, testSendDeps(native.sendNative));
+
+    assert.deepEqual(result, { kind: "accepted", requestId });
+    assert.equal(native.messages.length, 1);
+    assert.equal(native.messages[0], request.body.message);
+  });
+
+  it("returns no-response when the bound passes first", async () => {
+    const native = deferredNative();
+    const timer = manualSchedule();
+    const pending = sendArticle(
+      request,
+      testSendDeps(native.sendNative, timer.schedule),
     );
+    await flush();
+    timer.fire();
+    assert.deepEqual(await pending, { kind: "no-response" });
   });
 });
