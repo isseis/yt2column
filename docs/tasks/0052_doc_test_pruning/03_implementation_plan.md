@@ -188,11 +188,17 @@
 
 **変更するファイル:** `docs/tasks/0052_doc_test_pruning/_checks/coverage/main.go`（新規）、`docs/tasks/0052_doc_test_pruning/_checks/tests/main.go`（新規）、本書（記録）
 
--   [ ] ステップ 1-1 と同じ調べ直しを、`main` の HEAD で行い、記録する。
--   [ ] 1.6 の表のとおりに `coverage` と `tests` を書く。`tests` の残存の検査は、比べる merge-base と head の間で取り除いた名前を対象にし、PR-3 で取り除く名前がこの時点の head に残っていることを失敗としない（1.6）。
--   [ ] それぞれ、失敗とする条件を一度ずつ作って失敗することを確かめ、コミットメッセージに記す（`coverage` は製品のコードの関数の結果を 1 つ書き換えた出力、`tests` は一覧にない宣言を変えた一時的なコミット）。
+-   [x] ステップ 1-1 と同じ調べ直しを、`main` の HEAD で行い、記録する。
+-   [x] 1.6 の表のとおりに `coverage` と `tests` を書く。`tests` の残存の検査は、比べる merge-base と head の間で取り除いた名前を対象にし、PR-3 で取り除く名前がこの時点の head に残っていることを失敗としない（1.6）。
+-   [x] それぞれ、失敗とする条件を一度ずつ作って失敗することを確かめ、コミットメッセージに記す（`coverage` は製品のコードの関数の結果を 1 つ書き換えた出力、`tests` は一覧にない宣言を変えた一時的なコミット）。
 
 **完了の条件:** `tests` は `main` の HEAD を merge-base と head の両方にした実行で、`coverage` は同じ出力を前と後の両方にした実行で通り、どちらも上の失敗の条件で失敗する。
+
+**調べ直しの記録（2026-11-01）:**
+
+-   調べたコミット: `af49e4c3`（`main` の HEAD。PR-1 の #599 のマージ後）。`git diff --stat bf314092 af49e4c3 -- cmd/ internal/ extension/test/` は空で、要件書 2.2 と設計書 3.1 の対象のテストは `bf314092` から変わっていない。`b467905e` から変わったのは PR-1 の 6 ファイル（`CLAUDE.md`・`task-pr-handoff.md`・`fixprguard_guide.md`・本書・`_checks/` の 2 つ）だけである。判定の一覧を当てはめ直す必要はない。
+-   実装中の計画（設計書 3.5 の 3 つの方法）: 未チェックの項目が残る承認済みの計画は、ステップ 1-1 の記録と同じ 19 件で、0050 と 0052 を除くものは後始末だけである。計画のない承認済みの設計書はない。開いている PR はない（`gh pr list --state open`）。`docs/tasks/*/02_architecture.md`・`03_implementation_plan.md` を `origin/main` と変えるブランチは、ステップ 1-1 と同じ `isseis/0043-extension-i18n-03` だけである。
+-   タスク 0050: 実装のブランチ `isseis/0050-viewer-tab-04` は、まだ `origin/main` より先のコミットを持たない。計画は `b467905e` から変わっていない。
 
 #### ステップ 2-2: `cmd/yt2column` の確認・テスト・補助を取り除く
 
