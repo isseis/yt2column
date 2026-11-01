@@ -19,7 +19,7 @@ const installHostStep =
 // generating or done; any other case generates again, so this is not promised.
 const sendSameInputStep =
   "You can send the same input again from the popup. While the server is generating or holds that article, it returns it instead of generating it again; a changed input, a failed article or a restarted server generates it again.";
-const sendAgainToRetryStep =
+const sendAgainStep =
   "Send the same input again from the popup to generate the article again.";
 const repeatedPostStep =
   "If an earlier copy of this article was posted, posting the new one repeats it in Slack.";
@@ -209,7 +209,7 @@ export const en: Catalog = {
     },
     article_not_found: {
       text: "The server no longer has this article, so it cannot be posted.",
-      steps: [sendAgainToRetryStep, repeatedPostStep],
+      steps: [sendAgainStep, repeatedPostStep],
     },
     article_not_postable: {
       text: "The server refused to post this article.",
@@ -305,7 +305,7 @@ export const en: Catalog = {
   failure: {
     internal: {
       text: "The server failed while generating the article.",
-      steps: ["Check the server log.", sendAgainToRetryStep],
+      steps: ["Check the server log.", sendAgainStep],
     },
     transcript_too_long: {
       text: "The transcript is too long for the prompt.",
@@ -313,29 +313,23 @@ export const en: Catalog = {
     },
     llm_timeout: {
       text: "The LLM call timed out.",
-      steps: [sendAgainToRetryStep],
+      steps: [sendAgainStep],
     },
     llm_empty: {
       text: "The LLM returned an empty response.",
-      steps: [sendAgainToRetryStep],
+      steps: [sendAgainStep],
     },
     llm_truncated: {
       text: "The LLM's response was cut off before it ended.",
-      steps: [
-        sendAgainToRetryStep,
-        "If it happens again, check the server log.",
-      ],
+      steps: [sendAgainStep, "If it happens again, check the server log."],
     },
     llm_failed: {
       text: "The LLM call failed.",
-      steps: [
-        "Check the server log for the provider's error.",
-        sendAgainToRetryStep,
-      ],
+      steps: ["Check the server log for the provider's error.", sendAgainStep],
     },
     article_invalid: {
-      text: "The generated article could not be published as it was.",
-      steps: [sendAgainToRetryStep],
+      text: "The generated article did not pass the server's completion check.",
+      steps: [sendAgainStep],
     },
     article_too_large: {
       text: "The generated article is too large to show.",
@@ -385,7 +379,7 @@ export const en: Catalog = {
     },
   },
   viewer: {
-    sending: { text: "Sending the article to the server...", steps: [] },
+    sending: { text: "Sending the request to the server...", steps: [] },
     loading: { text: "Loading the article's status...", steps: [] },
     invalidLink: {
       text: "This viewer link is not valid, so no article is shown.",
@@ -394,7 +388,7 @@ export const en: Catalog = {
     running: "Generating the article",
     lost: {
       text: "The server no longer has this article: it restarted, or dropped the article from its cache.",
-      steps: [sendAgainToRetryStep, repeatedPostStep],
+      steps: [sendAgainStep, repeatedPostStep],
     },
     webhookNotConfigured: {
       text: "The server has no Slack Webhook configured.",
@@ -419,7 +413,7 @@ export const en: Catalog = {
       retry: "Try again",
     },
     sending: {
-      text: "Sending the article to the server...",
+      text: "Sending the request to the server...",
       steps: [closePopupStep],
     },
     viewerNotice: { text: closePopupStep, steps: [] },

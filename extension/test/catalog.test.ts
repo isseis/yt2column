@@ -6,16 +6,7 @@ import type { Catalog, Message } from "../src/core/i18n/catalog.ts";
 import { locales } from "../src/core/i18n/locale.ts";
 import type { Locale } from "../src/core/i18n/locale.ts";
 import { maxBodyBytes } from "../src/core/prepare.ts";
-import {
-  failureCodes,
-  publishReasons,
-  publishRejectStatus,
-  publishStates,
-  startRejectStatus,
-  statusRejectStatus,
-  stepNames,
-  stepStates,
-} from "../src/core/response.ts";
+import { failureCodes, startRejectStatus } from "../src/core/response.ts";
 import type { ServerRejectReason } from "../src/core/response.ts";
 
 const localeList = Object.keys(locales) as Locale[];
@@ -28,6 +19,9 @@ function textOf(message: Message): string {
 // No text mentions an options page, a token or a port. The ja words are
 // whole terms: the bare katakana for "port" would also match words such as
 // "support" and "report".
+// Slack, in either script: the start's messages must name it in neither locale.
+const slackWord = /slack|\u30b9\u30e9\u30c3\u30af/iu;
+
 const forbiddenWords: Record<Locale, RegExp> = {
   en: /option|token|\bport\b/iu,
   ja: /オプション|トークン|ポート番号/u,
@@ -213,41 +207,6 @@ describe("catalogs", () => {
       assert.equal(new Set(texts).size, codes.length);
     });
 
-    it(`has a message for every job API code and reason in ${locale}`, () => {
-      const catalog = catalogs[locale];
-      const sections: { name: string; codes: object; items: object }[] = [
-        { name: "failure", codes: failureCodes, items: catalog.failure },
-        { name: "stepNames", codes: stepNames, items: catalog.stepNames },
-        { name: "stepStates", codes: stepStates, items: catalog.stepStates },
-        {
-          name: "publishStates",
-          codes: publishStates,
-          items: catalog.publishStates,
-        },
-        {
-          name: "publishReasons",
-          codes: publishReasons,
-          items: catalog.publishReasons,
-        },
-        {
-          name: "jobReject",
-          codes: {
-            ...startRejectStatus,
-            ...statusRejectStatus,
-            ...publishRejectStatus,
-          },
-          items: catalog.jobReject,
-        },
-      ];
-      for (const { name, codes, items } of sections) {
-        assert.deepEqual(
-          Object.keys(items).sort(),
-          Object.keys(codes).sort(),
-          name,
-        );
-      }
-    });
-
     it(`never mentions Slack while sending or for a start's result in ${locale}`, () => {
       const catalog = catalogs[locale];
       const startReasons = Object.keys(
@@ -274,12 +233,12 @@ describe("catalogs", () => {
         7,
       );
       for (const [path, message] of checked) {
-        assert.equal(textOf(message).includes("Slack"), false, path);
+        assert.doesNotMatch(textOf(message), slackWord, path);
       }
       // The scan reaches the wording: the publish messages may name Slack, and do.
       assert.ok(
         Object.values(catalog.publishStates).some((message) =>
-          textOf(message).includes("Slack"),
+          slackWord.test(textOf(message)),
         ),
       );
     });

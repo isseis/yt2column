@@ -23,9 +23,23 @@ export interface PollStep {
   readonly notice: PollNotice;
 }
 
-/** The article a lost job keeps: the one a done job showed just before. */
+/**
+ * The article a lost job keeps: the one a done job showed just before, or the
+ * one a lost job already kept. A reply of an earlier epoch can show lost
+ * before the new epoch's fetch returns unknown again, and the article shown
+ * must stay saveable and copyable.
+ */
 function shownArticle(previous: JobDisplay | undefined): Article | undefined {
-  return previous?.kind === "done" ? previous.article : undefined;
+  switch (previous?.kind) {
+    case "done":
+      return previous.article;
+    case "lost":
+      return previous.kept;
+    case "running":
+    case "failed":
+    case undefined:
+      return undefined;
+  }
 }
 
 const noNotice: PollNotice = { kind: "none" };

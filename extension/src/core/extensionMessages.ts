@@ -278,6 +278,8 @@ export function parseStartRequest(
     const record = members(value, ["type", "input", "viewer", "source"]);
     literal(record.type, "start");
     const input = startInput(record.input);
+    // Only the size check is used here; the worker builds its request from
+    // the returned input with prepareStartInput again.
     if (prepareStartInput(input).kind !== "ready") {
       throw new Rejected();
     }

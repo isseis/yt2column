@@ -176,7 +176,7 @@ export const ja: Catalog = {
   primaryButton: "記事を生成する",
   jobReject: {
     too_many_requests: {
-      text: "サーバはほかの記事を処理しているため、この記事を始めませんでした。",
+      text: "サーバはほかの記事を処理しているため、この記事の生成を始めませんでした。",
       steps: ["しばらく待ってから、ポップアップからもう一度送信してください。"],
     },
     body_too_large: {
@@ -255,7 +255,7 @@ export const ja: Catalog = {
   statusExchange: {
     notSent: {
       "server-unavailable": {
-        text: "記事の状態を読むために yt2column のサーバに接続できませんでした。",
+        text: "状態の取得のために yt2column のサーバに接続できませんでした。",
         steps: [startServerStep, checksAgainStep],
       },
       "message-too-large": {
@@ -271,7 +271,7 @@ export const ja: Catalog = {
       steps: [checksAgainStep],
     },
     hostFailed: {
-      text: "状態を読むための Native Messaging のホストを起動できなかったか、ホストが応答せずに終了しました。",
+      text: "状態の取得のための Native Messaging のホストを起動できなかったか、ホストが応答せずに終了しました。",
       steps: [installHostStep, checksAgainStep],
     },
     unexpected: {
@@ -350,7 +350,7 @@ export const ja: Catalog = {
       ],
     },
     article_invalid: {
-      text: "生成した記事を、そのままでは公開できませんでした。",
+      text: "生成した記事が、完了の時点の検査に通りませんでした。",
       steps: [sendAgainStep],
     },
     article_too_large: {
@@ -403,7 +403,7 @@ export const ja: Catalog = {
     },
   },
   viewer: {
-    sending: { text: "記事をサーバに送信しています…", steps: [] },
+    sending: { text: "リクエストをサーバに送信しています…", steps: [] },
     loading: { text: "記事の状態を読み込んでいます…", steps: [] },
     invalidLink: {
       text: "このビューアのリンクは正しくないため、記事を表示しません。",
@@ -437,7 +437,7 @@ export const ja: Catalog = {
       retry: "やり直す",
     },
     sending: {
-      text: "記事をサーバに送信しています…",
+      text: "リクエストをサーバに送信しています…",
       steps: [closePopupStep],
     },
     viewerNotice: { text: closePopupStep, steps: [] },

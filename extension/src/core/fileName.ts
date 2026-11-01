@@ -68,7 +68,8 @@ function cutToBytes(text: string, maxBytes: number): string {
  * a code point boundary, and ".md" added. The result never holds a path
  * separator or a control character, never starts with "." and always ends
  * with ".md"; a trailing "." or space before ".md" is harmless, since the
- * extension stays even where Windows strips them.
+ * extension stays even where Windows strips them. videoId must be non-empty,
+ * as watchVideoId returns it for a URL the viewer accepted.
  */
 export function articleFileName(
   title: string | undefined,

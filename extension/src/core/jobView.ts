@@ -6,6 +6,7 @@ import type { NotSentCause } from "./exchange.ts";
 import type {
   Article,
   FailureCode,
+  PublishOutcome,
   PublishRejectReason,
   PublishStatus,
   RequestId,
@@ -142,5 +143,12 @@ export type PublishOpNotice =
       readonly requestId: RequestId;
     }
   | { readonly kind: "not-sent"; readonly cause: NotSentCause }
-  // No response, the host failed, or an unexpected reply.
-  | { readonly kind: "unknown" };
+  // No response, the host failed, or an unexpected reply: the result is not
+  // known. The outcome is kept because each kind has its own message.
+  | {
+      readonly kind: "unknown";
+      readonly outcome: Extract<
+        PublishOutcome,
+        { kind: "no-response" | "host-failed" | "unexpected" }
+      >;
+    };

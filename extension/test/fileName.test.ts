@@ -66,16 +66,16 @@ describe("articleFileName", () => {
       title: "a".repeat(201),
       file: `${"a".repeat(200)}.md`,
     },
-    // あ is three UTF-8 bytes: 66 of them are 198 bytes, a 67th would be 201.
+    // U+3042 is three UTF-8 bytes: 66 of them are 198 bytes, a 67th would be 201.
     {
       name: "three-byte characters over the limit",
-      title: "あ".repeat(67),
-      file: `${"あ".repeat(66)}.md`,
+      title: "\u3042".repeat(67),
+      file: `${"\u3042".repeat(66)}.md`,
     },
     // 199 bytes, and the next code point would end past the limit.
     {
       name: "a code point across the limit",
-      title: `${"a".repeat(199)}あ`,
+      title: `${"a".repeat(199)}\u3042`,
       file: `${"a".repeat(199)}.md`,
     },
     // U+1F600 is four bytes and two UTF-16 units: 50 of them are 200 bytes.

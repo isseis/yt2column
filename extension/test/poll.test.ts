@@ -65,6 +65,21 @@ describe("afterStatus", () => {
         notice: { kind: "none" },
       },
     },
+    ...(
+      [
+        { state: "not_posted" },
+        { state: "failed", reason: "webhook" },
+        { state: "unpostable", reason: "mention" },
+      ] as const
+    ).map((publish) => ({
+      name: `a done article ${publish.state} stops`,
+      outcome: ok({ state: "done", steps: doneSteps, article, publish }),
+      step: {
+        decision: "stop" as const,
+        job: doneJob(publish),
+        notice: { kind: "none" as const },
+      },
+    })),
     {
       name: "a failed job stops",
       previous: running,
@@ -109,12 +124,12 @@ describe("afterStatus", () => {
       },
     },
     {
-      name: "an unknown job after a lost one stops without an article",
+      name: "an unknown job after a lost one keeps its kept article",
       previous: { kind: "lost", kept: article },
       outcome: ok({ state: "unknown" }),
       step: {
         decision: "stop",
-        job: { kind: "lost" },
+        job: { kind: "lost", kept: article },
         notice: { kind: "none" },
       },
     },

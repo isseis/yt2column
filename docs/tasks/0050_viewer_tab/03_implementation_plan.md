@@ -8,7 +8,7 @@
 | Created | 2026-10-31 |
 | Review date | 2026-11-01 |
 | Reviewer | isseis |
-| Comments | 2026-11-01 (decision, approved in session): ステップ 1-1 の確認で、設計書 3.16 の行 10 が崩れた（凍結されたタブは問いに答え、破棄されたタブには新しいタブの ID が付く）。レビュアー（isseis）がセッションの中で扱いを選び、承認した。凍結されたタブは期待を観察に合わせ、破棄されたタブは「ビューアを開く」の重複を制約として受け入れた（要件 F-004・AC-21、設計書 3.16・4.2・6.6・7.2）。これに合わせて 4.3.2 の AC-08 の行を改めた。行 6 は、送り方を変えないことをレビュアーが選んだ（設計書 3.4.1 の項目 5）。ほかの決定は変えていない。 |
+| Comments | 2026-11-01 (decision, approved in session): ステップ 1-1 の確認で、設計書 3.16 の行 10 が崩れた（凍結されたタブは問いに答え、破棄されたタブには新しいタブの ID が付く）。レビュアー（isseis）がセッションの中で扱いを選び、承認した。凍結されたタブは期待を観察に合わせ、破棄されたタブは「ビューアを開く」の重複を制約として受け入れた（要件 F-004・AC-21、設計書 3.16・4.2・6.6・7.2）。これに合わせて 4.3.2 の AC-08 の行を改めた。行 6 は、送り方を変えないことをレビュアーが選んだ（設計書 3.4.1 の項目 5）。ほかの決定は変えていない。<br>2026-11-01 (editorial correction): PR-4 の実装のレビューで、ステップ 3-3 の `afterStatus` の記述に、直前が `kept` を持つ `lost` の場合を加えた（設計書 3.6 の同じ訂正。AC-15）。あわせて設計書 3.9 の `PublishOpNotice` の `unknown` にやり取りの結果を持たせた。決定は変えていない。 |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の項番、「設計書 3.2」などは設計書の節を指す。既存のコードと文書についての記述は、コミット `bf314092` で確かめた。`file:line` はこのコミットの行番号を指す。設計書は行番号をコミット `577e7b51` で確かめている。`git diff --stat 577e7b51 bf314092 -- extension cmd/yt2column/extension_docs_test.go internal/nmhost internal/server docs/dev/guides/development.md` の出力は空なので、設計書の拡張・Go のガード・ホスト・サーバ・`development.md` の行番号は、そのまま使える（`README.md` と `docs/dev/security.md` は、タスク `0051` の変更で行がずれている）。拡張のファイルのパスは、設計書と同じく `extension/` を省いて書く（例: `src/launch.ts`）。テストの場所は `path::describe の名前` で示す。まだないテストの describe の名前は、実装のときに決める仮の名前である。
 
@@ -279,7 +279,7 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 **変更するファイル:** `src/core/jobView.ts`（新規）、`src/core/poll.ts`（新規）、`test/jobView.test.ts`（新規）、`test/poll.test.ts`（新規）
 
 -   [x] `jobView.ts` に、設計書 3.6 の `ViewerState`・`StartFailure`・`JobDisplay`・`RetryingStatus`・`StoppingStatus`・`PollNotice` と、3.9 の `PublishRow`・`PublishControl`・`publishControl`・`PublishOpNotice` を作る。
--   [x] `poll.ts` に、設計書 3.7 の定数と `PollStep`・`afterStatus` を作る。3.6 の表の行のとおりに表示と続けるか止めるかを決め、`unknown` で直前の `done` の記事を `kept` に残す。
+-   [x] `poll.ts` に、設計書 3.7 の定数と `PollStep`・`afterStatus` を作る。3.6 の表の行のとおりに表示と続けるか止めるかを決め、`unknown` で直前の `done` の記事（直前が `kept` を持つ `lost` ならその `kept`）を `kept` に残す。
 -   [x] テスト: `afterStatus` の表の各行（AC-11・AC-13〜AC-16・AC-18）、`publishControl` の 7 つの行と、2 つの行が同時に当てはまる組み合わせ（AC-28）、`publishing` の間と `lost` で押せないこと（AC-32）。
 
 **完了の条件:** `make ext-check` が通る。`publishControl` の行の順を入れ替えるように壊し、重なりのテストが失敗することを確かめる。`afterStatus` が `posting` で止めるように壊し、AC-18 の行が失敗することを確かめる。
