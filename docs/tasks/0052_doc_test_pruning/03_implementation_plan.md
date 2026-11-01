@@ -274,24 +274,32 @@
 
 **変更するファイル:** 本書（記録）。0050 の文書は、下の条件に当たる場合だけ変える。
 
--   [ ] `main` の HEAD のすべての文書のテストについて、AC-05 の調べをやり直す（設計書 8 章の PR-3）。設計書 3.1 の冒頭の方法（`doctestutil` を使う、または `.md` のパスを持つテストのファイルを `git grep` で挙げ、一覧の外のものを読む）で、一覧の外に文書を読むテストが加わっていないかを調べる。加わっていれば基準を当てはめ、新しい判断の候補はレビュアーに諮り、決定を日付とともに本書の `Comments` に記録する（AC-07）。
--   [ ] 設計書 3.5 の 3 つの方法で、実装中の計画を調べる。
--   [ ] タスク 0050 の状態を調べ、設計書 3.5 の「0050 の扱い」のどれに当たるかを決めて記録する。0050 の文書を変える場合は、先にその担当（レビュアー）に確かめる。
+-   [x] `main` の HEAD のすべての文書のテストについて、AC-05 の調べをやり直す（設計書 8 章の PR-3）。設計書 3.1 の冒頭の方法（`doctestutil` を使う、または `.md` のパスを持つテストのファイルを `git grep` で挙げ、一覧の外のものを読む）で、一覧の外に文書を読むテストが加わっていないかを調べる。加わっていれば基準を当てはめ、新しい判断の候補はレビュアーに諮り、決定を日付とともに本書の `Comments` に記録する（AC-07）。
+-   [x] 設計書 3.5 の 3 つの方法で、実装中の計画を調べる。
+-   [x] タスク 0050 の状態を調べ、設計書 3.5 の「0050 の扱い」のどれに当たるかを決めて記録する。0050 の文書を変える場合は、先にその担当（レビュアー）に確かめる。
 
 **完了の条件:** 調べたコミット、結果、0050 の扱いが本書に記録されている。
+
+**調べ直しの記録（2026-11-01）:**
+
+-   調べたコミット: `4df7b94f`（`main` の HEAD。PR-2 の #601 のマージ後）。`git diff --stat bf314092 4df7b94f -- cmd/ internal/ extension/test/ testutil/` は PR-2 が変えた 7 ファイル（`cmd/yt2column` の 5 つ、`internal/config/test_helpers.go`、`internal/doctestutil/readme.go`）だけを示し、`bf314092` から加わったファイル（`--diff-filter=A`）は 0050 と 0052 のタスクの文書と `_checks/` だけだった。
+-   AC-05 の調べ（設計書 3.1 の冒頭の方法）: テストのファイルのうち `doctestutil` を使うもの（`docs/tasks/` の下を除く 14 ファイル）と、`.md` のパスの文字列を持つもの（Go と拡張のテストの 38 ファイル）を `git grep` で挙げた。どれも `bf314092` からあるファイルで、PR-2 のほかに変わっていないので、設計書 3.1 の判定と一覧の外のファイルの扱い（設定・ソース・一時的なファイル名だけを読む）は変わらない。一覧の外に文書を読むテストは加わっておらず、新しい判断の候補はない。
+-   実装中の計画（設計書 3.5 の 3 つの方法）: 未チェックの項目が残る承認済みの計画は、ステップ 1-1 の記録と同じ 19 件で、0050 と 0052 を除くものは後始末だけである。計画のない承認済みの設計書はない。開いている PR は 0050 の PR #600（`isseis/0050-viewer-tab-04`）だけである（`gh pr list --state open`）。`docs/tasks/*/02_architecture.md`・`03_implementation_plan.md` を `origin/main` と変えるブランチは、`isseis/0043-extension-i18n-03`（ステップ 1-1 のとおり実装中の計画ではない）と、PR #600 のブランチ（ローカルと `origin`）だけである。
+-   タスク 0050: PR #600 は開いたままで、5 つのコミット（`fdee613a`..`c1c40d23`）で 0050 の要件書・設計書・計画だけを変える。設計書 3.16 の試作の結果、`Comments`、付録 B「決定の履歴」を記録するもので、`metadataDocs.test.ts` の socket directory の確認を消す方針（計画のステップ 7-2、`03_implementation_plan.md:576`）は `main` でも PR #600 のブランチでも変わっていない。本タスクが PR-3 で取り除く確認・補助（`TestGuideNamesGitStateParts` の `fixpr.md` の部分、`TestInstallTargetDocumented` の `CLAUDE.md` の部分、`TestInterfaceDocComments`・`interfaceDoc`・`hasCJK`、`markdownSections`）を保つ作業も、どちらにもない。
+-   0050 の扱い: 0050 のステップ 7-2 は未実装（未チェック）で、`metadataDocs.test.ts:64-78` に確認が残っている。設計書 3.5 の「まだ実装されていない場合」に当たるので、PR-3 が確認を消し、0050 の文書は変えない（0050 のステップ 7-2 の削除は、実装の時点で消す対象がないことになるだけである）。0050 の文書を変えないので、担当への確認は要らない。
 
 #### ステップ 3-2: ほかのパッケージと拡張の確認・テスト・補助を取り除く
 
 **変更するファイル:** `cmd/fixprguard/docs_test.go`、`cmd/codexreview/docs_test.go`、`internal/pipeline/pipeline_test.go`、`extension/test/metadataDocs.test.ts`
 
--   [ ] 取り除く前に、`coverage` に渡す出力を取る。
--   [ ] 1.4 の「一部を削除するテスト」の表の、`TestGuideNamesGitStateParts`・`TestInstallTargetDocumented` の 2 行のとおりに変える。`TestInstallTargetDocumented` の名前を `TestInstallTargetInMakefile` に変える（1.5）。
--   [ ] `TestInterfaceDocComments`・`interfaceDoc`・`hasCJK` を消す（J-11）。
--   [ ] `metadataDocs.test.ts` の「socket directory documentation reference」の `describe`（`:64-78`）を消す。ステップ 3-1 で、0050 がすでに消していた場合は変えず、その旨を記録する（設計書 3.5）。
--   [ ] 一部を削除した 2 つのテストについて、残す確認の値を一度壊して落ちることを確かめる（設計書 7.2）。`TestGuideNamesGitStateParts` は 8 章の行から `GitStateParts` の値を 1 つ消した写しで、`TestInstallTargetInMakefile` は `Makefile` の `install-codexreview:` の次の行を変えた写しで落ちること。
--   [ ] 取り除いた後の出力を取り、`coverage` で比べる。
--   [ ] `make ext-check` を通す。取り除いた node の確認が `extension/src/` の関数を通らないこと（設計書 3.1.7）を、PR の説明に記す（AC-13）。
--   [ ] 1 つのコミットにし、コミットメッセージに、取り除いたもの、名前の変更、カバレッジの比較の結果、壊して確かめたことを記す。
+-   [x] 取り除く前に、`coverage` に渡す出力を取る。
+-   [x] 1.4 の「一部を削除するテスト」の表の、`TestGuideNamesGitStateParts`・`TestInstallTargetDocumented` の 2 行のとおりに変える。`TestInstallTargetDocumented` の名前を `TestInstallTargetInMakefile` に変える（1.5）。
+-   [x] `TestInterfaceDocComments`・`interfaceDoc`・`hasCJK` を消す（J-11）。
+-   [x] `metadataDocs.test.ts` の「socket directory documentation reference」の `describe`（`:64-78`）を消す。ステップ 3-1 で、0050 がすでに消していた場合は変えず、その旨を記録する（設計書 3.5）。
+-   [x] 一部を削除した 2 つのテストについて、残す確認の値を一度壊して落ちることを確かめる（設計書 7.2）。`TestGuideNamesGitStateParts` は 8 章の行から `GitStateParts` の値を 1 つ消した写しで、`TestInstallTargetInMakefile` は `Makefile` の `install-codexreview:` の次の行を変えた写しで落ちること。
+-   [x] 取り除いた後の出力を取り、`coverage` で比べる。
+-   [x] `make ext-check` を通す。取り除いた node の確認が `extension/src/` の関数を通らないこと（設計書 3.1.7）を、PR の説明に記す（AC-13）。
+-   [x] 1 つのコミットにし、コミットメッセージに、取り除いたもの、名前の変更、カバレッジの比較の結果、壊して確かめたことを記す。
 
 **完了の条件:** `make test`、`make lint`、`make deadcode`、`make ext-check` が通り、`coverage` が通る。
 

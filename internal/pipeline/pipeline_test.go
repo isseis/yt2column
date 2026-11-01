@@ -18,7 +18,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"unicode"
 
 	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/publisher"
@@ -503,49 +502,6 @@ func TestInterfaceContracts(t *testing.T) {
 			m := tc.iface.Method(0)
 			if m.Type.NumIn() < 1 || m.Type.In(0) != ctxType {
 				t.Errorf("%s.%s first parameter is not context.Context", tc.name, m.Name)
-			}
-		})
-	}
-}
-
-// TestInterfaceDocComments checks the contract clauses in the interface docs.
-func TestInterfaceDocComments(t *testing.T) {
-	cases := []struct {
-		path    string
-		name    string
-		clauses []string
-	}{
-		{"../transcript/transcript.go", "TranscriptSource", []string{
-			"must return an error on failure",
-			"must not return an empty Transcript as a successful result",
-		}},
-		{"../llm/llm.go", "LLMClient", []string{
-			"must not return an empty response without an error",
-			"report a failure with ErrInvalidRequest, ErrTruncated, ErrUnexpectedFinishReason, or ErrEmptyResponse",
-			"matches context.DeadlineExceeded or context.Canceled",
-			"carries the Model and the Usage of the rejected response, and an empty Text and ModelVersion",
-			"With any other error it is the zero value, whose Usage is unknown",
-		}},
-		{"../writer/writer.go", "ArticleWriter", []string{
-			"must return an error on failure",
-			"must not return an empty Article as a successful result",
-			"Write wraps every failure in a *TokenUsageError that carries the usage of the stages that ran, or were reused, before the failure",
-		}},
-		{"../publisher/publisher.go", "Publisher", []string{
-			"must return an error on failure",
-			"must not publish incomplete content",
-		}},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			doc := strings.Join(strings.Fields(interfaceDoc(t, tc.path, tc.name)), " ")
-			for _, clause := range tc.clauses {
-				if !strings.Contains(doc, clause) {
-					t.Errorf("%s doc comment is missing %q; got:\n%s", tc.name, clause, doc)
-				}
-			}
-			if hasCJK(doc) {
-				t.Errorf("%s doc comment contains CJK text:\n%s", tc.name, doc)
 			}
 		})
 	}
@@ -1137,44 +1093,4 @@ func exportedFieldTypes(t reflect.Type) map[string]string {
 		}
 	}
 	return fields
-}
-
-func interfaceDoc(t *testing.T, path, name string) string {
-	t.Helper()
-	fset := token.NewFileSet()
-	file, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
-	if err != nil {
-		t.Fatalf("parse %s: %v", path, err)
-	}
-	for _, decl := range file.Decls {
-		gen, ok := decl.(*ast.GenDecl)
-		if !ok || gen.Tok != token.TYPE {
-			continue
-		}
-		for _, spec := range gen.Specs {
-			typeSpec, ok := spec.(*ast.TypeSpec)
-			if !ok || typeSpec.Name.Name != name {
-				continue
-			}
-			if _, ok := typeSpec.Type.(*ast.InterfaceType); !ok {
-				t.Fatalf("%s: %s is not an interface", path, name)
-			}
-			if gen.Doc == nil {
-				t.Fatalf("%s: %s has no doc comment", path, name)
-			}
-			return gen.Doc.Text()
-		}
-	}
-	t.Fatalf("%s: interface %s not found", path, name)
-	return ""
-}
-
-func hasCJK(s string) bool {
-	for _, r := range s {
-		if unicode.Is(unicode.Han, r) || unicode.Is(unicode.Hiragana, r) ||
-			unicode.Is(unicode.Katakana, r) || unicode.Is(unicode.Hangul, r) {
-			return true
-		}
-	}
-	return false
 }
