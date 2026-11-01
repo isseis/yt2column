@@ -350,3 +350,97 @@ func (g *GitHub) EditPR(ctx context.Context, req EditPRRequest) error {
 	}
 	return nil
 }
+
+// AppendPRRequest names the PR whose description gets the file's content
+// appended after its current body.
+type AppendPRRequest struct {
+	PR       PRNumber
+	BodyFile string
+}
+
+// AppendPR appends the file's text to the PR description. Contract: the file
+// passes readTextFile and checkPostText and holds no '@' or '<' (no mention,
+// notification, or HTML comment that hides text), all checked before gh
+// runs. The current body is read with gh pr view and kept byte for byte; the
+// text follows it after an empty line (directly when the body is empty). The
+// result must fit maxTextFileBytes and pass checkPostText, a current body
+// that already mentions Codex included; otherwise it is ErrInvalidInput and
+// nothing is written. The result is written as the body alone, on standard
+// input, with no title. The current body never reaches an error or the
+// output. A reviewer's edit between the read and the write is overwritten:
+// gh pr edit has no conditional update.
+func (g *GitHub) AppendPR(ctx context.Context, req AppendPRRequest) error {
+	if !req.PR.usable() {
+		return fmt.Errorf("%w: PR number", ErrInvalidInput)
+	}
+	text, err := readTextFile(req.BodyFile)
+	if err != nil {
+		return err
+	}
+	if err := checkPostText(text); err != nil {
+		return err
+	}
+	if strings.ContainsAny(text, "@<") {
+		return fmt.Errorf("%w: appended text has '@' or '<'", ErrInvalidInput)
+	}
+	current, err := g.prBody(ctx, req.PR)
+	if err != nil {
+		return err
+	}
+	body := appendParagraph(current, text)
+	if len(body) > maxTextFileBytes {
+		return fmt.Errorf("%w: appended PR body size", ErrInvalidInput)
+	}
+	if err := checkPostText(body); err != nil {
+		return err
+	}
+	if _, err := g.runGH(ctx, []byte(body), "pr", "edit", req.PR.String(), "--body-file", "-"); err != nil {
+		return ghFailure("pr edit", err)
+	}
+	return nil
+}
+
+// appendParagraph puts text after current with an empty line between them,
+// leaving current's bytes as they are: one LF is added when current ends a
+// line (LF or CRLF), two when it does not, and none when it is empty.
+func appendParagraph(current, text string) string {
+	switch {
+	case current == "":
+		return text
+	case strings.HasSuffix(current, "\n"):
+		return current + "\n" + text
+	default:
+		return current + "\n\n" + text
+	}
+}
+
+// prBody reads the PR's current description. The response must be one
+// strict JSON object, within maxResponseBytes, whose body member is a string
+// (an empty one included); anything else, and a failed gh, is
+// ErrResponseRejected naming the rule only.
+func (g *GitHub) prBody(ctx context.Context, pr PRNumber) (string, error) {
+	out, err := g.runGH(ctx, nil, "pr", "view", pr.String(), "--json", "body")
+	if err != nil {
+		return "", ghFailure("pr view", err)
+	}
+	if len(out) > maxResponseBytes {
+		return "", rejected("response size")
+	}
+	obj, err := strictjson.ParseObject(out)
+	if err != nil {
+		return "", rejected("pr view")
+	}
+	members, err := obj.Collect("body")
+	if err != nil {
+		return "", rejected("pr view")
+	}
+	value, err := strictjson.Required(members, "body")
+	if err != nil {
+		return "", rejected("PR body")
+	}
+	body, err := value.AsString()
+	if err != nil {
+		return "", rejected("PR body")
+	}
+	return body, nil
+}

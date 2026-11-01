@@ -111,11 +111,11 @@
 
 **変更するファイル:** `internal/fixprguard/write.go`、`internal/fixprguard/errors.go`、`internal/fixprguard/write_test.go`
 
--   [ ] `AppendPRRequest` と `(*GitHub).AppendPR` を加える（設計書 3.4.2 節の型）。
--   [ ] `AppendPR` は、`gh` を呼ぶ前に、ファイルを `readTextFile`・`checkPostText` と `@`・`<` の拒否で検査する。今の本文の取得と読み方、空行での区切り、足した後の検査、書き込みは 1.4 節のとおりにする。足した後の検査に通らなければ `ErrInvalidInput` を返し、`pr edit` を呼ばない。
--   [ ] 取得した本文を、戻り値の誤りにも診断にも含めない。
--   [ ] `ErrInvalidInput` のコメントに `append-pr` を加える。
--   [ ] 4.1 節の 1-2 の行のテストを加える。
+-   [x] `AppendPRRequest` と `(*GitHub).AppendPR` を加える（設計書 3.4.2 節の型）。
+-   [x] `AppendPR` は、`gh` を呼ぶ前に、ファイルを `readTextFile`・`checkPostText` と `@`・`<` の拒否で検査する。今の本文の取得と読み方、空行での区切り、足した後の検査、書き込みは 1.4 節のとおりにする。足した後の検査に通らなければ `ErrInvalidInput` を返し、`pr edit` を呼ばない。
+-   [x] 取得した本文を、戻り値の誤りにも診断にも含めない。
+-   [x] `ErrInvalidInput` のコメントに `append-pr` を加える。
+-   [x] 4.1 節の 1-2 の行のテストを加える。
 
 **完了の条件:** 4.1 節の 1-2 の行のテストが通る。同じ行の「壊して確かめる」の各項目で該当のテストが落ちることを確かめ、コミットメッセージに書いた。
 

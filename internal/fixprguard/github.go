@@ -45,7 +45,7 @@ func NewGitHub(run cmdrunner.InputRunner, reviewers Reviewers) (*GitHub, error) 
 }
 
 // NewGitHubWithoutReviewer returns a GitHub for the calls that judge no
-// thread: Head, CurrentPR and EditPR. Its reviewers are the zero Reviewers,
+// thread: Head, CurrentPR, EditPR and AppendPR. Its reviewers are the zero Reviewers,
 // and the calls that judge threads (List, Begin, ThreadPaths, Reply) refuse to
 // run on it, so a subcommand that takes no --reviewer cannot judge with none.
 func NewGitHubWithoutReviewer(run cmdrunner.InputRunner) (*GitHub, error) {
