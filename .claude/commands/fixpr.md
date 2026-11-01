@@ -92,7 +92,10 @@ Invoking this command approves, for this PR only, the network operations it
 names, all of which `fixprguard` makes except where noted: `gh pr view` and
 `gh repo view` (the PR, its head repository, and this repository),
 `gh api graphql` (fetching the review threads and resolving a thread), `gh api`
-(the authors' permission lookups and posting a reply), `gh pr edit` (Phase 6),
+(the authors' permission lookups and posting a reply), `gh pr view` and
+`gh pr edit` (Phase 6, rewriting the description and appending the
+corrections), `gh pr view --json body --jq` (Phase 6, run by this session to
+count the correction paragraphs, printing no body),
 `git ls-remote` (the remote branch for the baseline), `git push` (Phase 4, and
 Phase 4.5 itself after its commits), and `git fetch --prune` (Phase 4, run by
 this session). `coderabbit review` and `codexreview` (Phase 4.5) have standing
@@ -753,11 +756,29 @@ Agent prompt:
 >    for GitHub). Never write `<review-mention>` in the title or the body,
 >    in any letter case, even when quoting: write `Codex` without the `@` instead. Never return placeholder text. Otherwise reply with only
 >    `{"stale": false}`, so the real PR description is preserved.
+> 4. When you rewrite the body, keep every paragraph that starts with
+>    `**編集上の訂正（` (an editorial-correction paragraph) and its list
+>    exactly as they are, and write no such paragraph yourself, even for a
+>    correction you see in `git log`: this session appends this round's
+>    corrections afterwards.
 
 When the reply is `{"stale": true, ...}`, write its `title` and `body` to two
 files outside the work tree with the Write tool (the title file holds the title
 alone, with no trailing newline, which the tool rejects as a control
-character), and run the mention check on both files.
+character). Before sending the rewrite, check that it keeps the
+editorial-correction paragraphs. Get only their count in the current
+description; the filter prints a number, never the body, so the description
+does not enter this session:
+
+```bash
+gh pr view <number> --json body --jq '[(.body // "") | split("\n")[] | select(startswith("**編集上の訂正（"))] | length'
+```
+
+Count the lines of the body file that start with `**編集上の訂正（`
+(`grep -c '^\*\*編集上の訂正（' <body-file>`). When the body file has fewer,
+or either count fails, do not run `edit-pr`: leave the PR description as it
+is, and list it in the Final report. Otherwise run the mention check on both
+files.
 
 **Mention check.** Before posting, run `grep -qiF -- '<review-mention>' <file>`
 on each file of text to post. Post only when it exits `1` for every file: exit
@@ -774,6 +795,31 @@ fixprguard edit-pr --protocol 4 --title-file <title-file> --body-file <body-file
 The tool passes the title and body to `gh` without a shell, reading the title
 from its file as `_context.md`, "Passing a title to `gh`", asks. Report a stop.
 
+**Appending the corrections.** Whether or not the description was stale or
+rewritten, append this round's editorial corrections to it. Only when Phase 4
+made a commit and every push of the round succeeded, read the correction lines
+of the round's commits, from the head before the fix to the pushed head (Phase
+4.5's commits included): the lines of `git log --format=%B <commitSha>^..HEAD`
+that start with `Editorial correction: ` at their first column. With none, skip
+this. Otherwise write the correction paragraph, with `/fixpr` as the step that
+wrote it and today's date, in the form
+`docs/dev/conventions/requirements_process.md`, "Recording in the PR
+description", gives, to a file outside the work tree, run the mention check
+above on it, and only when it passes run:
+
+```
+fixprguard append-pr --protocol 4 --body-file <paragraph-file> <number>
+```
+
+The tool reads the current description, appends the paragraph after a blank
+line, and writes the description back without a shell; the description does not
+reach this session. When the mention check fails, or `append-pr` stops (exit
+code `2` included, with its one-line diagnostic), the corrections are not in
+the PR description: list them in the Final report. Do not suggest reinstalling
+the tool for an `append-pr` diagnostic: an old tool's diagnostic does not name
+the subcommand, so it cannot be told apart from another usage error
+(`docs/dev/guides/fixprguard_guide.md`, chapter 4).
+
 ---
 
 ## Final report
@@ -782,7 +828,8 @@ After all phases complete (or a phase aborted early), report the result to
 the user with **all** of the following — bare counts alone are not enough:
 
 1. **Summary line**: PR, fixed / off-level (deferred to a handoff document) /
-   invalid / unclear counts, clusters, and commit SHA (or "no commit" / "build
+   invalid / unclear counts, clusters, the number of corrections appended to
+   the PR description, and commit SHA (or "no commit" / "build
    failed" / "no PR found" / "nothing to process" if a phase stopped early).
    When the run stopped, the line names the stop first: "the work tree has
    uncommitted changes" (`dirty-work-tree`), "the PR head is not in this
@@ -860,7 +907,17 @@ the user with **all** of the following — bare counts alone are not enough:
    reported as missing from the glossary, for the user to add to the glossary
    (this command changes neither the glossary nor the PR body).
 
-9. **Local CLI review**: when Phase 4.5 ran, the SUMMARY of
+9. **Editorial corrections**: how many corrections Phase 6 appended to the PR
+   description (also in the summary line), and every correction of this round
+   that is not in the PR description, each with its document, its
+   description, and the reason: dropped by the Phase 3 check, dropped by
+   Phase 4's mention check, its commit not pushed because a phase stopped,
+   Phase 6's mention check failed, or `append-pr` stopped (with its
+   diagnostic). List the corrections themselves, so the reviewer can add them
+   to the PR description by hand. When Phase 6 did not send a rewrite because
+   it would have dropped a correction paragraph, say so.
+
+10. **Local CLI review**: when Phase 4.5 ran, the SUMMARY of
    `_lib/local-cli-review.md`: each attempt's result with each failed CLI's
    failure kind, how many times Codex CLI ran, the findings by CLI, and every
    range neither CLI reviewed (its `Local CLI review: not run` line).
