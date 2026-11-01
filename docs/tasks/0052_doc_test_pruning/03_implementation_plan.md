@@ -320,10 +320,10 @@
 **変更するファイル:** `CLAUDE.md`、本書（記録）。ステップ 3-1 で決めた場合は 0050 の文書。
 
 -   [x] `CLAUDE.md`「Development Notes」の「the `codexreview` permission, install target, and command-document checks」から「install target」を外す（設計書 3.7。`db9986c6` の `:533-534`。文で探す）。
--   [ ] ステップ 3-1 で 0050 の文書を変えると決めた場合は、設計書 3.5 のとおりに変え、`Comments` に日付・`(decision)`・本タスクで改めたこと・改めた節を記録する（AC-16）。
--   [ ] `extension/scripts/has-extension-changes.sh`（`:2-11`・`:19`）、`extension/test/ciChanges.test.ts`（`:21-32`・`:62-89`）、`CLAUDE.md`「Development Notes」の node のテストが読む文書の説明（`db9986c6` の `:521-526`）が、取り除いた後の node のテストが読む文書と一致することを読んで確かめ、PR の説明に記す（設計書 2.2、AC-21）。
--   [ ] `scope -pr 3`・`tests -final` を PR の merge-base と head で、`guards` を `-final` を付けて実行し、通ることを確かめ、出力と 2 つのコミットを 7 章の該当の行に記録する。`tests -final` は、設計書 3.4.1・3.4.2 の全削除対象が残っていないことを確かめる最後の実行でもある（AC-09・AC-20。1.6）。
--   [ ] PR の説明に、設計書 3.1.4〜3.1.7 の判定の一覧の行、3.3 の K4・K5 の対応表のうち PR-3 が触れる行、ステップ 3-2・3-3 のカバレッジの比較の結果を載せる。
+-   [-] ステップ 3-1 で 0050 の文書を変えると決めた場合は、設計書 3.5 のとおりに変え、`Comments` に日付・`(decision)`・本タスクで改めたこと・改めた節を記録する（AC-16）。ステップ 3-1 で 0050 の文書を変えないと決めたので、行わない。
+-   [x] `extension/scripts/has-extension-changes.sh`（`:2-11`・`:19`）、`extension/test/ciChanges.test.ts`（`:21-32`・`:62-89`）、`CLAUDE.md`「Development Notes」の node のテストが読む文書の説明（`db9986c6` の `:521-526`）が、取り除いた後の node のテストが読む文書と一致することを読んで確かめ、PR の説明に記す（設計書 2.2、AC-21）。
+-   [x] `scope -pr 3`・`tests -final` を PR の merge-base と head で、`guards` を `-final` を付けて実行し、通ることを確かめ、出力と 2 つのコミットを 7 章の該当の行に記録する。`tests -final` は、設計書 3.4.1・3.4.2 の全削除対象が残っていないことを確かめる最後の実行でもある（AC-09・AC-20。1.6）。
+-   [x] PR の説明に、設計書 3.1.4〜3.1.7 の判定の一覧の行、3.3 の K4・K5 の対応表のうち PR-3 が触れる行、ステップ 3-2・3-3 のカバレッジの比較の結果を載せる。
 
 **フェーズ 3 の完了の条件:** `make test`、`make lint`、`make deadcode`、`make ext-check` が通る（AC-14）。`scope`・`tests`・`guards` の実行の記録が本書にある。PR-3 をマージする直前に、設計書 3.5 の実装中の計画の調べをもう一度行い、結果を記録した。
 
@@ -597,6 +597,99 @@
     -   カバレッジ付きの実行のうち 2 回は、変更と関係しない `internal/transcript` の `TestCommandExecutorDrainsStderr`（2 秒の打ち切りのある、時間に依存するテスト）が落ちた。設計書 7.1 のとおり無効な結果として捨て、取り直した。比べた 4 つの出力は、どれも `go test` の出力に `FAIL` の行がない実行のものである（`grep -c '^FAIL'` が 0）。
 
 -   **AC-14（`fab2b54a`）:** `make test`、`make lint`、`make deadcode`、`make ext-check` が通った。`make ext-check` は Node.js 24.21.0 で実行し、node のテストは 975 件が通り、失敗はない。
+
+### 7.3. PR-3 の一度きりの確かめの実行の記録（2026-11-01）
+
+-   **`scope`:** `go run -tags test ./docs/tasks/0052_doc_test_pruning/_checks/scope/ -pr 3 4df7b94f d2452959`。比べたコミットは merge-base `4df7b94f`（`origin/main`）と head `d2452959`（ステップ 3-4 の `CLAUDE.md` のコミット）。終了コード 0。出力:
+
+    ```
+    pull request 3
+    merge-base   4df7b94f2fc2d92f16da078a894cf2be27a544be
+    head         d245295964d439d7f7a2cf93108f02d3fb295f8b
+    ---- changed files
+    OK   CLAUDE.md
+    OK   cmd/codexreview/docs_test.go
+    OK   cmd/fixprguard/docs_test.go
+    OK   docs/tasks/0052_doc_test_pruning/03_implementation_plan.md
+    OK   extension/test/metadataDocs.test.ts
+    OK   internal/pipeline/pipeline_test.go
+    OK   every changed file is in the pull request's change set
+    OK   every sentence of the CLAUDE.md policy section is still there
+    ```
+
+    0050 の文書は変えていない（ステップ 3-1）ので、一覧に 0050 の行はない（AC-16）。この記録を加えるコミットと、その後のレビューの修正のコミットは、本書と `_checks/` のほかは、`scope` が PR-3 に許すファイルだけを変える。PR の説明に、PR の head での実行結果を記す。
+
+-   **`tests -final`:** `go run -tags test ./docs/tasks/0052_doc_test_pruning/_checks/tests/ -final 4df7b94f d2452959`。終了コード 0。出力:
+
+    ```
+    merge-base   4df7b94f2fc2d92f16da078a894cf2be27a544be
+    head         d245295964d439d7f7a2cf93108f02d3fb295f8b
+    ---- removed declarations: 5
+    OK   cmd/codexreview/docs_test.go::TestInstallTargetDocumented
+    OK   internal/pipeline/pipeline_test.go::TestInterfaceDocComments
+    OK   internal/pipeline/pipeline_test.go::hasCJK
+    OK   internal/pipeline/pipeline_test.go::interfaceDoc
+    OK   internal/pipeline/pipeline_test.go::markdownSections
+    ---- changed declarations: 4
+    OK   cmd/fixprguard/docs_test.go::TestGuideNamesGitStateParts
+    OK   cmd/fixprguard/docs_test.go::readRepoFile
+    OK   internal/pipeline/pipeline_test.go::TestPackageReferenceListsPackages
+    OK   internal/pipeline/pipeline_test.go::TestPromptsREADMEMatchesContract
+    ---- added declarations: 1
+    OK   cmd/codexreview/docs_test.go::TestInstallTargetInMakefile
+    OK   every changed declaration is on the change list with its kind of change
+    ---- names removed in this range: 5
+         internal/pipeline/pipeline_test.go::TestInterfaceDocComments
+         cmd/codexreview/docs_test.go::TestInstallTargetDocumented
+         internal/pipeline/pipeline_test.go::interfaceDoc
+         internal/pipeline/pipeline_test.go::hasCJK
+         internal/pipeline/pipeline_test.go::markdownSections
+    OK   no name removed in this range remains as an identifier
+    OK   all 34 removable names are absent
+    ---- mentions in comments and documents, to read: 6
+    LIST internal/codexreview/message.go:38:2: numbered: // numberedItem is a numbered list marker at the start of a line.
+    LIST internal/publisher/testutil/integration.go:175:1: numbered: // followed by numbered lines, cut at n. The body never ends with a newline,
+    LIST numbered: .claude/commands/fixpr.md:247:next numbered item (`H-NN` in `design_handoff.md`, `I-NN` in
+    LIST numbered: extension/src/core/i18n/catalog.ts:8:/** The shape of a message: a sentence and optional numbered steps. */
+    LIST numbered: extension/src/ui/render.ts:28: * The message text and, when present, its numbered steps; textContent only.
+    LIST numbered: extension/static/style.css:173:/* The message text and its numbered steps; the warning row's reason and
+    ```
+
+    「all 34 removable names are absent」は、設計書 3.4.1・3.4.2 の全削除対象、全体を取り除くテスト、1.5 の今の名前（`TestInstallTargetDocumented`）のすべてが、`docs/tasks/` の外の Go のファイルに識別子として残っていないことを示す（AC-09・AC-20 の最後の確かめ）。一覧として出た 6 件は、7.2 と同じ普通の英語の `numbered`（番号付きの）で、取り除いた補助を指さない。PR-3 で取り除いた名前（`TestInterfaceDocComments`・`TestInstallTargetDocumented`・`interfaceDoc`・`hasCJK`・`markdownSections`）は、コメントにも文書にも現れない。
+
+-   **`guards -final`:** `go run -tags test ./docs/tasks/0052_doc_test_pruning/_checks/guards/ -final d2452959`。終了コード 0。出力:
+
+    ```
+    commit d245295964d439d7f7a2cf93108f02d3fb295f8b
+    ---- commands
+    OK   .github/workflows/ci.yml                 doc-guard job: ./cmd/codexreview ./cmd/fixprguard ./cmd/yt2column ./cmd/yt2column-server ./internal/pipeline
+    OK   CLAUDE.md                                Development Notes: ./cmd/codexreview ./cmd/fixprguard ./cmd/yt2column ./cmd/yt2column-server ./internal/pipeline
+    OK   .claude/commands/_lib/task-pr-handoff.md CHECKS: ./cmd/codexreview ./cmd/fixprguard ./cmd/yt2column ./cmd/yt2column-server ./internal/pipeline
+    OK   docs/dev/guides/fixprguard_guide.md      automated reviewer list procedure: ./cmd/codexreview ./cmd/fixprguard ./cmd/yt2column ./cmd/yt2column-server ./internal/pipeline
+    ---- comparison
+    OK   the four places name the same 5 package(s): ./cmd/codexreview ./cmd/fixprguard ./cmd/yt2column ./cmd/yt2column-server ./internal/pipeline
+    ---- packages whose tests read documents through doctestutil
+    ./cmd/codexreview
+    ./cmd/fixprguard
+    ./cmd/yt2column
+    ./cmd/yt2column-server
+    ./internal/pipeline
+    OK   the guard commands name the packages whose tests read documents through doctestutil
+    ```
+
+    7.1 の時点で欠けていた `./internal/pipeline` は、ステップ 3-3 で `doctestutil` を import したので、`-final` の集合に加わった（AC-19）。
+
+-   **カバレッジの比較（AC-11）:** 設計書 7.1 のコマンドの出力を `coverage` で比べた。比べた出力は、どれも `go test` の出力に `FAIL` の行がない実行のものである。
+    -   ステップ 3-2: 前は `4df7b94f`、後は `1470b4a3` と同じ Go のファイルの作業ツリー。`coverage` の出力は `before ... (1068 product functions)`・`after ... (1068 product functions)`・`OK   all 1068 product functions have the same coverage` だった。
+    -   ステップ 3-3: 前は上の後の出力（`1470b4a3` の Go のファイル）、後は `746d565b` と同じ Go のファイルの作業ツリー。`coverage` の出力は `NG   1 product function(s) differ`・`internal/cmdrunner/runner.go:286 signalGroup: 66.7% -> 100.0%` だった。`1470b4a3` で、置き換えを受ける 11 のテスト（`cmd/fixprguard` の 9 つと `internal/pipeline` の 2 つ）だけに `-run` で絞って測ると `signalGroup` は 0.0% だったので、違いは設計書 7.1 の揺れである（7.2 のステップ 2-2 と同じ関数）。
+
+-   **AC-13:** 取り除いた node の確認（`metadataDocs.test.ts` の「socket directory documentation reference」）は、`catalogs`（`extension/src/core/i18n/en.ts` のデータ）を読み込むだけで、`extension/src/` の関数を呼ばない。`catalogs` は `metadataDocs.test.ts` の残す確認とほかの 7 つのテストが読み込み続ける。`make ext-check` は通り、node のテストは 974 件（取り除いた 1 件の分だけ 975 件から減った）が通った。
+
+-   **AC-21:** `extension/scripts/has-extension-changes.sh`（`:2-11`・`:19`）、`extension/test/ciChanges.test.ts`（`:21-32`・`:62-89`）、`CLAUDE.md`「Development Notes」の node のテストが読む文書の説明（`d2452959` の `:531-535`）を読み、取り除いた後の node のテストが読む文書と一致することを確かめた。取り除いた後も、`metadataDocs.test.ts` は `README.md`・`README.en.md` の「ブラウザ拡張」の節を、`serverReasons.test.ts` は `docs/dev/guides/development.md` の拒否理由の表を読み、その表が `internal/server/response.go` と対応する。取り除いた確認は文書の本文を読まず（`README.en.md` の存在だけを見ていた）、起動条件の 4 つの文書・ソースのパスは変わらない。
+
+-   **実装中の計画の調べ（PR を作る前）:** ステップ 3-1 の記録のとおりである（2026-11-01、`4df7b94f`）。フェーズ 3 の完了の条件のとおり、PR-3 をマージする直前（`/runpr`）にもう一度行い、結果を本書に記録する。
+
+-   **AC-14（`d2452959`）:** `make test`、`make lint`、`make deadcode` が通った。`make ext-check` は `1470b4a3`（拡張の変更を含む最後のコミット。その後のコミットは拡張を変えない）で Node.js 24.21.0 で実行して通った。
 
 ## 8. 成功基準 (Success Criteria)
 
