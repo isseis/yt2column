@@ -71,7 +71,7 @@
 -   **本文を出力しない `--jq` の式:** 既存の `checkListings`（`fixpr_docs_test.go:400-455`）は、`gh api --paginate repos/<owner>/<repo>/... --jq '...'` の一覧（同 211 行の正規表現）だけを対象にし、出力を `kind` などを持つ JSON のオブジェクトの列として読む。Phase 6 で訂正の段落の数を取得する式は `gh pr view <n> --json body --jq '...'` で、数を 1 つ出力するので、`checkListings` では確かめられない。そこで、`runJQ` と `bodyMarker` を使う新しいテストを加える（ステップ 4-4）。Phase 6 のエージェントへの指示には `gh pr view NUMBER --json title,body` が既にある（`fixpr.md:687`）。新しい確かめは、このセッションが実行する数の取得のコマンドだけを取り出す。
 -   **投稿のコマンドとメンションの確認:** `postingCommand`（`cmd/yt2column/codex_review_docs_test.go:132`）は `fixprguard (reply|edit-pr)` だけを投稿のコマンドとみなす。`postingSections`（同 57-75）の Phase 6 の行（同 59）とファイルの冒頭のコメント（同 16-19）も同じである。`TestPostingCommandsInventory`（同 196-251）は見つけた投稿が一覧にあることを、`TestIsPost`（同 257）は分類の関数を確かめるが、正規表現が一覧のコマンドに当たることはどちらも確かめない。
     -   **採る方法:** `append-pr` を投稿のコマンドに加える。あわせて、`finish --body-file` も投稿のコマンドに加え、`fixpr.md` Phase 4 を投稿の節に加える。`finish` の本文は push で GitHub に届くので、設計書 5 章の 2 段の守り（セッションの確認が主、ツールの拒否が裏）が適用され、`CLAUDE.md` が恒久のテストを残すとする「メンションの確認」に該当するためである。設計書 7.1 節はこの行を挙げていないが、テストの行を加えるだけで、設計の決定は変えない。正規表現は `fixprguard (reply|edit-pr|append-pr|finish)\b` とする。`textFlag`（同 135 行）は `--protocol` を含むので、`--body-file` のない `finish` の呼び出し（`fixpr.md:556`）も投稿とみなされる。そのため、Phase 4 の `**Mention check.**` の段落（`TestPostingPathsCheckMention` が求める見出しの形）を、`finish` の呼び出しより前に置く。訂正がない回は、確かめるファイルがないので確認を飛ばすことを、その段落に書く。`postingSections` の冒頭のコメント（同 55 行）の節の数も 7 から 8 に直す。
-    -   `postingSections` の一覧のコマンドが、`postingCommand` に当たることを確かめる行を加える（`TestIsPost` の表に、`append-pr`、`--body-file` のない `finish`、`--body-file` のある `finish` の行を加える）。
+    -   `postingSections` の一覧のコマンドが、`postingCommand` に当たることを確かめる新しいテスト `TestPostingCommandsMatched` を加える。`TestIsPost` の表には、`append-pr` と `finish` の行を加える。
 -   `postingSections` は `_lib/task-pr-handoff.md` Part B 手順 3 も投稿の節として読む（同 71 行）。`cmd/codexreview/docs_test.go:167` は `_lib/local-cli-review.md` を読む。本タスクはこの 2 つの節にも書き足すので、PR-2 で文書のガードが通ることを確かめる。
 
 **コマンドの定義と規則**
@@ -176,12 +176,12 @@ PR-1 の本文には、マージの直後に `make install-fixprguard` で再イ
 
 **変更するファイル:** `docs/dev/conventions/requirements_process.md`
 
--   [ ] 「Document Status Format」の状態表の `Comments` の説明を「今の状態の理由（なければ `-`）」に改める。状態ごとの値、状態が変わるたびに書き換えること、`<br>` で区切ること、`draft` の期間に決定の変更が重なったときの変更履歴の扱いを書く（設計書 3.1 節）。
--   [ ] 変更履歴の形を書く（設計書 3.2 節）。見出し、行の形、セクションの見分け方、置き場所、作る時期、承認者、未記入の印 `#未記入`、連鎖した戻し、移した項目の接頭辞を含む。
--   [ ] 旧規則で書かれた文書の定義と移し方を書く。写しをバイト列として比べてから commit することを含む（設計書 3.3 節）。
--   [ ] 訂正の行（`Editorial correction: ` で始まるコミットメッセージの行）と、訂正の段落（PR 本文）の形を書く（設計書 3.6.1 節）。
--   [ ] 「Editing an approved document」を書き換え、決定の変更・セッション中の再承認・編集上の訂正の記録先は、上の各節を参照する形にする（設計書 2.3 節の表）。過去の承認を `Comments` に残す記述と、訂正を `Comments` に書く記述を除く。
--   [ ] `withdrawn` の記録（`Comments` に日付と理由、変更履歴に `withdrawn` の行）を書く（AC-16）。
+-   [x] 「Document Status Format」の状態表の `Comments` の説明を「今の状態の理由（なければ `-`）」に改める。状態ごとの値、状態が変わるたびに書き換えること、`<br>` で区切ること、`draft` の期間に決定の変更が重なったときの変更履歴の扱いを書く（設計書 3.1 節）。
+-   [x] 変更履歴の形を書く（設計書 3.2 節）。見出し、行の形、セクションの見分け方、置き場所、作る時期、承認者、未記入の印 `#未記入`、連鎖した戻し、移した項目の接頭辞を含む。
+-   [x] 旧規則で書かれた文書の定義と移し方を書く。写しをバイト列として比べてから commit することを含む（設計書 3.3 節）。
+-   [x] 訂正の行（`Editorial correction: ` で始まるコミットメッセージの行）と、訂正の段落（PR 本文）の形を書く（設計書 3.6.1 節）。
+-   [x] 「Editing an approved document」を書き換え、決定の変更・セッション中の再承認・編集上の訂正の記録先は、上の各節を参照する形にする（設計書 2.3 節の表）。過去の承認を `Comments` に残す記述と、訂正を `Comments` に書く記述を除く。
+-   [x] `withdrawn` の記録（`Comments` に日付と理由、変更履歴に `withdrawn` の行）を書く（AC-16）。
 
 **完了の条件:** 規則の各節が、設計書 2.3 節・3.1〜3.3 節・3.6.1 節と食い違わないことを、読んで確かめた。
 
@@ -191,10 +191,10 @@ PR-1 の本文には、マージの直後に `make install-fixprguard` で再イ
 
 **変更するファイル:** `.claude/commands/runpr.md`
 
--   [ ] PRE_MERGE の承認の項目（`runpr.md:207-213`）を、設計書 3.5 節「承認」のとおりに改める。「`Comments` を保つ」を除き、規則の移し方の節と変更履歴の節を参照する。
--   [ ] PRE_MERGE に PR 番号の記入の項目を加える（設計書 3.5 節「PR 番号の記入」）。PR 番号の記入だけの commit の件名を定める（設計書 3.5 節「承認せずにマージする選択肢」）。
--   [ ] 手順 4 の選択肢「merge without the approvals」（`runpr.md:569-573`）を、PR 番号を記録してマージする選択肢に改め、手順 4.3（`runpr.md:631-655`）をこの選択肢でも通すようにする（設計書 3.5 節）。
--   [ ] 手順 4 の問いに、`/fixpr` が PR 本文に追記できなかった訂正と、`main` に既にある `#未記入` の行を示すことを加える（設計書 3.5 節「手順 4 の問い」、4.3 節「検出」）。
+-   [x] PRE_MERGE の承認の項目（`runpr.md:207-213`）を、設計書 3.5 節「承認」のとおりに改める。「`Comments` を保つ」を除き、規則の移し方の節と変更履歴の節を参照する。
+-   [x] PRE_MERGE に PR 番号の記入の項目を加える（設計書 3.5 節「PR 番号の記入」）。PR 番号の記入だけの commit の件名を定める（設計書 3.5 節「承認せずにマージする選択肢」）。
+-   [x] 手順 4 の選択肢「merge without the approvals」（`runpr.md:569-573`）を、PR 番号を記録してマージする選択肢に改め、手順 4.3（`runpr.md:631-655`）をこの選択肢でも通すようにする（設計書 3.5 節）。
+-   [x] 手順 4 の問いに、`/fixpr` が PR 本文に追記できなかった訂正と、`main` に既にある `#未記入` の行を示すことを加える（設計書 3.5 節「手順 4 の問い」、4.3 節「検出」）。
 
 **完了の条件:** 文書のガードが通る。PRE_MERGE を再実行しても記録が二重にならないこと（設計書 3.5 節「二重の記録の防止」）を、改めた記述を読んで確かめた。
 
@@ -202,8 +202,8 @@ PR-1 の本文には、マージの直後に `make install-fixprguard` で再イ
 
 **変更するファイル:** `.claude/commands/_lib/task-pr-handoff.md`、`.claude/commands/runpr.md`
 
--   [ ] `task-pr-handoff.md` Part B 手順 3 の PR 本文の一覧に、訂正の段落と決定の変更の 2 つを加える（設計書 3.6 節の表の該当の行）。形は規則の節を参照する。
--   [ ] `runpr.md` 手順 1 の単独の変更の PR の本文（`runpr.md:149-162`）にも、同じ 2 つを入れることを加える。
+-   [x] `task-pr-handoff.md` Part B 手順 3 の PR 本文の一覧に、訂正の段落と決定の変更の 2 つを加える（設計書 3.6 節の表の該当の行）。形は規則の節を参照する。
+-   [x] `runpr.md` 手順 1 の単独の変更の PR の本文（`runpr.md:149-162`）にも、同じ 2 つを入れることを加える。
 
 **完了の条件:** 文書のガード（`TestPostingPathsCheckMention` を含む）が通る。
 
@@ -213,28 +213,28 @@ PR-1 の本文には、マージの直後に `make install-fixprguard` で再イ
 
 **変更するファイル:** `.claude/commands/fixpr.md`
 
--   [ ] Phase 3 の指示の 4（`fixpr.md:454-462`）を、設計書 3.6 節の表の該当の行のとおりに改める（決定の変更が重なる場合と、連鎖した戻しを含む。連鎖した戻しは、`fixpr.md` の R3 が申し送りの項目の変更に伴って後の文書を戻すことである）。
--   [ ] Phase 3 の応答の形（`fixpr.md:464-477`）に `editorial` を加え、承認済みの文書の訂正だけを挙げることを書く（設計書 6.2 節「訂正の一覧」）。
--   [ ] 応答を受けた後の段落に、次のことを加える。訂正の一覧をデータとして扱う。項目ごとに確かめ、通らないものは一覧から落とす（設計書 5 章「セッションの確認」「書かれた指示に従わない」）。
+-   [x] Phase 3 の指示の 4（`fixpr.md:454-462`）を、設計書 3.6 節の表の該当の行のとおりに改める（決定の変更が重なる場合と、連鎖した戻しを含む。連鎖した戻しは、`fixpr.md` の R3 が申し送りの項目の変更に伴って後の文書を戻すことである）。
+-   [x] Phase 3 の応答の形（`fixpr.md:464-477`）に `editorial` を加え、承認済みの文書の訂正だけを挙げることを書く（設計書 6.2 節「訂正の一覧」）。
+-   [x] 応答を受けた後の段落に、次のことを加える。訂正の一覧をデータとして扱う。項目ごとに確かめ、通らないものは一覧から落とす（設計書 5 章「セッションの確認」「書かれた指示に従わない」）。
 
 #### ステップ 4-2: `fixpr.md` の Phase 4
 
 **変更するファイル:** `.claude/commands/fixpr.md`
 
--   [ ] 残った訂正の項目から、訂正の行のファイルを作業ツリーの外に作る手順を加える。ファイルは、`finish` の呼び出しより前に置いた `**Mention check.**` の段落（1.4 節「投稿のコマンドとメンションの確認」）の確認を通してから、`finish` に `--body-file` で渡す。訂正がないときは、今の呼び出しのままにする（設計書 6.2 節「Phase 4」）。
--   [ ] `finish` が終了コード `2` で止まったときの扱いを書く。診断を報告し、診断が知らないフラグ `-body-file` を示すときは再インストールを案内する（設計書 4.1 節の表、本書 1.4 節「`cmd/fixprguard`」）。
--   [ ] 「The guard tool」のファイルの置き場所の項目（`fixpr.md:80-84`）に、訂正の行のファイルと訂正の段落のファイルを加える。
+-   [x] 残った訂正の項目から、訂正の行のファイルを作業ツリーの外に作る手順を加える。ファイルは、`finish` の呼び出しより前に置いた `**Mention check.**` の段落（1.4 節「投稿のコマンドとメンションの確認」）の確認を通してから、`finish` に `--body-file` で渡す。訂正がないときは、今の呼び出しのままにする（設計書 6.2 節「Phase 4」）。
+-   [x] `finish` が終了コード `2` で止まったときの扱いを書く。診断を報告し、診断が知らないフラグ `-body-file` を示すときは再インストールを案内する（設計書 4.1 節の表、本書 1.4 節「`cmd/fixprguard`」）。
+-   [x] 「The guard tool」のファイルの置き場所の項目（`fixpr.md:80-84`）に、訂正の行のファイルと訂正の段落のファイルを加える。
 
 #### ステップ 4-3: `fixpr.md` の Phase 6 と最終報告
 
 **変更するファイル:** `.claude/commands/fixpr.md`
 
--   [ ] Phase 6 のエージェントへの指示に、2 つのことを加える。既にある訂正の段落を残すこと、この回の訂正を書かないこと（設計書 6.2 節「Phase 6 の書き直し」）。
--   [ ] 書き直しを送る前に、今の本文の訂正の段落の数を、本文を出力しない `--jq` の式で取得し、新しい本文の数と比べる手順を加える。
--   [ ] 追記の手順を加える。この回のコミットの訂正の行から訂正の段落のファイルを作り、メンションの確認を通して `fixprguard append-pr` で追記する（設計書 6.2 節「Phase 6 の追記」）。本文が古くない場合でも追記する。
--   [ ] `append-pr` が終了コード `2` で止まったときは、診断を報告し、訂正を追記できなかったものとして最終報告に挙げる（設計書 4.1 節の表の 2 行目、AC-05）。
--   [ ] 「Authorization」（`fixpr.md:90-98`）に、このセッションが行う数の取得を加える。
--   [ ] 最終報告に、PR 本文に入らなかった訂正とその理由、追記した訂正の件数を加える（設計書 4.2 節、6.2 節「最終報告」）。
+-   [x] Phase 6 のエージェントへの指示に、2 つのことを加える。既にある訂正の段落を残すこと、この回の訂正を書かないこと（設計書 6.2 節「Phase 6 の書き直し」）。
+-   [x] 書き直しを送る前に、今の本文の訂正の段落の数を、本文を出力しない `--jq` の式で取得し、新しい本文の数と比べる手順を加える。
+-   [x] 追記の手順を加える。この回のコミットの訂正の行から訂正の段落のファイルを作り、メンションの確認を通して `fixprguard append-pr` で追記する（設計書 6.2 節「Phase 6 の追記」）。本文が古くない場合でも追記する。
+-   [x] `append-pr` が終了コード `2` で止まったときは、診断を報告し、訂正を追記できなかったものとして最終報告に挙げる（設計書 4.1 節の表の 2 行目、AC-05）。
+-   [x] 「Authorization」（`fixpr.md:90-98`）に、このセッションが行う数の取得を加える。
+-   [x] 最終報告に、PR 本文に入らなかった訂正とその理由、追記した訂正の件数を加える（設計書 4.2 節、6.2 節「最終報告」）。
 
 **完了の条件（4-1〜4-3）:** 4-4 の文書のガードが通る。
 
@@ -242,10 +242,10 @@ PR-1 の本文には、マージの直後に `make install-fixprguard` で再イ
 
 **変更するファイル:** `cmd/yt2column/fixpr_docs_test.go`、`cmd/yt2column/codex_review_docs_test.go`、`cmd/fixprguard/docs_test.go`
 
--   [ ] `TestFixprguardCallSites` の表に、Phase 6 の `fixprguard append-pr ` の行を加える。
--   [ ] Phase 6 の訂正の段落の数を取得する式を確かめるテストを、`runJQ` と `bodyMarker` を使って加える（4.1 節の 4-4 の行）。
--   [ ] `postingCommand` に `append-pr` と `finish` を加え、`postingSections` の Phase 6 の行に `fixprguard append-pr ` を、新しい Phase 4 の行に `fixprguard finish ` を加え、冒頭のコメントを直す（1.4 節「投稿のコマンドとメンションの確認」）。`TestIsPost` の表に、1.4 節の 3 つの形の行を加える。
--   [ ] `TestDocumentedInvocationsParse` の、`fixpr.md` の期待するサブコマンドの一覧に `append-pr` を加える。
+-   [x] `TestFixprguardCallSites` の表に、Phase 6 の `fixprguard append-pr ` の行を加える。
+-   [x] Phase 6 の訂正の段落の数を取得する式を確かめるテストを、`runJQ` と `bodyMarker` を使って加える（4.1 節の 4-4 の行）。
+-   [x] `postingCommand` に `append-pr` と `finish` を加え、`postingSections` の Phase 6 の行に `fixprguard append-pr ` を、新しい Phase 4 の行に `fixprguard finish ` を加え、冒頭のコメントを直す（1.4 節「投稿のコマンドとメンションの確認」）。`TestPostingCommandsMatched` を加え、`TestIsPost` の表に `append-pr` と `finish` の行を加える。
+-   [x] `TestDocumentedInvocationsParse` の、`fixpr.md` の期待するサブコマンドの一覧に `append-pr` を加える。
 
 **完了の条件:** 文書のガードが通る。4.1 節の 4-4 の行の「壊して確かめる」の各項目で該当のテストが落ちることを確かめ、コミットメッセージに書いた。
 
@@ -253,11 +253,11 @@ PR-1 の本文には、マージの直後に `make install-fixprguard` で再イ
 
 **変更するファイル:** `.claude/commands/_lib/local-cli-review.md`、`.claude/commands/runplan.md`、`.claude/commands/mkarch.md`、`.claude/commands/mkplan2.md`
 
--   [ ] `local-cli-review.md` 手順 7 の記録の行の一覧に、訂正の行を加える。修正が承認済みのタスク文書への編集上の訂正であれば、手順 5 の commit のメッセージに書くことにする。手順 7 のメンションの確認の対象に、訂正の行を含むメッセージを加え、この確認が手順 5 の commit の前に行われることを書く（1.4 節「コマンドの定義と規則」）。
--   [ ] `runplan.md:63`（編集上の訂正）と `runplan.md:64`（決定の変更）を、設計書 3.6 節の表と 3.7 節のとおりに改める。RECORD（`settle-decisions.md` に渡す記録先）は「実装の際に決めたこと（YYYY-MM-DD）」の節とし、PR のあるブランチで作業しないことを、根拠とともに一文で書く。
--   [ ] `mkarch.md:72` を、規則の「Editing an approved document」を参照する形に改める（設計書 3.6 節）。
--   [ ] `mkplan2.md:107`（手順 8.5）を、設計書 3.6 節の表のとおりに改める。
--   [ ] 遷移を書く 5 つのコマンドの定義が、旧規則で書かれた文書の移し方の節を参照していることを確かめる（`runpr.md` の PRE_MERGE、`fixpr.md` の Phase 3、`runplan.md`、`mkarch.md`、`mkplan2.md`。設計書 3.3 節の末尾）。
+-   [x] `local-cli-review.md` 手順 7 の記録の行の一覧に、訂正の行を加える。修正が承認済みのタスク文書への編集上の訂正であれば、手順 5 の commit のメッセージに書くことにする。手順 7 のメンションの確認の対象に、訂正の行を含むメッセージを加え、この確認が手順 5 の commit の前に行われることを書く（1.4 節「コマンドの定義と規則」）。
+-   [x] `runplan.md:63`（編集上の訂正）と `runplan.md:64`（決定の変更）を、設計書 3.6 節の表と 3.7 節のとおりに改める。RECORD（`settle-decisions.md` に渡す記録先）は「実装の際に決めたこと（YYYY-MM-DD）」の節とし、PR のあるブランチで作業しないことを、根拠とともに一文で書く。
+-   [x] `mkarch.md:72` を、規則の「Editing an approved document」を参照する形に改める（設計書 3.6 節）。
+-   [x] `mkplan2.md:107`（手順 8.5）を、設計書 3.6 節の表のとおりに改める。
+-   [x] 遷移を書く 5 つのコマンドの定義が、旧規則で書かれた文書の移し方の節を参照していることを確かめる（`runpr.md` の PRE_MERGE、`fixpr.md` の Phase 3、`runplan.md`、`mkarch.md`、`mkplan2.md`。設計書 3.3 節の末尾）。
 
 **完了の条件:** 文書のガード（`cmd/codexreview` を含む）が通る。AC-06 のために読む箇所を、`.claude/commands/` で `Comments` と `editorial` を検索して洗い出した。対象のコマンドの定義のどれも、編集上の訂正を `Comments` や変更履歴に書かせていないことは、洗い出した箇所を読んで確かめる（`manual`）。洗い出した箇所の一覧は PR の本文に書く。
 
@@ -267,7 +267,7 @@ PR-1 の本文には、マージの直後に `make install-fixprguard` で再イ
 
 **変更するファイル:** 本書 7.2 節
 
--   [ ] PR-2 のブランチで、ほかの作業がすべて終わった後に、ステップ 1-5 のスクリプトを実行する。出力・終了コード・マージベースと、実行した時点の head のコミット ID を本書 7.2 節に記録する。記録を書くコミットが本書だけを変えることも、あわせて記録する。
+-   [x] PR-2 のブランチで、ほかの作業がすべて終わった後に、ステップ 1-5 のスクリプトを実行する。出力・終了コード・マージベースと、実行した時点の head のコミット ID を本書 7.2 節に記録する。記録を書くコミットが本書だけを変えることも、あわせて記録する。
 
 **完了の条件:** スクリプトの終了コードが 0 で、その記録が本書 7.2 節にある。
 
@@ -283,8 +283,8 @@ PR-1 の本文には、マージの直後に `make install-fixprguard` で再イ
 
 **判定理由**: 4-2・4-3 は GitHub に届く文面のセッションの確認（セキュリティの関門）を定める。2-1〜4-5 は、旧規則とそれに従うコマンドの定義を同時に置き換える移行である。どちらも `mkplan.md` 手順 8 の panel mode の条件に当たる。ステップの順は設計書 8 章のフェーズの順（2 → 3 → 4）による。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/617
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
@@ -326,7 +326,7 @@ PR-2 は M1 の後に始める。PR-2 の `/fixpr` が新しいツールを使�
 | 1-3 | `TestFinishBodyFileRun`・`TestAppendPRRun`（同） | 一時ディレクトリのリポジトリで `finish --body-file` を実行すると、commit のメッセージに本文が入る（`TestFinishBodyFileRun`）。`append-pr` の出力が `{"protocol":4,"written":true}` である（`TestAppendPRRun`） | `main.go` で `BodyFile` を渡さない |
 | 1-3 | 既存の表に行を加える（同） | `lines`・`validArgs` の `append-pr` の行（`GH_REPO`・`GH_HOST`、`--protocol`、`--reviewer` の拒否）。`TestPostTextMentionExitsUsage` の `finish` の本文、`append-pr` のファイル、メンションを含む今の本文の行（終了コード `2`、診断が文を含まない）。メッセージが変わったときの止まった種類（`git-state-changed`、終了コード `1`）は、`TestFinishBodyFileRun` の部分テストで確かめる（`TestStopKinds` は止まった種類ごとに 1 つの場面を持つ表で、`git-state-changed` の場面は既にある。`main_test.go:570`） | `append-pr` の処理を外す |
 | 4-4 | `TestFixprPhase6CountFilter`（`cmd/yt2column/fixpr_docs_test.go`） | Phase 6 のうち、このセッションが実行する部分（エージェントへの指示の引用の外）に、数を取得するコマンドがちょうど 1 つある。その `--jq` の式を、`bodyMarker` と N 個の訂正の段落、似た形（字下げした段落、行の途中の書き出し、CRLF）を含む `{"body": ...}` に当てると、出力がちょうど整数 N になり、目印を含まない。`jq` がなければ、読み飛ばさずに落ちる | 式が本文を出力する形にする。式が常に `0` を出力する形にする |
-| 4-4 | `TestFixprguardCallSites`・`TestIsPost`・`TestPostingPathsCheckMention`・`TestPostingCommandsInventory`・`TestDocumentedInvocationsParse`（既存の表に行を加える） | 1.4 節「文書のガード」の変更 | `postingCommand` から `append-pr` を外す。Phase 4 のメンションの確認を消す |
+| 4-4 | `TestFixprguardCallSites`・`TestIsPost`・`TestPostingPathsCheckMention`・`TestPostingCommandsInventory`・`TestDocumentedInvocationsParse`（既存の表に行を加える）、`TestPostingCommandsMatched`（新規） | 1.4 節「文書のガード」の変更 | `postingCommand` から `append-pr` と `edit-pr` を外す。Phase 4 のメンションの確認を消す |
 
 `TestFixprPhase6CountFilter` の入力の訂正の段落の書き出し `**編集上の訂正（` は、`CLAUDE.md`「Go Idioms」のガードのテストのリテラルの例外（太字の目印）に当たる。
 
@@ -373,7 +373,7 @@ N/A（設計書 7.2 節）。コマンドの定義を実行した結果は、本
 |---|---|---|---|
 | AC-01 | manual・test・static | PR-2 のレビューで、規則の「Editing an approved document」と訂正の行の節を読む。`/fixpr` のコミットメッセージの部分は `internal/fixprguard/worktree_flow_test.go::TestFinishCommitBody`・`TestFinishRejectsBodyFile`・`TestFinishDetectsRewrittenMessage`、`internal/fixprguard/write_test.go::TestCommitBodyChecks`、`cmd/fixprguard/main_test.go::TestFinishBodyFileRun`、`cmd/yt2column/codex_review_docs_test.go::TestPostingPathsCheckMention`（Phase 4 の行） | 1-1・1-3・2-1・4-2・4-4・4-5 |
 | AC-02 | manual | PR-2 のレビューで、`task-pr-handoff.md` Part B 手順 3 と `runpr.md` 手順 1 を読む | 3-2 |
-| AC-03 | manual・test・static | PR-2 のレビューで、`fixpr.md` Phase 6 と `runplan.md:63` の書き換え（設計書 3.7 節の読み替え）を読む。`internal/fixprguard/write_test.go::TestAppendPR`・`TestAppendPRRejects`、`cmd/fixprguard/main_test.go::TestParseAppendPR`・`TestAppendPRRun`、`cmd/yt2column/fixpr_docs_test.go::TestFixprguardCallSites`、`cmd/fixprguard/docs_test.go::TestDocumentedInvocationsParse`、`cmd/yt2column/codex_review_docs_test.go::TestPostingCommandsInventory`・`TestPostingPathsCheckMention`・`TestIsPost` | 1-2・1-3・4-3・4-4・4-5 |
+| AC-03 | manual・test・static | PR-2 のレビューで、`fixpr.md` Phase 6 と `runplan.md:63` の書き換え（設計書 3.7 節の読み替え）を読む。`internal/fixprguard/write_test.go::TestAppendPR`・`TestAppendPRRejects`、`cmd/fixprguard/main_test.go::TestParseAppendPR`・`TestAppendPRRun`、`cmd/yt2column/fixpr_docs_test.go::TestFixprguardCallSites`、`cmd/fixprguard/docs_test.go::TestDocumentedInvocationsParse`、`cmd/yt2column/codex_review_docs_test.go::TestPostingCommandsInventory`・`TestPostingPathsCheckMention`・`TestIsPost`・`TestPostingCommandsMatched` | 1-2・1-3・4-3・4-4・4-5 |
 | AC-04 | manual・static | PR-2 のレビューで、`fixpr.md` Phase 6 の書き直しの指示と段落の数の確認を読む。段落の数を取得する式は `cmd/yt2column/fixpr_docs_test.go::TestFixprPhase6CountFilter` | 4-3・4-4 |
 | AC-05 | manual | PR-2 のレビューで、`fixpr.md` の Phase 6 と最終報告、`runpr.md` 手順 4 の問いを読む | 3-1・4-3 |
 | AC-06 | manual | PR-2 のレビューで、対象のコマンドの定義を読む（読む箇所はステップ 4-5 で洗い出し、PR の本文に挙げる） | 3-1・4-1・4-5 |
@@ -433,7 +433,15 @@ docs/tasks/: only docs/tasks/0053_status_comments_policy/ changed
 
 ### 7.2. PR-2 の差分の確かめの実行の記録
 
-（ステップ 5-1 で記録する。）
+ほかの作業をすべて終えた後、ブランチ `isseis/0053-status-comments-policy-05` で `docs/tasks/0053_status_comments_policy/_checks/task_docs_unchanged.sh origin/main HEAD` を実行した（2026-11-02）。マージベースは `ed795e8a58e8165f83c9e7953431dbec5432aa2a`、実行した時点の head は `40381287a49c22f457342ac7dec71099d944d0ea` である。終了コードは `0`、出力は次のとおり。
+
+```text
+merge-base: ed795e8a58e8165f83c9e7953431dbec5432aa2a
+head: 40381287a49c22f457342ac7dec71099d944d0ea
+docs/tasks/: only docs/tasks/0053_status_comments_policy/ changed
+```
+
+この記録を書くコミットは本書だけを変える。
 
 ## 8. 成功基準 (Success Criteria)
 

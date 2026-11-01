@@ -7,7 +7,7 @@ When implementing new features or security-critical functionality, follow this p
 ### LLM Constraints (Critical)
 
 - LLMs must **always create `01_requirements.md`, `02_architecture.md`, and `03_implementation_plan.md` in draft status (`draft`)**. They must never be created as approved (`approved`).
-- A document becomes `approved` only on the reviewer's explicit instruction. Approval is given through `/runpr`'s merge question: when the reviewer chooses to approve the document there, an LLM sets the status (recording the reviewer's name and the date). The reviewer does not edit the status to `approved` directly on the PR, because `/runpr` records the approval only for `draft` documents. An LLM never sets `approved` on its own judgment.
+- A document becomes `approved` only on the reviewer's explicit instruction. Approval is given through `/runpr`'s merge question: when the reviewer chooses to approve the document there, an LLM sets the status (recording the reviewer's name and the date, and the approval line of the change history: "Document Status Format" below). The reviewer does not edit the status to `approved` directly on the PR, because `/runpr` records the approval only for `draft` documents. An LLM never sets `approved` on its own judgment.
 - Do not begin creating `02_architecture.md` until the status of `01_requirements.md` is `approved`.
 - Do not begin creating `03_implementation_plan.md` until the status of `02_architecture.md` is `approved`.
 - Do not begin writing any implementation code until the status of `03_implementation_plan.md` is `approved`.
@@ -15,27 +15,50 @@ When implementing new features or security-critical functionality, follow this p
 
 #### Editing an approved document
 
-Two kinds of edit reach an already-approved document, and they are handled
-differently:
+Two kinds of edit reach an already-approved document, a decision change and an
+editorial correction, and they are handled differently; a decision change found
+in a `/runplan` session is handled as a session re-approval:
 
 - **Decision change** — the document now says something different about what to
-  build or why. Set the status back to `draft` (which also sets `Review date`
-  and `Reviewer` to `-`, as the status format requires, and keeps the past
-  approval in `Comments` as history) and ask the reviewer to approve again. Exception: when `/runplan` finds a decision change during
-  implementation, it asks the reviewer in the session; the reviewer's explicit
-  answer is the re-approval, so the status stays `approved` and `Comments`
-  records the decision, the date, and that the reviewer approved it.
+  build or why. Write the decision itself into the document's body, and set the
+  status back to `draft` (which also sets `Review date` and `Reviewer` to `-`,
+  as the status format requires). Set `Comments` as "Comments" below says, and
+  add a `draft` revert line to the change history ("Change history" below). The
+  reviewer approves the document again through `/runpr`, whose approval line
+  records the approver; the past approvals stay in the change history. A revert
+  made before the PR exists is named in the PR description when the PR is
+  created ("Recording in the PR description" below); one `/fixpr` makes after
+  the PR exists is not added to the PR description. When the
+  document was written under the old rule, migrate it first ("Documents written
+  under the old rule" below).
+- **Session re-approval** — the exception for a decision change `/runplan` finds
+  during implementation: it asks the reviewer in the session, and the
+  reviewer's explicit answer is the re-approval. Write the decision into the
+  body and record the decision and its reason in a `実装の際に決めたこと（YYYY-MM-DD）`
+  section in the overview chapter of the changed document. The status stays
+  `approved` and `Comments` is `-`. Add a session re-approval line to the change
+  history, and name the decision change in the PR description ("Recording in the
+  PR description" below). Migrate a document written under the old rule first.
 - **Editorial correction** — the document says the same thing, but a name, a
   cross-reference, a table cell, or a line number has gone stale (a function the
   same task renames, a test the plan reassigned, a phase summary that no longer
-  matches the section it summarizes). **Keep the status.** Record the correction in
-  the `Comments` field and state there that no decision changed.
+  matches the section it summarizes). **Keep the status, and change neither
+  `Comments` nor the change history** (a document written under the old rule is
+  not migrated for an editorial correction). Record the correction in the message
+  of the commit that makes it, as a correction line, and in the PR description,
+  as a correction paragraph ("Recording in the PR description" below). Each says
+  what was changed to what and that no decision changed, in the writer's own
+  words: never quote the text of a review thread or of the PR description.
 
 The distinction exists because the alternative is status thrash: on go-safe-cmd-runner task 0172,
 `02_architecture.md` moved between `approved` and `draft` three times in one day,
 every time for a wording fix, and each round cost a re-approval that decided
 nothing. An LLM classifying its own edit as editorial must say so explicitly in
-`Comments`, so a reviewer can disagree.
+the PR description and the commit message, so the PR's reviewer can disagree.
+The reviewer reads it once during the review, and the PR keeps it afterwards, so
+the document does not carry it: a correction recorded in `Comments` stayed there
+after every review and grew the field without telling a later reader anything
+about the document's current status.
 
 ### Review Flow
 
@@ -67,10 +90,181 @@ Include the following section at the top of `01_requirements.md`, `02_architectu
 | Created | YYYY-MM-DD |
 | Review date | YYYY-MM-DD (or `-` when draft) |
 | Reviewer | Name (or `-` when draft) |
-| Comments | Review notes and changes (or `-` if none) |
+| Comments | The reason for the current status (or `-` if none) |
 ```
 
-When a task is withdrawn after review (for example, a feasibility check shows the requirements cannot be met), set the status of every task document that exists to `withdrawn`, whatever its previous status, and record the date and the reason (or a link to the document that records it) in `Comments`. A `withdrawn` document is not `approved`, so the commands that require an approved document (`/mkarch`, `/mkplan`, `/runplan`) stop on it.
+Five places hold a record about a task document, chosen by who reads it and
+when. `Comments` holds what the reviewer needs to know about the current status
+now. The change history holds the status transitions, for every later reader.
+A `…で決めたこと（YYYY-MM-DD）` section of the body holds a decision and its
+reason. The PR description holds what that PR's reviewer reads once, such as an
+editorial correction. The commit message holds the correction line the PR
+description is written from. A **status transition** is one of four events:
+**approval** (`/runpr` sets the document to `approved`, the first time or after
+a return to `draft`), **`draft` revert** (a decision change returns an approved
+document to `draft`), **session re-approval** (`/runplan`'s reviewer approves a
+decision change in the session and the document stays `approved`), and
+**withdrawal** (the document is set to `withdrawn`). The revisions of a newly
+created `draft` during its own review are not a status transition.
+
+#### Comments
+
+`Comments` holds only the reason for the current status that the reviewer needs
+to know now:
+
+| Status | `Comments` |
+|---|---|
+| `approved` | `-` |
+| `draft`, newly created | `-` |
+| `draft`, returned by a decision change | `決定の変更で draft に戻した：<変更の要旨>` |
+| `draft`, returned along with an earlier document's decision change, its own body unchanged | `<文書のファイル名> の決定の変更に伴って draft に戻した` |
+| `withdrawn` | `YYYY-MM-DD 取り下げ：<理由、または理由を記録した文書へのリンク>` |
+
+- Rewrite `Comments` at every status transition, keeping nothing of the
+  previous value: approval and a session re-approval set it to `-`, and a `draft` revert or a
+  withdrawal sets the value above. The past belongs in the change history.
+- Separate two or more items in `Comments` with `<br>`, so the table stays one
+  row and each item shows on its own line.
+- When a second decision change reaches a document that is already `draft` from
+  a decision change (for example, `/fixpr` returns a document to `draft` in one
+  round and changes it again in the next), the status does not change: append
+  the new value (the form of the table above) to `Comments` after a `<br>`,
+  unless the same value is already there. In the change history, when the
+  current PR has already added a `draft` revert line for the document (the line
+  is not on `main` yet), append the new summary to that line's summary after a
+  `；`, unless the same summary is already there (so a rerun does not add it
+  twice). When there is no such line (the document reached `main` as `draft`
+  from an earlier PR), add a new `draft` revert line for the current PR.
+
+#### Change history
+
+The change history is the section that starts with the heading line
+`## 変更履歴` outside a code block and is the last section of the document. A
+`## 変更履歴` inside a code block (an example, or a quotation of this rule) is
+not the change history; the definition of a document written under the old rule
+and the PR-number fill-in of `/runpr` follow this definition.
+
+- **Content:** the status transitions only, one list item per transition, in
+  the order they happened; a new line is appended at the end. Never record an
+  editorial correction here.
+- **Placement:** the last section of the document. When `02_architecture.md` has
+  a decision-history appendix (the past decisions and their reasons), the change
+  history follows it; the two are separate sections.
+- **When it is created:** not when the document is created (the requirements
+  template has none). The command that writes the first line creates the
+  section at the end of the document; usually this is `/runpr` recording the
+  first approval.
+- **Lines:**
+
+  | Transition | Line |
+  |---|---|
+  | Approval | `- YYYY-MM-DD 承認（<承認者>、#<PR 番号>）` |
+  | `draft` revert | `- YYYY-MM-DD draft への戻し：<変更の要旨>（#<PR 番号>）` |
+  | `draft` revert along with an earlier document's decision change | `- YYYY-MM-DD draft への戻し：<文書のファイル名> の決定の変更に伴う（#<PR 番号>）` |
+  | Session re-approval | `- YYYY-MM-DD セッション中の再承認：<変更の要旨>（<承認者>、#<PR 番号>）` |
+  | Withdrawal | `- YYYY-MM-DD withdrawn：<理由、または理由を記録した文書へのリンク>（#<PR 番号>）` |
+
+  For example (an illustration of each form, not one document's sequence):
+
+  ```markdown
+  ## 変更履歴
+
+  - 旧規則の Comments：<移した旧 Comments の文、内容を変えずに>
+  - 2026-11-01 承認（isseis、#606）
+  - 2026-11-03 draft への戻し：<変更の要旨>（#610）
+  - 2026-11-04 draft への戻し：02_architecture.md の決定の変更に伴う（#610）
+  - 2026-11-05 セッション中の再承認：<変更の要旨>（isseis、#612）
+  - 2026-11-07 withdrawn：<理由、または理由を記録した文書へのリンク>（#615）
+  ```
+
+- **Approver:** the GitHub user name, the value of `gh api user --jq .login`,
+  in both the approval line and the session re-approval line.
+- **PR number:** every line that reaches `main` carries the number of the PR
+  that added it; the migrated item below is the only exception. A line written
+  after its PR exists (by `/fixpr` or `/runpr`) writes the number. A line written
+  before its PR exists (for example by `/runplan`, `/mkarch`, `/mkplan2`, or a
+  manual withdrawal) writes the not-yet-filled marker `#未記入` in place of
+  `#<PR 番号>`. `/runpr`'s PRE_MERGE replaces the marker in each
+  change-history line the PR adds, to a new or an existing task document, and
+  only in those (`.claude/commands/runpr.md`, PRE_MERGE); a marker already on
+  `main` is shown to the user, never filled in automatically, because the PR
+  that added it is not known for certain. To fill one in, find the commit that
+  added the line (`git log -S '#未記入' -- <document>`) and its PR
+  (`gh pr list --state merged --search <SHA>`), and fix the marker in a PR of
+  its own.
+- **`draft` revert along with an earlier document's decision change:** only
+  `/fixpr` writes this line, when a changed handoff item returns a later
+  document whose body it did not change (`.claude/commands/fixpr.md`, R3).
+- **Migrated item:** the old `Comments` of a document written under the old rule
+  becomes the first item, starting with the prefix `旧規則の Comments：`. It has
+  no date, transition, or PR number, and it is the only exception to one line per
+  transition.
+
+#### Documents written under the old rule
+
+A document **written under the old rule** is one that has no change history and
+whose `Comments` is not `-`: its `Comments` was written by the rule before this
+one, which recorded corrections and past approvals there. It stays valid as it
+is. The first time a status transition is written to it under this rule, the
+command that writes the transition first does the following, in order:
+
+1. Create `## 変更履歴` at the end of the document, and put the text of the old
+   `Comments` cell in it as the first item, after the prefix
+   `旧規則の Comments：`. The cell's text is the bytes of the line after its
+   leading `| Comments | ` and before its trailing ` |`; do not split it on `|`.
+   Copy it byte for byte, `\|` and `<br>` included.
+2. Rewrite `Comments` to the reason for the status after the transition
+   ("Comments" above).
+3. Append the transition's line.
+4. Before committing, check mechanically that the copy equals the cell: take
+   the cell text of the removed `Comments` line and the text of the added
+   item (the bytes after `- 旧規則の Comments：` to the end of the line) from `git diff` into two files and compare them
+   with `cmp`. An old `Comments` can be several kilobytes long, and a long text
+   an LLM copies can change. When they differ, do not commit.
+
+An editorial correction alone does not migrate the document and does not change
+its `Comments`.
+
+#### Recording in the PR description
+
+- **Correction line (commit message):** one line per correction, in English:
+
+  ```text
+  Editorial correction: <document path>: <what was changed to what>; no decision changed
+  ```
+
+  Only a line that starts with `Editorial correction: ` at its first column is a
+  correction line; an indented line or a mention inside a sentence is not. Do
+  not start any other line of a commit message with `Editorial correction: `.
+  `<document path>` is the repository-relative path of the task document. The
+  line contains no `@` or `<`; a command may check it more strictly before it
+  posts it (`.claude/commands/fixpr.md`, Phase 4). Its description is written in the
+  writer's own words, never quoting a review thread or the PR description.
+- **Correction paragraph (PR description):** the PR description records the
+  corrections of the correction lines in a paragraph that is not a heading, so it
+  never nests under whatever heading ends the description. It carries the date
+  and the step that wrote it, so each round adds its own paragraph:
+
+  ```markdown
+  **編集上の訂正（<書いた手順>、YYYY-MM-DD）:**
+
+  - `<文書のパス>`: <何を何に直したか>（決定の変更なし）
+  ```
+
+  `<書いた手順>` is `PR の作成` or `/fixpr`. Each item is a correction line put
+  into Japanese, one item for each correction line. When a PR is created, the paragraph is
+  written from the correction lines of `git log origin/main..HEAD`; after that,
+  `/fixpr` appends a paragraph for the correction lines of the commits of its
+  round. A paragraph already in the description is kept as it is. When the
+  range has no correction line, no paragraph is written.
+- **Decision changes (PR description):** when a PR is created, its description
+  names the decision changes that the `draft` revert lines and the session
+  re-approval lines the branch added to change histories show
+  (`git diff origin/main...HEAD`).
+
+#### Withdrawing a task
+
+When a task is withdrawn after review (for example, a feasibility check shows the requirements cannot be met), set the status of every task document that exists to `withdrawn`, whatever its previous status. Set `Comments` to the date and the reason, or a link to the document that records it ("Comments" above), and append a withdrawal line to the change history ("Change history" above; `#未記入` when the line is written before its PR exists), migrating a document written under the old rule first. A `withdrawn` document is not `approved`, so the commands that require an approved document (`/mkarch`, `/mkplan`, `/runplan`) stop on it.
 
 ---
 
