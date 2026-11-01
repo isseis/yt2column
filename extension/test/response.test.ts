@@ -14,6 +14,7 @@ import {
   toStatusOutcome,
 } from "../src/core/response.ts";
 import type { RequestId, StatusOutcomeLog } from "../src/core/response.ts";
+import { maxKeyLength } from "../src/core/articleKey.ts";
 import type { ArticleKey } from "../src/core/articleKey.ts";
 import { classifyHostReply } from "../src/core/native.ts";
 import type {
@@ -149,7 +150,7 @@ describe("classifyStart", () => {
       name: "a key over the length limit",
       received: json(202, {
         status: "accepted",
-        key: "k".repeat(257),
+        key: "k".repeat(maxKeyLength + 1),
         requestId,
       }),
       check: "value-shape",
@@ -185,6 +186,22 @@ describe("classifyStart", () => {
     assert.deepEqual(
       classifyStart(json(200, { status: "accepted", key, requestId })),
       unexpected("status-pairing", 200),
+    );
+  });
+});
+
+describe("an operation's answer given to another operation", () => {
+  it("refuses a start's accepted as a status query's answer", () => {
+    assert.deepEqual(
+      classifyStatus(json(202, { status: "accepted", key, requestId })),
+      unexpected("member-set", 202),
+    );
+  });
+
+  it("refuses a status query's ok as a publish's answer", () => {
+    assert.deepEqual(
+      classifyPublish(json(200, doneBody())),
+      unexpected("member-set", 200),
     );
   });
 });
@@ -525,6 +542,17 @@ describe("classifyStatus refuses each malformed response as unexpected", () => {
       check: "member-set",
     },
     {
+      name: "an undeclared member on a failed job",
+      change: (b) =>
+        void (b.job = {
+          state: "failed",
+          steps: { draft: "failed", shorten: "pending", review: "pending" },
+          failure: "llm_failed",
+          article: {},
+        }),
+      check: "member-set",
+    },
+    {
       name: "a failed job without its failure",
       change: (b) =>
         void (b.job = {
@@ -758,6 +786,8 @@ describe("classifyStatus refuses each malformed response as unexpected", () => {
       received: replaced('"durationMs":81234', '"durationMs":-0'),
       check: "value-shape",
     },
+    // A leading zero is not JSON, so the parse refuses it before the duration
+    // check, whose pattern refuses it as well.
     {
       name: "a duration written 081234",
       received: replaced('"durationMs":81234', '"durationMs":081234'),
@@ -906,10 +936,18 @@ describe("log views", () => {
   const markedKey = `${marker}-key` as ArticleKey;
 
   it("leaves the key out of a start's view", () => {
-    const view = startLogView(
-      classifyStart(
-        json(202, { status: "accepted", key: markedKey, requestId }),
-      ),
+    const log = classifyStart(
+      json(202, { status: "accepted", key: markedKey, requestId }),
+    );
+    assert.ok(
+      JSON.stringify(log).includes(marker),
+      "the marker reached the result",
+    );
+    const view = startLogView(log);
+    assert.equal(
+      JSON.stringify(view).includes(marker),
+      false,
+      JSON.stringify(view),
     );
     assert.deepEqual(view, { kind: "accepted", requestId });
   });
@@ -985,11 +1023,24 @@ describe("log views", () => {
     }
   });
 
-  it("copies only the declared members of a failure", () => {
-    const extra = {
-      kind: "no-response",
-      key: markedKey,
-    } as unknown as StatusOutcomeLog;
-    assert.deepEqual(statusLogView(extra), { kind: "no-response" });
-  });
+  // A member the type does not declare stands for one a result gains later:
+  // a view that returned the result itself would carry it.
+  const failures: ExchangeFailureLog[] = [
+    { kind: "unexpected", check: "syntax", status: 200 },
+    { kind: "unexpected", check: "envelope-shape" },
+    { kind: "host-failed", lastError: "Native host has exited." },
+    { kind: "not-sent", cause: "message-too-large" },
+    { kind: "no-response" },
+  ];
+  for (const failure of failures) {
+    it(`copies only the declared members of ${failure.kind} in every view`, () => {
+      const extra = {
+        ...failure,
+        key: markedKey,
+      } as unknown as StatusOutcomeLog;
+      for (const view of [startLogView, statusLogView, publishLogView]) {
+        assert.deepEqual(view(extra as never), failure);
+      }
+    });
+  }
 });

@@ -90,13 +90,6 @@ describe("classifyHostReply", () => {
     });
   }
 
-  it("returns a wrapped response's status and body", () => {
-    assert.deepEqual(
-      classifyHostReply(responseReply(202, acceptedBody)),
-      relayed(202, acceptedBody),
-    );
-  });
-
   const envelopes: { name: string; reply: NativeReply; check: string }[] = [
     { name: "a null value", reply: message(null), check: "envelope-shape" },
     { name: "an array", reply: message([]), check: "envelope-shape" },
@@ -246,7 +239,10 @@ describe("classifyHostReply", () => {
   // canonical one only in its base64 text, and the canonical one is accepted.
   it("accepts the canonical base64 of the same body", () => {
     assert.equal(acceptedBase64.endsWith("="), true);
-    assert.equal(classifyHostReply(response({})).kind, "response");
+    assert.deepEqual(
+      classifyHostReply(response({})),
+      relayed(202, acceptedBody),
+    );
   });
 
   const statusBounds = [100, 599];
@@ -272,7 +268,10 @@ describe("classifyHostReply", () => {
   it("returns a decoded body one byte over the limit as body-over-limit", () => {
     const padded =
       acceptedBody + " ".repeat(maxResponseBytes + 1 - acceptedBody.length);
-    assert.deepEqual(classifyHostReply(responseReply(202, padded)), {
+    const result = classifyHostReply(responseReply(202, padded));
+    // The kind first: a relayed body in a failure report would not finish.
+    assert.equal(result.kind, "unexpected");
+    assert.deepEqual(result, {
       kind: "unexpected",
       check: "body-over-limit",
       status: 202,

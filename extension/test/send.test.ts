@@ -137,15 +137,19 @@ describe("sendArticle", () => {
     assert.equal(native.messages[0], request.body.message);
   });
 
-  it("returns no-response when the bound passes first", async () => {
-    const native = deferredNative();
-    const timer = manualSchedule();
-    const pending = sendArticle(
-      request,
-      testSendDeps(native.sendNative, timer.schedule),
+  it("returns classification-error when the reply throws while it is read", async () => {
+    const value = {
+      get v(): number {
+        throw new Error("getter");
+      },
+    };
+    const native = recordingNative(async (): Promise<NativeReply> => ({
+      kind: "message",
+      value,
+    }));
+    assert.deepEqual(
+      await sendArticle(request, testSendDeps(native.sendNative)),
+      { kind: "unexpected", check: "classification-error" },
     );
-    await flush();
-    timer.fire();
-    assert.deepEqual(await pending, { kind: "no-response" });
   });
 });
