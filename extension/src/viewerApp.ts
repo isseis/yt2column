@@ -25,7 +25,7 @@ import type { ViewerChannelMessage } from "./core/extensionMessages.ts";
 import { articleFileName } from "./core/fileName.ts";
 import { publishMessage, statusMessage } from "./core/hostMessage.ts";
 import { resolveLocale } from "./core/i18n/locale.ts";
-import { publishControl } from "./core/jobView.ts";
+import { jobArticle, publishControl } from "./core/jobView.ts";
 import type { ViewerState } from "./core/jobView.ts";
 import type { PollStep } from "./core/poll.ts";
 import { startResultDeadlineMs } from "./core/poll.ts";
@@ -39,6 +39,7 @@ import {
 } from "./core/response.ts";
 import type {
   Article,
+  PublishLogView,
   StartOutcome,
   StatusLogView,
   StatusOutcome,
@@ -137,20 +138,9 @@ export function findViewerElements(doc: Document): ViewerElements | undefined {
   return elements as ViewerElements;
 }
 
-/** The article a state shows: a done job's, or the one a lost job kept. */
+/** The article a state shows: its job's, when it shows a job. */
 function shownArticle(state: ViewerState): Article | undefined {
-  if (state.kind !== "job") {
-    return undefined;
-  }
-  switch (state.job.kind) {
-    case "done":
-      return state.job.article;
-    case "lost":
-      return state.job.kept;
-    case "running":
-    case "failed":
-      return undefined;
-  }
+  return state.kind === "job" ? jobArticle(state.job) : undefined;
 }
 
 /**
@@ -187,10 +177,18 @@ interface StatusLog {
 }
 
 /** A failed exchange goes to the error log; a server's answer to info. */
-function isExchangeFailure(view: { readonly kind: string }): boolean {
-  return (
-    view.kind !== "ok" && view.kind !== "accepted" && view.kind !== "rejected"
-  );
+function isExchangeFailure(view: StatusLogView | PublishLogView): boolean {
+  switch (view.kind) {
+    case "ok":
+    case "accepted":
+    case "rejected":
+      return false;
+    case "not-sent":
+    case "no-response":
+    case "host-failed":
+    case "unexpected":
+      return true;
+  }
 }
 
 /**
@@ -246,6 +244,9 @@ export async function startViewer(
   let poller: Poller | undefined;
   let key: ArticleKey | undefined;
   let cancelRedraw = (): void => {};
+  // Counts the starts of polling: a take-over that restarts the send makes a
+  // publish answer that was in flight belong to the send it replaced.
+  let restarts = 0;
 
   const draw = (): void => {
     renderViewer(
@@ -314,7 +315,9 @@ export async function startViewer(
         deps.log.info(statusResultLabel, entry);
       }
     }
-    if (currentEpoch && publishEpoch === epoch) {
+    // A take-over that goes on moves the epoch again before the first status
+    // after the publish, so any current reply from that epoch on ends it.
+    if (currentEpoch && publishEpoch !== undefined && epoch >= publishEpoch) {
       publishing = false;
       publishEpoch = undefined;
     }
@@ -330,6 +333,7 @@ export async function startViewer(
   /** Shows loading and polls for key from a new epoch. */
   const startPolling = (pollKey: ArticleKey): void => {
     key = pollKey;
+    restarts += 1;
     poller ??= createPoller(
       {
         fetchStatus: () => fetchStatus(pollKey),
@@ -500,12 +504,19 @@ export async function startViewer(
     publishing = true;
     showActionNotice({ kind: "none" });
     draw();
+    const pressedIn = restarts;
     const log = classifyPublish(await exchange(publishMessage(key), deps.send));
     const view = publishLogView(log);
+    const replaced = restarts !== pressedIn;
     if (isExchangeFailure(view)) {
-      deps.log.error(publishResultLabel, { result: view });
+      deps.log.error(publishResultLabel, { result: view, replaced });
     } else {
-      deps.log.info(publishResultLabel, { result: view });
+      deps.log.info(publishResultLabel, { result: view, replaced });
+    }
+    // The send was restarted while the publish was in flight: its answer is
+    // about the article the new send replaces, so it changes nothing shown.
+    if (replaced) {
+      return;
     }
     const outcome = toPublishOutcome(log);
     switch (outcome.kind) {

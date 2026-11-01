@@ -96,6 +96,17 @@ describe("createPoller", () => {
     assert.equal(clock.pending(), 1);
   });
 
+  it("waits for the fetch in flight on start and bumpEpoch, then sends one fetch of the new epoch", async () => {
+    const { clock, poller, fetches, reply } = harness();
+    poller.start();
+    poller.start();
+    poller.bumpEpoch();
+    assert.equal(fetches(), 1);
+    await reply(running);
+    assert.equal(fetches(), 2);
+    assert.equal(clock.pending(), 0);
+  });
+
   it("does nothing on fetchNow before start, while in flight, or after a stop decision", async () => {
     const { clock, poller, fetches, reply } = harness();
     poller.fetchNow();

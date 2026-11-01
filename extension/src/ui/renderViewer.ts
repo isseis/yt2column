@@ -7,7 +7,7 @@ import { isAcceptedWatchUrl } from "../core/acceptedUrl.ts";
 import { catalogs } from "../core/i18n/catalog.ts";
 import type { Message } from "../core/i18n/catalog.ts";
 import type { Locale } from "../core/i18n/locale.ts";
-import { publishControl } from "../core/jobView.ts";
+import { jobArticle, publishControl } from "../core/jobView.ts";
 import type {
   JobDisplay,
   PollNotice,
@@ -287,7 +287,7 @@ export function renderViewer(
 
   // The article is a done job's, or the one a lost job kept.
   const job = publishableJob(view.state);
-  const article = job?.kind === "done" ? job.article : job?.kept;
+  const article = jobArticle(job);
   if (job === undefined || article === undefined) {
     elements.article.hidden = true;
     elements.article.replaceChildren();

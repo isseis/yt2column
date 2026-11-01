@@ -263,7 +263,8 @@ function jobView(job: JobDisplay, elapsedMs = 0): ViewerView {
 
 /**
  * Every viewer state kind, every job kind and every row of the publish
- * button's table, one page each; the running job also in Japanese.
+ * button's table, one page each; the running job also in Japanese, a loading
+ * state whose polling stopped, and a publish in flight.
  */
 export const viewerPreviewCases: readonly ViewerPreviewCase[] = [
   {
@@ -293,6 +294,22 @@ export const viewerPreviewCases: readonly ViewerPreviewCase[] = [
     header: viewerHeader,
     view: {
       state: { kind: "loading", notice: { kind: "none" } },
+      elapsedMs: 0,
+      publishing: false,
+    },
+  },
+  {
+    name: "viewer-loading-stopped-en",
+    locale: "en",
+    header: viewerHeader,
+    view: {
+      state: {
+        kind: "loading",
+        notice: {
+          kind: "stopped",
+          outcome: { kind: "unexpected", check: "syntax" },
+        },
+      },
       elapsedMs: 0,
       publishing: false,
     },
@@ -354,6 +371,12 @@ export const viewerPreviewCases: readonly ViewerPreviewCase[] = [
     locale: "en",
     header: viewerHeader,
     view: jobView(doneJob({ state: "failed", reason: "webhook" })),
+  },
+  {
+    name: "viewer-publishing-en",
+    locale: "en",
+    header: viewerHeader,
+    view: { ...jobView(doneJob({ state: "not_posted" })), publishing: true },
   },
   {
     name: "viewer-not-posted-en",

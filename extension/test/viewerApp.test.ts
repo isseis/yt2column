@@ -95,6 +95,22 @@ const publishAccepted = responseReply(
   JSON.stringify({ status: "accepted", requestId }),
 );
 
+/** The host's reply rejecting a status query: polling stops. */
+const statusRejected = responseReply(
+  400,
+  JSON.stringify({ status: "rejected", reason: "invalid_key", requestId }),
+);
+
+/** The running job of runningJob as the viewer shows it, with no notice. */
+const runningState: ViewerState = {
+  kind: "job",
+  job: {
+    kind: "running",
+    steps: { draft: "done", shorten: "running", review: "pending" },
+  },
+  notice: { kind: "none" },
+};
+
 function publishRejected(reason: PublishRejectReason): NativeReply {
   return responseReply(
     publishRejectStatus[reason],
@@ -440,23 +456,60 @@ describe("startViewer: display and URL", () => {
     const reloadedAt = sentAt + 65_000;
     const viewer = await open({ query: queryOf({ key }), now: reloadedAt });
     await viewer.host.answer(statusReply(runningJob));
-    const running: ViewerState = {
-      kind: "job",
-      job: {
-        kind: "running",
-        steps: { draft: "done", shorten: "running", review: "pending" },
-      },
-      notice: { kind: "none" },
-    };
-    assert.equal(stateText(viewer), drawnState(running, 65_000));
+    assert.equal(stateText(viewer), drawnState(runningState, 65_000));
     viewer.clock.advance(elapsedRedrawMs);
-    assert.equal(stateText(viewer), drawnState(running, 66_000));
+    assert.equal(stateText(viewer), drawnState(runningState, 66_000));
 
     viewer.setVisible(false);
     viewer.clock.advance(elapsedRedrawMs);
     viewer.clock.advance(elapsedRedrawMs);
-    assert.equal(stateText(viewer), drawnState(running, 67_000));
+    assert.equal(stateText(viewer), drawnState(runningState, 67_000));
+    // Becoming visible draws the time at once, before the next second.
+    viewer.setVisible(true);
+    assert.equal(stateText(viewer), drawnState(runningState, 68_000));
   });
+
+  for (const [name, reply, notice] of [
+    [
+      "a retryable failure, beside the loading mark",
+      errorReply("server_unavailable"),
+      {
+        kind: "retrying",
+        outcome: { kind: "not-sent", cause: "server-unavailable" },
+      },
+    ],
+    [
+      "a rejection, alone since polling stopped",
+      statusRejected,
+      {
+        kind: "stopped",
+        outcome: { kind: "rejected", reason: "invalid_key", requestId },
+      },
+    ],
+  ] as const) {
+    it(`shows a failed first status: ${name}`, async () => {
+      const viewer = await open({ query: queryOf({ key }) });
+      await viewer.host.answer(reply);
+      assert.equal(stateText(viewer), drawnState({ kind: "loading", notice }));
+      assert.ok(
+        stateText(viewer).includes(
+          statusNoticeMessage(notice.outcome, "en").text,
+        ),
+      );
+      assert.equal(
+        viewer.elements.state.querySelector(".loading") !== null,
+        notice.kind === "retrying",
+      );
+      // A failed exchange is logged as an error; a server's rejection is its answer.
+      const level =
+        notice.kind === "retrying" ? viewer.logger.errors : viewer.logger.infos;
+      assert.equal(level.at(-1)?.label, "yt2column status result");
+      assert.equal(
+        (level.at(-1)?.data as { decision: string }).decision,
+        notice.kind === "retrying" ? "continue" : "stop",
+      );
+    });
+  }
 
   it("titles the page with the URL's heading and sets its language", async () => {
     const viewer = await open({ uiLanguage: "ja" });
@@ -597,6 +650,60 @@ describe("startViewer: operations", () => {
     viewer.clock.advance(10 * pollIntervalMs);
     assert.equal(viewer.host.count("status"), 2);
     assert.equal(viewer.host.count("publish"), 0);
+  });
+
+  it("enables the button again after a take-over that goes on came between the publish and its first status", async () => {
+    const viewer = await showing(doneJob({ state: "not_posted" }));
+    viewer.elements.publish.click();
+    await settle();
+    await viewer.host.answer(publishAccepted);
+    await post(viewer, { type: "find", queryId, key });
+    await post(viewer, takeOver());
+    await viewer.host.answer(statusReply(doneJob({ state: "posting" })));
+    const stale = viewer.logger.infos.at(-1);
+    assert.equal(stale?.label, "yt2column status result");
+    assert.deepEqual(
+      [
+        (stale?.data as { earlierEpoch: boolean }).earlierEpoch,
+        (stale?.data as { decision: string }).decision,
+      ],
+      [true, "continue"],
+    );
+    await viewer.host.answer(
+      statusReply(doneJob({ state: "failed", reason: "webhook" })),
+    );
+    assert.equal(viewer.elements.publish.disabled, false);
+  });
+
+  it("changes nothing shown for a publish answer that arrives after the send restarted", async () => {
+    // A done job whose polling stopped restarts on a take-over, and its
+    // not posted row can still be pressed.
+    const viewer = await showing(doneJob({ state: "not_posted" }));
+    await post(viewer, { type: "find", queryId, key });
+    await post(viewer, takeOver());
+    await viewer.host.answer(statusRejected);
+    viewer.elements.publish.click();
+    await settle();
+    assert.equal(viewer.host.count("publish"), 1);
+    viewer.elements.copy.click();
+    await settle();
+    assert.equal(
+      viewer.elements.actionStatus.textContent,
+      catalogs.en.viewer.copied,
+    );
+    await post(viewer, { type: "find", queryId, key });
+    await post(viewer, takeOver(sentAt + 60_000));
+    const statuses = viewer.host.count("status");
+    await viewer.host.answer(publishRejected("article_not_found"), "publish");
+    assert.equal(
+      stateText(viewer),
+      drawnState({ kind: "loading", notice: { kind: "none" } }),
+    );
+    assert.equal(viewer.elements.actionStatus.textContent, "");
+    await viewer.host.answer(statusReply(runningJob));
+    assert.ok(viewer.elements.state.querySelector(".step-list") !== null);
+    viewer.clock.advance(pollIntervalMs);
+    assert.equal(viewer.host.count("status"), statuses + 1);
   });
 
   it("enables the button again after the new epoch's first status shows a failed post", async () => {
@@ -762,21 +869,74 @@ describe("startViewer: queries, take-over and logs", () => {
     );
   });
 
-  for (const [name, job] of [
-    ["failed", failedJob],
-    ["lost", { state: "unknown" }],
+  // Design's take-over table: what the viewer shows when the take-over
+  // arrives decides whether it goes on or restarts. Each setup leaves no
+  // status exchange open.
+  for (const [name, setup, restarts] of [
+    ["a running job", () => showing(runningJob), false],
+    ["a done job", () => showing(doneJob({ state: "posted" })), false],
+    [
+      "a first status still awaited after a retryable failure",
+      async () => {
+        const viewer = await open({ query: queryOf({ key }) });
+        await viewer.host.answer(errorReply("server_unavailable"));
+        return viewer;
+      },
+      false,
+    ],
+    ["a failed job", () => showing(failedJob), true],
+    ["a lost job", () => showing({ state: "unknown" }), true],
+    [
+      "a first status that stopped polling",
+      async () => {
+        const viewer = await open({ query: queryOf({ key }) });
+        await viewer.host.answer(statusRejected);
+        return viewer;
+      },
+      true,
+    ],
+    [
+      "a running job whose polling stopped",
+      async () => {
+        const viewer = await showing(runningJob);
+        viewer.clock.advance(pollIntervalMs);
+        await viewer.host.answer(statusRejected);
+        return viewer;
+      },
+      true,
+    ],
+    [
+      "a done job whose polling stopped",
+      async () => {
+        const viewer = await showing(doneJob({ state: "posting" }));
+        viewer.clock.advance(pollIntervalMs);
+        await viewer.host.answer(statusRejected);
+        return viewer;
+      },
+      true,
+    ],
   ] as const) {
-    it(`restarts from the new send time when it takes over a ${name} job`, async () => {
-      const viewer = await showing(job);
-      assert.equal(viewer.host.count("status"), 1);
+    it(`${restarts ? "restarts from the new send time" : "goes on as it is"} when it takes over ${name}`, async () => {
+      const viewer = await setup();
+      const statuses = viewer.host.count("status");
+      const shown = stateText(viewer);
       await post(viewer, { type: "find", queryId, key });
-      const newSentAt = sentAt + 50_000;
+      const newSentAt = viewer.clock.now() - 3_000;
       await post(viewer, takeOver(newSentAt));
       assert.deepEqual(viewer.received.at(-1), {
         type: "took-over",
         queryId,
         tabId: 5,
       });
+      assert.deepEqual(viewer.logger.infos.at(-1), {
+        label: "yt2column take over",
+        data: { accepted: true, restarted: restarts },
+      });
+      if (!restarts) {
+        assert.deepEqual(viewer.replaced, []);
+        assert.equal(stateText(viewer), shown);
+        return;
+      }
       const written = parseViewerUrl(
         `?${viewer.replaced.at(-1)}`,
         "",
@@ -788,9 +948,24 @@ describe("startViewer: queries, take-over and logs", () => {
         stateText(viewer),
         drawnState({ kind: "loading", notice: { kind: "none" } }),
       );
-      assert.equal(viewer.host.count("status"), 2);
+      assert.equal(viewer.host.count("status"), statuses + 1);
+      // The elapsed time now counts from the take-over's send time.
+      await viewer.host.answer(statusReply(runningJob));
+      assert.equal(stateText(viewer), drawnState(runningState, 3_000));
     });
   }
+
+  it("ignores a take-over meant for another tab, even for a query it answered", async () => {
+    const viewer = await showing(failedJob);
+    await post(viewer, { type: "find", queryId, key });
+    await post(viewer, { ...takeOver(), tabId: 6 } as ViewerChannelMessage);
+    assert.deepEqual(
+      viewer.received.map((message) => message.type),
+      ["present"],
+    );
+    assert.deepEqual(viewer.replaced, []);
+    assert.equal(viewer.host.count("status"), 1);
+  });
 
   it("ignores a take-over for a query it did not answer present to", async () => {
     const viewer = await showing(failedJob);
