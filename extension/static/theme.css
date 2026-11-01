@@ -173,6 +173,14 @@ body {
   color: var(--muted);
 }
 
+.job-facts dt {
+  font-weight: 600;
+}
+
+.job-facts dd {
+  margin: 0 0 0.25rem;
+}
+
 /* The loading mark and the sentence that says which wait it is. The mark
    turns; it never blinks. */
 .loading {

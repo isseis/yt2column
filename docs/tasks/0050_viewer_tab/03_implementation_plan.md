@@ -418,10 +418,10 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **変更するファイル:** `src/ui/icons.ts`、`src/ui/renderJob.ts`（新規）、`src/ui/articleBody.ts`（新規）、`test/renderJob.test.ts`（新規）、`test/articleBody.test.ts`（新規）
 
--   [ ] `icons.ts` に、工程の状態の 5 つの記号とロード中の印を加える（設計書 3.14）。
--   [ ] `renderJob.ts` に、工程のチェックリスト、経過時間、料金、所要時間、ロード中の表示、`requestId` の表示を描く関数を作る（設計書 3.14）。文言は `messageNodes`（`src/ui/render.ts:32`）で描く。
--   [ ] `articleBody.ts` に `renderArticleBody` を作る（設計書 3.12）。
--   [ ] テスト: 工程の状態ごとに記号の形と状態の語が違うこと（AC-11・AC-46・AC-48）、経過時間の要素が状態の領域の外で `aria-live` を持たないこと（AC-47）、1.4 の行き先の表の `renderSend.test.ts` の 3 つの確認、`renderArticleBody` に AC-25 の入力を与えると子の要素が 1 つもできず `textContent` が一致すること。
+-   [x] `icons.ts` に、工程の状態の 5 つの記号とロード中の印を加える（設計書 3.14）。
+-   [x] `renderJob.ts` に、工程のチェックリスト、経過時間、料金、所要時間、ロード中の表示、`requestId` の表示を描く関数を作る（設計書 3.14）。文言は `messageNodes`（`src/ui/render.ts:32`）で描く。
+-   [x] `articleBody.ts` に `renderArticleBody` を作る（設計書 3.12）。
+-   [x] テスト: 工程の状態ごとに記号の形と状態の語が違うこと（AC-11・AC-46・AC-48）、経過時間の要素が状態の領域の外で `aria-live` を持たないこと（AC-47）、1.4 の行き先の表の `renderSend.test.ts` の 3 つの確認、`renderArticleBody` に AC-25 の入力を与えると子の要素が 1 つもできず `textContent` が一致すること。
 
 **完了の条件:** `make ext-check` が通る。`renderArticleBody` が記事の中の Markdown のリンクを `<a>` の要素にするように壊し、AC-25 のテストが失敗することを確かめる。
 
