@@ -246,7 +246,7 @@ the tool (`make install-codexreview`, `go build`): the user installs it from
      Any other exit code (0, the text contains the mention; above 1, the
      check failed): remove the `<summary>` of every `Codex local review:`
      line, keeping the location and the handling, and every
-     `Editorial correction:` line, keeping the corrections it named in
+     `Editorial correction:` line, listing each removed correction in
      SUMMARY as not recorded, and run the check once
      more. When that run does not exit 1, stop and report instead of
      committing. Removing your own summary is not rewriting the text to get

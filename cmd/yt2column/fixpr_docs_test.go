@@ -668,6 +668,9 @@ func TestFixprguardCallSites(t *testing.T) {
 	}
 }
 
+// bodyRead matches a gh --json field list that asks for the body.
+var bodyRead = regexp.MustCompile(`--json\s+\S*\bbody\b`)
+
 // countFilterCommand is the form of the command fixpr.md Phase 6 runs to
 // count the correction paragraphs of the PR description; the filter holds no
 // single quote.
@@ -677,24 +680,30 @@ var countFilterCommand = regexp.MustCompile(`^gh pr view <number> --json body --
 // description. It is a bold marker of the Japanese rule text.
 const correctionOpener = "**編集上の訂正（"
 
-// TestFixprPhase6CountFilter checks the one command of fixpr.md Phase 6 that
-// this session runs to read the PR description: outside the agent prompt
-// (the blockquote) it is the only one that asks for the body, and its --jq
-// filter prints the number of correction paragraphs and never the body, so
-// the description does not enter the session. jq must be installed: a
+// TestFixprPhase6CountFilter checks the one command of fixpr.md that this
+// session runs to read the PR description: outside the agent prompts (the
+// blockquotes) it is the only command line that asks for the body, it is in
+// Phase 6, and its --jq filter prints the number of correction paragraphs and
+// never the body, so the description does not enter the session. jq must be installed: a
 // missing jq fails the test instead of skipping it.
 func TestFixprPhase6CountFilter(t *testing.T) {
 	jq, err := exec.LookPath("jq")
 	if err != nil {
 		t.Fatal("unsupported test environment: jq is not installed")
 	}
-	section := requireSection(t, "fixpr.md", doctestutil.ReadDoc(t, fixprPath), fixprPhase6)
+	doc := doctestutil.ReadDoc(t, fixprPath)
+	section := requireSection(t, "fixpr.md", doc, fixprPhase6)
 	var filters []string
 	reads := 0
-	for line := range strings.Lines(section) {
+	for line := range strings.Lines(doc) {
 		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, ">") || !strings.Contains(line, "--json body") {
+		// A command line of a code block starts with the command; prose that
+		// names a read, such as the Authorization list, does not run it.
+		if !strings.HasPrefix(line, "gh ") || !bodyRead.MatchString(line) {
 			continue
+		}
+		if !strings.Contains(section, line) {
+			t.Errorf("fixpr.md reads the body outside the agent prompts and outside Phase 6: %q", line)
 		}
 		reads++
 		if m := countFilterCommand.FindStringSubmatch(line); m != nil {
@@ -702,7 +711,7 @@ func TestFixprPhase6CountFilter(t *testing.T) {
 		}
 	}
 	if reads != 1 || len(filters) != 1 {
-		t.Fatalf("fixpr.md Phase 6 reads the body %d times outside the agent prompt, %d of them as the count command; want 1 and 1", reads, len(filters))
+		t.Fatalf("fixpr.md reads the body %d times outside the agent prompts, %d of them as the count command; want 1 and 1", reads, len(filters))
 	}
 	paragraph := correctionOpener + "/fixpr、2026-11-02）:**\n\n- `docs/tasks/0001_x/01_requirements.md`: " + bodyMarker
 	for _, tc := range []struct {
