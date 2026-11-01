@@ -49,7 +49,10 @@ export interface FakeRuntime {
   /** Registers listener, as listenForMessages does for chrome.runtime.onMessage. */
   listen(listener: MessageListener): void;
   /**
-   * Sends message from sender, as runtime.sendMessage does. It fails at once
+   * Sends message from sender, as runtime.sendMessage does, except that the
+   * listener runs synchronously instead of as a task; the code under test
+   * awaits the reply either way, so only the order of later tasks differs, and
+   * every test settles before it checks. It fails at once
    * when no listener is registered or the listener returns false without
    * responding, and resolves the response otherwise. A closed sender is a
    * page that closed after sending: the response never reaches it, and its
@@ -215,9 +218,10 @@ interface Endpoint {
 
 /**
  * The viewers' channel between the endpoints opened in one test. A message is
- * delivered as a task, a copy to every other endpoint open at delivery time,
- * never to the endpoint that posted it, and an endpoint posts nothing once
- * closed: the BroadcastChannel rules the code depends on.
+ * delivered as a task, a copy to every other endpoint open when it was posted
+ * and still open at delivery, never to the endpoint that posted it, and an
+ * endpoint posts nothing once closed: the BroadcastChannel rules the code
+ * depends on.
  */
 export function fakeChannels(): FakeChannels {
   const endpoints = new Set<Endpoint>();

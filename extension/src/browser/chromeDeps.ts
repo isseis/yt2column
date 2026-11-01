@@ -220,9 +220,9 @@ export function createSendDeps(runtime: NativeMessagingApi): SendDeps {
 }
 
 /**
- * What a browser call became. error is the browser's text, for the developer
- * log only: it may name a URL, so it is never shown and never passed to
- * another page.
+ * What a browser call became. error is the browser's text. It may name a URL,
+ * so it is never shown, never passed to another page, and logged only where
+ * the logging rules allow the browser's error text (a host failure).
  */
 export type BrowserCall<T> =
   | { readonly ok: true; readonly value: T }
@@ -417,8 +417,14 @@ export interface WindowFocusApi {
 /** Brings a window to the front. Never rejects. */
 export type FocusWindow = (windowId: number) => Promise<BrowserCall<undefined>>;
 
-/** The FocusWindow backed by api. */
-export function createWindowFocus(api: WindowFocusApi): FocusWindow {
+/**
+ * The FocusWindow backed by api, chrome.windows by default: this module is the
+ * one place that may reference chrome.windows, so an entry point leaves the
+ * argument out.
+ */
+export function createWindowFocus(
+  api: WindowFocusApi = chrome.windows,
+): FocusWindow {
   return (windowId) =>
     browserCall(async () => {
       await api.update(windowId, { focused: true });

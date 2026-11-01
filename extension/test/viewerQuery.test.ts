@@ -4,7 +4,7 @@ import { describe, it } from "node:test";
 import type { ArticleKey } from "../src/core/articleKey.ts";
 import type { ViewerChannelMessage } from "../src/core/extensionMessages.ts";
 import { viewerQueryWindowMs } from "../src/core/poll.ts";
-import { findViewers } from "../src/viewerQuery.ts";
+import { askViewers, findViewers } from "../src/viewerQuery.ts";
 import type { ViewerQueryDeps } from "../src/viewerQuery.ts";
 import { fakeChannels } from "./helpers/chrome.ts";
 import { fakeClock, settle } from "./helpers/clock.ts";
@@ -85,6 +85,12 @@ describe("findViewers", () => {
     const result = findViewers(key, deps);
     await settle();
     viewer.post(present(5, otherQueryId));
+    viewer.post({
+      type: "waiting",
+      queryId: otherQueryId,
+      tabId: 6,
+      sentAt: 1,
+    });
     viewer.post({ ...present(6), extra: true });
     viewer.post({
       type: "present",
@@ -118,6 +124,57 @@ describe("findViewers", () => {
       schedule: clock.schedule,
     });
     assert.deepEqual(result, { queryId, present: [], waiting: [] });
+    assert.equal(clock.pending(), 0);
+  });
+});
+
+describe("askViewers", () => {
+  const takeOver: ViewerChannelMessage = {
+    type: "take-over",
+    queryId,
+    tabId: 5,
+    sentAt: 10,
+  };
+
+  it("stops at the first answer onAnswer accepts, and hears nothing after", async () => {
+    const { deps, clock, viewer } = setup();
+    const seen: string[] = [];
+    const asked = askViewers(takeOver, deps, (answer) => {
+      seen.push(answer.type);
+      return answer.type === "took-over";
+    });
+    await settle();
+    viewer.post(present(5));
+    viewer.post({ type: "took-over", queryId, tabId: 5 });
+    viewer.post(present(6));
+    await settle();
+    assert.equal(await asked, true);
+    assert.deepEqual(seen, ["present", "took-over"]);
+    assert.equal(clock.pending(), 0, "the window timer is left running");
+  });
+
+  it("resolves false at once when the channel cannot post", async () => {
+    const clock = fakeClock();
+    let closed = false;
+    const asked = await askViewers(
+      takeOver,
+      {
+        openChannel: () => ({
+          ok: true,
+          value: {
+            post: () => false,
+            listen: () => () => {},
+            close: () => {
+              closed = true;
+            },
+          },
+        }),
+        schedule: clock.schedule,
+      },
+      () => true,
+    );
+    assert.equal(asked, false);
+    assert.equal(closed, true);
     assert.equal(clock.pending(), 0);
   });
 });

@@ -60,14 +60,24 @@ function calls(call: ts.CallExpression, name: string): boolean {
   );
 }
 
-/** Whether call is x.onMessage.addListener(...). */
+/** Whether node names onMessage: onMessage, x.onMessage or x["onMessage"]. */
+function namesOnMessage(node: ts.Expression): boolean {
+  return (
+    (ts.isIdentifier(node) && node.text === "onMessage") ||
+    (ts.isPropertyAccessExpression(node) && node.name.text === "onMessage") ||
+    (ts.isElementAccessExpression(node) &&
+      ts.isStringLiteralLike(node.argumentExpression) &&
+      node.argumentExpression.text === "onMessage")
+  );
+}
+
+/** Whether call adds a listener to onMessage, however onMessage is reached. */
 function addsMessageListener(call: ts.CallExpression): boolean {
   const callee = call.expression;
   return (
     ts.isPropertyAccessExpression(callee) &&
     callee.name.text === "addListener" &&
-    ts.isPropertyAccessExpression(callee.expression) &&
-    callee.expression.name.text === "onMessage"
+    namesOnMessage(callee.expression)
   );
 }
 
@@ -116,11 +126,11 @@ function functionName(
   return undefined;
 }
 
-/** Whether an await comes before node inside within. */
+/** Whether an await comes before node inside within, or inside node itself (its arguments). */
 function awaitsBefore(within: ts.Node, node: ts.Node): boolean {
   let found = false;
   const visit = (child: ts.Node): void => {
-    if (child.getStart() >= node.getStart()) {
+    if (child.getStart() >= node.getEnd()) {
       return;
     }
     if (

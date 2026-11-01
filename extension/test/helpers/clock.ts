@@ -10,7 +10,9 @@ export interface FakeClock {
    * Moves the time forward by ms, running every callback that falls due on
    * the way at its due time: the earliest first, and in scheduling order for
    * the same time. A callback scheduled on the way runs too when it falls due
-   * within ms.
+   * within ms. Promise continuations do not run between callbacks: a timer a
+   * continuation schedules is set only after advance returns, so a test
+   * settles and advances again to reach it.
    */
   advance(ms: number): void;
   /** How many callbacks are scheduled and neither run nor cancelled. */

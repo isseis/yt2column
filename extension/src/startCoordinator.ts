@@ -258,21 +258,26 @@ export function createStartCoordinator(
       answers.present.filter((answer) => answer.tabId !== newTab),
     );
     let tookOver = false;
-    let closed = false;
+    let remove: "not-attempted" | "ok" | "failed" = "not-attempted";
     if (viewer !== undefined && waiting) {
       tookOver = await takeOver(answers.queryId, viewer, record.sentAt);
       if (tookOver) {
-        closed = (await deps.tabs.remove(newTab)).ok;
+        remove = (await deps.tabs.remove(newTab)).ok ? "ok" : "failed";
       }
     }
-    deps.log.info(viewerTabLabel, {
+    const tabLog = {
       created: true,
       present: answers.present.length,
       waiting: answers.waiting.length,
       tookOver,
-      closed,
-    });
-    if (viewer !== undefined && closed) {
+      remove,
+    };
+    if (remove === "failed") {
+      deps.log.error(viewerTabLabel, tabLog);
+    } else {
+      deps.log.info(viewerTabLabel, tabLog);
+    }
+    if (viewer !== undefined && remove === "ok") {
       discard(record);
       return viewer.tabId;
     }
@@ -355,7 +360,9 @@ export function createStartCoordinator(
       return false;
     }
     deps.log.info(startRequestLabel, { accepted: true });
-    // Every step it awaits resolves by contract, so it never rejects.
+    // Every step it awaits resolves by contract, and the request's values
+    // passed the checks the URL encoding and the tab need, so it does not
+    // reject.
     void runAcceptedStart(parsed.request, parsed.prepared, sendResponse);
     return true;
   };
