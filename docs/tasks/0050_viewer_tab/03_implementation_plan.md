@@ -364,9 +364,9 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **変更するファイル:** `static/manifest.json`、`scripts/check-dist.ts`、`test/manifest.test.ts`、`test/checkDist.test.ts`
 
--   [ ] `manifest.json` を設計書 3.15 のとおりにする（`background`、`minimum_chrome_version` を `110`）。
--   [ ] `check-dist.ts` の `referenceViolations`（`:121`）に `background.service_worker` を加える（設計書 3.15）。
--   [ ] テスト: `test/manifest.test.ts` の「Chrome 103」（`:124-126`）とキーの一覧（`:102-118`）。`test/checkDist.test.ts` に、`src/` にも `dist/` にもない SW を manifest が名指すと参照の違反になることを、`:138-143` の今のテストと同じ形で加える。
+-   [x] `manifest.json` を設計書 3.15 のとおりにする（`background`、`minimum_chrome_version` を `110`）。
+-   [x] `check-dist.ts` の `referenceViolations`（`:121`）に `background.service_worker` を加える（設計書 3.15）。
+-   [x] テスト: `test/manifest.test.ts` の「Chrome 103」（`:124-126`）とキーの一覧（`:102-118`）。`test/checkDist.test.ts` に、`src/` にも `dist/` にもない SW を manifest が名指すと参照の違反になることを、`:138-143` の今のテストと同じ形で加える。
 
 **完了の条件:** `make ext-check` と `make test`（`TestDeclaredPermissions`）が通る。`referenceViolations` から `background.service_worker` の読み取りを外すように壊し、その違反のテストが失敗することを確かめる。
 

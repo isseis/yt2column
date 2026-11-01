@@ -24,10 +24,17 @@ function write(root: string, file: string, content = ""): void {
 }
 
 /** Writes a manifest into static/ and its copy in dist/, pointing at the popup. */
-function writeManifest(root: string, defaultPopup: string): void {
+function writeManifest(
+  root: string,
+  defaultPopup: string,
+  serviceWorker?: string,
+): void {
   const content = JSON.stringify({
     manifest_version: 3,
     action: { default_popup: defaultPopup },
+    ...(serviceWorker === undefined
+      ? {}
+      : { background: { service_worker: serviceWorker, type: "module" } }),
   });
   write(root, "static/manifest.json", content);
   write(root, "dist/manifest.json", content);
@@ -140,6 +147,19 @@ describe("checkDist", () => {
     writeManifest(root, "popup.html");
     assert.deepEqual(checkDist(root), [
       'manifest.json: action.default_popup "popup.html" is not in dist/',
+    ]);
+  });
+
+  it("accepts a manifest service worker that is in dist/", () => {
+    // The base tree builds src/main.ts into dist/main.js.
+    writeManifest(root, "page.html", "main.js");
+    assert.deepEqual(checkDist(root), []);
+  });
+
+  it("rejects a manifest service worker that is in neither src/ nor dist/", () => {
+    writeManifest(root, "page.html", "background.js");
+    assert.deepEqual(checkDist(root), [
+      'manifest.json: background.service_worker "background.js" is not in dist/',
     ]);
   });
 
