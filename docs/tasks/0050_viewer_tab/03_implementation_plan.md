@@ -447,7 +447,7 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 **判定理由**: ステップ 5-2 の `renderArticleBody` が、信頼できない LLM の出力を文字としてだけ表示する境界（設計書 3.12、AC-25）であるため
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/616
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
