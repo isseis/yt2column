@@ -475,33 +475,61 @@ describe("removed menu-path APIs", () => {
     { api: "chrome", name: "windows" },
     { api: "chrome.action", name: "setBadgeText" },
   ];
+  /** The five reference forms of api.name, which the rule forbids alike. */
+  const referenceForms = (
+    api: string,
+    name: string,
+  ): { form: string; code: string }[] => [
+    {
+      form: "the dotted reference",
+      code: `export const p = ${api}.${name};\n`,
+    },
+    {
+      form: "the computed string reference",
+      code: `export const p = ${api}["${name}"];\n`,
+    },
+    {
+      form: "the computed template reference",
+      code: `export const p = ${api}[\`${name}\`];\n`,
+    },
+    {
+      form: "the destructured reference",
+      code: `export const { ${name} } = ${api};\n`,
+    },
+    {
+      form: "the string-keyed destructured reference",
+      code: `export const { "${name}": x } = ${api};\n`,
+    },
+  ];
   for (const { api, name } of references) {
-    const violations: { form: string; code: string }[] = [
-      {
-        form: "the dotted reference",
-        code: `export const p = ${api}.${name};\n`,
-      },
-      {
-        form: "the computed string reference",
-        code: `export const p = ${api}["${name}"];\n`,
-      },
-      {
-        form: "the computed template reference",
-        code: `export const p = ${api}[\`${name}\`];\n`,
-      },
-      {
-        form: "the destructured reference",
-        code: `export const { ${name} } = ${api};\n`,
-      },
-      {
-        form: "the string-keyed destructured reference",
-        code: `export const { "${name}": x } = ${api};\n`,
-      },
-    ];
-    for (const { form, code } of violations) {
+    for (const { form, code } of referenceForms(api, name)) {
       expectViolation([
         { name: `${name} as ${form}`, code, rule: "no-restricted-syntax" },
       ]);
+    }
+  }
+
+  // The window focus wrapper in browser/chromeDeps.ts is the one place that
+  // may reference windows; the other names stay forbidden there. The forms
+  // come from the same selector generator as above, so one form proves each
+  // forbidden name and every form is tried for the allowed one.
+  const chromeDeps = "src/browser/chromeDeps.ts";
+  for (const { api, name } of references) {
+    const forms = referenceForms(api, name);
+    for (const { form, code } of name === "windows"
+      ? forms
+      : forms.slice(0, 1)) {
+      if (name === "windows") {
+        it(`allows ${name} as ${form} in ${chromeDeps}`, async () => {
+          assert.deepEqual(await ruleIds(code, chromeDeps), []);
+        });
+      } else {
+        it(`forbids ${name} as ${form} in ${chromeDeps}`, async () => {
+          assert.ok(
+            (await ruleIds(code, chromeDeps)).includes("no-restricted-syntax"),
+          );
+        });
+      }
     }
   }
 

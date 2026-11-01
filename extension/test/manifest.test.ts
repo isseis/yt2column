@@ -104,6 +104,7 @@ describe("undeclared keys", () => {
     // options_ui (there is nothing to set).
     assert.deepEqual(Object.keys(manifest).sort(), [
       "action",
+      "background",
       "default_locale",
       "description",
       "key",
@@ -121,8 +122,17 @@ describe("fixed fields", () => {
     assert.equal(manifest["manifest_version"], 3);
   });
 
-  it("requires Chrome 103", () => {
-    assert.equal(manifest["minimum_chrome_version"], "103");
+  it("requires Chrome 110", () => {
+    // From Chrome 110, extension API calls and events extend the service
+    // worker's idle timer, which the start's 25-second exchange relies on.
+    assert.equal(manifest["minimum_chrome_version"], "110");
+  });
+
+  it("runs background.js as a module service worker", () => {
+    assert.deepEqual(manifest["background"], {
+      service_worker: "background.js",
+      type: "module",
+    });
   });
 
   it("opens popup.html from the toolbar icon", () => {

@@ -8,7 +8,7 @@
 | Created | 2026-10-31 |
 | Review date | 2026-11-01 |
 | Reviewer | isseis |
-| Comments | 2026-11-01 (decision, approved in session): ステップ 1-1 の確認で、設計書 3.16 の行 10 が崩れた（凍結されたタブは問いに答え、破棄されたタブには新しいタブの ID が付く）。レビュアー（isseis）がセッションの中で扱いを選び、承認した。凍結されたタブは期待を観察に合わせ、破棄されたタブは「ビューアを開く」の重複を制約として受け入れた（要件 F-004・AC-21、設計書 3.16・4.2・6.6・7.2）。これに合わせて 4.3.2 の AC-08 の行を改めた。行 6 は、送り方を変えないことをレビュアーが選んだ（設計書 3.4.1 の項目 5）。ほかの決定は変えていない。<br>2026-11-01 (editorial correction): PR-4 の実装のレビューで、ステップ 3-3 の `afterStatus` の記述に、直前が `kept` を持つ `lost` の場合を加えた（設計書 3.6 の同じ訂正。AC-15）。あわせて設計書 3.9 の `PublishOpNotice` の `unknown` にやり取りの結果を持たせた。決定は変えていない。 |
+| Comments | 2026-11-01 (decision, approved in session): ステップ 1-1 の確認で、設計書 3.16 の行 10 が崩れた（凍結されたタブは問いに答え、破棄されたタブには新しいタブの ID が付く）。レビュアー（isseis）がセッションの中で扱いを選び、承認した。凍結されたタブは期待を観察に合わせ、破棄されたタブは「ビューアを開く」の重複を制約として受け入れた（要件 F-004・AC-21、設計書 3.16・4.2・6.6・7.2）。これに合わせて 4.3.2 の AC-08 の行を改めた。行 6 は、送り方を変えないことをレビュアーが選んだ（設計書 3.4.1 の項目 5）。ほかの決定は変えていない。<br>2026-11-01 (editorial correction): PR-4 の実装のレビューで、ステップ 3-3 の `afterStatus` の記述に、直前が `kept` を持つ `lost` の場合を加えた（設計書 3.6 の同じ訂正。AC-15）。あわせて設計書 3.9 の `PublishOpNotice` の `unknown` にやり取りの結果を持たせた。決定は変えていない。<br>2026-11-01 (editorial correction): PR-5 の実装で、ステップ 4-3 の求めの検査に合わせ、`parseStartRequest`（ステップ 3-2）が、落ちた検査の種類（`shape`・`size`）と、通ったときは測った `PreparedRequest` を返す形にした（設計書 3.4 の同じ訂正。4.4 のログのため）。検査の内容は変えていない。決定は変えていない。 |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の項番、「設計書 3.2」などは設計書の節を指す。既存のコードと文書についての記述は、コミット `bf314092` で確かめた。`file:line` はこのコミットの行番号を指す。設計書は行番号をコミット `577e7b51` で確かめている。`git diff --stat 577e7b51 bf314092 -- extension cmd/yt2column/extension_docs_test.go internal/nmhost internal/server docs/dev/guides/development.md` の出力は空なので、設計書の拡張・Go のガード・ホスト・サーバ・`development.md` の行番号は、そのまま使える（`README.md` と `docs/dev/security.md` は、タスク `0051` の変更で行がずれている）。拡張のファイルのパスは、設計書と同じく `extension/` を省いて書く（例: `src/launch.ts`）。テストの場所は `path::describe の名前` で示す。まだないテストの describe の名前は、実装のときに決める仮の名前である。
 
@@ -330,11 +330,11 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **変更するファイル:** `src/browser/chromeDeps.ts`、`eslint.config.js`、`test/chromeDeps.test.ts`、`test/lintRules.test.ts`、`test/helpers/chrome.ts`（新規）、`test/helpers/clock.ts`（新規）、`test/fakes.test.ts`（新規）
 
--   [ ] `chromeDeps.ts` に、設計書 3.18 の行のラッパー（`runtime.sendMessage`・`onMessage`、`tabs.create/update/remove/get/getCurrent`、ウィンドウを前面に出す操作、`BroadcastChannel`、クリップボード、ダウンロード、問い合わせの ID の乱数）を加える。Promise の拒否と例外は、どれも失敗の値に変える（設計書 4.1）。`chrome.windows` は 1.3 のとおり `chromeDeps.ts` だけが読む。
--   [ ] `eslint.config.js` で、`windows` を `chromeDeps.ts` でだけ許し、`menuPathMessage` の「the extension sends only from the popup」を改める（設計書 3.17）。`test/lintRules.test.ts:382` の `windows` の行を、ほかのファイルで禁止され `chromeDeps.ts` で許される形にする。
--   [ ] `test/helpers/clock.ts` に、`now()`・`schedule()`・`advance(ms)`（期限の順に、期限の来た処理だけを呼ぶ）を持つ fake の時計を作る（1.4）。
--   [ ] `test/helpers/chrome.ts` に、ラッパーのインタフェースの形の fake を作る（設計書 7.1）。順序のテストのために、次のことができる形にする: `tabs.create` の完了をテストが進める、`tabs.remove` などを失敗させる、閉じたポップアップへの `sendResponse` が届かない、リスナーが `false` を返すと送り手の `sendMessage` が失敗する、`runtime.id` と `getURL` を持つ。`BroadcastChannel` の fake は、同じテストの中の複数の端点の間で非同期に届き、送った端点自身には届かず、`close` の後は届かない。
--   [ ] テスト: 各ラッパーが拒否と例外を失敗の値に変えること。`test/fakes.test.ts` で、`BroadcastChannel` の fake の届き方と、時計の `advance` の順を確かめる。
+-   [x] `chromeDeps.ts` に、設計書 3.18 の行のラッパー（`runtime.sendMessage`・`onMessage`、`tabs.create/update/remove/get/getCurrent`、ウィンドウを前面に出す操作、`BroadcastChannel`、クリップボード、ダウンロード、問い合わせの ID の乱数）を加える。Promise の拒否と例外は、どれも失敗の値に変える（設計書 4.1）。`chrome.windows` は 1.3 のとおり `chromeDeps.ts` だけが読む。
+-   [x] `eslint.config.js` で、`windows` を `chromeDeps.ts` でだけ許し、`menuPathMessage` の「the extension sends only from the popup」を改める（設計書 3.17）。`test/lintRules.test.ts:382` の `windows` の行を、ほかのファイルで禁止され `chromeDeps.ts` で許される形にする。
+-   [x] `test/helpers/clock.ts` に、`now()`・`schedule()`・`advance(ms)`（期限の順に、期限の来た処理だけを呼ぶ）を持つ fake の時計を作る（1.4）。
+-   [x] `test/helpers/chrome.ts` に、ラッパーのインタフェースの形の fake を作る（設計書 7.1）。順序のテストのために、次のことができる形にする: `tabs.create` の完了をテストが進める、`tabs.remove` などを失敗させる、閉じたポップアップへの `sendResponse` が届かない、リスナーが `false` を返すと送り手の `sendMessage` が失敗する、`runtime.id` と `getURL` を持つ。`BroadcastChannel` の fake は、同じテストの中の複数の端点の間で非同期に届き、送った端点自身には届かず、`close` の後は届かない。
+-   [x] テスト: 各ラッパーが拒否と例外を失敗の値に変えること。`test/fakes.test.ts` で、`BroadcastChannel` の fake の届き方と、時計の `advance` の順を確かめる。
 
 **完了の条件:** `make ext-check` が通る。`tabs.remove` のラッパーが拒否をそのまま投げるように壊し、そのテストが失敗することを確かめる。`BroadcastChannel` の fake が送った端点自身にも届けるように壊し、`test/fakes.test.ts` が失敗することを確かめる。
 
@@ -342,8 +342,8 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **変更するファイル:** `src/viewerQuery.ts`（新規）、`test/viewerQuery.test.ts`（新規）
 
--   [ ] `findViewers` を作る（設計書 3.4.2）。通信路と問い合わせの ID の乱数を依存として受け取り、`find` を送り、`viewerQueryWindowMs` の間、同じ `queryId` の答えを `parseViewerChannelMessage` で検査して集める。
--   [ ] テスト（fake の時計）: 1 秒の境目、違う `queryId`・形の違う答えを無視すること、答えがない場合。
+-   [x] `findViewers` を作る（設計書 3.4.2）。通信路と問い合わせの ID の乱数を依存として受け取り、`find` を送り、`viewerQueryWindowMs` の間、同じ `queryId` の答えを `parseViewerChannelMessage` で検査して集める。
+-   [x] テスト（fake の時計）: 1 秒の境目、違う `queryId`・形の違う答えを無視すること、答えがない場合。
 
 **完了の条件:** `make ext-check` が通る。`queryId` を比べないように壊し、違う問いの答えを無視するテストが失敗することを確かめる。
 
@@ -351,12 +351,12 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **変更するファイル:** `src/startCoordinator.ts`（新規）、`src/background.ts`（新規）、`test/startCoordinator.test.ts`（新規）
 
--   [ ] `startCoordinator.ts` に、設計書 3.4.1 のリスナーの契約（送り手の確かめ、`true`・`false` の返し方、`AwaitStart` の受け付けと保留）と、6.1 の流れ（待ち受けの記録、背面のタブ、生成の開始を 1 回、`find`・`take-over`・閉じる前の確認、結果の配布、35 秒で記録を捨てる）を作る。検査を通った `StartRequest` を処理する関数は 1 つにし、`startMessage` はその中でだけ呼ぶ（ステップ 4-5 のガードがその名前を確かめる）。ログは設計書 4.4 の SW の 4 つのラベルで、ログの関数を通した値だけを書く。
--   [ ] `background.ts` は、`chromeDeps.ts` のリスナーを登録するラッパーを最上位で同期的に呼び、依存を同期の処理だけで組み立てる（設計書 3.4.1 の 1）。
--   [ ] テスト（`StartRequest` の送り手。AC-05）: 受理される求めを先に確かめ、そこから 1 つの値だけを変えた求めを置く。設計書 7.3 の 7 つと、`sender.url` が `popup.html?x` と `popup.html#x` のもの。どれも `sendNative` と `tabs.create` を呼ばず `false` を返す。
--   [ ] テスト（`AwaitStart`）: `sender.id` の違い、`sender.tab.id` がない、`?` より前が `viewer.html` でない場合に `false` を返すこと、タブと `sentAt` が合わないと `none` を答えること、別のタブの結果を受け取れないこと、35 秒の後に記録を捨てること。
--   [ ] テスト（流れ）: 設計書 7.1 の SW の 4 つの順序の組み合わせ、生成の開始のどの結果でも送り直さないこと（AC-03）、ポップアップへの応答が届かなくても結果をビューアに届けること（AC-02）、背面のタブの位置（AC-06）、閉じる・閉じない・キーが違う場合と、引き継ぎで `tabs.update` とウィンドウを前面に出す操作を呼ばないこと（AC-08）。
--   [ ] テスト（入力とログ）: ホストが受け取る生成の開始の `input` が、テストの値から書いたリテラルの期待する値と一致すること（AC-01）。ログに目印の文字列が現れず、ブラウザのエラーの文字列はログに書くが結果に入らないこと。
+-   [x] `startCoordinator.ts` に、設計書 3.4.1 のリスナーの契約（送り手の確かめ、`true`・`false` の返し方、`AwaitStart` の受け付けと保留）と、6.1 の流れ（待ち受けの記録、背面のタブ、生成の開始を 1 回、`find`・`take-over`・閉じる前の確認、結果の配布、35 秒で記録を捨てる）を作る。検査を通った `StartRequest` を処理する関数は 1 つにし、`startMessage` はその中でだけ呼ぶ（ステップ 4-5 のガードがその名前を確かめる）。ログは設計書 4.4 の SW の 4 つのラベルで、ログの関数を通した値だけを書く。
+-   [x] `background.ts` は、`chromeDeps.ts` のリスナーを登録するラッパーを最上位で同期的に呼び、依存を同期の処理だけで組み立てる（設計書 3.4.1 の 1）。
+-   [x] テスト（`StartRequest` の送り手。AC-05）: 受理される求めを先に確かめ、そこから 1 つの値だけを変えた求めを置く。設計書 7.3 の 7 つと、`sender.url` が `popup.html?x` と `popup.html#x` のもの。どれも `sendNative` と `tabs.create` を呼ばず `false` を返す。
+-   [x] テスト（`AwaitStart`）: `sender.id` の違い、`sender.tab.id` がない、`?` より前が `viewer.html` でない場合に `false` を返すこと、タブと `sentAt` が合わないと `none` を答えること、別のタブの結果を受け取れないこと、35 秒の後に記録を捨てること。
+-   [x] テスト（流れ）: 設計書 7.1 の SW の 4 つの順序の組み合わせ、生成の開始のどの結果でも送り直さないこと（AC-03）、ポップアップへの応答が届かなくても結果をビューアに届けること（AC-02）、背面のタブの位置（AC-06）、閉じる・閉じない・キーが違う場合と、引き継ぎで `tabs.update` とウィンドウを前面に出す操作を呼ばないこと（AC-08）。
+-   [x] テスト（入力とログ）: ホストが受け取る生成の開始の `input` が、テストの値から書いたリテラルの期待する値と一致すること（AC-01）。ログに目印の文字列が現れず、ブラウザのエラーの文字列はログに書くが結果に入らないこと。
 
 **完了の条件:** `make ext-check` が通る。`sender.tab` の確かめを外すように壊し、AC-05 の注入したスクリプトのテストが失敗することを確かめる。`sender.url` の比べ方を前方一致に変えるように壊し、`popup.html?x` のテストが失敗することを確かめる。`waiting` の確かめを外すように壊し、閉じない場合のテストが失敗することを確かめる。
 
@@ -364,9 +364,9 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **変更するファイル:** `static/manifest.json`、`scripts/check-dist.ts`、`test/manifest.test.ts`、`test/checkDist.test.ts`
 
--   [ ] `manifest.json` を設計書 3.15 のとおりにする（`background`、`minimum_chrome_version` を `110`）。
--   [ ] `check-dist.ts` の `referenceViolations`（`:121`）に `background.service_worker` を加える（設計書 3.15）。
--   [ ] テスト: `test/manifest.test.ts` の「Chrome 103」（`:124-126`）とキーの一覧（`:102-118`）。`test/checkDist.test.ts` に、`src/` にも `dist/` にもない SW を manifest が名指すと参照の違反になることを、`:138-143` の今のテストと同じ形で加える。
+-   [x] `manifest.json` を設計書 3.15 のとおりにする（`background`、`minimum_chrome_version` を `110`）。
+-   [x] `check-dist.ts` の `referenceViolations`（`:121`）に `background.service_worker` を加える（設計書 3.15）。
+-   [x] テスト: `test/manifest.test.ts` の「Chrome 103」（`:124-126`）とキーの一覧（`:102-118`）。`test/checkDist.test.ts` に、`src/` にも `dist/` にもない SW を manifest が名指すと参照の違反になることを、`:138-143` の今のテストと同じ形で加える。
 
 **完了の条件:** `make ext-check` と `make test`（`TestDeclaredPermissions`）が通る。`referenceViolations` から `background.service_worker` の読み取りを外すように壊し、その違反のテストが失敗することを確かめる。
 
@@ -374,7 +374,7 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **変更するファイル:** `test/entryPoints.test.ts`（新規）
 
--   [ ] TypeScript の構文木を読み（`scripts/check-dist.ts:12`・`:69` と同じく `typescript` の `createSourceFile` を使う）、次のことを確かめるテストを作る（1.3）。
+-   [x] TypeScript の構文木を読み（`scripts/check-dist.ts:12`・`:69` と同じく `typescript` の `createSourceFile` を使う）、次のことを確かめるテストを作る（1.3）。
     -   `chromeDeps.ts` のリスナーを登録するラッパーの中で、`onMessage.addListener` を同期的に呼ぶ（`await` の後でない）こと。`onMessage.addListener` の呼び出しが、`src/` でそのラッパーの中だけにあること。
     -   そのラッパーを import するのが `background.ts` だけで、`background.ts` がそれをモジュールの最上位の文として呼び、その前に `await` がないこと（設計書 3.4.1 の 1、7.1）。
     -   `onMessageExternal` と `externally_connectable` が `src/` と `static/` にないこと（設計書 3.17）。
@@ -394,10 +394,10 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **判定理由**: ステップ 4-3 が送り手の検査（セキュリティの検査）と、タブ・メッセージの順序の競合（並行性）を持つため
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/612
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 5: ビューア
 
@@ -749,7 +749,7 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 -   [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2）
 -   [x] PR-3 マージ済み（対象ステップ: 2-3 / 2-4 / 2-5）
 -   [x] PR-4 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5）
--   [ ] PR-5 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5）
+-   [x] PR-5 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5）
 -   [ ] PR-6 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3）
 -   [ ] PR-7 マージ済み（対象ステップ: 5-4 / 5-5 / 5-6）
 -   [ ] PR-8 マージ済み（対象ステップ: 6-1 / 6-2）
