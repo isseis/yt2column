@@ -253,11 +253,11 @@ PR-1 の本文には、マージの直後に `make install-fixprguard` で再イ
 
 **変更するファイル:** `.claude/commands/_lib/local-cli-review.md`、`.claude/commands/runplan.md`、`.claude/commands/mkarch.md`、`.claude/commands/mkplan2.md`
 
--   [ ] `local-cli-review.md` 手順 7 の記録の行の一覧に、訂正の行を加える。修正が承認済みのタスク文書への編集上の訂正であれば、手順 5 の commit のメッセージに書くことにする。手順 7 のメンションの確認の対象に、訂正の行を含むメッセージを加え、この確認が手順 5 の commit の前に行われることを書く（1.4 節「コマンドの定義と規則」）。
--   [ ] `runplan.md:63`（編集上の訂正）と `runplan.md:64`（決定の変更）を、設計書 3.6 節の表と 3.7 節のとおりに改める。RECORD（`settle-decisions.md` に渡す記録先）は「実装の際に決めたこと（YYYY-MM-DD）」の節とし、PR のあるブランチで作業しないことを、根拠とともに一文で書く。
--   [ ] `mkarch.md:72` を、規則の「Editing an approved document」を参照する形に改める（設計書 3.6 節）。
--   [ ] `mkplan2.md:107`（手順 8.5）を、設計書 3.6 節の表のとおりに改める。
--   [ ] 遷移を書く 5 つのコマンドの定義が、旧規則で書かれた文書の移し方の節を参照していることを確かめる（`runpr.md` の PRE_MERGE、`fixpr.md` の Phase 3、`runplan.md`、`mkarch.md`、`mkplan2.md`。設計書 3.3 節の末尾）。
+-   [x] `local-cli-review.md` 手順 7 の記録の行の一覧に、訂正の行を加える。修正が承認済みのタスク文書への編集上の訂正であれば、手順 5 の commit のメッセージに書くことにする。手順 7 のメンションの確認の対象に、訂正の行を含むメッセージを加え、この確認が手順 5 の commit の前に行われることを書く（1.4 節「コマンドの定義と規則」）。
+-   [x] `runplan.md:63`（編集上の訂正）と `runplan.md:64`（決定の変更）を、設計書 3.6 節の表と 3.7 節のとおりに改める。RECORD（`settle-decisions.md` に渡す記録先）は「実装の際に決めたこと（YYYY-MM-DD）」の節とし、PR のあるブランチで作業しないことを、根拠とともに一文で書く。
+-   [x] `mkarch.md:72` を、規則の「Editing an approved document」を参照する形に改める（設計書 3.6 節）。
+-   [x] `mkplan2.md:107`（手順 8.5）を、設計書 3.6 節の表のとおりに改める。
+-   [x] 遷移を書く 5 つのコマンドの定義が、旧規則で書かれた文書の移し方の節を参照していることを確かめる（`runpr.md` の PRE_MERGE、`fixpr.md` の Phase 3、`runplan.md`、`mkarch.md`、`mkplan2.md`。設計書 3.3 節の末尾）。
 
 **完了の条件:** 文書のガード（`cmd/codexreview` を含む）が通る。AC-06 のために読む箇所を、`.claude/commands/` で `Comments` と `editorial` を検索して洗い出した。対象のコマンドの定義のどれも、編集上の訂正を `Comments` や変更履歴に書かせていないことは、洗い出した箇所を読んで確かめる（`manual`）。洗い出した箇所の一覧は PR の本文に書く。
 
