@@ -8,7 +8,7 @@
 | Created | 2026-10-31 |
 | Review date | 2026-11-01 |
 | Reviewer | isseis |
-| Comments | 2026-11-01 (decision, approved in session): ステップ 1-1 の確認で、設計書 3.16 の行 10 が崩れた（凍結されたタブは問いに答え、破棄されたタブには新しいタブの ID が付く）。レビュアー（isseis）がセッションの中で扱いを選び、承認した。凍結されたタブは期待を観察に合わせ、破棄されたタブは「ビューアを開く」の重複を制約として受け入れた（要件 F-004・AC-21、設計書 3.16・4.2・6.6・7.2）。これに合わせて 4.3.2 の AC-08 の行を改めた。行 6 は、送り方を変えないことをレビュアーが選んだ（設計書 3.4.1 の項目 5）。ほかの決定は変えていない。<br>2026-11-01 (editorial correction): PR-4 の実装のレビューで、ステップ 3-3 の `afterStatus` の記述に、直前が `kept` を持つ `lost` の場合を加えた（設計書 3.6 の同じ訂正。AC-15）。あわせて設計書 3.9 の `PublishOpNotice` の `unknown` にやり取りの結果を持たせた。決定は変えていない。<br>2026-11-01 (editorial correction): PR-5 の実装で、ステップ 4-3 の求めの検査に合わせ、`parseStartRequest`（ステップ 3-2）が、落ちた検査の種類（`shape`・`size`）と、通ったときは測った `PreparedRequest` を返す形にした（設計書 3.4 の同じ訂正。4.4 のログのため）。検査の内容は変えていない。決定は変えていない。<br>2026-11-02 (editorial correction): PR-6 の実装で、7 章の `renderViewer.test.ts`・`renderJob.test.ts` の仮の describe の名前を、実装で決めた名前に改めた。あわせて、設計書 3.14 の状態の表示の要約に投稿の状態の変化を加えた訂正（AC-47）に合わせ、AC-47 の行に `publish state announcements` を加えた。決定は変えていない。 |
+| Comments | 2026-11-01 (decision, approved in session): ステップ 1-1 の確認で、設計書 3.16 の行 10 が崩れた（凍結されたタブは問いに答え、破棄されたタブには新しいタブの ID が付く）。レビュアー（isseis）がセッションの中で扱いを選び、承認した。凍結されたタブは期待を観察に合わせ、破棄されたタブは「ビューアを開く」の重複を制約として受け入れた（要件 F-004・AC-21、設計書 3.16・4.2・6.6・7.2）。これに合わせて 4.3.2 の AC-08 の行を改めた。行 6 は、送り方を変えないことをレビュアーが選んだ（設計書 3.4.1 の項目 5）。ほかの決定は変えていない。<br>2026-11-01 (editorial correction): PR-4 の実装のレビューで、ステップ 3-3 の `afterStatus` の記述に、直前が `kept` を持つ `lost` の場合を加えた（設計書 3.6 の同じ訂正。AC-15）。あわせて設計書 3.9 の `PublishOpNotice` の `unknown` にやり取りの結果を持たせた。決定は変えていない。<br>2026-11-01 (editorial correction): PR-5 の実装で、ステップ 4-3 の求めの検査に合わせ、`parseStartRequest`（ステップ 3-2）が、落ちた検査の種類（`shape`・`size`）と、通ったときは測った `PreparedRequest` を返す形にした（設計書 3.4 の同じ訂正。4.4 のログのため）。検査の内容は変えていない。決定は変えていない。<br>2026-11-02 (editorial correction): PR-6 の実装で、7 章の `renderViewer.test.ts`・`renderJob.test.ts` の仮の describe の名前を、実装で決めた名前に改めた。あわせて、設計書 3.14 の状態の表示の要約に投稿の状態の変化を加えた訂正（AC-47）に合わせ、AC-47 の行に `publish state announcements` を加えた。決定は変えていない。<br>2026-11-02 (editorial correction): PR-7 の実装で、設計書 3.7 の `createPoller` が注入で受け取るものを、状態の取得とタイマーに改めた（部品は時刻を読まないので `now()` を除いた）。ステップ 5-4 の記述は変わらない。決定は変えていない。 |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の項番、「設計書 3.2」などは設計書の節を指す。既存のコードと文書についての記述は、コミット `bf314092` で確かめた。`file:line` はこのコミットの行番号を指す。設計書は行番号をコミット `577e7b51` で確かめている。`git diff --stat 577e7b51 bf314092 -- extension cmd/yt2column/extension_docs_test.go internal/nmhost internal/server docs/dev/guides/development.md` の出力は空なので、設計書の拡張・Go のガード・ホスト・サーバ・`development.md` の行番号は、そのまま使える（`README.md` と `docs/dev/security.md` は、タスク `0051` の変更で行がずれている）。拡張のファイルのパスは、設計書と同じく `extension/` を省いて書く（例: `src/launch.ts`）。テストの場所は `path::describe の名前` で示す。まだないテストの describe の名前は、実装のときに決める仮の名前である。
 
@@ -455,8 +455,8 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **変更するファイル:** `src/poller.ts`（新規）、`test/poller.test.ts`（新規）
 
--   [ ] `createPoller` を、設計書 3.7 の契約の 1〜5 のとおりに作る（1 つまで、1 つのタイマー、世代、見えたときの取得、`afterStatus` の判断）。
--   [ ] テスト（fake の時計）: 間隔、前の結果の前に次を送らないこと（AC-19）、取得の最中と止まっている間の `fetchNow` が何もしないこと、どのきっかけでもタイマーを取り消すこと（`fetchNow` を N 回繰り返しても取得が間隔ごとに 1 回のまま）、世代（引き継ぎの前に送った取得の `failed` で止まらない、投稿の前に送った取得の `not_posted` で止まらない、前の世代の結果の後に新しい世代の取得をすぐに 1 回送る）、止まった後の `bumpEpoch`、`stop`。
+-   [x] `createPoller` を、設計書 3.7 の契約の 1〜5 のとおりに作る（1 つまで、1 つのタイマー、世代、見えたときの取得、`afterStatus` の判断）。
+-   [x] テスト（fake の時計）: 間隔、前の結果の前に次を送らないこと（AC-19）、取得の最中と止まっている間の `fetchNow` が何もしないこと、どのきっかけでもタイマーを取り消すこと（`fetchNow` を N 回繰り返しても取得が間隔ごとに 1 回のまま）、世代（引き継ぎの前に送った取得の `failed` で止まらない、投稿の前に送った取得の `not_posted` で止まらない、前の世代の結果の後に新しい世代の取得をすぐに 1 回送る）、止まった後の `bumpEpoch`、`stop`。
 
 **完了の条件:** `make ext-check` が通る。前の世代の結果で止めるように壊し、世代のテストが失敗することを確かめる。
 
