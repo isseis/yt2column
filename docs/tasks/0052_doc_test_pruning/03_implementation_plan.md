@@ -298,7 +298,7 @@
 -   [x] `metadataDocs.test.ts` の「socket directory documentation reference」の `describe`（`:64-78`）を消す。ステップ 3-1 で、0050 がすでに消していた場合は変えず、その旨を記録する（設計書 3.5）。
 -   [x] 一部を削除した 2 つのテストについて、残す確認の値を一度壊して落ちることを確かめる（設計書 7.2）。`TestGuideNamesGitStateParts` は 8 章の行から `GitStateParts` の値を 1 つ消した写しで、`TestInstallTargetInMakefile` は `Makefile` の `install-codexreview:` の次の行を変えた写しで落ちること。
 -   [x] 取り除いた後の出力を取り、`coverage` で比べる。
--   [ ] `make ext-check` を通す。取り除いた node の確認が `extension/src/` の関数を通らないこと（設計書 3.1.7）を、PR の説明に記す（AC-13）。
+-   [x] `make ext-check` を通す。取り除いた node の確認が `extension/src/` の関数を通らないこと（設計書 3.1.7）を、PR の説明に記す（AC-13）。
 -   [x] 1 つのコミットにし、コミットメッセージに、取り除いたもの、名前の変更、カバレッジの比較の結果、壊して確かめたことを記す。
 
 **完了の条件:** `make test`、`make lint`、`make deadcode`、`make ext-check` が通り、`coverage` が通る。
@@ -323,7 +323,7 @@
 -   [-] ステップ 3-1 で 0050 の文書を変えると決めた場合は、設計書 3.5 のとおりに変え、`Comments` に日付・`(decision)`・本タスクで改めたこと・改めた節を記録する（AC-16）。ステップ 3-1 で 0050 の文書を変えないと決めたので、行わない。
 -   [x] `extension/scripts/has-extension-changes.sh`（`:2-11`・`:19`）、`extension/test/ciChanges.test.ts`（`:21-32`・`:62-89`）、`CLAUDE.md`「Development Notes」の node のテストが読む文書の説明（`db9986c6` の `:521-526`）が、取り除いた後の node のテストが読む文書と一致することを読んで確かめ、PR の説明に記す（設計書 2.2、AC-21）。
 -   [x] `scope -pr 3`・`tests -final` を PR の merge-base と head で、`guards` を `-final` を付けて実行し、通ることを確かめ、出力と 2 つのコミットを 7 章の該当の行に記録する。`tests -final` は、設計書 3.4.1・3.4.2 の全削除対象が残っていないことを確かめる最後の実行でもある（AC-09・AC-20。1.6）。
--   [ ] PR の説明に、設計書 3.1.4〜3.1.7 の判定の一覧の行、3.3 の K4・K5 の対応表のうち PR-3 が触れる行、ステップ 3-2・3-3 のカバレッジの比較の結果を載せる。
+-   [x] PR の説明に、設計書 3.1.4〜3.1.7 の判定の一覧の行、3.3 の K4・K5 の対応表のうち PR-3 が触れる行、ステップ 3-2・3-3 のカバレッジの比較の結果を載せる。
 
 **フェーズ 3 の完了の条件:** `make test`、`make lint`、`make deadcode`、`make ext-check` が通る（AC-14）。`scope`・`tests`・`guards` の実行の記録が本書にある。PR-3 をマージする直前に、設計書 3.5 の実装中の計画の調べをもう一度行い、結果を記録した。
 
@@ -340,7 +340,7 @@
 **判定理由**: ステップ 3-3 は `cmd/fixprguard` の K5 のテストの入力の作り方を変える、独立した高リスクのステップであり、ステップ 3-1 は判断の候補と別のタスクの文書の扱いを決める
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/603
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
