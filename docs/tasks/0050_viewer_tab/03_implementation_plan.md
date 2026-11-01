@@ -374,7 +374,7 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **変更するファイル:** `test/entryPoints.test.ts`（新規）
 
--   [ ] TypeScript の構文木を読み（`scripts/check-dist.ts:12`・`:69` と同じく `typescript` の `createSourceFile` を使う）、次のことを確かめるテストを作る（1.3）。
+-   [x] TypeScript の構文木を読み（`scripts/check-dist.ts:12`・`:69` と同じく `typescript` の `createSourceFile` を使う）、次のことを確かめるテストを作る（1.3）。
     -   `chromeDeps.ts` のリスナーを登録するラッパーの中で、`onMessage.addListener` を同期的に呼ぶ（`await` の後でない）こと。`onMessage.addListener` の呼び出しが、`src/` でそのラッパーの中だけにあること。
     -   そのラッパーを import するのが `background.ts` だけで、`background.ts` がそれをモジュールの最上位の文として呼び、その前に `await` がないこと（設計書 3.4.1 の 1、7.1）。
     -   `onMessageExternal` と `externally_connectable` が `src/` と `static/` にないこと（設計書 3.17）。
