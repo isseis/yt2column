@@ -245,7 +245,7 @@
 
 -   [x] `CLAUDE.md`「Development Notes」の text-sync guards の一覧の「the configuration block and Quick start links of both READMEs」から「Quick start links」を外す（設計書 3.7。`db9986c6` の `:531-532`。PR-1 で行がずれるので、文で探す）。「the configuration block」は残す。
 -   [x] `scope -pr 2`・`tests` を PR の merge-base と head で実行して通ることを確かめ、出力と 2 つのコミットを 7 章の該当の行に記録する。PR-3 で取り除く名前は PR-2 の head に残っているのが正しいので、`tests` の残存の検査の対象にしない（1.6）。`tests` が一覧として出すコメントと文書の中の名前は、PR のレビューで読むものとして PR の説明に載せる（AC-20）。
--   [ ] PR の説明に、設計書 3.1.1〜3.1.3 の判定の一覧の行（AC-04）、3.3 の K4・K5 の対応表のうち PR-2 が触れる行（AC-02）、ステップ 2-2・2-3 のカバレッジの比較の結果（AC-11）を載せる。
+-   [x] PR の説明に、設計書 3.1.1〜3.1.3 の判定の一覧の行（AC-04）、3.3 の K4・K5 の対応表のうち PR-2 が触れる行（AC-02）、ステップ 2-2・2-3 のカバレッジの比較の結果（AC-11）を載せる。
 
 **フェーズ 2 の完了の条件:** `make test`、`make lint`、`make deadcode`、`make ext-check` が通る（AC-14）。`scope`・`tests` の実行の記録が本書にある。
 
@@ -261,7 +261,7 @@
 
 **判定理由**: ステップ 2-3 は、K5（エージェントの信頼の境界）のテストの入力の作り方を変える、独立した高リスクのステップである
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [ ] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
