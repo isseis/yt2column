@@ -107,7 +107,7 @@ func checkCommitBody(body string) error {
 			return fmt.Errorf("%w: commit body line is not an editorial correction", ErrInvalidInput)
 		case strings.TrimSpace(description) == "":
 			return fmt.Errorf("%w: commit body line has no description", ErrInvalidInput)
-		case strings.ContainsFunc(line, func(r rune) bool { return unicode.IsControl(r) || r == ' ' || r == ' ' }):
+		case strings.ContainsFunc(line, isControl):
 			return fmt.Errorf("%w: commit body has a control character", ErrInvalidInput)
 		case strings.Contains(line, "@"):
 			return fmt.Errorf("%w: commit body has '@'", ErrInvalidInput)

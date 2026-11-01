@@ -410,6 +410,7 @@ func TestFinishRejectsBodyFile(t *testing.T) {
 		"at_sign":             correction + " a@b\n",
 		"carriage_return":     correction + "\r\n",
 		"escape":              correction + " \x1b[31m\n",
+		"line_separator":      correction + " a\u2028b\n",
 		"empty_line":          correction + "\n\n" + correction + "\n",
 		"two_trailing_lfs":    correction + "\n\n",
 		"rejected_as_a_file":  "",
