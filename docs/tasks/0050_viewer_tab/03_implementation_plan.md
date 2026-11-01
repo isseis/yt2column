@@ -269,8 +269,8 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **変更するファイル:** `src/core/extensionMessages.ts`（新規）、`test/extensionMessages.test.ts`（新規）
 
--   [ ] 設計書 3.4 のメッセージの型、5 つの `parse…` と `chooseViewer` を作る。`parseStartRequest` は設計書 3.4.1 の項目 3 の 4 の検査を行い、例外が起きても拒否にする。
--   [ ] テスト: 各メッセージの受理と拒否（メンバの過不足、型の違い、上限）、`StartRequest` の 4 MiB の境目、対になっていないサロゲート、未来の `sentAt`、`chooseViewer` の順（送信の時刻、同じならタブの ID）。
+-   [x] 設計書 3.4 のメッセージの型、5 つの `parse…` と `chooseViewer` を作る。`parseStartRequest` は設計書 3.4.1 の項目 3 の 4 の検査を行い、例外が起きても拒否にする。
+-   [x] テスト: 各メッセージの受理と拒否（メンバの過不足、型の違い、上限）、`StartRequest` の 4 MiB の境目、対になっていないサロゲート、未来の `sentAt`、`chooseViewer` の順（送信の時刻、同じならタブの ID）。
 
 **完了の条件:** `make ext-check` が通る。`parseStartRequest` が大きさの検査を飛ばすように壊し、4 MiB を超える求めのテストが失敗することを確かめる。
 
