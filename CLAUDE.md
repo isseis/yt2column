@@ -540,7 +540,7 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
   `docs/dev/production_profile.md`, the configuration block of both READMEs,
   the values `cli.md` and `development.md` hold, the
   `/fixpr` and `/runpr` command documents, the `codexreview`
-  permission, install target, and command-document checks) are Go tests included
+  permission and command-document checks) are Go tests included
   in `make test` and need no node. `cmd/yt2column-nmhost`'s
   `TestReadmeHostExitCodes` reads both READMEs too, but the `doc-guard` job
   does not run it: the local `make test`, and the CI `test` job when the change

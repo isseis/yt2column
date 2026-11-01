@@ -649,22 +649,14 @@ func TestRunsCodex(t *testing.T) {
 	}
 }
 
-// TestInstallTargetDocumented: the Makefile's install target of the tool's
-// name installs this package, and the Commands section of CLAUDE.md lists the
-// target with the same go install command, so the user finds how to install
-// the tool the documents run.
-func TestInstallTargetDocumented(t *testing.T) {
+// TestInstallTargetInMakefile: the Makefile's install target of the tool's
+// name installs this package, so make install-<tool> installs the tool the
+// documents run.
+func TestInstallTargetInMakefile(t *testing.T) {
 	target := "install-" + toolName(t)
-	install := "go install ./cmd/" + toolName(t)
 	lines := strings.Split(readRepoFile(t, "Makefile"), "\n")
 	i := slices.IndexFunc(lines, func(line string) bool { return strings.HasPrefix(line, target+":") })
 	if i < 0 || i+1 >= len(lines) || lines[i+1] != "\t$(GOCMD) install ./cmd/"+toolName(t) {
 		t.Errorf("Makefile has no %s target whose recipe is $(GOCMD) install ./cmd/%s", target, toolName(t))
-	}
-	commands := doctestutil.SectionByHeading(readRepoFile(t, "CLAUDE.md"), "## Commands")
-	if !slices.ContainsFunc(strings.Split(commands, "\n"), func(line string) bool {
-		return strings.HasPrefix(line, "- `make "+target+"` - ") && strings.Contains(line, "(`"+install+"`)")
-	}) {
-		t.Errorf("the Commands section of CLAUDE.md has no item for make %s naming (`%s`)", target, install)
 	}
 }

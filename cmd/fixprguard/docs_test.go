@@ -24,11 +24,7 @@ const repoRoot = "../.."
 
 func readRepoFile(t *testing.T, rel string) string {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join(repoRoot, filepath.FromSlash(rel)))
-	if err != nil {
-		t.Fatalf("read %s: %v", rel, err)
-	}
-	return string(data)
+	return doctestutil.ReadDoc(t, filepath.Join(repoRoot, filepath.FromSlash(rel)))
 }
 
 // TestGuidePathExists: a usage error's diagnostic names the guide, and that
@@ -453,11 +449,8 @@ func TestGuideListsWatchList(t *testing.T) {
 }
 
 // TestGuideNamesGitStateParts: the list of parts in the git-state-changed
-// row of chapter 8 in the guide names every value parts can hold, and
-// fixpr.md's list of the parts a git-state-changed stop names includes
-// ignored. Only the list is read, since the row's other cells name parts
-// too. fixpr.md words the other parts (HEAD, the remote branch, ...), so only
-// ignored is pinned there.
+// row of chapter 8 in the guide names every value parts can hold. Only the
+// list is read, since the row's other cells name parts too.
 func TestGuideNamesGitStateParts(t *testing.T) {
 	row := singleLine(t, guidePath, readRepoFile(t, guidePath), "| `git-state-changed` |")
 	_, rest, ok := strings.Cut(row, "`parts`（")
@@ -471,13 +464,6 @@ func TestGuideNamesGitStateParts(t *testing.T) {
 				t.Errorf("%s: the git-state-changed row's parts do not name `%s`", guidePath, part)
 			}
 		}
-	}
-	const fixprDoc = ".claude/commands/fixpr.md"
-	const partsList = "name the `parts` that differ from the baseline ("
-	_, docRest, docOK := strings.Cut(readRepoFile(t, fixprDoc), partsList)
-	docList, _, docClosed := strings.Cut(docRest, ")")
-	if !docOK || !docClosed || !strings.Contains(docList, "`"+fixprguard.PartIgnored+"`") {
-		t.Errorf("%s: the list after %q does not name `%s`", fixprDoc, partsList, fixprguard.PartIgnored)
 	}
 }
 

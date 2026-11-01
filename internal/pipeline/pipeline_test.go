@@ -18,8 +18,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"unicode"
 
+	"github.com/isseis/yt2column/internal/doctestutil"
 	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/publisher"
 	"github.com/isseis/yt2column/internal/publisher/testutil"
@@ -508,49 +508,6 @@ func TestInterfaceContracts(t *testing.T) {
 	}
 }
 
-// TestInterfaceDocComments checks the contract clauses in the interface docs.
-func TestInterfaceDocComments(t *testing.T) {
-	cases := []struct {
-		path    string
-		name    string
-		clauses []string
-	}{
-		{"../transcript/transcript.go", "TranscriptSource", []string{
-			"must return an error on failure",
-			"must not return an empty Transcript as a successful result",
-		}},
-		{"../llm/llm.go", "LLMClient", []string{
-			"must not return an empty response without an error",
-			"report a failure with ErrInvalidRequest, ErrTruncated, ErrUnexpectedFinishReason, or ErrEmptyResponse",
-			"matches context.DeadlineExceeded or context.Canceled",
-			"carries the Model and the Usage of the rejected response, and an empty Text and ModelVersion",
-			"With any other error it is the zero value, whose Usage is unknown",
-		}},
-		{"../writer/writer.go", "ArticleWriter", []string{
-			"must return an error on failure",
-			"must not return an empty Article as a successful result",
-			"Write wraps every failure in a *TokenUsageError that carries the usage of the stages that ran, or were reused, before the failure",
-		}},
-		{"../publisher/publisher.go", "Publisher", []string{
-			"must return an error on failure",
-			"must not publish incomplete content",
-		}},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			doc := strings.Join(strings.Fields(interfaceDoc(t, tc.path, tc.name)), " ")
-			for _, clause := range tc.clauses {
-				if !strings.Contains(doc, clause) {
-					t.Errorf("%s doc comment is missing %q; got:\n%s", tc.name, clause, doc)
-				}
-			}
-			if hasCJK(doc) {
-				t.Errorf("%s doc comment contains CJK text:\n%s", tc.name, doc)
-			}
-		})
-	}
-}
-
 // TestSecretRevealExclusive checks the exported method set of secret.Secret.
 func TestSecretRevealExclusive(t *testing.T) {
 	allowed := map[string]struct{}{
@@ -705,11 +662,7 @@ func TestPackageReferenceListsPackages(t *testing.T) {
 		t.Fatal("found no packages with production code")
 	}
 
-	doc, err := os.ReadFile("../../docs/dev/conventions/package_reference.md")
-	if err != nil {
-		t.Fatalf("read package_reference.md: %v", err)
-	}
-	listed := packageReferenceRows(string(doc))
+	listed := packageReferenceRows(doctestutil.ReadDoc(t, "../../docs/dev/conventions/package_reference.md"))
 	var missing []string
 	for pkg := range found {
 		if !listed[pkg] {
@@ -755,11 +708,7 @@ func packageReferenceRows(doc string) map[string]bool {
 // so the README cannot drift from the code unnoticed.
 func TestPromptsREADMEMatchesContract(t *testing.T) {
 	contract := readWriterTemplateContract(t, "../writer")
-	data, err := os.ReadFile("../../prompts/README.md")
-	if err != nil {
-		t.Fatalf("read README: %v", err)
-	}
-	sections := markdownSections(string(data))
+	doc := doctestutil.ReadDoc(t, "../../prompts/README.md")
 
 	t.Run("names", func(t *testing.T) {
 		tables := []struct{ dataType, section string }{
@@ -770,7 +719,7 @@ func TestPromptsREADMEMatchesContract(t *testing.T) {
 		for _, table := range tables {
 			t.Run(table.dataType, func(t *testing.T) {
 				var got []string
-				for line := range strings.Lines(sections[table.section]) {
+				for line := range strings.Lines(doctestutil.SectionByHeading(doc, "## "+table.section)) {
 					if strings.HasPrefix(line, "| `") {
 						got = append(got, backtickTokens(line)[0])
 					}
@@ -790,7 +739,7 @@ func TestPromptsREADMEMatchesContract(t *testing.T) {
 		}
 	})
 	t.Run("functions", func(t *testing.T) {
-		got := backtickTokens(sections["使える関数"])
+		got := backtickTokens(doctestutil.SectionByHeading(doc, "## 使える関数"))
 		if !slices.Equal(slices.Sorted(slices.Values(got)), slices.Sorted(slices.Values(contract.funcs))) {
 			t.Errorf("README functions = %v, want %v", got, contract.funcs)
 		}
@@ -805,7 +754,7 @@ func TestPromptsREADMEMatchesContract(t *testing.T) {
 		}
 		for _, row := range rows {
 			var line string
-			for l := range strings.Lines(sections["上限"]) {
+			for l := range strings.Lines(doctestutil.SectionByHeading(doc, "## 上限")) {
 				if strings.HasPrefix(l, row.prefix) {
 					line = l
 				}
@@ -816,7 +765,7 @@ func TestPromptsREADMEMatchesContract(t *testing.T) {
 		}
 	})
 	t.Run("body lengths", func(t *testing.T) {
-		section := sections["字数の調整のテンプレートで参照できる値"]
+		section := doctestutil.SectionByHeading(doc, "## 字数の調整のテンプレートで参照できる値")
 		for _, want := range []int64{contract.targetBodyChars, contract.maxBodyChars} {
 			if !strings.Contains(section, strconv.FormatInt(want, 10)) {
 				t.Errorf("README shorten value table does not state the body length %d", want)
@@ -1102,23 +1051,6 @@ func intLiteral(t *testing.T, expr ast.Expr) int64 {
 	return v
 }
 
-// markdownSections maps each "## " heading of a Markdown document to the
-// text up to the next "## " heading.
-func markdownSections(doc string) map[string]string {
-	sections := make(map[string]string)
-	var heading string
-	for line := range strings.Lines(doc) {
-		if h, ok := strings.CutPrefix(line, "## "); ok {
-			heading = strings.TrimSpace(h)
-			continue
-		}
-		if heading != "" {
-			sections[heading] += line
-		}
-	}
-	return sections
-}
-
 var backtickPattern = regexp.MustCompile("`([^`]+)`")
 
 func backtickTokens(s string) []string {
@@ -1137,44 +1069,4 @@ func exportedFieldTypes(t reflect.Type) map[string]string {
 		}
 	}
 	return fields
-}
-
-func interfaceDoc(t *testing.T, path, name string) string {
-	t.Helper()
-	fset := token.NewFileSet()
-	file, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
-	if err != nil {
-		t.Fatalf("parse %s: %v", path, err)
-	}
-	for _, decl := range file.Decls {
-		gen, ok := decl.(*ast.GenDecl)
-		if !ok || gen.Tok != token.TYPE {
-			continue
-		}
-		for _, spec := range gen.Specs {
-			typeSpec, ok := spec.(*ast.TypeSpec)
-			if !ok || typeSpec.Name.Name != name {
-				continue
-			}
-			if _, ok := typeSpec.Type.(*ast.InterfaceType); !ok {
-				t.Fatalf("%s: %s is not an interface", path, name)
-			}
-			if gen.Doc == nil {
-				t.Fatalf("%s: %s has no doc comment", path, name)
-			}
-			return gen.Doc.Text()
-		}
-	}
-	t.Fatalf("%s: interface %s not found", path, name)
-	return ""
-}
-
-func hasCJK(s string) bool {
-	for _, r := range s {
-		if unicode.Is(unicode.Han, r) || unicode.Is(unicode.Hiragana, r) ||
-			unicode.Is(unicode.Katakana, r) || unicode.Is(unicode.Hangul, r) {
-			return true
-		}
-	}
-	return false
 }

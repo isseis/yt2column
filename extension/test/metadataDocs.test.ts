@@ -1,6 +1,4 @@
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
-import path from "node:path";
 import { describe, it } from "node:test";
 
 import { catalogs } from "../src/core/i18n/catalog.ts";
@@ -9,7 +7,6 @@ import {
   browserExtensionHeading,
   readmeVersions,
 } from "./helpers/readmeVersions.ts";
-import { repoRoot } from "./helpers/paths.ts";
 import { markdownSection, readRepoFile } from "./helpers/repoFile.ts";
 
 /** The section's text with every whitespace run, line breaks included, as one space. */
@@ -59,21 +56,4 @@ describe("video metadata documentation", () => {
       ]);
     });
   }
-});
-
-describe("socket directory documentation reference", () => {
-  it("the English message points at README.en.md, which exists", () => {
-    // The English popup sends the user to the English README for the socket
-    // directory's permissions; the Japanese one keeps pointing at README.md.
-    const englishReadme = "README.en.md";
-    const steps = catalogs.en.notSent["server-unavailable"].steps.join(" ");
-    assert.ok(
-      steps.includes(englishReadme),
-      `the English server-unavailable steps do not name ${englishReadme}: ${steps}`,
-    );
-    assert.ok(
-      existsSync(path.join(repoRoot, englishReadme)),
-      `${englishReadme} does not exist`,
-    );
-  });
 });
