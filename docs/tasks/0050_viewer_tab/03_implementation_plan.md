@@ -260,8 +260,8 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **変更するファイル:** `src/core/viewerUrl.ts`（新規）、`test/viewerUrl.test.ts`（新規）
 
--   [ ] 設計書 3.5 の `ViewerSeed`・`ViewerParams`・`ViewerUrlError`・`viewerQuery`・`parseViewerUrl` を作る。表の 6 つの名前・上限・検査、作り方と読み方の規則、`+` の扱いに従う。
--   [ ] テスト: 作った URL が読み方の規則を通り、同じ値に戻ること。入力は、`+`・`%`・`&`・`=`・`#`・BMP の外の文字・U+FFFD・各上限ちょうどの長さの値を含む決まった組にする。AC-43 の拒否の各項目に 1 つ以上の URL、各上限の境目、`ViewerSeed` から作った URL が字幕と概要欄の目印の文字列を含まないこと（AC-09。設計書 7.3）。
+-   [x] 設計書 3.5 の `ViewerSeed`・`ViewerParams`・`ViewerUrlError`・`viewerQuery`・`parseViewerUrl` を作る。表の 6 つの名前・上限・検査、作り方と読み方の規則、`+` の扱いに従う。
+-   [x] テスト: 作った URL が読み方の規則を通り、同じ値に戻ること。入力は、`+`・`%`・`&`・`=`・`#`・BMP の外の文字・U+FFFD・各上限ちょうどの長さの値を含む決まった組にする。AC-43 の拒否の各項目に 1 つ以上の URL、各上限の境目、`ViewerSeed` から作った URL が字幕と概要欄の目印の文字列を含まないこと（AC-09。設計書 7.3）。
 
 **完了の条件:** `make ext-check` が通る。重複した名前を後勝ちで受理するように壊し、AC-43 の重複のテストが失敗することを確かめる。
 
