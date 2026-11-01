@@ -278,9 +278,9 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **変更するファイル:** `src/core/jobView.ts`（新規）、`src/core/poll.ts`（新規）、`test/jobView.test.ts`（新規）、`test/poll.test.ts`（新規）
 
--   [ ] `jobView.ts` に、設計書 3.6 の `ViewerState`・`StartFailure`・`JobDisplay`・`RetryingStatus`・`StoppingStatus`・`PollNotice` と、3.9 の `PublishRow`・`PublishControl`・`publishControl`・`PublishOpNotice` を作る。
--   [ ] `poll.ts` に、設計書 3.7 の定数と `PollStep`・`afterStatus` を作る。3.6 の表の行のとおりに表示と続けるか止めるかを決め、`unknown` で直前の `done` の記事を `kept` に残す。
--   [ ] テスト: `afterStatus` の表の各行（AC-11・AC-13〜AC-16・AC-18）、`publishControl` の 7 つの行と、2 つの行が同時に当てはまる組み合わせ（AC-28）、`publishing` の間と `lost` で押せないこと（AC-32）。
+-   [x] `jobView.ts` に、設計書 3.6 の `ViewerState`・`StartFailure`・`JobDisplay`・`RetryingStatus`・`StoppingStatus`・`PollNotice` と、3.9 の `PublishRow`・`PublishControl`・`publishControl`・`PublishOpNotice` を作る。
+-   [x] `poll.ts` に、設計書 3.7 の定数と `PollStep`・`afterStatus` を作る。3.6 の表の行のとおりに表示と続けるか止めるかを決め、`unknown` で直前の `done` の記事を `kept` に残す。
+-   [x] テスト: `afterStatus` の表の各行（AC-11・AC-13〜AC-16・AC-18）、`publishControl` の 7 つの行と、2 つの行が同時に当てはまる組み合わせ（AC-28）、`publishing` の間と `lost` で押せないこと（AC-32）。
 
 **完了の条件:** `make ext-check` が通る。`publishControl` の行の順を入れ替えるように壊し、重なりのテストが失敗することを確かめる。`afterStatus` が `posting` で止めるように壊し、AC-18 の行が失敗することを確かめる。
 
