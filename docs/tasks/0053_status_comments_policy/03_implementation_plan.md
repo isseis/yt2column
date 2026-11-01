@@ -134,10 +134,10 @@
 
 **変更するファイル:** `docs/dev/guides/fixprguard_guide.md`、`docs/dev/conventions/package_reference.md`
 
--   [ ] 手引き 5 章の `finish` の見出しと説明に `[--body-file FILE]` を加え、受け付ける内容と、ファイルを作業ツリーの外に置くこと（1-1 のテストで確かめた振る舞い）を書く。`edit-pr` の後に `append-pr --body-file FILE [PR]` の節を加える。
--   [ ] 手引き 4 章の終了コード `2` の行に、`finish` の本文のファイルの拒否と、`append-pr` のファイルと足した後の本文の拒否を加える。古いツールの 2 つの診断と再インストールの案内も書く（1.4 節「`cmd/fixprguard`」、設計書 3.4.3 節）。診断の文は、マージベースの `main` のツールを `go run ./cmd/fixprguard` で実行して得る。呼び出しは `fixpr.md` に書く形（`--protocol 4` と必須のフラグと PR 番号をすべて付けた形）にする。マージベースのツリーは、スクラッチパッドに作った `git worktree` に取り出して使う。2 つの標準エラーの行と、実行したコミットを本書 7.1 節に記録する。
--   [ ] 手引き 7.1 節の保証の表に、`finish` の本文のファイルと `append-pr` を加える（設計書 5 章の末尾）。手引き 8 章の `git-state-changed` の行に、hook がメッセージを変えた場合を加える（1.4 節）。
--   [ ] `package_reference.md` の `cmd/fixprguard` の行（サブコマンドの一覧）と `internal/fixprguard` の行（`NewGitHubWithoutReviewer` で作った `GitHub` が使える呼び出しに、`AppendPR` を加える）を直す。
+-   [x] 手引き 5 章の `finish` の見出しと説明に `[--body-file FILE]` を加え、受け付ける内容と、ファイルを作業ツリーの外に置くこと（1-1 のテストで確かめた振る舞い）を書く。`edit-pr` の後に `append-pr --body-file FILE [PR]` の節を加える。
+-   [x] 手引き 4 章の終了コード `2` の行に、`finish` の本文のファイルの拒否と、`append-pr` のファイルと足した後の本文の拒否を加える。古いツールの 2 つの診断と再インストールの案内も書く（1.4 節「`cmd/fixprguard`」、設計書 3.4.3 節）。診断の文は、マージベースの `main` のツールを `go run ./cmd/fixprguard` で実行して得る。呼び出しは `fixpr.md` に書く形（`--protocol 4` と必須のフラグと PR 番号をすべて付けた形）にする。マージベースのツリーは、スクラッチパッドに作った `git worktree` に取り出して使う。2 つの標準エラーの行と、実行したコミットを本書 7.1 節に記録する。
+-   [x] 手引き 7.1 節の保証の表に、`finish` の本文のファイルと `append-pr` を加える（設計書 5 章の末尾）。手引き 8 章の `git-state-changed` の行に、hook がメッセージを変えた場合を加える（1.4 節）。
+-   [x] `package_reference.md` の `cmd/fixprguard` の行（サブコマンドの一覧）と `internal/fixprguard` の行（`NewGitHubWithoutReviewer` で作った `GitHub` が使える呼び出しに、`AppendPR` を加える）を直す。
 
 **完了の条件:** 文書のガード（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./cmd/codexreview ./internal/pipeline`）が通る。手引きの記述を、1-1〜1-3 の実装とテスト、および古いツールの実際の出力と突き合わせた。
 
@@ -395,6 +395,15 @@ N/A（設計書 7.2 節）。コマンドの定義を実行した結果は、本
 ### 7.1. PR-1 の実行の記録
 
 （ステップ 1-4 の古いツールの診断と、ステップ 1-5 のスクリプトの負の場合と実行の結果を記録する。）
+
+**古いツールの診断（ステップ 1-4）:** マージベース `0aef3ed8045a3508b85e8cf88778c3cb006b336f`（`origin/main`）のツリーをスクラッチパッドの `git worktree` に取り出し、そのディレクトリで `go run ./cmd/fixprguard` を実行した（2026-11-01）。`go run` 自身の `exit status 2` の行は、ツールの終了コード `2` を示す。
+
+| 呼び出し | 標準エラー | 終了コード |
+|---|---|---|
+| `finish --protocol 4 --baseline v3.x --judged-set j --body-file /tmp/x.txt 42` | `fixprguard: usage: flag provided but not defined: -body-file (see docs/dev/guides/fixprguard_guide.md)` | `2` |
+| `append-pr --protocol 4 --body-file /tmp/x.txt 42` | `fixprguard: usage (see docs/dev/guides/fixprguard_guide.md)` | `2` |
+
+どちらも引数の解析で止まるので、値の文法（`--baseline`・`--judged-set`）を確かめる前の診断である。
 
 ### 7.2. PR-2 の差分の確かめの実行の記録
 
