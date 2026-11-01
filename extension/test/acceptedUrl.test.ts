@@ -59,16 +59,14 @@ describe("watchVideoId", () => {
       assert.equal(watchVideoId(url), "abc");
     });
   }
-  // isAcceptedWatchUrl is this parse, so its table above covers the rest.
-  for (const url of [
-    "https://www.youtube.com/watch?v=",
-    "https://www.youtube.com/watch?v=abc&v=def",
-    "https://youtu.be/abc",
-  ]) {
-    it(`returns nothing for ${JSON.stringify(url)}`, () => {
-      assert.equal(watchVideoId(url), undefined);
-    });
-  }
+  // isAcceptedWatchUrl is this parse, so its rejected table covers the
+  // rest; one row shows a rejected URL gives no ID.
+  it("returns nothing for a URL with two v values", () => {
+    assert.equal(
+      watchVideoId("https://www.youtube.com/watch?v=abc&v=def"),
+      undefined,
+    );
+  });
 
   it("returns v as the URL parser decodes it", () => {
     assert.equal(

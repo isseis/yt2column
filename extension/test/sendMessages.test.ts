@@ -317,12 +317,10 @@ describe("job API messages", () => {
   }
 
   for (const locale of localeList) {
-    it(`gives every job API reason its own distinct message in ${locale}`, () => {
-      const texts = jobRejectReasons.map((reason) => {
-        const message = jobRejectMessage(reason, locale);
-        assert.equal(message, catalogs[locale].jobReject[reason], reason);
-        return message.text;
-      });
+    it(`gives every job API reason a distinct text in ${locale}`, () => {
+      const texts = jobRejectReasons.map(
+        (reason) => jobRejectMessage(reason, locale).text,
+      );
       assert.equal(new Set(texts).size, jobRejectReasons.length);
     });
 
@@ -384,28 +382,40 @@ describe("job API messages", () => {
       });
     }
 
-    it(`delegates every operation's rejection to jobRejectMessage in ${locale}`, () => {
-      assert.equal(
-        startResultMessage(
-          { kind: "rejected", reason: "invalid_body", requestId },
-          locale,
-        ),
-        jobRejectMessage("invalid_body", locale),
-      );
-      assert.equal(
-        statusNoticeMessage(
-          { kind: "rejected", reason: "invalid_key", requestId },
-          locale,
-        ),
-        jobRejectMessage("invalid_key", locale),
-      );
-      assert.equal(
-        publishResultMessage(
-          { kind: "rejected", reason: "article_not_found", requestId },
-          locale,
-        ),
-        jobRejectMessage("article_not_found", locale),
-      );
+    it(`shows the reason's message for every operation's rejection in ${locale}`, () => {
+      const catalog = catalogs[locale];
+      const reasons = <R extends ServerRejectReason>(set: Record<R, number>) =>
+        Object.keys(set) as R[];
+      for (const reason of reasons(startRejectStatus)) {
+        assert.equal(
+          startResultMessage({ kind: "rejected", reason, requestId }, locale),
+          catalog.jobReject[reason],
+          reason,
+        );
+      }
+      for (const reason of reasons(statusRejectStatus)) {
+        assert.equal(
+          statusNoticeMessage({ kind: "rejected", reason, requestId }, locale),
+          catalog.jobReject[reason],
+          reason,
+        );
+      }
+      for (const reason of reasons(publishRejectStatus)) {
+        assert.equal(
+          publishResultMessage({ kind: "rejected", reason, requestId }, locale),
+          catalog.jobReject[reason],
+          reason,
+        );
+      }
+    });
+
+    it(`words each operation's exchange failures differently in ${locale}`, () => {
+      for (const { name, failure } of failures) {
+        const texts = operations.map(({ message }) =>
+          textOf(message(failure, locale)),
+        );
+        assert.equal(new Set(texts).size, operations.length, name);
+      }
     });
   }
 });

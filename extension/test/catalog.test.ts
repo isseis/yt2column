@@ -16,12 +16,12 @@ function textOf(message: Message): string {
   return [message.text, ...message.steps].join("\n");
 }
 
-// No text mentions an options page, a token or a port. The ja words are
-// whole terms: the bare katakana for "port" would also match words such as
-// "support" and "report".
 // Slack, in either script: the start's messages must name it in neither locale.
 const slackWord = /slack|\u30b9\u30e9\u30c3\u30af/iu;
 
+// No text mentions an options page, a token or a port. The ja words are
+// whole terms: the bare katakana for "port" would also match words such as
+// "support" and "report".
 const forbiddenWords: Record<Locale, RegExp> = {
   en: /option|token|\bport\b/iu,
   ja: /オプション|トークン|ポート番号/u,
@@ -227,11 +227,17 @@ describe("catalogs", () => {
           catalog.jobReject[reason],
         ]),
       ];
-      // Precondition: every exchange message and both results were reached.
-      assert.equal(
-        checked.filter(([path]) => path.startsWith("start")).length,
-        7,
-      );
+      // Precondition: the walk went down into the nested not-sent messages
+      // and reached the results.
+      const paths = checked.map(([path]) => path);
+      for (const path of [
+        "startExchange.notSent.server-unavailable",
+        "startExchange.notSent.message-too-large",
+        "startExchange.unexpected",
+        "startResult.noResult",
+      ]) {
+        assert.ok(paths.includes(path), path);
+      }
       for (const [path, message] of checked) {
         assert.doesNotMatch(textOf(message), slackWord, path);
       }

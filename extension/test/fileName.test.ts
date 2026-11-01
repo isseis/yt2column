@@ -101,19 +101,41 @@ describe("articleFileName", () => {
     assert.equal(articleFileName(undefined, ".a/b"), "_a_b.md");
   });
 
-  it("never yields a separator or control character, a leading dot, or another extension", () => {
-    for (const { title } of cases) {
-      const file = articleFileName(title, videoId);
+  it("never yields a separator, a control, direction or zero-width character, a leading dot, or another extension", () => {
+    // Inputs no exact row covers: every BMP code point (surrogates aside)
+    // after leading dots, a few astral ones, and video IDs a URL may decode to.
+    const titles: (string | undefined)[] = [];
+    for (let code = 0; code <= 0xffff; code += 1) {
+      if (code < 0xd800 || code > 0xdfff) {
+        titles.push(`..${String.fromCodePoint(code)}x`);
+      }
+    }
+    titles.push("\u{1F600}\u{E0001}\u{10FFFF}", "...", ". .", undefined);
+    const ids = ["..", "/", "\\", "‮", "a\u0000"];
+    const forbidden = (code: number) =>
+      code <= 0x1f ||
+      (code >= 0x7f && code <= 0x9f) ||
+      code === 0x061c ||
+      (code >= 0x200b && code <= 0x200f) ||
+      (code >= 0x202a && code <= 0x202e) ||
+      (code >= 0x2066 && code <= 0x2069) ||
+      code === 0xfeff;
+    const inputs = [
+      ...titles.map((title) => [title, videoId] as const),
+      ...ids.map((id) => [undefined, id] as const),
+    ];
+    for (const [title, id] of inputs) {
+      const file = articleFileName(title, id);
       for (const point of file) {
         const code = point.codePointAt(0) ?? 0;
-        const control = code <= 0x1f || (code >= 0x7f && code <= 0x9f);
-        assert.ok(!control && point !== "/" && point !== "\\", file);
+        assert.ok(!forbidden(code), JSON.stringify(file));
+        assert.ok(!'/\\:*?"<>|'.includes(point), JSON.stringify(file));
       }
-      assert.equal(file.startsWith("."), false, file);
-      assert.equal(file.endsWith(".md"), true, file);
+      assert.equal(file.startsWith("."), false, JSON.stringify(file));
+      assert.equal(file.endsWith(".md"), true, JSON.stringify(file));
       assert.ok(
         new TextEncoder().encode(file).length <= maxBaseBytes + ".md".length,
-        file,
+        JSON.stringify(file),
       );
     }
   });

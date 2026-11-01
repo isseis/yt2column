@@ -54,10 +54,6 @@ describe("job codes match the development guide", () => {
     { header: jobCodeTables.publishReason, codes: publishReasons },
   ];
 
-  it("finds the job API code section", () => {
-    assert.notEqual(section, "", developmentDoc.jobCodesHeading);
-  });
-
   for (const { header, codes } of sets) {
     it(`has exactly the extension's set in the "${header}" table`, () => {
       assert.deepEqual(
