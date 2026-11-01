@@ -755,8 +755,8 @@ describe("a status response at the server's 256 KiB limit", () => {
     ["<", "\\u003c"],
     [">", "\\u003e"],
     ["&", "\\u0026"],
-    [" ", "\\u2028"],
-    [" ", "\\u2029"],
+    ["\u2028", "\\u2028"],
+    ["\u2029", "\\u2029"],
   ];
   const marshal = (value: unknown): string => {
     let text = JSON.stringify(value);
@@ -766,7 +766,8 @@ describe("a status response at the server's 256 KiB limit", () => {
     return text;
   };
   const limit = 256 * 1024;
-  const sample = "<b>&</b>   日本語 ";
+  // Multi-byte text (U+65E5 U+672C U+8A9E) is counted in bytes, not characters.
+  const sample = "<b>&</b>\u2028\u2029 \u65e5\u672c\u8a9e ";
 
   /** A done body whose markdown and file are sample followed by fill. */
   const bodyWith = (fill: string): Json => {
