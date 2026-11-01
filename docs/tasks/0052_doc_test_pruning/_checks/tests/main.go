@@ -16,12 +16,16 @@
 //     "Type.Method"), a type, or one name of a var or const spec; imports are
 //     not declarations. Two declarations are the same when their gofmt output,
 //     doc comment included, is the same, so a const whose alignment changed
-//     because a sibling was removed is not reported. A declaration that
-//     changed, disappeared, or appeared fails unless it is on the change list
-//     of its file: the tests the architecture document removes, partly
-//     removes, or merges, the helpers it removes or replaces, the tests whose
-//     input a replacement changes, cmd/fixprguard's readRepoFile, and both
-//     names of the renamed test.
+//     because a sibling was removed is not reported. A spec inside a
+//     parenthesized var or const block also carries the block's doc comment,
+//     so editing that comment changes every spec of the block. Each
+//     declaration that changed, disappeared, or appeared must be on the change
+//     list of its file with that kind of change allowed: a test or helper the
+//     architecture document removes may only disappear; a test it partly
+//     removes or merges, a test whose input a replacement changes, and
+//     cmd/fixprguard's readRepoFile may only change; the renamed test's new
+//     name may only appear. Anything else fails, so a kept test cannot be
+//     deleted and a removed one cannot be edited instead.
 //  2. Removed names. Each removable name (a removed test, a removed or
 //     replaced helper, the old name of the renamed test) that the range
 //     removed from its file must not remain as an identifier in a Go file
@@ -30,13 +34,14 @@
 //     internal/doctestutil or internal/config is looked for everywhere, since
 //     other packages refer to it. A name a later pull request removes is still
 //     at the head of an earlier one, and that is not a failure.
-//  3. With -final, every helper the architecture document removes outright
-//     must be absent as an identifier, whether or not this range removed it.
+//  3. With -final, every removable name must be absent as an identifier,
+//     whether or not this range removed it, so a test the task removes whole
+//     and the renamed test's old name cannot survive the last pull request.
 //
-// The names of check 2 (and of check 3 with -final) that appear in a comment of
-// a Go file outside docs/tasks, or in another file outside docs/tasks (the
-// documents and .claude/commands), are listed for reading, not failed: a word
-// such as "numbered" can appear in ordinary prose.
+// The names of check 2 (and of check 3 with -final) that appear in a comment
+// or a string literal of a Go file outside docs/tasks, or in another file
+// outside docs/tasks (the documents and .claude/commands), are listed for
+// reading, not failed: a word such as "numbered" can appear in ordinary prose.
 //
 // Run it from the repository root, once per pull request. make test and CI do
 // not run it, and it is not maintained after the merge. It reads no
@@ -86,47 +91,97 @@ var targetFiles = []string{
 // a target file.
 const doctestutilDir = "internal/doctestutil"
 
-// changeList is the set of declarations each target file may change, from the
-// architecture document's verdict list (3.1), its helper tables (3.4.1 and
-// 3.4.2), and the plan's rename ledger.
-var changeList = map[string][]string{
+// changeKind is a kind of change check 1 sees in a declaration.
+type changeKind int
+
+const (
+	removed changeKind = iota + 1
+	changed
+	added
+)
+
+// String names the kind in the output.
+func (k changeKind) String() string {
+	switch k {
+	case removed:
+		return "removed"
+	case changed:
+		return "changed"
+	case added:
+		return "added"
+	}
+	return fmt.Sprintf("changeKind(%d)", int(k))
+}
+
+// changeList gives, for each target file, the declarations that may differ
+// and the one kind of change each may show, from the architecture document's
+// verdict list (3.1), its helper tables (3.4.1 and 3.4.2), and the plan's
+// rename ledger.
+var changeList = map[string]map[string]changeKind{
 	"cmd/yt2column/docs_test.go": {
-		"TestSlackDocsContract", "TestProductionProfileDocsContract",
-		"TestMigrationDocsContract", "checkMigrationSection",
-		"TestQuickStartLinks", "TestProductionProfileLinks",
-		"TestNumberedItems", "numberedItems", "numberedItemRE",
-		"TestCostDocsContract",
-		"promptsReadmePath", "reviewEvaluationPath", "pricingRatesPath",
+		"TestSlackDocsContract":             changed,
+		"TestProductionProfileDocsContract": changed,
+		"TestCostDocsContract":              changed,
+		"TestMigrationDocsContract":         removed,
+		"checkMigrationSection":             removed,
+		"TestQuickStartLinks":               removed,
+		"TestProductionProfileLinks":        removed,
+		"TestNumberedItems":                 removed,
+		"numberedItems":                     removed,
+		"numberedItemRE":                    removed,
+		"promptsReadmePath":                 removed,
+		"reviewEvaluationPath":              removed,
+		"pricingRatesPath":                  removed,
 	},
 	"cmd/yt2column/readme_structure_test.go": {
-		"TestReadmeVersionLinks", "beforeFirstHeading", "linksTo",
+		"TestReadmeVersionLinks": removed,
+		"beforeFirstHeading":     removed,
+		"linksTo":                removed,
 	},
 	"cmd/yt2column/run_test.go": {
-		"TestRunEvaluationProcedureFlags", "evaluationProcedureCommands", "fencedCode", "procedureArgs",
+		"TestRunEvaluationProcedureFlags": removed,
+		"evaluationProcedureCommands":     removed,
+		"fencedCode":                      removed,
+		"procedureArgs":                   removed,
 	},
 	"cmd/yt2column/fixpr_docs_test.go": {
-		"TestReadmeSyncStepPlacement", "readmeSyncIn", "readmeSyncMarker", "mktransPath", "numbered",
+		"TestReadmeSyncStepPlacement": removed,
+		"readmeSyncIn":                removed,
+		"readmeSyncMarker":            removed,
+		"mktransPath":                 removed,
+		"numbered":                    removed,
 	},
 	"cmd/yt2column/codex_review_docs_test.go": {
-		"TestCodeRabbitConfigStopsReview", "commandDocs", "commandsDir",
-		"TestCodexMentionOnlyInRequestRow", "TestPostingCommandsInventory",
+		"TestCodeRabbitConfigStopsReview":  changed,
+		"TestCodexMentionOnlyInRequestRow": changed,
+		"TestPostingCommandsInventory":     changed,
+		"commandDocs":                      removed,
+		"commandsDir":                      removed,
 	},
 	"internal/doctestutil/readme.go": {
-		"ReadmeMigrationHeading", "ReadmeQuickStartHeading",
-		"ReadmeRequirementsHeading", "ReadmeConfigurationHeading",
+		"ReadmeMigrationHeading":     removed,
+		"ReadmeQuickStartHeading":    removed,
+		"ReadmeRequirementsHeading":  removed,
+		"ReadmeConfigurationHeading": removed,
 	},
 	"internal/config/test_helpers.go": {
-		"DeepSeekAPIKeyEnvForTest",
+		"DeepSeekAPIKeyEnvForTest": removed,
 	},
 	"cmd/fixprguard/docs_test.go": {
-		"TestGuideNamesGitStateParts", "readRepoFile",
+		"TestGuideNamesGitStateParts": changed,
+		"readRepoFile":                changed,
 	},
 	"cmd/codexreview/docs_test.go": {
-		"TestInstallTargetDocumented", "TestInstallTargetInMakefile",
+		"TestInstallTargetDocumented": removed,
+		"TestInstallTargetInMakefile": added,
 	},
 	"internal/pipeline/pipeline_test.go": {
-		"TestInterfaceDocComments", "interfaceDoc", "hasCJK", "markdownSections",
-		"TestPackageReferenceListsPackages", "TestPromptsREADMEMatchesContract",
+		"TestPackageReferenceListsPackages": changed,
+		"TestPromptsREADMEMatchesContract":  changed,
+		"TestInterfaceDocComments":          removed,
+		"interfaceDoc":                      removed,
+		"hasCJK":                            removed,
+		"markdownSections":                  removed,
 	},
 }
 
@@ -135,51 +190,48 @@ var changeList = map[string][]string{
 type removable struct {
 	file string
 	name string
-	// outright marks a helper the architecture document removes outright
-	// (3.4.1 and 3.4.2), whose absence -final checks.
-	outright bool
 }
 
 // removables are the names the task removes, in the order they are reported.
 var removables = []removable{
 	// Tests removed whole (3.1).
-	{"cmd/yt2column/docs_test.go", "TestMigrationDocsContract", false},
-	{"cmd/yt2column/docs_test.go", "TestQuickStartLinks", false},
-	{"cmd/yt2column/docs_test.go", "TestProductionProfileLinks", false},
-	{"cmd/yt2column/readme_structure_test.go", "TestReadmeVersionLinks", false},
-	{"cmd/yt2column/run_test.go", "TestRunEvaluationProcedureFlags", false},
-	{"cmd/yt2column/fixpr_docs_test.go", "TestReadmeSyncStepPlacement", false},
-	{"internal/pipeline/pipeline_test.go", "TestInterfaceDocComments", false},
+	{"cmd/yt2column/docs_test.go", "TestMigrationDocsContract"},
+	{"cmd/yt2column/docs_test.go", "TestQuickStartLinks"},
+	{"cmd/yt2column/docs_test.go", "TestProductionProfileLinks"},
+	{"cmd/yt2column/readme_structure_test.go", "TestReadmeVersionLinks"},
+	{"cmd/yt2column/run_test.go", "TestRunEvaluationProcedureFlags"},
+	{"cmd/yt2column/fixpr_docs_test.go", "TestReadmeSyncStepPlacement"},
+	{"internal/pipeline/pipeline_test.go", "TestInterfaceDocComments"},
 	// The renamed test's old name (plan 1.5).
-	{"cmd/codexreview/docs_test.go", "TestInstallTargetDocumented", false},
+	{"cmd/codexreview/docs_test.go", "TestInstallTargetDocumented"},
 	// Helpers that lose their users (3.4.1), with TestNumberedItems.
-	{"cmd/yt2column/docs_test.go", "checkMigrationSection", true},
-	{"cmd/yt2column/docs_test.go", "numberedItems", true},
-	{"cmd/yt2column/docs_test.go", "numberedItemRE", true},
-	{"cmd/yt2column/docs_test.go", "TestNumberedItems", true},
-	{"cmd/yt2column/docs_test.go", "promptsReadmePath", true},
-	{"cmd/yt2column/docs_test.go", "reviewEvaluationPath", true},
-	{"cmd/yt2column/docs_test.go", "pricingRatesPath", true},
-	{"cmd/yt2column/readme_structure_test.go", "beforeFirstHeading", true},
-	{"cmd/yt2column/readme_structure_test.go", "linksTo", true},
-	{"cmd/yt2column/run_test.go", "evaluationProcedureCommands", true},
-	{"cmd/yt2column/run_test.go", "fencedCode", true},
-	{"cmd/yt2column/run_test.go", "procedureArgs", true},
-	{"cmd/yt2column/fixpr_docs_test.go", "readmeSyncIn", true},
-	{"cmd/yt2column/fixpr_docs_test.go", "readmeSyncMarker", true},
-	{"cmd/yt2column/fixpr_docs_test.go", "mktransPath", true},
-	{"cmd/yt2column/fixpr_docs_test.go", "numbered", true},
-	{"internal/doctestutil/readme.go", "ReadmeMigrationHeading", true},
-	{"internal/doctestutil/readme.go", "ReadmeQuickStartHeading", true},
-	{"internal/doctestutil/readme.go", "ReadmeRequirementsHeading", true},
-	{"internal/doctestutil/readme.go", "ReadmeConfigurationHeading", true},
-	{"internal/config/test_helpers.go", "DeepSeekAPIKeyEnvForTest", true},
-	{"cmd/yt2column/codex_review_docs_test.go", "commandsDir", true},
-	{"internal/pipeline/pipeline_test.go", "interfaceDoc", true},
-	{"internal/pipeline/pipeline_test.go", "hasCJK", true},
+	{"cmd/yt2column/docs_test.go", "checkMigrationSection"},
+	{"cmd/yt2column/docs_test.go", "numberedItems"},
+	{"cmd/yt2column/docs_test.go", "numberedItemRE"},
+	{"cmd/yt2column/docs_test.go", "TestNumberedItems"},
+	{"cmd/yt2column/docs_test.go", "promptsReadmePath"},
+	{"cmd/yt2column/docs_test.go", "reviewEvaluationPath"},
+	{"cmd/yt2column/docs_test.go", "pricingRatesPath"},
+	{"cmd/yt2column/readme_structure_test.go", "beforeFirstHeading"},
+	{"cmd/yt2column/readme_structure_test.go", "linksTo"},
+	{"cmd/yt2column/run_test.go", "evaluationProcedureCommands"},
+	{"cmd/yt2column/run_test.go", "fencedCode"},
+	{"cmd/yt2column/run_test.go", "procedureArgs"},
+	{"cmd/yt2column/fixpr_docs_test.go", "readmeSyncIn"},
+	{"cmd/yt2column/fixpr_docs_test.go", "readmeSyncMarker"},
+	{"cmd/yt2column/fixpr_docs_test.go", "mktransPath"},
+	{"cmd/yt2column/fixpr_docs_test.go", "numbered"},
+	{"internal/doctestutil/readme.go", "ReadmeMigrationHeading"},
+	{"internal/doctestutil/readme.go", "ReadmeQuickStartHeading"},
+	{"internal/doctestutil/readme.go", "ReadmeRequirementsHeading"},
+	{"internal/doctestutil/readme.go", "ReadmeConfigurationHeading"},
+	{"internal/config/test_helpers.go", "DeepSeekAPIKeyEnvForTest"},
+	{"cmd/yt2column/codex_review_docs_test.go", "commandsDir"},
+	{"internal/pipeline/pipeline_test.go", "interfaceDoc"},
+	{"internal/pipeline/pipeline_test.go", "hasCJK"},
 	// Helpers that a replacement removes (3.4.2).
-	{"cmd/yt2column/codex_review_docs_test.go", "commandDocs", true},
-	{"internal/pipeline/pipeline_test.go", "markdownSections", true},
+	{"cmd/yt2column/codex_review_docs_test.go", "commandDocs"},
+	{"internal/pipeline/pipeline_test.go", "markdownSections"},
 }
 
 // global reports whether other packages can refer to a removable name: an
@@ -190,7 +242,7 @@ func (r removable) global() bool {
 }
 
 func main() {
-	final := flag.Bool("final", false, "also require every outright-removed helper to be absent")
+	final := flag.Bool("final", false, "also require every removable name to be absent")
 	flag.Usage = func() {
 		fmt.Fprintln(os.Stderr, "usage: tests [-final] <merge-base> <head>")
 		flag.PrintDefaults()
@@ -218,7 +270,7 @@ func main() {
 	slices.Sort(files)
 	baseDecls := map[string]map[string]string{}
 	headDecls := map[string]map[string]string{}
-	var removed, changed, added, wrong []string
+	var removedDecls, changedDecls, addedDecls, wrong []string
 	for _, f := range files {
 		before := declarations(base, f)
 		after := declarations(head, f)
@@ -226,37 +278,41 @@ func main() {
 		for _, name := range unionKeys(before, after) {
 			b, inBase := before[name]
 			a, inHead := after[name]
-			var kind string
+			var kind changeKind
 			switch {
 			case !inHead:
-				kind = "removed"
+				kind = removed
 			case !inBase:
-				kind = "added"
+				kind = added
 			case a != b:
-				kind = "changed"
+				kind = changed
 			default:
 				continue
 			}
 			line := fmt.Sprintf("%s::%s", f, name)
 			status := "OK  "
-			if !slices.Contains(changeList[f], name) {
+			if allowed, listed := changeList[f][name]; !listed || allowed != kind {
 				status = "NG  "
-				wrong = append(wrong, line+" ("+kind+")")
+				why := "not on the change list"
+				if listed {
+					why = "the change list allows only " + allowed.String()
+				}
+				wrong = append(wrong, fmt.Sprintf("%s (%s; %s)", line, kind, why))
 			}
 			entry := status + " " + line
 			switch kind {
-			case "removed":
-				removed = append(removed, entry)
-			case "added":
-				added = append(added, entry)
+			case removed:
+				removedDecls = append(removedDecls, entry)
+			case added:
+				addedDecls = append(addedDecls, entry)
 			default:
-				changed = append(changed, entry)
+				changedDecls = append(changedDecls, entry)
 			}
 		}
 	}
-	printList("removed declarations", removed)
-	printList("changed declarations", changed)
-	printList("added declarations", added)
+	printList("removed declarations", removedDecls)
+	printList("changed declarations", changedDecls)
+	printList("added declarations", addedDecls)
 	if len(wrong) > 0 {
 		failed = true
 		fmt.Printf("NG   declarations outside the change list: %d\n", len(wrong))
@@ -264,7 +320,7 @@ func main() {
 			fmt.Printf("     %s\n", w)
 		}
 	} else {
-		fmt.Println("OK   every changed declaration is on the change list")
+		fmt.Println("OK   every changed declaration is on the change list with its kind of change")
 	}
 
 	// Check 2 and 3: removed names.
@@ -276,7 +332,7 @@ func main() {
 		if inBase && !inHead {
 			gone = append(gone, r)
 		}
-		if *final && r.outright {
+		if *final {
 			required = append(required, r)
 		}
 	}
@@ -296,12 +352,12 @@ func main() {
 	if *final {
 		if left := identifierUses(required, sources); len(left) > 0 {
 			failed = true
-			fmt.Printf("NG   outright-removed helpers still present: %d\n", len(left))
+			fmt.Printf("NG   removable names still present: %d\n", len(left))
 			for _, l := range left {
 				fmt.Printf("     %s\n", l)
 			}
 		} else {
-			fmt.Printf("OK   all %d outright-removed helpers are absent\n", len(required))
+			fmt.Printf("OK   all %d removable names are absent\n", len(required))
 		}
 	}
 
@@ -311,7 +367,7 @@ func main() {
 			listed = append(listed, r)
 		}
 	}
-	mentions := commentMentions(listed, sources)
+	mentions := sourceMentions(listed, sources)
 	mentions = append(mentions, documentMentions(head, listed)...)
 	printList("mentions in comments and documents, to read", mentions)
 
@@ -357,14 +413,14 @@ func declarations(rev, file string) map[string]string {
 		fail("parse "+rev+":"+file, err)
 	}
 	out := map[string]string{}
-	add := func(name string, node ast.Node) {
+	add := func(name string, node ast.Node, prefix string) {
 		if name == "_" {
 			name = fmt.Sprintf("_#%d", fset.Position(node.Pos()).Line)
 		}
 		if _, dup := out[name]; dup {
 			fail("declarations of "+rev+":"+file, fmt.Errorf("%s declared twice", name))
 		}
-		out[name] = format(fset, f, node)
+		out[name] = prefix + format(fset, f, node)
 	}
 	for _, d := range f.Decls {
 		switch d := d.(type) {
@@ -373,7 +429,7 @@ func declarations(rev, file string) map[string]string {
 			if d.Recv != nil && len(d.Recv.List) == 1 {
 				name = receiverName(d.Recv.List[0].Type) + "." + name
 			}
-			add(name, d)
+			add(name, d, "")
 		case *ast.GenDecl:
 			if d.Tok == token.IMPORT {
 				continue
@@ -381,16 +437,21 @@ func declarations(rev, file string) map[string]string {
 			for _, spec := range d.Specs {
 				// A spec of a declaration without parentheses carries its doc
 				// comment on the declaration, so the declaration is the unit.
+				// A spec inside parentheses also carries the block's doc
+				// comment, which the spec's own output leaves out.
 				var node ast.Node = spec
+				prefix := ""
 				if !d.Lparen.IsValid() {
 					node = d
+				} else if d.Doc != nil {
+					prefix = d.Doc.Text() + "\n"
 				}
 				switch s := spec.(type) {
 				case *ast.TypeSpec:
-					add(s.Name.Name, node)
+					add(s.Name.Name, node, prefix)
 				case *ast.ValueSpec:
 					for _, n := range s.Names {
-						add(n.Name, node)
+						add(n.Name, node, prefix)
 					}
 				}
 			}
@@ -473,9 +534,9 @@ func identifierUses(names []removable, sources []goSource) []string {
 	return out
 }
 
-// commentMentions returns the comments of the Go sources that contain a name as
-// a word.
-func commentMentions(names []removable, sources []goSource) []string {
+// sourceMentions returns the comments and string literals of the Go sources
+// that contain a name as a word.
+func sourceMentions(names []removable, sources []goSource) []string {
 	var out []string
 	for _, r := range names {
 		word := regexp.MustCompile(`\b` + regexp.QuoteMeta(r.name) + `\b`)
@@ -487,6 +548,12 @@ func commentMentions(names []removable, sources []goSource) []string {
 					}
 				}
 			}
+			ast.Inspect(s.file, func(n ast.Node) bool {
+				if lit, ok := n.(*ast.BasicLit); ok && lit.Kind == token.STRING && word.MatchString(lit.Value) {
+					out = append(out, fmt.Sprintf("LIST %s: %s: %s", s.fset.Position(lit.Pos()), r.name, truncate(lit.Value)))
+				}
+				return true
+			})
 		}
 	}
 	return out

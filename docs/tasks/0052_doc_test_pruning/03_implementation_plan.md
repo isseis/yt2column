@@ -8,7 +8,7 @@
 | Created | 2026-10-31 |
 | Review date | 2026-10-31 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-11-01（編集上の訂正。PR-2 の `/runplan` のレビューで判明。決定は変えていない）: 1.6 の `tests` の失敗とする条件を強めた。「変える宣言の一覧」は宣言ごとに許す変化の種類（消える・変わる・加わる）を 1 つ持ち、一覧にあっても種類の違う変化（残すテストを消す、全体を取り除くテストを書き換えるなど）を失敗とする。`-final` は全削除対象の補助に加えて、全体を取り除くテストと 1.5 の今の名前の不在も確かめる。括弧で囲んだ `var`・`const` のブロックの doc comment の変更も宣言の変化とし、Go の文字列リテラルに現れる名前も一覧に出す。どれも同じ一度きりの確かめを厳しくするもので、確かめる AC と作るものは変わらない。 |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN・K1〜K5・D1〜D7 は要件書の項番と分類を、J-NN は設計書 3.2 の判断の一覧の行を、「設計書 3.1.1」などは設計書の節を指す。用語は設計書の冒頭の定義（判定、判定の一覧、判断の一覧、補助、補助の置き換え、製品のコード）と同じ意味で使う。
 
@@ -102,7 +102,7 @@
 | `scope` | PR-1 | 本計画の PR の番号（PR-1〜PR-3 の `1`〜`3`。`-pr 1` など）、merge-base、head | 2 つのコミットの間で変わったファイル（AC-03・AC-15〜AC-17・AC-21）と、`CLAUDE.md` の「Document tests check values, structure, and executable examples, never prose」の項の既存の文（AC-24） | 変わったファイルが、その PR に許すファイルの外にある。許すファイルは、設計書 2.3 の表のその PR の行に挙がるファイル、本書と `docs/tasks/0052_doc_test_pruning/_checks/` の下のファイル、および PR-3 に限り `docs/tasks/0050_viewer_tab/` の `02_architecture.md`・`03_implementation_plan.md` である（0050 の文書を変えるのは、ステップ 3-1 で変えると決めた場合だけ）。0050 の変更は、許したうえで一覧として出力する。0052 のほかの文書（要件書・設計書・`design_handoff.md`）の変更は失敗とする。`CLAUDE.md` が変わったとき、merge-base のその項の文が、head の同じ項にない |
 | `guards` | PR-1 | 1 つのコミット（省略すると作業ツリー）と、PR-3 では `-final` | 4 か所の文書のガードのコマンド（設計書 2.2）が挙げるパッケージの集合（AC-19）。`./cmd/codexreview/...` と `./cmd/codexreview` は同じパッケージとして扱う（1.3） | 4 か所の集合が一致しない。`-final` を付けたとき、その集合が、テストのファイルが `internal/doctestutil` を import するパッケージ（`cmd/yt2column-nmhost` と `docs/tasks/` の下を除く）の集合と一致しない |
 | `coverage` | PR-2 | `go tool cover -func` の 2 つの出力のファイル（前と後） | 製品のコードの関数ごとの結果（AC-11・AC-12） | 製品のコードの関数で、結果が違うものがある。製品のコードへの絞り込みは設計書 7.1 のとおり（`//go:build test` で始まる制約を持つファイルと `total:` の行を除き、モジュールのパスの接頭辞を外す） |
-| `tests` | PR-2 | merge-base、head、PR-3 では `-final` | 要件書 2.2 の対象のファイルのうち Go のもの（`internal/doctestutil/` と `internal/config/test_helpers.go` を含む）の、トップレベルの宣言の変化（AC-01〜AC-03・AC-07・AC-10）と、比べる 2 つのコミットの間で取り除いた名前の残り（AC-09・AC-20。後の PR で取り除く名前は、その PR の head に残っているのが正しいので対象にしない）。`-final` を付けたときは、設計書 3.4.1・3.4.2 の全削除対象の不在も、比べる範囲で消えたかによらず確かめる。宣言は、関数・メソッド・型と、`var`・`const` の 1 つずつの名前を単位とし、import は含めない。比べるのは、gofmt で整えた後の宣言の本文（doc comment を含む）である | (1) 「変える宣言の一覧」にない宣言が、変わった、消えた、または加わった。<br>一覧は、設計書 3.1 の「削除する」「一部を削除する」「統合する」の行のテスト、3.4.1・3.4.2 の補助、置き換えを受けるテスト（`TestCodexMentionOnlyInRequestRow`・`TestPostingCommandsInventory`・`TestPackageReferenceListsPackages`・`TestPromptsREADMEMatchesContract`）、`cmd/fixprguard` の `readRepoFile`、1.5 の台帳の両方の名前から作る。<br>(2) 比べる merge-base と head の間で取り除いた名前（設計書 3.4.1・3.4.2 の補助、取り除くテスト、1.5 の今の名前のうち、その範囲で消えたもの）が、`docs/tasks/` の外の Go のファイルに識別子として残る。後の PR で取り除く名前が head に残っていることは、失敗としない。<br>(3) `-final` を付けたとき、設計書 3.4.1・3.4.2 の全削除対象が、比べる範囲で消えたかによらず、`docs/tasks/` の外の Go のファイルに識別子として残る。全削除対象の不在は、この `-final` の実行（ステップ 3-4）で確かめる。<br>コメントと文書（`docs/tasks/` の外の `.md` と `.claude/commands/`）に現れる名前は、失敗とせず一覧として出力する。`numbered` のような普通の英単語がコメントに現れることがあるため、読んで判断する（1.4）。<br>出力には、消えた宣言と変わった宣言の一覧も含める |
+| `tests` | PR-2 | merge-base、head、PR-3 では `-final` | 要件書 2.2 の対象のファイルのうち Go のもの（`internal/doctestutil/` と `internal/config/test_helpers.go` を含む）の、トップレベルの宣言の変化（AC-01〜AC-03・AC-07・AC-10）と、比べる 2 つのコミットの間で取り除いた名前の残り（AC-09・AC-20。後の PR で取り除く名前は、その PR の head に残っているのが正しいので対象にしない）。`-final` を付けたときは、設計書 3.4.1・3.4.2 の全削除対象の不在も、比べる範囲で消えたかによらず確かめる。宣言は、関数・メソッド・型と、`var`・`const` の 1 つずつの名前を単位とし、import は含めない。比べるのは、gofmt で整えた後の宣言の本文（doc comment を含む）である | (1) 宣言が変わった、消えた、または加わったのに、その宣言が「変える宣言の一覧」にないか、一覧がその宣言に許す変化の種類と違う。一覧は宣言ごとに許す変化を 1 つ持つ。取り除くテストと補助は「消える」だけ、一部を削除する・統合するテスト、置き換えを受けるテスト、`cmd/fixprguard` の `readRepoFile` は「変わる」だけ、1.5 の新しい名前は「加わる」だけを許す。括弧で囲んだ `var`・`const` のブロックの宣言は、ブロックの doc comment も本文に含める。<br>一覧は、設計書 3.1 の「削除する」「一部を削除する」「統合する」の行のテスト、3.4.1・3.4.2 の補助、置き換えを受けるテスト（`TestCodexMentionOnlyInRequestRow`・`TestPostingCommandsInventory`・`TestPackageReferenceListsPackages`・`TestPromptsREADMEMatchesContract`）、`cmd/fixprguard` の `readRepoFile`、1.5 の台帳の両方の名前から作る。<br>(2) 比べる merge-base と head の間で取り除いた名前（設計書 3.4.1・3.4.2 の補助、取り除くテスト、1.5 の今の名前のうち、その範囲で消えたもの）が、`docs/tasks/` の外の Go のファイルに識別子として残る。後の PR で取り除く名前が head に残っていることは、失敗としない。<br>(3) `-final` を付けたとき、(2) の取り除く名前のすべて（設計書 3.4.1・3.4.2 の全削除対象、全体を取り除くテスト、1.5 の今の名前）が、比べる範囲で消えたかによらず、`docs/tasks/` の外の Go のファイルに識別子として残る。全削除対象の不在は、この `-final` の実行（ステップ 3-4）で確かめる。<br>コメント・Go の文字列リテラル・文書（`docs/tasks/` の外の `.md` と `.claude/commands/`）に現れる名前は、失敗とせず一覧として出力する。`numbered` のような普通の英単語がコメントに現れることがあるため、読んで判断する（1.4）。<br>出力には、消えた宣言と変わった宣言の一覧も含める |
 
 `metadataDocs.test.ts` は `tests` の対象にしない。その変更は、`make ext-check` と PR のレビューでの読み合わせで確かめる（ステップ 3-2）。
 
@@ -199,6 +199,7 @@
 -   調べたコミット: `af49e4c3`（`main` の HEAD。PR-1 の #599 のマージ後）。`git diff --stat bf314092 af49e4c3 -- cmd/ internal/ extension/test/` は空で、要件書 2.2 と設計書 3.1 の対象のテストは `bf314092` から変わっていない。`b467905e` から変わったのは PR-1 の 6 ファイル（`CLAUDE.md`・`task-pr-handoff.md`・`fixprguard_guide.md`・本書・`_checks/` の 2 つ）だけである。判定の一覧を当てはめ直す必要はない。
 -   実装中の計画（設計書 3.5 の 3 つの方法）: 未チェックの項目が残る承認済みの計画は、ステップ 1-1 の記録と同じ 19 件で、0050 と 0052 を除くものは後始末だけである。計画のない承認済みの設計書はない。開いている PR はない（`gh pr list --state open`）。`docs/tasks/*/02_architecture.md`・`03_implementation_plan.md` を `origin/main` と変えるブランチは、ステップ 1-1 と同じ `isseis/0043-extension-i18n-03` だけである。
 -   タスク 0050: 実装のブランチ `isseis/0050-viewer-tab-04` は、まだ `origin/main` より先のコミットを持たない。計画は `b467905e` から変わっていない。
+-   PR を作る前の調べ直し（2026-11-01 17:43）: 0050 の PR-1 が PR #600（`isseis/0050-viewer-tab-04`、2026-11-01 09:17 UTC に作成）として開いている。ブランチは 4 つのコミット（`fdee613a`..`8135b486`）で 0050 の要件書・設計書・計画だけを変え、設計書 3.16 の試作の結果と、その `Comments` を記録している。本タスクが取り除く確認を保つ作業は加えておらず、`metadataDocs.test.ts` の socket directory の確認を消す方針（設計書 3.5）も変わっていない。PR-3 の始め（ステップ 3-1）に、PR #600 と 0050 の実装の状態を調べ直す。ほかに開いている PR はない。
 
 #### ステップ 2-2: `cmd/yt2column` の確認・テスト・補助を取り除く
 
@@ -537,7 +538,7 @@
     OK   cmd/yt2column/docs_test.go::TestProductionProfileDocsContract
     OK   cmd/yt2column/docs_test.go::TestSlackDocsContract
     ---- added declarations: 0
-    OK   every changed declaration is on the change list
+    OK   every changed declaration is on the change list with its kind of change
     ---- names removed in this range: 29
          cmd/yt2column/docs_test.go::TestMigrationDocsContract
          cmd/yt2column/docs_test.go::TestQuickStartLinks
@@ -578,12 +579,14 @@
     LIST numbered: extension/static/style.css:173:/* The message text and its numbered steps; the warning row's reason and
     ```
 
+    上の出力は、レビューの指摘で強めた後の `tests`（`Comments` の 2026-11-01 の訂正）によるもので、強める前の出力とは「OK   every changed declaration ...」の行の文言だけが違った。強めた `tests` の失敗の条件は、一時的なコミットで確かめた（コミットしていない）。K5 の `TestPostingCommandsInventory` を消すと「removed; the change list allows only changed」で、`TestInterfaceDocComments` を消さずに書き換えると「changed; the change list allows only removed」で、`readme.go` の README のロケータのブロックの doc comment を変えると、そのブロックの宣言のすべてが一覧の外の変化として、どれも失敗した。`TestSlackDocsContract` に `t.Log("see TestQuickStartLinks")` を加えると、その文字列リテラルが一覧に出た。`-final` を `af49e4c3` と今の head に付けると、PR-3 で取り除く名前が残るので失敗した。
+
     一覧として出た 6 件は、どれも普通の英語の `numbered`（番号付きの）で、取り除いた補助 `numbered` を指さない。PR-3 で取り除く名前（`TestInterfaceDocComments`・`interfaceDoc`・`hasCJK`・`markdownSections`・`TestInstallTargetDocumented`）は、この範囲で消えていないので、残存の検査の対象にならない（1.6）。
 
 -   **カバレッジの比較（AC-11）:** 設計書 7.1 のコマンド（`go test -tags test -count=1 -coverpkg=./... -coverprofile=<file> ./...` と `go tool cover -func=<file>`）の出力を `coverage` で比べた。
-    -   ステップ 2-2: 前は `af49e4c3`、後は取り除いた作業ツリー。1068 の製品のコードの関数のうち、`internal/cmdrunner/runner.go:286` の `signalGroup`（100.0% → 66.7%）だけが違った。`af49e4c3` で、取り除くテストと一部を削除するテストだけに `-run` で絞って測ると `signalGroup` は 0.0% だったので、違いは設計書 7.1 の揺れである。変更のない `af49e4c3` を 2 回測った結果も、同じ関数だけで違った（66.7% と 100.0%）。
-    -   ステップ 2-3: 前はステップ 2-2 の後、後は置き換えた作業ツリー。1068 の関数がすべて同じだった。
-    -   カバレッジ付きの実行のうち 2 回は、変更と関係しない `internal/transcript` の `TestCommandExecutorDrainsStderr`（2 秒の打ち切りのある、時間に依存するテスト）が落ちた。設計書 7.1 のとおり無効な結果として捨て、取り直した。
+    -   ステップ 2-2: 前は `af49e4c3`、後は `19949327` と同じ Go のファイルの作業ツリー（違いは本書のチェックボックスだけ）。`coverage` の出力は `before ... (1068 product functions)`・`after ... (1068 product functions)`・`NG   1 product function(s) differ`・`internal/cmdrunner/runner.go:286 signalGroup: 100.0% -> 66.7%` だった。1068 の製品のコードの関数のうち、`internal/cmdrunner/runner.go:286` の `signalGroup`（100.0% → 66.7%）だけが違った。`af49e4c3` で、取り除くテストと一部を削除するテストだけに `-run` で絞って測ると `signalGroup` は 0.0% だったので、違いは設計書 7.1 の揺れである。変更のない `af49e4c3` を 2 回測った結果も、同じ関数だけで違った（66.7% と 100.0%）。
+    -   ステップ 2-3: 前は上の後の出力（`19949327` の Go のファイル）、後は `27ea5084` と同じ Go のファイルの作業ツリー。`coverage` の出力は `before ... (1068 product functions)`・`after ... (1068 product functions)`・`OK   all 1068 product functions have the same coverage` だった。
+    -   カバレッジ付きの実行のうち 2 回は、変更と関係しない `internal/transcript` の `TestCommandExecutorDrainsStderr`（2 秒の打ち切りのある、時間に依存するテスト）が落ちた。設計書 7.1 のとおり無効な結果として捨て、取り直した。比べた 4 つの出力は、どれも `go test` の出力に `FAIL` の行がない実行のものである（`grep -c '^FAIL'` が 0）。
 
 -   **AC-14（`fab2b54a`）:** `make test`、`make lint`、`make deadcode`、`make ext-check` が通った。`make ext-check` は Node.js 24.21.0 で実行し、node のテストは 975 件が通り、失敗はない。
 
