@@ -342,8 +342,8 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **変更するファイル:** `src/viewerQuery.ts`（新規）、`test/viewerQuery.test.ts`（新規）
 
--   [ ] `findViewers` を作る（設計書 3.4.2）。通信路と問い合わせの ID の乱数を依存として受け取り、`find` を送り、`viewerQueryWindowMs` の間、同じ `queryId` の答えを `parseViewerChannelMessage` で検査して集める。
--   [ ] テスト（fake の時計）: 1 秒の境目、違う `queryId`・形の違う答えを無視すること、答えがない場合。
+-   [x] `findViewers` を作る（設計書 3.4.2）。通信路と問い合わせの ID の乱数を依存として受け取り、`find` を送り、`viewerQueryWindowMs` の間、同じ `queryId` の答えを `parseViewerChannelMessage` で検査して集める。
+-   [x] テスト（fake の時計）: 1 秒の境目、違う `queryId`・形の違う答えを無視すること、答えがない場合。
 
 **完了の条件:** `make ext-check` が通る。`queryId` を比べないように壊し、違う問いの答えを無視するテストが失敗することを確かめる。
 

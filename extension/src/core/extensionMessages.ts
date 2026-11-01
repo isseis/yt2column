@@ -86,6 +86,7 @@ export type ViewerChannelMessage =
     };
 
 export type PresentAnswer = Extract<ViewerChannelMessage, { type: "present" }>;
+export type WaitingAnswer = Extract<ViewerChannelMessage, { type: "waiting" }>;
 
 /** The viewer to use among those that answered present: the oldest sentAt, then the smallest tabId. */
 export function chooseViewer(
