@@ -410,7 +410,7 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 -   [x] `scripts/popup-preview.ts` が `theme.css` も写して参照するようにし、`test/popupPreview.test.ts:149-153` の `<link>` の確かめを改める。
 -   [x] `test/helpers/dom.ts` に、出荷する `viewer.html` から骨格を作る補助を加える。
 -   [x] テスト: `test/style.test.ts` のコントラストの計算を `theme.css` の変数と新しい組（ビューアの失敗の色、工程の記号、ロード中の印、フォーカスの印）に広げる。ライトとダークの両方、`prefers-reduced-motion` で印と `running` の記号の `animation` を止める規則、押せる要素の幅と高さの最小値（AC-45・AC-48・AC-50・AC-51）。
--   [ ] `_checks/presend_popup_styles.ts` を作る。マージベースの `style.css` と、PR の head の `theme.css`＋`style.css` を jsdom で読み、送る前のポップアップの骨格の各要素（プレビューが描く状態）に当たる宣言の値が変わらないことを確かめる（`requirements_process.md` §4 の `diff`）。PR の作成の前に一度走らせ、出力と 2 つのコミットの ID を 7 章の AC-24 の行に記録する。
+-   [x] `_checks/presend_popup_styles.ts` を作る。マージベースの `style.css` と、PR の head の `theme.css`＋`style.css` を jsdom で読み、送る前のポップアップの骨格の各要素（プレビューが描く状態）に当たる宣言の値が変わらないことを確かめる（`requirements_process.md` §4 の `diff`）。PR の作成の前に一度走らせ、出力と 2 つのコミットの ID を 7 章の AC-24 の行に記録する。
 
 **完了の条件:** `make ext-check` が通る。`theme.css` のダークの失敗の色の明るさを下げて、そのコントラストのテストが失敗することを確かめる。`_checks/presend_popup_styles.ts` が、`theme.css` の今の変数の値を 1 つ変えると差分を報告することを確かめる。
 
@@ -446,7 +446,7 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **判定理由**: ステップ 5-2 の `renderArticleBody` が、信頼できない LLM の出力を文字としてだけ表示する境界（設計書 3.12、AC-25）であるため
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [ ] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
@@ -791,7 +791,7 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 | AC-21 | `extension/test/launch.test.ts::open viewer`（3 つの分岐と、生成の開始を送らないこと）、`extension/test/viewerQuery.test.ts::findViewers`、4.3.2 | test・manual | 4-2・6-3・7-5 |
 | AC-22 | `extension/test/launch.test.ts::retry`、`extension/test/startCoordinator.test.ts::reuse`、`extension/test/viewerApp.test.ts::take-over`（失敗か不明から `loading` に戻り、新しい送信の時刻で数える） | test | 4-3・5-5・6-3 |
 | AC-23 | `extension/test/popupView.test.ts::primaryAction`、`extension/test/render.test.ts::job view`、`extension/test/launch.test.ts::popup job states` | test | 6-1・6-2・6-3 |
-| AC-24 | `extension/test/launch.test.ts::popup job send`（開き直したポップアップは押すまで何も送らない）、`docs/tasks/0050_viewer_tab/_checks/presend_popup_styles.ts`（送る前のポップアップの CSS の値。出力と 2 つのコミットの ID を PR の作成の前に記録する）、4.3.2 | test・diff・manual | 5-1・6-3・7-5 |
+| AC-24 | `extension/test/launch.test.ts::popup job send`（開き直したポップアップは押すまで何も送らない）、`docs/tasks/0050_viewer_tab/_checks/presend_popup_styles.ts`（送る前のポップアップの CSS の値。2026-11-02 に PR-6 の作成の前に実行: マージベース `ed795e8a58e8165f83c9e7953431dbec5432aa2a`、head `369bcd79590db90ff4701a7f91d492a7e87d13e4`、出力 `PASS: 60400 computed declarations identical across 11 pages x 16 variants`、終了コード 0）、4.3.2 | test・diff・manual | 5-1・6-3・7-5 |
 | AC-25 | `extension/test/articleBody.test.ts::renderArticleBody` | test | 5-2 |
 | AC-26 | `extension/test/renderViewer.test.ts::renderViewerHeader`、`extension/test/viewerUrl.test.ts::parseViewerUrl`（受け付けない URL を拒否する） | test | 3-1・5-3 |
 | AC-27 | `extension/test/renderViewer.test.ts::renderViewerHeader`、`extension/test/viewerApp.test.ts::page title` | test | 5-3・5-5 |
