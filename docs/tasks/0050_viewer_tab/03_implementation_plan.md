@@ -288,9 +288,9 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **変更するファイル:** `src/core/fileName.ts`（新規）、`src/core/acceptedUrl.ts`、`test/fileName.test.ts`（新規）、`test/acceptedUrl.test.ts`
 
--   [ ] `acceptedUrl.ts` に `watchVideoId` を加える（設計書 3.10）。`isAcceptedWatchUrl` と同じ解析を使う。
--   [ ] `fileName.ts` に `articleFileName` を作り、設計書 3.10 の表の規則を当てる。
--   [ ] テスト: `watchVideoId` が受け付ける URL の `v` を返し、受け付けない URL（`isAcceptedWatchUrl` の拒否の例）では値を返さないこと。表の置き換える文字の各群、先頭の `.`、UTF-8 で 200 バイトの境目とコードポイントの境目での切り詰め、`t` がない・空白だけのときの動画 ID、どの場合もパスの区切りと制御文字を含まず `.` で始まらず `.md` で終わること（AC-34）。
+-   [x] `acceptedUrl.ts` に `watchVideoId` を加える（設計書 3.10）。`isAcceptedWatchUrl` と同じ解析を使う。
+-   [x] `fileName.ts` に `articleFileName` を作り、設計書 3.10 の表の規則を当てる。
+-   [x] テスト: `watchVideoId` が受け付ける URL の `v` を返し、受け付けない URL（`isAcceptedWatchUrl` の拒否の例）では値を返さないこと。表の置き換える文字の各群、先頭の `.`、UTF-8 で 200 バイトの境目とコードポイントの境目での切り詰め、`t` がない・空白だけのときの動画 ID、どの場合もパスの区切りと制御文字を含まず `.` で始まらず `.md` で終わること（AC-34）。
 
 **完了の条件:** `make ext-check` が通る。切り詰めをバイトの途中で行うように壊し、境目のテストが失敗することを確かめる。
 

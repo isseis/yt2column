@@ -23,7 +23,7 @@ export interface SourceTab {
   readonly index: number;
 }
 
-/** popup → service worker, chrome.runtime.sendMessage. */
+/** popup -> service worker, chrome.runtime.sendMessage. */
 export interface StartRequest {
   readonly type: "start";
   readonly input: StartInput;
@@ -31,20 +31,20 @@ export interface StartRequest {
   readonly source: SourceTab;
 }
 
-/** service worker → popup, the sendResponse of a StartRequest. */
+/** service worker -> popup, the sendResponse of a StartRequest. */
 export interface StartReply {
   readonly outcome: StartOutcome;
   /** The tab that shows this send: the one the worker opened, or the one that took over. */
   readonly viewerTabId?: number;
 }
 
-/** viewer → service worker. The tab is the sender's; sentAt correlates the send. */
+/** viewer -> service worker. The tab is the sender's; sentAt correlates the send. */
 export interface AwaitStart {
   readonly type: "await-start";
   readonly sentAt: number;
 }
 
-/** service worker → viewer, the sendResponse of an AwaitStart. */
+/** service worker -> viewer, the sendResponse of an AwaitStart. */
 export type AwaitStartReply =
   | { readonly kind: "result"; readonly outcome: StartOutcome }
   // The worker holds no send for this tab and sentAt.

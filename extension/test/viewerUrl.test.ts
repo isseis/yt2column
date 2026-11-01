@@ -69,9 +69,9 @@ describe("round trip", () => {
     {
       name: "characters outside the BMP, U+FFFD and line breaks",
       params: {
-        heading: "\u{1F600}�\n\r\t",
+        heading: "\u{1F600}\ufffd\n\r\t",
         channelName: "\u{20000}",
-        title: "�",
+        title: "\ufffd",
         url: watchUrl,
         sentAt: 0,
       },
