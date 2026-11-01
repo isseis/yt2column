@@ -25,6 +25,7 @@ import { renderArticleBody } from "./articleBody.ts";
 import { messageNodes } from "./render.ts";
 import {
   loadingIndicator,
+  pollNotice,
   renderJobState,
   requestIdNode,
   startFailure,
@@ -166,7 +167,13 @@ function drawState(
       container.replaceChildren(loadingIndicator(doc, viewer.sending));
       return;
     case "loading":
-      container.replaceChildren(loadingIndicator(doc, viewer.loading));
+      // A stopped poll waits for nothing, so its notice stands alone.
+      container.replaceChildren(
+        ...(state.notice.kind === "stopped"
+          ? []
+          : [loadingIndicator(doc, viewer.loading)]),
+        ...pollNotice(doc, state.notice, locale),
+      );
       return;
     case "start-failed":
       container.replaceChildren(startFailure(doc, state.failure, locale));
@@ -226,7 +233,10 @@ function stateSummary(state: ViewerState, locale: Locale): string[] {
     case "sending":
       return [viewer.sending.text];
     case "loading":
-      return [viewer.loading.text];
+      return [
+        ...(state.notice.kind === "stopped" ? [] : [viewer.loading.text]),
+        ...noticeSummary(state.notice, locale),
+      ];
     case "start-failed":
       return [startResultMessage(state.failure, locale).text];
     case "job":

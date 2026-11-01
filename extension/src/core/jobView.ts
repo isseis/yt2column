@@ -23,8 +23,9 @@ export type ViewerState =
   | { readonly kind: "sending" }
   // Rejected, not sent, or unknown.
   | { readonly kind: "start-failed"; readonly failure: StartFailure }
-  // A key, waiting for the first status.
-  | { readonly kind: "loading" }
+  // A key, waiting for the first status. A failed status exchange adds its
+  // notice, as it does beside a job.
+  | { readonly kind: "loading"; readonly notice: PollNotice }
   | {
       readonly kind: "job";
       readonly job: JobDisplay;
