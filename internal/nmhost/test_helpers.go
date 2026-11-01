@@ -75,6 +75,7 @@ func WireValuesForTest(t *testing.T) HostWireValuesForTest {
 }
 
 // MaxResponseBytesForTest is the largest server response body the host
-// relays, for the guard in cmd/yt2column-server that compares it with the
-// server's status response limit.
+// relays, for the guards that compare it with the server's status response
+// limit (cmd/yt2column-server) and the extension's response limit
+// (cmd/yt2column).
 const MaxResponseBytesForTest = maxResponseBytes

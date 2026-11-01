@@ -133,6 +133,7 @@ const brands: Brand[] = [
   { type: "PreparedRequest", creator: "src/core/prepare.ts" },
   { type: "RequestId", creator: "src/core/response.ts" },
   { type: "ArticleKey", creator: "src/core/articleKey.ts" },
+  { type: "UsdAmount", creator: "src/core/response.ts" },
 ];
 
 const creatorFiles = [...new Set(brands.map((brand) => brand.creator))];

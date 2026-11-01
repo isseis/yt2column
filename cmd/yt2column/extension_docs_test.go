@@ -28,6 +28,7 @@ const (
 	makefilePath          = repositoryRoot + "/Makefile"
 	extensionSendPath     = repositoryRoot + "/extension/src/send.ts"
 	extensionNativePath   = repositoryRoot + "/extension/src/core/native.ts"
+	extensionExchangePath = repositoryRoot + "/extension/src/core/exchange.ts"
 )
 
 // extTargetRE matches a make target definition for an extension target, such as
@@ -119,6 +120,10 @@ func TestExtensionDocumentation(t *testing.T) {
 // a send, in milliseconds, with optional digit separators.
 var sendTimeoutRE = regexp.MustCompile(`(?m)^export const sendTimeoutMs = ([0-9][0-9_]*);$`)
 
+// maxResponseBytesRE matches the extension's declaration of the largest
+// relayed response body it accepts, with optional digit separators.
+var maxResponseBytesRE = regexp.MustCompile(`(?m)^export const maxResponseBytes = ([0-9][0-9_]*);$`)
+
 // nativeHostNameRE, hostReplyVersionRE and recordDeclarationRE match the
 // declarations in extension/src/core/native.ts that the host must agree with.
 // recordDeclarationRE captures the name and the body of a Record<..., true>
@@ -145,9 +150,10 @@ func declaredRecordKeys(source, name string) []string {
 // extension must agree on: the only origin the host's manifest allows and its
 // relay accepts is the one derived from the extension manifest's key; the
 // extension sends to the host's name and reads the reply version, kinds and
-// host errors the host writes; and the host gives up on the server before the
+// host errors the host writes; the host gives up on the server before the
 // extension gives up on the host, so a reply the host writes is never one the
-// extension has stopped waiting for.
+// extension has stopped waiting for; and the extension accepts every response
+// body the host relays, so none is refused for its size alone.
 func TestNativeHostContract(t *testing.T) {
 	t.Run("extension origin", func(t *testing.T) {
 		id, err := extensionIDFromManifestKey(readExtensionManifest(t).Key)
@@ -203,6 +209,19 @@ func TestNativeHostContract(t *testing.T) {
 		}
 		if extension := time.Duration(ms) * time.Millisecond; nmhost.RelayTimeout >= extension {
 			t.Errorf("nmhost.RelayTimeout = %v, want it shorter than the extension's sendTimeoutMs (%v)", nmhost.RelayTimeout, extension)
+		}
+	})
+	t.Run("response body limit", func(t *testing.T) {
+		m := maxResponseBytesRE.FindStringSubmatch(doctestutil.ReadDoc(t, extensionExchangePath))
+		if m == nil {
+			t.Fatalf("%s has no maxResponseBytes declaration", extensionExchangePath)
+		}
+		n, err := strconv.Atoi(strings.ReplaceAll(m[1], "_", ""))
+		if err != nil {
+			t.Fatalf("parse maxResponseBytes %q: %v", m[1], err)
+		}
+		if n != nmhost.MaxResponseBytesForTest {
+			t.Errorf("maxResponseBytes = %d, want the host's relay limit %d", n, nmhost.MaxResponseBytesForTest)
 		}
 	})
 }

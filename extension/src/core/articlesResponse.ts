@@ -57,7 +57,6 @@ export type ArticlesReceivedResponse =
 
 /** Which check an unexpected reply failed; for the developer log only. */
 export type ArticlesUnexpectedCheck =
-  | "extension-timeout"
   | "envelope-shape"
   | "envelope-version"
   | "host-protocol-error"

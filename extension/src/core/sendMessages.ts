@@ -33,7 +33,6 @@ function unexpectedMessage(
   locale: Locale,
 ): RejectionMessage {
   switch (check) {
-    case "extension-timeout":
     case "envelope-shape":
     case "envelope-version":
     case "host-protocol-error":

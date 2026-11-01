@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { classifyNativeReply } from "../src/core/native.ts";
+import { classifyHostReply, classifyNativeReply } from "../src/core/native.ts";
 import type { NativeReply } from "../src/core/native.ts";
 import { maxArticlesResponseBytes } from "../src/core/articlesResponse.ts";
-import type { SendResult } from "../src/core/articlesResponse.ts";
+import { maxResponseBytes } from "../src/core/exchange.ts";
+import type { HostOutcome } from "../src/core/exchange.ts";
 import type { RequestId } from "../src/core/response.ts";
 import { bytesReply, errorReply, responseReply } from "./helpers/native.ts";
 
@@ -30,16 +31,20 @@ function response(members: Record<string, unknown>): NativeReply {
 }
 
 /** The check of an unexpected result, asserting the result is unexpected. */
-function unexpectedCheck(result: SendResult): string {
+function unexpectedCheck(result: HostOutcome): string {
   assert.ok(result.kind === "unexpected", JSON.stringify(result));
   return result.check;
 }
 
-describe("classifyNativeReply", () => {
-  it("returns extension-timeout when the limit passed first", () => {
-    assert.deepEqual(classifyNativeReply({ kind: "timed-out" }), {
-      kind: "unexpected",
-      check: "extension-timeout",
+/** The relayed response classifyHostReply returns for status and text. */
+function relayed(status: number, text: string): HostOutcome {
+  return { kind: "response", status, bytes: new TextEncoder().encode(text) };
+}
+
+describe("classifyHostReply", () => {
+  it("returns no-response when the limit passed first", () => {
+    assert.deepEqual(classifyHostReply({ kind: "timed-out" }), {
+      kind: "no-response",
     });
   });
 
@@ -57,14 +62,14 @@ describe("classifyNativeReply", () => {
   ];
   for (const lastError of lastErrors) {
     it(`returns host-failed for the browser error ${JSON.stringify(lastError)}`, () => {
-      assert.deepEqual(classifyNativeReply({ kind: "failed", lastError }), {
+      assert.deepEqual(classifyHostReply({ kind: "failed", lastError }), {
         kind: "host-failed",
         lastError,
       });
     });
   }
 
-  const hostErrors: { error: string; expected: SendResult }[] = [
+  const hostErrors: { error: string; expected: HostOutcome }[] = [
     {
       error: "server_unavailable",
       expected: { kind: "not-sent", cause: "server-unavailable" },
@@ -81,29 +86,9 @@ describe("classifyNativeReply", () => {
   ];
   for (const { error, expected } of hostErrors) {
     it(`maps the host error ${error}`, () => {
-      assert.deepEqual(classifyNativeReply(errorReply(error)), expected);
+      assert.deepEqual(classifyHostReply(errorReply(error)), expected);
     });
   }
-
-  it("classifies a wrapped accepted response", () => {
-    assert.deepEqual(classifyNativeReply(responseReply(202, acceptedBody)), {
-      kind: "accepted",
-      requestId,
-    });
-  });
-
-  it("classifies a wrapped rejection", () => {
-    const text = JSON.stringify({
-      status: "rejected",
-      reason: "invalid_transcript",
-      requestId,
-    });
-    assert.deepEqual(classifyNativeReply(responseReply(400, text)), {
-      kind: "rejected",
-      reason: "invalid_transcript",
-      requestId,
-    });
-  });
 
   const envelopes: { name: string; reply: NativeReply; check: string }[] = [
     { name: "a null value", reply: message(null), check: "envelope-shape" },
@@ -246,7 +231,7 @@ describe("classifyNativeReply", () => {
   ];
   for (const { name, reply, check } of envelopes) {
     it(`rejects ${name} with ${check}`, () => {
-      assert.equal(unexpectedCheck(classifyNativeReply(reply)), check);
+      assert.equal(unexpectedCheck(classifyHostReply(reply)), check);
     });
   }
 
@@ -254,23 +239,133 @@ describe("classifyNativeReply", () => {
   // canonical one only in its base64 text, and the canonical one is accepted.
   it("accepts the canonical base64 of the same body", () => {
     assert.equal(acceptedBase64.endsWith("="), true);
-    assert.equal(classifyNativeReply(response({})).kind, "accepted");
+    assert.deepEqual(
+      classifyHostReply(response({})),
+      relayed(202, acceptedBody),
+    );
   });
 
   const statusBounds = [100, 599];
   for (const status of statusBounds) {
-    it(`passes status ${status} on to the body checks`, () => {
-      // Status 100 and 599 pass the envelope; no reason pairs with them.
-      const result = classifyNativeReply(response({ status }));
-      assert.deepEqual(result, {
+    it(`returns status ${status} with the body`, () => {
+      assert.deepEqual(
+        classifyHostReply(response({ status })),
+        relayed(status, acceptedBody),
+      );
+    });
+  }
+
+  it("returns a decoded body exactly at the limit", () => {
+    const padded =
+      acceptedBody + " ".repeat(maxResponseBytes - acceptedBody.length);
+    // The kind and the size are compared, not the bytes: a failure report of
+    // half a megabyte would not finish.
+    const result = classifyHostReply(responseReply(202, padded));
+    assert.equal(result.kind, "response");
+    assert.equal(result.bytes.byteLength, maxResponseBytes);
+  });
+
+  it("returns a decoded body one byte over the limit as body-over-limit", () => {
+    const padded =
+      acceptedBody + " ".repeat(maxResponseBytes + 1 - acceptedBody.length);
+    const result = classifyHostReply(responseReply(202, padded));
+    // The kind first: a relayed body in a failure report would not finish.
+    assert.equal(result.kind, "unexpected");
+    assert.deepEqual(result, {
+      kind: "unexpected",
+      check: "body-over-limit",
+      status: 202,
+    });
+  });
+
+  // Base64 keeps the server's bytes as they are, so the body checks see what
+  // the server sent: an invalid UTF-8 body would not survive a JSON string.
+  it("returns the server's bytes unchanged", () => {
+    const bytes = new Uint8Array([0x22, 0xff, 0x22]);
+    assert.deepEqual(classifyHostReply(bytesReply(202, bytes)), {
+      kind: "response",
+      status: 202,
+      bytes,
+    });
+  });
+});
+
+// The popup's /articles path, until it moves to the job API.
+describe("classifyNativeReply", () => {
+  it("returns no-response when the limit passed first", () => {
+    assert.deepEqual(classifyNativeReply({ kind: "timed-out" }), {
+      kind: "no-response",
+    });
+  });
+
+  it("returns a host failure with the browser's error text", () => {
+    const lastError = "Native host has exited.";
+    assert.deepEqual(classifyNativeReply({ kind: "failed", lastError }), {
+      kind: "host-failed",
+      lastError,
+    });
+  });
+
+  it("returns a host error's result", () => {
+    assert.deepEqual(classifyNativeReply(errorReply("message_too_large")), {
+      kind: "not-sent",
+      cause: "message-too-large",
+    });
+  });
+
+  it("classifies a wrapped accepted response", () => {
+    assert.deepEqual(classifyNativeReply(responseReply(202, acceptedBody)), {
+      kind: "accepted",
+      requestId,
+    });
+  });
+
+  it("classifies a wrapped rejection", () => {
+    const text = JSON.stringify({
+      status: "rejected",
+      reason: "invalid_transcript",
+      requestId,
+    });
+    assert.deepEqual(classifyNativeReply(responseReply(400, text)), {
+      kind: "rejected",
+      reason: "invalid_transcript",
+      requestId,
+    });
+  });
+
+  const outside: { name: string; reply: NativeReply; check: string }[] = [
+    { name: "a null value", reply: message(null), check: "envelope-shape" },
+    {
+      name: "version 2",
+      reply: message({ v: 2, kind: "error", error: "server_timeout" }),
+      check: "envelope-version",
+    },
+    {
+      name: "the host's protocol error",
+      reply: errorReply("protocol_error"),
+      check: "host-protocol-error",
+    },
+  ];
+  for (const { name, reply, check } of outside) {
+    it(`keeps the outside check of ${name} as ${check}`, () => {
+      assert.deepEqual(classifyNativeReply(reply), {
         kind: "unexpected",
-        check: "status-pairing",
-        status,
+        check,
       });
     });
   }
 
-  it("accepts a decoded body exactly at the limit", () => {
+  it("keeps the status of a body over the host's limit", () => {
+    const padded =
+      acceptedBody + " ".repeat(maxResponseBytes + 1 - acceptedBody.length);
+    assert.deepEqual(classifyNativeReply(responseReply(202, padded)), {
+      kind: "unexpected",
+      check: "body-over-limit",
+      status: 202,
+    });
+  });
+
+  it("accepts a decoded body exactly at the /articles limit", () => {
     const padded =
       acceptedBody + " ".repeat(maxArticlesResponseBytes - acceptedBody.length);
     assert.deepEqual(classifyNativeReply(responseReply(202, padded)), {
@@ -279,7 +374,7 @@ describe("classifyNativeReply", () => {
     });
   });
 
-  it("passes a decoded body one byte over the limit as body-over-limit", () => {
+  it("passes a decoded body one byte over the /articles limit as body-over-limit", () => {
     const padded =
       acceptedBody +
       " ".repeat(maxArticlesResponseBytes + 1 - acceptedBody.length);
@@ -290,10 +385,12 @@ describe("classifyNativeReply", () => {
     });
   });
 
-  // Base64 keeps the server's bytes as they are, so the body checks see what
-  // the server sent: an invalid UTF-8 body would not survive a JSON string.
   it("passes the server's bytes unchanged to the body checks", () => {
     const reply = bytesReply(202, new Uint8Array([0x22, 0xff, 0x22]));
-    assert.equal(unexpectedCheck(classifyNativeReply(reply)), "encoding");
+    assert.deepEqual(classifyNativeReply(reply), {
+      kind: "unexpected",
+      check: "encoding",
+      status: 202,
+    });
   });
 });

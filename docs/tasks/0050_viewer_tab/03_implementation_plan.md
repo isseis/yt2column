@@ -207,12 +207,12 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **変更するファイル:** `src/core/response.ts`、`eslint.config.js`、`test/response.test.ts`、`test/secretsAbsent.test.ts`、`test/lintRules.test.ts`
 
--   [ ] `response.ts` に、設計書 3.3 の型、受理する形の表、拒否の理由の 3 つの `Record`、`classifyStart`・`classifyStatus`・`classifyPublish`、`toStartOutcome`・`toStatusOutcome`・`toPublishOutcome` を作る。集合はどれも `Record<…, true>` の定数とともに宣言する（設計書 3.3）。
--   [ ] 同じ `response.ts` に、設計書 4.4 の `startLogView`・`statusLogView`・`publishLogView` を置く（1.3）。
--   [ ] `eslint.config.js` の `brandNames` に `UsdAmount` を加え、`response.ts` の `creatorConfig` が作ってよい型に加える。
--   [ ] `test/secretsAbsent.test.ts` を、設計書 3.17「秘密情報の語のガード」のとおりに狭める。狭めた語が、`webhook url` などの設定の名前と、文言の文字列リテラルの外の `SLACK_WEBHOOK_URL`（文言のファイルの中の識別子を含む）を拒否し続けることを確かめるテストを加える。
--   [ ] テスト（`test/response.test.ts` を新しい検査のテストにする）: AC-41 の各項目に 1 つ以上の入力、1.4 の Go の表のうち最上位がオブジェクトでない 4 行、古いホストの応答（`/articles` の `invalid_body`）が生成の開始の `invalid_body` の拒否になること（設計書 7.1）、3 つの操作の拒否の理由の集合と状態コードの組、ログの関数が記事・キーを返す値に含めないこと（目印の文字列で確かめる。設計書 7.3）。
--   [ ] テスト（AC-42）: 256 KiB いっぱいの完了した記事の応答を、ホストの応答の外側（`classifyHostReply`、ステップ 2-4）を通して `classifyStatus` に渡し、記事が一致することを確かめる。本文は、Go の `encoding/json` の `Marshal` が書くエスケープ（`<`・`>`・`&` に対する `\u003c`・`\u003e`・`\u0026`、U+2028・U+2029 に対する `\u2028`・`\u2029`。`encoding/json` の文書の `Marshal` の項）を含める。ステップ 2-4 の前は、このテストを `classifyStatus` だけで書き、2-4 で外側を通す形にする。
+-   [x] `response.ts` に、設計書 3.3 の型、受理する形の表、拒否の理由の 3 つの `Record`、`classifyStart`・`classifyStatus`・`classifyPublish`、`toStartOutcome`・`toStatusOutcome`・`toPublishOutcome` を作る。集合はどれも `Record<…, true>` の定数とともに宣言する（設計書 3.3）。
+-   [x] 同じ `response.ts` に、設計書 4.4 の `startLogView`・`statusLogView`・`publishLogView` を置く（1.3）。
+-   [x] `eslint.config.js` の `brandNames` に `UsdAmount` を加え、`response.ts` の `creatorConfig` が作ってよい型に加える。
+-   [x] `test/secretsAbsent.test.ts` を、設計書 3.17「秘密情報の語のガード」のとおりに狭める。狭めた語が、`webhook url` などの設定の名前と、文言の文字列リテラルの外の `SLACK_WEBHOOK_URL`（文言のファイルの中の識別子を含む）を拒否し続けることを確かめるテストを加える。
+-   [x] テスト（`test/response.test.ts` を新しい検査のテストにする）: AC-41 の各項目に 1 つ以上の入力、1.4 の Go の表のうち最上位がオブジェクトでない 4 行、古いホストの応答（`/articles` の `invalid_body`）が生成の開始の `invalid_body` の拒否になること（設計書 7.1）、3 つの操作の拒否の理由の集合と状態コードの組、ログの関数が記事・キーを返す値に含めないこと（目印の文字列で確かめる。設計書 7.3）。
+-   [x] テスト（AC-42）: 256 KiB いっぱいの完了した記事の応答を、ホストの応答の外側（`classifyHostReply`、ステップ 2-4）を通して `classifyStatus` に渡し、記事が一致することを確かめる。本文は、Go の `encoding/json` の `Marshal` が書くエスケープ（`<`・`>`・`&` に対する `\u003c`・`\u003e`・`\u0026`、U+2028・U+2029 に対する `\u2028`・`\u2029`。`encoding/json` の文書の `Marshal` の項）を含める。ステップ 2-4 の前は、このテストを `classifyStatus` だけで書き、2-4 で外側を通す形にする。
 
 **完了の条件:** `make ext-check` と `make test` が通る。メンバの集合の検査に任意のメンバを許すように壊し、AC-41 の「宣言していないメンバ」のテストが失敗することを確かめる。`statusLogView` が記事を返す値に入れるように壊し、ログのテストが失敗することを確かめる。秘密情報の語の表から `webhook_url` を消すように壊し、設定の名前のテストが失敗することを確かめる。
 
@@ -220,10 +220,10 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **変更するファイル:** `src/core/native.ts`、`src/core/articlesResponse.ts`、`src/send.ts`、`src/core/sendMessages.ts`、`test/native.test.ts`、`test/send.test.ts`、`test/sendMessages.test.ts`、`test/articlesResponse.test.ts`、`test/response.test.ts`
 
--   [ ] `native.ts` に `classifyHostReply` を作り、本文のバイト列と状態コードを返す。拡張自身の時間切れを応答なしにする（設計書 3.1）。
--   [ ] 古い `classifyNativeReply` を、`classifyHostReply` の結果を `SendResult` に変える包みにする。包みは、本文に 1,024 バイトの上限を当て（超えれば今と同じ `body-over-limit`）、`classifyArticlesResponse` に渡す。外側の検査の種類は、同じ名前の `ArticlesUnexpectedCheck` に写す。時間切れは応答なしになるので、`ArticlesUnexpectedCheck` から `extension-timeout` を除き、`sendMessages.ts:36` の行を除く（1.3）。
--   [ ] `send.ts` に `exchange`（`HostMessage` を受け取る。設計書 3.1）を作る。`sendTimeoutMs` の宣言の形は変えない。`sendArticle` は、ポップアップを切り替えるまで残し、`exchange` と同じ 1 回の送信の処理を共有する。
--   [ ] テスト: `classifyHostReply` の検査の順と内容が今の `classifyNativeReply` と同じであること（`test/native.test.ts:37` の describe を移す）、512 KiB の境目、時間切れが応答なしになること。古い包みの 1,024 バイトの境目（1.4 の行き先の表）。`exchange` が 1 回だけ送り送り直さないこと、25 秒の後に届いた応答を無視すること、1.4 の行き先の表の `send.test.ts` の 4 つの確認。
+-   [x] `native.ts` に `classifyHostReply` を作り、本文のバイト列と状態コードを返す。拡張自身の時間切れを応答なしにする（設計書 3.1）。
+-   [x] 古い `classifyNativeReply` を、`classifyHostReply` の結果を `SendResult` に変える包みにする。包みは、本文に 1,024 バイトの上限を当て（超えれば今と同じ `body-over-limit`）、`classifyArticlesResponse` に渡す。外側の検査の種類は、同じ名前の `ArticlesUnexpectedCheck` に写す。時間切れは応答なしになるので、`ArticlesUnexpectedCheck` から `extension-timeout` を除き、`sendMessages.ts:36` の行を除く（1.3）。
+-   [x] `send.ts` に `exchange`（`HostMessage` を受け取る。設計書 3.1）を作る。`sendTimeoutMs` の宣言の形は変えない。`sendArticle` は、ポップアップを切り替えるまで残し、`exchange` と同じ 1 回の送信の処理を共有する。
+-   [x] テスト: `classifyHostReply` の検査の順と内容が今の `classifyNativeReply` と同じであること（`test/native.test.ts:37` の describe を移す）、512 KiB の境目、時間切れが応答なしになること。古い包みの 1,024 バイトの境目（1.4 の行き先の表）。`exchange` が 1 回だけ送り送り直さないこと、25 秒の後に届いた応答を無視すること、1.4 の行き先の表の `send.test.ts` の 4 つの確認。
 
 **完了の条件:** `make ext-check` と `make test`（`TestNativeHostContract`）が通る。1.2 の lcov の比べ方で、移したテストの関数の実行回数が変わらないことを確かめる。`exchange` が時間切れの後にもう一度送るように壊し、送り直さないことのテストが失敗することを確かめる。
 
@@ -231,7 +231,7 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **変更するファイル:** `cmd/yt2column/extension_docs_test.go`
 
--   [ ] `TestNativeHostContract` に、`extension/src/core/exchange.ts` の `export const maxResponseBytes = 524_288;` を `sendTimeoutMs`（`:120`）と同じ固定の形で読み、`nmhost.MaxResponseBytesForTest` と等しいことを確かめる subtest を加える（設計書 3.3）。読み取りのパスの定数は、今の `extensionSendPath`（`:29`）と同じ形で加える。
+-   [x] `TestNativeHostContract` に、`extension/src/core/exchange.ts` の `export const maxResponseBytes = 524_288;` を `sendTimeoutMs`（`:120`）と同じ固定の形で読み、`nmhost.MaxResponseBytesForTest` と等しいことを確かめる subtest を加える（設計書 3.3）。読み取りのパスの定数は、今の `extensionSendPath`（`:29`）と同じ形で加える。
 
 **完了の条件:** `make fmt`・`make test`・`make lint` が通る。`exchange.ts` の値を 1 だけ変えて、この subtest が失敗することを確かめる。
 
@@ -247,10 +247,10 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **判定理由**: ステップ 2-3 が秘密情報の語のガード（セキュリティの検査）を狭め、信頼できない応答の受理の境界を定めるため
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/606
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 3: 純粋な判断と文言
 
@@ -747,7 +747,7 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 -   [x] PR-1 マージ済み（対象ステップ: 1-1）
 -   [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2）
--   [ ] PR-3 マージ済み（対象ステップ: 2-3 / 2-4 / 2-5）
+-   [x] PR-3 マージ済み（対象ステップ: 2-3 / 2-4 / 2-5）
 -   [ ] PR-4 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5）
 -   [ ] PR-5 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5）
 -   [ ] PR-6 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3）
