@@ -681,8 +681,9 @@ var countFilterCommand = regexp.MustCompile(`^gh pr view <number> --json body --
 const correctionOpener = "**編集上の訂正（"
 
 // TestFixprPhase6CountFilter checks the one command of fixpr.md that this
-// session runs to read the PR description: outside the agent prompts (the
-// blockquotes) it is the only command line that asks for the body, it is in
+// session runs to read the PR description: it is the only command line
+// starting with gh whose --json field list holds body (agent prompts are
+// blockquotes, whose lines start with >), it is in
 // Phase 6, and its --jq filter prints the number of correction paragraphs and
 // never the body, so the description does not enter the session. jq must be installed: a
 // missing jq fails the test instead of skipping it.
@@ -726,10 +727,9 @@ func TestFixprPhase6CountFilter(t *testing.T) {
 		{"null", nil, "0"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			// Every body holds bodyMarker, so an exact count also shows
+			// that no part of the body was printed.
 			out := runJQ(t, jq, filters[0], map[string]any{"body": tc.body})
-			if strings.Contains(out, bodyMarker) {
-				t.Errorf("the filter printed a body or a part of one: %q", out)
-			}
 			if out != tc.want+"\n" {
 				t.Errorf("the filter printed %q, want %q", out, tc.want+"\n")
 			}

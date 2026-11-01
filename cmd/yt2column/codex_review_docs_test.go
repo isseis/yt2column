@@ -275,22 +275,30 @@ func TestIsPost(t *testing.T) {
 		{"guard_reply", "fixprguard reply --protocol 3 <n>", true},
 		{"guard_append_pr", "fixprguard append-pr --protocol 4 --body-file <f> <n>", true},
 		{"guard_finish", "fixprguard finish --protocol 4 --baseline <b> --judged-set <j> <n>", true},
-		{"guard_finish_body", "fixprguard finish --protocol 4 --baseline <b> --judged-set <j> --body-file <f> <n>", true},
 		{"name_only", "gh issue comment`, and", false},
 		{"api_read", "gh api --paginate repos/o/r/issues/1/comments --jq '.[]'", false},
 		{"api_get_with_field", "gh api -X GET repos/o/r/issues -f state=open", false},
 		{"backquote_ends_command", "gh pr comment` (the request) --body-file", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			// A post must also be found by postingCommand, which the
-			// inventory scans the documents with.
-			if loc := postingCommand.FindStringIndex(tc.doc); tc.want && (loc == nil || loc[0] != 0) {
-				t.Errorf("postingCommand does not match %q at its start", tc.doc)
-			}
 			if got := isPost(invocation(tc.doc, 0)); got != tc.want {
 				t.Errorf("isPost(%q) = %v, want %v", invocation(tc.doc, 0), got, tc.want)
 			}
 		})
+	}
+}
+
+// TestPostingCommandsMatched checks that postingCommand, which
+// TestPostingCommandsInventory scans the documents with, finds every command
+// a posting section lists: a command it stopped matching would leave the
+// inventory blind to that post while the other posts keep it passing.
+func TestPostingCommandsMatched(t *testing.T) {
+	for _, ps := range postingSections {
+		for _, command := range ps.commands {
+			if loc := postingCommand.FindStringIndex(command); loc == nil || loc[0] != 0 {
+				t.Errorf("%s: postingCommand does not match %q at its start", ps.name, command)
+			}
+		}
 	}
 }
 

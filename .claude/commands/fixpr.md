@@ -856,6 +856,7 @@ the user with **all** of the following — bare counts alone are not enough:
    uncommitted changes" (`dirty-work-tree`), "the PR head is not in this
    repository" (`cross-repository`), "stopped: out-of-scope changes",
    "stopped: changes appeared after the judgment" (`judged-set-changed`),
+   "stopped: the migration byte comparison differed" (Phase 3),
    "stopped: the git state differs from the baseline" (`git-state-changed`,
    with its `parts`), "stopped: the README sync stopped", "stopped: the local
    CLI review stopped" (Phase 4.5), or the stop kind the tool printed.
@@ -908,7 +909,7 @@ the user with **all** of the following — bare counts alone are not enough:
 
 7. **Stops to act on**: when the run stopped for out-of-scope changes, the
    list (Phase 3.5). For every stop that leaves changes in the work tree (the
-   Phase 3.5 and Phase 4 stops), say that the next `/fixpr` stops with
+   Phase 3 migration check and the Phase 3.5 and Phase 4 stops), say that the next `/fixpr` stops with
    `dirty-work-tree` until the user examines the changes and discards or
    commits them, and then reruns. List every `reply-not-resolved` thread, to
    resolve by hand without replying again. When the README sync stopped, give
