@@ -167,6 +167,7 @@ const brandNames = [
   "PreparedRequest",
   "RequestId",
   "ArticleKey",
+  "UsdAmount",
 ];
 
 // Selectors shared by every file. The files-scoped config below reuses this
@@ -281,6 +282,6 @@ export default defineConfig(
   },
   creatorConfig("src/core/collect.ts", ["CollectedInput"]),
   creatorConfig("src/core/prepare.ts", ["PreparedRequest"]),
-  creatorConfig("src/core/response.ts", ["RequestId"]),
+  creatorConfig("src/core/response.ts", ["RequestId", "UsdAmount"]),
   creatorConfig("src/core/articleKey.ts", ["ArticleKey"]),
 );
