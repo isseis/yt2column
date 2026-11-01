@@ -3,15 +3,7 @@ import { describe, it } from "node:test";
 
 import { articlesRejectStatus } from "../src/core/articlesResponse.ts";
 import { developmentDoc } from "./helpers/developmentDoc.ts";
-import { readRepoFile } from "./helpers/repoFile.ts";
-
-/** The trimmed cells of a Markdown table line. */
-function cells(line: string): string[] {
-  return line
-    .split("|")
-    .slice(1, -1)
-    .map((cell) => cell.trim());
-}
+import { cells, readRepoFile } from "./helpers/repoFile.ts";
 
 /**
  * The reason-to-status pairs of the development guide's rejection table whose

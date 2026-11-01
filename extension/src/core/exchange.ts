@@ -5,6 +5,12 @@
 /** Why a request is known not to have reached the server. */
 export type NotSentCause = "server-unavailable" | "message-too-large";
 
+/** Runtime set of the causes; a Record, so it stays in step with the union. */
+export const notSentCauses: Record<NotSentCause, true> = {
+  "server-unavailable": true,
+  "message-too-large": true,
+};
+
 /**
  * Which check an unexpected reply failed; for the developer log only. The
  * first four are the host reply's outside, the next seven are the strict JSON
@@ -27,6 +33,26 @@ export type UnexpectedCheck =
   | "request-id"
   | "status-pairing"
   | "classification-error";
+
+/** Runtime set of the checks; read when a result crosses to another page. */
+export const unexpectedChecks: Record<UnexpectedCheck, true> = {
+  "envelope-shape": true,
+  "envelope-version": true,
+  "host-protocol-error": true,
+  "body-over-limit": true,
+  encoding: true,
+  bom: true,
+  syntax: true,
+  "duplicate-member": true,
+  "unpaired-surrogate": true,
+  "trailing-data": true,
+  "too-deep": true,
+  "member-set": true,
+  "value-shape": true,
+  "request-id": true,
+  "status-pairing": true,
+  "classification-error": true,
+};
 
 /**
  * An exchange result that is not a server response, as displayed and as

@@ -1,3 +1,5 @@
+import type { UsdAmount } from "../response.ts";
+
 /** The language the extension displays in. */
 export type Locale = "en" | "ja";
 
@@ -35,4 +37,39 @@ export function resolveLocale(uiLanguage: string | undefined): Locale {
 /** Formats a count with the locale's number format. */
 export function formatCount(value: number, locale: Locale): string {
   return new Intl.NumberFormat(locale).format(value);
+}
+
+/**
+ * Formats an elapsed time or a duration in whole seconds: seconds alone
+ * under a minute, minutes and seconds from one minute up (generation takes
+ * minutes, so hours are written as minutes). A negative value, from a clock
+ * set back, shows as zero.
+ */
+export function formatDuration(milliseconds: number, locale: Locale): string {
+  const total = Math.max(0, Math.floor(milliseconds / 1_000));
+  const unit = (name: "minute" | "second") =>
+    new Intl.NumberFormat(locale, {
+      style: "unit",
+      unit: name,
+      unitDisplay: "short",
+    });
+  const seconds = unit("second").format(total % 60);
+  if (total < 60) {
+    return seconds;
+  }
+  return `${unit("minute").format(Math.floor(total / 60))} ${seconds}`;
+}
+
+/**
+ * Formats the server's cost in US dollars with its four decimal places. The
+ * text is passed to the formatter as it is, never as a float, so the digits
+ * shown are the server's.
+ */
+export function formatUsd(usd: UsdAmount, locale: Locale): string {
+  return new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 4,
+    maximumFractionDigits: 4,
+  }).format(usd);
 }

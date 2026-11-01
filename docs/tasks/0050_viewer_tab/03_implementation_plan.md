@@ -8,7 +8,7 @@
 | Created | 2026-10-31 |
 | Review date | 2026-11-01 |
 | Reviewer | isseis |
-| Comments | 2026-11-01 (decision, approved in session): ステップ 1-1 の確認で、設計書 3.16 の行 10 が崩れた（凍結されたタブは問いに答え、破棄されたタブには新しいタブの ID が付く）。レビュアー（isseis）がセッションの中で扱いを選び、承認した。凍結されたタブは期待を観察に合わせ、破棄されたタブは「ビューアを開く」の重複を制約として受け入れた（要件 F-004・AC-21、設計書 3.16・4.2・6.6・7.2）。これに合わせて 4.3.2 の AC-08 の行を改めた。行 6 は、送り方を変えないことをレビュアーが選んだ（設計書 3.4.1 の項目 5）。ほかの決定は変えていない。 |
+| Comments | 2026-11-01 (decision, approved in session): ステップ 1-1 の確認で、設計書 3.16 の行 10 が崩れた（凍結されたタブは問いに答え、破棄されたタブには新しいタブの ID が付く）。レビュアー（isseis）がセッションの中で扱いを選び、承認した。凍結されたタブは期待を観察に合わせ、破棄されたタブは「ビューアを開く」の重複を制約として受け入れた（要件 F-004・AC-21、設計書 3.16・4.2・6.6・7.2）。これに合わせて 4.3.2 の AC-08 の行を改めた。行 6 は、送り方を変えないことをレビュアーが選んだ（設計書 3.4.1 の項目 5）。ほかの決定は変えていない。<br>2026-11-01 (editorial correction): PR-4 の実装のレビューで、ステップ 3-3 の `afterStatus` の記述に、直前が `kept` を持つ `lost` の場合を加えた（設計書 3.6 の同じ訂正。AC-15）。あわせて設計書 3.9 の `PublishOpNotice` の `unknown` にやり取りの結果を持たせた。決定は変えていない。 |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の項番、「設計書 3.2」などは設計書の節を指す。既存のコードと文書についての記述は、コミット `bf314092` で確かめた。`file:line` はこのコミットの行番号を指す。設計書は行番号をコミット `577e7b51` で確かめている。`git diff --stat 577e7b51 bf314092 -- extension cmd/yt2column/extension_docs_test.go internal/nmhost internal/server docs/dev/guides/development.md` の出力は空なので、設計書の拡張・Go のガード・ホスト・サーバ・`development.md` の行番号は、そのまま使える（`README.md` と `docs/dev/security.md` は、タスク `0051` の変更で行がずれている）。拡張のファイルのパスは、設計書と同じく `extension/` を省いて書く（例: `src/launch.ts`）。テストの場所は `path::describe の名前` で示す。まだないテストの describe の名前は、実装のときに決める仮の名前である。
 
@@ -260,8 +260,8 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **変更するファイル:** `src/core/viewerUrl.ts`（新規）、`test/viewerUrl.test.ts`（新規）
 
--   [ ] 設計書 3.5 の `ViewerSeed`・`ViewerParams`・`ViewerUrlError`・`viewerQuery`・`parseViewerUrl` を作る。表の 6 つの名前・上限・検査、作り方と読み方の規則、`+` の扱いに従う。
--   [ ] テスト: 作った URL が読み方の規則を通り、同じ値に戻ること。入力は、`+`・`%`・`&`・`=`・`#`・BMP の外の文字・U+FFFD・各上限ちょうどの長さの値を含む決まった組にする。AC-43 の拒否の各項目に 1 つ以上の URL、各上限の境目、`ViewerSeed` から作った URL が字幕と概要欄の目印の文字列を含まないこと（AC-09。設計書 7.3）。
+-   [x] 設計書 3.5 の `ViewerSeed`・`ViewerParams`・`ViewerUrlError`・`viewerQuery`・`parseViewerUrl` を作る。表の 6 つの名前・上限・検査、作り方と読み方の規則、`+` の扱いに従う。
+-   [x] テスト: 作った URL が読み方の規則を通り、同じ値に戻ること。入力は、`+`・`%`・`&`・`=`・`#`・BMP の外の文字・U+FFFD・各上限ちょうどの長さの値を含む決まった組にする。AC-43 の拒否の各項目に 1 つ以上の URL、各上限の境目、`ViewerSeed` から作った URL が字幕と概要欄の目印の文字列を含まないこと（AC-09。設計書 7.3）。
 
 **完了の条件:** `make ext-check` が通る。重複した名前を後勝ちで受理するように壊し、AC-43 の重複のテストが失敗することを確かめる。
 
@@ -269,8 +269,8 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **変更するファイル:** `src/core/extensionMessages.ts`（新規）、`test/extensionMessages.test.ts`（新規）
 
--   [ ] 設計書 3.4 のメッセージの型、5 つの `parse…` と `chooseViewer` を作る。`parseStartRequest` は設計書 3.4.1 の項目 3 の 4 の検査を行い、例外が起きても拒否にする。
--   [ ] テスト: 各メッセージの受理と拒否（メンバの過不足、型の違い、上限）、`StartRequest` の 4 MiB の境目、対になっていないサロゲート、未来の `sentAt`、`chooseViewer` の順（送信の時刻、同じならタブの ID）。
+-   [x] 設計書 3.4 のメッセージの型、5 つの `parse…` と `chooseViewer` を作る。`parseStartRequest` は設計書 3.4.1 の項目 3 の 4 の検査を行い、例外が起きても拒否にする。
+-   [x] テスト: 各メッセージの受理と拒否（メンバの過不足、型の違い、上限）、`StartRequest` の 4 MiB の境目、対になっていないサロゲート、未来の `sentAt`、`chooseViewer` の順（送信の時刻、同じならタブの ID）。
 
 **完了の条件:** `make ext-check` が通る。`parseStartRequest` が大きさの検査を飛ばすように壊し、4 MiB を超える求めのテストが失敗することを確かめる。
 
@@ -278,9 +278,9 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **変更するファイル:** `src/core/jobView.ts`（新規）、`src/core/poll.ts`（新規）、`test/jobView.test.ts`（新規）、`test/poll.test.ts`（新規）
 
--   [ ] `jobView.ts` に、設計書 3.6 の `ViewerState`・`StartFailure`・`JobDisplay`・`RetryingStatus`・`StoppingStatus`・`PollNotice` と、3.9 の `PublishRow`・`PublishControl`・`publishControl`・`PublishOpNotice` を作る。
--   [ ] `poll.ts` に、設計書 3.7 の定数と `PollStep`・`afterStatus` を作る。3.6 の表の行のとおりに表示と続けるか止めるかを決め、`unknown` で直前の `done` の記事を `kept` に残す。
--   [ ] テスト: `afterStatus` の表の各行（AC-11・AC-13〜AC-16・AC-18）、`publishControl` の 7 つの行と、2 つの行が同時に当てはまる組み合わせ（AC-28）、`publishing` の間と `lost` で押せないこと（AC-32）。
+-   [x] `jobView.ts` に、設計書 3.6 の `ViewerState`・`StartFailure`・`JobDisplay`・`RetryingStatus`・`StoppingStatus`・`PollNotice` と、3.9 の `PublishRow`・`PublishControl`・`publishControl`・`PublishOpNotice` を作る。
+-   [x] `poll.ts` に、設計書 3.7 の定数と `PollStep`・`afterStatus` を作る。3.6 の表の行のとおりに表示と続けるか止めるかを決め、`unknown` で直前の `done` の記事（直前が `kept` を持つ `lost` ならその `kept`）を `kept` に残す。
+-   [x] テスト: `afterStatus` の表の各行（AC-11・AC-13〜AC-16・AC-18）、`publishControl` の 7 つの行と、2 つの行が同時に当てはまる組み合わせ（AC-28）、`publishing` の間と `lost` で押せないこと（AC-32）。
 
 **完了の条件:** `make ext-check` が通る。`publishControl` の行の順を入れ替えるように壊し、重なりのテストが失敗することを確かめる。`afterStatus` が `posting` で止めるように壊し、AC-18 の行が失敗することを確かめる。
 
@@ -288,9 +288,9 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **変更するファイル:** `src/core/fileName.ts`（新規）、`src/core/acceptedUrl.ts`、`test/fileName.test.ts`（新規）、`test/acceptedUrl.test.ts`
 
--   [ ] `acceptedUrl.ts` に `watchVideoId` を加える（設計書 3.10）。`isAcceptedWatchUrl` と同じ解析を使う。
--   [ ] `fileName.ts` に `articleFileName` を作り、設計書 3.10 の表の規則を当てる。
--   [ ] テスト: `watchVideoId` が受け付ける URL の `v` を返し、受け付けない URL（`isAcceptedWatchUrl` の拒否の例）では値を返さないこと。表の置き換える文字の各群、先頭の `.`、UTF-8 で 200 バイトの境目とコードポイントの境目での切り詰め、`t` がない・空白だけのときの動画 ID、どの場合もパスの区切りと制御文字を含まず `.` で始まらず `.md` で終わること（AC-34）。
+-   [x] `acceptedUrl.ts` に `watchVideoId` を加える（設計書 3.10）。`isAcceptedWatchUrl` と同じ解析を使う。
+-   [x] `fileName.ts` に `articleFileName` を作り、設計書 3.10 の表の規則を当てる。
+-   [x] テスト: `watchVideoId` が受け付ける URL の `v` を返し、受け付けない URL（`isAcceptedWatchUrl` の拒否の例）では値を返さないこと。表の置き換える文字の各群、先頭の `.`、UTF-8 で 200 バイトの境目とコードポイントの境目での切り詰め、`t` がない・空白だけのときの動画 ID、どの場合もパスの区切りと制御文字を含まず `.` で始まらず `.md` で終わること（AC-34）。
 
 **完了の条件:** `make ext-check` が通る。切り詰めをバイトの途中で行うように壊し、境目のテストが失敗することを確かめる。
 
@@ -298,12 +298,12 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **変更するファイル:** `src/core/i18n/catalog.ts`、`src/core/i18n/en.ts`、`src/core/i18n/ja.ts`、`src/core/sendMessages.ts`、`src/core/i18n/locale.ts`、`tsconfig.json`、`tsconfig.core.json`、`test/catalog.test.ts`、`test/sendMessages.test.ts`、`test/jobCodes.test.ts`（新規）、`test/helpers/developmentDoc.ts`、`test/helpers/repoFile.ts`、`test/serverReasons.test.ts`
 
--   [ ] `Catalog` に、設計書 3.13 の表の節を、今の節と別の名前で加える（1.3）。キーの型を持つ節は `Record` にする。文言は設計書 3.13 の各項目（Slack に触れない、結果不明の範囲を断定しすぎない、生成の開始の `invalid_body` の最初の手順、工程の名前）に従い、用語は `docs/translation_glossary.md` に合わせる。
--   [ ] `sendMessages.ts` に、3 つの操作の結果と理由の文言を選ぶ関数を加える。`switch` の網羅性で欠けを知らせる形にする。
--   [ ] 経過時間・所要時間・推定の料金を整形する関数を加える（設計書 3.13。`locale.ts` の `formatCount` と同じ場所）。`tsconfig.json` と `tsconfig.core.json` の `lib` に `ES2023.Intl` を加える。
--   [ ] `test/jobCodes.test.ts` を作る。`development.md`「ジョブの API のコード」の 6 つの表の値の集合が、`response.ts` の `Record<…, true>` の集合と等しいことを確かめる（設計書 7.1）。表の見出しは `test/helpers/developmentDoc.ts` に置き、表の読み取りは `test/helpers/repoFile.ts`（`readRepoFile`・`markdownSection` と、`test/serverReasons.test.ts` から移す `cells`）を使う。
--   [ ] テスト: 1.4 の行き先の表の `sendMessages.test.ts` の確認（設定画面・トークン・ポートに触れない確認は、すべての節に広げる）、失敗の理由の 8 つの文言が互いに違うこと（AC-14）、英語と日本語の両方に文言があること（AC-37）、時間と料金の整形の例（`0.1234`、59 秒と 60 秒の境目）。
--   [ ] テスト（AC-04 の値の部分。`test/catalog.test.ts` だけに置く）: 送信中の文言と、生成の開始のやり取りの結果・拒否の理由の文言が、Slack に触れないこと。投稿の状態・理由と、Webhook が設定されていないことの文言は Slack に触れてよいので対象にしない。走査が文言の集合に届くことの対照として、投稿の文言の少なくとも 1 つが Slack を含むことも確かめる。
+-   [x] `Catalog` に、設計書 3.13 の表の節を、今の節と別の名前で加える（1.3）。キーの型を持つ節は `Record` にする。文言は設計書 3.13 の各項目（Slack に触れない、結果不明の範囲を断定しすぎない、生成の開始の `invalid_body` の最初の手順、工程の名前）に従い、用語は `docs/translation_glossary.md` に合わせる。
+-   [x] `sendMessages.ts` に、3 つの操作の結果と理由の文言を選ぶ関数を加える。`switch` の網羅性で欠けを知らせる形にする。
+-   [x] 経過時間・所要時間・推定の料金を整形する関数を加える（設計書 3.13。`locale.ts` の `formatCount` と同じ場所）。`tsconfig.json` と `tsconfig.core.json` の `lib` に `ES2023.Intl` を加える。
+-   [x] `test/jobCodes.test.ts` を作る。`development.md`「ジョブの API のコード」の 6 つの表の値の集合が、`response.ts` の `Record<…, true>` の集合と等しいことを確かめる（設計書 7.1）。表の見出しは `test/helpers/developmentDoc.ts` に置き、表の読み取りは `test/helpers/repoFile.ts`（`readRepoFile`・`markdownSection` と、`test/serverReasons.test.ts` から移す `cells`）を使う。
+-   [x] テスト: 1.4 の行き先の表の `sendMessages.test.ts` の確認（設定画面・トークン・ポートに触れない確認は、すべての節に広げる）、失敗の理由の 8 つの文言が互いに違うこと（AC-14）、英語と日本語の両方に文言があること（AC-37）、時間と料金の整形の例（`0.1234`、59 秒と 60 秒の境目）。
+-   [x] テスト（AC-04 の値の部分。`test/catalog.test.ts` だけに置く）: 送信中の文言と、生成の開始のやり取りの結果・拒否の理由の文言が、Slack に触れないこと。投稿の状態・理由と、Webhook が設定されていないことの文言は Slack に触れてよいので対象にしない。走査が文言の集合に届くことの対照として、投稿の文言の少なくとも 1 つが Slack を含むことも確かめる。
 
 **完了の条件:** `make ext-check` が通る。`ja.ts` の失敗の理由の文言を 1 つ別の理由の文言と同じにするように壊し、AC-14 のテストが失敗することを確かめる。`development.md` の工程の状態の表に 1 行を加えるように壊し（作業ツリーの中だけで、コミットしない）、`test/jobCodes.test.ts` が失敗することを確かめる。
 
@@ -319,10 +319,10 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **判定理由**: ステップ 3-3 のポーリングの規則と投稿のボタンが表で決まる状態の移り変わり（状態機械）を持ち、3-1・3-2 が信頼できない URL とメッセージを読むため
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/608
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 4: SW と manifest
 
@@ -748,7 +748,7 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 -   [x] PR-1 マージ済み（対象ステップ: 1-1）
 -   [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2）
 -   [x] PR-3 マージ済み（対象ステップ: 2-3 / 2-4 / 2-5）
--   [ ] PR-4 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5）
+-   [x] PR-4 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5）
 -   [ ] PR-5 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5）
 -   [ ] PR-6 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3）
 -   [ ] PR-7 マージ済み（対象ステップ: 5-4 / 5-5 / 5-6）
