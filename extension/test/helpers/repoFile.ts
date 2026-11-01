@@ -24,3 +24,11 @@ export function markdownSection(markdown: string, heading: string): string {
   const next = rest.search(/^#{1,3} /mu);
   return next < 0 ? rest : rest.slice(0, next);
 }
+
+/** The trimmed cells of a Markdown table line. */
+export function cells(line: string): string[] {
+  return line
+    .split("|")
+    .slice(1, -1)
+    .map((cell) => cell.trim());
+}

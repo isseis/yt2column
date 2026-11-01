@@ -6,8 +6,32 @@ import type { Catalog, Message } from "../src/core/i18n/catalog.ts";
 import { locales } from "../src/core/i18n/locale.ts";
 import type { Locale } from "../src/core/i18n/locale.ts";
 import { maxBodyBytes } from "../src/core/prepare.ts";
+import {
+  failureCodes,
+  publishReasons,
+  publishRejectStatus,
+  publishStates,
+  startRejectStatus,
+  statusRejectStatus,
+  stepNames,
+  stepStates,
+} from "../src/core/response.ts";
+import type { ServerRejectReason } from "../src/core/response.ts";
 
 const localeList = Object.keys(locales) as Locale[];
+
+/** The whole message as one string, for content checks of the displayed wording. */
+function textOf(message: Message): string {
+  return [message.text, ...message.steps].join("\n");
+}
+
+// No text mentions an options page, a token or a port. The ja words are
+// whole terms: the bare katakana for "port" would also match words such as
+// "support" and "report".
+const forbiddenWords: Record<Locale, RegExp> = {
+  en: /option|token|\bport\b/iu,
+  ja: /オプション|トークン|ポート番号/u,
+};
 
 interface Entries {
   /** Every Message in the catalog, by its path such as "rejection.empty-title". */
@@ -168,4 +192,96 @@ describe("catalogs", () => {
       );
     }
   });
+
+  for (const locale of localeList) {
+    it(`never mentions an options page, a token or a port in ${locale}`, () => {
+      const { messages, labels } = entries(catalogs[locale]);
+      // Precondition: the walk reached the job API's sections too.
+      assert.ok(messages.has("startExchange.noResponse"));
+      assert.ok(labels.has("viewer.publish"));
+      for (const [path, message] of messages) {
+        assert.doesNotMatch(textOf(message), forbiddenWords[locale], path);
+      }
+      for (const [path, label] of labels) {
+        assert.doesNotMatch(label, forbiddenWords[locale], path);
+      }
+    });
+
+    it(`gives every failure code a distinct message in ${locale}`, () => {
+      const codes = Object.keys(failureCodes) as (keyof typeof failureCodes)[];
+      const texts = codes.map((code) => catalogs[locale].failure[code].text);
+      assert.equal(new Set(texts).size, codes.length);
+    });
+
+    it(`has a message for every job API code and reason in ${locale}`, () => {
+      const catalog = catalogs[locale];
+      const sections: { name: string; codes: object; items: object }[] = [
+        { name: "failure", codes: failureCodes, items: catalog.failure },
+        { name: "stepNames", codes: stepNames, items: catalog.stepNames },
+        { name: "stepStates", codes: stepStates, items: catalog.stepStates },
+        {
+          name: "publishStates",
+          codes: publishStates,
+          items: catalog.publishStates,
+        },
+        {
+          name: "publishReasons",
+          codes: publishReasons,
+          items: catalog.publishReasons,
+        },
+        {
+          name: "jobReject",
+          codes: {
+            ...startRejectStatus,
+            ...statusRejectStatus,
+            ...publishRejectStatus,
+          },
+          items: catalog.jobReject,
+        },
+      ];
+      for (const { name, codes, items } of sections) {
+        assert.deepEqual(
+          Object.keys(items).sort(),
+          Object.keys(codes).sort(),
+          name,
+        );
+      }
+    });
+
+    it(`never mentions Slack while sending or for a start's result in ${locale}`, () => {
+      const catalog = catalogs[locale];
+      const startReasons = Object.keys(
+        startRejectStatus,
+      ) as ServerRejectReason[];
+      const walked = entries(catalog).messages;
+      const checked: [string, Message][] = [
+        ["popup.sending", catalog.popup.sending],
+        ["popup.viewerNotice", catalog.popup.viewerNotice],
+        ["viewer.sending", catalog.viewer.sending],
+        ...[...walked].filter(
+          ([path]) =>
+            path.startsWith("startExchange.") ||
+            path.startsWith("startResult."),
+        ),
+        ...startReasons.map((reason): [string, Message] => [
+          `jobReject.${reason}`,
+          catalog.jobReject[reason],
+        ]),
+      ];
+      // Precondition: every exchange message and both results were reached.
+      assert.equal(
+        checked.filter(([path]) => path.startsWith("start")).length,
+        7,
+      );
+      for (const [path, message] of checked) {
+        assert.equal(textOf(message).includes("Slack"), false, path);
+      }
+      // The scan reaches the wording: the publish messages may name Slack, and do.
+      assert.ok(
+        Object.values(catalog.publishStates).some((message) =>
+          textOf(message).includes("Slack"),
+        ),
+      );
+    });
+  }
 });

@@ -5,9 +5,12 @@ import { JSDOM } from "jsdom";
 
 import {
   formatCount,
+  formatDuration,
+  formatUsd,
   locales,
   resolveLocale,
 } from "../src/core/i18n/locale.ts";
+import type { UsdAmount } from "../src/core/response.ts";
 import type { Locale } from "../src/core/i18n/locale.ts";
 import { applyPageLocale } from "../src/ui/pageLocale.ts";
 
@@ -56,5 +59,42 @@ describe("applyPageLocale", () => {
       applyPageLocale(document, locale);
       assert.equal(document.documentElement.lang, locale);
     });
+  }
+});
+
+describe("formatDuration", () => {
+  const cases: { ms: number; want: Record<Locale, string> }[] = [
+    { ms: 0, want: { en: "0 sec", ja: "0 秒" } },
+    // Whole seconds: the fraction is dropped, not rounded up.
+    { ms: 59_999, want: { en: "59 sec", ja: "59 秒" } },
+    { ms: 60_000, want: { en: "1 min 0 sec", ja: "1 分 0 秒" } },
+    { ms: 65_000, want: { en: "1 min 5 sec", ja: "1 分 5 秒" } },
+    // Hours are written as minutes.
+    { ms: 3_725_000, want: { en: "62 min 5 sec", ja: "62 分 5 秒" } },
+    // A clock set back shows zero rather than a negative time.
+    { ms: -1_000, want: { en: "0 sec", ja: "0 秒" } },
+  ];
+  for (const { ms, want } of cases) {
+    for (const locale of Object.keys(locales) as Locale[]) {
+      it(`formats ${ms} ms in ${locale}`, () => {
+        assert.equal(formatDuration(ms, locale), want[locale]);
+      });
+    }
+  }
+});
+
+describe("formatUsd", () => {
+  const cases: { usd: string; want: string }[] = [
+    { usd: "0.1234", want: "$0.1234" },
+    { usd: "0.0000", want: "$0.0000" },
+    // Six integer digits, the most the response check accepts, with grouping.
+    { usd: "123456.1234", want: "$123,456.1234" },
+  ];
+  for (const { usd, want } of cases) {
+    for (const locale of Object.keys(locales) as Locale[]) {
+      it(`formats ${usd} in ${locale} with the server's digits`, () => {
+        assert.equal(formatUsd(usd as UsdAmount, locale), want);
+      });
+    }
   }
 });

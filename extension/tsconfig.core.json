@@ -1,7 +1,7 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "lib": ["ES2022"],
+    "lib": ["ES2022", "ES2023.Intl"],
     "types": []
   },
   "include": ["src/core", "types/core-url.d.ts", "types/core-encoding.d.ts"]

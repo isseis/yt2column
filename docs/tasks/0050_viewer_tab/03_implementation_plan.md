@@ -298,12 +298,12 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **変更するファイル:** `src/core/i18n/catalog.ts`、`src/core/i18n/en.ts`、`src/core/i18n/ja.ts`、`src/core/sendMessages.ts`、`src/core/i18n/locale.ts`、`tsconfig.json`、`tsconfig.core.json`、`test/catalog.test.ts`、`test/sendMessages.test.ts`、`test/jobCodes.test.ts`（新規）、`test/helpers/developmentDoc.ts`、`test/helpers/repoFile.ts`、`test/serverReasons.test.ts`
 
--   [ ] `Catalog` に、設計書 3.13 の表の節を、今の節と別の名前で加える（1.3）。キーの型を持つ節は `Record` にする。文言は設計書 3.13 の各項目（Slack に触れない、結果不明の範囲を断定しすぎない、生成の開始の `invalid_body` の最初の手順、工程の名前）に従い、用語は `docs/translation_glossary.md` に合わせる。
--   [ ] `sendMessages.ts` に、3 つの操作の結果と理由の文言を選ぶ関数を加える。`switch` の網羅性で欠けを知らせる形にする。
--   [ ] 経過時間・所要時間・推定の料金を整形する関数を加える（設計書 3.13。`locale.ts` の `formatCount` と同じ場所）。`tsconfig.json` と `tsconfig.core.json` の `lib` に `ES2023.Intl` を加える。
--   [ ] `test/jobCodes.test.ts` を作る。`development.md`「ジョブの API のコード」の 6 つの表の値の集合が、`response.ts` の `Record<…, true>` の集合と等しいことを確かめる（設計書 7.1）。表の見出しは `test/helpers/developmentDoc.ts` に置き、表の読み取りは `test/helpers/repoFile.ts`（`readRepoFile`・`markdownSection` と、`test/serverReasons.test.ts` から移す `cells`）を使う。
--   [ ] テスト: 1.4 の行き先の表の `sendMessages.test.ts` の確認（設定画面・トークン・ポートに触れない確認は、すべての節に広げる）、失敗の理由の 8 つの文言が互いに違うこと（AC-14）、英語と日本語の両方に文言があること（AC-37）、時間と料金の整形の例（`0.1234`、59 秒と 60 秒の境目）。
--   [ ] テスト（AC-04 の値の部分。`test/catalog.test.ts` だけに置く）: 送信中の文言と、生成の開始のやり取りの結果・拒否の理由の文言が、Slack に触れないこと。投稿の状態・理由と、Webhook が設定されていないことの文言は Slack に触れてよいので対象にしない。走査が文言の集合に届くことの対照として、投稿の文言の少なくとも 1 つが Slack を含むことも確かめる。
+-   [x] `Catalog` に、設計書 3.13 の表の節を、今の節と別の名前で加える（1.3）。キーの型を持つ節は `Record` にする。文言は設計書 3.13 の各項目（Slack に触れない、結果不明の範囲を断定しすぎない、生成の開始の `invalid_body` の最初の手順、工程の名前）に従い、用語は `docs/translation_glossary.md` に合わせる。
+-   [x] `sendMessages.ts` に、3 つの操作の結果と理由の文言を選ぶ関数を加える。`switch` の網羅性で欠けを知らせる形にする。
+-   [x] 経過時間・所要時間・推定の料金を整形する関数を加える（設計書 3.13。`locale.ts` の `formatCount` と同じ場所）。`tsconfig.json` と `tsconfig.core.json` の `lib` に `ES2023.Intl` を加える。
+-   [x] `test/jobCodes.test.ts` を作る。`development.md`「ジョブの API のコード」の 6 つの表の値の集合が、`response.ts` の `Record<…, true>` の集合と等しいことを確かめる（設計書 7.1）。表の見出しは `test/helpers/developmentDoc.ts` に置き、表の読み取りは `test/helpers/repoFile.ts`（`readRepoFile`・`markdownSection` と、`test/serverReasons.test.ts` から移す `cells`）を使う。
+-   [x] テスト: 1.4 の行き先の表の `sendMessages.test.ts` の確認（設定画面・トークン・ポートに触れない確認は、すべての節に広げる）、失敗の理由の 8 つの文言が互いに違うこと（AC-14）、英語と日本語の両方に文言があること（AC-37）、時間と料金の整形の例（`0.1234`、59 秒と 60 秒の境目）。
+-   [x] テスト（AC-04 の値の部分。`test/catalog.test.ts` だけに置く）: 送信中の文言と、生成の開始のやり取りの結果・拒否の理由の文言が、Slack に触れないこと。投稿の状態・理由と、Webhook が設定されていないことの文言は Slack に触れてよいので対象にしない。走査が文言の集合に届くことの対照として、投稿の文言の少なくとも 1 つが Slack を含むことも確かめる。
 
 **完了の条件:** `make ext-check` が通る。`ja.ts` の失敗の理由の文言を 1 つ別の理由の文言と同じにするように壊し、AC-14 のテストが失敗することを確かめる。`development.md` の工程の状態の表に 1 行を加えるように壊し（作業ツリーの中だけで、コミットしない）、`test/jobCodes.test.ts` が失敗することを確かめる。
 
