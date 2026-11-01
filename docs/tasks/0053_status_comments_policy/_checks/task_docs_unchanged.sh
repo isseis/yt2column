@@ -22,7 +22,8 @@
 #   1  another task's document changed (the merge-base and the head on stdout,
 #      the changed paths on stderr)
 #   2  the arguments or the repository are unusable (not two arguments, a
-#      value that is not a commit, no repository, or no docs/tasks/ directory)
+#      value that is not a commit, no repository, no docs/tasks/ directory, or
+#      a git command that fails)
 #
 # Run it once on each PR branch of the task, before its PR checkpoint. make
 # test and CI do not run it. It reads no environment variable and names no
@@ -51,7 +52,10 @@ for ref in "$1" "$2"; do
 		exit 2
 	fi
 done
-head=$(git -C "$root" rev-parse --verify "$2^{commit}")
+if ! head=$(git -C "$root" rev-parse --verify "$2^{commit}"); then
+	echo "cannot resolve $2" >&2
+	exit 2
+fi
 if ! base=$(git -C "$root" merge-base "$1" "$head"); then
 	echo "no merge-base of $1 and $2" >&2
 	exit 2
@@ -59,8 +63,11 @@ fi
 echo "merge-base: $base"
 echo "head: $head"
 
-changed=$(git -C "$root" diff --no-renames --name-only "$base" "$head" -- \
-	':(top)docs/tasks/' ":(top,exclude)$task/")
+if ! changed=$(git -C "$root" diff --no-renames --name-only "$base" "$head" -- \
+	':(top)docs/tasks/' ":(top,exclude)$task/"); then
+	echo "git diff failed" >&2
+	exit 2
+fi
 if [ -n "$changed" ]; then
 	echo "changed outside $task/:" >&2
 	printf '%s\n' "$changed" >&2

@@ -288,9 +288,9 @@ func run(ctx context.Context, args []string, e env) int {
 
 // stop reports err: a usage error (a value outside its grammar, a text file
 // reply, edit-pr or append-pr refuses, a body file finish refuses, or a PR
-// body append-pr would refuse to write) exits 2 with the diagnostic only; any other
-// error exits 1 with the stop output. A reply that may have been posted is a
-// stop whatever it wraps, so the caller does not post it again.
+// body append-pr would refuse to write) exits 2 with the diagnostic only; any
+// other error exits 1 with the stop output. A reply that may have been
+// posted is a stop whatever it wraps, so the caller does not post it again.
 func stop(e env, err error) int {
 	_, _ = fmt.Fprintln(e.stderr, "fixprguard:", err)
 	if !errors.Is(err, fixprguard.ErrReplyNotResolved) &&

@@ -1253,10 +1253,9 @@ func TestParseFinishBodyFile(t *testing.T) {
 	})
 }
 
-// TestFinishBodyFileRun runs finish --body-file and append-pr from the
-// command line: the commit holds the body, a commit-msg hook that rewrites
-// it stops the run as a git state change, and append-pr prints the write
-// output.
+// TestFinishBodyFileRun runs finish --body-file from the command line: the
+// commit holds the body, and a commit-msg hook that rewrites it reaches the
+// caller through main as exit 1 with stop git-state-changed and parts [head].
 func TestFinishBodyFileRun(t *testing.T) {
 	const body = "Editorial correction: docs/x.md: a stale name; no decision changed\n"
 	bodyFile := func(t *testing.T) string {
@@ -1307,18 +1306,24 @@ func TestFinishBodyFileRun(t *testing.T) {
 			t.Errorf("exit %d, output %+v; want %d, %s with parts [%s]", code, out, exitStop, fixprguard.StopGitStateChanged, fixprguard.PartHead)
 		}
 	})
-	t.Run("append_pr_output", func(t *testing.T) {
-		r := newTestRun(t, []cmdrunnertestutil.Step{
-			ghStep(`{"body":"## Summary"}`, nil, "pr", "view", testPR, "--json", "body"),
-			ghStep("", nil, "pr", "edit", testPR, "--body-file", "-"),
-		})
-		if code := r.Run(t, args(cmdAppendPR, "--body-file", bodyFile(t), testPR)...); code != exitContinue {
-			t.Fatalf("exit %d (%s)", code, r.Stderr)
-		}
-		if got := r.Stdout.String(); got != `{"protocol":`+strconv.Itoa(fixprguard.Protocol)+`,"written":true}`+"\n" {
-			t.Errorf("output = %q", got)
-		}
+}
+
+// TestAppendPRRun: append-pr prints the write output.
+func TestAppendPRRun(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "corrections.md")
+	if err := os.WriteFile(file, []byte("- `docs/x.md`: a stale name\n"), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	r := newTestRun(t, []cmdrunnertestutil.Step{
+		ghStep(`{"body":"## Summary"}`, nil, "pr", "view", testPR, "--json", "body"),
+		ghStep("", nil, "pr", "edit", testPR, "--body-file", "-"),
 	})
+	if code := r.Run(t, args(cmdAppendPR, "--body-file", file, testPR)...); code != exitContinue {
+		t.Fatalf("exit %d (%s)", code, r.Stderr)
+	}
+	if got := r.Stdout.String(); got != `{"protocol":`+strconv.Itoa(fixprguard.Protocol)+`,"written":true}`+"\n" {
+		t.Errorf("output = %q", got)
+	}
 }
 
 // mustParsePR is testPR as a PR number.
