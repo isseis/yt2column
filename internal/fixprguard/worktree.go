@@ -12,6 +12,7 @@ import (
 	"io"
 	"os"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/isseis/yt2column/internal/cmdrunner"
@@ -157,7 +158,7 @@ func (w *Worktree) Inspect(ctx context.Context, base Baseline, threads []ThreadP
 
 // changesAgainst lists the changes against the tree of the baseline's commit.
 func (w *Worktree) changesAgainst(ctx context.Context, base Baseline) ([]change, error) {
-	tree, _, err := w.commitObject(ctx, base.head)
+	tree, _, _, err := w.commitObject(ctx, base.head)
 	if err != nil {
 		return nil, err
 	}
@@ -194,9 +195,12 @@ func (e *BuildCheckError) Error() string { return ErrBuildChecksFailed.Error() +
 // Unwrap returns ErrBuildChecksFailed.
 func (e *BuildCheckError) Unwrap() error { return ErrBuildChecksFailed }
 
-// FinishRequest names the PR the commit subject refers to.
+// FinishRequest names the PR the commit subject refers to and, optionally,
+// the file holding the commit body. An empty BodyFile means the commit holds
+// the fixed subject alone.
 type FinishRequest struct {
-	PR PRNumber
+	PR       PRNumber
+	BodyFile string
 }
 
 // FinishResult is the output of finish. Commit is set only when Committed.
@@ -216,12 +220,25 @@ type FinishResult struct {
 // the check that the commit's tree is the formatted set. The git state is
 // compared after every make target and after every git command that runs
 // hooks. An empty judged set commits nothing.
+//
+// With a body file, the file is read and checked (readTextFile,
+// checkPostText, checkCommitBody) before anything else touches the work tree,
+// and a rejected file stops the run before any make target. The message is
+// built in memory from the text that was checked, so a file rewritten during
+// the build checks changes nothing, and git records it verbatim; the commit
+// check then requires the stored message to be that text, so a commit-msg
+// hook that rewrote it fails the run. Without a body file the commit and its
+// checks are unchanged.
 func (w *Worktree) Finish(ctx context.Context, base Baseline, judged JudgedSetID, req FinishRequest) (FinishResult, error) {
 	if _, err := ParseJudgedSetID(string(judged)); err != nil {
 		return FinishResult{}, err
 	}
 	if !req.PR.usable() {
 		return FinishResult{}, fmt.Errorf("%w: PR number", ErrInvalidInput)
+	}
+	message, err := commitMessage(req)
+	if err != nil {
+		return FinishResult{}, err
 	}
 	judgedChanges, err := w.checkedChanges(ctx, base)
 	if err != nil {
@@ -269,14 +286,54 @@ func (w *Worktree) Finish(ctx context.Context, base Baseline, judged JudgedSetID
 	if err := w.stage(ctx, base, formatted); err != nil {
 		return FinishResult{}, err
 	}
-	if _, err := w.git(ctx, "commit", "commit", "-q", "-m", CommitSubject(req.PR)); err != nil {
-		return FinishResult{}, w.undoStage(ctx, base, err)
-	}
-	commit, err := w.checkCommit(ctx, base, formatted)
+	commit, err := w.commit(ctx, base, formatted, req.PR, message)
 	if err != nil {
 		return FinishResult{}, err
 	}
 	return FinishResult{Protocol: Protocol, Committed: true, Commit: commit}, nil
+}
+
+// commit commits the staged set and checks the commit (checkCommit). With a
+// pinned message it commits that text verbatim; otherwise the fixed subject
+// alone, as finish always did. A failed commit undoes the staging.
+func (w *Worktree) commit(ctx context.Context, base Baseline, staged []change, pr PRNumber, message finishMessage) (string, error) {
+	args := []string{"commit", "-q", "-m", CommitSubject(pr)}
+	if message.pinned {
+		args = []string{"commit", "-q", "--cleanup=verbatim", "-m", message.text}
+	}
+	if _, err := w.git(ctx, "commit", args...); err != nil {
+		return "", w.undoStage(ctx, base, err)
+	}
+	return w.checkCommit(ctx, base, staged, message)
+}
+
+// finishMessage is the message finish commits with a body file: text is the
+// whole message and pinned says the stored message must equal it. Without a
+// body file it is the zero value, and the stored message is not compared.
+type finishMessage struct {
+	text   string
+	pinned bool
+}
+
+// commitMessage reads and checks the body file of req, when it names one, and
+// builds the message: the fixed subject, an empty line, and the body ending
+// in exactly one LF. git commit -m adds an LF only to text that does not end
+// in one, so the stored message is this text.
+func commitMessage(req FinishRequest) (finishMessage, error) {
+	if req.BodyFile == "" {
+		return finishMessage{}, nil
+	}
+	body, err := readTextFile(req.BodyFile)
+	if err != nil {
+		return finishMessage{}, err
+	}
+	if err := checkPostText(body); err != nil {
+		return finishMessage{}, err
+	}
+	if err := checkCommitBody(body); err != nil {
+		return finishMessage{}, err
+	}
+	return finishMessage{text: CommitSubject(req.PR) + "\n\n" + strings.TrimSuffix(body, "\n") + "\n", pinned: true}, nil
 }
 
 // checkedChanges compares the git state with the baseline (without the push
@@ -391,8 +448,10 @@ func (w *Worktree) undoStage(ctx context.Context, base Baseline, cause error) er
 // in exactly want: each path with want's kind and mode and a blob whose
 // content is the work tree's, still the content want was judged with. A hook
 // that rewrote the index or the work tree, a filter that changed what was
-// stored, and a replaced object all fail here, and no SHA is returned.
-func (w *Worktree) checkCommit(ctx context.Context, base Baseline, want []change) (string, error) {
+// stored, and a replaced object all fail here, and no SHA is returned. When
+// message is pinned, the stored message must also be its text; a commit whose
+// message differs is not the commit finish made, as a wrong parent is not.
+func (w *Worktree) checkCommit(ctx context.Context, base Baseline, want []change, message finishMessage) (string, error) {
 	if err := w.CheckState(ctx, base); err != nil {
 		return "", err
 	}
@@ -400,14 +459,15 @@ func (w *Worktree) checkCommit(ctx context.Context, base Baseline, want []change
 	if err != nil {
 		return "", err
 	}
-	tree, parents, err := w.commitObject(ctx, commit)
+	tree, parents, stored, err := w.commitObject(ctx, commit)
 	if err != nil {
 		return "", err
 	}
-	if branch == "" || digestString(branch) != base.branch || !slices.Equal(parents, []string{base.head}) {
+	if branch == "" || digestString(branch) != base.branch || !slices.Equal(parents, []string{base.head}) ||
+		(message.pinned && stored != message.text) {
 		return "", &GitStateError{Parts: []string{PartHead}}
 	}
-	baseTree, _, err := w.commitObject(ctx, base.head)
+	baseTree, _, _, err := w.commitObject(ctx, base.head)
 	if err != nil {
 		return "", err
 	}
@@ -516,7 +576,7 @@ func (w *Worktree) Push(ctx context.Context, base Baseline, commit string) (Push
 	if err != nil {
 		return PushResult{}, err
 	}
-	if _, parents, err := w.commitObject(ctx, commit); err != nil {
+	if _, parents, _, err := w.commitObject(ctx, commit); err != nil {
 		return PushResult{}, err
 	} else if !slices.Equal(parents, []string{base.head}) {
 		return PushResult{}, &GitStateError{Parts: []string{PartHead}}

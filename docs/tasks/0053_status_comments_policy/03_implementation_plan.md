@@ -97,13 +97,13 @@
 
 **変更するファイル:** `internal/fixprguard/worktree.go`、`internal/fixprguard/gitstate.go`、`internal/fixprguard/write.go`、`internal/fixprguard/errors.go`、`internal/fixprguard/worktree_flow_test.go`、`internal/fixprguard/write_test.go`、`internal/fixprguard/gitstate_test.go`
 
--   [ ] `FinishRequest` に `BodyFile` を加える（設計書 3.4.1 節の型）。
--   [ ] 訂正の行の形の検査を、`write.go` に新しい関数として加える（受け付ける内容は設計書 3.4.1 節）。
--   [ ] `Finish` が、作業ツリーの照合より前に本文のファイルを読んで検査するようにする（`readTextFile`・`checkPostText`・上の関数）。誤りがあれば `ErrInvalidInput` を返し、`make` も stage も commit もしない。
--   [ ] 本文があるときは、1.4 節の「採る方法」の形でメッセージを組み立てて commit する。本文がないときの commit の呼び出しは変えない。
--   [ ] `commitObject` がメッセージも返すようにし、4 か所の呼び出し元を合わせる。この変更は振る舞いを変えない準備として、`--body-file` の振る舞いとは別のコミットにする（`Push` と `changesAgainst` の呼び出し元を、振る舞いが変わらないことだけを見て読めるようにするため）。本文があるときだけ、`checkCommit` で、記録されたメッセージが組み立てた文字列と一致することを確かめ、一致しなければ `PartHead` の `GitStateError` を返す（1.4 節）。
--   [ ] `ErrInvalidInput` のコメントに `finish` の本文のファイルを加える。
--   [ ] 4.1 節の 1-1 の行のテストを加え、`TestFinishCommitSubject` が件名だけのメッセージ全体を確かめるようにする。
+-   [x] `FinishRequest` に `BodyFile` を加える（設計書 3.4.1 節の型）。
+-   [x] 訂正の行の形の検査を、`write.go` に新しい関数として加える（受け付ける内容は設計書 3.4.1 節）。
+-   [x] `Finish` が、作業ツリーの照合より前に本文のファイルを読んで検査するようにする（`readTextFile`・`checkPostText`・上の関数）。誤りがあれば `ErrInvalidInput` を返し、`make` も stage も commit もしない。
+-   [x] 本文があるときは、1.4 節の「採る方法」の形でメッセージを組み立てて commit する。本文がないときの commit の呼び出しは変えない。
+-   [x] `commitObject` がメッセージも返すようにし、4 か所の呼び出し元を合わせる。この変更は振る舞いを変えない準備として、`--body-file` の振る舞いとは別のコミットにする（`Push` と `changesAgainst` の呼び出し元を、振る舞いが変わらないことだけを見て読めるようにするため）。本文があるときだけ、`checkCommit` で、記録されたメッセージが組み立てた文字列と一致することを確かめ、一致しなければ `PartHead` の `GitStateError` を返す（1.4 節）。
+-   [x] `ErrInvalidInput` のコメントに `finish` の本文のファイルを加える。
+-   [x] 4.1 節の 1-1 の行のテストを加え、`TestFinishCommitSubject` が件名だけのメッセージ全体を確かめるようにする。
 
 **完了の条件:** 4.1 節の 1-1 の行のテストが通る。同じ行の「壊して確かめる」の各項目で該当のテストが落ちることを確かめ、コミットメッセージに書いた。
 
@@ -111,11 +111,11 @@
 
 **変更するファイル:** `internal/fixprguard/write.go`、`internal/fixprguard/errors.go`、`internal/fixprguard/write_test.go`
 
--   [ ] `AppendPRRequest` と `(*GitHub).AppendPR` を加える（設計書 3.4.2 節の型）。
--   [ ] `AppendPR` は、`gh` を呼ぶ前に、ファイルを `readTextFile`・`checkPostText` と `@`・`<` の拒否で検査する。今の本文の取得と読み方、空行での区切り、足した後の検査、書き込みは 1.4 節のとおりにする。足した後の検査に通らなければ `ErrInvalidInput` を返し、`pr edit` を呼ばない。
--   [ ] 取得した本文を、戻り値の誤りにも診断にも含めない。
--   [ ] `ErrInvalidInput` のコメントに `append-pr` を加える。
--   [ ] 4.1 節の 1-2 の行のテストを加える。
+-   [x] `AppendPRRequest` と `(*GitHub).AppendPR` を加える（設計書 3.4.2 節の型）。
+-   [x] `AppendPR` は、`gh` を呼ぶ前に、ファイルを `readTextFile`・`checkPostText` と `@`・`<` の拒否で検査する。今の本文の取得と読み方、空行での区切り、足した後の検査、書き込みは 1.4 節のとおりにする。足した後の検査に通らなければ `ErrInvalidInput` を返し、`pr edit` を呼ばない。
+-   [x] 取得した本文を、戻り値の誤りにも診断にも含めない。
+-   [x] `ErrInvalidInput` のコメントに `append-pr` を加える。
+-   [x] 4.1 節の 1-2 の行のテストを加える。
 
 **完了の条件:** 4.1 節の 1-2 の行のテストが通る。同じ行の「壊して確かめる」の各項目で該当のテストが落ちることを確かめ、コミットメッセージに書いた。
 
@@ -123,10 +123,10 @@
 
 **変更するファイル:** `cmd/fixprguard/main.go`、`cmd/fixprguard/main_test.go`
 
--   [ ] サブコマンドの名前 `append-pr` の定数を加え、`specs` に `append-pr` を加える（`--body-file` は必須、`[PR]` は省略できる、`usesGH`）。`cmdFinish` の `flags` に `flagBodyFile` を加え、`required` には加えない。
--   [ ] `finish` の処理が、`--body-file` の値を `FinishRequest.BodyFile` に渡すようにする。`append-pr` の処理を `editPR` と同じ形で加え、出力は `writeOutput`（設計書 3.4.2 節「出力」）とする。
--   [ ] `stop` と `writeOutput` のコメントに `finish` と `append-pr` を加える（1.4 節）。
--   [ ] 4.1 節の 1-3 の行のテストを加える。`lines`・`validArgs` に `append-pr` の行を、`TestPostTextMentionExitsUsage` に新しい経路の行を加える。
+-   [x] サブコマンドの名前 `append-pr` の定数を加え、`specs` に `append-pr` を加える（`--body-file` は必須、`[PR]` は省略できる、`usesGH`）。`cmdFinish` の `flags` に `flagBodyFile` を加え、`required` には加えない。
+-   [x] `finish` の処理が、`--body-file` の値を `FinishRequest.BodyFile` に渡すようにする。`append-pr` の処理を `editPR` と同じ形で加え、出力は `writeOutput`（設計書 3.4.2 節「出力」）とする。
+-   [x] `stop` と `writeOutput` のコメントに `finish` と `append-pr` を加える（1.4 節）。
+-   [x] 4.1 節の 1-3 の行のテストを加える。`lines`・`validArgs` に `append-pr` の行を、`TestPostTextMentionExitsUsage` に新しい経路の行を加える。
 
 **完了の条件:** `make test` と `make lint` が通る。4.1 節の 1-3 の行の「壊して確かめる」の各項目で該当のテストが落ちることを確かめ、コミットメッセージに書いた。
 
@@ -134,10 +134,10 @@
 
 **変更するファイル:** `docs/dev/guides/fixprguard_guide.md`、`docs/dev/conventions/package_reference.md`
 
--   [ ] 手引き 5 章の `finish` の見出しと説明に `[--body-file FILE]` を加え、受け付ける内容と、ファイルを作業ツリーの外に置くこと（1-1 のテストで確かめた振る舞い）を書く。`edit-pr` の後に `append-pr --body-file FILE [PR]` の節を加える。
--   [ ] 手引き 4 章の終了コード `2` の行に、`finish` の本文のファイルの拒否と、`append-pr` のファイルと足した後の本文の拒否を加える。古いツールの 2 つの診断と再インストールの案内も書く（1.4 節「`cmd/fixprguard`」、設計書 3.4.3 節）。診断の文は、マージベースの `main` のツールを `go run ./cmd/fixprguard` で実行して得る。呼び出しは `fixpr.md` に書く形（`--protocol 4` と必須のフラグと PR 番号をすべて付けた形）にする。マージベースのツリーは、スクラッチパッドに作った `git worktree` に取り出して使う。2 つの標準エラーの行と、実行したコミットを本書 7.1 節に記録する。
--   [ ] 手引き 7.1 節の保証の表に、`finish` の本文のファイルと `append-pr` を加える（設計書 5 章の末尾）。手引き 8 章の `git-state-changed` の行に、hook がメッセージを変えた場合を加える（1.4 節）。
--   [ ] `package_reference.md` の `cmd/fixprguard` の行（サブコマンドの一覧）と `internal/fixprguard` の行（`NewGitHubWithoutReviewer` で作った `GitHub` が使える呼び出しに、`AppendPR` を加える）を直す。
+-   [x] 手引き 5 章の `finish` の見出しと説明に `[--body-file FILE]` を加え、受け付ける内容と、ファイルを作業ツリーの外に置くこと（1-1 のテストで確かめた振る舞い）を書く。`edit-pr` の後に `append-pr --body-file FILE [PR]` の節を加える。
+-   [x] 手引き 4 章の終了コード `2` の行に、`finish` の本文のファイルの拒否と、`append-pr` のファイルと足した後の本文の拒否を加える。古いツールの 2 つの診断と再インストールの案内も書く（1.4 節「`cmd/fixprguard`」、設計書 3.4.3 節）。診断の文は、マージベースの `main` のツールを `go run ./cmd/fixprguard` で実行して得る。呼び出しは `fixpr.md` に書く形（`--protocol 4` と必須のフラグと PR 番号をすべて付けた形）にする。マージベースのツリーは、スクラッチパッドに作った `git worktree` に取り出して使う。2 つの標準エラーの行と、実行したコミットを本書 7.1 節に記録する。
+-   [x] 手引き 7.1 節の保証の表に、`finish` の本文のファイルと `append-pr` を加える（設計書 5 章の末尾）。手引き 8 章の `git-state-changed` の行に、hook がメッセージを変えた場合を加える（1.4 節）。
+-   [x] `package_reference.md` の `cmd/fixprguard` の行（サブコマンドの一覧）と `internal/fixprguard` の行（`NewGitHubWithoutReviewer` で作った `GitHub` が使える呼び出しに、`AppendPR` を加える）を直す。
 
 **完了の条件:** 文書のガード（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./cmd/codexreview ./internal/pipeline`）が通る。手引きの記述を、1-1〜1-3 の実装とテスト、および古いツールの実際の出力と突き合わせた。
 
@@ -145,9 +145,9 @@
 
 **変更するファイル:** `docs/tasks/0053_status_comments_policy/_checks/task_docs_unchanged.sh`（新規）、本書 7.1 節
 
--   [ ] マージベースと head を比べ、`docs/tasks/` 以下で変わったパスが、どれも `docs/tasks/0053_status_comments_policy/` の下にあることを確かめるスクリプトを作る（設計書 7.3 節）。マージベースは `/runplan` が `task-pr-handoff.md` Part A で取得した `origin/main` から求める。名前の変更は、元の場所の削除と新しい場所の追加として数える（`--no-renames`）。パスは `:(top)` を付けて最上位から比べ、本タスクのディレクトリの名前で始まるだけの別のディレクトリを本タスクのものとみなさない。`sh` と `git` だけを使い、終了コードの意味と使い方を冒頭のコメントに書く（タスク 0044 の `extension_unchanged.sh` と同じ形）。
--   [ ] スクリプトが期待どおりに失敗することを、スクラッチパッドに作った使い捨ての clone で確かめる（PR のブランチは変えない）。ほかのタスクの文書の変更・削除、ほかのタスクから本タスクのディレクトリへの名前の変更、本タスクの名前で始まる別のディレクトリの変更、引数やリポジトリの誤りのそれぞれで、期待する終了コードになることを見る。各場合の終了コードを本書 7.1 節に記録する。
--   [ ] PR-1 のブランチで、ほかの作業がすべて終わった後に実行する。出力・終了コード・マージベースと、実行した時点の head のコミット ID を本書 7.1 節に記録する。記録を書くコミットが本書だけを変えることも、あわせて記録する。
+-   [x] マージベースと head を比べ、`docs/tasks/` 以下で変わったパスが、どれも `docs/tasks/0053_status_comments_policy/` の下にあることを確かめるスクリプトを作る（設計書 7.3 節）。マージベースは `/runplan` が `task-pr-handoff.md` Part A で取得した `origin/main` から求める。名前の変更は、元の場所の削除と新しい場所の追加として数える（`--no-renames`）。パスは `:(top)` を付けて最上位から比べ、本タスクのディレクトリの名前で始まるだけの別のディレクトリを本タスクのものとみなさない。`sh` と `git` だけを使い、終了コードの意味と使い方を冒頭のコメントに書く（タスク 0044 の `extension_unchanged.sh` と同じ形）。
+-   [x] スクリプトが期待どおりに失敗することを、スクラッチパッドに作った使い捨ての clone で確かめる（PR のブランチは変えない）。ほかのタスクの文書の変更・削除、ほかのタスクから本タスクのディレクトリへの名前の変更、本タスクの名前で始まる別のディレクトリの変更、引数やリポジトリの誤りのそれぞれで、期待する終了コードになることを見る。各場合の終了コードを本書 7.1 節に記録する。
+-   [x] PR-1 のブランチで、ほかの作業がすべて終わった後に実行する。出力・終了コード・マージベースと、実行した時点の head のコミット ID を本書 7.1 節に記録する。記録を書くコミットが本書だけを変えることも、あわせて記録する。
 
 **完了の条件:** スクリプトの終了コードが 0 で、その記録が本書 7.1 節にある。
 
@@ -163,10 +163,10 @@
 
 **判定理由**: 1-1・1-2 は、GitHub に届く新しい 2 つの経路（コミットメッセージの本文と PR 本文への追記）の守りを加える、セキュリティの関門の変更である。1-1 は `push` も使う `commitObject` と `checkCommit` も変える。これは `mkplan.md` 手順 8 の panel mode の条件に当たる。1-3（`cmd/`）が 1-1・1-2（`internal/`）に依存するので、1-1・1-2 を先にし、1-3 を後にする。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/613
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 PR-1 の本文には、マージの直後に `make install-fixprguard` で再インストールすることを書く（設計書 8 章「移行の注意」）。
 
@@ -323,7 +323,7 @@ PR-2 は M1 の後に始める。PR-2 の `/fixpr` が新しいツールを使�
 | 1-2 | `TestAppendPR`（`write_test.go`） | 今の本文（`trickyTexts`、空、LF で終わる、CRLF を含む）の後ろに、空行を挟んでファイルの内容を足した本文を、標準入力で、`--title` なしで書き込む。今の本文のバイト列は変わらない。足した後がちょうど上限なら書き込む | `--title` を付ける。今の本文を整える |
 | 1-2 | `TestAppendPRRejects`（同） | ファイルの `@`・`<`・メンションと `readTextFile` が拒否する 1 例では、`gh` を一度も呼ばない。足した後が上限を 1 バイト超える場合と、今の本文がメンションを含む場合は `ErrInvalidInput` を返し、`pr edit` を呼ばない。`pr view` の失敗、上限を超える応答、`body` がない・`null`・文字列でない応答は `ErrResponseRejected` を返す。どの誤りにも、今の本文に置いた目印が含まれない | `@`・`<` の拒否を外す。足した後の検査を外す |
 | 1-3 | `TestParseAppendPR`・`TestParseFinishBodyFile`（`cmd/fixprguard/main_test.go`） | `append-pr` は `--body-file` を必須とし、`[PR]` を省略できる。`finish` は `--body-file` を受け付け、省略もできる | `specs` から `append-pr` を外す |
-| 1-3 | `TestFinishBodyFileRun`（同） | 一時ディレクトリのリポジトリで `finish --body-file` を実行すると、commit のメッセージに本文が入る。`append-pr` の出力が `{"protocol":4,"written":true}` である | `main.go` で `BodyFile` を渡さない |
+| 1-3 | `TestFinishBodyFileRun`・`TestAppendPRRun`（同） | 一時ディレクトリのリポジトリで `finish --body-file` を実行すると、commit のメッセージに本文が入る（`TestFinishBodyFileRun`）。`append-pr` の出力が `{"protocol":4,"written":true}` である（`TestAppendPRRun`） | `main.go` で `BodyFile` を渡さない |
 | 1-3 | 既存の表に行を加える（同） | `lines`・`validArgs` の `append-pr` の行（`GH_REPO`・`GH_HOST`、`--protocol`、`--reviewer` の拒否）。`TestPostTextMentionExitsUsage` の `finish` の本文、`append-pr` のファイル、メンションを含む今の本文の行（終了コード `2`、診断が文を含まない）。メッセージが変わったときの止まった種類（`git-state-changed`、終了コード `1`）は、`TestFinishBodyFileRun` の部分テストで確かめる（`TestStopKinds` は止まった種類ごとに 1 つの場面を持つ表で、`git-state-changed` の場面は既にある。`main_test.go:570`） | `append-pr` の処理を外す |
 | 4-4 | `TestFixprPhase6CountFilter`（`cmd/yt2column/fixpr_docs_test.go`） | Phase 6 のうち、このセッションが実行する部分（エージェントへの指示の引用の外）に、数を取得するコマンドがちょうど 1 つある。その `--jq` の式を、`bodyMarker` と N 個の訂正の段落、似た形（字下げした段落、行の途中の書き出し、CRLF）を含む `{"body": ...}` に当てると、出力がちょうど整数 N になり、目印を含まない。`jq` がなければ、読み飛ばさずに落ちる | 式が本文を出力する形にする。式が常に `0` を出力する形にする |
 | 4-4 | `TestFixprguardCallSites`・`TestIsPost`・`TestPostingPathsCheckMention`・`TestPostingCommandsInventory`・`TestDocumentedInvocationsParse`（既存の表に行を加える） | 1.4 節「文書のガード」の変更 | `postingCommand` から `append-pr` を外す。Phase 4 のメンションの確認を消す |
@@ -362,7 +362,7 @@ N/A（設計書 7.2 節）。コマンドの定義を実行した結果は、本
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
-- [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5）
+- [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5）
 - [ ] PR-2 マージ済み（対象ステップ: 2-1 / 3-1 / 3-2 / 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 5-1）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
@@ -373,7 +373,7 @@ N/A（設計書 7.2 節）。コマンドの定義を実行した結果は、本
 |---|---|---|---|
 | AC-01 | manual・test・static | PR-2 のレビューで、規則の「Editing an approved document」と訂正の行の節を読む。`/fixpr` のコミットメッセージの部分は `internal/fixprguard/worktree_flow_test.go::TestFinishCommitBody`・`TestFinishRejectsBodyFile`・`TestFinishDetectsRewrittenMessage`、`internal/fixprguard/write_test.go::TestCommitBodyChecks`、`cmd/fixprguard/main_test.go::TestFinishBodyFileRun`、`cmd/yt2column/codex_review_docs_test.go::TestPostingPathsCheckMention`（Phase 4 の行） | 1-1・1-3・2-1・4-2・4-4・4-5 |
 | AC-02 | manual | PR-2 のレビューで、`task-pr-handoff.md` Part B 手順 3 と `runpr.md` 手順 1 を読む | 3-2 |
-| AC-03 | manual・test・static | PR-2 のレビューで、`fixpr.md` Phase 6 と `runplan.md:63` の書き換え（設計書 3.7 節の読み替え）を読む。`internal/fixprguard/write_test.go::TestAppendPR`・`TestAppendPRRejects`、`cmd/fixprguard/main_test.go::TestParseAppendPR`・`TestFinishBodyFileRun`、`cmd/yt2column/fixpr_docs_test.go::TestFixprguardCallSites`、`cmd/fixprguard/docs_test.go::TestDocumentedInvocationsParse`、`cmd/yt2column/codex_review_docs_test.go::TestPostingCommandsInventory`・`TestPostingPathsCheckMention`・`TestIsPost` | 1-2・1-3・4-3・4-4・4-5 |
+| AC-03 | manual・test・static | PR-2 のレビューで、`fixpr.md` Phase 6 と `runplan.md:63` の書き換え（設計書 3.7 節の読み替え）を読む。`internal/fixprguard/write_test.go::TestAppendPR`・`TestAppendPRRejects`、`cmd/fixprguard/main_test.go::TestParseAppendPR`・`TestAppendPRRun`、`cmd/yt2column/fixpr_docs_test.go::TestFixprguardCallSites`、`cmd/fixprguard/docs_test.go::TestDocumentedInvocationsParse`、`cmd/yt2column/codex_review_docs_test.go::TestPostingCommandsInventory`・`TestPostingPathsCheckMention`・`TestIsPost` | 1-2・1-3・4-3・4-4・4-5 |
 | AC-04 | manual・static | PR-2 のレビューで、`fixpr.md` Phase 6 の書き直しの指示と段落の数の確認を読む。段落の数を取得する式は `cmd/yt2column/fixpr_docs_test.go::TestFixprPhase6CountFilter` | 4-3・4-4 |
 | AC-05 | manual | PR-2 のレビューで、`fixpr.md` の Phase 6 と最終報告、`runpr.md` 手順 4 の問いを読む | 3-1・4-3 |
 | AC-06 | manual | PR-2 のレビューで、対象のコマンドの定義を読む（読む箇所はステップ 4-5 で洗い出し、PR の本文に挙げる） | 3-1・4-1・4-5 |
@@ -395,6 +395,41 @@ N/A（設計書 7.2 節）。コマンドの定義を実行した結果は、本
 ### 7.1. PR-1 の実行の記録
 
 （ステップ 1-4 の古いツールの診断と、ステップ 1-5 のスクリプトの負の場合と実行の結果を記録する。）
+
+**古いツールの診断（ステップ 1-4）:** マージベース `0aef3ed8045a3508b85e8cf88778c3cb006b336f`（`origin/main`）のツリーをスクラッチパッドの `git worktree` に取り出し、そのディレクトリで `go run ./cmd/fixprguard` を実行した（2026-11-01）。`go run` 自身の `exit status 2` の行は、ツールの終了コード `2` を示す。
+
+| 呼び出し | 標準エラー | 終了コード |
+|---|---|---|
+| `finish --protocol 4 --baseline v3.x --judged-set j --body-file /tmp/x.txt 42` | `fixprguard: usage: flag provided but not defined: -body-file (see docs/dev/guides/fixprguard_guide.md)` | `2` |
+| `append-pr --protocol 4 --body-file /tmp/x.txt 42` | `fixprguard: usage (see docs/dev/guides/fixprguard_guide.md)` | `2` |
+
+どちらも引数の解析で止まるので、値の文法（`--baseline`・`--judged-set`）を確かめる前の診断である。
+
+**AC-19 のスクリプトの負の場合（ステップ 1-5）:** `git clone` で作った使い捨ての clone をスクラッチパッドに置き、マージベース `0aef3ed8045a3508b85e8cf88778c3cb006b336f` から 1 つの commit を作って、`task_docs_unchanged.sh 0aef3ed8045a3508b85e8cf88778c3cb006b336f HEAD` を実行した（2026-11-01）。PR のブランチは変えていない。
+
+| 場合 | 終了コード |
+|---|---|
+| 本タスクのディレクトリの文書だけを変更 | `0` |
+| ほかのタスクの文書（`docs/tasks/0044_article_job_api/01_requirements.md`）を変更 | `1` |
+| ほかのタスクの文書を削除 | `1` |
+| ほかのタスクの文書を本タスクのディレクトリへ名前を変更（`git mv`） | `1`（元の場所の削除として示す） |
+| 本タスクの名前で始まる別のディレクトリ（`docs/tasks/0053_status_comments_policy_x/`）にファイルを追加 | `1` |
+| `docs/tasks/` の外（`README.md`）だけを変更 | `0` |
+| ほかのタスクの文書を変更し、`internal/` から実行 | `1` |
+| 引数なし、引数 1 つ | `2` |
+| コミットでない値（`nosuchref`） | `2` |
+| リポジトリの外で実行 | `2` |
+| `docs/tasks/` のない作業ツリーで実行 | `2` |
+
+**AC-19 のスクリプトの PR-1 のブランチでの実行（ステップ 1-5）:** ほかの作業をすべて終えた後、ブランチ `isseis/0053-status-comments-policy-04` で `docs/tasks/0053_status_comments_policy/_checks/task_docs_unchanged.sh origin/main HEAD` を実行した（2026-11-02）。マージベースは `0aef3ed8045a3508b85e8cf88778c3cb006b336f`、実行した時点の head は `15f3927b2de98cfc8fb690834a116e80b2086ae0` である。終了コードは `0`、出力は次のとおり。
+
+```text
+merge-base: 0aef3ed8045a3508b85e8cf88778c3cb006b336f
+head: 15f3927b2de98cfc8fb690834a116e80b2086ae0
+docs/tasks/: only docs/tasks/0053_status_comments_policy/ changed
+```
+
+この記録を書くコミットは本書だけを変える。
 
 ### 7.2. PR-2 の差分の確かめの実行の記録
 

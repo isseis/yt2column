@@ -74,7 +74,7 @@ go version -m "$(command -v fixprguard)"
 |---|---|---|
 | `0` | 続けてよい | サブコマンドの結果 |
 | `1` | 止める | `stop`（止まった種類）と、種類ごとの詳細（8 章） |
-| `2` | 使い方の誤り（フラグ、値の文法、`--protocol` の不一致、`GH_REPO`・`GH_HOST`、空の位置引数）。ほかに、作業ツリーの最上位でない・detached HEAD・`.git` ファイルの形の誤り（`begin`）と、`--comment-id` がスレッドの最初のコメントでないこと（`reply`。GitHub を読んだ後に分かる）も `2` になる。`reply` の本文、`edit-pr` のタイトルか本文が `@codex` のメンションを含むことも `2` になる（GitHub に書き込む前に分かる。5 章）。診断が `flag given twice: --reviewer` を含むときは、インストール済みのツールが `--reviewer` の繰り返しに対応する前のものである。`make install-fixprguard` で再インストールすれば直る。インストール済みのツールが作られたコミットは、`go version -m "$(command -v fixprguard)"` の `vcs.revision` で確かめられる（3 章） | なし |
+| `2` | 使い方の誤り（フラグ、値の文法、`--protocol` の不一致、`GH_REPO`・`GH_HOST`、空の位置引数）。ほかに、作業ツリーの最上位でない・detached HEAD・`.git` ファイルの形の誤り（`begin`）と、`--comment-id` がスレッドの最初のコメントでないこと（`reply`。GitHub を読んだ後に分かる）も `2` になる。`reply` の本文、`edit-pr` のタイトルか本文が `@codex` のメンションを含むことも `2` になる（GitHub に書き込む前に分かる。5 章）。`finish` の本文のファイル（`--body-file`）が受け付ける内容に合わないこと（`make` も commit もしない）、`append-pr` のファイルが受け付ける内容に合わないこと、`append-pr` が足した後の本文が 64 KiB を超えるかメンションを含むこと（今の本文が既に含む場合を含む）も `2` になる（GitHub に書き込む前に分かる。5 章）。次の診断は、インストール済みのツールが古いことを示す。`make install-fixprguard` で再インストールすれば直る。(a) `flag given twice: --reviewer` を含むときは、`--reviewer` の繰り返しに対応する前のツールである。(b) `finish` の診断が `flag provided but not defined: -body-file` を含むときは、`finish --body-file` に対応する前のツールである。(c) `append-pr` を呼んで、診断が `fixprguard: usage (see docs/dev/guides/fixprguard_guide.md)` だけのときは、`append-pr` を持たない前のツールの可能性がある。新しいツールも、位置引数の数の誤りなどで同じ診断を出すので、(c) は手がかりにとどまる。古いツールかどうかは、次の方法で決める。インストール済みのツールが作られたコミットは、`go version -m "$(command -v fixprguard)"` の `vcs.revision` で確かめられる（3 章） | なし |
 | `3` | 利用者に確かめる（`inspect` だけ。範囲外の変更がある） | `inspect` の結果 |
 
 ## 5. サブコマンド
@@ -157,12 +157,19 @@ fixprguard inspect --protocol 4 --reviewer coderabbitai --baseline 'v3....' --th
 
 副作用: GitHub と git（`git ls-remote` を含む）の読み取りだけ。作業ツリーは変えない。`ignored` で止まったときだけ、git のディレクトリに止まった時点の記録のファイル `fixprguard-ignored-stop` を書く（置き換える）。
 
-### `finish --baseline TOKEN --judged-set ID PR`
+### `finish --baseline TOKEN --judged-set ID [--body-file FILE] PR`
 
 `/fixpr` のフェーズ 4。1 回の呼び出しで次の順序を強制する。(1) 作業ツリーが判定した集合と一致し、git の状態（対象のファイルを含む）が基準値と同じ。(2) `make fmt`。(3) 整形後の集合を記録（変更のあるパスの集合が変わっていれば止まる）。(4) `make test`・`make lint`（`make test` の後にも git の状態を比べる）。(5) 整形後の集合と厳密に一致。(6) 判定したパスだけを、パスを文字どおりに解釈する指定で stage。(7) stage の内容を確認（違えば取り消す）。(8) commit。(9) commit のツリーが整形後の集合と一致することを確認。make のターゲットは `fmt`・`test`・`lint` の固定値で、引数からは受け取らない。commit の件名は `fix: address PR #<PR> review comments` である。
 
+`--body-file` を渡さないときは、件名だけで commit する。渡したときは、件名、空行、ファイルの内容を本文とするメッセージで commit する。本文のファイルは、`reply` の本文のファイルと同じ検査（通常のファイル、64 KiB 以下、空白だけでない、NUL を含まない有効な UTF-8）と `@codex` のメンションの拒否に加えて、次を満たさなければならない。どの行も `Editorial correction: ` で始まり、その後に空白だけでない説明がある。空の行がない。`@` と、制御文字（行を終える LF を除く）・行区切り・書式文字（双方向の制御や幅のない文字など、表示をバイト列と違って見せる文字）・非文字（U+FFFE など。git が UTF-8 でないものとして書き換える）を含まない。末尾の LF は 1 つまで。本文に任意の行を書かせず、ローカルの CLI レビューの記録の行や trailer の行を偽れないようにするためである。満たさなければ、(1) の照合より前に終了コード `2` で止まり、`make` も stage も commit もしない。
+
+本文は (1) の前に読んで検査し、commit には検査した文をメモリから渡す（git にファイルを読み直させない）。build checks の間にファイルが変わっても、記録されるのは検査した本文である。git には `--cleanup=verbatim` で記録させ、本文の行末の空白も残す。メッセージは本文が LF で終わるかどうかによらず、ちょうど 1 つの LF で終わる。(9) では、記録されたメッセージが組み立てたメッセージと一致することも確かめる。commit-msg の hook などがメッセージを変えていれば、`git-state-changed`（`parts` は `head`）で止まり、SHA を返さない（8 章）。`--body-file` を渡さないときは、メッセージを比べない（hook が trailer を足しても、今までどおり成功する）。
+
+本文のファイルは作業ツリーの外（スクラッチパッドなど）に置く。作業ツリーの中に置くと、(1) の照合が、そのファイルを判定の後に現れた変更とみなして `judged-set-changed` で止まる。空の値（`--body-file ''`）は、本文なしとは扱わず、終了コード `2` で拒否する。
+
 ```sh
 fixprguard finish --protocol 4 --baseline 'v3....' --judged-set '<judgedSet>' 42
+fixprguard finish --protocol 4 --baseline 'v3....' --judged-set '<judgedSet>' --body-file /path/to/correction.txt 42
 ```
 
 出力: `committed`（判定した集合が空なら `false` で、何もしない）と `commit`（作った commit の SHA。`push` に渡す）。
@@ -200,6 +207,20 @@ fixprguard edit-pr --protocol 4 --title-file /path/to/title.txt --body-file /pat
 ```
 
 出力: `{"protocol":4,"written":true}`。
+
+### `append-pr --body-file FILE [PR]`
+
+PR の今の本文の末尾に、空行を挟んでファイルの内容を足し、本文だけを書き込む。タイトルは送らない。今の本文は `gh pr view --json body` で取得し（応答は厳格な JSON の検査と大きさの上限に通らなければならず、`body` は空でもよい文字列）、バイト列を変えずに残す。今の本文が LF（CRLF を含む）で終わるときは LF を 1 つ、終わらないときは LF を 2 つ足してからファイルの内容を続ける。今の本文が空のときは、ファイルの内容だけになる。書き込みは `edit-pr` と同じく `gh pr edit --body-file -` に標準入力で渡す。
+
+ファイルは、`reply` の本文のファイルと同じ検査と `@codex` のメンションの拒否に加えて、`@` と `<` を含んではならない。足す段落が利用者への通知を起こしたり、HTML のコメントで文を隠したりするのを防ぐためである。この検査は PR の本文を取得する前に行う（`[PR]` を省略したときは、現在のブランチの PR を求める `gh` の呼び出しが先に行われる）。足した後の本文も、64 KiB（バイト数。日本語の本文では文字数がこれより少なくても超える）以下でメンションを含まないことを求める。今の本文が既にメンションを含むときも、終了コード `2` で止まり、書き込まない。取得した本文は、出力にも診断にも含めない。
+
+本文を取得してから書き込むまでの間に、ほかの人が PR の本文を編集すると、その編集は上書きされる（7.2）。
+
+```sh
+fixprguard append-pr --protocol 4 --body-file /path/to/corrections.md 42
+```
+
+出力: `{"protocol":4,"written":true}`。副作用: PR の本文の読み取りと書き込み。
 
 ## 6. 範囲の規則
 
@@ -264,8 +285,9 @@ fixprguard edit-pr --protocol 4 --title-file /path/to/title.txt --body-file /pat
 | 範囲外の変更を、利用者の確認なしに commit しない | `inspect` が範囲外を一覧にして終了コード `3` を返し、`finish` は判定した集合と一致する変更だけを commit する |
 | 判定の後に現れた変更を commit しない | `finish` が、判定した集合との厳密な一致を build checks の前と後で確かめ、判定したパスだけを stage する |
 | 書き換えられた hooks・config で git を起動しない | `inspect`・`finish`・`push` が、まず git のディレクトリの場所と config のファイルの種類を、git を起動せずにファイルだけで比べる。次に、コマンドを起動しない `git config --list` だけを起動し、今のブランチと `main` を除く、ほかのブランチの `branch.<name>.*` の設定を除いた設定の値の一覧を基準値と比べる。config を比べる前に起動する git は `git config --list` だけで、違えば、ほかの git・`gh`・make を起動しない。hooks は、設定の値の一覧が一致した後に `git rev-parse --git-path hooks` で場所を求めて比べる。hook を実行しうるコマンドより前である。設定の値の一覧を変えない編集は検出しない。ほかのブランチの設定の書き換えは、残余のリスクである（7.2） |
-| メンションを含む文面を GitHub に送らない | `reply` の本文と `edit-pr` のタイトル・本文が `@codex` を（ASCII の範囲で大文字と小文字を区別せず、語の一部でも）含めば、GitHub に書き込む前に終了コード `2` で拒否する。利用者のアカウントの投稿が Codex を動かすのを防ぐ。コマンドの文書が投稿の前に行う確認（タスク 0031 で加える）に重ねる裏の守りである |
-| 返信と PR の説明がシェルのコマンドにならない | `reply`・`edit-pr` はシェルを介さず、本文を標準入力で渡す |
+| メンションを含む文面を GitHub に送らない | `reply` の本文、`edit-pr` のタイトル・本文、`finish` の本文のファイル、`append-pr` のファイルと足した後の PR の本文が `@codex` を（ASCII の範囲で大文字と小文字を区別せず、語の一部でも）含めば、GitHub に書き込む前に（`finish` は commit の前に）終了コード `2` で拒否する。`finish` の本文のファイルは `@` を、`append-pr` のファイルは `@` と `<` を含むだけで拒否する。利用者のアカウントの投稿が Codex を動かすのを防ぐ。コマンドの文書が投稿の前に行う確認（タスク 0031 で加える）に重ねる裏の守りである |
+| 返信と PR の説明がシェルのコマンドにならない | `reply`・`edit-pr`・`append-pr` はシェルを介さず、本文を標準入力で渡す。`finish` は本文をシェルを介さずに 1 つの引数として `git commit` に渡す |
+| `finish` の commit の本文に訂正の行のほかの行を入れない | `finish` の本文のファイルは、どの行も `Editorial correction: ` で始まらなければ拒否する。commit の後に、記録されたメッセージが検査した本文から組み立てたものと一致することを確かめる |
 | fork の PR の head を扱わない | `head`・`list`・`begin` が最初に確かめる |
 | git が無視するファイルのうち監視の一覧に当たるものの作成・書き換え・削除を、`inspect`・`finish`・`push` が基準値と比べて検出する | `begin` が、`git ls-files --others --ignored --exclude-standard` で列挙した無視されるファイル（git が 1 つの項目として示す入れ子のリポジトリは、ツールが中をたどる）のうち、下の監視の一覧に当たるもの（対象のファイル）と、必ず含める `.claude/settings.local.json` の状態を基準値に記録する。`inspect`・`finish`（build checks の後を含む）・`push` は、config と hooks の後に同じ手順で状態を求めて比べ、違えば `git-state-changed`（`ignored`）で止まる。状態は、有無・種類・内容・実行の許可・シンボリックリンクの文字列とたどる先である。パス・名前・内容は出力せず、git のディレクトリの記録のファイルにだけ書く |
 
@@ -286,7 +308,8 @@ fixprguard edit-pr --protocol 4 --title-file /path/to/title.txt --body-file /pat
 
 - `--reviewer` で渡した名前の集合が、`.claude/commands/_context.md` の `Automated reviewer list` の名前と同じであること。ツールは `_context.md` を読まない。名前を渡し忘れても、その Bot のスレッドは `other-bot` で信頼されないだけである。
 - 同じ秒の内の再編集。指紋の時刻は秒の単位である。
-- 返信と PR の説明の本文の内容のうち、メンションのほかのもの。ツールが検査するのは、ファイルの種類・大きさ・文字コードと、`@codex` のメンションだけである。全角の `＠codex` や、`@` と `codex` の間に幅のない文字を挟んだ形は、GitHub のメンションにならないので検査しない（Codex が本文を独自に解釈するかは確かめていない）。また、セッションは Bash で `gh` を直接実行できるので、メンションの検査は抜け道のない境界ではない。
+- 返信と PR の説明の本文の内容のうち、メンションのほかのもの。ツールが検査するのは、ファイルの種類・大きさ・文字コードと、`@codex` のメンションだけである。全角の `＠codex` や、`@` と `codex` の間に幅のない文字を挟んだ形は、GitHub のメンションにならないので検査しない（Codex が本文を独自に解釈するかは確かめていない）。また、セッションは Bash で `gh` を直接実行できるので、メンションの検査は抜け道のない境界ではない。`finish` の本文のファイルは、これに加えて `@`・制御文字などの文字と行の形を、`append-pr` のファイルは `@` と `<` を検査するが（5 章）、訂正の説明が正しいかは検査しない。`<` の拒否が防ぐのは HTML のコメントで文を隠すことだけで、Markdown のリンク参照の定義（`[//]: # (...)` など）で隠す形は検査しない。
+- `append-pr` が PR の本文を取得してから書き込むまでの間の、ほかの人の編集。その編集は上書きされる。`gh pr edit` には、取得したときの本文と一致する場合だけ書き込む条件付きの更新がないためである。`edit-pr` の書き込みにも同じ余地がある。
 
 #### 7.2.2 区切りのブロックとコマンドの文書
 
@@ -356,7 +379,7 @@ fixprguard edit-pr --protocol 4 --title-file /path/to/title.txt --body-file /pat
 |---|---|---|---|
 | `dirty-work-tree` | `begin` の時点で作業ツリーに未コミットの変更（未追跡のファイルを含む）がある | なし | `git status` で変更を調べ、捨てるか commit してからやり直す。範囲外の変更で前のラウンドを止めたときも、変更が残っているのでここで止まる |
 | `cross-repository` | PR の head が fork など別のリポジトリにある | なし | ツールでは扱わない。PR の内容を自分で確かめる |
-| `git-state-changed` | HEAD・ブランチ・push 先・hooks・config・info・対象のファイル（7.1 の監視の一覧に当たる、git が無視するファイル）のどれかが基準値と違う。config は、今のブランチと `main` を除く、ほかのブランチの `branch.<name>.*` の設定を除いた設定の値の一覧、git のディレクトリの場所、config のファイルの種類を比べる。`begin` の後に設定の値の一覧が読めなくなった場合（構文の誤り、include の先の FIFO による時間切れなど）も含む。設定の値の一覧を変えない編集では止まらない。ほかのブランチの設定の書き換えは、残余のリスクである（7.2） | `parts`（`head`・`remote`・`hooks`・`config`・`info`・`ignored`）。`ignored` は対象のファイルで、config・info・hooks が一致したときだけ並ぶ。`inspect`・`finish`・`push` は HEAD と push 先をその後に比べるので、`ignored` で止まったときは、それらを比べていない | 違う部分を調べる。`ignored` なら 8.1 の手順に従う。どのファイルが変わったかは出力しないので、セッションに調べさせない。`config` なら `git config --list --show-origin` で設定を調べ、意図しない hooks や config の変更なら取り除く。リモートが正当に進んだだけなら、作業ツリーを整理してやり直す |
+| `git-state-changed` | HEAD・ブランチ・push 先・hooks・config・info・対象のファイル（7.1 の監視の一覧に当たる、git が無視するファイル）のどれかが基準値と違う。config は、今のブランチと `main` を除く、ほかのブランチの `branch.<name>.*` の設定を除いた設定の値の一覧、git のディレクトリの場所、config のファイルの種類を比べる。`begin` の後に設定の値の一覧が読めなくなった場合（構文の誤り、include の先の FIFO による時間切れなど）も含む。`finish --body-file` で、commit-msg の hook などが記録されたメッセージを変えた場合も、HEAD の違いとして含む。設定の値の一覧を変えない編集では止まらない。ほかのブランチの設定の書き換えは、残余のリスクである（7.2） | `parts`（`head`・`remote`・`hooks`・`config`・`info`・`ignored`）。`ignored` は対象のファイルで、config・info・hooks が一致したときだけ並ぶ。`inspect`・`finish`・`push` は HEAD と push 先をその後に比べるので、`ignored` で止まったときは、それらを比べていない | 違う部分を調べる。`ignored` なら 8.1 の手順に従う。どのファイルが変わったかは出力しないので、セッションに調べさせない。`config` なら `git config --list --show-origin` で設定を調べ、意図しない hooks や config の変更なら取り除く。リモートが正当に進んだだけなら、作業ツリーを整理してやり直す。`finish --body-file` の後に `head` で止まったときは、commit がローカルに残っている。`git log -1 --format=%B` でメッセージを調べ、`git reset HEAD^` でその commit を取り消す（修正は作業ツリーに残るので、次の `begin` は `dirty-work-tree` で止まる。上の範囲外の変更の段落と同じく、調べて捨てるか commit してからやり直す）。commit-msg の hook が毎回 trailer を足す環境では、`--body-file` を渡す `finish` は必ず止まるので、その hook を外すか、訂正の行を渡さずに進める |
 | `judged-set-changed` | 作業ツリーや commit が判定した集合と違う（判定の後に変更が現れた、build checks が範囲内のファイルを書き換えた、commit の hook が index を書き換えた、など） | `changes`（見つかった変更の一覧） | 一覧の変更を調べる。commit が作られた後に止まったときは、その commit を調べて取り消す |
 | `thread-cap` | `list` が読むスレッドが 2000 件を超える | なし | GitHub 上でスレッドを解決して減らす |
 | `change-cap` | 変更のあるファイルが 1000 個を超える | なし | 変更を調べて減らす |
