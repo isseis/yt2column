@@ -24,11 +24,7 @@ const repoRoot = "../.."
 
 func readRepoFile(t *testing.T, rel string) string {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join(repoRoot, filepath.FromSlash(rel)))
-	if err != nil {
-		t.Fatalf("read %s: %v", rel, err)
-	}
-	return string(data)
+	return doctestutil.ReadDoc(t, filepath.Join(repoRoot, filepath.FromSlash(rel)))
 }
 
 // TestGuidePathExists: a usage error's diagnostic names the guide, and that

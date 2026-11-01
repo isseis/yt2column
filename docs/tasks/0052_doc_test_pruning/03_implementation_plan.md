@@ -307,11 +307,11 @@
 
 **変更するファイル:** `cmd/fixprguard/docs_test.go`、`internal/pipeline/pipeline_test.go`
 
--   [ ] 1.4 の「補助の置き換え」の表の、`readRepoFile`・`os.ReadFile`・`markdownSections` の 3 行のとおりに置き換え、`markdownSections` を消す。
--   [ ] 置き換えた各呼び出しが、置き換えの前後で同じ文字列を返すことを、一時的な比較で一度確かめる（コミットしない。設計書 3.4.2）。
--   [ ] 置き換えを受けるテストについて、確かめる値を一度壊して落ちることを確かめる（設計書 7.2）。対象は、`TestPackageReferenceListsPackages`・`TestPromptsREADMEMatchesContract` と、`readRepoFile` を呼ぶ `cmd/fixprguard` のすべての文書のテストである。後者は `db9986c6` で次の 9 つである。`TestGuideCoversStopKindsAndScope`・`TestDocumentedInvocationsParse`・`TestGuideDescribesReviewerList`・`TestDocumentedProtocolMatches`・`TestGuideDescribesMentionCheck`・`TestGuideListsWatchList`・`TestGuideNamesGitStateParts`・`TestGuideDescribesIgnoredFiles`、および `guideBlock`（`:509`）を通る `TestGuideIgnoredCommands`。
--   [ ] 置き換えの前後の出力を `coverage` で比べる。
--   [ ] コミットメッセージに、文字列の一致、壊して確かめたこと、カバレッジの比較の結果を記す。
+-   [x] 1.4 の「補助の置き換え」の表の、`readRepoFile`・`os.ReadFile`・`markdownSections` の 3 行のとおりに置き換え、`markdownSections` を消す。
+-   [x] 置き換えた各呼び出しが、置き換えの前後で同じ文字列を返すことを、一時的な比較で一度確かめる（コミットしない。設計書 3.4.2）。
+-   [x] 置き換えを受けるテストについて、確かめる値を一度壊して落ちることを確かめる（設計書 7.2）。対象は、`TestPackageReferenceListsPackages`・`TestPromptsREADMEMatchesContract` と、`readRepoFile` を呼ぶ `cmd/fixprguard` のすべての文書のテストである。後者は `db9986c6` で次の 9 つである。`TestGuideCoversStopKindsAndScope`・`TestDocumentedInvocationsParse`・`TestGuideDescribesReviewerList`・`TestDocumentedProtocolMatches`・`TestGuideDescribesMentionCheck`・`TestGuideListsWatchList`・`TestGuideNamesGitStateParts`・`TestGuideDescribesIgnoredFiles`、および `guideBlock`（`:509`）を通る `TestGuideIgnoredCommands`。
+-   [x] 置き換えの前後の出力を `coverage` で比べる。
+-   [x] コミットメッセージに、文字列の一致、壊して確かめたこと、カバレッジの比較の結果を記す。
 
 **完了の条件:** `make test`、`make lint`、`make deadcode` が通り、`coverage` が通る。
 
