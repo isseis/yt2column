@@ -93,6 +93,31 @@ func TestBodyFileChecks(t *testing.T) {
 	}
 }
 
+// TestCommitBodyChecks holds the boundary of the accepted forms: one line or
+// several, ending in no LF or one, but not two. The other rejections are
+// TestFinishRejectsBodyFile's rows, through finish.
+func TestCommitBodyChecks(t *testing.T) {
+	const line = "Editorial correction: docs/x.md: a; no decision changed"
+	for _, tc := range []struct {
+		name    string
+		body    string
+		wantErr bool
+	}{
+		{name: "one_line", body: line},
+		{name: "one_line_lf", body: line + "\n"},
+		{name: "two_lines", body: line + "\n" + line},
+		{name: "two_lines_lf", body: line + "\n" + line + "\n"},
+		{name: "two_lfs", body: line + "\n\n", wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := checkCommitBody(tc.body)
+			if tc.wantErr != errors.Is(err, ErrInvalidInput) || (!tc.wantErr && err != nil) {
+				t.Errorf("checkCommitBody(%q) = %v, want error %t", tc.body, err, tc.wantErr)
+			}
+		})
+	}
+}
+
 // resolvedResponse is the resolveReviewThread response for id.
 func resolvedResponse(t *testing.T, id string, isResolved bool) string {
 	t.Helper()

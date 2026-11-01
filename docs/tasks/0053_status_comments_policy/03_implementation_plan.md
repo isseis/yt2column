@@ -97,13 +97,13 @@
 
 **変更するファイル:** `internal/fixprguard/worktree.go`、`internal/fixprguard/gitstate.go`、`internal/fixprguard/write.go`、`internal/fixprguard/errors.go`、`internal/fixprguard/worktree_flow_test.go`、`internal/fixprguard/write_test.go`、`internal/fixprguard/gitstate_test.go`
 
--   [ ] `FinishRequest` に `BodyFile` を加える（設計書 3.4.1 節の型）。
--   [ ] 訂正の行の形の検査を、`write.go` に新しい関数として加える（受け付ける内容は設計書 3.4.1 節）。
--   [ ] `Finish` が、作業ツリーの照合より前に本文のファイルを読んで検査するようにする（`readTextFile`・`checkPostText`・上の関数）。誤りがあれば `ErrInvalidInput` を返し、`make` も stage も commit もしない。
--   [ ] 本文があるときは、1.4 節の「採る方法」の形でメッセージを組み立てて commit する。本文がないときの commit の呼び出しは変えない。
--   [ ] `commitObject` がメッセージも返すようにし、4 か所の呼び出し元を合わせる。この変更は振る舞いを変えない準備として、`--body-file` の振る舞いとは別のコミットにする（`Push` と `changesAgainst` の呼び出し元を、振る舞いが変わらないことだけを見て読めるようにするため）。本文があるときだけ、`checkCommit` で、記録されたメッセージが組み立てた文字列と一致することを確かめ、一致しなければ `PartHead` の `GitStateError` を返す（1.4 節）。
--   [ ] `ErrInvalidInput` のコメントに `finish` の本文のファイルを加える。
--   [ ] 4.1 節の 1-1 の行のテストを加え、`TestFinishCommitSubject` が件名だけのメッセージ全体を確かめるようにする。
+-   [x] `FinishRequest` に `BodyFile` を加える（設計書 3.4.1 節の型）。
+-   [x] 訂正の行の形の検査を、`write.go` に新しい関数として加える（受け付ける内容は設計書 3.4.1 節）。
+-   [x] `Finish` が、作業ツリーの照合より前に本文のファイルを読んで検査するようにする（`readTextFile`・`checkPostText`・上の関数）。誤りがあれば `ErrInvalidInput` を返し、`make` も stage も commit もしない。
+-   [x] 本文があるときは、1.4 節の「採る方法」の形でメッセージを組み立てて commit する。本文がないときの commit の呼び出しは変えない。
+-   [x] `commitObject` がメッセージも返すようにし、4 か所の呼び出し元を合わせる。この変更は振る舞いを変えない準備として、`--body-file` の振る舞いとは別のコミットにする（`Push` と `changesAgainst` の呼び出し元を、振る舞いが変わらないことだけを見て読めるようにするため）。本文があるときだけ、`checkCommit` で、記録されたメッセージが組み立てた文字列と一致することを確かめ、一致しなければ `PartHead` の `GitStateError` を返す（1.4 節）。
+-   [x] `ErrInvalidInput` のコメントに `finish` の本文のファイルを加える。
+-   [x] 4.1 節の 1-1 の行のテストを加え、`TestFinishCommitSubject` が件名だけのメッセージ全体を確かめるようにする。
 
 **完了の条件:** 4.1 節の 1-1 の行のテストが通る。同じ行の「壊して確かめる」の各項目で該当のテストが落ちることを確かめ、コミットメッセージに書いた。
 

@@ -56,11 +56,15 @@ func readTitleFile(name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if strings.ContainsFunc(title, func(r rune) bool { return unicode.IsControl(r) || r == '\u2028' || r == '\u2029' }) {
+	if strings.ContainsFunc(title, isControl) {
 		return "", fmt.Errorf("%w: title is not one plain line", ErrInvalidInput)
 	}
 	return title, nil
 }
+
+// isControl reports a control character (C0, DEL, or C1) or a Unicode line
+// or paragraph separator: a rune that would break or hide a line.
+func isControl(r rune) bool { return unicode.IsControl(r) || r == '\u2028' || r == '\u2029' }
 
 // checkPostText rejects text that would make Codex act when posted from the
 // user's account. Contract: text containing CodexMention anywhere, with ASCII
@@ -79,6 +83,35 @@ func checkPostText(text string) error {
 	}, text)
 	if strings.Contains(folded, CodexMention) {
 		return errCodexMention
+	}
+	return nil
+}
+
+// editorialCorrectionPrefix starts every line of a finish commit body: the
+// line that records an editorial correction to an approved task document.
+const editorialCorrectionPrefix = "Editorial correction: "
+
+// checkCommitBody holds a finish commit body to the editorial correction
+// lines. Contract: the body is one or more lines, each starting with
+// editorialCorrectionPrefix followed by a non-blank description, with no
+// empty line, no '@', and no control character (C0, DEL, C1, or a Unicode
+// line or paragraph separator) other than the LF ending a line; it may end
+// with one LF and no more. Anything else is ErrInvalidInput, so the body
+// cannot carry a line of another kind, such as a review record line or a
+// trailer. It checks content only, so it runs after readTextFile.
+func checkCommitBody(body string) error {
+	for line := range strings.SplitSeq(strings.TrimSuffix(body, "\n"), "\n") {
+		description, ok := strings.CutPrefix(line, editorialCorrectionPrefix)
+		switch {
+		case !ok:
+			return fmt.Errorf("%w: commit body line is not an editorial correction", ErrInvalidInput)
+		case strings.TrimSpace(description) == "":
+			return fmt.Errorf("%w: commit body line has no description", ErrInvalidInput)
+		case strings.ContainsFunc(line, func(r rune) bool { return unicode.IsControl(r) || r == ' ' || r == ' ' }):
+			return fmt.Errorf("%w: commit body has a control character", ErrInvalidInput)
+		case strings.Contains(line, "@"):
+			return fmt.Errorf("%w: commit body has '@'", ErrInvalidInput)
+		}
 	}
 	return nil
 }

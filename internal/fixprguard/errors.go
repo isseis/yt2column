@@ -10,9 +10,10 @@ import (
 // GitHub or the arguments and standard error of an external command.
 var (
 	// ErrInvalidInput rejects a malformed flag value (a login, a PR number, a
-	// thread or comment ID, a fingerprint, or an accept pair) and a text file
+	// thread or comment ID, a fingerprint, or an accept pair), a text file
 	// reply or edit-pr refuses to post (readTextFile, readTitleFile, and
-	// checkPostText give the rules).
+	// checkPostText give the rules), and a commit body file finish refuses to
+	// commit (the same rules and checkCommitBody).
 	ErrInvalidInput = errors.New("invalid input")
 	// ErrCrossRepository reports a PR whose head is not a branch of this
 	// repository.

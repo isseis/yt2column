@@ -34,9 +34,26 @@ func fixTestFile(r *testRepo) { r.Write(testFile, "fixed\n") }
 
 func (p prepared) finish(t *testing.T, steps ...cmdrunnertestutil.Step) (FinishResult, *gitRouter, error) {
 	t.Helper()
+	return p.finishBody(t, "", steps...)
+}
+
+// finishBody finishes with the commit body file bodyFile ("" for none).
+func (p prepared) finishBody(t *testing.T, bodyFile string, steps ...cmdrunnertestutil.Step) (FinishResult, *gitRouter, error) {
+	t.Helper()
 	w, router := newTestWorktree(t, steps...)
-	result, err := w.Finish(t.Context(), p.base, p.judged, FinishRequest{PR: mustPR(t)})
+	result, err := w.Finish(t.Context(), p.base, p.judged, FinishRequest{PR: mustPR(t), BodyFile: bodyFile})
 	return result, router, err
+}
+
+// storedMessage reads commit's message as stored in the object, so nothing
+// git log would reformat is hidden.
+func (p prepared) storedMessage(t *testing.T, commit string) string {
+	t.Helper()
+	_, message, ok := strings.Cut(p.r.Git("cat-file", "commit", commit), "\n\n")
+	if !ok {
+		t.Fatalf("commit %s has no message", commit)
+	}
+	return message
 }
 
 // mustFinish finishes with build checks that change nothing.
@@ -332,12 +349,132 @@ func TestFinishBuildCheckRunnerFailure(t *testing.T) {
 func TestFinishCommitSubject(t *testing.T) {
 	p := prepareRound(t, fixTestFile)
 	result := p.mustFinish(t)
-	if got := strings.TrimSpace(p.r.Git("log", "-1", "--format=%s", result.Commit)); got != "fix: address PR #"+testPR+" review comments" {
-		t.Errorf("subject = %q", got)
+	if got := p.storedMessage(t, result.Commit); got != "fix: address PR #"+testPR+" review comments\n" {
+		t.Errorf("message = %q, want the subject alone", got)
 	}
 	if got := strings.TrimSpace(p.r.Git("rev-parse", result.Commit+"^")); got != p.base.head {
 		t.Errorf("parent = %s, want the baseline's HEAD", got)
 	}
+}
+
+// correction is a commit body line checkCommitBody accepts.
+const correction = "Editorial correction: docs/tasks/0001_x/01_requirements.md: fixed a stale name; no decision changed"
+
+// subjectAndBody is the message finish builds for body: the subject, an empty
+// line, and body, which the caller gives ending in one LF.
+func subjectAndBody(body string) string {
+	return "fix: address PR #" + testPR + " review comments\n\n" + body
+}
+
+func TestFinishCommitBody(t *testing.T) {
+	for _, tc := range []struct {
+		name, body, want string
+	}{
+		{name: "ends_with_lf", body: correction + "\n", want: subjectAndBody(correction + "\n")},
+		{name: "no_trailing_lf", body: correction + "\n" + correction, want: subjectAndBody(correction + "\n" + correction + "\n")},
+		// git's default cleanup would strip the trailing spaces.
+		{name: "trailing_spaces", body: correction + "  \n", want: subjectAndBody(correction + "  \n")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := prepareRound(t, fixTestFile)
+			result, _, err := p.finishBody(t, writeTextFile(t, tc.body), buildCheckSteps()...)
+			if err != nil || !result.Committed {
+				t.Fatalf("Finish = %+v, %v", result, err)
+			}
+			if got := p.storedMessage(t, result.Commit); got != tc.want {
+				t.Errorf("message = %q, want %q", got, tc.want)
+			}
+		})
+	}
+	t.Run("file_rewritten_during_build_checks", func(t *testing.T) {
+		p := prepareRound(t, fixTestFile)
+		file := writeTextFile(t, correction+"\n")
+		rewrite := func() error { return os.WriteFile(file, []byte("Editorial correction: rewritten\n"), 0o600) }
+		result, _, err := p.finishBody(t, file, makeStep(StageFmt, rewrite), makeStep(StageTest, nil), makeStep(StageLint, nil))
+		if err != nil || !result.Committed {
+			t.Fatalf("Finish = %+v, %v", result, err)
+		}
+		if got := p.storedMessage(t, result.Commit); got != subjectAndBody(correction+"\n") {
+			t.Errorf("message = %q, want the body that was checked", got)
+		}
+	})
+}
+
+// TestFinishRejectsBodyFile: a body file finish refuses stops the run before
+// any make target (the fake has no step) and before any commit.
+func TestFinishRejectsBodyFile(t *testing.T) {
+	for name, body := range map[string]string{
+		"mention":             correction + " @codex\n",
+		"other_line":          correction + "\nSigned-off-by: x\n",
+		"no_description":      "Editorial correction:  \n",
+		"at_sign":             correction + " a@b\n",
+		"carriage_return":     correction + "\r\n",
+		"escape":              correction + " \x1b[31m\n",
+		"empty_line":          correction + "\n\n" + correction + "\n",
+		"two_trailing_lfs":    correction + "\n\n",
+		"rejected_as_a_file":  "",
+		"leading_empty_line":  "\n" + correction + "\n",
+		"prefix_not_at_start": " " + correction + "\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			p := prepareRound(t, fixTestFile)
+			head := p.r.Head()
+			_, _, err := p.finishBody(t, writeTextFile(t, body))
+			if !errors.Is(err, ErrInvalidInput) {
+				t.Errorf("Finish = %v, want ErrInvalidInput", err)
+			}
+			p.wantNoCommit(t, head)
+		})
+	}
+	t.Run("checked_before_the_work_tree", func(t *testing.T) {
+		// The work tree no longer matches the judged set, so a comparison
+		// made first would stop with a judged-set change instead.
+		p := prepareRound(t, fixTestFile)
+		p.r.Write("docs/notes/late.md", "x\n")
+		_, _, err := p.finishBody(t, writeTextFile(t, "not a correction\n"))
+		if !errors.Is(err, ErrInvalidInput) {
+			t.Errorf("Finish = %v, want ErrInvalidInput", err)
+		}
+	})
+	t.Run("file_inside_the_work_tree", func(t *testing.T) {
+		// A valid body written in the work tree is a change made after the
+		// judgment.
+		p := prepareRound(t, fixTestFile)
+		head := p.r.Head()
+		p.r.Write("body.txt", correction+"\n")
+		_, _, err := p.finishBody(t, filepath.Join(p.r.Dir, "body.txt"))
+		wantJudgedSetChanged(t, err)
+		p.wantNoCommit(t, head)
+	})
+}
+
+// TestFinishDetectsRewrittenMessage: a commit-msg hook, in place before the
+// baseline so the state checks pass, appends a trailer. With a body the
+// stored message is not the one finish built, so it stops without a SHA;
+// without one the message is not compared, as before body files existed.
+func TestFinishDetectsRewrittenMessage(t *testing.T) {
+	prepare := func(t *testing.T) prepared {
+		r := newTestRepo(t)
+		r.WriteHook("commit-msg", "printf 'Signed-off-by: hook\\n' >> \"$1\"\n")
+		base := mustBaseline(t)
+		fixTestFile(r)
+		return prepared{r: r, base: base, judged: mustInspect(t, base).JudgedSet}
+	}
+	t.Run("with_body", func(t *testing.T) {
+		p := prepare(t)
+		result, _, err := p.finishBody(t, writeTextFile(t, correction+"\n"), buildCheckSteps()...)
+		wantStateParts(t, err, PartHead)
+		if result.Commit != "" {
+			t.Errorf("Finish returned commit %s", result.Commit)
+		}
+	})
+	t.Run("without_body", func(t *testing.T) {
+		p := prepare(t)
+		result := p.mustFinish(t)
+		if got := p.storedMessage(t, result.Commit); !strings.HasSuffix(got, "Signed-off-by: hook\n") {
+			t.Errorf("message = %q, want the hook's trailer", got)
+		}
+	})
 }
 
 func TestFinishEmptyJudgedSet(t *testing.T) {
