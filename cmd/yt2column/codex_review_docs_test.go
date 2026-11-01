@@ -347,17 +347,10 @@ func autoReviewDisabled(text string) bool {
 }
 
 // TestCodeRabbitConfigStopsReview checks that .coderabbit.yaml turns
-// CodeRabbit's automatic PR review off, records that the local CLI review
-// (the CodeRabbit CLI, or Codex CLI when it fails) still covers the changes
-// after the PR opens, and that autoReviewDisabled tells the real file from
-// copies broken in one place.
+// CodeRabbit's automatic PR review off, and that autoReviewDisabled tells the
+// real file from copies broken in one place.
 func TestCodeRabbitConfigStopsReview(t *testing.T) {
 	doc := doctestutil.ReadDoc(t, coderabbitPath)
-	requirePhrases(t, ".coderabbit.yaml", doc,
-		"CodeRabbit does not review PRs: Codex does the PR review",
-		"The local CLI review still covers the changes after the PR opens",
-		"the CodeRabbit CLI, or Codex CLI when it fails",
-	)
 	// Each broken copy keeps a reviews.auto_review key, so only where
 	// enabled sits decides the result.
 	const enabled = "  auto_review:\n    enabled: false\n"

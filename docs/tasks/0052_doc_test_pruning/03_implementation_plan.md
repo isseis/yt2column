@@ -204,25 +204,25 @@
 
 **変更するファイル:** `cmd/yt2column/docs_test.go`、`readme_structure_test.go`、`run_test.go`、`fixpr_docs_test.go`、`codex_review_docs_test.go`、`internal/doctestutil/readme.go`、`internal/config/test_helpers.go`
 
--   [ ] 取り除く前に、`coverage` に渡す出力を取る（1.6）。
--   [ ] `TestMigrationDocsContract` と `checkMigrationSection` を消す（J-01）。
--   [ ] `TestQuickStartLinks` を消す（J-03）。
--   [ ] `TestNumberedItems`・`numberedItems`・`numberedItemRE` を消す（AC-10）。
--   [ ] `TestProductionProfileLinks` と `promptsReadmePath` を消す（J-04）。
--   [ ] `TestReadmeVersionLinks`・`beforeFirstHeading`・`linksTo` を消す（J-05）。
--   [ ] `TestRunEvaluationProcedureFlags`・`evaluationProcedureCommands`・`fencedCode`・`procedureArgs` と `reviewEvaluationPath` を消す（J-02）。
--   [ ] `TestReadmeSyncStepPlacement`・`readmeSyncIn`・`readmeSyncMarker`・`mktransPath`・`numbered` を消す（J-08）。
--   [ ] 1.4 の「一部を削除するテスト」の表の、`TestSlackDocsContract`・`TestProductionProfileDocsContract`・`TestCostDocsContract`・`TestCodeRabbitConfigStopsReview` の 4 行のとおりに変える。`pricingRatesPath` を消す。各テストの doc comment から、取り除いた確認を述べる句を消す（AC-20）。
--   [ ] `internal/doctestutil/readme.go` から `ReadmeMigrationHeading`・`ReadmeQuickStartHeading`・`ReadmeRequirementsHeading`・`ReadmeConfigurationHeading` を消す。
--   [ ] `internal/config/test_helpers.go` から `DeepSeekAPIKeyEnvForTest` を消す（設計書 3.8 の H-05）。
--   [ ] 一部を削除した 4 つのテストと統合先について、残す確認の値を一度壊して落ちることを確かめる（設計書 7.2）。
+-   [x] 取り除く前に、`coverage` に渡す出力を取る（1.6）。
+-   [x] `TestMigrationDocsContract` と `checkMigrationSection` を消す（J-01）。
+-   [x] `TestQuickStartLinks` を消す（J-03）。
+-   [x] `TestNumberedItems`・`numberedItems`・`numberedItemRE` を消す（AC-10）。
+-   [x] `TestProductionProfileLinks` と `promptsReadmePath` を消す（J-04）。
+-   [x] `TestReadmeVersionLinks`・`beforeFirstHeading`・`linksTo` を消す（J-05）。
+-   [x] `TestRunEvaluationProcedureFlags`・`evaluationProcedureCommands`・`fencedCode`・`procedureArgs` と `reviewEvaluationPath` を消す（J-02）。
+-   [x] `TestReadmeSyncStepPlacement`・`readmeSyncIn`・`readmeSyncMarker`・`mktransPath`・`numbered` を消す（J-08）。
+-   [x] 1.4 の「一部を削除するテスト」の表の、`TestSlackDocsContract`・`TestProductionProfileDocsContract`・`TestCostDocsContract`・`TestCodeRabbitConfigStopsReview` の 4 行のとおりに変える。`pricingRatesPath` を消す。各テストの doc comment から、取り除いた確認を述べる句を消す（AC-20）。
+-   [x] `internal/doctestutil/readme.go` から `ReadmeMigrationHeading`・`ReadmeQuickStartHeading`・`ReadmeRequirementsHeading`・`ReadmeConfigurationHeading` を消す。
+-   [x] `internal/config/test_helpers.go` から `DeepSeekAPIKeyEnvForTest` を消す（設計書 3.8 の H-05）。
+-   [x] 一部を削除した 4 つのテストと統合先について、残す確認の値を一度壊して落ちることを確かめる（設計書 7.2）。
     -   `TestSlackDocsContract` は、`security.md` の `CLISlackOptInEnv` を消した写しで落ちること。
     -   統合先の `TestDeepSeekDocsContract` の `cli_slack` は、`development.md` の節の `CLISlackOptInEnv` を消した写しで落ちること。
     -   `TestProductionProfileDocsContract` は、README の推奨構成のブロックの値を 1 つ変えた写しで落ちること。
     -   `TestCostDocsContract` は、`project_overview.md` の `costPrefix` を変えた写しで落ちること。
     -   `TestCodeRabbitConfigStopsReview` は、`.coderabbit.yaml` の `enabled: false` を `true` にした写しで落ちること。
--   [ ] 取り除いた後の出力を取り、`coverage` で比べる。結果が違えば設計書 6.1 の流れ（AC-12）に従う。
--   [ ] 1 つのコミットにし、コミットメッセージに、取り除いたもの（判定の一覧の行）、カバレッジの比較のコマンドと結果、壊して確かめたことを記す。
+-   [x] 取り除いた後の出力を取り、`coverage` で比べる。結果が違えば設計書 6.1 の流れ（AC-12）に従う。
+-   [x] 1 つのコミットにし、コミットメッセージに、取り除いたもの（判定の一覧の行）、カバレッジの比較のコマンドと結果、壊して確かめたことを記す。
 
 **完了の条件:** `make test`、`make lint`、`make deadcode` が通り、`coverage` が通る。
 
