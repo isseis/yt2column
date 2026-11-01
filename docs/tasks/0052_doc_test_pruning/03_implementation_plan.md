@@ -230,11 +230,11 @@
 
 **変更するファイル:** `cmd/yt2column/codex_review_docs_test.go`
 
--   [ ] 1.4 の「補助の置き換え」の表の `commandDocs` の行のとおりに置き換え、`commandDocs` と `commandsDir` を消す。
--   [ ] 置き換えの前後で、2 つの呼び出しが読むファイルの集合が同じであることを、一時的な比較で一度確かめる（コミットしない。設計書 3.4.2）。
--   [ ] 設計書 7.2 の 2 つの壊し方で、置き換えた後のテストが落ちることを確かめる。`TestPostingCommandsInventory` は `_lib/` の下の文書で、言及の確認の前に投稿のコマンドを置いた写しで落ちること。`TestCodexMentionOnlyInRequestRow` は、`_context.md` でないコマンドの文書に `| PR review request | ` で始まり言及を含む行を書き加えた写しで落ちること。
--   [ ] 置き換えの前後の出力を `coverage` で比べる。
--   [ ] コミットメッセージに、集合の一致、壊して確かめたこと、カバレッジの比較の結果を記す。
+-   [x] 1.4 の「補助の置き換え」の表の `commandDocs` の行のとおりに置き換え、`commandDocs` と `commandsDir` を消す。
+-   [x] 置き換えの前後で、2 つの呼び出しが読むファイルの集合が同じであることを、一時的な比較で一度確かめる（コミットしない。設計書 3.4.2）。
+-   [x] 設計書 7.2 の 2 つの壊し方で、置き換えた後のテストが落ちることを確かめる。`TestPostingCommandsInventory` は `_lib/` の下の文書で、言及の確認の前に投稿のコマンドを置いた写しで落ちること。`TestCodexMentionOnlyInRequestRow` は、`_context.md` でないコマンドの文書に `| PR review request | ` で始まり言及を含む行を書き加えた写しで落ちること。
+-   [x] 置き換えの前後の出力を `coverage` で比べる。
+-   [x] コミットメッセージに、集合の一致、壊して確かめたこと、カバレッジの比較の結果を記す。
 
 **完了の条件:** `make test`、`make lint`、`make deadcode` が通り、`coverage` が通る。
 

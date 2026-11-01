@@ -3,7 +3,6 @@
 package main
 
 import (
-	"io/fs"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -13,9 +12,6 @@ import (
 	"github.com/isseis/yt2column/internal/doctestutil"
 	"github.com/isseis/yt2column/internal/fixprguard"
 )
-
-// commandsDir is the directory of the command documents, _lib/ included.
-const commandsDir = repositoryRoot + "/.claude/commands"
 
 // mentionCheckCommand is the command every section that posts text to GitHub
 // runs in its mention check before its posting command, so the user's account
@@ -90,8 +86,12 @@ const (
 // _context.md's "PR review request" row: a document that wrote it would lead
 // a session to post it from the user's account.
 func TestCodexMentionOnlyInRequestRow(t *testing.T) {
+	var paths []string
+	for _, rel := range doctestutil.CommandDocs(t, repositoryRoot) {
+		paths = append(paths, filepath.Join(repositoryRoot, rel))
+	}
 	rows := 0
-	for _, path := range append(commandDocs(t), claudePath) {
+	for _, path := range append(paths, claudePath) {
 		for i, line := range strings.Split(doctestutil.ReadDoc(t, path), "\n") {
 			if !strings.Contains(strings.ToLower(line), strings.ToLower(fixprguard.CodexMention)) {
 				continue
@@ -214,7 +214,8 @@ func TestPostingCommandsInventory(t *testing.T) {
 	}
 
 	posts := 0
-	for _, path := range commandDocs(t) {
+	for _, rel := range doctestutil.CommandDocs(t, repositoryRoot) {
+		path := filepath.Join(repositoryRoot, rel)
 		doc := doctestutil.ReadDoc(t, path)
 		key := filepath.Clean(path)
 		for _, m := range postingCommand.FindAllStringIndex(doc, -1) {
@@ -286,22 +287,6 @@ const (
 	agentsPath     = repositoryRoot + "/AGENTS.md"
 	coderabbitPath = repositoryRoot + "/.coderabbit.yaml"
 )
-
-// commandDocs returns the paths of every command document, _lib/ included.
-func commandDocs(t *testing.T) []string {
-	t.Helper()
-	var paths []string
-	err := filepath.WalkDir(commandsDir, func(path string, d fs.DirEntry, err error) error {
-		if err == nil && !d.IsDir() && strings.HasSuffix(path, ".md") {
-			paths = append(paths, path)
-		}
-		return err
-	})
-	if err != nil {
-		t.Fatalf("walk %s: %v", commandsDir, err)
-	}
-	return paths
-}
 
 // autoReviewDisabled reports whether the .coderabbit.yaml text sets
 // reviews.auto_review.enabled to false, with exactly one auto_review under
