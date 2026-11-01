@@ -10,7 +10,7 @@ import type { ArticleKey } from "./articleKey.ts";
 import { notSentCauses, unexpectedChecks } from "./exchange.ts";
 import type { ExchangeFailure } from "./exchange.ts";
 import { prepareStartInput } from "./prepare.ts";
-import type { StartInput } from "./prepare.ts";
+import type { PreparedRequest, StartInput } from "./prepare.ts";
 import { parseRequestId, startRejectStatus } from "./response.ts";
 import type { RequestId, StartOutcome } from "./response.ts";
 import { viewerSeedError } from "./viewerUrl.ts";
@@ -266,40 +266,60 @@ function viewerSeed(value: unknown, now: number): ViewerSeed {
   return seed;
 }
 
+/** Which check a start request failed; for the developer log only. */
+export type StartRequestCheck = "shape" | "size";
+
+/** What the check of a start request found. */
+export type ParsedStartRequest =
+  | {
+      readonly ok: true;
+      readonly request: StartRequest;
+      /** The request the input makes, measured by prepareStartInput. */
+      readonly prepared: PreparedRequest;
+    }
+  | { readonly ok: false; readonly check: StartRequestCheck };
+
 /**
  * Checks a start request received at now: the exact member set; an input in
  * the request body's shape that prepareStartInput measures within 4 MiB; a
  * viewer seed of well-formed strings that passes the viewer URL's rules with
  * its send time no later than now; and three non-negative integers for the
- * source tab. Returns undefined for anything else, including any exception
- * raised while checking.
+ * source tab. Anything else is rejected, including any exception raised while
+ * checking; an input over 4 MiB is reported as size, every other rejection
+ * as shape.
  */
 export function parseStartRequest(
   value: unknown,
   now: number,
-): StartRequest | undefined {
-  return attempt(() => {
+): ParsedStartRequest {
+  let check: StartRequestCheck = "shape";
+  const parsed = attempt((): ParsedStartRequest => {
     const record = members(value, ["type", "input", "viewer", "source"]);
     literal(record.type, "start");
     const input = startInput(record.input);
-    // Only the size check is used here; the worker builds its request from
-    // the returned input with prepareStartInput again.
-    if (prepareStartInput(input).kind !== "ready") {
+    const prepared = prepareStartInput(input);
+    if (prepared.kind !== "ready") {
+      check = "size";
       throw new Rejected();
     }
     const viewer = viewerSeed(record.viewer, now);
     const source = members(record.source, ["tabId", "windowId", "index"]);
     return {
-      type: "start",
-      input,
-      viewer,
-      source: {
-        tabId: count(source.tabId),
-        windowId: count(source.windowId),
-        index: count(source.index),
+      ok: true,
+      request: {
+        type: "start",
+        input,
+        viewer,
+        source: {
+          tabId: count(source.tabId),
+          windowId: count(source.windowId),
+          index: count(source.index),
+        },
       },
+      prepared: prepared.request,
     };
   });
+  return parsed ?? { ok: false, check };
 }
 
 /** An exchange failure as displayed: its kind and, where it has one, its cause or check. */

@@ -9,7 +9,10 @@ import {
   parseStartRequest,
   parseViewerChannelMessage,
 } from "../src/core/extensionMessages.ts";
-import type { PresentAnswer } from "../src/core/extensionMessages.ts";
+import type {
+  PresentAnswer,
+  StartRequest,
+} from "../src/core/extensionMessages.ts";
 import { maxBodyBytes } from "../src/core/prepare.ts";
 
 const now = 1_700_000_000_000;
@@ -63,8 +66,21 @@ function requestOfBodySize(bytes: number): unknown {
 }
 
 describe("parseStartRequest", () => {
+  /** The request a parse accepted, failing the test when it rejected. */
+  const accepted = (value: unknown): StartRequest => {
+    const parsed = parseStartRequest(value, now);
+    assert.ok(parsed.ok, "rejected");
+    return parsed.request;
+  };
+
   it("accepts the valid request unchanged", () => {
-    assert.deepEqual(parseStartRequest(validRequest(), now), validRequest());
+    assert.deepEqual(accepted(validRequest()), validRequest());
+  });
+
+  it("returns the input measured as the request to send", () => {
+    const parsed = parseStartRequest(validRequest(), now);
+    assert.ok(parsed.ok);
+    assert.deepEqual(parsed.prepared.body.message, parsed.request.input);
   });
 
   it("accepts a request without the optional members", () => {
@@ -72,13 +88,20 @@ describe("parseStartRequest", () => {
       r.input = { videoUrl: watchUrl, transcript: "t" };
       r.viewer = { heading: "h", url: watchUrl, sentAt: 0 };
     });
-    assert.deepEqual(parseStartRequest(request, now), request);
+    assert.deepEqual(accepted(request), request);
   });
 
   it("accepts an input of exactly 4 MiB", () => {
-    assert.notEqual(
-      parseStartRequest(requestOfBodySize(maxBodyBytes), now),
-      undefined,
+    assert.equal(
+      parseStartRequest(requestOfBodySize(maxBodyBytes), now).ok,
+      true,
+    );
+  });
+
+  it("reports an input over 4 MiB as the size check", () => {
+    assert.deepEqual(
+      parseStartRequest(requestOfBodySize(maxBodyBytes + 1), now),
+      { ok: false, check: "size" },
     );
   });
 
@@ -92,7 +115,6 @@ describe("parseStartRequest", () => {
     },
     { name: "an extra member", value: changed((r) => void (r.extra = {})) },
     { name: "a missing source", value: changed((r) => void delete r.source) },
-    { name: "an input over 4 MiB", value: requestOfBodySize(maxBodyBytes + 1) },
     {
       name: "an input without its transcript",
       value: changed((r) => void delete r.input!.transcript),
@@ -171,8 +193,11 @@ describe("parseStartRequest", () => {
     },
   ];
   for (const { name, value } of rejected) {
-    it(`rejects ${name}`, () => {
-      assert.equal(parseStartRequest(value, now), undefined);
+    it(`rejects ${name} as the shape check`, () => {
+      assert.deepEqual(parseStartRequest(value, now), {
+        ok: false,
+        check: "shape",
+      });
     });
   }
 
@@ -184,7 +209,10 @@ describe("parseStartRequest", () => {
         throw new Error("boom");
       },
     });
-    assert.equal(parseStartRequest(request, now), undefined);
+    assert.deepEqual(parseStartRequest(request, now), {
+      ok: false,
+      check: "shape",
+    });
   });
 });
 
