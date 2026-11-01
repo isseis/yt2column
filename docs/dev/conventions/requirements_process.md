@@ -184,10 +184,14 @@ and the PR-number fill-in of `/runpr` follow this definition.
   after its PR exists (by `/fixpr` or `/runpr`) writes the number. A line written
   before its PR exists (for example by `/runplan`, `/mkarch`, `/mkplan2`, or a
   manual withdrawal) writes the not-yet-filled marker `#未記入` in place of
-  `#<PR 番号>`. `/runpr`'s PRE_MERGE replaces the marker in the change-history
-  lines of task documents that the PR added, and only in those (`.claude/commands/runpr.md`, PRE_MERGE); a marker
-  already on `main` is shown to the user, never filled in automatically,
-  because the PR that added it is not known for certain.
+  `#<PR 番号>`. `/runpr`'s PRE_MERGE replaces the marker in each
+  change-history line the PR adds, to a new or an existing task document, and
+  only in those (`.claude/commands/runpr.md`, PRE_MERGE); a marker already on
+  `main` is shown to the user, never filled in automatically, because the PR
+  that added it is not known for certain. To fill one in, find the commit that
+  added the line (`git log -S '#未記入' -- <document>`) and its PR
+  (`gh pr list --state merged --search <SHA>`), and fix the marker in a PR of
+  its own.
 - **`draft` revert along with an earlier document's decision change:** only
   `/fixpr` writes this line, when a changed handoff item returns a later
   document whose body it did not change (`.claude/commands/fixpr.md`, R3).
