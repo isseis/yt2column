@@ -15,8 +15,9 @@ When implementing new features or security-critical functionality, follow this p
 
 #### Editing an approved document
 
-Two kinds of edit reach an already-approved document, and they are handled
-differently:
+Two kinds of edit reach an already-approved document, a decision change and an
+editorial correction, and they are handled differently; a decision change found
+in a `/runplan` session is handled as a session re-approval:
 
 - **Decision change** — the document now says something different about what to
   build or why. Write the decision itself into the document's body, and set the
@@ -24,7 +25,10 @@ differently:
   as the status format requires). Set `Comments` as "Comments" below says, and
   add a `draft` revert line to the change history ("Change history" below). The
   reviewer approves the document again through `/runpr`, whose approval line
-  records the approver; the past approvals stay in the change history. When the
+  records the approver; the past approvals stay in the change history. A revert
+  made before the PR exists is named in the PR description when the PR is
+  created ("Recording in the PR description" below); one `/fixpr` makes after
+  the PR exists is not added to the PR description. When the
   document was written under the old rule, migrate it first ("Documents written
   under the old rule" below).
 - **Session re-approval** — the exception for a decision change `/runplan` finds
@@ -117,14 +121,15 @@ to know now:
 | `withdrawn` | `YYYY-MM-DD 取り下げ：<理由、または理由を記録した文書へのリンク>` |
 
 - Rewrite `Comments` at every status transition, keeping nothing of the
-  previous value: approval sets it back to `-`, and a `draft` revert or a
+  previous value: approval and a session re-approval set it to `-`, and a `draft` revert or a
   withdrawal sets the value above. The past belongs in the change history.
 - Separate two or more items in `Comments` with `<br>`, so the table stays one
   row and each item shows on its own line.
 - When a second decision change reaches a document that is already `draft` from
   a decision change (for example, `/fixpr` returns a document to `draft` in one
   round and changes it again in the next), the status does not change: append
-  the new summary to `Comments` after a `<br>`. In the change history, when the
+  the new value (the form of the table above) to `Comments` after a `<br>`,
+  unless the same value is already there. In the change history, when the
   current PR has already added a `draft` revert line for the document (the line
   is not on `main` yet), append the new summary to that line's summary after a
   `；`, unless the same summary is already there (so a rerun does not add it
@@ -143,7 +148,7 @@ and the PR-number fill-in of `/runpr` follow this definition.
   the order they happened; a new line is appended at the end. Never record an
   editorial correction here.
 - **Placement:** the last section of the document. When `02_architecture.md` has
-  a `決定の履歴` appendix (the past decisions and their reasons), the change
+  a decision-history appendix (the past decisions and their reasons), the change
   history follows it; the two are separate sections.
 - **When it is created:** not when the document is created (the requirements
   template has none). The command that writes the first line creates the
@@ -159,7 +164,7 @@ and the PR-number fill-in of `/runpr` follow this definition.
   | Session re-approval | `- YYYY-MM-DD セッション中の再承認：<変更の要旨>（<承認者>、#<PR 番号>）` |
   | Withdrawal | `- YYYY-MM-DD withdrawn：<理由、または理由を記録した文書へのリンク>（#<PR 番号>）` |
 
-  For example:
+  For example (an illustration of each form, not one document's sequence):
 
   ```markdown
   ## 変更履歴
@@ -176,10 +181,11 @@ and the PR-number fill-in of `/runpr` follow this definition.
   in both the approval line and the session re-approval line.
 - **PR number:** every line that reaches `main` carries the number of the PR
   that added it; the migrated item below is the only exception. A line written
-  before its PR exists (by `/runplan`, `/mkarch`, `/mkplan2`, or a manual
-  withdrawal) writes the not-yet-filled marker `#未記入` in place of
-  `#<PR 番号>`. `/runpr`'s PRE_MERGE replaces the marker in the lines the PR
-  added, and only in those (`.claude/commands/runpr.md`, PRE_MERGE); a marker
+  after its PR exists (by `/fixpr` or `/runpr`) writes the number. A line written
+  before its PR exists (for example by `/runplan`, `/mkarch`, `/mkplan2`, or a
+  manual withdrawal) writes the not-yet-filled marker `#未記入` in place of
+  `#<PR 番号>`. `/runpr`'s PRE_MERGE replaces the marker in the change-history
+  lines of task documents that the PR added, and only in those (`.claude/commands/runpr.md`, PRE_MERGE); a marker
   already on `main` is shown to the user, never filled in automatically,
   because the PR that added it is not known for certain.
 - **`draft` revert along with an earlier document's decision change:** only
@@ -200,14 +206,15 @@ command that writes the transition first does the following, in order:
 
 1. Create `## 変更履歴` at the end of the document, and put the text of the old
    `Comments` cell in it as the first item, after the prefix
-   `旧規則の Comments：`. Copy the cell's text byte for byte, `\|` and `<br>`
-   included.
+   `旧規則の Comments：`. The cell's text is the bytes of the line after its
+   leading `| Comments | ` and before its trailing ` |`; do not split it on `|`.
+   Copy it byte for byte, `\|` and `<br>` included.
 2. Rewrite `Comments` to the reason for the status after the transition
    ("Comments" above).
 3. Append the transition's line.
 4. Before committing, check mechanically that the copy equals the cell: take
    the cell text of the removed `Comments` line and the text of the added
-   `旧規則の Comments：` item from `git diff` into two files and compare them
+   item (the bytes after `- 旧規則の Comments：` to the end of the line) from `git diff` into two files and compare them
    with `cmp`. An old `Comments` can be several kilobytes long, and a long text
    an LLM copies can change. When they differ, do not commit.
 
@@ -225,7 +232,9 @@ its `Comments`.
   Only a line that starts with `Editorial correction: ` at its first column is a
   correction line; an indented line or a mention inside a sentence is not. Do
   not start any other line of a commit message with `Editorial correction: `.
-  The line contains no `@` or `<`, and its description is written in the
+  `<document path>` is the repository-relative path of the task document. The
+  line contains no `@` or `<`; a command may check it more strictly before it
+  posts it (`.claude/commands/fixpr.md`, Phase 4). Its description is written in the
   writer's own words, never quoting a review thread or the PR description.
 - **Correction paragraph (PR description):** the PR description records the
   corrections of the correction lines in a paragraph that is not a heading, so it
@@ -242,7 +251,8 @@ its `Comments`.
   into Japanese, one item for each correction line. When a PR is created, the paragraph is
   written from the correction lines of `git log origin/main..HEAD`; after that,
   `/fixpr` appends a paragraph for the correction lines of the commits of its
-  round. A paragraph already in the description is kept as it is.
+  round. A paragraph already in the description is kept as it is. When the
+  range has no correction line, no paragraph is written.
 - **Decision changes (PR description):** when a PR is created, its description
   names the decision changes that the `draft` revert lines and the session
   re-approval lines the branch added to change histories show
