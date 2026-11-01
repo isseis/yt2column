@@ -157,7 +157,7 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 **判定理由**: ステップ 1-1 が試作による実現性の確認（Phase 0 型の PoC）であるため
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/600
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
