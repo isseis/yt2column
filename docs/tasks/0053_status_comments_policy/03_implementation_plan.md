@@ -123,10 +123,10 @@
 
 **変更するファイル:** `cmd/fixprguard/main.go`、`cmd/fixprguard/main_test.go`
 
--   [ ] サブコマンドの名前 `append-pr` の定数を加え、`specs` に `append-pr` を加える（`--body-file` は必須、`[PR]` は省略できる、`usesGH`）。`cmdFinish` の `flags` に `flagBodyFile` を加え、`required` には加えない。
--   [ ] `finish` の処理が、`--body-file` の値を `FinishRequest.BodyFile` に渡すようにする。`append-pr` の処理を `editPR` と同じ形で加え、出力は `writeOutput`（設計書 3.4.2 節「出力」）とする。
--   [ ] `stop` と `writeOutput` のコメントに `finish` と `append-pr` を加える（1.4 節）。
--   [ ] 4.1 節の 1-3 の行のテストを加える。`lines`・`validArgs` に `append-pr` の行を、`TestPostTextMentionExitsUsage` に新しい経路の行を加える。
+-   [x] サブコマンドの名前 `append-pr` の定数を加え、`specs` に `append-pr` を加える（`--body-file` は必須、`[PR]` は省略できる、`usesGH`）。`cmdFinish` の `flags` に `flagBodyFile` を加え、`required` には加えない。
+-   [x] `finish` の処理が、`--body-file` の値を `FinishRequest.BodyFile` に渡すようにする。`append-pr` の処理を `editPR` と同じ形で加え、出力は `writeOutput`（設計書 3.4.2 節「出力」）とする。
+-   [x] `stop` と `writeOutput` のコメントに `finish` と `append-pr` を加える（1.4 節）。
+-   [x] 4.1 節の 1-3 の行のテストを加える。`lines`・`validArgs` に `append-pr` の行を、`TestPostTextMentionExitsUsage` に新しい経路の行を加える。
 
 **完了の条件:** `make test` と `make lint` が通る。4.1 節の 1-3 の行の「壊して確かめる」の各項目で該当のテストが落ちることを確かめ、コミットメッセージに書いた。
 

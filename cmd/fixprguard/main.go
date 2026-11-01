@@ -55,15 +55,16 @@ const (
 
 // The subcommands.
 const (
-	cmdHead    = "head"
-	cmdList    = "list"
-	cmdBegin   = "begin"
-	cmdFence   = "fence"
-	cmdInspect = "inspect"
-	cmdFinish  = "finish"
-	cmdPush    = "push"
-	cmdReply   = "reply"
-	cmdEditPR  = "edit-pr"
+	cmdHead     = "head"
+	cmdList     = "list"
+	cmdBegin    = "begin"
+	cmdFence    = "fence"
+	cmdInspect  = "inspect"
+	cmdFinish   = "finish"
+	cmdPush     = "push"
+	cmdReply    = "reply"
+	cmdEditPR   = "edit-pr"
+	cmdAppendPR = "append-pr"
 )
 
 // The flags.
@@ -107,7 +108,7 @@ var specs = map[string]spec{
 	cmdBegin:   {flags: []string{flagReviewer, flagAccept}, required: []string{flagReviewer}, arg: argOptionalPR, usesGH: true},
 	cmdFence:   {arg: argFile},
 	cmdInspect: {flags: []string{flagReviewer, flagBaseline, flagThread}, required: []string{flagReviewer, flagBaseline}, arg: argOptionalPR, usesGH: true},
-	cmdFinish:  {flags: []string{flagBaseline, flagJudgedSet}, required: []string{flagBaseline, flagJudgedSet}, arg: argRequiredPR},
+	cmdFinish:  {flags: []string{flagBaseline, flagJudgedSet, flagBodyFile}, required: []string{flagBaseline, flagJudgedSet}, arg: argRequiredPR},
 	cmdPush:    {flags: []string{flagBaseline, flagCommit}, required: []string{flagBaseline, flagCommit}},
 	cmdReply: {
 		flags:    []string{flagReviewer, flagThreadID, flagCommentID, flagFingerprint, flagBodyFile, flagAccept},
@@ -115,7 +116,8 @@ var specs = map[string]spec{
 		arg:      argOptionalPR,
 		usesGH:   true,
 	},
-	cmdEditPR: {flags: []string{flagTitleFile, flagBodyFile}, required: []string{flagTitleFile, flagBodyFile}, arg: argOptionalPR, usesGH: true},
+	cmdEditPR:   {flags: []string{flagTitleFile, flagBodyFile}, required: []string{flagTitleFile, flagBodyFile}, arg: argOptionalPR, usesGH: true},
+	cmdAppendPR: {flags: []string{flagBodyFile}, required: []string{flagBodyFile}, arg: argOptionalPR, usesGH: true},
 }
 
 // ghTargetVariables point gh at another repository or host than the work
@@ -284,8 +286,9 @@ func run(ctx context.Context, args []string, e env) int {
 	return code
 }
 
-// stop reports err: a usage error (a value outside its grammar, or a text
-// file reply or edit-pr refuses) exits 2 with the diagnostic only; any other
+// stop reports err: a usage error (a value outside its grammar, a text file
+// reply, edit-pr or append-pr refuses, a body file finish refuses, or a PR
+// body append-pr would refuse to write) exits 2 with the diagnostic only; any other
 // error exits 1 with the stop output. A reply that may have been posted is a
 // stop whatever it wraps, so the caller does not post it again.
 func stop(e env, err error) int {
@@ -371,6 +374,8 @@ func execute(ctx context.Context, inv invocation, e env) (any, int, error) {
 		return reply(ctx, inv, e)
 	case cmdEditPR:
 		return editPR(ctx, inv, e)
+	case cmdAppendPR:
+		return appendPR(ctx, inv, e)
 	default:
 		return nil, 0, errUsage
 	}
@@ -597,8 +602,13 @@ func inspect(ctx context.Context, inv invocation, e env, w *fixprguard.Worktree)
 }
 
 // finish takes the PR number on the command line: it reads nothing from
-// GitHub, so it cannot resolve the current branch's PR.
+// GitHub, so it cannot resolve the current branch's PR. --body-file is
+// optional; an empty value is refused rather than read as no body.
 func finish(ctx context.Context, inv invocation, w *fixprguard.Worktree) (any, int, error) {
+	bodyFile, given := inv.values[flagBodyFile]
+	if given && bodyFile == "" {
+		return nil, 0, fmt.Errorf("%w: --%s is empty", fixprguard.ErrInvalidInput, flagBodyFile)
+	}
 	base, err := fixprguard.ParseBaseline(inv.values[flagBaseline])
 	if err != nil {
 		return nil, 0, err
@@ -611,7 +621,7 @@ func finish(ctx context.Context, inv invocation, w *fixprguard.Worktree) (any, i
 	if err != nil {
 		return nil, 0, err
 	}
-	result, err := w.Finish(ctx, base, judged, fixprguard.FinishRequest{PR: pr})
+	result, err := w.Finish(ctx, base, judged, fixprguard.FinishRequest{PR: pr, BodyFile: bodyFile})
 	return result, exitContinue, err
 }
 
@@ -624,7 +634,7 @@ func push(ctx context.Context, inv invocation, w *fixprguard.Worktree) (any, int
 	return result, exitContinue, err
 }
 
-// writeOutput is the output of reply and edit-pr.
+// writeOutput is the output of reply, edit-pr and append-pr.
 type writeOutput struct {
 	Protocol int  `json:"protocol"`
 	Written  bool `json:"written"`
@@ -676,6 +686,24 @@ func editPR(ctx context.Context, inv invocation, e env) (any, int, error) {
 		return nil, 0, err
 	}
 	if err := g.EditPR(ctx, fixprguard.EditPRRequest{PR: pr, TitleFile: inv.values[flagTitleFile], BodyFile: inv.values[flagBodyFile]}); err != nil {
+		return nil, 0, err
+	}
+	return writeOutput{Protocol: fixprguard.Protocol, Written: true}, exitContinue, nil
+}
+
+func appendPR(ctx context.Context, inv invocation, e env) (any, int, error) {
+	if err := validatePR(inv.arg); err != nil {
+		return nil, 0, err
+	}
+	g, err := fixprguard.NewGitHubWithoutReviewer(e.gh)
+	if err != nil {
+		return nil, 0, err
+	}
+	pr, err := prNumber(ctx, g, inv.arg)
+	if err != nil {
+		return nil, 0, err
+	}
+	if err := g.AppendPR(ctx, fixprguard.AppendPRRequest{PR: pr, BodyFile: inv.values[flagBodyFile]}); err != nil {
 		return nil, 0, err
 	}
 	return writeOutput{Protocol: fixprguard.Protocol, Written: true}, exitContinue, nil

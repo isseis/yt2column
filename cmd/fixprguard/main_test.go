@@ -40,7 +40,8 @@ func validArgs() map[string][]string {
 		cmdPush:    args(cmdPush, "--baseline", baseline, "--commit", "c"),
 		cmdReply: args(cmdReply, "--reviewer", testReviewer, "--thread-id", testThreadID, "--comment-id", "1",
 			"--fingerprint", fingerprint, "--body-file", "body.md", testPR),
-		cmdEditPR: args(cmdEditPR, "--title-file", "title.txt", "--body-file", "body.md", testPR),
+		cmdEditPR:   args(cmdEditPR, "--title-file", "title.txt", "--body-file", "body.md", testPR),
+		cmdAppendPR: args(cmdAppendPR, "--body-file", "body.md", testPR),
 	}
 }
 
@@ -226,7 +227,8 @@ func TestGhTargetEnvRejected(t *testing.T) {
 		cmdInspect: args(cmdInspect, "--reviewer", testReviewer, "--baseline", validBaseline(t), "--thread", testThreadID+"="+fp, testPR),
 		cmdReply: args(cmdReply, "--reviewer", testReviewer, "--thread-id", testThreadID, "--comment-id", "1",
 			"--fingerprint", fp, "--body-file", text, testPR),
-		cmdEditPR: args(cmdEditPR, "--title-file", text, "--body-file", text, testPR),
+		cmdEditPR:   args(cmdEditPR, "--title-file", text, "--body-file", text, testPR),
+		cmdAppendPR: args(cmdAppendPR, "--body-file", text, testPR),
 	}
 	for name, sp := range specs {
 		if _, ok := lines[name]; sp.usesGH != ok {
@@ -741,15 +743,45 @@ func TestPostTextMentionExitsUsage(t *testing.T) {
 	editLine := func(t *testing.T, title, body string) []string {
 		return args(cmdEditPR, "--title-file", textFile(t, title), "--body-file", textFile(t, body), testPR)
 	}
+	appendLine := func(t *testing.T, text string) []string {
+		return args(cmdAppendPR, "--body-file", textFile(t, text), testPR)
+	}
+	// finishLine commits body; every other value fits its grammar, and the
+	// body is checked before git runs.
+	finishLine := func(t *testing.T, body string) []string {
+		return args(cmdFinish, "--baseline", validBaseline(t), "--judged-set", strings.Repeat("a", 64), "--body-file", textFile(t, body), testPR)
+	}
+	const correction = "Editorial correction: docs/x.md: a stale name; no decision changed"
 	oneLine := strings.TrimSuffix(plain, "\n")
-	for name, line := range map[string]func(*testing.T) []string{
-		"reply_body":    func(t *testing.T) []string { return replyLine(t, mention) },
-		"edit_pr_title": func(t *testing.T) []string { return editLine(t, strings.TrimSuffix(mention, "\n"), plain) },
-		"edit_pr_body":  func(t *testing.T) []string { return editLine(t, oneLine, mention) },
+	// viewBody answers append-pr's read of the current body with body.
+	viewBody := func(t *testing.T, body string) cmdrunnertestutil.Step {
+		return ghStep(mustJSON(t, map[string]any{"body": body}), nil, "pr", "view", testPR, "--json", "body")
+	}
+	for name, row := range map[string]struct {
+		line func(*testing.T) []string
+		gh   func(*testing.T) []cmdrunnertestutil.Step
+	}{
+		"reply_body":     {line: func(t *testing.T) []string { return replyLine(t, mention) }},
+		"edit_pr_title":  {line: func(t *testing.T) []string { return editLine(t, strings.TrimSuffix(mention, "\n"), plain) }},
+		"edit_pr_body":   {line: func(t *testing.T) []string { return editLine(t, oneLine, mention) }},
+		"finish_body":    {line: func(t *testing.T) []string { return finishLine(t, correction+" "+mention) }},
+		"append_pr_file": {line: func(t *testing.T) []string { return appendLine(t, mention) }},
+		// The file is plain; the current body, which the tool reads, mentions
+		// Codex, so the result is refused before pr edit.
+		"append_pr_current_body": {
+			line: func(t *testing.T) []string { return appendLine(t, plain) },
+			gh:   func(t *testing.T) []cmdrunnertestutil.Step { return []cmdrunnertestutil.Step{viewBody(t, mention)} },
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			// The fake holds no step, so any gh call fails the test.
-			r := newTestRun(t, nil)
+			// The fake holds only the steps the row scripts, so any other gh
+			// call fails the test.
+			var steps []cmdrunnertestutil.Step
+			if row.gh != nil {
+				steps = row.gh(t)
+			}
+			r := newTestRun(t, steps)
+			line := row.line
 			if code := r.Run(t, line(t)...); code != exitUsage {
 				t.Errorf("exit %d, want %d (%s)", code, exitUsage, r.Stderr)
 			}
@@ -775,6 +807,21 @@ func TestPostTextMentionExitsUsage(t *testing.T) {
 	t.Run("control/edit_pr", func(t *testing.T) {
 		r := newTestRun(t, []cmdrunnertestutil.Step{ghStep("", nil, "pr", "edit", testPR, "--title="+oneLine, "--body-file", "-")})
 		if code := r.Run(t, editLine(t, oneLine, plain)...); code != exitContinue {
+			t.Errorf("exit %d, want %d (%s)", code, exitContinue, r.Stderr)
+		}
+	})
+	t.Run("control/finish", func(t *testing.T) {
+		// Outside a repository the first comparison with the baseline
+		// stops the run (exit 1), after the body passed.
+		t.Chdir(t.TempDir())
+		r := newTestRun(t, nil)
+		if code := r.Run(t, finishLine(t, correction+"\n")...); code != exitStop {
+			t.Errorf("exit %d, want %d (%s)", code, exitStop, r.Stderr)
+		}
+	})
+	t.Run("control/append_pr", func(t *testing.T) {
+		r := newTestRun(t, []cmdrunnertestutil.Step{viewBody(t, plain), ghStep("", nil, "pr", "edit", testPR, "--body-file", "-")})
+		if code := r.Run(t, appendLine(t, plain)...); code != exitContinue {
 			t.Errorf("exit %d, want %d (%s)", code, exitContinue, r.Stderr)
 		}
 	})
@@ -1149,4 +1196,137 @@ func entryDigests(t *testing.T, records ...string) []string {
 		t.Fatal("test setup: no record file to read entry digests from")
 	}
 	return digests
+}
+
+// TestParseAppendPR: append-pr requires --body-file and takes the PR number
+// or none, never two.
+func TestParseAppendPR(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		line    []string
+		wantArg string
+		wantErr bool
+	}{
+		{name: "with_pr", line: args(cmdAppendPR, "--body-file", "b.md", testPR), wantArg: testPR},
+		{name: "current_branch", line: args(cmdAppendPR, "--body-file", "b.md")},
+		{name: "no_body_file", line: args(cmdAppendPR, testPR), wantErr: true},
+		{name: "two_prs", line: args(cmdAppendPR, "--body-file", "b.md", testPR, testPR), wantErr: true},
+		{name: "title_file", line: args(cmdAppendPR, "--title-file", "t.txt", "--body-file", "b.md", testPR), wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			inv, err := parse(tc.line)
+			if tc.wantErr {
+				if !errors.Is(err, errUsage) {
+					t.Errorf("parse = %v, want errUsage", err)
+				}
+				return
+			}
+			if err != nil || inv.values[flagBodyFile] != "b.md" || inv.arg != tc.wantArg {
+				t.Errorf("parse = %+v, %v; want --body-file b.md and PR %q", inv, err, tc.wantArg)
+			}
+		})
+	}
+}
+
+// TestParseFinishBodyFile: finish takes --body-file and runs without it; a
+// value given empty is refused before git runs (the line is otherwise valid
+// and git fails outside a repository).
+func TestParseFinishBodyFile(t *testing.T) {
+	line := func(rest ...string) []string {
+		return args(cmdFinish, append([]string{"--baseline", "b", "--judged-set", "j"}, append(rest, testPR)...)...)
+	}
+	inv, err := parse(line("--body-file", "b.md"))
+	if err != nil || inv.values[flagBodyFile] != "b.md" {
+		t.Errorf("parse = %+v, %v; want --body-file b.md", inv, err)
+	}
+	inv, err = parse(line())
+	if _, given := inv.values[flagBodyFile]; err != nil || given {
+		t.Errorf("parse = %+v, %v; want no --body-file", inv, err)
+	}
+	t.Run("empty_value", func(t *testing.T) {
+		t.Chdir(t.TempDir())
+		r := newTestRun(t, nil)
+		code := r.Run(t, args(cmdFinish, "--baseline", validBaseline(t), "--judged-set", strings.Repeat("a", 64), "--body-file", "", testPR)...)
+		if code != exitUsage || !strings.Contains(r.Stderr.String(), "--body-file") {
+			t.Errorf("exit %d, stderr %q; want %d naming --body-file", code, r.Stderr, exitUsage)
+		}
+	})
+}
+
+// TestFinishBodyFileRun runs finish --body-file and append-pr from the
+// command line: the commit holds the body, a commit-msg hook that rewrites
+// it stops the run as a git state change, and append-pr prints the write
+// output.
+func TestFinishBodyFileRun(t *testing.T) {
+	const body = "Editorial correction: docs/x.md: a stale name; no decision changed\n"
+	bodyFile := func(t *testing.T) string {
+		name := filepath.Join(t.TempDir(), "body.txt")
+		if err := os.WriteFile(name, []byte(body), 0o600); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+		return name
+	}
+	buildChecks := func() []cmdrunnertestutil.Step {
+		var steps []cmdrunnertestutil.Step
+		for _, stage := range fixprguard.BuildCheckTargets() {
+			steps = append(steps, cmdrunnertestutil.Step{Name: "make", Args: []string{stage}})
+		}
+		return steps
+	}
+	finishLine := func(t *testing.T, repo *testRepo) []string {
+		base := repo.Baseline()
+		repo.Write(testFile, "changed\n")
+		judged := repo.JudgedSet(base)
+		return args(cmdFinish, "--baseline", base.String(), "--judged-set", string(judged), "--body-file", bodyFile(t), testPR)
+	}
+	t.Run("commit_holds_body", func(t *testing.T) {
+		repo := newTestRepo(t)
+		r := newTestRun(t, nil, buildChecks()...)
+		if code := r.Run(t, finishLine(t, repo)...); code != exitContinue {
+			t.Fatalf("exit %d (%s)", code, r.Stderr)
+		}
+		_, message, _ := strings.Cut(repo.Git("cat-file", "commit", "HEAD"), "\n\n")
+		if want := fixprguard.CommitSubject(mustParsePR(t)) + "\n\n" + body; message != want {
+			t.Errorf("message = %q, want %q", message, want)
+		}
+	})
+	t.Run("message_rewritten", func(t *testing.T) {
+		repo := newTestRepo(t)
+		hook := filepath.Join(repo.Dir, ".git", "hooks", "commit-msg")
+		if err := os.MkdirAll(filepath.Dir(hook), testDirMode); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(hook, []byte("#!/bin/sh\nprintf 'Signed-off-by: hook\\n' >> \"$1\"\n"), 0o700); err != nil { //nolint:gosec // a hook of the test's temporary repository
+			t.Fatal(err)
+		}
+		r := newTestRun(t, nil, buildChecks()...)
+		code := r.Run(t, finishLine(t, repo)...)
+		var out stopJSON
+		r.Decode(t, &out)
+		if code != exitStop || out.Stop != fixprguard.StopGitStateChanged || !slices.Equal(out.Parts, []string{fixprguard.PartHead}) {
+			t.Errorf("exit %d, output %+v; want %d, %s with parts [%s]", code, out, exitStop, fixprguard.StopGitStateChanged, fixprguard.PartHead)
+		}
+	})
+	t.Run("append_pr_output", func(t *testing.T) {
+		r := newTestRun(t, []cmdrunnertestutil.Step{
+			ghStep(`{"body":"## Summary"}`, nil, "pr", "view", testPR, "--json", "body"),
+			ghStep("", nil, "pr", "edit", testPR, "--body-file", "-"),
+		})
+		if code := r.Run(t, args(cmdAppendPR, "--body-file", bodyFile(t), testPR)...); code != exitContinue {
+			t.Fatalf("exit %d (%s)", code, r.Stderr)
+		}
+		if got := r.Stdout.String(); got != `{"protocol":`+strconv.Itoa(fixprguard.Protocol)+`,"written":true}`+"\n" {
+			t.Errorf("output = %q", got)
+		}
+	})
+}
+
+// mustParsePR is testPR as a PR number.
+func mustParsePR(t *testing.T) fixprguard.PRNumber {
+	t.Helper()
+	pr, err := fixprguard.ParsePRNumber(testPR)
+	if err != nil {
+		t.Fatalf("ParsePRNumber: %v", err)
+	}
+	return pr
 }
