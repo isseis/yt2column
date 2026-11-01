@@ -405,11 +405,11 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **変更するファイル:** `static/theme.css`（新規）、`static/style.css`、`static/viewer.css`（新規）、`static/viewer.html`（新規）、`static/popup.html`、`scripts/popup-preview.ts`、`test/style.test.ts`、`test/popupHtml.test.ts`、`test/popupPreview.test.ts`、`test/helpers/dom.ts`、`docs/tasks/0050_viewer_tab/_checks/presend_popup_styles.ts`（新規）
 
--   [ ] 色の変数と共有の規則を `style.css` から `theme.css` に移し、ビューアの配置を `viewer.css` に置く（設計書 3.14）。送る前のポップアップの値は変えない（設計書 3.8）。
--   [ ] `viewer.html` に、見出し・状態・記事・操作の各要素と、2 つの `role="status"` を置く（設計書 3.18）。`<script>` はステップ 5-5 で加える（`viewer.js` がないと `check-dist.ts` の参照の検査が失敗するため）。`popup.html` と `viewer.html` は、`theme.css` を先に読み込む。
--   [ ] `scripts/popup-preview.ts` が `theme.css` も写して参照するようにし、`test/popupPreview.test.ts:149-153` の `<link>` の確かめを改める。
--   [ ] `test/helpers/dom.ts` に、出荷する `viewer.html` から骨格を作る補助を加える。
--   [ ] テスト: `test/style.test.ts` のコントラストの計算を `theme.css` の変数と新しい組（ビューアの失敗の色、工程の記号、ロード中の印、フォーカスの印）に広げる。ライトとダークの両方、`prefers-reduced-motion` で印と `running` の記号の `animation` を止める規則、押せる要素の幅と高さの最小値（AC-45・AC-48・AC-50・AC-51）。
+-   [x] 色の変数と共有の規則を `style.css` から `theme.css` に移し、ビューアの配置を `viewer.css` に置く（設計書 3.14）。送る前のポップアップの値は変えない（設計書 3.8）。
+-   [x] `viewer.html` に、見出し・状態・記事・操作の各要素と、2 つの `role="status"` を置く（設計書 3.18）。`<script>` はステップ 5-5 で加える（`viewer.js` がないと `check-dist.ts` の参照の検査が失敗するため）。`popup.html` と `viewer.html` は、`theme.css` を先に読み込む。
+-   [x] `scripts/popup-preview.ts` が `theme.css` も写して参照するようにし、`test/popupPreview.test.ts:149-153` の `<link>` の確かめを改める。
+-   [x] `test/helpers/dom.ts` に、出荷する `viewer.html` から骨格を作る補助を加える。
+-   [x] テスト: `test/style.test.ts` のコントラストの計算を `theme.css` の変数と新しい組（ビューアの失敗の色、工程の記号、ロード中の印、フォーカスの印）に広げる。ライトとダークの両方、`prefers-reduced-motion` で印と `running` の記号の `animation` を止める規則、押せる要素の幅と高さの最小値（AC-45・AC-48・AC-50・AC-51）。
 -   [ ] `_checks/presend_popup_styles.ts` を作る。マージベースの `style.css` と、PR の head の `theme.css`＋`style.css` を jsdom で読み、送る前のポップアップの骨格の各要素（プレビューが描く状態）に当たる宣言の値が変わらないことを確かめる（`requirements_process.md` §4 の `diff`）。PR の作成の前に一度走らせ、出力と 2 つのコミットの ID を 7 章の AC-24 の行に記録する。
 
 **完了の条件:** `make ext-check` が通る。`theme.css` のダークの失敗の色の明るさを下げて、そのコントラストのテストが失敗することを確かめる。`_checks/presend_popup_styles.ts` が、`theme.css` の今の変数の値を 1 つ変えると差分を報告することを確かめる。

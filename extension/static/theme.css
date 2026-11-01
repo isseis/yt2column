@@ -1,0 +1,223 @@
+/* The colour variables and the rules the popup and the viewer share. Each page
+   loads this file first and its own layout file after it. */
+
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, sans-serif;
+  font-size: 14px;
+  /* The light palette; the dark block below replaces every value. Rules refer
+     to these variables only, so changing a theme changes nothing else. */
+  --bg: #ffffff;
+  --text: #1f1f1f;
+  --muted: #5f6368;
+  --border: #e3e3e3;
+  --warn-bg: #fff4dc;
+  --warn-text: #5c3300;
+  --ok: #1a5fc8;
+  --warn: #a15c00;
+  --fail: #c5221f;
+  --link: #1a5fc8;
+  --primary-bg: #1a5fc8;
+  --primary-text: #ffffff;
+  --disabled-bg: #e8eaed;
+  --disabled-text: #5f6368;
+  --focus: #1a5fc8;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #202124;
+    --text: #e8eaed;
+    --muted: #a8adb3;
+    --border: #3c4043;
+    --warn-bg: #3b2e12;
+    --warn-text: #fde7a8;
+    --ok: #8ab4f8;
+    --warn: #f9ab00;
+    --fail: #f28b82;
+    --link: #8ab4f8;
+    --primary-bg: #8ab4f8;
+    --primary-text: #202124;
+    --disabled-bg: #3c4043;
+    --disabled-text: #9aa0a6;
+    --focus: #8ab4f8;
+  }
+}
+
+/* A hidden section must stay hidden whatever display rule it has: until the
+   view is drawn, and for the sections a view does not show, nothing is
+   displayed. */
+[hidden] {
+  display: none !important;
+}
+
+/* Chrome injects extension_fonts.css into every extension page, and its body
+   rule would otherwise give the page the browser's font stack at 75% of the
+   root size (10.5px); these two declarations keep the root's stack and its
+   14px. */
+body {
+  font-family: inherit;
+  font-size: 1rem;
+  color: var(--text);
+  background-color: var(--bg);
+}
+
+/* The message text and its numbered steps. */
+.message-text {
+  margin: 0 0 0.5rem;
+}
+
+.message-steps {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+/* The state word is read by assistive technology but not shown: clipping
+   keeps it in the accessibility tree, unlike display: none or
+   visibility: hidden. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* A button the user presses: the popup's primary button and the viewer's
+   publish, save and copy buttons. Each is at least 44 CSS pixels in both
+   directions. */
+#primary,
+.action-button {
+  min-height: 44px;
+  padding: 0.5rem 1rem;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 600;
+  color: var(--primary-text);
+  background-color: var(--primary-bg);
+  border: 0;
+  border-radius: 0.5rem;
+}
+
+.action-button {
+  min-width: 44px;
+}
+
+#primary:disabled,
+.action-button:disabled {
+  color: var(--disabled-text);
+  background-color: var(--disabled-bg);
+}
+
+/* A 2px outline kept 2px clear of the element. The colour next to it is the
+   page background, or the warning background inside a warning row; --focus
+   keeps 3:1 against both in each theme. */
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* The request id is one click away from a full copy. */
+.send-request-id {
+  font-family: ui-monospace, monospace;
+  user-select: all;
+}
+
+/* A failure's sentence takes the failure colour; its steps keep the text
+   colour. */
+.failure .message-text {
+  color: var(--fail);
+}
+
+/* The generation steps: the symbol, then the step's name; the state word is
+   visually hidden. The symbol's shape differs for every state, and its colour
+   only repeats what the shape says. */
+.step-list {
+  margin: 0 0 0.5rem;
+  padding: 0;
+  list-style: none;
+}
+
+.step-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+}
+
+.step-icon {
+  flex: none;
+}
+
+.step-icon-pending,
+.step-icon-skipped {
+  color: var(--muted);
+}
+
+.step-icon-running,
+.step-icon-done {
+  color: var(--ok);
+}
+
+.step-icon-failed {
+  color: var(--fail);
+}
+
+/* Elapsed time, duration and cost. */
+.job-facts {
+  margin: 0 0 0.5rem;
+  color: var(--muted);
+}
+
+/* The loading mark and the sentence that says which wait it is. The mark
+   turns; it never blinks. */
+.loading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.loading .message-text {
+  margin: 0;
+}
+
+.loading-icon {
+  flex: none;
+  color: var(--ok);
+}
+
+.loading-icon,
+.step-icon-running {
+  animation: turn 1s linear infinite;
+}
+
+@keyframes turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* With reduced motion the mark and the running step's symbol stand still;
+   the sentence and the state word still tell the state. */
+@media (prefers-reduced-motion: reduce) {
+  .loading-icon,
+  .step-icon-running {
+    animation: none;
+  }
+}
+
+/* Japanese typography: the html element carries the page language, so these
+   rules reach the whole page through inheritance, and the request id's
+   monospace rule, written directly on the element, still wins. */
+:root:lang(ja) {
+  font-family:
+    "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", system-ui, sans-serif;
+}
+
+body:lang(ja) {
+  line-height: 1.7;
+}

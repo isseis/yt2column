@@ -25,13 +25,20 @@ function byId(doc: Document, id: string): HTMLElement {
   return element;
 }
 
+/** A fresh document parsed from a shipped page under static/. */
+function staticDocument(file: string): Document {
+  const html = readFileSync(path.join(extensionDir, "static", file), "utf8");
+  return new JSDOM(html).window.document;
+}
+
 /** A fresh document parsed from the shipped static/popup.html. */
 export function popupDocument(): Document {
-  const html = readFileSync(
-    path.join(extensionDir, "static", "popup.html"),
-    "utf8",
-  );
-  return new JSDOM(html).window.document;
+  return staticDocument("popup.html");
+}
+
+/** A fresh document parsed from the shipped static/viewer.html. */
+export function viewerDocument(): Document {
+  return staticDocument("viewer.html");
 }
 
 /**
