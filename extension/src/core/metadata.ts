@@ -213,8 +213,3 @@ export function readFailureResult(check?: MetadataCheck): MetadataResult {
   const result = { values: {}, showExpandPrompt: false, omissions };
   return check === undefined ? result : { ...result, check };
 }
-
-/** The empty result used when the collection was rejected: no read is attempted. */
-export function emptyMetadataResult(): MetadataResult {
-  return { values: {}, showExpandPrompt: false, omissions: [] };
-}
