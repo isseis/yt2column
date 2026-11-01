@@ -69,7 +69,7 @@ export type PollNotice =
   // A rejection keeps its requestId.
   | { readonly kind: "stopped"; readonly outcome: StoppingStatus };
 
-/** Which row of the requirements' F-006 table applies, top row first. */
+/** Which row of the publish button's table applies, top row first: an upper row wins over the rows below it. */
 export type PublishRow =
   | { readonly row: "lost" }
   | { readonly row: "posted" }
