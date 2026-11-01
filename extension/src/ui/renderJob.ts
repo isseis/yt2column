@@ -113,12 +113,13 @@ export function loadingIndicator(
 }
 
 /**
- * The steps and their states as one sentence for the state summary, such as
- * "Draft Done, Shorten In progress, Review Not started".
+ * The steps and their states as one list for the state summary, such as
+ * "Draft Done, Shorten In progress, and Review Not started"; the locale's
+ * list separators keep one step's pair apart from the next.
  */
 export function stepsSummary(steps: Steps, locale: Locale): string {
   const catalog = catalogs[locale];
-  return new Intl.ListFormat(locale, { type: "unit" }).format(
+  return new Intl.ListFormat(locale, { type: "conjunction" }).format(
     stepOrder.map(
       (name) => `${catalog.stepNames[name]} ${catalog.stepStates[steps[name]]}`,
     ),

@@ -59,8 +59,8 @@ body {
   gap: 0.5rem;
 }
 
-/* The publish row's sentence and the operation result each take a line of
-   their own below the buttons. */
+/* The publish row's sentence takes a line of its own under the publish
+   button, and the operation result one under the save and copy buttons. */
 #publish-row,
 #action-status {
   flex-basis: 100%;

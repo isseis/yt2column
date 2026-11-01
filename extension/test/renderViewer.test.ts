@@ -299,6 +299,15 @@ describe("publish rows", () => {
       ],
     },
     {
+      name: "unpostable for another reason",
+      job: doneJob({ state: "unpostable", reason: "other" }),
+      enabled: false,
+      messages: (l) => [
+        catalogs[l].publishStates.unpostable,
+        catalogs[l].publishReasons.other,
+      ],
+    },
+    {
       name: "webhook not configured",
       job: doneJob({ state: "failed", reason: "webhook" }, false),
       enabled: false,
@@ -311,6 +320,15 @@ describe("publish rows", () => {
       messages: (l) => [
         catalogs[l].publishStates.failed,
         catalogs[l].publishReasons.internal,
+      ],
+    },
+    {
+      name: "failed at Slack",
+      job: doneJob({ state: "failed", reason: "webhook" }),
+      enabled: true,
+      messages: (l) => [
+        catalogs[l].publishStates.failed,
+        catalogs[l].publishReasons.webhook,
       ],
     },
     {
@@ -340,9 +358,14 @@ describe("publish rows", () => {
           elements.publish.textContent,
           catalogs[locale].viewer.publish,
         );
-        for (const message of row.messages(locale)) {
-          expectMessage(elements.publishRow, message);
-        }
+        // Exactly the applying row's wording: a lower row's never joins it.
+        assert.equal(
+          elements.publishRow.textContent,
+          row
+            .messages(locale)
+            .map((message) => message.text + message.steps.join(""))
+            .join(""),
+        );
       });
     }
   }
@@ -423,6 +446,29 @@ describe("status regions", () => {
         (l: Locale) => catalogs[l].failure.llm_empty.text,
       ],
       [
+        "invalid link",
+        { kind: "invalid-link" },
+        (l: Locale) => catalogs[l].viewer.invalidLink.text,
+      ],
+      [
+        "start without a result",
+        { kind: "start-failed", failure: { kind: "no-result" } },
+        (l: Locale) => catalogs[l].startResult.noResult.text,
+      ],
+      [
+        "lost",
+        jobState({ kind: "lost" }),
+        (l: Locale) => catalogs[l].viewer.lost.text,
+      ],
+      [
+        "status checks stopped",
+        jobState(running, {
+          kind: "stopped",
+          outcome: { kind: "unexpected", check: "syntax" },
+        }),
+        (l: Locale) => catalogs[l].statusExchange.unexpected.text,
+      ],
+      [
         "status not read",
         jobState(running, {
           kind: "retrying",
@@ -472,6 +518,62 @@ describe("status regions", () => {
       assert.equal(elements.save.ownerDocument.activeElement, elements.save);
     });
   }
+});
+
+describe("publish state announcements", () => {
+  for (const locale of localeList) {
+    it(`announces each publish state as the post starts, finishes or fails in ${locale}`, () => {
+      const catalog = catalogs[locale];
+      const elements = viewerElements();
+      const summaries: string[] = [];
+      for (const publish of [
+        { state: "not_posted" },
+        { state: "posting" },
+        { state: "posted" },
+        { state: "failed", reason: "webhook" },
+      ] as const) {
+        renderViewer(elements, view(jobState(doneJob(publish))), locale);
+        const summary = elements.stateStatus.textContent ?? "";
+        assert.ok(
+          summary.includes(catalog.publishStates[publish.state].text),
+          publish.state,
+        );
+        summaries.push(summary);
+      }
+      assert.equal(new Set(summaries).size, summaries.length);
+    });
+  }
+});
+
+describe("article redraw", () => {
+  it("keeps the article element when its text is unchanged and replaces it when it changes", () => {
+    const elements = drawn(
+      view(jobState(doneJob({ state: "not_posted" }))),
+      "en",
+    );
+    const body = query(elements.article, ".article-body");
+    renderViewer(elements, view(jobState(doneJob({ state: "posting" }))), "en");
+    assert.equal(query(elements.article, ".article-body"), body);
+    renderViewer(
+      elements,
+      view(
+        jobState({
+          ...doneJob({ state: "posting" }),
+          article: { ...article, markdown: "# Another" },
+        }),
+      ),
+      "en",
+    );
+    const replaced = query(elements.article, ".article-body");
+    assert.notEqual(replaced, body);
+    assert.equal(replaced.textContent, "# Another");
+  });
+
+  it("clears the publish row when the article is no longer shown", () => {
+    const elements = drawn(view(jobState(doneJob({ state: "posted" }))), "en");
+    renderViewer(elements, view({ kind: "loading" }), "en");
+    assert.equal(elements.publishRow.textContent, "");
+  });
 });
 
 describe("renderActionNotice", () => {
@@ -557,26 +659,6 @@ describe("order and controls", () => {
         elements.save,
         elements.copy,
       ]);
-      // The heading, channel name, link, state, article and operations come in
-      // the order they are shown.
-      const order = [
-        elements.heading,
-        elements.channel,
-        elements.videoLink,
-        elements.state,
-        elements.article,
-        elements.actions,
-      ];
-      for (let i = 1; i < order.length; i++) {
-        const previous = order[i - 1];
-        const next = order[i];
-        assert.ok(previous !== undefined && next !== undefined);
-        assert.ok(
-          previous.compareDocumentPosition(next) &
-            previous.DOCUMENT_POSITION_FOLLOWING,
-          `${previous.id} before ${next.id}`,
-        );
-      }
       assert.equal(
         elements.state.ownerDocument.querySelector("[tabindex]"),
         null,

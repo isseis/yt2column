@@ -103,7 +103,7 @@ function line(
   return shape;
 }
 
-/** A quarter-turn arc; the CSS turns it while it shows a running wait. */
+/** A three-quarter arc; the CSS turns it while it shows a running wait. */
 function arc(doc: Document): SVGPathElement {
   const shape = doc.createElementNS(svgNamespace, "path");
   shape.setAttribute("d", "M10 3 A7 7 0 1 1 3 10");

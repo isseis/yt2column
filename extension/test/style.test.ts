@@ -737,6 +737,22 @@ describe("motion", () => {
     }
   });
 
+  it("puts the reduced-motion rule after the rule it overrides", () => {
+    // Both rules have the same specificity, so the later one wins in a
+    // browser: placed first, the reduced-motion rule would never apply.
+    for (const selector of moving) {
+      const setting = rulesFor(onScreen, selector).filter(
+        ({ rule }) => rule.style.getPropertyValue("animation") !== "",
+      );
+      const lastNormal = setting.reduce(
+        (last, entry, index) => (isReducedMotion(entry) ? last : index),
+        -1,
+      );
+      const firstReduced = setting.findIndex(isReducedMotion);
+      assert.ok(lastNormal >= 0 && firstReduced > lastNormal, selector);
+    }
+  });
+
   it("stops both under prefers-reduced-motion: reduce", () => {
     const reduced = onScreen.filter(isReducedMotion);
     for (const selector of moving) {

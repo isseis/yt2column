@@ -190,8 +190,14 @@ function jobSummary(job: JobDisplay, locale: Locale): string[] {
     case "running":
       return [catalog.viewer.running, stepsSummary(job.steps, locale)];
     case "done":
-      // The same sentence the popup shows when the article is ready.
-      return [catalog.popup.articleReady.text];
+      // The same sentence the popup shows when the article is ready, then the
+      // publish state, so a post starting, finishing or failing is announced.
+      return [
+        catalog.popup.articleReady.text,
+        ...publishRowMessages(publishControl(job, false).row, locale).map(
+          (message) => message.text,
+        ),
+      ];
     case "failed":
       return [catalog.failure[job.failure].text];
     case "lost":
@@ -207,27 +213,47 @@ function noticeSummary(notice: PollNotice, locale: Locale): string[] {
 }
 
 /**
- * The state summary: loading started or ended, a step changed, the job
- * finished or failed, the status could not be read. It holds no elapsed time,
- * so the same state gives the same summary whatever the clock says.
+ * The state summary's sentences: loading started or ended, a step changed,
+ * the job finished or failed, the publish state changed, the status could not
+ * be read. They hold no elapsed time, so the same state gives the same
+ * summary whatever the clock says.
  */
-function stateSummary(state: ViewerState, locale: Locale): string {
+function stateSummary(state: ViewerState, locale: Locale): string[] {
   const viewer = catalogs[locale].viewer;
   switch (state.kind) {
     case "invalid-link":
-      return viewer.invalidLink.text;
+      return [viewer.invalidLink.text];
     case "sending":
-      return viewer.sending.text;
+      return [viewer.sending.text];
     case "loading":
-      return viewer.loading.text;
+      return [viewer.loading.text];
     case "start-failed":
-      return startResultMessage(state.failure, locale).text;
+      return [startResultMessage(state.failure, locale).text];
     case "job":
       return [
         ...jobSummary(state.job, locale),
         ...noticeSummary(state.notice, locale),
-      ].join(" ");
+      ];
   }
+}
+
+/** Writes the summary, one paragraph per sentence, only when it changed. */
+function writeSummary(region: HTMLElement, sentences: readonly string[]): void {
+  const shown = Array.from(region.children, (child) => child.textContent);
+  if (
+    shown.length === sentences.length &&
+    shown.every((text, i) => text === sentences[i])
+  ) {
+    return;
+  }
+  const doc = region.ownerDocument;
+  region.replaceChildren(
+    ...sentences.map((sentence) => {
+      const paragraph = doc.createElement("p");
+      paragraph.textContent = sentence;
+      return paragraph;
+    }),
+  );
 }
 
 /**
@@ -247,10 +273,7 @@ export function renderViewer(
   const doc = elements.state.ownerDocument;
   const catalog = catalogs[locale];
   drawState(elements.state, view, locale);
-  const summary = stateSummary(view.state, locale);
-  if (elements.stateStatus.textContent !== summary) {
-    elements.stateStatus.textContent = summary;
-  }
+  writeSummary(elements.stateStatus, stateSummary(view.state, locale));
 
   // The article is a done job's, or the one a lost job kept.
   const job = publishableJob(view.state);
@@ -259,6 +282,7 @@ export function renderViewer(
     elements.article.hidden = true;
     elements.article.replaceChildren();
     elements.actions.hidden = true;
+    elements.publishRow.replaceChildren();
     elements.publish.disabled = true;
     elements.save.disabled = true;
     elements.copy.disabled = true;
