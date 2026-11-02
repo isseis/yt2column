@@ -13,7 +13,7 @@ import { prepareStartInput } from "./prepare.ts";
 import type { PreparedRequest, StartInput } from "./prepare.ts";
 import { parseRequestId, startRejectStatus } from "./response.ts";
 import type { RequestId, StartOutcome } from "./response.ts";
-import { replaceUnpairedSurrogates } from "./summary.ts";
+import { hasUnpairedSurrogate } from "./summary.ts";
 import { viewerSeedError } from "./viewerUrl.ts";
 import type { ViewerSeed } from "./viewerUrl.ts";
 
@@ -187,7 +187,7 @@ function queryId(value: unknown): string {
 /** A well-formed string: a viewer value that becomes part of a URL. */
 function wellFormed(value: unknown): string {
   const checked = text(value);
-  if (replaceUnpairedSurrogates(checked) !== checked) {
+  if (hasUnpairedSurrogate(checked)) {
     throw new Rejected();
   }
   return checked;

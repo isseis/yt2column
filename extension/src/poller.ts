@@ -19,7 +19,7 @@ import {
   toStatusOutcome,
 } from "./core/response.ts";
 import type { StatusLogView, StatusOutcome } from "./core/response.ts";
-import type { Logger } from "./launch.ts";
+import type { Logger } from "./core/types.ts";
 import { exchange } from "./send.ts";
 import type { SendDeps } from "./send.ts";
 

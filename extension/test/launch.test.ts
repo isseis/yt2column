@@ -6,7 +6,6 @@ import type { BrowserCall, I18nApi } from "../src/browser/chromeDeps.ts";
 import type { ArticleKey } from "../src/core/articleKey.ts";
 import type {
   CollectedInput,
-  CollectOutcome,
   PageSelection,
   SelectionReader,
 } from "../src/core/collect.ts";
@@ -31,6 +30,7 @@ import {
   startResultDeadlineMs,
 } from "../src/core/poll.ts";
 import { maxBodyBytes, prepareSend } from "../src/core/prepare.ts";
+import { countCharacters } from "../src/core/summary.ts";
 import {
   buildCollectedView,
   metadataDisplayLimit,
@@ -41,6 +41,7 @@ import type {
   PopupView,
 } from "../src/core/popupView.ts";
 import type { StartOutcome } from "../src/core/response.ts";
+import type { Logger } from "../src/core/types.ts";
 import { parseViewerUrl } from "../src/core/viewerUrl.ts";
 import {
   launchContextFromTab,
@@ -49,7 +50,6 @@ import {
   startPopup,
 } from "../src/launch.ts";
 import type {
-  Logger,
   MetadataReader,
   PopupLaunch,
   PopupLaunchDeps,
@@ -90,6 +90,7 @@ const launchLabel = "yt2column popup launch";
 const uiLanguageLabel = "yt2column ui language";
 const metadataLabel = "yt2column video metadata";
 const blockedLabel = "yt2column blocked";
+const activeTabLabel = "yt2column active tab";
 const statusLabel = "yt2column status result";
 const localeList = Object.keys(locales) as Locale[];
 /** The tab fakeTab is: the selection's source, where the viewer opens next to. */
@@ -219,14 +220,6 @@ function collectedView(
   );
 }
 
-/** A collected outcome for the watch URL with the given selection. */
-function collectedOutcome(selection = "selection"): CollectOutcome {
-  return {
-    kind: "collected",
-    input: { selection, url: watchUrl, title: "A video" } as CollectedInput,
-  };
-}
-
 interface PopupHarness {
   readonly deps: PopupLaunchDeps;
   readonly recorder: RecordingLogger;
@@ -245,13 +238,13 @@ function popupHarness(overrides: Partial<PopupLaunchDeps> = {}): PopupHarness {
   return { deps, recorder };
 }
 
-/** The outcome the launch path logged for the developer. */
-function loggedOutcome(recorder: RecordingLogger): CollectOutcome {
+/** The outcome the launch path logged for the developer: its kind and reason only. */
+function loggedOutcome(recorder: RecordingLogger): unknown {
   const entry = recorder.infos.find(
     (recorded) => recorded.label === launchLabel,
   );
   assert.ok(entry !== undefined, "expected the popup launch log");
-  return (entry.data as { outcome: CollectOutcome }).outcome;
+  return (entry.data as { outcome: unknown }).outcome;
 }
 
 /** The collected launch of collectedView's input, from the source tab. */
@@ -448,10 +441,7 @@ describe("launch paths", () => {
     const view = collected(launch);
     // The tab's place is kept for the send, which opens the viewer beside it.
     assert.deepEqual(launch.source, source);
-    const logged = loggedOutcome(popup.recorder);
-    assert.ok(logged.kind === "collected");
-    assert.equal(logged.input.selection, selection);
-    assert.equal(logged.input.title, title);
+    assert.deepEqual(loggedOutcome(popup.recorder), { kind: "collected" });
     // The view is built from the same input: the tab title stands in for the
     // missing video title, and the counts are the selection's.
     assert.equal(view.video.heading.value, title);
@@ -594,9 +584,10 @@ describe("launch paths", () => {
     assert.deepEqual(launch, {
       view: { kind: "rejected", reason: "collection-failed" },
     });
-    const logged = loggedOutcome(popup.recorder);
-    assert.equal(logged.kind, "rejected");
-    assert.equal(logged.reason, "collection-failed");
+    assert.deepEqual(loggedOutcome(popup.recorder), {
+      kind: "rejected",
+      reason: "collection-failed",
+    });
   });
 
   it("treats a failing activeTab as collection-failed without rejecting", async () => {
@@ -622,11 +613,19 @@ describe("launch paths", () => {
       // Precondition: the same tab with its place is collected.
       const placed = await runPopupLaunch(popupHarness().deps);
       assert.equal(placed.view.kind, "collected");
-      const launch = await runPopupLaunch(
-        popupHarness({ activeTab: async () => fakeTab(overrides) }).deps,
-      );
+      const harness = popupHarness({
+        activeTab: async () => fakeTab(overrides),
+      });
+      const launch = await runPopupLaunch(harness.deps);
       assert.deepEqual(launch, {
         view: { kind: "rejected", reason: "collection-failed" },
+      });
+      assert.deepEqual(harness.recorder.errors, [
+        { label: activeTabLabel, data: { check: "tab-place" } },
+      ]);
+      assert.deepEqual(loggedOutcome(harness.recorder), {
+        kind: "rejected",
+        reason: "collection-failed",
       });
     });
   }
@@ -716,8 +715,60 @@ describe("popup job send", () => {
     await press(popup);
     const [request] = startRequests(popup);
     assert.ok(request !== undefined);
-    assert.equal(request.viewer.heading, "A�b");
+    assert.equal(request.viewer.heading, "A\uFFFDb");
     assert.equal(parseStartRequest(request, sentAt).ok, true);
+  });
+
+  it("builds a seed the worker accepts from the longest values the popup shows", async () => {
+    // Astral characters, so code points and UTF-16 units differ.
+    const astral = "\u{1F600}";
+    const cases: {
+      tabTitle: string;
+      values: { title?: string; channelName?: string };
+      lengths: { heading: number; channelName?: number; title?: number };
+    }[] = [
+      // No video title: the heading is the tab title, cut to 1,000 plus the ellipsis.
+      {
+        tabTitle: astral.repeat(1_500),
+        values: {},
+        lengths: { heading: 1_001 },
+      },
+      // A video title: the heading is cut to 200, the seed's title to 1,000.
+      {
+        tabTitle: "A video",
+        values: {
+          title: astral.repeat(1_500),
+          channelName: astral.repeat(300),
+        },
+        lengths: { heading: 201, channelName: 201, title: 1_000 },
+      },
+    ];
+    for (const { tabTitle, values, lengths } of cases) {
+      const launch = await runPopupLaunch(
+        popupHarness({
+          activeTab: async () => fakeTab({ title: tabTitle }),
+          metadataReader: metadataReader(metadataJson(values)).reader,
+        }).deps,
+      );
+      const popup = shown(launch);
+      await press(popup);
+      const [request] = startRequests(popup);
+      assert.ok(request !== undefined);
+      const { viewer } = request;
+      assert.deepEqual(
+        {
+          heading: countCharacters(viewer.heading),
+          ...(viewer.channelName === undefined
+            ? {}
+            : { channelName: countCharacters(viewer.channelName) }),
+          ...(viewer.title === undefined
+            ? {}
+            : { title: countCharacters(viewer.title) }),
+        },
+        lengths,
+      );
+      assert.equal(parseStartRequest(request, sentAt).ok, true);
+    }
   });
 
   it("sends the shown description while the expand prompt is up", async () => {
@@ -1048,6 +1099,53 @@ async function openViewer(popup: Popup): Promise<void> {
 }
 
 describe("open viewer", () => {
+  it("opens a new viewer when the viewer that answered is gone before it is brought forward", async () => {
+    const popup = await acceptedPopup();
+    await popup.host.answer(statusReply(runningJob));
+    // Tab 200 answers but is no longer open when the popup looks it up.
+    viewersShowing(popup, [{ tabId: 200, windowId: 8, sentAt: 1 }]);
+    await openViewer(popup);
+    assert.deepEqual(
+      popup.tabs.calls.map((call) => call.op),
+      ["get", "create"],
+    );
+    assert.deepEqual(popup.focus.focused, [1]);
+  });
+
+  it("keeps the button usable when the new viewer tab cannot be opened", async () => {
+    const popup = await acceptedPopup();
+    await popup.host.answer(statusReply(runningJob));
+    popup.tabs.fail("create");
+    await openViewer(popup);
+    assert.deepEqual(popup.focus.focused, []);
+    assert.equal(popup.elements.primary.disabled, false);
+    // A second press tries again: the first one ended.
+    await openViewer(popup);
+    assert.equal(
+      popup.tabs.calls.filter((call) => call.op === "create").length,
+      2,
+    );
+  });
+
+  it("brings nothing forward once a retry replaced the send it opens", async () => {
+    const popup = await acceptedPopup();
+    await popup.host.answer(statusReply(runningJob));
+    // The open-viewer waits for the viewers' answers, from 1.5 s ...
+    popup.clock.advance(1_500);
+    await press(popup);
+    assert.equal(finds(popup).length, 1);
+    // ... while the next status, at 2 s, fails the job and retry is pressed.
+    popup.clock.advance(500);
+    await settle();
+    await popup.host.answer(statusReply(failedJob));
+    await press(popup);
+    assert.equal(startRequests(popup).length, 2);
+    popup.clock.advance(1_000);
+    await settle();
+    assert.deepEqual(popup.tabs.calls, []);
+    assert.deepEqual(popup.focus.focused, []);
+  });
+
   it("brings the tab that shows the send forward, even when another viewer answers for the key", async () => {
     const popup = await acceptedPopup(100);
     await popup.host.answer(statusReply(runningJob));
@@ -1247,15 +1345,20 @@ describe("popup status log", () => {
     );
   });
 
-  it("logs none of the key, the article or the video's values", async () => {
+  it("logs none of the selection, the tab title, the key, the article or the video's values", async () => {
     const markers = {
+      selection: "SELECTION-MARKER-27bc",
+      tabTitle: "TAB-TITLE-MARKER-5f20",
       key: "KEY-MARKER-61f0",
       markdown: "ARTICLE-MARKER-0b7e",
       title: "TITLE-MARKER-3c55",
       channelName: "CHANNEL-MARKER-9e12",
       description: "DESCRIPTION-MARKER-a4d8",
     };
+    // One recorder for the whole popup session, the launch included.
     const harness = popupHarness({
+      reader: readerReturning(page(markers.selection)),
+      activeTab: async () => fakeTab({ title: markers.tabTitle }),
       metadataReader: metadataReader(
         metadataJson({
           title: markers.title,
@@ -1265,8 +1368,7 @@ describe("popup status log", () => {
       ).reader,
     });
     const launch = await runPopupLaunch(harness.deps);
-    // The send's logs alone: the launch log holds the collected input.
-    const popup = shown(launch);
+    const popup = shown(launch, "en", harness.recorder);
     await press(popup);
     await popup.worker.answer(
       startReply(
@@ -1286,10 +1388,10 @@ describe("popup status log", () => {
     ]);
     assert.equal(statusLog(popup)["decision"], "stop");
     const serialized = JSON.stringify([
-      popup.logger.infos,
-      popup.logger.errors,
+      harness.recorder.infos,
+      harness.recorder.errors,
     ]);
-    for (const value of Object.values(markers)) {
+    for (const value of [...Object.values(markers), watchUrl]) {
       assert.equal(serialized.includes(value), false, value);
     }
   });
@@ -1581,7 +1683,7 @@ describe("startPopup", () => {
       popupElements(unreadable.doc).primary.textContent,
       catalogs.en.popup.primary.generate,
     );
-    assert.deepEqual(loggedOutcome(unreadable.recorder), collectedOutcome());
+    assert.deepEqual(loggedOutcome(unreadable.recorder), { kind: "collected" });
     // Both runs behave alike; the en-US run is the reference the plan names.
     assert.equal(unreadable.doc.body.textContent, english.doc.body.textContent);
     assert.deepEqual(

@@ -38,7 +38,7 @@ import {
 } from "./core/response.ts";
 import type { StartOutcome } from "./core/response.ts";
 import { viewerQuery } from "./core/viewerUrl.ts";
-import type { Logger } from "./launch.ts";
+import type { Logger } from "./core/types.ts";
 import { exchange } from "./send.ts";
 import type { SendDeps } from "./send.ts";
 import { askViewers, findViewers } from "./viewerQuery.ts";

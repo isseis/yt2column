@@ -36,7 +36,7 @@ import type {
   PopupView,
 } from "./core/popupView.ts";
 import { prepareSend } from "./core/prepare.ts";
-import type { LaunchContext } from "./core/types.ts";
+import type { LaunchContext, Logger } from "./core/types.ts";
 import { viewerQuery } from "./core/viewerUrl.ts";
 import type { ViewerSeed } from "./core/viewerUrl.ts";
 import { createStatusPoller } from "./poller.ts";
@@ -46,12 +46,6 @@ import { applyPageLocale } from "./ui/pageLocale.ts";
 import { renderPopup } from "./ui/render.ts";
 import type { PopupElements } from "./ui/render.ts";
 import { findViewers } from "./viewerQuery.ts";
-
-/** Developer-facing log. The first argument is always a fixed label. */
-export interface Logger {
-  info(label: string, data: unknown): void;
-  error(label: string, data: unknown): void;
-}
 
 /** The only browser capability the metadata read needs. Faked in unit tests. */
 export interface MetadataReader {
@@ -198,8 +192,12 @@ export async function runPopupLaunch(
   }
   const launch = launchContextFromTab(tab);
   const outcome = await collect(launch, deps.reader);
-  deps.log.info(popupLogLabel, { outcome });
+  // The log holds the outcome's kind and reason, never the collected input:
+  // the selection, the URL and the tab title are values the log must not hold.
   if (outcome.kind === "rejected") {
+    deps.log.info(popupLogLabel, {
+      outcome: { kind: "rejected", reason: outcome.reason },
+    });
     return { view: { kind: "rejected", reason: outcome.reason } };
   }
   // collect never collects without a launch context, which needs a tab; this
@@ -209,8 +207,14 @@ export async function runPopupLaunch(
       ? undefined
       : sourceTab(tab, launch.tabId);
   if (launch === undefined || source === undefined) {
+    // The start needs the tab's place to open the viewer beside it.
+    deps.log.error(activeTabLabel, { check: "tab-place" });
+    deps.log.info(popupLogLabel, {
+      outcome: { kind: "rejected", reason: "collection-failed" },
+    });
     return { view: { kind: "rejected", reason: "collection-failed" } };
   }
+  deps.log.info(popupLogLabel, { outcome: { kind: "collected" } });
   const metadata = await readMetadata(
     launch.tabId,
     outcome.input.url,
@@ -264,7 +268,7 @@ export function runPopupSend(
   /** The tab that shows this send, as the worker or the last open-viewer found it. */
   let viewerTabId: number | undefined;
   let poller: Poller | undefined;
-  // Counts the sends, so a late answer about an earlier send changes nothing.
+  // Counts the sends, so an open-viewer that outlives its send changes nothing.
   let sends = 0;
   let opening = false;
   let cancelRedraw = (): void => {};
@@ -350,18 +354,16 @@ export function runPopupSend(
     key = undefined;
     viewerTabId = undefined;
     sends += 1;
-    const send = sends;
     seed = viewerSeed(view.video, input, deps.now());
     show({ kind: "sending" });
+    // Retry is offered only once the previous reply is in, so no earlier
+    // send's reply can still arrive here.
     const reply = await askWorker({
       type: "start",
       input,
       viewer: seed,
       source,
     });
-    if (send !== sends) {
-      return;
-    }
     if (reply === undefined) {
       show({ kind: "start-failed", failure: { kind: "no-result" } });
       return;
@@ -387,12 +389,18 @@ export function runPopupSend(
   /**
    * Brings forward the first that applies: the tab that shows this send when
    * it is still there; else a viewer that answers it shows the key; else a
-   * new viewer tab of the key. It never sends a start.
+   * new viewer tab of the key. It never sends a start. A retry pressed while
+   * it looks ends it: the viewer it would bring forward shows the send the
+   * retry replaced, and bringing a window forward would close the popup.
    */
   const openViewer = async (viewerKey: ArticleKey): Promise<void> => {
     const send = sends;
+    const current = (): boolean => send === sends;
     if (viewerTabId !== undefined) {
       const known = await deps.tabs.get(viewerTabId);
+      if (!current()) {
+        return;
+      }
       if (known.ok) {
         await bringForward(known.value);
         return;
@@ -403,13 +411,17 @@ export function runPopupSend(
       queryId: deps.queryId,
       schedule: deps.send.schedule,
     });
+    if (!current()) {
+      return;
+    }
     const chosen = chooseViewer(answers.present);
     if (chosen !== undefined) {
       const place = await deps.tabs.get(chosen.tabId);
+      if (!current()) {
+        return;
+      }
       if (place.ok) {
-        if (send === sends) {
-          viewerTabId = chosen.tabId;
-        }
+        viewerTabId = chosen.tabId;
         await bringForward(place.value);
         return;
       }
@@ -418,12 +430,10 @@ export function runPopupSend(
       url: `${deps.identity.getURL("viewer.html")}?${viewerQuery({ ...seed, key: viewerKey })}`,
       active: true,
     });
-    if (!created.ok) {
+    if (!created.ok || !current()) {
       return;
     }
-    if (send === sends) {
-      viewerTabId = created.value.tabId;
-    }
+    viewerTabId = created.value.tabId;
     await deps.focusWindow(created.value.windowId);
   };
 

@@ -12,30 +12,21 @@ export function shownText(text: DisplayText): string {
   return text.truncated ? `${text.value}${ellipsis}` : text.value;
 }
 
+// With the u flag a surrogate pair is one code point, so only a lone (unpaired)
+// surrogate has the general category Cs.
+const unpairedSurrogates = /\p{Cs}/gu;
+
+/** Whether text holds an unpaired surrogate. */
+export function hasUnpairedSurrogate(text: string): boolean {
+  return /\p{Cs}/u.test(text);
+}
+
 /**
  * A copy of text with each unpaired surrogate replaced by U+FFFD, and every
- * other code unit kept. Written by hand because String.prototype.toWellFormed
- * needs Chrome 111 and the minimum is 110. A string without one comes back
- * unchanged, so comparing the copy with the text tells whether it is well-formed.
+ * other code point kept.
  */
 export function replaceUnpairedSurrogates(text: string): string {
-  let copy = "";
-  let kept = 0;
-  for (let index = 0; index < text.length; index += 1) {
-    const unit = text.charCodeAt(index);
-    if (unit >= 0xd800 && unit <= 0xdbff) {
-      const next = text.charCodeAt(index + 1);
-      if (next >= 0xdc00 && next <= 0xdfff) {
-        index += 1;
-        continue;
-      }
-    } else if (!(unit >= 0xdc00 && unit <= 0xdfff)) {
-      continue;
-    }
-    copy += `${text.slice(kept, index)}\ufffd`;
-    kept = index + 1;
-  }
-  return kept === 0 ? text : copy + text.slice(kept);
+  return text.replace(unpairedSurrogates, "\ufffd");
 }
 
 /**

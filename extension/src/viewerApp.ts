@@ -38,7 +38,7 @@ import {
 import type { Article, StartOutcome } from "./core/response.ts";
 import { parseViewerUrl, viewerQuery } from "./core/viewerUrl.ts";
 import type { ViewerParams } from "./core/viewerUrl.ts";
-import type { Logger } from "./launch.ts";
+import type { Logger } from "./core/types.ts";
 import { createStatusPoller } from "./poller.ts";
 import type { Poller, StepInfo } from "./poller.ts";
 import { exchange } from "./send.ts";

@@ -29,3 +29,9 @@ export interface LaunchContext {
   readonly url: string | undefined;
   readonly title: string | undefined;
 }
+
+/** Developer-facing log. The first argument is always a fixed label. */
+export interface Logger {
+  info(label: string, data: unknown): void;
+  error(label: string, data: unknown): void;
+}

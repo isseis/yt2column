@@ -1,3 +1,4 @@
+import { hasUnpairedSurrogate } from "./summary.ts";
 import { whitespaceOnly } from "./collect.ts";
 import type { ArticleMetadata } from "./prepare.ts";
 
@@ -56,10 +57,6 @@ const pageMembers: ReadonlySet<string> = new Set([
   ...metadataFields,
   "descriptionCollapsed",
 ]);
-
-// With the u flag a surrogate pair is one code point, so only a lone (unpaired)
-// surrogate has the general category Cs.
-const unpairedSurrogate = /\p{Cs}/u;
 
 /**
  * Parses the injected reader's JSON text strictly, in a fixed order: valid
@@ -198,7 +195,7 @@ function omissionReason(value: string | undefined): OmissionReason | undefined {
   if (whitespaceOnly.test(value)) {
     return "blank";
   }
-  if (unpairedSurrogate.test(value)) {
+  if (hasUnpairedSurrogate(value)) {
     return "unpaired-surrogate";
   }
   return undefined;

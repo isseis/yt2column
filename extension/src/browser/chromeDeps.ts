@@ -6,7 +6,8 @@ import type {
   ViewerChannelMessage,
 } from "../core/extensionMessages.ts";
 import { nativeHostName } from "../core/native.ts";
-import type { Logger, MetadataReader } from "../launch.ts";
+import type { Logger } from "../core/types.ts";
+import type { MetadataReader } from "../launch.ts";
 import type { SendDeps } from "../send.ts";
 
 /** The chrome.scripting call used; the injected function's result is validated at runtime. */

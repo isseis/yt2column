@@ -1,4 +1,4 @@
-import type { Logger } from "../../src/launch.ts";
+import type { Logger } from "../../src/core/types.ts";
 
 export interface Recorded {
   readonly label: string;

@@ -254,6 +254,9 @@ flowchart TB
     C2 --> C12
     P1 & P2 & P3 --> C2
     P5 --> C7 --> C6
+    P5 --> P4
+    P5 --> C2
+    C9 --> C5
     P2 & P3 & P1 & P6 --> C4
     C4 --> C5 --> C12
     P3 --> C8
@@ -995,6 +998,8 @@ export interface PollStep {
 export function afterStatus(previous: JobDisplay | undefined, outcome: StatusOutcome): PollStep;
 ```
 
+状態の取得のやり取り（`exchange` と `classifyStatus`）と、4.4 の `yt2column status result` のログは、ポップアップとビューアで同じなので、同じファイルの `createStatusPoller(key, deps, onStep)` にまとめる。これは `createPoller` に、キーの状態の取得と、各結果のログ（`statusLogView`・続けるか止めるか・世代・見えたときの取得か）を与えたものである。
+
 ポップアップとビューアは、それぞれ自分の取得を回す。2 つのポーリングは互いに調整しない。どちらも 1 つのページに 1 つまでという規則を守り、直らない結果では止まる（要件 4.1）。
 
 ### 3.8. ポップアップの状態（F-004、AC-20〜AC-24、H-08）
@@ -1037,6 +1042,8 @@ export function primaryAction(state: PopupJobState): PrimaryAction;
     -   応答が検査を通らない。
     -   送信が失敗した（SW が応答の前に止まった場合など）。
     -   期限を過ぎた。
+
+`StartRequest` の `source` は、ポップアップが収集したタブの位置（タブ・ウィンドウ・タブの並びの位置）である。ポップアップは、収集のときにこの位置を読めなければ（ウィンドウか位置が 0 以上の整数でない）、送れないので、収集の失敗（`collection-failed`）として表示し、開発者向けのログに `tab-place` を書く。
 
 **主ボタンの操作**（`primaryAction`）:
 
@@ -1368,7 +1375,7 @@ export function renderArticleBody(doc: Document, markdown: string): HTMLElement;
 | `extension/src/startCoordinator.ts` | 新規 | 生成の開始の調整 | 求めの検査、タブを開く、生成の開始、再利用の問い合わせと引き継ぎ、閉じる前の確認、結果の配布（3.4・3.6・6.1・6.2） |
 | `extension/src/viewer.ts` | 新規 | ビューアの入口 | `chromeDeps.ts` から依存を作り、`startViewer` に渡す |
 | `extension/src/viewerApp.ts` | 新規 | ビューアの経路の処理 | URL の検査、結果の待ち受け、ポーリング、引き継ぎ、問い合わせへの答え、投稿・保存・コピー |
-| `extension/src/poller.ts` | 新規 | ポーリングの部品 | 3.7 の契約（1 つまで、1 つのタイマー、世代、見えたときの取得） |
+| `extension/src/poller.ts` | 新規 | ポーリングの部品 | 3.7 の契約（1 つまで、1 つのタイマー、世代、見えたときの取得）と、ポップアップとビューアが共有する状態の取得のやり取りとそのログ（`createStatusPoller`） |
 | `extension/src/viewerQuery.ts` | 新規 | 同じキーのビューアの問い合わせ | `find` を送り、1 秒の間、答えを集める（SW とポップアップが共有。3.4.2） |
 | `extension/src/launch.ts` | 変更 | ポップアップの経路の処理 | `runPopupSend` を、SW への求め・ポーリング・ビューアを開く・やり直すに改める（3.8）。`logSend` を 4.4 のログに改める。`test/launch.test.ts` を更新 |
 | `extension/src/popup.ts` | 変更 | ポップアップの入口 | 新しい依存を渡す |
