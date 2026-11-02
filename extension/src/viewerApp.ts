@@ -48,7 +48,7 @@ import { parseViewerUrl, viewerQuery } from "./core/viewerUrl.ts";
 import type { ViewerParams } from "./core/viewerUrl.ts";
 import type { Logger } from "./launch.ts";
 import { createPoller } from "./poller.ts";
-import type { Poller } from "./poller.ts";
+import type { Poller, StepInfo } from "./poller.ts";
 import { exchange } from "./send.ts";
 import type { SendDeps } from "./send.ts";
 import { applyPageLocale } from "./ui/pageLocale.ts";
@@ -167,15 +167,6 @@ function takeOverRestarts(state: ViewerState): boolean {
   }
 }
 
-/** The status result as logged, waiting for the poller's decision. */
-interface StatusLog {
-  readonly view: StatusLogView;
-  /** The viewer's epoch when the fetch was sent. */
-  readonly epoch: number;
-  /** Whether the page becoming visible sent the fetch. */
-  readonly visible: boolean;
-}
-
 /** A failed exchange goes to the error log; a server's answer to info. */
 function isExchangeFailure(view: StatusLogView | PublishLogView): boolean {
   switch (view.kind) {
@@ -235,12 +226,8 @@ export async function startViewer(
   /** An accepted publish waits for the first status of a later epoch to end publishing. */
   let awaitingPublishStatus = false;
   let actionNotice: ActionNotice = { kind: "none" };
-  // Counts the poller's epochs: it moves exactly when the viewer calls the
-  // poller's start or bumpEpoch, so a status result sent in an earlier epoch
-  // is told apart here as it is in the poller.
-  let epoch = 0;
-  let statusLog: StatusLog | undefined;
-  let visibleFetch = false;
+  /** The last status result as logged, until the poller hands on its step. */
+  let statusLog: StatusLogView | undefined;
   let poller: Poller | undefined;
   let key: ArticleKey | undefined;
   let cancelRedraw = (): void => {};
@@ -289,36 +276,33 @@ export async function startViewer(
   };
 
   const fetchStatus = async (statusKey: ArticleKey): Promise<StatusOutcome> => {
-    const sentEpoch = epoch;
-    const visible = visibleFetch;
     const log = classifyStatus(
       await exchange(statusMessage(statusKey), deps.send),
     );
-    statusLog = { view: statusLogView(log), epoch: sentEpoch, visible };
+    statusLog = statusLogView(log);
     return toStatusOutcome(log);
   };
 
-  const onStep = (step: PollStep): void => {
+  const onStep = (step: PollStep, info: StepInfo): void => {
     const logged = statusLog;
     statusLog = undefined;
-    const currentEpoch = logged?.epoch === epoch;
     if (logged !== undefined) {
       const entry = {
-        result: logged.view,
+        result: logged,
         decision: step.decision,
-        earlierEpoch: !currentEpoch,
-        visible: logged.visible,
+        earlierEpoch: info.earlierEpoch,
+        visible: info.visible,
       };
-      if (isExchangeFailure(logged.view)) {
+      if (isExchangeFailure(logged)) {
         deps.log.error(statusResultLabel, entry);
       } else {
         deps.log.info(statusResultLabel, entry);
       }
     }
-    // The first current reply after an accepted publish ends publishing. The
-    // epoch only grows, and a take-over that goes on may move it past the
-    // publish's own epoch, so the reply is not required to be of that epoch.
-    if (currentEpoch && awaitingPublishStatus) {
+    // The first reply of the current epoch after an accepted publish ends
+    // publishing; a take-over that goes on may have moved the epoch again
+    // since the publish, and that epoch's reply ends it as well.
+    if (!info.earlierEpoch && awaitingPublishStatus) {
       publishing = false;
       awaitingPublishStatus = false;
     }
@@ -343,17 +327,7 @@ export async function startViewer(
       onStep,
     );
     show({ kind: "loading", notice: { kind: "none" } });
-    epoch += 1;
     poller.start();
-  };
-
-  /** Moves the poller to a new epoch, starting it when it had stopped. */
-  const bumpEpoch = (): void => {
-    if (poller === undefined) {
-      return;
-    }
-    epoch += 1;
-    poller.bumpEpoch();
   };
 
   /** A wait that ended without a start result: the result is unknown, and nothing is polled. */
@@ -439,7 +413,7 @@ export async function startViewer(
     const restarted = takeOverRestarts(state);
     deps.log.info(takeOverLabel, { accepted: true, restarted });
     if (!restarted) {
-      bumpEpoch();
+      poller?.bumpEpoch();
       return;
     }
     params = { ...params, sentAt: message.sentAt };
@@ -522,7 +496,7 @@ export async function startViewer(
     const outcome = toPublishOutcome(log);
     switch (outcome.kind) {
       case "accepted":
-        bumpEpoch();
+        poller?.bumpEpoch();
         awaitingPublishStatus = true;
         break;
       case "rejected": {
@@ -550,7 +524,7 @@ export async function startViewer(
       case "unexpected":
         publishing = false;
         showActionNotice({ kind: "unknown", outcome });
-        bumpEpoch();
+        poller?.bumpEpoch();
         break;
     }
     draw();
@@ -584,11 +558,7 @@ export async function startViewer(
   elements.copy.addEventListener("click", () => void copyArticle());
 
   deps.page.onVisible(() => {
-    if (poller !== undefined) {
-      visibleFetch = true;
-      poller.fetchNow();
-      visibleFetch = false;
-    }
+    poller?.fetchNow();
     draw();
     armRedraw();
   });

@@ -19,6 +19,14 @@ export interface PollerDeps {
   schedule(ms: number, callback: () => void): () => void;
 }
 
+/** Where a step's reply came from, for the page's log and its own waits. */
+export interface StepInfo {
+  /** The reply answers a fetch sent before the latest start or bumpEpoch. */
+  readonly earlierEpoch: boolean;
+  /** The fetch was sent by fetchNow: the page became visible. */
+  readonly visible: boolean;
+}
+
 export interface Poller {
   /** Starts or restarts polling in a new epoch; fetches at once. */
   start(): void;
@@ -35,10 +43,12 @@ export interface Poller {
  * job a step showed since start; start clears it, since a restart shows
  * loading. A reply that arrives after stop is dropped, and a step of an
  * earlier epoch is handed on with the decision the poller took, continue.
+ * The epochs are the poller's alone: info says whether a reply is of an
+ * earlier one, so a page never keeps its own count of them.
  */
 export function createPoller(
   deps: PollerDeps,
-  onStep: (step: PollStep) => void,
+  onStep: (step: PollStep, info: StepInfo) => void,
 ): Poller {
   let epoch = 0;
   let inFlight = false;
@@ -46,18 +56,22 @@ export function createPoller(
   let previous: JobDisplay | undefined;
   let cancelTimer = (): void => {};
 
-  const fetch = (): void => {
+  const fetch = (visible = false): void => {
     cancelTimer();
     cancelTimer = () => {};
     inFlight = true;
     const sentEpoch = epoch;
     void deps.fetchStatus().then((outcome) => {
       inFlight = false;
-      receive(sentEpoch, outcome);
+      receive(sentEpoch, visible, outcome);
     });
   };
 
-  const receive = (sentEpoch: number, outcome: StatusOutcome): void => {
+  const receive = (
+    sentEpoch: number,
+    visible: boolean,
+    outcome: StatusOutcome,
+  ): void => {
     if (stopped) {
       return;
     }
@@ -69,15 +83,18 @@ export function createPoller(
     // poller finds the next fetch already in flight or scheduled.
     if (sentEpoch !== epoch) {
       fetch();
-      onStep({ ...step, decision: "continue" });
+      onStep(
+        { ...step, decision: "continue" },
+        { earlierEpoch: true, visible },
+      );
       return;
     }
     if (step.decision === "continue") {
-      cancelTimer = deps.schedule(pollIntervalMs, fetch);
+      cancelTimer = deps.schedule(pollIntervalMs, () => fetch());
     } else {
       stopped = true;
     }
-    onStep(step);
+    onStep(step, { earlierEpoch: false, visible });
   };
 
   return {
@@ -91,7 +108,7 @@ export function createPoller(
     },
     fetchNow: () => {
       if (!inFlight && !stopped) {
-        fetch();
+        fetch(true);
       }
     },
     bumpEpoch: () => {

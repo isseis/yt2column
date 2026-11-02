@@ -5,7 +5,7 @@ import { pollIntervalMs } from "../src/core/poll.ts";
 import type { PollStep } from "../src/core/poll.ts";
 import type { JobStatus, StatusOutcome } from "../src/core/response.ts";
 import { createPoller } from "../src/poller.ts";
-import type { Poller } from "../src/poller.ts";
+import type { Poller, StepInfo } from "../src/poller.ts";
 import { fakeClock, settle, type FakeClock } from "./helpers/clock.ts";
 import { article, doneSteps, requestId, runningSteps } from "./helpers/job.ts";
 
@@ -37,6 +37,8 @@ interface Harness {
   readonly clock: FakeClock;
   readonly poller: Poller;
   readonly steps: PollStep[];
+  /** The info handed on with each step, in order. */
+  readonly infos: StepInfo[];
   /** How many status exchanges the poller has started. */
   fetches(): number;
   /** Answers the exchange in flight with outcome and lets the reply run. */
@@ -47,6 +49,7 @@ interface Harness {
 function harness(): Harness {
   const clock = fakeClock();
   const steps: PollStep[] = [];
+  const infos: StepInfo[] = [];
   const waiting: ((outcome: StatusOutcome) => void)[] = [];
   let count = 0;
   const poller = createPoller(
@@ -57,12 +60,16 @@ function harness(): Harness {
       },
       schedule: clock.schedule,
     },
-    (step) => steps.push(step),
+    (step, info) => {
+      steps.push(step);
+      infos.push(info);
+    },
   );
   return {
     clock,
     poller,
     steps,
+    infos,
     fetches: () => count,
     reply: async (outcome) => {
       const answer = waiting.shift();
@@ -155,7 +162,7 @@ describe("createPoller", () => {
     { name: "a not posted article sent before a publish", outcome: notPosted },
   ]) {
     it(`does not stop on ${name}, and fetches the new epoch at once`, async () => {
-      const { poller, steps, fetches, reply } = harness();
+      const { poller, steps, infos, fetches, reply } = harness();
       poller.start();
       poller.bumpEpoch();
       assert.equal(fetches(), 1);
@@ -169,8 +176,26 @@ describe("createPoller", () => {
       );
       await reply(outcome);
       assert.equal(steps[1]?.decision, "stop");
+      assert.deepEqual(
+        infos.map(({ earlierEpoch }) => earlierEpoch),
+        [true, false],
+      );
     });
   }
+
+  it("says which steps answer a fetch the page becoming visible sent", async () => {
+    const { clock, poller, infos, reply } = harness();
+    poller.start();
+    await reply(running);
+    poller.fetchNow();
+    await reply(running);
+    clock.advance(pollIntervalMs);
+    await reply(running);
+    assert.deepEqual(
+      infos.map(({ visible }) => visible),
+      [false, true, false],
+    );
+  });
 
   it("starts polling on bumpEpoch after a stop decision", async () => {
     const { poller, fetches, reply } = harness();
