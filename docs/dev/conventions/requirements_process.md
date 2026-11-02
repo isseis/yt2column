@@ -292,9 +292,9 @@ with exactly the items the status table before the transition gives. An LLM can
   under `docs/tasks/` that differ between `HEAD` and the working tree and whose
   version at `HEAD` has a status table), every one that has no change history at
   `HEAD` and, in the working tree, has a change history or has a status-table
-  row whose cell text differs from `HEAD`'s. When a cell cannot be taken from
-  the working tree's status table (the table or the row is missing, or the row
-  appears twice or more), it counts as different. So a transition written to the
+  row whose cell text differs from `HEAD`'s. When a cell that can be taken at
+  `HEAD` cannot be taken from the working tree's status table (the table or the
+  row is missing, or the row appears twice or more), it counts as different. So a transition written to the
   status table without a change history is checked, and fails below. A document
   that is not at `HEAD` is not checked: the first transition of a document
   created in this change is written by a later commit, which has it at `HEAD`.
