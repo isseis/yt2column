@@ -72,6 +72,30 @@ func TestParseTAP(t *testing.T) {
 		}
 	})
 
+	t.Run("does not read later failures as the diagnostic of one without a block", func(t *testing.T) {
+		data := strings.Join([]string{
+			"not ok 1 - first",
+			"    # Subtest: second",
+			"    not ok 1 - second",
+			"      ---",
+			"      location: '/checkout/extension/test/y.test.ts:1:1'",
+			"      ...",
+			"# tests 2",
+			"# fail 2",
+			"# cancelled 0",
+		}, "\n") + "\n"
+		report, err := parseTAP([]byte(data), testExtensionDir, PointBase)
+		if err != nil {
+			t.Fatalf("parseTAP: %v", err)
+		}
+		if len(report.Failures) != 2 || report.Failures[1].Name != "second" {
+			t.Fatalf("failures = %+v, want first and second", report.Failures)
+		}
+		if len(report.Failures[0].Diagnostic) != 0 || report.Failures[0].File != "" {
+			t.Errorf("first failure = %+v, want no diagnostic", report.Failures[0])
+		}
+	})
+
 	t.Run("ignores an indented # tests line", func(t *testing.T) {
 		data := "    # tests 5\n" + valid
 		report, err := parseTAP([]byte(data), testExtensionDir, PointBase)
@@ -86,7 +110,9 @@ func TestParseTAP(t *testing.T) {
 	t.Run("reads a quoted location", func(t *testing.T) {
 		data := strings.Join([]string{
 			"not ok 1 - x",
+			"  ---",
 			`  location: "/checkout/extension/test/y.test.ts:10:2"`,
+			"  ...",
 			"# tests 1",
 			"# fail 1",
 			"# cancelled 0",
@@ -103,7 +129,9 @@ func TestParseTAP(t *testing.T) {
 	t.Run("leaves the file empty when the location is not a path with a line and a column", func(t *testing.T) {
 		data := strings.Join([]string{
 			"not ok 1 - x",
+			"  ---",
 			"  location: 'somewhere else'",
+			"  ...",
 			"# tests 1",
 			"# fail 1",
 			"# cancelled 0",
@@ -153,7 +181,9 @@ func TestParseTAP(t *testing.T) {
 	t.Run("leaves the file empty when the location is outside the extension", func(t *testing.T) {
 		data := strings.Join([]string{
 			"not ok 1 - x",
+			"  ---",
 			"  location: '/elsewhere/x.test.ts:1:1'",
+			"  ...",
 			"# tests 1",
 			"# fail 1",
 			"# cancelled 0",
@@ -216,7 +246,9 @@ func parseTapFailureAt(t *testing.T, location, extensionDir string) *tapReport {
 	t.Helper()
 	data := strings.Join([]string{
 		"not ok 1 - x",
+		"  ---",
 		"  location: '" + location + "'",
+		"  ...",
 		"# tests 1",
 		"# fail 1",
 		"# cancelled 0",

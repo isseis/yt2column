@@ -1,8 +1,9 @@
 package coveragecompare
 
 import (
+	"cmp"
 	"regexp"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -98,21 +99,14 @@ func parseProfileBlocks(lines []string, modulePath string, point Point) ([]profi
 		blocks = append(blocks, block)
 	}
 
-	sort.Slice(blocks, func(i, j int) bool {
-		a, b := blocks[i], blocks[j]
-		if a.File != b.File {
-			return a.File < b.File
-		}
-		if a.StartLine != b.StartLine {
-			return a.StartLine < b.StartLine
-		}
-		if a.StartCol != b.StartCol {
-			return a.StartCol < b.StartCol
-		}
-		if a.EndLine != b.EndLine {
-			return a.EndLine < b.EndLine
-		}
-		return a.EndCol < b.EndCol
+	slices.SortFunc(blocks, func(a, b profileBlock) int {
+		return cmp.Or(
+			strings.Compare(a.File, b.File),
+			cmp.Compare(a.StartLine, b.StartLine),
+			cmp.Compare(a.StartCol, b.StartCol),
+			cmp.Compare(a.EndLine, b.EndLine),
+			cmp.Compare(a.EndCol, b.EndCol),
+		)
 	})
 	return blocks, nil
 }
@@ -174,13 +168,8 @@ func profileRelPath(file, modulePath string) (string, bool) {
 		return "", false
 	}
 	rel := file[len(prefix):]
-	if rel == "" {
+	if !cleanRelPath(rel) {
 		return "", false
-	}
-	for part := range strings.SplitSeq(rel, "/") {
-		if part == "" || part == "." || part == ".." {
-			return "", false
-		}
 	}
 	return rel, true
 }

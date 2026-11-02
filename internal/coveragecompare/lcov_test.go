@@ -80,6 +80,8 @@ func TestParseLCOV(t *testing.T) {
 		"absolute SF path":              "SF:/etc/passwd\nend_of_record\n",
 		"empty SF path":                 "SF:\nend_of_record\n",
 		"SF path with a parent element": "SF:src/../../x.ts\nend_of_record\n",
+		"SF path with a dot element":    "SF:./src/a.ts\nend_of_record\n",
+		"SF path with an empty element": "SF:src//a.ts\nend_of_record\n",
 		"FN without a comma":            "SF:src/a.ts\nFN:1\nFNDA:0,a\nend_of_record\n",
 		"FNDA without a comma":          "SF:src/a.ts\nFN:1,a\nFNDA:0\nend_of_record\n",
 		"blank line":                    "SF:src/a.ts\n\nend_of_record\n",

@@ -1,7 +1,8 @@
 package coveragecompare
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 	"strings"
 )
 
@@ -73,8 +74,8 @@ func parseLCOV(data []byte, point Point) (*lcovReport, error) {
 	if parser.current != nil {
 		return nil, stopError(point, InputLCOV, parser.sectionStart, "the SF section is not closed by end_of_record", parser.current.Path)
 	}
-	sort.Slice(parser.report.Files, func(i, j int) bool {
-		return parser.report.Files[i].Path < parser.report.Files[j].Path
+	slices.SortFunc(parser.report.Files, func(a, b lcovFile) int {
+		return strings.Compare(a.Path, b.Path)
 	})
 	return parser.report, nil
 }
@@ -108,7 +109,7 @@ func (p *lcovParser) startSection(line string, lineNo int) error {
 	}
 	path, ok := lcovSourcePath(strings.TrimPrefix(line, "SF:"))
 	if !ok {
-		return stopError(p.point, InputLCOV, lineNo, "the SF path is empty, absolute, or holds a parent element", line)
+		return stopError(p.point, InputLCOV, lineNo, "the SF path is empty, absolute, or holds an empty, \".\" or \"..\" element", line)
 	}
 	if p.seen[path] {
 		return stopError(p.point, InputLCOV, lineNo, "the same SF section appears twice", line)
@@ -161,11 +162,8 @@ func (p *lcovParser) endSection(line string, lineNo int) error {
 		}
 		p.functions[i].Count = p.counts[i].Count
 	}
-	sort.Slice(p.functions, func(i, j int) bool {
-		if p.functions[i].Line != p.functions[j].Line {
-			return p.functions[i].Line < p.functions[j].Line
-		}
-		return p.functions[i].Name < p.functions[j].Name
+	slices.SortFunc(p.functions, func(a, b lcovFunction) int {
+		return cmp.Or(cmp.Compare(a.Line, b.Line), strings.Compare(a.Name, b.Name))
 	})
 	p.current.Functions = p.functions
 	p.report.Files = append(p.report.Files, *p.current)
@@ -189,15 +187,12 @@ func parseLCOVNumberAndName(record string) (int, string, bool) {
 
 // lcovSourcePath turns the SF path, which is relative to extension/, into a
 // path relative to the repository root. An empty or absolute path, and a path
-// with a parent element, are rejected.
+// with an empty, "." or ".." element, are rejected rather than cleaned, so a
+// path such as ./src/a.ts cannot escape the product check or the duplicate
+// section check.
 func lcovSourcePath(raw string) (string, bool) {
-	if raw == "" || strings.HasPrefix(raw, "/") {
+	if !cleanRelPath(raw) {
 		return "", false
-	}
-	for part := range strings.SplitSeq(raw, "/") {
-		if part == ".." {
-			return "", false
-		}
 	}
 	return "extension/" + raw, true
 }

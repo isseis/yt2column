@@ -55,6 +55,8 @@ type diffParser struct {
 	hunk    *diffHunk
 	oldSeen bool
 	newSeen bool
+	created bool // the file header has "new file mode"
+	deleted bool // the file header has "deleted file mode"
 }
 
 // parseDiff reads git diff output taken with no context lines. It accepts only
@@ -88,6 +90,12 @@ func (p *diffParser) line(line string, lineNo int) error {
 	case diffMetaRE.MatchString(line):
 		if p.oldSeen || p.newSeen || p.hunk != nil {
 			return stopError(p.point, InputDiff, lineNo, "a file header line appears after its paths", line)
+		}
+		switch {
+		case strings.HasPrefix(line, "new file mode "):
+			p.created = true
+		case strings.HasPrefix(line, "deleted file mode "):
+			p.deleted = true
 		}
 		return nil
 	case strings.HasPrefix(line, "--- "):
@@ -139,7 +147,7 @@ func (p *diffParser) startOldPath(line string, lineNo int) error {
 		return stopError(p.point, InputDiff, lineNo, "a second --- line appears", line)
 	}
 	path, ok := parseDiffPath(line, "--- ", "a/")
-	if !ok {
+	if !ok || (path != "" && path != p.current.OldPath) || (path == "") != p.created {
 		return stopError(p.point, InputDiff, lineNo, "the --- path is not accepted", line)
 	}
 	p.current.OldPath = path
@@ -153,7 +161,7 @@ func (p *diffParser) startNewPath(line string, lineNo int) error {
 		return stopError(p.point, InputDiff, lineNo, "the +++ line has no matching --- line", line)
 	}
 	path, ok := parseDiffPath(line, "+++ ", "b/")
-	if !ok {
+	if !ok || (path != "" && path != p.current.NewPath) || (path == "") != p.deleted {
 		return stopError(p.point, InputDiff, lineNo, "the +++ path is not accepted", line)
 	}
 	p.current.NewPath = path
@@ -209,13 +217,24 @@ func (p *diffParser) finishFile(lineNo int, excerpt string) error {
 	if p.oldSeen != p.newSeen {
 		return stopError(p.point, InputDiff, lineNo, "a file header is missing its --- or +++ line", excerpt)
 	}
-	if p.oldSeen && p.current.OldPath == "" && p.current.NewPath == "" {
+	if p.created && p.deleted {
 		return stopError(p.point, InputDiff, lineNo, "a file is new and deleted at once", excerpt)
+	}
+	// A file with no --- and +++ lines (an empty file created or deleted, or
+	// a mode change) takes its paths from the diff --git line, so the mode
+	// lines decide which side is absent.
+	if p.created {
+		p.current.OldPath = ""
+	}
+	if p.deleted {
+		p.current.NewPath = ""
 	}
 	p.patch.Files = append(p.patch.Files, *p.current)
 	p.current = nil
 	p.oldSeen = false
 	p.newSeen = false
+	p.created = false
+	p.deleted = false
 	return nil
 }
 

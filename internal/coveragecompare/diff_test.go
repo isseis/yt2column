@@ -95,6 +95,30 @@ func TestParseDiff(t *testing.T) {
 		}
 	})
 
+	t.Run("takes an empty file's absent side from its mode line", func(t *testing.T) {
+		data := strings.Join([]string{
+			"diff --git a/internal/empty.go b/internal/empty.go",
+			"new file mode 100644",
+			"index 0000000..e69de29",
+			"diff --git a/internal/gone.go b/internal/gone.go",
+			"deleted file mode 100644",
+			"index e69de29..0000000",
+		}, "\n") + "\n"
+		patch, err := parseDiff([]byte(data), PointHead)
+		if err != nil {
+			t.Fatalf("parseDiff: %v", err)
+		}
+		want := []diffFile{
+			{NewPath: "internal/empty.go"},
+			{OldPath: "internal/gone.go"},
+		}
+		if !slices.EqualFunc(patch.Files, want, func(a, b diffFile) bool {
+			return a.OldPath == b.OldPath && a.NewPath == b.NewPath && len(a.Hunks) == 0 && len(b.Hunks) == 0
+		}) {
+			t.Errorf("files = %+v, want %+v", patch.Files, want)
+		}
+	})
+
 	t.Run("accepts the no-newline marker inside a hunk", func(t *testing.T) {
 		data := strings.Join([]string{
 			"diff --git a/x.go b/x.go",
@@ -135,20 +159,24 @@ func TestParseDiff(t *testing.T) {
 	})
 
 	tests := map[string]string{
-		"an unknown header line":                 "diff --git a/x.go b/x.go\nsimilarity index 90%\n--- a/x.go\n+++ b/x.go\n",
-		"a binary file":                          "diff --git a/x.bin b/x.bin\nindex 1111111..2222222 100644\nBinary files a/x.bin and b/x.bin differ\n",
-		"a quoted path":                          "diff --git a/x.go b/x.go\n--- \"a/x.go\"\n+++ b/x.go\n",
-		"a path with a space":                    "diff --git a/x.go b/x.go\n--- a/x y.go\n+++ b/x.go\n",
-		"a mismatched line count":                "diff --git a/x.go b/x.go\n--- a/x.go\n+++ b/x.go\n@@ -1,2 +1,1 @@\n-old\n+new\n",
-		"a context line":                         "diff --git a/x.go b/x.go\n--- a/x.go\n+++ b/x.go\n@@ -1,2 +1,2 @@\n old\n-old\n+new\n",
-		"a malformed hunk header":                "diff --git a/x.go b/x.go\n--- a/x.go\n+++ b/x.go\n@@ -1 +x @@\n",
-		"a header before the first file":         "index 1111111..2222222 100644\n",
-		"a --- line without +++":                 "diff --git a/x.go b/x.go\n--- a/x.go\n",
-		"a malformed diff header":                "diff --git x.go y.go\n--- a/x.go\n+++ b/x.go\n",
-		"a blank line":                           "diff --git a/x.go b/x.go\n--- a/x.go\n+++ b/x.go\n\n",
-		"a hunk before the paths":                "diff --git a/x.go b/x.go\n@@ -0,0 +1 @@\n+x\n",
-		"a file that is new and deleted at once": "diff --git a/x.go b/x.go\n--- /dev/null\n+++ /dev/null\n",
-		"a record after the paths":               "diff --git a/x.go b/x.go\n--- a/x.go\n+++ b/x.go\nnew mode 100644\n",
+		"an unknown header line":                  "diff --git a/x.go b/x.go\nsimilarity index 90%\n--- a/x.go\n+++ b/x.go\n",
+		"a binary file":                           "diff --git a/x.bin b/x.bin\nindex 1111111..2222222 100644\nBinary files a/x.bin and b/x.bin differ\n",
+		"a quoted path":                           "diff --git a/x.go b/x.go\n--- \"a/x.go\"\n+++ b/x.go\n",
+		"a path with a space":                     "diff --git a/x.go b/x.go\n--- a/x y.go\n+++ b/x.go\n",
+		"a mismatched line count":                 "diff --git a/x.go b/x.go\n--- a/x.go\n+++ b/x.go\n@@ -1,2 +1,1 @@\n-old\n+new\n",
+		"a context line":                          "diff --git a/x.go b/x.go\n--- a/x.go\n+++ b/x.go\n@@ -1,2 +1,2 @@\n old\n-old\n+new\n",
+		"a malformed hunk header":                 "diff --git a/x.go b/x.go\n--- a/x.go\n+++ b/x.go\n@@ -1 +x @@\n",
+		"a header before the first file":          "index 1111111..2222222 100644\n",
+		"a --- line without +++":                  "diff --git a/x.go b/x.go\n--- a/x.go\n",
+		"a malformed diff header":                 "diff --git x.go y.go\n--- a/x.go\n+++ b/x.go\n",
+		"a blank line":                            "diff --git a/x.go b/x.go\n--- a/x.go\n+++ b/x.go\n\n",
+		"a hunk before the paths":                 "diff --git a/x.go b/x.go\n@@ -0,0 +1 @@\n+x\n",
+		"a file that is new and deleted at once":  "diff --git a/x.go b/x.go\n--- /dev/null\n+++ /dev/null\n",
+		"a record after the paths":                "diff --git a/x.go b/x.go\n--- a/x.go\n+++ b/x.go\nnew mode 100644\n",
+		"a --- path that differs from the header": "diff --git a/x.go b/x.go\n--- a/y.go\n+++ b/x.go\n",
+		"a +++ path that differs from the header": "diff --git a/x.go b/x.go\n--- a/x.go\n+++ b/y.go\n",
+		"/dev/null without new file mode":         "diff --git a/x.go b/x.go\n--- /dev/null\n+++ b/x.go\n",
+		"new file mode with an old path":          "diff --git a/x.go b/x.go\nnew file mode 100644\n--- a/x.go\n+++ b/x.go\n",
 	}
 
 	for name, data := range tests {

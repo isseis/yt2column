@@ -3,7 +3,9 @@
 // only deletes tests can show it left every function covered.
 //
 // Only Run starts external commands. The input parsers and the judging
-// functions are pure, so the tests can give them examples directly.
+// functions start none, so the tests can give them examples directly; the TAP
+// parser alone reads the file system, to resolve the symbolic links of a
+// failure's location.
 package coveragecompare
 
 import (
@@ -251,6 +253,21 @@ func parseNonNegativeInt(s string) (int, bool) {
 		return 0, false
 	}
 	return int(value), true
+}
+
+// cleanRelPath reports whether path is a non-empty relative slash-separated
+// path with no empty, "." or ".." element. An absolute path has an empty first
+// element, so it is rejected too.
+func cleanRelPath(path string) bool {
+	if path == "" {
+		return false
+	}
+	for part := range strings.SplitSeq(path, "/") {
+		if part == "" || part == "." || part == ".." {
+			return false
+		}
+	}
+	return true
 }
 
 // noneWord is the word the point and input names use when they name nothing.

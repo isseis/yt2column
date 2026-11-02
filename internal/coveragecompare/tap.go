@@ -88,7 +88,11 @@ func parseTAP(data []byte, extensionDir string, point Point) (*tapReport, error)
 // line takes one line of the report.
 func (p *tapParser) line(line string, lineNo int) error {
 	if p.inDiagnostic {
-		if line != "" && (line[0] == ' ' || line[0] == '\t') {
+		// The block opens with "---" on the line after "not ok"; without
+		// it, the failure has no block, and later indented lines (such as
+		// another subtest's "not ok") are read as usual.
+		opens := len(p.firstDiagnostic) > 0 || strings.TrimSpace(line) == "---"
+		if opens && line != "" && (line[0] == ' ' || line[0] == '\t') {
 			p.firstDiagnostic = append(p.firstDiagnostic, line)
 			if strings.TrimSpace(line) == "..." {
 				p.inDiagnostic = false

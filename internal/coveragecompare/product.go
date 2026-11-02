@@ -1,7 +1,10 @@
 package coveragecompare
 
 import (
+	"go/build"
 	"go/build/constraint"
+	"runtime"
+	"slices"
 	"strings"
 )
 
@@ -35,33 +38,48 @@ func isGoProduct(fileName string, src []byte, point Point) (bool, error) {
 	if expression == nil {
 		return true, nil
 	}
-	// Evaluate the measured build's tags without the test tag: unix holds on
-	// darwin and linux, and race and integration do not. A constraint that
+	// Evaluate the measured build's tags without the test tag: unix, the
+	// host's GOOS, GOARCH, compiler, and release tags hold, and race and
+	// integration do not. A constraint that
 	// holds there keeps the file product code even when it also names test
 	// (unix || test). A constraint that does not hold there is test-only when
 	// it names test (test || integration); when it names test nowhere
 	// (integration, race), the file is still product code.
-	if expression.Eval(func(tag string) bool { return tag == "unix" }) {
+	if expression.Eval(measuredBuildTag) {
 		return true, nil
 	}
-	return !namesTestTag(expression), nil
+	return !namesTestTag(expression, true), nil
+}
+
+// measuredBuildTag reports whether a tag other than test holds in the
+// measured build, which runs on this host with -tags test only.
+func measuredBuildTag(tag string) bool {
+	switch tag {
+	case "unix", runtime.GOOS, runtime.GOARCH, runtime.Compiler:
+		return true
+	default:
+		return slices.Contains(build.Default.ReleaseTags, tag)
+	}
 }
 
 // namesTestTag reports whether a build constraint requires the test tag or is
-// satisfied by it. A negated test tag is not either: `//go:build !test` builds
-// in the default build and is product code. A constraint that names only
+// satisfied by it: whether the test tag appears with positive polarity once
+// the negations around it are counted. positive is false inside an odd number
+// of negations. A negated test tag is not either: `//go:build !test` builds
+// in the default build and is product code, while `!(!test)` requires test.
+// A constraint that names only
 // integration or unix stays product code too, because those files build with or
 // without the test tag and never describe a test helper.
-func namesTestTag(expression constraint.Expr) bool {
+func namesTestTag(expression constraint.Expr, positive bool) bool {
 	switch e := expression.(type) {
 	case *constraint.TagExpr:
-		return e.Tag == "test"
+		return positive && e.Tag == "test"
 	case *constraint.NotExpr:
-		return false
+		return namesTestTag(e.X, !positive)
 	case *constraint.AndExpr:
-		return namesTestTag(e.X) || namesTestTag(e.Y)
+		return namesTestTag(e.X, positive) || namesTestTag(e.Y, positive)
 	case *constraint.OrExpr:
-		return namesTestTag(e.X) || namesTestTag(e.Y)
+		return namesTestTag(e.X, positive) || namesTestTag(e.Y, positive)
 	default:
 		return false
 	}

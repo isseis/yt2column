@@ -2,7 +2,10 @@
 
 package coveragecompare
 
-import "testing"
+import (
+	"runtime"
+	"testing"
+)
 
 func TestIsGoProduct(t *testing.T) {
 	tests := []struct {
@@ -63,6 +66,18 @@ func TestIsGoProduct(t *testing.T) {
 			name: "a negated conjunction with test stays product code",
 			file: "internal/x/x.go",
 			src:  "//go:build !(test && race)\n\npackage x\n",
+			want: true,
+		},
+		{
+			name: "a doubly negated test tag requires test",
+			file: "internal/x/x.go",
+			src:  "//go:build !(!test)\n\npackage x\n",
+			want: false,
+		},
+		{
+			name: "the host's GOOS beside test stays product code",
+			file: "internal/x/x.go",
+			src:  "//go:build " + runtime.GOOS + " || test\n\npackage x\n",
 			want: true,
 		},
 		{

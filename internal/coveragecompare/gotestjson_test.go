@@ -67,6 +67,47 @@ func TestParseGoTestJSON(t *testing.T) {
 		}
 	})
 
+	t.Run("records an external test package's build failure once", func(t *testing.T) {
+		// The shape go writes when p_test does not compile: the build-fail
+		// names p_test, and the package fail line names p with FailedBuild.
+		data := strings.Join([]string{
+			`{"ImportPath":"example/p_test [example/p.test]","Action":"build-output","Output":"./p_test.go:3:28: undefined: y\n"}`,
+			`{"ImportPath":"example/p_test [example/p.test]","Action":"build-fail"}`,
+			`{"Action":"start","Package":"example/p"}`,
+			`{"Action":"fail","Package":"example/p","FailedBuild":"example/p_test [example/p.test]"}`,
+		}, "\n") + "\n"
+
+		report, err := parseGoTestJSON([]byte(data), PointHead)
+		if err != nil {
+			t.Fatalf("parseGoTestJSON: %v", err)
+		}
+		want := []goTestFailure{{
+			Package: "example/p_test",
+			Output:  []string{"./p_test.go:3:28: undefined: y\n"},
+		}}
+		if !slices.EqualFunc(report.Failures, want, equalGoTestFailure) {
+			t.Errorf("failures = %+v, want %+v", report.Failures, want)
+		}
+	})
+
+	t.Run("keeps the compiler output of every failed build of a package", func(t *testing.T) {
+		data := strings.Join([]string{
+			`{"ImportPath":"example/p","Action":"build-output","Output":"./p.go:1: a\n"}`,
+			`{"ImportPath":"example/p","Action":"build-fail"}`,
+			`{"ImportPath":"example/p [example/p.test]","Action":"build-output","Output":"./p.go:1: b\n"}`,
+			`{"ImportPath":"example/p [example/p.test]","Action":"build-fail"}`,
+		}, "\n") + "\n"
+
+		report, err := parseGoTestJSON([]byte(data), PointHead)
+		if err != nil {
+			t.Fatalf("parseGoTestJSON: %v", err)
+		}
+		want := []goTestFailure{{Package: "example/p", Output: []string{"./p.go:1: a\n", "./p.go:1: b\n"}}}
+		if !slices.EqualFunc(report.Failures, want, equalGoTestFailure) {
+			t.Errorf("failures = %+v, want %+v", report.Failures, want)
+		}
+	})
+
 	t.Run("keeps an output line over 1 MiB", func(t *testing.T) {
 		long := strings.Repeat("x", 1<<20)
 		data := `{"Action":"output","Package":"example/p","Test":"TestA","Output":"` + long + `"}` + "\n" +

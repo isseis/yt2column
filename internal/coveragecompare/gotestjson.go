@@ -1,6 +1,7 @@
 package coveragecompare
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/isseis/yt2column/internal/strictjson"
@@ -35,6 +36,9 @@ type goTestLine struct {
 	Test       string
 	ImportPath string
 	Output     string
+	// FailedBuild names the import path whose build failed, on the package
+	// fail line that follows a build-fail.
+	FailedBuild string
 }
 
 // goTestParser holds what one go test -json stream reported while it is read.
@@ -42,7 +46,7 @@ type goTestParser struct {
 	report       *goTestReport
 	outputs      map[goTestKey][]string
 	buildOutputs map[string][]string
-	buildImport  map[string]string // clean package path to import path
+	buildImport  map[string][]string // clean package path to its failed import paths
 }
 
 // parseGoTestJSON reads the output of go test -json. Every line must be one
@@ -55,7 +59,7 @@ func parseGoTestJSON(data []byte, point Point) (*goTestReport, error) {
 		report:       &goTestReport{},
 		outputs:      make(map[goTestKey][]string),
 		buildOutputs: make(map[string][]string),
-		buildImport:  make(map[string]string),
+		buildImport:  make(map[string][]string),
 	}
 	for i, line := range splitLines(string(data)) {
 		entry, err := parseGoTestLine(line, point, i+1)
@@ -77,7 +81,7 @@ func parseGoTestLine(line string, point Point, lineNo int) (goTestLine, error) {
 	if err != nil {
 		return goTestLine{}, stopError(point, InputGoTestJSON, lineNo, "the line is not one JSON object", line)
 	}
-	members, err := object.Collect("Action", "Package", "Test", "ImportPath", "Output")
+	members, err := object.Collect("Action", "Package", "Test", "ImportPath", "Output", "FailedBuild")
 	if err != nil {
 		return goTestLine{}, stopError(point, InputGoTestJSON, lineNo, "a consumed member has an unaccepted shape", line)
 	}
@@ -91,6 +95,7 @@ func parseGoTestLine(line string, point Point, lineNo int) (goTestLine, error) {
 		{"Test", &entry.Test},
 		{"ImportPath", &entry.ImportPath},
 		{"Output", &entry.Output},
+		{"FailedBuild", &entry.FailedBuild},
 	} {
 		value, err := jsonMemberString(members, field.key)
 		if err != nil {
@@ -125,12 +130,21 @@ func (p *goTestParser) record(entry goTestLine) {
 			return
 		}
 		if _, ok := p.buildImport[pkg]; ok {
+			if !slices.Contains(p.buildImport[pkg], entry.ImportPath) {
+				p.buildImport[pkg] = append(p.buildImport[pkg], entry.ImportPath)
+			}
 			return
 		}
-		p.buildImport[pkg] = entry.ImportPath
+		p.buildImport[pkg] = []string{entry.ImportPath}
 		p.report.Failures = append(p.report.Failures, goTestFailure{Package: pkg})
 	case "fail":
 		if entry.Test == "" {
+			// The package fail line after a build-fail names the failed
+			// build in FailedBuild. It can differ from Package: an external
+			// test package (p_test) or a dependency that did not compile.
+			if _, built := p.buildImport[cleanImportPath(entry.FailedBuild)]; built && entry.FailedBuild != "" {
+				return
+			}
 			if _, built := p.buildImport[stream.Package]; built {
 				return
 			}
@@ -151,7 +165,7 @@ func (p *goTestParser) attachOutput() {
 	for i := range p.report.Failures {
 		failure := &p.report.Failures[i]
 		if failure.Test == "" {
-			if importPath, ok := p.buildImport[failure.Package]; ok {
+			for _, importPath := range p.buildImport[failure.Package] {
 				failure.Output = append(failure.Output, p.buildOutputs[importPath]...)
 			}
 		}
