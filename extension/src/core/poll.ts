@@ -4,8 +4,9 @@
 // try; a result that repeating cannot change stops it. A failed exchange
 // never replaces the state shown: it adds a notice beside it.
 
+import { jobArticle } from "./jobView.ts";
 import type { JobDisplay, PollNotice } from "./jobView.ts";
-import type { Article, StatusOutcome } from "./response.ts";
+import type { StatusOutcome } from "./response.ts";
 
 /** The fixed polling interval: each status query starts one host process. */
 export const pollIntervalMs = 2_000;
@@ -21,25 +22,6 @@ export interface PollStep {
   /** The new display; absent when the state shown is kept. */
   readonly job?: JobDisplay;
   readonly notice: PollNotice;
-}
-
-/**
- * The article a lost job keeps: the one a done job showed just before, or the
- * one a lost job already kept. A reply of an earlier epoch can show lost
- * before the new epoch's fetch returns unknown again, and the article shown
- * must stay saveable and copyable.
- */
-function shownArticle(previous: JobDisplay | undefined): Article | undefined {
-  switch (previous?.kind) {
-    case "done":
-      return previous.article;
-    case "lost":
-      return previous.kept;
-    case "running":
-    case "failed":
-    case undefined:
-      return undefined;
-  }
 }
 
 const noNotice: PollNotice = { kind: "none" };
@@ -78,7 +60,10 @@ function afterJob(
         notice: noNotice,
       };
     case "unknown": {
-      const kept = shownArticle(previous);
+      // A reply of an earlier epoch can show lost before the new epoch's
+      // fetch returns unknown again, and the article shown must stay
+      // saveable and copyable.
+      const kept = jobArticle(previous);
       return {
         decision: "stop",
         job: kept === undefined ? { kind: "lost" } : { kind: "lost", kept },

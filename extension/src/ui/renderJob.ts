@@ -168,7 +168,7 @@ export function startFailure(
 }
 
 /** The notice of a failed status exchange, or nothing when there is none. */
-function pollNotice(
+export function pollNotice(
   doc: Document,
   notice: PollNotice,
   locale: Locale,
