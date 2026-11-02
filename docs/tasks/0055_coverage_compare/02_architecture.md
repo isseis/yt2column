@@ -157,6 +157,7 @@ flowchart LR
 | `extension/test/functionRanges.test.ts` | 新規 | 範囲の補助のテスト（7 章）。`make ext-test` で動く |
 | `Makefile` | 変更 | `coverage-compare` と `ext-coverage-compare` の対象を加え、`.PHONY`（`Makefile:57`）に載せる（3.2 節）。`ext_check_versions`（`Makefile:309-324`）に、道具が同じ確認を持つことを示すコメントを加える |
 | `CLAUDE.md` | 変更 | 「Deleting a test is a claim that must be checked」（`CLAUDE.md:490-491`）の書き換えと、「Commands」への 2 つの入口の追加（3.10 節） |
+| `.claude/commands/weakreview.md`・`.claude/commands/runplan.md` | 変更 | テストを削除したときの確認の項目（`weakreview.md:209-210`、`runplan.md:218`）を、3.10 節の新しい規則（`make coverage-compare`・`make ext-coverage-compare` の合格の結果の記録）に合わせる。今の 2 つの項目は、カバレッジが変わらないことの確認を求める、AC-37 が置き換える規則を述べている |
 | `cmd/yt2column/extension_docs_test.go` | 変更 | CLAUDE.md の `ext-` の対象の一覧を読む正規表現（`:41`）が、対象の名前の後ろの引数（` BASE=<commit>`）を受け入れるようにする（3.11 節） |
 | `cmd/yt2column/makefile_test.go` | 変更 | 2 つの対象のレシピの BASE の受け渡しと、HEAD の `go.mod` の確認のテストを加える（7.2・7.3 節） |
 | `internal/config/envaccess_test.go` | 変更 | 環境を読んでよい製品のコードの一覧（`allowedEnvRefs`、`:65-77`）に `cmd/coveragecompare/main.go` の `os.Environ` の呼び出しを 1 つ加える（3.11 節） |
@@ -494,7 +495,7 @@ go test -tags test -count=1 -json -coverpkg=./... -coverprofile=<作業用のデ
 -   `-race` は付けない。網羅率は、文が実行されたかどうかだけで決まり、race 検出はそれを変えない。race 検出なしのビルドは、`TestParseCopiedLargeInputs` の時間の上限も確かめる（`internal/transcript/copied_format_norace_test.go:1`・`:12-15`）。`make test-parse-norace` は、ほかのパッケージと並べずにこのテストだけを測る（`Makefile:105-114`）。本書の測り方は全パッケージを並べて動かす中でこのテストを測るが、その形で全テストが通り、このテストも通ることを実測した（全体で約 2 分）。そのため、このテストを除く扱いは設けない（H-02）。上限を超えた場合は `test-failed` で止まり、合格にはならない。
 -   標準出力（`-json` の行）はメモリに受け取る。大きさの上限は設けない（AC-32。設計のレビューでの実測で約 6.8 MB、プロファイルは約 32 MB）。
 
-**テストの実行の結果の読み方（AC-08・AC-30）:** 標準出力の各行を、`internal/strictjson` で 1 つの JSON のオブジェクトとして読む。読む項目は `Action`・`Package`・`Test`・`ImportPath` で、ほかの項目は読み飛ばす（`go test -json` は版によって項目を加えるので、拡張されうるものとして扱う）。JSON のオブジェクトでない行があれば `unreadable` である。
+**テストの実行の結果の読み方（AC-08・AC-30）:** 標準出力の各行を、`internal/strictjson` で 1 つの JSON のオブジェクトとして読む。読む項目は `Action`・`Package`・`Test`・`ImportPath` と、最初に失敗したテストの `Output`（3.9 節の出力の末尾のため。`Test` のない失敗では、そのパッケージまたは `ImportPath` の `Output`）で、ほかの項目は読み飛ばす（`go test -json` は版によって項目を加えるので、拡張されうるものとして扱う）。JSON のオブジェクトでない行があれば `unreadable` である。
 
 -   **テストの数:** `Test` が空でなく `/` を含まない（トップレベルの）テストのうち、`pass`・`fail`・`skip` で終わったものの数である。サブテストは数えない（AC-30）。
 -   **失敗:** `Action` が `fail` の行があれば、その `Test`（ない場合は `Package`）を失敗したものとして出す。ビルドの失敗（`build-fail` の行の `ImportPath`）も同じように扱う。`go test` の終了コードが 0 でなければ、行の内容によらず `test-failed` である。
@@ -530,7 +531,7 @@ node --test --experimental-test-coverage \
 
 -   字下げのない `# tests <数>`・`# fail <数>`・`# cancelled <数>` の行が、それぞれ 1 つだけある。数は負でない 10 進の整数である。ない、または 2 つ以上ある場合は `unreadable` である。
 -   **テストの数:** `# tests` の値である。node のテストランナーが実行の終わりに報告するテストの数（AC-30）である。`4bf1842f` の実測で 1,889 だった。
--   **失敗:** `node` の終了コードが 0 でない、`# fail` か `# cancelled` が 0 でない、のどれかなら `test-failed` である。失敗したテストの名前は、`not ok <番号> - <名前>` の行（字下げの深さによらない）から読む。名前の読めない失敗では、テストのファイルを出す。
+-   **失敗:** `node` の終了コードが 0 でない、`# fail` か `# cancelled` が 0 でない、のどれかなら `test-failed` である。失敗したテストの名前は、`not ok <番号> - <名前>` の行（字下げの深さによらない）から読む。node は、報告の出力先を指定すると標準出力に何も書かないので、3.9 節の出力の末尾とテストのファイルは、最初の `not ok` の行に続く診断のブロック（`error`・`stack`・`location:`）から読む。`location:` の絶対パスは、チェックアウトの `extension/` からの相対パスに直す（AC-27）。名前の読めない失敗では、テストのファイルを出す。
 
 **lcov の読み方（AC-29、H-06）:** 要件 AC-29 の受け入れる形のとおりに読む。読むのは `SF`・`FN`・`FNDA`・`end_of_record` で、`TN`・`FNF`・`FNH`・`DA`・`LF`・`LH`・`BRDA`・`BRF`・`BRH` は読み飛ばす。`FN` と `FNDA` は、まとまりの中で出現の順に組にし、名前が違えば受け入れない。
 
