@@ -222,7 +222,7 @@ git grep -n -i -e "old rule" -e "migration byte" -e "Migration check" -e "migrat
 
 **判定理由**: 2-1 は、信頼しないレビューのコメントを読んだ修正のエージェントへの守り（`/fixpr` の Migration check）を変える、セキュリティの関門の変更である。1-1〜2-2 は、規則とそれに従うコマンドの定義を同時に置き換える移行である。どちらも `mkplan.md` 手順 8 の panel mode の条件に当たる。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [ ] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
