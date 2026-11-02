@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-02 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-02 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md) の設計である。要件定義から申し送られた設計事項は [design_handoff.md](design_handoff.md) にあり、その対応は 10 章にまとめる。本書が引用するファイルの行番号は、コミット `4bf1842f`（本書の作成時の `main`）のものである。本書が「実測した」と書く値は、2026-11-02 に `4bf1842f`（本書だけを加えた `989ee404` を含む）で、node `v24.21.0`・go `go1.27.1`（darwin/arm64）・GNU Make 3.81 を使って測ったものである。
@@ -914,3 +914,7 @@ N/A（5 章）。BASE の値がレシピのシェルの文法として解釈さ�
 | AC-36 | 7.2 節（前提の確認、レシピの `go.mod` の確認） |
 | AC-37 | 3.10 節 |
 | AC-38 | 3.10 節、3.11 節（`TestExtensionDocumentation`） |
+
+## 変更履歴
+
+- 2026-11-02 承認（isseis、#626）
