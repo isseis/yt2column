@@ -6,6 +6,11 @@ import { describe, it } from "node:test";
 
 import { extensionIdFromManifestKey } from "./helpers/extensionId.ts";
 import { extensionDir } from "./helpers/paths.ts";
+import {
+  minimumChromePhrase,
+  readmeVersions,
+} from "./helpers/readmeVersions.ts";
+import { readRepoFile } from "./helpers/repoFile.ts";
 
 /** The extension ID fixed for this extension and recorded in the design. */
 const recordedExtensionId = "clfmbbcdpnjcefbdihdoahomaifbabkk";
@@ -127,6 +132,18 @@ describe("fixed fields", () => {
     // worker's idle timer, which the start's 25-second exchange relies on.
     assert.equal(manifest["minimum_chrome_version"], "110");
   });
+
+  for (const { path: readmePath, locale } of readmeVersions) {
+    it(`${readmePath} states the minimum Chrome version the manifest sets`, () => {
+      const stated = [
+        ...readRepoFile(readmePath).matchAll(minimumChromePhrase[locale]),
+      ].map((match) => match[1]);
+      assert.notEqual(stated.length, 0, `${readmePath} states no version`);
+      for (const version of stated) {
+        assert.equal(version, manifest["minimum_chrome_version"], readmePath);
+      }
+    });
+  }
 
   it("runs background.js as a module service worker", () => {
     assert.deepEqual(manifest["background"], {

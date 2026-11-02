@@ -1,14 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import type { CollectedInput } from "../src/core/collect.ts";
 import type { NativeReply } from "../src/core/native.ts";
-import { buildArticleBody } from "../src/core/prepare.ts";
-import type { PreparedRequest } from "../src/core/prepare.ts";
 import type { ArticleKey } from "../src/core/articleKey.ts";
 import { statusMessage } from "../src/core/hostMessage.ts";
 import type { RequestId } from "../src/core/response.ts";
-import { exchange, sendArticle, sendTimeoutMs } from "../src/send.ts";
+import { exchange, sendTimeoutMs } from "../src/send.ts";
 import {
   deferredNative,
   manualSchedule,
@@ -21,18 +18,6 @@ const requestId = "0123456789abcdef" as RequestId;
 const accepted = JSON.stringify({ status: "accepted", requestId });
 const acceptedBytes = new TextEncoder().encode(accepted);
 const message = statusMessage("key-0123" as ArticleKey);
-
-// Tests may assert a branded type to build fixtures.
-const request: PreparedRequest = {
-  body: buildArticleBody(
-    {
-      selection: "hello",
-      url: "https://www.youtube.com/watch?v=abc",
-      title: "a tab title",
-    } as CollectedInput,
-    {},
-  ),
-} as PreparedRequest;
 
 /** Waits for the queued microtasks and one macrotask to settle. */
 async function flush(): Promise<void> {
@@ -122,34 +107,5 @@ describe("exchange", () => {
       kind: "unexpected",
       check: "classification-error",
     });
-  });
-});
-
-// The popup's /articles send, until it moves to exchange; the send itself is
-// exchange's, tested above.
-describe("sendArticle", () => {
-  it("sends the body once and classifies the reply as /articles", async () => {
-    const native = recordingNative(async () => responseReply(202, accepted));
-    const result = await sendArticle(request, testSendDeps(native.sendNative));
-
-    assert.deepEqual(result, { kind: "accepted", requestId });
-    assert.equal(native.messages.length, 1);
-    assert.equal(native.messages[0], request.body.message);
-  });
-
-  it("returns classification-error when the reply throws while it is read", async () => {
-    const value = {
-      get v(): number {
-        throw new Error("getter");
-      },
-    };
-    const native = recordingNative(async (): Promise<NativeReply> => ({
-      kind: "message",
-      value,
-    }));
-    assert.deepEqual(
-      await sendArticle(request, testSendDeps(native.sendNative)),
-      { kind: "unexpected", check: "classification-error" },
-    );
   });
 });

@@ -560,40 +560,40 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **変更するファイル:** 1.4 の「古い部品と、それを使う場所」の表のうち 7-1 の行と、台帳の「フェーズ 7 の後」の列が「なし」の行の各ファイル（`src/core/articlesResponse.ts`・`src/core/native.ts`・`src/send.ts`・`src/ui/renderSend.ts`・`src/core/sendMessages.ts`・`src/core/i18n/catalog.ts`・`en.ts`・`ja.ts`・`src/browser/chromeDeps.ts`・`test/helpers/native.ts`・`test/articlesResponse.test.ts`・`test/native.test.ts`・`test/send.test.ts`・`test/renderSend.test.ts`・`test/sendMessages.test.ts`・`test/catalog.test.ts`・`test/typecheck.test.ts`）
 
--   [ ] `src/core/articlesResponse.ts` と `test/articlesResponse.test.ts` をなくす。
--   [ ] `native.ts` の古い包みの `classifyNativeReply` と、その 1,024 バイトの境目のテストをなくす。
--   [ ] `send.ts` の `sendArticle` をなくし、`SendDeps.sendNative` の引数の型を `HostMessage` だけにする。`test/send.test.ts:38` の describe を `exchange` のテストに置き換える。
--   [ ] `src/ui/renderSend.ts` と `test/renderSend.test.ts` をなくす。
--   [ ] `sendMessages.ts` の `serverRejectMessage`・`sendOutcomeMessage` と、`test/sendMessages.test.ts:60`・`:84` の describe をなくす（確認の行き先は 1.4）。
--   [ ] 文言の古い節（`serverReject`・`notSent`・`accepted`・`noResponse`・`hostFailed`・`unexpected`・`sending`・`primaryButton`）と、`en.ts`・`ja.ts` の値をなくす。`test/typecheck.test.ts:160` の欠かす項目を、新しい節の項目に替える。
--   [ ] Slack の方針を書いたコメント（`catalog.ts:29-32`、`sendMessages.ts:25`）を改める。
--   [ ] 1.2 の lcov の比べ方で、消した関数のほかに実行回数が 0 になった関数がないことを確かめる。
+-   [x] `src/core/articlesResponse.ts` と `test/articlesResponse.test.ts` をなくす。
+-   [x] `native.ts` の古い包みの `classifyNativeReply` と、その 1,024 バイトの境目のテストをなくす。
+-   [x] `send.ts` の `sendArticle` をなくし、`SendDeps.sendNative` の引数の型を `HostMessage` だけにする。`test/send.test.ts:38` の describe を `exchange` のテストに置き換える（`exchange` の describe はステップ 2-4 で加えてあるので、`sendArticle` の describe を消す）。`exchange` だけが使う `sendOnce` は `exchange` にまとめる。
+-   [x] `src/ui/renderSend.ts` と `test/renderSend.test.ts` をなくす。
+-   [x] `sendMessages.ts` の `serverRejectMessage`・`sendOutcomeMessage` と、`test/sendMessages.test.ts:60`・`:84` の describe をなくす（確認の行き先は 1.4）。
+-   [x] 文言の古い節（`serverReject`・`notSent`・`accepted`・`noResponse`・`hostFailed`・`unexpected`・`sending`・`primaryButton`）と、`en.ts`・`ja.ts` の値をなくす。`test/typecheck.test.ts:160` の欠かす項目を、新しい節の項目に替える。
+-   [x] Slack の方針を書いたコメント（`catalog.ts:29-32`、`sendMessages.ts:25`）を改める。
+-   [x] 1.2 の lcov の比べ方で、消した関数のほかに実行回数が 0 になった関数がないことを確かめる。
 
 #### ステップ 7-2: ガードの更新
 
 **変更するファイル:** `test/serverReasons.test.ts`、`test/metadataDocs.test.ts`、`test/typecheck.test.ts`、`test/manifest.test.ts`
 
--   [ ] `test/serverReasons.test.ts` の突き合わせの相手を、新しい `ServerRejectReason` の集合と、理由から状態コードへの `Record` に改める（設計書 3.17、AC-38）。
--   [ ] `test/metadataDocs.test.ts` の主ボタンの名前の確認を、3 つの名前を確かめる形にする。「socket directory documentation reference」の確認（`:64-78`）は、付け替えずに消す（設計書 3.17）。消す確認が守っていた `README.en.md` の存在は、`cmd/yt2column::TestReadmeVersionsShareStructure` と `cmd/yt2column-server::TestStartupFailures` が引き続き確かめるので、カバレッジは狭まらない。このことを、2 つのテストの名前とともにコミットのメッセージに書く。
--   [ ] `test/typecheck.test.ts` に、`SendDeps.sendNative` に今の形の本文（`StartInput`）を渡すコードが型の検査を通らない例と、`HostMessage` を渡すコードが通る対照を、`:155` の今の形と同じく加える（AC-01）。
--   [ ] `test/manifest.test.ts` に、両方の README が書く最小の Chrome の版が `minimum_chrome_version` と等しいことを確かめるテストを加える（ステップ 7-3 で README に書く値）。
+-   [x] `test/serverReasons.test.ts` の突き合わせの相手を、新しい `ServerRejectReason` の集合と、理由から状態コードへの `Record` に改める（設計書 3.17、AC-38）。
+-   [x] `test/metadataDocs.test.ts` の主ボタンの名前の確認を、3 つの名前を確かめる形にする。「socket directory documentation reference」の確認（`:64-78`）は、付け替えずに消す（設計書 3.17）。この確認は、タスク `0052` の #603 がすでに消していた。消す確認が守っていた `README.en.md` の存在は、`cmd/yt2column::TestReadmeVersionsShareStructure` と `cmd/yt2column-server::TestStartupFailures` が引き続き確かめるので、カバレッジは狭まらない。このことを、2 つのテストの名前とともにコミットのメッセージに書く。
+-   [x] `test/typecheck.test.ts` に、`SendDeps.sendNative` に今の形の本文（`StartInput`）を渡すコードが型の検査を通らない例と、`HostMessage` を渡すコードが通る対照を、`:155` の今の形と同じく加える（AC-01）。
+-   [x] `test/manifest.test.ts` に、両方の README が書く最小の Chrome の版が `minimum_chrome_version` と等しいことを確かめるテストを加える（ステップ 7-3 で README に書く値）。
 
 #### ステップ 7-3: README
 
 **変更するファイル:** `README.md`、`README.en.md`
 
--   [ ] `README.md` の「ブラウザ拡張」節・「localhost サーバ」節・「拒否の理由」の表を、要件書 F-010 と設計書 3.18 の行（Chrome 110、拡張の更新、ビューアの見出しは URL の値であること、キーを受け取る前にビューアとポップアップを閉じた場合の手順、拡張とサーバとホストを同じ版にそろえること）のとおりに書き直す。今の経路の Slack の案内を取り除く。「必要なもの」の「Chrome または Brave」（`README.md:78`）に版を加える。
--   [ ] `/mktrans README.md` で `README.en.md` に反映する。
+-   [x] `README.md` の「ブラウザ拡張」節・「localhost サーバ」節・「拒否の理由」の表を、要件書 F-010 と設計書 3.18 の行（Chrome 110、拡張の更新、ビューアの見出しは URL の値であること、キーを受け取る前にビューアとポップアップを閉じた場合の手順、拡張とサーバとホストを同じ版にそろえること）のとおりに書き直す。今の経路の Slack の案内を取り除く。「必要なもの」の「Chrome または Brave」（`README.md:78`）に版を加える。
+-   [x] `/mktrans README.md` で `README.en.md` に反映する。
 
 #### ステップ 7-4: 開発の手順・セキュリティ・概要・用語集
 
 **変更するファイル:** `docs/dev/guides/development.md`、`docs/dev/security.md`、`docs/dev/project_overview.md`、`docs/dev/production_profile.md`、`CLAUDE.md`、`docs/translation_glossary.md`
 
--   [ ] `development.md` の「ジョブの API」の今の拡張の記述と、拒否の理由の表の「拡張の表示」の列を改める（要件書 F-009・F-010）。
--   [ ] `security.md` §8.1・§8.2 を、要件書 F-010・5 章と設計書 5.1 の残余の列（履歴に残る値など）のとおりに改める。
--   [ ] `project_overview.md` のツールの説明と `extension/` の説明、`production_profile.md:62-65` のポップアップと失敗の通知の記述（1.3）、`CLAUDE.md` の「Architecture Overview」の主経路の説明を改める。
--   [ ] `translation_glossary.md` に要件書 F-010 の用語を加え、「結果不明」「主ボタン」の定義と、「工程」の項（設計書 3.13 の 3 つの名前）を改める。
--   [ ] 文書に書く数や名前（ポーリングの間隔、期限、上限など）は、すでにコードの値と突き合わせるガードがある値か、ステップ 7-2 でガードを加えた値に限る。ガードのない値を書くときは、その値のガードをステップ 7-2 に加える。
+-   [x] `development.md` の「ジョブの API」の今の拡張の記述と、拒否の理由の表の「拡張の表示」の列を改める（要件書 F-009・F-010）。
+-   [x] `security.md` §8.1・§8.2 を、要件書 F-010・5 章と設計書 5.1 の残余の列（履歴に残る値など）のとおりに改める。
+-   [x] `project_overview.md` のツールの説明と `extension/` の説明、`production_profile.md:62-65` のポップアップと失敗の通知の記述（1.3）、`CLAUDE.md` の「Architecture Overview」の主経路の説明を改める。
+-   [x] `translation_glossary.md` に要件書 F-010 の用語を加え、「結果不明」「主ボタン」の定義と、「工程」の項（設計書 3.13 の 3 つの名前）を改める。
+-   [x] 文書に書く数や名前（ポーリングの間隔、期限、上限など）は、すでにコードの値と突き合わせるガードがある値か、ステップ 7-2 でガードを加えた値に限る。ガードのない値を書くときは、その値のガードをステップ 7-2 に加える。
 
 **完了の条件（ステップ 7-1〜7-4）:** `make ext-check`・`make readme-sync-check`・`make test`（`doc-guard` が走らせる Go のガードと、`cmd/yt2column-nmhost::TestReadmeHostExitCodes`）・`make lint` が通る。`test/serverReasons.test.ts` の新しい集合から 1 つの理由を消すように壊し、このテストが失敗することを確かめる。README の最小の Chrome の版を 1 つ変えるように壊し、ステップ 7-2 の版のテストが失敗することを確かめる。
 

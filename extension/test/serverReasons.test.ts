@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { articlesRejectStatus } from "../src/core/articlesResponse.ts";
+import {
+  publishRejectStatus,
+  startRejectStatus,
+  statusRejectStatus,
+} from "../src/core/response.ts";
+import type { ServerRejectReason } from "../src/core/response.ts";
 import { developmentDoc } from "./helpers/developmentDoc.ts";
 import { cells, readRepoFile } from "./helpers/repoFile.ts";
 
@@ -9,8 +14,8 @@ import { cells, readRepoFile } from "./helpers/repoFile.ts";
  * The reason-to-status pairs of the development guide's rejection table whose
  * display cell is a fixed message (also when it turns into an unexpected
  * reply for an empty requestId), as a map. The other rows (the server's
- * answers to a wrong path or method, and to the job API) are shown as an
- * unexpected reply, so the extension has no reason for them. A display cell
+ * answers to a wrong path or method) are shown as an unexpected reply, so
+ * the extension has no reason for them. A display cell
  * in no category fails the test instead of being taken for one.
  */
 function documentedFixedMessageReasons(): Map<string, number> {
@@ -52,7 +57,35 @@ function documentedFixedMessageReasons(): Map<string, number> {
   return rows;
 }
 
+/**
+ * Every reason the extension shows with a fixed message, whichever operation
+ * returned it, and its status code. The Record keeps it total over
+ * ServerRejectReason; a reason two operations share must be sent with the
+ * same code, which the test checks.
+ */
+const serverRejectStatus: Record<ServerRejectReason, number> = {
+  ...startRejectStatus,
+  ...statusRejectStatus,
+  ...publishRejectStatus,
+};
+
 describe("server reasons match the development guide", () => {
+  it("gives a reason the same status code in every operation", () => {
+    for (const table of [
+      startRejectStatus,
+      statusRejectStatus,
+      publishRejectStatus,
+    ]) {
+      for (const [reason, status] of Object.entries(table)) {
+        assert.equal(
+          serverRejectStatus[reason as ServerRejectReason],
+          status,
+          reason,
+        );
+      }
+    }
+  });
+
   it("has exactly the rejection table's fixed-message pairs", () => {
     const documented = documentedFixedMessageReasons();
     assert.notEqual(
@@ -63,7 +96,7 @@ describe("server reasons match the development guide", () => {
     const sorted = (map: Map<string, number>) =>
       [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
     assert.deepEqual(
-      sorted(new Map(Object.entries(articlesRejectStatus))),
+      sorted(new Map(Object.entries(serverRejectStatus))),
       sorted(documented),
     );
   });

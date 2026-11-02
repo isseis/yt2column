@@ -39,7 +39,7 @@
 | 記事のキー | article key | サーバが生成の開始の入力から計算する、記事を指す不透明な値（64 文字の小文字の 16 進）。拡張とホストは、その形にも計算方法にも依存しない |
 | 記録 | record | 記事のキャッシュが 1 つのキーについて持つ値の組（ジョブ・工程・投稿の状態、記事、失敗の理由、時刻） |
 | ジョブの状態 | job state | `running`・`done`・`failed`・`unknown` |
-| 工程 | step | 記事の生成の中の 3 つの処理（生成・字数の調整・検証・推敲。`writer.Stage`）。API の `steps` のメンバ。パイプラインの「段階」（stage）とは区別する |
+| 工程 | step | 記事の生成の中の 3 つの処理（`writer.Stage`）。API の `steps` のメンバ。拡張は、`draft` を「下書きの生成」（Draft）、`shorten` を「字数の調整」（Shorten）、`review` を「検証・推敲」（Review）と表示する。パイプラインの「段階」（stage）とは区別する |
 | 工程の状態 | step state | `pending`・`running`・`done`・`skipped`・`failed` |
 | 投稿の状態 | publish state | `not_posted`・`posting`・`posted`・`failed`・`unpostable` |
 | 生成の枠 | generation slot | 同時に走る記事の生成の数の上限（`2`）。旧 API のジョブと新しい API の生成が合算する |
@@ -60,8 +60,8 @@
 | ホスト | host | Native Messaging のホスト。ブラウザが拡張の送信のたびに起動し、1 つのリクエストを localhost サーバの UDS へ中継する実行ファイル（`yt2column-nmhost`）。文脈が曖昧なときは "native messaging host" とする |
 | ホスト名 | host name | ホストの manifest の `name`・manifest のファイル名・拡張が送る相手として指定する固定の名前（`io.github.isseis.yt2column`、`nmhost.HostName`） |
 | ホストの応答 | host reply | ホストが標準出力に書く 1 つのフレーム。サーバの応答を包む形（`kind` が `response`）とホストのエラーの形（`kind` が `error`）がある |
-| 未送信 | not sent | 拡張の送信の結果のうち、リクエストがサーバに届いていないと確定するもの（ホストが返す `server_unavailable`・`message_too_large`）。Slack の確認を求めない |
-| 結果不明 | result unknown | 拡張の送信の結果のうち、リクエストがサーバに届いた可能性があるもの（応答なし・ホストの失敗・想定外の応答）。送り直す前に Slack を確かめるよう案内する |
+| 未送信 | not sent | やり取りの結果のうち、リクエストがサーバに届いていないと確定するもの（ホストが返す `server_unavailable`・`message_too_large`） |
+| 結果不明 | result unknown | やり取りの結果のうち、リクエストがサーバに届いた可能性があるもの（応答なし・ホストの失敗・想定外の応答）。拡張は自動では送り直さない。生成の開始では、同じ入力を送り直しても、その記事が処理中か完了していれば二重に生成されないことを示す |
 | 枠 | slot | localhost サーバが同時に処理するリクエストの数を数える単位。生成の枠（`maxInFlight`）は、旧 API のジョブと新しい API の生成のジョブが合算して数える。新しい API の生成の開始は、本文の読み込みと検査に別の読み込みの枠を使う |
 | 拒否の理由 | reject reason | 応答の本文の `reason` に載せる固定の値（`rejectReason`） |
 | 動画メタデータ | video metadata | 拡張が動画ページの DOM から読む動画タイトル・チャンネル名・概要欄の総称。API の任意フィールド `title`・`channelName`・`description` |
@@ -73,12 +73,18 @@
 | 動画のセクション | video section | 見出しとチャンネル名を表示するセクション |
 | 見出し | heading | 動画のセクションの先頭に表示する、動画タイトル（取れないときはタブのタイトル） |
 | 確認のセクション | checks section | 選択範囲の行と概要欄の行を表示するセクション |
-| 操作のセクション | action section | 主ボタンと、送信中と送信の結果を表示するセクション |
+| 操作のセクション | action section | 主ボタンと、状態の変化の要約を表示するセクション |
 | 確認の行 | check row | 確認のセクションの 1 行。✓ か ⚠ の状態を持つ。選択範囲の行と概要欄の行がある |
 | 選択範囲の行 | selection row | 選択範囲の文字数と行数、先頭と末尾のプレビューを表示する確認の行 |
 | 概要欄の行 | description row | 送る概要欄が全文か、冒頭だけか、送られないかを表示する確認の行 |
-| 主ボタン | primary button | 操作のセクションの、送信を始めるボタン（`Generate article`） |
+| 主ボタン | primary button | 操作のセクションのボタン。送る前は送信を始め（`Generate article`）、送った後は状態に応じて「ビューアを開く」（`Open viewer`）か「やり直す」（`Try again`）の操作になる |
 | 詳細 | details | URL とタブのタイトルを入れた、開閉できる区分 |
+| ビューア | viewer | 記事の状態と記事を表示する拡張のページ（`viewer.html`）。タブで開く。記事の投稿・`.md` での保存・Markdown のコピーの操作を持つ |
+| Service Worker | service worker | Manifest V3 の拡張のバックグラウンドの処理を行うスクリプト（`background.js`）。ポップアップの求めを受けて、生成の開始を送る |
+| ビューアの URL | viewer URL | ビューアのタブの URL。記事のキー・見出し・チャンネル名・動画タイトル・集めた URL・送信の時刻を持つ。コピーした字幕と概要欄は持たない |
+| 送信の時刻 | send time | 利用者が主ボタン（または「やり直す」）を押して生成の開始を送った時刻。処理中の経過時間の起点 |
+| ポーリング | polling | 状態の取得を、決めた間隔で繰り返すこと。続けても結果の変わらない応答で止める |
+| やり取りの結果 | exchange result | 生成の開始・状態の取得・投稿の操作の 1 回のホストとのやり取りの結果。受け付け・拒否・未送信・応答なし・ホストの失敗・想定外の応答のいずれか。ジョブの状態の `unknown` とは別 |
 | 拒否のカード | rejection card | 収集が拒否されたときに、収集の拒否の理由の文と手順をまとめて表示する 1 枚の区分 |
 | 収集の拒否の理由 | collection rejection reason | 拡張が収集を拒否する理由（`RejectionReason`。`not-watch-page` など）。サーバが返す拒否の理由（`rejectReason`）とは別 |
 | 先頭のプレビュー | head preview | 選択範囲の最初の 100 コードポイントの表示 |

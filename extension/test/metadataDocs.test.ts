@@ -49,7 +49,9 @@ describe("video metadata documentation", () => {
       // quoted names with the catalog. The explanatory prose is checked by
       // reading it in the PR review, not by matching words here.
       expectPhrases(section, where, [
-        `**${catalog.primaryButton}**`,
+        `**${catalog.popup.primary.generate}**`,
+        `**${catalog.popup.primary.openViewer}**`,
+        `**${catalog.popup.primary.retry}**`,
         `**${catalog.checkNames.selection}**`,
         `**${catalog.checkNames.description}**`,
         `**${catalog.details.summary}**`,
