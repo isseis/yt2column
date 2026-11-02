@@ -78,6 +78,12 @@ func TestIsGoProduct(t *testing.T) {
 			want: true,
 		},
 		{
+			name: "test beside unix stays product code because unix holds without it",
+			file: "internal/x/x.go",
+			src:  "//go:build unix || test\n\npackage x\n",
+			want: true,
+		},
+		{
 			name: "test written second in the expression",
 			file: "internal/x/x.go",
 			src:  "//go:build integration || test\n\npackage x\n",

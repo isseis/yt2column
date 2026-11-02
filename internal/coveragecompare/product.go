@@ -6,11 +6,11 @@ import (
 )
 
 // isGoProduct reports whether a Go file is product code: it is not named
-// _test.go, and its //go:build expression does not require the test tag or hold
-// whenever the test tag holds. A file with no //go:build line is product code.
-// The expression is read with go/build/constraint, so a tag name in a comment
-// or a string never counts, and a malformed expression stops as unreadable
-// instead of being guessed.
+// _test.go, and its //go:build expression holds in the measured build without
+// the test tag, or does not name the test tag at all. A file with no
+// //go:build line is product code. The expression is read with
+// go/build/constraint, so a tag name in a comment or a string never counts, and
+// a malformed expression stops as unreadable instead of being guessed.
 func isGoProduct(fileName string, src []byte, point Point) (bool, error) {
 	if strings.HasSuffix(fileName, "_test.go") {
 		return false, nil
@@ -33,6 +33,15 @@ func isGoProduct(fileName string, src []byte, point Point) (bool, error) {
 		expression = parsed
 	}
 	if expression == nil {
+		return true, nil
+	}
+	// Evaluate the measured build's tags without the test tag: unix holds on
+	// darwin and linux, and race and integration do not. A constraint that
+	// holds there keeps the file product code even when it also names test
+	// (unix || test). A constraint that does not hold there is test-only when
+	// it names test (test || integration); when it names test nowhere
+	// (integration, race), the file is still product code.
+	if expression.Eval(func(tag string) bool { return tag == "unix" }) {
 		return true, nil
 	}
 	return !namesTestTag(expression), nil
