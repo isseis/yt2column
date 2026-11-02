@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-02 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-02 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の項番を、「設計書 3.2」などは設計書の節を指す。用語は要件書 6 章と設計書の冒頭の定義（チェックアウト、関数表、行の対応、範囲の補助、作業用のディレクトリ）に従う。既存のコードについての記述は、コミット `a749c29b` で確かめた。設計書が行番号を引いたコミット `4bf1842f` から `a749c29b` までの間に、`Makefile`・`CLAUDE.md`・`cmd/`・`internal/`・`extension/package.json`・`extension/tsconfig.json`・`.golangci.yml` は変わっていない（`git diff --stat 4bf1842f a749c29b -- <これらのパス>` の出力が空）。そのため、設計書の行番号はそのまま使える。
@@ -581,3 +581,7 @@ M1・M2・M3 はこの順に積み上げる。M2 の関数表と判定の関数�
 
 -   本書が承認された後、PR-1 から順に `/runplan 0055` で実装する。
 -   最後の PR のマージの後、issue #618 を閉じる（`/runpr` が提案する）。#619 の軽量プロセスは、2 つの `make` の対象を類型 D「削除」の確かめ方として使える（設計書 9 章）。
+
+## 変更履歴
+
+- 2026-11-02 承認（isseis、#630）
