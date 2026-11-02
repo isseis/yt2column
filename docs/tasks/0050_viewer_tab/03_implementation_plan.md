@@ -507,18 +507,19 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **変更するファイル:** `src/core/popupView.ts`、`test/popupView.test.ts`
 
--   [ ] 設計書 3.8 の `JobPopupView`・`PopupJobState`・`PrimaryAction`・`primaryAction` を加える。
--   [ ] テスト: `primaryAction` の表の各行（AC-20・AC-22・AC-23）。
+-   [x] 設計書 3.8 の `JobPopupView`・`PopupJobState`・`PrimaryAction`・`primaryAction` を加える。
+-   [x] テスト: `primaryAction` の表の各行（AC-20・AC-22・AC-23）。
 
 **完了の条件:** `make ext-check` が通る。`primaryAction` が `loading` で押せない操作を返すように壊し、その行のテストが失敗することを確かめる。
 
 #### ステップ 6-2: ポップアップの描画
 
-**変更するファイル:** `src/ui/render.ts`、`test/render.test.ts`、`scripts/popup-preview.ts`、`test/popupPreview.test.ts`
+**変更するファイル:** `src/ui/render.ts`、`src/ui/message.ts`（新規）、`src/ui/renderJob.ts`、`src/ui/renderViewer.ts`、`test/render.test.ts`、`scripts/popup-preview.ts`、`test/popupPreview.test.ts`
 
--   [ ] `renderPopup` に `job` の種類を加える。`#checks` の位置に `renderJob.ts` で状態を描き、状態の変化の要約を `#status` に書き、主ボタンの名前と押せるかを `primaryAction` で決める（設計書 3.8・3.14 のポップアップの行）。`job` の種類の主ボタンの名前は新しい節の名前を使う。送る前の画面の主ボタンの名前（`primaryButton`）は、ステップ 6-3 まで変えない（1.4）。
--   [ ] プレビューに、ポップアップの新しい状態のページを加える。
--   [ ] テスト: `PopupJobState` の各種類で、動画のセクションと詳細が `collected` と同じであること、`#checks` と `#status` の中身、主ボタンの名前と `disabled`（AC-20・AC-23・AC-46）、状態ごとの文言（設計書 3.8 の表）、DOM の順（AC-44）。
+-   [x] `renderPopup` に `job` の種類を加える。`#checks` の位置に `renderJob.ts` で状態を描き、状態の変化の要約を `#status` に書き、主ボタンの名前と押せるかを `primaryAction` で決める（設計書 3.8・3.14 のポップアップの行）。`job` の種類の主ボタンの名前は新しい節の名前を使う。送る前の画面の主ボタンの名前（`primaryButton`）は、ステップ 6-3 まで変えない（1.4）。`renderPopup` は、工程の経過時間を描くために `elapsedMs`（既定は 0）を受け取る。
+-   [x] 共有する部品を移す。`messageNodes` を `src/ui/message.ts` に移し、`noticeSummary` と `writeStatusSummary` を `src/ui/renderJob.ts` に移して、ポップアップとビューアで使う（`render.ts` が `renderJob.ts` を import しても循環しないようにするため）。
+-   [x] プレビューに、ポップアップの新しい状態のページを加える。
+-   [x] テスト: `PopupJobState` の各種類で、動画のセクションと詳細が `collected` と同じであること、`#checks` と `#status` の中身、主ボタンの名前と `disabled`（AC-20・AC-23・AC-46）、状態ごとの文言（設計書 3.8 の表）、DOM の順（AC-44）。
 
 **完了の条件:** `make ext-check` が通る。`job` の種類で動画のセクションを描かないように壊し、動画のセクションが残ることのテストが失敗することを確かめる。
 

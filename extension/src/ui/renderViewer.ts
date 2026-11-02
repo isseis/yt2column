@@ -10,7 +10,6 @@ import type { Locale } from "../core/i18n/locale.ts";
 import { jobArticle, publishControl } from "../core/jobView.ts";
 import type {
   JobDisplay,
-  PollNotice,
   PublishOpNotice,
   PublishRow,
   ViewerState,
@@ -18,18 +17,19 @@ import type {
 import {
   publishResultMessage,
   startResultMessage,
-  statusNoticeMessage,
 } from "../core/sendMessages.ts";
 import type { ViewerParams } from "../core/viewerUrl.ts";
 import { renderArticleBody } from "./articleBody.ts";
 import { messageNodes } from "./render.ts";
 import {
   loadingIndicator,
+  noticeSummary,
   pollNotice,
   renderJobState,
   requestIdNode,
   startFailure,
   stepsSummary,
+  writeStatusSummary,
 } from "./renderJob.ts";
 
 /** The skeleton's elements; the viewer finds them in viewer.html by id. */
@@ -212,13 +212,6 @@ function jobSummary(job: JobDisplay, locale: Locale): string[] {
   }
 }
 
-/** The notice's part of the summary: that the status could not be read. */
-function noticeSummary(notice: PollNotice, locale: Locale): string[] {
-  return notice.kind === "none"
-    ? []
-    : [statusNoticeMessage(notice.outcome, locale).text];
-}
-
 /**
  * The state summary's sentences: loading started or ended, a step changed,
  * the job finished or failed, the publish state changed, the status could not
@@ -247,25 +240,6 @@ function stateSummary(state: ViewerState, locale: Locale): string[] {
   }
 }
 
-/** Writes the summary, one paragraph per sentence, only when it changed. */
-function writeSummary(region: HTMLElement, sentences: readonly string[]): void {
-  const shown = Array.from(region.children, (child) => child.textContent);
-  if (
-    shown.length === sentences.length &&
-    shown.every((text, i) => text === sentences[i])
-  ) {
-    return;
-  }
-  const doc = region.ownerDocument;
-  region.replaceChildren(
-    ...sentences.map((sentence) => {
-      const paragraph = doc.createElement("p");
-      paragraph.textContent = sentence;
-      return paragraph;
-    }),
-  );
-}
-
 /**
  * Draws the state, the article and the operations. The state summary's
  * region is written only when its text changes, so a poll that repeats the
@@ -283,7 +257,7 @@ export function renderViewer(
   const doc = elements.state.ownerDocument;
   const catalog = catalogs[locale];
   drawState(elements.state, view, locale);
-  writeSummary(elements.stateStatus, stateSummary(view.state, locale));
+  writeStatusSummary(elements.stateStatus, stateSummary(view.state, locale));
 
   // The article is a done job's, or the one a lost job kept.
   const job = publishableJob(view.state);

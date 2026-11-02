@@ -15,7 +15,7 @@ import {
   statusNoticeMessage,
 } from "../core/sendMessages.ts";
 import { loadingIcon, stepIcon } from "./icons.ts";
-import { messageNodes } from "./render.ts";
+import { messageNodes } from "./message.ts";
 
 // The steps in the order the server runs them, which is the order of the
 // record every step name is checked against.
@@ -185,6 +185,35 @@ export function pollNotice(
       outcome.kind === "rejected" ? outcome.requestId : undefined,
     ),
   ];
+}
+
+/** The notice's part of a state summary: that the status could not be read. */
+export function noticeSummary(notice: PollNotice, locale: Locale): string[] {
+  return notice.kind === "none"
+    ? []
+    : [statusNoticeMessage(notice.outcome, locale).text];
+}
+
+/** Writes the summary, one paragraph per sentence, only when it changed. */
+export function writeStatusSummary(
+  region: HTMLElement,
+  sentences: readonly string[],
+): void {
+  const shown = Array.from(region.children, (child) => child.textContent);
+  if (
+    shown.length === sentences.length &&
+    shown.every((text, i) => text === sentences[i])
+  ) {
+    return;
+  }
+  const doc = region.ownerDocument;
+  region.replaceChildren(
+    ...sentences.map((sentence) => {
+      const paragraph = doc.createElement("p");
+      paragraph.textContent = sentence;
+      return paragraph;
+    }),
+  );
 }
 
 /** The job's own nodes: the steps and, by kind, the elapsed time, the facts or the failure. */

@@ -1,4 +1,5 @@
 import type { CollectedInput } from "./collect.ts";
+import type { JobDisplay, PollNotice, StartFailure } from "./jobView.ts";
 import type { MetadataResult } from "./metadata.ts";
 import type {
   PrepareOutcome,
@@ -102,8 +103,53 @@ export interface RejectedView {
   readonly reason: RejectionReason;
 }
 
+export interface JobPopupView {
+  readonly kind: "job";
+  readonly video: VideoView;
+  readonly details: DetailsView;
+  readonly state: PopupJobState;
+}
+
+/**
+ * What the popup shows after the primary button is pressed. loading is a key
+ * accepted and waiting for the first status; a failed status exchange keeps
+ * its notice beside the state, as in the viewer.
+ */
+export type PopupJobState =
+  | { readonly kind: "sending" }
+  | { readonly kind: "start-failed"; readonly failure: StartFailure }
+  | { readonly kind: "loading"; readonly notice: PollNotice }
+  | {
+      readonly kind: "job";
+      readonly job: JobDisplay;
+      readonly notice: PollNotice;
+    };
+
+/** What the primary button does; total over PopupJobState, never stored beside it. */
+export type PrimaryAction = "none" | "open-viewer" | "retry";
+
+/** The primary button's action for a job state. */
+export function primaryAction(state: PopupJobState): PrimaryAction {
+  switch (state.kind) {
+    case "sending":
+    case "start-failed":
+      return "none";
+    case "loading":
+      return "open-viewer";
+    case "job":
+      switch (state.job.kind) {
+        case "running":
+        case "done":
+          return "open-viewer";
+        case "failed":
+        case "lost":
+          return "retry";
+      }
+  }
+}
+
 /** What the popup displays and whether the primary button can be pressed. */
-export type PopupView = CollectedView | RejectedView;
+export type PopupView = CollectedView | RejectedView | JobPopupView;
 
 /**
  * Builds what the popup displays from a collected input, the read metadata and

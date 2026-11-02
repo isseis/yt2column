@@ -32,7 +32,11 @@ import type { MetadataResult } from "../src/core/metadata.ts";
 import type { Locale } from "../src/core/i18n/locale.ts";
 import { prepareSend } from "../src/core/prepare.ts";
 import { buildCollectedView } from "../src/core/popupView.ts";
-import type { PopupView } from "../src/core/popupView.ts";
+import type {
+  JobPopupView,
+  PopupJobState,
+  PopupView,
+} from "../src/core/popupView.ts";
 import type { RejectionReason } from "../src/core/types.ts";
 import type { JobDisplay } from "../src/core/jobView.ts";
 import { classifyStatus } from "../src/core/response.ts";
@@ -386,6 +390,100 @@ export const viewerPreviewCases: readonly ViewerPreviewCase[] = [
   },
 ];
 
+/** A popup job state drawn on the shipped popup.html, one file each. */
+export interface PopupJobPreviewCase {
+  readonly name: string;
+  readonly locale: Locale;
+  readonly state: PopupJobState;
+  readonly elapsedMs: number;
+}
+
+const noNotice = { kind: "none" } as const;
+
+/** Every popup job state kind, every job kind, and both locales. */
+export const popupJobPreviewCases: readonly PopupJobPreviewCase[] = [
+  {
+    name: "popup-job-sending-en",
+    locale: "en",
+    state: { kind: "sending" },
+    elapsedMs: 0,
+  },
+  {
+    name: "popup-job-start-failed-en",
+    locale: "en",
+    state: { kind: "start-failed", failure: { kind: "no-result" } },
+    elapsedMs: 0,
+  },
+  {
+    name: "popup-job-loading-en",
+    locale: "en",
+    state: { kind: "loading", notice: noNotice },
+    elapsedMs: 0,
+  },
+  {
+    name: "popup-job-loading-stopped-en",
+    locale: "en",
+    state: {
+      kind: "loading",
+      notice: {
+        kind: "stopped",
+        outcome: { kind: "unexpected", check: "syntax" },
+      },
+    },
+    elapsedMs: 0,
+  },
+  {
+    name: "popup-job-running-en",
+    locale: "en",
+    state: {
+      kind: "job",
+      job: { kind: "running", steps: runningSteps },
+      notice: noNotice,
+    },
+    elapsedMs: 65_000,
+  },
+  {
+    name: "popup-job-running-ja",
+    locale: "ja",
+    state: {
+      kind: "job",
+      job: { kind: "running", steps: runningSteps },
+      notice: noNotice,
+    },
+    elapsedMs: 65_000,
+  },
+  {
+    name: "popup-job-done-en",
+    locale: "en",
+    state: {
+      kind: "job",
+      job: doneJob({ state: "not_posted" }),
+      notice: noNotice,
+    },
+    elapsedMs: 81_000,
+  },
+  {
+    name: "popup-job-failed-en",
+    locale: "en",
+    state: {
+      kind: "job",
+      job: { kind: "failed", steps: failedSteps, failure: "llm_failed" },
+      notice: noNotice,
+    },
+    elapsedMs: 0,
+  },
+  {
+    name: "popup-job-lost-en",
+    locale: "en",
+    state: {
+      kind: "job",
+      job: { kind: "lost", kept: previewArticle },
+      notice: noNotice,
+    },
+    elapsedMs: 0,
+  },
+];
+
 /** A reader that returns text as the page's selection at the watch URL. */
 function readerReturning(text: string): SelectionReader {
   return {
@@ -415,7 +513,12 @@ async function buildView(previewCase: PreviewCase): Promise<PopupView> {
 }
 
 /** The page for one view: the shipped skeleton, the locale, and the render. */
-function renderPage(skeleton: string, view: PopupView, locale: Locale): string {
+function renderPage(
+  skeleton: string,
+  view: PopupView,
+  locale: Locale,
+  elapsedMs = 0,
+): string {
   const dom = new JSDOM(skeleton);
   const doc = dom.window.document;
   applyPageLocale(doc, locale);
@@ -423,7 +526,7 @@ function renderPage(skeleton: string, view: PopupView, locale: Locale): string {
   if (elements === undefined) {
     throw new Error("popup.html does not have the skeleton's elements");
   }
-  renderPopup(elements, view, locale);
+  renderPopup(elements, view, locale, elapsedMs);
   // The preview is a static page: no script runs next to the rendered state.
   for (const script of doc.querySelectorAll("script")) {
     script.remove();
@@ -454,6 +557,23 @@ function renderViewerPage(
 /** The stylesheets popup.html and viewer.html load, copied next to the pages. */
 const stylesheets = ["theme.css", "style.css", "viewer.css"] as const;
 
+/** The video section and details every popup job preview shares, built from a page. */
+async function collectedPreviewBase() {
+  const outcome = await collect(
+    { tabId: 1, url: watchUrl, title: "A tab title" },
+    readerReturning("00:00 a caption"),
+  );
+  if (outcome.kind !== "collected") {
+    throw new Error("the popup job preview's collected base was rejected");
+  }
+  const metadata = acceptMetadata({ descriptionCollapsed: false });
+  return buildCollectedView(
+    outcome.input,
+    metadata,
+    prepareSend(outcome.input, metadata.values),
+  );
+}
+
 /** Writes one page per input set plus the stylesheets into outputDir. */
 async function writePreviews(outputDir: string): Promise<void> {
   mkdirSync(outputDir, { recursive: true });
@@ -472,6 +592,19 @@ async function writePreviews(outputDir: string): Promise<void> {
     writeFileSync(
       path.join(outputDir, `${previewCase.name}.html`),
       renderPage(skeleton, view, previewCase.locale),
+    );
+  }
+  const base = await collectedPreviewBase();
+  for (const previewCase of popupJobPreviewCases) {
+    const view: JobPopupView = {
+      kind: "job",
+      video: base.video,
+      details: base.details,
+      state: previewCase.state,
+    };
+    writeFileSync(
+      path.join(outputDir, `${previewCase.name}.html`),
+      renderPage(skeleton, view, previewCase.locale, previewCase.elapsedMs),
     );
   }
   const viewerSkeleton = readFileSync(

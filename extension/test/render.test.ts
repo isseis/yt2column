@@ -5,16 +5,28 @@ import type { CollectedInput } from "../src/core/collect.ts";
 import { catalogs } from "../src/core/i18n/catalog.ts";
 import { locales } from "../src/core/i18n/locale.ts";
 import type { Locale } from "../src/core/i18n/locale.ts";
+import type { JobDisplay, PollNotice } from "../src/core/jobView.ts";
 import { acceptMetadata } from "../src/core/metadata.ts";
 import { expandPromptMessage, rejectionMessage } from "../src/core/messages.ts";
 import { buildCollectedView } from "../src/core/popupView.ts";
-import type { CollectedView, PopupView } from "../src/core/popupView.ts";
+import type {
+  CollectedView,
+  JobPopupView,
+  PopupJobState,
+  PopupView,
+  PrimaryAction,
+} from "../src/core/popupView.ts";
 import { maxBodyBytes, prepareSend } from "../src/core/prepare.ts";
+import {
+  startResultMessage,
+  statusNoticeMessage,
+} from "../src/core/sendMessages.ts";
 import { rejectionReasons } from "../src/core/types.ts";
 import type { RejectionReason } from "../src/core/types.ts";
 import { checkIcon } from "../src/ui/icons.ts";
 import { renderPopup } from "../src/ui/render.ts";
 import type { PopupElements } from "../src/ui/render.ts";
+import { stepsSummary } from "../src/ui/renderJob.ts";
 import {
   container,
   expectAbsent,
@@ -23,6 +35,7 @@ import {
   otherLocales,
   popupElements,
 } from "./helpers/dom.ts";
+import { doneJob, runningSteps } from "./helpers/job.ts";
 
 const malicious = "<img src=x onerror=alert(1)>";
 const localeList = Object.keys(locales) as Locale[];
@@ -609,4 +622,298 @@ describe("renderPopup", () => {
       assert.equal(elements.rejection.children.length, 0);
     });
   }
+});
+
+describe("job view", () => {
+  const none: PollNotice = { kind: "none" };
+  const stopped: PollNotice = {
+    kind: "stopped",
+    outcome: { kind: "unexpected", check: "syntax" },
+  };
+  const retrying: PollNotice = {
+    kind: "retrying",
+    outcome: { kind: "no-response" },
+  };
+  const runningJob: JobDisplay = { kind: "running", steps: runningSteps };
+  const failedJob: JobDisplay = {
+    kind: "failed",
+    steps: runningSteps,
+    failure: "llm_failed",
+  };
+  const lostJob: JobDisplay = { kind: "lost" };
+  const startFailed = {
+    kind: "start-failed",
+    failure: { kind: "no-result" },
+  } as const;
+
+  const jobState = (
+    job: JobDisplay,
+    notice: PollNotice = none,
+  ): PopupJobState => ({ kind: "job", job, notice });
+
+  /** A job view whose video section and details are the collected view's. */
+  function jobPopup(state: PopupJobState): JobPopupView {
+    const collected = collectedView();
+    return {
+      kind: "job",
+      video: collected.video,
+      details: collected.details,
+      state,
+    };
+  }
+
+  /** Fresh skeleton elements with a job view drawn into them. */
+  function drawn(
+    state: PopupJobState,
+    locale: Locale,
+    elapsedMs = 0,
+  ): PopupElements {
+    const elements = popupElements();
+    renderPopup(elements, jobPopup(state), locale, elapsedMs);
+    return elements;
+  }
+
+  /** One job state's expected wording, summary, button name and availability. */
+  interface StateExpectation {
+    readonly name: string;
+    readonly state: PopupJobState;
+    readonly checks: (locale: Locale) => readonly string[];
+    readonly status: (locale: Locale) => readonly string[];
+    readonly primary: (locale: Locale) => string;
+    readonly action: PrimaryAction;
+  }
+
+  const states: readonly StateExpectation[] = [
+    {
+      name: "sending",
+      state: { kind: "sending" },
+      checks: (locale) => [
+        catalogs[locale].popup.sending.text,
+        ...catalogs[locale].popup.sending.steps,
+      ],
+      status: (locale) => [catalogs[locale].popup.sending.text],
+      primary: (locale) => catalogs[locale].popup.primary.generate,
+      action: "none",
+    },
+    {
+      name: "start failed",
+      state: startFailed,
+      checks: (locale) => [
+        startResultMessage(startFailed.failure, locale).text,
+        ...startResultMessage(startFailed.failure, locale).steps,
+      ],
+      status: (locale) => [
+        startResultMessage(startFailed.failure, locale).text,
+      ],
+      primary: (locale) => catalogs[locale].popup.primary.generate,
+      action: "none",
+    },
+    {
+      name: "loading",
+      state: { kind: "loading", notice: none },
+      checks: (locale) => [
+        catalogs[locale].viewer.loading.text,
+        catalogs[locale].popup.viewerNotice.text,
+      ],
+      status: (locale) => [catalogs[locale].viewer.loading.text],
+      primary: (locale) => catalogs[locale].popup.primary.openViewer,
+      action: "open-viewer",
+    },
+    {
+      name: "running",
+      state: jobState(runningJob),
+      checks: (locale) => [
+        ...Object.values(catalogs[locale].stepNames),
+        catalogs[locale].popup.viewerNotice.text,
+      ],
+      status: (locale) => [
+        catalogs[locale].viewer.running,
+        stepsSummary(runningSteps, locale),
+      ],
+      primary: (locale) => catalogs[locale].popup.primary.openViewer,
+      action: "open-viewer",
+    },
+    {
+      name: "done",
+      state: jobState(doneJob({ state: "not_posted" })),
+      checks: (locale) => [catalogs[locale].popup.articleReady.text],
+      status: (locale) => [catalogs[locale].popup.articleReady.text],
+      primary: (locale) => catalogs[locale].popup.primary.openViewer,
+      action: "open-viewer",
+    },
+    {
+      name: "failed",
+      state: jobState(failedJob),
+      checks: (locale) => [catalogs[locale].failure.llm_failed.text],
+      status: (locale) => [catalogs[locale].failure.llm_failed.text],
+      primary: (locale) => catalogs[locale].popup.primary.retry,
+      action: "retry",
+    },
+    {
+      name: "lost",
+      state: jobState(lostJob),
+      checks: (locale) => [
+        catalogs[locale].viewer.lost.text,
+        ...catalogs[locale].viewer.lost.steps,
+      ],
+      status: (locale) => [catalogs[locale].viewer.lost.text],
+      primary: (locale) => catalogs[locale].popup.primary.retry,
+      action: "retry",
+    },
+  ];
+
+  // The button's names stay literal strings in English: reading them from the
+  // catalog would let a changed English name pass unnoticed.
+  it("names the English primary button and sets its availability for every state", () => {
+    const names = {
+      none: "Generate article",
+      viewer: "Open viewer",
+      retry: "Try again",
+    };
+    for (const expected of states) {
+      const elements = drawn(expected.state, "en");
+      assert.equal(
+        elements.primary.textContent,
+        names[
+          expected.action === "none"
+            ? "none"
+            : expected.action === "open-viewer"
+              ? "viewer"
+              : "retry"
+        ],
+        expected.name,
+      );
+      assert.equal(
+        elements.primary.disabled,
+        expected.action === "none",
+        expected.name,
+      );
+    }
+  });
+
+  it("keeps the video section and the details from the collected view for every state", () => {
+    const collected = popupElements();
+    renderPopup(collected, collectedView(), "en");
+    for (const expected of states) {
+      const elements = drawn(expected.state, "en", 65_000);
+      assert.equal(elements.rejection.hidden, true, expected.name);
+      for (const section of [
+        elements.video,
+        elements.checks,
+        elements.action,
+        elements.details,
+      ]) {
+        assert.equal(section.hidden, false, expected.name);
+      }
+      assert.ok(
+        elements.video.isEqualNode(collected.video),
+        `${expected.name}: video section`,
+      );
+      assert.ok(
+        elements.details.isEqualNode(collected.details),
+        `${expected.name}: details`,
+      );
+    }
+  });
+
+  it("shows the video, checks, action and details in that order with the button before the status region", () => {
+    const elements = drawn(states[0]?.state ?? { kind: "sending" }, "en");
+    const doc = elements.video.ownerDocument;
+    assert.deepEqual(
+      Array.from(doc.body.children)
+        .filter(
+          (element) => element.id !== "" && !element.hasAttribute("hidden"),
+        )
+        .map((element) => element.id),
+      ["video", "checks", "action", "details"],
+    );
+    const [primary, status] = Array.from(elements.action.children);
+    assert.equal(primary?.id, "primary");
+    assert.equal(status?.id, "status");
+  });
+
+  for (const locale of localeList) {
+    for (const expected of states) {
+      it(`shows the ${expected.name} state's wording in ${locale}`, () => {
+        const elements = drawn(expected.state, locale);
+        const checks = elements.checks.textContent ?? "";
+        for (const text of expected.checks(locale)) {
+          assert.ok(checks.includes(text), `${expected.name}: ${text}`);
+        }
+        assert.deepEqual(
+          Array.from(elements.status.children, (child) => child.textContent),
+          expected.status(locale),
+          expected.name,
+        );
+        assert.equal(
+          elements.primary.textContent,
+          expected.primary(locale),
+          expected.name,
+        );
+        assert.equal(
+          elements.primary.disabled,
+          expected.action === "none",
+          expected.name,
+        );
+      });
+    }
+  }
+
+  it("shows a stopped poll's notice in the loading state without the loading mark", () => {
+    const notice = statusNoticeMessage(stopped.outcome, "en");
+    const elements = drawn({ kind: "loading", notice: stopped }, "en");
+    assert.equal(elements.checks.querySelector(".loading"), null);
+    assert.ok((elements.checks.textContent ?? "").includes(notice.text));
+    assert.deepEqual(
+      Array.from(elements.status.children, (child) => child.textContent),
+      [notice.text],
+    );
+  });
+
+  it("shows a status notice beside a running job in both regions", () => {
+    const notice = statusNoticeMessage(retrying.outcome, "en");
+    const elements = drawn(jobState(runningJob, retrying), "en");
+    assert.ok((elements.checks.textContent ?? "").includes(notice.text));
+    assert.deepEqual(
+      Array.from(elements.status.children, (child) => child.textContent),
+      [
+        catalogs.en.viewer.running,
+        stepsSummary(runningSteps, "en"),
+        notice.text,
+      ],
+    );
+  });
+
+  it("writes the state summary only when it changes, not when the elapsed time does", () => {
+    const elements = drawn(jobState(runningJob), "en", 1_000);
+    const written = elements.status.firstChild;
+    assert.ok(written !== null);
+    renderPopup(elements, jobPopup(jobState(runningJob)), "en", 2_000);
+    assert.equal(elements.status.firstChild, written);
+    renderPopup(
+      elements,
+      jobPopup(
+        jobState({
+          kind: "running",
+          steps: { ...runningSteps, shorten: "done" },
+        }),
+      ),
+      "en",
+      3_000,
+    );
+    assert.notEqual(elements.status.firstChild, written);
+  });
+
+  it("keeps the elapsed time out of the status region", () => {
+    const elements = drawn(jobState(runningJob), "en", 65_000);
+    const elapsed = elements.checks.querySelector(".job-elapsed");
+    assert.ok(elapsed !== null);
+    assert.equal(elapsed.closest("[role=status], [aria-live]"), null);
+    assert.equal(
+      (elements.status.textContent ?? "").includes(
+        elapsed.querySelector("dd")?.textContent ?? "",
+      ),
+      false,
+    );
+  });
 });
