@@ -234,6 +234,24 @@ export function pollNotice(
   ];
 }
 
+/**
+ * The nodes while a key waits for its first status: the loading mark, then a
+ * failed exchange's notice. A stopped poll waits for nothing, so its notice
+ * stands alone.
+ */
+export function waitingNodes(
+  doc: Document,
+  notice: PollNotice,
+  locale: Locale,
+): HTMLElement[] {
+  return [
+    ...(notice.kind === "stopped"
+      ? []
+      : loadingIndicator(doc, catalogs[locale].viewer.loading)),
+    ...pollNotice(doc, notice, locale),
+  ];
+}
+
 /** The notice's part of a state summary: that the status could not be read. */
 export function noticeSummary(notice: PollNotice, locale: Locale): string[] {
   return notice.kind === "none"

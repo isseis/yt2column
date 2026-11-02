@@ -13,6 +13,7 @@ import type {
   DetailsView,
   PopupJobState,
   PopupView,
+  PrimaryAction,
   SelectionCheck,
   SelectionStatus,
   VideoView,
@@ -25,10 +26,10 @@ import {
   jobStateSummary,
   loadingIndicator,
   noticeSummary,
-  pollNotice,
   renderJobState,
   startFailure,
   startFailureSummary,
+  waitingNodes,
   waitingSummary,
   writeStatusSummary,
 } from "./renderJob.ts";
@@ -276,7 +277,10 @@ function renderDetailsSection(
 
 /** The last video section and details drawn into each container. */
 const drawnVideo = new WeakMap<HTMLElement, VideoView>();
-const drawnDetails = new WeakMap<HTMLElement, DetailsView>();
+const drawnDetails = new WeakMap<
+  HTMLElement,
+  { readonly view: DetailsView; readonly locale: Locale }
+>();
 
 /** Whether two display values are the same text with the same truncation. */
 function sameText(left: DisplayText, right: DisplayText): boolean {
@@ -326,12 +330,17 @@ function drawDetailsSection(
   view: DetailsView,
   locale: Locale,
 ): void {
+  // The toggle's name is in the locale, so a changed locale draws again too.
   const last = drawnDetails.get(container);
-  if (last !== undefined && sameDetails(last, view)) {
+  if (
+    last !== undefined &&
+    last.locale === locale &&
+    sameDetails(last.view, view)
+  ) {
     return;
   }
   renderDetailsSection(doc, container, view, locale);
-  drawnDetails.set(container, view);
+  drawnDetails.set(container, { view, locale });
 }
 
 /** The checks section's content for a job state: the state, then its guidance. */
@@ -353,13 +362,9 @@ function drawPopupState(
       container.replaceChildren(startFailure(doc, state.failure, locale));
       return;
     case "loading":
-      // A stopped poll waits for nothing, so its notice stands alone, as in
-      // the viewer. The close-popup guidance still applies.
+      // The close-popup guidance applies even to a stopped poll.
       container.replaceChildren(
-        ...(state.notice.kind === "stopped"
-          ? []
-          : loadingIndicator(doc, catalog.viewer.loading)),
-        ...pollNotice(doc, state.notice, locale),
+        ...waitingNodes(doc, state.notice, locale),
         ...messageNodes(doc, catalog.popup.viewerNotice),
       );
       return;
@@ -400,6 +405,15 @@ function popupSummary(state: PopupJobState, locale: Locale): string[] {
   }
 }
 
+/** The catalog's button name for each action; a new action fails to compile here. */
+const primaryNames: Readonly<
+  Record<PrimaryAction, "generate" | "openViewer" | "retry">
+> = {
+  none: "generate",
+  "open-viewer": "openViewer",
+  retry: "retry",
+};
+
 /**
  * The primary button for a job state: its name follows the action, and only
  * an available action makes it pressable. With no action the button keeps the
@@ -411,14 +425,13 @@ function applyJobPrimary(
   state: PopupJobState,
   locale: Locale,
 ): void {
-  const names = catalogs[locale].popup.primary;
   const action = primaryAction(state);
-  primary.textContent =
-    action === "open-viewer"
-      ? names.openViewer
-      : action === "retry"
-        ? names.retry
-        : names.generate;
+  const name = catalogs[locale].popup.primary[primaryNames[action]];
+  // A running job redraws each second; rewriting the same name of a focused
+  // button would only churn its text node.
+  if (primary.textContent !== name) {
+    primary.textContent = name;
+  }
   primary.disabled = action === "none";
 }
 

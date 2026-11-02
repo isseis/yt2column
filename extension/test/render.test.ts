@@ -925,6 +925,19 @@ describe("job view", () => {
     assert.equal(elements.video.ownerDocument.activeElement, summary);
   });
 
+  it("draws the details again in the new locale when only the locale changes", () => {
+    const elements = drawn(jobState(runningJob), "en", 1_000);
+    assert.equal(
+      elements.details.querySelector("summary")?.textContent,
+      catalogs.en.details.summary,
+    );
+    renderPopup(elements, jobPopup(jobState(runningJob)), "ja", 1_000);
+    assert.equal(
+      elements.details.querySelector("summary")?.textContent,
+      catalogs.ja.details.summary,
+    );
+  });
+
   it("keeps the elapsed time out of the status region", () => {
     const elements = drawn(jobState(runningJob), "en", 65_000);
     const elapsed = elements.checks.querySelector(".job-elapsed");
