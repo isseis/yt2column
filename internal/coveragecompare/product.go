@@ -12,26 +12,26 @@ import (
 // _test.go, and its //go:build expression holds in the measured build without
 // the test tag, or does not name the test tag at all. A file with no
 // //go:build line is product code. The expression is read with
-// go/build/constraint, so a tag name in a comment or a string never counts, and
-// a malformed expression stops as unreadable instead of being guessed.
+// go/build/constraint from the line comments before the package clause, so a
+// tag name in a comment or a string never counts, and a malformed expression
+// stops as unreadable instead of being guessed. Block comments are skipped as a
+// whole, so an example of a build line inside one is not a constraint and does
+// not end the scan.
 func isGoProduct(fileName string, src []byte, point Point) (bool, error) {
 	if strings.HasSuffix(fileName, "_test.go") {
 		return false, nil
 	}
 	var expression constraint.Expr
-	for i, line := range splitLines(string(src)) {
-		if strings.HasPrefix(line, "package ") {
-			break
-		}
-		if !strings.HasPrefix(line, "//go:build") {
+	for _, comment := range headerLineComments(string(src)) {
+		if !strings.HasPrefix(comment.text, "//go:build") {
 			continue
 		}
-		parsed, err := constraint.Parse(line)
+		parsed, err := constraint.Parse(comment.text)
 		if err != nil {
-			return false, stopError(point, InputSource, i+1, "the //go:build line is not a valid constraint", line)
+			return false, stopError(point, InputSource, comment.line, "the //go:build line is not a valid constraint", comment.text)
 		}
 		if expression != nil {
-			return false, stopError(point, InputSource, i+1, "a second //go:build line appears", line)
+			return false, stopError(point, InputSource, comment.line, "a second //go:build line appears", comment.text)
 		}
 		expression = parsed
 	}
@@ -49,6 +49,56 @@ func isGoProduct(fileName string, src []byte, point Point) (bool, error) {
 		return true, nil
 	}
 	return !namesTestTag(expression, true), nil
+}
+
+// headerComment is a line comment from a file header, with its 1-based line
+// number.
+type headerComment struct {
+	line int
+	text string
+}
+
+// headerLineComments returns the line comments that appear before the package
+// clause, each with its 1-based line number. Block comments are skipped as a
+// whole, so a build-line example inside one is not read as a constraint, and
+// the scan carries on after the block comment ends.
+func headerLineComments(text string) []headerComment {
+	var comments []headerComment
+	line := 1
+	atLineStart := true
+	for i := 0; i < len(text); {
+		switch {
+		case text[i] == '\n':
+			line++
+			atLineStart = true
+			i++
+		case text[i] == ' ' || text[i] == '\t' || text[i] == '\r':
+			i++
+		case strings.HasPrefix(text[i:], "/*"):
+			end := strings.Index(text[i+2:], "*/")
+			if end < 0 {
+				// An unterminated block comment hides the rest of the file,
+				// so no later line is an actual constraint.
+				return comments
+			}
+			skipped := text[i : i+2+end+2]
+			line += strings.Count(skipped, "\n")
+			i += len(skipped)
+		case strings.HasPrefix(text[i:], "//"):
+			end := strings.IndexByte(text[i:], '\n')
+			if end < 0 {
+				end = len(text) - i
+			}
+			comments = append(comments, headerComment{line: line, text: text[i : i+end]})
+			i += end
+		case atLineStart && strings.HasPrefix(text[i:], "package "):
+			return comments
+		default:
+			atLineStart = false
+			i++
+		}
+	}
+	return comments
 }
 
 // measuredBuildTag reports whether a tag other than test holds in the

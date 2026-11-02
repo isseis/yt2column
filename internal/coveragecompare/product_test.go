@@ -116,6 +116,24 @@ func TestIsGoProduct(t *testing.T) {
 			src:  "package x\n\nvar s = `\n//go:build test\n`\n",
 			want: true,
 		},
+		{
+			name: "build line inside a block comment is not a constraint",
+			file: "internal/x/x.go",
+			src:  "/*\n//go:build test\n*/\n\npackage x\n",
+			want: true,
+		},
+		{
+			name: "a block comment does not stop the scan before a later build line",
+			file: "internal/x/x.go",
+			src:  "/*\n//go:build test\n*/\n//go:build integration\n\npackage x\n",
+			want: true,
+		},
+		{
+			name: "a real build line after a block comment still counts",
+			file: "internal/x/x.go",
+			src:  "/* some header */\n//go:build test\n\npackage x\n",
+			want: false,
+		},
 	}
 
 	for _, test := range tests {
