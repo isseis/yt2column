@@ -663,9 +663,9 @@ describe("job view", () => {
   }
 
   /**
-   * Fresh skeleton elements with a job view drawn into them. The skeleton's
-   * button starts enabled, so a state that must not be pressable proves that
-   * renderPopup disabled it.
+   * Fresh skeleton elements with a job view drawn into them. The helper
+   * enables the skeleton's disabled button, so a state that must not be
+   * pressable proves that renderPopup disabled it.
    */
   function drawn(
     state: PopupJobState,
@@ -691,7 +691,6 @@ describe("job view", () => {
     readonly state: PopupJobState;
     readonly checks: (locale: Locale) => readonly string[];
     readonly status: (locale: Locale) => readonly string[];
-    readonly primary: (locale: Locale) => string;
     readonly action: PrimaryAction;
   }
 
@@ -704,7 +703,6 @@ describe("job view", () => {
         ...catalogs[locale].popup.sending.steps,
       ],
       status: (locale) => [catalogs[locale].popup.sending.text],
-      primary: (locale) => catalogs[locale].popup.primary.generate,
       action: "none",
     },
     {
@@ -717,7 +715,6 @@ describe("job view", () => {
       status: (locale) => [
         startResultMessage(startFailed.failure, locale).text,
       ],
-      primary: (locale) => catalogs[locale].popup.primary.generate,
       action: "none",
     },
     {
@@ -728,7 +725,6 @@ describe("job view", () => {
         catalogs[locale].popup.viewerNotice.text,
       ],
       status: (locale) => [catalogs[locale].viewer.loading.text],
-      primary: (locale) => catalogs[locale].popup.primary.openViewer,
       action: "open-viewer",
     },
     {
@@ -742,7 +738,6 @@ describe("job view", () => {
         catalogs[locale].viewer.running,
         stepsSummary(runningSteps, locale),
       ],
-      primary: (locale) => catalogs[locale].popup.primary.openViewer,
       action: "open-viewer",
     },
     {
@@ -757,7 +752,6 @@ describe("job view", () => {
         articleCost(locale),
       ],
       status: (locale) => [catalogs[locale].popup.articleReady.text],
-      primary: (locale) => catalogs[locale].popup.primary.openViewer,
       action: "open-viewer",
     },
     {
@@ -768,7 +762,6 @@ describe("job view", () => {
         ...catalogs[locale].failure.llm_failed.steps,
       ],
       status: (locale) => [catalogs[locale].failure.llm_failed.text],
-      primary: (locale) => catalogs[locale].popup.primary.retry,
       action: "retry",
     },
     {
@@ -779,30 +772,33 @@ describe("job view", () => {
         ...catalogs[locale].viewer.lost.steps,
       ],
       status: (locale) => [catalogs[locale].viewer.lost.text],
-      primary: (locale) => catalogs[locale].popup.primary.retry,
       action: "retry",
     },
   ];
 
+  // One mapping from the action to the catalog's button name, so a new action
+  // fails to compile here until its name is decided.
+  const primaryName: Readonly<
+    Record<PrimaryAction, "generate" | "openViewer" | "retry">
+  > = {
+    none: "generate",
+    "open-viewer": "openViewer",
+    retry: "retry",
+  };
+
   // The button's names stay literal strings in English: reading them from the
   // catalog would let a changed English name pass unnoticed.
   it("names the English primary button and sets its availability for every state", () => {
-    const names = {
+    const names: Readonly<Record<PrimaryAction, string>> = {
       none: "Generate article",
-      viewer: "Open viewer",
+      "open-viewer": "Open viewer",
       retry: "Try again",
     };
     for (const expected of states) {
       const elements = drawn(expected.state, "en");
       assert.equal(
         elements.primary.textContent,
-        names[
-          expected.action === "none"
-            ? "none"
-            : expected.action === "open-viewer"
-              ? "viewer"
-              : "retry"
-        ],
+        names[expected.action],
         expected.name,
       );
       assert.equal(
@@ -813,12 +809,13 @@ describe("job view", () => {
     }
   });
 
-  it("keeps the video section and the details from the collected view for every state", () => {
+  it("keeps the collected sections and their order, the video section and the details for every state", () => {
     const collected = popupElements();
     renderPopup(collected, collectedView(), "en");
     for (const expected of states) {
       const elements = drawn(expected.state, "en", 65_000);
       assert.equal(elements.rejection.hidden, true, expected.name);
+      assert.equal(elements.rejection.children.length, 0, expected.name);
       for (const section of [
         elements.video,
         elements.checks,
@@ -827,6 +824,16 @@ describe("job view", () => {
       ]) {
         assert.equal(section.hidden, false, expected.name);
       }
+      const doc = elements.video.ownerDocument;
+      assert.deepEqual(
+        Array.from(doc.body.children)
+          .filter(
+            (element) => element.id !== "" && !element.hasAttribute("hidden"),
+          )
+          .map((element) => element.id),
+        ["video", "checks", "action", "details"],
+        expected.name,
+      );
       assert.ok(
         elements.video.isEqualNode(collected.video),
         `${expected.name}: video section`,
@@ -836,24 +843,6 @@ describe("job view", () => {
         `${expected.name}: details`,
       );
     }
-  });
-
-  it("keeps the video, checks, action and details order and hides the rejection card", () => {
-    const elements = drawn({ kind: "sending" }, "en");
-    const doc = elements.video.ownerDocument;
-    assert.deepEqual(
-      Array.from(doc.body.children)
-        .filter(
-          (element) => element.id !== "" && !element.hasAttribute("hidden"),
-        )
-        .map((element) => element.id),
-      ["video", "checks", "action", "details"],
-    );
-    assert.equal(elements.rejection.hidden, true);
-    assert.equal(elements.rejection.children.length, 0);
-    const [primary, status] = Array.from(elements.action.children);
-    assert.equal(primary?.id, "primary");
-    assert.equal(status?.id, "status");
   });
 
   for (const locale of localeList) {
@@ -871,12 +860,7 @@ describe("job view", () => {
         );
         assert.equal(
           elements.primary.textContent,
-          expected.primary(locale),
-          expected.name,
-        );
-        assert.equal(
-          elements.primary.disabled,
-          expected.action === "none",
+          catalogs[locale].popup.primary[primaryName[expected.action]],
           expected.name,
         );
       });

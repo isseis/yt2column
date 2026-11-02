@@ -410,6 +410,7 @@ describe("popup preview script", () => {
         `${file}: holds a script`,
       );
       assert.equal(doc.documentElement.lang, previewCase.locale, file);
+      expectCollectedSections(doc, file);
 
       // The page shows what renderPopup draws for the same state: the state
       // and its summary, and the primary button's name and availability. The

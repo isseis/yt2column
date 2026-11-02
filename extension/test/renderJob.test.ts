@@ -341,7 +341,7 @@ describe("loading indicator", () => {
       assert.ok(icon?.classList.contains("loading-icon"));
       assert.equal(icon?.getAttribute("aria-hidden"), "true");
       expectLocaleMessage(indicator, locale, (l) => catalogs[l].viewer.loading);
-      assert.deepEqual(steps, []);
+      assert.deepEqual(steps, [], "a message without steps adds none");
     });
   }
 

@@ -9,7 +9,11 @@ import {
   metadataDisplayLimit,
   primaryAction,
 } from "../src/core/popupView.ts";
-import type { CollectedView, PopupJobState } from "../src/core/popupView.ts";
+import type {
+  CollectedView,
+  PopupJobState,
+  PrimaryAction,
+} from "../src/core/popupView.ts";
 import { maxBodyBytes, prepareSend } from "../src/core/prepare.ts";
 import { doneJob, runningSteps } from "./helpers/job.ts";
 
@@ -303,7 +307,11 @@ describe("primaryAction", () => {
       { kind: "job", job: { kind: "lost" }, notice: none },
       "retry",
     ],
-  ] as const satisfies readonly (readonly [string, PopupJobState, string])[];
+  ] as const satisfies readonly (readonly [
+    string,
+    PopupJobState,
+    PrimaryAction,
+  ])[];
 
   for (const [name, state, action] of rows) {
     it(`returns ${action} for ${name}`, () => {
