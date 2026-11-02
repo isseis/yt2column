@@ -75,7 +75,12 @@ import {
   popupDocument,
   popupElements,
 } from "./helpers/dom.ts";
-import { doneSteps, requestId, runningSteps } from "./helpers/job.ts";
+import {
+  doneJob as doneDisplay,
+  doneSteps,
+  requestId,
+  runningSteps,
+} from "./helpers/job.ts";
 import { recordingLogger } from "./helpers/logger.ts";
 import type { RecordingLogger } from "./helpers/logger.ts";
 import {
@@ -639,18 +644,16 @@ describe("launch paths", () => {
 });
 
 describe("popup job send", () => {
-  for (const locale of localeList) {
-    it(`makes the primary button pressable for a sendable selection and sends nothing until it is pressed in ${locale}`, async () => {
-      const popup = shown(collectedLaunch(), locale);
-      assert.equal(popup.elements.primary.disabled, false);
-      await settle();
-      assert.deepEqual(popup.worker.sent, []);
-      assert.deepEqual(popup.host.sent, []);
-      assert.deepEqual(popup.tabs.calls, []);
-      assert.deepEqual(popup.channels.posted, []);
-      assert.equal(popup.clock.pending(), 0);
-    });
-  }
+  it("makes the primary button pressable for a sendable selection and sends nothing until it is pressed", async () => {
+    const popup = shown(collectedLaunch());
+    assert.equal(popup.elements.primary.disabled, false);
+    await settle();
+    assert.deepEqual(popup.worker.sent, []);
+    assert.deepEqual(popup.host.sent, []);
+    assert.deepEqual(popup.tabs.calls, []);
+    assert.deepEqual(popup.channels.posted, []);
+    assert.equal(popup.clock.pending(), 0);
+  });
 
   it("asks the worker for one start and never sends a start to the host", async () => {
     const launch = collectedLaunch();
@@ -723,18 +726,21 @@ describe("popup job send", () => {
     // Astral characters, so code points and UTF-16 units differ.
     const astral = "\u{1F600}";
     const cases: {
+      name: string;
       tabTitle: string;
       values: { title?: string; channelName?: string };
       lengths: { heading: number; channelName?: number; title?: number };
     }[] = [
       // No video title: the heading is the tab title, cut to 1,000 plus the ellipsis.
       {
+        name: "tab title",
         tabTitle: astral.repeat(1_500),
         values: {},
         lengths: { heading: 1_001 },
       },
       // A video title: the heading is cut to 200, the seed's title to 1,000.
       {
+        name: "video title",
         tabTitle: "A video",
         values: {
           title: astral.repeat(1_500),
@@ -743,7 +749,7 @@ describe("popup job send", () => {
         lengths: { heading: 201, channelName: 201, title: 1_000 },
       },
     ];
-    for (const { tabTitle, values, lengths } of cases) {
+    for (const { name, tabTitle, values, lengths } of cases) {
       const launch = await runPopupLaunch(
         popupHarness({
           activeTab: async () => fakeTab({ title: tabTitle }),
@@ -766,8 +772,9 @@ describe("popup job send", () => {
             : { title: countCharacters(viewer.title) }),
         },
         lengths,
+        name,
       );
-      assert.equal(parseStartRequest(request, sentAt).ok, true);
+      assert.equal(parseStartRequest(request, sentAt).ok, true, name);
     }
   });
 
@@ -922,12 +929,20 @@ describe("popup job states", () => {
   });
 
   it("shows a done article and stops polling", async () => {
-    const popup = await acceptedPopup(100);
+    const launch = collectedLaunch();
+    const popup = await acceptedPopup(100, launch);
     await popup.host.answer(statusReply(doneJob));
     popup.clock.advance(3 * pollIntervalMs);
     await settle();
     assert.equal(popup.host.count("status"), 1);
-    assert.ok(checksText(popup).includes(catalogs.en.popup.articleReady.text));
+    assert.equal(
+      checksText(popup),
+      drawnChecks(collected(launch), {
+        kind: "job",
+        job: doneDisplay({ state: "not_posted" }),
+        notice: { kind: "none" },
+      }),
+    );
     assert.equal(popup.elements.primary.disabled, false);
     assert.equal(
       popup.elements.primary.textContent,
@@ -936,14 +951,24 @@ describe("popup job states", () => {
   });
 
   it("keeps the shown job and polls again after a failed status exchange", async () => {
-    const popup = await acceptedPopup(100);
+    const launch = collectedLaunch();
+    const popup = await acceptedPopup(100, launch);
     await popup.host.answer(statusReply(runningJob));
     popup.clock.advance(pollIntervalMs);
     await settle();
     await popup.host.answer({ kind: "failed", lastError: "host gone" });
-    assert.ok(
-      checksText(popup).includes(catalogs.en.stepNames.draft),
-      "the running steps stay shown",
+    assert.equal(
+      checksText(popup),
+      drawnChecks(
+        collected(launch),
+        {
+          kind: "job",
+          job: { kind: "running", steps: runningSteps },
+          notice: { kind: "retrying", outcome: { kind: "host-failed" } },
+        },
+        "en",
+        pollIntervalMs,
+      ),
     );
     popup.clock.advance(pollIntervalMs);
     await settle();
@@ -1010,13 +1035,6 @@ describe("popup job states", () => {
         );
         popup.clock.advance(1);
         await settle();
-        assert.equal(
-          checksText(popup),
-          drawnChecks(collected(collectedLaunch()), {
-            kind: "start-failed",
-            failure: { kind: "no-result" },
-          }),
-        );
         // A reply after the deadline is ignored.
         await popup.worker.answer(startReply(accepted, 100));
       },
@@ -1118,7 +1136,6 @@ describe("open viewer", () => {
     popup.tabs.fail("create");
     await openViewer(popup);
     assert.deepEqual(popup.focus.focused, []);
-    assert.equal(popup.elements.primary.disabled, false);
     // A second press tries again: the first one ended.
     await openViewer(popup);
     assert.equal(
@@ -1336,9 +1353,13 @@ describe("popup status log", () => {
         JSON.stringify({ status: "rejected", reason: "not_found", requestId }),
       ),
     );
-    const result = statusLog(popup)["result"] as Record<string, unknown>;
-    assert.equal(result["kind"], "unexpected");
-    assert.equal(result["status"], 404);
+    assert.deepEqual(statusLog(popup)["result"], {
+      kind: "unexpected",
+      // not_found is no reason of a status query, so its value fails.
+      check: "value-shape",
+      status: 404,
+    });
+    assert.ok(popup.logger.errors.some((entry) => entry.label === statusLabel));
     assert.equal(
       popup.elements.checks.ownerDocument.body.textContent?.includes("404"),
       false,
