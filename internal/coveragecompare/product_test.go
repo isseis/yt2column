@@ -129,6 +129,18 @@ func TestIsGoProduct(t *testing.T) {
 			want: true,
 		},
 		{
+			name: "a comment that only looks like a build line is not parsed",
+			file: "internal/x/x.go",
+			src:  "//go:buildexample is a normal comment\n\npackage x\n",
+			want: true,
+		},
+		{
+			name: "a tab after the package keyword ends the header",
+			file: "internal/x/x.go",
+			src:  "package\tx\n\nvar s = `\n//go:build test\n`\n",
+			want: true,
+		},
+		{
 			name: "a real build line after a block comment still counts",
 			file: "internal/x/x.go",
 			src:  "/* some header */\n//go:build test\n\npackage x\n",

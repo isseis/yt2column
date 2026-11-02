@@ -23,7 +23,7 @@ func isGoProduct(fileName string, src []byte, point Point) (bool, error) {
 	}
 	var expression constraint.Expr
 	for _, comment := range headerLineComments(string(src)) {
-		if !strings.HasPrefix(comment.text, "//go:build") {
+		if !constraint.IsGoBuild(comment.text) {
 			continue
 		}
 		parsed, err := constraint.Parse(comment.text)
@@ -91,7 +91,7 @@ func headerLineComments(text string) []headerComment {
 			}
 			comments = append(comments, headerComment{line: line, text: text[i : i+end]})
 			i += end
-		case atLineStart && strings.HasPrefix(text[i:], "package "):
+		case atLineStart && startsPackageClause(text[i:]):
 			return comments
 		default:
 			atLineStart = false
@@ -99,6 +99,25 @@ func headerLineComments(text string) []headerComment {
 		}
 	}
 	return comments
+}
+
+// startsPackageClause reports whether text begins with a package clause: the
+// keyword followed by whitespace. A tab or a newline after the keyword is valid
+// Go, so the clause must not be recognized by one literal space.
+func startsPackageClause(text string) bool {
+	rest, ok := strings.CutPrefix(text, "package")
+	if !ok {
+		return false
+	}
+	if rest == "" {
+		return true
+	}
+	switch rest[0] {
+	case ' ', '\t', '\r', '\n':
+		return true
+	default:
+		return false
+	}
 }
 
 // measuredBuildTag reports whether a tag other than test holds in the
