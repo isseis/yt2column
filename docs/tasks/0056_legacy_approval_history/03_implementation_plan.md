@@ -206,7 +206,7 @@ git grep -n -i -e "old rule" -e "migration byte" -e "Migration check" -e "migrat
 
 -   [x] 0053 の `task_docs_unchanged.sh` を写し、`task` の変数と冒頭のコメントのタスク名・使い方の例だけを本タスクのものに変える（1.4 節「`_checks/`」）。実行の権限を付ける。
 -   [x] 写したスクリプトが場合ごとに期待どおりの終了コードを返すことを、スクラッチパッドに作った使い捨ての clone で確かめる（PR のブランチは変えない）。0053 のステップ 1-5 と同じ場合（本タスクのディレクトリだけの変更、ほかのタスクの文書の変更・削除、ほかのタスクの文書から本タスクのディレクトリへの名前の変更、本タスクの名前で始まる別のディレクトリの変更、`docs/tasks/` の外だけの変更、引数・コミット・リポジトリの誤り）を試す。期待する終了コードは、本タスクのディレクトリだけの変更と `docs/tasks/` の外だけの変更が `0`、ほかのタスクの文書に及ぶ変更が `1`、引数・コミット・リポジトリの誤りが `2` である。各場合の期待する終了コードと実際の終了コードを本書 7.2 節に記録する。
--   [ ] PR のブランチで、ほかの作業がすべて終わった後に `docs/tasks/0056_legacy_approval_history/_checks/task_docs_unchanged.sh origin/main HEAD` を実行する。出力・終了コード・マージベースと、実行した時点の head のコミット ID を本書 7.2 節に記録する。記録を書くコミットが本書だけを変えることも、あわせて記録する。
+-   [x] PR のブランチで、ほかの作業がすべて終わった後に `docs/tasks/0056_legacy_approval_history/_checks/task_docs_unchanged.sh origin/main HEAD` を実行する。出力・終了コード・マージベースと、実行した時点の head のコミット ID を本書 7.2 節に記録する。記録を書くコミットが本書だけを変えることも、あわせて記録する。
 
 **完了の条件:** PR のブランチでのスクリプトの終了コードが `0` で、その記録が本書 7.2 節にある。
 
@@ -374,7 +374,15 @@ M1〜M3 は 1 つの PR にまとめる。規則だけが先に `main` に入る
 | リポジトリの外で実行 | 2 | 2 |
 | `docs/tasks/` のないリポジトリ | 2 | 2 |
 
-PR のブランチでの実行の記録は、ほかの作業がすべて終わった後に下に加える。
+**PR のブランチでの実行（2026-11-03）。** ほかの作業がすべて終わった後に、`git fetch origin main` の後で `docs/tasks/0056_legacy_approval_history/_checks/task_docs_unchanged.sh origin/main HEAD` を実行した。
+
+```text
+merge-base: 686bc0669003dda41b5a96e6603ad6a4fdc9ccdc
+head: 5fc8316dea031301e5e5d2443312eb8859afd5fc
+docs/tasks/: only docs/tasks/0056_legacy_approval_history/ changed
+```
+
+終了コードは `0` だった。この記録を書くコミットは本書だけを変える。
 
 ## 8. 成功基準 (Success Criteria)
 
