@@ -84,12 +84,17 @@ func headerLineComments(text string) []headerComment {
 			skipped := text[i : i+2+end+2]
 			line += strings.Count(skipped, "\n")
 			i += len(skipped)
+			// A token appeared on this line, so a later // on the same
+			// physical line is not at its start and is not a build line.
+			atLineStart = false
 		case strings.HasPrefix(text[i:], "//"):
 			end := strings.IndexByte(text[i:], '\n')
 			if end < 0 {
 				end = len(text) - i
 			}
-			comments = append(comments, headerComment{line: line, text: text[i : i+end]})
+			if atLineStart {
+				comments = append(comments, headerComment{line: line, text: text[i : i+end]})
+			}
 			i += end
 		case atLineStart && startsPackageClause(text[i:]):
 			return comments

@@ -135,6 +135,18 @@ func TestIsGoProduct(t *testing.T) {
 			want: true,
 		},
 		{
+			name: "a build line after a block comment on the same line is not a constraint",
+			file: "internal/x/x.go",
+			src:  "/* note */ //go:build test\n\npackage x\n",
+			want: true,
+		},
+		{
+			name: "a build line after a block comment on its own line still counts",
+			file: "internal/x/x.go",
+			src:  "/* note */\n//go:build test\n\npackage x\n",
+			want: false,
+		},
+		{
 			name: "a tab after the package keyword ends the header",
 			file: "internal/x/x.go",
 			src:  "package\tx\n\nvar s = `\n//go:build test\n`\n",
