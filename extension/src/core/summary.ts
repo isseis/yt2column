@@ -4,6 +4,40 @@ export interface DisplayText {
   readonly truncated: boolean;
 }
 
+/** Appended to a value that was shortened for display. */
+export const ellipsis = "\u2026";
+
+/** The text a display value is shown as: its value, marked with the ellipsis when shortened. */
+export function shownText(text: DisplayText): string {
+  return text.truncated ? `${text.value}${ellipsis}` : text.value;
+}
+
+/**
+ * A copy of text with each unpaired surrogate replaced by U+FFFD, and every
+ * other code unit kept. Written by hand because String.prototype.toWellFormed
+ * needs Chrome 111 and the minimum is 110. A string without one comes back
+ * unchanged, so comparing the copy with the text tells whether it is well-formed.
+ */
+export function replaceUnpairedSurrogates(text: string): string {
+  let copy = "";
+  let kept = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    const unit = text.charCodeAt(index);
+    if (unit >= 0xd800 && unit <= 0xdbff) {
+      const next = text.charCodeAt(index + 1);
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        index += 1;
+        continue;
+      }
+    } else if (!(unit >= 0xdc00 && unit <= 0xdfff)) {
+      continue;
+    }
+    copy += `${text.slice(kept, index)}\ufffd`;
+    kept = index + 1;
+  }
+  return kept === 0 ? text : copy + text.slice(kept);
+}
+
 /**
  * Cuts text to its first limit code points. Iterating the string yields code
  * points, so a surrogate pair at the boundary is never split; it stops at the

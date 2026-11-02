@@ -2,29 +2,46 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { readUiLanguage } from "../src/browser/chromeDeps.ts";
-import type { I18nApi } from "../src/browser/chromeDeps.ts";
+import type { BrowserCall, I18nApi } from "../src/browser/chromeDeps.ts";
+import type { ArticleKey } from "../src/core/articleKey.ts";
 import type {
   CollectedInput,
   CollectOutcome,
   PageSelection,
   SelectionReader,
 } from "../src/core/collect.ts";
+import type {
+  SourceTab,
+  StartRequest,
+  ViewerChannelMessage,
+} from "../src/core/extensionMessages.ts";
+import {
+  parseStartRequest,
+  parseViewerChannelMessage,
+} from "../src/core/extensionMessages.ts";
 import { catalogs } from "../src/core/i18n/catalog.ts";
 import { locales } from "../src/core/i18n/locale.ts";
 import type { Locale } from "../src/core/i18n/locale.ts";
 import { acceptMetadata } from "../src/core/metadata.ts";
 import type { MetadataResult } from "../src/core/metadata.ts";
-import { nativeHostName } from "../src/core/native.ts";
 import type { NativeReply } from "../src/core/native.ts";
+import {
+  elapsedRedrawMs,
+  pollIntervalMs,
+  startResultDeadlineMs,
+} from "../src/core/poll.ts";
 import { maxBodyBytes, prepareSend } from "../src/core/prepare.ts";
 import {
   buildCollectedView,
   metadataDisplayLimit,
 } from "../src/core/popupView.ts";
-import type { PopupView } from "../src/core/popupView.ts";
-import type { SendOutcome } from "../src/core/articlesResponse.ts";
-import type { RequestId } from "../src/core/response.ts";
-import { sendOutcomeMessage } from "../src/core/sendMessages.ts";
+import type {
+  CollectedView,
+  PopupJobState,
+  PopupView,
+} from "../src/core/popupView.ts";
+import type { StartOutcome } from "../src/core/response.ts";
+import { parseViewerUrl } from "../src/core/viewerUrl.ts";
 import {
   launchContextFromTab,
   runPopupLaunch,
@@ -34,27 +51,37 @@ import {
 import type {
   Logger,
   MetadataReader,
+  PopupLaunch,
   PopupLaunchDeps,
-  PopupSendDeps,
   PopupStartDeps,
 } from "../src/launch.ts";
 import { renderPopup } from "../src/ui/render.ts";
 import type { PopupElements } from "../src/ui/render.ts";
 import {
+  fakeChannels,
+  fakeFocus,
+  fakeIdentity,
+  fakeTabs,
+  pendingWorker,
+  type FakeChannels,
+  type FakeFocus,
+  type FakeTabs,
+  type PendingWorker,
+} from "./helpers/chrome.ts";
+import { fakeClock, settle, type FakeClock } from "./helpers/clock.ts";
+import {
   expectAbsent,
-  expectLocaleMessage,
-  expectMessage,
   otherLocales,
   popupDocument,
   popupElements,
 } from "./helpers/dom.ts";
+import { doneSteps, requestId, runningSteps } from "./helpers/job.ts";
 import { recordingLogger } from "./helpers/logger.ts";
 import type { RecordingLogger } from "./helpers/logger.ts";
 import {
-  deferredNative,
-  recordingNative,
+  pendingHost,
   responseReply,
-  testSendDeps,
+  type PendingHost,
 } from "./helpers/native.ts";
 
 const watchUrl = "https://www.youtube.com/watch?v=abc";
@@ -63,11 +90,13 @@ const launchLabel = "yt2column popup launch";
 const uiLanguageLabel = "yt2column ui language";
 const metadataLabel = "yt2column video metadata";
 const blockedLabel = "yt2column blocked";
-const sendLabel = "yt2column send result";
-const requestId = "0123456789abcdef" as RequestId;
-const acceptedBody = JSON.stringify({ status: "accepted", requestId });
-const acceptedOutcome: SendOutcome = { kind: "accepted", requestId };
+const statusLabel = "yt2column status result";
 const localeList = Object.keys(locales) as Locale[];
+/** The tab fakeTab is: the selection's source, where the viewer opens next to. */
+const source: SourceTab = { tabId: 7, windowId: 3, index: 4 };
+const sentAt = 1_700_000_000_000;
+const key = "key-1" as ArticleKey;
+const queryId = "0".repeat(31) + "1";
 
 /** The skeleton's ids, one per element startPopup needs. */
 const skeletonIds = [
@@ -92,7 +121,9 @@ const containerIds = [
 /** Builds a chrome.tabs.Tab with the fields the code reads. */
 function fakeTab(overrides: Partial<chrome.tabs.Tab> = {}): chrome.tabs.Tab {
   return {
-    id: 7,
+    id: source.tabId,
+    windowId: source.windowId,
+    index: source.index,
     url: watchUrl,
     title: "A video",
     ...overrides,
@@ -196,24 +227,6 @@ function collectedOutcome(selection = "selection"): CollectOutcome {
   };
 }
 
-/** A recording sendNative whose reply wraps an accepted response. */
-function acceptedNative() {
-  return recordingNative(async () => responseReply(202, acceptedBody));
-}
-
-/** A recording sendNative whose every call fails with lastError. */
-function failingNative(lastError: string) {
-  return recordingNative(async (): Promise<NativeReply> => ({
-    kind: "failed",
-    lastError,
-  }));
-}
-
-/** Waits for the queued microtasks and one macrotask to settle. */
-async function flush(): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, 0));
-}
-
 interface PopupHarness {
   readonly deps: PopupLaunchDeps;
   readonly recorder: RecordingLogger;
@@ -232,26 +245,6 @@ function popupHarness(overrides: Partial<PopupLaunchDeps> = {}): PopupHarness {
   return { deps, recorder };
 }
 
-/** Send dependencies over sendNative, logging to log, in locale. */
-function sendDeps(
-  sendNative: Parameters<typeof testSendDeps>[0],
-  locale: Locale = "en",
-  log: Logger = recordingLogger().log,
-): PopupSendDeps {
-  return { send: testSendDeps(sendNative), now: () => 1000, log, locale };
-}
-
-/**
- * Draws view into a fresh copy of the shipped skeleton and runs the send path
- * on it, in the order startPopup does.
- */
-function shown(view: PopupView, deps: PopupSendDeps): PopupElements {
-  const elements = popupElements();
-  renderPopup(elements, view, deps.locale);
-  runPopupSend(elements, view, deps);
-  return elements;
-}
-
 /** The outcome the launch path logged for the developer. */
 function loggedOutcome(recorder: RecordingLogger): CollectOutcome {
   const entry = recorder.infos.find(
@@ -261,17 +254,164 @@ function loggedOutcome(recorder: RecordingLogger): CollectOutcome {
   return (entry.data as { outcome: CollectOutcome }).outcome;
 }
 
+/** The collected launch of collectedView's input, from the source tab. */
+function collectedLaunch(
+  selection = "selection",
+  metadata: MetadataResult = acceptMetadata({ descriptionCollapsed: false }),
+): PopupLaunch {
+  return { view: collectedView(selection, metadata), source };
+}
+
+/** What a popup run of the send path is made of, all fakes the test drives. */
+interface Popup {
+  readonly elements: PopupElements;
+  readonly clock: FakeClock;
+  readonly worker: PendingWorker;
+  readonly host: PendingHost;
+  readonly tabs: FakeTabs;
+  readonly focus: FakeFocus;
+  readonly channels: FakeChannels;
+  readonly logger: RecordingLogger;
+}
+
 /**
- * Dispatches a click on the primary button and waits for the handler to
- * settle. Dispatching the event (rather than calling click()) exercises the
- * handler even when the button is disabled, so the state guard is tested and
- * not merely the disabled attribute.
+ * Draws launch's view into a fresh copy of the shipped skeleton at sentAt and
+ * runs the send path on it, in the order startPopup does.
  */
-async function clickSend(elements: PopupElements): Promise<void> {
-  const view = elements.primary.ownerDocument.defaultView;
-  assert.ok(view !== null);
-  elements.primary.dispatchEvent(new view.Event("click"));
-  await flush();
+function shown(
+  launch: PopupLaunch,
+  locale: Locale = "en",
+  log?: RecordingLogger,
+  // Timers that never fire, as a throttled page's timer may run late.
+  lateTimers = false,
+): Popup {
+  const elements = popupElements();
+  const clock = fakeClock(sentAt);
+  const worker = pendingWorker();
+  const host = pendingHost();
+  const tabs = fakeTabs();
+  const focus = fakeFocus();
+  const channels = fakeChannels();
+  const logger = log ?? recordingLogger();
+  renderPopup(elements, launch.view, locale);
+  runPopupSend(elements, launch, {
+    sendToWorker: worker.send,
+    send: {
+      sendNative: host.sendNative,
+      schedule: lateTimers ? () => () => undefined : clock.schedule,
+    },
+    tabs,
+    focusWindow: focus.focus,
+    openChannel: channels.open,
+    queryId: () => queryId,
+    identity: fakeIdentity,
+    now: clock.now,
+    log: logger.log,
+    locale,
+  });
+  return { elements, clock, worker, host, tabs, focus, channels, logger };
+}
+
+/**
+ * Dispatches a click on the primary button and lets the page run.
+ * Dispatching the event (rather than calling click()) exercises the handler
+ * even when the button is disabled, so the state guard is tested and not
+ * merely the disabled attribute.
+ */
+async function press(popup: Popup): Promise<void> {
+  const win = popup.elements.primary.ownerDocument.defaultView;
+  assert.ok(win !== null);
+  popup.elements.primary.dispatchEvent(new win.Event("click"));
+  await settle();
+}
+
+/** The start requests the popup sent to the worker. */
+function startRequests(popup: Popup): StartRequest[] {
+  return popup.worker.sent.filter(
+    (message): message is StartRequest => message.type === "start",
+  );
+}
+
+/** The worker's reply carrying outcome, and the viewer tab when given. */
+function startReply(
+  outcome: StartOutcome,
+  viewerTabId?: number,
+): BrowserCall<unknown> {
+  return {
+    ok: true,
+    value: viewerTabId === undefined ? { outcome } : { outcome, viewerTabId },
+  };
+}
+
+const accepted: StartOutcome = { kind: "accepted", key, requestId };
+
+type Json = Record<string, unknown>;
+
+const article = {
+  markdown: "# Title\n\nBody",
+  file: "---\ntitle: Title\n---\n\nBody\n",
+  cost: { state: "known", usd: "0.1234" },
+  durationMs: 65_000,
+};
+const runningJob: Json = { state: "running", steps: runningSteps };
+const doneJob: Json = {
+  state: "done",
+  steps: doneSteps,
+  article,
+  publish: { state: "not_posted" },
+};
+const failedJob: Json = {
+  state: "failed",
+  steps: doneSteps,
+  failure: "llm_failed",
+};
+
+/** The host's reply to a status query that found job. */
+function statusReply(job: Json): NativeReply {
+  return responseReply(
+    200,
+    JSON.stringify({ status: "ok", requestId, webhookConfigured: true, job }),
+  );
+}
+
+/** A popup pressed once whose start was accepted with the viewer in tab viewerTabId. */
+async function acceptedPopup(
+  viewerTabId?: number,
+  launch = collectedLaunch(),
+  locale: Locale = "en",
+): Promise<Popup> {
+  const popup = shown(launch, locale);
+  await press(popup);
+  await popup.worker.answer(startReply(accepted, viewerTabId));
+  return popup;
+}
+
+/** The checks section text renderPopup draws for state in a fresh skeleton. */
+function drawnChecks(
+  view: CollectedView,
+  state: PopupJobState,
+  locale: Locale = "en",
+  elapsedMs = 0,
+): string {
+  const elements = popupElements();
+  renderPopup(
+    elements,
+    { kind: "job", video: view.video, details: view.details, state },
+    locale,
+    elapsedMs,
+  );
+  return elements.checks.textContent ?? "";
+}
+
+/** The popup's checks section text. */
+function checksText(popup: Popup): string {
+  return popup.elements.checks.textContent ?? "";
+}
+
+/** The collected view of a launch, asserting it is one. */
+function collected(launch: PopupLaunch): CollectedView {
+  assert.ok(launch.view.kind === "collected");
+  return launch.view;
 }
 
 describe("launchContextFromTab", () => {
@@ -303,9 +443,11 @@ describe("launch paths", () => {
     const tab = fakeTab({ id: 7, url: watchUrl, title });
 
     const popup = popupHarness({ reader, activeTab: async () => tab });
-    const view = await runPopupLaunch(popup.deps);
+    const launch = await runPopupLaunch(popup.deps);
 
-    assert.ok(view.kind === "collected");
+    const view = collected(launch);
+    // The tab's place is kept for the send, which opens the viewer beside it.
+    assert.deepEqual(launch.source, source);
     const logged = loggedOutcome(popup.recorder);
     assert.ok(logged.kind === "collected");
     assert.equal(logged.input.selection, selection);
@@ -316,7 +458,7 @@ describe("launch paths", () => {
     assert.equal(view.selection.lineCount, 4);
   });
 
-  it("sends the video title, not the tab title, in the body", async () => {
+  it("sends the video title, not the tab title, in the start input", async () => {
     const selection = " 00:00\ncaption line\n\n";
     // The tab title and the video title differ, so the body shows which one
     // was sent: the body title must be the video title read from the page.
@@ -330,27 +472,19 @@ describe("launch paths", () => {
     const metadata = metadataReader(metadataJson(values)).reader;
     const tab = fakeTab({ id: 7, url: watchUrl, title: tabTitle });
 
-    const popupNative = acceptedNative();
-    const view = await runPopupLaunch(
+    const launch = await runPopupLaunch(
       popupHarness({
         reader,
         metadataReader: metadata,
         activeTab: async () => tab,
       }).deps,
     );
-    const elements = shown(view, sendDeps(popupNative.sendNative));
-    await clickSend(elements);
+    const popup = shown(launch);
+    await press(popup);
 
-    assert.deepEqual(popupNative.messages, [
-      {
-        videoUrl: watchUrl,
-        transcript: selection,
-        ...values,
-      },
-    ]);
-    assert.equal(
-      elements.status.querySelector(".send-request-id")?.textContent,
-      requestId,
+    assert.deepEqual(
+      startRequests(popup).map((request) => request.input),
+      [{ videoUrl: watchUrl, transcript: selection, ...values }],
     );
   });
 
@@ -386,7 +520,7 @@ describe("launch paths", () => {
     it(`does not read the metadata for a ${name} collection`, async () => {
       const reader = readerReturning(page(selection));
       const popupMetadata = metadataReader(metadataJson({ title: "T" }));
-      const view = await runPopupLaunch(
+      const launch = await runPopupLaunch(
         popupHarness({
           reader,
           metadataReader: popupMetadata.reader,
@@ -394,7 +528,7 @@ describe("launch paths", () => {
         }).deps,
       );
       assert.deepEqual(popupMetadata.calls, []);
-      assert.deepEqual(view, { kind: "rejected", reason: name });
+      assert.deepEqual(launch, { view: { kind: "rejected", reason: name } });
     });
   }
 
@@ -431,16 +565,16 @@ describe("launch paths", () => {
         }),
       );
       const popup = popupHarness({ metadataReader: reader });
-      const view = await runPopupLaunch(popup.deps);
-      assert.equal(view.kind, "collected");
-      const popupNative = acceptedNative();
-      const elements = shown(view, sendDeps(popupNative.sendNative));
+      const launch = await runPopupLaunch(popup.deps);
+      collected(launch);
+      const sent = shown(launch);
       // Without a video title the primary button still sends.
-      assert.equal(elements.primary.disabled, false);
-      await clickSend(elements);
-      assert.deepEqual(popupNative.messages, [
-        { videoUrl: watchUrl, transcript: "selection" },
-      ]);
+      assert.equal(sent.elements.primary.disabled, false);
+      await press(sent);
+      assert.deepEqual(
+        startRequests(sent).map((request) => request.input),
+        [{ videoUrl: watchUrl, transcript: "selection" }],
+      );
 
       const expected =
         check === undefined
@@ -456,8 +590,10 @@ describe("launch paths", () => {
   it("treats a missing tab as collection-failed", async () => {
     const reader = readerReturning(page("text"));
     const popup = popupHarness({ reader, activeTab: async () => undefined });
-    const view = await runPopupLaunch(popup.deps);
-    assert.deepEqual(view, { kind: "rejected", reason: "collection-failed" });
+    const launch = await runPopupLaunch(popup.deps);
+    assert.deepEqual(launch, {
+      view: { kind: "rejected", reason: "collection-failed" },
+    });
     const logged = loggedOutcome(popup.recorder);
     assert.equal(logged.kind, "rejected");
     assert.equal(logged.reason, "collection-failed");
@@ -469,10 +605,31 @@ describe("launch paths", () => {
         throw new Error("query failed");
       },
     });
-    const view = await runPopupLaunch(popup.deps);
-    assert.deepEqual(view, { kind: "rejected", reason: "collection-failed" });
+    const launch = await runPopupLaunch(popup.deps);
+    assert.deepEqual(launch, {
+      view: { kind: "rejected", reason: "collection-failed" },
+    });
     assert.equal(popup.recorder.errors.length, 1);
   });
+
+  const placeless: { name: string; overrides: Partial<chrome.tabs.Tab> }[] = [
+    { name: "a negative window", overrides: { windowId: -1 } },
+    { name: "a negative index", overrides: { index: -1 } },
+    { name: "a fractional index", overrides: { index: 0.5 } },
+  ];
+  for (const { name, overrides } of placeless) {
+    it(`treats a tab with ${name} as collection-failed`, async () => {
+      // Precondition: the same tab with its place is collected.
+      const placed = await runPopupLaunch(popupHarness().deps);
+      assert.equal(placed.view.kind, "collected");
+      const launch = await runPopupLaunch(
+        popupHarness({ activeTab: async () => fakeTab(overrides) }).deps,
+      );
+      assert.deepEqual(launch, {
+        view: { kind: "rejected", reason: "collection-failed" },
+      });
+    });
+  }
 
   it("keeps untrusted text out of the fixed log labels", async () => {
     const reader = readerReturning(page(`${malicious}\n`));
@@ -482,251 +639,659 @@ describe("launch paths", () => {
   });
 });
 
-describe("popup send", () => {
+describe("popup job send", () => {
   for (const locale of localeList) {
-    const deps = (
-      sendNative: Parameters<typeof testSendDeps>[0],
-    ): { deps: PopupSendDeps; recorder: RecordingLogger } => {
-      const recorder = recordingLogger();
-      return { deps: sendDeps(sendNative, locale, recorder.log), recorder };
-    };
-
-    it(`makes the primary button pressable for a sendable selection and does not send until it is pressed in ${locale}`, async () => {
-      const native = acceptedNative();
-      const elements = shown(collectedView(), deps(native.sendNative).deps);
-      assert.equal(elements.primary.disabled, false);
-      await flush();
-      assert.equal(native.messages.length, 0);
-    });
-
-    it(`sends once, disables the button and shows the ${locale} result in the status region`, async () => {
-      const native = acceptedNative();
-      const { deps: popupDeps, recorder } = deps(native.sendNative);
-      const elements = shown(collectedView(), popupDeps);
-      await clickSend(elements);
-      assert.equal(native.messages.length, 1);
-      assert.equal(elements.primary.disabled, true);
-      expectLocaleMessage(elements.status, locale, (l) =>
-        sendOutcomeMessage(acceptedOutcome, l),
-      );
-      assert.equal(
-        elements.status.querySelector(".send-request-id")?.textContent,
-        requestId,
-      );
-      // An accepted send is normal: it is logged once at info and never at error.
-      assert.equal(
-        recorder.infos.filter((entry) => entry.label === sendLabel).length,
-        1,
-      );
-      assert.equal(
-        recorder.errors.some((entry) => entry.label === sendLabel),
-        false,
-      );
-    });
-
-    it(`sends only once when the button is clicked repeatedly in ${locale}`, async () => {
-      const native = acceptedNative();
-      const elements = shown(collectedView(), deps(native.sendNative).deps);
-      await clickSend(elements);
-      await clickSend(elements);
-      assert.equal(native.messages.length, 1);
-    });
-
-    it(`shows the ${locale} sending notice in the status region and a disabled button while sending`, async () => {
-      const deferred = deferredNative();
-      const elements = shown(collectedView(), deps(deferred.sendNative).deps);
-      elements.primary.click();
-      await flush();
-      assert.equal(elements.primary.disabled, true);
-      expectLocaleMessage(elements.status, locale, (l) => catalogs[l].sending);
-      if (locale === "en") {
-        // The close guidance and the Slack warning are what the notice is
-        // for, so assert the whole English sentences independently of the
-        // catalog it renders.
-        const text = elements.status.textContent ?? "";
-        for (const sentence of [
-          "Do not close this window until the result appears.",
-          "If you close it, check Slack before sending again.",
-        ]) {
-          assert.ok(text.includes(sentence), sentence);
-        }
-      }
-      deferred.resolve(responseReply(202, acceptedBody));
-      await flush();
-      assert.equal(
-        elements.status.querySelector(".send-request-id")?.textContent,
-        requestId,
-      );
-    });
-
-    it(`keeps the video, checks and details unchanged by a ${locale} send`, async () => {
-      const deferred = deferredNative();
-      const view = collectedView(
-        "selection",
-        acceptMetadata({
-          title: "A video title",
-          channelName: "A channel",
-          description: "A description",
-          descriptionCollapsed: false,
-        }),
-      );
-      const elements = shown(view, deps(deferred.sendNative).deps);
-      const sections = [elements.video, elements.checks, elements.details];
-      const before = sections.map((section) => section.cloneNode(true));
-      elements.primary.click();
-      await flush();
-      // Precondition: the send has started, so the status region changed.
-      assert.ok(elements.status.childNodes.length > 0);
-      sections.forEach((section, index) => {
-        assert.ok(section.isEqualNode(before[index] ?? null), section.id);
-      });
-      deferred.resolve(responseReply(202, acceptedBody));
-      await flush();
-      // Precondition: the result is shown.
-      assert.ok(elements.status.querySelector(".send-request-id") !== null);
-      sections.forEach((section, index) => {
-        assert.ok(section.isEqualNode(before[index] ?? null), section.id);
-      });
-    });
-
-    it(`keeps the button pressable under the ${locale} expand prompt and sends the shown description`, async () => {
-      const native = acceptedNative();
-      const view = await runPopupLaunch(
-        popupHarness({
-          metadataReader: metadataReader(
-            metadataJson({ description: "first lines" }, true),
-          ).reader,
-        }).deps,
-      );
-      // Precondition: the launch reached the collapsed state; its display is
-      // render.test.ts's.
-      assert.ok(view.kind === "collected");
-      assert.equal(view.description.status.kind, "collapsed");
-      const elements = shown(view, deps(native.sendNative).deps);
-      assert.equal(elements.primary.disabled, false);
-      await clickSend(elements);
-      assert.equal(native.messages.length, 1);
-      const sent = native.messages[0];
-      assert.ok(sent !== undefined && !("op" in sent));
-      assert.equal(sent.description, "first lines");
-    });
-
-    it(`keeps the button pressable when no description is sent in ${locale}`, async () => {
-      const native = acceptedNative();
-      const view = await runPopupLaunch(popupHarness().deps);
-      // Precondition: no description is sent; its display is render.test.ts's.
-      assert.ok(view.kind === "collected");
-      assert.equal(view.description.status.kind, "not-sent");
-      const elements = shown(view, deps(native.sendNative).deps);
-      assert.equal(elements.primary.disabled, false);
-      await clickSend(elements);
-      assert.deepEqual(native.messages, [
-        { videoUrl: watchUrl, transcript: "selection" },
-      ]);
-    });
-
-    it(`logs a host failure at error and shows the ${locale} host-failed result`, async () => {
-      const native = failingNative(
-        "Specified native messaging host not found.",
-      );
-      const { deps: popupDeps, recorder } = deps(native.sendNative);
-      const elements = shown(collectedView(), popupDeps);
-      await clickSend(elements);
-      assert.equal(native.messages.length, 1);
-      expectLocaleMessage(elements.status, locale, (l) =>
-        sendOutcomeMessage({ kind: "host-failed" }, l),
-      );
-      assert.deepEqual(
-        recorder.errors.map((entry) => entry.label),
-        [sendLabel],
-      );
-      assert.equal(
-        recorder.infos.some((entry) => entry.label === sendLabel),
-        false,
-      );
-    });
-
-    const popupBlocks: {
-      // Tells apart rows that share the reason.
-      when: string;
-      launch: Partial<PopupLaunchDeps>;
-    }[] = [
-      {
-        // The size count itself is prepare.test.ts's contract.
-        when: "the selection takes the body over the limit",
-        launch: { reader: readerReturning(page("a".repeat(maxBodyBytes))) },
-      },
-      {
-        // The selection alone fits, so only the metadata can block the send.
-        when: "the metadata takes the body over the limit",
-        launch: {
-          metadataReader: metadataReader(
-            metadataJson({ description: "d".repeat(maxBodyBytes) }),
-          ).reader,
-        },
-      },
-    ];
-    for (const { when, launch } of popupBlocks) {
-      it(`shows the ${locale} body-too-large reason and a disabled button without sending when ${when}`, async () => {
-        const native = acceptedNative();
-        const popup = popupHarness(launch);
-        const view = await runPopupLaunch(popup.deps);
-        // Precondition: the size check blocked the selection; its display is
-        // render.test.ts's.
-        assert.ok(view.kind === "collected");
-        assert.deepEqual(view.selection.status, {
-          kind: "blocked",
-          reason: "body-too-large",
-        });
-        const elements = shown(view, deps(native.sendNative).deps);
-        assert.equal(elements.primary.disabled, true);
-        await clickSend(elements);
-        assert.equal(native.messages.length, 0);
-        assert.equal(elements.status.childNodes.length, 0);
-        // A blocked launch is normal: logged at info, never at error.
-        assert.deepEqual(
-          popup.recorder.infos.filter((entry) => entry.label === blockedLabel),
-          [{ label: blockedLabel, data: { reason: "body-too-large" } }],
-        );
-        assert.equal(
-          popup.recorder.errors.some((entry) => entry.label === blockedLabel),
-          false,
-        );
-      });
-    }
-
-    it(`shows the ${locale} primary button disabled without sending for a rejected collection`, async () => {
-      const native = acceptedNative();
-      const elements = shown(
-        { kind: "rejected", reason: "empty-selection" },
-        deps(native.sendNative).deps,
-      );
-      assert.equal(elements.primary.disabled, true);
-      await clickSend(elements);
-      assert.equal(native.messages.length, 0);
-      assert.equal(elements.status.childNodes.length, 0);
+    it(`makes the primary button pressable for a sendable selection and sends nothing until it is pressed in ${locale}`, async () => {
+      const popup = shown(collectedLaunch(), locale);
+      assert.equal(popup.elements.primary.disabled, false);
+      await settle();
+      assert.deepEqual(popup.worker.sent, []);
+      assert.deepEqual(popup.host.sent, []);
+      assert.deepEqual(popup.tabs.calls, []);
+      assert.deepEqual(popup.channels.posted, []);
+      assert.equal(popup.clock.pending(), 0);
     });
   }
 
-  it("sends the full video title while the popup shows it truncated", async () => {
-    const title = "t".repeat(metadataDisplayLimit + 1);
-    const native = acceptedNative();
-    const view = await runPopupLaunch(
+  it("asks the worker for one start and never sends a start to the host", async () => {
+    const launch = collectedLaunch();
+    const popup = shown(launch);
+    await press(popup);
+    await press(popup);
+    assert.deepEqual(popup.worker.sent, [
+      {
+        type: "start",
+        input: { videoUrl: watchUrl, transcript: "selection" },
+        viewer: { heading: "A video", url: watchUrl, sentAt },
+        source,
+      },
+    ]);
+    // Nothing reaches the host until the key is accepted, and then only the
+    // status queries do.
+    assert.deepEqual(popup.host.sent, []);
+    await popup.worker.answer(startReply(accepted));
+    await popup.host.answer(statusReply(runningJob));
+    popup.clock.advance(pollIntervalMs);
+    await settle();
+    assert.deepEqual(popup.host.sent, [
+      { v: 1, op: "status", key },
+      { v: 1, op: "status", key },
+    ]);
+    assert.equal(startRequests(popup).length, 1);
+  });
+
+  it("sends the full video title while the viewer seed holds the shown heading and the cut title", async () => {
+    const title = "t".repeat(1_001);
+    const launch = await runPopupLaunch(
       popupHarness({
         metadataReader: metadataReader(metadataJson({ title })).reader,
       }).deps,
     );
-    const elements = shown(view, sendDeps(native.sendNative));
-    // Precondition: the heading is cut for display, so the body check below
-    // tells the sent value apart from the displayed one.
+    const popup = shown(launch);
+    // Precondition: the heading is cut for display, so the checks below tell
+    // the sent value apart from the displayed one.
     assert.equal(
-      elements.video.querySelector("h1")?.textContent,
-      `${"t".repeat(metadataDisplayLimit)}\u2026`,
+      popup.elements.video.querySelector("h1")?.textContent,
+      `${"t".repeat(metadataDisplayLimit)}…`,
     );
-    await clickSend(elements);
-    const sent = native.messages[0];
-    assert.ok(sent !== undefined && !("op" in sent));
-    assert.equal(sent.title, title);
+    await press(popup);
+    const [request] = startRequests(popup);
+    assert.ok(request !== undefined);
+    assert.equal(request.input.title, title);
+    assert.equal(
+      request.viewer.heading,
+      `${"t".repeat(metadataDisplayLimit)}…`,
+    );
+    assert.equal(request.viewer.title, "t".repeat(1_000));
+  });
+
+  it("replaces an unpaired surrogate in the seed's heading so the worker accepts the request", async () => {
+    const launch = await runPopupLaunch(
+      popupHarness({ activeTab: async () => fakeTab({ title: "A\uD800b" }) })
+        .deps,
+    );
+    // Precondition: the heading shown is the tab title, surrogate and all.
+    assert.equal(collected(launch).video.heading.value, "A\uD800b");
+    const popup = shown(launch);
+    await press(popup);
+    const [request] = startRequests(popup);
+    assert.ok(request !== undefined);
+    assert.equal(request.viewer.heading, "A�b");
+    assert.equal(parseStartRequest(request, sentAt).ok, true);
+  });
+
+  it("sends the shown description while the expand prompt is up", async () => {
+    const launch = await runPopupLaunch(
+      popupHarness({
+        metadataReader: metadataReader(
+          metadataJson({ description: "first lines" }, true),
+        ).reader,
+      }).deps,
+    );
+    // Precondition: the launch reached the collapsed state; its display is
+    // render.test.ts's.
+    assert.equal(collected(launch).description.status.kind, "collapsed");
+    const popup = shown(launch);
+    assert.equal(popup.elements.primary.disabled, false);
+    await press(popup);
+    assert.equal(startRequests(popup)[0]?.input.description, "first lines");
+  });
+
+  const popupBlocks: {
+    // Tells apart rows that share the reason.
+    when: string;
+    launch: Partial<PopupLaunchDeps>;
+  }[] = [
+    {
+      // The size count itself is prepare.test.ts's contract.
+      when: "the selection takes the body over the limit",
+      launch: { reader: readerReturning(page("a".repeat(maxBodyBytes))) },
+    },
+    {
+      // The selection alone fits, so only the metadata can block the send.
+      when: "the metadata takes the body over the limit",
+      launch: {
+        metadataReader: metadataReader(
+          metadataJson({ description: "d".repeat(maxBodyBytes) }),
+        ).reader,
+      },
+    },
+  ];
+  for (const { when, launch } of popupBlocks) {
+    it(`keeps the button disabled and sends nothing when ${when}`, async () => {
+      const harness = popupHarness(launch);
+      const launched = await runPopupLaunch(harness.deps);
+      // Precondition: the size check blocked the selection; its display is
+      // render.test.ts's.
+      assert.deepEqual(collected(launched).selection.status, {
+        kind: "blocked",
+        reason: "body-too-large",
+      });
+      const popup = shown(launched);
+      assert.equal(popup.elements.primary.disabled, true);
+      await press(popup);
+      assert.deepEqual(popup.worker.sent, []);
+      assert.equal(popup.elements.status.childNodes.length, 0);
+      // A blocked launch is normal: logged at info, never at error.
+      assert.deepEqual(
+        harness.recorder.infos.filter((entry) => entry.label === blockedLabel),
+        [{ label: blockedLabel, data: { reason: "body-too-large" } }],
+      );
+      assert.equal(
+        harness.recorder.errors.some((entry) => entry.label === blockedLabel),
+        false,
+      );
+    });
+  }
+
+  it("keeps the button disabled and sends nothing for a rejected collection", async () => {
+    const popup = shown({
+      view: { kind: "rejected", reason: "empty-selection" },
+    });
+    assert.equal(popup.elements.primary.disabled, true);
+    await press(popup);
+    assert.deepEqual(popup.worker.sent, []);
+    assert.equal(popup.elements.status.childNodes.length, 0);
+  });
+});
+
+describe("popup job states", () => {
+  for (const locale of localeList) {
+    it(`shows sending in place of the checks in ${locale}, keeping the video section and the details`, async () => {
+      const launch = await runPopupLaunch(
+        popupHarness({
+          metadataReader: metadataReader(
+            metadataJson({ title: "A video title", channelName: "A channel" }),
+          ).reader,
+        }).deps,
+      );
+      const popup = shown(launch, locale);
+      const sections = [popup.elements.video, popup.elements.details];
+      const before = sections.map((section) => section.cloneNode(true));
+      await press(popup);
+      assert.equal(
+        checksText(popup),
+        drawnChecks(collected(launch), { kind: "sending" }, locale),
+      );
+      assert.equal(popup.elements.primary.disabled, true);
+      assert.ok(popup.elements.status.childNodes.length > 0);
+      sections.forEach((section, index) => {
+        assert.ok(section.isEqualNode(before[index] ?? null), section.id);
+      });
+      await popup.worker.answer(startReply(accepted));
+      await popup.host.answer(statusReply(runningJob));
+      sections.forEach((section, index) => {
+        assert.ok(section.isEqualNode(before[index] ?? null), section.id);
+      });
+    });
+  }
+
+  it("shows loading once the key is accepted, polls it at once and offers to open the viewer", async () => {
+    const launch = collectedLaunch();
+    const popup = await acceptedPopup(100, launch);
+    assert.deepEqual(popup.host.sent, [{ v: 1, op: "status", key }]);
+    assert.equal(
+      checksText(popup),
+      drawnChecks(collected(launch), {
+        kind: "loading",
+        notice: { kind: "none" },
+      }),
+    );
+    assert.equal(popup.elements.primary.disabled, false);
+    assert.equal(
+      popup.elements.primary.textContent,
+      catalogs.en.popup.primary.openViewer,
+    );
+  });
+
+  it("shows the running steps with the time elapsed since the send and keeps polling", async () => {
+    const launch = collectedLaunch();
+    const popup = await acceptedPopup(100, launch);
+    await popup.host.answer(statusReply(runningJob));
+    popup.clock.advance(3 * elapsedRedrawMs);
+    await settle();
+    assert.equal(
+      checksText(popup),
+      drawnChecks(
+        collected(launch),
+        {
+          kind: "job",
+          job: { kind: "running", steps: runningSteps },
+          notice: { kind: "none" },
+        },
+        "en",
+        3 * elapsedRedrawMs,
+      ),
+    );
+    assert.equal(popup.host.count("status"), 2);
+    assert.equal(
+      popup.elements.primary.textContent,
+      catalogs.en.popup.primary.openViewer,
+    );
+  });
+
+  it("shows a done article and stops polling", async () => {
+    const popup = await acceptedPopup(100);
+    await popup.host.answer(statusReply(doneJob));
+    popup.clock.advance(3 * pollIntervalMs);
+    await settle();
+    assert.equal(popup.host.count("status"), 1);
+    assert.ok(checksText(popup).includes(catalogs.en.popup.articleReady.text));
+    assert.equal(popup.elements.primary.disabled, false);
+    assert.equal(
+      popup.elements.primary.textContent,
+      catalogs.en.popup.primary.openViewer,
+    );
+  });
+
+  it("keeps the shown job and polls again after a failed status exchange", async () => {
+    const popup = await acceptedPopup(100);
+    await popup.host.answer(statusReply(runningJob));
+    popup.clock.advance(pollIntervalMs);
+    await settle();
+    await popup.host.answer({ kind: "failed", lastError: "host gone" });
+    assert.ok(
+      checksText(popup).includes(catalogs.en.stepNames.draft),
+      "the running steps stay shown",
+    );
+    popup.clock.advance(pollIntervalMs);
+    await settle();
+    assert.equal(popup.host.count("status"), 3);
+  });
+
+  const startFailures: StartOutcome[] = [
+    { kind: "rejected", reason: "too_many_requests", requestId },
+    { kind: "not-sent", cause: "server-unavailable" },
+    { kind: "no-response" },
+    { kind: "host-failed" },
+    { kind: "unexpected", check: "member-set" },
+  ];
+  for (const outcome of startFailures) {
+    it(`shows a ${outcome.kind} start with the button disabled and sends nothing more`, async () => {
+      const launch = collectedLaunch();
+      const popup = shown(launch);
+      await press(popup);
+      await popup.worker.answer(startReply(outcome, 100));
+      assert.ok(outcome.kind !== "accepted");
+      assert.equal(
+        checksText(popup),
+        drawnChecks(collected(launch), {
+          kind: "start-failed",
+          failure: outcome,
+        }),
+      );
+      assert.equal(popup.elements.primary.disabled, true);
+      await press(popup);
+      popup.clock.advance(startResultDeadlineMs);
+      await settle();
+      assert.equal(popup.worker.sent.length, 1);
+      assert.deepEqual(popup.host.sent, []);
+      assert.deepEqual(popup.tabs.calls, []);
+    });
+  }
+
+  const noResults: {
+    name: string;
+    run: (popup: Popup) => Promise<void>;
+  }[] = [
+    {
+      name: "the worker leaves the request unanswered",
+      run: (popup) => popup.worker.answer({ ok: false, error: "no receiver" }),
+    },
+    {
+      name: "the reply fails its check",
+      run: (popup) =>
+        popup.worker.answer({
+          ok: true,
+          value: { outcome: accepted, extra: 1 },
+        }),
+    },
+    {
+      name: "no reply comes before the deadline",
+      run: async (popup) => {
+        popup.clock.advance(startResultDeadlineMs - 1);
+        await settle();
+        // Precondition: still sending just before the deadline.
+        assert.equal(popup.elements.primary.disabled, true);
+        assert.equal(
+          checksText(popup),
+          drawnChecks(collected(collectedLaunch()), { kind: "sending" }),
+        );
+        popup.clock.advance(1);
+        await settle();
+        assert.equal(
+          checksText(popup),
+          drawnChecks(collected(collectedLaunch()), {
+            kind: "start-failed",
+            failure: { kind: "no-result" },
+          }),
+        );
+        // A reply after the deadline is ignored.
+        await popup.worker.answer(startReply(accepted, 100));
+      },
+    },
+  ];
+  for (const { name, run } of noResults) {
+    it(`shows that the result is unknown and polls nothing when ${name}`, async () => {
+      const launch = collectedLaunch();
+      const popup = shown(launch);
+      await press(popup);
+      await run(popup);
+      assert.equal(
+        checksText(popup),
+        drawnChecks(collected(launch), {
+          kind: "start-failed",
+          failure: { kind: "no-result" },
+        }),
+      );
+      assert.equal(popup.elements.primary.disabled, true);
+      popup.clock.advance(pollIntervalMs);
+      await settle();
+      assert.deepEqual(popup.host.sent, []);
+    });
+  }
+});
+
+describe("popup start deadline", () => {
+  it("ignores a reply that comes after the deadline when the timer runs late", async () => {
+    const launch = collectedLaunch();
+    const popup = shown(launch, "en", undefined, true);
+    await press(popup);
+    popup.clock.advance(startResultDeadlineMs);
+    await popup.worker.answer(startReply(accepted, 100));
+    assert.equal(
+      checksText(popup),
+      drawnChecks(collected(launch), {
+        kind: "start-failed",
+        failure: { kind: "no-result" },
+      }),
+    );
+    assert.deepEqual(popup.host.sent, []);
+  });
+});
+
+/**
+ * Opens an endpoint of the popup's channel that answers each find for key
+ * with present, from each of viewers, as the viewers showing it do.
+ */
+function viewersShowing(
+  popup: Popup,
+  viewers: readonly { tabId: number; windowId: number; sentAt: number }[],
+): void {
+  const opened = popup.channels.open();
+  assert.ok(opened.ok);
+  const peer = opened.value;
+  peer.listen((data) => {
+    const message: ViewerChannelMessage | undefined =
+      parseViewerChannelMessage(data);
+    if (message?.type !== "find" || message.key !== key) {
+      return;
+    }
+    for (const viewer of viewers) {
+      peer.post({ type: "present", queryId: message.queryId, ...viewer });
+    }
+  });
+}
+
+/** The finds the popup posted. */
+function finds(popup: Popup): unknown[] {
+  return popup.channels.posted.filter(
+    (message) => (message as { type?: unknown }).type === "find",
+  );
+}
+
+/** Presses open-viewer on a running job and lets the query window pass. */
+async function openViewer(popup: Popup): Promise<void> {
+  await press(popup);
+  popup.clock.advance(1_000);
+  await settle();
+}
+
+describe("open viewer", () => {
+  it("brings the tab that shows the send forward, even when another viewer answers for the key", async () => {
+    const popup = await acceptedPopup(100);
+    await popup.host.answer(statusReply(runningJob));
+    popup.tabs.open.set(100, 9);
+    popup.tabs.open.set(200, 8);
+    viewersShowing(popup, [{ tabId: 200, windowId: 8, sentAt: 1 }]);
+    await openViewer(popup);
+    assert.deepEqual(popup.tabs.calls, [
+      { op: "get", tabId: 100 },
+      { op: "activate", tabId: 100 },
+    ]);
+    assert.deepEqual(popup.focus.focused, [9]);
+    assert.deepEqual(finds(popup), []);
+    assert.equal(popup.worker.sent.length, 1);
+    assert.equal(popup.host.count("start"), 0);
+  });
+
+  it("brings forward the oldest viewer that answers for the key once the tab is gone", async () => {
+    const popup = await acceptedPopup(100);
+    await popup.host.answer(statusReply(doneJob));
+    popup.tabs.open.set(200, 8);
+    popup.tabs.open.set(201, 6);
+    viewersShowing(popup, [
+      { tabId: 201, windowId: 6, sentAt: 2 },
+      { tabId: 200, windowId: 8, sentAt: 1 },
+    ]);
+    await openViewer(popup);
+    assert.deepEqual(finds(popup), [{ type: "find", queryId, key }]);
+    assert.deepEqual(popup.tabs.calls, [
+      { op: "get", tabId: 100 },
+      { op: "get", tabId: 200 },
+      { op: "activate", tabId: 200 },
+    ]);
+    assert.deepEqual(popup.focus.focused, [8]);
+    assert.equal(popup.worker.sent.length, 1);
+    assert.equal(popup.host.count("start"), 0);
+  });
+
+  it("opens a new viewer of the key in front when no viewer answers, and uses it on the next press", async () => {
+    const launch = collectedLaunch();
+    // The worker could not open a tab, so its reply names none.
+    const popup = await acceptedPopup(undefined, launch);
+    await openViewer(popup);
+    assert.equal(finds(popup).length, 1);
+    const created = popup.tabs.calls.find((call) => call.op === "create");
+    assert.ok(created?.op === "create");
+    assert.equal(created.tab.active, true);
+    const prefix = fakeIdentity.getURL("viewer.html");
+    assert.ok(created.tab.url.startsWith(`${prefix}?`));
+    const parsed = parseViewerUrl(
+      created.tab.url.slice(prefix.length),
+      "",
+      sentAt,
+    );
+    assert.ok(parsed.ok);
+    assert.deepEqual(parsed.params, {
+      heading: "A video",
+      url: watchUrl,
+      sentAt,
+      key,
+    });
+    // fakeTabs opens a tab without a window in window 1.
+    assert.deepEqual(popup.focus.focused, [1]);
+    assert.equal(popup.worker.sent.length, 1);
+
+    await openViewer(popup);
+    assert.deepEqual(popup.tabs.calls.slice(-2), [
+      { op: "get", tabId: 100 },
+      { op: "activate", tabId: 100 },
+    ]);
+    assert.equal(finds(popup).length, 1);
+  });
+
+  it("opens one viewer however often the button is pressed while it opens", async () => {
+    const popup = await acceptedPopup();
+    await press(popup);
+    await press(popup);
+    popup.clock.advance(1_000);
+    await settle();
+    assert.equal(finds(popup).length, 1);
+    assert.equal(
+      popup.tabs.calls.filter((call) => call.op === "create").length,
+      1,
+    );
+  });
+});
+
+describe("retry", () => {
+  const ends: { name: string; job: Json }[] = [
+    { name: "failed", job: failedJob },
+    { name: "lost", job: { state: "unknown" } },
+  ];
+  for (const { name, job } of ends) {
+    it(`sends the same input once more from a new send time for a ${name} job`, async () => {
+      const launch = collectedLaunch();
+      const popup = await acceptedPopup(100, launch);
+      await popup.host.answer(statusReply(job));
+      assert.equal(
+        popup.elements.primary.textContent,
+        catalogs.en.popup.primary.retry,
+      );
+      assert.equal(popup.elements.primary.disabled, false);
+      popup.clock.advance(5_000);
+      await press(popup);
+      await press(popup);
+      const [first, second, ...rest] = startRequests(popup);
+      assert.ok(first !== undefined && second !== undefined);
+      assert.deepEqual(rest, []);
+      assert.deepEqual(second.input, first.input);
+      assert.deepEqual(second.viewer, {
+        ...first.viewer,
+        sentAt: sentAt + 5_000,
+      });
+      assert.equal(
+        checksText(popup),
+        drawnChecks(collected(launch), { kind: "sending" }),
+      );
+      await popup.worker.answer(startReply(accepted, 101));
+      assert.equal(popup.host.count("status"), 2);
+      assert.equal(popup.host.count("start"), 0);
+    });
+  }
+});
+
+describe("popup status log", () => {
+  /** A popup whose one status exchange got reply; its log and page. */
+  async function statusOnce(reply: NativeReply): Promise<Popup> {
+    const popup = await acceptedPopup(100);
+    await popup.host.answer(reply);
+    return popup;
+  }
+
+  /** The data of the one status log entry, at info or at error. */
+  function statusLog(popup: Popup): Record<string, unknown> {
+    const entries = [...popup.logger.infos, ...popup.logger.errors].filter(
+      (entry) => entry.label === statusLabel,
+    );
+    assert.equal(entries.length, 1);
+    return entries[0]?.data as Record<string, unknown>;
+  }
+
+  it("logs a status result with its decision and where it came from, at info", async () => {
+    const popup = await statusOnce(statusReply(doneJob));
+    assert.deepEqual(
+      popup.logger.infos.filter((entry) => entry.label === statusLabel),
+      [
+        {
+          label: statusLabel,
+          data: {
+            result: {
+              kind: "ok",
+              requestId,
+              job: {
+                state: "done",
+                steps: doneSteps,
+                publish: { state: "not_posted" },
+                costKnown: true,
+              },
+            },
+            decision: "stop",
+            earlierEpoch: false,
+            visible: false,
+          },
+        },
+      ],
+    );
+  });
+
+  it("logs the browser's error text of a failed status exchange at error but does not display it", async () => {
+    const lastError = "LASTERROR-TEXT-4c1d";
+    const popup = await statusOnce({ kind: "failed", lastError });
+    assert.deepEqual(statusLog(popup)["result"], {
+      kind: "host-failed",
+      lastError,
+    });
+    assert.ok(popup.logger.errors.some((entry) => entry.label === statusLabel));
+    assert.equal(
+      popup.elements.checks.ownerDocument.body.textContent?.includes(lastError),
+      false,
+    );
+  });
+
+  it("logs an unexpected status reply's code but does not display it", async () => {
+    // The server's answer to a wrong path: a reason the extension does not show.
+    const popup = await statusOnce(
+      responseReply(
+        404,
+        JSON.stringify({ status: "rejected", reason: "not_found", requestId }),
+      ),
+    );
+    const result = statusLog(popup)["result"] as Record<string, unknown>;
+    assert.equal(result["kind"], "unexpected");
+    assert.equal(result["status"], 404);
+    assert.equal(
+      popup.elements.checks.ownerDocument.body.textContent?.includes("404"),
+      false,
+    );
+  });
+
+  it("logs none of the key, the article or the video's values", async () => {
+    const markers = {
+      key: "KEY-MARKER-61f0",
+      markdown: "ARTICLE-MARKER-0b7e",
+      title: "TITLE-MARKER-3c55",
+      channelName: "CHANNEL-MARKER-9e12",
+      description: "DESCRIPTION-MARKER-a4d8",
+    };
+    const harness = popupHarness({
+      metadataReader: metadataReader(
+        metadataJson({
+          title: markers.title,
+          channelName: markers.channelName,
+          description: markers.description,
+        }),
+      ).reader,
+    });
+    const launch = await runPopupLaunch(harness.deps);
+    // The send's logs alone: the launch log holds the collected input.
+    const popup = shown(launch);
+    await press(popup);
+    await popup.worker.answer(
+      startReply(
+        { kind: "accepted", key: markers.key as ArticleKey, requestId },
+        100,
+      ),
+    );
+    await popup.host.answer(
+      statusReply({
+        ...doneJob,
+        article: { ...article, markdown: markers.markdown },
+      }),
+    );
+    // Precondition: the start and the status went through, and were logged.
+    assert.deepEqual(popup.host.sent, [
+      { v: 1, op: "status", key: markers.key },
+    ]);
+    assert.equal(statusLog(popup)["decision"], "stop");
+    const serialized = JSON.stringify([
+      popup.logger.infos,
+      popup.logger.errors,
+    ]);
+    for (const value of Object.values(markers)) {
+      assert.equal(serialized.includes(value), false, value);
+    }
   });
 });
 
@@ -735,15 +1300,16 @@ describe("logs by locale", () => {
   async function logsIn(locale: Locale): Promise<RecordingLogger> {
     const recorder = recordingLogger();
     const values = { title: "t", channelName: "c", description: "d" };
-    const view = await runPopupLaunch(
+    const launch = await runPopupLaunch(
       popupHarness({
         metadataReader: metadataReader(metadataJson(values, true)).reader,
         log: recorder.log,
       }).deps,
     );
-    await clickSend(
-      shown(view, sendDeps(acceptedNative().sendNative, locale, recorder.log)),
-    );
+    const popup = shown(launch, locale, recorder);
+    await press(popup);
+    await popup.worker.answer(startReply(accepted, 100));
+    await popup.host.answer(statusReply(runningJob));
     return recorder;
   }
 
@@ -752,7 +1318,7 @@ describe("logs by locale", () => {
     // Precondition: the launch, metadata and send logs were all written.
     assert.deepEqual(
       english.infos.map((entry) => entry.label),
-      ["yt2column popup launch", metadataLabel, sendLabel],
+      ["yt2column popup launch", metadataLabel, statusLabel],
     );
     for (const locale of otherLocales("en")) {
       const other = await logsIn(locale);
@@ -769,12 +1335,13 @@ describe("video metadata log", () => {
     blocked: RecordingLogger;
   }> {
     const popup = popupHarness({ metadataReader: reader });
-    const view = await runPopupLaunch(popup.deps);
+    const launch = await runPopupLaunch(popup.deps);
     // The send carries the metadata too: one sent and one blocked run.
     const send = recordingLogger();
-    await clickSend(
-      shown(view, sendDeps(acceptedNative().sendNative, "en", send.log)),
-    );
+    const sent = shown(launch, "en", send);
+    await press(sent);
+    await sent.worker.answer(startReply(accepted, 100));
+    await sent.host.answer(statusReply(doneJob));
     // The same metadata with a selection over the body limit blocks the send.
     const blocked = popupHarness({
       metadataReader: reader,
@@ -782,7 +1349,7 @@ describe("video metadata log", () => {
     });
     await runPopupLaunch(blocked.deps);
     // Precondition: both the send and the blocked logs were written.
-    assert.ok(send.infos.some((entry) => entry.label === sendLabel));
+    assert.ok(send.infos.some((entry) => entry.label === statusLabel));
     assert.ok(
       blocked.recorder.infos.some((entry) => entry.label === blockedLabel),
     );
@@ -879,77 +1446,6 @@ describe("video metadata log", () => {
   });
 });
 
-describe("send log", () => {
-  /** Sends once from a collected popup with sendNative; returns the log and the status region. */
-  async function sendOnce(
-    native: ReturnType<typeof recordingNative>,
-  ): Promise<{ recorder: RecordingLogger; status: HTMLElement }> {
-    const recorder = recordingLogger();
-    const elements = shown(
-      collectedView(),
-      sendDeps(native.sendNative, "en", recorder.log),
-    );
-    await clickSend(elements);
-    return { recorder, status: elements.status };
-  }
-
-  /** The data of the one send log entry, at info or at error. */
-  function sendLog(recorder: RecordingLogger): Record<string, unknown> {
-    const entries = [...recorder.infos, ...recorder.errors].filter(
-      (entry) => entry.label === sendLabel,
-    );
-    assert.equal(entries.length, 1);
-    return entries[0]?.data as Record<string, unknown>;
-  }
-
-  it("records the host name, and no port or token", async () => {
-    const { recorder } = await sendOnce(acceptedNative());
-    const data = sendLog(recorder);
-    assert.deepEqual(Object.keys(data).sort(), [
-      "at",
-      "durationMs",
-      "host",
-      "result",
-    ]);
-    assert.equal(data["host"], nativeHostName);
-  });
-
-  it("logs the browser's error text but does not display it", async () => {
-    const lastError = "LASTERROR-TEXT-4c1d";
-    const { recorder, status } = await sendOnce(failingNative(lastError));
-    assert.deepEqual(sendLog(recorder)["result"], {
-      kind: "host-failed",
-      lastError,
-    });
-    assert.equal(
-      status.ownerDocument.body.textContent?.includes(lastError),
-      false,
-    );
-  });
-
-  it("logs an unexpected reply's status but does not display it", async () => {
-    // The server's answer to a wrong path: a reason the extension does not show.
-    const body = JSON.stringify({
-      status: "rejected",
-      reason: "not_found",
-      requestId,
-    });
-    const { recorder, status } = await sendOnce(
-      recordingNative(async () => responseReply(404, body)),
-    );
-    assert.deepEqual(sendLog(recorder)["result"], {
-      kind: "unexpected",
-      check: "status-pairing",
-      status: 404,
-    });
-    expectMessage(
-      status,
-      sendOutcomeMessage({ kind: "unexpected", check: "status-pairing" }, "en"),
-    );
-    assert.equal(status.ownerDocument.body.textContent?.includes("404"), false);
-  });
-});
-
 describe("startPopup", () => {
   /** A copy of the shipped popup.html with the given initial lang. */
   function popupMarkup(lang: string): Document {
@@ -976,8 +1472,17 @@ describe("startPopup", () => {
         ...overrides.launch,
       },
       send: {
-        send: testSendDeps(acceptedNative().sendNative),
-        now: () => 1000,
+        sendToWorker: pendingWorker().send,
+        send: {
+          sendNative: pendingHost().sendNative,
+          schedule: fakeClock().schedule,
+        },
+        tabs: fakeTabs(),
+        focusWindow: fakeFocus().focus,
+        openChannel: fakeChannels().open,
+        queryId: () => queryId,
+        identity: fakeIdentity,
+        now: () => sentAt,
         log,
       },
     };
@@ -1005,7 +1510,7 @@ describe("startPopup", () => {
         },
       }),
     );
-    await flush();
+    await settle();
     // Precondition: the launch path is waiting on the read.
     assert.ok(recorder.infos.some((entry) => entry.label === launchLabel));
     assert.deepEqual(shownContainers(doc), []);
@@ -1036,11 +1541,17 @@ describe("startPopup", () => {
     // The shipped document says lang="en", so only the entry point can make it ja.
     assert.equal(doc.documentElement.lang, "ja");
     const primary = popupElements(doc).primary;
-    assert.equal(primary.textContent, catalogs.ja.primaryButton);
+    assert.equal(primary.textContent, catalogs.ja.popup.primary.generate);
     expectAbsent(
       doc.body,
-      [catalogs.en.primaryButton, ...Object.values(catalogs.en.checkNames)],
-      [catalogs.ja.primaryButton, ...Object.values(catalogs.ja.checkNames)],
+      [
+        catalogs.en.popup.primary.generate,
+        ...Object.values(catalogs.en.checkNames),
+      ],
+      [
+        catalogs.ja.popup.primary.generate,
+        ...Object.values(catalogs.ja.checkNames),
+      ],
     );
     assert.ok(doc.body.textContent?.includes(catalogs.ja.checkNames.selection));
   });
@@ -1068,7 +1579,7 @@ describe("startPopup", () => {
     // The unreadable run shows English, not just the same as the en-US run.
     assert.equal(
       popupElements(unreadable.doc).primary.textContent,
-      catalogs.en.primaryButton,
+      catalogs.en.popup.primary.generate,
     );
     assert.deepEqual(loggedOutcome(unreadable.recorder), collectedOutcome());
     // Both runs behave alike; the en-US run is the reference the plan names.

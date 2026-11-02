@@ -182,7 +182,10 @@ describe("renderPopup", () => {
       // disabled attribute must not make a drawn popup pressable.
       elements.primary.disabled = false;
       renderPopup(elements, collectedView(), locale);
-      assert.equal(elements.primary.textContent, catalog.primaryButton);
+      assert.equal(
+        elements.primary.textContent,
+        catalog.popup.primary.generate,
+      );
       assert.equal(elements.primary.disabled, true);
     });
 
@@ -354,7 +357,7 @@ describe("renderPopup", () => {
       const own = [
         ...Object.values(catalog.checkNames),
         ...Object.values(catalog.checkStates),
-        catalog.primaryButton,
+        catalog.popup.primary.generate,
         catalog.details.summary,
         catalog.details.url,
         catalog.details.tabTitle,
@@ -364,7 +367,7 @@ describe("renderPopup", () => {
         const differing = [
           ...Object.values(otherCatalog.checkNames),
           ...Object.values(otherCatalog.checkStates),
-          otherCatalog.primaryButton,
+          otherCatalog.popup.primary.generate,
           otherCatalog.details.summary,
           otherCatalog.details.url,
           otherCatalog.details.tabTitle,
@@ -583,7 +586,7 @@ describe("renderPopup", () => {
         assert.equal(elements.primary.disabled, true, reason);
         assert.equal(
           elements.primary.textContent,
-          catalog.primaryButton,
+          catalog.popup.primary.generate,
           reason,
         );
         const message = rejectionMessage(reason, locale);

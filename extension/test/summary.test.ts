@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import {
   countCharacters,
   countLines,
+  replaceUnpairedSurrogates,
   truncate,
   truncateTail,
 } from "../src/core/summary.ts";
@@ -81,4 +82,33 @@ describe("countLines", () => {
   it("counts leading and trailing blank lines", () => {
     assert.equal(countLines("\na\n"), 3);
   });
+});
+
+describe("replaceUnpairedSurrogates", () => {
+  const cases: { name: string; text: string; expected: string }[] = [
+    { name: "keeps a pair", text: "a\u{1F600}b", expected: "a\u{1F600}b" },
+    { name: "keeps U+FFFD itself", text: "a\uFFFDb", expected: "a\uFFFDb" },
+    { name: "replaces a lone high", text: "a\uD83Db", expected: "a\uFFFDb" },
+    { name: "replaces a lone low", text: "a\uDE00b", expected: "a\uFFFDb" },
+    {
+      name: "replaces one at each end",
+      text: "\uDE00a\uD83D",
+      expected: "\uFFFDa\uFFFD",
+    },
+    {
+      name: "replaces a low then a high, which are no pair",
+      text: "\uDE00\uD83D",
+      expected: "\uFFFD\uFFFD",
+    },
+    {
+      name: "keeps a pair after a lone high",
+      text: "\uD83D\uD83D\uDE00",
+      expected: "\uFFFD\u{1F600}",
+    },
+  ];
+  for (const { name, text, expected } of cases) {
+    it(name, () => {
+      assert.equal(replaceUnpairedSurrogates(text), expected);
+    });
+  }
 });

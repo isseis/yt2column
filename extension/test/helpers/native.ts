@@ -2,6 +2,7 @@ import type { HostMessage } from "../../src/core/hostMessage.ts";
 import type { NativeReply } from "../../src/core/native.ts";
 import type { StartInput } from "../../src/core/prepare.ts";
 import type { SendDeps } from "../../src/send.ts";
+import { settle } from "./clock.ts";
 
 type Message = HostMessage | StartInput;
 
@@ -103,4 +104,49 @@ export function testSendDeps(
   schedule: SendDeps["schedule"] = manualSchedule().schedule,
 ): SendDeps {
   return { sendNative, schedule };
+}
+
+/** A host whose exchanges stay open until the test answers them, in order. */
+export interface PendingHost {
+  readonly sendNative: SendDeps["sendNative"];
+  /** Every message sent, in order. */
+  readonly sent: Message[];
+  /** How many exchanges of op were sent. */
+  count(op: HostMessage["op"]): number;
+  /** Answers the oldest open exchange, of op when given, and lets the page run. */
+  answer(reply: NativeReply, op?: HostMessage["op"]): Promise<void>;
+}
+
+/** The op a message declares; undefined for a message in the current form. */
+function opOf(message: Message): HostMessage["op"] | undefined {
+  return "op" in message ? message.op : undefined;
+}
+
+export function pendingHost(): PendingHost {
+  const sent: Message[] = [];
+  const open: {
+    readonly op: HostMessage["op"] | undefined;
+    readonly resolve: (reply: NativeReply) => void;
+  }[] = [];
+  return {
+    sent,
+    sendNative: (message) => {
+      sent.push(message);
+      return new Promise((resolve) =>
+        open.push({ op: opOf(message), resolve }),
+      );
+    },
+    count: (op) => sent.filter((message) => opOf(message) === op).length,
+    answer: async (reply, op) => {
+      const index = open.findIndex(
+        (exchange) => op === undefined || exchange.op === op,
+      );
+      const [exchange] = index < 0 ? [] : open.splice(index, 1);
+      if (exchange === undefined) {
+        throw new Error("no host exchange is open");
+      }
+      exchange.resolve(reply);
+      await settle();
+    },
+  };
 }

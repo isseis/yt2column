@@ -57,6 +57,9 @@ function isName(value: string): value is Name {
 // pre-send checks always fits. k's limit is parseArticleKey's own.
 const textLimits = { h: 1_001, c: 201, t: 1_000, u: 2_097_152 } as const;
 
+/** The longest video title a viewer URL holds, in code points; the popup cuts the title to it. */
+export const viewerTitleLimit = textLimits.t;
+
 /** The send time's limit in digits: 2^53 - 1 has sixteen. */
 const sentAtDigits = 16;
 

@@ -542,13 +542,13 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 #### ステップ 6-3: ポップアップの送信の経路
 
-**変更するファイル:** `src/launch.ts`、`src/popup.ts`、`src/ui/render.ts`、`test/launch.test.ts`、`test/render.test.ts`
+**変更するファイル:** `src/launch.ts`、`src/popup.ts`、`src/ui/render.ts`、`src/poller.ts`（状態の取得のやり取りとログをビューアと共有する `createStatusPoller`）、`src/viewerApp.ts`（それを使う）、`src/core/popupView.ts`（`viewerSeed`）、`src/core/summary.ts`（`shownText`・`replaceUnpairedSurrogates`）、`src/core/poll.ts`（`elapsedRedrawMs` を `viewerApp.ts` から移す）、`src/core/response.ts`（`isExchangeFailureView`）、`src/core/viewerUrl.ts`（`viewerTitleLimit`）、`src/core/extensionMessages.ts`、`test/launch.test.ts`、`test/render.test.ts`、`test/popupPreview.test.ts`、`test/summary.test.ts`、`test/viewerApp.test.ts`、`test/helpers/chrome.ts`・`native.ts`（`viewerApp.test.ts` の SW とホストの fake を共有する）
 
--   [ ] `runPopupSend` を、設計書 3.8 の「主ボタンを押した後」の流れ（`StartRequest` を SW に送る、`StartReply` の検査と 35 秒の期限、ポーリング）と、「ビューアを開く」（6.6）・「やり直す」に改める。ビューアの種（`ViewerSeed`）は、ポップアップが表示した値から作り、対になっていないサロゲートを、表示用に作る写しの中で U+FFFD に置き換える（設計書 3.5）。ログは設計書 4.4 のポップアップのラベルで、ログの関数を通した値だけを書く。
--   [ ] 1.4 の表の 6-3 の古い部品（`logSend`・`sendLabel`、古い送信の処理と import、`sending` の使う場所）と、それを確かめる `test/launch.test.ts` の確認をなくす。
--   [ ] 送る前の画面の主ボタンの名前を、`primaryButton` から新しい節の名前に替える（`src/ui/render.ts:305` と、1.4 の表の `test/render.test.ts`・`test/launch.test.ts` の使う場所）。
--   [ ] `popup.ts` に新しい依存を渡す。
--   [ ] テスト: 主ボタンで `StartRequest` を 1 回だけ送り、ポップアップ自身はホストに生成の開始を送らないこと（AC-01）、`sending` から各状態への移り変わり（AC-20・AC-23）、「ビューアを開く」の 3 つの分岐と生成の開始を送らないこと（AC-21。1 つ目の分岐は、通信路の fake が別のタブを答える形で確かめる）、「やり直す」が同じ入力を 1 回だけ送ること（AC-22）、開き直したポップアップが押すまで `sendNative`・`runtime.sendMessage`・状態の取得のどれも送らないこと（AC-24）、1.4 の行き先の表の `popup send` と `send log` の確認、ログに目印の文字列が現れないこと。
+-   [x] `runPopupSend` を、設計書 3.8 の「主ボタンを押した後」の流れ（`StartRequest` を SW に送る、`StartReply` の検査と 35 秒の期限、ポーリング）と、「ビューアを開く」（6.6）・「やり直す」に改める。ビューアの種（`ViewerSeed`）は、ポップアップが表示した値から作り、対になっていないサロゲートを、表示用に作る写しの中で U+FFFD に置き換える（設計書 3.5）。ログは設計書 4.4 のポップアップのラベルで、ログの関数を通した値だけを書く。
+-   [x] 1.4 の表の 6-3 の古い部品（`logSend`・`sendLabel`、古い送信の処理と import、`sending` の使う場所）と、それを確かめる `test/launch.test.ts` の確認をなくす。
+-   [x] 送る前の画面の主ボタンの名前を、`primaryButton` から新しい節の名前に替える（`src/ui/render.ts:305` と、1.4 の表の `test/render.test.ts`・`test/launch.test.ts` の使う場所）。
+-   [x] `popup.ts` に新しい依存を渡す。
+-   [x] テスト: 主ボタンで `StartRequest` を 1 回だけ送り、ポップアップ自身はホストに生成の開始を送らないこと（AC-01）、`sending` から各状態への移り変わり（AC-20・AC-23）、「ビューアを開く」の 3 つの分岐と生成の開始を送らないこと（AC-21。1 つ目の分岐は、通信路の fake が別のタブを答える形で確かめる）、「やり直す」が同じ入力を 1 回だけ送ること（AC-22）、開き直したポップアップが押すまで `sendNative`・`runtime.sendMessage`・状態の取得のどれも送らないこと（AC-24）、1.4 の行き先の表の `popup send` と `send log` の確認、ログに目印の文字列が現れないこと。
 
 **完了の条件:** `make ext-check` が通る。1.2 の lcov の比べ方で、消した確認の関数の実行回数を確かめる。「ビューアを開く」が `tabs.get` で見つかったタブを使わずに `findViewers` に進むように壊し、AC-21 の 1 つ目の分岐のテストが失敗することを確かめる。
 

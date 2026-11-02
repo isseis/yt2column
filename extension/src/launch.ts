@@ -1,28 +1,51 @@
+import type {
+  ExtensionIdentity,
+  FocusWindow,
+  OpenViewerChannel,
+  SendToWorker,
+  TabPlace,
+  ViewerTabs,
+} from "./browser/chromeDeps.ts";
+import type { ArticleKey } from "./core/articleKey.ts";
 import { collect } from "./core/collect.ts";
 import type { SelectionReader } from "./core/collect.ts";
+import { chooseViewer, parseStartReply } from "./core/extensionMessages.ts";
+import type {
+  SourceTab,
+  StartReply,
+  StartRequest,
+} from "./core/extensionMessages.ts";
 import {
   acceptMetadata,
   parsePageMetadata,
   readFailureResult,
 } from "./core/metadata.ts";
 import type { MetadataResult } from "./core/metadata.ts";
-import { catalogs } from "./core/i18n/catalog.ts";
 import { resolveLocale } from "./core/i18n/locale.ts";
 import type { Locale } from "./core/i18n/locale.ts";
-import { nativeHostName } from "./core/native.ts";
-import { buildCollectedView } from "./core/popupView.ts";
-import type { PopupView } from "./core/popupView.ts";
+import { elapsedRedrawMs, startResultDeadlineMs } from "./core/poll.ts";
+import type { PollStep } from "./core/poll.ts";
+import {
+  buildCollectedView,
+  primaryAction,
+  viewerSeed,
+} from "./core/popupView.ts";
+import type {
+  JobPopupView,
+  PopupJobState,
+  PopupView,
+} from "./core/popupView.ts";
 import { prepareSend } from "./core/prepare.ts";
-import { toSendOutcome } from "./core/articlesResponse.ts";
-import type { SendResult } from "./core/articlesResponse.ts";
 import type { LaunchContext } from "./core/types.ts";
-import { sendArticle } from "./send.ts";
+import { viewerQuery } from "./core/viewerUrl.ts";
+import type { ViewerSeed } from "./core/viewerUrl.ts";
+import { createStatusPoller } from "./poller.ts";
+import type { Poller } from "./poller.ts";
 import type { SendDeps } from "./send.ts";
-import { messageNodes } from "./ui/message.ts";
 import { applyPageLocale } from "./ui/pageLocale.ts";
 import { renderPopup } from "./ui/render.ts";
-import type { ActionControls, PopupElements } from "./ui/render.ts";
-import { renderSendOutcome } from "./ui/renderSend.ts";
+import type { PopupElements } from "./ui/render.ts";
+import { findViewers } from "./viewerQuery.ts";
 
 /** Developer-facing log. The first argument is always a fixed label. */
 export interface Logger {
@@ -43,8 +66,25 @@ export interface PopupLaunchDeps {
   readonly log: Logger;
 }
 
+/** What the launch path found: the view, and the tab a collected selection came from. */
+export interface PopupLaunch {
+  readonly view: PopupView;
+  /** Present exactly when the view is collected: the start opens the viewer next to it. */
+  readonly source?: SourceTab;
+}
+
 export interface PopupSendDeps {
+  /** Sends the start request to the service worker. */
+  readonly sendToWorker: SendToWorker;
+  /** The status exchanges, and the timer of every wait. */
   readonly send: SendDeps;
+  readonly tabs: Pick<ViewerTabs, "create" | "activate" | "get">;
+  readonly focusWindow: FocusWindow;
+  readonly openChannel: OpenViewerChannel;
+  /** A new query ID for each query to the viewers. */
+  readonly queryId: () => string;
+  /** chrome.runtime in production: the viewer page's URL. */
+  readonly identity: Pick<ExtensionIdentity, "getURL">;
   readonly now: () => number;
   readonly log: Logger;
   /** The display language; it selects displayed text only, never a log. */
@@ -67,8 +107,21 @@ const popupLogLabel = "yt2column popup launch";
 const metadataLogLabel = "yt2column video metadata";
 const activeTabLabel = "yt2column active tab";
 const blockedLabel = "yt2column blocked";
-const sendLabel = "yt2column send result";
 const uiLanguageLabel = "yt2column ui language";
+
+/** Where the tab is; undefined unless its window and index are non-negative integers. */
+function sourceTab(tab: chrome.tabs.Tab, tabId: number): SourceTab | undefined {
+  const { windowId, index } = tab;
+  if (
+    !Number.isSafeInteger(windowId) ||
+    windowId < 0 ||
+    !Number.isSafeInteger(index) ||
+    index < 0
+  ) {
+    return undefined;
+  }
+  return { tabId, windowId, index };
+}
 
 /** Copies id, url and title verbatim; undefined when there is no tab or no tab id. */
 export function launchContextFromTab(
@@ -126,41 +179,16 @@ async function readMetadata(
 }
 
 /**
- * Logs one send attempt: the start time, the duration, the host name and the
- * result. The result keeps what is dropped before display: the server's
- * status of an unexpected reply and the browser's error text of a host
- * failure, never a body's text. A result that is a failure goes to error;
- * accepted and rejected go to info.
- */
-function logSend(
-  log: Logger,
-  now: () => number,
-  startedAt: number,
-  result: SendResult,
-): void {
-  const data = {
-    at: new Date(startedAt).toISOString(),
-    durationMs: now() - startedAt,
-    host: nativeHostName,
-    result,
-  };
-  if (result.kind === "accepted" || result.kind === "rejected") {
-    log.info(sendLabel, data);
-  } else {
-    log.error(sendLabel, data);
-  }
-}
-
-/**
  * Popup path. Collects the active tab's selection; after a successful
  * collection it reads the video metadata once and checks the body size, then
- * builds what the popup shows. A rejected collection becomes a rejected view
- * without reading the metadata. It touches no DOM, so nothing is shown until
- * the caller renders the returned view. Never throws.
+ * builds what the popup shows, with the tab's place for the send. A rejected
+ * collection becomes a rejected view without reading the metadata, and so
+ * does a tab whose place cannot be read. It touches no DOM, so nothing is
+ * shown until the caller renders the returned view. Never throws.
  */
 export async function runPopupLaunch(
   deps: PopupLaunchDeps,
-): Promise<PopupView> {
+): Promise<PopupLaunch> {
   let tab: chrome.tabs.Tab | undefined;
   try {
     tab = await deps.activeTab();
@@ -172,11 +200,16 @@ export async function runPopupLaunch(
   const outcome = await collect(launch, deps.reader);
   deps.log.info(popupLogLabel, { outcome });
   if (outcome.kind === "rejected") {
-    return { kind: "rejected", reason: outcome.reason };
+    return { view: { kind: "rejected", reason: outcome.reason } };
   }
-  if (launch === undefined) {
-    // collect never collects without a launch context; this only narrows it.
-    return { kind: "rejected", reason: "collection-failed" };
+  // collect never collects without a launch context, which needs a tab; this
+  // only narrows them.
+  const source =
+    tab === undefined || launch === undefined
+      ? undefined
+      : sourceTab(tab, launch.tabId);
+  if (launch === undefined || source === undefined) {
+    return { view: { kind: "rejected", reason: "collection-failed" } };
   }
   const metadata = await readMetadata(
     launch.tabId,
@@ -189,46 +222,233 @@ export async function runPopupLaunch(
     // A blocked launch is normal, not a defect.
     deps.log.info(blockedLabel, { reason: prepared.reason });
   }
-  return buildCollectedView(outcome.input, metadata, prepared);
+  return {
+    view: buildCollectedView(outcome.input, metadata, prepared),
+    source,
+  };
 }
 
 /**
  * Popup send path. Contract: the primary button becomes pressable only when
  * the view is collected and its selection is sendable; for any other view it
  * does nothing, so the button stays disabled as the skeleton and renderPopup
- * left it. A press sends the view's request at most once per popup, disables
- * the button at once, and shows the sending notice and then the result in the
- * status region. It touches only the button and the status region, so the
- * other sections never change, and it never moves the focus. Never throws.
+ * left it. Nothing is sent before the first press. A press asks the service
+ * worker for one generation start and never sends one again by itself; the
+ * popup never sends a start to the host. From then on the popup shows the
+ * job states in place of the checks, keeping the video section and the
+ * details, and the button does what primaryAction says: nothing while there
+ * is no key, open the viewer for a key, or retry, which asks for one new
+ * start of the same input. A key is polled until polling stops or the popup
+ * closes. It never moves the focus, and never throws.
  */
 export function runPopupSend(
-  controls: ActionControls,
-  view: PopupView,
+  elements: PopupElements,
+  launch: PopupLaunch,
   deps: PopupSendDeps,
 ): void {
-  if (view.kind !== "collected" || view.selection.status.kind !== "sendable") {
+  const { view, source } = launch;
+  if (
+    view.kind !== "collected" ||
+    view.selection.status.kind !== "sendable" ||
+    source === undefined
+  ) {
     return;
   }
-  const { request } = view.selection.status;
-  const { primary, status } = controls;
-  const doc = primary.ownerDocument;
-  const catalog = catalogs[deps.locale];
+  const input = view.selection.status.request.body.message;
+  const { primary } = elements;
 
-  let state: "unused" | "sending" | "sent" = "unused";
-  primary.addEventListener("click", () => {
-    void (async () => {
-      if (state !== "unused") {
+  let pressed = false;
+  let state: PopupJobState = { kind: "sending" };
+  let seed: ViewerSeed = viewerSeed(view.video, input, 0);
+  let key: ArticleKey | undefined;
+  /** The tab that shows this send, as the worker or the last open-viewer found it. */
+  let viewerTabId: number | undefined;
+  let poller: Poller | undefined;
+  // Counts the sends, so a late answer about an earlier send changes nothing.
+  let sends = 0;
+  let opening = false;
+  let cancelRedraw = (): void => {};
+
+  const draw = (): void => {
+    const jobView: JobPopupView = {
+      kind: "job",
+      video: view.video,
+      details: view.details,
+      state,
+    };
+    renderPopup(elements, jobView, deps.locale, deps.now() - seed.sentAt);
+  };
+
+  /** Draws the elapsed time again each second while a running job is shown. */
+  const armRedraw = (): void => {
+    cancelRedraw();
+    cancelRedraw = () => {};
+    if (state.kind === "job" && state.job.kind === "running") {
+      cancelRedraw = deps.send.schedule(elapsedRedrawMs, () => {
+        draw();
+        armRedraw();
+      });
+    }
+  };
+
+  const show = (next: PopupJobState): void => {
+    state = next;
+    draw();
+    armRedraw();
+  };
+
+  const onStep = (step: PollStep): void => {
+    if (step.job !== undefined) {
+      show({ kind: "job", job: step.job, notice: step.notice });
+    } else if (state.kind === "job") {
+      show({ ...state, notice: step.notice });
+    } else {
+      show({ kind: "loading", notice: step.notice });
+    }
+  };
+
+  /**
+   * Waits for the worker's reply until startResultDeadlineMs after the send
+   * time; undefined at the deadline, and for a reply that is late, failed, or
+   * fails its check.
+   */
+  const askWorker = (
+    request: StartRequest,
+  ): Promise<StartReply | undefined> => {
+    const deadline = request.viewer.sentAt + startResultDeadlineMs;
+    return new Promise((resolve) => {
+      let settled = false;
+      const cancel = deps.send.schedule(
+        Math.max(0, deadline - deps.now()),
+        () => {
+          if (!settled) {
+            settled = true;
+            resolve(undefined);
+          }
+        },
+      );
+      void deps.sendToWorker(request).then((reply) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        cancel();
+        // A timer that fired late can let a reply in after the deadline.
+        resolve(
+          reply.ok && deps.now() < deadline
+            ? parseStartReply(reply.value)
+            : undefined,
+        );
+      });
+    });
+  };
+
+  /** Sends one start of the input, from the sending state. */
+  const start = async (): Promise<void> => {
+    poller?.stop();
+    poller = undefined;
+    key = undefined;
+    viewerTabId = undefined;
+    sends += 1;
+    const send = sends;
+    seed = viewerSeed(view.video, input, deps.now());
+    show({ kind: "sending" });
+    const reply = await askWorker({
+      type: "start",
+      input,
+      viewer: seed,
+      source,
+    });
+    if (send !== sends) {
+      return;
+    }
+    if (reply === undefined) {
+      show({ kind: "start-failed", failure: { kind: "no-result" } });
+      return;
+    }
+    const { outcome } = reply;
+    if (outcome.kind !== "accepted") {
+      show({ kind: "start-failed", failure: outcome });
+      return;
+    }
+    key = outcome.key;
+    viewerTabId = reply.viewerTabId;
+    poller = createStatusPoller(key, deps, onStep);
+    show({ kind: "loading", notice: { kind: "none" } });
+    poller.start();
+  };
+
+  /** Selects the tab and brings its window to the front, which closes the popup. */
+  const bringForward = async (place: TabPlace): Promise<void> => {
+    await deps.tabs.activate(place.tabId);
+    await deps.focusWindow(place.windowId);
+  };
+
+  /**
+   * Brings forward the first that applies: the tab that shows this send when
+   * it is still there; else a viewer that answers it shows the key; else a
+   * new viewer tab of the key. It never sends a start.
+   */
+  const openViewer = async (viewerKey: ArticleKey): Promise<void> => {
+    const send = sends;
+    if (viewerTabId !== undefined) {
+      const known = await deps.tabs.get(viewerTabId);
+      if (known.ok) {
+        await bringForward(known.value);
         return;
       }
-      state = "sending";
-      primary.disabled = true;
-      status.replaceChildren(...messageNodes(doc, catalog.sending));
-      const startedAt = deps.now();
-      const sendResult = await sendArticle(request, deps.send);
-      logSend(deps.log, deps.now, startedAt, sendResult);
-      state = "sent";
-      renderSendOutcome(status, toSendOutcome(sendResult), deps.locale);
-    })();
+    }
+    const answers = await findViewers(viewerKey, {
+      openChannel: deps.openChannel,
+      queryId: deps.queryId,
+      schedule: deps.send.schedule,
+    });
+    const chosen = chooseViewer(answers.present);
+    if (chosen !== undefined) {
+      const place = await deps.tabs.get(chosen.tabId);
+      if (place.ok) {
+        if (send === sends) {
+          viewerTabId = chosen.tabId;
+        }
+        await bringForward(place.value);
+        return;
+      }
+    }
+    const created = await deps.tabs.create({
+      url: `${deps.identity.getURL("viewer.html")}?${viewerQuery({ ...seed, key: viewerKey })}`,
+      active: true,
+    });
+    if (!created.ok) {
+      return;
+    }
+    if (send === sends) {
+      viewerTabId = created.value.tabId;
+    }
+    await deps.focusWindow(created.value.windowId);
+  };
+
+  primary.addEventListener("click", () => {
+    if (!pressed) {
+      pressed = true;
+      void start();
+      return;
+    }
+    switch (primaryAction(state)) {
+      case "none":
+        return;
+      case "retry":
+        void start();
+        return;
+      case "open-viewer":
+        if (opening || key === undefined) {
+          return;
+        }
+        opening = true;
+        void openViewer(key).then(() => {
+          opening = false;
+        });
+        return;
+    }
   });
   primary.disabled = false;
 }
@@ -286,7 +506,7 @@ export async function startPopup(
   if (elements === undefined) {
     return;
   }
-  const view = await runPopupLaunch(deps.launch);
-  renderPopup(elements, view, locale);
-  runPopupSend(elements, view, { ...deps.send, locale });
+  const launch = await runPopupLaunch(deps.launch);
+  renderPopup(elements, launch.view, locale);
+  runPopupSend(elements, launch, { ...deps.send, locale });
 }

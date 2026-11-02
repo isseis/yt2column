@@ -23,31 +23,23 @@ import {
 } from "./core/extensionMessages.ts";
 import type { ViewerChannelMessage } from "./core/extensionMessages.ts";
 import { articleFileName } from "./core/fileName.ts";
-import { publishMessage, statusMessage } from "./core/hostMessage.ts";
+import { publishMessage } from "./core/hostMessage.ts";
 import { resolveLocale } from "./core/i18n/locale.ts";
 import { jobArticle, publishControl } from "./core/jobView.ts";
 import type { ViewerState } from "./core/jobView.ts";
 import type { PollStep } from "./core/poll.ts";
-import { startResultDeadlineMs } from "./core/poll.ts";
+import { elapsedRedrawMs, startResultDeadlineMs } from "./core/poll.ts";
 import {
   classifyPublish,
-  classifyStatus,
+  isExchangeFailureView,
   publishLogView,
-  statusLogView,
   toPublishOutcome,
-  toStatusOutcome,
 } from "./core/response.ts";
-import type {
-  Article,
-  PublishLogView,
-  StartOutcome,
-  StatusLogView,
-  StatusOutcome,
-} from "./core/response.ts";
+import type { Article, StartOutcome } from "./core/response.ts";
 import { parseViewerUrl, viewerQuery } from "./core/viewerUrl.ts";
 import type { ViewerParams } from "./core/viewerUrl.ts";
 import type { Logger } from "./launch.ts";
-import { createPoller } from "./poller.ts";
+import { createStatusPoller } from "./poller.ts";
 import type { Poller, StepInfo } from "./poller.ts";
 import { exchange } from "./send.ts";
 import type { SendDeps } from "./send.ts";
@@ -90,12 +82,8 @@ export interface ViewerStartDeps {
 
 const awaitStartLabel = "yt2column await start";
 const viewerUrlLabel = "yt2column viewer url";
-const statusResultLabel = "yt2column status result";
 const publishResultLabel = "yt2column publish result";
 const takeOverLabel = "yt2column take over";
-
-/** How often the elapsed time of a running job is drawn again while the page is visible. */
-export const elapsedRedrawMs = 1_000;
 
 const pageTitleSuffix = " - yt2column";
 
@@ -167,21 +155,6 @@ function takeOverRestarts(state: ViewerState): boolean {
   }
 }
 
-/** A failed exchange goes to the error log; a server's answer to info. */
-function isExchangeFailure(view: StatusLogView | PublishLogView): boolean {
-  switch (view.kind) {
-    case "ok":
-    case "accepted":
-    case "rejected":
-      return false;
-    case "not-sent":
-    case "no-response":
-    case "host-failed":
-    case "unexpected":
-      return true;
-  }
-}
-
 /**
  * Viewer entry. Decides the locale and sets the page language, finds the
  * skeleton (with any element missing it does nothing), learns its own tab,
@@ -226,8 +199,6 @@ export async function startViewer(
   /** An accepted publish waits for the first status of a later epoch to end publishing. */
   let awaitingPublishStatus = false;
   let actionNotice: ActionNotice = { kind: "none" };
-  /** The last status result as logged, until the poller hands on its step. */
-  let statusLog: StatusLogView | undefined;
   let poller: Poller | undefined;
   let key: ArticleKey | undefined;
   let cancelRedraw = (): void => {};
@@ -275,30 +246,7 @@ export async function startViewer(
     deps.page.replaceQuery(viewerQuery(params));
   };
 
-  const fetchStatus = async (statusKey: ArticleKey): Promise<StatusOutcome> => {
-    const log = classifyStatus(
-      await exchange(statusMessage(statusKey), deps.send),
-    );
-    statusLog = statusLogView(log);
-    return toStatusOutcome(log);
-  };
-
   const onStep = (step: PollStep, info: StepInfo): void => {
-    const logged = statusLog;
-    statusLog = undefined;
-    if (logged !== undefined) {
-      const entry = {
-        result: logged,
-        decision: step.decision,
-        earlierEpoch: info.earlierEpoch,
-        visible: info.visible,
-      };
-      if (isExchangeFailure(logged)) {
-        deps.log.error(statusResultLabel, entry);
-      } else {
-        deps.log.info(statusResultLabel, entry);
-      }
-    }
     // The first reply of the current epoch after an accepted publish ends
     // publishing; a take-over that goes on may have moved the epoch again
     // since the publish, and that epoch's reply ends it as well.
@@ -319,13 +267,7 @@ export async function startViewer(
   const startPolling = (pollKey: ArticleKey): void => {
     key = pollKey;
     restarts += 1;
-    poller ??= createPoller(
-      {
-        fetchStatus: () => fetchStatus(pollKey),
-        schedule: deps.send.schedule,
-      },
-      onStep,
-    );
+    poller ??= createStatusPoller(pollKey, deps, onStep);
     show({ kind: "loading", notice: { kind: "none" } });
     poller.start();
   };
@@ -488,7 +430,7 @@ export async function startViewer(
     const log = classifyPublish(await exchange(publishMessage(key), deps.send));
     const view = publishLogView(log);
     const replaced = restarts !== pressedIn;
-    if (isExchangeFailure(view)) {
+    if (isExchangeFailureView(view)) {
       deps.log.error(publishResultLabel, { result: view, replaced });
     } else {
       deps.log.info(publishResultLabel, { result: view, replaced });

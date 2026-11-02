@@ -7,10 +7,21 @@
 // publish may update the display but never stops polling, and a fetch of the
 // new epoch follows it at once.
 
+import type { ArticleKey } from "./core/articleKey.ts";
+import { statusMessage } from "./core/hostMessage.ts";
 import { afterStatus, pollIntervalMs } from "./core/poll.ts";
 import type { PollStep } from "./core/poll.ts";
 import type { JobDisplay } from "./core/jobView.ts";
-import type { StatusOutcome } from "./core/response.ts";
+import {
+  classifyStatus,
+  isExchangeFailureView,
+  statusLogView,
+  toStatusOutcome,
+} from "./core/response.ts";
+import type { StatusLogView, StatusOutcome } from "./core/response.ts";
+import type { Logger } from "./launch.ts";
+import { exchange } from "./send.ts";
+import type { SendDeps } from "./send.ts";
 
 export interface PollerDeps {
   /** Runs one status exchange for the page's key. Never rejects. */
@@ -126,4 +137,53 @@ export function createPoller(
       cancelTimer = () => {};
     },
   };
+}
+
+const statusResultLabel = "yt2column status result";
+
+/**
+ * Polls the status of key over the host exchange of send, timed by its
+ * schedule, for the popup and the viewer alike. Each reply is logged before
+ * onStep sees it: its log view, which holds neither the key nor the article,
+ * the decision, and where it came from; a failed exchange at error, a
+ * server's answer at info.
+ */
+export function createStatusPoller(
+  key: ArticleKey,
+  deps: { readonly send: SendDeps; readonly log: Logger },
+  onStep: (step: PollStep, info: StepInfo) => void,
+): Poller {
+  // The poller sends one fetch at a time, so the reply a step answers is
+  // the one logged last.
+  let logged: StatusLogView | undefined;
+  return createPoller(
+    {
+      fetchStatus: async () => {
+        const log = classifyStatus(
+          await exchange(statusMessage(key), deps.send),
+        );
+        logged = statusLogView(log);
+        return toStatusOutcome(log);
+      },
+      schedule: deps.send.schedule,
+    },
+    (step, info) => {
+      const result = logged;
+      logged = undefined;
+      if (result !== undefined) {
+        const entry = {
+          result,
+          decision: step.decision,
+          earlierEpoch: info.earlierEpoch,
+          visible: info.visible,
+        };
+        if (isExchangeFailureView(result)) {
+          deps.log.error(statusResultLabel, entry);
+        } else {
+          deps.log.info(statusResultLabel, entry);
+        }
+      }
+      onStep(step, info);
+    },
+  );
 }

@@ -735,6 +735,26 @@ export type PublishLogView =
     }
   | ExchangeFailureLog;
 
+/**
+ * Whether a logged result is a failed exchange, which goes to the error log;
+ * a server's answer, accepted or rejected, goes to info.
+ */
+export function isExchangeFailureView(
+  view: StatusLogView | PublishLogView,
+): boolean {
+  switch (view.kind) {
+    case "ok":
+    case "accepted":
+    case "rejected":
+      return false;
+    case "not-sent":
+    case "no-response":
+    case "host-failed":
+    case "unexpected":
+      return true;
+  }
+}
+
 /** A copy of an exchange failure with only the members it declares. */
 function failureLogView(log: ExchangeFailureLog): ExchangeFailureLog {
   switch (log.kind) {

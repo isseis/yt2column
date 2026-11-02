@@ -17,6 +17,9 @@ export const startResultDeadlineMs = 35_000;
 /** How long a query for the viewers of a key collects answers. */
 export const viewerQueryWindowMs = 1_000;
 
+/** How often a page draws a running job's elapsed time again while it is visible. */
+export const elapsedRedrawMs = 1_000;
+
 export interface PollStep {
   readonly decision: "continue" | "stop";
   /** The new display; absent when the state shown is kept. */

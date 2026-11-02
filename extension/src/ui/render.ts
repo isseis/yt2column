@@ -18,6 +18,7 @@ import type {
   SelectionStatus,
   VideoView,
 } from "../core/popupView.ts";
+import { ellipsis, shownText } from "../core/summary.ts";
 import type { DisplayText } from "../core/summary.ts";
 import type { CheckName, CheckState } from "../core/types.ts";
 import { checkIcon } from "./icons.ts";
@@ -34,14 +35,6 @@ import {
   waitingSummary,
   writeStatusSummary,
 } from "./renderJob.ts";
-
-/** Appended to a value that was shortened for display. */
-const ellipsis = "\u2026";
-
-/** The value shown for a field, marked with an ellipsis when shortened. */
-function displayValue(value: string, truncated: boolean): string {
-  return truncated ? `${value}${ellipsis}` : value;
-}
 
 /** The primary button and the status region; all the send path touches. */
 export interface ActionControls {
@@ -79,10 +72,7 @@ function renderVideoSection(
   const heading = doc.createElement("h1");
   heading.className = "video-heading";
   heading.setAttribute("dir", "auto");
-  heading.textContent = displayValue(
-    view.heading.value,
-    view.heading.truncated,
-  );
+  heading.textContent = shownText(view.heading);
   if (view.channelName === undefined) {
     container.replaceChildren(heading);
     return;
@@ -90,7 +80,7 @@ function renderVideoSection(
   const channelName = valueParagraph(
     doc,
     "channel-name",
-    displayValue(view.channelName.value, view.channelName.truncated),
+    shownText(view.channelName),
   );
   channelName.setAttribute("dir", "auto");
   container.replaceChildren(heading, channelName);
@@ -140,11 +130,7 @@ function selectionContent(
   locale: Locale,
 ): HTMLElement[] {
   const catalog = catalogs[locale];
-  const head = valueParagraph(
-    doc,
-    "preview-head",
-    displayValue(check.head.value, check.head.truncated),
-  );
+  const head = valueParagraph(doc, "preview-head", shownText(check.head));
   head.setAttribute("dir", "auto");
   const nodes: HTMLElement[] = [
     valueParagraph(
@@ -252,7 +238,7 @@ function detailRow(
   const definition = doc.createElement("dd");
   definition.className = "detail-value";
   definition.setAttribute("dir", "auto");
-  definition.textContent = displayValue(value.value, value.truncated);
+  definition.textContent = shownText(value);
   return [term, definition];
 }
 
@@ -466,7 +452,7 @@ export function renderPopup(
     drawnVideo.delete(elements.video);
     drawnDetails.delete(elements.details);
     elements.status.replaceChildren();
-    elements.primary.textContent = catalog.primaryButton;
+    elements.primary.textContent = catalog.popup.primary.generate;
     elements.primary.disabled = true;
     renderRejectionSection(doc, elements.rejection, view, locale);
     return;
@@ -479,7 +465,7 @@ export function renderPopup(
   drawDetailsSection(doc, elements.details, view.details, locale);
   if (view.kind === "collected") {
     elements.status.replaceChildren();
-    elements.primary.textContent = catalog.primaryButton;
+    elements.primary.textContent = catalog.popup.primary.generate;
     elements.primary.disabled = true;
     renderChecksSection(doc, elements.checks, view, locale);
     return;

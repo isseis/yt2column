@@ -5,16 +5,21 @@ import type {
   PrepareOutcome,
   PreflightReason,
   PreparedRequest,
+  StartInput,
 } from "./prepare.ts";
 import {
   countCharacters,
   countLines,
   lineBreak,
+  replaceUnpairedSurrogates,
+  shownText,
   truncate,
   truncateTail,
 } from "./summary.ts";
 import type { DisplayText } from "./summary.ts";
 import type { CheckState, RejectionReason } from "./types.ts";
+import { viewerTitleLimit } from "./viewerUrl.ts";
+import type { ViewerSeed } from "./viewerUrl.ts";
 
 /** The display limit for one metadata value, in code points. */
 export const metadataDisplayLimit = 200;
@@ -231,4 +236,33 @@ function descriptionStatus(
     return { kind: "collapsed" };
   }
   return { kind: "full", characterCount: countCharacters(description) };
+}
+
+/**
+ * The viewer seed of a send at sentAt: the heading and channel name as the
+ * video section shows them, the sent video title cut to the viewer URL's
+ * limit, and the sent URL. The heading, channel name and title are copies
+ * made for display and the file name, so an unpaired surrogate in them
+ * becomes U+FFFD and the seed can be encoded into a URL; the input sent to
+ * the server is not changed. Pure; never throws.
+ */
+export function viewerSeed(
+  video: VideoView,
+  input: StartInput,
+  sentAt: number,
+): ViewerSeed {
+  const seed: { -readonly [K in keyof ViewerSeed]: ViewerSeed[K] } = {
+    heading: replaceUnpairedSurrogates(shownText(video.heading)),
+    url: input.videoUrl,
+    sentAt,
+  };
+  if (video.channelName !== undefined) {
+    seed.channelName = replaceUnpairedSurrogates(shownText(video.channelName));
+  }
+  if (input.title !== undefined) {
+    seed.title = replaceUnpairedSurrogates(
+      truncate(input.title, viewerTitleLimit).value,
+    );
+  }
+  return seed;
 }
