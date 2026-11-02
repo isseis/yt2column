@@ -183,7 +183,9 @@ and the PR-number fill-in of `/runpr` follow this definition.
   after the `## Document Status` heading. The cell text of one of its rows is
   the bytes of the line after its leading `| <Item> | ` (for example
   `| Comments | ` or `| Reviewer | `) and before its trailing ` |`; do not
-  split it on `|`. Wherever this rule copies a cell text into the change
+  split it on `|`. A row has a cell text only when its line starts with that
+  leading text and ends with ` |`, and only when it is the one row of its item
+  in the table. Wherever this rule copies a cell text into the change
   history, copy it byte for byte, backquotes, `\|`, and `<br>` included, and
   do not correct a value that looks mistaken.
 - **Approver:** the GitHub user name, the value of `gh api user --jq .login`,
@@ -193,16 +195,16 @@ and the PR-number fill-in of `/runpr` follow this definition.
 - **PR number:** every line that reaches `main` carries the number of the PR
   that added it; the migrated item and the copied approval line below are the
   only two exceptions. A line written after its PR exists (by `/fixpr` or
-  `/runpr`) writes the number. A line written before its PR exists (for example by `/runplan`, `/mkarch`, `/mkplan2`, or a
-  manual withdrawal) writes the not-yet-filled marker `#未記入` in place of
-  `#<PR 番号>`. `/runpr`'s PRE_MERGE replaces the marker in each
-  change-history line the PR adds, to a new or an existing task document, and
-  only in those (`.claude/commands/runpr.md`, PRE_MERGE); a marker already on
-  `main` is shown to the user, never filled in automatically, because the PR
-  that added it is not known for certain. To fill one in, find the commit that
-  added the line (`git log -S '#未記入' -- <document>`) and its PR
-  (`gh pr list --state merged --search <SHA>`), and fix the marker in a PR of
-  its own.
+  `/runpr`) writes the number. A line written before its PR exists (for example
+  by `/runplan`, `/mkarch`, `/mkplan2`, or a manual withdrawal) writes the
+  not-yet-filled marker `#未記入` in place of `#<PR 番号>`. `/runpr`'s PRE_MERGE
+  replaces the marker in each change-history line the PR adds, to a new or an
+  existing task document, and only in those (`.claude/commands/runpr.md`,
+  PRE_MERGE); a marker already on `main` is shown to the user, never filled in
+  automatically, because the PR that added it is not known for certain. To fill
+  one in, find the commit that added the line (`git log -S '#未記入' --
+  <document>`) and its PR (`gh pr list --state merged --search <SHA>`), and fix
+  the marker in a PR of its own.
 - **`draft` revert along with an earlier document's decision change:** only
   `/fixpr` writes this line, when a changed handoff item returns a later
   document whose body it did not change (`.claude/commands/fixpr.md`, R3).
@@ -213,9 +215,9 @@ and the PR-number fill-in of `/runpr` follow this definition.
 - **Copied approval line:** the line that keeps the approval recorded in the
   status table of an `approved` document without a change history. Only the
   migration ("Documents without a change history" below) writes it, from the
-  cell texts of `Review date` and `Reviewer`. It comes right after the migrated item
-  when there is one, and is the first item otherwise; this item alone defines
-  its position. Its marker `状態表から写した` stands in place of `#<PR 番号>`,
+  cell texts of `Review date` and `Reviewer`. It comes right after the
+  migrated item when there is one, and is the first item otherwise; this item
+  alone defines its position. Its marker `状態表から写した` stands in place of `#<PR 番号>`,
   because the status table does not tell which PR recorded the approval: it
   carries neither a PR number nor `#未記入`, and since the marker has no `#`,
   `/runpr`'s PR-number fill-in leaves it alone. It records one approval in one
@@ -224,14 +226,13 @@ and the PR-number fill-in of `/runpr` follow this definition.
 #### Documents without a change history
 
 A **document without a change history** is a task document that has no change
-history as "Change history" above defines it. A `## 変更履歴` line inside a
-code block does not count, including a code block indented inside a list item
-(the example in "Change history" above has that form), so checking only whether
-some line of the document equals `## 変更履歴` is not enough: that also finds
-the lines inside code blocks. Whether its `Comments` is `-` does not matter. A
-document written before the change history existed keeps corrections and past
-approvals in `Comments` and its latest approval in the status table; it stays
-valid as it is.
+history as "Change history" above defines it. A `## 変更履歴` line inside a code
+block does not count, including a code block indented inside a list item, so
+checking only whether some line of the document equals `## 変更履歴` is not enough:
+a code block can hold that line at the start of a line. Whether its `Comments`
+is `-` does not matter. A document written before the change history existed
+keeps corrections and past approvals in `Comments` and its latest approval in
+the status table; it stays valid as it is.
 
 **The status table before the transition** is the status table of the document
 at `HEAD` (`git show HEAD:<path>`), never the one in the working tree. The
@@ -246,13 +247,18 @@ The first time a status transition is written to a document without a change
 history under this rule, whoever writes it, a command or a person, does the
 following, in order:
 
-1. **Check that the approval can be copied.** When the status before the
-   transition is `approved`, check that its status table has exactly one
-   `Review date` row and exactly one `Reviewer` row, and that the cell text of
-   each is not empty, not only whitespace (U+0020, tab, or U+3000), not `-`, and
-   does not contain `#未記入` (a value with the marker could be rewritten by
-   `/runpr`'s PR-number fill-in). When any of these fails, stop ("Stopping"
-   below).
+1. **Check that the status table can be copied.** Check that the status
+   table before the transition gives a cell text ("Cell text" in "Change
+   history" above) for `Status` and for `Comments`, and that the `Comments`
+   cell text is not empty, not only whitespace (U+0020, tab, or U+3000), and,
+   when it is not `-`, does not contain `#未記入`. When the status before the
+   transition is `approved`, also check that it gives a cell text for
+   `Review date` and for `Reviewer`, and that each is not empty, not only
+   whitespace, not `-`, and does not contain `#未記入`. A value with the marker
+   could be rewritten by `/runpr`'s PR-number fill-in once it is in a
+   change-history line. When any of these fails, stop ("Stopping" below). A
+   document that is not at `HEAD` has no status table before the transition:
+   it skips this step and steps 3 and 4.
 2. Create `## 変更履歴` at the end of the document.
 3. When the `Comments` cell text before the transition is not `-`, put it in as
    the migrated item ("Change history" above). When it is `-`, there is no
@@ -264,11 +270,13 @@ following, in order:
    ("Comments" above).
 6. Append the transition's line.
 7. Before committing, run the step 7 check below, after the last edit of the
-   document, and commit the document as checked, without editing it again.
-   When the check fails, stop ("Stopping" below).
+   document, and commit the document as checked, without editing it again
+   (stage it after the check, so the index holds the checked version). When the
+   check fails, stop ("Stopping" below).
 
-The one that migrates runs the step 7 check, as a step of this rule; a command
-definition may say which of its participants runs it.
+Whoever writes a status transition to a document without a change history runs
+the step 7 check, as a step of this rule, even when an earlier step was skipped
+by mistake; a command definition may say which of its participants runs it.
 
 **The step 7 check.** It checks mechanically that the change history starts
 with exactly the items the status table before the transition gives. An LLM can
@@ -280,42 +288,44 @@ with exactly the items the status table before the transition gives. An LLM can
   `git diff`: a change staged in the index is missing from it, and the check
   would pass on nothing. Take the texts into files and compare them with
   commands, without reading them into the conversation.
-- **Documents checked:** every document that has no change history at `HEAD`
-  and, in the working tree, has a change history or has a status-table row
-  whose cell text differs from `HEAD`'s. When a cell cannot be taken from the
-  working tree's status table (the table or the row is missing, or the row
-  appears twice or more), it counts as different. So a transition written to
-  the status table without a change history is checked, and fails below. A
-  document that is not at `HEAD` is not checked: the first transition of a
-  document created in this change is written by a later commit, which has it at
-  `HEAD`.
-- **Expected head:** built from the status table at `HEAD`, in the order
-  "Change history" above gives: when the cell text of `Comments` is not `-`,
-  the migrated item (`- 旧規則の Comments：` followed by the cell text); then,
-  when the status is `approved`, the copied approval line. When neither
-  applies, the expected head is empty. When the status is `approved` and step 1's
-  condition does not hold, the check fails.
+- **Documents checked:** among the task documents the change touches (the files
+  under `docs/tasks/` that differ between `HEAD` and the working tree and whose
+  version at `HEAD` has a status table), every one that has no change history at
+  `HEAD` and, in the working tree, has a change history or has a status-table
+  row whose cell text differs from `HEAD`'s. When a cell cannot be taken from
+  the working tree's status table (the table or the row is missing, or the row
+  appears twice or more), it counts as different. So a transition written to the
+  status table without a change history is checked, and fails below. A document
+  that is not at `HEAD` is not checked: the first transition of a document
+  created in this change is written by a later commit, which has it at `HEAD`.
+- **Expected head:** the items steps 3 and 4 put in, built from the status
+  table at `HEAD` in the forms and the order "Change history" above gives: the
+  migrated item when the cell text of `Comments` is not `-`, and the copied
+  approval line when the status is `approved`. When neither applies, the
+  expected head is empty. When step 1's conditions do not hold, the check
+  fails.
 - **Comparison:** when the working tree's document has no change history, the
   check fails. Otherwise take the item lines of its change history (the lines
   of the section that start with `- `). Their first lines, as many as the
   expected head has, must equal the expected head byte for byte (compare the
-  two files with `cmp`), and no later item line may start with
-  `- 旧規則の Comments：` or end with `、状態表から写した）`. Only the change
-  history is compared, so a line of the body that quotes this rule does not
-  count.
+  two files with `cmp`), and no later item line may have the form of a
+  migrated item (its prefix) or of a copied approval line (its marker and the
+  closing `）` at the end of the line). Only the change history is compared,
+  so a line of the body that quotes this rule does not count.
 
 **A second transition in the same change.** When the document in the working
 tree already has a change history, do not migrate it again (for example, when
 `/fixpr`'s chained revert and a body change reach the same document in one
 round).
 
-**Stopping.** Do not write the transition, and commit nothing of the change
-that contains it: neither the body rewrite of the decision change nor the other
-documents returned to `draft` along with it. Leave the changes in the working
-tree, and report to the user:
+**Stopping.** When step 1 stops, do not write the transition. On either stop,
+commit nothing of the change that contains the transition: neither the body
+rewrite of the decision change nor the other documents returned to `draft` along
+with it. Leave the changes in the working tree, and report to the user:
 
-- the document's path and the item that could not be copied (`Review date`,
-  `Reviewer`, or both), or, when the step 7 check failed, the part that failed;
+- the document's path and the names of the rows step 1 found unusable
+  (`Status`, `Comments`, `Review date`, or `Reviewer`), or, when the step 7
+  check failed, the part that failed;
 - what was left: the uncommitted changes in the working tree, and the commits
   already on the branch;
 - that the user decides how to fix the status table, by the kinds of edit in
