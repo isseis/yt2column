@@ -1,4 +1,4 @@
-<!-- translated-from: README.md 260488c6b1fe5bd21e10f42c8e06a977cbb34de3 -->
+<!-- translated-from: README.md d8b77794658c5453acd29364b1f945d624ebcc76 -->
 [日本語](README.md)
 
 Developer documents: [Using the CLI](docs/dev/guides/cli.md) · [Development procedures](docs/dev/guides/development.md)
@@ -256,10 +256,10 @@ such as the full-width `＠`) followed by a name character (a letter, a digit,
 
 A rejected article is not posted at all. The error gives the line and column
 in the post. Running again generates a different article, which may not have
-the problem. The localhost server reports this rejection in its failure notice
+the problem. On the `/articles` path, the localhost server reports this rejection in its failure notice
 as its own reason, separate from other posting failures. The extension's viewer
-shows an article this check rejected as one that cannot be posted because it
-contains a mention, and disables the post button.
+shows an article this check rejected as one that cannot be posted (because it
+contains a mention, or because of another pre-send check), and disables the post button.
 
 If a post fails partway through a split article, the messages already sent stay
 in the channel. The CLI has no retry or resume: running again generates a new
@@ -318,7 +318,7 @@ post.
 The server writes nothing to standard output. The logs go to standard error, so
 `2>>server.log` keeps a record. The first log line names the socket. Every
 request line carries the `requestId` the response returns, as do the
-`/articles` job lines, so `grep "$requestId" server.log` finds them.
+`/articles` job lines, so `grep "$requestId" server.log` finds them. The job API's generation and post job lines carry the article key and the video ID instead of a `requestId`. The extension does not show the key, so find the failure of an article's generation sent from the extension by the time and the video ID.
 
 On start the server creates the socket directory (`run`) with mode `0700` when
 it is missing, takes the start lock (the file `.yt2column.lock` in the socket
@@ -346,9 +346,11 @@ Exit codes:
 
 The server logs to standard error. The first `SIGINT`, `SIGTERM`, or `SIGHUP`
 (a signal that was ignored at startup is not subscribed to) stops accepting connections,
-removes the socket, and waits for the other in-flight jobs to finish. These are
-the `/articles` jobs, which can take up to about 45 minutes (three LLM calls of
-15 minutes each). A second signal makes the server exit at once. Until the jobs have finished, a
+removes the socket, and waits for the other in-flight jobs to finish. It waits for the `/articles` jobs
+(up to about 45 minutes: three LLM calls of 15 minutes each) and for the posts
+sent from the viewer. A running generation of an article sent from the viewer is
+cancelled without waiting: that article is lost, and the viewer shows
+**Article lost**. A second signal makes the server exit at once. Until the jobs have finished, a
 new server refuses to start.
 
 ### Installing the native messaging host
@@ -840,13 +842,15 @@ section becomes the action for the state:
 
 - **Sending**: the button is disabled. You can close the popup: the
   result appears in the viewer tab.
-- **Generating**: it shows a checklist of the three steps (Draft, Shorten, and
-  Review) and the time elapsed since the send. The button becomes
+- **Loading**: the server accepted the article, and the popup is waiting for
+  its first status. The button becomes **Open viewer**.
+- **Generating**: it shows a checklist of the three steps ("Draft", "Shorten",
+  and "Review") and the time elapsed since the send. The button becomes
   **Open viewer**.
 - **Generated**: it shows that the article is ready, with the estimated cost and the time taken. The button becomes **Open viewer**.
 - **Failed** and **Article lost**: it shows the reason and the steps. The button
   becomes **Try again**, which sends the generation start of the same input once
-  more, exactly once.
+  more, exactly once, and opens a new viewer tab.
 - **No key received** (rejected, not sent, or result unknown): it shows the
   reason and the steps. The button stays disabled: reopen the popup to send
   again.
@@ -860,8 +864,8 @@ the popup closes, its state display stops too, and a reopened popup starts from
 the screen before sending. The extension stores nothing, so the popup does not
 remember the earlier send.
 
-In every state the viewer shows the same heading and channel name as the popup,
-and a link to the original video. The heading and the channel name are values
+In every state except an invalid link, the viewer shows the same heading and
+channel name as the popup, and a link to the original video. The heading and the channel name are values
 the viewer's URL holds. A viewer opened from a crafted URL can therefore show
 any heading: the heading does not vouch for the article's content.
 
@@ -892,8 +896,13 @@ any heading: the heading does not vouch for the article's content.
   still be saved and copied (not posted).
 - **No key received**: the result of the generation start (rejected, not sent,
   or result unknown), with the reason and the steps.
-- **Invalid link**: the viewer's URL is not in a form it accepts. It shows no
-  article and sends nothing.
+- **Invalid link**: the viewer's URL is not in a form it accepts. It shows
+  neither the heading nor an article, and sends nothing.
+
+When a status fetch fails, the popup and the viewer keep the state they showed
+and add that the status cannot be fetched, with the steps. When the server is
+not running, there is no response, or the host failed, they keep fetching; when
+the fetch is rejected or the reply cannot be interpreted, they stop.
 
 How to read the result of the generation start:
 
@@ -909,7 +918,7 @@ How to read the result of the generation start:
   sending), the article had failed, or the server restarted, it generates the
   article again.
 
-The `requestId` links what the extension shows to the server log.
+The `requestId` links a rejection the extension shows to the server log.
 
 The viewer's URL holds the article key (once accepted), the heading, the
 channel name, the video title, the collected URL, and the send time. It does not

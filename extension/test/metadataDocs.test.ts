@@ -44,14 +44,19 @@ describe("video metadata documentation", () => {
       ]);
     });
 
+    it(`${readmePath} names the generation steps as the extension shows them`, () => {
+      expectPhrases(section, where, Object.values(catalog.stepNames));
+    });
+
     it(`${readmePath} quotes the popup names the catalog defines`, () => {
       // The README shows each name the screen displays in bold; compare those
       // quoted names with the catalog. The explanatory prose is checked by
       // reading it in the PR review, not by matching words here.
       expectPhrases(section, where, [
-        `**${catalog.popup.primary.generate}**`,
-        `**${catalog.popup.primary.openViewer}**`,
-        `**${catalog.popup.primary.retry}**`,
+        ...Object.values(catalog.popup.primary).map((name) => `**${name}**`),
+        `**${catalog.viewer.publish}**`,
+        `**${catalog.viewer.save}**`,
+        `**${catalog.viewer.copy}**`,
         `**${catalog.checkNames.selection}**`,
         `**${catalog.checkNames.description}**`,
         `**${catalog.details.summary}**`,

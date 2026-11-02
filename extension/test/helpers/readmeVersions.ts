@@ -20,11 +20,11 @@ export const browserExtensionHeading: Record<Locale, string> = {
 };
 
 /**
- * How each version of the README states the minimum Chrome version, with the
- * version number as the first group. The phrase must equal that version's
- * wording.
+ * How each version of the README states the minimum browser version, for
+ * Chrome and for the Chromium that Brave is built on, with the version number
+ * as the first group. The phrase must equal that version's wording.
  */
 export const minimumChromePhrase: Record<Locale, RegExp> = {
-  ja: /Chrome (\d+) 以降/gu,
-  en: /Chrome (\d+) or later/gu,
+  ja: /(?:Chrome|Chromium) (\d+) 以降/gu,
+  en: /(?:Chrome|Chromium) (\d+) or later/gu,
 };

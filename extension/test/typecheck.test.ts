@@ -150,9 +150,10 @@ describe("type errors fail typecheck and build", () => {
 /**
  * Defines a suite that type checks each of modules, a file made of header and
  * the module's body, against the extension's tsconfig.json. header gets a
- * function that turns a path under extension/src into the import specifier. Only the type check runs, so
- * a declared value needs no definition. The first module is the control and
- * must pass; each other one must fail with the error code given beside it.
+ * function that turns a path under extension/src into the import specifier.
+ * Only the type check runs, so a declared value needs no definition. A module
+ * without a code is a control and must pass; a module with one must fail
+ * with that error code.
  */
 function typecheckSuite(
   title: string,

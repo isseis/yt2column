@@ -1,21 +1,18 @@
 import type { HostMessage } from "../../src/core/hostMessage.ts";
 import type { NativeReply } from "../../src/core/native.ts";
-import type { StartInput } from "../../src/core/prepare.ts";
 import type { SendDeps } from "../../src/send.ts";
 import { settle } from "./clock.ts";
 
-type Message = HostMessage | StartInput;
-
 export interface NativeRecorder {
   readonly sendNative: SendDeps["sendNative"];
-  readonly messages: Message[];
+  readonly messages: HostMessage[];
 }
 
 /** A sendNative that records each message and answers with respond(message). */
 export function recordingNative(
-  respond: (message: Message) => Promise<NativeReply>,
+  respond: (message: HostMessage) => Promise<NativeReply>,
 ): NativeRecorder {
-  const messages: Message[] = [];
+  const messages: HostMessage[] = [];
   return {
     sendNative: async (message) => {
       messages.push(message);
@@ -110,33 +107,26 @@ export function testSendDeps(
 export interface PendingHost {
   readonly sendNative: SendDeps["sendNative"];
   /** Every message sent, in order. */
-  readonly sent: Message[];
+  readonly sent: HostMessage[];
   /** How many exchanges of op were sent. */
   count(op: HostMessage["op"]): number;
   /** Answers the oldest open exchange, of op when given, and lets the page run. */
   answer(reply: NativeReply, op?: HostMessage["op"]): Promise<void>;
 }
 
-/** The op a message declares; undefined for a message in the current form. */
-function opOf(message: Message): HostMessage["op"] | undefined {
-  return "op" in message ? message.op : undefined;
-}
-
 export function pendingHost(): PendingHost {
-  const sent: Message[] = [];
+  const sent: HostMessage[] = [];
   const open: {
-    readonly op: HostMessage["op"] | undefined;
+    readonly op: HostMessage["op"];
     readonly resolve: (reply: NativeReply) => void;
   }[] = [];
   return {
     sent,
     sendNative: (message) => {
       sent.push(message);
-      return new Promise((resolve) =>
-        open.push({ op: opOf(message), resolve }),
-      );
+      return new Promise((resolve) => open.push({ op: message.op, resolve }));
     },
-    count: (op) => sent.filter((message) => opOf(message) === op).length,
+    count: (op) => sent.filter((message) => message.op === op).length,
     answer: async (reply, op) => {
       const index = open.findIndex(
         (exchange) => op === undefined || exchange.op === op,

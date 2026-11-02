@@ -759,8 +759,8 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **横断の確かめ（`make lint` と `make test` が見つけないもの）:**
 
--   [ ] 1.4 の台帳の「並べて加える間の名前」と古い部品の名前が、フェーズ 7 の後の `extension/` のコメントと、`docs/`・README・`CLAUDE.md` に残っていない（コードの参照は型の検査が知らせる）。
--   [ ] `/articles` の経路と Slack を確かめる案内を述べるコメントが、`extension/src/` に残っていない（設計書 3.13 の「Slack に触れない」）。
+-   [x] 1.4 の台帳の「並べて加える間の名前」と古い部品の名前が、フェーズ 7 の後の `extension/` のコメントと、`docs/`・README・`CLAUDE.md` に残っていない（コードの参照は型の検査が知らせる）。
+-   [x] `/articles` の経路と Slack を確かめる案内を述べるコメントが、`extension/src/` に残っていない（設計書 3.13 の「Slack に触れない」）。
 -   [ ] 新しい用語（ビューア・Service Worker・ビューアの URL・送信の時刻・ポーリング・やり取りの結果）と工程の名前が、`docs/translation_glossary.md`・README・文言で同じ語を使っている（PR のレビューで読む）。
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)

@@ -534,9 +534,11 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
 - A change that touches only documents (`README.md`, `README.en.md`,
   `CLAUDE.md`, `docs/`) does not need `make ext-test`, except the two READMEs
   and `docs/dev/guides/development.md`: the extension's node tests read the
-  expand prompt and the popup names in each README's browser extension section
-  (`metadataDocs.test.ts`) and the rejection-reason table of `development.md`
-  (`serverReasons.test.ts`), so a change to them needs `make ext-test`. The
+  expand prompt, the popup and viewer names, and the step names in each
+  README's browser extension section (`metadataDocs.test.ts`), the minimum
+  Chrome version each README states (`manifest.test.ts`), and the
+  rejection-reason table of `development.md` (`serverReasons.test.ts`), so a
+  change to them needs `make ext-test`. The
   other text-sync guards that read documents (the
   extension ID, the `ext-` targets in this file, the manifest permissions, the
   `project_overview.md` notes (the environment variable names, `costPrefix`, and
