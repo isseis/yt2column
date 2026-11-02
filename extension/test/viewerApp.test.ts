@@ -5,6 +5,7 @@ import type {
   BrowserCall,
   TabPlace,
   ViewerChannel,
+  WriteClipboard,
 } from "../src/browser/chromeDeps.ts";
 import type { ArticleKey } from "../src/core/articleKey.ts";
 import { parseViewerChannelMessage } from "../src/core/extensionMessages.ts";
@@ -155,6 +156,10 @@ interface Options {
   readonly uiLanguage?: string;
   /** The page's own tab; undefined outside a tab. */
   readonly tab?: TabPlace | undefined;
+  /** Timers that never fire, as a throttled page's timer may run late. */
+  readonly lateTimers?: boolean;
+  /** Replaces the fake clipboard's write. */
+  readonly writeClipboard?: WriteClipboard;
 }
 
 function queryOf(params: Partial<ViewerParams> = {}): string {
@@ -238,10 +243,11 @@ async function open(options: Options = {}): Promise<Viewer> {
           hostOpen.push({ op: hostMessage.op, resolve }),
         );
       },
-      schedule: clock.schedule,
+      schedule:
+        options.lateTimers === true ? () => () => undefined : clock.schedule,
     },
     now: clock.now,
-    writeClipboard: clipboard.write,
+    writeClipboard: options.writeClipboard ?? clipboard.write,
     saveFile: saves.save,
     log: logger.log,
   });
@@ -401,6 +407,21 @@ describe("startViewer: display and URL", () => {
       assert.deepEqual(viewer.replaced, []);
     });
   }
+
+  it("shows no result for a result that arrives after the deadline before its late timer", async () => {
+    const viewer = await open({ lateTimers: true });
+    viewer.clock.advance(startResultDeadlineMs - (loadedAt - sentAt));
+    await viewer.worker.answer({
+      ok: true,
+      value: { kind: "result", outcome: { kind: "accepted", key, requestId } },
+    });
+    assert.equal(
+      stateText(viewer),
+      drawnState({ kind: "start-failed", failure: { kind: "no-result" } }),
+    );
+    assert.deepEqual(viewer.host.sent, []);
+    assert.deepEqual(viewer.replaced, []);
+  });
 
   it("does not wait at all when the page loads after the deadline", async () => {
     const viewer = await open({ now: sentAt + startResultDeadlineMs });
@@ -783,6 +804,30 @@ describe("startViewer: operations", () => {
       catalogs.en.viewer.copied,
     );
     assert.equal(viewer.doc.activeElement, focused);
+  });
+
+  it("changes nothing shown for a copy that finishes after the send restarted", async () => {
+    let finishCopy: ((result: BrowserCall<undefined>) => void) | undefined;
+    const viewer = await open({
+      query: queryOf({ key }),
+      writeClipboard: () =>
+        new Promise((resolve) => {
+          finishCopy = resolve;
+        }),
+    });
+    await viewer.host.answer(statusReply(doneJob({ state: "not_posted" })));
+    // A done job whose polling stopped restarts on a take-over.
+    await post(viewer, { type: "find", queryId, key });
+    await post(viewer, takeOver());
+    await viewer.host.answer(statusRejected);
+    viewer.elements.copy.click();
+    await settle();
+    assert.ok(finishCopy, "the copy did not start");
+    await post(viewer, { type: "find", queryId, key });
+    await post(viewer, takeOver(sentAt + 60_000));
+    finishCopy({ ok: true, value: undefined });
+    await settle();
+    assert.equal(viewer.elements.actionStatus.textContent, "");
   });
 
   it("says when the copy fails", async () => {

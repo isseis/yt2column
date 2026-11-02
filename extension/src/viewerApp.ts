@@ -377,6 +377,11 @@ export async function startViewer(
     }
     settled = true;
     cancel();
+    // A timer that fired late can let a reply in after the deadline.
+    if (deps.now() >= params.sentAt + startResultDeadlineMs) {
+      noResult("deadline");
+      return;
+    }
     if (!reply.ok) {
       noResult("failed");
       return;
@@ -549,7 +554,13 @@ export async function startViewer(
     if (article === undefined) {
       return;
     }
+    const startedIn = restarts;
     const copied = await deps.writeClipboard(article.markdown);
+    // The send was restarted while copying: the result is about the article
+    // the new send replaces, so it changes nothing shown.
+    if (restarts !== startedIn) {
+      return;
+    }
     showActionNotice(copied.ok ? { kind: "copied" } : { kind: "copy-failed" });
   };
 
