@@ -495,7 +495,7 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 **判定理由**: ステップ 5-5 が、`take-over` の受け入れと投稿の操作を送る場所の限定（セキュリティの検査）と、世代と期限を持つ状態の移り変わりを持つため
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/620
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
