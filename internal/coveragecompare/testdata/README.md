@@ -36,7 +36,8 @@ not only against text written by hand.
   `# fail` 1, and `# cancelled` 1. The path in the location line is the
   generic temporary path node printed.
 
-Checked when the samples were taken: they hold no home directory path and no
-absolute path. The module path in the Go samples contains the project owner's
-GitHub name, `isseis`, but that is the repository's own import path, not a value
-naming whoever captured the output.
+Checked when the samples were taken: they hold no home directory path. The
+module path in the Go samples contains the project owner's GitHub name,
+`isseis`, but that is the repository's own import path, not a value naming
+whoever captured the output. The TAP failure sample holds only node's generic
+`/private/tmp` scratch path.

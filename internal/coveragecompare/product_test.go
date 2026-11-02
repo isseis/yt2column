@@ -48,6 +48,24 @@ func TestIsGoProduct(t *testing.T) {
 			want: false,
 		},
 		{
+			name: "a negated test tag stays product code",
+			file: "internal/x/x.go",
+			src:  "//go:build !test\n\npackage x\n",
+			want: true,
+		},
+		{
+			name: "a negated test tag with another tag stays product code",
+			file: "internal/x/x.go",
+			src:  "//go:build !test && unix\n\npackage x\n",
+			want: true,
+		},
+		{
+			name: "a negated conjunction with test stays product code",
+			file: "internal/x/x.go",
+			src:  "//go:build !(test && race)\n\npackage x\n",
+			want: true,
+		},
+		{
 			name: "integration only stays product code",
 			file: "internal/x/x.go",
 			src:  "//go:build integration\n\npackage x\n",

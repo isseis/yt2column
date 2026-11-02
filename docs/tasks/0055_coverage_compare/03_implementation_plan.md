@@ -160,7 +160,7 @@
 -   [x] 例に、取った人を特定する値（`$HOME` のパス、利用者の名前）がないことを確かめ、あれば取り除く（`CLAUDE.md`「Development Notes」の `testdata/` の規則）。確かめたことを `testdata/README.md` に書く。
 -   [x] それぞれを 1〜4 のステップの読み方で読み、受け入れられることと、読んだ値が `testdata/README.md` に記録した値と一致することを確かめるテストを書く。
 
--   [x] 入力の大きさに上限がないことを、読み方のテストで確かめる（AC-32）。プロファイル・`go test -json`・lcov・差分のそれぞれに、64 KiB と 1 MiB を超える 1 行（`-json` の `Output` の長い値など）を含む例を与え、受け入れられることを確かめる。`bufio.Scanner` の既定の上限のような、意図しない上限を捉えるためである。
+-   [x] 入力の大きさに上限がないことを、読み方のテストで確かめる（AC-32）。プロファイル・`go test -json`・lcov・差分のそれぞれに、1 MiB を超える 1 行（`-json` の `Output` の長い値など）を含む例を与え、受け入れられることを確かめる。64 KiB（`bufio.Scanner` の既定の上限）も 1 MiB も超える大きさで、意図しない上限を捉えるためである。
 
 **フェーズ 1 の完了の条件:** `make fmt`、`make test`、`make lint`、`make deadcode` が通る。`internal/coveragecompare` の `_test.go` は、どれも 1 行目を `//go:build test` にする（`internal/codexreview/main_test.go` と同じ。`make lint` は `go vet -tags integration ./...` も実行し（`Makefile:247`）、`test` のタグのない `_test.go` を `test_helpers.go` なしでコンパイルするため）。このフェーズの関数は本体のコードから呼ばれないが、`make deadcode` はテストも到達の起点に含める（`CLAUDE.md`「Code Quality」）。
 
