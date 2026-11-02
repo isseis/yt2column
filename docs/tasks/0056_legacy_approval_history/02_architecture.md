@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-02 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-02 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md) の設計である。要件定義から申し送られた設計事項は [design_handoff.md](design_handoff.md) にあり、各項目への対応は 10 章にまとめる。本書が引用するファイルの行番号は、特に断らない限り、コミット `89b6b592`（本書の作成時の `main`）のものである。
@@ -545,3 +545,7 @@ AC-12（本タスクの PR が `docs/tasks/` 以下の既存のタスク文書�
 | AC-10 | 3.2 節（手順 1、止まるとき）、3.3 節、3.4 節（`/fixpr`）、3.5 節（`runplan.md`・`mkarch.md`・`mkplan2.md`）、4 章 |
 | AC-11 | 3.2 節（規則の中の参照）、3.4 節・3.5 節（コマンドの定義の参照）、1.1 節 |
 | AC-12 | 7.3 節 |
+
+## 変更履歴
+
+- 2026-11-02 承認（isseis、#627）
