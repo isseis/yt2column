@@ -23,6 +23,7 @@ import type { CheckName, CheckState } from "../core/types.ts";
 import { checkIcon } from "./icons.ts";
 import { messageNodes } from "./message.ts";
 import {
+  drawStateOnChange,
   jobStateSummary,
   loadingIndicator,
   noticeSummary,
@@ -483,7 +484,9 @@ export function renderPopup(
     renderChecksSection(doc, elements.checks, view, locale);
     return;
   }
-  drawPopupState(elements.checks, view.state, elapsedMs, locale);
+  drawStateOnChange(elements.checks, view.state, elapsedMs, locale, () => {
+    drawPopupState(elements.checks, view.state, elapsedMs, locale);
+  });
   writeStatusSummary(elements.status, popupSummary(view.state, locale));
   applyJobPrimary(elements.primary, view.state, locale);
 }

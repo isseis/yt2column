@@ -19,6 +19,7 @@ import type { ViewerParams } from "../core/viewerUrl.ts";
 import { renderArticleBody } from "./articleBody.ts";
 import { messageNodes } from "./message.ts";
 import {
+  drawStateOnChange,
   jobStateSummary,
   loadingIndicator,
   noticeSummary,
@@ -239,7 +240,9 @@ export function renderViewer(
 ): void {
   const doc = elements.state.ownerDocument;
   const catalog = catalogs[locale];
-  drawState(elements.state, view, locale);
+  drawStateOnChange(elements.state, view.state, view.elapsedMs, locale, () => {
+    drawState(elements.state, view, locale);
+  });
   writeStatusSummary(elements.stateStatus, stateSummary(view.state, locale));
 
   // The article is a done job's, or the one a lost job kept.

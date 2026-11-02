@@ -8,7 +8,13 @@ import { catalogs } from "../core/i18n/catalog.ts";
 import type { Message } from "../core/i18n/catalog.ts";
 import { formatDuration, formatUsd } from "../core/i18n/locale.ts";
 import type { Locale } from "../core/i18n/locale.ts";
-import type { JobDisplay, PollNotice, StartFailure } from "../core/jobView.ts";
+import type {
+  JobDisplay,
+  PollNotice,
+  StartFailure,
+  ViewerState,
+} from "../core/jobView.ts";
+import type { PopupJobState } from "../core/popupView.ts";
 import { stepNames } from "../core/response.ts";
 import type { Article, RequestId, StepName, Steps } from "../core/response.ts";
 import {
@@ -334,4 +340,45 @@ export function renderJobState(
     ...jobNodes(doc, job, elapsedMs, locale),
     ...pollNotice(doc, notice, locale),
   );
+}
+
+/** The state last drawn into each state container, and the nodes it drew. */
+const drawnStates = new WeakMap<
+  HTMLElement,
+  { readonly key: string; readonly nodes: readonly Node[] }
+>();
+
+/**
+ * Draws a state into its container only when the state or the locale changed,
+ * or when something else replaced what was drawn. Otherwise only the elapsed
+ * time's value is written, so a redraw each second while a job runs keeps a
+ * selection (such as a request id being copied) and the focus inside the
+ * container. The key is the state's JSON: the state is plain data, and values
+ * that serialize the same draw the same.
+ */
+export function drawStateOnChange(
+  container: HTMLElement,
+  state: ViewerState | PopupJobState,
+  elapsedMs: number,
+  locale: Locale,
+  draw: () => void,
+): void {
+  const key = JSON.stringify([locale, state]);
+  const last = drawnStates.get(container);
+  const current = Array.from(container.childNodes);
+  if (
+    last !== undefined &&
+    last.key === key &&
+    last.nodes.length === current.length &&
+    last.nodes.every((node, i) => node === current[i])
+  ) {
+    const elapsed = container.querySelector(".job-elapsed dd");
+    const text = formatDuration(elapsedMs, locale);
+    if (elapsed !== null && elapsed.textContent !== text) {
+      elapsed.textContent = text;
+    }
+    return;
+  }
+  draw();
+  drawnStates.set(container, { key, nodes: Array.from(container.childNodes) });
 }

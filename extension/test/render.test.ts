@@ -35,7 +35,7 @@ import {
   otherLocales,
   popupElements,
 } from "./helpers/dom.ts";
-import { article, doneJob, runningSteps } from "./helpers/job.ts";
+import { article, doneJob, requestId, runningSteps } from "./helpers/job.ts";
 
 const malicious = "<img src=x onerror=alert(1)>";
 const localeList = Object.keys(locales) as Locale[];
@@ -923,6 +923,34 @@ describe("job view", () => {
     assert.equal(elements.video.firstElementChild, heading);
     assert.equal(elements.details.querySelector("summary"), summary);
     assert.equal(elements.video.ownerDocument.activeElement, summary);
+  });
+
+  it("keeps the checks' nodes and writes only the elapsed time when nothing else changes", () => {
+    const rejected: PollNotice = {
+      kind: "stopped",
+      outcome: { kind: "rejected", reason: "internal_error", requestId },
+    };
+    const elements = drawn(jobState(runningJob, rejected), "en", 1_000);
+    const id = elements.checks.querySelector(".send-request-id");
+    assert.ok(id !== null);
+    renderPopup(
+      elements,
+      jobPopup(jobState(runningJob, rejected)),
+      "en",
+      2_000,
+    );
+    assert.equal(elements.checks.querySelector(".send-request-id"), id);
+    assert.equal(
+      elements.checks.querySelector(".job-elapsed dd")?.textContent,
+      formatDuration(2_000, "en"),
+    );
+  });
+
+  it("draws the job state again after the collected view replaced the checks", () => {
+    const elements = drawn(jobState(runningJob), "en", 1_000);
+    renderPopup(elements, collectedView(), "en");
+    renderPopup(elements, jobPopup(jobState(runningJob)), "en", 1_000);
+    assert.ok(elements.checks.querySelector(".job-elapsed") !== null);
   });
 
   it("draws the details again in the new locale when only the locale changes", () => {
