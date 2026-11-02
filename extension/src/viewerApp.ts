@@ -232,8 +232,8 @@ export async function startViewer(
 
   let state: ViewerState = { kind: "sending" };
   let publishing = false;
-  /** The epoch whose first status ends publishing after an accepted publish. */
-  let publishEpoch: number | undefined;
+  /** An accepted publish waits for the first status of a later epoch to end publishing. */
+  let awaitingPublishStatus = false;
   let actionNotice: ActionNotice = { kind: "none" };
   // Counts the poller's epochs: it moves exactly when the viewer calls the
   // poller's start or bumpEpoch, so a status result sent in an earlier epoch
@@ -315,11 +315,12 @@ export async function startViewer(
         deps.log.info(statusResultLabel, entry);
       }
     }
-    // A take-over that goes on moves the epoch again before the first status
-    // after the publish, so any current reply from that epoch on ends it.
-    if (currentEpoch && publishEpoch !== undefined && epoch >= publishEpoch) {
+    // The first current reply after an accepted publish ends publishing. The
+    // epoch only grows, and a take-over that goes on may move it past the
+    // publish's own epoch, so the reply is not required to be of that epoch.
+    if (currentEpoch && awaitingPublishStatus) {
       publishing = false;
-      publishEpoch = undefined;
+      awaitingPublishStatus = false;
     }
     if (step.job !== undefined) {
       show({ kind: "job", job: step.job, notice: step.notice });
@@ -444,7 +445,7 @@ export async function startViewer(
     params = { ...params, sentAt: message.sentAt };
     writeUrl();
     publishing = false;
-    publishEpoch = undefined;
+    awaitingPublishStatus = false;
     showActionNotice({ kind: "none" });
     if (key !== undefined) {
       startPolling(key);
@@ -522,7 +523,7 @@ export async function startViewer(
     switch (outcome.kind) {
       case "accepted":
         bumpEpoch();
-        publishEpoch = epoch;
+        awaitingPublishStatus = true;
         break;
       case "rejected": {
         publishing = false;

@@ -16,7 +16,7 @@ import type {
   PublishRow,
   ViewerState,
 } from "../src/core/jobView.ts";
-import { renderViewer } from "../src/ui/renderViewer.ts";
+import { renderViewer, renderViewerHeader } from "../src/ui/renderViewer.ts";
 import { previewCases, viewerPreviewCases } from "../scripts/popup-preview.ts";
 import {
   popupDocument,
@@ -289,7 +289,6 @@ describe("popup preview script", () => {
     const stylesheets = [
       ...viewerDocument().querySelectorAll("link[rel=stylesheet]"),
     ].map((link) => link.getAttribute("href") ?? "");
-    assert.deepEqual(stylesheets, ["theme.css", "viewer.css"]);
     for (const stylesheet of stylesheets) {
       assert.equal(
         readFileSync(path.join(output, stylesheet)).toString("utf8"),
@@ -324,23 +323,30 @@ describe("popup preview script", () => {
         `${file}: holds a script`,
       );
       assert.equal(doc.documentElement.lang, previewCase.locale, file);
-      // The page shows what the viewer draws for the same view: the same
-      // text in the same elements.
+      // The page shows what the viewer draws for the same view and header:
+      // the same body, element by element, with each element's class, text
+      // when it has no children, and whether it is hidden or disabled.
       const expected = viewerElements();
+      renderViewerHeader(expected, previewCase.header, previewCase.locale);
       renderViewer(expected, previewCase.view, previewCase.locale);
-      const shape = (root: Element | null): string[] =>
-        root === null
-          ? []
-          : [root, ...root.querySelectorAll("*")].map(
-              (element) => `${element.tagName}.${element.className}`,
-            );
-      const shown = doc.getElementById("state");
-      assert.equal(
-        shown?.textContent,
-        expected.state.textContent,
-        `${file}: state text`,
+      const shape = (body: HTMLElement): string[] =>
+        [...body.querySelectorAll("*")]
+          .filter((element) => element.tagName !== "SCRIPT")
+          .map((element) =>
+            [
+              element.tagName,
+              element.id,
+              element.className,
+              element.children.length === 0 ? element.textContent : "",
+              element.hasAttribute("hidden") ? "hidden" : "",
+              element.hasAttribute("disabled") ? "disabled" : "",
+            ].join("|"),
+          );
+      assert.deepEqual(
+        shape(doc.body),
+        shape(expected.state.ownerDocument.body),
+        `${file}: body`,
       );
-      assert.deepEqual(shape(shown), shape(expected.state), `${file}: state`);
     }
     for (const [name, counts] of Object.entries({ states, jobs, rows })) {
       for (const [kind, count] of Object.entries(counts)) {

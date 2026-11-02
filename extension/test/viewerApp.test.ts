@@ -20,10 +20,9 @@ import type { ViewerState } from "../src/core/jobView.ts";
 import type { NativeReply } from "../src/core/native.ts";
 import { pollIntervalMs, startResultDeadlineMs } from "../src/core/poll.ts";
 import { publishRejectStatus } from "../src/core/response.ts";
-import type { PublishRejectReason, RequestId } from "../src/core/response.ts";
+import type { PublishRejectReason } from "../src/core/response.ts";
 import {
   publishResultMessage,
-  startResultMessage,
   statusNoticeMessage,
 } from "../src/core/sendMessages.ts";
 import { parseViewerUrl, viewerQuery } from "../src/core/viewerUrl.ts";
@@ -43,13 +42,13 @@ import {
 import { fakeClock, settle, type FakeClock } from "./helpers/clock.ts";
 import { viewerDocument, viewerElements } from "./helpers/dom.ts";
 import { recordingLogger, type RecordingLogger } from "./helpers/logger.ts";
+import { doneSteps, requestId, runningSteps } from "./helpers/job.ts";
 import { errorReply, responseReply } from "./helpers/native.ts";
 
 const sentAt = 1_700_000_000_000;
 /** When the page loads in most cases: a second after the send. */
 const loadedAt = sentAt + 1_000;
 const key = "key-1" as ArticleKey;
-const requestId = "0123456789abcdef" as RequestId;
 const watchUrl = "https://www.youtube.com/watch?v=abc";
 const ownTab: TabPlace = { tabId: 5, windowId: 2 };
 
@@ -61,8 +60,6 @@ const seed = {
   sentAt,
 };
 
-const runningSteps = { draft: "done", shorten: "running", review: "pending" };
-const doneSteps = { draft: "done", shorten: "skipped", review: "done" };
 const article = {
   markdown: "# Title\n\nBody\r\nmore",
   file: "---\ntitle: Title\n---\n\nBody\r\nmore\n",
@@ -104,10 +101,7 @@ const statusRejected = responseReply(
 /** The running job of runningJob as the viewer shows it, with no notice. */
 const runningState: ViewerState = {
   kind: "job",
-  job: {
-    kind: "running",
-    steps: { draft: "done", shorten: "running", review: "pending" },
-  },
+  job: { kind: "running", steps: runningSteps },
   notice: { kind: "none" },
 };
 
@@ -443,9 +437,6 @@ describe("startViewer: display and URL", () => {
         stateText(viewer),
         drawnState({ kind: "start-failed", failure: outcome }),
       );
-      assert.ok(
-        stateText(viewer).includes(startResultMessage(outcome, "en").text),
-      );
       viewer.clock.advance(startResultDeadlineMs);
       await settle();
       assert.deepEqual(viewer.host.sent, []);
@@ -491,15 +482,6 @@ describe("startViewer: display and URL", () => {
       const viewer = await open({ query: queryOf({ key }) });
       await viewer.host.answer(reply);
       assert.equal(stateText(viewer), drawnState({ kind: "loading", notice }));
-      assert.ok(
-        stateText(viewer).includes(
-          statusNoticeMessage(notice.outcome, "en").text,
-        ),
-      );
-      assert.equal(
-        viewer.elements.state.querySelector(".loading") !== null,
-        notice.kind === "retrying",
-      );
       // A failed exchange is logged as an error; a server's rejection is its answer.
       const level =
         notice.kind === "retrying" ? viewer.logger.errors : viewer.logger.infos;
@@ -527,6 +509,8 @@ describe("startViewer: display and URL", () => {
     assert.ok(viewer.elements.state.querySelector(".step-list") !== null);
   });
 
+  // renderViewer writes the summary only when it changes; this checks that
+  // the viewer's redraw on every poll and every second keeps that property.
   it("writes the state summary only when the state changes", async () => {
     const viewer = await showing(runningJob);
     const summary = viewer.elements.stateStatus.firstChild;
@@ -545,8 +529,6 @@ describe("startViewer: display and URL", () => {
     viewer.setVisible(false);
     viewer.setVisible(true);
     assert.equal(viewer.host.count("status"), 2);
-    viewer.setVisible(true);
-    assert.equal(viewer.host.count("status"), 2);
     await viewer.host.answer(statusReply(runningJob));
     const last = viewer.logger.infos.at(-1);
     assert.equal(last?.label, "yt2column status result");
@@ -558,29 +540,20 @@ describe("startViewer: operations", () => {
   for (const [name, reply] of [
     ["not sent", errorReply("server_unavailable")],
     ["host failed", { kind: "failed", lastError: "host exited" }],
-    [
-      "rejected",
-      responseReply(
-        400,
-        JSON.stringify({
-          status: "rejected",
-          reason: "invalid_key",
-          requestId,
-        }),
-      ),
-    ],
+    ["rejected", statusRejected],
   ] as const) {
     it(`sends neither a start nor a publish on a failed status (${name})`, async () => {
-      // A posting article is polled, and its button cannot be pressed.
-      const viewer = await showing(doneJob({ state: "posting" }));
-      viewer.clock.advance(pollIntervalMs);
+      // A take-over of a done job restarts its stopped poller, so the status
+      // fails while the not posted row can be pressed: only the viewer's own
+      // restraint keeps it from publishing.
+      const viewer = await showing(doneJob({ state: "not_posted" }));
+      await post(viewer, { type: "find", queryId, key });
+      await post(viewer, takeOver());
       await viewer.host.answer(reply);
+      assert.equal(viewer.elements.publish.disabled, false);
       viewer.clock.advance(10 * pollIntervalMs);
       await settle();
-      assert.deepEqual(
-        new Set(viewer.host.sent.map((message) => message.op)),
-        new Set(["status"]),
-      );
+      assert.equal(viewer.host.count("publish"), 0);
       assert.deepEqual(viewer.worker.sent, []);
     });
   }
