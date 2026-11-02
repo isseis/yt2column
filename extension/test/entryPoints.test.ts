@@ -238,11 +238,22 @@ describe("message entry points", () => {
 describe("host sends", () => {
   const files = sourceFiles();
 
-  it("builds the send dependencies only in the popup and service worker entries", () => {
+  it("builds the send dependencies only in the popup, viewer and service worker entries", () => {
     const found = callsIn(files, (call) => calls(call, "createSendDeps"));
     assert.deepEqual(
       [...new Set(found.map(({ file }) => file))],
-      ["src/background.ts", "src/popup.ts"],
+      ["src/background.ts", "src/popup.ts", "src/viewer.ts"],
+    );
+  });
+
+  it("builds a publish message only in the viewer's handler of the publish button", () => {
+    const found = callsIn(files, (call) => calls(call, "publishMessage"));
+    assert.deepEqual(
+      found.map(({ file, call }) => [
+        file,
+        functionName(enclosingFunction(call)),
+      ]),
+      [["src/viewerApp.ts", "publishArticle"]],
     );
   });
 

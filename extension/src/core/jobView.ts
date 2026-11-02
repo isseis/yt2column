@@ -23,8 +23,9 @@ export type ViewerState =
   | { readonly kind: "sending" }
   // Rejected, not sent, or unknown.
   | { readonly kind: "start-failed"; readonly failure: StartFailure }
-  // A key, waiting for the first status.
-  | { readonly kind: "loading" }
+  // A key, waiting for the first status. A failed status exchange adds its
+  // notice, as it does beside a job.
+  | { readonly kind: "loading"; readonly notice: PollNotice }
   | {
       readonly kind: "job";
       readonly job: JobDisplay;
@@ -52,6 +53,20 @@ export type JobDisplay =
     }
   // The server holds no job for the key; kept when a done article was shown.
   | { readonly kind: "lost"; readonly kept?: Article };
+
+/** The article a job shows: a done job's, or the one a lost job kept; none for any other job. */
+export function jobArticle(job: JobDisplay | undefined): Article | undefined {
+  switch (job?.kind) {
+    case "done":
+      return job.article;
+    case "lost":
+      return job.kept;
+    case "running":
+    case "failed":
+    case undefined:
+      return undefined;
+  }
+}
 
 /** Status results that leave the state shown and keep polling; derived from StatusOutcome, never re-listed. */
 export type RetryingStatus =

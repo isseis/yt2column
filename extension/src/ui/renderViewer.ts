@@ -7,7 +7,7 @@ import { isAcceptedWatchUrl } from "../core/acceptedUrl.ts";
 import { catalogs } from "../core/i18n/catalog.ts";
 import type { Message } from "../core/i18n/catalog.ts";
 import type { Locale } from "../core/i18n/locale.ts";
-import { publishControl } from "../core/jobView.ts";
+import { jobArticle, publishControl } from "../core/jobView.ts";
 import type {
   JobDisplay,
   PollNotice,
@@ -25,6 +25,7 @@ import { renderArticleBody } from "./articleBody.ts";
 import { messageNodes } from "./render.ts";
 import {
   loadingIndicator,
+  pollNotice,
   renderJobState,
   requestIdNode,
   startFailure,
@@ -166,7 +167,13 @@ function drawState(
       container.replaceChildren(loadingIndicator(doc, viewer.sending));
       return;
     case "loading":
-      container.replaceChildren(loadingIndicator(doc, viewer.loading));
+      // A stopped poll waits for nothing, so its notice stands alone.
+      container.replaceChildren(
+        ...(state.notice.kind === "stopped"
+          ? []
+          : [loadingIndicator(doc, viewer.loading)]),
+        ...pollNotice(doc, state.notice, locale),
+      );
       return;
     case "start-failed":
       container.replaceChildren(startFailure(doc, state.failure, locale));
@@ -226,7 +233,10 @@ function stateSummary(state: ViewerState, locale: Locale): string[] {
     case "sending":
       return [viewer.sending.text];
     case "loading":
-      return [viewer.loading.text];
+      return [
+        ...(state.notice.kind === "stopped" ? [] : [viewer.loading.text]),
+        ...noticeSummary(state.notice, locale),
+      ];
     case "start-failed":
       return [startResultMessage(state.failure, locale).text];
     case "job":
@@ -277,7 +287,7 @@ export function renderViewer(
 
   // The article is a done job's, or the one a lost job kept.
   const job = publishableJob(view.state);
-  const article = job?.kind === "done" ? job.article : job?.kept;
+  const article = jobArticle(job);
   if (job === undefined || article === undefined) {
     elements.article.hidden = true;
     elements.article.replaceChildren();

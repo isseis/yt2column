@@ -37,6 +37,15 @@ const malicious = "<img src=x onerror=alert(1)>";
 const watchUrl = "https://www.youtube.com/watch?v=abc";
 const none: PollNotice = { kind: "none" };
 const running: JobDisplay = { kind: "running", steps: runningSteps };
+const loading: ViewerState = { kind: "loading", notice: none };
+const retrying: PollNotice = {
+  kind: "retrying",
+  outcome: { kind: "no-response" },
+};
+const stopped: PollNotice = {
+  kind: "stopped",
+  outcome: { kind: "unexpected", check: "syntax" },
+};
 
 /** A view of state, with the elapsed time and the publishing flag. */
 function view(
@@ -153,12 +162,16 @@ describe("renderViewer states", () => {
       assert.equal(elements.actions.hidden, true);
     });
 
-    for (const [kind, messageFor] of [
-      ["sending", (l: Locale) => catalogs[l].viewer.sending],
-      ["loading", (l: Locale) => catalogs[l].viewer.loading],
+    for (const [kind, state, messageFor] of [
+      [
+        "sending",
+        { kind: "sending" },
+        (l: Locale) => catalogs[l].viewer.sending,
+      ],
+      ["loading", loading, (l: Locale) => catalogs[l].viewer.loading],
     ] as const) {
       it(`shows the loading mark with the ${kind} wait's sentence in ${locale}`, () => {
-        const elements = drawn(view({ kind }), locale);
+        const elements = drawn(view(state), locale);
         const indicator = query<HTMLElement>(elements.state, ".loading");
         assert.ok(indicator.querySelector(".loading-icon") !== null);
         expectLocaleMessage(indicator, locale, messageFor);
@@ -166,8 +179,40 @@ describe("renderViewer states", () => {
       });
     }
 
+    it(`keeps the loading mark beside a retrying notice while loading in ${locale}`, () => {
+      const elements = drawn(
+        view({ kind: "loading", notice: retrying }),
+        locale,
+      );
+      assert.ok(elements.state.querySelector(".loading") !== null);
+      expectLocaleMessage(
+        query(elements.state, ".job-notice"),
+        locale,
+        (l) => catalogs[l].statusExchange.noResponse,
+      );
+    });
+
+    it(`shows a stopped notice without the loading mark while loading in ${locale}`, () => {
+      const elements = drawn(
+        view({ kind: "loading", notice: stopped }),
+        locale,
+      );
+      assert.equal(elements.state.querySelector(".loading"), null);
+      expectLocaleMessage(
+        query(elements.state, ".job-notice"),
+        locale,
+        (l) => catalogs[l].statusExchange.unexpected,
+      );
+      assert.equal(
+        (elements.stateStatus.textContent ?? "").includes(
+          catalogs[locale].viewer.loading.text,
+        ),
+        false,
+      );
+    });
+
     it(`replaces the loading mark with the first status in ${locale}`, () => {
-      const elements = drawn(view({ kind: "loading" }), locale);
+      const elements = drawn(view(loading), locale);
       renderViewer(elements, view(jobState(running)), locale);
       assert.equal(elements.state.querySelector(".loading"), null);
       assert.ok(elements.state.querySelector(".step-list") !== null);
@@ -447,10 +492,16 @@ describe("status regions", () => {
         { kind: "sending" },
         (l: Locale) => catalogs[l].viewer.sending.text,
       ],
+      ["loading", loading, (l: Locale) => catalogs[l].viewer.loading.text],
       [
-        "loading",
-        { kind: "loading" },
-        (l: Locale) => catalogs[l].viewer.loading.text,
+        "status not read while loading",
+        { kind: "loading", notice: retrying },
+        (l: Locale) => catalogs[l].statusExchange.noResponse.text,
+      ],
+      [
+        "status checks stopped while loading",
+        { kind: "loading", notice: stopped },
+        (l: Locale) => catalogs[l].statusExchange.unexpected.text,
       ],
       [
         "done",
@@ -600,7 +651,7 @@ describe("article redraw", () => {
 
   it("clears the publish row when the article is no longer shown", () => {
     const elements = drawn(view(jobState(doneJob({ state: "posted" }))), "en");
-    renderViewer(elements, view({ kind: "loading" }), "en");
+    renderViewer(elements, view(loading), "en");
     assert.equal(elements.publishRow.textContent, "");
   });
 });

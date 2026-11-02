@@ -10,8 +10,19 @@ import { JSDOM } from "jsdom";
 import { catalogs } from "../src/core/i18n/catalog.ts";
 import { metadataDisplayLimit } from "../src/core/popupView.ts";
 import { truncate } from "../src/core/summary.ts";
-import { previewCases } from "../scripts/popup-preview.ts";
-import { popupDocument } from "./helpers/dom.ts";
+import { publishControl } from "../src/core/jobView.ts";
+import type {
+  JobDisplay,
+  PublishRow,
+  ViewerState,
+} from "../src/core/jobView.ts";
+import { renderViewer, renderViewerHeader } from "../src/ui/renderViewer.ts";
+import { previewCases, viewerPreviewCases } from "../scripts/popup-preview.ts";
+import {
+  popupDocument,
+  viewerDocument,
+  viewerElements,
+} from "./helpers/dom.ts";
 import { extensionDir } from "./helpers/paths.ts";
 
 /** What one input set's page must show beyond the common structure. */
@@ -237,6 +248,109 @@ describe("popup preview script", () => {
           shown(channelName),
           `${file}: channel name`,
         );
+      }
+    }
+  });
+
+  it("writes one page per viewer state, job kind and publish row, styled as the viewer is", () => {
+    const output = mkdtempSync(path.join(tmpdir(), "popup-preview-"));
+    dirs.push(output);
+    const result = spawnSync(
+      process.execPath,
+      ["scripts/popup-preview.ts", output],
+      { cwd: extensionDir, encoding: "utf8" },
+    );
+    assert.equal(result.status, 0, result.stderr);
+
+    // Every kind is covered: the keys are total over each union, so a kind
+    // added later fails to compile here until it has a page.
+    const states: Record<ViewerState["kind"], number> = {
+      "invalid-link": 0,
+      sending: 0,
+      "start-failed": 0,
+      loading: 0,
+      job: 0,
+    };
+    const jobs: Record<JobDisplay["kind"], number> = {
+      running: 0,
+      done: 0,
+      failed: 0,
+      lost: 0,
+    };
+    const rows: Record<PublishRow["row"], number> = {
+      lost: 0,
+      posted: 0,
+      posting: 0,
+      unpostable: 0,
+      "webhook-not-configured": 0,
+      failed: 0,
+      "not-posted": 0,
+    };
+    const stylesheets = [
+      ...viewerDocument().querySelectorAll("link[rel=stylesheet]"),
+    ].map((link) => link.getAttribute("href") ?? "");
+    for (const stylesheet of stylesheets) {
+      assert.equal(
+        readFileSync(path.join(output, stylesheet)).toString("utf8"),
+        readFileSync(path.join(extensionDir, "static", stylesheet), "utf8"),
+        `${stylesheet} is not the shipped stylesheet`,
+      );
+    }
+
+    for (const previewCase of viewerPreviewCases) {
+      const { state } = previewCase.view;
+      states[state.kind] += 1;
+      if (state.kind === "job") {
+        jobs[state.job.kind] += 1;
+        if (state.job.kind === "done" || state.job.kind === "lost") {
+          rows[publishControl(state.job, false).row.row] += 1;
+        }
+      }
+      const file = `${previewCase.name}.html`;
+      const full = path.join(output, file);
+      assert.ok(existsSync(full), file);
+      const doc = new JSDOM(readFileSync(full, "utf8")).window.document;
+      assert.deepEqual(
+        [...doc.querySelectorAll("link")].map((link) =>
+          link.getAttribute("href"),
+        ),
+        stylesheets,
+        `${file}: stylesheets`,
+      );
+      assert.equal(
+        doc.querySelectorAll("script").length,
+        0,
+        `${file}: holds a script`,
+      );
+      assert.equal(doc.documentElement.lang, previewCase.locale, file);
+      // The page shows what the viewer draws for the same view and header:
+      // the same body, element by element, with each element's class, text
+      // when it has no children, and whether it is hidden or disabled.
+      const expected = viewerElements();
+      renderViewerHeader(expected, previewCase.header, previewCase.locale);
+      renderViewer(expected, previewCase.view, previewCase.locale);
+      const shape = (body: HTMLElement): string[] =>
+        [...body.querySelectorAll("*")]
+          .filter((element) => element.tagName !== "SCRIPT")
+          .map((element) =>
+            [
+              element.tagName,
+              element.id,
+              element.className,
+              element.children.length === 0 ? element.textContent : "",
+              element.hasAttribute("hidden") ? "hidden" : "",
+              element.hasAttribute("disabled") ? "disabled" : "",
+            ].join("|"),
+          );
+      assert.deepEqual(
+        shape(doc.body),
+        shape(expected.state.ownerDocument.body),
+        `${file}: body`,
+      );
+    }
+    for (const [name, counts] of Object.entries({ states, jobs, rows })) {
+      for (const [kind, count] of Object.entries(counts)) {
+        assert.ok(count > 0, `no page for the ${kind} ${name}`);
       }
     }
   });
