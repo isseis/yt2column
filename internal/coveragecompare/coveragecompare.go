@@ -25,7 +25,7 @@ const (
 	OutcomeFail
 )
 
-// StopKind is why a run stopped (requirement AC-23).
+// StopKind is why a run stopped.
 type StopKind int
 
 // StopKind values.
@@ -76,7 +76,7 @@ type Options struct {
 }
 
 // FuncID identifies a function by its file, relative to the repository root,
-// and its first line (requirement AC-17).
+// and its first line.
 type FuncID struct {
 	File string
 	Line int
@@ -84,7 +84,7 @@ type FuncID struct {
 
 // Measure is what one point (BASE or HEAD) measured.
 type Measure struct {
-	Tests     int // executed tests (requirement AC-30)
+	Tests     int // executed tests
 	Files     int // product files that appear in the point's report
 	Functions int // product functions that appear in the point's report
 }
@@ -116,7 +116,7 @@ const (
 	NoStatements                 // a Go function with no statements
 )
 
-// DeletedFunc is one deleted function (requirement AC-18, AC-22).
+// DeletedFunc is one deleted function.
 type DeletedFunc struct {
 	ID    FuncID
 	Names []string // one name for Go; the FN names of the line for the extension
@@ -140,7 +140,7 @@ type Coverage struct {
 }
 
 // LostFunc is one compared Go function, or one line group of extension
-// functions, whose coverage went down (requirement AC-10, AC-12, AC-14).
+// functions, whose coverage went down.
 type LostFunc struct {
 	ID     FuncID
 	Names  []string // one name for Go; every name on the line for the extension

@@ -174,8 +174,8 @@ func TestParseProfile(t *testing.T) {
 }
 
 func TestParseProfileAcceptsLongLine(t *testing.T) {
-	// AC-32: no input size limit. A single line longer than 1 MiB must not hit
-	// an implicit scanner limit.
+	// No input size limit: a single line longer than 1 MiB must not hit an
+	// implicit scanner limit.
 	longFile := strings.Repeat("a", 1<<20)
 	data := "mode: set\n" + testModulePath + "/" + longFile + ".go:1.1,1.2 1 1\n"
 	profile, err := parseGoProfile([]byte(data), testModulePath, PointHead)
