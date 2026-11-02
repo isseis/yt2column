@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-02 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-02 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の項番、H-NN は [design_handoff.md](design_handoff.md) の項目を指す。「設計書 3.2 節」のように書くときは設計書の節を指す。「規則」「対象のコマンドの定義」「状態の遷移」「変更履歴」「写した承認の行」「状態表」「手順 7 の確かめ」「修正のエージェント」「このセッション」は、設計書の冒頭の定義と同じ意味で使う。本タスクに `implementation_handoff.md` はない。`design_handoff.md` の H-01〜H-06 は、どれも設計書 10 章に記録されている。
@@ -319,3 +319,7 @@ M1〜M3 は 1 つの PR にまとめる。規則だけが先に `main` に入る
 
 -   本タスクのマージの後、変更履歴のない承認済みの文書に最初の状態の遷移を書く PR で、写した承認の行と手順 7 の確かめが規則どおりに行われるかを見る（要件書 2.3）。
 -   既存の文書への一括の適用、マージの前の確かめ、確かめのツール化は、必要になったら別のタスクにする（設計書 9 章）。
+
+## 変更履歴
+
+- 2026-11-02 承認（isseis、#628）
