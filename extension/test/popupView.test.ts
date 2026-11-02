@@ -7,9 +7,15 @@ import type { MetadataResult } from "../src/core/metadata.ts";
 import {
   buildCollectedView,
   metadataDisplayLimit,
+  primaryAction,
 } from "../src/core/popupView.ts";
-import type { CollectedView } from "../src/core/popupView.ts";
+import type {
+  CollectedView,
+  PopupJobState,
+  PrimaryAction,
+} from "../src/core/popupView.ts";
 import { maxBodyBytes, prepareSend } from "../src/core/prepare.ts";
+import { doneJob, runningSteps } from "./helpers/job.ts";
 
 const watchUrl = "https://www.youtube.com/watch?v=abc";
 
@@ -261,4 +267,55 @@ describe("buildCollectedView", () => {
       });
     });
   });
+});
+
+describe("primaryAction", () => {
+  const none = { kind: "none" } as const;
+  const rows = [
+    ["sending", { kind: "sending" }, "none"],
+    [
+      "a start without a result",
+      { kind: "start-failed", failure: { kind: "no-result" } },
+      "none",
+    ],
+    ["loading", { kind: "loading", notice: none }, "open-viewer"],
+    [
+      "a running job",
+      {
+        kind: "job",
+        job: { kind: "running", steps: runningSteps },
+        notice: none,
+      },
+      "open-viewer",
+    ],
+    [
+      "a done job",
+      { kind: "job", job: doneJob({ state: "not_posted" }), notice: none },
+      "open-viewer",
+    ],
+    [
+      "a failed job",
+      {
+        kind: "job",
+        job: { kind: "failed", steps: runningSteps, failure: "llm_failed" },
+        notice: none,
+      },
+      "retry",
+    ],
+    [
+      "a lost job",
+      { kind: "job", job: { kind: "lost" }, notice: none },
+      "retry",
+    ],
+  ] as const satisfies readonly (readonly [
+    string,
+    PopupJobState,
+    PrimaryAction,
+  ])[];
+
+  for (const [name, state, action] of rows) {
+    it(`returns ${action} for ${name}`, () => {
+      assert.equal(primaryAction(state), action);
+    });
+  }
 });

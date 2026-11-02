@@ -2,12 +2,18 @@ import { catalogs } from "../core/i18n/catalog.ts";
 import type { Message } from "../core/i18n/catalog.ts";
 import type { Locale } from "../core/i18n/locale.ts";
 import { expandPromptMessage, rejectionMessage } from "../core/messages.ts";
-import { descriptionStates, selectionStates } from "../core/popupView.ts";
+import {
+  descriptionStates,
+  primaryAction,
+  selectionStates,
+} from "../core/popupView.ts";
 import type {
   CollectedView,
   DescriptionStatus,
   DetailsView,
+  PopupJobState,
   PopupView,
+  PrimaryAction,
   SelectionCheck,
   SelectionStatus,
   VideoView,
@@ -15,6 +21,19 @@ import type {
 import type { DisplayText } from "../core/summary.ts";
 import type { CheckName, CheckState } from "../core/types.ts";
 import { checkIcon } from "./icons.ts";
+import { messageNodes } from "./message.ts";
+import {
+  drawStateOnChange,
+  jobStateSummary,
+  loadingIndicator,
+  noticeSummary,
+  renderJobState,
+  startFailure,
+  startFailureSummary,
+  waitingNodes,
+  waitingSummary,
+  writeStatusSummary,
+} from "./renderJob.ts";
 
 /** Appended to a value that was shortened for display. */
 const ellipsis = "\u2026";
@@ -22,31 +41,6 @@ const ellipsis = "\u2026";
 /** The value shown for a field, marked with an ellipsis when shortened. */
 function displayValue(value: string, truncated: boolean): string {
   return truncated ? `${value}${ellipsis}` : value;
-}
-
-/**
- * The message text and, when present, its numbered steps; textContent only.
- * The text is always the first node, so a caller that names its container by
- * the message's own text can take it from the first slot.
- */
-export function messageNodes(
-  doc: Document,
-  message: Message,
-): [HTMLElement, ...HTMLElement[]] {
-  const text = doc.createElement("p");
-  text.className = "message-text";
-  text.textContent = message.text;
-  if (message.steps.length === 0) {
-    return [text];
-  }
-  const list = doc.createElement("ol");
-  list.className = "message-steps";
-  for (const step of message.steps) {
-    const item = doc.createElement("li");
-    item.textContent = step;
-    list.append(item);
-  }
-  return [text, list];
 }
 
 /** The primary button and the status region; all the send path touches. */
@@ -282,37 +276,217 @@ function renderDetailsSection(
   container.replaceChildren(summary, list);
 }
 
+/** The last video section and details drawn into each container. */
+const drawnVideo = new WeakMap<HTMLElement, VideoView>();
+const drawnDetails = new WeakMap<
+  HTMLElement,
+  { readonly view: DetailsView; readonly locale: Locale }
+>();
+
+/** Whether two display values are the same text with the same truncation. */
+function sameText(left: DisplayText, right: DisplayText): boolean {
+  return left.value === right.value && left.truncated === right.truncated;
+}
+
+/** Whether two video sections would be drawn the same. */
+function sameVideo(left: VideoView, right: VideoView): boolean {
+  if (!sameText(left.heading, right.heading)) {
+    return false;
+  }
+  if (left.channelName === undefined || right.channelName === undefined) {
+    return left.channelName === right.channelName;
+  }
+  return sameText(left.channelName, right.channelName);
+}
+
+/** Whether two details would be drawn the same. */
+function sameDetails(left: DetailsView, right: DetailsView): boolean {
+  return (
+    sameText(left.url, right.url) && sameText(left.tabTitle, right.tabTitle)
+  );
+}
+
+/**
+ * Draws the video section only when its values changed. A job redraws once a
+ * second to show the elapsed time; replacing an unchanged section would move
+ * the focus off the details toggle and drop the reader's selection.
+ */
+function drawVideoSection(
+  doc: Document,
+  container: HTMLElement,
+  view: VideoView,
+): void {
+  const last = drawnVideo.get(container);
+  if (last !== undefined && sameVideo(last, view)) {
+    return;
+  }
+  renderVideoSection(doc, container, view);
+  drawnVideo.set(container, view);
+}
+
+/** Draws the details only when their values changed, for the same reason. */
+function drawDetailsSection(
+  doc: Document,
+  container: HTMLElement,
+  view: DetailsView,
+  locale: Locale,
+): void {
+  // The toggle's name is in the locale, so a changed locale draws again too.
+  const last = drawnDetails.get(container);
+  if (
+    last !== undefined &&
+    last.locale === locale &&
+    sameDetails(last.view, view)
+  ) {
+    return;
+  }
+  renderDetailsSection(doc, container, view, locale);
+  drawnDetails.set(container, { view, locale });
+}
+
+/** The checks section's content for a job state: the state, then its guidance. */
+function drawPopupState(
+  container: HTMLElement,
+  state: PopupJobState,
+  elapsedMs: number,
+  locale: Locale,
+): void {
+  const doc = container.ownerDocument;
+  const catalog = catalogs[locale];
+  switch (state.kind) {
+    case "sending":
+      container.replaceChildren(
+        ...loadingIndicator(doc, catalog.popup.sending),
+      );
+      return;
+    case "start-failed":
+      container.replaceChildren(startFailure(doc, state.failure, locale));
+      return;
+    case "loading":
+      // The close-popup guidance applies even to a stopped poll.
+      container.replaceChildren(
+        ...waitingNodes(doc, state.notice, locale),
+        ...messageNodes(doc, catalog.popup.viewerNotice),
+      );
+      return;
+    case "job": {
+      renderJobState(container, state.job, state.notice, elapsedMs, locale);
+      const guidance =
+        state.job.kind === "running"
+          ? catalog.popup.viewerNotice
+          : state.job.kind === "done"
+            ? catalog.popup.articleReady
+            : undefined;
+      if (guidance !== undefined) {
+        container.append(...messageNodes(doc, guidance));
+      }
+      return;
+    }
+  }
+}
+
+/** The state summary's sentences: loading started or ended, the steps, completion or failure. */
+function popupSummary(state: PopupJobState, locale: Locale): string[] {
+  switch (state.kind) {
+    case "sending":
+      return [catalogs[locale].popup.sending.text];
+    case "start-failed":
+      return startFailureSummary(state.failure, locale);
+    case "loading":
+      return waitingSummary(state.notice, locale);
+    case "job":
+      return [
+        ...jobStateSummary(
+          state.job,
+          [catalogs[locale].popup.articleReady.text],
+          locale,
+        ),
+        ...noticeSummary(state.notice, locale),
+      ];
+  }
+}
+
+/** The catalog's button name for each action; a new action fails to compile here. */
+const primaryNames: Readonly<
+  Record<PrimaryAction, "generate" | "openViewer" | "retry">
+> = {
+  none: "generate",
+  "open-viewer": "openViewer",
+  retry: "retry",
+};
+
+/**
+ * The primary button for a job state: its name follows the action, and only
+ * an available action makes it pressable. With no action the button keeps the
+ * pre-send name and stays disabled, as the design leaves it while the start
+ * has no result.
+ */
+function applyJobPrimary(
+  primary: HTMLButtonElement,
+  state: PopupJobState,
+  locale: Locale,
+): void {
+  const action = primaryAction(state);
+  const name = catalogs[locale].popup.primary[primaryNames[action]];
+  // A running job redraws each second; rewriting the same name of a focused
+  // button would only churn its text node.
+  if (primary.textContent !== name) {
+    primary.textContent = name;
+  }
+  primary.disabled = action === "none";
+}
+
 /**
  * Draws the popup view into the skeleton. It replaces each container's
  * children, so drawing twice adds nothing, and shows the view's sections while
  * hiding the others. Every string is set with textContent, so a value read
- * from the page stays text. It never opens the details. It always leaves the
- * primary button disabled, whatever the skeleton says: only the send path
- * enables it, and only for a sendable selection.
+ * from the page stays text. It never opens the details. A collected or
+ * rejected view leaves the primary button disabled, whatever the skeleton
+ * says: only the send path enables it, and only for a sendable selection. A
+ * job view instead follows primaryAction, and its state summary is written
+ * only when it changes, so the elapsed time's redraw is not announced.
  */
 export function renderPopup(
   elements: PopupElements,
   view: PopupView,
   locale: Locale,
+  elapsedMs = 0,
 ): void {
   const doc = elements.video.ownerDocument;
-  const collected = view.kind === "collected";
-  elements.video.hidden = !collected;
-  elements.checks.hidden = !collected;
-  elements.details.hidden = !collected;
-  elements.rejection.hidden = collected;
+  const catalog = catalogs[locale];
   elements.action.hidden = false;
-  elements.primary.textContent = catalogs[locale].primaryButton;
-  elements.primary.disabled = true;
-  if (view.kind === "collected") {
-    elements.rejection.replaceChildren();
-    renderVideoSection(doc, elements.video, view.video);
-    renderChecksSection(doc, elements.checks, view, locale);
-    renderDetailsSection(doc, elements.details, view.details, locale);
+  elements.rejection.hidden = view.kind !== "rejected";
+  if (view.kind === "rejected") {
+    elements.video.hidden = true;
+    elements.checks.hidden = true;
+    elements.details.hidden = true;
+    elements.video.replaceChildren();
+    elements.checks.replaceChildren();
+    elements.details.replaceChildren();
+    drawnVideo.delete(elements.video);
+    drawnDetails.delete(elements.details);
+    elements.status.replaceChildren();
+    elements.primary.textContent = catalog.primaryButton;
+    elements.primary.disabled = true;
+    renderRejectionSection(doc, elements.rejection, view, locale);
     return;
   }
-  elements.video.replaceChildren();
-  elements.checks.replaceChildren();
-  elements.details.replaceChildren();
-  renderRejectionSection(doc, elements.rejection, view, locale);
+  elements.video.hidden = false;
+  elements.checks.hidden = false;
+  elements.details.hidden = false;
+  elements.rejection.replaceChildren();
+  drawVideoSection(doc, elements.video, view.video);
+  drawDetailsSection(doc, elements.details, view.details, locale);
+  if (view.kind === "collected") {
+    elements.status.replaceChildren();
+    elements.primary.textContent = catalog.primaryButton;
+    elements.primary.disabled = true;
+    renderChecksSection(doc, elements.checks, view, locale);
+    return;
+  }
+  drawStateOnChange(elements.checks, view.state, elapsedMs, locale, () => {
+    drawPopupState(elements.checks, view.state, elapsedMs, locale);
+  });
+  writeStatusSummary(elements.status, popupSummary(view.state, locale));
+  applyJobPrimary(elements.primary, view.state, locale);
 }

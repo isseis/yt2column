@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 
 import { catalogs } from "../src/core/i18n/catalog.ts";
 import type { Message } from "../src/core/i18n/catalog.ts";
-import { locales } from "../src/core/i18n/locale.ts";
+import { formatDuration, locales } from "../src/core/i18n/locale.ts";
 import type { Locale } from "../src/core/i18n/locale.ts";
 import type {
   JobDisplay,
@@ -469,6 +469,34 @@ describe("status regions", () => {
         locale,
       );
       assert.notEqual(elements.stateStatus.firstChild, written);
+    });
+
+    it(`keeps the state's nodes and writes only the elapsed time when nothing else changes in ${locale}`, () => {
+      const rejected: PollNotice = {
+        kind: "stopped",
+        outcome: { kind: "rejected", reason: "internal_error", requestId },
+      };
+      const elements = drawn(view(jobState(running, rejected), 1_000), locale);
+      const id = query(elements.state, ".send-request-id");
+      renderViewer(elements, view(jobState(running, rejected), 2_000), locale);
+      assert.equal(query(elements.state, ".send-request-id"), id);
+      assert.equal(
+        query(elements.state, ".job-elapsed dd").textContent,
+        formatDuration(2_000, locale),
+      );
+
+      renderViewer(
+        elements,
+        view(
+          jobState(
+            { kind: "running", steps: { ...runningSteps, shorten: "done" } },
+            rejected,
+          ),
+          3_000,
+        ),
+        locale,
+      );
+      assert.notEqual(query(elements.state, ".send-request-id"), id);
     });
 
     it(`keeps the elapsed time out of both status regions in ${locale}`, () => {

@@ -10,26 +10,26 @@ import type { Locale } from "../core/i18n/locale.ts";
 import { jobArticle, publishControl } from "../core/jobView.ts";
 import type {
   JobDisplay,
-  PollNotice,
   PublishOpNotice,
   PublishRow,
   ViewerState,
 } from "../core/jobView.ts";
-import {
-  publishResultMessage,
-  startResultMessage,
-  statusNoticeMessage,
-} from "../core/sendMessages.ts";
+import { publishResultMessage } from "../core/sendMessages.ts";
 import type { ViewerParams } from "../core/viewerUrl.ts";
 import { renderArticleBody } from "./articleBody.ts";
-import { messageNodes } from "./render.ts";
+import { messageNodes } from "./message.ts";
 import {
+  drawStateOnChange,
+  jobStateSummary,
   loadingIndicator,
-  pollNotice,
+  noticeSummary,
   renderJobState,
   requestIdNode,
   startFailure,
-  stepsSummary,
+  startFailureSummary,
+  waitingNodes,
+  waitingSummary,
+  writeStatusSummary,
 } from "./renderJob.ts";
 
 /** The skeleton's elements; the viewer finds them in viewer.html by id. */
@@ -164,16 +164,10 @@ function drawState(
       return;
     }
     case "sending":
-      container.replaceChildren(loadingIndicator(doc, viewer.sending));
+      container.replaceChildren(...loadingIndicator(doc, viewer.sending));
       return;
     case "loading":
-      // A stopped poll waits for nothing, so its notice stands alone.
-      container.replaceChildren(
-        ...(state.notice.kind === "stopped"
-          ? []
-          : [loadingIndicator(doc, viewer.loading)]),
-        ...pollNotice(doc, state.notice, locale),
-      );
+      container.replaceChildren(...waitingNodes(doc, state.notice, locale));
       return;
     case "start-failed":
       container.replaceChildren(startFailure(doc, state.failure, locale));
@@ -192,31 +186,17 @@ function drawState(
 
 /** The job's part of the summary: what changed for assistive technology. */
 function jobSummary(job: JobDisplay, locale: Locale): string[] {
-  const catalog = catalogs[locale];
-  switch (job.kind) {
-    case "running":
-      return [catalog.viewer.running, stepsSummary(job.steps, locale)];
-    case "done":
-      // The same sentence the popup shows when the article is ready, then the
-      // publish state, so a post starting, finishing or failing is announced.
-      return [
-        catalog.popup.articleReady.text,
-        ...publishRowMessages(publishControl(job, false).row, locale).map(
-          (message) => message.text,
-        ),
-      ];
-    case "failed":
-      return [catalog.failure[job.failure].text];
-    case "lost":
-      return [catalog.viewer.lost.text];
+  if (job.kind !== "done") {
+    return jobStateSummary(job, [], locale);
   }
-}
-
-/** The notice's part of the summary: that the status could not be read. */
-function noticeSummary(notice: PollNotice, locale: Locale): string[] {
-  return notice.kind === "none"
-    ? []
-    : [statusNoticeMessage(notice.outcome, locale).text];
+  // The same sentence the popup shows when the article is ready, then the
+  // publish state, so a post starting, finishing or failing is announced.
+  return [
+    catalogs[locale].popup.articleReady.text,
+    ...publishRowMessages(publishControl(job, false).row, locale).map(
+      (message) => message.text,
+    ),
+  ];
 }
 
 /**
@@ -233,37 +213,15 @@ function stateSummary(state: ViewerState, locale: Locale): string[] {
     case "sending":
       return [viewer.sending.text];
     case "loading":
-      return [
-        ...(state.notice.kind === "stopped" ? [] : [viewer.loading.text]),
-        ...noticeSummary(state.notice, locale),
-      ];
+      return waitingSummary(state.notice, locale);
     case "start-failed":
-      return [startResultMessage(state.failure, locale).text];
+      return startFailureSummary(state.failure, locale);
     case "job":
       return [
         ...jobSummary(state.job, locale),
         ...noticeSummary(state.notice, locale),
       ];
   }
-}
-
-/** Writes the summary, one paragraph per sentence, only when it changed. */
-function writeSummary(region: HTMLElement, sentences: readonly string[]): void {
-  const shown = Array.from(region.children, (child) => child.textContent);
-  if (
-    shown.length === sentences.length &&
-    shown.every((text, i) => text === sentences[i])
-  ) {
-    return;
-  }
-  const doc = region.ownerDocument;
-  region.replaceChildren(
-    ...sentences.map((sentence) => {
-      const paragraph = doc.createElement("p");
-      paragraph.textContent = sentence;
-      return paragraph;
-    }),
-  );
 }
 
 /**
@@ -282,8 +240,10 @@ export function renderViewer(
 ): void {
   const doc = elements.state.ownerDocument;
   const catalog = catalogs[locale];
-  drawState(elements.state, view, locale);
-  writeSummary(elements.stateStatus, stateSummary(view.state, locale));
+  drawStateOnChange(elements.state, view.state, view.elapsedMs, locale, () => {
+    drawState(elements.state, view, locale);
+  });
+  writeStatusSummary(elements.stateStatus, stateSummary(view.state, locale));
 
   // The article is a done job's, or the one a lost job kept.
   const job = publishableJob(view.state);

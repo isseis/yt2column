@@ -16,10 +16,17 @@ import type {
   PublishRow,
   ViewerState,
 } from "../src/core/jobView.ts";
+import type { PopupJobState } from "../src/core/popupView.ts";
+import { renderPopup } from "../src/ui/render.ts";
 import { renderViewer, renderViewerHeader } from "../src/ui/renderViewer.ts";
-import { previewCases, viewerPreviewCases } from "../scripts/popup-preview.ts";
+import {
+  popupJobPreviewCases,
+  previewCases,
+  viewerPreviewCases,
+} from "../scripts/popup-preview.ts";
 import {
   popupDocument,
+  popupElements,
   viewerDocument,
   viewerElements,
 } from "./helpers/dom.ts";
@@ -349,6 +356,101 @@ describe("popup preview script", () => {
       );
     }
     for (const [name, counts] of Object.entries({ states, jobs, rows })) {
+      for (const [kind, count] of Object.entries(counts)) {
+        assert.ok(count > 0, `no page for the ${kind} ${name}`);
+      }
+    }
+  });
+
+  it("writes one page per popup job state and job kind, drawn by renderPopup", () => {
+    const output = mkdtempSync(path.join(tmpdir(), "popup-preview-"));
+    dirs.push(output);
+    const result = spawnSync(
+      process.execPath,
+      ["scripts/popup-preview.ts", output],
+      { cwd: extensionDir, encoding: "utf8" },
+    );
+    assert.equal(result.status, 0, result.stderr);
+
+    const states: Record<PopupJobState["kind"], number> = {
+      sending: 0,
+      "start-failed": 0,
+      loading: 0,
+      job: 0,
+    };
+    const jobs: Record<JobDisplay["kind"], number> = {
+      running: 0,
+      done: 0,
+      failed: 0,
+      lost: 0,
+    };
+    const stylesheets = [
+      ...popupDocument().querySelectorAll("link[rel=stylesheet]"),
+    ].map((link) => link.getAttribute("href") ?? "");
+
+    for (const previewCase of popupJobPreviewCases) {
+      states[previewCase.state.kind] += 1;
+      if (previewCase.state.kind === "job") {
+        jobs[previewCase.state.job.kind] += 1;
+      }
+      const file = `${previewCase.name}.html`;
+      const full = path.join(output, file);
+      assert.ok(existsSync(full), file);
+      const doc = new JSDOM(readFileSync(full, "utf8")).window.document;
+      assert.deepEqual(
+        [...doc.querySelectorAll("link")].map((link) =>
+          link.getAttribute("href"),
+        ),
+        stylesheets,
+        `${file}: stylesheets`,
+      );
+      assert.equal(
+        doc.querySelectorAll("script").length,
+        0,
+        `${file}: holds a script`,
+      );
+      assert.equal(doc.documentElement.lang, previewCase.locale, file);
+      expectCollectedSections(doc, file);
+
+      // The page shows what renderPopup draws for the same state: the state
+      // and its summary, and the primary button's name and availability. The
+      // video section and details come from a collected page's values.
+      const expected = popupElements();
+      expected.primary.disabled = false;
+      renderPopup(
+        expected,
+        {
+          kind: "job",
+          video: { heading: { value: "A tab title", truncated: false } },
+          details: {
+            url: {
+              value: "https://www.youtube.com/watch?v=preview",
+              truncated: false,
+            },
+            tabTitle: { value: "A tab title", truncated: false },
+          },
+          state: previewCase.state,
+        },
+        previewCase.locale,
+        previewCase.elapsedMs,
+      );
+      const pageChecks = doc.getElementById("checks");
+      const pageStatus = doc.getElementById("status");
+      assert.ok(pageChecks?.isEqualNode(expected.checks), `${file}: checks`);
+      assert.ok(pageStatus?.isEqualNode(expected.status), `${file}: status`);
+      const pagePrimary = doc.getElementById("primary");
+      assert.equal(
+        pagePrimary?.textContent,
+        expected.primary.textContent,
+        `${file}: primary name`,
+      );
+      assert.equal(
+        pagePrimary?.hasAttribute("disabled"),
+        expected.primary.disabled,
+        `${file}: primary availability`,
+      );
+    }
+    for (const [name, counts] of Object.entries({ states, jobs })) {
       for (const [kind, count] of Object.entries(counts)) {
         assert.ok(count > 0, `no page for the ${kind} ${name}`);
       }

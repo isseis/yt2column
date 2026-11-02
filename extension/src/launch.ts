@@ -18,8 +18,9 @@ import type { SendResult } from "./core/articlesResponse.ts";
 import type { LaunchContext } from "./core/types.ts";
 import { sendArticle } from "./send.ts";
 import type { SendDeps } from "./send.ts";
+import { messageNodes } from "./ui/message.ts";
 import { applyPageLocale } from "./ui/pageLocale.ts";
-import { messageNodes, renderPopup } from "./ui/render.ts";
+import { renderPopup } from "./ui/render.ts";
 import type { ActionControls, PopupElements } from "./ui/render.ts";
 import { renderSendOutcome } from "./ui/renderSend.ts";
 

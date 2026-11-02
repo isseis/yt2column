@@ -1,13 +1,20 @@
-// Draws a job's state: the parts the popup's checks section and the viewer's
-// state section share. Every string is set with textContent, so a value that
-// reached this layer as a string is never parsed as HTML; the check that made
-// a reply unexpected is never drawn.
+// Draws a job's state and writes its state summary: the parts the popup's
+// checks section and status region and the viewer's state section share. Every
+// string is set with textContent, so a value that reached this layer as a
+// string is never parsed as HTML; the check that made a reply unexpected is
+// never drawn.
 
 import { catalogs } from "../core/i18n/catalog.ts";
 import type { Message } from "../core/i18n/catalog.ts";
 import { formatDuration, formatUsd } from "../core/i18n/locale.ts";
 import type { Locale } from "../core/i18n/locale.ts";
-import type { JobDisplay, PollNotice, StartFailure } from "../core/jobView.ts";
+import type {
+  JobDisplay,
+  PollNotice,
+  StartFailure,
+  ViewerState,
+} from "../core/jobView.ts";
+import type { PopupJobState } from "../core/popupView.ts";
 import { stepNames } from "../core/response.ts";
 import type { Article, RequestId, StepName, Steps } from "../core/response.ts";
 import {
@@ -15,7 +22,7 @@ import {
   statusNoticeMessage,
 } from "../core/sendMessages.ts";
 import { loadingIcon, stepIcon } from "./icons.ts";
-import { messageNodes } from "./render.ts";
+import { messageNodes } from "./message.ts";
 
 // The steps in the order the server runs them, which is the order of the
 // record every step name is checked against.
@@ -101,15 +108,20 @@ function articleFacts(
   ]);
 }
 
-/** The loading mark and the sentence that says which wait it is. */
+/**
+ * The loading mark and the sentence that says which wait it is, then the
+ * message's numbered steps. The steps are siblings of the mark-and-sentence
+ * row, not flex items beside it, so a step wraps under the row.
+ */
 export function loadingIndicator(
   doc: Document,
   message: Message,
-): HTMLDivElement {
-  const indicator = doc.createElement("div");
-  indicator.className = "loading";
-  indicator.append(loadingIcon(doc), ...messageNodes(doc, message));
-  return indicator;
+): [HTMLDivElement, ...HTMLElement[]] {
+  const row = doc.createElement("div");
+  row.className = "loading";
+  const [text, ...steps] = messageNodes(doc, message);
+  row.append(loadingIcon(doc), text);
+  return [row, ...steps];
 }
 
 /**
@@ -124,6 +136,47 @@ export function stepsSummary(steps: Steps, locale: Locale): string {
       (name) => `${catalog.stepNames[name]} ${catalog.stepStates[steps[name]]}`,
     ),
   );
+}
+
+/**
+ * The job's part of a state summary. The done sentences differ between the
+ * popup and the viewer, so the caller supplies them; every other kind reads
+ * the same catalog entries in both pages.
+ */
+export function jobStateSummary(
+  job: JobDisplay,
+  done: readonly string[],
+  locale: Locale,
+): string[] {
+  const catalog = catalogs[locale];
+  switch (job.kind) {
+    case "running":
+      return [catalog.viewer.running, stepsSummary(job.steps, locale)];
+    case "done":
+      return [...done];
+    case "failed":
+      return [catalog.failure[job.failure].text];
+    case "lost":
+      return [catalog.viewer.lost.text];
+  }
+}
+
+/** The summary while a key waits for its first status, plus a failed exchange's notice. */
+export function waitingSummary(notice: PollNotice, locale: Locale): string[] {
+  return [
+    ...(notice.kind === "stopped"
+      ? []
+      : [catalogs[locale].viewer.loading.text]),
+    ...noticeSummary(notice, locale),
+  ];
+}
+
+/** The summary of a start that gave no key. */
+export function startFailureSummary(
+  failure: StartFailure,
+  locale: Locale,
+): string[] {
+  return [startResultMessage(failure, locale).text];
 }
 
 /** The server's request id as text, one click away from a full copy. */
@@ -187,6 +240,53 @@ export function pollNotice(
   ];
 }
 
+/**
+ * The nodes while a key waits for its first status: the loading mark, then a
+ * failed exchange's notice. A stopped poll waits for nothing, so its notice
+ * stands alone.
+ */
+export function waitingNodes(
+  doc: Document,
+  notice: PollNotice,
+  locale: Locale,
+): HTMLElement[] {
+  return [
+    ...(notice.kind === "stopped"
+      ? []
+      : loadingIndicator(doc, catalogs[locale].viewer.loading)),
+    ...pollNotice(doc, notice, locale),
+  ];
+}
+
+/** The notice's part of a state summary: that the status could not be read. */
+export function noticeSummary(notice: PollNotice, locale: Locale): string[] {
+  return notice.kind === "none"
+    ? []
+    : [statusNoticeMessage(notice.outcome, locale).text];
+}
+
+/** Writes the summary, one paragraph per sentence, only when it changed. */
+export function writeStatusSummary(
+  region: HTMLElement,
+  sentences: readonly string[],
+): void {
+  const shown = Array.from(region.children, (child) => child.textContent);
+  if (
+    shown.length === sentences.length &&
+    shown.every((text, i) => text === sentences[i])
+  ) {
+    return;
+  }
+  const doc = region.ownerDocument;
+  region.replaceChildren(
+    ...sentences.map((sentence) => {
+      const paragraph = doc.createElement("p");
+      paragraph.textContent = sentence;
+      return paragraph;
+    }),
+  );
+}
+
 /** The job's own nodes: the steps and, by kind, the elapsed time, the facts or the failure. */
 function jobNodes(
   doc: Document,
@@ -240,4 +340,45 @@ export function renderJobState(
     ...jobNodes(doc, job, elapsedMs, locale),
     ...pollNotice(doc, notice, locale),
   );
+}
+
+/** The state last drawn into each state container, and the nodes it drew. */
+const drawnStates = new WeakMap<
+  HTMLElement,
+  { readonly key: string; readonly nodes: readonly Node[] }
+>();
+
+/**
+ * Draws a state into its container only when the state or the locale changed,
+ * or when something else replaced what was drawn. Otherwise only the elapsed
+ * time's value is written, so a redraw each second while a job runs keeps a
+ * selection (such as a request id being copied) and the focus inside the
+ * container. The key is the state's JSON: the state is plain data, and values
+ * that serialize the same draw the same.
+ */
+export function drawStateOnChange(
+  container: HTMLElement,
+  state: ViewerState | PopupJobState,
+  elapsedMs: number,
+  locale: Locale,
+  draw: () => void,
+): void {
+  const key = JSON.stringify([locale, state]);
+  const last = drawnStates.get(container);
+  const current = Array.from(container.childNodes);
+  if (
+    last !== undefined &&
+    last.key === key &&
+    last.nodes.length === current.length &&
+    last.nodes.every((node, i) => node === current[i])
+  ) {
+    const elapsed = container.querySelector(".job-elapsed dd");
+    const text = formatDuration(elapsedMs, locale);
+    if (elapsed !== null && elapsed.textContent !== text) {
+      elapsed.textContent = text;
+    }
+    return;
+  }
+  draw();
+  drawnStates.set(container, { key, nodes: Array.from(container.childNodes) });
 }
