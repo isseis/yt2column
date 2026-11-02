@@ -107,6 +107,7 @@ git grep -n -i -e "old rule" -e "migration byte" -e "Migration check" -e "migrat
 ### 1.6. 実装の際に決めたこと（2026-11-02）
 
 -   **手順 1 で、`Status` と `Comments` の行も確かめる:** 設計書 1.4 節の決定に合わせ、ステップ 1-2 で規則の手順 1 を広げ、ステップ 3-1 の試行に、旧 `Comments` に `#未記入` を含む承認済みの文書の場合を加える（試行は 17 の場合になる）。フェーズ 1 のレビューで指摘され、利用者が決めた。
+-   **`/runpr` の止まるときの扱いと、`/fixpr` の確かめ 1 の対象:** 設計書 1.4 節の 2 つ目と 3 つ目の決定に合わせ、ステップ 2-2 で `runpr.md` に止まるときの扱いを加え、ステップ 2-1 で Migration check の 1 つ目の確かめを `Status` のセルの文を取れない文書にも広げる。フェーズ 2 のレビューで指摘され、利用者が決めた。
 
 ## 2. 実装手順 (Implementation Steps)
 
@@ -161,7 +162,7 @@ git grep -n -i -e "old rule" -e "migration byte" -e "Migration check" -e "migrat
 
 **変更するファイル:** `.claude/commands/runpr.md`、`.claude/commands/runplan.md`、`.claude/commands/mkarch.md`、`.claude/commands/mkplan2.md`
 
--   [x] `runpr.md:223-225` を、設計書 3.5 節の表のとおりに改める。止まる場合の記述は加えない。
+-   [x] `runpr.md:223-225` を、設計書 3.5 節の表のとおりに改める。節の手順で止まるときの扱い（PRE_MERGE を commit も push もせず、マージしない）を加える（1.6 節）。
 -   [x] `runplan.md:64` を、設計書 3.5 節の表のとおりに改める。
 -   [x] `mkarch.md:72` を、設計書 3.5 節の表のとおりに改める。
 -   [x] `mkplan2.md:107` を、設計書 3.5 節の表のとおりに改める。変更履歴に過去の承認を残すのは写した承認の行である、という書き方にする（設計書 3.5 節の表の後の段落）。
@@ -330,3 +331,4 @@ M1〜M3 は 1 つの PR にまとめる。規則だけが先に `main` に入る
 
 - 2026-11-02 承認（isseis、#628）
 - 2026-11-02 セッション中の再承認：手順 1 の確かめを広げ、試行に旧 Comments に PR 番号の未記入の印を含む場合を加えた（isseis、#未記入）
+- 2026-11-02 セッション中の再承認：/runpr に止まるときの扱いを加え、/fixpr の写せない文書の確かめを広げた（isseis、#未記入）
