@@ -3,6 +3,7 @@ package coveragecompare
 import (
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -22,10 +23,12 @@ var tapSummaryPrefixes = [...]string{"# tests ", "# fail ", "# cancelled "}
 
 // tapFailure is one "not ok" line. File is the test file from the first
 // failure's diagnostic, relative to the repository root, or empty when the
-// diagnostic names none.
+// diagnostic names none. Diagnostic holds that block for the first failure, so
+// the output can show what failed without node's standard output.
 type tapFailure struct {
-	Name string
-	File string
+	Name       string
+	File       string
+	Diagnostic []string
 }
 
 // tapReport is what one TAP stream reported.
@@ -77,6 +80,7 @@ func parseTAP(data []byte, extensionDir string, point Point) (*tapReport, error)
 	}
 	if len(parser.report.Failures) > 0 {
 		parser.report.Failures[0].File = tapDiagnosticFile(parser.firstDiagnostic, extensionDir)
+		parser.report.Failures[0].Diagnostic = parser.firstDiagnostic
 	}
 	return parser.report, nil
 }
@@ -192,16 +196,50 @@ func tapDiagnosticFile(lines []string, extensionDir string) string {
 
 // tapFileUnderExtension returns a repository-relative path for a file under the
 // measured checkout's extension directory, or an empty string when the path is
-// not under it.
+// not under it. Both sides are compared as written and with symbolic links
+// resolved, because node reports the real path (on macOS, /private/var/... for
+// a checkout under /var/...).
 func tapFileUnderExtension(path, extensionDir string) string {
 	if path == "" || extensionDir == "" {
 		return ""
 	}
-	prefix := strings.TrimSuffix(filepath.ToSlash(extensionDir), "/") + "/"
-	slashPath := filepath.ToSlash(path)
-	rel, ok := strings.CutPrefix(slashPath, prefix)
-	if !ok || rel == "" {
-		return ""
+	directories := []string{filepath.Clean(extensionDir)}
+	if resolved, err := filepath.EvalSymlinks(extensionDir); err == nil {
+		directories = appendUnique(directories, resolved)
 	}
-	return "extension/" + rel
+	files := []string{filepath.Clean(path)}
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		files = appendUnique(files, resolved)
+	} else if directory, err := filepath.EvalSymlinks(filepath.Dir(path)); err == nil {
+		files = appendUnique(files, filepath.Join(directory, filepath.Base(path)))
+	}
+	for _, directory := range directories {
+		for _, file := range files {
+			if rel, ok := relativeWithin(file, directory); ok {
+				return "extension/" + rel
+			}
+		}
+	}
+	return ""
+}
+
+// appendUnique appends value unless list already holds it.
+func appendUnique(list []string, value string) []string {
+	if slices.Contains(list, value) {
+		return list
+	}
+	return append(list, value)
+}
+
+// relativeWithin returns path relative to dir when path is strictly inside dir.
+func relativeWithin(path, dir string) (string, bool) {
+	rel, err := filepath.Rel(dir, path)
+	if err != nil {
+		return "", false
+	}
+	rel = filepath.ToSlash(rel)
+	if rel == "." || rel == ".." || strings.HasPrefix(rel, "../") || strings.HasPrefix(rel, "/") {
+		return "", false
+	}
+	return rel, true
 }

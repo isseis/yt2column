@@ -3,6 +3,7 @@
 package coveragecompare
 
 import (
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -54,12 +55,21 @@ func TestParseTAP(t *testing.T) {
 		if report.Tests != 2 || report.Fail != 1 || report.Cancelled != 1 {
 			t.Errorf("counts = tests %d fail %d cancelled %d, want 2 1 1", report.Tests, report.Fail, report.Cancelled)
 		}
-		want := []tapFailure{
-			{Name: "inner", File: "extension/test/x.test.ts"},
-			{Name: "outer"},
+		if len(report.Failures) != 2 {
+			t.Fatalf("failures = %+v, want 2", report.Failures)
 		}
-		if !slices.Equal(report.Failures, want) {
-			t.Errorf("failures = %+v, want %+v", report.Failures, want)
+		if report.Failures[0].Name != "inner" || report.Failures[0].File != "extension/test/x.test.ts" {
+			t.Errorf("first failure = %+v, want inner in extension/test/x.test.ts", report.Failures[0])
+		}
+		if report.Failures[1].Name != "outer" {
+			t.Errorf("second failure = %+v, want outer", report.Failures[1])
+		}
+		diagnostic := report.Failures[0].Diagnostic
+		if len(diagnostic) != 8 || diagnostic[len(diagnostic)-1] != "      ..." {
+			t.Errorf("diagnostic = %q, want the block ending at ...", diagnostic)
+		}
+		if !slices.Contains(diagnostic, "      error: 'test did not finish before its parent and was cancelled'") {
+			t.Errorf("diagnostic = %q, want the error line", diagnostic)
 		}
 	})
 
@@ -88,6 +98,45 @@ func TestParseTAP(t *testing.T) {
 		}
 		if len(report.Failures) != 1 || report.Failures[0].File != "extension/test/y.test.ts" {
 			t.Errorf("failures = %+v, want the file from the quoted location", report.Failures)
+		}
+	})
+
+	t.Run("leaves the file empty when the location is not a path with a line and a column", func(t *testing.T) {
+		data := strings.Join([]string{
+			"not ok 1 - x",
+			"  location: 'somewhere else'",
+			"# tests 1",
+			"# fail 1",
+			"# cancelled 0",
+		}, "\n") + "\n"
+		report, err := parseTAP([]byte(data), testExtensionDir, PointBase)
+		if err != nil {
+			t.Fatalf("parseTAP: %v", err)
+		}
+		if report.Failures[0].File != "" {
+			t.Errorf("file = %q, want empty", report.Failures[0].File)
+		}
+	})
+
+	t.Run("resolves a checkout path whose symbolic links node resolved", func(t *testing.T) {
+		dir := t.TempDir()
+		resolved, err := filepath.EvalSymlinks(dir)
+		if err != nil {
+			t.Fatalf("EvalSymlinks: %v", err)
+		}
+		data := strings.Join([]string{
+			"not ok 1 - x",
+			"  location: '" + resolved + "/test/x.test.ts:1:1'",
+			"# tests 1",
+			"# fail 1",
+			"# cancelled 0",
+		}, "\n") + "\n"
+		report, err := parseTAP([]byte(data), dir, PointBase)
+		if err != nil {
+			t.Fatalf("parseTAP: %v", err)
+		}
+		if report.Failures[0].File != "extension/test/x.test.ts" {
+			t.Errorf("file = %q, want extension/test/x.test.ts", report.Failures[0].File)
 		}
 	})
 
@@ -137,9 +186,13 @@ func TestParseTAP(t *testing.T) {
 		if err != nil {
 			t.Fatalf("parseTAP: %v", err)
 		}
-		want := []tapFailure{{Name: "deep"}, {Name: "shallow"}}
-		if !slices.Equal(report.Failures, want) {
-			t.Errorf("failures = %+v, want %+v", report.Failures, want)
+		want := []string{"deep", "shallow"}
+		var names []string
+		for _, failure := range report.Failures {
+			names = append(names, failure.Name)
+		}
+		if !slices.Equal(names, want) {
+			t.Errorf("names = %v, want %v", names, want)
 		}
 	})
 

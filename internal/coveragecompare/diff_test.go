@@ -90,8 +90,8 @@ func TestParseDiff(t *testing.T) {
 			t.Errorf("deleted file paths = %q -> %q", deleted.OldPath, deleted.NewPath)
 		}
 		modeOnly := patch.Files[3]
-		if modeOnly.OldPath != "" || modeOnly.NewPath != "" || len(modeOnly.Hunks) != 0 {
-			t.Errorf("mode-only file = %+v, want no paths and no hunks", modeOnly)
+		if modeOnly.OldPath != "run.sh" || modeOnly.NewPath != "run.sh" || len(modeOnly.Hunks) != 0 {
+			t.Errorf("mode-only file = %+v, want run.sh with no hunks", modeOnly)
 		}
 	})
 

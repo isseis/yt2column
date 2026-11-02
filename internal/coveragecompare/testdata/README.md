@@ -11,10 +11,17 @@ not only against text written by hand.
   -coverprofile=<file> ./internal/slackwebhook` wrote. It holds the `mode: set`
   line and 9 blocks. `grep -vc '^mode:'` on the full profile the run wrote
   reports 34 blocks.
-- `go-test-json.txt`: the first 6 lines of that run's `-json` output plus the
-  top-level `TestValidURL` pass line. It holds one finished top-level test and
-  no failure; `grep -c '"Action":"pass".*"Test":"Test'` on the full output
-  reports 23 finished tests.
+- `go-test-json.txt`: a non-contiguous excerpt of that run's `-json` output:
+  the first 6 lines and the top-level `TestValidURL` pass line, with the
+  subtest frames between them left out. The excerpt holds one finished
+  top-level test and no failure. The full output holds 2 finished top-level
+  tests (`TestValidURL` and `TestSensitiveParts`); `grep -c
+  '"Action":"pass".*"Test":"Test'` reports 23 pass lines because it also counts
+  the 21 subtests.
+- `go-test-json-build-fail.txt`: the whole `-json` output of `go test -json
+  ./...` for a scratch module with one undefined symbol in a test, run with
+  `go1.27.1`. It is the real `build-output` / `build-fail` / package `fail`
+  shape: one package failure with the compiler's error line.
 - `lcov.txt`: the first two `SF` sections of the report
   `node --test --experimental-test-coverage --test-reporter=lcov
   --test-reporter-destination=<file> --test-reporter=tap
@@ -23,6 +30,11 @@ not only against text written by hand.
   the full report report 415 and 44.
 - `tap.txt`: the 39 lines of that run's TAP report that end with the summary.
   They hold the `# tests` value 2006, `# fail` 0, and `# cancelled` 0.
+- `tap-failure.txt`: a whole TAP report of a failing scratch test run with node
+  `v24.21.0` in a temporary directory, so the parser is checked against a real
+  `not ok` line, diagnostic block, and `location:` line. It holds `# tests` 2,
+  `# fail` 1, and `# cancelled` 1. The path in the location line is the
+  generic temporary path node printed.
 
 Checked when the samples were taken: they hold no home directory path and no
 absolute path. The module path in the Go samples contains the project owner's

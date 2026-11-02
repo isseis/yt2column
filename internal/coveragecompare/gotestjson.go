@@ -37,27 +37,35 @@ type goTestLine struct {
 	Output     string
 }
 
+// goTestParser holds what one go test -json stream reported while it is read.
+type goTestParser struct {
+	report       *goTestReport
+	outputs      map[goTestKey][]string
+	buildOutputs map[string][]string
+	buildImport  map[string]string // clean package path to import path
+}
+
 // parseGoTestJSON reads the output of go test -json. Every line must be one
 // JSON object; a line that is not stops as unreadable rather than being
 // skipped. Top-level tests that ended in pass, fail, or skip are counted, and
 // subtests are not. A fail line names a test, or its package when it has no
-// test; a build-fail line names its import path.
+// test; a build-fail line names the package its import path belongs to.
 func parseGoTestJSON(data []byte, point Point) (*goTestReport, error) {
-	report := &goTestReport{}
-	outputs := make(map[goTestKey][]string)
+	parser := &goTestParser{
+		report:       &goTestReport{},
+		outputs:      make(map[goTestKey][]string),
+		buildOutputs: make(map[string][]string),
+		buildImport:  make(map[string]string),
+	}
 	for i, line := range splitLines(string(data)) {
 		entry, err := parseGoTestLine(line, point, i+1)
 		if err != nil {
 			return nil, err
 		}
-		recordGoTestLine(report, outputs, entry)
+		parser.record(entry)
 	}
-
-	for i := range report.Failures {
-		failure := &report.Failures[i]
-		failure.Output = outputs[goTestKey{Package: failure.Package, Test: failure.Test}]
-	}
-	return report, nil
+	parser.attachOutput()
+	return parser.report, nil
 }
 
 // parseGoTestLine reads the members of one output line.
@@ -93,35 +101,69 @@ func parseGoTestLine(line string, point Point, lineNo int) (goTestLine, error) {
 	return entry, nil
 }
 
-// recordGoTestLine counts a finished top-level test, records a failure, and
-// keeps an output line for the failure it belongs to.
-func recordGoTestLine(report *goTestReport, outputs map[goTestKey][]string, entry goTestLine) {
+// record takes one line: it counts a finished top-level test, records a
+// failure, and keeps an output line for the failure it belongs to. A build
+// failure is recorded once, from its build-fail line, rather than again from
+// the package fail line that follows it.
+func (p *goTestParser) record(entry goTestLine) {
 	stream := goTestKey{Package: entry.Package, Test: entry.Test}
-	if stream.Package == "" {
-		stream.Package = entry.ImportPath
-	}
-	if entry.Action == "output" {
-		outputs[stream] = append(outputs[stream], entry.Output)
-	}
 	switch entry.Action {
+	case "output":
+		p.outputs[stream] = append(p.outputs[stream], entry.Output)
+	case "build-output":
+		p.buildOutputs[entry.ImportPath] = append(p.buildOutputs[entry.ImportPath], entry.Output)
 	case "pass", "fail", "skip":
 		if entry.Test != "" && !strings.Contains(entry.Test, "/") {
-			report.Tests++
+			p.report.Tests++
 		}
 	}
+
 	switch entry.Action {
+	case "build-fail":
+		pkg := cleanImportPath(entry.ImportPath)
+		if pkg == "" {
+			return
+		}
+		if _, ok := p.buildImport[pkg]; ok {
+			return
+		}
+		p.buildImport[pkg] = entry.ImportPath
+		p.report.Failures = append(p.report.Failures, goTestFailure{Package: pkg})
 	case "fail":
+		if entry.Test == "" {
+			if _, built := p.buildImport[stream.Package]; built {
+				return
+			}
+		}
 		switch {
 		case entry.Test != "":
-			report.Failures = append(report.Failures, goTestFailure{Package: stream.Package, Test: entry.Test})
+			p.report.Failures = append(p.report.Failures, goTestFailure{Package: stream.Package, Test: entry.Test})
 		case stream.Package != "":
-			report.Failures = append(report.Failures, goTestFailure{Package: stream.Package})
-		}
-	case "build-fail":
-		if stream.Package != "" {
-			report.Failures = append(report.Failures, goTestFailure{Package: stream.Package})
+			p.report.Failures = append(p.report.Failures, goTestFailure{Package: stream.Package})
 		}
 	}
+}
+
+// attachOutput gives each failure the lines go test wrote for it. A build
+// failure's compiler output comes from its import path's build-output lines,
+// and the package's own FAIL line from its output lines.
+func (p *goTestParser) attachOutput() {
+	for i := range p.report.Failures {
+		failure := &p.report.Failures[i]
+		if failure.Test == "" {
+			if importPath, ok := p.buildImport[failure.Package]; ok {
+				failure.Output = append(failure.Output, p.buildOutputs[importPath]...)
+			}
+		}
+		failure.Output = append(failure.Output, p.outputs[goTestKey{Package: failure.Package, Test: failure.Test}]...)
+	}
+}
+
+// cleanImportPath removes the package test binary from an import path such as
+// "example.com/p [example.com/p.test]".
+func cleanImportPath(importPath string) string {
+	path, _, _ := strings.Cut(importPath, " [")
+	return path
 }
 
 // jsonMemberString returns a string member, or an empty string when the member

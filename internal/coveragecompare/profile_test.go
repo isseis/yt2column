@@ -186,3 +186,14 @@ func TestParseProfileAcceptsLongLine(t *testing.T) {
 		t.Fatalf("blocks = %+v, want one block with the long file", profile.Blocks)
 	}
 }
+
+func TestParseProfileUsesTheGivenModule(t *testing.T) {
+	data := "mode: set\nexample.com/other/x.go:1.1,1.2 1 1\n"
+	profile, err := parseGoProfile([]byte(data), "example.com/other", PointBase)
+	if err != nil {
+		t.Fatalf("parseGoProfile: %v", err)
+	}
+	if len(profile.Blocks) != 1 || profile.Blocks[0].File != "x.go" {
+		t.Errorf("blocks = %+v, want one block for x.go", profile.Blocks)
+	}
+}

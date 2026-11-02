@@ -41,11 +41,14 @@ func TestParseGoTestJSON(t *testing.T) {
 		}
 	})
 
-	t.Run("reads a build failure's import path and output", func(t *testing.T) {
+	t.Run("reads a build failure's compiler output once", func(t *testing.T) {
+		// The shape go1.27.1 writes: build-output lines keyed by the import
+		// path, a build-fail, then the package's own output and fail lines.
 		data := strings.Join([]string{
-			`{"Action":"output","ImportPath":"example/p/q","Output":"# example/p/q\n"}`,
-			`{"Action":"output","ImportPath":"example/p/q","Output":"x.go:1: error\n"}`,
-			`{"Action":"build-fail","ImportPath":"example/p/q"}`,
+			`{"ImportPath":"example/p/q [example/p/q.test]","Action":"build-output","Output":"./x_test.go:5:28: undefined: y\n"}`,
+			`{"ImportPath":"example/p/q [example/p/q.test]","Action":"build-fail"}`,
+			`{"Action":"output","Package":"example/p/q","Output":"FAIL\texample/p/q [build failed]\n"}`,
+			`{"Action":"fail","Package":"example/p/q","FailedBuild":"example/p/q [example/p/q.test]"}`,
 		}, "\n") + "\n"
 
 		report, err := parseGoTestJSON([]byte(data), PointHead)
@@ -55,7 +58,10 @@ func TestParseGoTestJSON(t *testing.T) {
 		if report.Tests != 0 {
 			t.Errorf("tests = %d, want 0", report.Tests)
 		}
-		want := []goTestFailure{{Package: "example/p/q", Output: []string{"# example/p/q\n", "x.go:1: error\n"}}}
+		want := []goTestFailure{{
+			Package: "example/p/q",
+			Output:  []string{"./x_test.go:5:28: undefined: y\n", "FAIL\texample/p/q [build failed]\n"},
+		}}
 		if !slices.EqualFunc(report.Failures, want, equalGoTestFailure) {
 			t.Errorf("failures = %+v, want %+v", report.Failures, want)
 		}

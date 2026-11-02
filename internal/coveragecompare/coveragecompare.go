@@ -6,6 +6,11 @@
 // functions are pure, so the tests can give them examples directly.
 package coveragecompare
 
+import (
+	"strconv"
+	"strings"
+)
+
 // Target selects which test suite and report the run measures.
 type Target int
 
@@ -212,14 +217,14 @@ func (i Input) String() string {
 }
 
 // StopReason names what a stop applies to. Detail is the tool's own English
-// sentence; Excerpt holds text copied from a command's output or input,
-// bounded in length and printed quoted (section 3.9).
+// sentence; Excerpt holds text copied from a command's output or input, bounded
+// in length and printed quoted by Write.
 type StopReason struct {
 	Point   Point
 	Input   Input
 	Line    int     // the input's line number, 0 when none
 	Func    *FuncID // the function the reason applies to
-	Outer   *FuncID // the enclosing function not run at HEAD (section 3.8)
+	Outer   *FuncID // the enclosing function that did not run at HEAD
 	Test    string  // a failed test's name
 	Package string  // a failed Go package, or an extension test file
 	Detail  string
@@ -229,55 +234,24 @@ type StopReason struct {
 // splitLines splits text into lines without keeping a final empty line. Every
 // other empty line is kept, so a parser can reject it as malformed.
 func splitLines(text string) []string {
-	lines := splitNewlines(text)
+	lines := strings.Split(text, "\n")
 	if n := len(lines); n > 0 && lines[n-1] == "" {
 		lines = lines[:n-1]
 	}
 	return lines
 }
 
-// splitNewlines is splitLines without the trailing-empty-line removal.
-func splitNewlines(text string) []string {
-	var lines []string
-	start := 0
-	for i := range len(text) {
-		if text[i] != '\n' {
-			continue
-		}
-		lines = append(lines, text[start:i])
-		start = i + 1
-	}
-	lines = append(lines, text[start:])
-	return lines
-}
-
 // parseNonNegativeInt parses a non-negative decimal integer that fits int. A
 // sign, a fraction, an empty string, or an out-of-range value is rejected.
+// ParseUint with one bit fewer than the platform word excludes the sign bit,
+// so the largest accepted value is maxInt.
 func parseNonNegativeInt(s string) (int, bool) {
-	if s == "" {
+	value, err := strconv.ParseUint(s, 10, strconv.IntSize-1)
+	if err != nil {
 		return 0, false
 	}
-	for i := range len(s) {
-		if s[i] < '0' || s[i] > '9' {
-			return 0, false
-		}
-	}
-	n := 0
-	for i := range len(s) {
-		digit := int(s[i] - '0')
-		if n > (maxInt-digit)/decimalBase {
-			return 0, false
-		}
-		n = n*decimalBase + digit
-	}
-	return n, true
+	return int(value), true
 }
 
 // noneWord is the word the point and input names use when they name nothing.
 const noneWord = "none"
-
-// maxInt is the largest value of int.
-const maxInt = int(^uint(0) >> 1)
-
-// decimalBase is the base of the decimal integers the parsers accept.
-const decimalBase = 10

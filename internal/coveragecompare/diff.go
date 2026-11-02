@@ -125,10 +125,11 @@ func (p *diffParser) startFile(line string, lineNo int) error {
 	if err := p.finishFile(lineNo, line); err != nil {
 		return err
 	}
-	if !checkDiffHeader(line) {
+	oldPath, newPath, ok := parseDiffHeader(line)
+	if !ok {
 		return stopError(p.point, InputDiff, lineNo, "the diff header is not accepted", line)
 	}
-	p.current = &diffFile{}
+	p.current = &diffFile{OldPath: oldPath, NewPath: newPath}
 	return nil
 }
 
@@ -137,13 +138,11 @@ func (p *diffParser) startOldPath(line string, lineNo int) error {
 	if p.oldSeen {
 		return stopError(p.point, InputDiff, lineNo, "a second --- line appears", line)
 	}
-	path, null, ok := parseDiffPath(line, "--- ", "a/")
+	path, ok := parseDiffPath(line, "--- ", "a/")
 	if !ok {
 		return stopError(p.point, InputDiff, lineNo, "the --- path is not accepted", line)
 	}
-	if !null {
-		p.current.OldPath = path
-	}
+	p.current.OldPath = path
 	p.oldSeen = true
 	return nil
 }
@@ -153,13 +152,11 @@ func (p *diffParser) startNewPath(line string, lineNo int) error {
 	if !p.oldSeen || p.newSeen {
 		return stopError(p.point, InputDiff, lineNo, "the +++ line has no matching --- line", line)
 	}
-	path, null, ok := parseDiffPath(line, "+++ ", "b/")
+	path, ok := parseDiffPath(line, "+++ ", "b/")
 	if !ok {
 		return stopError(p.point, InputDiff, lineNo, "the +++ path is not accepted", line)
 	}
-	if !null {
-		p.current.NewPath = path
-	}
+	p.current.NewPath = path
 	p.newSeen = true
 	return nil
 }
@@ -222,35 +219,38 @@ func (p *diffParser) finishFile(lineNo int, excerpt string) error {
 	return nil
 }
 
-// checkDiffHeader validates "diff --git a/<path> b/<path>". A path with
-// whitespace or a quote is rejected because git's own line cannot then be split
-// into two paths unambiguously.
-func checkDiffHeader(line string) bool {
+// parseDiffHeader reads the two paths of "diff --git a/<path> b/<path>". A
+// path with whitespace or a quote is rejected because git's own line cannot
+// then be split into two paths unambiguously.
+func parseDiffHeader(line string) (oldPath, newPath string, ok bool) {
 	rest := strings.TrimPrefix(line, "diff --git ")
 	if !strings.HasPrefix(rest, "a/") {
-		return false
+		return "", "", false
 	}
 	split := strings.Index(rest, " b/")
 	if split < 0 {
-		return false
+		return "", "", false
 	}
-	oldPath := rest[len("a/"):split]
-	newPath := rest[split+len(" b/"):]
-	return validDiffPath(oldPath) && validDiffPath(newPath)
+	oldPath = rest[len("a/"):split]
+	newPath = rest[split+len(" b/"):]
+	if !validDiffPath(oldPath) || !validDiffPath(newPath) {
+		return "", "", false
+	}
+	return oldPath, newPath, true
 }
 
-// parseDiffPath reads the path of a "--- " or "+++ " line. null reports
-// /dev/null.
-func parseDiffPath(line, marker, prefix string) (path string, null, ok bool) {
+// parseDiffPath reads the path of a "--- " or "+++ " line. /dev/null is the
+// empty path.
+func parseDiffPath(line, marker, prefix string) (path string, ok bool) {
 	rest := strings.TrimPrefix(line, marker)
 	if rest == "/dev/null" {
-		return "", true, true
+		return "", true
 	}
 	rel, found := strings.CutPrefix(rest, prefix)
 	if !found || !validDiffPath(rel) {
-		return "", false, false
+		return "", false
 	}
-	return rel, false, true
+	return rel, true
 }
 
 // validDiffPath rejects an empty path and a path with whitespace or a quote.

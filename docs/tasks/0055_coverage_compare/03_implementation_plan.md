@@ -133,7 +133,7 @@
 **変更するファイル:** `internal/coveragecompare/profile.go`、`internal/coveragecompare/gotestjson.go`、`internal/coveragecompare/product.go`（いずれも新規）と、それぞれの `_test.go`
 
 -   [x] プロファイルを、設計書 3.4 の「プロファイルの受け入れる形」「重複したブロック」のとおりに読む。モジュールのパスは `go.mod` の `module` の行から得て、ファイルをリポジトリのルートからの相対パスにする（AC-27）。外れた行は `StopError{Kind: StopUnreadable}` に、時点と行の番号と抜き書きを付けて返す。
--   [x] `go test -json` の出力を、設計書 3.4 の「テストの実行の結果の読み方」のとおりに読み、テストの数と失敗（`fail` の `Test` か `Package`、`build-fail` の `ImportPath`）と、最初に失敗したテストの `Output` の行を返す（1.3）。`Test` のない失敗（`build-fail`、パッケージの panic や時間切れ）では、そのパッケージまたは `ImportPath` の `Output` の行を返す。終了コードによる `test-failed` の判定は、フェーズ 4 の実行の側で行う。
+-   [x] `go test -json` の出力を、設計書 3.4 の「テストの実行の結果の読み方」のとおりに読み、テストの数と失敗（`fail` の `Test` か `Package`、`build-fail` の `ImportPath`）と、最初に失敗したテストの `Output` の行を返す（1.3）。`Test` のない失敗（`build-fail`、パッケージの panic や時間切れ）では、そのパッケージまたは `ImportPath` の `Output` の行を返す（ビルドの失敗では、コンパイラの出力である `build-output` の行も返す）。終了コードによる `test-failed` の判定は、フェーズ 4 の実行の側で行う。
 -   [x] Go の製品のコードの見分け方を、設計書 3.4 の「製品のコードの見分け方」のとおりに書く（`go/build/constraint`。`test` を偽、`-tags test` のビルドの値で評価する）。
 -   [x] テストを書く（設計書 7.1 の「入力の読み方」「製品のコードの見分け方」）。プロファイルは、`mode:` の行がない・2 つある・1 行目でない、形の崩れた行、負や `int` に収まらない数、始まりが終わりより後ろ、モジュールの外・空・絶対・`.`/`..` を含むパス、同じ位置で文の数が違うブロック、複数のテストのバイナリから出た同じブロックのまとめ方（どれかが 1 以上なら実行された）を含める。`go test -json` は、サブテストを数えないこと、`fail`・`build-fail` の行、JSON のオブジェクトでない行、テストが 0 の出力を含める。製品のコードは、`4bf1842f` の 7 種類の `//go:build` の行と `integration || test`、`//go:build` の行がないファイル、`_test.go` を含める。
 
@@ -143,7 +143,7 @@
 
 -   [x] lcov を、要件書 AC-29 と設計書 3.5 の「lcov の読み方」のとおりに読む。`SF` のパスに `extension/` を前に付け、絶対パス・`..` を含むパス・空のパスを拒否する。製品のコードの見分け方（`src/`・`scripts/` で始まるか、パスの区切りの単位で比べる）もここに置く。
 -   [x] TAP を、設計書 3.5 の「テストの実行の結果の読み方」のとおりに読み、`# tests` の値と、`# fail`・`# cancelled` の値、`not ok` の行の名前と、最初の `not ok` に続く診断のブロックとその `location:` のテストのファイル（`extension/` からの相対パスに直す）を返す（1.3）。
--   [x] テストを書く（設計書 7.1）。lcov は、要件書 AC-29 の拒否の条件をそれぞれ 1 行以上（知らないレコード、閉じていないまとまり、まとまりの外のレコード、重複した `SF`、`FN` と `FNDA` の数が違う・名前が違う、符号・小数・範囲外の数）と、読み飛ばすレコードの受理、`SF` のパスの拒否と `src/`・`scripts/` の見分け（`srcx/` のような前方一致を外すこと）を含める。TAP は、`# tests`・`# fail`・`# cancelled` がない・2 つ以上ある・負や数でない、字下げされた `# tests` を数えないこと、テストが標準出力に `tests 5` と書いて字下げのない `# tests 5` の行が 2 つになる場合（`unreadable`）、字下げの深さによらない `not ok`、診断のブロックと `location:` の読み取りを含める。
+-   [x] テストを書く（設計書 7.1）。lcov は、要件書 AC-29 の拒否の条件をそれぞれ 1 行以上（知らないレコード、閉じていないまとまり、まとまりの外のレコード、重複した `SF`、`FN` と `FNDA` の数が違う・名前が違う、符号・小数・範囲外の数）と、読み飛ばすレコードの受理（node が最初の `SF` の前に 1 つ書く `TN` は、まとまりの外でも受け入れる）、`SF` のパスの拒否と `src/`・`scripts/` の見分け（`srcx/` のような前方一致を外すこと）を含める。TAP は、`# tests`・`# fail`・`# cancelled` がない・2 つ以上ある・負や数でない、字下げされた `# tests` を数えないこと、テストが標準出力に `tests 5` と書いて字下げのない `# tests 5` の行が 2 つになる場合（`unreadable`）、字下げの深さによらない `not ok`、診断のブロックと `location:` の読み取りを含める。
 
 #### ステップ 1-4: 差分
 
@@ -550,12 +550,12 @@ M1・M2・M3 はこの順に積み上げる。M2 の関数表と判定の関数�
 | AC-24 | test | `output_test.go::TestWrite`（合格の各項目）、`run_test.go::TestRunEndToEnd`（実行から得た値） | ステップ 2-4・4-3 |
 | AC-25 | test | `output_test.go::TestWrite`（不合格と止まったとき） | ステップ 2-4 |
 | AC-26 | test | `output_test.go::TestWrite`（抜き書きの上限、出力の末尾の行の数） | ステップ 2-4 |
-| AC-27 | test | `profile_test.go::TestParseProfile`（モジュールのパスの除去）、`lcov_test.go::TestParseLCOV`（`extension/` の付加）、`output_test.go::TestWrite` | ステップ 1-2・1-3・2-4 |
+| AC-27 | test | `profile_test.go::TestParseProfile`（モジュールのパスの除去）、`lcov_test.go::TestParseLCOV`（`extension/` の付加）、`tap_test.go::TestParseTAP`（`location:` をリポジトリのルートからの相対パスに直すこと）、`output_test.go::TestWrite` | ステップ 1-2・1-3・2-4 |
 | AC-28 | test | `profile_test.go::TestParseProfile` | ステップ 1-2 |
 | AC-29 | test | `lcov_test.go::TestParseLCOV`、`testdata_test.go::TestParseRealSamples` | ステップ 1-3・1-5 |
 | AC-30 | test | `gotestjson_test.go::TestParseGoTestJSON`、`tap_test.go::TestParseTAP`、`testdata_test.go::TestParseRealSamples` | ステップ 1-2・1-3・1-5 |
 | AC-31 | test | `diff_test.go::TestParseDiff`、`run_test.go::TestDiffIgnoresUserGitConfig` | ステップ 1-4・4-3 |
-| AC-32 | test | `profile_test.go::TestParseProfile`・`gotestjson_test.go::TestParseGoTestJSON`・`lcov_test.go::TestParseLCOV`・`diff_test.go::TestParseDiff`（64 KiB と 1 MiB を超える 1 行）、`run_test.go::TestRunAcceptsLargeOutput` | ステップ 1-2・1-3・1-4・4-3 |
+| AC-32 | test | `profile_test.go::TestParseProfileAcceptsLongLine`・`gotestjson_test.go::TestParseGoTestJSON`・`lcov_test.go::TestParseLCOV`・`diff_test.go::TestParseDiff`（1 MiB を超える 1 行）、`run_test.go::TestRunAcceptsLargeOutput` | ステップ 1-2・1-3・1-4・4-3 |
 | AC-33 | test | `judge_test.go::TestJudgeScenarios`（AC-33 の項目ごとに 1 行）。各項目の詳しい場合は、AC-09・AC-08・AC-29・AC-28・AC-10・AC-12・AC-14・AC-20 の行のテスト | ステップ 2-3 |
 | AC-34 | test | `judge_test.go::TestJudgeScenarios`（AC-34 の 3 つの場合と、削除した関数の一覧） | ステップ 2-3 |
 | AC-35 | test | `fake_test.go::TestFakePathHasNoRealToolchain`（プロセスの `PATH` で go・node・npm が偽のコマンドに解決される）、`cmd/coveragecompare/main_test.go::TestRun`（本物の `Run` を呼ばない）。道具のテストは `make test`（`internal/coveragecompare`、`cmd/coveragecompare`、`cmd/yt2column`）と `make ext-test`（`extension/test/functionRanges.test.ts`）で動く | ステップ 3-1・4-4・5-1 |

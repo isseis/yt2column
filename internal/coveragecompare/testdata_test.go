@@ -4,6 +4,7 @@ package coveragecompare
 
 import (
 	"os"
+	"slices"
 	"testing"
 )
 
@@ -44,6 +45,26 @@ func TestParseRealSamples(t *testing.T) {
 		}
 	})
 
+	t.Run("go test -json build failure", func(t *testing.T) {
+		report, err := parseGoTestJSON(readTestdata(t, "go-test-json-build-fail.txt"), PointBase)
+		if err != nil {
+			t.Fatalf("parseGoTestJSON: %v", err)
+		}
+		if report.Tests != 0 {
+			t.Errorf("tests = %d, want 0", report.Tests)
+		}
+		if len(report.Failures) != 1 {
+			t.Fatalf("failures = %+v, want one package failure", report.Failures)
+		}
+		failure := report.Failures[0]
+		if failure.Package != "example.com/broken" || failure.Test != "" {
+			t.Errorf("failure = %+v, want example.com/broken with no test", failure)
+		}
+		if !slices.Contains(failure.Output, "./x_test.go:6:6: undefined: undefinedSymbol\n") {
+			t.Errorf("output = %q, want the compiler error", failure.Output)
+		}
+	})
+
 	t.Run("lcov", func(t *testing.T) {
 		report, err := parseLCOV(readTestdata(t, "lcov.txt"), PointBase)
 		if err != nil {
@@ -64,6 +85,26 @@ func TestParseRealSamples(t *testing.T) {
 		}
 		if report.Files[1].Path != "extension/scripts/check-dist.ts" || !isExtProduct(report.Files[1].Path) {
 			t.Errorf("second file = %+v, want product scripts/check-dist.ts", report.Files[1])
+		}
+	})
+
+	t.Run("tap failure", func(t *testing.T) {
+		report, err := parseTAP(readTestdata(t, "tap-failure.txt"), "/private/tmp/taptest", PointBase)
+		if err != nil {
+			t.Fatalf("parseTAP: %v", err)
+		}
+		if report.Tests != 2 || report.Fail != 1 || report.Cancelled != 1 {
+			t.Errorf("counts = tests %d fail %d cancelled %d, want 2 1 1", report.Tests, report.Fail, report.Cancelled)
+		}
+		if len(report.Failures) != 2 {
+			t.Fatalf("failures = %+v, want 2", report.Failures)
+		}
+		first := report.Failures[0]
+		if first.Name != "inner" || first.File != "extension/a.test.mjs" {
+			t.Errorf("first failure = %+v, want inner in extension/a.test.mjs", first)
+		}
+		if len(first.Diagnostic) == 0 {
+			t.Error("first failure has no diagnostic block")
 		}
 	})
 
