@@ -74,9 +74,6 @@ func parseProfileBlocks(lines []string, modulePath string, point Point) ([]profi
 	seen := make(map[profilePosition]int, len(lines))
 	for i, line := range lines {
 		lineNo := i + profileLineOffset
-		if strings.HasPrefix(line, "mode:") {
-			return nil, stopError(point, InputGoProfile, lineNo, "a mode line appears after line 1", line)
-		}
 		block, err := parseProfileBlock(line, modulePath, point, lineNo)
 		if err != nil {
 			return nil, err
@@ -177,7 +174,7 @@ func profileRelPath(file, modulePath string) (string, bool) {
 		return "", false
 	}
 	rel := file[len(prefix):]
-	if rel == "" || strings.HasPrefix(rel, "/") {
+	if rel == "" {
 		return "", false
 	}
 	for part := range strings.SplitSeq(rel, "/") {

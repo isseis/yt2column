@@ -67,15 +67,19 @@ func TestParseGoTestJSON(t *testing.T) {
 		}
 	})
 
-	t.Run("accepts an output line over 1 MiB", func(t *testing.T) {
+	t.Run("keeps an output line over 1 MiB", func(t *testing.T) {
 		long := strings.Repeat("x", 1<<20)
-		data := `{"Action":"output","Package":"example/p","Output":"` + long + `"}` + "\n"
+		data := `{"Action":"output","Package":"example/p","Test":"TestA","Output":"` + long + `"}` + "\n" +
+			`{"Action":"fail","Package":"example/p","Test":"TestA"}` + "\n"
 		report, err := parseGoTestJSON([]byte(data), PointBase)
 		if err != nil {
 			t.Fatalf("parseGoTestJSON: %v", err)
 		}
-		if report.Tests != 0 {
-			t.Errorf("tests = %d, want 0", report.Tests)
+		if len(report.Failures) != 1 || len(report.Failures[0].Output) != 1 {
+			t.Fatalf("failures = %+v, want one output line", report.Failures)
+		}
+		if report.Failures[0].Output[0] != long {
+			t.Errorf("output length = %d, want %d", len(report.Failures[0].Output[0]), len(long))
 		}
 	})
 

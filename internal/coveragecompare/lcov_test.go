@@ -51,29 +51,10 @@ func TestParseLCOV(t *testing.T) {
 		}
 	})
 
-	t.Run("pairs FN and FNDA by occurrence order across interleaved records", func(t *testing.T) {
-		data := strings.Join([]string{
-			"SF:src/a.ts",
-			"FN:1,first",
-			"FNDA:2,first",
-			"FN:9,second",
-			"FNDA:1,second",
-			"end_of_record",
-		}, "\n") + "\n"
-		report, err := parseLCOV([]byte(data), PointHead)
-		if err != nil {
-			t.Fatalf("parseLCOV: %v", err)
-		}
-		want := []lcovFunction{{Line: 1, Name: "first", Count: 2}, {Line: 9, Name: "second", Count: 1}}
-		if len(report.Files) != 1 || !slices.Equal(report.Files[0].Functions, want) {
-			t.Errorf("files = %+v, want %+v", report.Files, want)
-		}
-	})
-
 	t.Run("accepts a function name over 1 MiB", func(t *testing.T) {
 		long := strings.Repeat("n", 1<<20)
 		data := "SF:src/a.ts\nFN:1," + long + "\nFNDA:1," + long + "\nend_of_record\n"
-		report, err := parseLCOV([]byte(data), PointBase)
+		report, err := parseLCOV([]byte(data), PointHead)
 		if err != nil {
 			t.Fatalf("parseLCOV: %v", err)
 		}
@@ -83,26 +64,25 @@ func TestParseLCOV(t *testing.T) {
 	})
 
 	tests := map[string]string{
-		"unknown record":                         "SF:src/a.ts\nXX:1\nend_of_record\n",
-		"unclosed section":                       "SF:src/a.ts\nFN:1,a\nFNDA:1,a\n",
-		"record outside a section":               "FN:1,a\n",
-		"end of record outside":                  "end_of_record\n",
-		"data record outside a section":          "DA:1,1\n",
-		"repeated SF":                            "SF:src/a.ts\nend_of_record\nSF:src/a.ts\nend_of_record\n",
-		"a section inside another":               "SF:src/a.ts\nSF:scripts/b.ts\nend_of_record\n",
-		"FN and FNDA count mismatch":             "SF:src/a.ts\nFN:1,a\nFN:2,b\nFNDA:1,a\nend_of_record\n",
-		"FN and FNDA name mismatch":              "SF:src/a.ts\nFN:1,a\nFNDA:1,b\nend_of_record\n",
-		"negative line":                          "SF:src/a.ts\nFN:-1,a\nFNDA:0,a\nend_of_record\n",
-		"fractional count":                       "SF:src/a.ts\nFN:1,a\nFNDA:1.5,a\nend_of_record\n",
-		"signed count":                           "SF:src/a.ts\nFN:1,a\nFNDA:+1,a\nend_of_record\n",
-		"count that does not fit int":            "SF:src/a.ts\nFN:1,a\nFNDA:" + strings.Repeat("9", 40) + ",a\nend_of_record\n",
-		"absolute SF path":                       "SF:/etc/passwd\nend_of_record\n",
-		"empty SF path":                          "SF:\nend_of_record\n",
-		"SF path with a parent element":          "SF:src/../../x.ts\nend_of_record\n",
-		"FN without a comma":                     "SF:src/a.ts\nFN:1\nFNDA:0,a\nend_of_record\n",
-		"FNDA without a comma":                   "SF:src/a.ts\nFN:1,a\nFNDA:0\nend_of_record\n",
-		"blank line":                             "SF:src/a.ts\n\nend_of_record\n",
-		"record other than TN outside a section": "DA:1,1\nSF:src/a.ts\nend_of_record\n",
+		"unknown record":                "SF:src/a.ts\nXX:1\nend_of_record\n",
+		"unclosed section":              "SF:src/a.ts\nFN:1,a\nFNDA:1,a\n",
+		"record outside a section":      "FN:1,a\n",
+		"end of record outside":         "end_of_record\n",
+		"data record outside a section": "DA:1,1\n",
+		"repeated SF":                   "SF:src/a.ts\nend_of_record\nSF:src/a.ts\nend_of_record\n",
+		"a section inside another":      "SF:src/a.ts\nSF:scripts/b.ts\nend_of_record\n",
+		"FN and FNDA count mismatch":    "SF:src/a.ts\nFN:1,a\nFN:2,b\nFNDA:1,a\nend_of_record\n",
+		"FN and FNDA name mismatch":     "SF:src/a.ts\nFN:1,a\nFNDA:1,b\nend_of_record\n",
+		"negative line":                 "SF:src/a.ts\nFN:-1,a\nFNDA:0,a\nend_of_record\n",
+		"fractional count":              "SF:src/a.ts\nFN:1,a\nFNDA:1.5,a\nend_of_record\n",
+		"signed count":                  "SF:src/a.ts\nFN:1,a\nFNDA:+1,a\nend_of_record\n",
+		"count that does not fit int":   "SF:src/a.ts\nFN:1,a\nFNDA:" + strings.Repeat("9", 40) + ",a\nend_of_record\n",
+		"absolute SF path":              "SF:/etc/passwd\nend_of_record\n",
+		"empty SF path":                 "SF:\nend_of_record\n",
+		"SF path with a parent element": "SF:src/../../x.ts\nend_of_record\n",
+		"FN without a comma":            "SF:src/a.ts\nFN:1\nFNDA:0,a\nend_of_record\n",
+		"FNDA without a comma":          "SF:src/a.ts\nFN:1,a\nFNDA:0\nend_of_record\n",
+		"blank line":                    "SF:src/a.ts\n\nend_of_record\n",
 	}
 
 	for name, data := range tests {

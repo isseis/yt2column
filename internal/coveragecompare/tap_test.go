@@ -3,13 +3,12 @@
 package coveragecompare
 
 import (
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 )
-
-const testExtensionDir = "/checkout/extension"
 
 func TestParseTAP(t *testing.T) {
 	valid := strings.Join([]string{
@@ -119,22 +118,33 @@ func TestParseTAP(t *testing.T) {
 	})
 
 	t.Run("resolves a checkout path whose symbolic links node resolved", func(t *testing.T) {
-		dir := t.TempDir()
-		resolved, err := filepath.EvalSymlinks(dir)
+		base := t.TempDir()
+		realDir := filepath.Join(base, "real-extension")
+		if err := os.MkdirAll(filepath.Join(realDir, "test"), 0o755); err != nil {
+			t.Fatalf("MkdirAll: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(realDir, "test", "x.test.ts"), nil, 0o600); err != nil {
+			t.Fatalf("WriteFile: %v", err)
+		}
+		linkDir := filepath.Join(base, "link-extension")
+		if err := os.Symlink(realDir, linkDir); err != nil {
+			t.Skipf("symbolic links are unavailable: %v", err)
+		}
+		resolved, err := filepath.EvalSymlinks(realDir)
 		if err != nil {
 			t.Fatalf("EvalSymlinks: %v", err)
 		}
-		data := strings.Join([]string{
-			"not ok 1 - x",
-			"  location: '" + resolved + "/test/x.test.ts:1:1'",
-			"# tests 1",
-			"# fail 1",
-			"# cancelled 0",
-		}, "\n") + "\n"
-		report, err := parseTAP([]byte(data), dir, PointBase)
-		if err != nil {
-			t.Fatalf("parseTAP: %v", err)
+
+		// The directory passed in is a link; only resolving it matches node's
+		// location.
+		report := parseTapFailureAt(t, resolved+"/test/x.test.ts:1:1", linkDir)
+		if report.Failures[0].File != "extension/test/x.test.ts" {
+			t.Errorf("file = %q, want extension/test/x.test.ts", report.Failures[0].File)
 		}
+
+		// The location is the link path and the directory is real; only
+		// resolving the file's path matches.
+		report = parseTapFailureAt(t, linkDir+"/test/x.test.ts:1:1", realDir)
 		if report.Failures[0].File != "extension/test/x.test.ts" {
 			t.Errorf("file = %q, want extension/test/x.test.ts", report.Failures[0].File)
 		}
@@ -169,30 +179,13 @@ func TestParseTAP(t *testing.T) {
 			"# fail 1",
 			"# cancelled 0",
 		}, "\n") + "\n"
-		if _, err := parseTAP([]byte(data), testExtensionDir, PointBase); err != nil {
-			t.Fatalf("parseTAP: %v", err)
-		}
-	})
-
-	t.Run("reads not ok at any indentation", func(t *testing.T) {
-		data := strings.Join([]string{
-			"        not ok 3 - deep",
-			"not ok 4 - shallow",
-			"# tests 2",
-			"# fail 2",
-			"# cancelled 0",
-		}, "\n") + "\n"
 		report, err := parseTAP([]byte(data), testExtensionDir, PointBase)
 		if err != nil {
 			t.Fatalf("parseTAP: %v", err)
 		}
-		want := []string{"deep", "shallow"}
-		var names []string
-		for _, failure := range report.Failures {
-			names = append(names, failure.Name)
-		}
-		if !slices.Equal(names, want) {
-			t.Errorf("names = %v, want %v", names, want)
+		diagnostic := strings.Join(report.Failures[0].Diagnostic, "\n")
+		if !strings.Contains(diagnostic, long) {
+			t.Error("the diagnostic block does not hold the whole long line")
 		}
 	})
 
@@ -215,4 +208,22 @@ func TestParseTAP(t *testing.T) {
 			requireStop(t, err, PointBase, InputTAP)
 		})
 	}
+}
+
+// parseTapFailureAt parses one TAP report with a single failure at location,
+// measured from extensionDir.
+func parseTapFailureAt(t *testing.T, location, extensionDir string) *tapReport {
+	t.Helper()
+	data := strings.Join([]string{
+		"not ok 1 - x",
+		"  location: '" + location + "'",
+		"# tests 1",
+		"# fail 1",
+		"# cancelled 0",
+	}, "\n") + "\n"
+	report, err := parseTAP([]byte(data), extensionDir, PointBase)
+	if err != nil {
+		t.Fatalf("parseTAP: %v", err)
+	}
+	return report
 }

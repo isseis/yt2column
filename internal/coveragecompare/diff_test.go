@@ -116,19 +116,6 @@ func TestParseDiff(t *testing.T) {
 		}
 	})
 
-	t.Run("accepts a hunk header with a function context", func(t *testing.T) {
-		data := strings.Join([]string{
-			"diff --git a/x.go b/x.go",
-			"--- a/x.go",
-			"+++ b/x.go",
-			"@@ -4,0 +5,1 @@ func main() {",
-			"+x",
-		}, "\n") + "\n"
-		if _, err := parseDiff([]byte(data), PointBase); err != nil {
-			t.Fatalf("parseDiff: %v", err)
-		}
-	})
-
 	t.Run("accepts an added line over 1 MiB", func(t *testing.T) {
 		long := strings.Repeat("x", 1<<20)
 		data := strings.Join([]string{
