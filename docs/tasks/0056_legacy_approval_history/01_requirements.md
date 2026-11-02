@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-02 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-02 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -146,3 +146,7 @@
 -   **移した項目:** 旧 `Comments` の文を、`旧規則の Comments：` の印を付けて変更履歴の先頭に置いた項目（規則「Change history」の Migrated item）。
 -   **写した承認の行（状態表から写した承認の行）:** 状態表の `Review date` と `Reviewer` の値から作る承認の行（F-002）。承認の行と同じ形の行だが、PR 番号を持たない。
 -   `docs/translation_glossary.md` は README の翻訳のための用語集で、上の用語は README に現れないため載っていない。本書では上の定義で統一する。
+
+## 変更履歴
+
+- 2026-11-02 承認（isseis、#622）
