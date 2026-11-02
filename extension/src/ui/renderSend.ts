@@ -5,7 +5,7 @@
 import type { Locale } from "../core/i18n/locale.ts";
 import type { SendOutcome } from "../core/articlesResponse.ts";
 import { sendOutcomeMessage } from "../core/sendMessages.ts";
-import { messageNodes } from "./render.ts";
+import { messageNodes } from "./message.ts";
 
 /** The message, plus the request id when the outcome has one. */
 function outcomeNodes(

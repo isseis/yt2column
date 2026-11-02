@@ -415,6 +415,7 @@ describe("popup preview script", () => {
       // and its summary, and the primary button's name and availability. The
       // video section and details come from a collected page's values.
       const expected = popupElements();
+      expected.primary.disabled = false;
       renderPopup(
         expected,
         {

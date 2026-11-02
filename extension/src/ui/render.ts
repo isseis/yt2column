@@ -17,22 +17,21 @@ import type {
   SelectionStatus,
   VideoView,
 } from "../core/popupView.ts";
-import { startResultMessage } from "../core/sendMessages.ts";
 import type { DisplayText } from "../core/summary.ts";
 import type { CheckName, CheckState } from "../core/types.ts";
 import { checkIcon } from "./icons.ts";
 import { messageNodes } from "./message.ts";
 import {
+  jobStateSummary,
   loadingIndicator,
   noticeSummary,
   pollNotice,
   renderJobState,
   startFailure,
-  stepsSummary,
+  startFailureSummary,
+  waitingSummary,
   writeStatusSummary,
 } from "./renderJob.ts";
-
-export { messageNodes };
 
 /** Appended to a value that was shortened for display. */
 const ellipsis = "\u2026";
@@ -275,6 +274,66 @@ function renderDetailsSection(
   container.replaceChildren(summary, list);
 }
 
+/** The last video section and details drawn into each container. */
+const drawnVideo = new WeakMap<HTMLElement, VideoView>();
+const drawnDetails = new WeakMap<HTMLElement, DetailsView>();
+
+/** Whether two display values are the same text with the same truncation. */
+function sameText(left: DisplayText, right: DisplayText): boolean {
+  return left.value === right.value && left.truncated === right.truncated;
+}
+
+/** Whether two video sections would be drawn the same. */
+function sameVideo(left: VideoView, right: VideoView): boolean {
+  if (!sameText(left.heading, right.heading)) {
+    return false;
+  }
+  if (left.channelName === undefined || right.channelName === undefined) {
+    return left.channelName === right.channelName;
+  }
+  return sameText(left.channelName, right.channelName);
+}
+
+/** Whether two details would be drawn the same. */
+function sameDetails(left: DetailsView, right: DetailsView): boolean {
+  return (
+    sameText(left.url, right.url) && sameText(left.tabTitle, right.tabTitle)
+  );
+}
+
+/**
+ * Draws the video section only when its values changed. A job redraws once a
+ * second to show the elapsed time; replacing an unchanged section would move
+ * the focus off the details toggle and drop the reader's selection.
+ */
+function drawVideoSection(
+  doc: Document,
+  container: HTMLElement,
+  view: VideoView,
+): void {
+  const last = drawnVideo.get(container);
+  if (last !== undefined && sameVideo(last, view)) {
+    return;
+  }
+  renderVideoSection(doc, container, view);
+  drawnVideo.set(container, view);
+}
+
+/** Draws the details only when their values changed, for the same reason. */
+function drawDetailsSection(
+  doc: Document,
+  container: HTMLElement,
+  view: DetailsView,
+  locale: Locale,
+): void {
+  const last = drawnDetails.get(container);
+  if (last !== undefined && sameDetails(last, view)) {
+    return;
+  }
+  renderDetailsSection(doc, container, view, locale);
+  drawnDetails.set(container, view);
+}
+
 /** The checks section's content for a job state: the state, then its guidance. */
 function drawPopupState(
   container: HTMLElement,
@@ -286,7 +345,9 @@ function drawPopupState(
   const catalog = catalogs[locale];
   switch (state.kind) {
     case "sending":
-      container.replaceChildren(loadingIndicator(doc, catalog.popup.sending));
+      container.replaceChildren(
+        ...loadingIndicator(doc, catalog.popup.sending),
+      );
       return;
     case "start-failed":
       container.replaceChildren(startFailure(doc, state.failure, locale));
@@ -297,7 +358,7 @@ function drawPopupState(
       container.replaceChildren(
         ...(state.notice.kind === "stopped"
           ? []
-          : [loadingIndicator(doc, catalog.viewer.loading)]),
+          : loadingIndicator(doc, catalog.viewer.loading)),
         ...pollNotice(doc, state.notice, locale),
         ...messageNodes(doc, catalog.popup.viewerNotice),
       );
@@ -318,42 +379,22 @@ function drawPopupState(
   }
 }
 
-/** The job's part of the popup's state summary. */
-function popupJobSummary(
-  job: Extract<PopupJobState, { kind: "job" }>["job"],
-  locale: Locale,
-): string[] {
-  const catalog = catalogs[locale];
-  switch (job.kind) {
-    case "running":
-      return [catalog.viewer.running, stepsSummary(job.steps, locale)];
-    case "done":
-      return [catalog.popup.articleReady.text];
-    case "failed":
-      return [catalog.failure[job.failure].text];
-    case "lost":
-      return [catalog.viewer.lost.text];
-  }
-}
-
 /** The state summary's sentences: loading started or ended, the steps, completion or failure. */
 function popupSummary(state: PopupJobState, locale: Locale): string[] {
-  const catalog = catalogs[locale];
   switch (state.kind) {
     case "sending":
-      return [catalog.popup.sending.text];
+      return [catalogs[locale].popup.sending.text];
     case "start-failed":
-      return [startResultMessage(state.failure, locale).text];
+      return startFailureSummary(state.failure, locale);
     case "loading":
-      return [
-        ...(state.notice.kind === "stopped"
-          ? []
-          : [catalog.viewer.loading.text]),
-        ...noticeSummary(state.notice, locale),
-      ];
+      return waitingSummary(state.notice, locale);
     case "job":
       return [
-        ...popupJobSummary(state.job, locale),
+        ...jobStateSummary(
+          state.job,
+          [catalogs[locale].popup.articleReady.text],
+          locale,
+        ),
         ...noticeSummary(state.notice, locale),
       ];
   }
@@ -408,6 +449,8 @@ export function renderPopup(
     elements.video.replaceChildren();
     elements.checks.replaceChildren();
     elements.details.replaceChildren();
+    drawnVideo.delete(elements.video);
+    drawnDetails.delete(elements.details);
     elements.status.replaceChildren();
     elements.primary.textContent = catalog.primaryButton;
     elements.primary.disabled = true;
@@ -418,8 +461,8 @@ export function renderPopup(
   elements.checks.hidden = false;
   elements.details.hidden = false;
   elements.rejection.replaceChildren();
-  renderVideoSection(doc, elements.video, view.video);
-  renderDetailsSection(doc, elements.details, view.details, locale);
+  drawVideoSection(doc, elements.video, view.video);
+  drawDetailsSection(doc, elements.details, view.details, locale);
   if (view.kind === "collected") {
     elements.status.replaceChildren();
     elements.primary.textContent = catalog.primaryButton;

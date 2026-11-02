@@ -214,6 +214,7 @@ flowchart TB
         U3["renderViewer.ts"]
         U4["articleBody.ts"]
         U5["icons.ts"]
+        U6["message.ts"]
     end
     subgraph CORE["判断 (src/core/)"]
         C0["exchange.ts"]
@@ -243,6 +244,7 @@ flowchart TB
     P3 --> U3
     U1 & U3 --> U2
     U2 --> U5
+    U1 & U2 & U3 --> U6
     U3 --> U4
     P4 --> C3
     P4 --> C11
@@ -259,7 +261,7 @@ flowchart TB
     U2 & U3 & U1 --> C10
 
     class E1,P1,P4,U1,U5,C2,C3,C9,C10,C11,B1 enhanced
-    class E2,E3,P2,P3,P5,P6,U2,U3,U4,C0,C1,C4,C5,C6,C7,C8,C12 newpkg
+    class E2,E3,P2,P3,P5,P6,U2,U3,U4,U6,C0,C1,C4,C5,C6,C7,C8,C12 newpkg
 
     subgraph Legend["Legend"]
         L2["変えるファイル"]
@@ -1389,7 +1391,8 @@ export function renderArticleBody(doc: Document, markdown: string): HTMLElement;
 | `extension/src/core/sendMessages.ts` | 変更 | やり取りの結果の文言の選択 | 3 つの操作の結果と理由の文言を選ぶ。`test/sendMessages.test.ts` を更新 |
 | `extension/src/core/i18n/catalog.ts`・`en.ts`・`ja.ts` | 変更 | 文言 | 3.13 の節に改め、Slack の案内を除く。`test/catalog.test.ts` を更新 |
 | `extension/src/ui/render.ts` | 変更 | ポップアップの描画 | `job` の種類を描く。`test/render.test.ts` を更新 |
-| `extension/src/ui/renderJob.ts` | 新規 | 状態の描画（ポップアップとビューアが共有） | 工程のチェックリスト、経過時間、料金、所要時間、ロード中の印 |
+| `extension/src/ui/renderJob.ts` | 新規 | 状態の描画と状態の要約（ポップアップとビューアが共有） | 工程のチェックリスト、経過時間、料金、所要時間、ロード中の印、状態の要約の文 |
+| `extension/src/ui/message.ts` | 新規 | メッセージの描画（ポップアップとビューアが共有） | `messageNodes`（文と番号付きの手順） |
 | `extension/src/ui/renderViewer.ts` | 新規 | ビューアの描画 | 見出し・リンク・状態・操作 |
 | `extension/src/ui/articleBody.ts` | 新規 | 記事の本文の表示 | 3.12（#504 の差し替えの境界） |
 | `extension/src/ui/renderSend.ts` | 削除 | 今の送信の結果の描画 | 役割を `renderJob.ts` に移す。`test/renderSend.test.ts` を削除し、`renderJob.ts` のテストに移す |

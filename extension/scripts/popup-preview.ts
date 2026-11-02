@@ -400,7 +400,7 @@ export interface PopupJobPreviewCase {
 
 const noNotice = { kind: "none" } as const;
 
-/** Every popup job state kind, every job kind, and both locales. */
+/** Every popup job state kind and every job kind, with the running state also in Japanese. */
 export const popupJobPreviewCases: readonly PopupJobPreviewCase[] = [
   {
     name: "popup-job-sending-en",
@@ -557,21 +557,20 @@ function renderViewerPage(
 /** The stylesheets popup.html and viewer.html load, copied next to the pages. */
 const stylesheets = ["theme.css", "style.css", "viewer.css"] as const;
 
-/** The video section and details every popup job preview shares, built from a page. */
+/** The video section and details every popup job preview shares, built by buildView. */
 async function collectedPreviewBase() {
-  const outcome = await collect(
-    { tabId: 1, url: watchUrl, title: "A tab title" },
-    readerReturning("00:00 a caption"),
-  );
-  if (outcome.kind !== "collected") {
+  const view = await buildView({
+    kind: "collected",
+    name: "popup-job-base",
+    locale: "en",
+    selection: "00:00 a caption",
+    tabTitle: "A tab title",
+    metadata: acceptMetadata({ descriptionCollapsed: false }),
+  });
+  if (view.kind !== "collected") {
     throw new Error("the popup job preview's collected base was rejected");
   }
-  const metadata = acceptMetadata({ descriptionCollapsed: false });
-  return buildCollectedView(
-    outcome.input,
-    metadata,
-    prepareSend(outcome.input, metadata.values),
-  );
+  return view;
 }
 
 /** Writes one page per input set plus the stylesheets into outputDir. */

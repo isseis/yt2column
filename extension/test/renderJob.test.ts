@@ -333,11 +333,32 @@ describe("loading indicator", () => {
   for (const locale of localeList) {
     it(`puts the hidden loading mark before the wait's sentence in ${locale}`, () => {
       const doc = container().ownerDocument;
-      const indicator = loadingIndicator(doc, catalogs[locale].viewer.loading);
+      const [indicator, ...steps] = loadingIndicator(
+        doc,
+        catalogs[locale].viewer.loading,
+      );
       const [icon] = Array.from(indicator.children);
       assert.ok(icon?.classList.contains("loading-icon"));
       assert.equal(icon?.getAttribute("aria-hidden"), "true");
       expectLocaleMessage(indicator, locale, (l) => catalogs[l].viewer.loading);
+      assert.deepEqual(steps, []);
     });
   }
+
+  it("puts a message's numbered steps after the mark-and-sentence row", () => {
+    const doc = container().ownerDocument;
+    const [indicator, ...steps] = loadingIndicator(
+      doc,
+      catalogs.en.popup.sending,
+    );
+    assert.equal(indicator.querySelector("ol"), null);
+    assert.equal(steps.length, 1);
+    assert.deepEqual(
+      Array.from(
+        steps[0]?.querySelectorAll("li") ?? [],
+        (item) => item.textContent,
+      ),
+      [...catalogs.en.popup.sending.steps],
+    );
+  });
 });

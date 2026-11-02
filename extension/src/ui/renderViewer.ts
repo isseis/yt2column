@@ -14,21 +14,20 @@ import type {
   PublishRow,
   ViewerState,
 } from "../core/jobView.ts";
-import {
-  publishResultMessage,
-  startResultMessage,
-} from "../core/sendMessages.ts";
+import { publishResultMessage } from "../core/sendMessages.ts";
 import type { ViewerParams } from "../core/viewerUrl.ts";
 import { renderArticleBody } from "./articleBody.ts";
-import { messageNodes } from "./render.ts";
+import { messageNodes } from "./message.ts";
 import {
+  jobStateSummary,
   loadingIndicator,
   noticeSummary,
   pollNotice,
   renderJobState,
   requestIdNode,
   startFailure,
-  stepsSummary,
+  startFailureSummary,
+  waitingSummary,
   writeStatusSummary,
 } from "./renderJob.ts";
 
@@ -164,14 +163,14 @@ function drawState(
       return;
     }
     case "sending":
-      container.replaceChildren(loadingIndicator(doc, viewer.sending));
+      container.replaceChildren(...loadingIndicator(doc, viewer.sending));
       return;
     case "loading":
       // A stopped poll waits for nothing, so its notice stands alone.
       container.replaceChildren(
         ...(state.notice.kind === "stopped"
           ? []
-          : [loadingIndicator(doc, viewer.loading)]),
+          : loadingIndicator(doc, viewer.loading)),
         ...pollNotice(doc, state.notice, locale),
       );
       return;
@@ -192,24 +191,17 @@ function drawState(
 
 /** The job's part of the summary: what changed for assistive technology. */
 function jobSummary(job: JobDisplay, locale: Locale): string[] {
-  const catalog = catalogs[locale];
-  switch (job.kind) {
-    case "running":
-      return [catalog.viewer.running, stepsSummary(job.steps, locale)];
-    case "done":
-      // The same sentence the popup shows when the article is ready, then the
-      // publish state, so a post starting, finishing or failing is announced.
-      return [
-        catalog.popup.articleReady.text,
-        ...publishRowMessages(publishControl(job, false).row, locale).map(
-          (message) => message.text,
-        ),
-      ];
-    case "failed":
-      return [catalog.failure[job.failure].text];
-    case "lost":
-      return [catalog.viewer.lost.text];
+  if (job.kind !== "done") {
+    return jobStateSummary(job, [], locale);
   }
+  // The same sentence the popup shows when the article is ready, then the
+  // publish state, so a post starting, finishing or failing is announced.
+  return [
+    catalogs[locale].popup.articleReady.text,
+    ...publishRowMessages(publishControl(job, false).row, locale).map(
+      (message) => message.text,
+    ),
+  ];
 }
 
 /**
@@ -226,12 +218,9 @@ function stateSummary(state: ViewerState, locale: Locale): string[] {
     case "sending":
       return [viewer.sending.text];
     case "loading":
-      return [
-        ...(state.notice.kind === "stopped" ? [] : [viewer.loading.text]),
-        ...noticeSummary(state.notice, locale),
-      ];
+      return waitingSummary(state.notice, locale);
     case "start-failed":
-      return [startResultMessage(state.failure, locale).text];
+      return startFailureSummary(state.failure, locale);
     case "job":
       return [
         ...jobSummary(state.job, locale),

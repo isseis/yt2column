@@ -1,7 +1,8 @@
-// Draws a job's state: the parts the popup's checks section and the viewer's
-// state section share. Every string is set with textContent, so a value that
-// reached this layer as a string is never parsed as HTML; the check that made
-// a reply unexpected is never drawn.
+// Draws a job's state and writes its state summary: the parts the popup's
+// checks section and status region and the viewer's state section share. Every
+// string is set with textContent, so a value that reached this layer as a
+// string is never parsed as HTML; the check that made a reply unexpected is
+// never drawn.
 
 import { catalogs } from "../core/i18n/catalog.ts";
 import type { Message } from "../core/i18n/catalog.ts";
@@ -101,15 +102,20 @@ function articleFacts(
   ]);
 }
 
-/** The loading mark and the sentence that says which wait it is. */
+/**
+ * The loading mark and the sentence that says which wait it is, then the
+ * message's numbered steps. The steps are siblings of the mark-and-sentence
+ * row, not flex items beside it, so a step wraps under the row.
+ */
 export function loadingIndicator(
   doc: Document,
   message: Message,
-): HTMLDivElement {
-  const indicator = doc.createElement("div");
-  indicator.className = "loading";
-  indicator.append(loadingIcon(doc), ...messageNodes(doc, message));
-  return indicator;
+): [HTMLDivElement, ...HTMLElement[]] {
+  const row = doc.createElement("div");
+  row.className = "loading";
+  const [text, ...steps] = messageNodes(doc, message);
+  row.append(loadingIcon(doc), text);
+  return [row, ...steps];
 }
 
 /**
@@ -124,6 +130,47 @@ export function stepsSummary(steps: Steps, locale: Locale): string {
       (name) => `${catalog.stepNames[name]} ${catalog.stepStates[steps[name]]}`,
     ),
   );
+}
+
+/**
+ * The job's part of a state summary. The done sentences differ between the
+ * popup and the viewer, so the caller supplies them; every other kind reads
+ * the same catalog entries in both pages.
+ */
+export function jobStateSummary(
+  job: JobDisplay,
+  done: readonly string[],
+  locale: Locale,
+): string[] {
+  const catalog = catalogs[locale];
+  switch (job.kind) {
+    case "running":
+      return [catalog.viewer.running, stepsSummary(job.steps, locale)];
+    case "done":
+      return [...done];
+    case "failed":
+      return [catalog.failure[job.failure].text];
+    case "lost":
+      return [catalog.viewer.lost.text];
+  }
+}
+
+/** The summary while a key waits for its first status, plus a failed exchange's notice. */
+export function waitingSummary(notice: PollNotice, locale: Locale): string[] {
+  return [
+    ...(notice.kind === "stopped"
+      ? []
+      : [catalogs[locale].viewer.loading.text]),
+    ...noticeSummary(notice, locale),
+  ];
+}
+
+/** The summary of a start that gave no key. */
+export function startFailureSummary(
+  failure: StartFailure,
+  locale: Locale,
+): string[] {
+  return [startResultMessage(failure, locale).text];
 }
 
 /** The server's request id as text, one click away from a full copy. */

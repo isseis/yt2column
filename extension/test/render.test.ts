@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 
 import type { CollectedInput } from "../src/core/collect.ts";
 import { catalogs } from "../src/core/i18n/catalog.ts";
-import { locales } from "../src/core/i18n/locale.ts";
+import { formatDuration, formatUsd, locales } from "../src/core/i18n/locale.ts";
 import type { Locale } from "../src/core/i18n/locale.ts";
 import type { JobDisplay, PollNotice } from "../src/core/jobView.ts";
 import { acceptMetadata } from "../src/core/metadata.ts";
@@ -35,7 +35,7 @@ import {
   otherLocales,
   popupElements,
 } from "./helpers/dom.ts";
-import { doneJob, runningSteps } from "./helpers/job.ts";
+import { article, doneJob, runningSteps } from "./helpers/job.ts";
 
 const malicious = "<img src=x onerror=alert(1)>";
 const localeList = Object.keys(locales) as Locale[];
@@ -662,15 +662,27 @@ describe("job view", () => {
     };
   }
 
-  /** Fresh skeleton elements with a job view drawn into them. */
+  /**
+   * Fresh skeleton elements with a job view drawn into them. The skeleton's
+   * button starts enabled, so a state that must not be pressable proves that
+   * renderPopup disabled it.
+   */
   function drawn(
     state: PopupJobState,
     locale: Locale,
     elapsedMs = 0,
   ): PopupElements {
     const elements = popupElements();
+    elements.primary.disabled = false;
     renderPopup(elements, jobPopup(state), locale, elapsedMs);
     return elements;
+  }
+
+  /** The article fixture's cost as the popup draws it. */
+  function articleCost(locale: Locale): string {
+    return article.cost.state === "known"
+      ? formatUsd(article.cost.usd, locale)
+      : catalogs[locale].viewer.costUnknown;
   }
 
   /** One job state's expected wording, summary, button name and availability. */
@@ -736,7 +748,14 @@ describe("job view", () => {
     {
       name: "done",
       state: jobState(doneJob({ state: "not_posted" })),
-      checks: (locale) => [catalogs[locale].popup.articleReady.text],
+      checks: (locale) => [
+        catalogs[locale].popup.articleReady.text,
+        ...Object.values(catalogs[locale].stepNames),
+        catalogs[locale].viewer.duration,
+        formatDuration(article.durationMs, locale),
+        catalogs[locale].viewer.cost,
+        articleCost(locale),
+      ],
       status: (locale) => [catalogs[locale].popup.articleReady.text],
       primary: (locale) => catalogs[locale].popup.primary.openViewer,
       action: "open-viewer",
@@ -744,7 +763,10 @@ describe("job view", () => {
     {
       name: "failed",
       state: jobState(failedJob),
-      checks: (locale) => [catalogs[locale].failure.llm_failed.text],
+      checks: (locale) => [
+        catalogs[locale].failure.llm_failed.text,
+        ...catalogs[locale].failure.llm_failed.steps,
+      ],
       status: (locale) => [catalogs[locale].failure.llm_failed.text],
       primary: (locale) => catalogs[locale].popup.primary.retry,
       action: "retry",
@@ -816,8 +838,8 @@ describe("job view", () => {
     }
   });
 
-  it("shows the video, checks, action and details in that order with the button before the status region", () => {
-    const elements = drawn(states[0]?.state ?? { kind: "sending" }, "en");
+  it("keeps the video, checks, action and details order and hides the rejection card", () => {
+    const elements = drawn({ kind: "sending" }, "en");
     const doc = elements.video.ownerDocument;
     assert.deepEqual(
       Array.from(doc.body.children)
@@ -827,6 +849,8 @@ describe("job view", () => {
         .map((element) => element.id),
       ["video", "checks", "action", "details"],
     );
+    assert.equal(elements.rejection.hidden, true);
+    assert.equal(elements.rejection.children.length, 0);
     const [primary, status] = Array.from(elements.action.children);
     assert.equal(primary?.id, "primary");
     assert.equal(status?.id, "status");
@@ -904,11 +928,28 @@ describe("job view", () => {
     assert.notEqual(elements.status.firstChild, written);
   });
 
+  it("keeps the video section, the details and the focus when only the elapsed time changes", () => {
+    const elements = drawn(jobState(runningJob), "en", 1_000);
+    const heading = elements.video.firstElementChild;
+    const summary = elements.details.querySelector("summary");
+    assert.ok(summary !== null);
+    summary.focus();
+    assert.equal(elements.video.ownerDocument.activeElement, summary);
+    renderPopup(elements, jobPopup(jobState(runningJob)), "en", 2_000);
+    assert.equal(elements.video.firstElementChild, heading);
+    assert.equal(elements.details.querySelector("summary"), summary);
+    assert.equal(elements.video.ownerDocument.activeElement, summary);
+  });
+
   it("keeps the elapsed time out of the status region", () => {
     const elements = drawn(jobState(runningJob), "en", 65_000);
     const elapsed = elements.checks.querySelector(".job-elapsed");
     assert.ok(elapsed !== null);
     assert.equal(elapsed.closest("[role=status], [aria-live]"), null);
+    assert.equal(
+      elapsed.querySelector("dd")?.textContent,
+      formatDuration(65_000, "en"),
+    );
     assert.equal(
       (elements.status.textContent ?? "").includes(
         elapsed.querySelector("dd")?.textContent ?? "",
