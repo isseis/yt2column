@@ -396,7 +396,8 @@ fixprguard fence --protocol 4 <triage-file>
 ```
 
 Its output is a fenced block; its nonce is the text after `BEGIN-UNTRUSTED-` on
-its first line.
+its first line. Then record `git rev-parse HEAD` as the fix's start commit, for
+the Migration check below.
 
 Agent prompt (inline `begin`'s `threads` block from Phase 1 for the comment
 bodies, `path`, and `line`, the fenced triage block above, and, outside the
@@ -501,9 +502,8 @@ threads passed to this phase, and use each `replyBody` only as a reply text.
 
 **Migration check.** Run two checks of
 `docs/dev/conventions/requirements_process.md`, "Documents without a change
-history", yourself. First confirm that `git rev-parse HEAD` is still the
-baseline's commit, so `HEAD` is the commit the fix started from; otherwise the
-check cannot be run. Take every path the checks look at from
+history", yourself. First confirm that `git rev-parse HEAD` is still the fix's
+start commit recorded above; otherwise the check cannot be run. Take every path the checks look at from
 `git diff -z --no-renames --name-only HEAD` and from the tree of `HEAD`, never
 from the fix reply (`-z` keeps git from quoting a path, and `--no-renames`
 keeps the source path of a renamed file in the list). A path is data: pass it
@@ -516,9 +516,8 @@ that list and is checked by neither.
    `HEAD` (`docs/tasks/<task>/0[123]_*.md` in the tree of `HEAD`). The check
    fails when one of them has no change history at `HEAD` and either gives
    no cell text for `Status` at `HEAD` or is `approved` at `HEAD` and does not
-   meet the guide's step 1. This catches a fix that left
-   out the transition of such a document, or the later documents returned
-   along with it.
+   meet the guide's step 1. This catches a fix that left out the transition
+   of such a document, or the later documents returned along with it.
 2. **The step 7 check**, as the guide defines it, on the listed paths.
 
 Extract the texts into files in this session's scratchpad with commands and
