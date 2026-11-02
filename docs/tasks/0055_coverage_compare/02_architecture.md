@@ -509,7 +509,7 @@ go test -tags test -count=1 -json -coverpkg=./... -coverprofile=<作業用のデ
 **製品のコードの見分け方（AC-16、H-05）:** 次のすべてに当たる Go のファイルを製品のコードとする。
 
 -   名前が `_test.go` で終わらない。
--   ファイルの `//go:build` の行を、標準ライブラリの `go/build/constraint` で式として読み、`test` のタグを偽としたときに偽になる（`test` のタグを求める、または `test` のタグで成り立つ）ファイルでない。ほかのタグは、測るビルドと同じ値（`-tags test` だけを与えたビルドの値。`unix` は darwin と linux で真、`race` と `integration` は偽）で評価する。`//go:build` の行がないファイルは製品のコードである。
+-   ファイルの `//go:build` の行を、標準ライブラリの `go/build/constraint` で式として読み、`test` のタグを偽としたときに偽になる（`test` のタグを求める、または `test` のタグで成り立つ）ファイルでない。ほかのタグは、測るビルドと同じ値（道具を動かすホストで `-tags test` だけを与えたビルドの値）で評価する。真になるのは、`unix`（darwin と linux）、ホストの GOOS と GOARCH（`darwin`、`arm64` など）、コンパイラ（`gc`）、Go のリリースタグ（`go1.1` から使っている go の版まで）である。`race` と `integration` を含むほかのタグは偽である。`//go:build` の行がないファイルは製品のコードである。
 -   `4bf1842f` の `//go:build` の行は、`test`（205 ファイル）、`test || integration`（9）、`test && !race`（1）、`test && race`（1）、`test && unix`（1）、`integration`（6）、`unix`（2）である。この規則で、`test` を含む 5 種類は製品のコードから外れ、`integration` と `unix` は製品のコードに残る。`integration` だけのファイルと `test && race` のファイルは、`-tags test` のビルドに入らないのでプロファイルに出ず、比べる対象にならない（要件 2.3）。差分に出れば、分類（3.7 節）の対象にはなる。
 -   0052 は、`//go:build` の行が `test` で始まるかどうかで見分けた（`docs/tasks/0052_doc_test_pruning/_checks/coverage/main.go:47-49`）。本書は式として評価する。`//go:build integration || test` のように `test` が先頭にない式も、要件の定義どおりに外すためである。
 
@@ -919,3 +919,4 @@ N/A（5 章）。BASE の値がレシピのシェルの文法として解釈さ�
 ## 変更履歴
 
 - 2026-11-02 承認（isseis、#626）
+- 2026-11-03 3.4 節：`test` のタグを偽として評価するときに真とするタグを、`unix` だけから、ホストの GOOS・GOARCH・コンパイラ・リリースタグまで広げた。「測るビルドと同じ値」という原則に、実装をそろえるためである（isseis）
