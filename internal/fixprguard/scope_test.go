@@ -176,6 +176,14 @@ func TestScopeRules(t *testing.T) {
 		{"issue_c", "internal/writer/foo.c", ChangeAdd, trusted("internal/writer/writer.go"), false},
 		{"issue_gitattributes", "internal/writer/.gitattributes", ChangeAdd, trusted("internal/writer/writer.go"), false},
 		{"issue_gitignore", "internal/writer/.gitignore", ChangeAdd, trusted("internal/writer/writer.go"), false},
+
+		// Paths that are not execution-related, whose results the rule for
+		// execution-related files leaves as they were.
+		{"unchanged_go_path_itself", "internal/writer/writer.go", ChangeModify, trusted("internal/writer/writer.go"), true},
+		{"unchanged_go_test_beside_path", "internal/writer/writer_test.go", ChangeModify, trusted("internal/writer/writer.go"), true},
+		{"unchanged_go_test_beside_named_path", "internal/writer/writer_test.go", ChangeModify, named("internal/writer/writer.go"), false},
+		{"unchanged_md_beside_go_path", "internal/writer/notes.md", ChangeModify, trusted("internal/writer/writer.go"), true},
+		{"unchanged_sh_path_itself", "scripts/check.sh", ChangeModify, trusted("scripts/check.sh"), true},
 	}
 	cases = slices.Concat(cases,
 		// Instruction files, in any directory and any case.
@@ -199,7 +207,7 @@ func TestScopeRules(t *testing.T) {
 		// rule and the instruction-file names now cover.
 		denyListAtPathItself(
 			"docs/GNUmakefile", "internal/x/go.mod", "go.sum", "go.work", "go.work.sum",
-			"build/rules.mk", "extension/scripts/has-extension-changes.sh",
+			"go.mod", "build/rules.mk", "extension/scripts/has-extension-changes.sh",
 			"extension/package.json", "extension/package-lock.json", "extension/eslint.config.js",
 			"extension/tsconfig.json", "extension/tsconfig.core.json", "extension/tsconfig.build.json",
 			".github/workflows/ci.yml", ".claude/commands/a.md", ".tool-versions", ".mise.toml",
