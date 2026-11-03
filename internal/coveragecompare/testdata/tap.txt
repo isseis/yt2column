@@ -1,0 +1,39 @@
+    # Subtest: rejects an empty key as key
+    ok 40 - rejects an empty key as key
+      ---
+      duration_ms: 0.026375
+      type: 'test'
+      ...
+    # Subtest: rejects a key one over its limit as key
+    ok 41 - rejects a key one over its limit as key
+      ---
+      duration_ms: 0.026417
+      type: 'test'
+      ...
+    # Subtest: rejects a sixteen-digit send time above 2^53 - 1
+    ok 42 - rejects a sixteen-digit send time above 2^53 - 1
+      ---
+      duration_ms: 0.059
+      type: 'test'
+      ...
+    # Subtest: rejects a non-empty fragment
+    ok 43 - rejects a non-empty fragment
+      ---
+      duration_ms: 0.035125
+      type: 'test'
+      ...
+    1..43
+ok 161 - parseViewerUrl
+  ---
+  duration_ms: 66.082542
+  type: 'suite'
+  ...
+1..161
+# tests 2006
+# suites 176
+# pass 2006
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 37726.19575

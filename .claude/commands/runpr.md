@@ -220,10 +220,12 @@ head; a record already made counts as made, never as absent.
     `Reviewer` to the user's GitHub name (`gh api user --jq .login`). Set
     `Comments` and append the approval line to the change history, in the same
     commit, as `docs/dev/conventions/requirements_process.md`, "Document Status
-    Format" ("Comments" and "Change history"), says; for a document written
-    under the old rule, first migrate it as its "Documents written under the old
-    rule" says. This is the only way the commands set a document to
-    `approved`, and only on the user's answer
+    Format" ("Comments" and "Change history"), says; for a document without a
+    change history, first migrate it as its "Documents without a change
+    history" says, including its step 7 check. When that section stops, make
+    no PRE_MERGE commit, push nothing, and do not merge: leave the edit in the
+    work tree and report as the section says. This is the only way the
+    commands set a document to `approved`, and only on the user's answer
     (`docs/dev/conventions/requirements_process.md`, "LLM Constraints").
   - **PR number fill-in** (any kind): in each change-history line this PR
     adds, to any task document, new or already on `main` (an added `+` line of

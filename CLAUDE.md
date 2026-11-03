@@ -386,6 +386,25 @@ for the packages that exist today. The server's startup is documented in the
   list of findings. Boundary: a message that matches neither accepted form is
   not read more widely but is reported as unreadable, with none of the
   findings read before the line that broke the form.
+  Exception: the coverage-compare tool's input parsers choose behavior by
+  inspecting the content of the reports and the diff they read
+  (`parseTAP` in `internal/coveragecompare/tap.go`, `parseLCOV` in
+  `lcov.go`, and `parseDiff` in `diff.go`). Scope: the parse of those three
+  inputs only — a TAP line's `# tests`, `# fail`, and `# cancelled` summary
+  prefixes, its `not ok` lines, and the `---`/`...` diagnostic block with its
+  `location:` line; an lcov line's record prefix (`SF:`, `FN:`, `FNDA:`,
+  `end_of_record`, and the record kinds it reads past); and a diff line's
+  header, mode, `---`/`+++`, `@@`, and hunk-line prefixes. Telling extension
+  product code from other files by the `extension/src/` and
+  `extension/scripts/` path elements is part of it. The `go test -json`
+  events are not: they are chosen by their declared `Action` member. Reason:
+  the inputs are text written by `node --test`'s TAP and lcov reporters and
+  by `git diff`, external values the tool cannot express in a type, and none
+  of the three formats has a structured member that declares a line's kind.
+  Boundary: an lcov record or diff line that matches no accepted form stops
+  the run, and a missing, repeated, or malformed TAP summary line stops it;
+  the only lines read past are the lcov record kinds the requirements list
+  and the TAP lines that are neither a summary nor a failure.
 - **Enforce invariants with the type, not with convention**: if a value must pass
   validation before use (e.g. a video ID), make the compiler the thing that
   guarantees it — unexported fields plus a mandatory constructor — rather than
