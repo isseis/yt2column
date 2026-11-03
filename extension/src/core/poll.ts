@@ -17,6 +17,14 @@ export const startResultDeadlineMs = 35_000;
 /** How long a query for the viewers of a key collects answers. */
 export const viewerQueryWindowMs = 1_000;
 
+/**
+ * How long the service worker waits, after a start is accepted, for the new
+ * viewer tab's first wait for its result before it asks the viewers of the
+ * key. A start the server answers from its cache returns before a background
+ * tab has loaded, and only a loaded viewer can answer that it waits.
+ */
+export const viewerLoadWindowMs = 5_000;
+
 /** How often a page draws a running job's elapsed time again while it is visible. */
 export const elapsedRedrawMs = 1_000;
 

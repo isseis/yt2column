@@ -13,6 +13,7 @@ import {
 import type { NativeReply } from "../src/core/native.ts";
 import {
   startResultDeadlineMs,
+  viewerLoadWindowMs,
   viewerQueryWindowMs,
 } from "../src/core/poll.ts";
 import { maxBodyBytes } from "../src/core/prepare.ts";
@@ -240,8 +241,10 @@ describe("start request sender checks", () => {
   it("accepts the toolbar popup's request: one start and one tab", async () => {
     const { runtime, tabs, native, clock } = setup();
     const reply = runtime.send(popupSender, startRequest());
+    void awaitStart(runtime);
     await runQueries(clock);
-    assert.deepEqual(runtime.returned, [true]);
+    // The start request, then the viewer's wait.
+    assert.deepEqual(runtime.returned, [true, true]);
     assert.equal(native.messages.length, 1);
     assert.equal(tabs.calls.filter(({ op }) => op === "create").length, 1);
     assert.deepEqual(await reply, {
@@ -570,6 +573,61 @@ describe("reuse", () => {
     );
   });
 
+  it("asks the viewers only once the new tab waits, when the host answered before the tab loaded", async () => {
+    const { runtime, tabs, channels, clock } = setup();
+    const older = fakeViewer(channels, { tabId: 20, sentAt: 5, key });
+    const popup = runtime.send(popupSender, startRequest());
+    await settle();
+    // The host has answered and the tab exists, but its page has not loaded:
+    // nothing is asked yet, however long that takes within the window.
+    clock.advance(viewerLoadWindowMs - 1);
+    await settle();
+    assert.deepEqual(channels.posted, []);
+    // The page loads: it listens on the channel, then waits for its result.
+    fakeViewer(channels, { tabId: newTab, sentAt });
+    const viewer = awaitStart(runtime);
+    await runQueries(clock);
+    assert.deepEqual(await popup, {
+      ok: true,
+      value: { outcome: acceptedOutcome, viewerTabId: 20 },
+    });
+    assert.equal(older.takeOvers.length, 1);
+    assert.equal(tabs.open.has(newTab), false);
+    clock.advance(startResultDeadlineMs);
+    await settle();
+    assert.deepEqual(await viewer, { ok: true, value: { kind: "none" } });
+  });
+
+  it("keeps the new tab and asks no viewer when the tab does not wait within the window", async () => {
+    const { runtime, tabs, channels, clock, logger } = setup();
+    const older = fakeViewer(channels, { tabId: 20, sentAt: 5, key });
+    const popup = runtime.send(popupSender, startRequest());
+    await settle();
+    clock.advance(viewerLoadWindowMs);
+    await settle();
+    assert.deepEqual(await popup, {
+      ok: true,
+      value: { outcome: acceptedOutcome, viewerTabId: newTab },
+    });
+    assert.deepEqual(channels.posted, []);
+    assert.deepEqual(older.takeOvers, []);
+    assert.equal(tabs.open.has(newTab), true);
+    assert.deepEqual(
+      logger.infos.filter(({ label }) => label === "yt2column viewer tab"),
+      [
+        {
+          label: "yt2column viewer tab",
+          data: { created: true, loaded: false },
+        },
+      ],
+    );
+    // The page that loads late still gets its result.
+    assert.deepEqual(await awaitStart(runtime), {
+      ok: true,
+      value: { kind: "result", outcome: acceptedOutcome },
+    });
+  });
+
   const kept: {
     name: string;
     /** Sets up the viewers and returns the one showing the key (or another key). */
@@ -698,6 +756,7 @@ describe("viewer tab log", () => {
     fakeViewer(channels, { tabId: newTab, sentAt });
     fakeViewer(channels, { tabId: 20, sentAt: 5, key });
     void runtime.send(popupSender, startRequest());
+    void awaitStart(runtime);
     await runQueries(clock);
     assert.deepEqual(
       logger.errors.filter(({ label }) => label === "yt2column viewer tab"),
@@ -722,6 +781,7 @@ describe("viewer waits", () => {
   async function delivered(): Promise<Setup> {
     const context = setup();
     void context.runtime.send(popupSender, startRequest());
+    void awaitStart(context.runtime);
     await runQueries(context.clock);
     return context;
   }
@@ -879,6 +939,7 @@ describe("start logs", () => {
     fakeViewer(channels, { tabId: newTab, sentAt });
     fakeViewer(channels, { tabId: 20, sentAt: 5, key: markedKey });
     const popup = runtime.send(popupSender, startRequest());
+    void awaitStart(runtime);
     await runQueries(clock);
     assert.deepEqual(await popup, {
       ok: true,
@@ -972,9 +1033,11 @@ describe("concurrent sends", () => {
     fakeViewer(channels, { tabId: newTab + 1, sentAt: sentAt + 1 });
     const existing = fakeViewer(channels, { tabId: 20, sentAt: 5, key });
     const first = runtime.send(popupSender, startRequest());
+    void awaitStart(runtime);
     await settle();
     clock.advance(1);
     const later = runtime.send(popupSender, second());
+    void awaitStart(runtime, newTab + 1, sentAt + 1);
     await runQueries(clock);
     clock.advance(viewerQueryWindowMs);
     await settle();
