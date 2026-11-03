@@ -246,7 +246,7 @@
 -   [ ] ステップ 1 の `fixprguard head` の直後、`gh pr checkout` の前に、`fixprguard interaction-limits --protocol 5 <number>` を 1 回だけ呼ぶことを書く。呼ぶ位置、結果の扱いの表、状態ごとに示す内容と利用者が行うこと、LIMITS_NOTE の保持と報告への載せ方は、設計書 3.5 のとおりである。`MERGED`・`CLOSED` では呼ばないこと（ステップ 1 がその前に止まる）と、standalone の変更では PR を作った後の `head` の後に呼ぶことを、位置の説明から読み取れるようにする。
 -   [ ] 冒頭の段落（`runpr.md:13-31`）を合わせる。`fixprguard` の用途の一覧に `interaction-limits`（ステップ 1）を加え、メンションの一覧の `--jq` が URL と時刻のほかには、書いた人が利用者か、Bot かを示す真偽値だけを出力することを書き、`--reviewer` を取らないサブコマンドの記述に `interaction-limits` が含まれるようにする。
 -   [ ] 「Authorization」に、`interaction-limits` の `gh repo view`・`gh pr view`・`gh api --include` を加える（設計書 3.5）。
--   [ ] ステップ 3 の 3 つのメンションの一覧の `--jq` に、書いた人が利用者（`<user-login>` の `User`）かどうかと、Bot かどうかの真偽値を加える。本文は今までどおり出力しない。人が書いた利用者以外のメンションで止まること、Bot だけなら URL を示して続けるかを問うこと、調べる時点（ステップ 3 の各回の読み取りで、Codex の依頼の状態の規則の前と、ステップ 4 のマージの問いの前）を書く（設計書 3.5）。自動レビュアーの名前は `_context.md` から読む形のままにし、`runpr.md` に `chatgpt-codex-connector` を書かない（`TestContextAndCommandsAgree` が拒否する）。
+-   [ ] ステップ 3 の 3 つのメンションの一覧の `--jq` に、書いた人が利用者（`<user-login>` の `User`）かどうかと、Bot かどうかの真偽値を加える。本文は今までどおり出力しない。人が書いた利用者以外のメンションで止まること、Bot だけなら URL を示して続けるかを問うこと、調べる時点（ステップ 3 の各回の読み取りで、Codex の依頼の状態の規則の前と、ステップ 4 のマージの問いの前）を書く（設計書 3.5）。自動レビュアーの名前を `_context.md` から読む形のままにし、`runpr.md` に `chatgpt-codex-connector` を書かない（`TestContextAndCommandsAgree` が拒否する）。
 -   [ ] `runpr.md` に、interaction limits・作成の制限・ruleset を変える呼び出しと、PR を閉じる・作り直す呼び出しを書かない（AC-17）。止まったときの報告は、ガイド 10 章の手順を示すだけにする。
 -   [ ] `TestDocumentedInvocationsParse` の `runpr.md` の期待（`cmd/fixprguard/docs_test.go:190`）に `cmdInteractionLimits` を加える。`TestFixprguardCallSites` に、`runpr.md` のステップ 1 の `fixprguard interaction-limits ` の行を加える。
 -   [ ] `TestRunprDocContract` の `head_before_checkout` を広げ、ステップ 1 で `fixprguard interaction-limits ` が `fixprguard head ` の後、`gh pr checkout` の前にあることを確かめる（1.3）。
@@ -341,7 +341,7 @@
 -   [ ] `_checks/notes_only.sh origin/main HEAD` を PR のブランチで 1 回実行し、出力と 2 つのコミット ID を 7 章の AC-22 の行に記録する。
 -   [ ] 壊して確かめる: 次のそれぞれを一時的なコミットで作り、それに対して実行して終了コード `1` になることを確かめ、一時的なコミットを捨てる。状態の表の 1 文字の変更、本文の 1 行の書き換え、`>` で始まらない行の追加、ある節の注記の削除、ある節への 2 つ目の注記、1 つの文書の変更の取り消し。結果を AC-22 の行に書く。
 
-**成功の条件:** スクリプトが終了コード `0` で終わり、2 つの壊した場合が終了コード `1` になる。
+**成功の条件:** スクリプトが終了コード `0` で終わり、6 つの壊した場合のどれもが終了コード `1` になる。
 
 **フェーズ 4 の完了の条件:** `make test`、`make lint`、文書のガードが通る。
 
@@ -434,7 +434,7 @@
 | AC-19 | `cmd/fixprguard/main_test.go::TestProtocolMismatch`（`Protocol + 1` と `Protocol - 1`、`interaction-limits` を含むすべてのサブコマンド）、`cmd/fixprguard/docs_test.go::TestDocumentedProtocolMatches` | test・static | ステップ 2-4・3-1 |
 | AC-20 | ガイド 6 章の規則 4 と判定の順序を PR-2 のレビューで読む | manual | ステップ 3-4 |
 | AC-21 | ガイド 7.2.3・7.2.6 を PR-3 のレビューで読み、要件書 4.2 の 11 項目と照らす | manual | ステップ 4-1 |
-| AC-22 | `docs/tasks/0057_reviewer_relay_guard/_checks/notes_only.sh origin/main HEAD`（記録: 未。merge-base と head のコミット ID、出力、2 つの壊した場合の終了コードを書く）。注記の文面は PR-3 のレビューで読む | diff・manual | ステップ 4-3 |
+| AC-22 | `docs/tasks/0057_reviewer_relay_guard/_checks/notes_only.sh origin/main HEAD`（記録: 未。merge-base と head のコミット ID、出力、6 つの壊した場合の終了コードを書く）。注記の文面は PR-3 のレビューで読む | diff・manual | ステップ 4-3 |
 | AC-23 | 用語集の項目を PR-3 のレビューで読む | manual | ステップ 4-2 |
 | AC-24 | 各 PR の `make test`・`make lint` と CI の `doc-guard` | static | すべてのステップ |
 | AC-25 | `internal/fixprguard/limits_test.go`（`none`・`weak`・`predates`・`unverifiable` の分類と、分類の順序の行）。`runpr.md` がその場で止まることと報告の内容は PR-2 のレビューで読む | test・manual | ステップ 2-3・3-2 |
