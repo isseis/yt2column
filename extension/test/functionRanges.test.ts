@@ -156,12 +156,17 @@ describe("collectFunctionRanges", () => {
 describe("function-ranges command", () => {
   const script = path.join(extensionDir, "scripts", "function-ranges.ts");
 
-  // Runs the script with the given arguments; returns its status and stdout.
-  function run(args: string[]): {
+  // Runs the script with the given arguments in cwd; returns its status and
+  // stdout.
+  function run(
+    args: string[],
+    cwd = extensionDir,
+  ): {
     status: number | null;
     stdout: string;
   } {
     const result = spawnSync(process.execPath, [script, ...args], {
+      cwd,
       encoding: "utf8",
     });
     return { status: result.status, stdout: result.stdout };
@@ -180,6 +185,28 @@ describe("function-ranges command", () => {
         },
       ],
     });
+  });
+
+  it("lists the requested files once each, in the requested order", () => {
+    const root = makeRoot({
+      "src/a.ts": "export const a = 1;\n",
+      "scripts/b.ts": "export const b = 2;\n",
+    });
+    const result = run(["--root", root, "--", "src/a.ts", "scripts/b.ts"]);
+    assert.equal(result.status, 0);
+    assert.equal(result.stdout.trimEnd().split("\n").length, 1);
+    const answer: { files: { path: string }[] } = JSON.parse(result.stdout);
+    assert.deepEqual(
+      answer.files.map((file) => file.path),
+      ["src/a.ts", "scripts/b.ts"],
+    );
+  });
+
+  it("rejects an empty root even when the working directory has the file", () => {
+    const cwd = makeRoot({ "src/a.ts": "export const x = 1;\n" });
+    const result = run(["--root", "", "--", "src/a.ts"], cwd);
+    assert.notEqual(result.status, 0);
+    assert.equal(result.stdout, "");
   });
 
   const failures: { name: string; args: (root: string) => string[] }[] = [

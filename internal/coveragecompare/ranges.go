@@ -1,6 +1,7 @@
 package coveragecompare
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/isseis/yt2column/internal/strictjson"
@@ -30,18 +31,44 @@ func parseRanges(data []byte, point Point, files []string) ([]fileRanges, error)
 		return nil, rangesStop(point, "files is not an array", data)
 	}
 	if len(entries) != len(files) {
-		return nil, rangesStop(point, "the output lists a different number of files than were requested", data)
+		reason := StopReason{
+			Point:  point,
+			Input:  InputRanges,
+			Line:   1,
+			Detail: fmt.Sprintf("the output lists %d files, want %d", len(entries), len(files)),
+		}
+		return nil, &StopError{Kind: StopUnreadable, Reasons: []StopReason{reason}}
 	}
 	answer := make([]fileRanges, len(entries))
 	for i, entry := range entries {
+		// len(entries) equals len(files), which the check above ensures.
+		file := files[i] //nolint:gosec // G602: the lengths are equal
 		ranges, err := parseFileRanges(entry, point, data)
 		if err != nil {
 			return nil, err
 		}
-		if ranges.Path != helperPath(files[i]) {
-			return nil, rangesStop(point, "the output does not list the requested files once each in the requested order", data)
+		expected, ok := helperPath(file)
+		if !ok {
+			reason := StopReason{
+				Point:  point,
+				Input:  InputRanges,
+				Line:   1,
+				Func:   &FuncID{File: file},
+				Detail: "a requested file is not under extension/, so the range helper cannot name it",
+			}
+			return nil, &StopError{Kind: StopInternal, Reasons: []StopReason{reason}}
 		}
-		ranges.Path = files[i]
+		if ranges.Path != expected {
+			reason := StopReason{
+				Point:  point,
+				Input:  InputRanges,
+				Line:   1,
+				Func:   &FuncID{File: file},
+				Detail: "the output does not list the requested files once each in the requested order",
+			}
+			return nil, &StopError{Kind: StopUnreadable, Reasons: []StopReason{reason}}
+		}
+		ranges.Path = file
 		answer[i] = ranges
 	}
 	return answer, nil
@@ -138,12 +165,10 @@ func rangeLine(members map[string]strictjson.Value, key string) (int, bool) {
 
 // helperPath is the path the range helper uses for a repository-relative file:
 // the path relative to extension/, because extension/ is the helper's --root.
-func helperPath(file string) string {
+// It reports false for a file outside extension/.
+func helperPath(file string) (string, bool) {
 	path, found := strings.CutPrefix(file, "extension/")
-	if !found {
-		return file
-	}
-	return path
+	return path, found
 }
 
 // rangesStop is the unreadable stop for the range helper's output. The output

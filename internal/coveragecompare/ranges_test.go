@@ -3,6 +3,7 @@
 package coveragecompare
 
 import (
+	"errors"
 	"slices"
 	"testing"
 )
@@ -16,7 +17,7 @@ func TestParseRanges(t *testing.T) {
 	t.Run("accepts the ranges of the requested files in order", func(t *testing.T) {
 		data := `{"files":[` +
 			`{"path":"src/a.ts","functions":[{"start":1,"end":3},{"start":5,"end":5}],"fieldGroups":[{"start":10,"end":12}]},` +
-			`{"path":"scripts/b.ts","functions":[],"fieldGroups":[]}]}`
+			`{"path":"scripts/b.ts","functions":[],"fieldGroups":[]}]}` + "\n"
 		got, err := parseRanges([]byte(data), PointHead, []string{"extension/src/a.ts", "extension/scripts/b.ts"})
 		if err != nil {
 			t.Fatalf("parseRanges: %v", err)
@@ -169,7 +170,7 @@ func TestParseRanges(t *testing.T) {
 			files: []string{"extension/src/a.ts"},
 		},
 		{
-			name:  "a start beyond int",
+			name:  "a start beyond the integer range",
 			data:  `{"files":[{"path":"src/a.ts","functions":[{"start":9223372036854775808,"end":9223372036854775808}],"fieldGroups":[]}]}`,
 			files: []string{"extension/src/a.ts"},
 		},
@@ -206,6 +207,11 @@ func TestParseRanges(t *testing.T) {
 			data:  `{"files":[{"path":"src/b.ts","functions":[],"fieldGroups":[]}]}`,
 			files: []string{"extension/src/a.ts"},
 		},
+		{
+			name:  "a path relative to the repository root",
+			data:  `{"files":[{"path":"extension/src/a.ts","functions":[],"fieldGroups":[]}]}`,
+			files: []string{"extension/src/a.ts"},
+		},
 	}
 
 	for _, test := range rejects {
@@ -217,4 +223,16 @@ func TestParseRanges(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("stops as internal for a requested file outside extension/", func(t *testing.T) {
+		data := `{"files":[{"path":"src/a.ts","functions":[],"fieldGroups":[]}]}`
+		_, err := parseRanges([]byte(data), PointBase, []string{"src/a.ts"})
+		stop, ok := errors.AsType[*StopError](err)
+		if !ok {
+			t.Fatalf("error = %v, want *StopError", err)
+		}
+		if stop.Kind != StopInternal {
+			t.Errorf("stop kind = %v, want %v", stop.Kind, StopInternal)
+		}
+	})
 }

@@ -25,13 +25,13 @@ export interface FunctionRanges {
 }
 
 /** What the command line named: the tree to read and the files in it. */
-export interface RangeArguments {
+interface RangeArguments {
   readonly root: string;
   readonly files: string[];
 }
 
 /** Parses "--root <dir> -- <path>..."; anything else is undefined. */
-export function parseArguments(argv: string[]): RangeArguments | undefined {
+function parseArguments(argv: string[]): RangeArguments | undefined {
   if (argv.length < 3 || argv[0] !== "--root" || argv[2] !== "--") {
     return undefined;
   }
