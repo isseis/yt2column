@@ -224,8 +224,8 @@ git grep -n -i -e "old rule" -e "migration byte" -e "Migration check" -e "migrat
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した: https://github.com/isseis/yt2column/pull/633
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ## 3. 実装順序とマイルストーン (Implementation Order and Milestones)
 
@@ -286,7 +286,7 @@ M1〜M3 は 1 つの PR にまとめる。規則だけが先に `main` に入る
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
-- [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 2-1 / 2-2 / 3-1 / 3-2 / 3-3）
+- [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 2-1 / 2-2 / 3-1 / 3-2 / 3-3）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -399,5 +399,5 @@ docs/tasks/: only docs/tasks/0056_legacy_approval_history/ changed
 ## 変更履歴
 
 - 2026-11-02 承認（isseis、#628）
-- 2026-11-02 セッション中の再承認：手順 1 の確かめを広げ、試行に旧 Comments に PR 番号の未記入の印を含む場合を加えた（isseis、#未記入）
-- 2026-11-02 セッション中の再承認：/runpr に止まるときの扱いを加え、/fixpr の写せない文書の確かめを広げた（isseis、#未記入）
+- 2026-11-02 セッション中の再承認：手順 1 の確かめを広げ、試行に旧 Comments に PR 番号の未記入の印を含む場合を加えた（isseis、#633）
+- 2026-11-02 セッション中の再承認：/runpr に止まるときの扱いを加え、/fixpr の写せない文書の確かめを広げた（isseis、#633）
