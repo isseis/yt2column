@@ -166,10 +166,12 @@ func testFailure(raw rawRun, results testResults, readErr error, point Point) []
 		return nil
 	case readErr == nil && len(results.Failures) > 0:
 		return results.Failures
-	case readErr != nil:
-		return []StopReason{{Point: point, Detail: fmt.Sprintf("the test run exited with status %d, and its results cannot be read", raw.ExitCode)}}
 	case raw.ExitCode != 0:
-		return []StopReason{{Point: point, Detail: fmt.Sprintf("the test run exited with status %d and named no failed test", raw.ExitCode)}}
+		detail := fmt.Sprintf("the test run exited with status %d and named no failed test", raw.ExitCode)
+		if readErr != nil {
+			detail = fmt.Sprintf("the test run exited with status %d, and its results cannot be read", raw.ExitCode)
+		}
+		return []StopReason{{Point: point, Detail: detail}}
 	default:
 		return []StopReason{{Point: point, Detail: "the test results report a failure but name no failed test"}}
 	}

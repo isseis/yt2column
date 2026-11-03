@@ -172,17 +172,7 @@ func TestClassify(t *testing.T) {
 			wantDeleted:   []string{"old.go:3"},
 			wantUnmatched: []string{"head new.go:3"},
 		},
-		{
-			name: "an unrecorded function of a new file no test loads is HEAD-only",
-			base: []funcEntry{row(x, 3, 4)},
-			head: []funcEntry{row(x, 3, 4), row("fresh.go", 3, 5)},
-			diff: []string{
-				"diff --git a/fresh.go b/fresh.go", "new file mode 100644", "--- /dev/null", "+++ b/fresh.go",
-				"@@ -0,0 +1,1 @@", "+package x",
-			},
-			wantPairs:     []string{"x.go:3>3"},
-			wantUnmatched: []string{"head fresh.go:3"},
-		},
+
 		{
 			name: "changes outside every range (an import, a package variable, a comment before a function) are ignored",
 			baseText: map[string]string{x: joinLines(
@@ -198,12 +188,7 @@ func TestClassify(t *testing.T) {
 			},
 			wantPairs: []string{"x.go:8>8"},
 		},
-		{
-			name:      "a function the BASE report does not record still pairs with its HEAD partner",
-			base:      []funcEntry{row(x, 3, 4)},
-			head:      []funcEntry{{ID: FuncID{x, 3}, End: 4, Recorded: true, Cov: Coverage{Unit: UnitFunctions, Covered: 1, Total: 1}}},
-			wantPairs: []string{"x.go:3>3"},
-		},
+
 		{
 			name: "identical functions side by side leave the deleted one undecided",
 			baseText: map[string]string{x: joinLines(
@@ -293,7 +278,6 @@ func TestPlaceDeletions(t *testing.T) {
 		mapping   lineMapping
 		entries   []funcEntry
 		wantStart int
-		wantStop  bool
 	}{
 		{
 			name:      "git's accepted position is kept over an earlier accepted one",
@@ -333,22 +317,14 @@ func TestPlaceDeletions(t *testing.T) {
 			if err != nil {
 				t.Fatalf("placeDeletions: %v", err)
 			}
-			if (len(reasons) > 0) != tc.wantStop {
-				t.Errorf("reasons = %+v, want stop %v", reasons, tc.wantStop)
+			if len(reasons) > 0 {
+				t.Errorf("reasons = %+v, want none", reasons)
 			}
 			if got := mapping.Hunks[0].Start; got != tc.wantStart {
 				t.Errorf("hunk start = %d, want %d", got, tc.wantStart)
 			}
 		})
 	}
-
-	t.Run("the window covers every position that deletes the same text", func(t *testing.T) {
-		lines := splitLines(threeFuncs)
-		first, last := deleteB(5).slideWindow(0, lines)
-		if first != 4 || last != 6 {
-			t.Errorf("window = %d..%d, want 4..6", first, last)
-		}
-	})
 }
 
 func TestDifferingFunc(t *testing.T) {

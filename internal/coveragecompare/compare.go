@@ -4,33 +4,25 @@ import "math/bits"
 
 // compareGo compares each matched Go function that ran at BASE. Coverage is
 // compared as an unrounded fraction of statements, so a drop that rounding
-// would hide still counts. A function whose HEAD partner's file is not in the
-// HEAD profile has no HEAD record, and the run cannot compare it. A function
-// with no statements is not compared.
+// would hide still counts. A HEAD partner with no statements in the HEAD
+// profile (its file is not in the profile, or no block belongs to it) has no
+// HEAD record, and the run cannot compare it.
 func compareGo(pairs []matchedPair) ([]LostFunc, []StopReason) {
 	var lost []LostFunc
 	var reasons []StopReason
 	for _, pair := range pairs {
 		before := pair.base.Cov
-		if !pair.base.Recorded || before.Total == 0 || before.Covered == 0 {
-			continue
-		}
-		if !pair.head.Recorded {
-			reasons = append(reasons, StopReason{
-				Point:  PointBase,
-				Func:   &FuncID{File: pair.base.ID.File, Line: pair.base.ID.Line},
-				Detail: "the matched HEAD function's file is not in the HEAD profile",
-			})
+		// An unrecorded row and a row with no statements both cover
+		// nothing, so this skips them too.
+		if before.Covered == 0 {
 			continue
 		}
 		after := pair.head.Cov
 		if after.Total == 0 {
-			// The HEAD profile names the file but no block of the
-			// function: the HEAD report has no record of it.
 			reasons = append(reasons, StopReason{
 				Point:  PointBase,
 				Func:   &FuncID{File: pair.base.ID.File, Line: pair.base.ID.Line},
-				Detail: "the matched HEAD function has no statements in the HEAD profile",
+				Detail: "the HEAD profile records no statement of the matched HEAD function",
 			})
 			continue
 		}

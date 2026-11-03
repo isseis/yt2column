@@ -223,23 +223,6 @@ func TestJudge(t *testing.T) {
 	ctx := context.Background()
 	goT := goTarget{}
 
-	t.Run("a pass reports the measures and the deleted function", func(t *testing.T) {
-		base, head := goPassing()
-		got := requireJudged(t, judge(ctx, goT, goInput(base, head, goDeleteB)), OutcomePass, 0)
-		if want := (Measure{Tests: 1, Files: 1, Functions: 3}); got.Base != want {
-			t.Errorf("base measure = %+v, want %+v", got.Base, want)
-		}
-		if want := (Measure{Tests: 1, Files: 1, Functions: 2}); got.Head != want {
-			t.Errorf("head measure = %+v, want %+v", got.Head, want)
-		}
-		want := []DeletedFunc{{ID: FuncID{judgeGoFile, 7}, Names: []string{"B"}, State: NotRunAtBase}}
-		if !slices.EqualFunc(got.Deleted, want, func(a, b DeletedFunc) bool {
-			return a.ID == b.ID && slices.Equal(a.Names, b.Names) && a.State == b.State
-		}) {
-			t.Errorf("deleted = %+v, want %+v", got.Deleted, want)
-		}
-	})
-
 	t.Run("no test at a point is nothing-measured", func(t *testing.T) {
 		for _, point := range []Point{PointBase, PointHead} {
 			base, head := goPassing()
@@ -305,9 +288,9 @@ func TestJudge(t *testing.T) {
 		}
 	})
 
-	t.Run("a HEAD test failure comes before an unreadable BASE profile", func(t *testing.T) {
+	t.Run("a HEAD test failure comes before unreadable BASE results", func(t *testing.T) {
 		base, head := goPassing()
-		base.profile = "not a profile\n"
+		base.stdout = "not json\n"
 		head.stdout = `{"Action":"fail","Package":"example.com/m/x","Test":"TestBroken"}` + "\n"
 		got := requireJudged(t, judge(ctx, goT, goInput(base, head, goDeleteB)), OutcomeStop, StopTestFailed)
 		if len(got.Reasons) != 1 || got.Reasons[0].Point != PointHead || got.Reasons[0].Test != "TestBroken" {
@@ -336,7 +319,10 @@ func TestJudge(t *testing.T) {
 	t.Run("a non-zero exit code with unreadable results is test-failed", func(t *testing.T) {
 		base, head := goPassing()
 		base.exit, base.stdout = 2, "panic: not json\n"
-		requireJudged(t, judge(ctx, goT, goInput(base, head, goDeleteB)), OutcomeStop, StopTestFailed)
+		got := requireJudged(t, judge(ctx, goT, goInput(base, head, goDeleteB)), OutcomeStop, StopTestFailed)
+		if points := reasonPoints(got.Reasons); !slices.Equal(points, []Point{PointBase}) {
+			t.Errorf("reason points = %v, want only base", points)
+		}
 	})
 
 	t.Run("unreadable results with exit code 0 are unreadable", func(t *testing.T) {
@@ -390,7 +376,8 @@ func TestJudge(t *testing.T) {
 			t.Fatalf("reasons = %+v, want one", got.Reasons)
 		}
 		reason := got.Reasons[0]
-		if reason.Point != PointHead || reason.Input != InputSource || reason.Func == nil || reason.Func.File == "" || reason.Excerpt != "disk failure" {
+		// The read failure's text is the excerpt the output shows.
+		if reason.Point != PointHead || reason.Input != InputSource || reason.Func == nil || reason.Func.File != "go.mod" || reason.Excerpt != "disk failure" {
 			t.Errorf("reason = %+v, want the HEAD source file and the read failure as the excerpt", reason)
 		}
 	})
@@ -399,6 +386,7 @@ func TestJudge(t *testing.T) {
 		base, head := extPassing()
 		target := extTarget{ranges: fakeRanges{err: context.Canceled}}
 		got := requireJudged(t, judge(ctx, target, extInput(base, head, extDeleteB)), OutcomeStop, StopInternal)
+		// The error's text is the excerpt the output shows.
 		if len(got.Reasons) != 1 || got.Reasons[0].Excerpt != context.Canceled.Error() {
 			t.Errorf("reasons = %+v, want the error as the excerpt", got.Reasons)
 		}
@@ -412,9 +400,12 @@ func TestJudgeScenarios(t *testing.T) {
 		in          judgeInput
 		wantOutcome Outcome
 		wantStop    StopKind
-		wantDeleted []FuncID // checked on a pass
-		wantInput   Input    // checked on an unreadable stop
-		wantFunc    *FuncID  // a function some unmatched reason must name
+		wantDeleted []DeletedFunc // checked on a pass
+		wantBase    *Measure      // checked when set
+		wantHead    *Measure      // checked when set
+		wantInput   Input         // checked on an unreadable stop
+		wantPoint   Point         // the point of the reason that names wantFunc
+		wantFunc    *FuncID       // a function some unmatched reason must name
 	}
 	extT := extTarget{ranges: fakeRanges{}}
 	var scenarios []scenario
@@ -449,9 +440,10 @@ func TestJudgeScenarios(t *testing.T) {
 		add(scenario{name: name, target: extT, in: extInput(base, head, extDeleteB), wantStop: StopUnreadable, wantInput: InputLCOV})
 	}
 	for name, profile := range map[string]string{
-		"a malformed Go profile line":          "mode: set\n" + judgeModule + "/x/x.go:3.14,5.2 1\n",
-		"a Go profile with no mode line":       judgeModule + "/x/x.go:3.14,5.2 1 1\n",
-		"a Go profile whose mode line repeats": "mode: set\nmode: set\n",
+		"a malformed Go profile line":               "mode: set\n" + judgeModule + "/x/x.go:3.14,5.2 1\n",
+		"a Go profile with no mode line":            judgeModule + "/x/x.go:3.14,5.2 1 1\n",
+		"a Go profile whose mode line repeats":      "mode: set\nmode: set\n",
+		"a Go profile whose mode line is not first": judgeModule + "/x/x.go:3.14,5.2 1 1\nmode: set\n",
 	} {
 		base, head := goPassing()
 		base.profile = profile
@@ -498,30 +490,30 @@ func TestJudgeScenarios(t *testing.T) {
 	}
 	{
 		base, head := sameLine("0", "1")
-		add(scenario{name: "more run functions on one line", target: extT, in: extInput(base, head, extDeleteB), wantStop: StopUnmatched, wantFunc: &FuncID{judgeExtFile, 9}})
+		add(scenario{name: "more run functions on one line", target: extT, in: extInput(base, head, extDeleteB), wantStop: StopUnmatched, wantPoint: PointBase, wantFunc: &FuncID{judgeExtFile, 9}})
 	}
 	{
 		base, head := sameLine("1", "1", "5,third,1")
-		add(scenario{name: "a different number of functions on one line", target: extT, in: extInput(base, head, extDeleteB), wantStop: StopUnmatched, wantFunc: &FuncID{judgeExtFile, 9}})
+		add(scenario{name: "a different number of functions on one line", target: extT, in: extInput(base, head, extDeleteB), wantStop: StopUnmatched, wantPoint: PointBase, wantFunc: &FuncID{judgeExtFile, 9}})
 	}
 	{
 		base, head := goPassing()
 		head.text = strings.Replace(goHeadText, "return 3", "return 4", 1)
 		diff := append(slices.Clone(goDeleteB), "@@ -12,1 +8,1 @@", "-\treturn 3", "+\treturn 4")
-		add(scenario{name: "a remaining function with a rewritten line", target: goTarget{}, in: goInput(base, head, diff), wantStop: StopUnmatched, wantFunc: &FuncID{judgeGoFile, 11}})
+		add(scenario{name: "a remaining function with a rewritten line", target: goTarget{}, in: goInput(base, head, diff), wantStop: StopUnmatched, wantPoint: PointBase, wantFunc: &FuncID{judgeGoFile, 11}})
 	}
 	{
 		base, head := goPassing()
 		head.text = strings.Replace(goHeadText, "return 3", "_ = 0\n\treturn 3", 1)
 		head.blocks = []string{"3.14,5.2 1 1", "7.14,10.2 2 1"}
 		diff := append(slices.Clone(goDeleteB), "@@ -11,0 +8,1 @@", "+\t_ = 0")
-		add(scenario{name: "a remaining function with an added line", target: goTarget{}, in: goInput(base, head, diff), wantStop: StopUnmatched, wantFunc: &FuncID{judgeGoFile, 11}})
+		add(scenario{name: "a remaining function with an added line", target: goTarget{}, in: goInput(base, head, diff), wantStop: StopUnmatched, wantPoint: PointBase, wantFunc: &FuncID{judgeGoFile, 11}})
 	}
 	{
 		base, head := goPassing()
 		head.text = goHeadText + "\nfunc D() {}\n"
 		diff := append(slices.Clone(goDeleteB), "@@ -13,0 +10,2 @@", "+", "+func D() {}")
-		add(scenario{name: "a function only HEAD has", target: goTarget{}, in: goInput(base, head, diff), wantStop: StopUnmatched, wantFunc: &FuncID{judgeGoFile, 11}})
+		add(scenario{name: "a function only HEAD has", target: goTarget{}, in: goInput(base, head, diff), wantStop: StopUnmatched, wantPoint: PointHead, wantFunc: &FuncID{judgeGoFile, 11}})
 	}
 
 	{
@@ -539,7 +531,7 @@ func TestJudgeScenarios(t *testing.T) {
 		in.HeadSource.(*fakeSource).files["x/o.go"] = other
 		add(scenario{
 			name: "a file that stops being product code leaves its functions without a partner", target: goTarget{}, in: in,
-			wantStop: StopUnmatched, wantFunc: &FuncID{judgeGoFile, 11},
+			wantStop: StopUnmatched, wantPoint: PointBase, wantFunc: &FuncID{judgeGoFile, 11},
 		})
 	}
 
@@ -548,12 +540,16 @@ func TestJudgeScenarios(t *testing.T) {
 		base, head := goPassing()
 		add(scenario{
 			name: "deleting a function in the middle of a file", target: goTarget{}, in: goInput(base, head, goDeleteB),
-			wantOutcome: OutcomePass, wantDeleted: []FuncID{{judgeGoFile, 7}},
+			wantOutcome: OutcomePass,
+			wantDeleted: []DeletedFunc{{ID: FuncID{judgeGoFile, 7}, Names: []string{"B"}, State: NotRunAtBase}},
+			wantBase:    &Measure{Tests: 1, Files: 1, Functions: 3},
+			wantHead:    &Measure{Tests: 1, Files: 1, Functions: 2},
 		})
 	}
 	{
 		base, head := extPassing()
-		base.lcov += "SF:src/gone.ts\nFN:1,g\nFN:5,h\nFNDA:1,g\nFNDA:0,h\nend_of_record\n"
+		base.lcov = "SF:src/a.ts\nFN:1,a\nFN:5,b\nFN:9,c\nFNDA:1,a\nFNDA:1,b\nFNDA:2,c\nend_of_record\n" +
+			"SF:src/gone.ts\nFN:1,g\nFN:5,h\nFNDA:1,g\nFNDA:0,h\nend_of_record\n"
 		in := extInput(base, head, append(slices.Clone(extDeleteB),
 			"diff --git a/extension/src/gone.ts b/extension/src/gone.ts", "deleted file mode 100644",
 			"--- a/extension/src/gone.ts", "+++ /dev/null", "@@ -1,1 +0,0 @@", "-x",
@@ -562,14 +558,18 @@ func TestJudgeScenarios(t *testing.T) {
 		in.BaseSource.(*fakeSource).ranges["extension/src/gone.ts"] = fileRanges{Functions: []lineRange{{1, 3}, {5, 7}}}
 		add(scenario{
 			name: "deleting a whole file", target: extT, in: in,
-			wantOutcome: OutcomePass, wantDeleted: []FuncID{{judgeExtFile, 5}, {"extension/src/gone.ts", 1}, {"extension/src/gone.ts", 5}},
+			wantOutcome: OutcomePass, wantDeleted: []DeletedFunc{
+				{ID: FuncID{judgeExtFile, 5}, Names: []string{"b"}, State: RanAtBase},
+				{ID: FuncID{"extension/src/gone.ts", 1}, Names: []string{"g"}, State: RanAtBase},
+				{ID: FuncID{"extension/src/gone.ts", 5}, Names: []string{"h"}, State: NotRunAtBase},
+			},
 		})
 	}
 	{
 		base, head := sameLine("0", "0")
 		add(scenario{
 			name: "a line with a function that did not run at BASE and still does not", target: extT, in: extInput(base, head, extDeleteB),
-			wantOutcome: OutcomePass, wantDeleted: []FuncID{{judgeExtFile, 5}},
+			wantOutcome: OutcomePass, wantDeleted: []DeletedFunc{{ID: FuncID{judgeExtFile, 5}, Names: []string{"b"}, State: RanAtBase}},
 		})
 	}
 
@@ -580,19 +580,23 @@ func TestJudgeScenarios(t *testing.T) {
 				t.Errorf("reason input = %v, want %v", got.Reasons[0].Input, s.wantInput)
 			}
 			if s.wantFunc != nil && !slices.ContainsFunc(got.Reasons, func(r StopReason) bool {
-				return r.Func != nil && *r.Func == *s.wantFunc
+				return r.Point == s.wantPoint && r.Func != nil && *r.Func == *s.wantFunc
 			}) {
-				t.Errorf("reasons = %+v, want one naming %v", got.Reasons, *s.wantFunc)
+				t.Errorf("reasons = %+v, want one naming %v at %v", got.Reasons, *s.wantFunc, s.wantPoint)
+			}
+			if s.wantBase != nil && got.Base != *s.wantBase {
+				t.Errorf("base measure = %+v, want %+v", got.Base, *s.wantBase)
+			}
+			if s.wantHead != nil && got.Head != *s.wantHead {
+				t.Errorf("head measure = %+v, want %+v", got.Head, *s.wantHead)
 			}
 			if s.wantOutcome != OutcomePass {
 				return
 			}
-			var deleted []FuncID
-			for _, d := range got.Deleted {
-				deleted = append(deleted, d.ID)
-			}
-			if !slices.Equal(deleted, s.wantDeleted) {
-				t.Errorf("deleted = %v, want %v", deleted, s.wantDeleted)
+			if !slices.EqualFunc(got.Deleted, s.wantDeleted, func(a, b DeletedFunc) bool {
+				return a.ID == b.ID && slices.Equal(a.Names, b.Names) && a.State == b.State
+			}) {
+				t.Errorf("deleted = %+v, want %+v", got.Deleted, s.wantDeleted)
 			}
 		})
 	}

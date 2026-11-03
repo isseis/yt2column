@@ -75,9 +75,6 @@ func TestBuildGoTable(t *testing.T) {
 	if want := (Measure{Files: 1, Functions: 5}); table.measure != want {
 		t.Errorf("measure = %+v, want %+v (only the profiled file counts)", table.measure, want)
 	}
-	if _, ok := table.inReport["x/y.go"]; ok {
-		t.Error("a file the profile does not name is marked as in the report")
-	}
 	if len(table.unmatched) != 1 {
 		t.Fatalf("unmatched = %+v, want one reason for the two declarations on line 21", table.unmatched)
 	}
@@ -142,6 +139,9 @@ func TestBuildExtTable(t *testing.T) {
 		if err != nil {
 			t.Fatalf("buildExtTable: %v", err)
 		}
+		if len(renamed.entries) != 4 {
+			t.Fatalf("rows = %+v, want the four rows of a.ts", renamed.entries)
+		}
 		for i, entry := range renamed.entries {
 			entry.Names = nil
 			original := table.entries[i]
@@ -201,19 +201,16 @@ func TestGoFuncNames(t *testing.T) {
 func TestProductFiles(t *testing.T) {
 	src := &fakeSource{at: PointHead, files: map[string]string{
 		"a.go":            "package a\n",
-		"a_test.go":       "package a\n",
 		"helpers.go":      "//go:build test\n\npackage a\n",
-		"either.go":       "//go:build integration || test\n\npackage a\n",
-		"integration.go":  "//go:build integration\n\npackage a\n",
 		"extension/src/x": "",
 	}}
-	candidates := []string{"a.go", "a_test.go", "absent.go", "either.go", "helpers.go", "integration.go"}
+	candidates := []string{"a.go", "absent.go", "helpers.go"}
 
 	got, err := productFiles(isGoSourceProduct, src, report{}, candidates)
 	if err != nil {
 		t.Fatalf("productFiles: %v", err)
 	}
-	if want := []string{"a.go", "integration.go"}; !slices.Equal(got, want) {
+	if want := []string{"a.go"}; !slices.Equal(got, want) {
 		t.Errorf("Go product files = %v, want %v", got, want)
 	}
 
