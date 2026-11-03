@@ -294,11 +294,24 @@ func TestShellQuote(t *testing.T) {
 		"^TestA$":          `'^TestA$'`,
 		"TestA/`id`":       "'TestA/`id`'",
 		"it's":             `'it'\''s'`,
-		"bad\x1bname":      `"bad\x1bname"`,
 		"extension/a b.ts": `'extension/a b.ts'`,
 	} {
-		if got := shellQuote(value); got != want {
-			t.Errorf("shellQuote(%q) = %s, want %s", value, got, want)
+		if got, ok := shellQuote(value); !ok || got != want {
+			t.Errorf("shellQuote(%q) = %s, %v; want %s", value, got, ok, want)
 		}
 	}
+	for _, value := range []string{"`cmd`\x1b", "tab\there", "bad\xffutf8"} {
+		if got, ok := shellQuote(value); ok {
+			t.Errorf("shellQuote(%q) = %s, want no quoting", value, got)
+		}
+	}
+
+	t.Run("a name that cannot be quoted leaves the rerun line out", func(t *testing.T) {
+		r := Result{Target: TargetGo, Outcome: OutcomeStop, Stop: StopTestFailed, Reasons: []StopReason{
+			{Point: PointHead, Test: "TestA/`cmd`\x1b", Package: "example.com/m/x"},
+		}}
+		if got := written(t, r); strings.Contains(got, "rerun") {
+			t.Errorf("output =\n%s\nwant no rerun line", got)
+		}
+	})
 }

@@ -386,8 +386,12 @@ func TestJudge(t *testing.T) {
 		base, head := goPassing()
 		head.readErr = errors.New("disk failure")
 		got := requireJudged(t, judge(ctx, goT, goInput(base, head, goDeleteB)), OutcomeStop, StopInternal)
-		if len(got.Reasons) != 1 || got.Reasons[0].Excerpt != "disk failure" {
-			t.Errorf("reasons = %+v, want the read failure as the excerpt", got.Reasons)
+		if len(got.Reasons) != 1 {
+			t.Fatalf("reasons = %+v, want one", got.Reasons)
+		}
+		reason := got.Reasons[0]
+		if reason.Point != PointHead || reason.Input != InputSource || reason.Func == nil || reason.Func.File == "" || reason.Excerpt != "disk failure" {
+			t.Errorf("reason = %+v, want the HEAD source file and the read failure as the excerpt", reason)
 		}
 	})
 

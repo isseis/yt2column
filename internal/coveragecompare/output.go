@@ -178,29 +178,42 @@ func writeReason(b *strings.Builder, r Result, reason StopReason) {
 
 // rerunCommand is the command that runs a failed test again at its point's
 // commit: go test with the test's name and package, or node --test with the
-// extension test file. It is empty when the reason names neither.
+// extension test file. It is empty when the reason names neither, or when a
+// name cannot be quoted for a shell.
 func rerunCommand(r Result, reason StopReason) string {
-	var command string
+	var prefix string
+	var args []string
 	switch r.Target {
 	case TargetGo:
 		switch {
 		case reason.Package == "":
 			return ""
 		case reason.Test != "":
-			pattern := "^" + regexp.QuoteMeta(reason.Test) + "$"
-			command = "go test -tags test -run " + shellQuote(pattern) + " " + shellQuote(reason.Package)
+			prefix = "go test -tags test -run "
+			args = []string{"^" + regexp.QuoteMeta(reason.Test) + "$", reason.Package}
 		default:
-			command = "go test -tags test " + shellQuote(reason.Package)
+			prefix = "go test -tags test "
+			args = []string{reason.Package}
 		}
 	case TargetExt:
 		file, ok := strings.CutPrefix(reason.Package, "extension/")
 		if !ok {
 			return ""
 		}
-		command = "cd extension && node --test " + shellQuote(file)
+		prefix = "cd extension && node --test "
+		args = []string{file}
 	default:
 		return ""
 	}
+	quoted := make([]string, len(args))
+	for i, arg := range args {
+		q, ok := shellQuote(arg)
+		if !ok {
+			return ""
+		}
+		quoted[i] = q
+	}
+	command := prefix + strings.Join(quoted, " ")
 	commit := ""
 	switch reason.Point {
 	case PointBase:
@@ -293,14 +306,18 @@ func plainOrQuoted(value string) string {
 }
 
 // shellQuote quotes an argument of a rerun command for a POSIX shell: in single
-// quotes, so nothing in it is expanded when the line is pasted. A value with a
-// character that is not printable is Go-quoted instead, so the line never
-// writes a control character; such a value needs editing before it runs.
-func shellQuote(value string) string {
+// quotes, so nothing in it is expanded when the line is pasted. A value that is
+// not valid UTF-8 or holds a character that is not printable cannot be quoted
+// that way without writing a control character, so it reports false and the
+// rerun line is left out.
+func shellQuote(value string) (string, bool) {
+	if !utf8.ValidString(value) {
+		return "", false
+	}
 	for _, c := range value {
 		if !unicode.IsPrint(c) {
-			return strconv.Quote(value)
+			return "", false
 		}
 	}
-	return "'" + strings.ReplaceAll(value, "'", `'\''`) + "'"
+	return "'" + strings.ReplaceAll(value, "'", `'\''`) + "'", true
 }
