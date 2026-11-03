@@ -136,10 +136,10 @@
 
 **変更するファイル:** `.claude/commands/_context.md`、`cmd/yt2column/fixpr_docs_test.go`
 
--   [ ] `_context.md` の「Automated reviewer list」（`:185`）の値を `` `chatgpt-codex-connector` `` だけにする。説明の文は変えない（設計書 3.2）。
--   [ ] 同じコミットで、`wantReviewers`（`fixpr_docs_test.go:58`）を `chatgpt-codex-connector` だけにする。
--   [ ] 同じコミットで、`TestContextReviewerRowsMalformed` を設計書 3.2 の行ごとの影響のとおりに改める。受け入れる行（`:975`）を 1 つの名前の行にし、テストのコメントの「2 つの名前」の記述を改める。ほかの行の期待は変えない。
--   [ ] 壊して確かめる: `_context.md` を `coderabbitai` を含む元の行に戻すと `TestContextAndCommandsAgree` が失敗する。
+-   [x] `_context.md` の「Automated reviewer list」（`:185`）の値を `` `chatgpt-codex-connector` `` だけにする。説明の文は変えない（設計書 3.2）。
+-   [x] 同じコミットで、`wantReviewers`（`fixpr_docs_test.go:58`）を `chatgpt-codex-connector` だけにする。
+-   [x] 同じコミットで、`TestContextReviewerRowsMalformed` を設計書 3.2 の行ごとの影響のとおりに改める。受け入れる行（`:975`）を 1 つの名前の行にし、テストのコメントの「2 つの名前」の記述を改める。ほかの行の期待は変えない。
+-   [x] 壊して確かめる: `_context.md` を `coderabbitai` を含む元の行に戻すと `TestContextAndCommandsAgree` が失敗する。
 
 **成功の条件:** 文書のガード（下記）が通る。
 
