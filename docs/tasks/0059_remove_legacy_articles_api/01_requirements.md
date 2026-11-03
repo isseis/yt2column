@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-03 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-04 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -187,3 +187,7 @@
 -   **失敗の通知**: 旧 API の失敗を Webhook へ知らせるメッセージ（`internal/failure`、`SlackFailureNotifier`）。本タスクで削除する。
 -   **生成の枠**: 同時に走る記事の生成の数の上限（`2`）。本タスクの後は、ジョブの API の生成のジョブだけが数える。
 -   **投稿のジョブ**: 投稿の操作が始める、記事を Webhook へ送るジョブ。生成の枠を取らない。
+
+## 変更履歴
+
+- 2026-11-04 承認（isseis、#640）
