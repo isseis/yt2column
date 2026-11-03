@@ -268,6 +268,51 @@ func TestPermissionCause(t *testing.T) {
 	})
 }
 
+// TestSplitIncluded covers the shape splitIncluded reads directly: the header
+// lines it returns and the status codes it refuses. The callers' rows (the
+// permission lookup above, the interaction-limits rows) cover the rest.
+func TestSplitIncluded(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		out        string
+		wantOK     bool
+		wantStatus int
+		wantHeader []string
+		wantBody   string
+	}{
+		{
+			name:       "crlf_headers",
+			out:        "HTTP/2.0 200 OK\nDate: Mon, 02 Nov 2026 21:36:11 GMT\r\nContent-Length: 2\r\n\r\n{}",
+			wantOK:     true,
+			wantStatus: 200,
+			wantHeader: []string{"Date: Mon, 02 Nov 2026 21:36:11 GMT", "Content-Length: 2"},
+			wantBody:   "{}",
+		},
+		{
+			// Only one trailing "\r" is removed; a second stays in the line.
+			name:       "one_cr_removed",
+			out:        "HTTP/2.0 200 OK\nX-A: 1\r\r\n\r\nbody\r\n",
+			wantOK:     true,
+			wantStatus: 200,
+			wantHeader: []string{"X-A: 1\r"},
+			wantBody:   "body\r\n",
+		},
+		{name: "no_headers", out: "HTTP/2.0 404 Not Found\n\r\n", wantOK: true, wantStatus: 404, wantBody: ""},
+		{name: "plus_sign_status", out: "HTTP/2.0 +20 OK\n\r\n{}"},
+		{name: "minus_sign_status", out: "HTTP/2.0 -20 OK\n\r\n{}"},
+		{name: "four_digit_status", out: "HTTP/2.0 2000 OK\n\r\n{}"},
+		{name: "no_empty_line", out: "HTTP/2.0 200 OK\nDate: x\r\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			status, headers, body, ok := splitIncluded([]byte(tc.out))
+			if ok != tc.wantOK || status != tc.wantStatus || !slices.Equal(headers, tc.wantHeader) || string(body) != tc.wantBody {
+				t.Errorf("splitIncluded = %d, %q, %q, %v; want %d, %q, %q, %v",
+					status, headers, body, ok, tc.wantStatus, tc.wantHeader, tc.wantBody, tc.wantOK)
+			}
+		})
+	}
+}
+
 // TestAuthorFieldsNotStrings checks that a non-string __typename or login is
 // judged like a missing one rather than rejecting the whole response.
 func TestAuthorFieldsNotStrings(t *testing.T) {
