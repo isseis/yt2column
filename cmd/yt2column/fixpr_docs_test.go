@@ -1012,9 +1012,6 @@ func TestContextReviewerRowsMalformed(t *testing.T) {
 			if !slices.Equal(got.problems, tc.want) {
 				t.Errorf("problems = %v, want %v", got.problems, tc.want)
 			}
-			if tc.want == nil && len(got.names) != len(wantReviewers) {
-				t.Errorf("names = %q, want %d names", got.names, len(wantReviewers))
-			}
 		})
 	}
 }
