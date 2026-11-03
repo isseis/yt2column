@@ -63,12 +63,12 @@ go version -m "$(command -v fixprguard)"
 |---|---|
 | `--protocol N` | すべてのサブコマンドに必須。`N` がバイナリの番号と一致しなければ、終了コード `2` で止まる（古いバイナリが新しい文書の想定で判定するのを防ぐ）。現在の番号は `5` |
 | `--reviewer LOGIN` | `list`・`begin`・`inspect`・`reply` に 1 回以上必須で、ほかのサブコマンドには渡せない。信頼する自動レビュアーの GraphQL の `author.login`（例: `coderabbitai`）を、名前ごとに 1 回ずつ繰り返して渡す（例: `--reviewer <login-1> --reviewer <login-2>`）。`/fixpr`・`/runpr` が渡す名前は、`.claude/commands/_context.md` の `Automated reviewer list` のすべての名前である。渡す順序は判定に関係しない。1 つもないとき、同じ名前を 2 回以上渡したとき、名前の文法に合わないときは、使い方の誤り（終了コード `2`）になる。既定値はない |
-| `[PR]` | 10 進数の PR 番号だけを受け付ける。URL やブランチ名は拒否する。省略すると、現在のブランチの PR を `gh pr view` で求める。GitHub を読まない `finish` は省略できない |
+| `[PR]` | 10 進数の PR 番号だけを受け付ける。URL やブランチ名は拒否する。省略すると、現在のブランチの PR を `gh pr view` で求める。GitHub を読まない `finish` と、`interaction-limits` は省略できない |
 | フラグの位置 | フラグは位置引数（`PR`・`FILE`）の前に書く。同じフラグを 2 回渡すと拒否する（`--accept`・`--thread`・`--reviewer` は複数回渡せる。ただし、`--reviewer` に同じ名前を 2 回渡すと拒否する） |
 | 標準出力 | 1 行の JSON（`fence` だけは区切りのブロックそのもの）。すべての JSON に `protocol` が入る |
 | 標準エラー | 1 行の診断。拒否した規則の名前だけを示し、GitHub から来た値や外部コマンドの引数・標準エラーは含めない |
 
-終了コードは次のとおり。呼び出し側は、これ以外の終了コード、信号による終了、JSON として読めない出力を、すべて「止める」として扱う。
+終了コードは次のとおり。呼び出し側は、これ以外の終了コード、信号による終了、JSON として読めない出力を、すべて「止める」として扱う。ただし、`interaction-limits` は、確かめられない結果も状態の 1 つとして終了コード `0` で出力する。止めるかどうかは、呼び出し側が出力の `state` で決める（5 章）。
 
 | 終了コード | 意味 | 標準出力 |
 |---|---|---|
@@ -222,6 +222,62 @@ fixprguard append-pr --protocol 5 --body-file /path/to/corrections.md 42
 
 出力: `{"protocol":5,"written":true}`。副作用: PR の本文の読み取りと書き込み。
 
+### `interaction-limits PR`
+
+リポジトリの interaction limits（10 章）と PR の作成の時刻を読み、同じ応答の `Date` ヘッダが示す GitHub の時刻と比べて、6 つの状態のどれかに分類する。`/runpr` は、ステップ 1 で `head` が通った直後、`gh pr checkout` の前に、1 回だけこれを実行する。スレッドを判定しないので、`--reviewer` は渡せない。PR 番号は省略できない。
+
+```sh
+fixprguard interaction-limits --protocol 5 42
+```
+
+出力: `{"protocol":5,"state":"active","expiresOn":"2027-05-02","reason":"","httpStatus":0}`。どの状態でも終了コード `0` で出力し、標準エラーには何も書かない。確かめられなかった理由は `reason` にある。
+
+| 項目 | 内容 |
+|---|---|
+| `state` | 状態。下の表の値 |
+| `expiresOn` | `state` が `weak`・`predates`・`expiring`・`active` のとき、`expires_at` を UTC に直した日付（`YYYY-MM-DD`）。ほかの状態では `""` |
+| `reason` | `state` が `unverifiable` のとき、拒否した段の名前（下の表）。ほかの状態では `""` |
+| `httpStatus` | `reason` が `http-status` のとき、受け入れなかった HTTP の状態コード。ほかは `0` |
+
+`reason` と `httpStatus` には、応答の本文、ヘッダの値、`gh` の引数と標準エラーを入れない。
+
+**状態。** 上から順に調べ、最初に当たるものになる。期限との比較の「今」は、ローカルの時計ではなく `Date` ヘッダの時刻である。
+
+| `state` | 名前 | 条件 | `/runpr` |
+|---|---|---|---|
+| `unverifiable` | 確かめられない | 取得の失敗（時間切れを含む）、または応答が下の受け入れる形でない | 止まる |
+| `none` | 制限なし | 本文が `{}`、または `expires_at` が今と同じか、今より前 | 止まる |
+| `weak` | 制限が弱い | `limit` が `existing_users` か `contributors_only` | 止まる |
+| `predates` | 制限より前の PR | `limit` が `collaborators_only` で、PR の作成の時刻が設定の時刻より前 | 止まる |
+| `expiring` | 期限が近い | `limit` が `collaborators_only` で、`expires_at` までが 14 日（336 時間）以下 | 警告して続ける |
+| `active` | 有効 | `limit` が `collaborators_only` で、`expires_at` までが 14 日より長い | 続ける |
+
+設定の時刻は、応答が返さないので、`expires_at` から見積もる。`expires_at` を UTC に直し、暦で 6 か月前の同じ日と時刻とする。その月にその日がない場合と、`expires_at` がその月の末日の場合は、6 か月前の月の末日（時刻は同じ）とする。この見積もりは、期間を 6 か月にして設定した制限について、実際の設定の時刻と同じか、それより後になる（10.3）。
+
+**受け入れる形。** HTTP の状態コードが `200` で、`Date` ヘッダがちょうど 1 つあり、その値が HTTP の日付の標準の形（`Mon, 02 Jan 2006 15:04:05 GMT`）であり、本文が次のどちらかであること。
+
+- 制限なし: 本文がバイト単位で `{}`。
+- 制限あり: 64 KiB 以下の 1 つの JSON のオブジェクトで、`limit` と `expires_at` がちょうど 1 つずつある文字列。`limit` は `existing_users`・`contributors_only`・`collaborators_only` のどれか、`expires_at` は時差を含む RFC 3339 の日時である。ほかの項目（`origin` など）とその重複は無視する。
+
+ヘッダの名前は大文字小文字を区別せずに照合し、`Date` 以外のヘッダは読まない。本文の検査は `list` などと同じ厳格な JSON の検査で、不正な UTF-8、対になっていないサロゲート、重複した項目、後続のデータを修復せずに拒否する。どの段で拒否しても、それより前に読んだ値（期限など）は使わない。
+
+**確かめられない理由。**
+
+| `reason` | 拒否した段 |
+|---|---|
+| `repository` | リポジトリの名前を `gh repo view` で求められない |
+| `pr` | PR の作成の時刻（`gh pr view --json createdAt`）を読めない |
+| `gh-failed` | `gh` が失敗し、出力から HTTP の状態コードも読めない |
+| `timeout` | 3 つの呼び出しの合計が 2 分を超えた |
+| `output-form` | `gh api --include` の出力の形が受け入れる形でない、または出力が大きさの上限を超えた |
+| `http-status` | HTTP の状態コードが `200` でない（`gh` が `0` 以外で終わった場合を含む） |
+| `date` | `Date` ヘッダがない、2 つ以上ある、または受け入れる形でない |
+| `body` | 本文が 64 KiB を超える、または JSON の検査に通らない |
+| `limit` | `limit` が一覧にない値 |
+| `expires-at` | `expires_at` が RFC 3339 の日時として読めない |
+
+副作用: GitHub の読み取りだけ（`gh repo view`、`gh pr view`、`gh api --include repos/<owner>/<repo>/interaction-limits` の `GET`）。ファイル、git、GitHub への書き込みはなく、記録のファイル（8.1）も書かない。
+
 ## 6. 範囲の規則
 
 `inspect` は、`--thread` で渡したスレッドの `path`（GitHub から取り直したもの）ごとに、範囲に入るファイルを次の規則で決める。
@@ -229,7 +285,7 @@ fixprguard append-pr --protocol 5 --body-file /path/to/corrections.md 42
 1. `path` そのもの。
 2. `path` と同じディレクトリのファイル（サブディレクトリの中は含まない）。ただし、許可リスト（下の表）に当たるファイルだけ。
 3. `path` が `docs/tasks/NNNN_<name>/` の中にあれば、そのディレクトリの下のファイル（サブディレクトリの中を含む）。ただし、許可リストに当たるファイルだけ。
-4. ただし、コマンドの実行に関わるファイル（実行関連ファイル。下の表）は、`path` そのものでなければ範囲外とする。名指しされた想定外の著者のスレッドでは、`path` そのものでも範囲外とする。
+4. ただし、コマンドの実行に関わるファイル（実行関連ファイル。下の表）は、スレッドの著者と `path` にかかわらず範囲外とする。`path` そのものでも範囲外である。
 5. 名前を変えたファイルは、変える前の削除と変えた後の追加を、それぞれ判定する。
 6. 通常のファイル以外の変更（シンボリックリンク、サブモジュール、ファイルの種類の変更、FIFO やデバイス、8 MiB を超えるファイル）は、パスにかかわらず範囲外とする。
 
@@ -237,7 +293,7 @@ fixprguard append-pr --protocol 5 --body-file /path/to/corrections.md 42
 
 **パスの検査。** 有効な UTF-8 で制御文字を含まず、絶対パスでなく、`..` の要素を含まず、正規化で変わらないパスだけを判定する。それ以外は範囲外とし、出力に `path` を出さない。ASCII でない文字を含むパスは、`path` とバイト単位で一致するときだけ範囲に入る。
 
-**実行関連ファイル。** 規則 4 で、`path` そのものでなければ範囲外とするファイル（拒否リスト）である。次の 3 つの部分からなる。
+**実行関連ファイル。** 規則 4 で、スレッドの著者と `path` にかかわらず範囲外とするファイル（拒否リスト）である。範囲外の変更は `inspect` の終了コード `3` で利用者の確認に回るので、修正のフェーズが変えた実行関連ファイルは、利用者が確かめるまで build checks で使われない。次の 3 つの部分からなる。
 
 - build checks と CI が、設定として読む、またはコンパイル・実行するファイル。Go のビルドの入力（Go がパッケージのビルドで、`.go` のファイルのほかに扱うファイル）を含む。
 - 指示ファイル。Claude Code や自動レビュアーが、置かれたディレクトリへの指示として自動で読むファイルである。最上位の `CLAUDE.md`・`AGENTS.md` も含む。
@@ -267,10 +323,10 @@ fixprguard append-pr --protocol 5 --body-file /path/to/corrections.md 42
 
 **判定の順序。** `inspect` は、範囲外になった理由を出力しない。一覧のパスを次の順序と上の 2 つの表に照らせば、理由が分かる。規則 6 に当たる変更と、パスの検査に通らないパスは、この順序の前に範囲外になる。それ以外の変更したパスを、1 つのスレッドの `path` について、次の順に調べる。どれかのスレッドで範囲内になれば、その変更は範囲内である。
 
-1. 実行関連ファイルなら、名指しのスレッドでなく、変更したパスが `path` そのもののときだけ範囲内。それ以外は範囲外。
+1. 実行関連ファイルなら範囲外。
 2. 変更したパスが `path` そのものなら範囲内（規則 1）。
 3. 変更したパスが ASCII でない文字を含めば範囲外。
-4. `.go` のファイルなら、`.go` の規則で決める。
+4. `.go` のファイルなら、`.go` の規則で決める。名指しの有無で結果が変わるのは、この段だけである。
 5. 規則 2・3 のどちらの場所にもなければ範囲外。
 6. 許可リストの (a) または (b) に当たれば範囲内。当たらなければ範囲外。
 
@@ -483,3 +539,79 @@ find . -path ./.git -prune -o -type l -print | LC_ALL=C sed 's/\^/^^/g' | LC_ALL
 - 一覧から外した名前の Bot は、すぐには信頼されなくならない。各セッションは作業しているブランチの `_context.md` を読むので、`main` を取り込んでいない開いたブランチでは、その Bot のスレッドの信頼が続く。急いで信頼をやめるときは、外す変更を `main` に入れたうえで、開いている PR のブランチに `main` を取り込む。取り込むまでは、そのブランチで `/fixpr`・`/runpr` を使わない。
 - `stop` の種類、実行関連ファイルの一覧、許可リストを変えたら、本書の 6 章と 8 章も更新する。監視の一覧を変えたら、7.1 の監視の一覧の表も更新する。`cmd/fixprguard/docs_test.go` が、本書（日英）にすべての種類と項目があることを確かめる。
 - マージの後は、`make install-fixprguard` で再インストールする（3 章）。
+
+## 10. GitHub の設定
+
+本リポジトリは公開リポジトリなので、書き込み権限のない人も、issue や PR へのコメントで自動レビュアー（Codex・CodeRabbit）に指示しうる。自動レビュアーの名義で作られたスレッドは、信頼する著者のスレッド（1 章）になり、その本文は修正のフェーズのエージェントに届く。また、GitHub App として入っている Bot は、PR のブランチに push しうる。本章の 4 つの設定は、これらの経路の入口を塞ぐ。
+
+設定を変えるのは利用者だけである。`/runpr` と `fixprguard` は、interaction limits の状態を読むだけで（5 章の `interaction-limits`）、どの設定も変えず、PR を閉じることも作ることもしない。`/runpr` が確かめるのは interaction limits だけなので、作成の制限と push の制限は、利用者が設定画面で確かめる。
+
+### 10.1 4 つの設定と目的
+
+| 設定 | 塞ぐ経路 | 期限 |
+|---|---|---|
+| interaction limits の `collaborators_only` | 書き込み権限のない人が、コメント・issue・PR で自動レビュアーに指示する入口 | 最長 6 か月。期限が来ると自動的に解除される |
+| 作成の制限（PR の作成を collaborators に限る） | 書き込み権限のない人が PR を作る入口 | なし |
+| 作成の制限（issue の作成を collaborators に限る） | 書き込み権限のない人が issue を作る入口 | なし |
+| push の制限（ruleset） | 利用者以外（GitHub App として入っている Bot を含む）が、PR のブランチを作る、または更新する経路 | なし |
+
+interaction limits の期限が切れてから更新するまでの間は、書き込み権限のない人が再び自動レビュアーに指示しうる。`/runpr` がこの状態を確かめて止まるのは、そのためである（10.4）。
+
+### 10.2 設定する手順
+
+- **interaction limits:** アカウントの設定画面（Settings → Moderation → Interaction limits）で、collaborators に限る制限（`collaborators_only`）を選び、期間を 6 か月にする。アカウント全体の設定なので、アカウントのほかの公開リポジトリにも効く。リポジトリの interaction limits の取得の応答は、この制限を `origin` が `user` の制限として返す。
+- **作成の制限:** リポジトリの設定画面で、PR の作成と issue の作成を、それぞれ collaborators に限る。コメントは制限しない。
+- **push の制限:** リポジトリの設定画面（Settings → Rules → Rulesets）で、ブランチの ruleset を作る。
+    - 対象: すべてのブランチ（`~ALL`）から、既定のブランチ（`refs/heads/main`）を除く。既定のブランチを含めると、PR のマージ（`main` の更新）も「Restrict updates」に当たり、Web の画面は「Merging is blocked」と「Cannot update this protected ref.」を示してマージを止める。`main` への直接の push は、既存の ruleset（`main`）の `pull_request` の規則がすでに禁じている。
+    - 規則: 「Restrict creations」と「Restrict updates」だけをかける。「Restrict deletions」はかけない（`/mergepr` のブランチの削除に影響しないようにする）。
+    - bypass: Repository admin を「Always allow」で加える。「For pull requests only」を選ぶと、利用者の `git push` が止まる。
+    - 状態（Enforcement status）を `Active` にする。
+
+### 10.3 interaction limits を期限の前に更新する
+
+`/runpr` が「期限が近い」（`expiring`）と警告したら、期限の前に、アカウントの設定画面（10.2）で同じ制限を選び直す。期間は常に 6 か月にする。`fixprguard` は、`expires_at` の 6 か月前を設定の時刻とみなして PR の作成の時刻と比べる（5 章）。短い期間で設定すると、見積もった設定の時刻が実際より前になり、制限のない期間を経た PR を見逃しうる。
+
+更新すると、その時点で開いている PR は、どれも設定の時刻より前に作られたことになり、`/runpr` が `predates` で止まる。それらの PR は作り直す（10.5）。PR ごとに Codex の PR レビューを 1 回使うので、更新は開いている PR がないときに行うのがよい。
+
+### 10.4 `/runpr` が止まったとき
+
+`/runpr` は、`interaction-limits` の状態が `none`・`weak`・`predates`・`unverifiable` のとき、`gh pr checkout` の前に止まり、Codex のレビューを待たず、`fixpr` を実行せず、マージしない。ステップ 3 とステップ 4 では、利用者以外の人（`User`）が書いた `@codex` のメンションでも止まる。利用者が行うことは次のとおりである。
+
+| 止まった理由 | 利用者が行うこと |
+|---|---|
+| `none`（制限なし） | 制限を設定し直し（10.2）、PR を作り直す（10.5） |
+| `weak`（制限が弱い） | 制限を `collaborators_only` に変え、PR を作り直す |
+| `predates`（制限より前の PR） | 制限が有効なことを確かめ、PR を作り直す。月末に設定した場合は、見積もった設定の時刻が実際より最大 3 日後になるので、その時刻を過ぎるまで作り直しを待つことがある |
+| `unverifiable`（確かめられない） | 設定画面で制限を確かめる。有効で、PR を作る前から設定されていれば、PR を作り直さずに `/runpr` を実行し直す。切れていたか、PR より後に設定したなら、PR を作り直す |
+| 利用者以外の人が書いたメンション | PR を作り直す。メンションのコメントが残る限り、以後の `/runpr` もそのたびに止まる |
+
+Bot が書いたメンションだけのときは、`/runpr` は URL を示して、続けるかを問う。
+
+`unverifiable` のときは、`reason` で原因の見当をつける。
+
+| `reason` | 調べること |
+|---|---|
+| `repository`・`pr` | `gh auth status`、作業ツリーのリモート、PR の番号 |
+| `gh-failed` | `gh` を起動できるか、`gh auth status`、ネットワーク |
+| `timeout` | GitHub の障害、ネットワーク |
+| `http-status` | `httpStatus` の値。`403` は資格情報の権限の不足、`5xx` は GitHub の障害を示すことが多い |
+| `output-form`・`date` | `gh` の版の変更による出力の形の変化、`GH_FORCE_TTY` や色を強制する環境変数（`CLICOLOR_FORCE` など） |
+| `body`・`limit`・`expires-at` | GitHub の応答の形の変化 |
+
+同じ結果は `fixprguard interaction-limits --protocol 5 <PR>` を単独で実行して確かめられる。応答そのものを見るときは、次の読むだけの呼び出しを使う（`<owner>/<repo>` は `gh repo view --json nameWithOwner` の値）。
+
+```sh
+gh api --include repos/<owner>/<repo>/interaction-limits
+```
+
+`unverifiable` が続くとき（GitHub の障害、`gh` の出力の形の変化など）は、GitHub で PR を確かめてから、`/mergepr <PR>` で直接マージできる。`/runpr` を経ない、今までの手段である。
+
+### 10.5 PR を作り直す
+
+制限が外れていた間に自動レビュアーが作ったスレッドは、本来のレビューのスレッドと見分けられない。PR を作り直すと、新しい PR には、その間のスレッドもコメントもない。ブランチの中身は、push の制限により利用者の push だけでできているので、作り直しても変わらない。
+
+1. 制限を確かめ、必要なら更新する（10.2・10.3）。
+2. 開いている PR を閉じる。古い PR は記録として閉じたまま残し、コメントは削除しない（正当なレビューも消え、取り消せないため）。
+3. 同じブランチから新しい PR を開く。
+4. 実装計画の PR（`03_implementation_plan.md` の `PR を作成した` の行に PR の URL がある PR）なら、その行の URL を新しい PR の URL に直し、commit して push する。
+5. 新しい PR で `/runpr` を実行する。新しい PR を開くと、Codex の PR レビューを 1 回使う。

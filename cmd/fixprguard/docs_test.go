@@ -74,6 +74,34 @@ func TestGuideCoversStopKindsAndScope(t *testing.T) {
 	}
 }
 
+// TestGuideListsInteractionLimitsValues: the interaction-limits section of
+// chapter 5 lists, in code spans, every state the tool prints in its state
+// table and every reason in its reason table. Reading the two tables alone
+// keeps the same value elsewhere in the guide (chapter 10 names several) from
+// standing in for a row.
+func TestGuideListsInteractionLimitsValues(t *testing.T) {
+	sub := subsection(readRepoFile(t, guidePath), "### `interaction-limits PR`")
+	states := guideTable(sub, "**状態。**")
+	reasons := guideTable(sub, "**確かめられない理由。**")
+	if states == "" || reasons == "" {
+		t.Fatalf("%s: the interaction-limits section has no state table or no reason table", guidePath)
+	}
+	for _, state := range fixprguard.InteractionStates() {
+		name, err := state.MarshalText()
+		if err != nil {
+			t.Fatalf("MarshalText(%d) = %v", state, err)
+		}
+		if !strings.Contains(states, "`"+string(name)+"`") {
+			t.Errorf("%s: the interaction-limits state table does not list `%s`", guidePath, name)
+		}
+	}
+	for _, reason := range fixprguard.UnverifiableReasons() {
+		if !strings.Contains(reasons, "`"+string(reason)+"`") {
+			t.Errorf("%s: the interaction-limits reason table does not list `%s`", guidePath, reason)
+		}
+	}
+}
+
 // guideTable returns the lines of the first table after the line of doc that
 // starts with marker. It returns "" when there is no such line or another
 // bold heading comes before a table, so a missing table never borrows the
