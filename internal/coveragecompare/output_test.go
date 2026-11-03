@@ -107,9 +107,9 @@ coverage-compare: FAIL
 			},
 			want: header + `stop      test-failed head go test -json test "TestA" package "example.com/m/x": a test failed
 excerpt   "--- FAIL: TestA\nwant 1"
-rerun     at ` + testHeadCommit + `: go test -tags test -run "^TestA$" "example.com/m/x"
+rerun     at ` + testHeadCommit + `: go test -tags test -run '^TestA$' 'example.com/m/x'
 stop      test-failed head go test -json package "example.com/m/y": a package failed to build or run
-rerun     at ` + testHeadCommit + `: go test -tags test "example.com/m/y"
+rerun     at ` + testHeadCommit + `: go test -tags test 'example.com/m/y'
 coverage-compare: STOP test-failed
 `,
 		},
@@ -126,7 +126,7 @@ coverage-compare: STOP test-failed
 			want: `target    make ext-coverage-compare BASE="main"
 base      ` + testBaseCommit + `
 stop      test-failed base tap test "fails" file "extension/test/a.test.ts": a test failed
-rerun     at ` + testBaseCommit + `: cd extension && node --test "test/a.test.ts"
+rerun     at ` + testBaseCommit + `: cd extension && node --test 'test/a.test.ts'
 stop      test-failed base: the test run exited with status 1 and named no failed test
 coverage-compare: STOP test-failed
 `,
@@ -230,6 +230,14 @@ coverage-compare: STOP internal
 		}
 	})
 
+	t.Run("a nothing-measured stop gives the measures", func(t *testing.T) {
+		r := resolved(TargetGo)
+		r.Outcome, r.Stop = OutcomeStop, StopNothingMeasured
+		if got := written(t, r); !strings.Contains(got, measures) {
+			t.Errorf("output =\n%s\nwant the measures", got)
+		}
+	})
+
 	t.Run("a write failure is returned", func(t *testing.T) {
 		failure := errors.New("closed")
 		if err := Write(failingWriter{failure}, Result{}); !errors.Is(err, failure) {
@@ -277,6 +285,20 @@ func TestExitCode(t *testing.T) {
 	for outcome, want := range map[Outcome]int{OutcomePass: 0, OutcomeFail: 1, OutcomeStop: 3, Outcome(9): 3} {
 		if got := ExitCode(outcome); got != want {
 			t.Errorf("ExitCode(%d) = %d, want %d", outcome, got, want)
+		}
+	}
+}
+
+func TestShellQuote(t *testing.T) {
+	for value, want := range map[string]string{
+		"^TestA$":          `'^TestA$'`,
+		"TestA/`id`":       "'TestA/`id`'",
+		"it's":             `'it'\''s'`,
+		"bad\x1bname":      `"bad\x1bname"`,
+		"extension/a b.ts": `'extension/a b.ts'`,
+	} {
+		if got := shellQuote(value); got != want {
+			t.Errorf("shellQuote(%q) = %s, want %s", value, got, want)
 		}
 	}
 }

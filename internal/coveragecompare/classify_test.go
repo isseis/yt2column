@@ -146,6 +146,13 @@ func TestClassify(t *testing.T) {
 			wantPairs: []string{"x.go:3>4"},
 		},
 		{
+			name:          "a remaining function with no HEAD function at its HEAD position is unmatched",
+			base:          []funcEntry{row(x, 3, 4), row(x, 6, 7)},
+			head:          []funcEntry{row(x, 3, 4)},
+			wantPairs:     []string{"x.go:3>3"},
+			wantUnmatched: []string{"base x.go:6"},
+		},
+		{
 			name:          "a function only HEAD has is unmatched",
 			base:          []funcEntry{row(x, 3, 4)},
 			head:          []funcEntry{row(x, 3, 4), row(x, 6, 7)},
@@ -289,10 +296,10 @@ func TestPlaceDeletions(t *testing.T) {
 		wantStop  bool
 	}{
 		{
-			name:      "git's accepted position is kept",
-			mapping:   deleteB(5),
+			name:      "git's accepted position is kept over an earlier accepted one",
+			mapping:   deleteB(6),
 			entries:   []funcEntry{row(x, 3, 4), row(x, 6, 7), row(x, 9, 10)},
-			wantStart: 5,
+			wantStart: 6,
 		},
 		{
 			name:      "an unaccepted position moves to the earliest accepted one",
@@ -342,4 +349,24 @@ func TestPlaceDeletions(t *testing.T) {
 			t.Errorf("window = %d..%d, want 4..6", first, last)
 		}
 	})
+}
+
+func TestDifferingFunc(t *testing.T) {
+	a, b := FuncID{"x.go", 1}, FuncID{"x.go", 5}
+	tests := []struct {
+		name string
+		sets [][]FuncID
+		want FuncID
+		diff bool
+	}{
+		{"equal sets", [][]FuncID{{a}, {a}}, FuncID{}, false},
+		{"the first set holds one the other lacks", [][]FuncID{{a, b}, {a}}, b, true},
+		{"a later set holds one the first lacks", [][]FuncID{{a}, {a, b}}, b, true},
+	}
+	for _, tc := range tests {
+		got, diff := differingFunc(tc.sets)
+		if got != tc.want || diff != tc.diff {
+			t.Errorf("%s: differingFunc = %v, %v; want %v, %v", tc.name, got, diff, tc.want, tc.diff)
+		}
+	}
 }

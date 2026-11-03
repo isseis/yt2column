@@ -273,6 +273,38 @@ func TestJudge(t *testing.T) {
 		}
 	})
 
+	t.Run("nothing-measured comes before unmatched reasons held from the tables and the classification", func(t *testing.T) {
+		dup := joinLines("package x", "", "func A() int { return 1 }; func B() int { return 2 }")
+		withHeadOnly := goHeadText + "\nfunc D() {}\n"
+		headOnlyDiff := append(slices.Clone(goDeleteB), "@@ -13,0 +10,2 @@", "+", "+func D() {}")
+		cases := map[string]judgeInput{
+			// Both tables hold the two declarations on line 3 as unmatched.
+			"declarations on one line": goInput(
+				goPoint{text: dup, profile: "mode: set\n"},
+				goPoint{text: dup, blocks: []string{"3.14,3.26 1 1"}}, nil),
+			// D is a HEAD-only function, an unmatched reason of the
+			// classification.
+			"a HEAD-only function": goInput(
+				goPoint{text: goBaseText, profile: "mode: set\n"},
+				goPoint{text: withHeadOnly, blocks: []string{"3.14,5.2 1 1"}}, headOnlyDiff),
+		}
+		for name, in := range cases {
+			got := requireJudged(t, judge(ctx, goT, in), OutcomeStop, StopNothingMeasured)
+			if points := reasonPoints(got.Reasons); !slices.Equal(points, []Point{PointBase}) {
+				t.Errorf("%s: reason points = %v, want only base", name, points)
+			}
+		}
+	})
+
+	t.Run("results that report a failure but name no test are test-failed", func(t *testing.T) {
+		base, head := extPassing()
+		head.tap = tapReportText(1, 1, 0)
+		got := requireJudged(t, judge(ctx, extTarget{ranges: fakeRanges{}}, extInput(base, head, extDeleteB)), OutcomeStop, StopTestFailed)
+		if points := reasonPoints(got.Reasons); !slices.Equal(points, []Point{PointHead}) {
+			t.Errorf("reason points = %v, want only head", points)
+		}
+	})
+
 	t.Run("a HEAD test failure comes before an unreadable BASE profile", func(t *testing.T) {
 		base, head := goPassing()
 		base.profile = "not a profile\n"
@@ -486,6 +518,25 @@ func TestJudgeScenarios(t *testing.T) {
 		head.text = goHeadText + "\nfunc D() {}\n"
 		diff := append(slices.Clone(goDeleteB), "@@ -13,0 +10,2 @@", "+", "+func D() {}")
 		add(scenario{name: "a function only HEAD has", target: goTarget{}, in: goInput(base, head, diff), wantStop: StopUnmatched, wantFunc: &FuncID{judgeGoFile, 11}})
+	}
+
+	{
+		// HEAD makes x.go a test helper; o.go keeps both points measured.
+		other := joinLines("package x", "", "func O() int {", "\treturn 0", "}")
+		base, head := goPassing()
+		base.profile = "mode: set\n" + judgeModule + "/x/x.go:11.14,13.2 1 1\n" + judgeModule + "/x/o.go:3.14,5.2 1 1\n"
+		head.text = "//go:build test\n\n" + goBaseText
+		head.profile = "mode: set\n" + judgeModule + "/x/x.go:13.14,15.2 1 1\n" + judgeModule + "/x/o.go:3.14,5.2 1 1\n"
+		in := goInput(base, head, []string{
+			"diff --git a/x/x.go b/x/x.go", "--- a/x/x.go", "+++ b/x/x.go",
+			"@@ -0,0 +1,2 @@", "+//go:build test", "+",
+		})
+		in.BaseSource.(*fakeSource).files["x/o.go"] = other
+		in.HeadSource.(*fakeSource).files["x/o.go"] = other
+		add(scenario{
+			name: "a file that stops being product code leaves its functions without a partner", target: goTarget{}, in: in,
+			wantStop: StopUnmatched, wantFunc: &FuncID{judgeGoFile, 11},
+		})
 	}
 
 	// Inputs that pass and list the deleted functions.

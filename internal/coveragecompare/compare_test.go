@@ -37,7 +37,7 @@ func TestCompareGo(t *testing.T) {
 		{name: "a drop that rounds to the same percentage is lost", base: goRow(1000, 1001), head: goRow(999, 1001), wantLost: true},
 		{name: "the same fraction is kept", base: goRow(3, 4), head: goRow(3, 4)},
 		{name: "a higher fraction is kept", base: goRow(3, 4), head: goRow(4, 4)},
-		{name: "a HEAD partner with no statements measured nothing", base: goRow(1, 2), head: goRow(0, 0), wantLost: true},
+		{name: "a HEAD partner with no statements has no HEAD record", base: goRow(1, 2), head: goRow(0, 0), wantUnmatched: true},
 		{name: "a HEAD partner whose file is not in the HEAD profile cannot be compared", base: goRow(1, 2), head: unrecorded, wantUnmatched: true},
 		{name: "a function that did not run at BASE is not compared", base: goRow(0, 2), head: unrecorded},
 		{name: "a function with no statements is not compared", base: goRow(0, 0), head: unrecorded},

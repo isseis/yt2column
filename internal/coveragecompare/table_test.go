@@ -176,6 +176,28 @@ func TestBuildExtTable(t *testing.T) {
 	})
 }
 
+func TestGoFuncNames(t *testing.T) {
+	src := joinLines(
+		"package x",
+		"type P[K, V any] struct{}",
+		"type T int",
+		"func (P[K, V]) list() {}",
+		"func (t (*T)) paren() {}",
+		"func (t (T)) value() {}",
+	)
+	funcs, err := parseGoFuncs("x.go", []byte(src), PointBase)
+	if err != nil {
+		t.Fatalf("parseGoFuncs: %v", err)
+	}
+	var got []string
+	for _, fn := range funcs {
+		got = append(got, fn.Name)
+	}
+	if want := []string{"P.list", "(*T).paren", "T.value"}; !slices.Equal(got, want) {
+		t.Errorf("names = %v, want %v", got, want)
+	}
+}
+
 func TestProductFiles(t *testing.T) {
 	src := &fakeSource{at: PointHead, files: map[string]string{
 		"a.go":            "package a\n",

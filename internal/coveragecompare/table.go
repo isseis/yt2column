@@ -324,7 +324,7 @@ func productFiles(isProduct func(source, string) (bool, error), src source, rep 
 	for _, file := range candidates {
 		_, exists, err := src.readFile(file)
 		if err != nil {
-			return nil, &StopError{Kind: StopInternal, Err: err}
+			return nil, readFailure(src, file, err)
 		}
 		if !exists {
 			if _, named := slices.BinarySearch(rep.files, file); named {
@@ -369,7 +369,7 @@ func isExtSourceProduct(_ source, file string) (bool, error) {
 func readPresent(src source, file string) ([]byte, error) {
 	data, exists, err := src.readFile(file)
 	if err != nil {
-		return nil, &StopError{Kind: StopInternal, Err: err}
+		return nil, readFailure(src, file, err)
 	}
 	if !exists {
 		reason := StopReason{
@@ -381,4 +381,16 @@ func readPresent(src source, file string) ([]byte, error) {
 		return nil, &StopError{Kind: StopUnreadable, Reasons: []StopReason{reason}}
 	}
 	return data, nil
+}
+
+// readFailure is the internal stop for a source file that could not be read.
+func readFailure(src source, file string, err error) *StopError {
+	reason := StopReason{
+		Point:   src.point(),
+		Input:   InputSource,
+		Func:    &FuncID{File: file},
+		Detail:  "reading a source file failed",
+		Excerpt: err.Error(),
+	}
+	return &StopError{Kind: StopInternal, Reasons: []StopReason{reason}, Err: err}
 }

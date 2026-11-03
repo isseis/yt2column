@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -187,16 +188,16 @@ func rerunCommand(r Result, reason StopReason) string {
 			return ""
 		case reason.Test != "":
 			pattern := "^" + regexp.QuoteMeta(reason.Test) + "$"
-			command = "go test -tags test -run " + strconv.Quote(pattern) + " " + strconv.Quote(reason.Package)
+			command = "go test -tags test -run " + shellQuote(pattern) + " " + shellQuote(reason.Package)
 		default:
-			command = "go test -tags test " + strconv.Quote(reason.Package)
+			command = "go test -tags test " + shellQuote(reason.Package)
 		}
 	case TargetExt:
 		file, ok := strings.CutPrefix(reason.Package, "extension/")
 		if !ok {
 			return ""
 		}
-		command = "cd extension && node --test " + strconv.Quote(file)
+		command = "cd extension && node --test " + shellQuote(file)
 	default:
 		return ""
 	}
@@ -289,4 +290,17 @@ func plainOrQuoted(value string) string {
 		}
 	}
 	return value
+}
+
+// shellQuote quotes an argument of a rerun command for a POSIX shell: in single
+// quotes, so nothing in it is expanded when the line is pasted. A value with a
+// character that is not printable is Go-quoted instead, so the line never
+// writes a control character; such a value needs editing before it runs.
+func shellQuote(value string) string {
+	for _, c := range value {
+		if !unicode.IsPrint(c) {
+			return strconv.Quote(value)
+		}
+	}
+	return "'" + strings.ReplaceAll(value, "'", `'\''`) + "'"
 }

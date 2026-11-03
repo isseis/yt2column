@@ -24,6 +24,16 @@ func compareGo(pairs []matchedPair) ([]LostFunc, []StopReason) {
 			continue
 		}
 		after := pair.head.Cov
+		if after.Total == 0 {
+			// The HEAD profile names the file but no block of the
+			// function: the HEAD report has no record of it.
+			reasons = append(reasons, StopReason{
+				Point:  PointBase,
+				Func:   &FuncID{File: pair.base.ID.File, Line: pair.base.ID.Line},
+				Detail: "the matched HEAD function has no statements in the HEAD profile",
+			})
+			continue
+		}
 		if statementsDropped(before, after) {
 			lost = append(lost, LostFunc{ID: pair.base.ID, Names: pair.base.Names, Before: before, After: after})
 		}
@@ -32,14 +42,9 @@ func compareGo(pairs []matchedPair) ([]LostFunc, []StopReason) {
 }
 
 // statementsDropped reports whether after covers a smaller fraction of its
-// statements than before does. The products are compared in 128 bits, so no
-// fraction is rounded. A HEAD function with no statements, matched to a BASE
-// function that has some, measured nothing and counts as a drop rather than as
-// kept coverage.
+// statements than before does. Both totals are positive. The products are
+// compared in 128 bits, so no fraction is rounded.
 func statementsDropped(before, after Coverage) bool {
-	if after.Total == 0 {
-		return true
-	}
 	afterHi, afterLo := bits.Mul64(uint64(after.Covered), uint64(before.Total))   //nolint:gosec // counts are non-negative
 	beforeHi, beforeLo := bits.Mul64(uint64(before.Covered), uint64(after.Total)) //nolint:gosec // counts are non-negative
 	return afterHi < beforeHi || (afterHi == beforeHi && afterLo < beforeLo)
