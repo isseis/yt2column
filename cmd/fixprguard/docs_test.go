@@ -187,7 +187,7 @@ func TestDocumentedInvocationsParse(t *testing.T) {
 		want []string
 	}{
 		{".claude/commands/fixpr.md", []string{cmdBegin, cmdFence, cmdInspect, cmdFinish, cmdPush, cmdReply, cmdEditPR, cmdAppendPR}},
-		{".claude/commands/runpr.md", []string{cmdHead, cmdList, cmdReply}},
+		{".claude/commands/runpr.md", []string{cmdHead, cmdInteractionLimits, cmdList, cmdReply}},
 	} {
 		calls := documentedInvocations(readRepoFile(t, tc.rel))
 		seen := map[string]struct{}{}
