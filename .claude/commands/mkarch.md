@@ -111,6 +111,7 @@ Work in the following order.
 - [ ] Any new external-service feature the design relies on (Slack API, IMAP capability, etc.) is verified to behave correctly on all target client environments listed in `_context.md`; the verification result is stated inline, or the unverified risk is explicitly documented.
 - [ ] When the design replaces existing behavior with a new approach, a "why not the existing approach?" justification is present and names the specific requirement the simpler approach cannot satisfy.
 - [ ] Every claim about existing behavior (a path is unreachable, a value is the only one, two constructions are equivalent) cites `file:line` and the commit verified against, or is phrased as a requirement rather than a fact.
+- [ ] Every value the design exposes to a caller (an identifier, a key, an ordering) is either specified as part of the API or kept opaque, and nothing in the design lets a caller depend on an unpublished internal (CLAUDE.md, "Keep internals unobservable").
 
 **Readability and consistency checklist (use verbatim as evaluation criteria in the subagent prompt above):**
 - [ ] The arrow semantics used in each diagram are stated explicitly in a caption or note (e.g., "矢印 A → B は…を表す"), and are applied consistently within that diagram.
