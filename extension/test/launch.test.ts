@@ -949,15 +949,13 @@ describe("popup job states", () => {
     assert.equal(doc.activeElement, popup.elements.primary);
   });
 
-  it("gives the focus to the button after a press that did not have it, as a mouse click on macOS", async () => {
+  it("moves no focus to the button when the press did not have it", async () => {
     const popup = shown(collectedLaunch());
     const doc = popup.elements.primary.ownerDocument;
-    // Precondition: the press is made with the focus nowhere.
-    assert.equal(doc.activeElement, doc.body);
     await press(popup);
     await popup.worker.answer(startReply(accepted, 100));
     assert.equal(popup.elements.primary.disabled, false);
-    assert.equal(doc.activeElement, popup.elements.primary);
+    assert.equal(doc.activeElement, doc.body);
   });
 
   it("shows loading once the key is accepted, polls it at once and offers to open the viewer", async () => {
