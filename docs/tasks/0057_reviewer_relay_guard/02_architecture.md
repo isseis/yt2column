@@ -343,6 +343,7 @@ fixprguard interaction-limits --protocol 5 <PR>
 -   PR の作成の時刻は、`gh pr view <PR> --json createdAt` で読み、`strictjson` で検査する（`createdAt` は必須の文字列で、RFC 3339 の日時）。
 -   `gh api --include repos/<owner>/<name>/interaction-limits` を 1 回だけ実行する。メソッドは `GET` だけで、書き込む呼び出しはない。
 -   時間の上限は、`GitHub.InteractionLimits` の全体で 2 分（`githubTimeout`）とする。`runGH` の呼び出しごとの上限は、この上限の内側で働く。ほかの呼び出しは呼び出しごとに上限を当てるが、この関数だけは 3 つの呼び出しの合計に当てる（1.2）。
+-   3 つの呼び出しは、どれも `runGH` を通るので、`cmd/fixprguard` が `gh` の実行に設定している既存の上限がそのまま当たる。捕捉する出力は 32 MiB まで（`ghMaxOutput`、`cmd/fixprguard/main.go:42`。超えると残りを読み切ったうえで `cmdrunner.ErrOutputTooLarge` で失敗する）、取り消しの後にパイプを待つのは 10 秒まで（`waitDelay`、`:51`）である。新しい値は加えない。
 
 **出力。** 6 つの状態のどれでも、終了コード `0` で 1 行の JSON を出力する。
 
@@ -618,7 +619,7 @@ HTTP の状態コードが `200` でなければ、ヘッダも本文も読ま�
 
 | 操作 | 外部の副作用 |
 |---|---|
-| `fixprguard interaction-limits` | GitHub の読み取りだけ（`gh repo view`、`gh api --include` の `GET`）。ファイル、git、GitHub への書き込みはない。記録のファイル（ガイド 8.1）も書かない |
+| `fixprguard interaction-limits` | GitHub の読み取りだけ（`gh repo view`、`gh pr view`、`gh api --include` の `GET`）。ファイル、git、GitHub への書き込みはない。記録のファイル（ガイド 8.1）も書かない |
 | `/runpr` の状態の確認 | 上の 1 回の呼び出しだけ。GitHub の設定を変えず、PR を閉じない・作らない（AC-17）。止まる場合も、何も書き込まずに報告するだけである |
 | 範囲の規則の変更 | 副作用は増えない。範囲外が増え、`inspect` の終了コード `3` で利用者に確かめる回数が増える |
 | 自動レビュアーの一覧の変更 | 副作用は増えない。CodeRabbit のスレッドの本文を取得しなくなる |
