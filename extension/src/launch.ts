@@ -260,8 +260,12 @@ export function runPopupSend(
   }
   const input = view.selection.status.request.body.message;
   const { primary } = elements;
+  const doc = primary.ownerDocument;
 
   let pressed = false;
+  // Set when a press of the focused button disables it: the browser then
+  // drops the focus, and it goes back to the button once it can be pressed.
+  let returnFocus = false;
   let state: PopupJobState = { kind: "sending" };
   let seed: ViewerSeed = viewerSeed(view.video, input, 0);
   let key: ArticleKey | undefined;
@@ -295,10 +299,27 @@ export function runPopupSend(
     }
   };
 
+  /**
+   * Gives the focus back to the primary button once it can be pressed again,
+   * when the press that disabled it had the focus there and the focus is
+   * nowhere now. Focus the user moved elsewhere in between is never taken.
+   */
+  const restoreFocus = (): void => {
+    if (!returnFocus || primary.disabled) {
+      return;
+    }
+    returnFocus = false;
+    const active = doc.activeElement;
+    if (active === null || active === doc.body || active === primary) {
+      primary.focus();
+    }
+  };
+
   const show = (next: PopupJobState): void => {
     state = next;
     draw();
     armRedraw();
+    restoreFocus();
   };
 
   const onStep = (step: PollStep): void => {
@@ -440,6 +461,7 @@ export function runPopupSend(
   primary.addEventListener("click", () => {
     if (!pressed) {
       pressed = true;
+      returnFocus = doc.activeElement === primary;
       void start();
       return;
     }
@@ -447,6 +469,7 @@ export function runPopupSend(
       case "none":
         return;
       case "retry":
+        returnFocus = doc.activeElement === primary;
         void start();
         return;
       case "open-viewer":

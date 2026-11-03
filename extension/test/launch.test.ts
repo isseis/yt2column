@@ -884,6 +884,80 @@ describe("popup job states", () => {
     });
   }
 
+  /**
+   * Leaves the focus nowhere, as the browser does with a focused button it
+   * disables; jsdom keeps the focus on it, and does not blur it either.
+   */
+  function dropFocus(doc: Document): void {
+    const holder = doc.createElement("input");
+    doc.body.append(holder);
+    holder.focus();
+    holder.remove();
+    assert.equal(doc.activeElement, doc.body);
+  }
+
+  const focusCases: {
+    name: string;
+    /** What happens to the focus while the button is disabled. */
+    meanwhile: (popup: Popup) => void;
+    /** Where the focus is expected once the button can be pressed again. */
+    expected: (popup: Popup) => Element;
+  }[] = [
+    {
+      name: "gives the focus back to the button once it can be pressed again",
+      meanwhile: (popup) => dropFocus(popup.elements.primary.ownerDocument),
+      expected: (popup) => popup.elements.primary,
+    },
+    {
+      name: "leaves the focus where the user moved it while the button was disabled",
+      meanwhile: (popup) => {
+        const summary = popup.elements.details.querySelector("summary");
+        assert.ok(summary !== null);
+        summary.focus();
+      },
+      expected: (popup) => {
+        const summary = popup.elements.details.querySelector("summary");
+        assert.ok(summary !== null);
+        return summary;
+      },
+    },
+  ];
+  for (const { name, meanwhile, expected } of focusCases) {
+    it(name, async () => {
+      const popup = shown(collectedLaunch());
+      const doc = popup.elements.primary.ownerDocument;
+      popup.elements.primary.focus();
+      await press(popup);
+      // Precondition: the press disabled the button.
+      assert.equal(popup.elements.primary.disabled, true);
+      meanwhile(popup);
+      await popup.worker.answer(startReply(accepted, 100));
+      assert.equal(popup.elements.primary.disabled, false);
+      assert.equal(doc.activeElement, expected(popup));
+    });
+  }
+
+  it("gives the focus back to the button after a retry", async () => {
+    const popup = await acceptedPopup(100);
+    await popup.host.answer(statusReply(failedJob));
+    const doc = popup.elements.primary.ownerDocument;
+    popup.elements.primary.focus();
+    await press(popup);
+    assert.equal(popup.elements.primary.disabled, true);
+    dropFocus(doc);
+    await popup.worker.answer(startReply(accepted, 101));
+    assert.equal(doc.activeElement, popup.elements.primary);
+  });
+
+  it("moves no focus to the button when the press did not have it", async () => {
+    const popup = shown(collectedLaunch());
+    const doc = popup.elements.primary.ownerDocument;
+    await press(popup);
+    await popup.worker.answer(startReply(accepted, 100));
+    assert.equal(popup.elements.primary.disabled, false);
+    assert.equal(doc.activeElement, doc.body);
+  });
+
   it("shows loading once the key is accepted, polls it at once and offers to open the viewer", async () => {
     const launch = collectedLaunch();
     const popup = await acceptedPopup(100, launch);
