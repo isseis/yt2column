@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-02 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 決定の変更で draft に戻した：push の制限の対象から既定のブランチを外し、interaction limits をアカウント全体の設定とし、build checks のテストが実行するガイドのコードを残余のリスクに加えた<br>決定の変更で draft に戻した：制限が外れているか確かめられないとき、PR が制限の設定より前に作られたとき、利用者以外の @codex のメンションがあるときに、/runpr を止めるようにした |
+| Review date | 2026-11-03 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 概要 (Overview)
 
@@ -329,4 +329,5 @@ F-001 で範囲の規則が変わるので、古いツールと新しい文書�
 ## 変更履歴
 
 - 2026-11-02 承認（isseis、#631）
-- 2026-11-03 draft への戻し：push の制限の対象から既定のブランチを外し、interaction limits をアカウント全体の設定とし、build checks のテストが実行するガイドのコードを残余のリスクに加えた；制限が外れているか確かめられないとき、PR が制限の設定より前に作られたとき、利用者以外の @codex のメンションがあるときに、/runpr を止めるようにした（#未記入）
+- 2026-11-03 draft への戻し：push の制限の対象から既定のブランチを外し、interaction limits をアカウント全体の設定とし、build checks のテストが実行するガイドのコードを残余のリスクに加えた；制限が外れているか確かめられないとき、PR が制限の設定より前に作られたとき、利用者以外の @codex のメンションがあるときに、/runpr を止めるようにした（#634）
+- 2026-11-03 承認（isseis、#634）

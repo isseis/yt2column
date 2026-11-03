@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-03 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-03 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルに関する記述は、コミット `5f9cdeb` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md) の項番を指す。申し送り H-01〜H-07 への対応は付録 A に、受け入れ基準との対応は付録 B にまとめる。#629 などは GitHub の issue の番号を指す。
@@ -929,3 +929,7 @@ PR の切り方は計画で決める。設計からは、次の順序と制約�
 | AC-25 | 3.5 | 7.1（止まる 4 つの状態の分類）、manual（`runpr.md` がその場で止まること） |
 | AC-26 | 3.4・3.5 | 7.1（AC-26 の境界の 2 行）、7.2 |
 | AC-27 | 3.5 | 7.3（`listings_print_no_body` の fixture）、manual（止まる時点と報告） |
+
+## 変更履歴
+
+- 2026-11-03 承認（isseis、#634）
