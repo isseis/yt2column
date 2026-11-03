@@ -45,7 +45,7 @@ func NewGitHub(run cmdrunner.InputRunner, reviewers Reviewers) (*GitHub, error) 
 }
 
 // NewGitHubWithoutReviewer returns a GitHub for the calls that judge no
-// thread: Head, CurrentPR, EditPR and AppendPR. Its reviewers are the zero
+// thread: Head, CurrentPR, EditPR, AppendPR and InteractionLimits. Its reviewers are the zero
 // Reviewers, and the calls that judge threads (List, Begin, ThreadPaths,
 // Reply) refuse to run on it, so a subcommand that takes no --reviewer cannot
 // judge with none.
@@ -177,6 +177,34 @@ func (g *GitHub) Head(ctx context.Context, pr PRNumber) (HeadInfo, error) {
 		return HeadInfo{}, ErrCrossRepository
 	}
 	return HeadInfo{Protocol: Protocol, SameRepository: true}, nil
+}
+
+// prViewString reads one string member, field, of gh pr view <PR> --json
+// <field>. The response must be one strict JSON object, within
+// maxResponseBytes, whose field member is present and a string (an empty one
+// included); anything else, and a failed gh, is ErrResponseRejected naming the
+// rule only.
+func (g *GitHub) prViewString(ctx context.Context, pr PRNumber, field string) (string, error) {
+	out, err := g.runGH(ctx, nil, "pr", "view", pr.String(), "--json", field)
+	if err != nil {
+		return "", ghFailure("pr view", err)
+	}
+	if len(out) > maxResponseBytes {
+		return "", rejected("response size")
+	}
+	obj, err := strictjson.ParseObject(out)
+	if err != nil {
+		return "", rejected("pr view")
+	}
+	members, err := obj.Collect(field)
+	if err != nil {
+		return "", rejected("pr view")
+	}
+	text, err := requiredStringMember(members, field)
+	if err != nil {
+		return "", rejected("pr view " + field)
+	}
+	return text, nil
 }
 
 // CurrentPR returns the PR of the current branch, as gh resolves it, for a

@@ -429,28 +429,5 @@ func appendParagraph(current, text string) string {
 // (an empty one included); anything else, and a failed gh, is
 // ErrResponseRejected naming the rule only.
 func (g *GitHub) prBody(ctx context.Context, pr PRNumber) (string, error) {
-	out, err := g.runGH(ctx, nil, "pr", "view", pr.String(), "--json", "body")
-	if err != nil {
-		return "", ghFailure("pr view", err)
-	}
-	if len(out) > maxResponseBytes {
-		return "", rejected("response size")
-	}
-	obj, err := strictjson.ParseObject(out)
-	if err != nil {
-		return "", rejected("pr view")
-	}
-	members, err := obj.Collect("body")
-	if err != nil {
-		return "", rejected("pr view")
-	}
-	value, err := strictjson.Required(members, "body")
-	if err != nil {
-		return "", rejected("PR body")
-	}
-	body, err := value.AsString()
-	if err != nil {
-		return "", rejected("PR body")
-	}
-	return body, nil
+	return g.prViewString(ctx, pr, "body")
 }
