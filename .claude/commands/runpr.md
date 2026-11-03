@@ -637,9 +637,10 @@ finished review observed had and every review in progress lacked, so that a
 Ask the user once, so a reviewer who has already reviewed the PR answers once
 rather than once per decision.
 
-Before the question, read the three mention lists of step 3, "Reading the
-PR", again (this is after the last `fixpr` run), and apply step 3's "Mentions
-by other accounts" to them. When it stops, stop here: no question, no merge.
+Each time this step's question is asked, the first time and every time it is
+asked again, read the three mention lists of step 3, "Reading the PR", just
+before it, and apply step 3's "Mentions by other accounts" to them. When it
+stops, stop here: no question, no merge.
 
 1. Run `.claude/commands/mergepr.md` steps 1–2 for `<number>` (prepare, draft
    the squash commit message). When PRE_MERGE has approvals, draft the message

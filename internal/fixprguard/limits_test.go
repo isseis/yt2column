@@ -196,6 +196,10 @@ func limitsCases() []limitsCase {
 		{name: "upper_case_limit", out: ok(limitsBody("COLLABORATORS_ONLY", limitsExpires)), want: unverifiable(UnverifiableLimit)},
 		{name: "expires_at_without_offset", out: ok(limitsBody("collaborators_only", "2027-05-02T21:30:10")), want: unverifiable(UnverifiableExpiresAt)},
 		{name: "expires_at_date_only", out: ok(limitsBody("collaborators_only", "2027-05-02")), want: unverifiable(UnverifiableExpiresAt)},
+		// Shapes time.Parse takes that RFC 3339 does not allow.
+		{name: "expires_at_offset_hour_24", out: ok(limitsBody("collaborators_only", "2027-05-02T21:30:10+24:00")), want: unverifiable(UnverifiableExpiresAt)},
+		{name: "expires_at_offset_minute_60", out: ok(limitsBody("collaborators_only", "2027-05-02T21:30:10+09:60")), want: unverifiable(UnverifiableExpiresAt)},
+		{name: "expires_at_comma_fraction", out: ok(limitsBody("collaborators_only", "2027-05-02T21:30:10,5Z")), want: unverifiable(UnverifiableExpiresAt)},
 		// No partial result: a past expiry read beside an unknown limit is
 		// not taken as no limit.
 		{name: "unknown_limit_with_past_expiry", out: ok(limitsBody("everyone", "2026-01-01T00:00:00Z")), want: unverifiable(UnverifiableLimit)},
@@ -211,10 +215,15 @@ func limitsCases() []limitsCase {
 		{name: "date_rfc850", out: limitsOK("Tuesday, 10-Nov-26 00:00:00 GMT", noLimitBody), want: unverifiable(UnverifiableDate)},
 		{name: "date_ansi_c", out: limitsOK("Tue Nov 10 00:00:00 2026", noLimitBody), want: unverifiable(UnverifiableDate)},
 		{name: "date_other_zone", out: limitsOK("Tue, 10 Nov 2026 00:00:00 JST", noLimitBody), want: unverifiable(UnverifiableDate)},
+		// Shapes time.Parse takes that IMF-fixdate does not allow.
+		{name: "date_wrong_weekday", out: limitsOK("Wed, 10 Nov 2026 00:00:00 GMT", noLimitBody), want: unverifiable(UnverifiableDate)},
+		{name: "date_lower_case_names", out: limitsOK("tue, 10 nov 2026 00:00:00 GMT", noLimitBody), want: unverifiable(UnverifiableDate)},
+		{name: "date_extra_space", out: limitsOK("Tue,  10 Nov 2026 00:00:00 GMT", noLimitBody), want: unverifiable(UnverifiableDate)},
 
 		// A failed gh api call.
 		{name: "gh_failed_with_status", outErr: exitWith(includedOutput(403, nil, `{"message":"secret-marker"}`)), want: InteractionLimitsInfo{Reason: UnverifiableHTTPStatus, HTTPStatus: 403}},
 		{name: "gh_failed_without_status", outErr: exitWith("secret-marker"), want: unverifiable(UnverifiableGHFailed)},
+		{name: "gh_failed_with_success_status", outErr: exitWith(limitsOK(limitsNow, noLimitBody)), want: unverifiable(UnverifiableGHFailed)},
 		{name: "gh_not_started", outErr: errors.New("start gh"), want: unverifiable(UnverifiableGHFailed)},
 		{name: "gh_output_too_large", outErr: fmt.Errorf("gh: %w", cmdrunner.ErrOutputTooLarge), want: unverifiable(UnverifiableOutputForm)},
 
@@ -225,6 +234,7 @@ func limitsCases() []limitsCase {
 		{name: "created_at_duplicate", badCreated: true, created: `{"createdAt":"2026-01-01T00:00:00Z","createdAt":"` + limitsCreated + `"}`, want: unverifiable(UnverifiablePR)},
 		{name: "created_at_number", badCreated: true, created: `{"createdAt":1}`, want: unverifiable(UnverifiablePR)},
 		{name: "created_at_not_rfc3339", badCreated: true, created: `{"createdAt":"2026-11-05 00:00:00"}`, want: unverifiable(UnverifiablePR)},
+		{name: "created_at_offset_hour_24", badCreated: true, created: createdAt("2026-11-05T00:00:00+24:00"), want: unverifiable(UnverifiablePR)},
 
 		// The shared deadline: a stage that fails once it has passed timed
 		// out, whatever it returned; before it has, the stage's own reason
@@ -237,24 +247,25 @@ func limitsCases() []limitsCase {
 	}
 }
 
-// TestInteractionLimits checks all four values of every result. The rows that
-// put "secret-marker" into gh's output also check that no value of the result
-// carries it.
+// TestInteractionLimits checks all four values of every result. That no
+// output carries the response is checked where it is printed, in
+// cmd/fixprguard's TestInteractionLimitsRun.
 func TestInteractionLimits(t *testing.T) {
 	for _, tc := range limitsCases() {
 		t.Run(tc.name, func(t *testing.T) {
-			got := runLimits(t, tc)
-			if got != tc.want {
+			if got := runLimits(t, tc); got != tc.want {
 				t.Errorf("InteractionLimits = %+v, want %+v", got, tc.want)
 			}
-			out, err := json.Marshal(got)
-			if err != nil {
-				t.Fatalf("json.Marshal = %v", err)
-			}
-			if strings.Contains(string(out), "secret-marker") {
-				t.Errorf("output %s carries the response", out)
-			}
 		})
+	}
+}
+
+// TestInteractionLimitsUnusablePR: a PR number that never passed its check is
+// unverifiable before any gh call; the fake has no step.
+func TestInteractionLimitsUnusablePR(t *testing.T) {
+	g, _ := newTestGitHub(t)
+	if got := g.InteractionLimits(t.Context(), PRNumber{}); got != unverifiable(UnverifiablePR) {
+		t.Errorf("InteractionLimits = %+v, want unverifiable with reason pr", got)
 	}
 }
 

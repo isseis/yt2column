@@ -133,8 +133,6 @@ const (
 	expiresOnLayout = time.DateOnly
 	// dateHeader is the only header read.
 	dateHeader = "Date"
-	// createdAtMember is the creation time of a PR or a comment in gh's JSON.
-	createdAtMember = "createdAt"
 
 	limitCollaboratorsOnly = "collaborators_only"
 	limitExistingUsers     = "existing_users"
@@ -219,8 +217,8 @@ func (g *GitHub) prCreatedAt(ctx context.Context, pr PRNumber) (time.Time, error
 	if err != nil {
 		return time.Time{}, err
 	}
-	created, err := time.Parse(time.RFC3339, value)
-	if err != nil {
+	created, ok := parseRFC3339(value)
+	if !ok {
 		return time.Time{}, rejected("pr view createdAt")
 	}
 	return created, nil
@@ -237,7 +235,9 @@ func limitsCallFailure(err error) *limitsError {
 		return failAt(UnverifiableGHFailed)
 	}
 	status, _, _, ok := splitIncluded(exitErr.Stdout)
-	if !ok {
+	// A success status beside a failed exit says nothing about the
+	// request, so it is not reported as a refused status.
+	if !ok || (status >= 200 && status <= 299) {
 		return failAt(UnverifiableGHFailed)
 	}
 	return &limitsError{reason: UnverifiableHTTPStatus, status: status}
@@ -272,7 +272,10 @@ func parseLimitsResponse(out []byte) (limitsResponse, *limitsError) {
 
 // parseDateHeader returns the time of the one Date header, an IMF-fixdate
 // (http.TimeFormat). The obsolete RFC 850 and ANSI C forms are not accepted,
-// and gh joins repeated headers into one value, which no longer parses. Header
+// and gh joins repeated headers into one value, which no longer parses.
+// time.Parse also takes a weekday that does not match the date, names in
+// another case, and extra spaces, so the value must be what formatting the
+// parsed time gives back. Header
 // names are matched without regard to case, as HTTP defines them; every other
 // header is ignored.
 func parseDateHeader(headers []string) (time.Time, bool) {
@@ -289,8 +292,9 @@ func parseDateHeader(headers []string) (time.Time, bool) {
 	if count != 1 {
 		return time.Time{}, false
 	}
-	now, err := time.Parse(http.TimeFormat, strings.Trim(value, " \t"))
-	if err != nil {
+	value = strings.Trim(value, " \t")
+	now, err := time.Parse(http.TimeFormat, value)
+	if err != nil || now.Format(http.TimeFormat) != value {
 		return time.Time{}, false
 	}
 	return now, true
@@ -324,21 +328,28 @@ func parseLimitsBody(body []byte) (limit string, expires time.Time, failure *lim
 	default:
 		return "", time.Time{}, failAt(UnverifiableLimit)
 	}
-	expires, err = time.Parse(time.RFC3339, expiresRaw)
-	if err != nil {
+	expires, ok := parseRFC3339(expiresRaw)
+	if !ok {
 		return "", time.Time{}, failAt(UnverifiableExpiresAt)
 	}
 	return limit, expires, nil
 }
 
-// requiredStringMember returns a member that must be present and a string. An
-// empty string is returned, so the value checks after it reject it by name.
-func requiredStringMember(members map[string]strictjson.Value, key string) (string, error) {
-	value, err := strictjson.Required(members, key)
-	if err != nil {
-		return "", err
+// parseRFC3339 reads an RFC 3339 date-time with its offset. time.Parse also
+// takes an offset hour above 23, an offset minute above 59, and a comma before
+// the fraction, which RFC 3339 does not allow; those are rejected here.
+func parseRFC3339(s string) (time.Time, bool) {
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil || strings.Contains(s, ",") {
+		return time.Time{}, false
 	}
-	return value.AsString()
+	if strings.HasSuffix(s, "Z") {
+		return t, true
+	}
+	// The offset is the last six bytes, "+hh:mm" or "-hh:mm", whose two-digit
+	// fields time.Parse has already checked, so they compare as strings.
+	offset := s[len(s)-len("+hh:mm"):]
+	return t, offset[1:3] <= "23" && offset[4:6] <= "59"
 }
 
 // classifyLimits applies the states in the requirements' order: the first that

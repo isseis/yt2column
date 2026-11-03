@@ -15,6 +15,9 @@ import (
 const (
 	ghCommand = "gh"
 
+	// createdAtMember is the creation time of a PR or a comment in gh's JSON.
+	createdAtMember = "createdAt"
+
 	// githubTimeout bounds every gh call.
 	githubTimeout = 2 * time.Minute
 
@@ -205,6 +208,16 @@ func (g *GitHub) prViewString(ctx context.Context, pr PRNumber, field string) (s
 		return "", rejected("pr view " + field)
 	}
 	return text, nil
+}
+
+// requiredStringMember returns a member that must be present and a string. An
+// empty string is returned, so the value checks after it reject it by name.
+func requiredStringMember(members map[string]strictjson.Value, key string) (string, error) {
+	value, err := strictjson.Required(members, key)
+	if err != nil {
+		return "", err
+	}
+	return value.AsString()
 }
 
 // CurrentPR returns the PR of the current branch, as gh resolves it, for a
