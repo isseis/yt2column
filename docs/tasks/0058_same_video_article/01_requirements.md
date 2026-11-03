@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-03 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-04 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -318,3 +318,7 @@
 -   **版の食い違い:** 本タスクの後の版の拡張と、本タスクの前の版のホストかサーバを組み合わせて使うこと（F-002）。
 -   **主ボタン・確認のセクション・ビューア・ビューアの URL・送信の時刻・やり取りの結果・結果不明・記事のキー・ジョブの状態:** `0046`・`0050` と [translation_glossary.md](../../translation_glossary.md) の定義による（F-005 で改める定義を含む）。
 -   用語は [translation_glossary.md](../../translation_glossary.md) と統一する。
+
+## 変更履歴
+
+- 2026-11-04 承認（isseis、#643）
