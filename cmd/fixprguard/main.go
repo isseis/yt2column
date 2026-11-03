@@ -65,6 +65,8 @@ const (
 	cmdReply    = "reply"
 	cmdEditPR   = "edit-pr"
 	cmdAppendPR = "append-pr"
+
+	cmdInteractionLimits = "interaction-limits"
 )
 
 // The flags.
@@ -118,6 +120,9 @@ var specs = map[string]spec{
 	},
 	cmdEditPR:   {flags: []string{flagTitleFile, flagBodyFile}, required: []string{flagTitleFile, flagBodyFile}, arg: argOptionalPR, usesGH: true},
 	cmdAppendPR: {flags: []string{flagBodyFile}, required: []string{flagBodyFile}, arg: argOptionalPR, usesGH: true},
+	// interaction-limits reads only; it judges no thread, so it takes no
+	// --reviewer, and /runpr always names the PR.
+	cmdInteractionLimits: {arg: argRequiredPR, usesGH: true},
 }
 
 // ghTargetVariables point gh at another repository or host than the work
@@ -376,6 +381,8 @@ func execute(ctx context.Context, inv invocation, e env) (any, int, error) {
 		return editPR(ctx, inv, e)
 	case cmdAppendPR:
 		return appendPR(ctx, inv, e)
+	case cmdInteractionLimits:
+		return interactionLimits(ctx, inv, e)
 	default:
 		return nil, 0, errUsage
 	}
@@ -438,6 +445,24 @@ func head(ctx context.Context, inv invocation, e env) (any, int, error) {
 	}
 	info, err := g.Head(ctx, pr)
 	return info, exitContinue, err
+}
+
+// interactionLimits prints the state of the interaction limits with exit code
+// 0 whatever the state, unverifiable included: the caller decides from the
+// state whether to stop. A failure is a state with its reason, never an error,
+// so nothing reaches standard error.
+func interactionLimits(ctx context.Context, inv invocation, e env) (any, int, error) {
+	pr, err := fixprguard.ParsePRNumber(inv.arg)
+	if err != nil {
+		return nil, 0, err
+	}
+	g, err := fixprguard.NewGitHubWithoutReviewer(e.gh)
+	if err != nil {
+		return nil, 0, err
+	}
+	info := g.InteractionLimits(ctx, pr)
+	info.Protocol = fixprguard.Protocol
+	return info, exitContinue, nil
 }
 
 func list(ctx context.Context, inv invocation, e env) (any, int, error) {

@@ -266,6 +266,31 @@ func repoStep() cmdrunnertestutil.Step {
 	return ghStep(`{"nameWithOwner":"isseis/yt2column"}`, nil, "repo", "view", "--json", "nameWithOwner")
 }
 
+// interactionLimitsSteps scripts interaction-limits' gh calls: the
+// repository, the PR's createdAt, then the --include read of the limits,
+// which returns out or fails with err.
+func interactionLimitsSteps(createdAt, out string, err error) []cmdrunnertestutil.Step {
+	return []cmdrunnertestutil.Step{
+		repoStep(),
+		ghStep(`{"createdAt":"`+createdAt+`"}`, nil, "pr", "view", testPR, "--json", "createdAt"),
+		ghStep(out, err, "api", "--include", "repos/isseis/yt2column/interaction-limits"),
+	}
+}
+
+// includedOutput is gh api --include output in the shape gh prints: the status
+// line ending in "\n", each header line ending in "\r\n", an empty "\r\n"
+// line, and the body as sent.
+func includedOutput(status int, headers []string, body string) string {
+	var b strings.Builder
+	b.WriteString("HTTP/2.0 " + strconv.Itoa(status) + " Status\n")
+	for _, h := range headers {
+		b.WriteString(h + "\r\n")
+	}
+	b.WriteString("\r\n")
+	b.WriteString(body)
+	return b.String()
+}
+
 func graphqlStep(out string) cmdrunnertestutil.Step {
 	return ghStep(out, nil, "api", "graphql", "--input", "-")
 }
