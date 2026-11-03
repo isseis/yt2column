@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `draft` |
 | Created | 2026-11-02 |
-| Review date | 2026-11-02 |
-| Reviewer | isseis |
-| Comments | - |
+| Review date | - |
+| Reviewer | - |
+| Comments | 決定の変更で draft に戻した：push の制限の対象から既定のブランチを外し、interaction limits をアカウント全体の設定とし、build checks のテストが実行するガイドのコードを残余のリスクに加えた |
 
 ## 1. 概要 (Overview)
 
@@ -65,6 +65,9 @@
 -   **interaction limits と作成の制限を使う（F-003）:** interaction limits の `collaborators_only` を有効にする。あわせて、PR の作成と issue の作成を collaborators に限る、期限のない設定（作成の制限）も使う。設定は利用者が行う。
     -   理由: 書き込み権限のない人のコメントを止められるのは interaction limits だけである。ただし最長 6 か月で解除されるので、期限のない作成の制限を重ねる。
     -   受け入れる負担: 外部の人は、本リポジトリに issue（脆弱性の報告を含む）・PR・コメントを作れなくなる。
+    -   interaction limits は、利用者のアカウント全体の設定（アカウントの Settings → Moderation）で有効にする（2026-11-03 の決定の変更）。リポジトリの interaction limits の取得の応答は、アカウント全体の制限を `origin` が `user` の制限として返す（設計の際に観測した。`02_architecture.md` 1.3）。
+        -   理由: 利用者は設計の際にアカウント全体の設定で有効にし、そのまま使うことを選んだ。
+        -   受け入れる負担: 制限は、利用者のほかの公開リポジトリにも効く。更新もアカウントの設定画面で行う。
 -   **`/runpr` が interaction limits の状態を確かめて警告する（F-004）:** 制限がないとき、制限が弱いとき、期限まで 14 日以内のとき、状態を確かめられないときに警告し、処理は続ける。
     -   理由: 期限で自動的に解除されるので、気づく仕組みが要る。止めると、制限が外れている間の PR がすべて止まる。警告で利用者が更新できれば足りる。
 -   **規則 4 の例外を、信頼する著者のスレッドについても外す（F-001）:** 実行関連ファイルは、`path` そのものでも、どの著者のスレッドでも範囲外とする。
@@ -74,11 +77,16 @@
     -   理由: 範囲外の変更は利用者の確認に回る（`docs/dev/guides/fixprguard_guide.md` 6 章）。build checks の前に利用者が見ることが目的なので、手間は小さい。
 -   **`.go` のファイルの規則は変えない:** 信頼する著者のスレッドの `path` が `.go` のファイルなら、そのファイル（規則 1）と同じディレクトリの `.go` のファイル（`internal/fixprguard/scope.go:244-246`）は確認なしに範囲に入り、`make test` がそれを実行する。cgo の前文も書ける（`docs/dev/guides/fixprguard_guide.md` 7.2.3）。この経路は残余のリスクとして記録する（4.2）。F-001 の後も、増幅の段は狭まるだけで、閉じない。
     -   理由: 狭めると、日常の修正（テストのコードの修正）のたびに確認が入る。入口は F-002・F-003 で塞ぐ。
+-   **build checks のテストが実行するガイドのコードは、残余のリスクとする（2026-11-03 の決定の変更）:** `make test` は、`cmd/fixprguard/docs_test.go` の `TestGuideIgnoredCommands` で、`docs/dev/guides/fixprguard_guide.md` 8.1 の最初の `sh` のブロックを、セッションの環境を引き継いで実行する（`cmd/fixprguard/docs_test.go:495-561`）。ガイドは実行関連ファイルではないので、信頼する著者のスレッドの `path` がガイドか、同じディレクトリの `.md` なら、修正のフェーズが書き換えたブロックを、`finish` が確認なしに実行する。ガイドを実行関連ファイルにせず、テストも変えない。この経路は残余のリスクとして記録する（4.2）。設計のレビューで見つかった。
+    -   理由: 同じディレクトリの `.go` のファイルを `make test` が実行する経路（上の決定）と同じ種類であり、同じ扱いにする。ガイドを実行関連ファイルにすると、ガイドを直すたびに確認が入る。テストを変えると、ガイドの手順を実際に動かして確かめる価値を失う。
 -   **`make` に渡す環境から秘密を落とさない:** issue の案（#428 の項目 2）は採らない。`make` が実行するコードが秘密を使えることは、残余のリスクとして記録する（4.2）。
     -   理由: 主な秘密は `.envrc` からファイルとして読めるので、環境変数を落としても被害はほとんど減らない（「背景」）。環境変数だけにある秘密（`CLAUDE_CODE_MESSAGING_TOKEN`）と `SSH_AUTH_SOCK` は残るが、仕組みと保守の手間に見合わないと判断した。
--   **Bot が PR のブランチに push する経路は、GitHub の ruleset で塞ぐ（F-003 の 4 つ目の設定）:** すべてのブランチに「Restrict creations」と「Restrict updates」をかけ、bypass を Repository admin（利用者）だけにする。`/runpr` が取り込んだ commit を検出する仕組みは加えず、CodeRabbit の GitHub App も外さない。
+-   **Bot が PR のブランチに push する経路は、GitHub の ruleset で塞ぐ（F-003 の 4 つ目の設定）:** 既定のブランチ（`main`）を除くすべてのブランチに「Restrict creations」と「Restrict updates」をかけ、bypass を Repository admin（利用者）だけにする。`/runpr` が取り込んだ commit を検出する仕組みは加えず、CodeRabbit の GitHub App も外さない。
     -   理由: GitHub の文書は、「Restrict updates」を「bypass の権限を持つ人だけが、当たるブランチに push できる」と定める（[Available rules for rulesets](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets)）。bypass に指定できるのは役割・チーム・GitHub App などで（[Creating rulesets for a repository](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/creating-rulesets-for-a-repository)）、指定しない App の push は拒否される。interaction limits と違って期限がない。push した人をコマンドの側で見分けるには、署名の検証などの大きな仕組みが要る。
     -   確かめていないこと: 個人の公開リポジトリで ruleset が効くこと、利用者の push と `/mergepr` の squash merge・ブランチの削除が止まらないことは、文書に書かれていない。設定の後の PR で確かめる（AC-10・AC-11）。
+    -   既定のブランチを対象から外す（2026-11-03 の決定の変更）。設計の際に、すべてのブランチを対象にして設定したところ、PR のマージ（`main` の更新）も「Restrict updates」に当たり、Web の画面は bypass を選ばない限りマージを止めた。`/mergepr` の `gh pr merge` も、`--admin` を付けなければ止まる見込みである。
+        -   理由: `main` は、既存の ruleset（`main`）の `pull_request` の規則が、bypass なしで直接の push を禁じている（設計の際に読んだ。`02_architecture.md` 1.3）。そのため、Bot が `main` に直接 push することは、もともとできない。対象に `main` を含めても、PR のマージのたびに bypass を求めるだけで、本タスクの経路を塞ぐ効果は増えない。`/mergepr` に `--admin` を足す案は、`cmd/mergepr` の変更で範囲が広がり、将来 `main` に加える規則も黙って飛ばすので採らない。
+        -   受け入れるリスク: GitHub App として入っている Bot が、API で PR を `main` にマージする経路は、push の制限では止まらない（4.2）。
     -   AC-11 が成り立たなければ（Codex のレビューや `/mergepr` が止まるなど）、作業を止め、決定の変更として本書に戻す。interaction limits についても同じである。
     -   「Restrict deletions」はかけない。Bot によるブランチの削除はコードを持ち込まないので、本タスクの経路に当たらない。`/mergepr` のブランチの削除に影響しないようにするためでもある。
 -   **CodeRabbit が設定に反して自動レビューを行う件は、本書の範囲外とする:** 調査と対応は別の issue で扱う。issue は、本書の PR を開いた後に、利用者に確かめてから作る。
@@ -177,15 +185,15 @@
 
 利用者は、本リポジトリに次の 4 つを設定する。エージェントは設定を変えない。
 
-1.  interaction limits の `collaborators_only`（期限は 6 か月）
+1.  interaction limits の `collaborators_only`（期限は 6 か月。アカウント全体の設定で有効にする。1 章の決定）
 2.  作成の制限のうち、PR の作成を collaborators に限る設定
 3.  作成の制限のうち、issue の作成を collaborators に限る設定
-4.  push の制限: すべてのブランチを対象にした ruleset で、「Restrict creations」と「Restrict updates」をかけ、bypass を Repository admin だけにする（bypass の方式は「Always allow」。「For pull requests only」では利用者の push が止まる）
+4.  push の制限: 既定のブランチ（`main`）を除くすべてのブランチを対象にした ruleset で、「Restrict creations」と「Restrict updates」をかけ、bypass を Repository admin だけにする（bypass の方式は「Always allow」。「For pull requests only」では利用者の push が止まる）
 
 **Acceptance Criteria**:
 - **AC-09**: `docs/dev/guides/` の下のガイドに、4 つの設定の目的、設定する手順、interaction limits を期限の前に更新する手順、設定を変えるのは利用者だけであることが書かれている。
 - **AC-10**: 本タスクの最後の PR を開く前に、利用者が 4 つの設定を行っている。その PR の `/runpr` は、interaction limits の状態を「有効」と報告する（AC-13）。作成の制限と push の制限は、利用者がリポジトリの設定画面で確かめる。
-- **AC-11**: AC-10 の設定の後に開いた PR で、次の 3 つが今までどおり成り立つ。
+- **AC-11**: AC-10 の設定の後に、次の 3 つが今までどおり成り立つ。
     - Codex の PR レビューが、`/runpr` が待つ要約のコメントの完了の状態に達する（`.claude/commands/runpr.md` step 3）。
     - 利用者の `git push` が、PR のブランチの作成と更新に成功する。
     - `/mergepr` の squash merge とブランチの削除が成功する。
@@ -272,6 +280,8 @@ F-001 で範囲の規則が変わるので、古いツールと新しい文書�
 -   **Unicode の畳み込みによる別名。** 大文字小文字を区別しない macOS のボリュームでは、`makeﬁle`（U+FB01）のような名前が `Makefile` として開かれうる（`docs/dev/guides/fixprguard_guide.md` 7.2.3）。そのような名前のファイルが PR の diff にあり、信頼する著者のスレッドが付けば、規則 1 で範囲に入る。
 -   **`make` が実行するコードが使える秘密。** `make` が実行するコードは、作業ツリーの `.envrc` の秘密、引き継いだ環境変数（`CLAUDE_CODE_MESSAGING_TOKEN`・`SSH_AUTH_SOCK` を含む）、`gh` の資格情報を使える（1 章の決定）。
 -   **push の制限の bypass。** Repository admin の役割を持つアカウントは、push の制限を受けない。利用者が bypass に App を加えれば、その App は push できる。
+-   **Bot による `main` へのマージ。** push の制限は既定のブランチを対象にしない（1 章の決定）。既存の ruleset（`main`）は直接の push を禁じるが、PR を経たマージは止めない。GitHub App として入っている Bot が、API で PR を `main` にマージすれば、その変更は `main` に入り、利用者が `main` を取り込んだブランチに届く。
+-   **build checks のテストが実行するガイドのコード。** `make test` は、ガイド 8.1 の最初の `sh` のブロックを、セッションの環境を引き継いで実行する（1 章の決定）。信頼する著者のスレッドの `path` がガイドか、同じディレクトリの `.md` なら、修正のフェーズが書き換えたブロックを、`finish` が確認なしに実行する。
 -   **設定を外した場合と、設定する前の期間。** `/runpr` が確かめるのは interaction limits だけで、作成の制限と push の制限が外されても警告しない。また、利用者が F-003 の設定を行うまで（遅くとも本タスクの最後の PR を開くまで）は、これまでどおり経路が開いている。
 -   **名指しした CodeRabbit のスレッド。** 利用者が名指しすれば、その本文はエージェントに届く。名指しの前に、利用者が内容を確かめる。
 -   **確認への慣れ。** 実行関連ファイルの変更は、正当な修正でも毎回確認に回る。確認に慣れると、危険な変更を見落としうる。
@@ -300,12 +310,13 @@ F-001 で範囲の規則が変わるので、古いツールと新しい文書�
 
 用語は `docs/translation_glossary.md` と統一する。本書で新たに使う用語は次のとおり。
 
--   **interaction limits:** GitHub のリポジトリの設定で、許可した範囲の外のアカウントによる、コメント・issue・PR の作成を一定の期間制限するもの。`collaborators_only` は、書き込み権限を持つ人（collaborators）以外のアカウントを制限する。期限は最長 6 か月で、期限が来ると自動的に解除される。
+-   **interaction limits:** GitHub のリポジトリまたはアカウントの設定で、許可した範囲の外のアカウントによる、コメント・issue・PR の作成を一定の期間制限するもの。`collaborators_only` は、書き込み権限を持つ人（collaborators）以外のアカウントを制限する。期限は最長 6 か月で、期限が来ると自動的に解除される。
 -   **作成の制限:** PR の作成と issue の作成を collaborators に限る、期限のないリポジトリの設定。コメントは制限しない。
--   **push の制限:** すべてのブランチを対象にした ruleset で、ブランチの作成と更新を bypass の権限を持つ相手（Repository admin）に限る設定。
+-   **push の制限:** 既定のブランチを除くすべてのブランチを対象にした ruleset で、ブランチの作成と更新を bypass の権限を持つ相手（Repository admin）に限る設定。
 
 既存の用語（信頼する著者、信頼する著者のスレッド、想定外の著者のスレッド、自動レビュアー、自動レビュアーの一覧、実行関連ファイル、名指し）は、用語集の定義に従う。本書は「名指しされた想定外の著者のスレッド」を略さずに書く。
 
 ## 変更履歴
 
 - 2026-11-02 承認（isseis、#631）
+- 2026-11-03 draft への戻し：push の制限の対象から既定のブランチを外し、interaction limits をアカウント全体の設定とし、build checks のテストが実行するガイドのコードを残余のリスクに加えた（#未記入）
