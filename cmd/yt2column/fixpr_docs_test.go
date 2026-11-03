@@ -55,7 +55,7 @@ const (
 // order, since the list's names are sorted before they are compared with it.
 // Adding or removing a reviewer changes _context.md and this value in the same
 // commit.
-var wantReviewers = []string{"chatgpt-codex-connector"}
+var wantReviewers = []string{"chatgpt-codex-connector", "coderabbitai"}
 
 // flat joins s's whitespace runs into single spaces and drops the blockquote
 // marker of each line, so a phrase matches however the document wraps it,
@@ -951,7 +951,7 @@ func TestContextAndCommandsAgree(t *testing.T) {
 
 // TestContextReviewerRowsMalformed checks that checkContextReviewers reports
 // each kind of broken reviewer row, on copies of the real _context.md with one
-// row edited, and that it reads the one name from a description holding
+// row edited, and that it reads exactly two names from a description holding
 // backquoted code and a second separator.
 func TestContextReviewerRowsMalformed(t *testing.T) {
 	doc := doctestutil.ReadDoc(t, contextPath)
@@ -972,7 +972,7 @@ func TestContextReviewerRowsMalformed(t *testing.T) {
 		{"real", listLine, listLine, nil},
 		{
 			"description_with_code_and_separator", listLine,
-			listRow("`chatgpt-codex-connector` — named in `[bot]`-less form — see `fixpr.md`"), nil,
+			listRow("`coderabbitai`, `chatgpt-codex-connector` — named in `[bot]`-less form — see `fixpr.md`"), nil,
 		},
 		{"list_row_missing", listLine + "\n", "", []reviewerRowProblem{problemRowCount}},
 		{"awaited_row_missing", awaitedLine + "\n", "", []reviewerRowProblem{problemRowCount}},
@@ -1011,6 +1011,9 @@ func TestContextReviewerRowsMalformed(t *testing.T) {
 			got := checkContextReviewers(strings.Replace(doc, tc.old, tc.new, 1))
 			if !slices.Equal(got.problems, tc.want) {
 				t.Errorf("problems = %v, want %v", got.problems, tc.want)
+			}
+			if tc.want == nil && len(got.names) != len(wantReviewers) {
+				t.Errorf("names = %q, want %d names", got.names, len(wantReviewers))
 			}
 		})
 	}
