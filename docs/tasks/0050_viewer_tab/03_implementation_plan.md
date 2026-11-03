@@ -542,13 +542,13 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 #### ステップ 6-3: ポップアップの送信の経路
 
-**変更するファイル:** `src/launch.ts`、`src/popup.ts`、`src/ui/render.ts`、`test/launch.test.ts`、`test/render.test.ts`
+**変更するファイル:** `src/launch.ts`、`src/popup.ts`、`src/ui/render.ts`、`src/poller.ts`（状態の取得のやり取りとログをビューアと共有する `createStatusPoller`）、`src/viewerApp.ts`（それを使う）、`src/core/popupView.ts`（`viewerSeed`）、`src/core/summary.ts`（`shownText`・`replaceUnpairedSurrogates`）、`src/core/poll.ts`（`elapsedRedrawMs` を `viewerApp.ts` から移す）、`src/core/response.ts`（`isExchangeFailureView`）、`src/core/viewerUrl.ts`（`viewerTitleLimit`）、`src/core/extensionMessages.ts`、`test/launch.test.ts`、`test/render.test.ts`、`test/popupPreview.test.ts`、`test/summary.test.ts`、`test/viewerApp.test.ts`、`test/helpers/chrome.ts`・`native.ts`（`viewerApp.test.ts` の SW とホストの fake を共有する）
 
--   [ ] `runPopupSend` を、設計書 3.8 の「主ボタンを押した後」の流れ（`StartRequest` を SW に送る、`StartReply` の検査と 35 秒の期限、ポーリング）と、「ビューアを開く」（6.6）・「やり直す」に改める。ビューアの種（`ViewerSeed`）は、ポップアップが表示した値から作り、対になっていないサロゲートを、表示用に作る写しの中で U+FFFD に置き換える（設計書 3.5）。ログは設計書 4.4 のポップアップのラベルで、ログの関数を通した値だけを書く。
--   [ ] 1.4 の表の 6-3 の古い部品（`logSend`・`sendLabel`、古い送信の処理と import、`sending` の使う場所）と、それを確かめる `test/launch.test.ts` の確認をなくす。
--   [ ] 送る前の画面の主ボタンの名前を、`primaryButton` から新しい節の名前に替える（`src/ui/render.ts:305` と、1.4 の表の `test/render.test.ts`・`test/launch.test.ts` の使う場所）。
--   [ ] `popup.ts` に新しい依存を渡す。
--   [ ] テスト: 主ボタンで `StartRequest` を 1 回だけ送り、ポップアップ自身はホストに生成の開始を送らないこと（AC-01）、`sending` から各状態への移り変わり（AC-20・AC-23）、「ビューアを開く」の 3 つの分岐と生成の開始を送らないこと（AC-21。1 つ目の分岐は、通信路の fake が別のタブを答える形で確かめる）、「やり直す」が同じ入力を 1 回だけ送ること（AC-22）、開き直したポップアップが押すまで `sendNative`・`runtime.sendMessage`・状態の取得のどれも送らないこと（AC-24）、1.4 の行き先の表の `popup send` と `send log` の確認、ログに目印の文字列が現れないこと。
+-   [x] `runPopupSend` を、設計書 3.8 の「主ボタンを押した後」の流れ（`StartRequest` を SW に送る、`StartReply` の検査と 35 秒の期限、ポーリング）と、「ビューアを開く」（6.6）・「やり直す」に改める。ビューアの種（`ViewerSeed`）は、ポップアップが表示した値から作り、対になっていないサロゲートを、表示用に作る写しの中で U+FFFD に置き換える（設計書 3.5）。ログは設計書 4.4 のポップアップのラベルで、ログの関数を通した値だけを書く。
+-   [x] 1.4 の表の 6-3 の古い部品（`logSend`・`sendLabel`、古い送信の処理と import、`sending` の使う場所）と、それを確かめる `test/launch.test.ts` の確認をなくす。
+-   [x] 送る前の画面の主ボタンの名前を、`primaryButton` から新しい節の名前に替える（`src/ui/render.ts:305` と、1.4 の表の `test/render.test.ts`・`test/launch.test.ts` の使う場所）。
+-   [x] `popup.ts` に新しい依存を渡す。
+-   [x] テスト: 主ボタンで `StartRequest` を 1 回だけ送り、ポップアップ自身はホストに生成の開始を送らないこと（AC-01）、`sending` から各状態への移り変わり（AC-20・AC-23）、「ビューアを開く」の 3 つの分岐と生成の開始を送らないこと（AC-21。1 つ目の分岐は、通信路の fake が別のタブを答える形で確かめる）、「やり直す」が同じ入力を 1 回だけ送ること（AC-22）、開き直したポップアップが押すまで `sendNative`・`runtime.sendMessage`・状態の取得のどれも送らないこと（AC-24）、1.4 の行き先の表の `popup send` と `send log` の確認、ログに目印の文字列が現れないこと。
 
 **完了の条件:** `make ext-check` が通る。1.2 の lcov の比べ方で、消した確認の関数の実行回数を確かめる。「ビューアを開く」が `tabs.get` で見つかったタブを使わずに `findViewers` に進むように壊し、AC-21 の 1 つ目の分岐のテストが失敗することを確かめる。
 
@@ -560,40 +560,40 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **変更するファイル:** 1.4 の「古い部品と、それを使う場所」の表のうち 7-1 の行と、台帳の「フェーズ 7 の後」の列が「なし」の行の各ファイル（`src/core/articlesResponse.ts`・`src/core/native.ts`・`src/send.ts`・`src/ui/renderSend.ts`・`src/core/sendMessages.ts`・`src/core/i18n/catalog.ts`・`en.ts`・`ja.ts`・`src/browser/chromeDeps.ts`・`test/helpers/native.ts`・`test/articlesResponse.test.ts`・`test/native.test.ts`・`test/send.test.ts`・`test/renderSend.test.ts`・`test/sendMessages.test.ts`・`test/catalog.test.ts`・`test/typecheck.test.ts`）
 
--   [ ] `src/core/articlesResponse.ts` と `test/articlesResponse.test.ts` をなくす。
--   [ ] `native.ts` の古い包みの `classifyNativeReply` と、その 1,024 バイトの境目のテストをなくす。
--   [ ] `send.ts` の `sendArticle` をなくし、`SendDeps.sendNative` の引数の型を `HostMessage` だけにする。`test/send.test.ts:38` の describe を `exchange` のテストに置き換える。
--   [ ] `src/ui/renderSend.ts` と `test/renderSend.test.ts` をなくす。
--   [ ] `sendMessages.ts` の `serverRejectMessage`・`sendOutcomeMessage` と、`test/sendMessages.test.ts:60`・`:84` の describe をなくす（確認の行き先は 1.4）。
--   [ ] 文言の古い節（`serverReject`・`notSent`・`accepted`・`noResponse`・`hostFailed`・`unexpected`・`sending`・`primaryButton`）と、`en.ts`・`ja.ts` の値をなくす。`test/typecheck.test.ts:160` の欠かす項目を、新しい節の項目に替える。
--   [ ] Slack の方針を書いたコメント（`catalog.ts:29-32`、`sendMessages.ts:25`）を改める。
--   [ ] 1.2 の lcov の比べ方で、消した関数のほかに実行回数が 0 になった関数がないことを確かめる。
+-   [x] `src/core/articlesResponse.ts` と `test/articlesResponse.test.ts` をなくす。
+-   [x] `native.ts` の古い包みの `classifyNativeReply` と、その 1,024 バイトの境目のテストをなくす。
+-   [x] `send.ts` の `sendArticle` をなくし、`SendDeps.sendNative` の引数の型を `HostMessage` だけにする。`test/send.test.ts:38` の describe を `exchange` のテストに置き換える（`exchange` の describe はステップ 2-4 で加えてあるので、`sendArticle` の describe を消す）。`exchange` だけが使う `sendOnce` は `exchange` にまとめる。
+-   [x] `src/ui/renderSend.ts` と `test/renderSend.test.ts` をなくす。
+-   [x] `sendMessages.ts` の `serverRejectMessage`・`sendOutcomeMessage` と、`test/sendMessages.test.ts:60`・`:84` の describe をなくす（確認の行き先は 1.4）。
+-   [x] 文言の古い節（`serverReject`・`notSent`・`accepted`・`noResponse`・`hostFailed`・`unexpected`・`sending`・`primaryButton`）と、`en.ts`・`ja.ts` の値をなくす。`test/typecheck.test.ts:160` の欠かす項目を、新しい節の項目に替える。
+-   [x] Slack の方針を書いたコメント（`catalog.ts:29-32`、`sendMessages.ts:25`）を改める。
+-   [x] 1.2 の lcov の比べ方で、消した関数のほかに実行回数が 0 になった関数がないことを確かめる。
 
 #### ステップ 7-2: ガードの更新
 
 **変更するファイル:** `test/serverReasons.test.ts`、`test/metadataDocs.test.ts`、`test/typecheck.test.ts`、`test/manifest.test.ts`
 
--   [ ] `test/serverReasons.test.ts` の突き合わせの相手を、新しい `ServerRejectReason` の集合と、理由から状態コードへの `Record` に改める（設計書 3.17、AC-38）。
--   [ ] `test/metadataDocs.test.ts` の主ボタンの名前の確認を、3 つの名前を確かめる形にする。「socket directory documentation reference」の確認（`:64-78`）は、付け替えずに消す（設計書 3.17）。消す確認が守っていた `README.en.md` の存在は、`cmd/yt2column::TestReadmeVersionsShareStructure` と `cmd/yt2column-server::TestStartupFailures` が引き続き確かめるので、カバレッジは狭まらない。このことを、2 つのテストの名前とともにコミットのメッセージに書く。
--   [ ] `test/typecheck.test.ts` に、`SendDeps.sendNative` に今の形の本文（`StartInput`）を渡すコードが型の検査を通らない例と、`HostMessage` を渡すコードが通る対照を、`:155` の今の形と同じく加える（AC-01）。
--   [ ] `test/manifest.test.ts` に、両方の README が書く最小の Chrome の版が `minimum_chrome_version` と等しいことを確かめるテストを加える（ステップ 7-3 で README に書く値）。
+-   [x] `test/serverReasons.test.ts` の突き合わせの相手を、新しい `ServerRejectReason` の集合と、理由から状態コードへの `Record` に改める（設計書 3.17、AC-38）。
+-   [x] `test/metadataDocs.test.ts` の主ボタンの名前の確認を、3 つの名前を確かめる形にする。「socket directory documentation reference」の確認（`:64-78`）は、付け替えずに消す（設計書 3.17）。この確認は、タスク `0052` の #603 がすでに消していた。消す確認が守っていた `README.en.md` の存在は、`cmd/yt2column::TestReadmeVersionsShareStructure` と `cmd/yt2column-server::TestStartupFailures` が引き続き確かめるので、カバレッジは狭まらない。このことを、2 つのテストの名前とともにコミットのメッセージに書く。
+-   [x] `test/typecheck.test.ts` に、`SendDeps.sendNative` に今の形の本文（`StartInput`）を渡すコードが型の検査を通らない例と、`HostMessage` を渡すコードが通る対照を、`:155` の今の形と同じく加える（AC-01）。
+-   [x] `test/manifest.test.ts` に、両方の README が書く最小の Chrome の版が `minimum_chrome_version` と等しいことを確かめるテストを加える（ステップ 7-3 で README に書く値）。
 
 #### ステップ 7-3: README
 
 **変更するファイル:** `README.md`、`README.en.md`
 
--   [ ] `README.md` の「ブラウザ拡張」節・「localhost サーバ」節・「拒否の理由」の表を、要件書 F-010 と設計書 3.18 の行（Chrome 110、拡張の更新、ビューアの見出しは URL の値であること、キーを受け取る前にビューアとポップアップを閉じた場合の手順、拡張とサーバとホストを同じ版にそろえること）のとおりに書き直す。今の経路の Slack の案内を取り除く。「必要なもの」の「Chrome または Brave」（`README.md:78`）に版を加える。
--   [ ] `/mktrans README.md` で `README.en.md` に反映する。
+-   [x] `README.md` の「ブラウザ拡張」節・「localhost サーバ」節・「拒否の理由」の表を、要件書 F-010 と設計書 3.18 の行（Chrome 110、拡張の更新、ビューアの見出しは URL の値であること、キーを受け取る前にビューアとポップアップを閉じた場合の手順、拡張とサーバとホストを同じ版にそろえること）のとおりに書き直す。今の経路の Slack の案内を取り除く。「必要なもの」の「Chrome または Brave」（`README.md:78`）に版を加える。
+-   [x] `/mktrans README.md` で `README.en.md` に反映する。
 
 #### ステップ 7-4: 開発の手順・セキュリティ・概要・用語集
 
 **変更するファイル:** `docs/dev/guides/development.md`、`docs/dev/security.md`、`docs/dev/project_overview.md`、`docs/dev/production_profile.md`、`CLAUDE.md`、`docs/translation_glossary.md`
 
--   [ ] `development.md` の「ジョブの API」の今の拡張の記述と、拒否の理由の表の「拡張の表示」の列を改める（要件書 F-009・F-010）。
--   [ ] `security.md` §8.1・§8.2 を、要件書 F-010・5 章と設計書 5.1 の残余の列（履歴に残る値など）のとおりに改める。
--   [ ] `project_overview.md` のツールの説明と `extension/` の説明、`production_profile.md:62-65` のポップアップと失敗の通知の記述（1.3）、`CLAUDE.md` の「Architecture Overview」の主経路の説明を改める。
--   [ ] `translation_glossary.md` に要件書 F-010 の用語を加え、「結果不明」「主ボタン」の定義と、「工程」の項（設計書 3.13 の 3 つの名前）を改める。
--   [ ] 文書に書く数や名前（ポーリングの間隔、期限、上限など）は、すでにコードの値と突き合わせるガードがある値か、ステップ 7-2 でガードを加えた値に限る。ガードのない値を書くときは、その値のガードをステップ 7-2 に加える。
+-   [x] `development.md` の「ジョブの API」の今の拡張の記述と、拒否の理由の表の「拡張の表示」の列を改める（要件書 F-009・F-010）。
+-   [x] `security.md` §8.1・§8.2 を、要件書 F-010・5 章と設計書 5.1 の残余の列（履歴に残る値など）のとおりに改める。
+-   [x] `project_overview.md` のツールの説明と `extension/` の説明、`production_profile.md:62-65` のポップアップと失敗の通知の記述（1.3）、`CLAUDE.md` の「Architecture Overview」の主経路の説明を改める。
+-   [x] `translation_glossary.md` に要件書 F-010 の用語を加え、「結果不明」「主ボタン」の定義と、「工程」の項（設計書 3.13 の 3 つの名前）を改める。
+-   [x] 文書に書く数や名前（ポーリングの間隔、期限、上限など）は、すでにコードの値と突き合わせるガードがある値か、ステップ 7-2 でガードを加えた値に限る。ガードのない値を書くときは、その値のガードをステップ 7-2 に加える。
 
 **完了の条件（ステップ 7-1〜7-4）:** `make ext-check`・`make readme-sync-check`・`make test`（`doc-guard` が走らせる Go のガードと、`cmd/yt2column-nmhost::TestReadmeHostExitCodes`）・`make lint` が通る。`test/serverReasons.test.ts` の新しい集合から 1 つの理由を消すように壊し、このテストが失敗することを確かめる。README の最小の Chrome の版を 1 つ変えるように壊し、ステップ 7-2 の版のテストが失敗することを確かめる。
 
@@ -601,7 +601,7 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **変更するファイル:** `docs/tasks/0050_viewer_tab/03_implementation_plan.md`（4.3.2 の記録）
 
--   [ ] ビルドした拡張をサーバ・ホストとともに動かし、設計書 7.2 の「完成の後」の項目を確かめる。結果を 4.3.2 の表に記録する。サーバは LLM の API を呼び、Webhook が設定されていれば投稿もするので、実行の前に利用者の承認を得る（`CLAUDE.md`「Tool Execution Safety」）。
+-   [x] ビルドした拡張をサーバ・ホストとともに動かし、設計書 7.2 の「完成の後」の項目を確かめる。結果を 4.3.2 の表に記録する。サーバは LLM の API を呼び、Webhook が設定されていれば投稿もするので、実行の前に利用者の承認を得る（`CLAUDE.md`「Tool Execution Safety」）。
 
 **完了の条件:** 4.3.2 の表のすべての行に結果がある。
 
@@ -617,10 +617,10 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 **判定理由**: ステップ 6-3 と 7-1 が、送信の経路の切り替えと古い経路の削除を同時に行う移行（migration）であるため
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/636
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ## 3. 実装の順序とマイルストーン (Implementation Order and Milestones)
 
@@ -707,19 +707,21 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 
 #### 4.3.2. 統合の確認（ステップ 7-5）
 
+拡張はこのブランチの `extension/dist`、サーバとホストは本タスクで変えていない版で確かめた。サーバは LLM の料金を抑えるため `YT2COLUMN_LLM=claude/claude-haiku-5-5` で起動した（確かめるのは拡張の振る舞いで、記事の品質ではない）。「やり直す」は、存在しないモデルで起動したサーバで生成を失敗させて出した。Brave では確かめていない（フェーズ 1 の 3.16 の確認は両方で行った）。
+
 | 確かめること（設計書 7.2） | 関わる AC | 確かめた日 | 結果 |
 |---|---|---|---|
-| 主ボタンの直後にポップアップを閉じても記事が出る（SW が止まった後の最初の送信を含む） | AC-02 | - | 未実施 |
-| 背面のタブで開き、作業中のタブが切り替わらない | AC-06 | - | 未実施 |
-| 同じ入力の送り直しで新しいタブが閉じる。凍結した既存のタブでも閉じ、破棄した既存のタブでは残る（設計書 7.2） | AC-08 | - | 未実施 |
-| 「ビューアを開く」の 3 つの分岐 | AC-21 | - | 未実施 |
-| 保存したファイルを `cmp` で `--out` のファイルと比べる | AC-33 | - | 未実施 |
-| コピーした文字列を貼り付けて比べる | AC-35 | - | 未実施 |
-| キーボードだけの操作とフォーカスの順（ビューアとポップアップ） | AC-44 | - | 未実施 |
-| VoiceOver で状態の変化が読み上げられ、経過時間が読み上げられない | AC-47 | - | 未実施 |
-| 背面に 5 分以上置いたビューアを前面に出すと、すぐに状態が更新される | - | - | 未実施 |
-| ライトとダーク、`prefers-reduced-motion` の見え方（プレビュー） | AC-45・AC-48・AC-51 | - | 未実施 |
-| 送る前のポップアップの画面が変わっていない（プレビュー） | AC-24 | - | 未実施 |
+| 主ボタンの直後にポップアップを閉じても記事が出る（SW が止まった後の最初の送信を含む） | AC-02 | 2026-11-03 | OK（Chrome 156.0.8078.74）。`chrome://serviceworker-internals` で SW を止めてから送り、すぐに手でポップアップを閉じた |
+| 背面のタブで開き、作業中のタブが切り替わらない | AC-06 | 2026-11-03 | OK（Chrome 156.0.8078.74） |
+| 同じ入力の送り直しで新しいタブが閉じる。凍結した既存のタブでも閉じ、破棄した既存のタブでは残る（設計書 7.2） | AC-08 | 2026-11-03 | 最初は崩れた。サーバは受け付けた生成の開始にすぐ応答を返すので、背面の新しいタブが読み込まれる前に SW が問い合わせを終え、新しいタブが `waiting` と答えられず、送るたびに残った（SW のログは `present: 1`・`waiting: 0`）。設計書 1.5 の決定（新しいタブの `AwaitStart` を最大 5 秒待ってから問い合わせる。セッション中の再承認）で直した後、OK（Chrome 156.0.8078.74）。凍結は `chrome://discards`、破棄は拡張のページを `chrome://discards` で破棄できないので、別のビューアの DevTools から `chrome.tabs.discard` で行った |
+| 「ビューアを開く」の 3 つの分岐 | AC-21 | 2026-11-03 | OK（Chrome 156.0.8078.74）。ポップアップはほかをクリックすると閉じるので、「ポップアップを検証」で DevTools を付けて開いたポップアップで送り、そのコンソールの `chrome.tabs.remove` でタブを閉じてから押した |
+| 保存したファイルを `cmp` で `--out` のファイルと比べる | AC-33 | 2026-11-03 | OK（Chrome 156.0.8078.74）。状態の取得が返す `article.file`（`--out` が書くものと同じ）を `jq -j` で書き出して比べた |
+| コピーした文字列を貼り付けて比べる | AC-35 | 2026-11-03 | OK（Chrome 156.0.8078.74）。`pbpaste` を状態の取得が返す `article.markdown` と `cmp` で比べた |
+| キーボードだけの操作とフォーカスの順（ビューアとポップアップ） | AC-44 | 2026-11-03 | OK（Chrome 156.0.8078.74）。確認の中で、キーボードで主ボタンを押すと送信中に押せなくなってフォーカスが外れ、次の Tab が「詳細」に進むことが分かったので、キーボードで押した場合は、また押せるようになった時点で主ボタンにフォーカスを戻すようにした。マウスで押した場合はフォーカスを動かさない（開いた直後も主ボタンにフォーカスを当てないことにそろえる、とレビュアーが決めた。設計書 1.5。セッション中の再承認） |
+| VoiceOver で状態の変化が読み上げられ、経過時間が読み上げられない | AC-47 | 2026-11-03 | OK（Chrome 156.0.8078.74、VoiceOver）。VoiceOver のカーソルで読み進めると、所要時間の後に、隠した状態の領域の文が続けて読まれる（領域を読み上げに使う仕組みの副作用で、意図どおり） |
+| 背面に 5 分以上置いたビューアを前面に出すと、すぐに状態が更新される | - | 2026-11-03 | OK（Chrome 156.0.8078.74） |
+| ライトとダーク、`prefers-reduced-motion` の見え方（プレビュー） | AC-45・AC-48・AC-51 | 2026-11-03 | OK（Chrome 156.0.8078.74、macOS の「視差効果を減らす」） |
+| 送る前のポップアップの画面が変わっていない（プレビュー） | AC-24 | 2026-11-03 | OK（Chrome 156.0.8078.74） |
 
 ## 5. リスク管理 (Risk Management)
 
@@ -754,13 +756,13 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 -   [x] PR-6 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3）
 -   [x] PR-7 マージ済み（対象ステップ: 5-4 / 5-5 / 5-6）
 -   [x] PR-8 マージ済み（対象ステップ: 6-1 / 6-2）
--   [ ] PR-9 マージ済み（対象ステップ: 6-3 / 7-1 / 7-2 / 7-3 / 7-4 / 7-5）
--   [ ] 7 章の受け入れ基準の検証の各行を確かめた
+-   [x] PR-9 マージ済み（対象ステップ: 6-3 / 7-1 / 7-2 / 7-3 / 7-4 / 7-5）
+-   [x] 7 章の受け入れ基準の検証の各行を確かめた
 
 **横断の確かめ（`make lint` と `make test` が見つけないもの）:**
 
--   [ ] 1.4 の台帳の「並べて加える間の名前」と古い部品の名前が、フェーズ 7 の後の `extension/` のコメントと、`docs/`・README・`CLAUDE.md` に残っていない（コードの参照は型の検査が知らせる）。
--   [ ] `/articles` の経路と Slack を確かめる案内を述べるコメントが、`extension/src/` に残っていない（設計書 3.13 の「Slack に触れない」）。
+-   [x] 1.4 の台帳の「並べて加える間の名前」と古い部品の名前が、フェーズ 7 の後の `extension/` のコメントと、`docs/`・README・`CLAUDE.md` に残っていない（コードの参照は型の検査が知らせる）。
+-   [x] `/articles` の経路と Slack を確かめる案内を述べるコメントが、`extension/src/` に残っていない（設計書 3.13 の「Slack に触れない」）。
 -   [ ] 新しい用語（ビューア・Service Worker・ビューアの URL・送信の時刻・ポーリング・やり取りの結果）と工程の名前が、`docs/translation_glossary.md`・README・文言で同じ語を使っている（PR のレビューで読む）。
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
@@ -792,7 +794,7 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 | AC-21 | `extension/test/launch.test.ts::open viewer`（3 つの分岐と、生成の開始を送らないこと）、`extension/test/viewerQuery.test.ts::findViewers`、4.3.2 | test・manual | 4-2・6-3・7-5 |
 | AC-22 | `extension/test/launch.test.ts::retry`、`extension/test/startCoordinator.test.ts::reuse`、`extension/test/viewerApp.test.ts::startViewer: queries, take-over and logs`（失敗か不明から `loading` に戻り、新しい送信の時刻で数える） | test | 4-3・5-5・6-3 |
 | AC-23 | `extension/test/popupView.test.ts::primaryAction`、`extension/test/render.test.ts::job view`、`extension/test/launch.test.ts::popup job states` | test | 6-1・6-2・6-3 |
-| AC-24 | `extension/test/launch.test.ts::popup job send`（開き直したポップアップは押すまで何も送らない）、`docs/tasks/0050_viewer_tab/_checks/presend_popup_styles.ts`（送る前のポップアップの CSS の値。2026-11-02 に PR-6 の作成の前に実行: マージベース `ed795e8a58e8165f83c9e7953431dbec5432aa2a`、head `369bcd79590db90ff4701a7f91d492a7e87d13e4`、出力 `PASS: 60400 computed declarations identical across 11 pages x 16 variants`、終了コード 0）、4.3.2 | test・diff・manual | 5-1・6-3・7-5 |
+| AC-24 | `extension/test/launch.test.ts::popup job send`（開き直したポップアップは押すまで何も送らない）、`docs/tasks/0050_viewer_tab/_checks/presend_popup_styles.ts`（送る前のポップアップの CSS の値。2026-11-02 に PR-6 の作成の前に実行: マージベース `ed795e8a58e8165f83c9e7953431dbec5432aa2a`、head `369bcd79590db90ff4701a7f91d492a7e87d13e4`、出力 `PASS: 60400 computed declarations identical across 11 pages x 16 variants`、終了コード 0。CSS を変えるのは PR-6 だけなので、`diff` はこの 1 回で確かめた。スクリプトはマージベースの `style.css` が色の変数を持つことを前提にするので、`theme.css` が main に入った後のブランチでは走らせない。ステップ 6-3 の分は `test` で確かめる）、4.3.2 | test・diff・manual | 5-1・6-3・7-5 |
 | AC-25 | `extension/test/articleBody.test.ts::renderArticleBody` | test | 5-2 |
 | AC-26 | `extension/test/renderViewer.test.ts::renderViewerHeader`、`extension/test/viewerUrl.test.ts::parseViewerUrl`（受け付けない URL を拒否する） | test | 3-1・5-3 |
 | AC-27 | `extension/test/renderViewer.test.ts::renderViewerHeader`、`extension/test/viewerApp.test.ts::startViewer: display and URL` | test | 5-3・5-5 |
@@ -812,7 +814,7 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 | AC-41 | `extension/test/response.test.ts::classifyStatus`、`extension/test/strictJson.test.ts::parseStrictJson`、`extension/test/native.test.ts::classifyHostReply`（上限を超える本文） | test | 2-2・2-3・2-4 |
 | AC-42 | `extension/test/response.test.ts::classifyStatus`（256 KiB いっぱいの完了した記事を `classifyHostReply` から通す） | test | 2-3・2-4 |
 | AC-43 | `extension/test/viewerUrl.test.ts::parseViewerUrl`、`extension/test/viewerApp.test.ts::startViewer: display and URL`（状態の取得を送らない） | test | 3-1・5-5 |
-| AC-44 | `extension/test/popupHtml.test.ts::viewer.html skeleton`（ビューアの DOM の順）、`extension/test/renderViewer.test.ts::order and controls`（押せる要素の順と、ネイティブの要素）、`extension/test/render.test.ts::job view`（ポップアップの DOM の順）、4.3.2 | test・manual | 5-3・6-2・7-5 |
+| AC-44 | `extension/test/popupHtml.test.ts::viewer.html skeleton`（ビューアの DOM の順）、`extension/test/renderViewer.test.ts::order and controls`（押せる要素の順と、ネイティブの要素）、`extension/test/render.test.ts::job view`（ポップアップの DOM の順）、`extension/test/launch.test.ts::popup job states`（キーボードで押した主ボタンにフォーカスを戻し、マウスで押した場合と、利用者がフォーカスを移した場合は動かさない。設計書 1.5）、4.3.2 | test・manual | 5-3・6-2・7-5 |
 | AC-45 | `extension/test/style.test.ts`（フォーカスの印のコントラスト、ライトとダーク）、4.3.2 | test・manual | 5-1・7-5 |
 | AC-46 | `extension/test/renderJob.test.ts::step checklist`（状態の語）、`extension/test/renderViewer.test.ts::order and controls`、`extension/test/render.test.ts::job view` | test | 5-2・5-3・6-2 |
 | AC-47 | `extension/test/renderViewer.test.ts::status regions`・`publish state announcements`、`extension/test/renderJob.test.ts::job state`（`aria-live` なし）、`extension/test/viewerApp.test.ts::startViewer: display and URL`、4.3.2 | test・manual | 5-2・5-3・5-5・7-5 |

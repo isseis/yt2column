@@ -1,5 +1,4 @@
 import type { PreflightReason } from "../prepare.ts";
-import type { ArticlesRejectReason } from "../articlesResponse.ts";
 import type { NotSentCause } from "../exchange.ts";
 import type {
   FailureCode,
@@ -33,19 +32,6 @@ export interface Catalog {
   readonly rejection: Readonly<Record<RejectionReason, Message>>;
   /** Blocked sends: the body size check. */
   readonly preflight: Readonly<Record<PreflightReason, Message>>;
-  /** Server rejection reasons. */
-  readonly serverReject: Readonly<Record<ArticlesRejectReason, Message>>;
-  /** Causes of a request known not to have reached the server; no Slack check. */
-  readonly notSent: Readonly<Record<NotSentCause, Message>>;
-  // The other send outcomes. Every result that is not known (noResponse,
-  // hostFailed, unexpected) asks to check Slack before sending again.
-  readonly accepted: Message;
-  readonly noResponse: Message;
-  readonly hostFailed: Message;
-  /** The one message for every unexpected reply; the check is for the developer log only. */
-  readonly unexpected: Message;
-  /** The notice shown while a send is in flight. */
-  readonly sending: Message;
   /**
    * The prompt shown when the video description is collapsed. A fixed text:
    * it never holds page text such as the description itself.
@@ -67,13 +53,10 @@ export interface Catalog {
     readonly url: string;
     readonly tabTitle: string;
   };
-  /** The primary button's name. */
-  readonly primaryButton: string;
 
-  // The job API's sections. No message of a generation start's result, nor
-  // the sending notices, mentions Slack: the server returns the article of
-  // the same input while it is generating or done, so a result that is not
-  // known is resolved by sending again, not by checking Slack.
+  // The job API's sections. A generation start whose result is not known is
+  // resolved by sending the same input again: the server returns the article
+  // of that input while it is generating or done instead of starting it again.
 
   /** Server rejection reasons of the three operations; one message per reason, whichever operation returned it. */
   readonly jobReject: Readonly<Record<ServerRejectReason, Message>>;

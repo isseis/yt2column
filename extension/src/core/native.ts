@@ -6,20 +6,8 @@
 // value. A browser error is never told apart by its text: the text is a
 // browser-internal constant, not an API contract.
 
-import {
-  classifyArticlesResponse,
-  maxArticlesResponseBytes,
-} from "./articlesResponse.ts";
-import type {
-  ArticlesUnexpectedCheck,
-  SendResult,
-} from "./articlesResponse.ts";
 import { hasExactKeys, maxResponseBytes } from "./exchange.ts";
-import type {
-  ExchangeFailureLog,
-  HostOutcome,
-  UnexpectedCheck,
-} from "./exchange.ts";
+import type { ExchangeFailureLog, HostOutcome } from "./exchange.ts";
 
 /** The host name the extension sends to; the same as the host's manifest "name". */
 export const nativeHostName = "io.github.isseis.yt2column";
@@ -179,48 +167,5 @@ export function classifyHostReply(reply: NativeReply): HostOutcome {
       const exhaustive: never = kind;
       throw new Error(`Unhandled reply kind: ${String(exhaustive)}`);
     }
-  }
-}
-
-/**
- * The /articles check of an outside check classifyHostReply reports. Only the
- * four outside checks reach here; the rest belong to the job API's body
- * checks and stand for a classifier fault.
- */
-function articlesCheck(check: UnexpectedCheck): ArticlesUnexpectedCheck {
-  switch (check) {
-    case "envelope-shape":
-    case "envelope-version":
-    case "host-protocol-error":
-    case "body-over-limit":
-      return check;
-    default:
-      return "classification-error";
-  }
-}
-
-/**
- * Interprets a reply for the popup's /articles path, until it moves to the job
- * API: classifyHostReply's result, with the wrapped body bounded by the
- * /articles limit and checked by classifyArticlesResponse. Never throws.
- */
-export function classifyNativeReply(reply: NativeReply): SendResult {
-  const outcome = classifyHostReply(reply);
-  switch (outcome.kind) {
-    case "response": {
-      const { status, bytes } = outcome;
-      if (bytes.byteLength > maxArticlesResponseBytes) {
-        return classifyArticlesResponse({ kind: "body-over-limit", status });
-      }
-      return classifyArticlesResponse({ kind: "body", status, bytes });
-    }
-    case "unexpected": {
-      const check = articlesCheck(outcome.check);
-      return outcome.status === undefined
-        ? { kind: "unexpected", check }
-        : { kind: "unexpected", check, status: outcome.status };
-    }
-    default:
-      return outcome;
   }
 }

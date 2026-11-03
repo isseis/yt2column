@@ -13,6 +13,7 @@ import { prepareStartInput } from "./prepare.ts";
 import type { PreparedRequest, StartInput } from "./prepare.ts";
 import { parseRequestId, startRejectStatus } from "./response.ts";
 import type { RequestId, StartOutcome } from "./response.ts";
+import { hasUnpairedSurrogate } from "./summary.ts";
 import { viewerSeedError } from "./viewerUrl.ts";
 import type { ViewerSeed } from "./viewerUrl.ts";
 
@@ -183,30 +184,10 @@ function queryId(value: unknown): string {
   return id;
 }
 
-/**
- * Whether text holds no unpaired surrogate. Written by hand because
- * String.prototype.isWellFormed needs Chrome 111 and the minimum is 110.
- */
-function isWellFormed(value: string): boolean {
-  for (let index = 0; index < value.length; index += 1) {
-    const unit = value.charCodeAt(index);
-    if (unit >= 0xd800 && unit <= 0xdbff) {
-      const next = value.charCodeAt(index + 1);
-      if (!(next >= 0xdc00 && next <= 0xdfff)) {
-        return false;
-      }
-      index += 1;
-    } else if (unit >= 0xdc00 && unit <= 0xdfff) {
-      return false;
-    }
-  }
-  return true;
-}
-
 /** A well-formed string: a viewer value that becomes part of a URL. */
 function wellFormed(value: unknown): string {
   const checked = text(value);
-  if (!isWellFormed(checked)) {
+  if (hasUnpairedSurrogate(checked)) {
     throw new Rejected();
   }
   return checked;

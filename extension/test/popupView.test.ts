@@ -8,13 +8,17 @@ import {
   buildCollectedView,
   metadataDisplayLimit,
   primaryAction,
+  viewerSeed,
 } from "../src/core/popupView.ts";
 import type {
   CollectedView,
   PopupJobState,
   PrimaryAction,
+  VideoView,
 } from "../src/core/popupView.ts";
 import { maxBodyBytes, prepareSend } from "../src/core/prepare.ts";
+import type { StartInput } from "../src/core/prepare.ts";
+import type { ViewerSeed } from "../src/core/viewerUrl.ts";
 import { doneJob, runningSteps } from "./helpers/job.ts";
 
 const watchUrl = "https://www.youtube.com/watch?v=abc";
@@ -316,6 +320,58 @@ describe("primaryAction", () => {
   for (const [name, state, action] of rows) {
     it(`returns ${action} for ${name}`, () => {
       assert.equal(primaryAction(state), action);
+    });
+  }
+});
+
+describe("viewerSeed", () => {
+  const url = watchUrl;
+  const cases: {
+    name: string;
+    video: VideoView;
+    input: StartInput;
+    expected: ViewerSeed;
+  }[] = [
+    {
+      name: "keeps the shown heading and leaves out what is not sent",
+      video: { heading: { value: "Tab", truncated: false } },
+      input: { videoUrl: url, transcript: "t" },
+      expected: { heading: "Tab", url, sentAt: 5 },
+    },
+    {
+      name: "adds the ellipsis to a cut heading and channel name",
+      video: {
+        heading: { value: "H", truncated: true },
+        channelName: { value: "C", truncated: true },
+      },
+      input: { videoUrl: url, transcript: "t", title: "Title" },
+      expected: {
+        heading: "H\u2026",
+        channelName: "C\u2026",
+        title: "Title",
+        url,
+        sentAt: 5,
+      },
+    },
+    {
+      name: "replaces an unpaired surrogate in each display copy, not in the input",
+      video: {
+        heading: { value: "a\uD800", truncated: false },
+        channelName: { value: "b\uDC00", truncated: false },
+      },
+      input: { videoUrl: url, transcript: "t", title: "c\uD800" },
+      expected: {
+        heading: "a\uFFFD",
+        channelName: "b\uFFFD",
+        title: "c\uFFFD",
+        url,
+        sentAt: 5,
+      },
+    },
+  ];
+  for (const { name, video, input, expected } of cases) {
+    it(name, () => {
+      assert.deepEqual(viewerSeed(video, input, 5), expected);
     });
   }
 });

@@ -1,4 +1,4 @@
-<!-- translated-from: README.md 994c09546f2af72503f65d50419f9b120c967de1 -->
+<!-- translated-from: README.md d8b77794658c5453acd29364b1f945d624ebcc76 -->
 [日本語](README.md)
 
 Developer documents: [Using the CLI](docs/dev/guides/cli.md) · [Development procedures](docs/dev/guides/development.md)
@@ -9,7 +9,9 @@ yt2column turns a YouTube video into a magazine-column-style article with an
 LLM. The primary path starts in the browser: the extension collects the
 transcript the user copied from YouTube's transcript panel, the native
 messaging host relays it to the localhost server, and the server generates the
-article and posts it to the configured Webhook. A CLI is also included as a
+article. The article is shown in the extension's viewer tab, and posting it to
+the configured Webhook and saving it as a `.md` file are the user's choices in
+the viewer. A CLI is also included as a
 development path: it takes a video URL and fetches the transcript with
 [yt-dlp](https://github.com/yt-dlp/yt-dlp). The LLM call and the posting are
 developed and checked with the CLI.
@@ -55,13 +57,14 @@ flowchart LR
 
 ## Quick start
 
-These steps post a first article through the primary path. Each step links to
+These steps generate a first article through the primary path and read it in
+the viewer. Each step links to
 the section that explains it in detail.
 
 1. Build the binaries with `make build`. They are placed in `build/`, and
    nothing is installed. See [Localhost server](#localhost-server).
-2. In the shell that starts the server, set `ANTHROPIC_API_KEY` and, because
-   these steps post the article, `SLACK_WEBHOOK_URL`. No other LLM variable is
+2. In the shell that starts the server, set `ANTHROPIC_API_KEY` and, to post
+   the article to Slack, `SLACK_WEBHOOK_URL`. No other LLM variable is
    needed: the default is the production profile (see
    [Recommended configuration](#recommended-configuration)). Unset the
    `YT2COLUMN_*` variables left from an earlier setup: when a model variable is
@@ -80,7 +83,8 @@ the section that explains it in detail.
    [Browser extension](#browser-extension).
 6. Open the video's description ("...more") and its transcript panel, select
    the caption lines, and send from the extension's toolbar icon. The article
-   arrives in the Webhook's channel. See [Browser extension](#browser-extension).
+   is shown in the viewer tab that opens in the background, from which you can
+   post it to the Webhook's channel. See [Browser extension](#browser-extension).
 
 ## Requirements
 
@@ -89,9 +93,10 @@ the section that explains it in detail.
 - Go (see `go.mod`)
 - Node.js, with the version pinned in `extension/.node-version` (used to build
   the extension)
-- Chrome or Brave
+- Chrome 110 or later, or Brave on Chromium 110 or later
 - `ANTHROPIC_API_KEY` for the default provider
-- `SLACK_WEBHOOK_URL` (needed to post; the server starts without it)
+- `SLACK_WEBHOOK_URL` (needed to post from the viewer; without it the server
+  still starts and generates articles)
 
 An API key for the selected provider is required: `DEEPSEEK_API_KEY` for
 `deepseek`, `ANTHROPIC_API_KEY` for `claude`. When the review step uses a
@@ -251,13 +256,18 @@ such as the full-width `＠`) followed by a name character (a letter, a digit,
 
 A rejected article is not posted at all. The error gives the line and column
 in the post. Running again generates a different article, which may not have
-the problem. The localhost server reports this rejection in its failure notice
-as its own reason, separate from other posting failures.
+the problem. On the `/articles` path, the localhost server reports this rejection in its failure notice
+as its own reason, separate from other posting failures. The extension's viewer
+shows an article this check rejected as one that cannot be posted (because it
+contains a mention, or because of another pre-send check), and disables the post button.
 
 If a post fails partway through a split article, the messages already sent stay
-in the channel. There is no retry or resume: running again generates a new
+in the channel. The CLI has no retry or resume: running again generates a new
 article and posts it from the first message, so the channel can end up with part
-of the old article and all of the new one.
+of the old article and all of the new one. An article posted from the
+extension's viewer resumes from the first message that did not arrive when
+**Post to Slack** is pressed again (the one message whose delivery was not
+confirmed may arrive twice).
 
 How the CLI posts with `--slack`, and how to inspect a rejected article with
 `--out`, are in
@@ -267,8 +277,9 @@ How the CLI posts with `--slack`, and how to inspect a rejected article with
 
 `yt2column-server` accepts the transcript the browser extension collects,
 generates the article, returns it, and keeps it in memory. Posting it to the
-Slack-compatible Webhook is an operation of its own: the extension's current
-`/articles` request generates and posts in one go as before. The server's HTTP
+Slack-compatible Webhook is an operation of its own, which the extension sends
+only when the user asks for it in the viewer. The extension uses the job API
+only. The server's HTTP
 API, including the job API that generates, returns, and posts on request, is in
 [docs/dev/guides/development.md](docs/dev/guides/development.md#localhost-サーバの-api).
 The extension does not connect to the server directly: the browser starts the
@@ -280,8 +291,8 @@ server's socket (see
 
 The server reads the LLM variables. `SLACK_WEBHOOK_URL` is optional for the
 server: without it the server still starts and generates articles, but posting
-is refused with `webhook_not_configured`, and the current extension shows that
-refusal as an unexpected reply. The server never calls `yt-dlp` and reads
+is refused with `webhook_not_configured`, and the extension's viewer disables the post button and shows the step to set `SLACK_WEBHOOK_URL` and
+restart the server. The server never calls `yt-dlp` and reads
 neither `YT2COLUMN_CACHE_DIR` nor `YT2COLUMN_YTDLP_PATH`. It listens on a Unix
 domain socket (UDS) only, never on a TCP port. The socket path is derived from
 `HOME` alone:
@@ -307,7 +318,7 @@ post.
 The server writes nothing to standard output. The logs go to standard error, so
 `2>>server.log` keeps a record. The first log line names the socket. Every
 request line carries the `requestId` the response returns, as do the
-`/articles` job lines, so `grep "$requestId" server.log` finds them.
+`/articles` job lines, so `grep "$requestId" server.log` finds them. The job API's generation and post job lines carry the article key and the video ID instead of a `requestId`. The extension does not show the key, so find the failure of an article's generation sent from the extension by the time and the video ID.
 
 On start the server creates the socket directory (`run`) with mode `0700` when
 it is missing, takes the start lock (the file `.yt2column.lock` in the socket
@@ -335,9 +346,11 @@ Exit codes:
 
 The server logs to standard error. The first `SIGINT`, `SIGTERM`, or `SIGHUP`
 (a signal that was ignored at startup is not subscribed to) stops accepting connections,
-removes the socket, and waits for the other in-flight jobs to finish. These are
-the `/articles` jobs, which can take up to about 45 minutes (three LLM calls of
-15 minutes each). A second signal makes the server exit at once. Until the jobs have finished, a
+removes the socket, and waits for the other in-flight jobs to finish. It waits for the `/articles` jobs
+(up to about 45 minutes: three LLM calls of 15 minutes each) and for the posts
+sent from the viewer. A running generation of an article sent from the viewer is
+cancelled without waiting: that article is lost, and the viewer shows
+**Article lost**. A second signal makes the server exit at once. Until the jobs have finished, a
 new server refuses to start.
 
 ### Installing the native messaging host
@@ -426,11 +439,11 @@ What the extension shows when the server rejects a request with each reason:
 | `invalid_body` | fixed message |
 | `invalid_video_url` | fixed message |
 | `invalid_transcript` | fixed message |
-| `webhook_not_configured` | unexpected reply |
-| `invalid_key` | unexpected reply |
-| `article_not_ready` | unexpected reply |
-| `article_not_found` | unexpected reply |
-| `article_not_postable` | unexpected reply |
+| `webhook_not_configured` | fixed message |
+| `invalid_key` | fixed message |
+| `article_not_ready` | fixed message |
+| `article_not_found` | fixed message |
+| `article_not_postable` | fixed message |
 | `internal_error` | fixed message (unexpected reply when `requestId` is empty) |
 
 The status code of each reason, and how to check the server with `curl`, are in
@@ -710,11 +723,12 @@ before it listens.
 
 A Chrome/Brave extension (Manifest V3) lives in `extension/`; it is written in
 TypeScript and built with Node.js. It is not published to a store: you build it
-and load the build as an unpacked extension. The extension collects a
+and load the build as an unpacked extension. It runs on Chrome 110 or later.
+The extension collects a
 selection, the tab URL, and the tab title, and reads the video metadata (the
 video title, the channel name, and the description) from the video page. It
 sends the selection, the URL, and the video metadata to the localhost server,
-and shows the response. The tab title is shown for checking (and must not be
+and shows the generated article in a tab of the extension's page (the viewer). The tab title is shown for checking (and must not be
 empty); it is not sent.
 
 Node.js 24 is required, and every `ext-*` target refuses to run when
@@ -745,6 +759,12 @@ To update from an earlier build, first run `make ext-build` to rebuild
 build output that pulling new source does not update, so reloading without
 rebuilding keeps running the earlier build, which may send without asking for
 confirmation.
+
+When you update the extension, bring the server and the host to the same build
+as well: rebuild with `make build`, restart the server, and run the host's
+`install` again from the built binary. The extension sends messages in the new form to the server's job API. A host older than the job API relays that message
+to `/articles`, and an older server has no job API, so when the versions do not
+match, the send is rejected or ends in an unexpected reply.
 
 The extension ID is fixed to `clfmbbcdpnjcefbdihdoahomaifbabkk` and is the
 same on every machine and from every directory.
@@ -782,8 +802,7 @@ parts, top to bottom:
   the description's state. A ⚠ row says what needs attention and, when there
   is something to do, the steps to take.
 - The action section: a **Generate article** button. It sends when you press
-  it. While sending the button is disabled, and after a send (whatever the
-  result) it stays disabled: reopen the popup to send again.
+  it.
 - **Details**, folded away until you open it: the collected URL and the tab
   title.
 
@@ -812,26 +831,108 @@ When the page cannot be read at all, or the tab has moved to another video
 since the selection was read, all three are left out. The extension still
 sends the selection and the URL, and the article is generated from them.
 
-How to read the result:
+When you press **Generate article**, the extension sends the generation start
+to the server exactly once and, at the same time, opens a viewer tab next to the
+YouTube tab. The tab you are working in does not change (the viewer opens in the
+background). The extension does not resend the generation start automatically.
 
-- **Accepted** (`202`): the server took the request. It shows a `requestId` and
-  says the result of generating and posting the article will arrive in Slack.
+After the press, the popup keeps the video section and **Details** as they are
+and shows the state in place of the checks section. The button in the action
+section becomes the action for the state:
+
+- **Sending**: the button is disabled. You can close the popup: the
+  result appears in the viewer tab.
+- **Loading**: the server accepted the article, and the popup is waiting for
+  its first status. The button becomes **Open viewer**.
+- **Generating**: it shows a checklist of the three steps ("Draft", "Shorten",
+  and "Review") and the time elapsed since the send. The button becomes
+  **Open viewer**.
+- **Generated**: it shows that the article is ready, with the estimated cost and the time taken. The button becomes **Open viewer**.
+- **Failed** and **Article lost**: it shows the reason and the steps. The button
+  becomes **Try again**, which sends the generation start of the same input once
+  more, exactly once, and opens a new viewer tab.
+- **No key received** (rejected, not sent, or result unknown): it shows the
+  reason and the steps. The button stays disabled: reopen the popup to send
+  again.
+
+**Open viewer** brings forward the viewer tab that shows this send's article.
+When you have closed that tab, it brings forward another viewer tab that shows
+the same article, and when there is none, it opens a new viewer tab of the same
+article and brings it forward. A tab the browser discarded to save resources
+cannot be found, so in that case there are two tabs of the same article. When
+the popup closes, its state display stops too, and a reopened popup starts from
+the screen before sending. The extension stores nothing, so the popup does not
+remember the earlier send.
+
+In every state except an invalid link, the viewer shows the same heading and
+channel name as the popup, and a link to the original video. The heading and the channel name are values
+the viewer's URL holds. A viewer opened from a crafted URL can therefore show
+any heading: the heading does not vouch for the article's content.
+
+- **Sending** and **Loading**: a moving indicator, with text saying which of the
+  two it is waiting for.
+- **Generating**: a checklist of the three steps and the time elapsed since the
+  send. The state is fetched again repeatedly.
+- **Generated**: the article, shown as text without interpreting the Markdown,
+  with the estimated cost and the time taken. There are three operations:
+  - **Post to Slack**: posts the article to the server's Webhook. It cannot be pressed for an article that is already posted, is being posted, or cannot be posted, or
+    when `SLACK_WEBHOOK_URL` is not set on the server, and it shows the reason.
+    For an article whose post stopped partway, pressing it again resends from
+    the messages that did not arrive (the one message whose delivery was not
+    confirmed may arrive twice). The extension does not resend a post
+    automatically.
+  - **Save as .md**: saves the file contents the server returns (the same as
+    what `--out` writes) as a browser download. The file name is made from
+    the video title, with characters that cannot be used in a file name replaced by `_`,
+    and a name that is too long is cut. When there is no video title, or it is
+    only whitespace, the name is `<video ID>.md`.
+  - **Copy Markdown**: copies the Markdown of the shown article to the
+    clipboard.
+- **Failed**: the reason of the failure and the steps for that reason.
+- **Article lost**: the server restarted or dropped the article from its cache.
+  Sending the same input again from the popup generates the article again. If an
+  earlier article was posted, posting the new one repeats it in Slack. When the
+  article was lost after it was shown, the shown article stays, and it can
+  still be saved and copied (not posted).
+- **No key received**: the result of the generation start (rejected, not sent,
+  or result unknown), with the reason and the steps.
+- **Invalid link**: the viewer's URL is not in a form it accepts. It shows
+  neither the heading nor an article, and sends nothing.
+
+When a status fetch fails, the popup and the viewer keep the state they showed
+and add that the status cannot be fetched, with the steps. When the server is
+not running, there is no response, or the host failed, they keep fetching; when
+the fetch is rejected or the reply cannot be interpreted, they stop.
+
+How to read the result of the generation start:
+
 - **Rejected**: it shows the reason and a `requestId`.
 - **Not sent**: the server is not running, or the request is too large for the
-  host. The request did not reach the server, so it says what to fix and does
-  not ask you to check Slack.
+  host. The request did not reach the server, so it says what to fix.
 - **Result unknown**: the server did not respond in time, the host could not be
   started or exited without replying, or the reply could not be interpreted.
-  The request may have reached the server. It does not resend automatically,
-  and it tells you to check Slack before sending again, because the server may
-  already be processing the request.
+  The request may have reached the server. You may send the same input again
+  from the popup: while the server is generating that article or holds the
+  generated article, it returns that article without generating it again. When
+  the input changed (for example, when you opened the description before
+  sending), the article had failed, or the server restarted, it generates the
+  article again.
 
-The `requestId` links what the extension shows to the server log and to a
-failure notice in Slack. A successfully generated article carries no
-`requestId`, so match it by the video or the time; a failure with no `requestId`
-is matched by the time. Do not close the popup while it is sending: if you
-close it the result is not shown, and sending again could post the same article
-twice.
+The `requestId` links a rejection the extension shows to the server log.
+
+The viewer's URL holds the article key (once accepted), the heading, the
+channel name, the video title, the collected URL, and the send time. It does not
+hold the copied captions or the description. Reloading the viewer, restoring a
+closed tab, or opening it from the browser history shows the same article. To
+reopen a viewer after closing it, restore the closed tab, open it from the
+history, or send the same input again from the popup. The key differs for each
+server process, so after the server restarts, an earlier viewer URL shows that
+the article was lost.
+
+If you close both the viewer tab and the popup before the server accepts the
+article (before the key arrives), the result of that send is shown nowhere. If
+it was accepted, the server keeps generating the article, so sending the same
+input again from the popup opens a viewer that shows that article.
 
 The selection is sent exactly as copied from the transcript panel; the extension
 does not trim it. You can select the whole panel: the server skips the lines the
@@ -846,11 +947,13 @@ other control character in any line, and, before the first timestamp or where a
 timestamp line is expected, a line containing an ASCII digit, a colon, and a
 digit in a row (such as a malformed timestamp).
 
-To see what was collected and the send result, open the popup's console from
-the moment the popup opens: right-click the toolbar icon and choose
-**Inspect popup** (shown while Developer mode is on; pin the extension first if
-its icon is in the Extensions menu). The send log names the host, and for a
-host that could not be started it records the browser's error text, such as
-`Specified native messaging host not found.`. The log is lost when the popup
-closes, so after closing it, find the result of a send in Slack and in the
-server log by the time.
+To see what was collected and the results of the status fetches, open the
+popup's console from the moment the popup opens: right-click the toolbar icon
+and choose **Inspect popup** (shown while Developer mode is on; pin the
+extension first if its icon is in the Extensions menu). The viewer's log is in
+the DevTools of the viewer tab, and the generation start's log is in the console
+opened from the extension's **Service Worker** link on `chrome://extensions/`
+(Brave: `brave://extensions/`). For a host that could not be started, the log
+records the browser's error text, such as
+`Specified native messaging host not found.`. The log does not hold the
+captions, the article, the video metadata's values, or the article key.

@@ -6,7 +6,8 @@
 # runs for the extension itself, the Makefile that drives it, any workflow,
 # go.mod (whose ignore directive keeps extension/node_modules out of ./...),
 # and the files the extension tests read: README.md and README.en.md (their
-# browser extension sections), docs/dev/guides/development.md (its
+# browser extension sections, and the minimum Chrome version anywhere in
+# them), docs/dev/guides/development.md (its
 # rejection-reason table), and internal/server/response.go (which that table
 # mirrors).
 set -euo pipefail

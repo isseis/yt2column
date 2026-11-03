@@ -208,8 +208,9 @@ refuses to run when `node --version` does not match.
 yt2column turns a YouTube video into a magazine-column-style article with an
 LLM. The primary path starts in the browser: the extension collects the transcript
 copied from YouTube's transcript panel, the native messaging host relays it to
-the localhost server, and the server generates the article and posts it to the
-Webhook. The CLI is the development path: it takes a video URL and fetches the
+the localhost server, and the server generates the article. The extension shows
+the article in its viewer page, from which the user chooses to post it to the
+Webhook or save it as a Markdown file. The CLI is the development path: it takes a video URL and fetches the
 transcript with `yt-dlp`.
 
 ```mermaid
@@ -269,15 +270,18 @@ flowchart LR
 
 Two entry points share the pipeline: the CLI (`cmd/yt2column`, above) and a
 localhost server (`cmd/yt2column-server` + `internal/server`) that takes a
-copied transcript from the browser extension over HTTP on a Unix domain socket
-and posts the article to the Webhook. The server's supporting packages are
+copied transcript from the browser extension over HTTP on a Unix domain socket,
+generates the article, returns it on request, and posts it to the Webhook when
+asked. The extension uses the server's job API only: its service worker sends
+the generation start, the popup and the viewer poll the status, and the viewer
+sends a publish on the user's press. The server's supporting packages are
 `internal/serversock` (the socket directory, the start lock, and the socket
 itself), `internal/failure` (the `Kind`/`Notice`/`Notifier` contract it reports
 a failed request with), `internal/redact` (secret redaction for every output),
 and `internal/signalrun` (signal handling both entry points share). The
 extension does not connect to the socket itself: the browser starts the Native
 Messaging host (`cmd/yt2column-nmhost` + `internal/nmhost`), which relays one
-request to the socket per send and manages its own manifest with `install` and
+request to the socket per exchange and manages its own manifest with `install` and
 `uninstall`.
 
 See [Project Overview](docs/dev/project_overview.md) for the decided policies and
@@ -549,9 +553,11 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
 - A change that touches only documents (`README.md`, `README.en.md`,
   `CLAUDE.md`, `docs/`) does not need `make ext-test`, except the two READMEs
   and `docs/dev/guides/development.md`: the extension's node tests read the
-  expand prompt and the popup names in each README's browser extension section
-  (`metadataDocs.test.ts`) and the rejection-reason table of `development.md`
-  (`serverReasons.test.ts`), so a change to them needs `make ext-test`. The
+  expand prompt, the popup and viewer names, and the step names in each
+  README's browser extension section (`metadataDocs.test.ts`), the minimum
+  Chrome version each README states (`manifest.test.ts`), and the
+  rejection-reason table of `development.md` (`serverReasons.test.ts`), so a
+  change to them needs `make ext-test`. The
   other text-sync guards that read documents (the
   extension ID, the `ext-` targets in this file, the manifest permissions, the
   `project_overview.md` notes (the environment variable names, `costPrefix`, and

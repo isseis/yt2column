@@ -9,17 +9,16 @@ import type {
 } from "../src/browser/chromeDeps.ts";
 import type { ArticleKey } from "../src/core/articleKey.ts";
 import { parseViewerChannelMessage } from "../src/core/extensionMessages.ts";
-import type {
-  AwaitStart,
-  StartRequest,
-  ViewerChannelMessage,
-} from "../src/core/extensionMessages.ts";
+import type { ViewerChannelMessage } from "../src/core/extensionMessages.ts";
 import { articleFileName } from "../src/core/fileName.ts";
-import type { HostMessage } from "../src/core/hostMessage.ts";
 import { catalogs } from "../src/core/i18n/catalog.ts";
 import type { ViewerState } from "../src/core/jobView.ts";
 import type { NativeReply } from "../src/core/native.ts";
-import { pollIntervalMs, startResultDeadlineMs } from "../src/core/poll.ts";
+import {
+  elapsedRedrawMs,
+  pollIntervalMs,
+  startResultDeadlineMs,
+} from "../src/core/poll.ts";
 import { publishRejectStatus } from "../src/core/response.ts";
 import type { PublishRejectReason } from "../src/core/response.ts";
 import {
@@ -30,21 +29,28 @@ import { parseViewerUrl, viewerQuery } from "../src/core/viewerUrl.ts";
 import type { ViewerParams } from "../src/core/viewerUrl.ts";
 import { sendTimeoutMs } from "../src/send.ts";
 import { renderViewer } from "../src/ui/renderViewer.ts";
-import { elapsedRedrawMs, startViewer } from "../src/viewerApp.ts";
+import { startViewer } from "../src/viewerApp.ts";
 import {
   fakeChannels,
   fakeClipboard,
   fakeSaves,
   fakeTabs,
+  pendingWorker,
   type FakeChannels,
   type FakeClipboard,
   type FakeSaves,
+  type PendingWorker,
 } from "./helpers/chrome.ts";
 import { fakeClock, settle, type FakeClock } from "./helpers/clock.ts";
 import { viewerDocument, viewerElements } from "./helpers/dom.ts";
 import { recordingLogger, type RecordingLogger } from "./helpers/logger.ts";
 import { doneSteps, requestId, runningSteps } from "./helpers/job.ts";
-import { errorReply, responseReply } from "./helpers/native.ts";
+import {
+  errorReply,
+  pendingHost,
+  responseReply,
+  type PendingHost,
+} from "./helpers/native.ts";
 
 const sentAt = 1_700_000_000_000;
 /** When the page loads in most cases: a second after the send. */
@@ -113,27 +119,11 @@ function publishRejected(reason: PublishRejectReason): NativeReply {
   );
 }
 
-/** A host whose exchanges stay open until the test answers them, in order. */
-interface FakeHost {
-  readonly sent: HostMessage[];
-  /** How many exchanges of op were sent. */
-  count(op: HostMessage["op"]): number;
-  /** Answers the oldest open exchange, of op when given, and lets the page run. */
-  answer(reply: NativeReply, op?: HostMessage["op"]): Promise<void>;
-}
-
-/** The worker side of the viewer's runtime messages. */
-interface FakeWorker {
-  readonly sent: (StartRequest | AwaitStart)[];
-  /** Answers the oldest open message and lets the page run. */
-  answer(reply: BrowserCall<unknown>): Promise<void>;
-}
-
 interface Viewer {
   readonly doc: Document;
   readonly clock: FakeClock;
-  readonly host: FakeHost;
-  readonly worker: FakeWorker;
+  readonly host: PendingHost;
+  readonly worker: PendingWorker;
   readonly channels: FakeChannels;
   readonly clipboard: FakeClipboard;
   readonly saves: FakeSaves;
@@ -180,35 +170,8 @@ async function open(options: Options = {}): Promise<Viewer> {
   let visible = true;
   const visibleListeners: (() => void)[] = [];
 
-  const hostSent: HostMessage[] = [];
-  const hostOpen: {
-    readonly op: HostMessage["op"];
-    readonly resolve: (reply: NativeReply) => void;
-  }[] = [];
-  const host: FakeHost = {
-    sent: hostSent,
-    count: (op) => hostSent.filter((message) => message.op === op).length,
-    answer: async (reply, op) => {
-      const index = hostOpen.findIndex(
-        (exchange) => op === undefined || exchange.op === op,
-      );
-      const [open] = index < 0 ? [] : hostOpen.splice(index, 1);
-      assert.ok(open, "no host exchange is open");
-      open.resolve(reply);
-      await settle();
-    },
-  };
-  const workerSent: (StartRequest | AwaitStart)[] = [];
-  const workerOpen: ((reply: BrowserCall<unknown>) => void)[] = [];
-  const worker: FakeWorker = {
-    sent: workerSent,
-    answer: async (reply) => {
-      const resolve = workerOpen.shift();
-      assert.ok(resolve, "no worker message is open");
-      resolve(reply);
-      await settle();
-    },
-  };
+  const host = pendingHost();
+  const worker = pendingWorker();
 
   const opened = channels.open();
   assert.ok(opened.ok);
@@ -230,19 +193,10 @@ async function open(options: Options = {}): Promise<Viewer> {
       onVisible: (listener) => void visibleListeners.push(listener),
     },
     tabs,
-    sendToWorker: (message) => {
-      workerSent.push(message);
-      return new Promise((resolve) => workerOpen.push(resolve));
-    },
+    sendToWorker: worker.send,
     openChannel: channels.open,
     send: {
-      sendNative: (message) => {
-        const hostMessage = message as HostMessage;
-        hostSent.push(hostMessage);
-        return new Promise((resolve) =>
-          hostOpen.push({ op: hostMessage.op, resolve }),
-        );
-      },
+      sendNative: host.sendNative,
       schedule:
         options.lateTimers === true ? () => () => undefined : clock.schedule,
     },

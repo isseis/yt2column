@@ -18,6 +18,11 @@ import type {
   ViewerTabs,
   WriteClipboard,
 } from "../../src/browser/chromeDeps.ts";
+import type {
+  AwaitStart,
+  StartRequest,
+} from "../../src/core/extensionMessages.ts";
+import { settle } from "./clock.ts";
 
 export const fakeExtensionId = "abcdefghijklmnopabcdefghijklmnop";
 
@@ -111,6 +116,35 @@ export function fakeRuntime(): FakeRuntime {
     send,
     senderFor: (sender) => (message) => send(sender, message),
     returned,
+  };
+}
+
+/** The service worker side of a page's runtime messages, answered by the test. */
+export interface PendingWorker {
+  readonly send: SendToWorker;
+  /** Every message sent, in order. */
+  readonly sent: (StartRequest | AwaitStart)[];
+  /** Answers the oldest open message and lets the page run. */
+  answer(reply: BrowserCall<unknown>): Promise<void>;
+}
+
+export function pendingWorker(): PendingWorker {
+  const sent: (StartRequest | AwaitStart)[] = [];
+  const open: ((reply: BrowserCall<unknown>) => void)[] = [];
+  return {
+    sent,
+    send: (message) => {
+      sent.push(message);
+      return new Promise((resolve) => open.push(resolve));
+    },
+    answer: async (reply) => {
+      const resolve = open.shift();
+      if (resolve === undefined) {
+        throw new Error("no worker message is open");
+      }
+      resolve(reply);
+      await settle();
+    },
   };
 }
 

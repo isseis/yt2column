@@ -159,7 +159,7 @@ describe("popup preview script", () => {
       const primary = byId(doc, "primary");
       assert.equal(
         primary.textContent,
-        catalogs[previewCase.locale].primaryButton,
+        catalogs[previewCase.locale].popup.primary.generate,
         `${file}: button name`,
       );
       assert.equal(

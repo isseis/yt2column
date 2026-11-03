@@ -29,7 +29,7 @@ import type {
   StartRequest,
 } from "./core/extensionMessages.ts";
 import { startMessage } from "./core/hostMessage.ts";
-import { startResultDeadlineMs } from "./core/poll.ts";
+import { startResultDeadlineMs, viewerLoadWindowMs } from "./core/poll.ts";
 import type { PreparedRequest } from "./core/prepare.ts";
 import {
   classifyStart,
@@ -38,7 +38,7 @@ import {
 } from "./core/response.ts";
 import type { StartOutcome } from "./core/response.ts";
 import { viewerQuery } from "./core/viewerUrl.ts";
-import type { Logger } from "./launch.ts";
+import type { Logger } from "./core/types.ts";
 import { exchange } from "./send.ts";
 import type { SendDeps } from "./send.ts";
 import { askViewers, findViewers } from "./viewerQuery.ts";
@@ -72,6 +72,8 @@ interface StartRecord {
   result: StartOutcome | undefined;
   /** The viewer tab's waits that arrived before the result. */
   readonly waits: ((reply: AwaitStartReply) => void)[];
+  /** Called once when the viewer tab's first wait arrives; the page is loaded and listens on the channel. */
+  onWait: () => void;
 }
 
 /** A wait that matched no record while a tab was still being created. */
@@ -157,6 +159,7 @@ export function createStartCoordinator(
       if (record.tabId === wait.tabId && record.sentAt === wait.sentAt) {
         if (record.result === undefined) {
           record.waits.push(wait.respond);
+          record.onWait();
         } else {
           wait.respond({ kind: "result", outcome: record.result });
         }
@@ -205,6 +208,27 @@ export function createStartCoordinator(
     }
   };
 
+  /**
+   * Resolves true once the record's tab has sent its first wait, at once when
+   * it already has, or false when viewerLoadWindowMs passes first.
+   */
+  const viewerLoaded = (record: StartRecord): Promise<boolean> => {
+    if (record.waits.length > 0) {
+      return Promise.resolve(true);
+    }
+    return new Promise((resolve) => {
+      const cancel = deps.send.schedule(viewerLoadWindowMs, () => {
+        record.onWait = () => {};
+        resolve(false);
+      });
+      record.onWait = () => {
+        record.onWait = () => {};
+        cancel();
+        resolve(true);
+      };
+    });
+  };
+
   /** Asks viewer to take the send over; true only when it confirmed within the window. */
   const takeOver = async (
     queryId: string,
@@ -247,6 +271,13 @@ export function createStartCoordinator(
     const newTab = created.value.tabId;
     if (outcome.kind !== "accepted") {
       deps.log.info(viewerTabLabel, { created: true });
+      deliver(record, outcome);
+      return newTab;
+    }
+    // Only a loaded viewer can answer that it waits: ask once its first wait
+    // arrived, and keep the new tab when it does not arrive in time.
+    if (!(await viewerLoaded(record))) {
+      deps.log.info(viewerTabLabel, { created: true, loaded: false });
       deliver(record, outcome);
       return newTab;
     }
@@ -302,6 +333,7 @@ export function createStartCoordinator(
       tabId: undefined,
       result: undefined,
       waits: [],
+      onWait: () => {},
     };
     records.add(record);
     deps.send.schedule(

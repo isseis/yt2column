@@ -1,20 +1,18 @@
 import type { HostMessage } from "../../src/core/hostMessage.ts";
 import type { NativeReply } from "../../src/core/native.ts";
-import type { StartInput } from "../../src/core/prepare.ts";
 import type { SendDeps } from "../../src/send.ts";
-
-type Message = HostMessage | StartInput;
+import { settle } from "./clock.ts";
 
 export interface NativeRecorder {
   readonly sendNative: SendDeps["sendNative"];
-  readonly messages: Message[];
+  readonly messages: HostMessage[];
 }
 
 /** A sendNative that records each message and answers with respond(message). */
 export function recordingNative(
-  respond: (message: Message) => Promise<NativeReply>,
+  respond: (message: HostMessage) => Promise<NativeReply>,
 ): NativeRecorder {
-  const messages: Message[] = [];
+  const messages: HostMessage[] = [];
   return {
     sendNative: async (message) => {
       messages.push(message);
@@ -103,4 +101,42 @@ export function testSendDeps(
   schedule: SendDeps["schedule"] = manualSchedule().schedule,
 ): SendDeps {
   return { sendNative, schedule };
+}
+
+/** A host whose exchanges stay open until the test answers them, in order. */
+export interface PendingHost {
+  readonly sendNative: SendDeps["sendNative"];
+  /** Every message sent, in order. */
+  readonly sent: HostMessage[];
+  /** How many exchanges of op were sent. */
+  count(op: HostMessage["op"]): number;
+  /** Answers the oldest open exchange, of op when given, and lets the page run. */
+  answer(reply: NativeReply, op?: HostMessage["op"]): Promise<void>;
+}
+
+export function pendingHost(): PendingHost {
+  const sent: HostMessage[] = [];
+  const open: {
+    readonly op: HostMessage["op"];
+    readonly resolve: (reply: NativeReply) => void;
+  }[] = [];
+  return {
+    sent,
+    sendNative: (message) => {
+      sent.push(message);
+      return new Promise((resolve) => open.push({ op: message.op, resolve }));
+    },
+    count: (op) => sent.filter((message) => message.op === op).length,
+    answer: async (reply, op) => {
+      const index = open.findIndex(
+        (exchange) => op === undefined || exchange.op === op,
+      );
+      const [exchange] = index < 0 ? [] : open.splice(index, 1);
+      if (exchange === undefined) {
+        throw new Error("no host exchange is open");
+      }
+      exchange.resolve(reply);
+      await settle();
+    },
+  };
 }

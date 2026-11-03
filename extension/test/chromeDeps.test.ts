@@ -35,6 +35,8 @@ import type {
   ViewerChannelMessage,
 } from "../src/core/extensionMessages.ts";
 import type { PageSelection } from "../src/core/collect.ts";
+import type { ArticleKey } from "../src/core/articleKey.ts";
+import { statusMessage } from "../src/core/hostMessage.ts";
 import { nativeHostName } from "../src/core/native.ts";
 
 type Injection = {
@@ -365,10 +367,7 @@ function recordingRuntime(
 }
 
 describe("send dependencies", () => {
-  const message = {
-    videoUrl: "https://www.youtube.com/watch?v=abc",
-    transcript: "x",
-  };
+  const message = statusMessage("key-1" as ArticleKey);
 
   it("sends the message to the fixed host once and resolves its reply", async () => {
     const reply = { v: 1, kind: "error", error: "server_timeout" };

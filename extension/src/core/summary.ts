@@ -4,6 +4,31 @@ export interface DisplayText {
   readonly truncated: boolean;
 }
 
+/** Appended to a value that was shortened for display. */
+export const ellipsis = "\u2026";
+
+/** The text a display value is shown as: its value, marked with the ellipsis when shortened. */
+export function shownText(text: DisplayText): string {
+  return text.truncated ? `${text.value}${ellipsis}` : text.value;
+}
+
+// With the u flag a surrogate pair is one code point, so only a lone (unpaired)
+// surrogate has the general category Cs.
+const unpairedSurrogates = /\p{Cs}/gu;
+
+/** Whether text holds an unpaired surrogate. */
+export function hasUnpairedSurrogate(text: string): boolean {
+  return /\p{Cs}/u.test(text);
+}
+
+/**
+ * A copy of text with each unpaired surrogate replaced by U+FFFD, and every
+ * other code point kept.
+ */
+export function replaceUnpairedSurrogates(text: string): string {
+  return text.replace(unpairedSurrogates, "\ufffd");
+}
+
 /**
  * Cuts text to its first limit code points. Iterating the string yields code
  * points, so a surrogate pair at the boundary is never split; it stops at the
