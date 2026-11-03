@@ -713,11 +713,11 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 |---|---|---|---|
 | 主ボタンの直後にポップアップを閉じても記事が出る（SW が止まった後の最初の送信を含む） | AC-02 | 2026-11-03 | OK（Chrome 156.0.8078.74）。`chrome://serviceworker-internals` で SW を止めてから送り、すぐに手でポップアップを閉じた |
 | 背面のタブで開き、作業中のタブが切り替わらない | AC-06 | 2026-11-03 | OK（Chrome 156.0.8078.74） |
-| 同じ入力の送り直しで新しいタブが閉じる。凍結した既存のタブでも閉じ、破棄した既存のタブでは残る（設計書 7.2） | AC-08 | 2026-11-03 | 最初は崩れた。送り直しはキャッシュに当たってすぐ応答が返り、背面の新しいタブが読み込まれる前に SW が問い合わせを終えたので、新しいタブが `waiting` と答えられず、送るたびに残った（SW のログは `present: 1`・`waiting: 0`）。設計書 1.5 の決定（新しいタブの `AwaitStart` を最大 5 秒待ってから問い合わせる。セッション中の再承認）で直した後、OK（Chrome 156.0.8078.74）。凍結は `chrome://discards`、破棄は拡張のページを `chrome://discards` で破棄できないので、別のビューアの DevTools から `chrome.tabs.discard` で行った |
+| 同じ入力の送り直しで新しいタブが閉じる。凍結した既存のタブでも閉じ、破棄した既存のタブでは残る（設計書 7.2） | AC-08 | 2026-11-03 | 最初は崩れた。サーバは受け付けた生成の開始にすぐ応答を返すので、背面の新しいタブが読み込まれる前に SW が問い合わせを終え、新しいタブが `waiting` と答えられず、送るたびに残った（SW のログは `present: 1`・`waiting: 0`）。設計書 1.5 の決定（新しいタブの `AwaitStart` を最大 5 秒待ってから問い合わせる。セッション中の再承認）で直した後、OK（Chrome 156.0.8078.74）。凍結は `chrome://discards`、破棄は拡張のページを `chrome://discards` で破棄できないので、別のビューアの DevTools から `chrome.tabs.discard` で行った |
 | 「ビューアを開く」の 3 つの分岐 | AC-21 | 2026-11-03 | OK（Chrome 156.0.8078.74）。ポップアップはほかをクリックすると閉じるので、「ポップアップを検証」で DevTools を付けて開いたポップアップで送り、そのコンソールの `chrome.tabs.remove` でタブを閉じてから押した |
 | 保存したファイルを `cmp` で `--out` のファイルと比べる | AC-33 | 2026-11-03 | OK（Chrome 156.0.8078.74）。状態の取得が返す `article.file`（`--out` が書くものと同じ）を `jq -j` で書き出して比べた |
 | コピーした文字列を貼り付けて比べる | AC-35 | 2026-11-03 | OK（Chrome 156.0.8078.74）。`pbpaste` を状態の取得が返す `article.markdown` と `cmp` で比べた |
-| キーボードだけの操作とフォーカスの順（ビューアとポップアップ） | AC-44 | 2026-11-03 | OK（Chrome 156.0.8078.74）。確認の中で、キーボードで主ボタンを押すと送信中に押せなくなってフォーカスが外れ、次の Tab が「詳細」に進むことが分かったので、キーボードで押した場合は、また押せるようになった時点で主ボタンにフォーカスを戻すようにした。マウスで押した場合はフォーカスを動かさない（開いた直後も主ボタンにフォーカスを当てないことにそろえる、とレビュアーが決めた） |
+| キーボードだけの操作とフォーカスの順（ビューアとポップアップ） | AC-44 | 2026-11-03 | OK（Chrome 156.0.8078.74）。確認の中で、キーボードで主ボタンを押すと送信中に押せなくなってフォーカスが外れ、次の Tab が「詳細」に進むことが分かったので、キーボードで押した場合は、また押せるようになった時点で主ボタンにフォーカスを戻すようにした。マウスで押した場合はフォーカスを動かさない（開いた直後も主ボタンにフォーカスを当てないことにそろえる、とレビュアーが決めた。設計書 1.5。セッション中の再承認） |
 | VoiceOver で状態の変化が読み上げられ、経過時間が読み上げられない | AC-47 | 2026-11-03 | OK（Chrome 156.0.8078.74、VoiceOver）。VoiceOver のカーソルで読み進めると、所要時間の後に、隠した状態の領域の文が続けて読まれる（領域を読み上げに使う仕組みの副作用で、意図どおり） |
 | 背面に 5 分以上置いたビューアを前面に出すと、すぐに状態が更新される | - | 2026-11-03 | OK（Chrome 156.0.8078.74） |
 | ライトとダーク、`prefers-reduced-motion` の見え方（プレビュー） | AC-45・AC-48・AC-51 | 2026-11-03 | OK（Chrome 156.0.8078.74、macOS の「視差効果を減らす」） |
@@ -814,7 +814,7 @@ Go のガードの変更は、既存の `nmhost.MaxResponseBytesForTest` を使�
 | AC-41 | `extension/test/response.test.ts::classifyStatus`、`extension/test/strictJson.test.ts::parseStrictJson`、`extension/test/native.test.ts::classifyHostReply`（上限を超える本文） | test | 2-2・2-3・2-4 |
 | AC-42 | `extension/test/response.test.ts::classifyStatus`（256 KiB いっぱいの完了した記事を `classifyHostReply` から通す） | test | 2-3・2-4 |
 | AC-43 | `extension/test/viewerUrl.test.ts::parseViewerUrl`、`extension/test/viewerApp.test.ts::startViewer: display and URL`（状態の取得を送らない） | test | 3-1・5-5 |
-| AC-44 | `extension/test/popupHtml.test.ts::viewer.html skeleton`（ビューアの DOM の順）、`extension/test/renderViewer.test.ts::order and controls`（押せる要素の順と、ネイティブの要素）、`extension/test/render.test.ts::job view`（ポップアップの DOM の順）、4.3.2 | test・manual | 5-3・6-2・7-5 |
+| AC-44 | `extension/test/popupHtml.test.ts::viewer.html skeleton`（ビューアの DOM の順）、`extension/test/renderViewer.test.ts::order and controls`（押せる要素の順と、ネイティブの要素）、`extension/test/render.test.ts::job view`（ポップアップの DOM の順）、`extension/test/launch.test.ts::popup job states`（キーボードで押した主ボタンにフォーカスを戻し、マウスで押した場合と、利用者がフォーカスを移した場合は動かさない。設計書 1.5）、4.3.2 | test・manual | 5-3・6-2・7-5 |
 | AC-45 | `extension/test/style.test.ts`（フォーカスの印のコントラスト、ライトとダーク）、4.3.2 | test・manual | 5-1・7-5 |
 | AC-46 | `extension/test/renderJob.test.ts::step checklist`（状態の語）、`extension/test/renderViewer.test.ts::order and controls`、`extension/test/render.test.ts::job view` | test | 5-2・5-3・6-2 |
 | AC-47 | `extension/test/renderViewer.test.ts::status regions`・`publish state announcements`、`extension/test/renderJob.test.ts::job state`（`aria-live` なし）、`extension/test/viewerApp.test.ts::startViewer: display and URL`、4.3.2 | test・manual | 5-2・5-3・5-5・7-5 |

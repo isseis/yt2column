@@ -885,6 +885,23 @@ describe("popup job states", () => {
   }
 
   /**
+   * Clicks the primary button as a keyboard press (Enter or Space) does, a
+   * click with no pointer clicks counted, or as a mouse click, and lets the
+   * page run.
+   */
+  async function pressWith(
+    popup: Popup,
+    device: "keyboard" | "mouse",
+  ): Promise<void> {
+    const win = popup.elements.primary.ownerDocument.defaultView;
+    assert.ok(win !== null);
+    popup.elements.primary.dispatchEvent(
+      new win.MouseEvent("click", { detail: device === "keyboard" ? 0 : 1 }),
+    );
+    await settle();
+  }
+
+  /**
    * Leaves the focus nowhere, as the browser does with a focused button it
    * disables; jsdom keeps the focus on it, and does not blur it either.
    */
@@ -927,7 +944,7 @@ describe("popup job states", () => {
       const popup = shown(collectedLaunch());
       const doc = popup.elements.primary.ownerDocument;
       popup.elements.primary.focus();
-      await press(popup);
+      await pressWith(popup, "keyboard");
       // Precondition: the press disabled the button.
       assert.equal(popup.elements.primary.disabled, true);
       meanwhile(popup);
@@ -942,17 +959,21 @@ describe("popup job states", () => {
     await popup.host.answer(statusReply(failedJob));
     const doc = popup.elements.primary.ownerDocument;
     popup.elements.primary.focus();
-    await press(popup);
+    await pressWith(popup, "keyboard");
     assert.equal(popup.elements.primary.disabled, true);
     dropFocus(doc);
     await popup.worker.answer(startReply(accepted, 101));
     assert.equal(doc.activeElement, popup.elements.primary);
   });
 
-  it("moves no focus to the button when the press did not have it", async () => {
+  it("moves no focus to the button after a mouse press", async () => {
     const popup = shown(collectedLaunch());
     const doc = popup.elements.primary.ownerDocument;
-    await press(popup);
+    // A mouse press may focus the button (Windows, Linux) or not (macOS).
+    popup.elements.primary.focus();
+    await pressWith(popup, "mouse");
+    assert.equal(popup.elements.primary.disabled, true);
+    dropFocus(doc);
     await popup.worker.answer(startReply(accepted, 100));
     assert.equal(popup.elements.primary.disabled, false);
     assert.equal(doc.activeElement, doc.body);

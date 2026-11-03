@@ -243,7 +243,8 @@ export async function runPopupLaunch(
  * details, and the button does what primaryAction says: nothing while there
  * is no key, open the viewer for a key, or retry, which asks for one new
  * start of the same input. A key is polled until polling stops or the popup
- * closes. It never moves the focus, and never throws.
+ * closes. It moves the focus only back to the button a keyboard press
+ * disabled, once the button can be pressed again, and never throws.
  */
 export function runPopupSend(
   elements: PopupElements,
@@ -263,8 +264,10 @@ export function runPopupSend(
   const doc = primary.ownerDocument;
 
   let pressed = false;
-  // Set when a press of the focused button disables it: the browser then
-  // drops the focus, and it goes back to the button once it can be pressed.
+  // Set when a keyboard press disables the button: the browser then drops
+  // its focus, and it goes back to the button once it can be pressed. A mouse
+  // press moves no focus, as the popup gives no element the focus when it
+  // opens.
   let returnFocus = false;
   let state: PopupJobState = { kind: "sending" };
   let seed: ViewerSeed = viewerSeed(view.video, input, 0);
@@ -300,17 +303,16 @@ export function runPopupSend(
   };
 
   /**
-   * Gives the focus back to the primary button once it can be pressed again,
-   * when the press that disabled it had the focus there and the focus is
-   * nowhere now. Focus the user moved elsewhere in between is never taken.
+   * Gives the focus back to the primary button once it can be pressed again
+   * after a keyboard press disabled it, when no element has the focus then:
+   * an element the user focused in between keeps it.
    */
   const restoreFocus = (): void => {
     if (!returnFocus || primary.disabled) {
       return;
     }
     returnFocus = false;
-    const active = doc.activeElement;
-    if (active === null || active === doc.body || active === primary) {
+    if (doc.activeElement === doc.body) {
       primary.focus();
     }
   };
@@ -458,10 +460,10 @@ export function runPopupSend(
     await deps.focusWindow(created.value.windowId);
   };
 
-  primary.addEventListener("click", () => {
+  primary.addEventListener("click", (event) => {
     if (!pressed) {
       pressed = true;
-      returnFocus = doc.activeElement === primary;
+      returnFocus = isKeyboardPress(event);
       void start();
       return;
     }
@@ -469,7 +471,7 @@ export function runPopupSend(
       case "none":
         return;
       case "retry":
-        returnFocus = doc.activeElement === primary;
+        returnFocus = isKeyboardPress(event);
         void start();
         return;
       case "open-viewer":
@@ -484,6 +486,14 @@ export function runPopupSend(
     }
   });
   primary.disabled = false;
+}
+
+/**
+ * Whether a click came from the keyboard (Enter or Space on a button), which
+ * the browser reports as a click with no pointer clicks counted.
+ */
+function isKeyboardPress(event: Event): boolean {
+  return "detail" in event && event.detail === 0;
 }
 
 /**
