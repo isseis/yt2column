@@ -32,6 +32,7 @@ func TestRateTableModels(t *testing.T) {
 		sets   int
 	}{
 		{"deepseek-flash", schemeTimeOfDay, 2},
+		{"claude-fable-5-1", schemeFlat, 1},
 		{"claude-opus-5-5", schemeFlat, 1},
 		{"claude-sonnet-5-5", schemeFlat, 1},
 		{"claude-haiku-5-5", schemePromptTier, 2},

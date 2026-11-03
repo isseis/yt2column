@@ -29,6 +29,7 @@ func TestEstimateCategories(t *testing.T) {
 		at    time.Time
 		// deepseek-flash off-peak: 1000000*0.15 + 2000000*0.003 + 3000000*0 + 4000000*0.6 = 2.556
 		// deepseek-flash peak: 1000000*0.3 + 2000000*0.006 + 3000000*0 + 4000000*1.2 = 5.112
+		// claude-fable-5-1: 1000000*10 + 2000000*0.25 + 3000000*12.5 + 4000000*50 = 248
 		// claude-opus-5-5: 1000000*4 + 2000000*0.2 + 3000000*5 + 4000000*20 = 99.4
 		// claude-sonnet-5-5: 1000000*2 + 2000000*0.1 + 3000000*2.5 + 4000000*10 = 49.7
 		// claude-haiku-5-5 (short prompt): 1000*0.1 + 2000*0.01 + 3000*0.125 + 4000000*0.5 = 2.000495
@@ -37,6 +38,7 @@ func TestEstimateCategories(t *testing.T) {
 	}{
 		{"deepseek-flash off-peak", "deepseek-flash", broad, offPeak, "2.556000"},
 		{"deepseek-flash peak", "deepseek-flash", broad, peak, "5.112000"},
+		{"claude-fable-5-1", "claude-fable-5-1", broad, offPeak, "248.000000"},
 		{"claude-opus-5-5", "claude-opus-5-5", broad, offPeak, "99.400000"},
 		{"claude-sonnet-5-5", "claude-sonnet-5-5", broad, offPeak, "49.700000"},
 		{"claude-haiku-5-5 short prompt", "claude-haiku-5-5", llm.KnownUsage(llm.TokenCounts{Input: 1000, CacheRead: 2000, CacheWrite: 3000, Output: 4000000}), offPeak, "2.000495"},
@@ -108,7 +110,7 @@ func TestEstimateIgnoresCallTime(t *testing.T) {
 		time.Date(2026, 10, 19, 4, 0, 0, 0, time.UTC), // off-peak
 		{}, // zero
 	}
-	for _, model := range []string{"claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"} {
+	for _, model := range []string{"claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"} {
 		t.Run(model, func(t *testing.T) {
 			var first string
 			var firstBasis RateBasis
@@ -185,6 +187,7 @@ func TestEstimatePromptTier(t *testing.T) {
 			want  RateBasis
 		}{
 			{"deepseek-flash", at, BasisOffPeak},
+			{"claude-fable-5-1", at, BasisFlat},
 			{"claude-opus-5-5", at, BasisFlat},
 			{"claude-sonnet-5-5", at, BasisFlat},
 		}
@@ -245,7 +248,7 @@ func TestEstimateUnknown(t *testing.T) {
 		{"unknown usage before a missing model", "", unknown, at, ReasonUsageUnknown},
 		{"missing model", "", usage, at, ReasonNoModel},
 		{"unpriced deepseek", "deepseek-v4-pro", usage, at, ReasonUnpricedModel},
-		{"unpriced claude", "claude-fable-5-1", usage, at, ReasonUnpricedModel},
+		{"unpriced claude", "claude-opus-5", usage, at, ReasonUnpricedModel},
 		{"unpriced other provider", "gpt-5", usage, at, ReasonUnpricedModel},
 		{"a differently cased name is unpriced", "DeepSeek-Flash", usage, at, ReasonUnpricedModel},
 		{"a suffixed name is unpriced", "deepseek-flash-latest", usage, at, ReasonUnpricedModel},

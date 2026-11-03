@@ -93,6 +93,14 @@ var rateTable = []modelRates{
 			ranges:   []minuteRange{{start: 60, end: 240}, {start: 360, end: 600}}, //nolint:mnd // peak window in minutes of the day
 		},
 	},
+	// Source: https://platform.claude.com/docs/en/about-claude/pricing (checked 2026-11-03)
+	{
+		model:  "claude-fable-5-1",
+		scheme: schemeFlat,
+		// The page lists the cache-read rate as 0.025x the input rate, not the
+		// standard 0.1x, so it is not derivable from the other fields.
+		base: rates{input: 10000000, cacheRead: 250000, cacheWrite: 12500000, output: 50000000}, //nolint:mnd // published per-million-token rates
+	},
 	// Source: https://platform.claude.com/docs/en/about-claude/pricing (checked 2026-10-16)
 	{
 		model:  "claude-opus-5-5",
