@@ -454,8 +454,8 @@ interface FunctionRanges {
 
 **git の起動の仕方:** 道具が起動する git は、すべて次の環境と引数で起動する。
 
--   環境は `cmdrunner.GitEnv`（`GIT_*` の変数を除く。`internal/cmdrunner/git.go:32-44`）に、`GIT_CONFIG_GLOBAL=/dev/null` と `GIT_CONFIG_NOSYSTEM=1` を加えたもの。利用者の環境の `GIT_DIR` などで別のリポジトリを読まないため、また利用者の大域の設定（filter・smudge・LFS、`diff.*`）で読み取りや出力の形が変わらないためである。
--   大域の引数は `cmdrunner.GitHardening`（`internal/cmdrunner/git.go:5-30`）。設定でコマンドが起動されないためである。
+-   環境は `cmdrunner.GitEnv`（`GIT_*` の変数を除く。`internal/cmdrunner/git.go:32-44`）に、`GIT_CONFIG_GLOBAL=/dev/null`・`GIT_CONFIG_NOSYSTEM=1`・`GIT_ATTR_NOSYSTEM=1` を加えたもの。利用者の環境の `GIT_DIR` などで別のリポジトリを読まないため、また利用者の大域の設定（filter・smudge・LFS、`diff.*`）とシステムの属性で読み取りや出力の形が変わらないためである。
+-   大域の引数は `cmdrunner.GitHardening`（`internal/cmdrunner/git.go:5-30`）と `-c core.attributesFile=/dev/null`。設定でコマンドが起動されないためである。また、git は大域の設定を読まなくても既定の場所（`$XDG_CONFIG_HOME/git/attributes` または `~/.config/git/attributes`）の大域の属性を読み、そこで `-diff` などを付けると差分や展開されるファイルが変わるので、その読み取りを切る。大域の除外（`.gitignore` に当たるもの）は切らない。利用者の git が無視するファイルは、コミットしていない変更に数えない。
 -   利用者のリポジトリの `.git/config` は読まれるので、出力の形を変えうる設定は、差分の引数で明示して上書きする（3.7 節）。
 
 **既存の検査を再利用しない理由:** `internal/codexreview` にも、祖先の確認（`internal/codexreview/run.go:362`）、同じ引数の `git status`（`internal/codexreview/state.go:41`）、HEAD とブランチの読み取り（`state.go:81-99`）、作業ツリーの一覧の読み取り（`state.go:168`）がある。これらはパッケージの中の関数で、`codexreview` の出力の契約（`Detail` の値、比べる項目の名前）と結びついている。比べる項目も違う（`codexreview` は ref とスタッシュを比べ、作業ツリーの一覧はブランチの場所の説明に使う。本書は作業ツリーの登録の一覧を比べる）。取り出して共有すると、利用者が `main` から入れて使う `codexreview` の振る舞いの契約を変えることになり、git のコマンドの数行の重複に見合わない。

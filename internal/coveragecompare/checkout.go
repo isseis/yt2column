@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -20,7 +21,13 @@ const workPrefix = "coveragecompare-"
 // temporary directory when environ has none; its symbolic links are resolved,
 // so paths the commands report compare equal to the paths the tool built.
 func makeWorkDir(environ []string) (string, error) {
-	dir, err := os.MkdirTemp(envValue(environ, "TMPDIR"), workPrefix)
+	parent := envValue(environ, "TMPDIR")
+	if parent != "" && !filepath.IsAbs(parent) {
+		// A relative TMPDIR would put the checkouts under the current
+		// directory, the user's repository.
+		return "", fmt.Errorf("%w: %q", errRelativeTmpDir, parent)
+	}
+	dir, err := os.MkdirTemp(parent, workPrefix)
 	if err != nil {
 		return "", err
 	}
@@ -35,6 +42,9 @@ func makeWorkDir(environ []string) (string, error) {
 	}
 	return resolved, nil
 }
+
+// errRelativeTmpDir reports a TMPDIR that is not an absolute path.
+var errRelativeTmpDir = errors.New("TMPDIR is not an absolute path")
 
 // envValue returns the value of the first entry of environ named name, or "".
 func envValue(environ []string, name string) string {
@@ -107,7 +117,9 @@ type dependencyGuard struct {
 	atBase      []byte
 }
 
-// recordBase reads the installed lockfile before the BASE tests.
+// recordBase reads the installed lockfile before the BASE tests. npm writes
+// it on every install, so a node_modules without it was not installed by npm
+// ci, and the run stops as internal.
 func (g *dependencyGuard) recordBase() error {
 	data, err := os.ReadFile(filepath.Join(g.userModules, installedLockName))
 	if err != nil {

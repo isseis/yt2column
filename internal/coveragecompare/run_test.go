@@ -216,13 +216,12 @@ func TestRunEndToEnd(t *testing.T) {
 				repo, base = extRepo(t)
 				deleted, toolchain = extDeleted, fakeNodeVersion
 			}
-			// BASE is given as a branch that the BASE suite moves to HEAD:
-			// the run keeps the commit ID it resolved first.
+			// BASE is given as a branch that the toolchain check moves to
+			// HEAD, before the checkouts are made: the checkouts, the diff,
+			// and the result keep the commit ID the run resolved first.
 			repo.git("branch", "basebranch", base)
 			b := tc.behavior
-			s := b.Suites["base"]
-			s.Git, s.GitDir = [][]string{{"branch", "-f", "basebranch", "HEAD"}}, repo.dir
-			b.Suites["base"] = s
+			b.VersionGit, b.GitDir = [][]string{{"branch", "-f", "basebranch", "HEAD"}}, repo.dir
 			env := newFakeEnv(t)
 			env.set(b)
 
@@ -239,24 +238,31 @@ func TestRunEndToEnd(t *testing.T) {
 			}
 			starts := env.starts()
 			requireNpmVersionOnly(t, starts)
-			requireSuiteCommands(t, tc.target, env, repo, suiteStarts(starts))
+			suites := suiteStarts(starts)
+			requireSuiteCommands(t, tc.target, env, repo, base, suites)
+			if tc.target == TargetExt {
+				requireRangeHelperCommands(t, starts, filepath.Dir(filepath.Dir(suites[1].Dir)))
+			}
 			env.requireTmpEmpty()
 		})
 	}
 }
 
 // requireSuiteCommands checks the two suite starts: BASE then HEAD, each in
-// its own checkout under the work directory and never in the user's
-// repository, with the design's command line and the reports under the work
+// its own checkout of the pinned commit under the work directory and never in
+// the user's repository, with the design's command line and the reports under the work
 // directory. An extension checkout's node_modules is a real directory whose
 // entries link to the user's.
-func requireSuiteCommands(t *testing.T, target Target, env *fakeEnv, repo *testRepo, suites []fakeStart) {
+func requireSuiteCommands(t *testing.T, target Target, env *fakeEnv, repo *testRepo, base string, suites []fakeStart) {
 	t.Helper()
 	if len(suites) != 2 {
 		t.Fatalf("suite starts = %d, want 2", len(suites))
 	}
 	for i, point := range []string{"base", "head"} {
 		start := suites[i]
+		if want := map[string]string{"base": base, "head": repo.rev("HEAD")}[point]; start.Head != want {
+			t.Errorf("%s suite ran on commit %s, want %s", point, start.Head, want)
+		}
 		checkout := filepath.Dir(start.Dir)
 		if target == TargetGo {
 			checkout = start.Dir
@@ -293,6 +299,36 @@ func requireSuiteCommands(t *testing.T, target Target, env *fakeEnv, repo *testR
 		}
 		if !slices.Equal(start.Args, want) {
 			t.Errorf("%s suite args =\n%q\nwant\n%q", point, start.Args, want)
+		}
+	}
+}
+
+// requireRangeHelperCommands checks the range helper's starts in the work
+// directory the suites ran in: one per
+// point, BASE first, each running the HEAD checkout's helper from the HEAD
+// checkout's extension directory, so typescript comes from there, over the
+// point's own checkout, with the product file relative to extension/.
+func requireRangeHelperCommands(t *testing.T, starts []fakeStart, workDir string) {
+	t.Helper()
+	var helpers []fakeStart
+	for _, start := range starts {
+		if start.Name == fakeNode && len(start.Args) > 0 && filepath.Base(start.Args[0]) == "function-ranges.ts" {
+			helpers = append(helpers, start)
+		}
+	}
+	if len(helpers) != 2 {
+		t.Fatalf("range helper starts = %d, want 2", len(helpers))
+	}
+	headExtension := filepath.Join(workDir, "head", "extension")
+	for i, point := range []string{"base", "head"} {
+		start := helpers[i]
+		want := []string{
+			filepath.Join(headExtension, "scripts", "function-ranges.ts"),
+			"--root", filepath.Join(workDir, point, "extension"),
+			"--", "src/a.ts",
+		}
+		if start.Dir != headExtension || !slices.Equal(start.Args, want) {
+			t.Errorf("%s range helper ran in %s with %q, want %s with %q", point, start.Dir, start.Args, headExtension, want)
 		}
 	}
 }
@@ -389,12 +425,13 @@ func TestRunStopsOnHeadFailure(t *testing.T) {
 }
 
 // repoState is the user's state the run must leave as it found it: HEAD,
-// the current branch, git status, and the worktree list.
+// the current branch (none when HEAD is detached), git status, and the
+// worktree list.
 func repoState(r *testRepo) string {
 	r.t.Helper()
 	return strings.Join([]string{
 		r.rev("HEAD"),
-		r.git("symbolic-ref", "-q", "HEAD"),
+		r.git("branch", "--show-current"),
 		r.git(statusArgs...),
 		r.git("worktree", "list", "--porcelain"),
 	}, "\x00")
@@ -415,8 +452,10 @@ func uncheckoutableBase(r *testRepo, base string) string {
 }
 
 // TestRunCleansUp checks that every way a run ends leaves TMPDIR, which holds
-// the work directory, empty and the user's state unchanged: a pass, a
-// failure, a test failure, an unreadable report, a failed range helper, a
+// the work directory, empty and the user's state unchanged: a pass (also
+// from a detached HEAD, which has no current branch), a failure, a test
+// failure (also one that wrote no report, as a build failure does), an
+// unreadable report, a failed range helper, a
 // checkout that cannot be made after the other one was, a context canceled
 // before the run, and one canceled while a suite runs. A cancellation is an
 // internal stop even though the suite then exits unsuccessfully, and it
@@ -433,9 +472,21 @@ func TestRunCleansUp(t *testing.T) {
 		running  bool // cancel once the BASE suite is running
 		outcome  Outcome
 		stop     StopKind
+		detail   string // the first reason's detail, when set
+	}
+	noReport := func(point string) func(*fakeBehavior, fixture) {
+		return func(b *fakeBehavior, f fixture) {
+			s := f.failing
+			s.NoReport = true
+			b.Suites[point] = s
+		}
 	}
 	cases := []cleanCase{
 		{name: "pass", outcome: OutcomePass},
+		{name: "pass from a detached HEAD", outcome: OutcomePass, prepare: func(r *testRepo, base string) string {
+			r.git("checkout", "-q", "--detach")
+			return base
+		}},
 		{name: "fail", outcome: OutcomeFail, modify: func(b *fakeBehavior, f fixture) {
 			lost := f.behavior()
 			if f.target == TargetGo {
@@ -446,6 +497,8 @@ func TestRunCleansUp(t *testing.T) {
 			*b = lost
 		}},
 		{name: "test failure", stop: StopTestFailed, modify: func(b *fakeBehavior, f fixture) { b.Suites["head"] = f.failing }},
+		{name: "BASE failure without a report", stop: StopTestFailed, modify: noReport("base")},
+		{name: "HEAD failure without a report", stop: StopTestFailed, modify: noReport("head")},
 		{name: "unreadable report", stop: StopUnreadable, modify: func(b *fakeBehavior, f fixture) { b.Suites["head"] = f.unreadable }},
 		{name: "range helper exits unsuccessfully", ext: true, stop: StopInternal, modify: func(b *fakeBehavior, _ fixture) {
 			b.Ranges["head"] = fakeAnswer{Exit: 1}
@@ -453,9 +506,9 @@ func TestRunCleansUp(t *testing.T) {
 		{name: "range helper writes to standard error", ext: true, stop: StopInternal, modify: func(b *fakeBehavior, _ fixture) {
 			b.Ranges["head"] = fakeAnswer{Stdout: b.Ranges["head"].Stdout, Stderr: "warning\n"}
 		}},
-		{name: "checkout cannot be made", stop: StopInternal, prepare: uncheckoutableBase},
-		{name: "canceled before the run", stop: StopInternal, canceled: true},
-		{name: "canceled while a suite runs", stop: StopInternal, running: true},
+		{name: "checkout cannot be made", stop: StopInternal, prepare: uncheckoutableBase, detail: "checking out BASE failed"},
+		{name: "canceled before the run", stop: StopInternal, canceled: true, detail: "the run was interrupted"},
+		{name: "canceled while a suite runs", stop: StopInternal, running: true, detail: "the run was interrupted"},
 	}
 	for _, f := range fixtures {
 		for _, tc := range cases {
@@ -500,6 +553,15 @@ func TestRunCleansUp(t *testing.T) {
 					requireStopKind(t, r, tc.stop)
 				} else if r.Outcome != tc.outcome {
 					t.Fatalf("outcome = %v (stop %v, reasons %+v), want %v", r.Outcome, r.Stop, r.Reasons, tc.outcome)
+				}
+				if tc.detail != "" {
+					detail := tc.detail
+					if detail == "checking out BASE failed" {
+						detail = "checking out " + base + " failed"
+					}
+					if len(r.Reasons) == 0 || r.Reasons[0].Detail != detail {
+						t.Errorf("reasons = %+v, want the first to be %q", r.Reasons, detail)
+					}
 				}
 				env.requireTmpEmpty()
 				if after := repoState(repo); after != before {
@@ -641,7 +703,9 @@ func TestRunDetectsUserStateChange(t *testing.T) {
 // change the shape of a diff, an external diff, and a textconv, the run reads
 // the diff as without them, and neither external command runs. The global
 // configuration is not read at all: with the same settings there, and an
-// attributes file there that marks Go files binary, the run still passes.
+// attributes file there that marks Go files binary, the run still passes,
+// and so does it with the global attributes file in its default place, which
+// git reads without any configuration, marking Go files not diffable.
 // A renamed file is a deletion and an addition, so its functions stop the
 // run as unmatched rather than the rename lines making the diff unreadable.
 func TestDiffIgnoresUserGitConfig(t *testing.T) {
@@ -649,10 +713,15 @@ func TestDiffIgnoresUserGitConfig(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
 		global bool // write the settings to HOME's .gitconfig
-		rename bool
+		// attributes writes HOME's default global attributes file, which git
+		// reads even without the global configuration, marking Go files
+		// as not diffable.
+		attributes bool
+		rename     bool
 	}{
 		{name: "repository configuration"},
 		{name: "global configuration", global: true},
+		{name: "global attributes", attributes: true},
 		{name: "rename detection", rename: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -692,7 +761,9 @@ func TestDiffIgnoresUserGitConfig(t *testing.T) {
 					t.Fatalf("write the attributes: %v", err)
 				}
 				fmt.Fprintf(&global, "[core]\n\tattributesFile = %s\n[diff \"bin\"]\n\tbinary = true\n", attributes)
-			} else {
+			} else if !tc.attributes {
+				// The repository's attributes outrank the global file, so
+				// the attributes row writes none.
 				repo.writeGitDir("info/attributes", "*.go diff=conv\n")
 			}
 			for _, kv := range settings {
@@ -705,6 +776,15 @@ func TestDiffIgnoresUserGitConfig(t *testing.T) {
 					}
 				} else {
 					repo.git("config", kv[0], kv[1])
+				}
+			}
+			if tc.attributes {
+				attributes := filepath.Join(env.home, ".config", "git", "attributes")
+				if err := os.MkdirAll(filepath.Dir(attributes), 0o700); err != nil {
+					t.Fatalf("create %s: %v", filepath.Dir(attributes), err)
+				}
+				if err := os.WriteFile(attributes, []byte("*.go -diff\n"), 0o600); err != nil {
+					t.Fatalf("write the attributes: %v", err)
 				}
 			}
 			if err := os.WriteFile(filepath.Join(env.home, ".gitconfig"), []byte(global.String()), 0o600); err != nil {

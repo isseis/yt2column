@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 )
 
 // Run compares the coverage of BASE and HEAD and returns the result.
@@ -20,7 +21,7 @@ import (
 // rest.
 func Run(ctx context.Context, opts Options) Result {
 	result := Result{Target: opts.Target, BaseArg: opts.Base}
-	if opts.RepoRoot == "" || !filepath.IsAbs(opts.RepoRoot) {
+	if !filepath.IsAbs(opts.RepoRoot) {
 		return stopFromError(result, internalStop(PointNone, "the repository root is not an absolute path", errRepoRoot))
 	}
 	workDir, err := makeWorkDir(opts.Env)
@@ -41,36 +42,36 @@ var errRepoRoot = errors.New("Options.RepoRoot must be an absolute path")
 func (rc *runContext) measure(ctx context.Context, opts Options, r Result, before **userState) Result {
 	t, err := rc.target(opts.Target)
 	if err != nil {
-		return stopFromError(r, err)
+		return stopAt(ctx, r, err)
 	}
 	repo := rc.repoGit()
 	ids, err := resolveCommits(ctx, repo, opts.Base)
 	if err != nil {
-		return stopFromError(r, err)
+		return stopAt(ctx, r, err)
 	}
 	r.BaseCommit, r.HeadCommit, r.HeadTree = ids.base, ids.head, ids.headTree
 	if err := checkAncestor(ctx, repo, ids); err != nil {
-		return stopFromError(r, err)
+		return stopAt(ctx, r, err)
 	}
 	if err := checkClean(ctx, repo); err != nil {
-		return stopFromError(r, err)
+		return stopAt(ctx, r, err)
 	}
 	state, err := readUserState(ctx, repo)
 	if err != nil {
-		return stopFromError(r, err)
+		return stopAt(ctx, r, err)
 	}
 	*before = &state
 
 	baseSrc, err := newCommitSource(ctx, repo, PointBase, ids.base)
 	if err != nil {
-		return stopFromError(r, err)
+		return stopAt(ctx, r, err)
 	}
 	headSrc, err := newCommitSource(ctx, repo, PointHead, ids.head)
 	if err != nil {
-		return stopFromError(r, err)
+		return stopAt(ctx, r, err)
 	}
 	if r.Toolchain, err = t.checkToolchain(ctx, baseSrc, headSrc); err != nil {
-		return stopFromError(r, err)
+		return stopAt(ctx, r, err)
 	}
 
 	// HEAD's checkout is made first, so a failure of BASE's leaves one
@@ -81,39 +82,52 @@ func (rc *runContext) measure(ctx context.Context, opts Options, r Result, befor
 	}{{PointHead, ids.head}, {PointBase, ids.base}} {
 		dir := rc.checkoutDir(side.point)
 		if err := makeCheckout(ctx, repo, rc.repoRoot, dir, side.commit, rc.environ); err != nil {
-			return stopFromError(r, err)
+			return stopAt(ctx, r, err)
 		}
 		if err := t.prepare(dir); err != nil {
-			return stopFromError(r, err)
+			return stopAt(ctx, r, err)
 		}
 	}
 
 	baseRaw, err := t.run(ctx, PointBase, rc.checkoutDir(PointBase))
 	if err != nil {
-		return stopFromError(r, err)
+		return stopAt(ctx, r, err)
 	}
 	baseResults, readErr := t.readResults(baseRaw, PointBase)
 	if reasons := testFailure(baseRaw, baseResults, readErr, PointBase); len(reasons) > 0 {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return stopAt(ctx, r, ctxErr)
+		}
 		r.Base.Tests = baseResults.Tests
 		return stopWith(r, StopTestFailed, reasons)
 	}
 	headRaw, err := t.run(ctx, PointHead, rc.checkoutDir(PointHead))
 	if err != nil {
-		return stopFromError(r, err)
+		return stopAt(ctx, r, err)
 	}
 	diff, err := readDiff(ctx, repo, ids, t.pathspec())
 	if err != nil {
-		return stopFromError(r, err)
+		return stopAt(ctx, r, err)
 	}
 
 	judged := judge(ctx, t, judgeInput{Base: baseRaw, Head: headRaw, Diff: diff, BaseSource: baseSrc, HeadSource: headSrc})
 	if ctxErr := ctx.Err(); ctxErr != nil {
-		return stopFromError(r, interruptedStop(ctxErr))
+		return stopAt(ctx, r, ctxErr)
 	}
 	judged.Target, judged.BaseArg = r.Target, r.BaseArg
 	judged.BaseCommit, judged.HeadCommit, judged.HeadTree = r.BaseCommit, r.HeadCommit, r.HeadTree
 	judged.Toolchain = r.Toolchain
 	return judged
+}
+
+// stopAt returns r stopped by err, or by the interruption when ctx is done,
+// whatever err says: a read that failed because the run was canceled is
+// reported as the cancellation.
+func stopAt(ctx context.Context, r Result, err error) Result {
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return stopFromError(r, interruptedStop(ctxErr))
+	}
+	return stopFromError(r, err)
 }
 
 // target returns the comparison opts names. A value outside the two is the
@@ -164,7 +178,7 @@ func readDiff(ctx context.Context, repo gitRunner, ids pinnedCommits, pathspec [
 // finish removes the work directory and compares the user's state with the
 // state read before the run, when the run got that far. Either failure
 // replaces the result with an internal stop that names what failed or what
-// changed.
+// changed, after the reasons of an internal stop the run already made.
 func (rc *runContext) finish(ctx context.Context, r Result, before *userState) Result {
 	quiet := context.WithoutCancel(ctx)
 	var reasons []StopReason
@@ -173,10 +187,10 @@ func (rc *runContext) finish(ctx context.Context, r Result, before *userState) R
 	}
 	if before != nil {
 		after, err := readUserState(quiet, rc.repoGit())
-		if err != nil {
-			if stop, ok := errors.AsType[*StopError](err); ok {
-				reasons = append(reasons, stop.Reasons...)
-			}
+		if stop, ok := errors.AsType[*StopError](err); ok {
+			reasons = append(reasons, stop.Reasons...)
+		} else if err != nil {
+			reasons = append(reasons, StopReason{Detail: "reading the user's state after the run failed", Excerpt: err.Error()})
 		} else {
 			for _, item := range before.changed(after) {
 				reasons = append(reasons, StopReason{Detail: "the user's " + item + " changed during the run"})
@@ -185,6 +199,11 @@ func (rc *runContext) finish(ctx context.Context, r Result, before *userState) R
 	}
 	if len(reasons) == 0 {
 		return r
+	}
+	if r.Outcome == OutcomeStop && r.Stop == StopInternal {
+		// Keep the failure the run stopped for ahead of what the cleanup
+		// found.
+		reasons = append(slices.Clone(r.Reasons), reasons...)
 	}
 	r.Deleted, r.Lost = nil, nil
 	return stopWith(r, StopInternal, reasons)

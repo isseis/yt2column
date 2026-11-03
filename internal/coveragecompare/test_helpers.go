@@ -219,6 +219,12 @@ type fakeBehavior struct {
 	GoVersion   string `json:"go_version"`
 	NodeVersion string `json:"node_version"`
 	NpmVersion  string `json:"npm_version"`
+	// VersionGit lists git commands a version start (go env GOVERSION,
+	// node --version) runs in GitDir before it answers: during the
+	// toolchain check, after the run resolved BASE and before it made the
+	// checkouts.
+	VersionGit [][]string `json:"version_git,omitempty"`
+	GitDir     string     `json:"git_dir,omitempty"`
 	// Suites are the test suite runs by point ("base" or "head").
 	Suites map[string]fakeSuite `json:"suites"`
 	// Ranges are the range helper's answers by point.
@@ -233,9 +239,11 @@ type fakeSuite struct {
 	GitDir string            `json:"git_dir,omitempty"`
 	Writes map[string]string `json:"writes,omitempty"`
 	// Report is the Go profile or the lcov report, written where the
-	// command line says; TAP is the extension's TAP report.
-	Report string `json:"report"`
-	TAP    string `json:"tap"`
+	// command line says unless NoReport is set, as when a build fails; TAP
+	// is the extension's TAP report.
+	Report   string `json:"report"`
+	NoReport bool   `json:"no_report,omitempty"`
+	TAP      string `json:"tap"`
 	// Stdout is written to standard output; with LargeStdout it follows
 	// fakeLargeLines lines of fakeLargeLine bytes each.
 	Stdout      string `json:"stdout"`
@@ -262,6 +270,8 @@ type fakeStart struct {
 	Args []string `json:"args"`
 	Env  []string `json:"env"`
 	Dir  string   `json:"dir"`
+	// Head is the commit checked out in Dir's repository at a suite start.
+	Head string `json:"head,omitempty"`
 	// NodeModules is the shape of node_modules in the working directory at
 	// the start, when it has one: the checkouts are gone after Run returns.
 	NodeModules *fakeNodeModules `json:"node_modules,omitempty"`
@@ -297,6 +307,9 @@ func runFake(name string, args []string) int {
 		return fakeNoBehaviorExit
 	}
 	if version, ok := b.version(name, args); ok {
+		if err := runGit(b.VersionGit, b.GitDir); err != nil {
+			return fakeNoBehaviorExit
+		}
 		return answer(fakeAnswer{Stdout: version + "\n"})
 	}
 	switch {
@@ -334,6 +347,13 @@ func (b fakeBehavior) record(name string, args []string) error {
 		return err
 	}
 	start := fakeStart{Name: name, Args: args, Env: os.Environ(), Dir: dir}
+	if start.suite() {
+		head, err := exec.Command("git", "rev-parse", "HEAD").Output()
+		if err != nil {
+			return err
+		}
+		start.Head = strings.TrimSpace(string(head))
+	}
 	modules := filepath.Join(dir, "node_modules")
 	if info, err := os.Lstat(modules); err == nil {
 		start.NodeModules = &fakeNodeModules{RealDir: info.IsDir(), Links: map[string]string{}}
@@ -392,22 +412,20 @@ func (b fakeBehavior) suite(args []string, prefix, ext string) int {
 
 // act runs the suite's actions up to its output.
 func (s fakeSuite) act(report, tap string) error {
-	for _, gitArgs := range s.Git {
-		cmd := exec.Command("git", gitArgs...) //nolint:gosec // G204: test-only fake runs the git commands its test scripted
-		cmd.Dir = s.GitDir
-		if out, err := cmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("git %v: %w: %s", gitArgs, err, out)
-		}
+	if err := runGit(s.Git, s.GitDir); err != nil {
+		return err
 	}
 	for path, content := range s.Writes {
 		if err := os.WriteFile(path, []byte(content), 0o600); err != nil { //nolint:gosec // G703: test-only fake writes the file its test named
 			return err
 		}
 	}
-	if err := os.WriteFile(report, []byte(s.Report), 0o600); err != nil { //nolint:gosec // G703: test-only fake writes the report where the tool told it to
-		return err
+	if !s.NoReport {
+		if err := os.WriteFile(report, []byte(s.Report), 0o600); err != nil { //nolint:gosec // G703: test-only fake writes the report where the tool told it to
+			return err
+		}
 	}
-	if tap != "" {
+	if tap != "" && !s.NoReport {
 		if err := os.WriteFile(tap, []byte(s.TAP), 0o600); err != nil { //nolint:gosec // G703: test-only fake writes the report where the tool told it to
 			return err
 		}
@@ -424,6 +442,18 @@ func (s fakeSuite) act(report, tap string) error {
 	return err
 }
 
+// runGit runs the scripted git commands in dir.
+func runGit(commands [][]string, dir string) error {
+	for _, gitArgs := range commands {
+		cmd := exec.Command("git", gitArgs...) //nolint:gosec // G204: test-only fake runs the git commands its test scripted
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("git %v: %w: %s", gitArgs, err, out)
+		}
+	}
+	return nil
+}
+
 // waitForTerm starts a grandchild in the process group, writes both PIDs to
 // ready, and waits for SIGTERM.
 func waitForTerm(ready string) int {
@@ -435,8 +465,12 @@ func waitForTerm(ready string) int {
 	if err := grandchild.Start(); err != nil {
 		return fakeNoBehaviorExit
 	}
+	// Written whole and renamed, so a reader never sees part of it.
 	pids := strconv.Itoa(os.Getpid()) + " " + strconv.Itoa(grandchild.Process.Pid)
-	if err := os.WriteFile(ready, []byte(pids), 0o600); err != nil { //nolint:gosec // G703: test-only fake writes the file its test named
+	if err := os.WriteFile(ready+".part", []byte(pids), 0o600); err != nil { //nolint:gosec // G703: test-only fake writes the file its test named
+		return fakeNoBehaviorExit
+	}
+	if err := os.Rename(ready+".part", ready); err != nil { //nolint:gosec // G703: test-only fake renames the file its test named
 		return fakeNoBehaviorExit
 	}
 	select {
@@ -535,8 +569,9 @@ type testRepo struct {
 	dir string // the worktree root, with its symbolic links resolved
 }
 
-// newTestRepo creates an empty repository. Its git never reads the user's
-// global or system configuration, and commits are not signed.
+// newTestRepo creates an empty repository. Its git reads neither the user's
+// global or system configuration nor their attributes, and commits are not
+// signed.
 func newTestRepo(t *testing.T) *testRepo {
 	t.Helper()
 	r := &testRepo{t: t, dir: filepath.Join(resolvedTempDir(t), "repo")}
@@ -567,7 +602,7 @@ func (r *testRepo) gitIn(dir string, args ...string) string {
 
 func (r *testRepo) gitRun(dir, stdin string, args ...string) string {
 	r.t.Helper()
-	cmd := exec.Command("git", args...) //nolint:gosec // G204: test setup runs git with the test's arguments
+	cmd := exec.Command("git", append([]string{"-c", noGlobalAttributes}, args...)...) //nolint:gosec // G204: test setup runs git with the test's arguments
 	cmd.Dir = dir
 	cmd.Stdin = strings.NewReader(stdin)
 	cmd.Env = gitEnv(os.Environ())

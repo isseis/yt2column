@@ -27,8 +27,9 @@ type pinnedCommits struct {
 var objectID = regexp.MustCompile(`^[0-9a-f]{40}([0-9a-f]{24})?$`)
 
 // resolveCommits resolves BASE and HEAD in the user's repository. A BASE that
-// is empty or does not name a commit stops as usage. --end-of-options keeps a
-// BASE that starts with "-" from being read as an option.
+// is empty or does not name a commit stops as usage. --end-of-options is
+// there so that no BASE is read as an option; the ^{commit} suffix already
+// keeps a BASE that starts with "-" from matching one.
 func resolveCommits(ctx context.Context, git gitRunner, base string) (pinnedCommits, error) {
 	if base == "" {
 		return pinnedCommits{}, usageStop("BASE is not given")

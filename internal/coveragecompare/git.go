@@ -13,13 +13,22 @@ import (
 // gitEnv returns the environment every git command of the tool runs with.
 //
 // Contract: no inherited GIT_* variable passes (cmdrunner.GitEnv), so the
-// user's environment cannot point git at another repository, and the global
-// and system configuration are not read, so a filter, a smudge, or a diff.*
-// setting there cannot change what git reads or prints. The two variables are
-// added after GitEnv, which drops every GIT_* variable it is given.
+// user's environment cannot point git at another repository, and neither the
+// global and system configuration nor the system attributes are read, so a
+// filter, a smudge, or a diff.* setting there cannot change what git reads or
+// prints. The variables are added after GitEnv, which drops every GIT_*
+// variable it is given. The global attributes file, which git reads from
+// its default place even without the global configuration, is turned off by
+// noGlobalAttributes on every command. The global excludes file is still
+// read, so a file the user's git ignores is not an uncommitted change.
 func gitEnv(environ []string) []string {
-	return append(cmdrunner.GitEnv(environ), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1")
+	return append(cmdrunner.GitEnv(environ), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1", "GIT_ATTR_NOSYSTEM=1")
 }
+
+// noGlobalAttributes keeps git from reading the user's global attributes
+// file ($XDG_CONFIG_HOME/git/attributes or ~/.config/git/attributes), where
+// an attribute could mark source binary, expand $Id$, or convert line ends.
+const noGlobalAttributes = "core.attributesFile=/dev/null"
 
 // gitRunner runs git in one directory.
 type gitRunner struct {
@@ -28,14 +37,15 @@ type gitRunner struct {
 
 // newGit returns the git of dir. Every command it runs gets gitEnv and is
 // preceded by cmdrunner.GitHardening, so configuration cannot launch a
-// command during a read.
+// command during a read, and by noGlobalAttributes.
 func newGit(dir string, environ []string) gitRunner {
 	return gitRunner{runner: cmdrunner.NewOS(cmdrunner.Options{Dir: dir, Env: gitEnv(environ)})}
 }
 
 // run runs one git subcommand and returns its standard output.
 func (g gitRunner) run(ctx context.Context, args ...string) ([]byte, error) {
-	return g.runner.Run(ctx, "git", append(cmdrunner.GitHardening(), args...)...)
+	global := append(cmdrunner.GitHardening(), "-c", noGlobalAttributes)
+	return g.runner.Run(ctx, "git", append(global, args...)...)
 }
 
 // commitSource reads the files of one point from its pinned commit, not from

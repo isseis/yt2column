@@ -56,7 +56,7 @@
 |---|---|---|
 | 起動 | `NewOS(Options)` と `Runner.Run`（`runner.go:25-27`・`:96`・`:101-`）。`Options` は `MaxOutput`・`WaitDelay`・`Dir`・`Env`・`StderrIsFailure`・`ProcessGroup`・`GroupStopGrace`（`:52-60`） | 変えない。git・go・node・npm をすべてこれで起動する（設計書 2.1）。`MaxOutput` は 0（上限なし。AC-32） |
 | 失敗 | 0 以外の終了は `*ExitError`（`Code`・`Stdout`・`Stderr`。`:67-75`）。取り消しでは context のエラーと合わせて返す（`:130-132`）。成功したときの標準エラー出力は捨てる | 終了コードを `test-failed` の判定に使う。出力の末尾は報告から取る（1.3）。取り消しは、`*ExitError` より先に context のエラーを見て `internal` に分ける（設計書 4 章） |
-| git | `GitEnv`（`git.go:32-44`）と `GitHardening`（`:19-30`） | 変えない。`GitEnv` の結果に `GIT_CONFIG_GLOBAL=/dev/null`・`GIT_CONFIG_NOSYSTEM=1` を加える（設計書 3.2）。`GitEnv` は `GIT_` で始まる変数を落としてから決まった 2 つを加えるので、加える 2 つは `GitEnv` の後に足す |
+| git | `GitEnv`（`git.go:32-44`）と `GitHardening`（`:19-30`） | 変えない。`GitEnv` の結果に `GIT_CONFIG_GLOBAL=/dev/null`・`GIT_CONFIG_NOSYSTEM=1`・`GIT_ATTR_NOSYSTEM=1` を加え、`GitHardening` の後に `-c core.attributesFile=/dev/null` を置く（設計書 3.2）。`GitEnv` は `GIT_` で始まる変数を落としてから決まった 2 つを加えるので、加える変数は `GitEnv` の後に足す |
 | 偽の `Runner` | `internal/cmdrunner/testutil` の `Fake`（`mocks.go:34-`）。決めた順の呼び出しを再生する | 使わない。フェーズ 1〜3 は外部のコマンドを起動せず、フェーズ 4 は実際の git と偽の go・node・npm で確かめる（設計書 7.2） |
 
 **入口とシグナル（`internal/signalrun`、`cmd/codexreview`）**
