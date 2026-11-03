@@ -8,11 +8,6 @@ import (
 	"testing"
 )
 
-// sameFileRanges reports whether two range-helper answers are equal.
-func sameFileRanges(a, b fileRanges) bool {
-	return a.Path == b.Path && slices.Equal(a.Functions, b.Functions) && slices.Equal(a.FieldGroups, b.FieldGroups)
-}
-
 func TestParseRanges(t *testing.T) {
 	t.Run("accepts the ranges of the requested files in order", func(t *testing.T) {
 		data := `{"files":[` +
@@ -34,23 +29,10 @@ func TestParseRanges(t *testing.T) {
 				FieldGroups: []lineRange{},
 			},
 		}
-		if len(got) != len(want) {
-			t.Fatalf("files = %+v, want %+v", got, want)
-		}
-		for i := range want {
-			if !sameFileRanges(got[i], want[i]) {
-				t.Errorf("file %d = %+v, want %+v", i, got[i], want[i])
-			}
-		}
-	})
-
-	t.Run("accepts no requested files", func(t *testing.T) {
-		got, err := parseRanges([]byte(`{"files":[]}`), PointBase, nil)
-		if err != nil {
-			t.Fatalf("parseRanges: %v", err)
-		}
-		if len(got) != 0 {
-			t.Errorf("files = %+v, want none", got)
+		if !slices.EqualFunc(got, want, func(a, b fileRanges) bool {
+			return a.Path == b.Path && slices.Equal(a.Functions, b.Functions) && slices.Equal(a.FieldGroups, b.FieldGroups)
+		}) {
+			t.Errorf("files = %+v, want %+v", got, want)
 		}
 	})
 
@@ -180,6 +162,13 @@ func TestParseRanges(t *testing.T) {
 			files: []string{"extension/src/a.ts"},
 		},
 		{
+			name: "a pretty-printed answer with a range that ends before it starts",
+			data: "{\n  \"files\": [\n    {\n      \"path\": \"src/a.ts\",\n" +
+				"      \"functions\": [{\"start\": 5, \"end\": 4}],\n      \"fieldGroups\": []\n" +
+				"    }\n  ]\n}\n",
+			files: []string{"extension/src/a.ts"},
+		},
+		{
 			name:  "a missing file",
 			data:  `{"files":[{"path":"src/a.ts","functions":[],"fieldGroups":[]}]}`,
 			files: []string{"extension/src/a.ts", "extension/scripts/b.ts"},
@@ -208,6 +197,8 @@ func TestParseRanges(t *testing.T) {
 			files: []string{"extension/src/a.ts"},
 		},
 		{
+			// The helper names files relative to extension/, so the reader
+			// must not accept the repository-relative form in the answer.
 			name:  "a path relative to the repository root",
 			data:  `{"files":[{"path":"extension/src/a.ts","functions":[],"fieldGroups":[]}]}`,
 			files: []string{"extension/src/a.ts"},
@@ -224,6 +215,11 @@ func TestParseRanges(t *testing.T) {
 		})
 	}
 
+	t.Run("reports a missing files member at the head point", func(t *testing.T) {
+		_, err := parseRanges([]byte(`{}`), PointHead, []string{"extension/src/a.ts"})
+		requireStop(t, err, PointHead, InputRanges)
+	})
+
 	t.Run("stops as internal for a requested file outside extension/", func(t *testing.T) {
 		data := `{"files":[{"path":"src/a.ts","functions":[],"fieldGroups":[]}]}`
 		_, err := parseRanges([]byte(data), PointBase, []string{"src/a.ts"})
@@ -233,6 +229,16 @@ func TestParseRanges(t *testing.T) {
 		}
 		if stop.Kind != StopInternal {
 			t.Errorf("stop kind = %v, want %v", stop.Kind, StopInternal)
+		}
+		if len(stop.Reasons) != 1 {
+			t.Fatalf("reasons = %+v, want one", stop.Reasons)
+		}
+		reason := stop.Reasons[0]
+		if reason.Point != PointBase || reason.Input != InputRanges {
+			t.Errorf("reason point/input = %v/%v, want %v/%v", reason.Point, reason.Input, PointBase, InputRanges)
+		}
+		if reason.Func == nil || *reason.Func != (FuncID{File: "src/a.ts"}) {
+			t.Errorf("reason function = %+v, want src/a.ts", reason.Func)
 		}
 	})
 }

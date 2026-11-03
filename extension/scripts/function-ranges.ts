@@ -32,7 +32,7 @@ interface RangeArguments {
 
 /** Parses "--root <dir> -- <path>..."; anything else is undefined. */
 function parseArguments(argv: string[]): RangeArguments | undefined {
-  if (argv.length < 3 || argv[0] !== "--root" || argv[2] !== "--") {
+  if (argv.length < 4 || argv[0] !== "--root" || argv[2] !== "--") {
     return undefined;
   }
   const root = argv[1];
