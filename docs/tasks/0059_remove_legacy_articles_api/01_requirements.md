@@ -12,7 +12,7 @@
 
 ## 1. 概要 (Overview)
 
-**目的:** 本書は、ブラウザ拡張がジョブの API に移った後に、localhost サーバの旧 API（`POST /articles`）と、Native Messaging のホストの今の形のメッセージの中継を削除するための要件を定める。あわせて、新旧の API を両方扱うために複雑になったところを簡素化する（[#526](https://github.com/isseis/yt2column/issues/526)）。
+**目的:** 本書は、ブラウザ拡張がジョブの API に移った後に、localhost サーバの旧 API（`POST /articles`）と、Native Messaging のホストの今の形のメッセージ（版のメンバ `v` を持たないもの。6 章で定義）の中継を削除するための要件を定める。あわせて、新旧の API を両方扱うために複雑になったところを簡素化する（[#526](https://github.com/isseis/yt2column/issues/526)）。
 
 **背景:**
 
@@ -22,6 +22,9 @@
 
 -   サーバは `/articles` を受け付け、旧 API のジョブ（パイプラインで生成し、Webhook に投稿する）を走らせ、失敗を Webhook への失敗の通知で報告する（`internal/server/handler.go:12-14`・`:49-51`・`:96-`、`internal/server/job.go:44-114`・`:118-142`・`:190-222`）。Webhook の設定は、旧 API のための `Notifier` を持つ（`internal/server/server.go:64-68`）。
 -   生成の枠（`2`）は、旧 API のリクエスト・旧 API のジョブ・失敗の通知と、ジョブの API の生成のジョブが合わせて数える（`internal/server/job.go:17-22`、`internal/server/server.go:84-89`）。
+-   サーバの Webhook の投稿の相手（`WebhookPublisher`）は、旧 API のジョブのための `publisher.Publisher`（`Publish`）を含む（`internal/server/publish.go:17-20`）。
+-   生成の開始は、読み込みの枠（2 つ）の範囲で本文を読む（`internal/server/jobs_api.go:15`）。`/articles` は、生成の枠を 1 つ持っている間だけ本文を読む。そのため、同時に読む本文は最大 4 つである（`docs/dev/guides/development.md:153`）。
+-   `SLACK_WEBHOOK_URL` が未設定のときの起動時の警告は、投稿の操作と `/articles` が `webhook_not_configured` を返すと書く（`cmd/yt2column-server/run.go:195`）。`internal/server` のパッケージの説明と `Serve` の説明も、2 つの API と失敗の通知を説明している（`internal/server/server.go:1-9`・`:222-228`）。
 -   シャットダウンのログと停止の案内は、`/articles` のジョブと失敗の通知を待つ対象に挙げる（`internal/server/server.go:262-273`、`cmd/yt2column-server/run.go:237-243`）。停止の案内の「約 45 分」は、旧 API のジョブの LLM の呼び出し 3 回分である（`cmd/yt2column-server/run.go:40-43`）。
 -   ホストは、`v` を持たないメッセージと、1 つの厳格な JSON オブジェクトとして読めないメッセージを、バイト列を変えずに `POST /articles` へ中継する（`internal/nmhost/relay.go:55`・`:466-470`・`:528-530`）。
 -   文書は、`/articles`・失敗の通知・今の形の中継を説明している（README の「localhost サーバ」節、`docs/dev/guides/development.md`、`docs/dev/security.md` §8、`docs/dev/project_overview.md`、`docs/dev/conventions/package_reference.md`、`docs/dev/production_profile.md`、`docs/translation_glossary.md`、CLAUDE.md）。
@@ -32,7 +35,7 @@
 
 **issue #526 で決めたこと:**
 
--   **削除するもの:** 旧 API だけが使うもの（`0044` 設計書 §3.14 の削除の 8 項目）を削除する。サーバの `/articles` の受け口と旧 API のジョブ、失敗の通知（`internal/failure`、`SlackFailureNotifier` と、それだけが使うエラー、サーバの `Notifier`）、ホストの今の形の中継と、その形の判定、CLAUDE.md の例外の記述、文書の `/articles` の記述、`/articles` の curl の例のガード、である。#503 で拡張が旧 API を使わなくなったので、残す理由がない。
+-   **削除するもの:** 旧 API だけが使うもの（`0044` 設計書 §3.14 の削除の 8 項目）を削除する。サーバの `/articles` の受け口と旧 API のジョブ、失敗の通知（`internal/failure`、`SlackFailureNotifier`、それだけが使うエラー、サーバの `Notifier`）、サーバの `WebhookPublisher` の `publisher.Publisher`（`Publish`、issue の削除の項目 2）、ホストの今の形の中継と、その形の判定、CLAUDE.md の例外の記述、文書の `/articles` の記述、`/articles` の curl の例のガード、である。#503 で拡張が旧 API を使わなくなったので、残す理由がない。
 -   **`v` を持たないメッセージは `protocol_error`:** 削除の後、ホストは `v` を持たないメッセージを中継せず、`protocol_error` を返す。拡張は新しい形しか送らないので、今の形を受け付け続ける理由がない。
 -   **簡素化するもの:** 新旧の両対応のために複雑になったもの（同 §3.14 の簡素化の 6 項目）を簡素化する。生成の枠を数える主体の区別、`webhook_not_configured` の `/articles` での使い方、`jobInput` の旧 API だけが使う値、ホストの `forward` の契約の今の形との対比、停止の案内の「約 45 分」である。
 -   **CLI の `Publish` は残す:** `SlackWebhookPublisher.Publish` は CLI の `--slack` が使うので残す。サーバがそれを使わなくなることを確かめる。
@@ -40,7 +43,7 @@
 
 **要件定義の際に決めたこと（2026-11-03）:**
 
--   **`/articles` は `not_found`:** 削除の後、`/articles` へのリクエストは、ほかの知らないパスと同じく `not_found`（404）で拒否する（F-001）。専用の拒否の理由は加えない。#503 の後、`/articles` を呼ぶのは手で送る `curl` くらいで、専用の理由を加えると、拒否の理由の表とそのガードを変えることになり、`/articles` のための分岐もまた残るためである。
+-   **`/articles` は `not_found`:** 削除の後、`/articles` へのリクエストは、ほかの未知のパスと同じく `not_found`（404）で拒否する（F-001）。専用の拒否の理由は加えない。#503 の後に `/articles` を呼ぶのは手で送る `curl` くらいであり、専用の理由を加えると、拒否の理由の表とそのガードを変えることになるうえ、`/articles` のための分岐も残るためである。
 -   **書き換える文書は、旧 API を書いている今の文書すべて:** issue の一覧が挙げる文書（README、`docs/dev/security.md`、`docs/dev/project_overview.md`、CLAUDE.md の例外）に加えて、タスク文書（`docs/tasks/`）を除き、旧 API・失敗の通知・今の形の中継を書いている文書をすべて書き換える（F-004）。issue の一覧の後、タスク 0048 の文書の分割で、HTTP API の説明は `docs/dev/guides/development.md` に移った。ほかにも `package_reference.md`・`production_profile.md`・用語集・CLAUDE.md の Architecture Overview に、旧 API の記述が残っている。一覧の文書だけを直すと、削除したものを説明する記述が残る。
 
 ## 2. 目的とスコープ (Goals and Scope)
@@ -48,7 +51,7 @@
 ### 2.1. 目的 (Goals)
 
 -   サーバが受け付ける API を、ジョブの API だけにする。
--   ホストが受け付けるメッセージを新しい形だけにし、メッセージの中身で形を選ぶ処理と、その CLAUDE.md の例外をなくす。
+-   ホストが受け付けるメッセージを新しい形だけにし、メッセージの中身で形を選ぶ処理と、それに対応する CLAUDE.md の例外をなくす。
 -   サーバが Webhook へ送るものを、利用者が求めた記事の投稿だけにする（失敗の通知をなくす）。
 -   新旧の両対応のために複雑になった生成の枠の数え方・停止の待ち方・その説明を、ジョブの API だけを前提にした形に戻す。
 -   文書から、削除したものの説明を取り除く。
@@ -65,7 +68,7 @@
 ### 2.3. スコープ外 (Out of Scope)
 
 -   ジョブの API の振る舞いの変更。3 つの操作、拒否の理由、状態コード、応答の形、生成の枠と読み込みの枠の数、本文の上限、記事のキャッシュは変えない（F-001 AC-03）。
--   ホストの新しい形のメッセージの検査規則、送り先、ホストの応答の形、ホストのエラーの値の変更（F-002 AC-07）。
+-   ホストの新しい形のメッセージの検査規則、送り先、ホストの応答の形、ホストのエラーの値の変更（F-002 AC-09）。
 -   ブラウザ拡張の変更。拡張は #503 で今の形を送らなくなった（`docs/tasks/0050_viewer_tab/02_architecture.md` §9「#526 の今の形の削除」）。
 -   CLI の変更。CLI はパイプラインと `SlackWebhookPublisher.Publish` を使い続ける（F-001 AC-05）。
 -   タスク文書（`docs/tasks/`）の書き換え。過去のタスクの記録は、その時点の記述として残す。
@@ -80,87 +83,98 @@
 サーバは `/articles` を受け付けず、旧 API のジョブを走らせず、失敗の通知を Webhook へ送らない。ジョブの API の振る舞いは変えない。
 
 **Acceptance Criteria**:
-- **AC-01**: リクエストのターゲットが `/articles` のリクエストは、メソッドによらず、ほかの知らないパスと同じく `not_found`（404）で拒否される。サーバは本文を読まず、生成の枠も読み込みの枠も取らず、記事を生成せず、Webhook へ何も送らない。
-- **AC-02**: サーバは、どの拒否・生成の失敗・投稿の失敗・パニックでも、失敗の通知を Webhook へ送らない。サーバが Webhook へ送るのは、投稿の操作が始めた投稿のジョブの記事だけである。
-- **AC-03**: ジョブの API の 3 つの操作（生成の開始・状態の取得・投稿の操作）の受理と拒否の理由、状態コード、応答の本文の形、生成の枠の数（`2`）、読み込みの枠の数（`2`）、本文の上限（4 MiB）は変わらない。生成の枠を数えるのは、ジョブの API の生成のジョブだけになる。
-- **AC-04**: `SLACK_WEBHOOK_URL` が未設定のとき、サーバは今と同じく起動し、投稿の操作を `webhook_not_configured` で拒否する。設定されていれば、サーバは記事の投稿のためだけに Webhook を使い、失敗の通知の送り手を組み立てない。サーバの起動が、失敗の通知の送り手の組み立ての失敗で終わることはない。
+- **AC-01**: リクエストのターゲットが `/articles` のリクエストは、メソッドによらず、ほかの未知のパスと同じく `not_found`（404）で拒否される。サーバは本文を読まず、生成の枠も読み込みの枠も取らず、記事を生成せず、Webhook へ何も送らない。
+- **AC-02**: サーバは、どの拒否・生成の失敗・投稿の失敗・パニックでも、失敗の通知を Webhook へ送らない。サーバが Webhook へ送るのは、投稿の操作が始めた投稿のジョブが送る記事だけである。
+- **AC-03**: ジョブの API の 3 つの操作（生成の開始・状態の取得・投稿の操作）について、受理、拒否の理由、状態コード、応答の本文の形は変わらない。生成の枠の数（`2`、`internal/server/job.go:22`）、読み込みの枠の数（`2`、`internal/server/jobs_api.go:15`）、本文の上限（4 MiB、`internal/server/request.go:19`）も変わらない。生成の枠を数えるのは、ジョブの API の生成のジョブだけになる。同時に読むリクエストの本文は、読み込みの枠の数と同じ最大 2 つになる。
+- **AC-04**: `SLACK_WEBHOOK_URL` が未設定のとき、サーバは今と同じく起動し、投稿の操作を `webhook_not_configured` で拒否する。そのときの起動時の警告は、投稿の操作だけが `webhook_not_configured` を返すと書き、`/articles` に触れない。設定されていれば、サーバは記事の投稿のためだけに Webhook を使い、失敗の通知の送り手を組み立てない。失敗の通知の送り手を組み立てられないために、サーバの起動が失敗することはない。
 - **AC-05**: CLI の振る舞い（`--slack` での投稿を含む）は変わらない。
-- **AC-06**: リポジトリの Go のコード（テストを含む）に、次のものが残らない: `ArticlesPath`、旧 API のジョブとその失敗の分類・失敗の種類への対応づけ、失敗の通知の送信、`internal/failure` と `internal/failure/testutil`、`SlackFailureNotifier`・`NewSlackFailureNotifier`・`ErrSlackInvalidNotice`・`ErrSlackNoticeRejected`、`cmd/yt2column-server` の失敗の通知の送り手の組み立て、サーバの `internal/pipeline` の使用。
+- **AC-06**: リポジトリの Go のコード（テストを含む）に、次のものが残らない: `ArticlesPath`、旧 API のジョブ（`startJob`・`runJob`）、パイプラインの失敗を失敗の種類に対応づけるもの（`classify`・`stageOf`）、記事の失敗の理由と拒否の理由を失敗の種類に対応づけるもの（`failureKind`・`reasonToKind`）、失敗の通知の送信（`notify`・`notifyAsync`・`notifyTimeout`）、`internal/failure` と `internal/failure/testutil`、`SlackFailureNotifier`・`NewSlackFailureNotifier`・`ErrSlackInvalidNotice`・`ErrSlackNoticeRejected`、`cmd/yt2column-server` の失敗の通知の送り手の組み立て、サーバの `internal/pipeline` の使用。ジョブの API が使う、書き込みの失敗を記事の失敗の理由に対応づけるもの（`classifyWrite`、`internal/server/generation.go:51`）は残る。
+- **AC-07**: サーバが Webhook の投稿の相手に求めるのは、投稿のジョブが使う送信（`PostMessages`）だけで、`Publish` を求めない。`SlackWebhookPublisher.Publish` を呼ぶのは CLI だけである。
+- **AC-08**: サーバの Go のコメントとログの文字列は、`/articles`、旧 API のジョブ、失敗の通知を、今あるものとして説明しない（`internal/server` のパッケージの説明、`Serve` の説明、起動時の警告、シャットダウンのログを含む）。
 
 #### F-002: ホストの今の形の中継の削除
 
 ホストは新しい形のメッセージだけを中継する。それ以外のメッセージは、サーバへリクエストを送らずに `protocol_error` で拒否する。
 
+ホストの処理の順序は今と同じである: 長さの検査、サーバへの接続、メッセージの全体の読み込み、形の検査、送信（`internal/nmhost/relay.go:236-262`）。形の検査より前の失敗は、今と同じホストのエラーになる（長さが 32 MiB を超えれば `message_too_large`、0 なら `protocol_error`、接続できなければ、メッセージを読まずに `server_unavailable`、読み込みが中継の時間の上限を過ぎれば `server_timeout`）。AC-10・AC-11 は、長さが 1 バイト以上 32 MiB 以下で、接続でき、メッセージの全体を時間の上限までに読めた場合の振る舞いである。
+
 **Acceptance Criteria**:
-- **AC-07**: 新しい形のメッセージ（`0044` F-008 の受理する形: 1 つの厳格な JSON オブジェクトで、最上位のメンバは `v`・`op`・`input`・`key` だけ、重複なし、`v` は整数の `1`、`op` は `start`・`status`・`publish` のどれかで、それに合う `input` か `key` を持つ）の中継は変わらない。送り先（`POST /jobs`・`GET /jobs/{key}`・`POST /jobs/{key}/publish`）、送る本文、ホストの応答の形、32 MiB のメッセージの上限、512 KiB のサーバの応答の上限、20 秒の中継の時間の上限は、今と同じである。
-- **AC-08**: 1 つの厳格な JSON オブジェクトとして読めるが、最上位に `v` を持たない（エスケープを解いた名前で比べる）メッセージには、ホストはサーバへリクエストを送らずに `protocol_error` を返す。`v` 以外のメンバ（`op` など）がそろっていても同じである。
-- **AC-09**: 1 つの厳格な JSON オブジェクトとして読めないメッセージ（正しい UTF-8 でない、JSON として正しくない、最上位がオブジェクトでない、後続のデータがある、対になっていないサロゲートのエスケープを含む）には、ホストはサーバへリクエストを送らずに `protocol_error` を返す。中身を直して送ることはしない。
-- **AC-10**: ホストの Go のコードに、`/articles` の送り先と、今の形を表す値が残らない。ホストがメッセージの中身で中継の形を選ぶ処理はなくなり、メッセージは新しい形として検査されるか、拒否されるかのどちらかになる。
-- **AC-11**: AC-08・AC-09 の拒否のとき、ホストのログには、今と同じく固定の値（段階・規則の名前など）だけを書き、メッセージのメンバ名や値を書かない。
+- **AC-09**: 新しい形のメッセージの中継は変わらない。受理する形は `0044` F-008 のとおりで、1 つの厳格な JSON オブジェクトであり、最上位のメンバは `v`・`op`・`input`・`key` だけで重複がない。`v` は整数の `1` だけ、`op` は `start`・`status`・`publish` のどれかで、それに合う `input` か `key` を持つ（`internal/nmhost/relay.go:466-510`）。送り先（`POST /jobs`・`GET /jobs/{key}`・`POST /jobs/{key}/publish`）、送る本文、ホストの応答の形、32 MiB のメッセージの上限（`relay.go:38`）、512 KiB のサーバの応答の上限（`relay.go:43`）、20 秒の中継の時間の上限（`relay.go:31`）は、今と同じである。
+- **AC-10**: 1 つの厳格な JSON オブジェクトとして読めるが、最上位に `v` を持たない（エスケープを解いた名前で比べる）メッセージには、ホストは HTTP のリクエストを送らずに `protocol_error` を返す。`v` 以外のメンバ（`op` など）がそろっていても同じである。
+- **AC-11**: 1 つの厳格な JSON オブジェクトとして読めないメッセージ（正しい UTF-8 でない、JSON として正しくない、最上位がオブジェクトでない、後続のデータがある、対になっていないサロゲートのエスケープを含む）には、ホストは HTTP のリクエストを送らずに `protocol_error` を返す。中身を直して送ることはしない。
+- **AC-12**: AC-10・AC-11 の `protocol_error` を受け取った拡張は、今のホストの `protocol_error` と同じく、想定外の応答として表示する（`extension/src/core/native.ts:73-74`）。拡張は変えない。
+- **AC-13**: ホストの Go のコードに、`/articles` の送り先と、今の形を表す値が残らない。ホストがメッセージの中身で中継の形を選ぶ処理はなくなり、メッセージは新しい形として検査されるか、拒否されるかのどちらかになる。
+- **AC-14**: AC-10・AC-11 の拒否のとき、ホストのログには、今と同じく固定の値（段階・規則の名前など）だけを書き、メッセージのメンバ名や値を書かない。
 
 #### F-003: 停止
 
 停止のときにサーバが待つものと、その案内を、ジョブの API だけを前提にした形にする。
 
 **Acceptance Criteria**:
-- **AC-12**: 最初のシグナルの後に書く停止の案内は、待つ対象をビューアから送った投稿（投稿のジョブ）とし、待つ時間の最長の目安を約 5 分とする。`/articles` のジョブ、失敗の通知、LLM の呼び出しの回数に基づく「約 45 分」は案内に出ない。実行中の生成を取り消し、その記事が失われることは、今と同じく案内に出る。
-- **AC-13**: シャットダウンのログは、待つ対象として `/articles` のジョブと失敗の通知を挙げない。待っている数を書くときは、今も残っている種類のジョブ（投稿のジョブと、取り消した生成のジョブ）だけを数える。
-- **AC-14**: 停止の振る舞いは変わらない。最初のシグナルで、接続の受け付けをやめ、ソケットを消し、実行中の生成を取り消し、投稿のジョブが終わるのを待つ。2 つ目のシグナルですぐに終わる。ジョブが終わるまで、新しいサーバは起動を断る。
+- **AC-15**: 最初のシグナルの後に書く停止の案内は、待つ対象をビューアから送った投稿（投稿のジョブ）とし、待つ時間の最長の目安を約 5 分とする。`/articles` のジョブ、失敗の通知、LLM の呼び出しの回数に基づく「約 45 分」は案内に出ない。実行中の生成を取り消し、その記事が失われることは、今と同じく案内に出る。
+- **AC-16**: シャットダウンのログ（待ち始めの行と、待ち終えた行）は、`/articles` のジョブと失敗の通知を挙げない。ログに書く数に、旧 API のジョブと失敗の通知は含めない。
+- **AC-17**: 停止の振る舞いは、旧 API のジョブと失敗の通知を待たなくなることのほかは変わらない。最初のシグナルで、実行中の生成を取り消し、接続の受け付けをやめ、ソケットを消し、処理中のリクエスト、取り消した生成のジョブ、投稿のジョブが終わるのを待つ（`internal/server/server.go:222-273`）。2 つ目のシグナルですぐに終わる。ジョブが終わるまで、新しいサーバは起動を断る。
 
 #### F-004: 文書とガード
 
 タスク文書を除く今の文書から、削除したものの説明を取り除き、残る振る舞いに合わせる。
 
 **Acceptance Criteria**:
-- **AC-15**: 次の文書は、`/articles`、旧 API のジョブ、失敗の通知、ホストの今の形の中継を、今あるものとして説明しない: `README.md` と `README.en.md`、`docs/dev/guides/development.md`、`docs/dev/security.md`、`docs/dev/project_overview.md`、`docs/dev/conventions/package_reference.md`、`docs/dev/production_profile.md`、`docs/translation_glossary.md`、CLAUDE.md。生成の枠の説明は、ジョブの API の生成のジョブだけが数えることを書く。停止の説明は、F-003 の振る舞い（待つのは投稿のジョブで、最長およそ 5 分）を書く。版がそろっていない場合の説明（`README.md:562-564`）は、今の形のメッセージを送る古い拡張が `protocol_error` を受け取ることに合わせる。
-- **AC-16**: CLAUDE.md の「Declare, don't infer」から、Native Messaging のホストが今の形と新しい形をメッセージの中身で選ぶ例外の段落を取り除く。CLAUDE.md の Architecture Overview から、`internal/failure` の記述を取り除く。
-- **AC-17**: `docs/dev/guides/development.md` の curl の例は、`/articles` へのリクエストを含まない。curl の例のガード（`cmd/yt2column-server/docs_test.go`）は、ジョブの API の 3 つの操作の例を求め、`/articles` の例を求めない。サーバが動いているかを確かめる例は、ジョブの API のパスを使う。
-- **AC-18**: 文書を読む既存のガード（README と `development.md` の拒否の理由の表、`security.md` の枠の数と本文の上限など）は、変更の後も通る。
+- **AC-18**: 次の文書は、`/articles`、旧 API のジョブ、失敗の通知、ホストの今の形の中継を、今あるものとして説明しない: `README.md` と `README.en.md`、`docs/dev/guides/development.md`、`docs/dev/security.md`、`docs/dev/project_overview.md`、`docs/dev/conventions/package_reference.md`、`docs/dev/production_profile.md`、`docs/translation_glossary.md`、CLAUDE.md。生成の枠の説明は、ジョブの API の生成のジョブだけが数えることを書き、同時に読む本文の最大の数は 2 とする（`docs/dev/guides/development.md` と `docs/dev/security.md` §8.2）。停止の説明は、F-003 の振る舞い（待つのは投稿のジョブで、最長およそ 5 分）を書く。版がそろっていない場合の説明（`README.md:562-564`）は、4.4 の表の組み合わせに合わせる。今の文書と用語集が「新しい API」と呼ぶものは、旧 API がなくなった後は「ジョブの API」と呼ぶ（`docs/dev/guides/development.md` の呼び方に揃える）。
+- **AC-19**: CLAUDE.md の「Declare, don't infer」から、Native Messaging のホストが今の形と新しい形をメッセージの中身で選ぶ例外の段落を取り除く。CLAUDE.md の Architecture Overview から、`internal/failure` の記述を取り除く。
+- **AC-20**: `docs/dev/guides/development.md` の curl の例は、`/articles` へのリクエストを含まない。curl の例のガード（`cmd/yt2column-server/docs_test.go`）は、ジョブの API の 3 つの操作の例を求め、`/articles` の例を求めない。サーバが動いているかを確かめる例は、ジョブの API のパスを使う。
+- **AC-21**: 文書にある拒否の理由の表（README と `development.md`）と、`security.md` §8.2 の枠の数と本文の上限は、サーバの値と一致する。
 
 ## 4. 非機能要件 (Non-Functional Requirements)
 
 ### 4.1. 性能 (Performance)
 
--   N/A。削除と簡素化で、ジョブの API の処理の量は変わらない。
+-   ジョブの API の処理の量は変わらない。同時に読むリクエストの本文が最大 4 つから 2 つに減るので、本文のために持つメモリの上限は約 16 MiB から約 8 MiB になる（AC-03）。
 
 ### 4.2. セキュリティ (Security)
 
 本タスクは Webhook URL を扱うコードと、ネットワークへ送るコード（Webhook への投稿）を変えるので、`docs/dev/security.md` を適用する。
 
 -   **Webhook へ送るものが減る:** サーバが Webhook へ送るのは、利用者が投稿の操作で求めた記事だけになる（AC-02）。失敗の通知（リクエスト ID・動画 ID・失敗の種類）は送られなくなる。
--   **秘密の扱いは変えない:** Webhook URL と API キーは今と同じく `secret.Secret` で持ち、ログと応答に出さない。ログを伏せ字にする仕組み（`internal/redact`）は変えない。
--   **二重の生成と投稿のリスクがなくなる:** `docs/dev/security.md` §8.2 が `/articles` の残るリスクとして挙げる、`202` が届かずに送り直したときの二重の生成と投稿（`docs/dev/security.md:155`）は、`/articles` とともになくなる。§8 の記述を合わせる（AC-15）。
--   **ホストの入力の境界:** ホストがブラウザから受け取るメッセージの受理する形は、新しい形だけになる（AC-07〜AC-09）。
-    -   受理する形: `0044` F-008 の新しい形（AC-07）。消費するメンバは `v`・`op`・`input`・`key` で、拡張可能と宣言するメンバはない。宣言していないメンバ、重複するメンバ、`op` に合わない余分なメンバ、欠けたメンバは拒否する（今と同じ）。
-    -   拒否の対応: 受理する形でないメッセージは、すべてホストのエラー `protocol_error` になり、サーバへリクエストを送らない（AC-08・AC-09）。新しいホストのエラーの値は加えない。
+-   **秘密の扱いは変えない:** Webhook URL と API キーは今と同じく `secret.Secret` で持ち、ログと応答に出さない（`docs/dev/security.md` §8.2「秘密と字幕の本文を出力に流さない」）。ログを伏せ字にする仕組み（`internal/redact`）は変えない。
+-   **二重の生成と投稿のリスクがなくなる:** `docs/dev/security.md` §8.2 が `/articles` の残るリスクとして挙げる、`202` が届かずに送り直したときの二重の生成と投稿（`docs/dev/security.md:155`）は、`/articles` とともになくなる。§8 の記述を合わせる（AC-18）。
+-   **ホストの入力の境界:** ホストがブラウザから受け取るメッセージの受理する形は、新しい形だけになる（AC-09〜AC-11）。
+    -   受理する形: `0044` F-008 の新しい形（AC-09）。消費するメンバは `v`・`op`・`input`・`key` で、拡張可能と宣言するメンバはない。宣言していないメンバ、重複するメンバ、`op` に合わない余分なメンバ、欠けたメンバは拒否する（今と同じ）。
+    -   拒否の対応: 受理する形でないメッセージは、すべてホストのエラー `protocol_error` になり、サーバへリクエストを送らない（AC-10・AC-11）。新しいホストのエラーの値は加えない。
     -   上限: メッセージの長さの上限 32 MiB と、その超過の `message_too_large`、長さ 0 の `protocol_error` は変えない。
-    -   標準ライブラリが黙って直したり捨てたりする入力（正しくない UTF-8、対になっていないサロゲートのエスケープ、後続のデータ、重複するメンバ）は、今の形として中継されていたものも含めて、拒否する（AC-09）。
+    -   標準ライブラリが黙って直したり捨てたりする入力（正しくない UTF-8、対になっていないサロゲートのエスケープ、後続のデータ、重複するメンバ）は、今の形として中継されていたものも含めて、拒否する（重複するメンバは AC-09、ほかは AC-11）。
     -   `input` の中身は、今と同じくホストは検査せず、サーバの生成の開始の検査に任せる。
 
 ### 4.3. 信頼性・可用性 (Reliability/Availability)
 
--   ジョブの API の時間の上限（LLM の呼び出し、Webhook への 1 通の送信 30 秒、中継の 20 秒）は変えない。
--   停止のときに待つ最長の時間は、投稿のジョブ 1 つ分（Slack への投稿は最大 10 通、1 通 30 秒、`internal/publisher/slack_message.go:17`・`internal/publisher/slack.go:23`）になる（AC-12）。
+-   ジョブの API の時間の上限（LLM の呼び出し 15 分、`internal/llm/provider/provider.go:24`、Webhook への 1 通の送信 30 秒、`internal/publisher/slack.go:23`、中継の 20 秒、`internal/nmhost/relay.go:31`）は変えない。
+-   停止のときに待つ最長の時間は、投稿のジョブ 1 つ分になる（AC-15）。Slack への投稿は最大 10 通（`internal/publisher/slack_message.go:17`）、1 通 30 秒、送信の間隔 1 秒（`internal/publisher/slack.go:28`）で、最長 309 秒である。案内の「約 5 分」は、この値を丸めたものである。
 
 ### 4.4. 互換性 (Compatibility)
 
--   拡張・ホスト・サーバは同じ版を使う前提を保つ（`README.md:562-564`）。
--   #503 より前の拡張（今の形のメッセージを送る）を新しいホストと使うと、送信はホストの `protocol_error` になる（AC-08・AC-09）。拡張を #503 以降に更新すれば解消する。
--   新しいホストを `/articles` を持つ古いサーバと使う場合、ホストは新しい形だけを送るので、古いサーバのジョブの API が受け付ける。古いホスト（今の形を `/articles` へ中継する）を新しいサーバと使う場合、今の形のメッセージは `not_found` になる。
+-   拡張・ホスト・サーバは同じ版を使う前提を保つ（`README.md:562-564`）。版がそろっていない組み合わせの振る舞いは次のとおりである。動かない組み合わせでは、どれも拡張は想定外の応答を表示する（ホストの `protocol_error` は `extension/src/core/native.ts:73-74`、`not_found` は `docs/dev/guides/development.md:107`）。
+
+| 組み合わせ | 振る舞い |
+|---|---|
+| #503 より前の拡張（今の形を送る）と、本タスクのホスト | ホストが `protocol_error` を返す（AC-10・AC-11） |
+| #503 以降の拡張と、`0044` 以降・本タスクより前のホストとサーバ | 新しい形が `/jobs` へ中継され、今と同じく動く |
+| `0044` より前のホスト（すべてを `/articles` へ中継する）と、本タスクのサーバ | サーバが `not_found` を返す（AC-01） |
+| 本タスクのホストと、`0044` より前のサーバ（`/jobs` を持たない） | サーバが `not_found` を返す（今と同じ） |
+
 -   `curl` などで `/articles` を直接呼んでいたクライアントは、`not_found` を受け取る（AC-01）。代わりにジョブの API を使う。
 
 ### 4.5. 保守性 (Maintainability)
 
--   CLAUDE.md の「Declare, don't infer」の例外が 1 つ減る（AC-16）。ホストは、宣言された `op` で送り先を選び、メッセージの中身で形を選ばない。
--   削除で使われなくなるコードを残さない。`make deadcode` が何も報告しないこと（CLAUDE.md「Code Quality」）。
+-   CLAUDE.md の「Declare, don't infer」の例外が 1 つ減る（AC-19）。ホストは、宣言された `op` で送り先を選び、メッセージの中身で形を選ばない。
+-   削除で使われなくなるコードを残さない。`make deadcode` は何も報告しない（CLAUDE.md「Code Quality」）。
 -   `internal/server` が `internal/pipeline` と失敗の通知に依存しなくなる。
 
 ## 5. 制約条件 (Constraints)
 
--   `docs/dev/project_overview.md` の「決定済みの方針」「前提・制約」に従う。同書の `/articles` と失敗の通知の記述は、本タスクで書き換える（AC-15）。
+-   `docs/dev/project_overview.md` の「決定済みの方針」「前提・制約」に従う。同書の `/articles` と失敗の通知の記述は、本タスクで書き換える（AC-18）。
 -   README の変更は、`README.md` を先に変え、`/mktrans README.md` で `README.en.md` に写し、同じコミットに入れる（CLAUDE.md「Translation Guidelines」）。
 -   テストを削除するときは、`go tool cover -func` の関数ごとの結果が変わらないことを確かめる（CLAUDE.md「Testing Strategy」）。削除するコードだけを対象にするテストは、そのコードとともに削除する。
--   文書のガードは値と構造を確かめ、文言を確かめない（CLAUDE.md「Document tests」）。文書の記述の変更（AC-15・AC-16）は、PR のレビューで読んで確かめる。
+-   文書のガードは値と構造を確かめ、文言を確かめない（CLAUDE.md「Document tests」）。文書の記述の変更（AC-18・AC-19）は、PR のレビューで読んで確かめる。
 
 ## 6. 用語集 (Glossary)
 
