@@ -1,0 +1,187 @@
+//go:build test
+
+package coveragecompare
+
+import (
+	"runtime"
+	"testing"
+)
+
+func TestIsGoProduct(t *testing.T) {
+	tests := []struct {
+		name string
+		file string
+		src  string
+		want bool
+	}{
+		{
+			name: "file with no build line",
+			file: "internal/x/x.go",
+			src:  "package x\n",
+			want: true,
+		},
+		{
+			name: "test tag",
+			file: "internal/x/x.go",
+			src:  "//go:build test\n\npackage x\n",
+			want: false,
+		},
+		{
+			name: "test or integration",
+			file: "internal/x/x.go",
+			src:  "//go:build test || integration\n\npackage x\n",
+			want: false,
+		},
+		{
+			name: "test and not race",
+			file: "internal/x/x.go",
+			src:  "//go:build test && !race\n\npackage x\n",
+			want: false,
+		},
+		{
+			name: "test and race",
+			file: "internal/x/x.go",
+			src:  "//go:build test && race\n\npackage x\n",
+			want: false,
+		},
+		{
+			name: "test and unix",
+			file: "internal/x/x.go",
+			src:  "//go:build test && unix\n\npackage x\n",
+			want: false,
+		},
+		{
+			name: "a negated test tag stays product code",
+			file: "internal/x/x.go",
+			src:  "//go:build !test\n\npackage x\n",
+			want: true,
+		},
+		{
+			name: "a negated test tag with another tag stays product code",
+			file: "internal/x/x.go",
+			src:  "//go:build !test && unix\n\npackage x\n",
+			want: true,
+		},
+		{
+			name: "a negated conjunction with test stays product code",
+			file: "internal/x/x.go",
+			src:  "//go:build !(test && race)\n\npackage x\n",
+			want: true,
+		},
+		{
+			name: "a doubly negated test tag requires test",
+			file: "internal/x/x.go",
+			src:  "//go:build !(!test)\n\npackage x\n",
+			want: false,
+		},
+		{
+			name: "the host's GOOS beside test stays product code",
+			file: "internal/x/x.go",
+			src:  "//go:build " + runtime.GOOS + " || test\n\npackage x\n",
+			want: true,
+		},
+		{
+			name: "integration only stays product code",
+			file: "internal/x/x.go",
+			src:  "//go:build integration\n\npackage x\n",
+			want: true,
+		},
+		{
+			name: "unix stays product code",
+			file: "internal/x/x.go",
+			src:  "//go:build unix\n\npackage x\n",
+			want: true,
+		},
+		{
+			name: "test beside unix stays product code because unix holds without it",
+			file: "internal/x/x.go",
+			src:  "//go:build unix || test\n\npackage x\n",
+			want: true,
+		},
+		{
+			name: "test written second in the expression",
+			file: "internal/x/x.go",
+			src:  "//go:build integration || test\n\npackage x\n",
+			want: false,
+		},
+		{
+			name: "test file",
+			file: "internal/x/x_test.go",
+			src:  "package x\n",
+			want: false,
+		},
+		{
+			name: "build line inside a string after the package clause is not a constraint",
+			file: "internal/x/x.go",
+			src:  "package x\n\nvar s = `\n//go:build test\n`\n",
+			want: true,
+		},
+		{
+			name: "build line inside a block comment is not a constraint",
+			file: "internal/x/x.go",
+			src:  "/*\n//go:build test\n*/\n\npackage x\n",
+			want: true,
+		},
+		{
+			name: "a block comment does not stop the scan before a later build line",
+			file: "internal/x/x.go",
+			src:  "/*\n//go:build test\n*/\n//go:build integration\n\npackage x\n",
+			want: true,
+		},
+		{
+			name: "a comment that only looks like a build line is not parsed",
+			file: "internal/x/x.go",
+			src:  "//go:buildexample is a normal comment\n\npackage x\n",
+			want: true,
+		},
+		{
+			name: "a build line after a block comment on the same line is not a constraint",
+			file: "internal/x/x.go",
+			src:  "/* note */ //go:build test\n\npackage x\n",
+			want: true,
+		},
+		{
+			name: "a build line after a block comment on its own line still counts",
+			file: "internal/x/x.go",
+			src:  "/* note */\n//go:build test\n\npackage x\n",
+			want: false,
+		},
+		{
+			name: "a tab after the package keyword ends the header",
+			file: "internal/x/x.go",
+			src:  "package\tx\n\nvar s = `\n//go:build test\n`\n",
+			want: true,
+		},
+		{
+			name: "a real build line after a block comment still counts",
+			file: "internal/x/x.go",
+			src:  "/* some header */\n//go:build test\n\npackage x\n",
+			want: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := isGoProduct(test.file, []byte(test.src), PointBase)
+			if err != nil {
+				t.Fatalf("isGoProduct: %v", err)
+			}
+			if got != test.want {
+				t.Errorf("isGoProduct = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestIsGoProductRejectsBrokenBuildLines(t *testing.T) {
+	tests := map[string]string{
+		"malformed expression": "//go:build test &&\n\npackage x\n",
+		"two build lines":      "//go:build test\n//go:build unix\n\npackage x\n",
+	}
+	for name, src := range tests {
+		t.Run(name, func(t *testing.T) {
+			_, err := isGoProduct("internal/x/x.go", []byte(src), PointBase)
+			requireStop(t, err, PointBase, InputSource)
+		})
+	}
+}

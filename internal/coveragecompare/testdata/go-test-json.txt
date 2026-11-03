@@ -1,0 +1,7 @@
+{"Time":"2026-11-02T22:37:51.756939+09:00","Action":"start","Package":"github.com/isseis/yt2column/internal/slackwebhook"}
+{"Time":"2026-11-02T22:37:52.162916+09:00","Action":"run","Package":"github.com/isseis/yt2column/internal/slackwebhook","Test":"TestValidURL"}
+{"Time":"2026-11-02T22:37:52.163321+09:00","Action":"output","Package":"github.com/isseis/yt2column/internal/slackwebhook","Test":"TestValidURL","Output":"=== RUN   TestValidURL\n","OutputType":"frame"}
+{"Time":"2026-11-02T22:37:52.163401+09:00","Action":"run","Package":"github.com/isseis/yt2column/internal/slackwebhook","Test":"TestValidURL/accepted_a"}
+{"Time":"2026-11-02T22:37:52.16342+09:00","Action":"output","Package":"github.com/isseis/yt2column/internal/slackwebhook","Test":"TestValidURL/accepted_a","Output":"=== RUN   TestValidURL/accepted_a\n","OutputType":"frame"}
+{"Time":"2026-11-02T22:37:52.163445+09:00","Action":"output","Package":"github.com/isseis/yt2column/internal/slackwebhook","Test":"TestValidURL/accepted_a","Output":"--- PASS: TestValidURL/accepted_a (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-02T22:37:52.164104+09:00","Action":"pass","Package":"github.com/isseis/yt2column/internal/slackwebhook","Test":"TestValidURL","Elapsed":0}

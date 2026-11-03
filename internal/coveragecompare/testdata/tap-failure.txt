@@ -1,0 +1,41 @@
+TAP version 13
+# Subtest: outer
+    # Subtest: inner
+    not ok 1 - inner
+      ---
+      duration_ms: 1.506458
+      type: 'test'
+      location: '/private/tmp/taptest/a.test.mjs:4:5'
+      failureType: 'cancelledByParent'
+      error: 'test did not finish before its parent and was cancelled'
+      code: 'ERR_TEST_FAILURE'
+      ...
+    1..1
+not ok 1 - outer
+  ---
+  duration_ms: 1.620833
+  type: 'test'
+  location: '/private/tmp/taptest/a.test.mjs:3:1'
+  failureType: 'testCodeFailure'
+  error: 'boom'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 2
+  actual: 1
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///private/tmp/taptest/a.test.mjs:5:10)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.start (node:internal/test_runner/test:1262:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17)
+  ...
+1..1
+# tests 2
+# suites 0
+# pass 0
+# fail 1
+# cancelled 1
+# skipped 0
+# todo 0
+# duration_ms 69.756958
