@@ -156,6 +156,7 @@ flowchart LR
 | `internal/server/*_test.go`・`test_helpers.go` | 変更 | 7.1 節の表のとおり | PR-2 |
 | `internal/serversock/serversock.go` | 変更 | `:273-274` の注釈の「failure notice」を除く（AC-08） | PR-2 |
 | `internal/failure/`・`internal/failure/testutil/` | 削除 | パッケージごと削除する | PR-2 |
+| `internal/pipeline/pipeline_test.go` | 変更 | `TestFakesCarryBuildTag` が固定する testutil のファイル数を、`internal/failure/testutil/mocks.go` の削除に合わせて 25 から 24 に直す（7.1 節） | PR-2 |
 | `internal/publisher/slack_failure.go`・`slack_failure_test.go` | 削除 | `SlackFailureNotifier` とそのテスト | PR-2 |
 | `internal/publisher/slack_errors.go` | 変更 | `ErrSlackInvalidNotice`・`ErrSlackNoticeRejected` を削除する | PR-2 |
 | `internal/publisher/slack.go`・`slack_message.go` | 変更 | `SlackMaxPostDuration` を加える（3.3 節）。`webhookClient` の説明から `SlackFailureNotifier` を除く（`slack.go:85`） | PR-2 |
@@ -542,6 +543,7 @@ sequenceDiagram
 | `run_test.go` の `TestRunLogsListeningAndStop`（停止の案内の「up to about 45 minutes」を確かめる、`:530-531`） | 今の上限で案内が「about 5 minutes」になることを、計算の式を使わずに文字列で確かめ、`/articles` と失敗の通知に触れないことを確かめる（AC-15） |
 | `cmd/yt2column-server/docs_test.go` | 3.6 節のとおり |
 | `internal/publisher/test_helpers_slack.go` の `NewSlackFailureNotifierForLoopbackTest`・`newSlackFailureNotifierForLoopbackTest` | 削除する |
+| `internal/pipeline/pipeline_test.go` の `TestFakesCarryBuildTag` | testutil のファイル数の期待値を 25 から 24 に直す。`internal/failure/testutil/mocks.go` を削除するのと同じ PR・同じコミットで直さないと、このテストが失敗する |
 
 `publisher.SlackMaxPostDuration` は、`PostMessages` を実際に最長の条件で走らせて測るテストは作らない（30 秒の上限を 10 回待つことになる）。定数どうしの関係は、定義そのものが表すので、それを書き直すだけのテストも作らない（CLAUDE.md「Do not assert that a constant equals its own literal」）。案内の分の丸めは、`TestRunLogsListeningAndStop` が今の値の結果で確かめる。
 
