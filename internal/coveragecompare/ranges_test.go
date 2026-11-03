@@ -147,6 +147,16 @@ func TestParseRanges(t *testing.T) {
 			files: []string{"extension/src/a.ts"},
 		},
 		{
+			name:  "a start that is a string",
+			data:  `{"files":[{"path":"src/a.ts","functions":[{"start":"1","end":2}],"fieldGroups":[]}]}`,
+			files: []string{"extension/src/a.ts"},
+		},
+		{
+			name:  "an end that is null",
+			data:  `{"files":[{"path":"src/a.ts","functions":[{"start":1,"end":null}],"fieldGroups":[]}]}`,
+			files: []string{"extension/src/a.ts"},
+		},
+		{
 			name:  "a start before line 1",
 			data:  `{"files":[{"path":"src/a.ts","functions":[{"start":0,"end":2}],"fieldGroups":[]}]}`,
 			files: []string{"extension/src/a.ts"},
