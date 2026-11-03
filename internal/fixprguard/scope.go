@@ -21,8 +21,9 @@ import (
 //     at any depth.
 //
 // Two lists narrow the rules. The deny list (the execution-related files)
-// applies everywhere: an execution-related file is in scope only when it is p
-// and the thread is not a named untrusted one, whose author chose p. The
+// applies everywhere: an execution-related file is never in scope, whoever
+// wrote the thread and even when it is p itself, so a change to one always
+// reaches the user's confirmation before the build checks run it. The
 // allow list applies to rules 2 and 3 only: they admit a file that is not
 // execution-related only when its name ends in .md or .txt, a directory
 // element is testdata, or it is a .go file under the .go rule. The .go rule
@@ -226,11 +227,14 @@ func inScope(changed string, kind ChangeKind, threads []ThreadPath) bool {
 
 // inScopeOf applies the rules for one thread path p, in this order: the deny
 // list, p itself, the ASCII check, the .go rule, the places of rules 2 and 3,
-// and the allow list. The .go rule comes before the allow list so a .go file
-// under testdata/ is judged by the .go rule alone.
+// and the allow list. The deny list comes before p itself so an
+// execution-related file is out of scope even as p. Only the .go rule reads
+// named: the other rules give the same result for a named thread and a
+// trusted one. The .go rule comes before the allow list so a .go file under
+// testdata/ is judged by the .go rule alone.
 func inScopeOf(changed, p string, named bool) bool {
 	if isExecutionRelated(changed) {
-		return !named && changed == p
+		return false
 	}
 	if changed == p {
 		return true
