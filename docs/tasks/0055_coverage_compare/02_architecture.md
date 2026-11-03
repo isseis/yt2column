@@ -657,12 +657,12 @@ tests     base 1219 head 1218
 files     base 140 head 140
 functions base 1630 head 1629
 deleted   1
-deleted   internal/x/y.go:12 "helper" (not run at BASE)
+deleted   "internal/x/y.go":12 "helper" (not run at BASE)
 no compared function lost coverage
 coverage-compare: PASS
 ```
 
--   削除した関数は、`deleted` の行に数を出し、その後ろに 1 関数 1 行で `deleted <ファイル>:<行> <名前>` を出す。`RunState` に応じて ` (not run at BASE)` または ` (no statements)` を添える。ファイルごと削除して関数が多くなっても、一覧は省かない（AC-24 は一覧を求める）。
+-   削除した関数は、`deleted` の行に数を出し、その後ろに 1 関数 1 行で `deleted "<ファイル>":<行> "<名前>"` を出す。`RunState` に応じて ` (not run at BASE)` または ` (no statements)` を添える。ファイルごと削除して関数が多くなっても、一覧は省かない（AC-24 は一覧を求める）。
 -   **不合格のとき（AC-25）:** 上の `deleted` までの行に続けて、`lost <ファイル>:<行> <名前> <前> -> <後>` を下がった関数ごとに出す。`no compared function lost coverage` の行は出さない。
 -   **止まったとき（AC-25）:** その時点までに分かった項目（`target`、解決できていれば `base`・`head` など）に続けて、`StopReason` ごとに `stop` の行を出す。原因を出力だけで読み取れるように、次を含める。抜き書きは、どれも 1 つあたりの長さに上限を置いた一部だけで、全文ではない（AC-26）。上限の値は実装計画で決める。
     -   `test-failed`: 失敗した時点、テストの名前（ないものはパッケージまたはファイル）、最初に失敗したテストの出力の末尾の数行、その時点のコミットの ID と、そのテストだけを実行し直すコマンド（Go は `go test -tags test -run '^<名前>$' <パッケージ>`、拡張はテストのファイル）。

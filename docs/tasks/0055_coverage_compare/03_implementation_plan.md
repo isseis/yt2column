@@ -215,9 +215,9 @@
 
 **変更するファイル:** `internal/coveragecompare/output.go`（新規）、`internal/coveragecompare/output_test.go`、`docs/dev/conventions/package_reference.md`
 
--   [ ] `Write` と `ExitCode` を、設計書 3.9 のとおりに書く。抜き書きの上限と出力の末尾の行の数は 1.3 の値にする。名前・パス・抜き書き・BASE の指定は `%q` で出す。
--   [ ] テストを書く（設計書 7.1 の「結果の出し方」）。各停止の種類の最後の行、合格のときの各項目と並び、不合格の `lost` の行、不合格と止まったときに `no compared function lost coverage` が出ないこと、各停止の種類で出す内容（`test-failed` の時点・名前・末尾の行・実行し直すコマンド、`unreadable` の入力・行・抜き書き、`unmatched` の関数と外側の関数、`internal` の処理と元のエラー）、抜き書きの上限の境界、制御文字の引用、`RunState` の添え書き、`ExitCode` の 3 つの値と、範囲外の `Outcome` の扱い。
--   [ ] `package_reference.md` の `internal/coveragecompare` の行に、判定と `Write`・`ExitCode` を書き足す。
+-   [x] `Write` と `ExitCode` を、設計書 3.9 のとおりに書く。抜き書きの上限と出力の末尾の行の数は 1.3 の値にする。名前・パス・抜き書き・BASE の指定は `%q` で出す。
+-   [x] テストを書く（設計書 7.1 の「結果の出し方」）。各停止の種類の最後の行、合格のときの各項目と並び、不合格の `lost` の行、不合格と止まったときに `no compared function lost coverage` が出ないこと、各停止の種類で出す内容（`test-failed` の時点・名前・末尾の行・実行し直すコマンド、`unreadable` の入力・行・抜き書き、`unmatched` の関数と外側の関数、`internal` の処理と元のエラー）、抜き書きの上限の境界、制御文字の引用、`RunState` の添え書き、`ExitCode` の 3 つの値と、範囲外の `Outcome` の扱い。
+-   [x] `package_reference.md` の `internal/coveragecompare` の行に、判定と `Write`・`ExitCode` を書き足す。
 
 **フェーズ 2 の完了の条件:** `make fmt`、`make test`、`make lint`、`make deadcode` が通る。
 
