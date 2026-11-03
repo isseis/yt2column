@@ -384,6 +384,11 @@ type target interface {
 	checkToolchain(ctx context.Context, base, head source) error
 	// run runs the test suite in a checkout and returns its raw outputs.
 	run(ctx context.Context, checkout string) (rawRun, error)
+	// readResults reads one point's test results: the test count and the
+	// failures.
+	readResults(raw rawRun, point Point) (testResults, error)
+	// readReport reads one point's coverage report.
+	readReport(raw rawRun, src source) (report, error)
 	// table builds one point's function table from the source and the
 	// parsed report; files is the set of product files to read.
 	table(ctx context.Context, src source, rep report, files []string) (funcTable, error)
@@ -392,7 +397,7 @@ type target interface {
 }
 ```
 
--   `source` は 1 つの時点のコミットとそのチェックアウト、`rawRun` は終了コードと標準出力と報告のファイルのパス、`report` は読んだ報告（テストの数、失敗、関数ごとの実行の記録）である。これらとそれを作る読み方の関数（プロファイル、`go test -json`、lcov、TAP、差分、範囲の補助の出力）はパッケージの中の型で、道具のテストは、実際のテストの一式を実行せずに、これらに直接例を与えて確かめる（AC-35、7 章）。
+-   `source` は 1 つの時点のコミットとそのチェックアウト、`rawRun` は終了コードと標準出力と報告のファイルの中身、`testResults` は読んだテストの実行の結果（テストの数、失敗）、`report` は読んだカバレッジの報告（関数ごとの実行の記録）である。これらとそれを作る読み方の関数（プロファイル、`go test -json`、lcov、TAP、差分、範囲の補助の出力）はパッケージの中の型で、道具のテストは、実際のテストの一式を実行せずに、これらに直接例を与えて確かめる（AC-35、7 章）。
 -   同じ行の扱い（Go は AC-15 で止まり、拡張は AC-14 でまとまりとして比べる）、比較の規則、AC-13 の扱い、外側の関数の手がかりは、`table` と `compare` の中にあり、Go と拡張で別々に書く。
 -   止まる理由は、処理の中では `*StopError`（4 章）として返し、`Run` が `Result` に移す。
 
@@ -652,15 +657,15 @@ tests     base 1219 head 1218
 files     base 140 head 140
 functions base 1630 head 1629
 deleted   1
-deleted   internal/x/y.go:12 "helper" (not run at BASE)
+deleted   "internal/x/y.go":12 "helper" (not run at BASE)
 no compared function lost coverage
 coverage-compare: PASS
 ```
 
--   削除した関数は、`deleted` の行に数を出し、その後ろに 1 関数 1 行で `deleted <ファイル>:<行> <名前>` を出す。`RunState` に応じて ` (not run at BASE)` または ` (no statements)` を添える。ファイルごと削除して関数が多くなっても、一覧は省かない（AC-24 は一覧を求める）。
--   **不合格のとき（AC-25）:** 上の `deleted` までの行に続けて、`lost <ファイル>:<行> <名前> <前> -> <後>` を下がった関数ごとに出す。`no compared function lost coverage` の行は出さない。
+-   削除した関数は、`deleted` の行に数を出し、その後ろに 1 関数 1 行で `deleted "<ファイル>":<行> "<名前>"` を出す。`RunState` に応じて ` (not run at BASE)` または ` (no statements)` を添える。ファイルごと削除して関数が多くなっても、一覧は省かない（AC-24 は一覧を求める）。
+-   **不合格のとき（AC-25）:** 上の `deleted` までの行に続けて、`lost "<ファイル>":<行> "<名前>" <前> -> <後>` を下がった関数ごとに出す。`no compared function lost coverage` の行は出さない。
 -   **止まったとき（AC-25）:** その時点までに分かった項目（`target`、解決できていれば `base`・`head` など）に続けて、`StopReason` ごとに `stop` の行を出す。原因を出力だけで読み取れるように、次を含める。抜き書きは、どれも 1 つあたりの長さに上限を置いた一部だけで、全文ではない（AC-26）。上限の値は実装計画で決める。
-    -   `test-failed`: 失敗した時点、テストの名前（ないものはパッケージまたはファイル）、最初に失敗したテストの出力の末尾の数行、その時点のコミットの ID と、そのテストだけを実行し直すコマンド（Go は `go test -tags test -run '^<名前>$' <パッケージ>`、拡張はテストのファイル）。
+    -   `test-failed`: 失敗した時点、テストの名前（ないものはパッケージまたはファイル）、最初に失敗したテストの出力の末尾の数行、その時点のコミットの ID と、そのテストだけを実行し直すコマンド（Go は `go test -tags test -run '^<名前>$' '<パッケージ>'`、拡張はテストのファイル）。
     -   `unreadable`: 時点、入力の種類、行の番号、その行の抜き書き。
     -   `internal`: 失敗した処理と、元のエラーの文。
     -   `unmatched`: 関数の (ファイル, 行)、当たった条件、外側の関数の手がかり（3.8 節）。
