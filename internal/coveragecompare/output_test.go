@@ -256,11 +256,11 @@ func TestBoundedQuote(t *testing.T) {
 		t.Errorf("end-kept excerpt = %.20q..., want the last %d bytes", got, excerptLimit)
 	}
 	// A three-byte rune that straddles the limit is dropped whole.
-	straddle := strings.Repeat("a", excerptLimit-1) + "あ" + "z"
+	straddle := strings.Repeat("a", excerptLimit-1) + "\u3042" + "z"
 	if got := boundedQuote(straddle, false); got != `"`+strings.Repeat("a", excerptLimit-1)+`" (truncated)` {
 		t.Errorf("start-kept excerpt cut inside a rune: %.20q...", got[len(got)-20:])
 	}
-	straddleEnd := "z" + "あ" + strings.Repeat("a", excerptLimit-1)
+	straddleEnd := "z" + "\u3042" + strings.Repeat("a", excerptLimit-1)
 	if got := boundedQuote(straddleEnd, true); got != `"`+strings.Repeat("a", excerptLimit-1)+`" (truncated)` {
 		t.Errorf("end-kept excerpt cut inside a rune: %.20q...", got)
 	}

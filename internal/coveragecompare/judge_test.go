@@ -384,7 +384,7 @@ func TestJudgeScenarios(t *testing.T) {
 	var scenarios []scenario
 	add := func(s scenario) { scenarios = append(scenarios, s) }
 
-	// AC-33: inputs that must never pass.
+	// Inputs that must stop or fail, never pass.
 	{
 		base, head := extPassing()
 		head.tap = tapReportText(0, 0, 0)
@@ -488,7 +488,7 @@ func TestJudgeScenarios(t *testing.T) {
 		add(scenario{name: "a function only HEAD has", target: goTarget{}, in: goInput(base, head, diff), wantStop: StopUnmatched, wantFunc: &FuncID{judgeGoFile, 11}})
 	}
 
-	// AC-34: inputs that pass and list the deleted functions.
+	// Inputs that pass and list the deleted functions.
 	{
 		base, head := goPassing()
 		add(scenario{
