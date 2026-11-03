@@ -120,7 +120,6 @@ flowchart TD
     CR["CodeRabbit"]
     TH[("レビュースレッド")]
     TRUST["著者の判定"]
-    UT[("想定外の著者のスレッド")]
     AG["修正のフェーズのエージェント"]
     SCOPE["範囲の規則"]
     MK["build checks"]
@@ -131,16 +130,15 @@ flowchart TD
     CDX --> TH
     CR --> TH
     TH --> TRUST
-    TRUST -->|"Codex のスレッドの本文"| AG
-    TRUST -->|"CodeRabbit のスレッド"| UT
+    TRUST -->|"Codex と CodeRabbit のスレッドの本文"| AG
     AG -->|"変更"| SCOPE
     SCOPE -->|"実行関連ファイルは<br>利用者の確認の後だけ"| MK
     SCOPE -.->|"同じディレクトリの .go のファイル<br>ガイドの sh のブロック"| MK
 
     class EXT problem
-    class CDX,AG,MK,TRUST process
-    class TH,UT data
-    class GHS,CR,SCOPE enhanced
+    class CDX,CR,AG,MK,TRUST process
+    class TH data
+    class GHS,SCOPE enhanced
 
     subgraph Legend["凡例"]
         LG1[("データ")]
@@ -154,7 +152,12 @@ flowchart TD
     class LG4 problem
 ```
 
-「GitHub の設定」は、interaction limits・作成の制限・push の制限である。`/runpr` は、この設定が外れたことを利用者に知らせ、外れていた間に作られたスレッドを処理する前に止まる（3.5）。CodeRabbit を自動レビュアーの一覧から外すと、そのスレッドは想定外の著者のスレッドになる（3.2）。
+「GitHub の設定」は、interaction limits・作成の制限・push の制限である。`/runpr` は、この設定が外れたことを利用者に知らせ、外れていた間に作られたスレッドを処理する前に止まる（3.5）。Codex と CodeRabbit は、どちらも自動レビュアーの一覧に残り、そのスレッドは信頼する著者のスレッドになる（1.6）。
+
+### 1.6. 実装の際に決めたこと（2026-11-04）
+
+-   **CodeRabbit を自動レビュアーの一覧に残す（要件書 F-002 の取り下げ）。** 一覧は `coderabbitai` と `chatgpt-codex-connector` のままにし、`_context.md`・`fixpr_docs_test.go`・ガイドの例は変えない。3.2 の設計は削除する。CodeRabbit も Codex と同じく、入口の守りを interaction limits と `/runpr` の停止（3.5）に任せる。3.5 の時刻の比較とメンションの検出は PR 単位で、Bot を問わず効くので、設計は変わらない。PR-1（#641）のレビューの際に、利用者が決めた。
+    -   理由: 利用者は、GitHub の Web から CodeRabbit のレビューを依頼して使うことがある。一覧から外すと、そのたびにスレッドごとに名指しする手間がかかる。書き込み権限のない人は、制限が有効な間はどちらの Bot にも指示できないので、CodeRabbit だけを厳しく扱っても減る危険は小さい（要件書 1 章「実装の際に決めたこと（2026-11-04）」）。
 
 ## 2. システム構成 (System Structure)
 
@@ -222,11 +225,11 @@ flowchart LR
 | `cmd/fixprguard/main.go` | 変更 | サブコマンド `interaction-limits` を加える（`:57-67` の一覧、`:105-121` の `specs`、`:349-384` の `execute`） | F-004 |
 | `cmd/fixprguard/main_test.go` | 変更 | サブコマンドの終了コードと出力のテスト（7.1） | F-004・F-005 |
 | `cmd/fixprguard/docs_test.go` | 変更 | `TestDocumentedInvocationsParse` の `runpr.md` の期待（`:190`）に `interaction-limits` を加え、ガイドが制限の状態の値と、確かめられない理由の値をすべて挙げることを確かめる（7.3） | F-004・F-006 |
-| `cmd/yt2column/fixpr_docs_test.go` | 変更 | `wantReviewers`（`:58`）、`TestContextReviewerRowsMalformed`（`:952-1020`）の行とコメント（3.2・7.3）。`runpr.md` のメンションの一覧に書いた人の真偽値を加えるので、`TestRunprDocContract` の一覧の fixture と期待を改める（3.5・7.3） | F-002・F-004 |
-| `.claude/commands/_context.md` | 変更 | 「Automated reviewer list」（`:185`）を `chatgpt-codex-connector` だけにする。「Guard tool」（`:188`）に、`runpr.md` が interaction limits の状態を読むことを加える | F-002・F-004 |
+| `cmd/yt2column/fixpr_docs_test.go` | 変更 | `runpr.md` のメンションの一覧に書いた人の真偽値を加えるので、`TestRunprDocContract` の一覧の fixture と期待を改める（3.5・7.3） | F-004 |
+| `.claude/commands/_context.md` | 変更 | 「Guard tool」（`:188`）に、`runpr.md` が interaction limits の状態を読むことを加える | F-004 |
 | `.claude/commands/runpr.md` | 変更 | `--protocol 5`、`interaction-limits` の呼び出し・止まる条件・警告、メンションの一覧の書いた人の真偽値と止まる条件、「Authorization」（3.5） | F-004・F-005 |
 | `.claude/commands/fixpr.md` | 変更 | `--protocol 5` | F-005 |
-| `docs/dev/guides/fixprguard_guide.md` | 変更 | 1 章・4 章・5 章・6 章・7.2・新しい 10 章（3.7・3.8） | F-002〜F-006 |
+| `docs/dev/guides/fixprguard_guide.md` | 変更 | 1 章・4 章・5 章・6 章・7.2・新しい 10 章（3.7・3.8） | F-003〜F-006 |
 | `docs/dev/conventions/package_reference.md` | 変更 | `cmd/fixprguard` と `internal/fixprguard` の行（3.8） | F-004 |
 | `docs/translation_glossary.md` | 変更 | 「実行関連ファイル」の説明を改め、「interaction limits」「作成の制限」「push の制限」を加える | F-006 |
 | `docs/tasks/0030_fixpr_untrusted_threads/01_requirements.md`・`02_architecture.md` | 変更 | 注記を加える（3.8） | F-006 |
@@ -234,7 +237,8 @@ flowchart LR
 
 変えないもの:
 
--   `internal/fixprguard/threads.go` と、`trust.go` の著者の判定。CodeRabbit の Bot は、`--reviewer` に名前が渡らなくなるので、今の判定で `other-bot` になる（3.2）。
+-   `internal/fixprguard/threads.go` と、`trust.go` の著者の判定。
+-   `.claude/commands/_context.md` の「Automated reviewer list」と、それを固定する `cmd/yt2column/fixpr_docs_test.go` の `wantReviewers`（1.6）。
 -   `internal/fixprguard/errors.go`。新しい番兵も `stop` の種類も加えない（4 章）。
 -   `cmd/fixprguard/test_helpers.go:22` と `internal/fixprguard/test_helpers.go:19` の `testReviewer = "coderabbitai"`。ユニットテストは、この名前を `--reviewer` に渡して「一覧にある Bot」として使う。値は `_context.md` の一覧と関係しない。名前を変えると多くのテストの期待が変わるだけで、確かめる内容は変わらない。
 
@@ -308,26 +312,9 @@ sequenceDiagram
 
 `internal/fixprguard/worktree_test.go`・`worktree_flow_test.go`・`cmd/fixprguard/main_test.go` に、実行関連ファイルをスレッドの `path` そのものとして範囲内に期待する変更があるかは、計画で検索して確かめる。
 
-### 3.2. 自動レビュアーの一覧（F-002・H-06）
+### 3.2. 自動レビュアーの一覧（削除）
 
-`_context.md` の「Automated reviewer list」（`.claude/commands/_context.md:185`）の値を `` `chatgpt-codex-connector` `` だけにする。説明の文はそのままにする。`/fixpr`・`/runpr` は一覧のすべての名前を `--reviewer` に渡すので（`.claude/commands/runpr.md:21-27`）、渡す名前は `chatgpt-codex-connector` だけになる。`fixpr.md`・`runpr.md` は名前も数も書かないので変えない（ガイド 9 章）。
-
-ガードツールは変えない。`coderabbitai` の Bot のコメントを含むスレッドは、`--reviewer` のどの名前とも一致しないので、今の判定のまま理由 `other-bot`（アカウント `coderabbitai`）の想定外の著者のスレッドになる（ガイド 5 章の理由の表）。本文は取得されず（AC-06）、利用者が名指しすれば、名指しされた想定外の著者のスレッドとして処理される（AC-07）。そのときの範囲の規則は 3.1 のとおりで、名指しのスレッドの `.go` の規則（`path` そのもの以外の `.go` のファイルは範囲外）と、実行関連ファイルの規則（常に範囲外）が当たる。
-
-**文書のガード（H-06）。** ガイド 9 章の手順に従い、次の 3 つを同じコミットで変える。
-
-1.  `_context.md` の行。
-2.  `cmd/yt2column/fixpr_docs_test.go:58` の `wantReviewers` を `chatgpt-codex-connector` だけにする。
-3.  同じファイルの `TestContextReviewerRowsMalformed`（`:952-1020`）。`checkList`（`:867-885`）は、形、解析、名前の順に調べ、最初の誤りで返る。そのため、行ごとの影響は次のとおりである。
-    -   受け入れる行（`:975`）は 2 つの名前を書いているので、新しい `wantReviewers` では `problemListNames` になる。1 つの名前の行に改める。
-    -   形の誤りの行（`:984-988`）と解析の誤りの行（`:989-990`）は、名前の照合の前に失敗するので、期待が変わらない。
-    -   `third_name`・`name_replaced`（`:991-992`）は、新しい一覧とも一致しないので、`problemListNames` のまま変わらない。
-    -   受け入れた行の名前の数を確かめる箇所（`:1015-1016`）は、`len(wantReviewers)` を使うので変わらない。テストのコメントの「2 つの名前」の記述は改める。
-    -   一覧が 1 つの名前になると、2 つ以上の名前を受け入れる行がなくなる。区切り（コンマと 1 つの空白）の解析は、形の誤りの行（`no_space_after_comma` など）が引き続き確かめる。2 つ以上の名前を受け入れることは、#405 で Bot を加えるときに、受け入れる行で確かめ直す。
-
-`cmd/fixprguard/docs_test.go` の `checkDocumentedReviewer`（`:141-152`）は、`fixpr.md`・`runpr.md` の呼び出しが `--reviewer <reviewer>` の置き場所を 1 つだけ書くことを確かめ、名前は見ない。`TestGuideDescribesReviewerList`（`:285`）は、ガイドの見出しの `--reviewer LOGIN ...` を確かめ、例の名前は見ない。どちらも変えなくてよい。ガイドの例の `--reviewer coderabbitai`（ガイド:99・:120・:153・:196）と 4 章の `（例: coderabbitai）`（ガイド:65）は、文書のガードが確かめないので、手で `chatgpt-codex-connector` に改め、PR のレビューで読む（AC-08）。
-
-**作業中のブランチ。** 各セッションは作業しているブランチの `_context.md` を読む。`main` をまだ取り込んでいない作業中のブランチでは、CodeRabbit のスレッドの信頼が続く（ガイド 9 章）。急ぐ場合の手順は、ガイド 9 章にすでにある。
+要件書 F-002 の取り下げにより、本節の設計は削除した（1.6）。自動レビュアーの一覧とその文書のガードは変えない。
 
 ### 3.3. サブコマンド `interaction-limits`（F-004・H-02・H-03）
 
@@ -589,10 +576,10 @@ HTTP の状態コードが `200` でなければ、ヘッダも本文も読ま�
 **ガイド。**
 
 -   1 章: 役割分担の表の `fixprguard` の行に、interaction limits の状態を読むことを加える。3 つの守りの層の外の役目であることも書く。
--   4 章: 「現在の番号は `5`」。`--reviewer` の例を `chatgpt-codex-connector` にする（3.2）。終了コードの表の前の、呼び出し側の約束（「これ以外の終了コード…をすべて『止める』として扱う」）に、`interaction-limits` は確かめられない結果も終了コード `0` で出力し、止めるかどうかは呼び出し側が状態で決めることを加える。
--   5 章: `interaction-limits` の節を加える。呼び出しの例、出力の項目、6 つの状態の値と確かめられない理由の値（3.3 の表）、副作用（GitHub の読み取りだけ）を書く。例の `--reviewer` を一覧の名前にする。
+-   4 章: 「現在の番号は `5`」。終了コードの表の前の、呼び出し側の約束（「これ以外の終了コード…をすべて『止める』として扱う」）に、`interaction-limits` は確かめられない結果も終了コード `0` で出力し、止めるかどうかは呼び出し側が状態で決めることを加える。
+-   5 章: `interaction-limits` の節を加える。呼び出しの例、出力の項目、6 つの状態の値と確かめられない理由の値（3.3 の表）、副作用（GitHub の読み取りだけ）を書く。
 -   6 章: 規則 4 を「実行関連ファイルは、スレッドの著者と `path` にかかわらず範囲外とする」にし、判定の順序の順 1 を 3.1 の表のとおりにする（AC-20）。「実行関連ファイル。」の段落の「規則 4 で、`path` そのものでなければ範囲外とするファイル」も改める。
--   7.2: 要件書 4.2 の 11 項目の残余のリスクを書く（AC-21）。すでにある項目（7.2.3 の「同じパッケージの `.go` のファイル」「ファイルシステムの Unicode の畳み込みによる別名」「確認への慣れ」）は、第三者が Codex を介してこの位置に至りうることを加えて改める。新しい項目の置き場所（7.2.1 か新しい小節か）は計画で決める。7.2.4 の、基準値を持たないサブコマンドが `gh` を起動する前に比べないことの一覧（ガイド:350）に、`interaction-limits` を加える。
+-   7.2: 要件書 4.2 の 10 項目の残余のリスクを書く（AC-21）。すでにある項目（7.2.3 の「同じパッケージの `.go` のファイル」「ファイルシステムの Unicode の畳み込みによる別名」「確認への慣れ」）は、第三者が Codex や CodeRabbit を介してこの位置に至りうることを加えて改める。新しい項目の置き場所（7.2.1 か新しい小節か）は計画で決める。7.2.4 の、基準値を持たないサブコマンドが `gh` を起動する前に比べないことの一覧（ガイド:350）に、`interaction-limits` を加える。
 -   9 章: 自動レビュアーを外すときの手順はすでにある。変えない。
 -   10 章: 3.7 のとおり。
 
@@ -622,7 +609,6 @@ HTTP の状態コードが `200` でなければ、ヘッダも本文も読ま�
 | `fixprguard interaction-limits` | GitHub の読み取りだけ（`gh repo view`、`gh pr view`、`gh api --include` の `GET`）。ファイル、git、GitHub への書き込みはない。記録のファイル（ガイド 8.1）も書かない |
 | `/runpr` の状態の確認 | 上の 1 回の呼び出しだけ。GitHub の設定を変えず、PR を閉じない・作らない（AC-17）。止まる場合も、何も書き込まずに報告するだけである |
 | 範囲の規則の変更 | 副作用は増えない。範囲外が増え、`inspect` の終了コード `3` で利用者に確かめる回数が増える |
-| 自動レビュアーの一覧の変更 | 副作用は増えない。CodeRabbit のスレッドの本文を取得しなくなる |
 
 ## 4. エラーハンドリング設計 (Error Handling Design)
 
@@ -662,7 +648,6 @@ flowchart TD
     D2["push の制限"]
     BR[("PR のブランチ")]
     MAINB[("main")]
-    D3["自動レビュアーの一覧"]
     TT[("信頼する著者のスレッド")]
     AG["修正のフェーズのエージェント"]
     D4["範囲の規則"]
@@ -675,8 +660,7 @@ flowchart TD
     BOTS -->|"push"| D2
     D2 -.->|"bypass に加えた App"| BR
     BOTS -.->|"API で PR をマージ"| MAINB
-    BOTS -->|"スレッドを作る"| D3
-    D3 -->|"Codex のスレッドだけ"| TT
+    BOTS -->|"スレッドを作る"| TT
     TT --> D5
     D5 -->|"制限が有効で、PR がその後に作られたときだけ"| AG
     TT -.->|"/fixpr の単独の実行"| AG
@@ -688,7 +672,7 @@ flowchart TD
     class ATT problem
     class BOTS,AG,MK process
     class BR,MAINB,TT,SEC data
-    class D1,D2,D3,D4,D5 enhanced
+    class D1,D2,D4,D5 enhanced
 
     subgraph Legend["凡例"]
         LG1[("データ・資産")]
@@ -710,7 +694,6 @@ flowchart TD
 |---|---|---|---|
 | 書き込み権限のない人が Bot に指示する | interaction limits の `collaborators_only`、作成の制限 | GitHub の設定が強制する。interaction limits は最長 6 か月で解除される | AC-09・AC-10 |
 | interaction limits が外れていた間に作られたスレッドを処理する | `/runpr` が止まり、PR の作り直しを求める（3.5）。設定の時刻と PR の作成の時刻の比較（3.4）と、利用者以外のメンションの検出を重ねる | `/runpr` を実行したときだけ。`/fixpr` を単独で実行したときは止まらない。期間を 6 か月より短くすると、時刻の比較が見逃しうる | AC-12〜AC-16・AC-25〜AC-27 |
-| CodeRabbit が攻撃者の文言でスレッドを作る | 自動レビュアーの一覧から外す（3.2） | ガードツールが強制する（`--reviewer` に名前がなければ `other-bot`）。一覧の値は文書のガードが固定する | AC-05〜AC-08 |
 | Bot が PR のブランチに push する | ruleset の Restrict creations・Restrict updates | GitHub の設定が強制する。期限はない。`main` は既存の ruleset が直接の push を禁じる（1.3） | AC-09〜AC-11 |
 | 信頼する著者のスレッドから `Makefile` などが書き換えられ、確認なしに `make` が実行する | 規則 4 の例外を外す（3.1） | ガードツールが強制する。`inspect` の終了コード `3` の後、利用者が続けると答えるかはセッションの手順に依存する。実行関連ファイルでない、`make test` が実行するもの（同じディレクトリの `.go` のファイル、ガイドの `sh` のブロック）は止めない（5.3） | AC-01〜AC-04 |
 | 古いツールが古い規則で判定する | `protocol` の `5`（3.6） | ガードツールが強制する（終了コード `2`） | AC-19 |
@@ -719,14 +702,13 @@ flowchart TD
 
 ### 5.3. 残余のリスク
 
-要件書 4.2 の 11 項目の残余のリスク（制限が外れている間の Codex の経路、`.go` のファイル、Unicode の畳み込みによる別名、`make` が実行するコードが使える秘密、push の制限の bypass、Bot による `main` へのマージ、build checks のテストが実行するガイドのコード、設定を外した場合と設定する前の期間、名指しした CodeRabbit のスレッド、確認への慣れ、新しい自動レビュアー）は、そのままガイドの 7.2 に書く（AC-21）。設計で次のことが分かっている。
+要件書 4.2 の 10 項目の残余のリスク（制限が外れている間の Codex と CodeRabbit の経路、`.go` のファイル、Unicode の畳み込みによる別名、`make` が実行するコードが使える秘密、push の制限の bypass、Bot による `main` へのマージ、build checks のテストが実行するガイドのコード、設定を外した場合と設定する前の期間、確認への慣れ、新しい自動レビュアー）は、そのままガイドの 7.2 に書く（AC-21）。設計で次のことが分かっている。
 
 -   **状態を読んだ後の変化。** `/runpr` は実行の初めに 1 回だけ読む（AC-12）。実行の途中で期限が来ても、止まらない。14 日の猶予は、`/runpr` の 1 回の実行より十分に長いので、期限の前に「期限が近い」の警告が出る。利用者が制限を外した場合は、次の `/runpr` まで気づかない。
 -   **設定の時刻の見積もり。** `expires_at` から UTC の暦で 6 か月を引き、月末は遅い側に寄せて設定の時刻とみなすので、期間を 6 か月にしている限り見逃さない（3.4）。この見積もりは、GitHub が UTC の暦で 6 か月を足すという 1 回の観測に基づく。期間を短くすると見逃しうる。また、利用者が期限の前に更新したときも、そのとき開いていた PR は `predates` になり、作り直しが要る（要件書 1 章の受け入れる負担）。
 -   **メンションを消された場合。** 外部の人が自分のメンションのコメントを消すか、編集でメンションを外すと、利用者以外のメンションの検出では見つけられない。制限が外れていた間のことなら、設定の時刻の比較が止める。制限が有効な間は、外部の人はコメントを書けない。
 -   **`--include` の出力の形と、`gh` の環境への依存。** HTTP の状態コードの行とヘッダの区切りは、`gh` の出力の形であり、GitHub の API の契約ではない。権限の照会（`queryPermission`）も同じ形に依存している。`gh` の版が変わって形が変われば、どの実行も「確かめられない」になる。また、`gh` はセッションの環境変数を引き継ぐ（`internal/cmdrunner`）ので、`GH_FORCE_TTY` や色を強制する変数（`CLICOLOR_FORCE` など）が設定されていると、出力に色の制御文字や整形が入り、同じく「確かめられない」になりうる。どちらも安全側に倒れて `/runpr` が止まるが、続く間はすべての PR が `/runpr` で進められない（`/mergepr` で直接マージする手段は残る。3.5）。`reason`（`output-form`・`date`・`body`）で原因の見当をつけ、ガイド 10 章の手順で調べる。
 -   **アカウント全体の制限。** interaction limits はアカウント全体の設定である（1.2）。アカウントのほかの公開リポジトリでも、外部の人はコメント・issue・PR を作れない。期限が来れば、すべてのリポジトリで同時に外れる。
--   **CodeRabbit のスレッドによるマージの停止。** `/runpr` は、想定外の著者のスレッドが未解決の間はマージしない（`.claude/commands/runpr.md:521-538`）。CodeRabbit が設定に反してスレッドを作ると（要件書 1 章の PR #617・#620 の例）、利用者が名指しするか、解決するまでマージが止まる。要件書 1 章の「受け入れる負担」の具体的な現れである。
 -   **LIMITS_NOTE の保持。** 「期限が近い」の警告の 1 行は、セッションの文脈にだけある。長い実行の間に文脈が要約されると、最後の報告で警告が落ちうる。最初に示した時点の警告は残る。文脈の要約は `/runpr` のほかの値（`--reviewer` の並び、LAST_REVIEWED など）にも同じく及ぶので、この値だけを別の仕組みで保持することはしない。
 
 ### 5.4. 観測のしやすさ
@@ -843,11 +825,10 @@ flowchart TD
 
 ### 7.3. 文書のガード
 
--   `cmd/yt2column/fixpr_docs_test.go`: `wantReviewers` と `TestContextReviewerRowsMalformed` の行を改める（3.2）。一覧の値を確かめる既存のテストは、文書のテストの例外（`CLAUDE.md`「the automated-reviewer list」）として残す。
 -   `cmd/yt2column/fixpr_docs_test.go`: `TestRunprDocContract` の `listings_print_no_body` は、`runpr.md` のメンションの一覧の `--jq` のフィルタを `jq` で実行し、本文を出力しないことを確かめる。書いた人の真偽値を加えるので、次を改める。一覧の出力の比較（`checkListingOutput`。`cmd/yt2column/fixpr_docs_test.go:591`）は、出力の値を fixture の応答の項目と比べるので、計算した真偽値には、`state` と同じく期待の値を fixture に持たせる。一覧の項目の名前の表（`mention` の種類）に新しい項目を加える。fixture は、利用者の `User`（真）、利用者と同じ名前の `Bot`（偽）、Codex の名前の `User`（偽）、ほかの `User` と `Bot`（偽）を含める。利用者以外のメンションで止まることは `runpr.md` の手順なので、文書のテストでは確かめず、PR のレビューで読む（manual）。
 -   `cmd/fixprguard/docs_test.go`: `TestDocumentedInvocationsParse` の `runpr.md` の期待に `interaction-limits` を加える。`TestDocumentedProtocolMatches` は値の変更（`5`）だけで通る。
 -   `cmd/fixprguard/docs_test.go` に、ガイドが `InteractionStates()` のすべての値（`MarshalText` の名前）と `UnverifiableReasons()` のすべての値を、コードの区切り（`` `active` `` など）で挙げることを確かめる行を加える。`TestGuideCoversStopKindsAndScope` が `stop` の種類で行うのと同じ値の照合である（`CLAUDE.md`「Document tests check values」）。`runpr.md` が状態をすべて扱うことは確かめない。表にない状態は「確かめられない」として扱うので、書き漏らしても `/runpr` が止まるだけで、文書のテストの手間に見合わない。
--   ガイドの規則 4・判定の順序・7.2・10 章、用語集、0030・0036 の注記の文面は、文書のテストで確かめず、PR のレビューで読む（`manual`。AC-08・AC-09・AC-20〜AC-23）。
+-   ガイドの規則 4・判定の順序・7.2・10 章、用語集、0030・0036 の注記の文面は、文書のテストで確かめず、PR のレビューで読む（`manual`。AC-09・AC-20〜AC-23）。
 
 ### 7.4. 結合テストと手動の確認
 
@@ -868,7 +849,7 @@ flowchart TD
 
 PR の切り方は計画で決める。設計からは、次の順序と制約が決まる。
 
-1.  **フェーズ 1: 自動レビュアーの一覧（F-002）。** `_context.md` と `fixpr_docs_test.go` を同じコミットで変え、ガイドの例を改める（ガイド 9 章）。ガードツールは変えないので、`protocol` を上げずに単独で入れられる。入口の守りのうち最も早く効くので、最初に入れる。
+1.  **フェーズ 1: 自動レビュアーの一覧（削除）。** 要件書 F-002 の取り下げにより、変えるものはない（1.6）。
 2.  **フェーズ 2: ガードツール（F-001・F-004 のツールの部分・F-005）。** 範囲の規則、`splitIncluded` の拡張、`interaction-limits`、`Protocol` の `5` を入れる。
 3.  **フェーズ 3: コマンドの文書とガイドの規範の部分（F-004・F-005・F-006 の一部）。** `fixpr.md`・`runpr.md` の `--protocol 5`、`runpr.md` の呼び出しと止まる条件と警告とメンションの一覧と「Authorization」、`_context.md` の「Guard tool」、ガイドの 4 章・5 章・10 章と 6 章の規則 4 と判定の順序。10 章は `runpr.md` の警告が示す場所なので、同じ PR に入れる。
 4.  **フェーズ 4: 残りの文書（F-006）。** ガイドの 1 章・7.2、用語集、`package_reference.md`、0030・0036 の注記。
@@ -882,7 +863,7 @@ PR の切り方は計画で決める。設計からは、次の順序と制約�
 
 ## 9. 将来の拡張 (Future Extensibility)
 
--   **自動レビュアーを加えるとき（#405）。** その Bot が外部の人の指示に応じるかを評価してから、一覧に加える（要件書 1 章、ガイド 7.2）。ガードツールは名前の数に上限を設けないので、評価のほかに変えるものは、ガイド 9 章の 3 つと、2 つ以上の名前を受け入れる行の確認（3.2）である。
+-   **自動レビュアーを加えるとき（#405）。** その Bot が外部の人の指示に応じるかを評価してから、一覧に加える（要件書 1 章、ガイド 7.2）。ガードツールは名前の数に上限を設けないので、評価のほかに変えるものは、ガイド 9 章の 3 つである。
 -   **作成の制限と push の制限の確認。** `/runpr` が確かめるのは interaction limits だけである。ruleset は REST API で読める（1.3）ので、必要になれば同じサブコマンドの形で加えられる。今は要件がないので加えない（YAGNI）。
 -   **`/fixpr` の単独の実行での警告。** 要件書は `/runpr` だけに限った。加えるときは、`fixpr.md` から同じサブコマンドを呼べばよい。
 
@@ -895,7 +876,7 @@ PR の切り方は計画で決める。設計からは、次の順序と制約�
 | H-03（現在の時刻と時間の上限） | 同じ応答の `Date` ヘッダ（GitHub の時刻）。IMF-fixdate の形だけを受け入れる。テストでは fake の `gh` の出力の `Date` で時刻を固定する（3.4・7.1）。時間の上限は `GitHub.InteractionLimits` の全体で 2 分（`githubTimeout`。1.2・3.3） |
 | H-04（範囲の規則の `named` の引数） | `inScopeOf` の形は変えず、`named` は `.go` の規則（順 4）だけが使う。ガイドの判定の順序の順 1 は名指しに触れない（3.1） |
 | H-05（F-003 の手順を書くガイド） | ガイドの新しい 10 章。`/runpr` の警告はその場所を示す（1.2・3.7） |
-| H-06（自動レビュアーの一覧の文書のガード） | `wantReviewers` と `TestContextReviewerRowsMalformed` を改める。行ごとの影響は 3.2。`checkDocumentedReviewer`・`TestGuideDescribesReviewerList` は名前を見ないので変えず、ガイドの例の `coderabbitai` は手で改めてレビューで読む（3.2） |
+| H-06（自動レビュアーの一覧の文書のガード） | 要件書 F-002 の取り下げにより、一覧もその文書のガードも変えない（1.6） |
 | H-07（GitHub の設定が使えることと読む権限） | 設計の間に利用者が 4 つの設定を行い、interaction limits の応答と ruleset を読んで確かめた。利用者の資格情報で読めた。`git push` によるブランチの作成も確かめた（1.3）。すべてのブランチを対象にすると PR のマージが止まると分かり、既定のブランチを対象から外す決定の変更を要件書に戻した（1.2）。残る確認は本書の PR と、そのマージの後の `/runpr` ステップ 5 で行う（3.7・7.4） |
 
 ## 付録 B: 受け入れ基準との対応
@@ -906,10 +887,7 @@ PR の切り方は計画で決める。設計からは、次の順序と制約�
 | AC-02 | 3.1 | 7.1 |
 | AC-03 | 3.1 | 7.1 |
 | AC-04 | 3.1・6.2 | 既存の `finish` のテスト。7.1 の範囲の規則と合わせて確かめる |
-| AC-05 | 3.2 | 7.3（`wantReviewers`） |
-| AC-06 | 3.2 | AC-05 の一覧の値（`coderabbitai` を含まない）と、一覧にない Bot を `other-bot` とする既存の判定のテスト（`internal/fixprguard/trust_test.go`）の組み合わせ |
-| AC-07 | 3.2・3.1 | 既存の名指しのテストと 7.1 の名指しの行 |
-| AC-08 | 3.2・3.8 | 7.3（manual） |
+| AC-05〜AC-08 | 欠番（要件書 F-002 の取り下げ。1.6） | - |
 | AC-09 | 3.7 | 7.3（manual） |
 | AC-10 | 1.3・3.7 | 7.4 |
 | AC-11 | 1.3・3.7 | 7.4 |
@@ -933,3 +911,4 @@ PR の切り方は計画で決める。設計からは、次の順序と制約�
 ## 変更履歴
 
 - 2026-11-03 承認（isseis、#634）
+- 2026-11-04 セッション中の再承認：要件書 F-002 の取り下げに合わせ、自動レビュアーの一覧の設計（3.2）を削除した（isseis、#641）

@@ -18,7 +18,7 @@
 
 ### 1.1. 目的
 
-書き込み権限のない第三者が、自動レビュアーを介して `/fixpr` のエージェントに指示を届け、`make` の実行に至る経路を狭める。具体的には、自動レビュアーの一覧を `chatgpt-codex-connector` だけにし（F-002）、範囲の規則で実行関連ファイルを常に範囲外にし（F-001）、ガードツールに `interaction-limits` を加えて `/runpr` が interaction limits の状態を確かめて止まれるようにし（F-004）、`protocol` を `5` に上げ（F-005）、文書を合わせる（F-006）。F-003 の GitHub の設定は、設計の間に利用者が済ませている（設計書 1.3）。設計は設計書 1〜6 章のとおりである。
+書き込み権限のない第三者が、自動レビュアーを介して `/fixpr` のエージェントに指示を届け、`make` の実行に至る経路を狭める。具体的には、範囲の規則で実行関連ファイルを常に範囲外にし（F-001）、ガードツールに `interaction-limits` を加えて `/runpr` が interaction limits の状態を確かめて止まれるようにし（F-004）、`protocol` を `5` に上げ（F-005）、文書を合わせる（F-006）。F-003 の GitHub の設定は、設計の間に利用者が済ませている（設計書 1.3）。設計は設計書 1〜6 章のとおりである。
 
 ### 1.2. 実装の原則
 
@@ -30,9 +30,8 @@
 
 ### 1.3. 計画の際に決めたこと（2026-11-03）
 
--   **PR は 3 つに分ける（人間のレビュアーが決めた）:** PR-1 はフェーズ 1（自動レビュアーの一覧）、PR-2 はフェーズ 2・3（ガードツールと、コマンドの文書・ガイドの規範の部分）、PR-3 はフェーズ 4（残りの文書）である。理由: フェーズ 2 と 3 は、`TestDocumentedProtocolMatches` と `TestDocumentedInvocationsParse` が文書の `--protocol` とサブコマンドをバイナリと照合するので、同じ PR に入れる必要がある（設計書 8 章の制約）。フェーズ 1 はガードツールを変えず、入口の守りのうち最も早く効くので単独で先に入れる。フェーズ 4 を PR-2 に含めると、すでに最大の PR がさらに大きくなる。PR-3 の `/runpr` は、新しい `runpr.md` で interaction limits の状態を読むので、AC-10 の「最後の PR の `/runpr` が『有効』と報告する」を確かめられる。`internal/fixprguard/limits.go` だけを先に別の PR にする案は、設計書 8 章の「フェーズ 2 と 3 は同じ PR」の制約に反し、設計書の修正が先に要るので採らない。
--   **ガイド 7.2 の新しい残余のリスクは、新しい小節 7.2.6 に置く（人間のレビュアーが決めた。設計書 3.8 が計画に委ねた）:** 7.2.6 は、GitHub の設定と自動レビュアーを介した経路についての残余のリスクをまとめる。7.2.3 の既存の 3 項目（同じパッケージの `.go` のファイル、Unicode の畳み込みによる別名、確認への慣れ）は、その場で、第三者が Codex を介してその状況に至りうることも書き加える。理由: 新しい項目の多くは、ツールの判定の不足ではなく、GitHub の設定とコマンドの手順に関わる。7.2.1〜7.2.5 の見出しと番号を変えないので、既存の参照（`TestGuideDescribesMentionCheck` の `### 7.1`・`### 7.2` など）が変わらない。
--   **AC-08 は、PR のレビューで読んで確かめる（`manual`）:** ガイドの `--reviewer` の例の名前を `_context.md` の一覧と照合するガードは加えない。設計書 3.2・7.3 のとおりである。例の名前が一覧とずれても判定は変わらず（ツールは `_context.md` を読まない）、害が小さいので、`CLAUDE.md`「Do not add a document check whose mistake is unlikely, whose harm is small」に当たる。
+-   **PR は 3 つに分ける（人間のレビュアーが決めた）:** PR-1 はフェーズ 1（自動レビュアーの一覧。F-002 の取り下げの後は、本書の PR の観察の記録と、取り下げの記録。1.5）、PR-2 はフェーズ 2・3（ガードツールと、コマンドの文書・ガイドの規範の部分）、PR-3 はフェーズ 4（残りの文書）である。理由: フェーズ 2 と 3 は、`TestDocumentedProtocolMatches` と `TestDocumentedInvocationsParse` が文書の `--protocol` とサブコマンドをバイナリと照合するので、同じ PR に入れる必要がある（設計書 8 章の制約）。フェーズ 1 はガードツールを変えず、入口の守りのうち最も早く効くので単独で先に入れる。フェーズ 4 を PR-2 に含めると、すでに最大の PR がさらに大きくなる。PR-3 の `/runpr` は、新しい `runpr.md` で interaction limits の状態を読むので、AC-10 の「最後の PR の `/runpr` が『有効』と報告する」を確かめられる。`internal/fixprguard/limits.go` だけを先に別の PR にする案は、設計書 8 章の「フェーズ 2 と 3 は同じ PR」の制約に反し、設計書の修正が先に要るので採らない。
+-   **ガイド 7.2 の新しい残余のリスクは、新しい小節 7.2.6 に置く（人間のレビュアーが決めた。設計書 3.8 が計画に委ねた）:** 7.2.6 は、GitHub の設定と自動レビュアーを介した経路についての残余のリスクをまとめる。7.2.3 の既存の 3 項目（同じパッケージの `.go` のファイル、Unicode の畳み込みによる別名、確認への慣れ）は、その場で、第三者が Codex や CodeRabbit を介してその状況に至りうることも書き加える。理由: 新しい項目の多くは、ツールの判定の不足ではなく、GitHub の設定とコマンドの手順に関わる。7.2.1〜7.2.5 の見出しと番号を変えないので、既存の参照（`TestGuideDescribesMentionCheck` の `### 7.1`・`### 7.2` など）が変わらない。
 -   **AC-12 の呼ぶ位置を、`TestRunprDocContract` の既存の部分テスト `head_before_checkout` を広げて確かめる:** `runpr.md` のステップ 1 で、`fixprguard interaction-limits` が `fixprguard head` の後、`gh pr checkout` の前にあることを確かめる。設計書 7.3 は `TestDocumentedInvocationsParse` だけを挙げるが、`fixprguard` の呼び出しの位置はエージェントの信頼の境界の手順であり、`CLAUDE.md` が文書のテストの例外として残すもの（the `fixprguard` call sites）に当たる。今ある部分テストの比較に 1 つの位置を加えるだけである。
 -   **AC-22 の「状態は `approved` のまま」は、`_checks/` のスクリプトで確かめる（`diff`）:** 0030・0036 の 4 つの文書について、merge-base と PR の head の間で、`## Document Status` の表と（あれば）`## 変更履歴` の節がバイト単位で同じで、差分が引用ブロックの注記の行の追加だけであることを確かめる。前後の関係を問う AC なので、恒久のテストにしない（`requirements_process.md` §4）。注記の文面は PR のレビューで読む（`manual`）。
 -   **AC-10・AC-11 は、PR での観察を本書に記録して確かめる（`manual`）:** どちらも GitHub の設定の効き目であり、`make test` と CI で動くテストにできない（ユニットテストは GitHub に接続しない。`CLAUDE.md`「Testing Strategy」）。PR の `/runpr` の間に本書へ書き込むと head が変わるので、観察は次の PR のブランチの最初のステップで記録する。本書の PR とその `/runpr` の観察（AC-11）は、PR-1 のブランチの最初のステップ（ステップ 1-0）で記録する。PR-1・PR-2 の観察と、PR-2 の `/runpr` が新しい `runpr.md` で読んだ状態（AC-10 の事前の確認）は、ステップ 4-0 で記録する。本タスクの最後の PR（PR-3）の `/runpr` が「有効」と報告することは、その実行の報告で観察する（本書には記録できない。マージの後に記録する PR を作らない）。AC-10 の「有効」の分類そのものは、`limits_test.go` の `active` の行が確かめる。
@@ -89,13 +88,6 @@
 
 -   `internal/fixprguard/types.go:21` の `Protocol = 4`。`--protocol 4` は、`fixpr.md`・`runpr.md`・ガイドに書かれている（ガイドでは例の呼び出し（`:89`・`:99`・`:120`・`:143`・`:153`・`:171-172`・`:184`・`:196`・`:206`・`:220`）、出力の `"protocol":4`（`:92`・`:187`・`:199`・`:209`・`:223`）、4 章の「現在の番号は `4`」（`:64`））。`TestDocumentedProtocolMatches`（`cmd/fixprguard/docs_test.go:322-345`）が、`.claude/commands` のすべてのコマンドの文書の `--protocol` と、ガイドの例・出力・「現在の番号」を `Protocol` と照合する。`git grep -n -- '--protocol 4'` と `git grep -n '"protocol":4'` で漏れを探せる。
 
-**自動レビュアーの一覧と、そのガード**
-
--   `coderabbitai` は、`docs/tasks/` とテストを除くと、`_context.md:185` と、ガイドの `:65`（4 章の例）・`:99`・`:120`・`:153`・`:196`（5 章の例）だけにある（`git grep -n coderabbitai -- ':!docs/tasks' ':!*_test.go' ':!*test_helpers*'` の結果）。
--   `cmd/yt2column/fixpr_docs_test.go:58` の `wantReviewers` を、`TestContextAndCommandsAgree`（`:925-`）が `checkList`（`:867-`）で `_context.md` の行と照合する。`TestContextReviewerRowsMalformed`（`:956-1020`）の行ごとの影響は設計書 3.2 のとおりである。
--   `cmd/fixprguard/test_helpers.go` と `internal/fixprguard/test_helpers.go:19` の `testReviewer = "coderabbitai"` は変えない（設計書 2.2）。
--   AC-06 は、一覧の値と、一覧にない Bot を `other-bot` とする既存のテスト `internal/fixprguard/trust_test.go::TestAssessAuthors` の `second_reviewer_not_passed` の行（`:46-53`）と、想定外の著者のスレッドの本文を取得しない `internal/fixprguard/github_test.go::TestBeginNeverFetchesUntrustedBody`（`:199-`）で確かめる。AC-07 は `github_test.go::TestBeginAcceptsNamedThread`（`:311-`）と、ステップ 2-1 の名指しの行で確かめる。
-
 **`runpr.md` と、そのガード**
 
 | 項目 | 今あるもの（`f0cb3668`） | 変えること |
@@ -118,59 +110,46 @@
 
 -   `implementation_handoff.md` は、このタスクにはない。`design_handoff.md` の H-01〜H-07 は、すべて設計書の付録 A に記録されている。
 
+### 1.5. 実装の際に決めたこと（2026-11-04）
+
+-   **CodeRabbit を自動レビュアーの一覧に残し、ステップ 1-1・1-2 を取り下げる（要件書 F-002 の取り下げ）:** PR-1（#641）のレビューの際に、利用者が決めた。理由は要件書 1 章「実装の際に決めたこと（2026-11-04）」のとおりである（Web から依頼する CodeRabbit のレビューの使いやすさを保ち、入口の守りは Codex と同じく GitHub の設定と `/runpr` の停止に任せる）。PR-1 のブランチで一度行ったステップ 1-1・1-2 の変更（`_context.md`、`cmd/yt2column/fixpr_docs_test.go`、ガイドの例）は、同じブランチで `main` の内容に戻した。PR-1 は、ステップ 1-0 の観察の記録と、要件書・設計書・本書の取り下げの記録を入れる。AC-05〜AC-08 は欠番になり、7 章から外した。PR-2・PR-3 の手順は、ガイド 7.2 の残余のリスクの項目数（10 項目）と、第三者が CodeRabbit も介しうることのほかは変わらない。
+
 ## 2. 実装手順 (Implementation Steps)
 
 テストの関数名は予定の名前で、実装で変えたときは本書 7 章を同じ PR で直す。各ステップの「壊して確かめる」は、そのステップで加えるテストが失敗することを確かめるために壊すものである（1.2）。
 
-### フェーズ 1: 自動レビュアーの一覧（設計書 8 章の手順 1）
+### フェーズ 1: 本書の PR の観察の記録（設計書 8 章の手順 1 は取り下げ）
 
 #### ステップ 1-0: 本書の PR の観察の記録
 
 **変更するファイル:** `docs/tasks/0057_reviewer_relay_guard/03_implementation_plan.md`
 
--   [ ] 本書の PR とその `/runpr` で観察したこと（Codex の要約のコメントの完了の状態、利用者の `git push` による PR のブランチの更新、`/mergepr` の squash merge とブランチの削除、`/runpr` ステップ 5 の `gh issue develop` による PR-1 のブランチの作成（PR-1 のブランチで作業している時点で済んでいる））を、7 章の AC-11 の行に記録する（1.3）。どれかが ruleset で止められていたら、要件書 1 章の決定に従い作業を止め、利用者に報告する。
+-   [x] 本書の PR とその `/runpr` で観察したこと（Codex の要約のコメントの完了の状態、利用者の `git push` による PR のブランチの更新、`/mergepr` の squash merge とブランチの削除、`/runpr` ステップ 5 の `gh issue develop` による PR-1 のブランチの作成（PR-1 のブランチで作業している時点で済んでいる））を、7 章の AC-11 の行に記録する（1.3）。どれかが ruleset で止められていたら、要件書 1 章の決定に従い作業を止め、利用者に報告する。
 
 **成功の条件:** AC-11 の行に、4 つの観察の結果と PR の番号がある。
 
-#### ステップ 1-1: 一覧の値とそのガード
+#### ステップ 1-1・1-2: 一覧の値とそのガード、ガイドの例（取り下げ）
 
-**変更するファイル:** `.claude/commands/_context.md`、`cmd/yt2column/fixpr_docs_test.go`
-
--   [ ] `_context.md` の「Automated reviewer list」（`:185`）の値を `` `chatgpt-codex-connector` `` だけにする。説明の文は変えない（設計書 3.2）。
--   [ ] 同じコミットで、`wantReviewers`（`fixpr_docs_test.go:58`）を `chatgpt-codex-connector` だけにする。
--   [ ] 同じコミットで、`TestContextReviewerRowsMalformed` を設計書 3.2 の行ごとの影響のとおりに改める。受け入れる行（`:975`）を 1 つの名前の行にし、テストのコメントの「2 つの名前」の記述を改める。ほかの行の期待は変えない。
--   [ ] 壊して確かめる: `_context.md` を `coderabbitai` を含む元の行に戻すと `TestContextAndCommandsAgree` が失敗する。
-
-**成功の条件:** 文書のガード（下記）が通る。
-
-#### ステップ 1-2: ガイドの例
-
-**変更するファイル:** `docs/dev/guides/fixprguard_guide.md`
-
--   [ ] 4 章の `--reviewer LOGIN` の行の `（例: coderabbitai）`（`:65`）を `（例: chatgpt-codex-connector）` にする。
--   [ ] 5 章の例の `--reviewer coderabbitai`（`:99`・`:120`・`:153`・`:196`）を `--reviewer chatgpt-codex-connector` にする。
--   [ ] ガイドのほかの箇所に、`coderabbitai` を信頼する自動レビュアーとして挙げる記述が残っていないことを読んで確かめる（AC-08。`manual`）。
-
-**成功の条件:** `git grep -n coderabbitai -- docs/dev/guides` の出力が空である。
+要件書 F-002 の取り下げにより、行わない（1.5）。一度行った変更は、同じブランチで `main` の内容に戻した。
 
 **フェーズ 1 の完了の条件:** `make test`・`make lint` と、文書のガード（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./cmd/codexreview ./internal/pipeline`。CI の `doc-guard` と同じ形）が通る。
 
-### PR-1 作成ポイント: automated reviewer list
+### PR-1 作成ポイント: plan-PR observations and the reviewer-list decision
 
-**対象ステップ**: 1-0 / 1-1 / 1-2
+**対象ステップ**: 1-0（1-1・1-2 は取り下げ）
 
-**推奨タイトル**: `feat(0057): 自動レビュアーの一覧から CodeRabbit を外す`
+**推奨タイトル**: `docs(0057): CodeRabbit を自動レビュアーの一覧に残す決定と、計画の PR の観察を記録する`
 
-**レビュー観点**: `_context.md` の一覧と `wantReviewers`・`TestContextReviewerRowsMalformed` が同じコミットで変わっていること / 受け入れる行が 1 つの名前になっても、形の誤りの行が区切りの解析を引き続き確かめていること / ガイドの例が一覧の名前を使うこと
+**レビュー観点**: 要件書・設計書・本書の取り下げの記録が互いに合い、F-002・AC-05〜AC-08 を有効な要件や実装のステップとして扱う記述が残っていないこと / ガイド 7.2 に書く残余のリスクが 10 項目になり、CodeRabbit の経路が Codex の経路と同じ扱いで書かれていること / `_context.md`・`fixpr_docs_test.go`・ガイドが `main` と同じであること / AC-11 の記録が観察の時点ごとに分かれていること
 
 **実装モデル要件**: standard
 
-**判定理由**: パネルモードの条件にも条件付きの確認の 2 つ以上にも当たらず、既存コード調査結果に競合する案もない。値と文書のガードの機械的な変更である
+**判定理由**: パネルモードの条件にも条件付きの確認の 2 つ以上にも当たらず、既存コード調査結果に競合する案もない。タスクの文書と観察の記録だけの変更である
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/641
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: ガードツール（設計書 8 章の手順 2）
 
@@ -316,9 +295,9 @@
 **変更するファイル:** `docs/dev/guides/fixprguard_guide.md`
 
 -   [ ] 1 章の役割分担の表の `fixprguard` の行と、7.2.4 の一覧（ガイド:350）を、設計書 3.8 のとおりに改める。
--   [ ] 7.2.3 の「同じパッケージの `.go` のファイル」「ファイルシステムの Unicode の畳み込みによる別名」「確認への慣れ」に、第三者が Codex を介してその状況に至りうることも書き加える（1.3）。
--   [ ] 7.2 の最後（7.2.5 の後、8 章の前）に「#### 7.2.6」を加え、要件書 4.2 の 11 項目の残余のリスクのうち 7.2.3 にないものと、設計書 5.3 の分かっていることを書く。
--   [ ] 要件書 4.2 の 11 項目が、7.2.3 と 7.2.6 のどこかにすべて書かれていることを、項目ごとに確かめる（AC-21。`manual`）。
+-   [ ] 7.2.3 の「同じパッケージの `.go` のファイル」「ファイルシステムの Unicode の畳み込みによる別名」「確認への慣れ」に、第三者が Codex や CodeRabbit を介してその状況に至りうることも書き加える（1.3）。
+-   [ ] 7.2 の最後（7.2.5 の後、8 章の前）に「#### 7.2.6」を加え、要件書 4.2 の 10 項目の残余のリスクのうち 7.2.3 にないものと、設計書 5.3 の分かっていることを書く。
+-   [ ] 要件書 4.2 の 10 項目が、7.2.3 と 7.2.6 のどこかにすべて書かれていることを、項目ごとに確かめる（AC-21。`manual`）。
 
 **成功の条件:** 文書のガードが通る（`subsection(guide, "### 7.2")` が 7.2.6 を含む）。
 
@@ -351,7 +330,7 @@
 
 **推奨タイトル**: `docs(0057): ガイドの残余のリスク・用語集・過去のタスクの文書を新しい規則に合わせる`
 
-**レビュー観点**: ガイド 7.2.3・7.2.6 に要件書 4.2 の 11 項目がすべてあること / 0030・0036 の注記が節の内容に合い、本文と状態を変えていないこと / 用語集の「実行関連ファイル」が新しい規則に合うこと
+**レビュー観点**: ガイド 7.2.3・7.2.6 に要件書 4.2 の 10 項目がすべてあること / 0030・0036 の注記が節の内容に合い、本文と状態を変えていないこと / 用語集の「実行関連ファイル」が新しい規則に合うこと
 
 **実装モデル要件**: standard
 
@@ -368,7 +347,7 @@
 
 | マイルストーン | 内容 | 成果物 |
 |---|---|---|
-| M1 | CodeRabbit のスレッドを信頼しない | PR-1（`_context.md`、`fixpr_docs_test.go`、ガイドの例） |
+| M1 | 計画の PR の観察と、F-002 の取り下げを記録する | PR-1（本書と要件書・設計書） |
 | M2 | 実行関連ファイルが常に範囲外になり、`/runpr` が interaction limits を確かめて止まる | PR-2（ガードツール、`runpr.md`・`fixpr.md`、ガイドの 4・5・6・10 章） |
 | M3 | 文書が新しい規則と残余のリスクを示す | PR-3（ガイドの 1 章・7.2、用語集、`package_reference.md`、0030・0036 の注記） |
 
@@ -376,7 +355,7 @@
 
 | PR | 対象ステップ | 主な変更内容 | 実装モデル要件 |
 |---|---|---|---|
-| PR-1 | 1-0 / 1-1 / 1-2 | 本書の PR の観察の記録、自動レビュアーの一覧を `chatgpt-codex-connector` だけにし、そのガードとガイドの例を合わせる | standard |
+| PR-1 | 1-0 | 本書の PR の観察の記録と、F-002 の取り下げの記録（1-1・1-2 は取り下げ） | standard |
 | PR-2 | 2-1 / 2-2 / 2-3 / 2-4 / 3-1 / 3-2 / 3-3 / 3-4 / 3-5 | 範囲の規則、`splitIncluded` の拡張、`interaction-limits`、`Protocol` の `5`、`runpr.md` の状態の確認とメンションの検出、ガイドの規範の部分 | frontier-required |
 | PR-3 | 4-0 / 4-1 / 4-2 / 4-3 | マージの後の作業と観察の記録、ガイドの 1 章・7.2、用語集、`package_reference.md`、0030・0036 の注記と確認のスクリプト | standard |
 
@@ -384,10 +363,10 @@
 
 -   **ユニットテスト:** 範囲の規則は `scope_test.go::TestScopeRules` の表に行を加え、`finish` の行を `worktree_flow_test.go` に加える。`--include` の出力の分け方は `trust_test.go`、制限の状態の読み取りと分類は新しい `limits_test.go`、サブコマンドは `cmd/fixprguard/main_test.go`（既存の表への追加と新しいテスト）で確かめる（設計書 7.1）。`gh` は `cmdrunner/testutil` の `Fake` と、期限の時刻も記録するように広げた `deadlineRunner` に置き換え、GitHub に接続しない。
 -   **壊して失敗を確かめる:** 設計書 7.2 の表の 13 行と、各ステップの「壊して確かめる」の項目を確かめ、コミットメッセージに書く。
--   **文書のガード:** 自動レビュアーの一覧（`TestContextAndCommandsAgree`・`TestContextReviewerRowsMalformed`）、`--protocol` の値（`TestDocumentedProtocolMatches`）、`runpr.md` の呼び出し（`TestDocumentedInvocationsParse`・`TestFixprguardCallSites`・`TestRunprDocContract`）、ガイドの状態と理由の値（ステップ 3-4 の新しいテスト）。文面は PR のレビューで読む（設計書 7.3）。
+-   **文書のガード:** `--protocol` の値（`TestDocumentedProtocolMatches`）、`runpr.md` の呼び出し（`TestDocumentedInvocationsParse`・`TestFixprguardCallSites`・`TestRunprDocContract`）、ガイドの状態と理由の値（ステップ 3-4 の新しいテスト）。文面は PR のレビューで読む（設計書 7.3）。
 -   **前後の関係:** 0030・0036 の文書の状態を変えず注記だけを加えることは、`_checks/notes_only.sh` を一度実行して確かめる（ステップ 4-3）。
 -   **結合と手動の確認:** AC-10・AC-11 は PR での観察を記録する（設計書 7.4、1.3）。
--   **後方互換:** 古いツールと新しい文書、新しいツールと古い文書の組み合わせが終了コード `2` で止まることを、`TestProtocolMismatch`（`Protocol + 1` と `Protocol - 1`）で確かめる（AC-19）。すでに PR にある CodeRabbit のスレッドが想定外の著者のスレッドになることは、AC-06 の確かめに含まれる。
+-   **後方互換:** 古いツールと新しい文書、新しいツールと古い文書の組み合わせが終了コード `2` で止まることを、`TestProtocolMismatch`（`Protocol + 1` と `Protocol - 1`）で確かめる（AC-19）。
 -   **カバレッジ:** `limits.go` の関数は、受け入れる形・拒否の各段・分類の各分岐をテストで通す。テストを削除しないので、`go tool cover -func` の比較は要らない。
 
 ## 5. リスク管理 (Risk Management)
@@ -397,13 +376,12 @@
 | PR-2 のブランチでツールを入れると、ほかの worktree の `/fixpr`・`/runpr` が終了コード `2` で止まる | 並行する作業が止まる | ステップ 3-5 で、ほかの worktree で動いていないことを確かめてから入れる。マージの後に作業中のブランチに `main` を取り込む（ステップ 4-0）。PR-2 がマージの前に長く止まるときは、`main` で `make install-fixprguard` を実行して元のツールに戻す |
 | PR-2 のマージの後、2026-11-02T21:30:10Z より前に作られた開いている PR が `predates` で止まる | それらの PR を作り直す手間 | 正しい判定として受け入れ、マージの後に作り直す（設計書 8 章）。PR-3 は PR-2 のマージの後に作るので当たらない |
 | `gh` の出力の形が変わり、すべての実行が「確かめられない」になる | `/runpr` で PR を進められない | `reason` で原因の見当をつけ、ガイド 10 章の手順で調べる。`/mergepr` で直接マージする手段が残る（設計書 5.3） |
-| CodeRabbit が設定に反してスレッドを作り、想定外の著者のスレッドとしてマージを止める | 本タスクの PR の `/runpr` が止まる | 利用者が名指しするか解決する（設計書 5.3）。PR-1 のマージの後から当たる |
 | ruleset が `/mergepr` か Codex のレビューを止める | AC-11 が成り立たない | 要件書 1 章の決定に従い作業を止め、決定の変更として要件書に戻す（設計書 3.7） |
 | PR-2 が大きく、レビューに時間がかかる | 日程の遅れ | PR-2 は frontier の実装モデルで実装し、`レビュー観点` を検査の境界と `runpr.md` の振る舞いに絞る |
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
-- [ ] PR-1 マージ済み（対象ステップ: 1-0 / 1-1 / 1-2）
+- [x] PR-1 マージ済み（対象ステップ: 1-0。1-1・1-2 は取り下げ）
 - [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 3-1 / 3-2 / 3-3 / 3-4 / 3-5）
 - [ ] PR-3 マージ済み（対象ステップ: 4-0 / 4-1 / 4-2 / 4-3）
 
@@ -417,13 +395,10 @@
 | AC-02 | `internal/fixprguard/scope_test.go::TestScopeRules`（AC-01 の各パスの名指しの行。規則を変える前のコミットで通ることを確かめる） | test | ステップ 2-1 |
 | AC-03 | `internal/fixprguard/scope_test.go::TestScopeRules`（AC-03 の 5 行。規則を変える前のコミットで通ることを確かめる） | test | ステップ 2-1 |
 | AC-04 | `internal/fixprguard/worktree_flow_test.go` の、`Makefile` をスレッドの `path` にした `finish` の行（ステップ 2-1）と、既存の `TestFinishAfterOutOfScope` | test | ステップ 2-1 |
-| AC-05 | `cmd/yt2column/fixpr_docs_test.go::TestContextAndCommandsAgree`（`wantReviewers`）、`TestContextReviewerRowsMalformed`、`cmd/fixprguard/docs_test.go::TestDocumentedInvocationsParse`（`checkDocumentedReviewer`。`--reviewer` が一覧からだけ来ること） | static | ステップ 1-1 |
-| AC-06 | AC-05 の一覧の値と、`internal/fixprguard/trust_test.go::TestAssessAuthors`（`second_reviewer_not_passed`。既存）、`internal/fixprguard/github_test.go::TestBeginNeverFetchesUntrustedBody`（既存） | test・static | ステップ 1-1 |
-| AC-07 | `internal/fixprguard/github_test.go::TestBeginAcceptsNamedThread`（既存）、`scope_test.go::TestScopeRules`（名指しの行、`named_go_same_package` など） | test | ステップ 2-1 |
-| AC-08 | ガイドの説明と例を PR-1 のレビューで読む（1.3） | manual | ステップ 1-2 |
+| AC-05〜AC-08 | 欠番（要件書 F-002 の取り下げ。1.5） | - | - |
 | AC-09 | ガイド 10 章を、もとになる事実と照らし（ステップ 3-4）、PR-2 のレビューで読む | manual | ステップ 3-4 |
 | AC-10 | PR-2 の `/runpr` が報告した状態を記録する（ステップ 4-0。記録: 未）。PR-3 の `/runpr` が「有効」と期限の日付を報告することを、その報告で観察する（1.3）。分類は `internal/fixprguard/limits_test.go` の `active` の行が確かめる | manual・test | ステップ 2-3・4-0 |
-| AC-11 | 本書の PR（ステップ 1-0）と PR-1・PR-2（ステップ 4-0）で、Codex の要約のコメントの完了の状態、利用者の `git push` によるブランチの作成と更新、`/mergepr` の squash merge とブランチの削除を観察し、記録する。記録（本書の作成の時点、`f0cb3668`）: 設計書の PR #634 は、ruleset の設定の後に squash merge された（squash commit `f0cb3668`）。次のブランチ `isseis/0057-reviewer-relay-guard-03` は、そのマージの直後に `origin` に作られ、upstream を持つ（`git rev-parse --abbrev-ref @{u}` の出力が `origin/isseis/0057-reviewer-relay-guard-03`）。ほかの観察は記録: 未 | manual | ステップ 1-0・4-0 |
+| AC-11 | 本書の PR（ステップ 1-0）と PR-1・PR-2（ステップ 4-0）で、Codex の要約のコメントの完了の状態、利用者の `git push` によるブランチの作成と更新、`/mergepr` の squash merge とブランチの削除を観察し、記録する。記録（計画の作成の時点、`f0cb3668`）: 設計書の PR #634 は、ruleset の設定の後に squash merge された（squash commit `f0cb3668`）。次のブランチ `isseis/0057-reviewer-relay-guard-03` は、そのマージの直後に `origin` に作られ、upstream を持つ（`git rev-parse --abbrev-ref @{u}` の出力が `origin/isseis/0057-reviewer-relay-guard-03`）。記録（ステップ 1-0）: 本書の PR #637 は、PR を開いた後にも commit を push して head を `05c81d1f` に更新でき、Codex の要約のコメントが、その head に含まれる commit `8be7d34f` について `completed`（`has_any_findings` は `false`）に達した。`/mergepr` の squash merge は squash commit `34c85bb1` を作り、ブランチ `isseis/0057-reviewer-relay-guard-03` は `origin` から消えた。`/runpr` ステップ 5 は `gh issue develop` で次のブランチ `isseis/0057-reviewer-relay-guard-04` を `origin` に作り、そのブランチは upstream を持つ（`git rev-parse --abbrev-ref @{u}` の出力が `origin/isseis/0057-reviewer-relay-guard-04`）。PR-1・PR-2 の観察はステップ 4-0 で記録する（未） | manual | ステップ 1-0・4-0 |
 | AC-12 | `cmd/fixprguard/docs_test.go::TestDocumentedInvocationsParse`（`runpr.md` の `interaction-limits`）、`cmd/yt2column/fixpr_docs_test.go::TestFixprguardCallSites`、`TestRunprDocContract`（`head_before_checkout`）。1 回だけ読むこと、マージ済みで読まないこと、「Authorization」は PR-2 のレビューで読む | static・manual | ステップ 3-2 |
 | AC-13 | `internal/fixprguard/limits_test.go`（`active` の分類と `expiresOn`）、`cmd/fixprguard/main_test.go`（`active` の出力）。最終の報告の 1 行は PR-2 のレビューで読む | test・manual | ステップ 2-3・2-4・3-2 |
 | AC-14 | `internal/fixprguard/limits_test.go`（`expiring` の分類）。警告の内容と、示す 2 つの時点は PR-2 のレビューで読む | test・manual | ステップ 2-3・3-2 |
@@ -433,7 +408,7 @@
 | AC-18 | `internal/fixprguard/limits_test.go`（`Date` と同じ時刻、14 日後、14 日と 1 秒後の 3 行） | test | ステップ 2-3 |
 | AC-19 | `cmd/fixprguard/main_test.go::TestProtocolMismatch`（`Protocol + 1` と `Protocol - 1`、`interaction-limits` を含むすべてのサブコマンド）、`cmd/fixprguard/docs_test.go::TestDocumentedProtocolMatches` | test・static | ステップ 2-4・3-1 |
 | AC-20 | ガイド 6 章の規則 4 と判定の順序を PR-2 のレビューで読む | manual | ステップ 3-4 |
-| AC-21 | ガイド 7.2.3・7.2.6 を PR-3 のレビューで読み、要件書 4.2 の 11 項目と照らす | manual | ステップ 4-1 |
+| AC-21 | ガイド 7.2.3・7.2.6 を PR-3 のレビューで読み、要件書 4.2 の 10 項目と照らす | manual | ステップ 4-1 |
 | AC-22 | `docs/tasks/0057_reviewer_relay_guard/_checks/notes_only.sh origin/main HEAD`（記録: 未。merge-base と head のコミット ID、出力、6 つの壊した場合の終了コードを書く）。注記の文面は PR-3 のレビューで読む | diff・manual | ステップ 4-3 |
 | AC-23 | 用語集の項目を PR-3 のレビューで読む | manual | ステップ 4-2 |
 | AC-24 | 各 PR の `make test`・`make lint` と CI の `doc-guard` | static | すべてのステップ |
@@ -457,3 +432,4 @@
 ## 変更履歴
 
 - 2026-11-03 承認（isseis、#637）
+- 2026-11-04 セッション中の再承認：要件書 F-002 の取り下げに合わせ、ステップ 1-1・1-2 を取り下げ、PR-1 を観察と取り下げの記録にした（isseis、#641）
