@@ -147,9 +147,9 @@
 
 **変更するファイル:** `docs/dev/guides/fixprguard_guide.md`
 
--   [ ] 4 章の `--reviewer LOGIN` の行の `（例: coderabbitai）`（`:65`）を `（例: chatgpt-codex-connector）` にする。
--   [ ] 5 章の例の `--reviewer coderabbitai`（`:99`・`:120`・`:153`・`:196`）を `--reviewer chatgpt-codex-connector` にする。
--   [ ] ガイドのほかの箇所に、`coderabbitai` を信頼する自動レビュアーとして挙げる記述が残っていないことを読んで確かめる（AC-08。`manual`）。
+-   [x] 4 章の `--reviewer LOGIN` の行の `（例: coderabbitai）`（`:65`）を `（例: chatgpt-codex-connector）` にする。
+-   [x] 5 章の例の `--reviewer coderabbitai`（`:99`・`:120`・`:153`・`:196`）を `--reviewer chatgpt-codex-connector` にする。
+-   [x] ガイドのほかの箇所に、`coderabbitai` を信頼する自動レビュアーとして挙げる記述が残っていないことを読んで確かめる（AC-08。`manual`）。
 
 **成功の条件:** `git grep -n coderabbitai -- docs/dev/guides` の出力が空である。
 
