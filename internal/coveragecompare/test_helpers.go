@@ -3,6 +3,7 @@
 package coveragecompare
 
 import (
+	"context"
 	"errors"
 	"testing"
 )
@@ -38,3 +39,54 @@ func requireStop(t *testing.T, err error, point Point, input Input) StopReason {
 	}
 	return reason
 }
+
+// fakeSource is a source over in-memory files. ranges holds the range
+// helper's answer for each file, for fakeRanges.
+type fakeSource struct {
+	at      Point
+	files   map[string]string
+	ranges  map[string]fileRanges
+	readErr error
+}
+
+func (s *fakeSource) point() Point { return s.at }
+
+func (s *fakeSource) readFile(path string) ([]byte, bool, error) {
+	if s.readErr != nil {
+		return nil, false, s.readErr
+	}
+	data, ok := s.files[path]
+	if !ok {
+		return nil, false, nil
+	}
+	return []byte(data), true, nil
+}
+
+// fakeRanges answers the range helper's call from the ranges of a fakeSource.
+type fakeRanges struct {
+	err error
+}
+
+func (r fakeRanges) functionRanges(_ context.Context, src source, files []string) ([]fileRanges, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	fake, ok := src.(*fakeSource)
+	if !ok {
+		return nil, errFakeSourceType
+	}
+	answer := make([]fileRanges, 0, len(files))
+	for _, file := range files {
+		entry, ok := fake.ranges[file]
+		if !ok {
+			continue
+		}
+		entry.Path = file
+		answer = append(answer, entry)
+	}
+	return answer, nil
+}
+
+// errFakeSourceType is returned when fakeRanges is given a source it did not
+// expect.
+var errFakeSourceType = errors.New("fakeRanges needs a *fakeSource")

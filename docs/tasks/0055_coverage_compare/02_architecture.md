@@ -384,6 +384,11 @@ type target interface {
 	checkToolchain(ctx context.Context, base, head source) error
 	// run runs the test suite in a checkout and returns its raw outputs.
 	run(ctx context.Context, checkout string) (rawRun, error)
+	// readResults reads one point's test results: the test count and the
+	// failures.
+	readResults(raw rawRun, point Point) (testResults, error)
+	// readReport reads one point's coverage report.
+	readReport(raw rawRun, src source) (report, error)
 	// table builds one point's function table from the source and the
 	// parsed report; files is the set of product files to read.
 	table(ctx context.Context, src source, rep report, files []string) (funcTable, error)
@@ -392,7 +397,7 @@ type target interface {
 }
 ```
 
--   `source` は 1 つの時点のコミットとそのチェックアウト、`rawRun` は終了コードと標準出力と報告のファイルのパス、`report` は読んだ報告（テストの数、失敗、関数ごとの実行の記録）である。これらとそれを作る読み方の関数（プロファイル、`go test -json`、lcov、TAP、差分、範囲の補助の出力）はパッケージの中の型で、道具のテストは、実際のテストの一式を実行せずに、これらに直接例を与えて確かめる（AC-35、7 章）。
+-   `source` は 1 つの時点のコミットとそのチェックアウト、`rawRun` は終了コードと標準出力と報告のファイルの中身、`testResults` は読んだテストの実行の結果（テストの数、失敗）、`report` は読んだカバレッジの報告（関数ごとの実行の記録）である。これらとそれを作る読み方の関数（プロファイル、`go test -json`、lcov、TAP、差分、範囲の補助の出力）はパッケージの中の型で、道具のテストは、実際のテストの一式を実行せずに、これらに直接例を与えて確かめる（AC-35、7 章）。
 -   同じ行の扱い（Go は AC-15 で止まり、拡張は AC-14 でまとまりとして比べる）、比較の規則、AC-13 の扱い、外側の関数の手がかりは、`table` と `compare` の中にあり、Go と拡張で別々に書く。
 -   止まる理由は、処理の中では `*StopError`（4 章）として返し、`Run` が `Result` に移す。
 
