@@ -246,7 +246,7 @@ type Options struct {
 	Target   Target
 	Base     string   // the BASE argument as given
 	RepoRoot string   // the repository root (the current directory of make)
-	Environ  []string // the process environment, KEY=VALUE
+	Env      []string // the process environment, KEY=VALUE
 }
 
 // Run compares the coverage of BASE and HEAD and returns the result. It
@@ -380,10 +380,14 @@ type target interface {
 	pathspec() []string
 	// isProduct reports whether a file at a point is product code.
 	isProduct(src source, file string) (bool, error)
-	// checkToolchain reads the pinned versions from both commits.
-	checkToolchain(ctx context.Context, base, head source) error
-	// run runs the test suite in a checkout and returns its raw outputs.
-	run(ctx context.Context, checkout string) (rawRun, error)
+	// checkToolchain reads the pinned versions from both commits and
+	// returns the version the result names.
+	checkToolchain(ctx context.Context, base, head source) (string, error)
+	// prepare readies a checkout for its suite.
+	prepare(checkout string) error
+	// run runs a point's test suite in its checkout and returns its raw
+	// outputs.
+	run(ctx context.Context, point Point, checkout string) (rawRun, error)
 	// readResults reads one point's test results: the test count and the
 	// failures.
 	readResults(raw rawRun, point Point) (testResults, error)
@@ -458,7 +462,7 @@ interface FunctionRanges {
 
 ### 3.3. チェックアウトと後始末（AC-03・AC-06、H-03）
 
-**チェックアウトの作り方:** BASE と HEAD のそれぞれを、`os.MkdirTemp` で作る持ち主だけが読み書きできる一時的なディレクトリ（以下「作業用のディレクトリ」）の下に、`git clone --shared --no-checkout` と `git checkout --detach <ID>` で展開する。`git checkout` には `-c core.hooksPath=/dev/null` を付け、git のテンプレートのフックを実行しない。HEAD も、利用者の作業ツリーではなくチェックアウトで測る。
+**チェックアウトの作り方:** HEAD と BASE のそれぞれを、この順に、`os.MkdirTemp` で作る持ち主だけが読み書きできる一時的なディレクトリ（以下「作業用のディレクトリ」）の下に、`git clone --shared --no-checkout` と `git checkout --detach <ID>` で展開する。`git checkout` には `-c core.hooksPath=/dev/null` を付け、git のテンプレートのフックを実行しない。clone と checkout には `-c core.logAllRefUpdates=false` も付け、reflog を書かない。reflog を書くには committer の名前とメールが要り、大域の設定を読まないチェックアウトにはそれがないので、git がホストの名前を引き、1 回ごとに数秒待つことがある（実装のときの実測で、macOS で 5 秒）。HEAD も、利用者の作業ツリーではなくチェックアウトで測る。
 
 -   **`git worktree add` を使わない理由:** 作業ツリーを追加すると、利用者のリポジトリの作業ツリーの一覧が変わる（AC-03 が変わらないことを求めるもの）。SIGKILL で道具が終わると、その登録が残り、次の実行で扱いを決める必要がある。`--shared` のクローンは、利用者のリポジトリの作業ツリーの一覧に登録されない（実測。クローンの前後で `git worktree list` の行の数は変わらなかった）。SIGKILL で残るのは作業用のディレクトリだけなので、次の実行は残ったものを扱わない。`--shared` のクローンは、利用者のリポジトリのオブジェクトを読む。BASE と HEAD は利用者のブランチまたは HEAD から届くので、実行中に利用者が `git gc` を実行しても消えない。
 -   **`git archive` で展開しない理由:** 拡張のテストは、`git check-ignore` と `git ls-files` をリポジトリで実行する（`extension/test/repository.test.ts:67`・`:81`）。そのため、テストを実行するディレクトリは git のリポジトリでなければならない。

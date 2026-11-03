@@ -147,7 +147,7 @@ func measuredBuildTag(tag string) bool {
 func namesTestTag(expression constraint.Expr, positive bool) bool {
 	switch e := expression.(type) {
 	case *constraint.TagExpr:
-		return positive && e.Tag == "test"
+		return positive && e.Tag == testTag
 	case *constraint.NotExpr:
 		return namesTestTag(e.X, !positive)
 	case *constraint.AndExpr:
