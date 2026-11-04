@@ -808,7 +808,7 @@ flowchart TD
     J -.->|"やり直す（失敗・不明、<br>照会付きの送信の後）"| SI
     J -.->|"やり直す（失敗・不明、<br>照会なしの送信の後）"| SP
 
-    linkStyle 6,7,8,9,10,11,12 stroke:#999999,color:#666666;
+    linkStyle 6,7,8,9,10,11,12 stroke:#999999,color:#666666
 
     class C,SI,CH,SP,J normal
     class CE,F abnormal
