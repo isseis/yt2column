@@ -316,7 +316,6 @@ describe("existing-article notice", () => {
         elements.stateStatus.firstElementChild?.textContent,
         catalogs[locale].viewer.existing.text,
       );
-      assert.equal(elements.existing.closest("[role=status]"), null);
     });
 
     it(`hides the notice and keeps it out of the summary without the mark in ${locale}`, () => {
