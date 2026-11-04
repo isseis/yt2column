@@ -22,7 +22,7 @@
 -   **受理する effort の値はプロバイダごとに決まっている。** Claude は `low`・`medium`・`high`・`xhigh`・`max` で、effort を省くと `high` を送る。DeepSeek は `none`・`low`・`high`・`max` で、effort を省くと `reasoning_effort` を送らず API の既定に任せる。
 -   **値は補正しない。** effort の部分は前後の空白を取り除かず、大文字・小文字も変換せず、受理する値に完全一致しなければ設定エラーにする。不正な effort をモデル ID の一部とみなして受理することはない（`CLAUDE.md`「Reject, don't normalize」）。
 -   **空の値は未設定ではなく設定エラーにする。** 既定を使うのは未設定のときだけである。
--   **未設定のときの既定と継承を決める。** `YT2COLUMN_LLM` が未設定なら `claude/claude-opus-5-5` を使い、Claude の既定の effort `high` を当てる。`YT2COLUMN_REVIEW_LLM` が未設定なら、検証・推敲は生成のプロバイダ・モデル・effort をそのまま受け継ぐ。設定して effort を省いた場合は、生成の effort を受け継がず、そのプロバイダの「effort を省いたとき」に従う。
+-   **未設定のときの既定と継承を決める。** `YT2COLUMN_LLM` が未設定なら、本番の構成（[ADR-0004](0004-production-profile.md)）を既定として使う。`YT2COLUMN_REVIEW_LLM` が未設定なら、検証・推敲は生成のプロバイダ・モデル・effort をそのまま受け継ぐ。設定して effort を省いた場合は、生成の effort を受け継がず、そのプロバイダの「effort を省いたとき」に従う。
 -   **プロバイダ固有の設定は別の変数のままにする。** `ANTHROPIC_API_KEY`・`DEEPSEEK_API_KEY`・`ANTHROPIC_WORKSPACE_ID` は、その実行が使うプロバイダのものだけを読んで検査する。ほかのプロバイダの変数は、未設定・空・不正な値のいずれでも拒否しない。
 -   **廃止した変数は、どの実行でも拒否する。** `YT2COLUMN_LLM_PROVIDER`・`YT2COLUMN_MODEL`・`YT2COLUMN_REVIEW_PROVIDER`・`YT2COLUMN_REVIEW_MODEL`・`YT2COLUMN_CLAUDE_EFFORT` は、生成も検証・推敲も実行しない実行（`--after review` など）を含めて設定されていれば設定エラーにし、値を読まない。古い設定が残っていることに、いつ実行しても気づけるようにするためである。ホスト（`yt2column-nmhost`）は LLM の設定を読まないので対象にしない。
 -   **拒否のメッセージは、変数の名前と固定の理由だけを示し、値を含めない。**
@@ -43,12 +43,11 @@
 -   **effort の部分が不正な値を、モデル ID の一部とみなして受理する。** 指定と異なる振る舞いを隠さないためである（[0051 要件定義書](../../tasks/0051_llm_effort/01_requirements.md) §1）。
 -   **DeepSeek で、`minimal`・`medium`・`xhigh`・`ultra` も effort として受理する。** API の側がこれらの値を別の値に読み替えるので、指定と異なる振る舞いになる（[0051 要件定義書](../../tasks/0051_llm_effort/01_requirements.md) §1）。
 -   **DeepSeek に effort を付けた値を設定エラーにする。** DeepSeek の API が `reasoning_effort` を受け付けるため、レビュアーの判断で、DeepSeek でも effort を指定できるようにした（[0051 要件定義書](../../tasks/0051_llm_effort/01_requirements.md) §1）。
--   **既定のモデルを必須のままにする。** 何も設定しない実行ができず、本番の構成を既定にする目的を満たさない（[0042 要件定義書](../../tasks/0042_default_llm_opus/01_requirements.md) §1）。
--   **プロバイダを設定せずモデルだけを設定する状態を、文書で案内するだけにする。** 利用者が選んでいない事業者への送信を防げない（[0042 要件定義書](../../tasks/0042_default_llm_opus/01_requirements.md) §1）。
 
 ## 結果
 
 -   値の文法は 1 か所で決まり、プロバイダごとに受理する effort の値の一覧は `claudeparam` と `deepseekparam` に 1 か所ずつある。
+-   未設定のときの既定の値（本番の構成）は [ADR-0004](0004-production-profile.md) が定める。本番の構成を変えるときは、両方の ADR を照らす。
 -   プロバイダを足すときは、プロバイダの部分にその名前を加え、そのプロバイダの effort の値の一覧を足す。環境変数は増えない。
 -   プロバイダの部分の誤りは起動時の設定エラーになる。既定のプロバイダに黙って落ちることはない。
 -   モデル ID は不透明な文字列として扱う。プロバイダに合わないモデル名は、設定の読み込みではなく API の呼び出しで失敗する。
@@ -57,7 +56,7 @@
 ## 経緯
 
 - 2026-10-10 プロバイダとモデルを環境変数で選び、Claude の effort の値の一覧と、effort を必須とする規則を決めた（[0009 要件定義書](../../tasks/0009_claude_llm_client/01_requirements.md)）
-- 2026-10-25 Claude の effort の既定を `high` にし、出力の上限を 40,000 にした（[0041 要件定義書](../../tasks/0041_claude_effort_max_tokens/01_requirements.md)）
+- 2026-10-25 Claude の effort の既定を `high` にし、出力の上限を 40,000 にした（[0041 設計書](../../tasks/0041_claude_effort_max_tokens/02_architecture.md)）
 - 2026-10-25 既定のプロバイダとモデルを `claude` / `claude-opus-5-5` にした（[0042 要件定義書](../../tasks/0042_default_llm_opus/01_requirements.md)）
 - 2026-10-27 プロバイダとモデルを 1 つの値 `<プロバイダ>/<モデル ID>` で指定するようにした（[0045 要件定義書](../../tasks/0045_llm_env_var/01_requirements.md)）
 - 2026-10-29 値に `+<effort>` を含め、effort を工程ごとに指定できるようにした（[0051 要件定義書](../../tasks/0051_llm_effort/01_requirements.md)）

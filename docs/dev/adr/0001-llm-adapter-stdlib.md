@@ -23,15 +23,15 @@
 
 -   **SDK を使わず、標準ライブラリで API を呼ぶ。** Claude は Anthropic Messages API を、DeepSeek は OpenAI 互換の Chat Completions API を、`net/http` と `encoding/json` で直接呼ぶ。モジュールは標準ライブラリの外のモジュールを 1 つも持たない。
 -   **プロバイダに依存しない型と番兵は `internal/llm` に置く。** `LLMClient` と `GenerateRequest`・`GenerateResponse`、`ErrInvalidRequest`・`ErrTruncated`・`ErrUnexpectedFinishReason`・`ErrEmptyResponse`、リクエストの検証はここにある。
--   **HTTP の送信の経路は `internal/llm/llmhttp` に置き、両方のアダプタが使う。** 期限の適用、リダイレクトの禁止、応答本文の上限、失敗の分類をここで行う。`llmhttp` は番兵を持たず、アダプタが渡した番兵で失敗を報告する。HTTP の状態・応答本文の形・通信の失敗の番兵は、プロバイダの名前を持つので各アダプタに残す。
+-   **HTTP の送信の経路は `internal/llm/llmhttp` に置き、両方のアダプタが使う。** 期限の適用、リダイレクトの禁止、応答本文の上限、失敗の分類をここで行う。`llmhttp` はプロバイダ固有の番兵を持たず、アダプタが渡した番兵で失敗を報告する。HTTP の状態・応答本文の形・通信の失敗の番兵は、プロバイダの名前を持つので各アダプタに残す。
 -   **プロバイダ固有のパラメータの型は、アダプタの外の小さなパッケージに置く。** Claude は `internal/llm/claudeparam`、DeepSeek は `internal/llm/deepseekparam` である。どちらも標準ライブラリだけに依存し、設定の読み込みとアダプタの両方が使う。
--   **応答の厳格な検証は `internal/strictjson` に置き、複数のパッケージで共有する。** 字幕のパーサ、両方のアダプタ、`ArticleWriter`、`internal/publisher`、`internal/artifact`、`internal/fixprguard` が使う。
+-   **応答の厳格な検証は `internal/strictjson` に置き、複数のパッケージで共有する。** 字幕のパーサ、両方のアダプタ、`ArticleWriter`、`internal/publisher`、`internal/artifact`、`internal/fixprguard`、`internal/server`、`internal/nmhost`、`internal/codexreview`、`internal/coveragecompare` が使う。
 
 この決定の仕様の正本は [project_overview.md](../project_overview.md) の「決定済みの方針」と「パイプライン」、および [package_reference.md](../conventions/package_reference.md) のパッケージの表である。
 
 ## 採らなかった案
 
--   **プロバイダの公式 SDK を使う。** 外部ライブラリは必要最小限にする方針である（[project_overview.md](../project_overview.md)「決定済みの方針」）。SDK は HTTP 通信を内部に持つので、両方のアダプタで共有する送信の経路（`llmhttp`）を持てない。将来 Gemini を加えるときも、SDK が HTTP 通信を持つため `llmhttp` を使わない見込みである（[0009 設計書](../../tasks/0009_claude_llm_client/02_architecture.md) §9）。
+-   **プロバイダの公式 SDK を使う。** SDK の JSON のデコードは寛容で、応答を補正せずに拒否する検証と両立しにくい。外部モジュールを増やさない方針にも合わない（[0009 要件定義書](../../tasks/0009_claude_llm_client/01_requirements.md) §2.3）。将来 Gemini を加えるときも、SDK が HTTP 通信を持つため `llmhttp` を使わない見込みである（[0009 設計書](../../tasks/0009_claude_llm_client/02_architecture.md) §9）。
 -   **HTTP の送信の手順を各アダプタに持つ。** 秘密情報の扱いに関わるコードを 2 か所に持つことになる（[0009 設計書](../../tasks/0009_claude_llm_client/02_architecture.md) §1.1）。
 -   **厳格な JSON の部品を `internal/llm/deepseek` に複製する。** サロゲートの走査などの細かいコードが 2 か所になる（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) 付録 A）。
 -   **`internal/transcript` の非公開の関数を公開して LLM の段階から使う。** LLM の段階が字幕取得の段階に依存する（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) 付録 A）。
@@ -51,6 +51,6 @@
 
 ## 経緯
 
-- 2026-10-02 DeepSeek アダプタを標準ライブラリで書き、プロバイダに依存しない型と番兵を `internal/llm` に置いた（[0003 要件定義書](../../tasks/0003_deepseek_llm_client/01_requirements.md)）
+- 2026-10-02 DeepSeek アダプタを標準ライブラリで書き、プロバイダに依存しない型と番兵を `internal/llm` に置いた（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md)）
 - 2026-10-10 Claude アダプタを加えるとき、HTTP の送信の手順を `internal/llm/llmhttp` に切り出し、effort とワークスペース ID の型を `internal/llm/claudeparam` に置いた（[0009 設計書](../../tasks/0009_claude_llm_client/02_architecture.md)）
 - 2026-10-30 DeepSeek でも effort を工程ごとに指定できるようにしたとき、その型を `internal/llm/deepseekparam` に置いた（[0051 設計書](../../tasks/0051_llm_effort/02_architecture.md)）
