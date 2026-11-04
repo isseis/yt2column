@@ -326,13 +326,13 @@ localhost サーバの旧 API（`POST /articles`）・旧 API のジョブ・失
 
 **変更するファイル:** `docs/dev/guides/development.md`、`docs/dev/security.md`、`docs/dev/project_overview.md`、`docs/dev/conventions/package_reference.md`、`docs/dev/production_profile.md`、`docs/translation_glossary.md`、`CLAUDE.md`
 
-- [ ] `development.md`: `/articles` の curl の例（`:77-`）を除き、開発用のサーバの確認の例（`:37`）を `GET /jobs`（`method_not_allowed`）に置き換える（設計書 3.6 節、AC-20）。`:46`（受け付けたリクエストが生成して投稿し、失敗の通知を投稿するという記述）と、HTTP API の節の `/articles` と失敗の通知の記述（`:107`・`:111`・`:114-115`・`:119`・`:153`・`:159`・`:168`）を、ジョブの API だけを前提にした記述に直す。生成の枠はジョブの API の生成のジョブだけが数え、同時に読む本文は最大 2 つ、停止のときに待つのは投稿のジョブで最長およそ 5 分と書く（AC-18）。
-- [ ] `security.md` §8 のサーバの記述（`:136`・`:137`・`:140`・`:155-156`）から `/articles`・失敗の通知・二重の生成と投稿のリスクを除き、「新しい API」を「ジョブの API」と呼ぶ（AC-18、要件書 4.2）。
-- [ ] `project_overview.md` の `:10`・`:109`（`internal/failure` の行）・`:147` と、`production_profile.md:40` から `/articles` と失敗の通知を除く。
-- [ ] `package_reference.md` の `cmd/yt2column-server`・`internal/server`・`internal/publisher`・`internal/publisher/testutil` の行を、削除の後の形に直す（設計書 2.2 節）。
-- [ ] `translation_glossary.md` の「生成の枠」「枠」「リクエスト ID」の行（`:45`・`:65`・`:96`）から旧 API と失敗の通知を除き、「新しい API」を「ジョブの API」にする。
-- [ ] `CLAUDE.md` の Architecture Overview から `internal/failure` の記述（`:279-280`）を取り除く（AC-19 の後半）。
-- [ ] 文書のガードと `make ext-test` を通す。
+- [x] `development.md`: `/articles` の curl の例（`:77-`）を除き、開発用のサーバの確認の例（`:37`）を `GET /jobs`（`method_not_allowed`）に置き換える（設計書 3.6 節、AC-20）。`:46`（受け付けたリクエストが生成して投稿し、失敗の通知を投稿するという記述）と、HTTP API の節の `/articles` と失敗の通知の記述（`:107`・`:111`・`:114-115`・`:119`・`:153`・`:159`・`:168`）を、ジョブの API だけを前提にした記述に直す。生成の枠はジョブの API の生成のジョブだけが数え、同時に読む本文は最大 2 つ、停止のときに待つのは投稿のジョブで最長およそ 5 分と書く（AC-18）。
+- [x] `security.md` §8 のサーバの記述（`:136`・`:137`・`:140`・`:155-156`）から `/articles`・失敗の通知・二重の生成と投稿のリスクを除き、「新しい API」を「ジョブの API」と呼ぶ（AC-18、要件書 4.2）。
+- [x] `project_overview.md` の `:10`・`:109`（`internal/failure` の行）・`:147` と、`production_profile.md:40` から `/articles` と失敗の通知を除く。
+- [x] `package_reference.md` の `cmd/yt2column-server`・`internal/server`・`internal/publisher`・`internal/publisher/testutil` の行を、削除の後の形に直す（設計書 2.2 節）。
+- [x] `translation_glossary.md` の「生成の枠」「枠」「リクエスト ID」の行（`:45`・`:65`・`:96`）から旧 API と失敗の通知を除き、「新しい API」を「ジョブの API」にする。
+- [x] `CLAUDE.md` の Architecture Overview から `internal/failure` の記述（`:279-280`）を取り除く（AC-19 の後半）。
+- [x] 文書のガードと `make ext-test` を通す。
 
 **完了の条件:** 文書のガードと `make ext-test` が通る。
 

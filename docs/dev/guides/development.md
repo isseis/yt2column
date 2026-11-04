@@ -34,7 +34,7 @@ socket="$dev_home/.local/state/yt2column/run/server.sock"
 if [ "$(uname -s)" = Darwin ]; then socket="$dev_home/Library/Application Support/yt2column/run/server.sock"; fi
 until [ -S "$socket" ] || ! kill -0 "$server_pid" 2>/dev/null; do sleep 0.1; done
 if [ -S "$socket" ]; then
-  curl -sS --unix-socket "$socket" -X GET http://localhost/articles
+  curl -sS --unix-socket "$socket" -X GET http://localhost/jobs
 else
   echo "server exited at startup; $dev_home/server.log:" >&2; cat "$dev_home/server.log" >&2
 fi
@@ -43,7 +43,7 @@ kill "$server_pid" 2>/dev/null; wait "$server_pid"; rm -rf "$dev_home"
 
 待機のループは、サーバが起動の途中で終了したとき（設定の誤り、またはその `HOME` の起動のロックを別のサーバが持っているとき）に待つのをやめる。そのときは、最後の行がログを消すので、リクエストを送る代わりにログを表示する。最後の行は、サーバがまだ動いていてもいなくても実行できる。
 
-`HOME` が異なれば、ワークツリーごとのサーバはほかのサーバと同時に動く。それでも、サーバは LLM と Webhook の変数を利用者の環境から読む。本物の値を設定していると、受け付けたリクエストは記事を生成して投稿する。偽の値（任意の API キーと、`https://example.invalid/hook` のような `https` の Webhook の URL）を設定したときは、ジョブが始まる前に拒否されるリクエストだけを送る。例えば上の誤ったメソッド（`method_not_allowed`）や誤ったパス（`not_found`）である。受け付けられたリクエストは、LLM の API を呼ぼうとし、失敗の通知を投稿する。
+`HOME` が異なれば、ワークツリーごとのサーバはほかのサーバと同時に動く。それでも、サーバは LLM と Webhook の変数を利用者の環境から読む。本物の値を設定していると、受け付けた生成の開始は LLM を呼んで記事を生成し、受け付けた投稿の操作は Webhook へ投稿する。偽の値（任意の API キーと、`https://example.invalid/hook` のような `https` の Webhook の URL）を設定したときは、ジョブが始まる前に拒否されるリクエストだけを送る。例えば上の誤ったメソッド（`GET /jobs` への `method_not_allowed`）や誤ったパス（`not_found`）である。受け付けられた生成の開始は、LLM の API を呼ぼうとして失敗する。
 
 拡張は、そのようなサーバにはつながらない。ブラウザは本物の `HOME` で Native Messaging のホストを起動するので、ホストは本物の `HOME` で起動したサーバのソケットにだけつなぐ。ホストの manifest はブラウザごとに 1 つのファイル（macOS では Chrome と Brave で共有する 1 つのファイル）なので、あるワークツリーのビルドからホストを登録すると、別のワークツリーが登録した manifest を置き換える。拡張を使ってビルドを確かめるときは、一度に 1 つのワークツリーだけで行う。
 
@@ -74,17 +74,19 @@ localhost サーバの起動と停止は、README の
 ```sh
 socket="$HOME/.local/state/yt2column/run/server.sock"
 if [ "$(uname -s)" = Darwin ]; then socket="$HOME/Library/Application Support/yt2column/run/server.sock"; fi
-curl -sS --unix-socket "$socket" -X POST http://localhost/articles \
+curl -sS --unix-socket "$socket" -X POST http://localhost/jobs \
   -H 'Content-Type: application/json' \
   --data-binary @request.json
 ```
+
+これはジョブの API の生成の開始である（下の「ジョブの API」）。
 
 `curl` がつながらないとき:
 
 - **サーバが動いていない。** `curl` は `Couldn't connect to server` を報告する
   （そのメッセージは URL のホストと既定のポート、つまり `localhost port 80` を示すが、接続そのものはソケットに向かう）。README の手順でサーバを起動する。ログの最初の行が、待ち受けるソケットを示す。
 
-受け付けたリクエストは `202` と `{"status":"accepted","requestId":"…"}` を返す。
+受け付けた生成の開始は `202` と `{"status":"accepted","key":"…","requestId":"…"}` を返す。
 拒否したリクエストは `4xx` か `5xx` と
 `{"status":"rejected","reason":"…","requestId":"…"}` を返す。`reason` は次のいずれかである。
 
@@ -104,19 +106,15 @@ curl -sS --unix-socket "$socket" -X POST http://localhost/articles \
 | `article_not_postable` | 409 | 固定のメッセージ |
 | `internal_error` | 500 | 固定のメッセージ（`requestId` が空のときは想定外の応答） |
 
-`not_found` と `method_not_allowed` は、誤ったパスかメソッドへの応答である。ジョブを始めず、失敗の通知も投稿しない。拡張は、ホストの新しい形のメッセージで操作を指定し、パスもメソッドも指定しないので、拡張・ホスト・サーバの版がそろっていれば、どちらの拒否も受け取らない。受け取れば（例えば、ジョブの API を持たない古いサーバ）、想定外の応答として表示する。
+`not_found` と `method_not_allowed` は、誤ったパスかメソッドへの応答である。本文を読まず、ジョブを始めない。拡張は、ホストの新しい形のメッセージで操作を指定し、パスもメソッドも指定しないので、拡張・ホスト・サーバの版がそろっていれば、どちらの拒否も受け取らない。受け取れば（例えば、ジョブの API を持たない古いサーバ）、想定外の応答として表示する。
 
 ### ジョブの API
 
-記事の投稿は、それ自体で 1 つの操作である。`/articles`
-のリクエストは生成と投稿を一度に行い、下のジョブの API は、記事を生成して返し、求められたときに投稿する。
-
-サーバは `/articles` のほかに、生成と投稿を分ける 3 つの操作を受け付ける。拡張のビューアが記事を表示し、利用者が求めたときだけ投稿できるようにするためである。拡張は、この 3 つの操作だけを使い、`/articles` を使わない。生成の開始は拡張の Service Worker が、状態の取得はポップアップとビューアが、投稿はビューアが送る。
-`/articles` は、#526 で取り除く。
+サーバの API は、生成と投稿を分ける 3 つの操作（ジョブの API）である。記事を生成して返し、求められたときに投稿する。拡張のビューアが記事を表示し、利用者が求めたときだけ投稿できるようにするためである。生成の開始は拡張の Service Worker が、状態の取得はポップアップとビューアが、投稿はビューアが送る。
 
 | 操作 | リクエスト | 成功の応答 |
 |---|---|---|
-| 生成の開始 | `POST /jobs`、`/articles` と同じ JSON のオブジェクト | `202`、`{"status":"accepted","key":"…","requestId":"…"}` |
+| 生成の開始 | `POST /jobs`、上の `request.json` の形の JSON のオブジェクト | `202`、`{"status":"accepted","key":"…","requestId":"…"}` |
 | 状態の取得 | `GET /jobs/<key>`、本文なし | `200`、`{"status":"ok","requestId":"…","webhookConfigured":true,"job":{…}}` |
 | 投稿 | `POST /jobs/<key>/publish`、本文なし | `202`、`{"status":"accepted","requestId":"…"}` |
 
@@ -150,13 +148,13 @@ curl -sS --unix-socket "$socket" -X POST http://localhost/articles \
 }
 ```
 
-同じ入力をもう一度送ると、その記事を生成している間か生成し終えた後は、LLM を呼ばずに同じキーを返す。失敗したキーは生成し直す。同時に走る生成は、`/articles` のジョブも数えて最大 2 つである。生成の開始は 2 つの読み込みの枠の範囲で本文を読み、`/articles` のエンドポイントは生成の枠を 1 つ持っている間だけ本文を読む。そのため、同時に読む本文は最大 4 つである。開始は、読み込みの枠が埋まっているとき、生成の枠が埋まっているとき、またはキャッシュが埋まっていて落とせる記録がないときに拒否する。拒否した開始には
+同じ入力をもう一度送ると、その記事を生成している間か生成し終えた後は、LLM を呼ばずに同じキーを返す。失敗したキーは生成し直す。同時に走る生成は最大 2 つで、この生成の枠を数えるのはジョブの API の生成のジョブだけである（投稿のジョブは枠を取らない）。生成の開始は 2 つの読み込みの枠の範囲で本文を読むので、同時に読む本文は最大 2 つである。開始は、読み込みの枠が埋まっているとき、生成の枠が埋まっているとき、またはキャッシュが埋まっていて落とせる記録がないときに拒否する。拒否した開始には
 `too_many_requests` を返し、ジョブは始まらない。
 
 記事はサーバのメモリにだけある。記事のキャッシュが持つ記録は最大 100 で、埋まると、完了した記事か失敗のうち最も古いものを落とす。生成中や投稿中の記録は落とさない。再起動するとすべての記事と投稿の状態が失われるので、その後の状態の取得は `unknown` を返す。送る前の検査が拒否する記事は、投稿の状態が `unpostable` になり、投稿できない。そのような記事も `done` として返る（表示も保存もできる）。投稿できる記事になるのは、再起動の後か、その記録をキャッシュが落とした後に生成し直したときだけである。
 
-投稿の操作は Webhook の返事を待たずに `202` を返し、同じ記事を 2 度投稿しない。`posting` か `posted` の記事をもう一度投稿しても何も送らず、`failed` の投稿は最初に届かなかったメッセージから再開する（そのメッセージは 2 度届くことがある）。投稿には `SLACK_WEBHOOK_URL` が要る。なければ、操作は `webhook_not_configured` を返し、状態の取得の応答は
-`"webhookConfigured": false` を持ち、`/articles` も同じく拒否する。`SLACK_WEBHOOK_URL` なしで起動したサーバも記事は生成するが、投稿（ジョブの API の投稿の操作と `/articles`）は
+投稿の操作は Webhook の返事を待たずに `202` を返し、同じ記事を 2 度投稿しない。`posting` か `posted` の記事をもう一度投稿しても何も送らず、`failed` の投稿は最初に届かなかったメッセージから再開する（そのメッセージは 2 度届くことがある）。投稿には `SLACK_WEBHOOK_URL` が要る。なければ、投稿の操作は `webhook_not_configured` を返し、状態の取得の応答は
+`"webhookConfigured": false` を持つ。`SLACK_WEBHOOK_URL` なしで起動したサーバも記事は生成するが、投稿の操作は
 `webhook_not_configured` で拒否する。
 
 受け付けて応答した状態の取得はログに書かない。ビューアが数秒ごとに問い合わせるためで、その応答の `requestId` に対応するログの行はない。拒否した状態の取得は、その拒否をログに書く。ほかの操作はどれも `requestId` を付けた行をログに書き、ジョブの API のジョブはキーを書く。
@@ -165,7 +163,7 @@ curl -sS --unix-socket "$socket" -X POST http://localhost/articles \
 ジョブの API の生成と投稿のジョブは、代わりに記事のキーをログに書くので、1 つのジョブは
 `grep "$key" server.log` で追う。
 
-最初のシグナルで、サーバはジョブの API の実行中の生成を取り消し（その LLM の呼び出しは止まる。サーバが終わればキャッシュも消えるので、その記事は失われる）、実行中の `/articles` のジョブと投稿のジョブは終わるまで待つ。
+最初のシグナルで、サーバは実行中の生成を取り消し（その LLM の呼び出しは止まる。サーバが終わればキャッシュも消えるので、その記事は失われる）、投稿のジョブは終わるまで待つ。1 つの投稿のジョブの送信は、最大 10 通を 1 通 30 秒以内、1 秒の間隔で送るので最長 309 秒かかる。投稿のジョブはそれぞれ並行して送るので、待つのは最長でおよそ 5 分である。
 
 「curl でサーバを確かめる」のソケットと `request.json` の本文を使うと、3 つの操作は次のとおりである。
 
