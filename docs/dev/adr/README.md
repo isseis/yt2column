@@ -11,3 +11,4 @@
 | [ADR-0003](0003-llm-config-contract.md) | LLM のプロバイダ・モデル・effort を 1 つの値 <プロバイダ>/<モデル ID>+<effort> で指定する | `有効` |
 | [ADR-0004](0004-production-profile.md) | 本番の構成を claude-opus-5-5（effort high）の 3 段階とし、品質の目標と製品の制約を共通の文書に置く | `有効` |
 | [ADR-0005](0005-server-architecture.md) | サーバを Native Messaging のホストと常駐サーバに分け、HTTP を Unix ドメインソケットの上で受ける | `有効` |
+| [ADR-0006](0006-threat-model.md) | ブラウザ拡張と localhost サーバの脅威モデルは、同一ユーザーを信頼し、他のユーザーを排除する | `有効` |
