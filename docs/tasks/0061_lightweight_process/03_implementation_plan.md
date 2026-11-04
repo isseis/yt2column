@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-04 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-04 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の項番を、「設計書 3.5.6」などは設計書の節を指す。用語（軽量プロセス、通常のプロセス、類型、仕様のコメント、条件の表、確かめ直しのスクリプト、仕様の手順書、戻しのコメント、道具のコミット、確かめた結果の記録、Part B など）は、要件書 6 章と設計書の冒頭に従う。本タスクに `implementation_handoff.md` はない。[design_handoff.md](design_handoff.md) の H-01〜H-11 は、設計書の付録 A がすべて記録している。
@@ -559,3 +559,7 @@ PR は 1→5 の順にマージする。軽量プロセスを使えるように�
 
 -   PR-5 のマージの後、`/runpr` が issue #619 を閉じる（本タスクの最後の PR のため）。
 -   最初の実際の軽量プロセスの issue で、`/mkreq` の振り分けから `/runpr` のマージまでを、利用者と一緒に確かめる（設計書 7.2）。
+
+## 変更履歴
+
+- 2026-11-04 承認（isseis、#670）
