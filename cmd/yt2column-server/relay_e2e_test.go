@@ -125,8 +125,9 @@ func TestRelayEndToEnd(t *testing.T) {
 	})
 
 	// A message an extension built before the job API sends has no "v": the
-	// real host answers protocol_error from its form check without sending
-	// it, and a new-form message sent next reaches the same server.
+	// real host answers protocol_error from its form check (stage=form in its
+	// log), which sends nothing. The new-form start sent next shows that the
+	// same server was reachable and serving all along.
 	t.Run("message_without_version_is_rejected", func(t *testing.T) {
 		e := newServerEnv(t)
 		startServer(t, e, testDeps(validResponseLLM()))

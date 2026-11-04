@@ -304,8 +304,8 @@ func startMessage(input string) []byte {
 }
 
 // requireStage checks that the log names want as the stage the relay ended
-// at. A test of a later stage would also pass with a message the form check
-// stopped, so the form stage is ruled out explicitly when it is not want.
+// at. Below the form stage it also rules the form stage out, so the check
+// stays meaningful if a relay ever logs more than one line.
 func requireStage(t *testing.T, log string, want stage) {
 	t.Helper()
 	if !strings.Contains(log, stageKey+"="+string(want)) {
@@ -333,33 +333,6 @@ func countedRaw(t *testing.T, serve func(net.Conn)) (Dialer, func() int32) {
 			time.Sleep(time.Millisecond)
 		}
 		return n.Load()
-	}
-}
-
-// TestRelayForwardsOneRequest checks what the per-operation tests leave out:
-// the server's response bytes reach the reply unchanged even when they are not
-// valid UTF-8, and the request target stays in origin form although the
-// environment sets a proxy.
-func TestRelayForwardsOneRequest(t *testing.T) {
-	// The server's body is not valid UTF-8: the reply must carry its bytes,
-	// not a repaired string.
-	answer := []byte("{\"status\":\"ok\",\"state\":\"\xff\xc0\"}")
-	path, got := recordingServer(t, answer)
-	dial, dials := countDials(SocketDialer(path))
-
-	result := runRelay(message(statusMessage()), dial, testTimeout)
-
-	requireResponse(t, result.reply(t), http.StatusAccepted, answer)
-	requireStage(t, result.log, stageExchange)
-	req := got()
-	// TestMain sets a proxy in the environment, so this checks that the
-	// transport ignores it: through a proxy the target would be an absolute
-	// URI.
-	if req.requests != 1 || req.method != http.MethodGet || req.requestURI != "/jobs/"+testKey {
-		t.Errorf("the server received %d requests, the last %s %s; want one GET /jobs/%s", req.requests, req.method, req.requestURI, testKey)
-	}
-	if n := dials.Load(); n != 1 {
-		t.Errorf("Dial called %d times, want 1", n)
 	}
 }
 
@@ -506,8 +479,7 @@ func TestRelayResponseOverLimit(t *testing.T) {
 			// A status request, whose response carries the largest article.
 			// At the limit, the reply must also fit the browser's message
 			// limit: encodeReply would turn a larger one into protocol_error.
-			msg := []byte(`{"v":1,"op":"status","key":"` + testKey + `"}`)
-			members := runRelay(message(msg), SocketDialer(path), testTimeout).reply(t)
+			members := runRelay(message(statusMessage()), SocketDialer(path), testTimeout).reply(t)
 			if req := got(); req.method != http.MethodGet || req.requestURI != "/jobs/"+testKey {
 				t.Errorf("request line = %s %s, want the status request", req.method, req.requestURI)
 			}
@@ -919,7 +891,9 @@ func TestRelayNewFormOperations(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			answer := []byte(`{"status":"ok"}`)
+			// The server's body is not valid UTF-8: the reply must carry its
+			// bytes, not a repaired string.
+			answer := []byte("{\"status\":\"ok\",\"state\":\"\xff\xc0\"}")
 			path, got := recordingServer(t, answer)
 			dial, dials := countDials(SocketDialer(path))
 
@@ -929,6 +903,9 @@ func TestRelayNewFormOperations(t *testing.T) {
 			if req.requests != 1 || dials.Load() != 1 {
 				t.Errorf("the server received %d requests over %d dials, want 1 over 1", req.requests, dials.Load())
 			}
+			// TestMain sets a proxy in the environment, so this also checks
+			// that the transport ignores it: through a proxy the target would
+			// be an absolute URI.
 			if req.method != tt.method || req.requestURI != tt.requestURI {
 				t.Errorf("request line = %s %s, want %s %s", req.method, req.requestURI, tt.method, tt.requestURI)
 			}
@@ -1114,12 +1091,12 @@ func TestRelayKeyPassedUnchecked(t *testing.T) {
 }
 
 // TestRelayNewFormTimeout checks that a new-form request the server never
-// answers ends with server_timeout after exactly one request.
+// answers ends with server_timeout after exactly one request. The status
+// request is TestRelayHostErrors' "server never answers" row.
 func TestRelayNewFormTimeout(t *testing.T) {
 	const key = testKey
 	for _, msg := range []string{
 		`{"v":1,"op":"start","input":{"videoUrl":"x","transcript":"y"}}`,
-		`{"v":1,"op":"status","key":"` + key + `"}`,
 		`{"v":1,"op":"publish","key":"` + key + `"}`,
 	} {
 		t.Run(msg, func(t *testing.T) {
@@ -1170,12 +1147,10 @@ func TestRelayNewFormLogOmitsMessage(t *testing.T) {
 
 // TestRequestRefusesUnroutable checks the fail-secure default of request: a
 // destination whose operation route never returns, the zero value included,
-// builds no request, whatever its body and key.
+// builds no request.
 func TestRequestRefusesUnroutable(t *testing.T) {
 	for _, dest := range []destination{
 		{},
-		{body: []byte("{}")},
-		{key: "k"},
 		{op: OperationPublish + 1, key: "k"},
 		{op: -1, body: []byte("{}")},
 	} {

@@ -261,7 +261,7 @@ func TestRelayUsesDerivedSocket(t *testing.T) {
 	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = io.Copy(io.Discard, r.Body)
 		w.WriteHeader(http.StatusAccepted)
-		_, _ = w.Write([]byte(`{"requestId":"r1"}`))
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	})}
 	go func() { _ = srv.Serve(listener) }()
 	t.Cleanup(func() { _ = srv.Close() })
@@ -276,7 +276,7 @@ func TestRelayUsesDerivedSocket(t *testing.T) {
 			}
 			want := map[string]any{
 				"v": float64(1), "kind": "response", "status": float64(http.StatusAccepted),
-				"body": base64.StdEncoding.EncodeToString([]byte(`{"requestId":"r1"}`)),
+				"body": base64.StdEncoding.EncodeToString([]byte(`{"status":"ok"}`)),
 			}
 			if got := inv.reply(t); !maps.Equal(got, want) {
 				t.Errorf("reply = %v, want %v", got, want)
