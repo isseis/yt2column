@@ -268,7 +268,9 @@ func TestRelayUsesDerivedSocket(t *testing.T) {
 
 	for _, variant := range hostEnvs(home) {
 		t.Run(variant.name, func(t *testing.T) {
-			inv := invoke(t, []string{nmhost.ExtensionOrigin}, variant.env, message([]byte(`{}`)), fixedExecutable(testExecutable))
+			// A new-form status request, which the host sends to the server.
+			msg := []byte(`{"v":1,"op":"status","key":"k"}`)
+			inv := invoke(t, []string{nmhost.ExtensionOrigin}, variant.env, message(msg), fixedExecutable(testExecutable))
 			if inv.code != exitOK {
 				t.Fatalf("exit code = %d, want %d; stderr = %q", inv.code, exitOK, inv.stderr)
 			}

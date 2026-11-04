@@ -138,14 +138,14 @@ localhost サーバの旧 API（`POST /articles`）・旧 API のジョブ・失
 
 **変更するファイル:** `internal/nmhost/relay_test.go`、`cmd/yt2column-nmhost/main_test.go`、`cmd/yt2column-server/relay_e2e_test.go`
 
-- [ ] `TestRelayForwardsOneRequest` を新しい形のメッセージで作り直す（設計書 7.1 節）。`TestRelayNewFormOperations` の `start` の行（`relay_test.go:839-842`）と重なる確かめは除き、重ならない性質（正しい UTF-8 でないサーバの応答をそのまま中継することなど）に絞る。
-- [ ] `TestRelayServerEarlyRejection`・`TestRelayHostErrors`・`TestRelayOutputs`・`TestRelayNoReplyFrame`・`TestRelayMessageReadFailures`・`TestRelayLengthChecks` の入力を、新しい形のメッセージに移す（設計書 7.1 節）。移した各行は、届くはずの段階のログの `stage=` を確かめる（`protocol_error` を期待する行は、形の検査の `stage=form` でないことも確かめる）。サーバと交換する行は、サーバがリクエストを 1 つ受け取ったことも確かめる。
-- [ ] 一時的に `route` がすべてのメッセージを拒否するようにして、移したテストがすべて失敗することを確かめ、コミットメッセージに書く（変更は残さない）。
-- [ ] `TestRelayUsesDerivedSocket` の `{}` のメッセージを、新しい形のメッセージに移す。
-- [ ] `TestRelayEndToEnd` の `accepted_job_continues_after_host_exits`・`stopped_server_is_unavailable`・`body_over_server_limit_is_rejected_by_server` を新しい形に移す（設計書 7.2 節）。
-- [ ] `TestRelayEndToEnd/invalid_transcript_notifies_failure` を `invalid_transcript_posts_nothing` に置き換える。新しい形の生成の開始で字幕が正しくない場合に、ホストの応答が `400` の `invalid_transcript` であること、サーバを止めた後（停止はジョブと失敗の通知を待つ）に Webhook が何も受け取っていないことを確かめる（設計書 7.2 節、AC-02）。生成の開始の拒否が失敗の通知を送るようにする一時的な変更で、このサブテストが失敗することを確かめる。
-- [ ] `TestRelayLegacyBytesUnchanged` など、今の形だけを確かめるテストは、このステップでは残す。
-- [ ] 親コミットとこのコミットで、1.3 節「カバレッジの比べ方」の移し替えのコミットの比べ方で比べ、結果をコミットメッセージに書く。
+- [x] `TestRelayForwardsOneRequest` を新しい形のメッセージで作り直す（設計書 7.1 節）。`TestRelayNewFormOperations` の `start` の行（`relay_test.go:839-842`）と重なる確かめは除き、重ならない性質（正しい UTF-8 でないサーバの応答をそのまま中継することなど）に絞る。
+- [x] `TestRelayServerEarlyRejection`・`TestRelayHostErrors`・`TestRelayOutputs`・`TestRelayNoReplyFrame`・`TestRelayMessageReadFailures`・`TestRelayLengthChecks` の入力を、新しい形のメッセージに移す（設計書 7.1 節）。移した各行は、届くはずの段階のログの `stage=` を確かめる（`protocol_error` を期待する行は、形の検査の `stage=form` でないことも確かめる）。サーバと交換する行は、サーバがリクエストを 1 つ受け取ったことも確かめる。
+- [x] 一時的に `route` がすべてのメッセージを拒否するようにして、移したテストがすべて失敗することを確かめ、コミットメッセージに書く（変更は残さない）。
+- [x] `TestRelayUsesDerivedSocket` の `{}` のメッセージを、新しい形のメッセージに移す。
+- [x] `TestRelayEndToEnd` の `accepted_job_continues_after_host_exits`・`stopped_server_is_unavailable`・`body_over_server_limit_is_rejected_by_server` を新しい形に移す（設計書 7.2 節）。
+- [x] `TestRelayEndToEnd/invalid_transcript_notifies_failure` を `invalid_transcript_posts_nothing` に置き換える。新しい形の生成の開始で字幕が正しくない場合に、ホストの応答が `400` の `invalid_transcript` であること、サーバを止めた後（停止はジョブと失敗の通知を待つ）に Webhook が何も受け取っていないことを確かめる（設計書 7.2 節、AC-02）。生成の開始の拒否が失敗の通知を送るようにする一時的な変更で、このサブテストが失敗することを確かめる。
+- [x] `TestRelayLegacyBytesUnchanged` など、今の形だけを確かめるテストは、このステップでは残す。
+- [x] 親コミットとこのコミットで、1.3 節「カバレッジの比べ方」の移し替えのコミットの比べ方で比べ、結果をコミットメッセージに書く。
 
 **完了の条件:** `make test` と `make lint` が通り、カバレッジの比較が 1.3 節の基準を満たす。
 
