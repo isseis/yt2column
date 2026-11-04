@@ -396,10 +396,10 @@ type apiResponse struct {
 	RequestID string `json:"requestId"`
 }
 
-// requestBody returns a request body for testVideoURL with raw as the
-// transcript.
+// requestBody returns a plain generation start's body for testVideoURL with
+// raw as the transcript.
 func requestBody(raw string) string {
-	data, err := json.Marshal(map[string]string{"videoUrl": testVideoURL, "transcript": raw})
+	data, err := json.Marshal(map[string]string{"videoUrl": testVideoURL, "transcript": raw, "mode": "plain"})
 	if err != nil {
 		panic(err) // a map of strings always marshals
 	}

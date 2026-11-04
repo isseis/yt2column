@@ -39,29 +39,48 @@ func requireStartUntouched(t *testing.T, ts *testServer) {
 	}
 }
 
+// validMembers are the members of a body the checks accept, so a row that
+// adds one member to them is rejected for that member alone.
+// TestOptionalMembers's "empty" row starts from them and is accepted.
+const validMembers = `"videoUrl":"` + testValidVideoURL + `","transcript":"0:00\nHello\n","mode":"plain"`
+
 // invalidBodyCases are bodies the body checks reject as invalid_body for
-// their shape.
+// their shape. Each carries a valid mode, so it is refused for the fault its
+// name gives and not for a missing mode.
 var invalidBodyCases = []struct {
 	name string
 	body string
 }{
-	{"missing_video_url", `{"transcript":"0:00\nHello\n"}`},
-	{"missing_transcript", `{"videoUrl":"` + testValidVideoURL + `"}`},
-	{"video_url_number", `{"videoUrl":1,"transcript":"0:00\nHello\n"}`},
-	{"video_url_null", `{"videoUrl":null,"transcript":"0:00\nHello\n"}`},
-	{"video_url_empty", `{"videoUrl":"","transcript":"0:00\nHello\n"}`},
-	{"video_url_whitespace", `{"videoUrl":"   ","transcript":"0:00\nHello\n"}`},
-	{"transcript_number", `{"videoUrl":"` + testValidVideoURL + `","transcript":2}`},
-	{"transcript_empty", `{"videoUrl":"` + testValidVideoURL + `","transcript":""}`},
-	{"transcript_whitespace", `{"videoUrl":"` + testValidVideoURL + `","transcript":" \t "}`},
-	{"duplicate_video_url", `{"videoUrl":"` + testValidVideoURL + `","videoUrl":"x","transcript":"0:00\nHello\n"}`},
-	{"trailing_data", `{"videoUrl":"` + testValidVideoURL + `","transcript":"0:00\nHello\n"}{}`},
+	{"missing_video_url", `{"transcript":"0:00\nHello\n","mode":"plain"}`},
+	{"missing_transcript", `{"videoUrl":"` + testValidVideoURL + `","mode":"plain"}`},
+	{"video_url_number", `{"videoUrl":1,"transcript":"0:00\nHello\n","mode":"plain"}`},
+	{"video_url_null", `{"videoUrl":null,"transcript":"0:00\nHello\n","mode":"plain"}`},
+	{"video_url_empty", `{"videoUrl":"","transcript":"0:00\nHello\n","mode":"plain"}`},
+	{"video_url_whitespace", `{"videoUrl":"   ","transcript":"0:00\nHello\n","mode":"plain"}`},
+	{"transcript_number", `{"videoUrl":"` + testValidVideoURL + `","transcript":2,"mode":"plain"}`},
+	{"transcript_empty", `{"videoUrl":"` + testValidVideoURL + `","transcript":"","mode":"plain"}`},
+	{"transcript_whitespace", `{"videoUrl":"` + testValidVideoURL + `","transcript":" \t ","mode":"plain"}`},
+	{"duplicate_video_url", `{"videoUrl":"` + testValidVideoURL + `","videoUrl":"x","transcript":"0:00\nHello\n","mode":"plain"}`},
+	{"trailing_data", `{` + validMembers + `}{}`},
 	{"not_object", `[]`},
 	{"not_json", `not json`},
-	{"invalid_utf8", "{\"videoUrl\":\"" + testValidVideoURL + "\",\"transcript\":\"\xff\"}"},
-	{"unpaired_surrogate", `{"videoUrl":"` + testValidVideoURL + `","transcript":"\ud800"}`},
-	{"unpaired_surrogate_undeclared", `{"videoUrl":"` + testValidVideoURL + `","transcript":"0:00\nHello\n","extra":"\ud800"}`},
-	{"invalid_utf8_undeclared", "{\"videoUrl\":\"" + testValidVideoURL + "\",\"transcript\":\"0:00\\nHello\\n\",\"extra\":\"\xff\"}"},
+	{"invalid_utf8", "{\"videoUrl\":\"" + testValidVideoURL + "\",\"transcript\":\"\xff\",\"mode\":\"plain\"}"},
+	{"unpaired_surrogate", `{"videoUrl":"` + testValidVideoURL + `","transcript":"\ud800","mode":"plain"}`},
+	{"unpaired_surrogate_undeclared", `{` + validMembers + `,"extra":"\ud800"}`},
+	{"invalid_utf8_undeclared", "{" + validMembers + ",\"extra\":\"\xff\"}"},
+	// The send mode: required, a string, exactly one of the two values, and
+	// never repaired into one.
+	{"mode_missing", `{"videoUrl":"` + testValidVideoURL + `","transcript":"0:00\nHello\n"}`},
+	{"mode_true", `{"videoUrl":"` + testValidVideoURL + `","transcript":"0:00\nHello\n","mode":true}`},
+	{"mode_number", `{"videoUrl":"` + testValidVideoURL + `","transcript":"0:00\nHello\n","mode":1}`},
+	{"mode_null", `{"videoUrl":"` + testValidVideoURL + `","transcript":"0:00\nHello\n","mode":null}`},
+	{"mode_uppercase", `{"videoUrl":"` + testValidVideoURL + `","transcript":"0:00\nHello\n","mode":"Inquiry"}`},
+	{"mode_uppercase_plain", `{"videoUrl":"` + testValidVideoURL + `","transcript":"0:00\nHello\n","mode":"PLAIN"}`},
+	{"mode_spaces", `{"videoUrl":"` + testValidVideoURL + `","transcript":"0:00\nHello\n","mode":" plain "}`},
+	{"mode_empty", `{"videoUrl":"` + testValidVideoURL + `","transcript":"0:00\nHello\n","mode":""}`},
+	{"mode_other", `{"videoUrl":"` + testValidVideoURL + `","transcript":"0:00\nHello\n","mode":"existing"}`},
+	{"mode_duplicate", `{` + validMembers + `,"mode":"plain"}`},
+	{"mode_duplicate_mixed", `{` + validMembers + `,"mode":"inquiry"}`},
 }
 
 // optionalMemberNames are the optional members, and nonStringValues the JSON
@@ -105,7 +124,7 @@ func TestStartRejectsBody(t *testing.T) {
 	}
 	for _, member := range optionalMemberNames {
 		for _, value := range nonStringValues {
-			body := `{"videoUrl":"` + testValidVideoURL + `","transcript":"0:00\nHello\n","` + member + `":` + value + `}`
+			body := `{` + validMembers + `,"` + member + `":` + value + `}`
 			tests = append(tests, rejected{"optional/" + member + "_" + value, body, "invalid_body"})
 		}
 	}
@@ -136,7 +155,7 @@ func TestStartRejectsBody(t *testing.T) {
 func TestOptionalMembers(t *testing.T) {
 	for name, body := range map[string]string{
 		"missing": validBody(testValidVideoURL, testValidRaw),
-		"empty":   `{"videoUrl":"` + testValidVideoURL + `","transcript":"0:00\nHello\n","title":"","channelName":"","description":""}`,
+		"empty":   `{` + validMembers + `,"title":"","channelName":"","description":""}`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			ts := newTestServer(t)
@@ -260,7 +279,7 @@ func TestChannelNameAgreesWithWriter(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Marshal: %v", err)
 				}
-				body := `{"videoUrl":"` + testValidVideoURL + `","transcript":"0:00\nHello\n","channelName":` + string(quoted) + `}`
+				body := `{` + validMembers + `,"channelName":` + string(quoted) + `}`
 				requireChannelNameRequestVerdict(t, newTestServer(t), body, tc)
 			}
 
@@ -343,7 +362,7 @@ func TestValidateBodyKeyInput(t *testing.T) {
 	}
 
 	absent := keyInput(t, validBody("https://youtu.be/dQw4w9WgXcQ", testValidRaw))
-	empty := keyInput(t, `{"videoUrl":"https://youtu.be/dQw4w9WgXcQ","transcript":"0:00\nHello\n","title":"","channelName":"","description":""}`)
+	empty := keyInput(t, `{"videoUrl":"https://youtu.be/dQw4w9WgXcQ","transcript":"0:00\nHello\n","title":"","channelName":"","description":"","mode":"plain"}`)
 	want := articlecache.KeyInput{VideoURL: testValidVideoURL, VideoID: "dQw4w9WgXcQ", Transcript: testValidRaw}
 	if absent != want {
 		t.Errorf("absent members: key input = %+v, want %+v", absent, want)
@@ -352,7 +371,7 @@ func TestValidateBodyKeyInput(t *testing.T) {
 		t.Errorf("empty members: key input = %+v, want %+v", empty, want)
 	}
 
-	set := keyInput(t, `{"videoUrl":"`+testValidVideoURL+`","transcript":"0:00\nHello\n","title":"T","channelName":"C","description":"D"}`)
+	set := keyInput(t, `{"videoUrl":"`+testValidVideoURL+`","transcript":"0:00\nHello\n","title":"T","channelName":"C","description":"D","mode":"plain"}`)
 	want = articlecache.KeyInput{VideoURL: testValidVideoURL, VideoID: "dQw4w9WgXcQ", Transcript: testValidRaw, Title: "T", ChannelName: "C", Description: "D"}
 	if set != want {
 		t.Errorf("set members: key input = %+v, want %+v", set, want)

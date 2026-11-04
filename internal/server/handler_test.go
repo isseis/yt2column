@@ -113,7 +113,7 @@ func TestRejectStatusCodes(t *testing.T) {
 			return req
 		}, http.StatusRequestEntityTooLarge, "body_too_large", false, true, false},
 		{"invalid_body", func(_ *testing.T, _ *testServer) *http.Request {
-			return newRequest(http.MethodPost, JobsPath, strings.NewReader(`{"videoUrl":1}`))
+			return newRequest(http.MethodPost, JobsPath, strings.NewReader(`{"videoUrl":1,"transcript":"0:00\nHello\n","mode":"plain"}`))
 		}, http.StatusBadRequest, "invalid_body", false, false, false},
 		{"invalid_video_url", func(t *testing.T, _ *testServer) *http.Request {
 			return rejectRequest(t, validBody("http://example.com/video", testValidRaw))

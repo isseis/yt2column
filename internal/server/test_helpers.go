@@ -223,9 +223,15 @@ func (ts *testServer) getStatus(t *testing.T, key string) statusResponse {
 	return resp
 }
 
-// validBody returns a request body with the required members.
+// validBody returns a request body with the required members, sent plain.
 func validBody(videoURL, raw string) string {
-	return `{"videoUrl":` + strconv.Quote(videoURL) + `,"transcript":` + strconv.Quote(raw) + `}`
+	return modeBody(videoURL, raw, modePlain)
+}
+
+// modeBody returns a request body with the required members and the given
+// mode member.
+func modeBody(videoURL, raw, mode string) string {
+	return `{"videoUrl":` + strconv.Quote(videoURL) + `,"transcript":` + strconv.Quote(raw) + `,"mode":` + strconv.Quote(mode) + `}`
 }
 
 // waitJobs waits for every in-flight job, so the fakes' recorded calls are

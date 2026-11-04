@@ -171,13 +171,13 @@
 
 **変更するファイル:** `internal/server/request.go`、`jobs_api.go`、`response.go`、`request_test.go`、`jobs_api_test.go`、`status_test.go`、`test_helpers.go`、`cmd/yt2column-server/test_helpers.go` と、生成の開始の本文を作るほかのテスト（1.4 節）
 
-- [ ] `validateBody` に `mode` の検査と `startMode` を、`jobInput` に `mode` を加える（設計書 3.1 節・3.3 節）。`mode` を読む位置は設計書 3.3 節のとおりで、`invalid_video_url`・`invalid_transcript` より前である。
-- [ ] `startHandler` が `input.mode` を `Begin` に渡し、`BeginSameVideo` で同じ動画の応答を書き、ログに設計書 3.3 節の行を書く。生成の開始のログの行に `mode` の属性を加える。同じ動画の応答を書く関数は `response.go` に置く。
-- [ ] 本文を作るテストの補助（`validBody`・`bodyWith`・`requestBody`）は `mode` を持つ本文を作る形にし、既存のテストは `plain` で送る。`json.Marshal` や文字列で本文を作るテストも同じく直す。既存の行の期待する値は変えない。
-- [ ] `invalid_body` を期待する既存の行（1.4 節）にも正しい `"mode":"plain"` を加え、各行の誤りが、その行が名指すものだけになるようにする。行の本文を、受理されることを先に確かめた正しい本文から作る形にすると、加え忘れが失敗として出る。
-- [ ] `TestStartRejectsBody` に、`mode` がない・文字列でない（`true`・`1`・`null`）・集合にない値（大文字、前後の空白、空の文字列）・重複の行を加え、`invalid_body` で拒否されることを確かめる（設計書 3.1 節、AC-31）。生成を始めず、キャッシュも変わらないことは、この表の拒否の行が確かめている 3 点と同じ確かめ（`requireStartUntouched`）で示す。3 点は、`DumpRecordsForTest` が空であること、Writer が呼ばれないこと、枠が取られないことである。`Begin` を呼ばないことは、この 3 点から導く。
-- [ ] `TestStartKeyEquivalence` に、`mode` だけが違う本文が同じキーになる行を加える。表のグループは同じ動画を使うので、`inquiry` の本文はグループの最初に置かない（最初に置くと、同じ動画のほかの記事があれば同じ動画の応答が返りうる）。
-- [ ] 照会付きの生成の開始のテストを `jobs_api_test.go` に加える（設計書 7.1 節のサーバの行）。テストの名前と確かめることは次のとおりで、表の行の組み立ては実装で決める。
+- [x] `validateBody` に `mode` の検査と `startMode` を、`jobInput` に `mode` を加える（設計書 3.1 節・3.3 節）。`mode` を読む位置は設計書 3.3 節のとおりで、`invalid_video_url`・`invalid_transcript` より前である。
+- [x] `startHandler` が `input.mode` を `Begin` に渡し、`BeginSameVideo` で同じ動画の応答を書き、ログに設計書 3.3 節の行を書く。生成の開始のログの行に `mode` の属性を加える。同じ動画の応答を書く関数は `response.go` に置く。
+- [x] 本文を作るテストの補助（`validBody`・`bodyWith`・`requestBody`）は `mode` を持つ本文を作る形にし、既存のテストは `plain` で送る。`json.Marshal` や文字列で本文を作るテストも同じく直す。既存の行の期待する値は変えない。
+- [x] `invalid_body` を期待する既存の行（1.4 節）にも正しい `"mode":"plain"` を加え、各行の誤りが、その行が名指すものだけになるようにする。行の本文を、受理されることを先に確かめた正しい本文から作る形にすると、加え忘れが失敗として出る。
+- [x] `TestStartRejectsBody` に、`mode` がない・文字列でない（`true`・`1`・`null`）・集合にない値（大文字、前後の空白、空の文字列）・重複の行を加え、`invalid_body` で拒否されることを確かめる（設計書 3.1 節、AC-31）。生成を始めず、キャッシュも変わらないことは、この表の拒否の行が確かめている 3 点と同じ確かめ（`requireStartUntouched`）で示す。3 点は、`DumpRecordsForTest` が空であること、Writer が呼ばれないこと、枠が取られないことである。`Begin` を呼ばないことは、この 3 点から導く。
+- [x] `TestStartKeyEquivalence` に、`mode` だけが違う本文が同じキーになる行を加える。表のグループは同じ動画を使うので、`inquiry` の本文はグループの最初に置かない（最初に置くと、同じ動画のほかの記事があれば同じ動画の応答が返りうる）。
+- [x] 照会付きの生成の開始のテストを `jobs_api_test.go` に加える（設計書 7.1 節のサーバの行）。テストの名前と確かめることは次のとおりで、表の行の組み立ては実装で決める。
     -   `TestStartInquirySameVideo`: 同じ動画（`youtu.be` と `watch?v=` の書き方の違い、字幕だけ違う、タイトル・チャンネル名・概要欄だけ違う）の完了の記事と処理中の記事（`holdAtDraft` で処理中に保つ）で、`200` の同じ動画の応答、メンバの集合、キー、LLM の fake と Webhook の fake が呼ばれないこと、ログの行の属性。ログは、その `requestId` を持つ行がちょうど 1 行で、送った `videoUrl` の文字列（`youtu.be` の形のまま）を含まないことも確かめる（AC-01・AC-02・AC-10・AC-34）。
     -   `TestStartInquiryNoSameVideo`: 同じ動画の記録が失敗だけのとき、別の動画の記事だけのときに、生成が始まり受け付けの応答が返ること（AC-03）。
     -   `TestStartInquiryOwnKey`: 今の入力のキーが処理中か完了なら、同じ動画のほかの記事があっても受け付けの応答で今のキーが返り、Writer の呼び出しの数が増えないこと。今の入力のキーが失敗で同じ動画のほかの記事が完了なら、同じ動画の応答が返り、失敗の記録がやり直されないこと（AC-04・AC-05）。
@@ -185,9 +185,9 @@
     -   `TestStartInquiryWhenFull`: 生成の枠に空きがないとき、キャッシュが件数の上限で捨てられる記録がないときにも、同じ動画の応答が返ること。同じ状態で、別の動画の照会付きの生成の開始が `too_many_requests` で拒否されることも確かめ、その状態が本当に埋まっていることを示す（AC-07）。
     -   `TestStartConcurrentSameVideo`: `TestStartConcurrentSameKey` と同じ組み立てで、読み込みの枠の数の照会付きの生成の開始を同時に送り、LLM の fake の呼び出しが 1 回分で、ほかが始まった記録のキーの同じ動画の応答を受け取ること（AC-08）。
     -   `TestStartPlainIgnoresSameVideo`: 照会なしの生成の開始は、同じ動画の記事があっても今の入力の記事を生成すること（AC-09）。
-- [ ] `TestStartHandlerPanicCleanup` に、照会付きの生成の開始の 2 つの経路の行を加える。生成を始める経路（今の `beforeGenerationJob`）と、同じ動画の応答を書く経路（テストで panic を起こせる箇所を、実装で 1 つ設ける）である。どちらも `internal_error` で拒否し、後のリクエストに応答することを確かめる（AC-11）。
-- [ ] `TestResponsesOmitInputs` に、同じ動画の応答とそのログの行を加える。目印に、送った `videoUrl` の文字列を加える（設計書 7.3 節、AC-10・AC-34）。
-- [ ] 加えたテストの行が、それぞれの検査・分岐を壊すと失敗することを確かめ、コミットメッセージに書く。`mode` の検査では、`startMode` が知らない値に `StartPlain, true` を返すようにしたときと、`mode` がない本文を `plain` として受理するようにしたときに、AC-31 の行が失敗することを確かめる。ログでは、`videoUrl` の文字列を属性に加えたときに AC-34 の確かめが失敗することを確かめる。
+- [x] `TestStartHandlerPanicCleanup` に、照会付きの生成の開始の 2 つの経路の行を加える。生成を始める経路（今の `beforeGenerationJob`）と、同じ動画の応答を書く経路（テストで panic を起こせる箇所を、実装で 1 つ設ける）である。どちらも `internal_error` で拒否し、後のリクエストに応答することを確かめる（AC-11）。
+- [x] `TestResponsesOmitInputs` に、同じ動画の応答とそのログの行を加える。目印に、送った `videoUrl` の文字列を加える（設計書 7.3 節、AC-10・AC-34）。
+- [x] 加えたテストの行が、それぞれの検査・分岐を壊すと失敗することを確かめ、コミットメッセージに書く。`mode` の検査では、`startMode` が知らない値に `StartPlain, true` を返すようにしたときと、`mode` がない本文を `plain` として受理するようにしたときに、AC-31 の行が失敗することを確かめる。ログでは、`videoUrl` の文字列を属性に加えたときに AC-34 の確かめが失敗することを確かめる。
 
 **完了の条件:** `go test -tags test ./internal/server/ ./cmd/yt2column-server/` が通る。
 

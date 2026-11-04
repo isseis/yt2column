@@ -166,12 +166,16 @@ func TestStatusUnknownAfterRestart(t *testing.T) {
 	}
 }
 
-// TestResponsesOmitInputs checks that no job API response, a rejection
-// included, carries a request value, an error text, or a secret, apart from
-// the done article's Markdown and file, and that the log carries neither the
-// transcript nor a secret.
+// TestResponsesOmitInputs checks that no job API response, a rejection and a
+// same-video answer included, carries a request value, an error text, or a
+// secret, apart from the done article's Markdown and file, and that the log
+// carries neither the transcript, a secret, nor the video URL string a start
+// sent.
 func TestResponsesOmitInputs(t *testing.T) {
 	const errorMarker = "MARKER-ERROR-TEXT"
+	// sentURL is the video URL string an inquiry start sends; the log may
+	// carry the video ID, never the string.
+	const sentURL = "https://youtu.be/" + testVideoID
 	ts := newJobsTestServer(t, jobsServerOptions{})
 	article := testArticle()
 	article.Title = testTranscriptMarker
@@ -182,6 +186,7 @@ func TestResponsesOmitInputs(t *testing.T) {
 		"title":       testTranscriptMarker,
 		"channelName": testMarker,
 		"description": testTranscriptMarker,
+		"mode":        modePlain,
 	})
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
@@ -189,6 +194,7 @@ func TestResponsesOmitInputs(t *testing.T) {
 	failing, err := json.Marshal(map[string]string{
 		"videoUrl":   testValidVideoURL,
 		"transcript": "0:00\n" + testTranscriptMarker + " failing\n",
+		"mode":       modePlain,
 	})
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
@@ -215,12 +221,31 @@ func TestResponsesOmitInputs(t *testing.T) {
 	}
 	responses = append(responses, string(rest))
 
+	// An inquiry start for the same video, sent in the short URL form with
+	// other text, is answered with the done article's key.
+	inquiry, err := json.Marshal(map[string]string{
+		"videoUrl":    sentURL,
+		"transcript":  "0:00\n" + testTranscriptMarker + " inquiry\n",
+		"title":       testTranscriptMarker,
+		"channelName": testMarker,
+		"description": testTranscriptMarker,
+		"mode":        modeInquiry,
+	})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	sameVideo := ts.startBody(string(inquiry))
+	if got, _ := sameVideoAnswer(t, sameVideo); got != key {
+		t.Fatalf("same-video key = %s, want %s", got, key)
+	}
+	responses = append(responses, sameVideo.Body.String())
+
 	ts.writer.Err = errors.New(errorMarker + " " + testMarker)
 	failed := ts.startBody(string(failing))
 	responses = append(responses, failed.Body.String(), ts.statusRequest(acceptedKey(t, failed)).Body.String())
 
 	responses = append(responses,
-		ts.startBody(`{"videoUrl":"`+testTranscriptMarker+`","transcript":"x"}`).Body.String(),
+		ts.startBody(`{"videoUrl":"`+testTranscriptMarker+`","transcript":"x","mode":"plain"}`).Body.String(),
 		ts.startBody(validBody(testValidVideoURL, testTranscriptMarker)).Body.String(),
 		ts.statusRequest(testTranscriptMarker).Body.String(),
 	)
@@ -237,7 +262,10 @@ func TestResponsesOmitInputs(t *testing.T) {
 		}
 	}
 	logs := ts.logs.String()
-	for _, marker := range []string{testTranscriptMarker, testMarker, hex.EncodeToString(testKeySecret[:])} {
+	if !strings.Contains(logs, "outcome=same_video") {
+		t.Fatalf("the log has no same-video line, so the check below proves nothing about it:\n%s", logs)
+	}
+	for _, marker := range []string{testTranscriptMarker, testMarker, hex.EncodeToString(testKeySecret[:]), sentURL} {
 		if strings.Contains(logs, marker) {
 			t.Errorf("the log carries %q:\n%s", marker, logs)
 		}
