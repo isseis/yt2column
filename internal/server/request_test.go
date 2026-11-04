@@ -81,6 +81,10 @@ var invalidBodyCases = []struct {
 	{"mode_other", `{"videoUrl":"` + testValidVideoURL + `","transcript":"0:00\nHello\n","mode":"existing"}`},
 	{"mode_duplicate", `{` + validMembers + `,"mode":"plain"}`},
 	{"mode_duplicate_mixed", `{` + validMembers + `,"mode":"inquiry"}`},
+	// The mode is checked before the video URL and the transcript, so a body
+	// with a bad mode is invalid_body even when they are bad as well.
+	{"mode_missing_bad_url", `{"videoUrl":"http://example.com/video","transcript":"0:00\nHello\n"}`},
+	{"mode_bad_bad_transcript", `{"videoUrl":"` + testValidVideoURL + `","transcript":"not a transcript","mode":"Plain"}`},
 }
 
 // optionalMemberNames are the optional members, and nonStringValues the JSON

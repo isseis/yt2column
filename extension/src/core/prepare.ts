@@ -33,8 +33,10 @@ export interface ArticleBody {
  * a body that passes the check fits the server's limit whichever mode it is
  * sent with.
  */
-const modeMemberBytes =
-  JSON.stringify({ mode: "inquiry" satisfies SendMode }).length - 1;
+const longerMode: SendMode = "inquiry";
+const modeMemberBytes = new TextEncoder().encode(
+  `,"mode":${JSON.stringify(longerMode)}`,
+).length;
 
 /**
  * The UTF-8 byte length of input's JSON text with the longer mode member: the

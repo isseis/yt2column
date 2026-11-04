@@ -265,7 +265,7 @@ func TestResponsesOmitInputs(t *testing.T) {
 	if !strings.Contains(logs, "outcome=same_video") {
 		t.Fatalf("the log has no same-video line, so the check below proves nothing about it:\n%s", logs)
 	}
-	for _, marker := range []string{testTranscriptMarker, testMarker, hex.EncodeToString(testKeySecret[:]), sentURL} {
+	for _, marker := range []string{testTranscriptMarker, testMarker, hex.EncodeToString(testKeySecret[:]), sentURL, testValidVideoURL} {
 		if strings.Contains(logs, marker) {
 			t.Errorf("the log carries %q:\n%s", marker, logs)
 		}

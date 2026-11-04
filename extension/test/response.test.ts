@@ -273,6 +273,11 @@ describe("classifyStartInquiry", () => {
       check: "member-set",
     },
     {
+      name: "a status query's ok",
+      received: json(200, { ...sameVideo, status: "ok" }),
+      check: "member-set",
+    },
+    {
       name: "a duplicate member",
       received: response(200, text.replace("{", `{"key":"${key}",`)),
       check: "duplicate-member",

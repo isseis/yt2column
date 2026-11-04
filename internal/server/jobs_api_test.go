@@ -770,7 +770,7 @@ func TestStartInquirySameVideo(t *testing.T) {
 				}
 			}
 			logs := ts.logs.String()
-			for _, leak := range []string{sentURL, testTranscriptMarker} {
+			for _, leak := range []string{sentURL, testValidVideoURL, testTranscriptMarker} {
 				if strings.Contains(logs, leak) {
 					t.Errorf("the log carries %q:\n%s", leak, logs)
 				}
@@ -904,6 +904,9 @@ func TestStartInquiryWhenFull(t *testing.T) {
 			ts.slots <- struct{}{}
 		}
 		requireRejected(t, ts.startBody(modeBody(otherVideoURL, testValidRaw, modeInquiry)), http.StatusTooManyRequests, "too_many_requests")
+		if !strings.Contains(ts.logs.String(), "detail=generation_slot") {
+			t.Errorf("the other video's refusal is not the generation-slot one:\n%s", ts.logs.String())
+		}
 		if got, _ := sameVideoAnswer(t, ts.startBody(inquiryWith("inquiry"))); got != done.String() {
 			t.Errorf("key = %s, want %s", got, done)
 		}
