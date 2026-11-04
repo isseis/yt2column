@@ -738,6 +738,43 @@ func TestCheckADRRecords(t *testing.T) {
 			want: []adrIssueKind{adrStatusValue},
 		},
 		{
+			name: "README.md as a directory",
+			in:   withEntries(adrEntry{name: adrIndexName, dir: true}),
+			want: []adrIssueKind{adrBadName},
+		},
+		{
+			name: "ADR with no ## heading",
+			in:   withSecond("# ADR-0002: Second\n"),
+			want: []adrIssueKind{adrHeadingMismatch, adrStatusValue},
+		},
+		{
+			// The title is compared without its surrounding backticks.
+			name: "index title in a code span",
+			in:   withIndex(row1, adrTestIndexRow("0002-second-one.md", "`Second`", "obsolete")),
+		},
+		{
+			name: "index whose table has another header",
+			in: adrInput{
+				convention: valid.convention,
+				index:      strings.Replace(valid.index, "| No | Title | Status |", "| No | Name | Status |", 1),
+				entries:    valid.entries,
+			},
+			want: []adrIssueKind{adrDefinitionUnreadable},
+		},
+		{
+			name: "index with an unrelated table",
+			in:   adrInput{convention: valid.convention, index: valid.index + "\n| A | B |\n|---|---|\n| x | y |\n", entries: valid.entries},
+		},
+		{
+			// A table in a code block is an example, not a second index table.
+			name: "index with the header in a code block",
+			in: adrInput{
+				convention: valid.convention,
+				index:      valid.index + adrMD("\n'''markdown\n| No | Title | Status |\n|---|---|---|\n| [ADR-0009](0009-x.md) | X | 'active' |\n'''\n"),
+				entries:    valid.entries,
+			},
+		},
+		{
 			name: "index without the table",
 			in:   adrInput{convention: valid.convention, index: "# Index\n", entries: valid.entries},
 			want: []adrIssueKind{adrDefinitionUnreadable},
