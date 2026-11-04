@@ -340,9 +340,9 @@ localhost サーバの旧 API（`POST /articles`）・旧 API のジョブ・失
 
 **変更するファイル:** `README.md`、`README.en.md`
 
-- [ ] `README.md` の「localhost サーバ」節の `/articles` と失敗の通知の記述（`:187`・`:225`・`:249`）を直す。停止の説明は、待つのは投稿のジョブで最長およそ 5 分とする（AC-18）。版がそろっていない場合の説明（`:562-564`）を、要件書 4.4 の表の組み合わせと設計書 3.6 節のとおりに直す。
-- [ ] `/mktrans README.md` で `README.en.md` に写し、2 つを同じコミットに入れる（CLAUDE.md「Translation Guidelines」）。
-- [ ] `make readme-sync-check`、文書のガード、`make ext-test`、`go test -tags test ./cmd/yt2column-nmhost/`（`TestReadmeHostExitCodes`）を通す。
+- [x] `README.md` の「localhost サーバ」節の `/articles` と失敗の通知の記述（`:187`・`:225`・`:249`）を直す。停止の説明は、待つのは投稿のジョブで最長およそ 5 分とする（AC-18）。版がそろっていない場合の説明（`:562-564`）を、要件書 4.4 の表の組み合わせと設計書 3.6 節のとおりに直す。
+- [x] `/mktrans README.md` で `README.en.md` に写し、2 つを同じコミットに入れる（CLAUDE.md「Translation Guidelines」）。
+- [x] `make readme-sync-check`、文書のガード、`make ext-test`、`go test -tags test ./cmd/yt2column-nmhost/`（`TestReadmeHostExitCodes`）を通す。
 
 **完了の条件:** 上のテストがすべて通る。
 
