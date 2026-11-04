@@ -152,7 +152,7 @@ ADR を読めば、今の決定、その理由、採らなかった案、変わ�
   - `project_overview.md` は今の方針の要約を持ち、ADR へリンクする。
   - CLAUDE.md の規則と横断の原則は、ADR にしない。
 - **AC-17**: CLAUDE.md の Quick Links が、ADR の索引と ADR の規約を挙げている。
-- **AC-18**: `docs/dev/conventions/requirements_process.md` の記録の置き場所の説明（今は「Five places hold a record」で始まる段落）が、ADR を記録の置き場所の 1 つとして挙げ、何をそこに置くかを述べている。
+- **AC-18**: `docs/dev/conventions/requirements_process.md` の記録の置き場所の説明（今は「Five places hold a record」で始まる段落）が、ADR を記録の置き場所の 1 つとして挙げ、何をそこに置くかを述べている。置き場所の数を書く場合は、その数が挙げた置き場所の数と一致する。
 - **AC-19**: `.claude/commands/mkarch.md` の、設計書の付録「決定の履歴」の指示が、主要な決定のタスクをまたぐ経緯は ADR に置き、付録にはそのタスクの中で閉じる決定の経緯だけを置く、と述べている。
 
 #### F-005: コマンドの手順
