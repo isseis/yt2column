@@ -45,8 +45,9 @@ func TestGenerationStages(t *testing.T) {
 	// Begin and start the job by hand, so the record is read before the job
 	// can report anything.
 	input := ts.validInput(t, validBody(testValidVideoURL, testValidRaw))
-	key := ts.keyer.Key(input.key)
-	_, run, _ := ts.cache.Begin(key, ts.acquireSlot)
+	subject := ts.keyer.Subject(input.key)
+	key := subject.Key()
+	run := ts.cache.Begin(subject, articlecache.StartPlain, ts.acquireSlot).Run
 	if got := ts.statusOf(t, key).Job; got.State != "running" || got.Steps == nil || *got.Steps != (statusSteps{"pending", "pending", "pending"}) {
 		t.Errorf("before the first step: job = %+v, steps %+v, want running with every step pending", got, got.Steps)
 	}

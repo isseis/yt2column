@@ -4,6 +4,7 @@ package articlecache
 
 import (
 	"errors"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -45,12 +46,24 @@ func newTestCache(t *testing.T, capacity int) (*Cache, *fakeClock) {
 	return c, clock
 }
 
-// testKey returns a distinct key for each n.
-func testKey(n int) Key {
+// sameVideoID is the video every testSubject names.
+const sameVideoID = "abcdefghijk"
+
+// videoSubject returns a distinct subject for each n, naming videoID.
+func videoSubject(videoID string, n int) Subject {
 	in := baseKeyInput()
+	in.VideoURL = "https://www.youtube.com/watch?v=" + videoID
+	in.VideoID = videoID
 	in.Transcript = strings.Repeat("x", n)
-	return NewKeyer(testSecret).Key(in)
+	return NewKeyer(testSecret).Subject(in)
 }
+
+// testSubject returns a distinct subject for each n; every one names
+// sameVideoID.
+func testSubject(n int) Subject { return videoSubject(sameVideoID, n) }
+
+// testKey returns testSubject(n)'s key.
+func testKey(n int) Key { return testSubject(n).Key() }
 
 func always() bool { return true }
 func never() bool  { return false }
@@ -68,33 +81,34 @@ func testArticle(title string) writer.Article {
 	return writer.Article{Title: title, Body: "body", SourceURL: "https://www.youtube.com/watch?v=abcdefghijk", Model: "m"}
 }
 
-// begin starts key and fails the test unless a generation started.
-func begin(t *testing.T, c *Cache, key Key) *Run {
+// begin starts subject without looking for the same video and fails the test
+// unless a generation started.
+func begin(t *testing.T, c *Cache, subject Subject) *Run {
 	t.Helper()
-	outcome, run, _ := c.Begin(key, always)
-	if outcome != BeginStarted && outcome != BeginRestarted {
-		t.Fatalf("Begin outcome = %v, want started or restarted", outcome)
+	got := c.Begin(subject, StartPlain, always)
+	if got.Outcome != BeginStarted && got.Outcome != BeginRestarted {
+		t.Fatalf("Begin outcome = %v, want started or restarted", got.Outcome)
 	}
-	return run
+	return got.Run
 }
 
-// done starts key and completes it as postable.
-func done(t *testing.T, c *Cache, key Key) {
+// done starts subject and completes it as postable.
+func done(t *testing.T, c *Cache, subject Subject) {
 	t.Helper()
-	begin(t, c, key).CompletePostable(testArticle("t"))
+	begin(t, c, subject).CompletePostable(testArticle("t"))
 }
 
-// failed starts key and fails it.
-func failed(t *testing.T, c *Cache, key Key) {
+// failed starts subject and fails it.
+func failed(t *testing.T, c *Cache, subject Subject) {
 	t.Helper()
-	begin(t, c, key).Fail(FailureLLM)
+	begin(t, c, subject).Fail(FailureLLM)
 }
 
-// posting starts key, completes it, and begins its post.
-func posting(t *testing.T, c *Cache, key Key) *PublishRun {
+// posting starts subject, completes it, and begins its post.
+func posting(t *testing.T, c *Cache, subject Subject) *PublishRun {
 	t.Helper()
-	done(t, c, key)
-	outcome, pub := c.BeginPublish(key)
+	done(t, c, subject)
+	outcome, pub := c.BeginPublish(subject.Key())
 	if outcome != PublishBeginStarted {
 		t.Fatalf("BeginPublish outcome = %v, want started", outcome)
 	}
@@ -112,7 +126,7 @@ func TestNewOptions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New(Capacity 1) error = %v", err)
 	}
-	begin(t, c, testKey(1)).CompletePostable(testArticle("t"))
+	begin(t, c, testSubject(1)).CompletePostable(testArticle("t"))
 	if got := c.Lookup(testKey(1)).Duration; got < 0 || got > time.Minute {
 		t.Errorf("Duration with the default clock = %v, want a short non-negative value", got)
 	}
@@ -130,9 +144,9 @@ func TestBeginOutcomes(t *testing.T) {
 func testBeginNewKey(t *testing.T) {
 	c, _ := newTestCache(t, 2)
 	acquire, calls := countingAcquire(true)
-	outcome, run, evicted := c.Begin(testKey(1), acquire)
-	if outcome != BeginStarted || run == nil || evicted != nil {
-		t.Fatalf("Begin = %v, %v, %v; want BeginStarted, a run, no eviction", outcome, run, evicted)
+	got := c.Begin(testSubject(1), StartPlain, acquire)
+	if got.Outcome != BeginStarted || got.Run == nil || got.Evicted != nil {
+		t.Fatalf("Begin = %+v; want BeginStarted, a run, no eviction", got)
 	}
 	if *calls != 1 {
 		t.Errorf("acquire calls = %d, want 1", *calls)
@@ -145,8 +159,8 @@ func testBeginNewKey(t *testing.T) {
 func testBeginNoSlot(t *testing.T) {
 	c, _ := newTestCache(t, 2)
 	acquire, calls := countingAcquire(false)
-	if outcome, run, _ := c.Begin(testKey(1), acquire); outcome != BeginNoSlot || run != nil {
-		t.Fatalf("Begin = %v, %v; want BeginNoSlot and no run", outcome, run)
+	if got := c.Begin(testSubject(1), StartPlain, acquire); got.Outcome != BeginNoSlot || got.Run != nil {
+		t.Fatalf("Begin = %+v; want BeginNoSlot and no run", got)
 	}
 	if *calls != 1 {
 		t.Errorf("acquire calls = %d, want 1", *calls)
@@ -156,9 +170,9 @@ func testBeginNoSlot(t *testing.T) {
 	}
 
 	// A failed record stays failed when no slot is free.
-	failed(t, c, testKey(2))
-	if outcome, _, _ := c.Begin(testKey(2), never); outcome != BeginNoSlot {
-		t.Fatalf("Begin(failed) = %v, want BeginNoSlot", outcome)
+	failed(t, c, testSubject(2))
+	if got := c.Begin(testSubject(2), StartPlain, never); got.Outcome != BeginNoSlot {
+		t.Fatalf("Begin(failed) = %v, want BeginNoSlot", got.Outcome)
 	}
 	if got := c.Lookup(testKey(2)); got.State != JobFailed || got.Failure != FailureLLM {
 		t.Errorf("Lookup = %+v, want the failure kept", got)
@@ -166,9 +180,9 @@ func testBeginNoSlot(t *testing.T) {
 
 	// A full cache drops nothing when no slot is free.
 	full, _ := newTestCache(t, 1)
-	done(t, full, testKey(1))
-	if outcome, _, evicted := full.Begin(testKey(2), never); outcome != BeginNoSlot || evicted != nil {
-		t.Fatalf("Begin(full) = %v, %+v; want BeginNoSlot and no eviction", outcome, evicted)
+	done(t, full, testSubject(1))
+	if got := full.Begin(testSubject(2), StartPlain, never); got.Outcome != BeginNoSlot || got.Evicted != nil {
+		t.Fatalf("Begin(full) = %+v; want BeginNoSlot and no eviction", got)
 	}
 	if full.Lookup(testKey(1)).State != JobDone {
 		t.Error("BeginNoSlot dropped a record")
@@ -177,32 +191,32 @@ func testBeginNoSlot(t *testing.T) {
 
 func testBeginExistingDoesNotAcquire(t *testing.T) {
 	c, _ := newTestCache(t, 10)
-	begin(t, c, testKey(1))
-	done(t, c, testKey(2))
-	posting(t, c, testKey(3))
-	pub := posting(t, c, testKey(4))
+	begin(t, c, testSubject(1))
+	done(t, c, testSubject(2))
+	posting(t, c, testSubject(3))
+	pub := posting(t, c, testSubject(4))
 	pub.Finish()
-	pub = posting(t, c, testKey(5))
+	pub = posting(t, c, testSubject(5))
 	pub.Fail(PublishFailureWebhook)
 
 	cases := map[string]struct {
-		key     Key
+		subject Subject
 		state   JobState
 		publish PublishState
 	}{
-		"running":        {testKey(1), JobRunning, PublishUnpostable},
-		"not posted":     {testKey(2), JobDone, PublishNotPosted},
-		"posting":        {testKey(3), JobDone, PublishPosting},
-		"posted":         {testKey(4), JobDone, PublishPosted},
-		"publish failed": {testKey(5), JobDone, PublishFailed},
+		"running":        {testSubject(1), JobRunning, PublishUnpostable},
+		"not posted":     {testSubject(2), JobDone, PublishNotPosted},
+		"posting":        {testSubject(3), JobDone, PublishPosting},
+		"posted":         {testSubject(4), JobDone, PublishPosted},
+		"publish failed": {testSubject(5), JobDone, PublishFailed},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			before := c.Lookup(tc.key)
+			before := c.Lookup(tc.subject.Key())
 			acquire, calls := countingAcquire(true)
-			outcome, run, evicted := c.Begin(tc.key, acquire)
-			if outcome != BeginExisting || run != nil || evicted != nil {
-				t.Fatalf("Begin = %v, %v, %v; want BeginExisting only", outcome, run, evicted)
+			got := c.Begin(tc.subject, StartPlain, acquire)
+			if got != (BeginResult{Outcome: BeginExisting}) {
+				t.Fatalf("Begin = %+v; want BeginExisting only", got)
 			}
 			if *calls != 0 {
 				t.Errorf("acquire calls = %d, want 0", *calls)
@@ -210,7 +224,7 @@ func testBeginExistingDoesNotAcquire(t *testing.T) {
 			if before.State != tc.state || before.Publish != tc.publish {
 				t.Fatalf("setup Lookup = %+v, want state %v and publish %v", before, tc.state, tc.publish)
 			}
-			if after := c.Lookup(tc.key); after != before {
+			if after := c.Lookup(tc.subject.Key()); after != before {
 				t.Errorf("Lookup after Begin = %+v, want unchanged %+v", after, before)
 			}
 		})
@@ -219,7 +233,7 @@ func testBeginExistingDoesNotAcquire(t *testing.T) {
 
 func testBeginRestartsFailed(t *testing.T) {
 	c, _ := newTestCache(t, 1)
-	run := begin(t, c, testKey(1))
+	run := begin(t, c, testSubject(1))
 	run.StageStarted(writer.StageGeneration)
 	run.StageFinished(writer.StageGeneration)
 	run.StageSkipped(writer.StageShorten)
@@ -228,9 +242,9 @@ func testBeginRestartsFailed(t *testing.T) {
 
 	// The cache is full, but restarting needs no room.
 	acquire, calls := countingAcquire(true)
-	outcome, restarted, evicted := c.Begin(testKey(1), acquire)
-	if outcome != BeginRestarted || restarted == nil || evicted != nil {
-		t.Fatalf("Begin = %v, %v, %v; want BeginRestarted, a run, no eviction", outcome, restarted, evicted)
+	got := c.Begin(testSubject(1), StartPlain, acquire)
+	if got.Outcome != BeginRestarted || got.Run == nil || got.Evicted != nil {
+		t.Fatalf("Begin = %+v; want BeginRestarted, a run, no eviction", got)
 	}
 	if *calls != 1 {
 		t.Errorf("acquire calls = %d, want 1", *calls)
@@ -242,13 +256,13 @@ func testBeginRestartsFailed(t *testing.T) {
 
 func TestDurationFromAcceptance(t *testing.T) {
 	c, clock := newTestCache(t, 1)
-	first := begin(t, c, testKey(1))
+	first := begin(t, c, testSubject(1))
 	clock.Advance(7 * time.Second)
 	first.Fail(FailureLLM)
 	clock.Advance(time.Minute)
 
 	// The duration counts from the restart's acceptance, not the first one's.
-	restarted := begin(t, c, testKey(1))
+	restarted := begin(t, c, testSubject(1))
 	clock.Advance(3 * time.Second)
 	restarted.CompletePostable(testArticle("t"))
 	if got := c.Lookup(testKey(1)).Duration; got != 3*time.Second {
@@ -258,12 +272,11 @@ func TestDurationFromAcceptance(t *testing.T) {
 
 func TestBeginFullChangesNothing(t *testing.T) {
 	c, _ := newTestCache(t, 2)
-	begin(t, c, testKey(1))
-	posting(t, c, testKey(2))
+	begin(t, c, testSubject(1))
+	posting(t, c, testSubject(2))
 	acquire, calls := countingAcquire(true)
-	outcome, run, evicted := c.Begin(testKey(3), acquire)
-	if outcome != BeginFull || run != nil || evicted != nil {
-		t.Fatalf("Begin = %v, %v, %v; want BeginFull only", outcome, run, evicted)
+	if got := c.Begin(testSubject(3), StartPlain, acquire); got != (BeginResult{}) {
+		t.Fatalf("Begin = %+v; want BeginFull only", got)
 	}
 	if *calls != 0 {
 		t.Errorf("acquire calls = %d, want 0", *calls)
@@ -278,17 +291,17 @@ func TestEvictionOrder(t *testing.T) {
 	t.Run("oldest end first", func(t *testing.T) {
 		c, clock := newTestCache(t, 3)
 		// Key 1 is accepted first but ends last; key 2 ends first.
-		first := begin(t, c, testKey(1))
+		first := begin(t, c, testSubject(1))
 		clock.Advance(time.Second)
-		second := begin(t, c, testKey(2))
+		second := begin(t, c, testSubject(2))
 		clock.Advance(time.Second)
 		second.Fail(FailureLLM)
 		clock.Advance(time.Second)
 		first.CompletePostable(testArticle("t"))
 		clock.Advance(5 * time.Second)
-		begin(t, c, testKey(3))
+		begin(t, c, testSubject(3))
 
-		_, _, evicted := c.Begin(testKey(4), always)
+		evicted := c.Begin(testSubject(4), StartPlain, always).Evicted
 		want := Eviction{Key: testKey(2), State: JobFailed, Age: 6 * time.Second}
 		if evicted == nil || *evicted != want {
 			t.Fatalf("evicted = %+v, want %+v", evicted, want)
@@ -296,7 +309,7 @@ func TestEvictionOrder(t *testing.T) {
 		if c.Lookup(testKey(2)).State != JobUnknown {
 			t.Error("the evicted record is still held")
 		}
-		_, _, evicted = c.Begin(testKey(5), always)
+		evicted = c.Begin(testSubject(5), StartPlain, always).Evicted
 		want = Eviction{Key: testKey(1), State: JobDone, Publish: PublishNotPosted, Age: 5 * time.Second}
 		if evicted == nil || *evicted != want {
 			t.Fatalf("second evicted = %+v, want %+v", evicted, want)
@@ -311,10 +324,10 @@ func TestEvictionOrder(t *testing.T) {
 		for range 20 {
 			for _, firstEnded := range []int{1, 2} {
 				c, _ := newTestCache(t, 2)
-				runs := map[int]*Run{1: begin(t, c, testKey(1)), 2: begin(t, c, testKey(2))}
+				runs := map[int]*Run{1: begin(t, c, testSubject(1)), 2: begin(t, c, testSubject(2))}
 				runs[firstEnded].Fail(FailureLLM)
 				runs[3-firstEnded].CompletePostable(testArticle("t"))
-				_, _, evicted := c.Begin(testKey(3), always)
+				evicted := c.Begin(testSubject(3), StartPlain, always).Evicted
 				if evicted == nil || evicted.Key != testKey(firstEnded) {
 					t.Fatalf("evicted = %+v, want key %d, which ended first at the same time", evicted, firstEnded)
 				}
@@ -328,29 +341,29 @@ func TestEvictionKeepsRunningAndPosting(t *testing.T) {
 		prepare func(*testing.T, *Cache)
 		evicted bool
 	}{
-		"running":    {func(t *testing.T, c *Cache) { begin(t, c, testKey(1)) }, false},
-		"posting":    {func(t *testing.T, c *Cache) { posting(t, c, testKey(1)) }, false},
-		"failed":     {func(t *testing.T, c *Cache) { failed(t, c, testKey(1)) }, true},
-		"not posted": {func(t *testing.T, c *Cache) { done(t, c, testKey(1)) }, true},
-		"posted":     {func(t *testing.T, c *Cache) { posting(t, c, testKey(1)).Finish() }, true},
+		"running":    {func(t *testing.T, c *Cache) { begin(t, c, testSubject(1)) }, false},
+		"posting":    {func(t *testing.T, c *Cache) { posting(t, c, testSubject(1)) }, false},
+		"failed":     {func(t *testing.T, c *Cache) { failed(t, c, testSubject(1)) }, true},
+		"not posted": {func(t *testing.T, c *Cache) { done(t, c, testSubject(1)) }, true},
+		"posted":     {func(t *testing.T, c *Cache) { posting(t, c, testSubject(1)).Finish() }, true},
 		"publish failed": {func(t *testing.T, c *Cache) {
-			posting(t, c, testKey(1)).Fail(PublishFailureWebhook)
+			posting(t, c, testSubject(1)).Fail(PublishFailureWebhook)
 		}, true},
 		"unpostable": {func(t *testing.T, c *Cache) {
-			begin(t, c, testKey(1)).CompleteUnpostable(testArticle("t"), UnpostableOther)
+			begin(t, c, testSubject(1)).CompleteUnpostable(testArticle("t"), UnpostableOther)
 		}, true},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			c, _ := newTestCache(t, 1)
 			tc.prepare(t, c)
-			outcome, _, evicted := c.Begin(testKey(2), always)
+			got := c.Begin(testSubject(2), StartPlain, always)
 			if tc.evicted {
-				if outcome != BeginStarted || evicted == nil || evicted.Key != testKey(1) {
-					t.Errorf("Begin = %v, %+v; want key 1 evicted", outcome, evicted)
+				if got.Outcome != BeginStarted || got.Evicted == nil || got.Evicted.Key != testKey(1) {
+					t.Errorf("Begin = %+v; want key 1 evicted", got)
 				}
-			} else if outcome != BeginFull || evicted != nil {
-				t.Errorf("Begin = %v, %+v; want BeginFull and the record kept", outcome, evicted)
+			} else if got.Outcome != BeginFull || got.Evicted != nil {
+				t.Errorf("Begin = %+v; want BeginFull and the record kept", got)
 			}
 		})
 	}
@@ -358,7 +371,7 @@ func TestEvictionKeepsRunningAndPosting(t *testing.T) {
 
 func TestRunStages(t *testing.T) {
 	c, _ := newTestCache(t, 1)
-	run := begin(t, c, testKey(1))
+	run := begin(t, c, testSubject(1))
 	steps := []struct {
 		apply func()
 		want  Stages
@@ -393,7 +406,7 @@ func TestRunEndsAfterFirstOutcome(t *testing.T) {
 	for name, end := range cases {
 		t.Run(name, func(t *testing.T) {
 			c, clock := newTestCache(t, 1)
-			run := begin(t, c, testKey(1))
+			run := begin(t, c, testSubject(1))
 			end(run)
 			want := c.Lookup(testKey(1))
 
@@ -411,9 +424,9 @@ func TestRunEndsAfterFirstOutcome(t *testing.T) {
 
 func TestStaleRunAfterRestart(t *testing.T) {
 	c, _ := newTestCache(t, 1)
-	old := begin(t, c, testKey(1))
+	old := begin(t, c, testSubject(1))
 	old.Fail(FailureLLM)
-	current := begin(t, c, testKey(1))
+	current := begin(t, c, testSubject(1))
 
 	// A late call from the first job must not touch the restarted record.
 	old.StageStarted(writer.StageGeneration)
@@ -429,9 +442,9 @@ func TestStaleRunAfterRestart(t *testing.T) {
 
 func TestStaleRunAfterEviction(t *testing.T) {
 	c, _ := newTestCache(t, 1)
-	stale := begin(t, c, testKey(1))
+	stale := begin(t, c, testSubject(1))
 	stale.Fail(FailureLLM)
-	failed(t, c, testKey(2)) // evicts key 1
+	failed(t, c, testSubject(2)) // evicts key 1
 
 	// While key 1 is absent, every method does nothing and does not panic.
 	stale.StageStarted(writer.StageGeneration)
@@ -442,8 +455,8 @@ func TestStaleRunAfterEviction(t *testing.T) {
 		t.Fatalf("Lookup state = %v, want JobUnknown: the stale Run recreated a record", got)
 	}
 
-	if outcome, _, evicted := c.Begin(testKey(1), always); outcome != BeginStarted || evicted == nil {
-		t.Fatalf("Begin = %v, %+v; want key 1 recreated by evicting key 2", outcome, evicted)
+	if got := c.Begin(testSubject(1), StartPlain, always); got.Outcome != BeginStarted || got.Evicted == nil {
+		t.Fatalf("Begin = %+v; want key 1 recreated by evicting key 2", got)
 	}
 	stale.CompletePostable(testArticle("stale"))
 	if got := c.Lookup(testKey(1)).State; got != JobRunning {
@@ -453,9 +466,9 @@ func TestStaleRunAfterEviction(t *testing.T) {
 
 func TestStalePublishRunAfterEviction(t *testing.T) {
 	c, _ := newTestCache(t, 1)
-	stale := posting(t, c, testKey(1))
+	stale := posting(t, c, testSubject(1))
 	stale.Fail(PublishFailureWebhook)
-	done(t, c, testKey(2)) // evicts key 1
+	done(t, c, testSubject(2)) // evicts key 1
 
 	// While key 1 is absent, every method does nothing and does not panic.
 	stale.Delivered(0)
@@ -465,7 +478,7 @@ func TestStalePublishRunAfterEviction(t *testing.T) {
 		t.Fatalf("Lookup state = %v, want JobUnknown", got)
 	}
 
-	current := posting(t, c, testKey(1)) // evicts key 2 and recreates key 1, posting
+	current := posting(t, c, testSubject(1)) // evicts key 2 and recreates key 1, posting
 	stale.Delivered(0)
 	current.Fail(PublishFailureWebhook)
 	if _, retry := c.BeginPublish(testKey(1)); retry.From() != 0 {
@@ -486,7 +499,7 @@ func TestCompleteDropsRevisions(t *testing.T) {
 		Revisions: []writer.Revision{{Before: "a", Action: writer.ActionDelete, Evidence: marker}},
 	}
 	article.Shorten = &writer.StepModel{Model: "shorten-model"}
-	begin(t, c, testKey(1)).CompletePostable(article)
+	begin(t, c, testSubject(1)).CompletePostable(article)
 	article.Shorten.Model = "changed"
 
 	got := c.Lookup(testKey(1))
@@ -510,7 +523,7 @@ func TestCompleteDropsRevisions(t *testing.T) {
 
 func TestCompleteUnpostable(t *testing.T) {
 	c, _ := newTestCache(t, 1)
-	begin(t, c, testKey(1)).CompleteUnpostable(testArticle("t"), UnpostableMention)
+	begin(t, c, testSubject(1)).CompleteUnpostable(testArticle("t"), UnpostableMention)
 	got := c.Lookup(testKey(1))
 	if got.State != JobDone || got.Publish != PublishUnpostable || got.Unpostable != UnpostableMention {
 		t.Errorf("Lookup = %+v, want done and unpostable for a mention", got)
@@ -519,12 +532,12 @@ func TestCompleteUnpostable(t *testing.T) {
 
 func TestBeginPublishOutcomes(t *testing.T) {
 	c, _ := newTestCache(t, 10)
-	begin(t, c, testKey(1))
-	failed(t, c, testKey(2))
-	begin(t, c, testKey(3)).CompleteUnpostable(testArticle("t"), UnpostableOther)
-	done(t, c, testKey(4))
-	posting(t, c, testKey(5))
-	posting(t, c, testKey(6)).Finish()
+	begin(t, c, testSubject(1))
+	failed(t, c, testSubject(2))
+	begin(t, c, testSubject(3)).CompleteUnpostable(testArticle("t"), UnpostableOther)
+	done(t, c, testSubject(4))
+	posting(t, c, testSubject(5))
+	posting(t, c, testSubject(6)).Finish()
 
 	cases := map[string]struct {
 		key     Key
@@ -557,7 +570,7 @@ func TestBeginPublishOutcomes(t *testing.T) {
 
 func TestPublishResumeFrom(t *testing.T) {
 	c, _ := newTestCache(t, 1)
-	pub := posting(t, c, testKey(1))
+	pub := posting(t, c, testSubject(1))
 	if pub.From() != 0 || pub.Article().Title != "t" {
 		t.Fatalf("first post From = %d, Article.Title = %q; want 0 and t", pub.From(), pub.Article().Title)
 	}
@@ -614,7 +627,7 @@ func TestBeginConcurrentAcquiresOnce(t *testing.T) {
 		want    BeginOutcome
 	}{
 		"new key":    {func(*testing.T, *Cache) {}, BeginStarted},
-		"failed key": {func(t *testing.T, c *Cache) { failed(t, c, testKey(1)) }, BeginRestarted},
+		"failed key": {func(t *testing.T, c *Cache) { failed(t, c, testSubject(1)) }, BeginRestarted},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -630,7 +643,7 @@ func TestBeginConcurrentAcquiresOnce(t *testing.T) {
 			for range 16 {
 				wg.Go(func() {
 					<-gate
-					switch outcome, _, _ := c.Begin(testKey(1), acquire); outcome {
+					switch c.Begin(testSubject(1), StartPlain, acquire).Outcome {
 					case tc.want:
 						started.Add(1)
 					case BeginExisting:
@@ -648,10 +661,267 @@ func TestBeginConcurrentAcquiresOnce(t *testing.T) {
 	}
 }
 
+// otherVideoSubject returns a distinct subject for each n, naming a video
+// other than sameVideoID.
+func otherVideoSubject(n int) Subject { return videoSubject("zyxwvutsrqp", n) }
+
+// recordsOf copies every record the cache holds, by key, so a test can
+// compare all of a record's fields, gen included, before and after a call.
+func recordsOf(c *Cache) map[Key]record {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	copied := make(map[Key]record, len(c.records))
+	for key, rec := range c.records {
+		copied[key] = *rec
+	}
+	return copied
+}
+
+// sameVideoCase is one cache state and what Begin does in it for subject:
+// inquiry is the outcome with StartInquiry, sameKey the key it reports for
+// BeginSameVideo, and plain the outcome with StartPlain.
+type sameVideoCase struct {
+	name     string
+	capacity int
+	prepare  func(*testing.T, *Cache, *fakeClock)
+	subject  Subject
+	slot     bool // what acquire reports
+	inquiry  BeginOutcome
+	sameKey  Key
+	plain    BeginOutcome
+}
+
+// sameVideoCases covers the order Begin decides in: the subject's own record
+// first, then another article of the same video, then the record limit and
+// the generation slot. Every subject but the empty-ID one names sameVideoID.
+var sameVideoCases = []sameVideoCase{
+	{
+		name: "done article", capacity: 10,
+		prepare: func(t *testing.T, c *Cache, _ *fakeClock) { done(t, c, testSubject(1)) },
+		subject: testSubject(2), slot: true, inquiry: BeginSameVideo, sameKey: testKey(1), plain: BeginStarted,
+	},
+	{
+		name: "running article", capacity: 10,
+		prepare: func(t *testing.T, c *Cache, _ *fakeClock) { begin(t, c, testSubject(1)) },
+		subject: testSubject(2), slot: true, inquiry: BeginSameVideo, sameKey: testKey(1), plain: BeginStarted,
+	},
+	{
+		name: "only a failed record", capacity: 10,
+		prepare: func(t *testing.T, c *Cache, _ *fakeClock) { failed(t, c, testSubject(1)) },
+		subject: testSubject(2), slot: true, inquiry: BeginStarted, plain: BeginStarted,
+	},
+	{
+		name: "only another video", capacity: 10,
+		prepare: func(t *testing.T, c *Cache, _ *fakeClock) { done(t, c, otherVideoSubject(1)) },
+		subject: testSubject(2), slot: true, inquiry: BeginStarted, plain: BeginStarted,
+	},
+	{
+		name: "own key done", capacity: 10,
+		prepare: func(t *testing.T, c *Cache, _ *fakeClock) {
+			done(t, c, testSubject(1))
+			done(t, c, testSubject(2))
+		},
+		subject: testSubject(2), slot: true, inquiry: BeginExisting, plain: BeginExisting,
+	},
+	{
+		name: "own key running", capacity: 10,
+		prepare: func(t *testing.T, c *Cache, _ *fakeClock) {
+			done(t, c, testSubject(1))
+			begin(t, c, testSubject(2))
+		},
+		subject: testSubject(2), slot: true, inquiry: BeginExisting, plain: BeginExisting,
+	},
+	{
+		name: "own key failed", capacity: 10,
+		prepare: func(t *testing.T, c *Cache, _ *fakeClock) {
+			done(t, c, testSubject(1))
+			failed(t, c, testSubject(2))
+		},
+		subject: testSubject(2), slot: true, inquiry: BeginSameVideo, sameKey: testKey(1), plain: BeginRestarted,
+	},
+	{
+		name: "latest of three", capacity: 10,
+		prepare: func(t *testing.T, c *Cache, clock *fakeClock) {
+			done(t, c, testSubject(1))
+			clock.Advance(time.Minute)
+			done(t, c, testSubject(2))
+			clock.Advance(time.Minute)
+			begin(t, c, testSubject(3))
+		},
+		subject: testSubject(4), slot: true, inquiry: BeginSameVideo, sameKey: testKey(3), plain: BeginStarted,
+	},
+	{
+		// The clock goes back between the two starts, so only the
+		// acceptance order, not the acceptance time, makes key 2 the latest.
+		name: "latest by acceptance order, not time", capacity: 10,
+		prepare: func(t *testing.T, c *Cache, clock *fakeClock) {
+			done(t, c, testSubject(1))
+			clock.Advance(-time.Hour)
+			done(t, c, testSubject(2))
+			clock.Advance(time.Minute)
+			done(t, c, testSubject(3))
+		},
+		subject: testSubject(4), slot: true, inquiry: BeginSameVideo, sameKey: testKey(3), plain: BeginStarted,
+	},
+	{
+		// Key 1 failed first and was restarted after keys 2 and 3 were
+		// accepted, so its restart is the latest acceptance.
+		name: "latest is a restarted record", capacity: 10,
+		prepare: func(t *testing.T, c *Cache, clock *fakeClock) {
+			failed(t, c, testSubject(1))
+			clock.Advance(time.Minute)
+			done(t, c, testSubject(2))
+			clock.Advance(time.Minute)
+			done(t, c, testSubject(3))
+			clock.Advance(time.Minute)
+			begin(t, c, testSubject(1))
+		},
+		subject: testSubject(4), slot: true, inquiry: BeginSameVideo, sameKey: testKey(1), plain: BeginStarted,
+	},
+	{
+		name: "latest record failed", capacity: 10,
+		prepare: func(t *testing.T, c *Cache, clock *fakeClock) {
+			done(t, c, testSubject(1))
+			clock.Advance(time.Minute)
+			done(t, c, testSubject(2))
+			clock.Advance(time.Minute)
+			failed(t, c, testSubject(3))
+		},
+		subject: testSubject(4), slot: true, inquiry: BeginSameVideo, sameKey: testKey(2), plain: BeginStarted,
+	},
+	{
+		name: "empty video id", capacity: 10,
+		prepare: func(t *testing.T, c *Cache, _ *fakeClock) { done(t, c, videoSubject("", 1)) },
+		subject: videoSubject("", 2), slot: true, inquiry: BeginStarted, plain: BeginStarted,
+	},
+	{
+		name: "no generation slot", capacity: 10,
+		prepare: func(t *testing.T, c *Cache, _ *fakeClock) { done(t, c, testSubject(1)) },
+		subject: testSubject(2), slot: false, inquiry: BeginSameVideo, sameKey: testKey(1), plain: BeginNoSlot,
+	},
+	{
+		// A running record and a posting one cannot be dropped.
+		name: "no evictable record", capacity: 2,
+		prepare: func(t *testing.T, c *Cache, _ *fakeClock) {
+			begin(t, c, testSubject(1))
+			posting(t, c, otherVideoSubject(1))
+		},
+		subject: testSubject(2), slot: true, inquiry: BeginSameVideo, sameKey: testKey(1), plain: BeginFull,
+	},
+}
+
+// TestBeginSameVideo checks what Begin does with StartInquiry in each state
+// of sameVideoCases. When it reports another article of the same video or the
+// subject's own key, it changes no record, gen included, starts nothing, and
+// calls no acquire.
+func TestBeginSameVideo(t *testing.T) {
+	for _, tc := range sameVideoCases {
+		t.Run(tc.name, func(t *testing.T) {
+			c, clock := newTestCache(t, tc.capacity)
+			tc.prepare(t, c, clock)
+			before, beforeGen := recordsOf(c), c.nextGen
+			acquire, calls := countingAcquire(tc.slot)
+			got := c.Begin(tc.subject, StartInquiry, acquire)
+			switch tc.inquiry {
+			case BeginSameVideo, BeginExisting:
+				if want := (BeginResult{Outcome: tc.inquiry, SameVideoKey: tc.sameKey}); got != want {
+					t.Fatalf("Begin = %+v, want %+v", got, want)
+				}
+				if *calls != 0 {
+					t.Errorf("acquire calls = %d, want 0", *calls)
+				}
+				if after := recordsOf(c); !reflect.DeepEqual(after, before) || c.nextGen != beforeGen {
+					t.Errorf("records after Begin = %+v (next gen %d), want unchanged %+v (next gen %d)",
+						after, c.nextGen, before, beforeGen)
+				}
+			default:
+				if got.Outcome != tc.inquiry || got.Run == nil {
+					t.Fatalf("Begin = %+v, want %v with a run", got, tc.inquiry)
+				}
+			}
+		})
+	}
+
+	// A caller that leaves the mode unset asks, so it never starts a
+	// generation it did not ask for.
+	c, clock := newTestCache(t, 10)
+	sameVideoCases[0].prepare(t, c, clock)
+	var unset StartMode
+	if got := c.Begin(testSubject(2), unset, always); got.Outcome != BeginSameVideo {
+		t.Errorf("Begin with the zero StartMode = %+v, want BeginSameVideo", got)
+	}
+}
+
+// TestBeginPlainIgnoresSameVideo checks that StartPlain decides as if no
+// other article of the same video existed, in the same states, which also
+// shows that the no-slot and full states really are.
+func TestBeginPlainIgnoresSameVideo(t *testing.T) {
+	for _, tc := range sameVideoCases {
+		t.Run(tc.name, func(t *testing.T) {
+			c, clock := newTestCache(t, tc.capacity)
+			tc.prepare(t, c, clock)
+			acquire, _ := countingAcquire(tc.slot)
+			got := c.Begin(tc.subject, StartPlain, acquire)
+			if got.Outcome != tc.plain || got.SameVideoKey != (Key{}) {
+				t.Errorf("Begin = %+v, want %v and no same-video key", got, tc.plain)
+			}
+		})
+	}
+}
+
+// TestBeginConcurrentSameVideo starts one video under many keys at once with
+// no article of it yet: exactly one start creates a record and every other
+// one reports that record's key, which holds only if Begin looks for the
+// same video and starts under one lock.
+func TestBeginConcurrentSameVideo(t *testing.T) {
+	const n = 16
+	c, _ := newTestCache(t, 2*n)
+	var acquired atomic.Int32
+	acquire := func() bool {
+		acquired.Add(1)
+		return true
+	}
+	results := make([]BeginResult, n)
+	var wg sync.WaitGroup
+	gate := make(chan struct{})
+	for i := range n {
+		wg.Go(func() {
+			<-gate
+			results[i] = c.Begin(testSubject(i+1), StartInquiry, acquire)
+		})
+	}
+	close(gate)
+	wg.Wait()
+
+	started := -1
+	for i, got := range results {
+		if got.Outcome == BeginStarted {
+			if started >= 0 {
+				t.Fatalf("starts %d and %d both started", started+1, i+1)
+			}
+			started = i
+		}
+	}
+	if started < 0 {
+		t.Fatal("no start started")
+	}
+	for i, got := range results {
+		if i == started {
+			continue
+		}
+		if want := (BeginResult{Outcome: BeginSameVideo, SameVideoKey: testKey(started + 1)}); got != want {
+			t.Errorf("start %d = %+v, want %+v", i+1, got, want)
+		}
+	}
+	if acquired.Load() != 1 {
+		t.Errorf("acquire calls = %d, want 1", acquired.Load())
+	}
+}
+
 func TestTransitionsReturnTheirValues(t *testing.T) {
 	t.Run("run", func(t *testing.T) {
 		c, clock := newTestCache(t, 1)
-		run := begin(t, c, testKey(1))
+		run := begin(t, c, testSubject(1))
 		clock.Advance(5 * time.Minute)
 		if d, ok := run.CompletePostable(testArticle("t")); d != 5*time.Minute || !ok {
 			t.Errorf("CompletePostable = %v, %v; want 5m, true", d, ok)
@@ -663,27 +933,27 @@ func TestTransitionsReturnTheirValues(t *testing.T) {
 			t.Errorf("Fail on an ended Run = %+v, %v; want zero, false", st, ok)
 		}
 
-		retry := begin(t, c, testKey(2)) // evicts key 1
+		retry := begin(t, c, testSubject(2)) // evicts key 1
 		clock.Advance(time.Minute)
 		if d, ok := retry.CompleteUnpostable(testArticle("t"), UnpostableMention); d != time.Minute || !ok {
 			t.Errorf("CompleteUnpostable = %v, %v; want 1m, true", d, ok)
 		}
 
-		failing := begin(t, c, testKey(3)) // evicts key 2
+		failing := begin(t, c, testSubject(3)) // evicts key 2
 		failing.StageFinished(writer.StageGeneration)
 		failing.StageStarted(writer.StageReview)
 		want := Stages{Draft: StageDone, Review: StageFailed}
 		if st, ok := failing.Fail(FailureLLM); st != want || !ok {
 			t.Errorf("Fail = %+v, %v; want %+v, true", st, ok, want)
 		}
-		begin(t, c, testKey(3)) // a restart replaces the Run
+		begin(t, c, testSubject(3)) // a restart replaces the Run
 		if st, ok := failing.Fail(FailureLLM); st != (Stages{}) || ok {
 			t.Errorf("Fail on a replaced Run = %+v, %v; want zero, false", st, ok)
 		}
 	})
 	t.Run("publish_run", func(t *testing.T) {
 		c, _ := newTestCache(t, 1)
-		pub := posting(t, c, testKey(1))
+		pub := posting(t, c, testSubject(1))
 		pub.Delivered(0)
 		pub.Delivered(1)
 		if n, ok := pub.Fail(PublishFailureWebhook); n != 2 || !ok {
@@ -705,7 +975,7 @@ func TestTransitionsReturnTheirValues(t *testing.T) {
 
 func TestBeginPublishConcurrentStartsOnce(t *testing.T) {
 	c, _ := newTestCache(t, 1)
-	done(t, c, testKey(1))
+	done(t, c, testSubject(1))
 	var started, already atomic.Int32
 	var wg sync.WaitGroup
 	gate := make(chan struct{})

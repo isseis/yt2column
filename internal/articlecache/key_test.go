@@ -13,6 +13,7 @@ var testSecret = [32]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
 func baseKeyInput() KeyInput {
 	return KeyInput{
 		VideoURL:    "https://www.youtube.com/watch?v=abcdefghijk",
+		VideoID:     "abcdefghijk",
 		Transcript:  "0:00\nhello",
 		Title:       "title",
 		ChannelName: "channel",
@@ -72,6 +73,25 @@ func TestKeyValueBoundary(t *testing.T) {
 				t.Error("moving a boundary between two values gave the same key")
 			}
 		})
+	}
+}
+
+// TestSubject checks that a Subject carries the same key Key returns and the
+// input's video ID, and that the video ID does not reach the key.
+func TestSubject(t *testing.T) {
+	keyer := NewKeyer(testSecret)
+	in := baseKeyInput()
+	subject := keyer.Subject(in)
+	if subject.Key() != keyer.Key(in) {
+		t.Errorf("Subject key = %s, want Key's %s", subject.Key(), keyer.Key(in))
+	}
+	if subject.videoID != in.VideoID {
+		t.Errorf("Subject video ID = %q, want %q", subject.videoID, in.VideoID)
+	}
+	other := in
+	other.VideoID = "zyxwvutsrqp"
+	if keyer.Key(other) != keyer.Key(in) {
+		t.Error("two inputs that differ only in VideoID gave different keys")
 	}
 }
 

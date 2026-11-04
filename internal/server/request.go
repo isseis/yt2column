@@ -117,6 +117,7 @@ func (s *Server) validateBody(body []byte) (*jobInput, *rejection) {
 		// an absent and an empty member give the same key.
 		key: articlecache.KeyInput{
 			VideoURL:    normalizedURL,
+			VideoID:     videoID,
 			Transcript:  rawTranscript,
 			Title:       title,
 			ChannelName: channelName,

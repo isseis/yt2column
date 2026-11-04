@@ -141,6 +141,10 @@ type record struct {
 	// publishGen changes each time BeginPublish starts a post; a PublishRun
 	// acts only while it matches and the record is posting.
 	publishGen uint64
+	// videoID is the video the record's input names, from the Subject that
+	// created or restarted it. Begin compares it only for equality, and no
+	// Snapshot carries it.
+	videoID string
 
 	state   JobState
 	stages  Stages

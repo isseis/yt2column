@@ -111,13 +111,13 @@ func (c *testClock) Advance(d time.Duration) {
 // or taking a generation slot, and returns the key.
 func (ts *testServer) seedDone(t *testing.T, body string) articlecache.Key {
 	t.Helper()
-	key := ts.keyer.Key(ts.validInput(t, body).key)
-	outcome, run, _ := ts.cache.Begin(key, func() bool { return true })
-	if outcome != articlecache.BeginStarted {
-		t.Fatalf("Begin outcome = %d, want started", outcome)
+	subject := ts.keyer.Subject(ts.validInput(t, body).key)
+	begun := ts.cache.Begin(subject, articlecache.StartPlain, func() bool { return true })
+	if begun.Outcome != articlecache.BeginStarted {
+		t.Fatalf("Begin outcome = %d, want started", begun.Outcome)
 	}
-	run.CompletePostable(testArticle())
-	return key
+	begun.Run.CompletePostable(testArticle())
+	return subject.Key()
 }
 
 // TestStartAccepted checks that a valid generation start answers 202 with a

@@ -25,10 +25,16 @@ const keyHexLen = 2 * sha256.Size
 // hexadecimal characters. It never holds the string.
 var ErrInvalidKey = errors.New("invalid article key")
 
-// KeyInput is the validated request values the key is computed from. Only the
-// server's body validation builds one.
+// KeyInput is the validated request values the key is computed from, and the
+// video they name. Only the server's body validation builds one, and it fills
+// VideoURL and VideoID from the same transcript.ValidateVideoURL call, so the
+// two always name the same video.
 type KeyInput struct {
-	VideoURL    string // the normalized URL transcript.ValidateVideoURL returned
+	VideoURL string // the normalized URL transcript.ValidateVideoURL returned
+	// VideoID is the ID transcript.ValidateVideoURL returned. It is not part
+	// of the key, which VideoURL already fixes; Begin compares it to find
+	// another article of the same video.
+	VideoID     string
 	Transcript  string
 	Title       string // "" when the member was absent
 	ChannelName string // "" when the member was absent
@@ -39,6 +45,19 @@ type KeyInput struct {
 // Keyer.Key or ParseKey.
 type Key struct {
 	sum [sha256.Size]byte
+}
+
+// Subject is an article key together with the video its input names. It can
+// only be built by Keyer.Subject, so the key and the video ID always come from
+// one KeyInput.
+type Subject struct {
+	key     Key
+	videoID string
+}
+
+// Key returns the subject's article key.
+func (s Subject) Key() Key {
+	return s.key
 }
 
 // Keyer computes keys with one per-process secret. It can only be built by
@@ -66,6 +85,11 @@ func (k Keyer) Key(in KeyInput) Key {
 	var key Key
 	mac.Sum(key.sum[:0])
 	return key
+}
+
+// Subject returns in's key, as Key returns it, and in's video ID.
+func (k Keyer) Subject(in KeyInput) Subject {
+	return Subject{key: k.Key(in), videoID: in.VideoID}
 }
 
 // writeField writes value's length prefix and bytes. A hash.Hash never
