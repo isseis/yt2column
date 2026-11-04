@@ -37,8 +37,10 @@ const (
 var extTargetRE = regexp.MustCompile(`(?m)^(ext-[a-z0-9-]+):`)
 
 // claudeExtTargetRE matches a bullet that lists an extension make target, such
-// as "- `make ext-test`" at the start of a line.
-var claudeExtTargetRE = regexp.MustCompile("(?m)^- `make (ext-[a-z0-9-]+)`")
+// as "- `make ext-test`" or "- `make ext-coverage-compare BASE=<commit>`" at
+// the start of a line: the target's name is followed by the closing backquote
+// or by a space and its arguments.
+var claudeExtTargetRE = regexp.MustCompile("(?m)^- `make (ext-[a-z0-9-]+)[` ]")
 
 // extensionManifest is the subset of extension/static/manifest.json these
 // guards read.

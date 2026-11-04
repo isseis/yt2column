@@ -74,6 +74,10 @@ var allowedEnvRefs = map[string]map[string]int{
 	// codexreview.Run, which gives git all of it minus GIT_* and codex only
 	// the variables it names.
 	"cmd/codexreview/main.go": {"call:os.Environ": 1},
+	// The coverage comparison tool passes its environment to
+	// coveragecompare.Run, which gives git all of it minus GIT_* and the test
+	// suites only the variables it names.
+	"cmd/coveragecompare/main.go": {"call:os.Environ": 1},
 }
 
 // envAccessReport is the result of one scan.

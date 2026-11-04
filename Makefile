@@ -54,7 +54,7 @@ define format_files_from_list
 	fi
 endef
 
-.PHONY: all build clean test test-ci test-parse-norace readme-sync-check test-integration test-integration-deepseek test-integration-claude test-integration-cli test-integration-slack test-integration-cli-slack lint fmt fmt-all deadcode tidy install-mergepr install-fixprguard install-codexreview ext-install ext-typecheck ext-lint ext-fmt-check ext-fmt ext-test ext-build ext-check
+.PHONY: all build clean test test-ci test-parse-norace readme-sync-check test-integration test-integration-deepseek test-integration-claude test-integration-cli test-integration-slack test-integration-cli-slack lint fmt fmt-all deadcode tidy install-mergepr install-fixprguard install-codexreview ext-install ext-typecheck ext-lint ext-fmt-check ext-fmt ext-test ext-build ext-check coverage-compare ext-coverage-compare
 
 all: build
 
@@ -123,6 +123,81 @@ readme-sync-check:
 	@out=$$($(GOTEST) -tags test -count=1 -v -run '^TestReadmeSyncMarker$$' ./cmd/yt2column 2>&1); status=$$?; \
 	printf '%s\n' "$$out"; \
 	[ $$status -eq 0 ] && printf '%s\n' "$$out" | grep -Eq -- '--- (PASS|SKIP): TestReadmeSyncMarker'
+
+# The coverage comparison tool (cmd/coveragecompare), run when a change
+# deletes tests: `make coverage-compare BASE=<commit>` for the Go tests and
+# `make ext-coverage-compare BASE=<commit>` for the extension tests.
+#
+# Contract: only a BASE given on make's command line reaches the tool. A BASE
+# from the environment leaves COVERAGE_COMPARE_BASE empty, so the tool stops
+# with usage instead of comparing a commit nobody named on this command. The
+# value reaches the tool through the exported variable, quoted by the recipe's
+# shell, and never as recipe text, so quotes and shell metacharacters in it
+# are not shell syntax. (make itself still expands a $ in it.)
+ifeq ($(origin BASE),command line)
+override COVERAGE_COMPARE_BASE := $(BASE)
+else
+override COVERAGE_COMPARE_BASE :=
+endif
+export COVERAGE_COMPARE_BASE
+
+# The go environment of the recipe's go list and go build: the user's go
+# configuration and go.work cannot change the build, and nothing is fetched.
+COVERAGE_COMPARE_GOENV=GOTOOLCHAIN=local GOENV=off GOFLAGS= GOPROXY=off GOWORK=off
+
+# Usage: $(call coverage_compare,go|ext)
+#
+# Checks that the installed go accepts HEAD's go.mod (the tool could not be
+# built otherwise, so its own toolchain check would never run), builds the
+# tool into a temporary directory, runs it, and waits for it.
+#
+# Contract: the temporary directory is removed whatever the ending, and a
+# SIGINT, SIGTERM, or SIGHUP the recipe's shell receives is forwarded to the
+# tool as SIGTERM while the shell keeps waiting until the tool has exited, so
+# the tool removes its work directory before make returns. A signal that
+# arrives before the tool starts is forwarded once it has started. Of the
+# signals sent to make alone, make passes only SIGTERM on to this shell, and
+# never to the tool; on SIGINT or SIGHUP to make alone, make waits and the
+# run completes. The tool writes the final line itself and exits 0, 1, or 3;
+# for any other ending (a panic, a kill) the recipe writes the internal final
+# line in its place. One shell, joined with backslashes, since make 3.81 has
+# no .ONESHELL.
+define coverage_compare
+	@tmp=; pid=; signaled=; \
+	trap '[ -z "$$tmp" ] || rm -rf "$$tmp"' EXIT; \
+	trap 'signaled=1; [ -z "$$pid" ] || kill -TERM "$$pid" 2>/dev/null' INT TERM HUP; \
+	if ! $(COVERAGE_COMPARE_GOENV) $(GOCMD) list -m >/dev/null; then \
+		printf '%s\n' 'stop      toolchain: go list -m failed for the go.mod of the work tree' 'coverage-compare: STOP toolchain'; \
+		exit 1; \
+	fi; \
+	tmp=$$(mktemp -d "$${TMPDIR:-/tmp}/coverage-compare.XXXXXX") || { \
+		tmp=; \
+		printf '%s\n' 'stop      internal: creating the temporary directory failed' 'coverage-compare: STOP internal'; \
+		exit 1; \
+	}; \
+	if ! $(COVERAGE_COMPARE_GOENV) $(GOCMD) build -o "$$tmp/coveragecompare" ./cmd/coveragecompare; then \
+		printf '%s\n' 'stop      internal: building the tool failed' 'coverage-compare: STOP internal'; \
+		exit 1; \
+	fi; \
+	if [ -n "$$signaled" ]; then \
+		printf '%s\n' 'stop      internal: interrupted before the tool started' 'coverage-compare: STOP internal'; \
+		exit 1; \
+	fi; \
+	"$$tmp/coveragecompare" $(1) --base "$$COVERAGE_COMPARE_BASE" & pid=$$!; \
+	[ -z "$$signaled" ] || kill -TERM "$$pid" 2>/dev/null; \
+	while :; do \
+		wait "$$pid"; status=$$?; \
+		kill -0 "$$pid" 2>/dev/null || break; \
+	done; \
+	case $$status in \
+		0|1|3) ;; \
+		*) printf '%s\n' "stop      internal: the tool exited with status $$status" 'coverage-compare: STOP internal' ;; \
+	esac; \
+	exit $$status
+endef
+
+coverage-compare:
+	$(call coverage_compare,go)
 
 # Integration test. Runs the real yt-dlp against the network, so it is kept
 # out of `make test` by the `integration` build tag. The video defaults below
@@ -306,6 +381,9 @@ EXT_DIR=extension
 
 # Fails unless node and npm are exactly the versions pinned in
 # extension/.node-version and the packageManager field of package.json.
+# The coverage comparison tool checks the same pins of both commits it
+# compares (checkExtVersions in internal/coveragecompare/precheck.go); change
+# both together.
 define ext_check_versions
 	@want_node=$$(cat $(EXT_DIR)/.node-version); \
 	have_node=$$(node --version 2>/dev/null); have_node=$${have_node#v}; \
@@ -374,3 +452,9 @@ ext-check:
 	@$(MAKE) --no-print-directory ext-fmt-check
 	@$(MAKE) --no-print-directory ext-test
 	@$(MAKE) --no-print-directory ext-build
+
+# The extension tests' coverage comparison (see coverage-compare). Unlike the
+# other ext- targets it does not call ext_preflight: the tool makes the same
+# checks and reports them in its own final line.
+ext-coverage-compare:
+	$(call coverage_compare,ext)

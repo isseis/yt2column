@@ -114,6 +114,10 @@
 
 -   このタスクにはない。`design_handoff.md` の H-01〜H-09 は、すべて設計書 10 章に記録されている。
 
+### 1.5. 実装の際に決めたこと（2026-11-04）
+
+-   **レシピのテストは、`coverage-compare` の対象で一揃いを確かめ、`ext-coverage-compare` は道具に渡す語（`ext`）だけを確かめる。`make -n` の出力は、BASE の値が現れないことだけを確かめる。** 理由: 2 つの対象は同じ `define` を使い、違うのは道具に渡す語だけなので、同じ確かめを 2 回走らせても見つかる誤りは増えない。一方で、make の起動のたびにかかる時間とシグナルのテストの不安定さは 2 倍になる。`make -n` の出力に `"$BASE"` の形が現れることは、レシピの書き方を固定するだけで振る舞いを確かめない。BASE の値が 1 つの引数のまま届くことと、値の中のコマンドが実行されないことは、実際に対象を実行して確かめる。あわせて、ビルドの最中に届いたシグナルの分岐と、`mktemp` の失敗の分岐は、誤る見込みと害が小さく、時間に頼るテストの不安定さに見合わないので、テストを置かない。設計書 1.4 節にも同じ決定を記録した。
+
 ## 2. 実装手順 (Implementation Steps)
 
 ファイルの分け方は設計書 2.2 が実装計画に委ねたものである。`internal/coveragecompare` のファイルは、各ステップの「変更するファイル」のとおりに分ける。新しいテストの関数名は予定の名前で、実装で変えたときは本書 7 章を同じ PR で直す。
@@ -357,39 +361,39 @@ PR-4 は大きいので、コミットを、実行の部分（ステップ 4-1�
 
 **変更するファイル:** `cmd/coveragecompare/main.go`（新規）、`cmd/coveragecompare/main_test.go`（新規）、`internal/config/envaccess_test.go`、`docs/dev/conventions/package_reference.md`
 
--   [ ] 設計書 2.2 の表のとおりに入口を書く。コマンドラインは `go --base <rev>` または `ext --base <rev>` だけを受け入れ、ほかの形は `Result{Outcome: OutcomeStop, Stop: StopUsage}` を `Write` で出して終了コード 3 で終わる。`signalrun.Run` の下で動かし、`heldSignals` を実行の間ずっと購読する（1.3）。
--   [ ] コマンドラインの解析を、`Options` を返す関数に分け、`run` は道具の本体を呼ぶ関数を引数で受け取る。テストが本物の `coveragecompare.Run` を呼ばない（このリポジトリのテストの一式を実行しない。AC-35）ようにするためである。
--   [ ] テストを書く（`TestRun`）。受け入れる 2 つの形が解析の関数で正しい `Options` になること。引数の数の違い、知らない対象、`--base` の欠け・重複・空の値、`--base=<rev>` の形、位置の違う引数が、`usage` の最後の行と終了コード 3 になること。どの場合も標準エラー出力が空であること（設計書 3.9）（AC-01・AC-02）。
--   [ ] シグナルのテストを、`cmd/codexreview/main_test.go` の `TestSignalStopsCodexProcessGroup`・`TestSecondSignalStillStopsCodex`（`:253-`・`:277-`）と同じく、テストのバイナリを子として起動し直す形で書く（`TestSignalWaitsForRun`）。子は、取り消されるまで待ち、取り消された後に少し時間をかけて戻る偽の本体で動く。SIGTERM を 1 回と 2 回送った場合のそれぞれで、子は、偽の本体が戻るのを待ってから `internal` の最後の行を出して終わることを確かめる。後始末そのものは `internal/coveragecompare` の `TestRunCleansUp` が確かめる。
--   [ ] `cmd/coveragecompare/main_test.go` の 1 行目は `//go:build test` にする（フェーズ 1 の完了の条件と同じ理由）。
--   [ ] `allowedEnvRefs` に `"cmd/coveragecompare/main.go": {"call:os.Environ": 1}` を、`cmd/codexreview/main.go` の行と同じ形のコメントとともに加える（設計書 3.11）。
--   [ ] `package_reference.md` に `cmd/coveragecompare` の行を加える。
+-   [x] 設計書 2.2 の表のとおりに入口を書く。コマンドラインは `go --base <rev>` または `ext --base <rev>` だけを受け入れ、ほかの形は `Result{Outcome: OutcomeStop, Stop: StopUsage}` を `Write` で出して終了コード 3 で終わる。`signalrun.Run` の下で動かし、`heldSignals` を実行の間ずっと購読する（1.3）。
+-   [x] コマンドラインの解析を、`Options` を返す関数に分け、`run` は道具の本体を呼ぶ関数を引数で受け取る。テストが本物の `coveragecompare.Run` を呼ばない（このリポジトリのテストの一式を実行しない。AC-35）ようにするためである。
+-   [x] テストを書く（`TestRun`）。受け入れる 2 つの形が解析の関数で正しい `Options` になること。引数の数の違い、知らない対象、`--base` の欠け・重複・空の値、`--base=<rev>` の形、位置の違う引数が、`usage` の最後の行と終了コード 3 になること。どの場合も標準エラー出力が空であること（設計書 3.9）（AC-01・AC-02）。
+-   [x] シグナルのテストを、`cmd/codexreview/main_test.go` の `TestSignalStopsCodexProcessGroup`・`TestSecondSignalStillStopsCodex`（`:253-`・`:277-`）と同じく、テストのバイナリを子として起動し直す形で書く（`TestSignalWaitsForRun`）。子は、取り消されるまで待ち、取り消された後に少し時間をかけて戻る偽の本体で動く。SIGTERM を 1 回と 2 回送った場合のそれぞれで、子は、偽の本体が戻るのを待ってから `internal` の最後の行を出して終わることを確かめる。後始末そのものは `internal/coveragecompare` の `TestRunCleansUp` が確かめる。
+-   [x] `cmd/coveragecompare/main_test.go` の 1 行目は `//go:build test` にする（フェーズ 1 の完了の条件と同じ理由）。
+-   [x] `allowedEnvRefs` に `"cmd/coveragecompare/main.go": {"call:os.Environ": 1}` を、`cmd/codexreview/main.go` の行と同じ形のコメントとともに加える（設計書 3.11）。
+-   [x] `package_reference.md` に `cmd/coveragecompare` の行を加える。
 
 #### ステップ 5-2: Makefile の 2 つの対象
 
 **変更するファイル:** `Makefile`、`cmd/yt2column/makefile_test.go`
 
--   [ ] `coverage-compare` と `ext-coverage-compare` を、設計書 3.2 の「`make` の対象」のとおりに加える。HEAD の `go.mod` の確認、道具を一時的なディレクトリへビルドすること、シグナルの転送、0・1・3 以外の終了コードでの `internal` の最後の行、一時的なディレクトリの削除を、2 つの対象で共通の `define` に置く。BASE は `$(origin BASE)` が `command line` のときだけ `COVERAGE_COMPARE_BASE` に入れて `export` し、レシピのシェルが `"$$COVERAGE_COMPARE_BASE"` で道具に渡す。`.PHONY` に 2 つを加える。`define` の本体は、一時的なディレクトリ・`trap`・道具の起動と `wait`・終了コードの読み替えを 1 つのシェルで行うので、`\` で続けた 1 行のシェルにする（GNU Make 3.81 には `.ONESHELL` がない。手元は 3.81、CI は 4.x）。レシピのテストは両方の版で通るものにする。
--   [ ] `ext_check_versions` に、道具（`internal/coveragecompare` の toolchain の確認）が同じ値を確かめることを示すコメントを加える（設計書 3.2）。道具の側の、`ext_check_versions` を示すコメントは、ステップ 4-1 で toolchain の確認と一緒に置く。
--   [ ] レシピのテストを書く（`TestCoverageCompareRecipes`。設計書 7.2 の「レシピの `go.mod` の確認」、7.3）。偽の go は 1.3 のシェルのスタブで、`PATH` の先頭に置く。make の環境は `PATH`・`HOME`・`TMPDIR`（テストごとの `t.TempDir()`）に絞り、スタブと代わりの道具は記録を `TMPDIR` の外の別のディレクトリに書く（`TMPDIR` が空であることを確かめるため）。`BASE` を環境だけで与える行に限り、make の環境に `BASE` を加える。2 つの対象のそれぞれで、次を確かめる。
+-   [x] `coverage-compare` と `ext-coverage-compare` を、設計書 3.2 の「`make` の対象」のとおりに加える。HEAD の `go.mod` の確認、道具を一時的なディレクトリへビルドすること、シグナルの転送、0・1・3 以外の終了コードでの `internal` の最後の行、一時的なディレクトリの削除を、2 つの対象で共通の `define` に置く。BASE は `$(origin BASE)` が `command line` のときだけ `COVERAGE_COMPARE_BASE` に入れて `export` し、レシピのシェルが `"$$COVERAGE_COMPARE_BASE"` で道具に渡す。`.PHONY` に 2 つを加える。`define` の本体は、一時的なディレクトリ・`trap`・道具の起動と `wait`・終了コードの読み替えを 1 つのシェルで行うので、`\` で続けた 1 行のシェルにする（GNU Make 3.81 には `.ONESHELL` がない。手元は 3.81、CI は 4.x）。レシピのテストは両方の版で通るものにする。
+-   [x] `ext_check_versions` に、道具（`internal/coveragecompare` の toolchain の確認）が同じ値を確かめることを示すコメントを加える（設計書 3.2）。道具の側の、`ext_check_versions` を示すコメントは、ステップ 4-1 で toolchain の確認と一緒に置く。
+-   [x] レシピのテストを書く（`TestCoverageCompareRecipes`。設計書 7.2 の「レシピの `go.mod` の確認」、7.3）。偽の go は 1.3 のシェルのスタブで、`PATH` の先頭に置く。make の環境は `PATH`・`HOME`・`TMPDIR`（テストごとの `t.TempDir()`）に絞り、スタブと代わりの道具は記録を `TMPDIR` の外の別のディレクトリに書く（`TMPDIR` が空であることを確かめるため）。`BASE` を環境だけで与える行に限り、make の環境に `BASE` を加える。`coverage-compare` の対象で次を確かめ、`ext-coverage-compare` の対象は道具に `ext` を渡すことを確かめる（1.5）。
     -   `go list -m` が失敗するとき、`toolchain` の最後の行と 0 以外の終了。
     -   スタブが記録した `go list -m` と `go build` の環境に、`GOTOOLCHAIN=local`・`GOENV=off`・`GOFLAGS=`・`GOPROXY=off`・`GOWORK=off` があること（AC-05）。
-    -   `"`・`;`・バッククォート・空白を含む BASE の値（`$` は make が展開するので含めない）で、代わりの道具が受け取った引数の `--base` の値がちょうどその値の 1 つの要素であり、値の中のコマンドが実行されていない（印のファイルがない）こと。`make -n` の出力にその値が現れないこと。
-    -   `BASE` を環境だけに置いたとき、代わりの道具に空の値が渡ること。
+    -   `"`・`'`・`;`・バッククォート・空白を含む BASE の値（`$` は make が展開するので含めない）で、代わりの道具が受け取った引数の `--base` の値がちょうどその値の 1 つの要素であり、値の中のコマンドが実行されていない（印のファイルがない）こと。`make -n` の出力にその値が現れないこと。
+    -   `BASE` を環境だけに置いたとき、また BASE なしで `COVERAGE_COMPARE_BASE` をコマンドラインに置いたとき、代わりの道具に空の値が渡ること。
     -   ビルドが失敗したとき、`internal` の最後の行と 0 以外の終了。
     -   代わりの道具の終了コードが 0・1・3・2 のとき、make の終了コードがそれぞれ 0・0 以外・0 以外・0 以外であること。2 のときだけレシピが `internal` の最後の行を書き足すこと。
-    -   上のどの場合も、終わった後に `TMPDIR` が空であること（レシピの一時的なディレクトリの削除。AC-03）。
-    -   シグナルの転送: 代わりの道具が自分の PID を書いて待つとき、`make` のプロセスだけに SIGTERM を送ると、代わりの道具が SIGTERM を受け取り、`TMPDIR` が空になること（`TestCoverageCompareRecipeForwardsSignal`）。端末の Ctrl-C と SIGHUP は、ステップ 6-3 の手動の確認で行う。
+    -   一時的なディレクトリを作った後のどの場合も、終わった後に `TMPDIR` が空であること（レシピの一時的なディレクトリの削除。AC-03）。
+    -   シグナルの転送: 代わりの道具が自分の PID を書いて待つとき、`make` のプロセスだけに SIGTERM を送ると、代わりの道具が SIGTERM を受け取り、代わりの道具が終わってから make が戻り、`TMPDIR` が空になること（`TestCoverageCompareRecipeForwardsSignal`）。端末の Ctrl-C と SIGHUP は、ステップ 6-3 の手動の確認で行う。
 
 #### ステップ 5-3: CLAUDE.md の「Commands」とガード
 
 **変更するファイル:** `CLAUDE.md`、`cmd/yt2column/extension_docs_test.go`、`cmd/yt2column/makefile_test.go`
 
--   [ ] 「Test Commands」に `make coverage-compare BASE=<commit>` を、「Extension Commands」に `make ext-coverage-compare BASE=<commit>` を、説明とともに加える（設計書 3.10 の「Commands」）。「Extension Commands」の冒頭の文は変えない。
--   [ ] `claudeExtTargetRE`（`extension_docs_test.go:41`）を、対象の名前の直後に `` ` `` か空白が来る形にする。対象の名前の読み取りは変えない（設計書 3.11）。直前のコメントも合わせる。
--   [ ] 「Test Commands」の節に `make coverage-compare` の行が、「Extension Commands」の節に `make ext-coverage-compare` の行があり、Makefile がそれぞれの対象を定義することを確かめるガード（`TestCoverageCompareDocumented`）を加える（AC-38）。節は見出しで探す（`doctestutil.SectionByHeading`）。`claudeExtTargetRE` は CLAUDE.md の全体を探すので、`ext-` の行が「Extension Commands」の節にあることは、このガードで確かめる。
--   [ ] CLAUDE.md「Development Notes」の、文書を読むガードの一覧に、`TestCoverageCompareDocumented` を加える。
--   [ ] `claudeExtTargetRE` を元の形に戻すと `TestExtensionDocumentation` が失敗すること、CLAUDE.md の `make coverage-compare` の行を消すと `TestCoverageCompareDocumented` が失敗することを確かめる（コミットしない）。
+-   [x] 「Test Commands」に `make coverage-compare BASE=<commit>` を、「Extension Commands」に `make ext-coverage-compare BASE=<commit>` を、説明とともに加える（設計書 3.10 の「Commands」）。「Extension Commands」の冒頭の文は変えない。
+-   [x] `claudeExtTargetRE`（`extension_docs_test.go:41`）を、対象の名前の直後に `` ` `` か空白が来る形にする。対象の名前の読み取りは変えない（設計書 3.11）。直前のコメントも合わせる。
+-   [x] 「Test Commands」の節に `make coverage-compare` の行が、「Extension Commands」の節に `make ext-coverage-compare` の行があり、Makefile がそれぞれの対象を定義することを確かめるガード（`TestCoverageCompareDocumented`）を加える（AC-38）。節は見出しで探す（`doctestutil.SectionByHeading`）。`claudeExtTargetRE` は CLAUDE.md の全体を探すので、`ext-` の行が「Extension Commands」の節にあることは、このガードで確かめる。
+-   [x] CLAUDE.md「Development Notes」の、文書を読むガードの一覧に、`TestCoverageCompareDocumented` を加える。
+-   [x] `claudeExtTargetRE` を元の形に戻すと `TestExtensionDocumentation` が失敗すること、CLAUDE.md の `make coverage-compare` の行を消すと `TestCoverageCompareDocumented` が失敗することを確かめる（コミットしない）。
 
 **フェーズ 5 の完了の条件:** `make fmt`、`make test`、`make lint`、`make deadcode` が通る。`extension/test/repository.test.ts` の npm のガードのために `make ext-test` も通す（`CLAUDE.md`「Development Notes」の、Makefile の変更と拡張のテストの関係）。
 
@@ -405,10 +409,10 @@ PR-4 は大きいので、コミットを、実行の部分（ステップ 4-1�
 
 **判定理由**: ステップ 5-2 のレシピのシグナルの転送・終了コードの読み替え・シェルの文法として解釈させない BASE の受け渡しは、独立して詳しく読むべき、誤ると影響の大きい処理である。Conditional checks の「CLI を何度も起動し、そのたびに同じ起動時の確認を通す」にも当たる（レシピのテストは make を何度も起動し、そのたびに HEAD の `go.mod` の確認を通す）
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/652
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 6: 規則の書き換えと実際の一式での確認（設計書 8 章の手順 5 の残りと手順 6）
 
@@ -512,7 +516,7 @@ M1・M2・M3 はこの順に積み上げる。M2 の関数表と判定の関数�
 - [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4）
 - [x] PR-3 マージ済み（対象ステップ: 3-1 / 3-2）
 - [x] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6）
-- [ ] PR-5 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3）
+- [x] PR-5 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3）
 - [ ] PR-6 マージ済み（対象ステップ: 6-1 / 6-2 / 6-3）
 
 **横断の確認（`make lint` と `make test` では検出できないもの）:**
@@ -586,3 +590,4 @@ M1・M2・M3 はこの順に積み上げる。M2 の関数表と判定の関数�
 ## 変更履歴
 
 - 2026-11-02 承認（isseis、#630）
+- 2026-11-04 セッション中の再承認：レシピのテストを coverage-compare の対象で一揃い、ext-coverage-compare は渡す語だけにし、make -n は BASE の値が現れないことだけを確かめる形にした（1.5、ステップ 5-2）（isseis、#652）
