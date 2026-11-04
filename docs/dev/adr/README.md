@@ -10,3 +10,4 @@
 | [ADR-0002](0002-post-generation-steps.md) | 生成の後に字数の調整と検証・推敲の 2 段階を置き、検証・推敲は直す箇所の一覧だけを返す | `有効` |
 | [ADR-0003](0003-llm-config-contract.md) | LLM のプロバイダ・モデル・effort を 1 つの値 <プロバイダ>/<モデル ID>+<effort> で指定する | `有効` |
 | [ADR-0004](0004-production-profile.md) | 本番の構成を claude-opus-5-5（effort high）の 3 段階とし、品質の目標と製品の制約を共通の文書に置く | `有効` |
+| [ADR-0005](0005-server-architecture.md) | サーバを Native Messaging のホストと常駐サーバに分け、HTTP を Unix ドメインソケットの上で受ける | `有効` |
