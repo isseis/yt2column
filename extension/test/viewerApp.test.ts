@@ -9,10 +9,7 @@ import type {
 } from "../src/browser/chromeDeps.ts";
 import type { ArticleKey } from "../src/core/articleKey.ts";
 import { parseViewerChannelMessage } from "../src/core/extensionMessages.ts";
-import type {
-  TakeOverAnswer,
-  ViewerChannelMessage,
-} from "../src/core/extensionMessages.ts";
+import type { ViewerChannelMessage } from "../src/core/extensionMessages.ts";
 import { articleFileName } from "../src/core/fileName.ts";
 import { catalogs } from "../src/core/i18n/catalog.ts";
 import type { ViewerState } from "../src/core/jobView.ts";
@@ -263,12 +260,15 @@ async function post(
 
 const queryId = "0".repeat(31) + "1";
 
-/** A take-over of the test's tab for queryId, from a send at newSentAt answered with answer. */
-function takeOver(
-  newSentAt = sentAt + 50_000,
-  answer: TakeOverAnswer = "accepted",
-): ViewerChannelMessage {
-  return { type: "take-over", queryId, tabId: 5, sentAt: newSentAt, answer };
+/** A take-over of the test's tab for queryId, from an accepted send at newSentAt. */
+function takeOver(newSentAt = sentAt + 50_000): ViewerChannelMessage {
+  return {
+    type: "take-over",
+    queryId,
+    tabId: 5,
+    sentAt: newSentAt,
+    answer: "accepted",
+  };
 }
 
 describe("startViewer: display and URL", () => {
@@ -934,21 +934,6 @@ describe("startViewer: queries, take-over and logs", () => {
       assert.equal(stateText(viewer), drawnState(runningState, 3_000));
     });
   }
-
-  it("takes over a same-video send as it takes over an accepted one", async () => {
-    const viewer = await showing(failedJob);
-    await post(viewer, { type: "find", queryId, key });
-    const newSentAt = viewer.clock.now() - 3_000;
-    await post(viewer, takeOver(newSentAt, "same-video"));
-    assert.deepEqual(viewer.received.at(-1), {
-      type: "took-over",
-      queryId,
-      tabId: 5,
-    });
-    const written = parseViewerUrl(`?${viewer.replaced.at(-1)}`, "", newSentAt);
-    assert.ok(written.ok);
-    assert.deepEqual(written.params, { ...seed, key, sentAt: newSentAt });
-  });
 
   it("ignores a take-over meant for another tab, even for a query it answered", async () => {
     const viewer = await showing(failedJob);

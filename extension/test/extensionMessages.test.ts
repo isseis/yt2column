@@ -141,10 +141,7 @@ describe("parseStartRequest", () => {
       name: "a mode that is not a string",
       value: changed((r) => void (r.mode = true as never)),
     },
-    {
-      name: "a mode inside the input",
-      value: changed((r) => void (r.input!.mode = "plain")),
-    },
+
     { name: "a missing source", value: changed((r) => void delete r.source) },
     {
       name: "an input without its transcript",

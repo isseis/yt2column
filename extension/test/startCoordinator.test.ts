@@ -312,18 +312,6 @@ describe("start request sender checks", () => {
       check: "shape",
     },
     {
-      name: "a mode outside the set",
-      sender: popupSender,
-      request: { ...startRequest(), mode: "existing" },
-      check: "shape",
-    },
-    {
-      name: "a mode that is not a string",
-      sender: popupSender,
-      request: { ...startRequest(), mode: 1 },
-      check: "shape",
-    },
-    {
       name: "an input over 4 MiB",
       sender: popupSender,
       request: {

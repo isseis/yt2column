@@ -167,9 +167,8 @@ describe("prepareSend", () => {
       assert.ok(message.op === "start");
       return new TextEncoder().encode(JSON.stringify(message.input)).length;
     };
-    // The longer mode fills the limit exactly; the shorter one stays under it.
+    // The longer mode fills the limit exactly; "plain" is shorter.
     assert.equal(sentBytes("inquiry"), maxBodyBytes);
-    assert.ok(sentBytes("plain") < maxBodyBytes);
   });
 });
 

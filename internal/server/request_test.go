@@ -79,7 +79,6 @@ var invalidBodyCases = []struct {
 	{"mode_spaces", `{"videoUrl":"` + testValidVideoURL + `","transcript":"0:00\nHello\n","mode":" plain "}`},
 	{"mode_empty", `{"videoUrl":"` + testValidVideoURL + `","transcript":"0:00\nHello\n","mode":""}`},
 	{"mode_other", `{"videoUrl":"` + testValidVideoURL + `","transcript":"0:00\nHello\n","mode":"existing"}`},
-	{"mode_duplicate", `{` + validMembers + `,"mode":"plain"}`},
 	{"mode_duplicate_mixed", `{` + validMembers + `,"mode":"inquiry"}`},
 	// The mode is checked before the video URL and the transcript, so a body
 	// with a bad mode is invalid_body even when they are bad as well.

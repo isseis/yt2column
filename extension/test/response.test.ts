@@ -324,7 +324,10 @@ describe("classifyStartInquiry", () => {
     );
   });
 
-  it("refuses a same-video answer over the response limit", () => {
+  // The limit is the host reply check's (classifyHostReply), which runs
+  // before any classify function: an over-limit same-video answer is shown
+  // as unexpected because it never reaches classifyStartInquiry's check.
+  it("shows an over-limit same-video answer as unexpected, refused before it is read", () => {
     const padded = JSON.stringify({
       ...sameVideo,
       key: "k".repeat(maxResponseBytes),
