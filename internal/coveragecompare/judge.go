@@ -12,6 +12,17 @@ import (
 // comparison. The diff, the line mapping, the classification, the stop
 // priority, and the output are shared and live outside it.
 type target interface {
+	// pathspec is the git pathspec of the files the diff covers.
+	pathspec() []string
+	// checkToolchain reads the pinned versions from both commits, checks
+	// the installed tools against them, and returns the version the result
+	// names.
+	checkToolchain(ctx context.Context, base, head source) (string, error)
+	// prepare readies a checkout for its suite.
+	prepare(checkout string) error
+	// run runs a point's test suite in its checkout and returns its raw
+	// outputs.
+	run(ctx context.Context, point Point, checkout string) (rawRun, error)
 	// readResults reads one point's test results: the test count and the
 	// failures.
 	readResults(raw rawRun, point Point) (testResults, error)
@@ -223,8 +234,11 @@ func stopFromError(r Result, err error) Result {
 	return stopWith(r, stop.Kind, reasons)
 }
 
-// goTarget is the Go comparison.
-type goTarget struct{}
+// goTarget is the Go comparison. rc is what its execution methods run in;
+// the judging methods do not use it.
+type goTarget struct {
+	rc *runContext
+}
 
 // readResults reads the go test -json output. Each failed test, package, or
 // build is a reason, and the first one keeps the end of its output.
@@ -288,9 +302,13 @@ func (goTarget) compare(_, _ funcTable, pairs []matchedPair) ([]LostFunc, []Stop
 	return compareGo(pairs)
 }
 
-// extTarget is the extension comparison. ranges is the range helper.
+// extTarget is the extension comparison. ranges is the range helper; rc and
+// deps are what its execution methods run in and check, which the judging
+// methods do not use.
 type extTarget struct {
 	ranges rangeReader
+	rc     *runContext
+	deps   *dependencyGuard
 }
 
 // readResults reads the TAP report. Each "not ok" line is a reason; the first

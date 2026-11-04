@@ -56,7 +56,7 @@
 |---|---|---|
 | 起動 | `NewOS(Options)` と `Runner.Run`（`runner.go:25-27`・`:96`・`:101-`）。`Options` は `MaxOutput`・`WaitDelay`・`Dir`・`Env`・`StderrIsFailure`・`ProcessGroup`・`GroupStopGrace`（`:52-60`） | 変えない。git・go・node・npm をすべてこれで起動する（設計書 2.1）。`MaxOutput` は 0（上限なし。AC-32） |
 | 失敗 | 0 以外の終了は `*ExitError`（`Code`・`Stdout`・`Stderr`。`:67-75`）。取り消しでは context のエラーと合わせて返す（`:130-132`）。成功したときの標準エラー出力は捨てる | 終了コードを `test-failed` の判定に使う。出力の末尾は報告から取る（1.3）。取り消しは、`*ExitError` より先に context のエラーを見て `internal` に分ける（設計書 4 章） |
-| git | `GitEnv`（`git.go:32-44`）と `GitHardening`（`:19-30`） | 変えない。`GitEnv` の結果に `GIT_CONFIG_GLOBAL=/dev/null`・`GIT_CONFIG_NOSYSTEM=1` を加える（設計書 3.2）。`GitEnv` は `GIT_` で始まる変数を落としてから決まった 2 つを加えるので、加える 2 つは `GitEnv` の後に足す |
+| git | `GitEnv`（`git.go:32-44`）と `GitHardening`（`:19-30`） | 変えない。`GitEnv` の結果に `GIT_CONFIG_GLOBAL=/dev/null`・`GIT_CONFIG_NOSYSTEM=1`・`GIT_ATTR_NOSYSTEM=1` を加え、`GitHardening` の後に `-c core.attributesFile=/dev/null` を置く（設計書 3.2）。`GitEnv` は `GIT_` で始まる変数を落としてから決まった 2 つを加えるので、加える変数は `GitEnv` の後に足す |
 | 偽の `Runner` | `internal/cmdrunner/testutil` の `Fake`（`mocks.go:34-`）。決めた順の呼び出しを再生する | 使わない。フェーズ 1〜3 は外部のコマンドを起動せず、フェーズ 4 は実際の git と偽の go・node・npm で確かめる（設計書 7.2） |
 
 **入口とシグナル（`internal/signalrun`、`cmd/codexreview`）**
@@ -81,7 +81,7 @@
 
 **環境の読み取りとパッケージの一覧のガード**
 
--   `internal/config/envaccess_test.go` の `allowedEnvRefs`（`:65-77`）は、`internal/config` の外で環境を読む製品のコードを、ファイルごとに数で許す。`cmd/codexreview/main.go` は `{"call:os.Environ": 1}`（`:73-76`）。`cmd/coveragecompare/main.go` にも同じ 1 つを許す（ステップ 5-1）。`os.TempDir` が読む `TMPDIR` は数えない（`:20-26`）ので、`os.MkdirTemp("", …)` はこの検査に当たらない。`internal/coveragecompare` は環境を `Options.Environ` で受け取り、自分では読まない。
+-   `internal/config/envaccess_test.go` の `allowedEnvRefs`（`:65-77`）は、`internal/config` の外で環境を読む製品のコードを、ファイルごとに数で許す。`cmd/codexreview/main.go` は `{"call:os.Environ": 1}`（`:73-76`）。`cmd/coveragecompare/main.go` にも同じ 1 つを許す（ステップ 5-1）。`os.TempDir` が読む `TMPDIR` は数えない（`:20-26`）ので、`os.MkdirTemp` はこの検査に当たらない。`internal/coveragecompare` は環境を `Options.Env` で受け取り、自分では読まない。作業用のディレクトリも、`Options.Env` の `TMPDIR` の下に作る（ない場合はシステムの一時的なディレクトリ）。テストが `TMPDIR` をテストごとに与えて並べて動かせるようにするためである。フィールドの名前を `Environ` にしないのは、この検査が、`os`・`syscall` と解決できない受け手の `.Environ` の参照をすべて拒む（`(*exec.Cmd).Environ` のため。`:42-46`）からである。
 -   `internal/pipeline/pipeline_test.go::TestPackageReferenceListsPackages`（`:629-`）は、本体のコードを持つパッケージに `package_reference.md` の行がないと失敗する。`internal/coveragecompare` の行はフェーズ 1 で、`cmd/coveragecompare` の行はフェーズ 5 で加える。
 -   `TestFakesCarryBuildTag`（`pipeline_test.go:553-`）は、`test_helpers*.go` の 1 行目が `//go:build test`（または `test || integration`）であることを確かめる。数を固定しているのは `testutil` のファイル（25）だけ（`:577`）で、本書は `testutil` のファイルを加えない。
 
@@ -275,62 +275,62 @@
 
 ### フェーズ 4: `internal` の実行の部分（設計書 8 章の手順 4 のうち `internal/coveragecompare`）
 
-PR-4 は大きいので、コミットを、前提の確認と利用者の状態（ステップ 4-1）、チェックアウトと子のプロセスの環境と後始末（4-2）、`Run`（4-3）、偽のコマンド（4-4）、テスト（4-5・4-6）の順に分け、レビューをコミットごとに読めるようにする。
+PR-4 は大きいので、コミットを、実行の部分（ステップ 4-1〜4-3）と、偽のコマンドとテスト（4-4〜4-6）の 2 つに分け、レビューをコミットごとに読めるようにする。これより細かくは分けない。コミットのたびにフックが `make lint` の `unused` とテストを実行するので、まだ呼ばれない関数だけのコミットや、使うテストのないテストの補助だけのコミットは通らないためである。
 
 #### ステップ 4-1: git の起動、前提の確認、利用者の状態
 
 **変更するファイル:** `internal/coveragecompare/git.go`、`internal/coveragecompare/precheck.go`、`internal/coveragecompare/userstate.go`（いずれも新規）
 
--   [ ] git の起動の環境と引数を、設計書 3.2 の「git の起動の仕方」のとおりに 1 か所で作る（1.4 の `GitEnv` の後に 2 つを加える）。
--   [ ] 前提の確認を、設計書 3.2 の表の順（`usage`・`not-ancestor`・`dirty`・`toolchain`）で書く。BASE と HEAD を 40 桁のコミットの ID に一度だけ解決し、そのあとの git の操作はすべてその ID を使う（設計書 3.2 の「コミットの ID の固定」）。
--   [ ] toolchain の確認を、Go と拡張について設計書 3.2 の「toolchain の確認」のとおりに書く（ファイルは `git show <ID>:<path>` で読む。`go/version` で比べる。lockfile が BASE と HEAD で違えば止める）。拡張の確認には、`Makefile` の `ext_check_versions` が同じ値を確かめることを示すコメントを置く。
--   [ ] 利用者の状態（HEAD、今のブランチ、`git status` の出力、作業ツリーのパスの集合）を記録し、後始末の後に比べる（設計書 3.3 の「利用者の状態の確認」）。
+-   [x] git の起動の環境と引数を、設計書 3.2 の「git の起動の仕方」のとおりに 1 か所で作る（1.4 の `GitEnv` の後に 2 つを加える）。
+-   [x] 前提の確認を、設計書 3.2 の表の順（`usage`・`not-ancestor`・`dirty`・`toolchain`）で書く。BASE と HEAD を 40 桁のコミットの ID に一度だけ解決し、そのあとの git の操作はすべてその ID を使う（設計書 3.2 の「コミットの ID の固定」）。
+-   [x] toolchain の確認を、Go と拡張について設計書 3.2 の「toolchain の確認」のとおりに書く（ファイルは `git show <ID>:<path>` で読む。`go/version` で比べる。lockfile が BASE と HEAD で違えば止める）。拡張の確認には、`Makefile` の `ext_check_versions` が同じ値を確かめることを示すコメントを置く。
+-   [x] 利用者の状態（HEAD、今のブランチ、`git status` の出力、作業ツリーのパスの集合）を記録し、後始末の後に比べる（設計書 3.3 の「利用者の状態の確認」）。
 
 #### ステップ 4-2: チェックアウト、子のプロセスの環境、後始末
 
 **変更するファイル:** `internal/coveragecompare/checkout.go`、`internal/coveragecompare/childenv.go`（いずれも新規）
 
--   [ ] 作業用のディレクトリを `os.MkdirTemp` で作り、その下に BASE と HEAD のチェックアウトを `git clone --shared --no-checkout` と `git -c core.hooksPath=/dev/null checkout --detach <ID>` で作る（設計書 3.3）。
--   [ ] 拡張のとき、各チェックアウトの `extension/node_modules` を実際のディレクトリとして作り、利用者の `extension/node_modules` の各項目へのシンボリックリンクを置く。BASE のテストの前と HEAD のテストの後に `extension/node_modules/.package-lock.json` を比べ、違えば `internal` にする（設計書 3.3 の「拡張の依存パッケージ」）。
--   [ ] go と node に渡す環境を、設計書 3.3 の「子のプロセスの環境」のとおりに、名前で選んだ変数と道具が決める変数（`TMPDIR`・`GOTMPDIR` は作業用のディレクトリの下の `tmp`）から作る関数を書く。
--   [ ] 後始末は、`context.WithoutCancel` の context で作業用のディレクトリを消す。`Run` がどの終わり方でも戻る前に行う（設計書 3.3 の「後始末」）。後始末の後の利用者の状態の読み取り（ステップ 4-1）も、同じ取り消されない context で git を起動する（取り消された context では `cmdrunner` が何も起動しない。`internal/cmdrunner/runner.go:48-49`）。状態を読めなかったときは、`internal` にし、読めなかった項目を出す。
+-   [x] 作業用のディレクトリを `os.MkdirTemp` で作り、その下に BASE と HEAD のチェックアウトを `git clone --shared --no-checkout` と `git -c core.hooksPath=/dev/null checkout --detach <ID>` で作る（設計書 3.3）。
+-   [x] 拡張のとき、各チェックアウトの `extension/node_modules` を実際のディレクトリとして作り、利用者の `extension/node_modules` の各項目へのシンボリックリンクを置く。BASE のテストの前と HEAD のテストの後に `extension/node_modules/.package-lock.json` を比べ、違えば `internal` にする（設計書 3.3 の「拡張の依存パッケージ」）。
+-   [x] go と node に渡す環境を、設計書 3.3 の「子のプロセスの環境」のとおりに、名前で選んだ変数と道具が決める変数（`TMPDIR`・`GOTMPDIR` は作業用のディレクトリの下の `tmp`）から作る関数を書く。
+-   [x] 後始末は、`context.WithoutCancel` の context で作業用のディレクトリを消す。`Run` がどの終わり方でも戻る前に行う（設計書 3.3 の「後始末」）。後始末の後の利用者の状態の読み取り（ステップ 4-1）も、同じ取り消されない context で git を起動する（取り消された context では `cmdrunner` が何も起動しない。`internal/cmdrunner/runner.go:48-49`）。状態を読めなかったときは、`internal` にし、読めなかった項目を出す。
 
 #### ステップ 4-3: テストの実行、`target` の 2 つの実装、`Run`
 
 **変更するファイル:** `internal/coveragecompare/target.go`、`internal/coveragecompare/target_go.go`、`internal/coveragecompare/target_ext.go`、`internal/coveragecompare/run.go`（いずれも新規）、`docs/dev/conventions/package_reference.md`
 
--   [ ] ステップ 2-3 で置いた `target` インターフェースに、設計書 3.1 の実行に使うメソッド（`pathspec`・`checkToolchain`・`run`）を加え、Go と拡張の実装に、フェーズ 1〜3 の読み方と判定の関数を束ねる。テストの実行は、設計書 3.4・3.5 のコマンドを、`cmdrunner` の `ProcessGroup`・`GroupStopGrace`・`WaitDelay`（1.3 の値）と `MaxOutput` 0 で起動する。範囲の補助は、HEAD のチェックアウトのものを `StderrIsFailure` を付けて起動する（設計書 3.5）。
--   [ ] 差分を、設計書 3.7 の「差分の取り方」の引数で、固定したコミットの ID の間で取る。
--   [ ] `Run` を、設計書 2.3 の流れと 3.9 の最後の段落の順で書く。BASE のテストが失敗したら HEAD のテストを実行しない。`internal` は起きた時点で止める。どの終わり方でも、後始末と利用者の状態の確認の後に `Result` を返す。`StopError` でないエラーは `internal` にする（設計書 4 章）。取り消された context では、取り消されたことを `internal` の理由にする。`cmdrunner` は取り消しで context のエラーと `*ExitError` を合わせて返す（`runner.go:130-132`）ので、テストのコマンドの失敗は、context のエラーを先に見てから `test-failed` に分ける。
--   [ ] `package_reference.md` の `internal/coveragecompare` の行に、`Run` と実行の部分を書き足す。
+-   [x] ステップ 2-3 で置いた `target` インターフェースに、設計書 3.1 の実行に使うメソッド（`pathspec`・`checkToolchain`・`run`）を加え、Go と拡張の実装に、フェーズ 1〜3 の読み方と判定の関数を束ねる。テストの実行は、設計書 3.4・3.5 のコマンドを、`cmdrunner` の `ProcessGroup`・`GroupStopGrace`・`WaitDelay`（1.3 の値）と `MaxOutput` 0 で起動する。範囲の補助は、HEAD のチェックアウトのものを `StderrIsFailure` を付けて起動する（設計書 3.5）。
+-   [x] 差分を、設計書 3.7 の「差分の取り方」の引数で、固定したコミットの ID の間で取る。
+-   [x] `Run` を、設計書 2.3 の流れと 3.9 の最後の段落の順で書く。BASE のテストが失敗したら HEAD のテストを実行しない。`internal` は起きた時点で止める。どの終わり方でも、後始末と利用者の状態の確認の後に `Result` を返す。`StopError` でないエラーは `internal` にする（設計書 4 章）。取り消された context では、取り消されたことを `internal` の理由にする。`cmdrunner` は取り消しで context のエラーと `*ExitError` を合わせて返す（`runner.go:130-132`）ので、テストのコマンドの失敗は、context のエラーを先に見てから `test-failed` に分ける。
+-   [x] `package_reference.md` の `internal/coveragecompare` の行に、`Run` と実行の部分を書き足す。
 
 #### ステップ 4-4: 偽のコマンドと一時的なリポジトリ
 
 **変更するファイル:** `internal/coveragecompare/test_helpers.go`（新規、`//go:build test`）、`internal/coveragecompare/main_test.go`（新規。`TestMain`）、`internal/coveragecompare/fake_test.go`（新規）
 
--   [ ] 1.3 の方式で、偽の `go`・`node`・`npm` を書く。偽のコマンドは、起動された引数・環境・作業ディレクトリと、作業ディレクトリの `extension/node_modules` の形（実際のディレクトリか、その項目のリンク先。`Run` の後ではチェックアウトが消えているので、起動の時点で記録する）を記録し、テストの実行・`go env GOVERSION`・`node --version`・`npm --version`・範囲の補助の呼び出しに、振る舞いのファイルのとおりに答える。報告のファイルは、引数の `-coverprofile=`・`--test-reporter-destination=` の場所に書く。振る舞いには、準備ができたことを示すファイルを書いて待つこと（取り消しのテストのため）と、SIGTERM を受けたら 0 以外で終わることを含める。
--   [ ] `TestMain` は、プロセスの `PATH` を偽のコマンドと実際の `git` へのリンクだけのディレクトリに置き換え（1.3）、`exec.LookPath` で `go`・`node`・`npm` が偽のコマンドに解決されることを確かめてからテストを実行する。同じことを `TestFakePathHasNoRealToolchain` でも確かめる（AC-35）。
--   [ ] 一時的な git のリポジトリを作る補助を書く。署名を切り、利用者の大域の設定を読まない。テストごとの `HOME` と `TMPDIR` を `t.TempDir()` にする補助も置く。道具の作業用のディレクトリは `TMPDIR` の下にできるので、`Run` の後にその `TMPDIR` が空であることで後始末を確かめる。macOS の `/var` と `/private/var` のように、パスの比べ方はシンボリックリンクを解決してから行う。
--   [ ] `test_helpers.go` の `gosec` に当たる行（テストのバイナリの起動し直し、実行できるリンクの作成、引数のパスへの報告の書き込み、振る舞いのファイルの読み取り）だけに、理由を添えた `//nolint:gosec` を付ける。`internal/codexreview/testutil/helpers.go:237`・`:356` と同じ形である。`.golangci.yml` の除外（`:178-195`）は `_test.go` だけに当たるので、`errcheck`・`err113`・`gocyclo` なども `test_helpers.go` に働く（1.4）。
+-   [x] 1.3 の方式で、偽の `go`・`node`・`npm` を書く。偽のコマンドは、起動された引数・環境・作業ディレクトリと、作業ディレクトリの `extension/node_modules` の形（実際のディレクトリか、その項目のリンク先。`Run` の後ではチェックアウトが消えているので、起動の時点で記録する）を記録し、テストの実行・`go env GOVERSION`・`node --version`・`npm --version`・範囲の補助の呼び出しに、振る舞いのファイルのとおりに答える。報告のファイルは、引数の `-coverprofile=`・`--test-reporter-destination=` の場所に書く。振る舞いには、準備ができたことを示すファイルを書いて待つこと（取り消しのテストのため）と、SIGTERM を受けたら 0 以外で終わることを含める。
+-   [x] `TestMain` は、プロセスの `PATH` を偽のコマンドと実際の `git` へのリンクだけのディレクトリに置き換え（1.3）、`exec.LookPath` で `go`・`node`・`npm` が偽のコマンドに解決されることを確かめてからテストを実行する。同じことを `TestFakePathHasNoRealToolchain` でも確かめる（AC-35）。
+-   [x] 一時的な git のリポジトリを作る補助を書く。署名を切り、利用者の大域の設定を読まない。テストごとの `HOME` と `TMPDIR` を `t.TempDir()` にする補助も置く。道具の作業用のディレクトリは `TMPDIR` の下にできるので、`Run` の後にその `TMPDIR` が空であることで後始末を確かめる。macOS の `/var` と `/private/var` のように、パスの比べ方はシンボリックリンクを解決してから行う。
+-   [x] `test_helpers.go` の `gosec` に当たる行（テストのバイナリの起動し直し、実行できるリンクの作成、引数のパスへの報告の書き込み、振る舞いのファイルの読み取り）だけに、理由を添えた `//nolint:gosec` を付ける。`internal/codexreview/testutil/helpers.go:237`・`:356` と同じ形である。`.golangci.yml` の除外（`:178-195`）は `_test.go` だけに当たるので、`errcheck`・`err113`・`gocyclo` なども `test_helpers.go` に働く（1.4）。
 
 #### ステップ 4-5: 前提の確認と、後始末・利用者の状態のテスト
 
 **変更するファイル:** `internal/coveragecompare/precheck_test.go`、`internal/coveragecompare/run_test.go`（いずれも新規）
 
--   [ ] 前提の確認のテスト（`TestRunPreconditions`）を書く。設計書 7.2 の「前提の確認」の各場合に、次を加える: BASE がコミットでない木を指す・`-` で始まる（`--help` など）、ステージした変更、git が無視するファイルだけなら止まらないこと、`go.mod` の `go` の行が読めないこと。各行で、停止の種類と、偽のコマンドにテストの実行の記録がないこと、npm の起動の引数が `--version` だけであること（AC-04）を確かめる。順序は、隣り合う 2 つの停止の種類の条件に同時に当たる 3 つの行（`usage` と `dirty`、`not-ancestor` と `dirty`、`dirty` と `toolchain`）で、表の順の早いほうで止まることを確かめる（AC-23）。
--   [ ] 後始末のテスト（`TestRunCleansUp`。設計書 7.2 の「後始末と利用者の状態」）を書く。Go と拡張のそれぞれで、合格・不合格・テストの失敗・読めない報告・範囲の補助の失敗（0 以外の終了、標準エラー出力への書き込み）・HEAD のチェックアウトの作成の失敗・始める前に取り消された context・テストの実行中の取り消しの各場合に、`TMPDIR` が空になり、作業ツリーの一覧・ブランチ・HEAD・`git status` が変わらないことを確かめる。実行中の取り消しでは、偽のテストが準備のファイルを書いた後に取り消し、偽のテストが SIGTERM で 0 以外で終わっても、停止の種類が `test-failed` ではなく `internal` になること、偽のテストのプロセスグループが残らないことを確かめる。
--   [ ] 利用者の状態の変化のテスト（`TestRunDetectsUserStateChange`）を書く。偽のテストが利用者のリポジトリで、ブランチを切り替える・コミットして HEAD を動かす・追跡されているファイルを変える・作業ツリーを加える、の 4 つの行で、それぞれ `internal` で止まり、違った項目の名前を出すことを確かめる（設計書 3.3 が比べる 4 つの項目に 1 行ずつ）。`.package-lock.json` が途中で変わる場合に `internal` で止まることも確かめる（AC-06）。
+-   [x] 前提の確認のテスト（`TestRunPreconditions`）を書く。設計書 7.2 の「前提の確認」の各場合に、次を加える: BASE がコミットでない木を指す・`-` で始まる（`--help` など）、ステージした変更、git が無視するファイルだけなら止まらないこと、`go.mod` の `go` の行が読めないこと。各行で、停止の種類と、偽のコマンドにテストの実行の記録がないこと、npm の起動の引数が `--version` だけであること（AC-04）を確かめる。順序は、隣り合う 2 つの停止の種類の条件に同時に当たる 3 つの行（`usage` と `dirty`、`not-ancestor` と `dirty`、`dirty` と `toolchain`）で、表の順の早いほうで止まることを確かめる（AC-23）。
+-   [x] 後始末のテスト（`TestRunCleansUp`。設計書 7.2 の「後始末と利用者の状態」）を書く。Go と拡張のそれぞれで、合格・不合格・テストの失敗・読めない報告・範囲の補助の失敗（0 以外の終了、標準エラー出力への書き込み）・HEAD のチェックアウトの後の BASE のチェックアウトの作成の失敗・始める前に取り消された context・テストの実行中の取り消しの各場合に、`TMPDIR` が空になり、作業ツリーの一覧・ブランチ・HEAD・`git status` が変わらないことを確かめる。実行中の取り消しでは、偽のテストが準備のファイルを書いた後に取り消し、偽のテストが SIGTERM で 0 以外で終わっても、停止の種類が `test-failed` ではなく `internal` になること、偽のテストのプロセスグループが残らないことを確かめる。
+-   [x] 利用者の状態の変化のテスト（`TestRunDetectsUserStateChange`）を書く。偽のテストが利用者のリポジトリで、ブランチを切り替える・コミットして HEAD を動かす・追跡されているファイルを変える・作業ツリーを加える、の 4 つの行で、それぞれ `internal` で止まり、違った項目の名前を出すことを確かめる（設計書 3.3 が比べる 4 つの項目に 1 行ずつ）。`.package-lock.json` が途中で変わる場合に `internal` で止まることも確かめる（AC-06）。
 
 #### ステップ 4-6: 実行の流れ・環境・差分の引数のテスト
 
 **変更するファイル:** `internal/coveragecompare/run_test.go`、`internal/coveragecompare/childenv_test.go`（新規）
 
--   [ ] 実行の流れのテスト（`TestRunEndToEnd`）を書く。Go と拡張のそれぞれで、偽の報告から合格・不合格になり、`Result` の `Toolchain`・`Measure`・コミットの ID・ツリーの ID が偽のコマンドの答えと一時的なリポジトリの値に一致すること、テストのコマンドの引数が設計書 3.4・3.5 のとおりであること、拡張の各チェックアウトの `node_modules` が実際のディレクトリで、その項目が利用者の `node_modules` を指すこと（偽のコマンドの記録で見る）、npm の起動の引数が `--version` だけであることを確かめる。コミットの ID の固定は、BASE を今のブランチでない枝の名前で与え、BASE のテストの間に偽のテストがその枝を動かしても、`Result`・HEAD のチェックアウト・差分が最初の ID を使うことで確かめる。
--   [ ] `Run` の側の順序のテストを書く。BASE のテストの失敗で HEAD のテストが起動されないこと（`TestRunStopsOnBaseFailure`）と、HEAD のテストだけが失敗する場合に HEAD の時点の `test-failed` になること（`TestRunStopsOnHeadFailure`）を、Go と拡張のそれぞれで確かめる。
--   [ ] 子のプロセスの環境のテスト（`TestChildEnv`）を書く（設計書 7.1 の「子のプロセスの環境」）。`NODE_OPTIONS`・`NODE_V8_COVERAGE`・`GOFLAGS`・`GOENV`・`GOCOVERDIR`・`GIT_DIR`・`DEEPSEEK_API_KEY` と、どの規則にも当たらない変数を含む環境で `Run` を通す。偽のコマンドが記録したすべての go・node の起動（テストの実行、`go env GOVERSION`、`node --version`、範囲の補助）で、変数の名前の集合が、設計書 3.3 の渡す変数のうち与えたものと道具が決める変数の和にちょうど等しいこと、`HOME`・`LANG`・`LC_ALL`・`GOCACHE` の値がそのまま渡ること、決める変数の値を確かめる。
--   [ ] git の起動の仕方のテスト（`TestDiffIgnoresUserGitConfig`。設計書 3.2・3.7）を書く。利用者のリポジトリの `.git/config` に `diff.noprefix=true`・`diff.interHunkContext=3`・`diff.relative=true`・`diff.algorithm=patience`・`diff.renames=true` と、印のファイルを書く `diff.external`、`.gitattributes` の textconv の設定を書いた行と、テストの `HOME` の `.gitconfig` に同じ設定を書いた行（`GIT_CONFIG_GLOBAL=/dev/null` が効いていること）で、差分を読めて同じ結果になること、印のファイルができないことを確かめる。名前を変えたファイルが、`rename from` の行による `unreadable` ではなく `unmatched` になることも確かめる。
--   [ ] 入力の大きさに上限がないことを、実行の経路でも確かめる（`TestRunAcceptsLargeOutput`、AC-32）。偽の go が、1 MiB を超える 1 行を含めて合わせて 20 MiB を超える `-json` の行を出しても、判定まで進むことを確かめる。
--   [ ] 道具が拡張のテストに渡す対象の指定が、`extension/package.json` の `test` スクリプトの指定と同じであることを確かめる（`TestExtTestGlobMatchesPackageJSON`。設計書 3.5・7.1）。`package.json` は `internal/strictjson` で読み、`node --test` の後ろの引数を取り出して比べる。
+-   [x] 実行の流れのテスト（`TestRunEndToEnd`）を書く。Go と拡張のそれぞれで、偽の報告から合格・不合格になり、`Result` の `Toolchain`・`Measure`・コミットの ID・ツリーの ID が偽のコマンドの答えと一時的なリポジトリの値に一致すること、テストのコマンドの引数が設計書 3.4・3.5 のとおりであること、拡張の各チェックアウトの `node_modules` が実際のディレクトリで、その項目が利用者の `node_modules` を指すこと（偽のコマンドの記録で見る）、npm の起動の引数が `--version` だけであることを確かめる。コミットの ID の固定は、BASE を今のブランチでない枝の名前で与え、BASE のテストの間に偽のテストがその枝を動かしても、`Result`・HEAD のチェックアウト・差分が最初の ID を使うことで確かめる。
+-   [x] `Run` の側の順序のテストを書く。BASE のテストの失敗で HEAD のテストが起動されないこと（`TestRunStopsOnBaseFailure`）と、HEAD のテストだけが失敗する場合に HEAD の時点の `test-failed` になること（`TestRunStopsOnHeadFailure`）を、Go と拡張のそれぞれで確かめる。
+-   [x] 子のプロセスの環境のテスト（`TestChildEnv`）を書く（設計書 7.1 の「子のプロセスの環境」）。`NODE_OPTIONS`・`NODE_V8_COVERAGE`・`GOFLAGS`・`GOENV`・`GOCOVERDIR`・`GIT_DIR`・`DEEPSEEK_API_KEY` と、どの規則にも当たらない変数を含む環境で `Run` を通す。偽のコマンドが記録したすべての go・node の起動（テストの実行、`go env GOVERSION`、`node --version`、範囲の補助）で、変数の名前の集合が、設計書 3.3 の渡す変数のうち与えたものと道具が決める変数の和にちょうど等しいこと、`HOME`・`LANG`・`LC_ALL`・`GOCACHE` の値がそのまま渡ること、決める変数の値を確かめる。
+-   [x] git の起動の仕方のテスト（`TestDiffIgnoresUserGitConfig`。設計書 3.2・3.7）を書く。利用者のリポジトリの `.git/config` に `diff.noprefix=true`・`diff.interHunkContext=3`・`diff.relative=true`・`diff.algorithm=patience`・`diff.renames=true` と、印のファイルを書く `diff.external`、`.gitattributes` の textconv の設定を書いた行と、テストの `HOME` の `.gitconfig` に同じ設定を書いた行（`GIT_CONFIG_GLOBAL=/dev/null` が効いていること）で、差分を読めて同じ結果になること、印のファイルができないことを確かめる。名前を変えたファイルが、`rename from` の行による `unreadable` ではなく `unmatched` になることも確かめる。
+-   [x] 入力の大きさに上限がないことを、実行の経路でも確かめる（`TestRunAcceptsLargeOutput`、AC-32）。偽の go が、1 MiB を超える 1 行を含めて合わせて 20 MiB を超える `-json` の行を出しても、判定まで進むことを確かめる。
+-   [x] 道具が拡張のテストに渡す対象の指定が、`extension/package.json` の `test` スクリプトの指定と同じであることを確かめる（`TestExtTestGlobMatchesPackageJSON`。設計書 3.5・7.1）。`package.json` は `internal/strictjson` で読み、`node --test` の後ろの引数を取り出して比べる。
 
 **フェーズ 4 の完了の条件:** `make fmt`、`make test`、`make lint`、`make deadcode` が通る。`test_helpers.go` は `//go:build test` なので、`make lint`（`test,integration` のタグで解析する）と `make deadcode`（同じタグ）がコンパイルする。
 
@@ -340,16 +340,16 @@ PR-4 は大きいので、コミットを、前提の確認と利用者の状態
 
 **推奨タイトル**: `feat(0055): カバレッジの比較の道具の実行の部分を加える`
 
-**レビュー観点**: コミットごとに読む（前提の確認・チェックアウトと環境・`Run`・偽のコマンド・テスト） / 後始末と利用者の状態の確認が、取り消しを含むどの終わり方でも行われること / 実行中の取り消しが `test-failed` でなく `internal` になること / 偽のコマンドの仕組み（プロセスの `PATH` の置き換え、振る舞いのファイル、`TestFakePathHasNoRealToolchain`）と `//nolint:gosec` の範囲
+**レビュー観点**: コミットごとに読む（実行の部分、偽のコマンドとテスト） / 後始末と利用者の状態の確認が、取り消しを含むどの終わり方でも行われること / 実行中の取り消しが `test-failed` でなく `internal` になること / 偽のコマンドの仕組み（プロセスの `PATH` の置き換え、振る舞いのファイル、`TestFakePathHasNoRealToolchain`）と `//nolint:gosec` の範囲
 
 **実装モデル要件**: frontier-required
 
 **判定理由**: ステップ 4-2・4-3 はプロセスグループの停止・取り消し・後始末を扱い、ステップ 4-4〜4-6 は一時的な git のリポジトリと偽のコマンドを使う重い統合テストで、mkplan のパネルモードの条件に当たる
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/646
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 5: 入口・Makefile と、それに結びつく文書（設計書 8 章の手順 4 の残りと手順 5 の一部）
 
@@ -503,7 +503,7 @@ M1・M2・M3 はこの順に積み上げる。M2 の関数表と判定の関数�
 | 後始末の漏れ、利用者の状態の変更 | 一時的なディレクトリが残る、利用者のブランチや作業ツリーが変わる | `Run` のどの終わり方でも後始末をし、状態を比べる（ステップ 4-3、`TestRunCleansUp`）。レシピがシグナルを転送する（ステップ 5-2）。シグナルの伝わり方は手動で確かめる（ステップ 6-3） |
 | 実際の一式での振る舞いが、偽のコマンドでのテストと違う（node の lcov の形、`--shared` のクローンでのテストの失敗） | 実際の実行で `unreadable` や `test-failed` で止まる | `testdata/` に実際の出力の例を置く（ステップ 1-5）。ステップ 6-2 のスクリプトで実際の一式を通す。止まった場合は原因を調べ、道具を直してから実行し直す（修正は別の PR にする。1.3） |
 | node の版を上げて lcov や TAP の形が変わる | 道具が `unreadable` で止まり、使えなくなる | 止まることは合格にならないので見逃しは起きない（設計書 3.5、H-06）。版を上げる変更で道具を直す |
-| PR-4 が大きく、レビューの見落としが起きる | 後始末や環境の絞り込みの誤りの見落とし | 実行の部分を `cmd` と Makefile から分けた（1.3）。コミットを、前提の確認・チェックアウトと環境・`Run`・偽のコマンド・テストの順に分ける（フェーズ 4 の冒頭） |
+| PR-4 が大きく、レビューの見落としが起きる | 後始末や環境の絞り込みの誤りの見落とし | 実行の部分を `cmd` と Makefile から分けた（1.3）。コミットを、実行の部分と、偽のコマンドとテストに分ける（フェーズ 4 の冒頭） |
 | 予定の遅れ（実際の一式の実行に時間がかかる） | フェーズ 6 の完了が遅れる | 1 回の実行は Go で数分（設計書 3.4 の実測で全体で約 2 分の一式を 2 回）。agent はコマンドの時間の上限を 10 分以上にして実行する（設計書 3.10） |
 
 ## 6. 実装チェックリスト (Implementation Checklist)
@@ -511,7 +511,7 @@ M1・M2・M3 はこの順に積み上げる。M2 の関数表と判定の関数�
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5）
 - [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4）
 - [x] PR-3 マージ済み（対象ステップ: 3-1 / 3-2）
-- [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6）
+- [x] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6）
 - [ ] PR-5 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3）
 - [ ] PR-6 マージ済み（対象ステップ: 6-1 / 6-2 / 6-3）
 
