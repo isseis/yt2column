@@ -4,11 +4,11 @@
 
 ## H-01: コマンドが ADR の変更を自分の PR に含める手段
 
-AC-22 は、`/mkreq`・`/mkarch`・`/mkplan`・`/runplan` が ADR を作るか更新したとき、その変更をコマンドの PR に含めることを求める。今の `/mkreq` は、タスクのディレクトリだけをコミットする（`.claude/commands/mkreq.md` の手順 6）。ADR は `docs/dev/adr/` にあり、タスクのディレクトリの外にある。そのため、コミットの対象、自己レビューのサブエージェントに渡すファイル（`_lib/review-subagent-pattern.md` の FILES）、`japrose` の対象のどれを変えるかを決める。変えないコマンドには、その理由を記録する。
+AC-24 は、`/mkreq`・`/mkarch`・`/mkplan`・`/runplan` が ADR を作るか更新したとき、その変更をコマンドの PR に含めることを求める。今の `/mkreq` は、タスクのディレクトリだけをコミットする（`.claude/commands/mkreq.md` の手順 6）。ADR は `docs/dev/adr/` にあり、タスクのディレクトリの外にある。そのため、コミットの対象、自己レビューのサブエージェントに渡すファイル（`_lib/review-subagent-pattern.md` の FILES）、`japrose` の対象のどれを変えるかを決める。変えないコマンドには、その理由を記録する。`/fixpr` が PR のレビューの後に主要な決定を改める場合（AC-14 の規則の対象）に、ADR の変更が `fixprguard` の範囲の規則で範囲内になるかも確かめる。
 
 ## H-02: 索引と ADR の整合を確かめる手段
 
-AC-01〜AC-03 と AC-05・AC-06 は、値と構造の要件である（名前、番号の重複、索引とファイルの一致、節、状態の値）。これらを、恒久的な Go の guard テストで確かめるか、本タスクの `_checks/` か読み合わせで確かめるかを決める。CLAUDE.md の文書のテストの方針（「Do not add a document check whose mistake is unlikely, whose harm is small, or whose upkeep costs more than the mistake it prevents」）に照らして、判断の理由を記録する。
+AC-01〜AC-03 と AC-05・AC-06 は、値と構造の要件である（名前、番号の重複、索引とファイルの一致、節、状態の値）。これらを、恒久的な Go の guard テストで確かめるか、本タスクの `_checks/` か読み合わせで確かめるかを決める。CLAUDE.md の文書のテストの方針（「Do not add a document check whose mistake is unlikely, whose harm is small, or whose upkeep costs more than the mistake it prevents」）に照らして、判断の理由を記録する。CLAUDE.md と規約の 2 か所に書く主要な決定の基準（要件 4.5）を同じ内容に保つ手段も、あわせて決める。
 
 ## H-03: 既存の文書のパスを確かめる guard との関係
 
@@ -24,8 +24,12 @@ AC-09 は、経緯の各項目に日付を求める。既存の決定を ADR に
 
 ## H-06: ADR の番号の割り当てと、雛形
 
-F-006 の 15 件の主題を何本の ADR にまとめるか（AC-24 は、まとめることも分けることも許す）、番号をどの順に割り当てるか、雛形のファイルを置くかを決める。
+F-006 の 15 件の主題を何本の ADR にまとめるか（AC-25 は、1 本に複数の主題をまとめることを許す）、番号をどの順に割り当てるか、雛形のファイルを置くかを決める。並行する worktree の 2 つの PR が同じ番号を取った場合と、索引の `README.md` の同じ行で衝突した場合に、どう見つけてどう直すかも決める（AC-02・AC-03）。
 
 ## H-07: PR の分け方
 
 本タスクの変更は、規約と手順の変更（F-001〜F-005）と、15 件の ADR（F-006）からなり、量が多い。issue #602 のコメントでは、「規約」「構成と拡張の ADR」「プロセスの ADR」の 3 つの PR に分ける案を挙げた。F-007 の issue をいつ作るか（AC-32 は、最後の PR のマージより前を求める）も含めて決める。
+
+## H-08: 規約での状態の英語の呼び名
+
+ADR の状態「有効」「廃止」を、英語の規約で何と呼ぶかを決める。翻訳の用語集（`docs/translation_glossary.md`）では、「廃止」に近い語がほかの意味（廃止した環境変数など）に使われている。タスク文書の状態の `withdrawn` とも混同しない呼び名にする。
