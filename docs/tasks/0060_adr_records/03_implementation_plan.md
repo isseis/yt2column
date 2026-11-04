@@ -237,27 +237,27 @@
 
 **変更するファイル:** `docs/dev/adr/0001-llm-adapter-stdlib.md`・`0002-post-generation-steps.md`・`0003-llm-config-contract.md`・`0004-production-profile.md`（新規。番号はほかのタスクが先に取れば変わる）、`docs/dev/adr/README.md`
 
--   [ ] 索引を読み直し、A3・A6・A9・A10 の主題の有効な ADR がすでにないことを確かめる（1.3 節）。あれば、新しく作らずにその ADR を更新する。
--   [ ] 主題ごとに、要件書 F-006 の表の括弧のない出典のタスクの `01_requirements.md`・`02_architecture.md`（A10 は 0008・0018 の `02_evaluation.md` も）と、今の `main` のコード・正本の文書（`production_profile.md` など）を読み、規約の雛形で ADR を書く（設計書 6.2 節）。
--   [ ] 「決定」の節は今の `main` のコードの振る舞いと照らす（AC-26）。食い違いを見つけたら、利用者の承認を得て issue を作り、「決定」の節に食い違いと issue へのリンクを書く（設計書 4 章）。
--   [ ] 「採らなかった案」には、AC-27 が挙げる文書（タスク 0001〜0059 の `01_requirements.md`・`02_architecture.md`、0008・0018 の `02_evaluation.md`、0029 の `observation_gate_review.md`、`docs/dev/project_overview.md`）にある案だけを書く。正本の文書や手引きにだけある案は書かない。理由のない案は「理由は記録されていない」と書く（AC-08・AC-27）。
--   [ ] 「経緯」は出典のタスクごとに少なくとも 1 項目を置き、日付を設計書 3.2.4 節の順で選ぶ（AC-09・AC-28）。
--   [ ] ADR は番号の順に 1 本ずつコミットし、各コミットにその ADR の索引の行を入れる。`TestADRRecords` は、どのコミットでも索引と ADR が一対一で、番号が抜けなく続くことを求めるためである。
--   [ ] 既存の ADR を更新する形にしたとき（ほかのタスクが同じ主題の ADR を先に作っていたとき）は、同じ PR で、1.5 節の表と `_checks/adrlinks` の表のファイル名をその ADR に改める。
--   [ ] PR の説明に、各 ADR の「決定」と「採らなかった案」の出典（文書の節）を挙げる（設計書 7.5 節）。
+-   [x] 索引を読み直し、A3・A6・A9・A10 の主題の有効な ADR がすでにないことを確かめる（1.3 節）。あれば、新しく作らずにその ADR を更新する。
+-   [x] 主題ごとに、要件書 F-006 の表の括弧のない出典のタスクの `01_requirements.md`・`02_architecture.md`（A10 は 0008・0018 の `02_evaluation.md` も）と、今の `main` のコード・正本の文書（`production_profile.md` など）を読み、規約の雛形で ADR を書く（設計書 6.2 節）。
+-   [x] 「決定」の節は今の `main` のコードの振る舞いと照らす（AC-26）。食い違いを見つけたら、利用者の承認を得て issue を作り、「決定」の節に食い違いと issue へのリンクを書く（設計書 4 章）。
+-   [x] 「採らなかった案」には、AC-27 が挙げる文書（タスク 0001〜0059 の `01_requirements.md`・`02_architecture.md`、0008・0018 の `02_evaluation.md`、0029 の `observation_gate_review.md`、`docs/dev/project_overview.md`）にある案だけを書く。正本の文書や手引きにだけある案は書かない。理由のない案は「理由は記録されていない」と書く（AC-08・AC-27）。
+-   [x] 「経緯」は出典のタスクごとに少なくとも 1 項目を置き、日付を設計書 3.2.4 節の順で選ぶ（AC-09・AC-28）。
+-   [x] ADR は番号の順に 1 本ずつコミットし、各コミットにその ADR の索引の行を入れる。`TestADRRecords` は、どのコミットでも索引と ADR が一対一で、番号が抜けなく続くことを求めるためである。
+-   [x] 既存の ADR を更新する形にしたとき（ほかのタスクが同じ主題の ADR を先に作っていたとき）は、同じ PR で、1.5 節の表と `_checks/adrlinks` の表のファイル名をその ADR に改める。
+-   [x] PR の説明に、各 ADR の「決定」と「採らなかった案」の出典（文書の節）を挙げる（設計書 7.5 節）。
 
 #### ステップ 2-2: `project_overview.md` の LLM の 2 項目
 
 **変更するファイル:** `docs/dev/project_overview.md`
 
--   [ ] 「LLM（既定は Claude）」の項目の末尾に A3・A10 の ADR へのリンクを、「LLM プロバイダは差し替え可能にする」の項目の末尾に A3 の ADR へのリンクを、`[ADR-NNNN](adr/NNNN-<kebab>.md)` の形で足す。項目の行の末尾に、リンクごとに半角の空白 1 つとリンクだけを足し、ほかの文字（句読点、括弧、説明）を足さない。`_checks/adrlinks` の `overview-items` は、この形の並びを取り除いて比べる。項目の要約の文は変えない（設計書 3.5.3 節）。
--   [ ] ステップ 2-1 の ADR と同じコミットか、その後のコミットに入れる（1.2 節）。
+-   [x] 「LLM（既定は Claude）」の項目の末尾に A3・A10 の ADR へのリンクを、「LLM プロバイダは差し替え可能にする」の項目の末尾に A3 の ADR へのリンクを、`[ADR-NNNN](adr/NNNN-<kebab>.md)` の形で足す。項目の行の末尾に、リンクごとに半角の空白 1 つとリンクだけを足し、ほかの文字（句読点、括弧、説明）を足さない。`_checks/adrlinks` の `overview-items` は、この形の並びを取り除いて比べる。項目の要約の文は変えない（設計書 3.5.3 節）。
+-   [x] ステップ 2-1 の ADR と同じコミットか、その後のコミットに入れる（1.2 節）。
 
 #### ステップ 2-3: 1 回だけの確かめ
 
 **変更するファイル:** 本書 7.1 節
 
--   [ ] PR のブランチで、ほかの作業がすべて終わった後に、ステップ 1-6 の最後の項目と同じく 2 つの確かめを実行し、7.1 節に記録する。`_checks/adrlinks` は、`quick-links`、A 系の 4 本の `history-sources`、`overview-items` の文の比較と LLM の 2 項目のリンク先が `OK` である。
+-   [x] PR のブランチで、ほかの作業がすべて終わった後に、ステップ 1-6 の最後の項目と同じく 2 つの確かめを実行し、7.1 節に記録する。`_checks/adrlinks` は、`quick-links`、A 系の 4 本の `history-sources`、`overview-items` の文の比較と LLM の 2 項目のリンク先が `OK` である。
 
 **完了の条件（ステップ 2-1〜2-3）:** グリーンゲートが通る（`TestADRRecords` が 4 本の ADR と索引を照らす）。2 つの確かめが 0 で終わる。
 
@@ -273,10 +273,10 @@
 
 **判定理由**: 規約と雛形に沿って既存の文書を写す作業で、どの判定の条件にも当たらない
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/672
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 3: 構成と拡張の ADR（設計書 8 章の ③）
 
@@ -405,7 +405,7 @@ M2〜M4 は M1 の規約・索引・guard に依存する。M2 → M3 → M4 は
 ## 6. 実装チェックリスト (Implementation Checklist)
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6）
-- [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3）
+- [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3）
 - [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3）
 - [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2）
 
@@ -494,6 +494,45 @@ PENDING overview-items
         links: bullet 3 (`CopiedSource`) pending: manual-transcript-copy
         links: bullet 4 (`claude-opus-5-5`) pending: llm-adapter-stdlib, production-profile
         links: bullet 5 (`google.golang.org/genai`) pending: llm-adapter-stdlib
+```
+
+**PR-2 の確かめ（ステップ 2-3、2026-11-04）:** `git fetch origin main` の後に、PR のブランチで実行した。マージの基点は `791def1162485f559f781d9197183e4099c3cf88`、head は `9933a7ae5f634b253f0a5c6e480b7059a0eae1c0` である。この記録を書くコミットは本書だけを変える。
+
+`docs/tasks/0060_adr_records/_checks/task_docs_unchanged.sh origin/main HEAD`（終了コード 0）:
+
+```text
+merge-base: 791def1162485f559f781d9197183e4099c3cf88
+head: 9933a7ae5f634b253f0a5c6e480b7059a0eae1c0
+docs/tasks/: only docs/tasks/0060_adr_records/ changed
+```
+
+`go run -tags test ./docs/tasks/0060_adr_records/_checks/adrlinks/ 791def1162485f559f781d9197183e4099c3cf88 HEAD`（終了コード 0。A 系の 4 本の `history-sources`、`quick-links`、`overview-items` の文の比較と LLM の 2 項目のリンク先が `OK`、まだ作っていない ADR の分が `PENDING`）:
+
+```text
+OK      quick-links
+PENDING history-sources
+        ok: 0001-llm-adapter-stdlib.md
+        ok: 0002-post-generation-steps.md
+        ok: 0003-llm-config-contract.md
+        ok: 0004-production-profile.md
+        pending: server-architecture
+        pending: threat-model
+        pending: manual-transcript-copy
+        pending: launch-path
+        pending: viewer-opening
+        pending: extension-stores-nothing
+        pending: webhook-publishing
+        pending: review-setup
+        pending: deterministic-checks-in-go
+        pending: untrusted-review-threads
+        pending: document-test-policy
+PENDING viewer-appendix
+        pending: viewer-opening
+PENDING overview-items
+        text: OK
+        links: PENDING
+        links: bullet 2 (`cmd/yt2column-nmhost`) pending: server-architecture, launch-path
+        links: bullet 3 (`CopiedSource`) pending: manual-transcript-copy
 ```
 
 ## 8. 成功基準 (Success Criteria)
