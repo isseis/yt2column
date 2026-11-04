@@ -47,8 +47,29 @@ func TestAcceptValidRequest(t *testing.T) {
 	}
 }
 
-// invalidBodyCases are bodies the body checks reject as invalid_body. The
-// legacy endpoint and the generation start share them.
+// bodyTargets are the request targets whose body checks the tests below
+// drive: the legacy endpoint and the generation start, which share the checks.
+var bodyTargets = []struct{ name, target string }{
+	{"articles", ArticlesPath},
+	{"start", JobsPath},
+}
+
+// requireStartUntouched checks, after a generation start was refused, that it
+// added no record, called no writer, posted no notice, and left no slot taken.
+func requireStartUntouched(t *testing.T, ts *testServer) {
+	t.Helper()
+	if dump := ts.cache.DumpRecordsForTest(); dump != "" {
+		t.Errorf("a rejected start added a record:\n%s", dump)
+	}
+	if len(ts.writer.Calls) != 0 || len(ts.notifier.Calls) != 0 {
+		t.Errorf("a rejected start caused a side effect: writer=%d notifier=%d", len(ts.writer.Calls), len(ts.notifier.Calls))
+	}
+	if len(ts.slots) != 0 || len(ts.reading) != 0 {
+		t.Errorf("slots held: generation %d, reading %d, want 0", len(ts.slots), len(ts.reading))
+	}
+}
+
+// invalidBodyCases are bodies the body checks reject as invalid_body.
 var invalidBodyCases = []struct {
 	name string
 	body []byte
@@ -75,23 +96,26 @@ var invalidBodyCases = []struct {
 // TestRejectBodyTable checks the body-shape rejections that map to
 // invalid_body.
 func TestRejectBodyTable(t *testing.T) {
-	tests := invalidBodyCases
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			ts := newTestServer(t)
-			req := newRequest(http.MethodPost, ArticlesPath, bytes.NewReader(tc.body))
-			rec := ts.serve(req)
-			ts.waitJobs()
-			if rec.Code != http.StatusBadRequest {
-				t.Fatalf("status = %d, want 400 (body %q)", rec.Code, rec.Body.String())
-			}
-			if body := decodeBody(t, rec); body.Reason != "invalid_body" {
-				t.Errorf("reason = %q, want invalid_body", body.Reason)
-			}
-			if len(ts.writer.Calls) != 0 {
-				t.Errorf("writer was called for a rejected body")
-			}
-		})
+	for _, bt := range bodyTargets {
+		for _, tc := range invalidBodyCases {
+			t.Run(bt.name+"/"+tc.name, func(t *testing.T) {
+				ts := newTestServer(t)
+				rec := ts.serve(newRequest(http.MethodPost, bt.target, bytes.NewReader(tc.body)))
+				ts.waitJobs()
+				if rec.Code != http.StatusBadRequest {
+					t.Fatalf("status = %d, want 400 (body %q)", rec.Code, rec.Body.String())
+				}
+				if body := decodeBody(t, rec); body.Reason != "invalid_body" {
+					t.Errorf("reason = %q, want invalid_body", body.Reason)
+				}
+				if len(ts.writer.Calls) != 0 {
+					t.Errorf("writer was called for a rejected body")
+				}
+				if bt.target == JobsPath {
+					requireStartUntouched(t, ts)
+				}
+			})
+		}
 	}
 }
 
@@ -105,55 +129,62 @@ var (
 // TestOptionalMembers checks that the optional metadata is accepted when
 // missing or empty and rejected when it is not a string.
 func TestOptionalMembers(t *testing.T) {
-	t.Run("missing", func(t *testing.T) {
-		ts := newTestServer(t)
-		rec := ts.serveAccepted(t, validBody(testValidVideoURL, testValidRaw))
-		if rec.Code != http.StatusAccepted {
-			t.Fatalf("status = %d, want 202", rec.Code)
-		}
-		got := ts.writer.Calls[0].Transcript
-		if got.Title != "" || got.ChannelName != "" || got.Description != "" {
-			t.Errorf("optional fields = %q/%q/%q, want empty", got.Title, got.ChannelName, got.Description)
-		}
-	})
-	t.Run("empty", func(t *testing.T) {
-		ts := newTestServer(t)
-		body := `{"videoUrl":"` + testValidVideoURL + `","transcript":"0:00\nHello\n","title":"","channelName":"","description":""}`
-		rec := ts.serveAccepted(t, body)
-		if rec.Code != http.StatusAccepted {
-			t.Fatalf("status = %d, want 202", rec.Code)
-		}
-		got := ts.writer.Calls[0].Transcript
-		if got.Title != "" || got.ChannelName != "" || got.Description != "" {
-			t.Errorf("optional fields = %q/%q/%q, want empty", got.Title, got.ChannelName, got.Description)
-		}
-	})
-	for _, member := range optionalMemberNames {
-		for _, value := range nonStringValues {
-			t.Run(member+"_"+value, func(t *testing.T) {
+	accepted := map[string]string{
+		"missing": validBody(testValidVideoURL, testValidRaw),
+		"empty":   `{"videoUrl":"` + testValidVideoURL + `","transcript":"0:00\nHello\n","title":"","channelName":"","description":""}`,
+	}
+	for _, bt := range bodyTargets {
+		for name, body := range accepted {
+			t.Run(bt.name+"/"+name, func(t *testing.T) {
 				ts := newTestServer(t)
-				body := `{"videoUrl":"` + testValidVideoURL + `","transcript":"0:00\nHello\n","` + member + `":` + value + `}`
-				rec := ts.serve(ts.request(t, body))
-				if rec.Code != http.StatusBadRequest {
-					t.Fatalf("status = %d, want 400", rec.Code)
+				rec := ts.sendBody(bt.target, body)
+				if rec.Code != http.StatusAccepted {
+					t.Fatalf("status = %d, want 202", rec.Code)
 				}
-				if b := decodeBody(t, rec); b.Reason != "invalid_body" {
-					t.Errorf("reason = %q, want invalid_body", b.Reason)
+				got := ts.writer.Calls[0].Transcript
+				if got.Title != "" || got.ChannelName != "" || got.Description != "" {
+					t.Errorf("optional fields = %q/%q/%q, want empty", got.Title, got.ChannelName, got.Description)
 				}
 			})
+		}
+		for _, member := range optionalMemberNames {
+			for _, value := range nonStringValues {
+				t.Run(bt.name+"/"+member+"_"+value, func(t *testing.T) {
+					ts := newTestServer(t)
+					body := `{"videoUrl":"` + testValidVideoURL + `","transcript":"0:00\nHello\n","` + member + `":` + value + `}`
+					rec := ts.sendBody(bt.target, body)
+					if rec.Code != http.StatusBadRequest {
+						t.Fatalf("status = %d, want 400", rec.Code)
+					}
+					if b := decodeBody(t, rec); b.Reason != "invalid_body" {
+						t.Errorf("reason = %q, want invalid_body", b.Reason)
+					}
+					if bt.target == JobsPath {
+						requireStartUntouched(t, ts)
+					}
+				})
+			}
 		}
 	}
 }
 
-// request builds a valid-header request with body.
+// request builds a request to the legacy endpoint with body.
 func (ts *testServer) request(t *testing.T, body string) *http.Request {
 	t.Helper()
-	req := newRequest(http.MethodPost, ArticlesPath, strings.NewReader(body))
-	return req
+	return newRequest(http.MethodPost, ArticlesPath, strings.NewReader(body))
+}
+
+// sendBody sends body to target with POST, waits for every job, and returns
+// the response.
+func (ts *testServer) sendBody(target, body string) *httptest.ResponseRecorder {
+	rec := ts.serve(newRequest(http.MethodPost, target, strings.NewReader(body)))
+	ts.waitJobs()
+	return rec
 }
 
 // TestUnknownMemberIgnored checks that an undeclared member is accepted and its
-// value ignored.
+// value ignored by the legacy endpoint. TestStartKeyEquivalence checks it for
+// the generation start.
 func TestUnknownMemberIgnored(t *testing.T) {
 	ts := newTestServer(t)
 	body := `{"videoUrl":"` + testValidVideoURL + `","transcript":"0:00\nHello\n","future":{"nested":[1,2,3]}}`
@@ -178,21 +209,26 @@ var invalidVideoURLs = []string{
 
 // TestRejectVideoURLTable checks the video URLs the validator rejects.
 func TestRejectVideoURLTable(t *testing.T) {
-	for _, raw := range invalidVideoURLs {
-		t.Run(raw, func(t *testing.T) {
-			ts := newTestServer(t)
-			rec := ts.serve(ts.request(t, validBody(raw, testValidRaw)))
-			ts.waitJobs()
-			if rec.Code != http.StatusBadRequest {
-				t.Fatalf("status = %d, want 400 (body %q)", rec.Code, rec.Body.String())
-			}
-			if body := decodeBody(t, rec); body.Reason != "invalid_video_url" {
-				t.Errorf("reason = %q, want invalid_video_url", body.Reason)
-			}
-			if len(ts.notifier.Calls) != 1 || ts.notifier.Calls[0].Notice.Kind != failure.KindInvalidVideoURL {
-				t.Errorf("notifier calls = %+v, want one KindInvalidVideoURL", ts.notifier.Calls)
-			}
-		})
+	for _, bt := range bodyTargets {
+		for _, raw := range invalidVideoURLs {
+			t.Run(bt.name+"/"+raw, func(t *testing.T) {
+				ts := newTestServer(t)
+				rec := ts.sendBody(bt.target, validBody(raw, testValidRaw))
+				if rec.Code != http.StatusBadRequest {
+					t.Fatalf("status = %d, want 400 (body %q)", rec.Code, rec.Body.String())
+				}
+				if body := decodeBody(t, rec); body.Reason != "invalid_video_url" {
+					t.Errorf("reason = %q, want invalid_video_url", body.Reason)
+				}
+				if bt.target == JobsPath {
+					requireStartUntouched(t, ts)
+					return
+				}
+				if len(ts.notifier.Calls) != 1 || ts.notifier.Calls[0].Notice.Kind != failure.KindInvalidVideoURL {
+					t.Errorf("notifier calls = %+v, want one KindInvalidVideoURL", ts.notifier.Calls)
+				}
+			})
+		}
 	}
 }
 
@@ -206,21 +242,26 @@ var invalidTranscriptRaws = []string{
 // TestRejectInvalidTranscript checks that a transcript that does not match the
 // copied format is rejected as invalid_transcript.
 func TestRejectInvalidTranscript(t *testing.T) {
-	for _, raw := range invalidTranscriptRaws {
-		t.Run(raw, func(t *testing.T) {
-			ts := newTestServer(t)
-			rec := ts.serve(ts.request(t, validBody(testValidVideoURL, raw)))
-			ts.waitJobs()
-			if rec.Code != http.StatusBadRequest {
-				t.Fatalf("status = %d, want 400 (body %q)", rec.Code, rec.Body.String())
-			}
-			if body := decodeBody(t, rec); body.Reason != "invalid_transcript" {
-				t.Errorf("reason = %q, want invalid_transcript", body.Reason)
-			}
-			if len(ts.notifier.Calls) != 1 || ts.notifier.Calls[0].Notice.Kind != failure.KindInvalidTranscript {
-				t.Errorf("notifier calls = %+v, want one KindInvalidTranscript", ts.notifier.Calls)
-			}
-		})
+	for _, bt := range bodyTargets {
+		for _, raw := range invalidTranscriptRaws {
+			t.Run(bt.name+"/"+raw, func(t *testing.T) {
+				ts := newTestServer(t)
+				rec := ts.sendBody(bt.target, validBody(testValidVideoURL, raw))
+				if rec.Code != http.StatusBadRequest {
+					t.Fatalf("status = %d, want 400 (body %q)", rec.Code, rec.Body.String())
+				}
+				if body := decodeBody(t, rec); body.Reason != "invalid_transcript" {
+					t.Errorf("reason = %q, want invalid_transcript", body.Reason)
+				}
+				if bt.target == JobsPath {
+					requireStartUntouched(t, ts)
+					return
+				}
+				if len(ts.notifier.Calls) != 1 || ts.notifier.Calls[0].Notice.Kind != failure.KindInvalidTranscript {
+					t.Errorf("notifier calls = %+v, want one KindInvalidTranscript", ts.notifier.Calls)
+				}
+			})
+		}
 	}
 }
 
@@ -228,22 +269,27 @@ func TestRejectInvalidTranscript(t *testing.T) {
 // or method (including one that declares an oversized body) has zero bytes of
 // its body read.
 func TestHeaderRejectionReadsNoBody(t *testing.T) {
-	tests := []struct {
+	type headerCase struct {
 		name  string
 		build func(t *testing.T, body io.Reader) *http.Request
 		code  int
-	}{
+	}
+	tests := []headerCase{
 		{"path", func(_ *testing.T, body io.Reader) *http.Request {
 			return newRequest(http.MethodPost, "/nope", body)
 		}, http.StatusNotFound},
-		{"method", func(_ *testing.T, body io.Reader) *http.Request {
-			return newRequest(http.MethodGet, ArticlesPath, body)
-		}, http.StatusMethodNotAllowed},
-		{"oversized_body_wrong_method", func(_ *testing.T, body io.Reader) *http.Request {
-			req := newRequest(http.MethodPut, ArticlesPath, body)
-			req.ContentLength = maxBodyBytes * 4
-			return req
-		}, http.StatusMethodNotAllowed},
+	}
+	for _, bt := range bodyTargets {
+		tests = append(tests,
+			headerCase{bt.name + "/method", func(_ *testing.T, body io.Reader) *http.Request {
+				return newRequest(http.MethodGet, bt.target, body)
+			}, http.StatusMethodNotAllowed},
+			headerCase{bt.name + "/oversized_body_wrong_method", func(_ *testing.T, body io.Reader) *http.Request {
+				req := newRequest(http.MethodPut, bt.target, body)
+				req.ContentLength = maxBodyBytes * 4
+				return req
+			}, http.StatusMethodNotAllowed},
+		)
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -264,40 +310,40 @@ func TestHeaderRejectionReadsNoBody(t *testing.T) {
 // TestBodyTooLarge checks that an oversized body is rejected with 413, and that
 // no more than the limit plus one byte is read.
 func TestBodyTooLarge(t *testing.T) {
-	t.Run("content_length", func(t *testing.T) {
-		ts := newTestServer(t)
-		counter := &recordingReader{r: bytes.NewReader([]byte("{}"))}
-		req := newRequest(http.MethodPost, ArticlesPath, io.NopCloser(counter))
-		req.ContentLength = maxBodyBytes + 1
-		rec := ts.serve(req)
-		ts.waitJobs()
-		if rec.Code != http.StatusRequestEntityTooLarge {
-			t.Fatalf("status = %d, want 413 (body %q)", rec.Code, rec.Body.String())
+	tests := []struct {
+		name          string
+		body          string
+		contentLength int64
+		maxRead       int // the most bytes the server may read
+	}{
+		{"content_length", "{}", maxBodyBytes + 1, 0},
+		{"no_content_length", strings.Repeat("x", maxBodyBytes+10), -1, maxBodyBytes + 1},
+	}
+	for _, bt := range bodyTargets {
+		for _, tc := range tests {
+			t.Run(bt.name+"/"+tc.name, func(t *testing.T) {
+				ts := newTestServer(t)
+				counter := &recordingReader{r: strings.NewReader(tc.body)}
+				req := newRequest(http.MethodPost, bt.target, io.NopCloser(counter))
+				req.ContentLength = tc.contentLength
+				rec := ts.serve(req)
+				ts.waitJobs()
+				if rec.Code != http.StatusRequestEntityTooLarge {
+					t.Fatalf("status = %d, want 413 (body %q)", rec.Code, rec.Body.String())
+				}
+				if counter.n > tc.maxRead {
+					t.Errorf("read %d bytes, want at most %d", counter.n, tc.maxRead)
+				}
+				if bt.target == JobsPath {
+					requireStartUntouched(t, ts)
+					return
+				}
+				if len(ts.notifier.Calls) != 1 || ts.notifier.Calls[0].Notice.Kind != failure.KindBodyTooLarge {
+					t.Errorf("notifier calls = %+v, want one KindBodyTooLarge", ts.notifier.Calls)
+				}
+			})
 		}
-		if counter.n != 0 {
-			t.Errorf("read %d bytes of a body refused on its length, want 0", counter.n)
-		}
-		if len(ts.notifier.Calls) != 1 || ts.notifier.Calls[0].Notice.Kind != failure.KindBodyTooLarge {
-			t.Errorf("notifier calls = %+v, want one KindBodyTooLarge", ts.notifier.Calls)
-		}
-	})
-	t.Run("no_content_length", func(t *testing.T) {
-		ts := newTestServer(t)
-		counter := &recordingReader{r: strings.NewReader(strings.Repeat("x", maxBodyBytes+10))}
-		req := newRequest(http.MethodPost, ArticlesPath, io.NopCloser(counter))
-		req.ContentLength = -1
-		rec := ts.serve(req)
-		ts.waitJobs()
-		if rec.Code != http.StatusRequestEntityTooLarge {
-			t.Fatalf("status = %d, want 413 (body %q)", rec.Code, rec.Body.String())
-		}
-		if counter.n > maxBodyBytes+1 {
-			t.Errorf("read %d bytes, want at most %d", counter.n, maxBodyBytes+1)
-		}
-		if len(ts.notifier.Calls) != 1 || ts.notifier.Calls[0].Notice.Kind != failure.KindBodyTooLarge {
-			t.Errorf("notifier calls = %+v, want one KindBodyTooLarge", ts.notifier.Calls)
-		}
-	})
+	}
 }
 
 // TestChannelNameAgreesWithWriter feeds one table of channel names to the three
@@ -307,7 +353,6 @@ func TestBodyTooLarge(t *testing.T) {
 func TestChannelNameAgreesWithWriter(t *testing.T) {
 	for _, tc := range writertestutil.ChannelNameCases() {
 		t.Run(tc.Name, func(t *testing.T) {
-			ts := newTestServer(t)
 			// The strict JSON layer rejects invalid UTF-8 for the whole body
 			// before the channel name check runs, so the request leg proves
 			// nothing about that check for such a value; the other legs
@@ -318,7 +363,9 @@ func TestChannelNameAgreesWithWriter(t *testing.T) {
 					t.Fatalf("Marshal: %v", err)
 				}
 				body := `{"videoUrl":"` + testValidVideoURL + `","transcript":"0:00\nHello\n","channelName":` + string(quoted) + `}`
-				requireChannelNameRequestVerdict(t, ts, body, tc)
+				for _, bt := range bodyTargets {
+					requireChannelNameRequestVerdict(t, newTestServer(t), bt.target, body, tc)
+				}
 			}
 
 			article := writer.Article{
@@ -359,12 +406,12 @@ func TestChannelNameAgreesWithWriter(t *testing.T) {
 	}
 }
 
-// requireChannelNameRequestVerdict posts body and checks the request is
-// accepted and its channel name reaches the writer, or is rejected as
-// invalid_body without a writer call.
-func requireChannelNameRequestVerdict(t *testing.T, ts *testServer, body string, tc writertestutil.ChannelNameCase) {
+// requireChannelNameRequestVerdict posts body to target and checks the
+// request is accepted and its channel name reaches the writer, or is rejected
+// as invalid_body without a writer call.
+func requireChannelNameRequestVerdict(t *testing.T, ts *testServer, target, body string, tc writertestutil.ChannelNameCase) {
 	t.Helper()
-	rec := ts.serveAccepted(t, body)
+	rec := ts.sendBody(target, body)
 	if tc.Valid {
 		if rec.Code != http.StatusAccepted {
 			t.Fatalf("request status = %d, want 202 (body %q)", rec.Code, rec.Body.String())
@@ -414,73 +461,5 @@ func TestValidateBodyKeyInput(t *testing.T) {
 	want = articlecache.KeyInput{VideoURL: testValidVideoURL, Transcript: testValidRaw, Title: "T", ChannelName: "C", Description: "D"}
 	if set != want {
 		t.Errorf("set members: key input = %+v, want %+v", set, want)
-	}
-}
-
-// TestStartRejectsLikeArticles sends every body the legacy endpoint's
-// rejection tables use to a generation start too, and checks that each is
-// rejected with the same status and reason, and that the start adds no record,
-// calls no writer, posts no notice, and leaves no slot taken.
-func TestStartRejectsLikeArticles(t *testing.T) {
-	type input struct {
-		name          string
-		body          func() io.Reader
-		contentLength int64 // 0 keeps the length the body gives
-	}
-	text := func(body string) func() io.Reader {
-		return func() io.Reader { return strings.NewReader(body) }
-	}
-	var inputs []input
-	for _, tc := range invalidBodyCases {
-		inputs = append(inputs, input{name: "body/" + tc.name, body: func() io.Reader { return bytes.NewReader(tc.body) }})
-	}
-	for _, member := range optionalMemberNames {
-		for _, value := range nonStringValues {
-			body := `{"videoUrl":"` + testValidVideoURL + `","transcript":"0:00\nHello\n","` + member + `":` + value + `}`
-			inputs = append(inputs, input{name: "optional/" + member + "_" + value, body: text(body)})
-		}
-	}
-	for _, raw := range invalidVideoURLs {
-		inputs = append(inputs, input{name: "video_url/" + raw, body: text(validBody(raw, testValidRaw))})
-	}
-	for _, raw := range invalidTranscriptRaws {
-		inputs = append(inputs, input{name: "transcript/" + raw, body: text(validBody(testValidVideoURL, raw))})
-	}
-	inputs = append(inputs,
-		input{name: "too_large/content_length", body: text("{}"), contentLength: maxBodyBytes + 1},
-		input{name: "too_large/no_content_length", body: text(strings.Repeat("x", maxBodyBytes+10)), contentLength: -1},
-	)
-
-	for _, in := range inputs {
-		t.Run(in.name, func(t *testing.T) {
-			send := func(ts *testServer, target string) *httptest.ResponseRecorder {
-				req := newRequest(http.MethodPost, target, in.body())
-				if in.contentLength != 0 {
-					req.ContentLength = in.contentLength
-				}
-				rec := ts.serve(req)
-				ts.waitJobs()
-				return rec
-			}
-			legacy := send(newTestServer(t), ArticlesPath)
-			ts := newTestServer(t)
-			got := send(ts, JobsPath)
-			if got.Code != legacy.Code || decodeBody(t, got).Reason != decodeBody(t, legacy).Reason {
-				t.Errorf("generation start: %d %s, want the legacy endpoint's %d %s",
-					got.Code, got.Body.String(), legacy.Code, legacy.Body.String())
-			}
-			if got.Code < http.StatusBadRequest {
-				t.Fatalf("the input was accepted: %d %s", got.Code, got.Body.String())
-			}
-			if dump := ts.cache.DumpRecordsForTest(); dump != "" {
-				t.Errorf("a rejected start added a record:\n%s", dump)
-			}
-			if len(ts.writer.Calls) != 0 || len(ts.notifier.Calls) != 0 {
-				t.Errorf("a rejected start caused a side effect: writer=%d notifier=%d", len(ts.writer.Calls), len(ts.notifier.Calls))
-			}
-			if len(ts.slots) != 0 || len(ts.reading) != 0 {
-				t.Errorf("slots held: generation %d, reading %d, want 0", len(ts.slots), len(ts.reading))
-			}
-		})
 	}
 }

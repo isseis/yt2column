@@ -10,15 +10,16 @@ import (
 	"github.com/isseis/yt2column/internal/articlecache"
 )
 
-// validHTTPRequest builds a request that passes the target and method checks.
+// validHTTPRequest builds a generation start that passes the target and
+// method checks.
 func validHTTPRequest(t *testing.T) *http.Request {
 	t.Helper()
-	return newRequest(http.MethodPost, ArticlesPath, strings.NewReader(validBody(testValidVideoURL, testValidRaw)))
+	return newRequest(http.MethodPost, JobsPath, strings.NewReader(validBody(testValidVideoURL, testValidRaw)))
 }
 
 // TestRejectHeaders checks every target and method rejection: the status and
-// reason, and that no side effect (no writer, publisher, or notifier call) and
-// no slot follows.
+// reason, and that no side effect (no writer, publisher, or notifier call, no
+// record) and no slot follows.
 func TestRejectHeaders(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -27,8 +28,8 @@ func TestRejectHeaders(t *testing.T) {
 		reason string
 	}{
 		{"path_other", newRequest(http.MethodPost, "/other", strings.NewReader("{}")), http.StatusNotFound, "not_found"},
-		{"path_encoded", newRequest(http.MethodPost, "/%61rticles", strings.NewReader("{}")), http.StatusNotFound, "not_found"},
-		{"method_get", newRequest(http.MethodGet, ArticlesPath, nil), http.StatusMethodNotAllowed, "method_not_allowed"},
+		{"path_encoded", newRequest(http.MethodPost, "/%6Aobs", strings.NewReader("{}")), http.StatusNotFound, "not_found"},
+		{"method_get", newRequest(http.MethodGet, JobsPath, nil), http.StatusMethodNotAllowed, "method_not_allowed"},
 		{"options_star", newRequest(http.MethodOptions, "*", nil), http.StatusNotFound, "not_found"},
 	}
 	for _, tc := range tests {
@@ -41,19 +42,23 @@ func TestRejectHeaders(t *testing.T) {
 			if body := decodeBody(t, rec); body.Status != "rejected" || body.Reason != tc.reason {
 				t.Errorf("body = %+v, want rejected %s", body, tc.reason)
 			}
-			if len(ts.writer.Calls) != 0 || len(ts.publisher.Calls) != 0 || len(ts.notifier.Calls) != 0 {
-				t.Errorf("a rejected request caused a side effect: writer=%d publisher=%d notifier=%d",
-					len(ts.writer.Calls), len(ts.publisher.Calls), len(ts.notifier.Calls))
+			if len(ts.writer.Calls) != 0 || len(ts.publisher.PostCalls) != 0 || len(ts.notifier.Calls) != 0 {
+				t.Errorf("a rejected request caused a side effect: writer=%d post=%d notifier=%d",
+					len(ts.writer.Calls), len(ts.publisher.PostCalls), len(ts.notifier.Calls))
 			}
-			if len(ts.slots) != 0 {
-				t.Errorf("slots held = %d, want 0", len(ts.slots))
+			if dump := ts.cache.DumpRecordsForTest(); dump != "" {
+				t.Errorf("a rejected request added a record:\n%s", dump)
+			}
+			if len(ts.slots) != 0 || len(ts.reading) != 0 {
+				t.Errorf("slots held: generation %d, reading %d, want 0", len(ts.slots), len(ts.reading))
 			}
 		})
 	}
 }
 
-// TestAcceptsWithoutBrowserHeaders checks that a request with any Host and no
-// Origin, Content-Type, or Authorization header is accepted and runs its job:
+// TestAcceptsWithoutBrowserHeaders checks that a generation start with any
+// Host and no Origin, Content-Type, or Authorization header is accepted and
+// runs its generation:
 // the server no longer checks the headers a browser sets, because any process
 // that reaches the socket can set them to anything.
 func TestAcceptsWithoutBrowserHeaders(t *testing.T) {
@@ -147,7 +152,7 @@ func TestRejectStatusCodes(t *testing.T) {
 			return newRequest(http.MethodPost, "/nope", strings.NewReader("{}"))
 		}, http.StatusNotFound, "not_found", false, true, false},
 		{"method_not_allowed", func(_ *testing.T, _ *testServer) *http.Request {
-			return newRequest(http.MethodGet, ArticlesPath, nil)
+			return newRequest(http.MethodGet, JobsPath, nil)
 		}, http.StatusMethodNotAllowed, "method_not_allowed", true, true, false},
 		{"too_many_requests", func(t *testing.T, ts *testServer) *http.Request {
 			ts.slots <- struct{}{}
@@ -160,7 +165,7 @@ func TestRejectStatusCodes(t *testing.T) {
 			return req
 		}, http.StatusRequestEntityTooLarge, "body_too_large", false, true, false},
 		{"invalid_body", func(_ *testing.T, _ *testServer) *http.Request {
-			return newRequest(http.MethodPost, ArticlesPath, strings.NewReader(`{"videoUrl":1}`))
+			return newRequest(http.MethodPost, JobsPath, strings.NewReader(`{"videoUrl":1}`))
 		}, http.StatusBadRequest, "invalid_body", false, false, false},
 		{"invalid_video_url", func(t *testing.T, _ *testServer) *http.Request {
 			return rejectRequest(t, validBody("http://example.com/video", testValidRaw))
@@ -168,8 +173,8 @@ func TestRejectStatusCodes(t *testing.T) {
 		{"invalid_transcript", func(t *testing.T, _ *testServer) *http.Request {
 			return rejectRequest(t, validBody(testValidVideoURL, "not a transcript"))
 		}, http.StatusBadRequest, "invalid_transcript", false, false, false},
-		{"webhook_not_configured", func(t *testing.T, _ *testServer) *http.Request {
-			return validHTTPRequest(t)
+		{"webhook_not_configured", func(t *testing.T, ts *testServer) *http.Request {
+			return newRequest(http.MethodPost, publishTarget(publishTestKey(t, ts).String()), nil)
 		}, http.StatusServiceUnavailable, "webhook_not_configured", false, true, true},
 		{"invalid_key", func(_ *testing.T, _ *testServer) *http.Request {
 			return newRequest(http.MethodGet, JobsPath+"/not-a-key", nil)

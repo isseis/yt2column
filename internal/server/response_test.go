@@ -47,7 +47,7 @@ func TestResponseOmitsInputs(t *testing.T) {
 		t.Fatalf("marshal body: %v", err)
 	}
 
-	accepted := ts.serveAccepted(t, string(body))
+	accepted := ts.startBody(string(body))
 	if accepted.Code != http.StatusAccepted {
 		t.Fatalf("status = %d, want 202 (body %q)", accepted.Code, accepted.Body.String())
 	}
@@ -56,7 +56,7 @@ func TestResponseOmitsInputs(t *testing.T) {
 			t.Errorf("accepted response body %q carries a request value", accepted.Body.String())
 		}
 	}
-	if got := decodeBody(t, accepted); got.Status != "accepted" || got.Reason != "" {
+	if got := decodeBody(t, accepted); got.Status != "accepted" || got.Reason != "" || got.Key == "" {
 		t.Errorf("accepted body = %+v", got)
 	}
 
@@ -75,10 +75,10 @@ func TestResponseOmitsInputs(t *testing.T) {
 	}
 }
 
-// rejectRequest builds a request to the endpoint with the given body.
+// rejectRequest builds a generation start with the given body.
 func rejectRequest(t *testing.T, body string) *http.Request {
 	t.Helper()
-	return newRequest(http.MethodPost, ArticlesPath, strings.NewReader(body))
+	return newRequest(http.MethodPost, JobsPath, strings.NewReader(body))
 }
 
 // TestRejectReasonSet checks that the server answers with exactly these ten

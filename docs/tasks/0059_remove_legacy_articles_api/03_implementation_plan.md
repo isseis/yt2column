@@ -218,14 +218,14 @@ localhost サーバの旧 API（`POST /articles`）・旧 API のジョブ・失
 
 **変更するファイル:** `internal/server/handler_test.go`、`request_test.go`、`response_test.go`、`server_test.go`、`jobs_api_test.go`、`publish_test.go`、`test_helpers.go`
 
-- [ ] `TestRejectHeaders`・`TestAcceptsWithoutBrowserHeaders`・`TestRejectStatusCodes` を、ジョブの API のリクエストで組み立て直す。`TestRejectStatusCodes` の `webhook_not_configured` の行は投稿の操作のリクエストで組み立て（設計書 3.2.3 節）、`TestRejectHeaders` の `path_encoded` の行は、ジョブの API のパスを符号化したもの（`/%6Aobs` など）に替える。補助の `validHTTPRequest` も直す。既存の行の期待する理由と状態コードは変えない。
-- [ ] `request_test.go` の各テストに、生成の開始で同じ検査を確かめる版を加える。`TestStartRejectsLikeArticles` は、検査の表のテストに生成の開始の行として統合する（設計書 7.1 節）。`/articles` で確かめる版（失敗の通知の種類の確かめを含む）は、ステップ 3-2 で削除する。
-- [ ] `TestResponseOmitsInputs` と補助の `rejectRequest` を、ジョブの API のリクエストに移す。
-- [ ] `TestExpectContinueOversizedBodyNotSent`・`TestUnparsableRequestBypassesHandler`・`TestServeOnUnixListener`・`TestServeListenerFailureStops` を、ジョブの API で確かめ直す。ソケットへ送る補助は、ジョブの API へ送るものを別に加える（`postOnUnix` は残すテストが使うので、ステップ 3-2 で削除する）。
-- [ ] `TestNewCopiesWebhookOptions` を、投稿の操作で、渡した後に書き換えた `WebhookOptions` が使われないことを確かめる形に作り直す。
-- [ ] `TestPublishWithoutWebhook` の `with_body` の行で、本文を読んだバイト数が 0 であることも確かめる（削除する `TestArticlesWithoutWebhook` が確かめていた性質。1.4 節）。
-- [ ] `TestStartGenerationSlotsShared` を `TestStartGenerationSlotsFull` に改め、2 つの生成のジョブで生成の枠を埋める形にする（1.5 節）。使う所がなくなる `splitWriter` は削除する。
-- [ ] `TestPublishPostsLikeArticles` を `TestPublishPostsLikeCLI` に改め、同じ記事を `SlackWebhookPublisher.Publish` で同じループバックの Webhook へ送ったメッセージと、投稿の操作が送るメッセージが一致することを確かめる（設計書 7.1 節）。
+- [x] `TestRejectHeaders`・`TestAcceptsWithoutBrowserHeaders`・`TestRejectStatusCodes` を、ジョブの API のリクエストで組み立て直す。`TestRejectStatusCodes` の `webhook_not_configured` の行は投稿の操作のリクエストで組み立て（設計書 3.2.3 節）、`TestRejectHeaders` の `path_encoded` の行は、ジョブの API のパスを符号化したもの（`/%6Aobs` など）に替える。補助の `validHTTPRequest` も直す。既存の行の期待する理由と状態コードは変えない。
+- [x] `request_test.go` の各テストに、生成の開始で同じ検査を確かめる版を加える。`TestStartRejectsLikeArticles` は、検査の表のテストに生成の開始の行として統合する（設計書 7.1 節）。`TestAcceptValidRequest` と `TestUnknownMemberIgnored` には加えない（生成の開始では `TestStartAccepted` と `TestStartKeyEquivalence` が同じことを確かめている）。`/articles` で確かめる版（失敗の通知の種類の確かめを含む）は、ステップ 3-2 で削除する。
+- [x] `TestResponseOmitsInputs` と補助の `rejectRequest` を、ジョブの API のリクエストに移す。
+- [x] `TestExpectContinueOversizedBodyNotSent`・`TestUnparsableRequestBypassesHandler`・`TestServeOnUnixListener`・`TestServeListenerFailureStops` を、ジョブの API で確かめ直す。ソケットへ送る補助は、ジョブの API へ送るものを別に加える（`postOnUnix` は残すテストが使うので、ステップ 3-2 で削除する）。
+- [x] `TestNewCopiesWebhookOptions` を、投稿の操作で、渡した後に書き換えた `WebhookOptions` が使われないことを確かめる形に作り直す。
+- [x] `TestPublishWithoutWebhook` の `with_body` の行で、本文を読んだバイト数が 0 であることも確かめる（削除する `TestArticlesWithoutWebhook` が確かめていた性質。1.4 節）。
+- [x] `TestStartGenerationSlotsShared` を `TestStartGenerationSlotsFull` に改め、2 つの生成のジョブで生成の枠を埋める形にする（1.5 節）。使う所がなくなる `splitWriter` は削除する。
+- [x] `TestPublishPostsLikeArticles` を `TestPublishPostsLikeCLI` に改め、同じ記事を `SlackWebhookPublisher.Publish` で同じループバックの Webhook へ送ったメッセージと、投稿の操作が送るメッセージが一致することを確かめる（設計書 7.1 節）。
 
 **完了の条件:** `go test -tags test ./internal/server/` が通る。
 
@@ -233,12 +233,12 @@ localhost サーバの旧 API（`POST /articles`）・旧 API のジョブ・失
 
 **変更するファイル:** `cmd/yt2column-server/signal_test.go`、`run_test.go`、`server_test.go`、`test_helpers.go`
 
-- [ ] 子プロセスのモード `childModeBlock` を、印のファイルができるまで `PostMessages` が返らない投稿の相手を使う形にする。待ちには、今の `blockingLLM` と同じく上限の時間を付ける。`blockingChild`・`TestSignalWaitsForJob`・`TestSecondSignalExitsAtOnce` は、生成を終えさせ、投稿の操作を送り、送信が始まったのを待ってからシグナルを送る（設計書 7.1 節）。`TestSignalWaitsForJob` が確かめるログは、`job succeeded` から `post job succeeded` に替える。
-- [ ] `TestStartDuringShutdownRefused`（同じプロセスの中のテスト）は、チャネルで止める偽の投稿の相手で、投稿のジョブが終わるまで次のサーバが起動を断ることを確かめる形にする。
-- [ ] `TestServerEndToEnd`・`TestOutputsOmitSecrets` を、ジョブの API（生成の開始・状態の取得・投稿の操作）で確かめ直す。`TestOutputsOmitSecrets` は、状態の取得で失敗を読んだ時点ではなく、失敗のログの行が書かれたのを待ってから止める（1.4 節）。使う所がなくなる `noticeSignal` は削除する。
-- [ ] `TestStartsWithoutWebhook` の拒否の確かめを、投稿の操作が `webhook_not_configured` を返すことに替える（設計書 7.1 節）。失敗の通知の送り手を作らないことの確かめ（`d.newNotifier`）は、ステップ 3-2 まで残す。
-- [ ] 使う所がなくなった `postArticle`・`mustPostArticle`・`requestBody` を削除する。`blockingLLM` も使う所がなくなれば削除する。
-- [ ] 移し替えた停止のテストが、投稿の相手が返る前にはサーバが終わらないことを確かめていることを、投稿の相手の待ちを外すと失敗することで確かめ、コミットメッセージに書く。`go test -count=20 -run 'TestSignal|TestStartDuringShutdownRefused|TestOutputsOmitSecrets'` を手元で実行し、不安定さが出ないことを確かめる。
+- [x] 子プロセスのモード `childModeBlock` を、印のファイルができるまで `PostMessages` が返らない投稿の相手を使う形にする。待ちには、今の `blockingLLM` と同じく上限の時間を付ける。`blockingChild`・`TestSignalWaitsForJob`・`TestSecondSignalExitsAtOnce` は、生成を終えさせ、投稿の操作を送り、送信が始まったのを待ってからシグナルを送る（設計書 7.1 節）。`TestSignalWaitsForJob` が確かめるログは、`job succeeded` から `post job succeeded` に替える。
+- [x] `TestStartDuringShutdownRefused`（同じプロセスの中のテスト）は、チャネルで止める偽の投稿の相手で、投稿のジョブが終わるまで次のサーバが起動を断ることを確かめる形にする。
+- [x] `TestServerEndToEnd`・`TestOutputsOmitSecrets` を、ジョブの API（生成の開始・状態の取得・投稿の操作）で確かめ直す。`TestOutputsOmitSecrets` は、状態の取得で失敗を読んだ時点ではなく、失敗のログの行が書かれたのを待ってから止める（1.4 節）。使う所がなくなる `noticeSignal` は削除する。
+- [x] `TestStartsWithoutWebhook` の拒否の確かめを、投稿の操作が `webhook_not_configured` を返すことに替える（設計書 7.1 節）。失敗の通知の送り手を作らないことの確かめ（`d.newNotifier`）は、ステップ 3-2 まで残す。
+- [x] 使う所がなくなった `postArticle`・`mustPostArticle` を削除する。`blockingLLM` も使う所がなくなれば削除する。`requestBody` は `relay_e2e_test.go` が使うので残す。
+- [x] 移し替えた停止のテストが、投稿の相手が返る前にはサーバが終わらないことを確かめていることを、投稿の相手の待ちを外すと失敗することで確かめ、コミットメッセージに書く。`go test -count=20 -run 'TestSignal|TestStartDuringShutdownRefused|TestOutputsOmitSecrets'` を手元で実行し、不安定さが出ないことを確かめる。
 
 **完了の条件:** `go test -tags test ./cmd/yt2column-server/` が通る。
 
@@ -246,8 +246,8 @@ localhost サーバの旧 API（`POST /articles`）・旧 API のジョブ・失
 
 **変更するファイル:** なし（コミットメッセージだけ）
 
-- [ ] ステップ 2-1・2-2 の変更を 1 つのコミットにする（製品のコードを含まないことを `git diff --stat` で確かめる）。使う所がなくなった補助と型が残っていないことを `make lint` で確かめる。
-- [ ] 親コミットとこのコミットで、1.3 節「カバレッジの比べ方」の移し替えのコミットの比べ方で比べ、結果をコミットメッセージに書く。
+- [x] ステップ 2-1・2-2 の変更を 1 つのコミットにする（製品のコードを含まないことを `git diff --stat` で確かめる）。使う所がなくなった補助と型が残っていないことを `make lint` で確かめる。
+- [x] 親コミットとこのコミットで、1.3 節「カバレッジの比べ方」の移し替えのコミットの比べ方で比べ、結果をコミットメッセージに書く。
 
 **完了の条件:** `make test`・`make lint` が通り、カバレッジの比較が 1.3 節の基準を満たす。
 

@@ -16,7 +16,8 @@ import (
 
 const (
 	// stillRunningWindow is how long TestSignalWaitsForJob checks that the
-	// child keeps running after the first signal while its job is blocked.
+	// child keeps running after the first signal while its post job is
+	// blocked.
 	stillRunningWindow = 500 * time.Millisecond
 	// resendInterval paces repeated signals in TestSecondSignalExitsAtOnce.
 	resendInterval = 100 * time.Millisecond
@@ -31,9 +32,10 @@ func skipIfIgnored(t *testing.T, sig syscall.Signal) {
 	}
 }
 
-// blockingChild starts a server child whose LLM client blocks, sends it one
-// accepted request, and returns once the job is inside the LLM call, with the
-// path that releases it and the child's socket path.
+// blockingChild starts a server child whose Webhook publisher blocks, has it
+// generate an article and sends the article's publish operation, and returns
+// once the post job is inside its post, with the path that releases it and
+// the child's socket path.
 func blockingChild(t *testing.T) (child *serverChild, releasePath, socketPath string) {
 	t.Helper()
 	dir := t.TempDir()
@@ -41,7 +43,7 @@ func blockingChild(t *testing.T) (child *serverChild, releasePath, socketPath st
 	release := filepath.Join(dir, "release")
 	e := newServerEnv(t)
 	child = startServerChild(t, childModeBlock, e, map[string]string{childReadyEnv: ready, childReleaseEnv: release})
-	mustPostArticle(t, e.socketPath(t), requestBody(testValidRaw), 202)
+	generateAndPublish(t, e.socketPath(t))
 	waitForFile(t, ready)
 	return child, release, e.socketPath(t)
 }
@@ -68,9 +70,9 @@ func TestSignalStopsServer(t *testing.T) {
 }
 
 // TestSignalWaitsForJob checks that the first signal does not end an
-// in-flight job: the child keeps running until the job finishes, then exits
-// with exitOK, and its socket is gone. That the log counts the pending job is
-// internal/server's TestServeShutdownWaitsForJobs.
+// in-flight post job: the child keeps running until the post finishes, then
+// exits with exitOK, and its socket is gone. That the log counts the post job
+// is internal/server's TestServeShutdownWaitsForPublish.
 func TestSignalWaitsForJob(t *testing.T) {
 	skipIfIgnored(t, syscall.SIGTERM)
 	child, release, socket := blockingChild(t)
@@ -78,7 +80,7 @@ func TestSignalWaitsForJob(t *testing.T) {
 
 	time.Sleep(stillRunningWindow)
 	if child.exited() {
-		t.Fatalf("the child exited while its job was blocked\nstderr:\n%s", child.stderr.String())
+		t.Fatalf("the child exited while its post job was blocked\nstderr:\n%s", child.stderr.String())
 	}
 	writeMarker(release)
 	state := child.wait(t)
@@ -86,8 +88,8 @@ func TestSignalWaitsForJob(t *testing.T) {
 		t.Fatalf("exit status = %v, want exit code %d\nstderr:\n%s", state, exitOK, child.stderr.String())
 	}
 	stderr := child.stderr.String()
-	if !strings.Contains(stderr, "job succeeded") {
-		t.Errorf("stderr does not report the job's success:\n%s", stderr)
+	if !strings.Contains(stderr, "post job succeeded") {
+		t.Errorf("stderr does not report the post job's success:\n%s", stderr)
 	}
 	if _, err := os.Lstat(socket); !errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("the socket %s is still there after a normal stop: %v", socket, err)
@@ -95,10 +97,10 @@ func TestSignalWaitsForJob(t *testing.T) {
 }
 
 // TestSecondSignalExitsAtOnce checks that a second signal ends the child by
-// the signal's default disposition while its job is still blocked. It repeats
-// cmd/yt2column's TestSecondSignal on purpose: there the CLI's job is
-// canceled, here the server's job deliberately is not, so this is the case
-// the second signal exists for.
+// the signal's default disposition while its post job is still blocked. It
+// repeats cmd/yt2column's TestSecondSignal on purpose: there the CLI's job is
+// canceled, here the server's post job deliberately is not, so this is the
+// case the second signal exists for.
 func TestSecondSignalExitsAtOnce(t *testing.T) {
 	skipIfIgnored(t, syscall.SIGTERM)
 	child, _, _ := blockingChild(t)

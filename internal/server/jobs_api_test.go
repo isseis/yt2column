@@ -3,7 +3,6 @@
 package server
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -16,7 +15,6 @@ import (
 	"time"
 
 	"github.com/isseis/yt2column/internal/articlecache"
-	"github.com/isseis/yt2column/internal/transcript"
 	"github.com/isseis/yt2column/internal/writer"
 	writertestutil "github.com/isseis/yt2column/internal/writer/testutil"
 )
@@ -66,22 +64,6 @@ func holdAtDraft(fake *writertestutil.FakeArticleWriter) (reached <-chan struct{
 	}}
 	var once sync.Once
 	return reachedCh, func() { once.Do(func() { close(releaseCh) }) }
-}
-
-// splitWriter holds the legacy job's Write at a gate and runs the job API's
-// WriteWithProgress through a fake, so one test can fill the generation slots
-// with a job of each API.
-type splitWriter struct {
-	gate *gateWriter
-	fake *writertestutil.FakeArticleWriter
-}
-
-func (w splitWriter) Write(ctx context.Context, t transcript.Transcript) (writer.Article, error) {
-	return w.gate.Write(ctx, t)
-}
-
-func (w splitWriter) WriteWithProgress(ctx context.Context, t transcript.Transcript, o writer.ProgressObserver) (writer.Article, error) {
-	return w.fake.WriteWithProgress(ctx, t, o)
 }
 
 // blockingBody is a request body whose first Read reports it on entered and
@@ -259,31 +241,24 @@ func TestStartRetriesFailed(t *testing.T) {
 	}
 }
 
-// TestStartGenerationSlotsShared fills the two generation slots with a legacy
-// job and a generation job, and checks that a new key is refused with
-// too_many_requests and stays unknown, while a running key and a done key are
-// still answered with their keys.
-func TestStartGenerationSlotsShared(t *testing.T) {
-	gate := newGateWriter()
-	fake := &writertestutil.FakeArticleWriter{Result: testArticle()}
-	reached, release := holdAtDraft(fake)
+// TestStartGenerationSlotsFull fills the generation slots with generation
+// jobs, and checks that a new key is refused with too_many_requests and stays
+// unknown, while a running key and a done key are still answered with their
+// keys.
+func TestStartGenerationSlotsFull(t *testing.T) {
 	ts := newJobsTestServer(t, jobsServerOptions{})
-	ts.Server.writer = splitWriter{gate: gate, fake: fake}
-	var once sync.Once
-	releaseGate := func() { once.Do(func() { close(gate.release) }) }
+	reached, release := holdAtDraft(ts.writer)
 	defer func() {
 		release()
-		releaseGate()
 		ts.waitJobs()
 	}()
 	doneKey := ts.seedDone(t, bodyWith("done"))
 
-	if rec := ts.serve(newRequest(http.MethodPost, ArticlesPath, strings.NewReader(bodyWith("legacy")))); rec.Code != http.StatusAccepted {
-		t.Fatalf("legacy request status = %d, want 202", rec.Code)
+	var runningKey string
+	for i := range maxInFlight {
+		runningKey = acceptedKey(t, ts.start(strings.NewReader(bodyWith(fmt.Sprint("running", i)))))
+		<-reached
 	}
-	<-gate.entered
-	runningKey := acceptedKey(t, ts.start(strings.NewReader(bodyWith("running"))))
-	<-reached
 	if len(ts.slots) != maxInFlight {
 		t.Fatalf("generation slots held = %d, want %d", len(ts.slots), maxInFlight)
 	}
@@ -296,20 +271,20 @@ func TestStartGenerationSlotsShared(t *testing.T) {
 	if !strings.Contains(ts.logs.String(), "detail=generation_slot") {
 		t.Errorf("the refusal does not log the generation slot detail:\n%s", ts.logs.String())
 	}
-	if got := acceptedKey(t, ts.start(strings.NewReader(bodyWith("running")))); got != runningKey {
+	if got := acceptedKey(t, ts.start(strings.NewReader(bodyWith(fmt.Sprint("running", maxInFlight-1))))); got != runningKey {
 		t.Errorf("running key resent: %s, want %s", got, runningKey)
 	}
 	if got := acceptedKey(t, ts.start(strings.NewReader(bodyWith("done")))); got != doneKey.String() {
 		t.Errorf("done key resent: %s, want %s", got, doneKey)
 	}
-	if calls := len(fake.RecordedCalls()); calls != 1 {
-		t.Errorf("generation writer calls = %d, want 1", calls)
+	if calls := len(ts.writer.RecordedCalls()); calls != maxInFlight {
+		t.Errorf("generation writer calls = %d, want %d", calls, maxInFlight)
 	}
 }
 
 // TestNewAPINeverNotifies checks that no generation failure and no key
 // rejection of the job API posts a failure notice. The body rejections are
-// checked for it by TestStartRejectsLikeArticles.
+// checked for it by the body check tests' requireStartUntouched.
 func TestNewAPINeverNotifies(t *testing.T) {
 	ts := newJobsTestServer(t, jobsServerOptions{})
 	ts.writer.Err = errors.New("the provider refused")

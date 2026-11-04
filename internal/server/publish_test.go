@@ -66,25 +66,24 @@ func waitEntered(t *testing.T, hook *loopbackWebhook) {
 	}
 }
 
-// TestPublishPostsLikeArticles checks that the publish operation posts the
-// messages the legacy endpoint posts for the same article, here one that
-// splits into three messages.
-func TestPublishPostsLikeArticles(t *testing.T) {
+// TestPublishPostsLikeCLI checks that the publish operation posts the
+// messages the CLI's publisher (SlackWebhookPublisher.Publish) posts for the
+// same article to the same Webhook, here one that splits into three messages.
+func TestPublishPostsLikeCLI(t *testing.T) {
 	ts, hook := newWebhookTestServer(t)
-	ts.writer.Result = messagesArticle(t, 3)
-	body := validBody(testValidVideoURL, testValidRaw)
-
-	if rec := ts.serveAccepted(t, body); rec.Code != http.StatusAccepted {
-		t.Fatalf("legacy status = %d, want 202", rec.Code)
+	article := messagesArticle(t, 3)
+	if err := hook.publisherFor(t).Publish(t.Context(), article); err != nil {
+		t.Fatalf("Publish: %v", err)
 	}
-	legacy := hook.received()
-	key := acceptedKey(t, ts.startBody(body))
+	cli := hook.received()
+	ts.writer.Result = article
+	key := acceptedKey(t, ts.startBody(validBody(testValidVideoURL, testValidRaw)))
 	requireAccepted(t, ts.publishRequest(key))
 	ts.waitJobs()
 	published := hook.received()
 
-	if len(legacy) != 3 || !slices.Equal(published, legacy) {
-		t.Errorf("published %d messages %q, want the legacy endpoint's %d %q", len(published), published, len(legacy), legacy)
+	if len(cli) != 3 || !slices.Equal(published, cli) {
+		t.Errorf("published %d messages %q, want the CLI publisher's %d %q", len(published), published, len(cli), cli)
 	}
 	if got := ts.publishOf(t, key); got.State != "posted" {
 		t.Errorf("publish = %+v, want posted", got)
@@ -338,11 +337,14 @@ func TestPublishResponsesOmitInputs(t *testing.T) {
 
 // TestPublishWithoutWebhook checks that a server without a Webhook refuses
 // every publish operation with webhook_not_configured, closing the
-// connection, before it checks the body or the key, and changes no record.
+// connection, before it checks or reads the body or checks the key, and
+// changes no record.
 func TestPublishWithoutWebhook(t *testing.T) {
 	ts := newJobsTestServer(t, jobsServerOptions{noWebhook: true})
 	key := ts.seedDone(t, validBody(testValidVideoURL, testValidRaw)).String()
-	withBody := newRequest(http.MethodPost, publishTarget(key), strings.NewReader("x"))
+	body := &recordingReader{r: strings.NewReader("x")}
+	withBody := newRequest(http.MethodPost, publishTarget(key), io.NopCloser(body))
+	withBody.ContentLength = 1
 	before := ts.cache.DumpRecordsForTest()
 	for name, req := range map[string]*http.Request{
 		"done_key":    newRequest(http.MethodPost, publishTarget(key), nil),
@@ -356,6 +358,9 @@ func TestPublishWithoutWebhook(t *testing.T) {
 				t.Errorf("Connection = %q, want close", got)
 			}
 		})
+	}
+	if body.n != 0 {
+		t.Errorf("the server read %d bytes of the body, want 0", body.n)
 	}
 	// The method is checked before the Webhook.
 	t.Run("get", func(t *testing.T) {

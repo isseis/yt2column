@@ -11,7 +11,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/http/httptest"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -68,8 +67,8 @@ func serveUnix(t *testing.T, s *Server) string {
 }
 
 // postOnUnix sends a valid article request to the socket at path and returns
-// the status and the decoded body.
-func postOnUnix(t *testing.T, path string) (int, responseBody) {
+// the status.
+func postOnUnix(t *testing.T, path string) int {
 	t.Helper()
 	body := strings.NewReader(validBody(testValidVideoURL, testValidRaw))
 	req, err := http.NewRequest(http.MethodPost, "http://yt2column"+ArticlesPath, body)
@@ -81,12 +80,8 @@ func postOnUnix(t *testing.T, path string) (int, responseBody) {
 	if err != nil {
 		t.Fatalf("send the request: %v", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
-	var decoded responseBody
-	if err := json.NewDecoder(resp.Body).Decode(&decoded); err != nil {
-		t.Fatalf("decode the response body: %v", err)
-	}
-	return resp.StatusCode, decoded
+	_ = resp.Body.Close()
+	return resp.StatusCode
 }
 
 // TestNewWebhookOptions checks that New treats a nil Webhook as a server
@@ -141,9 +136,10 @@ func TestNewWebhookOptions(t *testing.T) {
 	}
 }
 
-// TestNewCopiesWebhookOptions checks that the server keeps the two Webhook
+// TestNewCopiesWebhookOptions checks that the server keeps the Webhook
 // collaborators it was built with, so a caller that clears its WebhookOptions
-// afterwards changes nothing.
+// afterwards changes nothing: a publish operation still posts through the
+// publisher it was built with.
 func TestNewCopiesWebhookOptions(t *testing.T) {
 	pub := &publishertestutil.FakePublisher{}
 	notifier := &failuretestutil.FakeNotifier{}
@@ -162,25 +158,23 @@ func TestNewCopiesWebhookOptions(t *testing.T) {
 	if !s.webhookConfigured() {
 		t.Error("webhookConfigured() = false after the caller cleared its options")
 	}
-	rec := httptest.NewRecorder()
-	s.handler(rec, newRequest(http.MethodPost, ArticlesPath, strings.NewReader(validBody(testValidVideoURL, testValidRaw))))
-	s.jobs.Wait()
-	if rec.Code != http.StatusAccepted {
-		t.Fatalf("status = %d, want 202 (body %q)", rec.Code, rec.Body.String())
-	}
-	if len(pub.Calls) != 1 || len(notifier.Calls) != 0 {
-		t.Errorf("publisher calls = %d, notifier calls = %d, want 1 and 0", len(pub.Calls), len(notifier.Calls))
+	ts := &testServer{Server: s}
+	key := ts.seedDone(t, validBody(testValidVideoURL, testValidRaw))
+	rec := ts.publishRequest(key.String())
+	ts.waitJobs()
+	requireAccepted(t, rec)
+	if calls := pub.RecordedPostCalls(); len(calls) != 1 {
+		t.Errorf("PostMessages calls = %d, want 1", len(calls))
 	}
 }
 
-// TestServeOnUnixListener checks that Serve answers a request that reaches it
-// over a Unix domain socket listener with the accepted response.
+// TestServeOnUnixListener checks that Serve answers a generation start that
+// reaches it over a Unix domain socket listener with the accepted response.
 func TestServeOnUnixListener(t *testing.T) {
 	s := newServer(t, &writertestutil.FakeArticleWriter{}, &publishertestutil.FakePublisher{}, &failuretestutil.FakeNotifier{}, &bytes.Buffer{})
 	path := serveUnix(t, s)
-	status, body := postOnUnix(t, path)
-	if status != http.StatusAccepted || body.Status != "accepted" {
-		t.Errorf("response = %d %+v, want 202 accepted", status, body)
+	if key := startOnUnix(t, path, validBody(testValidVideoURL, testValidRaw)); !keyShape.MatchString(key) {
+		t.Errorf("key = %q, want an article key", key)
 	}
 }
 
@@ -224,7 +218,7 @@ func TestServeShutdownWaitsForJobs(t *testing.T) {
 		releaseGate()
 	}()
 
-	if status, _ := postOnUnix(t, path); status != http.StatusAccepted {
+	if status := postOnUnix(t, path); status != http.StatusAccepted {
 		t.Fatalf("status = %d, want 202", status)
 	}
 
@@ -338,7 +332,7 @@ func TestExpectContinueOversizedBodyNotSent(t *testing.T) {
 	ts := newTestServer(t)
 	path := serveUnix(t, ts.Server)
 	counter := &recordingReader{r: strings.NewReader(strings.Repeat("x", maxBodyBytes+1))}
-	req, err := http.NewRequest(http.MethodPost, "http://yt2column"+ArticlesPath, io.NopCloser(counter))
+	req, err := http.NewRequest(http.MethodPost, "http://yt2column"+JobsPath, io.NopCloser(counter))
 	if err != nil {
 		t.Fatalf("NewRequest: %v", err)
 	}
@@ -363,8 +357,8 @@ func TestExpectContinueOversizedBodyNotSent(t *testing.T) {
 
 // TestUnparsableRequestBypassesHandler checks that bytes that are not an HTTP
 // request are answered by net/http itself with 400, and that the handler never
-// runs for them: no slot is taken, no failure notice is posted, and no article
-// is generated.
+// runs for them: no slot is taken, no record is added, no failure notice is
+// posted, and no article is generated.
 func TestUnparsableRequestBypassesHandler(t *testing.T) {
 	ts := newTestServer(t)
 	conn := dialUnix(t, serveUnix(t, ts.Server))
@@ -390,8 +384,11 @@ func TestUnparsableRequestBypassesHandler(t *testing.T) {
 		t.Errorf("the handler answered the unparsable request: body %q, log:\n%s", body, ts.logs.String())
 	}
 	ts.waitJobs()
-	if len(ts.slots) != 0 {
-		t.Errorf("slots held = %d, want 0", len(ts.slots))
+	if len(ts.slots) != 0 || len(ts.reading) != 0 {
+		t.Errorf("slots held: generation %d, reading %d, want 0", len(ts.slots), len(ts.reading))
+	}
+	if dump := ts.cache.DumpRecordsForTest(); dump != "" {
+		t.Errorf("an unparsable request added a record:\n%s", dump)
 	}
 	if len(ts.notifier.Calls) != 0 || len(ts.writer.Calls) != 0 {
 		t.Errorf("an unparsable request caused a side effect: notifier=%d writer=%d",
@@ -468,7 +465,7 @@ func TestServeShutdownCancelsGeneration(t *testing.T) {
 		releaseLegacy()
 	}()
 
-	if status, _ := postOnUnix(t, path); status != http.StatusAccepted {
+	if status := postOnUnix(t, path); status != http.StatusAccepted {
 		t.Fatalf("legacy status = %d, want 202", status)
 	}
 	<-w.entered
