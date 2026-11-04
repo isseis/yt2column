@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-04 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-04 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -252,3 +252,7 @@ ADR を読めば、今の決定、その理由、採らなかった案、変わ�
 -   **経緯:** ADR の節。決定を下したとき、または変えたときの記録を古い順に並べる。
 -   **仕様の正本の文書:** ある主題の今の仕様を定める文書（`security.md`・`production_profile.md`・CLAUDE.md の規則など）。ADR はそれを要約してリンクする。
 -   **調査の番号:** issue #602 のコメント（2026-11-04）で、ADR の候補に付けた番号（A1〜D8）。
+
+## 変更履歴
+
+- 2026-11-04 承認（isseis、#656）
