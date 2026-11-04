@@ -74,14 +74,13 @@ func lastLine(out string) string {
 // failingWriter fails every write.
 type failingWriter struct{}
 
-var errWrite = errors.New("write failed")
-
-func (failingWriter) Write([]byte) (int, error) { return 0, errWrite }
+func (failingWriter) Write([]byte) (int, error) { return 0, errors.New("write failed") }
 
 // TestRun checks the command line: the two accepted forms reach the
 // comparison with the target, BASE, root, and environment, and the outcome
 // decides the exit code; every other shape stops as usage with exit code 3
-// and an empty standard error, without running the comparison.
+// and an empty standard error, without running the comparison, writing the
+// target it named, if any, and the reason (an empty BASE has its own).
 func TestRun(t *testing.T) {
 	const root = "/repo"
 	environ := []string{"HOME=/home/u"}
@@ -120,20 +119,23 @@ func TestRun(t *testing.T) {
 	})
 	t.Run("refused", func(t *testing.T) {
 		for _, tc := range []struct {
-			name string
-			args []string
+			name   string
+			args   []string
+			target coveragecompare.Target
+			detail string
 		}{
-			{"no_arguments", nil},
-			{"target_only", []string{"go"}},
-			{"base_missing", []string{"go", "HEAD~1"}},
-			{"base_value_missing", []string{"go", "--base"}},
-			{"base_empty", []string{"ext", "--base", ""}},
-			{"base_twice", []string{"go", "--base", "HEAD~1", "--base", "HEAD~2"}},
-			{"equals_form", []string{"go", "--base=HEAD~1"}},
-			{"unknown_target", []string{"js", "--base", "HEAD~1"}},
-			{"target_last", []string{"--base", "HEAD~1", "go"}},
-			{"extra_argument", []string{"go", "--base", "HEAD~1", "extra"}},
-			{"single_dash", []string{"go", "-base", "HEAD~1"}},
+			{"no_arguments", nil, 0, usageDetail},
+			{"target_only", []string{"go"}, coveragecompare.TargetGo, usageDetail},
+			{"base_missing", []string{"go", "HEAD~1"}, coveragecompare.TargetGo, usageDetail},
+			{"base_value_missing", []string{"go", "--base"}, coveragecompare.TargetGo, usageDetail},
+			{"base_empty_go", []string{"go", "--base", ""}, coveragecompare.TargetGo, emptyBaseDetail},
+			{"base_empty_ext", []string{"ext", "--base", ""}, coveragecompare.TargetExt, emptyBaseDetail},
+			{"base_twice", []string{"go", "--base", "HEAD~1", "--base", "HEAD~2"}, coveragecompare.TargetGo, usageDetail},
+			{"equals_form", []string{"go", "--base=HEAD~1"}, coveragecompare.TargetGo, usageDetail},
+			{"unknown_target", []string{"js", "--base", "HEAD~1"}, 0, usageDetail},
+			{"target_last", []string{"--base", "HEAD~1", "go"}, 0, usageDetail},
+			{"extra_argument", []string{"ext", "--base", "HEAD~1", "extra"}, coveragecompare.TargetExt, usageDetail},
+			{"single_dash", []string{"go", "-base", "HEAD~1"}, coveragecompare.TargetGo, usageDetail},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				ran := false
@@ -146,8 +148,17 @@ func TestRun(t *testing.T) {
 				if ran {
 					t.Error("the comparison ran for a refused command line")
 				}
-				if code != 3 || lastLine(stdout.String()) != "coverage-compare: STOP usage" || stderr.Len() != 0 {
-					t.Errorf("exit %d, output %q, stderr %q; want exit 3, final usage stop, empty stderr", code, stdout.String(), stderr.String())
+				var want bytes.Buffer
+				if err := coveragecompare.Write(&want, coveragecompare.Result{
+					Outcome: coveragecompare.OutcomeStop,
+					Stop:    coveragecompare.StopUsage,
+					Target:  tc.target,
+					Reasons: []coveragecompare.StopReason{{Detail: tc.detail}},
+				}); err != nil {
+					t.Fatal(err)
+				}
+				if code != 3 || stdout.String() != want.String() || stderr.Len() != 0 {
+					t.Errorf("exit %d, output %q, stderr %q; want exit 3, output %q, empty stderr", code, stdout.String(), stderr.String(), want.String())
 				}
 			})
 		}
@@ -192,13 +203,15 @@ func TestSignalWaitsForRun(t *testing.T) {
 			}
 			t.Cleanup(func() { _ = cmd.Process.Kill() })
 			waitForFile(t, filepath.Join(dir, startedFile))
-			for range tc.signals {
+			for i := range tc.signals {
+				if i > 0 {
+					// Well inside returnDelay, so a second signal comes while
+					// the comparison still runs.
+					time.Sleep(100 * time.Millisecond)
+				}
 				if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
 					t.Fatal(err)
 				}
-				// Well inside returnDelay, so a second signal comes while the
-				// comparison still runs.
-				time.Sleep(100 * time.Millisecond)
 			}
 			done := make(chan error, 1)
 			go func() { done <- cmd.Wait() }()
