@@ -40,15 +40,15 @@ const unreachableProxy = "http://127.0.0.1:9"
 
 // TestRelayEndToEnd connects the real host binary to the assembled server
 // over the server's Unix socket, with a fake LLM client and the real webhook
-// publisher and failure notifier posting to a loopback webhook. Every host
-// run is checked to exit 0 having written exactly one frame to standard
-// output, and nothing else.
+// publisher posting to a loopback webhook. Every host run is checked to exit
+// 0 having written exactly one frame to standard output, and nothing else.
 func TestRelayEndToEnd(t *testing.T) {
 	host := buildHost(t)
 
-	// The job outlives the host: the accepted reply arrives and the host
-	// exits while the LLM call is still blocked, and the article is posted
-	// only after the call is released.
+	// The generation job outlives the host: the accepted reply arrives and
+	// the host exits while the LLM call is still blocked, the generation
+	// finishes only after the call is released, and the publish operation
+	// then posts the article once.
 	t.Run("accepted_job_continues_after_host_exits", func(t *testing.T) {
 		webhook, webhookURL := newWebhookServer(t)
 		e := newServerEnv(t)
@@ -59,11 +59,11 @@ func TestRelayEndToEnd(t *testing.T) {
 		// Registered after startServer, so it runs first and a failing test
 		// does not leave the server's stop waiting on the blocked job.
 		t.Cleanup(release)
+		socket := e.socketPath(t)
 
-		reply := runHost(t, host, e, requestBody(testValidRaw))
-		accepted := requireServerReply(t, reply, 202)
-		if accepted.Status != "accepted" || !requestIDPattern.MatchString(accepted.RequestID) {
-			t.Errorf("accepted response = %+v, want status accepted and a request ID", accepted)
+		started := requireJobReply(t, runHost(t, host, e, newFormStartMessage(testValidRaw)), 202)
+		if started.Status != "accepted" || started.Key == "" {
+			t.Fatalf("generation start response = %+v, want accepted with a key", started)
 		}
 		select {
 		case <-gate.entered:
@@ -71,27 +71,44 @@ func TestRelayEndToEnd(t *testing.T) {
 			t.Fatalf("the job's LLM call did not start within %v", readyBound)
 		}
 		release()
-		webhook.waitForMessage(t, "A title", testNormalizedURL)
-		// stop waits for the job, so a second article would be posted by now.
+		if done := waitJobDone(t, socket, started.Key); done.Job.State != "done" {
+			t.Fatalf("job = %+v, want done", done.Job)
+		}
+		if published := requireJobReply(t, runHost(t, host, e, newFormKeyMessage(t, "publish", started.Key)), 202); published.Status != "accepted" {
+			t.Fatalf("publish response = %+v, want accepted", published)
+		}
+		if state := waitPublished(t, socket, started.Key); state != "posted" {
+			t.Fatalf("publish state = %q, want posted", state)
+		}
+		// stop waits for the jobs, so a second article would be posted by now.
 		if code := srv.stop(t); code != exitOK {
 			t.Fatalf("run exit code = %d, want %d\nstderr:\n%s", code, exitOK, srv.stderr.String())
 		}
-		if got := webhook.messages(); len(got) != 1 {
+		if got := webhook.messages(); len(got) != 1 || !containsAll(got[0], []string{"A title", testNormalizedURL}) {
 			t.Errorf("messages = %q, want the one article", got)
 		}
 	})
 
-	t.Run("invalid_transcript_notifies_failure", func(t *testing.T) {
+	// A rejected generation start posts nothing to the webhook: the server
+	// sends the webhook only the articles a publish operation asks for.
+	t.Run("invalid_transcript_posts_nothing", func(t *testing.T) {
 		webhook, webhookURL := newWebhookServer(t)
 		e := newServerEnv(t)
-		startServer(t, e, loopbackDeps(t, validResponseLLM(), webhookURL))
+		srv := startServer(t, e, loopbackDeps(t, validResponseLLM(), webhookURL))
 
-		reply := runHost(t, host, e, requestBody("not a copied transcript"))
+		reply := runHost(t, host, e, newFormStartMessage("not a copied transcript"))
 		rejected := requireServerReply(t, reply, 400)
-		if rejected.Status != "rejected" || rejected.Reason != "invalid_transcript" || !requestIDPattern.MatchString(rejected.RequestID) {
-			t.Fatalf("rejected response = %+v, want status rejected, reason invalid_transcript, and a request ID", rejected)
+		if rejected.Status != "rejected" || rejected.Reason != "invalid_transcript" {
+			t.Fatalf("rejected response = %+v, want status rejected and reason invalid_transcript", rejected)
 		}
-		webhook.waitForMessage(t, "yt2column failure:", "request: "+rejected.RequestID)
+		// stop waits for every job the server started, so a post caused by
+		// the rejection would have arrived by now.
+		if code := srv.stop(t); code != exitOK {
+			t.Fatalf("run exit code = %d, want %d\nstderr:\n%s", code, exitOK, srv.stderr.String())
+		}
+		if got := webhook.messages(); len(got) != 0 {
+			t.Errorf("messages = %q, want none", got)
+		}
 	})
 
 	t.Run("stopped_server_is_unavailable", func(t *testing.T) {
@@ -101,7 +118,7 @@ func TestRelayEndToEnd(t *testing.T) {
 			t.Fatalf("run exit code = %d, want %d\nstderr:\n%s", code, exitOK, srv.stderr.String())
 		}
 
-		reply := runHost(t, host, e, requestBody(testValidRaw))
+		reply := runHost(t, host, e, newFormStartMessage(testValidRaw))
 		if reply.Kind != "error" || reply.Error != "server_unavailable" {
 			t.Fatalf("reply = %+v, want the server_unavailable error", reply)
 		}
@@ -118,7 +135,7 @@ func TestRelayEndToEnd(t *testing.T) {
 		startServer(t, e, loopbackDeps(t, validResponseLLM(), webhookURL))
 		socket := e.socketPath(t)
 
-		started := requireJobReply(t, runHost(t, host, e, `{"v":1,"op":"start","input":`+requestBody(testValidRaw)+`}`), 202)
+		started := requireJobReply(t, runHost(t, host, e, newFormStartMessage(testValidRaw)), 202)
 		if started.Status != "accepted" || started.Key == "" {
 			t.Fatalf("generation start response = %+v, want accepted with a key", started)
 		}
@@ -164,8 +181,7 @@ func TestRelayEndToEnd(t *testing.T) {
 		e := newServerEnv(t)
 		startServer(t, e, testDeps(validResponseLLM()))
 
-		body := requestBody(testValidRaw + strings.Repeat("x", server.MaxBodyBytesForTest))
-		reply := runHost(t, host, e, body)
+		reply := runHost(t, host, e, newFormStartMessage(testValidRaw+strings.Repeat("x", server.MaxBodyBytesForTest)))
 		if rejected := requireServerReply(t, reply, 413); rejected.Status != "rejected" || rejected.Reason != "body_too_large" {
 			t.Fatalf("rejected response = %+v, want status rejected and reason body_too_large", rejected)
 		}
@@ -289,6 +305,12 @@ func decodeOneFrame(t *testing.T, out []byte, stderr string) hostReply {
 		t.Fatalf("reply = %+v, want version 1", reply)
 	}
 	return reply
+}
+
+// newFormStartMessage returns a new-form generation start whose input is
+// requestBody(raw).
+func newFormStartMessage(raw string) string {
+	return `{"v":1,"op":"start","input":` + requestBody(raw) + `}`
 }
 
 // newFormKeyMessage returns a new-form message for op (status or publish)

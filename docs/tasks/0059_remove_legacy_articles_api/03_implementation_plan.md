@@ -47,7 +47,6 @@ localhost サーバの旧 API（`POST /articles`）・旧 API のジョブ・失
     -   0055 の道具（`internal/coveragecompare` は `main` にあり、`make coverage-compare` の入口はまだない）は使わない。0055 の要件は、削除以外の変更で対応が付かなければ止まることであり、残る関数を書き換える削除のコミットには使えない（設計書 1.3 節）。移し替えのコミットでは使えるが、入口がまだないので、0052 のスクリプトにそろえる。
 -   **PR-2 の中の順序は、テストの移し替え（フェーズ 2）、コードの削除（フェーズ 3）、文書（フェーズ 4）とする（設計書 8 章）:** 削除と同じコミットで直さないと `make test` が失敗する文書は、フェーズ 3 に置く。該当するのは、`package_reference.md` の `internal/failure` の 2 行（`TestPackageReferenceListsPackages`、`internal/pipeline/pipeline_test.go:629`）と、curl の例のガードの `server.ArticlesPath` の行（`cmd/yt2column-server/docs_test.go:107`。残すとコンパイルが通らない）である。ほかの文書の書き換えはフェーズ 4 にまとめ、文書のレビューをコードの差分から分ける。`development.md` の `/articles` の curl の例は、ガードの行を除いた後は一致を求められないだけで失敗はしない（`pathForm` が `""` を返す。`docs_test.go:393-400`）ので、フェーズ 4 で除く。
 -   **フェーズ 3 の削除は 2 つのコミットに分ける:** (a) サーバと `cmd/yt2column-server` の `/articles`・旧 API のジョブ・失敗の通知の配線の削除（`WebhookOptions.Notifier` を除くと `cmd/yt2column-server` のコンパイルが通らなくなるので、同じコミットにする）、(b) どこからも使われなくなった `internal/failure`・`SlackFailureNotifier` とその周りの削除。どちらのコミットもグリーンゲートを通す。理由: 差分の大きさを分け、(b) が純粋な削除であることを読みやすくする。
--   **統合テストに、今の形のメッセージが拒否される場合を加える:** 設計書 7.4 節は AC-10 を統合テストでも確かめるとした。設計書 7.2 節の表にその行はないので、`TestRelayEndToEnd` に、#503 より前の拡張が送る形のメッセージを本物のホストへ送り、`protocol_error` が返り、サーバがリクエストを受け取らないことを確かめるサブテストを加える（ステップ 1-3）。
 -   **AC-18 の文書の値（同時に読む本文の最大 2 つ、約 5 分）にガードを加えない:** 同時に読む本文の数（`maxReading = 2`）は生成の枠の数（`maxInFlight = 2`）と同じ値なので、`security.md` §8.2 の今のガード（`TestServerDocsContract` の `security.md` のサブテスト、`docs_test.go:238-`）と同じ形の検査では 2 つを区別できない。「約 5 分」は計算した値を丸めて書く文で、値は AC-15 のテストがコードの側で確かめる。誤りの害は小さく、ガードの手入れの費用のほうが大きい（CLAUDE.md「Document tests」）。どちらも PR のレビューで読む。
 
 ### 1.4. 既存コード調査結果
@@ -116,6 +115,12 @@ localhost サーバの旧 API（`POST /articles`）・旧 API のジョブ・失
 | ログの属性 | シャットダウンの待ち始めの行の `pending` | `canceledGenerations`（設計書 3.2.2 節） | 3-2 |
 | ファイル | `internal/server/job.go`・`job_test.go` | 削除（中身の移し先は 1.3 節） | 3-2 |
 
+### 1.6. 実装の際に決めたこと（2026-11-04）
+
+-   **削除と移行が済んだことの確認は一度だけ行い、永続のテストにしない（設計書 1.4 節）:** 永続のテストには、新しく設計しても書く、最終的な仕様の規則と値だけを置く。削除したもの・移行前の形がもうないことの確認は、`_checks/residue` と PR の時点の確認で一度だけ行う。PR-1 のレビューの中で、レビュアーと決めた。理由: 削除したものが戻る経路はコードを書き戻すことだけであり、その不在を永続のテストで固定すると、退役した仕様をテストが持ち続ける。この決定で、次のように変えた。
+    -   **PR-1:** 1.3 節にあった「統合テストに、今の形のメッセージが拒否される場合を加える」をやめた。ステップ 1-3 で加えた `TestRelayEndToEnd/message_without_version_is_rejected` とその補助 `runHostLog`、ログに `form=` が出ないことの確かめ（`requireNoFormAttr`）、#503 より前の拡張のメッセージを入力にした行を削除した。`TestRelayRejectsOtherForms` に残る規則の行（`v` がない、厳格な JSON オブジェクトでない 5 種類）は `TestRelayNewFormRejections` の表に移し、ログに値を書かないことの行は `TestRelayNewFormLogOmitsMessage` に移した。
+    -   **PR-2:** `/articles` 専用の拒否のテスト、警告・停止の案内・シャットダウンのログが `/articles` と失敗の通知に触れないことのテストは書かない。`/articles` の不在と、テストでないコードの文字列リテラルの語は `_checks/residue`（ステップ 3-4）で確かめる。未知のパスが本文を読まず枠を取らないことは、最終的な仕様として `/articles` ではない未知のパスで確かめる（ステップ 3-2）。
+
 ## 2. 実装手順 (Implementation Steps)
 
 ### フェーズ 1: ホストの今の形の中継の削除（設計書 8 章の 1）
@@ -124,13 +129,13 @@ localhost サーバの旧 API（`POST /articles`）・旧 API のジョブ・失
 
 **変更するファイル:** `docs/tasks/0059_remove_legacy_articles_api/_checks/coverage/main.go`（新規）、`docs/tasks/0059_remove_legacy_articles_api/_checks/residue/main.go`（新規）
 
-- [ ] `_checks/coverage` を、1.3 節「カバレッジの比べ方」の削除のコミットの比べ方のとおりに作る。引数は 2 つのコミットと、それぞれの `go tool cover -func` の出力である。
-- [ ] `_checks/residue` を作る。引数は merge-base と head の 2 つのコミットである。PR-1 の確かめは次の 2 つで、確かめごとに結果を出し、すべて成り立てば `0`、成り立たないものがあれば `1`、実行できなければ `2` で終わる。
+- [x] `_checks/coverage` を、1.3 節「カバレッジの比べ方」の削除のコミットの比べ方のとおりに作る。引数は 2 つのコミットと、それぞれの `go tool cover -func` の出力である。
+- [x] `_checks/residue` を作る。引数は merge-base と head の 2 つのコミットである。PR-1 の確かめは次の 2 つで、確かめごとに結果を出し、すべて成り立てば `0`、成り立たないものがあれば `1`、実行できなければ `2` で終わる。
     -   AC-13: `internal/nmhost` に `articlesURL`・型 `form`・`formLegacy`・`formNew`・`destination` のフィールド `form` の宣言がなく、テストでないファイルに `/articles` を含む文字列リテラルがない（1.4 節）。
     -   AC-12: `extension/` が merge-base と head の間で変わっていない。
-- [ ] 2 つのスクリプトの冒頭のコメントに、確かめる内容、実行の仕方、終了コードを英語で書く。`make test` と CI はこれらを実行しない。
-- [ ] `_checks/coverage` に、手で作った入力を与えて確かめる。片方にだけある関数、カバレッジの変わった関数、ほかのファイルへ移った関数（変わらないと扱う）、同じパッケージで同じ名前の 2 つのメソッド（レシーバで区別する）、対応が 1 つに決まらない場合（`2` で止まる）である。
-- [ ] スクリプトだけをコミットする（製品のコードもテストも変えない）。
+- [x] 2 つのスクリプトの冒頭のコメントに、確かめる内容、実行の仕方、終了コードを英語で書く。`make test` と CI はこれらを実行しない。
+- [x] `_checks/coverage` に、手で作った入力を与えて確かめる。片方にだけある関数、カバレッジの変わった関数、ほかのファイルへ移った関数（変わらないと扱う）、同じパッケージで同じ名前の 2 つのメソッド（レシーバで区別する）、対応が 1 つに決まらない場合（`2` で止まる）である。
+- [x] スクリプトだけをコミットする（製品のコードもテストも変えない）。
 
 **完了の条件:** `go vet -tags test` が 2 つのスクリプトを通し、`_checks/residue` に merge-base を head として渡すと、AC-13 の確かめが成り立たないと出力して `1` で終わる。
 
@@ -138,14 +143,14 @@ localhost サーバの旧 API（`POST /articles`）・旧 API のジョブ・失
 
 **変更するファイル:** `internal/nmhost/relay_test.go`、`cmd/yt2column-nmhost/main_test.go`、`cmd/yt2column-server/relay_e2e_test.go`
 
-- [ ] `TestRelayForwardsOneRequest` を新しい形のメッセージで作り直す（設計書 7.1 節）。`TestRelayNewFormOperations` の `start` の行（`relay_test.go:839-842`）と重なる確かめは除き、重ならない性質（正しい UTF-8 でないサーバの応答をそのまま中継することなど）に絞る。
-- [ ] `TestRelayServerEarlyRejection`・`TestRelayHostErrors`・`TestRelayOutputs`・`TestRelayNoReplyFrame`・`TestRelayMessageReadFailures`・`TestRelayLengthChecks` の入力を、新しい形のメッセージに移す（設計書 7.1 節）。移した各行は、届くはずの段階のログの `stage=` を確かめる（`protocol_error` を期待する行は、形の検査の `stage=form` でないことも確かめる）。サーバと交換する行は、サーバがリクエストを 1 つ受け取ったことも確かめる。
-- [ ] 一時的に `route` がすべてのメッセージを拒否するようにして、移したテストがすべて失敗することを確かめ、コミットメッセージに書く（変更は残さない）。
-- [ ] `TestRelayUsesDerivedSocket` の `{}` のメッセージを、新しい形のメッセージに移す。
-- [ ] `TestRelayEndToEnd` の `accepted_job_continues_after_host_exits`・`stopped_server_is_unavailable`・`body_over_server_limit_is_rejected_by_server` を新しい形に移す（設計書 7.2 節）。
-- [ ] `TestRelayEndToEnd/invalid_transcript_notifies_failure` を `invalid_transcript_posts_nothing` に置き換える。新しい形の生成の開始で字幕が正しくない場合に、ホストの応答が `400` の `invalid_transcript` であること、サーバを止めた後（停止はジョブと失敗の通知を待つ）に Webhook が何も受け取っていないことを確かめる（設計書 7.2 節、AC-02）。生成の開始の拒否が失敗の通知を送るようにする一時的な変更で、このサブテストが失敗することを確かめる。
-- [ ] `TestRelayLegacyBytesUnchanged` など、今の形だけを確かめるテストは、このステップでは残す。
-- [ ] 親コミットとこのコミットで、1.3 節「カバレッジの比べ方」の移し替えのコミットの比べ方で比べ、結果をコミットメッセージに書く。
+- [x] `TestRelayForwardsOneRequest` を新しい形のメッセージで作り直す（設計書 7.1 節）。`TestRelayNewFormOperations` の `start` の行（`relay_test.go:839-842`）と重なる確かめは除き、重ならない性質（正しい UTF-8 でないサーバの応答をそのまま中継することなど）に絞る。
+- [x] `TestRelayServerEarlyRejection`・`TestRelayHostErrors`・`TestRelayOutputs`・`TestRelayNoReplyFrame`・`TestRelayMessageReadFailures`・`TestRelayLengthChecks` の入力を、新しい形のメッセージに移す（設計書 7.1 節）。移した各行は、届くはずの段階のログの `stage=` を確かめる（`protocol_error` を期待する行は、形の検査の `stage=form` でないことも確かめる）。サーバと交換する行は、サーバがリクエストを 1 つ受け取ったことも確かめる。
+- [x] 一時的に `route` がすべてのメッセージを拒否するようにして、移したテストがすべて失敗することを確かめ、コミットメッセージに書く（変更は残さない）。
+- [x] `TestRelayUsesDerivedSocket` の `{}` のメッセージを、新しい形のメッセージに移す。
+- [x] `TestRelayEndToEnd` の `accepted_job_continues_after_host_exits`・`stopped_server_is_unavailable`・`body_over_server_limit_is_rejected_by_server` を新しい形に移す（設計書 7.2 節）。
+- [x] `TestRelayEndToEnd/invalid_transcript_notifies_failure` を `invalid_transcript_posts_nothing` に置き換える。新しい形の生成の開始で字幕が正しくない場合に、ホストの応答が `400` の `invalid_transcript` であること、サーバを止めた後（停止はジョブと失敗の通知を待つ）に Webhook が何も受け取っていないことを確かめる（設計書 7.2 節、AC-02）。生成の開始の拒否が失敗の通知を送るようにする一時的な変更で、このサブテストが失敗することを確かめる。
+- [x] `TestRelayLegacyBytesUnchanged` など、今の形だけを確かめるテストは、このステップでは残す。
+- [x] 親コミットとこのコミットで、1.3 節「カバレッジの比べ方」の移し替えのコミットの比べ方で比べ、結果をコミットメッセージに書く。
 
 **完了の条件:** `make test` と `make lint` が通り、カバレッジの比較が 1.3 節の基準を満たす。
 
@@ -153,17 +158,17 @@ localhost サーバの旧 API（`POST /articles`）・旧 API のジョブ・失
 
 **変更するファイル:** `internal/nmhost/relay.go`、`internal/nmhost/frame.go`、`internal/nmhost/relay_test.go`、`cmd/yt2column-server/relay_e2e_test.go`、`.golangci.yml`
 
-- [ ] `route` を設計書 3.4.1 節のとおりに書き換える。`ParseObject` に通らなければ `ruleObject`、版の検査を `Collect("v")` でメンバの検査より先に行う。`rule` に `ruleObject` を加え、`ruleVersion` のコメントを設計書 3.4.1 節のコードのとおりに直す。
-- [ ] 1.4 節の削除するもの（`articlesURL`、型 `form`、`formLegacy`・`formNew`、`destination.form`、`request` の `form` による分岐、`logAttrs` の `form` 属性）を削除する。`request` は `op` だけで分け、`default` は `errUnroutable` を返す。
-- [ ] 設計書 3.4.3 節が挙げる説明（`forward`・`Relay`・`route`・`bodyRequest`・`stageForm`・`destination` のコメント、`frame.go:3-6` のパッケージの説明、`.golangci.yml` の `nmhost-boundaries` の説明）から、今の形との対比を除く。
-- [ ] `TestRelayLegacyBytesUnchanged` を削除し、同じ入力が送られずに `protocol_error` になることを確かめるテストに置き換える。各行で、ログに `stage=form` と期待する `rule=` があること（肯定の印）、ログにメッセージのメンバ名と値がないこと、サーバへ接続できる状態でもサーバがリクエストを受け取らないことを確かめる（AC-10・AC-11・AC-14）。行には次を含める。
-    -   `rule=version`: #503 より前の拡張が送る形のメッセージ、`v` だけを欠き、`op` と `key` はそろっているメッセージ（AC-10 の「`v` 以外のメンバがそろっていても」）。
+- [x] `route` を設計書 3.4.1 節のとおりに書き換える。`ParseObject` に通らなければ `ruleObject`、版の検査を `Collect("v")` でメンバの検査より先に行う。`rule` に `ruleObject` を加え、`ruleVersion` のコメントを設計書 3.4.1 節のコードのとおりに直す。
+- [x] 1.4 節の削除するもの（`articlesURL`、型 `form`、`formLegacy`・`formNew`、`destination.form`、`request` の `form` による分岐、`logAttrs` の `form` 属性）を削除する。`request` は `op` だけで分け、`default` は `errUnroutable` を返す。
+- [x] 設計書 3.4.3 節が挙げる説明（`forward`・`Relay`・`route`・`bodyRequest`・`stageForm`・`destination` のコメント、`frame.go:3-6` のパッケージの説明、`.golangci.yml` の `nmhost-boundaries` の説明）から、今の形との対比を除く。
+- [x] `TestRelayLegacyBytesUnchanged` を削除する。同じ入力が送られずに `protocol_error` になることは、受理の規則として `TestRelayNewFormRejections` の行で確かめる。各行で、ログに `stage=form` と期待する `rule=` があること（肯定の印）と、サーバへ接続できる状態でもサーバがリクエストを受け取らないことを確かめる（AC-10・AC-11）。ログにメッセージの値がないことは、`TestRelayNewFormLogOmitsMessage` に `rule=version` と `rule=object` の行を加えて確かめる（AC-14）。行には次を含める（1.6 節）。
+    -   `rule=version`: `v` だけを欠き、`op` と `key` はそろっているメッセージ（AC-10 の「`v` 以外のメンバがそろっていても」）、`v` が最上位にないメッセージ。
     -   `rule=object`: AC-11 の 5 種類（正しくない UTF-8、JSON として正しくない、最上位がオブジェクトでない、後続のデータ、対になっていないサロゲートのエスケープ）。
-- [ ] `TestRelayNewFormOperations`・`TestRelayNewFormLogOmitsMessage`・`TestRelayNewFormRejections` から `form=` の確かめを除き、ログに `form=` が出ないことを確かめる。`form=new` を肯定の印にしていた確かめ（`TestRelayNewFormLogOmitsMessage`、`relay_test.go:1073`）は、`op=` などの別の肯定の印に替える。`TestRelayNewFormRejections` に、版の検査がメンバの検査より先にあることを確かめる 2 行を加える（設計書 7.1 節）。既存の行の期待する値は変えない。
-- [ ] `TestRequestRefusesUnroutable` を、`op` だけを持つ送り先（ゼロ値、範囲の外の値）で `request` が何も送らずに拒否することを確かめる形に作り直す（設計書 7.1 節）。
-- [ ] `TestRelayEndToEnd` に、#503 より前の拡張が送る形のメッセージを送り、`protocol_error` が返り、サーバがリクエストを受け取らないことを確かめるサブテストを加える（1.3 節、AC-10）。サーバが受け取らないことは、ホストのログの `stage=form` と、同じサブテストで続けて送る新しい形のメッセージがサーバに届くことと合わせて確かめる。
-- [ ] 加えたテストの行が、それぞれの規則の検査を外すと失敗することを確かめ、コミットメッセージに書く。
-- [ ] ステップ 1-2 のコミットとこのコミットで、1.3 節「カバレッジの比べ方」の削除のコミットの比べ方で比べ、結果をこのコミットのメッセージに書く。コミットの後で比べるので、push の前に `git commit --amend` でメッセージだけを直し、内容が変わらないことを `git diff HEAD@{1} HEAD` で確かめる（ステップ 1-2・2-3・3-3 の比較も同じ）。
+- [x] `TestRelayNewFormOperations`・`TestRelayNewFormLogOmitsMessage`・`TestRelayNewFormRejections` から `form=` の確かめを除く（`form=` が出ないことは永続のテストにしない。1.6 節）。`form=new` を肯定の印にしていた確かめ（`TestRelayNewFormLogOmitsMessage`、`relay_test.go:1073`）は、`op=` などの別の肯定の印に替える。`TestRelayNewFormRejections` に、版の検査がメンバの検査より先にあることを確かめる 2 行を加える（設計書 7.1 節）。既存の行の期待する値は変えない。
+- [x] `TestRequestRefusesUnroutable` を、`op` だけを持つ送り先（ゼロ値、範囲の外の値）で `request` が何も送らずに拒否することを確かめる形に作り直す（設計書 7.1 節）。
+- [-] `TestRelayEndToEnd` に、#503 より前の拡張が送る形のメッセージが拒否されることのサブテストを加える。加えた後に、1.6 節の決定で削除した（移行の確認は永続のテストにしない）。
+- [x] 加えたテストの行が、それぞれの規則の検査を外すと失敗することを確かめ、コミットメッセージに書く。
+- [x] ステップ 1-2 のコミットとこのコミットで、1.3 節「カバレッジの比べ方」の削除のコミットの比べ方で比べ、結果をこのコミットのメッセージに書く。コミットの後で比べるので、push の前に `git commit --amend` でメッセージだけを直し、内容が変わらないことを `git diff HEAD@{1} HEAD` で確かめる（ステップ 1-2・2-3・3-3 の比較も同じ）。
 
 **完了の条件:** `make test`・`make lint`・`make deadcode` が通る。
 
@@ -171,10 +176,10 @@ localhost サーバの旧 API（`POST /articles`）・旧 API のジョブ・失
 
 **変更するファイル:** `CLAUDE.md`、`docs/dev/security.md`、`docs/dev/conventions/package_reference.md`
 
-- [ ] `CLAUDE.md` の「Declare, don't infer」から、ホストが今の形と新しい形をメッセージの中身で選ぶ例外の段落（`:357-375`）を取り除く（AC-19 の前半）。
-- [ ] `docs/dev/security.md` §8 のホストの記述（`:143-144`）を、新しい形だけを受理し、ほかはすべて送らずに `protocol_error` にすることに直す（AC-18）。
-- [ ] `package_reference.md` の `internal/nmhost` の行（`:50`）から、今の形の中継と属性 `form` の記述を除き、規則 `object` を加える。
-- [ ] 文書のガードと `make ext-test` を通す。
+- [x] `CLAUDE.md` の「Declare, don't infer」から、ホストが今の形と新しい形をメッセージの中身で選ぶ例外の段落（`:357-375`）を取り除く（AC-19 の前半）。
+- [x] `docs/dev/security.md` §8 のホストの記述（`:143-144`）を、新しい形だけを受理し、ほかはすべて送らずに `protocol_error` にすることに直す（AC-18）。
+- [x] `package_reference.md` の `internal/nmhost` の行（`:50`）から、今の形の中継と属性 `form` の記述を除き、規則 `object` を加える。
+- [x] 文書のガードと `make ext-test` を通す。
 
 **完了の条件:** 文書のガード、`make test`、`make ext-test` が通る。
 
@@ -182,9 +187,9 @@ localhost サーバの旧 API（`POST /articles`）・旧 API のジョブ・失
 
 **変更するファイル:** 本書 7.1 節
 
-- [ ] PR-1 のすべての変更をコミットした後、PR のブランチで `_checks/residue` を merge-base（`git merge-base origin/main HEAD`）と `HEAD` で実行し、出力、終了コード、2 つのコミット ID を 7.1 節に書く。merge-base を head として渡すと AC-13 の確かめが成り立たないことも書く。
-- [ ] AC-12 の確かめは merge-base でも成り立つので、`extension/` の 1 行を変えた一時的なコミット（ブランチに載せない）を head として渡し、その確かめが成り立たないと出ることを確かめ、7.1 節に書く。
-- [ ] ステップ 1-2・1-3 のカバレッジの比較の結果を 7.1 節に書き写す（squash でマージされるとブランチのコミットメッセージは `main` から辿れないため）。
+- [x] PR-1 のすべての変更をコミットした後、PR のブランチで `_checks/residue` を merge-base（`git merge-base origin/main HEAD`）と `HEAD` で実行し、出力、終了コード、2 つのコミット ID を 7.1 節に書く。merge-base を head として渡すと AC-13 の確かめが成り立たないことも書く。
+- [x] AC-12 の確かめは merge-base でも成り立つので、`extension/` の 1 行を変えた一時的なコミット（ブランチに載せない）を head として渡し、その確かめが成り立たないと出ることを確かめ、7.1 節に書く。
+- [x] ステップ 1-2・1-3 のカバレッジの比較の結果を 7.1 節に書き写す（squash でマージされるとブランチのコミットメッセージは `main` から辿れないため）。
 
 **完了の条件:** `_checks/residue` が PR の head で `0` を返し、その記録が 7.1 節にある。
 
@@ -200,10 +205,10 @@ localhost サーバの旧 API（`POST /articles`）・旧 API のジョブ・失
 
 **判定理由**: ステップ 1-3 がホストの入力の境界（信頼できないブラウザからのメッセージについて、ホストが受理する形）を変える、セキュリティの境界の変更である（mkplan のパネルモードの条件に当たる）
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/654
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: サーバのテストの移し替え（設計書 8 章の 2 のうち、製品のコードを変えない部分）
 
@@ -276,11 +281,11 @@ localhost サーバの旧 API（`POST /articles`）・旧 API のジョブ・失
 - [ ] `server_test.go` の `TestBodyReadFailureWritesNoResponse` を削除する。
 - [ ] `request_test.go` の `/articles` で確かめる版（ステップ 2-1）を削除する。
 - [ ] 使う所がなくなる補助 `postOnUnix`・`serveAccepted`・`panickingNotifier`・`nopNotifier`・`countingPublisher.Publish`・`nopPublisher.Publish` を削除する。
-- [ ] `/articles` の拒否のテストを `jobs_api_test.go` に加える（`TestJobsTargetRejections` の行か、並べたサブテスト）。生成の枠と読み込みの枠をあらかじめすべて埋め、本文に読んだバイト数を数えるリーダーを渡したうえで、各メソッドで `/articles` を送り、`not_found` になること、本文を 1 バイトも読まないこと、Writer と投稿の相手が呼ばれないことを確かめる（AC-01）。
-- [ ] `TestServeShutdownCancelsGeneration` を、停止を始めた時点で実行中だった生成の数が `canceledGenerations=1` になり、待ち始めと待ち終えた行が失敗の通知に触れないことを確かめる形にする。`TestServeShutdownCancelsLateStart` で、停止の後に受け付けた生成が数に入らない（`canceledGenerations=0`）ことを確かめる（設計書 3.2.2 節、AC-16）。
+- [ ] 未知のパスの拒否のテスト（`jobs_api_test.go` の `TestJobsTargetRejections` の行か、並べたサブテスト）に、今のテストにない確かめだけを加える。`/articles` ではない未知のパスを使い、生成の枠と読み込みの枠をあらかじめすべて埋め、本文に読んだバイト数を数えるリーダーを渡したうえで、各メソッドで送り、`not_found` になること、本文を 1 バイトも読まないこと、Writer と投稿の相手が呼ばれないことを確かめる（AC-01）。`/articles` 専用の行は加えない（1.6 節。`/articles` の不在はステップ 3-4 の `_checks/residue` で確かめる）。
+- [ ] `TestServeShutdownCancelsGeneration` を、停止を始めた時点で実行中だった生成の数が `canceledGenerations=1` になることを確かめる形にする（行が失敗の通知に触れないことは、ステップ 3-4 の `_checks/residue` で確かめる。1.6 節）。`TestServeShutdownCancelsLateStart` で、停止の後に受け付けた生成が数に入らない（`canceledGenerations=0`）ことを確かめる（設計書 3.2.2 節、AC-16）。
 - [ ] `TestPublishFailureNotNotified` を `TestPublishFailureReason` に改め、失敗の通知の確かめだけを除く（失敗の理由 `internal` とログの `reason=` の確かめは残す。1.4 節）。
 - [ ] 失敗の通知の送り手を参照するテストと補助の値を直す: `TestStartHandlerPanicCleanup`・`TestPublishHandlerPanicCleanup`・`TestStatusHasNoSideEffects`・`TestNewWebhookOptions`・`newServer`・`newCustomServer`・`newTestServer`・`newJobsTestServer`。
-- [ ] `cmd/yt2column-server` のテストを直す: `TestStartupFailures` の失敗の通知の送り手の行を削除する。`TestBuildsSlackPublisher` から失敗の通知の送り手の確かめを除く。`TestStartsWithoutWebhook` から `d.newNotifier` を除き、警告が `/articles` に触れないことを確かめる（AC-04）。`TestRunLogsListeningAndStop` を、停止の案内が「about 5 minutes」を含み、`/articles` と失敗の通知に触れないことを確かめる形にする（AC-15、計算の式を使わずに文字列で確かめる）。`TestWriterOptionsMatchCLIDefaults`・`testDeps`・`loopbackDeps` から失敗の通知を除く。
+- [ ] `cmd/yt2column-server` のテストを直す: `TestStartupFailures` の失敗の通知の送り手の行を削除する。`TestBuildsSlackPublisher` から失敗の通知の送り手の確かめを除く。`TestStartsWithoutWebhook` から `d.newNotifier` を除く（AC-04）。`TestRunLogsListeningAndStop` を、停止の案内が「about 5 minutes」を含むことを確かめる形にする（AC-15、計算の式を使わずに文字列で確かめる）。警告と停止の案内が `/articles` と失敗の通知に触れないことは、ステップ 3-4 の `_checks/residue` で確かめる（1.6 節）。`TestWriterOptionsMatchCLIDefaults`・`testDeps`・`loopbackDeps` から失敗の通知を除く。
 - [ ] `cmd/yt2column-server/docs_test.go` の curl の例のガードから `server.ArticlesPath` の行を除き、`pathForm` から `server.ArticlesPath` を除く（設計書 3.6 節、AC-20）。
 - [ ] 加えたテストの行と書き換えた確かめが、それぞれ対象を壊して失敗することを確かめ、コミットメッセージに書く。
 
@@ -310,7 +315,7 @@ localhost サーバの旧 API（`POST /articles`）・旧 API のジョブ・失
     -   AC-06: AC-06 が挙げる識別子（`cmd/yt2column-server` の `newNotifier`・`deps` のフィールド `newNotifier`・`llmCallsPerJob` を含む）が、それを定義していたパッケージ（`internal/server`・`internal/publisher`・`cmd/yt2column-server`）に宣言されておらず、ほかのパッケージから修飾子つきで参照されていない。どの Go のファイルも `internal/failure` と `internal/failure/testutil` を import しない。`internal/server` に `classifyWrite` が宣言されている。
     -   AC-07: `internal/server` の `WebhookPublisher` のメソッドが `PostMessages` だけで、埋め込みを持たない。`internal/server` と `cmd/yt2column-server` は、テストでないコードで `internal/pipeline` を直接にも間接にも import しない（各コミットのソースで `go list -deps` を実行して読む）。テストでないコードで `.Publish` のセレクタ式（呼び出しとメソッド値）は `internal/pipeline` にだけある。
     -   AC-02: `internal/server` と `cmd/yt2column-server` のテストでないコードで、`.PostMessages` のセレクタ式は `internal/server` の `runPublish` の中にだけある。
-    -   AC-08: 1.3 節のとおり、`internal/server`・`cmd/yt2column-server`・`internal/serversock`・`internal/publisher` のテストでないファイルのコメントと文字列リテラルに、`/articles` と失敗の通知を指す語がない。
+    -   AC-08（AC-01・AC-04・AC-15・AC-16 の移行の確認を兼ねる。1.6 節）: 1.3 節のとおり、`internal/server`・`cmd/yt2column-server`・`internal/serversock`・`internal/publisher` のテストでないファイルのコメントと文字列リテラルに、`/articles` と失敗の通知を指す語がない。`matchTarget` の `/articles` の分岐、起動時の警告、停止の案内、シャットダウンのログの文字列を含む。
 - [ ] 各確かめについて、merge-base を head として渡したときの結果を確かめる。merge-base で成り立つ確かめ（`classifyWrite` の宣言、`.Publish` のセレクタ式、`.PostMessages` のセレクタ式）は、それぞれを成り立たなくする一時的なコミット（ブランチに載せない）を head として渡して、成り立たないと出ることを確かめる。
 
 **完了の条件:** `go vet -tags test` がスクリプトを通し、`_checks/residue` が `HEAD` で `0` を返す（記録はステップ 4-3）。
@@ -393,7 +398,8 @@ M1 は M2〜M4 に依存しない。設計書 8 章のとおり、ホストを�
 設計書 7 章のとおりである。どの AC をどのテストで確かめるかは本書 7 章に示す。
 
 -   **単体テスト:** 残る振る舞いを旧 API や今の形のメッセージで確かめていたテストは、ジョブの API や新しい形のメッセージで確かめ直す（ステップ 1-2・2-1・2-2）。旧 API と今の形だけを確かめるテストは削除する（ステップ 1-3・3-2）。確かめ直すテストは、対象とする段階まで届くことも、ログの `stage=` などの肯定の印で確かめる（設計書 7.1 節の前置き、1.2 節）。
--   **統合テスト:** `TestRelayEndToEnd` を新しい形に移し、字幕が正しくない場合に Webhook が何も受け取らないこと（AC-02）と、今の形のメッセージが拒否されること（AC-10）のサブテストを持たせる（ステップ 1-2・1-3）。
+-   **統合テスト:** `TestRelayEndToEnd` を新しい形に移し、字幕が正しくない場合に Webhook が何も受け取らないこと（AC-02）のサブテストを持たせる（ステップ 1-2）。今の形のメッセージが拒否されることは、単体テストの規則の行で確かめる（1.6 節）。
+-   **削除と移行の確認:** 削除したもの・移行前の形がもうないことは、永続のテストにせず、`_checks/residue` と PR の時点の確認で一度だけ確かめる（1.6 節）。
 -   **後方互換:** ジョブの API の受理・拒否・応答（AC-03）、新しい形の中継（AC-09）、CLI（AC-05）は、既存のテストが通ることで確かめる。移し替えで書き換えるテストでも、既存の行の期待する値は変えない。版がそろっていない組み合わせ（要件書 4.4）は、本タスクのホストが今の形を拒否すること（ステップ 1-3）とサーバが `/articles` を `not_found` にすること（ステップ 3-2）で確かめる。
 -   **セキュリティ:** ホストの入力の境界は、ステップ 1-3 の拒否のテストで、標準ライブラリが黙って直す入力が送られずに拒否されることを確かめる。Webhook へ送る経路が投稿のジョブだけであることは、`_checks/residue`（AC-02・AC-07）と `depguard` の規則で確かめる（設計書 7.3 節）。
 -   **テストの削除の確かめ:** テストの移し替えのコミットと削除のコミットのそれぞれで、1.3 節「カバレッジの比べ方」のとおりに比べる（ステップ 1-2・1-3・2-3・3-3）。
@@ -413,7 +419,7 @@ M1 は M2〜M4 に依存しない。設計書 8 章のとおり、ホストを�
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
-- [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5）
+- [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5）
 - [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 3-1 / 3-2 / 3-3 / 3-4 / 4-1 / 4-2 / 4-3）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
@@ -422,22 +428,22 @@ M1 は M2〜M4 に依存しない。設計書 8 章のとおり、ホストを�
 
 | AC | 種別 | 確かめ | ステップ |
 |---|---|---|---|
-| AC-01 | test | `internal/server/jobs_api_test.go` に加える `/articles` の拒否のテスト（`TestJobsTargetRejections` の行か、並べたサブテスト） | 3-2 |
+| AC-01 | test・static | test: `internal/server/jobs_api_test.go` の未知のパスの拒否のテスト（`TestJobsTargetRejections` の行か、並べたサブテスト。本文を読まない、枠を取らない）。static: `_checks/residue`（`ArticlesPath` の不在、`/articles` を含む文字列リテラルの不在） | 3-2・3-4・4-3 |
 | AC-02 | test・static | `cmd/yt2column-server/relay_e2e_test.go::TestRelayEndToEnd/invalid_transcript_posts_nothing`。static: `_checks/residue`（`.PostMessages` のセレクタ式が `runPublish` だけ、`WebhookPublisher` が `PostMessages` だけ）、`.golangci.yml` の `depguard` の規則（`make lint`） | 1-2・3-3・3-4・4-3 |
 | AC-03 | test | 既存のジョブの API のテストが通ること: `internal/server/jobs_api_test.go`（`TestStartAccepted`・`TestStartReadSlotsFull`・`TestStartGenerationSlotsFull`・`TestJobsTargetRejections` など）、`publish_test.go`・`status_test.go`、`handler_test.go::TestRejectStatusCodes`、`cmd/yt2column-server/docs_test.go::TestServerDocsContract`（拒否の理由と状態コード） | 2-1・3-2 |
-| AC-04 | test | `cmd/yt2column-server/run_test.go::TestStartsWithoutWebhook`（警告が `/articles` に触れない）・`TestStartupFailures`、`internal/server/publish_test.go::TestPublishWithoutWebhook`（本文を読まない）、`internal/server/server_test.go::TestNewWebhookOptions` | 2-1・2-2・3-2 |
+| AC-04 | test・static | test: `cmd/yt2column-server/run_test.go::TestStartsWithoutWebhook`・`TestStartupFailures`、`internal/server/publish_test.go::TestPublishWithoutWebhook`（本文を読まない）、`internal/server/server_test.go::TestNewWebhookOptions`。static: `_checks/residue`（警告の文字列が `/articles` に触れない） | 2-1・2-2・3-2・3-4 |
 | AC-05 | test | `make test` の `cmd/yt2column` と `internal/pipeline` のテスト（`cmd/yt2column/run_test.go::TestRunSlackFailureHints` など、変えない） | 3-2 |
 | AC-06 | static | `_checks/residue`（AC-06 の識別子・パッケージの不在、`classifyWrite` の存在）。`make deadcode` | 3-3・3-4・4-3 |
 | AC-07 | static | `_checks/residue`（`WebhookPublisher` のメソッド、`internal/server`・`cmd/yt2column-server` の依存に `internal/pipeline` がないこと、`.Publish` のセレクタ式） | 3-4・4-3 |
-| AC-08 | static・manual | static: `_checks/residue`（コメントと文字列リテラルの語）、`cmd/yt2column-server/run_test.go::TestStartsWithoutWebhook`（警告）・`TestRunLogsListeningAndStop`（停止の案内）、`internal/server/server_test.go::TestServeShutdownCancelsGeneration`（シャットダウンのログ）。manual: PR-2 のレビューで、コメントの文の意味を読む | 3-2・3-4・4-3 |
+| AC-08 | static・manual | static: `_checks/residue`（コメントと文字列リテラルの語。警告・停止の案内・シャットダウンのログを含む）。manual: PR-2 のレビューで、コメントの文の意味を読む | 3-2・3-4・4-3 |
 | AC-09 | test | `internal/nmhost/relay_test.go::TestRelayNewFormOperations`・`TestRelayKeyPassedUnchecked`・`TestRelayNewFormRejections`・`TestRelayLengthChecks`・`TestRelayResponseOverLimit`・`TestRelayNewFormTimeout`、`cmd/yt2column-server/relay_e2e_test.go::TestRelayEndToEnd/new_form_operations` | 1-2・1-3 |
-| AC-10 | test | ステップ 1-3 で `TestRelayLegacyBytesUnchanged` を置き換えるテスト（`internal/nmhost/relay_test.go`、`rule=version` の行）、`TestRelayNewFormRejections`（版の検査の順序の 2 行）、`TestRelayEndToEnd` に加えるサブテスト | 1-3 |
-| AC-11 | test | ステップ 1-3 で置き換えるテスト（`rule=object` の 5 種類の行） | 1-3 |
+| AC-10 | test | `internal/nmhost/relay_test.go::TestRelayNewFormRejections`（`rule=version` の行と、版の検査の順序の 2 行） | 1-3 |
+| AC-11 | test | `internal/nmhost/relay_test.go::TestRelayNewFormRejections`（`rule=object` の 5 種類の行） | 1-3 |
 | AC-12 | test・diff | test: `extension/test/native.test.ts`（`protocol_error` を想定外の応答として表示する、`make ext-test`）。diff: `_checks/residue`（`extension/` が merge-base から変わっていない） | 1-4・1-5・4-3 |
 | AC-13 | static・test | `_checks/residue`（`internal/nmhost` の今の形の値の宣言と、テストでないファイルの `/articles` の文字列の不在）、`internal/nmhost/relay_test.go::TestRequestRefusesUnroutable` | 1-3・1-5 |
-| AC-14 | test | ステップ 1-3 で置き換えるテスト（ログに固定の値だけを書く）、`internal/nmhost/relay_test.go::TestRelayNewFormLogOmitsMessage` | 1-3 |
-| AC-15 | test | `cmd/yt2column-server/run_test.go::TestRunLogsListeningAndStop`、ステップ 3-2 で加える分を求める関数の表のテスト | 3-2 |
-| AC-16 | test | `internal/server/server_test.go::TestServeShutdownCancelsGeneration`・`TestServeShutdownCancelsLateStart` | 3-2 |
+| AC-14 | test | `internal/nmhost/relay_test.go::TestRelayNewFormLogOmitsMessage`（`rule=version`・`rule=object` の行を含む） | 1-3 |
+| AC-15 | test・static | test: `cmd/yt2column-server/run_test.go::TestRunLogsListeningAndStop`（「about 5 minutes」）、ステップ 3-2 で加える分を求める関数の表のテスト。static: `_checks/residue`（停止の案内の文字列が `/articles` と失敗の通知に触れない） | 3-2・3-4 |
+| AC-16 | test・static | test: `internal/server/server_test.go::TestServeShutdownCancelsGeneration`・`TestServeShutdownCancelsLateStart`（`canceledGenerations`）。static: `_checks/residue`（シャットダウンのログの文字列が `/articles` と失敗の通知に触れない） | 3-2・3-4 |
 | AC-17 | test | `cmd/yt2column-server/signal_test.go::TestSignalWaitsForJob`・`TestSecondSignalExitsAtOnce`、`run_test.go::TestStartDuringShutdownRefused`、`internal/server/publish_test.go::TestServeShutdownWaitsForPublish`・`server_test.go::TestServeShutdownCancelsGeneration` | 2-2・3-2 |
 | AC-18 | manual・test | manual: PR-1・PR-2 のレビューで AC-18 が挙げる文書を読む（同時に読む本文の数と約 5 分を含む。ガードを加えない理由は 1.3 節）。test: `cmd/yt2column-server/docs_test.go::TestServerDocsContract`（値の部分）、`internal/pipeline/pipeline_test.go::TestPackageReferenceListsPackages`（`package_reference.md` の行の集合）、`make readme-sync-check`（README の 2 つの版の同期） | 1-4・3-3・4-1・4-2 |
 | AC-19 | manual | PR-1・PR-2 のレビューで CLAUDE.md の 2 か所を読む | 1-4・4-1 |
@@ -449,6 +455,31 @@ M1 は M2〜M4 に依存しない。設計書 8 章のとおり、ホストを�
 ### 7.1. 実行の記録
 
 （ステップ 1-5 と 4-3 で記入する。）
+
+#### PR-1（ステップ 1-5、2026-11-04）
+
+**`_checks/residue`:** merge-base `302a4b28f93a625a14a59e20f04eeceebebefd83`、head `d45efb5b530e277631aa7f93fdb1140bf09f4caa`（PR-1 の実装、レビューの修正、1.6 節の決定によるテストの整理を含む最後のコミット。この後のコミットは本書だけを変え、確かめの対象のファイルを変えない）。
+
+```text
+$ go run -tags test ./docs/tasks/0059_remove_legacy_articles_api/_checks/residue/ 302a4b28f93a625a14a59e20f04eeceebebefd83 d45efb5b530e277631aa7f93fdb1140bf09f4caa
+OK   host
+OK   extension
+（終了コード 0）
+```
+
+-   merge-base を head として渡すと、AC-13 の確かめ（`host`）が成り立たず、終了コード `1` になる。`internal/nmhost/relay.go` の `articlesURL`・`form`・`formLegacy`・`formNew`・`destination.form` の宣言と、`"/articles"` を含む文字列リテラルの 6 件を挙げる。`extension` は `OK` である。
+-   `extension/src/core/native.ts` に 1 行を加えた一時的なコミット `b602f059c988bb9060a9fc9dc01ef48a4a75891f`（ブランチに載せない）を head として渡すと、AC-12 の確かめ（`extension`）が `NG`（`extension/src/core/native.ts changed`）になり、終了コード `1` になる。`host` は `OK` である。
+
+**カバレッジの比較:** どれも `go test -tags test -count=1 -coverpkg=./... -coverprofile=<file> ./...` を両方のコミットで実行し（どちらもテストがすべて通った）、`go tool cover -func` の出力を比べた。
+
+| ステップ | 比べたコミット | スクリプト | 結果 |
+|---|---|---|---|
+| 1-2（テストの移し替え） | `28e460b0` → `4860cdb3` | 0052 の `_checks/coverage` | `OK`: 1292 の製品の関数すべてでカバレッジが同じ |
+| 1-3（形の判定の削除） | `4860cdb3` → `e4d258d6` | 本タスクの `_checks/coverage` | 前だけ・後だけの関数なし、下がった関数なし。上がった関数が 1 つ（`internal/cmdrunner` の `signalGroup` 66.7% → 100.0%）。本タスクが変えないパッケージの、時間に左右される分岐である |
+
+-   レビューの修正で `TestRelayForwardsOneRequest` を削除したコミット `db29be10` では、`internal/nmhost` の `go tool cover -func`（`-coverpkg=./internal/nmhost`）が削除の前後で関数ごとに同じであることを確かめた。
+-   1.6 節の決定でテストを削除・統合したコミットでは、`internal/nmhost`（`-coverpkg=./internal/nmhost`）と `cmd/yt2column-server`（`-coverpkg=./...`）の `go tool cover -func` が、前後で関数ごとに同じであることを確かめた。
+-   カバレッジを測る実行では、`internal/transcript` の `TestCommandExecutorDrainsStderr` が負荷のために 1 回ずつ失敗し、再実行で通った。本タスクと関係のない、時間に左右されるテストである。
 
 ## 8. 成功基準 (Success Criteria)
 
@@ -465,3 +496,4 @@ M1 は M2〜M4 に依存しない。設計書 8 章のとおり、ホストを�
 ## 変更履歴
 
 - 2026-11-04 承認（isseis、#651）
+- 2026-11-04 セッション中の再承認：削除と移行が済んだことの確認を一度だけの確認にし、永続のテストには最終的な仕様の規則と値だけを置く（isseis、#654）

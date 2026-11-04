@@ -87,6 +87,10 @@ flowchart LR
 -   **PR は 2 つに分ける（H-09）。** PR-1 はホストの今の形の中継の削除で、CLAUDE.md の例外の段落とホストを書く文書を含む。PR-2 はサーバの旧 API と失敗の通知の削除で、残りの文書と README を含む（8 章）。ホストの変更は小さく独立しており、CLAUDE.md の例外は、ホストの判定を削除する PR で取り除く必要があるためである（H-09）。
 -   **テストの移し替えは、製品のコードを変えないコミットとして削除より先に置く（H-05）。** タスク 0055 のカバレッジを比べる道具（`make coverage-compare`・`make ext-coverage-compare`、issue #618）は、残る関数の中身が変わる比較では止まる（0055 `01_requirements.md` 1 章「削除以外の変更で対応が付かなければ止める」）。本タスクの削除は `handler`・`route` などの残る関数の書き換えを伴うので、削除のコミットにはこの道具を使えない。一方、テストだけを変えるコミットは道具が想定する使い方そのものである。そこで、確かめられる部分を道具に任せ、手で比べる範囲を削除で消えたものだけに絞るため、コミットを分ける（7.1 節「テストの削除の確かめ方」）。
 
+### 1.4. 実装の際に決めたこと（2026-11-04）
+
+-   **削除と移行が済んだことの確認は一度だけ行い、永続のテストにしない。** 削除したもの・移行前の形がもうないことの確認（ログに属性 `form` が出ない、#503 より前の拡張のメッセージを本物のホストが拒否する、`/articles` が `not_found` になる、警告・停止の案内・シャットダウンのログが `/articles` と失敗の通知に触れない）は、`_checks/` のスクリプトと PR の時点の確認で一度だけ行う。永続のテストには、新しく設計しても書く、最終的な仕様の規則と値だけを置く（`v` がないメッセージと厳格な JSON オブジェクトでないメッセージの拒否、版の検査の順序、`canceledGenerations` の値、停止の案内の「約 5 分」など）。理由: 削除したものが戻る経路はコードを書き戻すことだけであり、その不在を永続のテストで固定すると、退役した仕様をテストが持ち続ける。CLAUDE.md「Document tests」が文書について禁じていることと同じ構造である。7.1 節・7.2 節・7.4 節の表はこの決定に合わせた。
+
 ## 2. システム構成 (System Structure)
 
 ### 2.1. 全体の構成
@@ -515,10 +519,10 @@ sequenceDiagram
 
 | テスト | 扱い |
 |---|---|
-| `internal/nmhost/relay_test.go` の `TestRelayLegacyBytesUnchanged` | 削除し、同じ入力（`v` を持たないもの、厳格な JSON オブジェクトでないもの）が、送られずに `protocol_error` になり、ログに `stage=form` と `rule=version`・`rule=object` を書くことを確かめるテストに置き換える。#503 より前の拡張が送る形のメッセージ（`videoUrl`・`transcript`・`title` を持つ）が `rule=version` になる行を含める（AC-10・AC-11・AC-14） |
+| `internal/nmhost/relay_test.go` の `TestRelayLegacyBytesUnchanged` | 削除する。`v` を持たないメッセージと厳格な JSON オブジェクトでないメッセージが、送られずに `protocol_error` になり、ログに `stage=form` と `rule=version`・`rule=object` を書くことは、受理の規則として `TestRelayNewFormRejections` の行で確かめ、ログにメッセージの値を書かないことは `TestRelayNewFormLogOmitsMessage` の行で確かめる（AC-10・AC-11・AC-14、1.4 節） |
 | `TestRelayForwardsOneRequest` | 作り直す。正しくない UTF-8 のバイト列をそのまま送るという前提（`relay_test.go:296-297`）は成り立たなくなるので、生成の開始の `input` のバイト列がそのまま送られることを確かめる形にする |
 | `TestRelayServerEarlyRejection`（`:365-404`）、`TestRelayHostErrors`（`:514`・`:622`）、`TestRelayOutputs`（`:716`）、`TestRelayNoReplyFrame`（`:784`・`:800`） | 今の形のメッセージを入力に使っているので、新しい形のメッセージに移す。`Expect: 100-continue` の早い拒否は大きい `input` を持つ生成の開始で、交換の段階のホストのエラーと出力の検査は状態の取得などで確かめる |
-| `TestRelayNewFormOperations`（`:882`）、`TestRelayNewFormLogOmitsMessage`（`:1070`）、`TestRelayKeyPassedUnchecked`、`TestRelayNewFormRejections` | `form=` の確かめを除き、ログに `form=` が出ないことを確かめる。`TestRelayNewFormRejections` には、版の検査がメンバの検査より先にあることを確かめる行（`v` がなく宣言していないメンバを持つ → `rule=version`、`v` が `2` で宣言していないメンバを持つ → `rule=version`）を加える |
+| `TestRelayNewFormOperations`（`:882`）、`TestRelayNewFormLogOmitsMessage`（`:1070`）、`TestRelayKeyPassedUnchecked`、`TestRelayNewFormRejections` | `form=` の確かめを除く（`form=` が出ないことは永続のテストにしない。1.4 節）。`TestRelayNewFormRejections` には、版の検査がメンバの検査より先にあることを確かめる行（`v` がなく宣言していないメンバを持つ → `rule=version`、`v` が `2` で宣言していないメンバを持つ → `rule=version`）を加える |
 | `TestRequestRefusesUnroutable`（`:1082-1096`） | `destination.form` と型 `form` がなくなるので作り直す。`op` だけを持つ送り先（ゼロ値、`OperationPublish+1`、`-1` など）で、`request` が何も送らずに拒否することを確かめる。ゼロ値の `Operation` は `request` の `default` が拒否する |
 | `TestRelayMessageReadFailures`（`:411`） | 読み込みの段階で失敗するので今の形のメッセージのままでも通るが、本タスクの後は受理しない形なので、新しい形のメッセージに移す |
 | `cmd/yt2column-nmhost/main_test.go` の `TestRelayUsesDerivedSocket`（`:254-`） | `{}` のメッセージを新しい形のメッセージに移す |
@@ -536,11 +540,11 @@ sequenceDiagram
 | `publish_test.go` の `TestPublishPostsLikeArticles` | `/articles` の代わりに、同じ記事を `SlackWebhookPublisher.Publish`（CLI の経路）で同じループバックの Webhook へ送ったときのメッセージと、投稿の操作が送るメッセージが一致することを確かめる。テストのコードが `Publish` を呼ぶのは、7.4 節の AC-07 の静的な確認の対象外である |
 | `server_test.go` の `TestServeShutdownCancelsGeneration` | 旧 API のジョブを除き、停止を始めた時点で実行中だった生成の数が待ち始めの行の `canceledGenerations=1` になることを確かめる（H-01）。数えるのは `genCancel` の前なので、生成のジョブが取り消されて枠を放す速さに左右されない |
 | `server_test.go` の `TestNewWebhookOptions`・`TestNewCopiesWebhookOptions`、`test_helpers.go` の `newCustomServer`・`countingPublisher.Publish`・`panickingNotifier`・`serveAccepted` など | 値を直すか削除する |
-| `jobs_api_test.go` の `TestJobsTargetRejections`（またはそれに並ぶテスト） | `/articles` を各メソッドで送り、`not_found`・本文を読まないこと・枠を取らないこと・Writer を呼ばないこと・Webhook へ送らないことを確かめる行を加える（AC-01） |
+| `jobs_api_test.go` の `TestJobsTargetRejections`（またはそれに並ぶテスト） | 未知のパスが `not_found` になり、本文を読まず、枠を取らず、Writer を呼ばず、Webhook へ送らないことを、`/articles` ではない未知のパスで確かめる（今のテストにない確かめだけを加える）。`/articles` がほかの未知のパスと同じく扱われることは、7.4 節の一度だけの静的な確認で確かめる（AC-01、1.4 節） |
 | `cmd/yt2column-server/signal_test.go` の `blockingChild`・`TestSignalWaitsForJob`・`TestSecondSignalExitsAtOnce`、`run_test.go` の `TestStartDuringShutdownRefused` | ジョブの API で確かめ直す。止める対象を、LLM の呼び出しの代わりに投稿のジョブの Webhook への送信にする（生成のジョブは停止で取り消されるので、停止を待たせる対象にならない）。子プロセスの `childModeBlock` は、`SLACK_WEBHOOK_URL` を設定し、印のファイルができるまで `PostMessages` が返らない投稿の相手を使う。テストは、生成を終えさせ、投稿の操作を送り、送信が始まったのを待ってからシグナルを送る。使われなくなる `blockingLLM` と `nopPublisher.Publish`（`test_helpers.go:255`）は削除する |
-| `cmd/yt2column-server/server_test.go` の `TestServerEndToEnd`、`run_test.go` の `TestBuildsSlackPublisher`・`TestStartsWithoutWebhook`・`TestOutputsOmitSecrets`、`test_helpers.go` の `postArticle`・`mustPostArticle`・`nopNotifier`・`loopbackDeps` の送り手 | ジョブの API で確かめ直すか、値を直す。`TestStartsWithoutWebhook` は警告の文言が `/articles` に触れないことの確認を含める（AC-04） |
+| `cmd/yt2column-server/server_test.go` の `TestServerEndToEnd`、`run_test.go` の `TestBuildsSlackPublisher`・`TestStartsWithoutWebhook`・`TestOutputsOmitSecrets`、`test_helpers.go` の `postArticle`・`mustPostArticle`・`nopNotifier`・`loopbackDeps` の送り手 | ジョブの API で確かめ直すか、値を直す。警告の文言が `/articles` に触れないことは、7.4 節の一度だけの静的な確認で確かめる（AC-04、1.4 節） |
 | `run_test.go` の `TestStartupFailures` | 失敗の通知の送り手の組み立ての失敗の行を削除する |
-| `run_test.go` の `TestRunLogsListeningAndStop`（停止の案内の「up to about 45 minutes」を確かめる、`:530-531`） | 今の上限で案内が「about 5 minutes」になることを、計算の式を使わずに文字列で確かめ、`/articles` と失敗の通知に触れないことを確かめる（AC-15） |
+| `run_test.go` の `TestRunLogsListeningAndStop`（停止の案内の「up to about 45 minutes」を確かめる、`:530-531`） | 今の上限で案内が「about 5 minutes」になることを、計算の式を使わずに文字列で確かめる。`/articles` と失敗の通知に触れないことは、7.4 節の一度だけの静的な確認で確かめる（AC-15、1.4 節） |
 | `cmd/yt2column-server/docs_test.go` | 3.6 節のとおり |
 | `internal/publisher/test_helpers_slack.go` の `NewSlackFailureNotifierForLoopbackTest`・`newSlackFailureNotifierForLoopbackTest` | 削除する |
 | `internal/pipeline/pipeline_test.go` の `TestFakesCarryBuildTag` | testutil のファイル数の期待値を 25 から 24 に直す。`internal/failure/testutil/mocks.go` を削除するのと同じ PR・同じコミットで直さないと、このテストが失敗する |
@@ -576,9 +580,9 @@ sequenceDiagram
 | 確かめ方 | 対象の AC |
 |---|---|
 | 単体テスト（7.1 節） | AC-01・AC-03・AC-04・AC-09〜AC-11・AC-14〜AC-17 |
-| 統合テスト（7.2 節） | AC-02・AC-10 |
+| 統合テスト（7.2 節） | AC-02 |
 | 既存のテストがそのまま通ること | AC-03（ジョブの API の拒否と応答）、AC-05（CLI のテスト）、AC-09（新しい形の中継） |
-| 一度だけ行う静的な確認（`_checks/` のスクリプトなど、手段は計画で決める）。名前の衝突（`signal.Notify`、`classifyWrite` など）を避けるため、単純な文字列の検索ではなく、パッケージと識別子で確かめる。確かめる内容は、AC-06 の名前とパッケージがリポジトリの Go のコード（テストを含む）に残らないこと、`WebhookPublisher` が `Publish` を持たないこと、テストでないコードで `SlackWebhookPublisher.Publish` を呼ぶのが CLI の経路だけであること、`internal/server` で `PostMessages` を呼ぶのが `runPublish` だけであること、`internal/nmhost` に `/articles` と今の形を表す値がないこと、の 5 つである | AC-02・AC-06・AC-07・AC-13 |
+| 一度だけ行う静的な確認（`_checks/` のスクリプトなど、手段は計画で決める）。名前の衝突（`signal.Notify`、`classifyWrite` など）を避けるため、単純な文字列の検索ではなく、パッケージと識別子で確かめる。確かめる内容は、AC-06 の名前とパッケージがリポジトリの Go のコード（テストを含む）に残らないこと、`WebhookPublisher` が `Publish` を持たないこと、テストでないコードで `SlackWebhookPublisher.Publish` を呼ぶのが CLI の経路だけであること、`internal/server` で `PostMessages` を呼ぶのが `runPublish` だけであること、`internal/nmhost` に `/articles` と今の形を表す値がないこと、サーバ（`internal/server`・`cmd/yt2column-server`）のテストでないコードの文字列リテラルに `/articles` と失敗の通知を指す語がないこと（`matchTarget` の `/articles` の分岐、起動時の警告、停止の案内、シャットダウンのログを含む。1.4 節）、の 6 つである | AC-01・AC-02・AC-04・AC-06・AC-07・AC-08・AC-13・AC-15・AC-16 |
 | `.golangci.yml` の `depguard` の規則（PR-2 で加える）: `internal/server` が `internal/pipeline` を import しないこと。一度だけの確認と違い、後の変更で旧 API のような第 2 の投稿の経路が戻るのを `make lint` で止める | AC-02・AC-06 |
 | `make deadcode` が何も報告しないこと | 要件書 4.5 |
 | ガードのテスト（`docs_test.go` など） | AC-20（curl の例）・AC-21 |
@@ -652,3 +656,4 @@ PR-2 の中の順序（コードを先に、文書を後に、など）は計画
 ## 変更履歴
 
 - 2026-11-04 承認（isseis、#644）
+- 2026-11-04 セッション中の再承認：削除と移行が済んだことの確認を一度だけの確認にし、永続のテストには最終的な仕様の規則と値だけを置く（isseis、#654）

@@ -291,37 +291,48 @@ func firstDifference(a, b []byte) int {
 	return min(len(a), len(b))
 }
 
-func TestRelayForwardsOneRequest(t *testing.T) {
-	// The message is not valid UTF-8, so a host that decoded or re-encoded it
-	// would change its bytes.
-	msg := []byte("{\"videoUrl\":\"x\",\"transcript\":\"\xff\xfe\"}")
-	// The server's body is not valid UTF-8 either: the reply must carry its
-	// bytes, not a repaired string.
-	accepted := []byte("{\"status\":\"accepted\",\"requestId\":\"\xff\xc0\"}")
-	path, got := recordingServer(t, accepted)
-	dial, dials := countDials(SocketDialer(path))
+// statusMessage returns a new-form status request for testKey, a message
+// the host sends to the server.
+func statusMessage() []byte {
+	return []byte(`{"v":1,"op":"status","key":"` + testKey + `"}`)
+}
 
-	members := runRelay(message(msg), dial, testTimeout).reply(t)
+// startMessage returns a new-form generation start carrying input, which must
+// be a JSON object.
+func startMessage(input string) []byte {
+	return []byte(`{"v":1,"op":"start","input":` + input + `}`)
+}
 
-	requireResponse(t, members, http.StatusAccepted, accepted)
-	req := got()
-	// TestMain sets a proxy in the environment, so this also checks that the
-	// transport ignores it: through a proxy the target would be an absolute
-	// URI.
-	if req.method != http.MethodPost || req.requestURI != "/articles" {
-		t.Errorf("request line = %s %s, want POST /articles", req.method, req.requestURI)
+// requireStage checks that the log names want as the stage the relay ended
+// at. Below the form stage it also rules the form stage out, so the check
+// stays meaningful if a relay ever logs more than one line.
+func requireStage(t *testing.T, log string, want stage) {
+	t.Helper()
+	if !strings.Contains(log, stageKey+"="+string(want)) {
+		t.Errorf("the log does not name the %s stage:\n%s", want, log)
 	}
-	if req.contentLength != int64(len(msg)) || len(req.transferEncoding) != 0 {
-		t.Errorf("Content-Length = %d, Transfer-Encoding = %v; want Content-Length %d", req.contentLength, req.transferEncoding, len(msg))
+	if want != stageForm && strings.Contains(log, stageKey+"="+string(stageForm)) {
+		t.Errorf("the log names the form stage, want only %s:\n%s", want, log)
 	}
-	if req.expect != "100-continue" || req.contentType != "application/json" {
-		t.Errorf("Expect = %q, Content-Type = %q; want 100-continue, application/json", req.expect, req.contentType)
-	}
-	if !bytes.Equal(req.body, msg) {
-		t.Errorf("server received %q, want the message bytes %q", req.body, msg)
-	}
-	if n := dials.Load(); n != 1 {
-		t.Errorf("Dial called %d times, want 1", n)
+}
+
+// countedRaw is serveRaw that counts the requests whose head the server read.
+// The count is taken in the server's goroutine, which a host that gave up
+// waiting does not synchronize with, so the returned function waits up to
+// testTimeout for the first request before reading the count.
+func countedRaw(t *testing.T, serve func(net.Conn)) (Dialer, func() int32) {
+	t.Helper()
+	var n atomic.Int32
+	path := serveRaw(t, func(conn net.Conn) {
+		n.Add(1)
+		serve(conn)
+	})
+	return SocketDialer(path), func() int32 {
+		deadline := time.Now().Add(testTimeout)
+		for n.Load() == 0 && time.Now().Before(deadline) {
+			time.Sleep(time.Millisecond)
+		}
+		return n.Load()
 	}
 }
 
@@ -331,22 +342,25 @@ func TestRelayLengthChecks(t *testing.T) {
 		length    uint32
 		want      HostError
 		wantDials int32
+		stage     stage
 	}{
-		{"one byte over the limit", maxMessageBytes + 1, HostErrorMessageTooLarge, 0},
-		{"largest length", math.MaxUint32, HostErrorMessageTooLarge, 0},
+		{"one byte over the limit", maxMessageBytes + 1, HostErrorMessageTooLarge, 0, stageLength},
+		{"largest length", math.MaxUint32, HostErrorMessageTooLarge, 0, stageLength},
 		// At the limit the host connects; the failing dial makes that visible
 		// without sending 32 MiB.
-		{"at the limit", maxMessageBytes, HostErrorServerUnavailable, 1},
+		{"at the limit", maxMessageBytes, HostErrorServerUnavailable, 1, stageConnect},
 		// The browser never sends an empty message; it is not "too large".
-		{"zero length", 0, HostErrorProtocol, 0},
+		{"zero length", 0, HostErrorProtocol, 0, stageLength},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Only the start of the body is present; bodyRead shows whether
 			// the host read any of it before deciding.
-			stdin := newStdin(tt.length, []byte(`{"videoUrl":`))
+			stdin := newStdin(tt.length, []byte(`{"v":1,"op":"start","input":`))
 			dial, dials := countDials(failingDial)
-			requireError(t, runRelay(stdin, dial, testTimeout).reply(t), tt.want)
+			result := runRelay(stdin, dial, testTimeout)
+			requireError(t, result.reply(t), tt.want)
+			requireStage(t, result.log, tt.stage)
 			if n := dials.Load(); n != tt.wantDials {
 				t.Errorf("Dial called %d times, want %d", n, tt.wantDials)
 			}
@@ -387,10 +401,14 @@ func TestRelayServerEarlyRejection(t *testing.T) {
 		n, _ := io.Copy(io.Discard, br)
 		sent <- n
 	}()
-	body := bytes.Repeat([]byte("a"), 64<<10)
-	stdin := message(body)
+	// A generation start with a large input, whose body waits for 100
+	// Continue.
+	msg := startMessage(`{"transcript":"` + strings.Repeat("a", 64<<10) + `"}`)
+	stdin := message(msg)
 
-	requireResponse(t, runRelay(stdin, SocketDialer(path), testTimeout).reply(t), http.StatusRequestEntityTooLarge, rejected)
+	result := runRelay(stdin, SocketDialer(path), testTimeout)
+	requireResponse(t, result.reply(t), http.StatusRequestEntityTooLarge, rejected)
+	requireStage(t, result.log, stageExchange)
 	select {
 	case n := <-sent:
 		if n != 0 {
@@ -399,8 +417,8 @@ func TestRelayServerEarlyRejection(t *testing.T) {
 	case <-time.After(testTimeout):
 		t.Fatal("the server did not see the host close the connection")
 	}
-	if n := stdin.bodyRead(); n != len(body) {
-		t.Errorf("read %d body bytes, want the whole message of %d", n, len(body))
+	if n := stdin.bodyRead(); n != len(msg) {
+		t.Errorf("read %d body bytes, want the whole message of %d", n, len(msg))
 	}
 }
 
@@ -408,7 +426,7 @@ func TestRelayServerEarlyRejection(t *testing.T) {
 // the host has connected, reads the whole message before sending, and sends
 // nothing.
 func TestRelayMessageReadFailures(t *testing.T) {
-	msg := []byte(`{"videoUrl":"x","transcript":"y"}`)
+	msg := startMessage(`{"videoUrl":"x","transcript":"y"}`)
 	tests := []struct {
 		name    string
 		stdin   func(t *testing.T) io.Reader
@@ -440,9 +458,7 @@ func TestRelayMessageReadFailures(t *testing.T) {
 			if n := got().requests; n != 0 {
 				t.Errorf("the server received %d requests, want none", n)
 			}
-			if !strings.Contains(result.log, "stage=read") {
-				t.Errorf("the log does not name the read stage:\n%s", result.log)
-			}
+			requireStage(t, result.log, stageRead)
 		})
 	}
 }
@@ -463,8 +479,7 @@ func TestRelayResponseOverLimit(t *testing.T) {
 			// A status request, whose response carries the largest article.
 			// At the limit, the reply must also fit the browser's message
 			// limit: encodeReply would turn a larger one into protocol_error.
-			msg := []byte(`{"v":1,"op":"status","key":"` + testKey + `"}`)
-			members := runRelay(message(msg), SocketDialer(path), testTimeout).reply(t)
+			members := runRelay(message(statusMessage()), SocketDialer(path), testTimeout).reply(t)
 			if req := got(); req.method != http.MethodGet || req.requestURI != "/jobs/"+testKey {
 				t.Errorf("request line = %s %s, want the status request", req.method, req.requestURI)
 			}
@@ -511,12 +526,15 @@ func (c *deadlineConn) Close() error {
 }
 
 func TestRelayHostErrors(t *testing.T) {
-	msg := []byte(`{"videoUrl":"x","transcript":"y"}`)
+	msg := statusMessage()
 	tests := []struct {
-		name    string
-		dial    func(t *testing.T) Dialer
+		name string
+		// dial returns the dialer and, when a server answers on it, the
+		// number of request heads that server read.
+		dial    func(t *testing.T) (Dialer, func() int32)
 		timeout time.Duration
 		want    HostError
+		stage   stage
 		// unread is whether the body must be left unread: nothing was sent.
 		unread bool
 		// errno is the OS error the log must name, when one causes the
@@ -525,14 +543,14 @@ func TestRelayHostErrors(t *testing.T) {
 	}{
 		{
 			name: "no socket",
-			dial: func(t *testing.T) Dialer {
-				return SocketDialer(filepath.Join(udstest.Dir(t), "absent.sock"))
+			dial: func(t *testing.T) (Dialer, func() int32) {
+				return SocketDialer(filepath.Join(udstest.Dir(t), "absent.sock")), nil
 			},
-			want: HostErrorServerUnavailable, unread: true, errno: syscall.ENOENT,
+			want: HostErrorServerUnavailable, stage: stageConnect, unread: true, errno: syscall.ENOENT,
 		},
 		{
 			name: "stale socket",
-			dial: func(t *testing.T) Dialer {
+			dial: func(t *testing.T) (Dialer, func() int32) {
 				path := filepath.Join(udstest.Dir(t), "stale.sock")
 				listener, err := net.Listen("unix", path)
 				if err != nil {
@@ -540,13 +558,13 @@ func TestRelayHostErrors(t *testing.T) {
 				}
 				listener.(*net.UnixListener).SetUnlinkOnClose(false)
 				_ = listener.Close()
-				return SocketDialer(path)
+				return SocketDialer(path), nil
 			},
-			want: HostErrorServerUnavailable, unread: true, errno: syscall.ECONNREFUSED,
+			want: HostErrorServerUnavailable, stage: stageConnect, unread: true, errno: syscall.ECONNREFUSED,
 		},
 		{
 			name: "directory without permission",
-			dial: func(t *testing.T) Dialer {
+			dial: func(t *testing.T) (Dialer, func() int32) {
 				skipIfRoot(t)
 				dir := filepath.Join(udstest.Dir(t), "locked")
 				if err := os.Mkdir(dir, 0o700); err != nil {
@@ -555,75 +573,82 @@ func TestRelayHostErrors(t *testing.T) {
 				path := filepath.Join(dir, "s.sock")
 				udstest.Listen(t, path)
 				chmodForTest(t, dir, 0)
-				return SocketDialer(path)
+				return SocketDialer(path), nil
 			},
-			want: HostErrorServerUnavailable, unread: true, errno: syscall.EACCES,
+			want: HostErrorServerUnavailable, stage: stageConnect, unread: true, errno: syscall.EACCES,
 		},
 		{
 			name: "connect attempt outlasts the limit",
-			dial: func(*testing.T) Dialer {
+			dial: func(*testing.T) (Dialer, func() int32) {
 				return func(ctx context.Context) (net.Conn, error) {
 					<-ctx.Done()
 					return nil, ctx.Err()
-				}
+				}, nil
 			},
 			timeout: shortTimeout,
-			want:    HostErrorServerUnavailable, unread: true,
+			want:    HostErrorServerUnavailable, stage: stageConnect, unread: true,
 		},
 		{
 			name: "server never answers",
-			dial: func(t *testing.T) Dialer {
-				return SocketDialer(serveRaw(t, func(conn net.Conn) { _, _ = io.Copy(io.Discard, conn) }))
+			dial: func(t *testing.T) (Dialer, func() int32) {
+				return countedRaw(t, func(conn net.Conn) { _, _ = io.Copy(io.Discard, conn) })
 			},
 			timeout: shortTimeout,
-			want:    HostErrorServerTimeout,
+			want:    HostErrorServerTimeout, stage: stageExchange,
 		},
 		{
 			// The transport reports the broken write itself and the relay's
 			// context is still live, so only the os.ErrDeadlineExceeded
 			// check makes this a timeout.
 			name: "write reports a connection deadline",
-			dial: func(*testing.T) Dialer {
-				return func(context.Context) (net.Conn, error) { return newDeadlineConn(), nil }
+			dial: func(*testing.T) (Dialer, func() int32) {
+				return func(context.Context) (net.Conn, error) { return newDeadlineConn(), nil }, nil
 			},
-			want: HostErrorServerTimeout,
+			want: HostErrorServerTimeout, stage: stageExchange,
 		},
 		{
 			name: "response body stalls",
-			dial: func(t *testing.T) Dialer {
-				return SocketDialer(serveRaw(t, func(conn net.Conn) {
+			dial: func(t *testing.T) (Dialer, func() int32) {
+				return countedRaw(t, func(conn net.Conn) {
 					_, _ = io.WriteString(conn, "HTTP/1.1 202 Accepted\r\nContent-Length: 100\r\n\r\n{\"status\"")
 					_, _ = io.Copy(io.Discard, conn)
-				}))
+				})
 			},
 			timeout: shortTimeout,
-			want:    HostErrorServerTimeout,
+			want:    HostErrorServerTimeout, stage: stageExchange,
 		},
 		{
 			name: "response cut short",
-			dial: func(t *testing.T) Dialer {
-				return SocketDialer(serveRaw(t, func(conn net.Conn) {
+			dial: func(t *testing.T) (Dialer, func() int32) {
+				return countedRaw(t, func(conn net.Conn) {
 					_, _ = io.WriteString(conn, "HTTP/1.1 202 Accepted\r\nContent-Length: 100\r\n\r\n{\"status\"")
-				}))
+				})
 			},
-			want: HostErrorProtocol,
+			want: HostErrorProtocol, stage: stageExchange,
 		},
 		{
 			name: "response not HTTP",
-			dial: func(t *testing.T) Dialer {
-				return SocketDialer(serveRaw(t, func(conn net.Conn) { _, _ = io.WriteString(conn, "not http\r\n\r\n") }))
+			dial: func(t *testing.T) (Dialer, func() int32) {
+				return countedRaw(t, func(conn net.Conn) { _, _ = io.WriteString(conn, "not http\r\n\r\n") })
 			},
-			want: HostErrorProtocol,
+			want: HostErrorProtocol, stage: stageExchange,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			dial, dials := countDials(tt.dial(t))
+			baseDial, requests := tt.dial(t)
+			dial, dials := countDials(baseDial)
 			stdin := message(msg)
 			timeout := cmp.Or(tt.timeout, testTimeout)
 
 			result := runRelay(stdin, dial, timeout)
 			requireError(t, result.reply(t), tt.want)
+			requireStage(t, result.log, tt.stage)
+			if requests != nil {
+				if n := requests(); n != 1 {
+					t.Errorf("the server read %d requests, want 1", n)
+				}
+			}
 			if tt.errno != 0 && !strings.Contains(result.log, "errno=\""+tt.errno.Error()+"\"") {
 				t.Errorf("the log does not name %q:\n%s", tt.errno.Error(), result.log)
 			}
@@ -713,18 +738,19 @@ func TestRelayOutputs(t *testing.T) {
 		messageMarker  = "transcript-marker-7f3a"
 		responseMarker = "response-marker-91c2"
 	)
-	msg := []byte(`{"videoUrl":"x","transcript":"` + messageMarker + `"}`)
-	responseBody := []byte(`{"requestId":"` + responseMarker + `"}`)
+	msg := startMessage(`{"videoUrl":"x","transcript":"` + messageMarker + `"}`)
+	responseBody := []byte(`{"key":"` + responseMarker + `"}`)
 	tests := []struct {
-		name  string
-		dial  func(t *testing.T) Dialer
+		name string
+		// dial returns the dialer and the number of requests its server read.
+		dial  func(t *testing.T) (Dialer, func() int32)
 		check func(t *testing.T, members map[string]any)
 	}{
 		{
 			name: "response",
-			dial: func(t *testing.T) Dialer {
-				path, _ := recordingServer(t, responseBody)
-				return SocketDialer(path)
+			dial: func(t *testing.T) (Dialer, func() int32) {
+				path, got := recordingServer(t, responseBody)
+				return SocketDialer(path), func() int32 { return int32(got().requests) } //nolint:gosec // a request count
 			},
 			check: func(t *testing.T, members map[string]any) {
 				if members["kind"] != "response" {
@@ -736,18 +762,20 @@ func TestRelayOutputs(t *testing.T) {
 			// net/http quotes a malformed response in its error, so a host
 			// that logged the error text would log the server's bytes.
 			name: "unreadable response",
-			dial: func(t *testing.T) Dialer {
-				return SocketDialer(serveRaw(t, func(conn net.Conn) { _, _ = io.WriteString(conn, responseMarker+"\r\n\r\n") }))
+			dial: func(t *testing.T) (Dialer, func() int32) {
+				return countedRaw(t, func(conn net.Conn) { _, _ = io.WriteString(conn, responseMarker+"\r\n\r\n") })
 			},
 			check: func(t *testing.T, members map[string]any) { requireError(t, members, HostErrorProtocol) },
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := runRelay(message(msg), tt.dial(t), testTimeout)
+			dial, requests := tt.dial(t)
+			result := runRelay(message(msg), dial, testTimeout)
 			tt.check(t, result.reply(t))
-			if result.log == "" {
-				t.Error("nothing was logged")
+			requireStage(t, result.log, stageExchange)
+			if n := requests(); n != 1 {
+				t.Errorf("the server read %d requests, want 1", n)
 			}
 			// The reply carries the server's bytes in base64, so a log of the
 			// reply would hide them from a plain-text search.
@@ -781,8 +809,14 @@ func TestRelayNoReplyFrame(t *testing.T) {
 		}
 	})
 	t.Run("stdout fails", func(t *testing.T) {
-		if err := Relay(context.Background(), message([]byte("{}")), failingWriter{}, valid); !errors.Is(err, errStdoutClosed) {
+		var log bytes.Buffer
+		opts := valid
+		opts.Log = &log
+		if err := Relay(context.Background(), message(statusMessage()), failingWriter{}, opts); !errors.Is(err, errStdoutClosed) {
 			t.Errorf("Relay error = %v, want the write failure", err)
+		}
+		if !strings.Contains(log.String(), stageKey+"="+string(stageReply)) {
+			t.Errorf("the log does not name the reply stage:\n%s", log.String())
 		}
 	})
 	t.Run("incomplete options", func(t *testing.T) {
@@ -797,7 +831,7 @@ func TestRelayNoReplyFrame(t *testing.T) {
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				stdin := message([]byte("{}"))
+				stdin := message(statusMessage())
 				var stdout bytes.Buffer
 				if err := Relay(context.Background(), stdin, &stdout, tt.opts); !errors.Is(err, errInvalidOptions) {
 					t.Errorf("Relay error = %v, want errInvalidOptions", err)
@@ -857,7 +891,9 @@ func TestRelayNewFormOperations(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			answer := []byte(`{"status":"ok"}`)
+			// The server's body is not valid UTF-8: the reply must carry its
+			// bytes, not a repaired string.
+			answer := []byte("{\"status\":\"ok\",\"state\":\"\xff\xc0\"}")
 			path, got := recordingServer(t, answer)
 			dial, dials := countDials(SocketDialer(path))
 
@@ -867,6 +903,9 @@ func TestRelayNewFormOperations(t *testing.T) {
 			if req.requests != 1 || dials.Load() != 1 {
 				t.Errorf("the server received %d requests over %d dials, want 1 over 1", req.requests, dials.Load())
 			}
+			// TestMain sets a proxy in the environment, so this also checks
+			// that the transport ignores it: through a proxy the target would
+			// be an absolute URI.
 			if req.method != tt.method || req.requestURI != tt.requestURI {
 				t.Errorf("request line = %s %s, want %s %s", req.method, req.requestURI, tt.method, tt.requestURI)
 			}
@@ -879,55 +918,30 @@ func TestRelayNewFormOperations(t *testing.T) {
 			if got := strings.Join(req.contentLengthHeader, ","); got != tt.contentLength {
 				t.Errorf("Content-Length header = %q, want %q", got, tt.contentLength)
 			}
-			for _, attr := range []string{"form=new", "op=" + tt.op} {
-				if !strings.Contains(result.log, attr) {
-					t.Errorf("the log does not contain %s:\n%s", attr, result.log)
-				}
+			if !strings.Contains(result.log, "op="+tt.op) {
+				t.Errorf("the log does not contain op=%s:\n%s", tt.op, result.log)
 			}
 		})
 	}
 }
 
-// TestRelayLegacyBytesUnchanged checks the messages that are the current
-// form: those without a top-level "v", and those that are not one strict JSON
-// object even when they hold what looks like "v".
-func TestRelayLegacyBytesUnchanged(t *testing.T) {
-	tests := []struct{ name, msg string }{
-		{"current extension message", `{"videoUrl":"x","transcript":"y","title":"t","channelName":"c","description":"d"}`},
-		{"v only below the top level", `{"videoUrl":"x","transcript":{"v":1,"op":"status","key":"k"}}`},
-		{"v with invalid UTF-8", "{\"v\":1,\"op\":\"status\",\"key\":\"\xff\"}"},
-		{"v with trailing data", `{"v":1,"op":"status","key":"k"} {}`},
-		{"v with an unpaired surrogate", `{"v":1,"op":"status","key":"\ud800"}`},
-		{"v inside an array", `[{"v":1,"op":"status","key":"k"}]`},
-		{"not JSON", `v=1&op=status`},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			path, got := recordingServer(t, []byte("{}"))
-			result := runRelay(message([]byte(tt.msg)), SocketDialer(path), testTimeout)
-			requireResponse(t, result.reply(t), http.StatusAccepted, []byte("{}"))
-			req := got()
-			if req.requests != 1 || req.method != http.MethodPost || req.requestURI != "/articles" {
-				t.Errorf("the server received %d requests, the last %s %s; want one POST /articles", req.requests, req.method, req.requestURI)
-			}
-			if !bytes.Equal(req.body, []byte(tt.msg)) || req.contentLength != int64(len(tt.msg)) {
-				t.Errorf("server received %q (Content-Length %d), want the message bytes %q", req.body, req.contentLength, tt.msg)
-			}
-			if req.contentType != "application/json" || req.expect != "100-continue" {
-				t.Errorf("Content-Type = %q, Expect = %q; want application/json, 100-continue", req.contentType, req.expect)
-			}
-			if !strings.Contains(result.log, "form=legacy") {
-				t.Errorf("the log does not contain form=legacy:\n%s", result.log)
-			}
-		})
-	}
-}
-
+// TestRelayNewFormRejections checks that a message breaking a rule of the new
+// form is answered with protocol_error and never sent, though the server is
+// reachable, and that the log names the form stage and the rule.
 func TestRelayNewFormRejections(t *testing.T) {
 	tests := []struct {
 		name, msg string
 		rule      rule
 	}{
+		// The message is read as one strict JSON object, or not at all: the
+		// inputs encoding/json would repair or ignore are rejected too.
+		{"invalid UTF-8", "{\"v\":1,\"op\":\"status\",\"key\":\"k\xff\"}", ruleObject},
+		{"not JSON", `v=1&op=status&key=k`, ruleObject},
+		{"top level not an object", `[{"v":1,"op":"status","key":"k"}]`, ruleObject},
+		{"trailing data", `{"v":1,"op":"status","key":"k"} {}`, ruleObject},
+		{"unpaired surrogate", `{"v":1,"op":"status","key":"k\ud800"}`, ruleObject},
+		{"version missing", `{"op":"status","key":"k"}`, ruleVersion},
+		{"version only below the top level", `{"op":"start","input":{"v":1}}`, ruleVersion},
 		{"unknown version", `{"v":2,"op":"status","key":"k"}`, ruleVersion},
 		{"version zero", `{"v":0,"op":"status","key":"k"}`, ruleVersion},
 		{"version as a string", `{"v":"1","op":"status","key":"k"}`, ruleVersion},
@@ -951,6 +965,10 @@ func TestRelayNewFormRejections(t *testing.T) {
 		{"publish without key", `{"v":1,"op":"publish"}`, ruleMembers},
 		{"publish key not a string", `{"v":1,"op":"publish","key":1}`, ruleKey},
 		{"status key null", `{"v":1,"op":"status","key":null}`, ruleKey},
+		// The version is checked before the members, so a message with both
+		// faults breaks the version rule.
+		{"no version, undeclared member", `{"op":"status","key":"k","extra":1}`, ruleVersion},
+		{"unknown version, undeclared member", `{"v":2,"op":"status","key":"k","extra":1}`, ruleVersion},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -963,7 +981,7 @@ func TestRelayNewFormRejections(t *testing.T) {
 			if n, d := got().requests, dials.Load(); n != 0 || d != 1 {
 				t.Errorf("the server received %d requests over %d dials, want none over 1", n, d)
 			}
-			for _, attr := range []string{"stage=form", "form=new", "rule=" + string(tt.rule)} {
+			for _, attr := range []string{"stage=form", "rule=" + string(tt.rule)} {
 				if !strings.Contains(result.log, attr) {
 					t.Errorf("the log does not contain %s:\n%s", attr, result.log)
 				}
@@ -1026,12 +1044,12 @@ func TestRelayKeyPassedUnchecked(t *testing.T) {
 }
 
 // TestRelayNewFormTimeout checks that a new-form request the server never
-// answers ends with server_timeout after exactly one request.
+// answers ends with server_timeout after exactly one request. The status
+// request is TestRelayHostErrors' "server never answers" row.
 func TestRelayNewFormTimeout(t *testing.T) {
 	const key = testKey
 	for _, msg := range []string{
 		`{"v":1,"op":"start","input":{"videoUrl":"x","transcript":"y"}}`,
-		`{"v":1,"op":"status","key":"` + key + `"}`,
 		`{"v":1,"op":"publish","key":"` + key + `"}`,
 	} {
 		t.Run(msg, func(t *testing.T) {
@@ -1054,21 +1072,25 @@ func TestRelayNewFormTimeout(t *testing.T) {
 // whether the message is sent or rejected.
 func TestRelayNewFormLogOmitsMessage(t *testing.T) {
 	const marker = "marker-5d1e"
-	tests := []struct{ name, msg string }{
-		{"start input", `{"v":1,"op":"start","input":{"transcript":"` + marker + `","` + marker + `":1}}`},
-		{"status key", `{"v":1,"op":"status","key":"` + marker + `"}`},
-		{"publish key", `{"v":1,"op":"publish","key":"` + marker + `"}`},
-		{"unknown operation", `{"v":1,"op":"` + marker + `","key":"k"}`},
-		{"undeclared member", `{"v":1,"op":"status","key":"k","` + marker + `":1}`},
-		{"key not a string", `{"v":1,"op":"status","key":{"` + marker + `":1}}`},
+	// want is a fixed value the log must hold, showing the relay got as far
+	// as the row means it to.
+	tests := []struct{ name, msg, want string }{
+		{"start input", `{"v":1,"op":"start","input":{"transcript":"` + marker + `","` + marker + `":1}}`, "op=start"},
+		{"status key", `{"v":1,"op":"status","key":"` + marker + `"}`, "op=status"},
+		{"publish key", `{"v":1,"op":"publish","key":"` + marker + `"}`, "op=publish"},
+		{"unknown operation", `{"v":1,"op":"` + marker + `","key":"k"}`, "rule=operation"},
+		{"undeclared member", `{"v":1,"op":"status","key":"k","` + marker + `":1}`, "rule=members"},
+		{"version missing", `{"op":"status","key":"` + marker + `"}`, "rule=version"},
+		{"not one object", `[{"v":1,"op":"status","key":"` + marker + `"}]`, "rule=object"},
+		{"key not a string", `{"v":1,"op":"status","key":{"` + marker + `":1}}`, "rule=key"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			path, _ := recordingServer(t, []byte("{}"))
 			result := runRelay(message([]byte(tt.msg)), SocketDialer(path), testTimeout)
 			result.reply(t)
-			if !strings.Contains(result.log, "form=new") {
-				t.Fatalf("the log does not contain form=new:\n%s", result.log)
+			if !strings.Contains(result.log, tt.want) {
+				t.Fatalf("the log does not contain %s:\n%s", tt.want, result.log)
 			}
 			if strings.Contains(result.log, marker) {
 				t.Errorf("the log contains the message's content:\n%s", result.log)
@@ -1077,18 +1099,17 @@ func TestRelayNewFormLogOmitsMessage(t *testing.T) {
 	}
 }
 
-// TestRequestRefusesUnroutable checks the fail-secure defaults of request:
-// a destination route never returns builds no request.
+// TestRequestRefusesUnroutable checks the fail-secure default of request: a
+// destination whose operation route never returns, the zero value included,
+// builds no request.
 func TestRequestRefusesUnroutable(t *testing.T) {
 	for _, dest := range []destination{
 		{},
-		{form: "other", body: []byte("{}")},
-		{form: formNew},
-		{form: formNew, op: OperationPublish + 1, key: "k"},
-		{form: formNew, op: -1, key: "k"},
+		{op: OperationPublish + 1, key: "k"},
+		{op: -1, body: []byte("{}")},
 	} {
-		if req, err := dest.request(context.Background()); !errors.Is(err, errUnroutable) {
-			t.Errorf("request(%+v) = %v, %v; want errUnroutable", dest, req, err)
+		if req, err := dest.request(context.Background()); req != nil || !errors.Is(err, errUnroutable) {
+			t.Errorf("request(%+v) = %v, %v; want no request and errUnroutable", dest, req, err)
 		}
 	}
 }
