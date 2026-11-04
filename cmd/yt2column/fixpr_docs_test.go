@@ -147,7 +147,8 @@ func TestFixprDocContract(t *testing.T) {
 }
 
 // TestRunprDocContract checks what runpr.md must hold for its trust boundary:
-// step 1 runs fixprguard head before gh pr checkout, the document never
+// step 1 runs fixprguard head, then fixprguard interaction-limits, before gh
+// pr checkout, the document never
 // queries review threads itself, step 3 names the stops fixpr reports, and
 // step 3's listings print no comment body (see checkListings).
 func TestRunprDocContract(t *testing.T) {
@@ -157,9 +158,11 @@ func TestRunprDocContract(t *testing.T) {
 	t.Run("head_before_checkout", func(t *testing.T) {
 		step1 := requireSection(t, "runpr.md", doc, runprStep1)
 		head := strings.Index(step1, "fixprguard head ")
+		limits := strings.Index(step1, "fixprguard interaction-limits ")
 		checkout := strings.Index(step1, "gh pr checkout")
-		if head < 0 || checkout < 0 || head > checkout {
-			t.Errorf("runpr.md step 1 must run fixprguard head (at %d) before gh pr checkout (at %d)", head, checkout)
+		if head < 0 || limits < 0 || checkout < 0 || head > limits || limits > checkout {
+			t.Errorf("runpr.md step 1 must run fixprguard head (at %d), then fixprguard interaction-limits (at %d), before gh pr checkout (at %d)",
+				head, limits, checkout)
 		}
 	})
 
@@ -215,21 +218,38 @@ var (
 
 // runprListingKeys are the keys each kind of object runpr.md step 3's
 // listings print may hold. None of them carries a body: state is derived from
-// a summary comment's state line, never copied from it.
+// a summary comment's state line, never copied from it, and by_user and by_bot
+// are computed from the author.
 var runprListingKeys = map[string][]string{
 	"summary": {"kind", "url", "updated_at", "state"},
 	"codex":   {"kind", "url", "created_at"},
 	"request": {"kind", "url", "created_at"},
-	"mention": {"kind", "url", "created_at", "updated_at"},
+	"mention": {"kind", "url", "created_at", "updated_at", "by_user", "by_bot"},
 }
 
+// mentionAuthorKeys are the keys a mention must hold: runpr.md decides
+// whether to stop by them, so a filter that leaves one out fails.
+var mentionAuthorKeys = []string{"by_user", "by_bot"}
+
+// mentionWriter is who wrote a mention, which by_user and by_bot must report:
+// notMention for an item that is no mention.
+type mentionWriter int
+
+const (
+	notMention mentionWriter = iota
+	byTheUser                // a User named <user-login>: by_user true
+	byABot                   // any Bot: by_bot true
+	byAPerson                // any other User: both false
+)
+
 // listingItem is one item of a fake GitHub response and what the filter must
-// print for it: kind is "" when it must print nothing, and state is the
-// summary comment's expected state.
+// print for it: kind is "" when it must print nothing, state is the summary
+// comment's expected state, and wrote is a mention's expected author.
 type listingItem struct {
 	userType, login string
 	body            any
 	kind, state     string
+	wrote           mentionWriter
 }
 
 // listingFixture is the fake response for one listing: its items, the field
@@ -280,53 +300,64 @@ func runprListingFixtures() map[string]listingFixture {
 	comments := map[string]string{"url": "html_url", "created_at": "created_at", "updated_at": "updated_at"}
 	return map[string]listingFixture{
 		"issues/<number>/comments": {source: comments, keys: runprListingKeys, items: []listingItem{
-			{bot, awaited, summaryBody(stateLine(completed)), "summary", "completed " + sha},
-			{bot, awaited, summaryBody(stateLine(reviewState(`"completed"`, `,"has_any_findings":false`))), "summary", "completed " + sha},
-			{bot, awaited, summaryBody(stateLine(reviewState(`"running"`, `,"note":"`+bodyMarker+`"`))), "summary", "running " + sha},
+			{bot, awaited, summaryBody(stateLine(completed)), "summary", "completed " + sha, notMention},
+			{bot, awaited, summaryBody(stateLine(reviewState(`"completed"`, `,"has_any_findings":false`))), "summary", "completed " + sha, notMention},
+			{bot, awaited, summaryBody(stateLine(reviewState(`"running"`, `,"note":"`+bodyMarker+`"`))), "summary", "running " + sha, notMention},
 			// The state line's shape: marked, cut short, or ended by a CR.
-			{bot, awaited, summaryBody(marked(stateLine(completed))), "summary", "indeterminate"},
-			{bot, awaited, summaryBody(stateLine(completed) + "\r"), "summary", "indeterminate"},
-			{bot, awaited, "<!-- codex-pull-request-review-summary -->", "summary", "indeterminate"},
+			{bot, awaited, summaryBody(marked(stateLine(completed))), "summary", "indeterminate", notMention},
+			{bot, awaited, summaryBody(stateLine(completed) + "\r"), "summary", "indeterminate", notMention},
+			{bot, awaited, "<!-- codex-pull-request-review-summary -->", "summary", "indeterminate", notMention},
 			// Not JSON, and JSON of the wrong shape or types.
-			{bot, awaited, summaryBody(stateLine(bodyMarker + " not json")), "summary", "indeterminate"},
-			{bot, awaited, summaryBody(stateLine(`["` + bodyMarker + `"]`)), "summary", "indeterminate"},
-			{bot, awaited, summaryBody(stateLine(`{"code_review":"` + bodyMarker + `"}`)), "summary", "indeterminate"},
-			{bot, awaited, summaryBody(stateLine(reviewState(`1`, ``))), "summary", "indeterminate"},
-			{bot, awaited, summaryBody(stateLine(`{"code_review":{"status":"running","commit_sha":"abc1234"}}`)), "summary", "indeterminate"},
-			{bot, awaited, summaryBody(stateLine(`{"code_review":{"status":"running","commit_sha":7}}`)), "summary", "indeterminate"},
-			{bot, awaited, summaryBody(stateLine(reviewState(`"completed"`, `,"has_any_findings":"`+bodyMarker+`"`))), "summary", "indeterminate"},
-			{bot, awaited, summaryBody(stateLine(reviewState(`"completed"`, ``))), "summary", "indeterminate"},
+			{bot, awaited, summaryBody(stateLine(bodyMarker + " not json")), "summary", "indeterminate", notMention},
+			{bot, awaited, summaryBody(stateLine(`["` + bodyMarker + `"]`)), "summary", "indeterminate", notMention},
+			{bot, awaited, summaryBody(stateLine(`{"code_review":"` + bodyMarker + `"}`)), "summary", "indeterminate", notMention},
+			{bot, awaited, summaryBody(stateLine(reviewState(`1`, ``))), "summary", "indeterminate", notMention},
+			{bot, awaited, summaryBody(stateLine(`{"code_review":{"status":"running","commit_sha":"abc1234"}}`)), "summary", "indeterminate", notMention},
+			{bot, awaited, summaryBody(stateLine(`{"code_review":{"status":"running","commit_sha":7}}`)), "summary", "indeterminate", notMention},
+			{bot, awaited, summaryBody(stateLine(reviewState(`"completed"`, `,"has_any_findings":"`+bodyMarker+`"`))), "summary", "indeterminate", notMention},
+			{bot, awaited, summaryBody(stateLine(reviewState(`"completed"`, ``))), "summary", "indeterminate", notMention},
 			// An unknown status, which the marker itself is.
-			{bot, awaited, summaryBody(stateLine(reviewState(`"`+bodyMarker+`"`, ``))), "summary", "indeterminate"},
+			{bot, awaited, summaryBody(stateLine(reviewState(`"`+bodyMarker+`"`, ``))), "summary", "indeterminate", notMention},
 			// Codex's other comments.
-			{bot, awaited, marked("A note.") + "\n" + marked(fixprguard.CodexMention+" a second line."), "codex", ""},
-			{bot, awaited, nil, "codex", ""},
+			{bot, awaited, marked("A note.") + "\n" + marked(fixprguard.CodexMention+" a second line."), "codex", "", notMention},
+			{bot, awaited, nil, "codex", "", notMention},
 			// The request, and the comments that are not one.
-			{user, fakeUser, "  " + fakeRequest + "\n", "request", ""},
-			{user, fakeUser, marked(fakeRequest), "mention", ""},
-			{user, "other-user", fakeRequest, "mention", ""},
-			{bot, fakeUser, fakeRequest, "mention", ""},
+			{user, fakeUser, "  " + fakeRequest + "\n", "request", "", notMention},
+			{user, fakeUser, marked(fakeRequest), "mention", "", byTheUser},
+			{user, "other-user", fakeRequest, "mention", "", byAPerson},
+			{bot, fakeUser, fakeRequest, "mention", "", byABot},
 			// The summary's author must be a Bot.
-			{user, awaited, summaryBody(stateLine(completed)), "", ""},
-			{user, "other-user", marked(strings.ToUpper(fixprguard.CodexMention)+" please look") + "\n" + marked("Thanks."), "mention", ""},
-			{user, "other-user", marked("No mention here."), "", ""},
-			{bot, "other-bot[bot]", marked(fixprguard.CodexMention + " from another Bot"), "mention", ""},
-			{user, "other-user", nil, "", ""},
+			{user, awaited, summaryBody(stateLine(completed)), "", "", notMention},
+			// A User named like Codex is a person, whose mention counts.
+			{user, awaited, marked(fixprguard.CodexMention + " from a User"), "mention", "", byAPerson},
+			{user, "other-user", marked(strings.ToUpper(fixprguard.CodexMention)+" please look") + "\n" + marked("Thanks."), "mention", "", byAPerson},
+			{user, "other-user", marked("No mention here."), "", "", notMention},
+			{bot, "other-bot[bot]", marked(fixprguard.CodexMention + " from another Bot"), "mention", "", byABot},
+			{user, "other-user", nil, "", "", notMention},
 		}},
 		"pulls/<number>/comments": {source: comments, keys: runprListingKeys, items: []listingItem{
-			{bot, awaited, marked(fixprguard.CodexMention + " from Codex"), "", ""},
-			{user, "other-user", marked("No mention here."), "", ""},
-			{user, "other-user", marked("Ask "+strings.ToUpper(fixprguard.CodexMention)) + "\n" + marked("again"), "mention", ""},
-			{user, awaited, marked(fixprguard.CodexMention + " from a User"), "mention", ""},
-			{bot, "other-bot[bot]", marked(fixprguard.CodexMention + " from another Bot"), "mention", ""},
-			{user, "other-user", nil, "", ""},
+			// A mention by each kind of author: the user, a Bot named like
+			// the user, and a User named like Codex.
+			{user, fakeUser, marked(fixprguard.CodexMention + " from the user"), "mention", "", byTheUser},
+			{bot, fakeUser, marked(fixprguard.CodexMention + " from a Bot named like the user"), "mention", "", byABot},
+			{bot, awaited, marked(fixprguard.CodexMention + " from Codex"), "", "", notMention},
+			{user, "other-user", marked("No mention here."), "", "", notMention},
+			{user, "other-user", marked("Ask "+strings.ToUpper(fixprguard.CodexMention)) + "\n" + marked("again"), "mention", "", byAPerson},
+			{user, awaited, marked(fixprguard.CodexMention + " from a User"), "mention", "", byAPerson},
+			{bot, "other-bot[bot]", marked(fixprguard.CodexMention + " from another Bot"), "mention", "", byABot},
+			{user, "other-user", nil, "", "", notMention},
 		}},
 		"pulls/<number>/reviews": {source: map[string]string{"url": "html_url", "created_at": "submitted_at"}, keys: runprListingKeys, items: []listingItem{
-			{bot, awaited, marked(fixprguard.CodexMention + " from Codex"), "", ""},
-			{user, "other-user", "", "", ""},
-			{user, "other-user", marked("Ask "+fixprguard.CodexMention) + "\n" + marked("again"), "mention", ""},
-			{bot, "other-bot[bot]", marked(fixprguard.CodexMention + " from another Bot"), "mention", ""},
-			{user, "other-user", nil, "", ""},
+			// A mention by each kind of author: the user, a Bot named like
+			// the user, and a User named like Codex.
+			{user, fakeUser, marked(fixprguard.CodexMention + " from the user"), "mention", "", byTheUser},
+			{bot, fakeUser, marked(fixprguard.CodexMention + " from a Bot named like the user"), "mention", "", byABot},
+			{user, awaited, marked(fixprguard.CodexMention + " from a User"), "mention", "", byAPerson},
+			{bot, awaited, marked(fixprguard.CodexMention + " from Codex"), "", "", notMention},
+			{user, "other-user", "", "", "", notMention},
+			{user, "other-user", marked("Ask "+fixprguard.CodexMention) + "\n" + marked("again"), "mention", "", byAPerson},
+			{bot, "other-bot[bot]", marked(fixprguard.CodexMention + " from another Bot"), "mention", "", byABot},
+			{user, "other-user", nil, "", "", notMention},
 		}},
 	}
 }
@@ -343,12 +374,12 @@ func handoffListingFixtures() map[string]listingFixture {
 			keys:     map[string][]string{"start": {"url", "updated_at"}},
 			kindless: "start",
 			items: []listingItem{
-				{"Bot", awaited, summary, "start", ""},
-				{"Bot", awaited, marked("A note.") + "\n" + marked("Another line."), "", ""},
-				{"Bot", awaited, nil, "", ""},
-				{"User", awaited, summary, "", ""},
-				{"Bot", "other-bot[bot]", summary, "", ""},
-				{"User", "other-user", marked(fixprguard.CodexMention + " please look"), "", ""},
+				{"Bot", awaited, summary, "start", "", notMention},
+				{"Bot", awaited, marked("A note.") + "\n" + marked("Another line."), "", "", notMention},
+				{"Bot", awaited, nil, "", "", notMention},
+				{"User", awaited, summary, "", "", notMention},
+				{"Bot", "other-bot[bot]", summary, "", "", notMention},
+				{"User", "other-user", marked(fixprguard.CodexMention + " please look"), "", "", notMention},
 			},
 		},
 	}
@@ -617,6 +648,16 @@ func checkListingOutput(t *testing.T, fixture listingFixture, response []map[str
 		if kind := fixture.kindOf(obj); kind != item.kind {
 			t.Errorf("item %d: printed kind %v, want %q", i, kind, item.kind)
 		}
+		if (item.kind == "mention") != (item.wrote != notMention) {
+			t.Fatalf("item %d: kind %q with writer %d; a mention needs its writer, and only a mention has one", i, item.kind, item.wrote)
+		}
+		if item.kind == "mention" {
+			for _, key := range mentionAuthorKeys {
+				if _, ok := obj[key]; !ok {
+					t.Errorf("item %d: printed no %s", i, key)
+				}
+			}
+		}
 		for key, value := range obj {
 			switch {
 			case !slices.Contains(fixture.keys[item.kind], key):
@@ -625,6 +666,14 @@ func checkListingOutput(t *testing.T, fixture listingFixture, response []map[str
 			case key == "state":
 				if value != item.state {
 					t.Errorf("item %d: printed state %v, want %q", i, value, item.state)
+				}
+			case key == "by_user":
+				if value != (item.wrote == byTheUser) {
+					t.Errorf("item %d: printed by_user %v, want %t", i, value, item.wrote == byTheUser)
+				}
+			case key == "by_bot":
+				if value != (item.wrote == byABot) {
+					t.Errorf("item %d: printed by_bot %v, want %t", i, value, item.wrote == byABot)
 				}
 			case value != response[i][fixture.source[key]]:
 				t.Errorf("item %d: printed %s = %v, want its %s %v", i, key, value, fixture.source[key], response[i][fixture.source[key]])
@@ -659,6 +708,7 @@ func TestFixprguardCallSites(t *testing.T) {
 		{"fixpr.md", fixpr, fixprPhase6, "fixprguard edit-pr "},
 		{"fixpr.md", fixpr, fixprPhase6, "fixprguard append-pr "},
 		{"runpr.md", runpr, runprStep1, "fixprguard head "},
+		{"runpr.md", runpr, runprStep1, "fixprguard interaction-limits "},
 		{"runpr.md", runpr, runprStep3, "fixprguard list "},
 		{"runpr.md", runpr, runprStep4, "fixprguard reply "},
 	} {
