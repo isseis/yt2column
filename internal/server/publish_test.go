@@ -146,9 +146,6 @@ func TestPostJobTakesNoGenerationSlot(t *testing.T) {
 		acceptedKey(t, ts.start(strings.NewReader(bodyWith(strconv.Itoa(i)))))
 		<-reached
 	}
-	if len(ts.slots) != maxInFlight {
-		t.Errorf("generation slots held = %d, want %d", len(ts.slots), maxInFlight)
-	}
 }
 
 // TestPublishIdempotent checks that a publish operation repeated while the

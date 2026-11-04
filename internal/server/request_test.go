@@ -108,14 +108,37 @@ func TestRejectBodyTable(t *testing.T) {
 				if body := decodeBody(t, rec); body.Reason != "invalid_body" {
 					t.Errorf("reason = %q, want invalid_body", body.Reason)
 				}
-				if len(ts.writer.Calls) != 0 {
-					t.Errorf("writer was called for a rejected body")
-				}
 				if bt.target == JobsPath {
 					requireStartUntouched(t, ts)
+				} else if len(ts.writer.Calls) != 0 {
+					t.Errorf("writer was called for a rejected body")
 				}
 			})
 		}
+	}
+}
+
+// TestStartTranscriptValues checks that a generation start hands the writer
+// the video ID and the normalized URL derived from the request's video URL,
+// never the request's string, for each URL form the validator accepts.
+func TestStartTranscriptValues(t *testing.T) {
+	for _, raw := range []string{
+		"https://youtu.be/dQw4w9WgXcQ",
+		"https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=42s",
+		"https://m.youtube.com/shorts/dQw4w9WgXcQ",
+	} {
+		t.Run(raw, func(t *testing.T) {
+			ts := newJobsTestServer(t, jobsServerOptions{})
+			acceptedKey(t, ts.startBody(validBody(raw, testValidRaw)))
+			calls := ts.writer.RecordedCalls()
+			if len(calls) != 1 {
+				t.Fatalf("writer calls = %d, want 1", len(calls))
+			}
+			got := calls[0].Transcript
+			if got.VideoID != testVideoID || got.VideoURL != testValidVideoURL {
+				t.Errorf("transcript video = %q %q, want %q %q", got.VideoID, got.VideoURL, testVideoID, testValidVideoURL)
+			}
+		})
 	}
 }
 
@@ -427,7 +450,9 @@ func requireChannelNameRequestVerdict(t *testing.T, ts *testServer, target, body
 	if got := decodeBody(t, rec); got.Reason != "invalid_body" {
 		t.Errorf("request reason = %q, want invalid_body", got.Reason)
 	}
-	if len(ts.writer.Calls) != 0 {
+	if target == JobsPath {
+		requireStartUntouched(t, ts)
+	} else if len(ts.writer.Calls) != 0 {
 		t.Errorf("writer called %d times for a rejected request, want 0", len(ts.writer.Calls))
 	}
 }

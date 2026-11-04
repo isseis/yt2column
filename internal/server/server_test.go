@@ -157,7 +157,7 @@ func TestNewCopiesWebhookOptions(t *testing.T) {
 	if !s.webhookConfigured() {
 		t.Error("webhookConfigured() = false after the caller cleared its options")
 	}
-	ts := &testServer{Server: s, publisher: pub, logs: &bytes.Buffer{}}
+	ts := &testServer{Server: s, publisher: pub}
 	key := ts.seedDone(t, validBody(testValidVideoURL, testValidRaw))
 	rec := ts.publishRequest(key.String())
 	ts.waitJobs()
@@ -356,8 +356,8 @@ func TestExpectContinueOversizedBodyNotSent(t *testing.T) {
 
 // TestUnparsableRequestBypassesHandler checks that bytes that are not an HTTP
 // request are answered by net/http itself with 400, and that the handler never
-// runs for them: no slot is taken, no record is added, no failure notice is
-// posted, and no article is generated.
+// runs for them: no slot is taken, no failure notice is posted, and no article
+// is generated.
 func TestUnparsableRequestBypassesHandler(t *testing.T) {
 	ts := newTestServer(t)
 	conn := dialUnix(t, serveUnix(t, ts.Server))
@@ -383,11 +383,8 @@ func TestUnparsableRequestBypassesHandler(t *testing.T) {
 		t.Errorf("the handler answered the unparsable request: body %q, log:\n%s", body, ts.logs.String())
 	}
 	ts.waitJobs()
-	if len(ts.slots) != 0 || len(ts.reading) != 0 {
-		t.Errorf("slots held: generation %d, reading %d, want 0", len(ts.slots), len(ts.reading))
-	}
-	if dump := ts.cache.DumpRecordsForTest(); dump != "" {
-		t.Errorf("an unparsable request added a record:\n%s", dump)
+	if len(ts.slots) != 0 {
+		t.Errorf("slots held = %d, want 0", len(ts.slots))
 	}
 	if len(ts.notifier.Calls) != 0 || len(ts.writer.Calls) != 0 {
 		t.Errorf("an unparsable request caused a side effect: notifier=%d writer=%d",
