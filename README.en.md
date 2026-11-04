@@ -1,4 +1,4 @@
-<!-- translated-from: README.md f6f435c26ca7a4ba51063c9ce86b9e614ceb4fa6 -->
+<!-- translated-from: README.md de01a9c8581e527cd5bc17a2310c1f3e03eb839c -->
 [日本語](README.md)
 
 Developer documents: [Using the CLI](docs/dev/guides/cli.md) · [Development procedures](docs/dev/guides/development.md)
@@ -277,9 +277,8 @@ How the CLI posts with `--slack`, and how to inspect a rejected article with
 `yt2column-server` accepts the transcript the browser extension collects,
 generates the article, returns it, and keeps it in memory. Posting it to the
 Slack-compatible Webhook is an operation of its own, which the extension sends
-only when the user asks for it in the viewer. The extension uses the job API
-only. The server's HTTP
-API, including the job API that generates, returns, and posts on request, is in
+only when the user asks for it in the viewer. The server's HTTP
+API (the job API, which generates, returns, and posts on request) is in
 [docs/dev/guides/development.md](docs/dev/guides/development.md#localhost-サーバの-api).
 The extension does not connect to the server directly: the browser starts the
 native messaging host, `yt2column-nmhost`, which relays the request to the
@@ -316,7 +315,7 @@ post.
 
 The server writes nothing to standard output. The logs go to standard error, so
 `2>>server.log` keeps a record. The first log line names the socket. Every
-request line carries the `requestId` the response returns, so `grep "$requestId" server.log` finds them. The job API's generation and post job lines carry the article key and the video ID instead of a `requestId`. The extension does not show the key, so find the failure of an article's generation sent from the extension by the time and the video ID.
+request line carries the `requestId` the response returns, so `grep "$requestId" server.log` finds them. The generation job lines carry the article key and the video ID, and the post job lines the article key, instead of a `requestId`. The extension does not show the key, so find the failure of an article's generation sent from the extension by the time and the video ID.
 
 On start the server creates the socket directory (`run`) with mode `0700` when
 it is missing, takes the start lock (the file `.yt2column.lock` in the socket
@@ -760,7 +759,7 @@ confirmation.
 When you update the extension, bring the server and the host to the same build
 as well: rebuild with `make build`, restart the server, and run the host's
 `install` again from the built binary. The extension sends messages in the new form to the server's job API. When the versions do not
-match, the send is rejected or ends in an unexpected reply. The host rejects an older extension's messages, the server rejects with `not_found` a request that an older host relays, and an older server has no job API. The server's log records the reject reason (`not_found` and the like) but not the request's path, so if an unexpected reply appears after an update, check that the extension, the server, and the host are of the same build.
+match, depending on the combination, the send is rejected or ends in an unexpected reply. The host rejects the messages of an extension older than the job API (before #503), the server rejects with `not_found` a request that a host older than the job API relays, and a server older than the job API also returns `not_found`. The server's log records the reject reason (`not_found` and the like) but not the request's path, so if an unexpected reply appears after an update, check that the extension, the server, and the host are of the same build.
 
 The extension ID is fixed to `clfmbbcdpnjcefbdihdoahomaifbabkk` and is the
 same on every machine and from every directory.

@@ -483,7 +483,7 @@ OK   extension
 
 #### PR-2（ステップ 4-3、2026-11-04）
 
-**`_checks/residue`:** merge-base `f70136ffbc49e9a456a84b377951f4f4b13c164f`、head `9ed92500a4ef202a375e4e37c3e9ce845b98b966`（PR-2 の実装、レビューの修正、文書と README を含む最後のコミット。この後のコミットは本書だけを変え、確かめの対象のファイルを変えない）。
+**`_checks/residue`:** merge-base `f70136ffbc49e9a456a84b377951f4f4b13c164f`、head `9ed92500a4ef202a375e4e37c3e9ce845b98b966`（PR-2 の Go のコードを変えた最後のコミット。この後のコミットは文書と本書だけを変え、確かめの対象（Go のファイルと `extension/`）を変えない）。
 
 ```text
 $ go run -tags test ./docs/tasks/0059_remove_legacy_articles_api/_checks/residue/ f70136ffbc49e9a456a84b377951f4f4b13c164f 9ed92500a4ef202a375e4e37c3e9ce845b98b966
