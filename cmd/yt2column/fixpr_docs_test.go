@@ -231,6 +231,10 @@ var runprListingKeys = map[string][]string{
 // whether to stop by them, so a filter that leaves one out fails.
 var mentionAuthorKeys = []string{"by_user", "by_bot"}
 
+// runprRequiredKeys are the keys each kind of object runpr.md step 3's
+// listings must hold.
+var runprRequiredKeys = map[string][]string{"mention": mentionAuthorKeys}
+
 // mentionWriter is who wrote a mention, which by_user and by_bot must report:
 // notMention for an item that is no mention.
 type mentionWriter int
@@ -301,7 +305,7 @@ func runprListingFixtures() map[string]listingFixture {
 	awaited := fakeAwaited + "[bot]"
 	comments := map[string]string{"url": "html_url", "created_at": "created_at", "updated_at": "updated_at"}
 	return map[string]listingFixture{
-		"issues/<number>/comments": {source: comments, keys: runprListingKeys, items: []listingItem{
+		"issues/<number>/comments": {source: comments, keys: runprListingKeys, required: runprRequiredKeys, items: []listingItem{
 			{bot, awaited, summaryBody(stateLine(completed)), "summary", "completed " + sha, notMention},
 			{bot, awaited, summaryBody(stateLine(reviewState(`"completed"`, `,"has_any_findings":false`))), "summary", "completed " + sha, notMention},
 			{bot, awaited, summaryBody(stateLine(reviewState(`"running"`, `,"note":"`+bodyMarker+`"`))), "summary", "running " + sha, notMention},
@@ -337,7 +341,7 @@ func runprListingFixtures() map[string]listingFixture {
 			{bot, "other-bot[bot]", marked(fixprguard.CodexMention + " from another Bot"), "mention", "", byABot},
 			{user, "other-user", nil, "", "", notMention},
 		}},
-		"pulls/<number>/comments": {source: comments, keys: runprListingKeys, items: []listingItem{
+		"pulls/<number>/comments": {source: comments, keys: runprListingKeys, required: runprRequiredKeys, items: []listingItem{
 			// A mention by each kind of author: the user, a Bot named like
 			// the user, and a User named like Codex.
 			{user, fakeUser, marked(fixprguard.CodexMention + " from the user"), "mention", "", byTheUser},
@@ -349,7 +353,7 @@ func runprListingFixtures() map[string]listingFixture {
 			{bot, "other-bot[bot]", marked(fixprguard.CodexMention + " from another Bot"), "mention", "", byABot},
 			{user, "other-user", nil, "", "", notMention},
 		}},
-		"pulls/<number>/reviews": {source: map[string]string{"url": "html_url", "created_at": "submitted_at"}, keys: runprListingKeys, items: []listingItem{
+		"pulls/<number>/reviews": {source: map[string]string{"url": "html_url", "created_at": "submitted_at"}, keys: runprListingKeys, required: runprRequiredKeys, items: []listingItem{
 			// A mention by each kind of author: the user, a Bot named like
 			// the user, and a User named like Codex.
 			{user, fakeUser, marked(fixprguard.CodexMention + " from the user"), "mention", "", byTheUser},
@@ -660,11 +664,7 @@ func checkListingOutput(t *testing.T, fixture listingFixture, response []map[str
 		if (item.kind == "mention") != (item.wrote != notMention) {
 			t.Fatalf("item %d: kind %q with writer %d; a mention needs its writer, and only a mention has one", i, item.kind, item.wrote)
 		}
-		required := fixture.required[item.kind]
-		if item.kind == "mention" {
-			required = mentionAuthorKeys
-		}
-		for _, key := range required {
+		for _, key := range fixture.required[item.kind] {
 			if _, ok := obj[key]; !ok {
 				t.Errorf("item %d: printed no %s", i, key)
 			}

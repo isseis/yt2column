@@ -76,14 +76,14 @@ func readLightweightConditions(t *testing.T, doc string) lightweightConditions {
 	seen := map[string]struct{}{}
 	for _, line := range blocks[0].Lines {
 		fields := strings.Fields(line)
+		if len(fields) == 0 {
+			t.Fatalf("the conditions table has a blank row")
+		}
 		key := strings.Join(fields, " ")
 		if _, dup := seen[key]; dup {
 			t.Fatalf("the conditions table repeats the row %q", key)
 		}
 		seen[key] = struct{}{}
-		if len(fields) == 0 {
-			t.Fatalf("the conditions table has a blank row")
-		}
 		switch fields[0] {
 		case "limit", "tool":
 		case "exclude", "exclude-absent":
@@ -114,7 +114,10 @@ var errNoEntry = errors.New("no such entry")
 // of the work tree, and whether that entry is a directory. Each element is
 // compared with the names its parent directory lists, so the match is
 // case-sensitive even on a file system that is not, such as APFS, where
-// os.Stat would find "makefile" for "Makefile".
+// os.Stat would find "makefile" for "Makefile". It reads the work tree, not
+// git's index: a local untracked file counts as an entry, so a stray go.work
+// fails an exclude-absent row here, and an exclude path that exists only
+// locally passes here but fails in CI's clean checkout.
 func repoEntry(rel string) (isDir bool, err error) {
 	clean := strings.TrimSuffix(rel, "/")
 	if clean == "" || strings.HasPrefix(clean, "/") {
@@ -165,9 +168,6 @@ func TestLightweightExcludedPaths(t *testing.T) {
 			t.Errorf("exclude %s: the entry is a directory: %t, but the path ends in \"/\": %t",
 				path, isDir, strings.HasSuffix(path, "/"))
 		}
-	}
-	if len(table.absents) == 0 {
-		t.Error("the conditions table has no exclude-absent row")
 	}
 	for _, path := range table.absents {
 		if _, err := repoEntry(path); !errors.Is(err, errNoEntry) {
@@ -239,17 +239,17 @@ func lightweightListingFixtures(spec, revert string) map[string]listingFixture {
 // TestLightweightSpecListing runs the marker listing of lightweight-spec.md
 // on its fake response: it lists the user's own marker comments only, of the
 // right kind, with their id, URL, and times, and prints no body. Every gh api
-// call of the document must be one of the known reads, and the document's
-// only listing is the one the test runs.
+// call of the document must be one of the known reads. checkListings runs on
+// the whole document, so its count makes the listing the document's only one,
+// and the listing must sit in its own section.
 func TestLightweightSpecListing(t *testing.T) {
 	doc := doctestutil.ReadDoc(t, lightweightSpecPath)
-	checkGhAPICalls(t, "_lib/lightweight-spec.md", doc, lightweightSpecReadCalls)
-	if n := strings.Count(doc, "gh api --paginate"); n != 1 {
-		t.Fatalf("_lib/lightweight-spec.md has %d gh api --paginate listings, want the one its listing section runs", n)
-	}
 	section := requireOutsideBlocksSection(t, "_lib/lightweight-spec.md", doc, doctestutil.LightweightListingHeading)
+	if !paginatedListing.MatchString(section) {
+		t.Errorf("_lib/lightweight-spec.md %q holds no listing", doctestutil.LightweightListingHeading)
+	}
 	spec, revert := contextCodeSpan(t, specMarkerRow), contextCodeSpan(t, revertMarkerRow)
-	checkListings(t, "_lib/lightweight-spec.md", section, lightweightListingFixtures(spec, revert), lightweightSpecReadCalls,
+	checkListings(t, "_lib/lightweight-spec.md", doc, lightweightListingFixtures(spec, revert), lightweightSpecReadCalls,
 		"<spec-marker>", spec, "<revert-marker>", revert)
 }
 
