@@ -232,8 +232,8 @@ const (
 |---|---|---|
 | `v: 2` の返事 | 今の規則で検査し、包まれたサーバの応答を `classifyStartInquiry` で判定する（3.4.2） | 新しいホスト |
 | `v: 1` の `protocol_error` | 版の食い違い（ホスト）。何も送られていない | 前の版のホストは、`v: 2` を送る前に拒否する。新しいホストが `v: 2` のメッセージに `v: 1` の `protocol_error` を返すのは、3.1.2 の版が分からない場合だけで、どれも送る前である（下の「残る誤り」） |
-| `v: 1` の `server_unavailable`・`message_too_large` | 今と同じく、送られていない（`not-sent`） | どちらの版のホストでも、メッセージを読む前の失敗 |
-| `v: 1` の `server_timeout` | 今と同じく、応答なし（`no-response`） | 今の判定を変えない |
+| `v: 1` の `server_unavailable`・`message_too_large` | 今と同じく、送られていない（`not-sent`） | どちらの版のホストでも、メッセージを読む前の失敗（接続と長さ）。新しいホストがメッセージを読んだ後に同じ値を返すときは `v: 2` で返り、1 行目で判定する |
+| `v: 1` の `server_timeout` | 今と同じく、応答なし（`no-response`） | メッセージを読み終える前の時間切れ。読んだ後の時間切れは `v: 2` で返り、1 行目で判定する。今の判定を変えない |
 | `v: 1` の `response` | 想定外の応答 | どちらの版のホストも、`v: 2` のメッセージに `v: 1` でサーバの応答を返さない |
 | `v` がない・`1` と `2` 以外・形の誤り | 想定外の応答 | 今の規則 |
 
@@ -331,6 +331,8 @@ func (c *Cache) Begin(subject Subject, mode StartMode, acquire func() bool) Begi
 	// created or restarted it. It is compared only for equality.
 	videoID string
 ```
+
+**`VideoURL` と `VideoID` の組:** `KeyInput` を作るのは、今と同じくサーバの本文の検査（`validateBody`）だけで、2 つの値は同じ `transcript.ValidateVideoURL` の呼び出しから埋める。キーそのものも今この取り決めに頼っている（`internal/articlecache/key.go:28-29`）。`ValidateVideoURL` の戻り値を型にまとめると、CLI も使う `transcript` の API が変わるので、本タスクではしない。`validateBody` が 2 つの値を同じ呼び出しから埋めることは、サーバのテストで確かめる。
 
 **変わる既存のテスト:** `Begin` の引数と戻り値の形が変わるので、`Begin` を呼ぶテスト（`internal/articlecache/cache_test.go` の 14 か所、`internal/server` の `generation_test.go`・`handler_test.go`・`jobs_api_test.go`・`publish_test.go`・`test_helpers.go`）を新しい形に書き換える。`Subject` は `Keyer.Subject` からしか作れないので、テストも `KeyInput` から作る。振る舞いの期待は変えない。
 
@@ -979,7 +981,9 @@ AC-16 の「2 つのボタンがスクロールせずに見える」ことは、
 -   **隔離:** 次のすべてを満たさなければ、何も送らずに止まる。
     -   ホストとサーバのすべてのプロセスを、一時ディレクトリを `HOME` にして起動する。ホストのソケットの場所は `HOME` だけから決まる（`security.md` §8.2）。そのため、開発者が動かしているサーバに届かない。送る前に、ソケットの場所がその一時ディレクトリの下にあることを確かめる。
     -   LLM の API の鍵はダミーにする。`HTTPS_PROXY` と `HTTP_PROXY` は、何も待ち受けていないループバックのポートに向ける。LLM の送信は、プロキシの環境変数に従う今の HTTP の送信の経路（`internal/llm/llmhttp`）を通る。そのため、誤って生成が始まっても外部に届かない。送る前に、その設定で外への接続が失敗することを確かめる。
+    -   `NO_PROXY` と `no_proxy` は空にし、小文字の `https_proxy`・`http_proxy` も同じポートに向ける。
     -   `SLACK_WEBHOOK_URL` を設定しないか、届かないダミーにする。
+-   **出力と終了の上限:** 子プロセスの標準出力と標準エラー出力は上限を決めて読み、超えた分は読み切って捨てる。返事を待つ時間と、止めた後に終わるのを待つ時間にも上限を決め、子孫のプロセスを含めて後始末する。
 -   **記録すること:** ホストの返事と、ホストとサーバのログである。サーバのログには、生成の開始の受け付けの行（`generation start accepted`）がないことを確かめる。キーは受け付けられた生成の開始からしか得られないので、状態の取得では確かめない。
 -   **実行の扱い:** スクリプトはローカルの Unix ドメインソケットとループバックだけを使い、外部のサービスに送らない。それでもプロセスを起動するので、実装の PR で一度だけ、利用者の承認を得て走らせる。結果を PR の説明に書く（`requirements_process.md` §4 の `_checks/` の扱い）。
 
