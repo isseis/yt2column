@@ -45,6 +45,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 )
 
 func main() {
@@ -369,9 +370,19 @@ func commandOutput(ctx context.Context, dir, name string, args ...string) (strin
 
 // makeTarget runs one coverage-compare target at BASE=HEAD~1 in dir, echoes
 // its standard output, and returns that output.
+//
+// Contract: a SIGINT or SIGTERM of the check reaches make's process group as
+// SIGTERM, so the recipe forwards it to the tool and the tool removes its work
+// directory before returning; WaitDelay bounds the wait when a surviving
+// grandchild keeps the output pipe open.
 func makeTarget(ctx context.Context, dir, target string) (string, error) {
 	cmd := exec.CommandContext(ctx, "make", target, "BASE=HEAD~1")
 	cmd.Dir = dir
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error {
+		return syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
+	}
+	cmd.WaitDelay = 30 * time.Second
 	var stdout bytes.Buffer
 	cmd.Stdout = io.MultiWriter(os.Stdout, &stdout)
 	cmd.Stderr = os.Stderr
