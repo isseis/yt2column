@@ -32,9 +32,13 @@ export type ViewerState =
       readonly notice: PollNotice;
     };
 
-/** A start that gave no key; no-result is a wait that ended without a result. */
+/**
+ * A start that gave no key; no-result is a wait that ended without a result.
+ * A same-video answer gave a key, so it is not one.
+ */
 export type StartFailure =
-  Exclude<StartOutcome, { kind: "accepted" }> | { readonly kind: "no-result" };
+  | Exclude<StartOutcome, { kind: "accepted" } | { kind: "same-video" }>
+  | { readonly kind: "no-result" };
 
 /** The job as displayed; built from a StatusOutcome by afterStatus alone. */
 export type JobDisplay =

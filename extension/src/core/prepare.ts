@@ -1,4 +1,5 @@
 import type { CollectedInput } from "./collect.ts";
+import type { SendMode } from "./extensionMessages.ts";
 
 /** Optional members of the request body: the video metadata read from the page. */
 export interface ArticleMetadata {
@@ -19,13 +20,32 @@ export interface StartInput {
 /** The request body as the object the browser serializes, and its measured UTF-8 size. */
 export interface ArticleBody {
   readonly message: StartInput;
-  /** UTF-8 byte length of JSON.stringify(message): the extension's own 4 MiB check. */
+  /**
+   * UTF-8 byte length of the body sent with the longer mode member: the
+   * extension's own 4 MiB check.
+   */
   readonly byteLength: number;
 }
 
-/** The UTF-8 byte length of input's JSON text: the one way the body size is measured. */
+/**
+ * The bytes the longer mode member, `,"mode":"inquiry"`, adds to the input's
+ * JSON text: the body sent is the input with a mode member (startMessage), so
+ * a body that passes the check fits the server's limit whichever mode it is
+ * sent with.
+ */
+const longerMode: SendMode = "inquiry";
+const modeMemberBytes = new TextEncoder().encode(
+  `,"mode":${JSON.stringify(longerMode)}`,
+).length;
+
+/**
+ * The UTF-8 byte length of input's JSON text with the longer mode member: the
+ * one way the body size is measured.
+ */
 function startInputBytes(input: StartInput): number {
-  return new TextEncoder().encode(JSON.stringify(input)).length;
+  return (
+    new TextEncoder().encode(JSON.stringify(input)).length + modeMemberBytes
+  );
 }
 
 const metadataKeys = ["title", "channelName", "description"] as const;

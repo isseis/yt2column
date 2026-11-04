@@ -3,12 +3,15 @@
 package server
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -166,23 +169,28 @@ func TestStartSameInputGeneratesOnce(t *testing.T) {
 // TestStartKeyEquivalence checks that bodies that differ only in what never
 // reaches the validated values give the same key: member order, whitespace,
 // how a character is escaped, undeclared members, a video URL form that
-// normalizes to the same URL, and an absent versus an empty optional member.
+// normalizes to the same URL, an absent versus an empty optional member, and
+// the send mode.
 func TestStartKeyEquivalence(t *testing.T) {
 	const raw = `"0:00\nHello\n"`
 	groups := map[string][]string{
 		"no_title": {
-			`{"videoUrl":"` + testValidVideoURL + `","transcript":` + raw + `}`,
-			`{"transcript":` + raw + `,"videoUrl":"` + testValidVideoURL + `"}`,
-			"{ \"videoUrl\" : \"" + testValidVideoURL + "\" ,\n\t\"transcript\" : " + raw + " }",
-			`{"videoUrl":"` + testValidVideoURL + `","transcript":` + raw + `,"extra":1}`,
-			`{"videoUrl":"` + testValidVideoURL + `","transcript":` + raw + `,"extra":{"nested":"x"}}`,
-			`{"videoUrl":"https://youtu.be/dQw4w9WgXcQ","transcript":` + raw + `}`,
-			`{"videoUrl":"` + testValidVideoURL + `","transcript":` + raw + `,"title":"","channelName":"","description":""}`,
+			`{"videoUrl":"` + testValidVideoURL + `","transcript":` + raw + `,"mode":"plain"}`,
+			`{"transcript":` + raw + `,"videoUrl":"` + testValidVideoURL + `","mode":"plain"}`,
+			"{ \"videoUrl\" : \"" + testValidVideoURL + "\" ,\n\t\"transcript\" : " + raw + ",\"mode\":\"plain\" }",
+			`{"videoUrl":"` + testValidVideoURL + `","transcript":` + raw + `,"extra":1,"mode":"plain"}`,
+			`{"videoUrl":"` + testValidVideoURL + `","transcript":` + raw + `,"extra":{"nested":"x"},"mode":"plain"}`,
+			`{"videoUrl":"https://youtu.be/dQw4w9WgXcQ","transcript":` + raw + `,"mode":"plain"}`,
+			`{"videoUrl":"` + testValidVideoURL + `","transcript":` + raw + `,"title":"","channelName":"","description":"","mode":"plain"}`,
+			// The mode is not part of the key. Not first: an inquiry start
+			// with no record of its own would be answered with the other
+			// group's article of the same video.
+			`{"videoUrl":"` + testValidVideoURL + `","transcript":` + raw + `,"mode":"inquiry"}`,
 		},
 		"title": {
 			// The same title, once as UTF-8 and once as a JSON escape.
-			`{"videoUrl":"` + testValidVideoURL + `","transcript":` + raw + `,"title":"` + "\u3042" + `"}`,
-			`{"videoUrl":"` + testValidVideoURL + `","transcript":` + raw + `,"title":"\u3042"}`,
+			`{"videoUrl":"` + testValidVideoURL + `","transcript":` + raw + `,"title":"` + "\u3042" + `","mode":"plain"}`,
+			`{"videoUrl":"` + testValidVideoURL + `","transcript":` + raw + `,"title":"\u3042","mode":"plain"}`,
 		},
 	}
 	ts := newJobsTestServer(t, jobsServerOptions{})
@@ -555,23 +563,46 @@ func TestJobsTargetRejections(t *testing.T) {
 
 // TestStartHandlerPanicCleanup checks the start handler's recovery: a panic
 // after Begin and before the job takes over fails the record as internal and
-// frees both slots; a panic inside the body checks, before Begin, frees the
-// reading slot and adds no record.
+// frees both slots, for a plain and an inquiry start; a panic while an inquiry
+// start's same-video answer is written leaves the cache as it was; a panic
+// inside the body checks, before Begin, frees the reading slot and adds no
+// record. After each, the server answers the next start.
 func TestStartHandlerPanicCleanup(t *testing.T) {
-	t.Run("after_begin", func(t *testing.T) {
+	for _, mode := range []string{modePlain, modeInquiry} {
+		t.Run("after_begin_"+mode, func(t *testing.T) {
+			ts := newJobsTestServer(t, jobsServerOptions{})
+			ts.beforeGenerationJob = func() { panic("test hook panic") }
+			body := modeBody(testValidVideoURL, testValidRaw, mode)
+			requireRejected(t, ts.startBody(body), http.StatusInternalServerError, "internal_error")
+			key := ts.keyer.Key(ts.validInput(t, body).key)
+			if job := ts.getStatus(t, key.String()).Job; job.State != "failed" || job.Failure != "internal" {
+				t.Errorf("job = %+v, want failed with internal", job)
+			}
+			if len(ts.slots) != 0 || len(ts.reading) != 0 {
+				t.Errorf("slots held: generation %d, reading %d, want 0", len(ts.slots), len(ts.reading))
+			}
+			if len(ts.writer.Calls) != 0 {
+				t.Errorf("writer calls = %d, want 0", len(ts.writer.Calls))
+			}
+			ts.beforeGenerationJob = nil
+			acceptedKey(t, ts.startBody(bodyWith("next")))
+		})
+	}
+	t.Run("same_video_answer", func(t *testing.T) {
 		ts := newJobsTestServer(t, jobsServerOptions{})
-		ts.beforeGenerationJob = func() { panic("test hook panic") }
-		body := validBody(testValidVideoURL, testValidRaw)
-		requireRejected(t, ts.startBody(body), http.StatusInternalServerError, "internal_error")
-		key := ts.keyer.Key(ts.validInput(t, body).key)
-		if job := ts.getStatus(t, key.String()).Job; job.State != "failed" || job.Failure != "internal" {
-			t.Errorf("job = %+v, want failed with internal", job)
+		done := ts.seedDone(t, bodyWith("done"))
+		before := ts.cache.DumpRecordsForTest()
+		ts.beforeSameVideoAnswer = func() { panic("test hook panic") }
+		requireRejected(t, ts.startBody(inquiryWith("inquiry")), http.StatusInternalServerError, "internal_error")
+		if after := ts.cache.DumpRecordsForTest(); after != before {
+			t.Errorf("the panic changed the records:\nbefore %s\nafter  %s", before, after)
 		}
 		if len(ts.slots) != 0 || len(ts.reading) != 0 {
 			t.Errorf("slots held: generation %d, reading %d, want 0", len(ts.slots), len(ts.reading))
 		}
-		if len(ts.writer.Calls) != 0 {
-			t.Errorf("writer calls = %d, want 0", len(ts.writer.Calls))
+		ts.beforeSameVideoAnswer = nil
+		if got, _ := sameVideoAnswer(t, ts.startBody(inquiryWith("inquiry"))); got != done.String() {
+			t.Errorf("the next start's key = %s, want %s", got, done)
 		}
 	})
 	t.Run("body_check", func(t *testing.T) {
@@ -602,5 +633,370 @@ func TestGenerationPanicServerResponds(t *testing.T) {
 	next := acceptedKey(t, ts.startBody(bodyWith("next")))
 	if state := ts.getStatus(t, next).Job.State; state != "done" {
 		t.Errorf("the next start's state = %q, want done", state)
+	}
+}
+
+// otherVideoURL names a video other than testVideoID's.
+const otherVideoURL = "https://www.youtube.com/watch?v=abcdefghijk"
+
+// startJSON returns a generation start's body with members as its string
+// members.
+func startJSON(t *testing.T, members map[string]string) string {
+	t.Helper()
+	data, err := json.Marshal(members)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	return string(data)
+}
+
+// inquiryWith returns an inquiry start's body for testValidVideoURL whose
+// transcript text is text.
+func inquiryWith(text string) string {
+	return modeBody(testValidVideoURL, "0:00\n"+text+"\n", modeInquiry)
+}
+
+// sameVideoAnswer checks that rec is an inquiry start's same-video answer: a
+// 200 whose members are exactly status, key, and requestId, with status
+// same_video. It returns the key and the request ID.
+func sameVideoAnswer(t *testing.T, rec *httptest.ResponseRecorder) (key, requestID string) {
+	t.Helper()
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body %q)", rec.Code, rec.Body.String())
+	}
+	var members map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &members); err != nil {
+		t.Fatalf("decode %q: %v", rec.Body.String(), err)
+	}
+	if got := slices.Sorted(maps.Keys(members)); !slices.Equal(got, []string{"key", "requestId", "status"}) {
+		t.Errorf("members = %v, want key, requestId, status", got)
+	}
+	body := decodeBody(t, rec)
+	if body.Status != "same_video" || !keyShape.MatchString(body.Key) || !requestIDShape.MatchString(body.RequestID) {
+		t.Fatalf("body = %+v, want same_video with a key and a request ID", body)
+	}
+	return body.Key, body.RequestID
+}
+
+// TestStartInquirySameVideo checks that an inquiry start for a video that
+// already has a done or a running article under another key is answered
+// with that article's key, whichever URL form names the video and whichever
+// of the transcript and the metadata differs: no generation, no Webhook call,
+// no change to the cache, and one log line that carries the fixed attributes
+// and neither the request's URL string nor its text.
+func TestStartInquirySameVideo(t *testing.T) {
+	const sentURL = "https://youtu.be/" + testVideoID
+	tests := []struct {
+		name    string
+		running bool // the existing article is held running, else done
+		body    func(t *testing.T) string
+	}{
+		{"done_short_url_other_transcript", false, func(*testing.T) string {
+			return modeBody(sentURL, "0:00\n"+testTranscriptMarker+"\n", modeInquiry)
+		}},
+		{"done_same_url_other_transcript", false, func(*testing.T) string {
+			return inquiryWith(testTranscriptMarker)
+		}},
+		{"running_other_metadata", true, func(t *testing.T) string {
+			return startJSON(t, map[string]string{
+				"videoUrl": sentURL, "transcript": testValidRaw, "mode": modeInquiry,
+				"title": testTranscriptMarker, "channelName": testTranscriptMarker, "description": testTranscriptMarker,
+			})
+		}},
+		{"running_other_transcript", true, func(*testing.T) string {
+			return inquiryWith(testTranscriptMarker)
+		}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ts := newJobsTestServer(t, jobsServerOptions{})
+			var existing string
+			if tc.running {
+				reached, release := holdAtDraft(ts.writer)
+				t.Cleanup(func() {
+					release()
+					ts.waitJobs()
+				})
+				existing = acceptedKey(t, ts.start(strings.NewReader(validBody(testValidVideoURL, testValidRaw))))
+				<-reached
+			} else {
+				existing = acceptedKey(t, ts.startBody(validBody(testValidVideoURL, testValidRaw)))
+			}
+			before := ts.cache.DumpRecordsForTest()
+			logsBefore := ts.logs.Len()
+			body := tc.body(t)
+			own := ts.keyer.Key(ts.validInput(t, body).key).String()
+			if own == existing {
+				t.Fatalf("the inquiry has the existing article's key: the row tests nothing")
+			}
+
+			key, requestID := sameVideoAnswer(t, ts.start(strings.NewReader(body)))
+			if key != existing {
+				t.Errorf("same-video key = %s, want the existing article's %s", key, existing)
+			}
+			if after := ts.cache.DumpRecordsForTest(); after != before {
+				t.Errorf("the answer changed the records:\nbefore %s\nafter  %s", before, after)
+			}
+			if calls := len(ts.writer.RecordedCalls()); calls != 1 {
+				t.Errorf("writer calls = %d, want only the existing article's 1", calls)
+			}
+			if posts := len(ts.publisher.RecordedPostCalls()); posts != 0 {
+				t.Errorf("Webhook posts = %d, want 0", posts)
+			}
+			wantSlots := 0
+			if tc.running {
+				wantSlots = 1 // the existing generation's
+			}
+			if len(ts.slots) != wantSlots || len(ts.reading) != 0 {
+				t.Errorf("slots held: generation %d, reading %d, want %d and 0", len(ts.slots), len(ts.reading), wantSlots)
+			}
+
+			var lines []string
+			for line := range strings.Lines(ts.logs.String()[logsBefore:]) {
+				if strings.Contains(line, "requestId="+requestID) {
+					lines = append(lines, line)
+				}
+			}
+			if len(lines) != 1 {
+				t.Fatalf("log lines with the request ID = %d, want 1:\n%s", len(lines), strings.Join(lines, ""))
+			}
+			line := lines[0]
+			for _, want := range []string{
+				"generation start answered with a same-video article",
+				"key=" + own, "videoId=" + testVideoID, "outcome=same_video", "mode=inquiry", "sameVideoKey=" + existing,
+			} {
+				if !strings.Contains(line, want) {
+					t.Errorf("the log line lacks %q: %s", want, line)
+				}
+			}
+			logs := ts.logs.String()
+			for _, leak := range []string{sentURL, testValidVideoURL, testTranscriptMarker} {
+				if strings.Contains(logs, leak) {
+					t.Errorf("the log carries %q:\n%s", leak, logs)
+				}
+			}
+		})
+	}
+}
+
+// TestStartInquiryNoSameVideo checks that an inquiry start starts a
+// generation and is answered as accepted, under its own key, when the only
+// other records are a failed one of the same video or an article of another
+// video.
+func TestStartInquiryNoSameVideo(t *testing.T) {
+	tests := []struct {
+		name string
+		seed func(t *testing.T, ts *testServer)
+	}{
+		{"failed_same_video", func(t *testing.T, ts *testServer) {
+			ts.writer.Err = errors.New("the provider refused")
+			key := acceptedKey(t, ts.startBody(bodyWith("failed")))
+			ts.writer.Err = nil
+			if state := ts.getStatus(t, key).Job.State; state != "failed" {
+				t.Fatalf("seeded state = %q, want failed", state)
+			}
+		}},
+		{"other_video", func(t *testing.T, ts *testServer) {
+			acceptedKey(t, ts.startBody(validBody(otherVideoURL, testValidRaw)))
+		}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ts := newJobsTestServer(t, jobsServerOptions{})
+			tc.seed(t, ts)
+			body := inquiryWith("inquiry")
+			key := acceptedKey(t, ts.startBody(body))
+			if want := ts.keyer.Key(ts.validInput(t, body).key).String(); key != want {
+				t.Errorf("key = %s, want the inquiry's own %s", key, want)
+			}
+			if calls := len(ts.writer.RecordedCalls()); calls != 2 {
+				t.Errorf("writer calls = %d, want 2: the seed and the inquiry", calls)
+			}
+			if !strings.Contains(ts.logs.String(), "outcome=started mode=inquiry") {
+				t.Errorf("no start line with outcome=started mode=inquiry:\n%s", ts.logs.String())
+			}
+		})
+	}
+}
+
+// TestStartInquiryOwnKey checks the inquiry start's own key against another
+// done article of the same video: a running or done own key is answered as
+// accepted with that key and generates nothing; a failed own key is answered
+// with the other article and is left failed, not retried.
+func TestStartInquiryOwnKey(t *testing.T) {
+	own := inquiryWith("own")
+	t.Run("running", func(t *testing.T) {
+		ts := newJobsTestServer(t, jobsServerOptions{})
+		ts.seedDone(t, bodyWith("other"))
+		reached, release := holdAtDraft(ts.writer)
+		defer func() {
+			release()
+			ts.waitJobs()
+		}()
+		key := acceptedKey(t, ts.start(strings.NewReader(bodyWith("own"))))
+		<-reached
+		if got := acceptedKey(t, ts.start(strings.NewReader(own))); got != key {
+			t.Errorf("key = %s, want the running own key %s", got, key)
+		}
+		if calls := len(ts.writer.RecordedCalls()); calls != 1 {
+			t.Errorf("writer calls = %d, want 1", calls)
+		}
+	})
+	t.Run("done", func(t *testing.T) {
+		ts := newJobsTestServer(t, jobsServerOptions{})
+		ts.seedDone(t, bodyWith("other"))
+		key := acceptedKey(t, ts.startBody(bodyWith("own")))
+		if got := acceptedKey(t, ts.startBody(own)); got != key {
+			t.Errorf("key = %s, want the done own key %s", got, key)
+		}
+		if calls := len(ts.writer.RecordedCalls()); calls != 1 {
+			t.Errorf("writer calls = %d, want 1", calls)
+		}
+	})
+	t.Run("failed", func(t *testing.T) {
+		ts := newJobsTestServer(t, jobsServerOptions{})
+		ts.writer.Err = errors.New("the provider refused")
+		failed := acceptedKey(t, ts.startBody(bodyWith("own")))
+		ts.writer.Err = nil
+		other := ts.seedDone(t, bodyWith("other"))
+		if got, _ := sameVideoAnswer(t, ts.startBody(own)); got != other.String() {
+			t.Errorf("key = %s, want the other article's %s", got, other)
+		}
+		if job := ts.getStatus(t, failed).Job; job.State != "failed" || job.Failure != "llm_failed" {
+			t.Errorf("own job = %+v, want still failed with llm_failed", job)
+		}
+		if calls := len(ts.writer.RecordedCalls()); calls != 1 {
+			t.Errorf("writer calls = %d, want only the failed 1", calls)
+		}
+	})
+}
+
+// TestStartInquiryLatest checks that with two articles of the same video the
+// same-video answer names the one accepted last, and that a failed record
+// retried later counts from its retry.
+func TestStartInquiryLatest(t *testing.T) {
+	ts := newJobsTestServer(t, jobsServerOptions{})
+	ts.writer.Err = errors.New("the provider refused")
+	retried := acceptedKey(t, ts.startBody(bodyWith("retried")))
+	ts.writer.Err = nil
+	first := acceptedKey(t, ts.startBody(bodyWith("first")))
+	second := acceptedKey(t, ts.startBody(bodyWith("second")))
+	if got, _ := sameVideoAnswer(t, ts.startBody(inquiryWith("inquiry"))); got != second {
+		t.Errorf("before the retry: key = %s, want the later done %s (not %s)", got, second, first)
+	}
+	if got := acceptedKey(t, ts.startBody(bodyWith("retried"))); got != retried {
+		t.Fatalf("retry key = %s, want %s", got, retried)
+	}
+	if got, _ := sameVideoAnswer(t, ts.startBody(inquiryWith("inquiry"))); got != retried {
+		t.Errorf("after the retry: key = %s, want the retried %s", got, retried)
+	}
+}
+
+// TestStartInquiryWhenFull checks that an article of the same video is
+// returned even when no generation slot is free and when the cache is full of
+// records it may not drop, while in the same state an inquiry for another
+// video is refused with too_many_requests, which proves the state is full.
+func TestStartInquiryWhenFull(t *testing.T) {
+	t.Run("generation_slots", func(t *testing.T) {
+		ts := newJobsTestServer(t, jobsServerOptions{})
+		done := ts.seedDone(t, bodyWith("done"))
+		for range maxInFlight {
+			ts.slots <- struct{}{}
+		}
+		requireRejected(t, ts.startBody(modeBody(otherVideoURL, testValidRaw, modeInquiry)), http.StatusTooManyRequests, "too_many_requests")
+		if !strings.Contains(ts.logs.String(), "detail=generation_slot") {
+			t.Errorf("the other video's refusal is not the generation-slot one:\n%s", ts.logs.String())
+		}
+		if got, _ := sameVideoAnswer(t, ts.startBody(inquiryWith("inquiry"))); got != done.String() {
+			t.Errorf("key = %s, want %s", got, done)
+		}
+		if len(ts.slots) != maxInFlight {
+			t.Errorf("generation slots held = %d, want the %d the test took", len(ts.slots), maxInFlight)
+		}
+	})
+	t.Run("cache_full", func(t *testing.T) {
+		ts := newJobsTestServer(t, jobsServerOptions{capacity: 1})
+		reached, release := holdAtDraft(ts.writer)
+		defer func() {
+			release()
+			ts.waitJobs()
+		}()
+		running := acceptedKey(t, ts.start(strings.NewReader(bodyWith("running"))))
+		<-reached
+		requireRejected(t, ts.start(strings.NewReader(modeBody(otherVideoURL, testValidRaw, modeInquiry))), http.StatusTooManyRequests, "too_many_requests")
+		if !strings.Contains(ts.logs.String(), "detail=cache_full") {
+			t.Errorf("the other video's refusal is not the cache-full one:\n%s", ts.logs.String())
+		}
+		if got, _ := sameVideoAnswer(t, ts.start(strings.NewReader(inquiryWith("inquiry")))); got != running {
+			t.Errorf("key = %s, want %s", got, running)
+		}
+	})
+}
+
+// TestStartConcurrentSameVideo sends inquiry starts for different inputs of
+// one video from as many goroutines at once as there are reading slots while
+// the writer is held, and checks that exactly one starts a generation and
+// every other is answered with its key. Like TestStartConcurrentSameKey it
+// checks the outcome only; articlecache's concurrent same-video test lines the
+// calls up at Begin.
+func TestStartConcurrentSameVideo(t *testing.T) {
+	const senders = maxReading
+	ts := newJobsTestServer(t, jobsServerOptions{})
+	_, release := holdAtDraft(ts.writer)
+	defer func() {
+		release()
+		ts.waitJobs()
+	}()
+	recs := make([]*httptest.ResponseRecorder, senders)
+	var wg sync.WaitGroup
+	for i := range senders {
+		wg.Go(func() { recs[i] = ts.start(strings.NewReader(inquiryWith(fmt.Sprint("sender", i)))) })
+	}
+	wg.Wait()
+	var started string
+	var answered []string
+	for _, rec := range recs {
+		if rec.Code == http.StatusAccepted {
+			if started != "" {
+				t.Fatalf("more than one start was accepted")
+			}
+			started = acceptedKey(t, rec)
+			continue
+		}
+		key, _ := sameVideoAnswer(t, rec)
+		answered = append(answered, key)
+	}
+	if started == "" {
+		t.Fatalf("no start was accepted")
+	}
+	for _, key := range answered {
+		if key != started {
+			t.Errorf("same-video key = %s, want the started %s", key, started)
+		}
+	}
+	release()
+	ts.waitJobs()
+	if calls := len(ts.writer.RecordedCalls()); calls != 1 {
+		t.Errorf("writer calls = %d, want 1", calls)
+	}
+}
+
+// TestStartPlainIgnoresSameVideo checks that a plain start generates its own
+// input's article even though a done article of the same video exists.
+func TestStartPlainIgnoresSameVideo(t *testing.T) {
+	ts := newJobsTestServer(t, jobsServerOptions{})
+	done := ts.seedDone(t, bodyWith("done"))
+	key := acceptedKey(t, ts.startBody(bodyWith("plain")))
+	if key == done.String() {
+		t.Errorf("the plain start got the done article's key")
+	}
+	if calls := len(ts.writer.RecordedCalls()); calls != 1 {
+		t.Errorf("writer calls = %d, want 1", calls)
+	}
+	if state := ts.getStatus(t, key).Job.State; state != "done" {
+		t.Errorf("state = %q, want done", state)
+	}
+	if !strings.Contains(ts.logs.String(), "outcome=started mode=plain") {
+		t.Errorf("no start line with outcome=started mode=plain:\n%s", ts.logs.String())
 	}
 }

@@ -174,6 +174,13 @@ func writeAcceptedKey(w http.ResponseWriter, requestID, key string) error {
 	return writeJSON(w, http.StatusAccepted, responseBody{Status: "accepted", Key: key, RequestID: requestID}, nil)
 }
 
+// writeSameVideo writes the 200 response for an inquiry start answered with
+// another article of the same video, with that article's key. Nothing was
+// accepted, so it is not 202.
+func writeSameVideo(w http.ResponseWriter, requestID, key string) error {
+	return writeJSON(w, http.StatusOK, responseBody{Status: "same_video", Key: key, RequestID: requestID}, nil)
+}
+
 // writeRejected writes the rejection response. closeConnection adds
 // `Connection: close` for a rejection that may leave the body unread; the
 // caller decides it.

@@ -171,13 +171,13 @@
 
 **変更するファイル:** `internal/server/request.go`、`jobs_api.go`、`response.go`、`request_test.go`、`jobs_api_test.go`、`status_test.go`、`test_helpers.go`、`cmd/yt2column-server/test_helpers.go` と、生成の開始の本文を作るほかのテスト（1.4 節）
 
-- [ ] `validateBody` に `mode` の検査と `startMode` を、`jobInput` に `mode` を加える（設計書 3.1 節・3.3 節）。`mode` を読む位置は設計書 3.3 節のとおりで、`invalid_video_url`・`invalid_transcript` より前である。
-- [ ] `startHandler` が `input.mode` を `Begin` に渡し、`BeginSameVideo` で同じ動画の応答を書き、ログに設計書 3.3 節の行を書く。生成の開始のログの行に `mode` の属性を加える。同じ動画の応答を書く関数は `response.go` に置く。
-- [ ] 本文を作るテストの補助（`validBody`・`bodyWith`・`requestBody`）は `mode` を持つ本文を作る形にし、既存のテストは `plain` で送る。`json.Marshal` や文字列で本文を作るテストも同じく直す。既存の行の期待する値は変えない。
-- [ ] `invalid_body` を期待する既存の行（1.4 節）にも正しい `"mode":"plain"` を加え、各行の誤りが、その行が名指すものだけになるようにする。行の本文を、受理されることを先に確かめた正しい本文から作る形にすると、加え忘れが失敗として出る。
-- [ ] `TestStartRejectsBody` に、`mode` がない・文字列でない（`true`・`1`・`null`）・集合にない値（大文字、前後の空白、空の文字列）・重複の行を加え、`invalid_body` で拒否されることを確かめる（設計書 3.1 節、AC-31）。生成を始めず、キャッシュも変わらないことは、この表の拒否の行が確かめている 3 点と同じ確かめ（`requireStartUntouched`）で示す。3 点は、`DumpRecordsForTest` が空であること、Writer が呼ばれないこと、枠が取られないことである。`Begin` を呼ばないことは、この 3 点から導く。
-- [ ] `TestStartKeyEquivalence` に、`mode` だけが違う本文が同じキーになる行を加える。表のグループは同じ動画を使うので、`inquiry` の本文はグループの最初に置かない（最初に置くと、同じ動画のほかの記事があれば同じ動画の応答が返りうる）。
-- [ ] 照会付きの生成の開始のテストを `jobs_api_test.go` に加える（設計書 7.1 節のサーバの行）。テストの名前と確かめることは次のとおりで、表の行の組み立ては実装で決める。
+- [x] `validateBody` に `mode` の検査と `startMode` を、`jobInput` に `mode` を加える（設計書 3.1 節・3.3 節）。`mode` を読む位置は設計書 3.3 節のとおりで、`invalid_video_url`・`invalid_transcript` より前である。
+- [x] `startHandler` が `input.mode` を `Begin` に渡し、`BeginSameVideo` で同じ動画の応答を書き、ログに設計書 3.3 節の行を書く。生成の開始のログの行に `mode` の属性を加える。同じ動画の応答を書く関数は `response.go` に置く。
+- [x] 本文を作るテストの補助（`validBody`・`bodyWith`・`requestBody`）は `mode` を持つ本文を作る形にし、既存のテストは `plain` で送る。`json.Marshal` や文字列で本文を作るテストも同じく直す。既存の行の期待する値は変えない。
+- [x] `invalid_body` を期待する既存の行（1.4 節）にも正しい `"mode":"plain"` を加え、各行の誤りが、その行が名指すものだけになるようにする。行の本文を、受理されることを先に確かめた正しい本文から作る形にすると、加え忘れが失敗として出る。
+- [x] `TestStartRejectsBody` に、`mode` がない・文字列でない（`true`・`1`・`null`）・集合にない値（大文字、前後の空白、空の文字列）・重複の行を加え、`invalid_body` で拒否されることを確かめる（設計書 3.1 節、AC-31）。生成を始めず、キャッシュも変わらないことは、この表の拒否の行が確かめている 3 点と同じ確かめ（`requireStartUntouched`）で示す。3 点は、`DumpRecordsForTest` が空であること、Writer が呼ばれないこと、枠が取られないことである。`Begin` を呼ばないことは、この 3 点から導く。
+- [x] `TestStartKeyEquivalence` に、`mode` だけが違う本文が同じキーになる行を加える。表のグループは同じ動画を使うので、`inquiry` の本文はグループの最初に置かない（最初に置くと、同じ動画のほかの記事があれば同じ動画の応答が返りうる）。
+- [x] 照会付きの生成の開始のテストを `jobs_api_test.go` に加える（設計書 7.1 節のサーバの行）。テストの名前と確かめることは次のとおりで、表の行の組み立ては実装で決める。
     -   `TestStartInquirySameVideo`: 同じ動画（`youtu.be` と `watch?v=` の書き方の違い、字幕だけ違う、タイトル・チャンネル名・概要欄だけ違う）の完了の記事と処理中の記事（`holdAtDraft` で処理中に保つ）で、`200` の同じ動画の応答、メンバの集合、キー、LLM の fake と Webhook の fake が呼ばれないこと、ログの行の属性。ログは、その `requestId` を持つ行がちょうど 1 行で、送った `videoUrl` の文字列（`youtu.be` の形のまま）を含まないことも確かめる（AC-01・AC-02・AC-10・AC-34）。
     -   `TestStartInquiryNoSameVideo`: 同じ動画の記録が失敗だけのとき、別の動画の記事だけのときに、生成が始まり受け付けの応答が返ること（AC-03）。
     -   `TestStartInquiryOwnKey`: 今の入力のキーが処理中か完了なら、同じ動画のほかの記事があっても受け付けの応答で今のキーが返り、Writer の呼び出しの数が増えないこと。今の入力のキーが失敗で同じ動画のほかの記事が完了なら、同じ動画の応答が返り、失敗の記録がやり直されないこと（AC-04・AC-05）。
@@ -185,9 +185,9 @@
     -   `TestStartInquiryWhenFull`: 生成の枠に空きがないとき、キャッシュが件数の上限で捨てられる記録がないときにも、同じ動画の応答が返ること。同じ状態で、別の動画の照会付きの生成の開始が `too_many_requests` で拒否されることも確かめ、その状態が本当に埋まっていることを示す（AC-07）。
     -   `TestStartConcurrentSameVideo`: `TestStartConcurrentSameKey` と同じ組み立てで、読み込みの枠の数の照会付きの生成の開始を同時に送り、LLM の fake の呼び出しが 1 回分で、ほかが始まった記録のキーの同じ動画の応答を受け取ること（AC-08）。
     -   `TestStartPlainIgnoresSameVideo`: 照会なしの生成の開始は、同じ動画の記事があっても今の入力の記事を生成すること（AC-09）。
-- [ ] `TestStartHandlerPanicCleanup` に、照会付きの生成の開始の 2 つの経路の行を加える。生成を始める経路（今の `beforeGenerationJob`）と、同じ動画の応答を書く経路（テストで panic を起こせる箇所を、実装で 1 つ設ける）である。どちらも `internal_error` で拒否し、後のリクエストに応答することを確かめる（AC-11）。
-- [ ] `TestResponsesOmitInputs` に、同じ動画の応答とそのログの行を加える。目印に、送った `videoUrl` の文字列を加える（設計書 7.3 節、AC-10・AC-34）。
-- [ ] 加えたテストの行が、それぞれの検査・分岐を壊すと失敗することを確かめ、コミットメッセージに書く。`mode` の検査では、`startMode` が知らない値に `StartPlain, true` を返すようにしたときと、`mode` がない本文を `plain` として受理するようにしたときに、AC-31 の行が失敗することを確かめる。ログでは、`videoUrl` の文字列を属性に加えたときに AC-34 の確かめが失敗することを確かめる。
+- [x] `TestStartHandlerPanicCleanup` に、照会付きの生成の開始の 2 つの経路の行を加える。生成を始める経路（今の `beforeGenerationJob`）と、同じ動画の応答を書く経路（テストで panic を起こせる箇所を、実装で 1 つ設ける）である。どちらも `internal_error` で拒否し、後のリクエストに応答することを確かめる（AC-11）。
+- [x] `TestResponsesOmitInputs` に、同じ動画の応答とそのログの行を加える。目印に、送った `videoUrl` の文字列を加える（設計書 7.3 節、AC-10・AC-34）。
+- [x] 加えたテストの行が、それぞれの検査・分岐を壊すと失敗することを確かめ、コミットメッセージに書く。`mode` の検査では、`startMode` が知らない値に `StartPlain, true` を返すようにしたときと、`mode` がない本文を `plain` として受理するようにしたときに、AC-31 の行が失敗することを確かめる。ログでは、`videoUrl` の文字列を属性に加えたときに AC-34 の確かめが失敗することを確かめる。
 
 **完了の条件:** `go test -tags test ./internal/server/ ./cmd/yt2column-server/` が通る。
 
@@ -195,13 +195,13 @@
 
 **変更するファイル:** `extension/src/core/hostMessage.ts`、`src/core/extensionMessages.ts`（`SendMode` の型だけ）、`src/core/response.ts`、`src/core/jobView.ts`、`src/core/sendMessages.ts`、`src/core/prepare.ts`、`test/hostMessage.test.ts`、`test/response.test.ts`、`test/sendMessages.test.ts`、`test/prepare.test.ts`
 
-- [ ] `StartBody` と、送り方を引数に取る `startMessage` を設計書 3.4.1 節のとおりに加える。`SendMode` は設計書 3.5 節のとおり `src/core/extensionMessages.ts` に置く。
-- [ ] `StartOutcome` に `same-video` を、`classifyStartInquiry` を設計書 3.4.2 節のとおりに加える。`classifyStart` は変えない。`toStartOutcome` と `StartLogView`・`startLogView` に `same-video` を加え、`startLogView` は `same-video` のキーを書かない（設計書 3.5 節）。
-- [ ] `StartFailure` から `same-video` を除き、`startResultMessage` の引数からも除く（1.3 節）。
-- [ ] 送る前の本文の大きさの確かめに、長いほうの `mode` のメンバのバイト数を加える（1.3 節）。`prepare.test.ts` の上限の境界の行（`:139-152` 付近）を、その測り方に合わせ、上限ちょうどの本文に `inquiry` の `mode` を加えた本文がサーバの上限を超えないことを確かめる。
-- [ ] `hostMessage.test.ts` で、`startMessage` が `input` に送り方の `mode` を加えることを、2 つの値で確かめる（AC-31 の拡張の側）。
-- [ ] `response.test.ts` に `classifyStartInquiry` のテストを加える。設計書 3.4.2 節の表の各行、`0050` AC-41 の形の誤りの一覧を同じ動画の応答に当てたもの、空のキー、文字列でないキー、状態コードと `status` の組の誤り（AC-32）。`reasonTable` に `classifyStartInquiry` の行を加える。照会なしの応答に `same_video` が来たら `classifyStart` が想定外の応答にすることの行を加える。
-- [ ] `startLogView` の今のテスト（`response.test.ts:1002` 付近）に、`same-video` のキーがログに出ない行を加える。
+- [x] `StartBody` と、送り方を引数に取る `startMessage` を設計書 3.4.1 節のとおりに加える。`SendMode` は設計書 3.5 節のとおり `src/core/extensionMessages.ts` に置く。
+- [x] `StartOutcome` に `same-video` を、`classifyStartInquiry` を設計書 3.4.2 節のとおりに加える。`classifyStart` は変えない。`toStartOutcome` と `StartLogView`・`startLogView` に `same-video` を加え、`startLogView` は `same-video` のキーを書かない（設計書 3.5 節）。
+- [x] `StartFailure` から `same-video` を除き、`startResultMessage` の引数からも除く（1.3 節）。
+- [x] 送る前の本文の大きさの確かめに、長いほうの `mode` のメンバのバイト数を加える（1.3 節）。`prepare.test.ts` の上限の境界の行（`:139-152` 付近）を、その測り方に合わせ、上限ちょうどの本文に `inquiry` の `mode` を加えた本文がサーバの上限を超えないことを確かめる。
+- [x] `hostMessage.test.ts` で、`startMessage` が `input` に送り方の `mode` を加えることを、2 つの値で確かめる（AC-31 の拡張の側）。
+- [x] `response.test.ts` に `classifyStartInquiry` のテストを加える。設計書 3.4.2 節の表の各行、`0050` AC-41 の形の誤りの一覧を同じ動画の応答に当てたもの、空のキー、文字列でないキー、状態コードと `status` の組の誤り（AC-32）。`reasonTable` に `classifyStartInquiry` の行を加える。照会なしの応答に `same_video` が来たら `classifyStart` が想定外の応答にすることの行を加える。
+- [x] `startLogView` の今のテスト（`response.test.ts:1002` 付近）に、`same-video` のキーがログに出ない行を加える。
 
 **完了の条件:** `make ext-typecheck` は、ステップ 2-3 を終えるまで通らなくてよい。`node --test` で `hostMessage.test.ts`・`response.test.ts`・`sendMessages.test.ts`・`prepare.test.ts` が通る。
 
@@ -209,19 +209,19 @@
 
 **変更するファイル:** `extension/src/core/extensionMessages.ts`、`src/startCoordinator.ts`、`src/launch.ts`、`src/viewerApp.ts`、`test/extensionMessages.test.ts`、`test/startCoordinator.test.ts`、`test/launch.test.ts`、`test/viewerApp.test.ts`、`test/viewerQuery.test.ts`
 
-- [ ] `SendMode` と `StartRequest.mode`、引き継ぎの `answer` を設計書 3.5 節のとおりに加え、`parseStartRequest` と `parseViewerChannelMessage` で検査する。`startOutcome` の検査（`parseStartReply`・`parseAwaitStartReply`）は `same-video` を受理する。
-- [ ] SW は、求めの `mode` を `startMessage` に渡し、`mode` の `switch` で `classifyStartInquiry` か `classifyStart` を選ぶ。`same-video` でも同じキーのビューアの引き継ぎを行い、引き継ぎのメッセージの `answer` に結果の種類を書く。生成の開始の結果のログは、`same-video` を `info` で書く（設計書 3.5 節）。
-- [ ] ポップアップは `mode: "plain"` で送る（1.3 節）。`same-video` の結果は `accepted` と同じに扱う（1.3 節の暫定の扱い）。
-- [ ] ビューアは `same-video` の結果を `accepted` と同じに扱い、引き継ぎの `answer` を読んでも振る舞いを変えない（1.3 節）。
-- [ ] テストの求めとメッセージの組み立て（1.4 節のテストのファイル）に `mode` と `answer` を加える。既存の行の期待する値は変えない。拒否を期待する既存の行（`extensionMessages.test.ts` の求めと引き継ぎのメッセージの誤りの行）にも正しい `mode`・`answer` を加え、各行の誤りが、その行が名指すものだけになるようにする（1.4 節）。
-- [ ] `extensionMessages.test.ts` に、`mode` の誤り（ない、集合にない値、文字列でない）の求めの拒否、`answer` の誤り（ない、集合にない値）の引き継ぎのメッセージの拒否、`same-video` の結果の受理を加える（AC-33）。
-- [ ] `startCoordinator.test.ts` に次を加える（設計書 7.2 節の SW の行）。
+- [x] `SendMode` と `StartRequest.mode`、引き継ぎの `answer` を設計書 3.5 節のとおりに加え、`parseStartRequest` と `parseViewerChannelMessage` で検査する。`startOutcome` の検査（`parseStartReply`・`parseAwaitStartReply`）は `same-video` を受理する。
+- [x] SW は、求めの `mode` を `startMessage` に渡し、`mode` の `switch` で `classifyStartInquiry` か `classifyStart` を選ぶ。`same-video` でも同じキーのビューアの引き継ぎを行い、引き継ぎのメッセージの `answer` に結果の種類を書く。生成の開始の結果のログは、`same-video` を `info` で書く（設計書 3.5 節）。
+- [x] ポップアップは `mode: "plain"` で送る（1.3 節）。`same-video` の結果は `accepted` と同じに扱う（1.3 節の暫定の扱い）。
+- [x] ビューアは `same-video` の結果を `accepted` と同じに扱い、引き継ぎの `answer` を読んでも振る舞いを変えない（1.3 節）。
+- [x] テストの求めとメッセージの組み立て（1.4 節のテストのファイル）に `mode` と `answer` を加える。既存の行の期待する値は変えない。拒否を期待する既存の行（`extensionMessages.test.ts` の求めと引き継ぎのメッセージの誤りの行）にも正しい `mode`・`answer` を加え、各行の誤りが、その行が名指すものだけになるようにする（1.4 節）。
+- [x] `extensionMessages.test.ts` に、`mode` の誤り（ない、集合にない値、文字列でない）の求めの拒否、`answer` の誤り（ない、集合にない値）の引き継ぎのメッセージの拒否、`same-video` の結果の受理を加える（AC-33）。
+- [x] `startCoordinator.test.ts` に次を加える（設計書 7.2 節の SW の行）。
     -   `mode: "inquiry"` の求めで、ホストが `input` の `mode` が `inquiry` の `start` を 1 つだけ受け取ること。`mode: "plain"` の求めで、`plain` の `start` を受け取ること（AC-15・AC-19 の SW の側）。
     -   `mode` の誤った求めで、ホストに何も送らずタブも開かないこと（AC-33）。
     -   同じ動画の応答の後、決めた時間が過ぎてもホストが受け取る `start` が 1 つのままであること（AC-17 の SW の側）。
     -   同じ動画の応答で、同じキーのビューアがあれば引き継ぎが `answer: "same-video"` を持ち、新しいタブを閉じること。受け付けの応答では `answer: "accepted"` を持つこと（AC-26 の SW の側）。
     -   同じ動画の応答の結果のログが `info` で、キーを書かないこと。
-- [ ] 加えたテストの行が、それぞれの検査と分岐を壊すと失敗することを確かめ、コミットメッセージに書く。
+- [x] 加えたテストの行が、それぞれの検査と分岐を壊すと失敗することを確かめ、コミットメッセージに書く。
 
 **完了の条件:** `make ext-check` が通る。
 
@@ -229,11 +229,11 @@
 
 **変更するファイル:** `docs/dev/guides/development.md`、`docs/dev/conventions/package_reference.md`
 
-- [ ] `development.md` の「ジョブの API」に、生成の開始の本文の必須のメンバ `mode`、同じ動画の応答（`200`、`status` が `same_video`）、照会付きの生成の開始の振る舞い（設計書 3.2 節の表）、ログの属性を書き、生成の開始の例の本文（`request.json`）に `mode` を加える（設計書 3.9 節、1.3 節）。拒否の理由は加えない。
-- [ ] `development.md` の「ジョブの API のコード」節（要件書 2.2 が対象に挙げる）に、`same_video` や `mode` の値を書くかを決める。この節は状態の取得の応答のコードを並べる節なので、生成の開始の応答の `status` とログの値は「ジョブの API」節に書き、この節は変えないのが今の構成に合う。決めたことと理由を PR の説明に書く。
-- [ ] `package_reference.md` の `internal/server` の行に、本文の `mode` と同じ動画の応答を加える。
-- [ ] 例の本文が受理されることを確かめる。`development.md` の例の本文を `internal/server` の一時的なテスト（コミットしない）で `validateBody` に通し、受理されることを、使ったコミットとともに 7.1 節に書く。
-- [ ] 文書のガードと `make ext-test` を通す。
+- [x] `development.md` の「ジョブの API」に、生成の開始の本文の必須のメンバ `mode`、同じ動画の応答（`200`、`status` が `same_video`）、照会付きの生成の開始の振る舞い（設計書 3.2 節の表）、ログの属性を書き、生成の開始の例の本文（`request.json`）に `mode` を加える（設計書 3.9 節、1.3 節）。拒否の理由は加えない。
+- [x] `development.md` の「ジョブの API のコード」節（要件書 2.2 が対象に挙げる）に、`same_video` や `mode` の値を書くかを決める。この節は状態の取得の応答のコードを並べる節なので、生成の開始の応答の `status` とログの値は「ジョブの API」節に書き、この節は変えないのが今の構成に合う。決めたことと理由を PR の説明に書く。
+- [x] `package_reference.md` の `internal/server` の行に、本文の `mode` と同じ動画の応答を加える。
+- [x] 例の本文が受理されることを確かめる。`development.md` の例の本文を `internal/server` の一時的なテスト（コミットしない）で `validateBody` に通し、受理されることを、使ったコミットとともに 7.1 節に書く。
+- [x] 文書のガードと `make ext-test` を通す。
 
 **完了の条件:** 文書のガードと `make ext-test` が通る。
 
@@ -249,10 +249,10 @@
 
 **判定理由**: ステップ 2-1・2-2・2-3 がサーバの本文と拡張の応答・求め・チャネルのメッセージという信頼できない入力の境界を変え、サーバと拡張の振る舞いを同じ PR で同時に変える（mkplan のパネルモードの条件である、セキュリティの境界の変更と、振る舞いの同時の変更に当たる）
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/669
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 3: ビューア（設計書 8 章の 3）
 
@@ -482,7 +482,7 @@ M1 の前に、0059 の PR-2 がマージされている必要がある（1.3 �
 ## 6. 実装チェックリスト (Implementation Checklist)
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4）
-- [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4）
+- [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4）
 - [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3）
 - [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4）
 - [ ] PR-5 マージ済み（対象ステップ: 5-1）
@@ -538,6 +538,10 @@ AC-12・AC-13・AC-14 は要件書の欠番である。
 ### 7.1. 実行の記録
 
 （ステップ 2-4・3-3・4-4 で記入する。）
+
+**ステップ 2-4（`development.md` の例の本文、AC-29）:** 2026-11-04、ブランチのコミット `8d582f95` に `development.md` の変更を加えた作業ツリーで確かめた。`internal/server` の一時的なテスト（コミットしない）で、`development.md` の最初の `json` のコード片（`{"videoUrl":"https://www.youtube.com/watch?v=dQw4w9WgXcQ","transcript":"0:00\nHello\n","mode":"plain"}`）を読み、`validateBody` に通した。拒否されずに受理され、送り方は `plain` だった。
+
+**ステップ 2-4（「ジョブの API のコード」節）:** この節は状態の取得の応答のコードを並べる節なので、変えない。生成の開始の応答の `status` の `same_video` と、ログの `mode`・`outcome=same_video` の値は「ジョブの API」節に書いた。
 
 ## 8. 成功基準 (Success Criteria)
 

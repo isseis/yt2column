@@ -55,9 +55,12 @@ func (s *Server) releaseReading() {
 // startHandler serves a generation start. It checks, in order, the method, a
 // reading slot (refused without reading the body when none is free), the body,
 // and then the key's record in the cache:
-// a running or done key is answered with its key whatever the slots, a new or
-// failed key starts a generation when a generation slot is free, and every
-// other case is too_many_requests.
+// a running or done key is answered with its key whatever the slots; for a
+// start whose mode is inquiry, another running or done article of the same
+// video is answered with that article's key (200, same_video), whatever the
+// slots and the cache limit, starting nothing; a new or failed key starts a
+// generation when a generation slot is free; and every other case is
+// too_many_requests.
 //
 // Ownership: the handler holds the reading slot only while it reads and checks
 // the body, and the generation slot and the Run from Begin until the
@@ -116,7 +119,7 @@ func (s *Server) startHandler(w http.ResponseWriter, r *http.Request, requestID 
 
 	subject := s.keyer.Subject(input.key)
 	key := subject.Key()
-	begun := s.cache.Begin(subject, articlecache.StartPlain, s.acquireSlot)
+	begun := s.cache.Begin(subject, input.mode, s.acquireSlot)
 	run = begun.Run
 	if begun.Evicted != nil {
 		s.logEviction(begun.Evicted)
@@ -139,13 +142,7 @@ func (s *Server) startHandler(w http.ResponseWriter, r *http.Request, requestID 
 	case articlecache.BeginExisting:
 		outcomeCode = "existing"
 	case articlecache.BeginSameVideo:
-		// Begin reports another article of the same video only for
-		// StartInquiry, and this handler passes StartPlain, so the real Cache
-		// never returns this; no test reaches it. Should it come back, the
-		// cache is unchanged, and answering with that article would skip the
-		// generation the start asked for, so the start is refused instead.
-		s.logger.Error("generation start got a same-video article for a plain start", "requestId", requestID, "key", key.String())
-		s.reject(w, requestID, rejection{reason: reasonInternal, detail: detailInternalError})
+		s.answerSameVideo(w, requestID, key, *input, begun.SameVideoKey)
 		responded = true
 		return
 	case articlecache.BeginNoSlot:
@@ -162,7 +159,35 @@ func (s *Server) startHandler(w http.ResponseWriter, r *http.Request, requestID 
 		s.logger.Info("accepted response write failed", "requestId", requestID, "key", key.String(), "error", err)
 	}
 	responded = true
-	s.logger.Info("generation start accepted", "requestId", requestID, "key", key.String(), "videoId", input.videoID, "outcome", outcomeCode)
+	s.logger.Info("generation start accepted", "requestId", requestID, "key", key.String(), "videoId", input.videoID, "outcome", outcomeCode, "mode", modeCode(input.mode))
+}
+
+// answerSameVideo answers a start Begin found another article of the same
+// video for. For an inquiry start it writes the same-video answer, 200 with
+// that article's key, and its one log line. Begin changed nothing, so there is
+// nothing to undo; the line carries the start's own key and the returned one,
+// so both jobs' lines can be found by key, and no value from the body beyond
+// the video ID the start line already carries.
+func (s *Server) answerSameVideo(w http.ResponseWriter, requestID string, key articlecache.Key, input jobInput, sameVideoKey articlecache.Key) {
+	if input.mode != articlecache.StartInquiry {
+		// Begin reports another article of the same video only for
+		// StartInquiry, so the real Cache never returns this for a plain
+		// start; no test reaches it. Should it come back, answering with that
+		// article would skip the generation the start asked for, so the start
+		// is refused instead.
+		s.logger.Error("generation start got a same-video article for a plain start", "requestId", requestID, "key", key.String())
+		s.reject(w, requestID, rejection{reason: reasonInternal, detail: detailInternalError})
+		return
+	}
+	if s.beforeSameVideoAnswer != nil {
+		s.beforeSameVideoAnswer()
+	}
+	if err := writeSameVideo(w, requestID, sameVideoKey.String()); err != nil {
+		s.logger.Info("same-video response write failed", "requestId", requestID, "key", key.String(), "error", err)
+	}
+	s.logger.Info("generation start answered with a same-video article",
+		"requestId", requestID, "key", key.String(), "videoId", input.videoID,
+		"outcome", "same_video", "mode", modeInquiry, "sameVideoKey", sameVideoKey.String())
 }
 
 // readStartRequest reads and checks a generation start's body while the

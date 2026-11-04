@@ -28,6 +28,9 @@ type jobInput struct {
 	// place that builds one, from the values that passed its checks, so the
 	// handler passes it to the Keyer as it is.
 	key articlecache.KeyInput
+	// mode is the declared send mode. It is not part of the key: the same
+	// input sent either way has one key.
+	mode articlecache.StartMode
 }
 
 // readRequest reads and validates the body of a generation start that passed
@@ -54,15 +57,15 @@ func (s *Server) readRequest(w http.ResponseWriter, r *http.Request) (*jobInput,
 // validateBody checks the body and builds the job input. The steps are: the
 // whole-body checks (strict UTF-8, no unpaired surrogate escape, one object
 // with no trailing value), the declared members (duplicates rejected, unknown
-// members ignored), the required strings, the optional strings, the video URL,
-// and the copied transcript's format. Every failure maps to a reason by the
+// members ignored), the required strings, the optional strings, the send
+// mode, the video URL, and the copied transcript's format. Every failure maps to a reason by the
 // step that produced it, never by the error's content.
 func (s *Server) validateBody(body []byte) (*jobInput, *rejection) {
 	object, err := strictjson.ParseObject(body)
 	if err != nil {
 		return nil, &rejection{reason: reasonInvalidBody, detail: detailInvalidBody}
 	}
-	members, err := object.Collect("videoUrl", "transcript", "title", "channelName", "description")
+	members, err := object.Collect("videoUrl", "transcript", "title", "channelName", "description", "mode")
 	if err != nil {
 		return nil, &rejection{reason: reasonInvalidBody, detail: detailInvalidBody}
 	}
@@ -90,6 +93,16 @@ func (s *Server) validateBody(body []byte) (*jobInput, *rejection) {
 	description, rej := optionalMember(members, "description")
 	if rej != nil {
 		return nil, rej
+	}
+	// The mode is read last among the member checks, so a malformed body is
+	// still invalid_body before the video URL and transcript checks run.
+	declaredMode, err := strictjson.RequiredString(members, "mode")
+	if err != nil {
+		return nil, &rejection{reason: reasonInvalidBody, detail: detailInvalidBody}
+	}
+	mode, ok := startMode(declaredMode)
+	if !ok {
+		return nil, &rejection{reason: reasonInvalidBody, detail: detailInvalidBody}
 	}
 
 	videoID, normalizedURL, err := transcript.ValidateVideoURL(rawVideoURL)
@@ -123,7 +136,41 @@ func (s *Server) validateBody(body []byte) (*jobInput, *rejection) {
 			ChannelName: channelName,
 			Description: description,
 		},
+		mode: mode,
 	}, nil
+}
+
+// startMode maps the body's mode member to a StartMode. ok is false for any
+// other value, which validateBody rejects with invalid_body: it never repairs
+// a value (a different case, surrounding space, an empty string) into a mode.
+func startMode(declared string) (mode articlecache.StartMode, ok bool) {
+	switch declared {
+	case modeInquiry:
+		return articlecache.StartInquiry, true
+	case modePlain:
+		return articlecache.StartPlain, true
+	default:
+		return articlecache.StartInquiry, false
+	}
+}
+
+// The values of a generation start's mode member, which the start log line
+// also carries.
+const (
+	modeInquiry = "inquiry"
+	modePlain   = "plain"
+)
+
+// modeCode returns the log value of a send mode: the body value it was read
+// from.
+func modeCode(mode articlecache.StartMode) string {
+	switch mode {
+	case articlecache.StartPlain:
+		return modePlain
+	default:
+		// StartInquiry, the zero value.
+		return modeInquiry
+	}
 }
 
 // optionalMember returns the string value of a declared optional member, or ""

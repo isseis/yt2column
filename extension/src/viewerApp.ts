@@ -283,7 +283,9 @@ export async function startViewer(
       received: "result",
       outcome: outcome.kind,
     });
-    if (outcome.kind !== "accepted") {
+    // A same-video answer's key is another article of the same video; the
+    // viewer polls it as it polls an accepted key.
+    if (outcome.kind !== "accepted" && outcome.kind !== "same-video") {
       show({ kind: "start-failed", failure: outcome });
       return;
     }

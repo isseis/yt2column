@@ -107,6 +107,10 @@ type Server struct {
 	// before the job takes it over. It is always nil outside a test, which
 	// sets it to panic there to check the handler's cleanup.
 	beforeGenerationJob func()
+	// beforeSameVideoAnswer is the same for an inquiry start that Begin
+	// answered with another article of the same video: it runs before the
+	// answer is written.
+	beforeSameVideoAnswer func()
 	// beforePublishJob is the same for a publish operation: it runs after
 	// BeginPublish started a post and before the job takes it over.
 	beforePublishJob func()

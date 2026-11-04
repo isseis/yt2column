@@ -24,6 +24,7 @@ const requestId = "0123456789abcdef";
 function validRequest(): Record<string, unknown> {
   return {
     type: "start",
+    mode: "inquiry",
     input: {
       videoUrl: watchUrl,
       transcript: "line one\nline two",
@@ -54,9 +55,13 @@ function changed(patch: Patch): unknown {
   return request;
 }
 
-/** A request whose input JSON text is exactly bytes long. */
+/** A request whose input, sent with the longer mode member, is exactly bytes long. */
 function requestOfBodySize(bytes: number): unknown {
-  const empty = JSON.stringify({ videoUrl: watchUrl, transcript: "" });
+  const empty = JSON.stringify({
+    videoUrl: watchUrl,
+    transcript: "",
+    mode: "inquiry",
+  });
   return changed((request) => {
     request.input = {
       videoUrl: watchUrl,
@@ -81,6 +86,11 @@ describe("parseStartRequest", () => {
     const parsed = parseStartRequest(validRequest(), now);
     assert.ok(parsed.ok);
     assert.deepEqual(parsed.prepared.body.message, parsed.request.input);
+  });
+
+  it("accepts a plain request unchanged", () => {
+    const request = changed((r) => void (r.mode = "plain" as never));
+    assert.deepEqual(accepted(request), request);
   });
 
   it("accepts a request without the optional members", () => {
@@ -114,6 +124,24 @@ describe("parseStartRequest", () => {
       value: changed((r) => void (r.type = "Start" as never)),
     },
     { name: "an extra member", value: changed((r) => void (r.extra = {})) },
+    { name: "a missing mode", value: changed((r) => void delete r.mode) },
+    {
+      name: "a mode outside the set",
+      value: changed((r) => void (r.mode = "existing" as never)),
+    },
+    {
+      name: "a mode in another case",
+      value: changed((r) => void (r.mode = "Inquiry" as never)),
+    },
+    {
+      name: "an empty mode",
+      value: changed((r) => void (r.mode = "" as never)),
+    },
+    {
+      name: "a mode that is not a string",
+      value: changed((r) => void (r.mode = true as never)),
+    },
+
     { name: "a missing source", value: changed((r) => void delete r.source) },
     {
       name: "an input without its transcript",
@@ -226,6 +254,13 @@ describe("parseStartReply", () => {
       },
     },
     {
+      name: "a same-video outcome with its viewer tab",
+      value: {
+        outcome: { kind: "same-video", key: "k", requestId },
+        viewerTabId: 4,
+      },
+    },
+    {
       name: "a rejection without a viewer tab",
       value: {
         outcome: { kind: "rejected", reason: "invalid_body", requestId },
@@ -262,6 +297,16 @@ describe("parseStartReply", () => {
     {
       name: "an accepted outcome without its key",
       value: { outcome: { kind: "accepted", requestId } },
+    },
+    {
+      name: "a same-video outcome without its key",
+      value: { outcome: { kind: "same-video", requestId } },
+    },
+    {
+      name: "a same-video outcome with an extra member",
+      value: {
+        outcome: { kind: "same-video", key: "k", requestId, reason: "x" },
+      },
     },
     {
       name: "an accepted outcome with an empty key",
@@ -375,8 +420,24 @@ describe("parseViewerChannelMessage", () => {
       value: { type: "waiting", queryId, tabId: 1, sentAt: now },
     },
     {
-      name: "a take-over",
-      value: { type: "take-over", queryId, tabId: 1, sentAt: now },
+      name: "a take-over of an accepted send",
+      value: {
+        type: "take-over",
+        queryId,
+        tabId: 1,
+        sentAt: now,
+        answer: "accepted",
+      },
+    },
+    {
+      name: "a take-over of a same-video send",
+      value: {
+        type: "take-over",
+        queryId,
+        tabId: 1,
+        sentAt: now,
+        answer: "same-video",
+      },
     },
     { name: "a took-over", value: { type: "took-over", queryId, tabId: 1 } },
   ];
@@ -414,7 +475,47 @@ describe("parseViewerChannelMessage", () => {
     },
     {
       name: "a take-over with a fractional tab",
-      value: { type: "take-over", queryId, tabId: 1.5, sentAt: now },
+      value: {
+        type: "take-over",
+        queryId,
+        tabId: 1.5,
+        sentAt: now,
+        answer: "accepted",
+      },
+    },
+    {
+      name: "a take-over without its answer",
+      value: { type: "take-over", queryId, tabId: 1, sentAt: now },
+    },
+    {
+      name: "a take-over with an answer outside the set",
+      value: {
+        type: "take-over",
+        queryId,
+        tabId: 1,
+        sentAt: now,
+        answer: "rejected",
+      },
+    },
+    {
+      name: "a take-over with an answer that is not a string",
+      value: {
+        type: "take-over",
+        queryId,
+        tabId: 1,
+        sentAt: now,
+        answer: 1,
+      },
+    },
+    {
+      name: "a waiting with an answer",
+      value: {
+        type: "waiting",
+        queryId,
+        tabId: 1,
+        sentAt: now,
+        answer: "accepted",
+      },
     },
     {
       name: "a took-over with a send time",

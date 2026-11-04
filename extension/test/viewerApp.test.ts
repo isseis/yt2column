@@ -260,9 +260,15 @@ async function post(
 
 const queryId = "0".repeat(31) + "1";
 
-/** A take-over of the test's tab for queryId, from a send at newSentAt. */
+/** A take-over of the test's tab for queryId, from an accepted send at newSentAt. */
 function takeOver(newSentAt = sentAt + 50_000): ViewerChannelMessage {
-  return { type: "take-over", queryId, tabId: 5, sentAt: newSentAt };
+  return {
+    type: "take-over",
+    queryId,
+    tabId: 5,
+    sentAt: newSentAt,
+    answer: "accepted",
+  };
 }
 
 describe("startViewer: display and URL", () => {
@@ -305,20 +311,22 @@ describe("startViewer: display and URL", () => {
     assert.ok(viewer.elements.state.querySelector(".step-list") !== null);
   });
 
-  it("waits for the start result, adds the key to the URL on acceptance and polls it", async () => {
-    const viewer = await open();
-    assert.equal(stateText(viewer), drawnState({ kind: "sending" }));
-    assert.deepEqual(viewer.worker.sent, [{ type: "await-start", sentAt }]);
-    await viewer.worker.answer({
-      ok: true,
-      value: { kind: "result", outcome: { kind: "accepted", key, requestId } },
+  for (const kind of ["accepted", "same-video"] as const) {
+    it(`waits for the start result, adds the key to the URL on ${kind} and polls it`, async () => {
+      const viewer = await open();
+      assert.equal(stateText(viewer), drawnState({ kind: "sending" }));
+      assert.deepEqual(viewer.worker.sent, [{ type: "await-start", sentAt }]);
+      await viewer.worker.answer({
+        ok: true,
+        value: { kind: "result", outcome: { kind, key, requestId } },
+      });
+      assert.equal(viewer.replaced.length, 1);
+      const written = parseViewerUrl(`?${viewer.replaced[0]}`, "", loadedAt);
+      assert.ok(written.ok);
+      assert.deepEqual(written.params, { ...seed, key });
+      assert.deepEqual(viewer.host.sent, [{ v: 1, op: "status", key }]);
     });
-    assert.equal(viewer.replaced.length, 1);
-    const written = parseViewerUrl(`?${viewer.replaced[0]}`, "", loadedAt);
-    assert.ok(written.ok);
-    assert.deepEqual(written.params, { ...seed, key });
-    assert.deepEqual(viewer.host.sent, [{ v: 1, op: "status", key }]);
-  });
+  }
 
   for (const [name, finish] of [
     [

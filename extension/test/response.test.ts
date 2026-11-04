@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import {
   classifyPublish,
   classifyStart,
+  classifyStartInquiry,
   classifyStatus,
   parseRequestId,
   publishLogView,
@@ -17,6 +18,7 @@ import type { RequestId, StatusOutcomeLog } from "../src/core/response.ts";
 import { maxKeyLength } from "../src/core/articleKey.ts";
 import type { ArticleKey } from "../src/core/articleKey.ts";
 import { classifyHostReply } from "../src/core/native.ts";
+import { maxResponseBytes } from "../src/core/exchange.ts";
 import type {
   ExchangeFailureLog,
   HostOutcome,
@@ -110,6 +112,7 @@ describe("exchange failures", () => {
   for (const failure of failures) {
     it(`passes ${failure.kind} through every operation unchanged`, () => {
       assert.deepEqual(classifyStart(failure), failure);
+      assert.deepEqual(classifyStartInquiry(failure), failure);
       assert.deepEqual(classifyStatus(failure), failure);
       assert.deepEqual(classifyPublish(failure), failure);
     });
@@ -188,6 +191,152 @@ describe("classifyStart", () => {
       unexpected("status-pairing", 200),
     );
   });
+
+  it("refuses a same-video answer, which a plain start never gets", () => {
+    assert.deepEqual(
+      classifyStart(json(200, { status: "same_video", key, requestId })),
+      unexpected("member-set", 200),
+    );
+  });
+});
+
+describe("classifyStartInquiry", () => {
+  const sameVideo = { status: "same_video", key, requestId };
+
+  it("accepts a well-formed accepted response", () => {
+    assert.deepEqual(
+      classifyStartInquiry(json(202, { status: "accepted", key, requestId })),
+      { kind: "accepted", key, requestId },
+    );
+  });
+
+  it("accepts a well-formed same-video answer", () => {
+    assert.deepEqual(classifyStartInquiry(json(200, sameVideo)), {
+      kind: "same-video",
+      key,
+      requestId,
+    });
+  });
+
+  // Each row changes one thing of the same-video answer above.
+  const text = JSON.stringify(sameVideo);
+  const encoded = new TextEncoder().encode(text);
+  const keyAt = text.indexOf(key);
+  const refused: {
+    name: string;
+    received: HostOutcome;
+    check: UnexpectedCheck;
+  }[] = [
+    {
+      name: "an empty key",
+      received: json(200, { ...sameVideo, key: "" }),
+      check: "value-shape",
+    },
+    {
+      name: "a key over the length limit",
+      received: json(200, { ...sameVideo, key: "k".repeat(maxKeyLength + 1) }),
+      check: "value-shape",
+    },
+    {
+      name: "a key that is not a string",
+      received: json(200, { ...sameVideo, key: 1 }),
+      check: "value-shape",
+    },
+    {
+      name: "a null key",
+      received: json(200, { ...sameVideo, key: null }),
+      check: "value-shape",
+    },
+    {
+      name: "an undeclared member",
+      received: json(200, { ...sameVideo, extra: 1 }),
+      check: "member-set",
+    },
+    {
+      name: "a missing key",
+      received: json(200, { status: "same_video", requestId }),
+      check: "member-set",
+    },
+    {
+      name: "a missing request id",
+      received: json(200, { status: "same_video", key }),
+      check: "member-set",
+    },
+    {
+      name: "an empty request id",
+      received: json(200, { ...sameVideo, requestId: "" }),
+      check: "request-id",
+    },
+    {
+      name: "a status outside the set",
+      received: json(200, { ...sameVideo, status: "same-video" }),
+      check: "member-set",
+    },
+    {
+      name: "a status query's ok",
+      received: json(200, { ...sameVideo, status: "ok" }),
+      check: "member-set",
+    },
+    {
+      name: "a duplicate member",
+      received: response(200, text.replace("{", `{"key":"${key}",`)),
+      check: "duplicate-member",
+    },
+    {
+      name: "an unpaired surrogate escape",
+      received: response(200, text.replace(key, `\\ud800${key}`)),
+      check: "unpaired-surrogate",
+    },
+    {
+      name: "invalid UTF-8",
+      received: raw(200, [
+        ...encoded.subarray(0, keyAt),
+        0xff,
+        ...encoded.subarray(keyAt),
+      ]),
+      check: "encoding",
+    },
+    {
+      name: "a leading BOM",
+      received: raw(200, [0xef, 0xbb, 0xbf, ...encoded]),
+      check: "bom",
+    },
+    {
+      name: "a trailing object",
+      received: response(200, `${text} {}`),
+      check: "trailing-data",
+    },
+  ];
+  for (const { name, received, check } of refused) {
+    it(`refuses ${name} as ${check}`, () => {
+      assert.deepEqual(classifyStartInquiry(received), unexpected(check, 200));
+    });
+  }
+
+  it("refuses a same-video answer at 202 and an accepted one at 200", () => {
+    assert.deepEqual(
+      classifyStartInquiry(json(202, sameVideo)),
+      unexpected("status-pairing", 202),
+    );
+    assert.deepEqual(
+      classifyStartInquiry(json(200, { status: "accepted", key, requestId })),
+      unexpected("status-pairing", 200),
+    );
+  });
+
+  // The limit is the host reply check's (classifyHostReply), which runs
+  // before any classify function: an over-limit same-video answer is shown
+  // as unexpected because it never reaches classifyStartInquiry's check.
+  it("shows an over-limit same-video answer as unexpected, refused before it is read", () => {
+    const padded = JSON.stringify({
+      ...sameVideo,
+      key: "k".repeat(maxResponseBytes),
+    });
+    assert.deepEqual(
+      classifyStartInquiry(classifyHostReply(responseReply(200, padded))),
+      unexpected("body-over-limit", 200),
+    );
+  });
 });
 
 describe("an operation's answer given to another operation", () => {
@@ -249,6 +398,18 @@ const reasonTable: {
     },
   },
   {
+    name: "classifyStartInquiry",
+    classify: classifyStartInquiry,
+    reasons: {
+      too_many_requests: 429,
+      body_too_large: 413,
+      invalid_body: 400,
+      invalid_video_url: 400,
+      invalid_transcript: 400,
+      internal_error: 500,
+    },
+  },
+  {
     name: "classifyStatus",
     classify: classifyStatus,
     reasons: { invalid_key: 400, internal_error: 500 },
@@ -273,6 +434,7 @@ const allReasons: Readonly<Record<string, number>> = {
   ...reasonTable[0]?.reasons,
   ...reasonTable[1]?.reasons,
   ...reasonTable[2]?.reasons,
+  ...reasonTable[3]?.reasons,
   not_found: 404,
   method_not_allowed: 405,
 };
@@ -950,6 +1112,23 @@ describe("log views", () => {
       JSON.stringify(view),
     );
     assert.deepEqual(view, { kind: "accepted", requestId });
+  });
+
+  it("leaves the key out of a same-video answer's view", () => {
+    const log = classifyStartInquiry(
+      json(200, { status: "same_video", key: markedKey, requestId }),
+    );
+    assert.ok(
+      JSON.stringify(log).includes(marker),
+      "the marker reached the result",
+    );
+    const view = startLogView(log);
+    assert.equal(
+      JSON.stringify(view).includes(marker),
+      false,
+      JSON.stringify(view),
+    );
+    assert.deepEqual(view, { kind: "same-video", requestId });
   });
 
   it("leaves the article out of a status query's view", () => {

@@ -216,6 +216,13 @@ export type StartOutcome =
       readonly requestId: RequestId;
     }
   | {
+      // An inquiry start answered with another article of the same video:
+      // the key is that article's, and nothing was started.
+      readonly kind: "same-video";
+      readonly key: ArticleKey;
+      readonly requestId: RequestId;
+    }
+  | {
       readonly kind: "rejected";
       readonly reason: StartRejectReason;
       readonly requestId: RequestId;
@@ -555,20 +562,57 @@ function classify<T>(
   }
 }
 
-/** Interprets a generation start's reply. Never throws. */
+/**
+ * Reads a reply that carries an article key: exactly status, key and
+ * requestId, a key in its accepted form, and the status code paired with it.
+ */
+function keyedReply<K extends "accepted" | "same-video">(
+  value: JsonValue,
+  status: number,
+  kind: K,
+  pairedStatus: number,
+): {
+  readonly kind: K;
+  readonly key: ArticleKey;
+  readonly requestId: RequestId;
+} {
+  const members = exactMembers(value, ["status", "key", "requestId"]);
+  const key = parseArticleKey(stringMember(members, "key"));
+  if (key === undefined) {
+    throw new Rejected("value-shape");
+  }
+  const requestId = requestIdMember(members);
+  requirePairing(status, pairedStatus);
+  return { kind, key, requestId };
+}
+
+/** Interprets a generation start's reply, sent with mode "plain". Never throws. */
 export function classifyStart(received: HostOutcome): StartOutcomeLog {
   return classify(received, (value, status): StartOutcomeLog => {
     switch (discriminant(value, "status")) {
-      case "accepted": {
-        const members = exactMembers(value, ["status", "key", "requestId"]);
-        const key = parseArticleKey(stringMember(members, "key"));
-        if (key === undefined) {
-          throw new Rejected("value-shape");
-        }
-        const requestId = requestIdMember(members);
-        requirePairing(status, 202);
-        return { kind: "accepted", key, requestId };
-      }
+      case "accepted":
+        return keyedReply(value, status, "accepted", 202);
+      case "rejected":
+        return rejection(value, status, startRejectStatus);
+      default:
+        // A same_video answer included: a plain start never gets one.
+        throw new Rejected("member-set");
+    }
+  });
+}
+
+/**
+ * Interprets a generation start sent with mode "inquiry": the plain start's
+ * replies plus the same-video answer, 200 with the other article's key. Never
+ * throws.
+ */
+export function classifyStartInquiry(received: HostOutcome): StartOutcomeLog {
+  return classify(received, (value, status): StartOutcomeLog => {
+    switch (discriminant(value, "status")) {
+      case "accepted":
+        return keyedReply(value, status, "accepted", 202);
+      case "same_video":
+        return keyedReply(value, status, "same-video", 200);
       case "rejected":
         return rejection(value, status, startRejectStatus);
       default:
@@ -650,6 +694,7 @@ function toExchangeFailure(log: ExchangeFailureLog): ExchangeFailure {
 export function toStartOutcome(log: StartOutcomeLog): StartOutcome {
   switch (log.kind) {
     case "accepted":
+    case "same-video":
     case "rejected":
       return log;
     default:
@@ -688,6 +733,7 @@ export function toPublishOutcome(log: PublishOutcomeLog): PublishOutcome {
 /** A generation start's result as logged: the key is left out. */
 export type StartLogView =
   | { readonly kind: "accepted"; readonly requestId: RequestId }
+  | { readonly kind: "same-video"; readonly requestId: RequestId }
   | {
       readonly kind: "rejected";
       readonly reason: StartRejectReason;
@@ -821,6 +867,8 @@ export function startLogView(log: StartOutcomeLog): StartLogView {
   switch (log.kind) {
     case "accepted":
       return { kind: "accepted", requestId: log.requestId };
+    case "same-video":
+      return { kind: "same-video", requestId: log.requestId };
     case "rejected":
       return { kind: "rejected", reason: log.reason, requestId: log.requestId };
     default:

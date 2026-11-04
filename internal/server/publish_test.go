@@ -308,7 +308,7 @@ func TestPublishResponsesOmitInputs(t *testing.T) {
 	const errorMarker = "MARKER-ERROR-TEXT"
 	ts := newJobsTestServer(t, jobsServerOptions{})
 	body := `{"videoUrl":"` + testValidVideoURL + `","transcript":"0:00\n` + testTranscriptMarker + `\n",` +
-		`"title":"` + testTranscriptMarker + `","channelName":"` + testMarker + `"}`
+		`"title":"` + testTranscriptMarker + `","channelName":"` + testMarker + `","mode":"plain"}`
 	key := acceptedKey(t, ts.startBody(body))
 	ts.publisher.PostErr = errors.New(errorMarker + " " + testMarker)
 

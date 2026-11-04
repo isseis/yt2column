@@ -663,6 +663,7 @@ describe("popup job send", () => {
     assert.deepEqual(popup.worker.sent, [
       {
         type: "start",
+        mode: "plain",
         input: { videoUrl: watchUrl, transcript: "selection" },
         viewer: { heading: "A video", url: watchUrl, sentAt },
         source,
@@ -1070,7 +1071,10 @@ describe("popup job states", () => {
     assert.equal(popup.host.count("status"), 3);
   });
 
-  const startFailures: StartOutcome[] = [
+  const startFailures: Exclude<
+    StartOutcome,
+    { kind: "accepted" } | { kind: "same-video" }
+  >[] = [
     { kind: "rejected", reason: "too_many_requests", requestId },
     { kind: "not-sent", cause: "server-unavailable" },
     { kind: "no-response" },
@@ -1083,7 +1087,6 @@ describe("popup job states", () => {
       const popup = shown(launch);
       await press(popup);
       await popup.worker.answer(startReply(outcome, 100));
-      assert.ok(outcome.kind !== "accepted");
       assert.equal(
         checksText(popup),
         drawnChecks(collected(launch), {
