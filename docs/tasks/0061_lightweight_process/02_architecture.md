@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-04 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-04 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルについての記述は、コミット `74b9b49` のファイルで確かめた。`file:line` は、このコミットでの行番号を指す。F-NNN・AC-NN は要件書の項番、H-NN は [design_handoff.md](design_handoff.md) の項番を指す。申し送りの H-01〜H-11 への対応は付録 A に、受け入れ基準との対応は付録 B にまとめる。
@@ -1233,3 +1233,7 @@ CLAUDE.md の「Every test must be able to fail for its stated reason」に従�
 | AC-42 | 3.5 |
 | AC-43 | 3.4.4 |
 | AC-44 | 3.7.4 |
+
+## 変更履歴
+
+- 2026-11-04 承認（isseis、#664）
