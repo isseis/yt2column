@@ -215,7 +215,8 @@ Test-review checklist (use verbatim as evaluation criteria in the step 7.5 promp
       stated reason (and the break-to-fail check was performed); a layered path is
       given an input only one layer can handle; no constant-equals-its-own-literal
       or field-holds-its-own-assignment assertion; duplication is checked before
-      adding a table test; a deleted test's coverage was confirmed unchanged.
+      adding a table test; a deleted test's coverage comparison passed and its
+      output is recorded as `CLAUDE.md` requires.
 - [ ] Each test asserts observable behavior rather than restating an
       implementation detail.
 

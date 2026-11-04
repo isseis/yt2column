@@ -206,8 +206,10 @@ and the thing it builds is rarely load-bearing)
 - [ ] No table test added for a helper duplicates rows the caller's table
       already covers with the same literals, where the helper differs from
       the caller only by a loop.
-- [ ] Any test deleted in this range is accompanied by evidence that
-      coverage is unchanged function by function, not just in total.
+- [ ] Any test deleted in this range has a `make coverage-compare BASE=<parent>`
+      or `make ext-coverage-compare BASE=<parent>` run in the deleting commit's
+      message: its passing output through the last line, and the same text in
+      the PR description.
 
 **Cross-document synchronization**
 - [ ] If this diff's implementation diverges from `02_architecture.md` or
