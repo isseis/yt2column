@@ -157,11 +157,11 @@
 
 **変更するファイル:** `internal/fixprguard/scope.go`、`internal/fixprguard/scope_test.go`、`internal/fixprguard/worktree_flow_test.go`
 
--   [ ] 規則を変える前のコミットで、AC-02 の 6 行（名指しのスレッドの `path` そのもの）と AC-03 の 5 行を `TestScopeRules` に加え、今のコードで通ることを確かめる（「今と同じ」をコードで示す）。既存の行や `denyListAtPathItself` の組と入力が同じものは、重ねて書かない。
--   [ ] 次のコミットで、`inScopeOf` の規則 4 の分岐を、実行関連ファイルなら常に範囲外にする形にする（設計書 3.1）。冒頭のコメントと `inScopeOf` のコメントを 1.4 の表のとおりに改める。
--   [ ] 同じコミットで、`makefile_is_path`（`scope_test.go:60`）の期待を範囲外にし、`denyListAtPathItself` の信頼する著者の側の期待を範囲外にしてコメントを改める。拒否リストだけを確かめていることは、拒否リストにないパスの `path` そのものの行（`path_itself` など。範囲内）と対にして示す（設計書 7.1）。AC-01 の 6 行（信頼する著者のスレッドの `path` そのもの）を加える。
--   [ ] `TestFinishAfterOutOfScope` の形で、信頼する著者のスレッドの `path` が `Makefile` で、`Makefile` の変更が `OutOfScope` に入り、利用者が続けると答えた後に `finish` がそれを commit する行を加える（AC-04、設計書 6.2）。
--   [ ] 壊して確かめる: 規則 4 の分岐を元の形に戻すと、AC-01 の信頼する著者の行と、上の `finish` の行（`OutOfScope` が空になる）が失敗する。
+-   [x] 規則を変える前のコミットで、AC-02 の 6 行（名指しのスレッドの `path` そのもの）と AC-03 の 5 行を `TestScopeRules` に加え、今のコードで通ることを確かめる（「今と同じ」をコードで示す）。既存の行や `denyListAtPathItself` の組と入力が同じものは、重ねて書かない。
+-   [x] 次のコミットで、`inScopeOf` の規則 4 の分岐を、実行関連ファイルなら常に範囲外にする形にする（設計書 3.1）。冒頭のコメントと `inScopeOf` のコメントを 1.4 の表のとおりに改める。
+-   [x] 同じコミットで、`makefile_is_path`（`scope_test.go:60`）の期待を範囲外にし、`denyListAtPathItself` の信頼する著者の側の期待を範囲外にしてコメントを改める。拒否リストだけを確かめていることは、拒否リストにないパスの `path` そのものの行（`path_itself` など。範囲内）と対にして示す（設計書 7.1）。AC-01 の 6 行（信頼する著者のスレッドの `path` そのもの）を加える。
+-   [x] `TestFinishAfterOutOfScope` の形で、信頼する著者のスレッドの `path` が `Makefile` で、`Makefile` の変更が `OutOfScope` に入り、利用者が続けると答えた後に `finish` がそれを commit する行を加える（AC-04、設計書 6.2）。
+-   [x] 壊して確かめる: 規則 4 の分岐を元の形に戻すと、AC-01 の信頼する著者の行と、上の `finish` の行（`OutOfScope` が空になる）が失敗する。
 
 **成功の条件:** `go test -tags test ./internal/fixprguard/...` が通る。
 
@@ -169,10 +169,10 @@
 
 **変更するファイル:** `internal/fixprguard/trust.go`、`internal/fixprguard/trust_test.go`
 
--   [ ] `splitIncluded` を、HTTP の状態コードの行と空の行の間の行（末尾の `\r` を 1 つ除いたもの）も返す形に広げる（設計書 3.4）。HTTP の状態コードを数字 3 桁だけに限る。
--   [ ] 呼び出し元の `queryPermission` と `failureCause` を、戻り値の数に合わせる。振る舞いは変えない。
--   [ ] テストを加える。ヘッダの行を返すこと、末尾の `\r` を除くこと、符号付きの HTTP の状態コード（`+20`・`-20`）を拒否すること。権限の照会の既存のテスト（`TestPermissionCause` など）が期待を変えずに通ることを確かめる。
--   [ ] 壊して確かめる: 数字の検査を外すと符号付きの行が、ヘッダの行の `\r` を除く処理を外すとヘッダの行が失敗する。
+-   [x] `splitIncluded` を、HTTP の状態コードの行と空の行の間の行（末尾の `\r` を 1 つ除いたもの）も返す形に広げる（設計書 3.4）。HTTP の状態コードを数字 3 桁だけに限る。
+-   [x] 呼び出し元の `queryPermission` と `failureCause` を、戻り値の数に合わせる。振る舞いは変えない。
+-   [x] テストを加える。ヘッダの行を返すこと、末尾の `\r` を除くこと、符号付きの HTTP の状態コード（`+20`・`-20`）を拒否すること。権限の照会の既存のテスト（`TestPermissionCause` など）が期待を変えずに通ることを確かめる。
+-   [x] 壊して確かめる: 数字の検査を外すと符号付きの行が、ヘッダの行の `\r` を除く処理を外すとヘッダの行が失敗する。
 
 **成功の条件:** `go test -tags test ./internal/fixprguard/...` が通る。
 
@@ -180,18 +180,18 @@
 
 **変更するファイル:** `internal/fixprguard/limits.go`（新規）、`internal/fixprguard/limits_test.go`（新規）、`internal/fixprguard/github.go`、`internal/fixprguard/write.go`、`internal/fixprguard/github_test.go`、`internal/fixprguard/test_helpers.go`
 
--   [ ] 設計書 3.3 の型と関数（`InteractionState` とその `MarshalText`、`InteractionStates`、`UnverifiableReason` とその値、`UnverifiableReasons`、`InteractionLimitsInfo`、`GitHub.InteractionLimits`）を書く。検査と分類は設計書 3.4 のとおりである。全体の上限は 1 つの context で 3 つの呼び出しに当てる。
--   [ ] `prBody` の 1 つの文字列の項目の読み取りを共通の関数にし、`prBody` と `createdAt` の読み取りの両方で使う（1.3）。
--   [ ] 失敗の写し方を 1.4 のとおりにする。`reason` は、段ごとの型の値として決め、エラーの文面から求めない（設計書 4 章）。時間切れは全体の context で決める。どの段の失敗でも、結果を `unverifiable` にし、部分的な結果を捨てる。
--   [ ] `NewGitHubWithoutReviewer` のコメント（`github.go:47-51`）の、スレッドを判定しない呼び出しの一覧に `InteractionLimits` を加える。
--   [ ] `--include` の出力を組み立てる補助（HTTP の状態コード、ヘッダ、本文から設計書 1.3 の形のバイト列を作る）を `internal/fixprguard/test_helpers.go`（`//go:build test`、英語）に置く。
--   [ ] テストを書く。項目は設計書 7.1 の「検査と分類」のとおりで、次を加える。
+-   [x] 設計書 3.3 の型と関数（`InteractionState` とその `MarshalText`、`InteractionStates`、`UnverifiableReason` とその値、`UnverifiableReasons`、`InteractionLimitsInfo`、`GitHub.InteractionLimits`）を書く。検査と分類は設計書 3.4 のとおりである。全体の上限は 1 つの context で 3 つの呼び出しに当てる。
+-   [x] `prBody` の 1 つの文字列の項目の読み取りを共通の関数にし、`prBody` と `createdAt` の読み取りの両方で使う（1.3）。
+-   [x] 失敗の写し方を 1.4 のとおりにする。`reason` は、段ごとの型の値として決め、エラーの文面から求めない（設計書 4 章）。時間切れは全体の context で決める。どの段の失敗でも、結果を `unverifiable` にし、部分的な結果を捨てる。
+-   [x] `NewGitHubWithoutReviewer` のコメント（`github.go:47-51`）の、スレッドを判定しない呼び出しの一覧に `InteractionLimits` を加える。
+-   [x] `--include` の出力を組み立てる補助（HTTP の状態コード、ヘッダ、本文から設計書 1.3 の形のバイト列を作る）を `internal/fixprguard/test_helpers.go`（`//go:build test`、英語）に置く。
+-   [x] テストを書く。項目は設計書 7.1 の「検査と分類」のとおりで、次を加える。
     -   分類の順序: 2 つの状態に当たる入力（期限切れかつ `weak` → `none`、`weak` かつ設定より前の PR → `weak`、設定より前の PR かつ 14 日以内 → `predates`、期限切れかつ設定より前の PR → `none`）。
     -   境界: ちょうど 64 KiB の本文（受け入れる）、月末の日がない月への見積もり（`expires_at` が 2027-08-30T00:00:00Z の場合。8 月 30 日は月末ではないが、6 か月前の 2 月には 30 日がない）、ANSI C の形の `Date`、名前が小文字の `date:` のヘッダ（受け入れる）、`cmdrunner.ErrOutputTooLarge`（`output-form`）。
     -   時間切れ: `repository`・`pr`・`api` の 3 つの段のそれぞれで、期限を過ぎた context とその段の `Step.Err` を与えて `timeout` になる行（1.4）。全体の context が期限切れになっていないときに、`context.DeadlineExceeded` を包んだエラーを段が返す行は `timeout` にならない。
     -   上限の共有: `deadlineRunner` を、`ctx.Deadline()` の時刻も記録するように広げ（`github_test.go`）、3 つの呼び出しの期限の時刻が等しく、始めてから `githubTimeout` 以内であることを確かめる。
     -   どの行でも、`State`・`ExpiresOn`・`Reason`・`HTTPStatus` の 4 つの値を確かめる（`none` で `ExpiresOn` が空であることを含む）。拒否の行の `Reason` が `UnverifiableReasons()` にあること、表に現れる状態と理由の集合が `InteractionStates()`・`UnverifiableReasons()` と等しいこと、一覧の外の `InteractionState` の `MarshalText` が誤りを返すこと、ゼロ値の `InteractionLimitsInfo` を JSON にすると `state` が `unverifiable` になることも確かめる。
--   [ ] 壊して確かめる: 設計書 7.2 の表の、このステップに当たる 11 行（空の本文の照合から `InteractionState` のゼロ値まで）。加えて、全体の context をやめて呼び出しごとの上限だけにする（上限の共有の行）、時間切れを全体の context でなくエラーで決める（期限切れでない context の行）、分類の 2 つの順を入れ替える（順序の行）、ヘッダの名前を大文字小文字を区別して照合する（小文字の `date:` の行）。
+-   [x] 壊して確かめる: 設計書 7.2 の表の、このステップに当たる 11 行（空の本文の照合から `InteractionState` のゼロ値まで）。加えて、全体の context をやめて呼び出しごとの上限だけにする（上限の共有の行）、時間切れを全体の context でなくエラーで決める（期限切れでない context の行）、分類の 2 つの順を入れ替える（順序の行）、ヘッダの名前を大文字小文字を区別して照合する（小文字の `date:` の行）。
 
 **成功の条件:** `go test -tags test ./internal/fixprguard/...` が通る。
 
@@ -199,11 +199,11 @@
 
 **変更するファイル:** `cmd/fixprguard/main.go`、`cmd/fixprguard/main_test.go`、`cmd/fixprguard/test_helpers.go`、`internal/fixprguard/types.go`
 
--   [ ] `interaction-limits` を、サブコマンドの名前の定数（`cmdInteractionLimits`）、`specs`（`flags` なし、`arg: argRequiredPR`、`usesGH: true`）、`execute` の `switch` に加える。処理は `head` と同じく `NewGitHubWithoutReviewer` で `GitHub` を作り、`InteractionLimits` の結果の `Protocol` を `fixprguard.Protocol` にそろえて出力し、終了コード `0` を返す（設計書 3.3）。
--   [ ] `Protocol` を `4` から `5` にする（`types.go:21`）。
--   [ ] `cmdInteractionLimits` を、`validArgs`、`TestGhTargetEnvRejected` の `lines` に加える（`--protocol` の不一致、`--reviewer` の拒否、`GH_REPO`・`GH_HOST` の拒否は、これらの表が確かめる）。`TestProtocolMismatch` の拒否する値に `Protocol - 1` を加える（AC-19）。
--   [ ] 新しいテストを書く。6 つの状態の出力と終了コード `0`、PR 番号がないときの終了コード `2`、確かめられないときに標準出力が目印の文字列を含まず、標準エラーが空であること（目印は、本文、ヘッダの値、`ExitError` の標準出力と標準エラーに入れる。AC-16）。`--include` の出力の補助は `cmd/fixprguard/test_helpers.go` に置く（既存の `roleStep` と同じく、パッケージごとに持つ）。
--   [ ] 壊して確かめる: `Protocol` のそろえを外す（出力の `protocol` が違う行）、`InteractionLimits` の失敗のエラーを標準エラーに書く（標準エラーが空の行）、`specs` の `interaction-limits` の `flags` に `flagReviewer` を加える（`TestReviewerFlag` の `--reviewer` の拒否の行）。
+-   [x] `interaction-limits` を、サブコマンドの名前の定数（`cmdInteractionLimits`）、`specs`（`flags` なし、`arg: argRequiredPR`、`usesGH: true`）、`execute` の `switch` に加える。処理は `head` と同じく `NewGitHubWithoutReviewer` で `GitHub` を作り、`InteractionLimits` の結果の `Protocol` を `fixprguard.Protocol` にそろえて出力し、終了コード `0` を返す（設計書 3.3）。
+-   [x] `Protocol` を `4` から `5` にする（`types.go:21`）。
+-   [x] `cmdInteractionLimits` を、`validArgs`、`TestGhTargetEnvRejected` の `lines` に加える（`--protocol` の不一致、`--reviewer` の拒否、`GH_REPO`・`GH_HOST` の拒否は、これらの表が確かめる）。`TestProtocolMismatch` の拒否する値に `Protocol - 1` を加える（AC-19）。
+-   [x] 新しいテストを書く。6 つの状態の出力と終了コード `0`、PR 番号がないときの終了コード `2`、確かめられないときに標準出力が目印の文字列を含まず、標準エラーが空であること（目印は、本文、ヘッダの値、`ExitError` の標準出力と標準エラーに入れる。AC-16）。`--include` の出力の補助は `cmd/fixprguard/test_helpers.go` に置く（既存の `roleStep` と同じく、パッケージごとに持つ）。
+-   [x] 壊して確かめる: `Protocol` のそろえを外す（出力の `protocol` が違う行）、`InteractionLimits` の失敗のエラーを標準エラーに書く（標準エラーが空の行）、`specs` の `interaction-limits` の `flags` に `flagReviewer` を加える（`TestReviewerFlag` の `--reviewer` の拒否の行）。
 
 **成功の条件（フェーズ 2 の完了の条件）:** このフェーズだけでは、文書が `--protocol 4` のままなので、`TestDocumentedProtocolMatches` と `TestDocumentedInvocationsParse` の 2 つだけが失敗する。`make fmt`、`make lint`、`go test -tags test ./... -skip '^(TestDocumentedProtocolMatches|TestDocumentedInvocationsParse)$'` が通ることを確かめ、フェーズ 3 に進む。`/runplan` は、フェーズ 2 と 3 を 1 つの実装のまとまりとして進める（PR-2）。
 
@@ -213,8 +213,8 @@
 
 **変更するファイル:** `.claude/commands/fixpr.md`、`.claude/commands/runpr.md`、`docs/dev/guides/fixprguard_guide.md`
 
--   [ ] `fixpr.md`・`runpr.md` のすべての `--protocol 4` を `--protocol 5` にする。
--   [ ] ガイドの例の `--protocol 4`、出力の `"protocol":4`、4 章の「現在の番号は `4`」を `5` にする（1.4 の行の一覧）。
+-   [x] `fixpr.md`・`runpr.md` のすべての `--protocol 4` を `--protocol 5` にする。
+-   [x] ガイドの例の `--protocol 4`、出力の `"protocol":4`、4 章の「現在の番号は `4`」を `5` にする（1.4 の行の一覧）。
 
 **成功の条件:** `git grep -n -e '--protocol 4' -e '"protocol":4' -- .claude/commands docs/dev/guides` の出力が空で、`TestDocumentedProtocolMatches` が通る。
 
@@ -222,16 +222,16 @@
 
 **変更するファイル:** `.claude/commands/runpr.md`、`cmd/yt2column/fixpr_docs_test.go`、`cmd/fixprguard/docs_test.go`
 
--   [ ] ステップ 1 の `fixprguard head` の直後、`gh pr checkout` の前に、`fixprguard interaction-limits --protocol 5 <number>` を 1 回だけ呼ぶことを書く。呼ぶ位置、結果の扱いの表、状態ごとに示す内容と利用者が行うこと、LIMITS_NOTE の保持と報告への載せ方は、設計書 3.5 のとおりである。`MERGED`・`CLOSED` では呼ばないこと（ステップ 1 がその前に止まる）と、standalone の変更では PR を作った後の `head` の後に呼ぶことを、位置の説明から読み取れるようにする。
--   [ ] 冒頭の段落（`runpr.md:13-31`）を合わせる。`fixprguard` の用途の一覧に `interaction-limits`（ステップ 1）を加え、メンションの一覧の `--jq` が URL と時刻のほかには、書いた人が利用者か、Bot かを示す真偽値だけを出力することを書き、`--reviewer` を取らないサブコマンドの記述に `interaction-limits` が含まれるようにする。
--   [ ] 「Authorization」に、`interaction-limits` の `gh repo view`・`gh pr view`・`gh api --include` を加える（設計書 3.5）。
--   [ ] ステップ 3 の 3 つのメンションの一覧の `--jq` に、書いた人が利用者（`<user-login>` の `User`）かどうかと、Bot かどうかの真偽値を加える。本文は今までどおり出力しない。人が書いた利用者以外のメンションで止まること、Bot だけなら URL を示して続けるかを問うこと、調べる時点（ステップ 3 の各回の読み取りで、Codex の依頼の状態の規則の前と、ステップ 4 のマージの問いの前）を書く（設計書 3.5）。自動レビュアーの名前を `_context.md` から読む形のままにし、`runpr.md` に `chatgpt-codex-connector` を書かない（`TestContextAndCommandsAgree` が拒否する）。
--   [ ] `runpr.md` に、interaction limits・作成の制限・ruleset を変える呼び出しと、PR を閉じる・作り直す呼び出しを書かない（AC-17）。止まったときの報告は、ガイド 10 章の手順を示すだけにする。
--   [ ] `TestDocumentedInvocationsParse` の `runpr.md` の期待（`cmd/fixprguard/docs_test.go:190`）に `cmdInteractionLimits` を加える。`TestFixprguardCallSites` に、`runpr.md` のステップ 1 の `fixprguard interaction-limits ` の行を加える。
--   [ ] `TestRunprDocContract` の `head_before_checkout` を広げ、ステップ 1 で `fixprguard interaction-limits ` が `fixprguard head ` の後、`gh pr checkout` の前にあることを確かめる（1.3）。
--   [ ] `runprListingFixtures` と、一覧の項目の名前の表（`mention` の種類）を、設計書 7.3 のとおりに改める。2 つの真偽値は `mention` の項目の必須の項目にし、項目があることと fixture の期待の値に等しいことを確かめる。
--   [ ] fixture には、書いた人を 5 通り（利用者の `User`、利用者と同じ名前の `Bot`、Codex の名前の `User`、ほかの `User`、ほかの `Bot`）用意し、3 つの一覧（`issues/<number>/comments`・`pulls/<number>/comments`・`pulls/<number>/reviews`）のそれぞれに入れる。
--   [ ] 壊して確かめる: 呼び出しの行を `gh pr checkout` の後ろに動かす（`head_before_checkout`）、1 つの一覧の `--jq` から真偽値の項目を外す、真偽値の計算を逆にする（`listings_print_no_body`）。
+-   [x] ステップ 1 の `fixprguard head` の直後、`gh pr checkout` の前に、`fixprguard interaction-limits --protocol 5 <number>` を 1 回だけ呼ぶことを書く。呼ぶ位置、結果の扱いの表、状態ごとに示す内容と利用者が行うこと、LIMITS_NOTE の保持と報告への載せ方は、設計書 3.5 のとおりである。`MERGED`・`CLOSED` では呼ばないこと（ステップ 1 がその前に止まる）と、standalone の変更では PR を作った後の `head` の後に呼ぶことを、位置の説明から読み取れるようにする。
+-   [x] 冒頭の段落（`runpr.md:13-31`）を合わせる。`fixprguard` の用途の一覧に `interaction-limits`（ステップ 1）を加え、メンションの一覧の `--jq` が URL と時刻のほかには、書いた人が利用者か、Bot かを示す真偽値だけを出力することを書き、`--reviewer` を取らないサブコマンドの記述に `interaction-limits` が含まれるようにする。
+-   [x] 「Authorization」に、`interaction-limits` の `gh repo view`・`gh pr view`・`gh api --include` を加える（設計書 3.5）。
+-   [x] ステップ 3 の 3 つのメンションの一覧の `--jq` に、書いた人が利用者（`<user-login>` の `User`）かどうかと、Bot かどうかの真偽値を加える。本文は今までどおり出力しない。人が書いた利用者以外のメンションで止まること、Bot だけなら URL を示して続けるかを問うこと、調べる時点（ステップ 3 の各回の読み取りで、Codex の依頼の状態の規則の前と、ステップ 4 のマージの問いの前）を書く（設計書 3.5）。自動レビュアーの名前を `_context.md` から読む形のままにし、`runpr.md` に `chatgpt-codex-connector` を書かない（`TestContextAndCommandsAgree` が拒否する）。
+-   [x] `runpr.md` に、interaction limits・作成の制限・ruleset を変える呼び出しと、PR を閉じる・作り直す呼び出しを書かない（AC-17）。止まったときの報告は、ガイド 10 章の手順を示すだけにする。
+-   [x] `TestDocumentedInvocationsParse` の `runpr.md` の期待（`cmd/fixprguard/docs_test.go:190`）に `cmdInteractionLimits` を加える。`TestFixprguardCallSites` に、`runpr.md` のステップ 1 の `fixprguard interaction-limits ` の行を加える。
+-   [x] `TestRunprDocContract` の `head_before_checkout` を広げ、ステップ 1 で `fixprguard interaction-limits ` が `fixprguard head ` の後、`gh pr checkout` の前にあることを確かめる（1.3）。
+-   [x] `runprListingFixtures` と、一覧の項目の名前の表（`mention` の種類）を、設計書 7.3 のとおりに改める。2 つの真偽値は `mention` の項目の必須の項目にし、項目があることと fixture の期待の値に等しいことを確かめる。
+-   [x] fixture には、書いた人を 5 通り（利用者の `User`、利用者と同じ名前の `Bot`、Codex の名前の `User`、ほかの `User`、ほかの `Bot`）用意し、3 つの一覧（`issues/<number>/comments`・`pulls/<number>/comments`・`pulls/<number>/reviews`）のそれぞれに入れる。
+-   [x] 壊して確かめる: 呼び出しの行を `gh pr checkout` の後ろに動かす（`head_before_checkout`）、1 つの一覧の `--jq` から真偽値の項目を外す、真偽値の計算を逆にする（`listings_print_no_body`）。
 
 **成功の条件:** `go test -tags test ./cmd/yt2column ./cmd/fixprguard` が通る。
 
@@ -239,7 +239,7 @@
 
 **変更するファイル:** `.claude/commands/_context.md`
 
--   [ ] 「Guard tool」の行（`:188`）の、`fixpr.md`・`runpr.md` がガードツールを呼ぶ用途の一覧に、`runpr.md` が interaction limits の状態を読むことを加える（設計書 3.8）。
+-   [x] 「Guard tool」の行（`:188`）の、`fixpr.md`・`runpr.md` がガードツールを呼ぶ用途の一覧に、`runpr.md` が interaction limits の状態を読むことを加える（設計書 3.8）。
 
 **成功の条件:** PR-2 のレビューで読む。
 
@@ -247,10 +247,10 @@
 
 **変更するファイル:** `docs/dev/guides/fixprguard_guide.md`、`cmd/fixprguard/docs_test.go`
 
--   [ ] 4 章・5 章・6 章・10 章を、設計書 3.8（4 章・5 章・6 章）と 3.7（10 章）のとおりに改める。5 章の節の見出しは、既存の節と同じ ``### `interaction-limits PR` `` の形にする。6 章の `**実行関連ファイル。**` の印はそのまま残す（1.4）。
--   [ ] 新しい内容を、もとになる事実と照らす。10 章の設定の場所・ruleset の項目・更新と作り直しの手順は設計書 1.3 の観測と ruleset の読み取りの結果と、読むだけの `gh api --include` の例の引数は `limits.go` の引数と、5 章の出力の例の項目と値の形は `InteractionLimitsInfo` の JSON のタグとステップ 2-4 のテストの出力と照らす。照らしたものをコミットメッセージに書く。
--   [ ] `cmd/fixprguard/docs_test.go` に、5 章の `interaction-limits` の節の表が `InteractionStates()` のすべての値（`MarshalText` の名前）と `UnverifiableReasons()` のすべての値をコードの区切りで挙げることを確かめるテストを加える（設計書 7.3、1.4）。
--   [ ] 壊して確かめる: 5 章の節の表から値を 1 つ消す（ガイドのほかの場所に同じ値が残っていても失敗する）。
+-   [x] 4 章・5 章・6 章・10 章を、設計書 3.8（4 章・5 章・6 章）と 3.7（10 章）のとおりに改める。5 章の節の見出しは、既存の節と同じ ``### `interaction-limits PR` `` の形にする。6 章の `**実行関連ファイル。**` の印はそのまま残す（1.4）。
+-   [x] 新しい内容を、もとになる事実と照らす。10 章の設定の場所・ruleset の項目・更新と作り直しの手順は設計書 1.3 の観測と ruleset の読み取りの結果と、読むだけの `gh api --include` の例の引数は `limits.go` の引数と、5 章の出力の例の項目と値の形は `InteractionLimitsInfo` の JSON のタグとステップ 2-4 のテストの出力と照らす。照らしたものをコミットメッセージに書く。
+-   [x] `cmd/fixprguard/docs_test.go` に、5 章の `interaction-limits` の節の表が `InteractionStates()` のすべての値（`MarshalText` の名前）と `UnverifiableReasons()` のすべての値をコードの区切りで挙げることを確かめるテストを加える（設計書 7.3、1.4）。
+-   [x] 壊して確かめる: 5 章の節の表から値を 1 つ消す（ガイドのほかの場所に同じ値が残っていても失敗する）。
 
 **成功の条件:** `make fmt`、`make test`、`make lint` が通る（フェーズ 3 の完了の条件）。
 
