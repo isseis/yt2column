@@ -773,7 +773,7 @@ var (
 
 ### 5.1. 脅威モデル
 
-> **注記（タスク 0057）:** タスク 0057（[要件定義書](../0057_reviewer_relay_guard/01_requirements.md)、[設計書](../0057_reviewer_relay_guard/02_architecture.md)）は、この脅威モデルに次の 3 点を加えた。第三者が自動レビュアー（Codex や CodeRabbit）にコメントで指示し、信頼する著者のスレッドを作れること。その入口を、interaction limits・作成の制限・push の制限の GitHub の設定で塞ぐこと。実行関連ファイルを、スレッドの著者と `path` にかかわらず範囲外にしたこと。設定が外れている間の経路は、0057 の要件定義書 4.2 と `docs/dev/guides/fixprguard_guide.md` の 7.2 の残余のリスクにある。
+> **注記（タスク 0057）:** タスク 0057（[要件定義書](../0057_reviewer_relay_guard/01_requirements.md)、[設計書](../0057_reviewer_relay_guard/02_architecture.md)）は、この脅威モデルに次の 4 点を加えた。第三者が自動レビュアー（Codex や CodeRabbit）にコメントで指示し、信頼する著者のスレッドを作れること。その入口を interaction limits と作成の制限で、Bot によるブランチへの push を push の制限で塞ぐこと。実行関連ファイルを、スレッドの著者と `path` にかかわらず範囲外にしたこと。`make` に渡す環境から秘密を落とさないことを決めたこと。設定が外れている間の経路は、0057 の要件定義書 4.2 と `docs/dev/guides/fixprguard_guide.md` の 7.2 の残余のリスクにある。
 
 図の矢印 A → B は、実線が「攻撃者の入力が A から B に届く」を、点線が「守りが経路を阻止または検出する」を表す。層の名前は 1.4 と同じである。
 

@@ -1,10 +1,12 @@
 #!/bin/sh
 # Checks that a branch of task 0057 changes four task documents of tasks 0030
 # and 0036 only by adding one note per section listed below, and changes
-# nothing else in them: no line is removed, every added line starts with ">"
-# or is empty, the Document Status table and the change-history section (when
-# there is one) are byte-identical, and each listed section gains exactly one
-# note that starts with "> **注記（タスク 0057）:**" in the head.
+# nothing else in them: no line is removed, every added line belongs to a note
+# block that starts with "> **注記（タスク 0057）:**" (the other lines of the
+# block start with ">", and an added empty line is allowed), the Document
+# Status table and the change-history section (when there is one) are
+# byte-identical, no file's mode changes, and each listed section gains exactly
+# one note before its body.
 #
 # Usage:
 #
@@ -30,6 +32,7 @@
 set -eu
 
 task=docs/tasks/0057_reviewer_relay_guard
+note='> **注記（タスク 0057）:**'
 
 if [ "$#" -ne 2 ]; then
 	echo "usage: $0 <upstream> <head>" >&2
@@ -68,14 +71,15 @@ if ! tmp=$(mktemp -d); then
 fi
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 
-# The documents, and the sections that each gains one note in. The fields are
-# separated by a tab.
+# The documents, and the number of notes each gains. The fields are separated
+# by a tab.
 documents='
 docs/tasks/0030_fixpr_untrusted_threads/01_requirements.md	2
 docs/tasks/0030_fixpr_untrusted_threads/02_architecture.md	3
 docs/tasks/0036_fixprguard_exec_file_scope/01_requirements.md	4
 docs/tasks/0036_fixprguard_exec_file_scope/02_architecture.md	3
 '
+# The sections that gain one note, with the same separator.
 sections='
 docs/tasks/0030_fixpr_untrusted_threads/01_requirements.md	## 1. 概要 (Overview)
 docs/tasks/0030_fixpr_untrusted_threads/01_requirements.md	#### F-004: 変更範囲と作業ツリーの確認
@@ -90,10 +94,19 @@ docs/tasks/0036_fixprguard_exec_file_scope/02_architecture.md	### 3.3. 判定の
 docs/tasks/0036_fixprguard_exec_file_scope/02_architecture.md	### 3.7. 用語集と 0030 の文書（AC-18・AC-21）
 docs/tasks/0036_fixprguard_exec_file_scope/02_architecture.md	### 7.1. ユニットテスト（`scope_test.go`）
 '
-# Extracts one section of a revision of a document: the heading line and the
-# lines after it, up to the next heading of the same or a higher level.
+
+# Writes a revision of a document to a file; a git failure is unusable input.
+show_file() {
+	if ! git -C "$root" show "$1:$2" >"$3" 2>/dev/null; then
+		echo "git show failed: $2" >&2
+		exit 2
+	fi
+}
+
+# Prints one section of the document in a file: the heading line and the lines
+# after it, up to the next heading of the same or a higher level.
 extract_section() {
-	git -C "$root" show "$1:$2" | awk -v heading="$3" '
+	awk -v heading="$2" '
 		function level(s,   n, i, c) {
 			n = 0
 			for (i = 1; i <= length(s); i++) {
@@ -115,71 +128,98 @@ extract_section() {
 			if (level($0) <= lvl) exit
 		}
 		{ print }
-	'
+	' "$1"
 }
 
 extract_status() {
-	git -C "$root" show "$1:$2" | awk '
+	awk '
 		/^## Document Status$/ { found = 1; print; next }
 		found && /^## / { exit }
 		found { print }
-	'
+	' "$1"
 }
 
 extract_history() {
-	git -C "$root" show "$1:$2" | awk '
+	awk '
 		/^## 変更履歴$/ { found = 1; print; next }
 		found && /^## / { exit }
 		found { print }
-	'
+	' "$1"
 }
 
 ret=0
 while IFS='	' read -r doc expected; do
 	[ -n "$doc" ] || continue
+	show_file "$base" "$doc" "$tmp/base-doc"
+	show_file "$head" "$doc" "$tmp/head-doc"
 	# (1) the document changed between the merge-base and the head.
-	if [ -z "$(git -C "$root" diff --no-renames --name-only "$base" "$head" -- "$doc")" ]; then
+	if ! git -C "$root" diff --no-renames --name-only "$base" "$head" -- "$doc" >"$tmp/names"; then
+		echo "git diff failed: $doc" >&2
+		exit 2
+	fi
+	if [ ! -s "$tmp/names" ]; then
 		echo "$doc did not change" >&2
 		ret=1
 		continue
 	fi
 	# The base holds no note of this task, so a note in the head is an addition.
-	if [ "$(git -C "$root" show "$base:$doc" | grep -cF -- "> **注記（タスク 0057）:**" || true)" -ne 0 ]; then
+	if [ "$(grep -cF -- "$note" "$tmp/base-doc" || true)" -ne 0 ]; then
 		echo "$doc already holds a task 0057 note in the merge-base" >&2
 		ret=1
 		continue
 	fi
-	# (2) no removed line, and every added line starts with ">" or is empty.
-	if ! git -C "$root" diff --no-renames --unified=0 --no-color "$base" "$head" -- "$doc" | awk '
-		/^diff --git / { hunk = 0; next }
-		/^@@/ { hunk = 1; next }
+	# No file mode changes.
+	if ! git -C "$root" diff --no-renames --summary "$base" "$head" -- "$doc" >"$tmp/summary"; then
+		echo "git diff failed: $doc" >&2
+		exit 2
+	fi
+	if [ -s "$tmp/summary" ]; then
+		echo "$doc changed its file mode" >&2
+		ret=1
+		continue
+	fi
+	# (2) no removed line, and every added line belongs to a note block that
+	# starts with the note marker.
+	if ! git -C "$root" diff --no-renames --unified=0 --no-color "$base" "$head" -- "$doc" >"$tmp/diff"; then
+		echo "git diff failed: $doc" >&2
+		exit 2
+	fi
+	if ! awk -v marker="$note" '
+		/^@@/ { hunk = 1; first = 1; next }
 		!hunk { next }
 		/^\\/ { next }
 		/^-/ { print "removed: " $0; bad = 1; next }
 		/^\+/ {
 			line = substr($0, 2)
-			if (line != "" && substr(line, 1, 1) != ">") {
+			if (line == "") next
+			if (first) {
+				if (index(line, marker) != 1) {
+					print "added block does not start with the note: " $0
+					bad = 1
+				}
+				first = 0
+			} else if (substr(line, 1, 1) != ">") {
 				print "added without >: " $0
 				bad = 1
 			}
 		}
 		END { exit bad ? 1 : 0 }
-	' >&2; then
-		echo "$doc removes a line or adds one that does not start with >" >&2
+	' "$tmp/diff" >&2; then
+		echo "$doc removes a line or adds a line outside a note block" >&2
 		ret=1
 		continue
 	fi
 	# (3) the Document Status table and the change-history section are
 	# byte-identical.
-	extract_status "$base" "$doc" >"$tmp/status-base"
-	extract_status "$head" "$doc" >"$tmp/status-head"
+	extract_status "$tmp/base-doc" >"$tmp/status-base"
+	extract_status "$tmp/head-doc" >"$tmp/status-head"
 	if ! cmp -s "$tmp/status-base" "$tmp/status-head"; then
 		echo "$doc changed its Document Status table" >&2
 		ret=1
 		continue
 	fi
-	extract_history "$base" "$doc" >"$tmp/history-base"
-	extract_history "$head" "$doc" >"$tmp/history-head"
+	extract_history "$tmp/base-doc" >"$tmp/history-base"
+	extract_history "$tmp/head-doc" >"$tmp/history-head"
 	if ! cmp -s "$tmp/history-base" "$tmp/history-head"; then
 		echo "$doc changed its change history" >&2
 		ret=1
@@ -187,7 +227,7 @@ while IFS='	' read -r doc expected; do
 	fi
 	# (4) every note in the document is in a listed section, exactly one per
 	# section.
-	if [ "$(git -C "$root" show "$head:$doc" | grep -cF -- "> **注記（タスク 0057）:**" || true)" -ne "$expected" ]; then
+	if [ "$(grep -cF -- "$note" "$tmp/head-doc" || true)" -ne "$expected" ]; then
 		echo "$doc does not hold exactly $expected task 0057 notes" >&2
 		ret=1
 		continue
@@ -198,9 +238,21 @@ EOF
 
 while IFS='	' read -r doc heading; do
 	[ -n "$doc" ] || continue
-	count=$(extract_section "$head" "$doc" "$heading" | grep -cF -- "> **注記（タスク 0057）:**" || true)
+	show_file "$head" "$doc" "$tmp/section-doc"
+	count=$(extract_section "$tmp/section-doc" "$heading" | grep -cF -- "$note" || true)
 	if [ "$count" -ne 1 ]; then
 		echo "$doc: section \"$heading\" holds $count task 0057 notes, not 1" >&2
+		ret=1
+	fi
+	if ! extract_section "$tmp/section-doc" "$heading" | awk -v marker="$note" '
+		NR > 1 && !body {
+			if ($0 == "") next
+			if (index($0, marker) == 1) { seen = 1; next }
+			if (substr($0, 1, 1) != ">") body = 1
+		}
+		END { exit seen ? 0 : 1 }
+	'; then
+		echo "$doc: the note of section \"$heading\" is missing or comes after the body" >&2
 		ret=1
 	fi
 done <<EOF
@@ -211,4 +263,4 @@ if [ "$ret" -ne 0 ]; then
 	exit 1
 fi
 
-echo "the four documents add one task 0057 note per listed section and change nothing else"
+echo "the four documents add one task 0057 note per listed section, before the body, and change nothing else"
