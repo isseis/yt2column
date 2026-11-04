@@ -751,8 +751,9 @@ var sameVideoCases = []sameVideoCase{
 		subject: testSubject(4), slot: true, inquiry: BeginSameVideo, sameKey: testKey(3), plain: BeginStarted,
 	},
 	{
-		// The clock goes back between the two starts, so only the
-		// acceptance order, not the acceptance time, makes key 2 the latest.
+		// The clock goes back after key 1, so key 1 has the latest
+		// acceptance time while key 3 was accepted last: only the acceptance
+		// order makes key 3 the latest.
 		name: "latest by acceptance order, not time", capacity: 10,
 		prepare: func(t *testing.T, c *Cache, clock *fakeClock) {
 			done(t, c, testSubject(1))
@@ -800,6 +801,16 @@ var sameVideoCases = []sameVideoCase{
 		subject: testSubject(2), slot: false, inquiry: BeginSameVideo, sameKey: testKey(1), plain: BeginNoSlot,
 	},
 	{
+		// The cache is full of records it could drop, and the answer drops
+		// none of them.
+		name: "full with evictable records", capacity: 2,
+		prepare: func(t *testing.T, c *Cache, _ *fakeClock) {
+			done(t, c, testSubject(1))
+			done(t, c, otherVideoSubject(1))
+		},
+		subject: testSubject(2), slot: true, inquiry: BeginSameVideo, sameKey: testKey(1), plain: BeginStarted,
+	},
+	{
 		// A running record and a posting one cannot be dropped.
 		name: "no evictable record", capacity: 2,
 		prepare: func(t *testing.T, c *Cache, _ *fakeClock) {
@@ -835,20 +846,22 @@ func TestBeginSameVideo(t *testing.T) {
 						after, c.nextGen, before, beforeGen)
 				}
 			default:
-				if got.Outcome != tc.inquiry || got.Run == nil {
-					t.Fatalf("Begin = %+v, want %v with a run", got, tc.inquiry)
+				if got.Outcome != tc.inquiry || got.Run == nil || got.Evicted != nil || got.SameVideoKey != (Key{}) {
+					t.Fatalf("Begin = %+v, want %v with a run only", got, tc.inquiry)
 				}
 			}
 		})
 	}
 
-	// A caller that leaves the mode unset asks, so it never starts a
-	// generation it did not ask for.
-	c, clock := newTestCache(t, 10)
-	sameVideoCases[0].prepare(t, c, clock)
+	// A caller that leaves the mode unset, or passes a value no constant
+	// declares, asks, so it never starts a generation it did not ask for.
 	var unset StartMode
-	if got := c.Begin(testSubject(2), unset, always); got.Outcome != BeginSameVideo {
-		t.Errorf("Begin with the zero StartMode = %+v, want BeginSameVideo", got)
+	for _, mode := range []StartMode{unset, StartPlain + 1} {
+		c, clock := newTestCache(t, 10)
+		sameVideoCases[0].prepare(t, c, clock)
+		if got := c.Begin(testSubject(2), mode, always); got.Outcome != BeginSameVideo {
+			t.Errorf("Begin with StartMode %d = %+v, want BeginSameVideo", mode, got)
+		}
 	}
 }
 
