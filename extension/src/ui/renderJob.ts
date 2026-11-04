@@ -383,8 +383,8 @@ export function drawStateOnChange(
     last.nodes.length === current.length &&
     last.nodes.every((node, i) => node === current[i])
   ) {
-    const shown = container.querySelector(".job-elapsed dd");
     if (elapsed.kind === "shown") {
+      const shown = container.querySelector(".job-elapsed dd");
       const text = formatDuration(elapsed.ms, locale);
       if (shown !== null && shown.textContent !== text) {
         shown.textContent = text;

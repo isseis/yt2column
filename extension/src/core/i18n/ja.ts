@@ -337,7 +337,7 @@ export const ja: Catalog = {
       text: "このビューアは、同じ動画の既存の記事を表示しています。現在の選択範囲から生成した記事ではありません。",
       steps: [
         `現在の選択範囲で生成するには、動画のタブでポップアップを開き、「${generateButton}」を押してください。`,
-        `「${generateFromSelectionButton}」を選んでください。`,
+        `選択肢が表示されたら、「${generateFromSelectionButton}」を選んでください。`,
       ],
     },
     webhookNotConfigured: {

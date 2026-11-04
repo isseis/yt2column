@@ -38,7 +38,11 @@ import {
   toPublishOutcome,
 } from "./core/response.ts";
 import type { Article, StartOutcome } from "./core/response.ts";
-import { parseViewerUrl, viewerQuery } from "./core/viewerUrl.ts";
+import {
+  parseViewerUrl,
+  showsExisting,
+  viewerQuery,
+} from "./core/viewerUrl.ts";
 import type { ViewerParams } from "./core/viewerUrl.ts";
 import type { Logger } from "./core/types.ts";
 import { createStatusPoller } from "./poller.ts";
@@ -200,7 +204,7 @@ export async function startViewer(
   }
   let params: ViewerParams = parsed.params;
   /** The page shows an existing article of the same video: its URL holds e=1. */
-  const existing = (): boolean => "key" in params && params.existing === true;
+  const existing = (): boolean => showsExisting(params);
   renderViewerHeader(elements, params, locale);
   doc.title = `${params.heading}${pageTitleSuffix}`;
 
@@ -392,8 +396,9 @@ export async function startViewer(
       case "accepted":
         break;
       case "same-video":
-        if (key !== undefined) {
-          params = { ...params, key, existing: true };
+        // A viewer answers present only while it holds a key.
+        if ("key" in params) {
+          params = { ...params, existing: true };
         }
         break;
     }

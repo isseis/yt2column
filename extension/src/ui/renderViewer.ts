@@ -1,6 +1,6 @@
 // Draws the viewer page into viewer.html's skeleton: the header from the
-// viewer URL's values, the existing-article notice, the state, the article and its operations, and the two
-// status regions. Every string is set with textContent, so a value read from
+// viewer URL's values, the existing-article notice, the state, the article
+// and its operations, and the two status regions. Every string is set with textContent, so a value read from
 // the URL or the server stays text.
 
 import { isAcceptedWatchUrl } from "../core/acceptedUrl.ts";
@@ -62,7 +62,10 @@ export type ViewerHeader = Pick<
 /** What one draw of the viewer shows. */
 export interface ViewerView {
   readonly state: ViewerState;
-  /** The time since the send; drawn only while the job runs, and never when existing. */
+  /**
+   * The time since the send; drawn only while the job runs, and never when
+   * existing.
+   */
   readonly elapsedMs: number;
   /** A publish operation is in flight or waits for its first status. */
   readonly publishing: boolean;
@@ -272,9 +275,9 @@ function drawExisting(
 
 /**
  * Draws the existing-article notice, the state, the article and the
- * operations. The state summary's
- * region is written only when its text changes, so a poll that repeats the
- * same result, or the elapsed time's redraw, is not read out again. The
+ * operations. The state summary's region is written only when its text
+ * changes, so a poll that repeats the same result, or the elapsed time's
+ * redraw, is not read out again. The
  * article is replaced only when its text changes, so a redraw keeps the
  * reader's selection. The operations are shown with an article: save and copy
  * can always be pressed, and the publish button only when publishControl's

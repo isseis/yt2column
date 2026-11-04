@@ -1,9 +1,9 @@
 // Builds and reads the viewer URL's query. The URL is the only place a
 // viewer keeps its send: the heading and channel name the popup showed, the
 // video title, the collected URL, the send time, once accepted, the article
-// key and, for an existing article of the same video, the mark e=1. It is untrusted when read: a reload, a restored tab or a
-// history entry may hold any text, so every rule below rejects and none
-// repairs.
+// key and, for an existing article of the same video, the mark e=1. It is
+// untrusted when read: a reload, a restored tab or a history entry may hold
+// any text, so every rule below rejects and none repairs.
 
 import { isAcceptedWatchUrl } from "./acceptedUrl.ts";
 import { parseArticleKey } from "./articleKey.ts";
@@ -29,6 +29,11 @@ export interface ViewerSeed {
 export type ViewerParams =
   | ViewerSeed
   | (ViewerSeed & { readonly key: ArticleKey; readonly existing?: true });
+
+/** Whether params mark the viewer as showing an existing article of the same video. */
+export function showsExisting(params: ViewerParams): boolean {
+  return "key" in params && params.existing === true;
+}
 
 /** Which rule a viewer URL broke; for the developer log only. */
 export type ViewerUrlError =
@@ -130,7 +135,7 @@ export function viewerQuery(params: ViewerParams): string {
     u: params.url,
     s: String(params.sentAt),
     k: "key" in params ? params.key : undefined,
-    e: "key" in params && params.existing === true ? existingMark : undefined,
+    e: showsExisting(params) ? existingMark : undefined,
   };
   const pairs: string[] = [];
   for (const name of names) {

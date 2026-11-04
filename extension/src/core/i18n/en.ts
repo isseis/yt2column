@@ -313,7 +313,7 @@ export const en: Catalog = {
       text: "This viewer shows an existing article of the same video. It was not generated from your current selection.",
       steps: [
         `To generate from your current selection, open the popup on the video's tab and press "${generateButton}".`,
-        `Choose "${generateFromSelectionButton}".`,
+        `If the popup offers a choice, choose "${generateFromSelectionButton}".`,
       ],
     },
     webhookNotConfigured: {

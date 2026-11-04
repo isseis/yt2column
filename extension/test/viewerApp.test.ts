@@ -996,6 +996,7 @@ describe("startViewer: queries, take-over and logs", () => {
   // A same-video take-over adds e=1 whether the send goes on or restarts.
   for (const [name, setup, restarts] of [
     ["a running job", () => showing(runningJob), false],
+    ["a done job", () => showing(doneJob({ state: "not_posted" })), false],
     ["a failed job", () => showing(failedJob), true],
   ] as const) {
     it(`adds e=1 and shows the notice when a same-video send takes over ${name}`, async () => {
@@ -1023,6 +1024,11 @@ describe("startViewer: queries, take-over and logs", () => {
       assert.equal(viewer.elements.existing.hidden, false);
       if (restarts) {
         await viewer.host.answer(statusReply(runningJob));
+      }
+      if (name === "a done job") {
+        // A done job keeps its time taken.
+        assert.ok(viewer.elements.state.querySelector(".job-result") !== null);
+        return;
       }
       // The running job is shown without its elapsed time from now on.
       assert.equal(stateText(viewer), drawnState(runningState, 0, true));
