@@ -137,6 +137,7 @@ faithful translation, structural consistency) and the glossary workflow live in
 ### Test Commands
 - `make test` - Run all tests with race detection, then `make test-parse-norace`
 - `make readme-sync-check` - Run `TestReadmeSyncMarker` alone: `README.en.md`'s sync marker names the blob of `README.md` (passes while `README.en.md` does not exist); the pre-commit hook for the READMEs runs it
+- `make coverage-compare BASE=<commit>` - Run the Go test suite at BASE and at HEAD with coverage and compare the product code's coverage function by function; the last line is `coverage-compare: PASS`, `FAIL`, or `STOP <kind>`. For a commit that deletes Go tests, with its parent as BASE
 - `make test-parse-norace` - Run `TestParseCopiedLargeInputs` alone without race detection; the parse-time deadline is checked only in builds without race detection, so this target and the plain `go test` commands below check it and `make test`'s race run does not
 - `go test -tags test -v ./...` - Run all tests directly
 - `go test -tags test -v ./internal/specific/package` - Run tests for specific package
@@ -202,6 +203,7 @@ refuses to run when `node --version` does not match.
 - `make ext-test` - Run the extension unit tests (`node --test`)
 - `make ext-build` - Build into `extension/dist/`
 - `make ext-check` - Run the checks CI runs after `ext-install`: typecheck, lint, fmt-check, test, build
+- `make ext-coverage-compare BASE=<commit>` - Run the extension test suite at BASE and at HEAD with coverage and compare, function by function, whether each product function that ran still runs; the last line is `coverage-compare: PASS`, `FAIL`, or `STOP <kind>`. For a commit that deletes extension tests, with its parent as BASE
 
 ## Architecture Overview
 
@@ -567,7 +569,9 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
   rejection-reason table of `development.md` (`serverReasons.test.ts`), so a
   change to them needs `make ext-test`. The
   other text-sync guards that read documents (the
-  extension ID, the `ext-` targets in this file, the manifest permissions, the
+  extension ID, the `ext-` targets in this file, the two coverage-compare
+  targets in its commands sections (`TestCoverageCompareDocumented`), the
+  manifest permissions, the
   `project_overview.md` notes (the environment variable names, `costPrefix`, and
   `16,383`), the production profile's configuration block and stage table in
   `docs/dev/production_profile.md`, the configuration block of both READMEs,
