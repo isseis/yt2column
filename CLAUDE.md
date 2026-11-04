@@ -501,8 +501,25 @@ info.json parsers with real samples under `testdata/`.
 - **Check for duplication before adding a table test for a helper.** If the helper
   differs from its caller only by a loop, and the caller's table already covers the
   same rows with the same literals, one table is enough.
-- **Deleting a test is a claim that must be checked**: confirm `go tool cover -func`
-  is unchanged function by function afterwards, and say so.
+- **Deleting a test is a claim that must be checked.** Commit the deletion by
+  itself and compare the coverage before and after it:
+  - Run `make coverage-compare BASE=<the parent commit>` for a deleted Go test
+    and `make ext-coverage-compare BASE=<the parent commit>` for a deleted
+    extension test; run both when both were deleted.
+  - One run executes the whole test suite twice and takes minutes for Go. Run it
+    with a command time limit of at least ten minutes, or in the background, so
+    the comparison is not cut off.
+  - The deletion passes when no Go function's statement coverage goes down and
+    no extension function that ran at BASE has a run count of 0 at HEAD. The
+    deleted functions are listed, not failed. A run that measured nothing, saw a
+    failing test, or could not match the functions stops instead of passing.
+  - Write the passing output through its last line into the deleting commit's
+    message, amending the message only so the tree ID stays the same, and into
+    the pull request description. The `head` commit ID in that output is the
+    commit as it stood before the amend; the tree ID is the one that still
+    identifies the change.
+  - The extension comparison is not an exception to this rule: it is how an
+    extension test deletion is checked.
 - **Document tests check values, structure, and executable examples, never prose.**
   A test that reads a document may compare a value in it with the code or
   configuration that defines it (flags, exit codes, protocol numbers, extension
