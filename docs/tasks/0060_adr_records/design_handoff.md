@@ -8,7 +8,7 @@ AC-24 は、`/mkreq`・`/mkarch`・`/mkplan`・`/runplan` が ADR を作るか�
 
 ## H-02: 索引と ADR の整合を確かめる手段
 
-AC-01〜AC-03 と AC-05・AC-06 は、値と構造の要件である（名前、番号の重複、索引とファイルの一致、節、状態の値）。これらを、恒久的な Go の guard テストで確かめるか、本タスクの `_checks/` か読み合わせで確かめるかを決める。CLAUDE.md の文書のテストの方針（「Do not add a document check whose mistake is unlikely, whose harm is small, or whose upkeep costs more than the mistake it prevents」）に照らして、判断の理由を記録する。CLAUDE.md と規約の 2 か所に書く主要な決定の基準（要件 4.5）を同じ内容に保つ手段も、あわせて決める。
+AC-01〜AC-03 と AC-05・AC-06 は、値と構造の要件である（名前、番号の重複、索引とファイルの一致、節、状態の値）。これらは `manual` の読み合わせだけでは確かめられない（`docs/dev/conventions/requirements_process.md` §4）。恒久的な Go の guard テスト（`test`）で確かめるか、本タスクの `_checks/` の確認（`static` か `diff`）で確かめるかを決める。CLAUDE.md の文書のテストの方針（「Do not add a document check whose mistake is unlikely, whose harm is small, or whose upkeep costs more than the mistake it prevents」）に照らして、判断の理由を記録する。CLAUDE.md と規約の 2 か所に書く主要な決定の基準（要件 4.5）を同じ内容に保つ手段も、あわせて決める。
 
 ## H-03: 既存の文書のパスを確かめる guard との関係
 
