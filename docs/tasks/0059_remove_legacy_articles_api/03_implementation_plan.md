@@ -368,7 +368,7 @@ localhost サーバの旧 API（`POST /articles`）・旧 API のジョブ・失
 
 **判定理由**: ステップ 2-2 が子プロセスとシグナルを使う停止のテストを作り直し、ステップ 3-2 が停止の待ち方と並行して走るジョブの数え方を変える。多数のテストの更新を伴う削除で、パネルモードの条件に当たる。PR の数は設計書で 2 つと決まっているので、ステップ 3-2 は PR の中で独立させず、フェーズとコミットで分ける
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [ ] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
@@ -428,9 +428,9 @@ M1 は M2〜M4 に依存しない。設計書 8 章のとおり、ホストを�
 
 | AC | 種別 | 確かめ | ステップ |
 |---|---|---|---|
-| AC-01 | test・static | test: `internal/server/jobs_api_test.go` の未知のパスの拒否のテスト（`TestJobsTargetRejections` の行か、並べたサブテスト。本文を読まない、枠を取らない）。static: `_checks/residue`（`ArticlesPath` の不在、`/articles` を含む文字列リテラルの不在） | 3-2・3-4・4-3 |
+| AC-01 | test・static | test: `internal/server/jobs_api_test.go::TestUnknownPathTouchesNothing`（未知のパスを各メソッドで送り、本文を読まない、枠を取らない、Writer と投稿の相手を呼ばない）。static: `_checks/residue`（`ArticlesPath` の不在、`/articles` を含む文字列リテラルの不在） | 3-2・3-4・4-3 |
 | AC-02 | test・static | `cmd/yt2column-server/relay_e2e_test.go::TestRelayEndToEnd/invalid_transcript_posts_nothing`。static: `_checks/residue`（`.PostMessages` のセレクタ式が `runPublish` だけ、`WebhookPublisher` が `PostMessages` だけ）、`.golangci.yml` の `depguard` の規則（`make lint`） | 1-2・3-3・3-4・4-3 |
-| AC-03 | test | 既存のジョブの API のテストが通ること: `internal/server/jobs_api_test.go`（`TestStartAccepted`・`TestStartReadSlotsFull`・`TestStartGenerationSlotsFull`・`TestJobsTargetRejections` など）、`publish_test.go`・`status_test.go`、`handler_test.go::TestRejectStatusCodes`、`cmd/yt2column-server/docs_test.go::TestServerDocsContract`（拒否の理由と状態コード） | 2-1・3-2 |
+| AC-03 | test | 既存のジョブの API のテストが通ること: `internal/server/jobs_api_test.go`（`TestStartAccepted`・`TestStartReadSlotsFull`・`TestStartGenerationSlotsFull`・`TestJobsTargetRejections` など）、`publish_test.go::TestPostJobTakesNoGenerationSlot`（生成の枠を数えるのは生成のジョブだけ）、`publish_test.go`・`status_test.go`、`handler_test.go::TestRejectStatusCodes`、`cmd/yt2column-server/docs_test.go::TestServerDocsContract`（拒否の理由と状態コード） | 2-1・3-2 |
 | AC-04 | test・static | test: `cmd/yt2column-server/run_test.go::TestStartsWithoutWebhook`・`TestStartupFailures`、`internal/server/publish_test.go::TestPublishWithoutWebhook`（本文を読まない）、`internal/server/server_test.go::TestNewWebhookOptions`。static: `_checks/residue`（警告の文字列が `/articles` に触れない） | 2-1・2-2・3-2・3-4 |
 | AC-05 | test | `make test` の `cmd/yt2column` と `internal/pipeline` のテスト（`cmd/yt2column/run_test.go::TestRunSlackFailureHints` など、変えない） | 3-2 |
 | AC-06 | static | `_checks/residue`（AC-06 の識別子・パッケージの不在、`classifyWrite` の存在）。`make deadcode` | 3-3・3-4・4-3 |
