@@ -350,9 +350,9 @@ localhost サーバの旧 API（`POST /articles`）・旧 API のジョブ・失
 
 **変更するファイル:** 本書 7.1 節
 
-- [ ] PR-2 のすべての変更をコミットした後、PR のブランチで `_checks/residue` を merge-base と `HEAD` で実行し、出力、終了コード、2 つのコミット ID、merge-base と一時的なコミットでの結果（ステップ 3-4）を 7.1 節に書く。
-- [ ] ステップ 2-3・3-3 のカバレッジの比較の結果を 7.1 節に書き写す。
-- [ ] `make test`・`make lint`・`make deadcode`・`make ext-test` を通す。
+- [x] PR-2 のすべての変更をコミットした後、PR のブランチで `_checks/residue` を merge-base と `HEAD` で実行し、出力、終了コード、2 つのコミット ID、merge-base と一時的なコミットでの結果（ステップ 3-4）を 7.1 節に書く。
+- [x] ステップ 2-3・3-3 のカバレッジの比較の結果を 7.1 節に書き写す。
+- [x] `make test`・`make lint`・`make deadcode`・`make ext-test` を通す。
 
 **完了の条件:** `_checks/residue` が PR の head で `0` を返し、その記録が 7.1 節にある。
 
@@ -480,6 +480,39 @@ OK   extension
 -   レビューの修正で `TestRelayForwardsOneRequest` を削除したコミット `db29be10` では、`internal/nmhost` の `go tool cover -func`（`-coverpkg=./internal/nmhost`）が削除の前後で関数ごとに同じであることを確かめた。
 -   1.6 節の決定でテストを削除・統合したコミットでは、`internal/nmhost`（`-coverpkg=./internal/nmhost`）と `cmd/yt2column-server`（`-coverpkg=./...`）の `go tool cover -func` が、前後で関数ごとに同じであることを確かめた。
 -   カバレッジを測る実行では、`internal/transcript` の `TestCommandExecutorDrainsStderr` が負荷のために 1 回ずつ失敗し、再実行で通った。本タスクと関係のない、時間に左右されるテストである。
+
+#### PR-2（ステップ 4-3、2026-11-04）
+
+**`_checks/residue`:** merge-base `f70136ffbc49e9a456a84b377951f4f4b13c164f`、head `9ed92500a4ef202a375e4e37c3e9ce845b98b966`（PR-2 の実装、レビューの修正、文書と README を含む最後のコミット。この後のコミットは本書だけを変え、確かめの対象のファイルを変えない）。
+
+```text
+$ go run -tags test ./docs/tasks/0059_remove_legacy_articles_api/_checks/residue/ f70136ffbc49e9a456a84b377951f4f4b13c164f 9ed92500a4ef202a375e4e37c3e9ce845b98b966
+OK   host
+OK   extension
+OK   removed
+OK   publisher
+OK   post
+OK   words
+（終了コード 0）
+```
+
+-   merge-base を head として渡すと、`removed`（53 件。AC-06 の名前の宣言、削除したフィールドの宣言、修飾子つきの参照、`internal/failure` の import）、`publisher`（2 件。`WebhookPublisher` が `publisher.Publisher` を埋め込むこと、`internal/server` が `internal/pipeline` に依存すること）、`words`（76 件）が成り立たず、終了コード `1` になる。`host`・`extension`・`post` は `OK` である。
+-   merge-base で成り立つ確かめは、ステップ 3-3 のコミット `f8759ed34a1a2d3a39a41e8077d61666f2e91c19` の上に作った一時的なコミット（ブランチに載せない）を head として渡し、それぞれが成り立たないと出ることを確かめた（終了コードはどれも `1`）。
+    -   `492960adf27da966ef0ddfb5207c4bbaaac985c4`（`classifyWrite` の名前を変えた）: `removed` が `internal/server does not declare classifyWrite` で `NG`。
+    -   `29a97dfcda68cbf2214d08aaf7310ea3cbc2f123`（`internal/server` に `Publish` の呼び出しを加えた）: `publisher` が `NG`。
+    -   `7f7b7964a083126abd4f4d4fc2e9e2f0cb71c154`（`runPublish` の外に `PostMessages` の呼び出しを加えた）: `post` が `NG`。
+-   `extension` は、PR-1 の記録（一時的なコミット `b602f059`）と同じく、`extension/` を変えると `NG` になる。PR-2 の head でも `extension/` は merge-base から変わっていない。
+
+**カバレッジの比較:** どれも `go test -tags test -count=1 -coverpkg=./... -coverprofile=<file> ./...` を両方のコミットで実行し（どちらもテストがすべて通った）、`go tool cover -func` の出力を比べた。
+
+| ステップ | 比べたコミット | スクリプト | 結果 |
+|---|---|---|---|
+| 2-3（テストの移し替え） | `f70136ff` → `92f2e1c5` | 0052 の `_checks/coverage` | 1297 の製品の関数のうち 1296 で同じ。`internal/server` の `failedStep` が 60.0% → 80.0%（加えた生成の開始の行が draft の分岐に届くようになった）。下がった関数なし |
+| 3-3（削除） | `2474931d` → `077407ed` | 本タスクの `_checks/coverage` | 前だけの関数 17（すべて削除の対象: `newNotifier`、`NewSlackFailureNotifier`、`SlackFailureNotifier.Notify`、`failureNoticeText`、`failureSentence`、`Server.articlesHandler`・`logJobFailure`・`logJobSuccess`・`notify`・`notifyAsync`・`runJob`・`startJob`、`classify`、`failureKind`、`reasonToKind`、`rejectReason.notify`、`stageOf`）。後だけの関数 1（`approxMinutes`、100.0%）。移した `acquireSlot`・`releaseSlot`・`classifyWrite` は名前で対応が付き、変わらない。下がった関数 3（`buildServer` 95.8% → 95.2%、`Server.handler` 75.0% → 72.7%、`newWithInternals` 95.2% → 95.0%）は、実行されていた文を削除しただけで、実行されない文の数（1・3・1）は前後で同じである。上がった関数 1（`Server.Serve` 91.7% → 92.3%） |
+
+-   ステップ 2-3 の後、レビューの修正でテストを加えたコミット（`bd82fb51`・`2474931d`）は製品のコードを変えず、テストを削除していない。
+-   ステップ 3-3 の比較の最初の実行は、2 つのコミットを並行して実行したため、両方で `internal/transcript` の `TestCommandExecutorDrainsStderr` が負荷のために失敗した。順に実行し直して、どちらも通った。本タスクと関係のない、時間に左右されるテストである（PR-1 の記録と同じ）。
+-   ステップ 3-3 の後、レビューの修正で `TestRejectHeaders` の `path_other` の行、`TestHeaderRejectionReadsNoBody` の未知のパスの行を削除した。どちらも `TestUnknownPathTouchesNothing` が同じリクエストを確かめる。`internal/server` と `cmd/yt2column-server` のテストを `-coverpkg=./...` で `9f4d1bfc`（削除の前）と `9ed92500` で実行し、本タスクの `_checks/coverage` で比べると、640 の製品の関数のすべてでカバレッジが同じだった。
 
 ## 8. 成功基準 (Success Criteria)
 
