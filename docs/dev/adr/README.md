@@ -12,3 +12,4 @@
 | [ADR-0004](0004-production-profile.md) | 本番の構成を claude-opus-5-5（effort high）の 3 段階とし、品質の目標と製品の制約を共通の文書に置く | `有効` |
 | [ADR-0005](0005-server-architecture.md) | サーバを Native Messaging のホストと常駐サーバに分け、HTTP を Unix ドメインソケットの上で受ける | `有効` |
 | [ADR-0006](0006-threat-model.md) | ブラウザ拡張と localhost サーバの脅威モデルは、同一ユーザーを信頼し、他のユーザーを排除する | `有効` |
+| [ADR-0007](0007-manual-transcript-copy.md) | 字幕は利用者が文字起こしパネルから手動でコピーし、拡張はページを読むだけにする | `有効` |

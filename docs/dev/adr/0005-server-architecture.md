@@ -15,7 +15,7 @@
 ## 決定
 
 -   **サーバは `cmd/yt2column-server` の別の実行ファイルとし、利用者が手動で起動する。** ログイン時の自動起動はしない。記事を作る処理と Slack への投稿の処理は、CLI と同じパッケージを共有し、サーバ固有のコードは HTTP の入口・検査・応答・ジョブに限る。
--   **サーバは `yt-dlp` を呼ばない。** 字幕は拡張から受け取り、`internal/transcript` の `CopiedSource` で解析する。`yt-dlp` を使うのは CLI の経路だけである。
+-   **サーバは `yt-dlp` を呼ばない。** 字幕は拡張から受け取り、`internal/transcript` の `CopiedSource` で解析する。`yt-dlp` を使うのは CLI の経路だけである（字幕の入力の決定は [ADR-0007](0007-manual-transcript-copy.md)）。
 -   **待ち受けは UDS だけにし、TCP のポートを開かない。** ソケットのパスは `HOME` だけから導出する。ソケットの置き場所と権限、起動のロック、stale の扱いは [security.md](../security.md) §8.2「localhost サーバ」に従う。
 -   **UDS の上でも HTTP/1.1 を使い、新しいフレーム形式を作らない。** サーバの `http.Server` とハンドラを `UnixListener` の上で動かす。リクエストの検査はパスとメソッドだけで、`Host`・`Origin`・`Content-Type`・`Authorization` は検査しない。ソケットに接続できる相手はこれらのヘッダを偽れるので、検査しても排除できる相手がいないためである。
 -   **生成の開始は `202` で受け付け、ジョブをサーバのメモリで動かす。** 同時に走る生成の数、本文の大きさ、読み取り・書き込み・待機の時間の上限は [security.md](../security.md) §8.2 に従う。
