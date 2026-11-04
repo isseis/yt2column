@@ -257,8 +257,8 @@ localhost サーバの旧 API（`POST /articles`）・旧 API のジョブ・失
 
 **変更するファイル:** `internal/publisher/slack.go`、`internal/publisher` のテスト、`cmd/yt2column/makefile_test.go`
 
-- [ ] `SlackMaxPostDuration` を、`slackMaxMessages`・`SlackPostTimeout`・`slackMessageInterval` から定義して加える（設計書 3.3 節、1.3 節）。
-- [ ] `cmd/yt2column/makefile_test.go:73` の `SlackPublishMaxDurationForTest(SlackMaxMessagesForTest)` を `SlackMaxPostDuration` に替え、`internal/publisher` のテストで、最大の通数での `SlackPublishMaxDurationForTest` と `SlackMaxPostDuration` が一致することを確かめる（1.3 節）。
+- [x] `SlackMaxPostDuration` を、`slackMaxMessages`・`SlackPostTimeout`・`slackMessageInterval` から定義して加える（設計書 3.3 節、1.3 節）。
+- [x] `cmd/yt2column/makefile_test.go:73` の `SlackPublishMaxDurationForTest(SlackMaxMessagesForTest)` を `SlackMaxPostDuration` に替え、`internal/publisher` のテストで、最大の通数での `SlackPublishMaxDurationForTest` と `SlackMaxPostDuration` が一致することを確かめる（1.3 節）。
 
 **完了の条件:** `make test` と `make lint` が通る。
 

@@ -17,6 +17,16 @@ import (
 // repositoryRoot is where the Makefile lives, relative to this package.
 const repositoryRoot = "../.."
 
+// TestSlackMaxPostDurationMatchesHelper checks that SlackMaxPostDuration and
+// the test helper that bounds a post of any number of messages agree at the
+// largest number, so the two formulas cannot drift apart.
+func TestSlackMaxPostDurationMatchesHelper(t *testing.T) {
+	if got := publisher.SlackPublishMaxDurationForTest(publisher.SlackMaxMessagesForTest); got != publisher.SlackMaxPostDuration {
+		t.Errorf("SlackPublishMaxDurationForTest(%d) = %v, SlackMaxPostDuration = %v; want them equal",
+			publisher.SlackMaxMessagesForTest, got, publisher.SlackMaxPostDuration)
+	}
+}
+
 // TestMakeTestIntegrationSlack checks the target that runs the
 // SlackWebhookPublisher integration test: the go test arguments, a -timeout
 // above the longest the two fixed articles can take to post, its own opt-in,

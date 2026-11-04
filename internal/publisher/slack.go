@@ -33,6 +33,11 @@ const (
 	slackOKResponse = "ok"
 )
 
+// SlackMaxPostDuration bounds one PostMessages call: slackMaxMessages
+// messages, each bounded by SlackPostTimeout, with slackMessageInterval
+// between two of them (none before the first).
+const SlackMaxPostDuration = slackMaxMessages*SlackPostTimeout + (slackMaxMessages-1)*slackMessageInterval
+
 // withheldTransportDetails replaces a transport error message that may carry
 // part of the Webhook URL, so the whole message is dropped rather than partly
 // redacted.
