@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-04 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-04 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md) の設計である。要件定義から申し送られた設計事項は [design_handoff.md](design_handoff.md) にあり、その対応は 10 章にまとめる。本書が引用するファイルの行番号は、コミット `df190ddc`（本書の作成時の `main`）のものである。
@@ -494,3 +494,7 @@ PR-1 の後、`Publish` を呼ぶのは `internal/publisher` と `internal/serve
 | AC-20 | 3.4 節、7.3 節 |
 | AC-21 | 3.6 節 |
 | AC-22 | 2.2 節、7.3 節 |
+
+## 変更履歴
+
+- 2026-11-04 承認（isseis、#668）
