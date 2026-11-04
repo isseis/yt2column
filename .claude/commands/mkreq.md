@@ -107,7 +107,8 @@ Work in the following order.
      input.
    - Put implementation-level concerns that came up in `design_handoff.md`
      (`H-NN` items) instead of the requirements.
-   - Commit the task directory:
+   - Commit the task directory and the ADR changes (the files
+     `_lib/settle-decisions.md`, "Output", returned):
      `docs(NNNN): draft requirements for <concise English summary>`, with
      `Refs #<issue>` in the body.
 
@@ -119,14 +120,16 @@ Work in the following order.
    - **FILES**: the requirements document, `design_handoff.md` if it exists, the
      requirements template, the requirements process guide, the project
      overview, and `CLAUDE.md`, plus the conditional guide when the trigger
-     applies, as resolved absolute paths. Include the issue text by saving it to
-     the scratchpad and passing that path.
+     applies, and the files of the ADR changes with, when they are not empty,
+     `docs/dev/conventions/adr.md`, as resolved absolute paths.
+     Include the issue text by saving it to the scratchpad and passing that
+     path.
    - **CRITERIA**: the checklist below, verbatim.
 
    Then run the Japanese prose-quality pass by invoking `japrose`
-   (`.claude/commands/japrose.md`) on the requirements document, after the
-   Critical and Major issues of the review are resolved; as a sub-step it does
-   not commit. When both passes are done, commit the fixes once.
+   (`.claude/commands/japrose.md`) on the requirements document and on each ADR
+   of the ADR changes, after the Critical and Major issues of the review are
+   resolved; as a sub-step it does not commit. When both passes are done, commit the fixes once.
 
    **Requirements checklist (use verbatim as evaluation criteria):**
    - [ ] The status is `draft`; `Review date` and `Reviewer` are `-`.
@@ -144,6 +147,7 @@ Work in the following order.
    - [ ] Any exception to a policy in the project overview, `CLAUDE.md`, or an earlier task is stated with the policy, its location, and the reason.
    - [ ] The security section applies the conditional guide when the trigger applies, and says `N/A` otherwise.
    - [ ] The same concept always uses the same Japanese term, consistent with the translation glossary.
+   - [ ] Every decision in the document that is major by the criterion in `CLAUDE.md`, "Design decisions (ADR)", has its ADR judgement recorded and is in this PR's ADR changes, and the `## 決定` section of each such ADR matches the document's current decision.
 
 8. Open the PR and hand it over: follow `.claude/commands/_lib/task-pr-handoff.md`,
    Part B, with the same inputs as step 3.

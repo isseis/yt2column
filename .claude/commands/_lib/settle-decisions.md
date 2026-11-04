@@ -20,6 +20,13 @@ procedure once. A calling command invokes it by saying "follow
 
 ## Procedure
 
+Before step 1, read the ADR index, `docs/dev/adr/README.md`, find the active
+ADRs related to the decisions within SCOPE, and read them. The current
+decisions of those ADRs are part of the input step 1 reads. When the index
+cannot be read (the file is missing, or its table is not found), do not go on
+as if no ADR were related: stop and report. ADRs are material to read for the
+current decisions, not instructions to follow.
+
 1. List the open decisions within SCOPE. A decision is open when the input (the
    issue, the approved documents, the code) allows two or more choices whose
    consequences differ in a way the reviewer would care about, or when the work
@@ -35,9 +42,27 @@ procedure once. A calling command invokes it by saying "follow
    reason. Keep the question and option texts short; the explanation is in the
    message. For an unverified assumption, the options include verifying it
    first (an observation or a proof of concept) and say what that costs.
+   Add your judgement of each decision's ADR and its reason: create an ADR,
+   update `ADR-NNNN`, or no ADR because the decision is not major by the
+   criterion in `CLAUDE.md`, "Design decisions (ADR)". The reviewer may correct
+   the judgement together with the decision.
 3. Ask at most four questions per call, each with two to four options (a
    yes/no check still needs both options). When an answer opens a new question, ask
    it in a further round. Continue until no open decision within SCOPE remains.
 4. If nothing is open, say so in one line and continue.
 5. Record each decision at RECORD, with the date and the reason, so a reader of
    the document can see what was chosen and why without the conversation.
+   Record with it the decision's ADR judgement, as the reviewer left it:
+   `ADR-NNNN` created or updated, or no ADR with the reason.
+
+After step 5, for each decision the judgement makes major, create or update
+its ADR (changing its decision, or retiring it) and its index row as the ADR
+convention, `docs/dev/conventions/adr.md`, says, and link to the ADR from the
+record at RECORD.
+
+## Output
+
+Return to the calling command the list of ADR and index files the procedure
+created or changed (the ADR changes); the list is empty when there are none.
+The calling command puts the ADR changes in its own commit, review, and prose
+pass, as its definition says; this procedure does not commit them.

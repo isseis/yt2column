@@ -252,6 +252,8 @@ Every `fixpr.md` and `mergepr.md` run below is given the resolved PR number
   says: take `main`'s `README.en.md` whole, resolve `README.md`, run the
   README sync that the standalone-change bullet above describes on the
   checked-out branch, and conclude the merge commit with its result included.
+  When `docs/dev/adr/` changed on `main` after the merge base, fix the
+  branch's ADRs as `docs/dev/conventions/adr.md`, "Taking in `main`", says.
 
 ## 2. Decide the PR's bookkeeping and next command
 

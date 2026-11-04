@@ -9,6 +9,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - [Production Profile](docs/dev/production_profile.md) - The production profile (the template, provider, model, and effort of each stage), the quality target and the results behind it, and the product limitations of this profile (Japanese)
 - [Security Considerations](docs/dev/security.md) - yt-dlp invocation, secrets, network, cache, untrusted text
 - [Cache Consistency](docs/dev/cache_consistency.md) - What the transcript cache guarantees across failures and power loss, and why (Japanese). Check its checklist before changing cache code.
+- [ADR Index](docs/dev/adr/README.md) - The major design decisions in effect now, each with its reasons, the alternatives not taken, and its history across tasks (Japanese). Look here for the current decisions and their reasons before designing.
+- [ADR Convention](docs/dev/conventions/adr.md) - How to write, change, and retire an ADR
 
 **Development Guides:**
 - Requirements and Acceptance Criteria Process: [requirements_process.md](docs/dev/conventions/requirements_process.md) - Process for implementing new features
@@ -41,9 +43,10 @@ where it lives. Three principles decide it:
 
 - **(a) Japanese: documents a human decides on or approves, and guides for
   humans.** Task documents under `docs/tasks/`, the documents directly under
-  `docs/dev/` (such as `project_overview.md` and `security.md`),
-  `docs/translation_glossary.md`, the guides under `docs/dev/guides/`, and
-  `prompts/README.md` and `testdata/README.md`.
+  `docs/dev/` (such as `project_overview.md` and `security.md`), the ADRs
+  and their index under `docs/dev/adr/`, `docs/translation_glossary.md`, the
+  guides under `docs/dev/guides/`, and `prompts/README.md` and
+  `testdata/README.md`.
 - **(b) English: instructions that control an agent's run, and the code in the
   repository.** `CLAUDE.md`, `AGENTS.md`, the command definitions under
   `.claude/commands/`, the conventions under `docs/dev/conventions/` that agents
@@ -102,6 +105,49 @@ and asks on any other file. The translation principles (accuracy over fluency,
 faithful translation, structural consistency) and the glossary workflow live in
 [mktrans.md](.claude/commands/mktrans.md); the glossary is
 [docs/translation_glossary.md](docs/translation_glossary.md).
+
+### Design decisions (ADR)
+
+Major design decisions are recorded as ADRs under `docs/dev/adr/`, one living
+document per subject, listed in the index
+[docs/dev/adr/README.md](docs/dev/adr/README.md). How to write, number,
+change, retire, and withdraw an ADR is in the convention,
+[docs/dev/conventions/adr.md](docs/dev/conventions/adr.md); follow it.
+
+- **Rule:** a PR that makes or changes a major decision creates or updates the
+  ADR in the same PR. This applies to every PR and every change to one,
+  including changes made outside the commands that settle decisions (a
+  `/fixpr` round, a standalone PR). The PR's review and merge
+  approve the ADR. The same rule is in the convention ("Approval and the
+  PR"); when you change it, change both in the same PR.
+- **What counts as major:** a decision whose effect reaches beyond the task
+  that makes it: it binds later tasks or more than one component, or
+  reversing it would change more than one place. Examples are the structure
+  and the boundaries between components, a protocol, an external dependency
+  or service, a security assumption, the product's scope, and a policy on the
+  development process and its tools. A decision that changes the decision of
+  an existing ADR is always major. A decision that closes inside one task — a
+  test's name, a wording, the shape of one function, the value of a constant,
+  the order of implementation — is not major and stays in the task documents
+  only. The same criterion is in the convention ("What counts as a major
+  decision"); when you change it, change both in the same PR.
+- **Who holds what:**
+  - A task document records the decisions its task made, with their reasons,
+    and links to the ADR of each major one. The link is required of task
+    documents written after this rule reached `main`; existing task documents
+    are not changed to add one.
+  - An ADR holds the summary of the decision in effect, its reasons, the
+    alternatives not taken, and its history across tasks.
+  - A document that holds the current specification of a subject (such as
+    `docs/dev/security.md` or `docs/dev/production_profile.md`) keeps that
+    specification; the ADR summarizes it and links to it.
+  - `docs/dev/project_overview.md` keeps the summary of the current policies
+    and links to the ADRs.
+  - The rules and cross-cutting principles of this file are not ADRs.
+
+  The split between an ADR and a document that holds the current
+  specification is also in the convention ("Writing an ADR"); when you change
+  it, change both in the same PR.
 
 ## Language
 
@@ -574,7 +620,8 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
   `docs/dev/production_profile.md`, the configuration block of both READMEs,
   the values `cli.md` and `development.md` hold, the
   `/fixpr` and `/runpr` command documents, the `codexreview`
-  permission and command-document checks) are Go tests included
+  permission and command-document checks, the ADR guard
+  `TestADRRecords`) are Go tests included
   in `make test` and need no node. `cmd/yt2column-nmhost`'s
   `TestReadmeHostExitCodes` reads both READMEs too, but the `doc-guard` job
   does not run it: the local `make test`, and the CI `test` job when the change
