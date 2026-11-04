@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-04 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-04 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の項番を、「設計書 3.2 節」などは設計書の節を指す。用語は要件書 6 章と設計書の冒頭（送り方など）に従う。本タスクに `implementation_handoff.md` はない。[design_handoff.md](design_handoff.md) の H-01〜H-08 は、設計書の付録 A がすべて記録している。
@@ -549,3 +549,7 @@ AC-12・AC-13・AC-14 は要件書の欠番である。
 
 -   PR-5 のマージの後、`/runpr` が issue #593 を閉じる案内をする（本タスクの最後の PR のため）。
 -   最近の記事の一覧やキャッシュの永続化が要るときは、別のタスクで設計する（設計書 9 章）。
+
+## 変更履歴
+
+- 2026-11-04 承認（isseis、#657）
