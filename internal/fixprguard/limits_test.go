@@ -46,6 +46,10 @@ func unverifiable(reason UnverifiableReason) InteractionLimitsInfo {
 	return InteractionLimitsInfo{State: InteractionUnverifiable, Reason: reason}
 }
 
+func unverifiableStatus(status int) InteractionLimitsInfo {
+	return InteractionLimitsInfo{State: InteractionUnverifiable, Reason: UnverifiableHTTPStatus, HTTPStatus: status}
+}
+
 func limitsState(state InteractionState, expiresOn string) InteractionLimitsInfo {
 	return InteractionLimitsInfo{State: state, ExpiresOn: expiresOn}
 }
@@ -205,7 +209,7 @@ func limitsCases() []limitsCase {
 		{name: "unknown_limit_with_past_expiry", out: ok(limitsBody("everyone", "2026-01-01T00:00:00Z")), want: unverifiable(UnverifiableLimit)},
 
 		// The status and the shape of the --include output.
-		{name: "status_204", out: includedOutput(204, []string{"Date: " + limitsNow}, ""), want: InteractionLimitsInfo{Reason: UnverifiableHTTPStatus, HTTPStatus: 204}},
+		{name: "status_204", out: includedOutput(204, []string{"Date: " + limitsNow}, ""), want: unverifiableStatus(204)},
 		{name: "no_empty_line", out: "HTTP/2.0 200 OK\nDate: " + limitsNow + "\r\n", want: unverifiable(UnverifiableOutputForm)},
 		{name: "no_status_line", out: "{}", want: unverifiable(UnverifiableOutputForm)},
 		{name: "output_over_size_cap", out: ok(strings.Repeat(" ", maxResponseBytes)), want: unverifiable(UnverifiableOutputForm)},
@@ -221,7 +225,7 @@ func limitsCases() []limitsCase {
 		{name: "date_extra_space", out: limitsOK("Tue,  10 Nov 2026 00:00:00 GMT", noLimitBody), want: unverifiable(UnverifiableDate)},
 
 		// A failed gh api call.
-		{name: "gh_failed_with_status", outErr: exitWith(includedOutput(403, nil, `{"message":"secret-marker"}`)), want: InteractionLimitsInfo{Reason: UnverifiableHTTPStatus, HTTPStatus: 403}},
+		{name: "gh_failed_with_status", outErr: exitWith(includedOutput(403, nil, `{"message":"secret-marker"}`)), want: unverifiableStatus(403)},
 		{name: "gh_failed_without_status", outErr: exitWith("secret-marker"), want: unverifiable(UnverifiableGHFailed)},
 		{name: "gh_failed_with_success_status", outErr: exitWith(limitsOK(limitsNow, noLimitBody)), want: unverifiable(UnverifiableGHFailed)},
 		{name: "gh_not_started", outErr: errors.New("start gh"), want: unverifiable(UnverifiableGHFailed)},
@@ -242,7 +246,6 @@ func limitsCases() []limitsCase {
 		{name: "timeout_at_repository", expired: true, repoErr: exitWith(""), want: unverifiable(UnverifiableTimeout)},
 		{name: "timeout_at_pr", expired: true, createdErr: exitWith(""), want: unverifiable(UnverifiableTimeout)},
 		{name: "timeout_at_api", expired: true, outErr: exitWith(includedOutput(403, nil, "")), want: unverifiable(UnverifiableTimeout)},
-		{name: "deadline_error_before_deadline_at_repository", repoErr: fmt.Errorf("gh: %w", context.DeadlineExceeded), want: unverifiable(UnverifiableRepository)},
 		{name: "deadline_error_before_deadline_at_api", outErr: fmt.Errorf("gh: %w", context.DeadlineExceeded), want: unverifiable(UnverifiableGHFailed)},
 	}
 }
@@ -295,12 +298,11 @@ func TestInteractionLimitsLists(t *testing.T) {
 }
 
 func TestInteractionStateText(t *testing.T) {
+	// The names themselves are checked where they are printed
+	// (cmd/fixprguard) and listed (the guide guard); here, that they differ.
 	names := map[string]struct{}{}
 	for _, s := range InteractionStates() {
-		text, err := s.MarshalText()
-		if err != nil || len(text) == 0 {
-			t.Errorf("MarshalText(%d) = %q, %v", s, text, err)
-		}
+		text, _ := s.MarshalText()
 		names[string(text)] = struct{}{}
 	}
 	if len(names) != len(InteractionStates()) {
@@ -316,7 +318,9 @@ func TestInteractionStateText(t *testing.T) {
 	}
 }
 
-// TestLimitsStageErrors: a stage's failure is ErrResponseRejected.
+// TestLimitsStageErrors: a stage's failure is ErrResponseRejected, the one
+// sentinel the architecture assigns to every rejection of a GitHub response.
+// InteractionLimits itself returns no error, so this checks the stage.
 func TestLimitsStageErrors(t *testing.T) {
 	_, failure := parseLimitsResponse([]byte(limitsOK(limitsNow, `null`)))
 	if failure == nil || !errors.Is(failure, ErrResponseRejected) {

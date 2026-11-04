@@ -181,7 +181,11 @@ func TestScopeRules(t *testing.T) {
 		{"issue_gitignore", "internal/writer/.gitignore", ChangeAdd, trusted("internal/writer/writer.go"), false},
 
 		// Paths that are not execution-related, whose results the rule for
-		// execution-related files leaves as they were.
+		// execution-related files leaves as they were: the requirements'
+		// examples, kept as written although each repeats a row above
+		// with other paths (path_itself or named_go_path_itself,
+		// go_same_package, named_go_same_package, same_directory,
+		// outside_allow_list_itself).
 		{"unchanged_go_path_itself", "internal/writer/writer.go", ChangeModify, trusted("internal/writer/writer.go"), true},
 		{"unchanged_go_test_beside_path", "internal/writer/writer_test.go", ChangeModify, trusted("internal/writer/writer.go"), true},
 		{"unchanged_go_test_beside_named_path", "internal/writer/writer_test.go", ChangeModify, named("internal/writer/writer.go"), false},

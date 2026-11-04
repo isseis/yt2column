@@ -514,8 +514,10 @@ func TestInteractionLimitsRun(t *testing.T) {
 			if got := strings.TrimSuffix(r.Stdout.String(), "\n"); got != tc.want {
 				t.Errorf("stdout = %s, want %s", got, tc.want)
 			}
-			if strings.Contains(r.Stdout.String(), marker) || r.Stderr.Len() != 0 {
-				t.Errorf("stdout %q, stderr %q; want no response text and no standard error", r.Stdout, r.Stderr)
+			// The exact stdout above keeps the response text out of it;
+			// standard error must stay empty.
+			if r.Stderr.Len() != 0 {
+				t.Errorf("stderr %q, want none", r.Stderr)
 			}
 		})
 	}

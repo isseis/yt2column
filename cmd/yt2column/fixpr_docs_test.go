@@ -648,7 +648,10 @@ func checkListingOutput(t *testing.T, fixture listingFixture, response []map[str
 		if kind := fixture.kindOf(obj); kind != item.kind {
 			t.Errorf("item %d: printed kind %v, want %q", i, kind, item.kind)
 		}
-		if item.wrote != notMention {
+		if (item.kind == "mention") != (item.wrote != notMention) {
+			t.Fatalf("item %d: kind %q with writer %d; a mention needs its writer, and only a mention has one", i, item.kind, item.wrote)
+		}
+		if item.kind == "mention" {
 			for _, key := range mentionAuthorKeys {
 				if _, ok := obj[key]; !ok {
 					t.Errorf("item %d: printed no %s", i, key)
