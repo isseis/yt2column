@@ -182,9 +182,9 @@ localhost サーバの旧 API（`POST /articles`）・旧 API のジョブ・失
 
 **変更するファイル:** 本書 7.1 節
 
-- [ ] PR-1 のすべての変更をコミットした後、PR のブランチで `_checks/residue` を merge-base（`git merge-base origin/main HEAD`）と `HEAD` で実行し、出力、終了コード、2 つのコミット ID を 7.1 節に書く。merge-base を head として渡すと AC-13 の確かめが成り立たないことも書く。
-- [ ] AC-12 の確かめは merge-base でも成り立つので、`extension/` の 1 行を変えた一時的なコミット（ブランチに載せない）を head として渡し、その確かめが成り立たないと出ることを確かめ、7.1 節に書く。
-- [ ] ステップ 1-2・1-3 のカバレッジの比較の結果を 7.1 節に書き写す（squash でマージされるとブランチのコミットメッセージは `main` から辿れないため）。
+- [x] PR-1 のすべての変更をコミットした後、PR のブランチで `_checks/residue` を merge-base（`git merge-base origin/main HEAD`）と `HEAD` で実行し、出力、終了コード、2 つのコミット ID を 7.1 節に書く。merge-base を head として渡すと AC-13 の確かめが成り立たないことも書く。
+- [x] AC-12 の確かめは merge-base でも成り立つので、`extension/` の 1 行を変えた一時的なコミット（ブランチに載せない）を head として渡し、その確かめが成り立たないと出ることを確かめ、7.1 節に書く。
+- [x] ステップ 1-2・1-3 のカバレッジの比較の結果を 7.1 節に書き写す（squash でマージされるとブランチのコミットメッセージは `main` から辿れないため）。
 
 **完了の条件:** `_checks/residue` が PR の head で `0` を返し、その記録が 7.1 節にある。
 
@@ -449,6 +449,30 @@ M1 は M2〜M4 に依存しない。設計書 8 章のとおり、ホストを�
 ### 7.1. 実行の記録
 
 （ステップ 1-5 と 4-3 で記入する。）
+
+#### PR-1（ステップ 1-5、2026-11-04）
+
+**`_checks/residue`:** merge-base `302a4b28f93a625a14a59e20f04eeceebebefd83`、head `db29be1037258771709daa0636613089781db1d3`（PR-1 の実装とレビューの修正を含む最後のコミット。この後のコミットは本書だけを変え、確かめの対象のファイルを変えない）。
+
+```text
+$ go run -tags test ./docs/tasks/0059_remove_legacy_articles_api/_checks/residue/ 302a4b28f93a625a14a59e20f04eeceebebefd83 db29be1037258771709daa0636613089781db1d3
+OK   host
+OK   extension
+（終了コード 0）
+```
+
+-   merge-base を head として渡すと、AC-13 の確かめ（`host`）が成り立たず、終了コード `1` になる。`internal/nmhost/relay.go` の `articlesURL`・`form`・`formLegacy`・`formNew`・`destination.form` の宣言と、`"/articles"` を含む文字列リテラルの 6 件を挙げる。`extension` は `OK` である。
+-   `extension/src/core/native.ts` に 1 行を加えた一時的なコミット `b602f059c988bb9060a9fc9dc01ef48a4a75891f`（ブランチに載せない）を head として渡すと、AC-12 の確かめ（`extension`）が `NG`（`extension/src/core/native.ts changed`）になり、終了コード `1` になる。`host` は `OK` である。
+
+**カバレッジの比較:** どれも `go test -tags test -count=1 -coverpkg=./... -coverprofile=<file> ./...` を両方のコミットで実行し（どちらもテストがすべて通った）、`go tool cover -func` の出力を比べた。
+
+| ステップ | 比べたコミット | スクリプト | 結果 |
+|---|---|---|---|
+| 1-2（テストの移し替え） | `28e460b0` → `4860cdb3` | 0052 の `_checks/coverage` | `OK`: 1292 の製品の関数すべてでカバレッジが同じ |
+| 1-3（形の判定の削除） | `4860cdb3` → `e4d258d6` | 本タスクの `_checks/coverage` | 前だけ・後だけの関数なし、下がった関数なし。上がった関数が 1 つ（`internal/cmdrunner` の `signalGroup` 66.7% → 100.0%）。本タスクが変えないパッケージの、時間に左右される分岐である |
+
+-   レビューの修正で `TestRelayForwardsOneRequest` を削除したコミット `db29be10` では、`internal/nmhost` の `go tool cover -func`（`-coverpkg=./internal/nmhost`）が削除の前後で関数ごとに同じであることを確かめた。
+-   カバレッジを測る実行では、`internal/transcript` の `TestCommandExecutorDrainsStderr` が負荷のために 1 回ずつ失敗し、再実行で通った。本タスクと関係のない、時間に左右されるテストである。
 
 ## 8. 成功基準 (Success Criteria)
 
