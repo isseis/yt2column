@@ -210,7 +210,7 @@
 -   [x] `_checks/adrlinks` は日本語の文字列リテラルを持たない（1.2 節）。ADR の「経緯」の節は ADR の 6 番目の `##` の節として、`project_overview.md` の 4 項目は最初の `##` の節の最上位の箇条の 2〜5 番目として、位置で探す（1.4 節）。項目の文は、最上位の箇条の行だけとし、入れ子の箇条を含めない。位置がずれたことを見逃さないように、各項目が持つ ASCII の目印（その項目のコードスパン。例えば `cmd/yt2column-nmhost`・`yt-dlp`・`claude-opus-5-5`）も確かめ、合わなければ終了コード 2 で止まる。見出しとコードブロックの読み取りには `internal/doctestutil` の関数を使う。
 -   [x] `_checks/adrlinks` の各確かめが、対象を壊して `NG` になることを確かめる。壊し方は、Quick Links の行を消す、経緯のリンクを 1 つ消す、`viewer-appendix` のリンクを消す、`project_overview.md` の項目の文を 1 文字変える、項目のリンク先を別の ADR に変える、である。プログラムは `git` から読むので、壊した状態はどれも一時的なブランチにコミットして確かめる。PR-1 では ADR がないので、一時的な ADR もそのブランチに置く。`-final` で `PENDING` が 1 になることも確かめる。結果をコミットメッセージに書き、一時的なブランチは消す。
 -   [x] `task_docs_unchanged.sh` が、一時的なブランチでほかのタスクの文書を 1 つ変えると 1 で終わることを確かめ、結果をコミットメッセージに書く。
--   [ ] ほかの作業がすべて終わったら、PR のブランチで `git fetch origin main`（ネットワークの操作。`_lib/task-pr-handoff.md` の Authorization の範囲）を行い、その後で `task_docs_unchanged.sh origin/main HEAD` と `_checks/adrlinks` を実行する。出力・終了コード・マージの基点と head のコミット ID を 7.1 節に書く。記録を書くコミットが本書だけを変えることも書く。
+-   [x] ほかの作業がすべて終わったら、PR のブランチで `git fetch origin main`（ネットワークの操作。`_lib/task-pr-handoff.md` の Authorization の範囲）を行い、その後で `task_docs_unchanged.sh origin/main HEAD` と `_checks/adrlinks` を実行する。出力・終了コード・マージの基点と head のコミット ID を 7.1 節に書く。記録を書くコミットが本書だけを変えることも書く。
 
 **完了の条件:** `go vet -tags test ./docs/tasks/0060_adr_records/_checks/adrlinks/` が通る（`_checks/` は `./...` の外なので、`make lint` が見ない）。`task_docs_unchanged.sh` が 0 で終わる。`_checks/adrlinks` が 0 で終わり、`quick-links` と `overview-items` の文の比較が `OK`、ほかが `PENDING` である。
 
@@ -226,7 +226,7 @@
 
 **判定理由**: ステップ 1-2 の ADR の guard（規約から定義を読み、読めないときに失敗する、12 種類の食い違いの照合）とステップ 1-6 の `_checks/adrlinks` が、隔離すべき複雑な処理である
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [ ] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
@@ -454,6 +454,47 @@ M2〜M4 は M1 の規約・索引・guard に依存する。M2 → M3 → M4 は
 （ステップ 1-5・1-6・2-3・3-3・4-2 で記入する。各 PR の `task_docs_unchanged.sh` と `_checks/adrlinks` の出力・終了コード・マージの基点と head のコミット ID、F-007 の issue の URL を書く。）
 
 **F-007 の issue（ステップ 1-5、2026-11-04）:** [#666](https://github.com/isseis/yt2column/issues/666)。issue #602 のコメント（2026-11-04）の調査の 35 件（A1〜A11、B1〜B12、C1〜C4、D1〜D8）から F-006 の 15 件（A3・A6・A9・A10・B1・B2・B4・B5・B7・B8・B11・D1〜D4）を除いた 20 件（A1・A2・A4・A5・A7・A8・A11・B3・B6・B9・B10・B12・C1〜C4・D5〜D8）を挙げていることを、番号の一覧で照らした。B6 を 0058・0059 の完了の後に書くことと、B2・B8（0058）・B11（0059）の経緯へ項目を足すことも書いた。
+
+**PR-1 の確かめ（ステップ 1-6、2026-11-04）:** `git fetch origin main` の後に、PR のブランチで実行した。マージの基点は `06f8875a6e0a1994785cea958029b2bfc960469c`、head は `6311e47e5ccb27ab26620acabc20a53686f55596` である。この記録を書くコミットは本書だけを変える。
+
+`docs/tasks/0060_adr_records/_checks/task_docs_unchanged.sh origin/main HEAD`（終了コード 0）:
+
+```text
+merge-base: 06f8875a6e0a1994785cea958029b2bfc960469c
+head: 6311e47e5ccb27ab26620acabc20a53686f55596
+docs/tasks/: only docs/tasks/0060_adr_records/ changed
+```
+
+`go run -tags test ./docs/tasks/0060_adr_records/_checks/adrlinks/ 06f8875a6e0a1994785cea958029b2bfc960469c HEAD`（終了コード 0。`quick-links` と `overview-items` の文の比較が `OK`、ADR がまだないのでほかは `PENDING`）:
+
+```text
+OK      quick-links
+PENDING history-sources
+        pending: llm-adapter-stdlib
+        pending: post-generation-steps
+        pending: llm-config-contract
+        pending: production-profile
+        pending: server-architecture
+        pending: threat-model
+        pending: manual-transcript-copy
+        pending: launch-path
+        pending: viewer-opening
+        pending: extension-stores-nothing
+        pending: webhook-publishing
+        pending: review-setup
+        pending: deterministic-checks-in-go
+        pending: untrusted-review-threads
+        pending: document-test-policy
+PENDING viewer-appendix
+        pending: viewer-opening
+PENDING overview-items
+        text: OK
+        links: PENDING
+        links: bullet 2 (`cmd/yt2column-nmhost`) pending: server-architecture, launch-path
+        links: bullet 3 (`CopiedSource`) pending: manual-transcript-copy
+        links: bullet 4 (`claude-opus-5-5`) pending: llm-adapter-stdlib, production-profile
+        links: bullet 5 (`google.golang.org/genai`) pending: llm-adapter-stdlib
+```
 
 ## 8. 成功基準 (Success Criteria)
 
