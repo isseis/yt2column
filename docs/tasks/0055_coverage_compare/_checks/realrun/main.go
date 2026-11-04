@@ -21,13 +21,16 @@
 //
 // The check does not read the process environment: the commands it starts
 // inherit it by default, and the task's environment-access check scans this
-// directory. make test and CI do not run it because go list ignores the
-// directory whose name starts with an underscore; it is run once on the plan's
-// PR branch, and it is not maintained after the merge.
+// directory. For the same reason it does not route git through
+// internal/cmdrunner's environment helper, which takes the environment as its
+// input. make test and CI do not run it because go list ignores the directory
+// whose name starts with an underscore; it is run once on the plan's PR
+// branch, and it is not maintained after the merge.
 package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -37,9 +40,11 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 )
 
 func main() {
@@ -56,13 +61,18 @@ func main() {
 	}
 }
 
-// run performs the whole check and returns the first mismatch.
+// run performs the whole check and returns the first mismatch. A SIGINT or
+// SIGTERM cancels the running command, so the check still deletes its
+// temporary directory before returning.
 func run(goTest, extTest string) error {
-	root, err := repositoryRoot()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	root, err := repositoryRoot(ctx)
 	if err != nil {
 		return err
 	}
-	base, err := git(root, "rev-parse", "HEAD")
+	base, err := git(ctx, root, "rev-parse", "HEAD")
 	if err != nil {
 		return err
 	}
@@ -73,29 +83,29 @@ func run(goTest, extTest string) error {
 	defer os.RemoveAll(temp)
 
 	clone := filepath.Join(temp, "repo")
-	if _, err := git(root, "clone", "--shared", "--no-checkout", root, clone); err != nil {
+	if _, err := git(ctx, root, "clone", "--shared", "--no-checkout", root, clone); err != nil {
 		return err
 	}
-	if _, err := git(clone, "-c", "core.logAllRefUpdates=false", "-c", "core.hooksPath=/dev/null", "checkout", "--detach", base); err != nil {
+	if _, err := git(ctx, clone, "-c", "core.logAllRefUpdates=false", "-c", "core.hooksPath=/dev/null", "checkout", "--detach", base); err != nil {
 		return err
 	}
 	if err := linkNodeModules(filepath.Join(root, "extension", "node_modules"), filepath.Join(clone, "extension", "node_modules")); err != nil {
 		return err
 	}
 
-	goTests, err := countGoTests(base, goTest, clone)
+	goTests, err := countGoTests(ctx, base, goTest, clone)
 	if err != nil {
 		return err
 	}
-	extTests, err := countExtensionTests(clone, extTest)
+	extTests, err := countExtensionTests(ctx, clone, extTest)
 	if err != nil {
 		return err
 	}
 
-	if _, err := git(clone, "rm", "--quiet", "--", goTest, extTest); err != nil {
+	if _, err := git(ctx, clone, "rm", "--quiet", "--", goTest, extTest); err != nil {
 		return err
 	}
-	if _, err := git(clone,
+	if _, err := git(ctx, clone,
 		"-c", "user.name=coverage-compare realrun",
 		"-c", "user.email=realrun@example.invalid",
 		"-c", "commit.gpgSign=false",
@@ -104,15 +114,15 @@ func run(goTest, extTest string) error {
 	); err != nil {
 		return err
 	}
-	head, err := git(clone, "rev-parse", "HEAD")
+	head, err := git(ctx, clone, "rev-parse", "HEAD")
 	if err != nil {
 		return err
 	}
-	tree, err := git(clone, "rev-parse", "HEAD^{tree}")
+	tree, err := git(ctx, clone, "rev-parse", "HEAD^{tree}")
 	if err != nil {
 		return err
 	}
-	parent, err := git(clone, "rev-parse", "HEAD~1")
+	parent, err := git(ctx, clone, "rev-parse", "HEAD~1")
 	if err != nil {
 		return err
 	}
@@ -120,34 +130,36 @@ func run(goTest, extTest string) error {
 		return fmt.Errorf("the deletion commit's parent is %s, want the original HEAD %s", parent, base)
 	}
 
-	goVersion, err := commandOutput("", "go", "env", "GOVERSION")
+	goVersion, err := commandOutput(ctx, "", "go", "env", "GOVERSION")
 	if err != nil {
 		return err
 	}
-	nodeVersion, err := commandOutput("", "node", "--version")
+	nodeVersion, err := commandOutput(ctx, "", "node", "--version")
 	if err != nil {
 		return err
 	}
 
-	goOut, err := makeTarget(clone, "coverage-compare")
+	goOut, err := makeTarget(ctx, clone, "coverage-compare")
 	if err != nil {
 		return err
 	}
 	if err := checkResult(goOut, want{
-		base: base, head: head, tree: tree, toolchain: goVersion,
-		testDiff: goTests, deleted: 0,
+		target: "make coverage-compare BASE=\"HEAD~1\"",
+		base:   base, head: head, tree: tree, toolchain: goVersion,
+		testDiff: goTests,
 	}); err != nil {
 		return fmt.Errorf("coverage-compare: %w", err)
 	}
 	fmt.Printf("realrun: go  base %s head %s deleted tests %d\n", base, head, goTests)
 
-	extOut, err := makeTarget(clone, "ext-coverage-compare")
+	extOut, err := makeTarget(ctx, clone, "ext-coverage-compare")
 	if err != nil {
 		return err
 	}
 	if err := checkResult(extOut, want{
-		base: base, head: head, tree: tree, toolchain: nodeVersion,
-		testDiff: extTests, deleted: 0,
+		target: "make ext-coverage-compare BASE=\"HEAD~1\"",
+		base:   base, head: head, tree: tree, toolchain: nodeVersion,
+		testDiff: extTests,
 	}); err != nil {
 		return fmt.Errorf("ext-coverage-compare: %w", err)
 	}
@@ -158,11 +170,11 @@ func run(goTest, extTest string) error {
 
 // want is what the printed values must be.
 type want struct {
+	target     string
 	base, head string
 	tree       string
 	toolchain  string
 	testDiff   int
-	deleted    int
 }
 
 // checkResult parses one tool output and reports the first value that is not
@@ -175,6 +187,9 @@ func checkResult(out string, w want) error {
 	r, err := parseResult(out)
 	if err != nil {
 		return err
+	}
+	if r.target != w.target {
+		return fmt.Errorf("target is %q, want %q", r.target, w.target)
 	}
 	if r.base != w.base {
 		return fmt.Errorf("base is %q, want %q", r.base, w.base)
@@ -191,8 +206,8 @@ func checkResult(out string, w want) error {
 	if got := r.testsBase - r.testsHead; got != w.testDiff {
 		return fmt.Errorf("the test counts differ by %d (base %d, head %d), want the %d deleted tests", got, r.testsBase, r.testsHead, w.testDiff)
 	}
-	if r.deleted != w.deleted {
-		return fmt.Errorf("deleted is %d, want %d", r.deleted, w.deleted)
+	if r.deleted != 0 {
+		return fmt.Errorf("deleted is %d, want 0 for test files that contain no product code", r.deleted)
 	}
 	for _, point := range []struct {
 		name  string
@@ -218,6 +233,7 @@ func checkResult(out string, w want) error {
 
 // printed holds the values read from one tool output.
 type printed struct {
+	target                       string
 	base, head, tree, toolchain  string
 	testsBase, testsHead         int
 	filesBase, filesHead         int
@@ -229,7 +245,7 @@ type printed struct {
 func parseResult(out string) (printed, error) {
 	var r printed
 	var err error
-	deletedLines := 0
+	seenDeleted := false
 	for _, line := range strings.Split(out, "\n") {
 		label, value, ok := strings.Cut(line, " ")
 		if !ok {
@@ -237,6 +253,8 @@ func parseResult(out string) (printed, error) {
 		}
 		value = strings.TrimSpace(value)
 		switch label {
+		case "target":
+			r.target = value
 		case "base":
 			r.base = value
 		case "head":
@@ -263,17 +281,18 @@ func parseResult(out string) (printed, error) {
 				return r, fmt.Errorf("read the functions line: %w", err)
 			}
 		case "deleted":
-			deletedLines++
-			if deletedLines == 1 {
-				r.deleted, err = strconv.Atoi(value)
-				if err != nil {
-					return r, fmt.Errorf("read the deleted count %q: %w", value, err)
-				}
+			if seenDeleted {
+				return r, fmt.Errorf("unexpected deleted function line %q: the deleted test files must hold no product code", line)
+			}
+			seenDeleted = true
+			r.deleted, err = strconv.Atoi(value)
+			if err != nil {
+				return r, fmt.Errorf("read the deleted count %q: %w", value, err)
 			}
 		}
 	}
-	if deletedLines != 1 {
-		return r, fmt.Errorf("the output has %d deleted lines, want 1 for a run that deleted no function", deletedLines)
+	if !seenDeleted {
+		return r, errors.New("the output has no deleted line")
 	}
 	return r, nil
 }
@@ -306,12 +325,12 @@ func lastLine(out string) string {
 
 // repositoryRoot returns the current directory, which must be the root of a
 // git repository.
-func repositoryRoot() (string, error) {
+func repositoryRoot(ctx context.Context) (string, error) {
 	dir, err := os.Getwd()
 	if err != nil {
 		return "", fmt.Errorf("read the current directory: %w", err)
 	}
-	top, err := git(dir, "rev-parse", "--show-toplevel")
+	top, err := git(ctx, dir, "rev-parse", "--show-toplevel")
 	if err != nil {
 		return "", err
 	}
@@ -330,14 +349,14 @@ func repositoryRoot() (string, error) {
 }
 
 // git runs one git command in dir and returns its trimmed standard output.
-func git(dir string, args ...string) (string, error) {
-	return commandOutput(dir, "git", args...)
+func git(ctx context.Context, dir string, args ...string) (string, error) {
+	return commandOutput(ctx, dir, "git", args...)
 }
 
 // commandOutput runs one command in dir and returns its trimmed standard
 // output.
-func commandOutput(dir, name string, args ...string) (string, error) {
-	cmd := exec.Command(name, args...)
+func commandOutput(ctx context.Context, dir, name string, args ...string) (string, error) {
+	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
@@ -350,8 +369,8 @@ func commandOutput(dir, name string, args ...string) (string, error) {
 
 // makeTarget runs one coverage-compare target at BASE=HEAD~1 in dir, echoes
 // its standard output, and returns that output.
-func makeTarget(dir, target string) (string, error) {
-	cmd := exec.Command("make", target, "BASE=HEAD~1")
+func makeTarget(ctx context.Context, dir, target string) (string, error) {
+	cmd := exec.CommandContext(ctx, "make", target, "BASE=HEAD~1")
 	cmd.Dir = dir
 	var stdout bytes.Buffer
 	cmd.Stdout = io.MultiWriter(os.Stdout, &stdout)
@@ -382,9 +401,10 @@ func linkNodeModules(userModules, cloneModules string) error {
 }
 
 // countGoTests reads the Go test file at BASE and counts its top-level test
-// functions, which is what go test -json reports as tests.
-func countGoTests(base, name, clone string) (int, error) {
-	src, err := commandOutput(clone, "git", "show", base+":"+name)
+// functions: the tool counts top-level tests and leaves subtests out, while
+// go test -json reports a subtest as a Test value too.
+func countGoTests(ctx context.Context, base, name, clone string) (int, error) {
+	src, err := commandOutput(ctx, clone, "git", "show", base+":"+name)
 	if err != nil {
 		return 0, err
 	}
@@ -427,12 +447,12 @@ func isTestingT(params *ast.FieldList) bool {
 
 // countExtensionTests runs the extension test file at BASE in the clone with
 // the TAP reporter and returns the "# tests" count node reports for it.
-func countExtensionTests(clone, name string) (int, error) {
+func countExtensionTests(ctx context.Context, clone, name string) (int, error) {
 	file, ok := strings.CutPrefix(name, "extension/")
 	if !ok {
 		return 0, fmt.Errorf("%s is not under extension/", name)
 	}
-	tap, err := commandOutput(filepath.Join(clone, "extension"), "node", "--test", "--test-reporter=tap", file)
+	tap, err := commandOutput(ctx, filepath.Join(clone, "extension"), "node", "--test", "--test-reporter=tap", file)
 	if err != nil {
 		return 0, err
 	}

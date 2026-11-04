@@ -157,6 +157,7 @@ flowchart LR
 | `cmd/coveragecompare/main_test.go` | 新規 | コマンドラインの受け入れと拒否、終了コード（AC-01・AC-02 の `usage`） |
 | `internal/coveragecompare/` | 新規 | 道具の本体。前提の確認（3.2 節）、チェックアウト（3.3 節）、Go の測り方（3.4 節）、拡張の測り方（3.5 節）、関数表（3.6 節）、差分による行の対応と分類（3.7 節）、比較（3.8 節）、結果の出し方（3.9 節）。ファイルの分け方は実装計画で決める |
 | `internal/coveragecompare/*_test.go`、`internal/coveragecompare/test_helpers.go`、`internal/coveragecompare/testdata/` | 新規 | 道具のテスト（7 章）。偽の go・node・npm と一時的な git のリポジトリを作る補助は、このパッケージのテストの補助（`//go:build test`）に置き、新しいパッケージにはしない。`make test` で動く |
+| `docs/tasks/0055_coverage_compare/_checks/realrun/main.go` | 新規 | 実際のテストの一式での確認を一度だけ行うスクリプト（7.2 節）。`_` で始まるディレクトリなので `go list ./...` は無視し、`make test` と CI は実行しない |
 | `extension/scripts/function-ranges.ts` | 新規 | 範囲の補助（3.5 節） |
 | `extension/test/functionRanges.test.ts` | 新規 | 範囲の補助のテスト（7 章）。`make ext-test` で動く |
 | `Makefile` | 変更 | `coverage-compare` と `ext-coverage-compare` の対象を加え、`.PHONY`（`Makefile:57`）に載せる（3.2 節）。`ext_check_versions`（`Makefile:309-324`）に、道具が同じ確認を持つことを示すコメントを加える |
@@ -838,7 +839,7 @@ flowchart TD
 -   **前提の確認（AC-02・AC-04・AC-05・AC-36）:** テストの中で一時的な git のリポジトリを作り、`Run` を呼んで、BASE がない・解決できない・HEAD と同じ・祖先でない・コミットしていない変更や追跡されていないファイルがある、の各場合に、テストを実行する前に正しい停止の種類で止まることを確かめる。toolchain は、`PATH` の先頭に版を偽る `go`・`node`・`npm` を置き、BASE または HEAD の `go.mod` の `go` の行が新しい場合、`.node-version` と違う場合、`packageManager` と違う場合、`node_modules` がない場合、lockfile が違う場合で確かめる。偽のコマンドは、テストの実行として起動されたら記録を残し、記録がないことで「テストを実行する前に」止まったことを確かめる。
 -   **レシピの `go.mod` の確認（AC-05）:** `cmd/yt2column/makefile_test.go` で、`go list -m` が失敗する偽の `go` を `PATH` の先頭に置いて `make coverage-compare BASE=HEAD` を実行し、`toolchain` の最後の行で終わることを確かめる。
 -   **後始末と利用者の状態（AC-03）:** 一時的なリポジトリで、偽の `go`・`node` に合格・不合格・失敗する報告を出させて `Run` を通し、終わった後に作業用のディレクトリが残らず、作業ツリーの一覧・ブランチ・HEAD・`git status` が変わらないことを確かめる。取り消された context でも同じことを確かめる。
--   **実際のテストの一式での実行（AC-06・AC-07）:** 実装の最後に、テストを削除しただけの実際のコミットの組で `make coverage-compare` と `make ext-coverage-compare` を実行し、合格することと、結果が実際に測った値と版を示すことを確かめる。名前で選んだ環境の変数だけでテストの一式が通ることも、これで確かめる。この実行は 2 回のテストの一式を走らせるので、道具のテストには入れず（AC-35）、実装計画の手動の確認とし、出力を PR の説明に書く。
+-   **実際のテストの一式での実行（AC-06・AC-07）:** 実装の最後に、テストを削除しただけの実際のコミットの組で `make coverage-compare` と `make ext-coverage-compare` を実行し、合格することと、結果が実際に測った値と版を示すことを確かめる。名前で選んだ環境の変数だけでテストの一式が通ることも、これで確かめる。この実行は 2 回のテストの一式を走らせるので、道具のテストには入れず（AC-35）、実装計画の手動の確認とし、出力を PR の説明に書く。1 回の実行は、タスクの `_checks/realrun/main.go` が一時的なクローンの中で行い、出力と、元にしたコミットと一時的なコミットの ID を実装計画に記録する。このスクリプトは `_` で始まるディレクトリにあるので、`make test` と CI は実行しない。
 -   **シグナル（AC-03）:** 実際の `make` の対象の実行中に、次の 3 つの場合でシグナルを送り、作業用のディレクトリとレシピの一時的なディレクトリが残らず、最後の行が出ることを、手動の確認とする。端末の Ctrl-C（プロセスグループへの SIGINT）、`make` のプロセスだけへの SIGTERM、`make` のプロセスだけへの SIGHUP。`make` とシェルとテストのプロセスグループの間のシグナルの伝わり方は、テストの中で再現すると環境に左右されるためである。`Run` の後始末そのものは、上の取り消された context のテストで確かめる。
 
 ### 7.3. セキュリティのテスト

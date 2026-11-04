@@ -420,8 +420,8 @@ PR-4 は大きいので、コミットを、実行の部分（ステップ 4-1�
 
 **変更するファイル:** `CLAUDE.md`、`.claude/commands/weakreview.md`、`.claude/commands/runplan.md`
 
--   [x] `CLAUDE.md:490-491` を、設計書 3.10 の「Deleting a test is a claim that must be checked」の 6 項目を満たす英語の文に書き換える（AC-37）。
--   [x] `.claude/commands/weakreview.md:209-210` と `.claude/commands/runplan.md:218` の、テストを削除したときの確認の項目を、書き換えた CLAUDE.md の規則（`make coverage-compare`・`make ext-coverage-compare` の合格の結果が、コミットのメッセージと PR の説明にあること）に合わせる（英語。設計書 2.2）。今の 2 つの項目は、カバレッジが変わらないことの確認を求める古い規則を述べている（`weakreview.md` は「関数ごとに変わらない」、`runplan.md` は「変わらないことを確かめた」）。この 2 つの文を読むガードのテストはない（`cmd/` と `internal/` のテストに、これらの文を探すものはない。`a749c29b` で確かめた）。
+-   [x] `CLAUDE.md` の「Testing Strategy」の「Deleting a test is a claim that must be checked」を、設計書 3.10 の「Deleting a test is a claim that must be checked」の 6 項目を満たす英語の文に書き換える（AC-37）。
+-   [x] `.claude/commands/weakreview.md` の「Tests that cannot fail」の、テストを削除したときの項目と、`.claude/commands/runplan.md` のステップ 7.5 のテストの確認の項目を、書き換えた CLAUDE.md の規則（`make coverage-compare`・`make ext-coverage-compare` の合格の結果が、コミットのメッセージと PR の説明にあること）に合わせる（英語。設計書 2.2）。今の 2 つの項目は、カバレッジが変わらないことの確認を求める古い規則を述べている（`weakreview.md` は「関数ごとに変わらない」、`runplan.md` は「変わらないことを確かめた」）。この 2 つの文を読むガードのテストはない（`cmd/` と `internal/` のテストに、これらの文を探すものはない。`a749c29b` で確かめた）。
 
 #### ステップ 6-2: 実際の一式での確認のスクリプト
 
@@ -535,7 +535,7 @@ M1・M2・M3 はこの順に積み上げる。M2 の関数表と判定の関数�
 | AC-04 | test | `precheck_test.go::TestRunPreconditions`（拡張の `toolchain` の行、npm の起動が `--version` だけ）、`run_test.go::TestRunEndToEnd`（npm の起動が `--version` だけ） | ステップ 4-1 |
 | AC-05 | test | `precheck_test.go::TestRunPreconditions`（Go の `toolchain` の行）、`childenv_test.go::TestChildEnv`（`GOTOOLCHAIN=local`・`GOPROXY=off`）、`cmd/yt2column/makefile_test.go::TestCoverageCompareRecipes`（HEAD の `go.mod` の確認と、レシピの go の環境） | ステップ 4-1・4-2・5-2 |
 | AC-06 | test | `run_test.go::TestRunEndToEnd`（`Toolchain`、同じ `node_modules` へのリンク）、`::TestRunDetectsUserStateChange`（`.package-lock.json` の変化で `internal`）。実際の一式: `_checks/realrun/main.go`（ステップ 6-3 の記録。`toolchain` の行が入っている版と一致）。実測（2026-11-04、`f68485ad`）: `toolchain go1.27.1`・`v24.21.0` が入っている版と一致した（7.1） | ステップ 4-2・4-3 |
-| AC-07 | test（一度だけ実行して記録する。1.3） | `docs/tasks/0055_coverage_compare/_checks/realrun/main.go`（ステップ 6-3 の記録。削除したテストとその理由もここに書く）。ほかのパッケージのテストからだけ実行される関数を比べることは、AC-11 の行のテストで確かめる。実測（2026-11-04）: Go は `internal/coveragecompare/fake_test.go`（トップレベルのテスト 1 つ）を、拡張は `extension/test/fakes.test.ts`（9 つ）を削除し、どちらも合格した（7.1） | ステップ 6-2 |
+| AC-07 | test（一度だけ実行して記録する。1.3） | `docs/tasks/0055_coverage_compare/_checks/realrun/main.go`（ステップ 6-3 の記録。削除したテストとその理由もここに書く）。ほかのパッケージのテストからだけ実行される関数を比べることは、AC-11 の行のテストで確かめる。実測（2026-11-04、`f68485ad`、一時的なコミット `2459a08a`、ツリー `d75d26a0`）: Go は `internal/coveragecompare/fake_test.go`（トップレベルのテスト 1 つ）を、拡張は `extension/test/fakes.test.ts`（9 つ）を削除し、どちらも合格した（7.1） | ステップ 6-2 |
 | AC-08 | test | `gotestjson_test.go::TestParseGoTestJSON`（`fail`・`build-fail`）、`tap_test.go::TestParseTAP`（`# fail`・`not ok`）、`judge_test.go::TestJudge`（終了コードだけが 0 でない場合、HEAD の失敗）、`run_test.go::TestRunStopsOnBaseFailure`・`::TestRunStopsOnHeadFailure`、`output_test.go::TestWrite`（時点とテストの名前） | ステップ 1-2・1-3・2-3・4-3 |
 | AC-09 | test | `judge_test.go::TestJudge`（テストの数が 0、製品の関数の数が 0。BASE と HEAD のそれぞれ） | ステップ 2-3 |
 | AC-10 | test | `compare_test.go::TestCompareGo`（下がった関数、丸めると同じになる減少）、`output_test.go::TestWrite`（`lost` の行の `分子/分母`） | ステップ 2-3・2-4 |
@@ -567,6 +567,13 @@ M1・M2・M3 はこの順に積み上げる。M2 の関数表と判定の関数�
 | AC-36 | test | `precheck_test.go::TestRunPreconditions`（テストの実行の記録がないこと）、`cmd/yt2column/makefile_test.go::TestCoverageCompareRecipes` | ステップ 4-1・5-2 |
 | AC-37 | manual | PR のレビューで、CLAUDE.md の「Deleting a test is a claim that must be checked」が要件書 AC-37 の 5 項目と設計書 3.10 の時間の上限の項目を満たすこと、`.claude/commands/weakreview.md`・`runplan.md` の確認の項目が新しい規則と合うことを読む | ステップ 6-1 |
 | AC-38 | test・manual | `cmd/yt2column/makefile_test.go::TestCoverageCompareDocumented`（2 つの対象がそれぞれの節にある）、`cmd/yt2column/extension_docs_test.go::TestExtensionDocumentation`（`ext-` の一覧と Makefile の一致）。説明の文は PR のレビューで読む | ステップ 5-3 |
+
+設計書が決めたことのうち AC を持たないものは、次のテストで確かめる。この表には行を置かない。
+
+-   子のプロセスの環境（設計書 3.3）: `childenv_test.go::TestChildEnv`。
+-   拡張のテストの対象の指定が `extension/package.json` と同じであること（設計書 3.5）: `run_test.go::TestExtTestGlobMatchesPackageJSON`。
+-   BASE の値がレシピのシェルの文法として解釈されないこと、環境だけの `BASE` が道具に届かないこと（設計書 3.2・7.3）: `cmd/yt2column/makefile_test.go::TestCoverageCompareRecipes`。
+-   範囲の補助の形（設計書 3.5）: `extension/test/functionRanges.test.ts`、`ranges_test.go::TestParseRanges`。
 
 ### 7.1. 実際の一式での確認とシグナルの記録（2026-11-04）
 
@@ -605,25 +612,17 @@ no compared function lost coverage
 coverage-compare: PASS
 ```
 
-スクリプトが道具と別に求めた値と一致したこと: 最後の行が `PASS`、`deleted` が 0、`base`・`head`・`tree` がクローンの `git rev-parse HEAD~1`・`HEAD`・`HEAD^{tree}` と一致、`toolchain` の行が入っている go と node の版と一致、`tests` の差が削除したテストの数（Go 1、拡張 9）と一致、`files` と `functions` が両方の時点で 0 より大きい。
+スクリプトが道具と別に求めた値と一致したこと: 最後の行が `PASS`、`deleted` が 0、`base`・`head`・`tree` がクローンの `git rev-parse HEAD~1`・`HEAD`・`HEAD^{tree}` と一致、`toolchain` の行が入っている go と node の版と一致、`tests` の差が削除したテストの数（Go 1、拡張 9）と一致、`files` と `functions` が両方の時点で 0 より大きい。スクリプトの最後の行は `realrun: OK` であった。
 
 シグナルの手動の確認は、`TMPDIR` を空の新しいディレクトリにして行い、終わった後にそのディレクトリが空であることを確かめた。`make coverage-compare BASE=HEAD~1` のテストの実行中（`go test` のプロセスが現れて 20 秒後）に送った。
 
 | 送ったシグナル | `make` の終わり方 | 道具の最後の行 | 実行後の `TMPDIR` |
 |---|---|---|---|
-| プロセスグループへの SIGINT（端末の Ctrl-C） | 2 | `coverage-compare: STOP internal`（`the run was interrupted`） | 空 |
+| プロセスグループへの SIGINT（Ctrl-C と同じ） | 2 | `coverage-compare: STOP internal`（`the run was interrupted`） | 空 |
 | `make` のプロセスだけへの SIGTERM | 143（シグナルで終了） | `coverage-compare: STOP internal`（`the run was interrupted`） | 空 |
 | `make` のプロセスだけへの SIGHUP | 129（シグナルで終了） | `coverage-compare: STOP unmatched`（実行は最後まで続いた） | 空 |
 
 SIGHUP を `make` のプロセスだけに送った場合、GNU make はこれをレシピのシェルに渡さない。`make` がシグナルで終わった後もレシピのシェルと道具が最後まで動き、このブランチでは HEAD にだけある製品の関数（この確認のスクリプト）があるため `unmatched` で止まった。最後の行が出て、作業用のディレクトリとレシピの一時的なディレクトリが残らないことは、3 つとも満たしている。
-
-
-設計書が決めたことのうち AC を持たないものは、次のテストで確かめる。この表には行を置かない。
-
--   子のプロセスの環境（設計書 3.3）: `childenv_test.go::TestChildEnv`。
--   拡張のテストの対象の指定が `extension/package.json` と同じであること（設計書 3.5）: `run_test.go::TestExtTestGlobMatchesPackageJSON`。
--   BASE の値がレシピのシェルの文法として解釈されないこと、環境だけの `BASE` が道具に届かないこと（設計書 3.2・7.3）: `cmd/yt2column/makefile_test.go::TestCoverageCompareRecipes`。
--   範囲の補助の形（設計書 3.5）: `extension/test/functionRanges.test.ts`、`ranges_test.go::TestParseRanges`。
 
 ## 8. 成功基準 (Success Criteria)
 

@@ -534,7 +534,9 @@ info.json parsers with real samples under `testdata/`.
     failing test, or could not match the functions stops instead of passing.
   - Write the passing output through its last line into the deleting commit's
     message, amending the message only so the tree ID stays the same, and into
-    the pull request description.
+    the pull request description. The `head` commit ID in that output is the
+    commit as it stood before the amend; the tree ID is the one that still
+    identifies the change.
   - The extension comparison is not an exception to this rule: it is how an
     extension test deletion is checked.
 - **Document tests check values, structure, and executable examples, never prose.**

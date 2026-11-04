@@ -215,8 +215,11 @@ Test-review checklist (use verbatim as evaluation criteria in the step 7.5 promp
       stated reason (and the break-to-fail check was performed); a layered path is
       given an input only one layer can handle; no constant-equals-its-own-literal
       or field-holds-its-own-assignment assertion; duplication is checked before
-      adding a table test; a deleted test's coverage comparison passed and its
-      output is recorded as `CLAUDE.md` requires.
+      adding a table test; a deleted test is in a commit of its own whose
+      message and the PR description carry the passing output through the last
+      line of `make coverage-compare BASE=<parent>` and/or
+      `make ext-coverage-compare BASE=<parent>`, both when both kinds of test
+      were deleted.
 - [ ] Each test asserts observable behavior rather than restating an
       implementation detail.
 
