@@ -496,13 +496,13 @@ PENDING overview-items
         links: bullet 5 (`google.golang.org/genai`) pending: llm-adapter-stdlib
 ```
 
-**PR-2 の確かめ（ステップ 2-3、2026-11-04）:** `git fetch origin main` の後に、PR のブランチで実行した。マージの基点は `791def1162485f559f781d9197183e4099c3cf88`、head は `35ec44231c8e57cb8c5366dafce7d124bd0d419b` である。この記録を書くコミットは本書だけを変える。
+**PR-2 の確かめ（ステップ 2-3、2026-11-04）:** `git fetch origin main` の後に、PR のブランチで実行した。マージの基点は `791def1162485f559f781d9197183e4099c3cf88`、head は `662b4bd0c5a0b24f61bf2bbcc9ebb9b06d867167` である。この記録を書くコミットは本書だけを変える。
 
 `docs/tasks/0060_adr_records/_checks/task_docs_unchanged.sh origin/main HEAD`（終了コード 0）:
 
 ```text
 merge-base: 791def1162485f559f781d9197183e4099c3cf88
-head: 35ec44231c8e57cb8c5366dafce7d124bd0d419b
+head: 662b4bd0c5a0b24f61bf2bbcc9ebb9b06d867167
 docs/tasks/: only docs/tasks/0060_adr_records/ changed
 ```
 
