@@ -26,10 +26,15 @@ func TestChildEnv(t *testing.T) {
 			env.set(f.behavior())
 			passed := map[string]string{
 				"PATH": fakeBinDir, "HOME": env.home,
-				"LANG": "C.UTF-8", "LC_ALL": "C", "GOCACHE": "/cache/go",
+				"USER": "tester", "TZ": "UTC", "LANG": "C.UTF-8", "LC_ALL": "C", "LC_CTYPE": "C.UTF-8",
+				"GOCACHE": "/cache/go", "GOMODCACHE": "/cache/mod",
+			}
+			for _, name := range slices.Sorted(maps.Keys(passed)) {
+				if name != "PATH" && name != "HOME" {
+					env.environ = append(env.environ, name+"="+passed[name])
+				}
 			}
 			env.environ = append(env.environ,
-				"LANG=C.UTF-8", "LC_ALL=C", "GOCACHE=/cache/go",
 				"NODE_OPTIONS=--test-only", "NODE_V8_COVERAGE=/coverage", "GOFLAGS=-run=TestNone",
 				"GOENV=/user/go.env", "GOCOVERDIR=/coverage/go", "GIT_DIR=/elsewhere",
 				"DEEPSEEK_API_KEY=secret", "UNRELATED=1")

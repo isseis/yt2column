@@ -173,12 +173,7 @@ func requireStopKind(t *testing.T, r Result, kind StopKind) {
 func TestRunEndToEnd(t *testing.T) {
 	t.Parallel()
 	goLost, extLost := goBehavior(), extBehavior()
-	_, goHead := goPassing()
-	goHead.blocks = []string{"3.14,5.2 1 0", "7.14,9.2 1 1"}
-	goLost.Suites["head"] = fakeSuite{Stdout: goJSONPass(1), Report: goProfileText(goHead.blocks...)}
-	_, extHead := extPassing()
-	extHead.fns = []string{"1,a,0", "5,c,2"}
-	extLost.Suites["head"] = fakeSuite{Report: lcovText(extHead.fns...), TAP: tapReportText(1, 0, 0)}
+	goLost.Suites["head"], extLost.Suites["head"] = fixtures[0].lost, fixtures[1].lost
 
 	for _, tc := range []struct {
 		name     string
@@ -344,6 +339,8 @@ type fixture struct {
 	failing fakeSuite
 	// unreadable is a suite whose report cannot be read.
 	unreadable fakeSuite
+	// lost is a HEAD suite under which the first function no longer runs.
+	lost fakeSuite
 }
 
 // fixtures are the Go and the extension fixtures.
@@ -356,11 +353,13 @@ var fixtures = []fixture{
 			Report: goProfileText(),
 		},
 		unreadable: fakeSuite{Stdout: goJSONPass(1), Report: "not a profile\n"},
+		lost:       fakeSuite{Stdout: goJSONPass(1), Report: goProfileText("3.14,5.2 1 0", "7.14,9.2 1 1")},
 	},
 	{
 		name: "ext", target: TargetExt, repo: extRepo, behavior: extBehavior,
 		failing:    fakeSuite{Exit: 1, Report: lcovText(), TAP: "not ok 1 - broken\n" + tapReportText(1, 1, 0)},
 		unreadable: fakeSuite{Report: "not lcov\n", TAP: tapReportText(1, 0, 0)},
+		lost:       fakeSuite{Report: lcovText("1,a,0", "5,c,2"), TAP: tapReportText(1, 0, 0)},
 	},
 }
 
@@ -456,7 +455,7 @@ func uncheckoutableBase(r *testRepo, base string) string {
 // from a detached HEAD, which has no current branch), a failure, a test
 // failure (also one that wrote no report, as a build failure does), an
 // unreadable report, a failed range helper, a
-// checkout that cannot be made after the other one was, a context canceled
+// BASE checkout that cannot be made, a context canceled
 // before the run, and one canceled while a suite runs. A cancellation is an
 // internal stop even though the suite then exits unsuccessfully, and it
 // leaves no process of the suite behind, not even one the suite started.
@@ -472,7 +471,10 @@ func TestRunCleansUp(t *testing.T) {
 		running  bool // cancel once the BASE suite is running
 		outcome  Outcome
 		stop     StopKind
-		detail   string // the first reason's detail, when set
+		// detail is the first reason's detail for the BASE given, when set.
+		// Detail is compared as text because an internal stop has no other
+		// observable that tells its causes apart.
+		detail func(base string) string
 	}
 	noReport := func(point string) func(*fakeBehavior, fixture) {
 		return func(b *fakeBehavior, f fixture) {
@@ -487,15 +489,7 @@ func TestRunCleansUp(t *testing.T) {
 			r.git("checkout", "-q", "--detach")
 			return base
 		}},
-		{name: "fail", outcome: OutcomeFail, modify: func(b *fakeBehavior, f fixture) {
-			lost := f.behavior()
-			if f.target == TargetGo {
-				lost.Suites["head"] = fakeSuite{Stdout: goJSONPass(1), Report: goProfileText("3.14,5.2 1 0", "7.14,9.2 1 1")}
-			} else {
-				lost.Suites["head"] = fakeSuite{Report: lcovText("1,a,0", "5,c,2"), TAP: tapReportText(1, 0, 0)}
-			}
-			*b = lost
-		}},
+		{name: "fail", outcome: OutcomeFail, modify: func(b *fakeBehavior, f fixture) { b.Suites["head"] = f.lost }},
 		{name: "test failure", stop: StopTestFailed, modify: func(b *fakeBehavior, f fixture) { b.Suites["head"] = f.failing }},
 		{name: "BASE failure without a report", stop: StopTestFailed, modify: noReport("base")},
 		{name: "HEAD failure without a report", stop: StopTestFailed, modify: noReport("head")},
@@ -506,9 +500,9 @@ func TestRunCleansUp(t *testing.T) {
 		{name: "range helper writes to standard error", ext: true, stop: StopInternal, modify: func(b *fakeBehavior, _ fixture) {
 			b.Ranges["head"] = fakeAnswer{Stdout: b.Ranges["head"].Stdout, Stderr: "warning\n"}
 		}},
-		{name: "checkout cannot be made", stop: StopInternal, prepare: uncheckoutableBase, detail: "checking out BASE failed"},
-		{name: "canceled before the run", stop: StopInternal, canceled: true, detail: "the run was interrupted"},
-		{name: "canceled while a suite runs", stop: StopInternal, running: true, detail: "the run was interrupted"},
+		{name: "checkout cannot be made", stop: StopInternal, prepare: uncheckoutableBase, detail: func(base string) string { return "checking out " + base + " failed" }},
+		{name: "canceled before the run", stop: StopInternal, canceled: true, detail: interrupted},
+		{name: "canceled while a suite runs", stop: StopInternal, running: true, detail: interrupted},
 	}
 	for _, f := range fixtures {
 		for _, tc := range cases {
@@ -554,11 +548,8 @@ func TestRunCleansUp(t *testing.T) {
 				} else if r.Outcome != tc.outcome {
 					t.Fatalf("outcome = %v (stop %v, reasons %+v), want %v", r.Outcome, r.Stop, r.Reasons, tc.outcome)
 				}
-				if tc.detail != "" {
-					detail := tc.detail
-					if detail == "checking out BASE failed" {
-						detail = "checking out " + base + " failed"
-					}
+				if tc.detail != nil {
+					detail := tc.detail(base)
 					if len(r.Reasons) == 0 || r.Reasons[0].Detail != detail {
 						t.Errorf("reasons = %+v, want the first to be %q", r.Reasons, detail)
 					}
@@ -576,6 +567,9 @@ func TestRunCleansUp(t *testing.T) {
 		}
 	}
 }
+
+// interrupted is the detail of a canceled run's reason.
+func interrupted(string) string { return "the run was interrupted" }
 
 // waitBound bounds how long a test waits for a fake's file or for a process
 // group to be gone.
@@ -690,6 +684,8 @@ func TestRunDetectsUserStateChange(t *testing.T) {
 			r := runTool(context.Background(), env, repo, f.target, base)
 
 			requireStopKind(t, r, StopInternal)
+			// The detail is the observable that names the changed item: an
+			// internal stop has no other.
 			if len(r.Reasons) != 1 || r.Reasons[0].Detail != tc.detail {
 				t.Errorf("reasons = %+v, want one: %q", r.Reasons, tc.detail)
 			}
@@ -699,9 +695,14 @@ func TestRunDetectsUserStateChange(t *testing.T) {
 }
 
 // TestDiffIgnoresUserGitConfig checks that the user's git configuration
-// cannot change the diff the run reads. With settings in the repository that
-// change the shape of a diff, an external diff, and a textconv, the run reads
-// the diff as without them, and neither external command runs. The global
+// cannot change the diff the run reads. HEAD deletes two functions two lines
+// apart, so diff.interHunkContext would merge the two hunks into one with
+// context lines, and diff.noprefix would drop the a/ and b/ prefixes; with
+// those settings, an external diff, and a textconv in the repository, the run
+// reads the diff as without them, and neither external command runs.
+// (diff.relative and diff.algorithm are overridden too, but no input here
+// tells them apart: the run reads the diff from the repository root, and a
+// pure deletion is placed by the tool whatever position git gives it.) The global
 // configuration is not read at all: with the same settings there, and an
 // attributes file there that marks Go files binary, the run still passes,
 // and so does it with the global attributes file in its default place, which
@@ -735,15 +736,14 @@ func TestDiffIgnoresUserGitConfig(t *testing.T) {
 			settings := [][2]string{
 				{"diff.noprefix", "true"},
 				{"diff.interHunkContext", "3"},
-				{"diff.relative", "true"},
-				{"diff.algorithm", "patience"},
 				{"diff.renames", "true"},
 				{"diff.external", script},
 				{"diff.conv.textconv", script},
 			}
-			repo, base := goRepo(t)
-			b := goBehavior()
+			repo, base, b, deleted := twoDeletionsRepo(t)
 			if tc.rename {
+				repo, base = goRepo(t)
+				b = goBehavior()
 				repo.git("rm", "-q", judgeGoFile)
 				repo.write("y/y.go", goHeadText)
 				repo.commitAll("rename")
@@ -796,15 +796,50 @@ func TestDiffIgnoresUserGitConfig(t *testing.T) {
 
 			if tc.rename {
 				requireStopKind(t, r, StopUnmatched)
-			} else if r.Outcome != OutcomePass || !reflect.DeepEqual(r.Deleted, goDeleted) {
+			} else if r.Outcome != OutcomePass || !reflect.DeepEqual(r.Deleted, deleted) {
 				t.Errorf("result = outcome %v deleted %+v (stop %v, reasons %+v), want a pass deleting %+v",
-					r.Outcome, r.Deleted, r.Stop, r.Reasons, goDeleted)
+					r.Outcome, r.Deleted, r.Stop, r.Reasons, deleted)
 			}
 			if _, err := os.Stat(marker); !errors.Is(err, os.ErrNotExist) {
 				t.Errorf("an external diff or textconv ran (stat %s: %v)", marker, err)
 			}
 		})
 	}
+}
+
+// twoDeletionsRepo creates a Go repository whose HEAD deletes B and D from
+// x/x.go, with only the one-line C between them, and returns it with BASE,
+// the fakes of a passing run, and the deleted functions.
+func twoDeletionsRepo(t *testing.T) (*testRepo, string, fakeBehavior, []DeletedFunc) {
+	t.Helper()
+	r := newTestRepo(t)
+	r.write("go.mod", "module "+judgeModule+"\n\ngo 1.21\n")
+	r.write(judgeGoFile, joinLines(
+		"package x", "",
+		"func A() int {", "\treturn 1", "}", "",
+		"func B() int {", "\treturn 2", "}", "",
+		"func C() int { return 3 }", "",
+		"func D() int {", "\treturn 4", "}",
+	))
+	base := r.commitAll("base")
+	r.write(judgeGoFile, joinLines(
+		"package x", "",
+		"func A() int {", "\treturn 1", "}", "",
+		"func C() int { return 3 }",
+	))
+	r.commitAll("delete B and D")
+	b := fakeBehavior{
+		GoVersion: fakeGoVersion,
+		Suites: map[string]fakeSuite{
+			"base": {Stdout: goJSONPass(1), Report: goProfileText("3.14,5.2 1 1", "7.14,9.2 1 0", "11.14,11.25 1 1", "13.14,15.2 1 0")},
+			"head": {Stdout: goJSONPass(1), Report: goProfileText("3.14,5.2 1 1", "7.14,7.25 1 1")},
+		},
+	}
+	deleted := []DeletedFunc{
+		{ID: FuncID{File: judgeGoFile, Line: 7}, Names: []string{"B"}, State: NotRunAtBase},
+		{ID: FuncID{File: judgeGoFile, Line: 13}, Names: []string{"D"}, State: NotRunAtBase},
+	}
+	return r, base, b, deleted
 }
 
 // TestRunAcceptsLargeOutput checks that the run has no cap of its own on a

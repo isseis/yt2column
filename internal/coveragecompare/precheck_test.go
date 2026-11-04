@@ -28,7 +28,9 @@ func TestRunPreconditions(t *testing.T) {
 		prepare func(r *testRepo, b *fakeBehavior, base string) string
 		pass    bool
 		stop    StopKind
-		// point and file are what a toolchain stop names, when file is set.
+		// named rows check the point and the file (empty for none) their
+		// one reason names.
+		named bool
 		point Point
 		file  string
 	}{
@@ -62,53 +64,53 @@ func TestRunPreconditions(t *testing.T) {
 			r.write("build.log", "log\n")
 			return base
 		}},
-		{name: "BASE requires a newer go", stop: StopToolchain, point: PointBase, file: "go.mod", prepare: func(r *testRepo, _ *fakeBehavior, _ string) string {
+		{name: "BASE requires a newer go", stop: StopToolchain, named: true, point: PointBase, file: "go.mod", prepare: func(r *testRepo, _ *fakeBehavior, _ string) string {
 			return newGoModCommits(r, "go 1.99\n", "go 1.21\n")
 		}},
-		{name: "HEAD requires a newer go", stop: StopToolchain, point: PointHead, file: "go.mod", prepare: func(r *testRepo, _ *fakeBehavior, _ string) string {
+		{name: "HEAD requires a newer go", stop: StopToolchain, named: true, point: PointHead, file: "go.mod", prepare: func(r *testRepo, _ *fakeBehavior, _ string) string {
 			return newGoModCommits(r, "go 1.21\n", "go 1.99\n")
 		}},
-		{name: "go.mod has no go line", stop: StopToolchain, point: PointHead, file: "go.mod", prepare: func(r *testRepo, _ *fakeBehavior, _ string) string {
+		{name: "go.mod has no go line", stop: StopToolchain, named: true, point: PointHead, file: "go.mod", prepare: func(r *testRepo, _ *fakeBehavior, _ string) string {
 			return newGoModCommits(r, "go 1.21\n", "")
 		}},
-		{name: "go.mod has two go lines", stop: StopToolchain, point: PointHead, file: "go.mod", prepare: func(r *testRepo, _ *fakeBehavior, _ string) string {
+		{name: "go.mod has two go lines", stop: StopToolchain, named: true, point: PointHead, file: "go.mod", prepare: func(r *testRepo, _ *fakeBehavior, _ string) string {
 			return newGoModCommits(r, "go 1.21\n", "go 1.21\ngo 1.21\n")
 		}},
-		{name: "go.mod is absent at BASE", stop: StopToolchain, point: PointBase, file: "go.mod", prepare: func(r *testRepo, _ *fakeBehavior, _ string) string {
+		{name: "go.mod is absent at BASE", stop: StopToolchain, named: true, point: PointBase, file: "go.mod", prepare: func(r *testRepo, _ *fakeBehavior, _ string) string {
 			r.git("rm", "-q", "go.mod")
 			base := r.commitAll("no go.mod")
 			r.write("go.mod", "module "+judgeModule+"\n\ngo 1.21\n")
 			r.commitAll("go.mod again")
 			return base
 		}},
-		{name: "go env prints no version", stop: StopToolchain, prepare: func(_ *testRepo, b *fakeBehavior, base string) string {
+		{name: "go env prints no version", stop: StopToolchain, named: true, prepare: func(_ *testRepo, b *fakeBehavior, base string) string {
 			b.GoVersion = "devel go1.28-abcdef"
 			return base
 		}},
-		{name: "node differs from .node-version", target: TargetExt, stop: StopToolchain, point: PointBase, file: nodeVersionFile, prepare: func(_ *testRepo, b *fakeBehavior, base string) string {
+		{name: "node differs from .node-version", target: TargetExt, stop: StopToolchain, named: true, point: PointBase, file: nodeVersionFile, prepare: func(_ *testRepo, b *fakeBehavior, base string) string {
 			b.NodeVersion = "v24.0.0"
 			return base
 		}},
-		{name: "npm differs from packageManager", target: TargetExt, stop: StopToolchain, point: PointBase, file: packageJSONFile, prepare: func(_ *testRepo, b *fakeBehavior, base string) string {
+		{name: "npm differs from packageManager", target: TargetExt, stop: StopToolchain, named: true, point: PointBase, file: packageJSONFile, prepare: func(_ *testRepo, b *fakeBehavior, base string) string {
 			b.NpmVersion = "10.0.0"
 			return base
 		}},
-		{name: ".node-version is empty at HEAD", target: TargetExt, stop: StopToolchain, point: PointHead, file: nodeVersionFile, prepare: func(r *testRepo, _ *fakeBehavior, _ string) string {
+		{name: ".node-version is empty at HEAD", target: TargetExt, stop: StopToolchain, named: true, point: PointHead, file: nodeVersionFile, prepare: func(r *testRepo, _ *fakeBehavior, _ string) string {
 			return newExtPinCommit(r, nodeVersionFile, "\n")
 		}},
-		{name: "packageManager is not npm", target: TargetExt, stop: StopToolchain, point: PointHead, file: packageJSONFile, prepare: func(r *testRepo, _ *fakeBehavior, _ string) string {
+		{name: "packageManager is not npm", target: TargetExt, stop: StopToolchain, named: true, point: PointHead, file: packageJSONFile, prepare: func(r *testRepo, _ *fakeBehavior, _ string) string {
 			return newExtPinCommit(r, packageJSONFile, `{"packageManager":"pnpm@9.0.0"}`+"\n")
 		}},
-		{name: "packageManager names no npm version", target: TargetExt, stop: StopToolchain, point: PointHead, file: packageJSONFile, prepare: func(r *testRepo, _ *fakeBehavior, _ string) string {
+		{name: "packageManager names no npm version", target: TargetExt, stop: StopToolchain, named: true, point: PointHead, file: packageJSONFile, prepare: func(r *testRepo, _ *fakeBehavior, _ string) string {
 			return newExtPinCommit(r, packageJSONFile, `{"packageManager":"npm@"}`+"\n")
 		}},
-		{name: "node_modules is missing", target: TargetExt, stop: StopToolchain, prepare: func(r *testRepo, _ *fakeBehavior, base string) string {
+		{name: "node_modules is missing", target: TargetExt, stop: StopToolchain, named: true, file: "extension/node_modules", prepare: func(r *testRepo, _ *fakeBehavior, base string) string {
 			if err := os.RemoveAll(filepath.Join(r.dir, "extension", "node_modules")); err != nil {
 				r.t.Fatalf("remove node_modules: %v", err)
 			}
 			return base
 		}},
-		{name: "the lockfiles differ", target: TargetExt, stop: StopToolchain, prepare: func(r *testRepo, _ *fakeBehavior, _ string) string {
+		{name: "the lockfiles differ", target: TargetExt, stop: StopToolchain, named: true, file: lockfileFile, prepare: func(r *testRepo, _ *fakeBehavior, _ string) string {
 			base := r.rev("HEAD")
 			r.write(lockfileFile, `{"changed":true}`+"\n")
 			r.write(judgeExtFile, extHeadText+"\n")
@@ -150,9 +152,13 @@ func TestRunPreconditions(t *testing.T) {
 				return
 			}
 			requireStopKind(t, r, tc.stop)
-			if tc.file != "" {
-				if len(r.Reasons) != 1 || r.Reasons[0].Point != tc.point || r.Reasons[0].Func == nil || r.Reasons[0].Func.File != tc.file {
-					t.Errorf("reasons = %+v, want one naming %s at %v", r.Reasons, tc.file, tc.point)
+			if tc.named {
+				file := ""
+				if len(r.Reasons) == 1 && r.Reasons[0].Func != nil {
+					file = r.Reasons[0].Func.File
+				}
+				if len(r.Reasons) != 1 || r.Reasons[0].Point != tc.point || file != tc.file {
+					t.Errorf("reasons = %+v, want one naming file %q at %v", r.Reasons, tc.file, tc.point)
 				}
 			}
 			starts := env.starts()
