@@ -420,28 +420,28 @@ PR-4 は大きいので、コミットを、実行の部分（ステップ 4-1�
 
 **変更するファイル:** `CLAUDE.md`、`.claude/commands/weakreview.md`、`.claude/commands/runplan.md`
 
--   [ ] `CLAUDE.md:490-491` を、設計書 3.10 の「Deleting a test is a claim that must be checked」の 6 項目を満たす英語の文に書き換える（AC-37）。
--   [ ] `.claude/commands/weakreview.md:209-210` と `.claude/commands/runplan.md:218` の、テストを削除したときの確認の項目を、書き換えた CLAUDE.md の規則（`make coverage-compare`・`make ext-coverage-compare` の合格の結果が、コミットのメッセージと PR の説明にあること）に合わせる（英語。設計書 2.2）。今の 2 つの項目は、カバレッジが変わらないことの確認を求める古い規則を述べている（`weakreview.md` は「関数ごとに変わらない」、`runplan.md` は「変わらないことを確かめた」）。この 2 つの文を読むガードのテストはない（`cmd/` と `internal/` のテストに、これらの文を探すものはない。`a749c29b` で確かめた）。
+-   [x] `CLAUDE.md:490-491` を、設計書 3.10 の「Deleting a test is a claim that must be checked」の 6 項目を満たす英語の文に書き換える（AC-37）。
+-   [x] `.claude/commands/weakreview.md:209-210` と `.claude/commands/runplan.md:218` の、テストを削除したときの確認の項目を、書き換えた CLAUDE.md の規則（`make coverage-compare`・`make ext-coverage-compare` の合格の結果が、コミットのメッセージと PR の説明にあること）に合わせる（英語。設計書 2.2）。今の 2 つの項目は、カバレッジが変わらないことの確認を求める古い規則を述べている（`weakreview.md` は「関数ごとに変わらない」、`runplan.md` は「変わらないことを確かめた」）。この 2 つの文を読むガードのテストはない（`cmd/` と `internal/` のテストに、これらの文を探すものはない。`a749c29b` で確かめた）。
 
 #### ステップ 6-2: 実際の一式での確認のスクリプト
 
 **変更するファイル:** `docs/tasks/0055_coverage_compare/_checks/realrun/main.go`（新規）
 
--   [ ] AC-06・AC-07 を確かめる一度きりのスクリプトを Go で書く（1.3）。`go list ./...` は `_` で始まるディレクトリを無視するので、`make test` と CI は実行しない（`requirements_process.md` §4）。前提は、`make ext-install` を済ませ、`.node-version` の node が使えることである。スクリプトは次を行う。
+-   [x] AC-06・AC-07 を確かめる一度きりのスクリプトを Go で書く（1.3）。`go list ./...` は `_` で始まるディレクトリを無視するので、`make test` と CI は実行しない（`requirements_process.md` §4）。前提は、`make ext-install` を済ませ、`.node-version` の node が使えることである。スクリプトは次を行う。
     -   今のリポジトリの HEAD を一時的なディレクトリにクローンし、`extension/node_modules` を利用者のものへの項目ごとのリンクとして置く（設計書 3.3 と同じ形。`git status` を空に保つため）。クローンの中のコミットは、署名を切り（`-c commit.gpgSign=false`）、フックを動かさず（`-c core.hooksPath=/dev/null`）、決まった名前とメールで作る（利用者の大域の設定は SSH の署名を求める）。
     -   起動の形は `go run ./docs/tasks/0055_coverage_compare/_checks/realrun -go-test <Go のテストのファイル> -ext-test <拡張のテストのファイル>` とする。2 つのファイルの削除を 1 つのコミットにする（どちらの対象から見ても、テストを削除しただけのコミットである）。
     -   スクリプトは `os.Getenv`・`os.Environ` などで環境を読まない（子のプロセスには `exec.Cmd` の既定で環境を引き継がせる）。`internal/config/envaccess_test.go` の `scanEnvAccess`（`:97-115`）は `_` で始まるディレクトリも調べるので、環境を読むと `make test` が失敗する。
     -   そのクローンで `make coverage-compare BASE=HEAD~1` と `make ext-coverage-compare BASE=HEAD~1` を実行し、出力をそのまま出す。
     -   道具の出力を、道具と別に求めた値と比べる。最後の行が `coverage-compare: PASS` であること。`deleted` が 0（テストのファイルには製品の関数がない）であること。`base`・`head`・`tree` がクローンの `git rev-parse HEAD~1`・`HEAD`・`HEAD^{tree}` と一致すること。`toolchain` の行が、入っている go と node の版と一致すること。`tests` の BASE と HEAD の差が、Go では削除したファイルのトップレベルの `Test` 関数の数（`go/parser` で数える）と、拡張では削除したファイルのテストの数（BASE の TAP をスクリプトが別に取って数えるか、削除の前に数えた値）と一致すること。`files`・`functions` が両方の時点で 0 より大きいこと。
     -   終わったら、失敗したときも、一時的なディレクトリを `defer` で消す。
--   [ ] 削除するテストは、実装のときに、削除しても製品の関数のカバレッジが変わらないと見込めるもの（Go と拡張それぞれ 1 つ）を選び、選んだ理由を本書 7 章の AC-07 の行に書く。
+-   [x] 削除するテストは、実装のときに、削除しても製品の関数のカバレッジが変わらないと見込めるもの（Go と拡張それぞれ 1 つ）を選び、選んだ理由を本書 7 章の AC-07 の行に書く。
 
 #### ステップ 6-3: 実行と記録
 
 **変更するファイル:** `docs/tasks/0055_coverage_compare/03_implementation_plan.md`
 
--   [ ] ステップ 6-2 のスクリプトを PR のブランチで一度実行し、出力と、元にしたコミットの ID と一時的なコミットの ID、日付、go と node の版を本書 7 章の AC-06・AC-07 の行に記録する。不合格や停止のときは、原因を調べる。道具の誤りなら、修正を `fix(0055)` の別の PR にして PR-6 より前にマージし、PR-6 のブランチをその上に載せてから実行し直す（1.3）。
--   [ ] シグナルの手動の確認（設計書 7.2 の「シグナル」）を、実際の `make coverage-compare` の実行中に、端末の Ctrl-C、`make` のプロセスだけへの SIGTERM、`make` のプロセスだけへの SIGHUP の 3 つで行う。それぞれで、最後の行が `coverage-compare: STOP internal` であること、作業用のディレクトリとレシピの一時的なディレクトリが残らないことを、本書 7 章の AC-03 の行に記録する。`TMPDIR` を空の新しいディレクトリにして実行し、終わった後にそれが空であることで確かめる（macOS の共有の一時的なディレクトリの一覧を比べると、ほかのプロセスのファイルが混じるため）。
+-   [x] ステップ 6-2 のスクリプトを PR のブランチで一度実行し、出力と、元にしたコミットの ID と一時的なコミットの ID、日付、go と node の版を本書 7 章の AC-06・AC-07 の行に記録する。不合格や停止のときは、原因を調べる。道具の誤りなら、修正を `fix(0055)` の別の PR にして PR-6 より前にマージし、PR-6 のブランチをその上に載せてから実行し直す（1.3）。
+-   [x] シグナルの手動の確認（設計書 7.2 の「シグナル」）を、実際の `make coverage-compare` の実行中に、端末の Ctrl-C、`make` のプロセスだけへの SIGTERM、`make` のプロセスだけへの SIGHUP の 3 つで行う。Ctrl-C（プロセスグループへの SIGINT）と SIGTERM では、最後の行が `coverage-compare: STOP internal` であること、作業用のディレクトリとレシピの一時的なディレクトリが残らないことを確かめる。SIGHUP を `make` のプロセスだけに送ると、GNU make はこれをレシピのシェルに渡さないので実行は中断されない。`make` がシグナルで終わった後もレシピのシェルと道具が最後まで動き、最後の行はその実行の結果（合格・不合格・停止）になるので、この場合も最後の行が出て、作業用のディレクトリとレシピの一時的なディレクトリが残らないことを確かめる。3 つとも本書 7 章の AC-03 の行に記録する。`TMPDIR` を空の新しいディレクトリにして実行し、終わった後にそれが空であることで確かめる（macOS の共有の一時的なディレクトリの一覧を比べると、ほかのプロセスのファイルが混じるため）。
 -   [ ] 合格の出力を PR の説明に貼る（設計書 7.2 の「実際のテストの一式での実行」）。
 
 **フェーズ 6 の完了の条件:** `make test`、`make lint` が通る（CLAUDE.md を変えるので文書のガードを含む）。ステップ 6-3 の記録が本書にある。
@@ -531,11 +531,11 @@ M1・M2・M3 はこの順に積み上げる。M2 の関数表と判定の関数�
 |---|---|---|---|
 | AC-01 | test | `run_test.go::TestRunEndToEnd`（Go と拡張の合格・不合格）、`output_test.go::TestExitCode`、`cmd/coveragecompare/main_test.go::TestRun`、`cmd/yt2column/makefile_test.go::TestCoverageCompareRecipes`（make の終了コード）。実際の一式: `docs/tasks/0055_coverage_compare/_checks/realrun/main.go`（ステップ 6-3 の記録） | ステップ 4-3・5-1・5-2 |
 | AC-02 | test | `precheck_test.go::TestRunPreconditions`（`usage`・`not-ancestor`・`dirty` の行）、`cmd/coveragecompare/main_test.go::TestRun` | ステップ 4-1・5-1 |
-| AC-03 | test・manual | `run_test.go::TestRunCleansUp`（実行中の取り消しを含む）・`::TestRunDetectsUserStateChange`、`cmd/coveragecompare/main_test.go::TestSignalWaitsForRun`、`cmd/yt2column/makefile_test.go::TestCoverageCompareRecipes`（レシピの一時的なディレクトリ）・`::TestCoverageCompareRecipeForwardsSignal`。端末の Ctrl-C と SIGHUP は手動の確認（ステップ 6-3 の記録） | ステップ 4-1・4-2・4-3・5-1・5-2 |
+| AC-03 | test・manual | `run_test.go::TestRunCleansUp`（実行中の取り消しを含む）・`::TestRunDetectsUserStateChange`、`cmd/coveragecompare/main_test.go::TestSignalWaitsForRun`、`cmd/yt2column/makefile_test.go::TestCoverageCompareRecipes`（レシピの一時的なディレクトリ）・`::TestCoverageCompareRecipeForwardsSignal`。端末の Ctrl-C と SIGHUP は手動の確認（ステップ 6-3 の記録）。実測（2026-11-04、`f68485ad`）: プロセスグループへの SIGINT と `make` だけへの SIGTERM は最後の行 `coverage-compare: STOP internal`、`make` だけへの SIGHUP は実行が続いて最後の行 `coverage-compare: STOP unmatched`。3 つとも実行後の `TMPDIR` は空（7.1） | ステップ 4-1・4-2・4-3・5-1・5-2 |
 | AC-04 | test | `precheck_test.go::TestRunPreconditions`（拡張の `toolchain` の行、npm の起動が `--version` だけ）、`run_test.go::TestRunEndToEnd`（npm の起動が `--version` だけ） | ステップ 4-1 |
 | AC-05 | test | `precheck_test.go::TestRunPreconditions`（Go の `toolchain` の行）、`childenv_test.go::TestChildEnv`（`GOTOOLCHAIN=local`・`GOPROXY=off`）、`cmd/yt2column/makefile_test.go::TestCoverageCompareRecipes`（HEAD の `go.mod` の確認と、レシピの go の環境） | ステップ 4-1・4-2・5-2 |
-| AC-06 | test | `run_test.go::TestRunEndToEnd`（`Toolchain`、同じ `node_modules` へのリンク）、`::TestRunDetectsUserStateChange`（`.package-lock.json` の変化で `internal`）。実際の一式: `_checks/realrun/main.go`（`toolchain` の行と入っている版の一致。ステップ 6-3 の記録） | ステップ 4-2・4-3 |
-| AC-07 | test（一度だけ実行して記録する。1.3） | `docs/tasks/0055_coverage_compare/_checks/realrun/main.go`（ステップ 6-3 の記録。削除したテストとその理由もここに書く）。ほかのパッケージのテストからだけ実行される関数を比べることは、AC-11 の行のテストで確かめる | ステップ 6-2 |
+| AC-06 | test | `run_test.go::TestRunEndToEnd`（`Toolchain`、同じ `node_modules` へのリンク）、`::TestRunDetectsUserStateChange`（`.package-lock.json` の変化で `internal`）。実際の一式: `_checks/realrun/main.go`（ステップ 6-3 の記録。`toolchain` の行が入っている版と一致）。実測（2026-11-04、`f68485ad`）: `toolchain go1.27.1`・`v24.21.0` が入っている版と一致した（7.1） | ステップ 4-2・4-3 |
+| AC-07 | test（一度だけ実行して記録する。1.3） | `docs/tasks/0055_coverage_compare/_checks/realrun/main.go`（ステップ 6-3 の記録。削除したテストとその理由もここに書く）。ほかのパッケージのテストからだけ実行される関数を比べることは、AC-11 の行のテストで確かめる。実測（2026-11-04）: Go は `internal/coveragecompare/fake_test.go`（トップレベルのテスト 1 つ）を、拡張は `extension/test/fakes.test.ts`（9 つ）を削除し、どちらも合格した（7.1） | ステップ 6-2 |
 | AC-08 | test | `gotestjson_test.go::TestParseGoTestJSON`（`fail`・`build-fail`）、`tap_test.go::TestParseTAP`（`# fail`・`not ok`）、`judge_test.go::TestJudge`（終了コードだけが 0 でない場合、HEAD の失敗）、`run_test.go::TestRunStopsOnBaseFailure`・`::TestRunStopsOnHeadFailure`、`output_test.go::TestWrite`（時点とテストの名前） | ステップ 1-2・1-3・2-3・4-3 |
 | AC-09 | test | `judge_test.go::TestJudge`（テストの数が 0、製品の関数の数が 0。BASE と HEAD のそれぞれ） | ステップ 2-3 |
 | AC-10 | test | `compare_test.go::TestCompareGo`（下がった関数、丸めると同じになる減少）、`output_test.go::TestWrite`（`lost` の行の `分子/分母`） | ステップ 2-3・2-4 |
@@ -567,6 +567,56 @@ M1・M2・M3 はこの順に積み上げる。M2 の関数表と判定の関数�
 | AC-36 | test | `precheck_test.go::TestRunPreconditions`（テストの実行の記録がないこと）、`cmd/yt2column/makefile_test.go::TestCoverageCompareRecipes` | ステップ 4-1・5-2 |
 | AC-37 | manual | PR のレビューで、CLAUDE.md の「Deleting a test is a claim that must be checked」が要件書 AC-37 の 5 項目と設計書 3.10 の時間の上限の項目を満たすこと、`.claude/commands/weakreview.md`・`runplan.md` の確認の項目が新しい規則と合うことを読む | ステップ 6-1 |
 | AC-38 | test・manual | `cmd/yt2column/makefile_test.go::TestCoverageCompareDocumented`（2 つの対象がそれぞれの節にある）、`cmd/yt2column/extension_docs_test.go::TestExtensionDocumentation`（`ext-` の一覧と Makefile の一致）。説明の文は PR のレビューで読む | ステップ 5-3 |
+
+### 7.1. 実際の一式での確認とシグナルの記録（2026-11-04）
+
+ステップ 6-2 のスクリプトを、ブランチのコミット `f68485ad2a17b1e6786aea2fa569026820e39e5d` で一度実行した。スクリプトがクローンの中に作った、テストを削除しただけのコミットは `2459a08a92742d58442aed86d3be69d3506d8630`（ツリー `d75d26a095d57b6d0bec29014c80e57a271a2c18`）である。使った版は go1.27.1 と node v24.21.0。
+
+削除したテストと、選んだ理由:
+
+-   `internal/coveragecompare/fake_test.go`（トップレベルのテスト 1 つ、`TestFakePathHasNoRealToolchain`）。偽のコマンドのテストの補助（`fakeNames`・`fakeBinDir`）とテストのバイナリだけを確かめ、製品の関数を実行しない。Go のテストの数は、BASE のファイルを `go/parser` で読んで数えた。
+-   `extension/test/fakes.test.ts`（9 つ）。製品のコードからは型だけを import し、`extension/test/helpers/` の補助を確かめる。`extension/test/` は製品のコードではない（設計書 3.5）ので、製品の関数の実行回数は変わらない。テストの数は、BASE でこのファイルだけを `node --test --test-reporter=tap` で実行して `# tests` から数えた。
+
+道具が実際の一式で出した出力（そのまま）:
+
+```text
+target    make coverage-compare BASE="HEAD~1"
+base      f68485ad2a17b1e6786aea2fa569026820e39e5d
+head      2459a08a92742d58442aed86d3be69d3506d8630 tree d75d26a095d57b6d0bec29014c80e57a271a2c18
+toolchain go1.27.1
+tests     base 1287 head 1286
+files     base 138 head 138
+functions base 1297 head 1297
+deleted   0
+no compared function lost coverage
+coverage-compare: PASS
+```
+
+```text
+target    make ext-coverage-compare BASE="HEAD~1"
+base      f68485ad2a17b1e6786aea2fa569026820e39e5d
+head      2459a08a92742d58442aed86d3be69d3506d8630 tree d75d26a095d57b6d0bec29014c80e57a271a2c18
+toolchain v24.21.0
+tests     base 1958 head 1949
+files     base 42 head 42
+functions base 434 head 434
+deleted   0
+no compared function lost coverage
+coverage-compare: PASS
+```
+
+スクリプトが道具と別に求めた値と一致したこと: 最後の行が `PASS`、`deleted` が 0、`base`・`head`・`tree` がクローンの `git rev-parse HEAD~1`・`HEAD`・`HEAD^{tree}` と一致、`toolchain` の行が入っている go と node の版と一致、`tests` の差が削除したテストの数（Go 1、拡張 9）と一致、`files` と `functions` が両方の時点で 0 より大きい。
+
+シグナルの手動の確認は、`TMPDIR` を空の新しいディレクトリにして行い、終わった後にそのディレクトリが空であることを確かめた。`make coverage-compare BASE=HEAD~1` のテストの実行中（`go test` のプロセスが現れて 20 秒後）に送った。
+
+| 送ったシグナル | `make` の終わり方 | 道具の最後の行 | 実行後の `TMPDIR` |
+|---|---|---|---|
+| プロセスグループへの SIGINT（端末の Ctrl-C） | 2 | `coverage-compare: STOP internal`（`the run was interrupted`） | 空 |
+| `make` のプロセスだけへの SIGTERM | 143（シグナルで終了） | `coverage-compare: STOP internal`（`the run was interrupted`） | 空 |
+| `make` のプロセスだけへの SIGHUP | 129（シグナルで終了） | `coverage-compare: STOP unmatched`（実行は最後まで続いた） | 空 |
+
+SIGHUP を `make` のプロセスだけに送った場合、GNU make はこれをレシピのシェルに渡さない。`make` がシグナルで終わった後もレシピのシェルと道具が最後まで動き、このブランチでは HEAD にだけある製品の関数（この確認のスクリプト）があるため `unmatched` で止まった。最後の行が出て、作業用のディレクトリとレシピの一時的なディレクトリが残らないことは、3 つとも満たしている。
+
 
 設計書が決めたことのうち AC を持たないものは、次のテストで確かめる。この表には行を置かない。
 
