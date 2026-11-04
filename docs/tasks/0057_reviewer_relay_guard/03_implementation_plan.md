@@ -257,7 +257,7 @@
 #### ステップ 3-5: PR-2 を作る前の確認
 
 -   [x] ほかの worktree で `/fixpr`・`/runpr` が動いていないことを利用者に確かめる（設計書 8 章）。
--   [ ] このブランチで `make install-fixprguard` を実行する（ガイド 3 章。PR-2 の `/runpr` は新しいツールを使う）。
+-   [x] このブランチで `make install-fixprguard` を実行する（ガイド 3 章。PR-2 の `/runpr` は新しいツールを使う）。
 
 **成功の条件:** 作業ツリーが clean な状態で入れ、`go version -m "$(command -v fixprguard)"` の `vcs.revision` がこのブランチの head で、`vcs.modified` が `false` である。この後に commit を加えたら（`/fixpr` の修正を含む）、`/runpr` を続ける前に入れ直す。
 
@@ -274,7 +274,7 @@
 **判定理由**: 信頼できない GitHub の応答を受け入れる形に写す境界と、`protocol` を上げて新しい規則を入れるセキュリティの関門（パネルモードの条件）を含む
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/647
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
