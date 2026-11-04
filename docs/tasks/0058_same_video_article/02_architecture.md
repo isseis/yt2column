@@ -778,31 +778,49 @@ sequenceDiagram
 ### 6.2. ポップアップの状態の移り方
 
 ```mermaid
-stateDiagram-v2
-    [*] --> Collected
-    state "送る前（collected）" as Collected
-    state "sending（照会付き）" as SendingInquiry
-    state "choice" as Choice
-    state "choice-ended" as ChoiceEnded
-    state "sending（照会なし）" as SendingPlain
-    state "0050 の状態（loading・job）" as JobStates
-    state "start-failed（拒否・結果不明など）" as StartFailed
+flowchart TD
+    classDef normal fill:#e8f5e8,stroke:#2e8b57,stroke-width:2px,color:#006400;
+    classDef abnormal fill:#f7f7f7,stroke:#999999,stroke-width:1px,stroke-dasharray:4 3,color:#555555;
 
-    Collected --> SendingInquiry : 主ボタン
-    SendingInquiry --> Choice : same-video
-    SendingInquiry --> JobStates : accepted
-    SendingInquiry --> StartFailed : キーを受け取れない
-    Choice --> Choice : 状態の取得（処理中・完了・通知）、既存の記事を表示する
-    Choice --> ChoiceEnded : 状態の取得（失敗・不明）
-    Choice --> SendingPlain : 現在の選択範囲で生成する
-    ChoiceEnded --> SendingInquiry : 記事を生成する
-    SendingPlain --> JobStates : accepted
-    SendingPlain --> StartFailed : キーを受け取れない
-    JobStates --> SendingInquiry : やり直す（job の失敗・不明、照会付きの送信の後）
-    JobStates --> SendingPlain : やり直す（job の失敗・不明、照会なしの送信の後）
+    C["送る前（collected）"]
+    SI["sending（照会付き）"]
+    CH["choice"]
+    SP["sending（照会なし）"]
+    J["0050 の状態（loading・job）"]
+    CE["choice-ended"]
+    F["start-failed（拒否・結果不明など）"]
+
+    C -->|"主ボタン"| SI
+    SI -->|"same-video"| CH
+    SI -->|"accepted"| J
+    CH -->|"状態の取得（処理中・完了）、<br>既存の記事を表示する"| CH
+    CH -->|"現在の選択範囲で生成する"| SP
+    SP -->|"accepted"| J
+
+    SI -.->|"キーを受け取れない"| F
+    SP -.->|"キーを受け取れない"| F
+    CH -.->|"状態の取得（通知）"| CH
+    CH -.->|"状態の取得（失敗・不明）"| CE
+    CE -.->|"記事を生成する"| SI
+    J -.->|"やり直す（失敗・不明、<br>照会付きの送信の後）"| SI
+    J -.->|"やり直す（失敗・不明、<br>照会なしの送信の後）"| SP
+
+    linkStyle 6,7,8,9,10,11,12 stroke:#999999,color:#666666;
+
+    class C,SI,CH,SP,J normal
+    class CE,F abnormal
+
+    subgraph Legend["Legend"]
+        L1["正常系で通る状態"]
+        L2["異常系でだけ入る状態"]
+    end
+    class L1 normal
+    class L2 abnormal
 ```
 
-矢印 A → B は「A の状態で、ラベルの出来事か操作が起きると B に移る」を表す。`sending` に入る矢印は、どれも利用者の押下である。拡張が自動で `sending` に移ることはない（要件 F-003、AC-17）。このため、図のループ（`choice-ended` や「やり直す」から `sending` に戻る経路）は、押下のたびに 1 回だけ回る。`start-failed` からは移らない（主ボタンは押せない、今と同じ）。ポップアップを閉じて開き直すと、どの状態からでも「送る前」から始まる（AC-24）。
+矢印 A → B は「A の状態で、ラベルの出来事か操作が起きると B に移る」を表す。実線の矢印は正常系の遷移、灰色の破線の矢印は異常系の遷移（キーを受け取れない、状態を取得できない通知、既存の記事の失敗・不明と、そこからの送り直し・やり直し）である。`0050` の状態（`loading`・`job`）は、正常系の処理中・完了と、異常系の失敗・不明の両方を含む。「やり直す」の矢印は、その失敗・不明から出る。
+
+`sending` に入る矢印は、どれも利用者の押下である。拡張が自動で `sending` に移ることはない（要件 F-003、AC-17）。このため、図のループ（`choice-ended` や「やり直す」から `sending` に戻る経路）は、押下のたびに 1 回だけ回る。`start-failed` からは移らない（主ボタンは押せない、今と同じ）。ポップアップを閉じて開き直すと、どの状態からでも「送る前」から始まる（AC-24）。
 
 ## 7. テスト戦略 (Test Strategy)
 
