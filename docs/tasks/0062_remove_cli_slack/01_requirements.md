@@ -20,7 +20,7 @@
 
 CLI は補助の経路だが、`--slack` を付けると CLI 自身が記事を Webhook に投稿できる（`cmd/yt2column/run.go:225`、`docs/dev/guides/cli.md` の「Webhook への投稿」）。そのためにだけ残っているコードがある。
 
--   `SlackWebhookPublisher.Publish`（`internal/publisher/slack.go:166-179`）。設定の確認、`PrepareSlackMessages` による記事の分割、`PostMessages(…, 0, …)` による送信を順に呼ぶだけである。これを呼ぶのは、パイプラインの公開の段階（`internal/pipeline/pipeline.go:116`）だけである。CLI の実行は、`job.RemoteOutput`（`internal/job/job.go:54-57`）を通して、この段階に投稿先を渡す。サーバは呼ばない（タスク 0059 の AC-07）。
+-   `SlackWebhookPublisher.Publish`（`internal/publisher/slack.go:166-179`）。設定の確認、`PrepareSlackMessages` による記事の分割、`PostMessages(…, 0, …)` による送信を順に呼ぶだけである。製品のコードでこれを呼ぶのは、パイプラインの公開の段階（`internal/pipeline/pipeline.go:116`）だけである（テストでは、`make test-integration-slack` の統合テストと `internal/publisher` のテストも呼ぶ）。CLI の実行は、`job.RemoteOutput`（`internal/job/job.go:54-57`）を通して、この段階に投稿先を渡す。サーバは呼ばない（タスク 0059 の AC-07）。
 -   CLI の出力先の選択のうち、Webhook に関わる分岐。
     -   出力先の種類 `destinationWebhook`（`cmd/yt2column/run.go:164-170`）
     -   `--out` と `--slack` の組み合わせの拒否: `errSlackFalse`・`errOutAndSlack`・`errNoDestination`（`run.go:175`、`run.go:177-178`）と、`chooseDestination`（`run.go:409-438`）
