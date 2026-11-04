@@ -35,7 +35,8 @@ const (
 	// deliberately not in Options.Secrets, so a log line that carried it would
 	// still contain it after redaction.
 	testTranscriptMarker = "MARKER-TRANSCRIPT-TEXT"
-	// gateBuffer is the capacity of the gate writer's entered channel.
+	// gateBuffer is the capacity of the channels a held generation or a held
+	// Webhook request reports on.
 	gateBuffer = 8
 )
 
@@ -282,8 +283,8 @@ const MaxBodyBytesForTest = maxBodyBytes
 // test in another package that checks the host relays a response this large.
 const MaxStatusResponseBytesForTest = maxStatusResponseBytes
 
-// MaxInFlightForTest is the number of requests allowed in flight
-// at once, for documentation guards in other packages.
+// MaxInFlightForTest is the number of generation slots, for documentation
+// guards in other packages.
 const MaxInFlightForTest = maxInFlight
 
 // RejectReasonForTest is one rejection's fixed reason value and HTTP status.

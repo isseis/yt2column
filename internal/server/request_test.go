@@ -185,8 +185,8 @@ func TestStartTranscriptValues(t *testing.T) {
 	}
 }
 
-// TestHeaderRejectionReadsNoBody checks that a request rejected on its target
-// or method (including one that declares an oversized body) has zero bytes of
+// TestHeaderRejectionReadsNoBody checks that a generation start rejected on
+// its method (including one that declares an oversized body) has zero bytes of
 // its body read.
 func TestHeaderRejectionReadsNoBody(t *testing.T) {
 	type headerCase struct {
@@ -194,10 +194,8 @@ func TestHeaderRejectionReadsNoBody(t *testing.T) {
 		build func(t *testing.T, body io.Reader) *http.Request
 		code  int
 	}
+	// An unknown path is TestUnknownPathTouchesNothing's.
 	tests := []headerCase{
-		{"path", func(_ *testing.T, body io.Reader) *http.Request {
-			return newRequest(http.MethodPost, "/nope", body)
-		}, http.StatusNotFound},
 		{"method", func(_ *testing.T, body io.Reader) *http.Request {
 			return newRequest(http.MethodGet, JobsPath, body)
 		}, http.StatusMethodNotAllowed},

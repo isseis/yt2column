@@ -318,8 +318,8 @@ func testDeps(client llm.LLMClient) deps {
 // loopbackDeps returns testDeps(client) with the real SlackWebhookPublisher
 // posting to serverURL, a loopback webhook. It is built here, in the test
 // goroutine, because its constructor may fail t; the deps return it after
-// checking that run passes the configured webhook URL. The endpoint keeps the configured path, so it carries the same secret
-// path the server redacts.
+// checking that run passes the configured webhook URL. The endpoint keeps the
+// configured path, so it carries the same secret path the server redacts.
 func loopbackDeps(t *testing.T, client llm.LLMClient, serverURL string) deps {
 	t.Helper()
 	endpoint := serverURL + testWebhookPath

@@ -58,8 +58,8 @@ func matchTarget(target string) (route, string) {
 // handler gives every request a request ID, which is written to the response
 // and the log, and hands the request to the handler of the operation its
 // target names; every other target is not_found, refused before its body is
-// read or a slot is taken. Each of those
-// recovers its own panics, so one request cannot take down the process.
+// read or a slot is taken. Each operation handler recovers its own panics, so
+// one request cannot take down the process.
 func (s *Server) handler(w http.ResponseWriter, r *http.Request) {
 	requestID, err := newRequestID()
 	if err != nil {

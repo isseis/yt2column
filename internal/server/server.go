@@ -208,9 +208,9 @@ func (s *Server) webhookConfigured() bool {
 // Serve serves on listener until ctx is canceled or the listener fails, then
 // cancels the generation jobs, stops accepting connections, waits for
 // in-flight requests, the post jobs, and the canceled generations, and
-// returns. The post jobs are not canceled. It returns nil after a cancellation and the listener
-// error otherwise. Shutdown closes the listener; for a *net.UnixListener that
-// also removes the socket.
+// returns. The post jobs are not canceled. It returns nil after a
+// cancellation and the listener error otherwise. Shutdown closes the listener;
+// for a *net.UnixListener that also removes the socket.
 func (s *Server) Serve(ctx context.Context, listener net.Listener) error {
 	serveErr := make(chan error, 1)
 	go func() {
@@ -228,9 +228,10 @@ func (s *Server) Serve(ctx context.Context, listener net.Listener) error {
 	// The article cache is lost when the process exits, so a generation that
 	// finished from here on could never be read: cancel them first, so a
 	// running one stops its LLM call and a start accepted during the shutdown
-	// begins already canceled. Each canceled job logs one line. Every
-	// generation slot taken now is a generation in progress, whose article
-	// is lost: that count is logged below.
+	// begins already canceled. Each canceled job logs one line. The
+	// generation slots taken now are the generations in progress, whose
+	// articles are lost (a job about to release its slot, or a start about to
+	// hand its slot to a job, is counted too): that count is logged below.
 	canceled := len(s.slots)
 	s.genCancel()
 

@@ -502,6 +502,7 @@ func TestRunLogsListeningAndStop(t *testing.T) {
 		// Ten messages of at most 30 seconds each, a second apart: 309 s.
 		"up to about 5 minutes",
 		"the in-flight generations are canceled",
+		"the posts sent from the viewer are allowed to finish",
 		"send the signal again to exit at once",
 	} {
 		if !strings.Contains(stderr, want) {
@@ -547,6 +548,7 @@ func TestApproxMinutes(t *testing.T) {
 		{0, 1},
 		{29 * time.Second, 1},
 		{30 * time.Second, 1},
+		{150 * time.Second, 3},
 		{89 * time.Second, 1},
 		{90 * time.Second, 2},
 		{309 * time.Second, 5},

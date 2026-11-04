@@ -26,7 +26,7 @@
 //   - extension: extension/ is the same at the merge-base and at head.
 //   - removed: at head, internal/server, internal/publisher, and
 //     cmd/yt2column-server declare none of the removed names (top-level
-//     declarations and methods; the deps field newNotifier), no Go file
+//     declarations and methods; the fields in removedFields), no Go file
 //     refers to one of them through a package qualifier, no Go file imports
 //     internal/failure or internal/failure/testutil, and internal/server
 //     still declares classifyWrite.
@@ -110,10 +110,22 @@ var removedNames = map[string][]string{
 	"cmd/yt2column-server": {"newNotifier", "llmCallsPerJob"},
 }
 
+// removedFields are the struct fields the task removes, as (type, field), by
+// the package that declared them.
+var removedFields = map[string][][2]string{
+	"internal/server": {
+		{"WebhookOptions", "Notifier"},
+		{"Server", "notifier"},
+		{"jobInput", "requestID"},
+		{"rejection", "videoID"},
+	},
+	"cmd/yt2column-server": {{"deps", "newNotifier"}},
+}
+
 // modulePath is the module's import path.
 const modulePath = "github.com/isseis/yt2column"
 
-// retiredWords are the retired words from the comments and the string
+// retiredWords are the words retired from the comments and the string
 // literals of the server's code, compared ignoring case. "notice" alone is not
 // one: the stop notice stays.
 var retiredWords = []string{"/articles", "failure notice", "notifier", "legacy"}
@@ -202,7 +214,7 @@ func checkExtension(base, head string) ([]string, error) {
 }
 
 // checkRemoved checks that the removed names are gone (removedNames,
-// the deps field newNotifier, the failure packages) and that classifyWrite,
+// removedFields, the failure packages) and that classifyWrite,
 // which the job API uses, stays.
 func checkRemoved(_, head string) ([]string, error) {
 	var findings []string
@@ -217,8 +229,10 @@ func checkRemoved(_, head string) ([]string, error) {
 					findings = append(findings, fmt.Sprintf("%s declares %s", pos, name))
 				}
 			}
-			if pos, ok := f.field("deps", "newNotifier"); ok {
-				findings = append(findings, fmt.Sprintf("%s declares the field deps.newNotifier", pos))
+			for _, tf := range removedFields[dir] {
+				if pos, ok := f.field(tf[0], tf[1]); ok {
+					findings = append(findings, fmt.Sprintf("%s declares the field %s.%s", pos, tf[0], tf[1]))
+				}
 			}
 		}
 	}

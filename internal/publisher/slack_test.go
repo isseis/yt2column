@@ -363,6 +363,16 @@ func (b *contextErrorBody) Read([]byte) (int, error) {
 // Close does nothing.
 func (b *contextErrorBody) Close() error { return nil }
 
+// TestSlackMaxPostDurationMatchesHelper checks that SlackMaxPostDuration and
+// the test helper that bounds a post of any number of messages agree at the
+// largest number, so the two formulas cannot drift apart.
+func TestSlackMaxPostDurationMatchesHelper(t *testing.T) {
+	if got := SlackPublishMaxDurationForTest(slackMaxMessages); got != SlackMaxPostDuration {
+		t.Errorf("SlackPublishMaxDurationForTest(%d) = %v, SlackMaxPostDuration = %v; want them equal",
+			slackMaxMessages, got, SlackMaxPostDuration)
+	}
+}
+
 // TestNewSlackWebhookPublisher checks the accepted URL shapes and
 // that construction sends nothing.
 func TestNewSlackWebhookPublisher(t *testing.T) {

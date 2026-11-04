@@ -30,9 +30,8 @@ type jobInput struct {
 	key articlecache.KeyInput
 }
 
-// readRequest reads and validates the body of a request that passed the header
-// checks.
-// It returns the job input on success, or a rejection. A rejection with
+// readRequest reads and validates the body of a generation start that passed
+// the method and reading slot checks. It returns the job input on success, or a rejection. A rejection with
 // readFailed set is a body-read failure (a cut connection or a timeout), which
 // the handler answers with no response at all.
 func (s *Server) readRequest(w http.ResponseWriter, r *http.Request) (*jobInput, *rejection) {
