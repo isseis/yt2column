@@ -60,6 +60,9 @@
     -   これは、2026-11-04 に PR #660 で確かめた。PR #660 はマージ済みで、本文に `Closes` はなく、ブランチで #619 にリンクしている。そのとき #619 は `OPEN` のままで、`documentation`・`devenv`・`priority:medium` のラベルを読めた。
     -   本文に `Closes #N` を書いた PR では、GitHub が本文を解析してリンクを作る。それでも、`/runpr` が読むのは GitHub の値で、本文の文字列ではない。
 -   **目印の行は、HTML コメントの 1 行にする（H-04・H-10）。** 仕様の目印は `<!-- yt2column:lightweight-spec -->`、戻しの目印は `<!-- yt2column:lightweight-reverted -->` である。GitHub の表示には出ないので、人が手で書いた見出しと誤って一致しにくい。人が読む見出しは 2 行目以降に置く。
+-   **確かめ直しのスクリプトとそのテストには、仕様の見出し `### 類型` の日本語のリテラルを許す（2026-11-04、実装計画の作成のときに決めた）。** スクリプトは、仕様の本文の `### 類型` の下の 1 文字を読む（3.5.6）。そのため、ソースに日本語の見出しの文字列が要る。CLAUDE.md の「Language」は、ソースの文字列リテラルを英語にするよう定めていて、例外（「Go Idioms」）は Go の guard テストと拡張のメッセージカタログに限られる。そこで、CLAUDE.md の「Go Idioms」に、範囲の狭い例外を足す（3.1.5）。
+    -   バイトのエスケープで書く案は、規則の趣旨を避けているだけで読みにくいので採らない。
+    -   類型を ASCII の目印の行でも示す案は、仕様の書式が二重になるので採らない。
 
 レビュアーに個別には確かめず、上の決定と現行の規則から導いたこと（PR のレビューで異論があれば改める）:
 
@@ -219,7 +222,7 @@ flowchart TD
 | `.claude/commands/_lib/task-pr-handoff.md` | 変更 | Part B を手順 3 から使える呼び出し元を足し、入力 ISSUE_KEYWORD を足す。冒頭の説明、「Authorization」（「for its task and its PR only」）、TASK_DIR・PR_TEXT の説明に、`/runissue` の場合を足す（3.6） | AC-27・AC-28 |
 | `.claude/commands/_lib/local-cli-review.md` | 変更 | 呼び出し元の一覧（同書 11〜20 行）に `runissue.md` を足す | AC-25 |
 | `.claude/commands/runpr.md` | 変更 | 手順 2 の「Kind」に軽量プロセスの PR を足す。手順 1 で、軽量プロセスのブランチから単独の PR を作ることを拒む。手順 1 の `MERGED` の場合、手順 4 の squash のメッセージ、手順 5 の issue を閉じる項目、「Authorization」を改める | AC-33〜AC-36・AC-44 |
-| `CLAUDE.md` | 変更 | 「Documents」の「Each task lives in」の例外、「Claude Commands」の一覧への `/runissue <N>` の追加、「Each task PR is handled by two commands」の段落、軽量プロセスの概要と `requirements_process.md` へのリンクを書く | AC-37・AC-38 |
+| `CLAUDE.md` | 変更 | 「Documents」の「Each task lives in」の例外、「Claude Commands」の一覧への `/runissue <N>` の追加、「Each task PR is handled by two commands」の段落、軽量プロセスの概要と `requirements_process.md` へのリンクを書く。「Go Idioms」に、確かめ直しのスクリプトとそのテストのリテラルの例外を足す（3.1.5） | AC-37・AC-38 |
 | `AGENTS.md` | 変更 | Codex の PR レビューへの指示（`AGENTS.md:11`）に、軽量プロセスの例外を足す（3.1.5） | AC-38 |
 | `.github/ISSUE_TEMPLATE/lightweight.md` | 新規（日本語） | 背景・やること・やらないこと・確かめ方の見出しを置く。ラベルは付けない | AC-40 |
 | `cmd/yt2column/codex_review_docs_test.go` | 変更 | `postingSections` に区画を足し、`readOnlyInvocations` に GraphQL の読み取りを足す（下の「既存のテストへの影響」） | AC-12・AC-30・AC-34 |
@@ -302,7 +305,7 @@ sequenceDiagram
 -   **ファイル:** 変わったパスの数。名前の変更は、元のパスと先のパスの 2 ファイルに数える。
 -   **数えられないもの:** バイナリのファイル、シンボリックリンク、サブモジュール、モードの変更（通常のファイルの `100644` と `100755` の間の変更を含む）があれば、条件を満たさない。
 -   **`README.en.md`:** `README.md` の変更に伴う変更も、ほかのファイルと同じく数える（AC-03）。
--   **再現性:** 利用者の git の設定（diff のアルゴリズム、外部の diff、textconv、色）で数が変わらないよう、スクリプトはそれらを無効にするオプションを明示して git を呼ぶ。パスは NUL で区切って読み、日本語のパスが引用符付きの形になって除外の照合を外れることを防ぐ。
+-   **再現性:** 利用者の git の設定（diff のアルゴリズム、外部の diff、textconv、色、サブモジュールを無視する設定、`diff.relative`、ログの署名の表示、未追跡のファイルの表示、hook）で、数・コミットの読み取り・作業ツリーの判定が変わらないよう、スクリプトはグローバルとシステムの設定を読まずに git を呼び、リポジトリの設定が効く項目は無効にするオプションを明示する。数える diff・コミットのメッセージの読み取り・作業ツリーの確認・一時的な worktree の作成のすべてに当てはめる。パスは NUL で区切って読み、日本語のパスが引用符付きの形になって除外の照合を外れることを防ぐ。
 
 #### 3.1.3. 条件の表
 
@@ -364,7 +367,7 @@ tool git mv
 
 #### 3.1.5. 方針の例外
 
-本タスクは、次の既存の方針に例外を設ける。どれも、範囲は F-001 の条件を満たし、仕様が承認された変更に限る。
+本タスクは、次の既存の方針に例外を設ける。プロセスについての最初の 4 つは、範囲を F-001 の条件を満たし、仕様が承認された変更に限る。ソースの言語についての 5 つ目の範囲は、その行に書く。
 
 | 元の方針と場所 | 例外にする理由 | 古い振る舞いを確かめる既存のテスト |
 |---|---|---|
@@ -372,6 +375,7 @@ tool git mv
 | 支配する文書が `approved` になる前の実装のコミットは、Codex の PR レビューの指摘とする（`AGENTS.md:11`） | 同上。軽量プロセスの PR には支配する文書がない。リンクされた issue に承認された仕様がある PR は、この指摘の対象にしないと足す | なし |
 | 各タスクは `docs/tasks/NNNN_<name>/` に置く（`CLAUDE.md:33`） | 同上。軽量プロセスは `docs/tasks/` の下に何も作らない（AC-21） | なし |
 | `/mkreq` は必ず要件定義書を作る（`.claude/commands/mkreq.md:12-15`）、タスクの PR を作るのは 5 つのコマンド（`CLAUDE.md:166-173`） | 軽量プロセスでは、`/mkreq` は仕様を投稿して止まり、PR は `/runissue` が作る | なし |
+| リポジトリのソースの文字列リテラルは英語にする。例外は「Go Idioms」の guard テストと拡張のメッセージカタログだけである（`CLAUDE.md` の「Language」と「Go Idioms」） | 確かめ直しのスクリプトは、日本語の仕様の見出し `### 類型` を読むので、その文字列をソースに持つ（1.2）。範囲は、スクリプトとそのテスト（`cmd/yt2column/lightweight_docs_test.go`）の、仕様のコメントの見出しと一致させるリテラルに限る。テストの fixture の仕様の本文と、日本語のパスの扱い（3.1.2）を確かめる fixture のファイル名も、この範囲に入る。CLAUDE.md の「Go Idioms」に、範囲・理由・境界を書く | なし |
 | タスクの PR の本文には closing keyword を書かない（`.claude/commands/_lib/task-pr-handoff.md:243-246`） | 例外ではない。この規則はタスクの PR についてのもので、軽量プロセスの PR はタスクの PR ではない。Part B の入力 ISSUE_KEYWORD で、呼び出し元が選ぶ形にする（3.6） | なし |
 
 「なし」は、`*_test.go` に、これらの文言・`Refs`・closing keyword を確かめるテストがないことを確かめた結果である（CLAUDE.md の「Document tests ... never prose」により、文言のテストは置かない）。
@@ -518,7 +522,7 @@ flowchart TD
 
 #### 3.4.4. 投稿とラベルの付与（AC-11〜AC-14）
 
-1.  `gh label list` で、ラベルがリポジトリにあることを確かめる。なければ、何も投稿せずに止まり、ラベルを作るよう報告する。
+1.  `gh label list` で、ラベルがリポジトリにあることを確かめる。件数の上限（既定は 30）に左右されないよう、上限を外すか名前で探し、名前が完全に一致するものを見る。なければ、何も投稿せずに止まり、ラベルを作るよう報告する。
 2.  仕様のファイルに、メンションの確認（`_context.md`「PR review request」の規則）を行い、メンションが含まれていれば止まる（AC-12）。
 3.  投稿の前に、一覧（3.3.2）で、自分の仕様の目印のコメントの数を数えておく。
 4.  `gh issue comment <N> --body-file <file>` で投稿する。
@@ -848,12 +852,13 @@ squash のコミットメッセージは、今のとおり `/mergepr` が PR の
     -   「Claude Commands」の一覧に、`/runissue <N>` を足す。`/mkreq` の行に、振り分けを行うことを足す。
     -   「Each task PR is handled by two commands」の段落に、次のことを足す。軽量プロセスでは、`/mkreq` が要件定義書を作らずに仕様を投稿し、`/runissue` が PR を作る。
     -   「Requirements and Acceptance Criteria」に、軽量プロセスの概要と、`requirements_process.md` の軽量プロセスの節へのリンクを足す。
+    -   「Go Idioms」に、確かめ直しのスクリプトとそのテストのリテラルの例外（3.1.5）を、既存の例外と同じ形（範囲・理由・境界）で足す。スクリプトを入れる PR で足す（8 章の 1）。
 -   **AGENTS.md（3.1.5）:** 実装のコミットについての指摘の規則に、例外を足す。リンクされた issue に承認された軽量プロセスの仕様がある PR には、支配する文書がないので、この指摘を出さない。
 -   **issue テンプレート（AC-40）:** `.github/ISSUE_TEMPLATE/lightweight.md` を作る。
     -   front matter の `name` は「単純な変更（軽量プロセスの候補）」とし、`labels` は書かない（1.2）。
     -   本文には、背景・やること・やらないこと・確かめ方の見出しを置く。
     -   テンプレートの冒頭に、`/mkreq <N>` が振り分けることを 1 行書く。
--   **ラベル（AC-41・H-09）:** 実装の PR の手順で、`gh label list` で有無を確かめる。ないときだけ、利用者の承認を得てから `gh label create` で作る。色と説明は 1.2 のとおりである。
+-   **ラベル（AC-41・H-09）:** 実装の PR の手順で、`gh label list` で有無を確かめる（3.4.4 の 1 と同じく、件数の上限に左右されない形で）。ないときだけ、利用者の承認を得てから `gh label create` で作る。色と説明は 1.2 のとおりである。
 
 ### 3.9. 新しい文書のテスト（H-08）
 
@@ -863,6 +868,9 @@ CLAUDE.md の「Document tests check values, structure, and executable examples,
 |---|---|---|
 | `postingSections` への区画の追加 | 次の 2 つの投稿が、メンションの確認の後にある。`mkreq.md` の仕様の投稿と、`runissue.md` の戻しのコメントの投稿である。`runpr.md` の手順 5 の区画は今もあり、閉じる issue を広げても変わらない | 信頼境界のコマンド（メンションの確認）の例外 |
 | 確かめ直しのスクリプト | `.claude/commands/_lib/lightweight-check.sh` を、`t.TempDir()` に作った fixture のリポジトリで実行する。7.1 の場合ごとに、最後の行と終了コードを確かめる。fixture の `origin/main` に当たる参照に、実際の `requirements_process.md` とスクリプトを置く | 実行できる例。信頼境界のコマンド（条件の確かめ直し） |
+| 確かめ直しのスクリプトの呼び出し方 | コマンドの定義が確かめ直しのスクリプトを実行するのは、`git show origin/main:` で書き出した版だけで、作業ツリーの版を実行しない | 信頼境界のコマンド（ガードを迂回するコマンドがないこと）の例外 |
+| `runissue.md` の読み取り | `runissue.md` の `gh api` の呼び出しは仕様の手順書の形か名前を挙げた読み取りに限り、`gh issue view` は `--json` で本文・タイトル・コメントを取らない | 本文を出してはならない読み取りの例外（`--jq` フィルタと同じ理由） |
+| 雛形の目印 | 仕様の手順書の仕様のコメントの雛形と、`runissue.md` の戻しのコメントの雛形の 1 行目が、`_context.md` の目印の値と同じである | 文書の値と、それを定めるもの（`_context.md`）との照合 |
 | 除外するパスの実在 | `exclude` のパスがリポジトリに実在し、`exclude-absent` のパスが実在しない | 文書の値と、それを定めるもの（リポジトリの木）との照合 |
 | コメントの一覧のフィルタ | 仕様の手順書の `--jq` フィルタを、`checkListings`（`cmd/yt2column/fixpr_docs_test.go:431`）で fake の応答に対して実行し、本文を出さないことを確かめる。あわせて、書き手・書き手の種類・目印・CRLF の扱いが正しいことを確かめる | 本文を出してはならない `--jq` フィルタの例外 |
 
@@ -1140,6 +1148,8 @@ CLAUDE.md の「Every test must be able to fail for its stated reason」に従�
 -   一覧のフィルタから、書き手の条件を外す。
 -   `postingSections` に足した区画で、メンションの確認を投稿の後に移す。
 
+実装計画書は、これに加えて、BASE を分かれた点として求めること・git の設定の無効化・一時的な worktree の後片付け・3.9 で足したテストについても、壊して確かめる項目を定める。
+
 ### 7.4. 読んで確かめる（manual）
 
 文書の文言だけを定める AC は、PR のレビューで読んで確かめる。
@@ -1159,8 +1169,8 @@ CLAUDE.md の「Every test must be able to fail for its stated reason」に従�
 
 軽量プロセスを使えるようになるのは、すべてがそろったときである。順序は、途中の状態で、ラベルの付いた issue が進めなくなることがないように決める。
 
-1.  **条件と値:** `requirements_process.md` の軽量プロセスの節と条件の表、`_context.md` の値、仕様の手順書、確かめ直しのスクリプトと、そのテスト。
-2.  **`/runissue` と Part B:** `runissue.md`、Part B と `local-cli-review.md` の変更、`postingSections` の追加、一覧のフィルタのテスト。
+1.  **条件と値:** `requirements_process.md` の軽量プロセスの節と条件の表、`_context.md` の値、仕様の手順書と一覧のフィルタのテスト、確かめ直しのスクリプトと、そのテスト、CLAUDE.md の「Go Idioms」のリテラルの例外（3.1.5）。一覧のフィルタのテストは、フィルタを入れる PR に置き、信頼を決めるフィルタがテストなしに `main` に入らないようにする。
+2.  **`/runissue` と Part B:** `runissue.md`、Part B と `local-cli-review.md` の変更、`postingSections` の追加、確かめ直しのスクリプトの呼び出し方と `runissue.md` の読み取りのテスト。
 3.  **`/runpr`:** 軽量プロセスの PR の判定、軽量プロセスのブランチから PR を作らないこと、issue を閉じること。
 4.  **入口と周辺:** `/mkreq` の振り分け、CLAUDE.md、AGENTS.md、issue テンプレート、`lightweight` ラベルの作成（利用者の承認を得て）。
 
@@ -1237,3 +1247,5 @@ CLAUDE.md の「Every test must be able to fail for its stated reason」に従�
 ## 変更履歴
 
 - 2026-11-04 承認（isseis、#664）
+- 2026-11-04 draft への戻し：確かめ直しのスクリプトとそのテストに、仕様の見出し `### 類型` の日本語のリテラルを許す例外を足した；計画のレビューで、git の設定の無効化の範囲、リテラルの例外の範囲、文書のテスト、一覧のフィルタのテストの段階を改めた（#670）
+- 2026-11-04 承認（isseis、#670）
