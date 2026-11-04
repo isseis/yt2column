@@ -145,7 +145,7 @@ func (g *GitHub) queryPermission(ctx context.Context, repo repository, login Log
 	if len(out) > maxResponseBytes {
 		return permission{cause: CauseRejectedResponse}
 	}
-	status, body, ok := splitIncluded(out)
+	status, _, body, ok := splitIncluded(out)
 	if !ok || status != http.StatusOK {
 		return permission{cause: CauseRejectedResponse}
 	}
@@ -178,7 +178,7 @@ func failureCause(err error) Cause {
 	if !ok {
 		return CauseFailed
 	}
-	status, _, ok := splitIncluded(exitErr.Stdout)
+	status, _, _, ok := splitIncluded(exitErr.Stdout)
 	if !ok {
 		return CauseFailed
 	}
@@ -195,29 +195,48 @@ func failureCause(err error) Cause {
 }
 
 // splitIncluded splits the output of gh api --include into the status code of
-// its first line ("HTTP/2.0 404 Not Found") and the body after the first empty
-// line. ok is false for any other shape.
-func splitIncluded(out []byte) (status int, body []byte, ok bool) {
+// its first line ("HTTP/2.0 404 Not Found"), the header lines between it and
+// the first empty line (each without one trailing "\r"), and the body after
+// that empty line. The status code is exactly three ASCII digits, so a signed
+// value such as "+20" is not read as a number. ok is false for any other
+// shape, and nothing else is returned then.
+func splitIncluded(out []byte) (status int, headers []string, body []byte, ok bool) {
 	first, rest, found := strings.Cut(string(out), "\n")
 	if !found {
-		return 0, nil, false
+		return 0, nil, nil, false
 	}
 	fields := strings.Fields(strings.TrimSuffix(first, "\r"))
-	if len(fields) < 2 || !strings.HasPrefix(fields[0], httpProtoPrefix) || len(fields[1]) != statusCodeDigits {
-		return 0, nil, false
+	if len(fields) < 2 || !strings.HasPrefix(fields[0], httpProtoPrefix) || !isStatusCode(fields[1]) {
+		return 0, nil, nil, false
 	}
 	code, err := strconv.Atoi(fields[1])
 	if err != nil {
-		return 0, nil, false
+		return 0, nil, nil, false
 	}
 	for {
 		line, after, found := strings.Cut(rest, "\n")
 		if !found {
-			return 0, nil, false
+			return 0, nil, nil, false
 		}
 		rest = after
-		if strings.TrimSuffix(line, "\r") == "" {
-			return code, []byte(rest), true
+		line = strings.TrimSuffix(line, "\r")
+		if line == "" {
+			return code, headers, []byte(rest), true
+		}
+		headers = append(headers, line)
+	}
+}
+
+// isStatusCode reports whether s is an HTTP status code: exactly
+// statusCodeDigits ASCII digits.
+func isStatusCode(s string) bool {
+	if len(s) != statusCodeDigits {
+		return false
+	}
+	for i := range len(s) {
+		if s[i] < '0' || s[i] > '9' {
+			return false
 		}
 	}
+	return true
 }

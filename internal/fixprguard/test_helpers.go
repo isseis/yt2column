@@ -5,7 +5,9 @@ package fixprguard
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/isseis/yt2column/internal/cmdrunner"
@@ -178,8 +180,23 @@ func permissionFailure(status int) error {
 	}
 }
 
+// prViewStep is a gh pr view call on the test PR that reads fields.
+func prViewStep(fields, out string, err error) cmdrunnertestutil.Step {
+	return cmdrunnertestutil.Step{Name: "gh", Args: []string{"pr", "view", testPR, "--json", fields}, Out: out, Err: err}
+}
+
+// includeStep is a gh api --include call on a path of the test repository.
+func includeStep(path, out string, err error) cmdrunnertestutil.Step {
+	return cmdrunnertestutil.Step{
+		Name: "gh",
+		Args: []string{"api", "--include", "repos/" + testOwner + "/" + testRepoName + "/" + path},
+		Out:  out,
+		Err:  err,
+	}
+}
+
 func headStep(out string) cmdrunnertestutil.Step {
-	return cmdrunnertestutil.Step{Name: "gh", Args: []string{"pr", "view", testPR, "--json", "isCrossRepository,headRepository,headRepositoryOwner"}, Out: out}
+	return prViewStep("isCrossRepository,headRepository,headRepositoryOwner", out, nil)
 }
 
 func repoStep() cmdrunnertestutil.Step {
@@ -191,17 +208,36 @@ func graphqlStep(out string) cmdrunnertestutil.Step {
 }
 
 func permissionStep(login, out string, err error) cmdrunnertestutil.Step {
-	return cmdrunnertestutil.Step{
-		Name: "gh",
-		Args: []string{"api", "--include", "repos/" + testOwner + "/" + testRepoName + "/collaborators/" + login + "/permission"},
-		Out:  out,
-		Err:  err,
-	}
+	return includeStep("collaborators/"+login+"/permission", out, err)
 }
 
 // roleStep is a successful permission lookup returning role.
 func roleStep(login, role string) cmdrunnertestutil.Step {
 	return permissionStep(login, permissionResponse(role), nil)
+}
+
+// includedOutput is gh api --include output in the shape gh prints: the status
+// line ending in "\n", each header line ending in "\r\n", an empty "\r\n"
+// line, and the body as sent, with no newline added.
+func includedOutput(status int, headers []string, body string) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "HTTP/2.0 %d %s\n", status, http.StatusText(status))
+	for _, h := range headers {
+		b.WriteString(h + "\r\n")
+	}
+	b.WriteString("\r\n")
+	b.WriteString(body)
+	return b.String()
+}
+
+// createdAtStep is the gh pr view call that reads the PR's createdAt.
+func createdAtStep(out string, err error) cmdrunnertestutil.Step {
+	return prViewStep(createdAtMember, out, err)
+}
+
+// interactionLimitsStep is the gh api call that reads the interaction limits.
+func interactionLimitsStep(out string, err error) cmdrunnertestutil.Step {
+	return includeStep("interaction-limits", out, err)
 }
 
 // newTestGitHub returns a GitHub over a fake that expects exactly steps, with

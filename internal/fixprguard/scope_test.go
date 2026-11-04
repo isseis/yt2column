@@ -22,13 +22,16 @@ func namedThread(p string) []ThreadPath { return []ThreadPath{{Path: p, Named: t
 
 // denyListAtPathItself returns, for each path, the pair that shows it is on the
 // deny list where the allow list has no effect: as the thread's path itself it
-// is in scope for a trusted thread and out of scope for a named one. A path
-// that is not on the deny list would be in scope for both.
+// is out of scope for a trusted thread and for a named one. Rule 1 does not
+// consult the allow list, so a path that is not on the deny list is in scope
+// as the thread's path itself (path_itself, outside_allow_list_itself and
+// outside_allow_list_itself_named below): only the deny list makes these
+// rows out of scope.
 func denyListAtPathItself(paths ...string) []scopeCase {
 	var cases []scopeCase
 	for _, p := range paths {
 		cases = append(cases,
-			scopeCase{"trusted_itself:" + p, p, ChangeAdd, trustedThread(p), true},
+			scopeCase{"trusted_itself:" + p, p, ChangeAdd, trustedThread(p), false},
 			scopeCase{"named_itself:" + p, p, ChangeAdd, namedThread(p), false},
 		)
 	}
@@ -57,7 +60,7 @@ func TestScopeRules(t *testing.T) {
 		// is also outside the allow list, so it is a requirement example that
 		// both layers reject; the single-layer checks are the rows at the
 		// thread's path itself below (denyListAtPathItself) and the .md rows.
-		{"makefile_is_path", "Makefile", ChangeModify, trusted("Makefile"), true},
+		{"makefile_is_path", "Makefile", ChangeModify, trusted("Makefile"), false},
 		{"makefile_beside_path", "docs/Makefile", ChangeAdd, trusted("docs/a.md"), false},
 		{"makefile_lowercase", "docs/makefile", ChangeAdd, trusted("docs/a.md"), false},
 		{"gnumakefile", "docs/GNUmakefile", ChangeAdd, trusted("docs/a.md"), false},
@@ -176,6 +179,18 @@ func TestScopeRules(t *testing.T) {
 		{"issue_c", "internal/writer/foo.c", ChangeAdd, trusted("internal/writer/writer.go"), false},
 		{"issue_gitattributes", "internal/writer/.gitattributes", ChangeAdd, trusted("internal/writer/writer.go"), false},
 		{"issue_gitignore", "internal/writer/.gitignore", ChangeAdd, trusted("internal/writer/writer.go"), false},
+
+		// Paths that are not execution-related, whose results the rule for
+		// execution-related files leaves as they were: the requirements'
+		// examples, kept as written although each repeats a row above
+		// with other paths (path_itself or named_go_path_itself,
+		// go_same_package, named_go_same_package, same_directory,
+		// outside_allow_list_itself).
+		{"unchanged_go_path_itself", "internal/writer/writer.go", ChangeModify, trusted("internal/writer/writer.go"), true},
+		{"unchanged_go_test_beside_path", "internal/writer/writer_test.go", ChangeModify, trusted("internal/writer/writer.go"), true},
+		{"unchanged_go_test_beside_named_path", "internal/writer/writer_test.go", ChangeModify, named("internal/writer/writer.go"), false},
+		{"unchanged_md_beside_go_path", "internal/writer/notes.md", ChangeModify, trusted("internal/writer/writer.go"), true},
+		{"unchanged_sh_path_itself", "scripts/check.sh", ChangeModify, trusted("scripts/check.sh"), true},
 	}
 	cases = slices.Concat(cases,
 		// Instruction files, in any directory and any case.
@@ -199,7 +214,7 @@ func TestScopeRules(t *testing.T) {
 		// rule and the instruction-file names now cover.
 		denyListAtPathItself(
 			"docs/GNUmakefile", "internal/x/go.mod", "go.sum", "go.work", "go.work.sum",
-			"build/rules.mk", "extension/scripts/has-extension-changes.sh",
+			"go.mod", "build/rules.mk", "extension/scripts/has-extension-changes.sh",
 			"extension/package.json", "extension/package-lock.json", "extension/eslint.config.js",
 			"extension/tsconfig.json", "extension/tsconfig.core.json", "extension/tsconfig.build.json",
 			".github/workflows/ci.yml", ".claude/commands/a.md", ".tool-versions", ".mise.toml",

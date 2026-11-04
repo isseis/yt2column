@@ -411,6 +411,14 @@ for the packages that exist today. The server's startup is documented in the
   relying on every caller remembering to validate. Before preserving an exported
   field as an extension point, count its real uses; an extension point nobody uses
   costs the guarantee and buys nothing.
+- **Keep internals unobservable**: a value an API returns but does not define
+  the meaning of — an identifier, a key, an ordering, a message's wording — is
+  opaque. Do not let a caller compute, parse, or rely on how it is made; make
+  that impossible where it is cheap (e.g. the article key is an HMAC with a
+  per-process secret, so it can only be obtained from the API), because every
+  observable behavior will be depended on by somebody (Hyrum's Law). State
+  such a measure's purpose as API design, not as a security defense, unless it
+  also defends against an attacker outside the trust boundary.
 - **Reject, don't normalize**: when code can either quietly repair a caller's
   malformed input or reject it, reject it. Silent repair makes a wrong definition
   indistinguishable from a right one, so the mistake never surfaces and propagates

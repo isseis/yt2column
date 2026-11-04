@@ -309,7 +309,7 @@ func parseComment(node strictjson.Value, withBody bool) (comment, error) {
 	if err != nil {
 		return comment{}, rejected("comment")
 	}
-	keys := []string{"databaseId", "url", "path", "line", "author", "createdAt", "updatedAt", "lastEditedAt"}
+	keys := []string{"databaseId", "url", "path", "line", "author", createdAtMember, "updatedAt", "lastEditedAt"}
 	if withBody {
 		keys = append(keys, "body")
 	}
@@ -334,7 +334,7 @@ func parseComment(node strictjson.Value, withBody bool) (comment, error) {
 	if c.line, err = nullableInt(members, "line"); err != nil {
 		return comment{}, rejected("comment line")
 	}
-	if c.createdAt, err = strictjson.RequiredString(members, "createdAt"); err != nil {
+	if c.createdAt, err = strictjson.RequiredString(members, createdAtMember); err != nil {
 		return comment{}, rejected("comment createdAt")
 	}
 	if c.updatedAt, err = strictjson.RequiredString(members, "updatedAt"); err != nil {
