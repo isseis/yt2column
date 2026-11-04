@@ -56,8 +56,9 @@ each line compared without its trailing CR:
 1. Its first line equals `<spec-marker>` exactly.
 2. Each of the four heading lines `### 類型`, `### やること`, `### やらないこと`,
    and `### 確かめ方` appears exactly once.
-3. Under each of those headings, up to the next heading line, there is at least
-   one line that is not blank.
+3. Under each of those headings, up to the next heading line (a line that
+   starts with one to six `#` followed by a space), there is at least one line
+   that is not blank.
 4. Under `### 類型`, exactly one line is not blank, and it equals `W`, `D`, or
    `M` exactly.
 
@@ -100,12 +101,14 @@ From the listing:
   comment, the issue has no spec. The comment's current body is the spec, even
   when it was edited after it was posted.
 
-Read the body of the chosen comment alone, by its `id`:
+Read the body of the chosen comment alone, by its `id`, straight into a file in
+the scratchpad (`<spec-file>`):
 
 ```bash
-gh api repos/<owner>/<repo>/issues/comments/<id> --jq .body
+gh api repos/<owner>/<repo>/issues/comments/<id> --jq .body > <spec-file>
 ```
 
-Save that body to a file in the scratchpad and check its shape ("Spec comment
-format" above). `/runissue` also notes the file's SHA-256, its `id`, and its
-`updated_at`, so it can tell later whether the spec changed during its run.
+Write `<spec-file>` only by this redirect, never by retyping the body, and
+check its shape ("Spec comment format" above). `/runissue` also notes the
+SHA-256 of the file's bytes, the comment's `id`, and its `updated_at`, so it
+can tell later whether the spec changed during its run.

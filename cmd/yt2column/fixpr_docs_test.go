@@ -255,11 +255,13 @@ type listingItem struct {
 // listingFixture is the fake response for one listing: its items, the field
 // of an item each output key other than kind and state must equal, and the
 // keys each kind of output object may hold. An object without a kind key is
-// of kind kindless, when that is set.
+// of kind kindless, when that is set. required lists the keys each kind of
+// object must hold, when a command decides by them.
 type listingFixture struct {
 	items    []listingItem
 	source   map[string]string
 	keys     map[string][]string
+	required map[string][]string
 	kindless string
 }
 
@@ -431,10 +433,11 @@ func (f listingFixture) response() []map[string]any {
 // no body: every object the filter builds holds only its kind's keys, no
 // output holds bodyMarker, and every printed value is the item's own non-body
 // field or, for state, the state the item's state line yields. Every other
-// gh api call of section must be one of readCalls. jq must be installed: a
-// missing jq fails the test instead of skipping it, so the check never passes
-// unrun.
-func checkListings(t *testing.T, where, section string, fixtures map[string]listingFixture, readCalls []string) {
+// gh api call of section must be one of readCalls. extra holds further
+// placeholder and value pairs for the filters, beyond the four every listing
+// may use. jq must be installed: a missing jq fails the test instead of
+// skipping it, so the check never passes unrun.
+func checkListings(t *testing.T, where, section string, fixtures map[string]listingFixture, readCalls []string, extra ...string) {
 	t.Helper()
 	jq, err := exec.LookPath("jq")
 	if err != nil {
@@ -446,14 +449,12 @@ func checkListings(t *testing.T, where, section string, fixtures map[string]list
 		t.Fatalf("%s has %d gh api --paginate listings, %d of them in the expected form; want %d",
 			where, n, len(matches), len(fixtures))
 	}
-	replacer := strings.NewReplacer(
+	replacer := strings.NewReplacer(append([]string{
 		"<awaited-reviewer>", fakeAwaited,
 		"<user-login>", fakeUser,
 		"<review-request>", fakeRequest,
 		"<review-mention>", fixprguard.CodexMention,
-		"<spec-marker>", contextCodeSpan(t, specMarkerRow),
-		"<revert-marker>", contextCodeSpan(t, revertMarkerRow),
-	)
+	}, extra...)...)
 	seen := map[string]struct{}{}
 	for _, m := range matches {
 		endpoint, filter := m[1], replacer.Replace(m[2])
@@ -659,11 +660,13 @@ func checkListingOutput(t *testing.T, fixture listingFixture, response []map[str
 		if (item.kind == "mention") != (item.wrote != notMention) {
 			t.Fatalf("item %d: kind %q with writer %d; a mention needs its writer, and only a mention has one", i, item.kind, item.wrote)
 		}
+		required := fixture.required[item.kind]
 		if item.kind == "mention" {
-			for _, key := range mentionAuthorKeys {
-				if _, ok := obj[key]; !ok {
-					t.Errorf("item %d: printed no %s", i, key)
-				}
+			required = mentionAuthorKeys
+		}
+		for _, key := range required {
+			if _, ok := obj[key]; !ok {
+				t.Errorf("item %d: printed no %s", i, key)
 			}
 		}
 		for key, value := range obj {

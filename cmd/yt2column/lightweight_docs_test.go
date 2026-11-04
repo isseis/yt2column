@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"testing"
 
@@ -26,20 +25,17 @@ const (
 	revertMarkerRow = "Lightweight revert marker"
 )
 
-// leadingCodeSpan matches the code span a value cell starts with.
-var leadingCodeSpan = regexp.MustCompile("^`([^`]+)`")
-
 // contextCodeSpan returns the value of the _context.md row named name: the
 // code span its value cell starts with, before the cell's description. It
-// fails t when the cell does not start with one.
+// fails t when the cell does not start with a code span that is not empty.
 func contextCodeSpan(t *testing.T, name string) string {
 	t.Helper()
 	cell := contextRow(t, name)[1]
-	span := leadingCodeSpan.FindStringSubmatch(cell)
-	if span == nil {
+	span, ok := firstCodeSpan(cell)
+	if !ok || span == "" || !strings.HasPrefix(cell, "`"+span+"`") {
 		t.Fatalf("the _context.md %q row's value %q does not start with a code span", name, cell)
 	}
-	return span[1]
+	return span
 }
 
 // lightweightConditions is what the guard tests read of the conditions table
@@ -52,8 +48,8 @@ type lightweightConditions struct {
 // readLightweightConditions reads the conditions table: the one fenced text
 // block directly after the one heading doctestutil.LightweightConditionsHeading
 // outside code blocks. It fails t when the heading or the block is missing or
-// repeated, when a row is of no known kind or an exclude row is not one path,
-// and when there is no exclude row, so a table the script could not read is
+// repeated, when a row is repeated or of no known kind or an exclude row is
+// not one path, and when there is no exclude row, so a table the script could not read is
 // never read here as an empty one.
 func readLightweightConditions(t *testing.T, doc string) lightweightConditions {
 	t.Helper()
@@ -77,8 +73,14 @@ func readLightweightConditions(t *testing.T, doc string) lightweightConditions {
 			heading, len(blocks), len(blocks) > 0 && blocks[0].Closed)
 	}
 	var table lightweightConditions
+	seen := map[string]struct{}{}
 	for _, line := range blocks[0].Lines {
 		fields := strings.Fields(line)
+		key := strings.Join(fields, " ")
+		if _, dup := seen[key]; dup {
+			t.Fatalf("the conditions table repeats the row %q", key)
+		}
+		seen[key] = struct{}{}
 		if len(fields) == 0 {
 			t.Fatalf("the conditions table has a blank row")
 		}
@@ -193,14 +195,17 @@ var lightweightListingKeys = map[string][]string{
 // lightweightListingFixtures is the fake response for the marker listing. Its
 // items separate each condition of the filter: the author's login, the
 // author's type, each marker as the whole first line with and without a CR,
-// a marker followed by more text or preceded by a space, a marker on a later
-// line, and empty and null bodies.
+// a marker followed by more text, whitespace, or a second CR, or preceded by
+// a space, a marker after a blank first line or on a later line, and empty
+// and null bodies. Each listed object must hold every key of its kind, since
+// the spec comment is chosen by created_at and id.
 func lightweightListingFixtures(spec, revert string) map[string]listingFixture {
 	const user, bot = "User", "Bot"
 	return map[string]listingFixture{
 		"issues/<issue>/comments": {
-			source: map[string]string{"id": "id", "url": "html_url", "created_at": "created_at", "updated_at": "updated_at"},
-			keys:   lightweightListingKeys,
+			source:   map[string]string{"id": "id", "url": "html_url", "created_at": "created_at", "updated_at": "updated_at"},
+			keys:     lightweightListingKeys,
+			required: lightweightListingKeys,
 			items: []listingItem{
 				{user, fakeUser, spec + "\n" + marked("The spec."), "spec", "", notMention},
 				{user, fakeUser, spec + "\r\n" + marked("Edited on GitHub.") + "\r\n", "spec", "", notMention},
@@ -213,10 +218,15 @@ func lightweightListingFixtures(spec, revert string) map[string]listingFixture {
 				{user, "other-user", revert + "\n" + marked("Not the user's."), "", "", notMention},
 				{bot, fakeUser, spec + "\n" + marked("A Bot named like the user."), "", "", notMention},
 				{bot, fakeUser, revert + "\n" + marked("A Bot named like the user."), "", "", notMention},
+				{"Organization", fakeUser, spec + "\n" + marked("Neither a User nor a Bot."), "", "", notMention},
 				// The marker must be the whole first line.
 				{user, fakeUser, spec + marked("More text.") + "\n" + marked("Body."), "", "", notMention},
 				{user, fakeUser, revert + " " + marked("More text."), "", "", notMention},
 				{user, fakeUser, " " + spec + "\n" + marked("Body."), "", "", notMention},
+				{user, fakeUser, spec + " \n" + marked("Trailing space."), "", "", notMention},
+				{user, fakeUser, spec + "\t\n" + marked("Trailing tab."), "", "", notMention},
+				{user, fakeUser, spec + "\r\r\n" + marked("Two CRs."), "", "", notMention},
+				{user, fakeUser, "\n" + spec + "\n" + marked("Blank first line."), "", "", notMention},
 				{user, fakeUser, marked("First line.") + "\n" + spec, "", "", notMention},
 				{user, fakeUser, marked("A plain comment."), "", "", notMention},
 				{user, fakeUser, "", "", "", notMention},
@@ -229,13 +239,18 @@ func lightweightListingFixtures(spec, revert string) map[string]listingFixture {
 // TestLightweightSpecListing runs the marker listing of lightweight-spec.md
 // on its fake response: it lists the user's own marker comments only, of the
 // right kind, with their id, URL, and times, and prints no body. Every gh api
-// call of the document must be the listing or one of the known reads.
+// call of the document must be one of the known reads, and the document's
+// only listing is the one the test runs.
 func TestLightweightSpecListing(t *testing.T) {
 	doc := doctestutil.ReadDoc(t, lightweightSpecPath)
 	checkGhAPICalls(t, "_lib/lightweight-spec.md", doc, lightweightSpecReadCalls)
+	if n := strings.Count(doc, "gh api --paginate"); n != 1 {
+		t.Fatalf("_lib/lightweight-spec.md has %d gh api --paginate listings, want the one its listing section runs", n)
+	}
 	section := requireOutsideBlocksSection(t, "_lib/lightweight-spec.md", doc, doctestutil.LightweightListingHeading)
-	fixtures := lightweightListingFixtures(contextCodeSpan(t, specMarkerRow), contextCodeSpan(t, revertMarkerRow))
-	checkListings(t, "_lib/lightweight-spec.md", section, fixtures, lightweightSpecReadCalls)
+	spec, revert := contextCodeSpan(t, specMarkerRow), contextCodeSpan(t, revertMarkerRow)
+	checkListings(t, "_lib/lightweight-spec.md", section, lightweightListingFixtures(spec, revert), lightweightSpecReadCalls,
+		"<spec-marker>", spec, "<revert-marker>", revert)
 }
 
 // TestLightweightSpecTemplateMarker checks that the first line of the spec

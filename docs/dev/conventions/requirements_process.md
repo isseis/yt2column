@@ -455,9 +455,9 @@ Added and deleted lines are counted separately, as the lines of the diff:
 - **W:** at most 30 added lines and at most 30 deleted lines.
 - **D:** at most 100 deleted lines and at most 10 added lines.
 - **M:** at most 50 hand-written added lines; deleted lines are not limited.
-  Lines a tool generated do not count toward this limit, only when the command
-  that generated them is recorded and running that command again on the state
-  before the change gives the same diff.
+  Lines a tool generated are left out of this limit only when the command that
+  generated them is recorded and running it again on the state before the
+  change gives the same diff.
 
 Overall, the change is one PR, and it changes at most 10 files by hand. A file
 whose only changes are tool-generated changes under the M exception is not
@@ -476,8 +476,9 @@ change to `README.md` counts toward both the lines and the files.
   trailer line. The command must match a `tool` row of the conditions table
   below word for word, and its remaining words must be paths inside the
   repository.
-- **Lines:** added and deleted lines are summed separately. A change of only a
-  line ending or only whitespace counts as one line. Renames are not detected:
+- **Lines:** added and deleted lines are summed separately. A line whose only
+  change is its line ending or its whitespace is counted like any other changed
+  line (one deleted and one added line). Renames are not detected:
   a rename counts as the deletion of the old file and the addition of the new
   one.
 - **Files:** the number of changed paths. A rename counts as two files, the old
@@ -500,7 +501,8 @@ Whatever their size, these changes take the normal process:
   member, a storage key, a message catalog key, a `chrome.*` name, a literal of
   a document test, or an identifier a document refers to by name.
 - A change to user-visible wording beyond a typo fix.
-- A change that meets the conditions of `docs/dev/security.md`.
+- A change within the scope of `docs/dev/security.md` (one that meets a
+  condition under which that guide applies).
 - A change that touches a trust boundary: `fixprguard`, `codexreview`,
   `mergepr`, secrets, the invocation of `yt-dlp`, and the cache.
 - Adding a dependency.
@@ -596,12 +598,17 @@ branch it checks, so a branch cannot loosen it. Each line is one condition:
 A PR that adds a package or a file on a trust boundary adds its `exclude` line
 to this table in the same PR.
 
-Everything else is checked by the subagent review of `/runissue`: that the
-change fits exactly one type; that it is none of the changes above that a path
-does not decide (a wording that changes a meaning, a name referenced by a
-string, the conditions of `docs/dev/security.md`, a trust boundary, a policy
-exception, an open design choice, a change of behavior); and that it stays
-inside the spec.
+The recheck script checks these conditions on the real diff: the line limits
+of the type, the number of files changed by hand, that no excluded path
+changed, that there is no change that cannot be counted ("Counting lines and
+files" above), and that each tool commit is reproduced by its recorded command.
+
+The remaining conditions are checked by the subagent review of `/runissue`:
+that the change fits exactly one type; that it is none of the changes above
+that a path does not decide (a wording that changes a meaning, a name
+referenced by a string, the scope of `docs/dev/security.md`, a trust boundary,
+a policy exception, an open design choice, a change of behavior); and that it
+stays inside the spec.
 
 ---
 
