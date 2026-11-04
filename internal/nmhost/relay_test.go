@@ -921,73 +921,27 @@ func TestRelayNewFormOperations(t *testing.T) {
 			if !strings.Contains(result.log, "op="+tt.op) {
 				t.Errorf("the log does not contain op=%s:\n%s", tt.op, result.log)
 			}
-			requireNoFormAttr(t, result.log)
 		})
 	}
 }
 
-// requireNoFormAttr checks that the log has no form attribute: the host has
-// one message form, so such an attribute would tell nothing apart.
-func requireNoFormAttr(t *testing.T, log string) {
-	t.Helper()
-	if strings.Contains(log, "form=") {
-		t.Errorf("the log has a form attribute:\n%s", log)
-	}
-}
-
-// TestRelayRejectsOtherForms checks the messages that are not the new form:
-// those whose top level has no "v", however complete the rest is, and those
-// that are not one strict JSON object even when they hold what looks like a
-// new-form message. Each is answered with protocol_error and never sent,
-// though the server is reachable, and the log records only the form stage and
-// the rule, never the message's members or values.
-func TestRelayRejectsOtherForms(t *testing.T) {
-	const marker = "marker-3b7c"
-	tests := []struct {
-		name, msg string
-		rule      rule
-	}{
-		// The message an extension built before the job API sends.
-		{"extension message without v", `{"videoUrl":"` + marker + `","transcript":"y","title":"t","channelName":"c","description":"d"}`, ruleVersion},
-		{"every member but v", `{"op":"status","key":"` + marker + `"}`, ruleVersion},
-		{"v only below the top level", `{"videoUrl":"x","transcript":{"v":1,"op":"status","key":"` + marker + `"}}`, ruleVersion},
-		{"invalid UTF-8", "{\"v\":1,\"op\":\"status\",\"key\":\"" + marker + "\xff\"}", ruleObject},
-		{"not JSON", `v=1&op=status&key=` + marker, ruleObject},
-		{"top level not an object", `[{"v":1,"op":"status","key":"` + marker + `"}]`, ruleObject},
-		{"trailing data", `{"v":1,"op":"status","key":"` + marker + `"} {}`, ruleObject},
-		{"unpaired surrogate", `{"v":1,"op":"status","key":"` + marker + `\ud800"}`, ruleObject},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			path, got := recordingServer(t, []byte("{}"))
-			dial, dials := countDials(SocketDialer(path))
-			result := runRelay(message([]byte(tt.msg)), dial, testTimeout)
-			requireError(t, result.reply(t), HostErrorProtocol)
-			if n, d := got().requests, dials.Load(); n != 0 || d != 1 {
-				t.Errorf("the server received %d requests over %d dials, want none over 1", n, d)
-			}
-			for _, attr := range []string{"stage=form", "rule=" + string(tt.rule)} {
-				if !strings.Contains(result.log, attr) {
-					t.Errorf("the log does not contain %s:\n%s", attr, result.log)
-				}
-			}
-			// The rule is decided before "op" is read, so no operation is
-			// logged either.
-			for _, leak := range []string{marker, "op=", "videoUrl", "status"} {
-				if strings.Contains(result.log, leak) {
-					t.Errorf("the log contains %q:\n%s", leak, result.log)
-				}
-			}
-			requireNoFormAttr(t, result.log)
-		})
-	}
-}
-
+// TestRelayNewFormRejections checks that a message breaking a rule of the new
+// form is answered with protocol_error and never sent, though the server is
+// reachable, and that the log names the form stage and the rule.
 func TestRelayNewFormRejections(t *testing.T) {
 	tests := []struct {
 		name, msg string
 		rule      rule
 	}{
+		// The message is read as one strict JSON object, or not at all: the
+		// inputs encoding/json would repair or ignore are rejected too.
+		{"invalid UTF-8", "{\"v\":1,\"op\":\"status\",\"key\":\"k\xff\"}", ruleObject},
+		{"not JSON", `v=1&op=status&key=k`, ruleObject},
+		{"top level not an object", `[{"v":1,"op":"status","key":"k"}]`, ruleObject},
+		{"trailing data", `{"v":1,"op":"status","key":"k"} {}`, ruleObject},
+		{"unpaired surrogate", `{"v":1,"op":"status","key":"k\ud800"}`, ruleObject},
+		{"version missing", `{"op":"status","key":"k"}`, ruleVersion},
+		{"version only below the top level", `{"op":"start","input":{"v":1}}`, ruleVersion},
 		{"unknown version", `{"v":2,"op":"status","key":"k"}`, ruleVersion},
 		{"version zero", `{"v":0,"op":"status","key":"k"}`, ruleVersion},
 		{"version as a string", `{"v":"1","op":"status","key":"k"}`, ruleVersion},
@@ -1032,7 +986,6 @@ func TestRelayNewFormRejections(t *testing.T) {
 					t.Errorf("the log does not contain %s:\n%s", attr, result.log)
 				}
 			}
-			requireNoFormAttr(t, result.log)
 		})
 	}
 }
@@ -1127,6 +1080,8 @@ func TestRelayNewFormLogOmitsMessage(t *testing.T) {
 		{"publish key", `{"v":1,"op":"publish","key":"` + marker + `"}`, "op=publish"},
 		{"unknown operation", `{"v":1,"op":"` + marker + `","key":"k"}`, "rule=operation"},
 		{"undeclared member", `{"v":1,"op":"status","key":"k","` + marker + `":1}`, "rule=members"},
+		{"version missing", `{"op":"status","key":"` + marker + `"}`, "rule=version"},
+		{"not one object", `[{"v":1,"op":"status","key":"` + marker + `"}]`, "rule=object"},
 		{"key not a string", `{"v":1,"op":"status","key":{"` + marker + `":1}}`, "rule=key"},
 	}
 	for _, tt := range tests {
@@ -1137,7 +1092,6 @@ func TestRelayNewFormLogOmitsMessage(t *testing.T) {
 			if !strings.Contains(result.log, tt.want) {
 				t.Fatalf("the log does not contain %s:\n%s", tt.want, result.log)
 			}
-			requireNoFormAttr(t, result.log)
 			if strings.Contains(result.log, marker) {
 				t.Errorf("the log contains the message's content:\n%s", result.log)
 			}

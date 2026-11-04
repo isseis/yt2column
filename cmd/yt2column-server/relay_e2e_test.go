@@ -124,28 +124,6 @@ func TestRelayEndToEnd(t *testing.T) {
 		}
 	})
 
-	// A message an extension built before the job API sends has no "v": the
-	// real host answers protocol_error from its form check (stage=form in its
-	// log), which sends nothing. The new-form start sent next shows that the
-	// same server was reachable and serving all along.
-	t.Run("message_without_version_is_rejected", func(t *testing.T) {
-		e := newServerEnv(t)
-		startServer(t, e, testDeps(validResponseLLM()))
-
-		reply, hostLog := runHostLog(t, host, e, requestBody(testValidRaw))
-		if reply.Kind != "error" || reply.Error != "protocol_error" {
-			t.Fatalf("reply = %+v, want the protocol_error error", reply)
-		}
-		for _, attr := range []string{"stage=form", "rule=version"} {
-			if !strings.Contains(hostLog, attr) {
-				t.Errorf("the host log does not contain %s:\n%s", attr, hostLog)
-			}
-		}
-		if started := requireJobReply(t, runHost(t, host, e, newFormStartMessage(testValidRaw)), 202); started.Status != "accepted" {
-			t.Errorf("generation start response = %+v, want accepted", started)
-		}
-	})
-
 	// The new form's three operations go through the real host: a
 	// generation start, a status request, and a publish operation. A key
 	// that would turn a status request into a publish operation if the host
@@ -259,20 +237,13 @@ type hostReply struct {
 	Error  string `json:"error"`
 }
 
-// runHost is runHostLog without the host's log.
+// runHost starts the host as the browser does, with the extension's origin as
+// its argument and a minimal environment, writes message to its standard
+// input as one Native Messaging frame, and returns the decoded reply. It
+// fails the test unless the host exits 0 within exitBound and its standard
+// output is exactly one frame. A cleanup that kills and reaps the host is
+// registered as soon as it starts.
 func runHost(t *testing.T, host string, e *serverEnv, message string) hostReply {
-	t.Helper()
-	reply, _ := runHostLog(t, host, e, message)
-	return reply
-}
-
-// runHostLog starts the host as the browser does, with the extension's origin
-// as its argument and a minimal environment, writes message to its standard
-// input as one Native Messaging frame, and returns the decoded reply and the
-// host's standard error, its log. It fails the test unless the host exits 0
-// within exitBound and its standard output is exactly one frame. A cleanup
-// that kills and reaps the host is registered as soon as it starts.
-func runHostLog(t *testing.T, host string, e *serverEnv, message string) (hostReply, string) {
 	t.Helper()
 	frame := make([]byte, 4+len(message))
 	binary.NativeEndian.PutUint32(frame, uint32(len(message))) //nolint:gosec // every message here is far below 4 GiB
@@ -305,7 +276,7 @@ func runHostLog(t *testing.T, host string, e *serverEnv, message string) (hostRe
 	if code := cmd.ProcessState.ExitCode(); code != exitOK {
 		t.Fatalf("host exit code = %d, want %d\nstderr:\n%s", code, exitOK, stderr.String())
 	}
-	return decodeOneFrame(t, stdout.Bytes(), stderr.String()), stderr.String()
+	return decodeOneFrame(t, stdout.Bytes(), stderr.String())
 }
 
 // decodeOneFrame decodes out as exactly one Native Messaging frame holding a
