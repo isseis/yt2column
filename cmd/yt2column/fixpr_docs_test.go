@@ -399,14 +399,20 @@ var timeFieldSeconds = map[string]int{"created_at": 10, "updated_at": 20, "submi
 // fakeTimeBase is the time the fake items' times count from, a minute apart.
 var fakeTimeBase = time.Date(2026, 10, 23, 9, 0, 0, 0, time.UTC)
 
+// fakeIDBase is the id of the first fake item. The ids count up from it, so
+// no id equals an item's index.
+const fakeIDBase = 7000
+
 // response is the fake GitHub response for fixture, one object per item, with
-// a distinct URL and distinct times for each.
+// a distinct id, URL, and times for each. The id is a float64, the type JSON
+// numbers decode to, so it compares equal with the id a filter prints.
 func (f listingFixture) response() []map[string]any {
 	var out []map[string]any
 	for i, it := range f.items {
 		obj := map[string]any{
 			"user":     map[string]any{"type": it.userType, "login": it.login},
 			"body":     it.body,
+			"id":       float64(fakeIDBase + i),
 			"html_url": fmt.Sprintf("https://github.test/item/%d", i),
 		}
 		for _, field := range f.source {
@@ -445,6 +451,8 @@ func checkListings(t *testing.T, where, section string, fixtures map[string]list
 		"<user-login>", fakeUser,
 		"<review-request>", fakeRequest,
 		"<review-mention>", fixprguard.CodexMention,
+		"<spec-marker>", contextCodeSpan(t, specMarkerRow),
+		"<revert-marker>", contextCodeSpan(t, revertMarkerRow),
 	)
 	seen := map[string]struct{}{}
 	for _, m := range matches {

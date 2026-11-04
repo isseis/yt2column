@@ -125,42 +125,42 @@
 
 **変更するファイル:** `docs/dev/conventions/requirements_process.md`
 
--   [ ] 「## 0. Review Workflow」の中に小節「### Lightweight Process」を足し、設計書 3.1.1 の項目を英語で書く。類型・上限・除外の文言は、要件書の AC-01〜AC-05 をそのまま英語にする。数え方は設計書 3.1.2、機械的に確かめる条件とレビューで確かめる条件の区別は設計書 3.1.4 のとおりにする。
--   [ ] 見出し「#### Mechanically checked conditions」の直後に、条件の表を置く（設計書 3.1.3 の書式）。表の行は次のとおりにする。
+-   [x] 「## 0. Review Workflow」の中に小節「### Lightweight Process」を足し、設計書 3.1.1 の項目を英語で書く。類型・上限・除外の文言は、要件書の AC-01〜AC-05 をそのまま英語にする。数え方は設計書 3.1.2、機械的に確かめる条件とレビューで確かめる条件の区別は設計書 3.1.4 のとおりにする。
+-   [x] 見出し「#### Mechanically checked conditions」の直後に、条件の表を置く（設計書 3.1.3 の書式）。表の行は次のとおりにする。
     -   `limit` の行：AC-02・AC-03 の値
     -   `tool` の行：`gofumpt -w` と `git mv`（1.3 節）
     -   `exclude`・`exclude-absent` の行：設計書 3.1.3 の表のパスのうち、この PR の時点で実在するものと、この PR で作る `lightweight-spec.md`・`lightweight_docs_test.go`。`lightweight-check.sh` は PR-2、`runissue.md` は PR-3 で足す。
--   [ ] 同じ小節に、「信頼境界に当たるパッケージやファイルを新しく足す PR は、同じ PR で条件の表に `exclude` を足す」という規則を書く（設計書 3.1.3）。
--   [ ] 「LLM Constraints」に、軽量プロセスの例外と範囲を足す（AC-38、設計書 3.1.5）。「Review Flow」に、軽量プロセスの流れを足す（AC-07、設計書 2.1）。
--   [ ] まだないファイル（`runissue.md` など）は、Markdown のリンクを張らず、コードスパンで名前を書く（1.3 節）。ステップ 1-2・1-3 も同じにする。
+-   [x] 同じ小節に、「信頼境界に当たるパッケージやファイルを新しく足す PR は、同じ PR で条件の表に `exclude` を足す」という規則を書く（設計書 3.1.3）。
+-   [x] 「LLM Constraints」に、軽量プロセスの例外と範囲を足す（AC-38、設計書 3.1.5）。「Review Flow」に、軽量プロセスの流れを足す（AC-07、設計書 2.1）。
+-   [x] まだないファイル（`runissue.md` など）は、Markdown のリンクを張らず、コードスパンで名前を書く（1.3 節）。ステップ 1-2・1-3 も同じにする。
 
 #### ステップ 1-2: `_context.md` の値
 
 **変更するファイル:** `.claude/commands/_context.md`
 
--   [ ] 「Process convention」の表に、設計書 3.2 の 4 行（Lightweight label・Lightweight spec marker・Lightweight revert marker・Lightweight branch name）を足す。目印の値は、ステップ 1-4 のテストが読めるように、セルの中の 1 つのコードスパンに書く。
--   [ ] 「PR title and squash subject」の表に、Lightweight PR title と Lightweight commit subject の 2 行を足す（設計書 3.2）。squash の件名の正規表現は変えない。
+-   [x] 「Process convention」の表に、設計書 3.2 の 4 行（Lightweight label・Lightweight spec marker・Lightweight revert marker・Lightweight branch name）を足す。目印の値は、ステップ 1-4 のテストが読めるように、セルの中の 1 つのコードスパンに書く。
+-   [x] 「PR title and squash subject」の表に、Lightweight PR title と Lightweight commit subject の 2 行を足す（設計書 3.2）。squash の件名の正規表現は変えない。
 
 #### ステップ 1-3: 仕様の手順書
 
 **変更するファイル:** `.claude/commands/_lib/lightweight-spec.md`（新規。英語）
 
--   [ ] 設計書 3.3 のとおりに書く。仕様のコメントの書式（日本語の雛形を 1 つのコードブロックで置く）、形の確かめ方（AC-19）、自分のコメントの一覧（設計書 3.3.2）、仕様とみなすコメントの選び方と戻した issue の判定（AC-17・AC-32）である。値は `_context.md` の名前で参照する。
--   [ ] 見出し「## Listing own marker comments」の下に、設計書 3.3.2 の一覧のコマンドを 1 つだけ書く。形は、`checkListings` が読める形にする（1.4 節）。置き換えの印は `<user-login>`・`<spec-marker>`・`<revert-marker>` を使い、フィルタに単引用符を入れない。この節のコードブロックには、`#` で始まる行を置かない。
+-   [x] 設計書 3.3 のとおりに書く。仕様のコメントの書式（日本語の雛形を 1 つのコードブロックで置く）、形の確かめ方（AC-19）、自分のコメントの一覧（設計書 3.3.2）、仕様とみなすコメントの選び方と戻した issue の判定（AC-17・AC-32）である。値は `_context.md` の名前で参照する。
+-   [x] 見出し「## Listing own marker comments」の下に、設計書 3.3.2 の一覧のコマンドを 1 つだけ書く。形は、`checkListings` が読める形にする（1.4 節）。置き換えの印は `<user-login>`・`<spec-marker>`・`<revert-marker>` を使い、フィルタに単引用符を入れない。この節のコードブロックには、`#` で始まる行を置かない。
 
 #### ステップ 1-4: 条件の表・一覧のフィルタ・雛形の目印のテスト
 
 **変更するファイル:** `internal/doctestutil/lightweight.go`（新規。`//go:build test`）、`cmd/yt2column/lightweight_docs_test.go`（新規。`//go:build test`）、`cmd/yt2column/fixpr_docs_test.go`、`CLAUDE.md`（591 行の jq の項目）
 
--   [ ] `internal/doctestutil/lightweight.go` に、見出し「#### Mechanically checked conditions」と「## Listing own marker comments」の定数を置く（1.4 節）。
--   [ ] `lightweight_docs_test.go` に、条件の表を読む関数を置く。`SectionOutsideBlocks` と `FencedBlocks` を組み合わせて使う。見出しやコードブロックがないとき、2 つ以上あるとき、知らない行の種類があるとき、`exclude` の行が 1 つもないときは、失敗にする（ステップ 1-6 もこの関数を使う）。
--   [ ] `TestLightweightExcludedPaths` を書く。`exclude` の行のパスがリポジトリに実在し、`exclude-absent` の行のパスが実在しないことを確かめる（設計書 3.9）。`/` で終わるものはディレクトリ、それ以外はファイルとし、大文字と小文字を区別して照らす。macOS の APFS は大文字と小文字を区別しないので、`os.Stat` だけでは照らさない。
--   [ ] `checkListings` の置き換えの表に `<spec-marker>`・`<revert-marker>` を足し、fake の応答の項目に `id`・`created_at`・`updated_at` を出せるようにする（設計書 3.9）。時刻の項目は、既存の `timeFieldSeconds` のしくみで出せるので、足すのは `id` である（1.4 節）。既存の `TestRunprDocContract`・`TestHandoffListingPrintsNoBody` が通り続けることを確かめる。
--   [ ] `TestLightweightSpecListing` を書き、仕様の手順書の一覧の節を `checkListings` で確かめる。許す呼び出しの一覧には、`"gh api --paginate "`・`gh api user --jq .login`・1 件の本文の読み取りを置く（1.4 節）。目印の値は `_context.md` の行から読む（1.3 節）。fake の項目は、設計書 3.9 の観点（書き手、書き手の種類、目印、CRLF、本文を出さないこと）を分けて確かめられるものにする。目印の後ろに文字が続く 1 行目と、先頭に空白がある 1 行目も含める。
--   [ ] `TestLightweightSpecTemplateMarker` を書く。仕様の手順書の雛形のコードブロックの 1 行目が、`_context.md` の仕様の目印の値と同じであることを確かめる（設計書 3.9「雛形の目印」）。
--   [ ] `CLAUDE.md` の 591 行の jq の項目に `TestLightweightSpecListing` を足し、同じ項目に、bash と git も要ることを書く（1.3 節）。
--   [ ] 新しいテストは、bash・git・jq がないときに飛ばさずに失敗にする（既存の `checkListings` と同じ）。
--   [ ] 壊して確かめる。次の壊し方のそれぞれで、名前を挙げたテストが失敗することを確かめ、コミットメッセージに書く。
+-   [x] `internal/doctestutil/lightweight.go` に、見出し「#### Mechanically checked conditions」「## Spec comment format」「## Listing own marker comments」の定数を置く（1.4 節）。「## Spec comment format」は、`TestLightweightSpecTemplateMarker` が雛形を探す見出しである。
+-   [x] `lightweight_docs_test.go` に、条件の表を読む関数を置く。`SectionOutsideBlocks` と `FencedBlocks` を組み合わせて使う。見出しやコードブロックがないとき、2 つ以上あるとき、知らない行の種類があるとき、`exclude` の行が 1 つもないときは、失敗にする（ステップ 1-6 もこの関数を使う）。
+-   [x] `TestLightweightExcludedPaths` を書く。`exclude` の行のパスがリポジトリに実在し、`exclude-absent` の行のパスが実在しないことを確かめる（設計書 3.9）。`/` で終わるものはディレクトリ、それ以外はファイルとし、大文字と小文字を区別して照らす。macOS の APFS は大文字と小文字を区別しないので、`os.Stat` だけでは照らさない。
+-   [x] `checkListings` の置き換えの表に `<spec-marker>`・`<revert-marker>` を足し、fake の応答の項目に `id`・`created_at`・`updated_at` を出せるようにする（設計書 3.9）。時刻の項目は、既存の `timeFieldSeconds` のしくみで出せるので、足すのは `id` である（1.4 節）。既存の `TestRunprDocContract`・`TestHandoffListingPrintsNoBody` が通り続けることを確かめる。
+-   [x] `TestLightweightSpecListing` を書き、仕様の手順書の一覧の節を `checkListings` で確かめる。許す呼び出しの一覧には、`"gh api --paginate "`・`gh api user --jq .login`・1 件の本文の読み取りを置く（1.4 節）。目印の値は `_context.md` の行から読む（1.3 節）。fake の項目は、設計書 3.9 の観点（書き手、書き手の種類、目印、CRLF、本文を出さないこと）を分けて確かめられるものにする。目印の後ろに文字が続く 1 行目と、先頭に空白がある 1 行目も含める。
+-   [x] `TestLightweightSpecTemplateMarker` を書く。仕様の手順書の雛形のコードブロックの 1 行目が、`_context.md` の仕様の目印の値と同じであることを確かめる（設計書 3.9「雛形の目印」）。
+-   [x] `CLAUDE.md` の 591 行の jq の項目に `TestLightweightSpecListing` を足す。bash と git も要ることは、それらを使う `TestLightweightCheck` を足すステップ 1-6 で書く（1.3 節）。
+-   [x] 新しいテストは、bash・git・jq がないときに飛ばさずに失敗にする（既存の `checkListings` と同じ）。
+-   [x] 壊して確かめる。次の壊し方のそれぞれで、名前を挙げたテストが失敗することを確かめ、コミットメッセージに書く。
     -   `exclude` の 1 行のパスを、実在しない名前・大文字と小文字だけが違う名前に変える。`/` を付け外しする。実在するパスを `exclude-absent` にする（`TestLightweightExcludedPaths`）。
     -   フィルタから、書き手の条件を外す。`.user.type` の条件を外す。目印を前方一致にする。本文を出す（`TestLightweightSpecListing`）。
     -   雛形の 1 行目を変える（`TestLightweightSpecTemplateMarker`）。
@@ -204,8 +204,9 @@
 
 #### ステップ 1-6: 確かめ直しのスクリプトのテスト
 
-**変更するファイル:** `cmd/yt2column/lightweight_docs_test.go`
+**変更するファイル:** `cmd/yt2column/lightweight_docs_test.go`、`CLAUDE.md`（jq の項目）
 
+-   [ ] `CLAUDE.md` の jq の項目に、`make test` が bash と git も要ることを書く（1.3 節）。
 -   [ ] `TestLightweightCheck` を書く。fixture は、`t.TempDir()` に作るリポジトリである。`origin` の URL は存在しないローカルのパスにし、`refs/remotes/origin/main` に実際の `requirements_process.md` とスクリプトを置く。道具のコミットの場合だけは、`tool` の行を、テストの中で用意した、出力が決まっているコマンドにした条件の表を置く。
 -   [ ] スクリプトは、本番と同じく、`origin/main` から書き出したファイルとして実行する（1.3 節）。仕様の本文のファイルは、fixture のリポジトリの外に置く。仕様の本文は、仕様の手順書の雛形のコードブロックから作り、類型の行は位置で埋める。
 -   [ ] git とスクリプトは、許可リストの環境で走らせる（1.3 節）。`TMPDIR` は場合ごとの `t.TempDir()` にする。各場合のコマンドには期限を付ける。

@@ -636,9 +636,10 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
 - `yt-dlp` must be on `PATH` (or set `YT2COLUMN_YTDLP_PATH`) to run the CLI; it is
   not needed for `make test`.
 - `make test` needs `jq` on `PATH`: `TestRunprDocContract`,
-  `TestHandoffListingPrintsNoBody`, and `TestFixprPhase6CountFilter` run the
-  `--jq` filters of `runpr.md` step 3, `_lib/task-pr-handoff.md` Part B step 5,
-  and `fixpr.md` Phase 6 with it, and fail instead of skipping when it is
+  `TestHandoffListingPrintsNoBody`, `TestFixprPhase6CountFilter`, and
+  `TestLightweightSpecListing` run the `--jq` filters of `runpr.md` step 3,
+  `_lib/task-pr-handoff.md` Part B step 5, `fixpr.md` Phase 6, and
+  `_lib/lightweight-spec.md` with it, and fail instead of skipping when it is
   missing. The `doc-guard` CI job runs these tests too.
 - Secrets (`DEEPSEEK_API_KEY`, `ANTHROPIC_API_KEY`, `SLACK_WEBHOOK_URL`, ...) go in `.envrc` / `.env`,
   which are git-ignored. Never commit them and never print them.
