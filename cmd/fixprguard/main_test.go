@@ -42,6 +42,8 @@ func validArgs() map[string][]string {
 			"--fingerprint", fingerprint, "--body-file", "body.md", testPR),
 		cmdEditPR:   args(cmdEditPR, "--title-file", "title.txt", "--body-file", "body.md", testPR),
 		cmdAppendPR: args(cmdAppendPR, "--body-file", "body.md", testPR),
+
+		cmdInteractionLimits: args(cmdInteractionLimits, testPR),
 	}
 }
 
@@ -52,7 +54,12 @@ func TestProtocolMismatch(t *testing.T) {
 				t.Fatalf("parse(%q) = %v, want nil", valid, err)
 			}
 			// parse accepts valid, so changing only --protocol isolates its check.
-			for _, protocol := range []string{strconv.Itoa(fixprguard.Protocol + 1), "0" + strconv.Itoa(fixprguard.Protocol), ""} {
+			// The next and the previous protocol stop alike: a document
+			// newer or older than the binary.
+			for _, protocol := range []string{
+				strconv.Itoa(fixprguard.Protocol + 1), strconv.Itoa(fixprguard.Protocol - 1),
+				"0" + strconv.Itoa(fixprguard.Protocol), "",
+			} {
 				bad := slices.Clone(valid)
 				bad[2] = protocol
 				if _, err := parse(bad); !errors.Is(err, errUsage) {
@@ -229,6 +236,8 @@ func TestGhTargetEnvRejected(t *testing.T) {
 			"--fingerprint", fp, "--body-file", text, testPR),
 		cmdEditPR:   args(cmdEditPR, "--title-file", text, "--body-file", text, testPR),
 		cmdAppendPR: args(cmdAppendPR, "--body-file", text, testPR),
+
+		cmdInteractionLimits: args(cmdInteractionLimits, testPR),
 	}
 	for name, sp := range specs {
 		if _, ok := lines[name]; sp.usesGH != ok {
@@ -433,6 +442,92 @@ func TestOmittedPRUsesCurrentBranch(t *testing.T) {
 	if code := r.Run(t, args(cmdHead)...); code != exitContinue {
 		t.Errorf("exit %d, want %d (%s)", code, exitContinue, r.Stderr)
 	}
+}
+
+// TestInteractionLimitsRun: every state prints with exit 0 and the binary's
+// protocol, and a state that could not be verified writes nothing to standard
+// error and none of what gh returned to standard output.
+func TestInteractionLimitsRun(t *testing.T) {
+	const (
+		now     = "Tue, 10 Nov 2026 00:00:00 GMT"
+		created = "2026-11-05T00:00:00Z"
+		// marker stands for whatever gh returned; it must reach no output.
+		marker = "secret-marker"
+	)
+	proto := `{"protocol":` + strconv.Itoa(fixprguard.Protocol) + `,`
+	ok := func(body string) string {
+		return includedOutput(200, []string{"Date: " + now, "X-Marker: " + marker}, body)
+	}
+	body := func(limit, expires string) string {
+		return `{"limit":"` + limit + `","origin":"` + marker + `","expires_at":"` + expires + `"}`
+	}
+	for _, tc := range []struct {
+		name    string
+		created string
+		out     string
+		err     error
+		want    string
+	}{
+		{
+			name: "active", out: ok(body("collaborators_only", "2027-05-02T21:30:10Z")),
+			want: proto + `"state":"active","expiresOn":"2027-05-02","reason":"","httpStatus":0}`,
+		},
+		{
+			name: "expiring", out: ok(body("collaborators_only", "2026-11-20T00:00:00Z")),
+			want: proto + `"state":"expiring","expiresOn":"2026-11-20","reason":"","httpStatus":0}`,
+		},
+		{
+			name: "predates", created: "2026-11-02T21:30:09Z", out: ok(body("collaborators_only", "2027-05-02T21:30:10Z")),
+			want: proto + `"state":"predates","expiresOn":"2027-05-02","reason":"","httpStatus":0}`,
+		},
+		{
+			name: "weak", out: ok(body("existing_users", "2027-05-02T21:30:10Z")),
+			want: proto + `"state":"weak","expiresOn":"2027-05-02","reason":"","httpStatus":0}`,
+		},
+		{
+			name: "none", out: ok("{}"),
+			want: proto + `"state":"none","expiresOn":"","reason":"","httpStatus":0}`,
+		},
+		{
+			name: "unverifiable_limit", out: ok(`{"limit":"` + marker + `","expires_at":"2027-05-02T21:30:10Z"}`),
+			want: proto + `"state":"unverifiable","expiresOn":"","reason":"limit","httpStatus":0}`,
+		},
+		{
+			name: "unverifiable_status",
+			err: &cmdrunner.ExitError{
+				Code:   1,
+				Stdout: []byte(includedOutput(403, []string{"X-Marker: " + marker}, `{"message":"`+marker+`"}`)),
+				Stderr: []byte("gh: " + marker),
+			},
+			want: proto + `"state":"unverifiable","expiresOn":"","reason":"http-status","httpStatus":403}`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			at := created
+			if tc.created != "" {
+				at = tc.created
+			}
+			r := newTestRun(t, interactionLimitsSteps(at, tc.out, tc.err))
+			if code := r.Run(t, args(cmdInteractionLimits, testPR)...); code != exitContinue {
+				t.Errorf("exit %d, want %d", code, exitContinue)
+			}
+			if got := strings.TrimSuffix(r.Stdout.String(), "\n"); got != tc.want {
+				t.Errorf("stdout = %s, want %s", got, tc.want)
+			}
+			// The exact stdout above keeps the response text out of it;
+			// standard error must stay empty.
+			if r.Stderr.Len() != 0 {
+				t.Errorf("stderr %q, want none", r.Stderr)
+			}
+		})
+	}
+	// The PR number is required: no gh call runs without it.
+	t.Run("no_pr", func(t *testing.T) {
+		r := newTestRun(t, nil)
+		if code := r.Run(t, args(cmdInteractionLimits)...); code != exitUsage {
+			t.Errorf("exit %d, want %d", code, exitUsage)
+		}
+	})
 }
 
 // beginSteps scripts begin's gh calls: the head check, then Begin's own head

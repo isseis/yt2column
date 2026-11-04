@@ -402,11 +402,13 @@ func TestBeginAuthorType(t *testing.T) {
 	}
 }
 
-// deadlineRunner records the time left before each call's deadline (zero when
-// the context has none) and delegates to a scripted fake.
+// deadlineRunner records, for each call, the time left before its deadline
+// (zero when the context has none) and the deadline itself (the zero Time
+// then), and delegates to a scripted fake.
 type deadlineRunner struct {
 	*cmdrunnertestutil.Fake
 	deadlines []time.Duration
+	at        []time.Time
 }
 
 func (r *deadlineRunner) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
@@ -415,10 +417,12 @@ func (r *deadlineRunner) Run(ctx context.Context, name string, args ...string) (
 
 func (r *deadlineRunner) RunInput(ctx context.Context, stdin []byte, name string, args ...string) ([]byte, error) {
 	var left time.Duration
-	if deadline, ok := ctx.Deadline(); ok {
+	deadline, ok := ctx.Deadline()
+	if ok {
 		left = time.Until(deadline)
 	}
 	r.deadlines = append(r.deadlines, left)
+	r.at = append(r.at, deadline)
 	return r.Fake.RunInput(ctx, stdin, name, args...)
 }
 

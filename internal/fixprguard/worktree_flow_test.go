@@ -522,19 +522,45 @@ func TestFinishBuildCheckFailureOutput(t *testing.T) {
 }
 
 func TestFinishAfterOutOfScope(t *testing.T) {
-	p := prepareRound(t, func(r *testRepo) {
-		fixTestFile(r)
-		r.Write("internal/y/notes.md", "out of scope\n")
-	})
-	w, _ := newTestWorktree(t)
-	inspection, err := w.Inspect(t.Context(), p.base, threadAt(testFile))
-	if err != nil || len(inspection.OutOfScope) != 1 || inspection.JudgedSet != p.judged {
-		t.Fatalf("Inspect = %+v, %v; want one change out of scope", inspection, err)
-	}
-	// The user answered to go on.
-	result := p.mustFinish(t)
-	if got := p.r.Git("show", "--name-only", "--format=", result.Commit); !strings.Contains(got, "internal/y/notes.md") {
-		t.Errorf("commit holds %q, want the out-of-scope file", got)
+	for _, tc := range []struct {
+		name       string
+		edit       func(r *testRepo)
+		threadPath string
+		outOfScope string
+	}{
+		{
+			name: "beside_thread_path",
+			edit: func(r *testRepo) {
+				fixTestFile(r)
+				r.Write("internal/y/notes.md", "out of scope\n")
+			},
+			threadPath: testFile,
+			outOfScope: "internal/y/notes.md",
+		},
+		{
+			// An execution-related file is out of scope even as the
+			// thread's own path, and finish still commits it once the user
+			// answers to go on.
+			name:       "execution_file_as_thread_path",
+			edit:       func(r *testRepo) { r.Write("Makefile", "all:\n\ttrue\n") },
+			threadPath: "Makefile",
+			outOfScope: "Makefile",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := prepareRound(t, tc.edit)
+			w, _ := newTestWorktree(t)
+			inspection, err := w.Inspect(t.Context(), p.base, threadAt(tc.threadPath))
+			if err != nil || len(inspection.OutOfScope) != 1 || inspection.OutOfScope[0].Path != tc.outOfScope ||
+				inspection.JudgedSet != p.judged {
+				t.Fatalf("Inspect = %+v, %v; want %s alone out of scope", inspection, err, tc.outOfScope)
+			}
+			// The user answered to go on.
+			result := p.mustFinish(t)
+			if got := p.r.Git("show", "--name-only", "--format=", result.Commit); !strings.Contains(got, tc.outOfScope) {
+				t.Errorf("commit holds %q, want the out-of-scope file %s", got, tc.outOfScope)
+			}
+		})
 	}
 }
 
