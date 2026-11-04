@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-04 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-04 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の項番を、「設計書 3.1 節」などは設計書の節を指す。用語は要件書 6 章に従い、「サーバの投稿のジョブ」は設計書の冒頭の定義に従う。本タスクに `implementation_handoff.md` はない。[design_handoff.md](design_handoff.md) の H-01〜H-06 は、設計書 10 章がすべて記録している。
@@ -433,3 +433,7 @@ M2 は M1 の後に置く（設計書 8 章）。PR-1 の後は `Publish` を呼
 
 -   PR-2 のマージの後、`/runpr` が issue #642 を閉じる案内をする（本タスクの最後の PR のため）。
 -   CLI から投稿を確かめる必要が再び生じたときは、サーバのジョブの API を使う（設計書 9 章）。
+
+## 変更履歴
+
+- 2026-11-04 承認（isseis、#671）
