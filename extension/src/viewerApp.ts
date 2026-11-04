@@ -524,7 +524,7 @@ export async function startViewer(
     channel.listen((data) => onChannelMessage(channel, data));
   }
 
-  if (params.key !== undefined) {
+  if ("key" in params) {
     startPolling(params.key);
   } else {
     await awaitStart();

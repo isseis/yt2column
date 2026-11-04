@@ -260,8 +260,8 @@
 
 **変更するファイル:** `extension/src/core/viewerUrl.ts`、`test/viewerUrl.test.ts` と、`ViewerParams` を使うファイル
 
-- [ ] 名前 `e`、`ViewerParams` の判別共用体、`ViewerUrlError` の `existing` を設計書 3.7 節のとおりに加える。書き出しの順は `k` の後である。`ViewerParams` の形が変わる呼び出し元（1.4 節）を直す。
-- [ ] `viewerUrl.test.ts` に、設計書 3.7 節の規則の表の各行（`1` だけ、ほかの値と空の値の拒否、2 回目の拒否、`k` のない `e` の拒否）と、`e` のない今の形の URL が今と同じく読めること、`viewerQuery` と `parseViewerUrl` の往復で `e` が保たれることを加える（AC-27・AC-33）。
+- [x] 名前 `e`、`ViewerParams` の判別共用体、`ViewerUrlError` の `existing` を設計書 3.7 節のとおりに加える。書き出しの順は `k` の後である。`ViewerParams` の形が変わる呼び出し元（1.4 節）を直す。
+- [x] `viewerUrl.test.ts` に、設計書 3.7 節の規則の表の各行（`1` だけ、ほかの値と空の値の拒否、2 回目の拒否、`k` のない `e` の拒否）と、`e` のない今の形の URL が今と同じく読めること、`viewerQuery` と `parseViewerUrl` の往復で `e` が保たれることを加える（AC-27・AC-33）。
 
 **完了の条件:** `make ext-check` が通る。
 
