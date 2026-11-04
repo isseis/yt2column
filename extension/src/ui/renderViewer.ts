@@ -1,5 +1,5 @@
 // Draws the viewer page into viewer.html's skeleton: the header from the
-// viewer URL's values, the state, the article and its operations, and the two
+// viewer URL's values, the existing-article notice, the state, the article and its operations, and the two
 // status regions. Every string is set with textContent, so a value read from
 // the URL or the server stays text.
 
@@ -31,12 +31,15 @@ import {
   waitingSummary,
   writeStatusSummary,
 } from "./renderJob.ts";
+import type { ElapsedTime } from "./renderJob.ts";
 
 /** The skeleton's elements; the viewer finds them in viewer.html by id. */
 export interface ViewerElements {
   readonly heading: HTMLElement;
   readonly channel: HTMLElement;
   readonly videoLink: HTMLAnchorElement;
+  /** The notice of an existing article of the same video, under the header. */
+  readonly existing: HTMLElement;
   readonly state: HTMLElement;
   /** The state summary's status region, outside the state section. */
   readonly stateStatus: HTMLElement;
@@ -59,10 +62,15 @@ export type ViewerHeader = Pick<
 /** What one draw of the viewer shows. */
 export interface ViewerView {
   readonly state: ViewerState;
-  /** The time since the send; drawn only while the job runs. */
+  /** The time since the send; drawn only while the job runs, and never when existing. */
   readonly elapsedMs: number;
   /** A publish operation is in flight or waits for its first status. */
   readonly publishing: boolean;
+  /**
+   * The viewer shows an existing article of the same video (its URL holds
+   * e=1): the notice is shown, and a running job's elapsed time is not.
+   */
+  readonly existing: boolean;
 }
 
 /** The result of the last operation, shown in the operation result's region. */
@@ -146,6 +154,13 @@ function publishRowMessages(row: PublishRow, locale: Locale): Message[] {
   }
 }
 
+/** Whether the view's running job shows its elapsed time. */
+function viewElapsed(view: ViewerView): ElapsedTime {
+  return view.existing
+    ? { kind: "hidden" }
+    : { kind: "shown", ms: view.elapsedMs };
+}
+
 /** The state section's content for one state. */
 function drawState(
   container: HTMLElement,
@@ -177,7 +192,7 @@ function drawState(
         container,
         state.job,
         state.notice,
-        view.elapsedMs,
+        viewElapsed(view),
         locale,
       );
       return;
@@ -202,10 +217,17 @@ function jobSummary(job: JobDisplay, locale: Locale): string[] {
 /**
  * The state summary's sentences: loading started or ended, a step changed,
  * the job finished or failed, the publish state changed, the status could not
- * be read. They hold no elapsed time, so the same state gives the same
- * summary whatever the clock says.
+ * be read, after the existing-article notice's sentence when it is shown.
+ * They hold no elapsed time, so the same state gives the same summary
+ * whatever the clock says.
  */
-function stateSummary(state: ViewerState, locale: Locale): string[] {
+function stateSummary(view: ViewerView, locale: Locale): string[] {
+  const existing = view.existing ? [catalogs[locale].viewer.existing.text] : [];
+  return [...existing, ...stateOwnSummary(view.state, locale)];
+}
+
+/** The state's own part of the state summary. */
+function stateOwnSummary(state: ViewerState, locale: Locale): string[] {
   const viewer = catalogs[locale].viewer;
   switch (state.kind) {
     case "invalid-link":
@@ -225,7 +247,32 @@ function stateSummary(state: ViewerState, locale: Locale): string[] {
 }
 
 /**
- * Draws the state, the article and the operations. The state summary's
+ * Shows the existing-article notice, or hides it. Its nodes are replaced only
+ * when its text changes, so a redraw keeps the reader's selection.
+ */
+function drawExisting(
+  region: HTMLElement,
+  existing: boolean,
+  locale: Locale,
+): void {
+  region.hidden = !existing;
+  if (!existing) {
+    region.replaceChildren();
+    return;
+  }
+  const nodes = messageNodes(
+    region.ownerDocument,
+    catalogs[locale].viewer.existing,
+  );
+  const text = nodes.map((node) => node.textContent).join("");
+  if (region.textContent !== text) {
+    region.replaceChildren(...nodes);
+  }
+}
+
+/**
+ * Draws the existing-article notice, the state, the article and the
+ * operations. The state summary's
  * region is written only when its text changes, so a poll that repeats the
  * same result, or the elapsed time's redraw, is not read out again. The
  * article is replaced only when its text changes, so a redraw keeps the
@@ -240,10 +287,17 @@ export function renderViewer(
 ): void {
   const doc = elements.state.ownerDocument;
   const catalog = catalogs[locale];
-  drawStateOnChange(elements.state, view.state, view.elapsedMs, locale, () => {
-    drawState(elements.state, view, locale);
-  });
-  writeStatusSummary(elements.stateStatus, stateSummary(view.state, locale));
+  drawExisting(elements.existing, view.existing, locale);
+  drawStateOnChange(
+    elements.state,
+    view.state,
+    viewElapsed(view),
+    locale,
+    () => {
+      drawState(elements.state, view, locale);
+    },
+  );
+  writeStatusSummary(elements.stateStatus, stateSummary(view, locale));
 
   // The article is a done job's, or the one a lost job kept.
   const job = publishableJob(view.state);

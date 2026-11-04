@@ -231,9 +231,17 @@ async function open(options: Options = {}): Promise<Viewer> {
 }
 
 /** The state section's text drawn for state on a fresh skeleton, to compare with the page. */
-function drawnState(state: ViewerState, elapsedMs = 0): string {
+function drawnState(
+  state: ViewerState,
+  elapsedMs = 0,
+  existing = false,
+): string {
   const elements = viewerElements();
-  renderViewer(elements, { state, elapsedMs, publishing: false }, "en");
+  renderViewer(
+    elements,
+    { state, elapsedMs, publishing: false, existing },
+    "en",
+  );
   return elements.state.textContent ?? "";
 }
 
@@ -260,14 +268,17 @@ async function post(
 
 const queryId = "0".repeat(31) + "1";
 
-/** A take-over of the test's tab for queryId, from an accepted send at newSentAt. */
-function takeOver(newSentAt = sentAt + 50_000): ViewerChannelMessage {
+/** A take-over of the test's tab for queryId, from a send at newSentAt answered with answer. */
+function takeOver(
+  newSentAt = sentAt + 50_000,
+  answer: "accepted" | "same-video" = "accepted",
+): ViewerChannelMessage {
   return {
     type: "take-over",
     queryId,
     tabId: 5,
     sentAt: newSentAt,
-    answer: "accepted",
+    answer,
   };
 }
 
@@ -280,6 +291,8 @@ describe("startViewer: display and URL", () => {
       { query: queryOf({ sentAt: loadedAt + 1 }) },
     ],
     ["an empty key", { query: `${queryOf()}&k=` }],
+    ["an e without a key", { query: `${queryOf()}&e=1` }],
+    ["an e other than 1", { query: `${queryOf({ key })}&e=0` }],
   ] as const) {
     it(`shows an invalid link and sends nothing for ${name}`, async () => {
       const viewer = await open(options);
@@ -311,8 +324,11 @@ describe("startViewer: display and URL", () => {
     assert.ok(viewer.elements.state.querySelector(".step-list") !== null);
   });
 
-  for (const kind of ["accepted", "same-video"] as const) {
-    it(`waits for the start result, adds the key to the URL on ${kind} and polls it`, async () => {
+  for (const [kind, existing] of [
+    ["accepted", false],
+    ["same-video", true],
+  ] as const) {
+    it(`waits for the start result, adds the key${existing ? " and e=1" : ""} to the URL on ${kind} and polls it`, async () => {
       const viewer = await open();
       assert.equal(stateText(viewer), drawnState({ kind: "sending" }));
       assert.deepEqual(viewer.worker.sent, [{ type: "await-start", sentAt }]);
@@ -323,8 +339,22 @@ describe("startViewer: display and URL", () => {
       assert.equal(viewer.replaced.length, 1);
       const written = parseViewerUrl(`?${viewer.replaced[0]}`, "", loadedAt);
       assert.ok(written.ok);
-      assert.deepEqual(written.params, { ...seed, key });
+      assert.deepEqual(
+        written.params,
+        existing ? { ...seed, key, existing: true } : { ...seed, key },
+      );
       assert.deepEqual(viewer.host.sent, [{ v: 1, op: "status", key }]);
+      // Only an existing article's page shows the notice and announces it.
+      const notice = catalogs.en.viewer.existing.text;
+      assert.equal(viewer.elements.existing.hidden, !existing);
+      assert.equal(
+        (viewer.elements.existing.textContent ?? "").includes(notice),
+        existing,
+      );
+      assert.equal(
+        (viewer.elements.stateStatus.textContent ?? "").includes(notice),
+        existing,
+      );
     });
   }
 
@@ -441,6 +471,34 @@ describe("startViewer: display and URL", () => {
     // Becoming visible draws the time at once, before the next second.
     viewer.setVisible(true);
     assert.equal(stateText(viewer), drawnState(runningState, 68_000));
+  });
+
+  it("shows an existing article after a reload of an e=1 URL: no elapsed time or its redraw while running, the time taken when done", async () => {
+    const reloadedAt = sentAt + 65_000;
+    const plain = await open({ query: queryOf({ key }), now: reloadedAt });
+    await plain.host.answer(statusReply(runningJob));
+    const viewer = await open({
+      query: queryOf({ key, existing: true }),
+      now: reloadedAt,
+    });
+    await viewer.host.answer(statusReply(runningJob));
+    assert.equal(stateText(viewer), drawnState(runningState, 65_000, true));
+    assert.equal(viewer.elements.state.querySelector(".job-elapsed"), null);
+    assert.equal(viewer.elements.existing.hidden, false);
+    assert.equal(
+      viewer.elements.stateStatus.firstElementChild?.textContent,
+      catalogs.en.viewer.existing.text,
+    );
+    assert.deepEqual(viewer.replaced, []);
+    // The page without the mark arms the redraw beside the next poll; the
+    // marked page arms the poll alone.
+    assert.ok(plain.elements.state.querySelector(".job-elapsed") !== null);
+    assert.equal(viewer.clock.pending(), plain.clock.pending() - 1);
+
+    viewer.clock.advance(pollIntervalMs);
+    await viewer.host.answer(statusReply(doneJob({ state: "not_posted" })));
+    assert.ok(viewer.elements.state.querySelector(".job-result") !== null);
+    assert.equal(viewer.elements.existing.hidden, false);
   });
 
   for (const [name, reply, notice] of [
@@ -934,6 +992,59 @@ describe("startViewer: queries, take-over and logs", () => {
       assert.equal(stateText(viewer), drawnState(runningState, 3_000));
     });
   }
+
+  // A same-video take-over adds e=1 whether the send goes on or restarts.
+  for (const [name, setup, restarts] of [
+    ["a running job", () => showing(runningJob), false],
+    ["a failed job", () => showing(failedJob), true],
+  ] as const) {
+    it(`adds e=1 and shows the notice when a same-video send takes over ${name}`, async () => {
+      const viewer = await setup();
+      await post(viewer, { type: "find", queryId, key });
+      const newSentAt = viewer.clock.now() - 3_000;
+      await post(viewer, takeOver(newSentAt, "same-video"));
+      assert.deepEqual(viewer.received.at(-1), {
+        type: "took-over",
+        queryId,
+        tabId: 5,
+      });
+      const written = parseViewerUrl(
+        `?${viewer.replaced.at(-1)}`,
+        "",
+        viewer.clock.now(),
+      );
+      assert.ok(written.ok);
+      assert.deepEqual(written.params, {
+        ...seed,
+        key,
+        existing: true,
+        sentAt: restarts ? newSentAt : sentAt,
+      });
+      assert.equal(viewer.elements.existing.hidden, false);
+      if (restarts) {
+        await viewer.host.answer(statusReply(runningJob));
+      }
+      // The running job is shown without its elapsed time from now on.
+      assert.equal(stateText(viewer), drawnState(runningState, 0, true));
+    });
+  }
+
+  it("keeps e=1 when an accepted send takes over a page that shows an existing article", async () => {
+    const viewer = await open({ query: queryOf({ key, existing: true }) });
+    await viewer.host.answer(statusReply(failedJob));
+    await post(viewer, { type: "find", queryId, key });
+    const newSentAt = viewer.clock.now() - 3_000;
+    await post(viewer, takeOver(newSentAt));
+    const written = parseViewerUrl(`?${viewer.replaced.at(-1)}`, "", newSentAt);
+    assert.ok(written.ok);
+    assert.deepEqual(written.params, {
+      ...seed,
+      key,
+      existing: true,
+      sentAt: newSentAt,
+    });
+    assert.equal(viewer.elements.existing.hidden, false);
+  });
 
   it("ignores a take-over meant for another tab, even for a query it answered", async () => {
     const viewer = await showing(failedJob);

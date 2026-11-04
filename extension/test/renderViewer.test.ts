@@ -47,13 +47,14 @@ const stopped: PollNotice = {
   outcome: { kind: "unexpected", check: "syntax" },
 };
 
-/** A view of state, with the elapsed time and the publishing flag. */
+/** A view of state, with the elapsed time, the publishing flag and the existing-article mark. */
 function view(
   state: ViewerState,
   elapsedMs = 0,
   publishing = false,
+  existing = false,
 ): ViewerView {
-  return { state, elapsedMs, publishing };
+  return { state, elapsedMs, publishing, existing };
 }
 
 /** A job state with no notice. */
@@ -299,6 +300,55 @@ describe("renderViewer states", () => {
       assert.equal(elements.actions.hidden, true);
     });
   }
+});
+
+describe("existing-article notice", () => {
+  for (const locale of localeList) {
+    it(`shows the notice and its steps, and announces its sentence first, in ${locale}`, () => {
+      const elements = drawn(view(jobState(running), 0, false, true), locale);
+      assert.equal(elements.existing.hidden, false);
+      expectLocaleMessage(
+        elements.existing,
+        locale,
+        (l) => catalogs[l].viewer.existing,
+      );
+      assert.equal(
+        elements.stateStatus.firstElementChild?.textContent,
+        catalogs[locale].viewer.existing.text,
+      );
+      assert.equal(elements.existing.closest("[role=status]"), null);
+    });
+
+    it(`hides the notice and keeps it out of the summary without the mark in ${locale}`, () => {
+      const elements = drawn(view(jobState(running)), locale);
+      assert.equal(elements.existing.hidden, true);
+      assert.equal(elements.existing.textContent, "");
+      assert.ok(
+        !(elements.stateStatus.textContent ?? "").includes(
+          catalogs[locale].viewer.existing.text,
+        ),
+      );
+    });
+
+    it(`draws a running job without its elapsed time once the mark is added in ${locale}`, () => {
+      const elements = drawn(view(jobState(running), 65_000), locale);
+      assert.ok(elements.state.querySelector(".job-elapsed") !== null);
+      renderViewer(
+        elements,
+        view(jobState(running), 66_000, false, true),
+        locale,
+      );
+      assert.equal(elements.state.querySelector(".job-elapsed"), null);
+      assert.equal(elements.state.querySelectorAll(".step-row").length, 3);
+    });
+  }
+
+  it("keeps the notice's nodes when it is drawn again unchanged", () => {
+    const elements = drawn(view(jobState(running), 0, false, true), "en");
+    const text = elements.existing.firstChild;
+    renderViewer(elements, view(loading, 0, false, true), "en");
+    assert.equal(elements.existing.firstChild, text);
+  });
 });
 
 describe("publish rows", () => {

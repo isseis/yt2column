@@ -88,6 +88,11 @@ export interface Catalog {
     readonly invalidLink: Message;
     readonly running: string;
     readonly lost: Message;
+    /**
+     * An existing article of the same video: not generated from the current
+     * selection, and the steps that generate from it.
+     */
+    readonly existing: Message;
     readonly webhookNotConfigured: Message;
     readonly videoLink: string;
     readonly elapsed: string;

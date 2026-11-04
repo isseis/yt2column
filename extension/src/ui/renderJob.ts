@@ -24,6 +24,14 @@ import {
 import { loadingIcon, stepIcon } from "./icons.ts";
 import { messageNodes } from "./message.ts";
 
+/**
+ * Whether a running job's elapsed time is drawn. The popup and a viewer draw
+ * the time since the send; a viewer of an existing article of the same video
+ * does not, since that article began before this send.
+ */
+export type ElapsedTime =
+  { readonly kind: "shown"; readonly ms: number } | { readonly kind: "hidden" };
+
 // The steps in the order the server runs them, which is the order of the
 // record every step name is checked against.
 const stepOrder = Object.keys(stepNames) as StepName[];
@@ -291,16 +299,17 @@ export function writeStatusSummary(
 function jobNodes(
   doc: Document,
   job: JobDisplay,
-  elapsedMs: number,
+  elapsed: ElapsedTime,
   locale: Locale,
 ): HTMLElement[] {
   const catalog = catalogs[locale];
   switch (job.kind) {
-    case "running":
-      return [
-        stepChecklist(doc, job.steps, locale),
-        elapsedTime(doc, elapsedMs, locale),
-      ];
+    case "running": {
+      const checklist = stepChecklist(doc, job.steps, locale);
+      return elapsed.kind === "shown"
+        ? [checklist, elapsedTime(doc, elapsed.ms, locale)]
+        : [checklist];
+    }
     case "done":
       return [
         stepChecklist(doc, job.steps, locale),
@@ -325,19 +334,20 @@ function jobNodes(
 
 /**
  * Replaces the container's children with the job's state and the notice of a
- * failed status exchange, if any. elapsedMs is drawn only while the job runs.
- * Drawing again replaces everything, so nothing from an earlier state stays.
+ * failed status exchange, if any. A shown elapsed time is drawn only while the
+ * job runs. Drawing again replaces everything, so nothing from an earlier
+ * state stays.
  */
 export function renderJobState(
   container: HTMLElement,
   job: JobDisplay,
   notice: PollNotice,
-  elapsedMs: number,
+  elapsed: ElapsedTime,
   locale: Locale,
 ): void {
   const doc = container.ownerDocument;
   container.replaceChildren(
-    ...jobNodes(doc, job, elapsedMs, locale),
+    ...jobNodes(doc, job, elapsed, locale),
     ...pollNotice(doc, notice, locale),
   );
 }
@@ -349,21 +359,22 @@ const drawnStates = new WeakMap<
 >();
 
 /**
- * Draws a state into its container only when the state or the locale changed,
- * or when something else replaced what was drawn. Otherwise only the elapsed
- * time's value is written, so a redraw each second while a job runs keeps a
- * selection (such as a request id being copied) and the focus inside the
- * container. The key is the state's JSON: the state is plain data, and values
- * that serialize the same draw the same.
+ * Draws a state into its container only when the state, the locale or
+ * whether the elapsed time is shown changed, or when something else replaced
+ * what was drawn. Otherwise only the elapsed time's value is written, so a
+ * redraw each second while a job runs keeps a selection (such as a request id
+ * being copied) and the focus inside the container. The key is the state's
+ * JSON: the state is plain data, and values that serialize the same draw the
+ * same.
  */
 export function drawStateOnChange(
   container: HTMLElement,
   state: ViewerState | PopupJobState,
-  elapsedMs: number,
+  elapsed: ElapsedTime,
   locale: Locale,
   draw: () => void,
 ): void {
-  const key = JSON.stringify([locale, state]);
+  const key = JSON.stringify([locale, state, elapsed.kind]);
   const last = drawnStates.get(container);
   const current = Array.from(container.childNodes);
   if (
@@ -372,10 +383,12 @@ export function drawStateOnChange(
     last.nodes.length === current.length &&
     last.nodes.every((node, i) => node === current[i])
   ) {
-    const elapsed = container.querySelector(".job-elapsed dd");
-    const text = formatDuration(elapsedMs, locale);
-    if (elapsed !== null && elapsed.textContent !== text) {
-      elapsed.textContent = text;
+    const shown = container.querySelector(".job-elapsed dd");
+    if (elapsed.kind === "shown") {
+      const text = formatDuration(elapsed.ms, locale);
+      if (shown !== null && shown.textContent !== text) {
+        shown.textContent = text;
+      }
     }
     return;
   }
