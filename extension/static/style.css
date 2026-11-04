@@ -164,39 +164,23 @@ body {
   width: 100%;
 }
 
-/* The choice's secondary button: under the primary button, as wide and at
-   least 44 CSS pixels tall, and lighter than it -- an outline in the link
-   colour on the page's background instead of a filled button. Its focus
-   outline is the shared :focus-visible rule's. */
+/* The choice's secondary button: under the primary button, as wide, and
+   lighter than it -- an outline in the link colour on the page's background
+   instead of a filled button. Its size and shape are theme.css's shared
+   button rule, and its focus outline the shared :focus-visible rule. */
 #secondary {
   width: 100%;
-  min-height: 44px;
   margin-top: 0.5rem;
-  padding: 0.5rem 1rem;
-  font-family: inherit;
-  font-size: inherit;
-  font-weight: 600;
   color: var(--link);
   background-color: transparent;
   border: 1px solid var(--link);
-  border-radius: 0.5rem;
 }
 
-/* The existing article's state in the choice: the symbol, then its sentence.
-   The symbol's motion is the shared rule's, which reduced motion stops. */
+/* The existing article's state in the choice, laid out like the loading row
+   in theme.css; the symbol's motion is the shared rule's, which reduced
+   motion stops. */
 .existing-state {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
   margin: 0 0 0.5rem;
-}
-
-.existing-state > svg {
-  flex: none;
-}
-
-.existing-state .message-text {
-  margin: 0;
 }
 
 #details {

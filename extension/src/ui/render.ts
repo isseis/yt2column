@@ -33,6 +33,7 @@ import {
   noticeSummary,
   pollNotice,
   renderJobState,
+  waitsForStatus,
   startFailure,
   startFailureSummary,
   waitingNodes,
@@ -341,8 +342,17 @@ function drawDetailsSection(
  * for a first status that a stopped poll will never bring.
  */
 function existingShown(existing: ExistingState, notice: PollNotice): boolean {
-  return existing !== "loading" || notice.kind !== "stopped";
+  return existing !== "loading" || waitsForStatus(notice);
 }
+
+/** The existing article's symbol for each state; the Record keeps it total. */
+const existingIcons: Readonly<
+  Record<ExistingState, (doc: Document) => SVGSVGElement>
+> = {
+  loading: loadingIcon,
+  running: (doc) => stepIcon(doc, "running"),
+  done: (doc) => stepIcon(doc, "done"),
+};
 
 /**
  * The existing article's state as one row: the symbol, then its sentence.
@@ -357,12 +367,8 @@ function existingRow(
 ): HTMLDivElement {
   const row = doc.createElement("div");
   row.className = "existing-state";
-  const icon =
-    existing === "loading"
-      ? loadingIcon(doc)
-      : stepIcon(doc, existing === "running" ? "running" : "done");
   row.append(
-    icon,
+    existingIcons[existing](doc),
     valueParagraph(
       doc,
       "message-text",
@@ -416,15 +422,20 @@ function drawPopupState(
       }
       return;
     }
-    case "choice":
+    case "choice": {
+      // The state, the existing article's state, then the guidance on the
+      // two buttons, as every other state puts its guidance last.
+      const [text, ...steps] = messageNodes(doc, catalog.popup.choice);
       container.replaceChildren(
-        ...messageNodes(doc, catalog.popup.choice),
+        text,
         ...(existingShown(state.existing, state.notice)
           ? [existingRow(doc, state.existing, locale)]
           : []),
+        ...steps,
         ...pollNotice(doc, state.notice, locale),
       );
       return;
+    }
     case "choice-ended":
       container.replaceChildren(
         ...messageNodes(doc, catalog.popup.choiceEnded),
@@ -518,6 +529,10 @@ function applySecondary(
       }
       secondary.hidden = false;
       return;
+    }
+    default: {
+      const exhaustive: never = action;
+      throw new Error(`Unhandled secondary action: ${String(exhaustive)}`);
     }
   }
 }

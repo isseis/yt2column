@@ -1,4 +1,4 @@
-<!-- translated-from: README.md b30109fb219c63ac06fda4162d2484ab7a3bb786 -->
+<!-- translated-from: README.md bd6bde5fc9b3f81817413f908a1abb837eb683da -->
 [日本語](README.md)
 
 Developer documents: [Using the CLI](docs/dev/guides/cli.md) · [Development procedures](docs/dev/guides/development.md)
@@ -281,9 +281,10 @@ only when the user asks for it in the viewer. The server's HTTP
 API (the job API, which generates, returns, and posts on request) is in
 [docs/dev/guides/development.md](docs/dev/guides/development.md#localhost-サーバの-api).
 A generation start declares, in the body's required member `mode`, whether it
-is an inquiry start (`inquiry`) or a plain start (`plain`). When there is no
-article of the current input and the server's memory holds another article of the same
-video (the same video ID), an inquiry start returns that article's key in a
+is an inquiry start (`inquiry`) or a plain start (`plain`). When the article of
+the current input is neither generating nor generated, and the server's memory
+holds another article of the same video (the same video ID) that is generating
+or generated, an inquiry start returns that article's key in a
 same-video answer (`200`, with `status` set to `same_video`) without starting a
 generation. A plain start generates the article of the current input even when
 an article of the same video exists.

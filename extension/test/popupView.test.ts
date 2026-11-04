@@ -281,8 +281,8 @@ describe("primaryAction and secondaryAction", () => {
     kind: "stopped",
     outcome: { kind: "unexpected", check: "member-set" },
   } as const;
-  // One row per state kind (and per job kind), so a kind added without a
-  // decided action for either button is caught here.
+  // One row per state kind (and per job kind); the functions' switches make
+  // a new kind fail to compile until both actions are decided.
   const rows = [
     ["sending", { kind: "sending" }, "none", "none"],
     [
@@ -327,12 +327,6 @@ describe("primaryAction and secondaryAction", () => {
     [
       "a choice loading the existing article",
       { kind: "choice", existing: "loading", notice: none },
-      "open-existing",
-      "start-plain",
-    ],
-    [
-      "a choice with a running existing article",
-      { kind: "choice", existing: "running", notice: none },
       "open-existing",
       "start-plain",
     ],

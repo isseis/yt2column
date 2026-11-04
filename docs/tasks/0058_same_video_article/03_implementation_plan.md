@@ -323,11 +323,11 @@
 
 #### ステップ 4-2: ポップアップの送信と描画
 
-**変更するファイル:** `extension/src/launch.ts`、`src/ui/render.ts`、`src/core/sendMessages.ts`、`src/core/i18n/en.ts`・`ja.ts`、`static/popup.html`、`static/style.css`、`scripts/popup-preview.ts`、`test/launch.test.ts`、`test/render.test.ts`、`test/sendMessages.test.ts`、`test/popupHtml.test.ts`、`test/style.test.ts`、`test/popupPreview.test.ts`、`test/catalog.test.ts`（要る場合）
+**変更するファイル:** `extension/src/launch.ts`、`src/ui/render.ts`、`src/core/i18n/en.ts`・`ja.ts`、`static/popup.html`、`static/style.css`、`scripts/popup-preview.ts`、`test/launch.test.ts`、`test/render.test.ts`、`test/popupHtml.test.ts`、`test/style.test.ts`、`test/popupPreview.test.ts`、`test/catalog.test.ts`（要る場合）
 
 - [x] `runPopupSend` に、送信ごとの送り方の記憶、選択の状態の流れ、副次のボタンの操作を設計書 3.6 節のとおりに加える。主ボタンの最初の押下と `start-inquiry` は `inquiry` で、`start-plain` は `plain` で、「やり直す」は記憶した送り方で送る。PR-2 の暫定の扱い（1.3 節）はこれで置き換わる。
 - [x] `openViewer` が `NewViewerTab` を受け取る形にし、`open-existing` は押した時刻と `e=1` を持つ新しいタブの URL を作る（設計書 3.6 節）。タブを探す順は変えない。
-- [x] `popup.html` の操作のセクションに、主ボタンの後、`#status` の前に `<button id="secondary" type="button" hidden>` を置き、`findPopupElements` が探す。`render.ts` が選択の状態と既存の記事の状態、副次のボタンを描き、`sendMessages.ts` が文言を選ぶ（設計書 3.6 節・3.8 節）。
+- [x] `popup.html` の操作のセクションに、主ボタンの後、`#status` の前に `<button id="secondary" type="button" hidden>` を置き、`findPopupElements` が探す。`render.ts` が選択の状態と既存の記事の状態、副次のボタンを描き、その文言をメッセージカタログから選ぶ（設計書 3.6 節・3.8 節）。
 - [x] 副次のボタンの見た目（主ボタンより軽い枠線、44×44 CSS ピクセル以上、フォーカスの印は主ボタンと同じ変数）と、既存の記事の状態の記号の動きを止める規則を `style.css` に書く（AC-36・AC-37・AC-41・AC-42）。
 - [x] `style.test.ts` を次のように広げる（1.4 節）。
     -   ポップアップの大きさの確かめ（`:552` 付近）に、`#secondary` の高さと幅が 44 CSS ピクセル以上であることを加える（AC-41）。

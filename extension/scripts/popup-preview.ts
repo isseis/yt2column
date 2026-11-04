@@ -38,8 +38,8 @@ import type {
   PopupView,
 } from "../src/core/popupView.ts";
 import type { RejectionReason } from "../src/core/types.ts";
-import type { JobDisplay } from "../src/core/jobView.ts";
-import { classifyStatus } from "../src/core/response.ts";
+import type { JobDisplay, PollNotice } from "../src/core/jobView.ts";
+import { classifyStatus, parseRequestId } from "../src/core/response.ts";
 import type { Article, PublishStatus, Steps } from "../src/core/response.ts";
 import { findPopupElements } from "../src/launch.ts";
 import { applyPageLocale } from "../src/ui/pageLocale.ts";
@@ -449,6 +449,21 @@ const stoppedNotice = {
 } as const;
 
 /**
+ * The tallest notice the choice can show beside a running article: a
+ * rejected status, whose message is followed by its request id.
+ */
+function rejectedNotice(): PollNotice {
+  const requestId = parseRequestId("0123456789abcdef");
+  if (requestId === undefined) {
+    throw new Error("the preview request id was refused");
+  }
+  return {
+    kind: "stopped",
+    outcome: { kind: "rejected", reason: "internal_error", requestId },
+  };
+}
+
+/**
  * The choice with each existing-article state and each poll notice, the
  * ended choice, and the worst case of the choice in both locales.
  */
@@ -492,14 +507,14 @@ const choicePreviewCases: readonly PopupJobPreviewCase[] = [
   {
     name: "popup-choice-worst-case-en",
     locale: "en",
-    state: { kind: "choice", existing: "running", notice: retryingNotice },
+    state: { kind: "choice", existing: "running", notice: rejectedNotice() },
     elapsedMs: 0,
     base: "worst-case-en",
   },
   {
     name: "popup-choice-worst-case-ja",
     locale: "ja",
-    state: { kind: "choice", existing: "running", notice: retryingNotice },
+    state: { kind: "choice", existing: "running", notice: rejectedNotice() },
     elapsedMs: 0,
     base: "worst-case-ja",
   },

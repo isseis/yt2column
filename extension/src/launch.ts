@@ -371,10 +371,16 @@ export function runPopupSend(
         return;
       case "failed":
       case "lost":
+        // afterStatus already stops at a failed or lost job; dropping the
+        // poller here keeps the ended choice from depending on that.
         poller?.stop();
         poller = undefined;
         show({ kind: "choice-ended" });
         return;
+      default: {
+        const exhaustive: never = step.job;
+        throw new Error(`Unhandled job: ${String(exhaustive)}`);
+      }
     }
   };
 
@@ -438,6 +444,9 @@ export function runPopupSend(
     viewerTabId = undefined;
     mode = sendMode;
     sends += 1;
+    // An open-viewer of the replaced send gives up at its next step; it must
+    // not keep the new send's open-viewer from starting meanwhile.
+    opening = false;
     seed = viewerSeed(view.video, input, deps.now());
     show({ kind: "sending" });
     // Every action that sends is offered only once the previous reply is in,
@@ -554,8 +563,13 @@ export function runPopupSend(
       return;
     }
     opening = true;
+    const send = sends;
     void openViewer(key, newTab).then(() => {
-      opening = false;
+      // A start since then already cleared the flag, and may have set it for
+      // its own open-viewer.
+      if (send === sends) {
+        opening = false;
+      }
     });
   };
 
@@ -608,8 +622,8 @@ function isKeyboardPress(event: Event): boolean {
 
 /**
  * The skeleton's elements, found in doc by id. Contract: undefined unless every
- * element is present and of its kind -- the two buttons buttons and the
- * details a details element, checked against the document's own constructors
+ * element is present and of its kind -- both buttons button elements and
+ * the details a details element, checked against the document's own constructors
  * -- so a partial skeleton is never drawn into.
  */
 export function findPopupElements(doc: Document): PopupElements | undefined {

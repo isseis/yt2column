@@ -5,6 +5,7 @@ import { describe, it } from "node:test";
 
 import { JSDOM } from "jsdom";
 
+import { popupDocument } from "./helpers/dom.ts";
 import { extensionDir } from "./helpers/paths.ts";
 
 /** A rule that groups other rules, such as @media, @supports or @layer. */
@@ -560,11 +561,30 @@ describe("layout", () => {
   });
 
   it("leaves the secondary button the shared focus outline", () => {
+    // Every rule that reaches the button in the shipped popup, whatever its
+    // selector names: the pseudo-classes and pseudo-elements are dropped
+    // before matching, so a :focus or :hover rule counts too. The shared
+    // :focus-visible rule names no element and is the one that may set it.
+    const secondary = popupDocument().getElementById("secondary");
+    assert.ok(secondary !== null);
     const own = onScreen.filter((entry) =>
-      selectorsOf(entry).some((selector) => selector.includes("#secondary")),
+      selectorsOf(entry).some((selector) => {
+        let element = selector;
+        // Drop the arguments innermost first, as in :has(> :dir(rtl)), then
+        // the pseudo-class and pseudo-element names they belonged to.
+        while (/\([^()]*\)/u.test(element)) {
+          element = element.replace(/\([^()]*\)/gu, "");
+        }
+        element = element.replace(/::?[a-z-]+/gu, "").trim();
+        return (
+          element !== "" &&
+          !/[>+~]$/u.test(element) &&
+          secondary.matches(element)
+        );
+      }),
     );
-    // Precondition: the button has rules of its own to check.
-    assert.ok(own.length > 0);
+    // Precondition: rules of the button's own and the shared button rule.
+    assert.ok(own.length > 1);
     for (const entry of own) {
       for (const property of [
         "outline",

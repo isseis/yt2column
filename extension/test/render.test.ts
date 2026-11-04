@@ -785,48 +785,22 @@ describe("job view", () => {
       status: (locale) => [catalogs[locale].viewer.lost.text],
       action: "retry",
     },
-    {
-      name: "choice loading",
-      state: { kind: "choice", existing: "loading", notice: none },
-      checks: (locale) => [
-        ...choiceChecks(locale),
-        catalogs[locale].popup.existingStates.loading,
-      ],
-      status: (locale) => [
-        catalogs[locale].popup.choice.text,
-        catalogs[locale].popup.existingStates.loading,
-      ],
-      action: "open-existing",
-      secondary: "start-plain",
-    },
-    {
-      name: "choice running",
-      state: { kind: "choice", existing: "running", notice: none },
-      checks: (locale) => [
-        ...choiceChecks(locale),
-        catalogs[locale].popup.existingStates.running,
-      ],
-      status: (locale) => [
-        catalogs[locale].popup.choice.text,
-        catalogs[locale].popup.existingStates.running,
-      ],
-      action: "open-existing",
-      secondary: "start-plain",
-    },
-    {
-      name: "choice done",
-      state: { kind: "choice", existing: "done", notice: none },
-      checks: (locale) => [
-        ...choiceChecks(locale),
-        catalogs[locale].popup.existingStates.done,
-      ],
-      status: (locale) => [
-        catalogs[locale].popup.choice.text,
-        catalogs[locale].popup.existingStates.done,
-      ],
-      action: "open-existing",
-      secondary: "start-plain",
-    },
+    ...(["loading", "running", "done"] as const).map(
+      (existing): StateExpectation => ({
+        name: `choice ${existing}`,
+        state: { kind: "choice", existing, notice: none },
+        checks: (locale) => [
+          ...choiceChecks(locale),
+          catalogs[locale].popup.existingStates[existing],
+        ],
+        status: (locale) => [
+          catalogs[locale].popup.choice.text,
+          catalogs[locale].popup.existingStates[existing],
+        ],
+        action: "open-existing",
+        secondary: "start-plain",
+      }),
+    ),
     {
       name: "choice ended",
       state: { kind: "choice-ended" },
@@ -888,29 +862,23 @@ describe("job view", () => {
     }
   });
 
-  it("hides the secondary button again once the choice is over", () => {
-    const elements = drawn(
-      { kind: "choice", existing: "done", notice: none },
-      "en",
-    );
-    assert.equal(elements.secondary.hidden, false);
-    renderPopup(elements, jobPopup({ kind: "choice-ended" }), "en");
-    assert.equal(elements.secondary.hidden, true);
-    renderPopup(elements, collectedView(), "en");
-    assert.equal(elements.secondary.hidden, true);
-  });
-
-  it("puts the primary button, then the secondary button, then the status region", () => {
-    const elements = drawn(
-      { kind: "choice", existing: "running", notice: none },
-      "en",
-    );
-    assert.deepEqual(Array.from(elements.action.children), [
-      elements.primary,
-      elements.secondary,
-      elements.status,
-    ]);
-  });
+  const nextViews: readonly [string, PopupView][] = [
+    ["an ended choice", jobPopup({ kind: "choice-ended" })],
+    ["a collected view", collectedView()],
+    ["a rejected view", { kind: "rejected", reason: "empty-selection" }],
+  ];
+  for (const [name, next] of nextViews) {
+    it(`hides a shown secondary button for ${name}`, () => {
+      const elements = drawn(
+        { kind: "choice", existing: "done", notice: none },
+        "en",
+      );
+      // Precondition: the choice showed the button.
+      assert.equal(elements.secondary.hidden, false);
+      renderPopup(elements, next, "en");
+      assert.equal(elements.secondary.hidden, true);
+    });
+  }
 
   // The symbol's shape tells the existing article's state without colour,
   // and loading and running turn with the classes the reduced-motion rule
@@ -947,22 +915,31 @@ describe("job view", () => {
     );
   });
 
-  it("keeps a running existing article's state beside a retrying notice", () => {
-    const notice = statusNoticeMessage(retrying.outcome, "en");
-    const elements = drawn(
-      { kind: "choice", existing: "running", notice: retrying },
-      "en",
-    );
-    assert.ok(elements.checks.querySelector(".existing-state") !== null);
-    assert.deepEqual(
-      Array.from(elements.status.children, (child) => child.textContent),
-      [
-        catalogs.en.popup.choice.text,
-        catalogs.en.popup.existingStates.running,
-        notice.text,
-      ],
-    );
-  });
+  // Once a status was read, the article's state stays beside any notice,
+  // whether polling goes on or stopped.
+  for (const [noticeName, polled] of [
+    ["retrying", retrying],
+    ["stopped", stopped],
+  ] as const) {
+    for (const existing of ["running", "done"] as const) {
+      it(`keeps a ${existing} existing article's state beside a ${noticeName} notice`, () => {
+        const notice = statusNoticeMessage(polled.outcome, "en");
+        const elements = drawn(
+          { kind: "choice", existing, notice: polled },
+          "en",
+        );
+        assert.ok(elements.checks.querySelector(".existing-state") !== null);
+        assert.deepEqual(
+          Array.from(elements.status.children, (child) => child.textContent),
+          [
+            catalogs.en.popup.choice.text,
+            catalogs.en.popup.existingStates[existing],
+            notice.text,
+          ],
+        );
+      });
+    }
+  }
 
   it("keeps the collected sections and their order, the video section and the details for every state", () => {
     const collected = popupElements();

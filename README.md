@@ -196,7 +196,7 @@ CLI が `--slack` で投稿する方法と、拒否された記事を `--out` �
 `yt2column-server` は、ブラウザ拡張が集めた字幕を受け取り、記事を生成して返し、記事をメモリに持つ。Slack 互換の
 Webhook への投稿は、それとは別の操作で、拡張はビューアで利用者が求めたときだけ送る。サーバの HTTP
 の API（求めに応じて生成・返却・投稿を行うジョブの API）は、
-[docs/dev/guides/development.md](docs/dev/guides/development.md#localhost-サーバの-api)にある。生成の開始は、本文の必須のメンバ `mode` で、照会付き（`inquiry`）か照会なし（`plain`）かを宣言する。照会付きの生成の開始は、今の入力の記事がなく、同じ動画（動画 ID が同じ）の別の記事がメモリにあれば、生成を始めずに、その記事のキーを同じ動画の応答（`200`、`status` が `same_video`）で返す。照会なしの生成の開始は、同じ動画の記事があっても今の入力の記事を生成する。拡張はサーバに直接はつながらない。ブラウザが Native Messaging のホスト
+[docs/dev/guides/development.md](docs/dev/guides/development.md#localhost-サーバの-api)にある。生成の開始は、本文の必須のメンバ `mode` で、照会付き（`inquiry`）か照会なし（`plain`）かを宣言する。照会付きの生成の開始は、今の入力の記事が生成中でも生成済みでもなく、同じ動画（動画 ID が同じ）の生成中か生成済みの別の記事がメモリにあれば、生成を始めずに、その記事のキーを同じ動画の応答（`200`、`status` が `same_video`）で返す。照会なしの生成の開始は、同じ動画の記事があっても今の入力の記事を生成する。拡張はサーバに直接はつながらない。ブラウザが Native Messaging のホスト
 `yt2column-nmhost` を起動し、ホストがリクエストをサーバのソケットに中継する（[Native Messaging のホストのインストール](#native-messaging-のホストのインストール)を参照）。
 `make build` は `build/yt2column`、`build/yt2column-server`、
 `build/yt2column-nmhost` をビルドし、何もインストールしない。
