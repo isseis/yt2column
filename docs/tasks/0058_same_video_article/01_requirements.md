@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-03 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 決定の変更で draft に戻した：前の版のホストやサーバとの互換の要件（F-002）を取り除き、照会の指定を必須にした |
+| Review date | 2026-11-04 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 概要 (Overview)
 
@@ -308,3 +308,4 @@
 
 - 2026-11-04 承認（isseis、#643）
 - 2026-11-04 draft への戻し：前の版のホストやサーバとの互換の要件（F-002）を取り除き、照会の指定を必須にした（#649）
+- 2026-11-04 承認（isseis、#649）
