@@ -120,7 +120,8 @@ Work in the following order.
    - **FILES**: the requirements document, `design_handoff.md` if it exists, the
      requirements template, the requirements process guide, the project
      overview, and `CLAUDE.md`, plus the conditional guide when the trigger
-     applies, and the files of the ADR changes, as resolved absolute paths.
+     applies, and the files of the ADR changes with, when they are not empty,
+     `docs/dev/conventions/adr.md`, as resolved absolute paths.
      Include the issue text by saving it to the scratchpad and passing that
      path.
    - **CRITERIA**: the checklist below, verbatim.

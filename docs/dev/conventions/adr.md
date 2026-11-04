@@ -196,7 +196,7 @@ Each entry of 経緯 is one bullet line of this form:
   decision in 採らなかった案 as well only when the document that changed it
   says why it is no longer taken. Do not create a new ADR and retire the old
   one for a changed decision on the same subject.
-- **The subject ends** (and, at most, another subject takes its place): set the
+- **The subject ends** (another subject may take its place): set the
   `状態` row to `廃止`, add the rows `廃止の日付`, `廃止の理由`, and `代わりの ADR`
   (a link to the ADR of the subject that takes its place, or `なし`) to the same
   table, add an entry to 経緯, and set the index row's status to `廃止`. Never

@@ -44,8 +44,9 @@ where it lives. Three principles decide it:
 - **(a) Japanese: documents a human decides on or approves, and guides for
   humans.** Task documents under `docs/tasks/`, the documents directly under
   `docs/dev/` (such as `project_overview.md` and `security.md`), the ADRs
-  and their index under `docs/dev/adr/`, `docs/translation_glossary.md`, the guides under `docs/dev/guides/`, and
-  `prompts/README.md` and `testdata/README.md`.
+  and their index under `docs/dev/adr/`, `docs/translation_glossary.md`, the
+  guides under `docs/dev/guides/`, and `prompts/README.md` and
+  `testdata/README.md`.
 - **(b) English: instructions that control an agent's run, and the code in the
   repository.** `CLAUDE.md`, `AGENTS.md`, the command definitions under
   `.claude/commands/`, the conventions under `docs/dev/conventions/` that agents
@@ -114,8 +115,9 @@ change, retire, and withdraw an ADR is in the convention,
 [docs/dev/conventions/adr.md](docs/dev/conventions/adr.md); follow it.
 
 - **Rule:** a PR that makes or changes a major decision creates or updates the
-  ADR in the same PR. This applies to every PR, including one no command
-  opens (a `/fixpr` round, a standalone change). The PR's review and merge
+  ADR in the same PR. This applies to every PR and every change to one,
+  including changes made outside the commands that settle decisions (a
+  `/fixpr` round, a standalone PR). The PR's review and merge
   approve the ADR. The same rule is in the convention ("Approval and the
   PR"); when you change it, change both in the same PR.
 - **What counts as major:** a decision whose effect reaches beyond the task

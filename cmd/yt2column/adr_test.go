@@ -184,6 +184,15 @@ func readADRDefinitions(convention string) (adrDefinitions, []adrIssue) {
 		issues = append(issues, adrIssue{path: adrConventionPath, kind: kind, detail: fmt.Sprintf(format, args...)})
 	}
 
+	// A second section under the same heading would be ignored, since a
+	// section is read from the first matching heading.
+	headings := doctestutil.HeadingsOutsideBlocks(convention)
+	for _, want := range []string{adrTemplateHeading, adrStatusHeading, adrIndexHeading} {
+		if n := countFunc(headings, func(h string) bool { return strings.TrimSpace(h) == want }); n > 1 {
+			fail(adrDefinitionUnreadable, "%q appears %d times", want, n)
+		}
+	}
+
 	if block, ok := onlyBlock(convention, adrTemplateHeading); !ok {
 		fail(adrDefinitionUnreadable, "%q needs exactly one code block", adrTemplateHeading)
 	} else {
@@ -222,6 +231,17 @@ func readADRDefinitions(convention string) (adrDefinitions, []adrIssue) {
 		}
 	}
 	return defs, issues
+}
+
+// countFunc returns how many elements of s satisfy f.
+func countFunc(s []string, f func(string) bool) int {
+	n := 0
+	for _, v := range s {
+		if f(v) {
+			n++
+		}
+	}
+	return n
 }
 
 // onlyBlock returns the one closed code block of the section under heading,
@@ -433,9 +453,9 @@ func TestADRRecords(t *testing.T) {
 	}
 }
 
-// md turns each "'" of s into a backtick, so a fixture with code spans and
+// adrMD turns each "'" of s into a backtick, so a fixture with code spans and
 // fences can be written as a raw string. The fixtures use no apostrophe.
-func md(s string) string {
+func adrMD(s string) string {
 	return strings.ReplaceAll(s, "'", "`")
 }
 
@@ -443,7 +463,7 @@ func md(s string) string {
 // header are ASCII on purpose: the checker reads them from the convention, so
 // only the status row name is fixed in the test.
 var (
-	testTemplateSection = md(`## Template
+	adrTestTemplateSection = adrMD(`## Template
 
 '''markdown
 # ADR-NNNN: <title>
@@ -465,14 +485,14 @@ var (
 ## History
 '''
 `)
-	testStatusSection = md(`## Status
+	adrTestStatusSection = adrMD(`## Status
 
 | Value | Name | Meaning |
 |---|---|---|
 | 'active' | active | in effect |
 | 'obsolete' | obsolete | ended |
 `)
-	testIndexSection = md(`## Index
+	adrTestIndexSection = adrMD(`## Index
 
 '''markdown
 | No | Title | Status |
@@ -481,15 +501,15 @@ var (
 `)
 )
 
-// testConvention returns a convention made of the given sections.
-func testConvention(sections ...string) string {
+// adrTestConvention returns a convention made of the given sections.
+func adrTestConvention(sections ...string) string {
 	return "# Convention\n\n" + strings.Join(sections, "\n")
 }
 
-// testADR returns an ADR with the template's sections and the given number,
+// adrTestDoc returns an ADR with the template's sections and the given number,
 // title, and status.
-func testADR(number, title, status string) string {
-	return md(fmt.Sprintf(`# ADR-%s: %s
+func adrTestDoc(number, title, status string) string {
+	return adrMD(fmt.Sprintf(`# ADR-%s: %s
 
 ## Status
 
@@ -509,29 +529,29 @@ func testADR(number, title, status string) string {
 `, number, title, adrStatusRowName, status))
 }
 
-// testIndex returns an index whose table has the given rows.
-func testIndex(rows ...string) string {
+// adrTestIndex returns an index whose table has the given rows.
+func adrTestIndex(rows ...string) string {
 	return "# Index\n\nText.\n\n| No | Title | Status |\n|---|---|---|\n" + strings.Join(rows, "\n") + "\n"
 }
 
-// testIndexRow returns an index row for the ADR file name with the title and
+// adrTestIndexRow returns an index row for the ADR file name with the title and
 // status.
-func testIndexRow(name, title, status string) string {
-	return md(fmt.Sprintf("| [ADR-%s](%s) | %s | '%s' |", name[:4], name, title, status))
+func adrTestIndexRow(name, title, status string) string {
+	return adrMD(fmt.Sprintf("| [ADR-%s](%s) | %s | '%s' |", name[:4], name, title, status))
 }
 
-// validADRInput returns a convention, an index, and two ADRs that agree.
-func validADRInput() adrInput {
+// adrValidInput returns a convention, an index, and two ADRs that agree.
+func adrValidInput() adrInput {
 	return adrInput{
-		convention: testConvention(testTemplateSection, testStatusSection, testIndexSection),
-		index: testIndex(
-			testIndexRow("0001-first.md", "First", "active"),
-			testIndexRow("0002-second-one.md", "Second", "obsolete"),
+		convention: adrTestConvention(adrTestTemplateSection, adrTestStatusSection, adrTestIndexSection),
+		index: adrTestIndex(
+			adrTestIndexRow("0001-first.md", "First", "active"),
+			adrTestIndexRow("0002-second-one.md", "Second", "obsolete"),
 		),
 		entries: []adrEntry{
 			{name: adrIndexName},
-			{name: "0001-first.md", content: testADR("0001", "First", "active")},
-			{name: "0002-second-one.md", content: testADR("0002", "Second", "obsolete")},
+			{name: "0001-first.md", content: adrTestDoc("0001", "First", "active")},
+			{name: "0002-second-one.md", content: adrTestDoc("0002", "Second", "obsolete")},
 		},
 	}
 }
@@ -540,7 +560,7 @@ func validADRInput() adrInput {
 // for inputs that agree. Each case breaks one thing, so the set of kinds it
 // reports pins which check reacts to it.
 func TestCheckADRRecords(t *testing.T) {
-	valid := validADRInput()
+	valid := adrValidInput()
 	withEntries := func(entries ...adrEntry) adrInput {
 		in := valid
 		in.entries = append(slices.Clone(valid.entries), entries...)
@@ -555,18 +575,18 @@ func TestCheckADRRecords(t *testing.T) {
 	}
 	withIndex := func(rows ...string) adrInput {
 		in := valid
-		in.index = testIndex(rows...)
+		in.index = adrTestIndex(rows...)
 		return in
 	}
 	withConvention := func(sections ...string) adrInput {
 		in := valid
-		in.convention = testConvention(sections...)
+		in.convention = adrTestConvention(sections...)
 		return in
 	}
-	row1 := testIndexRow("0001-first.md", "First", "active")
-	row2 := testIndexRow("0002-second-one.md", "Second", "obsolete")
+	row1 := adrTestIndexRow("0001-first.md", "First", "active")
+	row2 := adrTestIndexRow("0002-second-one.md", "Second", "obsolete")
 	twoBlocks := func(section string) string {
-		return section + md("\n'''text\nmore\n'''\n")
+		return section + adrMD("\n'''text\nmore\n'''\n")
 	}
 
 	for _, tc := range []struct {
@@ -577,12 +597,12 @@ func TestCheckADRRecords(t *testing.T) {
 		{name: "valid", in: valid},
 		{
 			name: "empty index and no ADR",
-			in:   adrInput{convention: valid.convention, index: testIndex(), entries: []adrEntry{{name: adrIndexName}}},
+			in:   adrInput{convention: valid.convention, index: adrTestIndex(), entries: []adrEntry{{name: adrIndexName}}},
 		},
 		{
 			name: "empty index with an ADR",
-			in: adrInput{convention: valid.convention, index: testIndex(), entries: []adrEntry{
-				{name: adrIndexName}, {name: "0001-first.md", content: testADR("0001", "First", "active")},
+			in: adrInput{convention: valid.convention, index: adrTestIndex(), entries: []adrEntry{
+				{name: adrIndexName}, {name: "0001-first.md", content: adrTestDoc("0001", "First", "active")},
 			}},
 			want: []adrIssueKind{adrNotIndexed},
 		},
@@ -602,45 +622,52 @@ func TestCheckADRRecords(t *testing.T) {
 		},
 		{
 			name: "name with an uppercase letter",
-			in:   withEntries(adrEntry{name: "0003-Third.md", content: testADR("0003", "Third", "active")}),
+			in:   withEntries(adrEntry{name: "0003-Third.md", content: adrTestDoc("0003", "Third", "active")}),
 			want: []adrIssueKind{adrBadName},
 		},
 		{
 			name: "number 0000",
-			in:   withEntries(adrEntry{name: "0000-zero.md", content: testADR("0000", "Zero", "active")}),
+			in:   withEntries(adrEntry{name: "0000-zero.md", content: adrTestDoc("0000", "Zero", "active")}),
 			want: []adrIssueKind{adrBadName},
 		},
 		{
 			name: "first line with another number",
-			in:   withSecond(testADR("0003", "Second", "obsolete")),
+			in:   withSecond(adrTestDoc("0003", "Second", "obsolete")),
 			want: []adrIssueKind{adrBadFirstLine},
 		},
 		{
 			name: "first line without a title",
-			in:   withSecond(strings.Replace(testADR("0002", "Second", "obsolete"), ": Second", ": ", 1)),
+			in:   withSecond(strings.Replace(adrTestDoc("0002", "Second", "obsolete"), ": Second", ": ", 1)),
 			want: []adrIssueKind{adrBadFirstLine},
 		},
 		{
+			// The duplicate comes before the file the index row links to, so
+			// the row must be compared with the file its link names, not the
+			// first file with the number.
 			name: "duplicate file number",
-			in:   withEntries(adrEntry{name: "0002-other.md", content: testADR("0002", "Other", "active")}),
+			in: adrInput{convention: valid.convention, index: valid.index, entries: []adrEntry{
+				valid.entries[0], valid.entries[1],
+				{name: "0002-other.md", content: adrTestDoc("0002", "Other", "active")},
+				valid.entries[2],
+			}},
 			want: []adrIssueKind{adrDuplicateNumber, adrNotIndexed},
 		},
 		{
 			name: "missing number",
 			in: adrInput{
 				convention: valid.convention,
-				index:      testIndex(row1, testIndexRow("0003-third.md", "Third", "active")),
+				index:      adrTestIndex(row1, adrTestIndexRow("0003-third.md", "Third", "active")),
 				entries: []adrEntry{
 					{name: adrIndexName},
-					{name: "0001-first.md", content: testADR("0001", "First", "active")},
-					{name: "0003-third.md", content: testADR("0003", "Third", "active")},
+					{name: "0001-first.md", content: adrTestDoc("0001", "First", "active")},
+					{name: "0003-third.md", content: adrTestDoc("0003", "Third", "active")},
 				},
 			},
 			want: []adrIssueKind{adrMissingNumber},
 		},
 		{
 			name: "index row without a file",
-			in:   withIndex(row1, row2, testIndexRow("0003-third.md", "Third", "active")),
+			in:   withIndex(row1, row2, adrTestIndexRow("0003-third.md", "Third", "active")),
 			want: []adrIssueKind{adrIndexRowWithoutFile},
 		},
 		{
@@ -655,59 +682,59 @@ func TestCheckADRRecords(t *testing.T) {
 		},
 		{
 			name: "index row without a link",
-			in:   withIndex(row1, md("| ADR-0002 | Second | 'obsolete' |")),
+			in:   withIndex(row1, adrMD("| ADR-0002 | Second | 'obsolete' |")),
 			want: []adrIssueKind{adrIndexLink, adrNotIndexed},
 		},
 		{
 			name: "index row linking to another file name",
-			in:   withIndex(row1, testIndexRow("0002-second.md", "Second", "obsolete")),
+			in:   withIndex(row1, adrTestIndexRow("0002-second.md", "Second", "obsolete")),
 			want: []adrIssueKind{adrIndexLink},
 		},
 		{
 			name: "index title differs",
-			in:   withIndex(row1, testIndexRow("0002-second-one.md", "Second title", "obsolete")),
+			in:   withIndex(row1, adrTestIndexRow("0002-second-one.md", "Second title", "obsolete")),
 			want: []adrIssueKind{adrTitleMismatch},
 		},
 		{
 			name: "title with a pipe",
-			in:   withSecond(testADR("0002", "Sec | ond", "obsolete")),
+			in:   withSecond(adrTestDoc("0002", "Sec | ond", "obsolete")),
 			want: []adrIssueKind{adrTitlePipe, adrTitleMismatch},
 		},
 		{
 			name: "index status differs",
-			in:   withIndex(row1, testIndexRow("0002-second-one.md", "Second", "active")),
+			in:   withIndex(row1, adrTestIndexRow("0002-second-one.md", "Second", "active")),
 			want: []adrIssueKind{adrStatusMismatch},
 		},
 		{
 			name: "missing heading",
-			in:   withSecond(strings.Replace(testADR("0002", "Second", "obsolete"), "## History\n", "", 1)),
+			in:   withSecond(strings.Replace(adrTestDoc("0002", "Second", "obsolete"), "## History\n", "", 1)),
 			want: []adrIssueKind{adrHeadingMismatch},
 		},
 		{
 			name: "headings out of order",
 			in: withSecond(strings.Replace(
-				strings.Replace(testADR("0002", "Second", "obsolete"), "## Context", "## TMP", 1),
+				strings.Replace(adrTestDoc("0002", "Second", "obsolete"), "## Context", "## TMP", 1),
 				"## Decision", "## Context", 1)),
 			want: []adrIssueKind{adrHeadingMismatch},
 		},
 		{
 			name: "status value the convention does not define",
-			in:   withSecond(testADR("0002", "Second", "draft")),
+			in:   withSecond(adrTestDoc("0002", "Second", "draft")),
 			want: []adrIssueKind{adrStatusValue},
 		},
 		{
 			name: "no status row",
-			in:   withSecond(strings.Replace(testADR("0002", "Second", "obsolete"), "| "+adrStatusRowName+" |", "| Other |", 1)),
+			in:   withSecond(strings.Replace(adrTestDoc("0002", "Second", "obsolete"), "| "+adrStatusRowName+" |", "| Other |", 1)),
 			want: []adrIssueKind{adrStatusValue},
 		},
 		{
 			name: "two status rows",
-			in:   withSecond(strings.Replace(testADR("0002", "Second", "obsolete"), "|---|---|\n", md("|---|---|\n| "+adrStatusRowName+" | 'active' |\n"), 1)),
+			in:   withSecond(strings.Replace(adrTestDoc("0002", "Second", "obsolete"), "|---|---|\n", adrMD("|---|---|\n| "+adrStatusRowName+" | 'active' |\n"), 1)),
 			want: []adrIssueKind{adrStatusValue},
 		},
 		{
 			name: "no table in the first section",
-			in:   withSecond(strings.Replace(testADR("0002", "Second", "obsolete"), "| Item | Value |\n|---|---|\n", "", 1)),
+			in:   withSecond(strings.Replace(adrTestDoc("0002", "Second", "obsolete"), "| Item | Value |\n|---|---|\n", "", 1)),
 			want: []adrIssueKind{adrStatusValue},
 		},
 		{
@@ -717,73 +744,78 @@ func TestCheckADRRecords(t *testing.T) {
 		},
 		{
 			name: "index with two tables",
-			in:   adrInput{convention: valid.convention, index: valid.index + "\n" + testIndex(), entries: valid.entries},
+			in:   adrInput{convention: valid.convention, index: valid.index + "\n" + adrTestIndex(), entries: valid.entries},
 			want: []adrIssueKind{adrDefinitionUnreadable},
 		},
 		{
 			name: "convention without the template section",
-			in:   withConvention(testStatusSection, testIndexSection),
+			in:   withConvention(adrTestStatusSection, adrTestIndexSection),
+			want: []adrIssueKind{adrDefinitionUnreadable},
+		},
+		{
+			name: "status section twice",
+			in:   withConvention(adrTestTemplateSection, adrTestStatusSection, adrTestIndexSection, adrTestStatusSection),
 			want: []adrIssueKind{adrDefinitionUnreadable},
 		},
 		{
 			name: "template section without a code block",
-			in:   withConvention("## Template\n\nText.\n", testStatusSection, testIndexSection),
+			in:   withConvention("## Template\n\nText.\n", adrTestStatusSection, adrTestIndexSection),
 			want: []adrIssueKind{adrDefinitionUnreadable},
 		},
 		{
 			name: "template section with two code blocks",
-			in:   withConvention(twoBlocks(testTemplateSection), testStatusSection, testIndexSection),
+			in:   withConvention(twoBlocks(adrTestTemplateSection), adrTestStatusSection, adrTestIndexSection),
 			want: []adrIssueKind{adrDefinitionUnreadable},
 		},
 		{
 			// Placed last, so no later fence can close the template's block.
 			name: "template code block not closed",
-			in:   withConvention(testStatusSection, testIndexSection, strings.TrimSuffix(testTemplateSection, "```\n")),
+			in:   withConvention(adrTestStatusSection, adrTestIndexSection, strings.TrimSuffix(adrTestTemplateSection, "```\n")),
 			want: []adrIssueKind{adrDefinitionUnreadable},
 		},
 		{
 			name: "template with five headings",
-			in:   withConvention(strings.Replace(testTemplateSection, "## History\n", "", 1), testStatusSection, testIndexSection),
+			in:   withConvention(strings.Replace(adrTestTemplateSection, "## History\n", "", 1), adrTestStatusSection, adrTestIndexSection),
 			want: []adrIssueKind{adrDefinitionCount},
 		},
 		{
 			name: "status section without a table",
-			in:   withConvention(testTemplateSection, "## Status\n\nText.\n", testIndexSection),
+			in:   withConvention(adrTestTemplateSection, "## Status\n\nText.\n", adrTestIndexSection),
 			want: []adrIssueKind{adrDefinitionUnreadable},
 		},
 		{
 			name: "status section with two tables",
-			in:   withConvention(testTemplateSection, testStatusSection+"\n| A |\n|---|\n| b |\n", testIndexSection),
+			in:   withConvention(adrTestTemplateSection, adrTestStatusSection+"\n| A |\n|---|\n| b |\n", adrTestIndexSection),
 			want: []adrIssueKind{adrDefinitionUnreadable},
 		},
 		{
 			name: "status table with three values",
-			in:   withConvention(testTemplateSection, testStatusSection+md("| 'draft' | draft | not yet |\n"), testIndexSection),
+			in:   withConvention(adrTestTemplateSection, adrTestStatusSection+adrMD("| 'draft' | draft | not yet |\n"), adrTestIndexSection),
 			want: []adrIssueKind{adrDefinitionCount},
 		},
 		{
 			name: "index section without a code block",
-			in:   withConvention(testTemplateSection, testStatusSection, "## Index\n\nText.\n"),
+			in:   withConvention(adrTestTemplateSection, adrTestStatusSection, "## Index\n\nText.\n"),
 			want: []adrIssueKind{adrDefinitionUnreadable},
 		},
 		{
 			name: "index section with two code blocks",
-			in:   withConvention(testTemplateSection, testStatusSection, twoBlocks(testIndexSection)),
+			in:   withConvention(adrTestTemplateSection, adrTestStatusSection, twoBlocks(adrTestIndexSection)),
 			want: []adrIssueKind{adrDefinitionUnreadable},
 		},
 		{
 			name: "index code block without a table",
-			in:   withConvention(testTemplateSection, testStatusSection, md("## Index\n\n'''text\nno table\n'''\n")),
+			in:   withConvention(adrTestTemplateSection, adrTestStatusSection, adrMD("## Index\n\n'''text\nno table\n'''\n")),
 			want: []adrIssueKind{adrDefinitionUnreadable},
 		},
 		{
 			name: "index code block with two tables",
-			in:   withConvention(testTemplateSection, testStatusSection, md("## Index\n\n'''markdown\n| No | Title | Status |\n|---|---|---|\n\n| A |\n|---|\n'''\n")),
+			in:   withConvention(adrTestTemplateSection, adrTestStatusSection, adrMD("## Index\n\n'''markdown\n| No | Title | Status |\n|---|---|---|\n\n| A |\n|---|\n'''\n")),
 			want: []adrIssueKind{adrDefinitionUnreadable},
 		},
 		{
 			name: "index header with two columns",
-			in:   withConvention(testTemplateSection, testStatusSection, md("## Index\n\n'''markdown\n| No | Title |\n|---|---|\n'''\n")),
+			in:   withConvention(adrTestTemplateSection, adrTestStatusSection, adrMD("## Index\n\n'''markdown\n| No | Title |\n|---|---|\n'''\n")),
 			want: []adrIssueKind{adrDefinitionCount},
 		},
 	} {

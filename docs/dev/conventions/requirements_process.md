@@ -103,7 +103,8 @@ description is written from. An ADR under `docs/dev/adr/` holds a major
 decision across tasks: its current form, its reasons, the alternatives not
 taken, and its history; the task document that makes or changes the decision
 records it in its `…で決めたこと` section as well and links to the ADR
-([adr.md](adr.md), and `CLAUDE.md`, "Design decisions (ADR)"). A **status transition** is one of four events:
+([adr.md](adr.md), and `CLAUDE.md`, "Design decisions (ADR)").
+A **status transition** is one of four events:
 **approval** (`/runpr` sets the document to `approved`, the first time or after
 a return to `draft`), **`draft` revert** (a decision change returns an approved
 document to `draft`), **session re-approval** (`/runplan`'s reviewer approves a

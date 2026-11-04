@@ -16,9 +16,10 @@
 //     docs/dev/conventions/adr.md.
 //   - history-sources: for each ADR in adrSources that exists at head, its
 //     sixth "##" section (the history) has, for each of its source tasks, a
-//     relative link that resolves to a file under docs/tasks/<task>_<name>/.
-//     Anchors are dropped before resolving. An ADR is found by its kebab name,
-//     not its number, because another task may take a number first.
+//     relative link that resolves to a Markdown document under
+//     docs/tasks/<task>_<name>/. Anchors are dropped before resolving. An ADR
+//     is found by its kebab name, not its number, because another task may
+//     take a number first.
 //   - viewer-appendix: the viewer-opening ADR has a relative link that
 //     resolves to docs/tasks/0050_viewer_tab/02_architecture.md.
 //   - overview-items: in docs/dev/project_overview.md, the second to the fifth
@@ -331,15 +332,15 @@ func checkHistorySources(head string, adrs map[string][]string) (result, []strin
 	return r, findings, nil
 }
 
-// underTask reports whether p is a file under a directory of the task with the
-// number task: docs/tasks/<task>_<name>/<file>.
+// underTask reports whether p is a Markdown document under a directory of
+// the task with the number task: docs/tasks/<task>_<name>/<file>.md.
 func underTask(p, task string) bool {
 	rest, ok := strings.CutPrefix(p, "docs/tasks/"+task+"_")
 	if !ok {
 		return false
 	}
 	dir, file, ok := strings.Cut(rest, "/")
-	return ok && dir != "" && file != ""
+	return ok && dir != "" && strings.HasSuffix(file, ".md")
 }
 
 // checkViewerAppendix checks that the viewer ADR links to the viewer task's
