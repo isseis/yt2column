@@ -458,10 +458,10 @@ M1 は M2〜M4 に依存しない。設計書 8 章のとおり、ホストを�
 
 #### PR-1（ステップ 1-5、2026-11-04）
 
-**`_checks/residue`:** merge-base `302a4b28f93a625a14a59e20f04eeceebebefd83`、head `db29be1037258771709daa0636613089781db1d3`（PR-1 の実装とレビューの修正を含む最後のコミット。この後のコミットは本書だけを変え、確かめの対象のファイルを変えない）。
+**`_checks/residue`:** merge-base `302a4b28f93a625a14a59e20f04eeceebebefd83`、head `d45efb5b530e277631aa7f93fdb1140bf09f4caa`（PR-1 の実装、レビューの修正、1.6 節の決定によるテストの整理を含む最後のコミット。この後のコミットは本書だけを変え、確かめの対象のファイルを変えない）。
 
 ```text
-$ go run -tags test ./docs/tasks/0059_remove_legacy_articles_api/_checks/residue/ 302a4b28f93a625a14a59e20f04eeceebebefd83 db29be1037258771709daa0636613089781db1d3
+$ go run -tags test ./docs/tasks/0059_remove_legacy_articles_api/_checks/residue/ 302a4b28f93a625a14a59e20f04eeceebebefd83 d45efb5b530e277631aa7f93fdb1140bf09f4caa
 OK   host
 OK   extension
 （終了コード 0）
