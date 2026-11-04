@@ -328,8 +328,9 @@ func requireChannelNameRequestVerdict(t *testing.T, ts *testServer, body string,
 
 // TestValidateBodyKeyInput checks the key input validateBody builds: an absent
 // optional member and an empty one give the same input, the video URL is the
-// normalized one rather than the request's string, and the other values are
-// the request's.
+// normalized one rather than the request's string, the video ID is the one
+// the URL names whichever form it is written in, and the other values are the
+// request's.
 func TestValidateBodyKeyInput(t *testing.T) {
 	ts := newTestServer(t)
 	keyInput := func(t *testing.T, body string) articlecache.KeyInput {
@@ -343,7 +344,7 @@ func TestValidateBodyKeyInput(t *testing.T) {
 
 	absent := keyInput(t, validBody("https://youtu.be/dQw4w9WgXcQ", testValidRaw))
 	empty := keyInput(t, `{"videoUrl":"https://youtu.be/dQw4w9WgXcQ","transcript":"0:00\nHello\n","title":"","channelName":"","description":""}`)
-	want := articlecache.KeyInput{VideoURL: testValidVideoURL, Transcript: testValidRaw}
+	want := articlecache.KeyInput{VideoURL: testValidVideoURL, VideoID: "dQw4w9WgXcQ", Transcript: testValidRaw}
 	if absent != want {
 		t.Errorf("absent members: key input = %+v, want %+v", absent, want)
 	}
@@ -352,7 +353,7 @@ func TestValidateBodyKeyInput(t *testing.T) {
 	}
 
 	set := keyInput(t, `{"videoUrl":"`+testValidVideoURL+`","transcript":"0:00\nHello\n","title":"T","channelName":"C","description":"D"}`)
-	want = articlecache.KeyInput{VideoURL: testValidVideoURL, Transcript: testValidRaw, Title: "T", ChannelName: "C", Description: "D"}
+	want = articlecache.KeyInput{VideoURL: testValidVideoURL, VideoID: "dQw4w9WgXcQ", Transcript: testValidRaw, Title: "T", ChannelName: "C", Description: "D"}
 	if set != want {
 		t.Errorf("set members: key input = %+v, want %+v", set, want)
 	}

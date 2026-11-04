@@ -128,14 +128,14 @@ func TestRejectStatusCodes(t *testing.T) {
 			return newRequest(http.MethodGet, JobsPath+"/not-a-key", nil)
 		}, http.StatusBadRequest, "invalid_key", false, false, false},
 		{"article_not_ready", func(t *testing.T, ts *testServer) *http.Request {
-			ts.cache.Begin(publishTestKey(t, ts), func() bool { return true })
+			ts.cache.Begin(publishTestSubject(t, ts), articlecache.StartPlain, func() bool { return true })
 			return newRequest(http.MethodPost, publishTarget(publishTestKey(t, ts).String()), nil)
 		}, http.StatusConflict, "article_not_ready", false, false, false},
 		{"article_not_found", func(t *testing.T, ts *testServer) *http.Request {
 			return newRequest(http.MethodPost, publishTarget(publishTestKey(t, ts).String()), nil)
 		}, http.StatusNotFound, "article_not_found", false, false, false},
 		{"article_not_postable", func(t *testing.T, ts *testServer) *http.Request {
-			_, run, _ := ts.cache.Begin(publishTestKey(t, ts), func() bool { return true })
+			run := ts.cache.Begin(publishTestSubject(t, ts), articlecache.StartPlain, func() bool { return true }).Run
 			run.CompleteUnpostable(testArticle(), articlecache.UnpostableMention)
 			return newRequest(http.MethodPost, publishTarget(publishTestKey(t, ts).String()), nil)
 		}, http.StatusConflict, "article_not_postable", false, false, false},

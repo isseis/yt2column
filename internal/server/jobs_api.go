@@ -114,17 +114,18 @@ func (s *Server) startHandler(w http.ResponseWriter, r *http.Request, requestID 
 		return
 	}
 
-	key := s.keyer.Key(input.key)
-	outcome, begun, evicted := s.cache.Begin(key, s.acquireSlot)
-	run = begun
-	if evicted != nil {
-		s.logEviction(evicted)
+	subject := s.keyer.Subject(input.key)
+	key := subject.Key()
+	begun := s.cache.Begin(subject, articlecache.StartPlain, s.acquireSlot)
+	run = begun.Run
+	if begun.Evicted != nil {
+		s.logEviction(begun.Evicted)
 	}
 	var outcomeCode string
-	switch outcome {
+	switch begun.Outcome {
 	case articlecache.BeginStarted, articlecache.BeginRestarted:
 		outcomeCode = "started"
-		if outcome == articlecache.BeginRestarted {
+		if begun.Outcome == articlecache.BeginRestarted {
 			outcomeCode = "restarted"
 		}
 		if s.beforeGenerationJob != nil {
@@ -137,6 +138,16 @@ func (s *Server) startHandler(w http.ResponseWriter, r *http.Request, requestID 
 		run = nil
 	case articlecache.BeginExisting:
 		outcomeCode = "existing"
+	case articlecache.BeginSameVideo:
+		// Begin reports another article of the same video only for
+		// StartInquiry, and this handler passes StartPlain, so the real Cache
+		// never returns this; no test reaches it. Should it come back, the
+		// cache is unchanged, and answering with that article would skip the
+		// generation the start asked for, so the start is refused instead.
+		s.logger.Error("generation start got a same-video article for a plain start", "requestId", requestID, "key", key.String())
+		s.reject(w, requestID, rejection{reason: reasonInternal, detail: detailInternalError})
+		responded = true
+		return
 	case articlecache.BeginNoSlot:
 		s.reject(w, requestID, rejection{reason: reasonTooManyRequests, detail: detailGenerationSlot})
 		responded = true

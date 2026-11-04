@@ -135,12 +135,13 @@ func (ts *testServer) validInput(t *testing.T, body string) jobInput {
 func (ts *testServer) beginGeneration(t *testing.T, body string) articlecache.Key {
 	t.Helper()
 	input := ts.validInput(t, body)
-	key := ts.keyer.Key(input.key)
-	outcome, run, _ := ts.cache.Begin(key, ts.acquireSlot)
-	if outcome != articlecache.BeginStarted && outcome != articlecache.BeginRestarted {
-		t.Fatalf("Begin outcome = %d, want started or restarted", outcome)
+	subject := ts.keyer.Subject(input.key)
+	key := subject.Key()
+	begun := ts.cache.Begin(subject, articlecache.StartPlain, ts.acquireSlot)
+	if begun.Outcome != articlecache.BeginStarted && begun.Outcome != articlecache.BeginRestarted {
+		t.Fatalf("Begin outcome = %d, want started or restarted", begun.Outcome)
 	}
-	ts.startGeneration(run, key, input)
+	ts.startGeneration(begun.Run, key, input)
 	return key
 }
 
@@ -343,11 +344,17 @@ func publishTarget(keyPart string) string {
 	return JobsPath + "/" + keyPart + PublishSuffix
 }
 
-// publishTestKey returns the key of validBody(testValidVideoURL,
+// publishTestSubject returns the subject of validBody(testValidVideoURL,
 // testValidRaw) on ts, without touching the cache.
+func publishTestSubject(t *testing.T, ts *testServer) articlecache.Subject {
+	t.Helper()
+	return ts.keyer.Subject(ts.validInput(t, validBody(testValidVideoURL, testValidRaw)).key)
+}
+
+// publishTestKey returns publishTestSubject's key.
 func publishTestKey(t *testing.T, ts *testServer) articlecache.Key {
 	t.Helper()
-	return ts.keyer.Key(ts.validInput(t, validBody(testValidVideoURL, testValidRaw)).key)
+	return publishTestSubject(t, ts).Key()
 }
 
 // publishRequest runs a publish operation for the key part keyPart.

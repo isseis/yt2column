@@ -227,10 +227,10 @@ func TestPublishResumesAfterFailure(t *testing.T) {
 // article. None calls the Webhook or changes a record.
 func TestPublishRejections(t *testing.T) {
 	ts := newJobsTestServer(t, jobsServerOptions{})
-	keyOf := func(text string) articlecache.Key { return ts.keyer.Key(ts.validInput(t, bodyWith(text)).key) }
+	subjectOf := func(text string) articlecache.Subject { return ts.keyer.Subject(ts.validInput(t, bodyWith(text)).key) }
+	keyOf := func(text string) articlecache.Key { return subjectOf(text).Key() }
 	begin := func(text string) *articlecache.Run {
-		_, run, _ := ts.cache.Begin(keyOf(text), func() bool { return true })
-		return run
+		return ts.cache.Begin(subjectOf(text), articlecache.StartPlain, func() bool { return true }).Run
 	}
 	begin("running")
 	begin("failed").Fail(articlecache.FailureLLM)
@@ -644,8 +644,9 @@ func TestJobsLogUnrecordedOutcome(t *testing.T) {
 	ts := newJobsTestServer(t, jobsServerOptions{})
 	body := validBody(testValidVideoURL, testValidRaw)
 	input := ts.validInput(t, body)
-	key := ts.keyer.Key(input.key)
-	_, run, _ := ts.cache.Begin(key, func() bool { return true })
+	subject := ts.keyer.Subject(input.key)
+	key := subject.Key()
+	run := ts.cache.Begin(subject, articlecache.StartPlain, func() bool { return true }).Run
 	run.CompletePostable(testArticle())
 	ts.completeGeneration(run, key, input, testArticle())
 	ts.failGeneration(run, key, input, articlecache.FailureLLM, errors.New("late"))

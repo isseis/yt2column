@@ -50,24 +50,24 @@
 **キャッシュ（`internal/articlecache`）**
 
 -   `Begin(key Key, acquire func() bool) (BeginOutcome, *Run, *Eviction)` が `cache.go:82` にある。記録の世代の番号（`record.gen`、`record.go:140`）は、`Begin` が作るときとやり直すときに `nextGen` の値を入れる（`cache.go:110-118`）。設計書 1.2 節のとおり、`nextGen` は投稿の開始でも増える。
--   `KeyInput`（`key.go:31-37`）を作るのは、製品のコードでは `validateBody`（`internal/server/request.go:121`）だけで、テストでは `key_test.go:14`・`:55` と `internal/server/request_test.go:405`・`:414` である（`git grep -n "KeyInput{" -- '*.go'` の出力が 5 行）。
+-   `KeyInput`（`key.go:31-37`）を作るのは、製品のコードでは `validateBody`（`internal/server/request.go:118`）だけで、テストでは `key_test.go:14`・`:55` と `internal/server/request_test.go:346`・`:355` である（`git grep -n "KeyInput{" -- '*.go'` の出力が 5 行）。
 -   `cache_test.go` の `Begin` の呼び出しは 14 か所（`:74`・`:133`・`:148`・`:160`・`:170`・`:203`・`:231`・`:264`・`:291`・`:299`・`:317`・`:347`・`:445`・`:633`）で、テストのキーは `testKey(n)`（`:49-53`、`baseKeyInput` の字幕だけを変える）が作る。`testKey` を `Subject` を返す形にするか、`Subject` を作る補助を並べるかは実装で決める。どちらでも、`Subject` は `Keyer.Subject` からしか作らない（設計書 3.2 節）。
 -   同時の `Begin` のテストは `TestBeginConcurrentAcquiresOnce`（`cache_test.go:611`、16 の goroutine をそろえて同じキーで呼ぶ）にある。同じ動画の同時の照会のテストは、これと同じ組み立てにする（設計書 7.1 節）。
--   `DumpRecordsForTest`（`test_helpers.go:24`）は記録のすべての項目を反射でたどるので、`record.videoID` を加えると、その出力にも動画 ID が出る。このテストの補助を使って、記録に字幕が残らないことを確かめているテストは、動画 ID が出ることに影響されない（動画 ID は字幕の目印を含まない）。この補助は記録の map を並べ替えずにたどる（`:27`）ので、記録が 2 つ以上あるときの前後の比べ方には使わない。
+-   `DumpRecordsForTest`（`test_helpers.go:24`）は記録のすべての項目を反射でたどるので、`record.videoID` を加えると、その出力にも動画 ID が出る。このテストの補助を使って、記録に字幕が残らないことを確かめているテストは、動画 ID が出ることに影響されない（動画 ID は字幕の目印を含まない）。この補助は記録の map を並べ替えずにたどる（`:28`）ので、記録が 2 つ以上あるときの前後の比べ方には使わない。
 -   `Begin` の候補は記録の map をたどって探す（設計書 3.2 節）ので、たどる順は実行ごとに変わる。
 
 **サーバ（`internal/server`）**
 
--   `startHandler`（`jobs_api.go:46-133`）は、`s.keyer.Key(input.key)`（`:95`）と `s.cache.Begin(key, s.acquireSlot)`（`:96`）を呼び、生成の開始のログの行（`:132`）に `requestId`・`key`・`videoId`・`outcome` を書く。`BeginFull` は `default` の分岐で扱う（`:120-124`）。
--   製品のコードで `Begin` を呼ぶのは `jobs_api.go:96` だけである。テストで `Begin` を呼ぶのは、`generation_test.go:49`、`handler_test.go:178`・`:185`、`jobs_api_test.go:133`、`publish_test.go:205`・`:617`、`test_helpers.go:161`（`beginGeneration`）である（`git grep -n "\.Begin(" -- '*.go'` の `internal/server` の行）。`ts.keyer.Key(...)` の 11 か所のうち、結果を `Begin` に渡す 5 か所（`generation_test.go:48`、`jobs_api_test.go:132`、`publish_test.go:203`・`:616`、`test_helpers.go:160`）は `ts.keyer.Subject(...)` に替える。キーだけを求めるほかの 6 か所は、`Key` が残るので変えなくてよい。
--   生成の開始の本文を作るテストの補助は `validBody`（`test_helpers.go:328`）・`bodyWith`（`jobs_api_test.go:29`）と、`cmd/yt2column-server/test_helpers.go:388` の `requestBody`（`server_test.go` と `relay_e2e_test.go:313` が使う）で、`json.Marshal` で本文を作るテスト（`status_test.go:178` の `TestResponsesOmitInputs` など）もある。受理を期待するテストは、`mode` を加え忘れると失敗する。一方、`invalid_body` を期待する行（`request_test.go:40-74` の `invalidBodyCases`、`TestOptionalMembers` の拒否の行など）は、本文の形の誤りがどれも同じ `invalid_body` になる（`request.go:63-93`）ので、`mode` がなくても通ってしまい、行が名指す検査を確かめなくなる。そのため、これらの行にも正しい `mode` を加える（ステップ 2-1）。
--   `TestStartSameInputGeneratesOnce`（`jobs_api_test.go:159`）は、ログの `outcome=started` と `outcome=existing` の行を数える（`:179`）。`mode` の属性が加わっても、数え方は変わらない。
--   `TestStartKeyEquivalence`（`jobs_api_test.go:188`）は、検査を通った値に届かない違いだけの本文が同じキーになることを確かめる。`mode` だけが違う本文が同じキーになること（設計書 7.1 節）は、この表の行として加える。
--   `TestStartConcurrentSameKey`（`jobs_api_test.go:370`）は、読み込みの枠の数（`maxReading`）と同じ数の goroutine から同時に送る。同じ動画の同時の照会のサーバのテストは、これと同じ組み立てにする（設計書 7.1 節、H-07）。
--   panic の確かめは `TestStartHandlerPanicCleanup`（`jobs_api_test.go:584`）が `beforeGenerationJob`（`server.go:118`）で行う。同じ動画の応答の経路は `Begin` の後に生成を始めないので、`beforeGenerationJob` を通らない。`startHandler` の panic の回復は、関数の先頭の `defer`（`jobs_api.go:49-69`）で、どの分岐にも当たる。
+-   `startHandler`（`jobs_api.go:67-155`）は、`s.keyer.Key(input.key)`（`:117`）と `s.cache.Begin(key, s.acquireSlot)`（`:118`）を呼び、生成の開始のログの行（`:154`）に `requestId`・`key`・`videoId`・`outcome` を書く。`BeginFull` は `default` の分岐で扱う（`:144-148`）。
+-   製品のコードで `Begin` を呼ぶのは `jobs_api.go:118` だけである。テストで `Begin` を呼ぶのは、`generation_test.go:49`、`handler_test.go:131`・`:138`、`jobs_api_test.go:115`、`publish_test.go:232`・`:648`、`test_helpers.go:139`（`beginGeneration`）である（`git grep -n "\.Begin(" -- '*.go'` の `internal/server` の行）。`ts.keyer.Key(...)` の 10 か所のうち、結果を `Begin` に渡す 5 か所（`generation_test.go:48`、`jobs_api_test.go:114`、`publish_test.go:230`・`:647`、`test_helpers.go:138`）は `ts.keyer.Subject(...)` に替える。`handler_test.go:131`・`:138` は `publishTestKey`（`test_helpers.go:348`）のキーを `Begin` に渡すので、同じ入力の `Subject` を返す補助を使う。キーだけを求めるほかの 5 か所は、`Key` が残るので変えなくてよい。
+-   生成の開始の本文を作るテストの補助は `validBody`（`test_helpers.go:226`）・`bodyWith`（`jobs_api_test.go:27`）と、`cmd/yt2column-server/test_helpers.go:401` の `requestBody`（`server_test.go` と `relay_e2e_test.go:313` が使う）で、`json.Marshal` で本文を作るテスト（`status_test.go:179` の `TestResponsesOmitInputs` など）もある。受理を期待するテストは、`mode` を加え忘れると失敗する。一方、`invalid_body` を期待する行（`request_test.go:44-65` の `invalidBodyCases`、`TestStartRejectsBody` の任意のメンバの拒否の行など）は、本文の形の誤りがどれも同じ `invalid_body` になる（`request.go:60-90`）ので、`mode` がなくても通ってしまい、行が名指す検査を確かめなくなる。そのため、これらの行にも正しい `mode` を加える（ステップ 2-1）。
+-   `TestStartSameInputGeneratesOnce`（`jobs_api_test.go:141`）は、ログの `outcome=started` と `outcome=existing` の行を数える（`:161`）。`mode` の属性が加わっても、数え方は変わらない。
+-   `TestStartKeyEquivalence`（`jobs_api_test.go:170`）は、検査を通った値に届かない違いだけの本文が同じキーになることを確かめる。`mode` だけが違う本文が同じキーになること（設計書 7.1 節）は、この表の行として加える。
+-   `TestStartConcurrentSameKey`（`jobs_api_test.go:329`）は、読み込みの枠の数（`maxReading`）と同じ数の goroutine から同時に送る。同じ動画の同時の照会のサーバのテストは、これと同じ組み立てにする（設計書 7.1 節、H-07）。
+-   panic の確かめは `TestStartHandlerPanicCleanup`（`jobs_api_test.go:560`）が `beforeGenerationJob`（`server.go:109`）で行う。同じ動画の応答の経路は `Begin` の後に生成を始めないので、`beforeGenerationJob` を通らない。`startHandler` の panic の回復は、関数の先頭の `defer`（`jobs_api.go:70-90`）で、どの分岐にも当たる。
 -   処理中の記録を保つテストの仕組みは `holdAtDraft`（`TestStartConcurrentSameKey` などが使う）にある。
 -   応答とログの漏れの確かめは、`TestResponsesOmitInputs`（`status_test.go:173`）が目印の値で行う。同じ動画の応答とその行のログを、この確かめに加える（設計書 7.3 節）。
--   本文の検査のテストは `request_test.go` にあり、`TestRejectBodyTable`（`:77`）が `invalid_body` の表、`TestValidateBodyKeyInput`（`:392`）が `KeyInput` の値を確かめる。
+-   本文の検査のテストは `request_test.go` にあり、`TestStartRejectsBody`（`:100`）が拒否の表（`invalidBodyCases` などから行を作り、`requireStartUntouched`（`:29`）で記録・Writer・枠が変わらないことを確かめる）、`TestValidateBodyKeyInput`（`:333`）が `KeyInput` の値を確かめる。
 
 **拡張（`extension/`）**
 
@@ -103,8 +103,8 @@
 
 **変更するファイル:** 本書（行番号を引き直したときだけ）
 
-- [ ] 0059 の PR-2 が `main` にマージされていることを確かめる（1.3 節）。マージされていなければ、実装を始めずに止まって報告する。
-- [ ] 0059 の PR-2 が変えたファイルについて、本書 1.4 節と設計書の `file:line` を引き直す。名前が変わったもの、なくなったものがあれば、本書を直す（設計書の行番号だけの食い違いは、設計書を直さない。名前や振る舞いの食い違いは、設計書を先に直す。`requirements_process.md`「Editing an approved document」）。
+- [x] 0059 の PR-2 が `main` にマージされていることを確かめる（1.3 節）。マージされていなければ、実装を始めずに止まって報告する。
+- [x] 0059 の PR-2 が変えたファイルについて、本書 1.4 節と設計書の `file:line` を引き直す。名前が変わったもの、なくなったものがあれば、本書を直す（設計書の行番号だけの食い違いは、設計書を直さない。名前や振る舞いの食い違いは、設計書を先に直す。`requirements_process.md`「Editing an approved document」）。
 
 **完了の条件:** 本書の 1.4 節の名前が、その時点の `main` にある。
 
@@ -112,9 +112,9 @@
 
 **変更するファイル:** `internal/articlecache/key.go`、`key_test.go`、`internal/server/request.go`、`request_test.go`
 
-- [ ] `KeyInput` に `VideoID` を加え、`Subject` と `Keyer.Subject`・`Subject.Key` を設計書 3.2 節のとおりに加える。`VideoID` はキーの計算に入れない。
-- [ ] `Keyer.Subject` のテストを `key_test.go` に加える。キーが同じ入力の `Keyer.Key` と等しいこと、`Subject` の動画 ID が `KeyInput.VideoID` であること、動画 ID だけが違う 2 つの入力のキーが等しいこと（動画 ID がキーに入らない）。
-- [ ] `validateBody` が `KeyInput.VideoID` を、`VideoURL` と同じ `transcript.ValidateVideoURL` の呼び出しの戻り値から埋める（設計書 3.2 節）。`TestValidateBodyKeyInput` に、`youtu.be` の書き方の URL で `VideoID` が動画 ID になることの確かめを加える。
+- [x] `KeyInput` に `VideoID` を加え、`Subject` と `Keyer.Subject`・`Subject.Key` を設計書 3.2 節のとおりに加える。`VideoID` はキーの計算に入れない。
+- [x] `Keyer.Subject` のテストを `key_test.go` に加える。キーが同じ入力の `Keyer.Key` と等しいこと、動画 ID だけが違う 2 つの入力のキーが等しいこと（動画 ID がキーに入らない）。`Subject` の動画 ID が `KeyInput.VideoID` であることは、`Begin` のテスト（ステップ 1-3）で確かめる。
+- [x] `validateBody` が `KeyInput.VideoID` を、`VideoURL` と同じ `transcript.ValidateVideoURL` の呼び出しの戻り値から埋める（設計書 3.2 節）。`TestValidateBodyKeyInput` に、`youtu.be` の書き方の URL で `VideoID` が動画 ID になることの確かめを加える。
 
 **完了の条件:** `go test -tags test ./internal/articlecache/ ./internal/server/` が通る。
 
@@ -122,18 +122,19 @@
 
 **変更するファイル:** `internal/articlecache/cache.go`、`record.go`、`cache_test.go`、`internal/server/jobs_api.go`、`generation_test.go`、`handler_test.go`、`jobs_api_test.go`、`publish_test.go`、`test_helpers.go`
 
-- [ ] `StartMode`・`BeginSameVideo`・`BeginResult` を加え、`Begin` を `Begin(subject Subject, mode StartMode, acquire func() bool) BeginResult` にする。排他制御の中の判定の順は設計書 3.2 節の表のとおりで、同じ動画の記事・最新・空の動画 ID の扱いも同じ節のとおりである。
-- [ ] `record` に `videoID` を加え、作るときとやり直すときに `subject` の動画 ID を入れる。`Snapshot` には出さない。
-- [ ] `startHandler` を、`s.keyer.Subject(input.key)` と `articlecache.StartPlain` で `Begin` を呼ぶ形にする。このフェーズではサーバの振る舞いを変えないので、`BeginSameVideo` は届かない。`switch` には `BeginSameVideo` の分岐を設けて `internal_error` で拒否し、ログに書く（設計書 4.2 節の「`plain` の送信で `BeginSameVideo` が返るのは `Begin` が誤っている場合」の扱いを、このフェーズで入れる）。この分岐は本物の `Cache` からは届かない守りの分岐なので、テストを書かない。そのことを分岐のコメントに書く。
-- [ ] `cache_test.go` の 14 か所と `internal/server` のテストの `Begin` の呼び出し（1.4 節）を新しい形に書き換える。既存の振る舞いの期待は変えない。既存の `Begin` のテストは `StartPlain` で呼ぶ。
-- [ ] `TestBeginSameVideo` を `cache_test.go` に加える。設計書 7.1 節の `articlecache.Begin` の行が挙げることを、表の行で確かめる（順 1〜3、失敗を含めない、今のキーを含めない、世代の番号の最大でやり直した記録を含む、空の動画 ID、記録の数・状態・世代の番号が変わらない、`acquire` を呼ばない、生成の枠がない・捨てられる記録がないとき、`StartMode` の零値）。次を守る。
-    -   記録の前後の比べ方は、キーごとの `Lookup` で行う（`DumpRecordsForTest` の文字列は記録が 2 つ以上のとき順が定まらない。1.4 節）。
+- [x] `StartMode`・`BeginSameVideo`・`BeginResult` を加え、`Begin` を `Begin(subject Subject, mode StartMode, acquire func() bool) BeginResult` にする。排他制御の中の判定の順は設計書 3.2 節の表のとおりで、同じ動画の記事・最新・空の動画 ID の扱いも同じ節のとおりである。
+- [x] `record` に `videoID` を加え、作るときとやり直すときに `subject` の動画 ID を入れる。`Snapshot` には出さない。
+- [x] `startHandler` を、`s.keyer.Subject(input.key)` と `articlecache.StartPlain` で `Begin` を呼ぶ形にする。このフェーズではサーバの振る舞いを変えないので、`BeginSameVideo` は届かない。`switch` には `BeginSameVideo` の分岐を設けて `internal_error` で拒否し、ログに書く（設計書 4.2 節の「`plain` の送信で `BeginSameVideo` が返るのは `Begin` が誤っている場合」の扱いを、このフェーズで入れる）。この分岐は本物の `Cache` からは届かない守りの分岐なので、テストを書かない。そのことを分岐のコメントに書く。
+- [x] `cache_test.go` の 14 か所と `internal/server` のテストの `Begin` の呼び出し（1.4 節）を新しい形に書き換える。既存の振る舞いの期待は変えない。既存の `Begin` のテストは `StartPlain` で呼ぶ。
+- [x] `TestBeginSameVideo` を `cache_test.go` に加える。設計書 7.1 節の `articlecache.Begin` の行が挙げることを、表の行で確かめる（順 1〜3、失敗を含めない、今のキーを含めない、世代の番号の最大でやり直した記録を含む、空の動画 ID、記録の数・状態・世代の番号が変わらない、`acquire` を呼ばない、生成の枠がない・捨てられる記録がないとき、`StartMode` の零値）。次を守る。
+    -   記録の前後の比べ方は、キーごとの記録の写し（世代の番号を含むすべての項目）で行う（`DumpRecordsForTest` の文字列は記録が 2 つ以上のとき順が定まらない。1.4 節。`Lookup` の `Snapshot` は世代の番号を持たない）。
     -   最新の行は、偽の時計を記録ごとに進め、同じ動画の候補を 3 つ以上にする。
-    -   生成の枠がない・捨てられる記録がない行は、同じ状態で `StartPlain` の `Begin` が `BeginNoSlot`・`BeginFull` を返すことも確かめ、その状態が本当に埋まっていることを示す。
-- [ ] `TestBeginPlainIgnoresSameVideo` を加え、`StartPlain` では同じ動画の記事があっても今と同じ結果になることを確かめる。
-- [ ] `TestBeginConcurrentSameVideo` を加える。`TestBeginConcurrentAcquiresOnce` と同じく 16 の goroutine をそろえ、同じ動画の違うキーで `StartInquiry` の `Begin` を呼び、`BeginStarted` がちょうど 1 つ、ほかはそのキーの `BeginSameVideo`、`acquire` の呼び出しが 1 回であることを確かめる（設計書 7.1 節）。
-- [ ] 加えたテストの各行が、その判定（順 2 の位置、失敗の除外、今のキーの除外、世代の番号の比べ方、空の動画 ID の除外、排他制御の中での判定）を壊すと失敗することを確かめ、コミットメッセージに書く。候補は map の順にたどるので、壊した確かめも下の繰り返しの実行で行う（「最初に見つけたもの」を返すように壊したときは、1 回の実行では偶然に通りうる）。
-- [ ] 加えたテストの行と `TestBeginConcurrentSameVideo` を `go test -tags test -race -count=20 -v -run 'TestBegin' ./internal/articlecache/` で繰り返し実行し、不安定さが出ないことを確かめる。出力の `--- PASS` の行が 0 でないこと（テストが実行されたこと）も確かめる。このパッケージのテストのファイルはどれも `//go:build test` を持つので、`-tags test` がないと何も実行されない。
+    -   生成の枠がない・捨てられる記録がない行は、同じ状態で `StartPlain` の `Begin` が `BeginNoSlot`・`BeginFull` を返すことも確かめ、その状態が本当に埋まっていることを示す（`TestBeginPlainIgnoresSameVideo` が同じ表の行を `StartPlain` で確かめる）。
+    -   今のキーの記録は、順 1（処理中・完了）と失敗の除外のどちらかで候補から外れるので、今のキーを除く条件を別に設けない。
+- [x] `TestBeginPlainIgnoresSameVideo` を加え、`StartPlain` では同じ動画の記事があっても今と同じ結果になることを確かめる。
+- [x] `TestBeginConcurrentSameVideo` を加える。`TestBeginConcurrentAcquiresOnce` と同じく 16 の goroutine をそろえる。1 回では排他制御を 2 つに分けた誤りをまれにしか捉えないので、この組み立てをテストの中で 200 回繰り返す。各回で同じ動画の違うキーで `StartInquiry` の `Begin` を呼び、`BeginStarted` がちょうど 1 つ、ほかはそのキーの `BeginSameVideo`、`acquire` の呼び出しが 1 回であることを確かめる（設計書 7.1 節）。
+- [x] 加えたテストの各行が、その判定（順 2 の位置、失敗の除外、世代の番号の比べ方、空の動画 ID の除外、排他制御の中での判定）を壊すと失敗することを確かめ、コミットメッセージに書く。候補は map の順にたどるので、壊した確かめも下の繰り返しの実行で行う（「最初に見つけたもの」を返すように壊したときは、1 回の実行では偶然に通りうる）。
+- [x] 加えたテストの行と `TestBeginConcurrentSameVideo` を `go test -tags test -race -count=20 -v -run 'TestBegin' ./internal/articlecache/` で繰り返し実行し、不安定さが出ないことを確かめる。出力の `--- PASS` の行が 0 でないこと（テストが実行されたこと）も確かめる。このパッケージのテストのファイルはどれも `//go:build test` を持つので、`-tags test` がないと何も実行されない。
 
 **完了の条件:** `make test`・`make lint`・`make deadcode` が通る。
 
@@ -141,7 +142,7 @@
 
 **変更するファイル:** `docs/dev/conventions/package_reference.md`
 
-- [ ] `internal/articlecache` の行に、記録が動画 ID を持つこと、`Begin` が `Subject` と送り方を受け取り、照会付きで同じ動画の記事があれば何も変えずにそのキーを返すことを加える（設計書 3.9 節）。
+- [x] `internal/articlecache` の行に、記録が動画 ID を持つこと、`Begin` が `Subject` と送り方を受け取り、照会付きで同じ動画の記事があれば何も変えずにそのキーを返すことを加える（設計書 3.9 節）。
 
 **完了の条件:** 文書のガードが通る。
 
@@ -157,10 +158,10 @@
 
 **判定理由**: ステップ 1-3 が、排他制御の中で判定と生成の開始を行う並行の処理を変える（隔離すべき並行性の処理）
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/663
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: サーバと拡張のやり取り（設計書 8 章の 2）
 
@@ -174,7 +175,7 @@
 - [ ] `startHandler` が `input.mode` を `Begin` に渡し、`BeginSameVideo` で同じ動画の応答を書き、ログに設計書 3.3 節の行を書く。生成の開始のログの行に `mode` の属性を加える。同じ動画の応答を書く関数は `response.go` に置く。
 - [ ] 本文を作るテストの補助（`validBody`・`bodyWith`・`requestBody`）は `mode` を持つ本文を作る形にし、既存のテストは `plain` で送る。`json.Marshal` や文字列で本文を作るテストも同じく直す。既存の行の期待する値は変えない。
 - [ ] `invalid_body` を期待する既存の行（1.4 節）にも正しい `"mode":"plain"` を加え、各行の誤りが、その行が名指すものだけになるようにする。行の本文を、受理されることを先に確かめた正しい本文から作る形にすると、加え忘れが失敗として出る。
-- [ ] `TestRejectBodyTable` に、`mode` がない・文字列でない（`true`・`1`・`null`）・集合にない値（大文字、前後の空白、空の文字列）・重複の行を加え、`invalid_body` で拒否されることを確かめる（設計書 3.1 節、AC-31）。生成を始めず、キャッシュも変わらないことは、0059 の後のこの表の拒否の行が確かめている 3 点と同じ確かめで示す。3 点は、今の `TestStartRejectsLikeArticles` が確かめる、`DumpRecordsForTest` が空であること、Writer が呼ばれないこと、枠が取られないことである。`Begin` を呼ばないことは、この 3 点から導く。
+- [ ] `TestStartRejectsBody` に、`mode` がない・文字列でない（`true`・`1`・`null`）・集合にない値（大文字、前後の空白、空の文字列）・重複の行を加え、`invalid_body` で拒否されることを確かめる（設計書 3.1 節、AC-31）。生成を始めず、キャッシュも変わらないことは、この表の拒否の行が確かめている 3 点と同じ確かめ（`requireStartUntouched`）で示す。3 点は、`DumpRecordsForTest` が空であること、Writer が呼ばれないこと、枠が取られないことである。`Begin` を呼ばないことは、この 3 点から導く。
 - [ ] `TestStartKeyEquivalence` に、`mode` だけが違う本文が同じキーになる行を加える。表のグループは同じ動画を使うので、`inquiry` の本文はグループの最初に置かない（最初に置くと、同じ動画のほかの記事があれば同じ動画の応答が返りうる）。
 - [ ] 照会付きの生成の開始のテストを `jobs_api_test.go` に加える（設計書 7.1 節のサーバの行）。テストの名前と確かめることは次のとおりで、表の行の組み立ては実装で決める。
     -   `TestStartInquirySameVideo`: 同じ動画（`youtu.be` と `watch?v=` の書き方の違い、字幕だけ違う、タイトル・チャンネル名・概要欄だけ違う）の完了の記事と処理中の記事（`holdAtDraft` で処理中に保つ）で、`200` の同じ動画の応答、メンバの集合、キー、LLM の fake と Webhook の fake が呼ばれないこと、ログの行の属性。ログは、その `requestId` を持つ行がちょうど 1 行で、送った `videoUrl` の文字列（`youtu.be` の形のまま）を含まないことも確かめる（AC-01・AC-02・AC-10・AC-34）。
@@ -480,7 +481,7 @@ M1 の前に、0059 の PR-2 がマージされている必要がある（1.3 �
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
-- [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4）
+- [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4）
 - [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4）
 - [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3）
 - [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4）
@@ -519,7 +520,7 @@ M1 の前に、0059 の PR-2 がマージされている必要がある（1.3 �
 | AC-28 | manual | PR-3 のレビューで、英語と日本語の文言を読む | 3-2 |
 | AC-29 | manual・test | manual: PR-2・PR-4・PR-5 のレビューで README（両方）・`development.md`・`security.md`・`translation_glossary.md` を読む。test: 文書のガード（`TestServerDocsContract` の curl の例と拒否の理由の表、変わらない）、`make readme-sync-check`、`extension/test/serverReasons.test.ts`、`extension/test/metadataDocs.test.ts`（README のボタンの名前）。拒否の理由とコードは加えない。`development.md` の例の本文が受理されることは、ステップ 2-4 の一度の確かめ（7.1 節） | 2-4・4-3・5-1 |
 | AC-30 | manual | PR-3・PR-4 のレビューで、ポップアップ・ビューア・README の英語と日本語の文言を読む | 3-2・4-2・4-3 |
-| AC-31 | test | `internal/server/request_test.go::TestRejectBodyTable`（`mode` の行、`Begin` を呼ばない、キャッシュが変わらない）、`extension/test/hostMessage.test.ts`（`startMessage` が `mode` を付ける） | 2-1・2-2 |
+| AC-31 | test | `internal/server/request_test.go::TestStartRejectsBody`（`mode` の行、`Begin` を呼ばない、キャッシュが変わらない）、`extension/test/hostMessage.test.ts`（`startMessage` が `mode` を付ける） | 2-1・2-2 |
 | AC-32 | test | `extension/test/response.test.ts`（`classifyStartInquiry` の describe と `reasonTable` の行） | 2-2 |
 | AC-33 | test | `extension/test/extensionMessages.test.ts`（`mode`・`answer` の誤り）、`extension/test/startCoordinator.test.ts`（誤った求め、ほかの送り手）、`extension/test/viewerUrl.test.ts`（`e` の規則）、`extension/test/viewerApp.test.ts`（`e` の誤った URL） | 2-3・3-1・3-2 |
 | AC-34 | test | `internal/server/jobs_api_test.go::TestStartInquirySameVideo`（ログの行の属性、`requestId` の行が 1 行、送った `videoUrl` の文字列がない）、`internal/server/status_test.go::TestResponsesOmitInputs`（ログに目印がない） | 2-1 |

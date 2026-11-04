@@ -64,7 +64,30 @@ const (
 	BeginExisting                      // the key is running or done: nothing changed
 	BeginStarted                       // a running record was created
 	BeginRestarted                     // a failed record was restarted
+	BeginSameVideo                     // another article of the same video was found: nothing changed
 )
+
+// StartMode is whether a generation start asks for another article of the
+// same video. The zero value is StartInquiry: a start that does not say
+// otherwise starts nothing when such an article exists, so it never spends an
+// LLM call the caller did not ask for.
+type StartMode int
+
+// The StartMode values.
+const (
+	StartInquiry StartMode = iota // report another article of the same video instead of starting
+	StartPlain                    // start as before; never report another article of the same video
+)
+
+// BeginResult is what Begin did. Run is non-nil only for BeginStarted and
+// BeginRestarted, Evicted only when one of them dropped a record, and
+// SameVideoKey is set only for BeginSameVideo.
+type BeginResult struct {
+	Outcome      BeginOutcome
+	Run          *Run
+	Evicted      *Eviction
+	SameVideoKey Key
+}
 
 // Eviction describes a dropped record, for the log.
 type Eviction struct {
@@ -74,49 +97,103 @@ type Eviction struct {
 	Age     time.Duration
 }
 
-// Begin decides, under the lock, what a generation start does for key. It
-// calls acquire only when a generation would start, and only after it has
-// confirmed that a record can be added; Run is non-nil only for BeginStarted
-// and BeginRestarted. Evicted reports the key of the record it dropped, if any.
-// acquire must not block: it runs under the lock.
-func (c *Cache) Begin(key Key, acquire func() bool) (outcome BeginOutcome, run *Run, evicted *Eviction) {
+// Begin decides, under the lock, what a generation start does for subject,
+// in this order:
+//
+//  1. subject's key is running or done: BeginExisting.
+//  2. mode is StartInquiry and another article of the same video exists:
+//     BeginSameVideo with the latest such article's key. Nothing changes:
+//     acquire is not called, no record is dropped, and subject's failed
+//     record, if any, is not restarted.
+//  3. otherwise BeginFull, BeginNoSlot, BeginStarted, or BeginRestarted, as a
+//     start that does not look for the same video.
+//
+// Looking for the same video and starting happen under one lock, so of two
+// starts of one video that arrive together only one can start. Begin calls
+// acquire only when a generation would start, and only after it has
+// confirmed that a record can be added. acquire must not block: it runs under
+// the lock.
+func (c *Cache) Begin(subject Subject, mode StartMode, acquire func() bool) BeginResult {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	key := subject.key
 	rec, exists := c.records[key]
 	if exists && rec.state != JobFailed {
-		return BeginExisting, nil, nil
+		return BeginResult{Outcome: BeginExisting}
+	}
+	switch mode {
+	case StartPlain:
+	default:
+		// StartInquiry, and any value not declared, which is treated as the
+		// mode that starts nothing.
+		if sameKey, ok := c.latestSameVideo(subject); ok {
+			return BeginResult{Outcome: BeginSameVideo, SameVideoKey: sameKey}
+		}
 	}
 	var victim Key
 	var victimRec *record
 	if !exists && len(c.records) >= c.capacity {
 		victim, victimRec = c.oldestEvictable()
 		if victimRec == nil {
-			return BeginFull, nil, nil
+			return BeginResult{Outcome: BeginFull}
 		}
 	}
 	if !acquire() {
-		return BeginNoSlot, nil, nil
+		return BeginResult{Outcome: BeginNoSlot}
 	}
 
+	result := BeginResult{Outcome: BeginStarted}
 	now := c.clock()
 	if victimRec != nil {
 		delete(c.records, victim)
-		evicted = &Eviction{Key: victim, State: victimRec.state, Age: now.Sub(victimRec.ended)}
+		result.Evicted = &Eviction{Key: victim, State: victimRec.state, Age: now.Sub(victimRec.ended)}
 		if victimRec.state == JobDone {
-			evicted.Publish = victimRec.publish
+			result.Evicted.Publish = victimRec.publish
 		}
 	}
 	c.nextGen++
+	fresh := record{gen: c.nextGen, videoID: subject.videoID, state: JobRunning, accepted: now}
 	if exists {
 		// Restarting a failed record forgets the failure and every stage.
-		*rec = record{gen: c.nextGen, state: JobRunning, accepted: now}
-		outcome = BeginRestarted
+		*rec = fresh
+		result.Outcome = BeginRestarted
 	} else {
-		c.records[key] = &record{gen: c.nextGen, state: JobRunning, accepted: now}
-		outcome = BeginStarted
+		c.records[key] = &fresh
 	}
-	return outcome, &Run{cache: c, key: key, gen: c.nextGen}, evicted
+	result.Run = &Run{cache: c, key: key, gen: c.nextGen}
+	return result
+}
+
+// latestSameVideo returns the key of the latest article of subject's video
+// other than subject's own: a running or done record with the same video ID,
+// the one with the highest gen. Begin calls it only when subject's own record
+// is absent or failed, so the state check alone leaves that record out. A
+// failed record is not an article, and an empty video ID matches nothing, so
+// a Subject built by mistake never reports an unrelated article. gen grows
+// only under the lock and is set only when a record is created or restarted,
+// so it orders the records by acceptance and no two records share one. The
+// caller holds the lock.
+func (c *Cache) latestSameVideo(subject Subject) (Key, bool) {
+	if subject.videoID == "" {
+		return Key{}, false
+	}
+	var latestKey Key
+	var latest *record
+	for key, rec := range c.records {
+		if rec.videoID != subject.videoID {
+			continue
+		}
+		switch rec.state {
+		case JobRunning, JobDone:
+		default:
+			continue
+		}
+		if latest == nil || rec.gen > latest.gen {
+			latestKey, latest = key, rec
+		}
+	}
+	return latestKey, latest != nil
 }
 
 // oldestEvictable returns the evictable record that ended first, or a nil
