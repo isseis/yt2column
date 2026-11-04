@@ -23,9 +23,9 @@
 ### 1.2. 実装の原則
 
 -   フェーズは設計書 8 章の 4 つの PR（①〜④）に合わせ、1 つのフェーズを 1 つの PR にする。
--   規約・CLAUDE.md・共通の手順に書く内容は設計書 3 章の節を参照し、本書では繰り返さない。文の最終の文言、guard のテストの表の行、エラーの報告の文は、書くときに決める。
--   加えたテストと確かめのプログラムは、確かめる対象を壊して失敗することを実装のときに確かめ、コミットメッセージにそう書く（CLAUDE.md「Testing Strategy」、設計書 7.3 節）。
--   Go のコメント・識別子・文字列リテラルは英語で書く（CLAUDE.md「Go Idioms」）。ADR の guard（`_test.go` で文書を読む guard テスト）だけは、表のセルの日本語（`状態` の行の名前）をリテラルに持ってよい（guard-test literal exception。設計書 3.6 節）。`_checks/` のプログラムはこの例外の範囲に入らないので、日本語のリテラルを持たず、日本語の見出しや項目は位置で探す（ステップ 1-6）。
+-   規約・CLAUDE.md・共通の手順に書く内容は設計書 3 章の節を参照し、本書では繰り返さない。文の最終的な文言、guard のテストの表の行、エラーの報告の文は、書くときに決める。
+-   加えたテストと確かめのプログラムは、対象を壊すと失敗することを、実装のときに確かめ、コミットメッセージにそう書く（CLAUDE.md「Testing Strategy」、設計書 7.3 節）。
+-   Go のコメント・識別子・文字列リテラルは英語で書く（CLAUDE.md「Go Idioms」）。ADR の guard（`_test.go` で文書を読む guard テスト）だけは、実際の文書の表のセルに合わせる日本語（`状態` の行の名前）をリテラルに持ってよい（guard-test literal exception。設計書 3.6 節）。テストの入力の文書に書く値は、この例外に当たらないので ASCII で書く（ステップ 1-2）。`_checks/` のプログラムはこの例外の範囲に入らないので、日本語のリテラルを持たず、日本語の見出しや項目は位置で探す（ステップ 1-6）。
 -   ADR・索引は日本語、規約・CLAUDE.md・コマンドの定義・`requirements_process.md` は英語で書く（CLAUDE.md「Document language」）。
 -   リンクとリンク先は同じコミットに入れるか、リンク先を先にコミットする（設計書 3.7 節）。各コミットで `make test` が通るようにする。
 -   各フェーズの終わりに、グリーンゲート（`make test && make lint`）を通す。Go のファイルを変えるフェーズ 1 では `make fmt` と `make deadcode` も通す。本タスクは拡張・README・`docs/dev/guides/development.md`・`.gitignore` を変えないので、`make ext-test` は要らない（CLAUDE.md「Development Notes」）。
@@ -34,11 +34,11 @@
 
 レビュアーと決めたこと:
 
--   **AC-17・AC-28・AC-29 のリンク先と AC-31 の前後の比較は、`_checks/` の 1 つの Go のプログラムで確かめる:** 設計書の付録 B は AC-17・AC-28・AC-29 を `manual` としている。しかし、これらは「どのファイルへのリンクがあるか」という値を含むので、文の内容だけを定める AC ではない（`requirements_process.md` §4）。15 本の ADR の経緯から出典のタスクが漏れる誤りも起こりやすい。恒久のテストにはせず、`_checks/adrlinks`（ステップ 1-6）を各 PR で 1 回実行し、7.1 節に記録する。PR を重ねる途中で、まだ作っていない ADR の項目は「未作成」として失敗とは分けて表示する。最後の PR（PR-4）では、未作成の項目がないことを求める。設計書の付録 B の種類を変えるのではなく、`manual` の読み合わせに加えて実行する確かめを足す。設計書はこの点の詳細を実装計画に任せている（付録 B の「確かめ方の種類（詳細は実装計画）」）。
+-   **AC-17・AC-28・AC-29 のリンク先と AC-31 のマージの基点と head の比較は、`_checks/` の 1 つの Go のプログラムで確かめる:** 設計書の付録 B は AC-17・AC-28・AC-29 を `manual` としている。しかし、これらは「どのファイルへのリンクがあるか」という値を含むので、文の内容だけを定める AC ではない（`requirements_process.md` §4）。15 本の ADR の経緯から出典のタスクが漏れる誤りも起こりやすい。恒久的なテストにはせず、`_checks/adrlinks`（ステップ 1-6）を各 PR で 1 回実行し、7.1 節に記録する。PR を順に出す途中で、まだ作っていない ADR の項目は「未作成」として失敗とは分けて表示する。最後の PR（PR-4）では、未作成の項目がないことを求める。設計書の付録 B の種類を変えるのではなく、`manual` の読み合わせに加えて実行する確かめを足す。設計書はこの点の詳細を実装計画に任せている（付録 B の「確かめ方の種類（詳細は実装計画）」）。
 
 上の決定と設計書から導いたこと（PR のレビューで異論があれば改める）:
 
--   **ADR のファイル名の `<kebab>` は 1.5 節の表のとおりにする:** 設計書 3.1.3 節が実装計画に任せた名前である。主題を短く表す英語にする。番号はほかのタスクが先に取れば変わる（設計書 3.1.1 節）ので、`_checks/adrlinks` は ADR を番号ではなく `<kebab>` で探す。
+-   **ADR のファイル名の `<kebab>` は 1.5 節の表のとおりにする:** 設計書 3.1.3 節が実装計画に任せた名前である。主題を短く表す英語にする。番号はほかのタスクが先に取れば変わる（設計書 3.1.1 節）ので、`_checks/adrlinks` は ADR を番号ではなく `<kebab>` で探す。ほかのタスクが同じ主題の ADR を先に作っていて、それを更新する形にしたときは、同じ PR で 1.5 節の表と `_checks/adrlinks` の表をその ADR の名前に改める（ステップ 2-1）。
 -   **規約の節の英語の見出しは 1.6 節の表のとおりにする:** 設計書 3.2.1 節が実装計画に任せた文言である。ADR の guard は、そのうち `## Template`・`## Status`・`## Index` の 3 つを見出しとしてテストに固定する（設計書 3.6 節「規約の節を探す見出し」）。
 -   **AC-30 の確かめは、0056 の `task_docs_unchanged.sh` を写して使う:** 0056 のスクリプト（`docs/tasks/0056_legacy_approval_history/_checks/task_docs_unchanged.sh`）は、`sh` と `git` だけを使い、`task` の変数でタスクのディレクトリを決める。`task` の変数と冒頭のコメントのタスク名・使い方の例だけを本タスクのものに変える。4 つの PR のそれぞれで実行する。
 -   **F-007 の issue は PR-1 の中で、PR を開く前に作る:** 設計書 8 章のとおり ① の段階で作る。PR-1 の説明に issue の URL を書けるように、PR を開く前に作る。issue の作成と issue #602 のコメントの読み取りはネットワークの操作なので、その時に利用者の承認を得る。
@@ -55,15 +55,17 @@
 
 **既存の guard（`cmd/yt2column`）**
 
--   `TestInstructionDocPaths`（`cmd/yt2column/docpaths_test.go:140`）は、`instructionDocs`（`:106`）が `docs/dev` と `.claude/commands` を走査して対象を決める。`docs/dev/adr/` と `docs/dev/conventions/adr.md` は、テストを変えずに対象になる。各文書について、リンクの開きの数と取り出したリンクの数が合うことも確かめる（`checkLinkCount`、`cmd/yt2column/docs_test.go:89`）。`<` で始まるリンク先は例として扱われるが、`[ADR-NNNN](NNNN-<kebab>.md)` のように `<` が途中にあるリンクは確かめの対象になる（設計書 3.7 節）。規約・CLAUDE.md・共通の手順にリンクの例を書くときは、コードブロックかコードスパンの中に置く。
+-   `TestInstructionDocPaths`（`cmd/yt2column/docpaths_test.go:140`）の対象は、`instructionDocs`（`:106`）が `docs/dev` と `.claude/commands` を走査して決める。そのため、`docs/dev/adr/` と `docs/dev/conventions/adr.md` は、テストを変えずに対象になる。
+-   このテストは各文書で、リンクの開き `](` の数と、取り出したリンク先の数が合うことも確かめる（`checkLinkCount`、`cmd/yt2column/docs_test.go:89`）。`<` で始まるリンク先は例として扱われるが、`[ADR-NNNN](NNNN-<kebab>.md)` のように `<` が途中にあるリンクは確かめの対象になる（設計書 3.7 節）。
+-   リンクの開きを数える `linkOpenerCount` と、リンク先を取り出す `markdownLinkTargets`（正規表現のリンク先は `[^)\s]+`）は、コードスパンを飛ばさない（`cmd/yt2column/docs_test.go:55-82`）。そのため、空白を含むリンク先の例をコードスパンに書くと、数が合わずに失敗する。規約・CLAUDE.md・共通の手順では、リンクの例をコードブロックの中に置く（設計書 3.7 節の「コードスパンに書く」は、リンクの形でないファイル名の例にだけ当てはまる）。
 -   `cmd/yt2column` のテストのパッケージで、リポジトリのルートは `repositoryRoot`（`cmd/yt2column/makefile_test.go:32`、`"../.."`）である。ADR の guard もこれを使う。
 -   `cmd/yt2column` のテストは、CI の `doc-guard` ジョブで、すべての PR で実行される（`.github/workflows/ci.yml:173-187`）。ADR の guard を足しても、CI の設定は変えない。
 
 **本タスクが変えるコマンドの定義を読む既存のテスト**
 
--   `runpr.md` を読むテストは、`cmd/yt2column/fixpr_docs_test.go`（手順 1・3・4 の節の中の `fixprguard` の呼び出しの句があること。`:156-159`、`:710-713`）、`cmd/yt2column/codex_review_docs_test.go:64`（手順 1 の `gh pr create `）、`cmd/fixprguard/docs_test.go:218` である。どれも句があることを確かめるので、手順 1 の「Taking in `main`」（`.claude/commands/runpr.md:249`）に 1 項目を足しても影響しない。
--   すべてのコマンドの定義を読むテスト（`doctestutil.CommandDocs` を使う、`cmd/yt2column/codex_review_docs_test.go:94`・`:221`、`cmd/codexreview/docs_test.go`、`cmd/fixprguard/docs_test.go:364`）は、`codex` を直接動かすコマンドや `fixprguard` を迂回するコマンドがないことなどを確かめる。本タスクで足す文は、これらのコマンドもレビューを頼む言及も含めない。
--   `mkreq.md`・`mkarch.md`・`mkplan.md`・`runplan.md`・`_lib/settle-decisions.md`・`requirements_process.md` の文言を固定するテストはない（`git grep` で、これらのパスを読む `_test.go` を探して確かめた。上の `CommandDocs` の走査を除く）。
+-   `runpr.md` を読むテストは、`cmd/yt2column/fixpr_docs_test.go`（手順 1・3・4 の節の中の `fixprguard` の呼び出しを書いた文字列があること。`:156-159`、`:710-713`）、`cmd/yt2column/codex_review_docs_test.go:64`（手順 1 の `gh pr create `）、`cmd/fixprguard/docs_test.go:218` である。どれも決まった文字列があることだけを確かめるので、手順 1 の「Taking in `main`」（`.claude/commands/runpr.md:249`）に 1 項目を足しても影響しない。
+-   すべてのコマンドの定義を読むテスト（`doctestutil.CommandDocs` を使う、`cmd/yt2column/codex_review_docs_test.go:94`・`:221`、`cmd/codexreview/docs_test.go`、`cmd/fixprguard/docs_test.go:364`）は、`codex` を直接動かすコマンドや `fixprguard` を迂回するコマンドがないことなどを確かめる。本タスクで足す文は、`codex` を直接動かすコマンドも、`fixprguard` を迂回するコマンドも、レビューを頼む言及も含めない。
+-   `mkreq.md`・`mkarch.md`・`mkplan.md`・`runplan.md`・`_lib/settle-decisions.md`・`requirements_process.md` の文言を固定するテストはない。`grep -rln --include='*_test.go' -e settle-decisions -e mkreq.md -e mkarch.md -e mkplan.md -e runplan.md -e requirements_process cmd internal` が挙げるファイルで、これらの名前を書いた行は、`docpaths_test.go` のテストの入力の例だけである（上の `CommandDocs` の走査は、名前を書かずにすべてのコマンドの定義を読む）。
 -   `CLAUDE.md` を読むテストは、`cmd/yt2column/extension_docs_test.go:63`（`ext-` の対象）、`cmd/yt2column/makefile_test.go:984`（`TestCoverageCompareDocumented`）、`cmd/yt2column/codex_review_docs_test.go:98` である。足す小節と Quick Links の行は、これらが読む値を変えない。
 -   `project_overview.md` を読むテストは、`cmd/yt2column/docs_test.go`（`:132-153` の 16,383、`:231-294` の LLM の既定の表、`:808-874` の `costPrefix`）と `cmd/yt2column-server/docs_test.go:230` である。「決定済みの方針」の項目の末尾にリンクを足しても、これらが読む値は変わらない。
 
@@ -76,7 +78,7 @@
 -   `.claude/commands/runplan.md`：手順 5 の「Decision change」（64 行）、手順 7 の FILES（165 行）。
 -   `.claude/commands/runpr.md`：「Taking in `main`」（249〜254 行）。
 -   `docs/dev/conventions/requirements_process.md`：「Five places hold a record」の段落（96〜108 行）と「Withdrawing a task」（382〜384 行）。151 行の「a decision-history appendix (the past decisions and their reasons)」は、付録の置き場所を述べる文で、AC-19 の後も正しいので変えない。
--   `docs/dev/project_overview.md`：「決定済みの方針」は 7 行の見出しで始まる、文書で最初の `##` の節である。AC-31 の 4 項目は、その節の最上位の箇条の 2〜5 番目（10・11・12・14 行）である。13 行は「LLM（既定は Claude）」の項目の下の入れ子の箇条で、AC-31 の項目ではない。
+-   `docs/dev/project_overview.md`：「決定済みの方針」は 7 行目の見出しで始まる、文書で最初の `##` の節である。AC-31 の 4 項目は、その節の最上位の箇条の 2〜5 番目（10・11・12・14 行）である。13 行は「LLM（既定は Claude）」の項目の下の入れ子の箇条で、AC-31 の項目ではない。
 -   `CLAUDE.md`：Quick Links（5 行）、「## Documents」（22 行）、「Document language」の原則 (a)（42 行）、Development Notes の文書を読む guard の一覧（569 行から）。
 -   `.claude/commands/runplan.md:60` の「For a design document such as an ADR, also keep the body on the current system and confine removed-design rationale to a bounded history note」は、設計書の ADR（本文は今の決定、経緯は末尾の節）と合っているので変えない。ほかに `ADR` を書いた指示の文書はない（`grep -rn "ADR\b" CLAUDE.md AGENTS.md .claude docs/dev` の出力が、この 1 行だけ）。
 
@@ -85,7 +87,7 @@
 -   `docs/tasks/0056_legacy_approval_history/_checks/task_docs_unchanged.sh` は、マージの基点と head の間で、自分のタスクのディレクトリの外の `docs/tasks/` が変わっていないことを確かめる。終了コードは 0（変わっていない）・1（変わった）・2（引数やリポジトリが使えない）である。AC-30 にそのまま使える（1.3 節）。
 -   `docs/tasks/0059_remove_legacy_articles_api/_checks/residue/main.go` は、1 行目を `//go:build test` にし、`go run -tags test` で動かし、2 つのコミットの内容を `git` から読む（作業ツリーを読まない）Go のプログラムである。`_checks/adrlinks` はこの形に倣う。
 
-**型による保証:** 本タスクは Go の型を加えない（設計書 3 章の冒頭）。具体的な型で振る舞いを分ける設計もないので、作り方を列挙する確かめは要らない。
+**型による保証:** 本タスクは製品のコードに Go の型を加えない（設計書 3 章の冒頭）。ADR の guard は、食い違いの種類を表すテストの中だけの型を持つ（ステップ 1-2）。具体的な型で振る舞いを分ける製品の設計はないので、型の作り方を列挙して確かめる必要もない。
 
 ### 1.5. ADR のファイル名
 
@@ -136,10 +138,10 @@
 
 **変更するファイル:** `docs/dev/conventions/adr.md`（新規）、`docs/dev/adr/README.md`（新規）
 
--   [ ] `docs/dev/conventions/adr.md` を英語で書く。節は 1.6 節の表の順で、中身は設計書 3.1.1 節・3.1.2 節・3.2.2〜3.2.5 節・3.3 節（CLAUDE.md と両方に書く 3 つの内容と、相手を指す文）・3.5.1 節のとおりにする。
+-   [ ] `docs/dev/conventions/adr.md` を英語で書く。節は 1.6 節の表の順で、中身は設計書 3.1.1 節・3.1.2 節・3.2.2〜3.2.5 節・3.3 節（規約と CLAUDE.md の両方に書く 3 つの内容と、相手を指す文）・3.5.1 節のとおりにする。
 -   [ ] `## Template` の節に、設計書 3.2.2 節の雛形を 1 つだけのコードブロックで置く。`## Status` の節に、設計書 3.2.3 節の状態の表をコードブロックの外に 1 つだけ置く。`## Index` の節に、設計書 3.5.1 節の索引の表の見出しの行を 1 つだけのコードブロックで置く。これら 3 つの節には、ほかのコードブロックと表を置かない（設計書 3.6 節「値の出典」）。
 -   [ ] `docs/dev/adr/README.md` を日本語で書く。短い説明（索引が今どの決定が効いているかを示すこと、書き方は規約にあること、規約へのリンク）と、見出しと区切りの行だけの表を置く（設計書 3.5.1 節）。
--   [ ] リンクの例（`[ADR-NNNN](...)`、`NNNN-<kebab>.md` など）は、コードブロックかコードスパンに置く（1.4 節「既存の guard」）。
+-   [ ] リンクの例（`[ADR-NNNN](...)` の形のもの）は、コードブロックに置く（理由は 1.4 節「既存の guard」）。`NNNN-<kebab>.md` のようなリンクの形でないファイル名は、コードスパンに書いてよい。
 
 **完了の条件:** `go test -tags test -run TestInstructionDocPaths ./cmd/yt2column` が通る。
 
@@ -149,8 +151,10 @@
 
 -   [ ] 規約・索引・`docs/dev/adr/` の項目を入力として、設計書 3.6 節「確かめること」の表のすべての食い違いを報告する照合の処理を書く。入力は文字列とファイル名の一覧にし、ファイルを読む部分と分ける。規約の定義は、1.6 節の「固定」の 3 つの見出しの節から、設計書 3.6 節「値の出典」のとおりに読む。
 -   [ ] `TestADRRecords` を書く。リポジトリの実際の規約・索引・ADR を読み、照合の処理が報告した食い違いをすべて失敗にする。規約の定義が読めないときは、テストを飛ばさずに失敗にする（設計書 3.6 節「読めないときは失敗にする」）。
--   [ ] `TestCheckADRRecords` を書く。照合の処理を、正しい入力と、設計書 3.6 節「失敗の報告」が挙げる食い違いの種類ごとに 1 つずつ壊した入力で確かめ、報告された種類を確かめる（設計書 7.1 節）。規約の節・コードブロック・表が 0 個の入力と 2 個の入力、索引に行がなく ADR もない入力（一致）、索引に行がなく ADR がある入力（不一致）を含める。
--   [ ] 失敗の種類は、文字列の照合ではなく、照合の処理が返す種類の値で確かめる（CLAUDE.md「Error Testing」）。
+-   [ ] `TestCheckADRRecords` を書く。照合の処理を、正しい入力と、設計書 3.6 節「失敗の報告」が挙げる食い違いの種類ごとに 1 つずつ壊した入力で確かめ、報告された種類の集まりが期待と一致することを確かめる（設計書 7.1 節）。境界の入力として、規約の節・コードブロック・表が 0 個の入力と 2 個の入力、索引に行がなく ADR もない入力（一致）、索引に行がなく ADR がある入力（不一致）、`.` で始まる項目を含む入力（数えない）、サブディレクトリを含む入力も加える。`docs/dev/adr/` の項目の入力は、ファイルかディレクトリかを区別できる形にする。
+-   [ ] 失敗の種類は、文字列の照合ではなく、照合の処理が返す種類の値（テストの中だけの型）で確かめる（CLAUDE.md「Error Testing」）。
+-   [ ] `TestCheckADRRecords` の入力の規約・索引・ADR は、見出し・状態の値・索引の列の名前を ASCII で書く。照合の処理はそれらの定義を入力の規約から読むためである。テストの日本語のリテラルは、テストに固定する `状態` の行の名前だけにする（1.2 節）。
+-   [ ] 照合の処理の検出の分岐を 1 つずつ外し、`TestCheckADRRecords` のその行が失敗することを確かめ、コミットメッセージに書く。
 -   [ ] `TestADRRecords` が実際の文書を壊して失敗することを確かめる。壊し方は設計書 7.3 節の 5 つ（索引の行を消す、ADR の状態の値を変える、`##` の見出しを変える、番号を重複させる、規約の雛形の見出しを消す）とし、ADR がまだない PR-1 では、壊すための一時的な ADR を作業ツリーに置いて確かめる。結果をコミットメッセージに書く。
 -   [ ] ステップ 1-1 と同じコミットに入れるか、その後のコミットに入れる（設計書 8 章）。
 
@@ -160,7 +164,7 @@
 
 **変更するファイル:** `CLAUDE.md`、`docs/dev/conventions/requirements_process.md`
 
--   [ ] `CLAUDE.md` の「## Documents」の章に、小節「Design decisions (ADR)」を足す。中身は設計書 3.3 節の規則（AC-14）・基準（AC-15）・分担（AC-16）で、両方に書く 3 つの内容の直後に、規約を指す文を置く。
+-   [ ] `CLAUDE.md` の「## Documents」の章に、小節「Design decisions (ADR)」を足す。中身は設計書 3.3 節の規則（AC-14）・基準（AC-15）・分担（AC-16）で、規約と CLAUDE.md の両方に書く 3 つの内容の直後に、規約を指す文を置く。
 -   [ ] `CLAUDE.md` の Quick Links の「Project:」に、索引（`docs/dev/adr/README.md`）と規約（`docs/dev/conventions/adr.md`）を足す（AC-17）。索引の説明には、設計の前に今の決定と理由を探す入口であることを書く。
 -   [ ] `CLAUDE.md` の「Document language」の原則 (a) の一覧に、`docs/dev/adr/` の ADR と索引を足す（設計書 3.3 節）。
 -   [ ] `CLAUDE.md` の Development Notes の、文書を読む guard の一覧（「the other text-sync guards that read documents」）に ADR の guard を足す（設計書 3.3 節）。
@@ -181,14 +185,14 @@
 -   [ ] `mkplan2.md`・`fixpr.md`・`mergepr.md` は変えない（設計書 2.2 節）。
 -   [ ] 足す文に、`codex` を直接動かすコマンドと、レビューを頼む言及を書かない（1.4 節「本タスクが変えるコマンドの定義を読む既存のテスト」）。
 
-**完了の条件:** 文書のガード（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./cmd/codexreview ./internal/pipeline`）が通る。
+**完了の条件:** 文書の guard（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./cmd/codexreview ./internal/pipeline`）が通る。
 
 #### ステップ 1-5: F-007 の issue
 
 **変更するファイル:** なし（GitHub の issue）
 
--   [ ] 利用者の承認を得て、issue #602 のコメント（2026-11-04）の調査の 35 件を読む。
--   [ ] 利用者の承認を得て、issue を 1 つ作る。本文は日本語で、issue #602 を参照し、F-006 に入らない 20 件（B6 を含む）を、調査の番号・主題・出典のタスクとともに挙げる（AC-32）。B6 を 0058 と 0059 の完了の後に書くこと、0058 と 0059 の完了の後に B2・B8（0058）と B11（0059）の ADR の経緯へ項目を足すことを書く（AC-33）。投稿の前に、`_lib/task-pr-handoff.md` の「Mention check」を本文のファイルに行う。
+-   [ ] 利用者の承認を得て、issue #602 のコメント（2026-11-04）に書かれた調査の 35 件を読む。
+-   [ ] 利用者の承認を得て、issue を 1 つ作る。本文は日本語で、issue #602 を参照し、F-006 に入らない 20 件（B6 を含む）を、調査の番号・主題・出典のタスクとともに挙げる（AC-32）。あわせて、0058 と 0059 の完了の後に、B6 の ADR を書くことと、B2・B8（0058）および B11（0059）の ADR の経緯へ項目を足すことを書く（AC-33）。issue を作る前に、`_lib/task-pr-handoff.md` の「Mention check」を本文のファイルに対して実行する。
 -   [ ] 20 件が、35 件から F-006 の 15 件を除いたものと一致することを、番号の一覧で照らす。issue の URL を本書 7.1 節に書く。
 
 **完了の条件:** issue が作られ、7.1 節に URL がある。
@@ -198,16 +202,17 @@
 **変更するファイル:** `docs/tasks/0060_adr_records/_checks/task_docs_unchanged.sh`（新規）、`docs/tasks/0060_adr_records/_checks/adrlinks/main.go`（新規。`//go:build test`）
 
 -   [ ] 0056 の `task_docs_unchanged.sh` を写し、`task` の変数と冒頭のコメントのタスク名・使い方の例だけを本タスクのものに変える。実行の権限を付ける（AC-30、1.3 節）。
--   [ ] `_checks/adrlinks` を書く。`go run -tags test ./docs/tasks/0060_adr_records/_checks/adrlinks/ <merge-base> <head>` で動かし、ファイルを `git` から読む（作業ツリーを読まない）。0059 の `_checks/residue` の形に倣う（1.4 節）。確かめることは次の 4 つで、それぞれ `OK`・`NG`・`PENDING` を表示する。終了コードは、`NG` があれば 1、確かめを実行できなければ 2、それ以外は 0 とする。
-    -   AC-17: head の `CLAUDE.md` の `## Quick Links` の節に、`docs/dev/adr/README.md` と `docs/dev/conventions/adr.md` への相対リンクがある。
-    -   AC-28: head の `docs/dev/adr/` で、1.5 節の `<kebab>` の ADR を名前で探し、見つかった ADR の「経緯」の節に、要件書 F-006 の表の括弧のない出典のタスクのそれぞれのディレクトリへのリンクがある。見つからない ADR は `PENDING` とする。
-    -   AC-29: B7 の ADR に、`docs/tasks/0050_viewer_tab/02_architecture.md` へのリンクがある。ADR がなければ `PENDING` とする。
-    -   AC-31: `docs/dev/project_overview.md` の AC-31 の 4 項目について、head の項目の文から `ADR-NNNN` のリンクを取り除いたものが、マージの基点の項目の文から同じく取り除いたものと同じであり、head の項目のリンク先が、要件書 AC-31 の表の主題の ADR（1.5 節の `<kebab>`）である。リンク先の ADR が head にまだなく、項目にリンクもなければ `PENDING` とする。リンク先の ADR が head にあるのに項目にリンクがなければ `NG` とする。
--   [ ] `_checks/adrlinks` は日本語の文字列リテラルを持たない（1.2 節）。ADR の「経緯」の節は ADR の 6 番目の `##` の節として、`project_overview.md` の 4 項目は最初の `##` の節の最上位の箇条の 2〜5 番目として、位置で探す（1.4 節）。項目の文は、最上位の箇条の行だけとし、入れ子の箇条を含めない。
--   [ ] `_checks/adrlinks` の各確かめが、対象を壊して `NG` になることを確かめる（Quick Links の行を消す、経緯のリンクを 1 つ消す、`project_overview.md` の項目の文を 1 文字変える）。PR-1 では ADR がないので、AC-28・AC-29 の確かめは、一時的な ADR をコミットした一時的なブランチで確かめる。結果をコミットメッセージに書く。
--   [ ] PR のブランチで、ほかの作業がすべて終わった後に、2 つの確かめを `origin/main` に対して実行する。出力・終了コード・マージの基点と head のコミット ID を 7.1 節に書く。記録を書くコミットが本書だけを変えることも書く。
+-   [ ] `_checks/adrlinks` を書く。`go run -tags test ./docs/tasks/0060_adr_records/_checks/adrlinks/ [-final] "$(git merge-base origin/main HEAD)" HEAD` で動かす。ファイルは `git` から読み、作業ツリーを読まない。0059 の `_checks/residue` の形に倣う（1.4 節）。確かめることは次の 4 つで、プログラムの中では内容を表す名前で呼ぶ。AC の番号はコードに書かない。`/runplan` の手順 6.5 の確かめ 1 が、変えた Go のファイルの `AC-NN` を拒むためである（`.claude/commands/runplan.md:142`）。各項目は `OK`・`NG`・`PENDING` を表示する。終了コードは次のとおりとする。確かめを 1 つでも実行できなければ 2（ほかの結果より優先する）。そうでなく、`NG` があるか、`-final` を付けて `PENDING` があれば 1。それ以外は 0。
+    -   `quick-links`（AC-17）: head の `CLAUDE.md` の `## Quick Links` の節に、`docs/dev/adr/README.md` と `docs/dev/conventions/adr.md` への相対リンクがある。
+    -   `history-sources`（AC-28）: 主題ごとの ADR のファイル名と、括弧のない出典のタスクの番号の一覧を、プログラムの中の 1 つの表に置く（1.5 節の表と要件書 F-006 の表から写す）。head にその ADR があれば、「経緯」の節に、各出典のタスクについて、`docs/tasks/<番号>_*/` の下の文書へ解決される相対リンクが少なくとも 1 つある。アンカーは取り除いて比べる。ADR がなければ `PENDING` とする。
+    -   `viewer-appendix`（AC-29）: B7 の ADR に、`docs/tasks/0050_viewer_tab/02_architecture.md` へ解決される相対リンクがある（アンカーは取り除く）。ADR がなければ `PENDING` とする。
+    -   `overview-items`（AC-31）: `docs/dev/project_overview.md` の 4 項目について、2 つを分けて確かめる。(1) 文の比較：head の項目の文から行末の ADR のリンクの並び（ステップ 2-2 の形）を取り除いた文が、マージの基点の項目の文から同様に取り除いた文と等しい。これは常に `OK` か `NG` で、`PENDING` にならない。(2) リンク先：項目のリンク先の集まりが、要件書 AC-31 の表の主題の ADR のうち head にあるものの集まりと一致する。head にない ADR があれば、その分を `PENDING` とする。
+-   [ ] `_checks/adrlinks` は日本語の文字列リテラルを持たない（1.2 節）。ADR の「経緯」の節は ADR の 6 番目の `##` の節として、`project_overview.md` の 4 項目は最初の `##` の節の最上位の箇条の 2〜5 番目として、位置で探す（1.4 節）。項目の文は、最上位の箇条の行だけとし、入れ子の箇条を含めない。位置がずれたことを見逃さないように、各項目が持つ ASCII の目印（その項目のコードスパン。例えば `cmd/yt2column-nmhost`・`yt-dlp`・`claude-opus-5-5`）も確かめ、合わなければ終了コード 2 で止まる。見出しとコードブロックの読み取りには `internal/doctestutil` の関数を使う。
+-   [ ] `_checks/adrlinks` の各確かめが、対象を壊して `NG` になることを確かめる。壊し方は、Quick Links の行を消す、経緯のリンクを 1 つ消す、`viewer-appendix` のリンクを消す、`project_overview.md` の項目の文を 1 文字変える、項目のリンク先を別の ADR に変える、である。プログラムは `git` から読むので、壊した状態はどれも一時的なブランチにコミットして確かめる。PR-1 では ADR がないので、一時的な ADR もそのブランチに置く。`-final` で `PENDING` が 1 になることも確かめる。結果をコミットメッセージに書き、一時的なブランチは消す。
+-   [ ] `task_docs_unchanged.sh` が、一時的なブランチでほかのタスクの文書を 1 つ変えると 1 で終わることを確かめ、結果をコミットメッセージに書く。
+-   [ ] ほかの作業がすべて終わったら、PR のブランチで `git fetch origin main`（ネットワークの操作。`_lib/task-pr-handoff.md` の Authorization の範囲）を行い、その後で `task_docs_unchanged.sh origin/main HEAD` と `_checks/adrlinks` を実行する。出力・終了コード・マージの基点と head のコミット ID を 7.1 節に書く。記録を書くコミットが本書だけを変えることも書く。
 
-**完了の条件:** `task_docs_unchanged.sh` が 0 で終わる。`_checks/adrlinks` が 0 で終わり、AC-17 が `OK`、ほかが `PENDING` である。
+**完了の条件:** `go vet -tags test ./docs/tasks/0060_adr_records/_checks/adrlinks/` が通る（`_checks/` は `./...` の外なので、`make lint` が見ない）。`task_docs_unchanged.sh` が 0 で終わる。`_checks/adrlinks` が 0 で終わり、`quick-links` と `overview-items` の文の比較が `OK`、ほかが `PENDING` である。
 
 ### PR-1 作成ポイント: ADR convention, guard, and procedure
 
@@ -215,11 +220,11 @@
 
 **推奨タイトル**: `docs(0060): ADR の規約と索引、guard、決定を確かめる手順への段を加える`
 
-**レビュー観点**: 規約・CLAUDE.md・共通の手順の分担（規則は規約にだけあり、CLAUDE.md と両方に書く 3 つの内容に相手を指す文があり、手順は規約を書き写さない） / ADR の guard が規約の定義を読み、読めないときに飛ばさず失敗すること、壊して失敗することの記録 / 共通の手順の新しい段と出力を、4 つのコマンドがコミット・レビュー・`japrose` で使うこと / F-007 の issue の 20 件が調査の 35 件から F-006 の 15 件を除いたものであること
+**レビュー観点**: 規約・CLAUDE.md・共通の手順の分担（規則は規約にだけあり、規約と CLAUDE.md の両方に書く 3 つの内容に相手を指す文があり、手順は規約を書き写さない） / ADR の guard が規約の定義を読み、読めないときに飛ばさず失敗すること、壊して失敗することの記録 / 共通の手順の新しい段と出力を、4 つのコマンドがコミット・レビュー・`japrose` で使うこと / F-007 の issue の 20 件が調査の 35 件から F-006 の 15 件を除いたものであること
 
 **実装モデル要件**: frontier-recommended
 
-**判定理由**: ステップ 1-4 が、4 つのコマンドが従う共通の手順と、以後のすべての PR に効く CLAUDE.md の規則を変える（影響の広い、隔離すべき変更）
+**判定理由**: ステップ 1-2 の ADR の guard（規約から定義を読み、読めないときに失敗する、12 種類の食い違いの照合）とステップ 1-6 の `_checks/adrlinks` が、隔離すべき複雑な処理である
 
 - [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [ ] PR を作成した
@@ -235,23 +240,24 @@
 -   [ ] 索引を読み直し、A3・A6・A9・A10 の主題の有効な ADR がすでにないことを確かめる（1.3 節）。あれば、新しく作らずにその ADR を更新する。
 -   [ ] 主題ごとに、要件書 F-006 の表の括弧のない出典のタスクの `01_requirements.md`・`02_architecture.md`（A10 は 0008・0018 の `02_evaluation.md` も）と、今の `main` のコード・正本の文書（`production_profile.md` など）を読み、規約の雛形で ADR を書く（設計書 6.2 節）。
 -   [ ] 「決定」の節は今の `main` のコードの振る舞いと照らす（AC-26）。食い違いを見つけたら、利用者の承認を得て issue を作り、「決定」の節に食い違いと issue へのリンクを書く（設計書 4 章）。
--   [ ] 「採らなかった案」は出典の文書にあるものだけを書き、理由のない案は「理由は記録されていない」と書く（AC-08・AC-27）。
+-   [ ] 「採らなかった案」には、AC-27 が挙げる文書（タスク 0001〜0059 の `01_requirements.md`・`02_architecture.md`、0008・0018 の `02_evaluation.md`、0029 の `observation_gate_review.md`、`docs/dev/project_overview.md`）にある案だけを書く。正本の文書や手引きにだけある案は書かない。理由のない案は「理由は記録されていない」と書く（AC-08・AC-27）。
 -   [ ] 「経緯」は出典のタスクごとに少なくとも 1 項目を置き、日付を設計書 3.2.4 節の順で選ぶ（AC-09・AC-28）。
--   [ ] 索引に 4 行を足す。
+-   [ ] ADR は番号の順に 1 本ずつコミットし、各コミットにその ADR の索引の行を入れる。`TestADRRecords` は、どのコミットでも索引と ADR が一対一で、番号が抜けなく続くことを求めるためである。
+-   [ ] 既存の ADR を更新する形にしたとき（ほかのタスクが同じ主題の ADR を先に作っていたとき）は、同じ PR で、1.5 節の表と `_checks/adrlinks` の表のファイル名をその ADR に改める。
 -   [ ] PR の説明に、各 ADR の「決定」と「採らなかった案」の出典（文書の節）を挙げる（設計書 7.5 節）。
 
 #### ステップ 2-2: `project_overview.md` の LLM の 2 項目
 
 **変更するファイル:** `docs/dev/project_overview.md`
 
--   [ ] 「LLM（既定は Claude）」の項目の末尾に A3・A10 の ADR へ、「LLM プロバイダは差し替え可能にする」の項目の末尾に A3 の ADR へ、`[ADR-NNNN](adr/NNNN-<kebab>.md)` の形のリンクを足す。項目の要約の文は変えない（設計書 3.5.3 節）。
+-   [ ] 「LLM（既定は Claude）」の項目の末尾に A3・A10 の ADR へのリンクを、「LLM プロバイダは差し替え可能にする」の項目の末尾に A3 の ADR へのリンクを、`[ADR-NNNN](adr/NNNN-<kebab>.md)` の形で足す。項目の行の末尾に、リンクごとに半角の空白 1 つとリンクだけを足し、ほかの文字（句読点、括弧、説明）を足さない。`_checks/adrlinks` の `overview-items` は、この形の並びを取り除いて比べる。項目の要約の文は変えない（設計書 3.5.3 節）。
 -   [ ] ステップ 2-1 の ADR と同じコミットか、その後のコミットに入れる（1.2 節）。
 
 #### ステップ 2-3: 1 回だけの確かめ
 
 **変更するファイル:** 本書 7.1 節
 
--   [ ] PR のブランチで、ほかの作業がすべて終わった後に、`task_docs_unchanged.sh` と `_checks/adrlinks` を `origin/main` に対して実行し、ステップ 1-6 と同じく 7.1 節に記録する。`_checks/adrlinks` は、A 系の 4 本の AC-28 と、LLM の 2 項目の AC-31 が `OK` である。
+-   [ ] PR のブランチで、ほかの作業がすべて終わった後に、ステップ 1-6 の最後の項目と同じく 2 つの確かめを実行し、7.1 節に記録する。`_checks/adrlinks` は、`quick-links`、A 系の 4 本の `history-sources`、`overview-items` の文の比較と LLM の 2 項目のリンク先が `OK` である。
 
 **完了の条件（ステップ 2-1〜2-3）:** グリーンゲートが通る（`TestADRRecords` が 4 本の ADR と索引を照らす）。2 つの確かめが 0 で終わる。
 
@@ -287,13 +293,13 @@
 
 **変更するファイル:** `docs/dev/project_overview.md`
 
--   [ ] 「実行形式」の項目の末尾に B1・B5 の ADR へ、「字幕取得」の項目の末尾に B4 の ADR へ、ステップ 2-2 と同じ形のリンクを足す。項目の要約の文は変えない。
+-   [ ] 「実行形式」の項目の末尾に B1・B5 の ADR へのリンクを、「字幕取得」の項目の末尾に B4 の ADR へのリンクを、ステップ 2-2 と同じ形で足す。項目の要約の文は変えない。
 
 #### ステップ 3-3: 1 回だけの確かめ
 
 **変更するファイル:** 本書 7.1 節
 
--   [ ] ステップ 2-3 と同じく、2 つの確かめを実行して記録する。`_checks/adrlinks` は、A 系と B 系の 11 本の AC-28、AC-29、AC-31 の 4 項目が `OK` である。
+-   [ ] ステップ 2-3 と同じく、2 つの確かめを実行して記録する。`_checks/adrlinks` は、`quick-links`、A 系と B 系の 11 本の `history-sources`、`viewer-appendix`、`overview-items` の 4 項目が `OK` である。
 
 **完了の条件（ステップ 3-1〜3-3）:** グリーンゲートが通る。2 つの確かめが 0 で終わる。
 
@@ -326,9 +332,9 @@
 
 **変更するファイル:** 本書 7.1 節
 
--   [ ] ステップ 2-3 と同じく、2 つの確かめを実行して記録する。`_checks/adrlinks` は、すべての確かめが `OK` で、`PENDING` がない。
+-   [ ] ステップ 2-3 と同じく、2 つの確かめを実行して記録する。`_checks/adrlinks` は `-final` を付けて実行し、すべての確かめが `OK` である。
 
-**完了の条件（ステップ 4-1・4-2）:** グリーンゲートが通る。2 つの確かめが 0 で終わり、`PENDING` がない。
+**完了の条件（ステップ 4-1・4-2）:** グリーンゲートが通る。`task_docs_unchanged.sh` と `-final` を付けた `_checks/adrlinks` が 0 で終わる。
 
 ### PR-4 作成ポイント: process ADRs
 
@@ -387,13 +393,14 @@ M2〜M4 は M1 の規約・索引・guard に依存する。M2 → M3 → M4 は
 
 | リスク | 影響 | 対策 |
 |---|---|---|
-| ほかのタスクが本タスクの途中で ADR を作り、番号や主題が重なる | 予定の番号が使えない。同じ主題の ADR が 2 本になる | ADR を書くフェーズの最初に索引を読み直す（1.3 節）。番号は 1.5 節の予定から変わってよく、`_checks/adrlinks` は `<kebab>` で ADR を探す。`main` を取り込むときは規約の ``## Taking in `main` `` の手順で直す |
+| ほかのタスクが本タスクの途中で ADR を作り、番号や主題が重なる | 予定の番号が使えない。同じ主題の ADR が 2 本になる | ADR を書くフェーズの最初に索引を読み直す（1.3 節）。番号は 1.5 節の予定から変わってよく、`_checks/adrlinks` は `<kebab>` で ADR を探す。ほかのタスクの ADR を更新する形にしたときは、1.5 節と `_checks/adrlinks` の表をその ADR の名前に改める（ステップ 2-1）。`main` を取り込むときは規約の ``## Taking in `main` `` の手順で直す |
 | ADR に出典にない採らなかった案や理由を書き足す | AC-27 を満たさない | PR の説明に各 ADR の出典を挙げ、レビュアーが照らせるようにする（ステップ 2-1） |
 | ADR の「決定」が今のコードと食い違う | AC-26 を満たさない | 書く時点の `main` のコードと照らし、食い違いは issue にする（ステップ 2-1） |
 | 0058・0059 が本タスクの途中でマージされる | B2・B8・B11 の書く時点の状態が変わる。F-007 の issue の項目が古くなる | ステップ 3-1 で、書く時点の `main` で書き、issue の項目を照らして直す |
 | ADR の guard の規約の定義の読み方が、規約の書き方と合わない | PR-1 のグリーンゲートが通らない | 規約と guard を同じ PR に入れ、guard は規約と同じコミットかその後に入れる（ステップ 1-2） |
-| 足した文が、コマンドの定義を読む既存のテストの検査に当たる | 文書のガードが失敗する | ステップ 1-4 の完了の条件で文書のガードを通す。`codex` のコマンドとレビューを頼む言及を書かない |
-| PR-3 が 7 本の ADR で大きい | レビューに時間がかかる | 設計書 1.2 節で決めた分け方に従う。ADR は 1 本ずつコミットし、レビュアーが 1 本ずつ読めるようにする |
+| 足した文が、コマンドの定義を読む既存のテストの検査に当たる | 文書の guard が失敗する | ステップ 1-4 の完了の条件で文書の guard を通す。`codex` のコマンドとレビューを頼む言及を書かない |
+| PR-3 が 7 本の ADR で大きい | レビューに時間がかかる | 設計書 1.2 節で決めた分け方に従う。ADR は番号の順に、索引の行とともに 1 本ずつコミットし、レビュアーが 1 本ずつ読めるようにする（ステップ 2-1） |
+| PR-2〜PR-4 を `standard` のモデルが実装し、出典にない案を書き足す | AC-27 を満たさない | ステップ 2-1 で AC-27 の文書の一覧を明示し、PR の説明の出典の一覧をレビュアーが照らす |
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
@@ -424,8 +431,8 @@ M2〜M4 は M1 の規約・索引・guard に依存する。M2 → M3 → M4 は
 | AC-14 | manual | PR-1 のレビューで、CLAUDE.md の「Design decisions (ADR)」を読む | 1-3 |
 | AC-15 | manual | 同上（基準と、規約の基準と同じ内容であること） | 1-3 |
 | AC-16 | manual | 同上（分担の 5 項目） | 1-3 |
-| AC-17 | static・manual | static: `docs/tasks/0060_adr_records/_checks/adrlinks/main.go`（AC-17 の確かめ）。manual: PR-1 のレビューで、索引の説明の文を読む | 1-3・1-6 |
-| AC-18 | manual | PR-1 のレビューで、`requirements_process.md` の段落を読む。置き場所の数は文で挙げられているので、数と置き場所の対応も読んで確かめる | 1-3 |
+| AC-17 | static・manual | static: `docs/tasks/0060_adr_records/_checks/adrlinks/main.go`（`quick-links`）。manual: PR-1 のレビューで、索引の説明の文を読む | 1-3・1-6・2-3・3-3・4-2 |
+| AC-18 | manual | PR-1 のレビューで、`requirements_process.md` の段落を読む。段落が置き場所の数を文で挙げているので、その数と置き場所の対応も読んで確かめる | 1-3 |
 | AC-19 | manual | PR-1 のレビューで、`mkarch.md` の箇条を読む | 1-4 |
 | AC-20 | manual | PR-1 のレビューで、`settle-decisions.md` の新しい段を読む | 1-4 |
 | AC-21 | manual | 同上（手順 2 と手順 5） | 1-4 |
@@ -435,10 +442,10 @@ M2〜M4 は M1 の規約・索引・guard に依存する。M2 → M3 → M4 は
 | AC-25 | manual | PR-2〜PR-4 のレビューで、1.5 節の表の主題と ADR が一対一であることを読む | 2-1・3-1・4-1 |
 | AC-26 | manual | PR-2〜PR-4 のレビューで、PR の説明の出典と照らす。食い違いの issue があれば PR の説明に挙げる | 2-1・3-1・4-1 |
 | AC-27 | manual | 同上（「採らなかった案」と理由） | 2-1・3-1・4-1 |
-| AC-28 | static・manual | static: `_checks/adrlinks`（AC-28 の確かめ。PR-4 で `PENDING` がない）。manual: 各項目の要旨と日付を読む | 1-6・2-3・3-3・4-2 |
-| AC-29 | static・manual | static: `_checks/adrlinks`（AC-29 の確かめ）。manual: PR-3 のレビューで、付録 B（B.1〜B.3）の採らなかった案がすべて写されていることを読む | 1-6・3-1・3-3 |
+| AC-28 | static・manual | static: `_checks/adrlinks`（`history-sources`。PR-4 で `-final`）。manual: 各項目の要旨と日付を読む | 1-6・2-3・3-3・4-2 |
+| AC-29 | static・manual | static: `_checks/adrlinks`（`viewer-appendix`）。manual: PR-3 のレビューで、付録 B（B.1〜B.3）の採らなかった案がすべて写されていることを読む | 1-6・3-1・3-3・4-2 |
 | AC-30 | diff | `docs/tasks/0060_adr_records/_checks/task_docs_unchanged.sh`（PR-1〜PR-4 の各 PR で実行） | 1-6・2-3・3-3・4-2 |
-| AC-31 | diff | `_checks/adrlinks`（AC-31 の確かめ。PR-3 の時点で 4 項目が `OK`）。リンクの実在は `TestInstructionDocPaths`（既存） | 1-6・2-2・2-3・3-2・3-3 |
+| AC-31 | diff | `_checks/adrlinks`（`overview-items`。文の比較は各 PR で、リンク先は PR-3 の時点で 4 項目が `OK`）。リンクの実在は `TestInstructionDocPaths`（既存） | 1-6・2-2・2-3・3-2・3-3・4-2 |
 | AC-32 | manual | ステップ 1-5 で、issue の 20 件を調査の 35 件と照らし、URL を 7.1 節に書く。PR-1 のレビューで issue を読む | 1-5 |
 | AC-33 | manual | 同上（B6 と経緯の追加の 2 点） | 1-5 |
 
