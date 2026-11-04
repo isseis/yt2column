@@ -171,10 +171,10 @@ localhost サーバの旧 API（`POST /articles`）・旧 API のジョブ・失
 
 **変更するファイル:** `CLAUDE.md`、`docs/dev/security.md`、`docs/dev/conventions/package_reference.md`
 
-- [ ] `CLAUDE.md` の「Declare, don't infer」から、ホストが今の形と新しい形をメッセージの中身で選ぶ例外の段落（`:357-375`）を取り除く（AC-19 の前半）。
-- [ ] `docs/dev/security.md` §8 のホストの記述（`:143-144`）を、新しい形だけを受理し、ほかはすべて送らずに `protocol_error` にすることに直す（AC-18）。
-- [ ] `package_reference.md` の `internal/nmhost` の行（`:50`）から、今の形の中継と属性 `form` の記述を除き、規則 `object` を加える。
-- [ ] 文書のガードと `make ext-test` を通す。
+- [x] `CLAUDE.md` の「Declare, don't infer」から、ホストが今の形と新しい形をメッセージの中身で選ぶ例外の段落（`:357-375`）を取り除く（AC-19 の前半）。
+- [x] `docs/dev/security.md` §8 のホストの記述（`:143-144`）を、新しい形だけを受理し、ほかはすべて送らずに `protocol_error` にすることに直す（AC-18）。
+- [x] `package_reference.md` の `internal/nmhost` の行（`:50`）から、今の形の中継と属性 `form` の記述を除き、規則 `object` を加える。
+- [x] 文書のガードと `make ext-test` を通す。
 
 **完了の条件:** 文書のガード、`make test`、`make ext-test` が通る。
 
