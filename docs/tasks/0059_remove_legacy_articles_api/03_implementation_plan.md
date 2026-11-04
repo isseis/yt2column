@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-04 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-04 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の項番を、「設計書 3.2.1 節」などは設計書の節を指す。用語は要件書 6 章に従う。本タスクに `implementation_handoff.md` はない。[design_handoff.md](design_handoff.md) の H-01〜H-10 は、設計書 10 章がすべて記録している。
@@ -461,3 +461,7 @@ M1 は M2〜M4 に依存しない。設計書 8 章のとおり、ホストを�
 
 -   PR-2 のマージの後、`/runpr` が issue #526 を閉じる案内をする（本タスクの最後の PR のため）。
 -   ジョブの API の失敗を Webhook へ通知する必要が生じたときは、別のタスクで、ジョブの API の失敗の理由から設計する（設計書 9 章）。
+
+## 変更履歴
+
+- 2026-11-04 承認（isseis、#651）
