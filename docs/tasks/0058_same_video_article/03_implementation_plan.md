@@ -316,8 +316,8 @@
 
 **変更するファイル:** `extension/src/core/popupView.ts`、`test/popupView.test.ts`
 
-- [ ] `ExistingState`、`PopupJobState` の `choice`・`choice-ended`、`PrimaryAction` の `open-existing`・`start-inquiry`、`SecondaryAction` と `secondaryAction` を設計書 3.6 節のとおりに加える。
-- [ ] `popupView.test.ts` の `primaryAction` の表に新しい状態の行を加え、`secondaryAction` の表を加える。どちらも、すべての状態の種類について値を確かめる（設計書 3.6 節のボタンの操作の表）。
+- [x] `ExistingState`、`PopupJobState` の `choice`・`choice-ended`、`PrimaryAction` の `open-existing`・`start-inquiry`、`SecondaryAction` と `secondaryAction` を設計書 3.6 節のとおりに加える。
+- [x] `popupView.test.ts` の `primaryAction` の表に新しい状態の行を加え、`secondaryAction` の表を加える。どちらも、すべての状態の種類について値を確かめる（設計書 3.6 節のボタンの操作の表）。
 
 **完了の条件:** `node --test` で `popupView.test.ts` が通る。`PrimaryAction` の値が増えるので、`render.ts` の対応の表を直すステップ 4-2 までは `make ext-typecheck` が通らなくてよい。
 
@@ -325,18 +325,18 @@
 
 **変更するファイル:** `extension/src/launch.ts`、`src/ui/render.ts`、`src/core/sendMessages.ts`、`src/core/i18n/en.ts`・`ja.ts`、`static/popup.html`、`static/style.css`、`scripts/popup-preview.ts`、`test/launch.test.ts`、`test/render.test.ts`、`test/sendMessages.test.ts`、`test/popupHtml.test.ts`、`test/style.test.ts`、`test/popupPreview.test.ts`、`test/catalog.test.ts`（要る場合）
 
-- [ ] `runPopupSend` に、送信ごとの送り方の記憶、選択の状態の流れ、副次のボタンの操作を設計書 3.6 節のとおりに加える。主ボタンの最初の押下と `start-inquiry` は `inquiry` で、`start-plain` は `plain` で、「やり直す」は記憶した送り方で送る。PR-2 の暫定の扱い（1.3 節）はこれで置き換わる。
-- [ ] `openViewer` が `NewViewerTab` を受け取る形にし、`open-existing` は押した時刻と `e=1` を持つ新しいタブの URL を作る（設計書 3.6 節）。タブを探す順は変えない。
-- [ ] `popup.html` の操作のセクションに、主ボタンの後、`#status` の前に `<button id="secondary" type="button" hidden>` を置き、`findPopupElements` が探す。`render.ts` が選択の状態と既存の記事の状態、副次のボタンを描き、`sendMessages.ts` が文言を選ぶ（設計書 3.6 節・3.8 節）。
-- [ ] 副次のボタンの見た目（主ボタンより軽い枠線、44×44 CSS ピクセル以上、フォーカスの印は主ボタンと同じ変数）と、既存の記事の状態の記号の動きを止める規則を `style.css` に書く（AC-36・AC-37・AC-41・AC-42）。
-- [ ] `style.test.ts` を次のように広げる（1.4 節）。
+- [x] `runPopupSend` に、送信ごとの送り方の記憶、選択の状態の流れ、副次のボタンの操作を設計書 3.6 節のとおりに加える。主ボタンの最初の押下と `start-inquiry` は `inquiry` で、`start-plain` は `plain` で、「やり直す」は記憶した送り方で送る。PR-2 の暫定の扱い（1.3 節）はこれで置き換わる。
+- [x] `openViewer` が `NewViewerTab` を受け取る形にし、`open-existing` は押した時刻と `e=1` を持つ新しいタブの URL を作る（設計書 3.6 節）。タブを探す順は変えない。
+- [x] `popup.html` の操作のセクションに、主ボタンの後、`#status` の前に `<button id="secondary" type="button" hidden>` を置き、`findPopupElements` が探す。`render.ts` が選択の状態と既存の記事の状態、副次のボタンを描き、`sendMessages.ts` が文言を選ぶ（設計書 3.6 節・3.8 節）。
+- [x] 副次のボタンの見た目（主ボタンより軽い枠線、44×44 CSS ピクセル以上、フォーカスの印は主ボタンと同じ変数）と、既存の記事の状態の記号の動きを止める規則を `style.css` に書く（AC-36・AC-37・AC-41・AC-42）。
+- [x] `style.test.ts` を次のように広げる（1.4 節）。
     -   ポップアップの大きさの確かめ（`:552` 付近）に、`#secondary` の高さと幅が 44 CSS ピクセル以上であることを加える（AC-41）。
     -   `#secondary` が共通の `:focus-visible` の印（`theme.css`）を打ち消さないこと、押せない状態があれば `#secondary:disabled` の色を、押せないボタンの色の確かめ（`:415`）に加えること（AC-36）。
     -   新しい色の組を `contrastPairs` に加え、今の組の色を使う新しい選択子は、その組の `foregroundRules` に加える（AC-39）。
     -   既存の記事の生成中の記号の選択子を、動きを止める確かめの一覧（`:724` の `moving`）に加えるか、`render.test.ts` でその記号が今の動きのクラスを持つことを確かめる（AC-42）。
-- [ ] 文言を英語と日本語のカタログに加える。選択の状態の主ボタンの名前は `popup.primary` に置く（1.3 節）。
-- [ ] `popup-preview.ts` に `choice`（既存の記事の取得中・生成中・生成済みと、`PollNotice` の各種類）と `choice-ended` のページを加える。`popupPreview.test.ts` は、`#primary` と同じく、`#secondary` の名前と `hidden` が `renderPopup` の描くものと一致することを確かめる。
-- [ ] `launch.test.ts` に次を加える（設計書 7.2 節のポップアップの行）。
+- [x] 文言を英語と日本語のカタログに加える。選択の状態の主ボタンの名前は `popup.primary` に置く（1.3 節）。
+- [x] `popup-preview.ts` に `choice`（既存の記事の取得中・生成中・生成済みと、`PollNotice` の各種類）と `choice-ended` のページを加える。`popupPreview.test.ts` は、`#primary` と同じく、`#secondary` の名前と `hidden` が `renderPopup` の描くものと一致することを確かめる。
+- [x] `launch.test.ts` に次を加える（設計書 7.2 節のポップアップの行）。
     -   主ボタンの押下で SW への求めが `mode: "inquiry"` を持ち、1 回だけ送られること（AC-15 のポップアップの側）。
     -   同じ動画の応答で `choice` を描き、動画のセクションと詳細が残ること、2 つのボタンの名前、既存の記事の状態の取得中・生成中・生成済みとその変化、フォーカスを動かさずに `#status` に書く要約（AC-16・AC-38）。文は英語と日本語のそれぞれで `catalogs[locale]` の値と一致することを確かめる（AC-40）。
     -   同じ動画の応答の後、どのボタンも押さなければ、状態の取得が続いていること（肯定の印）を示したうえで、SW への求めが最初の 1 つのままであること（AC-17）。
@@ -347,8 +347,8 @@
     -   照会付きの送信が受け付けられたとき、拒否・未送信・結果不明のとき、`0050` と同じ表示をすること（AC-22）。
     -   照会付きの送信の後の「やり直す」が `inquiry` で、`start-plain` の後の「やり直す」が、2 回続けても `plain` で送ること（AC-23）。
     -   キーボードで押した主ボタンにフォーカスが戻ること、副次のボタンにフォーカスがある間に `choice-ended` になると主ボタンにフォーカスが移ること（AC-35）。
-- [ ] `render.test.ts` に、副次のボタンの名前と `hidden`、主ボタンと副次のボタンの DOM の順、押せないボタンの `disabled` を加える（AC-35・AC-37）。`popupHtml.test.ts` の操作のセクションの子の確かめを、主ボタン・副次のボタン・`#status` の順に直す。
-- [ ] 加えたテストの行が、それぞれの分岐を壊すと失敗することを確かめ、コミットメッセージに書く。PR-2 の暫定の扱いに戻すと AC-18 の行が失敗することも確かめる。
+- [x] `render.test.ts` に、副次のボタンの名前と `hidden`、主ボタンと副次のボタンの DOM の順、押せないボタンの `disabled` を加える（AC-35・AC-37）。`popupHtml.test.ts` の操作のセクションの子の確かめを、主ボタン・副次のボタン・`#status` の順に直す。
+- [x] 加えたテストの行が、それぞれの分岐を壊すと失敗することを確かめ、コミットメッセージに書く。PR-2 の暫定の扱いに戻すと AC-18 の行が失敗することも確かめる。
 
 ポップアップを開き直すと送る前の画面から始まり何も送らないこと（AC-24）は、テストを加えない。ポップアップは開くたびに新しい文書で送信の記録を持たず、開いただけで何も送らないことは今の `describe("popup job send")`（`launch.test.ts:646`）が確かめている（1.4 節）。閉じて開き直す操作を jsdom で再現しても、そのテストが検出できる誤りがない。
 

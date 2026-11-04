@@ -8,12 +8,14 @@ import {
   buildCollectedView,
   metadataDisplayLimit,
   primaryAction,
+  secondaryAction,
   viewerSeed,
 } from "../src/core/popupView.ts";
 import type {
   CollectedView,
   PopupJobState,
   PrimaryAction,
+  SecondaryAction,
   VideoView,
 } from "../src/core/popupView.ts";
 import { maxBodyBytes, prepareSend } from "../src/core/prepare.ts";
@@ -273,16 +275,23 @@ describe("buildCollectedView", () => {
   });
 });
 
-describe("primaryAction", () => {
+describe("primaryAction and secondaryAction", () => {
   const none = { kind: "none" } as const;
+  const stopped = {
+    kind: "stopped",
+    outcome: { kind: "unexpected", check: "member-set" },
+  } as const;
+  // One row per state kind (and per job kind), so a kind added without a
+  // decided action for either button is caught here.
   const rows = [
-    ["sending", { kind: "sending" }, "none"],
+    ["sending", { kind: "sending" }, "none", "none"],
     [
       "a start without a result",
       { kind: "start-failed", failure: { kind: "no-result" } },
       "none",
+      "none",
     ],
-    ["loading", { kind: "loading", notice: none }, "open-viewer"],
+    ["loading", { kind: "loading", notice: none }, "open-viewer", "none"],
     [
       "a running job",
       {
@@ -291,11 +300,13 @@ describe("primaryAction", () => {
         notice: none,
       },
       "open-viewer",
+      "none",
     ],
     [
       "a done job",
       { kind: "job", job: doneJob({ state: "not_posted" }), notice: none },
       "open-viewer",
+      "none",
     ],
     [
       "a failed job",
@@ -305,21 +316,44 @@ describe("primaryAction", () => {
         notice: none,
       },
       "retry",
+      "none",
     ],
     [
       "a lost job",
       { kind: "job", job: { kind: "lost" }, notice: none },
       "retry",
+      "none",
     ],
+    [
+      "a choice loading the existing article",
+      { kind: "choice", existing: "loading", notice: none },
+      "open-existing",
+      "start-plain",
+    ],
+    [
+      "a choice with a running existing article",
+      { kind: "choice", existing: "running", notice: none },
+      "open-existing",
+      "start-plain",
+    ],
+    [
+      "a choice with a done existing article and a stopped poll",
+      { kind: "choice", existing: "done", notice: stopped },
+      "open-existing",
+      "start-plain",
+    ],
+    ["an ended choice", { kind: "choice-ended" }, "start-inquiry", "none"],
   ] as const satisfies readonly (readonly [
     string,
     PopupJobState,
     PrimaryAction,
+    SecondaryAction,
   ])[];
 
-  for (const [name, state, action] of rows) {
-    it(`returns ${action} for ${name}`, () => {
-      assert.equal(primaryAction(state), action);
+  for (const [name, state, primary, secondary] of rows) {
+    it(`returns ${primary} and ${secondary} for ${name}`, () => {
+      assert.equal(primaryAction(state), primary);
+      assert.equal(secondaryAction(state), secondary);
     });
   }
 });

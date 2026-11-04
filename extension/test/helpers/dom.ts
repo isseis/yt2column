@@ -44,14 +44,17 @@ export function viewerDocument(): Document {
 
 /**
  * The popup's skeleton elements in doc, by default a fresh copy of the shipped
- * popup.html: five containers, all hidden, the primary button disabled, and
- * the status region inside the action section after the button.
+ * popup.html: five containers, all hidden, the primary button disabled, the
+ * secondary button hidden, and the status region inside the action section
+ * after the buttons.
  */
 export function popupElements(doc = popupDocument()): PopupElements {
   const win = doc.defaultView;
   assert.ok(win !== null);
   const primary = byId(doc, "primary");
   assert.ok(primary instanceof win.HTMLButtonElement, "primary");
+  const secondary = byId(doc, "secondary");
+  assert.ok(secondary instanceof win.HTMLButtonElement, "secondary");
   const details = byId(doc, "details");
   assert.ok(details instanceof win.HTMLDetailsElement, "details");
   return {
@@ -61,6 +64,7 @@ export function popupElements(doc = popupDocument()): PopupElements {
     details,
     action: byId(doc, "action"),
     primary,
+    secondary,
     status: byId(doc, "status"),
   };
 }

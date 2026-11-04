@@ -304,7 +304,7 @@ const contrastPairs = [
     foreground: "--link",
     background: "--bg",
     minimum: 4.5,
-    foregroundRules: ["#video-link"],
+    foregroundRules: ["#video-link", "#secondary"],
     foregroundProperty: "color",
     backgroundRules: ["body"],
   },
@@ -549,9 +549,37 @@ describe("layout", () => {
     assert.equal(effectiveValue(onScreen, "body", "font-size"), "1rem");
   });
 
-  it("fills the action section with the primary button and keeps it 44px tall", () => {
-    assert.equal(effectiveValue(onScreen, "#primary", "width"), "100%");
-    assert.ok(atLeast44(effectiveValue(onScreen, "#primary", "min-height")));
+  it("fills the action section with each button and keeps it 44px tall", () => {
+    for (const selector of ["#primary", "#secondary"]) {
+      assert.equal(effectiveValue(onScreen, selector, "width"), "100%");
+      assert.ok(
+        atLeast44(effectiveValue(onScreen, selector, "min-height")),
+        selector,
+      );
+    }
+  });
+
+  it("leaves the secondary button the shared focus outline", () => {
+    const own = onScreen.filter((entry) =>
+      selectorsOf(entry).some((selector) => selector.includes("#secondary")),
+    );
+    // Precondition: the button has rules of its own to check.
+    assert.ok(own.length > 0);
+    for (const entry of own) {
+      for (const property of [
+        "outline",
+        "outline-style",
+        "outline-width",
+        "outline-color",
+        "outline-offset",
+      ]) {
+        assert.equal(
+          entry.rule.style.getPropertyValue(property),
+          "",
+          `${entry.rule.selectorText} ${property}`,
+        );
+      }
+    }
   });
 
   it("gives the details toggle the content's width and 44px of height", () => {
