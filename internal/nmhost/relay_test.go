@@ -932,46 +932,67 @@ func TestRelayNewFormOperations(t *testing.T) {
 			if got := strings.Join(req.contentLengthHeader, ","); got != tt.contentLength {
 				t.Errorf("Content-Length header = %q, want %q", got, tt.contentLength)
 			}
-			for _, attr := range []string{"form=new", "op=" + tt.op} {
-				if !strings.Contains(result.log, attr) {
-					t.Errorf("the log does not contain %s:\n%s", attr, result.log)
-				}
+			if !strings.Contains(result.log, "op="+tt.op) {
+				t.Errorf("the log does not contain op=%s:\n%s", tt.op, result.log)
 			}
+			requireNoFormAttr(t, result.log)
 		})
 	}
 }
 
-// TestRelayLegacyBytesUnchanged checks the messages that are the current
-// form: those without a top-level "v", and those that are not one strict JSON
-// object even when they hold what looks like "v".
-func TestRelayLegacyBytesUnchanged(t *testing.T) {
-	tests := []struct{ name, msg string }{
-		{"current extension message", `{"videoUrl":"x","transcript":"y","title":"t","channelName":"c","description":"d"}`},
-		{"v only below the top level", `{"videoUrl":"x","transcript":{"v":1,"op":"status","key":"k"}}`},
-		{"v with invalid UTF-8", "{\"v\":1,\"op\":\"status\",\"key\":\"\xff\"}"},
-		{"v with trailing data", `{"v":1,"op":"status","key":"k"} {}`},
-		{"v with an unpaired surrogate", `{"v":1,"op":"status","key":"\ud800"}`},
-		{"v inside an array", `[{"v":1,"op":"status","key":"k"}]`},
-		{"not JSON", `v=1&op=status`},
+// requireNoFormAttr checks that the log has no form attribute: the host has
+// one message form, so such an attribute would tell nothing apart.
+func requireNoFormAttr(t *testing.T, log string) {
+	t.Helper()
+	if strings.Contains(log, "form=") {
+		t.Errorf("the log has a form attribute:\n%s", log)
+	}
+}
+
+// TestRelayRejectsOtherForms checks the messages that are not the new form:
+// those whose top level has no "v", however complete the rest is, and those
+// that are not one strict JSON object even when they hold what looks like a
+// new-form message. Each is answered with protocol_error and never sent,
+// though the server is reachable, and the log records only the form stage and
+// the rule, never the message's members or values.
+func TestRelayRejectsOtherForms(t *testing.T) {
+	const marker = "marker-3b7c"
+	tests := []struct {
+		name, msg string
+		rule      rule
+	}{
+		// The message an extension built before the job API sends.
+		{"extension message without v", `{"videoUrl":"` + marker + `","transcript":"y","title":"t","channelName":"c","description":"d"}`, ruleVersion},
+		{"every member but v", `{"op":"status","key":"` + marker + `"}`, ruleVersion},
+		{"v only below the top level", `{"videoUrl":"x","transcript":{"v":1,"op":"status","key":"` + marker + `"}}`, ruleVersion},
+		{"invalid UTF-8", "{\"v\":1,\"op\":\"status\",\"key\":\"" + marker + "\xff\"}", ruleObject},
+		{"not JSON", `v=1&op=status&key=` + marker, ruleObject},
+		{"top level not an object", `[{"v":1,"op":"status","key":"` + marker + `"}]`, ruleObject},
+		{"trailing data", `{"v":1,"op":"status","key":"` + marker + `"} {}`, ruleObject},
+		{"unpaired surrogate", `{"v":1,"op":"status","key":"` + marker + `\ud800"}`, ruleObject},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			path, got := recordingServer(t, []byte("{}"))
-			result := runRelay(message([]byte(tt.msg)), SocketDialer(path), testTimeout)
-			requireResponse(t, result.reply(t), http.StatusAccepted, []byte("{}"))
-			req := got()
-			if req.requests != 1 || req.method != http.MethodPost || req.requestURI != "/articles" {
-				t.Errorf("the server received %d requests, the last %s %s; want one POST /articles", req.requests, req.method, req.requestURI)
+			dial, dials := countDials(SocketDialer(path))
+			result := runRelay(message([]byte(tt.msg)), dial, testTimeout)
+			requireError(t, result.reply(t), HostErrorProtocol)
+			if n, d := got().requests, dials.Load(); n != 0 || d != 1 {
+				t.Errorf("the server received %d requests over %d dials, want none over 1", n, d)
 			}
-			if !bytes.Equal(req.body, []byte(tt.msg)) || req.contentLength != int64(len(tt.msg)) {
-				t.Errorf("server received %q (Content-Length %d), want the message bytes %q", req.body, req.contentLength, tt.msg)
+			for _, attr := range []string{"stage=form", "rule=" + string(tt.rule)} {
+				if !strings.Contains(result.log, attr) {
+					t.Errorf("the log does not contain %s:\n%s", attr, result.log)
+				}
 			}
-			if req.contentType != "application/json" || req.expect != "100-continue" {
-				t.Errorf("Content-Type = %q, Expect = %q; want application/json, 100-continue", req.contentType, req.expect)
+			// The rule is decided before "op" is read, so no operation is
+			// logged either.
+			for _, leak := range []string{marker, "op=", "videoUrl", "status"} {
+				if strings.Contains(result.log, leak) {
+					t.Errorf("the log contains %q:\n%s", leak, result.log)
+				}
 			}
-			if !strings.Contains(result.log, "form=legacy") {
-				t.Errorf("the log does not contain form=legacy:\n%s", result.log)
-			}
+			requireNoFormAttr(t, result.log)
 		})
 	}
 }
@@ -1004,6 +1025,10 @@ func TestRelayNewFormRejections(t *testing.T) {
 		{"publish without key", `{"v":1,"op":"publish"}`, ruleMembers},
 		{"publish key not a string", `{"v":1,"op":"publish","key":1}`, ruleKey},
 		{"status key null", `{"v":1,"op":"status","key":null}`, ruleKey},
+		// The version is checked before the members, so a message with both
+		// faults breaks the version rule.
+		{"no version, undeclared member", `{"op":"status","key":"k","extra":1}`, ruleVersion},
+		{"unknown version, undeclared member", `{"v":2,"op":"status","key":"k","extra":1}`, ruleVersion},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1016,11 +1041,12 @@ func TestRelayNewFormRejections(t *testing.T) {
 			if n, d := got().requests, dials.Load(); n != 0 || d != 1 {
 				t.Errorf("the server received %d requests over %d dials, want none over 1", n, d)
 			}
-			for _, attr := range []string{"stage=form", "form=new", "rule=" + string(tt.rule)} {
+			for _, attr := range []string{"stage=form", "rule=" + string(tt.rule)} {
 				if !strings.Contains(result.log, attr) {
 					t.Errorf("the log does not contain %s:\n%s", attr, result.log)
 				}
 			}
+			requireNoFormAttr(t, result.log)
 		})
 	}
 }
@@ -1107,22 +1133,25 @@ func TestRelayNewFormTimeout(t *testing.T) {
 // whether the message is sent or rejected.
 func TestRelayNewFormLogOmitsMessage(t *testing.T) {
 	const marker = "marker-5d1e"
-	tests := []struct{ name, msg string }{
-		{"start input", `{"v":1,"op":"start","input":{"transcript":"` + marker + `","` + marker + `":1}}`},
-		{"status key", `{"v":1,"op":"status","key":"` + marker + `"}`},
-		{"publish key", `{"v":1,"op":"publish","key":"` + marker + `"}`},
-		{"unknown operation", `{"v":1,"op":"` + marker + `","key":"k"}`},
-		{"undeclared member", `{"v":1,"op":"status","key":"k","` + marker + `":1}`},
-		{"key not a string", `{"v":1,"op":"status","key":{"` + marker + `":1}}`},
+	// want is a fixed value the log must hold, showing the relay got as far
+	// as the row means it to.
+	tests := []struct{ name, msg, want string }{
+		{"start input", `{"v":1,"op":"start","input":{"transcript":"` + marker + `","` + marker + `":1}}`, "op=start"},
+		{"status key", `{"v":1,"op":"status","key":"` + marker + `"}`, "op=status"},
+		{"publish key", `{"v":1,"op":"publish","key":"` + marker + `"}`, "op=publish"},
+		{"unknown operation", `{"v":1,"op":"` + marker + `","key":"k"}`, "rule=operation"},
+		{"undeclared member", `{"v":1,"op":"status","key":"k","` + marker + `":1}`, "rule=members"},
+		{"key not a string", `{"v":1,"op":"status","key":{"` + marker + `":1}}`, "rule=key"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			path, _ := recordingServer(t, []byte("{}"))
 			result := runRelay(message([]byte(tt.msg)), SocketDialer(path), testTimeout)
 			result.reply(t)
-			if !strings.Contains(result.log, "form=new") {
-				t.Fatalf("the log does not contain form=new:\n%s", result.log)
+			if !strings.Contains(result.log, tt.want) {
+				t.Fatalf("the log does not contain %s:\n%s", tt.want, result.log)
 			}
+			requireNoFormAttr(t, result.log)
 			if strings.Contains(result.log, marker) {
 				t.Errorf("the log contains the message's content:\n%s", result.log)
 			}
@@ -1130,18 +1159,19 @@ func TestRelayNewFormLogOmitsMessage(t *testing.T) {
 	}
 }
 
-// TestRequestRefusesUnroutable checks the fail-secure defaults of request:
-// a destination route never returns builds no request.
+// TestRequestRefusesUnroutable checks the fail-secure default of request: a
+// destination whose operation route never returns, the zero value included,
+// builds no request, whatever its body and key.
 func TestRequestRefusesUnroutable(t *testing.T) {
 	for _, dest := range []destination{
 		{},
-		{form: "other", body: []byte("{}")},
-		{form: formNew},
-		{form: formNew, op: OperationPublish + 1, key: "k"},
-		{form: formNew, op: -1, key: "k"},
+		{body: []byte("{}")},
+		{key: "k"},
+		{op: OperationPublish + 1, key: "k"},
+		{op: -1, body: []byte("{}")},
 	} {
-		if req, err := dest.request(context.Background()); !errors.Is(err, errUnroutable) {
-			t.Errorf("request(%+v) = %v, %v; want errUnroutable", dest, req, err)
+		if req, err := dest.request(context.Background()); req != nil || !errors.Is(err, errUnroutable) {
+			t.Errorf("request(%+v) = %v, %v; want no request and errUnroutable", dest, req, err)
 		}
 	}
 }

@@ -1,9 +1,10 @@
 // Package nmhost is the Native Messaging host: it relays one message from the
 // browser to the server's Unix domain socket and writes the server's reply, or
 // one of the host's fixed errors, back as one message. It parses a message
-// only to tell its form and, in the new form, to check its members and take
-// its operation and key; it never interprets the article input (beyond
-// checking that a start's input is an object) or the server's reply.
+// only to check it against the new form's rules and take its operation and
+// key, and sends nothing for a message that breaks them; it never interprets
+// the article input (beyond checking that a start's input is an object) or
+// the server's reply.
 package nmhost
 
 import (

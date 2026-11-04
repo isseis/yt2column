@@ -153,17 +153,17 @@ localhost サーバの旧 API（`POST /articles`）・旧 API のジョブ・失
 
 **変更するファイル:** `internal/nmhost/relay.go`、`internal/nmhost/frame.go`、`internal/nmhost/relay_test.go`、`cmd/yt2column-server/relay_e2e_test.go`、`.golangci.yml`
 
-- [ ] `route` を設計書 3.4.1 節のとおりに書き換える。`ParseObject` に通らなければ `ruleObject`、版の検査を `Collect("v")` でメンバの検査より先に行う。`rule` に `ruleObject` を加え、`ruleVersion` のコメントを設計書 3.4.1 節のコードのとおりに直す。
-- [ ] 1.4 節の削除するもの（`articlesURL`、型 `form`、`formLegacy`・`formNew`、`destination.form`、`request` の `form` による分岐、`logAttrs` の `form` 属性）を削除する。`request` は `op` だけで分け、`default` は `errUnroutable` を返す。
-- [ ] 設計書 3.4.3 節が挙げる説明（`forward`・`Relay`・`route`・`bodyRequest`・`stageForm`・`destination` のコメント、`frame.go:3-6` のパッケージの説明、`.golangci.yml` の `nmhost-boundaries` の説明）から、今の形との対比を除く。
-- [ ] `TestRelayLegacyBytesUnchanged` を削除し、同じ入力が送られずに `protocol_error` になることを確かめるテストに置き換える。各行で、ログに `stage=form` と期待する `rule=` があること（肯定の印）、ログにメッセージのメンバ名と値がないこと、サーバへ接続できる状態でもサーバがリクエストを受け取らないことを確かめる（AC-10・AC-11・AC-14）。行には次を含める。
+- [x] `route` を設計書 3.4.1 節のとおりに書き換える。`ParseObject` に通らなければ `ruleObject`、版の検査を `Collect("v")` でメンバの検査より先に行う。`rule` に `ruleObject` を加え、`ruleVersion` のコメントを設計書 3.4.1 節のコードのとおりに直す。
+- [x] 1.4 節の削除するもの（`articlesURL`、型 `form`、`formLegacy`・`formNew`、`destination.form`、`request` の `form` による分岐、`logAttrs` の `form` 属性）を削除する。`request` は `op` だけで分け、`default` は `errUnroutable` を返す。
+- [x] 設計書 3.4.3 節が挙げる説明（`forward`・`Relay`・`route`・`bodyRequest`・`stageForm`・`destination` のコメント、`frame.go:3-6` のパッケージの説明、`.golangci.yml` の `nmhost-boundaries` の説明）から、今の形との対比を除く。
+- [x] `TestRelayLegacyBytesUnchanged` を削除し、同じ入力が送られずに `protocol_error` になることを確かめるテストに置き換える。各行で、ログに `stage=form` と期待する `rule=` があること（肯定の印）、ログにメッセージのメンバ名と値がないこと、サーバへ接続できる状態でもサーバがリクエストを受け取らないことを確かめる（AC-10・AC-11・AC-14）。行には次を含める。
     -   `rule=version`: #503 より前の拡張が送る形のメッセージ、`v` だけを欠き、`op` と `key` はそろっているメッセージ（AC-10 の「`v` 以外のメンバがそろっていても」）。
     -   `rule=object`: AC-11 の 5 種類（正しくない UTF-8、JSON として正しくない、最上位がオブジェクトでない、後続のデータ、対になっていないサロゲートのエスケープ）。
-- [ ] `TestRelayNewFormOperations`・`TestRelayNewFormLogOmitsMessage`・`TestRelayNewFormRejections` から `form=` の確かめを除き、ログに `form=` が出ないことを確かめる。`form=new` を肯定の印にしていた確かめ（`TestRelayNewFormLogOmitsMessage`、`relay_test.go:1073`）は、`op=` などの別の肯定の印に替える。`TestRelayNewFormRejections` に、版の検査がメンバの検査より先にあることを確かめる 2 行を加える（設計書 7.1 節）。既存の行の期待する値は変えない。
-- [ ] `TestRequestRefusesUnroutable` を、`op` だけを持つ送り先（ゼロ値、範囲の外の値）で `request` が何も送らずに拒否することを確かめる形に作り直す（設計書 7.1 節）。
-- [ ] `TestRelayEndToEnd` に、#503 より前の拡張が送る形のメッセージを送り、`protocol_error` が返り、サーバがリクエストを受け取らないことを確かめるサブテストを加える（1.3 節、AC-10）。サーバが受け取らないことは、ホストのログの `stage=form` と、同じサブテストで続けて送る新しい形のメッセージがサーバに届くことと合わせて確かめる。
-- [ ] 加えたテストの行が、それぞれの規則の検査を外すと失敗することを確かめ、コミットメッセージに書く。
-- [ ] ステップ 1-2 のコミットとこのコミットで、1.3 節「カバレッジの比べ方」の削除のコミットの比べ方で比べ、結果をこのコミットのメッセージに書く。コミットの後で比べるので、push の前に `git commit --amend` でメッセージだけを直し、内容が変わらないことを `git diff HEAD@{1} HEAD` で確かめる（ステップ 1-2・2-3・3-3 の比較も同じ）。
+- [x] `TestRelayNewFormOperations`・`TestRelayNewFormLogOmitsMessage`・`TestRelayNewFormRejections` から `form=` の確かめを除き、ログに `form=` が出ないことを確かめる。`form=new` を肯定の印にしていた確かめ（`TestRelayNewFormLogOmitsMessage`、`relay_test.go:1073`）は、`op=` などの別の肯定の印に替える。`TestRelayNewFormRejections` に、版の検査がメンバの検査より先にあることを確かめる 2 行を加える（設計書 7.1 節）。既存の行の期待する値は変えない。
+- [x] `TestRequestRefusesUnroutable` を、`op` だけを持つ送り先（ゼロ値、範囲の外の値）で `request` が何も送らずに拒否することを確かめる形に作り直す（設計書 7.1 節）。
+- [x] `TestRelayEndToEnd` に、#503 より前の拡張が送る形のメッセージを送り、`protocol_error` が返り、サーバがリクエストを受け取らないことを確かめるサブテストを加える（1.3 節、AC-10）。サーバが受け取らないことは、ホストのログの `stage=form` と、同じサブテストで続けて送る新しい形のメッセージがサーバに届くことと合わせて確かめる。
+- [x] 加えたテストの行が、それぞれの規則の検査を外すと失敗することを確かめ、コミットメッセージに書く。
+- [x] ステップ 1-2 のコミットとこのコミットで、1.3 節「カバレッジの比べ方」の削除のコミットの比べ方で比べ、結果をこのコミットのメッセージに書く。コミットの後で比べるので、push の前に `git commit --amend` でメッセージだけを直し、内容が変わらないことを `git diff HEAD@{1} HEAD` で確かめる（ステップ 1-2・2-3・3-3 の比較も同じ）。
 
 **完了の条件:** `make test`・`make lint`・`make deadcode` が通る。
 

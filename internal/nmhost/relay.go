@@ -51,8 +51,6 @@ const (
 	// a fixed name the server does not check; the connection is the
 	// transport's only dial.
 	serverURL = "http://yt2column"
-	// articlesURL is the target of a message in the current form.
-	articlesURL = serverURL + "/articles"
 	// jobsURL is the target of a generation start; a status request appends
 	// a slash and the escaped key, and a publish operation then publishSuffix.
 	jobsURL       = serverURL + "/jobs"
@@ -175,7 +173,7 @@ const (
 	stageLength   stage = "length"   // before connecting: the length decided it
 	stageConnect  stage = "connect"  // the connection attempt failed
 	stageRead     stage = "read"     // after connecting: reading the message failed
-	stageForm     stage = "form"     // a new-form message broke a rule; nothing was sent
+	stageForm     stage = "form"     // the message broke a form rule; nothing was sent
 	stageExchange stage = "exchange" // after connecting
 	stageReply    stage = "reply"    // writing the reply frame
 )
@@ -424,21 +422,13 @@ func (o Operation) logValue() string {
 	}
 }
 
-// form is a message's shape, which route decides; request dispatches on it,
-// and the log records it.
-type form string
-
-const (
-	formLegacy form = "legacy" // the current extension's message, sent unchanged
-	formNew    form = "new"    // a message carrying "v"
-)
-
-// rule names the new-form rule a message broke, for the log only. The empty
-// value means no rule was broken.
+// rule names the rule a message broke, for the log only. The empty value
+// means no rule was broken.
 type rule string
 
 const (
-	ruleVersion   rule = "version"   // "v" is not newFormVersion
+	ruleObject    rule = "object"    // the message is not one strict JSON object
+	ruleVersion   rule = "version"   // "v" is missing or not newFormVersion; checked first
 	ruleOperation rule = "operation" // "op" is missing, not a string, or unknown
 	ruleMembers   rule = "members"   // an unlisted, duplicate, missing, or extra member
 	ruleInput     rule = "input"     // "input" is not a JSON object
@@ -446,36 +436,39 @@ const (
 )
 
 // destination is where one message goes, as route decides it. The zero value
-// has no form, and request refuses it.
+// has OperationUnknown, and request refuses it.
 type destination struct {
-	form form
 	op   Operation
-	body []byte // the request body: the message, or a start's "input"
+	body []byte // a start's "input"
 	key  string // the key of a status request or a publish operation
 }
 
 // route decides the destination of msg.
 //
-// Contract: this is the one place the host chooses behavior from the content
-// of the message (an exception to "Declare, don't infer" recorded in
-// CLAUDE.md, because the current extension declares nothing). A message that
-// is not one strict JSON object, or whose top level has no "v" member (escapes
-// decoded), is the current form, sent unchanged; nothing else in it is parsed.
-// A message with "v" is the new form, checked strictly: when it breaks a rule,
-// route returns that rule and the message is never sent, and never retried as
-// the current form. Inside the new form, the operation is the declared "op".
+// Contract: every message is checked as the new form, strictly; when it
+// breaks a rule, route returns that rule and the message is never sent, and
+// never repaired. A message that is not one strict JSON object breaks
+// ruleObject. The version is checked before the other members, so a message
+// whose top level has no "v" member (escapes decoded) breaks ruleVersion
+// whatever else it holds. The operation is the declared "op".
 func route(msg []byte) (destination, rule) {
 	object, err := strictjson.ParseObject(msg)
-	if err != nil || !object.Has("v") {
-		return destination{form: formLegacy, body: msg}, ""
+	if err != nil {
+		return destination{}, ruleObject
 	}
-	dest := destination{form: formNew}
-	members, err := object.CollectOnly("v", "op", "input", "key")
+	var dest destination
+	// Collect reads "v" alone, ignoring the other members; only a repeated
+	// "v" fails it.
+	version, err := object.Collect("v")
 	if err != nil {
 		return dest, ruleMembers
 	}
-	if v, err := members["v"].AsNonNegativeInt64(); err != nil || v != newFormVersion {
+	if v, err := version["v"].AsNonNegativeInt64(); err != nil || v != newFormVersion {
 		return dest, ruleVersion
+	}
+	members, err := object.CollectOnly("v", "op", "input", "key")
+	if err != nil {
+		return dest, ruleMembers
 	}
 	op, err := members["op"].AsString()
 	if err != nil {
@@ -509,44 +502,38 @@ func route(msg []byte) (destination, rule) {
 	return dest, ""
 }
 
-// logAttrs returns the fixed log values that describe d.
+// logAttrs returns the fixed log values that describe d: its operation, when
+// route read one.
 func (d destination) logAttrs() []any {
-	attrs := []any{"form", d.form}
 	if op := d.op.logValue(); op != "" {
-		attrs = append(attrs, "op", op)
+		return []any{"op", op}
 	}
-	return attrs
+	return nil
 }
 
 // request builds the one request for d.
 //
-// Contract: the method and target come from the form and the operation alone,
-// never from the message. A key is escaped with url.PathEscape into exactly
-// one path segment, so it can neither add a segment nor start a query; the
-// escaped form is the request target as sent.
+// Contract: the method and target come from the operation alone, never from
+// the message. A key is escaped with url.PathEscape into exactly one path
+// segment, so it can neither add a segment nor start a query; the escaped
+// form is the request target as sent.
 func (d destination) request(ctx context.Context) (*http.Request, error) {
-	switch d.form {
-	case formLegacy:
-		return bodyRequest(ctx, articlesURL, d.body)
-	case formNew:
-		keyURL := jobsURL + "/" + url.PathEscape(d.key)
-		switch d.op {
-		case OperationStart:
-			return bodyRequest(ctx, jobsURL, d.body)
-		case OperationStatus:
-			return http.NewRequestWithContext(ctx, http.MethodGet, keyURL, nil)
-		case OperationPublish:
-			return http.NewRequestWithContext(ctx, http.MethodPost, keyURL+publishSuffix, nil)
-		default: // route never returns these; send nothing
-			return nil, errUnroutable
-		}
-	default: // the zero form and every value outside the constants
+	keyURL := jobsURL + "/" + url.PathEscape(d.key)
+	switch d.op {
+	case OperationStart:
+		return bodyRequest(ctx, jobsURL, d.body)
+	case OperationStatus:
+		return http.NewRequestWithContext(ctx, http.MethodGet, keyURL, nil)
+	case OperationPublish:
+		return http.NewRequestWithContext(ctx, http.MethodPost, keyURL+publishSuffix, nil)
+	default: // OperationUnknown and every value outside the constants: send nothing
 		return nil, errUnroutable
 	}
 }
 
-// bodyRequest builds a POST of a JSON body to target, with the headers the
-// current form has always been sent with.
+// bodyRequest builds a POST of a JSON body to target, with the JSON content
+// type, and with the body held back until the server answers 100 Continue, so
+// a server that rejects the request from its head never receives the body.
 func bodyRequest(ctx context.Context, target string, body []byte) (*http.Request, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, target, bytes.NewReader(body))
 	if err != nil {
