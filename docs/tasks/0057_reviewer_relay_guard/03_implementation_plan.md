@@ -284,9 +284,13 @@
 
 **変更するファイル:** `docs/tasks/0057_reviewer_relay_guard/03_implementation_plan.md`
 
--   [ ] `main` で `make install-fixprguard` を再実行する（ガイド 3 章）。
--   [ ] `git worktree list` で作業中のブランチを列挙し、それぞれに `main` を取り込む。取り込んだブランチの名前を、このステップに書く（設計書 8 章）。
--   [ ] PR-1・PR-2 とその `/runpr` で観察したこと（AC-11 の 3 つの観察）と、PR-2 の `/runpr` が報告した interaction limits の状態と期限の日付を、7 章の AC-10・AC-11 の行に記録する（1.3）。
+-   [x] `main` で `make install-fixprguard` を再実行する（ガイド 3 章）。`main` の head `0fa614fe` で実行し、`go version -m "$(command -v fixprguard)"` の `vcs.revision` が `0fa614feb75b44119e224770fd958a43e800beb9`、`vcs.modified` が `false` であることを確かめた。
+-   [x] `git worktree list` で作業中のブランチを列挙し、それぞれに `main` を取り込む。取り込んだブランチの名前を、このステップに書く（設計書 8 章）。取り込んだのは `isseis/0059-remove-legacy-articles-api-02`（`/Users/issei/git/yt2column`）、`isseis/0058-same-video-article-02`（`front-end`）、`isseis/0055-coverage-compare-07`（`security`）の 3 つで、どれも `origin/main` を取り込んだ後に `HEAD..origin/main` の commit がない。`article-quality` の worktree は detached HEAD でブランチを持たないため、取り込んでいない。
+-   [x] PR-1・PR-2 とその `/runpr` で観察したこと（AC-11 の 3 つの観察）と、PR-2 の `/runpr` が報告した interaction limits の状態と期限の日付を、7 章の AC-10・AC-11 の行に記録する（1.3）。観察は次のとおりである。
+    -   PR-1（#641）: Codex の要約のコメントは、head に含まれる commit `93d1e0594b6032d2b5d27b31ee92a812a8adce9d` について `completed`（`has_any_findings` は `false`）に達した。利用者の `git push` は、PR を開いた後にも head を更新した（`2596db38`・`cc6009a1`・`93d1e059`・`83e4effd`。最後の head は `83e4effd`）。`/mergepr` の squash merge は squash commit `da8a4a10` を作り、ブランチ `isseis/0057-reviewer-relay-guard-04` は `origin` から消えた（`git ls-remote --heads origin` に残る 0057 のブランチは `isseis/0057-reviewer-relay-guard-06` だけである）。
+    -   PR-2（#647）: Codex の要約のコメントは、head に含まれる commit `57a45cd9343dc4823a2e456433367bf56f180405` について `completed`（`has_any_findings` は `false`）に達した。利用者の `git push` は、PR を開いた後にも head を更新した（`cb908551`・`bfca3bc3`。最後の head は `bfca3bc3`）。`/mergepr` の squash merge は squash commit `0fa614fe` を作り、ブランチ `isseis/0057-reviewer-relay-guard-05` は `origin` から消えた。
+    -   ブランチの作成は、PR-1・PR-2 のどちらも `/runpr` ステップ 5 の `gh issue develop` による（ステップ 1-0 で `-04` について記録した経路と同じ）。利用者の `git push` による作成は、設計書 1.3 の一時的なブランチで確かめてある。
+    -   PR-2 の `/runpr` が読んだ interaction limits の状態は「有効」、期限は `2027-05-02` である。PR-2 は `/runpr` の確認を経てマージされているので、確認の時点で止まっていない。ステップ 4-0 で `fixprguard interaction-limits --protocol 5 647` を実行し直した結果も `{"protocol":5,"state":"active","expiresOn":"2027-05-02","reason":"","httpStatus":0}` で、制限は `2026-11-02T21:30:10Z` の設定のまま更新されていない（期限が同じである）。
 
 **成功の条件:** このステップに取り込んだブランチの一覧（なければ「なし」）があり、AC-10・AC-11 の行に PR-1・PR-2 の観察がある。
 
@@ -294,10 +298,10 @@
 
 **変更するファイル:** `docs/dev/guides/fixprguard_guide.md`
 
--   [ ] 1 章の役割分担の表の `fixprguard` の行と、7.2.4 の一覧（ガイド:350）を、設計書 3.8 のとおりに改める。
--   [ ] 7.2.3 の「同じパッケージの `.go` のファイル」「ファイルシステムの Unicode の畳み込みによる別名」「確認への慣れ」に、第三者が Codex や CodeRabbit を介してその状況に至りうることも書き加える（1.3）。
--   [ ] 7.2 の最後（7.2.5 の後、8 章の前）に「#### 7.2.6」を加え、要件書 4.2 の 10 項目の残余のリスクのうち 7.2.3 にないものと、設計書 5.3 の分かっていることを書く。
--   [ ] 要件書 4.2 の 10 項目が、7.2.3 と 7.2.6 のどこかにすべて書かれていることを、項目ごとに確かめる（AC-21。`manual`）。
+-   [x] 1 章の役割分担の表の `fixprguard` の行と、7.2.4 の一覧（ガイド:350）を、設計書 3.8 のとおりに改める。
+-   [x] 7.2.3 の「同じパッケージの `.go` のファイル」「ファイルシステムの Unicode の畳み込みによる別名」「確認への慣れ」に、第三者が Codex や CodeRabbit を介してその状況に至りうることも書き加える（1.3）。
+-   [x] 7.2 の最後（7.2.5 の後、8 章の前）に「#### 7.2.6」を加え、要件書 4.2 の 10 項目の残余のリスクのうち 7.2.3 にないものと、設計書 5.3 の分かっていることを書く。
+-   [x] 要件書 4.2 の 10 項目が、7.2.3 と 7.2.6 のどこかにすべて書かれていることを、項目ごとに確かめる（AC-21。`manual`）。7 項目（制限が外れている間の経路、`make` が使える秘密、push の制限の bypass、Bot による `main` へのマージ、ガイドの `sh` のブロック、設定を外した場合と設定する前の期間、新しい自動レビュアー）は 7.2.6 に、3 項目（`.go` のファイル、Unicode の畳み込みによる別名、確認への慣れ）は 7.2.3 にある。
 
 **成功の条件:** 文書のガードが通る（`subsection(guide, "### 7.2")` が 7.2.6 を含む）。
 
@@ -305,8 +309,8 @@
 
 **変更するファイル:** `docs/translation_glossary.md`、`docs/dev/conventions/package_reference.md`
 
--   [ ] 用語集の「実行関連ファイル」の説明（`:113`）を、設計書 3.8 のとおりに改める。「interaction limits」「作成の制限」「push の制限」を、要件書 6 章の定義で加える（AC-23）。
--   [ ] `package_reference.md` の `cmd/fixprguard` の行（`:15`）と `internal/fixprguard` の行（`:25`）を、設計書 3.8 のとおりに英語で改める。`NewGitHubWithoutReviewer` で呼べる呼び出しの一覧に `InteractionLimits` を加える。
+-   [x] 用語集の「実行関連ファイル」の説明（`:113`）を、設計書 3.8 のとおりに改める。「interaction limits」「作成の制限」「push の制限」を、要件書 6 章の定義で加える（AC-23）。
+-   [x] `package_reference.md` の `cmd/fixprguard` の行（`:15`）と `internal/fixprguard` の行（`:25`）を、設計書 3.8 のとおりに英語で改める。`NewGitHubWithoutReviewer` で呼べる呼び出しの一覧に `InteractionLimits` を加える。
 
 **成功の条件:** PR-3 のレビューで読む。
 
@@ -314,11 +318,11 @@
 
 **変更するファイル:** `docs/tasks/0030_fixpr_untrusted_threads/01_requirements.md`、`docs/tasks/0030_fixpr_untrusted_threads/02_architecture.md`、`docs/tasks/0036_fixprguard_exec_file_scope/01_requirements.md`、`docs/tasks/0036_fixprguard_exec_file_scope/02_architecture.md`、`docs/tasks/0057_reviewer_relay_guard/_checks/notes_only.sh`（新規）、`docs/tasks/0057_reviewer_relay_guard/03_implementation_plan.md`（AC-22 の記録）
 
--   [ ] 設計書 3.8 の表の節ごとに、節の初めに `> **注記（タスク 0057）:** ...` の引用ブロックを 1 つ加える。注記には設計書 3.8 の 4 点のうち節の内容に合うものと、本タスクの要件書と設計書への参照を書く（AC-22）。本文の規則、状態の表、`Comments` は変えない。
--   [ ] コミットメッセージに、文書ごとに 1 行の訂正の行（`Editorial correction: <document path>: ...; no decision changed`）を書く（`requirements_process.md`「Recording in the PR description」）。
--   [ ] `_checks/notes_only.sh <upstream> <head>` を書く。merge-base と head の間で、4 つの文書のそれぞれについて次を確かめる。(1) 文書が変わっている。(2) 差分に消した行がなく、加えた行はどれも `>` で始まるか空である。(3) `## Document Status` の表と、`## 変更履歴` の節（ある場合）がバイト単位で同じである。(4) 設計書 3.8 の表の節ごとに、`> **注記（タスク 0057）:**` で始まる引用ブロックがちょうど 1 つ加わっている。引数・出力・終了コード・使い方の書き方は、`docs/tasks/0056_legacy_approval_history/_checks/task_docs_unchanged.sh` の形に合わせる（POSIX の `sh` と `git`）。
--   [ ] `_checks/notes_only.sh origin/main HEAD` を PR のブランチで 1 回実行し、出力と 2 つのコミット ID を 7 章の AC-22 の行に記録する。
--   [ ] 壊して確かめる: 次のそれぞれを一時的なコミットで作り、それに対して実行して終了コード `1` になることを確かめ、一時的なコミットを捨てる。状態の表の 1 文字の変更、本文の 1 行の書き換え、`>` で始まらない行の追加、ある節の注記の削除、ある節への 2 つ目の注記、1 つの文書の変更の取り消し。結果を AC-22 の行に書く。
+-   [x] 設計書 3.8 の表の節ごとに、節の初めに `> **注記（タスク 0057）:** ...` の引用ブロックを 1 つ加える。注記には設計書 3.8 の 4 点のうち節の内容に合うものと、本タスクの要件書と設計書への参照を書く（AC-22）。本文の規則、状態の表、`Comments` は変えない。
+-   [x] コミットメッセージに、文書ごとに 1 行の訂正の行（`Editorial correction: <document path>: ...; no decision changed`）を書く（`requirements_process.md`「Recording in the PR description」）。
+-   [x] `_checks/notes_only.sh <upstream> <head>` を書く。merge-base と head の間で、4 つの文書のそれぞれについて次を確かめる。(1) 文書が変わっている。(2) 差分に消した行がなく、加えた行はどれも `>` で始まるか空である。(3) `## Document Status` の表と、`## 変更履歴` の節（ある場合）がバイト単位で同じである。(4) 設計書 3.8 の表の節ごとに、`> **注記（タスク 0057）:**` で始まる引用ブロックがちょうど 1 つ加わっている。引数・出力・終了コード・使い方の書き方は、`docs/tasks/0056_legacy_approval_history/_checks/task_docs_unchanged.sh` の形に合わせる（POSIX の `sh` と `git`）。
+-   [x] `_checks/notes_only.sh origin/main HEAD` を PR のブランチで 1 回実行し、出力と 2 つのコミット ID を 7 章の AC-22 の行に記録する。
+-   [x] 壊して確かめる: 次のそれぞれを一時的なコミットで作り、それに対して実行して終了コード `1` になることを確かめ、一時的なコミットを捨てる。状態の表の 1 文字の変更、本文の 1 行の書き換え、`>` で始まらない行の追加、ある節の注記の削除、ある節への 2 つ目の注記、1 つの文書の変更の取り消し。結果を AC-22 の行に書く。
 
 **成功の条件:** スクリプトが終了コード `0` で終わり、6 つの壊した場合のどれもが終了コード `1` になる。
 
@@ -336,10 +340,10 @@
 
 **判定理由**: パネルモードの条件にも条件付きの確認の 2 つ以上にも当たらず、既存コード調査結果に競合する案もない。文書と一度だけ実行するスクリプトだけである
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/650
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（最終の PR のため該当しない）
 
 ## 3. 実装順序とマイルストーン (Implementation Order and Milestones)
 
@@ -383,7 +387,7 @@
 
 - [x] PR-1 マージ済み（対象ステップ: 1-0。1-1・1-2 は取り下げ）
 - [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 3-1 / 3-2 / 3-3 / 3-4 / 3-5）
-- [ ] PR-3 マージ済み（対象ステップ: 4-0 / 4-1 / 4-2 / 4-3）
+- [x] PR-3 マージ済み（対象ステップ: 4-0 / 4-1 / 4-2 / 4-3）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -397,8 +401,8 @@
 | AC-04 | `internal/fixprguard/worktree_flow_test.go` の、`Makefile` をスレッドの `path` にした `finish` の行（ステップ 2-1）と、既存の `TestFinishAfterOutOfScope` | test | ステップ 2-1 |
 | AC-05〜AC-08 | 欠番（要件書 F-002 の取り下げ。1.5） | - | - |
 | AC-09 | ガイド 10 章を、もとになる事実と照らし（ステップ 3-4）、PR-2 のレビューで読む | manual | ステップ 3-4 |
-| AC-10 | PR-2 の `/runpr` が報告した状態を記録する（ステップ 4-0。記録: 未）。PR-3 の `/runpr` が「有効」と期限の日付を報告することを、その報告で観察する（1.3）。分類は `internal/fixprguard/limits_test.go` の `active` の行が確かめる | manual・test | ステップ 2-3・4-0 |
-| AC-11 | 本書の PR（ステップ 1-0）と PR-1・PR-2（ステップ 4-0）で、Codex の要約のコメントの完了の状態、利用者の `git push` によるブランチの作成と更新、`/mergepr` の squash merge とブランチの削除を観察し、記録する。記録（計画の作成の時点、`f0cb3668`）: 設計書の PR #634 は、ruleset の設定の後に squash merge された（squash commit `f0cb3668`）。次のブランチ `isseis/0057-reviewer-relay-guard-03` は、そのマージの直後に `origin` に作られ、upstream を持つ（`git rev-parse --abbrev-ref @{u}` の出力が `origin/isseis/0057-reviewer-relay-guard-03`）。記録（ステップ 1-0）: 本書の PR #637 は、PR を開いた後にも commit を push して head を `05c81d1f` に更新でき、Codex の要約のコメントが、その head に含まれる commit `8be7d34f` について `completed`（`has_any_findings` は `false`）に達した。`/mergepr` の squash merge は squash commit `34c85bb1` を作り、ブランチ `isseis/0057-reviewer-relay-guard-03` は `origin` から消えた。`/runpr` ステップ 5 は `gh issue develop` で次のブランチ `isseis/0057-reviewer-relay-guard-04` を `origin` に作り、そのブランチは upstream を持つ（`git rev-parse --abbrev-ref @{u}` の出力が `origin/isseis/0057-reviewer-relay-guard-04`）。PR-1・PR-2 の観察はステップ 4-0 で記録する（未） | manual | ステップ 1-0・4-0 |
+| AC-10 | PR-2 の `/runpr` が報告した状態は「有効」、期限は `2027-05-02`（ステップ 4-0 の記録。PR-2 は確認を経てマージされ、実行し直した `fixprguard interaction-limits --protocol 5 647` も同じ値だった）。PR-3 の `/runpr` が「有効」と期限の日付を報告することを、その報告で観察する（1.3）。分類は `internal/fixprguard/limits_test.go` の `active` の行が確かめる | manual・test | ステップ 2-3・4-0 |
+| AC-11 | 本書の PR（ステップ 1-0）と PR-1・PR-2（ステップ 4-0）で、Codex の要約のコメントの完了の状態、利用者の `git push` によるブランチの作成と更新、`/mergepr` の squash merge とブランチの削除を観察し、記録する。記録（計画の作成の時点、`f0cb3668`）: 設計書の PR #634 は、ruleset の設定の後に squash merge された（squash commit `f0cb3668`）。次のブランチ `isseis/0057-reviewer-relay-guard-03` は、そのマージの直後に `origin` に作られ、upstream を持つ（`git rev-parse --abbrev-ref @{u}` の出力が `origin/isseis/0057-reviewer-relay-guard-03`）。記録（ステップ 1-0）: 本書の PR #637 は、PR を開いた後にも commit を push して head を `05c81d1f` に更新でき、Codex の要約のコメントが、その head に含まれる commit `8be7d34f` について `completed`（`has_any_findings` は `false`）に達した。`/mergepr` の squash merge は squash commit `34c85bb1` を作り、ブランチ `isseis/0057-reviewer-relay-guard-03` は `origin` から消えた。`/runpr` ステップ 5 は `gh issue develop` で次のブランチ `isseis/0057-reviewer-relay-guard-04` を `origin` に作り、そのブランチは upstream を持つ（`git rev-parse --abbrev-ref @{u}` の出力が `origin/isseis/0057-reviewer-relay-guard-04`）。記録（ステップ 4-0）: PR-1 の Codex の要約のコメントは commit `93d1e0594b6032d2b5d27b31ee92a812a8adce9d` について `completed`（`has_any_findings` は `false`）に達し、利用者の `git push` は PR を開いた後にも head を `83e4effd` に更新した（push の後の head は `83e4effd`）。`/mergepr` の squash merge は squash commit `da8a4a10` を作り、ブランチ `isseis/0057-reviewer-relay-guard-04` は `origin` から消えた。PR-2 の Codex の要約のコメントは commit `57a45cd9343dc4823a2e456433367bf56f180405` について `completed`（`has_any_findings` は `false`）に達し、利用者の `git push` は PR を開いた後にも head を `bfca3bc3` に更新した。`/mergepr` の squash merge は squash commit `0fa614fe` を作り、ブランチ `isseis/0057-reviewer-relay-guard-05` は `origin` から消えた。PR-1・PR-2 のブランチの作成は、どちらも `/runpr` ステップ 5 の `gh issue develop` による。利用者の `git push` によるブランチの作成は、設計書 1.3 の一時的なブランチで確かめた | manual | ステップ 1-0・4-0 |
 | AC-12 | `cmd/fixprguard/docs_test.go::TestDocumentedInvocationsParse`（`runpr.md` の `interaction-limits`）、`cmd/yt2column/fixpr_docs_test.go::TestFixprguardCallSites`、`TestRunprDocContract`（`head_before_checkout`）。1 回だけ読むこと、マージ済みで読まないこと、「Authorization」は PR-2 のレビューで読む | static・manual | ステップ 3-2 |
 | AC-13 | `internal/fixprguard/limits_test.go`（`active` の分類と `expiresOn`）、`cmd/fixprguard/main_test.go`（`active` の出力）。最終の報告の 1 行は PR-2 のレビューで読む | test・manual | ステップ 2-3・2-4・3-2 |
 | AC-14 | `internal/fixprguard/limits_test.go`（`expiring` の分類）。警告の内容と、示す 2 つの時点は PR-2 のレビューで読む | test・manual | ステップ 2-3・3-2 |
@@ -409,7 +413,7 @@
 | AC-19 | `cmd/fixprguard/main_test.go::TestProtocolMismatch`（`Protocol + 1` と `Protocol - 1`、`interaction-limits` を含むすべてのサブコマンド）、`cmd/fixprguard/docs_test.go::TestDocumentedProtocolMatches` | test・static | ステップ 2-4・3-1 |
 | AC-20 | ガイド 6 章の規則 4 と判定の順序を PR-2 のレビューで読む | manual | ステップ 3-4 |
 | AC-21 | ガイド 7.2.3・7.2.6 を PR-3 のレビューで読み、要件書 4.2 の 10 項目と照らす | manual | ステップ 4-1 |
-| AC-22 | `docs/tasks/0057_reviewer_relay_guard/_checks/notes_only.sh origin/main HEAD`（記録: 未。merge-base と head のコミット ID、出力、6 つの壊した場合の終了コードを書く）。注記の文面は PR-3 のレビューで読む | diff・manual | ステップ 4-3 |
+| AC-22 | `docs/tasks/0057_reviewer_relay_guard/_checks/notes_only.sh origin/main HEAD`（記録: merge-base `0fa614feb75b44119e224770fd958a43e800beb9`、head `6e99c21077172130965b1068e87207a90f5cb480`（4 つの文書を最後に変えたコミット）。出力は「the four documents add one task 0057 note per listed section, before the body, and change nothing else」で終了コード `0`。記録を加えるコミットは 4 つの文書を変えない。壊して確かめた場合は、どれも終了コード `1` だった: 状態の表の 1 文字の変更、本文の 1 行の書き換え、`>` で始まらない行の追加、`>` で始まる任意の行の追加（`added block does not start with the note`）、ある節の注記の削除（`holds 0 task 0057 notes, not 1`）、ある節への 2 つ目の注記（`holds 2 task 0057 notes, not 1`）、1 つの文書の変更の取り消し（`did not change`）、文書のモードの変更（`changed its file mode`）、注記を同じ節の本文の後ろへ移す（`missing or comes after the body`）。注記の文面は PR-3 のレビューで読む | diff・manual | ステップ 4-3 |
 | AC-23 | 用語集の項目を PR-3 のレビューで読む | manual | ステップ 4-2 |
 | AC-24 | 各 PR の `make test`・`make lint` と CI の `doc-guard` | static | すべてのステップ |
 | AC-25 | `internal/fixprguard/limits_test.go`（`none`・`weak`・`predates`・`unverifiable` の分類と、分類の順序の行）。`runpr.md` がその場で止まることと報告の内容は PR-2 のレビューで読む | test・manual | ステップ 2-3・3-2 |
