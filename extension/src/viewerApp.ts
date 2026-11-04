@@ -1,6 +1,8 @@
 // The viewer page's path. The page URL is the viewer's only memory: it is
 // checked once at load, and from it the viewer either waits for its start
 // result from the service worker or, holding a key, polls the job's status.
+// A URL marked e=1 shows an existing article of the same video: the mark is
+// added on a same-video answer, and once added it is never removed.
 // The viewer answers the other pages' queries for its key, takes a send over
 // only from a query it answered, and sends a publish only when the button is
 // pressed on a row that allows it, never again by itself. Every result is a
@@ -36,7 +38,11 @@ import {
   toPublishOutcome,
 } from "./core/response.ts";
 import type { Article, StartOutcome } from "./core/response.ts";
-import { parseViewerUrl, viewerQuery } from "./core/viewerUrl.ts";
+import {
+  parseViewerUrl,
+  showsExisting,
+  viewerQuery,
+} from "./core/viewerUrl.ts";
 import type { ViewerParams } from "./core/viewerUrl.ts";
 import type { Logger } from "./core/types.ts";
 import { createStatusPoller } from "./poller.ts";
@@ -108,6 +114,7 @@ export function findViewerElements(doc: Document): ViewerElements | undefined {
     channel: element("channel"),
     videoLink:
       videoLink instanceof win.HTMLAnchorElement ? videoLink : undefined,
+    existing: element("existing"),
     state: element("state"),
     stateStatus: element("state-status"),
     article: element("article"),
@@ -185,12 +192,19 @@ export async function startViewer(
     renderViewerHeader(elements, undefined, locale);
     renderViewer(
       elements,
-      { state: { kind: "invalid-link" }, elapsedMs: 0, publishing: false },
+      {
+        state: { kind: "invalid-link" },
+        elapsedMs: 0,
+        publishing: false,
+        existing: false,
+      },
       locale,
     );
     return;
   }
   let params: ViewerParams = parsed.params;
+  /** The page shows an existing article of the same video: its URL holds e=1. */
+  const existing = (): boolean => showsExisting(params);
   renderViewerHeader(elements, params, locale);
   doc.title = `${params.heading}${pageTitleSuffix}`;
 
@@ -209,16 +223,25 @@ export async function startViewer(
   const draw = (): void => {
     renderViewer(
       elements,
-      { state, elapsedMs: deps.now() - params.sentAt, publishing },
+      {
+        state,
+        elapsedMs: deps.now() - params.sentAt,
+        publishing,
+        existing: existing(),
+      },
       locale,
     );
   };
 
-  /** Draws the elapsed time again each second while a running job is shown and the page is visible. */
+  /**
+   * Draws the elapsed time again each second while a running job is shown
+   * with its elapsed time and the page is visible.
+   */
   const armRedraw = (): void => {
     cancelRedraw();
     cancelRedraw = () => {};
     if (
+      !existing() &&
       state.kind === "job" &&
       state.job.kind === "running" &&
       deps.page.isVisible()
@@ -283,13 +306,19 @@ export async function startViewer(
       received: "result",
       outcome: outcome.kind,
     });
-    // A same-video answer's key is another article of the same video; the
-    // viewer polls it as it polls an accepted key.
-    if (outcome.kind !== "accepted" && outcome.kind !== "same-video") {
-      show({ kind: "start-failed", failure: outcome });
-      return;
+    switch (outcome.kind) {
+      case "accepted":
+        params = { ...params, key: outcome.key };
+        break;
+      // The key of an existing article of the same video: polled as an
+      // accepted key, and the URL marks the page as showing it.
+      case "same-video":
+        params = { ...params, key: outcome.key, existing: true };
+        break;
+      default:
+        show({ kind: "start-failed", failure: outcome });
+        return;
     }
-    params = { ...params, key: outcome.key };
     writeUrl();
     startPolling(outcome.key);
   };
@@ -361,7 +390,24 @@ export async function startViewer(
     });
     const restarted = takeOverRestarts(state);
     deps.log.info(takeOverLabel, { accepted: true, restarted });
+    // A send answered with a same-video article marks the page, whether the
+    // send restarts or goes on; an accepted send leaves the mark as it is.
+    switch (message.answer) {
+      case "accepted":
+        break;
+      case "same-video":
+        // A viewer answers present only while it holds a key.
+        if ("key" in params) {
+          params = { ...params, existing: true };
+        }
+        break;
+    }
     if (!restarted) {
+      if (message.answer === "same-video") {
+        writeUrl();
+        draw();
+        armRedraw();
+      }
       poller?.bumpEpoch();
       return;
     }
@@ -524,7 +570,7 @@ export async function startViewer(
     channel.listen((data) => onChannelMessage(channel, data));
   }
 
-  if (params.key !== undefined) {
+  if ("key" in params) {
     startPolling(params.key);
   } else {
     await awaitStart();

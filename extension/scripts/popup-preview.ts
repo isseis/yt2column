@@ -262,25 +262,37 @@ function jobView(job: JobDisplay, elapsedMs = 0): ViewerView {
     state: { kind: "job", job, notice: { kind: "none" } },
     elapsedMs,
     publishing: false,
+    existing: false,
   };
 }
 
 /**
  * Every viewer state kind, every job kind and every row of the publish
  * button's table, one page each; the running job also in Japanese, a loading
- * state whose polling stopped, and a publish in flight.
+ * state whose polling stopped, a publish in flight, and an existing article's
+ * running and done jobs in both locales.
  */
 export const viewerPreviewCases: readonly ViewerPreviewCase[] = [
   {
     name: "viewer-invalid-link-en",
     locale: "en",
-    view: { state: { kind: "invalid-link" }, elapsedMs: 0, publishing: false },
+    view: {
+      state: { kind: "invalid-link" },
+      elapsedMs: 0,
+      publishing: false,
+      existing: false,
+    },
   },
   {
     name: "viewer-sending-en",
     locale: "en",
     header: viewerHeader,
-    view: { state: { kind: "sending" }, elapsedMs: 0, publishing: false },
+    view: {
+      state: { kind: "sending" },
+      elapsedMs: 0,
+      publishing: false,
+      existing: false,
+    },
   },
   {
     name: "viewer-start-failed-en",
@@ -290,6 +302,7 @@ export const viewerPreviewCases: readonly ViewerPreviewCase[] = [
       state: { kind: "start-failed", failure: { kind: "no-result" } },
       elapsedMs: 0,
       publishing: false,
+      existing: false,
     },
   },
   {
@@ -300,6 +313,7 @@ export const viewerPreviewCases: readonly ViewerPreviewCase[] = [
       state: { kind: "loading", notice: { kind: "none" } },
       elapsedMs: 0,
       publishing: false,
+      existing: false,
     },
   },
   {
@@ -316,6 +330,7 @@ export const viewerPreviewCases: readonly ViewerPreviewCase[] = [
       },
       elapsedMs: 0,
       publishing: false,
+      existing: false,
     },
   },
   {
@@ -388,6 +403,25 @@ export const viewerPreviewCases: readonly ViewerPreviewCase[] = [
     header: viewerHeader,
     view: jobView(doneJob({ state: "not_posted" })),
   },
+  // A viewer of an existing article of the same video (its URL holds e=1),
+  // running and done, in both locales.
+  ...(["en", "ja"] as const).flatMap((locale) => [
+    {
+      name: `viewer-existing-running-${locale}`,
+      locale,
+      header: viewerHeader,
+      view: {
+        ...jobView({ kind: "running", steps: runningSteps }, 65_000),
+        existing: true,
+      },
+    },
+    {
+      name: `viewer-existing-done-${locale}`,
+      locale,
+      header: viewerHeader,
+      view: { ...jobView(doneJob({ state: "not_posted" })), existing: true },
+    },
+  ]),
 ];
 
 /** A popup job state drawn on the shipped popup.html, one file each. */

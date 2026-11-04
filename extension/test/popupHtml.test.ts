@@ -121,7 +121,7 @@ describe("viewer.html skeleton", () => {
     assert.equal(viewerDocument().documentElement.lang, "en");
   });
 
-  it("orders the heading, channel name, video link, state, article and operations as they are shown", () => {
+  it("orders the heading, channel name, video link, existing-article notice, state, article and operations as they are shown", () => {
     const doc = viewerDocument();
     assert.deepEqual(
       Array.from(doc.querySelectorAll("[id]"), describeElement),
@@ -130,6 +130,7 @@ describe("viewer.html skeleton", () => {
         "h1#heading",
         "p#channel",
         "a#video-link",
+        "section#existing",
         "section#state",
         "div#state-status",
         "section#article",

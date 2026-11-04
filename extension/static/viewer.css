@@ -35,10 +35,19 @@ body {
   color: var(--link);
 }
 
+#existing,
 #state,
 #article,
 #actions {
   margin-top: 1rem;
+}
+
+/* The existing-article notice stands apart from the state under it by its
+   border; its text keeps the page's own colours. */
+#existing {
+  padding: 0 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
 }
 
 /* The article is text: line breaks and spaces are kept, and a right-to-left

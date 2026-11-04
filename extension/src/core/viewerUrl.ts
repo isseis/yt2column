@@ -1,9 +1,9 @@
 // Builds and reads the viewer URL's query. The URL is the only place a
 // viewer keeps its send: the heading and channel name the popup showed, the
-// video title, the collected URL, the send time and, once accepted, the
-// article key. It is untrusted when read: a reload, a restored tab or a
-// history entry may hold any text, so every rule below rejects and none
-// repairs.
+// video title, the collected URL, the send time, once accepted, the article
+// key and, for an existing article of the same video, the mark e=1. It is
+// untrusted when read: a reload, a restored tab or a history entry may hold
+// any text, so every rule below rejects and none repairs.
 
 import { isAcceptedWatchUrl } from "./acceptedUrl.ts";
 import { parseArticleKey } from "./articleKey.ts";
@@ -21,8 +21,18 @@ export interface ViewerSeed {
   readonly sentAt: number;
 }
 
-export interface ViewerParams extends ViewerSeed {
-  readonly key?: ArticleKey;
+/**
+ * A viewer URL's values: no key yet, or a key and, for an existing article of
+ * the same video, the mark e=1. The mark needs a key, so a value without one
+ * cannot hold it.
+ */
+export type ViewerParams =
+  | ViewerSeed
+  | (ViewerSeed & { readonly key: ArticleKey; readonly existing?: true });
+
+/** Whether params mark the viewer as showing an existing article of the same video. */
+export function showsExisting(params: ViewerParams): boolean {
+  return "key" in params && params.existing === true;
 }
 
 /** Which rule a viewer URL broke; for the developer log only. */
@@ -37,14 +47,19 @@ export type ViewerUrlError =
   | "url-not-accepted"
   | "sent-at"
   | "key"
+  // An e that is not exactly "1", or an e without k.
+  | "existing"
   | "fragment";
 
-type Name = "h" | "c" | "t" | "u" | "s" | "k";
+type Name = "h" | "c" | "t" | "u" | "s" | "k" | "e";
 
 // The query's names in the order they are written. Names are only ever
 // added, as optional ones: a URL an earlier version wrote must stay readable
 // from history and restored tabs.
-const names: readonly Name[] = ["h", "c", "t", "u", "s", "k"];
+const names: readonly Name[] = ["h", "c", "t", "u", "s", "k", "e"];
+
+/** The one value of e: the viewer shows an existing article of the same video. */
+const existingMark = "1";
 
 function isName(value: string): value is Name {
   return (names as readonly string[]).includes(value);
@@ -119,7 +134,8 @@ export function viewerQuery(params: ViewerParams): string {
     t: params.title,
     u: params.url,
     s: String(params.sentAt),
-    k: params.key,
+    k: "key" in params ? params.key : undefined,
+    e: showsExisting(params) ? existingMark : undefined,
   };
   const pairs: string[] = [];
   for (const name of names) {
@@ -171,8 +187,9 @@ function decodePairs(
  * one "=" (an empty pair has none), a missing h, u or s, a malformed
  * percent-encoding or one that decodes to invalid UTF-8 (decodeURIComponent
  * throws on both, so a decoded value is always well-formed), a non-empty
- * fragment, and a value that breaks its limit or check. "+" is read as "+",
- * never as a space: the builder writes "%2B".
+ * fragment, an e other than "1" or one without a k, and a value that breaks
+ * its limit or check. "+" is read as "+", never as a space: the builder
+ * writes "%2B".
  */
 export function parseViewerUrl(
   search: string,
@@ -224,12 +241,21 @@ export function parseViewerUrl(
   }
 
   const keyText = decoded.get("k");
+  const existingText = decoded.get("e");
   if (keyText === undefined) {
-    return { ok: true, params: seed };
+    return existingText === undefined
+      ? { ok: true, params: seed }
+      : { ok: false, error: "existing" };
   }
   const key = parseArticleKey(keyText);
   if (key === undefined) {
     return { ok: false, error: "key" };
   }
-  return { ok: true, params: { ...seed, key } };
+  if (existingText === undefined) {
+    return { ok: true, params: { ...seed, key } };
+  }
+  if (existingText !== existingMark) {
+    return { ok: false, error: "existing" };
+  }
+  return { ok: true, params: { ...seed, key, existing: true } };
 }

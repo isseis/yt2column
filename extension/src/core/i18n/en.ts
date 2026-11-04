@@ -28,6 +28,9 @@ const setWebhookStep = "Set SLACK_WEBHOOK_URL and restart yt2column-server.";
 const publishUnknownStep = "The posting status is checked again automatically.";
 const publishAgainStep =
   "Pressing the button again posts nothing twice only while the server holds the article as posting or posted; after a failed post, posting again may repeat the one message whose delivery was not confirmed.";
+// Button names a step quotes, kept in one place with the button's own name.
+const generateButton = "Generate article";
+const generateFromSelectionButton = "Generate from current selection";
 const closePopupStep =
   "You can close this popup: the result appears in the viewer tab.";
 
@@ -306,6 +309,13 @@ export const en: Catalog = {
       text: "The server no longer has this article: it restarted, or dropped the article from its cache.",
       steps: [sendAgainStep, repeatedPostStep],
     },
+    existing: {
+      text: "This viewer shows an existing article of the same video. It was not generated from your current selection.",
+      steps: [
+        `To generate from your current selection, open the popup on the video's tab and press "${generateButton}".`,
+        `If the popup offers a choice, choose "${generateFromSelectionButton}".`,
+      ],
+    },
     webhookNotConfigured: {
       text: "The server has no Slack Webhook configured.",
       steps: [setWebhookStep],
@@ -324,7 +334,7 @@ export const en: Catalog = {
   },
   popup: {
     primary: {
-      generate: "Generate article",
+      generate: generateButton,
       openViewer: "Open viewer",
       retry: "Try again",
     },
