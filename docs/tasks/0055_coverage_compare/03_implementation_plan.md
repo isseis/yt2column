@@ -534,8 +534,8 @@ M1・M2・M3 はこの順に積み上げる。M2 の関数表と判定の関数�
 | AC-03 | test・manual | `run_test.go::TestRunCleansUp`（実行中の取り消しを含む）・`::TestRunDetectsUserStateChange`、`cmd/coveragecompare/main_test.go::TestSignalWaitsForRun`、`cmd/yt2column/makefile_test.go::TestCoverageCompareRecipes`（レシピの一時的なディレクトリ）・`::TestCoverageCompareRecipeForwardsSignal`。端末の Ctrl-C と SIGHUP は手動の確認（ステップ 6-3 の記録）。実測（2026-11-04、`f68485ad`）: プロセスグループへの SIGINT と `make` だけへの SIGTERM は最後の行 `coverage-compare: STOP internal`、`make` だけへの SIGHUP は実行が続いて最後の行 `coverage-compare: STOP unmatched`。3 つとも実行後の `TMPDIR` は空（7.1） | ステップ 4-1・4-2・4-3・5-1・5-2 |
 | AC-04 | test | `precheck_test.go::TestRunPreconditions`（拡張の `toolchain` の行、npm の起動が `--version` だけ）、`run_test.go::TestRunEndToEnd`（npm の起動が `--version` だけ） | ステップ 4-1 |
 | AC-05 | test | `precheck_test.go::TestRunPreconditions`（Go の `toolchain` の行）、`childenv_test.go::TestChildEnv`（`GOTOOLCHAIN=local`・`GOPROXY=off`）、`cmd/yt2column/makefile_test.go::TestCoverageCompareRecipes`（HEAD の `go.mod` の確認と、レシピの go の環境） | ステップ 4-1・4-2・5-2 |
-| AC-06 | test | `run_test.go::TestRunEndToEnd`（`Toolchain`、同じ `node_modules` へのリンク）、`::TestRunDetectsUserStateChange`（`.package-lock.json` の変化で `internal`）。実際の一式: `_checks/realrun/main.go`（ステップ 6-3 の記録。`toolchain` の行が入っている版と一致）。実測（2026-11-04、`f68485ad`）: `toolchain go1.27.1`・`v24.21.0` が入っている版と一致した（7.1） | ステップ 4-2・4-3 |
-| AC-07 | test（一度だけ実行して記録する。1.3） | `docs/tasks/0055_coverage_compare/_checks/realrun/main.go`（ステップ 6-3 の記録。削除したテストとその理由もここに書く）。ほかのパッケージのテストからだけ実行される関数を比べることは、AC-11 の行のテストで確かめる。実測（2026-11-04、`f68485ad`、一時的なコミット `2459a08a`、ツリー `d75d26a0`）: Go は `internal/coveragecompare/fake_test.go`（トップレベルのテスト 1 つ）を、拡張は `extension/test/fakes.test.ts`（9 つ）を削除し、どちらも合格した（7.1） | ステップ 6-2 |
+| AC-06 | test | `run_test.go::TestRunEndToEnd`（`Toolchain`、同じ `node_modules` へのリンク）、`::TestRunDetectsUserStateChange`（`.package-lock.json` の変化で `internal`）。実際の一式: `_checks/realrun/main.go`（ステップ 6-3 の記録。`toolchain` の行が入っている版と一致）。実測（2026-11-04、`abad2ae0`）: `toolchain go1.27.1`・`v24.21.0` が入っている版と一致した（7.1） | ステップ 4-2・4-3 |
+| AC-07 | test（一度だけ実行して記録する。1.3） | `docs/tasks/0055_coverage_compare/_checks/realrun/main.go`（ステップ 6-3 の記録。削除したテストとその理由もここに書く）。ほかのパッケージのテストからだけ実行される関数を比べることは、AC-11 の行のテストで確かめる。実測（2026-11-04、`abad2ae0`、一時的なコミット `0fdd9b9b`、ツリー `a9460d7b`）: Go は `internal/coveragecompare/fake_test.go`（トップレベルのテスト 1 つ）を、拡張は `extension/test/fakes.test.ts`（9 つ）を削除し、どちらも合格した（7.1） | ステップ 6-2 |
 | AC-08 | test | `gotestjson_test.go::TestParseGoTestJSON`（`fail`・`build-fail`）、`tap_test.go::TestParseTAP`（`# fail`・`not ok`）、`judge_test.go::TestJudge`（終了コードだけが 0 でない場合、HEAD の失敗）、`run_test.go::TestRunStopsOnBaseFailure`・`::TestRunStopsOnHeadFailure`、`output_test.go::TestWrite`（時点とテストの名前） | ステップ 1-2・1-3・2-3・4-3 |
 | AC-09 | test | `judge_test.go::TestJudge`（テストの数が 0、製品の関数の数が 0。BASE と HEAD のそれぞれ） | ステップ 2-3 |
 | AC-10 | test | `compare_test.go::TestCompareGo`（下がった関数、丸めると同じになる減少）、`output_test.go::TestWrite`（`lost` の行の `分子/分母`） | ステップ 2-3・2-4 |
@@ -577,7 +577,7 @@ M1・M2・M3 はこの順に積み上げる。M2 の関数表と判定の関数�
 
 ### 7.1. 実際の一式での確認とシグナルの記録（2026-11-04）
 
-ステップ 6-2 のスクリプトを、ブランチのコミット `f68485ad2a17b1e6786aea2fa569026820e39e5d` で一度実行した。スクリプトがクローンの中に作った、テストを削除しただけのコミットは `2459a08a92742d58442aed86d3be69d3506d8630`（ツリー `d75d26a095d57b6d0bec29014c80e57a271a2c18`）である。使った版は go1.27.1 と node v24.21.0。
+ステップ 6-2 のスクリプトを、ブランチのコミット `abad2ae021b20002618b125ff98fd829ebc40489` で一度実行した。スクリプトがクローンの中に作った、テストを削除しただけのコミットは `0fdd9b9b3014a8905376620cfe65f76ed42cd2be`（ツリー `a9460d7bae3fec9aaa00edd4f4e73e666e445e39`）である。使った版は go1.27.1 と node v24.21.0。
 
 削除したテストと、選んだ理由:
 
@@ -588,8 +588,8 @@ M1・M2・M3 はこの順に積み上げる。M2 の関数表と判定の関数�
 
 ```text
 target    make coverage-compare BASE="HEAD~1"
-base      f68485ad2a17b1e6786aea2fa569026820e39e5d
-head      2459a08a92742d58442aed86d3be69d3506d8630 tree d75d26a095d57b6d0bec29014c80e57a271a2c18
+base      abad2ae021b20002618b125ff98fd829ebc40489
+head      0fdd9b9b3014a8905376620cfe65f76ed42cd2be tree a9460d7bae3fec9aaa00edd4f4e73e666e445e39
 toolchain go1.27.1
 tests     base 1287 head 1286
 files     base 138 head 138
@@ -601,8 +601,8 @@ coverage-compare: PASS
 
 ```text
 target    make ext-coverage-compare BASE="HEAD~1"
-base      f68485ad2a17b1e6786aea2fa569026820e39e5d
-head      2459a08a92742d58442aed86d3be69d3506d8630 tree d75d26a095d57b6d0bec29014c80e57a271a2c18
+base      abad2ae021b20002618b125ff98fd829ebc40489
+head      0fdd9b9b3014a8905376620cfe65f76ed42cd2be tree a9460d7bae3fec9aaa00edd4f4e73e666e445e39
 toolchain v24.21.0
 tests     base 1958 head 1949
 files     base 42 head 42
