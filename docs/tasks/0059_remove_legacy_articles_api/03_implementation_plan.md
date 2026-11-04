@@ -311,12 +311,12 @@ localhost サーバの旧 API（`POST /articles`）・旧 API のジョブ・失
 
 **変更するファイル:** `docs/tasks/0059_remove_legacy_articles_api/_checks/residue/main.go`
 
-- [ ] `_checks/residue` に、サーバの確かめを加える。
+- [x] `_checks/residue` に、サーバの確かめを加える。
     -   AC-06: AC-06 が挙げる識別子（`cmd/yt2column-server` の `newNotifier`・`deps` のフィールド `newNotifier`・`llmCallsPerJob` を含む）が、それを定義していたパッケージ（`internal/server`・`internal/publisher`・`cmd/yt2column-server`）に宣言されておらず、ほかのパッケージから修飾子つきで参照されていない。どの Go のファイルも `internal/failure` と `internal/failure/testutil` を import しない。`internal/server` に `classifyWrite` が宣言されている。
-    -   AC-07: `internal/server` の `WebhookPublisher` のメソッドが `PostMessages` だけで、埋め込みを持たない。`internal/server` と `cmd/yt2column-server` は、テストでないコードで `internal/pipeline` を直接にも間接にも import しない（各コミットのソースで `go list -deps` を実行して読む）。テストでないコードで `.Publish` のセレクタ式（呼び出しとメソッド値）は `internal/pipeline` にだけある。
+    -   AC-07: `internal/server` の `WebhookPublisher` のメソッドが `PostMessages` だけで、埋め込みを持たない。`internal/server` と `cmd/yt2column-server` は、テストでないコードで `internal/pipeline` を直接にも間接にも import しない（各コミットのソースで `go list -deps` を実行して読む）。テストでないコードで `.Publish` のセレクタ式の呼び出しは `internal/pipeline` にだけある（メソッド値は、型の情報なしでは `articlecache` と状態の応答が持つフィールド `Publish` の読み出しと見分けられないので確かめない）。
     -   AC-02: `internal/server` と `cmd/yt2column-server` のテストでないコードで、`.PostMessages` のセレクタ式は `internal/server` の `runPublish` の中にだけある。
     -   AC-08（AC-01・AC-04・AC-15・AC-16 の移行の確認を兼ねる。1.6 節）: 1.3 節のとおり、`internal/server`・`cmd/yt2column-server`・`internal/serversock`・`internal/publisher` のテストでないファイルのコメントと文字列リテラルに、`/articles` と失敗の通知を指す語がない。`matchTarget` の `/articles` の分岐、起動時の警告、停止の案内、シャットダウンのログの文字列を含む。
-- [ ] 各確かめについて、merge-base を head として渡したときの結果を確かめる。merge-base で成り立つ確かめ（`classifyWrite` の宣言、`.Publish` のセレクタ式、`.PostMessages` のセレクタ式）は、それぞれを成り立たなくする一時的なコミット（ブランチに載せない）を head として渡して、成り立たないと出ることを確かめる。
+- [x] 各確かめについて、merge-base を head として渡したときの結果を確かめる。merge-base で成り立つ確かめ（`classifyWrite` の宣言、`.Publish` のセレクタ式、`.PostMessages` のセレクタ式）は、それぞれを成り立たなくする一時的なコミット（ブランチに載せない）を head として渡して、成り立たないと出ることを確かめる。
 
 **完了の条件:** `go vet -tags test` がスクリプトを通し、`_checks/residue` が `HEAD` で `0` を返す（記録はステップ 4-3）。
 
