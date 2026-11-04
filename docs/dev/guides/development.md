@@ -63,10 +63,10 @@ localhost サーバの起動と停止は、README の
 
 ### curl でサーバを確かめる
 
-リクエストの本文（動画の URL とコピーした字幕）を `request.json` に書く。
+リクエストの本文（動画の URL、コピーした字幕、送り方）を `request.json` に書く。
 
 ```json
-{"videoUrl":"https://www.youtube.com/watch?v=dQw4w9WgXcQ","transcript":"0:00\nHello\n"}
+{"videoUrl":"https://www.youtube.com/watch?v=dQw4w9WgXcQ","transcript":"0:00\nHello\n","mode":"plain"}
 ```
 
 それをソケットに送る。macOS ではパスに空白が入るので、二重引用符で囲んだままにする。
@@ -87,6 +87,7 @@ curl -sS --unix-socket "$socket" -X POST http://localhost/jobs \
   （そのメッセージは URL のホストと既定のポート、つまり `localhost port 80` を示すが、接続そのものはソケットに向かう）。README の手順でサーバを起動する。ログの最初の行が、待ち受けるソケットを示す。
 
 受け付けた生成の開始は `202` と `{"status":"accepted","key":"…","requestId":"…"}` を返す。
+`mode` が `inquiry` の生成の開始は、同じ動画の記事があれば `200` と `{"status":"same_video","key":"…","requestId":"…"}` を返す（下の「ジョブの API」）。
 拒否したリクエストは `4xx` か `5xx` と
 `{"status":"rejected","reason":"…","requestId":"…"}` を返す。`reason` は次のいずれかである。
 
@@ -114,9 +115,21 @@ curl -sS --unix-socket "$socket" -X POST http://localhost/jobs \
 
 | 操作 | リクエスト | 成功の応答 |
 |---|---|---|
-| 生成の開始 | `POST /jobs`、上の `request.json` の形の JSON のオブジェクト | `202`、`{"status":"accepted","key":"…","requestId":"…"}` |
+| 生成の開始 | `POST /jobs`、上の `request.json` の形の JSON のオブジェクト | `202`、`{"status":"accepted","key":"…","requestId":"…"}`。同じ動画の応答は `200`、`{"status":"same_video","key":"…","requestId":"…"}` |
 | 状態の取得 | `GET /jobs/<key>`、本文なし | `200`、`{"status":"ok","requestId":"…","webhookConfigured":true,"job":{…}}` |
 | 投稿 | `POST /jobs/<key>/publish`、本文なし | `202`、`{"status":"accepted","requestId":"…"}` |
+
+生成の開始の本文は、必須のメンバ `videoUrl`・`transcript`・`mode` と、任意のメンバ `title`・`channelName`・`description` を持つ。`mode` は送り方で、`inquiry`（照会付き）か `plain`（照会なし）のどちらかの文字列である。`mode` がない本文、文字列でない値、この 2 つ以外の値（大文字や前後の空白を含むもの、空の文字列を含む）、`mode` を 2 回書いた本文は、どちらかに補わずに `invalid_body` で拒否し、ジョブを始めない。`mode` はキーの計算に入らないので、同じ入力はどちらの送り方でも同じキーになる。
+
+照会付きの生成の開始は、次の順に振る舞いを決める。順 2 は件数の上限と生成の枠より前にあるので、生成の枠に空きがなくても、キャッシュに落とせる記録がなくても、同じ動画の応答を返す。
+
+| 順 | 条件 | 応答 |
+|---|---|---|
+| 1 | 今の入力のキーの記事が生成中か完了 | 照会なしと同じく、`202` でそのキー |
+| 2 | 同じ動画（URL の書き方によらず、動画 ID が同じ）の別のキーの記事が生成中か完了 | `200` の同じ動画の応答。キーは、その記事のうち受け付けた時点（失敗の後の再試行では再試行を受け付けた時点）が最も新しいもの。生成を始めず、キャッシュも変えない。今の入力のキーが失敗でも、再試行しない |
+| 3 | それ以外（失敗した記事しかない場合を含む） | 照会なしと同じ（生成を始めて `202`、または `too_many_requests`） |
+
+照会なしの生成の開始は、同じ動画の記事があっても今の入力の記事を生成し、同じ動画の応答を返さない。同じ動画の応答は、記事の状態を持たない。状態は、返したキーで状態の取得を送って知る。拡張・ホスト・サーバは同じ版で使う。`mode` を知らない前の版のサーバは、照会付きの生成の開始を照会なしとして受け付け、前の版の拡張が送る `mode` のない本文は、このサーバが `invalid_body` で拒否する。
 
 `<key>` は記事のキーである。不透明な値なので、生成の開始が返したものをそのまま送り返し、その形にも計算方法にも依存しない。キーはサーバのプロセスごとにも異なる。再起動の後は同じ入力に新しいキーが付くので、新しい生成の開始が返すキーを使う。受け付けない形のキーを指定した状態の取得と投稿のリクエストは
 `invalid_key` で拒否する。どちらの操作も本文を取らない。クエリの付いたジョブの API のリクエストには `not_found` を返す。
@@ -156,6 +169,8 @@ curl -sS --unix-socket "$socket" -X POST http://localhost/jobs \
 投稿の操作は Webhook の返事を待たずに `202` を返し、同じ記事を 2 度投稿しない。`posting` か `posted` の記事をもう一度投稿しても何も送らず、`failed` の投稿は最初に届かなかったメッセージから再開する（そのメッセージは 2 度届くことがある）。投稿には `SLACK_WEBHOOK_URL` が要る。なければ、投稿の操作は `webhook_not_configured` を返し、状態の取得の応答は
 `"webhookConfigured": false` を持つ。`SLACK_WEBHOOK_URL` なしで起動したサーバも記事は生成するが、投稿の操作は
 `webhook_not_configured` で拒否する。
+
+受け付けた生成の開始のログの行は、`requestId`・`key`・`videoId`・`outcome`（`started`・`restarted`・`existing`）と送り方 `mode`（`inquiry` か `plain`）を持つ。同じ動画の応答を返した生成の開始は、`generation start answered with a same-video article` の 1 行を書き、`requestId`、今の入力のキー `key`、`videoId`、`outcome=same_video`、`mode=inquiry`、返した記事のキー `sameVideoKey` を持つ。本文・字幕・`videoUrl` の文字列・動画メタデータは書かない。`grep "$key" server.log` は、返した記事のジョブの行と、それを返した照会の行の両方を見つける。
 
 受け付けて応答した状態の取得はログに書かない。ビューアが数秒ごとに問い合わせるためで、その応答の `requestId` に対応するログの行はない。拒否した状態の取得は、その拒否をログに書く。ほかの操作はどれも `requestId` を付けた行をログに書き、生成と投稿のジョブはキーを書く。
 

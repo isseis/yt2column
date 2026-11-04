@@ -229,11 +229,11 @@
 
 **変更するファイル:** `docs/dev/guides/development.md`、`docs/dev/conventions/package_reference.md`
 
-- [ ] `development.md` の「ジョブの API」に、生成の開始の本文の必須のメンバ `mode`、同じ動画の応答（`200`、`status` が `same_video`）、照会付きの生成の開始の振る舞い（設計書 3.2 節の表）、ログの属性を書き、生成の開始の例の本文（`request.json`）に `mode` を加える（設計書 3.9 節、1.3 節）。拒否の理由は加えない。
-- [ ] `development.md` の「ジョブの API のコード」節（要件書 2.2 が対象に挙げる）に、`same_video` や `mode` の値を書くかを決める。この節は状態の取得の応答のコードを並べる節なので、生成の開始の応答の `status` とログの値は「ジョブの API」節に書き、この節は変えないのが今の構成に合う。決めたことと理由を PR の説明に書く。
-- [ ] `package_reference.md` の `internal/server` の行に、本文の `mode` と同じ動画の応答を加える。
-- [ ] 例の本文が受理されることを確かめる。`development.md` の例の本文を `internal/server` の一時的なテスト（コミットしない）で `validateBody` に通し、受理されることを、使ったコミットとともに 7.1 節に書く。
-- [ ] 文書のガードと `make ext-test` を通す。
+- [x] `development.md` の「ジョブの API」に、生成の開始の本文の必須のメンバ `mode`、同じ動画の応答（`200`、`status` が `same_video`）、照会付きの生成の開始の振る舞い（設計書 3.2 節の表）、ログの属性を書き、生成の開始の例の本文（`request.json`）に `mode` を加える（設計書 3.9 節、1.3 節）。拒否の理由は加えない。
+- [x] `development.md` の「ジョブの API のコード」節（要件書 2.2 が対象に挙げる）に、`same_video` や `mode` の値を書くかを決める。この節は状態の取得の応答のコードを並べる節なので、生成の開始の応答の `status` とログの値は「ジョブの API」節に書き、この節は変えないのが今の構成に合う。決めたことと理由を PR の説明に書く。
+- [x] `package_reference.md` の `internal/server` の行に、本文の `mode` と同じ動画の応答を加える。
+- [x] 例の本文が受理されることを確かめる。`development.md` の例の本文を `internal/server` の一時的なテスト（コミットしない）で `validateBody` に通し、受理されることを、使ったコミットとともに 7.1 節に書く。
+- [x] 文書のガードと `make ext-test` を通す。
 
 **完了の条件:** 文書のガードと `make ext-test` が通る。
 
@@ -538,6 +538,10 @@ AC-12・AC-13・AC-14 は要件書の欠番である。
 ### 7.1. 実行の記録
 
 （ステップ 2-4・3-3・4-4 で記入する。）
+
+**ステップ 2-4（`development.md` の例の本文、AC-29）:** 2026-11-04、ブランチのコミット `8d582f95` に `development.md` の変更を加えた作業ツリーで確かめた。`internal/server` の一時的なテスト（コミットしない）で、`development.md` の最初の `json` のコード片（`{"videoUrl":"https://www.youtube.com/watch?v=dQw4w9WgXcQ","transcript":"0:00\nHello\n","mode":"plain"}`）を読み、`validateBody` に通した。拒否されずに受理され、送り方は `plain` だった。
+
+**ステップ 2-4（「ジョブの API のコード」節）:** この節は状態の取得の応答のコードを並べる節なので、変えない。生成の開始の応答の `status` の `same_video` と、ログの `mode`・`outcome=same_video` の値は「ジョブの API」節に書いた。
 
 ## 8. 成功基準 (Success Criteria)
 
