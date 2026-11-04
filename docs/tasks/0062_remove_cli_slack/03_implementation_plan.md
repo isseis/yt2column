@@ -45,7 +45,7 @@ CLI の `--slack` と、CLI だけが使う Webhook の投稿の経路（出力�
     -   `slackwebhook.ValidURL` を通る `https://127.0.0.1:<port>/hooks/<実行ごとの文字列>` の形の `SLACK_WEBHOOK_URL`。今の CLI はこの変数を毎回検証する（`internal/config/config.go:472-488`、`internal/slackwebhook/slackwebhook.go:20-26` は `https` だけを受理する）ので、`http` の URL では merge-base の CLI がすべての形で設定の誤りで止まり、確かめが目的と違う理由で失敗する。`<port>` は、受け付けた接続を数える TCP のリスナーである。
     -   閉じたループバックのアドレスを指す `HTTPS_PROXY`・`HTTP_PROXY`（`cmd/yt2column/main_test.go:27-38` と同じ）。
 
-    偽の `yt-dlp` は字幕を出さずに失敗するので、merge-base の CLI でも LLM の API と Webhook に届かない。合格の条件は、終了コード `2`、印のファイルがない、キャッシュのディレクトリがまだ存在しない、`--out` に何もできていない、のすべてと、標準エラーの行が次のとおりであることである。URL より前の形では、標準ライブラリの未知のフラグの行（`flag provided but not defined: -slack`）と `usageHint` の行、URL より後の形では、引数の数の誤りの行（`expected exactly one video URL`）と `usageHint` の行である。リスナーが接続を受けていないことも確かめるが、偽の `yt-dlp` が公開より前に失敗するので、どちらのコミットでも失敗しえない予備の確かめであり、証拠としては記録しない。証拠は、`--slack` の各形で印のファイルがないことと、対照の実行（`--slack` を付けない `--out` だけの実行）で偽の `yt-dlp` が呼ばれて印のファイルができることである。
+    偽の `yt-dlp` は字幕を出さずに失敗するので、merge-base の CLI でも LLM の API と Webhook に届かない。次の合格の条件は head の CLI について求めるもので、merge-base の CLI では成り立たないこと（受理された `--slack` の形が偽の `yt-dlp` を呼ぶこと）を、確かめが失敗しうる証拠として記録する（ステップ 1-1・1-5）。合格の条件は、終了コード `2`、印のファイルがない、キャッシュのディレクトリがまだ存在しない、`--out` に何もできていない、のすべてと、標準エラーの行が次のとおりであることである。URL より前の形では、標準ライブラリの未知のフラグの行（`flag provided but not defined: -slack`）と `usageHint` の行、URL より後の形では、引数の数の誤りの行（`expected exactly one video URL`）と `usageHint` の行である。リスナーが接続を受けていないことも確かめるが、偽の `yt-dlp` が公開より前に失敗するので、どちらのコミットでも失敗しえない予備の確かめであり、証拠としては記録しない。証拠は、`--slack` の各形で印のファイルがないことと、対照の実行（`--slack` を付けない `--out` だけの実行）で偽の `yt-dlp` が呼ばれて印のファイルができることである。
 -   **AC-20 の語の一覧（設計書 7.3 節）:** 次の 3 つの規則で確かめる。どれも `docs/tasks/` の下の Go のファイルは探さない。
     1.  すべての Go のファイルのコメントに、`--slack`、`SlackWebhookPublisher.Publish`、`test-integration-cli-slack`、`CLI's publisher`、`CLI's webhook` がない。
     2.  `internal/publisher` の `publisher.go` と、名前が `slack` で始まるファイルと `test_helpers_slack.go` のコメントに、語としての `Publish`（前後が識別子の文字でないもの。`SlackPublishMaxDurationForTest` は当たらない）がない。
@@ -219,7 +219,7 @@ CLI の `--slack` と、CLI だけが使う Webhook の投稿の経路（出力�
 
 - [ ] `cli.md` を AC-17 のとおりに直す（冒頭、「必要なもの」、「使い方」とフラグの表、「Webhook への投稿」の節の削除、「出力の書式」、「推定の料金」、終了コード `0`、「設定」）。
 - [ ] `TestREADMEDocumentsFlags` に逆向きの確かめを加える（1.3 節）。`cli.md` に `--slack` の行を戻すと失敗することを確かめ、コミットメッセージに書く。
-- [ ] `README.md` を AC-18 のとおりに直し（`:10`、`:191-192`、「設定」の表とその後の説明 `:398-404`）、`/mktrans README.md` で `README.en.md` に写す。`README.md:192` と `README.en.md:273` は `cli.md` の「Webhook への投稿」の見出しへリンクし、`TestReadmeLinks`（`cmd/yt2column/docs_test.go:650`）がその見出しを確かめるので、`cli.md` の節の削除と 2 つの README の変更は同じコミットに入れる。`translation_glossary.md:167` を残る見出しに合わせる。
+- [ ] `README.md` を AC-18 のとおりに直し（`:10`、`:191-192`、「設定」の表とその後の説明 `:398-404`）、`/mktrans README.md` で `README.en.md` に写す。`README.md:192` と `README.en.md:273` は `cli.md` の「Webhook への投稿」の見出しへリンクし、`TestReadmeLinks`（`cmd/yt2column/docs_test.go:650`）がリンク先の見出しがあることを確かめる。2 つの README からこのリンクを除き（AC-18 の書き直しの一部）、`cli.md` の節の削除と同じコミットに入れる。`translation_glossary.md:167` を残る見出しに合わせる。
 - [ ] `development.md` の `make test-integration-cli-slack` の記述（`:17`、「CLI と Webhook の統合テスト」の節 `:273-276`）を除く。
 - [ ] `security.md` §2 の表の CLI の行（`:40`）とテストの数、`GODEBUG` の項（`:42-43`）を直す。
 - [ ] `package_reference.md` の次の行を直す（設計書 3.6 節）。`cmd/yt2column`・`internal/job` の行、`internal/config` の行の `RequireSlackWebhookURL` と「the Slack Webhook URL」の記述、`internal/publisher` の行の `SlackMessageCount` の記述（`:48`）、`internal/slackwebhook` の行の「including `cmd/yt2column`'s」（`:31`。ステップ 1-3 で `integration_slack_test.go` を削除した後は事実と合わなくなる）。
