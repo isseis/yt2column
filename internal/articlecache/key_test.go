@@ -76,17 +76,15 @@ func TestKeyValueBoundary(t *testing.T) {
 	}
 }
 
-// TestSubject checks that a Subject carries the same key Key returns and the
-// input's video ID, and that the video ID does not reach the key.
+// TestSubject checks that a Subject carries the same key Key returns and that
+// the video ID does not reach the key. That the Subject carries the video ID
+// is checked through Begin, by TestBeginSameVideo.
 func TestSubject(t *testing.T) {
 	keyer := NewKeyer(testSecret)
 	in := baseKeyInput()
 	subject := keyer.Subject(in)
 	if subject.Key() != keyer.Key(in) {
 		t.Errorf("Subject key = %s, want Key's %s", subject.Key(), keyer.Key(in))
-	}
-	if subject.videoID != in.VideoID {
-		t.Errorf("Subject video ID = %q, want %q", subject.videoID, in.VideoID)
 	}
 	other := in
 	other.VideoID = "zyxwvutsrqp"

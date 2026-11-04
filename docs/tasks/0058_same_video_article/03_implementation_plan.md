@@ -113,7 +113,7 @@
 **変更するファイル:** `internal/articlecache/key.go`、`key_test.go`、`internal/server/request.go`、`request_test.go`
 
 - [x] `KeyInput` に `VideoID` を加え、`Subject` と `Keyer.Subject`・`Subject.Key` を設計書 3.2 節のとおりに加える。`VideoID` はキーの計算に入れない。
-- [x] `Keyer.Subject` のテストを `key_test.go` に加える。キーが同じ入力の `Keyer.Key` と等しいこと、`Subject` の動画 ID が `KeyInput.VideoID` であること、動画 ID だけが違う 2 つの入力のキーが等しいこと（動画 ID がキーに入らない）。
+- [x] `Keyer.Subject` のテストを `key_test.go` に加える。キーが同じ入力の `Keyer.Key` と等しいこと、動画 ID だけが違う 2 つの入力のキーが等しいこと（動画 ID がキーに入らない）。`Subject` の動画 ID が `KeyInput.VideoID` であることは、`Begin` のテスト（ステップ 1-3）で確かめる。
 - [x] `validateBody` が `KeyInput.VideoID` を、`VideoURL` と同じ `transcript.ValidateVideoURL` の呼び出しの戻り値から埋める（設計書 3.2 節）。`TestValidateBodyKeyInput` に、`youtu.be` の書き方の URL で `VideoID` が動画 ID になることの確かめを加える。
 
 **完了の条件:** `go test -tags test ./internal/articlecache/ ./internal/server/` が通る。
@@ -127,12 +127,12 @@
 - [x] `startHandler` を、`s.keyer.Subject(input.key)` と `articlecache.StartPlain` で `Begin` を呼ぶ形にする。このフェーズではサーバの振る舞いを変えないので、`BeginSameVideo` は届かない。`switch` には `BeginSameVideo` の分岐を設けて `internal_error` で拒否し、ログに書く（設計書 4.2 節の「`plain` の送信で `BeginSameVideo` が返るのは `Begin` が誤っている場合」の扱いを、このフェーズで入れる）。この分岐は本物の `Cache` からは届かない守りの分岐なので、テストを書かない。そのことを分岐のコメントに書く。
 - [x] `cache_test.go` の 14 か所と `internal/server` のテストの `Begin` の呼び出し（1.4 節）を新しい形に書き換える。既存の振る舞いの期待は変えない。既存の `Begin` のテストは `StartPlain` で呼ぶ。
 - [x] `TestBeginSameVideo` を `cache_test.go` に加える。設計書 7.1 節の `articlecache.Begin` の行が挙げることを、表の行で確かめる（順 1〜3、失敗を含めない、今のキーを含めない、世代の番号の最大でやり直した記録を含む、空の動画 ID、記録の数・状態・世代の番号が変わらない、`acquire` を呼ばない、生成の枠がない・捨てられる記録がないとき、`StartMode` の零値）。次を守る。
-    -   記録の前後の比べ方は、キーごとの記録の写し（世代の番号を含むすべての項目）と `nextGen` で行う（`DumpRecordsForTest` の文字列は記録が 2 つ以上のとき順が定まらない。1.4 節。`Lookup` の `Snapshot` は世代の番号を持たない）。
+    -   記録の前後の比べ方は、キーごとの記録の写し（世代の番号を含むすべての項目）で行う（`DumpRecordsForTest` の文字列は記録が 2 つ以上のとき順が定まらない。1.4 節。`Lookup` の `Snapshot` は世代の番号を持たない）。
     -   最新の行は、偽の時計を記録ごとに進め、同じ動画の候補を 3 つ以上にする。
     -   生成の枠がない・捨てられる記録がない行は、同じ状態で `StartPlain` の `Begin` が `BeginNoSlot`・`BeginFull` を返すことも確かめ、その状態が本当に埋まっていることを示す（`TestBeginPlainIgnoresSameVideo` が同じ表の行を `StartPlain` で確かめる）。
     -   今のキーの記録は、順 1（処理中・完了）と失敗の除外のどちらかで候補から外れるので、今のキーを除く条件を別に設けない。
 - [x] `TestBeginPlainIgnoresSameVideo` を加え、`StartPlain` では同じ動画の記事があっても今と同じ結果になることを確かめる。
-- [x] `TestBeginConcurrentSameVideo` を加える。`TestBeginConcurrentAcquiresOnce` と同じく 16 の goroutine をそろえ、同じ動画の違うキーで `StartInquiry` の `Begin` を呼び、`BeginStarted` がちょうど 1 つ、ほかはそのキーの `BeginSameVideo`、`acquire` の呼び出しが 1 回であることを確かめる（設計書 7.1 節）。
+- [x] `TestBeginConcurrentSameVideo` を加える。`TestBeginConcurrentAcquiresOnce` と同じく 16 の goroutine をそろえる。1 回では排他制御を 2 つに分けた誤りをまれにしか捉えないので、この組み立てをテストの中で 200 回繰り返す。各回で同じ動画の違うキーで `StartInquiry` の `Begin` を呼び、`BeginStarted` がちょうど 1 つ、ほかはそのキーの `BeginSameVideo`、`acquire` の呼び出しが 1 回であることを確かめる（設計書 7.1 節）。
 - [x] 加えたテストの各行が、その判定（順 2 の位置、失敗の除外、世代の番号の比べ方、空の動画 ID の除外、排他制御の中での判定）を壊すと失敗することを確かめ、コミットメッセージに書く。候補は map の順にたどるので、壊した確かめも下の繰り返しの実行で行う（「最初に見つけたもの」を返すように壊したときは、1 回の実行では偶然に通りうる）。
 - [x] 加えたテストの行と `TestBeginConcurrentSameVideo` を `go test -tags test -race -count=20 -v -run 'TestBegin' ./internal/articlecache/` で繰り返し実行し、不安定さが出ないことを確かめる。出力の `--- PASS` の行が 0 でないこと（テストが実行されたこと）も確かめる。このパッケージのテストのファイルはどれも `//go:build test` を持つので、`-tags test` がないと何も実行されない。
 

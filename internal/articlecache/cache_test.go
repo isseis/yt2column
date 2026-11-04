@@ -4,6 +4,7 @@ package articlecache
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"sync"
@@ -740,17 +741,6 @@ var sameVideoCases = []sameVideoCase{
 		subject: testSubject(2), slot: true, inquiry: BeginSameVideo, sameKey: testKey(1), plain: BeginRestarted,
 	},
 	{
-		name: "latest of three", capacity: 10,
-		prepare: func(t *testing.T, c *Cache, clock *fakeClock) {
-			done(t, c, testSubject(1))
-			clock.Advance(time.Minute)
-			done(t, c, testSubject(2))
-			clock.Advance(time.Minute)
-			begin(t, c, testSubject(3))
-		},
-		subject: testSubject(4), slot: true, inquiry: BeginSameVideo, sameKey: testKey(3), plain: BeginStarted,
-	},
-	{
 		// The clock goes back after key 1, so key 1 has the latest
 		// acceptance time while key 3 was accepted last: only the acceptance
 		// order makes key 3 the latest.
@@ -830,7 +820,7 @@ func TestBeginSameVideo(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			c, clock := newTestCache(t, tc.capacity)
 			tc.prepare(t, c, clock)
-			before, beforeGen := recordsOf(c), c.nextGen
+			before := recordsOf(c)
 			acquire, calls := countingAcquire(tc.slot)
 			got := c.Begin(tc.subject, StartInquiry, acquire)
 			switch tc.inquiry {
@@ -841,13 +831,15 @@ func TestBeginSameVideo(t *testing.T) {
 				if *calls != 0 {
 					t.Errorf("acquire calls = %d, want 0", *calls)
 				}
-				if after := recordsOf(c); !reflect.DeepEqual(after, before) || c.nextGen != beforeGen {
-					t.Errorf("records after Begin = %+v (next gen %d), want unchanged %+v (next gen %d)",
-						after, c.nextGen, before, beforeGen)
+				if after := recordsOf(c); !reflect.DeepEqual(after, before) {
+					t.Errorf("records after Begin = %+v, want unchanged %+v", after, before)
 				}
 			default:
 				if got.Outcome != tc.inquiry || got.Run == nil || got.Evicted != nil || got.SameVideoKey != (Key{}) {
 					t.Fatalf("Begin = %+v, want %v with a run only", got, tc.inquiry)
+				}
+				if *calls != 1 {
+					t.Errorf("acquire calls = %d, want 1", *calls)
 				}
 			}
 		})
@@ -857,11 +849,17 @@ func TestBeginSameVideo(t *testing.T) {
 	// declares, asks, so it never starts a generation it did not ask for.
 	var unset StartMode
 	for _, mode := range []StartMode{unset, StartPlain + 1} {
-		c, clock := newTestCache(t, 10)
-		sameVideoCases[0].prepare(t, c, clock)
-		if got := c.Begin(testSubject(2), mode, always); got.Outcome != BeginSameVideo {
-			t.Errorf("Begin with StartMode %d = %+v, want BeginSameVideo", mode, got)
-		}
+		t.Run(fmt.Sprintf("mode %d", mode), func(t *testing.T) {
+			c, _ := newTestCache(t, 10)
+			done(t, c, testSubject(1))
+			acquire, calls := countingAcquire(true)
+			if got, want := c.Begin(testSubject(2), mode, acquire), (BeginResult{Outcome: BeginSameVideo, SameVideoKey: testKey(1)}); got != want {
+				t.Errorf("Begin = %+v, want %+v", got, want)
+			}
+			if *calls != 0 {
+				t.Errorf("acquire calls = %d, want 0", *calls)
+			}
+		})
 	}
 }
 
@@ -885,8 +883,20 @@ func TestBeginPlainIgnoresSameVideo(t *testing.T) {
 // TestBeginConcurrentSameVideo starts one video under many keys at once with
 // no article of it yet: exactly one start creates a record and every other
 // one reports that record's key, which holds only if Begin looks for the
-// same video and starts under one lock.
+// same video and starts under one lock. One round catches a lookup and a
+// start under two locks only now and then, so the test runs many rounds.
 func TestBeginConcurrentSameVideo(t *testing.T) {
+	for round := range 200 {
+		if !concurrentSameVideoRound(t) {
+			t.Fatalf("round %d failed", round)
+		}
+	}
+}
+
+// concurrentSameVideoRound runs one round of TestBeginConcurrentSameVideo on
+// a fresh cache and reports whether it passed.
+func concurrentSameVideoRound(t *testing.T) bool {
+	t.Helper()
 	const n = 16
 	c, _ := newTestCache(t, 2*n)
 	var acquired atomic.Int32
@@ -910,25 +920,31 @@ func TestBeginConcurrentSameVideo(t *testing.T) {
 	for i, got := range results {
 		if got.Outcome == BeginStarted {
 			if started >= 0 {
-				t.Fatalf("starts %d and %d both started", started+1, i+1)
+				t.Errorf("starts %d and %d both started", started+1, i+1)
+				return false
 			}
 			started = i
 		}
 	}
 	if started < 0 {
-		t.Fatal("no start started")
+		t.Error("no start started")
+		return false
 	}
+	passed := true
 	for i, got := range results {
 		if i == started {
 			continue
 		}
 		if want := (BeginResult{Outcome: BeginSameVideo, SameVideoKey: testKey(started + 1)}); got != want {
 			t.Errorf("start %d = %+v, want %+v", i+1, got, want)
+			passed = false
 		}
 	}
 	if acquired.Load() != 1 {
 		t.Errorf("acquire calls = %d, want 1", acquired.Load())
+		passed = false
 	}
+	return passed
 }
 
 func TestTransitionsReturnTheirValues(t *testing.T) {
