@@ -99,9 +99,10 @@ func notAncestorStop(detail string) *StopError {
 var statusArgs = []string{"status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignore-submodules=none"}
 
 // checkClean stops as dirty when the user's worktree or index has an
-// uncommitted change, so what is measured is what is committed.
-func checkClean(ctx context.Context, git gitRunner) error {
-	out, err := git.run(ctx, statusArgs...)
+// uncommitted change, so what is measured is what is committed. status is
+// the status command userStatusArgs returns.
+func checkClean(ctx context.Context, git gitRunner, status []string) error {
+	out, err := git.run(ctx, status...)
 	if err != nil {
 		return commandStop(ctx, PointNone, "reading git status failed", err)
 	}

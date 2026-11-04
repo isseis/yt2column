@@ -19,6 +19,9 @@ type userState struct {
 	branch    string
 	status    string
 	worktrees []string
+	// statusArgs is the status command the state was read with, which the
+	// state after the run is read with too. It is not compared.
+	statusArgs []string
 }
 
 // The names the stop reasons give the compared items.
@@ -30,9 +33,10 @@ const (
 )
 
 // readUserState reads the user's state. A part that cannot be read stops as
-// internal and names the part.
-func readUserState(ctx context.Context, git gitRunner) (userState, error) {
-	var state userState
+// internal and names the part. status is the status command userStatusArgs
+// returns.
+func readUserState(ctx context.Context, git gitRunner, status []string) (userState, error) {
+	state := userState{statusArgs: status}
 	head, err := resolveObject(ctx, git, "HEAD^{commit}")
 	if err != nil {
 		return userState{}, commandStop(ctx, PointNone, "reading the user's "+stateHead+" failed", err)
@@ -47,11 +51,11 @@ func readUserState(ctx context.Context, git gitRunner) (userState, error) {
 	default:
 		return userState{}, commandStop(ctx, PointNone, "reading the user's "+stateBranch+" failed", err)
 	}
-	status, err := git.run(ctx, statusArgs...)
+	out, err := git.run(ctx, status...)
 	if err != nil {
 		return userState{}, commandStop(ctx, PointNone, "reading the user's "+stateStatus+" failed", err)
 	}
-	state.status = string(status)
+	state.status = string(out)
 	list, err := git.run(ctx, "worktree", "list", "--porcelain")
 	if err != nil {
 		return userState{}, commandStop(ctx, PointNone, "reading the user's "+stateWorktrees+" failed", err)

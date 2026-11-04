@@ -19,8 +19,10 @@ import (
 // prints. The variables are added after GitEnv, which drops every GIT_*
 // variable it is given. The global attributes file, which git reads from
 // its default place even without the global configuration, is turned off by
-// noGlobalAttributes on every command. The global excludes file is still
-// read, so a file the user's git ignores is not an uncommitted change.
+// noGlobalAttributes on every command. The excludes file the global
+// configuration names (core.excludesFile) is therefore not read either; the
+// commands that list uncommitted changes pass it back with userStatusArgs, so
+// a file the user's git ignores is not an uncommitted change.
 func gitEnv(environ []string) []string {
 	return append(cmdrunner.GitEnv(environ), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1", "GIT_ATTR_NOSYSTEM=1")
 }
@@ -29,6 +31,38 @@ func gitEnv(environ []string) []string {
 // file ($XDG_CONFIG_HOME/git/attributes or ~/.config/git/attributes), where
 // an attribute could mark source binary, expand $Id$, or convert line ends.
 const noGlobalAttributes = "core.attributesFile=/dev/null"
+
+// userStatusArgs returns statusArgs preceded by the excludes file the user's
+// own git reads, so the status lists what the user's git status lists.
+//
+// Contract: only the value of core.excludesFile is read, as a path, from the
+// configuration the user's git reads (system, global, and repository, with
+// their includes); no other setting of the global or system configuration
+// reaches a command. The read runs with GitEnv and GitHardening but without
+// gitEnv's GIT_CONFIG_GLOBAL and GIT_CONFIG_NOSYSTEM, which would hide the
+// value. When it is not set, nothing is passed, and git reads the excludes
+// file from its default place, as the user's git does.
+func userStatusArgs(ctx context.Context, dir string, environ []string) ([]string, error) {
+	runner := cmdrunner.NewOS(cmdrunner.Options{Dir: dir, Env: cmdrunner.GitEnv(environ)})
+	args := append(cmdrunner.GitHardening(), "config", "--includes", "--type=path", "-z", "--get", "core.excludesFile")
+	out, err := runner.Run(ctx, "git", args...)
+	if exitErr, ok := errors.AsType[*cmdrunner.ExitError](err); ok && exitErr.Code == 1 && ctx.Err() == nil {
+		// core.excludesFile is not set.
+		return statusArgs, nil
+	}
+	if err != nil {
+		return nil, commandStop(ctx, PointNone, "reading the user's core.excludesFile failed", err)
+	}
+	// With -z, the value ends with a NUL.
+	path, ok := strings.CutSuffix(string(out), "\x00")
+	if !ok || strings.Contains(path, "\x00") {
+		return nil, internalStop(PointNone, "git config printed core.excludesFile in another shape", errExcludesValue)
+	}
+	return append([]string{"-c", "core.excludesFile=" + path}, statusArgs...), nil
+}
+
+// errExcludesValue reports a core.excludesFile value the tool cannot read.
+var errExcludesValue = errors.New("unexpected git config output for core.excludesFile")
 
 // gitRunner runs git in one directory.
 type gitRunner struct {

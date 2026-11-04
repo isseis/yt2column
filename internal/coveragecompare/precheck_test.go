@@ -194,3 +194,60 @@ func newGoModCommits(r *testRepo, baseLine, headLine string) string {
 	r.commitAll("HEAD go.mod")
 	return base
 }
+
+// TestRunKeepsUserExcludesFile checks that a file the user's git ignores
+// through core.excludesFile is not an uncommitted change, although the run
+// reads no other setting of the global configuration. The global row names
+// the file with ~, which only a read as a path expands; the repository row
+// sets core.excludesFile in the repository's configuration too, which outranks
+// the global one, as it does for the user's git. Each row first checks that
+// the file is ignored only through the setting: without it, the run stops as
+// dirty.
+func TestRunKeepsUserExcludesFile(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		// repository sets core.excludesFile in the repository too.
+		repository bool
+	}{
+		{name: "global configuration"},
+		{name: "repository configuration outranks the global one", repository: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			repo, base := goRepo(t)
+			b := goBehavior()
+			repo.write("scratch.local", "scratch\n")
+			env := newFakeEnv(t)
+			env.set(b)
+
+			requireStopKind(t, runTool(context.Background(), env, repo, TargetGo, base), StopDirty)
+
+			global := filepath.Join(env.home, "global-ignore")
+			// The global file ignores nothing in the repository row, so
+			// only the repository's file can make the run pass.
+			ignored := "scratch.local\n"
+			if tc.repository {
+				ignored = "other.local\n"
+				local := filepath.Join(resolvedTempDir(t), "local-ignore")
+				if err := os.WriteFile(local, []byte("scratch.local\n"), 0o600); err != nil {
+					t.Fatalf("write the repository's excludes file: %v", err)
+				}
+				repo.git("config", "core.excludesFile", local)
+			}
+			if err := os.WriteFile(global, []byte(ignored), 0o600); err != nil {
+				t.Fatalf("write the global excludes file: %v", err)
+			}
+			config := "[core]\n\texcludesFile = ~/global-ignore\n"
+			if err := os.WriteFile(filepath.Join(env.home, ".gitconfig"), []byte(config), 0o600); err != nil {
+				t.Fatalf("write the global configuration: %v", err)
+			}
+
+			r := runTool(context.Background(), env, repo, TargetGo, base)
+
+			if r.Outcome != OutcomePass {
+				t.Errorf("outcome = %v (stop %v, reasons %+v), want a pass", r.Outcome, r.Stop, r.Reasons)
+			}
+		})
+	}
+}

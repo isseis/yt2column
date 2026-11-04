@@ -53,10 +53,14 @@ func (rc *runContext) measure(ctx context.Context, opts Options, r Result, befor
 	if err := checkAncestor(ctx, repo, ids); err != nil {
 		return stopAt(ctx, r, err)
 	}
-	if err := checkClean(ctx, repo); err != nil {
+	status, err := userStatusArgs(ctx, rc.repoRoot, rc.environ)
+	if err != nil {
 		return stopAt(ctx, r, err)
 	}
-	state, err := readUserState(ctx, repo)
+	if err := checkClean(ctx, repo, status); err != nil {
+		return stopAt(ctx, r, err)
+	}
+	state, err := readUserState(ctx, repo, status)
 	if err != nil {
 		return stopAt(ctx, r, err)
 	}
@@ -186,7 +190,7 @@ func (rc *runContext) finish(ctx context.Context, r Result, before *userState) R
 		reasons = append(reasons, StopReason{Detail: "removing the work directory failed", Excerpt: err.Error()})
 	}
 	if before != nil {
-		after, err := readUserState(quiet, rc.repoGit())
+		after, err := readUserState(quiet, rc.repoGit(), before.statusArgs)
 		if stop, ok := errors.AsType[*StopError](err); ok {
 			reasons = append(reasons, stop.Reasons...)
 		} else if err != nil {
