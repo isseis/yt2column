@@ -184,7 +184,8 @@ func TestSignalWaitsForRun(t *testing.T) {
 			cmd.Env = append(os.Environ(), childDirEnv+"="+dir)
 			var stdout, stderr bytes.Buffer
 			cmd.Stdout, cmd.Stderr = &stdout, &stderr
-			// Bounded, so a tool that ignores the signal cannot hang the test.
+			// Bounds the copying of the output after the exit; the select
+			// below bounds the wait for the exit itself.
 			cmd.WaitDelay = 30 * time.Second
 			if err := cmd.Start(); err != nil {
 				t.Fatal(err)

@@ -5,7 +5,7 @@
 //
 // The command line is exactly `go --base <rev>` or `ext --base <rev>`, with a
 // non-empty <rev>. Standard output holds the result lines, ending with the
-// final line coverage-compare.Write gives; standard error stays empty. The
+// final line coveragecompare.Write gives; standard error stays empty. The
 // exit code is coveragecompare.ExitCode's: 0 pass, 1 fail, 3 stop.
 package main
 

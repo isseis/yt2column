@@ -602,7 +602,7 @@ config='%s'
 record='%s'
 for arg in "$@"; do printf 'arg %%s\n' "$arg"; done > "$record/tool"
 if [ -e "$config/%s" ]; then
-	trap 'echo term > "$record/tool-term"; echo %q; exit 3' TERM
+	trap 'echo term > "$record/tool-term"; sleep 0.3; echo %q; echo exited > "$record/tool-exited"; exit 3' TERM
 	echo $$ > "$record/tool-ready"
 	while :; do sleep 0.05; done
 fi
@@ -650,8 +650,14 @@ func (s recipeStub) command(t *testing.T, extra []string, args ...string) *exec.
 type recipeRun struct {
 	code     int
 	stdout   string
+	stderr   string
 	goCalls  []recipeGoCall
 	toolArgs []string // nil when the substitute tool did not run
+}
+
+// String gives make's output for a failure message.
+func (r recipeRun) String() string {
+	return fmt.Sprintf("stdout %q, stderr %q", r.stdout, r.stderr)
 }
 
 // recipeGoCall is one call of the fake go: its arguments and the recorded
@@ -668,7 +674,7 @@ func (s recipeStub) run(t *testing.T, extra []string, args ...string) recipeRun 
 	var stdout, stderr strings.Builder
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	err := cmd.Run()
-	run := recipeRun{stdout: stdout.String()}
+	run := recipeRun{stdout: stdout.String(), stderr: stderr.String()}
 	if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 		run.code = exitErr.ExitCode()
 	} else if err != nil {
@@ -769,7 +775,7 @@ func TestCoverageCompareRecipes(t *testing.T) {
 				s.set(t, stubListFails, "")
 				run := s.run(t, nil, tc.target, "BASE=HEAD~1")
 				if run.code == 0 || finalLine(run.stdout) != "coverage-compare: STOP toolchain" {
-					t.Errorf("exit %d, output %q; want a non-zero exit and the toolchain final line", run.code, run.stdout)
+					t.Errorf("exit %d, %s; want a non-zero exit and the toolchain final line", run.code, run)
 				}
 				if len(run.goCalls) != 1 || run.toolArgs != nil {
 					t.Errorf("go ran %d times and the tool ran %t; want only go list", len(run.goCalls), run.toolArgs != nil)
@@ -783,7 +789,7 @@ func TestCoverageCompareRecipes(t *testing.T) {
 				base := `x" ; touch ` + marker + ` ; echo "` + "`touch " + marker + "`" + ` y`
 				run := s.run(t, nil, tc.target, "BASE="+base)
 				if run.code != 0 || finalLine(run.stdout) != substituteFinalLine {
-					t.Errorf("exit %d, output %q; want exit 0 and the tool's final line", run.code, run.stdout)
+					t.Errorf("exit %d, %s; want exit 0 and the tool's final line", run.code, run)
 				}
 				if want := []string{tc.word, "--base", base}; !slices.Equal(run.toolArgs, want) {
 					t.Errorf("tool arguments = %q, want %q", run.toolArgs, want)
@@ -825,9 +831,21 @@ func TestCoverageCompareRecipes(t *testing.T) {
 				s.set(t, stubBuildFails, "")
 				run := s.run(t, nil, tc.target, "BASE=HEAD~1")
 				if run.code == 0 || finalLine(run.stdout) != "coverage-compare: STOP internal" || run.toolArgs != nil {
-					t.Errorf("exit %d, output %q, tool ran %t; want a non-zero exit, the internal final line, and no tool", run.code, run.stdout, run.toolArgs != nil)
+					t.Errorf("exit %d, %s, tool ran %t; want a non-zero exit, the internal final line, and no tool", run.code, run, run.toolArgs != nil)
 				}
 				s.checkTmpEmpty(t)
+			})
+			t.Run("mktemp_fails", func(t *testing.T) {
+				t.Parallel()
+				s := newRecipeStub(t)
+				s.tmp = filepath.Join(s.tmp, "missing")
+				run := s.run(t, nil, tc.target, "BASE=HEAD~1")
+				if run.code == 0 || finalLine(run.stdout) != "coverage-compare: STOP internal" {
+					t.Errorf("exit %d, %s; want a non-zero exit and the internal final line", run.code, run)
+				}
+				if len(run.goCalls) != 1 || run.toolArgs != nil {
+					t.Errorf("go ran %d times and the tool ran %t; want only go list", len(run.goCalls), run.toolArgs != nil)
+				}
 			})
 			for _, exit := range []struct {
 				code     string
@@ -840,14 +858,14 @@ func TestCoverageCompareRecipes(t *testing.T) {
 					s.set(t, stubToolExit, exit.code)
 					run := s.run(t, nil, tc.target, "BASE=HEAD~1")
 					if (run.code == 0) != exit.zero {
-						t.Errorf("make exit %d, want zero %t", run.code, exit.zero)
+						t.Errorf("make exit %d, want zero %t (%s)", run.code, exit.zero, run)
 					}
 					want := substituteFinalLine
 					if exit.internal {
 						want = "coverage-compare: STOP internal"
 					}
 					if got := finalLine(run.stdout); got != want {
-						t.Errorf("final line = %q, want %q (output %q)", got, want, run.stdout)
+						t.Errorf("final line = %q, want %q (%s)", got, want, run)
 					}
 					s.checkTmpEmpty(t)
 				})
@@ -858,15 +876,23 @@ func TestCoverageCompareRecipes(t *testing.T) {
 
 // TestCoverageCompareRecipeForwardsSignal starts each target with a
 // substitute tool that waits, and sends SIGTERM to the make process alone:
-// the recipe's shell forwards it to the tool and waits for it, so the tool
-// sees SIGTERM and the recipe's temporary directory is removed.
+// the recipe's shell forwards it to the tool and waits until the tool, which
+// takes a moment to exit, has written its final line and exited. So when
+// make returns, the tool has exited, its final line is the last line, and the
+// recipe's temporary directory is gone. The "interrupted before the tool
+// started" branch is not covered: a signal cannot be timed to land during the
+// build.
 func TestCoverageCompareRecipeForwardsSignal(t *testing.T) {
 	for _, tc := range coverageCompareTargets {
 		t.Run(tc.target, func(t *testing.T) {
 			s := newRecipeStub(t)
 			s.set(t, stubToolWaits, "")
 			cmd := s.command(t, nil, tc.target, "BASE=HEAD~1")
-			cmd.WaitDelay = 30 * time.Second
+			// Files, not pipes: Wait would wait for a pipe to close, which the
+			// tool holds open, so it would wait for the tool even when make
+			// had returned before it.
+			stdoutPath, stderrPath := filepath.Join(s.record, "make-stdout"), filepath.Join(s.record, "make-stderr")
+			cmd.Stdout, cmd.Stderr = createFile(t, stdoutPath), createFile(t, stderrPath)
 			if err := cmd.Start(); err != nil {
 				t.Fatal(err)
 			}
@@ -885,26 +911,54 @@ func TestCoverageCompareRecipeForwardsSignal(t *testing.T) {
 			if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
 				t.Fatal(err)
 			}
-			_ = cmd.Wait()
-			if !waitForPath(filepath.Join(s.record, "tool-term")) {
+			done := make(chan error, 1)
+			go func() { done <- cmd.Wait() }()
+			var err error
+			select {
+			case err = <-done:
+			case <-time.After(30 * time.Second):
+				t.Fatal("make did not exit after SIGTERM")
+			}
+			// Checked before reading anything else, so a tool still running
+			// has no time to finish.
+			_, exitedErr := os.Stat(filepath.Join(s.record, "tool-exited"))
+			stdout, stderr := readFile(t, stdoutPath), readFile(t, stderrPath)
+			if exitedErr != nil {
+				t.Error("make returned before the substitute tool exited")
+			}
+			if _, ok := errors.AsType[*exec.ExitError](err); !ok {
+				t.Errorf("make ended with %v, want a non-zero exit (stderr %q)", err, stderr)
+			}
+			if _, statErr := os.Stat(filepath.Join(s.record, "tool-term")); statErr != nil {
 				t.Error("the substitute tool did not receive SIGTERM")
 			}
-			deadline := time.Now().Add(10 * time.Second)
-			for {
-				entries, err := os.ReadDir(s.tmp)
-				if err != nil {
-					t.Fatal(err)
-				}
-				if len(entries) == 0 {
-					break
-				}
-				if time.Now().After(deadline) {
-					t.Fatalf("TMPDIR still holds %q after the signal", entries[0].Name())
-				}
-				time.Sleep(20 * time.Millisecond)
+			if got := finalLine(stdout); got != substituteFinalLine {
+				t.Errorf("final line = %q, want %q (stdout %q, stderr %q)", got, substituteFinalLine, stdout, stderr)
 			}
+			s.checkTmpEmpty(t)
 		})
 	}
+}
+
+// createFile creates path for writing and closes it when the test ends.
+func createFile(t *testing.T, path string) *os.File {
+	t.Helper()
+	f, err := os.Create(path) //nolint:gosec // a path inside the test's temporary directory
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = f.Close() })
+	return f
+}
+
+// readFile returns path's content, failing the test when it cannot be read.
+func readFile(t *testing.T, path string) string {
+	t.Helper()
+	data, err := os.ReadFile(path) //nolint:gosec // a path inside the test's temporary directory
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
 }
 
 // waitForPath reports whether path exists within ten seconds.
@@ -921,18 +975,21 @@ func waitForPath(path string) bool {
 
 // TestCoverageCompareDocumented checks that CLAUDE.md lists each
 // coverage-compare target in its own commands section, with the BASE
-// argument, and that the Makefile defines the target. claudeExtTargetRE reads
-// the whole of CLAUDE.md, so only this test places the ext- target in
-// "Extension Commands".
+// argument, and that the Makefile defines coverage-compare. The Makefile's
+// ext- targets are matched with CLAUDE.md by TestExtensionDocumentation, whose
+// claudeExtTargetRE reads the whole of CLAUDE.md, so only this test places the
+// ext- target in "Extension Commands".
 func TestCoverageCompareDocumented(t *testing.T) {
 	claude := doctestutil.ReadDoc(t, claudePath)
 	makefile := doctestutil.ReadDoc(t, makefilePath)
 	for _, tc := range []struct {
 		target  string
 		heading string
+		// inMakefile: check here that the Makefile defines the target.
+		inMakefile bool
 	}{
-		{"coverage-compare", "### Test Commands"},
-		{"ext-coverage-compare", "### Extension Commands"},
+		{"coverage-compare", "### Test Commands", true},
+		{"ext-coverage-compare", "### Extension Commands", false},
 	} {
 		t.Run(tc.target, func(t *testing.T) {
 			section := doctestutil.SectionByHeading(claude, tc.heading)
@@ -943,7 +1000,7 @@ func TestCoverageCompareDocumented(t *testing.T) {
 			if !slices.ContainsFunc(strings.Split(section, "\n"), func(line string) bool { return strings.HasPrefix(line, bullet) }) {
 				t.Errorf("CLAUDE.md %q does not list %s", tc.heading, bullet)
 			}
-			if !regexp.MustCompile(`(?m)^` + regexp.QuoteMeta(tc.target) + `:`).MatchString(makefile) {
+			if tc.inMakefile && !regexp.MustCompile(`(?m)^`+regexp.QuoteMeta(tc.target)+`:`).MatchString(makefile) {
 				t.Errorf("the Makefile does not define %s", tc.target)
 			}
 		})

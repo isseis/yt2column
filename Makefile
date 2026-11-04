@@ -153,24 +153,28 @@ COVERAGE_COMPARE_GOENV=GOTOOLCHAIN=local GOENV=off GOFLAGS= GOPROXY=off GOWORK=o
 #
 # Contract: the temporary directory is removed whatever the ending, and a
 # SIGINT, SIGTERM, or SIGHUP the recipe's shell receives is forwarded to the
-# tool as SIGTERM while the shell keeps waiting, so the tool removes its work
-# directory before make returns. A signal sent to make alone reaches only
-# this shell, never the tool. The tool writes the final line itself and
-# exits 0, 1, or 3; for any other ending (a panic, a kill) the recipe writes
-# the internal final line in its place. One shell, joined with backslashes,
-# since make 3.81 has no .ONESHELL.
+# tool as SIGTERM while the shell keeps waiting until the tool has exited, so
+# the tool removes its work directory before make returns. A signal that
+# arrives before the tool starts is forwarded once it has started. Of the
+# signals sent to make alone, make passes only SIGTERM on to this shell, and
+# never to the tool; on SIGINT or SIGHUP to make alone, make waits and the
+# run completes. The tool writes the final line itself and exits 0, 1, or 3;
+# for any other ending (a panic, a kill) the recipe writes the internal final
+# line in its place. One shell, joined with backslashes, since make 3.81 has
+# no .ONESHELL.
 define coverage_compare
-	@if ! $(COVERAGE_COMPARE_GOENV) $(GOCMD) list -m >/dev/null; then \
+	@tmp=; pid=; signaled=; \
+	trap '[ -z "$$tmp" ] || rm -rf "$$tmp"' EXIT; \
+	trap 'signaled=1; [ -z "$$pid" ] || kill -TERM "$$pid" 2>/dev/null' INT TERM HUP; \
+	if ! $(COVERAGE_COMPARE_GOENV) $(GOCMD) list -m >/dev/null; then \
 		printf '%s\n' 'stop      toolchain: go list -m failed for the go.mod of the work tree' 'coverage-compare: STOP toolchain'; \
 		exit 1; \
 	fi; \
 	tmp=$$(mktemp -d "$${TMPDIR:-/tmp}/coverage-compare.XXXXXX") || { \
+		tmp=; \
 		printf '%s\n' 'stop      internal: creating the temporary directory failed' 'coverage-compare: STOP internal'; \
 		exit 1; \
 	}; \
-	trap 'rm -rf "$$tmp"' EXIT; \
-	pid=; signaled=; \
-	trap 'signaled=1; [ -z "$$pid" ] || kill -TERM "$$pid" 2>/dev/null' INT TERM HUP; \
 	if ! $(COVERAGE_COMPARE_GOENV) $(GOCMD) build -o "$$tmp/coveragecompare" ./cmd/coveragecompare; then \
 		printf '%s\n' 'stop      internal: building the tool failed' 'coverage-compare: STOP internal'; \
 		exit 1; \
@@ -180,9 +184,10 @@ define coverage_compare
 		exit 1; \
 	fi; \
 	"$$tmp/coveragecompare" $(1) --base "$$COVERAGE_COMPARE_BASE" & pid=$$!; \
+	[ -z "$$signaled" ] || kill -TERM "$$pid" 2>/dev/null; \
 	while :; do \
-		signaled=; wait "$$pid"; status=$$?; \
-		[ -n "$$signaled" ] || break; \
+		wait "$$pid"; status=$$?; \
+		kill -0 "$$pid" 2>/dev/null || break; \
 	done; \
 	case $$status in \
 		0|1|3) ;; \
