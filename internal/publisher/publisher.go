@@ -1,6 +1,6 @@
 // Package publisher defines the publishing stage: the interface that outputs an
-// article to its destination, and the Slack-compatible implementations that
-// post an article and a failure notice to a Webhook.
+// article to its destination, and the Slack-compatible implementation that
+// posts an article to a Webhook.
 package publisher
 
 import (

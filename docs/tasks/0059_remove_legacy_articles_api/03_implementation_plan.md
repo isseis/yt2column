@@ -295,15 +295,15 @@ localhost サーバの旧 API（`POST /articles`）・旧 API のジョブ・失
 
 **変更するファイル:** `internal/failure/`（削除）、`internal/publisher/slack_failure.go`・`slack_failure_test.go`（削除）、`slack_errors.go`、`slack.go`、`publisher.go`、`test_helpers_slack.go`、`internal/pipeline/pipeline_test.go`、`docs/dev/conventions/package_reference.md`、`.golangci.yml`
 
-- [ ] `internal/failure` と `internal/failure/testutil` を削除する。
-- [ ] `internal/publisher/slack_failure.go` と `slack_failure_test.go` を削除する。
-- [ ] `slack_errors.go` から `ErrSlackInvalidNotice`・`ErrSlackNoticeRejected` を削除する。
-- [ ] `test_helpers_slack.go` から `NewSlackFailureNotifierForLoopbackTest`・`newSlackFailureNotifierForLoopbackTest` を削除する。
-- [ ] `slack.go:85` の `webhookClient` の説明と `publisher.go:3` のパッケージの説明から、失敗の通知を除く。
-- [ ] `TestFakesCarryBuildTag` の testutil のファイルの数を 1 つ減らす（1.4 節）。
-- [ ] `package_reference.md` の `internal/failure` と `internal/failure/testutil` の行を削除する（`TestPackageReferenceListsPackages`）。
-- [ ] `.golangci.yml` の `depguard` に、`internal/server` が `internal/pipeline` を import しないことの規則を加える（設計書 7.4 節）。一時的に `internal/server` に `internal/pipeline` の import を加えて `make lint` が失敗することを確かめ、コミットメッセージに書く。
-- [ ] ステップ 2-3 のコミットとこのコミットで、1.3 節「カバレッジの比べ方」の削除のコミットの比べ方で比べ（`job.go` から移した `acquireSlot`・`releaseSlot`・`classifyWrite` は名前で対応が取れること。定数 `maxInFlight` は `go tool cover -func` に現れない）、結果をこのコミットのメッセージに書く。比べるのはコミットを作った後なので、`git commit --amend` でメッセージだけを直し、内容が変わらないことを `git diff HEAD@{1} HEAD` で確かめる。push の前、ステップ 3-4 のコミットより前に行う。
+- [x] `internal/failure` と `internal/failure/testutil` を削除する。
+- [x] `internal/publisher/slack_failure.go` と `slack_failure_test.go` を削除する。
+- [x] `slack_errors.go` から `ErrSlackInvalidNotice`・`ErrSlackNoticeRejected` を削除する。
+- [x] `test_helpers_slack.go` から `NewSlackFailureNotifierForLoopbackTest`・`newSlackFailureNotifierForLoopbackTest` を削除する。
+- [x] `slack.go:85` の `webhookClient` の説明と `publisher.go:3` のパッケージの説明から、失敗の通知を除く。
+- [x] `TestFakesCarryBuildTag` の testutil のファイルの数を 1 つ減らす（1.4 節）。
+- [x] `package_reference.md` の `internal/failure` と `internal/failure/testutil` の行を削除する（`TestPackageReferenceListsPackages`）。
+- [x] `.golangci.yml` の `depguard` に、`internal/server` が `internal/pipeline` を import しないことの規則を加える（設計書 7.4 節）。一時的に `internal/server` に `internal/pipeline` の import を加えて `make lint` が失敗することを確かめ、コミットメッセージに書く。
+- [x] ステップ 2-3 のコミットとこのコミットで、1.3 節「カバレッジの比べ方」の削除のコミットの比べ方で比べ（`job.go` から移した `acquireSlot`・`releaseSlot`・`classifyWrite` は名前で対応が取れること。定数 `maxInFlight` は `go tool cover -func` に現れない）、結果をこのコミットのメッセージに書く。比べるのはコミットを作った後なので、`git commit --amend` でメッセージだけを直し、内容が変わらないことを `git diff HEAD@{1} HEAD` で確かめる。push の前、ステップ 3-4 のコミットより前に行う。
 
 **完了の条件:** `make test`・`make lint`・`make deadcode` が通る。
 
