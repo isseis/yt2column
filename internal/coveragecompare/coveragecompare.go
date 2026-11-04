@@ -79,7 +79,7 @@ type Options struct {
 	Target   Target
 	Base     string   // the BASE argument as given
 	RepoRoot string   // the repository root (the current directory of make)
-	Environ  []string // the process environment, KEY=VALUE
+	Env      []string // the process environment, KEY=VALUE
 }
 
 // FuncID identifies a function by its file, relative to the repository root,
