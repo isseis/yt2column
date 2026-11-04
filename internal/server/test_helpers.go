@@ -17,8 +17,6 @@ import (
 	"time"
 
 	"github.com/isseis/yt2column/internal/articlecache"
-	"github.com/isseis/yt2column/internal/failure"
-	failuretestutil "github.com/isseis/yt2column/internal/failure/testutil"
 	"github.com/isseis/yt2column/internal/publisher"
 	publishertestutil "github.com/isseis/yt2column/internal/publisher/testutil"
 	"github.com/isseis/yt2column/internal/transcript"
@@ -47,7 +45,6 @@ type testServer struct {
 	*Server
 	writer    *writertestutil.FakeArticleWriter
 	publisher *publishertestutil.FakePublisher
-	notifier  *failuretestutil.FakeNotifier
 	logs      *bytes.Buffer
 }
 
@@ -56,23 +53,22 @@ func newTestServer(t *testing.T) *testServer {
 	t.Helper()
 	fakeWriter := &writertestutil.FakeArticleWriter{}
 	pub := &publishertestutil.FakePublisher{}
-	notifier := &failuretestutil.FakeNotifier{}
 	logs := &bytes.Buffer{}
 	s, err := New(Options{
 		Writer:    fakeWriter,
-		Webhook:   &WebhookOptions{Publisher: pub, Notifier: notifier},
+		Webhook:   &WebhookOptions{Publisher: pub},
 		LogOutput: logs,
 		Secrets:   []string{testMarker},
 	})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	return &testServer{Server: s, writer: fakeWriter, publisher: pub, notifier: notifier, logs: logs}
+	return &testServer{Server: s, writer: fakeWriter, publisher: pub, logs: logs}
 }
 
 // newTestServerWithoutWebhook builds a Server the way run builds one without
 // SLACK_WEBHOOK_URL: a recording writer, no Webhook options, and so no
-// publisher or notifier at all.
+// publisher at all.
 func newTestServerWithoutWebhook(t *testing.T) *testServer {
 	t.Helper()
 	fakeWriter := &writertestutil.FakeArticleWriter{}
@@ -114,8 +110,7 @@ func newJobsTestServer(t *testing.T, o jobsServerOptions) *testServer {
 	opts := Options{Writer: fakeWriter, LogOutput: ts.logs, Secrets: []string{testMarker}}
 	if !o.noWebhook {
 		ts.publisher = &publishertestutil.FakePublisher{}
-		ts.notifier = &failuretestutil.FakeNotifier{}
-		opts.Webhook = &WebhookOptions{Publisher: ts.publisher, Notifier: ts.notifier}
+		opts.Webhook = &WebhookOptions{Publisher: ts.publisher}
 	}
 	capacity := o.capacity
 	if capacity == 0 {
@@ -144,7 +139,7 @@ func testArticle() writer.Article {
 // it is rejected.
 func (ts *testServer) validInput(t *testing.T, body string) jobInput {
 	t.Helper()
-	input, rej := ts.validateBody([]byte(body), "0123456789abcdef")
+	input, rej := ts.validateBody([]byte(body))
 	if rej != nil {
 		t.Fatalf("validateBody rejected the body: %+v", *rej)
 	}
@@ -181,72 +176,6 @@ func (ts *testServer) statusOf(t *testing.T, key articlecache.Key) statusRespons
 	return resp
 }
 
-// newCustomServer builds a Server with the given collaborators, for tests that
-// need a writer or notifier with special behavior.
-func newCustomServer(t *testing.T, w writer.ProgressWriter, p WebhookPublisher, n failure.Notifier) *Server {
-	t.Helper()
-	s, err := New(Options{
-		Writer:    w,
-		Webhook:   &WebhookOptions{Publisher: p, Notifier: n},
-		LogOutput: &bytes.Buffer{},
-	})
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-	return s
-}
-
-// countingPublisher counts Publish calls under a mutex, so two jobs posting at
-// once do not race (the shared fakes record calls without a lock).
-type countingPublisher struct {
-	mu    sync.Mutex
-	calls int
-}
-
-func (p *countingPublisher) Publish(context.Context, writer.Article) error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.calls++
-	return nil
-}
-
-// PostMessages implements WebhookPublisher. The legacy job never calls it, so
-// it adds no call to the count.
-func (p *countingPublisher) PostMessages(context.Context, publisher.SlackMessages, int, func(int)) error {
-	return nil
-}
-
-func (p *countingPublisher) count() int {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.calls
-}
-
-// gateWriter blocks every Write until release is closed, so a test can hold a
-// slot open on purpose.
-type gateWriter struct {
-	entered chan struct{}
-	release chan struct{}
-}
-
-// newGateWriter builds a gate writer whose entered channel holds gateBuffer
-// sends.
-func newGateWriter() *gateWriter {
-	return &gateWriter{entered: make(chan struct{}, gateBuffer), release: make(chan struct{})}
-}
-
-func (g *gateWriter) Write(context.Context, transcript.Transcript) (writer.Article, error) {
-	g.entered <- struct{}{}
-	<-g.release
-	return writer.Article{}, nil
-}
-
-// WriteWithProgress implements writer.ProgressWriter by ignoring the observer:
-// these tests hold the job at the write stage, not at a stage notification.
-func (g *gateWriter) WriteWithProgress(ctx context.Context, t transcript.Transcript, _ writer.ProgressObserver) (writer.Article, error) {
-	return g.Write(ctx, t)
-}
-
 // panickingWriter panics on Write, to test the job goroutine's recovery.
 type panickingWriter struct{}
 
@@ -263,11 +192,6 @@ func (w panickingWriter) WriteWithProgress(ctx context.Context, t transcript.Tra
 type panickingReader struct{}
 
 func (panickingReader) Read([]byte) (int, error) { panic("test body panic") }
-
-// panickingNotifier panics on Notify, to test the notice recovery.
-type panickingNotifier struct{}
-
-func (panickingNotifier) Notify(context.Context, failure.Notice) error { panic("test notifier panic") }
 
 // newRequest builds a server-side request with only a method, a target, and a
 // body: the handler checks no header, so an accepted request needs none.
@@ -315,22 +239,13 @@ func (ts *testServer) getStatus(t *testing.T, key string) statusResponse {
 	return resp
 }
 
-// serveAccepted runs a valid request and waits for its job to finish, so the
-// fakes' recorded calls are complete.
-func (ts *testServer) serveAccepted(t *testing.T, body string) *httptest.ResponseRecorder {
-	t.Helper()
-	rec := ts.serve(newRequest(http.MethodPost, ArticlesPath, bytes.NewBufferString(body)))
-	ts.jobs.Wait()
-	return rec
-}
-
 // validBody returns a request body with the required members.
 func validBody(videoURL, raw string) string {
 	return `{"videoUrl":` + strconv.Quote(videoURL) + `,"transcript":` + strconv.Quote(raw) + `}`
 }
 
-// waitJobs waits for every in-flight job and notice, so the fakes' recorded
-// calls are complete.
+// waitJobs waits for every in-flight job, so the fakes' recorded calls are
+// complete.
 func (ts *testServer) waitJobs() {
 	ts.jobs.Wait()
 }

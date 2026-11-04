@@ -18,8 +18,8 @@ func validHTTPRequest(t *testing.T) *http.Request {
 }
 
 // TestRejectHeaders checks every target and method rejection: the status and
-// reason, and that no side effect (no writer, publisher, or notifier call, no
-// record) and no slot follows.
+// reason, and that no side effect (no writer or publisher call, no record) and
+// no slot follows.
 func TestRejectHeaders(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -42,9 +42,9 @@ func TestRejectHeaders(t *testing.T) {
 			if body := decodeBody(t, rec); body.Status != "rejected" || body.Reason != tc.reason {
 				t.Errorf("body = %+v, want rejected %s", body, tc.reason)
 			}
-			if len(ts.writer.Calls) != 0 || len(ts.publisher.PostCalls) != 0 || len(ts.notifier.Calls) != 0 {
-				t.Errorf("a rejected request caused a side effect: writer=%d post=%d notifier=%d",
-					len(ts.writer.Calls), len(ts.publisher.PostCalls), len(ts.notifier.Calls))
+			if len(ts.writer.Calls) != 0 || len(ts.publisher.PostCalls) != 0 {
+				t.Errorf("a rejected request caused a side effect: writer=%d post=%d",
+					len(ts.writer.Calls), len(ts.publisher.PostCalls))
 			}
 			if dump := ts.cache.DumpRecordsForTest(); dump != "" {
 				t.Errorf("a rejected request added a record:\n%s", dump)
@@ -79,57 +79,6 @@ func TestAcceptsWithoutBrowserHeaders(t *testing.T) {
 			}
 			if len(ts.writer.Calls) != 1 {
 				t.Errorf("writer calls = %d, want 1", len(ts.writer.Calls))
-			}
-		})
-	}
-}
-
-// TestArticlesWithoutWebhook checks that a server started without
-// SLACK_WEBHOOK_URL refuses /articles after the target and method checks,
-// without reading the body or starting anything: there is nowhere to post the
-// article or its failure notice.
-func TestArticlesWithoutWebhook(t *testing.T) {
-	tests := []struct {
-		name   string
-		method string
-		target string
-		status int
-		reason string
-	}{
-		{"post", http.MethodPost, ArticlesPath, http.StatusServiceUnavailable, "webhook_not_configured"},
-		// The method is checked first, so a wrong method is still 405.
-		{"get", http.MethodGet, ArticlesPath, http.StatusMethodNotAllowed, "method_not_allowed"},
-		{"other_path", http.MethodPost, "/other", http.StatusNotFound, "not_found"},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			ts := newTestServerWithoutWebhook(t)
-			// Both generation slots are taken, so a request refused after
-			// taking one would answer too_many_requests instead.
-			ts.slots <- struct{}{}
-			ts.slots <- struct{}{}
-			body := &recordingReader{r: strings.NewReader(validBody(testValidVideoURL, testValidRaw))}
-			rec := ts.serve(newRequest(tc.method, tc.target, body))
-			ts.waitJobs()
-			if rec.Code != tc.status {
-				t.Errorf("status = %d, want %d (body %q)", rec.Code, tc.status, rec.Body.String())
-			}
-			if got := decodeBody(t, rec); got.Status != "rejected" || got.Reason != tc.reason {
-				t.Errorf("body = %+v, want rejected %s", got, tc.reason)
-			}
-			if got := rec.Header().Get("Connection"); got != "close" {
-				t.Errorf("Connection = %q, want close", got)
-			}
-			if body.n != 0 {
-				t.Errorf("the server read %d bytes of the body, want 0", body.n)
-			}
-			// The refusal releases no slot it did not take, so the two the
-			// test took are still held.
-			if len(ts.slots) != maxInFlight {
-				t.Errorf("slots held = %d, want the %d the test took", len(ts.slots), maxInFlight)
-			}
-			if len(ts.writer.Calls) != 0 {
-				t.Errorf("writer calls = %d, want 0", len(ts.writer.Calls))
 			}
 		})
 	}

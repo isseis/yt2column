@@ -15,26 +15,22 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/isseis/yt2column/internal/articlecache"
-	"github.com/isseis/yt2column/internal/failure"
-	failuretestutil "github.com/isseis/yt2column/internal/failure/testutil"
 	publishertestutil "github.com/isseis/yt2column/internal/publisher/testutil"
-	"github.com/isseis/yt2column/internal/transcript"
 	"github.com/isseis/yt2column/internal/udstest"
 	"github.com/isseis/yt2column/internal/writer"
 	writertestutil "github.com/isseis/yt2column/internal/writer/testutil"
 )
 
 // newServer builds a Server with the given collaborators and log output.
-func newServer(t *testing.T, w writer.ProgressWriter, p WebhookPublisher, n failure.Notifier, logs io.Writer) *Server {
+func newServer(t *testing.T, w writer.ProgressWriter, p WebhookPublisher, logs io.Writer) *Server {
 	t.Helper()
 	s, err := New(Options{
 		Writer:    w,
-		Webhook:   &WebhookOptions{Publisher: p, Notifier: n},
+		Webhook:   &WebhookOptions{Publisher: p},
 		LogOutput: logs,
 	})
 	if err != nil {
@@ -66,39 +62,18 @@ func serveUnix(t *testing.T, s *Server) string {
 	return path
 }
 
-// postOnUnix sends a valid article request to the socket at path and returns
-// the status.
-func postOnUnix(t *testing.T, path string) int {
-	t.Helper()
-	body := strings.NewReader(validBody(testValidVideoURL, testValidRaw))
-	req, err := http.NewRequest(http.MethodPost, "http://yt2column"+ArticlesPath, body)
-	if err != nil {
-		t.Fatalf("NewRequest: %v", err)
-	}
-	client := &http.Client{Transport: udstest.Transport(path)}
-	resp, err := client.Do(req)
-	if err != nil {
-		t.Fatalf("send the request: %v", err)
-	}
-	_ = resp.Body.Close()
-	return resp.StatusCode
-}
-
 // TestNewWebhookOptions checks that New treats a nil Webhook as a server
-// without a Webhook, refuses a WebhookOptions whose publisher or notifier is
-// missing, a typed nil included, and still refuses a missing writer or log
-// output.
+// without a Webhook, refuses a WebhookOptions whose publisher is missing, a
+// typed nil included, and still refuses a missing writer or log output.
 func TestNewWebhookOptions(t *testing.T) {
 	pub := &publishertestutil.FakePublisher{}
-	notifier := &failuretestutil.FakeNotifier{}
 	var nilPublisher *publishertestutil.FakePublisher
-	var nilNotifier *failuretestutil.FakeNotifier
 	fakeWriter := &writertestutil.FakeArticleWriter{}
 	logs := &bytes.Buffer{}
-	complete := &WebhookOptions{Publisher: pub, Notifier: notifier}
+	complete := &WebhookOptions{Publisher: pub}
 	// all is every reason New can join, so each row pins the exact set: a
 	// reason the row does not name must be absent.
-	all := []error{errNilArticleWriter, errNilWebhookPublisher, errNilWebhookNotifier, errNilLogOutput}
+	all := []error{errNilArticleWriter, errNilWebhookPublisher, errNilLogOutput}
 	tests := []struct {
 		name string
 		opts Options
@@ -106,11 +81,8 @@ func TestNewWebhookOptions(t *testing.T) {
 	}{
 		{"complete", Options{Writer: fakeWriter, Webhook: complete, LogOutput: logs}, nil},
 		{"no_webhook", Options{Writer: fakeWriter, LogOutput: logs}, nil},
-		{"no_publisher", Options{Writer: fakeWriter, Webhook: &WebhookOptions{Notifier: notifier}, LogOutput: logs}, []error{errNilWebhookPublisher}},
-		{"typed_nil_publisher", Options{Writer: fakeWriter, Webhook: &WebhookOptions{Publisher: nilPublisher, Notifier: notifier}, LogOutput: logs}, []error{errNilWebhookPublisher}},
-		{"no_notifier", Options{Writer: fakeWriter, Webhook: &WebhookOptions{Publisher: pub}, LogOutput: logs}, []error{errNilWebhookNotifier}},
-		{"typed_nil_notifier", Options{Writer: fakeWriter, Webhook: &WebhookOptions{Publisher: pub, Notifier: nilNotifier}, LogOutput: logs}, []error{errNilWebhookNotifier}},
-		{"neither", Options{Writer: fakeWriter, Webhook: &WebhookOptions{}, LogOutput: logs}, []error{errNilWebhookPublisher, errNilWebhookNotifier}},
+		{"no_publisher", Options{Writer: fakeWriter, Webhook: &WebhookOptions{}, LogOutput: logs}, []error{errNilWebhookPublisher}},
+		{"typed_nil_publisher", Options{Writer: fakeWriter, Webhook: &WebhookOptions{Publisher: nilPublisher}, LogOutput: logs}, []error{errNilWebhookPublisher}},
 		{"no_writer", Options{Webhook: complete, LogOutput: logs}, []error{errNilArticleWriter}},
 		{"no_log_output", Options{Writer: fakeWriter, Webhook: complete}, []error{errNilLogOutput}},
 	}
@@ -141,8 +113,7 @@ func TestNewWebhookOptions(t *testing.T) {
 // changes nothing: a publish operation still posts through that publisher.
 func TestNewCopiesWebhookOptions(t *testing.T) {
 	pub := &publishertestutil.FakePublisher{}
-	notifier := &failuretestutil.FakeNotifier{}
-	webhook := &WebhookOptions{Publisher: pub, Notifier: notifier}
+	webhook := &WebhookOptions{Publisher: pub}
 	s, err := New(Options{
 		Writer:    &writertestutil.FakeArticleWriter{},
 		Webhook:   webhook,
@@ -153,7 +124,6 @@ func TestNewCopiesWebhookOptions(t *testing.T) {
 	}
 
 	webhook.Publisher = nil
-	webhook.Notifier = nil
 	if !s.webhookConfigured() {
 		t.Error("webhookConfigured() = false after the caller cleared its options")
 	}
@@ -170,7 +140,7 @@ func TestNewCopiesWebhookOptions(t *testing.T) {
 // TestServeOnUnixListener checks that Serve answers a generation start that
 // reaches it over a Unix domain socket listener with the accepted response.
 func TestServeOnUnixListener(t *testing.T) {
-	s := newServer(t, &writertestutil.FakeArticleWriter{}, &publishertestutil.FakePublisher{}, &failuretestutil.FakeNotifier{}, &bytes.Buffer{})
+	s := newServer(t, &writertestutil.FakeArticleWriter{}, &publishertestutil.FakePublisher{}, &bytes.Buffer{})
 	path := serveUnix(t, s)
 	if key := startOnUnix(t, path, validBody(testValidVideoURL, testValidRaw)); !keyShape.MatchString(key) {
 		t.Errorf("key = %q, want an article key", key)
@@ -180,7 +150,7 @@ func TestServeOnUnixListener(t *testing.T) {
 // TestServeListenerFailureStops checks that when the listener fails, Serve stops
 // and returns the error.
 func TestServeListenerFailureStops(t *testing.T) {
-	s := newServer(t, &writertestutil.FakeArticleWriter{}, &publishertestutil.FakePublisher{}, &failuretestutil.FakeNotifier{}, &bytes.Buffer{})
+	s := newServer(t, &writertestutil.FakeArticleWriter{}, &publishertestutil.FakePublisher{}, &bytes.Buffer{})
 	listener, _ := listenUnix(t)
 	done := make(chan error, 1)
 	go func() { done <- s.Serve(context.Background(), listener) }()
@@ -195,86 +165,6 @@ func TestServeListenerFailureStops(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("Serve did not return after the listener failed")
-	}
-}
-
-// TestServeShutdownWaitsForJobs checks that a canceled context stops accepting
-// connections but Serve waits for the in-flight job before returning, and that
-// the log names how many jobs the shutdown waits for.
-func TestServeShutdownWaitsForJobs(t *testing.T) {
-	gate := newGateWriter()
-	logs := &bytes.Buffer{}
-	s := newServer(t, gate, &publishertestutil.FakePublisher{}, &failuretestutil.FakeNotifier{}, logs)
-	listener, path := listenUnix(t)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan error, 1)
-	go func() { done <- s.Serve(ctx, listener) }()
-	var once sync.Once
-	releaseGate := func() { once.Do(func() { close(gate.release) }) }
-	defer func() {
-		cancel()
-		releaseGate()
-	}()
-
-	if status := postOnUnix(t, path); status != http.StatusAccepted {
-		t.Fatalf("status = %d, want 202", status)
-	}
-
-	select {
-	case <-gate.entered:
-	case <-time.After(5 * time.Second):
-		t.Fatal("the job did not start")
-	}
-
-	cancel()
-	select {
-	case <-done:
-		t.Fatal("Serve returned before the in-flight job finished")
-	case <-time.After(100 * time.Millisecond):
-	}
-
-	releaseGate()
-	select {
-	case err := <-done:
-		if err != nil {
-			t.Errorf("Serve error = %v, want nil after cancellation", err)
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("Serve did not return after the job finished")
-	}
-	// Serve has returned, so nothing writes to logs any more.
-	if !strings.Contains(logs.String(), "pending=1") {
-		t.Errorf("the shutdown log does not name the one pending job:\n%s", logs.String())
-	}
-}
-
-// TestBodyReadFailureWritesNoResponse checks on a real socket that a body the
-// server cannot read (a malformed chunked encoding) gets no response at all:
-// the connection is closed without net/http's implicit empty 200.
-func TestBodyReadFailureWritesNoResponse(t *testing.T) {
-	ts := newTestServer(t)
-	conn := dialUnix(t, serveUnix(t, ts.Server))
-	request := "POST " + ArticlesPath + " HTTP/1.1\r\n" +
-		"Host: yt2column\r\n" +
-		"Transfer-Encoding: chunked\r\n\r\n" +
-		"zz\r\n"
-	if _, err := conn.Write([]byte(request)); err != nil {
-		t.Fatalf("write the request: %v", err)
-	}
-	data, err := io.ReadAll(conn)
-	if err != nil {
-		t.Fatalf("read the response: %v", err)
-	}
-	if len(data) != 0 {
-		t.Errorf("response = %q, want the connection closed with no response", data)
-	}
-	ts.waitJobs()
-	if len(ts.slots) != 0 {
-		t.Errorf("slots held = %d, want 0", len(ts.slots))
-	}
-	if len(ts.notifier.Calls) != 0 {
-		t.Errorf("notifier calls = %d, want 0 for a body-read failure", len(ts.notifier.Calls))
 	}
 }
 
@@ -356,8 +246,7 @@ func TestExpectContinueOversizedBodyNotSent(t *testing.T) {
 
 // TestUnparsableRequestBypassesHandler checks that bytes that are not an HTTP
 // request are answered by net/http itself with 400, and that the handler never
-// runs for them: no slot is taken, no failure notice is posted, and no article
-// is generated.
+// runs for them: no slot is taken and no article is generated.
 func TestUnparsableRequestBypassesHandler(t *testing.T) {
 	ts := newTestServer(t)
 	conn := dialUnix(t, serveUnix(t, ts.Server))
@@ -386,31 +275,9 @@ func TestUnparsableRequestBypassesHandler(t *testing.T) {
 	if len(ts.slots) != 0 {
 		t.Errorf("slots held = %d, want 0", len(ts.slots))
 	}
-	if len(ts.notifier.Calls) != 0 || len(ts.writer.Calls) != 0 {
-		t.Errorf("an unparsable request caused a side effect: notifier=%d writer=%d",
-			len(ts.notifier.Calls), len(ts.writer.Calls))
+	if len(ts.writer.Calls) != 0 {
+		t.Errorf("an unparsable request called the writer %d times", len(ts.writer.Calls))
 	}
-}
-
-// ctxRecordingWriter holds the legacy job's Write until release is closed and
-// then records whether its context was canceled; WriteWithProgress runs the
-// job API's generations through fake.
-type ctxRecordingWriter struct {
-	entered  chan struct{}
-	release  chan struct{}
-	canceled chan bool
-	fake     *writertestutil.FakeArticleWriter
-}
-
-func (w ctxRecordingWriter) Write(ctx context.Context, _ transcript.Transcript) (writer.Article, error) {
-	w.entered <- struct{}{}
-	<-w.release
-	w.canceled <- ctx.Err() != nil
-	return testArticle(), nil
-}
-
-func (w ctxRecordingWriter) WriteWithProgress(ctx context.Context, t transcript.Transcript, o writer.ProgressObserver) (writer.Article, error) {
-	return w.fake.WriteWithProgress(ctx, t, o)
 }
 
 // startOnUnix sends a generation start to the socket at path and returns the
@@ -437,34 +304,19 @@ func startOnUnix(t *testing.T, path, body string) string {
 }
 
 // TestServeShutdownCancelsGeneration checks a shutdown with a generation job
-// and a legacy job in flight: the generation's writer sees its context
-// canceled and the record fails, logging only the cancellation line, while the
-// legacy job runs on with a live context and Serve returns only after it.
+// in flight: the writer sees its context canceled and the record fails,
+// logging only the cancellation line, and the shutdown line counts the one
+// generation that was running when the stop began.
 func TestServeShutdownCancelsGeneration(t *testing.T) {
-	fake := &writertestutil.FakeArticleWriter{Result: testArticle()}
-	reached, releaseGeneration := holdAtDraft(fake)
-	w := ctxRecordingWriter{
-		entered: make(chan struct{}, 1), release: make(chan struct{}),
-		canceled: make(chan bool, 1), fake: fake,
-	}
 	ts := newJobsTestServer(t, jobsServerOptions{})
-	ts.Server.writer = w
+	reached, release := holdAtDraft(ts.writer)
+	defer release()
 	listener, path := listenUnix(t)
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	done := make(chan error, 1)
 	go func() { done <- ts.Serve(ctx, listener) }()
-	var once sync.Once
-	releaseLegacy := func() { once.Do(func() { close(w.release) }) }
-	defer func() {
-		cancel()
-		releaseGeneration()
-		releaseLegacy()
-	}()
 
-	if status := postOnUnix(t, path); status != http.StatusAccepted {
-		t.Fatalf("legacy status = %d, want 202", status)
-	}
-	<-w.entered
 	key, err := articlecache.ParseKey(startOnUnix(t, path, bodyWith("generation")))
 	if err != nil {
 		t.Fatalf("ParseKey: %v", err)
@@ -474,26 +326,19 @@ func TestServeShutdownCancelsGeneration(t *testing.T) {
 	cancel()
 	waitFor(t, "the generation to be canceled", func() bool { return ts.cache.Lookup(key).State == articlecache.JobFailed })
 	select {
-	case <-done:
-		t.Fatal("Serve returned before the legacy job finished")
-	case <-time.After(100 * time.Millisecond):
-	}
-
-	releaseLegacy()
-	select {
 	case err := <-done:
 		if err != nil {
 			t.Errorf("Serve error = %v, want nil after cancellation", err)
 		}
 	case <-time.After(5 * time.Second):
-		t.Fatal("Serve did not return after the legacy job finished")
-	}
-	if <-w.canceled {
-		t.Error("the legacy job's context was canceled")
+		t.Fatal("Serve did not return after the generation was canceled")
 	}
 	logs := ts.logs.String()
 	if !strings.Contains(logs, "generation job canceled by the shutdown") || strings.Contains(logs, "generation job failed") {
 		t.Errorf("want the cancellation line and no failure line:\n%s", logs)
+	}
+	if line := logLine(logs, "stopped accepting connections"); !strings.Contains(line, "canceledGenerations=1") {
+		t.Errorf("the shutdown log line = %q, want canceledGenerations=1", line)
 	}
 }
 
@@ -501,8 +346,9 @@ func TestServeShutdownCancelsGeneration(t *testing.T) {
 // the cache only after the shutdown began: its request is held inside the body
 // read while Serve cancels the generations, and once the body arrives the start
 // is still accepted, but its job begins already canceled. The record fails, the
-// writer is never called, only the cancellation line is logged, and Serve
-// returns with every slot free.
+// writer is never called, only the cancellation line is logged, the shutdown
+// line does not count it among the canceled generations, and Serve returns
+// with every slot free.
 func TestServeShutdownCancelsLateStart(t *testing.T) {
 	ts := newJobsTestServer(t, jobsServerOptions{})
 	listener, path := listenUnix(t)
@@ -563,6 +409,9 @@ func TestServeShutdownCancelsLateStart(t *testing.T) {
 	logs := ts.logs.String()
 	if !strings.Contains(logs, "generation job canceled by the shutdown") || strings.Contains(logs, "generation job failed") {
 		t.Errorf("want the cancellation line and no failure line:\n%s", logs)
+	}
+	if line := logLine(logs, "stopped accepting connections"); !strings.Contains(line, "canceledGenerations=0") {
+		t.Errorf("the shutdown log line = %q, want canceledGenerations=0", line)
 	}
 	if len(ts.slots) != 0 || len(ts.reading) != 0 {
 		t.Errorf("slots held: generation %d, reading %d, want 0", len(ts.slots), len(ts.reading))

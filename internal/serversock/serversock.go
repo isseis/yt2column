@@ -270,8 +270,8 @@ func abandon(listener *net.UnixListener, path string, euid int) {
 	_ = listener.Close()
 }
 
-// Release releases the start lock. The caller calls it after every job and
-// failure notice has finished. Listen fails after Release.
+// Release releases the start lock. The caller calls it after every job has
+// finished. Listen fails after Release.
 func (l *Lock) Release() error {
 	if l.lock == nil {
 		return errReleased

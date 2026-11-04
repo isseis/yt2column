@@ -271,9 +271,10 @@ func TestPublishRejections(t *testing.T) {
 	}
 }
 
-// TestPublishFailureNotNotified checks that a failed post, by the Webhook or
-// for any other reason, records its reason and posts no failure notice.
-func TestPublishFailureNotNotified(t *testing.T) {
+// TestPublishFailureReason checks that a failed post records its reason, the
+// Webhook for a *publisher.SlackPostError and internal for any other error, and
+// names it in the failure log line.
+func TestPublishFailureReason(t *testing.T) {
 	tests := []struct {
 		name   string
 		err    error
@@ -291,9 +292,6 @@ func TestPublishFailureNotNotified(t *testing.T) {
 			ts.waitJobs()
 			if got := ts.publishOf(t, key); got != (statusPublish{State: "failed", Reason: tc.reason}) {
 				t.Errorf("publish = %+v, want failed with %s", got, tc.reason)
-			}
-			if len(ts.notifier.Calls) != 0 {
-				t.Errorf("notifier calls = %d, want 0", len(ts.notifier.Calls))
 			}
 			if line := logLine(ts.logs.String(), "post job failed"); !strings.Contains(line, "reason="+tc.reason) {
 				t.Errorf("the failure log line = %q, want reason=%s", line, tc.reason)
@@ -539,7 +537,7 @@ func TestPublishPanicResumes(t *testing.T) {
 
 // TestPublishHandlerPanicCleanup checks the publish handler's recovery: a
 // panic after BeginPublish and before the job takes over fails the post as
-// internal, so the record is not left posting, and posts no notice.
+// internal, so the record is not left posting, and sends nothing.
 func TestPublishHandlerPanicCleanup(t *testing.T) {
 	ts := newJobsTestServer(t, jobsServerOptions{})
 	key := ts.seedDone(t, validBody(testValidVideoURL, testValidRaw)).String()
@@ -553,8 +551,8 @@ func TestPublishHandlerPanicCleanup(t *testing.T) {
 	if got := ts.publishOf(t, key); got != (statusPublish{State: "failed", Reason: "internal"}) {
 		t.Errorf("publish = %+v, want failed as internal", got)
 	}
-	if calls := ts.publisher.RecordedPostCalls(); len(calls) != 0 || len(ts.notifier.Calls) != 0 {
-		t.Errorf("side effects: PostMessages=%d notifier=%d, want none", len(calls), len(ts.notifier.Calls))
+	if calls := ts.publisher.RecordedPostCalls(); len(calls) != 0 {
+		t.Errorf("PostMessages calls = %d, want 0", len(calls))
 	}
 }
 

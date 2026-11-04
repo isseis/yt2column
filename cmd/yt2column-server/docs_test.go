@@ -104,7 +104,6 @@ func TestServerDocsContract(t *testing.T) {
 		// inside a fenced example would end the section: keep shell comments
 		// out of these examples.
 		for _, example := range []struct{ operation, method, path string }{
-			{"the articles endpoint", "POST", server.ArticlesPath},
 			{"the job API's generation start", "POST", server.JobsPath},
 			{"the job API's status", "GET", server.JobsPath + "/<key>"},
 			{"the job API's publish", "POST", server.JobsPath + "/<key>" + server.PublishSuffix},
@@ -395,8 +394,7 @@ func pathForm(rawURL string) string {
 	if err != nil || u.RawQuery != "" || u.Fragment != "" {
 		return ""
 	}
-	switch u.Path {
-	case server.ArticlesPath, server.JobsPath:
+	if u.Path == server.JobsPath {
 		return u.Path
 	}
 	rest, ok := strings.CutPrefix(u.Path, server.JobsPath+"/")

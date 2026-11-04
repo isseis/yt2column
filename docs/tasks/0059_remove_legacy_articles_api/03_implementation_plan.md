@@ -266,28 +266,28 @@ localhost サーバの旧 API（`POST /articles`）・旧 API のジョブ・失
 
 **変更するファイル:** `internal/server/` の `handler.go`・`job.go`（削除）・`jobs_api.go`・`generation.go`・`request.go`・`response.go`・`server.go`・`publish.go` とそのテスト・`test_helpers.go`、`internal/serversock/serversock.go`、`cmd/yt2column-server/` の `run.go` とそのテスト・`test_helpers.go`・`docs_test.go`
 
-- [ ] `handler.go` から `ArticlesPath`・`routeArticles`・`matchTarget` の `/articles` の分岐・`articlesHandler` を削除する（設計書 3.2.1 節）。
-- [ ] `maxInFlight`・`acquireSlot`・`releaseSlot` を `jobs_api.go` へ、`classifyWrite` を `generation.go` へ移し、`job.go` を削除する（1.3 節）。
-- [ ] `request.go`・`response.go`・`server.go`・`publish.go` から、設計書 3.2.1 節の表の残りの行（`rejectReason.notify`、`rejection.videoID`、`detailTooManyRequests`、`jobInput.requestID` と `requestID` の引数、`WebhookOptions.Notifier`・`Server.notifier`・`errNilWebhookNotifier` とその検査、`WebhookPublisher` の `publisher.Publisher`）を削除する。
-- [ ] シャットダウンのログを設計書 3.2.2 節のとおりにする（`genCancel` の前の生成の枠の使用数を `canceledGenerations` に書き、`postJobs` は残し、待ち始めと待ち終えた行から失敗の通知を除く）。
-- [ ] 設計書 3.2.1 節・3.2.2 節・3.2.3 節が挙げるコメント、1.4 節のコメント（`publish.go:34`、`request.go:35-37`、`jobs_api.go:84`、`handler.go:40`）、`internal/serversock/serversock.go:273-274` のコメントから、旧 API と失敗の通知を除く（AC-08）。
-- [ ] `cmd/yt2column-server/run.go` を設計書 3.5 節のとおりにする（`deps.newNotifier`・`newNotifier`・`llmCallsPerJob` の削除、`server.WebhookOptions{Publisher: pub}`、起動時の警告、コメント）。停止の案内は、`SlackMaxPostDuration` を 1.3 節の分を求める関数に通して書く。
-- [ ] 分を求める関数の境界の値を、表のテストで確かめる（1.3 節）。
-- [ ] `internal/server/job_test.go` を削除する（11 のテストはすべて削除の対象。設計書 7.1 節）。
-- [ ] `handler_test.go` の `TestArticlesWithoutWebhook` を削除する。
-- [ ] `jobs_api_test.go` の `TestArticlesIgnoresCache` を削除する。
-- [ ] `jobs_api_test.go` の `TestNewAPINeverNotifies` を削除する。
-- [ ] `server_test.go` の `TestServeShutdownWaitsForJobs` を削除する。
-- [ ] `server_test.go` の `TestBodyReadFailureWritesNoResponse` を削除する。
-- [ ] `request_test.go` の `/articles` で確かめる版（ステップ 2-1）を削除する。
-- [ ] 使う所がなくなる補助 `postOnUnix`・`serveAccepted`・`panickingNotifier`・`nopNotifier`・`countingPublisher.Publish`・`nopPublisher.Publish` を削除する。
-- [ ] 未知のパスの拒否のテスト（`jobs_api_test.go` の `TestJobsTargetRejections` の行か、並べたサブテスト）に、今のテストにない確かめだけを加える。`/articles` ではない未知のパスを使い、生成の枠と読み込みの枠をあらかじめすべて埋め、本文に読んだバイト数を数えるリーダーを渡したうえで、各メソッドで送り、`not_found` になること、本文を 1 バイトも読まないこと、Writer と投稿の相手が呼ばれないことを確かめる（AC-01）。`/articles` 専用の行は加えない（1.6 節。`/articles` の不在はステップ 3-4 の `_checks/residue` で確かめる）。
-- [ ] `TestServeShutdownCancelsGeneration` を、停止を始めた時点で実行中だった生成の数が `canceledGenerations=1` になることを確かめる形にする（行が失敗の通知に触れないことは、ステップ 3-4 の `_checks/residue` で確かめる。1.6 節）。`TestServeShutdownCancelsLateStart` で、停止の後に受け付けた生成が数に入らない（`canceledGenerations=0`）ことを確かめる（設計書 3.2.2 節、AC-16）。
-- [ ] `TestPublishFailureNotNotified` を `TestPublishFailureReason` に改め、失敗の通知の確かめだけを除く（失敗の理由 `internal` とログの `reason=` の確かめは残す。1.4 節）。
-- [ ] 失敗の通知の送り手を参照するテストと補助の値を直す: `TestStartHandlerPanicCleanup`・`TestPublishHandlerPanicCleanup`・`TestStatusHasNoSideEffects`・`TestNewWebhookOptions`・`newServer`・`newCustomServer`・`newTestServer`・`newJobsTestServer`。
-- [ ] `cmd/yt2column-server` のテストを直す: `TestStartupFailures` の失敗の通知の送り手の行を削除する。`TestBuildsSlackPublisher` から失敗の通知の送り手の確かめを除く。`TestStartsWithoutWebhook` から `d.newNotifier` を除く（AC-04）。`TestRunLogsListeningAndStop` を、停止の案内が「about 5 minutes」を含むことを確かめる形にする（AC-15、計算の式を使わずに文字列で確かめる）。警告と停止の案内が `/articles` と失敗の通知に触れないことは、ステップ 3-4 の `_checks/residue` で確かめる（1.6 節）。`TestWriterOptionsMatchCLIDefaults`・`testDeps`・`loopbackDeps` から失敗の通知を除く。
-- [ ] `cmd/yt2column-server/docs_test.go` の curl の例のガードから `server.ArticlesPath` の行を除き、`pathForm` から `server.ArticlesPath` を除く（設計書 3.6 節、AC-20）。
-- [ ] 加えたテストの行と書き換えた確かめが、それぞれ対象を壊して失敗することを確かめ、コミットメッセージに書く。
+- [x] `handler.go` から `ArticlesPath`・`routeArticles`・`matchTarget` の `/articles` の分岐・`articlesHandler` を削除する（設計書 3.2.1 節）。
+- [x] `maxInFlight`・`acquireSlot`・`releaseSlot` を `jobs_api.go` へ、`classifyWrite` を `generation.go` へ移し、`job.go` を削除する（1.3 節）。
+- [x] `request.go`・`response.go`・`server.go`・`publish.go` から、設計書 3.2.1 節の表の残りの行（`rejectReason.notify`、`rejection.videoID`、`detailTooManyRequests`、`jobInput.requestID` と `requestID` の引数、`WebhookOptions.Notifier`・`Server.notifier`・`errNilWebhookNotifier` とその検査、`WebhookPublisher` の `publisher.Publisher`）を削除する。
+- [x] シャットダウンのログを設計書 3.2.2 節のとおりにする（`genCancel` の前の生成の枠の使用数を `canceledGenerations` に書き、`postJobs` は残し、待ち始めと待ち終えた行から失敗の通知を除く）。
+- [x] 設計書 3.2.1 節・3.2.2 節・3.2.3 節が挙げるコメント、1.4 節のコメント（`publish.go:34`、`request.go:35-37`、`jobs_api.go:84`、`handler.go:40`）、`internal/serversock/serversock.go:273-274` のコメントから、旧 API と失敗の通知を除く（AC-08）。
+- [x] `cmd/yt2column-server/run.go` を設計書 3.5 節のとおりにする（`deps.newNotifier`・`newNotifier`・`llmCallsPerJob` の削除、`server.WebhookOptions{Publisher: pub}`、起動時の警告、コメント）。停止の案内は、`SlackMaxPostDuration` を 1.3 節の分を求める関数に通して書く。
+- [x] 分を求める関数の境界の値を、表のテストで確かめる（1.3 節）。
+- [x] `internal/server/job_test.go` を削除する（11 のテストはすべて削除の対象。設計書 7.1 節）。
+- [x] `handler_test.go` の `TestArticlesWithoutWebhook` を削除する。
+- [x] `jobs_api_test.go` の `TestArticlesIgnoresCache` を削除する。
+- [x] `jobs_api_test.go` の `TestNewAPINeverNotifies` を削除する。
+- [x] `server_test.go` の `TestServeShutdownWaitsForJobs` を削除する。
+- [x] `server_test.go` の `TestBodyReadFailureWritesNoResponse` を削除する。
+- [x] `request_test.go` の `/articles` で確かめる版（ステップ 2-1）を削除する。残る拒否の表（形の誤り、文字列でない任意のメンバ、動画の URL、字幕）は、同じ準備と確かめで入力だけが違うので、`TestStartRejectsBody` の 1 つの表にまとめる。`TestResponseOmitsInputs` は、移した後は `status_test.go` の `TestResponsesOmitInputs` と同じ入力を確かめるので削除する（`rejectRequest` は `TestRejectStatusCodes` が使うので残す）。
+- [x] 使う所がなくなる補助 `postOnUnix`・`serveAccepted`・`panickingNotifier`・`nopNotifier`・`countingPublisher`・`nopPublisher.Publish` と、`newCustomServer`・`gateWriter`・`ctxRecordingWriter` を削除する。
+- [x] 未知のパスの拒否のテスト（`jobs_api_test.go` の `TestJobsTargetRejections` の行か、並べたサブテスト。`TestUnknownPathTouchesNothing` として並べた）に、今のテストにない確かめだけを加える。`/articles` ではない未知のパスを使い、生成の枠と読み込みの枠をあらかじめすべて埋め、本文に読んだバイト数を数えるリーダーを渡したうえで、各メソッドで送り、`not_found` になること、本文を 1 バイトも読まないこと、Writer と投稿の相手が呼ばれないことを確かめる（AC-01）。`/articles` 専用の行は加えない（1.6 節。`/articles` の不在はステップ 3-4 の `_checks/residue` で確かめる）。
+- [x] `TestServeShutdownCancelsGeneration` を、停止を始めた時点で実行中だった生成の数が `canceledGenerations=1` になることを確かめる形にする（行が失敗の通知に触れないことは、ステップ 3-4 の `_checks/residue` で確かめる。1.6 節）。`TestServeShutdownCancelsLateStart` で、停止の後に受け付けた生成が数に入らない（`canceledGenerations=0`）ことを確かめる（設計書 3.2.2 節、AC-16）。
+- [x] `TestPublishFailureNotNotified` を `TestPublishFailureReason` に改め、失敗の通知の確かめだけを除く（失敗の理由 `internal` とログの `reason=` の確かめは残す。1.4 節）。
+- [x] 失敗の通知の送り手を参照するテストと補助の値を直す: `TestStartHandlerPanicCleanup`・`TestPublishHandlerPanicCleanup`・`TestStatusHasNoSideEffects`・`TestNewWebhookOptions`・`newServer`・`newCustomServer`・`newTestServer`・`newJobsTestServer`。
+- [x] `cmd/yt2column-server` のテストを直す: `TestStartupFailures` の失敗の通知の送り手の行を削除する。`TestBuildsSlackPublisher` から失敗の通知の送り手の確かめを除く。`TestStartsWithoutWebhook` から `d.newNotifier` を除く（AC-04）。`TestRunLogsListeningAndStop` を、停止の案内が「about 5 minutes」を含むことを確かめる形にする（AC-15、計算の式を使わずに文字列で確かめる）。警告と停止の案内が `/articles` と失敗の通知に触れないことは、ステップ 3-4 の `_checks/residue` で確かめる（1.6 節）。`TestWriterOptionsMatchCLIDefaults`・`testDeps`・`loopbackDeps` から失敗の通知を除く。
+- [x] `cmd/yt2column-server/docs_test.go` の curl の例のガードから `server.ArticlesPath` の行を除き、`pathForm` から `server.ArticlesPath` を除く（設計書 3.6 節、AC-20）。
+- [x] 加えたテストの行と書き換えた確かめが、それぞれ対象を壊して失敗することを確かめ、コミットメッセージに書く。
 
 **完了の条件:** `make test` と `make lint` が通る。
 

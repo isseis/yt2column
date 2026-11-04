@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/isseis/yt2column/internal/config"
-	"github.com/isseis/yt2column/internal/failure"
 	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/publisher"
 	"github.com/isseis/yt2column/internal/secret"
@@ -70,8 +69,8 @@ const (
 	// LLM client and publisher never send anything.
 	childModeMain = "main"
 	// childModeBlock runs signalrun.Run with an LLM client that succeeds at
-	// once, a Webhook publisher whose post waits until the test creates the
-	// release marker, and a notifier that sends nothing.
+	// once and a Webhook publisher whose post waits until the test creates
+	// the release marker.
 	childModeBlock = "block"
 )
 
@@ -295,59 +294,42 @@ func reviewLLM() llm.LLMClient {
 	})
 }
 
-// nopPublisher is a publisher that accepts every article and sends nothing.
+// nopPublisher is a Webhook publisher that accepts every post and sends
+// nothing.
 type nopPublisher struct{}
-
-// Publish implements publisher.Publisher.
-func (nopPublisher) Publish(context.Context, writer.Article) error { return nil }
 
 // PostMessages implements server.WebhookPublisher.
 func (nopPublisher) PostMessages(context.Context, publisher.SlackMessages, int, func(int)) error {
 	return nil
 }
 
-// nopNotifier is a notifier that accepts every notice and sends nothing.
-type nopNotifier struct{}
-
-// Notify implements failure.Notifier.
-func (nopNotifier) Notify(context.Context, failure.Notice) error { return nil }
-
 // testDeps returns deps that build client for generation, a review client
-// that revises nothing, and a publisher and notifier that send nothing, so no
-// test reaches the LLM API or the webhook the environment names.
+// that revises nothing, and a publisher that sends nothing, so no test reaches
+// the LLM API or the webhook the environment names.
 func testDeps(client llm.LLMClient) deps {
 	return deps{
 		newLLMClient:       func(config.LLMConfig) (llm.LLMClient, error) { return client, nil },
 		newReviewLLMClient: func(config.LLMConfig) (llm.LLMClient, error) { return reviewLLM(), nil },
 		newWriter:          writer.NewProgressWriter,
 		newPublisher:       func(secret.Secret) (server.WebhookPublisher, error) { return nopPublisher{}, nil },
-		newNotifier:        func(secret.Secret) (failure.Notifier, error) { return nopNotifier{}, nil },
 	}
 }
 
 // loopbackDeps returns testDeps(client) with the real SlackWebhookPublisher
-// and SlackFailureNotifier posting to serverURL, a loopback webhook. Both are
-// built here, in the test goroutine, because their constructors may fail t;
-// the deps return them after checking that run passes the configured webhook
-// URL. The endpoint keeps the configured path, so it carries the same secret
+// posting to serverURL, a loopback webhook. It is built here, in the test
+// goroutine, because its constructor may fail t; the deps return it after
+// checking that run passes the configured webhook URL. The endpoint keeps the configured path, so it carries the same secret
 // path the server redacts.
 func loopbackDeps(t *testing.T, client llm.LLMClient, serverURL string) deps {
 	t.Helper()
 	endpoint := serverURL + testWebhookPath
 	pub := publisher.NewSlackWebhookPublisherForLoopbackTest(t, publisher.SlackTestOptions{Timeout: loopbackTimeout}, endpoint)
-	notifier := publisher.NewSlackFailureNotifierForLoopbackTest(t, loopbackTimeout, endpoint)
 	d := testDeps(client)
 	d.newPublisher = func(webhookURL secret.Secret) (server.WebhookPublisher, error) {
 		if err := requireTestWebhook(webhookURL); err != nil {
 			return nil, err
 		}
 		return pub, nil
-	}
-	d.newNotifier = func(webhookURL secret.Secret) (failure.Notifier, error) {
-		if err := requireTestWebhook(webhookURL); err != nil {
-			return nil, err
-		}
-		return notifier, nil
 	}
 	return d
 }
@@ -520,7 +502,6 @@ func generateAndPublish(t *testing.T, path string) {
 // gives up after blockLifetime. It ignores its context, as the server never
 // cancels a post job's context.
 type blockingPublisher struct {
-	nopPublisher
 	ready   string
 	release string
 }

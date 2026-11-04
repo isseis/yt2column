@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/isseis/yt2column/internal/config"
-	"github.com/isseis/yt2column/internal/failure"
 	"github.com/isseis/yt2column/internal/llm"
 	llmtestutil "github.com/isseis/yt2column/internal/llm/testutil"
 	"github.com/isseis/yt2column/internal/publisher"
@@ -176,14 +175,6 @@ func TestStartupFailures(t *testing.T) {
 			wantStderr: "build the publisher",
 		},
 		{
-			name: "notifier not built",
-			setup: func(_ *testing.T, _ *serverEnv, d *deps) {
-				d.newNotifier = func(secret.Secret) (failure.Notifier, error) { return nil, errBuildRefused }
-			},
-			want:       exitUsage,
-			wantStderr: "build the failure notifier",
-		},
-		{
 			name: "socket directory with a mode other than 0700",
 			setup: func(t *testing.T, e *serverEnv, _ *deps) {
 				if err := os.MkdirAll(filepath.Dir(e.socketPath(t)), 0o755); err != nil {
@@ -279,7 +270,6 @@ func (g gatedLLM) Generate(context.Context, llm.GenerateRequest) (llm.GenerateRe
 // gatedPublisher is a Webhook publisher whose posts signal entered and then
 // wait until release is closed.
 type gatedPublisher struct {
-	nopPublisher
 	entered chan struct{}
 	release chan struct{}
 }
@@ -380,9 +370,9 @@ func TestOutputsOmitSecrets(t *testing.T) {
 	requireNoSecret(t, "stderr", srv.stderr.String())
 }
 
-// TestBuildsSlackPublisher checks that the production constructors build the
-// publisher the CLI's --slack uses and the Slack failure notifier, and that a
-// rejected webhook URL yields a nil interface rather than a typed nil.
+// TestBuildsSlackPublisher checks that the production constructor builds the
+// publisher the CLI's --slack uses, and that a rejected webhook URL yields a
+// nil interface rather than a typed nil.
 func TestBuildsSlackPublisher(t *testing.T) {
 	webhook, err := secret.New(testWebhook)
 	if err != nil {
@@ -396,20 +386,10 @@ func TestBuildsSlackPublisher(t *testing.T) {
 	if _, ok := pub.(*publisher.SlackWebhookPublisher); !ok {
 		t.Errorf("publisher is %T, want *publisher.SlackWebhookPublisher", pub)
 	}
-	notifier, err := d.newNotifier(webhook)
-	if err != nil {
-		t.Fatalf("newNotifier: %v", err)
-	}
-	if _, ok := notifier.(*publisher.SlackFailureNotifier); !ok {
-		t.Errorf("notifier is %T, want *publisher.SlackFailureNotifier", notifier)
-	}
 
 	var zero secret.Secret
 	if pub, err := d.newPublisher(zero); err == nil || pub != nil {
 		t.Errorf("newPublisher(zero) = (%v, %v), want a nil interface and an error", pub, err)
-	}
-	if notifier, err := d.newNotifier(zero); err == nil || notifier != nil {
-		t.Errorf("newNotifier(zero) = (%v, %v), want a nil interface and an error", notifier, err)
 	}
 }
 
@@ -444,19 +424,15 @@ func TestWriterOptionsMatchCLIDefaults(t *testing.T) {
 // TestStartsWithoutWebhook checks that a server whose SLACK_WEBHOOK_URL is
 // unset starts, reports in one warning after the listening line that no Webhook
 // is configured and names what that refuses, rejects the publish operation on
-// its socket, and never builds the publisher or the failure notifier.
+// its socket, and never builds the publisher.
 func TestStartsWithoutWebhook(t *testing.T) {
 	e := newServerEnv(t)
 	delete(e.vars, "SLACK_WEBHOOK_URL")
-	publisherCalls, notifierCalls := 0, 0
+	publisherCalls := 0
 	d := testDeps(validResponseLLM())
 	d.newPublisher = func(secret.Secret) (server.WebhookPublisher, error) {
 		publisherCalls++
 		return nopPublisher{}, nil
-	}
-	d.newNotifier = func(secret.Secret) (failure.Notifier, error) {
-		notifierCalls++
-		return nopNotifier{}, nil
 	}
 
 	srv := startServer(t, e, d)
@@ -492,16 +468,16 @@ func TestStartsWithoutWebhook(t *testing.T) {
 	if strings.Index(stderr, "msg=listening") > strings.Index(stderr, startupWarning) {
 		t.Errorf("the warning comes before the listening line:\n%s", stderr)
 	}
-	if publisherCalls != 0 || notifierCalls != 0 {
-		t.Errorf("constructors called without a Webhook: publisher=%d notifier=%d", publisherCalls, notifierCalls)
+	if publisherCalls != 0 {
+		t.Errorf("the publisher was built %d times without a Webhook", publisherCalls)
 	}
 	requireNoSecret(t, "stderr", stderr)
 }
 
 // TestRunLogsListeningAndStop checks the lines run itself logs: the socket
 // path and the configured Webhook when it listens (with no warning about the
-// Webhook), and, when the stop begins, the longest wait for in-flight jobs and
-// that a second signal exits at once.
+// Webhook), and, when the stop begins, that the generations are canceled, the
+// longest wait for the posts, and that a second signal exits at once.
 func TestRunLogsListeningAndStop(t *testing.T) {
 	e := newServerEnv(t)
 	srv := startServer(t, e, testDeps(validResponseLLM()))
@@ -523,9 +499,9 @@ func TestRunLogsListeningAndStop(t *testing.T) {
 		t.Errorf("stderr warns that no Webhook is configured although one is: %s", warning)
 	}
 	for _, want := range []string{
-		// Three LLM calls of at most 15 minutes each.
-		"up to about 45 minutes",
-		"the job API's in-flight generations are canceled",
+		// Ten messages of at most 30 seconds each, a second apart: 309 s.
+		"up to about 5 minutes",
+		"the in-flight generations are canceled",
 		"send the signal again to exit at once",
 	} {
 		if !strings.Contains(stderr, want) {
@@ -560,6 +536,27 @@ func (c *gapContext) AfterFunc(f func()) func() bool {
 }
 
 func (c *gapContext) start() { c.schedule() }
+
+// TestApproxMinutes checks the minutes the stop notice names: the nearest
+// minute, half a minute rounded up, and never 0.
+func TestApproxMinutes(t *testing.T) {
+	for _, tc := range []struct {
+		d    time.Duration
+		want int
+	}{
+		{0, 1},
+		{29 * time.Second, 1},
+		{30 * time.Second, 1},
+		{89 * time.Second, 1},
+		{90 * time.Second, 2},
+		{309 * time.Second, 5},
+		{330 * time.Second, 6},
+	} {
+		if got := approxMinutes(tc.d); got != tc.want {
+			t.Errorf("approxMinutes(%v) = %d, want %d", tc.d, got, tc.want)
+		}
+	}
+}
 
 // TestAfterCancel checks that finish waits for the callback whenever ctx was
 // canceled, including when the cancellation has not scheduled the callback

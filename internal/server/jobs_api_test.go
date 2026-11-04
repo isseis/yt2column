@@ -282,22 +282,6 @@ func TestStartGenerationSlotsFull(t *testing.T) {
 	}
 }
 
-// TestNewAPINeverNotifies checks that no generation failure and no key
-// rejection of the job API posts a failure notice. The body rejections are
-// checked for it by the body check tests' requireStartUntouched.
-func TestNewAPINeverNotifies(t *testing.T) {
-	ts := newJobsTestServer(t, jobsServerOptions{})
-	ts.writer.Err = errors.New("the provider refused")
-	acceptedKey(t, ts.startBody(validBody(testValidVideoURL, testValidRaw)))
-	ts.writer.Err = nil
-	ts.writer.Result = writer.Article{}
-	acceptedKey(t, ts.startBody(bodyWith("invalid article")))
-	requireRejected(t, ts.statusRequest("nope"), http.StatusBadRequest, "invalid_key")
-	if len(ts.notifier.Calls) != 0 {
-		t.Errorf("notifier calls = %+v, want none", ts.notifier.Calls)
-	}
-}
-
 // TestStartReadSlotsFull fills the reading slots with two starts held inside
 // their body reads, and checks that a third start is refused with
 // too_many_requests, closing the connection, without reading a byte of its
@@ -440,26 +424,44 @@ func TestStartCacheFull(t *testing.T) {
 	}
 }
 
-// TestArticlesIgnoresCache checks that the legacy endpoint neither reads nor
-// writes the article cache: the same input sent twice is generated and posted
-// twice, and its key stays unknown.
-func TestArticlesIgnoresCache(t *testing.T) {
-	ts := newJobsTestServer(t, jobsServerOptions{})
-	body := validBody(testValidVideoURL, testValidRaw)
-	for range 2 {
-		if rec := ts.serveAccepted(t, body); rec.Code != http.StatusAccepted {
-			t.Fatalf("status = %d, want 202", rec.Code)
-		}
-	}
-	if len(ts.writer.Calls) != 2 || len(ts.publisher.Calls) != 2 {
-		t.Errorf("writer calls = %d, publisher calls = %d, want 2 each", len(ts.writer.Calls), len(ts.publisher.Calls))
-	}
-	key := ts.keyer.Key(ts.validInput(t, body).key)
-	if state := ts.getStatus(t, key.String()).Job.State; state != "unknown" {
-		t.Errorf("key state = %q, want unknown", state)
-	}
-	if dump := ts.cache.DumpRecordsForTest(); dump != "" {
-		t.Errorf("the legacy endpoint added a record:\n%s", dump)
+// TestUnknownPathTouchesNothing checks that a target the server does not
+// serve is refused as not_found, closing the connection, whatever the method,
+// without reading a byte of the body or taking a slot: with every generation
+// and reading slot already taken the answer is still not_found, not
+// too_many_requests. No writer or Webhook call and no record follow.
+func TestUnknownPathTouchesNothing(t *testing.T) {
+	for _, method := range []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete} {
+		t.Run(method, func(t *testing.T) {
+			ts := newJobsTestServer(t, jobsServerOptions{})
+			for range maxInFlight {
+				ts.slots <- struct{}{}
+			}
+			for range maxReading {
+				ts.reading <- struct{}{}
+			}
+			body := &recordingReader{r: strings.NewReader(validBody(testValidVideoURL, testValidRaw))}
+			req := newRequest(method, "/unknown", io.NopCloser(body))
+			req.ContentLength = -1
+			rec := ts.serve(req)
+			ts.waitJobs()
+			requireRejected(t, rec, http.StatusNotFound, "not_found")
+			if got := rec.Header().Get("Connection"); got != "close" {
+				t.Errorf("Connection = %q, want close", got)
+			}
+			if body.n != 0 {
+				t.Errorf("read %d bytes of the body, want 0", body.n)
+			}
+			if len(ts.slots) != maxInFlight || len(ts.reading) != maxReading {
+				t.Errorf("slots held: generation %d, reading %d, want the %d and %d the test took",
+					len(ts.slots), len(ts.reading), maxInFlight, maxReading)
+			}
+			if len(ts.writer.Calls) != 0 || len(ts.publisher.PostCalls) != 0 {
+				t.Errorf("side effects: writer=%d post=%d, want none", len(ts.writer.Calls), len(ts.publisher.PostCalls))
+			}
+			if dump := ts.cache.DumpRecordsForTest(); dump != "" {
+				t.Errorf("a rejected request added a record:\n%s", dump)
+			}
+		})
 	}
 }
 
@@ -555,7 +557,7 @@ func TestJobsTargetRejections(t *testing.T) {
 // TestStartHandlerPanicCleanup checks the start handler's recovery: a panic
 // after Begin and before the job takes over fails the record as internal and
 // frees both slots; a panic inside the body checks, before Begin, frees the
-// reading slot and adds no record. Neither posts a notice.
+// reading slot and adds no record.
 func TestStartHandlerPanicCleanup(t *testing.T) {
 	t.Run("after_begin", func(t *testing.T) {
 		ts := newJobsTestServer(t, jobsServerOptions{})
@@ -569,8 +571,8 @@ func TestStartHandlerPanicCleanup(t *testing.T) {
 		if len(ts.slots) != 0 || len(ts.reading) != 0 {
 			t.Errorf("slots held: generation %d, reading %d, want 0", len(ts.slots), len(ts.reading))
 		}
-		if len(ts.writer.Calls) != 0 || len(ts.notifier.Calls) != 0 {
-			t.Errorf("side effects: writer=%d notifier=%d, want none", len(ts.writer.Calls), len(ts.notifier.Calls))
+		if len(ts.writer.Calls) != 0 {
+			t.Errorf("writer calls = %d, want 0", len(ts.writer.Calls))
 		}
 	})
 	t.Run("body_check", func(t *testing.T) {
@@ -583,9 +585,6 @@ func TestStartHandlerPanicCleanup(t *testing.T) {
 		}
 		if len(ts.slots) != 0 || len(ts.reading) != 0 {
 			t.Errorf("slots held: generation %d, reading %d, want 0", len(ts.slots), len(ts.reading))
-		}
-		if len(ts.notifier.Calls) != 0 {
-			t.Errorf("notifier calls = %d, want 0", len(ts.notifier.Calls))
 		}
 	})
 }

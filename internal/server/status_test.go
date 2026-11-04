@@ -133,7 +133,7 @@ func TestStatusUnknown(t *testing.T) {
 }
 
 // TestStatusHasNoSideEffects checks that status requests change no record and
-// call no writer, publisher, or notifier.
+// call no writer or publisher.
 func TestStatusHasNoSideEffects(t *testing.T) {
 	ts := newJobsTestServer(t, jobsServerOptions{})
 	key := acceptedKey(t, ts.startBody(validBody(testValidVideoURL, testValidRaw)))
@@ -145,9 +145,9 @@ func TestStatusHasNoSideEffects(t *testing.T) {
 	if after := ts.cache.DumpRecordsForTest(); after != before {
 		t.Errorf("status requests changed the records:\nbefore %s\nafter  %s", before, after)
 	}
-	if len(ts.writer.Calls) != 1 || len(ts.publisher.Calls) != 0 || len(ts.publisher.PostCalls) != 0 || len(ts.notifier.Calls) != 0 {
-		t.Errorf("side effects: writer=%d publish=%d post=%d notifier=%d, want only the one generation",
-			len(ts.writer.Calls), len(ts.publisher.Calls), len(ts.publisher.PostCalls), len(ts.notifier.Calls))
+	if len(ts.writer.Calls) != 1 || len(ts.publisher.PostCalls) != 0 {
+		t.Errorf("side effects: writer=%d post=%d, want only the one generation",
+			len(ts.writer.Calls), len(ts.publisher.PostCalls))
 	}
 }
 

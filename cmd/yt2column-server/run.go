@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/isseis/yt2column/internal/config"
-	"github.com/isseis/yt2column/internal/failure"
 	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/llm/provider"
 	"github.com/isseis/yt2column/internal/publisher"
@@ -37,21 +36,15 @@ const (
 // logger takes over.
 const programName = "yt2column-server"
 
-// llmCallsPerJob is the most LLM calls one job makes: generation, shorten, and
-// review. With provider.LLMTimeout per call it bounds how long a stop can wait
-// for an in-flight job.
-const llmCallsPerJob = 3
-
-// deps are the constructors run substitutes in a test: the two LLM clients,
-// the article publisher, and the failure notifier, the only components that
-// reach the network, and the writer, so a test can observe the options it is
-// built with. main passes productionDeps().
+// deps are the constructors run substitutes in a test: the two LLM clients
+// and the article publisher, the only components that reach the network, and
+// the writer, so a test can observe the options it is built with. main passes
+// productionDeps().
 type deps struct {
 	newLLMClient       func(config.LLMConfig) (llm.LLMClient, error)
 	newReviewLLMClient func(config.LLMConfig) (llm.LLMClient, error)
 	newWriter          func(llm.LLMClient, writer.Options) (writer.ProgressWriter, error)
 	newPublisher       func(webhookURL secret.Secret) (server.WebhookPublisher, error)
-	newNotifier        func(webhookURL secret.Secret) (failure.Notifier, error)
 }
 
 // productionDeps returns the real constructors.
@@ -61,7 +54,6 @@ func productionDeps() deps {
 		newReviewLLMClient: provider.NewReview,
 		newWriter:          writer.NewProgressWriter,
 		newPublisher:       newPublisher,
-		newNotifier:        newNotifier,
 	}
 }
 
@@ -74,16 +66,6 @@ func newPublisher(webhookURL secret.Secret) (server.WebhookPublisher, error) {
 		return nil, err
 	}
 	return p, nil
-}
-
-// newNotifier builds the SlackFailureNotifier, which posts to the same webhook
-// as the articles. Like newPublisher, it never returns a typed nil.
-func newNotifier(webhookURL secret.Secret) (failure.Notifier, error) {
-	n, err := publisher.NewSlackFailureNotifier(webhookURL)
-	if err != nil {
-		return nil, err
-	}
-	return n, nil
 }
 
 // writerOptions returns the writer options of the server: the same as a CLI
@@ -131,7 +113,7 @@ func (l *lockedWriter) Write(p []byte) (int, error) {
 // Nothing is written to standard output; every line goes to standard error.
 //
 // Contract: the start lock is held from step 3 until Serve has returned, that
-// is, until every in-flight job and failure notice has finished, so a server
+// is, until every in-flight job has finished, so a server
 // started during the shutdown stops with serversock.ErrAlreadyRunning instead
 // of running jobs beside this one. lock stays reachable until Release, so the
 // lock file is never closed by a finalizer before then.
@@ -192,7 +174,7 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stderr io
 	if !webhookConfigured {
 		// The server now starts without the Webhook, where it used to stop, so
 		// a forgotten setting has to show up here instead.
-		logger.Warn("no Webhook is configured, so the publish operation and /articles answer webhook_not_configured")
+		logger.Warn("no Webhook is configured, so the publish operation answers webhook_not_configured")
 	}
 
 	// 4: serve until ctx is canceled. The stop notice is logged as soon as
@@ -201,7 +183,7 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stderr io
 	notice := afterCancel(ctx, stopNoticeLogger(logger))
 	err = srv.Serve(ctx, listener)
 	notice.finish()
-	// Serve has waited for every job and failure notice, so the start lock
+	// Serve has waited for every job, so the start lock
 	// can be released now and not before.
 	releaseLock(errOut, lock)
 	if err != nil {
@@ -234,12 +216,20 @@ func releaseLock(errOut *stderrWriter, lock *serversock.Lock) {
 	}
 }
 
-// stopNoticeLogger returns the function that logs the stop notice.
+// stopNoticeLogger returns the function that logs the stop notice. The wait
+// it names is the longest one post job can take, publisher.SlackMaxPostDuration:
+// the post jobs run in parallel and are never retried by themselves.
 func stopNoticeLogger(logger *slog.Logger) func() {
 	return func() {
-		logger.Info(fmt.Sprintf("stopping: the job API's in-flight generations are canceled and their articles lost; in-flight /articles jobs and failure notices are allowed to finish, which can take up to about %d minutes; send the signal again to exit at once, which drops them",
-			int(llmCallsPerJob*provider.LLMTimeout/time.Minute)))
+		logger.Info(fmt.Sprintf("stopping: the in-flight generations are canceled and their articles lost; the posts sent from the viewer are allowed to finish, which can take up to about %d minutes; send the signal again to exit at once, which drops them",
+			approxMinutes(publisher.SlackMaxPostDuration)))
 	}
+}
+
+// approxMinutes returns d rounded to the nearest minute, and at least 1, so
+// the stop notice never names 0 minutes.
+func approxMinutes(d time.Duration) int {
+	return max(1, int(d.Round(time.Minute)/time.Minute))
 }
 
 // cancelHook runs f once ctx is canceled. Contract: if ctx was canceled
@@ -300,18 +290,14 @@ func buildServer(d deps, cfg config.ServerConfig, logOutput io.Writer, secrets [
 		Secrets:   secrets,
 	}
 	// A server without SLACK_WEBHOOK_URL still serves the operations that do
-	// not post, so it is built with neither publisher nor notifier: the legacy
-	// endpoint and the publish operation reject what needs one.
+	// not post, so it is built without a publisher: the publish operation
+	// rejects what needs one.
 	if webhookURL, configured := cfg.WebhookURL(); configured {
 		pub, err := d.newPublisher(webhookURL)
 		if err != nil {
 			return nil, fmt.Errorf("build the publisher: %w", err)
 		}
-		notifier, err := d.newNotifier(webhookURL)
-		if err != nil {
-			return nil, fmt.Errorf("build the failure notifier: %w", err)
-		}
-		opts.Webhook = &server.WebhookOptions{Publisher: pub, Notifier: notifier}
+		opts.Webhook = &server.WebhookOptions{Publisher: pub}
 	}
 	srv, err := server.New(opts)
 	if err != nil {

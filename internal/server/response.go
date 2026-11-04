@@ -90,26 +90,13 @@ func (r rejectReason) statusCode() int {
 	}
 }
 
-// notify reports whether a rejection with this reason posts a failure notice.
-// Only a rejection that happens after the request has taken a slot is notified;
-// the handler decides that from the slot it holds, so this only names the
-// reasons that can be notified at all.
-func (r rejectReason) notify() bool {
-	switch r {
-	case reasonBodyTooLarge, reasonInvalidBody, reasonInvalidVideoURL, reasonInvalidTranscript, reasonInternal:
-		return true
-	default:
-		return false
-	}
-}
-
 // forceClose reports whether the rejection adds `Connection: close`. Rejections
-// that did not read the whole body (the header checks, the slot and size
-// checks, and a server without a Webhook) close the connection, so net/http
-// does not read and discard the body to reuse it. A pre-slot internal error (a request ID failure or a panic
-// before the slot) also closes the connection, but the handler passes
-// closeConnection directly for those cases rather than using this method; the
-// post-slot internal error reads the body and does not force close.
+// that may leave the body unread (the target and method checks, the slot and
+// size checks, and a publish operation on a server without a Webhook, which is
+// refused before its body is checked) close the connection, so net/http does
+// not read and discard the body to reuse it. An internal error from a request
+// ID failure or a recovered panic also closes the connection, but the handlers
+// pass closeConnection directly for those cases rather than using this method.
 func (r rejectReason) forceClose() bool {
 	switch r {
 	case reasonNotFound, reasonMethodNotAllowed, reasonTooManyRequests, reasonBodyTooLarge, reasonWebhookNotConfigured:
@@ -126,7 +113,6 @@ type rejectDetail string
 const (
 	detailNotFound             rejectDetail = "not_found"
 	detailMethodNotAllowed     rejectDetail = "method_not_allowed"
-	detailTooManyRequests      rejectDetail = "too_many_requests"
 	detailReadSlot             rejectDetail = "read_slot"
 	detailGenerationSlot       rejectDetail = "generation_slot"
 	detailCacheFull            rejectDetail = "cache_full"
@@ -142,17 +128,15 @@ const (
 	detailInternalError        rejectDetail = "internal_error"
 )
 
-// rejection is a response the handler writes plus the detail it logs. videoID
-// is set when a failure notice should name the video, which is only after the
-// video URL was accepted. readFailed marks a body-read failure, which is
-// answered with no response at all. bodyUnread marks a rejection that left a
+// rejection is a response the handler writes plus the detail it logs.
+// readFailed marks a body-read failure, which is answered with no response at
+// all. bodyUnread marks a rejection that left a
 // body unread whatever its reason, so the response closes the connection.
 // allow is the Allow header of a method_not_allowed rejection; empty means
 // POST.
 type rejection struct {
 	reason     rejectReason
 	detail     rejectDetail
-	videoID    string
 	readFailed bool
 	bodyUnread bool
 	allow      string
@@ -191,8 +175,8 @@ func writeAcceptedKey(w http.ResponseWriter, requestID, key string) error {
 }
 
 // writeRejected writes the rejection response. closeConnection adds
-// `Connection: close` for a reason whose body was not fully read, and a
-// pre-slot internal error; the caller decides it from the slot it holds.
+// `Connection: close` for a rejection that may leave the body unread; the
+// caller decides it.
 func writeRejected(w http.ResponseWriter, requestID string, reason rejectReason, closeConnection bool) error {
 	return writeRejectedAllow(w, requestID, reason, closeConnection, http.MethodPost)
 }
