@@ -116,7 +116,10 @@
 | 信頼する著者のスレッド | trusted thread | すべてのコメントを取得でき、そのすべての著者が信頼する著者と確かめられたレビュースレッド |
 | 想定外の著者のスレッド | untrusted thread | コメントの 1 件以上が信頼する著者のものでない、または著者を確かめられないレビュースレッド。本文を取得せず、名指しされるまで処理しない |
 | 範囲外の変更 | out-of-scope change | 修正のフェーズが変えたファイルのうち、処理したスレッドの `path` から決まる範囲に入らないもの |
-| 実行関連ファイル | execution-related file | `fixprguard` の範囲の規則が、スレッドの `path` そのものでなければ範囲外とするファイル。build checks と CI が設定として読む、またはコンパイル・実行するファイル、指示ファイル、`.` で始まる要素を含むパスの 3 つからなる。旧称: コマンドの実行に関わるファイル（`fixprguard_guide` では初出で併記する） |
+| 実行関連ファイル | execution-related file | `fixprguard` の範囲の規則が、スレッドの著者と `path` にかかわらず範囲外とするファイル。build checks と CI が設定として読む、またはコンパイル・実行するファイル、指示ファイル、`.` で始まる要素を含むパスの 3 つからなる。旧称: コマンドの実行に関わるファイル（`fixprguard_guide` では初出で併記する） |
+| interaction limits | interaction limits | GitHub のリポジトリまたはアカウントの設定で、許可した範囲の外のアカウントによる、コメント・issue・PR の作成を一定の期間制限するもの。`collaborators_only` は、書き込み権限を持つ人（collaborators）以外のアカウントを制限する。期限は最長 6 か月で、期限が来ると自動的に解除される。本リポジトリではアカウント全体の設定で有効にする（`fixprguard_guide` 10 章） |
+| 作成の制限 | creation restriction | PR の作成と issue の作成を collaborators に限る、期限のないリポジトリの設定。コメントは制限しない（`fixprguard_guide` 10 章） |
+| push の制限 | push restriction | 既定のブランチを除くすべてのブランチを対象にした ruleset で、ブランチの作成と更新を bypass の権限を持つ相手（Repository admin）に限る設定（`fixprguard_guide` 10 章） |
 | 拒否リスト | deny list | 実行関連ファイルの定義を、名前・拡張子・パスの要素の一覧として見たときの呼び方 |
 | 許可リスト | allow list | `fixprguard` の範囲の規則で、同じディレクトリとタスクのディレクトリの下（規則 2・3）で範囲に入りうるファイルの種類 |
 | 指示ファイル | instruction file | Claude Code や自動レビュアーが、置かれたディレクトリへの指示として自動で読むファイル（`CLAUDE.md`・`AGENTS.md` など） |

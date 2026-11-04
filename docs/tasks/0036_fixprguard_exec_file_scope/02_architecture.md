@@ -243,6 +243,8 @@ sequenceDiagram
 
 ### 3.3. 判定の順序（H-02・H-06）
 
+> **注記（タスク 0057）:** 順 1 の結果は、タスク 0057（[要件定義書](../0057_reviewer_relay_guard/01_requirements.md)、[設計書](../0057_reviewer_relay_guard/02_architecture.md)）で変わった。実行関連ファイルは、名指しのスレッドにかかわらず、`path` そのものでも範囲外になる。順 2〜6 は変わらない。本節は 0036 の時点の決定の記録であり、今の順序は `docs/dev/guides/fixprguard_guide.md` の 6 章にある。
+
 `inScopeOf`（1 つのスレッドの `path` についての判定）を、次の順序にする。「今」の列は、今の `scope.go:169-190` の対応する行を示す。
 
 | 順 | 条件 | 結果 | 今 |
@@ -401,6 +403,8 @@ func AllowListPatterns() []string
 **番号を固定している箇所の探し方。** 次に番号を上げる人が同じ漏れを起こさないように、上の 2 つの正規表現で `git grep` することを、実装計画の手順に書く。`check_rules.sh` のような CI が実行しない検査は、ガードでは見つからないためである（0035 でも同じ行を直した。0035 `03_implementation_plan.md:59`）。ガードを `docs/tasks/` の下のスクリプトにまで広げることはしない。そこにあるのは、各タスクが自分の確認のために置いた、手で実行するスクリプトだからである。
 
 ### 3.7. 用語集と 0030 の文書（AC-18・AC-21）
+
+> **注記（タスク 0057）:** 用語集の「実行関連ファイル」の定義は、タスク 0057（[要件定義書](../0057_reviewer_relay_guard/01_requirements.md)、[設計書](../0057_reviewer_relay_guard/02_architecture.md)）で変わった。範囲の規則が、スレッドの著者と `path` にかかわらず範囲外とするファイルになった。0030 の文書には、タスク 0057 が規則 4 の例外を外したことの注記を加えた。今の定義は `docs/translation_glossary.md` と `docs/dev/guides/fixprguard_guide.md` の 6 章にある。
 
 **用語集。** `docs/translation_glossary.md` の fixprguard の用語のまとまり（「範囲外の変更」の行、`:74` の近く）に、次の 5 つを加える。
 
@@ -592,6 +596,8 @@ flowchart TD
 ユニットテストは、`TestScopeRules`（`internal/fixprguard/scope_test.go:9-92`）の表に行を加える。ネットワークも外部コマンドも使わない。
 
 ### 7.1. ユニットテスト（`scope_test.go`）
+
+> **注記（タスク 0057）:** 規則 4 の例外は、タスク 0057（[要件定義書](../0057_reviewer_relay_guard/01_requirements.md)、[設計書](../0057_reviewer_relay_guard/02_architecture.md)）で外した。本節が規則 1 の位置で信頼する著者のスレッドに範囲内を期待する行は、今は範囲外を期待する。今の規則のテストは `internal/fixprguard/scope_test.go` にあり、本節は 0036 の時点のテスト戦略の記録である。
 
 **行は要件書の値から作る。** 指示ファイルの名前と Go のビルドの入力の拡張子の行は、`scope.go` のデータからではなく、要件書 AC-01・AC-03 に書かれた値から 1 つずつ作る。データから作ると、データから項目を消したときに行も消え、テストが失敗しない。
 
