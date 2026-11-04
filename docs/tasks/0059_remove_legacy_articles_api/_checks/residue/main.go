@@ -24,13 +24,13 @@
 //     file is a Go file whose name does not end in _test.go and whose first
 //     //go:build line does not start with the test tag.
 //   - extension: extension/ is the same at the merge-base and at head.
-//   - removed (AC-06): at head, internal/server, internal/publisher, and
+//   - removed: at head, internal/server, internal/publisher, and
 //     cmd/yt2column-server declare none of the removed names (top-level
 //     declarations and methods; the deps field newNotifier), no Go file
 //     refers to one of them through a package qualifier, no Go file imports
 //     internal/failure or internal/failure/testutil, and internal/server
 //     still declares classifyWrite.
-//   - publisher (AC-07): internal/server's WebhookPublisher is an interface
+//   - publisher: internal/server's WebhookPublisher is an interface
 //     with the one method PostMessages and nothing embedded; neither
 //     internal/server nor cmd/yt2column-server depends on internal/pipeline,
 //     directly or not (go list -deps in a temporary worktree of head, which
@@ -39,10 +39,10 @@
 //     checked: without type information a method value x.Publish cannot be
 //     told from a read of a field named Publish, which articlecache and the
 //     status response have.
-//   - post (AC-02): in the non-test code of internal/server and
+//   - post: in the non-test code of internal/server and
 //     cmd/yt2column-server, the only selector named PostMessages is inside
 //     internal/server's runPublish.
-//   - words (AC-08): no comment and no string literal of a non-test file of
+//   - words: no comment and no string literal of a non-test file of
 //     internal/server, cmd/yt2column-server, internal/serversock, or
 //     internal/publisher contains, ignoring case, any of retiredWords.
 //
@@ -93,7 +93,7 @@ var checks = []check{
 	{"words", checkWords},
 }
 
-// removedNames are the names AC-06 removes, by the package that declared
+// removedNames are the removed names, by the package that declared
 // them. A method counts as declared too.
 var removedNames = map[string][]string{
 	"internal/server": {
@@ -113,7 +113,7 @@ var removedNames = map[string][]string{
 // modulePath is the module's import path.
 const modulePath = "github.com/isseis/yt2column"
 
-// retiredWords are the words AC-08 retires from the comments and the string
+// retiredWords are the retired words from the comments and the string
 // literals of the server's code, compared ignoring case. "notice" alone is not
 // one: the stop notice stays.
 var retiredWords = []string{"/articles", "failure notice", "notifier", "legacy"}
@@ -201,7 +201,7 @@ func checkExtension(base, head string) ([]string, error) {
 	return nil, fmt.Errorf("git diff --quiet: %w", err)
 }
 
-// checkRemoved checks that the names AC-06 removes are gone (removedNames,
+// checkRemoved checks that the removed names are gone (removedNames,
 // the deps field newNotifier, the failure packages) and that classifyWrite,
 // which the job API uses, stays.
 func checkRemoved(_, head string) ([]string, error) {
