@@ -370,8 +370,8 @@ localhost サーバの旧 API（`POST /articles`）・旧 API のジョブ・失
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した: https://github.com/isseis/yt2column/pull/661
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（最終 PR なので次はない）
 
 ## 3. 実装順序とマイルストーン (Implementation Order and Milestones)
 
@@ -420,7 +420,7 @@ M1 は M2〜M4 に依存しない。設計書 8 章のとおり、ホストを�
 ## 6. 実装チェックリスト (Implementation Checklist)
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5）
-- [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 3-1 / 3-2 / 3-3 / 3-4 / 4-1 / 4-2 / 4-3）
+- [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 3-1 / 3-2 / 3-3 / 3-4 / 4-1 / 4-2 / 4-3）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
