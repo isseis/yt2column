@@ -84,9 +84,12 @@ function exchangeMessage(
   }
 }
 
-/** Message for a generation start's result, or a wait that ended without one. */
+/**
+ * Message for a generation start's result, or a wait that ended without one.
+ * A same-video answer is not displayed as a start's result, so it has none.
+ */
 export function startResultMessage(
-  result: StartOutcome | StartFailure,
+  result: Exclude<StartOutcome, { kind: "same-video" }> | StartFailure,
   locale: Locale,
 ): Message {
   const catalog = catalogs[locale];

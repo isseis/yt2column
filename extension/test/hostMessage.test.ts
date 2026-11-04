@@ -13,23 +13,26 @@ import { prepareStartInput } from "../src/core/prepare.ts";
 const key = "0123456789abcdef0123456789abcdef" as ArticleKey;
 
 describe("host messages", () => {
-  it("builds the generation start from a checked request's input", () => {
-    const prepared = prepareStartInput({
-      videoUrl: "https://www.youtube.com/watch?v=abc",
-      transcript: "hello",
-      title: "Video",
-    });
-    assert.ok(prepared.kind === "ready");
-    assert.deepEqual(startMessage(prepared.request), {
-      v: 1,
-      op: "start",
-      input: {
+  for (const mode of ["inquiry", "plain"] as const) {
+    it(`builds the generation start from a checked request's input with mode ${mode}`, () => {
+      const prepared = prepareStartInput({
         videoUrl: "https://www.youtube.com/watch?v=abc",
         transcript: "hello",
         title: "Video",
-      },
+      });
+      assert.ok(prepared.kind === "ready");
+      assert.deepEqual(startMessage(prepared.request, mode), {
+        v: 1,
+        op: "start",
+        input: {
+          videoUrl: "https://www.youtube.com/watch?v=abc",
+          transcript: "hello",
+          title: "Video",
+          mode,
+        },
+      });
     });
-  });
+  }
 
   const keyMessages = [
     { op: "status", build: statusMessage },

@@ -195,13 +195,13 @@
 
 **変更するファイル:** `extension/src/core/hostMessage.ts`、`src/core/extensionMessages.ts`（`SendMode` の型だけ）、`src/core/response.ts`、`src/core/jobView.ts`、`src/core/sendMessages.ts`、`src/core/prepare.ts`、`test/hostMessage.test.ts`、`test/response.test.ts`、`test/sendMessages.test.ts`、`test/prepare.test.ts`
 
-- [ ] `StartBody` と、送り方を引数に取る `startMessage` を設計書 3.4.1 節のとおりに加える。`SendMode` は設計書 3.5 節のとおり `src/core/extensionMessages.ts` に置く。
-- [ ] `StartOutcome` に `same-video` を、`classifyStartInquiry` を設計書 3.4.2 節のとおりに加える。`classifyStart` は変えない。`toStartOutcome` と `StartLogView`・`startLogView` に `same-video` を加え、`startLogView` は `same-video` のキーを書かない（設計書 3.5 節）。
-- [ ] `StartFailure` から `same-video` を除き、`startResultMessage` の引数からも除く（1.3 節）。
-- [ ] 送る前の本文の大きさの確かめに、長いほうの `mode` のメンバのバイト数を加える（1.3 節）。`prepare.test.ts` の上限の境界の行（`:139-152` 付近）を、その測り方に合わせ、上限ちょうどの本文に `inquiry` の `mode` を加えた本文がサーバの上限を超えないことを確かめる。
-- [ ] `hostMessage.test.ts` で、`startMessage` が `input` に送り方の `mode` を加えることを、2 つの値で確かめる（AC-31 の拡張の側）。
-- [ ] `response.test.ts` に `classifyStartInquiry` のテストを加える。設計書 3.4.2 節の表の各行、`0050` AC-41 の形の誤りの一覧を同じ動画の応答に当てたもの、空のキー、文字列でないキー、状態コードと `status` の組の誤り（AC-32）。`reasonTable` に `classifyStartInquiry` の行を加える。照会なしの応答に `same_video` が来たら `classifyStart` が想定外の応答にすることの行を加える。
-- [ ] `startLogView` の今のテスト（`response.test.ts:1002` 付近）に、`same-video` のキーがログに出ない行を加える。
+- [x] `StartBody` と、送り方を引数に取る `startMessage` を設計書 3.4.1 節のとおりに加える。`SendMode` は設計書 3.5 節のとおり `src/core/extensionMessages.ts` に置く。
+- [x] `StartOutcome` に `same-video` を、`classifyStartInquiry` を設計書 3.4.2 節のとおりに加える。`classifyStart` は変えない。`toStartOutcome` と `StartLogView`・`startLogView` に `same-video` を加え、`startLogView` は `same-video` のキーを書かない（設計書 3.5 節）。
+- [x] `StartFailure` から `same-video` を除き、`startResultMessage` の引数からも除く（1.3 節）。
+- [x] 送る前の本文の大きさの確かめに、長いほうの `mode` のメンバのバイト数を加える（1.3 節）。`prepare.test.ts` の上限の境界の行（`:139-152` 付近）を、その測り方に合わせ、上限ちょうどの本文に `inquiry` の `mode` を加えた本文がサーバの上限を超えないことを確かめる。
+- [x] `hostMessage.test.ts` で、`startMessage` が `input` に送り方の `mode` を加えることを、2 つの値で確かめる（AC-31 の拡張の側）。
+- [x] `response.test.ts` に `classifyStartInquiry` のテストを加える。設計書 3.4.2 節の表の各行、`0050` AC-41 の形の誤りの一覧を同じ動画の応答に当てたもの、空のキー、文字列でないキー、状態コードと `status` の組の誤り（AC-32）。`reasonTable` に `classifyStartInquiry` の行を加える。照会なしの応答に `same_video` が来たら `classifyStart` が想定外の応答にすることの行を加える。
+- [x] `startLogView` の今のテスト（`response.test.ts:1002` 付近）に、`same-video` のキーがログに出ない行を加える。
 
 **完了の条件:** `make ext-typecheck` は、ステップ 2-3 を終えるまで通らなくてよい。`node --test` で `hostMessage.test.ts`・`response.test.ts`・`sendMessages.test.ts`・`prepare.test.ts` が通る。
 
@@ -209,19 +209,19 @@
 
 **変更するファイル:** `extension/src/core/extensionMessages.ts`、`src/startCoordinator.ts`、`src/launch.ts`、`src/viewerApp.ts`、`test/extensionMessages.test.ts`、`test/startCoordinator.test.ts`、`test/launch.test.ts`、`test/viewerApp.test.ts`、`test/viewerQuery.test.ts`
 
-- [ ] `SendMode` と `StartRequest.mode`、引き継ぎの `answer` を設計書 3.5 節のとおりに加え、`parseStartRequest` と `parseViewerChannelMessage` で検査する。`startOutcome` の検査（`parseStartReply`・`parseAwaitStartReply`）は `same-video` を受理する。
-- [ ] SW は、求めの `mode` を `startMessage` に渡し、`mode` の `switch` で `classifyStartInquiry` か `classifyStart` を選ぶ。`same-video` でも同じキーのビューアの引き継ぎを行い、引き継ぎのメッセージの `answer` に結果の種類を書く。生成の開始の結果のログは、`same-video` を `info` で書く（設計書 3.5 節）。
-- [ ] ポップアップは `mode: "plain"` で送る（1.3 節）。`same-video` の結果は `accepted` と同じに扱う（1.3 節の暫定の扱い）。
-- [ ] ビューアは `same-video` の結果を `accepted` と同じに扱い、引き継ぎの `answer` を読んでも振る舞いを変えない（1.3 節）。
-- [ ] テストの求めとメッセージの組み立て（1.4 節のテストのファイル）に `mode` と `answer` を加える。既存の行の期待する値は変えない。拒否を期待する既存の行（`extensionMessages.test.ts` の求めと引き継ぎのメッセージの誤りの行）にも正しい `mode`・`answer` を加え、各行の誤りが、その行が名指すものだけになるようにする（1.4 節）。
-- [ ] `extensionMessages.test.ts` に、`mode` の誤り（ない、集合にない値、文字列でない）の求めの拒否、`answer` の誤り（ない、集合にない値）の引き継ぎのメッセージの拒否、`same-video` の結果の受理を加える（AC-33）。
-- [ ] `startCoordinator.test.ts` に次を加える（設計書 7.2 節の SW の行）。
+- [x] `SendMode` と `StartRequest.mode`、引き継ぎの `answer` を設計書 3.5 節のとおりに加え、`parseStartRequest` と `parseViewerChannelMessage` で検査する。`startOutcome` の検査（`parseStartReply`・`parseAwaitStartReply`）は `same-video` を受理する。
+- [x] SW は、求めの `mode` を `startMessage` に渡し、`mode` の `switch` で `classifyStartInquiry` か `classifyStart` を選ぶ。`same-video` でも同じキーのビューアの引き継ぎを行い、引き継ぎのメッセージの `answer` に結果の種類を書く。生成の開始の結果のログは、`same-video` を `info` で書く（設計書 3.5 節）。
+- [x] ポップアップは `mode: "plain"` で送る（1.3 節）。`same-video` の結果は `accepted` と同じに扱う（1.3 節の暫定の扱い）。
+- [x] ビューアは `same-video` の結果を `accepted` と同じに扱い、引き継ぎの `answer` を読んでも振る舞いを変えない（1.3 節）。
+- [x] テストの求めとメッセージの組み立て（1.4 節のテストのファイル）に `mode` と `answer` を加える。既存の行の期待する値は変えない。拒否を期待する既存の行（`extensionMessages.test.ts` の求めと引き継ぎのメッセージの誤りの行）にも正しい `mode`・`answer` を加え、各行の誤りが、その行が名指すものだけになるようにする（1.4 節）。
+- [x] `extensionMessages.test.ts` に、`mode` の誤り（ない、集合にない値、文字列でない）の求めの拒否、`answer` の誤り（ない、集合にない値）の引き継ぎのメッセージの拒否、`same-video` の結果の受理を加える（AC-33）。
+- [x] `startCoordinator.test.ts` に次を加える（設計書 7.2 節の SW の行）。
     -   `mode: "inquiry"` の求めで、ホストが `input` の `mode` が `inquiry` の `start` を 1 つだけ受け取ること。`mode: "plain"` の求めで、`plain` の `start` を受け取ること（AC-15・AC-19 の SW の側）。
     -   `mode` の誤った求めで、ホストに何も送らずタブも開かないこと（AC-33）。
     -   同じ動画の応答の後、決めた時間が過ぎてもホストが受け取る `start` が 1 つのままであること（AC-17 の SW の側）。
     -   同じ動画の応答で、同じキーのビューアがあれば引き継ぎが `answer: "same-video"` を持ち、新しいタブを閉じること。受け付けの応答では `answer: "accepted"` を持つこと（AC-26 の SW の側）。
     -   同じ動画の応答の結果のログが `info` で、キーを書かないこと。
-- [ ] 加えたテストの行が、それぞれの検査と分岐を壊すと失敗することを確かめ、コミットメッセージに書く。
+- [x] 加えたテストの行が、それぞれの検査と分岐を壊すと失敗することを確かめ、コミットメッセージに書く。
 
 **完了の条件:** `make ext-check` が通る。
 

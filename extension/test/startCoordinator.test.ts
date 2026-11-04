@@ -8,6 +8,7 @@ import type {
 } from "../src/browser/chromeDeps.ts";
 import {
   parseViewerChannelMessage,
+  type SendMode,
   type ViewerChannelMessage,
 } from "../src/core/extensionMessages.ts";
 import type { NativeReply } from "../src/core/native.ts";
@@ -49,9 +50,12 @@ const requestId = "0123456789abcdef";
 const newTab = 100;
 
 /** A request the worker accepts; each rejected case changes one value of it. */
-function startRequest(): Record<string, Record<string, unknown> | string> {
+function startRequest(
+  mode: SendMode = "plain",
+): Record<string, Record<string, unknown> | string> {
   return {
     type: "start",
+    mode,
     input: {
       videoUrl: watchUrl,
       transcript: "line one\nline two",
@@ -83,6 +87,12 @@ const accepted = (acceptedKey = key): NativeReply =>
   responseReply(
     202,
     JSON.stringify({ status: "accepted", key: acceptedKey, requestId }),
+  );
+
+const sameVideo = (sameVideoKey = key): NativeReply =>
+  responseReply(
+    200,
+    JSON.stringify({ status: "same_video", key: sameVideoKey, requestId }),
   );
 
 const rejected: NativeReply = responseReply(
@@ -292,6 +302,28 @@ describe("start request sender checks", () => {
       check: "shape",
     },
     {
+      name: "a request without a mode",
+      sender: popupSender,
+      request: (() => {
+        const request: Record<string, unknown> = startRequest();
+        delete request.mode;
+        return request;
+      })(),
+      check: "shape",
+    },
+    {
+      name: "a mode outside the set",
+      sender: popupSender,
+      request: { ...startRequest(), mode: "existing" },
+      check: "shape",
+    },
+    {
+      name: "a mode that is not a string",
+      sender: popupSender,
+      request: { ...startRequest(), mode: 1 },
+      check: "shape",
+    },
+    {
       name: "an input over 4 MiB",
       sender: popupSender,
       request: {
@@ -405,9 +437,112 @@ describe("start message", () => {
           title: "Title",
           channelName: "Channel",
           description: "Description",
+          mode: "plain",
         },
       },
     ]);
+  });
+
+  for (const mode of ["inquiry", "plain"] as const) {
+    it(`sends the host exactly one start with the request's mode ${mode}`, async () => {
+      const { runtime, native, clock } = setup();
+      void runtime.send(popupSender, startRequest(mode));
+      await runOut(clock);
+      assert.equal(native.messages.length, 1);
+      const [message] = native.messages as {
+        readonly op: string;
+        readonly input: { readonly mode: unknown };
+      }[];
+      assert.equal(message?.op, "start");
+      assert.equal(message?.input.mode, mode);
+    });
+  }
+
+  it("reads the reply with the check of the request's mode", async () => {
+    const read = async (mode: SendMode): Promise<unknown> => {
+      const { runtime, clock } = setup(sameVideo());
+      const popup = runtime.send(popupSender, startRequest(mode));
+      void awaitStart(runtime);
+      await runQueries(clock);
+      return ((await popup) as { value: { outcome: unknown } }).value.outcome;
+    };
+    assert.deepEqual(await read("inquiry"), {
+      kind: "same-video",
+      key,
+      requestId,
+    });
+    // A plain start never gets a same-video answer: one is unexpected.
+    assert.deepEqual(await read("plain"), {
+      kind: "unexpected",
+      check: "member-set",
+    });
+  });
+});
+
+describe("same-video answer", () => {
+  const sameVideoOutcome = { kind: "same-video", key, requestId };
+
+  it("gives it to the viewer and the popup, and sends nothing more", async () => {
+    const { runtime, native, clock } = setup(sameVideo());
+    const popup = runtime.send(popupSender, startRequest("inquiry"));
+    await settle();
+    const viewer = awaitStart(runtime);
+    await runQueries(clock);
+    assert.deepEqual(await viewer, {
+      ok: true,
+      value: { kind: "result", outcome: sameVideoOutcome },
+    });
+    assert.deepEqual(await popup, {
+      ok: true,
+      value: { outcome: sameVideoOutcome, viewerTabId: newTab },
+    });
+    await runOut(clock);
+    assert.equal(native.messages.length, 1);
+  });
+
+  it("lets a viewer of the key take the send over, saying it was a same-video answer", async () => {
+    const { runtime, tabs, channels, clock } = setup(sameVideo());
+    fakeViewer(channels, { tabId: newTab, sentAt });
+    const older = fakeViewer(channels, { tabId: 20, sentAt: 5, key });
+    const popup = runtime.send(popupSender, startRequest("inquiry"));
+    await settle();
+    void awaitStart(runtime);
+    await runQueries(clock);
+    assert.deepEqual(await popup, {
+      ok: true,
+      value: { outcome: sameVideoOutcome, viewerTabId: 20 },
+    });
+    assert.deepEqual(older.takeOvers, [
+      {
+        type: "take-over",
+        queryId: nthQuery(1),
+        tabId: 20,
+        sentAt,
+        answer: "same-video",
+      },
+    ]);
+    assert.equal(tabs.open.has(newTab), false);
+  });
+
+  it("logs the result at info without its key", async () => {
+    const markedKey = "MARKER-same-key";
+    const { runtime, clock, logger } = setup(sameVideo(markedKey));
+    const popup = runtime.send(popupSender, startRequest("inquiry"));
+    void awaitStart(runtime);
+    await runQueries(clock);
+    assert.equal((await popup).ok, true);
+    assert.deepEqual(
+      logger.infos
+        .filter(({ label }) => label === "yt2column start result")
+        .map(({ data }) => (data as { result: unknown }).result),
+      [{ kind: "same-video", requestId }],
+    );
+    assert.deepEqual(
+      logger.errors.filter(({ label }) => label === "yt2column start result"),
+      [],
+    );
+    const logs = JSON.stringify([logger.infos, logger.errors]);
+    assert.ok(!logs.includes("MARKER"), logs);
   });
 });
 
@@ -552,7 +687,13 @@ describe("reuse", () => {
     });
     // The take-over carries the find's query ID and this send's time.
     assert.deepEqual(older.takeOvers, [
-      { type: "take-over", queryId: nthQuery(1), tabId: 20, sentAt },
+      {
+        type: "take-over",
+        queryId: nthQuery(1),
+        tabId: 20,
+        sentAt,
+        answer: "accepted",
+      },
     ]);
     assert.deepEqual(newer.takeOvers, []);
     assert.deepEqual(waiting.takeOvers, []);
@@ -904,6 +1045,7 @@ describe("start logs", () => {
     const markedUrl = `https://www.youtube.com/watch?v=${marker}url`;
     const request = {
       type: "start",
+      mode: "plain",
       input: {
         videoUrl: markedUrl,
         transcript: `${marker} transcript`,

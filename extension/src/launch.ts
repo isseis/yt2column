@@ -381,8 +381,11 @@ export function runPopupSend(
     show({ kind: "sending" });
     // Retry is offered only once the previous reply is in, so no earlier
     // send's reply can still arrive here.
+    // The popup sends plain: it does not yet offer the choice an inquiry's
+    // same-video answer needs.
     const reply = await askWorker({
       type: "start",
+      mode: "plain",
       input,
       viewer: seed,
       source,
@@ -392,7 +395,9 @@ export function runPopupSend(
       return;
     }
     const { outcome } = reply;
-    if (outcome.kind !== "accepted") {
+    // A plain send never gets a same-video answer; were one to arrive, its
+    // key is polled like an accepted one.
+    if (outcome.kind !== "accepted" && outcome.kind !== "same-video") {
       show({ kind: "start-failed", failure: outcome });
       return;
     }

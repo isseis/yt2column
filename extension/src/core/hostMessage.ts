@@ -3,16 +3,23 @@
 // from a PreparedRequest, so its input has passed the size check.
 
 import type { ArticleKey } from "./articleKey.ts";
+import type { SendMode } from "./extensionMessages.ts";
 import type { PreparedRequest, StartInput } from "./prepare.ts";
 
+/** What POST /jobs reads: the collected values and the declared send mode. */
+export type StartBody = StartInput & { readonly mode: SendMode };
+
 export type HostMessage =
-  | { readonly v: 1; readonly op: "start"; readonly input: StartInput }
+  | { readonly v: 1; readonly op: "start"; readonly input: StartBody }
   | { readonly v: 1; readonly op: "status"; readonly key: ArticleKey }
   | { readonly v: 1; readonly op: "publish"; readonly key: ArticleKey };
 
-/** The generation start for a checked request. */
-export function startMessage(request: PreparedRequest): HostMessage {
-  return { v: 1, op: "start", input: request.body.message };
+/** The generation start for a checked request, with its declared send mode. */
+export function startMessage(
+  request: PreparedRequest,
+  mode: SendMode,
+): HostMessage {
+  return { v: 1, op: "start", input: { ...request.body.message, mode } };
 }
 
 /** The status query for an article key. */

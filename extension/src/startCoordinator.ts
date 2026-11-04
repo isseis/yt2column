@@ -1,8 +1,9 @@
 // The service worker's part of a generation start. The popup asks for a
 // start; the worker checks who asked, opens the viewer tab in the background
 // next to the YouTube tab, sends the start to the host exactly once, and
-// hands the result to the viewer and the popup. When the key is accepted and
-// another viewer already shows it, that viewer takes the send over and the
+// hands the result to the viewer and the popup. When the result gave a key
+// (accepted, or an inquiry start's same-video answer) and another viewer
+// already shows it, that viewer takes the send over and the
 // new tab is closed, but only after the new tab confirmed it is still waiting
 // for this send and the other viewer confirmed the take-over; whatever cannot
 // be confirmed keeps the new tab. The worker keeps each send in memory only,
@@ -25,18 +26,22 @@ import {
 import type {
   AwaitStartReply,
   PresentAnswer,
+  SendMode,
   StartReply,
   StartRequest,
+  TakeOverAnswer,
 } from "./core/extensionMessages.ts";
 import { startMessage } from "./core/hostMessage.ts";
 import { startResultDeadlineMs, viewerLoadWindowMs } from "./core/poll.ts";
 import type { PreparedRequest } from "./core/prepare.ts";
 import {
   classifyStart,
+  classifyStartInquiry,
   startLogView,
   toStartOutcome,
 } from "./core/response.ts";
-import type { StartOutcome } from "./core/response.ts";
+import type { StartOutcome, StartOutcomeLog } from "./core/response.ts";
+import type { HostOutcome } from "./core/exchange.ts";
 import { viewerQuery } from "./core/viewerUrl.ts";
 import type { Logger } from "./core/types.ts";
 import { exchange } from "./send.ts";
@@ -81,6 +86,22 @@ interface HeldWait {
   readonly tabId: number;
   readonly sentAt: number;
   readonly respond: (reply: AwaitStartReply) => void;
+}
+
+/** The check of a start's reply for the mode it was sent with. */
+function classifyFor(
+  mode: SendMode,
+): (received: HostOutcome) => StartOutcomeLog {
+  switch (mode) {
+    case "inquiry":
+      return classifyStartInquiry;
+    case "plain":
+      return classifyStart;
+    default: {
+      const exhaustive: never = mode;
+      throw new Error(`Unhandled send mode: ${String(exhaustive)}`);
+    }
+  }
 }
 
 /** Why a start request was ignored; for the developer log only. */
@@ -229,15 +250,19 @@ export function createStartCoordinator(
     });
   };
 
-  /** Asks viewer to take the send over; true only when it confirmed within the window. */
+  /**
+   * Asks viewer to take the send over, saying what the send was answered
+   * with; true only when it confirmed within the window.
+   */
   const takeOver = async (
     queryId: string,
     viewer: PresentAnswer,
     sentAt: number,
+    answer: TakeOverAnswer,
   ): Promise<boolean> => {
     let tookOver = false;
     await askViewers(
-      { type: "take-over", queryId, tabId: viewer.tabId, sentAt },
+      { type: "take-over", queryId, tabId: viewer.tabId, sentAt, answer },
       queryDeps,
       (answer) => {
         tookOver =
@@ -252,8 +277,8 @@ export function createStartCoordinator(
 
   /**
    * Decides which tab shows the send once its result is known, and returns
-   * that tab for the popup: the new tab, unless an accepted key is already
-   * shown by another viewer, the new tab answered that it waits for this
+   * that tab for the popup: the new tab, unless the key the result gave
+   * (accepted or same-video) is already shown by another viewer, the new tab answered that it waits for this
    * send, that viewer took the send over, and the new tab was closed. The
    * new tab gets the result unless it was closed; a tab that could not be
    * created leaves the result to the popup alone.
@@ -269,7 +294,7 @@ export function createStartCoordinator(
       return undefined;
     }
     const newTab = created.value.tabId;
-    if (outcome.kind !== "accepted") {
+    if (outcome.kind !== "accepted" && outcome.kind !== "same-video") {
       deps.log.info(viewerTabLabel, { created: true });
       deliver(record, outcome);
       return newTab;
@@ -291,7 +316,12 @@ export function createStartCoordinator(
     let tookOver = false;
     let remove: "not-attempted" | "ok" | "failed" = "not-attempted";
     if (viewer !== undefined && waiting) {
-      tookOver = await takeOver(answers.queryId, viewer, record.sentAt);
+      tookOver = await takeOver(
+        answers.queryId,
+        viewer,
+        record.sentAt,
+        outcome.kind,
+      );
       if (tookOver) {
         remove = (await deps.tabs.remove(newTab)).ok ? "ok" : "failed";
       }
@@ -355,15 +385,19 @@ export function createStartCoordinator(
         return created;
       });
     const startedAt = deps.now();
-    const result = classifyStart(
-      await exchange(startMessage(prepared), deps.send),
+    const result = classifyFor(request.mode)(
+      await exchange(startMessage(prepared, request.mode), deps.send),
     );
     const durationMs = deps.now() - startedAt;
     const resultLog = { result: startLogView(result), durationMs };
-    if (result.kind === "accepted" || result.kind === "rejected") {
-      deps.log.info(startResultLabel, resultLog);
-    } else {
-      deps.log.error(startResultLabel, resultLog);
+    switch (result.kind) {
+      case "accepted":
+      case "same-video":
+      case "rejected":
+        deps.log.info(startResultLabel, resultLog);
+        break;
+      default:
+        deps.log.error(startResultLabel, resultLog);
     }
     const outcome = toStartOutcome(result);
     const viewerTabId = await placeResult(record, await creation, outcome);

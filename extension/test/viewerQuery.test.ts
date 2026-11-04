@@ -134,6 +134,7 @@ describe("askViewers", () => {
     queryId,
     tabId: 5,
     sentAt: 10,
+    answer: "accepted",
   };
 
   it("stops at the first answer onAnswer accepts, and hears nothing after", async () => {

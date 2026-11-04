@@ -17,6 +17,20 @@ import { hasUnpairedSurrogate } from "./summary.ts";
 import { viewerSeedError } from "./viewerUrl.ts";
 import type { ViewerSeed } from "./viewerUrl.ts";
 
+/** Whether a start asks for a same-video article first; declared, never inferred. */
+export type SendMode = "inquiry" | "plain";
+
+/** Runtime set of the send modes; a Record, so it stays in step with the union. */
+const sendModes: Record<SendMode, true> = { inquiry: true, plain: true };
+
+/** The start results a viewer takes a send over for: the ones that gave a key. */
+export type TakeOverAnswer = "accepted" | "same-video";
+
+const takeOverAnswers: Record<TakeOverAnswer, true> = {
+  accepted: true,
+  "same-video": true,
+};
+
 /** Where the YouTube tab is, so the viewer opens next to it. */
 export interface SourceTab {
   readonly tabId: number;
@@ -27,6 +41,7 @@ export interface SourceTab {
 /** popup -> service worker, chrome.runtime.sendMessage. */
 export interface StartRequest {
   readonly type: "start";
+  readonly mode: SendMode;
   readonly input: StartInput;
   readonly viewer: ViewerSeed;
   readonly source: SourceTab;
@@ -79,6 +94,8 @@ export type ViewerChannelMessage =
       readonly queryId: string;
       readonly tabId: number;
       readonly sentAt: number;
+      /** What the send that is taken over was answered with. */
+      readonly answer: TakeOverAnswer;
     }
   | {
       readonly type: "took-over";
@@ -261,7 +278,8 @@ export type ParsedStartRequest =
   | { readonly ok: false; readonly check: StartRequestCheck };
 
 /**
- * Checks a start request received at now: the exact member set; an input in
+ * Checks a start request received at now: the exact member set; a send mode
+ * of exactly "inquiry" or "plain"; an input in
  * the request body's shape that prepareStartInput measures within 4 MiB; a
  * viewer seed of well-formed strings that passes the viewer URL's rules with
  * its send time no later than now; and three non-negative integers for the
@@ -275,8 +293,15 @@ export function parseStartRequest(
 ): ParsedStartRequest {
   let check: StartRequestCheck = "shape";
   const parsed = attempt((): ParsedStartRequest => {
-    const record = members(value, ["type", "input", "viewer", "source"]);
+    const record = members(value, [
+      "type",
+      "mode",
+      "input",
+      "viewer",
+      "source",
+    ]);
     literal(record.type, "start");
+    const mode = oneOf(record.mode, sendModes);
     const input = startInput(record.input);
     const prepared = prepareStartInput(input);
     if (prepared.kind !== "ready") {
@@ -289,6 +314,7 @@ export function parseStartRequest(
       ok: true,
       request: {
         type: "start",
+        mode,
         input,
         viewer,
         source: {
@@ -342,6 +368,13 @@ function startOutcome(value: unknown): StartOutcome {
       members(record, ["kind", "key", "requestId"]);
       return {
         kind: "accepted",
+        key: articleKey(record.key),
+        requestId: requestId(record.requestId),
+      };
+    case "same-video":
+      members(record, ["kind", "key", "requestId"]);
+      return {
+        kind: "same-video",
         key: articleKey(record.key),
         requestId: requestId(record.requestId),
       };
@@ -423,13 +456,21 @@ export function parseViewerChannelMessage(
           sentAt: count(record.sentAt),
         };
       case "waiting":
-      case "take-over":
         members(record, ["type", "queryId", "tabId", "sentAt"]);
         return {
-          type: record.type,
+          type: "waiting",
           queryId: queryId(record.queryId),
           tabId: count(record.tabId),
           sentAt: count(record.sentAt),
+        };
+      case "take-over":
+        members(record, ["type", "queryId", "tabId", "sentAt", "answer"]);
+        return {
+          type: "take-over",
+          queryId: queryId(record.queryId),
+          tabId: count(record.tabId),
+          sentAt: count(record.sentAt),
+          answer: oneOf(record.answer, takeOverAnswers),
         };
       case "took-over":
         members(record, ["type", "queryId", "tabId"]);
