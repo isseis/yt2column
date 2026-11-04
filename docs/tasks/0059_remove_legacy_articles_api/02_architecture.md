@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-04 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-04 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md) の設計である。要件定義から申し送られた設計事項は [design_handoff.md](design_handoff.md) にあり、その対応は 10 章にまとめる。本書が引用するファイルの行番号は、コミット `38aee56f`（本書の作成時の `main`）のものである。
@@ -648,3 +648,7 @@ PR-2 の中の順序（コードを先に、文書を後に、など）は計画
 | AC-19 | 2.2 節、8 章 |
 | AC-20 | 3.6 節 |
 | AC-21 | 3.6 節、4 章、7.4 節 |
+
+## 変更履歴
+
+- 2026-11-04 承認（isseis、#644）
