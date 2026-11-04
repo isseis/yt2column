@@ -1,4 +1,4 @@
-<!-- translated-from: README.md de01a9c8581e527cd5bc17a2310c1f3e03eb839c -->
+<!-- translated-from: README.md b30109fb219c63ac06fda4162d2484ab7a3bb786 -->
 [日本語](README.md)
 
 Developer documents: [Using the CLI](docs/dev/guides/cli.md) · [Development procedures](docs/dev/guides/development.md)
@@ -280,6 +280,13 @@ Slack-compatible Webhook is an operation of its own, which the extension sends
 only when the user asks for it in the viewer. The server's HTTP
 API (the job API, which generates, returns, and posts on request) is in
 [docs/dev/guides/development.md](docs/dev/guides/development.md#localhost-サーバの-api).
+A generation start declares, in the body's required member `mode`, whether it
+is an inquiry start (`inquiry`) or a plain start (`plain`). When there is no
+article of the current input and the server's memory holds another article of the same
+video (the same video ID), an inquiry start returns that article's key in a
+same-video answer (`200`, with `status` set to `same_video`) without starting a
+generation. A plain start generates the article of the current input even when
+an article of the same video exists.
 The extension does not connect to the server directly: the browser starts the
 native messaging host, `yt2column-nmhost`, which relays the request to the
 server's socket (see
@@ -759,7 +766,7 @@ confirmation.
 When you update the extension, bring the server and the host to the same build
 as well: rebuild with `make build`, restart the server, and run the host's
 `install` again from the built binary. The extension sends messages in the new form to the server's job API. When the versions do not
-match, depending on the combination, the send is rejected or ends in an unexpected reply. The host rejects the messages of an extension older than the job API (before #503), the server rejects with `not_found` a request that a host older than the job API relays, and a server older than the job API also returns `not_found`. The server's log records the reject reason (`not_found` and the like) but not the request's path, so if an unexpected reply appears after an update, check that the extension, the server, and the host are of the same build.
+match, depending on the combination, the send is rejected or ends in an unexpected reply. The host rejects the messages of an extension older than the job API (before #503), the server rejects with `not_found` a request that a host older than the job API relays, and a server older than the job API also returns `not_found`. The server's log records the reject reason (`not_found` and the like) but not the request's path, so if an unexpected reply appears after an update, check that the extension, the server, and the host are of the same build. When only the extension is updated, an old server that does not know the inquiry setting (`mode`) ignores the inquiry and may generate without showing the choice even when an article of the same video exists. Conversely, when only the server is updated, it rejects the sends of an old extension, which carry no `mode`, with `invalid_body`.
 
 The extension ID is fixed to `clfmbbcdpnjcefbdihdoahomaifbabkk` and is the
 same on every machine and from every directory.
@@ -850,6 +857,39 @@ section becomes the action for the state:
   reason and the steps. The button stays disabled: reopen the popup to send
   again.
 
+**Generate article** sends an inquiry start. When the server's memory holds an
+article of the same video (the same video ID, however the URL is written) that
+is generating or generated, the server returns that article without starting a
+generation. The popup then keeps the video section and **Details** as they are,
+and in place of the checks section shows that this server has an article of the
+same video, and that article's state (loading, generating, or generated) (the
+choice). The action section holds two buttons:
+
+- **Open existing article**: brings forward that article's viewer tab, in the
+  same order of fallbacks as **Open viewer**. It sends no generation start.
+  Even after the press, the popup stays in the choice.
+- **Generate from current selection**: sends the generation start of the same
+  input as a plain start, exactly once, and opens a new viewer tab in the
+  background. The popup moves to the sending state and then shows the states
+  above. The existing article's tab is not closed.
+
+When neither button is pressed, the extension sends nothing (it only keeps
+fetching the status). When the existing article fails, or is lost from the
+server, while the choice is shown, the popup shows that the article of the
+same video can no longer be used, and the only button becomes
+**Generate article**. Pressing it sends an inquiry start again. When the status
+cannot be fetched, the popup keeps both buttons and adds that the status
+cannot be fetched. **Try again**
+sends in the same mode as the send it retries (a retry after
+**Generate from current selection** is a plain start).
+
+The same-video inquiry is best effort. The server holds articles only in
+memory, drops old articles when the count limit is exceeded, and loses
+them all when it restarts. A dropped or lost article is not found by the
+inquiry, so in that case the article is generated without the choice being
+shown. Showing the choice does not mean that no other article of the same
+video exists, nor that this article will remain.
+
 **Open viewer** brings forward the viewer tab that shows this send's article.
 When you have closed that tab, it brings forward another viewer tab that shows
 the same article, and when there is none, it opens a new viewer tab of the same
@@ -894,6 +934,16 @@ any heading: the heading does not vouch for the article's content.
 - **Invalid link**: the viewer's URL is not in a form it accepts. It shows
   neither the heading nor an article, and sends nothing.
 
+A viewer that shows an article of the same video (an existing-article viewer)
+shows, under the heading, that it displays an existing article of the same
+video, one not generated from the current selection, and the steps to generate
+from the current selection. A viewer shows this when a viewer opened by an
+inquiry start receives a same-video answer (when another viewer shows the same
+article, the new tab is closed and that viewer takes over and shows this), and
+when **Open existing article** opens a new tab. The existing article started
+generating before this send, so the viewer does not show the elapsed time even
+while it is generating (once generated, it shows the time taken).
+
 When a status fetch fails, the popup and the viewer keep the state they showed
 and add that the status cannot be fetched, with the steps. When the server is
 not running, there is no response, or the host failed, they keep fetching; when
@@ -916,7 +966,8 @@ How to read the result of the generation start:
 The `requestId` links a rejection the extension shows to the server log.
 
 The viewer's URL holds the article key (once accepted), the heading, the
-channel name, the video title, the collected URL, and the send time. It does not
+channel name, the video title, the collected URL, the send time, and, in an
+existing-article viewer, a value that marks it as one (`e=1`). It does not
 hold the copied captions or the description. Reloading the viewer, restoring a
 closed tab, or opening it from the browser history shows the same article. To
 reopen a viewer after closing it, restore the closed tab, open it from the

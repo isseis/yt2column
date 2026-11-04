@@ -358,11 +358,11 @@
 
 **変更するファイル:** `docs/translation_glossary.md`、`README.md`、`README.en.md`、`extension/test/metadataDocs.test.ts`
 
-- [ ] `translation_glossary.md` に、要件書 F-005 が挙げる新しい用語（同じ動画の照会、照会付きの生成の開始、同じ動画の応答、選択の状態、既存の記事、既存の記事のビューア、副次のボタン、現在の選択範囲）を、英語の訳とともに加える。英語は、カタログの英語の文言で使った語にそろえる。`/mktrans` の前に行う（1.3 節）。
-- [ ] `README.md` の「ブラウザ拡張」節に、設計書 3.9 節の表の README の行の内容を書く。選択の状態の 2 つのボタンの名前は、カタログの値を太字で引用する（1.3 節、`metadataDocs.test.ts`）。版をそろえる今の記述（`README.md:561-564` 付近。0059 の後の行番号はステップ 1-1 で引き直す）に、拡張だけを新しくすると古いサーバが照会を無視し、選択を示さずに生成しうることを加える。README のジョブの API の説明に、照会の指定と同じ動画の応答を加える（要件書 F-005）。
-- [ ] `metadataDocs.test.ts` の引用の確かめに、副次のボタンの名前を加える（設計書 3.8 節）。選択の状態の主ボタンの名前は `popup.primary` の値として、今の確かめが読む。
-- [ ] `/mktrans README.md` で `README.en.md` に写し、2 つを同じコミットに入れる（CLAUDE.md「Translation Guidelines」）。`/mktrans` が用語集に語を加えたら、その変更もこの PR に入れる。
-- [ ] `make readme-sync-check`、文書のガード、`make ext-check`、`go test -tags test ./cmd/yt2column-nmhost/`（`TestReadmeHostExitCodes`）を通す。
+- [x] `translation_glossary.md` に、要件書 F-005 が挙げる新しい用語（同じ動画の照会、照会付きの生成の開始、同じ動画の応答、選択の状態、既存の記事、既存の記事のビューア、副次のボタン、現在の選択範囲）を、英語の訳とともに加える。英語は、カタログの英語の文言で使った語にそろえる。`/mktrans` の前に行う（1.3 節）。
+- [x] `README.md` の「ブラウザ拡張」節に、設計書 3.9 節の表の README の行の内容を書く。選択の状態の 2 つのボタンの名前は、カタログの値を太字で引用する（1.3 節、`metadataDocs.test.ts`）。版をそろえる今の記述（`README.md:561-564` 付近。0059 の後の行番号はステップ 1-1 で引き直す）に、拡張だけを新しくすると古いサーバが照会を無視し、選択を示さずに生成しうることを加える。README のジョブの API の説明に、照会の指定と同じ動画の応答を加える（要件書 F-005）。
+- [x] `metadataDocs.test.ts` の引用の確かめに、副次のボタンの名前を加える（設計書 3.8 節）。選択の状態の主ボタンの名前は `popup.primary` の値として、今の確かめが読む。
+- [x] `/mktrans README.md` で `README.en.md` に写し、2 つを同じコミットに入れる（CLAUDE.md「Translation Guidelines」）。`/mktrans` が用語集に語を加えたら、その変更もこの PR に入れる。
+- [x] `make readme-sync-check`、文書のガード、`make ext-check`、`go test -tags test ./cmd/yt2column-nmhost/`（`TestReadmeHostExitCodes`）を通す。
 
 **完了の条件:** 上のテストがすべて通る。
 
