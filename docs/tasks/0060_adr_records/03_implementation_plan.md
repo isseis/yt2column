@@ -177,13 +177,13 @@
 
 **変更するファイル:** `.claude/commands/_lib/settle-decisions.md`、`.claude/commands/mkreq.md`、`.claude/commands/mkarch.md`、`.claude/commands/mkplan.md`、`.claude/commands/runplan.md`、`.claude/commands/runpr.md`
 
--   [ ] `settle-decisions.md` に、設計書 3.4.1 節の表の 5 つの変更（手順 1 の前の段、手順 2、手順 5、手順 5 の後の段、「Output」の節）を加える。段の中身は規約と CLAUDE.md を参照し、書式・状態・基準を書き写さない（AC-23）。入力は足さない。
--   [ ] `mkreq.md`・`mkarch.md`・`mkplan.md` を、設計書 3.4.2 節の表のとおりに変える（コミット、FILES、`japrose` の対象に ADR の変更を足し、自己レビューの観点に 1 項目を足す）。足す観点の 1 項目の中身は、設計書 3.4.2 節「足す観点の 1 項目」のとおりにする。
--   [ ] `mkarch.md:74` を、設計書 3.4.2 節「`mkarch.md:74` の改め方」のとおりに改める（AC-19）。
--   [ ] `runplan.md` の手順 5 の「Decision change」の「in the same commit」の対象と、手順 7 の FILES に、ADR の変更を足す（設計書 3.4.2 節）。
--   [ ] `runpr.md` の「Taking in `main`」に、規約の ``## Taking in `main` `` の節を参照する 1 項目を足す（設計書 3.1.2 節）。
--   [ ] `mkplan2.md`・`fixpr.md`・`mergepr.md` は変えない（設計書 2.2 節）。
--   [ ] 足す文に、`codex` を直接動かすコマンドと、レビューを頼む言及を書かない（1.4 節「本タスクが変えるコマンドの定義を読む既存のテスト」）。
+-   [x] `settle-decisions.md` に、設計書 3.4.1 節の表の 5 つの変更（手順 1 の前の段、手順 2、手順 5、手順 5 の後の段、「Output」の節）を加える。段の中身は規約と CLAUDE.md を参照し、書式・状態・基準を書き写さない（AC-23）。入力は足さない。
+-   [x] `mkreq.md`・`mkarch.md`・`mkplan.md` を、設計書 3.4.2 節の表のとおりに変える（コミット、FILES、`japrose` の対象に ADR の変更を足し、自己レビューの観点に 1 項目を足す）。足す観点の 1 項目の中身は、設計書 3.4.2 節「足す観点の 1 項目」のとおりにする。
+-   [x] `mkarch.md:74` を、設計書 3.4.2 節「`mkarch.md:74` の改め方」のとおりに改める（AC-19）。
+-   [x] `runplan.md` の手順 5 の「Decision change」の「in the same commit」の対象と、手順 7 の FILES に、ADR の変更を足す（設計書 3.4.2 節）。
+-   [x] `runpr.md` の「Taking in `main`」に、規約の ``## Taking in `main` `` の節を参照する 1 項目を足す（設計書 3.1.2 節）。
+-   [x] `mkplan2.md`・`fixpr.md`・`mergepr.md` は変えない（設計書 2.2 節）。
+-   [x] 足す文に、`codex` を直接動かすコマンドと、レビューを頼む言及を書かない（1.4 節「本タスクが変えるコマンドの定義を読む既存のテスト」）。
 
 **完了の条件:** 文書の guard（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./cmd/codexreview ./internal/pipeline`）が通る。
 
