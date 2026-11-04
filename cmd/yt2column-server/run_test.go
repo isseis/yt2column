@@ -548,9 +548,9 @@ func TestApproxMinutes(t *testing.T) {
 		{0, 1},
 		{29 * time.Second, 1},
 		{30 * time.Second, 1},
-		{150 * time.Second, 3},
 		{89 * time.Second, 1},
 		{90 * time.Second, 2},
+		{150 * time.Second, 3},
 		{309 * time.Second, 5},
 		{330 * time.Second, 6},
 	} {

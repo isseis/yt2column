@@ -318,7 +318,7 @@ func TestHasCurlCommand(t *testing.T) {
 		{"query", "curl -X GET \"http://localhost/jobs/abc?x=1\"\n", false},
 		{"quoted command", "echo 'curl -X GET http://localhost/jobs/abc'\n", false},
 		{"curl as another command's argument", "echo curl -X GET http://localhost/jobs/abc\n", false},
-		{"other path", "curl -X GET http://localhost/articles\n", false},
+		{"other path", "curl -X GET http://localhost/jobs\n", false},
 		{"no curl", "wget -X GET http://localhost/jobs/abc\n", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

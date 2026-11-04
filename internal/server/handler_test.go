@@ -27,7 +27,6 @@ func TestRejectHeaders(t *testing.T) {
 		status int
 		reason string
 	}{
-		{"path_other", newRequest(http.MethodPost, "/other", strings.NewReader("{}")), http.StatusNotFound, "not_found"},
 		{"path_encoded", newRequest(http.MethodPost, "/%6Aobs", strings.NewReader("{}")), http.StatusNotFound, "not_found"},
 		{"method_get", newRequest(http.MethodGet, JobsPath, nil), http.StatusMethodNotAllowed, "method_not_allowed"},
 		{"options_star", newRequest(http.MethodOptions, "*", nil), http.StatusNotFound, "not_found"},
@@ -145,7 +144,7 @@ func TestRejectStatusCodes(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ts := newTestServer(t)
 			if tc.noWebhook {
-				ts = newTestServerWithoutWebhook(t)
+				ts = newJobsTestServer(t, jobsServerOptions{noWebhook: true})
 			}
 			rec := ts.serve(tc.build(t, ts))
 			ts.waitJobs()

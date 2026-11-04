@@ -86,7 +86,6 @@ func SlackMessagesForTest(article writer.Article) ([]string, error) {
 // article or a timeout. Built only with the test tag.
 const (
 	SlackMaxMessageRunesForTest = slackMaxMessageRunes
-	SlackMaxMessagesForTest     = slackMaxMessages
 )
 
 // SlackPublishMaxDurationForTest returns the longest a production publisher

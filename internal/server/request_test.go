@@ -8,7 +8,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"regexp"
 	"strings"
 	"testing"
@@ -38,14 +37,6 @@ func requireStartUntouched(t *testing.T, ts *testServer) {
 	if len(ts.slots) != 0 || len(ts.reading) != 0 {
 		t.Errorf("slots held: generation %d, reading %d, want 0", len(ts.slots), len(ts.reading))
 	}
-}
-
-// sendBody sends body to target with POST, waits for every job, and returns
-// the response.
-func (ts *testServer) sendBody(target, body string) *httptest.ResponseRecorder {
-	rec := ts.serve(newRequest(http.MethodPost, target, strings.NewReader(body)))
-	ts.waitJobs()
-	return rec
 }
 
 // invalidBodyCases are bodies the body checks reject as invalid_body for
@@ -127,7 +118,7 @@ func TestStartRejectsBody(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ts := newTestServer(t)
-			rec := ts.sendBody(JobsPath, tc.body)
+			rec := ts.startBody(tc.body)
 			if rec.Code != http.StatusBadRequest {
 				t.Fatalf("status = %d, want 400 (body %q)", rec.Code, rec.Body.String())
 			}
@@ -149,7 +140,7 @@ func TestOptionalMembers(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			ts := newTestServer(t)
-			rec := ts.sendBody(JobsPath, body)
+			rec := ts.startBody(body)
 			if rec.Code != http.StatusAccepted {
 				t.Fatalf("status = %d, want 202", rec.Code)
 			}
@@ -316,7 +307,7 @@ func TestChannelNameAgreesWithWriter(t *testing.T) {
 // invalid_body, leaving nothing behind.
 func requireChannelNameRequestVerdict(t *testing.T, ts *testServer, body string, tc writertestutil.ChannelNameCase) {
 	t.Helper()
-	rec := ts.sendBody(JobsPath, body)
+	rec := ts.startBody(body)
 	if tc.Valid {
 		if rec.Code != http.StatusAccepted {
 			t.Fatalf("request status = %d, want 202 (body %q)", rec.Code, rec.Body.String())

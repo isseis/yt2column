@@ -441,7 +441,6 @@ func TestUnknownPathTouchesNothing(t *testing.T) {
 			}
 			body := &recordingReader{r: strings.NewReader(validBody(testValidVideoURL, testValidRaw))}
 			req := newRequest(method, "/unknown", io.NopCloser(body))
-			req.ContentLength = -1
 			rec := ts.serve(req)
 			ts.waitJobs()
 			requireRejected(t, rec, http.StatusNotFound, "not_found")

@@ -83,6 +83,7 @@ func TestNewWebhookOptions(t *testing.T) {
 		{"no_webhook", Options{Writer: fakeWriter, LogOutput: logs}, nil},
 		{"no_publisher", Options{Writer: fakeWriter, Webhook: &WebhookOptions{}, LogOutput: logs}, []error{errNilWebhookPublisher}},
 		{"typed_nil_publisher", Options{Writer: fakeWriter, Webhook: &WebhookOptions{Publisher: nilPublisher}, LogOutput: logs}, []error{errNilWebhookPublisher}},
+		{"nothing", Options{Webhook: &WebhookOptions{}}, []error{errNilArticleWriter, errNilWebhookPublisher, errNilLogOutput}},
 		{"no_writer", Options{Webhook: complete, LogOutput: logs}, []error{errNilArticleWriter}},
 		{"no_log_output", Options{Writer: fakeWriter, Webhook: complete}, []error{errNilLogOutput}},
 	}

@@ -67,24 +67,6 @@ func newTestServer(t *testing.T) *testServer {
 	return &testServer{Server: s, writer: fakeWriter, publisher: pub, logs: logs}
 }
 
-// newTestServerWithoutWebhook builds a Server the way run builds one without
-// SLACK_WEBHOOK_URL: a recording writer, no Webhook options, and so no
-// publisher at all.
-func newTestServerWithoutWebhook(t *testing.T) *testServer {
-	t.Helper()
-	fakeWriter := &writertestutil.FakeArticleWriter{}
-	logs := &bytes.Buffer{}
-	s, err := New(Options{
-		Writer:    fakeWriter,
-		LogOutput: logs,
-		Secrets:   []string{testMarker},
-	})
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-	return &testServer{Server: s, writer: fakeWriter, logs: logs}
-}
-
 // testKeySecret is the fixed key secret of the servers newJobsTestServer
 // builds, so a test can look for it in a response or a log.
 var testKeySecret = [32]byte{
