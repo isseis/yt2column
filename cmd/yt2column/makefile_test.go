@@ -75,7 +75,7 @@ func TestMakeTestIntegrationCLISlack(t *testing.T) {
 		Target:     publishertestutil.CLISlackIntegrationOptions.MakeTarget,
 		OptInEnv:   publishertestutil.CLISlackIntegrationOptions.OptInEnv,
 		Package:    "./cmd/yt2column",
-		MinTimeout: provider.LLMTimeout + publisher.SlackPublishMaxDurationForTest(publisher.SlackMaxMessagesForTest),
+		MinTimeout: provider.LLMTimeout + publisher.SlackMaxPostDuration,
 	})
 }
 

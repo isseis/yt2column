@@ -1,11 +1,13 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"runtime/debug"
 	"time"
 
 	"github.com/isseis/yt2column/internal/articlecache"
+	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/publisher"
 	"github.com/isseis/yt2column/internal/writer"
 )
@@ -153,5 +155,27 @@ func failedStep(st articlecache.Stages) string {
 		return "review"
 	default:
 		return ""
+	}
+}
+
+// classifyWrite maps a write-stage failure to the job API's failure reason.
+// The order matters: writer wraps a prompt-too-large failure with
+// ErrInvalidTemplate as well, so ErrPromptTooLarge is checked first.
+func classifyWrite(err error) articlecache.FailureReason {
+	switch {
+	case errors.Is(err, writer.ErrPromptTooLarge):
+		return articlecache.FailureTranscriptTooLong
+	case errors.Is(err, context.DeadlineExceeded):
+		return articlecache.FailureLLMTimeout
+	case errors.Is(err, llm.ErrEmptyResponse):
+		return articlecache.FailureLLMEmpty
+	case errors.Is(err, llm.ErrTruncated):
+		return articlecache.FailureLLMTruncated
+	case errors.Is(err, writer.ErrInvalidTranscript), errors.Is(err, writer.ErrInvalidTemplate):
+		// With the embedded templates and a checked transcript these cannot
+		// happen, so a match means the server built something wrong.
+		return articlecache.FailureInternal
+	default:
+		return articlecache.FailureLLM
 	}
 }

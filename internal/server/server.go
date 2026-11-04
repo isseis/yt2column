@@ -1,9 +1,7 @@
 // Package server implements the HTTP server, served on a Unix domain socket,
-// that accepts the requests relayed from the browser extension. It serves two
-// APIs: the legacy /articles endpoint, which validates a request and runs the
-// article pipeline from generation through the Webhook post, and the job API,
-// which generates an article into the in-memory article cache, reports its
-// state, and posts it to the Webhook on request. It decides every response
+// that accepts the requests relayed from the browser extension. It serves the
+// job API, which generates an article into the in-memory article cache,
+// reports its state, and posts it to the Webhook on request. It decides every response
 // from fixed values, the identifiers it generates, and a completed article,
 // and it writes every log line through a redacting writer, so no secret and
 // no transcript text can reach a response or a log.
@@ -23,7 +21,6 @@ import (
 	"time"
 
 	"github.com/isseis/yt2column/internal/articlecache"
-	"github.com/isseis/yt2column/internal/failure"
 	"github.com/isseis/yt2column/internal/nilcheck"
 	"github.com/isseis/yt2column/internal/redact"
 	"github.com/isseis/yt2column/internal/writer"
@@ -49,7 +46,6 @@ var ErrInvalidOptions = errors.New("invalid server options")
 var (
 	errNilArticleWriter    = errors.New("writer is nil")
 	errNilWebhookPublisher = errors.New("webhook publisher is nil")
-	errNilWebhookNotifier  = errors.New("webhook notifier is nil")
 	errNilLogOutput        = errors.New("log output is nil")
 )
 
@@ -63,29 +59,24 @@ type Options struct {
 
 // WebhookOptions holds what posts to the Webhook. Every field is required.
 type WebhookOptions struct {
-	Publisher WebhookPublisher // the legacy /articles job and the publish operation
-	Notifier  failure.Notifier // the legacy /articles failure notice
+	Publisher WebhookPublisher // the publish operation's post job
 }
 
 // Server is the article HTTP server. Build it with New and run it with Serve on
 // a listener the caller opened.
 type Server struct {
 	writer writer.ProgressWriter
-	// publisher and notifier post to the Webhook. Both are nil when
-	// SLACK_WEBHOOK_URL is not configured, in which case the legacy endpoint
-	// rejects every request: there is nowhere to post the article or its
-	// failure notice. New copies them from Options, so a caller that changes
-	// its WebhookOptions afterwards does not change this server.
+	// publisher posts to the Webhook. It is nil when SLACK_WEBHOOK_URL is not
+	// configured, in which case the publish operation is refused: there is
+	// nowhere to post the article. New copies it from Options, so a caller
+	// that changes its WebhookOptions afterwards does not change this server.
 	publisher WebhookPublisher
-	notifier  failure.Notifier
 	logger    *slog.Logger
 	http      *http.Server
 
-	// slots are the generation slots, shared by both APIs. A legacy request
-	// takes one after the header checks and holds it until the end of its job
-	// or its failure notice; a generation start takes one when the cache
-	// starts a generation, and its generation job holds it until the article
-	// is generated.
+	// slots are the generation slots. A generation start takes one when the
+	// cache starts a generation, and its generation job holds it until the
+	// article is generated.
 	slots chan struct{}
 	// reading bounds the generation starts that read and validate a body at
 	// once. It is separate from slots, so a resent request for a running or
@@ -95,15 +86,15 @@ type Server struct {
 	// this process's secret, which New draws and nothing outputs.
 	cache *articlecache.Cache
 	keyer articlecache.Keyer
-	// jobs counts the in-flight jobs and failure notices, the generation and
-	// post jobs included, so Serve waits for them.
+	// jobs counts the in-flight generation and post jobs, so Serve waits for
+	// them.
 	jobs sync.WaitGroup
 	// postJobs counts the post jobs in flight, which take no generation slot,
 	// for the shutdown log.
 	postJobs atomic.Int64
-	// jobCtx is the parent of every legacy job, notice, and post job context.
-	// It is not the request context, which ends when the response is written,
-	// and Serve cancels it only after every job and notice has finished.
+	// jobCtx is the parent of every post job context. It is not the request
+	// context, which ends when the response is written, and Serve cancels it
+	// only after every job has finished.
 	jobCtx    context.Context
 	jobCancel context.CancelFunc
 	// genCtx is the context of every generation job. Like jobCtx it outlives
@@ -173,7 +164,6 @@ func newWithInternals(opts Options, in internals) (*Server, error) {
 	}
 	if opts.Webhook != nil {
 		s.publisher = opts.Webhook.Publisher
-		s.notifier = opts.Webhook.Notifier
 	}
 	s.http = &http.Server{
 		Handler:                      http.HandlerFunc(s.handler),
@@ -198,9 +188,6 @@ func validateOptions(opts Options) error {
 		if nilcheck.IsNil(opts.Webhook.Publisher) {
 			errs = append(errs, errNilWebhookPublisher)
 		}
-		if nilcheck.IsNil(opts.Webhook.Notifier) {
-			errs = append(errs, errNilWebhookNotifier)
-		}
 	}
 	if nilcheck.IsNil(opts.LogOutput) {
 		errs = append(errs, errNilLogOutput)
@@ -212,20 +199,18 @@ func validateOptions(opts Options) error {
 }
 
 // webhookConfigured reports whether this server can post to the Webhook, which
-// is what SLACK_WEBHOOK_URL being set means. A server without it rejects the
-// legacy endpoint instead of starting a job nothing can post. New keeps the two
-// collaborators either both set or both nil, so testing one is enough.
+// is what SLACK_WEBHOOK_URL being set means. A server without it refuses the
+// publish operation instead of starting a post job nothing can send.
 func (s *Server) webhookConfigured() bool {
 	return s.publisher != nil
 }
 
 // Serve serves on listener until ctx is canceled or the listener fails, then
-// cancels the job API's generation jobs, stops accepting connections, waits
-// for in-flight requests, jobs, failure notices, post jobs, and the canceled
-// generations, and returns. The legacy jobs, their notices, and the post jobs
-// are not canceled. It returns nil after a cancellation and the listener
-// error otherwise. Shutdown closes the listener; for a *net.UnixListener that
-// also removes the socket.
+// cancels the generation jobs, stops accepting connections, waits for
+// in-flight requests, the post jobs, and the canceled generations, and
+// returns. The post jobs are not canceled. It returns nil after a
+// cancellation and the listener error otherwise. Shutdown closes the listener;
+// for a *net.UnixListener that also removes the socket.
 func (s *Server) Serve(ctx context.Context, listener net.Listener) error {
 	serveErr := make(chan error, 1)
 	go func() {
@@ -243,12 +228,16 @@ func (s *Server) Serve(ctx context.Context, listener net.Listener) error {
 	// The article cache is lost when the process exits, so a generation that
 	// finished from here on could never be read: cancel them first, so a
 	// running one stops its LLM call and a start accepted during the shutdown
-	// begins already canceled. Each canceled job logs one line.
+	// begins already canceled. Each canceled job logs one line. The
+	// generation slots taken now are the generations in progress, whose
+	// articles are lost (a job about to release its slot, or a start about to
+	// hand its slot to a job, is counted too): that count is logged below.
+	canceled := len(s.slots)
 	s.genCancel()
 
 	// Shutdown with a context that is not canceled, so it waits for the
-	// handlers (bounded by WriteTimeout) instead of returning at once. It
-	// closes the listener, so the Serve call returns.
+	// handlers (a body read is bounded by ReadTimeout) instead of returning at
+	// once. It closes the listener, so the Serve call returns.
 	shutdownCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	if err := s.http.Shutdown(shutdownCtx); err != nil && cause == nil {
@@ -260,16 +249,13 @@ func (s *Server) Serve(ctx context.Context, listener net.Listener) error {
 		}
 	}
 
-	// The legacy jobs, the notices, and the post jobs are not canceled: each
-	// is bounded by its own timeout (the LLM timeout, the per-message post
-	// timeout, and the notice timeout). Every handler has returned, so each
-	// generation slot still taken belongs to a legacy job, a notice, or a
-	// canceled generation, and the post jobs, which take no slot, are counted
-	// apart: together they are what the wait below waits for.
-	s.logger.Info("stopped accepting connections; waiting for in-flight jobs and failure notices",
-		"pending", len(s.slots), "postJobs", s.postJobs.Load())
+	// The post jobs are not canceled: each is bounded by the per-message
+	// post timeout. The canceled generations end as soon as their LLM call
+	// returns. The wait below waits for both.
+	s.logger.Info("stopped accepting connections; waiting for in-flight jobs",
+		"canceledGenerations", canceled, "postJobs", s.postJobs.Load())
 	s.jobs.Wait()
 	s.jobCancel()
-	s.logger.Info("every job and failure notice has finished")
+	s.logger.Info("every job has finished")
 	return cause
 }

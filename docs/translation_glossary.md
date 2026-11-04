@@ -42,7 +42,7 @@
 | 工程 | step | 記事の生成の中の 3 つの処理（`writer.Stage`）。API の `steps` のメンバ。拡張は、`draft` を「下書きの生成」（Draft）、`shorten` を「字数の調整」（Shorten）、`review` を「検証・推敲」（Review）と表示する。パイプラインの「段階」（stage）とは区別する |
 | 工程の状態 | step state | `pending`・`running`・`done`・`skipped`・`failed` |
 | 投稿の状態 | publish state | `not_posted`・`posting`・`posted`・`failed`・`unpostable` |
-| 生成の枠 | generation slot | 同時に走る記事の生成の数の上限（`2`）。旧 API のジョブと新しい API の生成が合算する |
+| 生成の枠 | generation slot | 同時に走る記事の生成の数の上限（`2`）。ジョブの API の生成のジョブだけが数える |
 | 読み込みの枠 | reading slot | 生成の開始の本文を同時に読み込んで検査する数の上限（`2`） |
 | 完了の時点の検査 | completion check | 生成のジョブが記事を `done` にする前に行う検査（公開できる形か、状態の取得の応答に収まるか、Slack へ送る前の検査に通るか） |
 | 動画 ID | video ID | YouTube の 11 文字の ID |
@@ -62,7 +62,7 @@
 | ホストの応答 | host reply | ホストが標準出力に書く 1 つのフレーム。サーバの応答を包む形（`kind` が `response`）とホストのエラーの形（`kind` が `error`）がある |
 | 未送信 | not sent | やり取りの結果のうち、リクエストがサーバに届いていないと確定するもの（ホストが返す `server_unavailable`・`message_too_large`） |
 | 結果不明 | result unknown | やり取りの結果のうち、リクエストがサーバに届いた可能性があるもの（応答なし・ホストの失敗・想定外の応答）。拡張は生成の開始と投稿の操作を自動では送り直さない（状態の取得は、ポーリングとして繰り返す）。生成の開始では、同じ入力を送り直しても、その記事が処理中か完了していれば二重に生成されないことを示す |
-| 枠 | slot | localhost サーバが同時に処理するリクエストの数を数える単位。生成の枠（`maxInFlight`）は、旧 API のジョブと新しい API の生成のジョブが合算して数える。新しい API の生成の開始は、本文の読み込みと検査に別の読み込みの枠を使う |
+| 枠 | slot | localhost サーバが同時に処理するもの（生成のジョブ、生成の開始の本文の読み込み）の数を数える単位。生成の枠（`maxInFlight`）は、ジョブの API の生成のジョブだけが数える。生成の開始は、本文の読み込みと検査に別の読み込みの枠を使う |
 | 拒否の理由 | reject reason | 応答の本文の `reason` に載せる固定の値（`rejectReason`） |
 | 動画メタデータ | video metadata | 拡張が動画ページの DOM から読む動画タイトル・チャンネル名・概要欄の総称。API の任意フィールド `title`・`channelName`・`description` |
 | 動画タイトル | video title | 動画ページの DOM にある動画のタイトル。タブのタイトル（tab title）とは別 |
@@ -93,7 +93,7 @@
 | 支援技術 | assistive technology | スクリーンリーダーなど、画面の要素の名前と状態を利用者に伝える技術 |
 | フォーカスの表示 | focus indicator | キーボードの操作の対象になっている要素を示す、枠などの見た目 |
 | リクエストの本文 | request body | 拡張がサーバへ送る JSON の本文（`videoUrl`・`transcript` と動画メタデータ）。概要欄の文章とは別 |
-| リクエスト ID | request ID | サーバがリクエストごとに生成する 16 文字の識別子。応答・ログ・失敗の通知を結び付ける |
+| リクエスト ID | request ID | サーバがリクエストごとに生成する 16 文字の識別子。応答とログを結び付ける |
 | Unix ドメインソケット（UDS） | Unix domain socket (UDS) | ファイルシステム上のパスを介したプロセス間通信。localhost サーバの待ち受け手段。初出で「Unix ドメインソケット（UDS）」と書き、以降は「UDS」とする |
 | 片付け | cleanup | `/mergepr` のマージ後処理（base の更新、ローカル head ブランチの削除） |
 | 材料 | material | `/mergepr` がコミットメッセージの下書きに使う PR 情報（log.txt・stat.txt・body.txt と、必要なときに読む diff）。PR のタイトルは含めない |

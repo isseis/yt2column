@@ -33,6 +33,11 @@ const (
 	slackOKResponse = "ok"
 )
 
+// SlackMaxPostDuration bounds one PostMessages call: slackMaxMessages
+// messages, each bounded by SlackPostTimeout, with slackMessageInterval
+// between two of them (none before the first).
+const SlackMaxPostDuration = slackMaxMessages*SlackPostTimeout + (slackMaxMessages-1)*slackMessageInterval
+
 // withheldTransportDetails replaces a transport error message that may carry
 // part of the Webhook URL, so the whole message is dropped rather than partly
 // redacted.
@@ -82,8 +87,8 @@ type webhookPayload struct {
 // Slack-compatible Incoming Webhook. It reveals the URL and derives its
 // sensitive parts itself, so no caller handles the plain URL. Its timeout
 // bounds the send and the whole body read; its http.Client never follows a
-// redirect. Shared by SlackWebhookPublisher and SlackFailureNotifier. Its
-// fields are set once by newWebhookClient and never mutated afterwards.
+// redirect. Its fields are set once by newWebhookClient and never mutated
+// afterwards.
 type webhookClient struct {
 	webhookURL secret.Secret
 	timeout    time.Duration

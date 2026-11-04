@@ -66,25 +66,24 @@ func waitEntered(t *testing.T, hook *loopbackWebhook) {
 	}
 }
 
-// TestPublishPostsLikeArticles checks that the publish operation posts the
-// messages the legacy endpoint posts for the same article, here one that
-// splits into three messages.
-func TestPublishPostsLikeArticles(t *testing.T) {
+// TestPublishPostsLikeCLI checks that the publish operation posts the
+// messages the CLI's publisher (SlackWebhookPublisher.Publish) posts for the
+// same article to the same Webhook, here one that splits into three messages.
+func TestPublishPostsLikeCLI(t *testing.T) {
 	ts, hook := newWebhookTestServer(t)
-	ts.writer.Result = messagesArticle(t, 3)
-	body := validBody(testValidVideoURL, testValidRaw)
-
-	if rec := ts.serveAccepted(t, body); rec.Code != http.StatusAccepted {
-		t.Fatalf("legacy status = %d, want 202", rec.Code)
+	article := messagesArticle(t, 3)
+	if err := hook.publisherFor(t).Publish(t.Context(), article); err != nil {
+		t.Fatalf("Publish: %v", err)
 	}
-	legacy := hook.received()
-	key := acceptedKey(t, ts.startBody(body))
+	cli := hook.received()
+	ts.writer.Result = article
+	key := acceptedKey(t, ts.startBody(validBody(testValidVideoURL, testValidRaw)))
 	requireAccepted(t, ts.publishRequest(key))
 	ts.waitJobs()
 	published := hook.received()
 
-	if len(legacy) != 3 || !slices.Equal(published, legacy) {
-		t.Errorf("published %d messages %q, want the legacy endpoint's %d %q", len(published), published, len(legacy), legacy)
+	if len(cli) != 3 || !slices.Equal(published, cli) {
+		t.Errorf("published %d messages %q, want the CLI publisher's %d %q", len(published), published, len(cli), cli)
 	}
 	if got := ts.publishOf(t, key); got.State != "posted" {
 		t.Errorf("publish = %+v, want posted", got)
@@ -118,6 +117,34 @@ func TestPublishRespondsBeforeWebhook(t *testing.T) {
 	ts.waitJobs()
 	if got := ts.publishOf(t, key); got.State != "posted" {
 		t.Errorf("publish after the Webhook answered = %+v, want posted", got)
+	}
+}
+
+// TestPostJobTakesNoGenerationSlot checks that a post job in flight holds no
+// generation slot: while it waits for the Webhook, every generation slot is
+// free and as many new generations as there are slots are still started.
+func TestPostJobTakesNoGenerationSlot(t *testing.T) {
+	ts, hook := newWebhookTestServer(t)
+	reached, releaseGeneration := holdAtDraft(ts.writer)
+	key := ts.seedDone(t, validBody(testValidVideoURL, testValidRaw)).String()
+	hold := make(chan struct{})
+	hook.set(0, hold)
+	var once sync.Once
+	release := func() { once.Do(func() { close(hold) }) }
+	defer func() {
+		release()
+		releaseGeneration()
+		ts.waitJobs()
+	}()
+
+	requireAccepted(t, ts.publishRequest(key))
+	waitEntered(t, hook)
+	if len(ts.slots) != 0 {
+		t.Fatalf("generation slots held by the post job = %d, want 0", len(ts.slots))
+	}
+	for i := range maxInFlight {
+		acceptedKey(t, ts.start(strings.NewReader(bodyWith(strconv.Itoa(i)))))
+		<-reached
 	}
 }
 
@@ -244,9 +271,10 @@ func TestPublishRejections(t *testing.T) {
 	}
 }
 
-// TestPublishFailureNotNotified checks that a failed post, by the Webhook or
-// for any other reason, records its reason and posts no failure notice.
-func TestPublishFailureNotNotified(t *testing.T) {
+// TestPublishFailureReason checks that a failed post records its reason, the
+// Webhook for a *publisher.SlackPostError and internal for any other error, and
+// names it in the failure log line.
+func TestPublishFailureReason(t *testing.T) {
 	tests := []struct {
 		name   string
 		err    error
@@ -264,9 +292,6 @@ func TestPublishFailureNotNotified(t *testing.T) {
 			ts.waitJobs()
 			if got := ts.publishOf(t, key); got != (statusPublish{State: "failed", Reason: tc.reason}) {
 				t.Errorf("publish = %+v, want failed with %s", got, tc.reason)
-			}
-			if len(ts.notifier.Calls) != 0 {
-				t.Errorf("notifier calls = %d, want 0", len(ts.notifier.Calls))
 			}
 			if line := logLine(ts.logs.String(), "post job failed"); !strings.Contains(line, "reason="+tc.reason) {
 				t.Errorf("the failure log line = %q, want reason=%s", line, tc.reason)
@@ -338,11 +363,14 @@ func TestPublishResponsesOmitInputs(t *testing.T) {
 
 // TestPublishWithoutWebhook checks that a server without a Webhook refuses
 // every publish operation with webhook_not_configured, closing the
-// connection, before it checks the body or the key, and changes no record.
+// connection, before it checks or reads the body or checks the key, and
+// changes no record.
 func TestPublishWithoutWebhook(t *testing.T) {
 	ts := newJobsTestServer(t, jobsServerOptions{noWebhook: true})
 	key := ts.seedDone(t, validBody(testValidVideoURL, testValidRaw)).String()
-	withBody := newRequest(http.MethodPost, publishTarget(key), strings.NewReader("x"))
+	body := &recordingReader{r: strings.NewReader("x")}
+	withBody := newRequest(http.MethodPost, publishTarget(key), io.NopCloser(body))
+	withBody.ContentLength = 1
 	before := ts.cache.DumpRecordsForTest()
 	for name, req := range map[string]*http.Request{
 		"done_key":    newRequest(http.MethodPost, publishTarget(key), nil),
@@ -356,6 +384,9 @@ func TestPublishWithoutWebhook(t *testing.T) {
 				t.Errorf("Connection = %q, want close", got)
 			}
 		})
+	}
+	if body.n != 0 {
+		t.Errorf("the server read %d bytes of the body, want 0", body.n)
 	}
 	// The method is checked before the Webhook.
 	t.Run("get", func(t *testing.T) {
@@ -506,7 +537,7 @@ func TestPublishPanicResumes(t *testing.T) {
 
 // TestPublishHandlerPanicCleanup checks the publish handler's recovery: a
 // panic after BeginPublish and before the job takes over fails the post as
-// internal, so the record is not left posting, and posts no notice.
+// internal, so the record is not left posting, and sends nothing.
 func TestPublishHandlerPanicCleanup(t *testing.T) {
 	ts := newJobsTestServer(t, jobsServerOptions{})
 	key := ts.seedDone(t, validBody(testValidVideoURL, testValidRaw)).String()
@@ -520,8 +551,8 @@ func TestPublishHandlerPanicCleanup(t *testing.T) {
 	if got := ts.publishOf(t, key); got != (statusPublish{State: "failed", Reason: "internal"}) {
 		t.Errorf("publish = %+v, want failed as internal", got)
 	}
-	if calls := ts.publisher.RecordedPostCalls(); len(calls) != 0 || len(ts.notifier.Calls) != 0 {
-		t.Errorf("side effects: PostMessages=%d notifier=%d, want none", len(calls), len(ts.notifier.Calls))
+	if calls := ts.publisher.RecordedPostCalls(); len(calls) != 0 {
+		t.Errorf("PostMessages calls = %d, want 0", len(calls))
 	}
 }
 

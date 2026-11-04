@@ -21,22 +21,20 @@ const maxBodyBytes = 4 << 20 // 4 MiB
 // jobInput is one validated request, ready for a job. It holds the parsed
 // source and the values derived from the request, never the raw request body.
 type jobInput struct {
-	source    *transcript.CopiedSource
-	videoURL  string // the normalized URL derived from videoUrl
-	videoID   string
-	requestID string
+	source   *transcript.CopiedSource
+	videoURL string // the normalized URL derived from videoUrl
+	videoID  string
 	// key is what the article key is computed from. validateBody is the only
 	// place that builds one, from the values that passed its checks, so the
 	// handler passes it to the Keyer as it is.
 	key articlecache.KeyInput
 }
 
-// readRequest reads and validates the body of a request that passed the header
-// checks.
-// It returns the job input on success, or a rejection. A rejection with
+// readRequest reads and validates the body of a generation start that passed
+// the method and reading slot checks. It returns the job input on success, or a rejection. A rejection with
 // readFailed set is a body-read failure (a cut connection or a timeout), which
-// the handler answers with no response and no notice.
-func (s *Server) readRequest(w http.ResponseWriter, r *http.Request, requestID string) (*jobInput, *rejection) {
+// the handler answers with no response at all.
+func (s *Server) readRequest(w http.ResponseWriter, r *http.Request) (*jobInput, *rejection) {
 	// A declared length over the limit is refused without reading a byte.
 	if r.ContentLength > maxBodyBytes {
 		return nil, &rejection{reason: reasonBodyTooLarge, detail: detailBodyTooLarge}
@@ -50,7 +48,7 @@ func (s *Server) readRequest(w http.ResponseWriter, r *http.Request, requestID s
 		}
 		return nil, &rejection{readFailed: true, err: err}
 	}
-	return s.validateBody(body, requestID)
+	return s.validateBody(body)
 }
 
 // validateBody checks the body and builds the job input. The steps are: the
@@ -59,7 +57,7 @@ func (s *Server) readRequest(w http.ResponseWriter, r *http.Request, requestID s
 // members ignored), the required strings, the optional strings, the video URL,
 // and the copied transcript's format. Every failure maps to a reason by the
 // step that produced it, never by the error's content.
-func (s *Server) validateBody(body []byte, requestID string) (*jobInput, *rejection) {
+func (s *Server) validateBody(body []byte) (*jobInput, *rejection) {
 	object, err := strictjson.ParseObject(body)
 	if err != nil {
 		return nil, &rejection{reason: reasonInvalidBody, detail: detailInvalidBody}
@@ -107,15 +105,14 @@ func (s *Server) validateBody(body []byte, requestID string) (*jobInput, *reject
 	})
 	if err != nil {
 		if errors.Is(err, transcript.ErrCopiedTranscriptFormat) {
-			return nil, &rejection{reason: reasonInvalidTranscript, detail: detailInvalidTranscript, videoID: videoID}
+			return nil, &rejection{reason: reasonInvalidTranscript, detail: detailInvalidTranscript}
 		}
-		return nil, &rejection{reason: reasonInternal, detail: detailInternalError, videoID: videoID}
+		return nil, &rejection{reason: reasonInternal, detail: detailInternalError}
 	}
 	return &jobInput{
-		source:    source,
-		videoURL:  normalizedURL,
-		videoID:   videoID,
-		requestID: requestID,
+		source:   source,
+		videoURL: normalizedURL,
+		videoID:  videoID,
 		// An absent optional member is "", as optionalMember returns it, so
 		// an absent and an empty member give the same key.
 		key: articlecache.KeyInput{

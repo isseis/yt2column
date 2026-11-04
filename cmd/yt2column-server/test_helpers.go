@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/isseis/yt2column/internal/config"
-	"github.com/isseis/yt2column/internal/failure"
 	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/publisher"
 	"github.com/isseis/yt2column/internal/secret"
@@ -55,12 +54,12 @@ const (
 )
 
 // Environment variables that switch the test binary into a server child
-// process (see TestMain) and tell the child's fake LLM client where its
+// process (see TestMain) and tell the child's fake Webhook publisher where its
 // markers are.
 const (
 	childModeEnv    = "YT2COLUMN_TEST_SERVER_MODE"
-	childReadyEnv   = "YT2COLUMN_TEST_LLM_READY"
-	childReleaseEnv = "YT2COLUMN_TEST_LLM_RELEASE"
+	childReadyEnv   = "YT2COLUMN_TEST_POST_READY"
+	childReleaseEnv = "YT2COLUMN_TEST_POST_RELEASE"
 )
 
 // Child modes.
@@ -69,9 +68,9 @@ const (
 	// signal handling main installs. No request is sent to it, so its real
 	// LLM client and publisher never send anything.
 	childModeMain = "main"
-	// childModeBlock runs signalrun.Run with an LLM client that waits until
-	// the test creates the release marker, and a publisher and notifier that
-	// send nothing.
+	// childModeBlock runs signalrun.Run with an LLM client that succeeds at
+	// once and a Webhook publisher whose post waits until the test creates
+	// the release marker.
 	childModeBlock = "block"
 )
 
@@ -79,9 +78,10 @@ const (
 const childExitUnknownMode = 99
 
 const (
-	// blockLifetime caps how long the blocking fake LLM client waits, so a
-	// leaked child's job ends by itself (the child then keeps serving until
-	// the cleanup kills it). It is far longer than any bound a test waits for.
+	// blockLifetime caps how long the blocking fake publisher waits, so a
+	// leaked child's post job ends by itself (the child then keeps serving
+	// until the cleanup kills it). It is far longer than any bound a test
+	// waits for.
 	blockLifetime = 3 * time.Minute
 	// readyBound bounds a wait for a server to listen or a fake to signal
 	// readiness.
@@ -159,20 +159,40 @@ func listening(path string) bool {
 	return true
 }
 
-// runningServer is a run started by startServer. stderr is read only after
-// stop.
+// syncBuffer is a buffer that a run writes and a test reads at the same time.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+// Write implements io.Writer.
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+// String returns what was written so far.
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
+// runningServer is a run started by startServer. stderr may be read while the
+// run writes it.
 type runningServer struct {
 	cancel context.CancelFunc
 	done   chan struct{}
 	code   int
-	stderr *bytes.Buffer
+	stderr *syncBuffer
 }
 
 // startServer calls run in a goroutine and returns once the server accepts
 // connections on its socket. A cleanup stops the run.
 func startServer(t *testing.T, e *serverEnv, d deps) *runningServer {
 	t.Helper()
-	stderr := &bytes.Buffer{}
+	stderr := &syncBuffer{}
 	ctx, cancel := context.WithCancel(context.Background())
 	r := &runningServer{cancel: cancel, done: make(chan struct{}), stderr: stderr}
 	lookup := e.lookup()
@@ -205,6 +225,32 @@ func waitListening(path string, done <-chan struct{}) bool {
 		time.Sleep(pollInterval)
 	}
 	return false
+}
+
+// waitStderr waits up to readyBound for the run's standard error to hold a
+// line that contains sub, and returns that line.
+func (r *runningServer) waitStderr(t *testing.T, sub string) string {
+	t.Helper()
+	deadline := time.Now().Add(readyBound)
+	for time.Now().Before(deadline) {
+		if line := stderrLine(r.stderr.String(), sub); line != "" {
+			return line
+		}
+		time.Sleep(pollInterval)
+	}
+	t.Fatalf("standard error has no line with %q within %v:\n%s", sub, readyBound, r.stderr.String())
+	return ""
+}
+
+// stderrLine returns the first line of output that contains sub, or "" when
+// there is none.
+func stderrLine(output, sub string) string {
+	for line := range strings.SplitSeq(output, "\n") {
+		if strings.Contains(line, sub) {
+			return line
+		}
+	}
+	return ""
 }
 
 // stop cancels the run and waits for it to return, and returns its exit code.
@@ -248,59 +294,42 @@ func reviewLLM() llm.LLMClient {
 	})
 }
 
-// nopPublisher is a publisher that accepts every article and sends nothing.
+// nopPublisher is a Webhook publisher that accepts every post and sends
+// nothing.
 type nopPublisher struct{}
-
-// Publish implements publisher.Publisher.
-func (nopPublisher) Publish(context.Context, writer.Article) error { return nil }
 
 // PostMessages implements server.WebhookPublisher.
 func (nopPublisher) PostMessages(context.Context, publisher.SlackMessages, int, func(int)) error {
 	return nil
 }
 
-// nopNotifier is a notifier that accepts every notice and sends nothing.
-type nopNotifier struct{}
-
-// Notify implements failure.Notifier.
-func (nopNotifier) Notify(context.Context, failure.Notice) error { return nil }
-
 // testDeps returns deps that build client for generation, a review client
-// that revises nothing, and a publisher and notifier that send nothing, so no
-// test reaches the LLM API or the webhook the environment names.
+// that revises nothing, and a publisher that sends nothing, so no test reaches
+// the LLM API or the webhook the environment names.
 func testDeps(client llm.LLMClient) deps {
 	return deps{
 		newLLMClient:       func(config.LLMConfig) (llm.LLMClient, error) { return client, nil },
 		newReviewLLMClient: func(config.LLMConfig) (llm.LLMClient, error) { return reviewLLM(), nil },
 		newWriter:          writer.NewProgressWriter,
 		newPublisher:       func(secret.Secret) (server.WebhookPublisher, error) { return nopPublisher{}, nil },
-		newNotifier:        func(secret.Secret) (failure.Notifier, error) { return nopNotifier{}, nil },
 	}
 }
 
 // loopbackDeps returns testDeps(client) with the real SlackWebhookPublisher
-// and SlackFailureNotifier posting to serverURL, a loopback webhook. Both are
-// built here, in the test goroutine, because their constructors may fail t;
-// the deps return them after checking that run passes the configured webhook
-// URL. The endpoint keeps the configured path, so it carries the same secret
-// path the server redacts.
+// posting to serverURL, a loopback webhook. It is built here, in the test
+// goroutine, because its constructor may fail t; the deps return it after
+// checking that run passes the configured webhook URL. The endpoint keeps the
+// configured path, so it carries the same secret path the server redacts.
 func loopbackDeps(t *testing.T, client llm.LLMClient, serverURL string) deps {
 	t.Helper()
 	endpoint := serverURL + testWebhookPath
 	pub := publisher.NewSlackWebhookPublisherForLoopbackTest(t, publisher.SlackTestOptions{Timeout: loopbackTimeout}, endpoint)
-	notifier := publisher.NewSlackFailureNotifierForLoopbackTest(t, loopbackTimeout, endpoint)
 	d := testDeps(client)
 	d.newPublisher = func(webhookURL secret.Secret) (server.WebhookPublisher, error) {
 		if err := requireTestWebhook(webhookURL); err != nil {
 			return nil, err
 		}
 		return pub, nil
-	}
-	d.newNotifier = func(webhookURL secret.Secret) (failure.Notifier, error) {
-		if err := requireTestWebhook(webhookURL); err != nil {
-			return nil, err
-		}
-		return notifier, nil
 	}
 	return d
 }
@@ -350,23 +379,6 @@ func (s *webhookServer) messages() []string {
 	return slices.Clone(s.texts)
 }
 
-// waitForMessage waits up to readyBound for a message that contains every
-// string in want, and returns it.
-func (s *webhookServer) waitForMessage(t *testing.T, want ...string) string {
-	t.Helper()
-	deadline := time.Now().Add(readyBound)
-	for time.Now().Before(deadline) {
-		for _, text := range s.messages() {
-			if containsAll(text, want) {
-				return text
-			}
-		}
-		time.Sleep(pollInterval)
-	}
-	t.Fatalf("no webhook message contains %q within %v; received:\n%s", want, readyBound, strings.Join(s.messages(), "\n---\n"))
-	return ""
-}
-
 // containsAll reports whether s contains every string in subs.
 func containsAll(s string, subs []string) bool {
 	for _, sub := range subs {
@@ -377,7 +389,7 @@ func containsAll(s string, subs []string) bool {
 	return true
 }
 
-// apiResponse is the JSON body the server answers with.
+// apiResponse is the JSON body the server answers with a rejection.
 type apiResponse struct {
 	Status    string `json:"status"`
 	Reason    string `json:"reason"`
@@ -400,32 +412,12 @@ func unixClient(path string) *http.Client {
 	return &http.Client{Transport: udstest.Transport(path), Timeout: loopbackTimeout}
 }
 
-// postArticle sends body to the server on the socket at path, with no header
-// beyond what net/http adds, and returns the status and the decoded response.
-// A transport error is returned rather than failing the test, so a caller can
-// record a cut connection.
-func postArticle(path string, body io.Reader) (int, apiResponse, error) {
-	req, err := http.NewRequest(http.MethodPost, "http://yt2column"+server.ArticlesPath, body)
-	if err != nil {
-		return 0, apiResponse{}, err
-	}
-	resp, err := unixClient(path).Do(req)
-	if err != nil {
-		return 0, apiResponse{}, err
-	}
-	defer func() { _ = resp.Body.Close() }()
-	var decoded apiResponse
-	if err := json.NewDecoder(resp.Body).Decode(&decoded); err != nil {
-		return resp.StatusCode, apiResponse{}, fmt.Errorf("decode the response: %w", err)
-	}
-	return resp.StatusCode, decoded, nil
-}
-
-// jobResponse is the part of a job API response the end-to-end test reads: a
-// generation start's key, and a status response's job state, article, and
-// publish state.
+// jobResponse is the part of a job API response the tests read: a rejection's
+// reason, a generation start's key, and a status response's job state,
+// article, and publish state.
 type jobResponse struct {
 	Status string `json:"status"`
+	Reason string `json:"reason"`
 	Key    string `json:"key"`
 	Job    struct {
 		State   string `json:"state"`
@@ -493,39 +485,41 @@ func waitPublished(t *testing.T, path, key string) string {
 	}
 }
 
-// mustPostArticle is postArticle that fails the test on a transport error and
-// on a status other than want.
-func mustPostArticle(t *testing.T, path, body string, want int) apiResponse {
+// generateAndPublish generates an article for requestBody(testValidRaw) on
+// the socket at path, waits until it is done, and sends its publish
+// operation, failing the test unless the operation is accepted.
+func generateAndPublish(t *testing.T, path string) {
 	t.Helper()
-	status, resp, err := postArticle(path, strings.NewReader(body))
-	if err != nil {
-		t.Fatalf("post an article: %v", err)
+	started := doJobs(t, path, http.MethodPost, server.JobsPath, strings.NewReader(requestBody(testValidRaw)), http.StatusAccepted)
+	if done := waitJobDone(t, path, started.Key); done.Job.State != "done" {
+		t.Fatalf("job = %+v, want done", done.Job)
 	}
-	if status != want {
-		t.Fatalf("status = %d (%+v), want %d", status, resp, want)
-	}
-	return resp
+	doJobs(t, path, http.MethodPost, server.JobsPath+"/"+started.Key+server.PublishSuffix, nil, http.StatusAccepted)
 }
 
-// blockingLLM creates ready, then waits until release exists, and then
-// succeeds. It gives up after blockLifetime. It ignores its context, as the
-// server never cancels a job's context.
-type blockingLLM struct {
+// blockingPublisher is a Webhook publisher whose post creates ready, then
+// waits until release exists, and then reports every message delivered. It
+// gives up after blockLifetime. It ignores its context, as the server never
+// cancels a post job's context.
+type blockingPublisher struct {
 	ready   string
 	release string
 }
 
-// Generate implements llm.LLMClient.
-func (b blockingLLM) Generate(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {
+// PostMessages implements server.WebhookPublisher.
+func (b blockingPublisher) PostMessages(_ context.Context, m publisher.SlackMessages, from int, delivered func(int)) error {
 	writeMarker(b.ready)
 	deadline := time.Now().Add(blockLifetime)
 	for time.Now().Before(deadline) {
 		if _, err := os.Stat(b.release); err == nil {
-			return validResponse(), nil
+			for i := from; i < m.Len(); i++ {
+				delivered(i)
+			}
+			return nil
 		}
 		time.Sleep(pollInterval)
 	}
-	return llm.GenerateResponse{}, errBlockExpired
+	return errBlockExpired
 }
 
 // writeMarker creates path by renaming a temporary file, so a reader never
@@ -548,7 +542,10 @@ func runChildMode(mode string) int {
 		main()
 		return exitFailure // main exits; this line is never reached
 	case childModeBlock:
-		d := testDeps(blockingLLM{ready: os.Getenv(childReadyEnv), release: os.Getenv(childReleaseEnv)})
+		d := testDeps(validResponseLLM())
+		d.newPublisher = func(secret.Secret) (server.WebhookPublisher, error) {
+			return blockingPublisher{ready: os.Getenv(childReadyEnv), release: os.Getenv(childReleaseEnv)}, nil
+		}
 		return signalrun.Run(func(ctx context.Context) int {
 			return run(ctx, os.Args[1:], os.LookupEnv, os.Stderr, d)
 		})

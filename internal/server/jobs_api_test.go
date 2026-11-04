@@ -3,7 +3,6 @@
 package server
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -16,7 +15,6 @@ import (
 	"time"
 
 	"github.com/isseis/yt2column/internal/articlecache"
-	"github.com/isseis/yt2column/internal/transcript"
 	"github.com/isseis/yt2column/internal/writer"
 	writertestutil "github.com/isseis/yt2column/internal/writer/testutil"
 )
@@ -66,22 +64,6 @@ func holdAtDraft(fake *writertestutil.FakeArticleWriter) (reached <-chan struct{
 	}}
 	var once sync.Once
 	return reachedCh, func() { once.Do(func() { close(releaseCh) }) }
-}
-
-// splitWriter holds the legacy job's Write at a gate and runs the job API's
-// WriteWithProgress through a fake, so one test can fill the generation slots
-// with a job of each API.
-type splitWriter struct {
-	gate *gateWriter
-	fake *writertestutil.FakeArticleWriter
-}
-
-func (w splitWriter) Write(ctx context.Context, t transcript.Transcript) (writer.Article, error) {
-	return w.gate.Write(ctx, t)
-}
-
-func (w splitWriter) WriteWithProgress(ctx context.Context, t transcript.Transcript, o writer.ProgressObserver) (writer.Article, error) {
-	return w.fake.WriteWithProgress(ctx, t, o)
 }
 
 // blockingBody is a request body whose first Read reports it on entered and
@@ -259,31 +241,24 @@ func TestStartRetriesFailed(t *testing.T) {
 	}
 }
 
-// TestStartGenerationSlotsShared fills the two generation slots with a legacy
-// job and a generation job, and checks that a new key is refused with
-// too_many_requests and stays unknown, while a running key and a done key are
-// still answered with their keys.
-func TestStartGenerationSlotsShared(t *testing.T) {
-	gate := newGateWriter()
-	fake := &writertestutil.FakeArticleWriter{Result: testArticle()}
-	reached, release := holdAtDraft(fake)
+// TestStartGenerationSlotsFull fills the generation slots with generation
+// jobs, and checks that a new key is refused with too_many_requests and stays
+// unknown, while a running key and a done key are still answered with their
+// keys.
+func TestStartGenerationSlotsFull(t *testing.T) {
 	ts := newJobsTestServer(t, jobsServerOptions{})
-	ts.Server.writer = splitWriter{gate: gate, fake: fake}
-	var once sync.Once
-	releaseGate := func() { once.Do(func() { close(gate.release) }) }
+	reached, release := holdAtDraft(ts.writer)
 	defer func() {
 		release()
-		releaseGate()
 		ts.waitJobs()
 	}()
 	doneKey := ts.seedDone(t, bodyWith("done"))
 
-	if rec := ts.serve(newRequest(http.MethodPost, ArticlesPath, strings.NewReader(bodyWith("legacy")))); rec.Code != http.StatusAccepted {
-		t.Fatalf("legacy request status = %d, want 202", rec.Code)
+	var runningKey string
+	for i := range maxInFlight {
+		runningKey = acceptedKey(t, ts.start(strings.NewReader(bodyWith(fmt.Sprint("running", i)))))
+		<-reached
 	}
-	<-gate.entered
-	runningKey := acceptedKey(t, ts.start(strings.NewReader(bodyWith("running"))))
-	<-reached
 	if len(ts.slots) != maxInFlight {
 		t.Fatalf("generation slots held = %d, want %d", len(ts.slots), maxInFlight)
 	}
@@ -296,30 +271,14 @@ func TestStartGenerationSlotsShared(t *testing.T) {
 	if !strings.Contains(ts.logs.String(), "detail=generation_slot") {
 		t.Errorf("the refusal does not log the generation slot detail:\n%s", ts.logs.String())
 	}
-	if got := acceptedKey(t, ts.start(strings.NewReader(bodyWith("running")))); got != runningKey {
+	if got := acceptedKey(t, ts.start(strings.NewReader(bodyWith(fmt.Sprint("running", maxInFlight-1))))); got != runningKey {
 		t.Errorf("running key resent: %s, want %s", got, runningKey)
 	}
 	if got := acceptedKey(t, ts.start(strings.NewReader(bodyWith("done")))); got != doneKey.String() {
 		t.Errorf("done key resent: %s, want %s", got, doneKey)
 	}
-	if calls := len(fake.RecordedCalls()); calls != 1 {
-		t.Errorf("generation writer calls = %d, want 1", calls)
-	}
-}
-
-// TestNewAPINeverNotifies checks that no generation failure and no key
-// rejection of the job API posts a failure notice. The body rejections are
-// checked for it by TestStartRejectsLikeArticles.
-func TestNewAPINeverNotifies(t *testing.T) {
-	ts := newJobsTestServer(t, jobsServerOptions{})
-	ts.writer.Err = errors.New("the provider refused")
-	acceptedKey(t, ts.startBody(validBody(testValidVideoURL, testValidRaw)))
-	ts.writer.Err = nil
-	ts.writer.Result = writer.Article{}
-	acceptedKey(t, ts.startBody(bodyWith("invalid article")))
-	requireRejected(t, ts.statusRequest("nope"), http.StatusBadRequest, "invalid_key")
-	if len(ts.notifier.Calls) != 0 {
-		t.Errorf("notifier calls = %+v, want none", ts.notifier.Calls)
+	if calls := len(ts.writer.RecordedCalls()); calls != maxInFlight {
+		t.Errorf("generation writer calls = %d, want %d", calls, maxInFlight)
 	}
 }
 
@@ -465,26 +424,43 @@ func TestStartCacheFull(t *testing.T) {
 	}
 }
 
-// TestArticlesIgnoresCache checks that the legacy endpoint neither reads nor
-// writes the article cache: the same input sent twice is generated and posted
-// twice, and its key stays unknown.
-func TestArticlesIgnoresCache(t *testing.T) {
-	ts := newJobsTestServer(t, jobsServerOptions{})
-	body := validBody(testValidVideoURL, testValidRaw)
-	for range 2 {
-		if rec := ts.serveAccepted(t, body); rec.Code != http.StatusAccepted {
-			t.Fatalf("status = %d, want 202", rec.Code)
-		}
-	}
-	if len(ts.writer.Calls) != 2 || len(ts.publisher.Calls) != 2 {
-		t.Errorf("writer calls = %d, publisher calls = %d, want 2 each", len(ts.writer.Calls), len(ts.publisher.Calls))
-	}
-	key := ts.keyer.Key(ts.validInput(t, body).key)
-	if state := ts.getStatus(t, key.String()).Job.State; state != "unknown" {
-		t.Errorf("key state = %q, want unknown", state)
-	}
-	if dump := ts.cache.DumpRecordsForTest(); dump != "" {
-		t.Errorf("the legacy endpoint added a record:\n%s", dump)
+// TestUnknownPathTouchesNothing checks that a target the server does not
+// serve is refused as not_found, closing the connection, whatever the method,
+// without reading a byte of the body or taking a slot: with every generation
+// and reading slot already taken the answer is still not_found, not
+// too_many_requests. No writer or Webhook call and no record follow.
+func TestUnknownPathTouchesNothing(t *testing.T) {
+	for _, method := range []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete} {
+		t.Run(method, func(t *testing.T) {
+			ts := newJobsTestServer(t, jobsServerOptions{})
+			for range maxInFlight {
+				ts.slots <- struct{}{}
+			}
+			for range maxReading {
+				ts.reading <- struct{}{}
+			}
+			body := &recordingReader{r: strings.NewReader(validBody(testValidVideoURL, testValidRaw))}
+			req := newRequest(method, "/unknown", io.NopCloser(body))
+			rec := ts.serve(req)
+			ts.waitJobs()
+			requireRejected(t, rec, http.StatusNotFound, "not_found")
+			if got := rec.Header().Get("Connection"); got != "close" {
+				t.Errorf("Connection = %q, want close", got)
+			}
+			if body.n != 0 {
+				t.Errorf("read %d bytes of the body, want 0", body.n)
+			}
+			if len(ts.slots) != maxInFlight || len(ts.reading) != maxReading {
+				t.Errorf("slots held: generation %d, reading %d, want the %d and %d the test took",
+					len(ts.slots), len(ts.reading), maxInFlight, maxReading)
+			}
+			if len(ts.writer.Calls) != 0 || len(ts.publisher.PostCalls) != 0 {
+				t.Errorf("side effects: writer=%d post=%d, want none", len(ts.writer.Calls), len(ts.publisher.PostCalls))
+			}
+			if dump := ts.cache.DumpRecordsForTest(); dump != "" {
+				t.Errorf("a rejected request added a record:\n%s", dump)
+			}
+		})
 	}
 }
 
@@ -580,7 +556,7 @@ func TestJobsTargetRejections(t *testing.T) {
 // TestStartHandlerPanicCleanup checks the start handler's recovery: a panic
 // after Begin and before the job takes over fails the record as internal and
 // frees both slots; a panic inside the body checks, before Begin, frees the
-// reading slot and adds no record. Neither posts a notice.
+// reading slot and adds no record.
 func TestStartHandlerPanicCleanup(t *testing.T) {
 	t.Run("after_begin", func(t *testing.T) {
 		ts := newJobsTestServer(t, jobsServerOptions{})
@@ -594,8 +570,8 @@ func TestStartHandlerPanicCleanup(t *testing.T) {
 		if len(ts.slots) != 0 || len(ts.reading) != 0 {
 			t.Errorf("slots held: generation %d, reading %d, want 0", len(ts.slots), len(ts.reading))
 		}
-		if len(ts.writer.Calls) != 0 || len(ts.notifier.Calls) != 0 {
-			t.Errorf("side effects: writer=%d notifier=%d, want none", len(ts.writer.Calls), len(ts.notifier.Calls))
+		if len(ts.writer.Calls) != 0 {
+			t.Errorf("writer calls = %d, want 0", len(ts.writer.Calls))
 		}
 	})
 	t.Run("body_check", func(t *testing.T) {
@@ -608,9 +584,6 @@ func TestStartHandlerPanicCleanup(t *testing.T) {
 		}
 		if len(ts.slots) != 0 || len(ts.reading) != 0 {
 			t.Errorf("slots held: generation %d, reading %d, want 0", len(ts.slots), len(ts.reading))
-		}
-		if len(ts.notifier.Calls) != 0 {
-			t.Errorf("notifier calls = %d, want 0", len(ts.notifier.Calls))
 		}
 	})
 }

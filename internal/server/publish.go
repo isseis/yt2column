@@ -10,12 +10,11 @@ import (
 	"github.com/isseis/yt2column/internal/publisher"
 )
 
-// WebhookPublisher posts to the Webhook: Publish for the legacy /articles job,
-// PostMessages for the publish operation. The production value is
-// *publisher.SlackWebhookPublisher, and a test uses the real publisher against
-// a loopback Webhook or a fake of this interface.
+// WebhookPublisher posts an article's messages to the Webhook for the publish
+// operation. The production value is *publisher.SlackWebhookPublisher, and a
+// test uses the real publisher against a loopback Webhook or a fake of this
+// interface.
 type WebhookPublisher interface {
-	publisher.Publisher
 	PostMessages(ctx context.Context, m publisher.SlackMessages, from int, delivered func(index int)) error
 }
 
@@ -31,7 +30,7 @@ type WebhookPublisher interface {
 // Ownership: the handler holds the PublishRun from BeginPublish until the
 // s.jobs.Go call in startPublish hands it to the job. Its recover fails the
 // post when it still holds the handle, so a panic never leaves a record
-// posting. Nothing on this operation posts a failure notice.
+// posting.
 func (s *Server) publishHandler(w http.ResponseWriter, r *http.Request, requestID, keyPart string) {
 	responded := false
 	var run *articlecache.PublishRun // non-nil while the handler owns it

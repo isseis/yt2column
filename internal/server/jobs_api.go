@@ -8,11 +8,33 @@ import (
 	"github.com/isseis/yt2column/internal/articlecache"
 )
 
+// maxInFlight is the number of generation slots, which bound the article
+// generations in progress: a generation job holds one while it generates. A
+// generation start that cannot take a slot is refused at once; there is no
+// queue.
+const maxInFlight = 2
+
 // maxReading is the number of reading slots: the generation starts that read
 // and validate a body at once. A body is up to maxBodyBytes and is held with
-// its parse while it is checked; two match the legacy endpoint, which reads a
-// body only while it holds one of the two generation slots.
+// its parse while it is checked, so at most two bodies, about 8 MiB, are held
+// at once.
 const maxReading = 2
+
+// acquireSlot takes one generation slot without waiting. It reports false
+// when every slot is taken.
+func (s *Server) acquireSlot() bool {
+	select {
+	case s.slots <- struct{}{}:
+		return true
+	default:
+		return false
+	}
+}
+
+// releaseSlot gives back one generation slot.
+func (s *Server) releaseSlot() {
+	<-s.slots
+}
 
 // acquireReading takes one reading slot without waiting. It reports false
 // when every slot is taken.
@@ -31,8 +53,8 @@ func (s *Server) releaseReading() {
 }
 
 // startHandler serves a generation start. It checks, in order, the method, a
-// reading slot (refused without reading the body when none is free), the body
-// as the legacy endpoint checks it, and then the key's record in the cache:
+// reading slot (refused without reading the body when none is free), the body,
+// and then the key's record in the cache:
 // a running or done key is answered with its key whatever the slots, a new or
 // failed key starts a generation when a generation slot is free, and every
 // other case is too_many_requests.
@@ -41,8 +63,7 @@ func (s *Server) releaseReading() {
 // the body, and the generation slot and the Run from Begin until the
 // s.jobs.Go call in startGeneration hands both to the job. Its recover fails
 // the Run and releases the generation slot when it still holds them, so a
-// panic never leaves a record running or a slot taken. Nothing on this
-// operation posts a failure notice.
+// panic never leaves a record running or a slot taken.
 func (s *Server) startHandler(w http.ResponseWriter, r *http.Request, requestID string) {
 	responded := false
 	var run *articlecache.Run // non-nil while the handler owns it and its slot
@@ -78,11 +99,12 @@ func (s *Server) startHandler(w http.ResponseWriter, r *http.Request, requestID 
 		responded = true
 		return
 	}
-	input, rej := s.readStartRequest(w, r, requestID)
+	input, rej := s.readStartRequest(w, r)
 	if rej != nil {
 		if rej.readFailed {
-			// As on the legacy endpoint: no response, only a log line, and an
-			// abort so net/http writes no implicit 200.
+			// A cut connection, a timeout, or a malformed chunked body: no
+			// response, only a log line, and an abort so net/http writes no
+			// implicit 200.
 			s.logger.Warn("request body read failed", "requestId", requestID, "error", rej.err)
 			responded = true
 			panic(http.ErrAbortHandler)
@@ -135,9 +157,9 @@ func (s *Server) startHandler(w http.ResponseWriter, r *http.Request, requestID 
 // readStartRequest reads and checks a generation start's body while the
 // caller holds a reading slot, and releases the slot when it returns, a panic
 // included.
-func (s *Server) readStartRequest(w http.ResponseWriter, r *http.Request, requestID string) (*jobInput, *rejection) {
+func (s *Server) readStartRequest(w http.ResponseWriter, r *http.Request) (*jobInput, *rejection) {
 	defer s.releaseReading()
-	return s.readRequest(w, r, requestID)
+	return s.readRequest(w, r)
 }
 
 // logEviction writes the one line for a record the cache dropped to make room.

@@ -270,17 +270,16 @@ flowchart LR
 - `internal/pipeline` orchestrates the stages; `internal/config` reads environment
   variables; `cmd/yt2column` wires everything together.
 
-Two entry points share the pipeline: the CLI (`cmd/yt2column`, above) and a
-localhost server (`cmd/yt2column-server` + `internal/server`) that takes a
-copied transcript from the browser extension over HTTP on a Unix domain socket,
-generates the article, returns it on request, and posts it to the Webhook when
-asked. The extension uses the server's job API only: its service worker sends
+Two entry points share the stages: the CLI (`cmd/yt2column`, above), which runs
+them through the pipeline, and a localhost server (`cmd/yt2column-server` +
+`internal/server`) that takes a copied transcript from the browser extension
+over HTTP on a Unix domain socket, generates the article, returns it on request,
+and posts it to the Webhook when asked. The extension uses the server's job API: its service worker sends
 the generation start, the popup and the viewer poll the status, and the viewer
 sends a publish on the user's press. The server's supporting packages are
 `internal/serversock` (the socket directory, the start lock, and the socket
-itself), `internal/failure` (the `Kind`/`Notice`/`Notifier` contract it reports
-a failed request with), `internal/redact` (secret redaction for every output),
-and `internal/signalrun` (signal handling both entry points share). The
+itself), `internal/redact` (secret redaction for every output), and
+`internal/signalrun` (signal handling both entry points share). The
 extension does not connect to the socket itself: the browser starts the Native
 Messaging host (`cmd/yt2column-nmhost` + `internal/nmhost`), which relays one
 request to the socket per exchange and manages its own manifest with `install` and
