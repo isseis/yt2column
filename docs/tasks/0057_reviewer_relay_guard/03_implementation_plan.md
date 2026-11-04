@@ -298,10 +298,10 @@
 
 **変更するファイル:** `docs/dev/guides/fixprguard_guide.md`
 
--   [ ] 1 章の役割分担の表の `fixprguard` の行と、7.2.4 の一覧（ガイド:350）を、設計書 3.8 のとおりに改める。
--   [ ] 7.2.3 の「同じパッケージの `.go` のファイル」「ファイルシステムの Unicode の畳み込みによる別名」「確認への慣れ」に、第三者が Codex や CodeRabbit を介してその状況に至りうることも書き加える（1.3）。
--   [ ] 7.2 の最後（7.2.5 の後、8 章の前）に「#### 7.2.6」を加え、要件書 4.2 の 10 項目の残余のリスクのうち 7.2.3 にないものと、設計書 5.3 の分かっていることを書く。
--   [ ] 要件書 4.2 の 10 項目が、7.2.3 と 7.2.6 のどこかにすべて書かれていることを、項目ごとに確かめる（AC-21。`manual`）。
+-   [x] 1 章の役割分担の表の `fixprguard` の行と、7.2.4 の一覧（ガイド:350）を、設計書 3.8 のとおりに改める。
+-   [x] 7.2.3 の「同じパッケージの `.go` のファイル」「ファイルシステムの Unicode の畳み込みによる別名」「確認への慣れ」に、第三者が Codex や CodeRabbit を介してその状況に至りうることも書き加える（1.3）。
+-   [x] 7.2 の最後（7.2.5 の後、8 章の前）に「#### 7.2.6」を加え、要件書 4.2 の 10 項目の残余のリスクのうち 7.2.3 にないものと、設計書 5.3 の分かっていることを書く。
+-   [x] 要件書 4.2 の 10 項目が、7.2.3 と 7.2.6 のどこかにすべて書かれていることを、項目ごとに確かめる（AC-21。`manual`）。7 項目（制限が外れている間の経路、`make` が使える秘密、push の制限の bypass、Bot による `main` へのマージ、ガイドの `sh` のブロック、設定を外した場合と設定する前の期間、新しい自動レビュアー）は 7.2.6 に、3 項目（`.go` のファイル、Unicode の畳み込みによる別名、確認への慣れ）は 7.2.3 にある。
 
 **成功の条件:** 文書のガードが通る（`subsection(guide, "### 7.2")` が 7.2.6 を含む）。
 
@@ -309,8 +309,8 @@
 
 **変更するファイル:** `docs/translation_glossary.md`、`docs/dev/conventions/package_reference.md`
 
--   [ ] 用語集の「実行関連ファイル」の説明（`:113`）を、設計書 3.8 のとおりに改める。「interaction limits」「作成の制限」「push の制限」を、要件書 6 章の定義で加える（AC-23）。
--   [ ] `package_reference.md` の `cmd/fixprguard` の行（`:15`）と `internal/fixprguard` の行（`:25`）を、設計書 3.8 のとおりに英語で改める。`NewGitHubWithoutReviewer` で呼べる呼び出しの一覧に `InteractionLimits` を加える。
+-   [x] 用語集の「実行関連ファイル」の説明（`:113`）を、設計書 3.8 のとおりに改める。「interaction limits」「作成の制限」「push の制限」を、要件書 6 章の定義で加える（AC-23）。
+-   [x] `package_reference.md` の `cmd/fixprguard` の行（`:15`）と `internal/fixprguard` の行（`:25`）を、設計書 3.8 のとおりに英語で改める。`NewGitHubWithoutReviewer` で呼べる呼び出しの一覧に `InteractionLimits` を加える。
 
 **成功の条件:** PR-3 のレビューで読む。
 
@@ -318,11 +318,11 @@
 
 **変更するファイル:** `docs/tasks/0030_fixpr_untrusted_threads/01_requirements.md`、`docs/tasks/0030_fixpr_untrusted_threads/02_architecture.md`、`docs/tasks/0036_fixprguard_exec_file_scope/01_requirements.md`、`docs/tasks/0036_fixprguard_exec_file_scope/02_architecture.md`、`docs/tasks/0057_reviewer_relay_guard/_checks/notes_only.sh`（新規）、`docs/tasks/0057_reviewer_relay_guard/03_implementation_plan.md`（AC-22 の記録）
 
--   [ ] 設計書 3.8 の表の節ごとに、節の初めに `> **注記（タスク 0057）:** ...` の引用ブロックを 1 つ加える。注記には設計書 3.8 の 4 点のうち節の内容に合うものと、本タスクの要件書と設計書への参照を書く（AC-22）。本文の規則、状態の表、`Comments` は変えない。
--   [ ] コミットメッセージに、文書ごとに 1 行の訂正の行（`Editorial correction: <document path>: ...; no decision changed`）を書く（`requirements_process.md`「Recording in the PR description」）。
--   [ ] `_checks/notes_only.sh <upstream> <head>` を書く。merge-base と head の間で、4 つの文書のそれぞれについて次を確かめる。(1) 文書が変わっている。(2) 差分に消した行がなく、加えた行はどれも `>` で始まるか空である。(3) `## Document Status` の表と、`## 変更履歴` の節（ある場合）がバイト単位で同じである。(4) 設計書 3.8 の表の節ごとに、`> **注記（タスク 0057）:**` で始まる引用ブロックがちょうど 1 つ加わっている。引数・出力・終了コード・使い方の書き方は、`docs/tasks/0056_legacy_approval_history/_checks/task_docs_unchanged.sh` の形に合わせる（POSIX の `sh` と `git`）。
--   [ ] `_checks/notes_only.sh origin/main HEAD` を PR のブランチで 1 回実行し、出力と 2 つのコミット ID を 7 章の AC-22 の行に記録する。
--   [ ] 壊して確かめる: 次のそれぞれを一時的なコミットで作り、それに対して実行して終了コード `1` になることを確かめ、一時的なコミットを捨てる。状態の表の 1 文字の変更、本文の 1 行の書き換え、`>` で始まらない行の追加、ある節の注記の削除、ある節への 2 つ目の注記、1 つの文書の変更の取り消し。結果を AC-22 の行に書く。
+-   [x] 設計書 3.8 の表の節ごとに、節の初めに `> **注記（タスク 0057）:** ...` の引用ブロックを 1 つ加える。注記には設計書 3.8 の 4 点のうち節の内容に合うものと、本タスクの要件書と設計書への参照を書く（AC-22）。本文の規則、状態の表、`Comments` は変えない。
+-   [x] コミットメッセージに、文書ごとに 1 行の訂正の行（`Editorial correction: <document path>: ...; no decision changed`）を書く（`requirements_process.md`「Recording in the PR description」）。
+-   [x] `_checks/notes_only.sh <upstream> <head>` を書く。merge-base と head の間で、4 つの文書のそれぞれについて次を確かめる。(1) 文書が変わっている。(2) 差分に消した行がなく、加えた行はどれも `>` で始まるか空である。(3) `## Document Status` の表と、`## 変更履歴` の節（ある場合）がバイト単位で同じである。(4) 設計書 3.8 の表の節ごとに、`> **注記（タスク 0057）:**` で始まる引用ブロックがちょうど 1 つ加わっている。引数・出力・終了コード・使い方の書き方は、`docs/tasks/0056_legacy_approval_history/_checks/task_docs_unchanged.sh` の形に合わせる（POSIX の `sh` と `git`）。
+-   [x] `_checks/notes_only.sh origin/main HEAD` を PR のブランチで 1 回実行し、出力と 2 つのコミット ID を 7 章の AC-22 の行に記録する。
+-   [x] 壊して確かめる: 次のそれぞれを一時的なコミットで作り、それに対して実行して終了コード `1` になることを確かめ、一時的なコミットを捨てる。状態の表の 1 文字の変更、本文の 1 行の書き換え、`>` で始まらない行の追加、ある節の注記の削除、ある節への 2 つ目の注記、1 つの文書の変更の取り消し。結果を AC-22 の行に書く。
 
 **成功の条件:** スクリプトが終了コード `0` で終わり、6 つの壊した場合のどれもが終了コード `1` になる。
 
@@ -413,7 +413,7 @@
 | AC-19 | `cmd/fixprguard/main_test.go::TestProtocolMismatch`（`Protocol + 1` と `Protocol - 1`、`interaction-limits` を含むすべてのサブコマンド）、`cmd/fixprguard/docs_test.go::TestDocumentedProtocolMatches` | test・static | ステップ 2-4・3-1 |
 | AC-20 | ガイド 6 章の規則 4 と判定の順序を PR-2 のレビューで読む | manual | ステップ 3-4 |
 | AC-21 | ガイド 7.2.3・7.2.6 を PR-3 のレビューで読み、要件書 4.2 の 10 項目と照らす | manual | ステップ 4-1 |
-| AC-22 | `docs/tasks/0057_reviewer_relay_guard/_checks/notes_only.sh origin/main HEAD`（記録: 未。merge-base と head のコミット ID、出力、6 つの壊した場合の終了コードを書く）。注記の文面は PR-3 のレビューで読む | diff・manual | ステップ 4-3 |
+| AC-22 | `docs/tasks/0057_reviewer_relay_guard/_checks/notes_only.sh origin/main HEAD`（記録: merge-base `0fa614feb75b44119e224770fd958a43e800beb9`、head `97b42c503954482599017e09cdc56fa20e1e7bc9`。出力は「the four documents add one task 0057 note per listed section and change nothing else」で終了コード `0`。この head は 4 つの文書を最後に変えたコミットで、記録を加えるコミットは 4 つの文書を変えない。壊して確かめた 6 つの場合は、どれも終了コード `1` だった: 状態の表の 1 文字の変更は `1`（`removes a line or adds one that does not start with >`。加えて、`>` で始まる行だけを状態の表に加えた場合も `1` で `changed its Document Status table`）、本文の 1 行の書き換えは `1`、`>` で始まらない行の追加は `1`、ある節の注記の削除は `1`（`does not hold exactly 3 task 0057 notes` と `section "### 7.1. ユニットテスト（scope_test.go）" holds 0 task 0057 notes, not 1`）、ある節への 2 つ目の注記は `1`（`does not hold exactly 2 task 0057 notes`）、1 つの文書の変更の取り消しは `1`（`did not change`））。注記の文面は PR-3 のレビューで読む | diff・manual | ステップ 4-3 |
 | AC-23 | 用語集の項目を PR-3 のレビューで読む | manual | ステップ 4-2 |
 | AC-24 | 各 PR の `make test`・`make lint` と CI の `doc-guard` | static | すべてのステップ |
 | AC-25 | `internal/fixprguard/limits_test.go`（`none`・`weak`・`predates`・`unverifiable` の分類と、分類の順序の行）。`runpr.md` がその場で止まることと報告の内容は PR-2 のレビューで読む | test・manual | ステップ 2-3・3-2 |
