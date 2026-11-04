@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-04 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-04 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -209,3 +209,7 @@ CLI の投稿のためだけにある型・メソッド・設定の読み出し�
 -   **送る前の検査と分割**: 記事を Slack 向けのメッセージにする前の検査（メンションになりうる書式の拒否など）と、メッセージの上限に合わせた分割。`PrepareSlackMessages` が行う。
 -   **出力先**: CLI が記事を書く先。本タスクの後は `--out` のファイルだけになる。
 -   **センチネルエラー**: `errors.Is` で見分ける、パッケージが定義した固有のエラーの値。
+
+## 変更履歴
+
+- 2026-11-04 承認（isseis、#665）
