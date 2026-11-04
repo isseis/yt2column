@@ -93,13 +93,17 @@ Include the following section at the top of `01_requirements.md`, `02_architectu
 | Comments | The reason for the current status (or `-` if none) |
 ```
 
-Five places hold a record about a task document, chosen by who reads it and
+Six places hold a record about a task document, chosen by who reads it and
 when. `Comments` holds what the reviewer needs to know about the current status
 now. The change history holds the status transitions, for every later reader.
 A `…で決めたこと（YYYY-MM-DD）` section of the body holds a decision and its
 reason. The PR description holds what that PR's reviewer reads once, such as an
 editorial correction. The commit message holds the correction line the PR
-description is written from. A **status transition** is one of four events:
+description is written from. An ADR under `docs/dev/adr/` holds a major
+decision across tasks: its current form, its reasons, the alternatives not
+taken, and its history; the task document that makes or changes the decision
+records it in its `…で決めたこと` section as well and links to the ADR
+([adr.md](adr.md), and `CLAUDE.md`, "Design decisions (ADR)"). A **status transition** is one of four events:
 **approval** (`/runpr` sets the document to `approved`, the first time or after
 a return to `draft`), **`draft` revert** (a decision change returns an approved
 document to `draft`), **session re-approval** (`/runplan`'s reviewer approves a
@@ -381,7 +385,7 @@ above says.
 
 #### Withdrawing a task
 
-When a task is withdrawn after review (for example, a feasibility check shows the requirements cannot be met), set the status of every task document that exists to `withdrawn`, whatever its previous status. Set `Comments` to the date and the reason, or a link to the document that records it ("Comments" above), and append a withdrawal line to the change history ("Change history" above; `#未記入` when the line is written before its PR exists), migrating a document without a change history first. A `withdrawn` document is not `approved`, so the commands that require an approved document (`/mkarch`, `/mkplan`, `/runplan`) stop on it.
+When a task is withdrawn after review (for example, a feasibility check shows the requirements cannot be met), set the status of every task document that exists to `withdrawn`, whatever its previous status. Set `Comments` to the date and the reason, or a link to the document that records it ("Comments" above), and append a withdrawal line to the change history ("Change history" above; `#未記入` when the line is written before its PR exists), migrating a document without a change history first. A `withdrawn` document is not `approved`, so the commands that require an approved document (`/mkarch`, `/mkplan`, `/runplan`) stop on it. When the task created or changed an ADR, fix the ADR in the withdrawal PR as [adr.md](adr.md), "Changing, retiring, and withdrawing", says.
 
 ---
 

@@ -164,12 +164,12 @@
 
 **変更するファイル:** `CLAUDE.md`、`docs/dev/conventions/requirements_process.md`
 
--   [ ] `CLAUDE.md` の「## Documents」の章に、小節「Design decisions (ADR)」を足す。中身は設計書 3.3 節の規則（AC-14）・基準（AC-15）・分担（AC-16）で、規約と CLAUDE.md の両方に書く 3 つの内容の直後に、規約を指す文を置く。
--   [ ] `CLAUDE.md` の Quick Links の「Project:」に、索引（`docs/dev/adr/README.md`）と規約（`docs/dev/conventions/adr.md`）を足す（AC-17）。索引の説明には、設計の前に今の決定と理由を探す入口であることを書く。
--   [ ] `CLAUDE.md` の「Document language」の原則 (a) の一覧に、`docs/dev/adr/` の ADR と索引を足す（設計書 3.3 節）。
--   [ ] `CLAUDE.md` の Development Notes の、文書を読む guard の一覧（「the other text-sync guards that read documents」）に ADR の guard を足す（設計書 3.3 節）。
--   [ ] `requirements_process.md` の「Five places hold a record about a task document」の段落を、設計書 3.5.2 節のとおり 6 つ目の置き場所として ADR を挙げる形に改める。段落の冒頭の数を、挙げた置き場所の数に合わせる（AC-18）。
--   [ ] `requirements_process.md` の「Withdrawing a task」に、規約の取り下げの規則を参照する 1 文を足す（設計書 3.5.2 節）。
+-   [x] `CLAUDE.md` の「## Documents」の章に、小節「Design decisions (ADR)」を足す。中身は設計書 3.3 節の規則（AC-14）・基準（AC-15）・分担（AC-16）で、規約と CLAUDE.md の両方に書く 3 つの内容の直後に、規約を指す文を置く。
+-   [x] `CLAUDE.md` の Quick Links の「Project:」に、索引（`docs/dev/adr/README.md`）と規約（`docs/dev/conventions/adr.md`）を足す（AC-17）。索引の説明には、設計の前に今の決定と理由を探す入口であることを書く。
+-   [x] `CLAUDE.md` の「Document language」の原則 (a) の一覧に、`docs/dev/adr/` の ADR と索引を足す（設計書 3.3 節）。
+-   [x] `CLAUDE.md` の Development Notes の、文書を読む guard の一覧（「the other text-sync guards that read documents」）に ADR の guard を足す（設計書 3.3 節）。
+-   [x] `requirements_process.md` の「Five places hold a record about a task document」の段落を、設計書 3.5.2 節のとおり 6 つ目の置き場所として ADR を挙げる形に改める。段落の冒頭の数を、挙げた置き場所の数に合わせる（AC-18）。
+-   [x] `requirements_process.md` の「Withdrawing a task」に、規約の取り下げの規則を参照する 1 文を足す（設計書 3.5.2 節）。
 
 **完了の条件:** `go test -tags test ./cmd/yt2column` が通る。
 
