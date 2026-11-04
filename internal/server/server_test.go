@@ -136,10 +136,9 @@ func TestNewWebhookOptions(t *testing.T) {
 	}
 }
 
-// TestNewCopiesWebhookOptions checks that the server keeps the Webhook
-// collaborators it was built with, so a caller that clears its WebhookOptions
-// afterwards changes nothing: a publish operation still posts through the
-// publisher it was built with.
+// TestNewCopiesWebhookOptions checks that the server keeps the publisher it
+// was built with, so a caller that clears its WebhookOptions afterwards
+// changes nothing: a publish operation still posts through that publisher.
 func TestNewCopiesWebhookOptions(t *testing.T) {
 	pub := &publishertestutil.FakePublisher{}
 	notifier := &failuretestutil.FakeNotifier{}
@@ -158,7 +157,7 @@ func TestNewCopiesWebhookOptions(t *testing.T) {
 	if !s.webhookConfigured() {
 		t.Error("webhookConfigured() = false after the caller cleared its options")
 	}
-	ts := &testServer{Server: s}
+	ts := &testServer{Server: s, publisher: pub, logs: &bytes.Buffer{}}
 	key := ts.seedDone(t, validBody(testValidVideoURL, testValidRaw))
 	rec := ts.publishRequest(key.String())
 	ts.waitJobs()

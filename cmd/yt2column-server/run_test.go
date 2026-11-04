@@ -285,9 +285,12 @@ type gatedPublisher struct {
 }
 
 // PostMessages implements server.WebhookPublisher.
-func (g gatedPublisher) PostMessages(context.Context, publisher.SlackMessages, int, func(int)) error {
+func (g gatedPublisher) PostMessages(_ context.Context, m publisher.SlackMessages, from int, delivered func(int)) error {
 	g.entered <- struct{}{}
 	<-g.release
+	for i := from; i < m.Len(); i++ {
+		delivered(i)
+	}
 	return nil
 }
 

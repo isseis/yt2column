@@ -224,7 +224,7 @@ localhost サーバの旧 API（`POST /articles`）・旧 API のジョブ・失
 - [x] `TestExpectContinueOversizedBodyNotSent`・`TestUnparsableRequestBypassesHandler`・`TestServeOnUnixListener`・`TestServeListenerFailureStops` を、ジョブの API で確かめ直す。ソケットへ送る補助は、ジョブの API へ送るものを別に加える（`postOnUnix` は残すテストが使うので、ステップ 3-2 で削除する）。
 - [x] `TestNewCopiesWebhookOptions` を、投稿の操作で、渡した後に書き換えた `WebhookOptions` が使われないことを確かめる形に作り直す。
 - [x] `TestPublishWithoutWebhook` の `with_body` の行で、本文を読んだバイト数が 0 であることも確かめる（削除する `TestArticlesWithoutWebhook` が確かめていた性質。1.4 節）。
-- [x] `TestStartGenerationSlotsShared` を `TestStartGenerationSlotsFull` に改め、2 つの生成のジョブで生成の枠を埋める形にする（1.5 節）。使う所がなくなる `splitWriter` は削除する。
+- [x] `TestStartGenerationSlotsShared` を `TestStartGenerationSlotsFull` に改め、2 つの生成のジョブで生成の枠を埋める形にする（1.5 節）。使う所がなくなる `splitWriter` は削除する。生成のジョブだけが枠を取ることは、`publish_test.go` の `TestPostJobTakesNoGenerationSlot`（投稿のジョブが送信を待つ間、生成の枠が空いていて、枠の数だけ生成を始められる）で確かめる。
 - [x] `TestPublishPostsLikeArticles` を `TestPublishPostsLikeCLI` に改め、同じ記事を `SlackWebhookPublisher.Publish` で同じループバックの Webhook へ送ったメッセージと、投稿の操作が送るメッセージが一致することを確かめる（設計書 7.1 節）。
 
 **完了の条件:** `go test -tags test ./internal/server/` が通る。

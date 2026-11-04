@@ -120,6 +120,37 @@ func TestPublishRespondsBeforeWebhook(t *testing.T) {
 	}
 }
 
+// TestPostJobTakesNoGenerationSlot checks that a post job in flight holds no
+// generation slot: while it waits for the Webhook, every generation slot is
+// free and as many new generations as there are slots are still started.
+func TestPostJobTakesNoGenerationSlot(t *testing.T) {
+	ts, hook := newWebhookTestServer(t)
+	reached, releaseGeneration := holdAtDraft(ts.writer)
+	key := ts.seedDone(t, validBody(testValidVideoURL, testValidRaw)).String()
+	hold := make(chan struct{})
+	hook.set(0, hold)
+	var once sync.Once
+	release := func() { once.Do(func() { close(hold) }) }
+	defer func() {
+		release()
+		releaseGeneration()
+		ts.waitJobs()
+	}()
+
+	requireAccepted(t, ts.publishRequest(key))
+	waitEntered(t, hook)
+	if len(ts.slots) != 0 {
+		t.Fatalf("generation slots held by the post job = %d, want 0", len(ts.slots))
+	}
+	for i := range maxInFlight {
+		acceptedKey(t, ts.start(strings.NewReader(bodyWith(strconv.Itoa(i)))))
+		<-reached
+	}
+	if len(ts.slots) != maxInFlight {
+		t.Errorf("generation slots held = %d, want %d", len(ts.slots), maxInFlight)
+	}
+}
+
 // TestPublishIdempotent checks that a publish operation repeated while the
 // first post runs and after it ended is answered 202 and posts nothing more.
 func TestPublishIdempotent(t *testing.T) {
