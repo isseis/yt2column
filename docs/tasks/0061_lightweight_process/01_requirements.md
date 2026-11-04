@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-04 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-04 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -330,3 +330,7 @@
 -   **手で書いた行・手で変更したファイル:** 道具が生成した行（AC-02 の例外）を除いた、diff の行とファイル。
 -   **確かめ直し:** 実装の後に、実際の diff で F-001 の機械的に確かめられる条件を確かめること。
 -   用語は `docs/translation_glossary.md` と統一する。
+
+## 変更履歴
+
+- 2026-11-04 承認（isseis、#660）
