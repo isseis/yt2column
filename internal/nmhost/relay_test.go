@@ -317,6 +317,9 @@ func requireStage(t *testing.T, log string, want stage) {
 }
 
 // countedRaw is serveRaw that counts the requests whose head the server read.
+// The count is taken in the server's goroutine, which a host that gave up
+// waiting does not synchronize with, so the returned function waits up to
+// testTimeout for the first request before reading the count.
 func countedRaw(t *testing.T, serve func(net.Conn)) (Dialer, func() int32) {
 	t.Helper()
 	var n atomic.Int32
@@ -324,7 +327,13 @@ func countedRaw(t *testing.T, serve func(net.Conn)) (Dialer, func() int32) {
 		n.Add(1)
 		serve(conn)
 	})
-	return SocketDialer(path), n.Load
+	return SocketDialer(path), func() int32 {
+		deadline := time.Now().Add(testTimeout)
+		for n.Load() == 0 && time.Now().Before(deadline) {
+			time.Sleep(time.Millisecond)
+		}
+		return n.Load()
+	}
 }
 
 // TestRelayForwardsOneRequest checks what the per-operation tests leave out:

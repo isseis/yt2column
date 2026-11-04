@@ -431,11 +431,11 @@ M1 は M2〜M4 に依存しない。設計書 8 章のとおり、ホストを�
 | AC-07 | static | `_checks/residue`（`WebhookPublisher` のメソッド、`internal/server`・`cmd/yt2column-server` の依存に `internal/pipeline` がないこと、`.Publish` のセレクタ式） | 3-4・4-3 |
 | AC-08 | static・manual | static: `_checks/residue`（コメントと文字列リテラルの語）、`cmd/yt2column-server/run_test.go::TestStartsWithoutWebhook`（警告）・`TestRunLogsListeningAndStop`（停止の案内）、`internal/server/server_test.go::TestServeShutdownCancelsGeneration`（シャットダウンのログ）。manual: PR-2 のレビューで、コメントの文の意味を読む | 3-2・3-4・4-3 |
 | AC-09 | test | `internal/nmhost/relay_test.go::TestRelayNewFormOperations`・`TestRelayKeyPassedUnchecked`・`TestRelayNewFormRejections`・`TestRelayLengthChecks`・`TestRelayResponseOverLimit`・`TestRelayNewFormTimeout`、`cmd/yt2column-server/relay_e2e_test.go::TestRelayEndToEnd/new_form_operations` | 1-2・1-3 |
-| AC-10 | test | ステップ 1-3 で `TestRelayLegacyBytesUnchanged` を置き換えるテスト（`internal/nmhost/relay_test.go`、`rule=version` の行）、`TestRelayNewFormRejections`（版の検査の順序の 2 行）、`TestRelayEndToEnd` に加えるサブテスト | 1-3 |
-| AC-11 | test | ステップ 1-3 で置き換えるテスト（`rule=object` の 5 種類の行） | 1-3 |
+| AC-10 | test | `internal/nmhost/relay_test.go::TestRelayRejectsOtherForms`（`TestRelayLegacyBytesUnchanged` を置き換えたテスト、`rule=version` の行）、`TestRelayNewFormRejections`（版の検査の順序の 2 行）、`cmd/yt2column-server/relay_e2e_test.go::TestRelayEndToEnd/message_without_version_is_rejected` | 1-3 |
+| AC-11 | test | `internal/nmhost/relay_test.go::TestRelayRejectsOtherForms`（`rule=object` の 5 種類の行） | 1-3 |
 | AC-12 | test・diff | test: `extension/test/native.test.ts`（`protocol_error` を想定外の応答として表示する、`make ext-test`）。diff: `_checks/residue`（`extension/` が merge-base から変わっていない） | 1-4・1-5・4-3 |
 | AC-13 | static・test | `_checks/residue`（`internal/nmhost` の今の形の値の宣言と、テストでないファイルの `/articles` の文字列の不在）、`internal/nmhost/relay_test.go::TestRequestRefusesUnroutable` | 1-3・1-5 |
-| AC-14 | test | ステップ 1-3 で置き換えるテスト（ログに固定の値だけを書く）、`internal/nmhost/relay_test.go::TestRelayNewFormLogOmitsMessage` | 1-3 |
+| AC-14 | test | `internal/nmhost/relay_test.go::TestRelayRejectsOtherForms`（ログに固定の値だけを書く）、`internal/nmhost/relay_test.go::TestRelayNewFormLogOmitsMessage` | 1-3 |
 | AC-15 | test | `cmd/yt2column-server/run_test.go::TestRunLogsListeningAndStop`、ステップ 3-2 で加える分を求める関数の表のテスト | 3-2 |
 | AC-16 | test | `internal/server/server_test.go::TestServeShutdownCancelsGeneration`・`TestServeShutdownCancelsLateStart` | 3-2 |
 | AC-17 | test | `cmd/yt2column-server/signal_test.go::TestSignalWaitsForJob`・`TestSecondSignalExitsAtOnce`、`run_test.go::TestStartDuringShutdownRefused`、`internal/server/publish_test.go::TestServeShutdownWaitsForPublish`・`server_test.go::TestServeShutdownCancelsGeneration` | 2-2・3-2 |

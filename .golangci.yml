@@ -125,8 +125,8 @@ linters:
               desc: "internal/articlecache must not import internal/server (the server imports the cache)"
         # The Native Messaging host relays bytes, parsing a message only to
         # check it against the message rules and choose the server's path for
-        # it (it checks only that the article input is an object, and leaves
-        # the server's reply uninterpreted): it
+        # it; it never interprets the article input beyond checking that it is
+        # an object, and leaves the server's reply uninterpreted. It
         # must not know the server's types, it is handed the socket path
         # and HOME by its entry point instead of reading the configuration,
         # and it starts no other program.

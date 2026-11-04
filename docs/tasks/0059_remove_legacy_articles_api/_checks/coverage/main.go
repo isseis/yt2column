@@ -57,9 +57,6 @@ import (
 // tag. The tag must end there, so a tag such as "testing" is not matched.
 var testConstraint = regexp.MustCompile(`^//go:build test([^A-Za-z0-9_.]|$)`)
 
-// stopf returns a failure that makes the comparison impossible.
-func stopf(format string, args ...any) error { return fmt.Errorf(format, args...) }
-
 func main() {
 	if len(os.Args) != 5 {
 		fmt.Fprintln(os.Stderr, "usage: coverage <before-commit> <after-commit> <before.txt> <after.txt>")
@@ -76,7 +73,7 @@ func main() {
 	fmt.Printf("before  %s %s (%d product functions)\n", os.Args[1], os.Args[3], len(before))
 	fmt.Printf("after   %s %s (%d product functions)\n", os.Args[2], os.Args[4], len(after))
 	if len(before) == 0 || len(after) == 0 {
-		stop("compare", stopf("a side has no product function"))
+		stop("compare", fmt.Errorf("a side has no product function"))
 	}
 	os.Exit(report(before, after))
 }
@@ -139,7 +136,7 @@ func load(commit, output string) (map[string]float64, error) {
 	}
 	data, err := os.ReadFile(output)
 	if err != nil {
-		return nil, stopf("read %s: %v", output, err)
+		return nil, fmt.Errorf("read %s: %v", output, err)
 	}
 	files := map[string]*sourceFile{}
 	out := map[string]float64{}
@@ -150,24 +147,24 @@ func load(commit, output string) (map[string]float64, error) {
 			continue
 		}
 		if len(fields) != 3 {
-			return nil, stopf("unexpected line %q", scanner.Text())
+			return nil, fmt.Errorf("unexpected line %q", scanner.Text())
 		}
 		location, name, percent := fields[0], fields[1], fields[2]
 		file, lineText, ok := strings.Cut(strings.TrimSuffix(location, ":"), ":")
 		if !ok {
-			return nil, stopf("no line number in %q", location)
+			return nil, fmt.Errorf("no line number in %q", location)
 		}
 		line, err := strconv.Atoi(lineText)
 		if err != nil {
-			return nil, stopf("line number in %q: %v", location, err)
+			return nil, fmt.Errorf("line number in %q: %v", location, err)
 		}
 		value, err := strconv.ParseFloat(strings.TrimSuffix(percent, "%"), 64)
 		if err != nil || !strings.HasSuffix(percent, "%") {
-			return nil, stopf("coverage in %q is not a percentage", scanner.Text())
+			return nil, fmt.Errorf("coverage in %q is not a percentage", scanner.Text())
 		}
 		rel, ok := strings.CutPrefix(file, module+"/")
 		if !ok {
-			return nil, stopf("file %q is outside the module %s", file, module)
+			return nil, fmt.Errorf("file %q is outside the module %s", file, module)
 		}
 		src, ok := files[rel]
 		if !ok {
@@ -182,19 +179,19 @@ func load(commit, output string) (map[string]float64, error) {
 		}
 		recv, err := src.receiverAt(line, name)
 		if err != nil {
-			return nil, stopf("%s at %s: %v", location, commit, err)
+			return nil, fmt.Errorf("%s at %s: %v", location, commit, err)
 		}
 		key := path.Dir(rel) + " " + name
 		if recv != "" {
 			key = path.Dir(rel) + " " + recv + "." + name
 		}
 		if _, dup := out[key]; dup {
-			return nil, stopf("%s maps to %s, which another function of the output at %s maps to too", location, key, commit)
+			return nil, fmt.Errorf("%s maps to %s, which another function of the output at %s maps to too", location, key, commit)
 		}
 		out[key] = value
 	}
 	if err := scanner.Err(); err != nil {
-		return nil, stopf("read %s: %v", output, err)
+		return nil, fmt.Errorf("read %s: %v", output, err)
 	}
 	return out, nil
 }
@@ -210,7 +207,7 @@ func modulePath(commit string) (string, error) {
 			return strings.TrimSpace(rest), nil
 		}
 	}
-	return "", stopf("go.mod at %s declares no module", commit)
+	return "", fmt.Errorf("go.mod at %s declares no module", commit)
 }
 
 // sourceFile is one Go file at a commit.
@@ -232,7 +229,7 @@ func readSource(commit, rel string) (*sourceFile, error) {
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, rel, data, parser.SkipObjectResolution)
 	if err != nil {
-		return nil, stopf("parse %s at %s: %v", rel, commit, err)
+		return nil, fmt.Errorf("parse %s at %s: %v", rel, commit, err)
 	}
 	return &sourceFile{product: true, fset: fset, file: file}, nil
 }
@@ -299,7 +296,7 @@ func receiverName(fn *ast.FuncDecl) string {
 func gitShow(commit, rel string) ([]byte, error) {
 	out, err := exec.Command("git", "show", commit+":"+rel).Output() //nolint:gosec // a commit and path this tool was given
 	if err != nil {
-		return nil, stopf("git show %s:%s: %v", commit, rel, err)
+		return nil, fmt.Errorf("git show %s:%s: %v", commit, rel, err)
 	}
 	return out, nil
 }

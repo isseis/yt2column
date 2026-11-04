@@ -18,7 +18,9 @@
 //   - host: at head, internal/nmhost declares none of articlesURL, form,
 //     formLegacy, and formNew at the top level, its type destination has no
 //     field named form, and no string literal in a non-test file of
-//     internal/nmhost or cmd/yt2column-nmhost contains "/articles". A non-test
+//     internal/nmhost or cmd/yt2column-nmhost contains "/articles" (each
+//     literal is checked alone, so a target split across a concatenation is
+//     not found; the declaration checks name the retired values). A non-test
 //     file is a Go file whose name does not end in _test.go and whose first
 //     //go:build line does not start with the test tag.
 //   - extension: extension/ is the same at the merge-base and at head.

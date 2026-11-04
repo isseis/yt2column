@@ -101,8 +101,8 @@ func TestRelayEndToEnd(t *testing.T) {
 		if rejected.Status != "rejected" || rejected.Reason != "invalid_transcript" {
 			t.Fatalf("rejected response = %+v, want status rejected and reason invalid_transcript", rejected)
 		}
-		// stop waits for every job and failure notice the server started, so
-		// a post caused by the rejection would have arrived by now.
+		// stop waits for every job the server started, so a post caused by
+		// the rejection would have arrived by now.
 		if code := srv.stop(t); code != exitOK {
 			t.Fatalf("run exit code = %d, want %d\nstderr:\n%s", code, exitOK, srv.stderr.String())
 		}
