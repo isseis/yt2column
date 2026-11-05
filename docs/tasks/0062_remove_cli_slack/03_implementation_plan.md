@@ -310,13 +310,13 @@ PR-1（#682）を作った後、レビューの担当者がテストを見直し
 
 **変更するファイル:** `internal/publisher/slack.go`、`internal/publisher/slack_test.go`、`internal/publisher/slack_integration_test.go`、`internal/server/publish_test.go`
 
-- [ ] `slack.go` から `Publish` と `var _ Publisher = (*SlackWebhookPublisher)(nil)` を削除する。残る関数の中は書き換えず、コメントはステップ 2-4 で直す（設計書 7.4 節の 2）。
-- [ ] 1.5 節の `slack_test.go` の元の 13 のテストを削除する。
-- [ ] `TestSlackPublishPartialFailure` を削除する（設計書 7.2 節の理由）。
-- [ ] `TestSlackPublishZeroValue` を削除する（設計書 7.2 節の理由）。
-- [ ] `internal/server/publish_test.go` の `TestPublishPostsLikeCLI` を削除する。
-- [ ] `slack_integration_test.go::TestIntegrationSlackWebhookPublisher` を設計書 3.5 節のとおりに書き直す（すべての記事の通数を送る前に確かめ、検査に通った `SlackMessages` の値そのものを `PostMessages(ctx, m, 0, …)` で送り、`delivered` が `m.Len()` 回呼ばれたことを確かめる）。`make lint` の `go vet -tags integration` で型の誤りがないことを確かめる。
-- [ ] 親コミットを `BASE` に `make coverage-compare` を実行し、`PASS` の出力（削除した関数の一覧を含む）をコミットメッセージに書く。
+- [x] `slack.go` から `Publish` と `var _ Publisher = (*SlackWebhookPublisher)(nil)` を削除する。残る関数の中は書き換えず、コメントはステップ 2-4 で直す（設計書 7.4 節の 2）。
+- [x] 1.5 節の `slack_test.go` の元の 13 のテストを削除する。
+- [x] `TestSlackPublishPartialFailure` を削除する（設計書 7.2 節の理由）。
+- [x] `TestSlackPublishZeroValue` を削除する（設計書 7.2 節の理由）。
+- [x] `internal/server/publish_test.go` の `TestPublishPostsLikeCLI` を削除する。
+- [x] `slack_integration_test.go::TestIntegrationSlackWebhookPublisher` を設計書 3.5 節のとおりに書き直す（すべての記事の通数を送る前に確かめ、検査に通った `SlackMessages` の値そのものを `PostMessages(ctx, m, 0, …)` で送り、`delivered` が `m.Len()` 回呼ばれたことを確かめる）。`make lint` の `go vet -tags integration` で型の誤りがないことを確かめる。
+- [x] 親コミットを `BASE` に `make coverage-compare` を実行し、`PASS` の出力（削除した関数の一覧を含む）をコミットメッセージに書く。
 
 **完了の条件:** `make test`・`make lint`・`make deadcode` が通り、`make coverage-compare` が `PASS` で終わる。
 

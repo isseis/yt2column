@@ -16,7 +16,6 @@ import (
 	"github.com/isseis/yt2column/internal/secret"
 	"github.com/isseis/yt2column/internal/slackwebhook"
 	"github.com/isseis/yt2column/internal/strictjson"
-	"github.com/isseis/yt2column/internal/writer"
 )
 
 // SlackPostTimeout bounds the send and the response read of one message.
@@ -144,8 +143,6 @@ type SlackWebhookPublisher struct {
 	client   webhookClient
 }
 
-var _ Publisher = (*SlackWebhookPublisher)(nil)
-
 // NewSlackWebhookPublisher validates webhookURL with slackwebhook.ValidURL
 // and returns a publisher with the production timeout and interval. It never
 // reads environment variables and never touches the network. A rejection
@@ -161,22 +158,6 @@ func NewSlackWebhookPublisher(webhookURL secret.Secret) (*SlackWebhookPublisher,
 // waits interval between messages.
 func newSlackWebhookPublisher(interval time.Duration, client webhookClient) *SlackWebhookPublisher {
 	return &SlackWebhookPublisher{interval: interval, client: client}
-}
-
-// Publish checks article, rejects mention syntax and syntax the server would
-// rewrite, splits it into messages, and posts them in order with silent set,
-// waiting between messages. It sends nothing when a preparation check fails.
-// After preparation, every failure is a *SlackPostError that tells how many
-// of the messages were confirmed posted.
-func (p *SlackWebhookPublisher) Publish(ctx context.Context, article writer.Article) error {
-	if err := p.client.configured(); err != nil {
-		return err
-	}
-	messages, err := PrepareSlackMessages(article)
-	if err != nil {
-		return err
-	}
-	return p.PostMessages(ctx, messages, 0, func(int) {})
 }
 
 // PostMessages posts the messages from index from on, in order and with silent

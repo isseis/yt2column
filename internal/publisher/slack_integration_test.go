@@ -40,13 +40,14 @@ func TestIntegrationSlackWebhookPublisher(t *testing.T) {
 		article  writer.Article
 		messages func(int) bool
 		want     string
+		prepared publisher.SlackMessages
 	}{
 		{name: "single", article: single, messages: func(n int) bool { return n == 1 }, want: "1"},
 		{name: "split", article: split, messages: func(n int) bool { return n >= 2 }, want: "2 or more"},
 	}
 	// Every count is checked before anything is posted, so a wrong article
-	// never reaches the channel.
-	for _, a := range articles {
+	// never reaches the channel. The messages checked are the ones posted.
+	for i, a := range articles {
 		m, err := publisher.PrepareSlackMessages(a.article)
 		if err != nil {
 			t.Fatalf("PrepareSlackMessages(%s) error = %v", a.name, err)
@@ -56,10 +57,15 @@ func TestIntegrationSlackWebhookPublisher(t *testing.T) {
 			t.Fatalf("PrepareSlackMessages(%s) Len() = %d, want %s", a.name, n, a.want)
 		}
 		t.Logf("%s: %d message(s), title %q", a.name, n, a.article.Title)
+		articles[i].prepared = m
 	}
 	for _, a := range articles {
-		if err := p.Publish(context.Background(), a.article); err != nil {
-			t.Fatalf("Publish(%s) error = %v", a.name, err)
+		delivered := 0
+		if err := p.PostMessages(context.Background(), a.prepared, 0, func(int) { delivered++ }); err != nil {
+			t.Fatalf("PostMessages(%s) error = %v", a.name, err)
+		}
+		if delivered != a.prepared.Len() {
+			t.Fatalf("PostMessages(%s) delivered %d message(s), want %d", a.name, delivered, a.prepared.Len())
 		}
 	}
 }

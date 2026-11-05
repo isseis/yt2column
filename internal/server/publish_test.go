@@ -66,33 +66,6 @@ func waitEntered(t *testing.T, hook *loopbackWebhook) {
 	}
 }
 
-// TestPublishPostsLikeCLI checks that the publish operation posts the
-// messages the CLI's publisher (SlackWebhookPublisher.Publish) posts for the
-// same article to the same Webhook, here one that splits into three messages.
-func TestPublishPostsLikeCLI(t *testing.T) {
-	ts, hook := newWebhookTestServer(t)
-	article := threeMessageArticle(t)
-	if err := hook.publisherFor(t).Publish(t.Context(), article); err != nil {
-		t.Fatalf("Publish: %v", err)
-	}
-	cli := hook.received()
-	ts.writer.Result = article
-	key := acceptedKey(t, ts.startBody(validBody(testValidVideoURL, testValidRaw)))
-	requireAccepted(t, ts.publishRequest(key))
-	ts.waitJobs()
-	published := hook.received()
-
-	if len(cli) != 3 || !slices.Equal(published, cli) {
-		t.Errorf("published %d messages %q, want the CLI publisher's %d %q", len(published), published, len(cli), cli)
-	}
-	if got := ts.publishOf(t, key); got.State != "posted" {
-		t.Errorf("publish = %+v, want posted", got)
-	}
-	if line := logLine(ts.logs.String(), "post job succeeded"); !strings.Contains(line, "posted=3") || !strings.Contains(line, "total=3") {
-		t.Errorf("the success log line = %q, want posted=3 total=3", line)
-	}
-}
-
 // TestPublishPostsPreparedMessages checks that the publish operation posts
 // the prepared messages of the article unchanged and in order, here an
 // article that splits into three messages, and logs the counts.
