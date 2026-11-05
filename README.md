@@ -7,7 +7,7 @@
 yt2column は、YouTube の動画を、LLM で雑誌のコラム風の記事にする。主経路はブラウザから始まる。利用者が
 YouTube の文字起こしパネルからコピーした字幕を拡張が集め、Native Messaging のホストがそれを localhost サーバに中継し、サーバが記事を生成する。記事は拡張のビューアのタブに表示され、設定した
 Webhook への投稿と `.md` ファイルへの保存は、利用者がビューアで選ぶ。補助の経路として CLI も含む。CLI は動画の URL を受け取り、
-[yt-dlp](https://github.com/yt-dlp/yt-dlp) で文字起こしを取得する。LLM の呼び出しと投稿は、CLI で開発し確かめる。
+[yt-dlp](https://github.com/yt-dlp/yt-dlp) で文字起こしを取得する。LLM の呼び出しと記事の生成は、CLI で開発し確かめる。CLI は記事を `--out` のファイルに書き、Webhook には投稿しない。
 
 ```mermaid
 flowchart LR
@@ -186,10 +186,7 @@ localhost サーバからの Slack への投稿は、不明な料金がなぜ不
 拒否した記事は一切投稿しない。エラーは、投稿の中の行と桁を示す。実行し直すと別の記事を生成するので、問題がなくなることがある。
 拡張のビューアは、この検査が拒否した記事を投稿できない記事として表示し（メンションを含むため、またはほかの送る前の検査のため）、投稿のボタンを押せなくする。
 
-分割した記事の投稿が途中で失敗したときは、送り終えたメッセージはチャンネルに残る。CLI には再送も再開もない。実行し直すと新しい記事を生成して最初のメッセージから投稿するので、チャンネルには古い記事の一部と新しい記事の全体が残りうる。拡張のビューアから投稿した記事は、もう一度 **Slack に投稿する** を押すと、届かなかった最初のメッセージから再開する（届いたことを確かめられなかった 1 通は、2 度届くことがある）。
-
-CLI が `--slack` で投稿する方法と、拒否された記事を `--out` で確かめる方法は
-[docs/dev/guides/cli.md](docs/dev/guides/cli.md#webhook-への投稿)にある。
+分割した記事の投稿が途中で失敗したときは、送り終えたメッセージはチャンネルに残る。拡張のビューアで、もう一度 **Slack に投稿する** を押すと、届かなかった最初のメッセージから再開する（届いたことを確かめられなかった 1 通は、2 度届くことがある）。
 
 ## localhost サーバ
 
@@ -395,9 +392,9 @@ macOS の Brave は Chrome の manifest のディレクトリを読むので、C
 | `DEEPSEEK_API_KEY` | DeepSeek の API キー | 生成か検証・推敲のプロバイダが `deepseek` のときは必須（エラー） |
 | `ANTHROPIC_API_KEY` | Anthropic の API キー | 生成か検証・推敲のプロバイダが `claude` のときは必須（エラー） |
 | `ANTHROPIC_WORKSPACE_ID` | Anthropic のワークスペースの ID。ワークスペースに結び付いていない API キーのためのもの | ワークスペースの ID を送らない |
-| `SLACK_WEBHOOK_URL` | Slack 互換の Incoming Webhook の URL（動作を確かめた送り先は Mattermost） | サーバは起動するが、投稿はできない |
+| `SLACK_WEBHOOK_URL` | Slack 互換の Incoming Webhook の URL（動作を確かめた送り先は Mattermost）。読むのはサーバだけ | サーバは起動するが、投稿はできない |
 
-`yt2column-server` は LLM の変数を読む。`SLACK_WEBHOOK_URL` は投稿にだけ必要で、なくても起動する（[localhost サーバ](#localhost-サーバ)を参照）。ソケットのパスは
+`yt2column-server` は LLM の変数を読む。`SLACK_WEBHOOK_URL` は投稿にだけ必要で、なくても起動する（[localhost サーバ](#localhost-サーバ)を参照）。CLI は `SLACK_WEBHOOK_URL` を読まない。ソケットのパスは
 `HOME` だけから求める（[localhost サーバ](#localhost-サーバ)を参照）。
 
 CLI だけが読む変数と、CLI が上の変数をどう読むかは

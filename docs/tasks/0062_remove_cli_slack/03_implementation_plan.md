@@ -217,15 +217,15 @@ CLI の `--slack` と、CLI だけが使う Webhook の投稿の経路（出力�
 
 **変更するファイル:** `docs/dev/guides/cli.md`、`README.md`、`README.en.md`、`docs/translation_glossary.md`、`docs/dev/guides/development.md`、`docs/dev/security.md`、`docs/dev/conventions/package_reference.md`、`docs/dev/project_overview.md`、`docs/dev/production_profile.md`、`CLAUDE.md`、`cmd/yt2column/docs_test.go`
 
-- [ ] `cli.md` を AC-17 のとおりに直す（冒頭、「必要なもの」、「使い方」とフラグの表、「Webhook への投稿」の節の削除、「出力の書式」、「推定の料金」、終了コード `0`、「設定」）。
-- [ ] `TestREADMEDocumentsFlags` に逆向きの確かめを加える（1.3 節）。`cli.md` に `--slack` の行を戻すと失敗することを確かめ、コミットメッセージに書く。
-- [ ] `README.md` を AC-18 のとおりに直し（`:10`、`:191-192`、「設定」の表とその後の説明 `:398-404`）、`/mktrans README.md` で `README.en.md` に写す。`README.md:192` と `README.en.md:273` は `cli.md` の「Webhook への投稿」の見出しへリンクし、`TestReadmeLinks`（`cmd/yt2column/docs_test.go:650`）がリンク先の見出しがあることを確かめる。2 つの README からこのリンクを除き（AC-18 の書き直しの一部）、`cli.md` の節の削除と同じコミットに入れる。`translation_glossary.md:167` を残る見出しに合わせる。
-- [ ] `development.md` の `make test-integration-cli-slack` の記述（`:17`、「CLI と Webhook の統合テスト」の節 `:273-276`）を除く。
-- [ ] `security.md` §2 の表の CLI の行（`:40`）とテストの数、`GODEBUG` の項（`:42-43`）を直す。
-- [ ] `package_reference.md` の次の行を直す（設計書 3.6 節）。`cmd/yt2column`・`internal/job` の行、`internal/config` の行の `RequireSlackWebhookURL` と「the Slack Webhook URL」の記述、`internal/publisher` の行の `SlackMessageCount` の記述（`:48`）、`internal/slackwebhook` の行の「including `cmd/yt2column`'s」（`:31`。ステップ 1-3 で `integration_slack_test.go` を削除した後は事実と合わなくなる）。
-- [ ] `project_overview.md` の冒頭（`:3`）と `SLACK_WEBHOOK_URL` の行（`:140`）、`production_profile.md:40` を直す（設計書 3.6 節）。
-- [ ] `CLAUDE.md` の「Tool Execution Safety」の CLI を本物のサービスに対して実行する項を直す。本物の Webhook への投稿（サーバの投稿のジョブと `make test-integration-slack`）に承認が要ることは保つ（設計書 3.6 節）。
-- [ ] 文書のガード（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./cmd/codexreview/... ./internal/pipeline`）、`make readme-sync-check`、`make ext-test`、`go test -tags test ./cmd/yt2column-nmhost/`（`TestReadmeHostExitCodes`）を通す。
+- [x] `cli.md` を AC-17 のとおりに直す（冒頭、「必要なもの」、「使い方」とフラグの表、「Webhook への投稿」の節の削除、「出力の書式」、「推定の料金」、終了コード `0`、「設定」）。
+- [x] `TestREADMEDocumentsFlags` に逆向きの確かめを加える（1.3 節）。`cli.md` に `--slack` の行を戻すと失敗することを確かめ、コミットメッセージに書く。
+- [x] `README.md` を AC-18 のとおりに直し（`:10`、`:191-192`、「設定」の表とその後の説明 `:398-404`）、`/mktrans README.md` で `README.en.md` に写す。`README.md:192` と `README.en.md:273` は `cli.md` の「Webhook への投稿」の見出しへリンクし、`TestReadmeLinks`（`cmd/yt2column/docs_test.go:650`）がリンク先の見出しがあることを確かめる。2 つの README からこのリンクを除き（AC-18 の書き直しの一部）、`cli.md` の節の削除と同じコミットに入れる。`translation_glossary.md:167` を残る見出しに合わせる。
+- [x] `development.md` の `make test-integration-cli-slack` の記述（`:17`、「CLI と Webhook の統合テスト」の節 `:273-276`）を除く。
+- [x] `security.md` §2 の表の CLI の行（`:40`）とテストの数、`GODEBUG` の項（`:42-43`）を直す。
+- [x] `package_reference.md` の次の行を直す（設計書 3.6 節）。`cmd/yt2column`・`internal/job` の行、`internal/config` の行の `RequireSlackWebhookURL` と「the Slack Webhook URL」の記述、`internal/publisher` の行の `SlackMessageCount` の記述（`:48`）、`internal/slackwebhook` の行の「including `cmd/yt2column`'s」（`:31`。ステップ 1-3 で `integration_slack_test.go` を削除した後は事実と合わなくなる）。
+- [x] `project_overview.md` の冒頭（`:3`）と `SLACK_WEBHOOK_URL` の行（`:140`）、`production_profile.md:40` を直す（設計書 3.6 節）。
+- [x] `CLAUDE.md` の「Tool Execution Safety」の CLI を本物のサービスに対して実行する項を直す。本物の Webhook への投稿（サーバの投稿のジョブと `make test-integration-slack`）に承認が要ることは保つ（設計書 3.6 節）。
+- [x] 文書のガード（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./cmd/codexreview/... ./internal/pipeline`）、`make readme-sync-check`、`make ext-test`、`go test -tags test ./cmd/yt2column-nmhost/`（`TestReadmeHostExitCodes`）を通す。
 
 **完了の条件:** 上のテストと `make test` が通る。
 

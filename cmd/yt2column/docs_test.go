@@ -109,9 +109,13 @@ func headingAnchors(t *testing.T, docName, doc string) map[string]struct{} {
 	return anchors
 }
 
-// TestREADMEDocumentsFlags checks that the CLI guide (cli.md) documents every
-// flag run defines. The flag names come from newFlagSet, not from a list kept
-// here, so a new flag fails this test until cli.md names it.
+// TestREADMEDocumentsFlags checks that the flags table of the CLI guide
+// (cli.md) and the flags run defines are the same set: every flag of
+// newFlagSet has a row, and every flag a row names is defined by newFlagSet.
+// The one exception is -h/--help, which the flag package handles without a
+// definition and writeUsage lists. The flag names come from newFlagSet, not
+// from a list kept here, so a new or removed flag fails this test until
+// cli.md follows.
 func TestREADMEDocumentsFlags(t *testing.T) {
 	doc := doctestutil.ReadDoc(t, cliDocPath)
 	table := doctestutil.FindTable(doc, doctestutil.CLIFlagColumn)
@@ -124,6 +128,29 @@ func TestREADMEDocumentsFlags(t *testing.T) {
 			t.Errorf("flags table does not document --%s", f.Name)
 		}
 	})
+	for _, row := range table[1:] {
+		if len(row) == 0 {
+			continue
+		}
+		spans := codeSpanRE.FindAllStringSubmatch(row[0], -1)
+		if len(spans) == 0 {
+			t.Errorf("flags table row %q names no flag in a code span", row[0])
+		}
+		for _, span := range spans {
+			fields := strings.Fields(span[1])
+			if len(fields) == 0 || !strings.HasPrefix(fields[0], "-") {
+				t.Errorf("flags table row %q has the code span %q, which is not a flag", row[0], span[1])
+				continue
+			}
+			name := strings.TrimLeft(fields[0], "-")
+			if name == "h" || name == "help" {
+				continue
+			}
+			if fs.Lookup(name) == nil {
+				t.Errorf("flags table documents %s, which newFlagSet does not define", fields[0])
+			}
+		}
+	}
 }
 
 // TestSlackDocsContract pins the machine-checkable contract values of webhook

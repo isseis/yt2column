@@ -733,7 +733,9 @@ reviewer sets the previous one to `approved`.
 - Don't run following commands without user's explicit approval
   - commands interacting with network, e.g. git pull
   - merging pull requests on GitHub
-  - running the CLI against real services (LLM API calls, Slack Webhook posts)
+  - running the CLI against real services (LLM API calls)
+  - posting to a real Webhook (the server's publish job driven from the
+    extension's viewer, `make test-integration-slack`)
 - `git commit` and `git push` may be executed without explicit approval
 - `coderabbit review` (the local CodeRabbit CLI, a development tool used on every
   change) may be executed without explicit approval, although it sends the diff to
