@@ -560,9 +560,13 @@ func buildWriter(d deps, cfg config.Config, opts *cliOptions, reviewLogGiven boo
 }
 
 // configurationError reports each configuration error joined in err on its
-// own line and returns exitUsage.
+// own line, or err on one line when it is not joined, and returns exitUsage.
 func configurationError(errOut *stderrWriter, err error) int {
-	for _, e := range splitJoined(err) {
+	errs := []error{err}
+	if joined, ok := errors.AsType[joinedError](err); ok {
+		errs = joined.Unwrap()
+	}
+	for _, e := range errs {
 		errOut.line("%s: configuration: %v", programName, e)
 	}
 	errOut.line("%s", usageHint)
