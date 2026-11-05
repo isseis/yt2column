@@ -406,7 +406,7 @@
 **変更するファイル:** `docs/dev/security.md`、`docs/translation_glossary.md`
 
 - [x] `security.md` §8 に、設計書 3.9 節の表の `security.md` の行の内容（照会付きの生成の開始が動画単位で記事の有無とキーを返すこと、それを受け入れる理由、`0044` の T-10 の再評価、記録が動画 ID を持つこと、サーバのログに出す値）を書く（設計書 5.2 節）。
-- [x] `translation_glossary.md` の主ボタン・送信の時刻・ビューアの URL の定義を、要件書 F-005 のとおりに改める。ステップ 4-3 で加えた新しい用語の定義が、実装された振る舞いと合っていることも読み直す。
+- [x] `translation_glossary.md` の主ボタン・送信の時刻・ビューアの URL の定義を、要件書 F-005 のとおりに改める。ステップ 4-3 で加えた新しい用語の定義が、実装された振る舞いと合っていることも読み直す。同じ読み直しで、操作のセクションとリクエストの本文の定義を副次のボタンと `mode` に合わせ、送り方の用語を加える。
 - [x] 文書のガードを通す。
 
 **完了の条件:** 文書のガードが通る。
@@ -537,7 +537,7 @@ AC-12・AC-13・AC-14 は要件書の欠番である。
 
 ### 7.1. 実行の記録
 
-（ステップ 2-4・3-3・4-4 で記入する。）
+（ステップ 2-4・3-3・4-4・5-1 で記入する。）
 
 **ステップ 2-4（`development.md` の例の本文、AC-29）:** 2026-11-04、ブランチのコミット `8d582f95` に `development.md` の変更を加えた作業ツリーで確かめた。`internal/server` の一時的なテスト（コミットしない）で、`development.md` の最初の `json` のコード片（`{"videoUrl":"https://www.youtube.com/watch?v=dQw4w9WgXcQ","transcript":"0:00\nHello\n","mode":"plain"}`）を読み、`validateBody` に通した。拒否されずに受理され、送り方は `plain` だった。
 
@@ -557,6 +557,8 @@ AC-12・AC-13・AC-14 は要件書の欠番である。
 - AC-38: 合格（両方）。`choice` になったこと、既存の記事の状態の変化、`choice-ended` が、フォーカスを動かさずに読み上げられた。Brave の VoiceOver は既定では Web コンテンツの中を読まず、VO の操作で読み上げの位置を移すと、ボタンと状態の変化が読み上げられた。`choice` になったときは、フォーカスのある「既存の記事を表示する」が読み上げられた。
 - AC-39・AC-40: 合格（両方）。新しい文字と記号は、ライトとダーク、英語と日本語の組み合わせで読めた（プレビューのページを使った）。実際のポップアップの `<html lang>` は表示の言語と一致した。
 - AC-42: 合格（両方）。開発者ツールの Rendering で `prefers-reduced-motion: reduce` を指定すると、既存の記事の生成中の記号が止まった。
+
+**ステップ 5-1（文書のガード）:** 2026-11-05 に、`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./cmd/codexreview/... ./internal/pipeline`、`make test`、`make lint` を通した。
 
 ## 8. 成功基準 (Success Criteria)
 
