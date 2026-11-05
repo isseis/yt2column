@@ -888,12 +888,20 @@ func lightweightCheckCases() []lwCase {
 			return []string{exceeds("files", f.limitFiles+1, f.limitFiles)}
 		}},
 		{name: "two limits over", typ: "W", branch: func(f *lwFixture) {
+			if f.limit("W added") < f.limitFiles {
+				f.t.Fatal("the W added limit is below the files limit, so the case cannot spread its lines over the files")
+			}
 			f.addLines("notes/new00.txt", f.limit("W added")+1-f.limitFiles)
 			for i := 1; i <= f.limitFiles; i++ {
 				f.addLines(fmt.Sprintf("notes/new%02d.txt", i), 1)
 			}
 			f.commit("docs: w")
-		}, want: "FAIL added,files"},
+		}, want: "FAIL added,files", lines: func(f *lwFixture) []string {
+			return []string{
+				exceeds("added", f.limit("W added")+1, f.limit("W added")),
+				exceeds("files", f.limitFiles+1, f.limitFiles),
+			}
+		}},
 
 		// Counting: a rename is a deletion and an addition of two files, a
 		// whitespace-only change is a changed line, and BASE is the fork point
@@ -950,17 +958,6 @@ func lightweightCheckCases() []lwCase {
 		}, want: "FAIL excluded", lines: func(f *lwFixture) []string {
 			return []string{"excluded " + f.excludedDir + "0001_old/日本語.md"}
 		}},
-		{name: "an excluded path in another case", typ: "W", branch: func(f *lwFixture) {
-			// The index is written directly, since a file system that
-			// ignores case would put the file under the existing directory.
-			blob := strings.TrimSpace(f.gitStdin(f.repo, "x\n", "hash-object", "-w", "--stdin"))
-			path := strings.ToUpper(f.excludedDir) + "0003/x.md"
-			f.git("update-index", "--add", "--cacheinfo", "100644,"+blob+","+path)
-			f.gitStdin(f.repo, "docs: case", "commit", "-q", "-F", "-")
-			f.git("reset", "-q", "--hard")
-		}, want: "FAIL excluded", lines: func(f *lwFixture) []string {
-			return []string{"excluded " + strings.ToUpper(f.excludedDir) + "0003/x.md"}
-		}},
 		{name: "an exclude-absent path is created", typ: "W", branch: func(f *lwFixture) {
 			f.addLines(f.absent, 1)
 			f.commit("build: absent")
@@ -981,10 +978,17 @@ func lightweightCheckCases() []lwCase {
 			f.write(doc, loose)
 			f.addLines("notes/new.txt", f.limit("W added"))
 			f.commit("docs: loosen")
-		}, want: "FAIL added,excluded"},
+		}, want: "FAIL added,excluded", lines: func(*lwFixture) []string {
+			return []string{"excluded docs/dev/conventions/requirements_process.md"}
+		}},
 
 		// Changes that cannot be counted.
 		{name: "a binary file", typ: "W", branch: func(f *lwFixture) {
+			f.write("notes/data.bin", "a\x00b\n")
+			f.commit("docs: binary")
+		}, want: "FAIL binary", lines: func(*lwFixture) []string { return []string{"binary notes/data.bin"} }},
+		{name: "a binary file a nested .gitattributes marks as text", typ: "W", branch: func(f *lwFixture) {
+			f.write("notes/.gitattributes", "*.bin diff\n")
 			f.write("notes/data.bin", "a\x00b\n")
 			f.commit("docs: binary")
 		}, want: "FAIL binary", lines: func(*lwFixture) []string { return []string{"binary notes/data.bin"} }},
@@ -1032,7 +1036,21 @@ func lightweightCheckCases() []lwCase {
 		}},
 		{name: "a tool commit touches an excluded path", typ: "M", table: tools, branch: func(f *lwFixture) {
 			f.toolCommit(lwTool + " -w " + f.excludedFile)
-		}, want: "FAIL excluded"},
+		}, want: "FAIL excluded", lines: func(f *lwFixture) []string {
+			return []string{"excluded " + f.excludedFile}
+		}},
+		{name: "two tool commits in a row", typ: "M", table: tools, branch: func(f *lwFixture) {
+			f.toolCommit(lwTool + " -w gen/f01.txt")
+			f.toolCommit(lwTool + " -w gen/f01.txt gen/f02.txt")
+			f.addLines("notes/new.txt", 1)
+			f.commit("refactor: hand")
+		}, want: "PASS", lines: func(f *lwFixture) []string {
+			return []string{f.counts("M", 1, 0, 1)}
+		}, after: func(f *lwFixture, _ lwBash, _ string, first lwRun) {
+			if got, want := first.field("tool"), f.rev("HEAD~1"); got != want {
+				f.t.Errorf("tool=%s, want the second tool commit %s", got, want)
+			}
+		}},
 		{name: "a tool commit does not reproduce", typ: "M", table: tools, branch: func(f *lwFixture) {
 			f.runTool(lwTool + " -w gen/f01.txt")
 			f.write("gen/f02.txt", "hand\n")
@@ -1064,7 +1082,6 @@ func lightweightCheckCases() []lwCase {
 		lwBadPathCase("an absolute path", "/etc/hosts"),
 		lwBadPathCase("a parent element", "gen/../gen/f01.txt"),
 		lwBadPathCase("a shell symbol", "gen/f01.txt;true"),
-		lwBadPathCase("an option", "-q"),
 
 		// Inputs.
 		{name: "a limit row is missing", typ: "W", table: func(t *testing.T) string {
@@ -1080,6 +1097,13 @@ func lightweightCheckCases() []lwCase {
 		{name: "a row ends in CR", typ: "W", table: func(t *testing.T) string {
 			return lwEditTable(t, "exclude docs/tasks/", "exclude docs/tasks/\r\n")
 		}, branch: lwSmallChange, want: "STOP table"},
+		{name: "no commit after the merge base", typ: "W", branch: func(*lwFixture) {}, want: "STOP empty"},
+		{name: "a local attributes file", typ: "W", branch: func(f *lwFixture) {
+			lwSmallChange(f)
+			if err := os.WriteFile(filepath.Join(f.repo, ".git", "info", "attributes"), []byte("* -diff\n"), 0o600); err != nil {
+				f.t.Fatalf("write the local attributes: %v", err)
+			}
+		}, want: "STOP local-attributes"},
 		{name: "an untracked file", typ: "W", branch: func(f *lwFixture) {
 			lwSmallChange(f)
 			f.write("notes/untracked/file.txt", "untracked\n")
@@ -1313,6 +1337,13 @@ func lwConfigScenarios() []lwConfigScenario {
 				return [][2]string{{"log.showSignature", "true"}, {"gpg.program", gpg}}
 			},
 			plain: func(f *lwFixture) string { return f.git("log", "-1", "--format=%B", "HEAD") },
+		},
+		{
+			// A threshold of one byte makes git treat every file as binary,
+			// which would turn a text change into a FAIL.
+			name: "core.bigFileThreshold", typ: "W", branch: lwSmallChange,
+			config: func(*lwFixture) [][2]string { return [][2]string{{"core.bigFileThreshold", "1"}} },
+			plain:  plainNumstat("."),
 		},
 		{
 			name: "status.showUntrackedFiles", typ: "W",

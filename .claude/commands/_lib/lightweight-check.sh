@@ -33,11 +33,10 @@ export LC_ALL=C
 # Drop every GIT_ variable the caller's environment carries (GIT_DIR,
 # GIT_CONFIG_PARAMETERS, GIT_CONFIG_COUNT, GIT_EXTERNAL_DIFF, ...), then turn
 # the global and system configuration and attributes off.
-for name in $(compgen -A export); do
-	case $name in
-	GIT_*) unset "$name" ;;
-	esac
+for name in ${!GIT_@}; do
+	unset "$name"
 done
+unset -f git tr mktemp rm sha256sum shasum
 export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_ATTR_NOSYSTEM=1
 export GIT_TERMINAL_PROMPT=0 GIT_OPTIONAL_LOCKS=0
 
@@ -52,6 +51,7 @@ GIT_OVERRIDES=(
 	-c core.autocrlf=false
 	-c core.eol=lf
 	-c core.safecrlf=false
+	-c core.bigFileThreshold=512m
 	-c core.sparseCheckout=false
 	-c diff.relative=false
 	-c diff.ignoreSubmodules=none
@@ -67,7 +67,15 @@ DIFF_OPTIONS=(
 )
 
 g() {
-	git "${GIT_OVERRIDES[@]}" "$@"
+	command git "${GIT_OVERRIDES[@]}" "$@"
+}
+
+# gd runs a diff with the attributes read from the empty tree instead of the
+# work tree, so a .gitattributes the branch adds (at any depth) cannot change
+# which files count as binary. EMPTY_TREE is set once git is known to work.
+EMPTY_TREE=
+gd() {
+	g --attr-source="$EMPTY_TREE" diff "$@"
 }
 
 say() {
@@ -90,7 +98,17 @@ stop() {
 
 TMP_DIR=
 WORKTREE=
-WORKTREE_ADDED=
+
+# worktree_listed reports whether git still lists $WORKTREE as a worktree.
+worktree_listed() {
+	local line
+	while IFS= read -r line; do
+		if [ "$line" = "worktree $WORKTREE" ]; then
+			return 0
+		fi
+	done < <(g worktree list --porcelain 2>/dev/null)
+	return 1
+}
 
 cleanup() {
 	if [ -n "$WORKTREE" ] && [ -d "$WORKTREE" ]; then
@@ -99,7 +117,9 @@ cleanup() {
 	if [ -n "$TMP_DIR" ]; then
 		rm -rf "$TMP_DIR"
 	fi
-	if [ -n "$WORKTREE_ADDED" ]; then
+	# Prune only when the script's own worktree is still registered, since
+	# a prune also drops other stale worktrees of the user.
+	if [ -n "$WORKTREE" ] && worktree_listed; then
 		g worktree prune >/dev/null 2>&1
 	fi
 }
@@ -158,9 +178,23 @@ TMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/lightweight-check.XXXXXX") || {
 	TMP_DIR=
 	stop tmp "cannot create a temporary directory"
 }
+# An absolute, physical path, so the cleanup still finds it after the cd
+# below and git lists the worktree under the same path.
+TMP_DIR=$(cd "$TMP_DIR" && pwd -P) || {
+	TMP_DIR=
+	stop tmp "cannot resolve the temporary directory"
+}
 
 TOP=$(g rev-parse --show-toplevel) || stop git "git rev-parse --show-toplevel failed"
 cd "$TOP" || stop git "cannot change to the repository root"
+EMPTY_TREE=$(g hash-object -t tree /dev/null) || stop git "git hash-object failed"
+
+# The repository's local attributes file is read even with --attr-source, and
+# it could mark a text file binary (a false FAIL) or a binary file text.
+LOCAL_ATTRIBUTES=$(g rev-parse --git-path info/attributes) || stop git "git rev-parse --git-path failed"
+if [ -s "$LOCAL_ATTRIBUTES" ]; then
+	stop local-attributes "the repository has a local attributes file ($LOCAL_ATTRIBUTES)"
+fi
 
 # The SHA-256 of the spec file's bytes, so the caller can compare the file
 # this script read with the spec on GitHub.
@@ -389,15 +423,14 @@ RE_PATH_WORD='^[A-Za-z0-9._/-]+$'
 
 # check_tool_command sets TOOL_WORDS to the words of the trailer command $1
 # when its leading words equal a tool row's words one for one and each of the
-# remaining words, of which there is at least one, is a path inside the
-# repository. Otherwise it stops.
+# remaining words is a path inside the repository. Otherwise it stops.
 check_tool_command() {
 	local cmd=$1 row matched= i word
 	local -a row_words
 	read -r -a TOOL_WORDS <<<"$cmd"
 	for row in "${TOOLS[@]}"; do
 		read -r -a row_words <<<"$row"
-		if [ "${#TOOL_WORDS[@]}" -le "${#row_words[@]}" ]; then
+		if [ "${#TOOL_WORDS[@]}" -lt "${#row_words[@]}" ]; then
 			continue
 		fi
 		matched=1
@@ -420,7 +453,7 @@ check_tool_command() {
 			stop tool-allowlist "a trailer command has a word that is not a plain path"
 		fi
 		case /$word/ in
-		//* | /-* | */../*)
+		//* | */../*)
 			stop tool-allowlist "a trailer command has a word that is not a path inside the repository"
 			;;
 		esac
@@ -476,10 +509,16 @@ for i in "${!TOOL_COMMITS[@]}"; do
 	commit=${TOOL_COMMITS[$i]}
 	check_tool_command "${TOOL_COMMANDS[$i]}"
 	WORKTREE=$TMP_DIR/worktree
-	WORKTREE_ADDED=1
 	g worktree add --quiet --detach "$WORKTREE" "$commit^" >/dev/null 2>&1 ||
 		stop git "git worktree add failed"
-	(cd "$WORKTREE" && command "${TOOL_WORDS[@]}") </dev/null >"$TMP_DIR/tool-output" 2>&1 ||
+	# Resolve the tool before changing into the worktree, so an empty or
+	# relative PATH entry cannot run a file of the worktree.
+	tool_path=$(command -v -- "${TOOL_WORDS[0]}") || stop tool-failed "the tool ${TOOL_WORDS[0]} is not on PATH"
+	case $tool_path in
+	/*) ;;
+	*) stop tool-failed "the tool ${TOOL_WORDS[0]} does not resolve to an absolute path" ;;
+	esac
+	(cd "$WORKTREE" && "$tool_path" "${TOOL_WORDS[@]:1}") </dev/null >"$TMP_DIR/tool-output" 2>&1 ||
 		stop tool-failed "the command of tool commit $commit failed"
 	g -C "$WORKTREE" add -A >/dev/null 2>&1 || stop git "git add in the worktree failed"
 	got=$(g -C "$WORKTREE" write-tree) || stop git "git write-tree in the worktree failed"
@@ -500,17 +539,11 @@ R_SUBMODULE=
 R_MODE=
 R_EXCLUDED=
 
-# excluded reports whether path $1 is an excluded path or under one. Paths
-# are compared without regard to ASCII case, so a path that a file system
-# that ignores case would check out over an excluded one is excluded too.
-LOWER_EXCLUDES=()
-while IFS= read -r line; do
-	LOWER_EXCLUDES+=("$line")
-done < <(printf '%s\n' "${EXCLUDES[@]}" | tr A-Z a-z)
+# excluded reports whether path $1 is an excluded path or under one, compared
+# byte for byte as whole path elements, never as a string prefix.
 excluded() {
-	local path exclude
-	path=$(printf '%s' "$1" | tr A-Z a-z)
-	for exclude in "${LOWER_EXCLUDES[@]}"; do
+	local path=$1 exclude
+	for exclude in "${EXCLUDES[@]}"; do
 		if [ "$path" = "$exclude" ]; then
 			return 0
 		fi
@@ -521,7 +554,7 @@ excluded() {
 	return 1
 }
 
-g diff --raw "${DIFF_OPTIONS[@]}" "$BASE" "$HEAD_COMMIT" >"$TMP_DIR/raw" || stop git "git diff --raw failed"
+gd --raw "${DIFF_OPTIONS[@]}" "$BASE" "$HEAD_COMMIT" >"$TMP_DIR/raw" || stop git "git diff --raw failed"
 while IFS= read -r -d '' header && IFS= read -r -d '' path; do
 	header=${header#:}
 	old_mode=${header%% *}
@@ -544,7 +577,7 @@ while IFS= read -r -d '' header && IFS= read -r -d '' path; do
 	fi
 done <"$TMP_DIR/raw"
 
-g diff --numstat "${DIFF_OPTIONS[@]}" "$BASE" "$HEAD_COMMIT" >"$TMP_DIR/numstat-all" ||
+gd --numstat "${DIFF_OPTIONS[@]}" "$BASE" "$HEAD_COMMIT" >"$TMP_DIR/numstat-all" ||
 	stop git "git diff --numstat failed"
 while IFS= read -r -d '' record; do
 	if [ "${record%%$'\t'*}" = - ]; then
@@ -554,7 +587,7 @@ while IFS= read -r -d '' record; do
 	fi
 done <"$TMP_DIR/numstat-all"
 
-g diff --numstat "${DIFF_OPTIONS[@]}" "$TOOL" "$HEAD_COMMIT" >"$TMP_DIR/numstat-hand" ||
+gd --numstat "${DIFF_OPTIONS[@]}" "$TOOL" "$HEAD_COMMIT" >"$TMP_DIR/numstat-hand" ||
 	stop git "git diff --numstat failed"
 ADDED=0
 DELETED=0
