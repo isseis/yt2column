@@ -38,8 +38,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   has no task and creates nothing under `docs/tasks/`. Scope: a change that
   meets every condition of
   [requirements_process.md](docs/dev/conventions/requirements_process.md),
-  "Lightweight Process", and whose spec comment the user approved on its issue;
-  every other change is a task.
+  "Lightweight Process", and whose spec comment the user approved on its issue.
+  Reason: for such a change the task documents cost more than the change, and
+  the approved spec comment takes their place. Outside that scope the rule
+  above applies unchanged.
 
 ### Document language
 
