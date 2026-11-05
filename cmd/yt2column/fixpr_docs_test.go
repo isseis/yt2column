@@ -20,10 +20,11 @@ import (
 
 // Paths from cmd/yt2column to the command documents these tests check.
 const (
-	fixprPath   = "../../.claude/commands/fixpr.md"
-	runprPath   = "../../.claude/commands/runpr.md"
-	contextPath = "../../.claude/commands/_context.md"
-	handoffPath = "../../.claude/commands/_lib/task-pr-handoff.md"
+	fixprPath    = "../../.claude/commands/fixpr.md"
+	runprPath    = "../../.claude/commands/runpr.md"
+	contextPath  = "../../.claude/commands/_context.md"
+	handoffPath  = "../../.claude/commands/_lib/task-pr-handoff.md"
+	runissuePath = "../../.claude/commands/runissue.md"
 )
 
 // Section headings of fixpr.md and runpr.md the contract tests read.
@@ -981,7 +982,7 @@ func (c *contextReviewers) checkRequest(value string) {
 // TestContextAndCommandsAgree checks that _context.md is the one place the
 // automated reviewers' names are written: its reviewer rows parse and hold
 // the expected names, the PR review request row's description names the
-// mention fixprguard rejects, and fixpr.md, runpr.md, and
+// mention fixprguard rejects, and fixpr.md, runpr.md, runissue.md, and
 // _lib/task-pr-handoff.md never write a reviewer's name.
 func TestContextAndCommandsAgree(t *testing.T) {
 	got := checkContextReviewers(doctestutil.ReadDoc(t, contextPath))
@@ -999,6 +1000,7 @@ func TestContextAndCommandsAgree(t *testing.T) {
 	for _, tc := range []struct{ name, path string }{
 		{"fixpr.md", fixprPath},
 		{"runpr.md", runprPath},
+		{"runissue.md", runissuePath},
 		{"_lib/task-pr-handoff.md", handoffPath},
 	} {
 		doc := doctestutil.ReadDoc(t, tc.path)
