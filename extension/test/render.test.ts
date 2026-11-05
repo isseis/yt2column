@@ -15,6 +15,7 @@ import type {
   PopupJobState,
   PopupView,
   PrimaryAction,
+  SecondaryAction,
 } from "../src/core/popupView.ts";
 import { maxBodyBytes, prepareSend } from "../src/core/prepare.ts";
 import {
@@ -688,14 +689,21 @@ describe("job view", () => {
       : catalogs[locale].viewer.costUnknown;
   }
 
-  /** One job state's expected wording, summary, button name and availability. */
+  /** One job state's expected wording, summary, button names and availability. */
   interface StateExpectation {
     readonly name: string;
     readonly state: PopupJobState;
     readonly checks: (locale: Locale) => readonly string[];
     readonly status: (locale: Locale) => readonly string[];
     readonly action: PrimaryAction;
+    /** The secondary button's action; none unless given. */
+    readonly secondary?: SecondaryAction;
   }
+
+  const choiceChecks = (locale: Locale): string[] => [
+    catalogs[locale].popup.choice.text,
+    ...catalogs[locale].popup.choice.steps,
+  ];
 
   const states: readonly StateExpectation[] = [
     {
@@ -777,25 +785,55 @@ describe("job view", () => {
       status: (locale) => [catalogs[locale].viewer.lost.text],
       action: "retry",
     },
+    ...(["loading", "running", "done"] as const).map(
+      (existing): StateExpectation => ({
+        name: `choice ${existing}`,
+        state: { kind: "choice", existing, notice: none },
+        checks: (locale) => [
+          ...choiceChecks(locale),
+          catalogs[locale].popup.existingStates[existing],
+        ],
+        status: (locale) => [
+          catalogs[locale].popup.choice.text,
+          catalogs[locale].popup.existingStates[existing],
+        ],
+        action: "open-existing",
+        secondary: "start-plain",
+      }),
+    ),
+    {
+      name: "choice ended",
+      state: { kind: "choice-ended" },
+      checks: (locale) => [
+        catalogs[locale].popup.choiceEnded.text,
+        ...catalogs[locale].popup.choiceEnded.steps,
+      ],
+      status: (locale) => [catalogs[locale].popup.choiceEnded.text],
+      action: "start-inquiry",
+    },
   ];
 
   // One mapping from the action to the catalog's button name, so a new action
   // fails to compile here until its name is decided.
   const primaryName: Readonly<
-    Record<PrimaryAction, "generate" | "openViewer" | "retry">
+    Record<PrimaryAction, "generate" | "openViewer" | "retry" | "openExisting">
   > = {
     none: "generate",
     "open-viewer": "openViewer",
     retry: "retry",
+    "open-existing": "openExisting",
+    "start-inquiry": "generate",
   };
 
   // The button's names stay literal strings in English: reading them from the
   // catalog would let a changed English name pass unnoticed.
-  it("names the English primary button and sets its availability for every state", () => {
+  it("names the English buttons and sets their availability for every state", () => {
     const names: Readonly<Record<PrimaryAction, string>> = {
       none: "Generate article",
       "open-viewer": "Open viewer",
       retry: "Try again",
+      "open-existing": "Open existing article",
+      "start-inquiry": "Generate article",
     };
     for (const expected of states) {
       const elements = drawn(expected.state, "en");
@@ -809,8 +847,99 @@ describe("job view", () => {
         expected.action === "none",
         expected.name,
       );
+      // A shown secondary button is always pressable; with no action it is
+      // hidden instead of disabled.
+      const shown = (expected.secondary ?? "none") !== "none";
+      assert.equal(elements.secondary.hidden, !shown, expected.name);
+      assert.equal(elements.secondary.disabled, false, expected.name);
+      if (shown) {
+        assert.equal(
+          elements.secondary.textContent,
+          "Generate from current selection",
+          expected.name,
+        );
+      }
     }
   });
+
+  const nextViews: readonly [string, PopupView][] = [
+    ["an ended choice", jobPopup({ kind: "choice-ended" })],
+    ["a collected view", collectedView()],
+    ["a rejected view", { kind: "rejected", reason: "empty-selection" }],
+  ];
+  for (const [name, next] of nextViews) {
+    it(`hides a shown secondary button for ${name}`, () => {
+      const elements = drawn(
+        { kind: "choice", existing: "done", notice: none },
+        "en",
+      );
+      // Precondition: the choice showed the button.
+      assert.equal(elements.secondary.hidden, false);
+      renderPopup(elements, next, "en");
+      assert.equal(elements.secondary.hidden, true);
+    });
+  }
+
+  // The symbol's shape tells the existing article's state without colour,
+  // and loading and running turn with the classes the reduced-motion rule
+  // stops.
+  const existingSymbols = [
+    ["loading", "loading-icon"],
+    ["running", "step-icon-running"],
+    ["done", "step-icon-done"],
+  ] as const;
+  for (const [existing, symbolClass] of existingSymbols) {
+    it(`marks the ${existing} existing article with its symbol and sentence`, () => {
+      const elements = drawn({ kind: "choice", existing, notice: none }, "en");
+      const row = elements.checks.querySelector(".existing-state");
+      assert.ok(row !== null);
+      const icon = row.querySelector("svg");
+      assert.ok(icon !== null);
+      assert.ok(icon.classList.contains(symbolClass), symbolClass);
+      assert.equal(icon.getAttribute("aria-hidden"), "true");
+      assert.equal(row.textContent, catalogs.en.popup.existingStates[existing]);
+    });
+  }
+
+  it("shows a stopped poll's notice in a loading choice without the existing article's state", () => {
+    const notice = statusNoticeMessage(stopped.outcome, "en");
+    const elements = drawn(
+      { kind: "choice", existing: "loading", notice: stopped },
+      "en",
+    );
+    assert.equal(elements.checks.querySelector(".existing-state"), null);
+    assert.ok((elements.checks.textContent ?? "").includes(notice.text));
+    assert.deepEqual(
+      Array.from(elements.status.children, (child) => child.textContent),
+      [catalogs.en.popup.choice.text, notice.text],
+    );
+  });
+
+  // Once a status was read, the article's state stays beside any notice,
+  // whether polling goes on or stopped.
+  for (const [noticeName, polled] of [
+    ["retrying", retrying],
+    ["stopped", stopped],
+  ] as const) {
+    for (const existing of ["running", "done"] as const) {
+      it(`keeps a ${existing} existing article's state beside a ${noticeName} notice`, () => {
+        const notice = statusNoticeMessage(polled.outcome, "en");
+        const elements = drawn(
+          { kind: "choice", existing, notice: polled },
+          "en",
+        );
+        assert.ok(elements.checks.querySelector(".existing-state") !== null);
+        assert.deepEqual(
+          Array.from(elements.status.children, (child) => child.textContent),
+          [
+            catalogs.en.popup.choice.text,
+            catalogs.en.popup.existingStates[existing],
+            notice.text,
+          ],
+        );
+      });
+    }
+  }
 
   it("keeps the collected sections and their order, the video section and the details for every state", () => {
     const collected = popupElements();
@@ -866,6 +995,13 @@ describe("job view", () => {
           catalogs[locale].popup.primary[primaryName[expected.action]],
           expected.name,
         );
+        if ((expected.secondary ?? "none") !== "none") {
+          assert.equal(
+            elements.secondary.textContent,
+            catalogs[locale].popup.secondary,
+            expected.name,
+          );
+        }
       });
     }
   }

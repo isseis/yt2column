@@ -11,6 +11,7 @@ import { collect } from "./core/collect.ts";
 import type { SelectionReader } from "./core/collect.ts";
 import { chooseViewer, parseStartReply } from "./core/extensionMessages.ts";
 import type {
+  SendMode,
   SourceTab,
   StartReply,
   StartRequest,
@@ -28,6 +29,7 @@ import type { PollStep } from "./core/poll.ts";
 import {
   buildCollectedView,
   primaryAction,
+  secondaryAction,
   viewerSeed,
 } from "./core/popupView.ts";
 import type {
@@ -233,18 +235,32 @@ export async function runPopupLaunch(
 }
 
 /**
+ * What a new viewer tab's URL holds when openViewer has to create one: the
+ * current send's seed for open-viewer, or, for open-existing, the seed's
+ * values with the press time as the send time and the existing-article mark.
+ */
+type NewViewerTab =
+  | { readonly kind: "send" }
+  | { readonly kind: "existing"; readonly pressedAt: number };
+
+/**
  * Popup send path. Contract: the primary button becomes pressable only when
  * the view is collected and its selection is sendable; for any other view it
  * does nothing, so the button stays disabled as the skeleton and renderPopup
- * left it. Nothing is sent before the first press. A press asks the service
- * worker for one generation start and never sends one again by itself; the
- * popup never sends a start to the host. From then on the popup shows the
- * job states in place of the checks, keeping the video section and the
- * details, and the button does what primaryAction says: nothing while there
- * is no key, open the viewer for a key, or retry, which asks for one new
- * start of the same input. A key is polled until polling stops or the popup
- * closes. It moves the focus only back to the button a keyboard press
- * disabled, once the button can be pressed again, and never throws.
+ * left it. Nothing is sent before the first press. Each press that sends asks
+ * the service worker for one generation start and never sends one again by
+ * itself; the popup never sends a start to the host. The first press asks
+ * with an inquiry. From then on the popup shows the job states in place of
+ * the checks, keeping the video section and the details, and the buttons do
+ * what primaryAction and secondaryAction say: nothing while there is no key,
+ * open the viewer for a key, retry, which asks for one new start of the same
+ * input in the mode of the send it replaces, open the existing article of a
+ * same-video answer, which sends nothing, generate from the current
+ * selection, a plain start, or, once the existing article is gone, a new
+ * inquiry. A key is polled until polling stops or the popup closes. It moves
+ * the focus back to the primary button a keyboard press disabled, once the
+ * button can be pressed again, and to the primary button from a secondary
+ * button about to be hidden; it never throws.
  */
 export function runPopupSend(
   elements: PopupElements,
@@ -260,7 +276,7 @@ export function runPopupSend(
     return;
   }
   const input = view.selection.status.request.body.message;
-  const { primary } = elements;
+  const { primary, secondary } = elements;
   const doc = primary.ownerDocument;
 
   let pressed = false;
@@ -272,6 +288,8 @@ export function runPopupSend(
   let state: PopupJobState = { kind: "sending" };
   let seed: ViewerSeed = viewerSeed(view.video, input, 0);
   let key: ArticleKey | undefined;
+  /** The mode of the current send; a retry sends in it again. */
+  let mode: SendMode = "inquiry";
   /** The tab that shows this send, as the worker or the last open-viewer found it. */
   let viewerTabId: number | undefined;
   let poller: Poller | undefined;
@@ -304,8 +322,8 @@ export function runPopupSend(
 
   /**
    * Gives the focus back to the primary button once it can be pressed again
-   * after a keyboard press disabled it, when no element has the focus then:
-   * an element the user focused in between keeps it.
+   * after a keyboard press disabled or hid the button pressed, when no element
+   * has the focus then: an element the user focused in between keeps it.
    */
   const restoreFocus = (): void => {
     if (!returnFocus || primary.disabled) {
@@ -318,14 +336,58 @@ export function runPopupSend(
   };
 
   const show = (next: PopupJobState): void => {
+    // A focused secondary button about to be hidden hands the focus to the
+    // primary button first, while that one can still be pressed.
+    if (
+      doc.activeElement === secondary &&
+      secondaryAction(next) === "none" &&
+      primaryAction(next) !== "none" &&
+      !primary.disabled
+    ) {
+      primary.focus();
+    }
     state = next;
     draw();
     armRedraw();
     restoreFocus();
   };
 
+  /**
+   * A step of the existing article's poll while the choice is shown: running
+   * and done keep the choice with the new state, a failed or lost article
+   * ends it and stops polling, and a failed exchange adds its notice.
+   */
+  const onChoiceStep = (
+    choice: Extract<PopupJobState, { kind: "choice" }>,
+    step: PollStep,
+  ): void => {
+    switch (step.job?.kind) {
+      case undefined:
+        show({ ...choice, notice: step.notice });
+        return;
+      case "running":
+      case "done":
+        show({ kind: "choice", existing: step.job.kind, notice: step.notice });
+        return;
+      case "failed":
+      case "lost":
+        // afterStatus already stops at a failed or lost job; dropping the
+        // poller here keeps the ended choice from depending on that.
+        poller?.stop();
+        poller = undefined;
+        show({ kind: "choice-ended" });
+        return;
+      default: {
+        const exhaustive: never = step.job;
+        throw new Error(`Unhandled job: ${String(exhaustive)}`);
+      }
+    }
+  };
+
   const onStep = (step: PollStep): void => {
-    if (step.job !== undefined) {
+    if (state.kind === "choice") {
+      onChoiceStep(state, step);
+    } else if (step.job !== undefined) {
       show({ kind: "job", job: step.job, notice: step.notice });
     } else if (state.kind === "job") {
       show({ ...state, notice: step.notice });
@@ -370,22 +432,28 @@ export function runPopupSend(
     });
   };
 
-  /** Sends one start of the input, from the sending state. */
-  const start = async (): Promise<void> => {
+  /**
+   * Sends one start of the input in sendMode, from the sending state. A
+   * same-video answer shows the choice and polls the existing article's key;
+   * an accepted one shows the job states and polls its key.
+   */
+  const start = async (sendMode: SendMode): Promise<void> => {
     poller?.stop();
     poller = undefined;
     key = undefined;
     viewerTabId = undefined;
+    mode = sendMode;
     sends += 1;
+    // An open-viewer of the replaced send gives up at its next step; it must
+    // not keep the new send's open-viewer from starting meanwhile.
+    opening = false;
     seed = viewerSeed(view.video, input, deps.now());
     show({ kind: "sending" });
-    // Retry is offered only once the previous reply is in, so no earlier
-    // send's reply can still arrive here.
-    // The popup sends plain: it does not yet offer the choice an inquiry's
-    // same-video answer needs.
+    // Every action that sends is offered only once the previous reply is in,
+    // so no earlier send's reply can still arrive here.
     const reply = await askWorker({
       type: "start",
-      mode: "plain",
+      mode: sendMode,
       input,
       viewer: seed,
       source,
@@ -395,16 +463,28 @@ export function runPopupSend(
       return;
     }
     const { outcome } = reply;
-    // A plain send never gets a same-video answer; were one to arrive, its
-    // key is polled like an accepted one.
-    if (outcome.kind !== "accepted" && outcome.kind !== "same-video") {
-      show({ kind: "start-failed", failure: outcome });
-      return;
+    switch (outcome.kind) {
+      case "accepted":
+      case "same-video":
+        break;
+      case "rejected":
+      case "not-sent":
+      case "no-response":
+      case "host-failed":
+      case "unexpected":
+        show({ kind: "start-failed", failure: outcome });
+        return;
     }
     key = outcome.key;
     viewerTabId = reply.viewerTabId;
     poller = createStatusPoller(key, deps, onStep);
-    show({ kind: "loading", notice: { kind: "none" } });
+    // The worker checks a same-video answer only for an inquiry, so it never
+    // answers a plain send with one.
+    show(
+      outcome.kind === "same-video"
+        ? { kind: "choice", existing: "loading", notice: { kind: "none" } }
+        : { kind: "loading", notice: { kind: "none" } },
+    );
     poller.start();
   };
 
@@ -421,7 +501,10 @@ export function runPopupSend(
    * it looks ends it: the viewer it would bring forward shows the send the
    * retry replaced, and bringing a window forward would close the popup.
    */
-  const openViewer = async (viewerKey: ArticleKey): Promise<void> => {
+  const openViewer = async (
+    viewerKey: ArticleKey,
+    newTab: NewViewerTab,
+  ): Promise<void> => {
     const send = sends;
     const current = (): boolean => send === sends;
     if (viewerTabId !== undefined) {
@@ -454,8 +537,17 @@ export function runPopupSend(
         return;
       }
     }
+    const query =
+      newTab.kind === "send"
+        ? viewerQuery({ ...seed, key: viewerKey })
+        : viewerQuery({
+            ...seed,
+            sentAt: newTab.pressedAt,
+            key: viewerKey,
+            existing: true,
+          });
     const created = await deps.tabs.create({
-      url: `${deps.identity.getURL("viewer.html")}?${viewerQuery({ ...seed, key: viewerKey })}`,
+      url: `${deps.identity.getURL("viewer.html")}?${query}`,
       active: true,
     });
     if (!created.ok || !current()) {
@@ -465,11 +557,27 @@ export function runPopupSend(
     await deps.focusWindow(created.value.windowId);
   };
 
+  /** Opens a viewer of the current key once at a time; a press while one opens does nothing. */
+  const openOnce = (newTab: NewViewerTab): void => {
+    if (opening || key === undefined) {
+      return;
+    }
+    opening = true;
+    const send = sends;
+    void openViewer(key, newTab).then(() => {
+      // A start since then already cleared the flag, and may have set it for
+      // its own open-viewer.
+      if (send === sends) {
+        opening = false;
+      }
+    });
+  };
+
   primary.addEventListener("click", (event) => {
     if (!pressed) {
       pressed = true;
       returnFocus = isKeyboardPress(event);
-      void start();
+      void start("inquiry");
       return;
     }
     switch (primaryAction(state)) {
@@ -477,16 +585,27 @@ export function runPopupSend(
         return;
       case "retry":
         returnFocus = isKeyboardPress(event);
-        void start();
+        void start(mode);
+        return;
+      case "start-inquiry":
+        returnFocus = isKeyboardPress(event);
+        void start("inquiry");
         return;
       case "open-viewer":
-        if (opening || key === undefined) {
-          return;
-        }
-        opening = true;
-        void openViewer(key).then(() => {
-          opening = false;
-        });
+        openOnce({ kind: "send" });
+        return;
+      case "open-existing":
+        openOnce({ kind: "existing", pressedAt: deps.now() });
+        return;
+    }
+  });
+  secondary.addEventListener("click", (event) => {
+    switch (secondaryAction(state)) {
+      case "none":
+        return;
+      case "start-plain":
+        returnFocus = isKeyboardPress(event);
+        void start("plain");
         return;
     }
   });
@@ -503,8 +622,8 @@ function isKeyboardPress(event: Event): boolean {
 
 /**
  * The skeleton's elements, found in doc by id. Contract: undefined unless every
- * element is present and of its kind -- the primary button a button and the
- * details a details element, checked against the document's own constructors
+ * element is present and of its kind -- both buttons button elements and
+ * the details a details element, checked against the document's own constructors
  * -- so a partial skeleton is never drawn into.
  */
 export function findPopupElements(doc: Document): PopupElements | undefined {
@@ -514,6 +633,7 @@ export function findPopupElements(doc: Document): PopupElements | undefined {
   const rejection = doc.getElementById("rejection");
   const action = doc.getElementById("action");
   const primary = doc.getElementById("primary");
+  const secondary = doc.getElementById("secondary");
   const status = doc.getElementById("status");
   const details = doc.getElementById("details");
   if (
@@ -524,11 +644,21 @@ export function findPopupElements(doc: Document): PopupElements | undefined {
     action === null ||
     status === null ||
     !(primary instanceof win.HTMLButtonElement) ||
+    !(secondary instanceof win.HTMLButtonElement) ||
     !(details instanceof win.HTMLDetailsElement)
   ) {
     return undefined;
   }
-  return { video, checks, rejection, action, primary, status, details };
+  return {
+    video,
+    checks,
+    rejection,
+    action,
+    primary,
+    secondary,
+    status,
+    details,
+  };
 }
 
 /**

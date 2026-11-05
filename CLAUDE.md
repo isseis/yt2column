@@ -641,6 +641,11 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
   `_lib/task-pr-handoff.md` Part B step 5, `fixpr.md` Phase 6, and
   `_lib/lightweight-spec.md` with it, and fail instead of skipping when it is
   missing. The `doc-guard` CI job runs these tests too.
+- `make test` also needs `bash` and a `git` that accepts `--attr-source` on
+  `PATH`: `TestLightweightCheck` runs the recheck script
+  `_lib/lightweight-check.sh` with them on fixture repositories, and fails
+  instead of skipping when either is missing. It runs in the `doc-guard` CI
+  job as well.
 - Secrets (`DEEPSEEK_API_KEY`, `ANTHROPIC_API_KEY`, `SLACK_WEBHOOK_URL`, ...) go in `.envrc` / `.env`,
   which are git-ignored. Never commit them and never print them.
 - Real captured data committed under `testdata/` must come from a video licensed
@@ -701,6 +706,18 @@ Only the conventions a linter does not check are worth stating:
   literal has to equal the document's text, and the document is Japanese
   ("Document language" above). Comments and identifiers in those files stay
   English.
+- A second exception, the lightweight-check literal exception: a Japanese
+  literal in the lightweight process's recheck script
+  (`.claude/commands/_lib/lightweight-check.sh`) and its test
+  (`cmd/yt2column/lightweight_docs_test.go`). Scope: a literal that must equal
+  a heading of the spec comment (such as `### 類型`, under which the script
+  reads the type), the body of a fixture spec comment in the test, and the
+  file name of a fixture that checks how a Japanese path is matched. Reason:
+  the spec comment is Japanese (`.claude/commands/_lib/lightweight-spec.md`),
+  so the script must hold its heading to read the type, and the test must
+  write such a spec and such a path to run the script on them. Boundary: no
+  other literal of the two files is Japanese, the output lines of the script
+  included, and their comments and identifiers stay English.
 - The same rule applies to the browser extension: its comments, identifiers,
   and string literals are English. There are three exceptions: the messages in
   a catalog file for a language other than English under

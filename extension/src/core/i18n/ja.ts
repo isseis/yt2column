@@ -28,6 +28,7 @@ const publishAgainStep =
 // Button names a step quotes, kept in one place with the button's own name.
 const generateButton = "記事を生成する";
 const generateFromSelectionButton = "現在の選択範囲で生成する";
+const openExistingButton = "既存の記事を表示する";
 const closePopupStep =
   "このポップアップは閉じてかまいません。結果はビューアのタブに表示されます。";
 
@@ -361,12 +362,29 @@ export const ja: Catalog = {
       generate: generateButton,
       openViewer: "ビューアを開く",
       retry: "やり直す",
+      openExisting: openExistingButton,
     },
+    secondary: generateFromSelectionButton,
     sending: {
       text: "リクエストをサーバに送信しています…",
       steps: [closePopupStep],
     },
     viewerNotice: { text: closePopupStep, steps: [] },
     articleReady: { text: "記事ができました。", steps: [] },
+    choice: {
+      text: "このサーバに、同じ動画の記事があります。",
+      steps: [
+        `「${openExistingButton}」でその記事を表示します。「${generateFromSelectionButton}」で、選択した字幕から新しく記事を生成します。`,
+      ],
+    },
+    existingStates: {
+      loading: "記事の状態を読み込んでいます…",
+      running: "記事は生成中です。",
+      done: "記事は生成済みです。",
+    },
+    choiceEnded: {
+      text: "同じ動画の記事は使えなくなりました。",
+      steps: [`「${generateButton}」を押すと、記事を生成します。`],
+    },
   },
 };
