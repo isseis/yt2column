@@ -147,12 +147,14 @@ var (
 )
 
 // readOnlyInvocations are the gh api invocations that pass a text flag but
-// write nothing: the link count query of _lib/task-pr-handoff.md and
-// runissue.md's read of the pull requests linked to its issue. Each query
-// follows on later lines, so the code block it opens must hold no mutation.
+// write nothing: the link count query of _lib/task-pr-handoff.md,
+// runissue.md's read of the pull requests linked to its issue, and runpr.md's
+// read of a PR's head branch and linked issues. Each query follows on later
+// lines, so the code block it opens must hold no mutation.
 var readOnlyInvocations = []string{
 	`gh api graphql -F owner='{owner}' -F repo='{repo}' -F n=<issue> -f query='`,
 	runissueLinkedPRsQuery,
+	`gh api graphql -F owner='{owner}' -F repo='{repo}' -F n=<number> -f query='`,
 }
 
 // invocation returns the command line that starts at doc[at:], with the
