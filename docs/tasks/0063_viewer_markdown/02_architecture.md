@@ -443,7 +443,8 @@ export function drawOnKeyChange(container: HTMLElement, key: string, draw: () =>
 | `extension/test/renderJob.test.ts` | 変更なしの予定 | 状態の表示のテスト | `drawStateOnChange` の振る舞いは変わらないので、今のテストが通ることで確かめる |
 | `extension/test/style.test.ts` | 変更 | CSS のテスト | 3.5 の値とコントラストの組（7.1） |
 | `extension/test/lintRules.test.ts` | 変更 | lint の規則のテスト | ブランド型の表に `LinkUrl` を加える（7.3） |
-| `extension/test/viewerApp.test.ts` | 変更 | ビューアの経路のテスト | コピーのテストの記事に記号を含む Markdown を使う（7.1） |
+| `extension/test/viewerApp.test.ts` | 変更なしの予定 | ビューアの経路のテスト | コピーのテストの記事は、すでに記号を含む Markdown を使う（7.1） |
+| `extension/scripts/popup-preview.ts` | 変更 | 手動の確認のページ | 完了した記事のページの記事を、描画する要素を含む Markdown にする（7.2） |
 | `docs/dev/security.md` | 変更 | セキュリティの方針 | §6・§8.1・§8.2（3.7） |
 | `CLAUDE.md` | 変更 | プロジェクトの規則 | 「Declare, don't infer」の例外（3.7） |
 | `README.md`・`README.en.md` | 変更 | 利用者向けの説明 | 記事の表示の説明（3.7） |
@@ -644,7 +645,7 @@ I-5 で URL が 3.3 の判定を通らないときは、`<` 1 文字を文字に
     -   上の形を混ぜた 1 行と、記事の形の段落を繰り返した複数の行。
 
     行の長さに比例する解釈では、どの入力も数十ミリ秒の見込みで、1 秒の上限との差は 10 倍以上ある。1 秒は、2 乗の時間の解釈を見分けるための上限である。`make ext-coverage-compare` の計測中や、テストのファイルが並行して動く CI でも、10 倍以上の差があるので、誤って失敗することはないと見込む。
--   **保存とコピー（AC-30）**: コピーは、`extension/test/viewerApp.test.ts` のコピーのテスト（`:805`）の記事に記号を含む Markdown を使い、描画した文字列ではなく `article.markdown` が書き込まれることを確かめる。保存は、今の保存のテストが変えずに通ることで確かめる。
+-   **保存とコピー（AC-30）**: コピーは、`extension/test/viewerApp.test.ts` のコピーのテスト（`:805`）が、描画した文字列ではなく `article.markdown` が書き込まれることを確かめる。このテストの記事（`:71-76`）は、描画で除かれる記号（`# `）をすでに含む。保存は、今の保存のテストが変えずに通ることで確かめる。
 -   **ほかの表示（AC-31）**: 今の `renderViewer.test.ts` の状態・動画のセクション・操作のテストが、変えずに通ることで確かめる。
 
 ### 7.2. 統合テスト（手動）
