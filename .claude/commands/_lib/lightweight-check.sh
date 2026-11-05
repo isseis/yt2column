@@ -23,7 +23,9 @@
 #     leads to a revert that cannot be undone.
 #   - Every temporary file and worktree is removed before the script exits,
 #     however it exits.
-#   - It uses no network and no bash feature newer than 3.2.
+#   - It uses no network and no bash feature newer than 3.2. It needs a git
+#     that accepts --attr-source; with an older one the diffs fail and the
+#     verdict is STOP.
 #
 # Output: lines that start with "lightweight-check: "; the last is the verdict.
 # Exit status: 0 PASS, 1 FAIL, 2 STOP.

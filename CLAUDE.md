@@ -641,9 +641,9 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
   `_lib/task-pr-handoff.md` Part B step 5, `fixpr.md` Phase 6, and
   `_lib/lightweight-spec.md` with it, and fail instead of skipping when it is
   missing. The `doc-guard` CI job runs these tests too.
-- `make test` also needs `bash` and `git` on `PATH`: `TestLightweightCheck`
-  runs the recheck script `_lib/lightweight-check.sh` with them on fixture
-  repositories, and fails instead of skipping when either is missing. It runs
+- `make test` also needs `bash` and `git` on `PATH`, the git one that accepts
+  `--attr-source`: `TestLightweightCheck` runs the recheck script
+  `_lib/lightweight-check.sh` with them on fixture repositories, and fails instead of skipping when either is missing. It runs
   in the `doc-guard` CI job as well.
 - Secrets (`DEEPSEEK_API_KEY`, `ANTHROPIC_API_KEY`, `SLACK_WEBHOOK_URL`, ...) go in `.envrc` / `.env`,
   which are git-ignored. Never commit them and never print them.
