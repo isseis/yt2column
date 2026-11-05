@@ -25,6 +25,7 @@ const (
 	contextPath  = "../../.claude/commands/_context.md"
 	handoffPath  = "../../.claude/commands/_lib/task-pr-handoff.md"
 	runissuePath = "../../.claude/commands/runissue.md"
+	mkreqPath    = "../../.claude/commands/mkreq.md"
 )
 
 // Section headings of fixpr.md and runpr.md the contract tests read.
@@ -982,8 +983,8 @@ func (c *contextReviewers) checkRequest(value string) {
 // TestContextAndCommandsAgree checks that _context.md is the one place the
 // automated reviewers' names are written: its reviewer rows parse and hold
 // the expected names, the PR review request row's description names the
-// mention fixprguard rejects, and fixpr.md, runpr.md, runissue.md, and
-// _lib/task-pr-handoff.md never write a reviewer's name.
+// mention fixprguard rejects, and fixpr.md, runpr.md, runissue.md, mkreq.md,
+// and _lib/task-pr-handoff.md never write a reviewer's name.
 func TestContextAndCommandsAgree(t *testing.T) {
 	got := checkContextReviewers(doctestutil.ReadDoc(t, contextPath))
 	if len(got.problems) > 0 {
@@ -1001,6 +1002,7 @@ func TestContextAndCommandsAgree(t *testing.T) {
 		{"fixpr.md", fixprPath},
 		{"runpr.md", runprPath},
 		{"runissue.md", runissuePath},
+		{"mkreq.md", mkreqPath},
 		{"_lib/task-pr-handoff.md", handoffPath},
 	} {
 		doc := doctestutil.ReadDoc(t, tc.path)

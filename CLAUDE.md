@@ -34,7 +34,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   palette, and Legend blocks).
 - Each task lives in `docs/tasks/NNNN_<name>/` (four-digit sequence number).
   `docs/tasks/0000_template/requirements.md` is the starting point for
-  `01_requirements.md`.
+  `01_requirements.md`. Exception: a change that takes the lightweight process
+  has no task and creates nothing under `docs/tasks/`. Scope: a change that
+  meets every condition of
+  [requirements_process.md](docs/dev/conventions/requirements_process.md),
+  "Lightweight Process", and whose spec comment the user approved on its issue;
+  every other change is a task.
 
 ### Document language
 
@@ -197,7 +202,8 @@ change, retire, and withdraw an ADR is in the convention,
 ### Claude Commands (`.claude/commands/`)
 Project-specific values these commands depend on are defined once in
 [_context.md](.claude/commands/_context.md).
-- `/mkreq <issue> [task]` - Create `01_requirements.md` from a GitHub issue and open its PR
+- `/mkreq <issue> [task]` - Create `01_requirements.md` from a GitHub issue and open its PR; first, for an issue that meets the lightweight conditions, offer the lightweight process and, when the user approves the spec shown, post it on the issue and add the label instead
+- `/runissue <issue>` - Implement an issue's approved lightweight spec on its own branch, recheck the conditions on the real diff, and open its one PR
 - `/mkarch <task>` - Create `02_architecture.md` (requires approved requirements) and open its PR
 - `/mkplan <task>` - Create `03_implementation_plan.md` with its PR boundaries (requires approved architecture) and open its PR
 - `/mkplan2 <task>` - Embed PR boundaries into an approved plan that lacks them (plans written before `/mkplan` did it) and open its PR
@@ -221,6 +227,13 @@ then asks one question that decides the bookkeeping (for a document, its
 `approved` status) and the merge with `/mergepr`, and offers the next command
 when there is one. When the user chooses to run it, it runs, opens the next PR,
 and stops again.
+
+A lightweight change has no task PR. `/mkreq` writes no requirements document
+for it: it posts the spec comment the user approved on the issue, adds the
+label, and stops. `/runissue` implements the spec, checks and reviews it,
+rechecks the conditions on the real diff, opens the one PR, pings the reviewer,
+and stops. The reviewer then runs `/runpr`, which drives the PR as it drives a
+standalone change, merges it, and closes the issue.
 
 Codex does the PR review. Its allowance is shared with the user's other
 ChatGPT use and its size is not published, so a PR gets one PR review, when it
@@ -743,6 +756,15 @@ When implementing new features, follow the process documented in [Requirements P
 
 Each document is created as `draft`; the next one is not started until a human
 reviewer sets the previous one to `approved`.
+
+**Lightweight process.** A simple change (a wording fix, a deletion of
+unreachable code, or a mechanical refactoring, within fixed limits) takes one
+PR and no task documents. `/mkreq <issue>` offers it when the issue meets the
+conditions, and the user's approval of the spec comment it shows takes the
+place of the approved documents; `/runissue <issue>` implements it. The
+conditions, the limits, and the flow are in the
+[Lightweight Process](docs/dev/conventions/requirements_process.md#lightweight-process)
+section of the Requirements Process Guide.
 
 ## Tool Execution Safety
 

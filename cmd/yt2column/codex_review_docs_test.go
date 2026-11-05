@@ -54,7 +54,7 @@ func itemSection(first, next string) func(t *testing.T, doc string) string {
 	}
 }
 
-// postingSections are the nine sections that post text to GitHub. fixpr.md
+// postingSections are the ten sections that post text to GitHub. fixpr.md
 // Phase 4 is one: the correction lines finish commits reach GitHub with the
 // push.
 var postingSections = []postingSection{
@@ -78,6 +78,11 @@ var postingSections = []postingSection{
 	},
 	{
 		"runissue.md revert", runissuePath, headingSection(doctestutil.RunissueRevertHeading),
+		[]string{"gh issue comment <N> --body-file"},
+	},
+	{
+		"mkreq.md lightweight triage", mkreqPath,
+		itemSection("- **Lightweight triage.**", "\n2. Resolve the task directory."),
 		[]string{"gh issue comment <N> --body-file"},
 	},
 }
