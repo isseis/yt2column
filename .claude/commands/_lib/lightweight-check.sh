@@ -309,17 +309,27 @@ RE_EXCLUDE='^(exclude|exclude-absent) ([A-Za-z0-9._/-]+)$'
 RE_TOOL='^tool [!-~]+( [!-~]+)*$'
 
 table_row() {
-	local row=$1 var path
+	local row=$1 path value old
 	case $SEEN_ROWS in
 	*"|$row|"*) stop table "the conditions table repeats a row" ;;
 	esac
 	SEEN_ROWS="$SEEN_ROWS$row|"
 	if [[ $row =~ $RE_LIMIT ]]; then
-		var=LIMIT_${BASH_REMATCH[1]}_$(printf '%s' "${BASH_REMATCH[2]}" | tr a-z A-Z)
-		if [ -n "${!var}" ]; then
+		# Each limit variable is named in the code, not built from the row's
+		# text, so no row can choose what is assigned.
+		value=${BASH_REMATCH[3]}
+		case ${BASH_REMATCH[1]}_${BASH_REMATCH[2]} in
+		W_added) old=$LIMIT_W_ADDED LIMIT_W_ADDED=$value ;;
+		W_deleted) old=$LIMIT_W_DELETED LIMIT_W_DELETED=$value ;;
+		D_added) old=$LIMIT_D_ADDED LIMIT_D_ADDED=$value ;;
+		D_deleted) old=$LIMIT_D_DELETED LIMIT_D_DELETED=$value ;;
+		M_added) old=$LIMIT_M_ADDED LIMIT_M_ADDED=$value ;;
+		M_deleted) old=$LIMIT_M_DELETED LIMIT_M_DELETED=$value ;;
+		*) stop table "the conditions table has a limit row of an unknown kind" ;;
+		esac
+		if [ -n "$old" ]; then
 			stop table "the conditions table has two rows for one limit"
 		fi
-		eval "$var=\${BASH_REMATCH[3]}"
 	elif [[ $row =~ $RE_FILES ]]; then
 		if [ -n "$LIMIT_FILES" ]; then
 			stop table "the conditions table has two rows for the files limit"
@@ -617,7 +627,12 @@ while IFS= read -r -d '' record; do
 	DELETED=$((DELETED + deleted))
 done <"$TMP_DIR/numstat-hand"
 
-eval "LIMIT_ADDED=\$LIMIT_${TYPE}_ADDED LIMIT_DELETED=\$LIMIT_${TYPE}_DELETED"
+case $TYPE in
+W) LIMIT_ADDED=$LIMIT_W_ADDED LIMIT_DELETED=$LIMIT_W_DELETED ;;
+D) LIMIT_ADDED=$LIMIT_D_ADDED LIMIT_DELETED=$LIMIT_D_DELETED ;;
+M) LIMIT_ADDED=$LIMIT_M_ADDED LIMIT_DELETED=$LIMIT_M_DELETED ;;
+*) stop type "the type is not W, D, or M" ;;
+esac
 
 # over reports whether count $1 is above limit $2, where "none" is no limit.
 over() {

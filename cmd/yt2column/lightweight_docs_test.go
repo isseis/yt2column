@@ -1102,6 +1102,10 @@ func lightweightCheckCases() []lwCase {
 		{name: "a row is repeated", typ: "W", table: func(t *testing.T) string {
 			return lwEditTable(t, "exclude docs/tasks/", "exclude docs/tasks/\nexclude docs/tasks/\n")
 		}, branch: lwSmallChange, want: "STOP table"},
+		{name: "two different rows for one limit", typ: "W", table: func(t *testing.T) string {
+			row := "limit W added " + readLightweightConditions(t, doctestutil.ReadDoc(t, requirementsProcessPath)).limits["W added"]
+			return lwEditTable(t, row, row+"\nlimit W added none\n")
+		}, branch: lwSmallChange, want: "STOP table"},
 		{name: "the files limit is none", typ: "W", table: func(t *testing.T) string {
 			files := readLightweightConditions(t, doctestutil.ReadDoc(t, requirementsProcessPath)).limits["files"]
 			return lwEditTable(t, "limit files "+files, "limit files none\n")
