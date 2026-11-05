@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-06 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-06 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は、[01_requirements.md](01_requirements.md)（以下「要件」）と [02_architecture.md](02_architecture.md)（以下「設計書」）に従って、実装の手順と確かめ方を定める。F-…・AC-…・H-… は要件の項目を、B-1〜B-7・I-1〜I-5 は要件 3.2 の規則を指す。既存のコードの行番号は、コミット `22b24bad` で確かめた。設計書が行番号を確かめたコミット `b9e33644` から `22b24bad` までに、`extension/` の変更はない（`git diff --stat b9e33644 22b24bad -- extension` が空）。
@@ -477,3 +477,7 @@
 
 -   本書の承認の後、`/runplan 0063` でフェーズ 1 から実装する。
 -   タスクの最後の PR をマージした後、issue #504 を閉じる。
+
+## 変更履歴
+
+- 2026-11-06 承認（isseis、#697）
