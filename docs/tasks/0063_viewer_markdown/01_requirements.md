@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-05 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-05 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -270,3 +270,7 @@ I-3 と I-4 は、開く記号の直後と閉じる記号の直前が空白で�
 -   **描画:** 表示用の Markdown を、3.2 節の規則で見出し・段落などの要素にして表示すること。
 -   **自動リンク:** `<` と `>` で囲んだ URL の記法（I-5）。
 -   **URL の文字列:** 自動リンクの `<` と `>` の間の文字列（F-003）。
+
+## 変更履歴
+
+- 2026-11-05 承認（isseis、#689）
