@@ -317,7 +317,7 @@
 **判定理由**: ステップ 2-3 は、GitHub への書き込みと取り消せない戻しを持つ新しいコマンドで、他人の書いた文字列を扱う信頼境界である（mkplan.md の panel mode の security-gate の条件）
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/688
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
