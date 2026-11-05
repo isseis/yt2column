@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -268,13 +269,13 @@ func TestLightweightSpecListing(t *testing.T) {
 		"<spec-marker>", spec, "<revert-marker>", revert)
 }
 
-// lightweightSpecTemplate returns the lines of the spec comment template: the
-// one markdown code block of lightweight-spec.md's format section, without
-// their line endings.
-func lightweightSpecTemplate(t *testing.T) []string {
+// markdownTemplate returns the lines of a comment template, without their
+// line endings: the one markdown code block of the section of the document at
+// path under heading, found outside code blocks. name is the document's name
+// in a failure.
+func markdownTemplate(t *testing.T, name, path, heading string) []string {
 	t.Helper()
-	doc := doctestutil.ReadDoc(t, lightweightSpecPath)
-	section := requireOutsideBlocksSection(t, "_lib/lightweight-spec.md", doc, doctestutil.LightweightSpecFormatHeading)
+	section := requireOutsideBlocksSection(t, name, doctestutil.ReadDoc(t, path), heading)
 	var templates []doctestutil.FencedBlock
 	for _, block := range doctestutil.FencedBlocks(section) {
 		if block.Info == "markdown" {
@@ -282,7 +283,7 @@ func lightweightSpecTemplate(t *testing.T) []string {
 		}
 	}
 	if len(templates) != 1 || len(templates[0].Lines) == 0 {
-		t.Fatalf("%q has %d markdown code blocks, want one that is not empty", doctestutil.LightweightSpecFormatHeading, len(templates))
+		t.Fatalf("%s %q has %d markdown code blocks, want one that is not empty", name, heading, len(templates))
 	}
 	lines := make([]string, len(templates[0].Lines))
 	for i, line := range templates[0].Lines {
@@ -291,13 +292,177 @@ func lightweightSpecTemplate(t *testing.T) []string {
 	return lines
 }
 
+// lightweightSpecTemplate returns the lines of the spec comment template of
+// lightweight-spec.md's format section.
+func lightweightSpecTemplate(t *testing.T) []string {
+	t.Helper()
+	return markdownTemplate(t, "_lib/lightweight-spec.md", lightweightSpecPath, doctestutil.LightweightSpecFormatHeading)
+}
+
+// checkTemplateMarker fails t unless the first line of the comment template
+// of the document at path, under heading, is the value of _context.md's row
+// named row.
+func checkTemplateMarker(t *testing.T, name, path, heading, row string) {
+	t.Helper()
+	got := markdownTemplate(t, name, path, heading)[0]
+	if want := contextCodeSpan(t, row); got != want {
+		t.Errorf("the %s template starts with %q, want the %s %q", name, got, row, want)
+	}
+}
+
 // TestLightweightSpecTemplateMarker checks that the first line of the spec
 // comment template is the spec marker _context.md defines, so a comment
 // written from the template is one the listing finds.
 func TestLightweightSpecTemplateMarker(t *testing.T) {
-	got := lightweightSpecTemplate(t)[0]
-	if want := contextCodeSpan(t, specMarkerRow); got != want {
-		t.Errorf("the spec comment template starts with %q, want the spec marker %q", got, want)
+	checkTemplateMarker(t, "_lib/lightweight-spec.md", lightweightSpecPath, doctestutil.LightweightSpecFormatHeading, specMarkerRow)
+}
+
+// TestRevertTemplateMarker checks that the first line of runissue.md's revert
+// comment template is the revert marker _context.md defines, so a revert
+// comment written from it marks the issue as returned to the normal process.
+func TestRevertTemplateMarker(t *testing.T) {
+	checkTemplateMarker(t, "runissue.md", runissuePath, doctestutil.RunissueRevertCommentHeading, revertMarkerRow)
+}
+
+// codeTexts returns the code of doc: the lines inside fenced code blocks,
+// fences left out, and the contents of the code spans outside the blocks.
+func codeTexts(doc string) (blockLines, spans []string) {
+	var prose strings.Builder
+	for _, line := range doctestutil.ScanDocLines(slices.Collect(strings.Lines(doc))) {
+		switch {
+		case line.Fence:
+		case line.Block:
+			blockLines = append(blockLines, strings.TrimSpace(line.Text))
+		default:
+			prose.WriteString(line.Text)
+			prose.WriteString("\n")
+		}
+	}
+	for _, m := range codeSpanRE.FindAllStringSubmatch(prose.String(), -1) {
+		spans = append(spans, strings.TrimSpace(m[1]))
+	}
+	return blockLines, spans
+}
+
+// The code block lines a command document may write the recheck script in:
+// the write-out of origin/main's copy to <check-script> and the run of that
+// copy.
+const (
+	lightweightCheckShow = "git show origin/main:.claude/commands/_lib/lightweight-check.sh > <check-script>"
+	lightweightCheckRun  = "bash <check-script> <spec-file>"
+)
+
+// lightweightCheckNames are the code spans that only name the recheck script.
+var lightweightCheckNames = []string{".claude/commands/_lib/lightweight-check.sh", "_lib/lightweight-check.sh", "<check-script>"}
+
+// TestLightweightCheckCallSite checks that the command documents run the
+// recheck script only as origin/main's copy: every code block line that names
+// the script or <check-script> is the write-out of origin/main's copy or the
+// run of that copy, and every code span that names them is the name alone.
+// Running the work tree's copy would let the branch it checks change the
+// check. At least one document writes out and runs it, so a renamed form does
+// not pass by matching nothing. A sentence that redefines <check-script> in
+// words is out of its reach.
+func TestLightweightCheckCallSite(t *testing.T) {
+	shows, runs := 0, 0
+	for _, rel := range doctestutil.CommandDocs(t, repositoryRoot) {
+		blockLines, spans := codeTexts(doctestutil.ReadDoc(t, filepath.Join(repositoryRoot, rel)))
+		for i, code := range slices.Concat(blockLines, spans) {
+			if !strings.Contains(code, "lightweight-check.sh") && !strings.Contains(code, "<check-script>") {
+				continue
+			}
+			inBlock := i < len(blockLines)
+			switch {
+			case inBlock && code == lightweightCheckShow:
+				shows++
+			case inBlock && code == lightweightCheckRun:
+				runs++
+			case !inBlock && slices.Contains(lightweightCheckNames, code):
+			default:
+				t.Errorf("%s has %q, which neither names the recheck script nor writes out or runs origin/main's copy", rel, code)
+			}
+		}
+	}
+	if shows == 0 || runs == 0 {
+		t.Errorf("the command documents write out origin/main's recheck script %d times and run it %d times, want both at least once", shows, runs)
+	}
+}
+
+// runissueLinkedPRsQuery is the start of runissue.md's GraphQL read of the
+// pull requests linked to its issue.
+const runissueLinkedPRsQuery = `gh api graphql -F owner='{owner}' -F repo='{repo}' -F n=<N> -f query='`
+
+// runissueAPICalls are the gh api calls runissue.md may write itself: the
+// user's login and the linked pull requests. Its spec reads are
+// lightweight-spec.md's, which TestLightweightSpecListing checks there.
+var runissueAPICalls = []string{"gh api user --jq .login", runissueLinkedPRsQuery}
+
+// issueViewCommand is the one form runissue.md may read an issue in: gh issue
+// view with the --json fields runissueViewFields and no other flag.
+var issueViewCommand = regexp.MustCompile(`^gh issue view <(?:N|issue)> --json ([a-z,]+)$`)
+
+// runissueViewFields are the only issue fields runissue.md may ask gh issue
+// view for: none holds text another account wrote.
+const runissueViewFields = "number,state,url,labels"
+
+// graphQLWord matches one name of a GraphQL query: a field, an argument, a
+// variable, a type, or a value.
+var graphQLWord = regexp.MustCompile(`[A-Za-z_][A-Za-z0-9_]*`)
+
+// runissueQueryWords are the only names runissue.md's linked pull requests
+// query may hold. None reads text another account wrote, and a field added to
+// the query fails the test until it is added here.
+var runissueQueryWords = []string{
+	"query", "owner", "String", "repo", "n", "Int", "repository", "name", "issue", "number",
+	"closedByPullRequestsReferences", "first", "includeClosedPrs", "true", "nodes", "state",
+	"pageInfo", "hasNextPage",
+}
+
+// indexAll returns the start of every occurrence of sub in s.
+func indexAll(s, sub string) []int {
+	var at []int
+	for i := strings.Index(s, sub); i >= 0; {
+		at = append(at, i)
+		next := strings.Index(s[i+1:], sub)
+		if next < 0 {
+			break
+		}
+		i += 1 + next
+	}
+	return at
+}
+
+// TestRunissueReads checks what runissue.md reads from GitHub itself: its gh
+// api calls are only the user's login and the linked pull requests query,
+// every copy of that query holds only known names, and every gh issue view
+// asks for exactly runissueViewFields. So, through these reads, no text
+// another account wrote reaches the session that writes and pushes code.
+// Other commands that could read an issue (gh issue list, gh search) are not
+// checked here.
+func TestRunissueReads(t *testing.T) {
+	doc := doctestutil.ReadDoc(t, runissuePath)
+	checkGhAPICalls(t, "runissue.md", doc, runissueAPICalls)
+	queries := indexAll(doc, runissueLinkedPRsQuery)
+	if len(queries) == 0 {
+		t.Error("runissue.md has no linked pull requests query")
+	}
+	for _, at := range queries {
+		query, _, _ := strings.Cut(doc[at+len(runissueLinkedPRsQuery):], "```")
+		for _, word := range graphQLWord.FindAllString(query, -1) {
+			if !slices.Contains(runissueQueryWords, word) {
+				t.Errorf("runissue.md's linked pull requests query holds %q, which is not a known name", word)
+			}
+		}
+	}
+	views := indexAll(doc, "gh issue view")
+	if len(views) == 0 {
+		t.Error("runissue.md reads no issue with gh issue view")
+	}
+	for _, at := range views {
+		command := invocation(doc, at)
+		if m := issueViewCommand.FindStringSubmatch(command); m == nil || m[1] != runissueViewFields {
+			t.Errorf("runissue.md reads an issue with %q, want --json %s and no other flag", command, runissueViewFields)
+		}
 	}
 }
 

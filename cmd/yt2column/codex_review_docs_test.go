@@ -54,7 +54,7 @@ func itemSection(first, next string) func(t *testing.T, doc string) string {
 	}
 }
 
-// postingSections are the eight sections that post text to GitHub. fixpr.md
+// postingSections are the nine sections that post text to GitHub. fixpr.md
 // Phase 4 is one: the correction lines finish commits reach GitHub with the
 // push.
 var postingSections = []postingSection{
@@ -75,6 +75,10 @@ var postingSections = []postingSection{
 		"_lib/task-pr-handoff.md Part B step 3", handoffPath,
 		itemSection("3. Push and create the PR for the current branch.", "\n4. Run AFTER_CREATE"),
 		[]string{"gh pr create "},
+	},
+	{
+		"runissue.md revert", runissuePath, headingSection(doctestutil.RunissueRevertHeading),
+		[]string{"gh issue comment <N> --body-file"},
 	},
 }
 
@@ -142,11 +146,13 @@ var (
 	readMethod = regexp.MustCompile(`(?i)(-X|--method)[ =]?GET\b`)
 )
 
-// readOnlyInvocations are the gh api invocations inside a posting section that
-// pass a text flag but write nothing: the link count query. Its query follows
-// on later lines, so the code block it opens must hold no mutation.
+// readOnlyInvocations are the gh api invocations that pass a text flag but
+// write nothing: the link count query of _lib/task-pr-handoff.md and
+// runissue.md's read of the pull requests linked to its issue. Each query
+// follows on later lines, so the code block it opens must hold no mutation.
 var readOnlyInvocations = []string{
 	`gh api graphql -F owner='{owner}' -F repo='{repo}' -F n=<issue> -f query='`,
+	runissueLinkedPRsQuery,
 }
 
 // invocation returns the command line that starts at doc[at:], with the

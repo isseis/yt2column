@@ -261,14 +261,14 @@
 
 **変更するファイル:** `.claude/commands/_lib/task-pr-handoff.md`
 
--   [ ] 設計書 3.6 のとおりに変える。冒頭の段落に、`/runissue` が Part B の手順 3〜7 を使うことを足す。入力 ISSUE_KEYWORD を足す（値は `refs` か `closes`。省けば `refs`、ほかの値なら止まる）。各入力の説明に `/runissue` の場合を足し、「Authorization」の範囲を issue にも広げる。
--   [ ] 手順 3 の `Refs #<issue>` の項目（243〜246 行）を、ISSUE_KEYWORD で `Refs` か `Closes` を選ぶ形にする。ISSUE_KEYWORD を省いたとき（今の呼び出し元）の本文は、今と変えない。番号付きの手順と、手順 3・5 の書き出しの文も変えない（`itemSection` が探す。1.4 節）。
+-   [x] 設計書 3.6 のとおりに変える。冒頭の段落に、`/runissue` が Part B の手順 3〜7 を使うことを足す。入力 ISSUE_KEYWORD を足す（値は `refs` か `closes`。省けば `refs`、ほかの値なら止まる）。各入力の説明に `/runissue` の場合を足し、「Authorization」の範囲を issue にも広げる。
+-   [x] 手順 3 の `Refs #<issue>` の項目（243〜246 行）を、ISSUE_KEYWORD で `Refs` か `Closes` を選ぶ形にする。ISSUE_KEYWORD を省いたとき（今の呼び出し元）の本文は、今と変えない。番号付きの手順と、手順 3・5 の書き出しの文も変えない（`itemSection` が探す。1.4 節）。
 
 #### ステップ 2-2: 呼び出し元の一覧
 
 **変更するファイル:** `.claude/commands/_lib/local-cli-review.md`、`.claude/commands/mktrans.md`、`CLAUDE.md`（99〜100 行）
 
--   [ ] 次の 3 つの一覧に `runissue.md` を足す。`/runissue` は、ローカルの CLI レビューと README の同期を自分で行うためである（設計書 3.5.5）。
+-   [x] 次の 3 つの一覧に `runissue.md` を足す。`/runissue` は、ローカルの CLI レビューと README の同期を自分で行うためである（設計書 3.5.5）。
     -   `local-cli-review.md` の呼び出し元の一覧（11〜20 行）。冒頭の数（「Five callers」）も一覧の数に合わせる。
     -   `mktrans.md` の、README の同期を手順として行う呼び出し元の一覧（33〜35 行）。
     -   `CLAUDE.md` の、`/mktrans` を実行するコマンドの一覧（99〜100 行）。
@@ -277,25 +277,25 @@
 
 **変更するファイル:** `.claude/commands/runissue.md`（新規。英語）、`.claude/commands/_context.md`（「Reviewer ping」の行）、`docs/dev/conventions/requirements_process.md`（条件の表の `exclude` の 1 行）
 
--   [ ] 設計書 3.5 の各節のとおりに書く。全体の流れは、設計書 6.1 に合わせる。Part B の手順 3〜7 は、ISSUE_KEYWORD を `closes` にして呼ぶ。サブエージェントによるレビューは、`review-subagent-pattern.md` との違いを明記する（設計書 3.5.4）。
--   [ ] 確かめ直しのスクリプトは、`git fetch origin main` の後に、`git show origin/main:.claude/commands/_lib/lightweight-check.sh` で書き出したファイルを `bash` で実行する（設計書 3.5.6）。作業ツリーの版は実行しない。実行するのは、最後のコミットの後、push の前である。修正のコミットが増えたら、実行し直す。
--   [ ] 値（ラベル名、目印、ブランチ名、タイトルと件名の形）は `_context.md` の名前で参照し、仕様の読み書きは仕様の手順書を名前で参照する（AC-39）。CHECKS（実装の後に行う確認の一覧。設計書 3.5.3）は CLAUDE.md を参照し、既存の要件書の検索は `mkreq.md` の手順 1 を参照する。どちらも書き写さない。issue の本文とタイトルは取らない（設計書 1.2）。
--   [ ] 戻しのコメントの雛形は、日本語で 1 つのコードブロックに置く。投稿の前に「**Mention check.**」の段（`_lib/task-pr-handoff.md` と同じ文）と、1 行目が仕様の目印でないことの確かめを置く（AC-20・AC-30）。投稿のコマンドは `gh issue comment <N> --body-file <file>` の形にする。
--   [ ] 「Authorization」に、設計書 3.5 が使う操作を、その issue とその PR に限って書く（AC-42）。
--   [ ] 条件の表に `exclude .claude/commands/runissue.md` を足す。`_context.md` の「Reviewer ping」の行に `runissue.md` を足す（1.3 節）。
+-   [x] 設計書 3.5 の各節のとおりに書く。全体の流れは、設計書 6.1 に合わせる。Part B の手順 3〜7 は、ISSUE_KEYWORD を `closes` にして呼ぶ。サブエージェントによるレビューは、`review-subagent-pattern.md` との違いを明記する（設計書 3.5.4）。
+-   [x] 確かめ直しのスクリプトは、`git fetch origin main` の後に、`git show origin/main:.claude/commands/_lib/lightweight-check.sh` で書き出したファイルを `bash` で実行する（設計書 3.5.6）。作業ツリーの版は実行しない。実行するのは、最後のコミットの後、push の前である。修正のコミットが増えたら、実行し直す。
+-   [x] 値（ラベル名、目印、ブランチ名、タイトルと件名の形）は `_context.md` の名前で参照し、仕様の読み書きは仕様の手順書を名前で参照する（AC-39）。CHECKS（実装の後に行う確認の一覧。設計書 3.5.3）は CLAUDE.md を参照し、既存の要件書の検索は `mkreq.md` の手順 1 を参照する。どちらも書き写さない。issue の本文とタイトルは取らない（設計書 1.2）。
+-   [x] 戻しのコメントの雛形は、日本語で 1 つのコードブロックに置く。投稿の前に「**Mention check.**」の段（`_lib/task-pr-handoff.md` と同じ文）と、1 行目が仕様の目印でないことの確かめを置く（AC-20・AC-30）。投稿のコマンドは `gh issue comment <N> --body-file <file>` の形にする。
+-   [x] 「Authorization」に、設計書 3.5 が使う操作を、その issue とその PR に限って書く（AC-42）。
+-   [x] 条件の表に `exclude .claude/commands/runissue.md` を足す。`_context.md` の「Reviewer ping」の行に `runissue.md` を足す（1.3 節）。
 
 #### ステップ 2-4: `/runissue` の guard
 
 **変更するファイル:** `cmd/yt2column/codex_review_docs_test.go`、`cmd/yt2column/fixpr_docs_test.go`、`cmd/yt2column/lightweight_docs_test.go`
 
--   [ ] `postingSections` に、`runissue.md` の戻しのコメントの区画を足す。`runissue.md` の GraphQL の読み取りが `readOnlyInvocations` の前方一致に当たらなければ、その書き出しを足す。
--   [ ] `TestContextAndCommandsAgree` の対象に `runissue.md` を足す。
--   [ ] `TestLightweightCheckCallSite` を書く（設計書 3.9「確かめ直しのスクリプトの呼び出し方」）。コマンドの定義で確かめ直しのスクリプトを実行する箇所が、すべて `git show origin/main:` で書き出す形であり、作業ツリーのパスを実行する形がないことを確かめる。
--   [ ] `TestRunissueReads` を書く（設計書 3.9「`runissue.md` の読み取り」）。次の 2 つを確かめる。
+-   [x] `postingSections` に、`runissue.md` の戻しのコメントの区画を足す。`runissue.md` の GraphQL の読み取りが `readOnlyInvocations` の前方一致に当たらなければ、その書き出しを足す。
+-   [x] `TestContextAndCommandsAgree` の対象に `runissue.md` を足す。
+-   [x] `TestLightweightCheckCallSite` を書く（設計書 3.9「確かめ直しのスクリプトの呼び出し方」）。コマンドの定義で確かめ直しのスクリプトを実行する箇所が、すべて `git show origin/main:` で書き出す形であり、作業ツリーのパスを実行する形がないことを確かめる。
+-   [x] `TestRunissueReads` を書く（設計書 3.9「`runissue.md` の読み取り」）。次の 2 つを確かめる。
     -   `runissue.md` の `gh api` の呼び出しが、仕様の手順書の形か、名前を挙げた GraphQL の読み取りに限られる。
     -   `gh issue view` が `--json` を付け、本文・タイトル・コメントの項目を取らない。
--   [ ] `TestRevertTemplateMarker` を書く。`runissue.md` の戻しのコメントの雛形の 1 行目が、`_context.md` の戻しの目印の値と同じであることを確かめる（設計書 3.9「雛形の目印」）。
--   [ ] 壊して確かめる。次の壊し方のそれぞれで、名前を挙げたテストが失敗することを確かめ、コミットメッセージに書く。
+-   [x] `TestRevertTemplateMarker` を書く。`runissue.md` の戻しのコメントの雛形の 1 行目が、`_context.md` の戻しの目印の値と同じであることを確かめる（設計書 3.9「雛形の目印」）。
+-   [x] 壊して確かめる。次の壊し方のそれぞれで、名前を挙げたテストが失敗することを確かめ、コミットメッセージに書く。
     -   メンションの確認を投稿の後に移す（`TestPostingCommandsInventory`）。
     -   足した `readOnlyInvocations` のコードブロックに `mutation` を入れる（`TestPostingCommandsInventory`）。
     -   スクリプトを作業ツリーのパスで実行する（`TestLightweightCheckCallSite`）。

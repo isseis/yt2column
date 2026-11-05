@@ -100,7 +100,7 @@ marker against the current `README.md`; it runs in `make test`, in CI's
 `doc-guard` job, and in a pre-commit hook for the two READMEs
 (`make readme-sync-check` runs it alone), so a `README.md` change is not
 committed or merged without the sync, whoever makes it. `/runplan`, `/fixpr`,
-and `/runpr` run `/mktrans` when the check fails. `/mktrans` stops
+`/runpr`, and `/runissue` run `/mktrans` when the check fails. `/mktrans` stops
 and asks on any other file. The translation principles (accuracy over fluency,
 faithful translation, structural consistency) and the glossary workflow live in
 [mktrans.md](.claude/commands/mktrans.md); the glossary is

@@ -561,6 +561,7 @@ exclude .github/copilot-instructions.md
 exclude .github/instructions/
 exclude docs/dev/conventions/requirements_process.md
 exclude .claude/commands/_context.md
+exclude .claude/commands/runissue.md
 exclude .claude/commands/_lib/lightweight-spec.md
 exclude .claude/commands/_lib/lightweight-check.sh
 exclude .claude/commands/_lib/task-pr-handoff.md
