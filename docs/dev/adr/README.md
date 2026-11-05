@@ -22,3 +22,4 @@
 | [ADR-0014](0014-deterministic-checks-in-go.md) | 決定的な判定はエージェントに任せず、テストのある Go の開発ツールに置く | `有効` |
 | [ADR-0015](0015-untrusted-review-threads.md) | レビューのスレッドと Bot への依頼は信頼せず、書き込み権限・範囲の規則・interaction limits で守る | `有効` |
 | [ADR-0016](0016-document-test-policy.md) | 文書のテストは値・構造・実行できる例だけを確かめ、文の意味は PR のレビューで読む | `有効` |
+| [ADR-0017](0017-viewer-markdown-rendering.md) | ビューアは記事を自前の最小限のレンダラーで描画し、HTML を解釈せず、リンクは https の自動リンクだけにする | `有効` |
