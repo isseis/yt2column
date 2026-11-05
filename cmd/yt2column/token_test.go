@@ -228,7 +228,7 @@ func TestRunTokenLinesNoUsage(t *testing.T) {
 func TestRunTokenLinesBeforeLLM(t *testing.T) {
 	t.Run("usage error", func(t *testing.T) {
 		e := newRunEnv(t)
-		// No destination: a usage error before any side effect.
+		// No --out: a usage error before any side effect.
 		e.args = []string{runVideoURL}
 		if code := e.run(); code != exitUsage {
 			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitUsage, e.stderr.String())

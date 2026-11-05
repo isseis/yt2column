@@ -400,8 +400,8 @@ M2 は M1 の後に置く（設計書 8 章）。PR-1 の後は `Publish` を呼
 | AC-03 | test・static | test: `cmd/yt2column/run_test.go::TestRunHelp`。static: `_checks/residue` の `cli-code`（`"slack"` のフラグの定義がない）と `slack-literal`（使い方の文に `--slack` がない） | 1-3・1-5 |
 | AC-04 | test | `cmd/yt2column/run_test.go::TestRunExecutionPaths`（`success`、`--out with an empty path`、`inside the cache directory` の行、`--review-log` と `--out` が同じファイルの行）、`TestRunExecutionPaths/review-log_write_failure_after_the_publish`、`TestRunReviewLog/--out`、`cost_test.go::TestRunCostLinesFileReviewLogFailure`、`token_test.go::TestRunTokenLinesFileReviewLogFailure` | 1-2・1-3 |
 | AC-05 | test・static | test: `cmd/yt2column/run_test.go::TestRunGODEBUGWarning`。static: `_checks/residue` の `cli-code`・`cli-words` | 1-3・1-5 |
-| AC-06 | test | `cmd/yt2column/run_test.go::TestRunIgnoresSlackWebhookURL`、`internal/config/config_test.go::TestLoadIgnoresSlackWebhookURL` | 1-3 |
-| AC-07 | test | `cmd/yt2column/run_test.go::TestRunIgnoresSlackWebhookURL` | 1-3 |
+| AC-06 | test | `cmd/yt2column/run_test.go::TestRunIgnoresSlackWebhookURL` | 1-3 |
+| AC-07 | test | `cmd/yt2column/run_test.go::TestRunIgnoresSlackWebhookURL`、`internal/config/config_test.go::TestLoadIgnoresSlackWebhookURL` | 1-3 |
 | AC-08 | test | `internal/config/config_test.go::TestLoadServerWebhookOptional`・`TestLoadServerWebhookAccepted`・`TestLoadServerWebhookRejected`、`cmd/yt2column-server/run_test.go::TestStartsWithoutWebhook`、`internal/server/publish_test.go::TestPublishWithoutWebhook` | 1-2 |
 | AC-09 | static | `_checks/residue` の `publish-method`。`internal/publisher/file.go:45` の `var _ Publisher = (*FilePublisher)(nil)`（`make test` のビルド） | 2-1・2-6 |
 | AC-10 | static | `_checks/residue` の `config` | 1-1・1-5 |
@@ -497,6 +497,7 @@ NG   1 function(s) found on both sides have more unexecuted statements
 ```
 
 -   削除した 11 の関数は、ステップ 1-3 が削除するものである。加えた `checkOut` は `TestCheckOut` と `no --out` の行が実行する。
+-   この比較は (a) の 1 つの関数のために終了コード `1` で終わった。その関数の扱いは次のとおりである。
 -   (a) `internal/cmdrunner` の `signalGroup`: ステップ 1-3 は `internal/cmdrunner` を変えていない。増えた 1 文は、プロセスグループへの `kill` が `ESRCH` 以外で失敗したとき（ゾンビだけが残る間）の `process.Signal` で、子の終わる時刻の巡り合わせで通るかが決まる。同じ tree を 3 回測ると、この分岐を通った回数は 0・0・1 だった。削除したテストはこの分岐に届かない。
 -   (b) 実行された文が減った 10 の関数は、どれも削除した文の分だけ減り、after で実行されなかった文は 0 である（`signalGroup` を除く）: `newFlagSet`（`--slack` の定義）、`reportReviewLogFailure`（Webhook の文言の分岐）、`reportRunError`（`reportWebhookHints` の呼び出し）、`reportSuccess`（Webhook と既定の要約の分岐）、`run`（Webhook URL と `RequireSlackWebhookURL` の文）、`warnHTTP2Debug`（Webhook の警告）、`LoadFor`（`loadSlackWebhook` の呼び出しと代入）、`precheckOutput`・`validateRequest`（出力の種類の分岐）。
 -   最初の比較では、`run` の「build the publisher」の失敗の分岐と `splitJoined` の結合されていない誤りの分岐が (a) に挙がった（削除した `--slack` のテストだけが実行していた）。`executionPathRows` の `the --out publisher cannot be built` の行と `TestSplitJoined` をステップ 1-3 のコミットに加え、上の比較で解消した。

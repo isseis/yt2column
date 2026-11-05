@@ -1142,8 +1142,7 @@ func TestRunIgnoresSlackWebhookURL(t *testing.T) {
 
 // TestRunHelp checks the usage in detail: every flag of the CLI is listed,
 // the text before the flags says --out is required, the --after description
-// states that
-// it requires --artifacts and that --after review does not accept
+// states that it requires --artifacts and that --after review does not accept
 // --review-log, the usage goes to standard output only, and it needs no
 // configuration.
 func TestRunHelp(t *testing.T) {
