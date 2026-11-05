@@ -891,7 +891,7 @@ Once `mergepr.md` reports the merge:
   linked pull requests" setting is off so that the earlier task PRs leave the
   issue open; whether the squash commit's `Closes` line closes it is not
   relied on. `<issue>` below stands for each issue to close in turn: the open
-  link sub-issues first, then the issue. Check
+  link sub-issues first, then the `対応 issue` or LW_ISSUE. Check
   `gh issue view <issue> --json state`, and when it is `OPEN`, close it. For each, write a Japanese comment naming the merged PR to a
   file. For LW_ISSUE, first check that the file's first line, read with
   `head -n 1 <comment-file>` and compared without a trailing CR, is not
