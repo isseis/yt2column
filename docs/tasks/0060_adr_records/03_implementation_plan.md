@@ -609,6 +609,8 @@ OK      overview-items
         links: OK
 ```
 
+**main を取り込んだ後の再実行（2026-11-05）:** タスク 0061 が `0012`（`lightweight-check-in-bash`）を先に使ったため、main を取り込み、D 系を `0013`〜`0016` に改めた。改めた後に、マージの基点 `b9d4a98e51473af5536e00b0db855acdfa777d73` と head `e33184f598465f2b375266826c66a664512aef5d` で 2 つの確かめを再実行した。`task_docs_unchanged.sh` は終了コード 0（`docs/tasks/` は本タスクのディレクトリだけが変わった）、`adrlinks -final` は終了コード 0 で、`quick-links`・`history-sources`（D 系は `0013-review-setup.md`〜`0016-document-test-policy.md`）・`viewer-appendix`・`overview-items` がすべて `OK` だった。
+
 ## 8. 成功基準 (Success Criteria)
 
 -   **機能の完成度:** 7 章のすべての行の確かめが済み、7.1 節に 4 つの PR の確かめの記録と F-007 の issue の URL がある。`_checks/adrlinks` が PR-4 で `PENDING` を表示しない。
