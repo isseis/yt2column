@@ -17,4 +17,4 @@
 | [ADR-0009](0009-viewer-opening.md) | ビューアは生成の開始と同時に背面のタブで開き、ポップアップは閉じずに状態を表示する | `有効` |
 | [ADR-0010](0010-extension-stores-nothing.md) | 拡張は何も保存せず、権限も加えず、状態の正しい値をサーバに置く | `有効` |
 | [ADR-0011](0011-webhook-publishing.md) | 投稿先は Slack 互換の Incoming Webhook とし、投稿は利用者の操作でだけ行う | `有効` |
-| [ADR-0012](0012-lightweight-check-in-bash.md) | 軽量プロセスの確かめ直しは origin/main の版の bash のスクリプトで行い、Go のツールにしない | `有効` |
+| [ADR-0012](0012-lightweight-check-in-bash.md) | 軽量プロセスの確かめ直しは、origin/main の版の bash スクリプトで行い、Go のツールにしない | `有効` |
