@@ -120,10 +120,12 @@ Work in the following order.
         the posted text is byte for byte the text the user approved; write no
         requirements document and create no branch. First check that the
         label exists in the repository, by its exact name and not limited by
-        the listing's default count:
+        the listing's default count of 30. List every label rather than use
+        `--search`, which goes through GitHub's search index and can miss a
+        label created moments before:
 
         ```bash
-        gh label list --search '<lightweight-label>' --limit 1000 --json name --jq '.[].name'
+        gh label list --limit 1000 --json name --jq '.[].name'
         ```
 
         When no printed line equals `<lightweight-label>`, post nothing: stop

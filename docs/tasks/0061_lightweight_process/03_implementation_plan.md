@@ -402,7 +402,7 @@
 
 **変更するファイル:** なし（GitHub のラベル）。記録は本書 7.1 節。
 
--   [ ] `/runplan` が、PR-5 を開く前（ステップ 4-1〜4-4 の後）に、ラベルを作る（AC-41）。
+-   [x] `/runplan` が、PR-5 を開く前（ステップ 4-1〜4-4 の後）に、ラベルを作る（AC-41）。
     -   まず、ラベルがないことを、件数の上限に左右されない形で確かめる。
     -   利用者の承認を得てから、`gh label create` で、色 `c2e0c6` と設計書 1.2 の説明で作る。
     -   確かめた出力を 7.1 節に書き、PR を開く前にコミットする。
@@ -547,7 +547,17 @@ PR は 1→5 の順にマージする。軽量プロセスを使えるように�
 
 ### 7.1. 実行の記録
 
-（ステップ 4-5 で、ラベルを確かめた出力と実行した日を書く。）
+ステップ 4-5（2026-11-06、利用者の承認を得て実行した）:
+
+-   作成の前：`gh label list --limit 1000 --json name --jq '.[].name' | grep -cx lightweight` は `0` を出した（ラベルは全部で 22 個）。
+-   作成：`gh label create lightweight --color c2e0c6 --description "要件・設計・計画の文書を作らずに 1 本の PR で進める単純な変更（軽量プロセス）"`（終了コード 0）。
+-   作成の後：`gh label list --limit 1000 --json name,color,description --jq '.[] | select(.name == "lightweight")'` の出力は次のとおりである。
+
+    ```json
+    {"color":"c2e0c6","description":"要件・設計・計画の文書を作らずに 1 本の PR で進める単純な変更（軽量プロセス）","name":"lightweight"}
+    ```
+
+-   作成の直後の `gh label list --search lightweight` は、ラベルを返さなかった（その後の実行では返した）。`--search` は GitHub の検索の索引を通るので、作ったばかりのラベルを見落としうる。そのため、`mkreq.md` のラベルの確かめは、`--search` を使わず、すべてのラベルを件数の上限を外して一覧にする形にした。
 
 ## 8. 成功基準 (Success Criteria)
 
