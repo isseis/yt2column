@@ -17,26 +17,25 @@
 ## 決定
 
 -   **判定と副作用を持つ開発の道具は Go で書き、テストを持つ。** 今日あるのは次の 4 つで、どれも `cmd/<名前>` と `internal/<名前>` の組である。製品の 3 つのバイナリ（`yt2column`・`yt2column-server`・`yt2column-nmhost`）には入らない。
-    -   `fixprguard`: `/fixpr` と `/runpr` の著者・範囲・git の状態の判定、`finish` の中の build checks と commit、`push` の直前の再確認、`reply`・`edit-pr` の GitHub への書き込み（[ADR-0014](0014-untrusted-review-threads.md)）。
+    -   `fixprguard`: `/fixpr` と `/runpr` の著者・範囲・git の状態の判定、`finish` の中の build checks と commit、`push` の直前の再確認、`reply`・`edit-pr`・`append-pr` の GitHub への書き込み（[ADR-0014](0014-untrusted-review-threads.md)）。
     -   `codexreview`: Codex CLI のローカルレビューの実行と、最終メッセージの形の判定（[ADR-0012](0012-review-setup.md)）。
     -   `coveragecompare`: テストを削除する前後でのカバレッジの比較。`make coverage-compare` と `make ext-coverage-compare` から使う。
-    -   `mergepr`: `/mergepr` の prepare・merge・cleanup。判定の道具をこの形で書く先例になった。
--   **道具は状態のファイルを持たない。** 基準値と判定した集合は、サブコマンドの出力として返し、セッションが次の呼び出しの引数で渡す。ディスクに置くと、修正のフェーズや build checks が実行するコードに書き換えられる。
+    -   `mergepr`: `/mergepr` の prepare・merge・cleanup・discard。判定の道具をこの形で書く先例になった。
+-   **道具は、判定に使う基準値を状態のファイルから読み返さない。** 基準値と判定した集合は、サブコマンドの出力として返し、セッションが次の呼び出しの引数で渡す。`fixprguard` は利用者のために git のディレクトリへ記録を書くが、それを判定に読み返さない。判定をディスクに置くと、修正のフェーズや build checks が実行するコードに書き換えられる。
 -   **順序を、コマンドの定義ではなく道具の中で強制する。** 確認より前に build checks を動かさないこと、commit と push の間で hooks や config が変わっていたら push しないこと、は道具のコードが守る。コマンドの定義に残るのは、サブコマンドを呼ぶ順序と、利用者への確認だけである。
 -   **拡張の関数の範囲だけは、TypeScript の補助に求める。** `coveragecompare` は Go と拡張の両方の比較を受け持つが、拡張の関数の終わりの行は node の lcov が出さないので、`extension/scripts/function-ranges.ts` が入っている `typescript` の構文木から求める。新しい npm のパッケージは加えない。
--   **道具は `main` からインストールして使う。** `mergepr`・`fixprguard`・`codexreview` は `make install-mergepr`・`make install-fixprguard`・`make install-codexreview` で入れ、道具を変えたマージの後は再インストールする。`coveragecompare` は `make coverage-compare` と `make ext-coverage-compare` が、そのつど一時ディレクトリにビルドして実行する。`fixprguard` は `--protocol` の番号で、呼び出し側の文書と道具の版が合っているかを照合する。あわせて、文書と道具を変える順序は、両方が動き続ける形にする（[fixprguard_guide.md](../guides/fixprguard_guide.md) §9）。
+-   **道具は `main` からインストールして使う。** `mergepr`・`fixprguard`・`codexreview` は `make install-mergepr`・`make install-fixprguard`・`make install-codexreview` で入れ、道具を変えたマージの後は再インストールする。`--protocol` の番号を上げる PR では、その PR の `/runpr` の前に、その PR のブランチで再インストールする（[fixprguard_guide.md](../guides/fixprguard_guide.md) §3）。`coveragecompare` は `make coverage-compare` と `make ext-coverage-compare` が、そのつど一時ディレクトリにビルドして実行する。`fixprguard` は `--protocol` の番号で、呼び出し側の文書と道具の版が合っているかを照合する。あわせて、文書と道具を変える順序は、両方が動き続ける形にする（[fixprguard_guide.md](../guides/fixprguard_guide.md) §9）。
 -   **道具の引数・出力・終了コードは、コマンドの定義と文書のガードが読む契約にする。** 変えたときは、道具と、それを呼ぶ文書と、ガードを同じ PR で変える。
 
 ## 採らなかった案
 
--   **判定をコマンドの定義に書いたシェルの手順にする。** 判定が多く、安全側に倒すことが要るので、エージェントの判断では結果が変わらないようにできない。テストで壊して失敗を確かめることもできない（[0030 設計書](../../tasks/0030_fixpr_untrusted_threads/02_architecture.md) §1.2）。
--   **commit を `git add -A` で行う。** 判定したパスだけを明示して stage しないと、範囲の判定の外の変更まで commit に入る（[0030 設計書](../../tasks/0030_fixpr_untrusted_threads/02_architecture.md) §1.2）。
+-   **判定をコマンドの定義に書いたシェルの手順にする。** 判定が多く、安全側に倒すことが要るので、エージェントの判断では結果が変わらないようにできない。テストで壊して失敗を確かめることもできない（[0030 設計書](../../tasks/0030_fixpr_untrusted_threads/02_architecture.md) §1.1、§1.3）。
+-   **commit を `git add -A` で行う。** 理由は記録されていない（[0030 設計書](../../tasks/0030_fixpr_untrusted_threads/02_architecture.md) §1.2 は「判定したパスだけを明示して stage する。`git add -A` はやめる」とだけ述べる）。
 -   **ガードの道具が基準値をディスクのファイルに持つ。** そのファイルは、修正のフェーズのエージェントや build checks が実行するコードから書き換えられる（[0030 設計書](../../tasks/0030_fixpr_untrusted_threads/02_architecture.md) §1.1）。
 -   **Codex の最終メッセージの判定をエージェントに任せる。** 文法だけで決まる機械的な判定なので、テストのあるコードで行う（[0049 設計書](../../tasks/0049_codex_local_review/02_architecture.md) §1.2）。
 -   **素の `codex review` の標準出力や、セッションの記録から完了を判定する。** 素の出力には完了を示す欄がない。セッションの記録にある構造化された結果は公開された仕様ではなく、実行ごとに 2 つできるファイルから選ぶ手順が要る（[0049 設計書](../../tasks/0049_codex_local_review/02_architecture.md) §1.2）。
--   **カバレッジの比較を node のスクリプトで書く、または Go と拡張で別の道具にする。** 差分による関数の対応、分類、比較、結果の出し方を 1 か所に保てない。判定の論理は Go に置き、TypeScript は拡張の関数の範囲だけを求める（[0055 要件定義書](../../tasks/0055_coverage_compare/01_requirements.md) §1）。
--   **`ext-coverage-compare` を node だけで完結させる。** 拡張の lcov は関数の終わりの行を出さないので、関数の範囲を求めるのに TypeScript の構文解析が要る。それは node の側でしか行えない（[0055 要件定義書](../../tasks/0055_coverage_compare/01_requirements.md) §1）。
--   **道具の版の照合を、インストールのし直しの約束だけに任せる。** 古い道具が残ると、文書が指定する `--protocol` と食い違い、違う規則で黙って判定しうる。照合を道具の出力と引数で行う（[fixprguard_guide.md](../guides/fixprguard_guide.md) §9）。
+-   **カバレッジの比較を node のスクリプトで書く、または Go と拡張で別の道具にする。** 差分による関数の対応、分類、比較、結果の出し方を 1 か所に保てない。判定の論理は Go に置き、TypeScript は拡張の関数の範囲だけを求める（[0055 設計書](../../tasks/0055_coverage_compare/02_architecture.md) §1.3）。
+-   **`ext-coverage-compare` を node だけで完結させる。** 拡張の lcov は関数の終わりの行を出さないので、関数の範囲を求めるのに TypeScript の構文解析が要る。それは node の側でしか行えない（[0055 設計書](../../tasks/0055_coverage_compare/02_architecture.md) §1.3、§3.5）。
 
 ## 結果
 
