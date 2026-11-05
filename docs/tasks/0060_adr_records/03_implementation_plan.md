@@ -284,22 +284,22 @@
 
 **変更するファイル:** `docs/dev/adr/0005-server-architecture.md`〜`0011-webhook-publishing.md`（新規。1.5 節の 7 本）、`docs/dev/adr/README.md`
 
--   [ ] ステップ 2-1 の作業（索引の読み直し、出典とコードの照らし合わせ、採らなかった案と経緯の書き方、索引の行、PR の説明の出典）を、B1・B2・B4・B5・B7・B8・B11 の 7 本に行う。B4 は 0029 の `observation_gate_review.md` も出典として読む。
--   [ ] B2・B8・B11 は、括弧に入れた 0058・0059 を経緯に入れず、書く時点の `main` のコードと文書の状態で書く（設計書 6.2 節）。0058・0059 がすでにマージされていて、書く時点の `main` がそれらの決定を含むときは、F-007 の issue の該当の項目を、ADR の今の経緯と照らして直す（設計書 3.1.3 節）。
--   [ ] B7 の ADR に、`docs/tasks/0050_viewer_tab/02_architecture.md` の付録 B（B.1〜B.3）の採らなかった案をすべて写し、付録 B へリンクする（AC-29）。
--   [ ] B5 と B7 のように内容の重なる主題は、ADR どうしのリンクで扱う（設計書 1.2 節）。
+-   [x] ステップ 2-1 の作業（索引の読み直し、出典とコードの照らし合わせ、採らなかった案と経緯の書き方、索引の行、PR の説明の出典）を、B1・B2・B4・B5・B7・B8・B11 の 7 本に行う。B4 は 0029 の `observation_gate_review.md` も出典として読む。
+-   [x] B2・B8・B11 は、括弧に入れた 0058・0059 を経緯に入れず、書く時点の `main` のコードと文書の状態で書く（設計書 6.2 節）。0058・0059 がすでにマージされていて、書く時点の `main` がそれらの決定を含むときは、F-007 の issue の該当の項目を、ADR の今の経緯と照らして直す（設計書 3.1.3 節）。
+-   [x] B7 の ADR に、`docs/tasks/0050_viewer_tab/02_architecture.md` の付録 B（B.1〜B.3）の採らなかった案をすべて写し、付録 B へリンクする（AC-29）。
+-   [x] B5 と B7 のように内容の重なる主題は、ADR どうしのリンクで扱う（設計書 1.2 節）。
 
 #### ステップ 3-2: `project_overview.md` の実行形式と字幕取得
 
 **変更するファイル:** `docs/dev/project_overview.md`
 
--   [ ] 「実行形式」の項目の末尾に B1・B5 の ADR へのリンクを、「字幕取得」の項目の末尾に B4 の ADR へのリンクを、ステップ 2-2 と同じ形で足す。項目の要約の文は変えない。
+-   [x] 「実行形式」の項目の末尾に B1・B5 の ADR へのリンクを、「字幕取得」の項目の末尾に B4 の ADR へのリンクを、ステップ 2-2 と同じ形で足す。項目の要約の文は変えない。
 
 #### ステップ 3-3: 1 回だけの確かめ
 
 **変更するファイル:** 本書 7.1 節
 
--   [ ] ステップ 2-3 と同じく、2 つの確かめを実行して記録する。`_checks/adrlinks` は、`quick-links`、A 系と B 系の 11 本の `history-sources`、`viewer-appendix`、`overview-items` の 4 項目が `OK` である。
+-   [x] ステップ 2-3 と同じく、2 つの確かめを実行して記録する。`_checks/adrlinks` は、`quick-links`、`viewer-appendix`、`overview-items` の 3 項目が `OK` で、`history-sources` は A 系と B 系の 11 本が `ok`、D 系の 4 本が `PENDING` である。
 
 **完了の条件（ステップ 3-1〜3-3）:** グリーンゲートが通る。2 つの確かめが 0 で終わる。
 
@@ -315,10 +315,10 @@
 
 **判定理由**: PR-2 と同じ作業で、どの判定の条件にも当たらない
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/677
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 4: プロセスの ADR（設計書 8 章の ④）
 
@@ -406,7 +406,7 @@ M2〜M4 は M1 の規約・索引・guard に依存する。M2 → M3 → M4 は
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6）
 - [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3）
-- [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3）
+- [x] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3）
 - [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
@@ -533,6 +533,42 @@ PENDING overview-items
         links: PENDING
         links: bullet 2 (`cmd/yt2column-nmhost`) pending: server-architecture, launch-path
         links: bullet 3 (`CopiedSource`) pending: manual-transcript-copy
+```
+
+**PR-3 の確かめ（ステップ 3-3、2026-11-04）:** `git fetch origin main` の後に、PR のブランチで実行した。マージの基点は `21237b7cab5030c668683f9e59a515c7b78f463b`、head は `458f068cc1e040eb26fc24e2c66287e1add8cdd7` である。この記録を書くコミットは本書だけを変える。
+
+`docs/tasks/0060_adr_records/_checks/task_docs_unchanged.sh origin/main HEAD`（終了コード 0）:
+
+```text
+merge-base: 21237b7cab5030c668683f9e59a515c7b78f463b
+head: 458f068cc1e040eb26fc24e2c66287e1add8cdd7
+docs/tasks/: only docs/tasks/0060_adr_records/ changed
+```
+
+`go run -tags test ./docs/tasks/0060_adr_records/_checks/adrlinks/ 21237b7cab5030c668683f9e59a515c7b78f463b HEAD`（終了コード 0。`quick-links`、`viewer-appendix`、`overview-items` が `OK`。`history-sources` は A 系と B 系の 11 本が `ok` で、D 系の 4 本はまだないので `PENDING`）:
+
+```text
+OK      quick-links
+PENDING history-sources
+        ok: 0001-llm-adapter-stdlib.md
+        ok: 0002-post-generation-steps.md
+        ok: 0003-llm-config-contract.md
+        ok: 0004-production-profile.md
+        ok: 0005-server-architecture.md
+        ok: 0006-threat-model.md
+        ok: 0007-manual-transcript-copy.md
+        ok: 0008-launch-path.md
+        ok: 0009-viewer-opening.md
+        ok: 0010-extension-stores-nothing.md
+        ok: 0011-webhook-publishing.md
+        pending: review-setup
+        pending: deterministic-checks-in-go
+        pending: untrusted-review-threads
+        pending: document-test-policy
+OK      viewer-appendix
+OK      overview-items
+        text: OK
+        links: OK
 ```
 
 ## 8. 成功基準 (Success Criteria)
