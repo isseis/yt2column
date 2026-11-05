@@ -63,8 +63,10 @@
 //     CLI_SLACK_INTEGRATION_TIMEOUT, and cmd/yt2column/integration_slack_test.go
 //     does not exist.
 //   - publish-method: internal/publisher declares no method Publish of
-//     SlackWebhookPublisher in any of its files, and declares the method
-//     Publish of FilePublisher.
+//     SlackWebhookPublisher in any of its files, SlackWebhookPublisher has no
+//     embedded field (which could promote a Publish method, so the method set
+//     is decided by the declarations alone), and a product file declares the
+//     method Publish of FilePublisher.
 //   - comments: no comment of a Go file outside docs/tasks/ holds --slack,
 //     SlackWebhookPublisher.Publish, test-integration-cli-slack, CLI's
 //     publisher, or CLI's webhook (the last two ignoring case), and no comment
@@ -628,6 +630,9 @@ func checkPublishMethod(_, head string) ([]string, error) {
 		if pos, ok := f.method("SlackWebhookPublisher", "Publish"); ok {
 			findings = append(findings, fmt.Sprintf("%s declares SlackWebhookPublisher.Publish", pos))
 		}
+		for _, pos := range f.embeddedFields("SlackWebhookPublisher") {
+			findings = append(findings, fmt.Sprintf("%s embeds a field in SlackWebhookPublisher, which could promote a Publish method", pos))
+		}
 		if _, ok := f.method("FilePublisher", "Publish"); ok && f.product {
 			fileHas = true
 		}
@@ -951,6 +956,34 @@ func (f goFile) field(typeName, field string) (token.Position, bool) {
 		}
 	}
 	return token.Position{}, false
+}
+
+// embeddedFields returns the positions of the embedded fields of the struct
+// type named typeName declared at the top level.
+func (f goFile) embeddedFields(typeName string) []token.Position {
+	var found []token.Position
+	for _, decl := range f.file.Decls {
+		d, ok := decl.(*ast.GenDecl)
+		if !ok {
+			continue
+		}
+		for _, spec := range d.Specs {
+			s, ok := spec.(*ast.TypeSpec)
+			if !ok || s.Name.Name != typeName {
+				continue
+			}
+			st, ok := s.Type.(*ast.StructType)
+			if !ok {
+				continue
+			}
+			for _, fl := range st.Fields.List {
+				if len(fl.Names) == 0 {
+					found = append(found, f.fset.Position(fl.Pos()))
+				}
+			}
+		}
+	}
+	return found
 }
 
 // qualifiedRefs returns the positions of the selectors pkg.Name, for each

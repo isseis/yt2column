@@ -90,9 +90,8 @@ const (
 
 // SlackPublishMaxDurationForTest returns the longest PostMessages of a
 // production publisher can take to post messages messages (at least one):
-// each send is bounded by
-// SlackPostTimeout, and the production interval separates consecutive sends.
-// Built only with the test tag.
+// each send is bounded by SlackPostTimeout, and the production interval
+// separates consecutive sends. Built only with the test tag.
 func SlackPublishMaxDurationForTest(messages int) time.Duration {
 	return time.Duration(messages)*SlackPostTimeout + time.Duration(messages-1)*slackMessageInterval
 }

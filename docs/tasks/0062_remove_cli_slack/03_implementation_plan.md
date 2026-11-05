@@ -33,7 +33,7 @@ CLI の `--slack` と、CLI だけが使う Webhook の投稿の経路（出力�
 
 ### 1.3. 計画の際に決めたこと（2026-11-04）
 
-レビュアーに尋ねるべき未決の事項はなかった（設計書が計画に委ねた点は、どれも結果が大きく変わらない選択である）。本書の決定はどれも本タスクの中で閉じるので、ADR は作らない（CLAUDE.md「Design decisions (ADR)」の主要な決定に当たらない）。CLI が投稿しないこと、`SlackWebhookPublisher` が `Publisher` を満たさなくなることは、要件書（#665）と設計書（#668）が決めたもので、本書は決めも変えもしない。設計書が計画に委ねた次の点は、理由とともにここに記録する。
+レビュアーに尋ねるべき未決の事項はなかった（設計書が計画に委ねた点は、どれも結果が大きく変わらない選択である）。本書の決定はどれも本タスクの中で閉じるので、ADR は作らない（CLAUDE.md「Design decisions (ADR)」の主要な決定に当たらない）。要件書が決めた CLI の投稿の削除は、既存の [ADR-0011](../../dev/adr/0011-webhook-publishing.md) の決定を変えるので、ステップ 2-5 で ADR-0011 を書き換える。CLI が投稿しないこと、`SlackWebhookPublisher` が `Publisher` を満たさなくなることは、要件書（#665）と設計書（#668）が決めたもので、本書は決めも変えもしない。設計書が計画に委ねた次の点は、理由とともにここに記録する。
 
 -   **`--out` の検査の関数は `checkOut(fs *flag.FlagSet, opts *cliOptions) error` とする（設計書 3.1 節）:** `flagGiven(fs, "out")` で指定の有無を判断し、なければ `errOutRequired`、値が空なら `errOutEmpty` を返す。`errOutRequired` の文言は設計書 3.1 節の `"--out is required"` とする。理由: `chooseDestination` と同じ位置（手順 A2）に置け、`destination` を返す必要がなくなる。
 -   **確かめのスクリプトは 2 つにする（設計書 7.3 節・7.4 節）:** `docs/tasks/0062_remove_cli_slack/_checks/residue/main.go`（以下 `_checks/residue`）と `_checks/coverage/main.go`（以下 `_checks/coverage`）である。どちらも 0059 の同じ名前のスクリプト（`docs/tasks/0059_remove_legacy_articles_api/_checks/residue/main.go`・`_checks/coverage/main.go`）を写して直す。0059 の `residue` は、次のものをすでに持っている。git からだけ読む 2 つのコミットの引数、`go/ast` による宣言とリテラルの確かめ、テストでないファイルの判定（`testConstraint`）、`extension/` が変わらないことの確かめ、一時的な worktree の後始末である。`_checks/coverage` を `internal/coveragecompare` を使わずに写すのは、その道具の関数の対応づけが公開されておらず、道具の変更は本タスクの範囲の外だからである（要件書 2.3 節）。どちらも 1 行目を `//go:build test` にし、`go run -tags test` で動かす。スクリプトのステップ（1-1・2-1）を各 PR の最初に置くのは、確かめる側を、確かめられるコードより前にコミットして、コードの変更に合わせて確かめを緩められないようにするためである。確かめの実行は、設計書 8 章のとおり各 PR の最後（ステップ 1-5・2-6）に置く。`_checks/residue` は、名前を付けた確かめ（1.4 節の末尾の表）を 1 つずつ実行して結果を出し、すべて成り立てば `0`、成り立たないものがあれば `1`、実行できなければ `2` で終わる。引数は merge-base と head の 2 つのコミットで、それぞれの内容を `git` から読む（作業ツリーは読まない）。一時的な worktree と一時的なディレクトリは、終了コード `2` の場合を含め、どの終わり方でも消す。
@@ -322,20 +322,22 @@ PR-1（#682）を作った後、レビューの担当者がテストを見直し
 
 #### ステップ 2-4: コメントの書き直し
 
-**変更するファイル:** `internal/publisher/publisher.go`・`slack.go`・`slack_message.go`・`slack_message_test.go`・`test_helpers_slack.go`、`cmd/yt2column-server/run.go`・`run_test.go`
+**変更するファイル:** `internal/publisher/publisher.go`・`slack.go`・`slack_message.go`・`slack_message_test.go`・`test_helpers_slack.go`、`cmd/yt2column-server/run.go`・`run_test.go`、`internal/slackwebhook/slackwebhook.go`
 
 - [x] 設計書 3.4 節が挙げる説明（パッケージの説明、型の説明、`webhookClient.post` の説明、`slack_message.go` の「`Publish` が送る」）と、1.4 節の `slack_message_test.go:632`、`test_helpers_slack.go:73-76` の `SlackMessagesForTest` の説明（設計書 3.5 節の「production publisher」を含む）を、`PrepareSlackMessages` と `PostMessages` の説明に直す。
 - [x] `cmd/yt2column-server/run.go:60-62` と `run_test.go:373-375` から CLI の `--slack` を除く。
+- [x] `internal/slackwebhook/slackwebhook.go` のパッケージの説明の共有先から `cmd/yt2column` を除き、今の import 元（`internal/publisher/testutil`・`internal/redact`）に合わせる。
 - [x] `_checks/residue` の `comments` が HEAD で成り立つことを確かめる。
 
 **完了の条件:** `make test` と `make lint` が通る。
 
 #### ステップ 2-5: PR-2 の文書
 
-**変更するファイル:** `CLAUDE.md`、`docs/dev/project_overview.md`、`docs/dev/conventions/package_reference.md`、`docs/dev/guides/development.md`、`docs/dev/security.md`
+**変更するファイル:** `CLAUDE.md`、`docs/dev/project_overview.md`、`docs/dev/conventions/package_reference.md`、`docs/dev/guides/development.md`、`docs/dev/security.md`、`docs/dev/adr/0011-webhook-publishing.md`
 
 - [x] `CLAUDE.md` の「Architecture Overview」の `Publisher` の項を、`SlackWebhookPublisher` が `Publisher` を満たさず、サーバの投稿のジョブが `PrepareSlackMessages` と `PostMessages` で送ることに合わせる（AC-19）。
 - [x] `project_overview.md` の `Publisher` の初期実装の項（`:75-76`）、`package_reference.md` の `internal/publisher` の行、`make test-integration-slack` の説明（`development.md`、`security.md` §2 の表の `:39`）を、設計書 3.6 節の PR-2 のとおりに直す。
+- [x] ADR-0011 の「決定」「結果」から CLI の `--slack` を除き、0062 で採らなかった案（CLI の投稿を残す、CLI が `SLACK_WEBHOOK_URL` を拒否する）と経緯を加える。
 - [x] 文書のガードと `make ext-test` を通す（`development.md` を変えるため）。
 
 **完了の条件:** 文書のガード、`make ext-test`、`make test` が通る。

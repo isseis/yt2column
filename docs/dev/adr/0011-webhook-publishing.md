@@ -28,8 +28,10 @@
 -   **Slack に正式に対応し、Block Kit へ移行する。** Slack は折りたたみに対応しない。`context` ブロックは使えるが、`section` ブロックの上限（1 つ 3,000 文字）に合わせて分割処理を作り直す必要があり、今の分割は `text` の上限 16,383 文字を前提としている（[0006 要件定義書](../../tasks/0006_slack_webhook_publisher/01_requirements.md) §2.3、[0028 要件定義書](../../tasks/0028_output_layout/01_requirements.md) §1）。
 -   **投稿を自動でリトライする（HTTP 429 の `Retry-After` に従う待機を含む）。** Incoming Webhook への投稿は冪等ではなく、応答を受け取れなかったメッセージを再送すると、同じメッセージが重複して投稿されうる（[0006 要件定義書](../../tasks/0006_slack_webhook_publisher/01_requirements.md) §2.3）。
 -   **ペイロードで投稿先のチャンネル・表示名・アイコンを上書きする。** Webhook に設定されたチャンネルと表示名で投稿する（[0006 要件定義書](../../tasks/0006_slack_webhook_publisher/01_requirements.md) §2.3）。
--   **1 回の実行で、ファイルへの保存と Webhook への投稿の両方を行う。** 出力先は 1 回の実行で 1 つとする（[0006 要件定義書](../../tasks/0006_slack_webhook_publisher/01_requirements.md) §2.3）。両方を同時に行わない理由は記録されていない。
--   **`--dry-run` を設ける。** 投稿せずに記事を確認する用途は、`--out` によるファイルへの書き出しで満たせる（[0006 要件定義書](../../tasks/0006_slack_webhook_publisher/01_requirements.md) §2.3）。
+-   **CLI の 1 回の実行で、ファイルへの保存と Webhook への投稿の両方を行う。** CLI が投稿していた間の案である（0062 で CLI の投稿を削除した）。出力先は 1 回の実行で 1 つとする（[0006 要件定義書](../../tasks/0006_slack_webhook_publisher/01_requirements.md) §2.3）。両方を同時に行わない理由は記録されていない。
+-   **CLI に `--dry-run` を設ける。** CLI が投稿していた間の案である（0062 で CLI の投稿を削除した）。投稿せずに記事を確認する用途は、`--out` によるファイルへの書き出しで満たせる（[0006 要件定義書](../../tasks/0006_slack_webhook_publisher/01_requirements.md) §2.3）。
+-   **CLI の Webhook への投稿（`--slack`）を残す。** CLI からの投稿は拡張のビューアからの投稿と役割が重なり、開発で記事を確かめるには `--out` のファイルで足りる（[0062 要件定義書](../../tasks/0062_remove_cli_slack/01_requirements.md) §1）。
+-   **CLI は、`SLACK_WEBHOOK_URL` が設定されていたら拒否する。** サーバのために設定した環境のままでは CLI を実行できなくなる（[0062 要件定義書](../../tasks/0062_remove_cli_slack/01_requirements.md) §1）。
 -   **生成の完了時に自動で投稿する。** 理由は記録されていない（[0044 要件定義書](../../tasks/0044_article_job_api/01_requirements.md) §1 は「完了したら自動で投稿する予約は設けない」とだけ述べる）。
 -   **新しい API の失敗を Webhook へ通知する。** 生成と投稿の失敗は状態の取得で返す。ビューアが失敗を表示できるので、Webhook への通知は重複になる（[0044 要件定義書](../../tasks/0044_article_job_api/01_requirements.md) §1）。
 -   **分割したメッセージをスレッドの返信としてつなぐ。** Incoming Webhook は投稿したメッセージの識別子を返さない（成功の応答は本文 `ok` だけ）ので、Incoming Webhook ではつなげない（[0044 設計書](../../tasks/0044_article_job_api/02_architecture.md) §1.3）。Slack や Mattermost の API で投稿すれば、投稿したメッセージの識別子を受け取ってつなげるが、今は実装を簡単にするために Incoming Webhook を使う。API による投稿は将来の選択肢になりうるが、Slack と Mattermost とで実装が大きく異なる。
@@ -48,4 +50,4 @@
 - 2026-10-14 サーバの旧 `/articles` の失敗を、記事と同じ Webhook へ `silent` の 1 通で通知する経路を加えた。送信の経路を記事の投稿と共有し、CLI は通知しない（[0016 要件定義書](../../tasks/0016_failure_notification/01_requirements.md)）
 - 2026-10-19 Slack の投稿を、見出し行（タイトルとチャンネル名）・本文・末尾の脚注（モデルと料金）の順に改め、Block Kit へは移行せず plain text のままとした。語の途中の `@` を受理する規則に変え、対象の `@` を U+200B で無効化する（[0028 要件定義書](../../tasks/0028_output_layout/01_requirements.md)）
 - 2026-10-27 サーバが生成の完了時に続けて投稿していた形を改め、生成・状態の取得・投稿を別の操作に分け、Slack への投稿をビューアからの利用者の操作で行うようにした。生成の完了時には自動で投稿しない。サーバの投稿のジョブは `PostMessages` で送り、CLI の `--slack` は `Publish` を残した。投稿の操作を冪等にし、新しい API の投稿の失敗を Webhook へ通知しない（[0044 要件定義書](../../tasks/0044_article_job_api/01_requirements.md)）
-- 2026-11-04 CLI の Webhook への投稿（`--slack`）と `SlackWebhookPublisher.Publish` を削除し、Webhook へ投稿するのをサーバの投稿のジョブだけにした。CLI は `SLACK_WEBHOOK_URL` を読まず、`SlackWebhookPublisher` は `Publisher` を満たさない（[0062 要件定義書](../../tasks/0062_remove_cli_slack/01_requirements.md)）
+- 2026-11-05 CLI の Webhook への投稿（`--slack`）と `SlackWebhookPublisher.Publish` を削除し、Webhook へ投稿するのをサーバの投稿のジョブだけにした。CLI は `SLACK_WEBHOOK_URL` を読まず、`SlackWebhookPublisher` は `Publisher` を満たさない（[0062 要件定義書](../../tasks/0062_remove_cli_slack/01_requirements.md)）

@@ -684,8 +684,8 @@ func TestSlackPostWaitsBetweenMessages(t *testing.T) {
 }
 
 // TestPrepareSlackMessagesRejectionNotPostError checks that every preparation
-// rejection is its own error and not a *SlackPostError. A rejection returns no
-// messages, so there is nothing to send.
+// rejection is its own error, not a *SlackPostError, and returns no messages,
+// which PostMessages refuses to send.
 func TestPrepareSlackMessagesRejectionNotPostError(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -706,9 +706,12 @@ func TestPrepareSlackMessagesRejectionNotPostError(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			article := validArticle()
 			tc.mutate(&article)
-			_, err := PrepareSlackMessages(article)
+			m, err := PrepareSlackMessages(article)
 			if !errors.Is(err, tc.wantErr) {
 				t.Fatalf("err = %v, want %v", err, tc.wantErr)
+			}
+			if m.Len() != 0 {
+				t.Fatalf("a rejection returned %d messages, want none", m.Len())
 			}
 			if _, ok := errors.AsType[*SlackPostError](err); ok {
 				t.Fatalf("err = %v, must not wrap *SlackPostError", err)
