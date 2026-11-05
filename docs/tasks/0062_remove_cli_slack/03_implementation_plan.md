@@ -33,7 +33,7 @@ CLI の `--slack` と、CLI だけが使う Webhook の投稿の経路（出力�
 
 ### 1.3. 計画の際に決めたこと（2026-11-04）
 
-レビュアーに尋ねるべき未決の事項はなかった（設計書が計画に委ねた点は、どれも結果が大きく変わらない選択である）。本書の決定はどれも本タスクの中で閉じるので、ADR は作らない（CLAUDE.md「Design decisions (ADR)」の主要な決定に当たらない）。CLI が投稿しないこと、`SlackWebhookPublisher` が `Publisher` を満たさなくなることは、要件書（#665）と設計書（#668）が決めたもので、本書は決めも変えもしない。設計書が計画に委ねた次の点は、理由とともにここに記録する。
+レビュアーに尋ねるべき未決の事項はなかった（設計書が計画に委ねた点は、どれも結果が大きく変わらない選択である）。本書の決定はどれも本タスクの中で閉じるので、ADR は作らない（CLAUDE.md「Design decisions (ADR)」の主要な決定に当たらない）。要件書が決めた CLI の投稿の削除は、既存の [ADR-0011](../../dev/adr/0011-webhook-publishing.md) の決定を変えるので、ステップ 2-5 で ADR-0011 を書き換える。CLI が投稿しないこと、`SlackWebhookPublisher` が `Publisher` を満たさなくなることは、要件書（#665）と設計書（#668）が決めたもので、本書は決めも変えもしない。設計書が計画に委ねた次の点は、理由とともにここに記録する。
 
 -   **`--out` の検査の関数は `checkOut(fs *flag.FlagSet, opts *cliOptions) error` とする（設計書 3.1 節）:** `flagGiven(fs, "out")` で指定の有無を判断し、なければ `errOutRequired`、値が空なら `errOutEmpty` を返す。`errOutRequired` の文言は設計書 3.1 節の `"--out is required"` とする。理由: `chooseDestination` と同じ位置（手順 A2）に置け、`destination` を返す必要がなくなる。
 -   **確かめのスクリプトは 2 つにする（設計書 7.3 節・7.4 節）:** `docs/tasks/0062_remove_cli_slack/_checks/residue/main.go`（以下 `_checks/residue`）と `_checks/coverage/main.go`（以下 `_checks/coverage`）である。どちらも 0059 の同じ名前のスクリプト（`docs/tasks/0059_remove_legacy_articles_api/_checks/residue/main.go`・`_checks/coverage/main.go`）を写して直す。0059 の `residue` は、次のものをすでに持っている。git からだけ読む 2 つのコミットの引数、`go/ast` による宣言とリテラルの確かめ、テストでないファイルの判定（`testConstraint`）、`extension/` が変わらないことの確かめ、一時的な worktree の後始末である。`_checks/coverage` を `internal/coveragecompare` を使わずに写すのは、その道具の関数の対応づけが公開されておらず、道具の変更は本タスクの範囲の外だからである（要件書 2.3 節）。どちらも 1 行目を `//go:build test` にし、`go run -tags test` で動かす。スクリプトのステップ（1-1・2-1）を各 PR の最初に置くのは、確かめる側を、確かめられるコードより前にコミットして、コードの変更に合わせて確かめを緩められないようにするためである。確かめの実行は、設計書 8 章のとおり各 PR の最後（ステップ 1-5・2-6）に置く。`_checks/residue` は、名前を付けた確かめ（1.4 節の末尾の表）を 1 つずつ実行して結果を出し、すべて成り立てば `0`、成り立たないものがあれば `1`、実行できなければ `2` で終わる。引数は merge-base と head の 2 つのコミットで、それぞれの内容を `git` から読む（作業ツリーは読まない）。一時的な worktree と一時的なディレクトリは、終了コード `2` の場合を含め、どの終わり方でも消す。
@@ -288,8 +288,8 @@ PR-1（#682）を作った後、レビューの担当者がテストを見直し
 
 **変更するファイル:** `docs/tasks/0062_remove_cli_slack/_checks/residue/main.go`
 
-- [ ] `_checks/residue` に、1.4 節の末尾の表のステップ 2-1 の行（`publish-method`・`comments`）を加える。
-- [ ] スクリプトだけをコミットする。
+- [x] `_checks/residue` に、1.4 節の末尾の表のステップ 2-1 の行（`publish-method`・`comments`）を加える。
+- [x] スクリプトだけをコミットする。
 
 **完了の条件:** `go vet -tags test` がスクリプトを通り、PR-2 の merge-base を merge-base と head の両方として渡すと、`publish-method` と `comments` が成り立たないと出て `1` で終わる。
 
@@ -297,12 +297,12 @@ PR-1（#682）を作った後、レビューの担当者がテストを見直し
 
 **変更するファイル:** `internal/publisher/slack_test.go`、`internal/server/publish_test.go`
 
-- [ ] 1.5 節の `TestSlackPost*` の 12 のテストを加える（設計書 7.2 節）。各テストは元のテストの publisher の作り方、オプション（`Timeout`・`Interval`）、context、transport、送り先をそのまま使い、`p.Publish(ctx, a)` を、`PrepareSlackMessages(a)` の誤りを確かめた後に `p.PostMessages(ctx, m, 0, …)` で送る形に替える。既存の補助 `postFrom`（`slack_test.go:1269`）は、元のテストが既定のオプションと `context.Background()` で送る所にだけ使う。新しい補助は加えない。`TestSlackPublishErrorClasses` の準備の誤りの分類（分けられない、メンション、正しくない記事）は `PrepareSlackMessages` の誤りで確かめる。元のテストの確かめ（送る形、費用の行、分割、`silent`、順序と間隔、応答、リダイレクト、時間切れ、本文の失敗、取り消し、URL を出さないこと、通信の誤りを伏せること、エラーの分類）は変えずに移す。
-- [ ] `TestPrepareSlackMessagesRejectionNotPostError` を加える。`TestSlackPublishPrepareSendsNothing` の 7 つの行（`slack_test.go:673-685`）をすべて持ち、各行で期待するエラーであることと、`*SlackPostError` でないことを確かめる（設計書 7.2 節）。
-- [ ] `TestPostMessagesRejectsWithoutSending` の `zero value publisher` の行（`slack_test.go:1446-1452`）に、エラーが `*SlackPostError` でないことの確かめを加える（削除する `TestSlackPublishZeroValue` が確かめていたため）。
-- [ ] `TestPublishPostsPreparedMessages` を加える。比べる相手を `publisher.SlackMessagesForTest(article)` にし、準備した 3 通のメッセージがそのまま送られて成功すること、成功のログの行の `posted=3`・`total=3` を確かめる（設計書 7.2 節）。
-- [ ] 加えたテストが、それぞれ確かめる対象を壊すと失敗することを確かめ、コミットメッセージに書く。
-- [ ] 親コミットを `BASE` に `make coverage-compare` を実行し、`PASS` の出力をコミットメッセージに書く。
+- [x] 1.5 節の `TestSlackPost*` の 12 のテストを加える（設計書 7.2 節）。各テストは元のテストの publisher の作り方、オプション（`Timeout`・`Interval`）、context、transport、送り先をそのまま使い、`p.Publish(ctx, a)` を、`PrepareSlackMessages(a)` の誤りを確かめた後に `p.PostMessages(ctx, m, 0, …)` で送る形に替える。既存の補助 `postFrom`（`slack_test.go:1269`）は、元のテストが既定のオプションと `context.Background()` で送る所にだけ使う。新しい補助は加えない。`TestSlackPublishErrorClasses` の準備の誤りの分類（分けられない、メンション、正しくない記事）は `PrepareSlackMessages` の誤りで確かめる。元のテストの確かめ（送る形、費用の行、分割、`silent`、順序と間隔、応答、リダイレクト、時間切れ、本文の失敗、取り消し、URL を出さないこと、通信の誤りを伏せること、エラーの分類）は変えずに移す。
+- [x] `TestPrepareSlackMessagesRejectionNotPostError` を加える。`TestSlackPublishPrepareSendsNothing` の 7 つの行（`slack_test.go:673-685`）をすべて持ち、各行で期待するエラーであることと、`*SlackPostError` でないことを確かめる（設計書 7.2 節）。
+- [x] `TestPostMessagesRejectsWithoutSending` の `zero value publisher` の行（`slack_test.go:1446-1452`）に、エラーが `*SlackPostError` でないことの確かめを加える（削除する `TestSlackPublishZeroValue` が確かめていたため）。
+- [x] `TestPublishPostsPreparedMessages` を加える。比べる相手を `publisher.SlackMessagesForTest(article)` にし、準備した 3 通のメッセージがそのまま送られて成功すること、成功のログの行の `posted=3`・`total=3` を確かめる（設計書 7.2 節）。
+- [x] 加えたテストが、それぞれ確かめる対象を壊すと失敗することを確かめ、コミットメッセージに書く。
+- [x] 親コミットを `BASE` に `make coverage-compare` を実行し、`PASS` の出力をコミットメッセージに書く。
 
 **完了の条件:** `make test` と `make lint` が通り、`make coverage-compare` が `PASS` で終わる。
 
@@ -310,33 +310,35 @@ PR-1（#682）を作った後、レビューの担当者がテストを見直し
 
 **変更するファイル:** `internal/publisher/slack.go`、`internal/publisher/slack_test.go`、`internal/publisher/slack_integration_test.go`、`internal/server/publish_test.go`
 
-- [ ] `slack.go` から `Publish` と `var _ Publisher = (*SlackWebhookPublisher)(nil)` を削除する。残る関数の中は書き換えず、コメントはステップ 2-4 で直す（設計書 7.4 節の 2）。
-- [ ] 1.5 節の `slack_test.go` の元の 13 のテストを削除する。
-- [ ] `TestSlackPublishPartialFailure` を削除する（設計書 7.2 節の理由）。
-- [ ] `TestSlackPublishZeroValue` を削除する（設計書 7.2 節の理由）。
-- [ ] `internal/server/publish_test.go` の `TestPublishPostsLikeCLI` を削除する。
-- [ ] `slack_integration_test.go::TestIntegrationSlackWebhookPublisher` を設計書 3.5 節のとおりに書き直す（すべての記事の通数を送る前に確かめ、検査に通った `SlackMessages` の値そのものを `PostMessages(ctx, m, 0, …)` で送り、`delivered` が `m.Len()` 回呼ばれたことを確かめる）。`make lint` の `go vet -tags integration` で型の誤りがないことを確かめる。
-- [ ] 親コミットを `BASE` に `make coverage-compare` を実行し、`PASS` の出力（削除した関数の一覧を含む）をコミットメッセージに書く。
+- [x] `slack.go` から `Publish` と `var _ Publisher = (*SlackWebhookPublisher)(nil)` を削除する。残る関数の中は書き換えず、コメントはステップ 2-4 で直す（設計書 7.4 節の 2）。
+- [x] 1.5 節の `slack_test.go` の元の 13 のテストを削除する。
+- [x] `TestSlackPublishPartialFailure` を削除する（設計書 7.2 節の理由）。
+- [x] `TestSlackPublishZeroValue` を削除する（設計書 7.2 節の理由）。
+- [x] `internal/server/publish_test.go` の `TestPublishPostsLikeCLI` を削除する。
+- [x] `slack_integration_test.go::TestIntegrationSlackWebhookPublisher` を設計書 3.5 節のとおりに書き直す（すべての記事の通数を送る前に確かめ、検査に通った `SlackMessages` の値そのものを `PostMessages(ctx, m, 0, …)` で送り、`delivered` が `m.Len()` 回呼ばれたことを確かめる）。`make lint` の `go vet -tags integration` で型の誤りがないことを確かめる。
+- [x] 親コミットを `BASE` に `make coverage-compare` を実行し、`PASS` の出力（削除した関数の一覧を含む）をコミットメッセージに書く。
 
 **完了の条件:** `make test`・`make lint`・`make deadcode` が通り、`make coverage-compare` が `PASS` で終わる。
 
 #### ステップ 2-4: コメントの書き直し
 
-**変更するファイル:** `internal/publisher/publisher.go`・`slack.go`・`slack_message.go`・`slack_message_test.go`・`test_helpers_slack.go`、`cmd/yt2column-server/run.go`・`run_test.go`
+**変更するファイル:** `internal/publisher/publisher.go`・`slack.go`・`slack_message.go`・`slack_message_test.go`・`test_helpers_slack.go`、`cmd/yt2column-server/run.go`・`run_test.go`、`internal/slackwebhook/slackwebhook.go`
 
-- [ ] 設計書 3.4 節が挙げる説明（パッケージの説明、型の説明、`webhookClient.post` の説明、`slack_message.go` の「`Publish` が送る」）と、1.4 節の `slack_message_test.go:632`、`test_helpers_slack.go:73-76` の `SlackMessagesForTest` の説明（設計書 3.5 節の「production publisher」を含む）を、`PrepareSlackMessages` と `PostMessages` の説明に直す。
-- [ ] `cmd/yt2column-server/run.go:60-62` と `run_test.go:373-375` から CLI の `--slack` を除く。
-- [ ] `_checks/residue` の `comments` が HEAD で成り立つことを確かめる。
+- [x] 設計書 3.4 節が挙げる説明（パッケージの説明、型の説明、`webhookClient.post` の説明、`slack_message.go` の「`Publish` が送る」）と、1.4 節の `slack_message_test.go:632`、`test_helpers_slack.go:73-76` の `SlackMessagesForTest` の説明（設計書 3.5 節の「production publisher」を含む）を、`PrepareSlackMessages` と `PostMessages` の説明に直す。
+- [x] `cmd/yt2column-server/run.go:60-62` と `run_test.go:373-375` から CLI の `--slack` を除く。
+- [x] `internal/slackwebhook/slackwebhook.go` のパッケージの説明の共有先から `cmd/yt2column` を除き、今の import 元（`internal/publisher/testutil`・`internal/redact`）に合わせる。
+- [x] `_checks/residue` の `comments` が HEAD で成り立つことを確かめる。
 
 **完了の条件:** `make test` と `make lint` が通る。
 
 #### ステップ 2-5: PR-2 の文書
 
-**変更するファイル:** `CLAUDE.md`、`docs/dev/project_overview.md`、`docs/dev/conventions/package_reference.md`、`docs/dev/guides/development.md`、`docs/dev/security.md`
+**変更するファイル:** `CLAUDE.md`、`docs/dev/project_overview.md`、`docs/dev/conventions/package_reference.md`、`docs/dev/guides/development.md`、`docs/dev/security.md`、`docs/dev/adr/0011-webhook-publishing.md`
 
-- [ ] `CLAUDE.md` の「Architecture Overview」の `Publisher` の項を、`SlackWebhookPublisher` が `Publisher` を満たさず、サーバの投稿のジョブが `PrepareSlackMessages` と `PostMessages` で送ることに合わせる（AC-19）。
-- [ ] `project_overview.md` の `Publisher` の初期実装の項（`:75-76`）、`package_reference.md` の `internal/publisher` の行、`make test-integration-slack` の説明（`development.md`、`security.md` §2 の表の `:39`）を、設計書 3.6 節の PR-2 のとおりに直す。
-- [ ] 文書のガードと `make ext-test` を通す（`development.md` を変えるため）。
+- [x] `CLAUDE.md` の「Architecture Overview」の `Publisher` の項を、`SlackWebhookPublisher` が `Publisher` を満たさず、サーバの投稿のジョブが `PrepareSlackMessages` と `PostMessages` で送ることに合わせる（AC-19）。
+- [x] `project_overview.md` の `Publisher` の初期実装の項（`:75-76`）、`package_reference.md` の `internal/publisher` の行、`make test-integration-slack` の説明（`development.md`、`security.md` §2 の表の `:39`）を、設計書 3.6 節の PR-2 のとおりに直す。
+- [x] ADR-0011 の「決定」「結果」から CLI の `--slack` を除き、0062 で採らなかった案（CLI の投稿を残す、CLI が `SLACK_WEBHOOK_URL` を拒否する）と経緯を加える。
+- [x] 文書のガードと `make ext-test` を通す（`development.md` を変えるため）。
 
 **完了の条件:** 文書のガード、`make ext-test`、`make test` が通る。
 
@@ -344,11 +346,11 @@ PR-1（#682）を作った後、レビューの担当者がテストを見直し
 
 **変更するファイル:** 本書 7.1 節
 
-- [ ] 利用者の承認を得て `make test-integration-slack` を実行し、結果（2 つの記事の通数、成功したこと）を 7.1 節に書く（1.3 節、AC-16）。承認が得られなければ、実行しなかったことを書く。
-- [ ] PR-2 のすべての変更をコミットした後、`_checks/residue` を PR-2 の merge-base と `HEAD` で実行し、出力、終了コード、2 つのコミット ID を 7.1 節に書く。
-- [ ] PR-2 の merge-base と PR-1 の merge-base（7.1 節の PR-1 の記録にあるもの）をそれぞれ head として渡し、どちらでも `comments` と `publish-method` が成り立たないことを確かめ、7.1 節に書く（設計書 7.3 節）。
-- [ ] ステップ 2-2・2-3 の網羅率の比較の結果を 7.1 節に書き写す。
-- [ ] `make test`・`make lint`・`make deadcode` を通す。
+- [x] 利用者の承認を得て `make test-integration-slack` を実行し、結果（2 つの記事の通数、成功したこと）を 7.1 節に書く（1.3 節、AC-16）。承認が得られなければ、実行しなかったことを書く。
+- [x] PR-2 のすべての変更をコミットした後、`_checks/residue` を PR-2 の merge-base と `HEAD` で実行し、出力、終了コード、2 つのコミット ID を 7.1 節に書く。
+- [x] PR-2 の merge-base と PR-1 の merge-base（7.1 節の PR-1 の記録にあるもの）をそれぞれ head として渡し、どちらでも `comments` と `publish-method` が成り立たないことを確かめ、7.1 節に書く（設計書 7.3 節）。
+- [x] ステップ 2-2・2-3 の網羅率の比較の結果を 7.1 節に書き写す。
+- [x] `make test`・`make lint`・`make deadcode` を通す。
 
 **完了の条件:** `_checks/residue` が PR の head で `0` を返し、その記録が 7.1 節にある。
 
@@ -364,10 +366,10 @@ PR-1（#682）を作った後、レビューの担当者がテストを見直し
 
 **判定理由**: ステップ 2-2 が 14 のテスト（`slack_test.go` の 13 と `internal/server` の 1）を、元のオプション・context・transport を保ったまま移し替え、網羅率を下げずに保つ必要がある（確かめの取りこぼしが起きやすい、複雑なステップ）。本物の Webhook の統合テストの書き直しは 1 ファイルにとどまり、パネルモードの条件のうち、外部の資源を重く使う面には当たらない
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/694
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ## 3. 実装順序とマイルストーン (Implementation Order and Milestones)
 
@@ -412,7 +414,7 @@ M2 は M1 の後に置く（設計書 8 章）。PR-1 の後は `Publish` を呼
 ## 6. 実装チェックリスト (Implementation Checklist)
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5）
-- [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6）
+- [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -585,7 +587,63 @@ coverage-compare: PASS
 
 #### PR-2
 
-（ステップ 2-6 で記入する。）
+**`make test-integration-slack`（ステップ 2-6、AC-16）:** 利用者の承認を得て、2026-11-05 にコミット `0bb1e58b`（ステップ 2-5 のコミット。統合テストはステップ 2-3 から変わっていない）で実行した。`TestIntegrationSlackWebhookPublisher` が通った（single は 1 通、split は 3 通。どちらも `PostMessages` が誤りなしで返り、`delivered` の回数が通数と一致した）。
+
+**`_checks/residue`（ステップ 2-6）:** merge-base `363b69280a7ade3d92fa85f2f4e56ab50279b0a8`、head `e65e67612a6d1993567b70fa8ea8ca0e1d8a0af7`（PR-2 のコードの最後のコミット。この記録のコミットは本書だけを変える）。
+
+```text
+go run -tags test ./docs/tasks/0062_remove_cli_slack/_checks/residue/ 363b6928 e65e6761
+```
+
+```text
+OK   slack-flag
+OK   ignores-webhook
+OK   cli-code
+OK   slack-literal
+OK   cli-words
+OK   config
+OK   make-target
+OK   publish-method
+OK   comments
+OK   unchanged
+exit 0
+```
+
+-   PR-2 の merge-base `363b6928` を head として渡すと、`publish-method`（`slack.go:171` の `SlackWebhookPublisher.Publish`）と `comments`（16 の指摘）が成り立たず、ほかの確かめは成り立って、終了コード `1` で終わる。PR-1 の merge-base `43e51be6` を head として渡しても、`publish-method`（1）と `comments`（37）が成り立たない。
+-   `publish-method` が `FilePublisher` の側と埋め込みのフィールドでも失敗しうること: ブランチに載せない一時的なコミットを head として渡した。`FilePublisher.Publish` の名前を変えたコミットでは「`FilePublisher.Publish` がない」、`SlackWebhookPublisher` に `sync.Mutex` を埋め込んだコミットでは埋め込みのフィールドの指摘が出た。
+
+**網羅率の比較（ステップ 2-2、`make coverage-compare`）:** ステップ 2-2 のコミット `6cfd488d`（tree `d996c9e2`）。出力の `head` はメッセージを直す前のコミット ID で、tree ID は同じである。
+
+```text
+target    make coverage-compare BASE="7beecad2~1"
+base      6f104eeb523636f0616146bf112eaa536d5d56f9
+head      7beecad24495935edb01f4bf888069707e8e26a3 tree d996c9e29430a19f25b1b2398bbfa6ddcd879b3b
+toolchain go1.27.1
+tests     base 1256 head 1270
+files     base 136 head 136
+functions base 1277 head 1277
+deleted   0
+no compared function lost coverage
+coverage-compare: PASS
+```
+
+**網羅率の比較（ステップ 2-3、`make coverage-compare`）:** `Publish` を削除するコミット `90234cca`（tree `4ec140df`）。
+
+```text
+target    make coverage-compare BASE="e3d64e16~1"
+base      6cfd488db409338e0bb14c5958c7d9e6c67dfab4
+head      e3d64e1674d89cec30111dbbda5a02b0bcdea362 tree 4ec140dfdbbd46d2e298ea9308de279086ebe7f8
+toolchain go1.27.1
+tests     base 1270 head 1254
+files     base 136 head 136
+functions base 1277 head 1276
+deleted   1
+deleted   "internal/publisher/slack.go":171 "(*SlackWebhookPublisher).Publish"
+no compared function lost coverage
+coverage-compare: PASS
+```
+
+-   ステップ 2-2 の比較は、最初の実行が `internal/transcript` の `TestCommandExecutorDrainsStderr` の失敗（issue #684）で `STOP test-failed`、次の実行が `internal/cmdrunner` の `signalGroup` の 3/3 → 2/3（PR-1 の記録の、子の終わる時刻で通るかが決まる分岐。PR-2 は変えていない）で `FAIL` になり、変えずに実行し直して `PASS` を得た。ステップ 2-3 の比較も、最初の実行が同じ `signalGroup` で `FAIL` になり、実行し直して `PASS` を得た。
 
 ## 8. 成功基準 (Success Criteria)
 

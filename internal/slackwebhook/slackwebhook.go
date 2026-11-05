@@ -1,7 +1,8 @@
 // Package slackwebhook holds the rule a Slack-compatible Incoming Webhook URL
 // (Mattermost or Slack) must meet and names the parts of a URL that must never
 // appear in output. It is shared by internal/config, internal/publisher,
-// cmd/yt2column, and the integration tests, so each rule is written once.
+// internal/publisher/testutil, and internal/redact, so each rule is written
+// once.
 package slackwebhook
 
 import (

@@ -57,9 +57,9 @@ func productionDeps() deps {
 	}
 }
 
-// newPublisher builds the SlackWebhookPublisher, the publisher the CLI's
-// --slack uses and the server posts with. It returns a nil interface, never a
-// typed nil, when construction fails, so server.New's nil check is not misled.
+// newPublisher builds the SlackWebhookPublisher the server posts with. It
+// returns a nil interface, never a typed nil, when construction fails, so
+// server.New's nil check is not misled.
 func newPublisher(webhookURL secret.Secret) (server.WebhookPublisher, error) {
 	p, err := publisher.NewSlackWebhookPublisher(webhookURL)
 	if err != nil {

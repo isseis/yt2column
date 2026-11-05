@@ -36,7 +36,7 @@ yt2column はローカルで実行する。主経路では、利用者がブラ�
 
     | 統合テスト | make のターゲット | オプトインの変数 | テスト用の Webhook URL がない場合 |
     |---|---|---|---|
-    | `internal/publisher/slack_integration_test.go`（`SlackWebhookPublisher` が固定の記事を投稿） | `make test-integration-slack` | `YT2COLUMN_SLACK_INTEGRATION=1` | 失敗する（本番の `SLACK_WEBHOOK_URL` だけがある場合も、それを代わりに使わない） |
+    | `internal/publisher/slack_integration_test.go`（固定の記事を `PrepareSlackMessages` で検査・分割し、`SlackWebhookPublisher` の `PostMessages` で投稿） | `make test-integration-slack` | `YT2COLUMN_SLACK_INTEGRATION=1` | 失敗する（本番の `SLACK_WEBHOOK_URL` だけがある場合も、それを代わりに使わない） |
 
 - `GODEBUG` に `http2debug=1` または `http2debug=2` を含めると、Go の HTTP/2 の Transport は送信するリクエストヘッダーを値ごと標準エラー出力に記録する。`Authorization`・`x-api-key` などの API キーのヘッダーもそのまま出力される。Webhook への送信（サーバの投稿と `make test-integration-slack`）では、リクエストのパス、すなわち Webhook URL のパスも書かれうる。この設定で通信を調査するときは、無効な API キー（本番のキーでもテスト用のキーでもないもの）を使う。`GODEBUG` はプロセスの開始時に一度だけ読まれ、実行中に取り除いても効かないため、統合テストは、API を呼ぶものも Webhook に投稿するものも、送信の前にこれらの設定を検出して失敗する。
 - 本番の CLI は `GODEBUG` の `http2debug` を拒否せずに読み込み、利用者が明示的に指定したものとしてデバッグを優先する。その代わり、LLM API を呼ぶ前に、`http2debug` により API キーが標準エラー出力に書かれうることを警告する（F-001・F-007・F-008）。CLI は Webhook に送らないので、警告はこの 1 つだけである。

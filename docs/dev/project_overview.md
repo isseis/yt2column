@@ -72,8 +72,8 @@ flowchart LR
   - 打ち切り（`ErrTruncated`）・想定外の終了理由（`ErrUnexpectedFinishReason`）・空の応答（`ErrEmptyResponse`）では、拒否した応答の `Model` と `Usage` をレスポンスに入れて返す。ほかのエラーではゼロ値を返す。
   - プロバイダ SDK の import は各実装パッケージの中に閉じ込める。他のパッケージから SDK の型を参照しないこと。
   - プロバイダの選択は `internal/config` の値を見て、`main.go`（または小さなファクトリ関数）で行う。
-- `Publisher`: 初期実装は `SlackWebhookPublisher` と `FilePublisher`（ローカル保存。デバッグ用）。
-  - `SlackWebhookPublisher` は、Slack 互換の Incoming Webhook（Mattermost など）へ記事を Markdown の `text` として投稿する。検証済みの対象は Mattermost とし、Slack は best effort とする。通知を抑止するため全メッセージに `silent` を付け、1 メッセージ 16,383 コードポイントを超える記事は `(k/N)` の表示を付けて分割する。
+- `Publisher`: 実装は `FilePublisher`（ローカル保存。CLI の `--out` が使う）。
+  - Webhook への投稿は `Publisher` ではない。サーバの投稿のジョブが、`PrepareSlackMessages` で記事を検査・分割し、`SlackWebhookPublisher` の `PostMessages` で、Slack 互換の Incoming Webhook（Mattermost など）へ記事を Markdown の `text` として投稿する。検証済みの対象は Mattermost とし、Slack は best effort とする。通知を抑止するため全メッセージに `silent` を付け、1 メッセージ 16,383 コードポイントを超える記事は `(k/N)` の表示を付けて分割する。
 
 ## 前提・制約
 

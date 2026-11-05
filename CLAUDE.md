@@ -312,7 +312,10 @@ flowchart LR
   `internal/config` and `internal/llm/claude` share, and
   `internal/llm/deepseekparam` holds the DeepSeek `reasoning_effort` type that
   `internal/config` and `internal/llm/deepseek` share.
-- `Publisher` (`internal/publisher`): Slack Incoming Webhook and local file.
+- `Publisher` (`internal/publisher`): local file (`FilePublisher`). The Slack
+  Incoming Webhook sender, `SlackWebhookPublisher`, is not a `Publisher`: the
+  server's post job checks and splits the article with `PrepareSlackMessages`
+  and sends the messages with `PostMessages`.
 - `internal/pipeline` orchestrates the stages; `internal/config` reads environment
   variables; `cmd/yt2column` wires everything together.
 
