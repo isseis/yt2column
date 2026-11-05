@@ -22,7 +22,7 @@
 -   **変更そのものの性質（既存の見出しが変わっていないことなど）は、文書のテストにしない。** タスクの `_checks/` に置いた `diff` の確かめとして、マージの基点と PR の head を比べ、PR ごとに 1 回だけ実行する。
 -   **3 つの規則を守る。** 廃止した仕様（廃止した環境変数、移行の手順、置き換えた節）を文書に残させるテストを足さない。同じ文書の同じ値を、同じ出所と 2 つのテストで確かめない。誤りの見込みが小さく、害が小さく、維持の費用が防ぐ誤りを上回る確認を足さない。コードが廃止した値を受け付けないことは、コードのテストで確かめる。
 -   **文書を読む guard は、`doc-guard` の CI ジョブで、変更の種類にかかわらずすべての PR に実行する。** 対象は `cmd/yt2column`・`cmd/yt2column-server`・`cmd/fixprguard`・`cmd/codexreview`・`internal/pipeline` のパッケージで、`-run` で絞らない。対象を変えるときは、ジョブの `go test` の引数と、[CLAUDE.md](../../../CLAUDE.md) の一覧を同じ PR で変える。
--   **文書だけの変更は、`make ext-test` を要求しない。** 例外は、拡張の node のテストが読む 2 つの README と `docs/dev/guides/development.md` である。文書を読むほかの guard は Go のテストで、`make test` と `doc-guard` のジョブで実行する。
+-   **文書だけの変更は、`make ext-test` を要求しない。** 例外は、拡張の node のテストが読む 2 つの README と `docs/dev/guides/development.md` である。文書を読むほかの guard は Go のテストで、`make test` と `doc-guard` のジョブで実行する。`cmd/yt2column-nmhost` の README の guard だけは `doc-guard` の対象に含まれないので、`make test` と、コードの変更を含む PR の `test` ジョブで実行する。
 
 ## 採らなかった案
 

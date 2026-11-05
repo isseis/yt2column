@@ -24,7 +24,7 @@
 -   **道具は状態のファイルを持たない。** 基準値と判定した集合は、サブコマンドの出力として返し、セッションが次の呼び出しの引数で渡す。ディスクに置くと、修正のフェーズや build checks が実行するコードに書き換えられる。
 -   **順序を、コマンドの定義ではなく道具の中で強制する。** 確認より前に build checks を動かさないこと、commit と push の間で hooks や config が変わっていたら push しないこと、は道具のコードが守る。コマンドの定義に残るのは、サブコマンドを呼ぶ順序と、利用者への確認だけである。
 -   **拡張の関数の範囲だけは、TypeScript の補助に求める。** `coveragecompare` は Go と拡張の両方の比較を受け持つが、拡張の関数の終わりの行は node の lcov が出さないので、`extension/scripts/function-ranges.ts` が入っている `typescript` の構文木から求める。新しい npm のパッケージは加えない。
--   **道具は `main` からインストールする。** `make install-mergepr`・`make install-fixprguard`・`make install-codexreview` で入れ、道具を変えたマージの後は再インストールする。`fixprguard` は `--protocol` の番号で、呼び出し側の文書と道具の版が合っているかを照合する。あわせて、文書と道具を変える順序は、両方が動き続ける形にする（[fixprguard_guide.md](../guides/fixprguard_guide.md) §9）。
+-   **道具は `main` からインストールして使う。** `mergepr`・`fixprguard`・`codexreview` は `make install-mergepr`・`make install-fixprguard`・`make install-codexreview` で入れ、道具を変えたマージの後は再インストールする。`coveragecompare` は `make coverage-compare` と `make ext-coverage-compare` が、そのつど一時ディレクトリにビルドして実行する。`fixprguard` は `--protocol` の番号で、呼び出し側の文書と道具の版が合っているかを照合する。あわせて、文書と道具を変える順序は、両方が動き続ける形にする（[fixprguard_guide.md](../guides/fixprguard_guide.md) §9）。
 -   **道具の引数・出力・終了コードは、コマンドの定義と文書のガードが読む契約にする。** 変えたときは、道具と、それを呼ぶ文書と、ガードを同じ PR で変える。
 
 ## 採らなかった案
@@ -42,7 +42,7 @@
 
 -   判定の誤りは、道具のテストで見つかる。壊して失敗を確かめた結果は、そのテストを加えたコミットのメッセージに残る。
 -   エージェントが手順を読み違えても、範囲外の commit・push や、信頼の境界の迂回は、道具が実行時に止める。
--   道具を変えたマージの後は、利用者が `make install-<tool>` を実行し直す必要がある。再インストールを忘れると、`fixprguard` は `--protocol` の食い違いで止まる。
+-   道具を変えたマージの後は、利用者が `make install-<tool>` を実行し直す必要がある（`mergepr`・`fixprguard`・`codexreview`）。再インストールを忘れると、`fixprguard` は `--protocol` の食い違いで止まる。
 -   拡張のカバレッジの比較には Go と node の両方が要る。`make ext-coverage-compare` も Go の道具を呼ぶ。
 -   道具の引数・出力・終了コードは、コマンドの定義と文書のガードが前提にする契約になる。変えるときは、道具・文書・ガードを同じ PR で変える。
 
