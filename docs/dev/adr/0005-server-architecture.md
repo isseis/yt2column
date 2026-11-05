@@ -10,13 +10,13 @@
 
 記事を作る処理は、開発用の CLI とブラウザ拡張の両方から使う。拡張は、利用者が YouTube の文字起こしパネルからコピーした字幕と動画ページの情報を、利用者のマシンで動くサーバへ送る。サーバは LLM を呼んで記事を作り、メモリに保持して、求めに応じて返すか Slack へ投稿する。ブラウザは、拡張が送るたびにプロセスを起動する Native Messaging の仕組みを持つが、そのプロセスは長く動かず、シェルの環境変数も引き継がない。
 
-当初は、拡張が loopback の TCP ポートへ直接 HTTP を送り、共有トークンで入口を限定していた（[0011 設計書](../../tasks/0011_localhost_server/02_architecture.md)）。しかし、ウェブページから loopback のサーバへ届く経路を残すことになり、DNS rebinding や preflight の不要な `POST` への対策を別に要した。0026 で、ブラウザが起動する Native Messaging のホストを中継役にし、サーバの待ち受けを Unix ドメインソケット（UDS）だけに変えた（[0026 設計書](../../tasks/0026_native_messaging_relay/02_architecture.md)）。
+サーバが loopback の TCP ポートで待ち受けると、ウェブページからサーバへ届く経路が残り、DNS rebinding や preflight の不要な `POST` への対策を別に要する（[0011 設計書](../../tasks/0011_localhost_server/02_architecture.md)、[0026 設計書](../../tasks/0026_native_messaging_relay/02_architecture.md)）。
 
 ## 決定
 
 -   **サーバは `cmd/yt2column-server` の別の実行ファイルとし、利用者が手動で起動する。** ログイン時の自動起動はしない。記事を作る処理と Slack への投稿の処理は、CLI と同じパッケージを共有し、サーバ固有のコードは HTTP の入口・検査・応答・ジョブに限る。
 -   **サーバは `yt-dlp` を呼ばない。** 字幕は拡張から受け取り、`internal/transcript` の `CopiedSource` で解析する。`yt-dlp` を使うのは CLI の経路だけである（字幕の入力の決定は [ADR-0007](0007-manual-transcript-copy.md)）。
--   **待ち受けは UDS だけにし、TCP のポートを開かない。** ソケットのパスは `HOME` だけから導出する。ソケットの置き場所と権限、起動のロック、stale の扱いは [security.md](../security.md) §8.2「localhost サーバ」に従う。
+-   **待ち受けは Unix ドメインソケット（UDS）だけにし、TCP のポートを開かない。** ソケットのパスは `HOME` だけから導出する。ソケットの置き場所と権限、起動のロック、stale の扱いは [security.md](../security.md) §8.2「localhost サーバ」に従う。
 -   **UDS の上でも HTTP/1.1 を使い、新しいフレーム形式を作らない。** サーバの `http.Server` とハンドラを `UnixListener` の上で動かす。リクエストの検査はパスとメソッドだけで、`Host`・`Origin`・`Content-Type`・`Authorization` は検査しない。ソケットに接続できる相手はこれらのヘッダを偽れるので、検査しても排除できる相手がいないためである。
 -   **生成の開始は `202` で受け付け、ジョブをサーバのメモリで動かす。** 同時に走る生成の数、本文の大きさ、読み取り・書き込み・待機の時間の上限は [security.md](../security.md) §8.2 に従う。
 -   **拡張は Native Messaging のホストだけに送り、ホストが UDS へ中継する。** 送り先は固定のホスト名 `io.github.isseis.yt2column` で、ホストを起動できる拡張は manifest の `allowed_origins` に載った固定の拡張だけである。ホストは 1 つのメッセージにつき 1 回起動し、1 つのリクエストを送って 1 つの応答を返し、終了する。ホストはサーバを起動せず、ジョブはサーバに残る。ブラウザを閉じてもジョブは続く。
