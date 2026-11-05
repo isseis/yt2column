@@ -106,10 +106,12 @@
 | 0009 | B7 | `viewer-opening` | PR-3 |
 | 0010 | B8 | `extension-stores-nothing` | PR-3 |
 | 0011 | B11 | `webhook-publishing` | PR-3 |
-| 0012 | D1 | `review-setup` | PR-4 |
-| 0013 | D2 | `deterministic-checks-in-go` | PR-4 |
-| 0014 | D3 | `untrusted-review-threads` | PR-4 |
-| 0015 | D4 | `document-test-policy` | PR-4 |
+| 0013 | D1 | `review-setup` | PR-4 |
+| 0014 | D2 | `deterministic-checks-in-go` | PR-4 |
+| 0015 | D3 | `untrusted-review-threads` | PR-4 |
+| 0016 | D4 | `document-test-policy` | PR-4 |
+
+D 系の予定の番号は、タスク 0061 が `0012`（`lightweight-check-in-bash`）を先に使ったため、`0013`〜`0016` にずらした（2026-11-05）。
 
 この表は AC-25 の主題と ADR の対応表を兼ねる（設計書の付録 B の AC-25）。1 本の ADR は 1 つの主題だけを持つ（設計書 1.2 節）。
 
@@ -324,15 +326,15 @@
 
 #### ステップ 4-1: D 系の 4 本の ADR
 
-**変更するファイル:** `docs/dev/adr/0012-review-setup.md`〜`0015-document-test-policy.md`（新規。1.5 節の 4 本）、`docs/dev/adr/README.md`
+**変更するファイル:** `docs/dev/adr/0013-review-setup.md`〜`0016-document-test-policy.md`（新規。1.5 節の 4 本）、`docs/dev/adr/README.md`
 
--   [ ] ステップ 2-1 の作業を、D1〜D4 の 4 本に行う。D 系の正本の文書は、CLAUDE.md・`.claude/commands/_context.md`・`docs/dev/guides/` の手引きである。「決定」の節はそれらを要約してリンクし、CLAUDE.md の規則そのものを ADR に写さない（要件書 1 章「上の決定から導いたこと」）。
+-   [x] ステップ 2-1 の作業を、D1〜D4 の 4 本に行う。D 系の正本の文書は、CLAUDE.md・`.claude/commands/_context.md`・`docs/dev/guides/` の手引きである。「決定」の節はそれらを要約してリンクし、CLAUDE.md の規則そのものを ADR に写さない（要件書 1 章「上の決定から導いたこと」）。
 
 #### ステップ 4-2: 1 回だけの確かめ
 
 **変更するファイル:** 本書 7.1 節
 
--   [ ] ステップ 2-3 と同じく、2 つの確かめを実行して記録する。`_checks/adrlinks` は `-final` を付けて実行し、すべての確かめが `OK` である。
+-   [x] ステップ 2-3 と同じく、2 つの確かめを実行して記録する。`_checks/adrlinks` は `-final` を付けて実行し、すべての確かめが `OK` である。
 
 **完了の条件（ステップ 4-1・4-2）:** グリーンゲートが通る。`task_docs_unchanged.sh` と `-final` を付けた `_checks/adrlinks` が 0 で終わる。
 
@@ -348,10 +350,10 @@
 
 **判定理由**: PR-2 と同じ作業で、どの判定の条件にも当たらない
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/685
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ## 3. 実装順序とマイルストーン (Implementation Order and Milestones)
 
@@ -407,7 +409,7 @@ M2〜M4 は M1 の規約・索引・guard に依存する。M2 → M3 → M4 は
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6）
 - [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3）
 - [x] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3）
-- [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2）
+- [x] PR-4 マージ済み（対象ステップ: 4-1 / 4-2）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -570,6 +572,44 @@ OK      overview-items
         text: OK
         links: OK
 ```
+
+**PR-4 の確かめ（ステップ 4-2、2026-11-05）:** `git fetch origin main` の後に、PR のブランチで実行した。マージの基点は `362947664c2f68a6978577fc733a79332ba2136a`、head は `7f6db4a974ebe5ed4cb0d1520464eff2af0e003f` である。この記録を書くコミットは本書だけを変える。
+
+`docs/tasks/0060_adr_records/_checks/task_docs_unchanged.sh origin/main HEAD`（終了コード 0）:
+
+```text
+merge-base: 362947664c2f68a6978577fc733a79332ba2136a
+head: 7f6db4a974ebe5ed4cb0d1520464eff2af0e003f
+docs/tasks/: only docs/tasks/0060_adr_records/ changed
+```
+
+`go run -tags test ./docs/tasks/0060_adr_records/_checks/adrlinks/ -final 362947664c2f68a6978577fc733a79332ba2136a HEAD`（終了コード 0。`PENDING` はない）:
+
+```text
+OK      quick-links
+OK      history-sources
+        ok: 0001-llm-adapter-stdlib.md
+        ok: 0002-post-generation-steps.md
+        ok: 0003-llm-config-contract.md
+        ok: 0004-production-profile.md
+        ok: 0005-server-architecture.md
+        ok: 0006-threat-model.md
+        ok: 0007-manual-transcript-copy.md
+        ok: 0008-launch-path.md
+        ok: 0009-viewer-opening.md
+        ok: 0010-extension-stores-nothing.md
+        ok: 0011-webhook-publishing.md
+        ok: 0012-review-setup.md
+        ok: 0013-deterministic-checks-in-go.md
+        ok: 0014-untrusted-review-threads.md
+        ok: 0015-document-test-policy.md
+OK      viewer-appendix
+OK      overview-items
+        text: OK
+        links: OK
+```
+
+**main を取り込んだ後の再実行（2026-11-05）:** タスク 0061 が `0012`（`lightweight-check-in-bash`）を先に使ったため、main を取り込み、D 系を `0013`〜`0016` に改めた。改めた後に、マージの基点 `b9d4a98e51473af5536e00b0db855acdfa777d73` と head `e33184f598465f2b375266826c66a664512aef5d` で 2 つの確かめを再実行した。`task_docs_unchanged.sh` は終了コード 0（`docs/tasks/` は本タスクのディレクトリだけが変わった）、`adrlinks -final` は終了コード 0 で、`quick-links`・`history-sources`（D 系は `0013-review-setup.md`〜`0016-document-test-policy.md`）・`viewer-appendix`・`overview-items` がすべて `OK` だった。
 
 ## 8. 成功基準 (Success Criteria)
 
