@@ -34,6 +34,16 @@
 //     usage hint (the flag before the URL) or the argument-count line and the
 //     usage hint (the flag after it). A control run with --out alone must
 //     create the marker, which shows the environment lets a run reach yt-dlp.
+//   - ignores-webhook: copies the two tests under testdata/ into a temporary
+//     worktree of head, cli_ignores_webhook_test.go into cmd/yt2column and
+//     config_ignores_webhook_test.go into internal/config, and runs them with
+//     go test -tags test. TestRunIgnoresSlackWebhookURL holds when a run never
+//     asks its lookup for SLACK_WEBHOOK_URL while it asks for DEEPSEEK_API_KEY,
+//     and a --out run with the variable empty or not https gives the same exit
+//     code, --out file, and standard error as a run with it unset.
+//     TestLoadIgnoresSlackWebhookURL holds when Load accepts those two values,
+//     which LoadServer rejects. The check holds when both tests pass; a test
+//     that fails or does not build is a finding with go test's output.
 //   - cli-code: cmd/yt2column's product files refer to none of
 //     publisher.NewSlackWebhookPublisher, publisher.SlackWebhookPublisher,
 //     publisher.SlackPostError, publisher.SlackHTTPStatusError,
@@ -68,6 +78,7 @@ package main
 import (
 	"bytes"
 	"crypto/rand"
+	"embed"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -108,6 +119,7 @@ type check struct {
 
 var checks = []check{
 	{"slack-flag", checkSlackFlag},
+	{"ignores-webhook", checkIgnoresWebhook},
 	{"cli-code", checkCLICode},
 	{"slack-literal", checkSlackLiteral},
 	{"cli-words", checkCLIWords},
@@ -168,28 +180,44 @@ func tempDir() (string, error) {
 	return dir, nil
 }
 
-// buildCLI builds cmd/yt2column of commit in a temporary worktree and returns
-// the binary's path. The worktree is removed before buildCLI returns; the
-// binary's directory before the process exits.
-func buildCLI(commit string) (bin string, err error) {
+// inWorktree checks out commit in a temporary worktree and calls fn with its
+// directory. The worktree is removed before inWorktree returns.
+func inWorktree(commit string, fn func(tree string) error) (err error) {
 	dir, err := tempDir()
 	if err != nil {
-		return "", err
+		return err
 	}
 	tree := filepath.Join(dir, "tree")
 	if out, err := exec.Command("git", "worktree", "add", "--detach", tree, commit).CombinedOutput(); err != nil { //nolint:gosec // a commit this tool was given
-		return "", fmt.Errorf("git worktree add: %w: %s", err, out)
+		return fmt.Errorf("git worktree add: %w: %s", err, out)
 	}
 	defer func() {
 		if out, rmErr := exec.Command("git", "worktree", "remove", "--force", tree).CombinedOutput(); rmErr != nil && err == nil { //nolint:gosec // as above
 			err = fmt.Errorf("git worktree remove: %w: %s", rmErr, out)
 		}
 	}()
-	bin = filepath.Join(dir, "yt2column")
-	cmd := exec.Command("go", "build", "-o", bin, "./cmd/yt2column") //nolint:gosec // a fixed package
-	cmd.Dir = tree
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("go build: %w: %s", err, out)
+	return fn(tree)
+}
+
+// buildCLI builds cmd/yt2column of commit in a temporary worktree and returns
+// the binary's path. The worktree is removed before buildCLI returns; the
+// binary's directory before the process exits.
+func buildCLI(commit string) (string, error) {
+	dir, err := tempDir()
+	if err != nil {
+		return "", err
+	}
+	bin := filepath.Join(dir, "yt2column")
+	err = inWorktree(commit, func(tree string) error {
+		cmd := exec.Command("go", "build", "-o", bin, "./cmd/yt2column") //nolint:gosec // a fixed package
+		cmd.Dir = tree
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("go build: %w: %s", err, out)
+		}
+		return nil
+	})
+	if err != nil {
+		return "", err
 	}
 	return bin, nil
 }
@@ -359,6 +387,56 @@ func checkSlackFlag(_, head string) ([]string, error) {
 		findings = append(findings, fmt.Sprintf("control (--out alone): the fake yt-dlp did not run (exit status %d, standard error %q)", control.code, control.stderr))
 	}
 	return findings, nil
+}
+
+// ignoresWebhookTests are the tests the ignores-webhook check runs, each
+// copied into the package directory named by ignoresWebhookPackages.
+//
+//go:embed testdata/*_test.go
+var ignoresWebhookTests embed.FS
+
+// ignoresWebhookPackages maps each file under testdata/ to the package
+// directory it is copied into and the test it holds.
+var ignoresWebhookPackages = []struct {
+	file, dir, test string
+}{
+	{"cli_ignores_webhook_test.go", "cmd/yt2column", "TestRunIgnoresSlackWebhookURL"},
+	{"config_ignores_webhook_test.go", "internal/config", "TestLoadIgnoresSlackWebhookURL"},
+}
+
+// checkIgnoresWebhook runs the tests under testdata/ in a temporary worktree
+// of head.
+func checkIgnoresWebhook(_, head string) ([]string, error) {
+	var findings []string
+	err := inWorktree(head, func(tree string) error {
+		for _, p := range ignoresWebhookPackages {
+			data, err := ignoresWebhookTests.ReadFile("testdata/" + p.file)
+			if err != nil {
+				return err
+			}
+			dst := filepath.Join(tree, filepath.FromSlash(p.dir), "zz_residue_"+p.file)
+			if err := os.WriteFile(dst, data, 0o600); err != nil {
+				return err
+			}
+			cmd := exec.Command("go", "test", "-tags", "test", "-count=1", "-run", "^"+p.test+"$", "./"+p.dir) //nolint:gosec // fixed packages and tests
+			cmd.Dir = tree
+			out, err := cmd.CombinedOutput()
+			if err == nil {
+				continue
+			}
+			if _, ok := errors.AsType[*exec.ExitError](err); !ok {
+				return fmt.Errorf("go test ./%s: %w", p.dir, err)
+			}
+			findings = append(findings, fmt.Sprintf("%s in %s fails:\n%s", p.test, p.dir, indent(string(out))))
+		}
+		return nil
+	})
+	return findings, err
+}
+
+// indent indents every line of s for the findings list.
+func indent(s string) string {
+	return "       " + strings.ReplaceAll(strings.TrimRight(s, "\n"), "\n", "\n       ")
 }
 
 // removedRefs are the names of internal/publisher the CLI no longer refers to.
