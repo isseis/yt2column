@@ -315,6 +315,42 @@ func requireOutsideBlocksSection(t *testing.T, name, doc, heading string) string
 // lightweightCheckPath is the recheck script, from cmd/yt2column.
 const lightweightCheckPath = "../../.claude/commands/_lib/lightweight-check.sh"
 
+// lightweightCheckCodeLineLimit is the most lines, blank and comment lines
+// left out, the recheck script may have before the decision to keep it a bash
+// script is made again (docs/dev/adr/0012-lightweight-check-in-bash.md,
+// "見直しの条件"). Raise it only together with a history entry of that ADR.
+const lightweightCheckCodeLineLimit = 650
+
+// TestLightweightCheckRevisitConditions checks the revisit conditions of the
+// recheck script's ADR that can be counted: the script stays under the code
+// line limit and runs no eval. A failure asks for the decision to be made
+// again, not for the script to be squeezed under the limit.
+func TestLightweightCheckRevisitConditions(t *testing.T) {
+	script, err := os.ReadFile(lightweightCheckPath)
+	if err != nil {
+		t.Fatalf("read the recheck script: %v", err)
+	}
+	const adr = "docs/dev/adr/0012-lightweight-check-in-bash.md"
+	isSeparator := func(r rune) bool { return strings.ContainsRune(" \t;&|()`", r) }
+	code := 0
+	for i, line := range strings.Split(string(script), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		code++
+		for word := range strings.FieldsFuncSeq(line, isSeparator) {
+			if word == "eval" {
+				t.Errorf("line %d of the recheck script runs eval: make the decision of %s again", i+1, adr)
+			}
+		}
+	}
+	if code > lightweightCheckCodeLineLimit {
+		t.Errorf("the recheck script has %d code lines, over the limit %d: make the decision of %s again",
+			code, lightweightCheckCodeLineLimit, adr)
+	}
+}
+
 // lwCheckPrefix starts every line the recheck script prints.
 const lwCheckPrefix = "lightweight-check: "
 

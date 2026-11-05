@@ -27,6 +27,10 @@
 #     that accepts --attr-source (GIT_ATTR_SOURCE); with an older one the
 #     variable is ignored, so the script checks the option first and stops.
 #
+# Why this is a bash script and when to decide that again (the revisit
+# conditions, two of which TestLightweightCheckRevisitConditions counts):
+# docs/dev/adr/0012-lightweight-check-in-bash.md.
+#
 # Output: lines that start with "lightweight-check: "; the last is the verdict.
 # Exit status: 0 PASS, 1 FAIL, 2 STOP.
 
