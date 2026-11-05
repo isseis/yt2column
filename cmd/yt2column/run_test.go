@@ -365,6 +365,25 @@ type publisherFunc func(ctx context.Context, a writer.Article) error
 
 func (f publisherFunc) Publish(ctx context.Context, a writer.Article) error { return f(ctx, a) }
 
+// afterFilePublish makes the run's --out publisher write the article with the
+// real FilePublisher and then call then, whose error becomes the publish's
+// own. A test uses it to act at the end of the publish stage, after every
+// other stage ran.
+func (e *runEnv) afterFilePublish(then func() error) {
+	e.d.newFilePublisher = func(path string) (publisher.Publisher, error) {
+		inner, err := newFilePublisher(path)
+		if err != nil {
+			return nil, err
+		}
+		return publisherFunc(func(ctx context.Context, a writer.Article) error {
+			if err := inner.Publish(ctx, a); err != nil {
+				return err
+			}
+			return then()
+		}), nil
+	}
+}
+
 // pathRow is one row of the execution-path table.
 type pathRow struct {
 	name     string
@@ -725,19 +744,10 @@ func executionPathRows() []pathRow {
 			setup: func(_ *testing.T, e *runEnv) {
 				ctx, cancel := context.WithCancel(context.Background())
 				e.ctx = ctx
-				e.d.newFilePublisher = func(path string) (publisher.Publisher, error) {
-					inner, err := newFilePublisher(path)
-					if err != nil {
-						return nil, err
-					}
-					return publisherFunc(func(ctx context.Context, a writer.Article) error {
-						if err := inner.Publish(ctx, a); err != nil {
-							return err
-						}
-						cancel()
-						return nil
-					}), nil
-				}
+				e.afterFilePublish(func() error {
+					cancel()
+					return nil
+				})
 			},
 			wantCode:   exitOK,
 			wantStderr: []string{"warning: remove the cache", "wrote the article to"},
@@ -1109,18 +1119,7 @@ func executionPathRows() []pathRow {
 				e.useReviewClient(reviewLLM(emptyReviewJSON))
 				// The publisher creates the review log file after the article is
 				// written, so the review log's link(2) fails with EEXIST.
-				e.d.newFilePublisher = func(path string) (publisher.Publisher, error) {
-					inner, err := newFilePublisher(path)
-					if err != nil {
-						return nil, err
-					}
-					return publisherFunc(func(ctx context.Context, a writer.Article) error {
-						if err := inner.Publish(ctx, a); err != nil {
-							return err
-						}
-						return os.WriteFile(logPath, []byte("raced"), 0o600)
-					}), nil
-				}
+				e.afterFilePublish(func() error { return os.WriteFile(logPath, []byte("raced"), 0o600) })
 			},
 			wantCode:         exitFailure,
 			articlePublished: true,

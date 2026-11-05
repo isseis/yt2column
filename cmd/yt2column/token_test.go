@@ -304,6 +304,32 @@ func TestRunTokenLinesAfterAllCalls(t *testing.T) {
 		})
 	})
 
+	t.Run("file publish failure", func(t *testing.T) {
+		e := newRunEnv(t)
+		e.withSteps = true
+		// The --out publisher fails once the article is written, so the
+		// publish fails after every stage ran. (An existing --out file would
+		// fail the job's precheck before any call.)
+		e.afterFilePublish(func() error { return errInjectedPublish })
+		e.client = usageSequence(
+			usageResponse(longGeneratedText(), "gen-model", testGenTokens),
+			usageResponse(shortGeneratedText(), "short-model", testShortTokens),
+		)
+		e.useReviewClient(usageLLM(usageResponse(emptyReviewJSON, "review-model", testReviewTokens)))
+
+		if code := e.run(); code == exitOK {
+			t.Fatalf("exit code = %d, want a failure (the publish must fail)", code)
+		}
+		if !strings.Contains(e.stderr.String(), "the publish stage failed") {
+			t.Fatalf("stderr does not report the publish stage:\n%s", e.stderr.String())
+		}
+		requireTokenLines(t, e, []string{
+			knownLine("generation", tokensRun, "gen-model", testGenTokens),
+			knownLine("shorten", tokensRun, "short-model", testShortTokens),
+			knownLine("review", tokensRun, "review-model", testReviewTokens),
+		})
+	})
+
 	t.Run("length limit after review", func(t *testing.T) {
 		e := newRunEnv(t)
 		e.withSteps = true
@@ -507,6 +533,29 @@ func TestRunTokenLinesReviewLogFailure(t *testing.T) {
 
 	if code := e.run(); code != exitFailure {
 		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitFailure, e.stderr.String())
+	}
+	requireTokenLines(t, e, []string{
+		knownLine("generation", tokensRun, "gen-model", testGenTokens),
+		knownLine("review", tokensRun, "review-model", testReviewTokens),
+	})
+}
+
+func TestRunTokenLinesFileReviewLogFailure(t *testing.T) {
+	e := newRunEnv(t)
+	e.withSteps = true
+	logPath := filepath.Join(e.base, "review.md")
+	e.args = []string{"--review-log", logPath, "--out", e.outPath, runVideoURL}
+	e.client = usageLLM(usageResponse(shortGeneratedText(), "gen-model", testGenTokens))
+	e.useReviewClient(usageLLM(usageResponse(emptyReviewJSON, "review-model", testReviewTokens)))
+	// Write the log path once the article is written, so the review log's own
+	// create finds it and fails after the article is published.
+	e.afterFilePublish(func() error { return os.WriteFile(logPath, []byte("raced"), 0o600) })
+
+	if code := e.run(); code != exitFailure {
+		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitFailure, e.stderr.String())
+	}
+	if !strings.Contains(e.stderr.String(), "writing the review log to") {
+		t.Fatalf("stderr does not report the review-log failure:\n%s", e.stderr.String())
 	}
 	requireTokenLines(t, e, []string{
 		knownLine("generation", tokensRun, "gen-model", testGenTokens),

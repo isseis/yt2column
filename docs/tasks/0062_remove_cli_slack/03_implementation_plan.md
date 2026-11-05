@@ -170,11 +170,11 @@ CLI の `--slack` と、CLI だけが使う Webhook の投稿の経路（出力�
 
 **変更するファイル:** `cmd/yt2column/cost_test.go`、`cmd/yt2column/token_test.go`、`cmd/yt2column/run_test.go`（補助を共有するとき）、`internal/config/config_test.go`、`internal/publisher/slack_message_test.go`
 
-- [ ] 1.5 節の費用とトークンの 4 つを加える。どのテストも `--out` で実行し、`d.newFilePublisher` を差し替える。差し替えた関数は、すべての段階が終わった後の公開で失敗する `Publisher` か、`Publish` が成功した後にログの書き込みを失敗させる `Publisher` を返す（設計書 7.1 節、1.4 節の `executionPathRows` の 2 行と同じ形）。各テストが、失敗が公開の段階で起きたこと（`publish` の段階の行、または検証・推敲のログの失敗の行）を確かめる。包む `Publisher` は 4 つのテストと `executionPathRows` の 2 行で同じ形なので、`run_test.go` に補助を 1 つ置いて共有してよい。
-- [ ] `TestLoadServerWebhookAccepted`・`TestLoadServerWebhookRejected`・`TestServerConfigOutputRedactsWebhook` を加える（1.3 節）。受理する値は `TestLoadSlackWebhookAccepted` の 5 つ、拒否する値は `TestLoadInvalid` の `slack webhook` の行の値、値を出さないことは `TestLoadErrorsOmitValues` の 5 行の値と確かめる部分をそのまま移す。
-- [ ] `TestPrepareSlackMessagesLen` を加える。`TestSlackMessageCount` が確かめる 3 つ（1 通の記事、分かれる記事、メンションの拒否）のうち、1.4 節の重なる既存のテストが確かめていないものだけを、`PrepareSlackMessages` の返す値の `Len()` と返るエラーで確かめる。重なるものは、どのテストが確かめるかをコミットメッセージに書く。
-- [ ] 加えたテストが、それぞれ確かめる対象を壊すと失敗することを確かめ、コミットメッセージに書く。
-- [ ] 親コミットを `BASE` に `make coverage-compare` を実行し、`coverage-compare: PASS` の出力を最後の行までコミットメッセージに書く（1.3 節）。
+- [x] 1.5 節の費用とトークンの 4 つを加える。どのテストも `--out` で実行し、`d.newFilePublisher` を差し替える。差し替えた関数は、すべての段階が終わった後の公開で失敗する `Publisher` か、`Publish` が成功した後にログの書き込みを失敗させる `Publisher` を返す（設計書 7.1 節、1.4 節の `executionPathRows` の 2 行と同じ形）。各テストが、失敗が公開の段階で起きたこと（`publish` の段階の行、または検証・推敲のログの失敗の行）を確かめる。包む `Publisher` は 4 つのテストと `executionPathRows` の 2 行で同じ形なので、`run_test.go` に補助を 1 つ置いて共有してよい。
+- [x] `TestLoadServerWebhookAccepted`・`TestLoadServerWebhookRejected`・`TestServerConfigOutputRedactsWebhook` を加える（1.3 節）。受理する値は `TestLoadSlackWebhookAccepted` の 5 つ、拒否する値は `TestLoadInvalid` の `slack webhook` の行の値、値を出さないことは `TestLoadErrorsOmitValues` の 5 行の値と確かめる部分をそのまま移す。
+- [x] `TestPrepareSlackMessagesLen` を加える。`TestSlackMessageCount` が確かめる 3 つ（1 通の記事、分かれる記事、メンションの拒否）のうち、1.4 節の重なる既存のテストが確かめていないものだけを、`PrepareSlackMessages` の返す値の `Len()` と返るエラーで確かめる。重なるものは、どのテストが確かめるかをコミットメッセージに書く。
+- [x] 加えたテストが、それぞれ確かめる対象を壊すと失敗することを確かめ、コミットメッセージに書く。
+- [x] 親コミットを `BASE` に `make coverage-compare` を実行し、`coverage-compare: PASS` の出力を最後の行までコミットメッセージに書く（1.3 節）。
 
 **完了の条件:** `make test` と `make lint` が通り、`make coverage-compare` が `PASS` で終わる。
 

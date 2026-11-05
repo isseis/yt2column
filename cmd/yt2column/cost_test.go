@@ -587,6 +587,22 @@ func TestRunCostLinesFailure(t *testing.T) {
 		requireCostLines(t, e, []string{costGenLine, costShortLine, costReviewLine, costRunTotal, costArtTotal})
 	})
 
+	t.Run("file publish failure after every stage", func(t *testing.T) {
+		e := newRunEnv(t)
+		e.withSteps = true
+		useFixedClock(e, costGenTime, costShortTime, costReviewTime)
+		useAllStagesCost(e)
+		e.afterFilePublish(func() error { return errInjectedPublish })
+
+		if code := e.run(); code == exitOK {
+			t.Fatalf("exit code = %d, want a failure (the publish must fail)", code)
+		}
+		if !strings.Contains(e.stderr.String(), "the publish stage failed") {
+			t.Fatalf("stderr does not report the publish stage:\n%s", e.stderr.String())
+		}
+		requireCostLines(t, e, []string{costGenLine, costShortLine, costReviewLine, costRunTotal, costArtTotal})
+	})
+
 	t.Run("--after accepts the input then fails", func(t *testing.T) {
 		dir := saveCostArtifacts(t, func(e *runEnv) {
 			useFixedClock(e, costGenTime, costShortTime, costReviewTime)
@@ -640,6 +656,33 @@ func TestRunCostLinesReviewLogFailure(t *testing.T) {
 
 	if code := e.run(); code != exitFailure {
 		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitFailure, e.stderr.String())
+	}
+	// The cost lines appear once, not again in the review-log failure report.
+	if got := len(costStageLines(e.stderr.String())); got != 2 {
+		t.Errorf("stage cost lines = %d, want 2:\n%s", got, e.stderr.String())
+	}
+	if got := len(costTotalLines(e.stderr.String())); got != 2 {
+		t.Errorf("total cost lines = %d, want 2:\n%s", got, e.stderr.String())
+	}
+}
+
+func TestRunCostLinesFileReviewLogFailure(t *testing.T) {
+	e := newRunEnv(t)
+	e.withSteps = true
+	logPath := filepath.Join(e.base, "review.md")
+	e.args = []string{"--review-log", logPath, "--out", e.outPath, runVideoURL}
+	useFixedClock(e, costGenTime, costReviewTime)
+	e.client = usageLLM(usageResponse(shortGeneratedText(), costGenModel, costGenTokens))
+	e.useReviewClient(usageLLM(usageResponse(emptyReviewJSON, costReviewModel, costReviewTokens)))
+	// Write the log path once the article is written, so the review log's own
+	// create finds it and fails after the article is published.
+	e.afterFilePublish(func() error { return os.WriteFile(logPath, []byte("raced"), 0o600) })
+
+	if code := e.run(); code != exitFailure {
+		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitFailure, e.stderr.String())
+	}
+	if !strings.Contains(e.stderr.String(), "writing the review log to") {
+		t.Fatalf("stderr does not report the review-log failure:\n%s", e.stderr.String())
 	}
 	// The cost lines appear once, not again in the review-log failure report.
 	if got := len(costStageLines(e.stderr.String())); got != 2 {
