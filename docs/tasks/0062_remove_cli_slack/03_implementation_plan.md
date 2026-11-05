@@ -334,9 +334,9 @@ PR-1（#682）を作った後、レビューの担当者がテストを見直し
 
 **変更するファイル:** `CLAUDE.md`、`docs/dev/project_overview.md`、`docs/dev/conventions/package_reference.md`、`docs/dev/guides/development.md`、`docs/dev/security.md`
 
-- [ ] `CLAUDE.md` の「Architecture Overview」の `Publisher` の項を、`SlackWebhookPublisher` が `Publisher` を満たさず、サーバの投稿のジョブが `PrepareSlackMessages` と `PostMessages` で送ることに合わせる（AC-19）。
-- [ ] `project_overview.md` の `Publisher` の初期実装の項（`:75-76`）、`package_reference.md` の `internal/publisher` の行、`make test-integration-slack` の説明（`development.md`、`security.md` §2 の表の `:39`）を、設計書 3.6 節の PR-2 のとおりに直す。
-- [ ] 文書のガードと `make ext-test` を通す（`development.md` を変えるため）。
+- [x] `CLAUDE.md` の「Architecture Overview」の `Publisher` の項を、`SlackWebhookPublisher` が `Publisher` を満たさず、サーバの投稿のジョブが `PrepareSlackMessages` と `PostMessages` で送ることに合わせる（AC-19）。
+- [x] `project_overview.md` の `Publisher` の初期実装の項（`:75-76`）、`package_reference.md` の `internal/publisher` の行、`make test-integration-slack` の説明（`development.md`、`security.md` §2 の表の `:39`）を、設計書 3.6 節の PR-2 のとおりに直す。
+- [x] 文書のガードと `make ext-test` を通す（`development.md` を変えるため）。
 
 **完了の条件:** 文書のガード、`make ext-test`、`make test` が通る。
 

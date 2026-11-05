@@ -278,6 +278,6 @@ curl -sS --unix-socket "$socket" -X POST "http://localhost/jobs/$key/publish"
 
 ### Webhook の統合テスト
 
-`make test-integration-slack` は、固定の 2 つの記事（LLM は呼ばない）を、Mattermost のテスト用のチャンネルの本物の Incoming Webhook に投稿するので、
+`make test-integration-slack` は、固定の 2 つの記事（LLM は呼ばない）を、それぞれ `PrepareSlackMessages` で検査・分割してから `PostMessages` で、Mattermost のテスト用のチャンネルの本物の Incoming Webhook に投稿するので、
 `YT2COLUMN_TEST_SLACK_WEBHOOK_URL` にそのチャンネルの Webhook の URL を設定する必要がある。これは本番の `SLACK_WEBHOOK_URL` とは別のもので、テストは本番の URL を読まない。
 ターゲットは、統合テストのためだけに同意の変数 `YT2COLUMN_SLACK_INTEGRATION=1` を export する。これがなければ、テストはその変数を示すメッセージを出して飛ばすので、ただの `go test -tags integration` や IDE からの実行は投稿しない。テスト用の Webhook の URL がないか正しくないとき、または `GODEBUG` が `http2debug` を有効にしているときは、テストを飛ばさずに失敗させ、何も投稿しない。投稿するメッセージの本文は URL を含まない。失敗のメッセージでは、URL、そのパス・クエリ・userinfo、URL の末尾の 8 文字を伏せる。通信の失敗のメッセージには宛先のホストとポートが出ることがあるが、ホストとポートは秘密情報として扱わない。
