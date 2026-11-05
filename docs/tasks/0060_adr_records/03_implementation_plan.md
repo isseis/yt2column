@@ -326,13 +326,13 @@
 
 **変更するファイル:** `docs/dev/adr/0012-review-setup.md`〜`0015-document-test-policy.md`（新規。1.5 節の 4 本）、`docs/dev/adr/README.md`
 
--   [ ] ステップ 2-1 の作業を、D1〜D4 の 4 本に行う。D 系の正本の文書は、CLAUDE.md・`.claude/commands/_context.md`・`docs/dev/guides/` の手引きである。「決定」の節はそれらを要約してリンクし、CLAUDE.md の規則そのものを ADR に写さない（要件書 1 章「上の決定から導いたこと」）。
+-   [x] ステップ 2-1 の作業を、D1〜D4 の 4 本に行う。D 系の正本の文書は、CLAUDE.md・`.claude/commands/_context.md`・`docs/dev/guides/` の手引きである。「決定」の節はそれらを要約してリンクし、CLAUDE.md の規則そのものを ADR に写さない（要件書 1 章「上の決定から導いたこと」）。
 
 #### ステップ 4-2: 1 回だけの確かめ
 
 **変更するファイル:** 本書 7.1 節
 
--   [ ] ステップ 2-3 と同じく、2 つの確かめを実行して記録する。`_checks/adrlinks` は `-final` を付けて実行し、すべての確かめが `OK` である。
+-   [x] ステップ 2-3 と同じく、2 つの確かめを実行して記録する。`_checks/adrlinks` は `-final` を付けて実行し、すべての確かめが `OK` である。
 
 **完了の条件（ステップ 4-1・4-2）:** グリーンゲートが通る。`task_docs_unchanged.sh` と `-final` を付けた `_checks/adrlinks` が 0 で終わる。
 
@@ -565,6 +565,42 @@ PENDING history-sources
         pending: deterministic-checks-in-go
         pending: untrusted-review-threads
         pending: document-test-policy
+OK      viewer-appendix
+OK      overview-items
+        text: OK
+        links: OK
+```
+
+**PR-4 の確かめ（ステップ 4-2、2026-11-05）:** `git fetch origin main` の後に、PR のブランチで実行した。マージの基点は `362947664c2f68a6978577fc733a79332ba2136a`、head は `7f6db4a974ebe5ed4cb0d1520464eff2af0e003f` である。この記録を書くコミットは本書だけを変える。
+
+`docs/tasks/0060_adr_records/_checks/task_docs_unchanged.sh origin/main HEAD`（終了コード 0）:
+
+```text
+merge-base: 362947664c2f68a6978577fc733a79332ba2136a
+head: 7f6db4a974ebe5ed4cb0d1520464eff2af0e003f
+docs/tasks/: only docs/tasks/0060_adr_records/ changed
+```
+
+`go run -tags test ./docs/tasks/0060_adr_records/_checks/adrlinks/ -final 362947664c2f68a6978577fc733a79332ba2136a HEAD`（終了コード 0。`PENDING` はない）:
+
+```text
+OK      quick-links
+OK      history-sources
+        ok: 0001-llm-adapter-stdlib.md
+        ok: 0002-post-generation-steps.md
+        ok: 0003-llm-config-contract.md
+        ok: 0004-production-profile.md
+        ok: 0005-server-architecture.md
+        ok: 0006-threat-model.md
+        ok: 0007-manual-transcript-copy.md
+        ok: 0008-launch-path.md
+        ok: 0009-viewer-opening.md
+        ok: 0010-extension-stores-nothing.md
+        ok: 0011-webhook-publishing.md
+        ok: 0012-review-setup.md
+        ok: 0013-deterministic-checks-in-go.md
+        ok: 0014-untrusted-review-threads.md
+        ok: 0015-document-test-policy.md
 OK      viewer-appendix
 OK      overview-items
         text: OK
