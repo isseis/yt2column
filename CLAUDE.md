@@ -643,8 +643,9 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
   missing. The `doc-guard` CI job runs these tests too.
 - `make test` also needs `bash` and a `git` that accepts `--attr-source` on
   `PATH`: `TestLightweightCheck` runs the recheck script
-  `_lib/lightweight-check.sh` with them on fixture repositories, and fails instead of skipping when either is missing. It runs
-  in the `doc-guard` CI job as well.
+  `_lib/lightweight-check.sh` with them on fixture repositories, and fails
+  instead of skipping when either is missing. It runs in the `doc-guard` CI
+  job as well.
 - Secrets (`DEEPSEEK_API_KEY`, `ANTHROPIC_API_KEY`, `SLACK_WEBHOOK_URL`, ...) go in `.envrc` / `.env`,
   which are git-ignored. Never commit them and never print them.
 - Real captured data committed under `testdata/` must come from a video licensed

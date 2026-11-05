@@ -24,8 +24,8 @@
 #   - Every temporary file and worktree is removed before the script exits,
 #     however it exits.
 #   - It uses no network and no bash feature newer than 3.2. It needs a git
-#     that accepts --attr-source; with an older one the diffs fail and the
-#     verdict is STOP.
+#     that accepts --attr-source (GIT_ATTR_SOURCE); with an older one the
+#     variable is ignored, so the script checks the option first and stops.
 #
 # Output: lines that start with "lightweight-check: "; the last is the verdict.
 # Exit status: 0 PASS, 1 FAIL, 2 STOP.
@@ -82,13 +82,6 @@ g() {
 	command git "${GIT_OVERRIDES[@]}" "$@"
 }
 
-# gd runs a diff with the attributes read from the empty tree instead of the
-# work tree, so a .gitattributes the branch adds (at any depth) cannot change
-# which files count as binary. EMPTY_TREE is set once git is known to work.
-EMPTY_TREE=
-gd() {
-	g --attr-source="$EMPTY_TREE" diff "$@"
-}
 
 say() {
 	printf 'lightweight-check: %s\n' "$1"
@@ -197,10 +190,19 @@ TMP_DIR=$RESOLVED_TMP_DIR
 
 TOP=$(g rev-parse --show-toplevel) || stop git "git rev-parse --show-toplevel failed"
 cd "$TOP" || stop git "cannot change to the repository root"
+# Every later git reads attributes from the empty tree instead of the work
+# tree or the index (GIT_ATTR_SOURCE, the --attr-source option's variable,
+# which subprocesses of git inherit), so a .gitattributes the branch adds at
+# any depth cannot change which files count as binary, and no checkout or add
+# of the reproduction runs a filter (such as a Git LFS smudge) the
+# repository's configuration defines.
 EMPTY_TREE=$(g hash-object -t tree /dev/null) || stop git "git hash-object failed"
+g --attr-source="$EMPTY_TREE" rev-parse --git-dir >/dev/null 2>&1 ||
+	stop git "this git does not accept --attr-source"
+export GIT_ATTR_SOURCE=$EMPTY_TREE
 
-# The repository's local attributes file is read even with --attr-source, and
-# it could mark a text file binary (a false FAIL) or a binary file text.
+# The repository's local attributes file is read even with GIT_ATTR_SOURCE,
+# and it could mark a text file binary (a false FAIL) or a binary file text.
 LOCAL_ATTRIBUTES=$(g rev-parse --git-path info/attributes) || stop git "git rev-parse --git-path failed"
 if [ -s "$LOCAL_ATTRIBUTES" ]; then
 	stop local-attributes "the repository has a local attributes file ($LOCAL_ATTRIBUTES)"
@@ -564,7 +566,7 @@ excluded() {
 	return 1
 }
 
-gd --raw "${DIFF_OPTIONS[@]}" "$BASE" "$HEAD_COMMIT" >"$TMP_DIR/raw" || stop git "git diff --raw failed"
+g diff --raw "${DIFF_OPTIONS[@]}" "$BASE" "$HEAD_COMMIT" >"$TMP_DIR/raw" || stop git "git diff --raw failed"
 while IFS= read -r -d '' header && IFS= read -r -d '' path; do
 	header=${header#:}
 	old_mode=${header%% *}
@@ -587,7 +589,7 @@ while IFS= read -r -d '' header && IFS= read -r -d '' path; do
 	fi
 done <"$TMP_DIR/raw"
 
-gd --numstat "${DIFF_OPTIONS[@]}" "$BASE" "$HEAD_COMMIT" >"$TMP_DIR/numstat-all" ||
+g diff --numstat "${DIFF_OPTIONS[@]}" "$BASE" "$HEAD_COMMIT" >"$TMP_DIR/numstat-all" ||
 	stop git "git diff --numstat failed"
 while IFS= read -r -d '' record; do
 	if [ "${record%%$'\t'*}" = - ]; then
@@ -597,7 +599,7 @@ while IFS= read -r -d '' record; do
 	fi
 done <"$TMP_DIR/numstat-all"
 
-gd --numstat "${DIFF_OPTIONS[@]}" "$TOOL" "$HEAD_COMMIT" >"$TMP_DIR/numstat-hand" ||
+g diff --numstat "${DIFF_OPTIONS[@]}" "$TOOL" "$HEAD_COMMIT" >"$TMP_DIR/numstat-hand" ||
 	stop git "git diff --numstat failed"
 ADDED=0
 DELETED=0

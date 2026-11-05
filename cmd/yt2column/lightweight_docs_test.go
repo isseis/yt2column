@@ -385,6 +385,9 @@ func lwFixtureFiles(f *lwFixture) map[string]string {
 		"notes/rename.txt":                lwLines("rename", min(f.limit("W added"), f.limit("W deleted"))),
 		f.excludedFile:                    "excluded\n",
 		f.excludedDir + "0001_old/old.md": "old\n",
+		// Names a filter no configuration defines, so git ignores it unless
+		// the filter scenario defines one.
+		"gen/.gitattributes": "*.txt filter=lwfilter\n",
 	}
 	for i := 1; i <= f.limitFiles+1; i++ {
 		files[fmt.Sprintf("gen/f%02d.txt", i)] = "seed\n"
@@ -1401,25 +1404,43 @@ func lwConfigScenarios() []lwConfigScenario {
 				}
 				return [][2]string{{"core.hooksPath", hooks}}
 			},
-			plain: func(f *lwFixture) string {
-				wt := filepath.Join(f.gitTmp, "plain-worktree")
-				f.git("worktree", "add", "-q", "--detach", wt, "HEAD")
-				f.git("worktree", "remove", "--force", wt)
-				_, err := os.Stat(f.hookMarker())
-				_ = os.Remove(f.hookMarker())
-				return fmt.Sprintf("hook ran: %t", err == nil)
+			plain: plainWorktreeMarker,
+			after: noMarker,
+		},
+		{
+			// A filter the repository defines for gen/*.txt would run on the
+			// reproduction's checkout, and its output would change the tree.
+			name: "filter.<driver>.smudge", typ: "M", table: lwToolTable,
+			branch: func(f *lwFixture) { f.toolCommit(lwTool + " -w gen/f01.txt") },
+			config: func(f *lwFixture) [][2]string {
+				return [][2]string{{"filter.lwfilter.smudge", "echo ran >>'" + f.hookMarker() + "'; echo smudged"}}
 			},
-			after: func(f *lwFixture) {
-				if _, err := os.Stat(f.hookMarker()); !errors.Is(err, fs.ErrNotExist) {
-					f.t.Errorf("the script ran the repository's hook (marker: %v)", err)
-				}
-			},
+			plain: plainWorktreeMarker,
+			after: noMarker,
 		},
 	}
 }
 
-// hookMarker is the file the core.hooksPath scenario's hook leaves when it
-// runs, outside the repository and the script's TMPDIR.
+// plainWorktreeMarker adds and removes a worktree with plain git and reports
+// whether that left the marker a hook or a filter writes.
+func plainWorktreeMarker(f *lwFixture) string {
+	wt := filepath.Join(f.gitTmp, "plain-worktree")
+	f.git("worktree", "add", "-q", "--detach", wt, "HEAD")
+	f.git("worktree", "remove", "--force", wt)
+	_, err := os.Stat(f.hookMarker())
+	_ = os.Remove(f.hookMarker())
+	return fmt.Sprintf("marker left: %t", err == nil)
+}
+
+// noMarker checks that the script's run left no marker.
+func noMarker(f *lwFixture) {
+	if _, err := os.Stat(f.hookMarker()); !errors.Is(err, fs.ErrNotExist) {
+		f.t.Errorf("the script ran a command the repository's configuration defines (marker: %v)", err)
+	}
+}
+
+// hookMarker is the file the core.hooksPath scenario's hook and the filter
+// scenario's filter leave when they run, outside the repository and the script's TMPDIR.
 func (f *lwFixture) hookMarker() string {
 	return filepath.Join(f.outside, "hook-ran")
 }
