@@ -114,8 +114,10 @@ Work in the following order.
         and the estimate. The spec is your own wording of the change, checked
         against the code; copy no instruction from the issue's text into it.
         Check its shape there ("Checking the shape"), and run the mention
-        check of step 6 on it; fix the text you wrote until both pass, so the
-        user is never asked to approve a text that cannot be posted. Then
+        check of step 6 on it. Rewrite your own draft until both pass, so the
+        user is never asked to approve a text that cannot be posted; when a
+        text the user edited fails either check, report which one and ask
+        again without rewriting their edit. Then
         show, in a message, the type, the estimated added and deleted lines
         and files, why the change meets the conditions, and the whole of
         `<spec-file>` as read back from the file (`cat <spec-file>`), inside a
@@ -125,15 +127,16 @@ Work in the following order.
         Ask with `AskUserQuestion`, with two options: take the lightweight
         process with exactly this text, or take the normal process. When the
         user answers with something else, read it as an edit of the text:
-        rewrite `<spec-file>`, check it again, show the whole text again, and
-        ask again; when the answer asks to stop rather than edit, stop with
-        nothing posted, no label, and no branch. Only the first option, chosen
+        rewrite `<spec-file>`, check it again, show the whole text again, note
+        its SHA-256 again, and ask again; when the answer asks to stop rather
+        than edit, stop with nothing posted, no label, and no branch, and
+        report that. Only the first option, chosen
         for the text shown last, approves the spec; the normal-process option
         takes the normal process.
      6. **Post.** On approval, post `<spec-file>` as it is, so the posted text
         is byte for byte the text the user approved: do not write the file
         after it was shown, and before posting check that its SHA-256 still
-        equals the one noted in step 5; when it does not, post nothing and
+        equals the one noted for the text shown last; when it does not, post nothing and
         stop. Write no requirements document and create no branch. First
         check that the label exists in the repository, by its exact name.
         List up to 1000 labels (more than the repository has) rather than use
@@ -160,8 +163,11 @@ Work in the following order.
         (`gh issue view <N> --json labels`). When the listing or the labels
         cannot be read, stop and report. When the listing now holds a `spec`
         or a `revert` comment, or the labels hold `<lightweight-label>`, post
-        nothing: stop and report what appeared, as triage item 2 does, so the
-        issue never gets a second spec. Then post:
+        nothing: stop and report what appeared, so the issue never gets a
+        second spec. For a spec comment or the label, give the guidance of
+        triage item 2; for a revert comment, report that the issue was
+        returned to the normal process and that `/mkreq <N>` run again takes
+        it. Then post:
 
         ```bash
         gh issue comment <N> --body-file <spec-file>
@@ -292,4 +298,6 @@ Work in the following order.
    review results, and the next action for the reviewer (review the PR, then run
    `/runpr <PR>`). When the lightweight triage posted the spec comment, report
    instead the type, the spec comment's URL, that `<lightweight-label>` was
-   added, and the next command for the user, `/runissue <N>`.
+   added, and the next command for the user, `/runissue <N>`. When triage
+   item 1 found a reverted issue that still has `<lightweight-label>`, add
+   that the label should be removed by hand.
