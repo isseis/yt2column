@@ -288,8 +288,8 @@ PR-1（#682）を作った後、レビューの担当者がテストを見直し
 
 **変更するファイル:** `docs/tasks/0062_remove_cli_slack/_checks/residue/main.go`
 
-- [ ] `_checks/residue` に、1.4 節の末尾の表のステップ 2-1 の行（`publish-method`・`comments`）を加える。
-- [ ] スクリプトだけをコミットする。
+- [x] `_checks/residue` に、1.4 節の末尾の表のステップ 2-1 の行（`publish-method`・`comments`）を加える。
+- [x] スクリプトだけをコミットする。
 
 **完了の条件:** `go vet -tags test` がスクリプトを通り、PR-2 の merge-base を merge-base と head の両方として渡すと、`publish-method` と `comments` が成り立たないと出て `1` で終わる。
 

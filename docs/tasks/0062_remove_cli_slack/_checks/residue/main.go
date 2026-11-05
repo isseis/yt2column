@@ -62,6 +62,15 @@
 //   - make-target: the Makefile holds neither test-integration-cli-slack nor
 //     CLI_SLACK_INTEGRATION_TIMEOUT, and cmd/yt2column/integration_slack_test.go
 //     does not exist.
+//   - publish-method: internal/publisher declares no method Publish of
+//     SlackWebhookPublisher in any of its files, and declares the method
+//     Publish of FilePublisher.
+//   - comments: no comment of a Go file outside docs/tasks/ holds --slack,
+//     SlackWebhookPublisher.Publish, test-integration-cli-slack, CLI's
+//     publisher, or CLI's webhook (the last two ignoring case), and no comment
+//     of internal/publisher's publisher.go, test_helpers_slack.go, or a file
+//     whose name starts with slack holds Publish as a word (not inside a longer
+//     identifier, so Publisher and SlackPublishMaxDurationForTest do not count).
 //   - unchanged: nothing under extension/ changed between the commits, and no
 //     product file of internal/server/ (judged on either side) changed.
 //
@@ -125,6 +134,8 @@ var checks = []check{
 	{"cli-words", checkCLIWords},
 	{"config", checkConfig},
 	{"make-target", checkMakeTarget},
+	{"publish-method", checkPublishMethod},
+	{"comments", checkComments},
 	{"unchanged", checkUnchanged},
 }
 
@@ -602,6 +613,82 @@ func checkMakeTarget(_, head string) ([]string, error) {
 		findings = append(findings, test+" exists")
 	}
 	return findings, nil
+}
+
+// checkPublishMethod checks that SlackWebhookPublisher no longer has Publish
+// and that FilePublisher still has it.
+func checkPublishMethod(_, head string) ([]string, error) {
+	files, err := packageFiles(head, "internal/publisher")
+	if err != nil {
+		return nil, err
+	}
+	var findings []string
+	fileHas := false
+	for _, f := range files {
+		if pos, ok := f.method("SlackWebhookPublisher", "Publish"); ok {
+			findings = append(findings, fmt.Sprintf("%s declares SlackWebhookPublisher.Publish", pos))
+		}
+		if _, ok := f.method("FilePublisher", "Publish"); ok && f.product {
+			fileHas = true
+		}
+	}
+	if !fileHas {
+		findings = append(findings, "internal/publisher does not declare FilePublisher.Publish in a product file")
+	}
+	return findings, nil
+}
+
+// commentPhrases are the phrases no Go comment holds. ignoreCase marks the
+// phrases matched without regard to case.
+var commentPhrases = []struct {
+	phrase     string
+	ignoreCase bool
+}{
+	{"--slack", false},
+	{"SlackWebhookPublisher.Publish", false},
+	{"test-integration-cli-slack", false},
+	{"CLI's publisher", true},
+	{"CLI's webhook", true},
+}
+
+// publishWord matches Publish as a word: not inside a longer identifier.
+var publishWord = regexp.MustCompile(`(^|[^A-Za-z0-9_])Publish([^A-Za-z0-9_]|$)`)
+
+// checkComments checks that no Go comment describes the removed method, the
+// removed flag, or the CLI's post as current.
+func checkComments(_, head string) ([]string, error) {
+	all, err := allGoFiles(head)
+	if err != nil {
+		return nil, err
+	}
+	var findings []string
+	for _, f := range all {
+		publishFile := path.Dir(f.path) == "internal/publisher" && isPublishCommentFile(path.Base(f.path))
+		for _, group := range f.file.Comments {
+			for _, c := range group.List {
+				pos := f.fset.Position(c.Pos())
+				for _, p := range commentPhrases {
+					text, phrase := c.Text, p.phrase
+					if p.ignoreCase {
+						text, phrase = strings.ToLower(text), strings.ToLower(phrase)
+					}
+					if strings.Contains(text, phrase) {
+						findings = append(findings, fmt.Sprintf("%s: a comment holds %q", pos, p.phrase))
+					}
+				}
+				if publishFile && publishWord.MatchString(c.Text) {
+					findings = append(findings, fmt.Sprintf("%s: a comment holds the word Publish", pos))
+				}
+			}
+		}
+	}
+	return findings, nil
+}
+
+// isPublishCommentFile reports whether a file of internal/publisher is one
+// whose comments must not hold the word Publish.
+func isPublishCommentFile(name string) bool {
+	return name == "publisher.go" || name == "test_helpers_slack.go" || strings.HasPrefix(name, "slack")
 }
 
 // checkUnchanged checks that extension/ and internal/server's product files
