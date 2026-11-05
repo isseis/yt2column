@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-05 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-06 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は、[01_requirements.md](01_requirements.md)（以下「要件」）を満たす設計を定める。用語（表示用の Markdown、出典の行、描画、自動リンク、URL の文字列など）は、要件 6 章の定義に従う。各節の見出しの括弧の中では、F-…・AC-…・H-… と数字だけの節番号（4.1 など）は、要件の項目と節を指す。本文の B-1〜B-7・I-1〜I-5 は、要件 3.2 の規則を指す。本文で数字だけで書いた「（3.3）」のような参照は本書の節を指し、要件の節は「要件 3.2」のように「要件」を付けて書く。既存のコードの行番号は、コミット `b9e33644` で確かめた。
@@ -720,3 +720,7 @@ I-5 で URL が 3.3 の判定を通らないときは、`<` 1 文字を文字に
 | H-07 双方向の文字 | 改行は U+000A の文字と `pre-wrap` で表し、行ごとの方向は今と同じ `unicode-bidi: plaintext` で決める（1.2・3.2）。リンクは固定の `dir="ltr"` と CSS の `unicode-bidi: isolate` で分離する（3.2・3.5）。一覧にない要素は要らないので、要件と ADR-0017 は変えない。確かめ方と、崩れた場合の代わり（要件と ADR の変更を伴う）は 3.8 に書く |
 | H-08 CLAUDE.md の例外 | 範囲・理由・境界を 3.7 に示す。範囲は `extension/src/core/articleMarkdown.ts` の `parseArticleMarkdown` である |
 | H-09 文書とテストの更新 | 更新する文書・テスト・コメントを 3.7 と 3.9 に挙げる。テストを削除する場合は `make ext-coverage-compare` で比べる。lint の禁止が新しいファイルに効くことは 7.3 に書く |
+
+## 変更履歴
+
+- 2026-11-06 承認（isseis、#693）
