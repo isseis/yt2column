@@ -474,8 +474,9 @@ change to `README.md` counts toward both the lines and the files.
   first on the branch, one commit per tool command, before any hand-written
   commit. Each records its command in one `Lightweight-Generated-By: <command>`
   trailer line. The command must match a `tool` row of the conditions table
-  below word for word, and its remaining words must be paths inside the
-  repository.
+  below word for word, and its remaining words, at least one, must be paths
+  inside the repository: letters, digits, `.`, `_`, `-`, and `/` only, not
+  starting with `/` or `-`, and with no `..` element.
 - **Lines:** added and deleted lines are summed separately. A line whose only
   change is its line ending or its whitespace is counted like any other changed
   line (one deleted and one added line). Renames are not detected:
@@ -562,6 +563,7 @@ exclude .github/instructions/
 exclude docs/dev/conventions/requirements_process.md
 exclude .claude/commands/_context.md
 exclude .claude/commands/_lib/lightweight-spec.md
+exclude .claude/commands/_lib/lightweight-check.sh
 exclude .claude/commands/_lib/task-pr-handoff.md
 exclude cmd/coveragecompare/
 exclude internal/coveragecompare/
@@ -586,7 +588,9 @@ branch it checks, so a branch cannot loosen it. Each line is one condition:
   in the repository. A path ending in `/` is a directory; any other path is a
   file. Paths are written from the repository root and matched as a whole path
   or as a directory above it, never as a string prefix (`go.mod.bak` does not
-  match `go.mod`). A rename touches both its old and its new path.
+  match `go.mod`), and without regard to ASCII case, so a path that a file
+  system ignoring case would check out over an excluded one is excluded too. A
+  rename touches both its old and its new path.
 - `exclude-absent <path>` is a path that does not exist now and whose creation
   is itself excluded.
 - `tool <word> [<word> ...]` is a command a tool commit may record. The
