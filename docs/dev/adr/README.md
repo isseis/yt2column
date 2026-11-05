@@ -18,3 +18,7 @@
 | [ADR-0010](0010-extension-stores-nothing.md) | 拡張は何も保存せず、権限も加えず、状態の正しい値をサーバに置く | `有効` |
 | [ADR-0011](0011-webhook-publishing.md) | 投稿先は Slack 互換の Incoming Webhook とし、投稿は利用者の操作でだけ行う | `有効` |
 | [ADR-0012](0012-lightweight-check-in-bash.md) | 軽量プロセスの確かめ直しは、origin/main の版の bash スクリプトで行い、Go のツールにしない | `有効` |
+| [ADR-0013](0013-review-setup.md) | PR レビューは作成時の 1 回だけ Codex に頼み、その後の変更はローカルの CLI レビューで見る | `有効` |
+| [ADR-0014](0014-deterministic-checks-in-go.md) | 決定的な判定はエージェントに任せず、テストのある Go の開発ツールに置く | `有効` |
+| [ADR-0015](0015-untrusted-review-threads.md) | レビューのスレッドと Bot への依頼は信頼せず、書き込み権限・範囲の規則・interaction limits で守る | `有効` |
+| [ADR-0016](0016-document-test-policy.md) | 文書のテストは値・構造・実行できる例だけを確かめ、文の意味は PR のレビューで読む | `有効` |
