@@ -896,7 +896,7 @@ func executionPathRows() []pathRow {
 			},
 			wantCode:         exitFailure,
 			articlePublished: true,
-			wantStderr:       []string{"the article was written to", "writing the review log to", "do not run again"},
+			wantStderr:       []string{"do not run again"},
 			notStderr:        []string{"the run failed:", "the finished article was kept in"},
 			check: func(t *testing.T, e *runEnv) {
 				// The lines name both paths, which the static lines above
@@ -1028,16 +1028,15 @@ func TestRunExecutionPaths(t *testing.T) {
 	}
 }
 
-// TestSplitJoined checks that a joined error is split into its elements and
-// any other error is returned alone, so configurationError writes one line per
-// rejection either way.
+// TestSplitJoined checks that an error that is not joined is returned alone,
+// not dropped. LoadFor joins its rejections today, but its signature does not
+// promise a join, so this fallback keeps configurationError from losing a
+// rejection that arrives unjoined. The joined case runs end to end in the
+// "several invalid variables" row of executionPathRows.
 func TestSplitJoined(t *testing.T) {
-	first, second := errors.New("first"), errors.New("second")
-	if got := splitJoined(errors.Join(first, second)); !slices.Equal(got, []error{first, second}) {
-		t.Errorf("splitJoined(joined) = %v, want [first second]", got)
-	}
-	if got := splitJoined(first); !slices.Equal(got, []error{first}) {
-		t.Errorf("splitJoined(first) = %v, want [first]", got)
+	plain := errors.New("plain")
+	if got := splitJoined(plain); !slices.Equal(got, []error{plain}) {
+		t.Errorf("splitJoined(plain) = %v, want [plain]", got)
 	}
 }
 
