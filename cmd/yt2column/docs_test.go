@@ -130,9 +130,7 @@ func TestREADMEDocumentsFlags(t *testing.T) {
 // publishing: the test environment variables and the make targets, which the
 // development guide (development.md) and security.md name, and the per-message
 // limit, which README.md and project_overview.md state. The values come from
-// the publisher's exported test constants, not from the documents. The CLI
-// Slack opt-in is checked in security.md only: TestDeepSeekDocsContract checks
-// it in development.md, inside the section that names it.
+// the publisher's exported test constants, not from the documents.
 func TestSlackDocsContract(t *testing.T) {
 	// The documents state the limit with a thousands separator, so the
 	// literal below is pinned to the publisher's own exported test constant:
@@ -144,11 +142,9 @@ func TestSlackDocsContract(t *testing.T) {
 		publishertestutil.SlackOptInEnv,
 		publishertestutil.WebhookURLEnv,
 		publishertestutil.SlackIntegrationOptions.MakeTarget,
-		publishertestutil.CLISlackIntegrationOptions.MakeTarget,
 	}
 	requireMentions(t, "development.md", doctestutil.ReadDoc(t, developmentDocPath), values)
-	requireMentions(t, "security.md", doctestutil.ReadDoc(t, securityPath),
-		append(slices.Clone(values), publishertestutil.CLISlackOptInEnv))
+	requireMentions(t, "security.md", doctestutil.ReadDoc(t, securityPath), values)
 	if !strings.Contains(doctestutil.ReadDoc(t, projectOverviewPath), "16,383") {
 		t.Error("project_overview.md does not state the per-message limit 16,383")
 	}
@@ -192,8 +188,8 @@ func TestClaudeDocsContract(t *testing.T) {
 // DeepSeek integration tests: the key they read, the opt-in that arms each
 // one, and the model variable. Every integration-test section of the
 // development guide (development.md) names its own values, so a section left
-// behind by a rename fails. The values come from the deepseek and publisher
-// test packages' exported constants, not from the document.
+// behind by a rename fails. The values come from the deepseek test package's
+// exported constants, not from the document.
 func TestDeepSeekDocsContract(t *testing.T) {
 	development := doctestutil.ReadDoc(t, developmentDocPath)
 	for _, section := range []struct {
@@ -210,11 +206,6 @@ func TestDeepSeekDocsContract(t *testing.T) {
 			name:    "cli",
 			heading: doctestutil.DevCLIIntegrationHeading,
 			values:  []string{deepseektestutil.APIKeyEnv, deepseektestutil.CLIOptInEnv, deepseektestutil.ModelEnv},
-		},
-		{
-			name:    "cli_slack",
-			heading: doctestutil.DevCLIWebhookIntegrationHeading,
-			values:  []string{deepseektestutil.APIKeyEnv, publishertestutil.CLISlackOptInEnv, deepseektestutil.ModelEnv},
 		},
 	} {
 		t.Run(section.name, func(t *testing.T) {

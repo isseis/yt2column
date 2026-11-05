@@ -5,13 +5,9 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"maps"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -27,7 +23,6 @@ import (
 	llmtestutil "github.com/isseis/yt2column/internal/llm/testutil"
 	"github.com/isseis/yt2column/internal/publisher"
 	publishertestutil "github.com/isseis/yt2column/internal/publisher/testutil"
-	"github.com/isseis/yt2column/internal/secret"
 	"github.com/isseis/yt2column/internal/transcript"
 	transcripttestutil "github.com/isseis/yt2column/internal/transcript/testutil"
 	"github.com/isseis/yt2column/internal/writer"
@@ -45,10 +40,11 @@ const (
 	// testAnthropicKey is the Anthropic key of a claude configuration; a
 	// failure whose message holds it must be redacted too.
 	testAnthropicKey = "sk-ant-APIKEYVALUE-0123456789-TAIL8ANT"
-	testWebhook      = "https://hooks.slack.com" + testWebhookPath
-	// testWebhookPath is the path of testWebhook; a line holding it alone
-	// must be redacted too. webhookPathMarker is the part of it no output
-	// may hold.
+	// testWebhook is the SLACK_WEBHOOK_URL every run's environment holds. The
+	// CLI does not read it, so no output may hold it, its tail, or
+	// webhookPathMarker, the part of its path no other string a run writes
+	// holds.
+	testWebhook       = "https://hooks.slack.com" + testWebhookPath
 	testWebhookPath   = "/services/T0/B0/" + webhookPathMarker + "-TAIL8HKS"
 	webhookPathMarker = "WEBHOOKVALUE"
 
@@ -84,7 +80,7 @@ func seedCache(t *testing.T, dir, videoID, subtitles, info string) {
 
 // secretStrings returns every string that must never be written: each secret
 // and its last eight characters, and webhookPathMarker, so a fragment of the
-// Webhook URL path left around a redacted tail is caught too.
+// Webhook URL path is caught too.
 func secretStrings() []string {
 	return []string{testAPIKey, testAPIKey[len(testAPIKey)-8:], testWebhook, testWebhook[len(testWebhook)-8:], webhookPathMarker}
 }
@@ -101,7 +97,6 @@ type runEnv struct {
 	tripwireMarker string
 	client         llm.LLMClient // the fake LLM client, counted by counter
 	counter        *generateCounter
-	webhook        *webhookServer // the loopback Webhook, when useWebhook set one up
 	// withSteps keeps the post-generation steps enabled. By default the run
 	// disables both, so the tests of this package keep their pre-step
 	// behavior; only a test of the steps sets it.
@@ -114,8 +109,7 @@ type runEnv struct {
 // newRunEnv returns an environment where a run succeeds without yt-dlp: the
 // video's cache is seeded, YT2COLUMN_YTDLP_PATH is a tripwire, the LLM client
 // returns a valid response, and the real ArticleWriter and FilePublisher run.
-// A --slack run fails to build its publisher unless the test calls useWebhook
-// or substitutes newSlackPublisher, so it never posts to SLACK_WEBHOOK_URL.
+// SLACK_WEBHOOK_URL is set, so every run checks the CLI ignores it.
 func newRunEnv(t *testing.T) *runEnv {
 	t.Helper()
 	base := t.TempDir()
@@ -153,66 +147,7 @@ func newRunEnv(t *testing.T) *runEnv {
 		return e.counter.wrap(e.client), nil
 	}
 	e.d.newReviewLLMClient = refusingReviewLLMClient
-	e.d.newSlackPublisher = refusingSlackPublisher
 	return e
-}
-
-// webhookServer is a loopback Webhook that records the text of every message
-// it receives. respond answers message n (from 1); nil answers 200 "ok".
-type webhookServer struct {
-	mu      sync.Mutex
-	texts   []string
-	respond func(n int, w http.ResponseWriter)
-}
-
-// ServeHTTP records the message and answers it.
-func (s *webhookServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	var payload struct {
-		Text string `json:"text"`
-	}
-	body, _ := io.ReadAll(r.Body)
-	_ = json.Unmarshal(body, &payload)
-	s.mu.Lock()
-	s.texts = append(s.texts, payload.Text)
-	n := len(s.texts)
-	respond := s.respond
-	s.mu.Unlock()
-	if respond == nil {
-		_, _ = io.WriteString(w, "ok")
-		return
-	}
-	respond(n, w)
-}
-
-// messages returns the text of every message received so far.
-func (s *webhookServer) messages() []string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return slices.Clone(s.texts)
-}
-
-// useWebhook starts a loopback Webhook answering with respond, records it in
-// e.webhook, and makes the run post to it with --slack.
-func (e *runEnv) useWebhook(t *testing.T, respond func(n int, w http.ResponseWriter)) {
-	t.Helper()
-	e.webhook = &webhookServer{respond: respond}
-	server := httptest.NewServer(e.webhook)
-	t.Cleanup(server.Close)
-	e.d.newSlackPublisher = loopbackSlackPublisher(t, server.URL)
-	e.args = []string{"--slack", runVideoURL}
-}
-
-// failMessage returns a respond function that answers message n with status
-// and body, and every other message with 200 "ok".
-func failMessage(n, status int, body string) func(int, http.ResponseWriter) {
-	return func(got int, w http.ResponseWriter) {
-		if got != n {
-			_, _ = io.WriteString(w, "ok")
-			return
-		}
-		w.WriteHeader(status)
-		_, _ = io.WriteString(w, body)
-	}
 }
 
 // respondWith sets the LLM client to return text as the article.
@@ -222,13 +157,6 @@ func (e *runEnv) respondWith(text string) {
 		resp.Text = text
 		return resp, nil
 	})
-}
-
-// threeMessageArticle is generated text whose article Publish splits into
-// three messages: each paragraph fills most of one message.
-func threeMessageArticle() string {
-	paragraph := strings.Repeat("Plain words fill this line of the article.\n", 340)
-	return "# A long title\n\n" + paragraph + "\n" + paragraph + "\n" + paragraph
 }
 
 // longGeneratedText is generated text whose body is over maxBodyChars, so the
@@ -436,20 +364,6 @@ func usageRow(name string, args func(e *runEnv) []string, want string) pathRow {
 	}
 }
 
-// slackUsageRow returns a row for a rejected --out and --slack combination.
-// A loopback Webhook is set up first, so a run that wrongly posted is seen.
-func slackUsageRow(name string, args func(e *runEnv) []string, want string) pathRow {
-	return pathRow{
-		name: name,
-		setup: func(t *testing.T, e *runEnv) {
-			e.useWebhook(t, nil)
-			e.args = args(e)
-		},
-		wantCode:   exitUsage,
-		wantStderr: []string{want, "yt2column -h"},
-	}
-}
-
 // insideCacheRow returns a row whose --out is inside the cache directory.
 func insideCacheRow(name string, setup func(t *testing.T, e *runEnv) string) pathRow {
 	return pathRow{
@@ -527,7 +441,7 @@ func executionPathRows() []pathRow {
 		usageRow("two video URLs", func(e *runEnv) []string { return []string{"--out", e.outPath, runVideoURL, runVideoURL} }, "expected exactly one video URL"),
 		usageRow("a flag after the video URL", func(e *runEnv) []string { return []string{"--out", e.outPath, runVideoURL, "--refresh"} }, "expected exactly one video URL"),
 		usageRow("an undefined flag", func(e *runEnv) []string { return []string{"--bogus", "--out", e.outPath, runVideoURL} }, "flag provided but not defined"),
-		slackUsageRow("neither --out nor --slack", func(*runEnv) []string { return []string{runVideoURL} }, "one of --out or --slack is required"),
+		usageRow("no --out", func(*runEnv) []string { return []string{runVideoURL} }, "--out is required"),
 		usageRow("a video URL on another host", func(e *runEnv) []string {
 			return []string{"--out", e.outPath, "https://example.com/watch?v=dQw4w9WgXcQ"}
 		}, "invalid video URL"),
@@ -539,9 +453,6 @@ func executionPathRows() []pathRow {
 		envRow("YT2COLUMN_LLM empty", func(env map[string]string) { env["YT2COLUMN_LLM"] = "" }, "YT2COLUMN_LLM"),
 		envRow("DEEPSEEK_API_KEY empty", func(env map[string]string) { env["DEEPSEEK_API_KEY"] = "" }, "DEEPSEEK_API_KEY"),
 		envRow("YT2COLUMN_LLM invalid provider", func(env map[string]string) { env["YT2COLUMN_LLM"] = "MARKER-PROVIDER/fake-model" }, "YT2COLUMN_LLM"),
-		envRow("SLACK_WEBHOOK_URL invalid", func(env map[string]string) {
-			env["SLACK_WEBHOOK_URL"] = "http://hooks.slack.com/services/MARKER-WEBHOOK"
-		}, "SLACK_WEBHOOK_URL"),
 		envRow("YT2COLUMN_CACHE_DIR relative", func(env map[string]string) { env["YT2COLUMN_CACHE_DIR"] = "MARKER-CACHE" }, "YT2COLUMN_CACHE_DIR"),
 		envRow("YT2COLUMN_YTDLP_PATH empty", func(env map[string]string) { env["YT2COLUMN_YTDLP_PATH"] = "" }, "YT2COLUMN_YTDLP_PATH"),
 		envRow("several invalid variables", func(env map[string]string) {
@@ -666,7 +577,18 @@ func executionPathRows() []pathRow {
 			},
 			wantCode:   exitFailure,
 			wantStderr: []string{"the write stage failed", "the LLM call timed out after the 15-minute limit"},
-			notStderr:  []string{"the webhook post timed out"},
+		},
+		{
+			// The publisher is built before any side effect, so a failure to
+			// build it is a usage error that touches nothing.
+			name: "the --out publisher cannot be built",
+			setup: func(_ *testing.T, e *runEnv) {
+				e.d.newFilePublisher = func(string) (publisher.Publisher, error) {
+					return nil, errInjectedPublish
+				}
+			},
+			wantCode:   exitUsage,
+			wantStderr: []string{"build the publisher: injected publish failure", "yt2column -h"},
 		},
 		{
 			name: "publish failure",
@@ -912,159 +834,10 @@ func executionPathRows() []pathRow {
 			},
 			wantCode:   exitFailure,
 			wantStderr: []string{"the transcript stage failed", "yt-dlp timed out after the 5-minute limit"},
-			notStderr:  []string{"the webhook post timed out"},
 		},
-		{
-			name:       "--slack success",
-			setup:      func(t *testing.T, e *runEnv) { e.useWebhook(t, nil) },
-			wantCode:   exitOK,
-			wantStderr: []string{"posted the article to the webhook in 1 message", "fake-model", "v1"},
-			check: func(t *testing.T, e *runEnv) {
-				if got := e.counter.count(); got != 1 {
-					t.Errorf("Generate calls = %d, want 1", got)
-				}
-				if entries := videoEntries(t, e.cacheDir); len(entries) != 0 {
-					t.Errorf("the video's cache %v remains after a successful run", entries)
-				}
-				if got := e.webhook.messages(); len(got) != 1 || !strings.Contains(got[0], "The body.") {
-					t.Errorf("the webhook received %q, want one message holding the article", got)
-				}
-			},
-		},
-		{
-			name: "--slack success with --keep-cache",
-			setup: func(t *testing.T, e *runEnv) {
-				e.useWebhook(t, nil)
-				e.args = []string{"--keep-cache", "--slack", runVideoURL}
-			},
-			wantCode:   exitOK,
-			wantStderr: []string{"posted the article to the webhook in 1 message"},
-			check: func(t *testing.T, e *runEnv) {
-				if len(videoEntries(t, e.cacheDir)) == 0 {
-					t.Error("the video's cache was removed despite --keep-cache")
-				}
-			},
-		},
-		{
-			name: "--slack success in three messages",
-			setup: func(t *testing.T, e *runEnv) {
-				e.useWebhook(t, nil)
-				e.respondWith(threeMessageArticle())
-			},
-			wantCode:   exitOK,
-			wantStderr: []string{"posted the article to the webhook in 3 messages"},
-			check: func(t *testing.T, e *runEnv) {
-				if got := len(e.webhook.messages()); got != 3 {
-					t.Errorf("the webhook received %d messages, want 3", got)
-				}
-			},
-		},
-		{
-			// A --slack run has no --out, so the cache-directory check for it
-			// must not run: with the working directory inside the cache
-			// directory, an empty --out would resolve inside it.
-			name: "--slack success with the cache directory as working directory",
-			setup: func(t *testing.T, e *runEnv) {
-				e.useWebhook(t, nil)
-				t.Chdir(e.cacheDir)
-			},
-			wantCode:   exitOK,
-			wantStderr: []string{"posted the article to the webhook in 1 message"},
-		},
-		slackUsageRow("--out and --slack", func(e *runEnv) []string {
-			return []string{"--out", e.outPath, "--slack", runVideoURL}
-		}, "--out and --slack cannot be used together"),
-		slackUsageRow("--out with an empty path", func(*runEnv) []string {
+		usageRow("--out with an empty path", func(*runEnv) []string {
 			return []string{"--out", "", runVideoURL}
 		}, "--out needs a path"),
-		slackUsageRow("--slack=false", func(*runEnv) []string {
-			return []string{"--slack=false", runVideoURL}
-		}, "--slack=false is not accepted; omit --slack instead"),
-		slackUsageRow("--out with an empty path and --slack", func(*runEnv) []string {
-			return []string{"--out", "", "--slack", runVideoURL}
-		}, "--out needs a path"),
-		slackUsageRow("--out and --slack=false", func(e *runEnv) []string {
-			return []string{"--out", e.outPath, "--slack=false", runVideoURL}
-		}, "--slack=false is not accepted; omit --slack instead"),
-		slackUsageRow("--out with an empty path and --slack=false", func(*runEnv) []string {
-			return []string{"--out", "", "--slack=false", runVideoURL}
-		}, "--slack=false is not accepted; omit --slack instead"),
-		{
-			name: "--slack with SLACK_WEBHOOK_URL unset",
-			setup: func(t *testing.T, e *runEnv) {
-				e.useWebhook(t, nil)
-				delete(e.env, "SLACK_WEBHOOK_URL")
-			},
-			wantCode:   exitUsage,
-			wantStderr: []string{"configuration: SLACK_WEBHOOK_URL", "yt2column -h"},
-		},
-		{
-			// The missing Webhook is reported only after the configuration
-			// loads, so a retired variable hides it.
-			name: "--slack with SLACK_WEBHOOK_URL unset and a retired variable",
-			setup: func(t *testing.T, e *runEnv) {
-				e.useWebhook(t, nil)
-				delete(e.env, "SLACK_WEBHOOK_URL")
-				e.env[config.RetiredLLMVarsForTest()[0]] = "deepseek"
-			},
-			wantCode:   exitUsage,
-			wantStderr: []string{"configuration: " + config.RetiredLLMVarErrorForTest(config.RetiredLLMVarsForTest()[0]), "yt2column -h"},
-			notStderr:  []string{"configuration: SLACK_WEBHOOK_URL"},
-		},
-		{
-			name:       "--slack first message fails",
-			setup:      func(t *testing.T, e *runEnv) { e.useWebhook(t, failMessage(1, http.StatusInternalServerError, "")) },
-			wantCode:   exitFailure,
-			wantStderr: []string{"the publish stage failed", "posted 0 of 1 messages", "unexpected HTTP status 500"},
-			check: func(t *testing.T, e *runEnv) {
-				if strings.Contains(e.stderr.String(), "stay in the channel") {
-					t.Errorf("stderr reports messages left in the channel although none was posted:\n%s", e.stderr.String())
-				}
-			},
-		},
-		{
-			name: "--slack failure whose message holds the webhook path",
-			setup: func(_ *testing.T, e *runEnv) {
-				e.args = []string{"--slack", runVideoURL}
-				e.d.newSlackPublisher = func(secret.Secret) (publisher.Publisher, error) {
-					return &publishertestutil.FakePublisher{Err: fmt.Errorf("%w: post to %s", errInjectedPublish, testWebhookPath)}, nil
-				}
-			},
-			wantCode:   exitFailure,
-			wantStderr: []string{"the publish stage failed", "post to " + "[REDACTED]"},
-		},
-		{
-			name: "--slack fails partway through a split post",
-			setup: func(t *testing.T, e *runEnv) {
-				e.useWebhook(t, failMessage(2, http.StatusInternalServerError, ""))
-				e.respondWith(threeMessageArticle())
-			},
-			wantCode: exitFailure,
-			wantStderr: []string{
-				"the publish stage failed", "posted 1 of 3 messages",
-				"at least 1 of 3 messages stay in the channel (message 2 may also have been posted)",
-				"running again generates a new article and posts all of it from the first message",
-			},
-			check: func(t *testing.T, e *runEnv) {
-				if got := len(e.webhook.messages()); got != 2 {
-					t.Errorf("the webhook received %d messages, want 2", got)
-				}
-			},
-		},
-		{
-			name: "--slack preparation rejects a mention",
-			setup: func(t *testing.T, e *runEnv) {
-				e.useWebhook(t, nil)
-				e.respondWith("# A title\n\nPing `@channel` now.\n")
-			},
-			wantCode:   exitFailure,
-			wantStderr: []string{"the publish stage failed", "the article was not posted and was discarded"},
-			check: func(t *testing.T, e *runEnv) {
-				if got := e.webhook.messages(); len(got) != 0 {
-					t.Errorf("the webhook received %d messages, want none", len(got))
-				}
-			},
-		},
 		{
 			name: "--review-log with --no-review",
 			setup: func(_ *testing.T, e *runEnv) {
@@ -1125,6 +898,18 @@ func executionPathRows() []pathRow {
 			articlePublished: true,
 			wantStderr:       []string{"the article was written to", "writing the review log to", "do not run again"},
 			notStderr:        []string{"the run failed:", "the finished article was kept in"},
+			check: func(t *testing.T, e *runEnv) {
+				// The lines name both paths, which the static lines above
+				// cannot hold.
+				for _, want := range []string{
+					"the article was written to " + e.outPath,
+					"writing the review log to " + filepath.Join(e.base, "review.md"),
+				} {
+					if !strings.Contains(e.stderr.String(), want) {
+						t.Errorf("stderr does not contain %q:\n%s", want, e.stderr.String())
+					}
+				}
+			},
 		},
 		{
 			name: "review failure whose message holds the API key",
@@ -1213,9 +998,6 @@ func TestRunExecutionPaths(t *testing.T) {
 				if got := e.counter.count(); got != 0 {
 					t.Errorf("Generate calls = %d, want 0", got)
 				}
-				if e.webhook != nil && len(e.webhook.messages()) != 0 {
-					t.Errorf("the webhook received %d messages, want none", len(e.webhook.messages()))
-				}
 			}
 			switch {
 			case row.articlePublished:
@@ -1234,11 +1016,6 @@ func TestRunExecutionPaths(t *testing.T) {
 						t.Errorf("the video's cache entry %s was removed", entry)
 					}
 				}
-			case e.webhook != nil:
-				if len(e.webhook.messages()) == 0 {
-					t.Error("the webhook received no message")
-				}
-				requireNoFile(t, e.outPath)
 			default:
 				if _, err := os.Stat(e.outPath); err != nil {
 					t.Errorf("--out was not created: %v", err)
@@ -1251,8 +1028,121 @@ func TestRunExecutionPaths(t *testing.T) {
 	}
 }
 
+// TestSplitJoined checks that a joined error is split into its elements and
+// any other error is returned alone, so configurationError writes one line per
+// rejection either way.
+func TestSplitJoined(t *testing.T) {
+	first, second := errors.New("first"), errors.New("second")
+	if got := splitJoined(errors.Join(first, second)); !slices.Equal(got, []error{first, second}) {
+		t.Errorf("splitJoined(joined) = %v, want [first second]", got)
+	}
+	if got := splitJoined(first); !slices.Equal(got, []error{first}) {
+		t.Errorf("splitJoined(first) = %v, want [first]", got)
+	}
+}
+
+// TestCheckOut checks the --out rejections by their sentinels: an absent
+// --out is errOutRequired, not errOutEmpty, an empty one is errOutEmpty, not
+// errOutRequired, and a path passes.
+func TestCheckOut(t *testing.T) {
+	sentinels := []error{errOutRequired, errOutEmpty}
+	cases := []struct {
+		name string
+		args []string
+		want error
+	}{
+		{"absent", nil, errOutRequired},
+		{"empty", []string{"--out", ""}, errOutEmpty},
+		{"a path", []string{"--out", "article.md"}, nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fs, opts := newFlagSet()
+			if err := fs.Parse(tc.args); err != nil {
+				t.Fatalf("Parse(%q): %v", tc.args, err)
+			}
+			err := checkOut(fs, opts)
+			if !errors.Is(err, tc.want) {
+				t.Fatalf("checkOut() = %v, want %v", err, tc.want)
+			}
+			for _, other := range sentinels {
+				if other != tc.want && errors.Is(err, other) {
+					t.Errorf("checkOut() = %v, which is also %v", err, other)
+				}
+			}
+		})
+	}
+}
+
+// TestRunIgnoresSlackWebhookURL checks that the CLI never asks for
+// SLACK_WEBHOOK_URL, and that a --out run gives the same exit code, --out
+// file, and standard error whether the variable is unset, empty, or a value
+// the server rejects.
+func TestRunIgnoresSlackWebhookURL(t *testing.T) {
+	t.Run("never looked up", func(t *testing.T) {
+		e := newRunEnv(t)
+		var asked []string
+		lookup := func(name string) (string, bool) {
+			asked = append(asked, name)
+			return lookupFrom(e.env)(name)
+		}
+		if code := run(e.ctx, e.cliArgs(), lookup, &e.stdout, &e.stderr, e.d); code != exitOK {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
+		}
+		// The run read its configuration through lookup, so the absence below
+		// is not a run that read nothing.
+		if !slices.Contains(asked, "DEEPSEEK_API_KEY") {
+			t.Fatalf("lookup was asked %q, which lacks DEEPSEEK_API_KEY", asked)
+		}
+		if slices.Contains(asked, "SLACK_WEBHOOK_URL") {
+			t.Errorf("lookup was asked for SLACK_WEBHOOK_URL: %q", asked)
+		}
+	})
+
+	// outcome is what a run leaves behind, with the run's temporary
+	// directory replaced, so runs in different directories compare equal.
+	type outcome struct {
+		code    int
+		article string
+		stderr  string
+	}
+	runWith := func(t *testing.T, set func(env map[string]string)) outcome {
+		t.Helper()
+		e := newRunEnv(t)
+		useFixedClock(e, costGenTime)
+		set(e.env)
+		code := e.run()
+		data, err := os.ReadFile(e.outPath)
+		if err != nil {
+			t.Fatalf("read --out: %v\nstderr:\n%s", err, e.stderr.String())
+		}
+		requireSafeOutput(t, e.stdout.String(), e.stderr.String(), e.outPath)
+		return outcome{
+			code:    code,
+			article: string(data),
+			stderr:  strings.ReplaceAll(e.stderr.String(), e.base, "<base>"),
+		}
+	}
+	unset := runWith(t, func(env map[string]string) { delete(env, "SLACK_WEBHOOK_URL") })
+	if unset.code != exitOK {
+		t.Fatalf("exit code with SLACK_WEBHOOK_URL unset = %d, want %d\nstderr:\n%s", unset.code, exitOK, unset.stderr)
+	}
+	for name, value := range map[string]string{
+		"empty":     "",
+		"not https": "http://hooks.slack.com/services/MARKER-WEBHOOK",
+	} {
+		t.Run(name, func(t *testing.T) {
+			got := runWith(t, func(env map[string]string) { env["SLACK_WEBHOOK_URL"] = value })
+			if got != unset {
+				t.Errorf("run with SLACK_WEBHOOK_URL %s = %+v, want the unset run's %+v", name, got, unset)
+			}
+		})
+	}
+}
+
 // TestRunHelp checks the usage in detail: every flag of the CLI is listed,
-// --slack names Mattermost as a target, the --after description states that
+// the text before the flags says --out is required, the --after description
+// states that
 // it requires --artifacts and that --after review does not accept
 // --review-log, the usage goes to standard output only, and it needs no
 // configuration.
@@ -1268,7 +1158,7 @@ func TestRunHelp(t *testing.T) {
 				t.Errorf("stderr = %q, want empty", stderr.String())
 			}
 			for _, flag := range []string{
-				"--out <path>", "--slack", "Mattermost", "--refresh", "--keep-cache",
+				"--out <path>", "--refresh", "--keep-cache",
 				"--system-prompt <path>", "--user-prompt <path>",
 				"--no-shorten", "--no-review", "--review-log <path>",
 				"--shorten-system-prompt <path>", "--shorten-user-prompt <path>",
@@ -1282,20 +1172,17 @@ func TestRunHelp(t *testing.T) {
 					t.Errorf("usage does not list %q:\n%s", flag, stdout.String())
 				}
 			}
-			// The help points at the CLI guide for the configuration: in the
-			// usage text before the flag list, and in the --slack flag's
-			// description, the line after the flag's name.
-			intro, flags, ok := strings.Cut(stdout.String(), "\nFlags:\n")
+			// The usage text before the flag list says the article goes to
+			// the --out file, which is required, and points at the CLI guide
+			// for the configuration.
+			intro, _, ok := strings.Cut(stdout.String(), "\nFlags:\n")
 			if !ok {
 				t.Fatalf("usage has no flag list:\n%s", stdout.String())
 			}
-			if !strings.Contains(intro, cliGuide) {
-				t.Errorf("the usage text before the flags does not point at %s:\n%s", cliGuide, intro)
-			}
-			_, afterSlack, ok := strings.Cut(flags, "  --slack\n")
-			description, _, _ := strings.Cut(afterSlack, "\n")
-			if !ok || !strings.Contains(description, cliGuide) {
-				t.Errorf("the --slack flag's description %q does not point at %s", description, cliGuide)
+			for _, want := range []string{"writes it to the --out file", "--out is required", cliGuide} {
+				if !strings.Contains(intro, want) {
+					t.Errorf("the usage text before the flags does not contain %q:\n%s", want, intro)
+				}
 			}
 		})
 	}
@@ -1336,10 +1223,7 @@ func TestRunPromptOverrides(t *testing.T) {
 
 // TestRunEscapesUntrustedText injects an escape sequence and a newline that
 // starts a fake line into each untrusted string that reaches standard error:
-// the model fields on success (with --out and with --slack), yt-dlp's
-// standard error, and an LLM error. A webhook's failure response body never
-// reaches standard error at all: only identifier-shaped values are taken from
-// it.
+// the model fields on success, yt-dlp's standard error, and an LLM error.
 func TestRunEscapesUntrustedText(t *testing.T) {
 	const injected = "\x1b[2J\nFAKE-LINE the run succeeded"
 	modelArticle := writer.Article{Title: "A title", Body: "The body.\n", SourceURL: runVideoURL, Model: "m" + injected, ModelVersion: "v" + injected}
@@ -1347,8 +1231,6 @@ func TestRunEscapesUntrustedText(t *testing.T) {
 		name     string
 		setup    func(t *testing.T, e *runEnv)
 		wantCode int
-		// withheld means the injected text must not appear even escaped.
-		withheld bool
 	}{
 		{
 			name: "Model and ModelVersion on success",
@@ -1361,27 +1243,6 @@ func TestRunEscapesUntrustedText(t *testing.T) {
 				}
 			},
 			wantCode: exitOK,
-		},
-		{
-			name: "Model and ModelVersion on --slack success",
-			setup: func(_ *testing.T, e *runEnv) {
-				e.d.newWriter = func(llm.LLMClient, writer.Options) (writer.ArticleWriter, error) {
-					return &writertestutil.FakeArticleWriter{Result: modelArticle}, nil
-				}
-				e.d.newSlackPublisher = func(secret.Secret) (publisher.Publisher, error) {
-					return &publishertestutil.FakePublisher{}, nil
-				}
-				e.args = []string{"--slack", runVideoURL}
-			},
-			wantCode: exitOK,
-		},
-		{
-			name: "webhook failure response body",
-			setup: func(t *testing.T, e *runEnv) {
-				e.useWebhook(t, failMessage(1, http.StatusInternalServerError, "BODY-TEXT"+injected))
-			},
-			wantCode: exitFailure,
-			withheld: true,
 		},
 		{
 			name: "yt-dlp standard error",
@@ -1409,14 +1270,7 @@ func TestRunEscapesUntrustedText(t *testing.T) {
 				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, tc.wantCode, e.stderr.String())
 			}
 			stderr := e.stderr.String()
-			switch {
-			case tc.withheld:
-				for _, s := range []string{"FAKE-LINE", "BODY-TEXT"} {
-					if strings.Contains(stderr, s) {
-						t.Errorf("stderr holds %q from the response body:\n%s", s, stderr)
-					}
-				}
-			case !strings.Contains(stderr, `\x1b[2J\nFAKE-LINE`):
+			if !strings.Contains(stderr, `\x1b[2J\nFAKE-LINE`) {
 				t.Errorf("stderr does not hold the escaped injection:\n%s", stderr)
 			}
 			requireSafeOutput(t, e.stdout.String(), stderr, e.outPath)
@@ -1427,36 +1281,31 @@ func TestRunEscapesUntrustedText(t *testing.T) {
 // TestRunGODEBUGWarning checks that http2debug=1 or 2 in GODEBUG is warned
 // about before the LLM call, without the API key or the Webhook URL, and
 // without changing the exit code; any other GODEBUG gives no warning. The
-// Webhook URL warning is added for --slack only.
+// warning is one line, about the API key: the CLI sends nothing but the LLM
+// call.
 func TestRunGODEBUGWarning(t *testing.T) {
 	const (
-		warning        = "GODEBUG enables http2debug, so the Go HTTP/2 log may write the API key"
-		webhookWarning = "GODEBUG enables http2debug, so the Go HTTP/2 log may write the Webhook URL path"
+		// anyWarning starts every GODEBUG warning line; warning is the
+		// API-key one.
+		anyWarning = "GODEBUG enables http2debug"
+		warning    = anyWarning + ", so the Go HTTP/2 log may write the API key"
 	)
 	cases := []struct {
-		name               string
-		godebug            *string
-		slack              bool
-		wantWarning        bool
-		wantWebhookWarning bool
+		name        string
+		godebug     *string
+		wantWarning bool
 	}{
-		{"unset", nil, false, false, false},
-		{"http2debug=0", new("http2debug=0"), false, false, false},
-		{"http2debug=1", new("http2debug=1"), false, true, false},
-		{"http2debug=2", new("http2debug=2"), false, true, false},
-		{"http2debug=1 after another setting", new("madvdontneed=1,http2debug=1"), false, true, false},
-		{"--slack unset", nil, true, false, false},
-		{"--slack http2debug=1", new("http2debug=1"), true, true, true},
-		{"--slack http2debug=2", new("http2debug=2"), true, true, true},
+		{"unset", nil, false},
+		{"http2debug=0", new("http2debug=0"), false},
+		{"http2debug=1", new("http2debug=1"), true},
+		{"http2debug=2", new("http2debug=2"), true},
+		{"http2debug=1 after another setting", new("madvdontneed=1,http2debug=1"), true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			e := newRunEnv(t)
 			if tc.godebug != nil {
 				e.env["GODEBUG"] = *tc.godebug
-			}
-			if tc.slack {
-				e.useWebhook(t, nil)
 			}
 			var stderrAtCall string
 			e.client = funcLLM(func(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {
@@ -1470,11 +1319,12 @@ func TestRunGODEBUGWarning(t *testing.T) {
 			if got := strings.Contains(stderrAtCall, warning); got != tc.wantWarning {
 				t.Errorf("warning before the LLM call = %v, want %v\nstderr at the call:\n%s", got, tc.wantWarning, stderrAtCall)
 			}
-			if got := strings.Contains(stderrAtCall, webhookWarning); got != tc.wantWebhookWarning {
-				t.Errorf("Webhook URL warning before the LLM call = %v, want %v\nstderr at the call:\n%s", got, tc.wantWebhookWarning, stderrAtCall)
+			want := 0
+			if tc.wantWarning {
+				want = 1
 			}
-			if !tc.wantWebhookWarning && strings.Contains(e.stderr.String(), webhookWarning) {
-				t.Errorf("Webhook URL warning written after the LLM call:\n%s", e.stderr.String())
+			if got := strings.Count(e.stderr.String(), anyWarning); got != want {
+				t.Errorf("GODEBUG warning lines = %d, want %d:\n%s", got, want, e.stderr.String())
 			}
 			requireSafeOutput(t, e.stdout.String(), e.stderr.String(), e.outPath)
 		})
@@ -1492,144 +1342,6 @@ func TestNewFilePublisherNilOnFailure(t *testing.T) {
 	if p != nil {
 		t.Fatalf("newFilePublisher(\"\") = %#v, want a nil interface", p)
 	}
-}
-
-// rejectedMention returns the error SlackMessageCount reports for an article
-// whose body holds a targeted at sign followed by "here" inside a code span,
-// which the renderer does not neutralize.
-func rejectedMention(t *testing.T) error {
-	t.Helper()
-	article := writer.Article{Title: "t", Body: "x `@here`", Model: "m", ModelVersion: "v", SourceURL: runVideoURL}
-	_, err := publisher.SlackMessageCount(article)
-	if !errors.Is(err, publisher.ErrSlackMention) {
-		t.Fatalf("SlackMessageCount err = %v, want ErrSlackMention", err)
-	}
-	return err
-}
-
-// TestRunSlackFailureHints checks the hints added for a failed webhook post:
-// each appears exactly for the failure it describes.
-func TestRunSlackFailureHints(t *testing.T) {
-	const (
-		stay     = "stay in the channel"
-		rejected = "the server rejected the post; Mattermost does not report which of these it was"
-		reqID    = "request ID"
-		timedOut = "the webhook post timed out after the 30-second limit"
-		mention  = "the article was not posted and was discarded"
-		position = "names the rule and gives the line and column in the post as sent to Slack"
-		cause    = "typically an at sign directly followed by a name character, angle-bracket mention syntax, or a character reference"
-		advice   = "Run again to generate a new article, or use --out to inspect what is generated"
-		rerun    = "running again generates a new article and posts all of it from the first message"
-	)
-	requestID := strings.Repeat("r", 26)
-	statusFailure := func(code int, id string) error {
-		return &publisher.SlackPostError{Total: 1, Posted: 0, Attempted: true, Err: &publisher.SlackHTTPStatusError{StatusCode: code, RequestID: id}}
-	}
-	cases := []struct {
-		name string
-		err  error
-		want []string
-	}{
-		{"nothing posted", &publisher.SlackPostError{Total: 3, Posted: 0, Attempted: true, Err: publisher.ErrSlackTransport}, nil},
-		{
-			"posted, next not attempted",
-			&publisher.SlackPostError{Total: 3, Posted: 2, Attempted: false, Err: publisher.ErrSlackTransport},
-			[]string{"yt2column: 2 of 3 messages " + stay + "; " + rerun},
-		},
-		{
-			"posted, next attempted",
-			&publisher.SlackPostError{Total: 3, Posted: 2, Attempted: true, Err: publisher.ErrSlackTransport},
-			[]string{"at least 2 of 3 messages " + stay + " (message 3 may also have been posted); " + rerun},
-		},
-		{"400 with a request ID", statusFailure(http.StatusBadRequest, requestID), []string{rejected, "Check the webhook settings and the server log (" + reqID + ": " + requestID + ")"}},
-		{"403 with a request ID", statusFailure(http.StatusForbidden, requestID), []string{rejected, reqID + ": " + requestID}},
-		{"404 with a request ID", statusFailure(http.StatusNotFound, requestID), []string{rejected, reqID + ": " + requestID}},
-		{"501 with a request ID", statusFailure(http.StatusNotImplemented, requestID), []string{rejected, reqID + ": " + requestID}},
-		{"404 without a request ID", statusFailure(http.StatusNotFound, ""), []string{rejected}},
-		{"500 with a request ID", statusFailure(http.StatusInternalServerError, requestID), nil},
-		{
-			"timeout",
-			&publisher.SlackPostError{Total: 1, Posted: 0, Attempted: true, Err: fmt.Errorf("webhook: the post timed out after 30s: %w", context.DeadlineExceeded)},
-			[]string{timedOut},
-		},
-		{"mention", rejectedMention(t), []string{mention, cause, position, advice}},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			e := newRunEnv(t)
-			e.args = []string{"--slack", runVideoURL}
-			e.d.newSlackPublisher = func(secret.Secret) (publisher.Publisher, error) {
-				return &publishertestutil.FakePublisher{Err: tc.err}, nil
-			}
-			if code := e.run(); code != exitFailure {
-				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitFailure, e.stderr.String())
-			}
-			stderr := e.stderr.String()
-			for _, want := range tc.want {
-				if !strings.Contains(stderr, want) {
-					t.Errorf("stderr does not contain %q:\n%s", want, stderr)
-				}
-			}
-			if tc.name == "mention" && strings.Contains(stderr, "here") {
-				// The error and the hint never quote the text after the at sign.
-				t.Errorf("mention output quotes the rejected text:\n%s", stderr)
-			}
-			for _, hint := range []string{stay, rejected, reqID, timedOut, mention, cause, position, advice} {
-				wanted := slices.ContainsFunc(tc.want, func(w string) bool { return strings.Contains(w, hint) })
-				if got := strings.Contains(stderr, hint); got != wanted {
-					t.Errorf("stderr contains %q = %v, want %v:\n%s", hint, got, wanted, stderr)
-				}
-			}
-			requireSafeOutput(t, e.stdout.String(), stderr, e.outPath)
-		})
-	}
-}
-
-// TestRunSlackSummaryUnknownCount checks that a post accepted by a publisher
-// whose article SlackMessageCount rejects still succeeds, with the count
-// reported as unknown.
-func TestRunSlackSummaryUnknownCount(t *testing.T) {
-	e := newRunEnv(t)
-	e.args = []string{"--slack", runVideoURL}
-	e.respondWith("# A title\n\nPing `@channel` now.\n")
-	e.d.newSlackPublisher = func(secret.Secret) (publisher.Publisher, error) {
-		return &publishertestutil.FakePublisher{}, nil
-	}
-	if code := e.run(); code != exitOK {
-		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
-	}
-	if want := "posted the article to the webhook in unknown messages"; !strings.Contains(e.stderr.String(), want) {
-		t.Errorf("stderr does not contain %q:\n%s", want, e.stderr.String())
-	}
-}
-
-// TestRunSlackSignalAfterPosting cancels the run's context after every message
-// was posted, as a signal arriving then does: the run still succeeds, and only
-// the cache removal is reported as a warning.
-func TestRunSlackSignalAfterPosting(t *testing.T) {
-	e := newRunEnv(t)
-	e.args = []string{"--slack", runVideoURL}
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-	e.ctx = ctx
-	e.d.newSlackPublisher = func(secret.Secret) (publisher.Publisher, error) {
-		return publisherFunc(func(context.Context, writer.Article) error {
-			cancel()
-			return nil
-		}), nil
-	}
-	if code := e.run(); code != exitOK {
-		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
-	}
-	for _, want := range []string{"warning: remove the cache", "posted the article to the webhook in 1 message"} {
-		if !strings.Contains(e.stderr.String(), want) {
-			t.Errorf("stderr does not contain %q:\n%s", want, e.stderr.String())
-		}
-	}
-	if len(videoEntries(t, e.cacheDir)) == 0 {
-		t.Error("the video's cache was removed although the removal was canceled")
-	}
-	requireSafeOutput(t, e.stdout.String(), e.stderr.String(), e.outPath)
 }
 
 // TestRunStepFlags checks --no-review, --no-shorten, and their combination:
@@ -1781,7 +1493,7 @@ func TestRunDefaultWriterOptions(t *testing.T) {
 }
 
 // TestRunReviewLog checks --review-log: the list is written after a successful
-// publish, and the summary names it, with --out and with --slack.
+// publish, and the summary names it.
 func TestRunReviewLog(t *testing.T) {
 	t.Run("--out", func(t *testing.T) {
 		e := newRunEnv(t)
@@ -1818,74 +1530,6 @@ func TestRunReviewLog(t *testing.T) {
 			}
 		}
 		requireSafeOutput(t, e.stdout.String(), e.stderr.String(), e.outPath)
-	})
-
-	t.Run("--slack", func(t *testing.T) {
-		e := newRunEnv(t)
-		e.withSteps = true
-		e.useWebhook(t, nil)
-		logPath := filepath.Join(e.base, "review.md")
-		e.args = []string{"--review-log", logPath, "--slack", runVideoURL}
-		e.useReviewClient(reviewLLM(reviewJSON("The body.", "A revised body.")))
-		if code := e.run(); code != exitOK {
-			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
-		}
-		if _, err := os.Stat(logPath); err != nil {
-			t.Errorf("the review log was not written: %v", err)
-		}
-		for _, want := range []string{"posted the article to the webhook", "wrote the review log to " + logPath} {
-			if !strings.Contains(e.stderr.String(), want) {
-				t.Errorf("stderr does not contain %q:\n%s", want, e.stderr.String())
-			}
-		}
-	})
-}
-
-// TestRunReviewLogFailure checks that a review-log write failure after the
-// publish reports that the article is already published, never as "the run
-// failed:".
-func TestRunReviewLogFailure(t *testing.T) {
-	assertFailure := func(t *testing.T, e *runEnv, logPath, articlePhrase string) {
-		t.Helper()
-		if code := e.run(); code != exitFailure {
-			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitFailure, e.stderr.String())
-		}
-		stderr := e.stderr.String()
-		for _, want := range []string{articlePhrase, "writing the review log to " + logPath, "do not run again"} {
-			if !strings.Contains(stderr, want) {
-				t.Errorf("stderr does not contain %q:\n%s", want, stderr)
-			}
-		}
-		if strings.Contains(stderr, "the run failed:") {
-			t.Errorf("stderr reports the review-log failure as a run failure:\n%s", stderr)
-		}
-		if strings.Contains(stderr, "the finished article was kept in") {
-			t.Errorf("stderr reports a kept file for a published article:\n%s", stderr)
-		}
-		requireSafeOutput(t, e.stdout.String(), stderr, e.outPath)
-	}
-
-	t.Run("--slack", func(t *testing.T) {
-		e := newRunEnv(t)
-		e.withSteps = true
-		e.useWebhook(t, nil)
-		logPath := filepath.Join(e.base, "review.md")
-		e.args = []string{"--review-log", logPath, "--slack", runVideoURL}
-		e.useReviewClient(reviewLLM(emptyReviewJSON))
-		inner := e.d.newSlackPublisher
-		e.d.newSlackPublisher = func(url secret.Secret) (publisher.Publisher, error) {
-			pub, err := inner(url)
-			if err != nil {
-				return nil, err
-			}
-			return publisherFunc(func(ctx context.Context, a writer.Article) error {
-				if err := pub.Publish(ctx, a); err != nil {
-					return err
-				}
-				return os.WriteFile(logPath, []byte("raced"), 0o600)
-			}), nil
-		}
-		assertFailure(t, e, logPath, "the article was posted to the webhook")
 	})
 }
 
@@ -2069,28 +1713,6 @@ func TestRunRejectsInvalidEffortPart(t *testing.T) {
 	}
 }
 
-// TestTestDepsSlackPublisherDoesNotSend checks that the default
-// newSlackPublisher of testDeps and of newRunEnv sends nothing: a --slack run
-// stops at building the publisher with the stub's error.
-func TestTestDepsSlackPublisherDoesNotSend(t *testing.T) {
-	for name, depsFor := range map[string]func(e *runEnv) deps{
-		"testDeps":  func(*runEnv) deps { return testDeps(validResponseLLM()) },
-		"newRunEnv": func(e *runEnv) deps { return e.d },
-	} {
-		t.Run(name, func(t *testing.T) {
-			e := newRunEnv(t)
-			e.d = depsFor(e)
-			e.args = []string{"--slack", runVideoURL}
-			if code := e.run(); code != exitUsage {
-				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitUsage, e.stderr.String())
-			}
-			if want := "build the publisher: " + errSlackPublisherNotSubstituted.Error(); !strings.Contains(e.stderr.String(), want) {
-				t.Errorf("stderr does not contain %q:\n%s", want, e.stderr.String())
-			}
-		})
-	}
-}
-
 // TestTestDepsReviewClientBuildsNothing checks that the default
 // newReviewLLMClient of testDeps and of newRunEnv builds nothing: with the
 // steps enabled, a run stops at building the review client with the stub's
@@ -2111,19 +1733,6 @@ func TestTestDepsReviewClientBuildsNothing(t *testing.T) {
 				t.Errorf("stderr does not contain %q:\n%s", want, e.stderr.String())
 			}
 		})
-	}
-}
-
-// TestNewSlackPublisherNilOnFailure checks that the production webhook
-// publisher constructor returns a nil interface, not a typed nil, when
-// construction fails.
-func TestNewSlackPublisherNilOnFailure(t *testing.T) {
-	p, err := productionDeps().newSlackPublisher(secret.Secret{})
-	if err == nil {
-		t.Fatal("newSlackPublisher(zero Secret) succeeded, want an error")
-	}
-	if p != nil {
-		t.Fatalf("newSlackPublisher(zero Secret) = %#v, want a nil interface", p)
 	}
 }
 

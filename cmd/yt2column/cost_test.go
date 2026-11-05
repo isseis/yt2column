@@ -5,7 +5,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
@@ -15,8 +14,6 @@ import (
 
 	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/pricing"
-	"github.com/isseis/yt2column/internal/publisher"
-	"github.com/isseis/yt2column/internal/secret"
 	"github.com/isseis/yt2column/internal/writer"
 )
 
@@ -440,7 +437,7 @@ func TestRunCostLinesOmitModel(t *testing.T) {
 		// The mystery-model subtest above pins that the cost lines omit the
 		// model. Here redact.Line masks the secret from the CLI's own lines, so
 		// the check pins that masking still holds. The published article header
-		// (--out and Slack) writes the raw model name, a pre-existing behavior
+		// (the --out file) writes the raw model name, a pre-existing behavior
 		// this task does not change, so this subtest deliberately does not
 		// claim the published output is secret-free.
 		e := newRunEnv(t)
@@ -574,19 +571,6 @@ func TestRunCostLinesFailure(t *testing.T) {
 		})
 	})
 
-	t.Run("publish failure after every stage", func(t *testing.T) {
-		e := newRunEnv(t)
-		e.withSteps = true
-		useFixedClock(e, costGenTime, costShortTime, costReviewTime)
-		useAllStagesCost(e)
-		e.useWebhook(t, failMessage(1, http.StatusServiceUnavailable, "boom"))
-
-		if code := e.run(); code == exitOK {
-			t.Fatalf("exit code = %d, want a failure (the post must fail)", code)
-		}
-		requireCostLines(t, e, []string{costGenLine, costShortLine, costReviewLine, costRunTotal, costArtTotal})
-	})
-
 	t.Run("file publish failure after every stage", func(t *testing.T) {
 		e := newRunEnv(t)
 		e.withSteps = true
@@ -627,43 +611,6 @@ func TestRunCostLinesFailure(t *testing.T) {
 			"yt2column: cost-total: article unknown",
 		})
 	})
-}
-
-func TestRunCostLinesReviewLogFailure(t *testing.T) {
-	e := newRunEnv(t)
-	e.withSteps = true
-	e.useWebhook(t, nil)
-	logPath := filepath.Join(e.base, "review.md")
-	e.args = []string{"--review-log", logPath, "--slack", runVideoURL}
-	useFixedClock(e, costGenTime, costReviewTime)
-	e.client = usageLLM(usageResponse(shortGeneratedText(), costGenModel, costGenTokens))
-	e.useReviewClient(usageLLM(usageResponse(emptyReviewJSON, costReviewModel, costReviewTokens)))
-	inner := e.d.newSlackPublisher
-	e.d.newSlackPublisher = func(url secret.Secret) (publisher.Publisher, error) {
-		pub, err := inner(url)
-		if err != nil {
-			return nil, err
-		}
-		return publisherFunc(func(ctx context.Context, a writer.Article) error {
-			if err := pub.Publish(ctx, a); err != nil {
-				return err
-			}
-			// Write the log path first, so the review log's own create finds it
-			// and fails after the article is published.
-			return os.WriteFile(logPath, []byte("raced"), 0o600)
-		}), nil
-	}
-
-	if code := e.run(); code != exitFailure {
-		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitFailure, e.stderr.String())
-	}
-	// The cost lines appear once, not again in the review-log failure report.
-	if got := len(costStageLines(e.stderr.String())); got != 2 {
-		t.Errorf("stage cost lines = %d, want 2:\n%s", got, e.stderr.String())
-	}
-	if got := len(costTotalLines(e.stderr.String())); got != 2 {
-		t.Errorf("total cost lines = %d, want 2:\n%s", got, e.stderr.String())
-	}
 }
 
 func TestRunCostLinesFileReviewLogFailure(t *testing.T) {

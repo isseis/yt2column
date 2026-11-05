@@ -567,7 +567,8 @@ func TestSlackPublishCostLine(t *testing.T) {
 }
 
 // TestSlackPublishSplit checks the split messages,
-// the boundary lengths, and that the request count matches SlackMessageCount.
+// the boundary lengths, and that the request count matches the Len of the
+// messages PrepareSlackMessages returns.
 func TestSlackPublishSplit(t *testing.T) {
 	t.Run("many lines", func(t *testing.T) {
 		server := newSlackOKServer(t)
@@ -586,12 +587,12 @@ func TestSlackPublishSplit(t *testing.T) {
 			requireSlackPayloadShape(t, req)
 		}
 		checkSlackMessages(t, slackMessageTexts(t, server), posted)
-		count, err := SlackMessageCount(article)
+		m, err := PrepareSlackMessages(article)
 		if err != nil {
-			t.Fatalf("SlackMessageCount: %v", err)
+			t.Fatalf("PrepareSlackMessages: %v", err)
 		}
-		if len(requests) != count {
-			t.Fatalf("received %d requests, SlackMessageCount = %d", len(requests), count)
+		if len(requests) != m.Len() {
+			t.Fatalf("received %d requests, PrepareSlackMessages Len() = %d", len(requests), m.Len())
 		}
 	})
 

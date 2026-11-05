@@ -47,12 +47,13 @@ func TestIntegrationSlackWebhookPublisher(t *testing.T) {
 	// Every count is checked before anything is posted, so a wrong article
 	// never reaches the channel.
 	for _, a := range articles {
-		n, err := publisher.SlackMessageCount(a.article)
+		m, err := publisher.PrepareSlackMessages(a.article)
 		if err != nil {
-			t.Fatalf("SlackMessageCount(%s) error = %v", a.name, err)
+			t.Fatalf("PrepareSlackMessages(%s) error = %v", a.name, err)
 		}
+		n := m.Len()
 		if !a.messages(n) {
-			t.Fatalf("SlackMessageCount(%s) = %d, want %s", a.name, n, a.want)
+			t.Fatalf("PrepareSlackMessages(%s) Len() = %d, want %s", a.name, n, a.want)
 		}
 		t.Logf("%s: %d message(s), title %q", a.name, n, a.article.Title)
 	}

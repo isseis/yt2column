@@ -798,36 +798,6 @@ func TestSlackPrepareErrorsOmitContent(t *testing.T) {
 	}
 }
 
-func TestSlackMessageCount(t *testing.T) {
-	article := validArticle()
-	got, err := SlackMessageCount(article)
-	if err != nil {
-		t.Fatalf("SlackMessageCount: %v", err)
-	}
-	if got != 1 {
-		t.Fatalf("SlackMessageCount = %d, want 1", got)
-	}
-
-	long := articleWithPostedRunes(t, slackMaxMessageRunes+1, 'a')
-	got, err = SlackMessageCount(long)
-	if err != nil {
-		t.Fatalf("SlackMessageCount: %v", err)
-	}
-	want, err := prepareSlackMessages(long)
-	if err != nil {
-		t.Fatalf("prepareSlackMessages: %v", err)
-	}
-	if got != len(want) || got < 2 {
-		t.Fatalf("SlackMessageCount = %d, want %d (>= 2)", got, len(want))
-	}
-
-	mention := validArticle()
-	mention.Body = "`@channel`"
-	if _, err := SlackMessageCount(mention); !errors.Is(err, ErrSlackMention) {
-		t.Fatalf("err = %v, want ErrSlackMention", err)
-	}
-}
-
 // TestPrepareSlackMessagesLen checks the message count PrepareSlackMessages
 // reports for an article that fits in one message, and that a rejected
 // article yields the pre-send error with no message. The count of a split

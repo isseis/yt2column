@@ -85,17 +85,6 @@ func TestLoadValid(t *testing.T) {
 	if key != env[deepSeekAPIKeyEnv] {
 		t.Errorf("DeepSeekAPIKey() = %q, want %q", key, env[deepSeekAPIKeyEnv])
 	}
-	webhook, ok := cfg.SlackWebhookURL()
-	if !ok {
-		t.Fatal("SlackWebhookURL() reports unset, want set")
-	}
-	revealed, err := webhook.Reveal()
-	if err != nil {
-		t.Fatalf("SlackWebhookURL().Reveal() error = %v", err)
-	}
-	if revealed != env[slackEnv] {
-		t.Errorf("SlackWebhookURL() = %q, want %q", revealed, env[slackEnv])
-	}
 	if cfg.CacheDir() != env[cacheDirEnv] {
 		t.Errorf("CacheDir() = %q, want %q", cfg.CacheDir(), env[cacheDirEnv])
 	}
@@ -105,7 +94,7 @@ func TestLoadValid(t *testing.T) {
 }
 
 // TestLoadDefaults checks the defaults of the variables other than the LLM
-// ones: no Webhook, yt-dlp on PATH, and the derived cache directory. The LLM
+// ones: yt-dlp on PATH and the derived cache directory. The LLM
 // defaults are checked by TestLoadGenerationDefaults and TestLoadReviewDefaults.
 func TestLoadDefaults(t *testing.T) {
 	home := "/home/user"
@@ -121,9 +110,6 @@ func TestLoadDefaults(t *testing.T) {
 	cfg, err := Load(envLookup(env))
 	if err != nil {
 		t.Fatalf("Load() error = %v, want nil", err)
-	}
-	if _, ok := cfg.SlackWebhookURL(); ok {
-		t.Error("SlackWebhookURL() reports set, want unset")
 	}
 	if cfg.YtDlpPath() != "" {
 		t.Errorf("YtDlpPath() = %q, want empty", cfg.YtDlpPath())
@@ -163,7 +149,7 @@ func TestLoadMissing(t *testing.T) {
 }
 
 func TestLoadEmpty(t *testing.T) {
-	vars := []string{llmEnv, reviewLLMEnv, deepSeekAPIKeyEnv, slackEnv, cacheDirEnv, ytDlpEnv}
+	vars := []string{llmEnv, reviewLLMEnv, deepSeekAPIKeyEnv, cacheDirEnv, ytDlpEnv}
 	for _, name := range vars {
 		t.Run(name, func(t *testing.T) {
 			_, err := Load(envLookup(with(validEnv(), name, "")))
@@ -185,17 +171,6 @@ func TestLoadInvalid(t *testing.T) {
 		vr   string
 		bad  []string
 	}{
-		{"slack webhook", slackEnv, []string{
-			"http://mattermost.example.com/hooks/x",
-			"mattermost.example.com/hooks/x",
-			"https:///hooks/x",
-			"https://mattermost.example.com/hooks/x\n",
-			"https://hooks.slack.com/services/%zz",
-			"https://hooks.slack.com/%",
-			"https://hooks.slack.com/services/x\x7f",
-			"https://:443/x",
-			" https://hooks.slack.com/services/x",
-		}},
 		{"cache dir", cacheDirEnv, []string{"cache", "./cache", "~/cache"}},
 	}
 	for _, tc := range cases {
@@ -587,76 +562,23 @@ func assertVarError(t *testing.T, err error, sentinel error, wantVar string) {
 	}
 }
 
-// TestLoadSlackWebhookAccepted checks that Load accepts the Webhook URL shapes
-// the new rule allows and keeps the original value.
-func TestLoadSlackWebhookAccepted(t *testing.T) {
-	accepted := []string{
-		"https://mattermost.example.com/hooks/xxxxxxxxxxxxxxxxxxxxxxxxxx",
-		"https://hooks.slack.com/services/T000/B000/XXXX",
-		"https://hooks.slack.com.example/services/x",
-		"https://HOOKS.SLACK.COM/services/x",
-		"https://hooks.slack.com/",
-	}
-	for i, value := range accepted {
-		t.Run(fmt.Sprintf("case %d", i), func(t *testing.T) {
-			cfg, err := Load(envLookup(with(validEnv(), slackEnv, value)))
-			if err != nil {
+// TestLoadIgnoresSlackWebhookURL checks that Load accepts an environment
+// whose SLACK_WEBHOOK_URL holds a value LoadServer rejects: only the server
+// reads the variable.
+func TestLoadIgnoresSlackWebhookURL(t *testing.T) {
+	for _, value := range []string{"", "http://mattermost.example.com/hooks/x"} {
+		t.Run(fmt.Sprintf("%q", value), func(t *testing.T) {
+			env := with(validEnv(), slackEnv, value)
+			if _, err := Load(envLookup(env)); err != nil {
 				t.Fatalf("Load() error = %v, want nil", err)
 			}
-			webhook, ok := cfg.SlackWebhookURL()
-			if !ok {
-				t.Fatal("SlackWebhookURL() reports unset, want set")
-			}
-			revealed, err := webhook.Reveal()
-			if err != nil {
-				t.Fatalf("SlackWebhookURL().Reveal() error = %v", err)
-			}
-			if revealed != value {
-				t.Errorf("SlackWebhookURL() = %q, want %q", revealed, value)
+			// The same value is one the server rejects, so the acceptance
+			// above is the CLI ignoring it, not the value being valid.
+			if _, err := LoadServer(envLookup(with(env, "HOME", "/home/user"))); err == nil {
+				t.Fatal("LoadServer() error = nil, want a rejection of SLACK_WEBHOOK_URL")
 			}
 		})
 	}
-}
-
-// TestRequireSlackWebhookURL checks the missing and configured cases of
-// RequireSlackWebhookURL.
-func TestRequireSlackWebhookURL(t *testing.T) {
-	t.Run("unset", func(t *testing.T) {
-		cfg, err := Load(envLookup(without(validEnv(), slackEnv)))
-		if err != nil {
-			t.Fatalf("Load() error = %v, want nil", err)
-		}
-		_, err = cfg.RequireSlackWebhookURL()
-		varErr, ok := errors.AsType[*VarError](err)
-		if !ok {
-			t.Fatalf("RequireSlackWebhookURL() error = %v, want *VarError", err)
-		}
-		if varErr.Name != slackEnv {
-			t.Errorf("VarError.Name = %q, want %q", varErr.Name, slackEnv)
-		}
-		if !errors.Is(err, ErrMissing) {
-			t.Errorf("RequireSlackWebhookURL() error = %v, want it to wrap ErrMissing", err)
-		}
-	})
-
-	t.Run("set", func(t *testing.T) {
-		const value = "https://mattermost.example.com/hooks/xxxxxxxxxxxxxxxxxxxxxxxxxx"
-		cfg, err := Load(envLookup(with(validEnv(), slackEnv, value)))
-		if err != nil {
-			t.Fatalf("Load() error = %v, want nil", err)
-		}
-		webhook, err := cfg.RequireSlackWebhookURL()
-		if err != nil {
-			t.Fatalf("RequireSlackWebhookURL() error = %v, want nil", err)
-		}
-		revealed, err := webhook.Reveal()
-		if err != nil {
-			t.Fatalf("Reveal() error = %v", err)
-		}
-		if revealed != value {
-			t.Errorf("Reveal() = %q, want %q", revealed, value)
-		}
-	})
 }
 
 // TestLoadErrorsOmitValues checks that a rejection names the variable but never
@@ -668,7 +590,6 @@ func TestLoadErrorsOmitValues(t *testing.T) {
 		markReviewLLM       = "MARK-REVIEW-LLM-I9"
 		markRetired         = "MARK-RETIRED-J0"
 		markAPIKey          = "MARK-APIKEY-C3"
-		markSlack           = "MARK-SLACK-D4"
 		markCache           = "MARK-CACHE-E5"
 		markYtDlp           = "MARK-YTDLP-F6"
 		markClaudeWorkspace = "MARK-CLAUDE-WKS-C8"
@@ -677,13 +598,11 @@ func TestLoadErrorsOmitValues(t *testing.T) {
 		markSecret          = "MARK-SECRET-K2"
 	)
 	marks := []string{
-		markLLM, markModel, markReviewLLM, markRetired, markAPIKey, markSlack,
-		markCache, markYtDlp, markClaudeWorkspace, markEffort, markLLMModel, markSecret,
+		markLLM, markModel, markReviewLLM, markRetired, markAPIKey, markCache, markYtDlp, markClaudeWorkspace, markEffort, markLLMModel, markSecret,
 	}
 	base := map[string]string{
 		llmEnv:            "deepseek/" + markModel,
 		deepSeekAPIKeyEnv: markAPIKey,
-		slackEnv:          "https://hooks.slack.com/services/" + markSlack,
 		cacheDirEnv:       "/tmp/" + markCache,
 		ytDlpEnv:          "/bin/" + markYtDlp,
 	}
@@ -723,13 +642,6 @@ func TestLoadErrorsOmitValues(t *testing.T) {
 		{"review LLM with two effort separators", with(base, reviewLLMEnv, "claude/"+markLLMModel+"+"+markEffort+"+low"), nil},
 		{"review LLM with an empty model ID and an effort", with(base, reviewLLMEnv, "deepseek/+"+markEffort), nil},
 		{"API key empty", with(base, deepSeekAPIKeyEnv, ""), nil},
-		// Each slack webhook row also names the last 8 bytes of its value, so a
-		// rejection that leaked only the tail would still be caught.
-		{"slack webhook invalid", with(base, slackEnv, "http://"+markSlack), []string{"SLACK-D4"}},
-		{"slack webhook no scheme", with(base, slackEnv, markSlack+"/hooks/x"), []string{"/hooks/x"}},
-		{"slack webhook empty host", with(base, slackEnv, "https:///"+markSlack), []string{"SLACK-D4"}},
-		{"slack webhook control character", with(base, slackEnv, "https://host/"+markSlack+"\n"), []string{"LACK-D4\n"}},
-		{"slack webhook bad escape", with(base, slackEnv, "https://host/%zz"+markSlack), []string{"SLACK-D4"}},
 		{"cache dir relative", with(base, cacheDirEnv, markCache), nil},
 		{"cache dir absent", without(base, cacheDirEnv), nil},
 		{"yt-dlp path empty", with(base, ytDlpEnv, ""), nil},
@@ -848,11 +760,9 @@ func TestConfigOutputRedactsSecrets(t *testing.T) {
 	const (
 		key       = "sk-distinctive-secret-9tRq"
 		claudeKey = "sk-ant-distinctive-secret-9tRq"
-		webhook   = "https://hooks.slack.com/services/distinctive-webhook-7Lwz"
 	)
 	deepseekEnv := validEnv()
 	deepseekEnv[deepSeekAPIKeyEnv] = key
-	deepseekEnv[slackEnv] = webhook
 	claudeEnv := validClaudeEnv()
 	claudeEnv[anthropicAPIKeyEnv] = claudeKey
 
@@ -865,7 +775,7 @@ func TestConfigOutputRedactsSecrets(t *testing.T) {
 		{
 			"deepseek",
 			deepseekEnv,
-			[]string{key, webhook},
+			[]string{key},
 			func(t *testing.T, cfg Config) {
 				t.Helper()
 				if revealed, err := cfg.LLM().DeepSeekAPIKey().Reveal(); err != nil || revealed != key {

@@ -80,17 +80,6 @@ func PrepareSlackMessages(a writer.Article) (SlackMessages, error) {
 	return SlackMessages{texts: texts}, nil
 }
 
-// SlackMessageCount returns how many messages Publish sends for article. It
-// performs the same preparation as Publish, touches no network, and returns
-// the same pre-send errors.
-func SlackMessageCount(article writer.Article) (int, error) {
-	messages, err := PrepareSlackMessages(article)
-	if err != nil {
-		return 0, err
-	}
-	return messages.Len(), nil
-}
-
 // splitSlackText breaks post into the message texts Publish sends. A text
 // that fits in one message is returned as it is, with no position marker. A
 // longer text is cut into the fragments cutSlackFragments chooses, each

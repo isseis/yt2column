@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -20,10 +19,7 @@ import (
 
 	"github.com/isseis/yt2column/internal/config"
 	"github.com/isseis/yt2column/internal/llm"
-	"github.com/isseis/yt2column/internal/publisher"
-	"github.com/isseis/yt2column/internal/secret"
 	"github.com/isseis/yt2column/internal/signalrun"
-	"github.com/isseis/yt2column/internal/writer"
 )
 
 // Environment variables that switch the test binary into a CLI child process
@@ -46,16 +42,12 @@ const (
 	// childModeIgnoreCtx runs signalrun.Run with an LLM client that keeps
 	// stopping after its context ends.
 	childModeIgnoreCtx = "ignore-ctx"
-	// childModeSlackStall runs signalrun.Run with an LLM client that
-	// succeeds at once and a webhook publisher that stops until its context
-	// ends; the publisher, not the LLM client, creates the ready marker.
-	childModeSlackStall = "slack-stall"
 )
 
 // childExitUnknownMode is the child's exit code for an unknown mode.
 const childExitUnknownMode = 99
 
-// stallLifetime caps how long a stalling fake LLM client or publisher waits,
+// stallLifetime caps how long a stalling fake LLM client waits,
 // so a leaked child exits by itself. It is far longer than any bound a test waits for.
 const stallLifetime = 3 * time.Minute
 
@@ -83,20 +75,11 @@ var childEnvAllowlist = []string{
 
 var (
 	errStallExpired = errors.New("the stalling fake reached its lifetime")
-	// errSlackPublisherNotSubstituted is what the default newSlackPublisher of
-	// testDeps and newRunEnv returns: a test that posts must substitute one
-	// that sends to a loopback server.
-	errSlackPublisherNotSubstituted = errors.New("the test deps send nothing to a webhook; substitute newSlackPublisher")
-	errLoopbackWebhookURL           = errors.New("the configured webhook URL does not parse")
 	// errReviewClientNotSubstituted is what the default newReviewLLMClient of
 	// testDeps and newRunEnv returns: a test that enables the steps must
 	// substitute a review LLMClient.
 	errReviewClientNotSubstituted = errors.New("the test deps build no review client; disable the steps or substitute newReviewLLMClient")
 )
-
-// loopbackPostTimeout is the per-message timeout of a loopback test
-// publisher; a loopback server answers far sooner.
-const loopbackPostTimeout = 10 * time.Second
 
 // validResponse is a generated text the real ArticleWriter accepts.
 func validResponse() llm.GenerateResponse {
@@ -157,44 +140,13 @@ func writeMarker(path string) {
 	_ = os.Rename(tmp, path)
 }
 
-// stallingPublisher creates ready and then waits for its context to end, as a
-// webhook post in flight does. It then returns the error SlackWebhookPublisher
-// returns for a canceled first message, so the CLI reports it as it would a
-// real one. It gives up after stallLifetime.
-type stallingPublisher struct {
-	ready string
-}
-
-// Publish implements publisher.Publisher.
-func (s stallingPublisher) Publish(ctx context.Context, _ writer.Article) error {
-	writeMarker(s.ready)
-	timer := time.NewTimer(stallLifetime)
-	defer timer.Stop()
-	select {
-	case <-ctx.Done():
-		return &publisher.SlackPostError{Total: 1, Posted: 0, Attempted: true, Err: ctx.Err()}
-	case <-timer.C:
-		return errStallExpired
-	}
-}
-
 // testDeps returns the production deps with the LLM client replaced by
-// client, so the real ArticleWriter and FilePublisher run. newSlackPublisher
-// sends nothing and fails (refusingSlackPublisher), so a --slack run can never
-// reach the Webhook named by the environment.
+// client, so the real ArticleWriter and FilePublisher run.
 func testDeps(client llm.LLMClient) deps {
 	d := productionDeps()
 	d.newLLMClient = func(config.LLMConfig) (llm.LLMClient, error) { return client, nil }
 	d.newReviewLLMClient = refusingReviewLLMClient
-	d.newSlackPublisher = refusingSlackPublisher
 	return d
-}
-
-// refusingSlackPublisher is the default newSlackPublisher of the test deps: it
-// builds nothing and returns errSlackPublisherNotSubstituted, which run
-// reports on its "build the publisher" line.
-func refusingSlackPublisher(secret.Secret) (publisher.Publisher, error) {
-	return nil, errSlackPublisherNotSubstituted
 }
 
 // refusingReviewLLMClient is the default newReviewLLMClient of the test deps:
@@ -205,32 +157,11 @@ func refusingReviewLLMClient(config.LLMConfig) (llm.LLMClient, error) {
 	return nil, errReviewClientNotSubstituted
 }
 
-// loopbackSlackPublisher returns a newSlackPublisher that builds a real
-// SlackWebhookPublisher posting to serverURL, a loopback test server, with no
-// wait between messages. The path of the configured Webhook URL is kept, so
-// the endpoint carries the same secret path run redacts: a failure that
-// leaked part of the endpoint would show up in the redaction checks.
-func loopbackSlackPublisher(t testing.TB, serverURL string) func(secret.Secret) (publisher.Publisher, error) {
-	return func(webhookURL secret.Secret) (publisher.Publisher, error) {
-		value, err := webhookURL.Reveal()
-		if err != nil {
-			return nil, err
-		}
-		parsed, err := url.Parse(value)
-		if err != nil {
-			return nil, errLoopbackWebhookURL
-		}
-		opts := publisher.SlackTestOptions{Timeout: loopbackPostTimeout}
-		return publisher.NewSlackWebhookPublisherForLoopbackTest(t, opts, serverURL+parsed.EscapedPath()), nil
-	}
-}
-
 // runChildMode runs the CLI in a child process started by startCLIChild and
 // returns its exit code. The arguments after the program name are the CLI
 // arguments; the configuration comes from the child's environment.
 func runChildMode(mode string) int {
 	var client llm.LLMClient
-	var newSlack func(secret.Secret) (publisher.Publisher, error)
 	switch mode {
 	case childModeMain:
 		main()
@@ -239,19 +170,11 @@ func runChildMode(mode string) int {
 		client = stallingLLM{ready: os.Getenv(childReadyEnv)}
 	case childModeIgnoreCtx:
 		client = stallingLLM{ready: os.Getenv(childReadyEnv), ctxDone: os.Getenv(childCtxDoneEnv), ignoreCtx: true}
-	case childModeSlackStall:
-		client = validResponseLLM()
-		newSlack = func(secret.Secret) (publisher.Publisher, error) {
-			return stallingPublisher{ready: os.Getenv(childReadyEnv)}, nil
-		}
 	default:
 		_, _ = fmt.Fprintf(os.Stderr, "unknown child mode %q\n", mode)
 		return childExitUnknownMode
 	}
 	d := testDeps(client)
-	if newSlack != nil {
-		d.newSlackPublisher = newSlack
-	}
 	return signalrun.Run(func(ctx context.Context) int {
 		return run(ctx, os.Args[1:], os.LookupEnv, os.Stdout, os.Stderr, d)
 	})

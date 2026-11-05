@@ -25,22 +25,10 @@ import (
 // YtDlpTimeout bounds one yt-dlp run.
 const YtDlpTimeout = 5 * time.Minute
 
-// outputKind distinguishes the two output kinds. The zero value is invalid, so
-// an Output that was never built cannot run.
-type outputKind int
-
-const (
-	outputKindInvalid outputKind = iota
-	outputKindFile
-	outputKindRemote
-)
-
-// Output is where Run sends the article: the Publisher together with what Run
-// needs to know about it. The zero value is rejected by Run, so an output that
-// was never chosen cannot run.
+// Output is where Run publishes the article: a local file and the Publisher
+// that writes it. The zero value is invalid, so a Request whose output was
+// never chosen cannot run.
 type Output struct {
-	kind outputKind
-	// path is the file output's target; it is empty for a remote output.
 	path string
 	pub  publisher.Publisher
 }
@@ -48,13 +36,7 @@ type Output struct {
 // FileOutput is an output to a local file. Run pre-checks path before any side
 // effect; p must write to path (the caller builds both from the same value).
 func FileOutput(path string, p publisher.Publisher) Output {
-	return Output{kind: outputKindFile, path: path, pub: p}
-}
-
-// RemoteOutput is an output that needs no local pre-check, such as a Webhook.
-// The kind is defined by that property, not by where the article goes.
-func RemoteOutput(p publisher.Publisher) Output {
-	return Output{kind: outputKindRemote, pub: p}
+	return Output{path: path, pub: p}
 }
 
 // Request is one run. Writer and the Output's Publisher are built by the
@@ -182,20 +164,11 @@ func validateRequest(req Request) error {
 		return fmt.Errorf("%w: Writer is nil", errInvalidRequest)
 	}
 
-	switch req.Output.kind {
-	case outputKindFile:
-		switch {
-		case req.Output.path == "":
-			return fmt.Errorf("%w: the file output needs a path", errInvalidRequest)
-		case nilcheck.IsNil(req.Output.pub):
-			return fmt.Errorf("%w: the output needs a Publisher", errInvalidRequest)
-		}
-	case outputKindRemote:
-		if nilcheck.IsNil(req.Output.pub) {
-			return fmt.Errorf("%w: the output needs a Publisher", errInvalidRequest)
-		}
-	default:
-		return fmt.Errorf("%w: the output was not chosen", errInvalidRequest)
+	switch {
+	case req.Output.path == "":
+		return fmt.Errorf("%w: the output needs a path", errInvalidRequest)
+	case nilcheck.IsNil(req.Output.pub):
+		return fmt.Errorf("%w: the output needs a Publisher", errInvalidRequest)
 	}
 	return nil
 }
@@ -205,20 +178,12 @@ func validateRequest(req Request) error {
 // guarantee: it only decides between failing early and proceeding. An existing
 // output path wraps publisher.ErrOutputExists (a plain path or a symlink,
 // dangling or not); an unusable parent wraps errOutputParent and not
-// ErrOutputExists. A remote output has nothing local to check.
+// ErrOutputExists.
 func precheckOutput(output Output) error {
-	switch output.kind {
-	case outputKindFile:
-		if err := precheckPath(output.path); err != nil {
-			return &pipeline.StageError{Stage: pipeline.StagePublish, Err: err}
-		}
-		return nil
-	case outputKindRemote:
-		return nil
-	default:
-		// validateRequest already rejected the zero value.
-		return nil
+	if err := precheckPath(output.path); err != nil {
+		return &pipeline.StageError{Stage: pipeline.StagePublish, Err: err}
 	}
+	return nil
 }
 
 // precheckReviewLog reports a review log path problem before any expensive

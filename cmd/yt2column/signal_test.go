@@ -169,38 +169,6 @@ func TestSignalDuringGenerate(t *testing.T) {
 	}
 }
 
-// TestSignalDuringSlackPost sends SIGINT and SIGTERM while a --slack post is
-// in flight, and checks the exit code, the output, that yt-dlp is not
-// started, and that the video's cache is kept. The child's publisher returns
-// what SlackWebhookPublisher returns for a canceled first message.
-func TestSignalDuringSlackPost(t *testing.T) {
-	for _, sig := range []syscall.Signal{syscall.SIGINT, syscall.SIGTERM} {
-		t.Run(sig.String(), func(t *testing.T) {
-			skipIfIgnored(t, sig)
-			tripwire, marker := transcripttestutil.NewTripwire(t, t.TempDir())
-			setup := newChildSetup(t, tripwire, true)
-			before := videoEntries(t, setup.cacheDir)
-			child := startCLIChild(t, childModeSlackStall, setup.env, append(slices.Clone(noStepsArgs), "--slack", runVideoURL)...)
-
-			waitForFile(t, setup.ready)
-			child.signal(t, sig)
-			state := child.wait(t)
-
-			requireExitFailure(t, state, child)
-			requireInterruptedChildOutput(t, child)
-			for _, want := range []string{"the publish stage failed", "posted 0 of 1 messages"} {
-				if !strings.Contains(child.stderr.String(), want) {
-					t.Errorf("stderr does not contain %q:\n%s", want, child.stderr.String())
-				}
-			}
-			requireNoFile(t, marker)
-			if after := videoEntries(t, setup.cacheDir); !slices.Equal(before, after) {
-				t.Errorf("the video's cache changed: before %v, after %v", before, after)
-			}
-		})
-	}
-}
-
 // TestSIGKILLWhileYtDlpRuns kills the CLI while yt-dlp runs. The orphaned
 // yt-dlp keeps the inherited lock, so a second run fails fast without touching
 // anything; once yt-dlp exits, the lock is free and a run succeeds.

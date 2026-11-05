@@ -26,9 +26,6 @@ const (
 	// DevCLIIntegrationHeading is development.md's section on the CLI
 	// integration test.
 	DevCLIIntegrationHeading = "### CLI の統合テスト"
-	// DevCLIWebhookIntegrationHeading is development.md's section on the CLI
-	// webhook integration test.
-	DevCLIWebhookIntegrationHeading = "### CLI と Webhook の統合テスト"
 
 	// DevReasonColumn, DevStatusColumn, and DevDisplayColumn head the three
 	// columns of development.md's rejection-reason table. The reason column

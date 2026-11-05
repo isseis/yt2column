@@ -288,7 +288,6 @@ func (c LLMConfig) AnthropicWorkspaceID() claudeparam.WorkspaceID {
 // Config can only come from Load or LoadFor.
 type Config struct {
 	llm               LLMConfig
-	slackWebhookURL   secret.Secret
 	cacheDir          string
 	ytDlpPath         string
 	http2DebugEnabled bool
@@ -297,24 +296,6 @@ type Config struct {
 // LLM returns the validated LLM configuration.
 func (c Config) LLM() LLMConfig {
 	return c.llm
-}
-
-// SlackWebhookURL returns the Webhook URL and whether one is configured.
-func (c Config) SlackWebhookURL() (secret.Secret, bool) {
-	if _, err := c.slackWebhookURL.Reveal(); err != nil {
-		return secret.Secret{}, false
-	}
-	return c.slackWebhookURL, true
-}
-
-// RequireSlackWebhookURL returns the Webhook URL, or a *VarError naming
-// SLACK_WEBHOOK_URL and wrapping ErrMissing when none is configured. The error
-// never holds a value.
-func (c Config) RequireSlackWebhookURL() (secret.Secret, error) {
-	if _, err := c.slackWebhookURL.Reveal(); err != nil {
-		return secret.Secret{}, missingVar(slackEnv)
-	}
-	return c.slackWebhookURL, nil
 }
 
 // CacheDir returns the absolute cache directory.
@@ -472,9 +453,7 @@ type Need struct {
 func LoadFor(lookup LookupFunc, need Need) (Config, error) {
 	llm, errs := loadLLM(lookup, need)
 	var cfg Config
-	webhook, webhookErr := loadSlackWebhook(lookup)
 	errs = append(errs,
-		webhookErr,
 		loadCacheDir(lookup, &cfg),
 		loadYtDlpPath(lookup, &cfg),
 	)
@@ -482,7 +461,6 @@ func LoadFor(lookup LookupFunc, need Need) (Config, error) {
 		return Config{}, err
 	}
 	cfg.llm = llm
-	cfg.slackWebhookURL = webhook
 	cfg.http2DebugEnabled = hasHTTP2Debug(lookup)
 	return cfg, nil
 }
@@ -716,8 +694,8 @@ func loadAnthropicWorkspaceID(lookup LookupFunc, cfg *LLMConfig) error {
 
 // loadSlackWebhook validates SLACK_WEBHOOK_URL and returns the value and any
 // rejection. Unset is accepted and returns the zero secret; a present value
-// must satisfy slackwebhook.ValidURL. Load and LoadServer both treat the zero
-// secret as no Webhook.
+// must satisfy slackwebhook.ValidURL. LoadServer treats the zero secret as no
+// Webhook.
 func loadSlackWebhook(lookup LookupFunc) (secret.Secret, error) {
 	value, ok := lookup(slackEnv)
 	switch {

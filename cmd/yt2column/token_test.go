@@ -20,9 +20,7 @@ import (
 	"github.com/isseis/yt2column/internal/config"
 	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/llm/deepseek"
-	"github.com/isseis/yt2column/internal/publisher"
 	"github.com/isseis/yt2column/internal/secret"
-	"github.com/isseis/yt2column/internal/writer"
 )
 
 // Distinct token usages and model names for the three stages, so a test can
@@ -281,29 +279,6 @@ func requireNoTokenLines(t *testing.T, e *runEnv) {
 }
 
 func TestRunTokenLinesAfterAllCalls(t *testing.T) {
-	t.Run("publish failure", func(t *testing.T) {
-		e := newRunEnv(t)
-		e.withSteps = true
-		// The webhook rejects the post, so the publish fails after every stage
-		// ran. (An existing --out file would fail the job's precheck before any
-		// call.)
-		e.useWebhook(t, failMessage(1, http.StatusServiceUnavailable, "boom"))
-		e.client = usageSequence(
-			usageResponse(longGeneratedText(), "gen-model", testGenTokens),
-			usageResponse(shortGeneratedText(), "short-model", testShortTokens),
-		)
-		e.useReviewClient(usageLLM(usageResponse(emptyReviewJSON, "review-model", testReviewTokens)))
-
-		if code := e.run(); code == exitOK {
-			t.Fatalf("exit code = %d, want a failure (the post must fail)", code)
-		}
-		requireTokenLines(t, e, []string{
-			knownLine("generation", tokensRun, "gen-model", testGenTokens),
-			knownLine("shorten", tokensRun, "short-model", testShortTokens),
-			knownLine("review", tokensRun, "review-model", testReviewTokens),
-		})
-	})
-
 	t.Run("file publish failure", func(t *testing.T) {
 		e := newRunEnv(t)
 		e.withSteps = true
@@ -505,39 +480,6 @@ func TestRunTokenLinesLoopbackAdapter(t *testing.T) {
 	// 0, completion_tokens 85.
 	want := llm.KnownUsage(llm.TokenCounts{Input: 46, Output: 85})
 	requireTokenLines(t, e, []string{knownLine("generation", tokensRun, "deepseek-flash", want)})
-}
-
-func TestRunTokenLinesReviewLogFailure(t *testing.T) {
-	e := newRunEnv(t)
-	e.withSteps = true
-	e.useWebhook(t, nil)
-	logPath := filepath.Join(e.base, "review.md")
-	e.args = []string{"--review-log", logPath, "--slack", runVideoURL}
-	e.client = usageLLM(usageResponse(shortGeneratedText(), "gen-model", testGenTokens))
-	e.useReviewClient(usageLLM(usageResponse(emptyReviewJSON, "review-model", testReviewTokens)))
-	inner := e.d.newSlackPublisher
-	e.d.newSlackPublisher = func(url secret.Secret) (publisher.Publisher, error) {
-		pub, err := inner(url)
-		if err != nil {
-			return nil, err
-		}
-		return publisherFunc(func(ctx context.Context, a writer.Article) error {
-			if err := pub.Publish(ctx, a); err != nil {
-				return err
-			}
-			// Write the log path first, so the review log's own create finds it
-			// and fails after the article is published.
-			return os.WriteFile(logPath, []byte("raced"), 0o600)
-		}), nil
-	}
-
-	if code := e.run(); code != exitFailure {
-		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitFailure, e.stderr.String())
-	}
-	requireTokenLines(t, e, []string{
-		knownLine("generation", tokensRun, "gen-model", testGenTokens),
-		knownLine("review", tokensRun, "review-model", testReviewTokens),
-	})
 }
 
 func TestRunTokenLinesFileReviewLogFailure(t *testing.T) {

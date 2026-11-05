@@ -1,10 +1,10 @@
 //go:build test || integration
 
 // Package publishertestutil provides the test double for the publishing
-// stage and what the webhook integration tests share: the decision whether
+// stage and what the webhook integration test uses: the decision whether
 // such a test runs, and the fixed articles it posts. This file is built both
 // by the unit tests (`-tags test`), which test the decision, and by the
-// integration tests (`-tags integration`), which use it.
+// integration test (`-tags integration`), which uses it.
 package publishertestutil
 
 import (
@@ -18,15 +18,12 @@ import (
 	"github.com/isseis/yt2column/internal/writer"
 )
 
-// Environment variables read by the webhook integration tests. The production
-// SLACK_WEBHOOK_URL is never read: the tests post only to the test Webhook.
+// Environment variables read by the webhook integration test. The production
+// SLACK_WEBHOOK_URL is never read: the test posts only to the test Webhook.
 const (
 	// SlackOptInEnv opts in to the SlackWebhookPublisher integration test;
 	// `make test-integration-slack` exports it.
 	SlackOptInEnv = "YT2COLUMN_SLACK_INTEGRATION"
-	// CLISlackOptInEnv opts in to the CLI's webhook integration test;
-	// `make test-integration-cli-slack` exports it.
-	CLISlackOptInEnv = "YT2COLUMN_CLI_SLACK_INTEGRATION"
 	// WebhookURLEnv holds the Incoming Webhook URL of a test channel.
 	WebhookURLEnv = "YT2COLUMN_TEST_SLACK_WEBHOOK_URL"
 
@@ -43,19 +40,13 @@ type IntegrationOptions struct {
 	MakeTarget string
 }
 
-// The options of the two webhook integration tests. The integration tests and
-// the tests of their make targets both read them, so each opt-in and target
-// name is written once.
-var (
-	SlackIntegrationOptions = IntegrationOptions{
-		OptInEnv:   SlackOptInEnv,
-		MakeTarget: "test-integration-slack",
-	}
-	CLISlackIntegrationOptions = IntegrationOptions{
-		OptInEnv:   CLISlackOptInEnv,
-		MakeTarget: "test-integration-cli-slack",
-	}
-)
+// SlackIntegrationOptions are the options of the webhook integration test. The
+// integration test and the tests of its make target both read them, so the
+// opt-in and target name are written once.
+var SlackIntegrationOptions = IntegrationOptions{
+	OptInEnv:   SlackOptInEnv,
+	MakeTarget: "test-integration-slack",
+}
 
 // IntegrationAction is what the test does. The zero value skips, so a
 // decision that was never made posts nothing.
