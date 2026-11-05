@@ -1,0 +1,659 @@
+# 設計書：ビューアで記事の Markdown を描画する
+
+## Document Status
+
+| Item | Value |
+|---|---|
+| Status | `draft` |
+| Created | 2026-11-05 |
+| Review date | - |
+| Reviewer | - |
+| Comments | - |
+
+本書は、[01_requirements.md](01_requirements.md)（以下「要件」）を満たす設計を定める。用語（表示用の Markdown、出典の行、描画、自動リンク、URL の文字列など）は、要件 6 章の定義に従う。各節の見出しの括弧にある F-…・AC-…・H-… と、B-1〜B-7・I-1〜I-5、数字だけの節番号（3.2 など）は、要件の項目と節を指す。本文の「（3.3）」のような参照は本書の節を指し、「要件 3.2」のように書いたものは要件の節を指す。既存のコードの行番号は、コミット `b9e33644` で確かめた。
+
+## 1. 設計の全体像 (Design Overview)
+
+### 1.1. 設計原則
+
+-   **解釈と組み立てを分ける。** 表示用の Markdown の解釈は、`src/core/` の純粋な関数が 1 回で行い、ブロックとインラインの型付きの木（以下、記事の木）を返す。DOM は、`src/ui/articleBody.ts` が記事の木だけから組み立てる。組み立ては記事の文字列を読み直さず、木の種類の `switch` で要素を選ぶので、作る要素と属性は、組み立ての中の固定の一覧に閉じる（F-004、AC-20）。`src/core/` は DOM を使わない純粋な関数だけを置く場所で、`tsconfig.core.json` が DOM の参照を型の検査で拒否する（`extension/tsconfig.core.json:1-8`）。
+-   **規則を足さず、そのまま実装する。** 解釈は要件 3.2 の規則だけに従う。CommonMark に寄せた場合分けも、規則にない補正もしない。規則に合わない入力は、文字として記事の木に入る（CLAUDE.md「Reject, don't normalize」）。
+-   **記事を HTML として解釈する経路を作らない。** 組み立ては `createElement`・`textContent`・決めた属性の設定だけを使う。HTML を解釈する API を禁止する lint の規則（`extension/eslint.config.js:177-209`）は、`src/**/*.ts` を含むすべてのファイルに効く（全ファイルの設定 `:253-271`、`src/**/*.ts` の設定 `:272-284`）。新しいファイルも例外にしない。
+-   **リンクにしてよい URL は型で示す。** F-003 の検査を通った URL の文字列だけが、ブランド型 `LinkUrl` になる。この型を作れるのは解釈の関数のファイルだけで、組み立ては `LinkUrl` からだけリンク先を設定する（CLAUDE.md「Enforce invariants with the type」）。今の拡張のブランド型（`ArticleKey` など、`extension/src/core/articleKey.ts:5-8`）と同じ方式で、lint の規則が型の主張を作成者のファイルに限る（`extension/eslint.config.js:112-172`・`:234-247`）。
+-   **改行と行ごとの文字の方向は、今と同じ仕組みで保つ。** 段落・項目・コードブロックの中の改行は、U+000A の文字のまま残し、CSS の `white-space: pre-wrap` で改行として表示する。行ごとの文字の方向は、`unicode-bidi: plaintext` で決める。今の本文と同じ仕組みである（`extension/src/ui/articleBody.ts:13-22`、`extension/static/viewer.css:53-62`）。
+-   **保存とコピーは描画と無関係に保つ。** 保存とコピーは、今と同じく状態の取得が返す文字列（`article.file`・`article.markdown`）を使う（`extension/src/viewerApp.ts:537`・`:548`）。描画の部品は、この経路に触れない（F-006）。
+
+### 1.2. 設計の際に決めたこと（2026-11-05）
+
+-   **解釈は `src/core/` の純粋な関数に置き、DOM の組み立ては `src/ui/articleBody.ts` に置く。**
+    -   理由: 解釈は DOM なしで、node のテストで速く確かめられる。性能の上限（AC-33）も、解釈だけを取り出して測れる。組み立ては記事の木の種類の `switch` だけになるので、要素と属性の一覧を、型と 1 つの関数で閉じられる。今の拡張の分け方（判断は `src/core/`、DOM は `src/ui/`）とも同じである。
+    -   採らなかった案: 解釈しながら DOM を直接作る 1 つのファイル。ファイルは減るが、解釈のテストにも jsdom が要る。また、要素を作る箇所が解釈の分岐の中に散る。
+    -   ADR の判断: 作らない。レンダラーの内部の構成で、このタスクの中で閉じる。
+-   **段落と項目の中の改行は、`<br>` を使わず、U+000A の文字と `pre-wrap` で表す。**
+    -   理由: 今の表示と同じ仕組みなので、`unicode-bidi: plaintext` が改行ごとに文字の方向を決める振る舞いが続く（AC-28）。`textContent` に改行が残るので、描画した文字列が AC-21 の形になる。
+    -   採らなかった案: `<br>` の要素。`<br>` が双方向の段落の区切りになるかを、別に確かめる必要がある。また、`textContent` から改行が消える。
+    -   ADR の判断: 作らない。CSS と要素の選び方で、このタスクの中で閉じる。
+-   **コードブロックの長い行は、ブロックの中で折り返す。**
+    -   理由: 横のスクロールにすると、ブロックにフォーカスを当てる属性（`tabindex`）と、キーボードでスクロールできることの確認が要る（AC-22）。折り返しなら、どちらも要らない。記事のコードブロックは短い例に限られ、改行の位置が崩れても読める。
+    -   採らなかった案: ブロックの中で横にスクロールする。
+    -   ADR の判断: 作らない。CSS の値で、このタスクの中で閉じる。
+-   **確かめていないブラウザの振る舞いは、文書に基づいて設計し、実装の最初のフェーズで試作を使って Chrome で手動で確かめる。**
+    -   対象: 改行と行内の要素が混ざったときの行ごとの方向、リンクの方向の分離、Chrome と node の URL の解析の一致、512 KiB の入力の描画の時間。対象ごとの根拠と、崩れた場合の代わりの方法は 3.8 に挙げる。
+    -   性能の自動テスト: node のテストで、解釈だけを 1 秒の上限で測る。DOM の組み立てを含めた時間は、Chrome で 1 回測って実装計画に記録する（7.1・7.2）。jsdom の DOM はブラウザより大幅に遅く、組み立ての時間がブラウザの時間を表さないためである（H-01）。
+    -   理由: 0050 と同じ方針である（[0050 設計書](../0050_viewer_tab/02_architecture.md) 1.2）。どの振る舞いにも公開の仕様の根拠がある。代わりの方法も先に決めておくので、崩れても設計の骨格は変わらない。
+    -   ADR の判断: 作らない。確かめる時期と方法の決定で、このタスクの中で閉じる。
+
+ADR: 本書で新しく決める主要な決定はない。描画の安全性の規則は、要件が [ADR-0017](../../dev/adr/0017-viewer-markdown-rendering.md) に記録した。本書の設計は ADR-0017 の決定（自前の最小限のレンダラー、HTML を解釈しない、要素と属性を限る、`https` の自動リンクだけを新しいタブで参照元を送らずに開く、保存とコピーは描画の結果を使わない）に従い、その決定を変えない。
+
+### 1.3. 概念モデル
+
+表示用の Markdown が、ビューアの記事の要素になるまでの値の関係を示す。矢印 A → B は「A から B を作る」を表す。
+
+```mermaid
+flowchart LR
+    classDef data fill:#e6f7ff,stroke:#1f77b4,stroke-width:1px,color:#0b3d91;
+    classDef process fill:#fff1e6,stroke:#ff7f0e,stroke-width:1px,color:#8a3e00;
+    classDef enhanced fill:#e8f5e8,stroke:#2e8b57,stroke-width:2px,color:#006400;
+    classDef newpkg fill:#ffe8f5,stroke:#d946ef,stroke-width:2px,color:#701a75;
+
+    MD[("表示用の Markdown<br>(article.markdown)")]
+    PARSE["parseArticleMarkdown<br>(src/core/articleMarkdown.ts)"]
+    TREE[("記事の木<br>(ArticleBlock[])")]
+    URLV[("リンクの URL<br>(LinkUrl)")]
+    BUILD["renderArticleBody<br>(src/ui/articleBody.ts)"]
+    DOMV[("記事の要素<br>(div.article-body)")]
+    SAVE["保存・コピー<br>(viewerApp.ts)"]
+
+    MD --> PARSE --> TREE
+    PARSE --> URLV
+    URLV --> TREE
+    TREE --> BUILD --> DOMV
+    MD -->|"変えずに使う"| SAVE
+
+    class MD,TREE,URLV,DOMV data
+    class SAVE process
+    class BUILD enhanced
+    class PARSE newpkg
+
+    subgraph Legend["Legend"]
+        L1[("値")]
+        L2["既存で変えない部品"]
+        L3["変える部品"]
+        L4["新しい部品"]
+    end
+    class L1 data
+    class L2 process
+    class L3 enhanced
+    class L4 newpkg
+```
+
+-   **記事の木**は、ブロック（見出し・段落・箇条書き・番号付きリスト・コードブロック）の列である。見出し・段落・項目は行の列を持ち、各行はインライン（文字・強い強調・強調・コードスパン・リンク）の列である（3.1）。
+-   **リンクの URL**（`LinkUrl`）は、F-003 の条件をすべて満たした URL の文字列で、解釈の関数だけが作る。
+-   **記事の要素**は、ビューアの `#article` の中に置く `div.article-body` である。
+
+### 1.4. 既存のコードとの関係
+
+-   **本文の表示**: 今の `renderArticleBody(doc, markdown)`（`extension/src/ui/articleBody.ts:13-22`）は、`div.article-body[dir=auto]` を作り、`textContent` に表示用の Markdown を入れる。0050 は本文の表示をこの関数に集め、#504 でここだけを差し替える構成にした（[0050 設計書](../0050_viewer_tab/02_architecture.md) 3.12）。本タスクは、この関数の中身を記事の木の組み立てに替える。名前と引数は変えない。
+-   **描き直しの判定**: 今の `renderViewer` は、`#article` の `textContent` が表示用の Markdown と違うときだけ描き直す（`extension/src/ui/renderViewer.ts:318-321`）。描画すると `textContent` から記号が除かれるので、この比較は使えない（H-05）。状態の表示は、描いた状態と描いた子のノードを `WeakMap` に覚えて比べる（`extension/src/ui/renderJob.ts:361-403` の `drawStateOnChange`）。本文も同じ方式に替える（3.4）。
+-   **URL の解析**: 拡張は、WHATWG の URL Standard の `URL` を `src/core/` で使っている（`extension/src/core/acceptedUrl.ts:6-30`）。`src/core/` が使える `URL` の型は `extension/types/core-url.d.ts` で宣言したメンバだけで、今は `href` がない。本タスクで `href` を加える（3.3）。
+-   **フェンスの閉じる行**: サーバは、閉じたコードフェンスを `isClosingFence`（`internal/writer/markdown.go:177-185`）で判定する。B-3 の閉じる行は、これと同じ形と定められている。拡張の判定は TypeScript で別に書く。両者が同じ形であることは、要件 B-3 の規則を確かめるテストで保つ（7.1）。
+-   **文字組み**: ルートの文字の大きさは 14px（`extension/static/theme.css:7`）で、日本語の UI の `body` の行の高さは 1.7（`extension/static/theme.css:233-235`）である。ページの幅は `body` の `max-width: 48rem`（672px。`extension/static/viewer.css:5-9`）である。記事の部分は、これと別に文字の大きさ・行の高さ・幅を決める（3.5）。
+
+## 2. システム構成 (System Structure)
+
+### 2.1. 実行時の配置
+
+ビューアのページの中の部品と、描画に関わる呼び出しを示す。矢印 A → B は「A が B を呼ぶ、または B を読む」を表す。
+
+```mermaid
+flowchart TD
+    classDef data fill:#e6f7ff,stroke:#1f77b4,stroke-width:1px,color:#0b3d91;
+    classDef process fill:#fff1e6,stroke:#ff7f0e,stroke-width:1px,color:#8a3e00;
+    classDef enhanced fill:#e8f5e8,stroke:#2e8b57,stroke-width:2px,color:#006400;
+    classDef newpkg fill:#ffe8f5,stroke:#d946ef,stroke-width:2px,color:#701a75;
+
+    APP["viewerApp.ts"]
+    RV["renderViewer<br>(src/ui/renderViewer.ts)"]
+    DRAW["drawArticleBody<br>(src/ui/articleBody.ts)"]
+    RAB["renderArticleBody<br>(src/ui/articleBody.ts)"]
+    PARSE["parseArticleMarkdown<br>(src/core/articleMarkdown.ts)"]
+    URLAPI["URL<br>(ブラウザの URL Standard の実装)"]
+    CSS[("viewer.css・theme.css")]
+    ART[("#article の要素")]
+
+    APP -->|"状態の取得の応答ごと"| RV
+    RV -->|"記事があるとき"| DRAW
+    DRAW -->|"Markdown か子が変わったときだけ"| RAB
+    RAB --> PARSE
+    PARSE -->|"自動リンクの候補ごと"| URLAPI
+    RAB -->|"子を置き換える"| ART
+    CSS -->|"文字組み"| ART
+
+    class CSS,ART data
+    class APP,URLAPI process
+    class RV,RAB enhanced
+    class PARSE,DRAW newpkg
+
+    subgraph Legend["Legend"]
+        L1[("値・スタイル")]
+        L2["既存で変えない部品"]
+        L3["変える部品"]
+        L4["新しい部品"]
+    end
+    class L1 data
+    class L2 process
+    class L3 enhanced
+    class L4 newpkg
+```
+
+`viewerApp.ts` から `renderViewer` への呼び出しは、今のままである。変わるのは、`renderViewer` が本文を描くところから下だけである。
+
+### 2.2. ディレクトリ構成とモジュールの依存関係
+
+矢印 A → B は「A が B を import する」を表す。
+
+```mermaid
+flowchart LR
+    classDef process fill:#fff1e6,stroke:#ff7f0e,stroke-width:1px,color:#8a3e00;
+    classDef enhanced fill:#e8f5e8,stroke:#2e8b57,stroke-width:2px,color:#006400;
+    classDef newpkg fill:#ffe8f5,stroke:#d946ef,stroke-width:2px,color:#701a75;
+
+    RV["src/ui/renderViewer.ts"]
+    AB["src/ui/articleBody.ts"]
+    AM["src/core/articleMarkdown.ts"]
+    TYP["types/core-url.d.ts"]
+
+    RV --> AB
+    AB --> AM
+    AM -.->|"型の宣言を読む<br>(tsconfig.core.json)"| TYP
+
+    class RV,AB,TYP enhanced
+    class AM newpkg
+
+    subgraph Legend["Legend"]
+        L2["既存で変えない部品"]
+        L3["変える部品"]
+        L4["新しい部品"]
+    end
+    class L2 process
+    class L3 enhanced
+    class L4 newpkg
+```
+
+破線の矢印は import ではなく、`tsconfig.core.json` が `src/core/` を検査するときに読む型の宣言を表す。`src/core/articleMarkdown.ts` は、ほかの拡張のファイルを import しない。npm のパッケージも使わない（CLAUDE.md「Dependencies」、要件 4.5）。
+
+### 2.3. データの流れ
+
+完了した記事の状態の取得の応答が届いてから、記事の要素ができるまでを示す。
+
+```mermaid
+sequenceDiagram
+    participant APP as viewerApp.ts
+    participant RV as renderViewer
+    participant DRAW as drawArticleBody
+    participant RAB as renderArticleBody
+    participant P as parseArticleMarkdown
+
+    APP->>RV: renderViewer(elements, view, locale)
+    RV->>DRAW: drawArticleBody(elements.article, article.markdown)
+    alt 前回と同じ Markdown で、子のノードも前回のまま
+        DRAW-->>RV: 何もしない
+    else それ以外
+        DRAW->>RAB: renderArticleBody(doc, markdown)
+        RAB->>P: parseArticleMarkdown(markdown)
+        P-->>RAB: ArticleBlock[]
+        RAB-->>DRAW: div.article-body
+        DRAW->>DRAW: 子を置き換え、Markdown と子を覚える
+        DRAW-->>RV: 戻る
+    end
+```
+
+## 3. コンポーネント設計 (Component Design)
+
+### 3.1. 記事の木（F-001・F-002・F-004、AC-20、H-04）
+
+解釈の関数が返す型を示す。型の名前と形は、実装で細部を変えてよい。ただし、次の 3 点は変えない。インラインの種類が F-004 の一覧に閉じていること、記事の内容から値を決めるのがリンク先（`LinkUrl`）と番号付きリストの開始番号（`start`）だけであること、強い強調と強調の中身が文字だけであること（入れ子にしない。I-3・I-4 の「入れ子」）。
+
+```ts
+// src/core/articleMarkdown.ts
+
+declare const linkUrlBrand: unique symbol;
+
+/** A URL string that meets every link condition. Only parseArticleMarkdown creates it. */
+export type LinkUrl = string & { readonly [linkUrlBrand]: true };
+
+/** One piece of a line's text. */
+export type ArticleInline =
+  | { readonly kind: "text"; readonly text: string }
+  | { readonly kind: "strong"; readonly text: string }
+  | { readonly kind: "emphasis"; readonly text: string }
+  | { readonly kind: "code"; readonly text: string }
+  | { readonly kind: "link"; readonly url: LinkUrl };
+
+/** One source line of a heading, a paragraph or a list item, as inline pieces. */
+export type ArticleLine = readonly ArticleInline[];
+
+/** The lines of one list item: its first line and its continuation lines. */
+export type ArticleItem = readonly ArticleLine[];
+
+export type ArticleBlock =
+  | { readonly kind: "heading"; readonly level: "title" | "section"; readonly line: ArticleLine }
+  | { readonly kind: "paragraph"; readonly lines: readonly ArticleLine[] }
+  | { readonly kind: "bulletList"; readonly items: readonly ArticleItem[] }
+  | { readonly kind: "orderedList"; readonly start: number; readonly items: readonly ArticleItem[] }
+  | { readonly kind: "codeBlock"; readonly lines: readonly string[] };
+
+/** Parses the display Markdown by the rules of requirements 3.2. Never throws. */
+export function parseArticleMarkdown(markdown: string): readonly ArticleBlock[];
+```
+
+-   **見出しの段**: 記事の木は、見出しの段を記法の意味（`title` は B-2 の `#`、`section` は `##`）で持つ。表示の段（レベル 2・レベル 3）は組み立てが決める（3.2）。ビューアのページの見出しの構造は、組み立ての関心だからである。
+-   **文字の部分**: `text`・`strong`・`emphasis` の文字列は、I-1 で表示しない `\` を除いた後の文字列である。`code` の文字列は、コードスパンの間の文字列そのままである。`text` には、規則に当たらなかった記号（開けなかった並び、リンクにならなかった `<`、扱わない記法、HTML のタグ、文字参照）がそのまま入る。
+-   **行**: 見出し・段落・項目の行は、表示用の Markdown の 1 行に当たる。B-2・B-4・B-5 のブロックの記号を除き、残りの空白は詰めずに持つ（要件 3.2 の「段落・項目・見出しの文字列の中の空白」）。コードブロックの行は、開く行と閉じる行の間の行を、インラインの規則を当てはめずにそのまま持つ（B-3）。
+-   **番号付きリストの開始番号**: 最初の項目の 1〜9 桁の数字の、数の値である（B-5）。最大は 999,999,999 で、HTML の `start` 属性の値の範囲（符号付き 32 ビット整数）に収まる。先頭に 0 のある数字（例: `007.`）も、数の値（7）で持つ。
+-   **リストを分ける記号と区切りの文字**: 箇条書きの記号（`-`・`*`・`+`）と番号付きリストの区切りの文字（`.`・`)`）は、記事の木に持たない。解釈の関数は、記号か区切りの文字が変わったところで新しいリストを始め（B-4・B-5）、組み立てはリストの境目だけを使う。表示の記号は CSS の既定（`ul` の黒丸、`ol` の数字）であり、記事の記号を表示しないからである。
+-   **AC-21 の形**: 記事の木の文字列を、ブロックの順、行の順に、行の間に U+000A を 1 つ入れてつなげたものが、AC-21 の「描画した記事の文字列」になる。ブロックの間には何も入れない。
+
+### 3.2. 組み立て（F-001〜F-005、AC-01〜AC-07・AC-16・AC-17・AC-20・AC-24・AC-25・AC-28、H-04・H-07）
+
+```ts
+// src/ui/articleBody.ts
+
+/** Builds the article element from the display Markdown, through parseArticleMarkdown alone. */
+export function renderArticleBody(doc: Document, markdown: string): HTMLElement;
+
+/** Draws the article into container, unless the same Markdown is already drawn there. */
+export function drawArticleBody(container: HTMLElement, markdown: string): void;
+```
+
+`renderArticleBody` は、記事の木の種類ごとに、次の要素だけを作る。要素は `doc.createElement` で作り、文字は `doc.createTextNode` か `textContent` で入れる。属性は下の表の名前だけを設定する。
+
+| 記事の木 | 作る要素 | 属性 |
+|---|---|---|
+| （記事全体） | `div` | `class="article-body"`・`dir="auto"`・`lang="ja"`（すべて固定） |
+| 見出し（`title`） | `h2` | なし |
+| 見出し（`section`） | `h3` | なし |
+| 段落 | `p` | なし |
+| 箇条書き | `ul` と、項目ごとの `li` | なし |
+| 番号付きリスト | `ol` と、項目ごとの `li` | `start`（記事の木の開始番号。数の値から設定する） |
+| コードブロック | `pre` と、その中の 1 つの `code` | なし |
+| 文字 | 文字のノード | ― |
+| 強い強調 | `strong` | なし |
+| 強調 | `em` | なし |
+| コードスパン | `code` | なし |
+| リンク | `a` | `href`（`LinkUrl`）・`target="_blank"`・`rel="noopener noreferrer"`・`dir="ltr"`（`href` のほかは固定） |
+
+-   **要素と属性の一覧との対応（AC-20）**: 表の要素は、F-004 の一覧（見出し・段落・箇条書き・番号付きリスト・項目・強い強調・強調・コードスパン・コードブロック・リンク・これらを入れる要素）に収まる。F-004 の「改行」の要素は使わない（1.2）。記事の内容から値を決める属性は `href` と `start` だけである。`class`・`dir`・`lang`・`target`・`rel` は、記事の内容によらない固定の値である。ほかの属性を設定する箇所はない。H-07 が想定した「一覧にない要素や属性」は要らないので、要件と ADR-0017 は変えない。
+-   **リンクの文字列（F-003、AC-13・AC-16・AC-17・AC-26）**: `a` の文字は、`LinkUrl` の文字列を `textContent` で入れる。表示する文字列とリンク先は同じ文字列である。`dir="ltr"` を付けると、HTML の既定のスタイルが `unicode-bidi: isolate` をかける。そのため、リンクの文字は周りの文字の方向から切り離され、左から右に並ぶ（根拠と確かめ方は 3.8）。リンクの名前は、`a` の文字（URL の文字列）になる。
+-   **行と改行（AC-02・AC-05・AC-21・AC-28）**: 段落と項目は、行のインラインを順に置き、行の間に U+000A の文字のノードを 1 つ置く。コードブロックは、行を U+000A でつないだ文字列を `code` の `textContent` に入れる。見出しは 1 行である。CSS の `white-space: pre-wrap` が、改行と、行頭と連続した空白を表示する（3.5）。
+-   **ブロックの間の空白**: ブロックの要素の間には文字のノードを置かない。`pre-wrap` の要素の外に空白の文字を出さないためで、AC-21 の「ブロックの間の改行と空行」を除く形にもなる。
+-   **記事の言語（AC-24）**: `lang="ja"` は記事の要素に付け、ページの `html` の `lang`（UI の表示言語。`extension/src/ui/pageLocale.ts:10-12`）は変えない。
+-   **見出しの構造（AC-25）**: 記事の見出しは `h2`・`h3` だけで、動画のセクションの `h1`（`extension/static/viewer.html:11`）の後ろに並ぶ。
+
+### 3.3. リンクの判定（F-003、AC-13〜AC-15、H-02）
+
+解釈の関数は、I-5 で見つけた `<https://…>` の URL の文字列ごとに、次の 4 つをすべて満たすときだけ `link` のインラインを作る。満たさないときは、要件 I-5 のとおり `<` を文字として、走査を `<` の後ろから続ける。
+
+| 要件 F-003 の条件 | 判定に使う値 |
+|---|---|
+| URL として解釈できる | `new URL(文字列)` が例外を投げない |
+| スキームが `https` で、文字列が小文字の `https://` で始まる | `protocol === "https:"` と、文字列の先頭 |
+| ホストが空でなく、ユーザー名とパスワードを持たない | `hostname !== ""`・`username === ""`・`password === ""` |
+| 直列化と 1 文字も違わない | `href === 文字列` |
+
+-   **`href` の宣言**: `extension/types/core-url.d.ts` の `URL` に `readonly href: string` を加える。`src/core/` は、このファイルで宣言したメンバだけを使える（`extension/types/core-url.d.ts:1-6`）。
+-   **判定と遷移が同じ解析器を使う**: ブラウザでは、判定の `new URL` も、`a` の `href` の解析も、同じ URL の実装が行う。判定で `href === 文字列` を確かめているので、ブラウザがリンクを開くときに解析した URL は、表示している文字列と同じになる。node のテストとブラウザで解析が異なっても、ブラウザの中では、表示とリンク先が食い違うリンクは作られない。異なりうるのは、ある URL をリンクにするかどうかの判定だけである。その差は 3.8 の手動の確認で調べる。
+-   **出典の URL（H-02）**: 出典の行の URL（`https://www.youtube.com/watch?v=<動画 ID>`。`internal/transcript/video_id.go:68`）が 4 つの条件を満たし、リンクになることを、node のテストで確かめる（7.1）。動画 ID は 11 文字の `[A-Za-z0-9_-]` なので、直列化で変わる文字を含まない。
+-   **例外**: `new URL` が投げた例外は、解釈の関数の中で受け止め、「リンクにしない」とする。解釈の関数は、ほかに例外を投げる箇所を持たない（4.2）。
+
+### 3.4. 描き直しの判定（F-006、AC-32、H-05）
+
+`drawArticleBody(container, markdown)` は、最後に描いた表示用の Markdown と、描いた子のノードを、`container` を鍵とする `WeakMap` に覚える。次の 2 つが両方成り立つときは、何もしない。
+
+-   覚えた Markdown と、今回の `markdown` が同じ文字列である。
+-   `container` の子のノードが、覚えたノードと同じで、同じ数である。
+
+それ以外のときは、`renderArticleBody` で作った要素で `container` の子を置き換え、Markdown と子を覚え直す。
+
+-   2 つ目の条件は、記事を隠すときに `renderViewer` が子を消す場合（`extension/src/ui/renderViewer.ts:308-317`）のためにある。消した後に同じ記事がまた届いたら、描き直す。`drawStateOnChange` と同じ考え方である（`extension/src/ui/renderJob.ts:376-403`）。
+-   覚えた Markdown は、拡張のメモリにだけあり、DOM の属性には書かない。記事の内容を属性の値にしないためである（AC-20）。
+-   `renderViewer` の `textContent` の比較（`extension/src/ui/renderViewer.ts:319-321`）は、`drawArticleBody` の呼び出しに置き換える。記事を隠す処理（`:308-317`）は、今のままである。
+
+### 3.5. 文字組みと CSS（F-005、AC-22〜AC-29、H-06）
+
+具体的な値は次のとおりとする。実装で微調整する場合も、括弧の中の要件の範囲は保つ。
+
+| 対象 | 値 | 要件 |
+|---|---|---|
+| 記事の文字の大きさ（段落・項目） | 16px（ルートの 14px によらない固定の値） | AC-23（16 CSS px 以上） |
+| 記事の行の高さ（段落・項目） | 1.8 | AC-23（1.7〜2.0 倍） |
+| 記事の 1 行の最大の幅 | 720px（16px の 45 文字分）。ページの `body` の `max-width` を、記事の枠と内側の余白を含めて、この幅が取れる値に広げる | AC-22（700〜800 CSS px） |
+| 幅の狭いタブ | 記事の要素と、その中のブロックに `overflow-wrap: anywhere` をかける。長い URL や記号の並びも折り返す | AC-22（320 CSS px で横のスクロールなし） |
+| 段落・項目・見出し・コードブロックの空白 | `white-space: pre-wrap` | AC-02・AC-05・AC-06 |
+| 行ごとの文字の方向 | 段落・項目・見出し・コードブロックに `unicode-bidi: plaintext` | AC-28 |
+| コードスパンとコードブロックの書体 | `ui-monospace, monospace`。文字の大きさは周りと同じにする | AC-06・AC-09・AC-23 |
+| コードブロックの長い行 | ブロックの中で折り返す（`pre-wrap` と `overflow-wrap: anywhere`） | AC-22（1.2 の決定） |
+| コードスパンとコードブロックの背景 | 新しい色の変数 `--code-bg`（明るいテーマと暗いテーマの両方で定める） | AC-27 |
+| リンク | 色は今の `--link`、下線を CSS で明示する | AC-27 |
+| フォーカス | 今の共通の `:focus-visible`（`extension/static/theme.css:121-124`）のまま | AC-26 |
+| 記事の書体 | 日本語の書体の候補（`:root:lang(ja)` と同じ並び）を、記事の要素に指定する | AC-24 |
+| 見出しの大きさと余白、リストの字下げ、ブロックの間の余白 | 実装で決める | ― |
+
+-   **固定の文字の大きさ**: 書体を `monospace` だけにすると、ブラウザは等幅の既定の大きさ（13px）を使う。そのため、書体の並びは、今のリクエスト ID の表示（`extension/static/theme.css:127-130`）と同じ `ui-monospace, monospace` にする。
+-   **日本語の書体**: 今の日本語の書体の指定は `:root:lang(ja)` にあり、ページの言語が日本語のときだけ効く（`extension/static/theme.css:228-231`）。英語の UI でも記事は日本語なので、記事の要素に同じ候補を指定する。
+-   **コントラスト（AC-27）**: 色の組と最小のコントラストは、今の `contrastPairs` の表（`extension/test/style.test.ts:252-366`）に加え、両方のテーマで確かめる。加える組は次の 2 つである。
+    -   記事のリンクの文字（`--link`）と背景（`--bg`）
+    -   コードの文字（`--text`）とコードの背景（`--code-bg`）
+
+    リンクはコードの中に作られない（I-2・B-3）ので、コードの背景の上にフォーカスの輪郭が出ることはなく、その組は加えない。
+-   **リンクの大きさ（AC-29）**: 記事のリンクは文の中の対象なので、44×44 CSS px の大きさを求めない。今のテストの「押せる要素は 44 CSS px 以上」（`extension/test/style.test.ts:730-747`）は、選択子の一覧（`.action-button`・`#video-link`）だけを確かめる。記事のリンクは、この一覧に加えない。
+-   **ページの幅**: `body` の `max-width` を広げると、動画のセクションと操作の列も同じ幅に広がる。読む幅は記事が決めるので、受け入れる。
+
+### 3.6. 解釈の関数の時間（4.1、AC-33、H-01・H-03）
+
+設計は、解釈の時間に次の要求を課す。具体的な走査の手順は実装が決める。
+
+-   **行の長さに比例する**: 1 行の解釈にかかる時間は、その行の長さにほぼ比例する。閉じる記号（I-2・I-3・I-4）と `>`（I-5）を探すとき、同じ行の同じ範囲を、開く記号ごとに探し直さない。閉じない記号の多い行（例: `**a` の繰り返し）でも、時間は行の長さの 2 乗にならない。
+-   **ブロックも 1 回の走査**: ブロックの規則は、行を先頭から 1 回たどって決める。B-3 の「閉じる行がないときは、開いた行と以降の行をほかの規則で解釈する」も、閉じる行の有無を行ごとに先まで探し直さない形で実装する。
+-   **規則を足さない（H-03）**: 走査は、要件 3.2 の順序（I-1・I-2・I-5・I-3・I-4）、並びの扱い、開けなかった並びの扱いを、そのまま実装する。高速化のための場合分けは、規則と違う結果を出してはならない。規則の境目の入力（AC の例と H-03 の例）を、テストで固定する（7.1）。
+-   **再帰しない**: リストは 1 階層で、強調は入れ子にしないので、解釈と組み立ては再帰を使わずに書ける。長い入力で呼び出しの深さが増えることはない。
+
+### 3.7. 方針の変更と、更新するテストと文書
+
+本タスクの設計は、次の既存の方針を変える。要件 1 章「方針の変更」で決めたことを、設計の中の場所と、更新するテストに結び付けて示す。
+
+| 元の方針と、その場所 | 変える理由 | 更新するテスト |
+|---|---|---|
+| ビューアは記事を `textContent` だけで文字として表示し、Markdown を解釈せず、リンクにしない（[security.md](../../dev/security.md) §8.1「記事を untrusted テキストとして表示する」、[0050 要件](../0050_viewer_tab/01_requirements.md) F-005・AC-25、[0050 設計書](../0050_viewer_tab/02_architecture.md) 3.12） | 記事を読みやすく表示することが issue #504 の目的である（要件 1 章）。HTML を解釈しないこと、lint の禁止、既定の CSP は変えない | `extension/test/articleBody.test.ts` の全体（子の要素がない、`textContent` が Markdown と一致する、属性が `class` と `dir` だけ）。`extension/test/renderViewer.test.ts:240-253`・`:255-268`（`.article-body` の `textContent` が `article.markdown` と一致する）。`extension/test/style.test.ts:748-757`（`.article-body` に `pre-wrap` と `plaintext` がある） |
+| 本文の描き直しは、`#article` の `textContent` と Markdown の比較で決める（`extension/src/ui/renderViewer.ts:319-321`） | 描画すると `textContent` が Markdown と一致しなくなる（H-05、3.4） | `extension/test/renderViewer.test.ts:705-727`（同じ文字なら要素を保ち、違えば置き換える。置き換えた後の `textContent` を `# Another` と比べる） |
+| 呼び出し側の文字列の中身を調べて処理を選ばない（CLAUDE.md「Declare, don't infer」） | 表示用の Markdown は、拡張が型で表せない外部の値で、描画することが issue の目的である（要件 1 章） | なし（CLAUDE.md の例外の一覧に書き加える。H-08） |
+
+-   **テストを直すか削除するか**: 上のテストは、本書の AC に合わせて書き直す。テストを削除して別のファイルの新しいテストに移す場合は、削除を 1 つのコミットにし、`make ext-coverage-compare` で比べる（CLAUDE.md「Deleting a test is a claim that must be checked」）。どちらにするかは実装計画で決める。
+-   **更新する文書（H-09）**: 要件 2.2 の一覧のとおりである。
+    -   `docs/dev/security.md` §6 のチャンネル名の行の残余のリスク（`docs/dev/security.md:76`）、§8.1「記事を untrusted テキストとして表示する」（`:117`）、§8.2「返す記事は untrusted なテキスト」（`:140`）を、要件の規則と本書の構成に合わせて書き換える。
+    -   `CLAUDE.md`「Declare, don't infer」に、例外を 1 つ加える（H-08）。範囲は `extension/src/core/articleMarkdown.ts` の `parseArticleMarkdown` で、表示用の Markdown を要件 3.2 の規則で解釈することだけである。理由は、表示用の Markdown が LLM の出力とチャンネル名から成り、拡張が型で表せない外部の値であること、描画することが issue の目的であることである。境界は、どの規則にも当たらない入力を広く解釈せず、文字として表示することで、組み立て（`renderArticleBody`）は記事の木の種類だけで要素を選ぶ。ほかの例外（`resolveLocale` など）と同じ形の英語で書く。
+    -   `README.md:627` の「Markdown を解釈せずに文字のまま表示し」を書き換え、`/mktrans` で `README.en.md` に反映する。README の変更は、拡張の node のテスト（`metadataDocs.test.ts` など）が読むので、`make ext-test` を実行する（CLAUDE.md「Development Notes」）。
+    -   ADR-0017 は変えない（1.2）。
+
+### 3.8. 確かめていないブラウザの振る舞い（H-01・H-02・H-07）
+
+実装の最初のフェーズで、試作を Chrome（`minimum_chrome_version` の 110 以降。`extension/static/manifest.json:8`）に読み込み、手動で確かめる（1.2）。結果は実装計画に記録する。
+
+| 振る舞い | 設計の根拠 | 確かめ方 | 崩れた場合の代わり |
+|---|---|---|---|
+| `pre-wrap` の段落の中で、`strong`・`a` などの行内の要素をはさんでも、U+000A の改行ごとに文字の方向が決まる（AC-28） | 保たれた改行は、双方向のアルゴリズムで段落の区切り（種別 B）になる。`unicode-bidi: plaintext` は、区切りごとの段落の方向をその段落の文字から決める（CSS Writing Modes 3 §2.4、UAX #9 P1）。行内の要素は、区切りの位置を変えない | 1 行目に右から左の文字と U+202E を置き、2 行目に強調とリンクを置いた段落と項目を描き、2 行目の並びが変わらないことを見る | 各行を、記事の内容によらない固定の要素（例: `display: block` の `span`）で包む。F-004 の一覧に要素を加えることになるので、要件と ADR-0017 を直す（H-07） |
+| リンクの `dir="ltr"` で、直前の U+202E・U+202B・U+2067 や右から左の文字があっても、URL の文字が左から右に並ぶ（AC-17） | HTML の既定のスタイルは、`dir` を持つ要素に `unicode-bidi: isolate` をかける。分離した中身は、外の埋め込みと上書き（U+202E など）の影響を受けない（UAX #9 X5a〜X5c） | AC-17 の制御文字のそれぞれをリンクの直前に置き、URL の文字の順を見る | リンクに CSS の `direction: ltr` と `unicode-bidi: isolate-override` をかける。固定の CSS で、要素と属性は増えない |
+| Chrome の `URL` が、AC-13・AC-14 の例で node と同じ判定を出す（H-02） | Chrome の `URL` は URL Standard の実装で、`https` のような特別なスキームの扱いは node（同じ標準の実装）とそろう。判定と遷移は同じ解析器なので、差があっても表示とリンク先は食い違わない（3.3） | 試作のページで、AC-13・AC-14 の例と出典の URL を描き、node のテストと同じものだけがリンクになることを見る | 差のあった形を、両方で同じ判定になる追加の条件（例えば URL の文字列の文字の種類の制限）で、リンクにしない側に寄せる。F-003 は「満たすものだけ」をリンクにすることを求めるので、条件を足す向きの変更は要件の範囲に収まる |
+| 512 KiB の表示用の Markdown の描画が、DOM の組み立てを含めて 1 秒以内に終わる（AC-33） | 解釈は行の長さに比例する（3.6）。組み立ては、文書に入れていない `div` の中で要素を作り、最後に 1 回だけ `#article` の子を置き換える | 7.2 の入力を試作で描き、`performance.now()` で解釈と組み立ての時間を分けて測る | 組み立てが上限を超える場合は、隣り合う文字のノードを 1 つにまとめて、ノードの数を減らす。それでも超える場合は、要件 AC-33 の見直しを人に諮る |
+
+## 4. エラーハンドリング設計 (Error Handling Design)
+
+### 4.1. エラーの表し方
+
+描画は失敗の結果を持たない（要件 4.3）。解釈の関数と組み立ての関数は、エラーの型も sentinel error も持たない。規則に合わない入力は、エラーではなく文字として表示する（F-004）。
+
+### 4.2. 失敗時の扱いの原則
+
+-   **例外を投げない**: 解釈の関数は、どの文字列にも記事の木を返す。例外になりうる外部の呼び出しは `new URL` だけで、その例外は「リンクにしない」として関数の中で受け止める（3.3）。組み立ては記事の木の種類の `switch` だけで、`default` の場合を持たない（型の検査が種類の漏れを知らせる）。
+-   **受け止める範囲を広げない**: `renderArticleBody` の全体を `try` で包み、例外のときに文字のまま表示する、といった代わりの経路は作らない。代わりの経路は欠陥を隠し、AC-20 を満たさない描画の経路を増やすからである。例外を投げないことは、ランダムな入力のテストで確かめる（7.3）。
+-   **副作用の契約**: 描画の部品は、DOM の `#article` の子の置き換えのほかに副作用を持たない。ホストへの送信、保存、クリップボードへの書き込み、ログの出力、ブラウザの API の呼び出しをしない。リンクを開くのは、利用者がリンクを押したときのブラウザの既定の動作だけである。
+
+### 4.3. 開発者向けのログ
+
+描画は新しいログを書かない（要件 4.2）。記事の値と URL の値をログに出さない今の方針（security.md §8.1「開発者向けのログに値を出さない」）は変わらない。
+
+## 5. セキュリティ考慮事項 (Security Considerations)
+
+本タスクは信頼できないテキスト（LLM が生成した記事と、チャンネル名）をビューアに描画するので、[security.md](../../dev/security.md) §6・§8.1 を適用する。
+
+### 5.1. 脅威モデル
+
+攻撃者が記事の中身を操作できる経路と、ビューアの防御を示す。矢印 A → B は「A から B へ値が渡る」を表す。
+
+```mermaid
+flowchart LR
+    classDef data fill:#e6f7ff,stroke:#1f77b4,stroke-width:1px,color:#0b3d91;
+    classDef process fill:#fff1e6,stroke:#ff7f0e,stroke-width:1px,color:#8a3e00;
+    classDef enhanced fill:#e8f5e8,stroke:#2e8b57,stroke-width:2px,color:#006400;
+    classDef newpkg fill:#ffe8f5,stroke:#d946ef,stroke-width:2px,color:#701a75;
+    classDef problem fill:#ffe6e6,stroke:#d62728,stroke-width:2px,color:#7b0000;
+
+    ATK["攻撃者<br>(字幕・動画メタデータ・チャンネル名)"]
+    LLM["LLM の生成"]
+    MD[("表示用の Markdown")]
+    PARSE["parseArticleMarkdown"]
+    BUILD["renderArticleBody"]
+    DOMV[("記事の要素")]
+    USER["利用者"]
+    SITE["リンク先のサイト"]
+
+    ATK -->|"プロンプトインジェクション"| LLM --> MD
+    ATK -->|"チャンネル名の行"| MD
+    MD --> PARSE --> BUILD --> DOMV
+    DOMV -->|"押す"| USER
+    USER -->|"新しいタブ<br>参照元なし・opener なし"| SITE
+
+    class ATK problem
+    class MD,DOMV data
+    class LLM,USER,SITE process
+    class BUILD enhanced
+    class PARSE newpkg
+
+    subgraph Legend["Legend"]
+        L0["攻撃者"]
+        L1[("値")]
+        L2["既存の部品・外部"]
+        L3["変える部品"]
+        L4["新しい部品"]
+    end
+    class L0 problem
+    class L1 data
+    class L2 process
+    class L3 enhanced
+    class L4 newpkg
+```
+
+| 脅威 | 防御 | AC |
+|---|---|---|
+| 記事の中の HTML でスクリプトを動かし、`nativeMessaging` でホストへ任意の送信をする | 組み立ては HTML を解釈する API を使わない（lint で禁止。`extension/eslint.config.js:177-209`）。タグは記事の木の `text` に入り、文字のノードになる。拡張のページの既定の CSP がインラインのスクリプトを禁じる | AC-18 |
+| 記事の内容から属性の名前や `on…` の属性を作る | 組み立てが設定する属性は 3.2 の表の固定の名前だけである。lint は `setAttribute` で `on` と `srcdoc` で始まる名前を設定することも禁じる（`extension/eslint.config.js:195-198`） | AC-20 |
+| `javascript:` などのリンクで、ビューアの権限でコードを動かす | リンクは `LinkUrl` からだけ作り、`LinkUrl` は `https:` で直列化と一致する URL だけである（3.3） | AC-14 |
+| 表示する文字とリンク先が違うリンクで利用者を欺く | `[文字](URL)` をリンクにしない。表示する文字列とリンク先は同じ `LinkUrl` で、直列化と一致するので、ブラウザが開く URL も同じ文字列になる（3.3） | AC-13〜AC-15 |
+| 双方向の制御文字で、リンクの文字の順やほかの行の表示を入れ替える | リンクを `dir="ltr"` で分離する。行ごとの方向を `unicode-bidi: plaintext` で決める（3.2・3.5・3.8） | AC-17・AC-28 |
+| 開いたページがビューアのウィンドウを操作する、参照元から記事の URL を得る | `target="_blank"` と `rel="noopener noreferrer"`。ビューアの元動画へのリンクと同じ扱いである（`extension/static/viewer.html:13`） | AC-16 |
+| 閉じない記号の多い入力で、描画を止める | 解釈の時間を行の長さに比例させる（3.6）。上限は応答の上限（512 KiB。`extension/src/core/exchange.ts:93`）で決まる | AC-33 |
+
+### 5.2. 信頼できない入力の境界
+
+要件 3.4 の表のとおりである。設計で加える境界はない。
+
+-   **表示用の Markdown**: 受け取るのは、状態の取得の応答の検査（0050）を通った空でない文字列だけで、`drawArticleBody` の引数になる。中身による拒否はない。
+-   **URL の文字列**: 解釈の関数の中で、3.3 の判定を通ったものだけが `LinkUrl` になる。`LinkUrl` を作る型の主張は、lint の規則で `src/core/articleMarkdown.ts` に限る（1.1・7.3）。
+
+### 5.3. 残余のリスク
+
+要件 4.2 の残余のリスクのとおりで、設計で加えるものはない。`https` の自動リンクで任意のサイトを指すこと、チャンネル名の行の途中の記法が描画されること、チャンネル名の行の途中の `\` が表示されないことである。これらは security.md §6・§8.1 に書く（3.7）。
+
+### 5.4. 権限
+
+manifest の権限と CSP は変えない（要件 4.2、[ADR-0010](../../dev/adr/0010-extension-stores-nothing.md)）。リンクを新しいタブで開くのは、`a` の `target="_blank"` によるブラウザの既定の動作で、`tabs` などの権限を使わない。
+
+## 6. 処理フロー詳細 (Processing Flow Details)
+
+### 6.1. ブロックの解釈
+
+1 行ごとのブロックの規則の当てはめを示す。ここに示すのは要件 3.2 の規則の順序で、走査の手順ではない。矢印は「次に試す」を表す。
+
+```mermaid
+flowchart TD
+    classDef process fill:#fff1e6,stroke:#ff7f0e,stroke-width:1px,color:#8a3e00;
+    classDef enhanced fill:#e8f5e8,stroke:#2e8b57,stroke-width:2px,color:#006400;
+
+    START(["次の行"])
+    INCODE{"開いた<br>コードブロックの中か"}
+    CLOSE{"閉じる行か<br>(B-3)"}
+    CODELINE["コードブロックの行"]
+    ENDCODE["コードブロックを閉じる"]
+    B1{"空行か<br>(B-1)"}
+    B2{"見出しか<br>(B-2)"}
+    B3{"閉じる行のある<br>開く行か (B-3)"}
+    B45{"項目の行か<br>(B-4・B-5)"}
+    B6{"項目の続きか<br>(B-6)"}
+    B7["段落の行<br>(B-7)"]
+    BLOCK["見出し・コードブロック・<br>項目・項目の続き・区切り"]
+
+    START --> INCODE
+    INCODE -->|"はい"| CLOSE
+    CLOSE -->|"はい"| ENDCODE
+    CLOSE -->|"いいえ"| CODELINE
+    INCODE -->|"いいえ"| B1
+    B1 -->|"はい"| BLOCK
+    B1 -->|"いいえ"| B2
+    B2 -->|"はい"| BLOCK
+    B2 -->|"いいえ"| B3
+    B3 -->|"はい"| BLOCK
+    B3 -->|"いいえ"| B45
+    B45 -->|"はい"| BLOCK
+    B45 -->|"いいえ"| B6
+    B6 -->|"はい"| BLOCK
+    B6 -->|"いいえ"| B7
+
+    class INCODE,CLOSE,B1,B2,B3,B45,B6 enhanced
+    class START,CODELINE,ENDCODE,B7,BLOCK process
+
+    subgraph Legend["Legend"]
+        L1["判定"]
+        L2["結果"]
+    end
+    class L1 enhanced
+    class L2 process
+```
+
+-   行は LF だけで分け、CR は文字として残す（要件 3.2「行」）。
+-   B-3 の「閉じる行のある開く行」は、閉じる行がないときは開く行として扱わないことを表す（要件 B-3）。3.6 の要求のとおり、閉じる行の有無を行ごとに先まで探し直さずに決める。
+
+### 6.2. インラインの解釈
+
+1 行の中の各位置で試す規則の順序を示す。矢印は「当たらなければ次に試す」を表す。
+
+```mermaid
+flowchart LR
+    classDef process fill:#fff1e6,stroke:#ff7f0e,stroke-width:1px,color:#8a3e00;
+    classDef enhanced fill:#e8f5e8,stroke:#2e8b57,stroke-width:2px,color:#006400;
+
+    POS(["行の中の位置"])
+    I1{"I-1<br>エスケープ"}
+    I2{"I-2<br>コードスパン"}
+    I5{"I-5<br>自動リンク"}
+    I3{"I-3<br>強い強調"}
+    I4{"I-4<br>強調"}
+    TXT["文字"]
+
+    POS --> I1 -->|"いいえ"| I2 -->|"いいえ"| I5 -->|"いいえ"| I3 -->|"いいえ"| I4 -->|"いいえ"| TXT
+
+    class I1,I2,I5,I3,I4 enhanced
+    class POS,TXT process
+
+    subgraph Legend["Legend"]
+        L1["規則の判定"]
+        L2["位置と結果"]
+    end
+    class L1 enhanced
+    class L2 process
+```
+
+当たった規則がその部分を処理し、走査はその後ろから続く。I-5 で URL が 3.3 の判定を通らないときは、`<` 1 文字を文字にして、その後ろから続ける。強い強調と強調の中では I-1 だけを当てはめる（要件 3.2「入れ子」）。
+
+## 7. テスト戦略 (Test Strategy)
+
+### 7.1. ユニットテスト
+
+テストは `node --test` で動く（`extension/package.json` の `test`）。npm のパッケージは加えない。
+
+-   **解釈の関数（新しい `extension/test/articleMarkdown.test.ts`）**: `parseArticleMarkdown` の返す記事の木を、期待する木と比べる。DOM は使わない。
+    -   AC-01〜AC-15・AC-18・AC-19 の例のそれぞれ。
+    -   H-03 の境目の入力（`\**a**`・`**a\***`・`**a \** b**`・`*a**b*`・`***語***`・`****` など）と、AC-10 の行末の `\`、CR を含む行。
+    -   B-3 の閉じる行の形（行頭の 0〜3 個の U+0020、開いた並び以上の長さ、後ろの空白だけ、4 個の空白で閉じないこと、`` ` `` の並びの後ろに `` ` `` のある開く行）。サーバの `isClosingFence`（`internal/writer/markdown.go:177-185`）と同じ形である。
+    -   出典の行（`internal/writer/output.go:236-240` が作る形）と、チャンネル名の行の頭のエスケープ（`internal/publisher/file_render.go:87-99` が作る形）を含む、表示用の Markdown の全体の形（AC-07・AC-13）。
+    -   AC-12・AC-21 の文字列の一致: 記事の木の文字列（3.1「AC-21 の形」）を、入力から除く記号を除いたものと比べる。
+-   **組み立て（`extension/test/articleBody.test.ts` を書き直す）**: jsdom の文書（`extension/test/helpers/dom.ts` の `container`）で `renderArticleBody` を呼び、作った要素を確かめる。
+    -   要素の種類と見出しの段（AC-01・AC-25）、`ol` の `start`（AC-04）、`pre` と `code`（AC-06）、リンクの `href`・`target`・`rel`・`dir` と文字（AC-13・AC-16・AC-17）、記事の要素の `lang` と `dir`（AC-24）。
+    -   要素と属性の一覧（AC-20、H-04）: 作った DOM の木をたどり、各要素の名前と属性の名前を、3.2 の表の一覧と比べる共通のテストの関数を置く。AC-18・AC-19 の入力と、7.3 のランダムな入力に当てはめる。jsdom は要素と属性をたどれる（今の `articleBody.test.ts:23-31` も属性の名前を数えている）。
+    -   `textContent` が記事の木の文字列と一致すること（AC-12・AC-21）。
+-   **描き直し（`extension/test/renderViewer.test.ts:705-727` を書き直す）**: 同じ Markdown の応答が繰り返し届いても `.article-body` の要素が同じであること、違う Markdown で置き換わること、記事を隠した後に同じ Markdown が届くと描き直すこと（AC-32）。記事の中の要素にフォーカスがあるとき、同じ応答の後もフォーカスが残ることも確かめる。
+-   **CSS（`extension/test/style.test.ts`）**: 3.5 の表の値を、今の CSS の解析の仕組み（`effectiveValue`）で確かめる。記事の文字の大きさと行の高さ（AC-23）、最大の幅（AC-22）、`pre-wrap` と `plaintext`（AC-02・AC-28）、リンクの下線（AC-27）、等幅の書体、`--code-bg` の両方のテーマの定義と、`contrastPairs` に加える組（AC-27）。
+-   **性能（AC-33、H-01）**: `articleMarkdown.test.ts` で、512 KiB（`maxResponseBytes`。`extension/src/core/exchange.ts:93`）の入力の解釈が 1 秒以内に終わることを確かめる。入力は、`*`・`` ` ``・`<https://`・`**a`・`\`・`*a` のそれぞれの繰り返しの 1 行と、記事の形の段落を繰り返した複数の行である。1 秒は、2 乗の時間の解釈を見分けるための上限で、ふつうの解釈はこれより十分に短い。
+-   **保存とコピー（AC-30）**: 今の `extension/test/viewerApp.test.ts` の保存とコピーのテスト（`:805` など）が、描画の後も通ることで確かめる。コピーのテストの記事に記号を含む Markdown を使い、描画した文字列ではなく `article.markdown` が書き込まれることを確かめる。
+-   **ほかの表示（AC-31）**: 今の `renderViewer.test.ts` の状態・動画のセクション・操作のテストが、変えずに通ることで確かめる。
+
+### 7.2. 統合テスト（手動）
+
+-   **ブラウザの振る舞い**: 3.8 の 4 つを、実装の最初のフェーズで、試作を Chrome に読み込んで確かめる。Brave でも、リンクの開き方と行ごとの方向を 1 回見る（要件 4.4）。
+-   **描画の時間**: 512 KiB の病的な入力（7.1 と同じ形）と、記事の形の入力を、試作のビューアで描き、解釈と組み立ての時間を測って、実装計画に記録する。
+-   **キーボードとフォーカス（AC-26）**: 記事の中のリンクに Tab と Shift+Tab で表示の順に移れること、Enter で新しいタブに開くこと、フォーカスの輪郭が見えることを、明るいテーマと暗いテーマで見る。
+-   **文字組み（AC-22）**: タブの幅を 900 CSS px 以上と 320 CSS px にして、記事の行の幅、横のスクロールがないこと、コードブロックの長い行の折り返しを見る。
+-   **スクリーンリーダー**: 見出しの構造（AC-25）と、リンクの名前が URL の文字列であること（AC-26）を、ブラウザのアクセシビリティの木で見る。
+
+### 7.3. セキュリティテスト
+
+-   **HTML とスクリプト（AC-18）**: 組み立てのテストで、AC-18 の入力から要素も属性も作られず、タグが文字として表示されることを確かめる。jsdom はスクリプトを実行しない設定で使うので、スクリプトが動かないことは、要素が作られないことで確かめる。
+-   **リンクの条件（AC-14・AC-15）**: AC-14・AC-15 の例のそれぞれが、記事の木で `link` にならず、組み立てで `a` を作らないことを確かめる。
+-   **ランダムな入力（AC-20・AC-21、H-04）**: 記号（`*`・`` ` ``・`<`・`>`・`\`・`#`・`-`・`+`・数字・`.`・`)`・`~`・`&`・`[`・`]`）、空白、LF、CR、`https://`、日本語の文字、双方向の制御文字を混ぜた文字列を、種を固定した擬似乱数で作る。種を固定するので、失敗は同じ入力で再現できる。各入力について次を確かめる。
+    -   解釈と組み立てが例外を投げない（4.2）。
+    -   要素と属性が 3.2 の表の一覧に収まる（AC-20）。
+    -   描画した文字列が、入力の文字の部分列である（文字を作らず、順序を変えない。AC-21 の性質の一部）。
+    -   擬似乱数の関数はテストの補助のファイルに書き、npm のパッケージを加えない。
+-   **lint（要件 4.2）**: HTML を解釈する API の禁止が新しいファイルにも効くことは、lint の規則の対象のファイルの指定（`extension/eslint.config.js:253-284`）で決まる。新しいブランド型 `LinkUrl` を `brandNames` と作成者のファイルの設定に加え、`extension/test/lintRules.test.ts` のブランド型の表に加える。
+
+### 7.4. 受け入れ基準と設計の対応
+
+| AC | 設計の節 | 確かめ方 |
+|---|---|---|
+| AC-01〜AC-07 | 3.1・3.2・6.1 | 7.1 の解釈と組み立てのテスト |
+| AC-08〜AC-12 | 3.1・6.2 | 7.1 の解釈のテスト |
+| AC-13〜AC-15 | 3.3 | 7.1 の解釈と組み立てのテスト、7.3、3.8 の手動の確認 |
+| AC-16 | 3.2 | 7.1 の組み立てのテスト、7.2 の手動の確認 |
+| AC-17 | 3.2・3.8 | 7.1 の組み立てのテスト（`dir` の属性）、3.8 の手動の確認 |
+| AC-18・AC-19 | 3.1・3.2 | 7.1・7.3 |
+| AC-20 | 3.2 | 7.1 の一覧のテスト、7.3 のランダムな入力 |
+| AC-21 | 3.1・3.2 | 7.1、7.3 のランダムな入力 |
+| AC-22・AC-23 | 3.5 | 7.1 の CSS のテスト、7.2 の手動の確認 |
+| AC-24・AC-25 | 3.2 | 7.1 の組み立てのテスト |
+| AC-26 | 3.2・3.5 | 7.2 の手動の確認、7.1 の CSS のテスト（フォーカスの輪郭のコントラスト） |
+| AC-27 | 3.5 | 7.1 の CSS のテスト |
+| AC-28 | 3.2・3.5・3.8 | 7.1 の CSS のテスト、3.8 の手動の確認 |
+| AC-29 | 3.5 | 7.1 の CSS のテスト（記事のリンクを 44 CSS px の一覧に加えない） |
+| AC-30 | 1.1 | 7.1 の保存とコピーのテスト |
+| AC-31 | 2.1 | 7.1 の今のテスト |
+| AC-32 | 3.4 | 7.1 の描き直しのテスト |
+| AC-33 | 3.6・3.8 | 7.1 の性能のテスト、7.2 の描画の時間の測定 |
+
+## 8. 実装優先順位 (Implementation Priorities)
+
+1.  **ブラウザの振る舞いの確認**: 試作で 3.8 の 4 つを Chrome で確かめる。崩れた振る舞いがあれば、3.8 の代わりの方法に切り替え、要件や ADR の変更が要る場合は人に諮ってから進む。
+2.  **解釈の関数**: `src/core/articleMarkdown.ts` と、`types/core-url.d.ts` の `href`、`LinkUrl` の lint の設定、解釈と性能のテスト。
+3.  **組み立てと描き直し**: `src/ui/articleBody.ts` の `renderArticleBody` と `drawArticleBody`、`renderViewer.ts` の呼び出しの置き換え、組み立て・描き直し・ランダムな入力のテスト。
+4.  **文字組み**: `viewer.css` と `theme.css`、CSS のテスト。
+5.  **文書**: security.md・CLAUDE.md・README（と `/mktrans` による `README.en.md`）。
+
+2 と 3 は、2 を先にする。3 は 2 の記事の木の型に依存するからである。4 は 3 の後に、作られる要素を見ながら決める。
+
+## 9. 将来の拡張性 (Future Extensibility)
+
+-   **記法を増やす**: 引用・水平線などを扱うときは、記事の木に種類を加え、組み立ての `switch` に場合を加える。型の検査が、組み立ての場合の漏れを知らせる。要件の規則と ADR-0017 を更新する（要件 4.5）。
+-   **表示の段を変える**: 見出しの段の対応は組み立てだけにあるので、ページの構造が変わっても、解釈の関数は変えずに済む。
+-   **ほかのページで記事を描画する**: 解釈の関数は DOM に依存しないので、ポップアップなどほかのページでも同じ記事の木を使える。今はその予定はない（YAGNI）。
+
+## 付録 A. design_handoff の各項目への対応
+
+| 項目 | 対応 |
+|---|---|
+| H-01 解釈の時間 | 解釈の時間を行の長さに比例させる要求を課す（3.6）。node のテストで解釈だけを 1 秒の上限で測り（7.1）、DOM を含めた時間は Chrome で 1 回測る（3.8・7.2）。病的な入力の形は 7.1 に挙げる |
+| H-02 URL の解釈と直列化の比較 | 判定は `new URL` と `href` の比較で、判定と遷移は同じ解析器を使う（3.3）。出典の URL は node のテストで確かめ（7.1）、Chrome との一致は試作で確かめる（3.8） |
+| H-03 インラインの走査 | 規則に場合を足さず、要件の順序のとおりに 1 つの走査で実装する（3.6・6.2）。H-03 の境目の入力をテストで固定する（7.1） |
+| H-04 要素と属性の一覧の確かめ方 | 作った DOM の木をたどって要素と属性の名前を一覧と比べる共通のテストの関数を置き、AC-18・AC-19 の入力と、種を固定したランダムな入力に当てはめる（7.1・7.3）。jsdom で要素と属性をたどれる |
+| H-05 描き直しの判定 | 描いた Markdown と子のノードを `WeakMap` に覚えて比べる `drawArticleBody` を置く（3.4）。`renderViewer.test.ts:705-727` を書き直す（3.7・7.1） |
+| H-06 文字組みとコードブロック | 値を 3.5 の表で決める。コードブロックの長い行は折り返す（1.2）。コントラストは `--code-bg` を加えて両方のテーマで確かめる（3.5・7.1） |
+| H-07 双方向の文字 | 改行は U+000A の文字と `pre-wrap` で表し、行ごとの方向は今と同じ `unicode-bidi: plaintext` で決める（1.2・3.2）。リンクは固定の `dir="ltr"` で分離する（3.2）。一覧にない要素は要らないので、要件と ADR-0017 は変えない。確かめ方と、崩れた場合の代わり（要件と ADR の変更を伴う）は 3.8 に書く |
+| H-08 CLAUDE.md の例外 | 範囲・理由・境界を 3.7 に示す。範囲は `extension/src/core/articleMarkdown.ts` の `parseArticleMarkdown` である |
+| H-09 文書とテストの更新 | 更新する文書とテストを 3.7 の表と一覧に挙げる。テストを削除する場合は `make ext-coverage-compare` で比べる。lint の禁止が新しいファイルに効くことは 7.3 に書く |
