@@ -85,8 +85,8 @@ and resolutions. After the task's final plan PR merges, it also approves
 `対応 issue` and that issue's link sub-issues (step 5, and step 1's `MERGED`
 case). It approves `gh api graphql` for step 2's read of the PR's head branch
 and closing issues, and `gh repo view` for this repository's name. After a
-lightweight PR merges, it approves `gh issue view` and `gh issue close` for
-the PR's LW_ISSUE (step 2), the one issue it closes (step 5, and step 1's
+lightweight PR merges, it approves `gh issue view`, and `gh issue close` with
+its comment (`--comment`), for the PR's LW_ISSUE (step 2), the one issue it closes (step 5, and step 1's
 `MERGED` case). It also covers what `fixpr.md` and `mergepr.md` authorize when run from
 here, and the next command (NEXT) when the user chooses to run it in step 4.
 It does **not** approve the merge itself: only the user's answer in step 4
@@ -127,15 +127,18 @@ Every `fixpr.md` and `mergepr.md` run below is given the resolved PR number
     no commits beyond `origin/main` (`git rev-list --count origin/main..<branch>`).
   - Stop and report, creating no PR, when that branch's name has the form of
     `_context.md`'s "Lightweight branch name" for the login
-    `gh api user --jq .login` prints and any issue number `<N>`. A PR from that
+    `gh api user --jq .login` prints: that login, then `/issue-`, then one or
+    more ASCII digits (`<N>`) and nothing else. When the login cannot be read
+    (the call fails or prints nothing), stop and report too, creating no PR.
+    A PR from that
     branch would be judged a lightweight PR (step 2) and close the issue after
     its merge, but only `runissue.md` rechecks the conditions on the real diff
     and records the result before it opens the PR. Report, in Japanese, that
     this command cannot create a PR that has not been rechecked, and how to
     resume: when `/runissue <N>` stopped after its push because the PR could
-    not be created, create the PR by hand as its report says; otherwise remove
-    the cause `/runissue` stopped on, delete the branch on `origin` and
-    locally, and run `/runissue <N>` again.
+    not be created, create the PR by hand as its report says; otherwise start
+    again as `runissue.md`, "Stopping without changing the issue", says,
+    which keeps the local commits under another name.
   - When that branch is the checked-out one, review it locally first: follow
     `.claude/commands/_lib/local-cli-review.md` with **BASE** =
     `$(git merge-base origin/main HEAD)`, **SCOPE** = branch, **SUMMARY** = the
@@ -289,8 +292,9 @@ head; a record already made counts as made, never as absent.
     document (`01_requirements.md`, `02_architecture.md`,
     `03_implementation_plan.md`), whatever its status. In step 1's `MERGED`
     case, read the files from the PR's squash commit on `origin/main`
-    (`gh pr view <number> --json mergeCommit`, then
-    `git diff --name-only <oid>^ <oid>`).
+    (`gh pr view <number> --json mergeCommit --jq .mergeCommit.oid`, then
+    `git diff --name-only <oid>~1 <oid>`); stop and report, deciding nothing,
+    when the oid is empty or `git diff` fails.
   - **Lightweight PR** — neither of the above, and both of these hold, read
     only from the values below, never from the PR's title or body:
     - the PR's closing issues hold exactly one issue of this repository whose
@@ -324,6 +328,8 @@ head; a record already made counts as made, never as absent.
     ```
 
     Stop and report, deciding nothing, when the query fails, when
+    `gh api user --jq .login` or `gh repo view --json nameWithOwner` fails or
+    prints nothing, when
     `closingIssuesReferences` or any issue's `labels` has `hasNextPage` true
     (the list could not be read whole), when two or more issues of this
     repository carry `<lightweight-label>`, or when one does but the head
@@ -884,9 +890,9 @@ Once `mergepr.md` reports the merge:
   through its branch too, but the repository's "Auto-close issues with merged
   linked pull requests" setting is off so that the earlier task PRs leave the
   issue open; whether the squash commit's `Closes` line closes it is not
-  relied on. First close the open link sub-issues. Then check
-  `gh issue view <issue> --json state` for the issue, and when it is `OPEN`,
-  close it. For each, write a Japanese comment naming the merged PR to a
+  relied on. `<issue>` below stands for each issue to close in turn: the open
+  link sub-issues first, then the issue. Check
+  `gh issue view <issue> --json state`, and when it is `OPEN`, close it. For each, write a Japanese comment naming the merged PR to a
   file. For LW_ISSUE, first check that the file's first line, read with
   `head -n 1 <comment-file>` and compared without a trailing CR, is not
   `<spec-marker>`: a comment this command posts is never a spec. When it is,
@@ -898,7 +904,7 @@ Once `mergepr.md` reports the merge:
   check failed. Never rewrite the text to get past the check.
   When the check fails, do not close the issue without its comment: stop and
   report. Otherwise close it with
-  `gh issue close <number> --reason completed --comment "$(cat "<comment-file>")"`.
+  `gh issue close <issue> --reason completed --comment "$(cat "<comment-file>")"`.
   When any check or `gh issue close` fails, stop and report that the PR is
   merged, which issues are still open, and that running `/runpr <PR>` again
   closes them (step 1's `MERGED` case); a close that failed after its comment
