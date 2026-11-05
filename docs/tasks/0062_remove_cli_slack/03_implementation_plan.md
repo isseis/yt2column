@@ -346,11 +346,11 @@ PR-1（#682）を作った後、レビューの担当者がテストを見直し
 
 **変更するファイル:** 本書 7.1 節
 
-- [ ] 利用者の承認を得て `make test-integration-slack` を実行し、結果（2 つの記事の通数、成功したこと）を 7.1 節に書く（1.3 節、AC-16）。承認が得られなければ、実行しなかったことを書く。
-- [ ] PR-2 のすべての変更をコミットした後、`_checks/residue` を PR-2 の merge-base と `HEAD` で実行し、出力、終了コード、2 つのコミット ID を 7.1 節に書く。
-- [ ] PR-2 の merge-base と PR-1 の merge-base（7.1 節の PR-1 の記録にあるもの）をそれぞれ head として渡し、どちらでも `comments` と `publish-method` が成り立たないことを確かめ、7.1 節に書く（設計書 7.3 節）。
-- [ ] ステップ 2-2・2-3 の網羅率の比較の結果を 7.1 節に書き写す。
-- [ ] `make test`・`make lint`・`make deadcode` を通す。
+- [x] 利用者の承認を得て `make test-integration-slack` を実行し、結果（2 つの記事の通数、成功したこと）を 7.1 節に書く（1.3 節、AC-16）。承認が得られなければ、実行しなかったことを書く。
+- [x] PR-2 のすべての変更をコミットした後、`_checks/residue` を PR-2 の merge-base と `HEAD` で実行し、出力、終了コード、2 つのコミット ID を 7.1 節に書く。
+- [x] PR-2 の merge-base と PR-1 の merge-base（7.1 節の PR-1 の記録にあるもの）をそれぞれ head として渡し、どちらでも `comments` と `publish-method` が成り立たないことを確かめ、7.1 節に書く（設計書 7.3 節）。
+- [x] ステップ 2-2・2-3 の網羅率の比較の結果を 7.1 節に書き写す。
+- [x] `make test`・`make lint`・`make deadcode` を通す。
 
 **完了の条件:** `_checks/residue` が PR の head で `0` を返し、その記録が 7.1 節にある。
 
@@ -587,7 +587,63 @@ coverage-compare: PASS
 
 #### PR-2
 
-（ステップ 2-6 で記入する。）
+**`make test-integration-slack`（ステップ 2-6、AC-16）:** 利用者の承認を得て、2026-11-05 にコミット `0bb1e58b`（ステップ 2-5 のコミット。統合テストはステップ 2-3 から変わっていない）で実行した。`TestIntegrationSlackWebhookPublisher` が通った（single は 1 通、split は 3 通。どちらも `PostMessages` が誤りなしで返り、`delivered` の回数が通数と一致した）。
+
+**`_checks/residue`（ステップ 2-6）:** merge-base `363b69280a7ade3d92fa85f2f4e56ab50279b0a8`、head `e65e67612a6d1993567b70fa8ea8ca0e1d8a0af7`（PR-2 のコードの最後のコミット。この記録のコミットは本書だけを変える）。
+
+```text
+go run -tags test ./docs/tasks/0062_remove_cli_slack/_checks/residue/ 363b6928 e65e6761
+```
+
+```text
+OK   slack-flag
+OK   ignores-webhook
+OK   cli-code
+OK   slack-literal
+OK   cli-words
+OK   config
+OK   make-target
+OK   publish-method
+OK   comments
+OK   unchanged
+exit 0
+```
+
+-   PR-2 の merge-base `363b6928` を head として渡すと、`publish-method`（`slack.go:171` の `SlackWebhookPublisher.Publish`）と `comments`（16 の指摘）が成り立たず、ほかの確かめは成り立って、終了コード `1` で終わる。PR-1 の merge-base `43e51be6` を head として渡しても、`publish-method`（1）と `comments`（37）が成り立たない。
+-   `publish-method` が `FilePublisher` の側と埋め込みのフィールドでも失敗しうること: ブランチに載せない一時的なコミットを head として渡した。`FilePublisher.Publish` の名前を変えたコミットでは「`FilePublisher.Publish` がない」、`SlackWebhookPublisher` に `sync.Mutex` を埋め込んだコミットでは埋め込みのフィールドの指摘が出た。
+
+**網羅率の比較（ステップ 2-2、`make coverage-compare`）:** ステップ 2-2 のコミット `6cfd488d`（tree `d996c9e2`）。出力の `head` はメッセージを直す前のコミット ID で、tree ID は同じである。
+
+```text
+target    make coverage-compare BASE="7beecad2~1"
+base      6f104eeb523636f0616146bf112eaa536d5d56f9
+head      7beecad24495935edb01f4bf888069707e8e26a3 tree d996c9e29430a19f25b1b2398bbfa6ddcd879b3b
+toolchain go1.27.1
+tests     base 1256 head 1270
+files     base 136 head 136
+functions base 1277 head 1277
+deleted   0
+no compared function lost coverage
+coverage-compare: PASS
+```
+
+**網羅率の比較（ステップ 2-3、`make coverage-compare`）:** `Publish` を削除するコミット `90234cca`（tree `4ec140df`）。
+
+```text
+target    make coverage-compare BASE="e3d64e16~1"
+base      6cfd488db409338e0bb14c5958c7d9e6c67dfab4
+head      e3d64e1674d89cec30111dbbda5a02b0bcdea362 tree 4ec140dfdbbd46d2e298ea9308de279086ebe7f8
+toolchain go1.27.1
+tests     base 1270 head 1254
+files     base 136 head 136
+functions base 1277 head 1276
+deleted   1
+deleted   "internal/publisher/slack.go":171 "(*SlackWebhookPublisher).Publish"
+no compared function lost coverage
+coverage-compare: PASS
+```
+
+-   ステップ 2-2 の比較は、最初の実行が `internal/transcript` の `TestCommandExecutorDrainsStderr` の失敗（issue #684）で `STOP test-failed`、次の実行が `internal/cmdrunner` の `signalGroup` の 3/3 → 2/3（PR-1 の記録の、子の終わる時刻で通るかが決まる分岐。PR-2 は変えていない）で `FAIL` になり、変えずに実行し直して `PASS` を得た。ステップ 2-3 の比較も、最初の実行が同じ `signalGroup` で `FAIL` になり、実行し直して `PASS` を得た。
 
 ## 8. 成功基準 (Success Criteria)
 
