@@ -58,16 +58,19 @@ describe("popup.html skeleton", () => {
     );
   });
 
-  it("puts a disabled primary button and then the status region in the action section", () => {
+  it("puts a disabled primary button, a hidden secondary button and then the status region in the action section", () => {
     const action = popupDocument().getElementById("action");
     assert.ok(action !== null);
     assert.deepEqual(Array.from(action.children, describeElement), [
       "button#primary",
+      "button#secondary",
       "div#status",
     ]);
-    const [primary, status] = Array.from(action.children);
+    const [primary, secondary, status] = Array.from(action.children);
     assert.equal(primary?.getAttribute("type"), "button");
     assert.equal(primary?.hasAttribute("disabled"), true);
+    assert.equal(secondary?.getAttribute("type"), "button");
+    assert.equal(secondary?.hasAttribute("hidden"), true);
     assert.equal(status?.getAttribute("role"), "status");
   });
 
@@ -82,7 +85,7 @@ describe("popup.html skeleton", () => {
     );
   });
 
-  it("leaves only the primary button and the details toggle to press, in display order, without tabindex", () => {
+  it("leaves only the two buttons and the details toggle to press, in display order, without tabindex", () => {
     // The toggle is drawn by renderPopup, so the shipped skeleton is checked
     // once a collected view is drawn into it.
     const elements = popupElements();
@@ -101,10 +104,11 @@ describe("popup.html skeleton", () => {
     const interactive = Array.from(doc.querySelectorAll(interactiveSelector));
     assert.deepEqual(
       interactive.map((element) => element.tagName.toLowerCase()),
-      ["button", "summary"],
+      ["button", "button", "summary"],
     );
     assert.equal(interactive[0], elements.primary);
-    assert.equal(interactive[1]?.parentElement, elements.details);
+    assert.equal(interactive[1], elements.secondary);
+    assert.equal(interactive[2]?.parentElement, elements.details);
     assert.equal(doc.querySelector("[tabindex]"), null);
   });
 });

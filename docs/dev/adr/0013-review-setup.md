@@ -1,4 +1,4 @@
-# ADR-0012: PR レビューは作成時の 1 回だけ Codex に頼み、その後の変更はローカルの CLI レビューで見る
+# ADR-0013: PR レビューは作成時の 1 回だけ Codex に頼み、その後の変更はローカルの CLI レビューで見る
 
 ## 状態
 
@@ -18,10 +18,10 @@
 
 -   **PR レビューは Codex（`chatgpt-codex-connector`）が行う。** 依頼は、PR を開いたときの自動レビューを待ち、約 2 分たっても始まらなければ `@codex review` をコメントして 1 回だけ頼む（`_context.md` の「PR review request」）。push のたびの自動レビューは使わない。
 -   **CodeRabbit の自動 PR レビューは止める。** `.coderabbit.yaml` の `reviews.auto_review.enabled` を `false` にする。同じ PR を 2 つのサービスがレビューすると、両方の割り当てを 1 回のレビューに使うためである。
--   **PR を開いた後の変更は、ローカルの CLI レビューで見る。** CodeRabbit CLI を使い、それが失敗したときは Codex CLI を `codexreview` ツール越しに使う。指摘の記録は、CLI ごとに分けた `CodeRabbit local review:`・`Codex local review:` の行として、修正のコミット（修正がないときはその次のコミット）のメッセージと、セッションの SUMMARY に残す（[ADR-0013](0013-deterministic-checks-in-go.md)）。
+-   **PR を開いた後の変更は、ローカルの CLI レビューで見る。** CodeRabbit CLI を使い、それが失敗したときは Codex CLI を `codexreview` ツール越しに使う。指摘の記録は、CLI ごとに分けた `CodeRabbit local review:`・`Codex local review:` の行として、修正のコミット（修正がないときはその次のコミット）のメッセージと、セッションの SUMMARY に残す（[ADR-0014](0014-deterministic-checks-in-go.md)）。
 -   **PR レビューを追加で頼むのは、ローカルの CLI レビューで代われない種類の変更のときと、利用者が求めるときだけにする。** 前者の判断は [pr-review-escalation.md](../../../.claude/commands/_lib/pr-review-escalation.md) に従う。Codex CLI のフォールバックは PR レビューと同じ割り当てを使うので、フォールバックを実行すること自体が割り当てを使う。
 -   **「レビュー済み」は、Codex の要約コメントと CI で判定する。** `/runpr` は、1 行目が `<!-- codex-pull-request-review-summary -->` の要約コメントを待ち、その状態の行が示すコミットを見る。待ち時間と読む値の形は [.claude/commands/runpr.md](../../../.claude/commands/runpr.md) の step 3 に従う。Codex のモデル・推論の強さ・徹底的なレビューは、リポジトリの外の利用者の設定で決まり、リポジトリは指定しない。
--   **信頼する自動レビュアーの一覧と、完了を待つ PR レビュアーは別の値にする。** 一覧は [.claude/commands/_context.md](../../../.claude/commands/_context.md) の「Automated reviewer list」に 1 か所だけ置き、各名前は GraphQL の `author.login` の形（`[bot]` を付けない）で持つ。完了を待つレビュアーは「Awaited PR reviewer」の行が決め、REST の `user.login` の形はその名前に `[bot]` を付けて作る。一覧は「誰のスレッドを処理するか」（[ADR-0014](0014-untrusted-review-threads.md)）を決め、完了を待つレビュアーは「何をもってレビュー済みとするか」を決める。
+-   **信頼する自動レビュアーの一覧と、完了を待つ PR レビュアーは別の値にする。** 一覧は [.claude/commands/_context.md](../../../.claude/commands/_context.md) の「Automated reviewer list」に 1 か所だけ置き、各名前は GraphQL の `author.login` の形（`[bot]` を付けない）で持つ。完了を待つレビュアーは「Awaited PR reviewer」の行が決め、REST の `user.login` の形はその名前に `[bot]` を付けて作る。一覧は「誰のスレッドを処理するか」（[ADR-0015](0015-untrusted-review-threads.md)）を決め、完了を待つレビュアーは「何をもってレビュー済みとするか」を決める。
 
 ## 採らなかった案
 

@@ -185,7 +185,7 @@ flowchart TD
 |---|---|---|---|---|
 | `docs/dev/conventions/adr.md` | 規約（英語） | 新規 | F-003（AC-12・AC-13）、F-001・F-002 の定義 | ① |
 | `docs/dev/adr/README.md` | 索引（日本語） | 新規（① では行のない表） | AC-03・AC-04 | ①〜④ |
-| `docs/dev/adr/0001-*.md`〜`0015-*.md` | ADR（日本語） | 新規 | F-002・F-006（AC-25〜AC-29） | ②〜④ |
+| `docs/dev/adr/NNNN-*.md` | ADR（日本語） | 新規 | F-002・F-006（AC-25〜AC-29） | ②〜④ |
 | `CLAUDE.md` | 指示 | 変更（ADR の節、Quick Links、Document language、Development Notes の guard の一覧） | F-004（AC-14〜AC-17） | ① |
 | `docs/dev/conventions/requirements_process.md` | 規約 | 変更（96〜108 行の段落、「Withdrawing a task」） | AC-18、AC-13 の取り下げ | ① |
 | `.claude/commands/_lib/settle-decisions.md` | 共通の手順 | 変更（段と出力を足す） | F-005（AC-20〜AC-24） | ① |

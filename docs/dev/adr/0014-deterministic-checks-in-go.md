@@ -1,4 +1,4 @@
-# ADR-0013: 決定的な判定はエージェントに任せず、テストのある Go の開発ツールに置く
+# ADR-0014: 決定的な判定はエージェントに任せず、テストのある Go の開発ツールに置く
 
 ## 状態
 
@@ -17,8 +17,8 @@
 ## 決定
 
 -   **判定と副作用を持つ開発の道具は Go で書き、テストを持つ。** 今日あるのは次の 4 つで、どれも `cmd/<名前>` と `internal/<名前>` の組である。製品の 3 つのバイナリ（`yt2column`・`yt2column-server`・`yt2column-nmhost`）には入らない。
-    -   `fixprguard`: `/fixpr` と `/runpr` の著者・範囲・git の状態の判定、`finish` の中の build checks と commit、`push` の直前の再確認、`reply`・`edit-pr`・`append-pr` の GitHub への書き込み（[ADR-0014](0014-untrusted-review-threads.md)）。
-    -   `codexreview`: Codex CLI のローカルレビューの実行と、最終メッセージの形の判定（[ADR-0012](0012-review-setup.md)）。
+    -   `fixprguard`: `/fixpr` と `/runpr` の著者・範囲・git の状態の判定、`finish` の中の build checks と commit、`push` の直前の再確認、`reply`・`edit-pr`・`append-pr` の GitHub への書き込み（[ADR-0015](0015-untrusted-review-threads.md)）。
+    -   `codexreview`: Codex CLI のローカルレビューの実行と、最終メッセージの形の判定（[ADR-0013](0013-review-setup.md)）。
     -   `coveragecompare`: テストを削除する前後でのカバレッジの比較。`make coverage-compare` と `make ext-coverage-compare` から使う。
     -   `mergepr`: `/mergepr` の prepare・merge・cleanup・discard。判定の道具をこの形で書く先例になった。
 -   **道具は、判定に使う基準値を状態のファイルから読み返さない。** 基準値と判定した集合は、サブコマンドの出力として返し、セッションが次の呼び出しの引数で渡す。`fixprguard` は利用者のために git のディレクトリへ記録を書くが、それを判定に読み返さない。判定をディスクに置くと、修正のフェーズや build checks が実行するコードに書き換えられる。

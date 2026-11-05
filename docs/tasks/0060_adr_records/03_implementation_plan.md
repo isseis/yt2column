@@ -106,10 +106,12 @@
 | 0009 | B7 | `viewer-opening` | PR-3 |
 | 0010 | B8 | `extension-stores-nothing` | PR-3 |
 | 0011 | B11 | `webhook-publishing` | PR-3 |
-| 0012 | D1 | `review-setup` | PR-4 |
-| 0013 | D2 | `deterministic-checks-in-go` | PR-4 |
-| 0014 | D3 | `untrusted-review-threads` | PR-4 |
-| 0015 | D4 | `document-test-policy` | PR-4 |
+| 0013 | D1 | `review-setup` | PR-4 |
+| 0014 | D2 | `deterministic-checks-in-go` | PR-4 |
+| 0015 | D3 | `untrusted-review-threads` | PR-4 |
+| 0016 | D4 | `document-test-policy` | PR-4 |
+
+D 系の予定の番号は、タスク 0061 が `0012`（`lightweight-check-in-bash`）を先に使ったため、`0013`〜`0016` にずらした（2026-11-05）。
 
 この表は AC-25 の主題と ADR の対応表を兼ねる（設計書の付録 B の AC-25）。1 本の ADR は 1 つの主題だけを持つ（設計書 1.2 節）。
 
@@ -324,7 +326,7 @@
 
 #### ステップ 4-1: D 系の 4 本の ADR
 
-**変更するファイル:** `docs/dev/adr/0012-review-setup.md`〜`0015-document-test-policy.md`（新規。1.5 節の 4 本）、`docs/dev/adr/README.md`
+**変更するファイル:** `docs/dev/adr/0013-review-setup.md`〜`0016-document-test-policy.md`（新規。1.5 節の 4 本）、`docs/dev/adr/README.md`
 
 -   [x] ステップ 2-1 の作業を、D1〜D4 の 4 本に行う。D 系の正本の文書は、CLAUDE.md・`.claude/commands/_context.md`・`docs/dev/guides/` の手引きである。「決定」の節はそれらを要約してリンクし、CLAUDE.md の規則そのものを ADR に写さない（要件書 1 章「上の決定から導いたこと」）。
 

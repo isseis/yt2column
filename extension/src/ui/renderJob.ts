@@ -172,9 +172,7 @@ export function jobStateSummary(
 /** The summary while a key waits for its first status, plus a failed exchange's notice. */
 export function waitingSummary(notice: PollNotice, locale: Locale): string[] {
   return [
-    ...(notice.kind === "stopped"
-      ? []
-      : [catalogs[locale].viewer.loading.text]),
+    ...(waitsForStatus(notice) ? [catalogs[locale].viewer.loading.text] : []),
     ...noticeSummary(notice, locale),
   ];
 }
@@ -249,6 +247,14 @@ export function pollNotice(
 }
 
 /**
+ * Whether a state that has no status yet still waits for one: a stopped poll
+ * waits for nothing, so its loading mark and sentence are dropped.
+ */
+export function waitsForStatus(notice: PollNotice): boolean {
+  return notice.kind !== "stopped";
+}
+
+/**
  * The nodes while a key waits for its first status: the loading mark, then a
  * failed exchange's notice. A stopped poll waits for nothing, so its notice
  * stands alone.
@@ -259,9 +265,9 @@ export function waitingNodes(
   locale: Locale,
 ): HTMLElement[] {
   return [
-    ...(notice.kind === "stopped"
-      ? []
-      : loadingIndicator(doc, catalogs[locale].viewer.loading)),
+    ...(waitsForStatus(notice)
+      ? loadingIndicator(doc, catalogs[locale].viewer.loading)
+      : []),
     ...pollNotice(doc, notice, locale),
   ];
 }
