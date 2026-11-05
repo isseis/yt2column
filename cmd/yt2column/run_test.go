@@ -1017,21 +1017,6 @@ func TestRunExecutionPaths(t *testing.T) {
 	}
 }
 
-// TestSplitJoined checks that a joined error is split into its elements, so
-// configurationError writes one line per rejection, and that an error that is
-// not joined is returned alone, not dropped. LoadFor joins its rejections
-// today, but its signature does not promise a join, so the fallback keeps
-// configurationError from losing a rejection that arrives unjoined.
-func TestSplitJoined(t *testing.T) {
-	first, second := errors.New("first"), errors.New("second")
-	if got := splitJoined(errors.Join(first, second)); !slices.Equal(got, []error{first, second}) {
-		t.Errorf("splitJoined(joined) = %v, want [first second]", got)
-	}
-	if got := splitJoined(first); !slices.Equal(got, []error{first}) {
-		t.Errorf("splitJoined(first) = %v, want [first]", got)
-	}
-}
-
 // TestCheckOut checks the --out rejections by their sentinels: an absent
 // --out is errOutRequired, not errOutEmpty, an empty one is errOutEmpty, not
 // errOutRequired, and a path passes.

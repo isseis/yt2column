@@ -903,11 +903,3 @@ type joinedError interface {
 	error
 	Unwrap() []error
 }
-
-// splitJoined returns the errors joined by errors.Join, or err alone.
-func splitJoined(err error) []error {
-	if joined, ok := errors.AsType[joinedError](err); ok {
-		return joined.Unwrap()
-	}
-	return []error{err}
-}
