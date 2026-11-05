@@ -327,20 +327,20 @@
 
 **変更するファイル:** `.claude/commands/runpr.md`
 
--   [ ] 手順 2 の「Kind」に Lightweight PR を足し、Standalone change を「それ以外」にする（設計書 3.7.1）。判定に使う GraphQL の読み取りと、止まる場合を書く。PRE_MERGE と NEXT はない（AC-33）。
--   [ ] 手順 1 の単独の変更の PR の作成で、対象のブランチの名前が軽量プロセスのブランチ名の形なら、PR を作らずに止まる（設計書 3.7.2）。
--   [ ] 手順 1 の `MERGED` の場合に、軽量プロセスの PR なら手順 5 の issue を閉じる項目を実行する、と書き足す（AC-35）。手順 1 では、その項目を参照し、`gh issue close` を書かない（書くと、手順 1 の区画で `TestPostingCommandsInventory` が失敗する）。
--   [ ] 手順 4 の 1 に、軽量プロセスの PR の squash のメッセージは本文の最後を `Closes #<LW_ISSUE>` とする、と書き足す（設計書 3.7.3）。
--   [ ] 手順 5 の issue を閉じる項目（809〜827 行）を、「閉じる issue」を持つ形に広げる（設計書 3.7.4）。既存の「**Mention check.**」の段と `gh issue close` のコマンドは、この項目の中に 1 つずつのまま残す。軽量プロセスの PR では、コメントの 1 行目が仕様の目印でないことも確かめる。タスクの最後のプランの PR の条件は変えない（AC-36）。
--   [ ] 手順の見出し（`runprStep1`・`runprStep3`・`runprStep4`・`runprStep5` が探すもの）は変えない。
--   [ ] 「Authorization」に、設計書 3.7.4 の操作を足す（AC-44）。
+-   [x] 手順 2 の「Kind」に Lightweight PR を足し、Standalone change を「それ以外」にする（設計書 3.7.1）。判定に使う GraphQL の読み取りと、止まる場合を書く。PRE_MERGE と NEXT はない（AC-33）。
+-   [x] 手順 1 の単独の変更の PR の作成で、対象のブランチの名前が軽量プロセスのブランチ名の形なら、PR を作らずに止まる（設計書 3.7.2）。
+-   [x] 手順 1 の `MERGED` の場合に、軽量プロセスの PR なら手順 5 の issue を閉じる項目を実行する、と書き足す（AC-35）。手順 1 では、その項目を参照し、`gh issue close` を書かない（書くと、手順 1 の区画で `TestPostingCommandsInventory` が失敗する）。
+-   [x] 手順 4 の 1 に、軽量プロセスの PR の squash のメッセージは本文の最後を `Closes #<LW_ISSUE>` とする、と書き足す（設計書 3.7.3）。
+-   [x] 手順 5 の issue を閉じる項目（809〜827 行）を、「閉じる issue」を持つ形に広げる（設計書 3.7.4）。既存の「**Mention check.**」の段と `gh issue close` のコマンドは、この項目の中に 1 つずつのまま残す。軽量プロセスの PR では、コメントの 1 行目が仕様の目印でないことも確かめる。タスクの最後のプランの PR の条件は変えない（AC-36）。
+-   [x] 手順の見出し（`runprStep1`・`runprStep3`・`runprStep4`・`runprStep5` が探すもの）は変えない。
+-   [x] 「Authorization」に、設計書 3.7.4 の操作を足す（AC-44）。
 
 #### ステップ 3-2: `/runpr` の guard
 
 **変更するファイル:** `cmd/yt2column/codex_review_docs_test.go`
 
--   [ ] `runpr.md` の GraphQL の読み取りの書き出しを `readOnlyInvocations` に足す（設計書 2.2）。そのコードブロックに `mutation` を書かない。
--   [ ] 壊して確かめる。次の壊し方のそれぞれで、名前を挙げたテストが失敗することを確かめ、コミットメッセージに書く。
+-   [x] `runpr.md` の GraphQL の読み取りの書き出しを `readOnlyInvocations` に足す（設計書 2.2）。そのコードブロックに `mutation` を書かない。
+-   [x] 壊して確かめる。次の壊し方のそれぞれで、名前を挙げたテストが失敗することを確かめ、コミットメッセージに書く。
     -   足したコードブロックに `mutation` を入れる（`TestPostingCommandsInventory`）。
     -   手順 5 のメンションの確認を `gh issue close` の後に移す（`TestPostingCommandsInventory`）。
 
@@ -358,10 +358,10 @@
 
 **判定理由**: ステップ 3-1 は、手順 2 の種類の分岐と手順 5 の issue を閉じる処理を変え、既存のタスクの PR の振る舞いを保つ必要がある（隔離すべき分岐の変更）
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/691
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 4: 入口と周辺（設計書 8 章の 4）
 
@@ -491,7 +491,7 @@ PR は 1→5 の順にマージする。軽量プロセスを使えるように�
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4）
 - [x] PR-2 マージ済み（対象ステップ: 1-5 / 1-6）
 - [x] PR-3 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4）
-- [ ] PR-4 マージ済み（対象ステップ: 3-1 / 3-2）
+- [x] PR-4 マージ済み（対象ステップ: 3-1 / 3-2）
 - [ ] PR-5 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)

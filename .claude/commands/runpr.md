@@ -38,7 +38,9 @@ on standard error.
 `<review-request>` is the value of `_context.md`'s "PR review request" row: the
 body of the comment that asks the awaited PR reviewer for a PR review.
 `<review-mention>` is the mention: the first word of the value of
-`_context.md`'s "PR review request" row. Write none of these values into
+`_context.md`'s "PR review request" row. `<lightweight-label>` is the value
+of `_context.md`'s "Lightweight label" row, and `<spec-marker>` the value of
+its "Lightweight spec marker" row. Write none of these values into
 this command's own text; read them from `_context.md` when you run it.
 
 Drive one PR through Codex's PR review and CI, then ask the user one question
@@ -50,7 +52,8 @@ This is the second half of a task PR. The command that opened it (`mkreq`,
 reviewed it locally and handed it to the human reviewer, who runs this command
 after reviewing it. It also drives a standalone change committed on the current
 branch without a task (a code change, a development-environment file), and
-creates the PR for it.
+creates the PR for it, and a lightweight PR, which `runissue.md` opened for an
+issue that takes the lightweight process, closing that issue after the merge.
 
 **Input.** `$ARGUMENTS`, when given, is one of:
 
@@ -80,7 +83,11 @@ moves to an issue in step 4, `gh issue list`, `gh issue create`, `gh issue comme
 and resolutions. After the task's final plan PR merges, it also approves
 `gh issue view`, `gh api` (listing sub-issues), and `gh issue close` for its
 `対応 issue` and that issue's link sub-issues (step 5, and step 1's `MERGED`
-case). It also covers what `fixpr.md` and `mergepr.md` authorize when run from
+case). It approves `gh api graphql` for step 2's read of the PR's head branch
+and closing issues, and `gh repo view` for this repository's name. After a
+lightweight PR merges, it approves `gh issue view`, and `gh issue close` with
+its comment (`--comment`), for the PR's LW_ISSUE (step 2), the one issue it closes (step 5, and step 1's
+`MERGED` case). It also covers what `fixpr.md` and `mergepr.md` authorize when run from
 here, and the next command (NEXT) when the user chooses to run it in step 4.
 It does **not** approve the merge itself: only the user's answer in step 4
 does (`CLAUDE.md`, "Tool Execution Safety"). `coderabbit review` and
@@ -110,14 +117,28 @@ Every `fixpr.md` and `mergepr.md` run below is given the resolved PR number
     cleanup is pending, run `mergepr cleanup --state <state-file>`. The head
     branch is gone, so read the bookkeeping from `origin/main`: report any step
     2 record missing there (it can be added with a standalone PR). When it is
-    the task's final plan PR (step 2), run step 5's issue closure, which is
-    idempotent, so a run that stopped after the merge still closes the issue.
-    Then stop.
+    the task's final plan PR or a lightweight PR (step 2, "Kind"), run step 5's
+    issue closure, which is idempotent, so a run that stopped after the merge
+    still closes the issue. Then stop.
   - `CLOSED`: report and stop.
 - If none exists, it is a standalone change:
   - Stop and report when the branch to open it from (`$ARGUMENTS` when it names
     a branch, otherwise the current branch) is `main`, a detached `HEAD`, or has
     no commits beyond `origin/main` (`git rev-list --count origin/main..<branch>`).
+  - Stop and report, creating no PR, when that branch's name has the form of
+    `_context.md`'s "Lightweight branch name" for the login
+    `gh api user --jq .login` prints: that login, then `/issue-`, then one or
+    more ASCII digits (`<N>`) and nothing else. When the login cannot be read
+    (the call fails or prints nothing), stop and report too, creating no PR.
+    A PR from that
+    branch would be judged a lightweight PR (step 2) and close the issue after
+    its merge, but only `runissue.md` rechecks the conditions on the real diff
+    and records the result before it opens the PR. Report, in Japanese, that
+    this command cannot create a PR that has not been rechecked, and how to
+    resume: when `/runissue <N>` stopped after its push because the PR could
+    not be created, create the PR by hand as its report says; otherwise start
+    again as `runissue.md`, "Stopping without changing the issue", says,
+    which keeps the local commits under another name.
   - When that branch is the checked-out one, review it locally first: follow
     `.claude/commands/_lib/local-cli-review.md` with **BASE** =
     `$(git merge-base origin/main HEAD)`, **SCOPE** = branch, **SUMMARY** = the
@@ -269,7 +290,52 @@ head; a record already made counts as made, never as absent.
     deciding.
   - **Task-document PR** — not a plan PR, and the PR adds or changes a task
     document (`01_requirements.md`, `02_architecture.md`,
-    `03_implementation_plan.md`), whatever its status.
+    `03_implementation_plan.md`), whatever its status. In step 1's `MERGED`
+    case, read the files from the PR's squash commit on `origin/main`
+    (`gh pr view <number> --json mergeCommit --jq .mergeCommit.oid`, then
+    `git diff --name-only <oid>~1 <oid>`); stop and report, deciding nothing,
+    when the oid is empty or `git diff` fails.
+  - **Lightweight PR** — neither of the above, and both of these hold, read
+    only from the values below, never from the PR's title or body:
+    - the PR's closing issues hold exactly one issue of this repository whose
+      labels include `<lightweight-label>`; call its number **LW_ISSUE**;
+    - the PR's head branch (`headRefName`) equals LW_ISSUE's lightweight
+      branch: the form of `_context.md`'s "Lightweight branch name", with the
+      login `gh api user --jq .login` prints and LW_ISSUE.
+
+    Read the values with this query, which GitHub answers for a merged PR
+    too; this repository is the one `gh repo view --json nameWithOwner`
+    names:
+
+    ```bash
+    gh api graphql -F owner='{owner}' -F repo='{repo}' -F n=<number> -f query='
+      query($owner: String!, $repo: String!, $n: Int!) {
+        repository(owner: $owner, name: $repo) {
+          pullRequest(number: $n) {
+            headRefName
+            closingIssuesReferences(first: 20) {
+              nodes {
+                number
+                state
+                repository { nameWithOwner }
+                labels(first: 50) { nodes { name } pageInfo { hasNextPage } }
+              }
+              pageInfo { hasNextPage }
+            }
+          }
+        }
+      }'
+    ```
+
+    Stop and report, deciding nothing, when the query fails, when
+    `gh api user --jq .login` or `gh repo view --json nameWithOwner` fails or
+    prints nothing, when
+    `closingIssuesReferences` or any issue's `labels` has `hasNextPage` true
+    (the list could not be read whole), when two or more issues of this
+    repository carry `<lightweight-label>`, or when one does but the head
+    branch is not its lightweight branch. The report names the linked issue
+    numbers and the head branch; which issue the merge would close cannot be
+    decided.
   - **Standalone change** — anything else.
 - **PRE_MERGE** — what step 4 commits just before the merge, in one commit
   (`docs(<task-id>): record the review of PR #<number>`, or
@@ -278,7 +344,8 @@ head; a record already made counts as made, never as absent.
   left, it is none. The approval and the PR number fill-in leave nothing to do
   once recorded (an approved document is no longer `draft`, and a filled line
   holds no marker), and the checkpoint is left out once its boxes are checked,
-  so a rerun after an interruption records nothing twice.
+  so a rerun after an interruption records nothing twice. A lightweight PR
+  changes no task document, so its PRE_MERGE is none.
   - **Approvals** (any kind): every task document the PR adds or changes whose
     status is `draft` (including one `fixpr` returned to `draft` as a decision
     change). Set its Document Status to `approved`, `Review date` to today, and
@@ -315,7 +382,7 @@ head; a record already made counts as made, never as absent.
     the plan has no unchecked step left), and none when the user leaves the
     document `draft`. An editorial PR on an approved document therefore offers
     nothing;
-  - standalone change: none.
+  - lightweight PR and standalone change: none.
 
 ## 3. Wait for Codex's first review and CI, running fixpr as comments appear
 
@@ -650,7 +717,8 @@ stops, stop here: no question, no merge.
    second version without that line for the option that merges without them.
    For the task's final plan PR, the body ends with `Closes #<issue>` for the
    issue the requirements document names as its own (`対応 issue`); a task
-   without one gets no such line.
+   without one gets no such line. For a lightweight PR, the body ends with
+   `Closes #<LW_ISSUE>`.
 2. Ask with one `AskUserQuestion` call. In your message, show what
    `mergepr.md` step 3 requires (PR URL, base branch, CI result, the full
    subject and body, the record of which rule decided the subject's prefix,
@@ -808,25 +876,39 @@ Once `mergepr.md` reports the merge:
   commits are not ancestors of the base). When NEXT is none, detach at
   `origin/main` (`git switch --detach origin/main`); do not check out the base
   branch, which may be checked out in another worktree.
-- When the merged PR is the task's final plan PR and its requirements name an
-  issue (`対応 issue`), close that issue. Every task PR is linked to it through
-  its branch (`_lib/task-pr-handoff.md` Part A step 4), but the repository's
-  "Auto-close issues with merged linked pull requests" setting is off so that
-  the earlier PRs leave it open; whether the squash commit's `Closes` line
-  closes it is not relied on. First close its open link sub-issues
-  (`_lib/task-pr-handoff.md`, "Choosing the issue to link": the sub-issues
-  titled `#<issue> の PR リンク (<k>)`, listed with
-  `gh api repos/{owner}/{repo}/issues/<issue>/sub_issues --paginate`). Then
-  check `gh issue view <issue> --json state`, and when it is `OPEN`, close
-  it. For each, write a Japanese comment naming the merged PR to a file, and
-  run the mention check on it:
+- Close the issues the merged PR completes, when it has any:
+  - the task's final plan PR whose requirements name an issue
+    (`対応 issue`): that issue, and its open link sub-issues
+    (`_lib/task-pr-handoff.md`, "Choosing the issue to link": the sub-issues
+    titled `#<issue> の PR リンク (<k>)`, listed with
+    `gh api repos/{owner}/{repo}/issues/<issue>/sub_issues --paginate`);
+  - a lightweight PR (step 2): LW_ISSUE. A lightweight issue has no link
+    sub-issue.
+
+  Any other PR closes no issue. Every task PR is linked to its issue through
+  its branch (`_lib/task-pr-handoff.md` Part A step 4), and a lightweight PR
+  through its branch too, but the repository's "Auto-close issues with merged
+  linked pull requests" setting is off so that the earlier task PRs leave the
+  issue open; whether the squash commit's `Closes` line closes it is not
+  relied on. `<issue>` below stands for each issue to close in turn: the open
+  link sub-issues first, then the `対応 issue` or LW_ISSUE. Check
+  `gh issue view <issue> --json state`, and when it is `OPEN`, close it. For each, write a Japanese comment naming the merged PR to a
+  file. For LW_ISSUE, first check that the file's first line, read with
+  `head -n 1 <comment-file>` and compared without a trailing CR, is not
+  `<spec-marker>`: a comment this command posts is never a spec. When it is,
+  or the read fails, do not close the issue: stop and report. Then run the
+  mention check on the file:
   **Mention check.** Before posting, run `grep -qiF -- '<review-mention>' <file>`
   on each file of text to post. Post only when it exits `1` for every file: exit
   code `0` means the text contains the mention, and any other code means the
   check failed. Never rewrite the text to get past the check.
   When the check fails, do not close the issue without its comment: stop and
   report. Otherwise close it with
-  `gh issue close <number> --reason completed --comment "$(cat "<comment-file>")"`.
+  `gh issue close <issue> --reason completed --comment "$(cat "<comment-file>")"`.
+  When any check or `gh issue close` fails, stop and report that the PR is
+  merged, which issues are still open, and that running `/runpr <PR>` again
+  closes them (step 1's `MERGED` case); a close that failed after its comment
+  was posted posts the comment once more on that rerun.
 - End by the answer in step 4 and how this step went. The next branch is
   **ready** once `_lib/task-pr-handoff.md` Part A step 4 has run to its end; a
   branch that exists on `origin` or locally is not ready by that alone. (An
