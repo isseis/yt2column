@@ -368,7 +368,7 @@ func (ts *testServer) publishRequest(keyPart string) *httptest.ResponseRecorder 
 	return ts.serve(newRequest(http.MethodPost, publishTarget(keyPart), nil))
 }
 
-// messagesParagraphRunes is the length of one paragraph of messagesArticle:
+// messagesParagraphRunes is the length of one paragraph of threeMessageArticle:
 // more than half of a Slack message's 16,383 code points.
 const messagesParagraphRunes = 8500
 
@@ -376,11 +376,12 @@ const messagesParagraphRunes = 8500
 // loopbackWebhook.publisherFor builds.
 const loopbackWebhookTimeout = 5 * time.Second
 
-// messagesArticle returns a postable article whose Slack text splits into
-// exactly n messages: n paragraphs, each longer than half a message, so no
-// two share one.
-func messagesArticle(t *testing.T, n int) writer.Article {
+// threeMessageArticle returns a postable article whose Slack text splits into
+// exactly three messages: three paragraphs, each longer than half a message,
+// so no two share one.
+func threeMessageArticle(t *testing.T) writer.Article {
 	t.Helper()
+	const n = 3
 	article := testArticle()
 	paragraph := strings.Repeat("a", messagesParagraphRunes) + "\n\n"
 	article.Body = strings.Repeat(paragraph, n) + article.Body

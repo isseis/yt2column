@@ -1264,6 +1264,813 @@ func TestSlackPublishErrorClasses(t *testing.T) {
 	})
 }
 
+// TestSlackPostPayload checks the POST shape, the exact payload members,
+// silent, and the posted text of the prepared messages.
+func TestSlackPostPayload(t *testing.T) {
+	t.Run("valid article", func(t *testing.T) {
+		article := validArticle()
+		m, err := PrepareSlackMessages(article)
+		if err != nil {
+			t.Fatalf("PrepareSlackMessages: %v", err)
+		}
+		server := newSlackOKServer(t)
+		if _, _, err := postFrom(t, server, m, 0); err != nil {
+			t.Fatalf("PostMessages: %v", err)
+		}
+		requests := server.recorder.all()
+		if len(requests) != 1 {
+			t.Fatalf("got %d requests, want 1", len(requests))
+		}
+		requireSlackPayloadShape(t, requests[0])
+		if got, want := slackPayloadText(t, requests[0]), renderSlackPost(article).text; got != want {
+			t.Fatalf("text = %q, want the posted article", got)
+		}
+	})
+
+	t.Run("body with JSON-significant characters", func(t *testing.T) {
+		article := validArticle()
+		article.Body = "\"quoted\" \\ backslash } </script> \u2028 next"
+		m, err := PrepareSlackMessages(article)
+		if err != nil {
+			t.Fatalf("PrepareSlackMessages: %v", err)
+		}
+		server := newSlackOKServer(t)
+		if _, _, err := postFrom(t, server, m, 0); err != nil {
+			t.Fatalf("PostMessages: %v", err)
+		}
+		requests := server.recorder.all()
+		if len(requests) != 1 {
+			t.Fatalf("got %d requests, want 1", len(requests))
+		}
+		requireSlackPayloadShape(t, requests[0])
+		if got, want := slackPayloadText(t, requests[0]), renderSlackPost(article).text; got != want {
+			t.Fatalf("text = %q, want the posted article", got)
+		}
+	})
+
+	t.Run("empty model version", func(t *testing.T) {
+		article := validArticle()
+		article.ModelVersion = ""
+		m, err := PrepareSlackMessages(article)
+		if err != nil {
+			t.Fatalf("PrepareSlackMessages: %v", err)
+		}
+		_, texts, err := postFrom(t, newSlackOKServer(t), m, 0)
+		if err != nil {
+			t.Fatalf("PostMessages: %v", err)
+		}
+		if len(texts) != 1 {
+			t.Fatalf("got %d requests, want 1", len(texts))
+		}
+		// The footnote shows no model version, empty or not.
+		if strings.Contains(texts[0], "(none)") {
+			t.Fatalf("text = %q, want the post with no model version", texts[0])
+		}
+	})
+}
+
+// TestSlackPostCostLine checks that the cost is posted once, in the known and
+// the unknown form, and that a split article carries it in the footnote of the
+// last message only.
+func TestSlackPostCostLine(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		article  writer.Article
+		wantLine string
+	}{
+		{"known", costedArticle(), "Models: model-x (generation) \u00b7 Estimated cost: 0.0023 USD"},
+		{"unknown", validArticle(), "Models: model-x (generation) \u00b7 Estimated cost: unknown"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m, err := PrepareSlackMessages(tc.article)
+			if err != nil {
+				t.Fatalf("PrepareSlackMessages: %v", err)
+			}
+			_, texts, err := postFrom(t, newSlackOKServer(t), m, 0)
+			if err != nil {
+				t.Fatalf("PostMessages: %v", err)
+			}
+			text := strings.Join(texts, "")
+			if !strings.HasSuffix(text, tc.wantLine) {
+				t.Fatalf("the posted text does not end with the footnote %q: %q", tc.wantLine, text)
+			}
+			if n := strings.Count(text, "Estimated cost"); n != 1 {
+				t.Fatalf("the cost line appears %d times, want 1", n)
+			}
+		})
+	}
+
+	t.Run("split article keeps the footnote in the last message", func(t *testing.T) {
+		m, err := PrepareSlackMessages(threeMessageArticle(t))
+		if err != nil {
+			t.Fatalf("PrepareSlackMessages: %v", err)
+		}
+		_, messages, err := postFrom(t, newSlackOKServer(t), m, 0)
+		if err != nil {
+			t.Fatalf("PostMessages: %v", err)
+		}
+		if len(messages) < 2 {
+			t.Fatalf("got %d messages, want the article to split", len(messages))
+		}
+		if !strings.Contains(messages[len(messages)-1], "Estimated cost: ") {
+			t.Fatalf("the last message has no footnote: %q", messages[len(messages)-1])
+		}
+		if n := strings.Count(strings.Join(messages, ""), "Estimated cost"); n != 1 {
+			t.Fatalf("the cost line appears %d times across the messages, want 1", n)
+		}
+	})
+}
+
+// TestSlackPostSplit checks the split messages, the boundary lengths, and that
+// the request count matches the Len of the messages PrepareSlackMessages
+// returns.
+func TestSlackPostSplit(t *testing.T) {
+	t.Run("many lines", func(t *testing.T) {
+		article := validArticle()
+		article.Body = strings.Repeat("lorem ipsum dolor\n", 4000)
+		posted := renderSlackPost(article).text
+		m, err := PrepareSlackMessages(article)
+		if err != nil {
+			t.Fatalf("PrepareSlackMessages: %v", err)
+		}
+		server := newSlackOKServer(t)
+		_, messages, err := postFrom(t, server, m, 0)
+		if err != nil {
+			t.Fatalf("PostMessages: %v", err)
+		}
+		requests := server.recorder.all()
+		if len(requests) < 3 {
+			t.Fatalf("got %d requests, want at least 3", len(requests))
+		}
+		for _, req := range requests {
+			requireSlackPayloadShape(t, req)
+		}
+		checkSlackMessages(t, messages, posted)
+		if len(requests) != m.Len() {
+			t.Fatalf("received %d requests, PrepareSlackMessages Len() = %d", len(requests), m.Len())
+		}
+	})
+
+	t.Run("one long line", func(t *testing.T) {
+		article := validArticle()
+		article.Body = strings.Repeat("\u3042", 20000) + strings.Repeat("\U0001F600", 4000) + shortLastLine
+		posted := renderSlackPost(article).text
+		m, err := PrepareSlackMessages(article)
+		if err != nil {
+			t.Fatalf("PrepareSlackMessages: %v", err)
+		}
+		_, messages, err := postFrom(t, newSlackOKServer(t), m, 0)
+		if err != nil {
+			t.Fatalf("PostMessages: %v", err)
+		}
+		if len(messages) < 2 {
+			t.Fatalf("got %d messages, want at least 2", len(messages))
+		}
+		checkSlackMessages(t, messages, posted)
+	})
+
+	t.Run("exactly the limit and one over", func(t *testing.T) {
+		for _, tc := range []struct {
+			extra int
+			want  int
+		}{{0, 1}, {1, 2}} {
+			article := articleWithPostedRunes(t, slackMaxMessageRunes+tc.extra, 'a')
+			m, err := PrepareSlackMessages(article)
+			if err != nil {
+				t.Fatalf("extra %d: PrepareSlackMessages: %v", tc.extra, err)
+			}
+			_, messages, err := postFrom(t, newSlackOKServer(t), m, 0)
+			if err != nil {
+				t.Fatalf("extra %d: PostMessages: %v", tc.extra, err)
+			}
+			if len(messages) != tc.want {
+				t.Fatalf("extra %d: got %d requests, want %d", tc.extra, len(messages), tc.want)
+			}
+			if tc.want == 1 && strings.HasPrefix(messages[0], "(") {
+				t.Fatalf("a single message carries a position marker: %q", messages[0])
+			}
+			checkSlackMessages(t, messages, renderSlackPost(article).text)
+		}
+	})
+}
+
+// TestSlackPostWaitsBetweenMessages exercises the inter-message wait and
+// checks that every message still arrives.
+func TestSlackPostWaitsBetweenMessages(t *testing.T) {
+	article := threeMessageArticle(t)
+	m, err := PrepareSlackMessages(article)
+	if err != nil {
+		t.Fatalf("PrepareSlackMessages: %v", err)
+	}
+	server := newSlackOKServer(t)
+	p := newTestSlackPublisher(t, server, SlackTestOptions{Timeout: time.Second, Interval: 20 * time.Millisecond})
+	if err := p.PostMessages(context.Background(), m, 0, func(int) {}); err != nil {
+		t.Fatalf("PostMessages: %v", err)
+	}
+	if got := server.recorder.count(); got != 3 {
+		t.Fatalf("server received %d requests, want 3", got)
+	}
+	checkSlackMessages(t, slackMessageTexts(t, server), renderSlackPost(article).text)
+}
+
+// TestPrepareSlackMessagesRejectionNotPostError checks that every preparation
+// rejection is its own error and not a *SlackPostError. A rejection returns no
+// messages, so there is nothing to send.
+func TestPrepareSlackMessagesRejectionNotPostError(t *testing.T) {
+	cases := []struct {
+		name    string
+		mutate  func(*writer.Article)
+		wantErr error
+	}{
+		{"invalid title", func(a *writer.Article) { a.Title = "" }, writer.ErrInvalidArticle},
+		{"invalid body", func(a *writer.Article) { a.Body = "x\x1b[2J" }, writer.ErrInvalidArticle},
+		{"invalid channel name", func(a *writer.Article) { a.ChannelName = "a\u202eb" }, writer.ErrInvalidChannelName},
+		{"mention in body", func(a *writer.Article) { a.Body = "`@channel`" }, ErrSlackMention},
+		{"mention in title", func(a *writer.Article) { a.Title = "<!here>" }, ErrSlackMention},
+		{"whitespace-only fragment", func(a *writer.Article) { a.Body = strings.Repeat(" ", 20000) + "x" }, ErrSlackUnsplittable},
+		{"too many messages", func(a *writer.Article) {
+			a.Body = strings.Repeat(strings.Repeat("a", slackMaxMessageRunes-slackDisplayMaxRunes-1)+"\n", slackMaxMessages+1)
+		}, ErrSlackUnsplittable},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			article := validArticle()
+			tc.mutate(&article)
+			_, err := PrepareSlackMessages(article)
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tc.wantErr)
+			}
+			if _, ok := errors.AsType[*SlackPostError](err); ok {
+				t.Fatalf("err = %v, must not wrap *SlackPostError", err)
+			}
+		})
+	}
+}
+
+// TestSlackPostResponses checks the non-200 statuses, the invalid 200 bodies,
+// and the identifier extraction.
+func TestSlackPostResponses(t *testing.T) {
+	m, err := PrepareSlackMessages(validArticle())
+	if err != nil {
+		t.Fatalf("PrepareSlackMessages: %v", err)
+	}
+
+	t.Run("non-200 statuses", func(t *testing.T) {
+		three, err := PrepareSlackMessages(threeMessageArticle(t))
+		if err != nil {
+			t.Fatalf("PrepareSlackMessages: %v", err)
+		}
+		for _, status := range []int{400, 403, 404, 410, 429, 500} {
+			t.Run(strconv.Itoa(status), func(t *testing.T) {
+				status := status
+				server := newSlackServer(t, func(w http.ResponseWriter, _ *http.Request, _ int) {
+					w.WriteHeader(status)
+				})
+				_, _, err := postFrom(t, server, three, 0)
+				if !errors.Is(err, ErrSlackHTTPStatus) {
+					t.Fatalf("err = %v, want ErrSlackHTTPStatus", err)
+				}
+				if !strings.Contains(err.Error(), strconv.Itoa(status)) {
+					t.Fatalf("error = %q, want the status code", err.Error())
+				}
+				if got := server.recorder.count(); got != 1 {
+					t.Fatalf("server received %d requests, want 1", got)
+				}
+			})
+		}
+	})
+
+	t.Run("invalid 200 bodies", func(t *testing.T) {
+		cases := []struct {
+			name string
+			body string
+		}{
+			{"empty", ""},
+			{"uppercase", "OK"},
+			{"trailing newline", "ok\n"},
+			{"json", `{"ok":true}`},
+			{"at the limit", strings.Repeat("a", slackMaxResponseBytes)},
+			{"one over the limit", strings.Repeat("a", slackMaxResponseBytes+1)},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				body := tc.body
+				server := newSlackServer(t, func(w http.ResponseWriter, _ *http.Request, _ int) {
+					_, _ = io.WriteString(w, body)
+				})
+				_, _, err := postFrom(t, server, m, 0)
+				if !errors.Is(err, ErrSlackInvalidResponse) {
+					t.Fatalf("err = %v, want ErrSlackInvalidResponse", err)
+				}
+				if got := server.recorder.count(); got != 1 {
+					t.Fatalf("server received %d requests, want 1", got)
+				}
+			})
+		}
+	})
+
+	t.Run("mattermost app error", func(t *testing.T) {
+		server := newSlackServer(t, func(w http.ResponseWriter, _ *http.Request, _ int) {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = io.WriteString(w, `{"id":"web.incoming_webhook.parse.app_error","message":"x","request_id":"0123456789abcdefghijklmnop"}`)
+		})
+		_, _, err := postFrom(t, server, m, 0)
+		if !errors.Is(err, ErrSlackHTTPStatus) {
+			t.Fatalf("err = %v, want ErrSlackHTTPStatus", err)
+		}
+		statusErr, ok := errors.AsType[*SlackHTTPStatusError](err)
+		if !ok {
+			t.Fatalf("errors.AsType[*SlackHTTPStatusError] = false")
+		}
+		if statusErr.StatusCode != http.StatusBadRequest {
+			t.Fatalf("StatusCode = %d, want 400", statusErr.StatusCode)
+		}
+		if statusErr.Reason != "web.incoming_webhook.parse.app_error" {
+			t.Fatalf("Reason = %q", statusErr.Reason)
+		}
+		if statusErr.RequestID != "0123456789abcdefghijklmnop" {
+			t.Fatalf("RequestID = %q", statusErr.RequestID)
+		}
+	})
+
+	t.Run("identifier shapes", func(t *testing.T) {
+		cases := []struct {
+			name       string
+			body       string
+			wantReason string
+			wantReqID  string
+		}{
+			{"reason and request id", `{"id":"web.incoming_webhook.general.app_error","request_id":"0123456789abcdefghijklmnop"}`, "web.incoming_webhook.general.app_error", "0123456789abcdefghijklmnop"},
+			{"plain reason", "web_incoming_error", "web_incoming_error", ""},
+			{"id with a bad shape", `{"id":"Not-An-Id"}`, "", ""},
+			{"request id with a bad length", `{"request_id":"abc"}`, "", ""},
+			{"non-string id", `{"id":123}`, "", ""},
+			{"malformed json", `{"id":`, "", ""},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				body := tc.body
+				server := newSlackServer(t, func(w http.ResponseWriter, _ *http.Request, _ int) {
+					w.WriteHeader(http.StatusBadRequest)
+					_, _ = io.WriteString(w, body)
+				})
+				_, _, err := postFrom(t, server, m, 0)
+				statusErr, ok := errors.AsType[*SlackHTTPStatusError](err)
+				if !ok {
+					t.Fatalf("err = %v, want *SlackHTTPStatusError", err)
+				}
+				if statusErr.Reason != tc.wantReason || statusErr.RequestID != tc.wantReqID {
+					t.Fatalf("identifiers = %q/%q, want %q/%q", statusErr.Reason, statusErr.RequestID, tc.wantReason, tc.wantReqID)
+				}
+			})
+		}
+	})
+
+	t.Run("oversized error body drops identifiers", func(t *testing.T) {
+		// The body is a complete AppError followed by enough spaces to exceed
+		// the read limit. Reading exactly the limit would parse the JSON and
+		// keep the id, so the identifiers must be dropped.
+		body := `{"id":"web.incoming_webhook.parse.app_error"}` + strings.Repeat(" ", slackMaxResponseBytes)
+		server := newSlackServer(t, func(w http.ResponseWriter, _ *http.Request, _ int) {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = io.WriteString(w, body)
+		})
+		_, _, err := postFrom(t, server, m, 0)
+		statusErr, ok := errors.AsType[*SlackHTTPStatusError](err)
+		if !ok {
+			t.Fatalf("err = %v, want *SlackHTTPStatusError", err)
+		}
+		if statusErr.Reason != "" || statusErr.RequestID != "" {
+			t.Fatalf("identifiers = %q/%q, want both dropped for an oversized body", statusErr.Reason, statusErr.RequestID)
+		}
+	})
+
+	t.Run("webhook key dropped", func(t *testing.T) {
+		const key = "abcdefghij0123456789klmnop"
+		if len(key) != 26 {
+			t.Fatalf("key length = %d, want 26", len(key))
+		}
+		server := newSlackServer(t, func(w http.ResponseWriter, _ *http.Request, _ int) {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = io.WriteString(w, `{"id":"`+key+`","request_id":"`+key+`"}`)
+		})
+		p := NewSlackWebhookPublisherForLoopbackTest(t, SlackTestOptions{Timeout: time.Second}, server.server.URL+"/hooks/"+key)
+		err := p.PostMessages(context.Background(), m, 0, func(int) {})
+		statusErr, ok := errors.AsType[*SlackHTTPStatusError](err)
+		if !ok {
+			t.Fatalf("err = %v, want *SlackHTTPStatusError", err)
+		}
+		if statusErr.Reason != "" || statusErr.RequestID != "" {
+			t.Fatalf("identifiers = %q/%q, want both dropped", statusErr.Reason, statusErr.RequestID)
+		}
+	})
+}
+
+// TestSlackPostRedirect checks that a 3xx is a status failure and the Location
+// target receives nothing.
+func TestSlackPostRedirect(t *testing.T) {
+	m, err := PrepareSlackMessages(validArticle())
+	if err != nil {
+		t.Fatalf("PrepareSlackMessages: %v", err)
+	}
+	target := newSlackOKServer(t)
+	for _, status := range []int{301, 302, 307, 308} {
+		t.Run(strconv.Itoa(status), func(t *testing.T) {
+			status := status
+			server := newSlackServer(t, func(w http.ResponseWriter, _ *http.Request, _ int) {
+				w.Header().Set("Location", target.server.URL+slackWebhookPath)
+				w.WriteHeader(status)
+			})
+			_, _, err := postFrom(t, server, m, 0)
+			if !errors.Is(err, ErrSlackHTTPStatus) {
+				t.Fatalf("err = %v, want ErrSlackHTTPStatus", err)
+			}
+			if got := target.recorder.count(); got != 0 {
+				t.Fatalf("the redirect target received %d requests, want 0", got)
+			}
+			if got := server.recorder.count(); got != 1 {
+				t.Fatalf("the server received %d requests, want 1", got)
+			}
+		})
+	}
+}
+
+// TestSlackPostTimeout checks that an unanswered request ends with a
+// context.DeadlineExceeded wrapped in a *SlackPostError.
+func TestSlackPostTimeout(t *testing.T) {
+	m, err := PrepareSlackMessages(validArticle())
+	if err != nil {
+		t.Fatalf("PrepareSlackMessages: %v", err)
+	}
+	release := make(chan struct{})
+	server := newSlackServer(t, func(http.ResponseWriter, *http.Request, int) {
+		<-release
+	})
+	t.Cleanup(func() { close(release) })
+
+	p := newTestSlackPublisher(t, server, SlackTestOptions{Timeout: 100 * time.Millisecond})
+	err = p.PostMessages(context.Background(), m, 0, func(int) {})
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("err = %v, want context.DeadlineExceeded", err)
+	}
+	postErr, ok := errors.AsType[*SlackPostError](err)
+	if !ok || !postErr.Attempted {
+		t.Fatalf("SlackPostError = %+v, want Attempted", postErr)
+	}
+}
+
+// TestSlackPostBodyFailures checks the body-read outcomes the design names: a
+// 200 read failure is a transport failure, a read outliving the deadline wraps
+// the context error, and a non-200 read failure keeps the status without
+// identifiers.
+func TestSlackPostBodyFailures(t *testing.T) {
+	endpoint := "http://127.0.0.1:1" + slackWebhookPath
+	m, err := PrepareSlackMessages(validArticle())
+	if err != nil {
+		t.Fatalf("PrepareSlackMessages: %v", err)
+	}
+
+	t.Run("200 body read failure is a transport failure", func(t *testing.T) {
+		transport := staticResponseTransport{status: http.StatusOK, body: func(*http.Request) io.ReadCloser {
+			return failingReadBody{}
+		}}
+		p := newSlackWebhookPublisherForLoopbackTest(t, SlackTestOptions{Timeout: time.Second}, endpoint, transport)
+		err := p.PostMessages(context.Background(), m, 0, func(int) {})
+		if !errors.Is(err, ErrSlackTransport) {
+			t.Fatalf("err = %v, want ErrSlackTransport", err)
+		}
+		requireErrorOmitsEndpoint(t, err, endpoint)
+	})
+
+	t.Run("200 body read timeout wraps the context error", func(t *testing.T) {
+		transport := staticResponseTransport{status: http.StatusOK, body: func(req *http.Request) io.ReadCloser {
+			return &contextErrorBody{ctx: req.Context()}
+		}}
+		p := newSlackWebhookPublisherForLoopbackTest(t, SlackTestOptions{Timeout: 100 * time.Millisecond}, endpoint, transport)
+		err := p.PostMessages(context.Background(), m, 0, func(int) {})
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("err = %v, want context.DeadlineExceeded", err)
+		}
+	})
+
+	t.Run("non-200 body read failure drops identifiers", func(t *testing.T) {
+		transport := staticResponseTransport{status: http.StatusBadRequest, body: func(*http.Request) io.ReadCloser {
+			return failingReadBody{}
+		}}
+		p := newSlackWebhookPublisherForLoopbackTest(t, SlackTestOptions{Timeout: time.Second}, endpoint, transport)
+		err := p.PostMessages(context.Background(), m, 0, func(int) {})
+		statusErr, ok := errors.AsType[*SlackHTTPStatusError](err)
+		if !ok {
+			t.Fatalf("err = %v, want *SlackHTTPStatusError", err)
+		}
+		if statusErr.StatusCode != http.StatusBadRequest || statusErr.Reason != "" || statusErr.RequestID != "" {
+			t.Fatalf("status error = %+v, want 400 with no identifiers", statusErr)
+		}
+	})
+}
+
+// TestSlackPostCanceled checks a canceled context before sending, in flight,
+// and between messages, and a successful last message after a cancel.
+func TestSlackPostCanceled(t *testing.T) {
+	one, err := PrepareSlackMessages(validArticle())
+	if err != nil {
+		t.Fatalf("PrepareSlackMessages: %v", err)
+	}
+	three, err := PrepareSlackMessages(threeMessageArticle(t))
+	if err != nil {
+		t.Fatalf("PrepareSlackMessages: %v", err)
+	}
+
+	t.Run("before the first message", func(t *testing.T) {
+		server := newSlackOKServer(t)
+		p := newTestSlackPublisher(t, server, SlackTestOptions{})
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		err := p.PostMessages(ctx, one, 0, func(int) {})
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("err = %v, want context.Canceled", err)
+		}
+		postErr, ok := errors.AsType[*SlackPostError](err)
+		if !ok || postErr.Posted != 0 || postErr.Attempted {
+			t.Fatalf("SlackPostError = %+v, want Posted 0, Attempted false", postErr)
+		}
+		if got := server.recorder.count(); got != 0 {
+			t.Fatalf("server received %d requests, want 0", got)
+		}
+	})
+
+	t.Run("before the second message", func(t *testing.T) {
+		ctx := &cancelableContext{Context: context.Background()}
+		var mu sync.Mutex
+		seen := 0
+		server := newSlackServer(t, func(w http.ResponseWriter, _ *http.Request, _ int) {
+			mu.Lock()
+			seen++
+			first := seen == 1
+			mu.Unlock()
+			if first {
+				ctx.cancel(context.Canceled)
+			}
+			_, _ = io.WriteString(w, slackOKResponse)
+		})
+		p := newTestSlackPublisher(t, server, SlackTestOptions{Timeout: time.Second})
+		err := p.PostMessages(ctx, three, 0, func(int) {})
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("err = %v, want context.Canceled", err)
+		}
+		postErr, ok := errors.AsType[*SlackPostError](err)
+		if !ok {
+			t.Fatalf("errors.AsType[*SlackPostError] = false")
+		}
+		if postErr.Total != 3 || postErr.Posted != 1 || postErr.Attempted {
+			t.Fatalf("SlackPostError = %+v, want Total 3, Posted 1, Attempted false", postErr)
+		}
+		if got := server.recorder.count(); got != 1 {
+			t.Fatalf("server received %d requests, want 1", got)
+		}
+	})
+
+	t.Run("during the wait between messages", func(t *testing.T) {
+		server := newSlackOKServer(t)
+		ctx, cancel := context.WithCancel(context.Background())
+		transport := &cancelOnEOFTransport{base: http.DefaultTransport, cancel: cancel}
+		p := newSlackWebhookPublisherForLoopbackTest(t, SlackTestOptions{Timeout: time.Second, Interval: time.Hour}, server.url(), transport)
+		err := p.PostMessages(ctx, three, 0, func(int) {})
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("err = %v, want context.Canceled", err)
+		}
+		postErr, ok := errors.AsType[*SlackPostError](err)
+		if !ok || postErr.Total != 3 || postErr.Posted != 1 || postErr.Attempted {
+			t.Fatalf("SlackPostError = %+v, want Total 3, Posted 1, Attempted false", postErr)
+		}
+		if got := server.recorder.count(); got != 1 {
+			t.Fatalf("server received %d requests, want 1", got)
+		}
+	})
+
+	t.Run("while a request is in flight", func(t *testing.T) {
+		endpoint := "http://127.0.0.1:1" + slackWebhookPath
+		transport := &blockingTransport{started: make(chan struct{})}
+		p := newSlackWebhookPublisherForLoopbackTest(t, SlackTestOptions{Timeout: time.Hour}, endpoint, transport)
+		ctx, cancel := context.WithCancel(context.Background())
+		errCh := make(chan error, 1)
+		go func() { errCh <- p.PostMessages(ctx, one, 0, func(int) {}) }()
+		<-transport.started
+		cancel()
+		err := <-errCh
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("err = %v, want context.Canceled", err)
+		}
+		postErr, ok := errors.AsType[*SlackPostError](err)
+		if !ok || !postErr.Attempted || postErr.Posted != 0 {
+			t.Fatalf("SlackPostError = %+v, want Attempted true, Posted 0", postErr)
+		}
+		requireErrorOmitsEndpoint(t, err, endpoint)
+	})
+
+	t.Run("after the last message", func(t *testing.T) {
+		ctx := &cancelableContext{Context: context.Background()}
+		server := newSlackServer(t, func(w http.ResponseWriter, _ *http.Request, _ int) {
+			ctx.cancel(context.Canceled)
+			_, _ = io.WriteString(w, slackOKResponse)
+		})
+		p := newTestSlackPublisher(t, server, SlackTestOptions{Timeout: time.Second})
+		if err := p.PostMessages(ctx, one, 0, func(int) {}); err != nil {
+			t.Fatalf("PostMessages: %v, want nil", err)
+		}
+	})
+}
+
+// TestSlackPostErrorsOmitWebhookURL checks that no failure and no unwrapped
+// error shows the URL, its path, or a part, and neither does %+v or %#v.
+func TestSlackPostErrorsOmitWebhookURL(t *testing.T) {
+	m, err := PrepareSlackMessages(validArticle())
+	if err != nil {
+		t.Fatalf("PrepareSlackMessages: %v", err)
+	}
+
+	t.Run("closed server", func(t *testing.T) {
+		server := newSlackOKServer(t)
+		endpoint := server.url()
+		server.server.Close()
+		p := NewSlackWebhookPublisherForLoopbackTest(t, SlackTestOptions{Timeout: time.Second}, endpoint)
+		requireErrorOmitsEndpoint(t, p.PostMessages(context.Background(), m, 0, func(int) {}), endpoint)
+	})
+
+	t.Run("timeout", func(t *testing.T) {
+		release := make(chan struct{})
+		server := newSlackServer(t, func(http.ResponseWriter, *http.Request, int) { <-release })
+		t.Cleanup(func() { close(release) })
+		p := newTestSlackPublisher(t, server, SlackTestOptions{Timeout: 100 * time.Millisecond})
+		requireErrorOmitsEndpoint(t, p.PostMessages(context.Background(), m, 0, func(int) {}), server.url())
+	})
+
+	t.Run("cancel", func(t *testing.T) {
+		server := newSlackOKServer(t)
+		p := newTestSlackPublisher(t, server, SlackTestOptions{})
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		requireErrorOmitsEndpoint(t, p.PostMessages(ctx, m, 0, func(int) {}), server.url())
+	})
+
+	t.Run("non-200 status", func(t *testing.T) {
+		server := newSlackServer(t, func(w http.ResponseWriter, _ *http.Request, _ int) {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = io.WriteString(w, slackWebhookMarker)
+		})
+		_, _, err := postFrom(t, server, m, 0)
+		requireErrorOmitsEndpoint(t, err, server.url())
+	})
+
+	t.Run("oversized body", func(t *testing.T) {
+		server := newSlackServer(t, func(w http.ResponseWriter, _ *http.Request, _ int) {
+			_, _ = io.WriteString(w, strings.Repeat("a", slackMaxResponseBytes+1))
+		})
+		_, _, err := postFrom(t, server, m, 0)
+		requireErrorOmitsEndpoint(t, err, server.url())
+	})
+
+	t.Run("redirect", func(t *testing.T) {
+		target := newSlackOKServer(t)
+		server := newSlackServer(t, func(w http.ResponseWriter, _ *http.Request, _ int) {
+			w.Header().Set("Location", target.server.URL+slackWebhookPath)
+			w.WriteHeader(http.StatusFound)
+		})
+		_, _, err := postFrom(t, server, m, 0)
+		requireErrorOmitsEndpoint(t, err, server.url())
+	})
+
+	t.Run("struct formatting", func(t *testing.T) {
+		server := newSlackOKServer(t)
+		p := newTestSlackPublisher(t, server, SlackTestOptions{})
+		for _, format := range []string{"%v", "%+v", "%#v", "%s"} {
+			if got := fmt.Sprintf(format, p); strings.Contains(got, slackWebhookMarker) {
+				t.Fatalf("%s output leaks the Webhook URL: %s", format, got)
+			}
+		}
+	})
+}
+
+// TestSlackPostTransportErrorWithheld checks that a transport error naming the
+// URL path is replaced by the fixed withheld message.
+func TestSlackPostTransportErrorWithheld(t *testing.T) {
+	m, err := PrepareSlackMessages(validArticle())
+	if err != nil {
+		t.Fatalf("PrepareSlackMessages: %v", err)
+	}
+	server := newSlackOKServer(t)
+	endpoint := server.url()
+	transport := failingTransport{err: errors.New("dial " + endpoint + ": connection refused")}
+	p := newSlackWebhookPublisherForLoopbackTest(t, SlackTestOptions{Timeout: time.Second}, endpoint, transport)
+	err = p.PostMessages(context.Background(), m, 0, func(int) {})
+	if !errors.Is(err, ErrSlackTransport) {
+		t.Fatalf("err = %v, want ErrSlackTransport", err)
+	}
+	if strings.Contains(err.Error(), slackWebhookMarker) {
+		t.Fatalf("error leaks the endpoint path: %v", err)
+	}
+	if !strings.Contains(err.Error(), "withheld") {
+		t.Fatalf("error = %v, want the withheld details message", err)
+	}
+}
+
+// TestSlackPostErrorClasses checks that each failure, of the preparation or of
+// the send, matches exactly one of the six classifications.
+func TestSlackPostErrorClasses(t *testing.T) {
+	m, err := PrepareSlackMessages(validArticle())
+	if err != nil {
+		t.Fatalf("PrepareSlackMessages: %v", err)
+	}
+	cases := []struct {
+		name string
+		run  func(t *testing.T) error
+	}{
+		{"http status", func(t *testing.T) error {
+			server := newSlackServer(t, func(w http.ResponseWriter, _ *http.Request, _ int) {
+				w.WriteHeader(http.StatusInternalServerError)
+			})
+			_, _, err := postFrom(t, server, m, 0)
+			return err
+		}},
+		{"invalid response", func(t *testing.T) error {
+			server := newSlackServer(t, func(w http.ResponseWriter, _ *http.Request, _ int) {
+				_, _ = io.WriteString(w, "OK")
+			})
+			_, _, err := postFrom(t, server, m, 0)
+			return err
+		}},
+		{"transport", func(t *testing.T) error {
+			server := newSlackOKServer(t)
+			endpoint := server.url()
+			server.server.Close()
+			p := NewSlackWebhookPublisherForLoopbackTest(t, SlackTestOptions{Timeout: time.Second}, endpoint)
+			return p.PostMessages(context.Background(), m, 0, func(int) {})
+		}},
+		{"unsplittable", func(*testing.T) error {
+			article := validArticle()
+			article.Body = strings.Repeat(" ", 20000) + "x"
+			_, err := PrepareSlackMessages(article)
+			return err
+		}},
+		{"mention", func(*testing.T) error {
+			article := validArticle()
+			article.Body = "`@channel`"
+			_, err := PrepareSlackMessages(article)
+			return err
+		}},
+		{"invalid article", func(*testing.T) error {
+			article := validArticle()
+			article.Title = ""
+			_, err := PrepareSlackMessages(article)
+			return err
+		}},
+	}
+
+	predicates := []struct {
+		name  string
+		match func(error) bool
+	}{
+		{"http status", func(err error) bool { return errors.Is(err, ErrSlackHTTPStatus) }},
+		{"invalid response", func(err error) bool { return errors.Is(err, ErrSlackInvalidResponse) }},
+		{"transport", func(err error) bool { return errors.Is(err, ErrSlackTransport) }},
+		{"unsplittable", func(err error) bool { return errors.Is(err, ErrSlackUnsplittable) }},
+		{"mention", func(err error) bool { return errors.Is(err, ErrSlackMention) }},
+		{"invalid article", func(err error) bool { return errors.Is(err, writer.ErrInvalidArticle) }},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.run(t)
+			if err == nil {
+				t.Fatal("expected an error")
+			}
+			for _, predicate := range predicates {
+				got := predicate.match(err)
+				if predicate.name == tc.name && !got {
+					t.Fatalf("err = %v does not match its own class %s", err, tc.name)
+				}
+				if predicate.name != tc.name && got {
+					t.Fatalf("err = %v also matches the %s class", err, predicate.name)
+				}
+			}
+		})
+	}
+
+	t.Run("transport failure with a context cause", func(t *testing.T) {
+		server := newSlackOKServer(t)
+		endpoint := server.url()
+		transport := failingTransport{err: context.Canceled}
+		p := newSlackWebhookPublisherForLoopbackTest(t, SlackTestOptions{Timeout: time.Second}, endpoint, transport)
+		err := p.PostMessages(context.Background(), m, 0, func(int) {})
+		if !errors.Is(err, ErrSlackTransport) {
+			t.Fatalf("err = %v, want ErrSlackTransport", err)
+		}
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("err = %v must match exactly one classification, not a context error", err)
+		}
+	})
+}
+
 // postFrom runs PostMessages for m from index from against server and returns
 // the indices passed to delivered, the texts the server received, and the
 // error.
@@ -1451,6 +2258,9 @@ func TestPostMessagesRejectsWithoutSending(t *testing.T) {
 		err := p.PostMessages(context.Background(), m, 0, nop)
 		if !errors.Is(err, errZeroWebhookURL) {
 			t.Errorf("PostMessages error = %v, want errZeroWebhookURL", err)
+		}
+		if _, ok := errors.AsType[*SlackPostError](err); ok {
+			t.Errorf("PostMessages error = %v, must not be a *SlackPostError", err)
 		}
 	})
 }

@@ -297,12 +297,12 @@ PR-1（#682）を作った後、レビューの担当者がテストを見直し
 
 **変更するファイル:** `internal/publisher/slack_test.go`、`internal/server/publish_test.go`
 
-- [ ] 1.5 節の `TestSlackPost*` の 12 のテストを加える（設計書 7.2 節）。各テストは元のテストの publisher の作り方、オプション（`Timeout`・`Interval`）、context、transport、送り先をそのまま使い、`p.Publish(ctx, a)` を、`PrepareSlackMessages(a)` の誤りを確かめた後に `p.PostMessages(ctx, m, 0, …)` で送る形に替える。既存の補助 `postFrom`（`slack_test.go:1269`）は、元のテストが既定のオプションと `context.Background()` で送る所にだけ使う。新しい補助は加えない。`TestSlackPublishErrorClasses` の準備の誤りの分類（分けられない、メンション、正しくない記事）は `PrepareSlackMessages` の誤りで確かめる。元のテストの確かめ（送る形、費用の行、分割、`silent`、順序と間隔、応答、リダイレクト、時間切れ、本文の失敗、取り消し、URL を出さないこと、通信の誤りを伏せること、エラーの分類）は変えずに移す。
-- [ ] `TestPrepareSlackMessagesRejectionNotPostError` を加える。`TestSlackPublishPrepareSendsNothing` の 7 つの行（`slack_test.go:673-685`）をすべて持ち、各行で期待するエラーであることと、`*SlackPostError` でないことを確かめる（設計書 7.2 節）。
-- [ ] `TestPostMessagesRejectsWithoutSending` の `zero value publisher` の行（`slack_test.go:1446-1452`）に、エラーが `*SlackPostError` でないことの確かめを加える（削除する `TestSlackPublishZeroValue` が確かめていたため）。
-- [ ] `TestPublishPostsPreparedMessages` を加える。比べる相手を `publisher.SlackMessagesForTest(article)` にし、準備した 3 通のメッセージがそのまま送られて成功すること、成功のログの行の `posted=3`・`total=3` を確かめる（設計書 7.2 節）。
-- [ ] 加えたテストが、それぞれ確かめる対象を壊すと失敗することを確かめ、コミットメッセージに書く。
-- [ ] 親コミットを `BASE` に `make coverage-compare` を実行し、`PASS` の出力をコミットメッセージに書く。
+- [x] 1.5 節の `TestSlackPost*` の 12 のテストを加える（設計書 7.2 節）。各テストは元のテストの publisher の作り方、オプション（`Timeout`・`Interval`）、context、transport、送り先をそのまま使い、`p.Publish(ctx, a)` を、`PrepareSlackMessages(a)` の誤りを確かめた後に `p.PostMessages(ctx, m, 0, …)` で送る形に替える。既存の補助 `postFrom`（`slack_test.go:1269`）は、元のテストが既定のオプションと `context.Background()` で送る所にだけ使う。新しい補助は加えない。`TestSlackPublishErrorClasses` の準備の誤りの分類（分けられない、メンション、正しくない記事）は `PrepareSlackMessages` の誤りで確かめる。元のテストの確かめ（送る形、費用の行、分割、`silent`、順序と間隔、応答、リダイレクト、時間切れ、本文の失敗、取り消し、URL を出さないこと、通信の誤りを伏せること、エラーの分類）は変えずに移す。
+- [x] `TestPrepareSlackMessagesRejectionNotPostError` を加える。`TestSlackPublishPrepareSendsNothing` の 7 つの行（`slack_test.go:673-685`）をすべて持ち、各行で期待するエラーであることと、`*SlackPostError` でないことを確かめる（設計書 7.2 節）。
+- [x] `TestPostMessagesRejectsWithoutSending` の `zero value publisher` の行（`slack_test.go:1446-1452`）に、エラーが `*SlackPostError` でないことの確かめを加える（削除する `TestSlackPublishZeroValue` が確かめていたため）。
+- [x] `TestPublishPostsPreparedMessages` を加える。比べる相手を `publisher.SlackMessagesForTest(article)` にし、準備した 3 通のメッセージがそのまま送られて成功すること、成功のログの行の `posted=3`・`total=3` を確かめる（設計書 7.2 節）。
+- [x] 加えたテストが、それぞれ確かめる対象を壊すと失敗することを確かめ、コミットメッセージに書く。
+- [x] 親コミットを `BASE` に `make coverage-compare` を実行し、`PASS` の出力をコミットメッセージに書く。
 
 **完了の条件:** `make test` と `make lint` が通り、`make coverage-compare` が `PASS` で終わる。
 
