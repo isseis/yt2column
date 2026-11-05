@@ -233,10 +233,10 @@ CLI の `--slack` と、CLI だけが使う Webhook の投稿の経路（出力�
 
 **変更するファイル:** 本書 7.1 節
 
-- [ ] PR-1 のすべての変更をコミットした後、`_checks/residue` を merge-base（`git merge-base origin/main HEAD`）と `HEAD` で実行し、出力、終了コード、2 つのコミット ID を 7.1 節に書く。merge-base を head として渡したとき、`unchanged` を除く確かめが成り立たないことも書く（`slack-flag` は、どの形で印のファイルができたかを書く）。
-- [ ] `unchanged` は merge-base でも成り立つので、`extension/` の 1 行と `internal/server/` の製品のファイルの 1 行をそれぞれ変えた一時的なコミット（ブランチに載せない）を head として渡し、成り立たないと出ることを確かめ、7.1 節に書く。
-- [ ] ステップ 1-2・1-3 の網羅率の比較の結果を 7.1 節に書き写す。
-- [ ] `make test`・`make lint`・`make deadcode` を通す。
+- [x] PR-1 のすべての変更をコミットした後、`_checks/residue` を merge-base（`git merge-base origin/main HEAD`）と `HEAD` で実行し、出力、終了コード、2 つのコミット ID を 7.1 節に書く。merge-base を head として渡したとき、`unchanged` を除く確かめが成り立たないことも書く（`slack-flag` は、どの形で印のファイルができたかを書く）。
+- [x] `unchanged` は merge-base でも成り立つので、`extension/` の 1 行と `internal/server/` の製品のファイルの 1 行をそれぞれ変えた一時的なコミット（ブランチに載せない）を head として渡し、成り立たないと出ることを確かめ、7.1 節に書く。
+- [x] ステップ 1-2・1-3 の網羅率の比較の結果を 7.1 節に書き写す。
+- [x] `make test`・`make lint`・`make deadcode` を通す。
 
 **完了の条件:** `_checks/residue` が PR の head で `0` を返し、その記録が 7.1 節にある。
 
@@ -420,7 +420,91 @@ M2 は M1 の後に置く（設計書 8 章）。PR-1 の後は `Publish` を呼
 
 ### 7.1. 実行の記録
 
-（ステップ 1-5 と 2-6 で記入する。）
+#### PR-1
+
+**`_checks/residue`（ステップ 1-5）:** merge-base `43e51be6b1713163487cdf09c390ccb38505e08f`、head `2de9bb0265e4b5ed60cdb0cc4f44218954db9bc5`（ステップ 1-4 のコミット。この記録のコミットはこの節だけを変える）。
+
+```text
+go run -tags test ./docs/tasks/0062_remove_cli_slack/_checks/residue/ 43e51be6 2de9bb02
+```
+
+```text
+OK   slack-flag
+OK   cli-code
+OK   slack-literal
+OK   cli-words
+OK   config
+OK   make-target
+OK   unchanged
+exit 0
+```
+
+-   merge-base を head として渡すと（`43e51be6` を 2 つの引数に渡す）、`unchanged` だけが成り立ち、ほかの 6 つの確かめは成り立たず、終了コード `1` で終わる（slack-flag 24、cli-code 14、slack-literal 55、cli-words 18、config 2、make-target 9 の指摘）。`slack-flag` では、`--out` を付けない `--slack`・`--slack=true`・`-slack`・`-slack=true` の 4 つの形で偽の `yt-dlp` の印のファイルができた（受理された形が `yt-dlp` に届いた）。`--slack=false`・`-slack=false` の形と、`--out` を同時に指定したすべての形の 12 の形は、標準ライブラリの未知のフラグの行を書かなかった（今の CLI は専用の拒否で止まる）。URL の後の 2 つの形は、どちらのコミットでも引数の数の誤りで止まる。対照の実行（`--out` だけ）は、どちらのコミットでも印のファイルを作った。
+-   `unchanged` が失敗しうること: ブランチに載せない一時的なコミットを head として渡した。`extension/src/background.ts` に 1 行を加えたコミット `f21c685f` では `NG unchanged: extension/src/background.ts changed`、`internal/server/publish.go` に 1 行を加えたコミット `7b73ba9c` では `NG unchanged: internal/server/publish.go (a product file) changed` と出て、どちらも終了コード `1` で終わった。
+
+**網羅率の比較（ステップ 1-2、`make coverage-compare`）:** ステップ 1-2 のコミット `6b0fca75`（tree `711594f9`）。出力の `head` はメッセージを直す前のコミット ID で、tree ID は同じである。
+
+```text
+target    make coverage-compare BASE="HEAD~1"
+base      a97a28e33bb7ffaeecc922b05a5eaf975ff6054c
+head      ecffd0da7ec2eedeeab89327c535c4a9fd01cef4 tree 711594f9fc661549c21796c94dc7b345a883f29a
+toolchain go1.27.1
+tests     base 1266 head 1272
+files     base 136 head 136
+functions base 1288 head 1288
+deleted   0
+no compared function lost coverage
+coverage-compare: PASS
+```
+
+**網羅率の比較（ステップ 1-3、`_checks/coverage`）:** before はステップ 1-2 のコミット `6b0fca75`、after はステップ 1-3 のコミット `1f9b9055`（tree `744792a5`）。どちらも、そのコミットのクリーンな worktree で `go test -tags test -count=1 -coverpkg=./... -coverprofile=<file> ./...` を実行し、すべてのテストが通った。
+
+```text
+before  6b0fca75 before.prof (1288 product functions)
+after   1f9b9055 after.prof (1278 product functions)
+only before (removed): 11
+     cmd/yt2column buildOutput (2 of 10 unexecuted)
+     cmd/yt2column chooseDestination (0 of 12 unexecuted)
+     cmd/yt2column messageCount (0 of 3 unexecuted)
+     cmd/yt2column newSlackPublisher (1 of 4 unexecuted)
+     cmd/yt2column rejectedPostStatus (0 of 3 unexecuted)
+     cmd/yt2column reportWebhookHints (0 of 14 unexecuted)
+     cmd/yt2column seconds (0 of 1 unexecuted)
+     internal/config Config.RequireSlackWebhookURL (0 of 3 unexecuted)
+     internal/config Config.SlackWebhookURL (0 of 3 unexecuted)
+     internal/job RemoteOutput (0 of 1 unexecuted)
+     internal/publisher SlackMessageCount (0 of 4 unexecuted)
+only after (added): 1
+     cmd/yt2column checkOut (0 of 4 unexecuted)
+more unexecuted (fails): 1
+     internal/cmdrunner signalGroup: 0 of 3 unexecuted -> 1 of 3 unexecuted
+fewer executed (give each a reason): 10
+     cmd/yt2column newFlagSet: executed 19 -> 18 (0 of 19 unexecuted -> 0 of 18 unexecuted)
+     cmd/yt2column reportReviewLogFailure: executed 5 -> 2 (0 of 5 unexecuted -> 0 of 2 unexecuted)
+     cmd/yt2column reportRunError: executed 19 -> 18 (0 of 19 unexecuted -> 0 of 18 unexecuted)
+     cmd/yt2column reportSuccess: executed 13 -> 7 (1 of 14 unexecuted -> 0 of 7 unexecuted)
+     cmd/yt2column run: executed 61 -> 57 (0 of 61 unexecuted -> 0 of 57 unexecuted)
+     cmd/yt2column warnHTTP2Debug: executed 5 -> 3 (0 of 5 unexecuted -> 0 of 3 unexecuted)
+     internal/cmdrunner signalGroup: executed 3 -> 2 (0 of 3 unexecuted -> 1 of 3 unexecuted)
+     internal/config LoadFor: executed 10 -> 8 (0 of 10 unexecuted -> 0 of 8 unexecuted)
+     internal/job precheckOutput: executed 5 -> 3 (1 of 6 unexecuted -> 0 of 3 unexecuted)
+     internal/job validateRequest: executed 12 -> 8 (0 of 12 unexecuted -> 0 of 8 unexecuted)
+fewer unexecuted: 3
+     cmd/yt2column reportSuccess: 1 of 14 unexecuted -> 0 of 7 unexecuted
+     internal/job precheckOutput: 1 of 6 unexecuted -> 0 of 3 unexecuted
+     internal/slackwebhook lastPathSegment: 1 of 6 unexecuted -> 0 of 6 unexecuted
+NG   1 function(s) found on both sides have more unexecuted statements
+```
+
+-   削除した 11 の関数は、ステップ 1-3 が削除するものである。加えた `checkOut` は `TestCheckOut` と `no --out` の行が実行する。
+-   (a) `internal/cmdrunner` の `signalGroup`: ステップ 1-3 は `internal/cmdrunner` を変えていない。増えた 1 文は、プロセスグループへの `kill` が `ESRCH` 以外で失敗したとき（ゾンビだけが残る間）の `process.Signal` で、子の終わる時刻の巡り合わせで通るかが決まる。同じ tree を 3 回測ると、この分岐を通った回数は 0・0・1 だった。削除したテストはこの分岐に届かない。
+-   (b) 実行された文が減った 10 の関数は、どれも削除した文の分だけ減り、after で実行されなかった文は 0 である（`signalGroup` を除く）: `newFlagSet`（`--slack` の定義）、`reportReviewLogFailure`（Webhook の文言の分岐）、`reportRunError`（`reportWebhookHints` の呼び出し）、`reportSuccess`（Webhook と既定の要約の分岐）、`run`（Webhook URL と `RequireSlackWebhookURL` の文）、`warnHTTP2Debug`（Webhook の警告）、`LoadFor`（`loadSlackWebhook` の呼び出しと代入）、`precheckOutput`・`validateRequest`（出力の種類の分岐）。
+-   最初の比較では、`run` の「build the publisher」の失敗の分岐と `splitJoined` の結合されていない誤りの分岐が (a) に挙がった（削除した `--slack` のテストだけが実行していた）。`executionPathRows` の `the --out publisher cannot be built` の行と `TestSplitJoined` をステップ 1-3 のコミットに加え、上の比較で解消した。
+-   `signal_test.go` の子の CLI のコードは coverprofile に現れないので、`TestSignalDuringSlackPost` の削除はこの比較に現れない。
+
+#### PR-2
+
+（ステップ 2-6 で記入する。）
 
 ## 8. 成功基準 (Success Criteria)
 
