@@ -1,4 +1,4 @@
-<!-- translated-from: README.md bd6bde5fc9b3f81817413f908a1abb837eb683da -->
+<!-- translated-from: README.md 594db4408bb4d2277e9bbf94faf8f6c05ae3ceba -->
 [日本語](README.md)
 
 Developer documents: [Using the CLI](docs/dev/guides/cli.md) · [Development procedures](docs/dev/guides/development.md)
@@ -13,8 +13,9 @@ article. The article is shown in the extension's viewer tab, and posting it to
 the configured Webhook and saving it as a `.md` file are the user's choices in
 the viewer. A CLI is also included as a
 development path: it takes a video URL and fetches the transcript with
-[yt-dlp](https://github.com/yt-dlp/yt-dlp). The LLM call and the posting are
-developed and checked with the CLI.
+[yt-dlp](https://github.com/yt-dlp/yt-dlp). The LLM call and the article
+generation are developed and checked with the CLI. The CLI writes the article
+to the `--out` file and does not post to the Webhook.
 
 ```mermaid
 flowchart LR
@@ -261,16 +262,10 @@ shows an article this check rejected as one that cannot be posted (because it
 contains a mention, or because of another pre-send check), and disables the post button.
 
 If a post fails partway through a split article, the messages already sent stay
-in the channel. The CLI has no retry or resume: running again generates a new
-article and posts it from the first message, so the channel can end up with part
-of the old article and all of the new one. An article posted from the
-extension's viewer resumes from the first message that did not arrive when
-**Post to Slack** is pressed again (the one message whose delivery was not
-confirmed may arrive twice).
-
-How the CLI posts with `--slack`, and how to inspect a rejected article with
-`--out`, are in
-[docs/dev/guides/cli.md](docs/dev/guides/cli.md#webhook-への投稿).
+in the channel. In the
+extension's viewer, pressing **Post to Slack** again resumes from the first
+message that did not arrive (the one message whose delivery was not confirmed
+may arrive twice).
 
 ## Localhost server
 
@@ -544,10 +539,11 @@ The status code of each reason, and how to check the server with `curl`, are in
 | `DEEPSEEK_API_KEY` | DeepSeek API key | Required when the generation or review provider is `deepseek` (an error) |
 | `ANTHROPIC_API_KEY` | Anthropic API key | Required when the generation or review provider is `claude` (an error) |
 | `ANTHROPIC_WORKSPACE_ID` | Anthropic workspace ID, for an API key not bound to a workspace | No workspace ID is sent |
-| `SLACK_WEBHOOK_URL` | Slack-compatible Incoming Webhook URL (Mattermost is the verified target) | The server starts, but cannot post |
+| `SLACK_WEBHOOK_URL` | Slack-compatible Incoming Webhook URL (Mattermost is the verified target); only the server reads it | The server starts, but cannot post |
 
 `yt2column-server` reads the LLM variables. It needs `SLACK_WEBHOOK_URL` only
-to post, and starts without it (see [Localhost server](#localhost-server)). It
+to post, and starts without it (see [Localhost server](#localhost-server)). The
+CLI does not read `SLACK_WEBHOOK_URL`. The server
 derives its socket path from `HOME` alone (see
 [Localhost server](#localhost-server)).
 

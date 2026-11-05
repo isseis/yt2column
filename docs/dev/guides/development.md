@@ -14,7 +14,6 @@ make test-integration-deepseek  # real DeepSeek API; see below
 make test-integration-claude  # real Anthropic API; see below
 make test-integration-cli  # the CLI with the real DeepSeek API; see below
 make test-integration-slack  # posts fixed articles to a real Mattermost test Webhook; see below
-make test-integration-cli-slack  # the CLI with the real DeepSeek API and a real Webhook; see below
 ```
 
 開発は、受け入れ基準を明示した、要件定義 → 設計 → 実装計画の手順で進める。[CLAUDE.md](../../../CLAUDE.md) と
@@ -282,10 +281,3 @@ curl -sS --unix-socket "$socket" -X POST "http://localhost/jobs/$key/publish"
 `make test-integration-slack` は、固定の 2 つの記事（LLM は呼ばない）を、Mattermost のテスト用のチャンネルの本物の Incoming Webhook に投稿するので、
 `YT2COLUMN_TEST_SLACK_WEBHOOK_URL` にそのチャンネルの Webhook の URL を設定する必要がある。これは本番の `SLACK_WEBHOOK_URL` とは別のもので、テストは本番の URL を読まない。
 ターゲットは、統合テストのためだけに同意の変数 `YT2COLUMN_SLACK_INTEGRATION=1` を export する。これがなければ、テストはその変数を示すメッセージを出して飛ばすので、ただの `go test -tags integration` や IDE からの実行は投稿しない。テスト用の Webhook の URL がないか正しくないとき、または `GODEBUG` が `http2debug` を有効にしているときは、テストを飛ばさずに失敗させ、何も投稿しない。投稿するメッセージの本文は URL を含まない。失敗のメッセージでは、URL、そのパス・クエリ・userinfo、URL の末尾の 8 文字を伏せる。通信の失敗のメッセージには宛先のホストとポートが出ることがあるが、ホストとポートは秘密情報として扱わない。
-
-### CLI と Webhook の統合テスト
-
-`make test-integration-cli-slack` は、`--slack` を付けて、CLI 自身が組み立てる処理を実行する。本物の DeepSeek の API で記事を生成し（そのため課金される）、本物のテスト用の Webhook に投稿する。`yt-dlp` は起動しない。
-`YT2COLUMN_TEST_DEEPSEEK_API_KEY` と `YT2COLUMN_TEST_SLACK_WEBHOOK_URL` の両方が要り、どちらかがなければテストは失敗する。ほかの CLI のターゲットと同じく、
-`YT2COLUMN_TEST_DEEPSEEK_MODEL` が定義されていなければ `deepseek-flash` を使い、
-`YT2COLUMN_CLI_SLACK_INTEGRATION=1` をこのターゲットのためだけに export する。

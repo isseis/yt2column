@@ -109,9 +109,13 @@ func headingAnchors(t *testing.T, docName, doc string) map[string]struct{} {
 	return anchors
 }
 
-// TestREADMEDocumentsFlags checks that the CLI guide (cli.md) documents every
-// flag run defines. The flag names come from newFlagSet, not from a list kept
-// here, so a new flag fails this test until cli.md names it.
+// TestREADMEDocumentsFlags checks that the flags table of the CLI guide
+// (cli.md) and the flags run defines are the same set: every flag of
+// newFlagSet has a row, and every flag a row names is defined by newFlagSet.
+// The one exception is -h/--help, which the flag package handles without a
+// definition and writeUsage lists. The flag names come from newFlagSet, not
+// from a list kept here, so a new or removed flag fails this test until
+// cli.md follows.
 func TestREADMEDocumentsFlags(t *testing.T) {
 	doc := doctestutil.ReadDoc(t, cliDocPath)
 	table := doctestutil.FindTable(doc, doctestutil.CLIFlagColumn)
@@ -124,15 +128,36 @@ func TestREADMEDocumentsFlags(t *testing.T) {
 			t.Errorf("flags table does not document --%s", f.Name)
 		}
 	})
+	for _, row := range table[1:] {
+		if len(row) == 0 {
+			continue
+		}
+		spans := codeSpanRE.FindAllStringSubmatch(row[0], -1)
+		if len(spans) == 0 {
+			t.Errorf("flags table row %q names no flag in a code span", row[0])
+		}
+		for _, span := range spans {
+			fields := strings.Fields(span[1])
+			if len(fields) == 0 || !strings.HasPrefix(fields[0], "-") {
+				t.Errorf("flags table row %q has the code span %q, which is not a flag", row[0], span[1])
+				continue
+			}
+			name := strings.TrimLeft(fields[0], "-")
+			if name == "h" || name == "help" {
+				continue
+			}
+			if fs.Lookup(name) == nil {
+				t.Errorf("flags table documents %s, which newFlagSet does not define", fields[0])
+			}
+		}
+	}
 }
 
 // TestSlackDocsContract pins the machine-checkable contract values of webhook
 // publishing: the test environment variables and the make targets, which the
 // development guide (development.md) and security.md name, and the per-message
 // limit, which README.md and project_overview.md state. The values come from
-// the publisher's exported test constants, not from the documents. The CLI
-// Slack opt-in is checked in security.md only: TestDeepSeekDocsContract checks
-// it in development.md, inside the section that names it.
+// the publisher's exported test constants, not from the documents.
 func TestSlackDocsContract(t *testing.T) {
 	// The documents state the limit with a thousands separator, so the
 	// literal below is pinned to the publisher's own exported test constant:
@@ -144,11 +169,9 @@ func TestSlackDocsContract(t *testing.T) {
 		publishertestutil.SlackOptInEnv,
 		publishertestutil.WebhookURLEnv,
 		publishertestutil.SlackIntegrationOptions.MakeTarget,
-		publishertestutil.CLISlackIntegrationOptions.MakeTarget,
 	}
 	requireMentions(t, "development.md", doctestutil.ReadDoc(t, developmentDocPath), values)
-	requireMentions(t, "security.md", doctestutil.ReadDoc(t, securityPath),
-		append(slices.Clone(values), publishertestutil.CLISlackOptInEnv))
+	requireMentions(t, "security.md", doctestutil.ReadDoc(t, securityPath), values)
 	if !strings.Contains(doctestutil.ReadDoc(t, projectOverviewPath), "16,383") {
 		t.Error("project_overview.md does not state the per-message limit 16,383")
 	}
@@ -192,8 +215,8 @@ func TestClaudeDocsContract(t *testing.T) {
 // DeepSeek integration tests: the key they read, the opt-in that arms each
 // one, and the model variable. Every integration-test section of the
 // development guide (development.md) names its own values, so a section left
-// behind by a rename fails. The values come from the deepseek and publisher
-// test packages' exported constants, not from the document.
+// behind by a rename fails. The values come from the deepseek test package's
+// exported constants, not from the document.
 func TestDeepSeekDocsContract(t *testing.T) {
 	development := doctestutil.ReadDoc(t, developmentDocPath)
 	for _, section := range []struct {
@@ -210,11 +233,6 @@ func TestDeepSeekDocsContract(t *testing.T) {
 			name:    "cli",
 			heading: doctestutil.DevCLIIntegrationHeading,
 			values:  []string{deepseektestutil.APIKeyEnv, deepseektestutil.CLIOptInEnv, deepseektestutil.ModelEnv},
-		},
-		{
-			name:    "cli_slack",
-			heading: doctestutil.DevCLIWebhookIntegrationHeading,
-			values:  []string{deepseektestutil.APIKeyEnv, publishertestutil.CLISlackOptInEnv, deepseektestutil.ModelEnv},
 		},
 	} {
 		t.Run(section.name, func(t *testing.T) {

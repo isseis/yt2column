@@ -6,9 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"net/http"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -21,7 +19,6 @@ import (
 	"github.com/isseis/yt2column/internal/pricing"
 	"github.com/isseis/yt2column/internal/publisher"
 	"github.com/isseis/yt2column/internal/redact"
-	"github.com/isseis/yt2column/internal/secret"
 	"github.com/isseis/yt2column/internal/transcript"
 	"github.com/isseis/yt2column/internal/writer"
 )
@@ -120,7 +117,6 @@ type deps struct {
 	newReviewLLMClient func(config.LLMConfig) (llm.LLMClient, error)
 	newWriter          func(llm.LLMClient, writer.Options) (writer.ArticleWriter, error)
 	newFilePublisher   func(path string) (publisher.Publisher, error)
-	newSlackPublisher  func(webhookURL secret.Secret) (publisher.Publisher, error)
 	newReviewLogWriter func(path string) (*publisher.ReviewLogWriter, error)
 }
 
@@ -132,7 +128,6 @@ func productionDeps() deps {
 		newReviewLLMClient: provider.NewReview,
 		newWriter:          writer.New,
 		newFilePublisher:   newFilePublisher,
-		newSlackPublisher:  newSlackPublisher,
 		newReviewLogWriter: publisher.NewReviewLogWriter,
 	}
 }
@@ -148,35 +143,10 @@ func newFilePublisher(path string) (publisher.Publisher, error) {
 	return p, nil
 }
 
-// newSlackPublisher builds the SlackWebhookPublisher for webhookURL. Like
-// newFilePublisher, it returns a nil interface, never a typed nil, when
-// construction fails.
-func newSlackPublisher(webhookURL secret.Secret) (publisher.Publisher, error) {
-	p, err := publisher.NewSlackWebhookPublisher(webhookURL)
-	if err != nil {
-		return nil, err
-	}
-	return p, nil
-}
-
-// destination is where run sends the article. The zero value is invalid, so a
-// destination that was never chosen cannot be acted on.
-type destination int
-
-const (
-	destinationInvalid destination = iota
-	destinationFile
-	destinationWebhook
-)
-
-// Rejections of the --out and --slack combination, in the order they are
-// checked.
+// Rejections of --out, in the order they are checked.
 var (
-	errSlackFalse         = errors.New("--slack=false is not accepted; omit --slack instead")
-	errOutEmpty           = errors.New("--out needs a path")
-	errOutAndSlack        = errors.New("--out and --slack cannot be used together")
-	errNoDestination      = errors.New("one of --out or --slack is required")
-	errInvalidDestination = errors.New("no output destination was chosen")
+	errOutRequired = errors.New("--out is required")
+	errOutEmpty    = errors.New("--out needs a path")
 	// Review-log rejections, in the order they are checked.
 	errReviewLogNoReview = errors.New("--review-log cannot be used with --no-review")
 	errReviewLogEmpty    = errors.New("--review-log needs a path")
@@ -198,7 +168,6 @@ var (
 // cliOptions holds the parsed flags.
 type cliOptions struct {
 	out                 string
-	slack               bool
 	refresh             bool
 	keepCache           bool
 	systemPrompt        string
@@ -222,7 +191,6 @@ func newFlagSet() (*flag.FlagSet, *cliOptions) {
 	fs.SetOutput(io.Discard)
 	opts := &cliOptions{}
 	fs.StringVar(&opts.out, "out", "", "write the article to this `path`; it must not exist, its directory must exist, and it must be outside the cache directory")
-	fs.BoolVar(&opts.slack, "slack", false, "post the article to the Slack-compatible Incoming Webhook (e.g. Mattermost) configured in the environment (see docs/dev/guides/cli.md)")
 	fs.BoolVar(&opts.refresh, "refresh", false, "ignore the cached transcript, run yt-dlp again, and replace the cache")
 	fs.BoolVar(&opts.keepCache, "keep-cache", false, "keep this video's cache after a successful run")
 	fs.StringVar(&opts.systemPrompt, "system-prompt", "", "read the system prompt template from this `path` instead of the built-in one")
@@ -254,8 +222,8 @@ func flagGiven(fs *flag.FlagSet, name string) bool {
 func writeUsage(w io.Writer, fs *flag.FlagSet) {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Usage: %s [flags] <video URL>\n\n", programName)
-	b.WriteString("Generates a column article from a YouTube video's subtitles and either writes it to the --out file\n")
-	b.WriteString("or posts it to a webhook with --slack; exactly one of the two is required.\n")
+	b.WriteString("Generates a column article from a YouTube video's subtitles and writes it to the --out file;\n")
+	b.WriteString("--out is required.\n")
 	b.WriteString("Flags must come before the video URL. The configuration is read from environment variables; see docs/dev/guides/cli.md.\n\n")
 	b.WriteString("Flags:\n")
 	fs.VisitAll(func(f *flag.Flag) {
@@ -287,8 +255,8 @@ func (s *stderrWriter) line(format string, args ...any) {
 // run executes one CLI invocation and returns the process exit code. Steps A1
 // to A5 have no side effect: they parse and validate the arguments and the
 // configuration and build the stages, so a usage or configuration error exits
-// with exitUsage before the cache directory, yt-dlp, the LLM API, or the
-// webhook is touched. Only job.Run (step B) acts, and its failure exits with
+// with exitUsage before the cache directory, yt-dlp, the LLM API, or the --out
+// path is touched. Only job.Run (step B) acts, and its failure exits with
 // exitFailure. Standard output only ever receives the -h/--help usage.
 func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, stderr io.Writer, d deps) int {
 	errOut := &stderrWriter{w: stderr}
@@ -303,8 +271,7 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, s
 		return usageError(errOut, "%v", err)
 	}
 
-	// A2: exactly one video URL, in a form yt-dlp would accept, and the
-	// destination.
+	// A2: exactly one video URL, in a form yt-dlp would accept, and --out.
 	if fs.NArg() != 1 {
 		return usageError(errOut, "expected exactly one video URL after the flags, got %d arguments", fs.NArg())
 	}
@@ -312,12 +279,11 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, s
 	if err != nil {
 		return usageError(errOut, "%v", err)
 	}
-	dest, err := chooseDestination(fs, opts)
-	if err != nil {
+	if err := checkOut(fs, opts); err != nil {
 		return usageError(errOut, "%v", err)
 	}
 	reviewLogGiven := flagGiven(fs, "review-log")
-	if err := checkReviewLog(reviewLogGiven, opts, dest); err != nil {
+	if err := checkReviewLog(reviewLogGiven, opts); err != nil {
 		return usageError(errOut, "%v", err)
 	}
 	artifactsGiven, resume, need, err := resumeOptions(fs, opts)
@@ -332,19 +298,13 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, s
 	if err != nil {
 		return configurationError(errOut, err)
 	}
-	webhookURL, _ := cfg.SlackWebhookURL()
-	errOut.secrets = redact.SecretStrings(webhookURL, cfg.LLM().DeepSeekAPIKey(), cfg.LLM().AnthropicAPIKey())
-	if dest == destinationWebhook {
-		if webhookURL, err = cfg.RequireSlackWebhookURL(); err != nil {
-			return configurationError(errOut, err)
-		}
-	}
-	warnHTTP2Debug(errOut, cfg, dest)
+	errOut.secrets = redact.SecretStrings(cfg.LLM().DeepSeekAPIKey(), cfg.LLM().AnthropicAPIKey())
+	warnHTTP2Debug(errOut, cfg)
 
-	// A4: a file output, the review log, and the artifacts directory must not
+	// A4: the --out file, the review log, and the artifacts directory must not
 	// be inside the cache directory, where pruning or removing the cache could
 	// delete them.
-	if err := checkCacheDirs(opts, dest, reviewLogGiven, artifactsGiven, cfg.CacheDir()); err != nil {
+	if err := checkCacheDirs(opts, reviewLogGiven, artifactsGiven, cfg.CacheDir()); err != nil {
 		return usageError(errOut, "%v", err)
 	}
 
@@ -365,13 +325,12 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, s
 	}
 
 	// A5: build the stages. writer.New only reads the template files, and
-	// neither the publisher constructors nor the review log writer touches its
-	// destination.
+	// neither the file publisher nor the review log writer touches its path.
 	articleWriter, reviewLog, err := buildWriter(d, cfg, opts, reviewLogGiven, store, resume)
 	if err != nil {
 		return usageError(errOut, "%v", err)
 	}
-	output, err := buildOutput(d, dest, opts.out, webhookURL)
+	pub, err := d.newFilePublisher(opts.out)
 	if err != nil {
 		return usageError(errOut, "build the publisher: %v", err)
 	}
@@ -384,7 +343,7 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, s
 		Refresh:   opts.refresh,
 		KeepCache: opts.keepCache,
 		Writer:    articleWriter,
-		Output:    output,
+		Output:    job.FileOutput(opts.out, pub),
 		ReviewLog: reviewLog,
 	})
 	for _, warning := range result.Warnings {
@@ -395,45 +354,28 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, s
 		// summary is written first and reportRunError reports the failure on
 		// its own, without the "the run failed:" line.
 		if _, isReviewLog := errors.AsType[*job.ReviewLogError](err); isReviewLog {
-			reportSuccess(errOut, dest, opts.out, "", opts.artifacts, result.Article)
+			reportSuccess(errOut, opts.out, "", opts.artifacts, result.Article)
 		}
-		reportRunError(errOut, dest, opts.out, err)
+		reportRunError(errOut, opts.out, err)
 		return exitFailure
 	}
 
 	// C: the summary.
-	reportSuccess(errOut, dest, opts.out, opts.reviewLog, opts.artifacts, result.Article)
+	reportSuccess(errOut, opts.out, opts.reviewLog, opts.artifacts, result.Article)
 	return exitOK
 }
 
-// chooseDestination picks the destination from which of --out and --slack
-// appear on the command line, never from their values, so the choice cannot
-// depend on what a value happens to hold. A rejected combination returns its
-// error; when several apply, the first in this order wins: --slack=false, an
-// empty --out, both flags, neither flag.
-func chooseDestination(fs *flag.FlagSet, opts *cliOptions) (destination, error) {
-	var outGiven, slackGiven bool
-	fs.Visit(func(f *flag.Flag) {
-		switch f.Name {
-		case "out":
-			outGiven = true
-		case "slack":
-			slackGiven = true
-		}
-	})
+// checkOut rejects a missing or empty --out. Whether --out was given is read
+// from the command line, never from its value, so an empty value is told
+// apart from an absent flag.
+func checkOut(fs *flag.FlagSet, opts *cliOptions) error {
 	switch {
-	case slackGiven && !opts.slack:
-		return destinationInvalid, errSlackFalse
-	case outGiven && opts.out == "":
-		return destinationInvalid, errOutEmpty
-	case outGiven && slackGiven:
-		return destinationInvalid, errOutAndSlack
-	case outGiven:
-		return destinationFile, nil
-	case slackGiven:
-		return destinationWebhook, nil
+	case !flagGiven(fs, "out"):
+		return errOutRequired
+	case opts.out == "":
+		return errOutEmpty
 	default:
-		return destinationInvalid, errNoDestination
+		return nil
 	}
 }
 
@@ -443,7 +385,7 @@ func chooseDestination(fs *flag.FlagSet, opts *cliOptions) (destination, error) 
 // read from its value, so the choice cannot depend on what a value happens to
 // hold. The same-file rule is textual: a different alias of the same file is
 // caught only when link(2) fails after the publish.
-func checkReviewLog(reviewLogGiven bool, opts *cliOptions, dest destination) error {
+func checkReviewLog(reviewLogGiven bool, opts *cliOptions) error {
 	if !reviewLogGiven {
 		return nil
 	}
@@ -452,7 +394,7 @@ func checkReviewLog(reviewLogGiven bool, opts *cliOptions, dest destination) err
 		return errReviewLogNoReview
 	case opts.reviewLog == "":
 		return errReviewLogEmpty
-	case dest == destinationFile && filepath.Clean(opts.reviewLog) == filepath.Clean(opts.out):
+	case filepath.Clean(opts.reviewLog) == filepath.Clean(opts.out):
 		return errReviewLogSameFile
 	default:
 		return nil
@@ -542,8 +484,8 @@ func resumeOptions(fs *flag.FlagSet, opts *cliOptions) (artifactsGiven bool, res
 
 // checkCacheDirs rejects an --out, --review-log, or --artifacts path inside the
 // cache directory, where pruning or removing the cache could delete it.
-func checkCacheDirs(opts *cliOptions, dest destination, reviewLogGiven, artifactsGiven bool, cacheDir string) error {
-	if dest == destinationFile && outPathInsideCacheDir(opts.out, cacheDir) {
+func checkCacheDirs(opts *cliOptions, reviewLogGiven, artifactsGiven bool, cacheDir string) error {
+	if outPathInsideCacheDir(opts.out, cacheDir) {
 		return fmt.Errorf("%w %s; choose a path outside %s", errOutInsideCache, opts.out, cacheDir)
 	}
 	if reviewLogGiven && outPathInsideCacheDir(opts.reviewLog, cacheDir) {
@@ -618,47 +560,26 @@ func buildWriter(d deps, cfg config.Config, opts *cliOptions, reviewLogGiven boo
 }
 
 // configurationError reports each configuration error joined in err on its
-// own line and returns exitUsage.
+// own line, or err on one line when it is not joined, and returns exitUsage.
 func configurationError(errOut *stderrWriter, err error) int {
-	for _, e := range splitJoined(err) {
+	errs := []error{err}
+	if joined, ok := errors.AsType[joinedError](err); ok {
+		errs = joined.Unwrap()
+	}
+	for _, e := range errs {
 		errOut.line("%s: configuration: %v", programName, e)
 	}
 	errOut.line("%s", usageHint)
 	return exitUsage
 }
 
-// warnHTTP2Debug warns, before any LLM call or post, that the Go HTTP/2 log
-// bypasses redact.Line: it may write the API key, and with a webhook
-// destination the Webhook URL path as well.
-func warnHTTP2Debug(errOut *stderrWriter, cfg config.Config, dest destination) {
+// warnHTTP2Debug warns, before any LLM call, that the Go HTTP/2 log bypasses
+// redact.Line and may write the API key.
+func warnHTTP2Debug(errOut *stderrWriter, cfg config.Config) {
 	if !cfg.HTTP2DebugEnabled() {
 		return
 	}
 	errOut.line("%s: warning: GODEBUG enables http2debug, so the Go HTTP/2 log may write the API key to standard error", programName)
-	if dest == destinationWebhook {
-		errOut.line("%s: warning: GODEBUG enables http2debug, so the Go HTTP/2 log may write the Webhook URL path to standard error", programName)
-	}
-}
-
-// buildOutput builds the publisher for dest and the job output around it. An
-// invalid destination is rejected rather than defaulted to either kind.
-func buildOutput(d deps, dest destination, outPath string, webhookURL secret.Secret) (job.Output, error) {
-	switch dest {
-	case destinationFile:
-		pub, err := d.newFilePublisher(outPath)
-		if err != nil {
-			return job.Output{}, err
-		}
-		return job.FileOutput(outPath, pub), nil
-	case destinationWebhook:
-		pub, err := d.newSlackPublisher(webhookURL)
-		if err != nil {
-			return job.Output{}, err
-		}
-		return job.RemoteOutput(pub), nil
-	default:
-		return job.Output{}, errInvalidDestination
-	}
 }
 
 // tokensOriginName returns the origin word of a line and whether the stage has
@@ -837,29 +758,13 @@ func costTotalLine(kind string, total pricing.Total) string {
 	return fmt.Sprintf("%s%s %s", costTotalPrefix, kind, costUnknown)
 }
 
-// reportSuccess writes the summary of a published run. The message count of a
-// webhook post is recomputed from the article; it is "unknown" when that
-// fails, which only a fake publisher that accepts any article can cause. It
-// adds one line per post-generation step that ran, the review log path when one
-// was written, the artifacts directory when one was used, and the token-usage
-// and cost lines of every stage that ran or was reused, followed by the two
-// total lines. An empty path writes nothing.
-func reportSuccess(errOut *stderrWriter, dest destination, outPath, reviewLogPath, artifactsDir string, article writer.Article) {
-	modelVersion := orNone(article.ModelVersion)
-	switch dest {
-	case destinationFile:
-		errOut.line("%s: wrote the article to %s (model: %s, model version: %s)", programName, outPath, article.Model, modelVersion)
-	case destinationWebhook:
-		count := "unknown messages"
-		if n, err := publisher.SlackMessageCount(article); err == nil {
-			count = messageCount(n)
-		}
-		errOut.line("%s: posted the article to the webhook in %s (model: %s, model version: %s)", programName, count, article.Model, modelVersion)
-	default:
-		// Unreachable: buildOutput rejects an invalid destination before
-		// anything is published. Claim no destination rather than guess one.
-		errOut.line("%s: published the article (model: %s, model version: %s)", programName, article.Model, modelVersion)
-	}
+// reportSuccess writes the summary of a published run: the --out file it
+// wrote, one line per post-generation step that ran, the review log path when
+// one was written, the artifacts directory when one was used, and the
+// token-usage and cost lines of every stage that ran or was reused, followed by
+// the two total lines. An empty path writes nothing.
+func reportSuccess(errOut *stderrWriter, outPath, reviewLogPath, artifactsDir string, article writer.Article) {
+	errOut.line("%s: wrote the article to %s (model: %s, model version: %s)", programName, outPath, article.Model, orNone(article.ModelVersion))
 	reportStepSummary(errOut, article)
 	if reviewLogPath != "" {
 		errOut.line("%s: wrote the review log to %s", programName, reviewLogPath)
@@ -922,15 +827,6 @@ func orNone(version string) string {
 	return version
 }
 
-// messageCount renders n as a count of posted messages, using the singular
-// noun for one.
-func messageCount(n int) string {
-	if n == 1 {
-		return "1 message"
-	}
-	return strconv.Itoa(n) + " messages"
-}
-
 // usageError reports a usage or configuration error and returns exitUsage.
 func usageError(errOut *stderrWriter, format string, args ...any) int {
 	errOut.line("%s: %s", programName, fmt.Sprintf(format, args...))
@@ -941,11 +837,11 @@ func usageError(errOut *stderrWriter, format string, args ...any) int {
 // reportRunError reports a job.Run failure, naming the pipeline stage when
 // there is one (a review log failure after the publish is reported first, on
 // its own), and adds the hint that matches the failure. A deadline is
-// attributed to the yt-dlp, LLM, or webhook post timeout by the failed stage;
-// this holds because the context run receives has no deadline of its own.
-func reportRunError(errOut *stderrWriter, dest destination, outPath string, err error) {
+// attributed to the yt-dlp or LLM timeout by the failed stage; this holds
+// because the context run receives has no deadline of its own.
+func reportRunError(errOut *stderrWriter, outPath string, err error) {
 	if reviewLogErr, ok := errors.AsType[*job.ReviewLogError](err); ok {
-		reportReviewLogFailure(errOut, dest, outPath, reviewLogErr)
+		reportReviewLogFailure(errOut, outPath, reviewLogErr)
 		return
 	}
 	if usageErr, ok := errors.AsType[*writer.TokenUsageError](err); ok {
@@ -973,19 +869,14 @@ func reportRunError(errOut *stderrWriter, dest destination, outPath string, err 
 		errOut.line("%s: the finished article was kept in %s", programName, kept.TempPath)
 	}
 	reportStepHints(errOut, err)
-	reportWebhookHints(errOut, err)
 }
 
 // reportReviewLogFailure reports a review-log write failure that happened
-// after the article was published. It never says the run failed: the article
-// is complete, and running again would publish a new one.
-func reportReviewLogFailure(errOut *stderrWriter, dest destination, outPath string, reviewLogErr *job.ReviewLogError) {
-	article := "written to " + outPath
-	if dest == destinationWebhook {
-		article = "posted to the webhook"
-	}
-	errOut.line("%s: the article was %s, but writing the review log to %s failed: %v",
-		programName, article, reviewLogErr.Path, reviewLogErr.Err)
+// after the article was written to the --out file. It never says the run
+// failed: the article is complete, and running again would publish a new one.
+func reportReviewLogFailure(errOut *stderrWriter, outPath string, reviewLogErr *job.ReviewLogError) {
+	errOut.line("%s: the article was written to %s, but writing the review log to %s failed: %v",
+		programName, outPath, reviewLogErr.Path, reviewLogErr.Err)
 	errOut.line("%s: do not run again: the article is already published", programName)
 }
 
@@ -1002,72 +893,13 @@ func reportStepHints(errOut *stderrWriter, err error) {
 	}
 }
 
-// reportWebhookHints adds the hints for a failed webhook post: which messages
-// stay in the channel, what a rejecting status may mean, a post timeout, and
-// a rejected mention. A failure of any other publisher matches none of them.
-func reportWebhookHints(errOut *stderrWriter, err error) {
-	if postErr, ok := errors.AsType[*publisher.SlackPostError](err); ok && postErr.Posted >= 1 {
-		const rerun = "running again generates a new article and posts all of it from the first message"
-		if postErr.Attempted {
-			errOut.line("%s: at least %d of %d messages stay in the channel (message %d may also have been posted); %s",
-				programName, postErr.Posted, postErr.Total, postErr.Posted+1, rerun)
-		} else {
-			errOut.line("%s: %d of %d messages stay in the channel; %s", programName, postErr.Posted, postErr.Total, rerun)
-		}
-	}
-	if statusErr, ok := errors.AsType[*publisher.SlackHTTPStatusError](err); ok && rejectedPostStatus(statusErr.StatusCode) {
-		hint := "the server rejected the post; Mattermost does not report which of these it was: " +
-			"the Incoming Webhook was deleted or disabled, its channel was deleted, locked, or does not accept posts, " +
-			"or the payload was invalid. Check the webhook settings and the server log"
-		if statusErr.RequestID != "" {
-			hint += " (request ID: " + statusErr.RequestID + ")"
-		}
-		errOut.line("%s: %s", programName, hint)
-	}
-	if stageErr, ok := errors.AsType[*pipeline.StageError](err); ok && stageErr.Stage == pipeline.StagePublish &&
-		errors.Is(err, context.DeadlineExceeded) {
-		errOut.line("%s: the webhook post timed out after the %s limit", programName, seconds(publisher.SlackPostTimeout))
-	}
-	if errors.Is(err, publisher.ErrSlackMention) {
-		errOut.line("%s: the article was not posted and was discarded; part of it could be treated as a mention or rewritten by the server, "+
-			"typically an at sign directly followed by a name character, angle-bracket mention syntax, or a character reference. "+
-			"The error above names the rule and gives the line and column in the post as sent to Slack (line 1 is the heading line, so lines differ from the --out file). "+
-			"Run again to generate a new article, or use --out to inspect what is generated", programName)
-	}
-}
-
-// rejectedPostStatus reports whether Mattermost answers a webhook post with
-// status for a reason it does not name: a deleted, disabled, or unusable
-// webhook or channel, or an invalid payload.
-func rejectedPostStatus(status int) bool {
-	switch status {
-	case http.StatusBadRequest, http.StatusForbidden, http.StatusNotFound, http.StatusNotImplemented:
-		return true
-	default:
-		return false
-	}
-}
-
 // minutes renders d as a whole number of minutes.
 func minutes(d time.Duration) string {
 	return fmt.Sprintf("%d-minute", int(d/time.Minute))
-}
-
-// seconds renders d as a whole number of seconds.
-func seconds(d time.Duration) string {
-	return fmt.Sprintf("%d-second", int(d/time.Second))
 }
 
 // joinedError is the shape of an error built by errors.Join.
 type joinedError interface {
 	error
 	Unwrap() []error
-}
-
-// splitJoined returns the errors joined by errors.Join, or err alone.
-func splitJoined(err error) []error {
-	if joined, ok := errors.AsType[joinedError](err); ok {
-		return joined.Unwrap()
-	}
-	return []error{err}
 }

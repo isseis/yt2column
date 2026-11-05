@@ -10,10 +10,13 @@ import (
 )
 
 const (
-	testWebhookURL       = "https://mattermost.example.com/hooks/testhookkey0123456789TAIL8TST"
-	testProductionURL    = "https://hooks.slack.com/services/T000/B000/productionkeyPRODTAIL"
-	testOptInEnv         = "YT2COLUMN_EXAMPLE_INTEGRATION"
-	testMakeTarget       = "test-integration-example"
+	testWebhookURL    = "https://mattermost.example.com/hooks/testhookkey0123456789TAIL8TST"
+	testProductionURL = "https://hooks.slack.com/services/T000/B000/productionkeyPRODTAIL"
+	testOptInEnv      = "YT2COLUMN_EXAMPLE_INTEGRATION"
+	testMakeTarget    = "test-integration-example"
+	// otherOptInEnv is the opt-in of another integration test, which must not
+	// opt this one in.
+	otherOptInEnv        = "YT2COLUMN_OTHER_EXAMPLE_INTEGRATION"
 	productionWebhookEnv = "SLACK_WEBHOOK_URL"
 )
 
@@ -50,7 +53,7 @@ func TestSlackSettingsFrom(t *testing.T) {
 		{name: "opt_in_zero", change: map[string]string{testOptInEnv: "0"}, wantAction: ActionSkip, wantReason: optInReason},
 		{name: "opt_in_true", change: map[string]string{testOptInEnv: "true"}, wantAction: ActionSkip, wantReason: optInReason},
 		{name: "opt_in_padded", change: map[string]string{testOptInEnv: " 1"}, wantAction: ActionSkip, wantReason: optInReason},
-		{name: "other_opt_in_only", change: map[string]string{testOptInEnv: "", CLISlackOptInEnv: OptInValue}, wantAction: ActionSkip, wantReason: optInReason},
+		{name: "other_opt_in_only", change: map[string]string{testOptInEnv: "", otherOptInEnv: OptInValue}, wantAction: ActionSkip, wantReason: optInReason},
 		{name: "opt_in_checked_before_url", change: map[string]string{testOptInEnv: "", WebhookURLEnv: ""}, wantAction: ActionSkip, wantReason: optInReason},
 		{name: "url_missing_with_production_url_set", change: map[string]string{WebhookURLEnv: ""}, wantAction: ActionFail, wantReason: []string{WebhookURLEnv, productionWebhookEnv + " is not used"}},
 		{name: "url_checked_before_godebug", change: map[string]string{WebhookURLEnv: "", godebugEnv: "http2debug=1"}, wantAction: ActionFail, wantReason: []string{WebhookURLEnv + " is not set"}},

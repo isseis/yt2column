@@ -55,8 +55,8 @@ CLI の `--slack` と、CLI だけが使う Webhook の投稿の経路（出力�
     -   **テストの移し替えのコミット（ステップ 1-2・2-2）と、関数をまるごと削除するコミット（ステップ 2-3）:** 親のコミットを `BASE` にした `make coverage-compare` を実行し、`coverage-compare: PASS` で終わる出力を最後の行まで、そのコミットのメッセージと PR の説明に書く（CLAUDE.md「Deleting a test is a claim that must be checked」）。
     -   **残る関数を書き換える削除のコミット（ステップ 1-3）:** `_checks/coverage` で比べる。0059 のスクリプト（`docs/tasks/0059_remove_legacy_articles_api/_checks/coverage/main.go`）を写し、比べる値を、2 つの coverprofile から求めた関数ごとの「実行されなかった文の数」に替える。関数は (パッケージ, レシーバ, 名前) で対応づけ、各コミットのソースを `git show` で読んで、coverprofile のブロックをそれを含む関数に割り当てる。`-coverpkg=./...` の coverprofile には同じブロックがテストのバイナリごとに重なって出る。例えば `791def11` で `go test -tags test -count=1 -coverpkg=./internal/job,./internal/pipeline -coverprofile=… ./internal/job ./internal/pipeline` を実行すると、226 行のうち 113 のブロックが 2 度出た（go1.27.1）。そのため、ブロックは位置（ファイル、始まりの行と列、終わりの行と列）でまとめて文の数を 1 度だけ数え、重なって出たどれかの行の回数が 0 でなければ実行されたと数える（`internal/coveragecompare/profile.go` の `profilePosition` と同じまとめ方）。スクリプトは、両方にある関数のうち、(a) 実行されなかった文の数が増えたもの（不合格）と、(b) 実行された文の数が減ったもの（実行されていた文を削除しただけか、確かめが失われたかを人が判断する）を挙げ、削除した関数と加えた関数も挙げる。(b) を挙げるのは、同じ関数の中で、実行されなかった文の削除と、実行されていた文が実行されなくなったことが打ち消し合うと (a) には現れないからであり、AC-14 の「網羅率が下がった残る関数」を漏らさないためである。(b) の各関数には、加えたテストか、削除した文だけが減ったことの理由を、コミットメッセージに書く。手で作った入力でのスクリプトの確かめ（ステップ 1-1）は、そのコミットのメッセージに書く。どちらのコミットも、クリーンな作業ツリーから `go test -tags test -count=1 -coverpkg=./... -coverprofile=<file> ./...` で取り、テストがすべて通ること。
     -   比べた結果は、コミットメッセージと PR の説明のほか、本書 7.1 節にも書き写す（squash でマージされると、ブランチのコミットメッセージは `main` から辿れないため）。
--   **設定の確かめ直しの名前と置き場所（設計書 7.1 節）:** `Load` で確かめていた `SLACK_WEBHOOK_URL` の受理・拒否・伏せ字を、`internal/config/config_test.go` の `TestLoadServerWebhookAccepted`・`TestLoadServerWebhookRejected` として `LoadServer` で確かめ直す。`TestConfigOutputRedactsSecrets` の `deepseek` の行が持つ Webhook URL は、削除の後の `Config` が持たないので、`ServerConfig` の出力に Webhook URL が出ないことを確かめる `TestServerConfigOutputRedactsWebhook` を加えて確かめ直す。値が `ServerConfig` に届いたことを先に確かめ（`TestConfigOutputRedactsSecrets` の `present` と同じ）、同じ種類の出力（`fmt` の各形、`slog` のテキストと JSON、`json.Marshal`）で確かめる。理由: 同じ性質を、値を持ち続けるサーバの設定で確かめ続ける。
--   **サーバの起動の拒否の行は加えない（AC-08）:** `cmd/yt2column-server/run_test.go::TestStartupFailures` は、`LoadServer` がどの値を拒否するかは `internal/config` のテストの関心事であり、どの拒否も同じ経路を通ると述べている（`:72-75`）。不正な `SLACK_WEBHOOK_URL` の拒否は `TestLoadServerWebhookOptional/invalid` と `TestLoadServerWebhookRejected` が確かめる。
+-   **設定の確かめ直しの名前と置き場所（設計書 7.1 節）:** `Load` で確かめていた `SLACK_WEBHOOK_URL` の受理・拒否・伏せ字は、`LoadServer` では既存のテストが確かめる。URL の形の受理と拒否は `internal/slackwebhook` の `TestValidURL`、`LoadServer` が規則を当てはめて値を保つことは `TestLoadServerValid`、拒否が値を持たないことは `TestLoadServerWebhookOptional/invalid` である。ステップ 1-2 で加えた `TestLoadServerWebhookAccepted`・`TestLoadServerWebhookRejected` は、これらと重なるので、ステップ 1-6 で削除した（1.6 節）。`TestConfigOutputRedactsSecrets` の `deepseek` の行が持つ Webhook URL は、削除の後の `Config` が持たないので、`ServerConfig` の出力に Webhook URL が出ないことを確かめる `TestServerConfigOutputRedactsWebhook` を加えて確かめ直す。値が `ServerConfig` に届いたことを先に確かめ（`TestConfigOutputRedactsSecrets` の `present` と同じ）、同じ種類の出力（`fmt` の各形、`slog` のテキストと JSON、`json.Marshal`）で確かめる。理由: 同じ性質を、値を持ち続けるサーバの設定で確かめ続ける。
+-   **サーバの起動の拒否の行は加えない（AC-08）:** `cmd/yt2column-server/run_test.go::TestStartupFailures` は、`LoadServer` がどの値を拒否するかは `internal/config` のテストの関心事であり、どの拒否も同じ経路を通ると述べている（`:72-75`）。不正な `SLACK_WEBHOOK_URL` の拒否は `TestLoadServerWebhookOptional/invalid` と `internal/slackwebhook` の `TestValidURL` が確かめる。
 -   **`TestREADMEDocumentsFlags` に逆向きの確かめを加える（AC-17）:** 今のテスト（`cmd/yt2column/docs_test.go:115`）は、`newFlagSet` の各フラグが `cli.md` の表にあることだけを確かめる。AC-17 は表と定義が「一致」することを求めるので、表の各フラグが `newFlagSet` で定義されていることも確かめる（`-h`・`--help` の扱いは実装のときに決める）。これは削除の確かめではなく、最終的な仕様の値の規則である。`cli.md` から `--slack` の行を除くのと同じコミット（ステップ 1-4）で加える。
 -   **`make test-integration-slack` の実行（AC-16）:** 本物の Webhook に投稿するので、ステップ 2-6 で利用者の承認を得てから実行する（CLAUDE.md「Tool Execution Safety」）。承認が得られなければ、実行しなかったことを 7.1 節と PR の説明に書く。
 
@@ -124,6 +124,7 @@ CLI の `--slack` と、CLI だけが使う Webhook の投稿の経路（出力�
 | `cli-words` | 1.3 節「AC-20 の語の一覧」の規則 3 | AC-05・AC-20 | 1-1 |
 | `config` | `internal/config` の `Config` に `SlackWebhookURL`・`RequireSlackWebhookURL` のメソッドがなく、`ServerConfig` に `WebhookURL` がある | AC-10 | 1-1 |
 | `make-target` | `Makefile` に `test-integration-cli-slack` と `CLI_SLACK_INTEGRATION_TIMEOUT` がなく、`cmd/yt2column/integration_slack_test.go` がない | AC-11 | 1-1 |
+| `ignores-webhook` | `_checks/residue/testdata/` の `TestRunIgnoresSlackWebhookURL` を `cmd/yt2column` に、`TestLoadIgnoresSlackWebhookURL` を `internal/config` に、head の一時的な worktree で写して実行し、どちらも通る（1.6 節）。前者は、実行が `lookup` に `SLACK_WEBHOOK_URL` を問い合わせず（`DEEPSEEK_API_KEY` は問い合わせる）、空・`https` でない値でも `--out` の実行が未設定の場合と同じ終了コード、`--out` のファイル、標準エラーの行になること。後者は、`LoadServer` が拒否するその 2 つの値を `Load` が拒否しないこと | AC-06・AC-07 | 1-6 |
 | `unchanged` | `extension/` の下のファイルと、`internal/server/` の製品の Go のファイル（名前が `_test.go` で終わらず、最初の `//go:build` の行が `test` の制約で始まらないもの。0059 のスクリプトの `testConstraint` と同じ判定）が、merge-base と head の間で変わっていない | AC-22 | 1-1 |
 | `publish-method` | `internal/publisher` の `SlackWebhookPublisher` に `Publish` のメソッドがなく、`FilePublisher` にある | AC-09 | 2-1 |
 | `comments` | 1.3 節「AC-20 の語の一覧」の規則 1・2 | AC-20 | 2-1 |
@@ -150,6 +151,17 @@ CLI の `--slack` と、CLI だけが使う Webhook の投稿の経路（出力�
 
 `TestSlackPublishPartialFailure`・`TestSlackPublishZeroValue` は置き換えずに削除する（設計書 7.2 節）。
 
+上の表の `TestLoadServerWebhookAccepted`・`TestLoadServerWebhookRejected`・`TestPrepareSlackMessagesLen` は、ステップ 1-2 で加えた後、ステップ 1-6 で削除した（1.6 節）。
+
+### 1.6. 実装の際に決めたこと（2026-11-05）
+
+PR-1（#682）を作った後、レビューの担当者がテストを見直し、次のことを決めた。理由はどれも、残り続けるテストに、重なる確かめと削除の確かめを持ち込まないことである。削除の確かめは `_checks/` で一度だけ行う（1.2 節、CLAUDE.md「Testing Strategy」）。
+
+-   **CLI が `SLACK_WEBHOOK_URL` を読まないことは、`_checks/residue` で一度だけ確かめる（AC-06・AC-07）。** `TestRunIgnoresSlackWebhookURL`・`TestLoadIgnoresSlackWebhookURL` をパッケージから削除し、`_checks/residue/testdata/` に移す。`_checks/residue` の `ignores-webhook` が、head の一時的な worktree の `cmd/yt2column`・`internal/config` に写して実行する。同じ理由で、`newRunEnv` とシグナルのテストの子の環境は `SLACK_WEBHOOK_URL` を設定せず、`secretStrings` は Webhook URL を持たない。これは設計書 1.3 節の「CLI のテストは `SLACK_WEBHOOK_URL` を設定したまま走らせる」を改めるもので、設計書 1.4 節に記録した。
+-   **`TestLoadServerWebhookAccepted`・`TestLoadServerWebhookRejected` は削除する。** 値は `TestValidURL` の行の写しで、`LoadServer` での確かめは `TestLoadServerValid`・`TestLoadServerWebhookOptional` と重なる（1.3 節）。`TestServerConfigOutputRedactsWebhook` は、`ServerConfig` の出力を確かめるほかのテストがないので残す。
+-   **`TestPrepareSlackMessagesLen` は削除する。** 分かれる記事の通数は `TestPostMessagesResume` が確かめ、残る 1 通の記事と拒否の確かめは価値が小さい。
+-   **`splitJoined` と `TestSplitJoined` は削除する。** `TestSplitJoined` は、どの実行も通らない、結合されていない誤りの分岐を確かめるためだけのテストだった。`configurationError` は、`err` だけの一覧から始めて、結合された誤りならその要素に置き換える形にし、分岐を別に持たない。結合されていない誤りを 1 行で書く振る舞いは変わらない。
+
 ## 2. 実装手順 (Implementation Steps)
 
 ### フェーズ 1: CLI の投稿の削除（設計書 8 章の 1）
@@ -158,11 +170,11 @@ CLI の `--slack` と、CLI だけが使う Webhook の投稿の経路（出力�
 
 **変更するファイル:** `docs/tasks/0062_remove_cli_slack/_checks/residue/main.go`（新規）、`docs/tasks/0062_remove_cli_slack/_checks/coverage/main.go`（新規）
 
-- [ ] `_checks/coverage` を、1.3 節「網羅率の比べ方」のとおりに作る。引数は 2 つのコミットと、それぞれの coverprofile である。
-- [ ] `_checks/coverage` に手で作った入力を与えて確かめる。片方にだけある関数、実行されなかった文の数が増えた関数と減った関数、ほかのファイルへ移った関数、同じパッケージで同じ名前の 2 つのメソッド（レシーバで区別する）、同じブロックが重なって出る記録（どれかが 0 でなければ実行された）、対応が 1 つに決まらない場合（`2` で止まる）である。
-- [ ] `_checks/residue` を、1.3 節と 1.4 節の末尾の表のとおりに作り、ステップ 1-1 の行の確かめを持たせる。識別子は `go/parser`・`go/ast` でパッケージと宣言を読んで確かめ、文字列の検索で代えない（設計書 7.3 節）。
-- [ ] 2 つのスクリプトの冒頭のコメントに、確かめる内容、実行の仕方、終了コードを英語で書く。`make test` と CI はこれらを実行しない。
-- [ ] スクリプトだけをコミットする（製品のコードもテストも変えない）。
+- [x] `_checks/coverage` を、1.3 節「網羅率の比べ方」のとおりに作る。引数は 2 つのコミットと、それぞれの coverprofile である。
+- [x] `_checks/coverage` に手で作った入力を与えて確かめる。片方にだけある関数、実行されなかった文の数が増えた関数と減った関数、ほかのファイルへ移った関数、同じパッケージで同じ名前の 2 つのメソッド（レシーバで区別する）、同じブロックが重なって出る記録（どれかが 0 でなければ実行された）、対応が 1 つに決まらない場合（`2` で止まる）である。
+- [x] `_checks/residue` を、1.3 節と 1.4 節の末尾の表のとおりに作り、ステップ 1-1 の行の確かめを持たせる。識別子は `go/parser`・`go/ast` でパッケージと宣言を読んで確かめ、文字列の検索で代えない（設計書 7.3 節）。
+- [x] 2 つのスクリプトの冒頭のコメントに、確かめる内容、実行の仕方、終了コードを英語で書く。`make test` と CI はこれらを実行しない。
+- [x] スクリプトだけをコミットする（製品のコードもテストも変えない）。
 
 **完了の条件:** `go vet -tags test` が 2 つのスクリプトを通る。`_checks/residue` に `791def11` を merge-base と head の両方として渡すと、`unchanged` だけが成り立ち、ほかの確かめが成り立たないと出力して `1` で終わる。`slack-flag` は、`--out` を付けない `--slack`・`--slack=true`・`-slack`・`-slack=true` の形では、印のファイルができたことを挙げる。`--slack=false`・`-slack=false` の形と、`--out` を同時に指定したすべての形では、CLI が標準ライブラリの未知のフラグの行を書かなかったことを挙げる（今の CLI は専用の拒否で止まる）。対照の実行では、印のファイルができる。
 
@@ -170,11 +182,11 @@ CLI の `--slack` と、CLI だけが使う Webhook の投稿の経路（出力�
 
 **変更するファイル:** `cmd/yt2column/cost_test.go`、`cmd/yt2column/token_test.go`、`cmd/yt2column/run_test.go`（補助を共有するとき）、`internal/config/config_test.go`、`internal/publisher/slack_message_test.go`
 
-- [ ] 1.5 節の費用とトークンの 4 つを加える。どのテストも `--out` で実行し、`d.newFilePublisher` を差し替える。差し替えた関数は、すべての段階が終わった後の公開で失敗する `Publisher` か、`Publish` が成功した後にログの書き込みを失敗させる `Publisher` を返す（設計書 7.1 節、1.4 節の `executionPathRows` の 2 行と同じ形）。各テストが、失敗が公開の段階で起きたこと（`publish` の段階の行、または検証・推敲のログの失敗の行）を確かめる。包む `Publisher` は 4 つのテストと `executionPathRows` の 2 行で同じ形なので、`run_test.go` に補助を 1 つ置いて共有してよい。
-- [ ] `TestLoadServerWebhookAccepted`・`TestLoadServerWebhookRejected`・`TestServerConfigOutputRedactsWebhook` を加える（1.3 節）。受理する値は `TestLoadSlackWebhookAccepted` の 5 つ、拒否する値は `TestLoadInvalid` の `slack webhook` の行の値、値を出さないことは `TestLoadErrorsOmitValues` の 5 行の値と確かめる部分をそのまま移す。
-- [ ] `TestPrepareSlackMessagesLen` を加える。`TestSlackMessageCount` が確かめる 3 つ（1 通の記事、分かれる記事、メンションの拒否）のうち、1.4 節の重なる既存のテストが確かめていないものだけを、`PrepareSlackMessages` の返す値の `Len()` と返るエラーで確かめる。重なるものは、どのテストが確かめるかをコミットメッセージに書く。
-- [ ] 加えたテストが、それぞれ確かめる対象を壊すと失敗することを確かめ、コミットメッセージに書く。
-- [ ] 親コミットを `BASE` に `make coverage-compare` を実行し、`coverage-compare: PASS` の出力を最後の行までコミットメッセージに書く（1.3 節）。
+- [x] 1.5 節の費用とトークンの 4 つを加える。どのテストも `--out` で実行し、`d.newFilePublisher` を差し替える。差し替えた関数は、すべての段階が終わった後の公開で失敗する `Publisher` か、`Publish` が成功した後にログの書き込みを失敗させる `Publisher` を返す（設計書 7.1 節、1.4 節の `executionPathRows` の 2 行と同じ形）。各テストが、失敗が公開の段階で起きたこと（`publish` の段階の行、または検証・推敲のログの失敗の行）を確かめる。包む `Publisher` は 4 つのテストと `executionPathRows` の 2 行で同じ形なので、`run_test.go` に補助を 1 つ置いて共有してよい。
+- [x] `TestLoadServerWebhookAccepted`・`TestLoadServerWebhookRejected`・`TestServerConfigOutputRedactsWebhook` を加える（1.3 節）。受理する値は `TestLoadSlackWebhookAccepted` の 5 つ、拒否する値は `TestLoadInvalid` の `slack webhook` の行の値、値を出さないことは `TestLoadErrorsOmitValues` の 5 行の値と確かめる部分をそのまま移す。
+- [x] `TestPrepareSlackMessagesLen` を加える。`TestSlackMessageCount` が確かめる 3 つ（1 通の記事、分かれる記事、メンションの拒否）のうち、1.4 節の重なる既存のテストが確かめていないものだけを、`PrepareSlackMessages` の返す値の `Len()` と返るエラーで確かめる。重なるものは、どのテストが確かめるかをコミットメッセージに書く。
+- [x] 加えたテストが、それぞれ確かめる対象を壊すと失敗することを確かめ、コミットメッセージに書く。
+- [x] 親コミットを `BASE` に `make coverage-compare` を実行し、`coverage-compare: PASS` の出力を最後の行までコミットメッセージに書く（1.3 節）。
 
 **完了の条件:** `make test` と `make lint` が通り、`make coverage-compare` が `PASS` で終わる。
 
@@ -182,34 +194,34 @@ CLI の `--slack` と、CLI だけが使う Webhook の投稿の経路（出力�
 
 **変更するファイル:** `cmd/yt2column/` の `run.go`・`test_helpers.go`・`test_helpers_integration.go`・`integration_slack_test.go`（削除）・`run_test.go`・`signal_test.go`・`cost_test.go`・`token_test.go`・`makefile_test.go`・`docs_test.go`、`internal/config/config.go`・`config_test.go`、`internal/job/job.go`・`job_test.go`、`internal/publisher/slack_message.go`・`slack_message_test.go`・`slack_test.go`・`slack_integration_test.go`・`testutil/integration.go`・`testutil/integration_settings_test.go`、`internal/doctestutil/guides.go`、`Makefile`
 
-- [ ] `cmd/yt2column/run.go` を設計書 3.1 節のとおりにする。`checkOut` と `errOutRequired` を加え（1.3 節）、1.4 節の削除するもの、使われなくなる import を削除し、`checkReviewLog`・`checkCacheDirs` から `destination` を除いて `--out` と常に比べる。`writeUsage` の説明を、記事を `--out` のファイルに書くこと、`--out` が必須であることに改める（AC-03）。1.4 節の古くなるコメントを直す。
-- [ ] `internal/config/config.go` を設計書 3.2 節のとおりにする（`loadSlackWebhook` の説明の「Load and LoadServer」を `LoadServer` に直す）。
-- [ ] `internal/job/job.go` を設計書 3.3 節のとおりにする。`Output` の説明を設計書 3.3 節のコードのとおりにする。
-- [ ] `internal/publisher/slack_message.go` の `SlackMessageCount` を削除する。`slack_test.go:589` と `slack_integration_test.go:50-55` の呼び出しを、`PrepareSlackMessages` の返す値の `Len()` に直し、`slack_test.go:570` のコメントも直す。
-- [ ] `CLISlackOptInEnv`・`CLISlackIntegrationOptions`（`internal/publisher/testutil/integration.go`）、`DevCLIWebhookIntegrationHeading`（`internal/doctestutil/guides.go:29-31`）、`cmd/yt2column/integration_slack_test.go` を削除し、`integration.go:45-47` の説明を 1 つの統合テストのものに直す。`integration_settings_test.go` の `other_opt_in_only` の行を、テストのためだけの別の名前で確かめる形にする（設計書 7.1 節）。
-- [ ] `Makefile` から 1.4 節の削除するものを削除する。
-- [ ] テストを削除する（設計書 7.1 節）。`run_test.go` の `TestRunSlackFailureHints`・`TestRunSlackSignalAfterPosting`・`TestRunSlackSummaryUnknownCount`・`TestNewSlackPublisherNilOnFailure`・`TestTestDepsSlackPublisherDoesNotSend`。
-- [ ] `run_test.go` の `TestRunReviewLogFailure` を削除する（1.4 節）。
-- [ ] `signal_test.go` の `TestSignalDuringSlackPost` を削除する。
-- [ ] `makefile_test.go` の `TestMakeTestIntegrationCLISlack`・`TestCLISlackIntegrationSettings`・`TestCLISlackIntegrationTestBuildTag` を削除する。
-- [ ] `internal/job/job_test.go` の `TestRunRemoteOutput` を削除する。
-- [ ] `internal/config/config_test.go` の `TestRequireSlackWebhookURL` と `TestLoadSlackWebhookAccepted` を削除する。
-- [ ] `internal/publisher/slack_message_test.go` の `TestSlackMessageCount` を削除する。
-- [ ] `cost_test.go`・`token_test.go` の 1.5 節の元のテストとサブテストを削除する。
-- [ ] 1.4 節の補助と表の行を、次のとおり削除・移動・修正する。
+- [x] `cmd/yt2column/run.go` を設計書 3.1 節のとおりにする。`checkOut` と `errOutRequired` を加え（1.3 節）、1.4 節の削除するもの、使われなくなる import を削除し、`checkReviewLog`・`checkCacheDirs` から `destination` を除いて `--out` と常に比べる。`writeUsage` の説明を、記事を `--out` のファイルに書くこと、`--out` が必須であることに改める（AC-03）。1.4 節の古くなるコメントを直す。
+- [x] `internal/config/config.go` を設計書 3.2 節のとおりにする（`loadSlackWebhook` の説明の「Load and LoadServer」を `LoadServer` に直す）。
+- [x] `internal/job/job.go` を設計書 3.3 節のとおりにする。`Output` の説明を設計書 3.3 節のコードのとおりにする。
+- [x] `internal/publisher/slack_message.go` の `SlackMessageCount` を削除する。`slack_test.go:589` と `slack_integration_test.go:50-55` の呼び出しを、`PrepareSlackMessages` の返す値の `Len()` に直し、`slack_test.go:570` のコメントも直す。
+- [x] `CLISlackOptInEnv`・`CLISlackIntegrationOptions`（`internal/publisher/testutil/integration.go`）、`DevCLIWebhookIntegrationHeading`（`internal/doctestutil/guides.go:29-31`）、`cmd/yt2column/integration_slack_test.go` を削除し、`integration.go:45-47` の説明を 1 つの統合テストのものに直す。`integration_settings_test.go` の `other_opt_in_only` の行を、テストのためだけの別の名前で確かめる形にする（設計書 7.1 節）。
+- [x] `Makefile` から 1.4 節の削除するものを削除する。
+- [x] テストを削除する（設計書 7.1 節）。`run_test.go` の `TestRunSlackFailureHints`・`TestRunSlackSignalAfterPosting`・`TestRunSlackSummaryUnknownCount`・`TestNewSlackPublisherNilOnFailure`・`TestTestDepsSlackPublisherDoesNotSend`。
+- [x] `run_test.go` の `TestRunReviewLogFailure` を削除する（1.4 節）。
+- [x] `signal_test.go` の `TestSignalDuringSlackPost` を削除する。
+- [x] `makefile_test.go` の `TestMakeTestIntegrationCLISlack`・`TestCLISlackIntegrationSettings`・`TestCLISlackIntegrationTestBuildTag` を削除する。
+- [x] `internal/job/job_test.go` の `TestRunRemoteOutput` を削除する。
+- [x] `internal/config/config_test.go` の `TestRequireSlackWebhookURL` と `TestLoadSlackWebhookAccepted` を削除する。
+- [x] `internal/publisher/slack_message_test.go` の `TestSlackMessageCount` を削除する。
+- [x] `cost_test.go`・`token_test.go` の 1.5 節の元のテストとサブテストを削除する。
+- [x] 1.4 節の補助と表の行を、次のとおり削除・移動・修正する。
     -   `executionPathRows` の Webhook の行と、`notStderr` の古い文言を削除する。`--out with an empty path` の行は `usageRow` に移す。
     -   `review-log write failure after the publish` の行の `wantStderr` にログのパスを加える（削除する `TestRunReviewLogFailure` がパスを含めて確かめていたため）。
     -   `TestRunEscapesUntrustedText` の `--slack` の 2 行と `withheld`、`TestRunReviewLog` の `--slack` のサブテスト、`TestRunGODEBUGWarning` の `--slack` の行を削除する。`cost_test.go:443` のコメントを直す。
     -   `job_test.go` の `remote output` の 2 行、`config_test.go` の 1.4 節の `Load` の Webhook の確かめ、`makefile_test.go`・`docs_test.go` の `CLISlack*` と `cli_slack` の行を削除する。
-- [ ] 新しい振る舞いのテストを加える（設計書 7.4 節の規則により、このコミットに入れる）。
+- [x] 新しい振る舞いのテストを加える（設計書 7.4 節の規則により、このコミットに入れる）。
     -   `run_test.go::TestCheckOut`: 指定がなければ `errOutRequired`（`errOutEmpty` ではない）、値が空なら `errOutEmpty`（`errOutRequired` ではない）、空でない値なら `nil` を返すこと（AC-02）。`executionPathRows` に `no --out` の行（終了コード `2`、`usageHint`、`untouched`）を加える。
-    -   `run_test.go::TestRunIgnoresSlackWebhookURL`: 問い合わせた名前を記録する `lookup` で、`SLACK_WEBHOOK_URL` が問い合わせられないこと（肯定の確かめとして、ほかの変数が問い合わせられたこと）を確かめる（AC-06）。`SLACK_WEBHOOK_URL` が空・`https` でない値のとき、`--out` の実行が未設定の場合と同じ終了コード、`--out` のファイル、標準エラーの行になることを確かめる（AC-07）。比べる 2 つの実行は、同じパスの配置と固定の時計（`useFixedClock`）で走らせ、実行ごとに違う値が比べる行に入らないようにする。
-    -   `config_test.go::TestLoadIgnoresSlackWebhookURL`: `Load` が空・不正な `SLACK_WEBHOOK_URL` を拒否しないこと。
+    -   `run_test.go::TestRunIgnoresSlackWebhookURL`: 問い合わせた名前を記録する `lookup` で、`SLACK_WEBHOOK_URL` が問い合わせられないこと（肯定の確かめとして、ほかの変数が問い合わせられたこと）を確かめる（AC-06）。`SLACK_WEBHOOK_URL` が空・`https` でない値のとき、`--out` の実行が未設定の場合と同じ終了コード、`--out` のファイル、標準エラーの行になることを確かめる（AC-07）。比べる 2 つの実行は、同じパスの配置と固定の時計（`useFixedClock`）で走らせ、実行ごとに違う値が比べる行に入らないようにする。（ステップ 1-6 で `_checks/residue/testdata/` に移した。1.6 節）
+    -   `config_test.go::TestLoadIgnoresSlackWebhookURL`: `Load` が空・不正な `SLACK_WEBHOOK_URL` を拒否しないこと。（ステップ 1-6 で `_checks/residue/testdata/` に移した。1.6 節）
     -   `TestRunGODEBUGWarning`: `http2debug` が有効なとき、警告が API キーの 1 行だけであること（AC-05）。
     -   `TestRunHelp`: `--slack` と `Mattermost` を求める確かめと `--slack` の説明の確かめを除き、`--out` の説明か冒頭が `--out` を必須と示すことを確かめる（AC-03）。
-- [ ] AC-04 の行（1.4 節、7 章の AC-04 の行）は、期待する値（`wantCode`・`wantStderr`・`notStderr`）を、上で挙げた変更のほかは変えない。
-- [ ] 加えたテストと書き換えた確かめが、それぞれ対象を壊すと失敗することを確かめ、コミットメッセージに書く。
-- [ ] ステップ 1-2 のコミットとこのコミットで `_checks/coverage` を実行し、削除した関数、加えた関数、1.3 節の (a)・(b) に当たる関数とその扱い（加えたテスト、または理由）をこのコミットのメッセージに書く（AC-14）。子プロセスで動くコード（`signal_test.go` の子の CLI）は coverprofile に現れないので、`TestSignalDuringSlackPost` の削除はこの比較に現れないことも書く。比べるのはコミットを作った後なので、`git commit --amend` でメッセージだけを直し、内容が変わらないことを `git diff HEAD@{1} HEAD` で確かめる（push の前、次のコミットより前に行う）。
+- [x] AC-04 の行（1.4 節、7 章の AC-04 の行）は、期待する値（`wantCode`・`wantStderr`・`notStderr`）を、上で挙げた変更のほかは変えない。
+- [x] 加えたテストと書き換えた確かめが、それぞれ対象を壊すと失敗することを確かめ、コミットメッセージに書く。
+- [x] ステップ 1-2 のコミットとこのコミットで `_checks/coverage` を実行し、削除した関数、加えた関数、1.3 節の (a)・(b) に当たる関数とその扱い（加えたテスト、または理由）をこのコミットのメッセージに書く（AC-14）。子プロセスで動くコード（`signal_test.go` の子の CLI）は coverprofile に現れないので、`TestSignalDuringSlackPost` の削除はこの比較に現れないことも書く。比べるのはコミットを作った後なので、`git commit --amend` でメッセージだけを直し、内容が変わらないことを `git diff HEAD@{1} HEAD` で確かめる（push の前、次のコミットより前に行う）。
 
 **完了の条件:** `make test`・`make lint`・`make deadcode` が通る。
 
@@ -217,15 +229,15 @@ CLI の `--slack` と、CLI だけが使う Webhook の投稿の経路（出力�
 
 **変更するファイル:** `docs/dev/guides/cli.md`、`README.md`、`README.en.md`、`docs/translation_glossary.md`、`docs/dev/guides/development.md`、`docs/dev/security.md`、`docs/dev/conventions/package_reference.md`、`docs/dev/project_overview.md`、`docs/dev/production_profile.md`、`CLAUDE.md`、`cmd/yt2column/docs_test.go`
 
-- [ ] `cli.md` を AC-17 のとおりに直す（冒頭、「必要なもの」、「使い方」とフラグの表、「Webhook への投稿」の節の削除、「出力の書式」、「推定の料金」、終了コード `0`、「設定」）。
-- [ ] `TestREADMEDocumentsFlags` に逆向きの確かめを加える（1.3 節）。`cli.md` に `--slack` の行を戻すと失敗することを確かめ、コミットメッセージに書く。
-- [ ] `README.md` を AC-18 のとおりに直し（`:10`、`:191-192`、「設定」の表とその後の説明 `:398-404`）、`/mktrans README.md` で `README.en.md` に写す。`README.md:192` と `README.en.md:273` は `cli.md` の「Webhook への投稿」の見出しへリンクし、`TestReadmeLinks`（`cmd/yt2column/docs_test.go:650`）がリンク先の見出しがあることを確かめる。2 つの README からこのリンクを除き（AC-18 の書き直しの一部）、`cli.md` の節の削除と同じコミットに入れる。`translation_glossary.md:167` を残る見出しに合わせる。
-- [ ] `development.md` の `make test-integration-cli-slack` の記述（`:17`、「CLI と Webhook の統合テスト」の節 `:273-276`）を除く。
-- [ ] `security.md` §2 の表の CLI の行（`:40`）とテストの数、`GODEBUG` の項（`:42-43`）を直す。
-- [ ] `package_reference.md` の次の行を直す（設計書 3.6 節）。`cmd/yt2column`・`internal/job` の行、`internal/config` の行の `RequireSlackWebhookURL` と「the Slack Webhook URL」の記述、`internal/publisher` の行の `SlackMessageCount` の記述（`:48`）、`internal/slackwebhook` の行の「including `cmd/yt2column`'s」（`:31`。ステップ 1-3 で `integration_slack_test.go` を削除した後は事実と合わなくなる）。
-- [ ] `project_overview.md` の冒頭（`:3`）と `SLACK_WEBHOOK_URL` の行（`:140`）、`production_profile.md:40` を直す（設計書 3.6 節）。
-- [ ] `CLAUDE.md` の「Tool Execution Safety」の CLI を本物のサービスに対して実行する項を直す。本物の Webhook への投稿（サーバの投稿のジョブと `make test-integration-slack`）に承認が要ることは保つ（設計書 3.6 節）。
-- [ ] 文書のガード（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./cmd/codexreview/... ./internal/pipeline`）、`make readme-sync-check`、`make ext-test`、`go test -tags test ./cmd/yt2column-nmhost/`（`TestReadmeHostExitCodes`）を通す。
+- [x] `cli.md` を AC-17 のとおりに直す（冒頭、「必要なもの」、「使い方」とフラグの表、「Webhook への投稿」の節の削除、「出力の書式」、「推定の料金」、終了コード `0`、「設定」）。
+- [x] `TestREADMEDocumentsFlags` に逆向きの確かめを加える（1.3 節）。`cli.md` に `--slack` の行を戻すと失敗することを確かめ、コミットメッセージに書く。
+- [x] `README.md` を AC-18 のとおりに直し（`:10`、`:191-192`、「設定」の表とその後の説明 `:398-404`）、`/mktrans README.md` で `README.en.md` に写す。`README.md:192` と `README.en.md:273` は `cli.md` の「Webhook への投稿」の見出しへリンクし、`TestReadmeLinks`（`cmd/yt2column/docs_test.go:650`）がリンク先の見出しがあることを確かめる。2 つの README からこのリンクを除き（AC-18 の書き直しの一部）、`cli.md` の節の削除と同じコミットに入れる。`translation_glossary.md:167` を残る見出しに合わせる。
+- [x] `development.md` の `make test-integration-cli-slack` の記述（`:17`、「CLI と Webhook の統合テスト」の節 `:273-276`）を除く。
+- [x] `security.md` §2 の表の CLI の行（`:40`）とテストの数、`GODEBUG` の項（`:42-43`）を直す。
+- [x] `package_reference.md` の次の行を直す（設計書 3.6 節）。`cmd/yt2column`・`internal/job` の行、`internal/config` の行の `RequireSlackWebhookURL` と「the Slack Webhook URL」の記述、`internal/publisher` の行の `SlackMessageCount` の記述（`:48`）、`internal/slackwebhook` の行の「including `cmd/yt2column`'s」（`:31`。ステップ 1-3 で `integration_slack_test.go` を削除した後は事実と合わなくなる）。
+- [x] `project_overview.md` の冒頭（`:3`）と `SLACK_WEBHOOK_URL` の行（`:140`）、`production_profile.md:40` を直す（設計書 3.6 節）。
+- [x] `CLAUDE.md` の「Tool Execution Safety」の CLI を本物のサービスに対して実行する項を直す。本物の Webhook への投稿（サーバの投稿のジョブと `make test-integration-slack`）に承認が要ることは保つ（設計書 3.6 節）。
+- [x] 文書のガード（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./cmd/codexreview/... ./internal/pipeline`）、`make readme-sync-check`、`make ext-test`、`go test -tags test ./cmd/yt2column-nmhost/`（`TestReadmeHostExitCodes`）を通す。
 
 **完了の条件:** 上のテストと `make test` が通る。
 
@@ -233,16 +245,29 @@ CLI の `--slack` と、CLI だけが使う Webhook の投稿の経路（出力�
 
 **変更するファイル:** 本書 7.1 節
 
-- [ ] PR-1 のすべての変更をコミットした後、`_checks/residue` を merge-base（`git merge-base origin/main HEAD`）と `HEAD` で実行し、出力、終了コード、2 つのコミット ID を 7.1 節に書く。merge-base を head として渡したとき、`unchanged` を除く確かめが成り立たないことも書く（`slack-flag` は、どの形で印のファイルができたかを書く）。
-- [ ] `unchanged` は merge-base でも成り立つので、`extension/` の 1 行と `internal/server/` の製品のファイルの 1 行をそれぞれ変えた一時的なコミット（ブランチに載せない）を head として渡し、成り立たないと出ることを確かめ、7.1 節に書く。
-- [ ] ステップ 1-2・1-3 の網羅率の比較の結果を 7.1 節に書き写す。
-- [ ] `make test`・`make lint`・`make deadcode` を通す。
+- [x] PR-1 のすべての変更をコミットした後、`_checks/residue` を merge-base（`git merge-base origin/main HEAD`）と `HEAD` で実行し、出力、終了コード、2 つのコミット ID を 7.1 節に書く。merge-base を head として渡したとき、`unchanged` を除く確かめが成り立たないことも書く（`slack-flag` は、どの形で印のファイルができたかを書く）。
+- [x] `unchanged` は merge-base でも成り立つので、`extension/` の 1 行と `internal/server/` の製品のファイルの 1 行をそれぞれ変えた一時的なコミット（ブランチに載せない）を head として渡し、成り立たないと出ることを確かめ、7.1 節に書く。
+- [x] ステップ 1-2・1-3 の網羅率の比較の結果を 7.1 節に書き写す。
+- [x] `make test`・`make lint`・`make deadcode` を通す。
 
 **完了の条件:** `_checks/residue` が PR の head で `0` を返し、その記録が 7.1 節にある。
 
+#### ステップ 1-6: レビューでの決定によるテストの整理（1.6 節）
+
+**変更するファイル:** `docs/tasks/0062_remove_cli_slack/_checks/residue/main.go`・`testdata/`（新規）、`cmd/yt2column/run.go`・`run_test.go`・`signal_test.go`、`internal/config/config_test.go`、`internal/publisher/slack_message_test.go`、本書、設計書
+
+- [x] `_checks/residue` に `ignores-webhook` を加え、`TestRunIgnoresSlackWebhookURL`・`TestLoadIgnoresSlackWebhookURL` を `testdata/` に写す。merge-base で、2 つのテストが述べた理由で失敗することを確かめる。
+- [x] `configurationError` を、`splitJoined` を呼ばない形にする（製品のコードだけのコミット）。
+- [x] `TestLoadServerWebhookAccepted`・`TestLoadServerWebhookRejected`・`TestLoadIgnoresSlackWebhookURL`・`TestPrepareSlackMessagesLen`・`TestRunIgnoresSlackWebhookURL` と、`newRunEnv`・シグナルのテストの子の環境の `SLACK_WEBHOOK_URL`、`secretStrings` の Webhook URL を削除する（テストだけのコミット）。親のコミットを `BASE` に `make coverage-compare` を実行し、`PASS` の出力をコミットメッセージに書く。
+- [x] `splitJoined` と `TestSplitJoined` を削除する。親のコミットを `BASE` に `make coverage-compare` を実行し、`PASS` の出力をコミットメッセージに書く。
+- [x] `_checks/residue` を merge-base と head で実行し、7.1 節に書く。2 つの網羅率の比較の結果も 7.1 節に書き写す。
+- [x] `make test`・`make lint`・`make deadcode` を通す。
+
+**完了の条件:** `_checks/residue` が PR の head で `0` を返し、2 つの `make coverage-compare` が `PASS` で終わり、その記録が 7.1 節にある。
+
 ### PR-1 作成ポイント: CLI webhook post removal
 
-**対象ステップ**: 1-1 / 1-2 / 1-3 / 1-4 / 1-5
+**対象ステップ**: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6
 
 **推奨タイトル**: `refactor(0062): CLI の Webhook への投稿（--slack）を削除する`
 
@@ -252,10 +277,10 @@ CLI の `--slack` と、CLI だけが使う Webhook の投稿の経路（出力�
 
 **判定理由**: ステップ 1-3 が CLI の秘密情報の扱い（伏せ字の対象と環境変数の読み出し）を変え、多数のテストの削除と書き換えを伴う。mkplan のパネルモードの条件（セキュリティの境界と多数のテストの更新）に当たる
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/682
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: `SlackWebhookPublisher.Publish` の削除（設計書 8 章の 2）
 
@@ -359,7 +384,7 @@ M2 は M1 の後に置く（設計書 8 章）。PR-1 の後は `Publish` を呼
 
 | PR | 対象ステップ | 主な変更内容 | 実装モデル要件 |
 |---|---|---|---|
-| PR-1 | 1-1 / 1-2 / 1-3 / 1-4 / 1-5 | 確かめのスクリプト、テストの移し替え、`--slack`・CLI の `SLACK_WEBHOOK_URL` の読み出し・`job.RemoteOutput`・`SlackMessageCount`・`CLISlack*`・`make test-integration-cli-slack` の削除、`--out` の必須化、PR-1 の文書と README | frontier-required |
+| PR-1 | 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 | 確かめのスクリプト、テストの移し替え、`--slack`・CLI の `SLACK_WEBHOOK_URL` の読み出し・`job.RemoteOutput`・`SlackMessageCount`・`CLISlack*`・`make test-integration-cli-slack` の削除、`--out` の必須化、PR-1 の文書と README | frontier-required |
 | PR-2 | 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 | 確かめの追加、`Publish` のテストの移し替え、`Publish` の削除、統合テストの書き直し、コメント、PR-2 の文書 | frontier-recommended |
 
 ## 4. テスト戦略 (Test Strategy)
@@ -369,7 +394,7 @@ M2 は M1 の後に置く（設計書 8 章）。PR-1 の後は `Publish` を呼
 -   **単体テスト:** 削除するテスト、確かめ直すテスト、値を直すテストの 3 つに分ける（設計書 7 章の前置き）。確かめ直すテストは新しい名前で先に加え（ステップ 1-2・2-2）、元のテストは関数とともに削除する（ステップ 1-3・2-3）。新しい振る舞い（`--out` の必須、`SLACK_WEBHOOK_URL` を読まないこと）のテストは、製品のコードを変えるステップ 1-3 で加える。
 -   **統合テスト:** `make test-integration-slack` の統合テストを `PrepareSlackMessages` → `PostMessages` の形にし（ステップ 2-3）、利用者の承認の後に実行する（ステップ 2-6）。同意の変数と URL の扱いは `TestSlackSettingsFrom` が確かめ、変えない。
 -   **後方互換:** `--out` の実行の振る舞い（AC-04）とサーバの `SLACK_WEBHOOK_URL` の扱い（AC-08）は、既存のテストが通ることで確かめる。移し替えで書き換えるテストでも、既存の行の期待する値は変えない。
--   **セキュリティ:** CLI が Webhook URL を受け取らないことは `TestRunIgnoresSlackWebhookURL`（AC-06）で、`newRunEnv` は `SLACK_WEBHOOK_URL` を設定したまま、`requireSafeOutput` が出力に Webhook URL がないことを確かめ続ける（設計書 1.3 節）。CLI は値を読まないので、こちらは失敗しえない予備の確かめである。
+-   **セキュリティ:** CLI が Webhook URL を読まないこと（AC-06・AC-07）は、`_checks/residue` の `ignores-webhook` で PR-1 の head で一度だけ確かめる（1.6 節、設計書 1.4 節）。
 -   **削除の確かめ:** 削除したものがもうないことは `_checks/residue` で一度だけ確かめる（ステップ 1-5・2-6）。
 -   **テストの削除の確かめ:** 1.3 節「網羅率の比べ方」のとおりに比べる（ステップ 1-2・1-3・2-2・2-3）。
 
@@ -386,7 +411,7 @@ M2 は M1 の後に置く（設計書 8 章）。PR-1 の後は `Publish` を呼
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
-- [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5）
+- [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5）
 - [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
@@ -400,15 +425,15 @@ M2 は M1 の後に置く（設計書 8 章）。PR-1 の後は `Publish` を呼
 | AC-03 | test・static | test: `cmd/yt2column/run_test.go::TestRunHelp`。static: `_checks/residue` の `cli-code`（`"slack"` のフラグの定義がない）と `slack-literal`（使い方の文に `--slack` がない） | 1-3・1-5 |
 | AC-04 | test | `cmd/yt2column/run_test.go::TestRunExecutionPaths`（`success`、`--out with an empty path`、`inside the cache directory` の行、`--review-log` と `--out` が同じファイルの行）、`TestRunExecutionPaths/review-log_write_failure_after_the_publish`、`TestRunReviewLog/--out`、`cost_test.go::TestRunCostLinesFileReviewLogFailure`、`token_test.go::TestRunTokenLinesFileReviewLogFailure` | 1-2・1-3 |
 | AC-05 | test・static | test: `cmd/yt2column/run_test.go::TestRunGODEBUGWarning`。static: `_checks/residue` の `cli-code`・`cli-words` | 1-3・1-5 |
-| AC-06 | test | `cmd/yt2column/run_test.go::TestRunIgnoresSlackWebhookURL`、`internal/config/config_test.go::TestLoadIgnoresSlackWebhookURL` | 1-3 |
-| AC-07 | test | `cmd/yt2column/run_test.go::TestRunIgnoresSlackWebhookURL` | 1-3 |
-| AC-08 | test | `internal/config/config_test.go::TestLoadServerWebhookOptional`・`TestLoadServerWebhookAccepted`・`TestLoadServerWebhookRejected`、`cmd/yt2column-server/run_test.go::TestStartsWithoutWebhook`、`internal/server/publish_test.go::TestPublishWithoutWebhook` | 1-2 |
+| AC-06 | test | `_checks/residue` の `ignores-webhook`（`TestRunIgnoresSlackWebhookURL`。1.6 節） | 1-6 |
+| AC-07 | test | `_checks/residue` の `ignores-webhook`（`TestRunIgnoresSlackWebhookURL`・`TestLoadIgnoresSlackWebhookURL`。1.6 節） | 1-6 |
+| AC-08 | test | `internal/config/config_test.go::TestLoadServerValid`・`TestLoadServerWebhookOptional`、`internal/slackwebhook/slackwebhook_test.go::TestValidURL`、`cmd/yt2column-server/run_test.go::TestStartsWithoutWebhook`、`internal/server/publish_test.go::TestPublishWithoutWebhook` | 1-2 |
 | AC-09 | static | `_checks/residue` の `publish-method`。`internal/publisher/file.go:45` の `var _ Publisher = (*FilePublisher)(nil)`（`make test` のビルド） | 2-1・2-6 |
 | AC-10 | static | `_checks/residue` の `config` | 1-1・1-5 |
 | AC-11 | static | `_checks/residue` の `make-target`・`slack-literal` | 1-1・1-5 |
 | AC-12 | static | `_checks/residue` の `cli-code`・`slack-literal` | 1-1・1-5 |
 | AC-13 | static | `make deadcode`（ステップ 1-3・1-5・2-3・2-6 の完了の条件） | 1-3・2-3 |
-| AC-14 | test | ステップ 1-2・2-2・2-3 の `make coverage-compare`、ステップ 1-3 の `_checks/coverage`。結果は各コミットのメッセージ、PR の説明、7.1 節にある | 1-2・1-3・2-2・2-3 |
+| AC-14 | test | ステップ 1-2・1-6・2-2・2-3 の `make coverage-compare`、ステップ 1-3 の `_checks/coverage`。結果は各コミットのメッセージ、PR の説明、7.1 節にある | 1-2・1-3・1-6・2-2・2-3 |
 | AC-15 | test | `internal/publisher/slack_test.go::TestSlackPost*`（1.5 節の 12）・`TestPrepareSlackMessagesRejectionNotPostError`・`TestPostMessages*`、`internal/server/publish_test.go::TestPublishPostsPreparedMessages`、ステップ 2-2・2-3 の `make coverage-compare` | 2-2・2-3 |
 | AC-16 | test・manual | test: `internal/publisher/testutil/integration_settings_test.go::TestSlackSettingsFrom`、`internal/publisher/makefile_test.go::TestMakeTestIntegrationSlack`、`make lint`（`go vet -tags integration` が統合テストをビルドする）。manual: 承認の後の `make test-integration-slack` の実行（ステップ 2-6） | 2-3・2-6 |
 | AC-17 | test・manual | test: `cmd/yt2column/docs_test.go::TestREADMEDocumentsFlags`（表と定義の一致）。manual: PR-1 のレビューで `cli.md` を読む | 1-4 |
@@ -420,7 +445,147 @@ M2 は M1 の後に置く（設計書 8 章）。PR-1 の後は `Publish` を呼
 
 ### 7.1. 実行の記録
 
-（ステップ 1-5 と 2-6 で記入する。）
+#### PR-1
+
+**`_checks/residue`（ステップ 1-5）:** merge-base `43e51be6b1713163487cdf09c390ccb38505e08f`、head `2de9bb0265e4b5ed60cdb0cc4f44218954db9bc5`（ステップ 1-4 のコミット。この記録のコミットはこの節だけを変える）。
+
+```text
+go run -tags test ./docs/tasks/0062_remove_cli_slack/_checks/residue/ 43e51be6 2de9bb02
+```
+
+```text
+OK   slack-flag
+OK   cli-code
+OK   slack-literal
+OK   cli-words
+OK   config
+OK   make-target
+OK   unchanged
+exit 0
+```
+
+-   merge-base を head として渡すと（`43e51be6` を 2 つの引数に渡す）、`unchanged` だけが成り立ち、ほかの 6 つの確かめは成り立たず、終了コード `1` で終わる（slack-flag 24、cli-code 14、slack-literal 55、cli-words 18、config 2、make-target 9 の指摘）。`slack-flag` では、`--out` を付けない `--slack`・`--slack=true`・`-slack`・`-slack=true` の 4 つの形で偽の `yt-dlp` の印のファイルができた（受理された形が `yt-dlp` に届いた）。`--slack=false`・`-slack=false` の形と、`--out` を同時に指定したすべての形の 12 の形は、標準ライブラリの未知のフラグの行を書かなかった（今の CLI は専用の拒否で止まる）。URL の後の 2 つの形は、どちらのコミットでも引数の数の誤りで止まる。対照の実行（`--out` だけ）は、どちらのコミットでも印のファイルを作った。
+-   `unchanged` が失敗しうること: ブランチに載せない一時的なコミットを head として渡した。`extension/src/background.ts` に 1 行を加えたコミット `f21c685f` では `NG unchanged: extension/src/background.ts changed`、`internal/server/publish.go` に 1 行を加えたコミット `7b73ba9c` では `NG unchanged: internal/server/publish.go (a product file) changed` と出て、どちらも終了コード `1` で終わった。
+
+**網羅率の比較（ステップ 1-2、`make coverage-compare`）:** ステップ 1-2 のコミット `6b0fca75`（tree `711594f9`）。出力の `head` はメッセージを直す前のコミット ID で、tree ID は同じである。
+
+```text
+target    make coverage-compare BASE="HEAD~1"
+base      a97a28e33bb7ffaeecc922b05a5eaf975ff6054c
+head      ecffd0da7ec2eedeeab89327c535c4a9fd01cef4 tree 711594f9fc661549c21796c94dc7b345a883f29a
+toolchain go1.27.1
+tests     base 1266 head 1272
+files     base 136 head 136
+functions base 1288 head 1288
+deleted   0
+no compared function lost coverage
+coverage-compare: PASS
+```
+
+**網羅率の比較（ステップ 1-3、`_checks/coverage`）:** before はステップ 1-2 のコミット `6b0fca75`、after はステップ 1-3 のコミット `1f9b9055`（tree `744792a5`）。どちらも、そのコミットのクリーンな worktree で `go test -tags test -count=1 -coverpkg=./... -coverprofile=<file> ./...` を実行し、すべてのテストが通った。
+
+```text
+before  6b0fca75 before.prof (1288 product functions)
+after   1f9b9055 after.prof (1278 product functions)
+only before (removed): 11
+     cmd/yt2column buildOutput (2 of 10 unexecuted)
+     cmd/yt2column chooseDestination (0 of 12 unexecuted)
+     cmd/yt2column messageCount (0 of 3 unexecuted)
+     cmd/yt2column newSlackPublisher (1 of 4 unexecuted)
+     cmd/yt2column rejectedPostStatus (0 of 3 unexecuted)
+     cmd/yt2column reportWebhookHints (0 of 14 unexecuted)
+     cmd/yt2column seconds (0 of 1 unexecuted)
+     internal/config Config.RequireSlackWebhookURL (0 of 3 unexecuted)
+     internal/config Config.SlackWebhookURL (0 of 3 unexecuted)
+     internal/job RemoteOutput (0 of 1 unexecuted)
+     internal/publisher SlackMessageCount (0 of 4 unexecuted)
+only after (added): 1
+     cmd/yt2column checkOut (0 of 4 unexecuted)
+more unexecuted (fails): 1
+     internal/cmdrunner signalGroup: 0 of 3 unexecuted -> 1 of 3 unexecuted
+fewer executed (give each a reason): 10
+     cmd/yt2column newFlagSet: executed 19 -> 18 (0 of 19 unexecuted -> 0 of 18 unexecuted)
+     cmd/yt2column reportReviewLogFailure: executed 5 -> 2 (0 of 5 unexecuted -> 0 of 2 unexecuted)
+     cmd/yt2column reportRunError: executed 19 -> 18 (0 of 19 unexecuted -> 0 of 18 unexecuted)
+     cmd/yt2column reportSuccess: executed 13 -> 7 (1 of 14 unexecuted -> 0 of 7 unexecuted)
+     cmd/yt2column run: executed 61 -> 57 (0 of 61 unexecuted -> 0 of 57 unexecuted)
+     cmd/yt2column warnHTTP2Debug: executed 5 -> 3 (0 of 5 unexecuted -> 0 of 3 unexecuted)
+     internal/cmdrunner signalGroup: executed 3 -> 2 (0 of 3 unexecuted -> 1 of 3 unexecuted)
+     internal/config LoadFor: executed 10 -> 8 (0 of 10 unexecuted -> 0 of 8 unexecuted)
+     internal/job precheckOutput: executed 5 -> 3 (1 of 6 unexecuted -> 0 of 3 unexecuted)
+     internal/job validateRequest: executed 12 -> 8 (0 of 12 unexecuted -> 0 of 8 unexecuted)
+fewer unexecuted: 3
+     cmd/yt2column reportSuccess: 1 of 14 unexecuted -> 0 of 7 unexecuted
+     internal/job precheckOutput: 1 of 6 unexecuted -> 0 of 3 unexecuted
+     internal/slackwebhook lastPathSegment: 1 of 6 unexecuted -> 0 of 6 unexecuted
+NG   1 function(s) found on both sides have more unexecuted statements
+```
+
+-   削除した 11 の関数は、ステップ 1-3 が削除するものである。加えた `checkOut` は `TestCheckOut` と `no --out` の行が実行する。
+-   この比較は (a) の 1 つの関数のために終了コード `1` で終わった。その関数の扱いは次のとおりである。
+-   (a) `internal/cmdrunner` の `signalGroup`: ステップ 1-3 は `internal/cmdrunner` を変えていない。増えた 1 文は、プロセスグループへの `kill` が `ESRCH` 以外で失敗したとき（ゾンビだけが残る間）の `process.Signal` で、子の終わる時刻の巡り合わせで通るかが決まる。同じ tree を 3 回測ると、この分岐を通った回数は 0・0・1 だった。削除したテストはこの分岐に届かない。
+-   (b) 実行された文が減った 10 の関数は、どれも削除した文の分だけ減り、after で実行されなかった文は 0 である（`signalGroup` を除く）: `newFlagSet`（`--slack` の定義）、`reportReviewLogFailure`（Webhook の文言の分岐）、`reportRunError`（`reportWebhookHints` の呼び出し）、`reportSuccess`（Webhook と既定の要約の分岐）、`run`（Webhook URL と `RequireSlackWebhookURL` の文）、`warnHTTP2Debug`（Webhook の警告）、`LoadFor`（`loadSlackWebhook` の呼び出しと代入）、`precheckOutput`・`validateRequest`（出力の種類の分岐）。
+-   最初の比較では、`run` の「build the publisher」の失敗の分岐と `splitJoined` の結合されていない誤りの分岐が (a) に挙がった（削除した `--slack` のテストだけが実行していた）。`executionPathRows` の `the --out publisher cannot be built` の行と `TestSplitJoined` をステップ 1-3 のコミットに加え、上の比較で解消した。
+-   `signal_test.go` の子の CLI のコードは coverprofile に現れないので、`TestSignalDuringSlackPost` の削除はこの比較に現れない。
+
+**ステップ 1-6 の記録（1.6 節）**
+
+`_checks/residue`: merge-base `43e51be6b1713163487cdf09c390ccb38505e08f`、head `1e4eb2970e49499c1e69c82ca422ddeaaaa41a59`（ステップ 1-6 のコードの最後のコミット。この記録のコミットは本書と設計書だけを変える）。
+
+```text
+go run -tags test ./docs/tasks/0062_remove_cli_slack/_checks/residue/ 43e51be6 1e4eb297
+```
+
+```text
+OK   slack-flag
+OK   ignores-webhook
+OK   cli-code
+OK   slack-literal
+OK   cli-words
+OK   config
+OK   make-target
+OK   unchanged
+exit 0
+```
+
+-   merge-base を head として渡すと、`ignores-webhook` は成り立たない。`TestRunIgnoresSlackWebhookURL` は、`lookup` が `SLACK_WEBHOOK_URL` を問い合わせたことと、空・`https` でない値の実行が設定エラーで止まり `--out` のファイルがないことで失敗し、`TestLoadIgnoresSlackWebhookURL` は、`Load` が 2 つの値を拒否したことで失敗した。ステップ 1-6 の前の head では、写したテストがパッケージの同じ名前のテストと重なるので、この確かめは使えない（テストを削除するコミットの後で実行する）。
+
+テストだけを削除するコミット `097bb00c`（tree `388d8cb1`）の `make coverage-compare`（出力の `head` はメッセージを直す前のコミット ID）:
+
+```text
+target    make coverage-compare BASE="d99edbf1"
+base      d99edbf15e1be04e28332552905c9ef28b024990
+head      42a19a38d54e3463677741ab1d1187a7578e8feb tree 388d8cb17c73c044113a84b9e4f0c3734b98b203
+toolchain go1.27.1
+tests     base 1260 head 1255
+files     base 136 head 136
+functions base 1278 head 1278
+deleted   0
+no compared function lost coverage
+coverage-compare: PASS
+```
+
+`splitJoined` と `TestSplitJoined` を削除するコミット `1e4eb297`（tree `61d45190`）の `make coverage-compare`:
+
+```text
+target    make coverage-compare BASE="097bb00c"
+base      097bb00c2e383764608396c374af7a74fd599354
+head      4047f474a43d2b2cfaecbec0fbfa62c2589dab2b tree 61d451905ded428e3ec29ee97cfb7393624a69be
+toolchain go1.27.1
+tests     base 1255 head 1254
+files     base 136 head 136
+functions base 1278 head 1277
+deleted   1
+deleted   "cmd/yt2column/run.go":908 "splitJoined"
+no compared function lost coverage
+coverage-compare: PASS
+```
+
+-   どちらの比較も、`PASS` の前の実行が、このタスクと関係のない `internal/transcript` の `TestCommandExecutorDrainsStderr` の失敗（負荷の下で 2 秒の期限を超える。issue #684）で `STOP test-failed` になった。テストのコードを変えずに実行し直して `PASS` を得た。
+
+#### PR-2
+
+（ステップ 2-6 で記入する。）
 
 ## 8. 成功基準 (Success Criteria)
 
@@ -437,3 +602,4 @@ M2 は M1 の後に置く（設計書 8 章）。PR-1 の後は `Publish` を呼
 ## 変更履歴
 
 - 2026-11-04 承認（isseis、#671）
+- 2026-11-05 セッション中の再承認：CLI が `SLACK_WEBHOOK_URL` を読まないことの確かめを `_checks/residue` に移し、重なるテストと網羅率のためだけのテストを削除する（isseis、#682）

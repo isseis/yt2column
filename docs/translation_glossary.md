@@ -173,7 +173,7 @@
 | 必要なもの | Requirements | README と `cli.md` の見出し |
 | 出力の書式 | Output format | README と `cli.md` の見出し |
 | Slack への投稿 | The Slack post | README の見出し。Slack 互換の Webhook に投稿する記事のメッセージ |
-| Webhook への投稿 | Webhook publishing | README と `cli.md` の見出し |
+| Webhook への投稿 | Webhook publishing | README の見出し |
 | localhost サーバ | Localhost server | README の見出し。本文では "localhost server"（`yt2column-server`） |
 | サーバの起動 | Running the server | README の見出し |
 | サーバの停止 | Stopping the server | README の見出し |

@@ -205,36 +205,6 @@ func TestRunRemovesCache(t *testing.T) {
 	}
 }
 
-// TestRunRemoteOutput runs with a remote output, which has no path to
-// pre-check, publishes once, and removes the video's cache.
-func TestRunRemoteOutput(t *testing.T) {
-	cacheDir := t.TempDir()
-	seedCache(t, cacheDir, jobVideoID, validSubtitles, infoFor(jobVideoID))
-	tripwire, marker := transcripttestutil.NewTripwire(t, t.TempDir())
-	pub := &publishertestutil.FakePublisher{}
-
-	result, err := Run(context.Background(), Request{
-		VideoURL: jobVideoURL, CacheDir: cacheDir, YtDlpPath: tripwire,
-		Writer: &writertestutil.FakeArticleWriter{Result: validArticle()}, Output: RemoteOutput(pub),
-	})
-	if err != nil {
-		t.Fatalf("Run: %v", err)
-	}
-	if result.Article != validArticle() {
-		t.Fatalf("Article = %+v, want %+v", result.Article, validArticle())
-	}
-	if len(pub.Calls) != 1 {
-		t.Fatalf("Publish called %d times, want 1", len(pub.Calls))
-	}
-	requireTripwireNotRun(t, marker)
-
-	for _, name := range transcripttestutil.ListDir(t, cacheDir) {
-		if strings.HasPrefix(name, jobVideoID+".") {
-			t.Errorf("cache entry %q remains after a successful run", name)
-		}
-	}
-}
-
 // TestRunKeepCache checks --keep-cache keeps the cache so a second run reuses
 // it without starting yt-dlp.
 func TestRunKeepCache(t *testing.T) {
@@ -925,11 +895,6 @@ func TestRunValidatesRequest(t *testing.T) {
 			req.Output = FileOutput(req.Output.path, p)
 		}},
 		{"zero-value output", func(_ *testing.T, req *Request) { req.Output = Output{} }},
-		{"remote output with a nil publisher", func(_ *testing.T, req *Request) { req.Output = RemoteOutput(nil) }},
-		{"remote output with a typed-nil publisher", func(_ *testing.T, req *Request) {
-			var p *publishertestutil.FakePublisher
-			req.Output = RemoteOutput(p)
-		}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

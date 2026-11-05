@@ -20,9 +20,7 @@ import (
 	"github.com/isseis/yt2column/internal/config"
 	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/llm/deepseek"
-	"github.com/isseis/yt2column/internal/publisher"
 	"github.com/isseis/yt2column/internal/secret"
-	"github.com/isseis/yt2column/internal/writer"
 )
 
 // Distinct token usages and model names for the three stages, so a test can
@@ -230,7 +228,7 @@ func TestRunTokenLinesNoUsage(t *testing.T) {
 func TestRunTokenLinesBeforeLLM(t *testing.T) {
 	t.Run("usage error", func(t *testing.T) {
 		e := newRunEnv(t)
-		// No destination: a usage error before any side effect.
+		// No --out: a usage error before any side effect.
 		e.args = []string{runVideoURL}
 		if code := e.run(); code != exitUsage {
 			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitUsage, e.stderr.String())
@@ -281,13 +279,13 @@ func requireNoTokenLines(t *testing.T, e *runEnv) {
 }
 
 func TestRunTokenLinesAfterAllCalls(t *testing.T) {
-	t.Run("publish failure", func(t *testing.T) {
+	t.Run("file publish failure", func(t *testing.T) {
 		e := newRunEnv(t)
 		e.withSteps = true
-		// The webhook rejects the post, so the publish fails after every stage
-		// ran. (An existing --out file would fail the job's precheck before any
-		// call.)
-		e.useWebhook(t, failMessage(1, http.StatusServiceUnavailable, "boom"))
+		// The --out publisher fails once the article is written, so the
+		// publish fails after every stage ran. (An existing --out file would
+		// fail the job's precheck before any call.)
+		e.afterFilePublish(func() error { return errInjectedPublish })
 		e.client = usageSequence(
 			usageResponse(longGeneratedText(), "gen-model", testGenTokens),
 			usageResponse(shortGeneratedText(), "short-model", testShortTokens),
@@ -295,7 +293,10 @@ func TestRunTokenLinesAfterAllCalls(t *testing.T) {
 		e.useReviewClient(usageLLM(usageResponse(emptyReviewJSON, "review-model", testReviewTokens)))
 
 		if code := e.run(); code == exitOK {
-			t.Fatalf("exit code = %d, want a failure (the post must fail)", code)
+			t.Fatalf("exit code = %d, want a failure (the publish must fail)", code)
+		}
+		if !strings.Contains(e.stderr.String(), "the publish stage failed") {
+			t.Fatalf("stderr does not report the publish stage:\n%s", e.stderr.String())
 		}
 		requireTokenLines(t, e, []string{
 			knownLine("generation", tokensRun, "gen-model", testGenTokens),
@@ -481,32 +482,22 @@ func TestRunTokenLinesLoopbackAdapter(t *testing.T) {
 	requireTokenLines(t, e, []string{knownLine("generation", tokensRun, "deepseek-flash", want)})
 }
 
-func TestRunTokenLinesReviewLogFailure(t *testing.T) {
+func TestRunTokenLinesFileReviewLogFailure(t *testing.T) {
 	e := newRunEnv(t)
 	e.withSteps = true
-	e.useWebhook(t, nil)
 	logPath := filepath.Join(e.base, "review.md")
-	e.args = []string{"--review-log", logPath, "--slack", runVideoURL}
+	e.args = []string{"--review-log", logPath, "--out", e.outPath, runVideoURL}
 	e.client = usageLLM(usageResponse(shortGeneratedText(), "gen-model", testGenTokens))
 	e.useReviewClient(usageLLM(usageResponse(emptyReviewJSON, "review-model", testReviewTokens)))
-	inner := e.d.newSlackPublisher
-	e.d.newSlackPublisher = func(url secret.Secret) (publisher.Publisher, error) {
-		pub, err := inner(url)
-		if err != nil {
-			return nil, err
-		}
-		return publisherFunc(func(ctx context.Context, a writer.Article) error {
-			if err := pub.Publish(ctx, a); err != nil {
-				return err
-			}
-			// Write the log path first, so the review log's own create finds it
-			// and fails after the article is published.
-			return os.WriteFile(logPath, []byte("raced"), 0o600)
-		}), nil
-	}
+	// Write the log path once the article is written, so the review log's own
+	// create finds it and fails after the article is published.
+	e.afterFilePublish(func() error { return os.WriteFile(logPath, []byte("raced"), 0o600) })
 
 	if code := e.run(); code != exitFailure {
 		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitFailure, e.stderr.String())
+	}
+	if !strings.Contains(e.stderr.String(), "writing the review log to") {
+		t.Fatalf("stderr does not report the review-log failure:\n%s", e.stderr.String())
 	}
 	requireTokenLines(t, e, []string{
 		knownLine("generation", tokensRun, "gen-model", testGenTokens),

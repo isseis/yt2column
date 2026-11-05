@@ -37,7 +37,7 @@ export YT2COLUMN_LLM=claude/claude-opus-5-5+high
 - 検証・推敲のプロバイダ・モデル・effort は、`YT2COLUMN_REVIEW_LLM` を指定しなければ、生成と同じになる。
 - effort は段階ごとに指定できる（生成と字数の調整は `YT2COLUMN_LLM`、検証・推敲は `YT2COLUMN_REVIEW_LLM` の `+<effort>`）。本番の構成では、3 つの段階のどれも `high` である。
 - 本番の構成はコード上の既定である（[#490](https://github.com/isseis/yt2column/issues/490)・[#171](https://github.com/isseis/yt2column/issues/171)）。上の変数を指定しなくても、同じ構成で記事を作る。
-- 利用者が指定しなければならない変数は、`ANTHROPIC_API_KEY` である。`SLACK_WEBHOOK_URL` は、Slack へ投稿するときだけ要る（CLI の `--slack`、および localhost サーバの投稿の操作）。サーバは未設定でも起動し、そのときは投稿を `webhook_not_configured` で拒否する。値は、利用者が自分の環境で設定する。
+- 利用者が指定しなければならない変数は、`ANTHROPIC_API_KEY` である。`SLACK_WEBHOOK_URL` は、localhost サーバの投稿の操作で Slack へ投稿するときだけ要る（CLI は読まない）。サーバは未設定でも起動し、そのときは投稿を `webhook_not_configured` で拒否する。値は、利用者が自分の環境で設定する。
 
 ## 品質の目標と結果
 
