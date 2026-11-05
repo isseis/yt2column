@@ -633,7 +633,7 @@ I-5 で URL が 3.3 の判定を通らないときは、`<` 1 文字を文字に
     -   要素と属性の一覧（AC-20、H-04）: 作った DOM の木をたどり、各要素の名前、属性の名前、属性の値を確かめる共通のテストの関数を、テストの補助のファイルに置く。値は解釈の関数を使わずに確かめる。`a` の `href` は `https://` で始まり、`new URL(値).href` と一致し、ユーザー名とパスワードを持たず、`a` の `textContent` と一致する。`ol` の `start` は 1〜9 桁の 10 進数である。固定の属性は決めた値である。AC-18・AC-19 の入力と、7.3 のランダムな入力に当てはめる。jsdom は要素と属性をたどれる（今の `articleBody.test.ts:23-31` も属性の名前を数えている）。
     -   最大の大きさの入力: 7.1「性能」の各入力を 512 KiB で解釈し、組み立てても例外を投げないことを確かめる。時間は測らない。
 -   **描き直し（`extension/test/renderViewer.test.ts:705-727` を書き直す）**: 同じ Markdown の応答が繰り返し届いても `.article-body` の要素が同じであること、違う Markdown で置き換わること、記事を隠した後に同じ Markdown が届くと描き直すこと（AC-32）。記事の中のリンクにフォーカスがあるときと、記事の中の文字を選択しているとき、同じ応答の後もフォーカスと選択が残ることも確かめる。
--   **操作のボタンの順序（`renderViewer.test.ts`）**: テストの記事の要素（`elements.article`）の `replaceChildren` を、その要素だけに対して差し替え、記事の子が置き換えられる時点で、保存とコピーのボタンがすでに押せることを、置き換えた関数の中で確かめる。順序を逆にすると失敗するテストになる。
+-   **操作のボタンの順序（`renderViewer.test.ts`）**: テストの記事の要素（`elements.article`）の `replaceChildren` を、その要素だけに対して差し替え、記事の子が置き換えられる時点で、保存とコピーのボタンがすでに押せることを、置き換えた関数の中で確かめる。このテストが順序の退行で失敗しうることは、実装のときに順序を逆にして確かめ、コミットメッセージに記す（CLAUDE.md「Testing Strategy」）。
 -   **状態の表示（`extension/test/renderJob.test.ts`）**: `drawStateOnChange` を `drawOnKeyChange` に移した後も、今のテストが変えずに通ること。
 -   **CSS（`extension/test/style.test.ts`）**: 3.5 の表の値を、今の CSS の解析の仕組み（`effectiveValue`）で確かめる。記事の文字の大きさと行の高さ（AC-23）、最大の幅（AC-22）、`pre-wrap` と `plaintext`（AC-02・AC-28）、リンクの下線と `unicode-bidi: isolate`（AC-17・AC-27）、等幅の書体、`--code-bg` の両方のテーマの定義と、`contrastPairs` に加える組（AC-27）。
 -   **性能（AC-33、H-01）**: `articleMarkdown.test.ts` で、512 KiB（`maxResponseBytes`。`extension/src/core/exchange.ts:93`）の入力の解釈が 1 秒以内に終わることを確かめる。入力は時間を測る範囲の外で作り、`parseArticleMarkdown` の呼び出しだけを測る。入力は次の形である。
