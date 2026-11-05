@@ -45,8 +45,8 @@ where it lives. Three principles decide it:
   humans.** Task documents under `docs/tasks/`, the documents directly under
   `docs/dev/` (such as `project_overview.md` and `security.md`), the ADRs
   and their index under `docs/dev/adr/`, `docs/translation_glossary.md`, the
-  guides under `docs/dev/guides/`, and `prompts/README.md` and
-  `testdata/README.md`.
+  guides under `docs/dev/guides/`, the research records under
+  `docs/research/`, and `prompts/README.md` and `testdata/README.md`.
 - **(b) English: instructions that control an agent's run, and the code in the
   repository.** `CLAUDE.md`, `AGENTS.md`, the command definitions under
   `.claude/commands/`, the conventions under `docs/dev/conventions/` that agents
@@ -61,7 +61,7 @@ where it lives. Three principles decide it:
   is its English version.
 
 Applied to directories: `docs/dev/conventions/` is English, and
-`docs/dev/guides/` is Japanese. A new document takes the language its reader and
+`docs/dev/guides/` and `docs/research/` are Japanese. A new document takes the language its reader and
 approver give it under these principles.
 
 Exceptions:
