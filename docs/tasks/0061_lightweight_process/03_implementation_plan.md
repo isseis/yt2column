@@ -369,40 +369,40 @@
 
 **変更するファイル:** `CLAUDE.md`、`AGENTS.md`
 
--   [ ] `CLAUDE.md` を設計書 3.8 のとおりに変える（AC-37・AC-38）。
+-   [x] `CLAUDE.md` を設計書 3.8 のとおりに変える（AC-37・AC-38）。
     -   33 行に、例外と範囲を足す。
     -   「Claude Commands」の一覧に `/runissue <N>` を足し、`/mkreq` の行に振り分けを足す。
     -   166 行の段落を改める。
     -   「Requirements and Acceptance Criteria」に、概要と `requirements_process.md` の節へのリンクを足す。
--   [ ] `AGENTS.md` の 11 行の規則に、軽量プロセスの例外を足す（設計書 3.1.5・3.8）。
+-   [x] `AGENTS.md` の 11 行の規則に、軽量プロセスの例外を足す（設計書 3.1.5・3.8）。
 
 #### ステップ 4-2: issue テンプレート
 
 **変更するファイル:** `.github/ISSUE_TEMPLATE/lightweight.md`（新規。日本語）
 
--   [ ] 設計書 3.8 のとおりに書く。front matter に `labels` を書かない。本文には、冒頭の `/mkreq <N>` の 1 行と、背景・やること・やらないこと・確かめ方の見出しを置く（AC-40）。
+-   [x] 設計書 3.8 のとおりに書く。front matter に `labels` を書かない。本文には、冒頭の `/mkreq <N>` の 1 行と、背景・やること・やらないこと・確かめ方の見出しを置く（AC-40）。
 
 #### ステップ 4-3: `/mkreq` の振り分け
 
 **変更するファイル:** `.claude/commands/mkreq.md`
 
--   [ ] 手順 1 の最後の項目として、太字の名前を付けた振り分けの項目を足す（1.3 節）。中身は設計書 3.4.1〜3.4.2 の順のとおりで、戻した issue の判定、AC-15 の 3 つの停止、`[task]` の扱い、条件に当たるかの判断である。仕様のコメントの読み書きは、仕様の手順書を参照する。
--   [ ] 問いの形（設計書 3.4.3）と、投稿とラベルの付与（設計書 3.4.4）を書く。ラベルの有無は、件数の上限に左右されない形で確かめる（1.3 節）。投稿の前に「**Mention check.**」の段を置き、投稿のコマンドは `gh issue comment <N> --body-file <file>` の形にする。
--   [ ] front matter の `description`、目的の段落（12〜17 行）、手順 9 の報告、「Authorization」（設計書 3.4.4 の操作、AC-43）を改める。
+-   [x] 手順 1 の最後の項目として、太字の名前を付けた振り分けの項目を足す（1.3 節）。中身は設計書 3.4.1〜3.4.2 の順のとおりで、戻した issue の判定、AC-15 の 3 つの停止、`[task]` の扱い、条件に当たるかの判断である。仕様のコメントの読み書きは、仕様の手順書を参照する。
+-   [x] 問いの形（設計書 3.4.3）と、投稿とラベルの付与（設計書 3.4.4）を書く。ラベルの有無は、件数の上限に左右されない形で確かめる（1.3 節）。投稿の前に「**Mention check.**」の段を置き、投稿のコマンドは `gh issue comment <N> --body-file <file>` の形にする。
+-   [x] front matter の `description`、目的の段落（12〜17 行）、手順 9 の報告、「Authorization」（設計書 3.4.4 の操作、AC-43）を改める。
 
 #### ステップ 4-4: `/mkreq` の guard
 
 **変更するファイル:** `cmd/yt2column/codex_review_docs_test.go`、`cmd/yt2column/fixpr_docs_test.go`
 
--   [ ] `postingSections` に、`mkreq.md` の振り分けの区画を足す。区画は `itemSection` で探し、振り分けの項目の書き出しから `"\n2. Resolve the task directory."` までとする。
--   [ ] `TestContextAndCommandsAgree` の対象に `mkreq.md` を足す。
--   [ ] 壊して確かめる：振り分けの区画で、メンションの確認を投稿の後に移す。`TestPostingCommandsInventory` が失敗することを確かめ、コミットメッセージに書く。
+-   [x] `postingSections` に、`mkreq.md` の振り分けの区画を足す。区画は `itemSection` で探し、振り分けの項目の書き出しから `"\n2. Resolve the task directory."` までとする。
+-   [x] `TestContextAndCommandsAgree` の対象に `mkreq.md` を足す。
+-   [x] 壊して確かめる：振り分けの区画で、メンションの確認を投稿の後に移す。`TestPostingCommandsInventory` が失敗することを確かめ、コミットメッセージに書く。
 
 #### ステップ 4-5: `lightweight` ラベル
 
 **変更するファイル:** なし（GitHub のラベル）。記録は本書 7.1 節。
 
--   [ ] `/runplan` が、PR-5 を開く前（ステップ 4-1〜4-4 の後）に、ラベルを作る（AC-41）。
+-   [x] `/runplan` が、PR-5 を開く前（ステップ 4-1〜4-4 の後）に、ラベルを作る（AC-41）。
     -   まず、ラベルがないことを、件数の上限に左右されない形で確かめる。
     -   利用者の承認を得てから、`gh label create` で、色 `c2e0c6` と設計書 1.2 の説明で作る。
     -   確かめた出力を 7.1 節に書き、PR を開く前にコミットする。
@@ -423,10 +423,10 @@
 
 **判定理由**: ステップ 4-3 は、`/runissue` が後で実装の指示として信頼するコメントを、利用者の承認に基づいて投稿する承認の関門である（mkplan.md の panel mode の security-gate の条件）。そのため、文書の変更（4-1・4-2）の後に置いた
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/695
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ## 3. 実装順序とマイルストーン (Implementation Order and Milestones)
 
@@ -492,7 +492,7 @@ PR は 1→5 の順にマージする。軽量プロセスを使えるように�
 - [x] PR-2 マージ済み（対象ステップ: 1-5 / 1-6）
 - [x] PR-3 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4）
 - [x] PR-4 マージ済み（対象ステップ: 3-1 / 3-2）
-- [ ] PR-5 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5）
+- [x] PR-5 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -547,7 +547,17 @@ PR は 1→5 の順にマージする。軽量プロセスを使えるように�
 
 ### 7.1. 実行の記録
 
-（ステップ 4-5 で、ラベルを確かめた出力と実行した日を書く。）
+ステップ 4-5（2026-11-06、利用者の承認を得て実行した）:
+
+-   作成の前：`gh label list --limit 1000 --json name --jq '.[].name' | grep -cx lightweight` は `0` を出した（ラベルは全部で 22 個）。
+-   作成：`gh label create lightweight --color c2e0c6 --description "要件・設計・計画の文書を作らずに 1 本の PR で進める単純な変更（軽量プロセス）"`（終了コード 0）。
+-   作成の後：`gh label list --limit 1000 --json name,color,description --jq '.[] | select(.name == "lightweight")'` の出力は次のとおりである。
+
+    ```json
+    {"color":"c2e0c6","description":"要件・設計・計画の文書を作らずに 1 本の PR で進める単純な変更（軽量プロセス）","name":"lightweight"}
+    ```
+
+-   作成の直後の `gh label list --search lightweight` は、ラベルを返さなかった（その後の実行では返した）。`--search` は GitHub の検索の索引を通るので、作ったばかりのラベルを見落としうる。そのため、`mkreq.md` のラベルの確かめは、`--search` を使わず、すべてのラベルを件数の上限を外して一覧にする形にした。
 
 ## 8. 成功基準 (Success Criteria)
 
