@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-06 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-06 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下「要件書」）の項番を指す。節番号は [02_architecture.md](02_architecture.md)（以下「設計書」）の節を指し、本計画自身の節は「本計画 §N」と書く。用語は、要件書 6 章の用語（期限、詰まる、並行の負荷、新しいファイルの初回の検査）と、設計書の冒頭の用語（対象のテスト、計測用のテスト、調査の記録、race の実行の区間）を同じ意味で使う。既存のファイルの行番号は、断りがない限りコミット `9a059de3`（`main`）で確かめた。設計書が行番号を確かめたコミット `66f3a640` から `9a059de3` までに、`internal/transcript/` と `Makefile` を変えたコミットはない（`git log --oneline 66f3a640..9a059de3 -- internal/transcript Makefile` の出力が空）。そのため、設計書の行番号はそのまま使える。
@@ -208,3 +208,7 @@ N/A（設計書 7.2）。
 -   本計画の承認の後、`/runplan 0064` でフェーズ 1 から始める。
 -   PR-1 のマージの後、issue #684 を閉じる（`Closes #N` では自動で閉じない）。
 -   ほかのテストが同じ形で失敗するようになったら、別の issue で扱う。判断の材料に、本タスクの調査の記録を使う（設計書 9 章）。
+
+## 変更履歴
+
+- 2026-11-06 承認（isseis、#696）
