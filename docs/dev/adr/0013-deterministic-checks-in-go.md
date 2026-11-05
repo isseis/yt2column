@@ -17,7 +17,7 @@
 ## 決定
 
 -   **判定と副作用を持つ開発の道具は Go で書き、テストを持つ。** 今日あるのは次の 4 つで、どれも `cmd/<名前>` と `internal/<名前>` の組である。製品の 3 つのバイナリ（`yt2column`・`yt2column-server`・`yt2column-nmhost`）には入らない。
-    -   `fixprguard`: `/fixpr` と `/runpr` の著者・範囲・git の状態の判定、`finish` の中の build checks と commit、`push` の直前の再確認、`reply`・`edit-pr` の GitHub への書き込み（ADR-0014）。
+    -   `fixprguard`: `/fixpr` と `/runpr` の著者・範囲・git の状態の判定、`finish` の中の build checks と commit、`push` の直前の再確認、`reply`・`edit-pr` の GitHub への書き込み（[ADR-0014](0014-untrusted-review-threads.md)）。
     -   `codexreview`: Codex CLI のローカルレビューの実行と、最終メッセージの形の判定（[ADR-0012](0012-review-setup.md)）。
     -   `coveragecompare`: テストを削除する前後でのカバレッジの比較。`make coverage-compare` と `make ext-coverage-compare` から使う。
     -   `mergepr`: `/mergepr` の prepare・merge・cleanup。判定の道具をこの形で書く先例になった。
