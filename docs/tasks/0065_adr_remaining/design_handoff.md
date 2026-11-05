@@ -22,7 +22,7 @@ AC-11 は、ADR-0001〜ADR-0017 のそれぞれについて、0058・0059 の決
 
 ## H-03: 受け入れ基準を確かめる方法
 
-AC-01・AC-02・AC-04・AC-05・AC-12 は、ADR と出典の文書を突き合わせる確認である。`manual` の読み合わせで確かめるか、本タスクの `_checks/` の確認（`static` か `diff`）で確かめるかを決める（`docs/dev/conventions/requirements_process.md` §4）。0060 は同じ種類の基準を `_checks/` で確かめた（`docs/tasks/0060_adr_records/_checks/`）ので、その再利用を検討する。CLAUDE.md の文書のテストの方針に従い、恒久的なテストは足さない前提とする（要件 2.3）。
+AC-01・AC-02・AC-04・AC-05 は、ADR と出典の文書を突き合わせる確認である。`manual` の読み合わせで確かめるか、本タスクの `_checks/` の確認（`static` か `diff`）で確かめるかを、基準ごとに決める（`docs/dev/conventions/requirements_process.md` §4）。AC-12 は PR が変えるファイルの範囲の確認なので、`diff` の確かめにする。0060 は同じ種類の基準を `_checks/` で確かめた（`docs/tasks/0060_adr_records/_checks/`）ので、その再利用を検討する。CLAUDE.md の文書のテストの方針に従い、恒久的なテストは足さない前提とする（要件 2.3）。
 
 ## H-04: PR の分け方
 
