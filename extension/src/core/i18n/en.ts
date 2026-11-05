@@ -31,6 +31,7 @@ const publishAgainStep =
 // Button names a step quotes, kept in one place with the button's own name.
 const generateButton = "Generate article";
 const generateFromSelectionButton = "Generate from current selection";
+const openExistingButton = "Open existing article";
 const closePopupStep =
   "You can close this popup: the result appears in the viewer tab.";
 
@@ -337,12 +338,29 @@ export const en: Catalog = {
       generate: generateButton,
       openViewer: "Open viewer",
       retry: "Try again",
+      openExisting: openExistingButton,
     },
+    secondary: generateFromSelectionButton,
     sending: {
       text: "Sending the request to the server...",
       steps: [closePopupStep],
     },
     viewerNotice: { text: closePopupStep, steps: [] },
     articleReady: { text: "The article is ready.", steps: [] },
+    choice: {
+      text: "This server has an article of the same video.",
+      steps: [
+        `"${openExistingButton}" shows it. "${generateFromSelectionButton}" generates a new article from the captions you selected.`,
+      ],
+    },
+    existingStates: {
+      loading: "Loading the article's status...",
+      running: "The article is being generated.",
+      done: "The article is ready.",
+    },
+    choiceEnded: {
+      text: "The article of the same video can no longer be used.",
+      steps: [`Press "${generateButton}" to generate the article.`],
+    },
   },
 };

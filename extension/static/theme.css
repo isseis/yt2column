@@ -87,10 +87,12 @@ body {
   border: 0;
 }
 
-/* A button the user presses: the popup's primary button and the viewer's
-   publish, save and copy buttons. Each is at least 44 CSS pixels in both
-   directions. */
+/* A button the user presses: the popup's primary and secondary buttons and
+   the viewer's publish, save and copy buttons. Each is at least 44 CSS pixels
+   in both directions. The popup's secondary button replaces the colours in
+   style.css. */
 #primary,
+#secondary,
 .action-button {
   min-height: 44px;
   padding: 0.5rem 1rem;
@@ -183,13 +185,15 @@ body {
 
 /* The loading mark and the sentence that says which wait it is. The mark
    turns; it never blinks. */
-.loading {
+.loading,
+.existing-state {
   display: flex;
   align-items: center;
   gap: 0.5rem;
 }
 
-.loading .message-text {
+.loading .message-text,
+.existing-state .message-text {
   margin: 0;
 }
 

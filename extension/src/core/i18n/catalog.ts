@@ -8,6 +8,7 @@ import type {
   StepName,
   StepState,
 } from "../response.ts";
+import type { ExistingState } from "../popupView.ts";
 import type { CheckName, CheckState, RejectionReason } from "../types.ts";
 import { en } from "./en.ts";
 import { ja } from "./ja.ts";
@@ -113,11 +114,24 @@ export interface Catalog {
       readonly generate: string;
       readonly openViewer: string;
       readonly retry: string;
+      /** The choice's primary button: shows the existing article. */
+      readonly openExisting: string;
     };
+    /** The choice's secondary button: generates from the current selection. */
+    readonly secondary: string;
     readonly sending: Message;
     /** The popup may be closed: the result appears in the viewer tab. */
     readonly viewerNotice: Message;
     readonly articleReady: Message;
+    /**
+     * The server has an article of the same video. It never says that no
+     * other one exists or that this one will stay.
+     */
+    readonly choice: Message;
+    /** The existing article's state while the choice is shown. */
+    readonly existingStates: Readonly<Record<ExistingState, string>>;
+    /** The existing article can no longer be used; the button generates again. */
+    readonly choiceEnded: Message;
   };
 }
 
