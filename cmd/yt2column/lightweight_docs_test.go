@@ -1434,17 +1434,26 @@ func lwConfigScenarios() []lwConfigScenario {
 			name: "core.hooksPath", typ: "M", table: lwToolTable,
 			branch: func(f *lwFixture) { f.toolCommit(lwTool + " -w gen/f01.txt") },
 			config: func(f *lwFixture) [][2]string {
-				hooks := filepath.Join(f.outside, "hooks")
-				if err := os.MkdirAll(hooks, 0o750); err != nil {
-					f.t.Fatalf("create the hooks directory: %v", err)
-				}
-				hook := "#!/bin/sh\necho ran >>'" + f.hookMarker() + "'\necho hook >>gen/f01.txt\n"
-				if err := os.WriteFile(filepath.Join(hooks, "post-checkout"), []byte(hook), 0o700); err != nil { //nolint:gosec // an executable test hook
-					f.t.Fatalf("write the hook: %v", err)
-				}
-				return [][2]string{{"core.hooksPath", hooks}}
+				return [][2]string{{"core.hooksPath", f.hooksPath("post-checkout")}}
 			},
 			plain: plainWorktreeMarker,
+			after: noMarker,
+		},
+		{
+			// git mv writes the index, so the reproduction of a git tool
+			// commit would run the post-index-change hook, and the file it
+			// writes would make the correct move a STOP tool-mismatch.
+			name: "core.hooksPath for a tool that is git", typ: "M",
+			branch: func(f *lwFixture) {
+				f.git("mv", "notes/rename.txt", "notes/renamed.txt")
+				f.commit(lwToolMessage("git mv notes/rename.txt notes/renamed.txt"))
+			},
+			config: func(f *lwFixture) [][2]string {
+				return [][2]string{{"core.hooksPath", f.hooksPath("post-index-change")}}
+			},
+			plain: func(f *lwFixture) string {
+				return plainToolMarker(f, "git mv notes/rename.txt notes/renamed.txt")
+			},
 			after: noMarker,
 		},
 		{
@@ -1470,6 +1479,42 @@ func plainWorktreeMarker(f *lwFixture) string {
 	_, err := os.Stat(f.hookMarker())
 	_ = os.Remove(f.hookMarker())
 	return fmt.Sprintf("marker left: %t", err == nil)
+}
+
+// plainToolMarker replays command with plain git in a worktree of HEAD^, as
+// the script reproduces a tool commit, and reports whether that left the
+// marker a hook writes.
+func plainToolMarker(f *lwFixture, command string) string {
+	wt := filepath.Join(f.gitTmp, "plain-tool")
+	f.git("worktree", "add", "-q", "--detach", wt, "HEAD^")
+	words := strings.Fields(command)
+	cmd := exec.Command("git", words[1:]...) //nolint:gosec // the command of the case's tool commit
+	cmd.Dir = wt
+	cmd.Env = f.env(f.gitTmp, "")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		f.t.Fatalf("%s: %v: %s", command, err, out)
+	}
+	f.git("worktree", "remove", "--force", wt)
+	_, err := os.Stat(f.hookMarker())
+	_ = os.Remove(f.hookMarker())
+	return fmt.Sprintf("marker left: %t", err == nil)
+}
+
+// hooksPath writes the hook name into a directory outside the repository and
+// returns the core.hooksPath value that points at it. The hook leaves the
+// marker and appends to gen/f01.txt, so a run that fires it changes a work
+// tree.
+func (f *lwFixture) hooksPath(name string) string {
+	f.t.Helper()
+	hooks := filepath.Join(f.outside, "hooks")
+	if err := os.MkdirAll(hooks, 0o750); err != nil {
+		f.t.Fatalf("create the hooks directory: %v", err)
+	}
+	hook := "#!/bin/sh\necho ran >>'" + f.hookMarker() + "'\necho hook >>gen/f01.txt\n"
+	if err := os.WriteFile(filepath.Join(hooks, name), []byte(hook), 0o700); err != nil { //nolint:gosec // an executable test hook
+		f.t.Fatalf("write the hook: %v", err)
+	}
+	return hooks
 }
 
 // noMarker checks that the script's run left no marker.

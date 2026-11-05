@@ -17,7 +17,8 @@
 #     origin/main's requirements_process.md, never from the branch it checks.
 #   - Git reads neither the global nor the system configuration, nor any GIT_
 #     variable of the caller's environment, and every repository setting that
-#     could change what is read is overridden on the command line.
+#     could change what is read or run (a hook included) is overridden on the
+#     command line -- also for a tool command that is git.
 #   - FAIL is reported only for a fact about the diff. A failed step, a broken
 #     input, or a tool commit that cannot be reproduced is STOP, because FAIL
 #     leads to a revert that cannot be undone.
@@ -544,7 +545,14 @@ for i in "${!TOOL_COMMITS[@]}"; do
 	/*) ;;
 	*) stop tool-failed "the tool ${TOOL_WORDS[0]} does not resolve to an absolute path" ;;
 	esac
-	(cd "$WORKTREE" && "$tool_path" "${TOOL_WORDS[@]:1}") </dev/null >"$TMP_DIR/tool-output" 2>&1 ||
+	# A tool that is git gets the same overrides as g(): a git mv writes the
+	# index, which would run the post-index-change hook the repository
+	# configures, and its file would change the tree the reproduction builds.
+	tool_args=("${TOOL_WORDS[@]:1}")
+	if [ "${TOOL_WORDS[0]}" = git ]; then
+		tool_args=("${GIT_OVERRIDES[@]}" "${tool_args[@]}")
+	fi
+	(cd "$WORKTREE" && "$tool_path" "${tool_args[@]}") </dev/null >"$TMP_DIR/tool-output" 2>&1 ||
 		stop tool-failed "the command of tool commit $commit failed"
 	g -C "$WORKTREE" add -A >/dev/null 2>&1 || stop git "git add in the worktree failed"
 	got=$(g -C "$WORKTREE" write-tree) || stop git "git write-tree in the worktree failed"
