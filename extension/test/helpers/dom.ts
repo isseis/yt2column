@@ -80,6 +80,7 @@ export function viewerElements(doc = viewerDocument()): ViewerElements {
     heading: byId(doc, "heading"),
     channel: byId(doc, "channel"),
     videoLink,
+    existing: byId(doc, "existing"),
     state: byId(doc, "state"),
     stateStatus: byId(doc, "state-status"),
     article: byId(doc, "article"),

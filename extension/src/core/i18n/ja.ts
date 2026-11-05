@@ -25,6 +25,9 @@ const setWebhookStep =
 const publishUnknownStep = "投稿の状態は自動でもう一度取得します。";
 const publishAgainStep =
   "もう一度押しても二重に投稿されないのは、サーバが記事を投稿中か投稿済みとして持っている場合だけです。投稿が失敗した後にやり直すと、届いたことを確かめられなかった 1 通が重複することがあります。";
+// Button names a step quotes, kept in one place with the button's own name.
+const generateButton = "記事を生成する";
+const generateFromSelectionButton = "現在の選択範囲で生成する";
 const closePopupStep =
   "このポップアップは閉じてかまいません。結果はビューアのタブに表示されます。";
 
@@ -330,6 +333,13 @@ export const ja: Catalog = {
       text: "サーバがこの記事をもう持っていません。サーバが再起動したか、記事をキャッシュから捨てました。",
       steps: [sendAgainStep, repeatedPostStep],
     },
+    existing: {
+      text: "このビューアは、同じ動画の既存の記事を表示しています。現在の選択範囲から生成した記事ではありません。",
+      steps: [
+        `現在の選択範囲で生成するには、動画のタブでポップアップを開き、「${generateButton}」を押してください。`,
+        `選択肢が表示されたら、「${generateFromSelectionButton}」を選んでください。`,
+      ],
+    },
     webhookNotConfigured: {
       text: "サーバに Slack の Webhook が設定されていません。",
       steps: [setWebhookStep],
@@ -348,7 +358,7 @@ export const ja: Catalog = {
   },
   popup: {
     primary: {
-      generate: "記事を生成する",
+      generate: generateButton,
       openViewer: "ビューアを開く",
       retry: "やり直す",
     },

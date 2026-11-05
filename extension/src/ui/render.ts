@@ -356,7 +356,13 @@ function drawPopupState(
       );
       return;
     case "job": {
-      renderJobState(container, state.job, state.notice, elapsedMs, locale);
+      renderJobState(
+        container,
+        state.job,
+        state.notice,
+        { kind: "shown", ms: elapsedMs },
+        locale,
+      );
       const guidance =
         state.job.kind === "running"
           ? catalog.popup.viewerNotice
@@ -470,9 +476,15 @@ export function renderPopup(
     renderChecksSection(doc, elements.checks, view, locale);
     return;
   }
-  drawStateOnChange(elements.checks, view.state, elapsedMs, locale, () => {
-    drawPopupState(elements.checks, view.state, elapsedMs, locale);
-  });
+  drawStateOnChange(
+    elements.checks,
+    view.state,
+    { kind: "shown", ms: elapsedMs },
+    locale,
+    () => {
+      drawPopupState(elements.checks, view.state, elapsedMs, locale);
+    },
+  );
   writeStatusSummary(elements.status, popupSummary(view.state, locale));
   applyJobPrimary(elements.primary, view.state, locale);
 }

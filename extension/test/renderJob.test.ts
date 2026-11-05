@@ -20,6 +20,7 @@ import {
   renderJobState,
   startFailure,
 } from "../src/ui/renderJob.ts";
+import type { ElapsedTime } from "../src/ui/renderJob.ts";
 import { container, expectLocaleMessage, query } from "./helpers/dom.ts";
 import { article, doneJob, requestId, runningSteps } from "./helpers/job.ts";
 
@@ -27,6 +28,11 @@ const localeList = Object.keys(locales) as Locale[];
 const stateList = Object.keys(stepStates) as StepState[];
 const malicious = "<img src=x onerror=alert(1)>";
 const none: PollNotice = { kind: "none" };
+
+/** The elapsed time ms, drawn while a job runs. */
+function shown(ms: number): ElapsedTime {
+  return { kind: "shown", ms };
+}
 
 /** Every step in the same state. */
 function allSteps(state: StepState): Steps {
@@ -67,7 +73,7 @@ describe("step checklist", () => {
           root,
           { kind: "failed", steps: allSteps(state), failure: "internal" },
           none,
-          0,
+          shown(0),
           locale,
         );
         const [row] = stepRows(root);
@@ -88,7 +94,7 @@ describe("step checklist", () => {
         root,
         { kind: "running", steps: runningSteps },
         none,
-        0,
+        shown(0),
         locale,
       );
       assert.deepEqual(
@@ -110,7 +116,7 @@ describe("step checklist", () => {
         root,
         { kind: "running", steps: runningSteps },
         none,
-        0,
+        shown(0),
         locale,
       );
       for (const row of stepRows(root)) {
@@ -135,7 +141,7 @@ describe("job state", () => {
         root,
         { kind: "running", steps: runningSteps },
         none,
-        65_000,
+        shown(65_000),
         locale,
       );
       const elapsed = query(root, ".job-elapsed");
@@ -147,13 +153,37 @@ describe("job state", () => {
       assert.deepEqual(liveRegions(root), []);
     });
 
+    it(`draws a running job's steps without its elapsed time, and a done job's time taken, when the elapsed time is hidden in ${locale}`, () => {
+      const root = container();
+      renderJobState(
+        root,
+        { kind: "running", steps: runningSteps },
+        none,
+        { kind: "hidden" },
+        locale,
+      );
+      assert.equal(stepRows(root).length, 3);
+      assert.equal(root.querySelector(".job-elapsed"), null);
+      renderJobState(
+        root,
+        doneJob({ state: "not_posted" }),
+        none,
+        { kind: "hidden" },
+        locale,
+      );
+      assert.equal(
+        query(root, ".job-result dd").textContent,
+        formatDuration(article.durationMs, locale),
+      );
+    });
+
     it(`shows a done job's time taken and cost instead of the elapsed time in ${locale}`, () => {
       const root = container();
       renderJobState(
         root,
         doneJob({ state: "not_posted" }),
         none,
-        5_000,
+        shown(5_000),
         locale,
       );
       assert.equal(root.querySelector(".job-elapsed"), null);
@@ -176,7 +206,7 @@ describe("job state", () => {
         ...doneJob({ state: "not_posted" }),
         article: { ...article, cost: { state: "unknown" } },
       };
-      renderJobState(root, job, none, 0, locale);
+      renderJobState(root, job, none, shown(0), locale);
       assert.equal(
         query(root, ".job-result dd:last-of-type").textContent,
         viewer.costUnknown,
@@ -189,7 +219,7 @@ describe("job state", () => {
         root,
         { kind: "failed", steps: runningSteps, failure: "llm_timeout" },
         none,
-        0,
+        shown(0),
         locale,
       );
       assert.equal(stepRows(root).length, 3);
@@ -202,7 +232,7 @@ describe("job state", () => {
 
     it(`shows the lost article's message and no steps in ${locale}`, () => {
       const root = container();
-      renderJobState(root, { kind: "lost" }, none, 0, locale);
+      renderJobState(root, { kind: "lost" }, none, shown(0), locale);
       assert.deepEqual(stepRows(root), []);
       expectLocaleMessage(
         query(root, ".failure"),
@@ -223,7 +253,7 @@ describe("poll notice", () => {
         kind: "retrying",
         outcome: { kind: "no-response" },
       };
-      renderJobState(root, running, notice, 0, locale);
+      renderJobState(root, running, notice, shown(0), locale);
       expectLocaleMessage(query(root, ".job-notice"), locale, (l) =>
         statusNoticeMessage(notice.outcome, l),
       );
@@ -236,7 +266,7 @@ describe("poll notice", () => {
         kind: "stopped",
         outcome: { kind: "rejected", reason: "invalid_key", requestId },
       };
-      renderJobState(root, running, notice, 0, locale);
+      renderJobState(root, running, notice, shown(0), locale);
       expectLocaleMessage(query(root, ".job-notice"), locale, (l) =>
         statusNoticeMessage(notice.outcome, l),
       );
@@ -249,7 +279,7 @@ describe("poll notice", () => {
         kind: "stopped",
         outcome: { kind: "unexpected", check: "member-set" },
       };
-      renderJobState(root, running, notice, 0, locale);
+      renderJobState(root, running, notice, shown(0), locale);
       expectLocaleMessage(query(root, ".job-notice"), locale, (l) =>
         statusNoticeMessage(notice.outcome, l),
       );
@@ -271,7 +301,7 @@ describe("poll notice", () => {
             requestId: malicious as RequestId,
           },
         },
-        0,
+        shown(0),
         locale,
       );
       assert.equal(root.querySelector("img"), null);
@@ -287,10 +317,10 @@ describe("poll notice", () => {
           kind: "stopped",
           outcome: { kind: "rejected", reason: "invalid_key", requestId },
         },
-        0,
+        shown(0),
         locale,
       );
-      renderJobState(root, running, none, 0, locale);
+      renderJobState(root, running, none, shown(0), locale);
       assert.equal(root.querySelector(".job-notice"), null);
       assert.equal(root.querySelector(".send-request-id"), null);
       assert.equal(root.querySelectorAll("ol.step-list").length, 1);

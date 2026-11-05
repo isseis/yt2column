@@ -77,6 +77,16 @@ describe("round trip", () => {
       },
     },
     {
+      name: "a key with the existing-article mark",
+      params: {
+        heading: "Heading",
+        url: watchUrl,
+        sentAt,
+        key,
+        existing: true,
+      },
+    },
+    {
       name: "every value at its limit",
       params: {
         // Counted in code points: each U+1F600 is two UTF-16 units.
@@ -109,10 +119,11 @@ describe("round trip", () => {
       url: watchUrl,
       sentAt,
       key: "k" as ArticleKey,
+      existing: true,
     });
     assert.deepEqual(
       query.split("&").map((pair) => pair.split("=")[0]),
-      ["h", "c", "t", "u", "s", "k"],
+      ["h", "c", "t", "u", "s", "k", "e"],
     );
   });
 });
@@ -147,6 +158,16 @@ describe("parseViewerUrl", () => {
 
   it("reads a raw + as +, never as a space", () => {
     assert.equal(paramsOf(queryWith({ h: "a+b" })).heading, "a+b");
+  });
+
+  it("reads e=1 beside a key as the existing-article mark", () => {
+    assert.deepEqual(paramsOf(queryWith({ k: "key", e: "1" })), {
+      heading: "Heading",
+      url: watchUrl,
+      sentAt,
+      key: "key",
+      existing: true,
+    });
   });
 
   it("accepts a send time equal to the load time", () => {
@@ -313,6 +334,41 @@ describe("parseViewerUrl", () => {
       name: "a key one over its limit",
       search: queryWith({ k: "k".repeat(257) }),
       error: "key",
+    },
+    {
+      name: "an e without a key",
+      search: queryWith({ e: "1" }),
+      error: "existing",
+    },
+    {
+      name: "an empty e",
+      search: queryWith({ k: "key", e: "" }),
+      error: "existing",
+    },
+    {
+      name: "an e of 0",
+      search: queryWith({ k: "key", e: "0" }),
+      error: "existing",
+    },
+    {
+      name: "an e of true",
+      search: queryWith({ k: "key", e: "true" }),
+      error: "existing",
+    },
+    {
+      name: "an e of 1 with a leading zero",
+      search: queryWith({ k: "key", e: "01" }),
+      error: "existing",
+    },
+    {
+      name: "an e of 1 with a trailing space",
+      search: queryWith({ k: "key", e: "1%20" }),
+      error: "existing",
+    },
+    {
+      name: "a repeated e",
+      search: `${queryWith({ k: "key", e: "1" })}&e=1`,
+      error: "duplicate-name",
     },
   ];
   for (const { name, search, error } of rejected) {

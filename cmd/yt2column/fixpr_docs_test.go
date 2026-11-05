@@ -231,6 +231,10 @@ var runprListingKeys = map[string][]string{
 // whether to stop by them, so a filter that leaves one out fails.
 var mentionAuthorKeys = []string{"by_user", "by_bot"}
 
+// runprRequiredKeys are the keys each kind of object runpr.md step 3's
+// listings must hold.
+var runprRequiredKeys = map[string][]string{"mention": mentionAuthorKeys}
+
 // mentionWriter is who wrote a mention, which by_user and by_bot must report:
 // notMention for an item that is no mention.
 type mentionWriter int
@@ -255,11 +259,13 @@ type listingItem struct {
 // listingFixture is the fake response for one listing: its items, the field
 // of an item each output key other than kind and state must equal, and the
 // keys each kind of output object may hold. An object without a kind key is
-// of kind kindless, when that is set.
+// of kind kindless, when that is set. required lists the keys each kind of
+// object must hold, when a command decides by them.
 type listingFixture struct {
 	items    []listingItem
 	source   map[string]string
 	keys     map[string][]string
+	required map[string][]string
 	kindless string
 }
 
@@ -299,7 +305,7 @@ func runprListingFixtures() map[string]listingFixture {
 	awaited := fakeAwaited + "[bot]"
 	comments := map[string]string{"url": "html_url", "created_at": "created_at", "updated_at": "updated_at"}
 	return map[string]listingFixture{
-		"issues/<number>/comments": {source: comments, keys: runprListingKeys, items: []listingItem{
+		"issues/<number>/comments": {source: comments, keys: runprListingKeys, required: runprRequiredKeys, items: []listingItem{
 			{bot, awaited, summaryBody(stateLine(completed)), "summary", "completed " + sha, notMention},
 			{bot, awaited, summaryBody(stateLine(reviewState(`"completed"`, `,"has_any_findings":false`))), "summary", "completed " + sha, notMention},
 			{bot, awaited, summaryBody(stateLine(reviewState(`"running"`, `,"note":"`+bodyMarker+`"`))), "summary", "running " + sha, notMention},
@@ -335,7 +341,7 @@ func runprListingFixtures() map[string]listingFixture {
 			{bot, "other-bot[bot]", marked(fixprguard.CodexMention + " from another Bot"), "mention", "", byABot},
 			{user, "other-user", nil, "", "", notMention},
 		}},
-		"pulls/<number>/comments": {source: comments, keys: runprListingKeys, items: []listingItem{
+		"pulls/<number>/comments": {source: comments, keys: runprListingKeys, required: runprRequiredKeys, items: []listingItem{
 			// A mention by each kind of author: the user, a Bot named like
 			// the user, and a User named like Codex.
 			{user, fakeUser, marked(fixprguard.CodexMention + " from the user"), "mention", "", byTheUser},
@@ -347,7 +353,7 @@ func runprListingFixtures() map[string]listingFixture {
 			{bot, "other-bot[bot]", marked(fixprguard.CodexMention + " from another Bot"), "mention", "", byABot},
 			{user, "other-user", nil, "", "", notMention},
 		}},
-		"pulls/<number>/reviews": {source: map[string]string{"url": "html_url", "created_at": "submitted_at"}, keys: runprListingKeys, items: []listingItem{
+		"pulls/<number>/reviews": {source: map[string]string{"url": "html_url", "created_at": "submitted_at"}, keys: runprListingKeys, required: runprRequiredKeys, items: []listingItem{
 			// A mention by each kind of author: the user, a Bot named like
 			// the user, and a User named like Codex.
 			{user, fakeUser, marked(fixprguard.CodexMention + " from the user"), "mention", "", byTheUser},
@@ -399,14 +405,20 @@ var timeFieldSeconds = map[string]int{"created_at": 10, "updated_at": 20, "submi
 // fakeTimeBase is the time the fake items' times count from, a minute apart.
 var fakeTimeBase = time.Date(2026, 10, 23, 9, 0, 0, 0, time.UTC)
 
+// fakeIDBase is the id of the first fake item. The ids count up from it, so
+// no id equals an item's index.
+const fakeIDBase = 7000
+
 // response is the fake GitHub response for fixture, one object per item, with
-// a distinct URL and distinct times for each.
+// a distinct id, URL, and times for each. The id is a float64, the type JSON
+// numbers decode to, so it compares equal with the id a filter prints.
 func (f listingFixture) response() []map[string]any {
 	var out []map[string]any
 	for i, it := range f.items {
 		obj := map[string]any{
 			"user":     map[string]any{"type": it.userType, "login": it.login},
 			"body":     it.body,
+			"id":       float64(fakeIDBase + i),
 			"html_url": fmt.Sprintf("https://github.test/item/%d", i),
 		}
 		for _, field := range f.source {
@@ -425,10 +437,11 @@ func (f listingFixture) response() []map[string]any {
 // no body: every object the filter builds holds only its kind's keys, no
 // output holds bodyMarker, and every printed value is the item's own non-body
 // field or, for state, the state the item's state line yields. Every other
-// gh api call of section must be one of readCalls. jq must be installed: a
-// missing jq fails the test instead of skipping it, so the check never passes
-// unrun.
-func checkListings(t *testing.T, where, section string, fixtures map[string]listingFixture, readCalls []string) {
+// gh api call of section must be one of readCalls. extra holds further
+// placeholder and value pairs for the filters, beyond the four every listing
+// may use. jq must be installed: a missing jq fails the test instead of
+// skipping it, so the check never passes unrun.
+func checkListings(t *testing.T, where, section string, fixtures map[string]listingFixture, readCalls []string, extra ...string) {
 	t.Helper()
 	jq, err := exec.LookPath("jq")
 	if err != nil {
@@ -440,12 +453,12 @@ func checkListings(t *testing.T, where, section string, fixtures map[string]list
 		t.Fatalf("%s has %d gh api --paginate listings, %d of them in the expected form; want %d",
 			where, n, len(matches), len(fixtures))
 	}
-	replacer := strings.NewReplacer(
+	replacer := strings.NewReplacer(append([]string{
 		"<awaited-reviewer>", fakeAwaited,
 		"<user-login>", fakeUser,
 		"<review-request>", fakeRequest,
 		"<review-mention>", fixprguard.CodexMention,
-	)
+	}, extra...)...)
 	seen := map[string]struct{}{}
 	for _, m := range matches {
 		endpoint, filter := m[1], replacer.Replace(m[2])
@@ -651,11 +664,9 @@ func checkListingOutput(t *testing.T, fixture listingFixture, response []map[str
 		if (item.kind == "mention") != (item.wrote != notMention) {
 			t.Fatalf("item %d: kind %q with writer %d; a mention needs its writer, and only a mention has one", i, item.kind, item.wrote)
 		}
-		if item.kind == "mention" {
-			for _, key := range mentionAuthorKeys {
-				if _, ok := obj[key]; !ok {
-					t.Errorf("item %d: printed no %s", i, key)
-				}
+		for _, key := range fixture.required[item.kind] {
+			if _, ok := obj[key]; !ok {
+				t.Errorf("item %d: printed no %s", i, key)
 			}
 		}
 		for key, value := range obj {

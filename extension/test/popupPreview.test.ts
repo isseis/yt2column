@@ -304,9 +304,14 @@ describe("popup preview script", () => {
       );
     }
 
+    // The existing article's jobs with and without the elapsed time, per locale.
+    const existing = new Set<string>();
     for (const previewCase of viewerPreviewCases) {
       const { state } = previewCase.view;
       states[state.kind] += 1;
+      if (previewCase.view.existing && state.kind === "job") {
+        existing.add(`${state.job.kind}-${previewCase.locale}`);
+      }
       if (state.kind === "job") {
         jobs[state.job.kind] += 1;
         if (state.job.kind === "done" || state.job.kind === "lost") {
@@ -360,6 +365,12 @@ describe("popup preview script", () => {
         assert.ok(count > 0, `no page for the ${kind} ${name}`);
       }
     }
+    assert.deepEqual([...existing].sort(), [
+      "done-en",
+      "done-ja",
+      "running-en",
+      "running-ja",
+    ]);
   });
 
   it("writes one page per popup job state and job kind, drawn by renderPopup", () => {
