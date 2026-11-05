@@ -316,27 +316,27 @@
 
 **変更するファイル:** `extension/src/core/popupView.ts`、`test/popupView.test.ts`
 
-- [ ] `ExistingState`、`PopupJobState` の `choice`・`choice-ended`、`PrimaryAction` の `open-existing`・`start-inquiry`、`SecondaryAction` と `secondaryAction` を設計書 3.6 節のとおりに加える。
-- [ ] `popupView.test.ts` の `primaryAction` の表に新しい状態の行を加え、`secondaryAction` の表を加える。どちらも、すべての状態の種類について値を確かめる（設計書 3.6 節のボタンの操作の表）。
+- [x] `ExistingState`、`PopupJobState` の `choice`・`choice-ended`、`PrimaryAction` の `open-existing`・`start-inquiry`、`SecondaryAction` と `secondaryAction` を設計書 3.6 節のとおりに加える。
+- [x] `popupView.test.ts` の `primaryAction` の表に新しい状態の行を加え、`secondaryAction` の表を加える。どちらも、すべての状態の種類について値を確かめる（設計書 3.6 節のボタンの操作の表）。
 
 **完了の条件:** `node --test` で `popupView.test.ts` が通る。`PrimaryAction` の値が増えるので、`render.ts` の対応の表を直すステップ 4-2 までは `make ext-typecheck` が通らなくてよい。
 
 #### ステップ 4-2: ポップアップの送信と描画
 
-**変更するファイル:** `extension/src/launch.ts`、`src/ui/render.ts`、`src/core/sendMessages.ts`、`src/core/i18n/en.ts`・`ja.ts`、`static/popup.html`、`static/style.css`、`scripts/popup-preview.ts`、`test/launch.test.ts`、`test/render.test.ts`、`test/sendMessages.test.ts`、`test/popupHtml.test.ts`、`test/style.test.ts`、`test/popupPreview.test.ts`、`test/catalog.test.ts`（要る場合）
+**変更するファイル:** `extension/src/launch.ts`、`src/ui/render.ts`、`src/core/i18n/en.ts`・`ja.ts`、`static/popup.html`、`static/style.css`、`scripts/popup-preview.ts`、`test/launch.test.ts`、`test/render.test.ts`、`test/popupHtml.test.ts`、`test/style.test.ts`、`test/popupPreview.test.ts`、`test/catalog.test.ts`（要る場合）
 
-- [ ] `runPopupSend` に、送信ごとの送り方の記憶、選択の状態の流れ、副次のボタンの操作を設計書 3.6 節のとおりに加える。主ボタンの最初の押下と `start-inquiry` は `inquiry` で、`start-plain` は `plain` で、「やり直す」は記憶した送り方で送る。PR-2 の暫定の扱い（1.3 節）はこれで置き換わる。
-- [ ] `openViewer` が `NewViewerTab` を受け取る形にし、`open-existing` は押した時刻と `e=1` を持つ新しいタブの URL を作る（設計書 3.6 節）。タブを探す順は変えない。
-- [ ] `popup.html` の操作のセクションに、主ボタンの後、`#status` の前に `<button id="secondary" type="button" hidden>` を置き、`findPopupElements` が探す。`render.ts` が選択の状態と既存の記事の状態、副次のボタンを描き、`sendMessages.ts` が文言を選ぶ（設計書 3.6 節・3.8 節）。
-- [ ] 副次のボタンの見た目（主ボタンより軽い枠線、44×44 CSS ピクセル以上、フォーカスの印は主ボタンと同じ変数）と、既存の記事の状態の記号の動きを止める規則を `style.css` に書く（AC-36・AC-37・AC-41・AC-42）。
-- [ ] `style.test.ts` を次のように広げる（1.4 節）。
+- [x] `runPopupSend` に、送信ごとの送り方の記憶、選択の状態の流れ、副次のボタンの操作を設計書 3.6 節のとおりに加える。主ボタンの最初の押下と `start-inquiry` は `inquiry` で、`start-plain` は `plain` で、「やり直す」は記憶した送り方で送る。PR-2 の暫定の扱い（1.3 節）はこれで置き換わる。
+- [x] `openViewer` が `NewViewerTab` を受け取る形にし、`open-existing` は押した時刻と `e=1` を持つ新しいタブの URL を作る（設計書 3.6 節）。タブを探す順は変えない。
+- [x] `popup.html` の操作のセクションに、主ボタンの後、`#status` の前に `<button id="secondary" type="button" hidden>` を置き、`findPopupElements` が探す。`render.ts` が選択の状態と既存の記事の状態、副次のボタンを描き、その文言をメッセージカタログから選ぶ（設計書 3.6 節・3.8 節）。
+- [x] 副次のボタンの見た目（主ボタンより軽い枠線、44×44 CSS ピクセル以上、フォーカスの印は主ボタンと同じ変数）と、既存の記事の状態の記号の動きを止める規則を `style.css` に書く（AC-36・AC-37・AC-41・AC-42）。
+- [x] `style.test.ts` を次のように広げる（1.4 節）。
     -   ポップアップの大きさの確かめ（`:552` 付近）に、`#secondary` の高さと幅が 44 CSS ピクセル以上であることを加える（AC-41）。
     -   `#secondary` が共通の `:focus-visible` の印（`theme.css`）を打ち消さないこと、押せない状態があれば `#secondary:disabled` の色を、押せないボタンの色の確かめ（`:415`）に加えること（AC-36）。
     -   新しい色の組を `contrastPairs` に加え、今の組の色を使う新しい選択子は、その組の `foregroundRules` に加える（AC-39）。
     -   既存の記事の生成中の記号の選択子を、動きを止める確かめの一覧（`:724` の `moving`）に加えるか、`render.test.ts` でその記号が今の動きのクラスを持つことを確かめる（AC-42）。
-- [ ] 文言を英語と日本語のカタログに加える。選択の状態の主ボタンの名前は `popup.primary` に置く（1.3 節）。
-- [ ] `popup-preview.ts` に `choice`（既存の記事の取得中・生成中・生成済みと、`PollNotice` の各種類）と `choice-ended` のページを加える。`popupPreview.test.ts` は、`#primary` と同じく、`#secondary` の名前と `hidden` が `renderPopup` の描くものと一致することを確かめる。
-- [ ] `launch.test.ts` に次を加える（設計書 7.2 節のポップアップの行）。
+- [x] 文言を英語と日本語のカタログに加える。選択の状態の主ボタンの名前は `popup.primary` に置く（1.3 節）。
+- [x] `popup-preview.ts` に `choice`（既存の記事の取得中・生成中・生成済みと、`PollNotice` の各種類）と `choice-ended` のページを加える。`popupPreview.test.ts` は、`#primary` と同じく、`#secondary` の名前と `hidden` が `renderPopup` の描くものと一致することを確かめる。
+- [x] `launch.test.ts` に次を加える（設計書 7.2 節のポップアップの行）。
     -   主ボタンの押下で SW への求めが `mode: "inquiry"` を持ち、1 回だけ送られること（AC-15 のポップアップの側）。
     -   同じ動画の応答で `choice` を描き、動画のセクションと詳細が残ること、2 つのボタンの名前、既存の記事の状態の取得中・生成中・生成済みとその変化、フォーカスを動かさずに `#status` に書く要約（AC-16・AC-38）。文は英語と日本語のそれぞれで `catalogs[locale]` の値と一致することを確かめる（AC-40）。
     -   同じ動画の応答の後、どのボタンも押さなければ、状態の取得が続いていること（肯定の印）を示したうえで、SW への求めが最初の 1 つのままであること（AC-17）。
@@ -347,8 +347,8 @@
     -   照会付きの送信が受け付けられたとき、拒否・未送信・結果不明のとき、`0050` と同じ表示をすること（AC-22）。
     -   照会付きの送信の後の「やり直す」が `inquiry` で、`start-plain` の後の「やり直す」が、2 回続けても `plain` で送ること（AC-23）。
     -   キーボードで押した主ボタンにフォーカスが戻ること、副次のボタンにフォーカスがある間に `choice-ended` になると主ボタンにフォーカスが移ること（AC-35）。
-- [ ] `render.test.ts` に、副次のボタンの名前と `hidden`、主ボタンと副次のボタンの DOM の順、押せないボタンの `disabled` を加える（AC-35・AC-37）。`popupHtml.test.ts` の操作のセクションの子の確かめを、主ボタン・副次のボタン・`#status` の順に直す。
-- [ ] 加えたテストの行が、それぞれの分岐を壊すと失敗することを確かめ、コミットメッセージに書く。PR-2 の暫定の扱いに戻すと AC-18 の行が失敗することも確かめる。
+- [x] `render.test.ts` に、副次のボタンの名前と `hidden`、主ボタンと副次のボタンの DOM の順、押せないボタンの `disabled` を加える（AC-35・AC-37）。`popupHtml.test.ts` の操作のセクションの子の確かめを、主ボタン・副次のボタン・`#status` の順に直す。
+- [x] 加えたテストの行が、それぞれの分岐を壊すと失敗することを確かめ、コミットメッセージに書く。PR-2 の暫定の扱いに戻すと AC-18 の行が失敗することも確かめる。
 
 ポップアップを開き直すと送る前の画面から始まり何も送らないこと（AC-24）は、テストを加えない。ポップアップは開くたびに新しい文書で送信の記録を持たず、開いただけで何も送らないことは今の `describe("popup job send")`（`launch.test.ts:646`）が確かめている（1.4 節）。閉じて開き直す操作を jsdom で再現しても、そのテストが検出できる誤りがない。
 
@@ -358,11 +358,11 @@
 
 **変更するファイル:** `docs/translation_glossary.md`、`README.md`、`README.en.md`、`extension/test/metadataDocs.test.ts`
 
-- [ ] `translation_glossary.md` に、要件書 F-005 が挙げる新しい用語（同じ動画の照会、照会付きの生成の開始、同じ動画の応答、選択の状態、既存の記事、既存の記事のビューア、副次のボタン、現在の選択範囲）を、英語の訳とともに加える。英語は、カタログの英語の文言で使った語にそろえる。`/mktrans` の前に行う（1.3 節）。
-- [ ] `README.md` の「ブラウザ拡張」節に、設計書 3.9 節の表の README の行の内容を書く。選択の状態の 2 つのボタンの名前は、カタログの値を太字で引用する（1.3 節、`metadataDocs.test.ts`）。版をそろえる今の記述（`README.md:561-564` 付近。0059 の後の行番号はステップ 1-1 で引き直す）に、拡張だけを新しくすると古いサーバが照会を無視し、選択を示さずに生成しうることを加える。README のジョブの API の説明に、照会の指定と同じ動画の応答を加える（要件書 F-005）。
-- [ ] `metadataDocs.test.ts` の引用の確かめに、副次のボタンの名前を加える（設計書 3.8 節）。選択の状態の主ボタンの名前は `popup.primary` の値として、今の確かめが読む。
-- [ ] `/mktrans README.md` で `README.en.md` に写し、2 つを同じコミットに入れる（CLAUDE.md「Translation Guidelines」）。`/mktrans` が用語集に語を加えたら、その変更もこの PR に入れる。
-- [ ] `make readme-sync-check`、文書のガード、`make ext-check`、`go test -tags test ./cmd/yt2column-nmhost/`（`TestReadmeHostExitCodes`）を通す。
+- [x] `translation_glossary.md` に、要件書 F-005 が挙げる新しい用語（同じ動画の照会、照会付きの生成の開始、同じ動画の応答、選択の状態、既存の記事、既存の記事のビューア、副次のボタン、現在の選択範囲）を、英語の訳とともに加える。英語は、カタログの英語の文言で使った語にそろえる。`/mktrans` の前に行う（1.3 節）。
+- [x] `README.md` の「ブラウザ拡張」節に、設計書 3.9 節の表の README の行の内容を書く。選択の状態の 2 つのボタンの名前は、カタログの値を太字で引用する（1.3 節、`metadataDocs.test.ts`）。版をそろえる今の記述（`README.md:561-564` 付近。0059 の後の行番号はステップ 1-1 で引き直す）に、拡張だけを新しくすると古いサーバが照会を無視し、選択を示さずに生成しうることを加える。README のジョブの API の説明に、照会の指定と同じ動画の応答を加える（要件書 F-005）。
+- [x] `metadataDocs.test.ts` の引用の確かめに、副次のボタンの名前を加える（設計書 3.8 節）。選択の状態の主ボタンの名前は `popup.primary` の値として、今の確かめが読む。
+- [x] `/mktrans README.md` で `README.en.md` に写し、2 つを同じコミットに入れる（CLAUDE.md「Translation Guidelines」）。`/mktrans` が用語集に語を加えたら、その変更もこの PR に入れる。
+- [x] `make readme-sync-check`、文書のガード、`make ext-check`、`go test -tags test ./cmd/yt2column-nmhost/`（`TestReadmeHostExitCodes`）を通す。
 
 **完了の条件:** 上のテストがすべて通る。
 
@@ -372,13 +372,13 @@
 
 確かめは、ビルドした拡張を読み込んだ Chrome と Brave で、倍率 100%、ライトとダーク、英語と日本語の組み合わせで行う（`0046` のステップ 5-4 と同じ）。
 
-- [ ] AC-16: `popup-preview.ts` の出力を幅 360px のウィンドウで開く。見出しが 2 行を超え、チャンネル名が 200 コードポイントの日本語で、`choice` に通知を添えたページ（`choice` は確認のセクションに代わるので、`0046` の最悪の場合の確認の行は出ない）で、開発者ツールで `#secondary` の `getBoundingClientRect().bottom` を測り、英語と日本語の両方で 600 CSS ピクセル以下であれば合格とする。そのうえで、実際のポップアップでも見出しの長い動画で確かめる。
-- [ ] AC-35: キーボードだけ（Tab・Shift+Tab・Enter・Space）で、主ボタン・副次のボタン・`choice-ended` の主ボタンを操作でき、フォーカスの順が見た目の順であれば合格とする。
-- [ ] AC-36・AC-37: 2 つのボタンのフォーカスの印が見え、副次のボタンが主ボタンより軽い見た目で、名前で区別できれば合格とする。
-- [ ] AC-38: VoiceOver で、`choice` になったこと、既存の記事の状態の変化、`choice-ended`、通知が、フォーカスを動かさずに読み上げられれば合格とする。
-- [ ] AC-39・AC-40: 新しい文字と記号が読め、表示の言語とページの `lang` が一致すれば合格とする。
-- [ ] AC-42: 開発者ツールの Rendering で `prefers-reduced-motion: reduce` を指定し、既存の記事の生成中の記号が止まれば合格とする。
-- [ ] 7.1 節に、確かめた日付、ブラウザとその版、確かめた人、AC ごとの結果を書く。
+- [x] AC-16: `popup-preview.ts` の出力を幅 360px のウィンドウで開く。見出しが 2 行を超え、チャンネル名が 200 コードポイントの日本語で、`choice` に通知を添えたページ（`choice` は確認のセクションに代わるので、`0046` の最悪の場合の確認の行は出ない）で、開発者ツールで `#secondary` の `getBoundingClientRect().bottom` を測り、英語と日本語の両方で 600 CSS ピクセル以下であれば合格とする。そのうえで、実際のポップアップでも見出しの長い動画で確かめる。
+- [x] AC-35: キーボードだけ（Tab・Shift+Tab・Enter・Space）で、主ボタン・副次のボタン・`choice-ended` の主ボタンを操作でき、フォーカスの順が見た目の順であれば合格とする。
+- [x] AC-36・AC-37: 2 つのボタンのフォーカスの印が見え、副次のボタンが主ボタンより軽い見た目で、名前で区別できれば合格とする。
+- [x] AC-38: VoiceOver で、`choice` になったこと、既存の記事の状態の変化、`choice-ended`、通知が、フォーカスを動かさずに読み上げられれば合格とする。
+- [x] AC-39・AC-40: 新しい文字と記号が読め、表示の言語とページの `lang` が一致すれば合格とする。
+- [x] AC-42: 開発者ツールの Rendering で `prefers-reduced-motion: reduce` を指定し、既存の記事の生成中の記号が止まれば合格とする。
+- [x] 7.1 節に、確かめた日付、ブラウザとその版、確かめた人、AC ごとの結果を書く。
 
 **完了の条件:** 7.1 節に記録がある。
 
@@ -394,10 +394,10 @@
 
 **判定理由**: ステップ 4-2 がポップアップの状態の移り方とフォーカスの扱いを変える（隔離すべき状態機械の変更）
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した（https://github.com/isseis/yt2column/pull/681）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 5: 残りの文書（設計書 8 章の 5 のうち、先のフェーズに入れなかったもの）
 
@@ -484,7 +484,7 @@ M1 の前に、0059 の PR-2 がマージされている必要がある（1.3 �
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4）
 - [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4）
 - [x] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3）
-- [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4）
+- [x] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4）
 - [ ] PR-5 マージ済み（対象ステップ: 5-1）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
@@ -548,6 +548,15 @@ AC-12・AC-13・AC-14 は要件書の欠番である。
 - AC-27: 合格。`e=1` のビューアは処理中に経過時間を示さず、完了で所要時間を示した。
 - AC-39: 合格。ライトとダーク、英語と日本語の組み合わせで、既存の記事の領域の文が読めた。
 - AC-38: VoiceOver では確かめられなかった。VO+→ で読み進めると、見出し・チャンネル名・YouTube へのリンクの後に進めず、VO+Shift+↑ でグループから出ても同じだった。`e` のないビューアでも同じなので、本タスクより前からある問題として [#673](https://github.com/isseis/yt2column/issues/673) に分けた。`#state-status` に要約を書くことは `extension/test/viewerApp.test.ts` と `extension/test/renderViewer.test.ts` が確かめている。同じ動画の応答で `e=1` が加わるときの読み上げは、ポップアップが照会付きで送る PR-4 まで実機で起こせない。
+
+**ステップ 4-4（ポップアップのブラウザでの確かめ）:** 2026-11-05、isseis が確かめた。ブラウザは Chrome 157.0.8103.39（公式ビルド、arm64、macOS）と Brave 1.98.63（Chromium 156.0.8078.80、公式ビルド、arm64、macOS）で、倍率 100%。ブランチのコミット `64930f3b` でビルドした拡張を読み込んだ。
+
+- AC-16: 合格（両方）。幅 360px のウィンドウで `popup-choice-worst-case-en.html` と `popup-choice-worst-case-ja.html` を開き、`#secondary` の `getBoundingClientRect().bottom` を測った。Chrome は英語 382、日本語 473.703125（表示は 473.7）、Brave は英語 382、日本語 473.703125。実際のポップアップでも、見出しの長い動画（両方のブラウザで同じ動画）で配置が崩れなかった。
+- AC-35: 合格（両方）。キーボードだけで、主ボタン・副次のボタン・`choice-ended` の主ボタンを操作でき、フォーカスは見た目の順に動き、閉じ込められなかった。`choice-ended` はプレビューのページで確かめた。
+- AC-36・AC-37: 合格（両方）。2 つのボタンのフォーカスの印が見え、副次のボタンは主ボタンより軽い見た目で、名前で区別できた。ポップアップを開いた直後は主ボタンにフォーカスがあっても印は出ず、キーボードで操作すると出た（ブラウザの `:focus-visible` の判定による）。
+- AC-38: 合格（両方）。`choice` になったこと、既存の記事の状態の変化、`choice-ended` が、フォーカスを動かさずに読み上げられた。Brave の VoiceOver は既定では Web コンテンツの中を読まず、VO の操作で読み上げの位置を移すと、ボタンと状態の変化が読み上げられた。`choice` になったときは、フォーカスのある「既存の記事を表示する」が読み上げられた。
+- AC-39・AC-40: 合格（両方）。新しい文字と記号は、ライトとダーク、英語と日本語の組み合わせで読めた（プレビューのページを使った）。実際のポップアップの `<html lang>` は表示の言語と一致した。
+- AC-42: 合格（両方）。開発者ツールの Rendering で `prefers-reduced-motion: reduce` を指定すると、既存の記事の生成中の記号が止まった。
 
 ## 8. 成功基準 (Success Criteria)
 

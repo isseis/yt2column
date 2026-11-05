@@ -16,7 +16,7 @@ import type {
   PublishRow,
   ViewerState,
 } from "../src/core/jobView.ts";
-import type { PopupJobState } from "../src/core/popupView.ts";
+import type { ExistingState, PopupJobState } from "../src/core/popupView.ts";
 import { renderPopup } from "../src/ui/render.ts";
 import { renderViewer, renderViewerHeader } from "../src/ui/renderViewer.ts";
 import {
@@ -388,12 +388,24 @@ describe("popup preview script", () => {
       "start-failed": 0,
       loading: 0,
       job: 0,
+      choice: 0,
+      "choice-ended": 0,
     };
     const jobs: Record<JobDisplay["kind"], number> = {
       running: 0,
       done: 0,
       failed: 0,
       lost: 0,
+    };
+    const existing: Record<ExistingState, number> = {
+      loading: 0,
+      running: 0,
+      done: 0,
+    };
+    const notices: Record<"none" | "retrying" | "stopped", number> = {
+      none: 0,
+      retrying: 0,
+      stopped: 0,
     };
     const stylesheets = [
       ...popupDocument().querySelectorAll("link[rel=stylesheet]"),
@@ -404,10 +416,26 @@ describe("popup preview script", () => {
       if (previewCase.state.kind === "job") {
         jobs[previewCase.state.job.kind] += 1;
       }
+      if (previewCase.state.kind === "choice") {
+        existing[previewCase.state.existing] += 1;
+        notices[previewCase.state.notice.kind] += 1;
+      }
       const file = `${previewCase.name}.html`;
       const full = path.join(output, file);
       assert.ok(existsSync(full), file);
       const doc = new JSDOM(readFileSync(full, "utf8")).window.document;
+      if (previewCase.base !== undefined) {
+        // A worst case keeps its input set's video section and details.
+        const basePage = new JSDOM(
+          readFileSync(path.join(output, `${previewCase.base}.html`), "utf8"),
+        ).window.document;
+        for (const id of ["video", "details"]) {
+          assert.ok(
+            byId(doc, id).isEqualNode(byId(basePage, id)),
+            `${file}: #${id} is not ${previewCase.base}'s`,
+          );
+        }
+      }
       assert.deepEqual(
         [...doc.querySelectorAll("link")].map((link) =>
           link.getAttribute("href"),
@@ -460,8 +488,24 @@ describe("popup preview script", () => {
         expected.primary.disabled,
         `${file}: primary availability`,
       );
+      const pageSecondary = doc.getElementById("secondary");
+      assert.equal(
+        pageSecondary?.textContent,
+        expected.secondary.textContent,
+        `${file}: secondary name`,
+      );
+      assert.equal(
+        pageSecondary?.hasAttribute("hidden"),
+        expected.secondary.hidden,
+        `${file}: secondary shown`,
+      );
     }
-    for (const [name, counts] of Object.entries({ states, jobs })) {
+    for (const [name, counts] of Object.entries({
+      states,
+      jobs,
+      existing,
+      notices,
+    })) {
       for (const [kind, count] of Object.entries(counts)) {
         assert.ok(count > 0, `no page for the ${kind} ${name}`);
       }

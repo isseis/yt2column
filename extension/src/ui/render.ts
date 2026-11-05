@@ -5,12 +5,15 @@ import { expandPromptMessage, rejectionMessage } from "../core/messages.ts";
 import {
   descriptionStates,
   primaryAction,
+  secondaryAction,
   selectionStates,
 } from "../core/popupView.ts";
+import type { PollNotice } from "../core/jobView.ts";
 import type {
   CollectedView,
   DescriptionStatus,
   DetailsView,
+  ExistingState,
   PopupJobState,
   PopupView,
   PrimaryAction,
@@ -21,14 +24,16 @@ import type {
 import { ellipsis, shownText } from "../core/summary.ts";
 import type { DisplayText } from "../core/summary.ts";
 import type { CheckName, CheckState } from "../core/types.ts";
-import { checkIcon } from "./icons.ts";
+import { checkIcon, loadingIcon, stepIcon } from "./icons.ts";
 import { messageNodes } from "./message.ts";
 import {
   drawStateOnChange,
   jobStateSummary,
   loadingIndicator,
   noticeSummary,
+  pollNotice,
   renderJobState,
+  waitsForStatus,
   startFailure,
   startFailureSummary,
   waitingNodes,
@@ -36,9 +41,11 @@ import {
   writeStatusSummary,
 } from "./renderJob.ts";
 
-/** The primary button and the status region; all the send path touches. */
+/** The two buttons and the status region; all the send path touches. */
 export interface ActionControls {
   readonly primary: HTMLButtonElement;
+  /** Shown only while the choice offers a second action. */
+  readonly secondary: HTMLButtonElement;
   readonly status: HTMLElement;
 }
 
@@ -330,6 +337,47 @@ function drawDetailsSection(
   drawnDetails.set(container, { view, locale });
 }
 
+/**
+ * Whether the choice shows the existing article's state: not while it waits
+ * for a first status that a stopped poll will never bring.
+ */
+function existingShown(existing: ExistingState, notice: PollNotice): boolean {
+  return existing !== "loading" || waitsForStatus(notice);
+}
+
+/** The existing article's symbol for each state; the Record keeps it total. */
+const existingIcons: Readonly<
+  Record<ExistingState, (doc: Document) => SVGSVGElement>
+> = {
+  loading: loadingIcon,
+  running: (doc) => stepIcon(doc, "running"),
+  done: (doc) => stepIcon(doc, "done"),
+};
+
+/**
+ * The existing article's state as one row: the symbol, then its sentence.
+ * Loading and running turn like the loading mark and a running step, and
+ * done is a running step's check, so the shape tells the state without
+ * colour; the sentence carries the meaning, so the symbol is aria-hidden.
+ */
+function existingRow(
+  doc: Document,
+  existing: ExistingState,
+  locale: Locale,
+): HTMLDivElement {
+  const row = doc.createElement("div");
+  row.className = "existing-state";
+  row.append(
+    existingIcons[existing](doc),
+    valueParagraph(
+      doc,
+      "message-text",
+      catalogs[locale].popup.existingStates[existing],
+    ),
+  );
+  return row;
+}
+
 /** The checks section's content for a job state: the state, then its guidance. */
 function drawPopupState(
   container: HTMLElement,
@@ -374,6 +422,25 @@ function drawPopupState(
       }
       return;
     }
+    case "choice": {
+      // The state, the existing article's state, then the guidance on the
+      // two buttons, as every other state puts its guidance last.
+      const [text, ...steps] = messageNodes(doc, catalog.popup.choice);
+      container.replaceChildren(
+        text,
+        ...(existingShown(state.existing, state.notice)
+          ? [existingRow(doc, state.existing, locale)]
+          : []),
+        ...steps,
+        ...pollNotice(doc, state.notice, locale),
+      );
+      return;
+    }
+    case "choice-ended":
+      container.replaceChildren(
+        ...messageNodes(doc, catalog.popup.choiceEnded),
+      );
+      return;
   }
 }
 
@@ -395,16 +462,28 @@ function popupSummary(state: PopupJobState, locale: Locale): string[] {
         ),
         ...noticeSummary(state.notice, locale),
       ];
+    case "choice":
+      return [
+        catalogs[locale].popup.choice.text,
+        ...(existingShown(state.existing, state.notice)
+          ? [catalogs[locale].popup.existingStates[state.existing]]
+          : []),
+        ...noticeSummary(state.notice, locale),
+      ];
+    case "choice-ended":
+      return [catalogs[locale].popup.choiceEnded.text];
   }
 }
 
 /** The catalog's button name for each action; a new action fails to compile here. */
 const primaryNames: Readonly<
-  Record<PrimaryAction, "generate" | "openViewer" | "retry">
+  Record<PrimaryAction, "generate" | "openViewer" | "retry" | "openExisting">
 > = {
   none: "generate",
   "open-viewer": "openViewer",
   retry: "retry",
+  "open-existing": "openExisting",
+  "start-inquiry": "generate",
 };
 
 /**
@@ -429,14 +508,45 @@ function applyJobPrimary(
 }
 
 /**
+ * The secondary button for a job state: shown with its name only while an
+ * action is offered, and hidden otherwise. A hidden button cannot be
+ * pressed, so it is never shown disabled.
+ */
+function applySecondary(
+  secondary: HTMLButtonElement,
+  state: PopupJobState | undefined,
+  locale: Locale,
+): void {
+  const action = state === undefined ? "none" : secondaryAction(state);
+  switch (action) {
+    case "none":
+      secondary.hidden = true;
+      return;
+    case "start-plain": {
+      const name = catalogs[locale].popup.secondary;
+      if (secondary.textContent !== name) {
+        secondary.textContent = name;
+      }
+      secondary.hidden = false;
+      return;
+    }
+    default: {
+      const exhaustive: never = action;
+      throw new Error(`Unhandled secondary action: ${String(exhaustive)}`);
+    }
+  }
+}
+
+/**
  * Draws the popup view into the skeleton. It replaces each container's
  * children, so drawing twice adds nothing, and shows the view's sections while
  * hiding the others. Every string is set with textContent, so a value read
  * from the page stays text. It never opens the details. A collected or
  * rejected view leaves the primary button disabled, whatever the skeleton
- * says: only the send path enables it, and only for a sendable selection. A
- * job view instead follows primaryAction, and its state summary is written
- * only when it changes, so the elapsed time's redraw is not announced.
+ * says: only the send path enables it, and only for a sendable selection; it
+ * hides the secondary button. A job view instead follows primaryAction and
+ * secondaryAction, and its state summary is written only when it changes, so
+ * the elapsed time's redraw is not announced.
  */
 export function renderPopup(
   elements: PopupElements,
@@ -460,6 +570,7 @@ export function renderPopup(
     elements.status.replaceChildren();
     elements.primary.textContent = catalog.popup.primary.generate;
     elements.primary.disabled = true;
+    applySecondary(elements.secondary, undefined, locale);
     renderRejectionSection(doc, elements.rejection, view, locale);
     return;
   }
@@ -473,6 +584,7 @@ export function renderPopup(
     elements.status.replaceChildren();
     elements.primary.textContent = catalog.popup.primary.generate;
     elements.primary.disabled = true;
+    applySecondary(elements.secondary, undefined, locale);
     renderChecksSection(doc, elements.checks, view, locale);
     return;
   }
@@ -487,4 +599,5 @@ export function renderPopup(
   );
   writeStatusSummary(elements.status, popupSummary(view.state, locale));
   applyJobPrimary(elements.primary, view.state, locale);
+  applySecondary(elements.secondary, view.state, locale);
 }

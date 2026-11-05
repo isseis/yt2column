@@ -38,8 +38,8 @@ import type {
   PopupView,
 } from "../src/core/popupView.ts";
 import type { RejectionReason } from "../src/core/types.ts";
-import type { JobDisplay } from "../src/core/jobView.ts";
-import { classifyStatus } from "../src/core/response.ts";
+import type { JobDisplay, PollNotice } from "../src/core/jobView.ts";
+import { classifyStatus, parseRequestId } from "../src/core/response.ts";
 import type { Article, PublishStatus, Steps } from "../src/core/response.ts";
 import { findPopupElements } from "../src/launch.ts";
 import { applyPageLocale } from "../src/ui/pageLocale.ts";
@@ -195,13 +195,23 @@ const failedSteps: Steps = {
 };
 
 /**
+ * A request id made up for the preview pages, in the server's form (16
+ * lowercase hexadecimal digits). The server draws its ids at random from every
+ * value of that form, so no value is reserved; this one is a placeholder only
+ * because the preview never talks to a server. It is the id of every status
+ * response the preview builds, and a rejected notice shows it after its
+ * message.
+ */
+const previewRequestId = "0123456789abcdef";
+
+/**
  * The article of a done status response, checked by classifyStatus as the
  * viewer checks every status, so its branded cost is built by its parser.
  */
 function previewArticleFrom(): Article {
   const body = {
     status: "ok",
-    requestId: "0123456789abcdef",
+    requestId: previewRequestId,
     webhookConfigured: true,
     job: {
       state: "done",
@@ -430,11 +440,112 @@ export interface PopupJobPreviewCase {
   readonly locale: Locale;
   readonly state: PopupJobState;
   readonly elapsedMs: number;
+  /**
+   * The input set whose video section and details the page keeps; absent for
+   * a short heading and no channel name. A worst case measures whether the
+   * buttons fit without scrolling.
+   */
+  readonly base?: "worst-case-en" | "worst-case-ja";
 }
 
 const noNotice = { kind: "none" } as const;
+const retryingNotice = {
+  kind: "retrying",
+  outcome: { kind: "not-sent", cause: "server-unavailable" },
+} as const;
+const stoppedNotice = {
+  kind: "stopped",
+  outcome: { kind: "unexpected", check: "syntax" },
+} as const;
 
-/** Every popup job state kind and every job kind, with the running state also in Japanese. */
+/**
+ * The tallest notice the choice can show beside a running article: a
+ * rejected status, whose message is followed by its request id.
+ */
+function rejectedNotice(): PollNotice {
+  const requestId = parseRequestId(previewRequestId);
+  if (requestId === undefined) {
+    throw new Error("the preview request id was refused");
+  }
+  return {
+    kind: "stopped",
+    outcome: { kind: "rejected", reason: "internal_error", requestId },
+  };
+}
+
+/**
+ * The choice with each existing-article state and each poll notice, the
+ * ended choice, and the worst case of the choice in both locales.
+ */
+const choicePreviewCases: readonly PopupJobPreviewCase[] = [
+  {
+    name: "popup-choice-loading-en",
+    locale: "en",
+    state: { kind: "choice", existing: "loading", notice: noNotice },
+    elapsedMs: 0,
+  },
+  {
+    name: "popup-choice-running-en",
+    locale: "en",
+    state: { kind: "choice", existing: "running", notice: noNotice },
+    elapsedMs: 0,
+  },
+  {
+    name: "popup-choice-done-en",
+    locale: "en",
+    state: { kind: "choice", existing: "done", notice: noNotice },
+    elapsedMs: 0,
+  },
+  {
+    name: "popup-choice-done-ja",
+    locale: "ja",
+    state: { kind: "choice", existing: "done", notice: noNotice },
+    elapsedMs: 0,
+  },
+  {
+    name: "popup-choice-retrying-en",
+    locale: "en",
+    state: { kind: "choice", existing: "running", notice: retryingNotice },
+    elapsedMs: 0,
+  },
+  {
+    name: "popup-choice-stopped-en",
+    locale: "en",
+    state: { kind: "choice", existing: "loading", notice: stoppedNotice },
+    elapsedMs: 0,
+  },
+  {
+    name: "popup-choice-worst-case-en",
+    locale: "en",
+    state: { kind: "choice", existing: "running", notice: rejectedNotice() },
+    elapsedMs: 0,
+    base: "worst-case-en",
+  },
+  {
+    name: "popup-choice-worst-case-ja",
+    locale: "ja",
+    state: { kind: "choice", existing: "running", notice: rejectedNotice() },
+    elapsedMs: 0,
+    base: "worst-case-ja",
+  },
+  {
+    name: "popup-choice-ended-en",
+    locale: "en",
+    state: { kind: "choice-ended" },
+    elapsedMs: 0,
+  },
+  {
+    name: "popup-choice-ended-ja",
+    locale: "ja",
+    state: { kind: "choice-ended" },
+    elapsedMs: 0,
+  },
+];
+
+/**
+ * Every popup job state kind and every job kind, with the running state also
+ * in Japanese, then the choice's pages.
+ */
 export const popupJobPreviewCases: readonly PopupJobPreviewCase[] = [
   {
     name: "popup-job-sending-en",
@@ -516,6 +627,7 @@ export const popupJobPreviewCases: readonly PopupJobPreviewCase[] = [
     },
     elapsedMs: 0,
   },
+  ...choicePreviewCases,
 ];
 
 /** A reader that returns text as the page's selection at the watch URL. */
@@ -607,6 +719,19 @@ async function collectedPreviewBase() {
   return view;
 }
 
+/** The collected view of the input set named name, built by buildView. */
+async function namedCollectedView(name: string) {
+  const previewCase = previewCases.find((candidate) => candidate.name === name);
+  if (previewCase === undefined) {
+    throw new Error(`no input set is named ${name}`);
+  }
+  const view = await buildView(previewCase);
+  if (view.kind !== "collected") {
+    throw new Error(`the input set ${name} was rejected`);
+  }
+  return view;
+}
+
 /** Writes one page per input set plus the stylesheets into outputDir. */
 async function writePreviews(outputDir: string): Promise<void> {
   mkdirSync(outputDir, { recursive: true });
@@ -629,10 +754,14 @@ async function writePreviews(outputDir: string): Promise<void> {
   }
   const base = await collectedPreviewBase();
   for (const previewCase of popupJobPreviewCases) {
+    const collected =
+      previewCase.base === undefined
+        ? base
+        : await namedCollectedView(previewCase.base);
     const view: JobPopupView = {
       kind: "job",
-      video: base.video,
-      details: base.details,
+      video: collected.video,
+      details: collected.details,
       state: previewCase.state,
     };
     writeFileSync(

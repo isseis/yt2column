@@ -625,8 +625,8 @@ export type ViewerParams =
 | `extension/src/launch.ts` | 変更 | 送り方の記憶、選択の状態の流れ、副次のボタン、`openViewer` の引数 |
 | `extension/src/core/viewerUrl.ts` | 変更 | `e` の書き出しと検査、`ViewerParams` の形 |
 | `extension/src/viewerApp.ts` | 変更 | 同じ動画の結果と引き継ぎの `answer` による `e` の追加、既存の記事のビューアの表示 |
-| `extension/src/ui/render.ts`・`ui/renderViewer.ts`・`ui/renderJob.ts` | 変更 | 選択の状態と副次のボタンの描画、既存の記事の領域、経過時間を描かない指定 |
-| `extension/src/core/sendMessages.ts` | 変更 | 選択の状態の文言の選択 |
+| `extension/src/ui/render.ts`・`ui/renderViewer.ts`・`ui/renderJob.ts` | 変更 | 選択の状態と副次のボタンの描画と、その文言の選択、既存の記事の領域、経過時間を描かない指定 |
+| `extension/src/core/sendMessages.ts` | 変更 | `startResultMessage` の引数から `same-video` を除く |
 | `extension/src/core/i18n/`（英語と日本語のメッセージカタログ）・`extension/static/_locales/` | 変更 | 新しい文言（`_locales` は、そこに置く文言がある場合だけ） |
 | `extension/static/popup.html`・`extension/static/*.css` | 変更 | 副次のボタンの要素と見た目 |
 | `extension/test/`（`hostMessage`・`response`・`extensionMessages`・`startCoordinator`・`popupView`・`launch`・`viewerUrl`・`viewerApp`・`render`・`renderViewer`・`renderJob`・`sendMessages`・`style`・`metadataDocs`・`popupHtml` の各テスト） | 変更 | 7 章のテスト |

@@ -128,10 +128,28 @@ export type PopupJobState =
       readonly kind: "job";
       readonly job: JobDisplay;
       readonly notice: PollNotice;
-    };
+    }
+  // A same-video answer: the existing article's state and the two buttons.
+  | {
+      readonly kind: "choice";
+      readonly existing: ExistingState;
+      readonly notice: PollNotice;
+    }
+  // The existing article failed or was lost while the choice was shown.
+  | { readonly kind: "choice-ended" };
+
+/**
+ * The existing article's state as the choice shows it: before its first
+ * status, generating, or done.
+ */
+export type ExistingState = "loading" | "running" | "done";
 
 /** What the primary button does; total over PopupJobState, never stored beside it. */
-export type PrimaryAction = "none" | "open-viewer" | "retry";
+export type PrimaryAction =
+  "none" | "open-viewer" | "retry" | "open-existing" | "start-inquiry";
+
+/** What the secondary button does; none means the button is not shown. */
+export type SecondaryAction = "none" | "start-plain";
 
 /** The primary button's action for a job state. */
 export function primaryAction(state: PopupJobState): PrimaryAction {
@@ -139,6 +157,10 @@ export function primaryAction(state: PopupJobState): PrimaryAction {
     case "sending":
     case "start-failed":
       return "none";
+    case "choice":
+      return "open-existing";
+    case "choice-ended":
+      return "start-inquiry";
     case "loading":
       return "open-viewer";
     case "job":
@@ -150,6 +172,20 @@ export function primaryAction(state: PopupJobState): PrimaryAction {
         case "lost":
           return "retry";
       }
+  }
+}
+
+/** The secondary button's action for a job state: only the choice shows it. */
+export function secondaryAction(state: PopupJobState): SecondaryAction {
+  switch (state.kind) {
+    case "choice":
+      return "start-plain";
+    case "sending":
+    case "start-failed":
+    case "loading":
+    case "job":
+    case "choice-ended":
+      return "none";
   }
 }
 

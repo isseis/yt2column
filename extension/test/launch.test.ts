@@ -37,10 +37,13 @@ import {
 } from "../src/core/popupView.ts";
 import type {
   CollectedView,
+  ExistingState,
   PopupJobState,
   PopupView,
 } from "../src/core/popupView.ts";
+import type { PollNotice } from "../src/core/jobView.ts";
 import type { StartOutcome } from "../src/core/response.ts";
+import { statusNoticeMessage } from "../src/core/sendMessages.ts";
 import type { Logger } from "../src/core/types.ts";
 import { parseViewerUrl } from "../src/core/viewerUrl.ts";
 import {
@@ -111,6 +114,7 @@ const skeletonIds = [
   "rejection",
   "action",
   "primary",
+  "secondary",
   "status",
   "details",
 ] as const;
@@ -311,16 +315,49 @@ function shown(
 }
 
 /**
- * Dispatches a click on the primary button and lets the page run.
- * Dispatching the event (rather than calling click()) exercises the handler
- * even when the button is disabled, so the state guard is tested and not
- * merely the disabled attribute.
+ * Dispatches a click on button, by default the primary button, and lets the
+ * page run. Dispatching the event (rather than calling click()) exercises the
+ * handler even when the button is disabled or hidden, so the state guard is
+ * tested and not merely the attribute.
  */
-async function press(popup: Popup): Promise<void> {
-  const win = popup.elements.primary.ownerDocument.defaultView;
+async function press(
+  popup: Popup,
+  button: HTMLButtonElement = popup.elements.primary,
+): Promise<void> {
+  const win = button.ownerDocument.defaultView;
   assert.ok(win !== null);
-  popup.elements.primary.dispatchEvent(new win.Event("click"));
+  button.dispatchEvent(new win.Event("click"));
   await settle();
+}
+
+/**
+ * Clicks button, by default the primary button, as a keyboard press (Enter or
+ * Space) does, a click with no pointer clicks counted, or as a mouse click,
+ * and lets the page run.
+ */
+async function pressWith(
+  popup: Popup,
+  device: "keyboard" | "mouse",
+  button: HTMLButtonElement = popup.elements.primary,
+): Promise<void> {
+  const win = button.ownerDocument.defaultView;
+  assert.ok(win !== null);
+  button.dispatchEvent(
+    new win.MouseEvent("click", { detail: device === "keyboard" ? 0 : 1 }),
+  );
+  await settle();
+}
+
+/**
+ * Leaves the focus nowhere, as the browser does with a focused button it
+ * disables or hides; jsdom keeps the focus on it, and does not blur it either.
+ */
+function dropFocus(doc: Document): void {
+  const holder = doc.createElement("input");
+  doc.body.append(holder);
+  holder.focus();
+  holder.remove();
+  assert.equal(doc.activeElement, doc.body);
 }
 
 /** The start requests the popup sent to the worker. */
@@ -655,7 +692,7 @@ describe("popup job send", () => {
     assert.equal(popup.clock.pending(), 0);
   });
 
-  it("asks the worker for one start and never sends a start to the host", async () => {
+  it("asks the worker for one inquiry start and never sends a start to the host", async () => {
     const launch = collectedLaunch();
     const popup = shown(launch);
     await press(popup);
@@ -663,7 +700,7 @@ describe("popup job send", () => {
     assert.deepEqual(popup.worker.sent, [
       {
         type: "start",
-        mode: "plain",
+        mode: "inquiry",
         input: { videoUrl: watchUrl, transcript: "selection" },
         viewer: { heading: "A video", url: watchUrl, sentAt },
         source,
@@ -883,35 +920,6 @@ describe("popup job states", () => {
         assert.ok(section.isEqualNode(before[index] ?? null), section.id);
       });
     });
-  }
-
-  /**
-   * Clicks the primary button as a keyboard press (Enter or Space) does, a
-   * click with no pointer clicks counted, or as a mouse click, and lets the
-   * page run.
-   */
-  async function pressWith(
-    popup: Popup,
-    device: "keyboard" | "mouse",
-  ): Promise<void> {
-    const win = popup.elements.primary.ownerDocument.defaultView;
-    assert.ok(win !== null);
-    popup.elements.primary.dispatchEvent(
-      new win.MouseEvent("click", { detail: device === "keyboard" ? 0 : 1 }),
-    );
-    await settle();
-  }
-
-  /**
-   * Leaves the focus nowhere, as the browser does with a focused button it
-   * disables; jsdom keeps the focus on it, and does not blur it either.
-   */
-  function dropFocus(doc: Document): void {
-    const holder = doc.createElement("input");
-    doc.body.append(holder);
-    holder.focus();
-    holder.remove();
-    assert.equal(doc.activeElement, doc.body);
   }
 
   const focusCases: {
@@ -1370,6 +1378,8 @@ describe("retry", () => {
       assert.ok(first !== undefined && second !== undefined);
       assert.deepEqual(rest, []);
       assert.deepEqual(second.input, first.input);
+      // An inquiry's retry is an inquiry again.
+      assert.equal(second.mode, "inquiry");
       assert.deepEqual(second.viewer, {
         ...first.viewer,
         sentAt: sentAt + 5_000,
@@ -1383,6 +1393,406 @@ describe("retry", () => {
       assert.equal(popup.host.count("start"), 0);
     });
   }
+});
+
+/** The existing article's key: never the key an accepted send gets. */
+const existingKey = "key-existing" as ArticleKey;
+const sameVideo: StartOutcome = {
+  kind: "same-video",
+  key: existingKey,
+  requestId,
+};
+
+/** A popup pressed once whose inquiry got a same-video answer with the viewer in tab viewerTabId. */
+async function choicePopup(
+  viewerTabId?: number,
+  launch = collectedLaunch(),
+  locale: Locale = "en",
+): Promise<Popup> {
+  const popup = shown(launch, locale);
+  await press(popup);
+  await popup.worker.answer(startReply(sameVideo, viewerTabId));
+  return popup;
+}
+
+/** The sentences the popup's status region holds. */
+function statusSentences(popup: Popup): (string | null)[] {
+  return Array.from(
+    popup.elements.status.children,
+    (child) => child.textContent,
+  );
+}
+
+describe("popup choice", () => {
+  for (const locale of localeList) {
+    it(`shows the choice in place of the checks in ${locale}, keeping the video section and the details, and follows the existing article`, async () => {
+      const launch = await runPopupLaunch(
+        popupHarness({
+          metadataReader: metadataReader(
+            metadataJson({ title: "A video title", channelName: "A channel" }),
+          ).reader,
+        }).deps,
+      );
+      const popup = shown(launch, locale);
+      const sections = [popup.elements.video, popup.elements.details];
+      const before = sections.map((section) => section.cloneNode(true));
+      const doc = popup.elements.primary.ownerDocument;
+      await press(popup);
+      await popup.worker.answer(startReply(sameVideo, 100));
+      const catalog = catalogs[locale];
+      const steps: [ExistingState, Json | undefined][] = [
+        ["loading", undefined],
+        ["running", runningJob],
+        ["done", doneJob],
+      ];
+      for (const [existing, job] of steps) {
+        if (job !== undefined) {
+          popup.clock.advance(pollIntervalMs);
+          await settle();
+          await popup.host.answer(statusReply(job));
+        }
+        assert.equal(
+          checksText(popup),
+          drawnChecks(
+            collected(launch),
+            { kind: "choice", existing, notice: { kind: "none" } },
+            locale,
+          ),
+          existing,
+        );
+        assert.ok(checksText(popup).includes(catalog.popup.choice.text));
+        assert.ok(
+          checksText(popup).includes(catalog.popup.existingStates[existing]),
+        );
+        // The summary tells the choice and the article's state without
+        // moving the focus.
+        assert.deepEqual(
+          statusSentences(popup),
+          [catalog.popup.choice.text, catalog.popup.existingStates[existing]],
+          existing,
+        );
+        assert.equal(doc.activeElement, doc.body, existing);
+        assert.equal(
+          popup.elements.primary.textContent,
+          catalog.popup.primary.openExisting,
+        );
+        assert.equal(popup.elements.primary.disabled, false);
+        assert.equal(popup.elements.secondary.hidden, false);
+        assert.equal(
+          popup.elements.secondary.textContent,
+          catalog.popup.secondary,
+        );
+        sections.forEach((section, index) => {
+          assert.ok(section.isEqualNode(before[index] ?? null), section.id);
+        });
+      }
+    });
+  }
+
+  it("keeps polling the existing article and sends no other start while no button is pressed", async () => {
+    const popup = await choicePopup(100);
+    for (let i = 0; i < 3; i += 1) {
+      await popup.host.answer(statusReply(runningJob));
+      popup.clock.advance(pollIntervalMs);
+      await settle();
+    }
+    // The positive mark: the existing article's key is still polled.
+    assert.equal(popup.host.count("status"), 4);
+    assert.deepEqual(popup.host.sent.at(-1), {
+      v: 1,
+      op: "status",
+      key: existingKey,
+    });
+    assert.equal(popup.worker.sent.length, 1);
+    assert.equal(popup.host.count("start"), 0);
+  });
+
+  it("brings the tab that shows the send forward for open-existing, sends nothing and keeps the choice", async () => {
+    const popup = await choicePopup(100);
+    await popup.host.answer(statusReply(doneJob));
+    popup.tabs.open.set(100, 9);
+    await openViewer(popup);
+    assert.deepEqual(popup.tabs.calls, [
+      { op: "get", tabId: 100 },
+      { op: "activate", tabId: 100 },
+    ]);
+    assert.deepEqual(popup.focus.focused, [9]);
+    assert.deepEqual(finds(popup), []);
+    assert.equal(popup.worker.sent.length, 1);
+    assert.equal(popup.host.count("start"), 0);
+    assert.equal(
+      popup.elements.primary.textContent,
+      catalogs.en.popup.primary.openExisting,
+    );
+    assert.equal(popup.elements.secondary.hidden, false);
+  });
+
+  it("opens a new existing-article viewer stamped with the press time when no viewer answers", async () => {
+    const popup = await choicePopup();
+    await popup.host.answer(statusReply(runningJob));
+    // Pressed later than the send, so the press time differs from it.
+    popup.clock.advance(7_000);
+    const pressedAt = popup.clock.now();
+    await openViewer(popup);
+    assert.equal(finds(popup).length, 1);
+    const created = popup.tabs.calls.find((call) => call.op === "create");
+    assert.ok(created?.op === "create");
+    assert.equal(created.tab.active, true);
+    const prefix = fakeIdentity.getURL("viewer.html");
+    assert.ok(created.tab.url.startsWith(`${prefix}?`));
+    const parsed = parseViewerUrl(
+      created.tab.url.slice(prefix.length),
+      "",
+      pressedAt,
+    );
+    assert.ok(parsed.ok);
+    assert.deepEqual(parsed.params, {
+      heading: "A video",
+      url: watchUrl,
+      sentAt: pressedAt,
+      key: existingKey,
+      existing: true,
+    });
+    assert.deepEqual(popup.focus.focused, [1]);
+    assert.equal(popup.worker.sent.length, 1);
+    assert.equal(popup.host.count("start"), 0);
+    assert.equal(
+      popup.elements.primary.textContent,
+      catalogs.en.popup.primary.openExisting,
+    );
+    assert.equal(popup.elements.secondary.hidden, false);
+  });
+
+  it("sends one plain start of the same input from the secondary button and shows the job states", async () => {
+    const launch = collectedLaunch();
+    const popup = await choicePopup(100, launch);
+    // A running existing article keeps its poll going until the press stops it.
+    await popup.host.answer(statusReply(runningJob));
+    popup.tabs.open.set(100, 9);
+    popup.clock.advance(5_000);
+    await settle();
+    const existingPolls = (): number =>
+      popup.host.sent.filter(
+        (message) => (message as { key?: unknown }).key === existingKey,
+      ).length;
+    // Precondition: the existing article was polled again before the press.
+    assert.equal(existingPolls(), 2);
+    await press(popup, popup.elements.secondary);
+    await press(popup, popup.elements.secondary);
+    const [first, second, ...rest] = startRequests(popup);
+    assert.ok(first !== undefined && second !== undefined);
+    assert.deepEqual(rest, []);
+    assert.equal(first.mode, "inquiry");
+    assert.equal(second.mode, "plain");
+    assert.deepEqual(second.input, first.input);
+    assert.deepEqual(second.viewer, {
+      ...first.viewer,
+      sentAt: sentAt + 5_000,
+    });
+    assert.equal(
+      checksText(popup),
+      drawnChecks(collected(launch), { kind: "sending" }),
+    );
+    assert.equal(popup.elements.secondary.hidden, true);
+    await popup.worker.answer(startReply(accepted, 101));
+    assert.equal(
+      checksText(popup),
+      drawnChecks(collected(launch), {
+        kind: "loading",
+        notice: { kind: "none" },
+      }),
+    );
+    // The plain send's key is polled, and the existing article's no longer:
+    // the host answers in order, the existing article's open poll first.
+    assert.deepEqual(popup.host.sent.at(-1), { v: 1, op: "status", key });
+    await popup.host.answer(statusReply(runningJob));
+    await popup.host.answer(statusReply(runningJob));
+    popup.clock.advance(3 * pollIntervalMs);
+    await settle();
+    assert.equal(existingPolls(), 2);
+    // The existing article's tab is left alone.
+    assert.deepEqual(popup.tabs.calls, []);
+    assert.equal(popup.host.count("start"), 0);
+  });
+
+  it("lets the plain send's open-viewer act while the existing article's open-viewer it replaced still waits", async () => {
+    const popup = await choicePopup();
+    await popup.host.answer(statusReply(runningJob));
+    // Open-existing looks for the existing article's viewers for 1 s ...
+    await press(popup);
+    assert.equal(finds(popup).length, 1);
+    // ... while the plain send replaces it and is accepted.
+    await press(popup, popup.elements.secondary);
+    await popup.worker.answer(startReply(accepted));
+    await press(popup);
+    assert.equal(finds(popup).length, 2);
+    popup.clock.advance(1_000);
+    await settle();
+    // Only the plain send's viewer opens: the replaced open gave up.
+    const created = popup.tabs.calls.filter((call) => call.op === "create");
+    assert.equal(created.length, 1);
+    const prefix = fakeIdentity.getURL("viewer.html");
+    const [only] = created;
+    assert.ok(only?.op === "create");
+    const parsed = parseViewerUrl(
+      only.tab.url.slice(prefix.length),
+      "",
+      sentAt,
+    );
+    assert.ok(parsed.ok);
+    assert.equal("key" in parsed.params ? parsed.params.key : undefined, key);
+  });
+
+  const ends: { name: string; job: Json }[] = [
+    { name: "failed", job: failedJob },
+    { name: "lost", job: { state: "unknown" } },
+  ];
+  for (const { name, job } of ends) {
+    it(`ends the choice when the existing article is ${name}, stops polling, and sends one inquiry on the next press`, async () => {
+      const launch = collectedLaunch();
+      const popup = await choicePopup(100, launch);
+      await popup.host.answer(statusReply(job));
+      assert.equal(
+        checksText(popup),
+        drawnChecks(collected(launch), { kind: "choice-ended" }),
+      );
+      assert.deepEqual(statusSentences(popup), [
+        catalogs.en.popup.choiceEnded.text,
+      ]);
+      assert.equal(
+        popup.elements.primary.textContent,
+        catalogs.en.popup.primary.generate,
+      );
+      assert.equal(popup.elements.primary.disabled, false);
+      assert.equal(popup.elements.secondary.hidden, true);
+      popup.clock.advance(3 * pollIntervalMs);
+      await settle();
+      assert.equal(popup.host.count("status"), 1);
+      await press(popup);
+      await press(popup);
+      const requests = startRequests(popup);
+      assert.equal(requests.length, 2);
+      assert.equal(requests[1]?.mode, "inquiry");
+      assert.deepEqual(requests[1]?.input, requests[0]?.input);
+    });
+  }
+
+  it("keeps the choice and both buttons beside a notice and polls again after an exchange that may succeed later", async () => {
+    const launch = collectedLaunch();
+    const popup = await choicePopup(100, launch);
+    await popup.host.answer(statusReply(runningJob));
+    popup.clock.advance(pollIntervalMs);
+    await settle();
+    await popup.host.answer({ kind: "failed", lastError: "host gone" });
+    const notice: PollNotice = {
+      kind: "retrying",
+      outcome: { kind: "host-failed" },
+    };
+    assert.equal(
+      checksText(popup),
+      drawnChecks(collected(launch), {
+        kind: "choice",
+        existing: "running",
+        notice,
+      }),
+    );
+    assert.deepEqual(statusSentences(popup), [
+      catalogs.en.popup.choice.text,
+      catalogs.en.popup.existingStates.running,
+      statusNoticeMessage(notice.outcome, "en").text,
+    ]);
+    assert.equal(popup.elements.primary.disabled, false);
+    assert.equal(popup.elements.secondary.hidden, false);
+    popup.clock.advance(pollIntervalMs);
+    await settle();
+    assert.equal(popup.host.count("status"), 3);
+  });
+
+  it("keeps the choice and both buttons beside a notice and stops polling after an exchange that cannot succeed", async () => {
+    const launch = collectedLaunch();
+    const popup = await choicePopup(100, launch);
+    await popup.host.answer(responseReply(200, "{"));
+    const notice: PollNotice = {
+      kind: "stopped",
+      outcome: { kind: "unexpected", check: "syntax" },
+    };
+    assert.equal(
+      checksText(popup),
+      drawnChecks(collected(launch), {
+        kind: "choice",
+        existing: "loading",
+        notice,
+      }),
+    );
+    assert.equal(popup.elements.primary.disabled, false);
+    assert.equal(popup.elements.secondary.hidden, false);
+    popup.clock.advance(3 * pollIntervalMs);
+    await settle();
+    assert.equal(popup.host.count("status"), 1);
+  });
+});
+
+describe("popup choice focus", () => {
+  it("gives the focus back to the primary button once the choice makes it pressable", async () => {
+    const popup = shown(collectedLaunch());
+    const doc = popup.elements.primary.ownerDocument;
+    popup.elements.primary.focus();
+    await pressWith(popup, "keyboard");
+    assert.equal(popup.elements.primary.disabled, true);
+    dropFocus(doc);
+    await popup.worker.answer(startReply(sameVideo, 100));
+    assert.equal(doc.activeElement, popup.elements.primary);
+  });
+
+  it("moves the focus from the secondary button to the primary button when the choice ends", async () => {
+    const popup = await choicePopup(100);
+    const doc = popup.elements.primary.ownerDocument;
+    popup.elements.secondary.focus();
+    assert.equal(doc.activeElement, popup.elements.secondary);
+    await popup.host.answer(statusReply(failedJob));
+    assert.equal(popup.elements.secondary.hidden, true);
+    assert.equal(doc.activeElement, popup.elements.primary);
+  });
+
+  it("leaves the focus on the secondary button while the choice stays", async () => {
+    const popup = await choicePopup(100);
+    const doc = popup.elements.primary.ownerDocument;
+    popup.elements.secondary.focus();
+    await popup.host.answer(statusReply(doneJob));
+    assert.equal(doc.activeElement, popup.elements.secondary);
+  });
+
+  it("gives the focus to the primary button after a keyboard press of the secondary button", async () => {
+    const popup = await choicePopup(100);
+    const doc = popup.elements.primary.ownerDocument;
+    await popup.host.answer(statusReply(runningJob));
+    popup.elements.secondary.focus();
+    await pressWith(popup, "keyboard", popup.elements.secondary);
+    assert.equal(popup.elements.secondary.hidden, true);
+    dropFocus(doc);
+    await popup.worker.answer(startReply(accepted, 101));
+    assert.equal(doc.activeElement, popup.elements.primary);
+  });
+});
+
+describe("retry modes", () => {
+  it("retries a plain send in plain mode, again after its own retry fails", async () => {
+    const popup = await choicePopup(100);
+    // The host answers in order: first the existing article's poll, so the
+    // next status answered is the plain send's.
+    await popup.host.answer(statusReply(runningJob));
+    await press(popup, popup.elements.secondary);
+    await popup.worker.answer(startReply(accepted, 101));
+    await popup.host.answer(statusReply(failedJob));
+    await press(popup);
+    await popup.worker.answer(startReply(accepted, 102));
+    await popup.host.answer(statusReply({ state: "unknown" }));
+    await press(popup);
+    assert.deepEqual(
+      startRequests(popup).map((request) => request.mode),
+      ["inquiry", "plain", "plain", "plain"],
+    );
+  });
 });
 
 describe("popup status log", () => {
@@ -1859,6 +2269,10 @@ describe("startPopup", () => {
     {
       name: "#primary is not a button",
       break: (doc: Document) => replaceWithDiv(doc, "primary"),
+    },
+    {
+      name: "#secondary is not a button",
+      break: (doc: Document) => replaceWithDiv(doc, "secondary"),
     },
     {
       name: "#details is not a details element",
