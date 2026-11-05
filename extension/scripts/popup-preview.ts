@@ -195,13 +195,23 @@ const failedSteps: Steps = {
 };
 
 /**
+ * A request id made up for the preview pages, in the server's form (16
+ * lowercase hexadecimal digits). The server draws its ids at random from every
+ * value of that form, so no value is reserved; this one is a placeholder only
+ * because the preview never talks to a server. It is the id of every status
+ * response the preview builds, and a rejected notice shows it after its
+ * message.
+ */
+const previewRequestId = "0123456789abcdef";
+
+/**
  * The article of a done status response, checked by classifyStatus as the
  * viewer checks every status, so its branded cost is built by its parser.
  */
 function previewArticleFrom(): Article {
   const body = {
     status: "ok",
-    requestId: "0123456789abcdef",
+    requestId: previewRequestId,
     webhookConfigured: true,
     job: {
       state: "done",
@@ -453,7 +463,7 @@ const stoppedNotice = {
  * rejected status, whose message is followed by its request id.
  */
 function rejectedNotice(): PollNotice {
-  const requestId = parseRequestId("0123456789abcdef");
+  const requestId = parseRequestId(previewRequestId);
   if (requestId === undefined) {
     throw new Error("the preview request id was refused");
   }
