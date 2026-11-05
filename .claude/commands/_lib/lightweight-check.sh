@@ -28,6 +28,18 @@
 # Output: lines that start with "lightweight-check: "; the last is the verdict.
 # Exit status: 0 PASS, 1 FAIL, 2 STOP.
 
+# Run again in a clean environment, so nothing the caller's environment
+# carries (exported functions, SHELLOPTS, BASHOPTS, CDPATH, GIT_ variables)
+# reaches the shell or the commands it runs: only PATH, HOME, and TMPDIR are
+# kept.
+if [ "${LIGHTWEIGHT_CHECK_CLEAN_ENV:-}" != 1 ]; then
+	exec env -i LIGHTWEIGHT_CHECK_CLEAN_ENV=1 PATH="${PATH:-}" HOME="${HOME:-}" TMPDIR="${TMPDIR:-}" \
+		"${BASH:-bash}" --noprofile --norc "$0" "$@"
+	printf 'lightweight-check: STOP env\n'
+	exit 2
+fi
+unset LIGHTWEIGHT_CHECK_CLEAN_ENV
+
 export LC_ALL=C
 
 # Drop every GIT_ variable the caller's environment carries (GIT_DIR,
@@ -180,10 +192,8 @@ TMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/lightweight-check.XXXXXX") || {
 }
 # An absolute, physical path, so the cleanup still finds it after the cd
 # below and git lists the worktree under the same path.
-TMP_DIR=$(cd "$TMP_DIR" && pwd -P) || {
-	TMP_DIR=
-	stop tmp "cannot resolve the temporary directory"
-}
+RESOLVED_TMP_DIR=$(cd -- "$TMP_DIR" && pwd -P) || stop tmp "cannot resolve the temporary directory"
+TMP_DIR=$RESOLVED_TMP_DIR
 
 TOP=$(g rev-parse --show-toplevel) || stop git "git rev-parse --show-toplevel failed"
 cd "$TOP" || stop git "cannot change to the repository root"

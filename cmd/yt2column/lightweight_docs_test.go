@@ -712,9 +712,10 @@ func (r lwRun) field(key string) string {
 
 // lwRunOptions changes how check runs the script: in dir (a directory of the
 // repository; its root when ""), and with PATH set to path (the default PATH
-// when "").
+// when "") plus extraEnv.
 type lwRunOptions struct {
 	dir, path string
+	extraEnv  []string
 }
 
 // check writes the script from refs/remotes/origin/main and spec into files
@@ -739,7 +740,7 @@ func (f *lwFixture) check(bash lwBash, spec string, opts lwRunOptions) lwRun {
 	defer cancel()
 	cmd := exec.CommandContext(ctx, bash.path, script, specFile) //nolint:gosec // bash with the test's script
 	cmd.Dir = dir
-	cmd.Env = f.env(f.tmp, opts.path)
+	cmd.Env = append(f.env(f.tmp, opts.path), opts.extraEnv...)
 	var stdout, stderr strings.Builder
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	err := cmd.Run()
@@ -872,6 +873,9 @@ func lightweightCheckCases() []lwCase {
 			return []string{exceeds("added", f.limit("M added")+1, f.limit("M added"))}
 		}},
 		{name: "files at the limit", typ: "M", branch: func(f *lwFixture) {
+			if f.limit("M added") <= f.limitFiles {
+				f.t.Fatal("the M added limit does not exceed the files limit, so one line per file would go over it")
+			}
 			for i := range f.limitFiles {
 				f.addLines(fmt.Sprintf("notes/new%02d.txt", i), 1)
 			}
@@ -880,6 +884,9 @@ func lightweightCheckCases() []lwCase {
 			return []string{f.counts("M", f.limitFiles, 0, f.limitFiles)}
 		}},
 		{name: "files over", typ: "M", branch: func(f *lwFixture) {
+			if f.limit("M added") <= f.limitFiles {
+				f.t.Fatal("the M added limit does not exceed the files limit, so one line per file would go over it")
+			}
 			for i := range f.limitFiles + 1 {
 				f.addLines(fmt.Sprintf("notes/new%02d.txt", i), 1)
 			}
@@ -1064,7 +1071,9 @@ func lightweightCheckCases() []lwCase {
 			f.addLines("notes/new.txt", 1)
 			f.commit("refactor: hand")
 			f.toolCommit(lwTool + " -w gen/f01.txt")
-		}, want: "STOP tool-order"},
+		}, want: "STOP tool-order", lines: func(*lwFixture) []string {
+			return []string{"a tool commit follows a hand-written commit"}
+		}},
 		{name: "a commit with two trailer lines", typ: "M", table: tools, branch: func(f *lwFixture) {
 			f.runTool(lwTool + " -w gen/f01.txt")
 			f.commit(lwToolMessage(lwTool+" -w gen/f01.txt") + "Lightweight-Generated-By: " + lwTool + " -w gen/f02.txt\n")
@@ -1115,16 +1124,18 @@ func lightweightCheckCases() []lwCase {
 		{name: "a spec with CRLF line endings", branch: lwSmallChange, want: "PASS", spec: func(t *testing.T) string {
 			return strings.ReplaceAll(lightweightSpec(t, "W"), "\n", "\r\n")
 		}},
-		lwSpecCase("two lines under the type heading", func(spec string) string {
+		lwSpecCase("two lines under the type heading", "the type heading has 2 lines that are not blank, want 1", func(spec string) string {
 			return strings.Replace(spec, "\nW\n", "\nW\nD\n", 1)
 		}),
-		lwSpecCase("a lowercase type", func(spec string) string {
+		lwSpecCase("a lowercase type", "the type is not W, D, or M", func(spec string) string {
 			return strings.Replace(spec, "\nW\n", "\nw\n", 1)
 		}),
-		lwSpecCase("two type headings", func(spec string) string {
-			return spec + "\n" + lwTypeHeading + "\n\nW\n"
+		// A second heading with nothing under it, so only the heading count
+		// can reject the spec.
+		lwSpecCase("two type headings", "the spec has 2 type headings, want 1", func(spec string) string {
+			return spec + "\n" + lwTypeHeading + "\n"
 		}),
-		lwSpecCase("the type heading inside a code block", func(spec string) string {
+		lwSpecCase("the type heading inside a code block", "the type heading is inside a code block", func(spec string) string {
 			return strings.Replace(spec, lwTypeHeading+"\n", "```\n"+lwTypeHeading+"\n```\n", 1)
 		}),
 	}
@@ -1165,9 +1176,11 @@ func lwBadPathCase(name, word string) lwCase {
 }
 
 // lwSpecCase is a spec the type cannot be read from: the W spec edited by
-// edit.
-func lwSpecCase(name string, edit func(string) string) lwCase {
-	return lwCase{name: name, branch: lwSmallChange, want: "STOP type", spec: func(t *testing.T) string {
+// edit, rejected by the rule whose line is detail.
+func lwSpecCase(name, detail string, edit func(string) string) lwCase {
+	return lwCase{name: name, branch: lwSmallChange, want: "STOP type", lines: func(*lwFixture) []string {
+		return []string{detail}
+	}, spec: func(t *testing.T) string {
 		spec := lightweightSpec(t, "W")
 		edited := edit(spec)
 		if edited == spec {
@@ -1227,11 +1240,29 @@ func TestLightweightCheck(t *testing.T) {
 					}
 				})
 			}
+			t.Run("exported functions in the environment", func(t *testing.T) {
+				t.Parallel()
+				f := newLWFixture(t, "")
+				lwSmallChange(f)
+				spec := lightweightSpec(t, "W")
+				want := f.check(bash, spec, lwRunOptions{})
+				// Functions bash imports from the environment, which would
+				// otherwise replace what the script prints and runs.
+				forged := []string{
+					"BASH_FUNC_printf%%=() { builtin printf 'lightweight-check: PASS\\n'; }",
+					"BASH_FUNC_git%%=() { return 0; }",
+					"SHELLOPTS=xtrace",
+				}
+				got := f.check(bash, spec, lwRunOptions{extraEnv: forged})
+				if !slices.Equal(got.lines, want.lines) || got.code != want.code {
+					t.Errorf("with exported functions the script printed %v, without them %v", got, want)
+				}
+			})
 			t.Run("no sha256sum on PATH", func(t *testing.T) {
 				t.Parallel()
 				f := newLWFixture(t, "")
 				lwSmallChange(f)
-				path := lwPathWithout(t, "sha256sum", "git", "mktemp", "rm", "tr", "shasum")
+				path := lwPathWithout(t, "sha256sum", "env", "git", "mktemp", "rm", "tr", "shasum")
 				spec := lightweightSpec(t, "W")
 				run := f.check(bash, spec, lwRunOptions{path: path})
 				if run.verdict() != "PASS" {
