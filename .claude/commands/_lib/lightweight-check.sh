@@ -35,8 +35,6 @@
 if [ "${LIGHTWEIGHT_CHECK_CLEAN_ENV:-}" != 1 ]; then
 	exec env -i LIGHTWEIGHT_CHECK_CLEAN_ENV=1 PATH="${PATH:-}" HOME="${HOME:-}" TMPDIR="${TMPDIR:-}" \
 		"${BASH:-bash}" --noprofile --norc "$0" "$@"
-	printf 'lightweight-check: STOP env\n'
-	exit 2
 fi
 unset LIGHTWEIGHT_CHECK_CLEAN_ENV
 
