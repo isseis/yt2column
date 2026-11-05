@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-05 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-05 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -164,3 +164,7 @@
 -   **並行の負荷:** 本テストと同時に `make test` などのテストが動くことによる、機械の負荷。
 -   **新しいファイルの初回の検査:** 新しく書いた実行ファイルを初めて実行するときに、macOS がマルウェアの検査などのために実行を待たせること（本書では見立てであり、未検証）。
 -   ほかの用語は `docs/translation_glossary.md` と統一する。
+
+## 変更履歴
+
+- 2026-11-05 承認（isseis、#690）
