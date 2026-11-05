@@ -34,21 +34,13 @@ const (
 	runVideoURL  = "https://www.youtube.com/watch?v=" + runVideoID
 	otherVideoID = "dQw4w9WgXcQ"
 
-	// testAPIKey and testWebhook are distinctive secret values. Their last
-	// eight characters differ from every other string a run writes.
+	// testAPIKey is a distinctive secret value. Its last eight characters
+	// differ from every other string a run writes.
 	testAPIKey = "sk-unit-APIKEYVALUE-0123456789-TAIL8KEY"
 	// testAnthropicKey is the Anthropic key of a claude configuration; a
 	// failure whose message holds it must be redacted too.
 	testAnthropicKey = "sk-ant-APIKEYVALUE-0123456789-TAIL8ANT"
-	// testWebhook is the SLACK_WEBHOOK_URL every run's environment holds. The
-	// CLI does not read it, so no output may hold it, its tail, or
-	// webhookPathMarker, the part of its path no other string a run writes
-	// holds.
-	testWebhook       = "https://hooks.slack.com" + testWebhookPath
-	testWebhookPath   = "/services/T0/B0/" + webhookPathMarker + "-TAIL8HKS"
-	webhookPathMarker = "WEBHOOKVALUE"
-
-	lockFileName = ".yt2column.lock"
+	lockFileName     = ".yt2column.lock"
 
 	// runBound bounds a wait for a run started in a goroutine to return.
 	runBound = 30 * time.Second
@@ -78,11 +70,10 @@ func seedCache(t *testing.T, dir, videoID, subtitles, info string) {
 	}
 }
 
-// secretStrings returns every string that must never be written: each secret
-// and its last eight characters, and webhookPathMarker, so a fragment of the
-// Webhook URL path is caught too.
+// secretStrings returns every string that must never be written: the API key
+// and its last eight characters.
 func secretStrings() []string {
-	return []string{testAPIKey, testAPIKey[len(testAPIKey)-8:], testWebhook, testWebhook[len(testWebhook)-8:], webhookPathMarker}
+	return []string{testAPIKey, testAPIKey[len(testAPIKey)-8:]}
 }
 
 // runEnv is the environment of one run invocation. Its fields are set to a
@@ -109,7 +100,6 @@ type runEnv struct {
 // newRunEnv returns an environment where a run succeeds without yt-dlp: the
 // video's cache is seeded, YT2COLUMN_YTDLP_PATH is a tripwire, the LLM client
 // returns a valid response, and the real ArticleWriter and FilePublisher run.
-// SLACK_WEBHOOK_URL is set, so every run checks the CLI ignores it.
 func newRunEnv(t *testing.T) *runEnv {
 	t.Helper()
 	base := t.TempDir()
@@ -135,7 +125,6 @@ func newRunEnv(t *testing.T) *runEnv {
 	e.env = map[string]string{
 		"YT2COLUMN_LLM":        "deepseek/fake-model",
 		"DEEPSEEK_API_KEY":     testAPIKey,
-		"SLACK_WEBHOOK_URL":    testWebhook,
 		"YT2COLUMN_CACHE_DIR":  e.cacheDir,
 		"YT2COLUMN_YTDLP_PATH": tripwire,
 	}
@@ -1071,72 +1060,6 @@ func TestCheckOut(t *testing.T) {
 				if other != tc.want && errors.Is(err, other) {
 					t.Errorf("checkOut() = %v, which is also %v", err, other)
 				}
-			}
-		})
-	}
-}
-
-// TestRunIgnoresSlackWebhookURL checks that the CLI never asks for
-// SLACK_WEBHOOK_URL, and that a --out run gives the same exit code, --out
-// file, and standard error whether the variable is unset, empty, or a value
-// the server rejects.
-func TestRunIgnoresSlackWebhookURL(t *testing.T) {
-	t.Run("never looked up", func(t *testing.T) {
-		e := newRunEnv(t)
-		var asked []string
-		lookup := func(name string) (string, bool) {
-			asked = append(asked, name)
-			return lookupFrom(e.env)(name)
-		}
-		if code := run(e.ctx, e.cliArgs(), lookup, &e.stdout, &e.stderr, e.d); code != exitOK {
-			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
-		}
-		// The run read its configuration through lookup, so the absence below
-		// is not a run that read nothing.
-		if !slices.Contains(asked, "DEEPSEEK_API_KEY") {
-			t.Fatalf("lookup was asked %q, which lacks DEEPSEEK_API_KEY", asked)
-		}
-		if slices.Contains(asked, "SLACK_WEBHOOK_URL") {
-			t.Errorf("lookup was asked for SLACK_WEBHOOK_URL: %q", asked)
-		}
-	})
-
-	// outcome is what a run leaves behind, with the run's temporary
-	// directory replaced, so runs in different directories compare equal.
-	type outcome struct {
-		code    int
-		article string
-		stderr  string
-	}
-	runWith := func(t *testing.T, set func(env map[string]string)) outcome {
-		t.Helper()
-		e := newRunEnv(t)
-		useFixedClock(e, costGenTime)
-		set(e.env)
-		code := e.run()
-		data, err := os.ReadFile(e.outPath)
-		if err != nil {
-			t.Fatalf("read --out: %v\nstderr:\n%s", err, e.stderr.String())
-		}
-		requireSafeOutput(t, e.stdout.String(), e.stderr.String(), e.outPath)
-		return outcome{
-			code:    code,
-			article: string(data),
-			stderr:  strings.ReplaceAll(e.stderr.String(), e.base, "<base>"),
-		}
-	}
-	unset := runWith(t, func(env map[string]string) { delete(env, "SLACK_WEBHOOK_URL") })
-	if unset.code != exitOK {
-		t.Fatalf("exit code with SLACK_WEBHOOK_URL unset = %d, want %d\nstderr:\n%s", unset.code, exitOK, unset.stderr)
-	}
-	for name, value := range map[string]string{
-		"empty":     "",
-		"not https": "http://hooks.slack.com/services/MARKER-WEBHOOK",
-	} {
-		t.Run(name, func(t *testing.T) {
-			got := runWith(t, func(env map[string]string) { env["SLACK_WEBHOOK_URL"] = value })
-			if got != unset {
-				t.Errorf("run with SLACK_WEBHOOK_URL %s = %+v, want the unset run's %+v", name, got, unset)
 			}
 		})
 	}

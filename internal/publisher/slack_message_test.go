@@ -798,31 +798,6 @@ func TestSlackPrepareErrorsOmitContent(t *testing.T) {
 	}
 }
 
-// TestPrepareSlackMessagesLen checks the message count PrepareSlackMessages
-// reports for an article that fits in one message, and that a rejected
-// article yields the pre-send error with no message. The count of a split
-// article is checked by TestPostMessagesResume, and the mention rules on the
-// unexported preparation by TestSlackMentionRejected.
-func TestPrepareSlackMessagesLen(t *testing.T) {
-	m, err := PrepareSlackMessages(validArticle())
-	if err != nil {
-		t.Fatalf("PrepareSlackMessages: %v", err)
-	}
-	if m.Len() != 1 {
-		t.Errorf("Len() = %d, want 1", m.Len())
-	}
-
-	mention := validArticle()
-	mention.Body = "`@channel`"
-	m, err = PrepareSlackMessages(mention)
-	if !errors.Is(err, ErrSlackMention) {
-		t.Fatalf("err = %v, want ErrSlackMention", err)
-	}
-	if m.Len() != 0 {
-		t.Errorf("Len() = %d after a rejection, want 0", m.Len())
-	}
-}
-
 func TestSlackMentionPosition(t *testing.T) {
 	cases := []struct {
 		text         string

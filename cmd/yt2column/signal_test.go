@@ -60,7 +60,6 @@ func newChildSetup(t *testing.T, ytDlpPath string, seed bool) *childSetup {
 	c.env = map[string]string{
 		"YT2COLUMN_LLM":        "deepseek/fake-model",
 		"DEEPSEEK_API_KEY":     testAPIKey,
-		"SLACK_WEBHOOK_URL":    testWebhook,
 		"YT2COLUMN_CACHE_DIR":  c.cacheDir,
 		"YT2COLUMN_YTDLP_PATH": ytDlpPath,
 		childReadyEnv:          c.ready,

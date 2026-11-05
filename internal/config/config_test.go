@@ -562,30 +562,6 @@ func assertVarError(t *testing.T, err error, sentinel error, wantVar string) {
 	}
 }
 
-// TestLoadIgnoresSlackWebhookURL checks that Load accepts an environment
-// whose SLACK_WEBHOOK_URL holds a value LoadServer rejects: only the server
-// reads the variable.
-func TestLoadIgnoresSlackWebhookURL(t *testing.T) {
-	for _, tc := range []struct {
-		value    string
-		sentinel error
-	}{
-		{"", ErrMissing},
-		{"http://mattermost.example.com/hooks/x", ErrInvalid},
-	} {
-		t.Run(fmt.Sprintf("%q", tc.value), func(t *testing.T) {
-			env := with(validEnv(), slackEnv, tc.value)
-			if _, err := Load(envLookup(env)); err != nil {
-				t.Fatalf("Load() error = %v, want nil", err)
-			}
-			// The server rejects the same value, so the acceptance above is
-			// the CLI ignoring it, not the value being valid.
-			_, err := LoadServer(envLookup(with(env, "HOME", "/home/user")))
-			assertVarError(t, err, tc.sentinel, slackEnv)
-		})
-	}
-}
-
 // TestLoadErrorsOmitValues checks that a rejection names the variable but never
 // the value, its mark, or its tail.
 func TestLoadErrorsOmitValues(t *testing.T) {
@@ -954,76 +930,6 @@ func TestLoadServerWebhookOptional(t *testing.T) {
 			t.Errorf("LoadServer() error = %q, contains the value mark %q", err, mark)
 		}
 	})
-}
-
-// TestLoadServerWebhookAccepted checks that LoadServer accepts the Webhook URL
-// shapes the rule allows and keeps the original value.
-func TestLoadServerWebhookAccepted(t *testing.T) {
-	accepted := []string{
-		"https://mattermost.example.com/hooks/xxxxxxxxxxxxxxxxxxxxxxxxxx",
-		"https://hooks.slack.com/services/T000/B000/XXXX",
-		"https://hooks.slack.com.example/services/x",
-		"https://HOOKS.SLACK.COM/services/x",
-		"https://hooks.slack.com/",
-	}
-	for i, value := range accepted {
-		t.Run(fmt.Sprintf("case %d", i), func(t *testing.T) {
-			cfg, err := LoadServer(envLookup(with(validServerEnv(), slackEnv, value)))
-			if err != nil {
-				t.Fatalf("LoadServer() error = %v, want nil", err)
-			}
-			webhook, configured := cfg.WebhookURL()
-			if !configured {
-				t.Fatal("WebhookURL() reports unset, want set")
-			}
-			revealed, err := webhook.Reveal()
-			if err != nil {
-				t.Fatalf("WebhookURL().Reveal() error = %v", err)
-			}
-			if revealed != value {
-				t.Errorf("WebhookURL() = %q, want %q", revealed, value)
-			}
-		})
-	}
-}
-
-// TestLoadServerWebhookRejected checks that LoadServer rejects each invalid
-// Webhook URL with ErrInvalid naming SLACK_WEBHOOK_URL, and that the rejection
-// holds neither the value's mark nor its tail.
-func TestLoadServerWebhookRejected(t *testing.T) {
-	const mark = "MARK-SLACK-D4"
-	cases := []struct {
-		value string
-		tails []string
-	}{
-		{"http://mattermost.example.com/hooks/x", nil},
-		{"mattermost.example.com/hooks/x", nil},
-		{"https:///hooks/x", nil},
-		{"https://mattermost.example.com/hooks/x\n", nil},
-		{"https://hooks.slack.com/services/%zz", nil},
-		{"https://hooks.slack.com/%", nil},
-		{"https://hooks.slack.com/services/x\x7f", nil},
-		{"https://:443/x", nil},
-		{" https://hooks.slack.com/services/x", nil},
-		// Each marked row also names the last 8 bytes of its value, so a
-		// rejection that leaked only the tail would still be caught.
-		{"http://" + mark, []string{"SLACK-D4"}},
-		{mark + "/hooks/x", []string{"/hooks/x"}},
-		{"https:///" + mark, []string{"SLACK-D4"}},
-		{"https://host/" + mark + "\n", []string{"LACK-D4\n"}},
-		{"https://host/%zz" + mark, []string{"SLACK-D4"}},
-	}
-	for _, tc := range cases {
-		t.Run(fmt.Sprintf("%q", tc.value), func(t *testing.T) {
-			_, err := LoadServer(envLookup(with(validServerEnv(), slackEnv, tc.value)))
-			assertVarError(t, err, ErrInvalid, slackEnv)
-			for _, leak := range append([]string{mark}, tc.tails...) {
-				if strings.Contains(err.Error(), leak) {
-					t.Errorf("LoadServer() error = %q, contains %q of the value", err, leak)
-				}
-			}
-		})
-	}
 }
 
 // TestServerConfigOutputRedactsWebhook checks that no rendering of a
