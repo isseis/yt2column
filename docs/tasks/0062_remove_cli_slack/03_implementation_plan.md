@@ -324,9 +324,9 @@ PR-1（#682）を作った後、レビューの担当者がテストを見直し
 
 **変更するファイル:** `internal/publisher/publisher.go`・`slack.go`・`slack_message.go`・`slack_message_test.go`・`test_helpers_slack.go`、`cmd/yt2column-server/run.go`・`run_test.go`
 
-- [ ] 設計書 3.4 節が挙げる説明（パッケージの説明、型の説明、`webhookClient.post` の説明、`slack_message.go` の「`Publish` が送る」）と、1.4 節の `slack_message_test.go:632`、`test_helpers_slack.go:73-76` の `SlackMessagesForTest` の説明（設計書 3.5 節の「production publisher」を含む）を、`PrepareSlackMessages` と `PostMessages` の説明に直す。
-- [ ] `cmd/yt2column-server/run.go:60-62` と `run_test.go:373-375` から CLI の `--slack` を除く。
-- [ ] `_checks/residue` の `comments` が HEAD で成り立つことを確かめる。
+- [x] 設計書 3.4 節が挙げる説明（パッケージの説明、型の説明、`webhookClient.post` の説明、`slack_message.go` の「`Publish` が送る」）と、1.4 節の `slack_message_test.go:632`、`test_helpers_slack.go:73-76` の `SlackMessagesForTest` の説明（設計書 3.5 節の「production publisher」を含む）を、`PrepareSlackMessages` と `PostMessages` の説明に直す。
+- [x] `cmd/yt2column-server/run.go:60-62` と `run_test.go:373-375` から CLI の `--slack` を除く。
+- [x] `_checks/residue` の `comments` が HEAD で成り立つことを確かめる。
 
 **完了の条件:** `make test` と `make lint` が通る。
 

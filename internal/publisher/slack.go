@@ -132,12 +132,13 @@ func checkWebhookURL(webhookURL secret.Secret) error {
 	return nil
 }
 
-// SlackWebhookPublisher posts an article to a Slack-compatible Incoming
-// Webhook (Mattermost is the verified target) as one or more messages. Its
-// send path is a webhookClient, which holds the webhook URL only as a
-// secret.Secret, so printing the struct never shows the URL. Its fields are set
-// once by the constructor and never mutated afterwards. Publish on the zero
-// value fails without sending.
+// SlackWebhookPublisher posts prepared messages to a Slack-compatible Incoming
+// Webhook (Mattermost is the verified target). It does not implement
+// Publisher: PrepareSlackMessages checks and splits an article, and
+// PostMessages sends the messages. Its send path is a webhookClient, which
+// holds the webhook URL only as a secret.Secret, so printing the struct never
+// shows the URL. Its fields are set once by the constructor and never mutated
+// afterwards. PostMessages on the zero value fails without sending.
 type SlackWebhookPublisher struct {
 	interval time.Duration
 	client   webhookClient
@@ -205,8 +206,8 @@ func (p *SlackWebhookPublisher) PostMessages(ctx context.Context, m SlackMessage
 }
 
 // post sends message with silent set and returns nil only for a 200 response
-// whose body is exactly "ok". (Moved from SlackWebhookPublisher.postMessage;
-// the URL reveal and SensitiveParts move in from Publish.) Its timeout covers
+// whose body is exactly "ok". It reveals the webhook URL only for the request
+// and derives the URL's sensitive parts from it here. Its timeout covers
 // the send and the whole body read; http.Client.Timeout is deliberately not
 // used, so a timeout is distinguishable from another transport failure. It
 // sends nothing and returns errZeroWebhookURL when it holds no webhook URL.

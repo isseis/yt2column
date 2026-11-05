@@ -629,8 +629,9 @@ func TestSlackMentionNeutralizedExactly(t *testing.T) {
 }
 
 // TestSlackMentionPositionAfterNeutralization checks that a rejection names
-// the position in the text Publish sends: the zero-width space inserted after
-// the '@' of "@c" counts as a column before the rejected '@' in the code span.
+// the position in the text PostMessages sends: the zero-width space inserted
+// after the '@' of "@c" counts as a column before the rejected '@' in the code
+// span.
 func TestSlackMentionPositionAfterNeutralization(t *testing.T) {
 	article := validArticle()
 	article.Body = "Hi @c and `@d`\n"

@@ -1,6 +1,8 @@
-// Package publisher defines the publishing stage: the interface that outputs an
-// article to its destination, and the Slack-compatible implementation that
-// posts an article to a Webhook.
+// Package publisher defines the publishing stage: the Publisher interface,
+// which FilePublisher implements by saving an article to a local file, and
+// the Slack-compatible Webhook sender. A Webhook post is not a Publisher: an
+// article is checked and split by PrepareSlackMessages, and the messages are
+// sent by SlackWebhookPublisher.PostMessages.
 package publisher
 
 import (

@@ -371,8 +371,8 @@ func TestOutputsOmitSecrets(t *testing.T) {
 }
 
 // TestBuildsSlackPublisher checks that the production constructor builds the
-// publisher the CLI's --slack uses, and that a rejected webhook URL yields a
-// nil interface rather than a typed nil.
+// SlackWebhookPublisher the server posts with, and that a rejected webhook URL
+// yields a nil interface rather than a typed nil.
 func TestBuildsSlackPublisher(t *testing.T) {
 	webhook, err := secret.New(testWebhook)
 	if err != nil {

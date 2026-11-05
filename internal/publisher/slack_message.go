@@ -21,8 +21,8 @@ const (
 )
 
 // prepareSlackMessages runs every pre-send check on article and returns the
-// text of each message Publish sends, in order. It touches no network, never
-// mutates article, and returns the same result for the same article.
+// text of each message PostMessages sends, in order. It touches no network,
+// never mutates article, and returns the same result for the same article.
 func prepareSlackMessages(article writer.Article) ([]string, error) {
 	if err := article.CheckPublishable(); err != nil {
 		return nil, err
@@ -40,7 +40,7 @@ func prepareSlackMessages(article writer.Article) ([]string, error) {
 		return nil, err
 	}
 	// posted is the text after neutralization, so a rejection position counts
-	// the characters of the form Publish sends.
+	// the characters of the form PostMessages sends.
 	//
 	// Checking posted alone is enough for M1, M3 and M4: the position marker
 	// adds none of the characters they look for, so a match in a message is
@@ -57,8 +57,8 @@ func prepareSlackMessages(article writer.Article) ([]string, error) {
 	return messages, nil
 }
 
-// SlackMessages are the messages SlackWebhookPublisher.Publish sends for one
-// article, after every pre-send check passed. Only PrepareSlackMessages
+// SlackMessages are the messages SlackWebhookPublisher.PostMessages sends for
+// one article, after every pre-send check passed. Only PrepareSlackMessages
 // builds a non-empty one, so PostMessages, which takes nothing else, never
 // sends a text that skipped the checks. A copy shares the texts, which
 // nothing mutates.
@@ -70,7 +70,7 @@ type SlackMessages struct {
 func (m SlackMessages) Len() int { return len(m.texts) }
 
 // PrepareSlackMessages runs every pre-send check on a and returns its
-// messages, or the pre-send error Publish would return. It touches no network
+// messages, or the pre-send error that rejects it. It touches no network
 // and returns the same result for the same article.
 func PrepareSlackMessages(a writer.Article) (SlackMessages, error) {
 	texts, err := prepareSlackMessages(a)
@@ -80,10 +80,10 @@ func PrepareSlackMessages(a writer.Article) (SlackMessages, error) {
 	return SlackMessages{texts: texts}, nil
 }
 
-// splitSlackText breaks post into the message texts Publish sends. A text
-// that fits in one message is returned as it is, with no position marker. A
-// longer text is cut into the fragments cutSlackFragments chooses, each
-// prefixed with its position marker. It returns ErrSlackUnsplittable when
+// splitSlackText breaks post into the message texts PostMessages sends. A
+// text that fits in one message is returned as it is, with no position
+// marker. A longer text is cut into the fragments cutSlackFragments chooses,
+// each prefixed with its position marker. It returns ErrSlackUnsplittable when
 // cutSlackFragments does, or when checkFragmentStarts finds a fragment whose
 // message would start with a mention the post does not hold.
 func splitSlackText(post slackPost) ([]string, error) {
