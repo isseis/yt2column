@@ -30,7 +30,7 @@
 ## 採らなかった案
 
 -   **判定をコマンドの定義に書いたシェルの手順にする。** 判定が多く、安全側に倒すことが要るので、エージェントの判断では結果が変わらないようにできない。テストで壊して失敗を確かめることもできない（[0030 設計書](../../tasks/0030_fixpr_untrusted_threads/02_architecture.md) §1.1、§1.3）。
--   **commit を `git add -A` で行う。** 理由は記録されていない（[0030 設計書](../../tasks/0030_fixpr_untrusted_threads/02_architecture.md) §1.2 は「判定したパスだけを明示して stage する。`git add -A` はやめる」とだけ述べる）。
+-   **commit を `git add -A` で行う。** 修正のフェーズが作った未追跡のファイル（作業用に作った一時ファイルを含む）も commit に入り、範囲の判定と照らしていない変更が commit されるため（[0030 要件定義書](../../tasks/0030_fixpr_untrusted_threads/01_requirements.md) AC-21、[0030 設計書](../../tasks/0030_fixpr_untrusted_threads/02_architecture.md) §3.6）。
 -   **ガードの道具が基準値をディスクのファイルに持つ。** そのファイルは、修正のフェーズのエージェントや build checks が実行するコードから書き換えられる（[0030 設計書](../../tasks/0030_fixpr_untrusted_threads/02_architecture.md) §1.1）。
 -   **Codex の最終メッセージの判定をエージェントに任せる。** 文法だけで決まる機械的な判定なので、テストのあるコードで行う（[0049 設計書](../../tasks/0049_codex_local_review/02_architecture.md) §1.2）。
 -   **素の `codex review` の標準出力や、セッションの記録から完了を判定する。** 素の出力には完了を示す欄がない。セッションの記録にある構造化された結果は公開された仕様ではなく、実行ごとに 2 つできるファイルから選ぶ手順が要る（[0049 設計書](../../tasks/0049_codex_local_review/02_architecture.md) §1.2）。
