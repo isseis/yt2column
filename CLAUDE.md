@@ -419,6 +419,20 @@ for the packages that exist today. The server's startup is documented in the
   widely but resolves to English. "Reject, don't normalize" does not apply: a
   UI language other than Japanese is not malformed input but a valid one that
   the extension shows in English.
+  Exception: the browser extension's article parse (`parseArticleMarkdown` in
+  `extension/src/core/articleMarkdown.ts`) chooses the blocks and inline
+  pieces of the viewer's article by inspecting the content of the display
+  Markdown. Scope: it reads the display Markdown by the fixed block and inline
+  rules of `docs/tasks/0063_viewer_markdown/01_requirements.md` §3.2 (the
+  decision is ADR-0017) and returns a typed article tree; this is the only place the article's
+  content selects behavior, and the builder that makes the DOM receives only
+  the tree and chooses each element by the tree's `kind` in a `switch`.
+  Reason: the display Markdown is an LLM's output and a channel name, external
+  values the extension cannot express in a type, and drawing it is the
+  purpose of the viewer's article display. Boundary: the exception covers
+  only `parseArticleMarkdown`; an input that matches no rule is not
+  interpreted more widely but is kept as text, and a link is made only from
+  an `https` autolink that meets every link condition, as the `LinkUrl` type.
   Exception: `codexreview` chooses whether Codex CLI's final message reports
   findings, reports none, or cannot be read by inspecting the content of that
   message (`parseFinalMessage` in `internal/codexreview/message.go`). Scope:

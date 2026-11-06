@@ -169,6 +169,7 @@ const brandNames = [
   "RequestId",
   "ArticleKey",
   "UsdAmount",
+  "LinkUrl",
 ];
 
 // Selectors shared by every file but the menu-path names. The files-scoped
@@ -298,4 +299,5 @@ export default defineConfig(
   creatorConfig("src/core/prepare.ts", ["PreparedRequest"]),
   creatorConfig("src/core/response.ts", ["RequestId", "UsdAmount"]),
   creatorConfig("src/core/articleKey.ts", ["ArticleKey"]),
+  creatorConfig("src/core/articleMarkdown.ts", ["LinkUrl"]),
 );

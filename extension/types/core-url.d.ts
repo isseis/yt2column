@@ -11,6 +11,7 @@ declare class URLSearchParams {
 
 declare class URL {
   constructor(url: string);
+  readonly href: string;
   readonly protocol: string;
   readonly username: string;
   readonly password: string;
