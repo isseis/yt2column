@@ -88,10 +88,10 @@
 
 **変更するファイル:** `internal/transcript/exec_test.go`、`docs/tasks/0064_stderr_drain_test_deadline/_checks/drain_test_unchanged.go`（新規）。`internal/transcript/exec.go`（一時的に変え、コミットしない）
 
--   [ ] **ステップ 2-1**: 対象のテストの定数 `timeout = 2 * time.Second`（`exec_test.go:65`）を、設計書 3.2 のとおりに変える。値は `30 * time.Second`、名前は詰まった子プロセスを終わらせる期限であることを示すもの（例: `stuckChildBound`）にし、`context.WithTimeout` の行の参照も新しい名前にする。`burst` と同じ `const` の組に置いたまま、設計書 3.2 の 3 点を英語のコメントで書く。この時点ではコミットしない。
--   [ ] **ステップ 2-2**: 設計書 3.4 の (i)・(ii) の 2 つの形に `exec.go` を一時的に変え、それぞれで `go test -tags test -count=1 -v -run '^TestCommandExecutorDrainsStderr$' ./internal/transcript` を実行する。それぞれについて、変え方、失敗した箇所（失敗のメッセージ）、エラーの文字列、失敗までの経過時間を控える。(i)・(ii) のどちらかが終了コードの確認で失敗しない場合、または (i) がすぐに終わる場合は、止まって人間のレビュアーに問う。
--   [ ] **ステップ 2-3**: `exec.go` を元に戻し、`git diff --quiet internal/transcript/exec.go` が成功することを確かめる。`make fmt`・`make test`・`make lint` を通してから、ステップ 2-1 の変更をコミットする。コミットのメッセージに、ステップ 2-2 で控えたこと（2 つの形のそれぞれの変え方、失敗した箇所、エラーの文字列、経過時間）を書く（AC-05、`CLAUDE.md`「Testing Strategy」）。
--   [ ] **ステップ 2-4**: `_checks/drain_test_unchanged.go` を書く（本計画 §1.3）。プログラムは、merge-base（`origin/main` と `HEAD` の merge-base）と PR の先頭（`HEAD`）のそれぞれで、`exec_test.go` の対象のテストの関数を読み、次を確かめる。比べる 2 つのリビジョンは、引数で指定することもできるようにする（既定は merge-base と `HEAD`）。
+-   [x] **ステップ 2-1**: 対象のテストの定数 `timeout = 2 * time.Second`（`exec_test.go:65`）を、設計書 3.2 のとおりに変える。値は `30 * time.Second`、名前は詰まった子プロセスを終わらせる期限であることを示すもの（例: `stuckChildBound`）にし、`context.WithTimeout` の行の参照も新しい名前にする。`burst` と同じ `const` の組に置いたまま、設計書 3.2 の 3 点を英語のコメントで書く。この時点ではコミットしない。
+-   [x] **ステップ 2-2**: 設計書 3.4 の (i)・(ii) の 2 つの形に `exec.go` を一時的に変え、それぞれで `go test -tags test -count=1 -v -run '^TestCommandExecutorDrainsStderr$' ./internal/transcript` を実行する。それぞれについて、変え方、失敗した箇所（失敗のメッセージ）、エラーの文字列、失敗までの経過時間を控える。(i)・(ii) のどちらかが終了コードの確認で失敗しない場合、または (i) がすぐに終わる場合は、止まって人間のレビュアーに問う。
+-   [x] **ステップ 2-3**: `exec.go` を元に戻し、`git diff --quiet internal/transcript/exec.go` が成功することを確かめる。`make fmt`・`make test`・`make lint` を通してから、ステップ 2-1 の変更をコミットする。コミットのメッセージに、ステップ 2-2 で控えたこと（2 つの形のそれぞれの変え方、失敗した箇所、エラーの文字列、経過時間）を書く（AC-05、`CLAUDE.md`「Testing Strategy」）。
+-   [x] **ステップ 2-4**: `_checks/drain_test_unchanged.go` を書く（本計画 §1.3）。プログラムは、merge-base（`origin/main` と `HEAD` の merge-base）と PR の先頭（`HEAD`）のそれぞれで、`exec_test.go` の対象のテストの関数を読み、次を確かめる。比べる 2 つのリビジョンは、引数で指定することもできるようにする（既定は merge-base と `HEAD`）。
     -   期限の定数（`context.WithTimeout` の 2 つめの引数に渡す、関数の中の定数）を特定し、その宣言を除き参照を同じ名前に揃えたうえで、コメントを除いた関数のコードが両方で同じであること（AC-02・AC-03）。比べ方は、行の分け方や空行の位置に左右されないものにする。
     -   PR の先頭の期限の定数の値の式が `30 * time.Second` であること（AC-01）。
 
