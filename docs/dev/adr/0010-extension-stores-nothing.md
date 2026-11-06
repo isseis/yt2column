@@ -42,4 +42,4 @@
 - 2026-10-19 共有トークン・ポート・`storage` の権限・`host_permissions`・オプションページを削除し、`nativeMessaging` に移した。拡張は `chrome.storage` を参照せず、ジョブはサーバ側で続く。旧版の保存値は削除せず、読めないまま残ることを残余のリスクとして受け入れた（[0026 設計書](../../tasks/0026_native_messaging_relay/02_architecture.md) §3.7.1）
 - 2026-10-29 拡張は何も保存せず、状態の正しい値をサーバに置くことにした。送信ごとの値はビューアの URL とページのメモリだけに置き、権限は `activeTab`・`scripting`・`nativeMessaging` のまま加えない（[0050 要件定義書](../../tasks/0050_viewer_tab/01_requirements.md) §1）
 - 2026-11-04 同じ動画の記事を示す機能でも、拡張に記事の履歴を保存しない（`chrome.storage` を使わない）方針を保った（[0058 要件定義書](../../tasks/0058_same_video_article/01_requirements.md)「issue #593 で決めたこと」）
-- 2026-11-04 既存の記事を表示していることを、ビューアの URL の印 `e=1` で持つことにした。印は再読み込み・閉じたタブの復元・履歴からの表示の後も残る（[0058 設計書](../../tasks/0058_same_video_article/02_architecture.md)「設計の際に決めたこと（2026-11-04）」）
+- 2026-11-04 既存の記事を表示していることを、ビューアの URL の印 `e=1` で持つことにした（[0058 設計書](../../tasks/0058_same_video_article/02_architecture.md)「設計の際に決めたこと（2026-11-04）」）
