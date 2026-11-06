@@ -255,8 +255,8 @@
 
 **変更するファイル:** `extension/src/ui/articleBody.ts`、`extension/test/articleBody.test.ts`
 
--   [ ] `renderArticleBody`（その JSDoc を含む）と、そのテスト（`describe("renderArticleBody", …)` の全体）を、1 つのコミットで消す。このコミットはほかの変更を含まない。
--   [ ] `make ext-coverage-compare BASE=<親のコミット>` を、10 分以上の時間の上限を付けるか、バックグラウンドで動かし、出力を最後の行までコミットのメッセージ（ツリーの ID を変えずにメッセージだけを直す）と PR の説明に書く。
+-   [x] `renderArticleBody`（その JSDoc を含む）と、そのテスト（`describe("renderArticleBody", …)` の全体）を、1 つのコミットで消す。このコミットはほかの変更を含まない。
+-   [x] `make ext-coverage-compare BASE=<親のコミット>` を、10 分以上の時間の上限を付けるか、バックグラウンドで動かし、出力を最後の行までコミットのメッセージ（ツリーの ID を変えずにメッセージだけを直す）と PR の説明に書く。
 
 **完了の条件:** `make ext-check` が通り、`make ext-coverage-compare` の最後の行が `coverage-compare: PASS` である。消した関数として `renderArticleBody` が挙がる。
 
