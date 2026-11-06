@@ -61,12 +61,19 @@ func TestCappedWriter(t *testing.T) {
 
 func TestCommandExecutorDrainsStderr(t *testing.T) {
 	const (
-		burst   = 256 << 10
-		timeout = 2 * time.Second
+		burst = 256 << 10
+		// stuckChildBound ends the test when the child blocks because its
+		// standard error is not drained. It does not time a normal run, which
+		// takes well under a second. It is 30 seconds because under load
+		// (a concurrent `make test` while macOS scans the new script file) a
+		// correct run was killed by the former 2-second bound; the measured
+		// delays and the check that 30 seconds suffices are recorded in
+		// docs/tasks/0064_stderr_drain_test_deadline/04_investigation.md.
+		stuckChildBound = 30 * time.Second
 	)
 	script := writeHelperScript(t, "#!/bin/sh\nprintf '%s' '"+strings.Repeat("x", burst)+"' >&2\nexit 3\n")
 
-	ctx, cancel := context.WithTimeout(t.Context(), timeout)
+	ctx, cancel := context.WithTimeout(t.Context(), stuckChildBound)
 	defer cancel()
 	var stderr cappedWriter
 	err := osExecutor{}.Run(ctx, script, nil, allowlistEnv(os.Environ()), nil, &stderr)
