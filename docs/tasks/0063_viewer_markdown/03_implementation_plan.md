@@ -206,8 +206,8 @@
 
 **変更するファイル:** `extension/src/ui/drawOnChange.ts`（新規）、`extension/src/ui/renderJob.ts`
 
--   [ ] 設計書 3.4 の `drawOnKeyChange` を書き、`drawStateOnChange` の鍵と子のノードの比較をこれに置き換える。`drawStateOnChange` の振る舞い（描かなかったときだけ経過時間の値を書き換える）は変えない。
--   [ ] 覚えた鍵は `WeakMap` に置き、DOM の属性に書かない（設計書 3.4）。
+-   [x] 設計書 3.4 の `drawOnKeyChange` を書き、`drawStateOnChange` の鍵と子のノードの比較をこれに置き換える。`drawStateOnChange` の振る舞い（描かなかったときだけ経過時間の値を書き換える）は変えない。
+-   [x] 覚えた鍵は `WeakMap` に置き、DOM の属性に書かない（設計書 3.4）。
 
 **完了の条件:** `make ext-check` が、既存のテストを変えずに通る。次を壊して、名前を挙げたテストが失敗することを確かめる: 鍵の比較を外す（`renderViewer.test.ts:523` の、状態を変えた後の確かめ）、子のノードの比較を外す（`render.test.ts:1088`）、比較をせず常に描く（`render.test.ts:1067`）。
 
