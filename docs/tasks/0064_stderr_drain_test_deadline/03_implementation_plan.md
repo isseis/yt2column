@@ -112,7 +112,7 @@
 -   [x] **ステップ 3-1**: 設計書 3.5 の最後の段落と 6.2 の手順で、`make test` の race の実行の区間の中で `go test -tags test -race -count=50 -v -run '^TestCommandExecutorDrainsStderr$' ./internal/transcript` を実行する。既定の 10 分で打ち切られないよう、`-timeout` に 50 回がすべて 30 秒の期限に達しても足りる値（例: `-timeout 40m`）を付け、その値を記録する。ビルドのキャッシュを温めること、行ごとの時刻の付け方とバックグラウンドでの動かし方（ステップ 1-3）、負荷の指標の採取、`go clean -testcache`、区間に収まらないときのやり直し（3 回まで。超えたら止まって問う）は、ステップ 1-5 と同じにする。
 -   [x] **ステップ 3-2**: 50 回のうち 1 回でも失敗したら、止まって人間のレビュアーに問う（要件書 3.2）。並行した `make test` のほかのテストが失敗したら、その失敗を控え、AC-04 の結果は無効にしない。その失敗を扱う issue の作成は、人間に示して承認を得てから行う。
 -   [x] **ステップ 3-3**: 調査の記録に、設計書 3.5「AC-04 の確認」の項目（実行したコミットと機械、並行した `make test` の結果と `(cached)` の行がないこと、両方の開始と終了の時刻、50 回の結果、1 回ごとの所要時間の最大、2 秒を超えた回数、開始時の負荷の指標、ほかのテストの失敗）を書く。2 秒を超えた回が 0 回でも、やり直さずに記録する（設計書 4 章の表）。記録をコミットする。
--   [ ] **ステップ 3-4**: PR のすべての変更をコミットした後、PR を作る前に、PR のブランチで `go run ./docs/tasks/0064_stderr_drain_test_deadline/_checks/` を実行する。出力と両方のコミット ID を本計画 §5 の AC-01〜AC-03 の行に書き、本計画のこの変更をコミットする。このコミットは本計画だけを変えるので、比べる関数は変わらない。PR を作った後に `exec_test.go` が変わったら、実行し直して書き直す。記録した merge-base が、このブランチを作ったときの `origin/main` のコミットであることを確かめる。
+-   [x] **ステップ 3-4**: PR のすべての変更をコミットした後、PR を作る前に、PR のブランチで `go run ./docs/tasks/0064_stderr_drain_test_deadline/_checks/` を実行する。出力と両方のコミット ID を本計画 §5 の AC-01〜AC-03 の行に書き、本計画のこの変更をコミットする。このコミットは本計画だけを変えるので、比べる関数は変わらない。PR を作った後に `exec_test.go` が変わったら、実行し直して書き直す。記録した merge-base が、このブランチを作ったときの `origin/main` のコミットであることを確かめる。
 
 **完了の条件:** 調査の記録に AC-04 の項目がある。50 回とも成功している。`_checks` のプログラムの実行の記録が本計画 §5 にある。`make test && make lint` が通る。
 
@@ -173,10 +173,10 @@ N/A（設計書 7.2）。
 
 | AC | 種類 | 検証 | ステップ |
 |---|---|---|---|
-| AC-01 | static | `docs/tasks/0064_stderr_drain_test_deadline/_checks/drain_test_unchanged.go`（PR の先頭の期限の定数の値が `30 * time.Second`）。実行の記録: （ステップ 3-4 で記入） | 2-1・2-4・3-4 |
-| AC-02 | diff | 同上（merge-base と PR の先頭で、期限の定数を除いた対象のテストの関数のコードが同じ。終了コードの確認、保持された標準エラー出力の確認、失敗のメッセージを含む）。実行の記録: （ステップ 3-4 で記入） | 2-1・2-4・3-4 |
+| AC-01 | static | `docs/tasks/0064_stderr_drain_test_deadline/_checks/drain_test_unchanged.go`（PR の先頭の期限の定数の値が `30 * time.Second`）。実行の記録: 2026-11-06、PR のブランチで `go run ./docs/tasks/0064_stderr_drain_test_deadline/_checks/` を実行した。merge-base `c6361e1699d862a0748343ffe0f89bf53c6a2553`（このブランチを作ったときの `origin/main`）、PR の先頭 `589b1a98df6610967ff2a6d03cdba6ad547793f3`。出力は `OK   TestCommandExecutorDrainsStderr is the same apart from the deadline constant` と `OK   the deadline constant of the after commit is 30 * time.Second`、終了コード 0 | 2-1・2-4・3-4 |
+| AC-02 | diff | 同上（merge-base と PR の先頭で、期限の定数を除いた対象のテストの関数のコードが同じ。終了コードの確認、保持された標準エラー出力の確認、失敗のメッセージを含む）。実行の記録: 2026-11-06、PR のブランチで `go run ./docs/tasks/0064_stderr_drain_test_deadline/_checks/` を実行した。merge-base `c6361e1699d862a0748343ffe0f89bf53c6a2553`（このブランチを作ったときの `origin/main`）、PR の先頭 `589b1a98df6610967ff2a6d03cdba6ad547793f3`。出力は `OK   TestCommandExecutorDrainsStderr is the same apart from the deadline constant` と `OK   the deadline constant of the after commit is 30 * time.Second`、終了コード 0 | 2-1・2-4・3-4 |
 | AC-02 | test | `internal/transcript/exec_test.go::TestCommandExecutorDrainsStderr`（`make test`。変更の後も (1)・(2) を確かめて成功する） | 2-3 |
-| AC-03 | diff | 同上の `_checks` のプログラム（`burst` とスクリプトの内容が同じ）。実行の記録: （ステップ 3-4 で記入） | 2-1・2-4・3-4 |
+| AC-03 | diff | 同上の `_checks` のプログラム（`burst` とスクリプトの内容が同じ）。実行の記録: 2026-11-06、PR のブランチで `go run ./docs/tasks/0064_stderr_drain_test_deadline/_checks/` を実行した。merge-base `c6361e1699d862a0748343ffe0f89bf53c6a2553`（このブランチを作ったときの `origin/main`）、PR の先頭 `589b1a98df6610967ff2a6d03cdba6ad547793f3`。出力は `OK   TestCommandExecutorDrainsStderr is the same apart from the deadline constant` と `OK   the deadline constant of the after commit is 30 * time.Second`、終了コード 0 | 2-1・2-4・3-4 |
 | AC-04 | manual | `04_investigation.md` の AC-04 の節（PR のレビュー） | 3-1・3-2・3-3 |
 | AC-05 | manual | 期限を変えるコミットのメッセージの、2 つの壊し方の記録（PR のレビュー） | 2-2・2-3 |
 | AC-06 | manual | `04_investigation.md` の AC-06 の節（PR のレビュー） | 1-1〜1-7・1-9 |
