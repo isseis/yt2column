@@ -18,6 +18,7 @@
 -   **パスは `HOME` と OS だけから導出する。** macOS は `$HOME/Library/Application Support/yt2column/config.env`、その他の Unix は `$HOME/.config/yt2column/config.env` で、`XDG_CONFIG_HOME` は読まない。ソケットのパスと同じ考え方である（[ADR-0005](0005-server-architecture.md)）。
 -   **書式は Docker の `--env-file` の規則を土台にした `KEY=VALUE` で、それより厳格にする。** `#` で始まる行と空行を読み飛ばし、値は最初の `=` より後ろを変換せずに使う。キーは今の環境変数と同じ名前の 6 つに限る。受理する形に合わないもの（`export `、引用符、行末のコメントに見える形、空の値などを含む）は直さずに拒否する。ファイルはシェルとして実行しない。値の検証は環境変数のときと同じ規則を使う（[ADR-0003](0003-llm-config-contract.md)）。受理する形と拒否するものの一覧は要件定義書の F-003 にある。
 -   **ファイルそのものを検査し、満たさなければ直さずに起動を止める。** 自分が所有する通常のファイルで、シンボリックリンクではなく、モードがちょうど `0600` で、macOS では拡張 ACL を持たないことを、読むファイルそのものについて確かめる。親のディレクトリは検査しない。ファイルがなければ、パスと雛形を作るコマンドを示して止める。
+-   **macOS の拡張 ACL は、標準ライブラリの `syscall` だけで扱う。** 検出には、開いた記述子に `fgetattrlist`（`ATTR_CMN_EXTENDED_SECURITY`）を呼ぶ。エントリが 0 個の ACL も、ACL を持つものとして拒否する。`config init` が作るファイルからは、継承した ACL を `fchmod_extended`（`_FILESEC_REMOVE_ACL`）で取り除き、残っていないことを確かめる。手段と PoC の結果は [0066 設計書](../../tasks/0066_server_config_file/02_architecture.md) にある。
 -   **環境に残った設定の変数は無視する。** 6 つのキーや廃止した LLM の変数がプロセスの環境にあっても、サーバは読まず、止まらず、警告もしない。読まない変数を検査するためだけのコードは持たない。
 -   **雛形はサーバのサブコマンド `yt2column-server config init` で作る。** モード `0600` で作り、既存のものは上書きしない。
 
@@ -39,6 +40,9 @@
 -   **環境に残った変数を名前だけ警告する。** 読まない変数を検査するためだけのコードを持たないことにした（レビュアーの判断）。効かない理由は README の説明で補う（[0066 要件定義書](../../tasks/0066_server_config_file/01_requirements.md) §1）。
 -   **サーバがファイルと環境変数の両方を読む。** どちらの値が効いているかが曖昧になる（[0066 要件定義書](../../tasks/0066_server_config_file/01_requirements.md) §1）。
 -   **雛形を別のコマンドで作る。** 配布するバイナリが増える（[0066 要件定義書](../../tasks/0066_server_config_file/01_requirements.md) §1）。
+-   **macOS の ACL を cgo で libc の `acl_get_fd_np`・`acl_set_fd` を通して扱う。** 公開の API を使えるが、C コンパイラが要り、クロスビルドが難しくなる（[0066 設計書](../../tasks/0066_server_config_file/02_architecture.md) §1.3）。
+-   **`config init` は ACL を取り除かず、作ったファイルが ACL を持てば失敗にする。** 継承する ACL を持つディレクトリの下では雛形を作れなくなり、要件（作ったファイルは ACL を持たない）を満たさない（[0066 設計書](../../tasks/0066_server_config_file/02_architecture.md) §1.3）。
+-   **エントリが 0 個の ACL を受理する。** ACL の中身を解析する形が増える。拒否して `chmod -N` を案内するほうが安全側に倒れる（[0066 設計書](../../tasks/0066_server_config_file/02_architecture.md) §1.3）。
 -   **親のディレクトリも検査する。** 読むファイルそのものを検査するので、親の名前を入れ替えられても検査していないファイルは読まない。サーバは設定ファイルの親に何も作らないので、親を検査して守るものがない（[0066 要件定義書](../../tasks/0066_server_config_file/01_requirements.md) §1）。
 
 ## 結果
@@ -48,7 +52,9 @@
 -   秘密は平文のファイルにあり、同一ユーザーのプロセスは読める。今の `.envrc` と同じ水準として受け入れる。
 -   環境変数を設定したのに効かないとき、サーバは何も示さない。利用者は README の説明で、サーバが環境変数を読まないことを知る。
 -   今の利用者は、更新後に設定ファイルを作るまでサーバを起動できない。互換の仕組みは設けず、README の移行の手順で移る。
+-   ACL の除去は、Apple が文書化していない `fchmod_extended` に頼る（公開の `fchmodx_np(3)` と `chmod -N` がこれを使っている）。将来の macOS で振る舞いが変わっても、作ったファイルに ACL が残れば `config init` は失敗するので、ACL を持つファイルを黙って作ることはない。CI は Linux だけで動くので、macOS の ACL のテストはローカルの `make test` で確かめる。
 
 ## 経緯
 
 - 2026-11-06 サーバは決まった場所の env-file 形式の設定ファイルだけから設定を読み、CLI は環境変数を読み続けることにした（[0066 要件定義書](../../tasks/0066_server_config_file/01_requirements.md)）
+- 2026-11-06 macOS の拡張 ACL を、標準ライブラリの `syscall` で `fgetattrlist` により検出し、`config init` では `fchmod_extended` で取り除くことにした。エントリが 0 個の ACL も拒否する（[0066 設計書](../../tasks/0066_server_config_file/02_architecture.md)）
