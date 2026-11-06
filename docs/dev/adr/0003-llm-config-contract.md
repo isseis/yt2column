@@ -24,7 +24,7 @@
 -   **空の値は未設定ではなく設定エラーにする。** 既定を使うのは未設定のときだけである。
 -   **未設定のときの既定と継承を決める。** `YT2COLUMN_LLM` が未設定なら、本番の構成（[ADR-0004](0004-production-profile.md)）を既定として使う。`YT2COLUMN_REVIEW_LLM` が未設定なら、検証・推敲は生成のプロバイダ・モデル・effort をそのまま受け継ぐ。設定して effort を省いた場合は、生成の effort を受け継がず、そのプロバイダの「effort を省いたとき」に従う。
 -   **プロバイダ固有の設定は別の変数のままにする。** `ANTHROPIC_API_KEY`・`DEEPSEEK_API_KEY`・`ANTHROPIC_WORKSPACE_ID` は、その実行が使うプロバイダのものだけを読んで検査する。ほかのプロバイダの変数は、未設定・空・不正な値のいずれでも拒否しない。
--   **CLI は、廃止した変数をどの実行でも拒否する。** `YT2COLUMN_LLM_PROVIDER`・`YT2COLUMN_MODEL`・`YT2COLUMN_REVIEW_PROVIDER`・`YT2COLUMN_REVIEW_MODEL`・`YT2COLUMN_CLAUDE_EFFORT` は、生成も検証・推敲も実行しない実行（`--after review` など）を含めて設定されていれば設定エラーにし、値を読まない。古い設定が残っていることに、いつ実行しても気づけるようにするためである。サーバは環境変数から設定を読まないので、これらが環境にあっても止まらず、名前だけを警告する。設定ファイルに書かれていれば、未知のキーとして拒否する（[ADR-0018](0018-server-config-file.md)）。ホスト（`yt2column-nmhost`）は LLM の設定を読まないので対象にしない。
+-   **廃止した変数は読まない。** `YT2COLUMN_LLM_PROVIDER`・`YT2COLUMN_MODEL`・`YT2COLUMN_REVIEW_PROVIDER`・`YT2COLUMN_REVIEW_MODEL`・`YT2COLUMN_CLAUDE_EFFORT` は、CLI もサーバも読まず、環境にあっても拒否も警告もしない。読まない変数を検査するためだけのコードは持たない。設定ファイルに書かれていれば、ほかの未知のキーと同じく拒否する（[ADR-0018](0018-server-config-file.md)）。
 -   **拒否のメッセージは、変数の名前と固定の理由だけを示し、値を含めない。**
 
 この決定の仕様の正本は [project_overview.md](../project_overview.md) の設定の節である。値の解析と既定の当てはめは `internal/config` が行い、effort の値の一覧は `internal/llm/claudeparam` と `internal/llm/deepseekparam` が 1 か所ずつ持つ。
@@ -39,7 +39,7 @@
 -   **区切りに `#` を使う。** dotenv の実装によってはコメントになる（[0051 要件定義書](../../tasks/0051_llm_effort/01_requirements.md) §1）。
 -   **区切りに `!`・`^`・`?`・`*`・`[`・`;`・`&`・`$` などを使う。** シェルで展開されるか、メタ文字として扱われる（[0051 要件定義書](../../tasks/0051_llm_effort/01_requirements.md) §1）。
 -   **廃止した変数を新しい変数に読み替える互換層を置く。** リポジトリの外に利用者がいない（[0045 要件定義書](../../tasks/0045_llm_env_var/01_requirements.md) §1）。
--   **廃止した変数を黙って無視する。** 古い `.envrc` で DeepSeek を指定している利用者のデータが、気づかないうちに既定の Claude へ送られる（[0045 要件定義書](../../tasks/0045_llm_env_var/01_requirements.md) §1）。
+-   **廃止した変数を、どの実行でも拒否し続ける。** 読まない変数を検査するためだけのコードを持たないことにした（レビュアーの判断）（[0066 要件定義書](../../tasks/0066_server_config_file/01_requirements.md) §1）。
 -   **effort の部分が不正な値を、モデル ID の一部とみなして受理する。** 指定と異なる振る舞いを隠さないためである（[0051 要件定義書](../../tasks/0051_llm_effort/01_requirements.md) §1）。
 -   **DeepSeek で、`minimal`・`medium`・`xhigh`・`ultra` も effort として受理する。** API の側がこれらの値を別の値に読み替えるので、指定と異なる振る舞いになる（[0051 要件定義書](../../tasks/0051_llm_effort/01_requirements.md) §1）。
 -   **DeepSeek に effort を付けた値を設定エラーにする。** DeepSeek の API が `reasoning_effort` を受け付けるため、レビュアーの判断で、DeepSeek でも effort を指定できるようにした（[0051 要件定義書](../../tasks/0051_llm_effort/01_requirements.md) §1）。
@@ -51,7 +51,7 @@
 -   プロバイダを足すときは、プロバイダの部分にその名前を加え、そのプロバイダの effort の値の一覧を足す。環境変数は増えない。
 -   プロバイダの部分の誤りは起動時の設定エラーになる。既定のプロバイダに黙って落ちることはない。
 -   モデル ID は不透明な文字列として扱う。プロバイダに合わないモデル名は、設定の読み込みではなく API の呼び出しで失敗する。
--   廃止した変数が環境に残っている CLI の実行は、その値によらず、通信の前に止まる。サーバは止まらず、名前を警告する。effort は出力（標準エラーの要約、記事のフロントマター、Slack の投稿）に出さないので、使った effort は成功した実行の出力からは分からない。
+-   古い `.envrc` で廃止した変数だけで DeepSeek を指定している場合、CLI は気づかせずに既定の Claude を選ぶ（`ANTHROPIC_API_KEY` がなければ、その設定エラーで止まる）。利用者がリポジトリの外にいないので受け入れる。effort は出力（標準エラーの要約、記事のフロントマター、Slack の投稿）に出さないので、使った effort は成功した実行の出力からは分からない。
 
 ## 経緯
 
@@ -60,4 +60,4 @@
 - 2026-10-25 既定のプロバイダとモデルを `claude` / `claude-opus-5-5` にした（[0042 要件定義書](../../tasks/0042_default_llm_opus/01_requirements.md)）
 - 2026-10-27 プロバイダとモデルを 1 つの値 `<プロバイダ>/<モデル ID>` で指定するようにした（[0045 要件定義書](../../tasks/0045_llm_env_var/01_requirements.md)）
 - 2026-10-29 値に `+<effort>` を含め、effort を工程ごとに指定できるようにした（[0051 要件定義書](../../tasks/0051_llm_effort/01_requirements.md)）
-- 2026-11-06 サーバは同じ名前のキーを設定ファイルから読むようにし、廃止した変数が環境にあってもサーバは止まらず名前を警告し、ファイルでは空の値をどのキーでも拒否するようにした（[0066 要件定義書](../../tasks/0066_server_config_file/01_requirements.md)）
+- 2026-11-06 サーバは同じ名前のキーを設定ファイルから読むようにし、廃止した変数を CLI もサーバも拒否せずに無視するようにし、ファイルでは空の値をどのキーでも拒否するようにした（[0066 要件定義書](../../tasks/0066_server_config_file/01_requirements.md)）

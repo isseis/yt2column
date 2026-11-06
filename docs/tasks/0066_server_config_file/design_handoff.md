@@ -8,7 +8,7 @@ F-004 は、検査したファイルと読んだファイルが同じである�
 
 ## H-02: 環境とファイルの `LookupFunc` の組み立て
 
-サーバは、`HOME` と `GODEBUG` を環境から、6 つのキーをファイルから読む（F-002）。今の `config.LoadServer` は 1 つの `LookupFunc` から、LLM の変数・`SLACK_WEBHOOK_URL`・`HOME`・`GODEBUG`・廃止した変数を読む（`internal/config/config.go:362-383`）。ファイルの `LookupFunc` と環境の `LookupFunc` を分けて渡すか、`LoadServer` の引数の形を変えるかを決める。廃止した変数の検査は、ファイルでは未知のキーとして拒否され（F-003）、環境では警告になる（AC-07・AC-08）ので、`LoadServer` の中の `retiredLLMErrors` をサーバの経路から外す方法を決める。CLI の `Load`・`LoadFor` の振る舞いは変えない（AC-10）。`main.go` の「`os.LookupEnv` を渡すのはここだけ」という契約（`cmd/yt2column-server/main.go:18-20`）を保つかも決める。
+サーバは、`HOME` と `GODEBUG` を環境から、6 つのキーをファイルから読む（F-002）。今の `config.LoadServer` は 1 つの `LookupFunc` から、LLM の変数・`SLACK_WEBHOOK_URL`・`HOME`・`GODEBUG`・廃止した変数を読む（`internal/config/config.go:362-383`）。ファイルの `LookupFunc` と環境の `LookupFunc` を分けて渡すか、`LoadServer` の引数の形を変えるかを決める。廃止した変数の検査は削除する（H-07）。CLI の `Load`・`LoadFor` の振る舞いは変えない（AC-10）。`main.go` の「`os.LookupEnv` を渡すのはここだけ」という契約（`cmd/yt2column-server/main.go:18-20`）を保つかも決める。
 
 ## H-03: 拒否の型と番兵、メッセージの語
 
@@ -26,9 +26,9 @@ AC-13 は、拒否した行のうち少なくとも最初の 1 行を示すこ�
 
 設定ファイルのパスは、ソケットのパスと同じく `HOME` と OS から導出する（F-001）。macOS ではソケットのディレクトリの親（`$HOME/Library/Application Support/yt2column`）が設定ファイルの親と同じになる。`internal/config/socketpath.go` の OS ごとの規則（`socketRule`）と共有するか、別に持つかを決める。`serversock` はソケットのディレクトリの親を検査し、なければ `0700` で作る（`internal/serversock/serversock.go:167-185`）。`config init` が作るディレクトリが、その検査を通ることを確かめる。
 
-## H-07: 警告の位置
+## H-07: 廃止した変数の検査の削除
 
-AC-08a は、警告を設定を読むより前に書くことを求める。今の `run` は引数の検査の後すぐに設定を読む（`cmd/yt2column-server/run.go:126-138`）。警告を書く位置と、警告する 11 の変数の一覧を `internal/config` の名前の一覧からどう作るか（廃止した変数の一覧 `retiredLLMVars` との共有を含む）を決める。
+CLI とサーバの両方から、廃止した 5 つの変数の検査（`retiredLLMVars`・`retiredLLMErrors` とその理由の文、`internal/config/config.go:515-524` ほか）を削除する（F-002）。それを確かめていたテストの削除は、`CLAUDE.md`「Testing Strategy」の「Deleting a test is a claim that must be checked」に従い、削除だけのコミットと `make coverage-compare` で確かめる。廃止した変数を文書から削除したときに不要になる文書のガードテスト（README の移行の節などを読むもの）も洗い出す。
 
 ## H-08: 文書のガードテスト
 
@@ -37,7 +37,7 @@ AC-34 で、どのテストがどの値（設定ファイルのパス、`config 
 ## H-09: 標準ライブラリの落とし穴と、秘密の変数の名前を書ける場所
 
 -   `bufio.Scanner` の `ScanLines` は行末の `\r` を黙って取り除くので、CR の拒否（F-003）がすり抜ける。既定のトークンの上限（64 KiB）では、65,536 バイトの 1 行が書式の拒否ではなく `bufio.ErrTooLong` になる。行の分け方を決める。
--   `internal/config/envaccess_test.go` は、環境を読む関数を呼べるファイルと、秘密の変数の名前を書けるファイルを制限している。ファイルの解析と警告の一覧をどのファイルに置くかを、この制限と合わせて決める。
+-   `internal/config/envaccess_test.go` は、環境を読む関数を呼べるファイルと、秘密の変数の名前を書けるファイルを制限している。ファイルの解析をどのファイルに置くかを、この制限と合わせて決める。
 -   拒否と案内の行に書くパスは `HOME` を含む。今の `stderrWriter`（`redact.Line`）を通して書くことを確かめる。
 
 ## H-10: macOS の拡張 ACL の検出と、`config init` の ACL
