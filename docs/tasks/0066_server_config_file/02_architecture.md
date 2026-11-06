@@ -490,9 +490,9 @@ type InitResult struct {
 
 ### 3.5. 文書（F-007、H-08）
 
-要件 AC-30 から AC-33 の文書を書き換える。設計として決めるのは、ガードテストが照らす値と場所である（AC-34）。
+要件 AC-30 から AC-33 の文書を書き換える。設計として決めるのは、ガードテストがどの値をどの文書と照合するかである（AC-34）。
 
-| 値 | コードの出どころ（テスト用のアクセサ） | 照らす文書 | テスト |
+| 値 | コードの出どころ（テスト用のアクセサ） | 照合する文書 | テスト |
 |---|---|---|---|
 | 設定ファイルのパス（macOS・その他の Unix） | `config` の設定ファイルの規則 | `README.md`・`README.en.md` のサーバの節 | `TestServerDocsContract`（確認を追加） |
 | `config init` の終了コード | `cmd/yt2column-server` の終了コードの定数 | 両 README の `config init` の終了コードの表 | `TestServerDocsContract`（確認を追加） |
@@ -500,7 +500,7 @@ type InitResult struct {
 | 大きさの上限（64 KiB） | `serverFileMaxSize` | 両 README の設定ファイルの節 | `TestServerDocsContract`（確認を追加） |
 | 設定ファイルのパス | 同上 | `docs/dev/security.md` §8.2 | `TestServerDocsContract`（確認を追加） |
 
--   同じ値を同じ文書について複数のテストで確かめない（`CLAUDE.md`「Document tests check values, structure, and executable examples, never prose」）。`project_overview.md` と `development.md` は、パスを照らす対象にしない。正本は README と `security.md` に置き、ほかの文書はそこへ案内する。
+-   同じ値を同じ文書について複数のテストで確かめない（`CLAUDE.md`「Document tests check values, structure, and executable examples, never prose」）。`project_overview.md` と `development.md` は、パスをコードと照合する対象にしない。正本は README と `security.md` に置き、ほかの文書はそこへ案内する。
 -   `development.md` の「開発用に別のサーバを動かす」の手順は、実行できる例としては確かめない。手順はサーバを起動するので、テストで実行すると副作用が大きいためである。
 -   廃止した変数を説明する README の節と段落（「廃止した LLM の変数からの移行」など）を削除するので、それらを読むガードテストは、削除か更新が要る。廃止した仕様が文書に残っていることを確かめるテストは置かない（`CLAUDE.md` の同じ節）。
 
@@ -819,7 +819,7 @@ PR の区切りは実装計画で決める。
 | H-05 雛形の作り方と文面 | 一時ファイル + `Chmod` + `fsync` + `link`（3.1）。親は `MkdirBelow` で `0700`（3.1）。文面は実装で決め、書式の解析に通すテストで確かめる（3.2.5、7.1） |
 | H-06 ソケットのパスとの規則の共有 | 規則は `socketRule` とは別の関数に置き、OS の分類の関数と `appDirName`・`absoluteHome` を共有する。macOS で `config init` が作る親は `serversock` の親の検査を通る（3.2.1） |
 | H-07 廃止した変数の検査の削除 | 削除するコードとテストを 3.2.3 と 3.6 に挙げた。テストの削除は削除だけのコミットと `make coverage-compare` で確かめる（8 章） |
-| H-08 文書のガードテスト | 照らす値・文書・テストを 3.5 の表に挙げた。`development.md` の手順は実行できる例としては確かめない |
+| H-08 文書のガードテスト | 照合する値・文書・テストを 3.5 の表に挙げた。`development.md` の手順は実行できる例としては確かめない |
 | H-09 標準ライブラリの落とし穴と秘密の名前を書ける場所 | `bufio.Scanner` を使わず `bytes.Split` で分ける（3.2.2）。キーの名前を扱う解析と雛形は `internal/config` に置く（1.2）。行は `stderrWriter`（`redact.Line`）を通す（3.3） |
 | H-10 macOS の拡張 ACL | 要件を見直し、ACL は検査も除去もしないことにした（要件定義書の「ACL は検査せず、残余リスクとして受け入れる」、1.3、5.2）。標準ライブラリの `syscall` だけで検出と除去ができることは PoC で確かめたが（付録 B）、除去に文書化されていない syscall が要り、OS 固有のコードを CI でテストできないので採らなかった |
 
