@@ -305,7 +305,7 @@ const contrastPairs = [
     foreground: "--link",
     background: "--bg",
     minimum: 4.5,
-    foregroundRules: ["#video-link", "#secondary"],
+    foregroundRules: ["#video-link", "#secondary", ".article-body a"],
     foregroundProperty: "color",
     backgroundRules: ["body"],
   },
@@ -316,6 +316,14 @@ const contrastPairs = [
     foregroundRules: ["#primary", ".action-button"],
     foregroundProperty: "color",
     backgroundRules: ["#primary", ".action-button"],
+  },
+  {
+    foreground: "--text",
+    background: "--code-bg",
+    minimum: 4.5,
+    foregroundRules: [".article-body code"],
+    foregroundProperty: "color",
+    backgroundRules: [".article-body code", ".article-body pre"],
   },
   {
     foreground: "--ok",
@@ -387,6 +395,7 @@ describe("colour variables", () => {
     "--disabled-bg",
     "--disabled-text",
     "--focus",
+    "--code-bg",
   ];
 
   for (const [theme, rules] of [
@@ -775,6 +784,86 @@ describe("article typography", () => {
     }
   });
 
+  /** The number a "<n>px" value gives, or NaN for any other value. */
+  const pixels = (value: string): number =>
+    /^\d+(?:\.\d+)?px$/.test(value) ? parseFloat(value) : Number.NaN;
+
+  it("sets the article's text at 16 CSS pixels or more and its line height at 1.7 to 2.0", () => {
+    const size = pixels(effectiveValue(onScreen, ".article-body", "font-size"));
+    assert.ok(size >= 16, `font-size ${String(size)}`);
+    const height = Number(
+      effectiveValue(onScreen, ".article-body", "line-height"),
+    );
+    assert.ok(height >= 1.7 && height <= 2, `line-height ${String(height)}`);
+    // Paragraphs and items inherit both; neither declares its own.
+    for (const selector of [".article-body p", ".article-body li"]) {
+      for (const property of ["font-size", "line-height"]) {
+        assert.equal(
+          effectiveValue(onScreen, selector, property),
+          "",
+          `${selector} ${property}`,
+        );
+      }
+    }
+  });
+
+  it("caps the article's line between 700 and 800 CSS pixels inside a page wide enough for it", () => {
+    // max-width bounds the content box only with content-box sizing; the
+    // border and padding then add to it, and the body's content width must
+    // hold that sum.
+    assert.equal(
+      effectiveValue(onScreen, ".article-body", "box-sizing"),
+      "content-box",
+    );
+    const line = pixels(effectiveValue(onScreen, ".article-body", "max-width"));
+    assert.ok(line >= 700 && line <= 800, `max-width ${String(line)}`);
+    const padding = pixels(
+      effectiveValue(onScreen, ".article-body", "padding"),
+    );
+    const border = pixels(
+      effectiveValue(onScreen, ".article-body", "border").split(" ")[0] ?? "",
+    );
+    const page = pixels(effectiveValue(onScreen, "body", "max-width"));
+    assert.ok(
+      line + 2 * (padding + border) <= page,
+      `${String(line)} + 2 * (${String(padding)} + ${String(border)}) > ${String(page)}`,
+    );
+  });
+
+  it("wraps a long word anywhere in the article and in each of its blocks", () => {
+    for (const selector of [
+      ".article-body",
+      ".article-body p",
+      ".article-body li",
+      ".article-body h2",
+      ".article-body h3",
+      ".article-body pre",
+    ]) {
+      assert.equal(
+        effectiveValue(onScreen, selector, "overflow-wrap"),
+        "anywhere",
+        selector,
+      );
+    }
+  });
+
+  it("sets code in a monospace face that keeps the size of the text around it", () => {
+    // A list naming only the generic monospace would take the browser's
+    // smaller monospace size, so a named face comes first.
+    for (const selector of [".article-body code", ".article-body pre"]) {
+      assert.deepEqual(
+        fontFamilies(effectiveValue(onScreen, selector, "font-family")),
+        ["ui-monospace", "monospace"],
+        selector,
+      );
+      assert.equal(
+        effectiveValue(onScreen, selector, "font-size"),
+        "",
+        `${selector} font-size`,
+      );
+    }
+  });
+
   it("underlines the article's links and isolates their direction", () => {
     assert.equal(
       effectiveValue(onScreen, ".article-body a", "text-decoration"),
@@ -853,17 +942,32 @@ describe("Japanese typography", () => {
     );
   });
 
-  it("applies the Japanese rules to the root and body only", () => {
+  it("gives the article the Japanese font candidates in any page language", () => {
+    // The article rule names no language: an English page shows the
+    // Japanese article in the same faces.
+    assert.deepEqual(
+      fontFamilies(effectiveValue(onScreen, ".article-body", "font-family")),
+      [
+        "Hiragino Sans",
+        "Noto Sans JP",
+        "Yu Gothic UI",
+        "system-ui",
+        "sans-serif",
+      ],
+    );
+  });
+
+  it("applies the Japanese rules to the root, the body and the article only", () => {
     // The set, not the order: a second block for the same selector is fine,
     // while any other selector -- including one inside a conditional block --
     // is not.
     const selectors = new Set(
       all
-        .map((entry) => entry.rule.selectorText)
+        .map((entry) => selectorsOf(entry).join(", "))
         .filter((selector) => selector.includes(":lang(ja)")),
     );
     assert.deepEqual([...selectors].sort(), [
-      ":root:lang(ja)",
+      ":root:lang(ja), .article-body",
       "body:lang(ja)",
     ]);
   });
@@ -875,7 +979,7 @@ describe("Japanese typography", () => {
     );
   });
 
-  it("sets a line height only on the Japanese body", () => {
+  it("sets a line height only on the Japanese body and the article", () => {
     const selectors = new Set(
       onScreen
         .filter(
@@ -883,6 +987,6 @@ describe("Japanese typography", () => {
         )
         .map((entry) => entry.rule.selectorText),
     );
-    assert.deepEqual([...selectors], ["body:lang(ja)"]);
+    assert.deepEqual([...selectors].sort(), [".article-body", "body:lang(ja)"]);
   });
 });

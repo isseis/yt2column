@@ -22,6 +22,7 @@
   --disabled-bg: #e8eaed;
   --disabled-text: #5f6368;
   --focus: #1a5fc8;
+  --code-bg: #f1f3f4;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -41,6 +42,7 @@
     --disabled-bg: #3c4043;
     --disabled-text: #9aa0a6;
     --focus: #8ab4f8;
+    --code-bg: #303134;
   }
 }
 
@@ -224,8 +226,11 @@ body {
 
 /* Japanese typography: the html element carries the page language, so these
    rules reach the whole page through inheritance, and the request id's
-   monospace rule, written directly on the element, still wins. */
-:root:lang(ja) {
+   monospace rule, written directly on the element, still wins. The article
+   is Japanese whatever the page language, so it takes the same candidates
+   in an English page too; its code's monospace rule still wins. */
+:root:lang(ja),
+.article-body {
   font-family:
     "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", system-ui, sans-serif;
 }

@@ -1,11 +1,13 @@
 /* The viewer's layout. The colour variables and the shared rules are in
    theme.css, which viewer.html loads first. */
 
-/* The page reads in one column of a comfortable width, centred in the tab. */
+/* The page reads in one column, centred in the tab, wide enough for the
+   article's line and its border and padding (720 + 2 * 17 = 754px). The
+   max-width is the content width: the body's padding lies outside it. */
 body {
   margin: 0 auto;
   padding: 1.5rem 1rem;
-  max-width: 48rem;
+  max-width: 800px;
 }
 
 /* Keep bidirectional control characters in a value from reordering the
@@ -50,17 +52,25 @@ body {
   border-radius: 0.5rem;
 }
 
-/* The article drawn from its Markdown. */
+/* The article drawn from its Markdown: 16px text at a line height of 1.8,
+   and a line at most 720px (45 characters) wide. Its font size is fixed, not
+   taken from the page's 14px root. A long URL or run of symbols wraps
+   anywhere, so a 320px tab never scrolls sideways. */
 .article-body {
+  box-sizing: content-box;
+  max-width: 720px;
+  font-size: 16px;
+  line-height: 1.8;
   overflow-wrap: anywhere;
-  padding: 1rem;
+  padding: 16px;
   border: 1px solid var(--border);
   border-radius: 0.5rem;
 }
 
 /* Each block keeps its line breaks and spaces, and each of its lines takes
    its direction from its own text, so a right-to-left line does not reorder
-   the lines around it. The article element itself is left to right. */
+   the lines around it. The article element itself is left to right. A code
+   block's long line wraps inside the block. */
 .article-body p,
 .article-body li,
 .article-body h2,
@@ -68,6 +78,75 @@ body {
 .article-body pre {
   white-space: pre-wrap;
   unicode-bidi: plaintext;
+  overflow-wrap: anywhere;
+}
+
+/* The blocks are spaced by their bottom margins; the last one leaves none
+   inside the border. A section heading also sets itself apart from the
+   block above it. */
+.article-body p,
+.article-body ul,
+.article-body ol,
+.article-body pre,
+.article-body h2,
+.article-body h3 {
+  margin: 0 0 1em;
+}
+
+.article-body > :last-child {
+  margin-bottom: 0;
+}
+
+.article-body h2 {
+  font-size: 1.5em;
+}
+
+.article-body h3 {
+  margin-top: 1.5em;
+  font-size: 1.25em;
+}
+
+.article-body ul {
+  padding-left: 1.5em;
+}
+
+/* The numbers sit outside the items, in the list's left padding and the
+   article's own; together they hold a nine-digit start number and its dot
+   inside the border. */
+.article-body ol {
+  padding-left: 5.5em;
+}
+
+.article-body li + li {
+  margin-top: 0.25em;
+}
+
+/* Code reads in a monospace face at the size of the text around it: a list
+   naming only monospace would fall to the browser's smaller monospace size.
+   The background marks it apart from the text. */
+.article-body code,
+.article-body pre {
+  font-family: ui-monospace, monospace;
+}
+
+.article-body code {
+  padding: 0.1em 0.25em;
+  color: var(--text);
+  background-color: var(--code-bg);
+  border-radius: 0.25rem;
+}
+
+.article-body pre {
+  padding: 0.75em 1em;
+  background-color: var(--code-bg);
+  border-radius: 0.5rem;
+}
+
+/* A code block's code takes the block's background and no padding of its
+   own, so its first line starts where the others do. */
+.article-body pre code {
+  padding: 0;
+  background-color: transparent;
 }
 
 /* A link is underlined as well as coloured, and runs left to right isolated
