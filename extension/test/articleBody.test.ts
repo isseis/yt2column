@@ -193,6 +193,13 @@ describe("drawArticleBody", () => {
     { input: "<script>alert(1)</script>", elements: ["p"] },
     { input: "<!-- x -->", elements: ["p"] },
     { input: "<div>", elements: ["p"] },
+    {
+      input: "`<img src=x onerror=alert(1)>`",
+      elements: ["p", "code"],
+      shown: "<img src=x onerror=alert(1)>",
+    },
+    { input: "**<b>x</b>**", elements: ["p", "strong"], shown: "<b>x</b>" },
+    { input: "*<i>x</i>*", elements: ["p", "em"], shown: "<i>x</i>" },
     { input: "> quote", elements: ["p"] },
     { input: "| a | b |\n| - | - |", elements: ["p"] },
     { input: "---", elements: ["p"] },
