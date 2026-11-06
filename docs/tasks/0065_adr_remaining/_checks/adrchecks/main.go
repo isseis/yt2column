@@ -8,8 +8,9 @@
 //
 // Pass the number of the pull request of the task (1 to 4), the merge-base
 // with origin/main (git merge-base origin/main HEAD), and the head of the pull
-// request. A merge-base that is not an ancestor of the head stops the run. Every file is read from those commits with git (git show, git
-// ls-tree), never from the working tree.
+// request. A merge-base that is not an ancestor of the head stops the run.
+// Every file is read from those commits with git (git show, git ls-tree),
+// never from the working tree.
 //
 // The values the checks compare with are not in this file: they are read from
 // the tables of the task's implementation plan at head, each found by the
@@ -84,6 +85,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path"
@@ -490,7 +492,7 @@ func parsePlan(doc string) (*plan, error) {
 		p.issues = append(p.issues, issueRow{kebab: kebab, number: number})
 	}
 	// Every new ADR has a history row, so the history check finds each one.
-	for kebab := range p.adrPR {
+	for _, kebab := range slices.Sorted(maps.Keys(p.adrPR)) {
 		if !slices.ContainsFunc(p.history, func(h historyRow) bool { return h.kebab == kebab }) {
 			return nil, fmt.Errorf("%w: history: no row for %s", errTable, kebab)
 		}
