@@ -1,0 +1,371 @@
+# 実装計画書：ADR の残りの候補 20 件と、0058・0059 の決定の反映
+
+## Document Status
+
+| Item | Value |
+|---|---|
+| Status | `draft` |
+| Created | 2026-11-06 |
+| Review date | - |
+| Reviewer | - |
+| Comments | - |
+
+本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の項番を、「設計書 3.1」などは設計書の節を指す。用語（ADR、主題、候補、調査の番号、出典のタスク、仕様の正本の文書、PR の基点、規約、移す、移し元・移し先、移す項目の一覧、経緯に入るタスク、決定を記録する節）は、要件書 6 章と設計書の冒頭に従う。本タスクに `implementation_handoff.md` はない。[design_handoff.md](design_handoff.md) の H-01〜H-05 は、設計書の付録 A がすべて記録している。
+
+既存のファイルについての記述は、コミット `8437995a`（2026-11-06 の `main`）で確かめた。設計書が照合したコミット `622db232` から `8437995a` までに `main` に入ったのは、#701（0063 の記事の Markdown の解析）、#702（0066 の要件定義）、#703（本タスクの設計書）の 3 つである。この間に、設計書が行番号を引いた ADR（ADR-0001・0004・0005・0006・0008・0009・0010・0011・0012・0014）、`docs/dev/project_overview.md`、`docs/dev/security.md`、規約は変わっていない。`git diff --quiet 622db232 8437995a -- <これらのパス>` が終了コード 0 で終わることで確かめた。変わったのは、ADR-0003（0066 の更新。設計書が引く `:30`・`:59` の行の位置は変わらない）、ADR-0018 の新設（0066）、索引、CLAUDE.md（0063 の例外の段落）、`extension/src/core/articleMarkdown.ts` ほか拡張のファイル（0063）である。
+
+## 1. 実装の概要 (Implementation Overview)
+
+### 1.1. 目的
+
+0060 で ADR にしなかった 20 件の主題を新しい ADR にし、0058・0059 の決定を既存の ADR に反映する。何を書くか（候補の振り分け、移す部分、正本の文書、経緯に入るタスク、0058・0059 の照合、確かめの方法）は、設計書 1〜7 章で決まっている。本書は、それをどの順序で、どの PR に分け、どう確かめるかを定める。あわせて、設計書が実装計画に任せた値（ADR の `<kebab>` の名前、経緯に入れるタスクの一覧、移す項目の一覧）を決める。
+
+### 1.2. 実装の原則
+
+-   フェーズは設計書 8 章の 4 つの PR（①〜④）に合わせ、1 つのフェーズを 1 つの PR にする。
+-   ADR に書く内容は設計書 3 章・6.2 を参照し、本書では繰り返さない。ADR の文の最終的な言い方は、書くときに決める。
+-   新しい ADR は番号の順に 1 本ずつコミットし、各コミットに、その ADR の索引の行と、その ADR への移し（移し元から除くことと、除いた位置のリンク）を入れる。`TestADRRecords` は、どのコミットでも索引と ADR が一対一で番号が抜けなく続くことを求める。移しを同じコミットに入れるのは、設計書 5.2 のとおり、決定がどの ADR からも抜け落ちたコミットを作らないためである。
+-   リンクとリンク先は、同じコミットに入れるか、リンク先を先にコミットする。各コミットで `make test` が通るようにする。
+-   `_checks/` のプログラムは、対象を壊すと `NG` になることを実装のときに確かめ、コミットメッセージにそう書く（CLAUDE.md「Testing Strategy」）。
+-   Go のコメント・識別子・文字列リテラルは英語で書く（CLAUDE.md「Go Idioms」）。`_checks/` のプログラムは guard-test literal exception の範囲に入らないので、日本語のリテラルを持たない。日本語の値（移す文）は、本書の表から読む（1.3）。
+-   各フェーズの終わりに、グリーンゲート（`make test && make lint`）を通す。本タスクは拡張・README・`docs/dev/guides/development.md`・`.gitignore` を変えないので、`make ext-test` は要らない（CLAUDE.md「Development Notes」）。
+
+### 1.3. 計画の際に決めたこと（2026-11-06）
+
+レビュアーと決めたこと:
+
+-   **今書ける一覧は本書に書き、ADR を書くまで決まらない値は、その ADR を書く PR で埋める。** 本書に、ADR の `<kebab>` と PR（1.5）、ADR ごとの経緯に入れるタスクの番号（1.6）、移す文と書き換える行の PR の基点の文面（1.7）を、今の `main` から書く。移す範囲を、この計画の PR でレビューできるようにするためである。経緯の項目の出典の節と日付（1.6）、リンクを置くために書き換えた行の後の文面（1.7）は、ADR を書いてみないと決まらないので、その ADR を書く PR で埋める。ADR の判断：本タスクの進め方の決定で、タスクの中で閉じるので、ADR は作らない。
+-   **A8 の ADR と ADR-0018 は、互いにリンクする。** 0066 が `622db232` の後に作った ADR-0018（`0018-server-config-file.md`）は、「サーバが環境変数から読むのは `HOME` と `GODEBUG` だけ」と決めており、環境変数を読む場所という A8 の主題と重なる。設計書 1.2 の「重なるが移さない部分は、互いにリンクする」を当てはめ、② で A8 の ADR から ADR-0018 へ、ADR-0018 の「決定」の 1 つ目の項目から A8 の ADR へリンクする。ADR-0018 は設計書 2.2 の変更ファイルの一覧にないが、それは設計書の照合の時点で ADR-0018 がなかったためである。設計書 6.1 の「`622db232` の後に `main` に入ったタスクの文書とコードを、PR の主題と照合する」の結果として扱う。0066 は実装中なので、ADR-0018 を同時に変える PR と競合しうる。そのときは規約「Taking in `main`」に従う。ADR の判断：同上。
+
+上の決定と設計書から導いたこと（PR のレビューで異論があれば改める）:
+
+-   **新しい ADR の番号は `0019`〜`0038` にする。** 0066 が `0018` を先に使ったので、設計書 3.1 の「ほかのタスクが先に番号を取ったときは、次の空き番号を使う」に従い、設計書の予定の番号を 1 つずつずらす。対応は 1.5 の表に置く。本書のほかの箇所は 1.5 の表の番号で書く。
+-   **`_checks/` のプログラムは、本書の表を ASCII の目印で探して読む。** 設計書 7.3 は、確かめが読む値を実装計画の一覧から読むとしている。移す文は日本語なので、Go のコードに書き写せない。プログラムは、PR の head の本書を `git` から読み、各表の直前に置いた HTML のコメント（`<!-- adrchecks:... -->` の形。1.5〜1.7）で表を探す。表をプログラムに写さないので、本書とプログラムの値が食い違うことはない。
+-   **`0058`・`0059` の照合を含む F-002 の値も、同じプログラムで確かめる。** 既存の ADR（ADR-0006・0008・0009・0010・0011）も 1.6 の表に載せ、0058 か 0059 の文書へのリンクを経緯に求める（設計書 7.3 の表の 3 行目）。
+
+### 1.4. 既存コード調査結果
+
+**本タスクが変える ADR の箇所（`8437995a` で確かめた）**
+
+-   設計書 3.1 の「移す部分」と「移さない重なり」の表の `file:line` は、ADR-0003 を除き `622db232` から変わっていない。ADR-0003 の `:30`（正本を示す段落）と `:59`（経緯の 0041 の項目）も、0066 の更新の後で同じ行にある（`sed -n '30p;59p'` で確かめた）。
+-   移す文と書き換える行の PR の基点の文面は 1.7 の表に引いた。① が ADR-0010 の `:21`（ビューアの URL の項目）と ADR-0011 の `:36`（採らなかった案の「新しい API」）を変えるが、どちらも 1.7 の表の行ではない。
+-   ADR-0018 の「決定」の 1 つ目の項目（`docs/dev/adr/0018-server-config-file.md:17`）は、サーバが環境変数から読むものを `HOME` と `GODEBUG` に限る。A8 の ADR との相互のリンクの対象である（1.3）。
+
+**`project_overview.md` の 3 項目（AC-13）**
+
+-   「決定済みの方針」は文書で最初の `##` の節である（`docs/dev/project_overview.md:7`）。AC-13 の 3 項目は、その節の最上位の箇条の 1 番目（言語。`:9`）、2 番目（実行形式。`:10`）、6 番目（LangChain 相当。`:15`）である。`:13` は 4 番目の項目の下の入れ子の箇条で、数えない。
+-   位置のずれを見逃さないための目印は、1 番目は `docs/tasks/0007_browser_extension_skeleton/` のコードスパン、2 番目は `cmd/yt2column-nmhost` のコードスパン、6 番目は ASCII の語 `LangChain` である（6 番目にはコードスパンがない）。
+-   2 番目の項目は、0060 が足した ADR-0005・ADR-0008 へのリンクを末尾に持つ。0066 の AC-33 は「方針と設定の節」を書き換えるので、本タスクの PR の間に、この節が変わりうる（5 章）。
+
+**`_checks/` の既存の例**
+
+-   `docs/tasks/0060_adr_records/_checks/task_docs_unchanged.sh` は、マージの基点と head の間で、自分のタスクのディレクトリの外の `docs/tasks/` が変わっていないことを確かめる。`task` の変数を変えれば本タスクに使える（AC-12）。
+-   `docs/tasks/0060_adr_records/_checks/adrlinks/main.go` は、`//go:build test` を 1 行目に持ち、`go run -tags test` で動き、2 つのコミットのファイルを `git` から読む。`history-sources`（経緯の節を 6 番目の `##` の節として探し、各タスクの文書へ解決される相対リンクを求める）と `overview-items`（項目を位置と目印で探し、末尾の ADR のリンクの並びを除いた文の比較と、リンク先の比較を行う）は、本タスクの確かめにほぼそのまま使える。`quick-links` と `viewer-appendix` は 0060 だけのもので、使わない。ADR を番号ではなく `<kebab>` で探す作りも、そのまま使う。
+-   `_checks/` は `./...` の外にあるので、`make lint` と `make deadcode` の対象にならない。`go vet -tags test` を別に実行する（0060 のステップ 1-6 と同じ）。
+-   `/runplan` の手順 6.5 の確かめは、変えた Go のファイルに `AC-NN` があると拒む（`.claude/commands/runplan.md` の手順 6.5）。プログラムは確かめを内容を表す名前で呼び、AC の番号を書かない。
+
+**既存のテスト**
+
+-   `TestADRRecords`（`cmd/yt2column/adr_test.go`）は、新しい ADR と索引の行を、追加の設定なしで確かめる（AC-14）。`TestInstructionDocPaths`（`cmd/yt2column/docpaths_test.go`）は、`docs/dev` の文書のリンク先の実在を確かめる。本タスクはどちらも変えない。
+-   `project_overview.md` を読むテスト（`cmd/yt2column/docs_test.go`、`cmd/yt2column-server/docs_test.go`）は、項目の末尾にリンクを足しても、読む値が変わらない（0060 のステップ 2-2 と同じ）。
+
+**型による保証:** 本タスクは製品のコードに Go の型を加えない（設計書 3 章の冒頭）。具体的な型で振る舞いを分ける設計はないので、型の作り方を列挙して確かめる必要もない。
+
+### 1.5. ADR の番号と名前
+
+設計書 3.1 の予定の番号を、1.3 のとおり 1 つずつずらす。`<kebab>` は主題を短く表す英語にする。番号はほかのタスクが先に取ればさらに変わりうるが、`<kebab>` は変えない。この表は AC-01 の主題と ADR の対応表を兼ねる。`_checks/adrchecks` は、この表の `<kebab>` と PR を読む。
+
+<!-- adrchecks:adrs -->
+| 設計書の予定の番号 | 本書の予定の番号 | 調査の番号 | `<kebab>` | PR |
+|---|---|---|---|---|
+| 0018 | 0019 | A1 | `pipeline-component-interfaces` | 2 |
+| 0019 | 0020 | A2 | `strict-json` | 2 |
+| 0020 | 0021 | A4 | `llm-client-contract` | 2 |
+| 0021 | 0022 | A5 | `cost-estimate` | 2 |
+| 0022 | 0023 | A7 | `artifact-resume` | 2 |
+| 0023 | 0024 | A8 | `env-access-in-config` | 2 |
+| 0024 | 0025 | A11 | `claude-output-limit` | 2 |
+| 0025 | 0026 | B3 | `extension-platform` | 3 |
+| 0026 | 0027 | B6 | `article-job-api` | 3 |
+| 0027 | 0028 | B9 | `no-automatic-resend` | 3 |
+| 0028 | 0029 | B10 | `extension-ui-languages` | 3 |
+| 0029 | 0030 | B12 | `minimum-chrome-version` | 3 |
+| 0030 | 0031 | C1 | `secret-closure` | 4 |
+| 0031 | 0032 | C2 | `testdata-license` | 4 |
+| 0032 | 0033 | C3 | `transcript-cache-slots` | 4 |
+| 0033 | 0034 | C4 | `template-allowlist` | 4 |
+| 0034 | 0035 | D5 | `language-policy` | 4 |
+| 0035 | 0036 | D6 | `task-document-status-records` | 4 |
+| 0036 | 0037 | D7 | `test-deletion-coverage` | 4 |
+| 0037 | 0038 | D8 | `deadcode-and-race-free-timing` | 4 |
+
+### 1.6. 経緯に入れるタスク
+
+設計書 3.3 の表の「出典のタスク」と「ほかに入るタスク」を合わせたもの（括弧の注記は除く）と、F-002 で経緯に項目を足す既存の ADR である。「出典の節・日付」の列は、その ADR を書く PR で埋める（1.3）。日付は規約「History entries」の「Date of an entry copied from an existing decision」に、項目の並びは設計書 1.2（出典の節を `main` に加えた PR のマージの順）に従う。実装で、表にないタスクが設計書 3.3 の規則に当たると分かったときは行に足し、表のタスクが規則に当たらないと分かったときは除き、どちらも「設計書との違い」の列に理由を書く（設計書 3.3・4 章）。除くタスクが要件書 F-001 の出典のタスクなら、設計書を改める（設計書 3.3「入れないもの」）。`_checks/adrchecks` は、この表の `<kebab>` と「タスク」の列を読む。
+
+<!-- adrchecks:history -->
+| `<kebab>` | タスク | 出典の節・日付 | 設計書との違い |
+|---|---|---|---|
+| `threat-model` | 0058 | （① で埋める） | - |
+| `launch-path` | 0058 | （① で埋める） | - |
+| `viewer-opening` | 0058 | （① で埋める） | - |
+| `extension-stores-nothing` | 0058 | （① で埋める） | - |
+| `webhook-publishing` | 0059 | （① で埋める） | - |
+| `pipeline-component-interfaces` | 0001 0003 0009 | （② で埋める） | - |
+| `strict-json` | 0003 0010 0019 0023 0044 | （② で埋める） | - |
+| `llm-client-contract` | 0001 0003 0019 0022 | （② で埋める） | - |
+| `cost-estimate` | 0022 0042 | （② で埋める） | - |
+| `artifact-resume` | 0017 0019 0022 | （② で埋める） | - |
+| `env-access-in-config` | 0005 0011 0026 0055 | （② で埋める） | - |
+| `claude-output-limit` | 0009 0041 | （② で埋める） | - |
+| `extension-platform` | 0007 0026 0050 | （③ で埋める） | - |
+| `article-job-api` | 0044 0050 0058 0059 | （③ で埋める） | - |
+| `no-automatic-resend` | 0011 0020 0026 0044 0050 | （③ で埋める） | - |
+| `extension-ui-languages` | 0007 0043 0050 | （③ で埋める） | - |
+| `minimum-chrome-version` | 0007 0020 0026 0046 0050 | （③ で埋める） | - |
+| `secret-closure` | 0001 | （④ で埋める） | - |
+| `testdata-license` | 0002 | （④ で埋める） | - |
+| `transcript-cache-slots` | 0002 0005 | （④ で埋める） | - |
+| `template-allowlist` | 0004 0010 | （④ で埋める） | - |
+| `language-policy` | 0032 0040 0043 0048 0052 0060 0061 | （④ で埋める） | - |
+| `task-document-status-records` | 0053 0056 0060 | （④ で埋める） | - |
+| `test-deletion-coverage` | 0027 0038 0052 0054 0055 | （④ で埋める） | - |
+| `deadcode-and-race-free-timing` | 0015 0039 0047 | （④ で埋める） | - |
+
+`8437995a` までに `main` に入った 0066 の要件定義書は、A8 の主題（環境変数を読む場所）の決定を、決定を記録する節に書いていない。読む場所の制限との関係は、0066 の [design_handoff.md](../0066_server_config_file/design_handoff.md) が設計に任せている。そのため `env-access-in-config` の行に 0066 を入れない。② の時点で 0066 の設計書が `main` にあれば、ステップ 2-1 の照合で改めて判断する。
+
+### 1.7. 移す項目の一覧
+
+設計書 3.1 の「移す部分」の文と項目を、`8437995a` の文面のまま引く。「種類」の `move` は、行の全体か一部を移し先へ移す文である。`rewrite` は、移す文を除くためか、移した位置や重なりのリンクを置くために書き換える行で、「PR の基点の文面」に書き換える前の行の全体を、「書き換えた後の文面」に書き換えた後の行の全体を書く。「書き換えた後の文面」は、その行を変える PR で埋める（1.3）。
+
+ADR を書くときに、移し元の「背景」「採らなかった案」「結果」に、移す決定だけを述べる項目がほかにも見つかったら、`move` の行を足す（設計書 1.2）。移す決定と残る決定の両方に触れる項目は、意味を変えずに分けて、`rewrite` の行にする。分けられないときは、止まって利用者に確かめる（設計書 4 章）。PR の基点の文面が `main` の取り込みで変わったときは、取り込んだ後の文面に直す（設計書 4 章）。`_checks/adrchecks` は、この表のすべての列を読む（7.1 節の `moved-items`）。
+
+<!-- adrchecks:moves -->
+| PR | 移し元 | 移し先 | 種類 | PR の基点の文面 | 書き換えた後の文面 |
+|---|---|---|---|---|---|
+| 2 | `llm-adapter-stdlib` | `pipeline-component-interfaces` | move | -   プロバイダに依存しない型と番兵: `GenerateRequest`・`GenerateResponse`・`LLMClient`、および不正なリクエスト・打ち切り・想定外の終了理由・空の応答。 | - |
+| 2 | `llm-adapter-stdlib` | `pipeline-component-interfaces` | move | -   **プロバイダに依存しない型と番兵は `internal/llm` に置く。** `LLMClient` と `GenerateRequest`・`GenerateResponse`、`ErrInvalidRequest`・`ErrTruncated`・`ErrUnexpectedFinishReason`・`ErrEmptyResponse`、リクエストの検証はここにある。 | - |
+| 2 | `llm-adapter-stdlib` | `pipeline-component-interfaces` | rewrite | -   **HTTP の送信の経路は `internal/llm/llmhttp` に置き、両方のアダプタが使う。** 期限の適用、リダイレクトの禁止、応答本文の上限、失敗の分類をここで行う。`llmhttp` はプロバイダ固有の番兵を持たず、アダプタが渡した番兵で失敗を報告する。HTTP の状態・応答本文の形・通信の失敗の番兵は、プロバイダの名前を持つので各アダプタに残す。 | （② で埋める） |
+| 2 | `llm-adapter-stdlib` | `pipeline-component-interfaces` | move | -   **番兵をすべて各アダプタに置く。** `ArticleWriter` が打ち切りを判別するために、プロバイダのパッケージを import することになる（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) 付録 A）。 | - |
+| 2 | `llm-adapter-stdlib` | `pipeline-component-interfaces` | move | -   **番兵をすべて `internal/llm` に置く。** SDK を使うプロバイダが、HTTP ステータスや応答本文の形に固有の番兵を `internal/llm` に合わせる必要が生じる（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) 付録 A）。 | - |
+| 2 | `llm-adapter-stdlib` | `pipeline-component-interfaces` | rewrite | -   プロバイダを足すときは、アダプタのパッケージと、そのプロバイダのパラメータの型のパッケージを足す。`internal/llm` の型と `llmhttp` は変えない。 | （② で埋める） |
+| 2 | `llm-adapter-stdlib` | `pipeline-component-interfaces` | move | -   プロバイダ固有の失敗（HTTP ステータス・応答本文の形・通信の失敗）は、プロバイダごとの番兵で報告される。呼び出し側は、プロバイダに依存しない 4 つの番兵だけで、打ち切り・想定外の終了理由・空の応答・不正なリクエストを判別できる。 | - |
+| 2 | `llm-adapter-stdlib` | `strict-json` | rewrite | -   応答の厳格な検証: 標準ライブラリのデコーダが黙って補正する入力を拒否する部品。 | （② で埋める） |
+| 2 | `llm-adapter-stdlib` | `strict-json` | move | -   **応答の厳格な検証は `internal/strictjson` に置き、複数のパッケージで共有する。** 字幕のパーサ、両方のアダプタ、`ArticleWriter`、`internal/publisher`、`internal/artifact`、`internal/fixprguard`、`internal/server`、`internal/nmhost`、`internal/codexreview`、`internal/coveragecompare` が使う。 | - |
+| 2 | `llm-adapter-stdlib` | `strict-json` | move | -   **厳格な JSON の部品を `internal/llm/deepseek` に複製する。** サロゲートの走査などの細かいコードが 2 か所になる（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) 付録 A）。 | - |
+| 2 | `llm-adapter-stdlib` | `strict-json` | move | -   **`internal/transcript` の非公開の関数を公開して LLM の段階から使う。** LLM の段階が字幕取得の段階に依存する（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) 付録 A）。 | - |
+| 2 | `production-profile` | `claude-output-limit` | move | -   **Claude アダプタの出力の上限の既定は 40,000 トークンとし、3 つの段階で共有する。** 本番の構成で長い動画の出力が打ち切られないようにするためである。 | - |
+| 3 | `extension-stores-nothing` | `article-job-api` | move | -   **サーバの状態はメモリにだけ置く。** 記事のキャッシュはサーバのプロセスの中だけにあり、ディスクに書かない（サーバの構成は [ADR-0005](0005-server-architecture.md)）。サーバを再起動すると、記事と投稿の状態はすべて失われ、ビューアは記事が失われたことを示す。これは受け入れる。 | - |
+| 3 | `extension-stores-nothing` | `article-job-api` | move | -   サーバを再起動すると記事と投稿の状態が失われる。利用者は記事を作り直す。投稿済みの記事を送り直すと、同じ内容がもう一度投稿されうる。 | - |
+| 3 | `webhook-publishing` | `no-automatic-resend` | rewrite | -   **成功は、HTTP の状態コードが 200 で、応答の本文が `ok` のときとする。** 1 通ごとに 30 秒で打ち切り、応答の本文は上限までしか読まない。リダイレクトには従わない。投稿は冪等ではないので、自動で再送しない。 | （③ で埋める） |
+| 3 | `webhook-publishing` | `no-automatic-resend` | move | -   **サーバが記事を保持している間は、投稿を冪等にする。** 投稿中または投稿済みの記事への投稿の操作には、投稿し直さずに受け付けたときと同じ応答を返す。記事が長いときの分割と、分割した投稿の途中で失敗したときの報告は、[security.md](../security.md) §3 と §8.2 に従う。 | - |
+| 3 | `webhook-publishing` | `no-automatic-resend` | move | -   **投稿を自動でリトライする（HTTP 429 の `Retry-After` に従う待機を含む）。** Incoming Webhook への投稿は冪等ではなく、応答を受け取れなかったメッセージを再送すると、同じメッセージが重複して投稿されうる（[0006 要件定義書](../../tasks/0006_slack_webhook_publisher/01_requirements.md) §2.3）。 | - |
+| 3 | `webhook-publishing` | `article-job-api` | rewrite | -   **投稿は利用者の操作でだけ行う。** Webhook へ投稿するのはサーバだけであり、ビューアからの投稿の操作（`POST /jobs/{key}/publish`）だけが投稿を始める。サーバの投稿のジョブは、`PrepareSlackMessages` で記事を検査・分割し、`PostMessages` で送る。CLI は投稿せず、記事を `--out` のファイルに書くだけである。生成の完了時に自動で投稿する予約は設けない。 | （③ で埋める） |
+| 4 | `threat-model` | `secret-closure` | rewrite | -   **Native Messaging のホストを起動できる拡張を固定し、秘密は `secret.Secret` で持つ。** ホストの `allowed_origins` は固定した拡張 ID のオリジンだけとし、API キーと Webhook URL は、送信先へのリクエストを除き、エラーやログを含むどの出力にも漏らさない。 | （④ で埋める） |
+| 4 | `webhook-publishing` | `secret-closure` | rewrite | -   **Webhook URL は `secret.Secret` で持ち、値を出力に流さない。** URL は、送信先への HTTP リクエストを除き、エラー・ログ・標準出力を含むどの出力にも出さない。`*url.Error` をそのまま返すと URL が現れるので、送信の失敗は URL を含まないエラーに直す。 | （④ で埋める） |
+
+ADR-0010 の結果の行（`extension-stores-nothing` → `article-job-api` の 2 行目）は、前の 2 文を B6 の ADR へ、最後の文「投稿済みの記事を送り直すと、同じ内容がもう一度投稿されうる。」を B9 の ADR へ移す（設計書 3.1）。行の全体を除くので `move` とし、移し先は前の 2 文の B6 とする。B9 の ADR がこの文を述べることは、PR のレビューで読む（7 章 AC-02）。`webhook-publishing` → `article-job-api` の `rewrite` は、移しではなく B6 へのリンクを足す行（設計書 3.1 の「移さない重なり」）だが、移し元の「決定」の行を書き換えるので、この表に載せる。`threat-model` の ③ の B3 へのリンク（`allowed_origins` の項目）は、④ で同じ行を書き換えるので、③ でリンクを足すときに、その行を ③ の `rewrite` として足す。
+
+## 2. 実装手順 (Implementation Steps)
+
+### フェーズ 1: 0058・0059 の反映と確かめのプログラム（設計書 8 章の ①）
+
+#### ステップ 1-1: 既存の ADR への 0058・0059 の反映
+
+**変更するファイル:** `docs/dev/adr/0006-threat-model.md`、`0008-launch-path.md`、`0009-viewer-opening.md`、`0010-extension-stores-nothing.md`、`0011-webhook-publishing.md`
+
+-   [ ] `8437995a` の後に `main` に入ったタスクの文書とコードを、3.4 の 5 本の主題と照合する（設計書 6.1）。結果を PR の説明に書く。
+-   [ ] ADR-0006：経緯に 0058 の T-10 の再評価の項目を足し、「結果」に T-10 を受け入れるリスクとして 1 項目を足す（設計書 3.4、AC-08）。
+-   [ ] ADR-0008：「決定」の、生成の開始を主ボタンだけが送るとする箇所を、主ボタンと副ボタンの 2 つが送る形に改め、経緯に 0058 の項目を足す（設計書 3.4、AC-11）。改める前に、`extension/src/launch.ts` の副ボタンの処理を PR の基点で読み直す。
+-   [ ] ADR-0009：「決定」に、ポップアップの選択の状態、照会付きの開始で既存の記事を表示すること、ポップアップが前面のタブを開く操作を書き足し、経緯に 0058 の項目を足す（設計書 3.4、AC-11）。
+-   [ ] ADR-0010：「決定」のビューアの URL に持つ値に `e` を足し、キーを持つ条件を今のコード（`extension/src/core/viewerUrl.ts`）に合わせ、経緯に 0058 の項目を足す（設計書 3.4、AC-09・AC-11）。
+-   [ ] ADR-0011：経緯に 0059 の失敗の通知の削除の項目を足し、採らなかった案の「新しい API の失敗を…」を「ジョブの API の失敗を…」に改める（設計書 3.4、AC-10）。
+-   [ ] 経緯の項目は設計書 1.2 の順の位置に入れる（ADR-0011 の 0059 の項目は、0062 の項目の前）。1.6 の表の 5 行の「出典の節・日付」を埋める。
+-   [ ] ADR ごとに 1 コミットにする。
+
+**完了の条件:** `go test -tags test -run 'TestADRRecords|TestInstructionDocPaths' ./cmd/yt2column` が通る。
+
+#### ステップ 1-2: 1 回だけの確かめ
+
+**変更するファイル:** `docs/tasks/0065_adr_remaining/_checks/task_docs_unchanged.sh`（新規）、`docs/tasks/0065_adr_remaining/_checks/adrchecks/main.go`（新規。`//go:build test`）
+
+-   [ ] 0060 の `task_docs_unchanged.sh` を写し、`task` の変数と冒頭のコメントのタスク名・使い方の例だけを本タスクのものに変える。実行の権限を付ける（AC-12）。
+-   [ ] 0060 の `_checks/adrlinks` を写して `_checks/adrchecks` を作る。`go run -tags test ./docs/tasks/0065_adr_remaining/_checks/adrchecks/ -pr <N> <merge-base> <head>` で動かし、ファイルは `git` から読む。値は head の本書の 1.5〜1.7 の表を、直前の `<!-- adrchecks:... -->` の目印で探して読む（1.3）。確かめは 7.1 節の 5 つで、`quick-links` と `viewer-appendix` は除く。終了コードは 0060 と同じ（実行できない確かめがあれば 2、`NG` があれば 1、それ以外は 0）とし、`-final` は持たない。`-pr 4` では、後の PR で作る ADR がないので `PENDING` が出ない。
+-   [ ] `PENDING` は、1.5 の表で `-pr` より後の PR に当たる ADR と移す項目にだけ許す。`-pr` 以前の PR に当たるものが見つからなければ `NG` とする（設計書 7.3「`PENDING` を許す範囲」）。
+-   [ ] 目印のない表、列の数の合わない行、1.5 の表にない `<kebab>`、`-pr` の値が 1〜4 でないことは、終了コード 2 で止める。
+-   [ ] 各確かめを、一時的なブランチにコミットした壊した状態で実行し、`NG` になることを確かめる。壊し方は、経緯のリンクを 1 つ消す、`move` の文を移し元に残す、表にない行を移し元から消す、移し元の「決定」のリンクを消す、`project_overview.md` の項目の文を 1 文字変える、項目のリンク先を別の ADR に変える、CLAUDE.md を 1 文字変える、である。① には新しい ADR がないので、一時的な ADR と移しもそのブランチに置く。結果をコミットメッセージに書き、一時的なブランチは消す。
+-   [ ] `task_docs_unchanged.sh` が、一時的なブランチでほかのタスクの文書を 1 つ変えると 1 で終わることを確かめ、結果をコミットメッセージに書く。
+
+**完了の条件:** `make fmt` と `go vet -tags test ./docs/tasks/0065_adr_remaining/_checks/adrchecks/` が通る。
+
+#### ステップ 1-3: 確かめの実行と記録
+
+**変更するファイル:** 本書 7.2 節
+
+-   [ ] ほかの作業がすべて終わった後に、PR のブランチで `git fetch origin main` を行い、`task_docs_unchanged.sh origin/main HEAD` と `adrchecks -pr 1 "$(git merge-base origin/main HEAD)" HEAD` を実行する。出力・終了コード・マージの基点と head のコミット ID を 7.2 節に書く。記録を書くコミットは本書だけを変える（設計書 6.1）。
+-   [ ] head が変わったら、マージの前に最後の head で実行し直し、記録を改める（設計書 6.1）。
+
+**完了の条件:** グリーンゲートが通る。`task_docs_unchanged.sh` が 0 で終わる。`adrchecks -pr 1` が 0 で終わり、`history-sources` の既存の 5 本、`moved-items`・`move-links`（① の行はない）、`overview-items` の文の比較、`claude-md-unchanged` が `OK` で、ほかは `PENDING` である。
+
+### フェーズ 2: A 系の ADR（設計書 8 章の ②）
+
+#### ステップ 2-1: A 系の 7 本の ADR
+
+**変更するファイル:** `docs/dev/adr/0019-pipeline-component-interfaces.md`〜`0025-claude-output-limit.md`（新規。1.5 の表の PR 2 の 7 本）、`docs/dev/adr/0001-llm-adapter-stdlib.md`、`0003-llm-config-contract.md`、`0004-production-profile.md`、`0005-server-architecture.md`、`0018-server-config-file.md`、`docs/dev/adr/README.md`
+
+-   [ ] 索引を読み直し、A 系の主題の有効な ADR がほかのタスクで作られていないことと、`0019` が空いていることを確かめる。番号が埋まっていれば、規約「Location and naming」に従って次の空き番号を使い、1.5 の表の「本書の予定の番号」を改める。
+-   [ ] `622db232` から PR の基点までに `main` に入ったタスクの文書とコードを、A 系の 7 つの主題と照合する（設計書 6.1）。0066 の設計書が `main` にあれば、A8 の経緯に入るかを判断する（1.6）。当たるタスクは 1.6 の表に足し、結果を PR の説明に書く。
+-   [ ] 主題ごとに、1.6 の表のタスクの `docs/tasks/<task>/` の下の文書、設計書 3.2 の正本の文書、PR の基点のコードを読み、設計書 6.2 のとおりに ADR を書く。1.6 の表の「出典の節・日付」を埋める。
+-   [ ] 1.7 の表の PR 2 の行を移す。移し元から除くことと、除いた位置に移し先の ADR へのリンクを置くことは、移し先の ADR と同じコミットに入れる（1.2）。`rewrite` の行の「書き換えた後の文面」を埋める。
+-   [ ] 設計書 3.1 の「移さない重なり」の A1（ADR-0005 の「決定」の 1 つ目の項目）と A8（ADR-0003 の正本を示す段落）、1.3 の ADR-0018 の「決定」の 1 つ目の項目に、新しい ADR へのリンクを足し、新しい ADR からもリンクする。これらの行も、移し元の行なら 1.7 の表に `rewrite` として足す。
+-   [ ] A2 の ADR の「決定」には、`package_reference.md` の `strictjson` の使い手の一覧とコードのずれ（設計書 3.5）を書く。ADR の文面が固まった後に、利用者の承認を得て、同じずれの issue がないかを探し、なければ作り、ADR からリンクする。issue の本文には、作る前に `_lib/task-pr-handoff.md` の「Mention check」を実行する。実装でほかのずれが見つかったときも同じく扱う（設計書 3.5・4 章）。
+-   [ ] PR の説明に、設計書 7.4 の 4 つ（「決定」と「採らなかった案」の出典、移し元から除いた項目と移し先の項目の対応、`622db232` の後の照合の結果、作った issue）を挙げる。
+
+#### ステップ 2-2: `project_overview.md` の A1 へのリンク
+
+**変更するファイル:** `docs/dev/project_overview.md`
+
+-   [ ] 「LangChain 相当のフレームワークや…」の項目の末尾に、半角の空白 1 つと `[ADR-0019](adr/0019-pipeline-component-interfaces.md)` の形のリンクだけを足す（設計書 3.6）。項目の要約の文は変えない。A1 の ADR と同じコミットか、その後のコミットに入れる。
+
+#### ステップ 2-3: 確かめの実行と記録
+
+**変更するファイル:** 本書 7.2 節
+
+-   [ ] ステップ 1-3 と同じく、`-pr 2` で 2 つの確かめを実行して記録する。
+
+**完了の条件（ステップ 2-1〜2-3）:** グリーンゲートが通る。`task_docs_unchanged.sh` と `adrchecks -pr 2` が 0 で終わり、② までの ADR と移しに `PENDING` がない。
+
+### フェーズ 3: B 系の ADR（設計書 8 章の ③）
+
+#### ステップ 3-1: B 系の 5 本の ADR
+
+**変更するファイル:** `docs/dev/adr/0026-extension-platform.md`〜`0030-minimum-chrome-version.md`（新規。1.5 の表の PR 3 の 5 本）、`docs/dev/adr/0005-server-architecture.md`、`0006-threat-model.md`、`0010-extension-stores-nothing.md`、`0011-webhook-publishing.md`、`docs/dev/adr/README.md`
+
+-   [ ] ステップ 2-1 の作業（索引と番号の確かめ、`622db232` の後の照合、ADR の書き方、移し、移さない重なりのリンク、issue、PR の説明）を、B3・B6・B9・B10・B12 の 5 本と、1.7 の表の PR 3 の行に行う。移さない重なりは、設計書 3.1 の表の B3・B6 の行である。
+-   [ ] B6 の ADR の「決定」は、拡張とホストとサーバがジョブの API だけを使うこと（ホストが `v` が `1` のメッセージだけを受け付けること）を述べ、旧 API を述べない。旧 API との併存、`v` の判別、0059 による削除は「経緯」に書く（AC-06）。0058 の照会の操作と 0059 の旧 API の削除を、B6 の ADR の「決定」と「経緯」に書く（設計書 3.4「F-002 と B6 の ADR の分担」）。
+-   [ ] B12 の経緯は、設計書 1.2 のとおり 0007（102）・0020（103）・0046（103 を保った）・0026（103 を保った）・0050（110）を、出典の節を `main` に加えた順に並べる。
+-   [ ] B10 の ADR の「決定」には、`README.md` の表示の言語の段落とコードのずれ（設計書 3.5）を書き、ステップ 2-1 と同じく issue を扱う。
+
+#### ステップ 3-2: `project_overview.md` の B3・B6 へのリンク
+
+**変更するファイル:** `docs/dev/project_overview.md`
+
+-   [ ] 「言語」の項目の末尾に B3 の ADR へのリンクを、「実行形式」の項目の末尾に B6 の ADR へのリンクを、ステップ 2-2 と同じ形で足す。「実行形式」は、すでにある ADR-0005・ADR-0008 のリンクの後に足す。
+
+#### ステップ 3-3: 確かめの実行と記録
+
+**変更するファイル:** 本書 7.2 節
+
+-   [ ] ステップ 1-3 と同じく、`-pr 3` で 2 つの確かめを実行して記録する。
+
+**完了の条件（ステップ 3-1〜3-3）:** グリーンゲートが通る。`task_docs_unchanged.sh` と `adrchecks -pr 3` が 0 で終わり、③ までの ADR と移しに `PENDING` がない。
+
+### フェーズ 4: C 系と D 系の ADR（設計書 8 章の ④）
+
+#### ステップ 4-1: C 系と D 系の 8 本の ADR
+
+**変更するファイル:** `docs/dev/adr/0031-secret-closure.md`〜`0038-deadcode-and-race-free-timing.md`（新規。1.5 の表の PR 4 の 8 本）、`docs/dev/adr/0006-threat-model.md`、`0011-webhook-publishing.md`、`0012-lightweight-check-in-bash.md`、`0014-deterministic-checks-in-go.md`、`docs/dev/adr/README.md`
+
+-   [ ] ステップ 2-1 の作業を、C1〜C4・D5〜D8 の 8 本と、1.7 の表の PR 4 の行に行う。移さない重なりは、設計書 3.1 の表の D5・D7 の行である。
+-   [ ] C1 の移しでは、ADR-0006 の `allowed_origins` の文と、ADR-0011 の `*url.Error` を直す文を移し元に残す（設計書 3.1）。両方の移し元から除くことと C1 の ADR を書くことを、同じコミットに入れる（設計書 5.2）。
+-   [ ] D 系（D5・D7・D8）は、CLAUDE.md の規則の文を ADR に移さず、規則へリンクする（設計書 3.2）。CLAUDE.md は変えない（AC-07）。
+-   [ ] C4 の ADR の「決定」には、`docs/dev/security.md` §6 の出典のリンクの記述とコードのずれ（設計書 3.5）を書き、ステップ 2-1 と同じく issue を扱う。
+
+#### ステップ 4-2: 確かめの実行と記録
+
+**変更するファイル:** 本書 7.2 節
+
+-   [ ] ステップ 1-3 と同じく、`-pr 4` で 2 つの確かめを実行して記録する。
+
+**完了の条件（ステップ 4-1・4-2）:** グリーンゲートが通る。`task_docs_unchanged.sh` と `adrchecks -pr 4` が 0 で終わり、`PENDING` がない。
+
+## 3. 実装順序とマイルストーン (Implementation Order and Milestones)
+
+### 3.1. マイルストーン
+
+| マイルストーン | 成果物 | 完了の判定 |
+|---|---|---|
+| M1: 0058・0059 の反映 | ADR-0006・0008・0009・0010・0011 の経緯と「決定」、`_checks/` の 2 つの確かめ | ① がマージされた |
+| M2: A 系 | A 系の 7 本、ADR-0001・0004 からの移し、ADR-0003・0005・0018 からのリンク、索引の 7 行、`project_overview.md` の 1 項目のリンク | ② がマージされた |
+| M3: B 系 | B 系の 5 本、ADR-0010・0011 からの移し、ADR-0005・0006・0011 からのリンク、索引の 5 行、`project_overview.md` の 2 項目のリンク | ③ がマージされた |
+| M4: C 系と D 系 | C 系と D 系の 8 本、ADR-0006・0011 からの移し、ADR-0012・0014 からのリンク、索引の 8 行 | ④ がマージされた |
+
+① → ② → ③ → ④ の順にマージする（設計書 8 章）。番号は抜けなく続く必要があり、ADR を書く作業を並行して進めても、PR を開くのは前の PR のマージの後にする。
+
+## 4. テスト戦略 (Test Strategy)
+
+設計書 7 章のとおりである。どの AC をどの確かめで確かめるかは 7 章に示す。
+
+-   **単体テスト・結合テスト:** N/A。恒久的なテストは足さない（要件書 2.3、設計書 7.1・7.2）。
+-   **実際の文書に対する確かめ:** 既存の `TestADRRecords` が ADR と索引を、既存の `TestInstructionDocPaths` がリンク先の実在を、`make test` と CI の `doc-guard` ジョブで確かめる。
+-   **後方互換:** 既存のテストは変えない。`project_overview.md` を読む既存のテストが通ることを、各フェーズのグリーンゲートで確かめる。
+-   **1 回だけの確かめ:** `task_docs_unchanged.sh`（AC-12）と `_checks/adrchecks`（AC-01・AC-02・AC-05・AC-07〜AC-11・AC-13）を各 PR で実行し、7.2 節に記録する。
+-   **壊して確かめる:** `_checks/` の各確かめは、対象を壊して `NG` になることを実装のときに確かめ、コミットメッセージに書く（ステップ 1-2）。
+-   **読んで確かめる:** 文の内容を定める AC は、PR のレビューで読む。そのために、各 PR の説明に設計書 7.4 の 4 つを挙げる。
+-   **カバレッジ:** 数値の目標は置かない。本タスクはテストを削除しないので、`make coverage-compare` は使わない。
+-   **セキュリティ:** N/A（設計書 7.5）。
+
+## 5. リスク管理 (Risk Management)
+
+| リスク | 影響 | 対策 |
+|---|---|---|
+| ほかのタスクが本タスクの途中で ADR を作り、番号が埋まる | 予定の番号が使えない | 各フェーズの最初に索引を読み直し、次の空き番号を使い、1.5 の表を改める。`adrchecks` は `<kebab>` で ADR を探すので、番号が変わっても動く |
+| 0066 が、本タスクの PR の間に ADR-0003・ADR-0018 や `project_overview.md` の「決定済みの方針」、`internal/config` の環境変数の読み取りを変える | A8 の ADR の「決定」と経緯がコードと食い違う。`overview-items` の目印や文の比較が合わなくなる | `main` を取り込んだら、設計書 6.1 の照合をやり直す。`overview-items` は PR ごとに基点と head を比べるので、ほかのタスクの変更は比較に入らない。目印が合わずに終了コード 2 になったら、目印を直す |
+| 移し元から除いた決定が、移し先に書かれない | 決定がどの ADR にも書かれなくなる | 除くことと書くことを同じコミットに入れる（1.2）。`moved-items` で除いた行が一覧と一致することを確かめ、移し先が同じ内容を述べることを PR のレビューで読む（設計書 5.2） |
+| ADR に出典にない採らなかった案や理由を書き足す | AC-04 を満たさない | PR の説明に出典を挙げ、レビュアーが照らす（設計書 7.4） |
+| issue の作成の承認が得られない | AC-03 を満たせない | PR を開かずに止まり、利用者に扱いを確かめ、決めた扱いを本書に記録する（設計書 4 章） |
+| ③ と ④ が ADR-0006・0011 を共に変える | ③ の書き換えた行と ④ の移す行が重なる | 1.7 の表の後の段落のとおり、③ で書き換えた行は ④ の表の文面を改める |
+
+## 6. 実装チェックリスト (Implementation Checklist)
+
+- [ ] フェーズ 1 完了（ステップ 1-1 / 1-2 / 1-3）
+- [ ] フェーズ 2 完了（ステップ 2-1 / 2-2 / 2-3）
+- [ ] フェーズ 3 完了（ステップ 3-1 / 3-2 / 3-3）
+- [ ] フェーズ 4 完了（ステップ 4-1 / 4-2）
+
+## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
+
+種別は `test`（`make test` で実行するテスト）、`static`（`_checks/` の、PR ごとに 1 回実行するプログラムのうち head だけを読む確かめ）、`diff`（`_checks/` の、マージの基点と PR の head を比べる確かめ）、`manual`（PR のレビューで読む）である。`static` と `diff` の実行の記録は 7.2 節に書く。
+
+| AC | 種別 | 確かめ | ステップ |
+|---|---|---|---|
+| AC-01 | static・test・manual | static: `docs/tasks/0065_adr_remaining/_checks/adrchecks/main.go`（`history-sources`。`-pr 4` で 1.5 の表の 20 本がすべて head にある）。test: `cmd/yt2column/adr_test.go::TestADRRecords`（既存）。manual: 1.5 の表の主題と ADR が一対一で、各 ADR の主題が表の主題であることを読む | 1-2・2-1・3-1・4-1・4-2 |
+| AC-02 | diff・manual | diff: `_checks/adrchecks`（`moved-items`：1.7 の表の `move` と `rewrite` の前の文面が基点の移し元にあって head の移し元にない。移し元の「背景」「決定」「採らなかった案」「結果」から除かれた行がすべて表の行に当たる。`move-links`：移し元の「決定」に移し先の ADR へのリンクがある）。manual: 移し先が除いた項目と同じ内容を述べていることを、`moved-items` の並べた表示で読む。ほかの有効な ADR が新しい主題を自分の決定として述べていないことを読む | 1-2・2-1・3-1・4-1 |
+| AC-03 | manual | PR の説明の「決定」の出典（コードの `file:line` と PR の基点のコミット ID）と照らす。作った issue と ADR の位置を読む（設計書 7.4） | 2-1・3-1・4-1 |
+| AC-04 | manual | PR の説明の「採らなかった案」の出典と照らす | 2-1・3-1・4-1 |
+| AC-05 | static・manual | static: `_checks/adrchecks`（`history-sources`：1.6 の表の各タスクについて、経緯に `docs/tasks/<番号>_*/` の文書へのリンクがある）。manual: 項目の要旨・日付・並びを読み、1.6 の表の「設計書との違い」の理由を読む | 1-2・2-1・3-1・4-1 |
+| AC-06 | manual | ③ のレビューで、B6 の ADR の「決定」と「経緯」を読む | 3-1 |
+| AC-07 | diff・manual | diff: `_checks/adrchecks`（`claude-md-unchanged`：CLAUDE.md が基点と head で同じ）。manual: 「決定」が設計書 3.2 の正本へリンクし、表・列挙・規則の一覧を書き写していないことを読む | 1-2・2-1・3-1・4-1 |
+| AC-08 | static・manual | static: `_checks/adrchecks`（`history-sources` の `threat-model` の行）。manual: 項目が T-10 の再評価を述べていることを読む | 1-1・1-2 |
+| AC-09 | static・manual | static: 同上（`extension-stores-nothing` の行）。manual: 項目が方針を保ったことを述べていることを読む | 1-1・1-2 |
+| AC-10 | static・manual | static: 同上（`webhook-publishing` の行）。manual: 項目が失敗の通知の削除を述べ、「決定」が通知の経路を述べていないことを読む | 1-1・1-2 |
+| AC-11 | static・manual | static: 同上（`threat-model`・`launch-path`・`viewer-opening`・`extension-stores-nothing`・`webhook-publishing` の行）。manual: 判断と理由が設計書 3.4 の表にあること、ADR-0008・0009・0010 の「決定」が PR の基点のコードと食い違わないことを読む | 1-1・1-2 |
+| AC-12 | diff | `docs/tasks/0065_adr_remaining/_checks/task_docs_unchanged.sh`（各 PR で実行） | 1-2・1-3・2-3・3-3・4-2 |
+| AC-13 | diff | `_checks/adrchecks`（`overview-items`：3 項目の文が、足したリンクを除いて基点と同じで、末尾のリンク先が基点のリンク先に設計書 3.6 の表の ADR を足したものと一致する）。リンクの実在は `cmd/yt2column/docpaths_test.go::TestInstructionDocPaths`（既存） | 1-2・2-2・3-2・各 PR の確かめ |
+| AC-14 | test | `cmd/yt2column/adr_test.go::TestADRRecords`（既存。番号の順、題名と状態の一致） | 2-1・3-1・4-1 |
+
+### 7.1. `_checks/adrchecks` の確かめ
+
+| 確かめ | 読むもの | 内容 |
+|---|---|---|
+| `history-sources` | head | 1.6 の表の各 `<kebab>` の ADR の経緯（6 番目の `##` の節）に、各タスクの `docs/tasks/<番号>_*/` の下の文書へ解決される相対リンクがある。ADR がなければ、1.5 の表の PR で `PENDING` か `NG` を決める（既存の ADR はつねにある） |
+| `moved-items` | 基点と head | 1.7 の表の行ごとに、`-pr` の PR の行は「PR の基点の文面」が基点の移し元にあり head の移し元にない。`rewrite` の行は、head の移し元に「書き換えた後の文面」がある。`-pr` より前の PR の行は、基点にも head にもない。後の PR の行は `PENDING`。あわせて、`-pr` の PR の行を持つ移し元の「背景」「決定」「採らなかった案」「結果」から基点と head の間に除かれた行が、すべてその PR の行の「PR の基点の文面」に当たる。除いた項目と、移し先の ADR の同じ節を並べて表示する |
+| `move-links` | head | 1.7 の表の `-pr` 以前の PR の行の移し元ごとに、「決定」の節に移し先の ADR への相対リンクがある |
+| `overview-items` | 基点と head | `project_overview.md` の「決定済みの方針」の 1・2・6 番目の項目を、位置と 1.4 の目印で探す。文の比較とリンク先の比較は 0060 の `overview-items` と同じ。足すリンク先は、言語が `extension-platform`、実行形式が `article-job-api`、6 番目が `pipeline-component-interfaces` で、後の PR の ADR は `PENDING` |
+| `claude-md-unchanged` | 基点と head | CLAUDE.md が基点と head で同じ |
+
+### 7.2. 実行の記録
+
+（ステップ 1-3・2-3・3-3・4-2 で記入する。各 PR の `task_docs_unchanged.sh` と `_checks/adrchecks` の出力・終了コード・マージの基点と head のコミット ID、作った issue の URL を書く。）
+
+## 8. 成功基準 (Success Criteria)
+
+-   **機能の完成度:** 7 章のすべての行の確かめが済み、7.2 節に 4 つの PR の確かめの記録がある。`adrchecks -pr 4` が `PENDING` を表示しない。
+-   **品質:** 各 PR でグリーンゲート（`make test && make lint`）が通る。① で `go vet -tags test` が `_checks/adrchecks` に通る。`_checks/` の確かめは、対象を壊して `NG` になることをコミットメッセージに記録している。
+-   **セキュリティ:** N/A（要件書 4.2）。
+-   **文書:** 20 本の ADR と索引の行があり、移し元の ADR は移した位置から移し先へリンクし、`project_overview.md` の 3 項目が ADR へリンクしている。
+
+## 9. 次のステップ (Next Steps)
+
+-   ④ のマージの後、`/runpr` が issue #666 を閉じる案内をする（本タスクの最後の PR のため）。
+-   設計書 9 章の将来の拡張（A8 と C1 の正本の文書の欠け、本タスクより前からある ADR 同士の重なり）は、その主題を変える後のタスクに任せる。
