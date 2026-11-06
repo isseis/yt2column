@@ -16,7 +16,7 @@ import type {
 } from "../core/jobView.ts";
 import { publishResultMessage } from "../core/sendMessages.ts";
 import type { ViewerParams } from "../core/viewerUrl.ts";
-import { renderArticleBody } from "./articleBody.ts";
+import { drawArticleBody } from "./articleBody.ts";
 import { messageNodes } from "./message.ts";
 import {
   drawStateOnChange,
@@ -274,14 +274,16 @@ function drawExisting(
 }
 
 /**
- * Draws the existing-article notice, the state, the article and the
- * operations. The state summary's region is written only when its text
- * changes, so a poll that repeats the same result, or the elapsed time's
- * redraw, is not read out again. The
- * article is replaced only when its text changes, so a redraw keeps the
- * reader's selection. The operations are shown with an article: save and copy
- * can always be pressed, and the publish button only when publishControl's
- * row allows it. Focus is never moved.
+ * Draws the existing-article notice, the state, the operations and the
+ * article, in that order. The state summary's region is written only when
+ * its text changes, so a poll that repeats the same result, or the elapsed
+ * time's redraw, is not read out again. The operations are shown with an
+ * article: save and copy can always be pressed, and the publish button only
+ * when publishControl's row allows it. They are set before the article is
+ * drawn, so saving and copying work even if drawing the article fails. The
+ * article is drawn from its Markdown again only when the Markdown changed or
+ * the article was hidden in between, so a redraw keeps the reader's focus
+ * and selection inside it. Focus is never moved.
  */
 export function renderViewer(
   elements: ViewerElements,
@@ -315,11 +317,6 @@ export function renderViewer(
     elements.copy.disabled = true;
     return;
   }
-  elements.article.hidden = false;
-  if (elements.article.textContent !== article.markdown) {
-    elements.article.replaceChildren(renderArticleBody(doc, article.markdown));
-  }
-
   const control = publishControl(job, view.publishing);
   elements.actions.hidden = false;
   elements.publish.textContent = catalog.viewer.publish;
@@ -333,6 +330,11 @@ export function renderViewer(
   elements.save.disabled = false;
   elements.copy.textContent = catalog.viewer.copy;
   elements.copy.disabled = false;
+
+  // After the operations, so a fault in drawing the article still leaves
+  // saving and copying it.
+  elements.article.hidden = false;
+  drawArticleBody(elements.article, article.markdown);
 }
 
 /** The message for an operation's result; none for no result. */

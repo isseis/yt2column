@@ -204,12 +204,13 @@
 
 #### ステップ 3-1: `drawOnKeyChange` を取り出す
 
-**変更するファイル:** `extension/src/ui/drawOnChange.ts`（新規）、`extension/src/ui/renderJob.ts`
+**変更するファイル:** `extension/src/ui/drawOnChange.ts`（新規）、`extension/src/ui/renderJob.ts`、`extension/test/drawOnChange.test.ts`（新規）
 
--   [ ] 設計書 3.4 の `drawOnKeyChange` を書き、`drawStateOnChange` の鍵と子のノードの比較をこれに置き換える。`drawStateOnChange` の振る舞い（描かなかったときだけ経過時間の値を書き換える）は変えない。
--   [ ] 覚えた鍵は `WeakMap` に置き、DOM の属性に書かない（設計書 3.4）。
+-   [x] 設計書 3.4 の `drawOnKeyChange` を書き、`drawStateOnChange` の鍵と子のノードの比較をこれに置き換える。`drawStateOnChange` の振る舞い（描かなかったときだけ経過時間の値を書き換える）は変えない。
+-   [x] 覚えた鍵は `WeakMap` に置き、DOM の属性に書かない（設計書 3.4）。
+-   [x] テスト（`drawOnKeyChange`）: 最初は描き、同じ鍵と子では描かず、鍵が変わると描く。同じ鍵でも、子が同じ数の別のノードに置き換えられたとき、子が後ろに加えられたとき、子が消されたとき、`draw` が例外を投げた後は描く。今のテストは、子のノードの比較の 2 つの条件（数と、ノードごとの一致）を片方だけ外しても通るため、共通の関数として直接確かめる。
 
-**完了の条件:** `make ext-check` が、既存のテストを変えずに通る。次を壊して、名前を挙げたテストが失敗することを確かめる: 鍵の比較を外す（`renderViewer.test.ts:523` の、状態を変えた後の確かめ）、子のノードの比較を外す（`render.test.ts:1088`）、比較をせず常に描く（`render.test.ts:1067`）。
+**完了の条件:** `make ext-check` が、既存のテストを変えずに通る。加えた `drawOnChange.test.ts` も、子の数の比較を外す（後ろに加えた場合）、ノードごとの比較を外す（同じ数の別のノードの場合）、鍵を覚えてから `draw` を呼ぶ（例外の後の場合）と失敗する。次を壊して、名前を挙げたテストが失敗することを確かめる: 鍵の比較を外す（`renderViewer.test.ts:523` の、状態を変えた後の確かめ）、子のノードの比較を外す（`render.test.ts:1088`）、比較をせず常に描く（`render.test.ts:1067`）。
 
 ### フェーズ 4: 組み立てと描画
 
@@ -217,21 +218,21 @@
 
 **変更するファイル:** `extension/src/ui/articleBody.ts`、`extension/test/articleBody.test.ts`、`extension/test/helpers/articleDom.ts`（新規）
 
--   [ ] `buildArticleBody` を、設計書 3.2 の表の要素と属性だけで書く。木の種類の `switch` は `default` で `never` に代入して例外を投げる形にする。`a` を作り `href` を設定する関数は 1 つだけで、`LinkUrl` だけを受け取る。子は 1 つずつ加え、配列を引数に広げない。ブロックの間と `li` の間に文字のノードを置かない。
--   [ ] `drawArticleBody` を、表示用の Markdown を鍵とする `drawOnKeyChange` の呼び出しで書く。描くときは、作った `div` 1 つで `container` の子を置き換える。`renderArticleBody` はステップ 4-4 まで残す。
--   [ ] `articleBody.ts` の先頭のコメントを、解釈と組み立てを分けた構成に合わせて書き直す。
--   [ ] `helpers/articleDom.ts` に、作った DOM の木をたどり、設計書 7.1「要素と属性の一覧」の条件を確かめる関数を書く。値は解釈の関数を使わずに確かめる。固定の属性（記事の要素の `class`・`dir`・`lang`、`a` の `target`・`rel`・`dir`）が決めた値であることと、記事の要素の下のノードが要素と文字だけであること（AC-18 の `<!-- x -->` からコメントのノードを作らない）も確かめる。
--   [ ] テスト（`buildArticleBody`）: 設計書 7.1 の組み立ての項目。解釈の関数では作れない記事の木（例: 空の項目の列）も、手で書いた木から確かめる。
--   [ ] テスト（`drawArticleBody`）: `textContent` が、手で書いた期待する文字列と一致すること（AC-12・AC-21）。AC-13 の出典の行でリンクが作られ、`helpers/articleDom.ts` の確かめが通ること。AC-18・AC-19 の入力に `helpers/articleDom.ts` の関数を当てはめ、タグから要素も属性も作られないこと（AC-18・AC-20）。AC-14・AC-15 の例で `a` が作られないこと。
+-   [x] `buildArticleBody` を、設計書 3.2 の表の要素と属性だけで書く。木の種類の `switch` は `default` で `never` に代入して例外を投げる形にする。`a` を作り `href` を設定する関数は 1 つだけで、`LinkUrl` だけを受け取る。子は 1 つずつ加え、配列を引数に広げない。ブロックの間と `li` の間に文字のノードを置かない。
+-   [x] `drawArticleBody` を、表示用の Markdown を鍵とする `drawOnKeyChange` の呼び出しで書く。描くときは、作った `div` 1 つで `container` の子を置き換える。`renderArticleBody` はステップ 4-4 まで残す。
+-   [x] `articleBody.ts` の先頭のコメントを、解釈と組み立てを分けた構成に合わせて書き直す。
+-   [x] `helpers/articleDom.ts` に、作った DOM の木をたどり、設計書 7.1「要素と属性の一覧」の条件を確かめる関数を書く。値は解釈の関数を使わずに確かめる。固定の属性（記事の要素の `class`・`dir`・`lang`、`a` の `target`・`rel`・`dir`）が決めた値であることと、記事の要素の下のノードが要素と文字だけであること（AC-18 の `<!-- x -->` からコメントのノードを作らない）も確かめる。
+-   [x] テスト（`buildArticleBody`）: 設計書 7.1 の組み立ての項目。解釈の関数では作れない記事の木（例: 空の項目の列）も、手で書いた木から確かめる。
+-   [x] テスト（`drawArticleBody`）: `textContent` が、手で書いた期待する文字列と一致すること（AC-12・AC-21）。AC-13 の出典の行でリンクが作られ、`helpers/articleDom.ts` の確かめが通ること。AC-18・AC-19 の入力に `helpers/articleDom.ts` の関数を当てはめ、タグから要素も属性も作られないこと（AC-18・AC-20）。AC-14・AC-15 の例で `a` が作られないこと。
 
 **完了の条件:** `make ext-check` が通る。次を壊して、名前を挙げたテストが失敗することを確かめる: `a` の `rel` から `noreferrer` を外す（リンクの属性のテスト）、見出しの `title` を `h1` にする（見出しの段のテスト）、項目の間に改行の文字のノードを置く（AC-21 の文字列のテスト）、`helpers/articleDom.ts` の関数が許す属性の一覧に含まれない属性を組み立てで設定する（AC-20 のテスト）、記事の要素の `dir` を `auto` にする（AC-18 のテスト）、`href` を `LinkUrl` に `#` を足した値にする（AC-13 のテスト）。
 
 #### ステップ 4-2: ランダムな入力と最大の大きさの入力
 
-**変更するファイル:** `extension/test/articleBody.test.ts`
+**変更するファイル:** `extension/test/articleBody.test.ts`、`extension/test/helpers/largeMarkdown.ts`（新規。ステップ 2-4 の性能のテストの入力を、`articleMarkdown.test.ts` から移して共有する）、`extension/test/articleMarkdown.test.ts`
 
--   [ ] テスト（ランダムな入力、設計書 7.3）: ステップ 2-4 と同じ生成の関数と種で、解釈と組み立てが例外を投げないこと、`helpers/articleDom.ts` の確かめが通ること（AC-20）、描画した `textContent` が入力の文字の部分列であること（AC-21 の性質の一部）。種ごとに作られた `a` の数を数え、0 でないことも確かめる。失敗の報告は、ステップ 2-4 と同じ形にする。
--   [ ] テスト（最大の大きさ、AC-33）: 設計書 7.1「性能」の入力を 512 KiB で解釈し、組み立てても例外を投げないこと。時間は測らない。入力には、`*a*` の繰り返しの 1 行（1 つの段落に十数万の子を持つ）を含める。テストの実行時間を手元で測り、コミットのメッセージに書く。
+-   [x] テスト（ランダムな入力、設計書 7.3）: ステップ 2-4 と同じ生成の関数と種で、解釈と組み立てが例外を投げないこと、`helpers/articleDom.ts` の確かめが通ること（AC-20）、描画した `textContent` が入力の文字の部分列であること（AC-21 の性質の一部）。種ごとに作られた `a` の数を数え、0 でないことも確かめる。失敗の報告は、ステップ 2-4 と同じ形にする。
+-   [x] テスト（最大の大きさ、AC-33）: 設計書 7.1「性能」の入力を 512 KiB で解釈し、組み立てても例外を投げないこと。時間は測らない。入力には、`*a*` の繰り返しの 1 行（1 つの段落に十数万の子を持つ）を含める。テストの実行時間を手元で測り、コミットのメッセージに書く。
 
 **完了の条件:** `make ext-check` が通る。次を壊して、名前を挙げたテストが失敗することを確かめる: 組み立てで段落の子を配列の展開でまとめて加える（最大の大きさの `*a*` の入力）、`href` を `LinkUrl` に `#` を足した値にする（ランダムな入力のテスト）。前者が失敗しない場合は、配列を広げない規則の根拠をこのテストに求めず、その結果をコミットのメッセージに書き、扱いをレビューで決める。
 
@@ -239,14 +240,14 @@
 
 **変更するファイル:** `extension/src/ui/renderViewer.ts`、`extension/src/core/response.ts`、`extension/static/viewer.css`、`extension/test/renderViewer.test.ts`、`extension/test/style.test.ts`、`docs/dev/security.md`
 
--   [ ] `renderViewer` の `textContent` の比較（`:319-321`）を `drawArticleBody` の呼び出しに置き換え、操作のボタンを設定する処理（`:323-335`）をその前に移す（設計書 3.4）。関数のコメント（`:277-284`）を新しい順序と描き直しの判定に合わせて直す。
--   [ ] `viewer.css` に、切り替えと同時に要る規則を加える（1.3）: 設計書 3.5 の表の「段落・項目・見出し・コードブロックの空白」「行ごとの文字の方向」「リンク」の行。`.article-body` の規則のコメント（`:53-54`）を直す。`style.test.ts:748-757` を、これらの規則を確かめる形に書き直す（リンクの下線と `unicode-bidi: isolate` を含む）。
--   [ ] `response.ts:138` の `Article.markdown` のコメント（`The display Markdown, shown and copied unchanged.`）を、描画して表示し、コピーには変えずに使う意味の英語に直す。
--   [ ] `docs/dev/security.md` の §6 のチャンネル名の行の残余のリスク（`:76`）に、ビューアでの結果（リンク・強調になる）を書き足す（要件 1 章「方針の変更」）。§8.1「記事を untrusted テキストとして表示する」（`:117`）を、要件の規則と設計書の構成に合わせて書き換え、残余のリスクを要件 4.2 と設計書 5.3 のとおりに書く。§8.2「返す記事は untrusted なテキスト」（`:140`）の「Markdown の描画の安全性は #504 で扱う」を、§8.1 と要件を指す形に直す。
--   [ ] `renderViewer.test.ts:240-253`・`:255-268` の記事の期待する値を、描画した文字列に直す。
--   [ ] `renderViewer.test.ts:705-727` を、設計書 7.1 の描き直しのテストに書き直す（AC-32）。
--   [ ] テスト（操作のボタンの順序）: 設計書 7.1 のとおり、`elements.article` の `replaceChildren` を、その要素のものだけ別の関数に差し替え、その関数が呼ばれた時点で保存とコピーのボタンが押せることを確かめる。
--   [ ] テスト（見出しの構造、AC-25）: 出荷する `viewer.html` の文書で、動画のセクションの `h1` の後に、記事の `h2`・`h3` が文書の順に並ぶこと。
+-   [x] `renderViewer` の `textContent` の比較（`:319-321`）を `drawArticleBody` の呼び出しに置き換え、操作のボタンを設定する処理（`:323-335`）をその前に移す（設計書 3.4）。関数のコメント（`:277-284`）を新しい順序と描き直しの判定に合わせて直す。
+-   [x] `viewer.css` に、切り替えと同時に要る規則を加える（1.3）: 設計書 3.5 の表の「段落・項目・見出し・コードブロックの空白」「行ごとの文字の方向」「リンク」の行。`.article-body` の規則のコメント（`:53-54`）を直す。`style.test.ts:748-757` を、これらの規則を確かめる形に書き直す（リンクの下線と `unicode-bidi: isolate` を含む）。
+-   [x] `response.ts:138` の `Article.markdown` のコメント（`The display Markdown, shown and copied unchanged.`）を、描画して表示し、コピーには変えずに使う意味の英語に直す。
+-   [x] `docs/dev/security.md` の §6 のチャンネル名の行の残余のリスク（`:76`）に、ビューアでの結果（リンク・強調になる）を書き足す（要件 1 章「方針の変更」）。§8.1「記事を untrusted テキストとして表示する」（`:117`）を、要件の規則と設計書の構成に合わせて書き換え、残余のリスクを要件 4.2 と設計書 5.3 のとおりに書く。§8.2「返す記事は untrusted なテキスト」（`:140`）の「Markdown の描画の安全性は #504 で扱う」を、§8.1 と要件を指す形に直す。
+-   [x] `renderViewer.test.ts:240-253`・`:255-268` の記事の期待する値を、描画した文字列に直す。
+-   [x] `renderViewer.test.ts:705-727` を、設計書 7.1 の描き直しのテストに書き直す（AC-32）。
+-   [x] テスト（操作のボタンの順序）: 設計書 7.1 のとおり、`elements.article` の `replaceChildren` を、その要素のものだけ別の関数に差し替え、その関数が呼ばれた時点で保存とコピーのボタンが押せることを確かめる。
+-   [x] テスト（見出しの構造、AC-25）: 出荷する `viewer.html` の文書で、動画のセクションの `h1` の後に、記事の `h2`・`h3` が文書の順に並ぶこと。
 
 **完了の条件:** `make test`・`make lint`・`make ext-check` が通る。次を壊して、名前を挙げたテストが失敗することを確かめる: ボタンを本文の後に設定する（順序のテスト）、`drawArticleBody` の鍵を毎回変える（描き直しのテストの、同じ応答の後のフォーカスと選択）、`drawOnKeyChange` の子のノードの比較を外す（描き直しのテストの、隠した後の描き直し）、段落の `unicode-bidi` を外す（`style.test.ts` の書き直したテスト）。`viewerApp.ts` のコピーを、描画した `textContent` を書き込む形に一時的に変え、`viewerApp.test.ts:800` のテストが失敗することを確かめる（1.4）。
 
@@ -254,8 +255,8 @@
 
 **変更するファイル:** `extension/src/ui/articleBody.ts`、`extension/test/articleBody.test.ts`
 
--   [ ] `renderArticleBody`（その JSDoc を含む）と、そのテスト（`describe("renderArticleBody", …)` の全体）を、1 つのコミットで消す。このコミットはほかの変更を含まない。
--   [ ] `make ext-coverage-compare BASE=<親のコミット>` を、10 分以上の時間の上限を付けるか、バックグラウンドで動かし、出力を最後の行までコミットのメッセージ（ツリーの ID を変えずにメッセージだけを直す）と PR の説明に書く。
+-   [x] `renderArticleBody`（その JSDoc を含む）と、そのテスト（`describe("renderArticleBody", …)` の全体）を、1 つのコミットで消す。このコミットはほかの変更を含まない。
+-   [x] `make ext-coverage-compare BASE=<親のコミット>` を、10 分以上の時間の上限を付けるか、バックグラウンドで動かし、出力を最後の行までコミットのメッセージ（ツリーの ID を変えずにメッセージだけを直す）と PR の説明に書く。
 
 **完了の条件:** `make ext-check` が通り、`make ext-coverage-compare` の最後の行が `coverage-compare: PASS` である。消した関数として `renderArticleBody` が挙がる。
 
@@ -271,10 +272,10 @@
 
 **判定理由**: ステップ 4-1〜4-3 は、信頼できない記事から DOM を作る安全性の境界（セキュリティのゲート）の変更である
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/705
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 5: 文字組み
 
@@ -368,8 +369,10 @@
 | `extension/test/articleMarkdown.test.ts` | 新規。インライン・ブロック・全体の形・文字列の一致・性能・ランダムな入力 | 2-1・2-2・2-4 |
 | `extension/test/helpers/randomMarkdown.ts` | 新規。種を固定した擬似乱数と入力の生成 | 2-4 |
 | `extension/test/lintRules.test.ts` | `brands` に `LinkUrl` の行 | 2-3 |
+| `extension/test/drawOnChange.test.ts` | 新規。`drawOnKeyChange` の鍵と子のノードの比較 | 3-1 |
 | `extension/test/helpers/articleDom.ts` | 新規。DOM の要素と属性の確かめ | 4-1 |
 | `extension/test/articleBody.test.ts` | 組み立て・描画・ランダムな入力・最大の大きさを加え、`renderArticleBody` のテストを消す | 4-1・4-2・4-4 |
+| `extension/test/helpers/largeMarkdown.ts` | 新規。性能のテストの入力の形（`articleMarkdown.test.ts` から移す） | 4-2 |
 | `extension/test/renderViewer.test.ts` | 本文の値、描き直し、ボタンの順序、見出しの構造 | 4-3 |
 | `extension/test/style.test.ts` | 空白・方向・リンクの規則（`:748-757` の書き直し） | 4-3 |
 | `extension/test/style.test.ts` | 残りの記事の CSS、コントラストの組、日本語の規則の集合 | 5-1 |
@@ -432,7 +435,7 @@
 
 -   [x] PR-1 マージ済み（対象ステップ: 1-1）
 -   [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4）
--   [ ] PR-3 マージ済み（対象ステップ: 3-1 / 4-1 / 4-2 / 4-3 / 4-4）
+-   [x] PR-3 マージ済み（対象ステップ: 3-1 / 4-1 / 4-2 / 4-3 / 4-4）
 -   [ ] PR-4 マージ済み（対象ステップ: 5-1 / 5-2 / 6-1 / 6-2）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)

@@ -745,17 +745,6 @@ describe("viewer layout", () => {
     );
   });
 
-  it("keeps the article's line breaks and spaces and its text direction", () => {
-    assert.equal(
-      effectiveValue(onScreen, ".article-body", "white-space"),
-      "pre-wrap",
-    );
-    assert.equal(
-      effectiveValue(onScreen, ".article-body", "unicode-bidi"),
-      "plaintext",
-    );
-  });
-
   it("keeps bidirectional control characters inside the heading and the channel name", () => {
     for (const selector of ["#heading", "#channel"]) {
       assert.equal(
@@ -764,6 +753,37 @@ describe("viewer layout", () => {
         selector,
       );
     }
+  });
+});
+
+describe("article typography", () => {
+  const { onScreen } = parseStyleSheet(viewerSheets);
+
+  it("keeps each article block's line breaks and spaces and each line's direction", () => {
+    for (const block of ["p", "li", "h2", "h3", "pre"]) {
+      const selector = `.article-body ${block}`;
+      assert.equal(
+        effectiveValue(onScreen, selector, "white-space"),
+        "pre-wrap",
+        selector,
+      );
+      assert.equal(
+        effectiveValue(onScreen, selector, "unicode-bidi"),
+        "plaintext",
+        selector,
+      );
+    }
+  });
+
+  it("underlines the article's links and isolates their direction", () => {
+    assert.equal(
+      effectiveValue(onScreen, ".article-body a", "text-decoration"),
+      "underline",
+    );
+    assert.equal(
+      effectiveValue(onScreen, ".article-body a", "unicode-bidi"),
+      "isolate",
+    );
   });
 });
 

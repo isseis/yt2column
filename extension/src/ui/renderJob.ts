@@ -21,6 +21,7 @@ import {
   startResultMessage,
   statusNoticeMessage,
 } from "../core/sendMessages.ts";
+import { drawOnKeyChange } from "./drawOnChange.ts";
 import { loadingIcon, stepIcon } from "./icons.ts";
 import { messageNodes } from "./message.ts";
 
@@ -358,12 +359,6 @@ export function renderJobState(
   );
 }
 
-/** The state last drawn into each state container, and the nodes it drew. */
-const drawnStates = new WeakMap<
-  HTMLElement,
-  { readonly key: string; readonly nodes: readonly Node[] }
->();
-
 /**
  * Draws a state into its container only when the state, the locale or
  * whether the elapsed time is shown changed, or when something else replaced
@@ -381,23 +376,14 @@ export function drawStateOnChange(
   draw: () => void,
 ): void {
   const key = JSON.stringify([locale, state, elapsed.kind]);
-  const last = drawnStates.get(container);
-  const current = Array.from(container.childNodes);
-  if (
-    last !== undefined &&
-    last.key === key &&
-    last.nodes.length === current.length &&
-    last.nodes.every((node, i) => node === current[i])
-  ) {
-    if (elapsed.kind === "shown") {
-      const shown = container.querySelector(".job-elapsed dd");
-      const text = formatDuration(elapsed.ms, locale);
-      if (shown !== null && shown.textContent !== text) {
-        shown.textContent = text;
-      }
-    }
+  if (drawOnKeyChange(container, key, draw)) {
     return;
   }
-  draw();
-  drawnStates.set(container, { key, nodes: Array.from(container.childNodes) });
+  if (elapsed.kind === "shown") {
+    const shown = container.querySelector(".job-elapsed dd");
+    const text = formatDuration(elapsed.ms, locale);
+    if (shown !== null && shown.textContent !== text) {
+      shown.textContent = text;
+    }
+  }
 }
