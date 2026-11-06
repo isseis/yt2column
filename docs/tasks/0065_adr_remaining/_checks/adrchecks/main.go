@@ -8,7 +8,7 @@
 //
 // Pass the number of the pull request of the task (1 to 4), the merge-base
 // with origin/main (git merge-base origin/main HEAD), and the head of the pull
-// request. Every file is read from those commits with git (git show, git
+// request. A merge-base that is not an ancestor of the head stops the run. Every file is read from those commits with git (git show, git
 // ls-tree), never from the working tree.
 //
 // The values the checks compare with are not in this file: they are read from
@@ -37,9 +37,13 @@
 //     change is in the source ADR at the merge-base and not at head, and for a
 //     split or a link row the line after the change is in the source ADR at
 //     head. A row of an earlier pull request has its line before the change
-//     absent at head. Every line removed between the merge-base and head from
-//     the second to the fifth "##" section of a source ADR with a row of this
-//     pull request is the line before the change of one of those rows. For
+//     absent at head, and a row of a later one has it present at head (so a
+//     pull request that rewrites a later row's line must update the row).
+//     Every line removed between the merge-base and head from the second to
+//     the sixth "##" section of a source ADR with a row of this pull request
+//     is the line before the change of one of those rows; a removed history
+//     line is therefore NG. Rows match lines of the second to the fifth
+//     section only. For
 //     each move and split row of this pull request it prints the removed line
 //     and the destination ADR's section at the same position, for reading.
 //   - move-links: for each pair of a source and a destination of the move and
@@ -136,6 +140,9 @@ const (
 	// rejected alternatives, consequences.
 	firstMovableSection = 2
 	lastMovableSection  = 5
+	// The last section whose removed lines are checked: the history too,
+	// which a move keeps unchanged.
+	lastCheckedSection = historySection
 )
 
 // The kinds of a moves row.
@@ -155,8 +162,13 @@ var (
 	kebabRE = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 	// taskRE matches a task number.
 	taskRE = regexp.MustCompile(`^[0-9]{4}$`)
-	// issueRE matches a filled-in issue number.
-	issueRE = regexp.MustCompile(`^[1-9][0-9]*$`)
+	// issueRE matches a filled-in issue number, with an optional "#".
+	issueRE = regexp.MustCompile(`^#?([1-9][0-9]*)$`)
+	// digitRE matches an ASCII digit; the placeholder of an issue number not
+	// filled in has none.
+	digitRE = regexp.MustCompile(`[0-9]`)
+	// delimiterRE matches a cell of a table's delimiter row.
+	delimiterRE = regexp.MustCompile(`^:?-+:?$`)
 	// adrNameRE matches an ADR file name and captures its kebab name.
 	adrNameRE = regexp.MustCompile(`^[0-9]{4}-([a-z0-9]+(?:-[a-z0-9]+)*)\.md$`)
 )
@@ -278,6 +290,11 @@ func main() {
 // load reads the plan at head, the ADR files at both commits, and checks that
 // the plan's tables agree with each other and with the ADRs at the merge-base.
 func load(base, head string) (*plan, map[string][]string, map[string][]string, error) {
+	// A base that is not an ancestor of head would mix changes made on main
+	// after the merge-base into the comparisons.
+	if _, err := git("merge-base", "--is-ancestor", base, head); err != nil {
+		return nil, nil, nil, fmt.Errorf("the merge-base %s is not an ancestor of the head %s: %w", base, head, err)
+	}
 	doc, err := show(head, planPath)
 	if err != nil {
 		return nil, nil, nil, err
@@ -355,6 +372,9 @@ func parsePlan(doc string) (*plan, error) {
 		if len(tasks) == 0 || slices.ContainsFunc(tasks, func(t string) bool { return !taskRE.MatchString(t) }) {
 			return nil, fmt.Errorf("%w: history: %s: tasks %q", errTable, kebab, r[1])
 		}
+		if slices.ContainsFunc(p.history, func(h historyRow) bool { return h.kebab == kebab }) {
+			return nil, fmt.Errorf("%w: history: %s appears twice", errTable, kebab)
+		}
 		p.history = append(p.history, historyRow{kebab: kebab, tasks: tasks})
 	}
 
@@ -387,6 +407,9 @@ func parsePlan(doc string) (*plan, error) {
 				return nil, fmt.Errorf("%w: moves: a move row from %s has a line after the change", errTable, source)
 			}
 		case kindSplit, kindLink:
+			if m.after == "" || m.after == "-" {
+				return nil, fmt.Errorf("%w: moves: a %s row from %s has no line after the change", errTable, m.kind, source)
+			}
 		default:
 			return nil, fmt.Errorf("%w: moves: unknown kind %q", errTable, m.kind)
 		}
@@ -414,6 +437,9 @@ func parsePlan(doc string) (*plan, error) {
 		if r[1] == "" {
 			return nil, fmt.Errorf("%w: overview: position %d has no landmark", errTable, position)
 		}
+		if slices.ContainsFunc(p.overview, func(o overviewRow) bool { return o.position == position }) {
+			return nil, fmt.Errorf("%w: overview: position %d appears twice", errTable, position)
+		}
 		p.overview = append(p.overview, overviewRow{position: position, landmark: r[1], adr: adr})
 	}
 
@@ -432,6 +458,9 @@ func parsePlan(doc string) (*plan, error) {
 		if len(docs) == 0 {
 			return nil, fmt.Errorf("%w: specs: %s names no document", errTable, kebab)
 		}
+		if slices.ContainsFunc(p.specs, func(sp specRow) bool { return sp.kebab == kebab }) {
+			return nil, fmt.Errorf("%w: specs: %s appears twice", errTable, kebab)
+		}
 		p.specs = append(p.specs, specRow{kebab: kebab, docs: docs})
 	}
 
@@ -446,13 +475,25 @@ func parsePlan(doc string) (*plan, error) {
 		if !isNew(kebab) {
 			return nil, fmt.Errorf("%w: issues: %s is not in the adrs table", errTable, kebab)
 		}
-		// A cell that is not a number is the placeholder of a number not
-		// filled in yet.
-		number := strings.TrimPrefix(r[1], "#")
-		if !issueRE.MatchString(number) {
-			number = ""
+		// A cell is a number, or the placeholder of a number not filled in
+		// yet, which holds no digit; anything else is rejected.
+		number := ""
+		switch m := issueRE.FindStringSubmatch(r[1]); {
+		case m != nil:
+			number = m[1]
+		case r[1] == "" || digitRE.MatchString(r[1]):
+			return nil, fmt.Errorf("%w: issues: %s: %q is neither a number nor a placeholder", errTable, kebab, r[1])
+		}
+		if slices.ContainsFunc(p.issues, func(i issueRow) bool { return i.kebab == kebab }) {
+			return nil, fmt.Errorf("%w: issues: %s appears twice", errTable, kebab)
 		}
 		p.issues = append(p.issues, issueRow{kebab: kebab, number: number})
+	}
+	// Every new ADR has a history row, so the history check finds each one.
+	for kebab := range p.adrPR {
+		if !slices.ContainsFunc(p.history, func(h historyRow) bool { return h.kebab == kebab }) {
+			return nil, fmt.Errorf("%w: history: no row for %s", errTable, kebab)
+		}
 	}
 	return p, nil
 }
@@ -487,6 +528,9 @@ func markedTable(lines []doctestutil.DocLine, name string, columns int) ([][]str
 	// The first two rows are the header and the delimiter row.
 	if len(rows) < 3 {
 		return nil, fmt.Errorf("%w: no table with rows right after %s", errTable, marker)
+	}
+	if slices.ContainsFunc(rows[1], func(c string) bool { return !delimiterRE.MatchString(c) }) {
+		return nil, fmt.Errorf("%w: %s table: the second row is not a delimiter row", errTable, name)
 	}
 	return rows[2:], nil
 }
@@ -738,11 +782,12 @@ type movable struct {
 	sections []int
 }
 
-// movableLines returns the trimmed non-empty lines of the second to the fifth
-// "##" sections of the ADR, outside code blocks.
+// movableLines returns the trimmed non-empty lines of the second to the sixth
+// "##" sections of the ADR, outside code blocks. Rows match only lines of the
+// second to the fifth; a removed history line matches none.
 func movableLines(doc, file, rev string) (movable, error) {
 	var m movable
-	for position := firstMovableSection; position <= lastMovableSection; position++ {
+	for position := firstMovableSection; position <= lastCheckedSection; position++ {
 		section, err := adrSection(doc, file, rev, position)
 		if err != nil {
 			return movable{}, err
@@ -755,6 +800,17 @@ func movableLines(doc, file, rev string) (movable, error) {
 		}
 	}
 	return m, nil
+}
+
+// inMovable returns the lines of the sections a row's line may come from.
+func (m movable) inMovable() []string {
+	var lines []string
+	for i, l := range m.lines {
+		if m.sections[i] <= lastMovableSection {
+			lines = append(lines, l)
+		}
+	}
+	return lines
 }
 
 // sectionOf returns the section position of the line in m, or 0.
@@ -806,6 +862,17 @@ func (c *checker) movedItems() (result, []string, error) {
 	var current []string
 	for _, m := range c.plan.moves {
 		if m.pr > c.pr {
+			// A later row is not checked yet, but its line before the change
+			// must still be in the source at head for that row to apply.
+			headLines, headOK, err := c.sourceLines(c.head, c.headADRs, m.source)
+			if err != nil {
+				return 0, nil, err
+			}
+			if headOK && !slices.Contains(headLines.inMovable(), m.before) {
+				r = worse(r, resultNG)
+				findings = append(findings, fmt.Sprintf("%s -> %s (%s, pull request %d): the line before the change is not at head: %s", m.source, m.dest, m.kind, m.pr, m.before))
+				continue
+			}
 			r = worse(r, resultPending)
 			findings = append(findings, fmt.Sprintf("pending: pull request %d: %s -> %s (%s)", m.pr, m.source, m.dest, m.kind))
 			continue
@@ -824,17 +891,17 @@ func (c *checker) movedItems() (result, []string, error) {
 			continue
 		}
 		var problems []string
-		if slices.Contains(headLines.lines, m.before) {
+		if slices.Contains(headLines.inMovable(), m.before) {
 			problems = append(problems, "the line before the change is still at head")
 		}
 		if m.pr == c.pr {
 			if !slices.Contains(current, m.source) {
 				current = append(current, m.source)
 			}
-			if !slices.Contains(baseLines.lines, m.before) {
+			if !slices.Contains(baseLines.inMovable(), m.before) {
 				problems = append(problems, "the line before the change is not at the merge-base")
 			}
-			if m.kind != kindMove && !slices.Contains(headLines.lines, m.after) {
+			if m.kind != kindMove && !slices.Contains(headLines.inMovable(), m.after) {
 				problems = append(problems, "the line after the change is not at head")
 			}
 			if m.kind != kindLink {
