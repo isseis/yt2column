@@ -36,7 +36,7 @@
 -   **ファイルがなければ、空のファイルとみなして既定値で読む。** API キーがないので結局止まるが、ファイルがないことが利用者に分かりにくい（[0066 要件定義書](../../tasks/0066_server_config_file/01_requirements.md) §1）。
 -   **環境に残った変数でサーバを止める。** CLI のために `.envrc` を読み込んだシェルから、サーバを起動できなくなる（[0066 要件定義書](../../tasks/0066_server_config_file/01_requirements.md) §1）。
 -   **行末のコメントを値の一部として受け付ける（Docker の規則のまま）。** `KEY=value # comment` が書式も値の検証も通り、最初の LLM の呼び出しで初めて誤りが分かる（[0066 要件定義書](../../tasks/0066_server_config_file/01_requirements.md) §1）。
--   **macOS の拡張 ACL を検査し、`config init` では継承した ACL を取り除く。** 検出には `fgetattrlist`、除去には Apple が文書化していない `fchmod_extended` を `syscall` で呼ぶことになり、その OS 固有のコードは Linux だけで動く CI ではテストできない。macOS の既定のホームディレクトリには読む権利を与えて継承される ACL がなく、ACL が付くのは利用者が付けた場合などに限られるので、レビュアーの判断で残余リスクとして受け入れた（[0066 要件定義書](../../tasks/0066_server_config_file/01_requirements.md) §1）。
+-   **macOS の拡張 ACL を検査し、`config init` では継承した ACL を取り除く。** ACL を読み書きする macOS の API（`acl_get_fd`・`acl_set_fd` など）は libc の関数なので、呼ぶには CGO が要る。CGO を使わないなら、Apple が文書化していないシステムコール（`fchmod_extended` など）を `syscall` で直接呼ぶことになる。どちらでも OS に依存するコードが入り、そのコードは Linux だけで動く CI ではテストできない。一方、macOS の既定のホームディレクトリには読む権利を与えて継承される ACL がなく、ACL が付くのは利用者が付けた場合などに限られる。この実装と保守のコストと、防げるリスクを比べて、対応せず残余リスクとして受け入れた（[0066 要件定義書](../../tasks/0066_server_config_file/01_requirements.md) §1）。
 -   **環境に残った変数を名前だけ警告する。** 読まない変数を検査するためだけのコードを持たないことにした（レビュアーの判断）。効かない理由は README の説明で補う（[0066 要件定義書](../../tasks/0066_server_config_file/01_requirements.md) §1）。
 -   **サーバがファイルと環境変数の両方を読む。** どちらの値が効いているかが曖昧になる（[0066 要件定義書](../../tasks/0066_server_config_file/01_requirements.md) §1）。
 -   **雛形を別のコマンドで作る。** 配布するバイナリが増える（[0066 要件定義書](../../tasks/0066_server_config_file/01_requirements.md) §1）。
