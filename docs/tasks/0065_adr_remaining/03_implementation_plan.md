@@ -267,8 +267,8 @@ AC-03 の食い違い（設計書 3.5）を記録した issue を、その ADR �
 
 **変更するファイル:** 本書 7.2 節
 
--   [ ] ほかの作業がすべて終わった後に、PR のブランチで `git fetch origin main` を行い、`task_docs_unchanged.sh origin/main HEAD` と `adrchecks -pr 1 "$(git merge-base origin/main HEAD)" HEAD` を実行する。出力・終了コード・マージの基点と head のコミット ID を 7.2 節に書く。記録する head は、記録を書く前のコミットである。記録を書くコミットは本書の 7.2 節だけを変えるので、確かめる ADR と文書の中身は記録した head と同じであり、記録のコミットの後に実行し直す必要はない（設計書 6.1）。
--   [ ] head が変わったら、マージの前に最後の head で実行し直し、記録を改める（設計書 6.1）。
+-   [x] ほかの作業がすべて終わった後に、PR のブランチで `git fetch origin main` を行い、`task_docs_unchanged.sh origin/main HEAD` と `adrchecks -pr 1 "$(git merge-base origin/main HEAD)" HEAD` を実行する。出力・終了コード・マージの基点と head のコミット ID を 7.2 節に書く。記録する head は、記録を書く前のコミットである。記録を書くコミットは本書の 7.2 節だけを変えるので、確かめる ADR と文書の中身は記録した head と同じであり、記録のコミットの後に実行し直す必要はない（設計書 6.1）。
+-   [x] （PR を開く時点の head で実行した。`/fixpr` や `main` の取り込みで head が変わったら当てはめる）head が変わったら、マージの前に最後の head で実行し直し、記録を改める（設計書 6.1）。
 
 **完了の条件:** グリーンゲートが通る。`task_docs_unchanged.sh` が 0 で終わる。`adrchecks -pr 1` が 0 で終わる。確かめの結果は、`claude-md-unchanged` が `OK`、ほかの 6 つが `PENDING` である。`PENDING` の 6 つのうち、`history-sources` の中の既存の 5 本の項目は `ok`、`overview-items` の中の文の比較は `OK` で、`PENDING` になるのは後の PR の ADR と行に当たる項目だけである。
 
@@ -504,6 +504,117 @@ AC-03 の食い違い（設計書 3.5）を記録した issue を、その ADR �
 ### 7.2. 実行の記録
 
 （ステップ 1-3・2-3・3-3・4-2 で記入する。各 PR の `task_docs_unchanged.sh` と `_checks/adrchecks` の出力・終了コード・マージの基点と head のコミット ID、作った issue の URL を書く。）
+
+#### PR-1
+
+マージの基点 `bc4b71bd0efc69ebcc6c2d06dc8e87f6eabdf545`、head `e7a9df3f4941008d7390749959ad2a899204c75e`（`git fetch origin main` の後に実行した）。作った issue はない。
+
+`docs/tasks/0065_adr_remaining/_checks/task_docs_unchanged.sh origin/main HEAD`：終了コード 0。
+
+```text
+merge-base: bc4b71bd0efc69ebcc6c2d06dc8e87f6eabdf545
+head: e7a9df3f4941008d7390749959ad2a899204c75e
+docs/tasks/: only docs/tasks/0065_adr_remaining/ changed
+```
+
+`go run -tags test ./docs/tasks/0065_adr_remaining/_checks/adrchecks/ -pr 1 bc4b71bd0efc69ebcc6c2d06dc8e87f6eabdf545 e7a9df3f4941008d7390749959ad2a899204c75e`：終了コード 0。`claude-md-unchanged` が `OK`、ほかの 6 つが `PENDING`。`history-sources` の既存の 5 本は `ok`、`overview-items` の文の比較は `OK` で、`PENDING` は後の PR の ADR と行だけである。
+
+```text
+PENDING history-sources
+        ok: docs/dev/adr/0006-threat-model.md
+        ok: docs/dev/adr/0008-launch-path.md
+        ok: docs/dev/adr/0009-viewer-opening.md
+        ok: docs/dev/adr/0010-extension-stores-nothing.md
+        ok: docs/dev/adr/0011-webhook-publishing.md
+        pending: pipeline-component-interfaces
+        pending: strict-json
+        pending: llm-client-contract
+        pending: cost-estimate
+        pending: artifact-resume
+        pending: env-access-in-config
+        pending: claude-output-limit
+        pending: extension-platform
+        pending: article-job-api
+        pending: no-automatic-resend
+        pending: extension-ui-languages
+        pending: minimum-chrome-version
+        pending: secret-closure
+        pending: testdata-license
+        pending: transcript-cache-slots
+        pending: template-allowlist
+        pending: language-policy
+        pending: task-document-status-records
+        pending: test-deletion-coverage
+        pending: deadcode-and-race-free-timing
+PENDING moved-items
+        pending: pull request 2: llm-adapter-stdlib -> pipeline-component-interfaces (move)
+        pending: pull request 2: llm-adapter-stdlib -> pipeline-component-interfaces (move)
+        pending: pull request 2: llm-adapter-stdlib -> pipeline-component-interfaces (split)
+        pending: pull request 2: llm-adapter-stdlib -> pipeline-component-interfaces (move)
+        pending: pull request 2: llm-adapter-stdlib -> pipeline-component-interfaces (move)
+        pending: pull request 2: llm-adapter-stdlib -> pipeline-component-interfaces (split)
+        pending: pull request 2: llm-adapter-stdlib -> pipeline-component-interfaces (move)
+        pending: pull request 2: llm-adapter-stdlib -> strict-json (split)
+        pending: pull request 2: llm-adapter-stdlib -> strict-json (move)
+        pending: pull request 2: llm-adapter-stdlib -> strict-json (move)
+        pending: pull request 2: llm-adapter-stdlib -> strict-json (move)
+        pending: pull request 2: server-architecture -> pipeline-component-interfaces (link)
+        pending: pull request 2: llm-config-contract -> env-access-in-config (link)
+        pending: pull request 2: server-config-file -> env-access-in-config (link)
+        pending: pull request 2: production-profile -> claude-output-limit (move)
+        pending: pull request 3: extension-stores-nothing -> article-job-api (move)
+        pending: pull request 3: extension-stores-nothing -> article-job-api (move)
+        pending: pull request 3: webhook-publishing -> no-automatic-resend (split)
+        pending: pull request 3: webhook-publishing -> no-automatic-resend (move)
+        pending: pull request 3: webhook-publishing -> no-automatic-resend (move)
+        pending: pull request 3: webhook-publishing -> article-job-api (link)
+        pending: pull request 3: server-architecture -> article-job-api (link)
+        pending: pull request 3: server-architecture -> extension-platform (link)
+        pending: pull request 3: threat-model -> extension-platform (link)
+        pending: pull request 4: lightweight-check-in-bash -> language-policy (link)
+        pending: pull request 4: deterministic-checks-in-go -> test-deletion-coverage (link)
+        pending: pull request 4: threat-model -> secret-closure (split)
+        pending: pull request 4: webhook-publishing -> secret-closure (split)
+PENDING move-links
+        pending: llm-adapter-stdlib -> pipeline-component-interfaces
+        pending: llm-adapter-stdlib -> strict-json
+        pending: production-profile -> claude-output-limit
+        pending: extension-stores-nothing -> article-job-api
+        pending: webhook-publishing -> no-automatic-resend
+        pending: threat-model -> secret-closure
+        pending: webhook-publishing -> secret-closure
+PENDING spec-links
+        pending: pipeline-component-interfaces
+        pending: strict-json
+        pending: llm-client-contract
+        pending: cost-estimate
+        pending: artifact-resume
+        pending: claude-output-limit
+        pending: extension-platform
+        pending: article-job-api
+        pending: no-automatic-resend
+        pending: extension-ui-languages
+        pending: minimum-chrome-version
+        pending: secret-closure
+        pending: testdata-license
+        pending: transcript-cache-slots
+        pending: template-allowlist
+        pending: language-policy
+        pending: task-document-status-records
+        pending: test-deletion-coverage
+        pending: deadcode-and-race-free-timing
+PENDING issue-links
+        pending: strict-json
+        pending: extension-ui-languages
+        pending: template-allowlist
+PENDING overview-items
+        text: OK
+        links: PENDING
+        links: bullet 1 (`docs/tasks/0007_browser_extension_skeleton/`) pending: extension-platform
+        links: bullet 2 (`cmd/yt2column-nmhost`) pending: article-job-api
+        links: bullet 6 (LangChain) pending: pipeline-component-interfaces
+OK      claude-md-unchanged
+```
 
 ## 8. 成功基準 (Success Criteria)
 
