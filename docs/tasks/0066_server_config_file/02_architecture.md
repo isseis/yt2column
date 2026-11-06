@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-06 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-06 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 設計の全体像 (Design Overview)
@@ -863,3 +863,7 @@ PR の区切りは実装計画で決める。
 | 書き手のいない FIFO を `O_RDONLY\|O_NONBLOCK` で開く | 待たずに開けた |
 | APFS のファイルの記述子に `fgetattrlist`（`ATTR_VOL_INFO`・`ATTR_VOL_ATTRIBUTES`） | ボリュームの有効な属性に `ATTR_CMN_EXTENDED_SECURITY` がある |
 | `hdiutil` で作った FAT（MS-DOS）のボリュームのファイルに同じ呼び出し | `ATTR_CMN_EXTENDED_SECURITY` がない（ボリュームが ACL を扱わない） |
+
+## 変更履歴
+
+- 2026-11-06 承認（isseis、#706）

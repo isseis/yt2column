@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-06 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 決定の変更で draft に戻した：macOS の拡張 ACL を検査せず、残余リスクとして受け入れる<br>決定の変更で draft に戻した：設定ファイルの空の値を、環境変数と同じく値の検証で扱う |
+| Review date | 2026-11-06 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 概要 (Overview)
 
@@ -265,3 +265,4 @@
 
 - 2026-11-06 承認（isseis、#702）
 - 2026-11-06 draft への戻し：macOS の拡張 ACL を検査せず、残余リスクとして受け入れるように変えた；設定ファイルの空の値を、どのキーでも拒否するのをやめ、環境変数と同じく値の検証で扱うように変えた（#706）
+- 2026-11-06 承認（isseis、#706）
