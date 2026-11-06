@@ -373,6 +373,45 @@ describe("popup preview script", () => {
     ]);
   });
 
+  it("draws every element the article can have on each done article's page", () => {
+    // The manual checks of the article's typography and text direction read
+    // these pages, so the article must hold every block and inline element.
+    const output = mkdtempSync(path.join(tmpdir(), "popup-preview-"));
+    dirs.push(output);
+    const result = spawnSync(
+      process.execPath,
+      ["scripts/popup-preview.ts", output],
+      { cwd: extensionDir, encoding: "utf8" },
+    );
+    assert.equal(result.status, 0, result.stderr);
+
+    const done = viewerPreviewCases.filter(
+      ({ view: { state } }) =>
+        state.kind === "job" && state.job.kind === "done",
+    );
+    assert.ok(done.length > 0, "no done article page");
+    for (const previewCase of done) {
+      const file = `${previewCase.name}.html`;
+      const doc = new JSDOM(readFileSync(path.join(output, file), "utf8"))
+        .window.document;
+      for (const selector of [
+        "h2",
+        "h3",
+        "ul",
+        "ol[start]",
+        "pre code",
+        "strong",
+        "em",
+        "a",
+      ]) {
+        assert.ok(
+          doc.querySelector(`#article ${selector}`) !== null,
+          `${file}: ${selector}`,
+        );
+      }
+    }
+  });
+
   it("writes one page per popup job state and job kind, drawn by renderPopup", () => {
     const output = mkdtempSync(path.join(tmpdir(), "popup-preview-"));
     dirs.push(output);

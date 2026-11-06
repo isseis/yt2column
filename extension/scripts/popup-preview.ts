@@ -204,6 +204,68 @@ const failedSteps: Steps = {
  */
 const previewRequestId = "0123456789abcdef";
 
+/** Japanese "the article's title". */
+const japaneseArticleTitle = "記事のタイトル";
+
+/** Japanese "a section heading". */
+const japaneseSectionHeading = "節の見出し";
+
+/**
+ * Japanese "the first paragraph; a sentence long enough to wrap on a narrow
+ * page," repeated to wrap.
+ */
+const japaneseLongLine =
+  "最初の段落です。狭いページでは折り返す長さの文で、".repeat(3);
+
+/** Japanese "a line break inside a line becomes a break inside the paragraph." */
+const japaneseBreakLine = "行の途中の改行は、段落の中の改行になります。";
+
+/** Japanese "speaker", followed by a full-width colon. */
+const japaneseSpeaker = "話者";
+const fullWidthColon = "：";
+
+/** Japanese "source: ", the start of the source line. */
+const japaneseSource = "出典: ";
+
+/**
+ * The display Markdown of the done article, with every block and inline
+ * piece the viewer draws: the title and a section heading, the channel name
+ * line, a paragraph with a line break, strong and emphasised text, a code
+ * span, a bullet list, an ordered list from a nine-digit start number, a code
+ * block with a long line, lines that start with a right-to-left word and with
+ * U+202E (RIGHT-TO-LEFT OVERRIDE) above a line with a link, and the source
+ * line. It holds no CR: the test reads the written page back as HTML, which
+ * turns a CR into a LF.
+ */
+const previewMarkdown = [
+  `# ${japaneseArticleTitle}`,
+  "",
+  "A channel",
+  "",
+  `## ${japaneseSectionHeading}`,
+  "",
+  japaneseLongLine,
+  japaneseBreakLine,
+  "",
+  `**${japaneseSpeaker}**${fullWidthColon}A *stressed* word and a \`code span\`.`,
+  "",
+  "- A bullet item",
+  "- Another bullet item",
+  "",
+  "999999998. The first item of a nine-digit start number",
+  "999999998. The second item",
+  "",
+  "```text",
+  `${"a long line of code ".repeat(12)}end`,
+  "```",
+  "",
+  `${hebrewWord} starts this line.`,
+  "‮This line starts with an override.",
+  "A link after them: <https://example.com/after>",
+  "",
+  `${japaneseSource}<${watchUrl}>`,
+].join("\n");
+
 /**
  * The article of a done status response, checked by classifyStatus as the
  * viewer checks every status, so its branded cost is built by its parser.
@@ -217,10 +279,7 @@ function previewArticleFrom(): Article {
       state: "done",
       steps: doneSteps,
       article: {
-        markdown:
-          "# A video title\n\nA channel\n\nThe article's first paragraph, long enough to wrap on a narrow page. ".repeat(
-            3,
-          ),
+        markdown: previewMarkdown,
         file: "---\ntitle: A video title\n---\n\nThe article\n",
         cost: { state: "known", usd: "0.1234" },
         durationMs: 81_234,
