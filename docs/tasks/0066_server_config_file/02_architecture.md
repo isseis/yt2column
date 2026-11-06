@@ -313,7 +313,7 @@ func MkdirBelow(base string, names []string) error
 1.  パスを `os.Lstat` する。名前がなければ `ErrNotExist` を返す。ほかの失敗（親を探索する権限がない `EACCES`、途中の要素がディレクトリでない `ENOTDIR` など）は、包んで返し、呼び出し側は「読めない」とする（AC-19）。シンボリックリンクなら `ReasonSymlink`、通常のファイルでなければ `ReasonNotRegular` で、開かずに拒否する。所有者とモードも `Lstat` の結果で確かめ、満たさなければ開かずに拒否する（モードが `0000` のファイルを、読めないではなく、モードの誤りとして示すため）。
 2.  `os.OpenFile(path, O_RDONLY|O_NOFOLLOW|O_NONBLOCK|O_NOCTTY, 0)` で開く。`O_NOCTTY` は、手順 1 の後に名前が端末に替わった場合に、`fstat` で拒否する前にそれが制御端末になることを防ぐ。`O_NOFOLLOW` は、手順 1 の後に最後の要素がシンボリックリンクに替わった場合に `ELOOP` で失敗させる（`ReasonSymlink`）。`O_NONBLOCK` は、手順 1 の後に FIFO に替わった場合に書き手を待たずに開かせる（AC-16）。`ENOENT` は `ErrNotExist` にする。同じ開き方は `internal/cachelock/cachelock.go:78-82` にもある。
 3.  開いた記述子を `File.Stat`（`fstat`）し、種類・所有者・モードを確かめ直す。読んでよいと決めるのは、この結果だけである。手順 1 の結果は拒否にだけ使い、許可には使わない。
-4.  macOS では、同じ記述子に `fgetattrlist` を呼び、拡張 ACL の有無を確かめる（`ReasonACL`）。呼び出しには `FSOPT_PACK_INVAL_ATTRS` を渡す。読むのは、返った属性の集合（`ATTR_CMN_RETURNED_ATTRS`）に `ATTR_CMN_EXTENDED_SECURITY` があるかどうかだけで、ACL の中身は読まない。そのため、ACL が大きくてバッファに収まらなくても判定は変わらない。`fgetattrlist` が失敗したときは、ACL がないとはみなさず、`ReasonUnknown` で拒否する（止める側に倒す）。macOS 以外の Unix では何もしない（要件 2.3）。
+4.  macOS では、同じ記述子に `fgetattrlist` を 2 回呼ぶ。1 回目は、ボリュームの属性（`ATTR_VOL_INFO`・`ATTR_VOL_ATTRIBUTES`）を求め、ボリュームが `ATTR_CMN_EXTENDED_SECURITY` を扱うかどうかを確かめる。扱わないボリューム（FAT など）では ACL の有無を判定できないので、ACL がないとはみなさず `ReasonUnknown` で拒否する。2 回目で拡張 ACL の有無を確かめる（`ReasonACL`）。2 回目の呼び出しには `FSOPT_PACK_INVAL_ATTRS` を渡す。読むのは、返った属性の集合（`ATTR_CMN_RETURNED_ATTRS`）に `ATTR_CMN_EXTENDED_SECURITY` があるかどうかだけで、ACL の中身は読まない。そのため、ACL が大きくてバッファに収まらなくても判定は変わらない。`fgetattrlist` が失敗したときは、ACL がないとはみなさず、`ReasonUnknown` で拒否する（止める側に倒す）。macOS 以外の Unix では何もしない（要件 2.3）。
 5.  同じ記述子から、`limit + 1` バイトまで読む。`limit` を超えたら `ErrTooLarge` を返す。読み込みのエラーは包んで返す。
 
 `Create` の手順:
@@ -325,7 +325,7 @@ func MkdirBelow(base string, names []string) error
 5.  `os.Link(一時ファイル, path)` で置く。`EEXIST` は `ErrExist` にする。`link(2)` は既存の名前（リンク先のないシンボリックリンクとディレクトリを含む）を上書きしないので、パスにあるものは変わらない（AC-24）。
 6.  成功でも失敗でも、一時ファイルの名前を消す。途中で失敗したときも、パスには何も置かれない（AC-25）。成功した後に一時ファイルの名前を消せなかったときは、`Create` は成功とともにその名前を返し、呼び出し側がそれを 1 行で示す（終了コードは変えない）。失敗した後に消せなかったときは、その名前を失敗のエラーの文に含める。ディレクトリの `fsync` はしない。電源断の直後には、成功を示した後でも、設定ファイルの名前が消えていることがある。その場合も、パスに書きかけは残らない。
 
-`MkdirBelow` は、`base` を `os.Stat`（シンボリックリンクをたどる）で確かめ、ないかディレクトリでなければ `ErrBaseMissing` を返す。基点の要素がシンボリックリンクでもたどるのは、親のディレクトリを検査しない要件（要件 2.3）に合わせ、`Read` が途中の要素のシンボリックリンクをたどるのと揃えるためである。`names` の各要素を `os.Mkdir(DirMode)` で作り、作った要素だけを `os.Chmod(DirMode)` で `0700` にそろえる（umask によらない）。`EEXIST` の要素は変えずに進む（AC-23）。`EEXIST` の要素がディレクトリでなければ（通常のファイル、リンク先のないシンボリックリンク）、次の要素か `Create` の一時ファイルの作成が失敗し、「作れなかった」になる。
+`MkdirBelow` は、`base` を `os.Stat`（シンボリックリンクをたどる）で確かめ、ないかディレクトリでなければ `ErrBaseMissing` を返す。基点の要素がシンボリックリンクでもたどるのは、親のディレクトリを検査しない要件（要件 2.3）に合わせ、`Read` が途中の要素のシンボリックリンクをたどるのと揃えるためである。`names` の各要素を `os.Mkdir(DirMode)` で作り、作った要素だけを、`O_NOFOLLOW` で開いた記述子に対して `File.Chmod(DirMode)` で `0700` にそろえる（umask によらない）。名前で `os.Chmod` すると、作った後に名前がシンボリックリンクに替えられたとき、リンク先のモードを変えてしまうためである。開いた記述子がディレクトリでなければ、「作れなかった」にする。`EEXIST` の要素は変えずに進む（AC-23）。`EEXIST` の要素がディレクトリでなければ（通常のファイル、リンク先のないシンボリックリンク）、次の要素か `Create` の一時ファイルの作成が失敗し、「作れなかった」になる。
 
 ### 3.2. `internal/config` の変更
 
@@ -690,7 +690,8 @@ flowchart LR
 
 -   **親のディレクトリの入れ替え。** 親のディレクトリは検査しない（要件 2.3）。親の名前が入れ替えられた場合、サーバが読むのは入れ替え先のファイルである。そのファイルも、同じ記述子で種類・所有者・モード・ACL を検査してから読む。よって、実行したユーザーの所有でない、または他人が読めるファイルの中身は使わない。同一ユーザーのプロセスによる入れ替えは、ADR-0006 の信頼の範囲に入る。
 -   **非公開の syscall への依存（macOS）。** ACL の除去に使う `fchmod_extended` の `_FILESEC_REMOVE_ACL` は、Apple が文書化していない。将来の macOS で振る舞いが変われば、`Create` は ACL が残ったことを `fgetattrlist` で検出して失敗する（3.1 の `Create` の手順 3）。ACL を持つファイルを黙って作ることはない。検出に使う `getattrlist(2)` は文書化された API である。
--   **拡張セキュリティ属性を扱わないファイルシステム（macOS）。** `fgetattrlist` は、ボリュームが `ATTR_CMN_EXTENDED_SECURITY` を扱わないとき、その属性を返った属性の集合に含めない。これは ACL がないときと同じ見え方なので、SMB・NFS・exFAT などのボリュームに置いた設定ファイルの ACL は検出できない。設定ファイルの既定のパスは利用者のホームの下で、通常は APFS のボリュームにある。PoC は APFS だけで確かめた（付録 B）。
+-   **拡張セキュリティ属性を扱わないボリューム（macOS）。** ボリュームが `ATTR_CMN_EXTENDED_SECURITY` を扱わないと答えれば、サーバは設定ファイルを拒否する（3.1 の `Read` の手順 4）。FAT で確かめた（付録 B）。SMB・NFS は確かめていない。ボリュームが扱うと答えながら ACL を返さない実装があれば、その ACL は検出できない。設定ファイルの既定のパスは利用者のホームの下で、通常は APFS のボリュームにある。
+-   **一時ファイルの差し替え。** `config init` の一時ファイルの名前は、`link` までの間に、親に書ける他のユーザーなら差し替えられる。差し替えられたファイルが設定ファイルのパスに置かれても、それは他のユーザーの所有なので、サーバは所有者の検査で読まない。起きうるのは起動の妨げだけである。同一ユーザーによる差し替えは ADR-0006 の信頼の範囲に入る。
 -   **macOS のテストは CI で走らない。** CI は Linux だけで動く（`.github/workflows/ci.yml` の `runs-on: ubuntu-latest`）。ACL のテストは `darwin` のビルドでだけ動き、ローカルの `make test` で確かめる。CI では、`darwin` 向けにビルドして `go vet` するところまでを確かめる（2.1）。
 -   **`config init` が作るディレクトリの ACL（macOS）。** `MkdirBelow` が作るディレクトリ（macOS では `yt2column`。ソケットのディレクトリの親でもある）は、親が継承する ACL を持てばそれを受け継ぐ。要件は作るディレクトリの ACL を定めていない（AC-23）。他のユーザーが受け継いだ ACL で設定ファイルを消すか差し替えても、サーバは所有者の検査で止まるので、読まれるのは自分のファイルだけである。起きうるのは起動の妨げだけで、ソケットの祖先の ACL を検査しないという ADR-0006 の受け入れの範囲に入る。
 -   **Linux の POSIX ACL。** 検査しない（要件 2.3）。モードがちょうど `0600` なら ACL のマスクは空で、名前を付けたユーザーやグループの項目は権利を与えない。
@@ -721,7 +722,7 @@ flowchart TD
     FST -->|"満たさない"| E_FS["UnsafeError"]
     FST -->|"満たす"| ACL{"macOS：fgetattrlist で ACL"}
     ACL -->|"ある"| E_ACL["ReasonACL"]
-    ACL -->|"呼び出しが失敗"| E_UK["ReasonUnknown"]
+    ACL -->|"呼び出しが失敗・ボリュームが ACL を扱わない"| E_UK["ReasonUnknown"]
     ACL -->|"ない・macOS 以外"| RD{"limit + 1 バイトまで読む"}
     RD -->|"limit を超える"| E_TL["ErrTooLarge"]
     RD -->|"読めない"| E_IO
@@ -881,3 +882,5 @@ PR の区切りは実装計画で決める。
 | `chmod +a` の後に同じ項目を `chmod -a` で消したファイル | ACL あり（エントリ 0 個の枠が残る） |
 | シンボリックリンクを `O_NOFOLLOW` で開く | `ELOOP`（too many levels of symbolic links） |
 | 書き手のいない FIFO を `O_RDONLY\|O_NONBLOCK` で開く | 待たずに開けた |
+| APFS のファイルの記述子に `fgetattrlist`（`ATTR_VOL_INFO`・`ATTR_VOL_ATTRIBUTES`） | ボリュームの有効な属性に `ATTR_CMN_EXTENDED_SECURITY` がある |
+| `hdiutil` で作った FAT（MS-DOS）のボリュームのファイルに同じ呼び出し | `ATTR_CMN_EXTENDED_SECURITY` がない（ボリュームが ACL を扱わない） |

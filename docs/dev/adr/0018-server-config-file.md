@@ -18,7 +18,7 @@
 -   **パスは `HOME` と OS だけから導出する。** macOS は `$HOME/Library/Application Support/yt2column/config.env`、その他の Unix は `$HOME/.config/yt2column/config.env` で、`XDG_CONFIG_HOME` は読まない。ソケットのパスと同じ考え方である（[ADR-0005](0005-server-architecture.md)）。
 -   **書式は Docker の `--env-file` の規則を土台にした `KEY=VALUE` で、それより厳格にする。** `#` で始まる行と空行を読み飛ばし、値は最初の `=` より後ろを変換せずに使う。キーは今の環境変数と同じ名前の 6 つに限る。受理する形に合わないもの（`export `、引用符、行末のコメントに見える形、空の値などを含む）は直さずに拒否する。ファイルはシェルとして実行しない。値の検証は環境変数のときと同じ規則を使う（[ADR-0003](0003-llm-config-contract.md)）。受理する形と拒否するものの一覧は要件定義書の F-003 にある。
 -   **ファイルそのものを検査し、満たさなければ直さずに起動を止める。** 確かめる条件は 4 つで、自分が所有する通常のファイルであること、シンボリックリンクでないこと、モードがちょうど `0600` であること、macOS では拡張 ACL を持たないことである。これらは、読むファイルそのものについて確かめる。親のディレクトリは検査しない。ファイルがなければ、パスと雛形を作るコマンドを示して止める。
--   **macOS の拡張 ACL は、標準ライブラリの `syscall` だけで扱う。** 検出には、開いた記述子に `fgetattrlist`（`ATTR_CMN_EXTENDED_SECURITY`）を呼ぶ。エントリが 0 個の ACL も、ACL を持つものとして拒否する。`config init` が作るファイルからは、継承した ACL を `fchmod_extended`（`_FILESEC_REMOVE_ACL`）で取り除き、残っていないことを確かめる。手段と PoC の結果は [0066 設計書](../../tasks/0066_server_config_file/02_architecture.md) にある。
+-   **macOS の拡張 ACL は、標準ライブラリの `syscall` だけで扱う。** 検出には、開いた記述子に `fgetattrlist`（`ATTR_CMN_EXTENDED_SECURITY`）を呼ぶ。エントリが 0 個の ACL も、ACL を持つものとして拒否する。ボリュームが ACL を扱わないと答えたときも、ACL の有無を判定できないので拒否する。`config init` が作るファイルからは、継承した ACL を `fchmod_extended`（`_FILESEC_REMOVE_ACL`）で取り除き、残っていないことを確かめる。手段と PoC の結果は [0066 設計書](../../tasks/0066_server_config_file/02_architecture.md) にある。
 -   **環境に残った設定の変数は無視する。** 6 つのキーや廃止した LLM の変数がプロセスの環境にあっても、サーバは読まず、止まらず、警告もしない。読まない変数を検査するためだけのコードは持たない。
 -   **雛形はサーバのサブコマンド `yt2column-server config init` で作る。** モード `0600` で作り、既存のものは上書きしない。
 
