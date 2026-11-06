@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-06 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-06 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -261,3 +261,7 @@
 -   **雛形:** `config init` が作る、コメントの行と空行だけの設定ファイル。
 -   **実行したユーザー・設定エラー:** 3.1 の定義による。
 -   ほかの用語は `docs/translation_glossary.md` と統一する。
+
+## 変更履歴
+
+- 2026-11-06 承認（isseis、#702）
