@@ -381,6 +381,17 @@ const notLinks: readonly { name: string; input: string }[] = [
   { name: "a less-than sign", input: "<https://example.com/<x>" },
   { name: "a control character", input: "<https://a.example/\u0007>" },
   { name: "the default port", input: "<https://a.example:443/>" },
+  // Characters the serialization percent-encodes.
+  {
+    name: "a right-to-left override in the path",
+    input: "<https://a.example/\u202e>",
+  },
+  {
+    name: "a non-ASCII letter in the path",
+    // Latin small letter e with acute.
+    input: "<https://a.example/\u00e9>",
+  },
+  { name: "a caret in the path", input: "<https://a.example/a^b>" },
   { name: "no closing sign", input: "<https://a.example/" },
   { name: "an inline link", input: "[x](https://example.com/)" },
   { name: "a reference link", input: "[x][ref]" },
@@ -420,9 +431,9 @@ const blockCases: readonly BlockCase[] = [
   },
   {
     name: "headings marked with a tab and followed by more blanks",
-    input: "#\tA\n##  \tB ",
-    blocks: [title(text("A")), section(text("B "))],
-    shown: "AB ",
+    input: "#\tA\n##  \tB \n##\tC",
+    blocks: [title(text("A")), section(text("B ")), section(text("C"))],
+    shown: "AB C",
   },
   {
     name: "lines that are not headings",
@@ -481,11 +492,18 @@ const blockCases: readonly BlockCase[] = [
   },
   {
     name: "lines that are not items",
-    input: "-a\n1.a\n1\\. a\n\\- a",
+    input: "-a\n1.a\n1\\. a\n\\- a\n-\tx\n1.\tx",
     blocks: [
-      paragraph([text("-a")], [text("1.a")], [text("1. a")], [text("- a")]),
+      paragraph(
+        [text("-a")],
+        [text("1.a")],
+        [text("1. a")],
+        [text("- a")],
+        [text("-\tx")],
+        [text("1.\tx")],
+      ),
     ],
-    shown: "-a\n1.a\n1. a\n- a",
+    shown: "-a\n1.a\n1. a\n- a\n-\tx\n1.\tx",
   },
   {
     name: "an ordered list numbered from its first item",
@@ -550,6 +568,31 @@ const blockCases: readonly BlockCase[] = [
       bullets([[text("c")]]),
     ],
     shown: "abc",
+  },
+  {
+    name: "a heading that ends a list",
+    input: "- a\n# T\n- b",
+    blocks: [bullets([[text("a")]]), title(text("T")), bullets([[text("b")]])],
+    shown: "aTb",
+  },
+  {
+    name: "a heading mark with no text as the continuation of an item",
+    input: "- a\n# \nb",
+    blocks: [bullets([[text("a")], [text("# ")], [text("b")]])],
+    shown: "a\n# \nb",
+  },
+  {
+    name: "emphasis marks paired across two lines",
+    input: "x **a\nb** y\nx *a\nb* y",
+    blocks: [
+      paragraph(
+        [text("x **a")],
+        [text("b** y")],
+        [text("x *a")],
+        [text("b* y")],
+      ),
+    ],
+    shown: "x **a\nb** y\nx *a\nb* y",
   },
   {
     name: "a paragraph ended by an item",

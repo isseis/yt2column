@@ -71,14 +71,14 @@ const pieces: readonly string[] = [
   "<https://xn--nxasmq6b.com/>",
   "<https://user@a.example/>",
   "<https://a.example/?q=1#f>",
-  "記事", // Japanese "article"
-  "。", // ideographic full stop
-  "　", // ideographic space
-  "ｅ", // full-width small letter e
-  "＊", // full-width asterisk
-  "א", // Hebrew letter alef
-  "‮", // right-to-left override
-  "⁧", // right-to-left isolate
+  "\u8a18\u4e8b", // Japanese "article"
+  "\u3002", // ideographic full stop
+  "\u3000", // ideographic space
+  "\uff45", // full-width small letter e
+  "\uff0a", // full-width asterisk
+  "\u05d0", // Hebrew letter alef
+  "\u202e", // right-to-left override
+  "\u2067", // right-to-left isolate
   "\u0007", // bell, a control character
 ];
 

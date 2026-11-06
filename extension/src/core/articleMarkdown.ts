@@ -111,6 +111,8 @@ function linkUrl(text: string): LinkUrl | undefined {
   } catch {
     return undefined;
   }
+  // The scheme, prefix and host checks mirror the design's table; the
+  // autolink rule and the URL parser already imply them.
   if (
     parsed.protocol === "https:" &&
     text.startsWith("https://") &&
@@ -175,8 +177,14 @@ function parseInline(line: string): ArticleLine {
   const length = line.length;
   let backticks: BacktickRuns | undefined;
   // A search for a closing star run that reached the end of the line without
-  // one fails again from any later start, so it is not repeated.
-  const starSearchFailedFrom = [Infinity, Infinity, Infinity];
+  // one fails again from any later start, so it is not repeated. This holds
+  // because every search starts right after an opening star run, never after
+  // a backslash: the earlier search passed that start in the same escape
+  // state, so it saw every run a later search would see.
+  const starSearchFailedFrom: Record<1 | 2, number> = {
+    1: Infinity,
+    2: Infinity,
+  };
 
   // The text not yet emitted: pending, then line[segmentStart, position).
   let pending = "";
@@ -191,7 +199,7 @@ function parseInline(line: string): ArticleLine {
 
   /** The start of the run that closes a star run of runLength opened before from, or -1. */
   const starCloser = (runLength: 1 | 2, from: number): number => {
-    if (from >= (starSearchFailedFrom[runLength] ?? Infinity)) {
+    if (from >= starSearchFailedFrom[runLength]) {
       return -1;
     }
     let k = from;
