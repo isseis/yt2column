@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-06 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-06 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -204,3 +204,7 @@
 | `docs/dev/guides/mergepr_guide.md` | 72, 79, 215, 231 | 段階（表の列名）、承認の段階、取り消せない段階 | `/mergepr` の手順の区切り |
 
 `README.md` は対象の文書ではない。`docs/dev/guides/cli.md` と `docs/dev/guides/mergepr_guide.md` は `docs/dev/` の下にあるので対象の文書に入るが、「段階」は上の一般の語だけである。
+
+## 変更履歴
+
+- 2026-11-06 承認（isseis、#707）
