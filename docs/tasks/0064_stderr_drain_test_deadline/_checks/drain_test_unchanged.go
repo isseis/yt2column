@@ -5,12 +5,15 @@
 // For each of two commits it reads the test function with go/parser, without
 // comments. The deadline constant is the identifier passed as the second
 // argument of the function's single context.WithTimeout call; its declaration
-// is removed from the function's const declaration, and every reference to it
-// is renamed to one placeholder. The two functions are then printed and
+// is removed from the function's const declaration, and every identifier
+// spelled like it is renamed to one placeholder. The two functions are then printed and
 // compared as Go token sequences, so a different line layout or comment does
 // not count as a difference, while a changed burst size, script, check, or
 // failure message does. It also checks that the deadline constant of the
 // second commit is declared as 30 * time.Second.
+//
+// Only the test function is compared: the helpers it calls (writeHelperScript,
+// osExecutor, cappedWriter, allowlistEnv) are outside the check.
 //
 // Run it on the PR branch, after every change of the PR is committed:
 //
