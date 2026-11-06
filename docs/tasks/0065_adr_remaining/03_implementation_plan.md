@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-06 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-06 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の項番を、「設計書 3.1」などは設計書の節を指す。用語（ADR、主題、候補、調査の番号、出典のタスク、仕様の正本の文書、PR の基点、規約、移す、移し元・移し先、移す項目の一覧、経緯に入るタスク、決定を記録する節）は、要件書 6 章と設計書の冒頭に従う。本タスクに `implementation_handoff.md` はない。[design_handoff.md](design_handoff.md) の H-01〜H-05 は、設計書の付録 A がすべて記録している。
@@ -516,3 +516,7 @@ AC-03 の食い違い（設計書 3.5）を記録した issue を、その ADR �
 
 -   ④ のマージの後、`/runpr` が issue #666 を閉じる案内をする（本タスクの最後の PR のため）。
 -   設計書 9 章の将来の拡張（A8 と C1 の正本の文書の欠け、本タスクより前からある ADR 同士の重なり）は、その主題を変える後のタスクに任せる。
+
+## 変更履歴
+
+- 2026-11-06 承認（isseis、#708）
