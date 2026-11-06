@@ -205,27 +205,30 @@ const failedSteps: Steps = {
 const previewRequestId = "0123456789abcdef";
 
 /** Japanese "the article's title". */
-const japaneseArticleTitle = "記事のタイトル";
+const japaneseArticleTitle = "\u8a18\u4e8b\u306e\u30bf\u30a4\u30c8\u30eb";
 
 /** Japanese "a section heading". */
-const japaneseSectionHeading = "節の見出し";
+const japaneseSectionHeading = "\u7bc0\u306e\u898b\u51fa\u3057";
 
 /**
  * Japanese "the first paragraph; a sentence long enough to wrap on a narrow
  * page," repeated to wrap.
  */
 const japaneseLongLine =
-  "最初の段落です。狭いページでは折り返す長さの文で、".repeat(3);
+  "\u6700\u521d\u306e\u6bb5\u843d\u3067\u3059\u3002\u72ed\u3044\u30da\u30fc\u30b8\u3067\u306f\u6298\u308a\u8fd4\u3059\u9577\u3055\u306e\u6587\u3067\u3001".repeat(
+    3,
+  );
 
 /** Japanese "a line break inside a line becomes a break inside the paragraph." */
-const japaneseBreakLine = "行の途中の改行は、段落の中の改行になります。";
+const japaneseBreakLine =
+  "\u884c\u306e\u9014\u4e2d\u306e\u6539\u884c\u306f\u3001\u6bb5\u843d\u306e\u4e2d\u306e\u6539\u884c\u306b\u306a\u308a\u307e\u3059\u3002";
 
 /** Japanese "speaker", followed by a full-width colon. */
-const japaneseSpeaker = "話者";
-const fullWidthColon = "：";
+const japaneseSpeaker = "\u8a71\u8005";
+const fullWidthColon = "\uff1a";
 
 /** Japanese "source: ", the start of the source line. */
-const japaneseSource = "出典: ";
+const japaneseSource = "\u51fa\u5178: ";
 
 /**
  * The display Markdown of the done article, with every block and inline
@@ -260,7 +263,7 @@ const previewMarkdown = [
   "```",
   "",
   `${hebrewWord} starts this line.`,
-  "‮This line starts with an override.",
+  "\u202eThis line starts with an override.",
   "A link after them: <https://example.com/after>",
   "",
   `${japaneseSource}<${watchUrl}>`,

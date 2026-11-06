@@ -465,7 +465,7 @@
 | AC-24 | test | `articleBody.test.ts::buildArticleBody`（`lang="ja"`）。ページの `lang` は `extension/test/viewerApp.test.ts` の「titles the page with the URL's heading and sets its language」が変えずに通ること（1.4） | 4-1 |
 | AC-25 | test, manual | `renderViewer.test.ts::article headings`、4.3.2 のスクリーンリーダー | 4-3・6-2 |
 | AC-26 | test, manual | `articleBody.test.ts::buildArticleBody`（リンクの文字が URL の文字列）、`style.test.ts::colour variables`（今の `--focus` の組）、4.3.2 のキーボードとスクリーンリーダー | 4-1・5-1・6-2 |
-| AC-27 | test | `style.test.ts::colour variables`（加える 2 つの組）、`style.test.ts::article typography`（リンクの下線） | 4-3・5-1 |
+| AC-27 | test | `style.test.ts::colour variables`（`.article-body a` を加えた今の `--link` と `--bg` の組と、加える `--text` と `--code-bg` の組）、`style.test.ts::article typography`（リンクの下線） | 4-3・5-1 |
 | AC-28 | test, manual | `style.test.ts::article typography`（`plaintext`）、4.3.1 の行 1、4.3.2 の双方向の文字 | 4-3・1-1・6-2 |
 | AC-29 | test, manual | `style.test.ts::viewer layout` の「makes every pressable element at least 44 CSS pixels wide and tall」（今の選択子の一覧が変わらない）、4.3.2 のほかの操作の大きさ | 5-1・6-2 |
 | AC-30 | test | `extension/test/viewerApp.test.ts` の「copies the display Markdown and says so, without moving focus」と「saves the article's file text unchanged under the title's file name」（変えずに通る。1.4） | 4-3 |

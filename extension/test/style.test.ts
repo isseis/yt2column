@@ -795,16 +795,24 @@ describe("article typography", () => {
       effectiveValue(onScreen, ".article-body", "line-height"),
     );
     assert.ok(height >= 1.7 && height <= 2, `line-height ${String(height)}`);
-    // Paragraphs and items inherit both; neither declares its own.
-    for (const selector of [".article-body p", ".article-body li"]) {
-      for (const property of ["font-size", "line-height"]) {
-        assert.equal(
-          effectiveValue(onScreen, selector, property),
-          "",
-          `${selector} ${property}`,
-        );
-      }
-    }
+    // Paragraphs and items inherit the size: inside the article only the
+    // headings set their own. (The line-height set test covers the height.)
+    const sized = new Set(
+      onScreen
+        .filter(
+          (entry) =>
+            entry.rule.style.getPropertyValue("font-size") !== "" &&
+            selectorsOf(entry).some((selector) =>
+              selector.startsWith(".article-body"),
+            ),
+        )
+        .flatMap(selectorsOf),
+    );
+    assert.deepEqual([...sized].sort(), [
+      ".article-body",
+      ".article-body h2",
+      ".article-body h3",
+    ]);
   });
 
   it("caps the article's line between 700 and 800 CSS pixels inside a page wide enough for it", () => {
@@ -830,26 +838,19 @@ describe("article typography", () => {
     );
   });
 
-  it("wraps a long word anywhere in the article and in each of its blocks", () => {
-    for (const selector of [
-      ".article-body",
-      ".article-body p",
-      ".article-body li",
-      ".article-body h2",
-      ".article-body h3",
-      ".article-body pre",
-    ]) {
-      assert.equal(
-        effectiveValue(onScreen, selector, "overflow-wrap"),
-        "anywhere",
-        selector,
-      );
-    }
+  it("wraps a long word anywhere in the article", () => {
+    // overflow-wrap is inherited, so every block, the code block included,
+    // wraps by the article's own declaration.
+    assert.equal(
+      effectiveValue(onScreen, ".article-body", "overflow-wrap"),
+      "anywhere",
+    );
   });
 
   it("sets code in a monospace face that keeps the size of the text around it", () => {
-    // A list naming only the generic monospace would take the browser's
-    // smaller monospace size, so a named face comes first.
+    // A named face before the generic, as the request id's rule: a lone
+    // monospace would take the browser's smaller monospace size wherever the
+    // size is relative.
     for (const selector of [".article-body code", ".article-body pre"]) {
       assert.deepEqual(
         fontFamilies(effectiveValue(onScreen, selector, "font-family")),

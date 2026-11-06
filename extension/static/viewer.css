@@ -70,7 +70,8 @@ body {
 /* Each block keeps its line breaks and spaces, and each of its lines takes
    its direction from its own text, so a right-to-left line does not reorder
    the lines around it. The article element itself is left to right. A code
-   block's long line wraps inside the block. */
+   block's long line wraps inside the block, by the overflow-wrap each block
+   inherits from the article. */
 .article-body p,
 .article-body li,
 .article-body h2,
@@ -78,7 +79,6 @@ body {
 .article-body pre {
   white-space: pre-wrap;
   unicode-bidi: plaintext;
-  overflow-wrap: anywhere;
 }
 
 /* The blocks are spaced by their bottom margins; the last one leaves none
@@ -121,9 +121,11 @@ body {
   margin-top: 0.25em;
 }
 
-/* Code reads in a monospace face at the size of the text around it: a list
-   naming only monospace would fall to the browser's smaller monospace size.
-   The background marks it apart from the text. */
+/* Code reads in a monospace face at the size of the text around it. The
+   list follows the request id's rule: a named face before the generic, so
+   the size would stay even if the article's size were made relative, where
+   a lone monospace would fall to the browser's smaller monospace size. The
+   background marks code apart from the text. */
 .article-body code,
 .article-body pre {
   font-family: ui-monospace, monospace;

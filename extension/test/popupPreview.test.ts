@@ -409,6 +409,20 @@ describe("popup preview script", () => {
           `${file}: ${selector}`,
         );
       }
+      // The cases the manual checks look for: a nine-digit start number, and
+      // a link in the paragraph whose earlier lines start with a
+      // right-to-left word and with U+202E (RIGHT-TO-LEFT OVERRIDE).
+      assert.match(
+        doc.querySelector("#article ol")?.getAttribute("start") ?? "",
+        /^\d{9}$/,
+        `${file}: start number`,
+      );
+      const bidi = [...doc.querySelectorAll("#article p")].find(
+        (paragraph) =>
+          paragraph.textContent.includes("\u202e") &&
+          paragraph.querySelector("a") !== null,
+      );
+      assert.ok(bidi !== undefined, `${file}: right-to-left lines and a link`);
     }
   });
 
