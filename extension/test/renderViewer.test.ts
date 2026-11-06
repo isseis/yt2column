@@ -753,7 +753,7 @@ describe("article redraw", () => {
     assert.equal(selection.toString(), "Read");
   });
 
-  it("sets save and copy before it draws the article", () => {
+  it("shows save and copy, pressable, before it draws the article", () => {
     const elements = viewerElements();
     const replace = elements.article.replaceChildren.bind(elements.article);
     let drawnWithArticle = false;
@@ -761,6 +761,7 @@ describe("article redraw", () => {
     // moment the article's children are replaced with the drawn article.
     elements.article.replaceChildren = (...nodes: (Node | string)[]) => {
       if (nodes.length > 0) {
+        assert.equal(elements.actions.hidden, false);
         assert.equal(elements.save.disabled, false);
         assert.equal(elements.copy.disabled, false);
         drawnWithArticle = true;

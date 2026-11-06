@@ -110,7 +110,8 @@ describe("buildArticleBody", () => {
 
   it("draws a link that shows and opens its URL in a new tab, with no referrer or opener, left to right", () => {
     const url = "https://www.youtube.com/watch?v=abcdefghijk";
-    const body = buildArticleBody(doc, [paragraph([link(url)])]);
+    const body = buildArticleBody(doc, [paragraph([text("x"), link(url)])]);
+    assert.deepEqual(childNames(body.children[0] as Element), ["#text", "a"]);
     const a = body.querySelector("a");
     assert.ok(a !== null);
     assert.equal(a.getAttribute("href"), url);
@@ -157,11 +158,11 @@ describe("drawArticleBody", () => {
   it("shows the display Markdown without its marks", () => {
     // Japanese "source" before the source line.
     const markdown =
-      "# Title **x**\n\n\\- Channel\n\nBody *a*\n`c` line\n\n## Section\n\n- one\n- two\n  more\n\n3. three\n\n```go\ncode  **x**\n```\n\n出典: <https://www.youtube.com/watch?v=abcdefghijk>\n";
+      "# Title **x**\n\n\\- Channel\n\nBody *a*\n`c` line\n\n## Section\n\n- one\n- two\n  more\n\n3. three\n\n```go\ncode  **x**\n```\n\n\u51fa\u5178: <https://www.youtube.com/watch?v=abcdefghijk>\n";
     const body = drawnBody(markdown);
     assert.equal(
       body.textContent,
-      "Title x- ChannelBody a\nc lineSectiononetwo\n  morethreecode  **x**出典: https://www.youtube.com/watch?v=abcdefghijk",
+      "Title x- ChannelBody a\nc lineSectiononetwo\n  morethreecode  **x**\u51fa\u5178: https://www.youtube.com/watch?v=abcdefghijk",
     );
     assertArticleDom(body, "display Markdown");
   });
@@ -169,7 +170,7 @@ describe("drawArticleBody", () => {
   it("draws the source line's autolink as a link to its URL", () => {
     const url = "https://www.youtube.com/watch?v=abcdefghijk";
     // Japanese "source".
-    const body = drawnBody(`出典: <${url}>`);
+    const body = drawnBody(`\u51fa\u5178: <${url}>`);
     const links = body.querySelectorAll("a");
     assert.equal(links.length, 1);
     assert.equal(links[0]?.getAttribute("href"), url);
@@ -181,30 +182,30 @@ describe("drawArticleBody", () => {
   const asText: readonly {
     input: string;
     elements: readonly string[];
-    shown: string;
+    /** The text shown, when it is not the input itself. */
+    shown?: string;
   }[] = [
-    { input: "<img src=x onerror=alert(1)>", elements: ["p"], shown: "" },
+    { input: "<img src=x onerror=alert(1)>", elements: ["p"] },
     {
       input: '<a href="javascript:alert(1)">x</a>',
       elements: ["p"],
-      shown: "",
     },
-    { input: "<script>alert(1)</script>", elements: ["p"], shown: "" },
-    { input: "<!-- x -->", elements: ["p"], shown: "" },
-    { input: "<div>", elements: ["p"], shown: "" },
-    { input: "> quote", elements: ["p"], shown: "" },
-    { input: "| a | b |\n| - | - |", elements: ["p"], shown: "" },
-    { input: "---", elements: ["p"], shown: "" },
-    { input: "***", elements: ["p"], shown: "" },
-    { input: "___", elements: ["p"], shown: "" },
+    { input: "<script>alert(1)</script>", elements: ["p"] },
+    { input: "<!-- x -->", elements: ["p"] },
+    { input: "<div>", elements: ["p"] },
+    { input: "> quote", elements: ["p"] },
+    { input: "| a | b |\n| - | - |", elements: ["p"] },
+    { input: "---", elements: ["p"] },
+    { input: "***", elements: ["p"] },
+    { input: "___", elements: ["p"] },
     { input: "- - -", elements: ["ul", "li"], shown: "- -" },
     { input: "* * *", elements: ["ul", "li"], shown: "* *" },
-    { input: "### heading", elements: ["p"], shown: "" },
-    { input: "    four spaces", elements: ["p"], shown: "" },
-    { input: "Heading\n===", elements: ["p"], shown: "" },
-    { input: "Heading\n---", elements: ["p"], shown: "" },
-    { input: "~~strike~~", elements: ["p"], shown: "" },
-    { input: "&amp; &#60;", elements: ["p"], shown: "" },
+    { input: "### heading", elements: ["p"] },
+    { input: "    four spaces", elements: ["p"] },
+    { input: "Heading\n===", elements: ["p"] },
+    { input: "Heading\n---", elements: ["p"] },
+    { input: "~~strike~~", elements: ["p"] },
+    { input: "&amp; &#60;", elements: ["p"] },
   ];
   for (const { input, elements, shown } of asText) {
     it(`draws ${JSON.stringify(input)} as text`, () => {
@@ -216,7 +217,7 @@ describe("drawArticleBody", () => {
         ),
         elements,
       );
-      assert.equal(body.textContent, shown === "" ? input : shown);
+      assert.equal(body.textContent, shown ?? input);
     });
   }
 
@@ -229,7 +230,7 @@ describe("drawArticleBody", () => {
     "<https://user:pass@example.com/>",
     "<https://example.com\\path>",
     // A full-width small letter e in the host.
-    "<https://ｅxample.com/>",
+    "<https://\uff45xample.com/>",
     "<https://example.com/a b>",
     "<https://example.com/<x>",
     "[x](https://example.com/)",
@@ -284,17 +285,22 @@ describe("random input", () => {
 
 describe("largest input", () => {
   const size = maxResponseBytes;
-  const inputs = [
+  const inputs: readonly {
+    name: string;
+    build: () => string;
+    children?: number;
+  }[] = [
     ...largeInputs(size),
     {
       // One paragraph of about 260,000 children: emphasis and the spaces
       // between, too many to spread into the arguments of one call.
       name: "a line of emphasis",
       build: () => repeatTo("*a* ", size),
+      children: size / 2,
     },
   ];
   const doc = container().ownerDocument;
-  for (const { name, build } of inputs) {
+  for (const { name, build, children } of inputs) {
     // The time is reported, not checked: jsdom is far slower than a browser.
     it(
       `parses and builds ${name} without throwing`,
@@ -303,10 +309,14 @@ describe("largest input", () => {
         const input = build();
         assert.equal(input.length, size);
         const start = performance.now();
-        buildArticleBody(doc, parseArticleMarkdown(input));
+        const body = buildArticleBody(doc, parseArticleMarkdown(input));
         t.diagnostic(
           `parse and build time: ${(performance.now() - start).toFixed(1)} ms`,
         );
+        if (children !== undefined) {
+          // Still one paragraph too large to spread into one call.
+          assert.equal(body.children[0]?.childNodes.length, children);
+        }
       },
     );
   }

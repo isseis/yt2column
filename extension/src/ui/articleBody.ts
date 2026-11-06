@@ -156,13 +156,15 @@ export function buildArticleBody(
  * Draws the display Markdown into container, unless the same Markdown is
  * already drawn there. A poll that brings the same article again keeps the
  * reader's focus and selection inside it; a container emptied in between is
- * drawn again.
+ * drawn again. The container is emptied before the build, so a build that
+ * throws leaves no article rather than one drawn from earlier Markdown.
  */
 export function drawArticleBody(
   container: HTMLElement,
   markdown: string,
 ): void {
   drawOnKeyChange(container, markdown, () => {
+    container.replaceChildren();
     container.replaceChildren(
       buildArticleBody(container.ownerDocument, parseArticleMarkdown(markdown)),
     );
