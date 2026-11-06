@@ -304,8 +304,8 @@
 
 **変更するファイル:** `README.md`、`README.en.md`
 
--   [ ] `README.md:627` の「記事を、Markdown を解釈せずに文字のまま表示し」を、記事を見出し・リストなどに整えて表示し、`https` の自動リンクを新しいタブで開けることを示す文に書き換える。
--   [ ] `/mktrans README.md` で `README.en.md` に反映し、2 つを 1 つのコミットにする。
+-   [x] `README.md:627` の「記事を、Markdown を解釈せずに文字のまま表示し」を、記事を見出し・リストなどに整えて表示し、`https` の自動リンクを新しいタブで開けることを示す文に書き換える。
+-   [x] `/mktrans README.md` で `README.en.md` に反映し、2 つを 1 つのコミットにする。
 
 **完了の条件:** `make readme-sync-check`・`make ext-test`・`make test` が通る。
 
