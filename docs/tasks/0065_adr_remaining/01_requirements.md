@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-06 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-06 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -196,3 +196,7 @@ ADR の書き方は、規約 `docs/dev/conventions/adr.md` に従う。規約は
 -   **仕様の正本の文書:** ある主題の今の仕様を定める文書（`security.md`・`cache_consistency.md`・CLAUDE.md の規則など）。ADR はそれを要約してリンクする。
 -   **PR の基点:** F-001 で定義する。ADR を書くか変える本タスクの PR の、取り込んだ `main` とのマージの基点。
 -   **有効:** ADR の状態。承認された決定であることを表す（`docs/dev/conventions/adr.md`「Status」）。
+
+## 変更履歴
+
+- 2026-11-06 承認（isseis、#698）
