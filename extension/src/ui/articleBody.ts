@@ -168,21 +168,3 @@ export function drawArticleBody(
     );
   });
 }
-
-/**
- * The article body as text: markdown is set with textContent and never
- * parsed, so tags and links in it stay characters and the element gets no
- * child element and no attribute from it. The CSS keeps its line breaks and
- * spaces (pre-wrap) and its text direction (plaintext); dir=auto takes the
- * direction from the text.
- */
-export function renderArticleBody(
-  doc: Document,
-  markdown: string,
-): HTMLElement {
-  const body = doc.createElement("div");
-  body.className = "article-body";
-  body.setAttribute("dir", "auto");
-  body.textContent = markdown;
-  return body;
-}
