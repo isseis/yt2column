@@ -204,12 +204,13 @@
 
 #### ステップ 3-1: `drawOnKeyChange` を取り出す
 
-**変更するファイル:** `extension/src/ui/drawOnChange.ts`（新規）、`extension/src/ui/renderJob.ts`
+**変更するファイル:** `extension/src/ui/drawOnChange.ts`（新規）、`extension/src/ui/renderJob.ts`、`extension/test/drawOnChange.test.ts`（新規）
 
 -   [x] 設計書 3.4 の `drawOnKeyChange` を書き、`drawStateOnChange` の鍵と子のノードの比較をこれに置き換える。`drawStateOnChange` の振る舞い（描かなかったときだけ経過時間の値を書き換える）は変えない。
 -   [x] 覚えた鍵は `WeakMap` に置き、DOM の属性に書かない（設計書 3.4）。
+-   [x] テスト（`drawOnKeyChange`）: 最初は描き、同じ鍵と子では描かず、鍵が変わると描く。同じ鍵でも、子が同じ数の別のノードに置き換えられたとき、子が後ろに加えられたとき、子が消されたとき、`draw` が例外を投げた後は描く。今のテストは、子のノードの比較の 2 つの条件（数と、ノードごとの一致）を片方だけ外しても通るため、共通の関数として直接確かめる。
 
-**完了の条件:** `make ext-check` が、既存のテストを変えずに通る。次を壊して、名前を挙げたテストが失敗することを確かめる: 鍵の比較を外す（`renderViewer.test.ts:523` の、状態を変えた後の確かめ）、子のノードの比較を外す（`render.test.ts:1088`）、比較をせず常に描く（`render.test.ts:1067`）。
+**完了の条件:** `make ext-check` が、既存のテストを変えずに通る。加えた `drawOnChange.test.ts` も、子の数の比較を外す（後ろに加えた場合）、ノードごとの比較を外す（同じ数の別のノードの場合）、鍵を覚えてから `draw` を呼ぶ（例外の後の場合）と失敗する。次を壊して、名前を挙げたテストが失敗することを確かめる: 鍵の比較を外す（`renderViewer.test.ts:523` の、状態を変えた後の確かめ）、子のノードの比較を外す（`render.test.ts:1088`）、比較をせず常に描く（`render.test.ts:1067`）。
 
 ### フェーズ 4: 組み立てと描画
 
@@ -368,6 +369,7 @@
 | `extension/test/articleMarkdown.test.ts` | 新規。インライン・ブロック・全体の形・文字列の一致・性能・ランダムな入力 | 2-1・2-2・2-4 |
 | `extension/test/helpers/randomMarkdown.ts` | 新規。種を固定した擬似乱数と入力の生成 | 2-4 |
 | `extension/test/lintRules.test.ts` | `brands` に `LinkUrl` の行 | 2-3 |
+| `extension/test/drawOnChange.test.ts` | 新規。`drawOnKeyChange` の鍵と子のノードの比較 | 3-1 |
 | `extension/test/helpers/articleDom.ts` | 新規。DOM の要素と属性の確かめ | 4-1 |
 | `extension/test/articleBody.test.ts` | 組み立て・描画・ランダムな入力・最大の大きさを加え、`renderArticleBody` のテストを消す | 4-1・4-2・4-4 |
 | `extension/test/renderViewer.test.ts` | 本文の値、描き直し、ボタンの順序、見出しの構造 | 4-3 |
