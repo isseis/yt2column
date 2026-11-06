@@ -33,7 +33,7 @@
 -   **CLI の Webhook への投稿（`--slack`）を残す。** CLI からの投稿は拡張のビューアからの投稿と役割が重なり、開発で記事を確かめるには `--out` のファイルで足りる（[0062 要件定義書](../../tasks/0062_remove_cli_slack/01_requirements.md) §1）。
 -   **CLI は、`SLACK_WEBHOOK_URL` が設定されていたら拒否する。** サーバのために設定した環境のままでは CLI を実行できなくなる（[0062 要件定義書](../../tasks/0062_remove_cli_slack/01_requirements.md) §1）。
 -   **生成の完了時に自動で投稿する。** 理由は記録されていない（[0044 要件定義書](../../tasks/0044_article_job_api/01_requirements.md) §1 は「完了したら自動で投稿する予約は設けない」とだけ述べる）。
--   **新しい API の失敗を Webhook へ通知する。** 生成と投稿の失敗は状態の取得で返す。ビューアが失敗を表示できるので、Webhook への通知は重複になる（[0044 要件定義書](../../tasks/0044_article_job_api/01_requirements.md) §1）。
+-   **ジョブの API の失敗を Webhook へ通知する。** 生成と投稿の失敗は状態の取得で返す。ビューアが失敗を表示できるので、Webhook への通知は重複になる（[0044 要件定義書](../../tasks/0044_article_job_api/01_requirements.md) §1）。
 -   **分割したメッセージをスレッドの返信としてつなぐ。** Incoming Webhook は投稿したメッセージの識別子を返さない（成功の応答は本文 `ok` だけ）ので、Incoming Webhook ではつなげない（[0044 設計書](../../tasks/0044_article_job_api/02_architecture.md) §1.3）。Slack や Mattermost の API で投稿すれば、投稿したメッセージの識別子を受け取ってつなげるが、今は実装を簡単にするために Incoming Webhook を使う。API による投稿は将来の選択肢になりうるが、Slack と Mattermost とで実装が大きく異なる。
 
 ## 結果
@@ -50,4 +50,5 @@
 - 2026-10-14 サーバの旧 `/articles` の失敗を、記事と同じ Webhook へ `silent` の 1 通で通知する経路を加えた。送信の経路を記事の投稿と共有し、CLI は通知しない（[0016 要件定義書](../../tasks/0016_failure_notification/01_requirements.md)）
 - 2026-10-19 Slack の投稿を、見出し行（タイトルとチャンネル名）・本文・末尾の脚注（モデルと料金）の順に改め、Block Kit へは移行せず plain text のままとした。語の途中の `@` を受理する規則に変え、対象の `@` を U+200B で無効化する（[0028 要件定義書](../../tasks/0028_output_layout/01_requirements.md)）
 - 2026-10-27 サーバが生成の完了時に続けて投稿していた形を改め、生成・状態の取得・投稿を別の操作に分け、Slack への投稿をビューアからの利用者の操作で行うようにした。生成の完了時には自動で投稿しない。サーバの投稿のジョブは `PostMessages` で送り、CLI の `--slack` は `Publish` を残した。投稿の操作を冪等にし、新しい API の投稿の失敗を Webhook へ通知しない（[0044 要件定義書](../../tasks/0044_article_job_api/01_requirements.md)）
+- 2026-11-04 旧 API（`/articles`）を削除するのに合わせて、旧 API の失敗の通知（`internal/failure`・`SlackFailureNotifier`）を削除した。サーバが Webhook へ送るのは、利用者の投稿の操作が始めた記事だけになった（[0059 要件定義書](../../tasks/0059_remove_legacy_articles_api/01_requirements.md)「issue #526 で決めたこと」）
 - 2026-11-05 CLI の Webhook への投稿（`--slack`）と `SlackWebhookPublisher.Publish` を削除し、Webhook へ投稿するのをサーバの投稿のジョブだけにした。CLI は `SLACK_WEBHOOK_URL` を読まず、`SlackWebhookPublisher` は `Publisher` を満たさない（[0062 要件定義書](../../tasks/0062_remove_cli_slack/01_requirements.md)）
