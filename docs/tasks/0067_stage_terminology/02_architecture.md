@@ -310,12 +310,14 @@ flowchart TD
     Q1 -->|"いいえ"| GENERAL["一般の語"]
     Q1 -->|"はい"| Q2{"ArticleWriter の中の<br>生成・字数の調整・検証・推敲か？"}
     Q2 -->|"はい"| STEP["工程"]
-    Q2 -->|"いいえ"| Q3{"指す部品の集まりに<br>LLMClient が入るか？"}
+    Q2 -->|"いいえ"| Q2B{"ArticleWriter の中の<br>工程でない処理か？"}
+    Q2B -->|"はい"| PROC["一般の語「処理」"]
+    Q2B -->|"いいえ"| Q3{"指す部品の集まりに<br>LLMClient が入るか？"}
     Q3 -->|"はい"| COMP["構成要素"]
     Q3 -->|"いいえ"| STAGE["ステージ"]
 
-    class Q1,Q2,Q3 process
-    class GENERAL,STEP,COMP,STAGE enhanced
+    class Q1,Q2,Q2B,Q3 process
+    class GENERAL,PROC,STEP,COMP,STAGE enhanced
 
     subgraph Legend["凡例"]
         L1["問い"]
@@ -327,7 +329,7 @@ flowchart TD
 
 -   Q3 は、文の話題（interface、パッケージの置き場所など）ではなく、出現箇所が指す部品の集まりで決める。集まりが明示されていないときは、同じ文や直後の列挙が挙げる部品で決める。例: `project_overview.md:48` の「各段階は interface で抽象化し」は、直後の列挙が `LLMClient` を挙げるので構成要素である。`project_overview.md:42` の図の凡例「段階（interface）」は、図の中の部品が `TranscriptSource`・`ArticleWriter`・`Publisher` だけなのでステージである。
 -   Q1 の「いいえ」の例: 評価の尺度（ADR-0004 の「観点と段階の基準」）、手順の区切り（`mergepr_guide.md`）、ホストのログの属性（`security.md:145`）。一般の語は許可の一覧に組を足す（3.7）。
--   Q2 に工程と工程でない処理が混ざる列挙（ADR-0002 の 17 行目）は、一般の語「処理」にする（3.6）。
+-   Q2B の「はい」の例: 最終の字数の確認、出典の付与。工程と工程でない処理が混ざる列挙（ADR-0002 の 17 行目）も、一般の語「処理」にする（3.6）。
 -   ADR-0001 の 37 行目は、LLM のアダプタ（構成要素 `LLMClient`）が `internal/transcript` に依存することを述べる。付録 A は、この行を構成要素どうしの 1 つの依存として読み、2 つの出現箇所とも構成要素とする。2 つ目の「字幕取得の段階」は、Q3 だけで判定すればステージになるが、付録 A に従う（1.2）。
 -   サーバの Webhook への投稿など、パイプラインの外の処理を指す出現箇所は、Q1 で「いいえ」に進む。ステージとも工程とも呼ばず、一般の語「処理」を使う（3.2）。
 
@@ -361,7 +363,7 @@ flowchart TD
 | 許可の組の文言は、その回数だけ残る | 各組の文言が、head のそのファイルにちょうどその回数あること | AC-15 |
 | 用語集の「段階」は旧称の記述だけ | head の用語集で「段階」がちょうど 1 回、文言「旧称: 段階」の中にだけあること。表の 1 列目が「段階」の行がなく、「ステージ」の行がちょうど 1 つあること | AC-01・AC-04 |
 | 禁止のファイルを変えていない | 基点と head の差分のファイルに、`docs/tasks/` の下（このタスクのディレクトリを除く）、`README.md`、`README.en.md`、`docs/dev/conventions/package_reference.md`、`extension/` の下がないこと。差分の `.go` のファイルが `cmd/yt2column/docs_test.go` だけであること | AC-14・AC-16 |
-| `CLAUDE.md` の変更は 3 か所だけ | `CLAUDE.md` の差分で、消えた行が 3.4 の「今の文言」を含む行だけで、足した行が「変えた後」の文言を含む行だけであること。行番号ではなく文言で照合する | AC-13 |
+| `CLAUDE.md` の変更は 3 か所だけ | head の `CLAUDE.md` で 3.4 の 3 つの「変えた後」の文言を「今の文言」に戻すと、基点の `CLAUDE.md` と一致すること。363〜364 行目の文は 2 行にまたがるので、照合では改行を空白と同じに扱う。行番号では照合しない | AC-13 |
 | ADR の経緯の節は変わらない | 差分にある ADR（`docs/dev/adr/[0-9][0-9][0-9][0-9]-*.md` に当たるファイル。索引 `README.md` は除く）ごとに、「## 経緯」の見出しが基点と head でちょうど 1 つずつあり、その見出しから末尾までが同じであること。基点にない ADR（0065 の新しい ADR）は、head で見出しがちょうど 1 つあることだけを確かめる | AC-09（経緯） |
 
 スクリプトが守ること:
@@ -373,7 +375,7 @@ flowchart TD
 
 走らせ方:
 
--   PR の基点は `git fetch origin main` の後の `git merge-base origin/main HEAD` とする。`git fetch` はネットワークの操作なので、実装の手順の中で許可を得て行う。
+-   走らせる前に `git fetch origin main` を行い、`origin/main` を head に取り込む。`git merge-base --is-ancestor origin/main HEAD` が成功することを確かめてから走らせる。PR の基点は `git merge-base origin/main HEAD` とする。`git fetch` はネットワークの操作なので、実装の手順の中で許可を得て行う。
 -   PR の head が変わったら（`main` の取り込みを含む）、マージの前に最後の head で走らせ直す（AC-06 の「`main` を取り込んだ後の状態」）。
 -   出力の全文と、基点・head のコミット ID を、実装計画の記録と PR の説明に残す。
 
