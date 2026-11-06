@@ -59,6 +59,7 @@ describe("drawOnKeyChange", () => {
       },
     },
     {
+      // The viewer hides the article this way and may show the same one again.
       name: "removed",
       change: (target) => {
         target.replaceChildren();
