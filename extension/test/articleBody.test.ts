@@ -16,8 +16,12 @@ import {
   drawArticleBody,
   renderArticleBody,
 } from "../src/ui/articleBody.ts";
+import { maxResponseBytes } from "../src/core/exchange.ts";
+import { parseArticleMarkdown } from "../src/core/articleMarkdown.ts";
 import { assertArticleDom } from "./helpers/articleDom.ts";
 import { container } from "./helpers/dom.ts";
+import { largeInputs, repeatTo } from "./helpers/largeMarkdown.ts";
+import { randomMarkdownInputs, randomSeeds } from "./helpers/randomMarkdown.ts";
 
 describe("renderArticleBody", () => {
   const doc = container().ownerDocument;
@@ -277,5 +281,72 @@ describe("drawArticleBody", () => {
       assert.equal(body.querySelector("a"), null);
       assert.equal(body.textContent, input);
     });
+  }
+});
+
+/** Whether shown's characters appear in input in the same order. */
+function isSubsequence(shown: string, input: string): boolean {
+  let at = 0;
+  for (const char of shown) {
+    at = input.indexOf(char, at);
+    if (at === -1) {
+      return false;
+    }
+    at += char.length;
+  }
+  return true;
+}
+
+describe("random input", () => {
+  // One document for every input: a fresh JSDOM per input would take most
+  // of the run.
+  const doc = container().ownerDocument;
+  for (const seed of randomSeeds) {
+    it(`builds every input of seed ${seed} into the listed elements and attributes, showing only the input's characters in order`, () => {
+      let links = 0;
+      randomMarkdownInputs(seed).forEach((input, index) => {
+        const where = `seed ${seed}, input ${index}: ${JSON.stringify(input)}`;
+        let body: HTMLElement;
+        try {
+          body = buildArticleBody(doc, parseArticleMarkdown(input));
+        } catch (error) {
+          assert.fail(`${where} threw ${String(error)}`);
+        }
+        assertArticleDom(body, where);
+        assert.ok(isSubsequence(body.textContent ?? "", input), where);
+        links += body.querySelectorAll("a").length;
+      });
+      assert.ok(links > 0, `seed ${seed} made no link`);
+    });
+  }
+});
+
+describe("largest input", () => {
+  const size = maxResponseBytes;
+  const inputs = [
+    ...largeInputs(size),
+    {
+      // One paragraph of about 260,000 children: emphasis and the spaces
+      // between, too many to spread into the arguments of one call.
+      name: "a line of emphasis",
+      build: () => repeatTo("*a* ", size),
+    },
+  ];
+  const doc = container().ownerDocument;
+  for (const { name, build } of inputs) {
+    // The time is reported, not checked: jsdom is far slower than a browser.
+    it(
+      `parses and builds ${name} without throwing`,
+      { timeout: 60_000 },
+      (t) => {
+        const input = build();
+        assert.equal(input.length, size);
+        const start = performance.now();
+        buildArticleBody(doc, parseArticleMarkdown(input));
+        t.diagnostic(
+          `parse and build time: ${(performance.now() - start).toFixed(1)} ms`,
+        );
+      },
+    );
   }
 });

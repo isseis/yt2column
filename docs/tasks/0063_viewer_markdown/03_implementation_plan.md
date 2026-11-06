@@ -229,10 +229,10 @@
 
 #### ステップ 4-2: ランダムな入力と最大の大きさの入力
 
-**変更するファイル:** `extension/test/articleBody.test.ts`
+**変更するファイル:** `extension/test/articleBody.test.ts`、`extension/test/helpers/largeMarkdown.ts`（新規。ステップ 2-4 の性能のテストの入力を、`articleMarkdown.test.ts` から移して共有する）、`extension/test/articleMarkdown.test.ts`
 
--   [ ] テスト（ランダムな入力、設計書 7.3）: ステップ 2-4 と同じ生成の関数と種で、解釈と組み立てが例外を投げないこと、`helpers/articleDom.ts` の確かめが通ること（AC-20）、描画した `textContent` が入力の文字の部分列であること（AC-21 の性質の一部）。種ごとに作られた `a` の数を数え、0 でないことも確かめる。失敗の報告は、ステップ 2-4 と同じ形にする。
--   [ ] テスト（最大の大きさ、AC-33）: 設計書 7.1「性能」の入力を 512 KiB で解釈し、組み立てても例外を投げないこと。時間は測らない。入力には、`*a*` の繰り返しの 1 行（1 つの段落に十数万の子を持つ）を含める。テストの実行時間を手元で測り、コミットのメッセージに書く。
+-   [x] テスト（ランダムな入力、設計書 7.3）: ステップ 2-4 と同じ生成の関数と種で、解釈と組み立てが例外を投げないこと、`helpers/articleDom.ts` の確かめが通ること（AC-20）、描画した `textContent` が入力の文字の部分列であること（AC-21 の性質の一部）。種ごとに作られた `a` の数を数え、0 でないことも確かめる。失敗の報告は、ステップ 2-4 と同じ形にする。
+-   [x] テスト（最大の大きさ、AC-33）: 設計書 7.1「性能」の入力を 512 KiB で解釈し、組み立てても例外を投げないこと。時間は測らない。入力には、`*a*` の繰り返しの 1 行（1 つの段落に十数万の子を持つ）を含める。テストの実行時間を手元で測り、コミットのメッセージに書く。
 
 **完了の条件:** `make ext-check` が通る。次を壊して、名前を挙げたテストが失敗することを確かめる: 組み立てで段落の子を配列の展開でまとめて加える（最大の大きさの `*a*` の入力）、`href` を `LinkUrl` に `#` を足した値にする（ランダムな入力のテスト）。前者が失敗しない場合は、配列を広げない規則の根拠をこのテストに求めず、その結果をコミットのメッセージに書き、扱いをレビューで決める。
 
@@ -372,6 +372,7 @@
 | `extension/test/drawOnChange.test.ts` | 新規。`drawOnKeyChange` の鍵と子のノードの比較 | 3-1 |
 | `extension/test/helpers/articleDom.ts` | 新規。DOM の要素と属性の確かめ | 4-1 |
 | `extension/test/articleBody.test.ts` | 組み立て・描画・ランダムな入力・最大の大きさを加え、`renderArticleBody` のテストを消す | 4-1・4-2・4-4 |
+| `extension/test/helpers/largeMarkdown.ts` | 新規。性能のテストの入力の形（`articleMarkdown.test.ts` から移す） | 4-2 |
 | `extension/test/renderViewer.test.ts` | 本文の値、描き直し、ボタンの順序、見出しの構造 | 4-3 |
 | `extension/test/style.test.ts` | 空白・方向・リンクの規則（`:748-757` の書き直し） | 4-3 |
 | `extension/test/style.test.ts` | 残りの記事の CSS、コントラストの組、日本語の規則の集合 | 5-1 |

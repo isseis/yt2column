@@ -14,6 +14,7 @@ import {
   type LinkUrl,
 } from "../src/core/articleMarkdown.ts";
 import { maxResponseBytes } from "../src/core/exchange.ts";
+import { largeInputs } from "./helpers/largeMarkdown.ts";
 import { randomMarkdownInputs, randomSeeds } from "./helpers/randomMarkdown.ts";
 
 const text = (value: string): ArticleInline => ({ kind: "text", text: value });
@@ -811,20 +812,6 @@ describe("parseArticleMarkdown display Markdown", () => {
   }
 });
 
-/** Repeats unit until the string is length characters long. */
-function repeatTo(unit: string, length: number): string {
-  return unit.repeat(Math.ceil(length / unit.length)).slice(0, length);
-}
-
-/** One line of backtick runs that grow by one: `a``a```a and so on. */
-function growingBacktickRuns(length: number): string {
-  let line = "";
-  for (let run = 1; line.length < length; run++) {
-    line += `${"`".repeat(run)}a`;
-  }
-  return line.slice(0, length);
-}
-
 describe("parseArticleMarkdown performance", () => {
   // Each input is as long as the largest response the extension accepts and
   // is built outside the timed call. A parse whose time grows with the
@@ -835,55 +822,7 @@ describe("parseArticleMarkdown performance", () => {
   // search.
   const limitMs = 1000;
   const size = maxResponseBytes;
-  const articleParagraph =
-    "# Title\n\n## Section\n\n**Speaker**: a *word* and `code` <https://a.example/x>.\n- item\n1. item\n\n```\ncode\n```\n\n";
-  const inputs: readonly { name: string; build: () => string }[] = [
-    { name: "a line of stars", build: () => "*".repeat(size) },
-    { name: "a line of backticks", build: () => "`".repeat(size) },
-    {
-      name: "a line of autolink openings",
-      build: () => repeatTo("<https://", size),
-    },
-    { name: "a line of backslashes", build: () => "\\".repeat(size) },
-    {
-      name: "a line of unclosed strong emphasis",
-      build: () => repeatTo("**a", size),
-    },
-    { name: "a line of unclosed emphasis", build: () => repeatTo("*a", size) },
-    {
-      name: "a line of strong emphasis closings after spaces",
-      build: () => repeatTo("**a ", size),
-    },
-    {
-      name: "a line of emphasis closings after spaces",
-      build: () => repeatTo("*a ", size),
-    },
-    {
-      name: "a line of code spans of one length",
-      build: () => repeatTo("`a", size),
-    },
-    {
-      name: "a line of growing backtick runs",
-      build: () => growingBacktickRuns(size),
-    },
-    {
-      name: "lines of unclosed fences",
-      // The last line is padded with letters, so no line closes a fence.
-      build: () => {
-        const lines = "```x\n".repeat(Math.floor((size - 1) / 5));
-        return lines + "a".repeat(size - lines.length);
-      },
-    },
-    {
-      name: "a line mixing the marks",
-      build: () => repeatTo("**a *b `c <https://d \\", size),
-    },
-    {
-      name: "lines of article paragraphs",
-      build: () => repeatTo(articleParagraph, size),
-    },
-  ];
-  for (const { name, build } of inputs) {
+  for (const { name, build } of largeInputs(size)) {
     // The time is reported, so the margin below the limit can be read in CI.
     it(`parses ${name} within ${limitMs} ms`, { timeout: 10_000 }, (t) => {
       const input = build();
