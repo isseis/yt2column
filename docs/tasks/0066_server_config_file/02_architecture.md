@@ -301,10 +301,10 @@ func MkdirBelow(base string, names []string) error
 
 `Read` の手順:
 
-1.  パスを `os.Lstat` する。名前がなければ `ErrNotExist` を返す。ほかの失敗（親を探索する権限がない `EACCES`、途中の要素がディレクトリでない `ENOTDIR` など）は、包んで返し、呼び出し側は「読めない」とする（AC-19）。シンボリックリンクなら `ReasonSymlink`、通常のファイルでなければ `ReasonNotRegular` で、開かずに拒否する。所有者とモードも `Lstat` の結果で確かめ、満たさなければ開かずに拒否する（モードが `0000` のファイルを、読めないではなく、モードの誤りとして示すため）。
+1.  パスを `os.Lstat` する。名前がなければ `ErrNotExist` を返す。ほかの失敗（親を探索する権限がない `EACCES`、途中の要素がディレクトリでない `ENOTDIR` など）は、元のエラーを含めて返し、呼び出し側は「読めない」とする（AC-19）。シンボリックリンクなら `ReasonSymlink`、通常のファイルでなければ `ReasonNotRegular` で、開かずに拒否する。所有者とモードも `Lstat` の結果で確かめ、満たさなければ開かずに拒否する（モードが `0000` のファイルを、読めないではなく、モードの誤りとして示すため）。
 2.  `os.OpenFile(path, O_RDONLY|O_NOFOLLOW|O_NONBLOCK|O_NOCTTY, 0)` で開く。`O_NOCTTY` は、手順 1 の後に名前が端末に替わった場合に、`fstat` で拒否する前にそれが制御端末になることを防ぐ。`O_NOFOLLOW` は、手順 1 の後に最後の要素がシンボリックリンクに替わった場合に `ELOOP` で失敗させる（`ReasonSymlink`）。`O_NONBLOCK` は、手順 1 の後に FIFO に替わった場合に書き手を待たずに開かせる（AC-16）。`ENOENT` は `ErrNotExist` にする。同じ開き方は `internal/cachelock/cachelock.go:78-82` にもある。
 3.  開いた記述子を `File.Stat`（`fstat`）し、種類・所有者・モードを確かめ直す。読んでよいと決めるのは、この結果だけである。手順 1 の結果は拒否にだけ使い、許可には使わない。
-4.  同じ記述子から、`limit + 1` バイトまで読む。`limit` を超えたら `ErrTooLarge` を返す。読み込みのエラーは包んで返す。
+4.  同じ記述子から、`limit + 1` バイトまで読む。`limit` を超えたら `ErrTooLarge` を返す。読み込みのエラーは、元のエラーを含めて返す。
 
 `Create` の手順:
 
