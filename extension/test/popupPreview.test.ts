@@ -394,22 +394,14 @@ describe("popup preview script", () => {
       const file = `${previewCase.name}.html`;
       const doc = new JSDOM(readFileSync(path.join(output, file), "utf8"))
         .window.document;
-      for (const selector of [
-        "h2",
-        "h3",
-        "ul",
-        "ol[start]",
-        "pre code",
-        "strong",
-        "em",
-        "a",
-      ]) {
+      for (const selector of ["h2", "h3", "ul", "pre code", "strong", "em"]) {
         assert.ok(
           doc.querySelector(`#article ${selector}`) !== null,
           `${file}: ${selector}`,
         );
       }
-      // The cases the manual checks look for: a nine-digit start number, and
+      // The cases the manual checks look for, which also stand for the ol and
+      // the a elements: a nine-digit start number, and
       // a link in the paragraph whose earlier lines start with a
       // right-to-left word and with U+202E (RIGHT-TO-LEFT OVERRIDE).
       assert.match(

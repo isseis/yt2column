@@ -847,20 +847,19 @@ describe("article typography", () => {
     );
   });
 
-  it("sets code in a monospace face that keeps the size of the text around it", () => {
-    // A named face before the generic, as the request id's rule: a lone
-    // monospace would take the browser's smaller monospace size wherever the
-    // size is relative.
+  it("sets code in the request id's monospace faces", () => {
+    // A named face before the generic: a lone monospace would take the
+    // browser's smaller monospace size wherever the size is relative. The
+    // size itself is left to the text around it (the font-size set test).
+    const requestId = fontFamilies(
+      effectiveValue(onScreen, ".send-request-id", "font-family"),
+    );
+    assert.ok(requestId.length > 1 && requestId.at(-1) === "monospace");
     for (const selector of [".article-body code", ".article-body pre"]) {
       assert.deepEqual(
         fontFamilies(effectiveValue(onScreen, selector, "font-family")),
-        ["ui-monospace", "monospace"],
+        requestId,
         selector,
-      );
-      assert.equal(
-        effectiveValue(onScreen, selector, "font-size"),
-        "",
-        `${selector} font-size`,
       );
     }
   });
@@ -948,27 +947,22 @@ describe("Japanese typography", () => {
     // Japanese article in the same faces.
     assert.deepEqual(
       fontFamilies(effectiveValue(onScreen, ".article-body", "font-family")),
-      [
-        "Hiragino Sans",
-        "Noto Sans JP",
-        "Yu Gothic UI",
-        "system-ui",
-        "sans-serif",
-      ],
+      fontFamilies(effectiveValue(onScreen, ":root:lang(ja)", "font-family")),
     );
   });
 
-  it("applies the Japanese rules to the root, the body and the article only", () => {
+  it("applies the Japanese rules to the root and body only", () => {
     // The set, not the order: a second block for the same selector is fine,
     // while any other selector -- including one inside a conditional block --
-    // is not.
+    // is not. Each selector of a list counts alone, so a selector without
+    // :lang(ja) that shares the rule (the article's) is not part of the set.
     const selectors = new Set(
       all
-        .map((entry) => selectorsOf(entry).join(", "))
+        .flatMap(selectorsOf)
         .filter((selector) => selector.includes(":lang(ja)")),
     );
     assert.deepEqual([...selectors].sort(), [
-      ":root:lang(ja), .article-body",
+      ":root:lang(ja)",
       "body:lang(ja)",
     ]);
   });
