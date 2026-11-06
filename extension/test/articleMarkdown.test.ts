@@ -109,7 +109,11 @@ interface InlineCase {
   readonly name: string;
   readonly input: string;
   readonly pieces: ArticleLine;
-  /** The string the line shows, written by hand from the input. */
+  /**
+   * The string the line shows, written by hand from the input. It is
+   * compared after the tree, so it checks the expected tree against the
+   * rule that the shown string is the input without its marks.
+   */
   readonly shown: string;
 }
 
@@ -349,6 +353,18 @@ const inlineCases: readonly InlineCase[] = [
     shown: "https://localhost/ https://127.0.0.1:8443/",
   },
   {
+    name: "emphasis after strong emphasis marks with no closing run",
+    input: "x **a *b*",
+    pieces: [text("x **a "), emphasis("b")],
+    shown: "x **a b",
+  },
+  {
+    name: "strong emphasis after an emphasis mark with no closing star",
+    input: "x *a **b**",
+    pieces: [text("x *a "), strong("b")],
+    shown: "x *a b",
+  },
+  {
     name: "an autolink after a failed one",
     input: "<https://a.example<https://b.example/>",
     pieces: [text("<https://a.example"), link("https://b.example/")],
@@ -367,6 +383,8 @@ const notLinks: readonly { name: string; input: string }[] = [
     input: "<https://example.com>",
   },
   {
+    // The requirements' example; each condition alone rejects it, and the
+    // two rows after it reach one condition each.
     name: "a user name and a password",
     input: "<https://user:pass@example.com/>",
   },
@@ -418,11 +436,16 @@ interface BlockCase {
   readonly name: string;
   readonly input: string;
   readonly blocks: readonly ArticleBlock[];
-  /** The article tree's string, written by hand from the input. */
+  /**
+   * The article tree's string, written by hand from the input. It is
+   * compared after the tree, so it checks the expected tree against the
+   * rule that the shown string is the input without its marks.
+   */
   readonly shown: string;
 }
 
 const blockCases: readonly BlockCase[] = [
+  { name: "an empty string", input: "", blocks: [], shown: "" },
   {
     name: "the title and section headings",
     input: "# Title **x**\n## Section",
@@ -734,10 +757,6 @@ describe("parseArticleMarkdown blocks", () => {
       assert.equal(treeString(parsed), shown);
     });
   }
-
-  it("parses an empty string to no blocks", () => {
-    assert.deepEqual(parseArticleMarkdown(""), []);
-  });
 });
 
 describe("parseArticleMarkdown display Markdown", () => {
@@ -809,8 +828,11 @@ function growingBacktickRuns(length: number): string {
 describe("parseArticleMarkdown performance", () => {
   // Each input is as long as the largest response the extension accepts and
   // is built outside the timed call. A parse whose time grows with the
-  // square of the input takes far longer than the limit on these; one that
-  // grows with the input takes tens of milliseconds.
+  // input takes tens of milliseconds on each. On most of them a search that
+  // starts again for each opening mark or line takes far longer than the
+  // limit; the growing backtick runs leave only about a thousand runs
+  // unclosed, so that row checks the time limit itself rather than such a
+  // search.
   const limitMs = 1000;
   const size = maxResponseBytes;
   const articleParagraph =
@@ -835,6 +857,10 @@ describe("parseArticleMarkdown performance", () => {
     {
       name: "a line of emphasis closings after spaces",
       build: () => repeatTo("*a ", size),
+    },
+    {
+      name: "a line of code spans of one length",
+      build: () => repeatTo("`a", size),
     },
     {
       name: "a line of growing backtick runs",
