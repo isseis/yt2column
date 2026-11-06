@@ -32,7 +32,7 @@ CLI とサーバの両方から、廃止した 5 つの変数の検査（`retire
 
 ## H-08: 文書のガードテスト
 
-AC-34 で、どのテストがどの値（設定ファイルのパス、`config init` の終了コード、6 つのキーの名前、大きさの上限）を、どの文書（`README.md`・`README.en.md`・`project_overview.md`・`security.md`・`development.md`）と照らすかを決める。今のテスト（`cmd/yt2column-server/docs_test.go` の `TestServerDocsContract`、`cmd/yt2column` の設定の表の検査など）が読む表や節の形が変わるので、その更新も決める。`CLAUDE.md` の文書のテストの方針（値・構造・実行できる例だけを確かめ、同じ値を複数のテストで確かめない）に従う。`development.md` の開発用のサーバの手順は、実行できる例として確かめるかも決める。
+AC-34 で、どのテストがどの値（設定ファイルのパス、`config init` の終了コード、6 つのキーの名前、大きさの上限）を、どの文書（`README.md`・`README.en.md`・`project_overview.md`・`security.md`・`development.md`）と照合するかを決める。今のテスト（`cmd/yt2column-server/docs_test.go` の `TestServerDocsContract`、`cmd/yt2column` の設定の表の検査など）が読む表や節の形が変わるので、その更新も決める。`CLAUDE.md` の文書のテストの方針（値・構造・実行できる例だけを確かめ、同じ値を複数のテストで確かめない）に従う。`development.md` の開発用のサーバの手順は、実行できる例として確かめるかも決める。
 
 ## H-09: 標準ライブラリの落とし穴と、秘密の変数の名前を書ける場所
 
