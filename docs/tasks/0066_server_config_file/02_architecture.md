@@ -21,20 +21,19 @@
 ### 1.2. 設計原則
 
 -   **ファイルの操作と設定の意味を分ける。** ファイルを安全に開いて読み、安全に作る処理は、新しいパッケージ `internal/privatefile` に置く。このパッケージは設定のことを知らない。キーの名前・書式・雛形・パスの規則は `internal/config` が持つ。秘密の変数の名前を書けるのは `internal/config` だけだからである（`internal/config/envaccess_test.go:59` の `secretEnvNames`）。
--   **検査は開いた記述子に対して行う。** 種類・所有者・モード・ACL の検査と、中身の読み込みは、同じファイル記述子に対して行う。パスに対する `Lstat` は、メッセージを選ぶためと、FIFO などを開かずに早めに拒否するためだけに使う。`Lstat` の結果は拒否には使うが、許可には使わない。読んでよいと決めるのは、記述子に対する検査だけである（AC-19a）。
+-   **検査は開いた記述子に対して行う。** 種類・所有者・モードの検査と、中身の読み込みは、同じファイル記述子に対して行う。パスに対する `Lstat` は、メッセージを選ぶためと、FIFO などを開かずに早めに拒否するためだけに使う。`Lstat` の結果は拒否には使うが、許可には使わない。読んでよいと決めるのは、記述子に対する検査だけである（AC-19a）。
 -   **値の検証は 1 つだけにする。** ファイルの値は、今の `loadLLM`・`loadSlackWebhook` に `LookupFunc` として渡して検証する。ファイル用の値の検証は書かない（要件 4.5）。ファイルに固有なのは書式（空の値の拒否を含む）だけである。
 -   **入口ごとに、読む場所を 1 つにする。** サーバのコードが環境から読むのは `HOME` と `GODEBUG` だけで、6 つのキーはファイルからだけ読む。どちらの `LookupFunc` から読むかは、`LoadServer` の中でキーごとに固定する。値の中身を見て選ぶことはしない。
--   **直さずに拒否する。** 書式の誤り、権限の誤り、ACL は、どれも直さずに拒否する。サーバは設定ファイルにもその親にも書かない（`CLAUDE.md`「Reject, don't normalize」）。
+-   **直さずに拒否する。** 書式の誤りと権限の誤りは、どちらも直さずに拒否する。サーバは設定ファイルにもその親にも書かない（`CLAUDE.md`「Reject, don't normalize」）。
 -   **終了コードは失敗した手順で決める。** 今の `run` の規則（`cmd/yt2column-server/run.go:23-28`）を保ち、メッセージを見て選ばない。
 
 ### 1.3. 設計の際に決めたこと（2026-11-06）
 
--   **ファイルの操作は新しいパッケージ `internal/privatefile` に置く。** このパッケージが持つのは、所有者だけが読める通常のファイルを検査して読むこと、そういうファイルを新しく作ること、決まった親の下にディレクトリを作ること、の 3 つで、OS ごとの ACL のコードもここに閉じ込める。`internal/config` は、パスの規則・書式の解析・雛形・値の検証を持つ。理由: `internal/config` は今まで環境変数を読んで検証するだけのパッケージで（`internal/config/config.go:1-3`）、syscall と OS ごとのファイルを入れると責務が混ざる。ADR: なし（`internal/privatefile` を使うのは `internal/config` だけで、ほかの部品や後のタスクに使うことを求めない。境界は `package_reference.md` に記録する）。
--   **`internal/serversock` の検査の型と小さな関数は共有しない。** `serversock` にも、`ErrUnsafe`・`UnsafeError`・`UnsafeReason`（`String()` で利用者向けの文を持つ）と、所有者を確かめる `ownedBy`・特別なビットの `specialBits` がある（`internal/serversock/serversock.go:48-134`・`367-370`）。`privatefile` は同じ形の型を自分で持ち、`UnsafeReason` も `String()` で文を持つ形にそろえる。共有しない理由: `serversock` の `UnsafeReason` はディレクトリとソケットに関するもの（グループが書ける親、ソケットのモードなど）で、設定ファイルの `UnsafeReason`（ACL など）と重ならない。型を 1 つにすると、ソケットと設定ファイルの拒否の分類が互いのパッケージに漏れる。重なるのは数行の所有者とビットの判定だけで、`serversock`（信頼の境界にあるパッケージ）を変えるほどの重さはない。ADR: なし。
--   **macOS の拡張 ACL は、`fgetattrlist` で検出し、`fchmod_extended` で取り除く。** 検出には、開いた記述子に `fgetattrlist(2)` を `ATTR_CMN_EXTENDED_SECURITY` 付きで呼ぶ。除去（`config init` が作るファイルだけ）には、`fchmod_extended` を `_FILESEC_REMOVE_ACL` で呼ぶ。どちらも標準ライブラリの `syscall.Syscall6` と `syscall.SYS_FGETATTRLIST`・`syscall.SYS_FCHMOD_EXTENDED` で呼べ、外部のモジュールも外部のコマンドも要らない。PoC で確かめた結果は付録 B にある。`fchmod_extended` は文書化されていない syscall で、公開の `fchmodx_np(3)` と `chmod -N` がこれを使っている。理由: 要件が外部のモジュールとコマンドを禁じ（`CLAUDE.md`「Dependencies」）、cgo は C コンパイラを要しクロスビルドを難しくするため。ADR: [ADR-0018](../../dev/adr/0018-server-config-file.md) を更新する。
--   **エントリが 0 個の ACL も「ACL を持つ」として拒否する。** macOS では、ACL のエントリを `chmod -a` ですべて消しても、ACL の枠が残り、`fgetattrlist` はそれを返す（付録 B）。この場合も拒否し、`chmod -N <パス>` で取り除くよう案内する。エントリの数を読んで受理する道は採らない。理由: 解析する形を増やさず、安全側に倒すため（`CLAUDE.md`「Reject, don't normalize」）。ADR: [ADR-0018](../../dev/adr/0018-server-config-file.md) に含める。
+-   **ファイルの操作は新しいパッケージ `internal/privatefile` に置く。** このパッケージが持つのは、所有者だけが読める通常のファイルを検査して読むこと、そういうファイルを新しく作ること、決まった親の下にディレクトリを作ること、の 3 つである。`internal/config` は、パスの規則・書式の解析・雛形・値の検証を持つ。理由: `internal/config` は今まで環境変数を読んで検証するだけのパッケージで（`internal/config/config.go:1-3`）、syscall と OS ごとのファイルを入れると責務が混ざる。ADR: なし（`internal/privatefile` を使うのは `internal/config` だけで、ほかの部品や後のタスクに使うことを求めない。境界は `package_reference.md` に記録する）。
+-   **`internal/serversock` の検査の型と小さな関数は共有しない。** `serversock` にも、`ErrUnsafe`・`UnsafeError`・`UnsafeReason`（`String()` で利用者向けの文を持つ）と、所有者を確かめる `ownedBy`・特別なビットの `specialBits` がある（`internal/serversock/serversock.go:48-134`・`367-370`）。`privatefile` は同じ形の型を自分で持ち、`UnsafeReason` も `String()` で文を持つ形にそろえる。共有しない理由: `serversock` の `UnsafeReason` はディレクトリとソケットに関するもの（グループが書ける親、ソケットのモードなど）で、設定ファイルの `UnsafeReason`（通常のファイルでないこと、ファイルのモードなど）と重ならない。型を 1 つにすると、ソケットと設定ファイルの拒否の分類が互いのパッケージに漏れる。重なるのは数行の所有者とビットの判定だけで、`serversock`（信頼の境界にあるパッケージ）を変えるほどの重さはない。ADR: なし。
+-   **ACL は検査も除去もしない。** 要件定義書の「ACL は検査せず、残余リスクとして受け入れる」のとおりである。そのため `internal/privatefile` は OS ごとのファイルを持たず、Unix に共通の 1 つの実装で書ける。`syscall.Syscall6` と `unsafe` は使わない。macOS の拡張 ACL を標準ライブラリだけで検出・除去できることは PoC で確かめたが（付録 B）、除去に Apple が文書化していない syscall が要り、OS 固有のコードを Linux だけで動く CI でテストできないので採らなかった。ADR: [ADR-0018](../../dev/adr/0018-server-config-file.md) を更新する。
 -   **書式の拒否は、拒否した行を行番号順に最大 20 行まで報告する。** 21 行目以降は、拒否した行の数だけを 1 行で示す。書式の拒否が 1 つでもあれば、値の検証には進まない。理由: `.envrc` から `export X="..."` を 6 行写した場合でも 1 回で直せ、値の検証の報告がすべてをまとめて示すのとも揃うため。上限は、64 KiB のファイルの拒否が標準エラーを埋め尽くさないためである。ADR: なし（このタスクの中で閉じる）。
--   **`config init` は、一時ファイルに書いてから `link` で置く。** 同じディレクトリに一時ファイルを作り、モードと ACL を整えて雛形を書き、`fsync` してから `os.Link` で設定ファイルのパスに置き、一時ファイルを消す。`link` は既存の名前を上書きしないので、パスに何かあれば作らない（AC-24）。プロセスが途中で強制終了されても、設定ファイルのパスに書きかけは現れない（AC-25）。理由: 設定ファイルのパスに直接 `O_EXCL` で作る案では、強制終了や電源断のときに書きかけが残りうるため。ADR: なし（このタスクの中で閉じる）。
+-   **`config init` は、一時ファイルに書いてから `link` で置く。** 同じディレクトリに一時ファイルを作り、モードを整えて雛形を書き、`fsync` してから `os.Link` で設定ファイルのパスに置き、一時ファイルを消す。`link` は既存の名前を上書きしないので、パスに何かあれば作らない（AC-24）。プロセスが途中で強制終了されても、設定ファイルのパスに書きかけは現れない（AC-25）。理由: 設定ファイルのパスに直接 `O_EXCL` で作る案では、強制終了や電源断のときに書きかけが残りうるため。ADR: なし（このタスクの中で閉じる）。
 -   **`LoadServer` の引数は、今と同じ 1 つの `LookupFunc` のままにする。** `LoadServer` が、`HOME` からの設定ファイルのパスの導出、ファイルの検査と読み込みと書式の解析、値の検証を順に行う。理由: `main` が `os.LookupEnv` を渡す場所は 1 つのまま保て（`cmd/yt2column-server/main.go:16-20`）、`run` の手順 1 の形も変わらないため。ADR: なし（関数の形で、このタスクの中で閉じる）。
 -   **設定ファイルのキーの拒否は、`VarError` に出どころを持たせて示す。** `VarError` に `Source` を加える。ゼロ値は今の形（`<名前>: <理由>`）で、`LoadServer` は設定ファイルのキーの拒否の出どころを「設定ファイル」にする。理由: 値の検証のコード（`loadLLM` など）を CLI と共有したまま、拒否の行を設定ファイルのキーとして示せるため（AC-05）。ADR: なし（型の形で、このタスクの中で閉じる）。
 -   **書式の解析は「Declare, don't infer」の新しい例外にしない。** 解析は、ファイルの中身（最初のバイトの `#` と最初の `=`）で行の種類を決める。これは、要件 F-003 が宣言した文法を読むことで、要件 5 章が許した「受理する形の解析（行の種類・キー）」の範囲に収まる。キーは 6 つの名前との完全な一致で決め、合わない行は広く読まずに拒否する。`CLAUDE.md` に例外を足す必要がない理由はこれである。ADR: なし。
@@ -125,9 +124,8 @@ flowchart LR
     class L4 newpkg
 ```
 
-`internal/privatefile` は `//go:build unix` で、OS ごとの ACL の処理を `darwin` 用とそれ以外の Unix 用のファイルに分ける。`internal/config` はこれを import するので、Unix でだけビルドされる。3 つの実行ファイルは、すでに Unix だけを対象にしている（`internal/serversock/serversock.go:1`、`internal/cachelock/cachelock.go:1` が `//go:build unix`）。要件 4.4 も macOS と Linux だけを対象にする。
+`internal/privatefile` は `//go:build unix` で、OS ごとのファイルは持たない。`internal/config` はこれを import するので、Unix でだけビルドされる。3 つの実行ファイルは、すでに Unix だけを対象にしている（`internal/serversock/serversock.go:1`、`internal/cachelock/cachelock.go:1` が `//go:build unix`）。要件 4.4 も macOS と Linux だけを対象にする。
 
-CI は Linux だけで動く（`.github/workflows/ci.yml` の `runs-on: ubuntu-latest`）。そのままでは `acl_darwin.go` は CI でビルドされもしない。そこで、CI の `test` の job に、Linux の上で `GOOS=darwin` を指定して `internal/privatefile` を `go vet` し、テストのバイナリをビルドする（`go test -c`、実行はしない）手順を加える。cgo を使わないので、Linux の上でビルドできる。`syscall.Syscall6` に渡す `unsafe.Pointer` は gosec の G103 に当たるので、その行に理由を付けた `nolint` を置く。
 
 ### 2.2. コンポーネント配置
 
@@ -141,8 +139,6 @@ graph TB
 
     subgraph pkg_pf ["internal/privatefile/（新規）"]
         PF1["privatefile.go<br>Read・Create・MkdirBelow"]
-        PF2["acl_darwin.go<br>ACL の検出と除去"]
-        PF3["acl_other.go<br>ACL なし（darwin 以外の Unix）"]
     end
 
     subgraph pkg_cfg ["internal/config/（変更）"]
@@ -168,10 +164,8 @@ graph TB
     C3 -->|"OS の分類"| C4
     C4 --> C5
     C2 --> PF1
-    PF1 --> PF2
-    PF1 --> PF3
 
-    class PF1,PF2,PF3 newpkg
+    class PF1 newpkg
     class C1,C2,C3,S2 enhanced
     class C5,S1 process
     class C4 enhanced
@@ -257,8 +251,7 @@ var (
 )
 
 // UnsafeReason is why Read refused a file. Its zero value, ReasonUnknown, is
-// reported as "not in the accepted form" without a more specific reason, and
-// is also the reason when the ACL check itself fails.
+// reported as "not in the accepted form" without a more specific reason.
 type UnsafeReason int
 
 const (
@@ -267,7 +260,6 @@ const (
 	ReasonNotRegular
 	ReasonForeignOwner
 	ReasonMode
-	ReasonACL
 )
 
 // String returns the fixed user-facing text of the reason, as
@@ -291,13 +283,12 @@ func (e *UnsafeError) Unwrap() error // ErrUnsafe
 // directory for ErrBaseMissing, the configuration file's path for ErrExist).
 
 // Read returns the content of the file at path when it is a regular file,
-// not a symbolic link, owned by the effective user, with exactly Mode and, on
-// macOS, no extended ACL; the checks and the read use one descriptor. A file
+// not a symbolic link, owned by the effective user, with exactly Mode; the checks and
+// the read use one descriptor. A file
 // larger than limit bytes is ErrTooLarge, read no further than limit+1 bytes.
 func Read(path string, limit int) ([]byte, error)
 
-// Create puts a new file with exactly Mode and, on macOS, no extended ACL at
-// path, holding content. It never replaces or changes what is at path
+// Create puts a new file with exactly Mode at path, holding content. It never replaces or changes what is at path
 // (ErrExist), and on failure it leaves nothing at path. After a success it
 // returns the temporary file's name when it could not remove it, or "".
 func Create(path string, content []byte) (leftoverTemp string, err error)
@@ -313,14 +304,13 @@ func MkdirBelow(base string, names []string) error
 1.  パスを `os.Lstat` する。名前がなければ `ErrNotExist` を返す。ほかの失敗（親を探索する権限がない `EACCES`、途中の要素がディレクトリでない `ENOTDIR` など）は、包んで返し、呼び出し側は「読めない」とする（AC-19）。シンボリックリンクなら `ReasonSymlink`、通常のファイルでなければ `ReasonNotRegular` で、開かずに拒否する。所有者とモードも `Lstat` の結果で確かめ、満たさなければ開かずに拒否する（モードが `0000` のファイルを、読めないではなく、モードの誤りとして示すため）。
 2.  `os.OpenFile(path, O_RDONLY|O_NOFOLLOW|O_NONBLOCK|O_NOCTTY, 0)` で開く。`O_NOCTTY` は、手順 1 の後に名前が端末に替わった場合に、`fstat` で拒否する前にそれが制御端末になることを防ぐ。`O_NOFOLLOW` は、手順 1 の後に最後の要素がシンボリックリンクに替わった場合に `ELOOP` で失敗させる（`ReasonSymlink`）。`O_NONBLOCK` は、手順 1 の後に FIFO に替わった場合に書き手を待たずに開かせる（AC-16）。`ENOENT` は `ErrNotExist` にする。同じ開き方は `internal/cachelock/cachelock.go:78-82` にもある。
 3.  開いた記述子を `File.Stat`（`fstat`）し、種類・所有者・モードを確かめ直す。読んでよいと決めるのは、この結果だけである。手順 1 の結果は拒否にだけ使い、許可には使わない。
-4.  macOS では、同じ記述子に `fgetattrlist` を 2 回呼ぶ。1 回目は、ボリュームの属性（`ATTR_VOL_INFO`・`ATTR_VOL_ATTRIBUTES`）を求め、ボリュームが `ATTR_CMN_EXTENDED_SECURITY` を扱うかどうかを確かめる。扱わないボリューム（FAT など）では ACL の有無を判定できないので、ACL がないとはみなさず `ReasonUnknown` で拒否する。2 回目で拡張 ACL の有無を確かめる（`ReasonACL`）。2 回目の呼び出しには `FSOPT_PACK_INVAL_ATTRS` を渡す。読むのは、返った属性の集合（`ATTR_CMN_RETURNED_ATTRS`）に `ATTR_CMN_EXTENDED_SECURITY` があるかどうかだけで、ACL の中身は読まない。そのため、ACL が大きくてバッファに収まらなくても判定は変わらない。`fgetattrlist` が失敗したときは、ACL がないとはみなさず、`ReasonUnknown` で拒否する（止める側に倒す）。macOS 以外の Unix では何もしない（要件 2.3）。
-5.  同じ記述子から、`limit + 1` バイトまで読む。`limit` を超えたら `ErrTooLarge` を返す。読み込みのエラーは包んで返す。
+4.  同じ記述子から、`limit + 1` バイトまで読む。`limit` を超えたら `ErrTooLarge` を返す。読み込みのエラーは包んで返す。
 
 `Create` の手順:
 
 1.  パスを `os.Lstat` し、何かあれば（リンク先のないシンボリックリンクとディレクトリを含む）`ErrExist` を返す。この確認はメッセージを選ぶためだけのもので、上書きしないことを保証するのは手順 5 の `link` である。ディレクトリに書き込めない場合でも、すでにあるファイルを「作れなかった」ではなく「すでにある」と示すために置く（AC-24）。
 2.  パスと同じディレクトリに `os.CreateTemp` で一時ファイルを作る（`O_CREATE|O_EXCL`）。名前は、決まった接頭辞 `.config.env.tmp-` に無作為の文字列を続けたものにし、利用者が残りを見つけて消せるようにする。
-3.  `File.Chmod(Mode)` でモードを `0600` にそろえる（umask によらない。AC-21）。macOS では、`fchmod_extended` で継承した ACL を取り除き、`fgetattrlist` で ACL がないことを確かめる。残っているか、確かめる呼び出しが失敗すれば、失敗にする。
+3.  `File.Chmod(Mode)` でモードを `0600` にそろえる（umask によらない。AC-21）。ACL は変えない。
 4.  `content` を書き、`File.Sync` してから閉じる。
 5.  `os.Link(一時ファイル, path)` で置く。`EEXIST` は `ErrExist` にする。`link(2)` は既存の名前（リンク先のないシンボリックリンクとディレクトリを含む）を上書きしないので、パスにあるものは変わらない（AC-24）。
 6.  成功でも失敗でも、一時ファイルの名前を消す。途中で失敗したときも、パスには何も置かれない（AC-25）。成功した後に一時ファイルの名前を消せなかったときは、`Create` は成功とともにその名前を返し、呼び出し側がそれを 1 行で示す（終了コードは変えない）。失敗した後に消せなかったときは、その名前を失敗のエラーの文に含める。ディレクトリの `fsync` はしない。電源断の直後には、成功を示した後でも、設定ファイルの名前が消えていることがある。その場合も、パスに書きかけは残らない。
@@ -519,8 +509,6 @@ type InitResult struct {
 | ファイル | 種別 | 責務・変更 | 更新が要る既存のテスト |
 |---|---|---|---|
 | `internal/privatefile/privatefile.go` | 新規 | `Read`・`Create`・`MkdirBelow`、エラーの型 | - |
-| `internal/privatefile/acl_darwin.go` | 新規 | `fgetattrlist` による ACL の検出、`fchmod_extended` による除去 | - |
-| `internal/privatefile/acl_other.go` | 新規 | darwin 以外の Unix では ACL を検査しない | - |
 | `internal/privatefile/test_helpers.go` | 新規 | `Lstat` の後に差し替えるフックの差し込み口（`//go:build test`。7.3） | - |
 | `internal/config/configpath.go` | 新規 | 設定ファイルのパスの規則と `serverFileLocation`。OS の分類を `socketRule` と共有する | - |
 | `internal/config/socketpath.go` | 変更 | OS の分類を共有の関数から取る | `TestSocketPath` |
@@ -538,7 +526,6 @@ type InitResult struct {
 | `README.md`・`README.en.md` ほか 3.5 の文書 | 変更 | AC-30 から AC-33 | 3.5 の表、`cmd/yt2column` の README の設定の表を読むテスト |
 | `docs/dev/conventions/package_reference.md` | 変更 | `internal/privatefile` の行を加え、`internal/config` と `cmd/yt2column-server` の行を直す | - |
 | `CLAUDE.md` | 変更 | AC-33 の記述に加え、Architecture Overview のサーバを支えるパッケージに `internal/privatefile` を加える | - |
-| `.github/workflows/ci.yml` | 変更 | `GOOS=darwin` で `internal/privatefile` を `go vet` し、テストのバイナリを組み立てる手順（2.1） | - |
 
 テストを削除するときは、削除だけのコミットにし、`make coverage-compare` で確かめる（`CLAUDE.md`「Deleting a test is a claim that must be checked」、H-07）。
 
@@ -552,7 +539,7 @@ type InitResult struct {
 |---|---|---|---|---|---|
 | `HOME` とパスの規則 | `config.ErrMissing`（今のもの）・`config.ErrInvalid`（ソケットのパスが長すぎる） | `*config.VarError`（`Name` は `HOME`） | AC-03 | `2` | `2` |
 | ファイルがない | `config.ErrConfigFileMissing` | `*config.FileError` | AC-14 | `2` | - |
-| 読んではならないファイル | `config.ErrConfigFileUnsafe` | `*config.FileError`（理由は `privatefile.UnsafeReason` から選ぶ） | AC-15 から AC-18a | `2` | - |
+| 読んではならないファイル | `config.ErrConfigFileUnsafe` | `*config.FileError`（理由は `privatefile.UnsafeReason` から選ぶ） | AC-15 から AC-18 | `2` | - |
 | 読めない | `config.ErrConfigFileUnreadable` | `*config.FileError`（OS のエラーの文は非公開の `detail`） | AC-19 | `2` | - |
 | 書式 | `config.ErrConfigFileFormat` | `*config.FileError`（行ごと、またはファイル全体）と `*config.FormatOverflowError`（件数） | AC-12・AC-13 | `2` | - |
 | 値の検証 | `config.ErrMissing`・`config.ErrInvalid`（今のもの） | `*config.VarError`（`Source` は `VarSourceConfigFile`） | AC-05 | `2` | - |
@@ -617,8 +604,6 @@ func (e *FormatOverflowError) Unwrap() error // ErrConfigFileFormat
 | 通常のファイルでない | `configuration: configuration file <パス> is not a regular file; nothing was changed` |
 | 所有者が違う | `configuration: configuration file <パス> is owned by another user; nothing was changed` |
 | モード | `configuration: configuration file <パス> has mode <見つかったモード>, not exactly 0600; run chmod 600 '<パス>'` |
-| ACL（macOS） | `configuration: configuration file <パス> has an access control list; run chmod -N '<パス>'` |
-| 判定できない | `configuration: configuration file <パス> is not in the accepted form; nothing was changed` |
 | 読めない | `configuration: configuration file <パス> could not be read: <OS のエラー>` |
 | 書式（行） | `configuration: configuration file <パス>: line <n>: <理由>`（重複は理由にキーの名前を含む） |
 | 書式（件数） | `configuration: configuration file <パス>: <m> more lines were rejected` |
@@ -653,7 +638,7 @@ flowchart LR
     PARSE["書式の解析"]
     OUT["標準エラー"]
 
-    OTHER -->|"読む（モード・ACL）"| FILE
+    OTHER -->|"読む（モード）"| FILE
     SWAP -->|"別のファイルを読ませる"| READ
     COPY -->|"誤った値を通す"| PARSE
     FILE --> READ --> PARSE
@@ -675,7 +660,7 @@ flowchart LR
 
 | 脅威 | 対策 | AC |
 |---|---|---|
-| 他のユーザーがファイルを読む | モードがちょうど `0600`、所有者が実行したユーザー、macOS では ACL なし。満たさなければ起動しない。`config init` は `0600` で作り、継承した ACL を取り除く | AC-17・AC-18・AC-18a・AC-21 |
+| 他のユーザーがファイルを読む | モードがちょうど `0600`、所有者が実行したユーザー。満たさなければ起動しない。`config init` は `0600` で作る。ACL は検査しない（5.2） | AC-17・AC-18・AC-21 |
 | シンボリックリンクで別のファイルを読ませる | `Lstat` で拒否し、`O_NOFOLLOW` で開き、開いた記述子に `fstat` する | AC-15 |
 | 検査と読み込みの間にパスを入れ替える | 検査と読み込みに同じ記述子を使う。`Lstat` の結果では許可しない | AC-19a |
 | FIFO で起動を止める | `Lstat` で開かずに拒否し、入れ替えには `O_NONBLOCK` で備える | AC-16 |
@@ -688,13 +673,9 @@ flowchart LR
 
 ### 5.2. 受け入れるリスク
 
--   **親のディレクトリの入れ替え。** 親のディレクトリは検査しない（要件 2.3）。親の名前が入れ替えられた場合、サーバが読むのは入れ替え先のファイルである。そのファイルも、同じ記述子で種類・所有者・モード・ACL を検査してから読む。よって、実行したユーザーの所有でない、または他人が読めるファイルの中身は使わない。同一ユーザーのプロセスによる入れ替えは、ADR-0006 の信頼の範囲に入る。
--   **非公開の syscall への依存（macOS）。** ACL の除去に使う `fchmod_extended` の `_FILESEC_REMOVE_ACL` は、Apple が文書化していない。将来の macOS で振る舞いが変われば、`Create` は ACL が残ったことを `fgetattrlist` で検出して失敗する（3.1 の `Create` の手順 3）。ACL を持つファイルを黙って作ることはない。検出に使う `getattrlist(2)` は文書化された API である。
--   **拡張セキュリティ属性を扱わないボリューム（macOS）。** ボリュームが `ATTR_CMN_EXTENDED_SECURITY` を扱わないと答えれば、サーバは設定ファイルを拒否する（3.1 の `Read` の手順 4）。FAT で確かめた（付録 B）。SMB・NFS は確かめていない。ボリュームが扱うと答えながら ACL を返さない実装があれば、その ACL は検出できない。設定ファイルの既定のパスは利用者のホームの下で、通常は APFS のボリュームにある。
+-   **親のディレクトリの入れ替え。** 親のディレクトリは検査しない（要件 2.3）。親の名前が入れ替えられた場合、サーバが読むのは入れ替え先のファイルである。そのファイルも、同じ記述子で種類・所有者・モードを検査してから読む。よって、実行したユーザーの所有でない、または他人が読めるファイルの中身は使わない。同一ユーザーのプロセスによる入れ替えは、ADR-0006 の信頼の範囲に入る。
 -   **一時ファイルの差し替え。** `config init` の一時ファイルの名前は、`link` までの間に、親に書ける他のユーザーなら差し替えられる。差し替えられたファイルが設定ファイルのパスに置かれても、それは他のユーザーの所有なので、サーバは所有者の検査で読まない。起きうるのは起動の妨げだけである。同一ユーザーによる差し替えは ADR-0006 の信頼の範囲に入る。
--   **macOS のテストは CI で走らない。** CI は Linux だけで動く（`.github/workflows/ci.yml` の `runs-on: ubuntu-latest`）。ACL のテストは `darwin` のビルドでだけ動き、ローカルの `make test` で確かめる。CI では、`darwin` 向けにビルドして `go vet` するところまでを確かめる（2.1）。
--   **`config init` が作るディレクトリの ACL（macOS）。** `MkdirBelow` が作るディレクトリ（macOS では `yt2column`。ソケットのディレクトリの親でもある）は、親が継承する ACL を持てばそれを受け継ぐ。要件は作るディレクトリの ACL を定めていない（AC-23）。他のユーザーが受け継いだ ACL で設定ファイルを消すか差し替えても、サーバは所有者の検査で止まるので、読まれるのは自分のファイルだけである。起きうるのは起動の妨げだけで、ソケットの祖先の ACL を検査しないという ADR-0006 の受け入れの範囲に入る。
--   **Linux の POSIX ACL。** 検査しない（要件 2.3）。モードがちょうど `0600` なら ACL のマスクは空で、名前を付けたユーザーやグループの項目は権利を与えない。
+-   **ACL（残余リスク）。** 要件定義書の「ACL は検査せず、残余リスクとして受け入れる」のとおり、ACL は検査も変更もしない。macOS では、モードがちょうど `0600` でも、ACL が他のユーザーに読む権利を与えていれば、サーバはそのファイルを受理し、他のユーザーが秘密情報を読める。サーバはこれを示さない。`config init` が作るファイルとディレクトリは、親が継承する ACL を持てばそれを受け継ぐ。README で、モードの検査が ACL を見ないことと、`ls -le` での確かめ方と `chmod -N` での取り除き方を示す。Linux では、モードがちょうど `0600` なら POSIX ACL のマスクは空で、名前を付けたユーザーやグループの項目は権利を与えない。
 -   **`link` が使えないファイルシステム。** ハードリンクに対応しないファイルシステムでは、`config init` は「作れなかった」で終わる（終了コード `1`）。macOS の APFS と Linux の ext4 などはハードリンクに対応する。
 -   **一時ファイルの残り。** `config init` が強制終了されると、設定ファイルの隣に `.config.env.tmp-` で始まる一時ファイルが残ることがある。`link` の前なら、中身は秘密を含まない雛形で、モードは `0600` である。`link` と一時ファイルの削除の間なら、残った名前は設定ファイルと同じファイルを指すハードリンクになる。利用者がその後、同じファイルのまま書き換えるエディタで設定ファイルに秘密を書くと、その秘密は残った名前からも読める。設定ファイルを消しても、秘密は残る。どちらの名前もモード `0600` で利用者の所有なので、他のユーザーは読めない（ADR-0006 の範囲）。決まった接頭辞を README に書き、残りを見つけて消せるようにする。強制終了が `link` と削除の間のごく短い時間に当たった場合にだけ起き、`config init` は 1 度しか実行しないので、ハードリンクの数を検査して拒否する仕組みは置かない。
 -   **ディレクトリの `fsync` をしない。** 電源断の直後には、`config init` が成功を示した後でも、設定ファイルの名前が消えていることがある。その場合も書きかけは残らず、もう一度 `config init` を実行すればよい。
@@ -720,16 +701,13 @@ flowchart TD
     OPEN -->|"ほかの失敗"| E_IO["入出力のエラー"]
     OPEN -->|"開けた"| FST{"fstat：種類・所有者・モード"}
     FST -->|"満たさない"| E_FS["UnsafeError"]
-    FST -->|"満たす"| ACL{"macOS：fgetattrlist で ACL"}
-    ACL -->|"ある"| E_ACL["ReasonACL"]
-    ACL -->|"呼び出しが失敗・ボリュームが ACL を扱わない"| E_UK["ReasonUnknown"]
-    ACL -->|"ない・macOS 以外"| RD{"limit + 1 バイトまで読む"}
+    FST -->|"満たす"| RD{"limit + 1 バイトまで読む"}
     RD -->|"limit を超える"| E_TL["ErrTooLarge"]
     RD -->|"読めない"| E_IO
     RD -->|"読めた"| OK(["中身"])
 
-    class LST,OPEN,FST,ACL,RD process
-    class E_NE,E_SL,E_NR,E_OM,E_IO,E_FS,E_ACL,E_UK,E_TL problem
+    class LST,OPEN,FST,RD process
+    class E_NE,E_SL,E_NR,E_OM,E_IO,E_FS,E_TL problem
 
     subgraph Legend["Legend"]
         L1["判定"]
@@ -763,7 +741,7 @@ flowchart TD
     PRE -->|"ある"| X1
     PRE -->|"ない"| TMP{"一時ファイルを作る"}
     TMP -->|"失敗"| X1
-    TMP -->|"成功"| PREP{"Chmod 0600・ACL の除去と確認<br>雛形を書き、fsync"}
+    TMP -->|"成功"| PREP{"Chmod 0600<br>雛形を書き、fsync"}
     PREP -->|"失敗"| CLEAN["一時ファイルを消す"]
     PREP -->|"成功"| LNK{"link(一時ファイル, パス)"}
     LNK -->|"EEXIST・失敗"| CLEAN
@@ -793,7 +771,6 @@ flowchart TD
 
 -   **`internal/privatefile`:** `t.TempDir` の下に実際のファイルを作って試す。
     -   `Read`: 通常のファイル（受理）、名前がない、シンボリックリンク（リンク先が正しいファイルの場合と、リンク先がない場合）、ディレクトリ、FIFO（書き手がいなくても待たずに拒否すること）、Unix ドメインソケット、モード `0644`・`0640`・`0400`・`0700`・`0000`、setuid・setgid・sticky の付いた `0600`、上限ちょうどと上限 + 1 バイト。所有者が違うファイルは root でないと作れないので、所有者の判定は `fstat` の結果を受け取る小さな関数として切り出して試す。
-    -   macOS の ACL: `chmod +a` で ACL を付けたファイル（`fchmod_extended` ではなく `/bin/chmod` で付ける。外部のコマンドを使うのはテストだけである）、エントリが 0 個の ACL を持つファイル、継承する ACL を持つディレクトリの下に `Create` で作ったファイル（ACL がないこと）。ACL を確かめる関数の呼び出しをテスト用に失敗させ、拒否することも試す。
     -   `Create`: 既存のファイル・リンク先のないシンボリックリンク・ディレクトリがあるパスで `ErrExist` になり、それらが変わらないこと。umask `0077` と `0000` でモードがちょうど `0600` になること。書き込みに失敗させたときに、パスに何もないこと。
     -   `MkdirBelow`: 基点がない場合、基点が通常のファイルの場合、基点の最後の要素がディレクトリへのシンボリックリンクの場合（たどって作れること）、umask によらず `0700` になること。
     -   権限に頼るテスト: 読めない場合（AC-19）は、探索の権限を外した親の下のパスで試す。モード `0000` や探索できない親のテストは root では結果が変わるので、`os.Geteuid() == 0` のときは `t.Skip` する。
@@ -813,7 +790,7 @@ flowchart TD
 
 ## 8. 実装の優先順位 (Implementation Priorities)
 
-1.  `internal/privatefile`（`Read`・`Create`・`MkdirBelow`、ACL）とそのテスト。
+1.  `internal/privatefile`（`Read`・`Create`・`MkdirBelow`）とそのテスト。
 2.  `internal/config` の設定ファイルのパスの規則、書式の解析、`FileError`、雛形、`InitServerFile`。
 3.  `LoadServer` の組み立ての変更と `VarError.Source`。
 4.  廃止した変数の検査の削除。テストの削除は、削除だけのコミットにして `make coverage-compare` で確かめる。
@@ -835,16 +812,16 @@ PR の区切りは実装計画で決める。
 
 | 項目 | 対応 |
 |---|---|
-| H-01 検査したファイルと読んだファイルを同じにする | `Lstat` で分類し、`O_NOFOLLOW`・`O_NONBLOCK` で開いた記述子に `fstat` と ACL の検査をし、同じ記述子から `limit + 1` バイトまで読む（3.1、6.1）。FIFO は `Lstat` の時点で開かずに拒否し、入れ替えには `O_NONBLOCK` で備える |
+| H-01 検査したファイルと読んだファイルを同じにする | `Lstat` で分類し、`O_NOFOLLOW`・`O_NONBLOCK` で開いた記述子に `fstat` で検査をし、同じ記述子から `limit + 1` バイトまで読む（3.1、6.1）。FIFO は `Lstat` の時点で開かずに拒否し、入れ替えには `O_NONBLOCK` で備える |
 | H-02 `LookupFunc` の組み立て | `LoadServer(lookup)` の形を保ち、中で 6 つのキーはファイルの `LookupFunc`、`HOME`・`GODEBUG` は環境の `LookupFunc` から読む（3.2.3）。`main.go` の契約は保つ。CLI の `Load`・`LoadFor` は、廃止した変数の検査が消えることのほかは変えない |
 | H-03 拒否の型と番兵、メッセージの語 | 分類ごとの番兵と `FileError`（4.1）、`VarError.Source`（3.2.4）。終了コードは失敗した手順で選ぶ（3.3） |
 | H-04 書式の拒否をいくつ報告するか | 最大 20 行まで報告し、超えた分は件数だけ示す。書式の拒否があれば値の検証に進まない（1.3、3.2.2） |
-| H-05 雛形の作り方と文面 | 一時ファイル + `Chmod` + ACL の除去 + `fsync` + `link`（3.1）。親は `MkdirBelow` で `0700`（3.1）。文面は実装で決め、書式の解析に通すテストで確かめる（3.2.5、7.1） |
+| H-05 雛形の作り方と文面 | 一時ファイル + `Chmod` + `fsync` + `link`（3.1）。親は `MkdirBelow` で `0700`（3.1）。文面は実装で決め、書式の解析に通すテストで確かめる（3.2.5、7.1） |
 | H-06 ソケットのパスとの規則の共有 | 規則は `socketRule` とは別の関数に置き、OS の分類の関数と `appDirName`・`absoluteHome` を共有する。macOS で `config init` が作る親は `serversock` の親の検査を通る（3.2.1） |
 | H-07 廃止した変数の検査の削除 | 削除するコードとテストを 3.2.3 と 3.6 に挙げた。テストの削除は削除だけのコミットと `make coverage-compare` で確かめる（8 章） |
 | H-08 文書のガードテスト | 照らす値・文書・テストを 3.5 の表に挙げた。`development.md` の手順は実行できる例としては確かめない |
 | H-09 標準ライブラリの落とし穴と秘密の名前を書ける場所 | `bufio.Scanner` を使わず `bytes.Split` で分ける（3.2.2）。キーの名前を扱う解析と雛形は `internal/config` に置く（1.2）。行は `stderrWriter`（`redact.Line`）を通す（3.3） |
-| H-10 macOS の拡張 ACL | `fgetattrlist` で検出し、`fchmod_extended` で除去する。標準ライブラリの `syscall` だけで書け、PoC で確かめた（1.3、付録 B）。要件の見直しは要らない |
+| H-10 macOS の拡張 ACL | 要件を見直し、ACL は検査も除去もしないことにした（要件定義書の「ACL は検査せず、残余リスクとして受け入れる」、1.3、5.2）。標準ライブラリの `syscall` だけで検出と除去ができることは PoC で確かめたが（付録 B）、除去に文書化されていない syscall が要り、OS 固有のコードを CI でテストできないので採らなかった |
 
 ## 11. 受け入れ基準と設計の対応
 
@@ -866,10 +843,12 @@ PR の区切りは実装計画で決める。
 
 ## 付録 A. ADR
 
--   [ADR-0018](../../dev/adr/0018-server-config-file.md) を更新する。macOS の ACL の検出と除去の手段（非公開の syscall への依存を含む）と、エントリが 0 個の ACL も拒否することを、決定と結果と経緯に加える。
+-   [ADR-0018](../../dev/adr/0018-server-config-file.md) を更新する。ACL を検査せず残余リスクとして受け入れることを、決定・採らなかった案・結果・経緯に記す。この決定は、要件定義書を `draft` に戻して変えた。
 -   [ADR-0003](../../dev/adr/0003-llm-config-contract.md) は、要件定義の PR（#702）で更新済みで、本書による変更はない。
 
 ## 付録 B. macOS の ACL の PoC（2026-11-06）
+
+この PoC は、macOS の拡張 ACL を検査し、`config init` で取り除く案を判断するために行った。その案は採らず、ACL は残余リスクとして受け入れた（1.3）。
 
 環境: macOS（Darwin 25.6.0、arm64）、Go 1.27.1。標準ライブラリだけの小さなプログラムで確かめた。
 
