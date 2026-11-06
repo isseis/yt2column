@@ -218,12 +218,12 @@
 
 **変更するファイル:** `extension/src/ui/articleBody.ts`、`extension/test/articleBody.test.ts`、`extension/test/helpers/articleDom.ts`（新規）
 
--   [ ] `buildArticleBody` を、設計書 3.2 の表の要素と属性だけで書く。木の種類の `switch` は `default` で `never` に代入して例外を投げる形にする。`a` を作り `href` を設定する関数は 1 つだけで、`LinkUrl` だけを受け取る。子は 1 つずつ加え、配列を引数に広げない。ブロックの間と `li` の間に文字のノードを置かない。
--   [ ] `drawArticleBody` を、表示用の Markdown を鍵とする `drawOnKeyChange` の呼び出しで書く。描くときは、作った `div` 1 つで `container` の子を置き換える。`renderArticleBody` はステップ 4-4 まで残す。
--   [ ] `articleBody.ts` の先頭のコメントを、解釈と組み立てを分けた構成に合わせて書き直す。
--   [ ] `helpers/articleDom.ts` に、作った DOM の木をたどり、設計書 7.1「要素と属性の一覧」の条件を確かめる関数を書く。値は解釈の関数を使わずに確かめる。固定の属性（記事の要素の `class`・`dir`・`lang`、`a` の `target`・`rel`・`dir`）が決めた値であることと、記事の要素の下のノードが要素と文字だけであること（AC-18 の `<!-- x -->` からコメントのノードを作らない）も確かめる。
--   [ ] テスト（`buildArticleBody`）: 設計書 7.1 の組み立ての項目。解釈の関数では作れない記事の木（例: 空の項目の列）も、手で書いた木から確かめる。
--   [ ] テスト（`drawArticleBody`）: `textContent` が、手で書いた期待する文字列と一致すること（AC-12・AC-21）。AC-13 の出典の行でリンクが作られ、`helpers/articleDom.ts` の確かめが通ること。AC-18・AC-19 の入力に `helpers/articleDom.ts` の関数を当てはめ、タグから要素も属性も作られないこと（AC-18・AC-20）。AC-14・AC-15 の例で `a` が作られないこと。
+-   [x] `buildArticleBody` を、設計書 3.2 の表の要素と属性だけで書く。木の種類の `switch` は `default` で `never` に代入して例外を投げる形にする。`a` を作り `href` を設定する関数は 1 つだけで、`LinkUrl` だけを受け取る。子は 1 つずつ加え、配列を引数に広げない。ブロックの間と `li` の間に文字のノードを置かない。
+-   [x] `drawArticleBody` を、表示用の Markdown を鍵とする `drawOnKeyChange` の呼び出しで書く。描くときは、作った `div` 1 つで `container` の子を置き換える。`renderArticleBody` はステップ 4-4 まで残す。
+-   [x] `articleBody.ts` の先頭のコメントを、解釈と組み立てを分けた構成に合わせて書き直す。
+-   [x] `helpers/articleDom.ts` に、作った DOM の木をたどり、設計書 7.1「要素と属性の一覧」の条件を確かめる関数を書く。値は解釈の関数を使わずに確かめる。固定の属性（記事の要素の `class`・`dir`・`lang`、`a` の `target`・`rel`・`dir`）が決めた値であることと、記事の要素の下のノードが要素と文字だけであること（AC-18 の `<!-- x -->` からコメントのノードを作らない）も確かめる。
+-   [x] テスト（`buildArticleBody`）: 設計書 7.1 の組み立ての項目。解釈の関数では作れない記事の木（例: 空の項目の列）も、手で書いた木から確かめる。
+-   [x] テスト（`drawArticleBody`）: `textContent` が、手で書いた期待する文字列と一致すること（AC-12・AC-21）。AC-13 の出典の行でリンクが作られ、`helpers/articleDom.ts` の確かめが通ること。AC-18・AC-19 の入力に `helpers/articleDom.ts` の関数を当てはめ、タグから要素も属性も作られないこと（AC-18・AC-20）。AC-14・AC-15 の例で `a` が作られないこと。
 
 **完了の条件:** `make ext-check` が通る。次を壊して、名前を挙げたテストが失敗することを確かめる: `a` の `rel` から `noreferrer` を外す（リンクの属性のテスト）、見出しの `title` を `h1` にする（見出しの段のテスト）、項目の間に改行の文字のノードを置く（AC-21 の文字列のテスト）、`helpers/articleDom.ts` の関数が許す属性の一覧に含まれない属性を組み立てで設定する（AC-20 のテスト）、記事の要素の `dir` を `auto` にする（AC-18 のテスト）、`href` を `LinkUrl` に `#` を足した値にする（AC-13 のテスト）。
 
