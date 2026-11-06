@@ -237,15 +237,16 @@ describe("renderViewer states", () => {
       assert.equal(elements.actions.hidden, true);
     });
 
-    it(`shows a done job's article as text and its operations in ${locale}`, () => {
+    it(`shows a done job's article drawn from its Markdown and its operations in ${locale}`, () => {
       const elements = drawn(
         view(jobState(doneJob({ state: "not_posted" }))),
         locale,
       );
       assert.equal(elements.article.hidden, false);
+      // The fixture's "# Title\n\nBody", without its heading mark.
       assert.equal(
         query(elements.article, ".article-body").textContent,
-        article.markdown,
+        "TitleBody",
       );
       assert.equal(elements.actions.hidden, false);
       assert.equal(elements.save.disabled, false);
@@ -260,7 +261,7 @@ describe("renderViewer states", () => {
       expectMessage(elements.state, viewer.lost);
       assert.equal(
         query(elements.article, ".article-body").textContent,
-        article.markdown,
+        "TitleBody",
       );
       assert.equal(elements.save.disabled, false);
       assert.equal(elements.copy.disabled, false);
@@ -703,33 +704,107 @@ describe("publish state announcements", () => {
 });
 
 describe("article redraw", () => {
-  it("keeps the article element when its text is unchanged and replaces it when it changes", () => {
-    const elements = drawn(
-      view(jobState(doneJob({ state: "not_posted" }))),
-      "en",
+  /** A posting job's view whose article has markdown. */
+  const withMarkdown = (markdown: string): ViewerView =>
+    view(
+      jobState({
+        ...doneJob({ state: "posting" }),
+        article: { ...article, markdown },
+      }),
     );
+
+  it("keeps the drawn article for the same Markdown and draws it again when the Markdown changes", () => {
+    const elements = drawn(withMarkdown("# Title\n\nBody"), "en");
     const body = query(elements.article, ".article-body");
-    renderViewer(elements, view(jobState(doneJob({ state: "posting" }))), "en");
+    renderViewer(elements, withMarkdown("# Title\n\nBody"), "en");
     assert.equal(query(elements.article, ".article-body"), body);
-    renderViewer(
-      elements,
-      view(
-        jobState({
-          ...doneJob({ state: "posting" }),
-          article: { ...article, markdown: "# Another" },
-        }),
-      ),
-      "en",
-    );
+    renderViewer(elements, withMarkdown("# Another"), "en");
     const replaced = query(elements.article, ".article-body");
     assert.notEqual(replaced, body);
-    assert.equal(replaced.textContent, "# Another");
+    assert.equal(replaced.textContent, "Another");
+  });
+
+  it("draws the same article again after it was hidden", () => {
+    const elements = drawn(withMarkdown("# Title"), "en");
+    const body = query(elements.article, ".article-body");
+    renderViewer(elements, view(loading), "en");
+    assert.equal(elements.article.childElementCount, 0);
+    renderViewer(elements, withMarkdown("# Title"), "en");
+    const again = query(elements.article, ".article-body");
+    assert.notEqual(again, body);
+    assert.equal(again.textContent, "Title");
+  });
+
+  it("keeps the focus on a link and a selection in the article when the same Markdown comes again", () => {
+    const markdown = "Read <https://a.example/x> and more";
+    const elements = drawn(withMarkdown(markdown), "en");
+    const doc = elements.article.ownerDocument;
+    const link = query<HTMLElement>(elements.article, "a");
+    link.focus();
+    assert.equal(doc.activeElement, link);
+    const selection = doc.getSelection();
+    assert.ok(selection !== null);
+    const textNode = query(elements.article, "p").firstChild;
+    assert.ok(textNode !== null);
+    selection.setBaseAndExtent(textNode, 0, textNode, 4);
+    renderViewer(elements, withMarkdown(markdown), "en");
+    assert.equal(doc.activeElement, link);
+    assert.equal(selection.anchorNode, textNode);
+    assert.equal(selection.toString(), "Read");
+  });
+
+  it("sets save and copy before it draws the article", () => {
+    const elements = viewerElements();
+    const replace = elements.article.replaceChildren.bind(elements.article);
+    let drawnWithArticle = false;
+    // Only this element's method is replaced: it checks the buttons at the
+    // moment the article's children are replaced with the drawn article.
+    elements.article.replaceChildren = (...nodes: (Node | string)[]) => {
+      if (nodes.length > 0) {
+        assert.equal(elements.save.disabled, false);
+        assert.equal(elements.copy.disabled, false);
+        drawnWithArticle = true;
+      }
+      replace(...nodes);
+    };
+    renderViewer(elements, withMarkdown("# Title"), "en");
+    assert.ok(drawnWithArticle);
   });
 
   it("clears the publish row when the article is no longer shown", () => {
     const elements = drawn(view(jobState(doneJob({ state: "posted" }))), "en");
     renderViewer(elements, view(loading), "en");
     assert.equal(elements.publishRow.textContent, "");
+  });
+});
+
+describe("article headings", () => {
+  it("puts the article's title and section headings under the video's h1, in document order", () => {
+    const elements = drawn(
+      view(
+        jobState({
+          ...doneJob({ state: "not_posted" }),
+          article: {
+            ...article,
+            markdown: "# Title\n\nBody\n\n## One\n\nText\n\n## Two",
+          },
+        }),
+      ),
+      "en",
+    );
+    const doc = elements.article.ownerDocument;
+    assert.deepEqual(
+      Array.from(doc.querySelectorAll("h1, h2, h3, h4, h5, h6"), (heading) => [
+        heading.tagName.toLowerCase(),
+        heading.id === "heading" ? "#heading" : heading.textContent,
+      ]),
+      [
+        ["h1", "#heading"],
+        ["h2", "Title"],
+        ["h3", "One"],
+        ["h3", "Two"],
+      ],
+    );
   });
 });
 

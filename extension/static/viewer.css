@@ -50,15 +50,32 @@ body {
   border-radius: 0.5rem;
 }
 
-/* The article is text: line breaks and spaces are kept, and a right-to-left
-   line does not reorder the text around it. */
+/* The article drawn from its Markdown. */
 .article-body {
-  white-space: pre-wrap;
-  unicode-bidi: plaintext;
   overflow-wrap: anywhere;
   padding: 1rem;
   border: 1px solid var(--border);
   border-radius: 0.5rem;
+}
+
+/* Each block keeps its line breaks and spaces, and each of its lines takes
+   its direction from its own text, so a right-to-left line does not reorder
+   the lines around it. The article element itself is left to right. */
+.article-body p,
+.article-body li,
+.article-body h2,
+.article-body h3,
+.article-body pre {
+  white-space: pre-wrap;
+  unicode-bidi: plaintext;
+}
+
+/* A link is underlined as well as coloured, and runs left to right isolated
+   from the text around it (dir=ltr isolates it too). */
+.article-body a {
+  color: var(--link);
+  text-decoration: underline;
+  unicode-bidi: isolate;
 }
 
 #actions {

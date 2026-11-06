@@ -135,7 +135,7 @@ export type Cost =
   | { readonly state: "unknown" };
 
 export interface Article {
-  /** The display Markdown, shown and copied unchanged. */
+  /** The display Markdown: the viewer draws it rendered and copies it unchanged. */
   readonly markdown: string;
   /** The file content, saved unchanged. */
   readonly file: string;

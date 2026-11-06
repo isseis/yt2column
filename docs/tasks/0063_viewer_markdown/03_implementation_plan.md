@@ -240,14 +240,14 @@
 
 **変更するファイル:** `extension/src/ui/renderViewer.ts`、`extension/src/core/response.ts`、`extension/static/viewer.css`、`extension/test/renderViewer.test.ts`、`extension/test/style.test.ts`、`docs/dev/security.md`
 
--   [ ] `renderViewer` の `textContent` の比較（`:319-321`）を `drawArticleBody` の呼び出しに置き換え、操作のボタンを設定する処理（`:323-335`）をその前に移す（設計書 3.4）。関数のコメント（`:277-284`）を新しい順序と描き直しの判定に合わせて直す。
--   [ ] `viewer.css` に、切り替えと同時に要る規則を加える（1.3）: 設計書 3.5 の表の「段落・項目・見出し・コードブロックの空白」「行ごとの文字の方向」「リンク」の行。`.article-body` の規則のコメント（`:53-54`）を直す。`style.test.ts:748-757` を、これらの規則を確かめる形に書き直す（リンクの下線と `unicode-bidi: isolate` を含む）。
--   [ ] `response.ts:138` の `Article.markdown` のコメント（`The display Markdown, shown and copied unchanged.`）を、描画して表示し、コピーには変えずに使う意味の英語に直す。
--   [ ] `docs/dev/security.md` の §6 のチャンネル名の行の残余のリスク（`:76`）に、ビューアでの結果（リンク・強調になる）を書き足す（要件 1 章「方針の変更」）。§8.1「記事を untrusted テキストとして表示する」（`:117`）を、要件の規則と設計書の構成に合わせて書き換え、残余のリスクを要件 4.2 と設計書 5.3 のとおりに書く。§8.2「返す記事は untrusted なテキスト」（`:140`）の「Markdown の描画の安全性は #504 で扱う」を、§8.1 と要件を指す形に直す。
--   [ ] `renderViewer.test.ts:240-253`・`:255-268` の記事の期待する値を、描画した文字列に直す。
--   [ ] `renderViewer.test.ts:705-727` を、設計書 7.1 の描き直しのテストに書き直す（AC-32）。
--   [ ] テスト（操作のボタンの順序）: 設計書 7.1 のとおり、`elements.article` の `replaceChildren` を、その要素のものだけ別の関数に差し替え、その関数が呼ばれた時点で保存とコピーのボタンが押せることを確かめる。
--   [ ] テスト（見出しの構造、AC-25）: 出荷する `viewer.html` の文書で、動画のセクションの `h1` の後に、記事の `h2`・`h3` が文書の順に並ぶこと。
+-   [x] `renderViewer` の `textContent` の比較（`:319-321`）を `drawArticleBody` の呼び出しに置き換え、操作のボタンを設定する処理（`:323-335`）をその前に移す（設計書 3.4）。関数のコメント（`:277-284`）を新しい順序と描き直しの判定に合わせて直す。
+-   [x] `viewer.css` に、切り替えと同時に要る規則を加える（1.3）: 設計書 3.5 の表の「段落・項目・見出し・コードブロックの空白」「行ごとの文字の方向」「リンク」の行。`.article-body` の規則のコメント（`:53-54`）を直す。`style.test.ts:748-757` を、これらの規則を確かめる形に書き直す（リンクの下線と `unicode-bidi: isolate` を含む）。
+-   [x] `response.ts:138` の `Article.markdown` のコメント（`The display Markdown, shown and copied unchanged.`）を、描画して表示し、コピーには変えずに使う意味の英語に直す。
+-   [x] `docs/dev/security.md` の §6 のチャンネル名の行の残余のリスク（`:76`）に、ビューアでの結果（リンク・強調になる）を書き足す（要件 1 章「方針の変更」）。§8.1「記事を untrusted テキストとして表示する」（`:117`）を、要件の規則と設計書の構成に合わせて書き換え、残余のリスクを要件 4.2 と設計書 5.3 のとおりに書く。§8.2「返す記事は untrusted なテキスト」（`:140`）の「Markdown の描画の安全性は #504 で扱う」を、§8.1 と要件を指す形に直す。
+-   [x] `renderViewer.test.ts:240-253`・`:255-268` の記事の期待する値を、描画した文字列に直す。
+-   [x] `renderViewer.test.ts:705-727` を、設計書 7.1 の描き直しのテストに書き直す（AC-32）。
+-   [x] テスト（操作のボタンの順序）: 設計書 7.1 のとおり、`elements.article` の `replaceChildren` を、その要素のものだけ別の関数に差し替え、その関数が呼ばれた時点で保存とコピーのボタンが押せることを確かめる。
+-   [x] テスト（見出しの構造、AC-25）: 出荷する `viewer.html` の文書で、動画のセクションの `h1` の後に、記事の `h2`・`h3` が文書の順に並ぶこと。
 
 **完了の条件:** `make test`・`make lint`・`make ext-check` が通る。次を壊して、名前を挙げたテストが失敗することを確かめる: ボタンを本文の後に設定する（順序のテスト）、`drawArticleBody` の鍵を毎回変える（描き直しのテストの、同じ応答の後のフォーカスと選択）、`drawOnKeyChange` の子のノードの比較を外す（描き直しのテストの、隠した後の描き直し）、段落の `unicode-bidi` を外す（`style.test.ts` の書き直したテスト）。`viewerApp.ts` のコピーを、描画した `textContent` を書き込む形に一時的に変え、`viewerApp.test.ts:800` のテストが失敗することを確かめる（1.4）。
 
