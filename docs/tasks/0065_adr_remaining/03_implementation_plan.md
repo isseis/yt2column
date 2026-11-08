@@ -112,7 +112,7 @@
 | `extension-stores-nothing` | 0058 | 0058 要件定義書「issue #593 で決めたこと」・2026-11-04（変更履歴の最初の承認）、0058 設計書「設計の際に決めたこと（2026-11-04）」・2026-11-04（節の見出しの日付） | - |
 | `webhook-publishing` | 0059 | 0059 要件定義書「issue #526 で決めたこと」・2026-11-04（変更履歴の承認） | - |
 | `pipeline-component-interfaces` | 0001 0003 0009 | 0001 設計書「1.1 設計原則」・2026-09-29（設計書の Review date）、0003 設計書「1.1 設計原則」・2026-10-02（同）、0009 設計書「1.1 設計原則」・2026-10-10（同） | - |
-| `strict-json` | 0003 0010 0019 0023 0044 | （② で埋める） | - |
+| `strict-json` | 0003 0010 0019 0023 0044 | 0003 設計書「1.1 設計原則」・2026-10-02（設計書の Review date）、0010 設計書「3.5.3」・2026-10-10（同）、0019 設計書「3.3」・2026-10-15（同）、0023 設計書「1. 設計の全体像」・2026-10-16（同）、0044 設計書「3.10」・2026-10-27（同） | - |
 | `llm-client-contract` | 0001 0003 0019 0022 | （② で埋める） | - |
 | `cost-estimate` | 0022 0042 | （② で埋める） | - |
 | `artifact-resume` | 0017 0019 0022 | （② で埋める） | - |
@@ -156,7 +156,7 @@ ADR を書くときに、移し元の「背景」「採らなかった案」「�
 | 2 | `llm-adapter-stdlib` | `pipeline-component-interfaces` | move | -   **番兵をすべて `internal/llm` に置く。** SDK を使うプロバイダが、HTTP ステータスや応答本文の形に固有の番兵を `internal/llm` に合わせる必要が生じる（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) 付録 A）。 | - |
 | 2 | `llm-adapter-stdlib` | `pipeline-component-interfaces` | split | -   プロバイダを足すときは、アダプタのパッケージと、そのプロバイダのパラメータの型のパッケージを足す。`internal/llm` の型と `llmhttp` は変えない。 | -   プロバイダを足すときは、アダプタのパッケージと、そのプロバイダのパラメータの型のパッケージを足す。`llmhttp` は変えない。プロバイダに依存しない型は [ADR-0019](0019-pipeline-component-interfaces.md) が定める。 |
 | 2 | `llm-adapter-stdlib` | `pipeline-component-interfaces` | move | -   プロバイダ固有の失敗（HTTP ステータス・応答本文の形・通信の失敗）は、プロバイダごとの番兵で報告される。呼び出し側は、プロバイダに依存しない 4 つの番兵だけで、打ち切り・想定外の終了理由・空の応答・不正なリクエストを判別できる。 | - |
-| 2 | `llm-adapter-stdlib` | `strict-json` | split | -   応答の厳格な検証: 標準ライブラリのデコーダが黙って補正する入力を拒否する部品。 | （② で埋める） |
+| 2 | `llm-adapter-stdlib` | `strict-json` | split | -   応答の厳格な検証: 標準ライブラリのデコーダが黙って補正する入力を拒否する部品。 | -   応答の厳格な検証: 標準ライブラリのデコーダが黙って補正する入力を拒否する部品（[ADR-0020](0020-strict-json.md) が定める）。 |
 | 2 | `llm-adapter-stdlib` | `strict-json` | move | -   **応答の厳格な検証は `internal/strictjson` に置き、複数のパッケージで共有する。** 字幕のパーサ、両方のアダプタ、`ArticleWriter`、`internal/publisher`、`internal/artifact`、`internal/fixprguard`、`internal/server`、`internal/nmhost`、`internal/codexreview`、`internal/coveragecompare` が使う。 | - |
 | 2 | `llm-adapter-stdlib` | `strict-json` | move | -   **厳格な JSON の部品を `internal/llm/deepseek` に複製する。** サロゲートの走査などの細かいコードが 2 か所になる（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) 付録 A）。 | - |
 | 2 | `llm-adapter-stdlib` | `strict-json` | move | -   **`internal/transcript` の非公開の関数を公開して LLM の段階から使う。** LLM の段階が字幕取得の段階に依存する（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) 付録 A）。 | - |
@@ -225,7 +225,7 @@ AC-03 の食い違い（設計書 3.5）を記録した issue を、その ADR �
 <!-- adrchecks:issues -->
 | `<kebab>` | issue の番号 |
 |---|---|
-| `strict-json` | （② で埋める） |
+| `strict-json` | 713 |
 | `extension-ui-languages` | （③ で埋める） |
 | `template-allowlist` | （④ で埋める） |
 
