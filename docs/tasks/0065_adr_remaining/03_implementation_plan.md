@@ -295,25 +295,25 @@ AC-03 の食い違い（設計書 3.5）を記録した issue を、その ADR �
 
 **変更するファイル:** `docs/dev/adr/0019-pipeline-component-interfaces.md`〜`0025-claude-output-limit.md`（新規。1.5 の表の PR 2 の 7 本）、`docs/dev/adr/0001-llm-adapter-stdlib.md`、`0003-llm-config-contract.md`、`0004-production-profile.md`、`0005-server-architecture.md`、`0018-server-config-file.md`、`docs/dev/adr/README.md`、本書（1.6・1.7・1.9 の表）
 
--   [ ] 索引を読み直し、A 系の主題の有効な ADR がほかのタスクで作られていないことと、`0019` が空いていることを確かめる。番号が埋まっていれば、規約「Location and naming」に従って次の空き番号を使い、1.5 の表の「本書の予定の番号」を改める。
--   [ ] `622db232` から PR の基点までに `main` に入ったタスクの文書とコードを、A 系の 7 つの主題と照合する（設計書 6.1）。0066 の設計書が `main` にあれば、A8 の経緯に入るかを判断する（1.6）。当たるタスクは 1.6 の表に足し、結果を PR の説明に書く。
--   [ ] 主題ごとに、1.6 の表のタスクの `docs/tasks/<task>/` の下の文書、設計書 3.2 の正本の文書、PR の基点のコードを読み、設計書 6.2 のとおりに ADR を書く。1.6 の表の「出典の節・日付」を埋める。
--   [ ] 1.7 の表の PR 2 の行を移す。移し元から除くことと、除いた位置に移し先の ADR へのリンクを置くことは、移し先の ADR と同じコミットに入れる（1.2）。`split` と `link` の行の「書き換えた後の文面」を埋める。
--   [ ] 設計書 3.1 の「移さない重なり」の A1（ADR-0005 の「決定」の 1 つ目の項目）と A8（ADR-0003 の正本を示す段落）、1.3 の ADR-0018 の「決定」の 1 つ目の項目に、新しい ADR へのリンクを足し、新しい ADR からもリンクする。これらの行は 1.7 の表の `link` の行である。表にない行にリンクを足すときは、`link` の行を足す。
--   [ ] A2 の ADR の「決定」には、`package_reference.md` の `strictjson` の使い手の一覧とコードのずれ（設計書 3.5）を書く。ADR の文面が固まった後に、利用者の承認を得て、同じずれの issue がないかを探し、なければ作り、ADR からリンクする。issue を作る前に、その本文に対して `_lib/task-pr-handoff.md` の「Mention check」を実行する。実装でほかのずれが見つかったときも同じく扱う（設計書 3.5・4 章）。
--   [ ] PR の説明に、設計書 7.4 の 4 つ（「決定」と「採らなかった案」の出典、移し元から除いた項目と移し先の項目の対応、`622db232` の後の照合の結果、作った issue）を挙げる。
+-   [x] 索引を読み直し、A 系の主題の有効な ADR がほかのタスクで作られていないことと、`0019` が空いていることを確かめる。番号が埋まっていれば、規約「Location and naming」に従って次の空き番号を使い、1.5 の表の「本書の予定の番号」を改める。
+-   [x] `622db232` から PR の基点までに `main` に入ったタスクの文書とコードを、A 系の 7 つの主題と照合する（設計書 6.1）。0066 の設計書が `main` にあれば、A8 の経緯に入るかを判断する（1.6）。当たるタスクは 1.6 の表に足し、結果を PR の説明に書く。
+-   [x] 主題ごとに、1.6 の表のタスクの `docs/tasks/<task>/` の下の文書、設計書 3.2 の正本の文書、PR の基点のコードを読み、設計書 6.2 のとおりに ADR を書く。1.6 の表の「出典の節・日付」を埋める。
+-   [x] 1.7 の表の PR 2 の行を移す。移し元から除くことと、除いた位置に移し先の ADR へのリンクを置くことは、移し先の ADR と同じコミットに入れる（1.2）。`split` と `link` の行の「書き換えた後の文面」を埋める。
+-   [x] 設計書 3.1 の「移さない重なり」の A1（ADR-0005 の「決定」の 1 つ目の項目）と A8（ADR-0003 の正本を示す段落）、1.3 の ADR-0018 の「決定」の 1 つ目の項目に、新しい ADR へのリンクを足し、新しい ADR からもリンクする。これらの行は 1.7 の表の `link` の行である。表にない行にリンクを足すときは、`link` の行を足す。
+-   [x] A2 の ADR の「決定」には、`package_reference.md` の `strictjson` の使い手の一覧とコードのずれ（設計書 3.5）を書く。ADR の文面が固まった後に、利用者の承認を得て、同じずれの issue がないかを探し、なければ作り、ADR からリンクする。issue を作る前に、その本文に対して `_lib/task-pr-handoff.md` の「Mention check」を実行する。実装でほかのずれが見つかったときも同じく扱う（設計書 3.5・4 章）。
+-   [x] PR の説明に、設計書 7.4 の 4 つ（「決定」と「採らなかった案」の出典、移し元から除いた項目と移し先の項目の対応、`622db232` の後の照合の結果、作った issue）を挙げる。
 
 #### ステップ 2-2: `project_overview.md` の A1 へのリンク
 
 **変更するファイル:** `docs/dev/project_overview.md`
 
--   [ ] 「LangChain 相当のフレームワークや…」の項目の末尾に、半角の空白 1 つと `[ADR-0019](adr/0019-pipeline-component-interfaces.md)` の形のリンクだけを足す（設計書 3.6）。項目の要約の文は変えない。A1 の ADR と同じコミットか、その後のコミットに入れる。
+-   [x] 「LangChain 相当のフレームワークや…」の項目の末尾に、半角の空白 1 つと `[ADR-0019](adr/0019-pipeline-component-interfaces.md)` の形のリンクだけを足す（設計書 3.6）。項目の要約の文は変えない。A1 の ADR と同じコミットか、その後のコミットに入れる。
 
 #### ステップ 2-3: 確かめの実行と記録
 
 **変更するファイル:** 本書 7.2 節
 
--   [ ] ステップ 1-3 と同じく、`-pr 2` で 2 つの確かめを実行して記録する。
+-   [x] ステップ 1-3 と同じく、`-pr 2` で 2 つの確かめを実行して記録する。
 
 **完了の条件（ステップ 2-1〜2-3）:** グリーンゲートが通る。`task_docs_unchanged.sh` と `adrchecks -pr 2` が 0 で終わり、② までの ADR と移しに `PENDING` がない。
 
@@ -613,6 +613,208 @@ PENDING overview-items
         links: bullet 1 (`docs/tasks/0007_browser_extension_skeleton/`) pending: extension-platform
         links: bullet 2 (`cmd/yt2column-nmhost`) pending: article-job-api
         links: bullet 6 (LangChain) pending: pipeline-component-interfaces
+OK      claude-md-unchanged
+```
+
+
+#### PR-2
+
+マージの基点 `a657854d60aafae593fd013cc0289fed3dc39475`、head `bae63de3887021b30bb905a711d0359a32a808e3`（`git fetch origin main` の後に実行した）。作った issue は [#713](https://github.com/isseis/yt2column/issues/713)。
+
+`docs/tasks/0065_adr_remaining/_checks/task_docs_unchanged.sh origin/main HEAD`：終了コード 0。
+
+```text
+merge-base: a657854d60aafae593fd013cc0289fed3dc39475
+head: bae63de3887021b30bb905a711d0359a32a808e3
+docs/tasks/: only docs/tasks/0065_adr_remaining/ changed
+```
+
+`go run -tags test ./docs/tasks/0065_adr_remaining/_checks/adrchecks/ -pr 2 a657854d60aafae593fd013cc0289fed3dc39475 bae63de3887021b30bb905a711d0359a32a808e3`：終了コード 0。`claude-md-unchanged` が `OK`、7 本の新しい ADR と ② の移しはすべて `ok`。`PENDING` は後の PR の ADR・移し・リンクだけである。
+
+```text
+PENDING history-sources
+        ok: docs/dev/adr/0006-threat-model.md
+        ok: docs/dev/adr/0008-launch-path.md
+        ok: docs/dev/adr/0009-viewer-opening.md
+        ok: docs/dev/adr/0010-extension-stores-nothing.md
+        ok: docs/dev/adr/0011-webhook-publishing.md
+        ok: docs/dev/adr/0019-pipeline-component-interfaces.md
+        ok: docs/dev/adr/0020-strict-json.md
+        ok: docs/dev/adr/0021-llm-client-contract.md
+        ok: docs/dev/adr/0022-cost-estimate.md
+        ok: docs/dev/adr/0023-artifact-resume.md
+        ok: docs/dev/adr/0024-env-access-in-config.md
+        ok: docs/dev/adr/0025-claude-output-limit.md
+        pending: extension-platform
+        pending: article-job-api
+        pending: no-automatic-resend
+        pending: extension-ui-languages
+        pending: minimum-chrome-version
+        pending: secret-closure
+        pending: testdata-license
+        pending: transcript-cache-slots
+        pending: template-allowlist
+        pending: language-policy
+        pending: task-document-status-records
+        pending: test-deletion-coverage
+        pending: deadcode-and-race-free-timing
+PENDING moved-items
+        ok: llm-adapter-stdlib -> pipeline-component-interfaces (move, pull request 2)
+        ok: llm-adapter-stdlib -> pipeline-component-interfaces (move, pull request 2)
+        ok: llm-adapter-stdlib -> pipeline-component-interfaces (split, pull request 2)
+        ok: llm-adapter-stdlib -> pipeline-component-interfaces (move, pull request 2)
+        ok: llm-adapter-stdlib -> pipeline-component-interfaces (move, pull request 2)
+        ok: llm-adapter-stdlib -> pipeline-component-interfaces (split, pull request 2)
+        ok: llm-adapter-stdlib -> pipeline-component-interfaces (move, pull request 2)
+        ok: llm-adapter-stdlib -> strict-json (split, pull request 2)
+        ok: llm-adapter-stdlib -> strict-json (move, pull request 2)
+        ok: llm-adapter-stdlib -> strict-json (move, pull request 2)
+        ok: llm-adapter-stdlib -> strict-json (move, pull request 2)
+        ok: server-architecture -> pipeline-component-interfaces (link, pull request 2)
+        ok: llm-config-contract -> env-access-in-config (link, pull request 2)
+        ok: server-config-file -> env-access-in-config (link, pull request 2)
+        ok: production-profile -> claude-output-limit (move, pull request 2)
+        pending: pull request 3: extension-stores-nothing -> article-job-api (move)
+        pending: pull request 3: extension-stores-nothing -> article-job-api (move)
+        pending: pull request 3: webhook-publishing -> no-automatic-resend (split)
+        pending: pull request 3: webhook-publishing -> no-automatic-resend (move)
+        pending: pull request 3: webhook-publishing -> no-automatic-resend (move)
+        pending: pull request 3: webhook-publishing -> article-job-api (link)
+        pending: pull request 3: server-architecture -> article-job-api (link)
+        pending: pull request 3: server-architecture -> extension-platform (link)
+        pending: pull request 3: threat-model -> extension-platform (link)
+        pending: pull request 4: lightweight-check-in-bash -> language-policy (link)
+        pending: pull request 4: deterministic-checks-in-go -> test-deletion-coverage (link)
+        pending: pull request 4: threat-model -> secret-closure (split)
+        pending: pull request 4: webhook-publishing -> secret-closure (split)
+        ---- llm-adapter-stdlib -> pipeline-component-interfaces (move), section 2
+        removed: -   プロバイダに依存しない型と番兵: `GenerateRequest`・`GenerateResponse`・`LLMClient`、および不正なリクエスト・打ち切り・想定外の終了理由・空の応答。
+        destination docs/dev/adr/0019-pipeline-component-interfaces.md, section 2:
+          記事を作る処理は、字幕の取得・記事の作成・公開という段階を順に呼ぶ。段階の実装は、CLI と localhost サーバ、テストの fake で差し替える。段階の間で受け渡すデータ型と、失敗を呼び出し側が判別するための番兵も、段階ごとに決まる。
+          実装を差し替えられるようにするには、呼び出す側が実装の型ではなく契約だけに依存する必要がある。契約を各段階のパッケージに置けば、実装を足してもパイプラインは変わらない。逆に、プロバイダに依存する型や番兵を共通の場所へ集めると、プロバイダを足すたびに共通の型を変えることになる。
+          LLM の失敗は、どのプロバイダでも起こるもの（不正なリクエスト・打ち切り・想定外の終了理由・空の応答）と、プロバイダの API に固有のもの（HTTP の状態・応答本文の形・通信の失敗）に分かれる。前者を共通の型に、後者を各アダプタに置くと、呼び出し側は共通の番兵だけで打ち切りなどを判別できる（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) §1.1）。Claude のアダプタも同じ方針を保った（[0009 設計書](../../tasks/0009_claude_llm_client/02_architecture.md) §1.1）。
+        ---- llm-adapter-stdlib -> pipeline-component-interfaces (move), section 3
+        removed: -   **プロバイダに依存しない型と番兵は `internal/llm` に置く。** `LLMClient` と `GenerateRequest`・`GenerateResponse`、`ErrInvalidRequest`・`ErrTruncated`・`ErrUnexpectedFinishReason`・`ErrEmptyResponse`、リクエストの検証はここにある。
+        destination docs/dev/adr/0019-pipeline-component-interfaces.md, section 3:
+          -   **段階と `LLMClient` は、それぞれのパッケージが interface と入出力のデータ型を持つ。** `TranscriptSource` は `internal/transcript`、`ArticleWriter` は `internal/writer`、`Publisher` は `internal/publisher`、`LLMClient` は `internal/llm` が持つ。`internal/pipeline` は interface だけに依存し、実装の詳細を知らない（[0001 設計書](../../tasks/0001_pipeline_skeleton/02_architecture.md) §1.1・§3.2）。
+          -   **段階の間で受け渡すデータ型が契約である。** 段階は値を受け渡し、空の結果を正常として返さないことを各 interface の英語のドキュメントコメントに書く。すべてのメソッドは第 1 引数に `context.Context` を受け取り、キャンセルとタイムアウトに従う。
+          -   **プロバイダに依存しない番兵とリクエストの検証は `internal/llm` に置く。** `ErrInvalidRequest`・`ErrTruncated`・`ErrUnexpectedFinishReason`・`ErrEmptyResponse` と `GenerateRequest.Validate` がここにある。
+          -   **プロバイダに固有の番兵は各アダプタに置く。** HTTP の状態・応答本文の形・通信の失敗は、プロバイダの名前を持つので `internal/llm/deepseek` と `internal/llm/claude` がそれぞれ持つ。
+          -   **HTTP の送信の経路は `internal/llm/llmhttp` に置き、両方のアダプタが使う。** 期限の適用、リダイレクトの禁止、応答本文の上限、失敗の分類をここで行う。`llmhttp` は番兵を持たず、アダプタが渡した番兵で失敗を報告する。この送信の経路と、アダプタ・プロバイダ固有のパラメータの型の置き場所は [ADR-0001](0001-llm-adapter-stdlib.md) が定める。
+          -   **サーバは、記事を作る処理と Slack への投稿の処理を、CLI と同じパッケージで共有する。** サーバ固有のコードは HTTP の入口・検査・応答・ジョブに限る（[ADR-0005](0005-server-architecture.md)）。
+          この決定の仕様の正本は [CLAUDE.md](../../../CLAUDE.md) の「Key Design Patterns」の「Separation of Concerns」と「Interface-based Design」、[project_overview.md](../project_overview.md) の「パイプライン」、[package_reference.md](../conventions/package_reference.md) のパッケージの表である。
+        ---- llm-adapter-stdlib -> pipeline-component-interfaces (split), section 3
+        removed: -   **HTTP の送信の経路は `internal/llm/llmhttp` に置き、両方のアダプタが使う。** 期限の適用、リダイレクトの禁止、応答本文の上限、失敗の分類をここで行う。`llmhttp` はプロバイダ固有の番兵を持たず、アダプタが渡した番兵で失敗を報告する。HTTP の状態・応答本文の形・通信の失敗の番兵は、プロバイダの名前を持つので各アダプタに残す。
+        kept:    -   **HTTP の送信の経路は `internal/llm/llmhttp` に置き、両方のアダプタが使う。** 期限の適用、リダイレクトの禁止、応答本文の上限、失敗の分類をここで行う。`llmhttp` はプロバイダ固有の番兵を持たず、アダプタが渡した番兵で失敗を報告する。番兵の置き場所は [ADR-0019](0019-pipeline-component-interfaces.md) が定める。
+        destination docs/dev/adr/0019-pipeline-component-interfaces.md, section 3:
+          -   **段階と `LLMClient` は、それぞれのパッケージが interface と入出力のデータ型を持つ。** `TranscriptSource` は `internal/transcript`、`ArticleWriter` は `internal/writer`、`Publisher` は `internal/publisher`、`LLMClient` は `internal/llm` が持つ。`internal/pipeline` は interface だけに依存し、実装の詳細を知らない（[0001 設計書](../../tasks/0001_pipeline_skeleton/02_architecture.md) §1.1・§3.2）。
+          -   **段階の間で受け渡すデータ型が契約である。** 段階は値を受け渡し、空の結果を正常として返さないことを各 interface の英語のドキュメントコメントに書く。すべてのメソッドは第 1 引数に `context.Context` を受け取り、キャンセルとタイムアウトに従う。
+          -   **プロバイダに依存しない番兵とリクエストの検証は `internal/llm` に置く。** `ErrInvalidRequest`・`ErrTruncated`・`ErrUnexpectedFinishReason`・`ErrEmptyResponse` と `GenerateRequest.Validate` がここにある。
+          -   **プロバイダに固有の番兵は各アダプタに置く。** HTTP の状態・応答本文の形・通信の失敗は、プロバイダの名前を持つので `internal/llm/deepseek` と `internal/llm/claude` がそれぞれ持つ。
+          -   **HTTP の送信の経路は `internal/llm/llmhttp` に置き、両方のアダプタが使う。** 期限の適用、リダイレクトの禁止、応答本文の上限、失敗の分類をここで行う。`llmhttp` は番兵を持たず、アダプタが渡した番兵で失敗を報告する。この送信の経路と、アダプタ・プロバイダ固有のパラメータの型の置き場所は [ADR-0001](0001-llm-adapter-stdlib.md) が定める。
+          -   **サーバは、記事を作る処理と Slack への投稿の処理を、CLI と同じパッケージで共有する。** サーバ固有のコードは HTTP の入口・検査・応答・ジョブに限る（[ADR-0005](0005-server-architecture.md)）。
+          この決定の仕様の正本は [CLAUDE.md](../../../CLAUDE.md) の「Key Design Patterns」の「Separation of Concerns」と「Interface-based Design」、[project_overview.md](../project_overview.md) の「パイプライン」、[package_reference.md](../conventions/package_reference.md) のパッケージの表である。
+        ---- llm-adapter-stdlib -> pipeline-component-interfaces (move), section 4
+        removed: -   **番兵をすべて各アダプタに置く。** `ArticleWriter` が打ち切りを判別するために、プロバイダのパッケージを import することになる（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) 付録 A）。
+        destination docs/dev/adr/0019-pipeline-component-interfaces.md, section 4:
+          -   **番兵をすべて各アダプタに置く。** `ArticleWriter` が打ち切りを判別するために、プロバイダのパッケージを import することになる（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) 付録 A）。
+          -   **番兵をすべて `internal/llm` に置く。** SDK を使うプロバイダが、HTTP ステータスや応答本文の形に固有の番兵を `internal/llm` に合わせる必要が生じる（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) 付録 A）。
+        ---- llm-adapter-stdlib -> pipeline-component-interfaces (move), section 4
+        removed: -   **番兵をすべて `internal/llm` に置く。** SDK を使うプロバイダが、HTTP ステータスや応答本文の形に固有の番兵を `internal/llm` に合わせる必要が生じる（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) 付録 A）。
+        destination docs/dev/adr/0019-pipeline-component-interfaces.md, section 4:
+          -   **番兵をすべて各アダプタに置く。** `ArticleWriter` が打ち切りを判別するために、プロバイダのパッケージを import することになる（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) 付録 A）。
+          -   **番兵をすべて `internal/llm` に置く。** SDK を使うプロバイダが、HTTP ステータスや応答本文の形に固有の番兵を `internal/llm` に合わせる必要が生じる（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) 付録 A）。
+        ---- llm-adapter-stdlib -> pipeline-component-interfaces (split), section 5
+        removed: -   プロバイダを足すときは、アダプタのパッケージと、そのプロバイダのパラメータの型のパッケージを足す。`internal/llm` の型と `llmhttp` は変えない。
+        kept:    -   プロバイダを足すときは、アダプタのパッケージと、そのプロバイダのパラメータの型のパッケージを足す。`llmhttp` は変えない。プロバイダに依存しない型は [ADR-0019](0019-pipeline-component-interfaces.md) が定める。
+        destination docs/dev/adr/0019-pipeline-component-interfaces.md, section 5:
+          -   パイプラインは段階の interface だけに依存するので、実装を fake に差し替えてテストでき、段階を足してもパイプラインの呼び出し以外は変わらない。
+          -   呼び出し側は、プロバイダに依存しない 4 つの番兵だけで、不正なリクエスト・打ち切り・想定外の終了理由・空の応答を判別できる。プロバイダ固有の失敗は、そのアダプタを選んだ呼び出し側だけが扱う。
+          -   プロバイダを足すときは、アダプタのパッケージと、そのプロバイダのパラメータの型のパッケージを足す。`llmhttp` は変えない。プロバイダに依存しない型は変えない。
+          -   LLM のアダプタの構成と送信の経路は [ADR-0001](0001-llm-adapter-stdlib.md) に残る。この ADR は、段階の構成要素と番兵の置き場所だけを定める。
+        ---- llm-adapter-stdlib -> pipeline-component-interfaces (move), section 5
+        removed: -   プロバイダ固有の失敗（HTTP ステータス・応答本文の形・通信の失敗）は、プロバイダごとの番兵で報告される。呼び出し側は、プロバイダに依存しない 4 つの番兵だけで、打ち切り・想定外の終了理由・空の応答・不正なリクエストを判別できる。
+        destination docs/dev/adr/0019-pipeline-component-interfaces.md, section 5:
+          -   パイプラインは段階の interface だけに依存するので、実装を fake に差し替えてテストでき、段階を足してもパイプラインの呼び出し以外は変わらない。
+          -   呼び出し側は、プロバイダに依存しない 4 つの番兵だけで、不正なリクエスト・打ち切り・想定外の終了理由・空の応答を判別できる。プロバイダ固有の失敗は、そのアダプタを選んだ呼び出し側だけが扱う。
+          -   プロバイダを足すときは、アダプタのパッケージと、そのプロバイダのパラメータの型のパッケージを足す。`llmhttp` は変えない。プロバイダに依存しない型は変えない。
+          -   LLM のアダプタの構成と送信の経路は [ADR-0001](0001-llm-adapter-stdlib.md) に残る。この ADR は、段階の構成要素と番兵の置き場所だけを定める。
+        ---- llm-adapter-stdlib -> strict-json (split), section 2
+        removed: -   応答の厳格な検証: 標準ライブラリのデコーダが黙って補正する入力を拒否する部品。
+        kept:    -   応答の厳格な検証: 標準ライブラリのデコーダが黙って補正する入力を拒否する部品（[ADR-0020](0020-strict-json.md) が定める）。
+        destination docs/dev/adr/0020-strict-json.md, section 2:
+          LLM の API の応答、字幕の json3 と info.json、中間生成物、サーバとホストのメッセージなど、外部から受け取る JSON を読む箇所が複数ある。標準ライブラリの `encoding/json` は、不正な UTF-8、対になっていないサロゲートのエスケープ、後続のデータ、重複したメンバー、`null` を黙って補正することがある。補正された値をそのまま使うと、検証した値と実際に受理される値がずれる。
+          最初はこの部品が字幕のパーサの中にだけあった。二つ目の利用者として LLM のアダプタが加わり、部品を `internal/transcript` に残すと LLM の段階が字幕取得の段階に依存し、複製するとサロゲートの走査などの細かいコードが 2 か所になる。検証済みの値だけを扱えることを型で保証すれば、公開範囲を広げても不変条件を保てる（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) §3.5）。
+          利用者が増えるにつれて、宣言したキー以外を拒否する読み取り、真偽値、`null` の判定、元のバイト列、負でない整数の読み取りも必要になった。負でない整数の検査を各利用者が書くと、`-0` や小数の扱いが箇所ごとにずれる。
+        ---- llm-adapter-stdlib -> strict-json (move), section 3
+        removed: -   **応答の厳格な検証は `internal/strictjson` に置き、複数のパッケージで共有する。** 字幕のパーサ、両方のアダプタ、`ArticleWriter`、`internal/publisher`、`internal/artifact`、`internal/fixprguard`、`internal/server`、`internal/nmhost`、`internal/codexreview`、`internal/coveragecompare` が使う。
+        destination docs/dev/adr/0020-strict-json.md, section 3:
+          -   **検証済みの JSON から値を取り出す部品は `internal/strictjson` にだけ置き、複数のパッケージで共有する。** `ParseObject` は、不正な UTF-8、対になっていないサロゲートのエスケープ、後続のデータ、オブジェクトでない入力を拒否する。
+          -   **`Object` と `Value` は不透明な型にし、`ParseObject` から得た値だけを扱えるようにする。** フィールドは非公開で、`AsString`・`AsObject`・`AsArray` などは、検証を通っていないバイト列を受け取れない。ゼロ値は中身を持たず、読み取りはエラーを返す。
+          -   **読み取りの手段を、利用者の必要に合わせて 1 か所に持つ。** `Object.Collect` は消費しないキーを無視し、`Object.CollectOnly` は宣言していないキーと重複したキーを拒否する。`Object.Has` はエスケープを解いた名前の完全一致で有無を返し、振る舞いの選択に使える。`Value.AsBool` は `true` と `false` だけを受理する。`Value.IsNull` は `null` とそれ以外を区別する。`Value.Raw` は値の元のバイト列を返す。
+          -   **負でない整数の規則は `Value.AsNonNegativeInt64` の 1 か所にする。** 符号・小数部・指数部のない 10 進の整数で `int64` の範囲にあり、負でないものだけを受理する。`-0` も拒否し、拒否のエラーには入力の値を含めない。字幕の `tStartMs`、トークン数、中間生成物の数値、ホストのメッセージの版がこれを使う。`AsInt64` は符号と `-0` を受理するので、負でない整数が要る箇所では使わない。
+          -   **この部品を使うパッケージの一覧は [package_reference.md](../conventions/package_reference.md) が持つ。** 現在のコードでは、一覧に挙げられたパッケージに加え、`internal/server`・`internal/nmhost`・`internal/codexreview`・`internal/coveragecompare` もこの部品を使う。一覧にこの 4 つがないことは、記録した issue [#713](https://github.com/isseis/yt2column/issues/713) で扱う。
+          -   **字幕の json3 と info.json の読み取りは、この部品に置き換える。** 部品を移すことで `internal/transcript` の返す番兵とその条件は変えない（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) §3.5）。
+          この決定の仕様の正本は [package_reference.md](../conventions/package_reference.md) の `internal/strictjson` の行である。部品の置き場所と、LLM のアダプタとの関係は [ADR-0001](0001-llm-adapter-stdlib.md) が定める。
+        ---- llm-adapter-stdlib -> strict-json (move), section 4
+        removed: -   **厳格な JSON の部品を `internal/llm/deepseek` に複製する。** サロゲートの走査などの細かいコードが 2 か所になる（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) 付録 A）。
+        destination docs/dev/adr/0020-strict-json.md, section 4:
+          -   **厳格な JSON の部品を `internal/llm/deepseek` に複製する。** サロゲートの走査などの細かいコードが 2 か所になる（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) 付録 A）。
+          -   **`internal/transcript` の非公開の関数を公開して LLM の段階から使う。** LLM の段階が字幕取得の段階に依存する（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) 付録 A）。
+          -   **宣言していないキーの拒否を、メンバーの数と消費したキーの数の比較で行う。** `Object` のメンバーが非公開で数を取れず、数を公開すると呼び出し元ごとに比べる処理を書くことになり、比べ忘れる余地が残る（[0010 設計書](../../tasks/0010_post_generation_review/02_architecture.md) §3.5.3）。
+        ---- llm-adapter-stdlib -> strict-json (move), section 4
+        removed: -   **`internal/transcript` の非公開の関数を公開して LLM の段階から使う。** LLM の段階が字幕取得の段階に依存する（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) 付録 A）。
+        destination docs/dev/adr/0020-strict-json.md, section 4:
+          -   **厳格な JSON の部品を `internal/llm/deepseek` に複製する。** サロゲートの走査などの細かいコードが 2 か所になる（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) 付録 A）。
+          -   **`internal/transcript` の非公開の関数を公開して LLM の段階から使う。** LLM の段階が字幕取得の段階に依存する（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) 付録 A）。
+          -   **宣言していないキーの拒否を、メンバーの数と消費したキーの数の比較で行う。** `Object` のメンバーが非公開で数を取れず、数を公開すると呼び出し元ごとに比べる処理を書くことになり、比べ忘れる余地が残る（[0010 設計書](../../tasks/0010_post_generation_review/02_architecture.md) §3.5.3）。
+        ---- production-profile -> claude-output-limit (move), section 3
+        removed: -   **Claude アダプタの出力の上限の既定は 40,000 トークンとし、3 つの段階で共有する。** 本番の構成で長い動画の出力が打ち切られないようにするためである。
+        destination docs/dev/adr/0025-claude-output-limit.md, section 3:
+          -   **Claude アダプタの `max_tokens` の既定は 40,000 とする。** リクエストの `MaxOutputTokens` が 0 のときだけ既定を使い、正の値が指定されたときはその値を使う。3 つの段階は同じ既定を共有する。
+          -   **ストリーミングを使わない。** 1 回の HTTP リクエストで応答を受け取り、送信から本文の読み取りまでを 1 本の `context` の期限で覆う。
+          -   **打ち切りは `ErrTruncated` として報告する。** メッセージは、そのリクエストが送った `max_tokens` を示す。テキストがないまま打ち切られた場合は、effort を下げるよう案内する。
+          -   **上限の値はコードの 1 つの定数に置き、値の根拠と測り直しの手順は [claude_output_limit.md](../guides/claude_output_limit.md) に置く。** README と上限のガイドは数値を書かず、本番の構成の文書は本番の上限として 40,000 を記す。値が満たす条件はテストで固定する。
+          -   **非ストリーミングの長い無通信で接続が切れるリスクは受け入れる。** HTTP/2 の PING などの仕組みは、無通信による切断が実際に観測されるまで足さない。
+          -   **既定の値でも、`max` の effort では推論だけで上限に達しうる。** その場合は打ち切りとして報告し、記事を公開しない。README で案内する。
+          この決定の仕様の正本は [claude_output_limit.md](../guides/claude_output_limit.md) と [production_profile.md](../production_profile.md) である。値の文法と effort の既定は [ADR-0003](0003-llm-config-contract.md) が定める。
+PENDING move-links
+        ok: docs/dev/adr/0001-llm-adapter-stdlib.md -> docs/dev/adr/0019-pipeline-component-interfaces.md
+        ok: docs/dev/adr/0001-llm-adapter-stdlib.md -> docs/dev/adr/0020-strict-json.md
+        ok: docs/dev/adr/0004-production-profile.md -> docs/dev/adr/0025-claude-output-limit.md
+        pending: extension-stores-nothing -> article-job-api
+        pending: webhook-publishing -> no-automatic-resend
+        pending: threat-model -> secret-closure
+        pending: webhook-publishing -> secret-closure
+PENDING spec-links
+        ok: docs/dev/adr/0019-pipeline-component-interfaces.md
+        ok: docs/dev/adr/0020-strict-json.md
+        ok: docs/dev/adr/0021-llm-client-contract.md
+        ok: docs/dev/adr/0022-cost-estimate.md
+        ok: docs/dev/adr/0023-artifact-resume.md
+        ok: docs/dev/adr/0025-claude-output-limit.md
+        pending: extension-platform
+        pending: article-job-api
+        pending: no-automatic-resend
+        pending: extension-ui-languages
+        pending: minimum-chrome-version
+        pending: secret-closure
+        pending: testdata-license
+        pending: transcript-cache-slots
+        pending: template-allowlist
+        pending: language-policy
+        pending: task-document-status-records
+        pending: test-deletion-coverage
+        pending: deadcode-and-race-free-timing
+PENDING issue-links
+        ok: docs/dev/adr/0020-strict-json.md
+        pending: extension-ui-languages
+        pending: template-allowlist
+PENDING overview-items
+        text: OK
+        links: PENDING
+        links: bullet 1 (`docs/tasks/0007_browser_extension_skeleton/`) pending: extension-platform
+        links: bullet 2 (`cmd/yt2column-nmhost`) pending: article-job-api
 OK      claude-md-unchanged
 ```
 
