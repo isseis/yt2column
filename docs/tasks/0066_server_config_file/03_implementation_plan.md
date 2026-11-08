@@ -161,7 +161,7 @@
 
 #### ステップ 2-3: 雛形と `InitServerFile`
 
-**変えるファイル:** `internal/config/serverfile.go`、`internal/config/serverfile_test.go`、`internal/privatefile/privatefile.go`（モードを数値で示す `UnixMode` を公開する）、`internal/privatefile/test_helpers.go`（`Create` を `link` の前で失敗させる、ほかのパッケージのテスト用の補助）
+**変えるファイル:** `internal/config/serverfile.go`、`internal/config/serverfile_test.go`、`internal/privatefile/privatefile.go`（モードを数値で示す `UnixMode` を公開し、失敗の後に消せなかった一時ファイルを `LeftoverError` で示す）、`internal/privatefile/test_helpers.go`（`Create` を `link` の前で失敗させる、ほかのパッケージのテスト用の補助）
 
 - [x] `serverFileTemplate`・`InitServerFile`・`InitResult` を設計 3.2.5 のとおりに置く。雛形の英語の文面は実装で決める。
 - [x] `privatefile` の番兵から `config` の番兵への対応を、設計 4.1 の箇条のとおりに `errors.Is` の `switch` で書く。`default` は `Read` では「読めない」、`Create`・`MkdirBelow` では「作れなかった」にする。`privatefile` の型は `FileError` の外に出さない。

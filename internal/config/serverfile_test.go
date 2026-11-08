@@ -37,7 +37,9 @@ const fileMark = "Q9FILEMARK"
 // line needs no LF, and a file of exactly the size limit parses.
 func TestParseServerFileAccepts(t *testing.T) {
 	// A comment line that brings the file to exactly serverFileMaxSize bytes
-	// together with the setting line after it.
+	// together with the setting line after it. The parser has no size check
+	// (Read enforces the limit); the case pins that a line of nearly that
+	// length is read whole, which a line scanner's token limit would refuse.
 	setting := "ANTHROPIC_API_KEY=k\n"
 	padded := "#" + strings.Repeat("x", serverFileMaxSize-len(setting)-2) + "\n" + setting
 	if len(padded) != serverFileMaxSize {
@@ -86,7 +88,7 @@ func TestParseServerFileAccepts(t *testing.T) {
 			want: map[string]string{"ANTHROPIC_API_KEY": "k"},
 		},
 		{
-			name: "exactly the size limit",
+			name: "a line of nearly the size limit",
 			data: padded,
 			want: map[string]string{"ANTHROPIC_API_KEY": "k"},
 		},
@@ -142,6 +144,15 @@ func TestParseServerFileRejects(t *testing.T) {
 		{name: "double-quoted value", data: prefix + `ANTHROPIC_API_KEY="` + fileMark + `"` + "\n", wantLine: 3, wantReason: reasonLineValueQuote},
 		{name: "single-quoted value", data: prefix + "ANTHROPIC_API_KEY='" + fileMark + "'\n", wantLine: 3, wantReason: reasonLineValueQuote},
 		{name: "comment after the value", data: prefix + "ANTHROPIC_API_KEY=" + fileMark + " # personal\n", wantLine: 3, wantReason: reasonLineValueComment},
+		// Lines that match more than one reason get the first in the fixed
+		// order.
+		{name: "unknown key before a quote", data: prefix + `ANTHROPIC_API_KEY ="` + fileMark + `"` + "\n", wantLine: 3, wantReason: reasonLineUnknownKey},
+		{name: "space before a quote", data: prefix + `ANTHROPIC_API_KEY= "` + fileMark + `"` + "\n", wantLine: 3, wantReason: reasonLineValueSpace},
+		{name: "quote before a comment", data: prefix + `ANTHROPIC_API_KEY="` + fileMark + ` #b"` + "\n", wantLine: 3, wantReason: reasonLineValueQuote},
+		{
+			name: "a second key rejected for a quote is not a duplicate", data: prefix + "ANTHROPIC_API_KEY=a\nANTHROPIC_API_KEY=\"" + fileMark + "\"\n",
+			wantLine: 4, wantReason: reasonLineValueQuote,
+		},
 		{
 			name: "duplicate key", data: prefix + "ANTHROPIC_API_KEY=a\nANTHROPIC_API_KEY=" + fileMark + "\n",
 			wantLine: 4, wantReason: reasonLineDuplicate, wantKey: "ANTHROPIC_API_KEY",
@@ -217,9 +228,11 @@ func TestParseServerFileOverflow(t *testing.T) {
 		name        string
 		rejected    int
 		wantOmitted int
+		wantCount   string
 	}{
 		{name: "at the reporting limit", rejected: serverFileMaxReported, wantOmitted: 0},
-		{name: "over the reporting limit", rejected: serverFileMaxReported + 5, wantOmitted: 5},
+		{name: "over the reporting limit", rejected: serverFileMaxReported + 5, wantOmitted: 5, wantCount: ": 5 more lines were rejected"},
+		{name: "one over the reporting limit", rejected: serverFileMaxReported + 1, wantOmitted: 1, wantCount: ": 1 more line was rejected"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, errs := parseServerFile(darwinTestServerFilePath, badLines(tc.rejected))
@@ -259,6 +272,10 @@ func TestParseServerFileOverflow(t *testing.T) {
 				if !errors.Is(overflow, ErrConfigFileFormat) {
 					t.Errorf("the count does not wrap ErrConfigFileFormat")
 				}
+				// The line is what the user reads, so its wording is checked.
+				if msg := overflow.Error(); !strings.Contains(msg, darwinTestServerFilePath) || !strings.HasSuffix(msg, tc.wantCount) {
+					t.Errorf("message %q does not give the path and the count", msg)
+				}
 			}
 		})
 	}
@@ -294,8 +311,8 @@ func TestParseServerFileDuplicate(t *testing.T) {
 }
 
 // TestServerFileTemplate fixes the template's shape: it parses with no
-// rejection and sets no key, holds only blank and comment lines, and has a
-// commented-out "# <KEY>=" line for every accepted key.
+// rejection and sets no key, so it holds only blank and comment lines, and it
+// has a commented-out "# <KEY>=" line for every accepted key.
 func TestServerFileTemplate(t *testing.T) {
 	file, errs := parseServerFile(testServerFilePath, []byte(serverFileTemplate))
 	if len(errs) != 0 {
@@ -306,12 +323,7 @@ func TestServerFileTemplate(t *testing.T) {
 			t.Errorf("the template sets %s", key)
 		}
 	}
-	lines := strings.Split(strings.TrimSuffix(serverFileTemplate, "\n"), "\n")
-	for i, line := range lines {
-		if line != "" && !strings.HasPrefix(line, "#") {
-			t.Errorf("line %d %q is neither blank nor a comment", i+1, line)
-		}
-	}
+	lines := strings.Split(serverFileTemplate, "\n")
 	for _, key := range serverFileKeys {
 		found := false
 		for _, line := range lines {
@@ -336,6 +348,7 @@ func TestFileErrorMapping(t *testing.T) {
 	pathErr := func(err error) error { return &fs.PathError{Op: "op", Path: path, Err: err} }
 	osErr := &fs.PathError{Op: "open", Path: path, Err: syscall.EACCES}
 	unknown := errors.New("Q9 unknown failure")
+	leftoverTemp := "/home/u/.config/yt2column/.config.env.tmp-123"
 
 	cases := []struct {
 		name     string
@@ -372,6 +385,10 @@ func TestFileErrorMapping(t *testing.T) {
 			want: ErrConfigFileUnsafe, wantPath: path, wantText: []string{"mode 4600", "chmod 600 '" + path + "'"},
 		},
 		{
+			name: "read: unsafe without its reason", got: readFileError(path, fmt.Errorf("wrapped: %w", privatefile.ErrUnsafe)),
+			want: ErrConfigFileUnsafe, wantPath: path, wantText: []string{"not in the accepted form", "nothing was changed"},
+		},
+		{
 			name: "read: unknown unsafe reason", got: readFileError(path, &privatefile.UnsafeError{Path: path}),
 			want: ErrConfigFileUnsafe, wantPath: path, wantText: []string{"not in the accepted form"},
 		},
@@ -397,11 +414,21 @@ func TestFileErrorMapping(t *testing.T) {
 		},
 		{
 			name: "create: an OS error", got: createFileError(loc, osErr),
-			want: ErrConfigFileCreate, wantPath: path, wantText: []string{"could not be created", syscall.EACCES.Error()},
+			want: ErrConfigFileCreate, wantPath: path, wantText: []string{"could not create the configuration file", syscall.EACCES.Error()},
 		},
 		{
 			name: "create: an unknown error", got: createFileError(loc, unknown),
-			want: ErrConfigFileCreate, wantPath: path, wantText: []string{"could not be created", unknown.Error()},
+			want: ErrConfigFileCreate, wantPath: path, wantText: []string{"could not create the configuration file", unknown.Error()},
+		},
+		{
+			name: "create: exists with a leftover temporary file",
+			got:  createFileError(loc, &privatefile.LeftoverError{Err: pathErr(privatefile.ErrExist), Temp: leftoverTemp, RemoveErr: syscall.EACCES}),
+			want: ErrConfigFileExists, wantPath: path, wantText: []string{"already exists", "remove the temporary file " + leftoverTemp},
+		},
+		{
+			name: "create: a failure with a leftover temporary file",
+			got:  createFileError(loc, &privatefile.LeftoverError{Err: osErr, Temp: leftoverTemp, RemoveErr: syscall.EACCES}),
+			want: ErrConfigFileCreate, wantPath: path, wantText: []string{"could not create the configuration file", "remove the temporary file " + leftoverTemp},
 		},
 	}
 	sentinels := []error{
@@ -452,19 +479,11 @@ func skipIfRoot(t *testing.T) {
 // home on the running system.
 func testServerFileLocation(t *testing.T, home string) serverFileLocation {
 	t.Helper()
-	loc, err := serverFileLocationFor(runtime.GOOS, mapLookup(map[string]string{"HOME": home}))
+	loc, err := serverFileLocationFor(runtime.GOOS, envLookup(map[string]string{"HOME": home}))
 	if err != nil {
 		t.Fatal(err)
 	}
 	return loc
-}
-
-// mapLookup returns a LookupFunc over env.
-func mapLookup(env map[string]string) LookupFunc {
-	return func(name string) (string, bool) {
-		value, ok := env[name]
-		return value, ok
-	}
 }
 
 // requireMode fails the test unless path is exactly mode.
@@ -579,7 +598,7 @@ func TestInitServerFile(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				_, err = InitServerFile(mapLookup(map[string]string{"HOME": home}))
+				_, err = InitServerFile(envLookup(map[string]string{"HOME": home}))
 				requireFileError(t, err, ErrConfigFileExists, loc.path)
 				after, err := os.Lstat(loc.path)
 				if err != nil {
@@ -600,7 +619,7 @@ func TestInitServerFile(t *testing.T) {
 	t.Run("base missing", func(t *testing.T) {
 		home := filepath.Join(t.TempDir(), "absent")
 		loc := testServerFileLocation(t, home)
-		_, err := InitServerFile(mapLookup(map[string]string{"HOME": home}))
+		_, err := InitServerFile(envLookup(map[string]string{"HOME": home}))
 		requireFileError(t, err, ErrConfigFileCreate, loc.base)
 		requireAbsent(t, home)
 	})
@@ -616,7 +635,7 @@ func TestInitServerFile(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Cleanup(func() { _ = os.Chmod(loc.base, 0o700) })
-		_, err := InitServerFile(mapLookup(map[string]string{"HOME": home}))
+		_, err := InitServerFile(envLookup(map[string]string{"HOME": home}))
 		requireFileError(t, err, ErrConfigFileCreate, loc.path)
 		requireAbsent(t, filepath.Join(loc.base, loc.dirs[0]))
 	})
@@ -628,7 +647,7 @@ func TestInitServerFile(t *testing.T) {
 			t.Fatal(err)
 		}
 		privatefile.FailCreateBeforeLinkForTest(t)
-		_, err := InitServerFile(mapLookup(map[string]string{"HOME": home}))
+		_, err := InitServerFile(envLookup(map[string]string{"HOME": home}))
 		requireFileError(t, err, ErrConfigFileCreate, loc.path)
 		requireAbsent(t, loc.path)
 		dir := loc.base
@@ -649,7 +668,7 @@ func TestInitServerFile(t *testing.T) {
 			"relative": {"HOME": relative},
 		} {
 			t.Run(name, func(t *testing.T) {
-				_, err := InitServerFile(mapLookup(maps.Clone(env)))
+				_, err := InitServerFile(envLookup(maps.Clone(env)))
 				varErr, ok := errors.AsType[*VarError](err)
 				if !ok || varErr.Name != "HOME" || !errors.Is(err, ErrMissing) {
 					t.Fatalf("got %v (%T), want the *VarError naming HOME", err, err)

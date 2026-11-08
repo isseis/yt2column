@@ -278,6 +278,21 @@ func Read(path string, limit int) ([]byte, error) {
 	return content, nil
 }
 
+// LeftoverError reports a failure of Create after which the temporary file
+// could not be removed either, so the caller can name the leftover whatever
+// the failure was. It wraps the failure, so errors.Is still classifies it.
+type LeftoverError struct {
+	Err       error
+	Temp      string
+	RemoveErr error
+}
+
+func (e *LeftoverError) Error() string {
+	return fmt.Sprintf("%v; the temporary file %s could not be removed: %v", e.Err, e.Temp, e.RemoveErr)
+}
+
+func (e *LeftoverError) Unwrap() error { return e.Err }
+
 // tempPrefix is the start of the temporary name Create writes next to path:
 // a dot, path's base name, and ".tmp-", so a leftover is hidden and the user
 // can still find it by the file's own name.
@@ -316,7 +331,7 @@ func Create(path string, content []byte) (leftoverTemp string, err error) {
 	err = place(file, path, content)
 	if removeErr := removeTemp(temp); removeErr != nil {
 		if err != nil {
-			return "", fmt.Errorf("%w; the temporary file %s could not be removed: %v", err, temp, removeErr)
+			return "", &LeftoverError{Err: err, Temp: temp, RemoveErr: removeErr}
 		}
 		return temp, nil
 	}

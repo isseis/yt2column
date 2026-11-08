@@ -50,8 +50,8 @@ const (
 	osOtherUnix
 )
 
-// classifyOS returns goos's class. Both path rules use it, so a system added
-// here gets a rule for both or for neither.
+// classifyOS returns goos's class. Both path rules switch on it, so they agree
+// on which system is which; a class a rule does not handle derives no path.
 func classifyOS(goos string) osClass {
 	switch goos {
 	case "darwin":

@@ -106,6 +106,9 @@ const (
 	formDetail
 	// formBase is "<Path> <Reason>", Path being the missing base directory.
 	formBase
+	// formCreate is "could not create the configuration file <Path>:
+	// <detail>".
+	formCreate
 )
 
 // FileError reports one rejection about the configuration file. Path is the
@@ -123,10 +126,22 @@ type FileError struct {
 	// detail is the OS error text or the mode found, for the message only.
 	detail string
 	form   fileErrorForm
+	// leftover is the temporary file Create could not remove after the
+	// failure, or ""; the message asks the user to remove it.
+	leftover string
 }
 
-// Error implements the error interface in the shape the error's form names.
+// Error implements the error interface in the shape the error's form names,
+// followed by the request to remove a leftover temporary file.
 func (e *FileError) Error() string {
+	if e.leftover != "" {
+		return e.message() + "; remove the temporary file " + e.leftover + " by hand"
+	}
+	return e.message()
+}
+
+// message is the error's text without the leftover request.
+func (e *FileError) message() string {
 	switch e.form {
 	case formLine:
 		reason := e.Reason
@@ -148,6 +163,8 @@ func (e *FileError) Error() string {
 		return "configuration file " + e.Path + " " + e.Reason + ": " + e.detail
 	case formBase:
 		return e.Path + " " + e.Reason
+	case formCreate:
+		return "could not create the configuration file " + e.Path + ": " + e.detail
 	default:
 		return "configuration file " + e.Path + " " + e.Reason
 	}
@@ -167,6 +184,9 @@ type FormatOverflowError struct {
 
 // Error implements the error interface.
 func (e *FormatOverflowError) Error() string {
+	if e.Omitted == 1 {
+		return "configuration file " + e.Path + ": 1 more line was rejected"
+	}
 	return fmt.Sprintf("configuration file %s: %d more lines were rejected", e.Path, e.Omitted)
 }
 
@@ -203,18 +223,26 @@ func readFileError(path string, err error) *FileError {
 // createFileError maps a failure of privatefile.MkdirBelow or
 // privatefile.Create for the configuration file at loc to a *FileError.
 // Contract: the class is chosen with errors.Is on the privatefile sentinels;
-// anything else, an unknown error included, is "could not be created".
+// anything else, an unknown error included, is "could not be created". A
+// temporary file Create could not remove is named in every class.
 func createFileError(loc serverFileLocation, err error) *FileError {
+	var fileErr *FileError
 	switch {
 	case errors.Is(err, privatefile.ErrExist):
-		return &FileError{Path: loc.path, Reason: reasonFileExists, Err: ErrConfigFileExists, form: formPlain}
+		fileErr = &FileError{Path: loc.path, Reason: reasonFileExists, Err: ErrConfigFileExists, form: formPlain}
 	case errors.Is(err, privatefile.ErrBaseMissing):
-		return &FileError{Path: loc.base, Reason: reasonBaseMissing, Err: ErrConfigFileCreate, form: formBase}
+		fileErr = &FileError{Path: loc.base, Reason: reasonBaseMissing, Err: ErrConfigFileCreate, form: formBase}
 	default:
-		// The error text names the temporary file when Create could not
-		// remove it after the failure, so the user can remove it by hand.
-		return &FileError{Path: loc.path, Reason: reasonFileCreate, Err: ErrConfigFileCreate, detail: err.Error(), form: formDetail}
+		detail := err
+		if left, ok := errors.AsType[*privatefile.LeftoverError](err); ok {
+			detail = left.Err
+		}
+		fileErr = &FileError{Path: loc.path, Reason: reasonFileCreate, Err: ErrConfigFileCreate, detail: detail.Error(), form: formCreate}
 	}
+	if left, ok := errors.AsType[*privatefile.LeftoverError](err); ok {
+		fileErr.leftover = left.Temp
+	}
+	return fileErr
 }
 
 // serverFile is the accepted content of a configuration file: each key that
@@ -333,18 +361,19 @@ const serverFileTemplate = `# yt2column-server configuration file.
 # To set a key, remove the "# " before it and write the value after "=".
 
 # The LLM that writes and shortens the article, as <provider>/<model ID>,
-# optionally followed by +<effort>; the provider is deepseek or claude.
+# optionally followed by +<effort>; the provider is ` + providerDeepSeek + ` or ` + providerClaude + `.
 # When unset: ` + defaultLLMValue + `.
 # ` + llmEnv + `=
 
 # The LLM that reviews and polishes the article, in the same form.
-# When unset: the value of ` + llmEnv + `.
+# When unset: the same as ` + llmEnv + ` (its value or its default), effort
+# included.
 # ` + reviewLLMEnv + `=
 
-# The DeepSeek API key, required when a step uses deepseek.
+# The DeepSeek API key, required when a step uses ` + providerDeepSeek + `.
 # ` + deepSeekAPIKeyEnv + `=
 
-# The Anthropic API key, required when a step uses claude (the default).
+# The Anthropic API key, required when a step uses ` + providerClaude + `.
 # ` + anthropicAPIKeyEnv + `=
 
 # The Anthropic workspace ID, for an API key not bound to a workspace.
