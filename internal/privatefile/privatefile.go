@@ -176,6 +176,8 @@ var hook = func(hookPoint, string) error { return nil }
 // check reports why info, as found for a file, may not be read, or ok when it
 // may: a regular file, not a symbolic link, owned by euid, with exactly Mode.
 // Read applies it both to the path's Lstat and to the open descriptor's fstat.
+// The owner is checked before the mode, so a foreign file is reported as
+// foreign: chmod, which a mode refusal suggests, cannot fix it.
 func check(info fs.FileInfo, euid int) (reason UnsafeReason, ok bool) {
 	mode := info.Mode()
 	switch {
@@ -425,9 +427,9 @@ func mkdir(dir string) (created bool, err error) {
 }
 
 // setDirMode sets the directory just created at dir to exactly DirMode
-// through a descriptor, after checking through it that the name is still a
-// directory owned by the effective user. O_DIRECTORY and O_NOFOLLOW make the
-// open fail when the name is no longer a directory.
+// through a descriptor. O_DIRECTORY and O_NOFOLLOW make the open fail when the
+// name is no longer a directory; the fstat checks that the directory opened
+// is the effective user's.
 func setDirMode(dir string) error {
 	if err := hook(hookMkdirAfterMkdir, dir); err != nil {
 		return err
@@ -444,7 +446,9 @@ func setDirMode(dir string) error {
 	if err != nil {
 		return err
 	}
-	if !info.IsDir() || !ownedBy(info, os.Geteuid()) {
+	// Only root could chmod another user's directory swapped in here; no
+	// non-root test can create one.
+	if !ownedBy(info, os.Geteuid()) {
 		return &fs.PathError{Op: opMkdir, Path: dir, Err: errReplaced}
 	}
 	return file.Chmod(DirMode)

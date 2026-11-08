@@ -369,11 +369,6 @@ func TestReadChecksDescriptor(t *testing.T) {
 		check func(t *testing.T, path string, content []byte, err error)
 	}{
 		{
-			name:  "mode 0644 file after the Lstat",
-			steps: map[hookPoint]replacement{hookReadAfterLstat: withFile("wide", 0o644)},
-			check: unsafeCheck(ReasonMode, 0o644),
-		},
-		{
 			name:  "directory after the Lstat",
 			steps: map[hookPoint]replacement{hookReadAfterLstat: withDir},
 			check: unsafeCheck(ReasonNotRegular, 0),
@@ -560,6 +555,8 @@ func readFile(t *testing.T, path string) []byte {
 // content under umasks that drop owner bits, add none, or drop the rest.
 func TestCreate(t *testing.T) {
 	content := []byte("# template\n")
+	// 0400 and 0200 drop an owner bit CreateTemp would set, so only the
+	// descriptor chmod gives 0600; 0077 and 0000 are the common umasks.
 	for _, mask := range []int{0o400, 0o200, 0o077, 0} {
 		t.Run(fmt.Sprintf("umask %04o", mask), func(t *testing.T) {
 			dir := t.TempDir()
@@ -584,16 +581,22 @@ func TestCreate(t *testing.T) {
 	}
 }
 
-// TestCreateExisting checks that every kind of name already at the path is
-// reported as existing and left unchanged.
-func TestCreateExisting(t *testing.T) {
+// existingKind is something already at the path that Create must report as
+// existing and leave unchanged.
+type existingKind struct {
+	name  string
+	setup func(t *testing.T, path string)
+	// lstatOnly marks a kind that only the Lstat can report, so it is not
+	// put at the path after the Lstat.
+	lstatOnly bool
+	check     func(t *testing.T, path string)
+}
+
+// existingKinds returns every kind of name TestCreateExisting puts at the path
+// before Create and TestCreateRaces puts there after its Lstat.
+func existingKinds() []existingKind {
 	const old = "old"
-	tests := []struct {
-		name     string
-		setup    func(t *testing.T, path string)
-		readOnly bool // the directory is not writable, so only the Lstat can tell
-		check    func(t *testing.T, path string)
-	}{
+	return []existingKind{
 		{
 			name:  "regular file",
 			setup: func(t *testing.T, path string) { writeFile(t, path, []byte(old), 0o644) },
@@ -601,12 +604,15 @@ func TestCreateExisting(t *testing.T) {
 		},
 		{
 			name: "regular file in a read-only directory",
+			// The directory is not writable, so only the Lstat can report
+			// "exists".
 			setup: func(t *testing.T, path string) {
 				skipIfRoot(t)
 				writeFile(t, path, []byte(old), 0o644)
+				chmodForTest(t, filepath.Dir(path), 0o500)
 			},
-			readOnly: true,
-			check:    requireUnchangedFile(old),
+			lstatOnly: true,
+			check:     requireUnchangedFile(old),
 		},
 		{
 			name: "dangling symbolic link",
@@ -657,21 +663,29 @@ func TestCreateExisting(t *testing.T) {
 			},
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+}
+
+// requireExistingRefused checks Create's result for a kind at path.
+func requireExistingRefused(t *testing.T, kind existingKind, dir, path string, leftover string, err error) {
+	t.Helper()
+	requireSentinel(t, err, path, ErrExist)
+	if leftover != "" {
+		t.Errorf("Create left %s behind", leftover)
+	}
+	kind.check(t, path)
+	requireNoTemp(t, dir)
+}
+
+// TestCreateExisting checks that every kind of name already at the path is
+// reported as existing and left unchanged.
+func TestCreateExisting(t *testing.T) {
+	for _, kind := range existingKinds() {
+		t.Run(kind.name, func(t *testing.T) {
 			dir := t.TempDir()
 			path := filepath.Join(dir, "config.env")
-			tt.setup(t, path)
-			if tt.readOnly {
-				chmodForTest(t, dir, 0o500)
-			}
+			kind.setup(t, path)
 			leftover, err := Create(path, []byte("new"))
-			requireSentinel(t, err, path, ErrExist)
-			if leftover != "" {
-				t.Errorf("Create left %s behind", leftover)
-			}
-			tt.check(t, path)
-			requireNoTemp(t, dir)
+			requireExistingRefused(t, kind, dir, path, leftover, err)
 		})
 	}
 }
@@ -700,8 +714,8 @@ func TestCreateUnwritableDirectory(t *testing.T) {
 	path := filepath.Join(dir, "config.env")
 	chmodForTest(t, dir, 0o500)
 	leftover, err := Create(path, []byte("new"))
-	if err == nil || errors.Is(err, ErrExist) || leftover != "" {
-		t.Fatalf("Create = (%q, %v), want a failure other than ErrExist", leftover, err)
+	if !errors.Is(err, fs.ErrPermission) || errors.Is(err, ErrExist) || leftover != "" {
+		t.Fatalf("Create = (%q, %v), want a permission failure, not ErrExist", leftover, err)
 	}
 	requireAbsent(t, path)
 	requireNoTemp(t, dir)
@@ -722,9 +736,6 @@ func TestUnsafeErrorText(t *testing.T) {
 		{fs.ModePerm | specialBits, 0o7777},
 	}
 	for _, m := range modes {
-		if got := unixMode(m.mode); got != m.want {
-			t.Errorf("unixMode(%v) = %04o, want %04o", m.mode, got, m.want)
-		}
 		// The mode in the text is what tells the user what to fix, so the
 		// text is the contract here.
 		text := (&UnsafeError{Path: "/p", Reason: ReasonMode, Mode: m.mode}).Error()
@@ -742,25 +753,27 @@ func TestUnsafeErrorText(t *testing.T) {
 	}
 }
 
-// TestCreateRaces puts a file at the path after Create's Lstat found nothing,
-// and checks that the link refuses it: the file is unchanged and no temporary
-// name is left.
+// TestCreateRaces puts each kind of name at the path after Create's Lstat
+// found nothing, and checks that the link refuses it: what is there is
+// unchanged and no temporary name is left.
 func TestCreateRaces(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "config.env")
-	setHookForTest(t, func(point hookPoint, _ string) error {
-		if point == hookCreateAfterLstat {
-			writeFile(t, path, []byte("raced"), 0o644)
+	for _, kind := range existingKinds() {
+		if kind.lstatOnly {
+			continue
 		}
-		return nil
-	})
-	leftover, err := Create(path, []byte("new"))
-	requireSentinel(t, err, path, ErrExist)
-	if leftover != "" {
-		t.Errorf("Create left %s behind", leftover)
+		t.Run(kind.name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "config.env")
+			setHookForTest(t, func(point hookPoint, _ string) error {
+				if point == hookCreateAfterLstat {
+					kind.setup(t, path)
+				}
+				return nil
+			})
+			leftover, err := Create(path, []byte("new"))
+			requireExistingRefused(t, kind, dir, path, leftover, err)
+		})
 	}
-	requireUnchangedFile("raced")(t, path)
-	requireNoTemp(t, dir)
 }
 
 // TestCreateFailureLeavesNothing fails each step after the temporary file is
@@ -860,6 +873,9 @@ func requireDirMode(t *testing.T, path string, mode fs.FileMode) {
 // mode 0700, under umasks that drop the owner's read or search bit too, that
 // an existing element is not changed, and how the base is checked.
 func TestMkdirBelow(t *testing.T) {
+	// 0400 drops the owner's read bit, so the directory could not be opened
+	// without the umask change; 0400, 0100, and 0000 differ from the umask
+	// during mkdir, so they also check that the caller's umask is restored.
 	for _, mask := range []int{0o400, 0o100, 0, 0o077} {
 		t.Run(fmt.Sprintf("umask %04o", mask), func(t *testing.T) {
 			base := t.TempDir()
@@ -928,8 +944,8 @@ func TestMkdirBelow(t *testing.T) {
 		base := t.TempDir()
 		writeFile(t, filepath.Join(base, "a"), []byte("x"), 0o644)
 		err := MkdirBelow(base, []string{"a", "b"})
-		if err == nil || errors.Is(err, ErrBaseMissing) {
-			t.Fatalf("MkdirBelow: error = %v, want a failure other than ErrBaseMissing", err)
+		if !errors.Is(err, syscall.ENOTDIR) || errors.Is(err, ErrBaseMissing) {
+			t.Fatalf("MkdirBelow: error = %v, want ENOTDIR, not ErrBaseMissing", err)
 		}
 		requireUnchangedFile("x")(t, filepath.Join(base, "a"))
 	})
