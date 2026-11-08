@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-08 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-08 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を指す。節番号は [02_architecture.md](02_architecture.md)（以下、設計書）の節を指し、本計画自身の節は「本計画 §N」と書く。用語は、要件書 6 章の用語（ステージ・構成要素・工程）と、設計書の冒頭の用語（対象の文書、出現箇所、割り当て、許可の一覧、一回の確認）を同じ意味で使う。
@@ -278,3 +278,7 @@ PR を 1 本にするのは設計書 1.2 の決定である。PR-1 は `cmd/yt2c
 -   PR の head がこのタスクのディレクトリの外で変わったら、または一回の確認のプログラムかデータのファイルが変わったら、マージの前に最後の head で一回の確認のプログラムを走らせ直す（本計画 §6）。
 -   PR のマージの後、issue #704 を閉じる（`Refs #N` では閉じない）。
 -   コードの識別子（`writer.Stage`・`pricing.StageCost` など）の名前を step に揃えることは、別のタスクで扱う（設計書 9 章）。
+
+## 変更履歴
+
+- 2026-11-08 承認（isseis、#714）
