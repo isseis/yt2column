@@ -31,3 +31,4 @@
 | [ADR-0023](0023-artifact-resume.md) | 中間生成物を段階ごとに保存し、壊れた中間生成物を拒否しながら後の段階から再開できるようにする | `有効` |
 | [ADR-0024](0024-env-access-in-config.md) | プロセスの環境変数を設定として読むのは internal/config と決めた入口だけに限る | `有効` |
 | [ADR-0025](0025-claude-output-limit.md) | Claude アダプタの出力の上限の既定は 40,000 トークンとし、ストリーミングを使わない | `有効` |
+| [ADR-0026](0026-extension-platform.md) | ブラウザ拡張は TypeScript の Manifest V3 の拡張とし、バンドラを使わず、manifest の key で ID を固定し、Chrome と Brave だけを対象にする | `有効` |
