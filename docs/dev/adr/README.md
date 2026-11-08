@@ -24,3 +24,4 @@
 | [ADR-0016](0016-document-test-policy.md) | 文書のテストは値・構造・実行できる例だけを確かめ、文の意味は PR のレビューで読む | `有効` |
 | [ADR-0017](0017-viewer-markdown-rendering.md) | ビューアは記事を自前の最小限のレンダラーで描画し、HTML を解釈せず、リンクは https の自動リンクだけにする | `有効` |
 | [ADR-0018](0018-server-config-file.md) | サーバは設定を決まった場所の env-file 形式のファイルだけから読み、CLI は環境変数を読む | `有効` |
+| [ADR-0019](0019-pipeline-component-interfaces.md) | パイプラインの構成要素を interface にし、構成要素ごとに型を持つパッケージを分け、番兵はプロバイダに依存するかで置き場所を分ける | `有効` |

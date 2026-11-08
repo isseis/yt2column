@@ -111,7 +111,7 @@
 | `viewer-opening` | 0058 | 0058 要件定義書「要件定義の際に決めたこと（2026-11-03）」・2026-11-03（節の見出しの日付）、0058 設計書「設計の際に決めたこと（2026-11-04）」・2026-11-04（節の見出しの日付） | - |
 | `extension-stores-nothing` | 0058 | 0058 要件定義書「issue #593 で決めたこと」・2026-11-04（変更履歴の最初の承認）、0058 設計書「設計の際に決めたこと（2026-11-04）」・2026-11-04（節の見出しの日付） | - |
 | `webhook-publishing` | 0059 | 0059 要件定義書「issue #526 で決めたこと」・2026-11-04（変更履歴の承認） | - |
-| `pipeline-component-interfaces` | 0001 0003 0009 | （② で埋める） | - |
+| `pipeline-component-interfaces` | 0001 0003 0009 | 0001 設計書「1.1 設計原則」・2026-09-29（設計書の Review date）、0003 設計書「1.1 設計原則」・2026-10-02（同）、0009 設計書「1.1 設計原則」・2026-10-10（同） | - |
 | `strict-json` | 0003 0010 0019 0023 0044 | （② で埋める） | - |
 | `llm-client-contract` | 0001 0003 0019 0022 | （② で埋める） | - |
 | `cost-estimate` | 0022 0042 | （② で埋める） | - |
@@ -151,16 +151,16 @@ ADR を書くときに、移し元の「背景」「採らなかった案」「�
 |---|---|---|---|---|---|
 | 2 | `llm-adapter-stdlib` | `pipeline-component-interfaces` | move | -   プロバイダに依存しない型と番兵: `GenerateRequest`・`GenerateResponse`・`LLMClient`、および不正なリクエスト・打ち切り・想定外の終了理由・空の応答。 | - |
 | 2 | `llm-adapter-stdlib` | `pipeline-component-interfaces` | move | -   **プロバイダに依存しない型と番兵は `internal/llm` に置く。** `LLMClient` と `GenerateRequest`・`GenerateResponse`、`ErrInvalidRequest`・`ErrTruncated`・`ErrUnexpectedFinishReason`・`ErrEmptyResponse`、リクエストの検証はここにある。 | - |
-| 2 | `llm-adapter-stdlib` | `pipeline-component-interfaces` | split | -   **HTTP の送信の経路は `internal/llm/llmhttp` に置き、両方のアダプタが使う。** 期限の適用、リダイレクトの禁止、応答本文の上限、失敗の分類をここで行う。`llmhttp` はプロバイダ固有の番兵を持たず、アダプタが渡した番兵で失敗を報告する。HTTP の状態・応答本文の形・通信の失敗の番兵は、プロバイダの名前を持つので各アダプタに残す。 | （② で埋める） |
+| 2 | `llm-adapter-stdlib` | `pipeline-component-interfaces` | split | -   **HTTP の送信の経路は `internal/llm/llmhttp` に置き、両方のアダプタが使う。** 期限の適用、リダイレクトの禁止、応答本文の上限、失敗の分類をここで行う。`llmhttp` はプロバイダ固有の番兵を持たず、アダプタが渡した番兵で失敗を報告する。HTTP の状態・応答本文の形・通信の失敗の番兵は、プロバイダの名前を持つので各アダプタに残す。 | -   **HTTP の送信の経路は `internal/llm/llmhttp` に置き、両方のアダプタが使う。** 期限の適用、リダイレクトの禁止、応答本文の上限、失敗の分類をここで行う。`llmhttp` はプロバイダ固有の番兵を持たず、アダプタが渡した番兵で失敗を報告する。番兵の置き場所は [ADR-0019](0019-pipeline-component-interfaces.md) が定める。 |
 | 2 | `llm-adapter-stdlib` | `pipeline-component-interfaces` | move | -   **番兵をすべて各アダプタに置く。** `ArticleWriter` が打ち切りを判別するために、プロバイダのパッケージを import することになる（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) 付録 A）。 | - |
 | 2 | `llm-adapter-stdlib` | `pipeline-component-interfaces` | move | -   **番兵をすべて `internal/llm` に置く。** SDK を使うプロバイダが、HTTP ステータスや応答本文の形に固有の番兵を `internal/llm` に合わせる必要が生じる（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) 付録 A）。 | - |
-| 2 | `llm-adapter-stdlib` | `pipeline-component-interfaces` | split | -   プロバイダを足すときは、アダプタのパッケージと、そのプロバイダのパラメータの型のパッケージを足す。`internal/llm` の型と `llmhttp` は変えない。 | （② で埋める） |
+| 2 | `llm-adapter-stdlib` | `pipeline-component-interfaces` | split | -   プロバイダを足すときは、アダプタのパッケージと、そのプロバイダのパラメータの型のパッケージを足す。`internal/llm` の型と `llmhttp` は変えない。 | -   プロバイダを足すときは、アダプタのパッケージと、そのプロバイダのパラメータの型のパッケージを足す。`llmhttp` は変えない。プロバイダに依存しない型は [ADR-0019](0019-pipeline-component-interfaces.md) が定める。 |
 | 2 | `llm-adapter-stdlib` | `pipeline-component-interfaces` | move | -   プロバイダ固有の失敗（HTTP ステータス・応答本文の形・通信の失敗）は、プロバイダごとの番兵で報告される。呼び出し側は、プロバイダに依存しない 4 つの番兵だけで、打ち切り・想定外の終了理由・空の応答・不正なリクエストを判別できる。 | - |
 | 2 | `llm-adapter-stdlib` | `strict-json` | split | -   応答の厳格な検証: 標準ライブラリのデコーダが黙って補正する入力を拒否する部品。 | （② で埋める） |
 | 2 | `llm-adapter-stdlib` | `strict-json` | move | -   **応答の厳格な検証は `internal/strictjson` に置き、複数のパッケージで共有する。** 字幕のパーサ、両方のアダプタ、`ArticleWriter`、`internal/publisher`、`internal/artifact`、`internal/fixprguard`、`internal/server`、`internal/nmhost`、`internal/codexreview`、`internal/coveragecompare` が使う。 | - |
 | 2 | `llm-adapter-stdlib` | `strict-json` | move | -   **厳格な JSON の部品を `internal/llm/deepseek` に複製する。** サロゲートの走査などの細かいコードが 2 か所になる（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) 付録 A）。 | - |
 | 2 | `llm-adapter-stdlib` | `strict-json` | move | -   **`internal/transcript` の非公開の関数を公開して LLM の段階から使う。** LLM の段階が字幕取得の段階に依存する（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) 付録 A）。 | - |
-| 2 | `server-architecture` | `pipeline-component-interfaces` | link | -   **サーバは `cmd/yt2column-server` の別の実行ファイルとし、利用者が手動で起動する。** ログイン時の自動起動はしない。記事を作る処理と Slack への投稿の処理は、CLI と同じパッケージを共有し、サーバ固有のコードは HTTP の入口・検査・応答・ジョブに限る。 | （② で埋める） |
+| 2 | `server-architecture` | `pipeline-component-interfaces` | link | -   **サーバは `cmd/yt2column-server` の別の実行ファイルとし、利用者が手動で起動する。** ログイン時の自動起動はしない。記事を作る処理と Slack への投稿の処理は、CLI と同じパッケージを共有し、サーバ固有のコードは HTTP の入口・検査・応答・ジョブに限る。 | -   **サーバは `cmd/yt2column-server` の別の実行ファイルとし、利用者が手動で起動する。** ログイン時の自動起動はしない。記事を作る処理と Slack への投稿の処理は、CLI と同じパッケージを共有し、サーバ固有のコードは HTTP の入口・検査・応答・ジョブに限る。記事を作る処理と Slack への投稿の処理を共有する構成は [ADR-0019](0019-pipeline-component-interfaces.md) の構成要素の分け方に従う。 |
 | 2 | `llm-config-contract` | `env-access-in-config` | link | この決定の仕様の正本は [project_overview.md](../project_overview.md) の設定の節である。値の解析と既定の当てはめは `internal/config` が行い、effort の値の一覧は `internal/llm/claudeparam` と `internal/llm/deepseekparam` が 1 か所ずつ持つ。 | （② で埋める） |
 | 2 | `server-config-file` | `env-access-in-config` | link | -   **サーバは設定ファイルだけから設定を読み、CLI は今までどおり環境変数だけから読む。** 入口ごとに読む場所を 1 つに決め、どの値が効いているかを曖昧にしない。サーバが環境変数から読むのは、パスを導出する `HOME` と、Go のランタイムが出す HTTP/2 のデバッグログについて警告するための `GODEBUG` だけである。 | （② で埋める） |
 | 2 | `production-profile` | `claude-output-limit` | move | -   **Claude アダプタの出力の上限の既定は 40,000 トークンとし、3 つの段階で共有する。** 本番の構成で長い動画の出力が打ち切られないようにするためである。 | - |
