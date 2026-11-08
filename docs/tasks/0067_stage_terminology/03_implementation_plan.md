@@ -63,6 +63,7 @@
 ### 1.5. 実装の際に決めたこと（2026-11-08）
 
 -   **ADR の「経緯」の節にある「段階」は、行を増減せずに語だけを置き換える。** 実装の時点の `main` には、タスク 0065 の PR ②（#716）が足した ADR-0019・ADR-0022・ADR-0023・ADR-0025 があり、「経緯」の節にも「段階」がある（0019 の 42 行目、0022 の 44 行目、0023 の 41 行目、0025 の 41 行目）。ステップ 3-5 と設計書 7.3 は経緯の節を変えない形で書いたが、それは ADR-0001〜0004 の経緯に「段階」がない時点の記述である。要件書 F-002 は実装時点で増えた出現箇所も置き換えるとし、AC-06 は残る「段階」を付録 B の文言だけとし、AC-09 は経緯の節に行が加わらず行が消えないことだけを求める。そこで、5 か所を設計書 6.1 の割り当てどおりに置き換え、経緯の確かめ（ステップ 6-1）は「基点と head で見出しが 1 つずつ、行数が同じで、各行が基点の行の『段階』を割り当て語に置き換えたもの」に改める（設計書 1.5・7.3）。ADR の判断: ADR は作らない。一回の確認の確かめ方の決定で、タスクの中で閉じる。レビュアーは 2026-11-08 のセッションでこの扱いを承認した。
+-   **実装の時点で `main` に入った #716 により、計画の行番号の一部が動いた。** ADR-0001 の 37 行目は ADR-0020 の 13・31 行目へ、ADR-0004 の 22 行目は ADR-0025 の 15 行目へ、34 行目は 35 行目へ移り、用語集のフェーズの項は 118 行目になった。ステップ 1-3・3-2・3-3 の行番号を実装の時点で直した（PR の説明に編集上の訂正として挙げる）。
 
 ## 2. 実装のステップ (Implementation Steps)
 
@@ -111,7 +112,7 @@
 -   [x] **ステップ 3-5**: 実装時点の `main` に ADR-0001〜0004 以外の ADR があり、「段階」を含むとき（タスク 0065 の PR ② が先にマージされた場合など）は、設計書 6.1・6.2 のとおりに割り当てて置き換える（#716 が足した ADR-0019・ADR-0020・ADR-0021・ADR-0022・ADR-0023・ADR-0025 を置き換えた）。その ADR の題名を変えたときは、索引の題名も同じコミットで同じ文言にする。経緯の節は行を増減せず、そこにある「段階」も設計書 6.1 の割り当て語に置き換える（AC-09、本計画 §1.5）。
 -   [x] **ステップ 3-6**: `TestADRRecords` を含む文書のガードを通してから、5 つのファイル（とステップ 3-5 で変えた ADR）を 1 つのコミットにする。
 
-**完了の条件:** `TestADRRecords` が通る。`docs/dev/adr/` に許可の一覧の「観点と段階の基準」のほかに「段階」がないことと、経緯の節が変わらないことは、ステップ 6-4 で確かめる。
+**完了の条件:** `TestADRRecords` が通る。`docs/dev/adr/` に許可の一覧の「観点と段階の基準」のほかに「段階」がないことと、経緯の節が行を増減せず語だけを置き換えたことは、ステップ 6-4 で確かめる。
 
 ### フェーズ 4: そのほかの対象の文書（AC-05・AC-17）
 
@@ -152,8 +153,8 @@
     -   表と節は `internal/doctestutil` の関数で読む。そのため、ファイルの先頭に `//go:build test` を置く（先例は 0048 の `_checks/split/main.go`）。
     -   出力の形と終了コード（0・1・2）は設計書 7.3 のとおりにする。
     -   ソースのコメント・識別子・文字列・出力は英語で書き、確かめることを AC や F の番号ではなく内容で名付ける（`runplan.md` の Go のソースの AC・F の番号の検査に当たらないようにする）。冒頭のコメントに、目的と走らせ方と、`make test` と CI が走らせないことを書く（先例は 0064 の `_checks`）。
--   [x] **ステップ 6-2**: ユーザーの許可を得てから `git fetch origin main` を行い、`origin/main` が `HEAD` の祖先でなければ `git merge origin/main` で取り込む（ブランチの準備で `origin/main` を取り込み済みで、`HEAD` は `origin/main` の子孫であるため、追加の取り込みは不要だった）。タスク 0065 の PR ② が先にマージされていて、ADR-0001 の 37 行目や ADR-0004 の 22 行目が衝突したときは、`main` の側の移動を残し、移った先の ADR で付録 A の割り当てどおりに置き換え直す（設計書 6.2）。取り込みで増えた出現箇所は、ステップ 3-5・4-4 の規則で直してコミットし、一般の語の組はデータのファイルに足す。ステップ 3-5・4-4 でいう「実装時点の `main`」は、`/runplan` が作業を始めるときにブランチへ取り込んだ `origin/main` を指す。このステップでは、その後に `main` へ入ったものを取り込む。最後に `git merge-base --is-ancestor origin/main HEAD` が成功することを確かめる。
--   [ ] **ステップ 6-3**: 確かめることのそれぞれが違反を報告できることを確かめる。ステップ 6-2 の取り込みの後に行う。使い捨てのブランチに一時的なコミットを作り、基点と head を引数で渡して走らせ、確かめ終えたらブランチを消す。一時的なコミットは PR に入れない。確かめることごとに 1 つ以上の壊し方を用意し、壊し方と、報告された確かめることと、終了コード（違反は 1、確かめられない入力は 2）を、本計画 §5 の実行の記録に書く（ステップ 6-4 のコミットに入る）。少なくとも次を含む。
+-   [x] **ステップ 6-2**: ユーザーの許可を得てから `git fetch origin main` を行い、`origin/main` が `HEAD` の祖先でなければ `git merge origin/main` で取り込む（`origin/main` が進んでいたため `git merge origin/main` で取り込み、`HEAD` が `origin/main` の子孫になったことを確かめた）。タスク 0065 の PR ② が先にマージされていて、ADR-0001 の 37 行目や ADR-0004 の 22 行目が衝突したときは、`main` の側の移動を残し、移った先の ADR で付録 A の割り当てどおりに置き換え直す（設計書 6.2）。取り込みで増えた出現箇所は、ステップ 3-5・4-4 の規則で直してコミットし、一般の語の組はデータのファイルに足す。ステップ 3-5・4-4 でいう「実装時点の `main`」は、`/runplan` が作業を始めるときにブランチへ取り込んだ `origin/main` を指す。このステップでは、その後に `main` へ入ったものを取り込む。最後に `git merge-base --is-ancestor origin/main HEAD` が成功することを確かめる。
+-   [x] **ステップ 6-3**: 確かめることのそれぞれが違反を報告できることを確かめる。ステップ 6-2 の取り込みの後に行う。使い捨てのブランチに一時的なコミットを作り、基点と head を引数で渡して走らせ、確かめ終えたらブランチを消す。一時的なコミットは PR に入れない。確かめることごとに 1 つ以上の壊し方を用意し、壊し方と、報告された確かめることと、終了コード（違反は 1、確かめられない入力は 2）を、本計画 §5 の実行の記録に書く（ステップ 6-4 のコミットに入る）。少なくとも次を含む。
     -   対象の文書に「段階」を 1 つ足す。字下げした次の行へ「段」と「階」を分けて足す。
     -   許可の組の文言を 1 つ置き換える（回数の食い違い）。
     -   用語集の「ステージ」の行を別の位置へ動かす。英語の列を変える。「旧称: 段階」を消す。1 列目が「段階」の行を残す。「ステージ」の行を 2 つにする。旧称の記述の外に「段階」を足す。
@@ -162,8 +163,8 @@
     -   禁止のファイル（`README.md`、`README.en.md`、`docs/dev/conventions/package_reference.md`、`docs/tasks/` の下のほかのタスク、`extension/` の下）と、このタスクのディレクトリの外の `docs_test.go` 以外の `.go` のファイルを変える。
     -   ADR の「## 経緯」の節の行を 1 行足す、または行を 1 行消す（違反）。経緯の行の「段階」以外の語を変える（違反）。
     -   読めないコミットを渡す（終了コード 2）。
--   [ ] **ステップ 6-4**: すべての変更をコミットした後に、PR のブランチで一回の確認のプログラムを走らせ、終了コード 0 で終わることを確かめる。出力の全文と、基点と head のコミット ID を、本計画 §5 の実行の記録に書いてコミットする。記録のコミットは本計画だけを変え、本計画はどの確かめることの対象にも入らないので、記録のコミットの後に走らせ直さなくてよい。記録には、確かめた head と PR の head の違いが、本計画だけを変えたコミットであることを書く。
--   [ ] **ステップ 6-5**: PR の説明に書く事項を控える。一回の確認のプログラムの出力（使った許可の組を含む）、ステップ 4-4 で足した組、付録 A と設計書 6.1 の判定の食い違い（あれば）、AC-16 の読み方（本計画 §1.3）、タスク 0065 の PR ② が未マージなら、0065 の計画の 2 行（`docs/tasks/0065_adr_remaining/03_implementation_plan.md:162`・`:166`）を直した後の文面で引用し直す必要があること（設計書 6.2）。
+-   [x] **ステップ 6-4**: すべての変更をコミットした後に、PR のブランチで一回の確認のプログラムを走らせ、終了コード 0 で終わることを確かめる。出力の全文と、基点と head のコミット ID を、本計画 §5 の実行の記録に書いてコミットする。記録のコミットは本計画だけを変え、本計画はどの確かめることの対象にも入らないので、記録のコミットの後に走らせ直さなくてよい。記録には、確かめた head と PR の head の違いが、本計画だけを変えたコミットであることを書く。
+-   [x] **ステップ 6-5**: PR の説明に書く事項を控える。一回の確認のプログラムの出力（使った許可の組を含む）、ステップ 4-4 で足した組、付録 A と設計書 6.1 の判定の食い違い（あれば）、AC-16 の読み方（本計画 §1.3）、タスク 0065 の PR ② が未マージなら、0065 の計画の 2 行（`docs/tasks/0065_adr_remaining/03_implementation_plan.md:162`・`:166`）を直した後の文面で引用し直す必要があること（設計書 6.2）。
 
 **完了の条件:** 一回の確認のプログラムが PR のブランチで終了コード 0 で終わり、その記録が本計画 §5 にある。`make test && make lint` が通る。
 
@@ -227,7 +228,67 @@ PR を 1 本にするのは設計書 1.2 の決定である。PR-1 は `cmd/yt2c
 
 表の「一回の確認」は、一回の確認のプログラム（本計画 §1.3 のとおりにビルドした実行ファイル）を指す。実行の記録（日付、基点と head のコミット ID、出力の全文、終了コード）と、ステップ 6-3 の壊し方の記録は、ステップ 6-4 で次の段落に書く。
 
-**実行の記録:** （ステップ 6-4 で書く）
+**実行の記録:**
+
+-   日付: 2026-11-08
+-   ビルド: `go build -tags test -o <scratchpad>/0067check ./docs/tasks/0067_stage_terminology/_checks/`
+-   実行: `<scratchpad>/0067check 7d7d794b0bc505fafdf624d26c4fd2aa8ec528c4 22088df5f78fcd14039d311048760221263e254e`
+-   基点: `7d7d794b0bc505fafdf624d26c4fd2aa8ec528c4`（`origin/main` と `HEAD` の merge-base）
+-   head: `22088df5f78fcd14039d311048760221263e254e`
+-   終了コード: 0
+
+出力の全文:
+
+```text
+base 7d7d794b0bc505fafdf624d26c4fd2aa8ec528c4
+head 22088df5f78fcd14039d311048760221263e254e
+ALLOWED docs/dev/adr/0004-production-profile.md 1/1 観点と段階の基準
+ALLOWED docs/dev/guides/cli.md 1/1 2 つの段階
+ALLOWED docs/dev/guides/mergepr_guide.md 2/2 | 段階 |
+ALLOWED docs/dev/guides/mergepr_guide.md 1/1 承認の段階
+ALLOWED docs/dev/guides/mergepr_guide.md 1/1 取り消せない段階
+ALLOWED docs/dev/security.md 1/1 固定のイベント名・段階・
+ALLOWED docs/dev/security.md 1/1 形の検査の段階
+OK   docs/dev/production_profile.md: the pipeline table's first column is 処理
+OK   CLAUDE.md: only the three expected phrases changed
+OK every check passed
+```
+
+この記録を書くコミットは本計画だけを変える。確かめた head `22088df5` と PR の head の違いは、この記録のコミットだけである。
+
+**壊し方の記録（ステップ 6-3、`7d7d794b` を基点とする使い捨てのブランチで実行）:**
+
+| 壊し方 | 報告された確かめること | 終了コード |
+|---|---|---|
+| 対象の文書に「段階」を 1 つ足し、字下げした次の行へ「段」「階」を分けて足す | `docs/dev/security.md:160`・`:162`: the old word remains | 1 |
+| 許可の組の文言を「2 つのステージ」に置き換える | `docs/dev/guides/cli.md:1`: allowed wording appears 0 times, want 1 | 1 |
+| 許可の組の文言を 2 回にする | `docs/dev/guides/cli.md:1`: allowed wording appears 2 times, want 1 | 1 |
+| 用語集の「ステージ」の行を別の位置へ動かす | `docs/translation_glossary.md:1`: the stage row moved from the base commit's position | 1 |
+| 用語集の英語の列を `phase` にする | `docs/translation_glossary.md:1`: the stage row's English cell is not stage | 1 |
+| 「旧称: 段階」を消す | `docs/translation_glossary.md:1`: the old name appears 0 times, want 1; the stage row's remark does not hold the old name | 1 |
+| 1 列目が「段階」の行を残す | `docs/translation_glossary.md:57`: the old word remains; `:1`: a row whose first cell is the old word remains | 1 |
+| 「ステージ」の行を 2 つにする | `docs/translation_glossary.md:1`: the stage row is missing or appears more than once | 1 |
+| 旧称の記述の外に「段階」を足す | `docs/translation_glossary.md:191`: the old word remains | 1 |
+| `production_profile.md` のパイプラインの表の列名を「工程」にする | `docs/dev/production_profile.md:1`: the pipeline table's first column is "工程", want "処理" | 1 |
+| `CLAUDE.md` の「変えた後」の文言を 1 つ戻す | `CLAUDE.md:1`: the changed wording appears 0 times, want 1; lines outside the three changed phrases differ | 1 |
+| 「変えた後」の文言を 2 回にする | `CLAUDE.md:1`: the changed wording appears 2 times, want 1; lines outside the three changed phrases differ | 1 |
+| 3 か所以外の stage（300 行目）を変える | `CLAUDE.md:1`: lines outside the three changed phrases differ | 1 |
+| 禁止のファイル（`README.md`・`package_reference.md`・ほかのタスク・`extension/package.json`）と `cmd/yt2column/main.go` を変える | 5 つの変更を報告: `README.md:1`、`cmd/yt2column/main.go:1`、`docs/dev/conventions/package_reference.md:1`、`docs/tasks/0066_server_config_file/03_implementation_plan.md:1`、`extension/package.json:1` | 1 |
+| ADR の「## 経緯」の節に 1 行足す | `docs/dev/adr/0019-pipeline-component-interfaces.md:40`: the history has 7 lines, want 6 | 1 |
+| 経緯の行の「段階」以外の語を変える | `docs/dev/adr/0023-artifact-resume.md:41`: a history line changed beyond the word replacement | 1 |
+| 経緯の見出しを消す | `0067check: ... history heading "## 経緯" not found` | 2 |
+| 経緯の見出しを 2 つにする | `0067check: ... history heading "## 経緯" appears more than once` | 2 |
+| 基点にない ADR を足す | 違反なし | 0 |
+| 読めないコミットを渡す | `git rev-parse --verify ...: Needed a single revision` | 2 |
+
+**PR の説明に書く事項（ステップ 6-5）:**
+
+-   一回の確認の出力（使った許可の組を含む）は上のとおり。
+-   ステップ 4-4 でデータのファイルに足した組はない。
+-   付録 A と設計書 6.1 の判定の食い違いはない。#716 が足した ADR-0019・ADR-0020・ADR-0021・ADR-0022・ADR-0023・ADR-0025 の出現箇所は付録 A になく、設計書 6.1 で割り当てた（0019 はステージと構成要素、0020 は構成要素、0021 はステージと工程、0022・0023・0025 は工程）。
+-   AC-16 の「Go のコード」は、本計画 §1.3 のとおり、このタスクのディレクトリの `_checks/` の下の Go のファイルを除いて読む。
+-   タスク 0065 の PR ② はマージ済みなので、0065 の計画の 2 行を引用し直す必要はない。
+-   ADR の「経緯」の語の扱いは、セッション中の再承認で決めた（本計画 §1.5、設計書 1.5）。
 
 | AC | 種類 | 検証 | ステップ |
 |---|---|---|---|
