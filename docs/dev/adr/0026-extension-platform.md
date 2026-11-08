@@ -8,9 +8,9 @@
 
 ## 背景
 
-`yt-dlp` による字幕の取得は、YouTube から HTTP 429 を繰り返し受けることがある。そこで、利用者が文字起こしパネルで字幕を選び、ブラウザ拡張がそれをサーバへ送る形にした（[0007 要件定義書](../../tasks/0007_browser_extension_skeleton/01_requirements.md) §1）。リポジトリは Go のプロジェクトで、拡張の開発環境は何もなかった。拡張を書く言語、ビルドの道具、対象のブラウザを新たに決める必要があった。
+`yt-dlp` による字幕の取得は、YouTube から HTTP 429 を繰り返し受けることがある。そこで、利用者が文字起こしパネルで字幕を選び、ブラウザ拡張がそれをサーバへ送る形にした（[0007 要件定義書](../../tasks/0007_browser_extension_skeleton/01_requirements.md) §1）。
 
-拡張はストアに公開せず、利用者がビルドしたものを「パッケージ化されていない拡張機能を読み込む」で読み込む（[0007 要件定義書](../../tasks/0007_browser_extension_skeleton/01_requirements.md) §1）。パッケージ化されていない拡張の ID は、既定では読み込んだディレクトリのパスから決まり、環境ごとに異なる（同 §6）。一方、拡張からの送り先は、受け付ける送り手の拡張を ID で指定する。今の送り先は Native Messaging のホストで、ホストの manifest の `allowed_origins` が ID を指定する。そのため、ID はどの環境でも同じでなければならない。
+開発中は、拡張をストアに公開せず、利用者がビルドしたものを「パッケージ化されていない拡張機能を読み込む」で読み込む（[0007 要件定義書](../../tasks/0007_browser_extension_skeleton/01_requirements.md) §1）。最終的には、拡張をストアに公開し、サーバを brew などでインストールできるようにする想定である。ただし、パッケージングの方式などの技術的な詳細と時期は決まっていない。パッケージ化されていない拡張の ID は、既定では読み込んだディレクトリのパスから決まり、環境ごとに異なる（同 §6）。一方、拡張からの送り先は、受け付ける送り手の拡張を ID で指定する。今の送り先は Native Messaging のホストで、ホストの manifest の `allowed_origins` が ID を指定する。そのため、ID はどの環境でも同じでなければならない。
 
 拡張の実行時に読み込むコードは、本リポジトリで書いたものだけとする。npm の依存パッケージは開発用（ビルド・型検査・lint・テスト）に限る。これは、Go のモジュールについての CLAUDE.md「Dependencies」の考え方を拡張にも当てはめたものである（[0007 要件定義書](../../tasks/0007_browser_extension_skeleton/01_requirements.md) F-001）。
 
@@ -28,7 +28,6 @@
 ## 採らなかった案
 
 -   **バンドラ（esbuild・Vite など）を使う。** 実行時に読み込む依存パッケージがないので、まとめる対象がなく、`tsc` の 1 対 1 の出力で足りる（[0007 設計書](../../tasks/0007_browser_extension_skeleton/02_architecture.md) §3.8）。また、esbuild などはインストール時にバイナリを取得する。依存パッケージのインストール時のスクリプトを実行しない方針に合わないことも、使わない理由の 1 つである（[0007 設計書](../../tasks/0007_browser_extension_skeleton/02_architecture.md) §5.2）。
--   **ストアに公開する、または `.crx` にパッケージ化する。** 理由は記録されていない（[0007 要件定義書](../../tasks/0007_browser_extension_skeleton/01_requirements.md) §1 は「ストアには公開しない」と決め、§2.3 はストアへの公開・`.crx` へのパッケージ化・自動更新をスコープ外とするだけである）。
 -   **Chrome と Brave 以外のブラウザ（Firefox・Safari・Edge など）も対象にする。** [0007 要件定義書](../../tasks/0007_browser_extension_skeleton/01_requirements.md) §2.3 は、Edge は Chromium 系なので動作する可能性があるが確認しない、と述べる。ほかの理由は記録されていない。Firefox は Manifest V3 の Service Worker の扱いが異なるので、対応するにはエントリポイントと manifest を分ける必要がある（[0007 設計書](../../tasks/0007_browser_extension_skeleton/02_architecture.md) §9）。
 -   **ホストの manifest の置き場所を任意に指定する手段（`--manifest-dir`）を設け、Chrome と Brave 以外の Chromium 系のブラウザ（Beta・Canary・Chromium・Edge など）でもホストを使えるようにする。** 手動で確認していないブラウザ向けの手段を、確かめないまま提供しないためである（[0026 設計書](../../tasks/0026_native_messaging_relay/02_architecture.md) §3.6）。
 
