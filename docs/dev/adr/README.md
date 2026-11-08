@@ -26,3 +26,4 @@
 | [ADR-0018](0018-server-config-file.md) | サーバは設定を決まった場所の env-file 形式のファイルだけから読み、CLI は環境変数を読む | `有効` |
 | [ADR-0019](0019-pipeline-component-interfaces.md) | パイプラインの構成要素を interface にし、構成要素ごとに型を持つパッケージを分け、番兵はプロバイダに依存するかで置き場所を分ける | `有効` |
 | [ADR-0020](0020-strict-json.md) | 厳格な JSON の部品を internal/strictjson に集め、検証済みの値だけを扱う不透明な型にし、負でない整数の規則を 1 つにする | `有効` |
+| [ADR-0021](0021-llm-client-contract.md) | LLMClient の契約は生成テキストにモデル名・モデルの版・使用量を添えて返し、打ち切りなどの失敗でもモデル名と使用量を返す | `有効` |
