@@ -18,8 +18,8 @@
 -   **サーバは `yt-dlp` を呼ばない。** 字幕は拡張から受け取り、`internal/transcript` の `CopiedSource` で解析する。`yt-dlp` を使うのは CLI の経路だけである（字幕の入力の決定は [ADR-0007](0007-manual-transcript-copy.md)）。
 -   **待ち受けは Unix ドメインソケット（UDS）だけにし、TCP のポートを開かない。** ソケットのパスは `HOME` だけから導出する。ソケットの置き場所と権限、起動のロック、stale の扱いは [security.md](../security.md) §8.2「localhost サーバ」に従う。
 -   **UDS の上でも HTTP/1.1 を使い、新しいフレーム形式を作らない。** サーバの `http.Server` とハンドラを `UnixListener` の上で動かす。リクエストの検査はパスとメソッドだけで、`Host`・`Origin`・`Content-Type`・`Authorization` は検査しない。ソケットに接続できる相手はこれらのヘッダを偽れるので、検査しても排除できる相手がいないためである。
--   **生成の開始は `202` で受け付け、ジョブをサーバのメモリで動かす。** 同時に走る生成の数、本文の大きさ、読み取り・書き込み・待機の時間の上限は [security.md](../security.md) §8.2 に従う。
--   **拡張は Native Messaging のホストだけに送り、ホストが UDS へ中継する。** 送り先は固定のホスト名 `io.github.isseis.yt2column` で、ホストを起動できる拡張は manifest の `allowed_origins` に載った固定の拡張だけである。ホストは 1 つのメッセージにつき 1 回起動し、1 つのリクエストを送って 1 つの応答を返し、終了する。ホストはサーバを起動せず、ジョブはサーバに残る。ブラウザを閉じてもジョブは続く。
+-   **生成の開始は `202` で受け付け、ジョブをサーバのメモリで動かす。** 同時に走る生成の数、本文の大きさ、読み取り・書き込み・待機の時間の上限は [security.md](../security.md) §8.2 に従う。ジョブの API と記事のキー・キャッシュは [ADR-0027](0027-article-job-api.md) が定める。
+-   **拡張は Native Messaging のホストだけに送り、ホストが UDS へ中継する。** 送り先は固定のホスト名 `io.github.isseis.yt2column` で、ホストを起動できる拡張は manifest の `allowed_origins` に載った固定の拡張だけである。ホストは 1 つのメッセージにつき 1 回起動し、1 つのリクエストを送って 1 つの応答を返し、終了する。ホストはサーバを起動せず、ジョブはサーバに残る。ブラウザを閉じてもジョブは続く。拡張の ID を manifest の `key` で固定することは [ADR-0026](0026-extension-platform.md) が定める。
 
 この決定の仕様の正本は [security.md](../security.md) の §8「ブラウザ拡張と localhost サーバ」と §8.2「localhost サーバ」、[project_overview.md](../project_overview.md) の「決定済みの方針」の実行形式、および [package_reference.md](../conventions/package_reference.md) のパッケージの表である。
 

@@ -31,3 +31,8 @@
 | [ADR-0023](0023-artifact-resume.md) | 中間生成物を工程ごとに保存し、壊れた中間生成物を拒否しながら後の工程から再開できるようにする | `有効` |
 | [ADR-0024](0024-env-access-in-config.md) | プロセスの環境変数を設定として読むのは internal/config と決めた入口だけに限る | `有効` |
 | [ADR-0025](0025-claude-output-limit.md) | Claude アダプタの出力の上限の既定は 40,000 トークンとし、ストリーミングを使わない | `有効` |
+| [ADR-0026](0026-extension-platform.md) | ブラウザ拡張は TypeScript の Manifest V3 の拡張とし、バンドラを使わず、manifest の key で ID を固定し、Chrome と Brave だけを対象にする | `有効` |
+| [ADR-0027](0027-article-job-api.md) | 拡張とホストとサーバはジョブの API で生成と投稿を分け、記事をプロセスごとの秘密によるキーでサーバのメモリに持つ | `有効` |
+| [ADR-0028](0028-no-automatic-resend.md) | 結果が分からないときは自動で送り直さず、投稿の操作を冪等にする | `有効` |
+| [ADR-0029](0029-extension-ui-languages.md) | 拡張の UI を英語と日本語の 2 言語にし、表示の言語は resolveLocale の 1 か所で決める | `有効` |
+| [ADR-0030](0030-minimum-chrome-version.md) | 拡張の minimum_chrome_version を 110 にする | `有効` |
