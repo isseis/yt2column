@@ -16,6 +16,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"syscall"
 )
 
@@ -30,6 +31,9 @@ const specialBits = fs.ModeSetuid | fs.ModeSetgid | fs.ModeSticky
 // opRead is the operation an *fs.PathError from Read names.
 const opRead = "read"
 
+// opCreate is the operation an *fs.PathError from Create names.
+const opCreate = "create"
+
 var (
 	// ErrNotExist reports that nothing is at the path.
 	ErrNotExist = errors.New("the file does not exist")
@@ -38,6 +42,8 @@ var (
 	ErrUnsafe = errors.New("the file is not in the accepted form")
 	// ErrTooLarge reports a file larger than the caller's limit.
 	ErrTooLarge = errors.New("the file exceeds the size limit")
+	// ErrExist reports that something, of any kind, is already at the path.
+	ErrExist = errors.New("a file already exists at the path")
 
 	// errNegativeLimit reports a negative limit passed to Read.
 	errNegativeLimit = errors.New("the size limit is negative")
@@ -120,6 +126,17 @@ const (
 	_ hookPoint = iota
 	// hookReadAfterLstat runs in Read after the path's Lstat, with the path.
 	hookReadAfterLstat
+	// hookCreateAfterLstat runs in Create after the path's Lstat, with the path.
+	hookCreateAfterLstat
+	// hookCreateBeforeWrite runs in Create before the content is written, with
+	// the temporary name; so do the next three.
+	hookCreateBeforeWrite
+	// hookCreateBeforeSync runs before the temporary file is synced.
+	hookCreateBeforeSync
+	// hookCreateBeforeLink runs before the temporary file is linked at the path.
+	hookCreateBeforeLink
+	// hookCreateBeforeRemoveTemp runs before the temporary name is removed.
+	hookCreateBeforeRemoveTemp
 )
 
 // hook runs at each hookPoint. A non-nil error is returned as the failure of
@@ -221,4 +238,97 @@ func Read(path string, limit int) ([]byte, error) {
 		return nil, &fs.PathError{Op: opRead, Path: path, Err: ErrTooLarge}
 	}
 	return content, nil
+}
+
+// tempPrefix is the start of the temporary name Create writes next to path:
+// a dot, path's base name, and ".tmp-", so a leftover is hidden and the user
+// can still find it by the file's own name.
+func tempPrefix(path string) string {
+	return "." + filepath.Base(path) + ".tmp-"
+}
+
+// Create puts a new file with exactly Mode at path, holding content. After a
+// success it returns the temporary file's name when it could not remove it,
+// or "".
+//
+// Contract: what is at path, of any kind, is never replaced or changed
+// (ErrExist). The content is written and synced under a temporary name in the
+// same directory and put at path with link(2), which fails on an existing
+// name, so on failure nothing is at path, even after the process is killed.
+// The mode is set on the descriptor, whatever the umask. The temporary name is
+// removed on every return; when that fails, a success returns the name and a
+// failure's error names it.
+func Create(path string, content []byte) (leftoverTemp string, err error) {
+	// The Lstat only chooses the report: an existing file in a directory the
+	// user cannot write to is "exists", not "could not create". link(2) below
+	// is what keeps an existing name unchanged.
+	if _, err := os.Lstat(path); err == nil {
+		return "", &fs.PathError{Op: opCreate, Path: path, Err: ErrExist}
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return "", err
+	}
+	if err := hook(hookCreateAfterLstat, path); err != nil {
+		return "", err
+	}
+	file, err := os.CreateTemp(filepath.Dir(path), tempPrefix(path)+"*")
+	if err != nil {
+		return "", err
+	}
+	temp := file.Name()
+	err = place(file, path, content)
+	if removeErr := removeTemp(temp); removeErr != nil {
+		if err != nil {
+			return "", fmt.Errorf("%w; the temporary file %s could not be removed: %v", err, temp, removeErr)
+		}
+		return temp, nil
+	}
+	return "", err
+}
+
+// place writes content to the open temporary file, closes it, and links it at
+// path. The file is closed on every return.
+func place(file *os.File, path string, content []byte) error {
+	err := writeTemp(file, content)
+	if closeErr := file.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		return err
+	}
+	if err := hook(hookCreateBeforeLink, file.Name()); err != nil {
+		return err
+	}
+	if err := os.Link(file.Name(), path); err != nil {
+		if errors.Is(err, fs.ErrExist) {
+			return &fs.PathError{Op: opCreate, Path: path, Err: ErrExist}
+		}
+		return err
+	}
+	return nil
+}
+
+// writeTemp sets the temporary file's mode to exactly Mode, writes content,
+// and syncs it.
+func writeTemp(file *os.File, content []byte) error {
+	if err := file.Chmod(Mode); err != nil {
+		return err
+	}
+	if err := hook(hookCreateBeforeWrite, file.Name()); err != nil {
+		return err
+	}
+	if _, err := file.Write(content); err != nil {
+		return err
+	}
+	if err := hook(hookCreateBeforeSync, file.Name()); err != nil {
+		return err
+	}
+	return file.Sync()
+}
+
+// removeTemp removes the temporary name.
+func removeTemp(temp string) error {
+	if err := hook(hookCreateBeforeRemoveTemp, temp); err != nil {
+		return err
+	}
+	return os.Remove(temp)
 }

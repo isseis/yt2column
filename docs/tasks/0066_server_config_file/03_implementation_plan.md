@@ -104,7 +104,7 @@
 
 **変えるファイル:** `internal/privatefile/privatefile.go`
 
-- [ ] `Create` を設計 3.1「`Create` の手順」と 6.3 のとおりに実装する。一時ファイルの接頭辞は `.config.env.tmp-` とする。
+- [ ] `Create` を設計 3.1「`Create` の手順」と 6.3 のとおりに実装する。一時ファイルの接頭辞は、パスの最後の要素の前に `.` を、後に `.tmp-` を付けたもの（設定ファイルでは `.config.env.tmp-`）とする。`privatefile` が設定ファイルの名前を持たないためである。
 - [ ] `MkdirBelow` を設計 3.1 の振る舞いと 1.3 の 1 つ目の決定の手順で実装する。umask は `mkdir` の直後に戻し、`defer` でも必ず戻す。作った要素を開く行にも、1 行だけの `//nolint:gosec` と理由を付ける。
 
 #### ステップ 1-4: `privatefile` のテスト

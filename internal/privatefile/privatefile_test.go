@@ -5,9 +5,11 @@ package privatefile
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -446,5 +448,273 @@ func TestOwnerAndModeCheck(t *testing.T) {
 				t.Errorf("check = (%v, %v), want (%v, %v)", reason, ok, tt.wantReason, tt.wantOK)
 			}
 		})
+	}
+}
+
+// errInjected is the failure a test hook returns.
+var errInjected = errors.New("injected failure")
+
+// withUmask runs f with the process umask set to mask and restores the
+// previous umask as soon as f returns. Callers create their temporary
+// directories before calling it, so t.TempDir is not affected.
+func withUmask(mask int, f func()) {
+	previous := syscall.Umask(mask)
+	defer syscall.Umask(previous)
+	f()
+}
+
+// requireNoTemp checks that dir holds no temporary name Create would make for
+// the file name "config.env".
+func requireNoTemp(t *testing.T, dir string) {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), ".config.env.tmp-") {
+			t.Errorf("%s holds the temporary name %s", dir, entry.Name())
+		}
+	}
+}
+
+func requireAbsent(t *testing.T, path string) {
+	t.Helper()
+	if _, err := os.Lstat(path); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("Lstat(%s): error = %v, want fs.ErrNotExist", path, err)
+	}
+}
+
+func readFile(t *testing.T, path string) []byte {
+	t.Helper()
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return content
+}
+
+// TestCreate checks that the created file has exactly mode 0600 and the
+// content under umasks that drop owner bits, add none, or drop the rest.
+func TestCreate(t *testing.T) {
+	content := []byte("# template\n")
+	for _, mask := range []int{0o400, 0o200, 0o077, 0} {
+		t.Run(fmt.Sprintf("umask %04o", mask), func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "config.env")
+			var leftover string
+			var err error
+			withUmask(mask, func() { leftover, err = Create(path, content) })
+			if err != nil {
+				t.Fatalf("Create: %v", err)
+			}
+			if leftover != "" {
+				t.Errorf("Create left %s behind", leftover)
+			}
+			if mode := lstat(t, path).Mode(); mode != Mode {
+				t.Errorf("mode = %v, want %v", mode, Mode)
+			}
+			if got := readFile(t, path); !bytes.Equal(got, content) {
+				t.Errorf("content = %q, want %q", got, content)
+			}
+			requireNoTemp(t, dir)
+		})
+	}
+}
+
+// TestCreateExisting checks that every kind of name already at the path is
+// reported as existing and left unchanged.
+func TestCreateExisting(t *testing.T) {
+	const old = "old"
+	tests := []struct {
+		name     string
+		setup    func(t *testing.T, path string)
+		readOnly bool // the directory is not writable, so only the Lstat can tell
+		check    func(t *testing.T, path string)
+	}{
+		{
+			name:  "regular file",
+			setup: func(t *testing.T, path string) { writeFile(t, path, []byte(old), 0o644) },
+			check: requireUnchangedFile(old, 0o644),
+		},
+		{
+			name: "regular file in a read-only directory",
+			setup: func(t *testing.T, path string) {
+				skipIfRoot(t)
+				writeFile(t, path, []byte(old), 0o644)
+			},
+			readOnly: true,
+			check:    requireUnchangedFile(old, 0o644),
+		},
+		{
+			name: "dangling symbolic link",
+			setup: func(t *testing.T, path string) {
+				if err := os.Symlink("absent", path); err != nil {
+					t.Fatal(err)
+				}
+			},
+			check: func(t *testing.T, path string) {
+				if target, err := os.Readlink(path); err != nil || target != "absent" {
+					t.Errorf("Readlink = (%q, %v), want the link unchanged", target, err)
+				}
+				requireAbsent(t, filepath.Join(filepath.Dir(path), "absent"))
+			},
+		},
+		{
+			name: "directory",
+			setup: func(t *testing.T, path string) {
+				if err := os.Mkdir(path, 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Chmod(path, 0o755); err != nil {
+					t.Fatal(err)
+				}
+			},
+			check: func(t *testing.T, path string) {
+				if mode := lstat(t, path).Mode(); mode != fs.ModeDir|0o755 {
+					t.Errorf("mode = %v, want the directory unchanged", mode)
+				}
+				if entries, err := os.ReadDir(path); err != nil || len(entries) != 0 {
+					t.Errorf("ReadDir = (%v, %v), want the directory still empty", entries, err)
+				}
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "config.env")
+			tt.setup(t, path)
+			if tt.readOnly {
+				chmodForTest(t, dir, 0o500)
+			}
+			leftover, err := Create(path, []byte("new"))
+			requireSentinel(t, err, path, ErrExist)
+			if leftover != "" {
+				t.Errorf("Create left %s behind", leftover)
+			}
+			tt.check(t, path)
+			requireNoTemp(t, dir)
+		})
+	}
+}
+
+// requireUnchangedFile returns a check that the file at path still holds
+// content with mode.
+func requireUnchangedFile(content string, mode fs.FileMode) func(t *testing.T, path string) {
+	return func(t *testing.T, path string) {
+		t.Helper()
+		if got := readFile(t, path); string(got) != content {
+			t.Errorf("content = %q, want %q", got, content)
+		}
+		if got := lstat(t, path).Mode(); got != mode {
+			t.Errorf("mode = %v, want %v", got, mode)
+		}
+	}
+}
+
+// TestCreateRaces puts a file at the path after Create's Lstat found nothing,
+// and checks that the link refuses it: the file is unchanged and no temporary
+// name is left.
+func TestCreateRaces(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.env")
+	setHookForTest(t, func(point hookPoint, _ string) error {
+		if point == hookCreateAfterLstat {
+			writeFile(t, path, []byte("raced"), 0o644)
+		}
+		return nil
+	})
+	leftover, err := Create(path, []byte("new"))
+	requireSentinel(t, err, path, ErrExist)
+	if leftover != "" {
+		t.Errorf("Create left %s behind", leftover)
+	}
+	requireUnchangedFile("raced", 0o644)(t, path)
+	requireNoTemp(t, dir)
+}
+
+// TestCreateFailureLeavesNothing fails each step after the temporary file is
+// made and checks that nothing is at the path and no temporary name is left,
+// and that a temporary name Create cannot remove is reported.
+func TestCreateFailureLeavesNothing(t *testing.T) {
+	for _, step := range []struct {
+		name  string
+		point hookPoint
+	}{
+		{"write fails", hookCreateBeforeWrite},
+		{"sync fails", hookCreateBeforeSync},
+		{"link fails", hookCreateBeforeLink},
+	} {
+		point := step.point
+		t.Run(step.name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "config.env")
+			setHookForTest(t, failAt(point))
+			leftover, err := Create(path, []byte("new"))
+			if !errors.Is(err, errInjected) {
+				t.Fatalf("Create: error = %v, want the injected failure", err)
+			}
+			if leftover != "" {
+				t.Errorf("Create left %s behind", leftover)
+			}
+			requireAbsent(t, path)
+			requireNoTemp(t, dir)
+		})
+	}
+
+	t.Run("temporary name not removed after a success", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "config.env")
+		setHookForTest(t, failAt(hookCreateBeforeRemoveTemp))
+		leftover, err := Create(path, []byte("new"))
+		if err != nil {
+			t.Fatalf("Create: %v", err)
+		}
+		if filepath.Dir(leftover) != dir || !strings.HasPrefix(filepath.Base(leftover), ".config.env.tmp-") {
+			t.Fatalf("Create returned %q, want the temporary name in %s", leftover, dir)
+		}
+		if got := readFile(t, path); string(got) != "new" {
+			t.Errorf("content = %q, want %q", got, "new")
+		}
+		if _, err := os.Lstat(leftover); err != nil {
+			t.Errorf("Lstat(%s): %v, want the leftover still there", leftover, err)
+		}
+	})
+
+	t.Run("temporary name not removed after a failure", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "config.env")
+		var temp string
+		setHookForTest(t, func(point hookPoint, name string) error {
+			switch point {
+			case hookCreateBeforeLink:
+				temp = name
+				return errInjected
+			case hookCreateBeforeRemoveTemp:
+				return errInjected
+			}
+			return nil
+		})
+		leftover, err := Create(path, []byte("new"))
+		if !errors.Is(err, errInjected) || leftover != "" {
+			t.Fatalf("Create = (%q, %v), want the injected failure and no name", leftover, err)
+		}
+		// The name in the error text is how the user learns what to remove,
+		// so the wording is the contract here.
+		if temp == "" || !strings.Contains(err.Error(), temp) {
+			t.Errorf("error = %q, want it to name the temporary file %q", err, temp)
+		}
+		requireAbsent(t, path)
+	})
+}
+
+// failAt returns a hook that fails at point and does nothing elsewhere.
+func failAt(point hookPoint) func(hookPoint, string) error {
+	return func(p hookPoint, _ string) error {
+		if p == point {
+			return errInjected
+		}
+		return nil
 	}
 }
