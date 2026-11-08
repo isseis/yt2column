@@ -106,11 +106,11 @@
 <!-- adrchecks:history -->
 | `<kebab>` | タスク | 出典の節・日付 | 設計書との違い |
 |---|---|---|---|
-| `threat-model` | 0058 | （① で埋める） | - |
-| `launch-path` | 0058 | （① で埋める） | - |
-| `viewer-opening` | 0058 | （① で埋める） | - |
-| `extension-stores-nothing` | 0058 | （① で埋める） | - |
-| `webhook-publishing` | 0059 | （① で埋める） | - |
+| `threat-model` | 0058 | 0058 要件定義書「要件定義の際に決めたこと（2026-11-03）」・2026-11-03（節の見出しの日付） | - |
+| `launch-path` | 0058 | 0058 要件定義書「要件定義の際に決めたこと（2026-11-03）」・2026-11-03（節の見出しの日付） | - |
+| `viewer-opening` | 0058 | 0058 要件定義書「要件定義の際に決めたこと（2026-11-03）」・2026-11-03（節の見出しの日付）、0058 設計書「設計の際に決めたこと（2026-11-04）」・2026-11-04（節の見出しの日付） | - |
+| `extension-stores-nothing` | 0058 | 0058 要件定義書「issue #593 で決めたこと」・2026-11-04（変更履歴の最初の承認）、0058 設計書「設計の際に決めたこと（2026-11-04）」・2026-11-04（節の見出しの日付） | - |
+| `webhook-publishing` | 0059 | 0059 要件定義書「issue #526 で決めたこと」・2026-11-04（変更履歴の承認） | - |
 | `pipeline-component-interfaces` | 0001 0003 0009 | （② で埋める） | - |
 | `strict-json` | 0003 0010 0019 0023 0044 | （② で埋める） | - |
 | `llm-client-contract` | 0001 0003 0019 0022 | （② で埋める） | - |
@@ -237,14 +237,14 @@ AC-03 の食い違い（設計書 3.5）を記録した issue を、その ADR �
 
 **変更するファイル:** `docs/dev/adr/0006-threat-model.md`、`0008-launch-path.md`、`0009-viewer-opening.md`、`0010-extension-stores-nothing.md`、`0011-webhook-publishing.md`、本書（1.6 の表）
 
--   [ ] `8437995a` の後に `main` に入ったタスクの文書とコードを、3.4 の 5 本の主題と照合する（設計書 6.1）。結果を PR の説明に書く。
--   [ ] ADR-0006：経緯に 0058 の T-10 の再評価の項目を足し、「結果」に T-10 を受け入れるリスクとして 1 項目を足す（設計書 3.4、AC-08）。
--   [ ] ADR-0008：「決定」と「結果」の、生成の開始を主ボタンだけが送るとする箇所（設計書 3.4 の `:18`・`:20`・`:36`。`:36` は「結果」）を、主ボタンと副次のボタンの 2 つが送る形に改め、経緯に 0058 の項目を足す（設計書 3.4、AC-11）。改める前に、`extension/src/launch.ts` の副次のボタンの処理を PR の基点で読み直す。
--   [ ] ADR-0009：「決定」に、ポップアップの選択の状態、照会付きの開始で既存の記事を表示すること、ポップアップが前面のタブを開く操作を書き足し、経緯に 0058 の項目を足す（設計書 3.4、AC-11）。
--   [ ] ADR-0010：「決定」のビューアの URL に持つ値に `e` を足し、キーを持つ条件を今のコード（`extension/src/core/viewerUrl.ts`）に合わせ、経緯に 0058 の項目を足す（設計書 3.4、AC-09・AC-11）。
--   [ ] ADR-0011：経緯に 0059 の失敗の通知の削除の項目を足し、採らなかった案の「新しい API の失敗を…」を「ジョブの API の失敗を…」に改める（設計書 3.4、AC-10）。
--   [ ] 経緯の項目は設計書 1.2 の順の位置に入れる（ADR-0011 の 0059 の項目は、0062 の項目の前）。1.6 の表の 5 行の「出典の節・日付」を埋める。
--   [ ] ADR ごとに 1 コミットにする。
+-   [x] `8437995a` の後に `main` に入ったタスクの文書とコードを、3.4 の 5 本の主題と照合する（設計書 6.1）。結果を PR の説明に書く。
+-   [x] ADR-0006：経緯に 0058 の T-10 の再評価の項目を足し、「結果」に T-10 を受け入れるリスクとして 1 項目を足す（設計書 3.4、AC-08）。
+-   [x] ADR-0008：「決定」と「結果」の、生成の開始を主ボタンだけが送るとする箇所（設計書 3.4 の `:18`・`:20`・`:36`。`:36` は「結果」）を、主ボタンと副次のボタンの 2 つが送る形に改め、経緯に 0058 の項目を足す（設計書 3.4、AC-11）。改める前に、`extension/src/launch.ts` の副次のボタンの処理を PR の基点で読み直す。
+-   [x] ADR-0009：「決定」に、ポップアップの選択の状態、照会付きの開始で既存の記事を表示すること、ポップアップが前面のタブを開く操作を書き足し、経緯に 0058 の項目を足す（設計書 3.4、AC-11）。
+-   [x] ADR-0010：「決定」のビューアの URL に持つ値に `e` を足し、キーを持つ条件を今のコード（`extension/src/core/viewerUrl.ts`）に合わせ、経緯に 0058 の項目を足す（設計書 3.4、AC-09・AC-11）。
+-   [x] ADR-0011：経緯に 0059 の失敗の通知の削除の項目を足し、採らなかった案の「新しい API の失敗を…」を「ジョブの API の失敗を…」に改める（設計書 3.4、AC-10）。
+-   [x] 経緯の項目は設計書 1.2 の順の位置に入れる（ADR-0011 の 0059 の項目は、0062 の項目の前）。1.6 の表の 5 行の「出典の節・日付」を埋める。
+-   [x] ADR ごとに 1 コミットにする。
 
 **完了の条件:** `go test -tags test -run 'TestADRRecords|TestInstructionDocPaths' ./cmd/yt2column` が通る。
 
@@ -252,14 +252,14 @@ AC-03 の食い違い（設計書 3.5）を記録した issue を、その ADR �
 
 **変更するファイル:** `docs/tasks/0065_adr_remaining/_checks/task_docs_unchanged.sh`（新規）、`docs/tasks/0065_adr_remaining/_checks/adrchecks/main.go`（新規。`//go:build test`）
 
--   [ ] 0060 の `task_docs_unchanged.sh` を写し、`task` の変数と冒頭のコメントのタスク名・使い方の例だけを本タスクのものに変える。実行の権限を付ける（AC-12）。
--   [ ] 0060 の `_checks/adrlinks` を写して `_checks/adrchecks` を作る。`go run -tags test ./docs/tasks/0065_adr_remaining/_checks/adrchecks/ -pr <N> <merge-base> <head>` で動かし、ファイルは `git` から読む。値は head の本書の 1.5〜1.9 の表を、直前の `<!-- adrchecks:... -->` の目印で探して読む（1.3）。確かめは 7.1 節の 7 つで、0060 の `quick-links` と `viewer-appendix` は除く。終了コードは 0060 と同じ（実行できない確かめがあれば 2、`NG` があれば 1、それ以外は 0）とし、`-final` は持たない。`-pr 4` では、後の PR で作る ADR がないので `PENDING` が出ない。
--   [ ] ADR の節は、日本語の見出しではなく `##` の位置で探す（2〜5 番目が「背景」「決定」「採らなかった案」「結果」、6 番目が「経緯」）。
--   [ ] `PENDING` は、1.5 の表で `-pr` より後の PR に当たる ADR と行にだけ許す。`-pr` 以前の PR に当たるものが見つからなければ `NG` とする（設計書 7.3「`PENDING` を許す範囲」）。
--   [ ] 表の値の食い違いは終了コード 2 で止める。対象は、目印のない表、列の数の合わない行、1.7 の「移し先」の `<kebab>` や 1.8・1.9 の `<kebab>` が 1.5 の表にないこと、1.7 の行の PR が移し先の 1.5 の PR と違うこと、1.6 と 1.7 の「移し元」の `<kebab>` が 1.5 の表になく、マージの基点の ADR にもないこと、`-pr` の値が 1〜4 でないことである。
--   [ ] 各確かめが、壊した対象だけで `NG` になることを確かめる。壊した状態は一時的なブランチにコミットし、壊さない状態での出力と比べて、対象とした確かめの行だけが `OK` から `NG` に変わることを確かめる。一時的なブランチでは、本書の表を編集し、壊す行だけを確かめの対象の PR に入れる。① には新しい ADR がないので、一時的な ADR と移しもそのブランチに置く。壊し方は、経緯のリンクを 1 つ消す、`-pr` 以前の PR の ADR の `<kebab>` を変える（`PENDING` ではなく `NG` になる）、`move` の行を移し元に残す、`split` の行の書き換えた後の文面を head に置かない、前の PR の行の文面を移し元に戻す、表にない行を移し元から消す、移し元の「決定」のリンクを消す、正本の文書へのリンクを消す、issue へのリンクを消す、`project_overview.md` の項目の文を 1 文字変える、項目のリンク先を別の ADR に変える、CLAUDE.md を 1 文字変える、である。終了コード 2 の各場合も、1 つずつ起こして確かめる。結果をコミットメッセージに書き、一時的なブランチは消す。
--   [ ] ② 以降で `_checks/adrchecks` の誤りが見つかったら、ADR とは別のコミットで直し、その確かめを壊して確かめ直し、コミットメッセージに書く。直した後に、その PR の `-pr` で実行し直す。
--   [ ] `task_docs_unchanged.sh` が、一時的なブランチでほかのタスクの文書を 1 つ変えると 1 で終わることを確かめ、結果をコミットメッセージに書く。
+-   [x] 0060 の `task_docs_unchanged.sh` を写し、`task` の変数と冒頭のコメントのタスク名・使い方の例だけを本タスクのものに変える。実行の権限を付ける（AC-12）。
+-   [x] 0060 の `_checks/adrlinks` を写して `_checks/adrchecks` を作る。`go run -tags test ./docs/tasks/0065_adr_remaining/_checks/adrchecks/ -pr <N> <merge-base> <head>` で動かし、ファイルは `git` から読む。値は head の本書の 1.5〜1.9 の表を、直前の `<!-- adrchecks:... -->` の目印で探して読む（1.3）。確かめは 7.1 節の 7 つで、0060 の `quick-links` と `viewer-appendix` は除く。終了コードは 0060 と同じ（実行できない確かめがあれば 2、`NG` があれば 1、それ以外は 0）とし、`-final` は持たない。`-pr 4` では、後の PR で作る ADR がないので `PENDING` が出ない。
+-   [x] ADR の節は、日本語の見出しではなく `##` の位置で探す（2〜5 番目が「背景」「決定」「採らなかった案」「結果」、6 番目が「経緯」）。
+-   [x] `PENDING` は、1.5 の表で `-pr` より後の PR に当たる ADR と行にだけ許す。`-pr` 以前の PR に当たるものが見つからなければ `NG` とする（設計書 7.3「`PENDING` を許す範囲」）。
+-   [x] 表の値の食い違いは終了コード 2 で止める。対象は、目印のない表、列の数の合わない行、1.7 の「移し先」の `<kebab>` や 1.8・1.9 の `<kebab>` が 1.5 の表にないこと、1.7 の行の PR が移し先の 1.5 の PR と違うこと、1.6 と 1.7 の「移し元」の `<kebab>` が 1.5 の表になく、マージの基点の ADR にもないこと、`-pr` の値が 1〜4 でないことである。
+-   [x] 各確かめが、壊した対象だけで `NG` になることを確かめる。壊した状態は一時的なブランチにコミットし、壊さない状態での出力と比べて、対象とした確かめの行だけが `OK` から `NG` に変わることを確かめる。一時的なブランチでは、本書の表を編集し、壊す行だけを確かめの対象の PR に入れる。① には新しい ADR がないので、一時的な ADR と移しもそのブランチに置く。壊し方は、経緯のリンクを 1 つ消す、`-pr` 以前の PR の ADR の `<kebab>` を変える（`PENDING` ではなく `NG` になる）、`move` の行を移し元に残す、`split` の行の書き換えた後の文面を head に置かない、前の PR の行の文面を移し元に戻す、表にない行を移し元から消す、移し元の「決定」のリンクを消す、正本の文書へのリンクを消す、issue へのリンクを消す、`project_overview.md` の項目の文を 1 文字変える、項目のリンク先を別の ADR に変える、CLAUDE.md を 1 文字変える、である。終了コード 2 の各場合も、1 つずつ起こして確かめる。結果をコミットメッセージに書き、一時的なブランチは消す。
+-   [x] （① では、手順 7 のレビューで見つかった誤りを、ADR とは別のコミットで直して確かめ直した。② 以降でも当てはめる）② 以降で `_checks/adrchecks` の誤りが見つかったら、ADR とは別のコミットで直し、その確かめを壊して確かめ直し、コミットメッセージに書く。直した後に、その PR の `-pr` で実行し直す。
+-   [x] `task_docs_unchanged.sh` が、一時的なブランチでほかのタスクの文書を 1 つ変えると 1 で終わることを確かめ、結果をコミットメッセージに書く。
 
 **完了の条件:** `make fmt` と `go vet -tags test ./docs/tasks/0065_adr_remaining/_checks/adrchecks/` が通る。
 
@@ -267,8 +267,8 @@ AC-03 の食い違い（設計書 3.5）を記録した issue を、その ADR �
 
 **変更するファイル:** 本書 7.2 節
 
--   [ ] ほかの作業がすべて終わった後に、PR のブランチで `git fetch origin main` を行い、`task_docs_unchanged.sh origin/main HEAD` と `adrchecks -pr 1 "$(git merge-base origin/main HEAD)" HEAD` を実行する。出力・終了コード・マージの基点と head のコミット ID を 7.2 節に書く。記録する head は、記録を書く前のコミットである。記録を書くコミットは本書の 7.2 節だけを変えるので、確かめる ADR と文書の中身は記録した head と同じであり、記録のコミットの後に実行し直す必要はない（設計書 6.1）。
--   [ ] head が変わったら、マージの前に最後の head で実行し直し、記録を改める（設計書 6.1）。
+-   [x] ほかの作業がすべて終わった後に、PR のブランチで `git fetch origin main` を行い、`task_docs_unchanged.sh origin/main HEAD` と `adrchecks -pr 1 "$(git merge-base origin/main HEAD)" HEAD` を実行する。出力・終了コード・マージの基点と head のコミット ID を 7.2 節に書く。記録する head は、記録を書く前のコミットである。記録を書くコミットは本書の 7.2 節だけを変えるので、確かめる ADR と文書の中身は記録した head と同じであり、記録のコミットの後に実行し直す必要はない（設計書 6.1）。
+-   [x] （PR を開く時点の head で実行した。`/fixpr` や `main` の取り込みで head が変わったら当てはめる）head が変わったら、マージの前に最後の head で実行し直し、記録を改める（設計書 6.1）。
 
 **完了の条件:** グリーンゲートが通る。`task_docs_unchanged.sh` が 0 で終わる。`adrchecks -pr 1` が 0 で終わる。確かめの結果は、`claude-md-unchanged` が `OK`、ほかの 6 つが `PENDING` である。`PENDING` の 6 つのうち、`history-sources` の中の既存の 5 本の項目は `ok`、`overview-items` の中の文の比較は `OK` で、`PENDING` になるのは後の PR の ADR と行に当たる項目だけである。
 
@@ -284,10 +284,10 @@ AC-03 の食い違い（設計書 3.5）を記録した issue を、その ADR �
 
 **判定理由**: ステップ 1-2 の `_checks/adrchecks` は、本書の 6 つの表を目印で読み、7 つの確かめで `-pr` ごとに `PENDING` と `NG` を分け、基点と head の行の差分を表の行と照合する。壊して確かめる場合も多く、隔離すべき複雑な処理である
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/710
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: A 系の ADR（設計書 8 章の ②）
 
@@ -463,7 +463,7 @@ AC-03 の食い違い（設計書 3.5）を記録した issue を、その ADR �
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
-- [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3）
+- [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3）
 - [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3）
 - [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3）
 - [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2）
@@ -504,6 +504,117 @@ AC-03 の食い違い（設計書 3.5）を記録した issue を、その ADR �
 ### 7.2. 実行の記録
 
 （ステップ 1-3・2-3・3-3・4-2 で記入する。各 PR の `task_docs_unchanged.sh` と `_checks/adrchecks` の出力・終了コード・マージの基点と head のコミット ID、作った issue の URL を書く。）
+
+#### PR-1
+
+マージの基点 `bc4b71bd0efc69ebcc6c2d06dc8e87f6eabdf545`、head `e7a9df3f4941008d7390749959ad2a899204c75e`（`git fetch origin main` の後に実行した）。作った issue はない。
+
+`docs/tasks/0065_adr_remaining/_checks/task_docs_unchanged.sh origin/main HEAD`：終了コード 0。
+
+```text
+merge-base: bc4b71bd0efc69ebcc6c2d06dc8e87f6eabdf545
+head: e7a9df3f4941008d7390749959ad2a899204c75e
+docs/tasks/: only docs/tasks/0065_adr_remaining/ changed
+```
+
+`go run -tags test ./docs/tasks/0065_adr_remaining/_checks/adrchecks/ -pr 1 bc4b71bd0efc69ebcc6c2d06dc8e87f6eabdf545 e7a9df3f4941008d7390749959ad2a899204c75e`：終了コード 0。`claude-md-unchanged` が `OK`、ほかの 6 つが `PENDING`。`history-sources` の既存の 5 本は `ok`、`overview-items` の文の比較は `OK` で、`PENDING` は後の PR の ADR と行だけである。
+
+```text
+PENDING history-sources
+        ok: docs/dev/adr/0006-threat-model.md
+        ok: docs/dev/adr/0008-launch-path.md
+        ok: docs/dev/adr/0009-viewer-opening.md
+        ok: docs/dev/adr/0010-extension-stores-nothing.md
+        ok: docs/dev/adr/0011-webhook-publishing.md
+        pending: pipeline-component-interfaces
+        pending: strict-json
+        pending: llm-client-contract
+        pending: cost-estimate
+        pending: artifact-resume
+        pending: env-access-in-config
+        pending: claude-output-limit
+        pending: extension-platform
+        pending: article-job-api
+        pending: no-automatic-resend
+        pending: extension-ui-languages
+        pending: minimum-chrome-version
+        pending: secret-closure
+        pending: testdata-license
+        pending: transcript-cache-slots
+        pending: template-allowlist
+        pending: language-policy
+        pending: task-document-status-records
+        pending: test-deletion-coverage
+        pending: deadcode-and-race-free-timing
+PENDING moved-items
+        pending: pull request 2: llm-adapter-stdlib -> pipeline-component-interfaces (move)
+        pending: pull request 2: llm-adapter-stdlib -> pipeline-component-interfaces (move)
+        pending: pull request 2: llm-adapter-stdlib -> pipeline-component-interfaces (split)
+        pending: pull request 2: llm-adapter-stdlib -> pipeline-component-interfaces (move)
+        pending: pull request 2: llm-adapter-stdlib -> pipeline-component-interfaces (move)
+        pending: pull request 2: llm-adapter-stdlib -> pipeline-component-interfaces (split)
+        pending: pull request 2: llm-adapter-stdlib -> pipeline-component-interfaces (move)
+        pending: pull request 2: llm-adapter-stdlib -> strict-json (split)
+        pending: pull request 2: llm-adapter-stdlib -> strict-json (move)
+        pending: pull request 2: llm-adapter-stdlib -> strict-json (move)
+        pending: pull request 2: llm-adapter-stdlib -> strict-json (move)
+        pending: pull request 2: server-architecture -> pipeline-component-interfaces (link)
+        pending: pull request 2: llm-config-contract -> env-access-in-config (link)
+        pending: pull request 2: server-config-file -> env-access-in-config (link)
+        pending: pull request 2: production-profile -> claude-output-limit (move)
+        pending: pull request 3: extension-stores-nothing -> article-job-api (move)
+        pending: pull request 3: extension-stores-nothing -> article-job-api (move)
+        pending: pull request 3: webhook-publishing -> no-automatic-resend (split)
+        pending: pull request 3: webhook-publishing -> no-automatic-resend (move)
+        pending: pull request 3: webhook-publishing -> no-automatic-resend (move)
+        pending: pull request 3: webhook-publishing -> article-job-api (link)
+        pending: pull request 3: server-architecture -> article-job-api (link)
+        pending: pull request 3: server-architecture -> extension-platform (link)
+        pending: pull request 3: threat-model -> extension-platform (link)
+        pending: pull request 4: lightweight-check-in-bash -> language-policy (link)
+        pending: pull request 4: deterministic-checks-in-go -> test-deletion-coverage (link)
+        pending: pull request 4: threat-model -> secret-closure (split)
+        pending: pull request 4: webhook-publishing -> secret-closure (split)
+PENDING move-links
+        pending: llm-adapter-stdlib -> pipeline-component-interfaces
+        pending: llm-adapter-stdlib -> strict-json
+        pending: production-profile -> claude-output-limit
+        pending: extension-stores-nothing -> article-job-api
+        pending: webhook-publishing -> no-automatic-resend
+        pending: threat-model -> secret-closure
+        pending: webhook-publishing -> secret-closure
+PENDING spec-links
+        pending: pipeline-component-interfaces
+        pending: strict-json
+        pending: llm-client-contract
+        pending: cost-estimate
+        pending: artifact-resume
+        pending: claude-output-limit
+        pending: extension-platform
+        pending: article-job-api
+        pending: no-automatic-resend
+        pending: extension-ui-languages
+        pending: minimum-chrome-version
+        pending: secret-closure
+        pending: testdata-license
+        pending: transcript-cache-slots
+        pending: template-allowlist
+        pending: language-policy
+        pending: task-document-status-records
+        pending: test-deletion-coverage
+        pending: deadcode-and-race-free-timing
+PENDING issue-links
+        pending: strict-json
+        pending: extension-ui-languages
+        pending: template-allowlist
+PENDING overview-items
+        text: OK
+        links: PENDING
+        links: bullet 1 (`docs/tasks/0007_browser_extension_skeleton/`) pending: extension-platform
+        links: bullet 2 (`cmd/yt2column-nmhost`) pending: article-job-api
+        links: bullet 6 (LangChain) pending: pipeline-component-interfaces
+OK      claude-md-unchanged
+```
 
 ## 8. 成功基準 (Success Criteria)
 
