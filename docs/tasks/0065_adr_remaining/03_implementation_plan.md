@@ -819,17 +819,17 @@ OK      claude-md-unchanged
 
 #### PR-3
 
-マージの基点 `68d84224ce9c2840a364a8176d876d2f3ff8ad8d`、head `f5e90474186cbef7651e3bb4e30049a754bcab3c`（`git fetch origin main` の後に実行した）。作った issue は [#719](https://github.com/isseis/yt2column/issues/719)（README の表示の言語の段落。ADR-0029）と [#720](https://github.com/isseis/yt2column/issues/720)（`security.md` §3 の再開の記述。ADR-0028）。
+マージの基点 `68d84224ce9c2840a364a8176d876d2f3ff8ad8d`、head `1b3bab91fcc226e0b1704b1d712956b4784093a9`（`git fetch origin main` の後に実行した）。作った issue は [#719](https://github.com/isseis/yt2column/issues/719)（README の表示の言語の段落。ADR-0029）と [#720](https://github.com/isseis/yt2column/issues/720)（`security.md` §3 の再開の記述。ADR-0028）。
 
 `docs/tasks/0065_adr_remaining/_checks/task_docs_unchanged.sh origin/main HEAD`：終了コード 0。
 
 ```text
 merge-base: 68d84224ce9c2840a364a8176d876d2f3ff8ad8d
-head: f5e90474186cbef7651e3bb4e30049a754bcab3c
+head: 1b3bab91fcc226e0b1704b1d712956b4784093a9
 docs/tasks/: only docs/tasks/0065_adr_remaining/ changed
 ```
 
-`go run -tags test ./docs/tasks/0065_adr_remaining/_checks/adrchecks/ -pr 3 68d84224ce9c2840a364a8176d876d2f3ff8ad8d f5e90474186cbef7651e3bb4e30049a754bcab3c`：終了コード 0。`overview-items` と `claude-md-unchanged` が `OK`、5 本の新しい ADR と ③ の移し・リンクはすべて `ok`。`PENDING` は ④ の ADR・移し・リンクだけである。
+`go run -tags test ./docs/tasks/0065_adr_remaining/_checks/adrchecks/ -pr 3 68d84224ce9c2840a364a8176d876d2f3ff8ad8d 1b3bab91fcc226e0b1704b1d712956b4784093a9`：終了コード 0。`overview-items` と `claude-md-unchanged` が `OK`、5 本の新しい ADR と ③ の移し・リンクはすべて `ok`。`PENDING` は ④ の ADR・移し・リンクだけである。
 
 ```text
 PENDING history-sources
