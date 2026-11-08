@@ -6,7 +6,7 @@
 |---|---|
 | Status | `approved` |
 | Created | 2026-11-06 |
-| Review date | 2026-11-06 |
+| Review date | 2026-11-08 |
 | Reviewer | isseis |
 | Comments | - |
 
@@ -45,9 +45,10 @@
 -   **軽量プロセスの条件に当たらないので、通常のプロセスで進める。** issue は、軽量プロセス（wording fix）の条件に当たるかを `/mkreq` で確かめることを求めた。`docs/dev/conventions/requirements_process.md` の「Lightweight Process」に照らすと、次の点で条件に当たらない。`CLAUDE.md` の変更が誤字の修正ではない（「Changes that always take the normal process」）。文書のテストの literal を変える（同）。除外のパス `docs/dev/security.md` と `prompts/` を変える（「Mechanically checked conditions」）。「段階」を含む行だけで 30 行を超えるので、類型 W（文言の修正）の上限（追加・削除それぞれ 30 行）に収まらない。ADR の判断: 手続きの選択で、主要な決定ではない。
 -   **直す範囲は、ファイルの一覧ではなく内容で定める。** 範囲は、実装時点の `main` の `docs/dev/` の下（ADR とその索引を含む）、`prompts/README.md`、用語集にある「段階」のうち、ステージ・構成要素・工程を指すものすべてである。付録 A は、2026-11-06 の時点でこれに当たる箇所の一覧である。理由: タスク 0065 の設計書（`docs/tasks/0065_adr_remaining/02_architecture.md` の付録の表の 0019・0024 の行と、PR の分け方の表の ②）は、ADR-0001 の 36〜37 行目と ADR-0004 の 22 行目を、新しい ADR-0019・ADR-0024 へ文面のまま移す。0065 の PR ② とこのタスクのどちらが先にマージされても「段階」が残らないよう、範囲をファイルの一覧ではなく内容で定める。ADR の判断: このタスクの範囲の決定で、主要な決定ではない。
 -   **`docs/dev/security.md` にある Native Messaging ホストのログの「段階」は置き換えない（付録 B）。** 「固定のイベント名・段階・…」と「メッセージの読み込みと形の検査の段階（`read`・`form`）」は、ホストのログの属性 `stage`（`internal/nmhost/relay.go:166`）を指す。理由: パイプラインのステージ・構成要素・工程のどれでもなく、ホストの中の処理の区切りを指す一般の語であるため。ADR の判断: 文言の決定で、主要な決定ではない。
--   **issue が挙げていない `docs/dev/production_profile.md`・`docs/dev/security.md`・`prompts/README.md` の「段階」も、このタスクで直す。** 理由: 用語集だけを改めると、これらの文書が新しい定義と食い違ったまま残るため（例: `production_profile.md:9` は「段階」がステージと工程の両方を指すと定義している）。`production_profile.md:25` の表は工程だけを並べるので列名を「工程」とし、この列名を探す文書のテスト（`cmd/yt2column/docs_test.go:574`）の literal も合わせて変える。`production_profile.md:11` の表はステージ（字幕の取得・投稿）と工程（生成など）を混ぜて並べるので、列名を「処理」とし、9 行目の定義の文を「ステージと工程」を述べる文に書き換える。ADR の判断: ADR は作らない。訳語と文言の決定で、`CLAUDE.md` の「Design decisions (ADR)」の基準では主要な決定ではない（「a wording」に当たる）ため。
+-   **issue が挙げていない `docs/dev/production_profile.md`・`docs/dev/security.md`・`prompts/README.md` の「段階」も、このタスクで直す。** 理由: 用語集だけを改めると、これらの文書が新しい定義と食い違ったまま残るため（例: `production_profile.md:9` は「段階」がステージと工程の両方を指すと定義している）。`production_profile.md:25` の表は工程だけを並べるので列名を「工程」とし、この列名を探す文書のテスト（`cmd/yt2column/docs_test.go:574`）の literal も合わせて変える。`production_profile.md:11` の表はステージ（字幕の取得）と工程（生成など）とパイプラインの外の処理（投稿）を混ぜて並べるので、列名を「処理」とし、9 行目の定義の文を、表の行がそれぞれどれに当たるかを述べる文に書き換える。ADR の判断: ADR は作らない。訳語と文言の決定で、`CLAUDE.md` の「Design decisions (ADR)」の基準では主要な決定ではない（「a wording」に当たる）ため。
 -   **一般の語としての「段階」は置き換えない（付録 B）。** `README.md:48` の「開発の初期段階」、ADR-0004 の「観点と段階の基準」（評価の尺度）、`docs/dev/guides/cli.md:169` の料金の区分、`docs/dev/guides/mergepr_guide.md` の手順の区切りが当たる。この結果、`README.md` は変わらず、`README.en.md` への同期（`/mktrans`）も要らない。issue は「`README.md`（1 か所。`README.en.md` への同期が要る）」と書いたが、その 1 か所は一般の語であった。理由: これらはパイプラインのステージ・構成要素・工程のどれも指さず、日本語として自然な用法であるため。ADR の判断: ADR は作らない（文言の決定で、主要な決定ではない）。
 -   **`CLAUDE.md` は 363 行目に加えて、9 行目と 650 行目の stage も直す。** 9 行目（production profile の「each stage」）と 650 行目（「stage table」）が指すのは生成・字数の調整・検証・推敲で、新しい定義では step に当たる。`docs/dev/conventions/package_reference.md` の stage は、コードの識別子 `writer.Stage`・`pricing.StageCost` に沿った書き方なので直さない。理由: `CLAUDE.md` の 9 行目と 650 行目は従うべき識別子を持たない地の文で、同じ使い分けに揃えないと、エージェントが読む指示で stage が step の意味で残るため。`package_reference.md` は、パッケージの中の識別子（`writer.Stage` など）を説明する文書で、その語に従う。ADR の判断: ADR は作らない（文言の決定で、主要な決定ではない）。
+-   **`production_profile.md` の表の「投稿」の行は、ステージではなく、パイプラインの外の処理とする（設計の際に改めた。2026-11-06）。** その行が実行する `SlackWebhookPublisher` は `Publisher` ではなく（`internal/publisher/publisher.go:1-5`）、サーバの投稿はパイプラインの実行とは別のジョブで行う。承認した版の AC-10 は投稿をステージと述べることを求めており、新しい定義と食い違っていた。ADR の判断: ADR は作らない（文言の決定で、主要な決定ではない）。
 -   **ADR-0001〜0004 の文言を直しても、経緯に項目を足さない。** 理由: 規約（`docs/dev/conventions/adr.md` の「History entries」）は、決定を下したとき、または変えたときに、経緯の項目を 1 つ足すと定めており、このタスクは決定を変えないため。ADR の判断: 既存の規約に従うだけで、新しい決定ではない。
 
 ## 2. 目的とスコープ (Goals and Scope)
@@ -98,7 +99,7 @@
 - **AC-07**: ADR-0002 と ADR-0004 の 1 行目の題名は「段階」を含まず、索引 `docs/dev/adr/README.md` の同じ ADR の題名と一致する。`TestADRRecords` が成功する。
 - **AC-08**: `docs/dev/production_profile.md` の本番の構成の表（今の 25 行目）の 1 列目の名前は「工程」であり、その表を読む文書のテスト（`go test -tags test ./cmd/yt2column` の中の、本番の構成の表を確かめるテスト）が成功する。
 - **AC-09**: 変更した ADR の決定・背景・結果・採らなかった案の中身は、変更の前と同じことを述べる。各 ADR の「経緯」の節には、行が加わらず、行が消えない。
-- **AC-10**: `docs/dev/production_profile.md` のパイプラインの表（今の 11 行目）の 1 列目の名前は「処理」であり、表の前の文は、表の行がステージ（字幕の取得・投稿）と工程（生成・字数の調整・検証・推敲）であることを、「段階」を使わずに述べる。
+- **AC-10**: `docs/dev/production_profile.md` のパイプラインの表（今の 11 行目）の 1 列目の名前は「処理」であり、表の前の文は、表の行が、ステージ `TranscriptSource` に当たる字幕の取得、ステージ `ArticleWriter` の中の工程（生成・字数の調整・検証・推敲）、パイプラインの外の処理である投稿であることを、「段階」を使わずに述べる。
 
 #### F-003: `CLAUDE.md` の英語の文言
 
@@ -178,8 +179,8 @@
 | `docs/dev/adr/0004-production-profile.md` | 17, 22, 34 | 3 つの段階、3 つの段階で共有、発言を整理する段階 | 工程 | 工程 |
 | `docs/dev/adr/README.md` | 10, 12 | ADR-0002・ADR-0004 の題名 | 工程 | 工程（ADR の題名と同じ文言） |
 | `docs/dev/production_profile.md` | 3 | パイプラインの各段階が使うテンプレート | 工程 | 工程 |
-| `docs/dev/production_profile.md` | 9 | 記事ができるまでの段階、各段階の役割、その段階、「段階」は…両方を指す | ステージと工程 | ステージと工程を述べる文（AC-10） |
-| `docs/dev/production_profile.md` | 11 | 表の列名「段階」 | ステージと工程の混在 | 処理 |
+| `docs/dev/production_profile.md` | 9 | 記事ができるまでの段階、各段階の役割、その段階、「段階」は…両方を指す | ステージ・工程・パイプラインの外の処理 | 表の行がそれぞれどれに当たるかを述べる文（AC-10） |
+| `docs/dev/production_profile.md` | 11 | 表の列名「段階」 | ステージ・工程・パイプラインの外の処理の混在 | 処理 |
 | `docs/dev/production_profile.md` | 19 | 最初の段階 | ステージ | ステージ |
 | `docs/dev/production_profile.md` | 23 | LLM を呼ぶ 3 つの段階 | 工程 | 工程 |
 | `docs/dev/production_profile.md` | 25 | 表の列名「段階」 | 工程 | 工程 |
@@ -208,3 +209,5 @@
 ## 変更履歴
 
 - 2026-11-06 承認（isseis、#707）
+- 2026-11-06 draft への戻し：AC-10 の投稿の行を、ステージではなくパイプラインの外の処理とした（#709）
+- 2026-11-08 承認（isseis、#709）
