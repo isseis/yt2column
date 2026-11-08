@@ -1,5 +1,5 @@
 // Command _checks runs the one-off checks for task 0067: the terminology
-// replacement from "段階" to "ステージ", "構成要素", or "工程" keeps the target
+// replacement of the pipeline unit and its related words keeps the target
 // documents, the glossary, CLAUDE.md, the ADRs, and the change's scope as the
 // approved documents require. It takes the base and head commits and reads each
 // file at those commits, never the working tree.
