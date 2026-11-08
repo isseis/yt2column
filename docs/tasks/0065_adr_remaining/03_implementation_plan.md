@@ -819,17 +819,17 @@ OK      claude-md-unchanged
 
 #### PR-3
 
-マージの基点 `68d84224ce9c2840a364a8176d876d2f3ff8ad8d`、head `1b3bab91fcc226e0b1704b1d712956b4784093a9`（`git fetch origin main` の後に実行した）。作った issue は [#719](https://github.com/isseis/yt2column/issues/719)（README の表示の言語の段落。ADR-0029）と [#720](https://github.com/isseis/yt2column/issues/720)（`security.md` §3 の再開の記述。ADR-0028）。
+マージの基点 `68d84224ce9c2840a364a8176d876d2f3ff8ad8d`、head `9b20462abf2917003b8d382f92322ae662797baf`（`git fetch origin main` の後に実行した）。作った issue は [#719](https://github.com/isseis/yt2column/issues/719)（README の表示の言語の段落。ADR-0029）と [#720](https://github.com/isseis/yt2column/issues/720)（`security.md` §3 の再開の記述。ADR-0028）。
 
 `docs/tasks/0065_adr_remaining/_checks/task_docs_unchanged.sh origin/main HEAD`：終了コード 0。
 
 ```text
 merge-base: 68d84224ce9c2840a364a8176d876d2f3ff8ad8d
-head: 1b3bab91fcc226e0b1704b1d712956b4784093a9
+head: 9b20462abf2917003b8d382f92322ae662797baf
 docs/tasks/: only docs/tasks/0065_adr_remaining/ changed
 ```
 
-`go run -tags test ./docs/tasks/0065_adr_remaining/_checks/adrchecks/ -pr 3 68d84224ce9c2840a364a8176d876d2f3ff8ad8d 1b3bab91fcc226e0b1704b1d712956b4784093a9`：終了コード 0。`overview-items` と `claude-md-unchanged` が `OK`、5 本の新しい ADR と ③ の移し・リンクはすべて `ok`。`PENDING` は ④ の ADR・移し・リンクだけである。
+`go run -tags test ./docs/tasks/0065_adr_remaining/_checks/adrchecks/ -pr 3 68d84224ce9c2840a364a8176d876d2f3ff8ad8d 9b20462abf2917003b8d382f92322ae662797baf`：終了コード 0。`overview-items` と `claude-md-unchanged` が `OK`、5 本の新しい ADR と ③ の移し・リンクはすべて `ok`。`PENDING` は ④ の ADR・移し・リンクだけである。
 
 ```text
 PENDING history-sources
@@ -891,7 +891,7 @@ PENDING moved-items
         removed: -   **サーバの状態はメモリにだけ置く。** 記事のキャッシュはサーバのプロセスの中だけにあり、ディスクに書かない（サーバの構成は [ADR-0005](0005-server-architecture.md)）。サーバを再起動すると、記事と投稿の状態はすべて失われ、ビューアは記事が失われたことを示す。これは受け入れる。
         destination docs/dev/adr/0027-article-job-api.md, section 3:
           -   **拡張とホストとサーバは、ジョブの API だけを使う。** ジョブの API は、生成の開始（`POST /jobs`）・状態の取得（`GET /jobs/{key}`）・投稿の操作（`POST /jobs/{key}/publish`）の 3 つの操作である。拡張の Service Worker が生成の開始を送り、ポップアップとビューアが状態の取得を繰り返し、ビューアが投稿の操作を送る。ホストが受け付けるのは、版のメンバ `v` が `1` で、操作 `op`（`start`・`status`・`publish`）を宣言したメッセージだけである。ホストは操作ごとに決めたメソッドとパスへ送り、それ以外のメッセージにはサーバへ何も送らずに `protocol_error` を返す。拡張が送り先のパスやメソッドを指定する手段はない。サーバは、この 3 つの操作のほかのリクエストのターゲットを `not_found` で拒否する。
-          -   **生成と投稿を別の操作にし、どの操作も長い処理を待たずに応答する。** 生成の開始は、記事のキーを返す。記事とその状態は、状態の取得がコードで返す。投稿の操作は、Webhook への送信を待たずに受け付けの応答を返し、投稿の結果は状態の取得で返す。投稿を利用者の操作でだけ始めることは [ADR-0011](0011-webhook-publishing.md) が、投稿を冪等にすることは [ADR-0028](0028-no-automatic-resend.md) が定める。
+          -   **生成と投稿を別の操作にし、どの操作も長い処理を待たずに応答する。** 生成の開始は、記事のキーを返す。記事とその状態は、状態の取得がコードで返す。完了した記事は、状態の取得が表示用の Markdown（`markdown`）と保存するファイルの中身（`file`）として返す。ファイルへの保存はビューアが拡張のページで行い、サーバへの操作を持たない（[ADR-0010](0010-extension-stores-nothing.md)）。投稿の操作は、Webhook への送信を待たずに受け付けの応答を返し、投稿の結果は状態の取得で返す。投稿を利用者の操作でだけ始めることは [ADR-0011](0011-webhook-publishing.md) が、投稿を冪等にすることは [ADR-0028](0028-no-automatic-resend.md) が定める。
           -   **記事のキーは、検査を通った入力の値から、サーバのプロセスごとの秘密を鍵とする HMAC-SHA256 で計算する。** 計算に使うのは、生成の開始の入力の検査を通った後の 5 つの値（正規化した `videoUrl`、`transcript`、省略を空文字列とした `title`・`channelName`・`description`）である。受け取ったバイト列からは計算しない。送り方 `mode` と同じ動画の判定に使う動画 ID は、キーに入れない。秘密は `crypto/rand` の 32 バイトで、サーバの起動ごとに作り、メモリにだけ持ち、ログにも応答にも出さない。
           -   **記事のキーは不透明な値とする。** 拡張は、生成の開始が返したキーをそのまま送り返すだけで、その形にも計算方法にも依存しない。秘密を使う目的は、攻撃に対する防御ではなく、公開しないキーの計算方法に利用者と拡張を依存させないことである。サーバは、小文字の 16 進の 64 文字のほかのキーを、補正せずに `invalid_key` で拒否する。ホストはキーの形を検査せず、1 つのパスの部分としてエスケープしてから送る。
           -   **同じ入力では記事を作り直さない。** 生成の開始は、同じキーの記事が処理中か完了なら、LLM を呼ばずにそのキーを返す。失敗したキーは生成し直す。作り直したいときは、サーバを再起動する。
