@@ -373,6 +373,51 @@ describe("popup preview script", () => {
     ]);
   });
 
+  it("draws every element the article can have on each done article's page", () => {
+    // The manual checks of the article's typography and text direction read
+    // these pages, so the article must hold every block and inline element.
+    const output = mkdtempSync(path.join(tmpdir(), "popup-preview-"));
+    dirs.push(output);
+    const result = spawnSync(
+      process.execPath,
+      ["scripts/popup-preview.ts", output],
+      { cwd: extensionDir, encoding: "utf8" },
+    );
+    assert.equal(result.status, 0, result.stderr);
+
+    const done = viewerPreviewCases.filter(
+      ({ view: { state } }) =>
+        state.kind === "job" && state.job.kind === "done",
+    );
+    assert.ok(done.length > 0, "no done article page");
+    for (const previewCase of done) {
+      const file = `${previewCase.name}.html`;
+      const doc = new JSDOM(readFileSync(path.join(output, file), "utf8"))
+        .window.document;
+      for (const selector of ["h2", "h3", "ul", "pre code", "strong", "em"]) {
+        assert.ok(
+          doc.querySelector(`#article ${selector}`) !== null,
+          `${file}: ${selector}`,
+        );
+      }
+      // The cases the manual checks look for, which also stand for the ol and
+      // the a elements: a nine-digit start number, and
+      // a link in the paragraph whose earlier lines start with a
+      // right-to-left word and with U+202E (RIGHT-TO-LEFT OVERRIDE).
+      assert.match(
+        doc.querySelector("#article ol")?.getAttribute("start") ?? "",
+        /^\d{9}$/,
+        `${file}: start number`,
+      );
+      const bidi = [...doc.querySelectorAll("#article p")].find(
+        (paragraph) =>
+          paragraph.textContent.includes("\u202e") &&
+          paragraph.querySelector("a") !== null,
+      );
+      assert.ok(bidi !== undefined, `${file}: right-to-left lines and a link`);
+    }
+  });
+
   it("writes one page per popup job state and job kind, drawn by renderPopup", () => {
     const output = mkdtempSync(path.join(tmpdir(), "popup-preview-"));
     dirs.push(output);

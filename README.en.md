@@ -1,4 +1,4 @@
-<!-- translated-from: README.md 594db4408bb4d2277e9bbf94faf8f6c05ae3ceba -->
+<!-- translated-from: README.md ceaa7ffb5cc36d641c09513088dcc9523b73df97 -->
 [日本語](README.md)
 
 Developer documents: [Using the CLI](docs/dev/guides/cli.md) · [Development procedures](docs/dev/guides/development.md)
@@ -905,8 +905,10 @@ any heading: the heading does not vouch for the article's content.
   two it is waiting for.
 - **Generating**: a checklist of the three steps and the time elapsed since the
   send. The state is fetched again repeatedly.
-- **Generated**: the article, shown as text without interpreting the Markdown,
-  with the estimated cost and the time taken. There are three operations:
+- **Generated**: the article, laid out with its title and section headings,
+  paragraphs, lists, emphasis and the like, with an autolink written as
+  `<https://…>` that meets the conditions opening in a new tab, and the
+  estimated cost and the time taken. There are three operations:
   - **Post to Slack**: posts the article to the server's Webhook. It cannot be pressed for an article that is already posted, is being posted, or cannot be posted, or
     when `SLACK_WEBHOOK_URL` is not set on the server, and it shows the reason.
     For an article whose post stopped partway, pressing it again resends from
