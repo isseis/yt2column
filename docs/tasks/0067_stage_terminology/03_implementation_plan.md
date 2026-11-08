@@ -232,16 +232,16 @@ PR を 1 本にするのは設計書 1.2 の決定である。PR-1 は `cmd/yt2c
 
 -   日付: 2026-11-09
 -   ビルド: `go build -tags test -o <scratchpad>/0067check ./docs/tasks/0067_stage_terminology/_checks/`
--   実行: `<scratchpad>/0067check 7d7d794b0bc505fafdf624d26c4fd2aa8ec528c4 047d554b1f0f04f4956940014c724baa123dbd41`
+-   実行: `<scratchpad>/0067check 7d7d794b0bc505fafdf624d26c4fd2aa8ec528c4 5b718e406d74bae9d5cf1e3ab882a3e88cb90ec9`
 -   基点: `7d7d794b0bc505fafdf624d26c4fd2aa8ec528c4`（`origin/main` と `HEAD` の merge-base）
--   head: `047d554b1f0f04f4956940014c724baa123dbd41`
+-   head: `5b718e406d74bae9d5cf1e3ab882a3e88cb90ec9`
 -   終了コード: 0
 
 出力の全文:
 
 ```text
 base 7d7d794b0bc505fafdf624d26c4fd2aa8ec528c4
-head 047d554b1f0f04f4956940014c724baa123dbd41
+head 5b718e406d74bae9d5cf1e3ab882a3e88cb90ec9
 ALLOWED docs/dev/adr/0004-production-profile.md 1/1 観点と段階の基準
 ALLOWED docs/dev/guides/cli.md 1/1 2 つの段階
 ALLOWED docs/dev/guides/mergepr_guide.md 2/2 | 段階 |
@@ -254,7 +254,7 @@ OK   CLAUDE.md: only the three expected phrases changed
 OK every check passed
 ```
 
-この記録を書くコミットは本計画だけを変える。確かめた head `047d554b` と PR の head の違いは、この記録のコミットだけである。
+この記録を書くコミットは本計画だけを変える。確かめた head `5b718e40` と PR の head の違いは、この記録のコミットだけである。
 
 **壊し方の記録（ステップ 6-3、`7d7d794b` を基点とする使い捨てのブランチで実行）:**
 
@@ -280,6 +280,7 @@ OK every check passed
 | 3 か所以外の stage（300 行目）を変える | `CLAUDE.md:1`: lines outside the three changed phrases differ | 1 |
 | 禁止のファイル（`README.md`・`package_reference.md`・ほかのタスク・`extension/package.json`）と `cmd/yt2column/main.go` を変える | 5 つの変更を報告: `README.md:1`、`cmd/yt2column/main.go:1`、`docs/dev/conventions/package_reference.md:1`、`docs/tasks/0066_server_config_file/03_implementation_plan.md:1`、`extension/package.json:1` | 1 |
 | ADR の「## 経緯」の節に 1 行足す | `docs/dev/adr/0019-pipeline-component-interfaces.md:40`: the history has 7 lines, want 6 | 1 |
+| ADR の「## 経緯」の節の行を 1 行消す | `docs/dev/adr/0019-pipeline-component-interfaces.md:40`: the history has 5 lines, want 6 | 1 |
 | 経緯の行の「段階」以外の語を変える | `docs/dev/adr/0023-artifact-resume.md:41`: a history line changed beyond the word replacement | 1 |
 | 経緯の見出しを消す | `0067check: ... history heading "## 経緯" not found` | 2 |
 | 経緯の見出しを 2 つにする | `0067check: ... history heading "## 経緯" appears more than once` | 2 |
