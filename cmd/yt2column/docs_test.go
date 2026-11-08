@@ -38,6 +38,10 @@ const (
 // the profile's configuration block and stage table.
 const productionProfileSection = "## 本番の構成"
 
+// profileTableColumn is the name of a column of the production profile
+// table, by which checkProfileTable finds the table.
+const profileTableColumn = "工程"
+
 // readmeVersionsUnder runs check once per README version, as a subtest named
 // by the version's path, with the version's text read from the repository.
 func readmeVersionsUnder(t *testing.T, check func(t *testing.T, v doctestutil.ReadmeVersion, readme string)) {
@@ -571,9 +575,9 @@ func productionProfileVars() []string {
 // so its row is compared with the generation selection.
 func checkProfileTable(t *testing.T, section string, defaults config.LLMConfig) {
 	t.Helper()
-	table := doctestutil.FindTable(section, "段階")
+	table := doctestutil.FindTable(section, profileTableColumn)
 	if table == nil {
-		t.Fatal("production_profile.md: the profile section has no table with a 段階 column")
+		t.Fatalf("production_profile.md: the profile section has no table with a %s column", profileTableColumn)
 	}
 	names := []string{"プロバイダ", "モデル", "effort"}
 	columns := make([]int, len(names))

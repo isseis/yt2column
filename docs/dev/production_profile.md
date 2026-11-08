@@ -1,14 +1,14 @@
 # 本番の構成と品質
 
-本書は、yt2column が記事を作るときの本番の構成（パイプラインの各段階が使うテンプレート・プロバイダ・モデル・effort）、品質の目標、この構成で起こりうる記事の誤りや欠け（製品の制約）、構成の比較をまとめた、プロジェクトに共通の文書である。値の出典は、タスク 0008 の最終の版の評価（[0008 評価記録](../tasks/0008_column_prompt/02_evaluation.md) §6）である。記事の生成は 2026-10-23、構成の決定と比較は 2026-10-25 に行った。評価記録はその時点の判定の根拠として残る記録であり、最新の値は本書にある。
+本書は、yt2column が記事を作るときの本番の構成（パイプラインの各工程が使うテンプレート・プロバイダ・モデル・effort）、品質の目標、この構成で起こりうる記事の誤りや欠け（製品の制約）、構成の比較をまとめた、プロジェクトに共通の文書である。値の出典は、タスク 0008 の最終の版の評価（[0008 評価記録](../tasks/0008_column_prompt/02_evaluation.md) §6）である。記事の生成は 2026-10-23、構成の決定と比較は 2026-10-25 に行った。評価記録はその時点の判定の根拠として残る記録であり、最新の値は本書にある。
 
 **本書を更新するタスク:** 本番の構成・品質の目標・製品の制約を変えるタスクは、本書と、本番の構成の値を繰り返している箇所（README の「推奨構成」の小節）を合わせて更新する。コード上の既定を変えるタスクも同じである。
 
 ## パイプライン
 
-記事ができるまでの段階と、各段階の役割、その段階を実行する部品を示す。「段階」は、パイプラインの大きな 3 つの段階（`TranscriptSource`・`ArticleWriter`・`Publisher`）と、`ArticleWriter` の中の生成・字数の調整・検証・推敲の両方を指す。
+記事ができるまでの処理と、各処理の役割、その処理を実行する部品を示す。表の行のうち、字幕の取得はパイプラインのステージ `TranscriptSource`、生成・字数の調整・検証・推敲はステージ `ArticleWriter` の中の工程に当たる。投稿は、パイプラインの外で、利用者の操作を受けて行う。
 
-| 段階 | 役割 | 実行する部品 |
+| 処理 | 役割 | 実行する部品 |
 |---|---|---|
 | コピーした字幕の取得 | ブラウザ拡張が YouTube の文字起こしパネルからコピーした字幕と、動画のタイトル・チャンネル名・概要欄を受け取る | `CopiedSource`（`internal/transcript`） |
 | 生成 | 字幕とメタ情報から、雑誌のコラム記事風の本文を書く | `ArticleWriter`（`internal/writer`）と、プロバイダの `LLMClient` |
@@ -16,13 +16,13 @@
 | 検証・推敲 | 記事を素材（字幕・タイトル・チャンネル名・概要欄）と突き合わせ、直す箇所の一覧を返させ、記事に当てはめる | 同上（検証・推敲用の構成） |
 | 投稿 | 記事を Slack 互換の Incoming Webhook へ投稿する | `SlackWebhookPublisher`（`internal/publisher`） |
 
-補助の経路（CLI）では、最初の段階がコピーした字幕の取得ではなく、`yt-dlp` による字幕の取得（`YtDlpSource`）になる。
+補助の経路（CLI）では、最初のステージがコピーした字幕の取得ではなく、`yt-dlp` による字幕の取得（`YtDlpSource`）になる。
 
 ## 本番の構成
 
-LLM を呼ぶ 3 つの段階の構成を示す。値は [0008 評価記録](../tasks/0008_column_prompt/02_evaluation.md) §6.1 の表と同じである。
+LLM を呼ぶ 3 つの工程の構成を示す。値は [0008 評価記録](../tasks/0008_column_prompt/02_evaluation.md) §6.1 の表と同じである。
 
-| 段階 | テンプレート | プロバイダ | モデル | effort |
+| 工程 | テンプレート | プロバイダ | モデル | effort |
 |---|---|---|---|---|
 | 生成 | `v5`（`prompts/system.tmpl`・`prompts/user.tmpl`） | `claude` | `claude-opus-5-5` | `high` |
 | 字数の調整 | 既定（`prompts/shorten_system.tmpl`・`prompts/shorten_user.tmpl`） | `claude` | `claude-opus-5-5` | `high` |
@@ -35,7 +35,7 @@ export YT2COLUMN_LLM=claude/claude-opus-5-5+high
 ```
 
 - 検証・推敲のプロバイダ・モデル・effort は、`YT2COLUMN_REVIEW_LLM` を指定しなければ、生成と同じになる。
-- effort は段階ごとに指定できる（生成と字数の調整は `YT2COLUMN_LLM`、検証・推敲は `YT2COLUMN_REVIEW_LLM` の `+<effort>`）。本番の構成では、3 つの段階のどれも `high` である。
+- effort は工程ごとに指定できる（生成と字数の調整は `YT2COLUMN_LLM`、検証・推敲は `YT2COLUMN_REVIEW_LLM` の `+<effort>`）。本番の構成では、3 つの工程のどれも `high` である。
 - 本番の構成はコード上の既定である（[#490](https://github.com/isseis/yt2column/issues/490)・[#171](https://github.com/isseis/yt2column/issues/171)）。上の変数を指定しなくても、同じ構成で記事を作る。
 - 利用者が指定しなければならない変数は、`ANTHROPIC_API_KEY` である。`SLACK_WEBHOOK_URL` は、localhost サーバの投稿の操作で Slack へ投稿するときだけ要る（CLI は読まない）。サーバは未設定でも起動し、そのときは投稿を `webhook_not_configured` で拒否する。値は、利用者が自分の環境で設定する。
 
@@ -78,7 +78,7 @@ export YT2COLUMN_LLM=claude/claude-opus-5-5+high
 | B1（0018 の初期値の構成） | deepseek-flash | claude-opus-5-5 | 6 / 6 | 0.127843 USD |
 | B1g | deepseek-flash | なし | 4 / 4 | 0.018496 USD |
 
-DeepSeek の段階の推定コストは、peak の単価による（0018 評価記録 §3.7）。
+DeepSeek の工程の推定コストは、peak の単価による（0018 評価記録 §3.7）。
 
 **構成を決めた理由:**
 

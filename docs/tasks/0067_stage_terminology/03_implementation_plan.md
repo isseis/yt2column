@@ -87,14 +87,14 @@
 
 **変更するファイル:** `docs/dev/production_profile.md`、`cmd/yt2column/docs_test.go`
 
--   [ ] **ステップ 2-1**: 9 行目の定義の文を、設計書 3.2 の文に書き換える。
--   [ ] **ステップ 2-2**: パイプラインの表（11 行目）の 1 列目の名前を「処理」に、本番の構成の表（25 行目）の 1 列目の名前を「工程」にする。行は変えない。
--   [ ] **ステップ 2-3**: 3・19・23・38・81 行目の「段階」を、要件書の付録 A と設計書 3.2 のとおりに置き換える。
--   [ ] **ステップ 2-4**: `docs_test.go` に、設計書 3.3 の定数 `profileTableColumn`（値 `"工程"`、コメントは設計書 3.3 の英文）を置き、`checkProfileTable` の 2 か所を次のとおりに変える。識別子・コメント・ほかのメッセージは変えない（設計書 1.2）。
+-   [x] **ステップ 2-1**: 9 行目の定義の文を、設計書 3.2 の文に書き換える。
+-   [x] **ステップ 2-2**: パイプラインの表（11 行目）の 1 列目の名前を「処理」に、本番の構成の表（25 行目）の 1 列目の名前を「工程」にする。行は変えない。
+-   [x] **ステップ 2-3**: 3・19・23・38・81 行目の「段階」を、要件書の付録 A と設計書 3.2 のとおりに置き換える。
+-   [x] **ステップ 2-4**: `docs_test.go` に、設計書 3.3 の定数 `profileTableColumn`（値 `"工程"`、コメントは設計書 3.3 の英文）を置き、`checkProfileTable` の 2 か所を次のとおりに変える。識別子・コメント・ほかのメッセージは変えない（設計書 1.2）。
     -   `doctestutil.FindTable(section, "段階")` を `doctestutil.FindTable(section, profileTableColumn)` にする。
     -   `t.Fatal("production_profile.md: the profile section has no table with a 段階 column")` を `t.Fatalf("production_profile.md: the profile section has no table with a %s column", profileTableColumn)` にする。
--   [ ] **ステップ 2-5**: 25 行目の列名を一時的に別の語に変え、`go test -tags test -run TestProductionProfileDocsContract ./cmd/yt2column` が「no table with a 工程 column」で失敗することを確かめてから戻す。確かめたことをコミットのメッセージに書く（設計書 7.1）。
--   [ ] **ステップ 2-6**: `make fmt`・`make test`・`make lint` を通してから、2 つのファイルを 1 つのコミットにする。
+-   [x] **ステップ 2-5**: 25 行目の列名を一時的に別の語に変え、`go test -tags test -run TestProductionProfileDocsContract ./cmd/yt2column` が「no table with a 工程 column」で失敗することを確かめてから戻す。確かめたことをコミットのメッセージに書く（設計書 7.1）。
+-   [x] **ステップ 2-6**: `make fmt`・`make test`・`make lint` を通してから、2 つのファイルを 1 つのコミットにする。
 
 **完了の条件:** `production_profile.md` に「段階」がなく、`TestProductionProfileDocsContract` が通る。
 
