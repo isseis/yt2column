@@ -21,10 +21,10 @@
 ## 決定
 
 -   **SDK を使わず、標準ライブラリで API を呼ぶ。** Claude は Anthropic Messages API を、DeepSeek は OpenAI 互換の Chat Completions API を、`net/http` と `encoding/json` で直接呼ぶ。現在のモジュールは、標準ライブラリの外のモジュールを 1 つも持たない。
+-   **プロバイダに依存しない型と番兵、その置き場所は [ADR-0019](0019-pipeline-component-interfaces.md) が定める。**
 -   **HTTP の送信の経路は `internal/llm/llmhttp` に置き、両方のアダプタが使う。** 期限の適用、リダイレクトの禁止、応答本文の上限、失敗の分類をここで行う。`llmhttp` はプロバイダ固有の番兵を持たず、アダプタが渡した番兵で失敗を報告する。番兵の置き場所は [ADR-0019](0019-pipeline-component-interfaces.md) が定める。
 -   **プロバイダ固有のパラメータの型は、アダプタの外の小さなパッケージに置く。** Claude は `internal/llm/claudeparam`、DeepSeek は `internal/llm/deepseekparam` である。どちらも標準ライブラリだけに依存し、設定の読み込みとアダプタの両方が使う。
-
-プロバイダに依存しない型・番兵の置き場所と、パイプラインの構成要素の分け方は [ADR-0019](0019-pipeline-component-interfaces.md) が、厳格な JSON の部品の形と置き場所は [ADR-0020](0020-strict-json.md) が定める。
+-   **応答の厳格な検証の部品は [ADR-0020](0020-strict-json.md) が定める。**
 
 この決定の仕様の正本は [project_overview.md](../project_overview.md) の「決定済みの方針」と「パイプライン」、および [package_reference.md](../conventions/package_reference.md) のパッケージの表である。
 

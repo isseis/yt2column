@@ -20,8 +20,8 @@ LLM の失敗は、どのプロバイダでも起こるもの（不正なリク�
 -   **段階の間で受け渡すデータ型が契約である。** 段階は値を受け渡し、空の結果を正常として返さないことを各 interface の英語のドキュメントコメントに書く。すべてのメソッドは第 1 引数に `context.Context` を受け取り、キャンセルとタイムアウトに従う。
 -   **プロバイダに依存しない番兵とリクエストの検証は `internal/llm` に置く。** `ErrInvalidRequest`・`ErrTruncated`・`ErrUnexpectedFinishReason`・`ErrEmptyResponse` と `GenerateRequest.Validate` がここにある。
 -   **プロバイダに固有の番兵は各アダプタに置く。** HTTP の状態・応答本文の形・通信の失敗は、プロバイダの名前を持つので `internal/llm/deepseek` と `internal/llm/claude` がそれぞれ持つ。
--   **HTTP の送信の経路は `internal/llm/llmhttp` に置き、両方のアダプタが使う。** 期限の適用、リダイレクトの禁止、応答本文の上限、失敗の分類をここで行う。`llmhttp` は番兵を持たず、アダプタが渡した番兵で失敗を報告する。この送信の経路と、アダプタ・プロバイダ固有のパラメータの型の置き場所は [ADR-0001](0001-llm-adapter-stdlib.md) が定める。
--   **サーバは、記事を作る処理と Slack への投稿の処理を、CLI と同じパッケージで共有する。** サーバ固有のコードは HTTP の入口・検査・応答・ジョブに限る（[ADR-0005](0005-server-architecture.md)）。
+
+LLM のアダプタの構成と送信の経路、プロバイダ固有のパラメータの型は [ADR-0001](0001-llm-adapter-stdlib.md) が、サーバの構成は [ADR-0005](0005-server-architecture.md) が定める。
 
 この決定の仕様の正本は [CLAUDE.md](../../../CLAUDE.md) の「Key Design Patterns」の「Separation of Concerns」と「Interface-based Design」、[project_overview.md](../project_overview.md) の「パイプライン」、[package_reference.md](../conventions/package_reference.md) のパッケージの表である。
 

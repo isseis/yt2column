@@ -16,10 +16,9 @@ API キーと Webhook URL は環境変数から読む。読む場所がコード
 -   **`internal/config` の外で環境を参照してよいのは、次の場所だけである。**
     -   `cmd/yt2column/main.go`・`cmd/yt2column-server/main.go`・`cmd/yt2column-nmhost/main.go` は、`os.LookupEnv` を 1 回だけ参照し、その関数を設定の読み込みに渡す。
     -   `internal/transcript/ytdlp.go` は、`os.Environ` を 1 回だけ参照し、`yt-dlp` に引き継ぐ変数を allowlist で選ぶ（[security.md](../security.md) §1）。
-    -   `cmd/fixprguard/main.go`・`cmd/codexreview/main.go`・`cmd/coveragecompare/main.go` は、開発者向けの道具として、子プロセス（git と、それぞれの道具）に渡す環境を読む。
+    -   `cmd/fixprguard/main.go` は、git に渡す環境を読み、`GH_REPO` と `GH_HOST` は拒否するためだけに参照する。`cmd/codexreview/main.go`・`cmd/coveragecompare/main.go` は、子プロセスに渡す環境を読む。
 -   **標準ライブラリが自分の動作のために読む変数は、この規則の対象にしない。** `exec.LookPath` の `PATH`、`os.TempDir` の `TMPDIR`、`os.Getwd` の `PWD` などは、呼び出し元に値を返さず、秘密情報の変数を読まない。
 -   **規則は `internal/config/envaccess_test.go` が、テスト以外の Go のコードを走査して確かめる。** 対象の関数と許す場所を一覧で持ち、一覧にない参照と、`internal/config` 以外の秘密情報の変数名を失敗にする。新しい入口を足すときは、この一覧に行を足す。
--   **サーバは、設定を設定ファイルから読む。** 環境変数から読むのは、パスを導出する `HOME` と、HTTP/2 のデバッグログについて警告するための `GODEBUG` だけである（[ADR-0018](0018-server-config-file.md)）。この形はまだコードに入っていない。この ADR の時点のサーバは、まだ設定を環境変数から読む（[0066 設計書](../../tasks/0066_server_config_file/02_architecture.md)）。
 
 LLM の設定の値の文法と、値の解析を `internal/config` が行うことは [ADR-0003](0003-llm-config-contract.md) が定める。
 
@@ -33,11 +32,12 @@ LLM の設定の値の文法と、値の解析を `internal/config` が行うこ
 -   秘密情報を読む場所が 1 か所になり、設定の検証を通らない値が使われる経路がない。
 -   新しい入口が環境を読むときは、`internal/config/envaccess_test.go` の一覧を同じ変更で更新する。テストは、一覧にない参照を失敗にする。
 -   開発者向けの道具は、子プロセスに渡す環境を読める。秘密情報の変数名を持たないことは、同じ検査が確かめる。
--   サーバが設定ファイルを読むようになると、環境から読むのは `HOME` と `GODEBUG` だけになる。それまでは、この ADR の決定と、今のサーバの実装が食い違う。食い違いは [ADR-0018](0018-server-config-file.md) の実装で解消する。
+-   [ADR-0018](0018-server-config-file.md) は、サーバが設定ファイルだけから設定を読み、環境からは `HOME` と `GODEBUG` だけを読むと決めている。この決定はまだコードに入っていない。実装されると、サーバが環境から読むのはその 2 つだけになる。
 
 ## 経緯
 
 - 2026-10-05 CLI を組み立てるとき、環境変数の読み込みを `internal/config` に集め、環境を読む場所の検査を加えた（[0005 設計書](../../tasks/0005_cli_assembly/02_architecture.md)）
+- 2026-10-10 Claude のアダプタを足すとき、秘密情報の変数名の一覧に `ANTHROPIC_API_KEY` を加えた（[0009 設計書](../../tasks/0009_claude_llm_client/02_architecture.md)）
 - 2026-10-13 localhost サーバを足すとき、サーバの `main.go` が `os.LookupEnv` を 1 回だけ参照する場所として、検査の一覧に加えた（[0011 設計書](../../tasks/0011_localhost_server/02_architecture.md)）
 - 2026-10-19 Native Messaging のホストを足すとき、ホストの `main.go` を検査の一覧に加えた。ホストが読むのは `HOME` だけである（[0026 設計書](../../tasks/0026_native_messaging_relay/02_architecture.md)）
 - 2026-11-02 カバレッジの比較の道具を足すとき、その `main.go` が子プロセスに渡す環境を読むことを、検査の一覧に加えた（[0055 設計書](../../tasks/0055_coverage_compare/02_architecture.md)）
