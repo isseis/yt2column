@@ -39,21 +39,21 @@
 | 記事のキー | article key | サーバが生成の開始の入力から計算する、記事を指す不透明な値（64 文字の小文字の 16 進）。拡張とホストは、その形にも計算方法にも依存しない |
 | 記録 | record | 記事のキャッシュが 1 つのキーについて持つ値の組（ジョブ・工程・投稿の状態、記事、失敗の理由、時刻） |
 | ジョブの状態 | job state | `running`・`done`・`failed`・`unknown` |
-| 工程 | step | 記事の生成の中の 3 つの処理（`writer.Stage`）。API の `steps` のメンバ。拡張は、`draft` を「下書きの生成」（Draft）、`shorten` を「字数の調整」（Shorten）、`review` を「検証・推敲」（Review）と表示する。パイプラインの「段階」（stage）とは区別する |
+| 工程 | step | 記事の生成の中の 3 つの処理（`writer.Stage`）。API の `steps` のメンバ。拡張は、`draft` を「下書きの生成」（Draft）、`shorten` を「字数の調整」（Shorten）、`review` を「検証・推敲」（Review）と表示する。パイプラインの「ステージ」（stage）とは区別する |
 | 工程の状態 | step state | `pending`・`running`・`done`・`skipped`・`failed` |
 | 投稿の状態 | publish state | `not_posted`・`posting`・`posted`・`failed`・`unpostable` |
 | 生成の枠 | generation slot | 同時に走る記事の生成の数の上限（`2`）。ジョブの API の生成のジョブだけが数える |
 | 読み込みの枠 | reading slot | 生成の開始の本文を同時に読み込んで検査する数の上限（`2`） |
 | 完了の時点の検査 | completion check | 生成のジョブが記事を `done` にする前に行う検査（公開できる形か、状態の取得の応答に収まるか、Slack へ送る前の検査に通るか） |
 | 動画 ID | video ID | YouTube の 11 文字の ID |
-| 段階 | stage | パイプラインを構成する処理の単位（`TranscriptSource`・`ArticleWriter`・`Publisher`。`pipeline.Stage` の `transcript`・`write`・`publish`）。`ArticleWriter` の中の生成・字数の調整・検証・推敲の 3 つは、API の `steps` として返すとき「工程」（step、`writer.Stage`）と呼び、区別する。英語では、生成の後の 2 つ（字数の調整と検証・推敲）を "post-generation steps" と呼ぶ |
+| ステージ | stage | パイプラインが順に呼ぶ処理の単位（`TranscriptSource`・`ArticleWriter`・`Publisher`。`pipeline.Stage` の `transcript`・`write`・`publish`）。`ArticleWriter` の中の生成・字数の調整・検証・推敲の 3 つは「工程」（step、`writer.Stage`）と呼び、区別する。英語では、生成の後の 2 つ（字数の調整と検証・推敲）を "post-generation steps" と呼ぶ。旧称: 段階 |
 | 主経路 | primary path | ブラウザ拡張がコピーした字幕を集め、Native Messaging のホストと localhost サーバを経て記事を生成し、拡張のビューアに表示する経路。投稿と保存は、利用者がビューアで選ぶ |
 | 補助の経路 | development path | CLI が動画の URL を受け取り、yt-dlp で字幕を取得する経路。開発・検証に使う |
 | 本番の構成 | production profile | 生成・字数の調整・検証・推敲のテンプレート・プロバイダ・モデル・effort の組。`docs/dev/production_profile.md`。文脈により profile と略す |
 | 推奨構成 | recommended configuration | README の推奨構成の小節が、本番の構成を環境変数で示したもの |
 | 品質の目標 | quality target | 0008 F-006 |
 | 製品の制約 | product limitations | 本番の構成で起こりうる記事の誤りや欠け。0008 評価記録 §6.3 |
-| 構成要素パッケージ | component package | パイプラインの構成要素（3 つの段階と、`ArticleWriter` が使う `LLMClient`）の interface とデータ型を持つパッケージ（`internal/transcript`・`internal/llm`・`internal/writer`・`internal/publisher`）。リーフとは限らない |
+| 構成要素パッケージ | component package | パイプラインの構成要素（`TranscriptSource`・`ArticleWriter`・`Publisher` の 3 つのステージと、`ArticleWriter` が使う `LLMClient` の 4 つ）の interface とデータ型を持つパッケージ（`internal/transcript`・`internal/llm`・`internal/writer`・`internal/publisher`）。リーフとは限らない。ステージはパイプラインが順に呼ぶ 3 つ、構成要素はそれに `LLMClient` を加えた 4 つ、工程は `ArticleWriter` の中の生成・字数の調整・検証・推敲を指す。パイプラインの流れ（順序、どこで失敗したか、`StageError`）を述べるときはステージ、部品の分け方・置き場所（パッケージ、interface、fake）を述べるときは構成要素、記事の生成の中の処理を述べるときは工程を使う。`LLMClient` を含むかどうかが、構成要素とステージの区別の決め手である。一般の語としての「構成要素」（`README.md` の「構成要素の組み立て」など）は、この定義の外である |
 | リーフパッケージ | leaf package | 依存先を持たないパッケージ（例: `internal/llm`）。旧称: 葉パッケージ |
 | 秘密情報 | secret | API キー・Webhook URL など。`Secret` 型で保持する |
 | 起動のロック | start lock | localhost サーバがソケットのディレクトリのロックのファイルに取る排他の `flock`。起動から、シャットダウン中のジョブの完了までを持ち続け、同じ `HOME` の 2 つのサーバが同時に動くことを防ぐ（`internal/serversock` の `Lock`） |
@@ -115,7 +115,7 @@
 | プランの PR | plan PR | `/runplan` が開く、実装計画書に基づく PR。判定は `.claude/commands/_context.md` の「Plan PR」 |
 | 対処 | remedy | 問題が起きたときに開発者が取る手順。見出しでは "What to Do When ..." とする |
 | 高圧縮ファイル爆弾 | decompression bomb | 展開すると膨大なサイズになり、メモリなどを使い切らせる圧縮データ、およびそれを使った攻撃。HTTP 応答の gzip も含む。旧称: 圧縮爆弾 |
-| フェーズ | phase | `/fixpr` を構成する処理の単位（Phase 1〜6 と、その間の Phase 3.5・4.5。取得・トリアージ・修正・範囲の確認・build と push・ローカルのレビュー・返信と解決・PR の説明の確認）。パイプラインの「段階」（stage）とは区別する |
+| フェーズ | phase | `/fixpr` を構成する処理の単位（Phase 1〜6 と、その間の Phase 3.5・4.5。取得・トリアージ・修正・範囲の確認・build と push・ローカルのレビュー・返信と解決・PR の説明の確認）。パイプラインの「ステージ」（stage）とは区別する |
 | 信頼する著者 | trusted author | リポジトリへの書き込み権限（write・maintain・admin）を持つ、Bot でないアカウントと、自動レビュアーの一覧のどれかの名前の Bot のアカウント |
 | 自動レビュアー | automated reviewer | PR にレビューのスレッドを投稿する Bot |
 | 自動レビュアーの一覧 | automated reviewer list | `.claude/commands/_context.md` の「Automated reviewer list」に定める、スレッドを信頼する自動レビュアーの名前（GraphQL の `author.login` の形）の一覧。`fixprguard` には `--reviewer` で 1 つずつ渡す |

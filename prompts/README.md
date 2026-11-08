@@ -1,6 +1,6 @@
 # prompts
 
-このディレクトリには、`internal/writer` の `ArticleWriter` が使う既定のプロンプトテンプレートがある。記事の生成のほかに、生成した後の 2 つの段階（字数の調整と検証・推敲）のテンプレートがある。
+このディレクトリには、`internal/writer` の `ArticleWriter` が使う既定のプロンプトテンプレートがある。記事の生成のほかに、生成した後の 2 つの工程（字数の調整と検証・推敲）のテンプレートがある。
 
 - `system.tmpl`・`user.tmpl`: 記事の生成
 - `shorten_system.tmpl`・`shorten_user.tmpl`: 字数の調整

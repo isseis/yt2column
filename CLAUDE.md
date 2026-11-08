@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Project:**
 - [Project Overview](docs/dev/project_overview.md) - Decided policies, pipeline, constraints, configuration (Japanese). **Read this before designing anything.**
-- [Production Profile](docs/dev/production_profile.md) - The production profile (the template, provider, model, and effort of each stage), the quality target and the results behind it, and the product limitations of this profile (Japanese)
+- [Production Profile](docs/dev/production_profile.md) - The production profile (the template, provider, model, and effort of each step), the quality target and the results behind it, and the product limitations of this profile (Japanese)
 - [Security Considerations](docs/dev/security.md) - yt-dlp invocation, secrets, network, cache, untrusted text
 - [Cache Consistency](docs/dev/cache_consistency.md) - What the transcript cache guarantees across failures and power loss, and why (Japanese). Check its checklist before changing cache code.
 - [ADR Index](docs/dev/adr/README.md) - The major design decisions in effect now, each with its reasons, the alternatives not taken, and its history across tasks (Japanese). Look here for the current decisions and their reasons before designing.
@@ -360,8 +360,8 @@ for the packages that exist today. The server's startup is documented in the
 - **Separation of Concerns**: Each package has a single responsibility. Core logic
   stays out of `cmd/`, so the CLI and the localhost server share it and a further
   entry point can be added without touching it.
-- **Interface-based Design**: Every pipeline stage (`TranscriptSource`,
-  `LLMClient`, `Publisher`) is an interface with a fake for tests.
+- **Interface-based Design**: Every pipeline component (`TranscriptSource`,
+  `ArticleWriter`, `LLMClient`, `Publisher`) is an interface with a fake for tests.
 - **Provider details stay in their adapter package**: request/response shapes of
   a provider API (e.g. DeepSeek's `thinking` parameter and `reasoning_content`)
   live only under `internal/llm/<provider>`. If a provider SDK is added later
@@ -647,7 +647,7 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
   targets in its commands sections (`TestCoverageCompareDocumented`), the
   manifest permissions, the
   `project_overview.md` notes (the environment variable names, `costPrefix`, and
-  `16,383`), the production profile's configuration block and stage table in
+  `16,383`), the production profile's configuration block and step table in
   `docs/dev/production_profile.md`, the configuration block of both READMEs,
   the values `cli.md` and `development.md` hold, the
   `/fixpr` and `/runpr` command documents, the `codexreview`

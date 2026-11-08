@@ -1,0 +1,74 @@
+{
+  "glossary": {
+    "path": "docs/translation_glossary.md",
+    "old_word": "段階",
+    "new_word": "ステージ",
+    "english": "stage",
+    "old_name": "旧称: 段階"
+  },
+  "pipeline_profile": {
+    "path": "docs/dev/production_profile.md",
+    "section": "## パイプライン",
+    "column": "処理"
+  },
+  "allowed": [
+    {
+      "file": "docs/dev/adr/0004-production-profile.md",
+      "text": "観点と段階の基準",
+      "count": 1
+    },
+    {
+      "file": "docs/dev/security.md",
+      "text": "固定のイベント名・段階・",
+      "count": 1
+    },
+    {
+      "file": "docs/dev/security.md",
+      "text": "形の検査の段階",
+      "count": 1
+    },
+    {
+      "file": "docs/dev/guides/cli.md",
+      "text": "2 つの段階",
+      "count": 1
+    },
+    {
+      "file": "docs/dev/guides/mergepr_guide.md",
+      "text": "| 段階 |",
+      "count": 2
+    },
+    {
+      "file": "docs/dev/guides/mergepr_guide.md",
+      "text": "承認の段階",
+      "count": 1
+    },
+    {
+      "file": "docs/dev/guides/mergepr_guide.md",
+      "text": "取り消せない段階",
+      "count": 1
+    }
+  ],
+  "claude": {
+    "path": "CLAUDE.md",
+    "replacements": [
+      {
+        "before": "(the template, provider, model, and effort of each stage)",
+        "after": "(the template, provider, model, and effort of each step)"
+      },
+      {
+        "before": "Every pipeline stage (`TranscriptSource`, `LLMClient`, `Publisher`) is an interface with a fake for tests.",
+        "after": "Every pipeline component (`TranscriptSource`, `ArticleWriter`, `LLMClient`, `Publisher`) is an interface with a fake for tests."
+      },
+      {
+        "before": "the production profile's configuration block and stage table",
+        "after": "the production profile's configuration block and step table"
+      }
+    ]
+  },
+  "adr_history": {
+    "heading": "## 経緯",
+    "words": ["ステージ", "構成要素", "工程"]
+  },
+  "target_dirs": ["docs/dev/"],
+  "target_files": ["prompts/README.md"]
+}

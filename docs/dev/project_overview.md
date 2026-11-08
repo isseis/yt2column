@@ -38,26 +38,26 @@ flowchart LR
     class SRC,WRITER,PUB process
 
     subgraph Legend["凡例"]
-        L1[("入力と、段階の間で受け渡すデータ")]
-        L2["段階（interface）"]
+        L1[("入力と、ステージの間で受け渡すデータ")]
+        L2["ステージ（interface）"]
     end
     class L1 data
     class L2 process
 ```
 
-各段階は interface で抽象化し、実装を差し替えられるようにする。
+各構成要素は interface で抽象化し、実装を差し替えられるようにする。
 
 - `TranscriptSource`: 主経路では、利用者が文字起こしパネルからコピーした字幕の文字列と動画のメタ情報を `CopiedSource` に渡して `Transcript` を作る。localhost サーバは拡張から受け取った生の字幕を `CopiedSource` に渡す（`yt-dlp` を呼ばない）。CLI は `yt-dlp` で字幕を取得する `YtDlpSource` を使う。
   - `YtDlpSource` の例: `yt-dlp --ignore-config --no-plugin-dirs --skip-download --write-subs --write-auto-subs --sub-langs ja --sub-format json3 --write-info-json -P "<cache>" -o "%(id)s" -- <URL>`
   - json3 の `events[].segs[].utf8` を連結して本文にする。`tStartMs` も保持する（将来、見出しごとに動画の該当時刻へのリンクを付けるため）。
   - info.json からタイトル・チャンネル名・概要欄を取り出し、メタ情報として `Transcript` に含める。
   - 手動字幕と自動字幕が両方ある場合の挙動（どちらが優先されるか、出力ファイル名）は `02_architecture.md` の作成時に実 `yt-dlp` の出力で確認し、同書に記録すること（承認前に確定させる）。
-- `ArticleWriter`: プロバイダに依存しない。プロンプトテンプレートにタイムスタンプを除いた本文とメタ情報を埋め込み、`LLMClient` を呼び出して、結果を `Article`（タイトル・チャンネル名・Markdown 本文・出典 URL・生成モデル名・モデルの版の識別子。段階ごとのモデル名も持つ）に変換する。
+- `ArticleWriter`: プロバイダに依存しない。プロンプトテンプレートにタイムスタンプを除いた本文とメタ情報を埋め込み、`LLMClient` を呼び出して、結果を `Article`（タイトル・チャンネル名・Markdown 本文・出典 URL・生成モデル名・モデルの版の識別子。工程ごとのモデル名も持つ）に変換する。
   - プロンプトの組み立てと出力の後処理はここに集約し、全プロバイダで共有する。
-  - 生成の後に 2 つの段階を既定で行う。字数の調整は本文が 4,000 字を超えるときだけ、生成と同じ `LLMClient` で上限以内（目標 3,600 字）に縮める。検証・推敲は、別に設定できるプロバイダとモデル（`YT2COLUMN_REVIEW_LLM`。既定は生成と同じ）で記事を素材と突き合わせ、直す箇所の一覧を返させ、`ArticleWriter` がその一覧を記事に当てはめる。いずれかの段階で失敗した記事は成功として返さない。
-  - 各段階の出力（生成の出力・字数の調整の出力・検証・推敲の一覧と適用後の記事）は、`--artifacts <dir>` を指定したときだけキャッシュの外のディレクトリに保存し、`--after <stage>` でその段階から再開して後の段階だけを実行できる。段階が完了するたびに、公開の前に保存するので、後の段階が失敗しても前の段階の出力は残る。再開でも実行した段階は保存するので、ディレクトリは書き込み可能であること。中間生成物の形式は版 3 で、各段階の呼び出しの時刻（`call_time`。`Generate` が戻った時刻を UTC・秒で持つ）を持つ。版 1・版 2 のファイルは再開に使えず、拒否される。
-  - LLM の応答が報告するトークン数を段階ごとに記録し、`Article` に実行の使用量（`RunUsage`）として持たせる。成功した実行では要約の最後に、失敗した実行では失敗の行の前に、段階ごとに 1 行のトークン数の行を標準エラーに出す。応答の `usage` の不正で記事の生成は失敗させず、その段階の使用量を不明として示す。失敗した実行では `*TokenUsageError` で使用量を運ぶ。
-  - 同じ位置に、段階ごとの料金の行と、この実行の料金（`run`）・記事 1 本の料金（`article`）の 2 つの合計の行を出す（`yt2column: cost: <段階> <由来> known usd=<金額> <単価> at=<時刻>`、`yt2column: cost-total: run ...`）。料金は `internal/pricing` の単価の表から算出し、時間帯で単価が変わるモデルでは呼び出しの時刻で選んだ単価を使う。記事 1 本の料金は、`--out` のファイルでは先頭のフロントマターのキー `estimated_cost_usd`（`"<4 桁>"` または `"unknown"`）に、localhost サーバからの Slack の投稿では末尾の脚注（`Estimated cost: <4 桁> USD` または `Estimated cost: unknown`）に出す。ファイルはフロントマター（チャンネル名・出典・各段階のモデルと版・料金）、見出し、チャンネル名の行、本文の順で、Slack の投稿は見出し行（タイトルとチャンネル名）、本文、脚注（モデル名と料金。モデルの版は出さない）の順である。出力先ごとに別の関数で整形し、共有するのは料金などの値の書式だけである。例外として、ファイルの中身のうちフロントマターの後の部分（見出し・チャンネル名の行・本文）は、サーバの状態の取得が返す表示用の Markdown と同じ関数で作る（タスク `0044_article_job_api`）。Viewer が表示する記事と、Viewer から保存するファイルの記事を同じにするためで、フロントマターと Slack の投稿は今のまま別の関数で整形する。
+  - 生成の後に 2 つの工程を既定で行う。字数の調整は本文が 4,000 字を超えるときだけ、生成と同じ `LLMClient` で上限以内（目標 3,600 字）に縮める。検証・推敲は、別に設定できるプロバイダとモデル（`YT2COLUMN_REVIEW_LLM`。既定は生成と同じ）で記事を素材と突き合わせ、直す箇所の一覧を返させ、`ArticleWriter` がその一覧を記事に当てはめる。いずれかの工程で失敗した記事は成功として返さない。
+  - 各工程の出力（生成の出力・字数の調整の出力・検証・推敲の一覧と適用後の記事）は、`--artifacts <dir>` を指定したときだけキャッシュの外のディレクトリに保存し、`--after <stage>` でその工程から再開して後の工程だけを実行できる。工程が完了するたびに、公開の前に保存するので、後の工程が失敗しても前の工程の出力は残る。再開でも実行した工程は保存するので、ディレクトリは書き込み可能であること。中間生成物の形式は版 3 で、各工程の呼び出しの時刻（`call_time`。`Generate` が戻った時刻を UTC・秒で持つ）を持つ。版 1・版 2 のファイルは再開に使えず、拒否される。
+  - LLM の応答が報告するトークン数を工程ごとに記録し、`Article` に実行の使用量（`RunUsage`）として持たせる。成功した実行では要約の最後に、失敗した実行では失敗の行の前に、工程ごとに 1 行のトークン数の行を標準エラーに出す。応答の `usage` の不正で記事の生成は失敗させず、その工程の使用量を不明として示す。失敗した実行では `*TokenUsageError` で使用量を運ぶ。
+  - 同じ位置に、工程ごとの料金の行と、この実行の料金（`run`）・記事 1 本の料金（`article`）の 2 つの合計の行を出す（`yt2column: cost: <工程> <由来> known usd=<金額> <単価> at=<時刻>`、`yt2column: cost-total: run ...`）。料金は `internal/pricing` の単価の表から算出し、時間帯で単価が変わるモデルでは呼び出しの時刻で選んだ単価を使う。記事 1 本の料金は、`--out` のファイルでは先頭のフロントマターのキー `estimated_cost_usd`（`"<4 桁>"` または `"unknown"`）に、localhost サーバからの Slack の投稿では末尾の脚注（`Estimated cost: <4 桁> USD` または `Estimated cost: unknown`）に出す。ファイルはフロントマター（チャンネル名・出典・各工程のモデルと版・料金）、見出し、チャンネル名の行、本文の順で、Slack の投稿は見出し行（タイトルとチャンネル名）、本文、脚注（モデル名と料金。モデルの版は出さない）の順である。出力先ごとに別の関数で整形し、共有するのは料金などの値の書式だけである。例外として、ファイルの中身のうちフロントマターの後の部分（見出し・チャンネル名の行・本文）は、サーバの状態の取得が返す表示用の Markdown と同じ関数で作る（タスク `0044_article_job_api`）。Viewer が表示する記事と、Viewer から保存するファイルの記事を同じにするためで、フロントマターと Slack の投稿は今のまま別の関数で整形する。
 - `LLMClient`: プロバイダごとの薄いアダプタ。責務は「system プロンプトと user プロンプトを受け取り、生成テキストとモデル名、モデルの版の識別子、応答が報告するトークン数（`Usage`）を返す」ことだけ。
 
   ```go
@@ -101,7 +101,7 @@ flowchart LR
 cmd/yt2column/main.go     # CLI エントリポイント
 cmd/yt2column-server/     # localhost サーバのエントリポイント（main.go・run.go）
 cmd/yt2column-nmhost/     # Native Messaging のホストのエントリポイント（中継・install・uninstall）
-internal/pipeline/        # 3段階を束ねるオーケストレーション
+internal/pipeline/        # 3 つのステージを束ねるオーケストレーション
 internal/server/          # localhost サーバ（HTTP の受け口・検査・応答・ジョブ）
 internal/articlecache/    # 記事のキャッシュ（キー・記録の状態遷移・件数の上限と破棄。HTTP も LLM も知らない）
 internal/serversock/      # サーバの Unix ドメインソケット（ソケットのディレクトリの検査・起動のロック・stale の判定）
@@ -145,7 +145,7 @@ extension/                # ブラウザ拡張（TypeScript。開発環境・Man
 
 `internal/config` の `LoadServer` は、localhost サーバの設定を読む。LLM の設定は CLI と共有する。`SLACK_WEBHOOK_URL` は任意とし、未設定でもサーバは起動するが、投稿の操作を `webhook_not_configured` で拒否する。サーバは `yt-dlp` を呼ばないので、`YT2COLUMN_CACHE_DIR` と `YT2COLUMN_YTDLP_PATH` は読まない（不正な値でも起動を止めない）。ソケットのパスは `HOME` だけから導出し、`XDG_*`・`TMPDIR` は読まない。
 
-`YT2COLUMN_LLM` と `YT2COLUMN_REVIEW_LLM` の値は、最初の `/` で区切る。前半がプロバイダで、`deepseek` か `claude` に完全に一致しなければならない。残りの全体がモデル ID で、その中の `/` も含めて、変換せずにそのまま API に送る（`claude/vendor/model-x` ならモデルは `vendor/model-x`）。モデル ID が空の値（`claude`・`claude/`）、プロバイダの部分が空か不正な値（`/claude-opus-5-5`・`Claude/claude-opus-5-5`・` claude/claude-opus-5-5`）は設定エラーにする。前後の空白は取り除かない。前後に空白があるモデル ID は、設定の読み込みでは拒否せず、その段階のクライアントを作るときに、通信の前にアダプタが拒否する。
+`YT2COLUMN_LLM` と `YT2COLUMN_REVIEW_LLM` の値は、最初の `/` で区切る。前半がプロバイダで、`deepseek` か `claude` に完全に一致しなければならない。残りの全体がモデル ID で、その中の `/` も含めて、変換せずにそのまま API に送る（`claude/vendor/model-x` ならモデルは `vendor/model-x`）。モデル ID が空の値（`claude`・`claude/`）、プロバイダの部分が空か不正な値（`/claude-opus-5-5`・`Claude/claude-opus-5-5`・` claude/claude-opus-5-5`）は設定エラーにする。前後の空白は取り除かない。前後に空白があるモデル ID は、設定の読み込みでは拒否せず、その工程のクライアントを作るときに、通信の前にアダプタが拒否する。
 
 最初の `/` より後ろ（後半）に `+` があれば、`+` より前がモデル ID、後ろが effort の部分である。`+` を探すのは後半だけで、後半の `+` は 1 つまでとする（2 つ以上は設定エラー）。effort の部分は、プロバイダごとに次の表の値に完全に一致しなければならない。空の effort の部分（`claude/claude-opus-5-5+`）と、一致しない値（`claude/claude-opus-5-5+High`・`deepseek/deepseek-flash+medium`）は、既定の effort で補わず、モデル ID の一部ともみなさずに設定エラーにする。`+` より前のモデル ID が空の値（`claude/+high`）も設定エラーにする。
 
@@ -158,7 +158,7 @@ extension/                # ブラウザ拡張（TypeScript。開発環境・Man
 
 プロバイダ固有の変数は、生成と検証・推敲のどちらかが選んだプロバイダのものを読んで検査する。他のプロバイダの変数は、未設定・空・不正な値のいずれでも拒否しない。`YT2COLUMN_LLM` のプロバイダの部分が決まらず（空の値、`/` を含まない値、プロバイダの部分が空か不正な値）、`YT2COLUMN_REVIEW_LLM` も未設定の場合は、どのプロバイダ固有の変数も検査しない。プロバイダの部分は正しく、モデル ID だけが空の値（`claude/`）や、effort の部分だけが不正な値（`claude/claude-opus-5-5+ultra`）なら、そのプロバイダの変数は検査する。LLM の変数が `ANTHROPIC_API_KEY` だけなら、生成・字数の調整・検証・推敲のすべてを `claude` の `claude-opus-5-5`（effort `high`）で行う。`--no-review` を指定しても検証・推敲の設定は検査する。
 
-中断した実行の再開では、実行する段階の LLM の変数だけを読む。`YT2COLUMN_REVIEW_LLM` を設定して検証・推敲だけを実行する場合は、`YT2COLUMN_LLM` を読まない。ただし、次に述べる旧変数の検査だけは例外で、実行する段階によらず行う。
+中断した実行の再開では、実行する工程の LLM の変数だけを読む。`YT2COLUMN_REVIEW_LLM` を設定して検証・推敲だけを実行する場合は、`YT2COLUMN_LLM` を読まない。ただし、次に述べる旧変数の検査だけは例外で、実行する工程によらず行う。
 
 旧変数（`YT2COLUMN_LLM_PROVIDER`・`YT2COLUMN_MODEL`・`YT2COLUMN_REVIEW_PROVIDER`・`YT2COLUMN_REVIEW_MODEL`・`YT2COLUMN_CLAUDE_EFFORT`）は廃止した。いずれかが設定されていれば（空の値を含む）、CLI もサーバも、その変数を名指しする設定エラーで止まる。LLM の変数を読まない実行（`--after review` など）でも止まる。旧変数の値は使わず、ほかの設定エラーと合わせて報告する。旧変数の値は使わないので、旧変数だけで DeepSeek を指定していた設定では `YT2COLUMN_LLM` が未設定として扱われ、既定の `claude` が選ばれる。生成または検証・推敲の設定を検査する実行では、`ANTHROPIC_API_KEY` が未設定ならそのエラーも出る。旧変数の行も、代わりに設定する新しい変数と、それが未設定のときに使われるもの（`YT2COLUMN_LLM` なら `claude`）を示す。`YT2COLUMN_CLAUDE_EFFORT` は `claude` の工程にだけ効いていたので、その行は、代わりに `YT2COLUMN_LLM`・`YT2COLUMN_REVIEW_LLM` のうちプロバイダが `claude` の値に `+<effort>` を付けることと、付けなければ `claude` の既定の `high` を使うことを示す。`deepseek` の値に付けると、それまで送っていなかった `reasoning_effort` を送ることになる。DeepSeek を使い続けるには、旧変数を外し（unset）、`YT2COLUMN_LLM=deepseek/<モデル ID>` を設定する。移行の手順は README の「廃止した LLM の変数からの移行」にある。ホスト（`yt2column-nmhost`）は LLM の設定を読まないので、旧変数があっても止まらない。
 
