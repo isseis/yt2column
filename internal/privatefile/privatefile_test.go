@@ -535,7 +535,7 @@ func TestCreateExisting(t *testing.T) {
 		{
 			name:  "regular file",
 			setup: func(t *testing.T, path string) { writeFile(t, path, []byte(old), 0o644) },
-			check: requireUnchangedFile(old, 0o644),
+			check: requireUnchangedFile(old),
 		},
 		{
 			name: "regular file in a read-only directory",
@@ -544,7 +544,7 @@ func TestCreateExisting(t *testing.T) {
 				writeFile(t, path, []byte(old), 0o644)
 			},
 			readOnly: true,
-			check:    requireUnchangedFile(old, 0o644),
+			check:    requireUnchangedFile(old),
 		},
 		{
 			name: "dangling symbolic link",
@@ -600,8 +600,9 @@ func TestCreateExisting(t *testing.T) {
 }
 
 // requireUnchangedFile returns a check that the file at path still holds
-// content with mode.
-func requireUnchangedFile(content string, mode fs.FileMode) func(t *testing.T, path string) {
+// content with mode 0644, the mode the tests give a file the call under test must not touch.
+func requireUnchangedFile(content string) func(t *testing.T, path string) {
+	const mode fs.FileMode = 0o644
 	return func(t *testing.T, path string) {
 		t.Helper()
 		if got := readFile(t, path); string(got) != content {
@@ -630,7 +631,7 @@ func TestCreateRaces(t *testing.T) {
 	if leftover != "" {
 		t.Errorf("Create left %s behind", leftover)
 	}
-	requireUnchangedFile("raced", 0o644)(t, path)
+	requireUnchangedFile("raced")(t, path)
 	requireNoTemp(t, dir)
 }
 
@@ -716,5 +717,193 @@ func failAt(point hookPoint) func(hookPoint, string) error {
 			return errInjected
 		}
 		return nil
+	}
+}
+
+// requireDirMode checks that path is a directory with exactly mode.
+func requireDirMode(t *testing.T, path string, mode fs.FileMode) {
+	t.Helper()
+	if got := lstat(t, path).Mode(); got != fs.ModeDir|mode {
+		t.Errorf("%s mode = %v, want %v", path, got, fs.ModeDir|mode)
+	}
+}
+
+// TestMkdirBelow checks that every directory MkdirBelow creates has exactly
+// mode 0700, under umasks that drop the owner's read or search bit too, that
+// an existing element is not changed, and how the base is checked.
+func TestMkdirBelow(t *testing.T) {
+	for _, mask := range []int{0o400, 0o100, 0, 0o077} {
+		t.Run(fmt.Sprintf("umask %04o", mask), func(t *testing.T) {
+			base := t.TempDir()
+			var err error
+			var after int
+			withUmask(mask, func() {
+				err = MkdirBelow(base, []string{"a", "b"})
+				after = syscall.Umask(mask)
+			})
+			if err != nil {
+				t.Fatalf("MkdirBelow: %v", err)
+			}
+			if after != mask {
+				t.Errorf("umask after MkdirBelow = %04o, want %04o restored", after, mask)
+			}
+			requireDirMode(t, filepath.Join(base, "a"), DirMode)
+			requireDirMode(t, filepath.Join(base, "a", "b"), DirMode)
+		})
+	}
+
+	t.Run("existing element unchanged", func(t *testing.T) {
+		base := t.TempDir()
+		existing := filepath.Join(base, "a")
+		if err := os.Mkdir(existing, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		chmodForTest(t, existing, 0o755)
+		if err := MkdirBelow(base, []string{"a", "b"}); err != nil {
+			t.Fatalf("MkdirBelow: %v", err)
+		}
+		requireDirMode(t, existing, 0o755)
+		requireDirMode(t, filepath.Join(existing, "b"), DirMode)
+	})
+
+	t.Run("setgid parent", func(t *testing.T) {
+		base := t.TempDir()
+		if err := os.Chmod(base, 0o700|fs.ModeSetgid); err != nil {
+			t.Fatal(err)
+		}
+		if lstat(t, base).Mode()&fs.ModeSetgid == 0 {
+			t.Skip("this system does not keep the setgid bit on the temporary directory")
+		}
+		if err := MkdirBelow(base, []string{"a"}); err != nil {
+			t.Fatalf("MkdirBelow: %v", err)
+		}
+		requireDirMode(t, filepath.Join(base, "a"), DirMode)
+	})
+
+	t.Run("base through a symbolic link", func(t *testing.T) {
+		dir := t.TempDir()
+		target := filepath.Join(dir, "target")
+		if err := os.Mkdir(target, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		link := filepath.Join(dir, "link")
+		if err := os.Symlink(target, link); err != nil {
+			t.Fatal(err)
+		}
+		if err := MkdirBelow(link, []string{"a"}); err != nil {
+			t.Fatalf("MkdirBelow: %v", err)
+		}
+		requireDirMode(t, filepath.Join(target, "a"), DirMode)
+	})
+
+	t.Run("existing regular file in the way", func(t *testing.T) {
+		base := t.TempDir()
+		writeFile(t, filepath.Join(base, "a"), []byte("x"), 0o644)
+		err := MkdirBelow(base, []string{"a", "b"})
+		if err == nil || errors.Is(err, ErrBaseMissing) {
+			t.Fatalf("MkdirBelow: error = %v, want a failure other than ErrBaseMissing", err)
+		}
+		requireUnchangedFile("x")(t, filepath.Join(base, "a"))
+	})
+
+	for _, tt := range []struct {
+		name string
+		// base returns the base inside dir after preparing what is there.
+		base func(t *testing.T, dir string) string
+	}{
+		{name: "base missing", base: func(_ *testing.T, dir string) string { return filepath.Join(dir, "base") }},
+		{name: "base is a regular file", base: func(t *testing.T, dir string) string {
+			base := filepath.Join(dir, "base")
+			writeFile(t, base, []byte("x"), Mode)
+			return base
+		}},
+		{name: "base below a regular file", base: func(t *testing.T, dir string) string {
+			file := filepath.Join(dir, "file")
+			writeFile(t, file, []byte("x"), Mode)
+			return filepath.Join(file, "base")
+		}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			base := tt.base(t, dir)
+			before, err := os.ReadDir(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = MkdirBelow(base, []string{"a"})
+			requireSentinel(t, err, base, ErrBaseMissing)
+			if after, err := os.ReadDir(dir); err != nil || len(after) != len(before) {
+				t.Errorf("ReadDir = (%v, %v), want only %v", after, err, before)
+			}
+		})
+	}
+
+	t.Run("names that are not one element", func(t *testing.T) {
+		base := t.TempDir()
+		for _, name := range []string{"", ".", "..", "a/b"} {
+			if err := MkdirBelow(base, []string{"ok", name}); !errors.Is(err, errBadName) {
+				t.Errorf("MkdirBelow(%q): error = %v, want errBadName", name, err)
+			}
+		}
+		requireAbsent(t, filepath.Join(base, "ok"))
+	})
+}
+
+// TestMkdirBelowSwap replaces a directory MkdirBelow just created before its
+// mode is set, and checks that the call fails and the replacement's target
+// keeps its mode.
+func TestMkdirBelowSwap(t *testing.T) {
+	tests := []struct {
+		name    string
+		replace func(t *testing.T, created, other string)
+		check   func(t *testing.T, created, other string)
+	}{
+		{
+			name: "symbolic link to another directory",
+			replace: func(t *testing.T, created, other string) {
+				if err := os.Mkdir(other, 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Chmod(other, 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(other, created); err != nil {
+					t.Fatal(err)
+				}
+			},
+			check: func(t *testing.T, _, other string) { requireDirMode(t, other, 0o755) },
+		},
+		{
+			name: "regular file",
+			replace: func(t *testing.T, created, _ string) {
+				writeFile(t, created, []byte("x"), 0o644)
+			},
+			check: func(t *testing.T, created, _ string) { requireUnchangedFile("x")(t, created) },
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			base := t.TempDir()
+			created := filepath.Join(base, "a")
+			other := filepath.Join(base, "other")
+			swapped := false
+			setHookForTest(t, func(point hookPoint, dir string) error {
+				if point != hookMkdirAfterMkdir || dir != created {
+					return nil
+				}
+				swapped = true
+				if err := os.Remove(created); err != nil {
+					t.Fatal(err)
+				}
+				tt.replace(t, created, other)
+				return nil
+			})
+			err := MkdirBelow(base, []string{"a"})
+			if !swapped {
+				t.Fatal("the hook after mkdir did not run")
+			}
+			requireSentinel(t, err, created, errReplaced)
+			tt.check(t, created, other)
+		})
 	}
 }

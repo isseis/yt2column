@@ -17,6 +17,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 )
 
@@ -34,6 +35,17 @@ const opRead = "read"
 // opCreate is the operation an *fs.PathError from Create names.
 const opCreate = "create"
 
+// opMkdir is the operation an *fs.PathError from MkdirBelow names.
+const opMkdir = "mkdir"
+
+// DirMode is the mode MkdirBelow sets on each directory it creates.
+const DirMode fs.FileMode = 0o700
+
+// mkdirUmask is the umask in force while MkdirBelow calls mkdir: it keeps
+// every owner bit, so the owner can open what was created to set its mode,
+// whatever the caller's umask.
+const mkdirUmask = 0o077
+
 var (
 	// ErrNotExist reports that nothing is at the path.
 	ErrNotExist = errors.New("the file does not exist")
@@ -44,9 +56,18 @@ var (
 	ErrTooLarge = errors.New("the file exceeds the size limit")
 	// ErrExist reports that something, of any kind, is already at the path.
 	ErrExist = errors.New("a file already exists at the path")
+	// ErrBaseMissing reports that MkdirBelow's base does not exist or is not a
+	// directory.
+	ErrBaseMissing = errors.New("the base directory does not exist or is not a directory")
 
 	// errNegativeLimit reports a negative limit passed to Read.
 	errNegativeLimit = errors.New("the size limit is negative")
+	// errBadName reports a name passed to MkdirBelow that is not one path
+	// element.
+	errBadName = errors.New("a directory name is not a single path element")
+	// errReplaced reports a directory MkdirBelow created that was no longer
+	// the user's directory when it was opened to set its mode.
+	errReplaced = errors.New("the created directory was replaced before its mode was set")
 )
 
 // UnsafeReason is why Read refused a file; its String is the text shown to
@@ -137,6 +158,9 @@ const (
 	hookCreateBeforeLink
 	// hookCreateBeforeRemoveTemp runs before the temporary name is removed.
 	hookCreateBeforeRemoveTemp
+	// hookMkdirAfterMkdir runs in MkdirBelow after each directory it creates,
+	// with the directory.
+	hookMkdirAfterMkdir
 )
 
 // hook runs at each hookPoint. A non-nil error is returned as the failure of
@@ -331,4 +355,77 @@ func removeTemp(temp string) error {
 		return err
 	}
 	return os.Remove(temp)
+}
+
+// MkdirBelow creates base/names[0], base/names[0]/names[1], ... that do not
+// exist yet, each with exactly DirMode. base must exist and be a directory,
+// followed through a symbolic link (ErrBaseMissing); an existing element is
+// left as it is.
+//
+// Contract: only a directory this call created has its mode changed, and its
+// mode becomes exactly DirMode whatever the umask (a setgid bit copied from
+// the parent included). The mode is set through a descriptor opened without
+// following a link, so a created name replaced by anything else is reported
+// and the replacement is not changed. The process umask is mkdirUmask only
+// during each mkdir and is restored on every return, so the call must not run
+// concurrently with anything else that creates files.
+func MkdirBelow(base string, names []string) error {
+	for _, name := range names {
+		if name == "" || name == "." || name == ".." || strings.ContainsRune(name, '/') {
+			return errBadName
+		}
+	}
+	info, err := os.Stat(base)
+	if errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ENOTDIR) || (err == nil && !info.IsDir()) {
+		return &fs.PathError{Op: opMkdir, Path: base, Err: ErrBaseMissing}
+	}
+	if err != nil {
+		return err
+	}
+	dir := base
+	for _, name := range names {
+		dir = filepath.Join(dir, name)
+		created, err := mkdir(dir)
+		if err != nil {
+			return err
+		}
+		if created {
+			if err := setDirMode(dir); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// mkdir creates dir under mkdirUmask and reports whether it created it; an
+// existing name of any kind is not an error. The umask is restored as soon as
+// mkdir returns.
+func mkdir(dir string) (created bool, err error) {
+	previous := syscall.Umask(mkdirUmask)
+	defer syscall.Umask(previous)
+	err = os.Mkdir(dir, DirMode)
+	if errors.Is(err, fs.ErrExist) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+// setDirMode sets the directory just created at dir to exactly DirMode
+// through a descriptor. O_DIRECTORY and O_NOFOLLOW make the open fail when
+// the name is no longer a directory; a directory of another user swapped in
+// would refuse the chmod.
+func setDirMode(dir string) error {
+	if err := hook(hookMkdirAfterMkdir, dir); err != nil {
+		return err
+	}
+	file, err := os.OpenFile(dir, os.O_RDONLY|syscall.O_DIRECTORY|syscall.O_NOFOLLOW, 0) //nolint:gosec // opens the directory this call just created, without following a link, to set its mode through the descriptor
+	if errors.Is(err, syscall.ELOOP) || errors.Is(err, syscall.ENOTDIR) {
+		return &fs.PathError{Op: opMkdir, Path: dir, Err: errReplaced}
+	}
+	if err != nil {
+		return err
+	}
+	defer func() { _ = file.Close() }()
+	return file.Chmod(DirMode)
 }
