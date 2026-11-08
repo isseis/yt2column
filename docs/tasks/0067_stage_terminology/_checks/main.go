@@ -477,7 +477,7 @@ func checkADRHistory(base, head string, changed, basePaths []string, h adrHistor
 		if err != nil {
 			return nil, err
 		}
-		headLines, err := historyLines(headText, h.Heading)
+		headLines, headStart, err := historyLines(headText, h.Heading)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", path, err)
 		}
@@ -488,17 +488,17 @@ func checkADRHistory(base, head string, changed, basePaths []string, h adrHistor
 		if err != nil {
 			return nil, err
 		}
-		baseLines, err := historyLines(baseText, h.Heading)
+		baseLines, _, err := historyLines(baseText, h.Heading)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", path, err)
 		}
 		if len(baseLines) != len(headLines) {
-			out = append(out, violation{path, 1, fmt.Sprintf("the history has %d lines, want %d", len(headLines), len(baseLines))})
+			out = append(out, violation{path, headStart, fmt.Sprintf("the history has %d lines, want %d", len(headLines), len(baseLines))})
 			continue
 		}
 		for i := range baseLines {
 			if !wordReplacement(baseLines[i], headLines[i], old, h.Words) {
-				out = append(out, violation{path, i + 1, "a history line changed beyond the word replacement"})
+				out = append(out, violation{path, headStart + i, "a history line changed beyond the word replacement"})
 			}
 		}
 	}
@@ -507,7 +507,7 @@ func checkADRHistory(base, head string, changed, basePaths []string, h adrHistor
 
 // historyLines returns the lines from the heading to the end of text. The
 // heading must appear exactly once.
-func historyLines(text, heading string) ([]string, error) {
+func historyLines(text, heading string) ([]string, int, error) {
 	lines := strings.Split(text, "\n")
 	found := -1
 	for i, line := range lines {
@@ -515,14 +515,14 @@ func historyLines(text, heading string) ([]string, error) {
 			continue
 		}
 		if found >= 0 {
-			return nil, fmt.Errorf("history heading %q appears more than once", heading)
+			return nil, 0, fmt.Errorf("history heading %q appears more than once", heading)
 		}
 		found = i
 	}
 	if found < 0 {
-		return nil, fmt.Errorf("history heading %q not found", heading)
+		return nil, 0, fmt.Errorf("history heading %q not found", heading)
 	}
-	return lines[found:], nil
+	return lines[found:], found + 1, nil
 }
 
 // wordReplacement reports whether head equals base with each occurrence of the
