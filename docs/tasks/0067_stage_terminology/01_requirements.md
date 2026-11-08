@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-06 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 決定の変更で draft に戻した：AC-10 の投稿の行を、ステージではなくパイプラインの外の処理とした |
+| Review date | 2026-11-08 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 概要 (Overview)
 
@@ -209,4 +209,5 @@
 ## 変更履歴
 
 - 2026-11-06 承認（isseis、#707）
-- 2026-11-06 draft への戻し：AC-10 の投稿の行を、ステージではなくパイプラインの外の処理とした（#未記入）
+- 2026-11-06 draft への戻し：AC-10 の投稿の行を、ステージではなくパイプラインの外の処理とした（#709）
+- 2026-11-08 承認（isseis、#709）
