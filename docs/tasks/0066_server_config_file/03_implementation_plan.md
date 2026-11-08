@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-07 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-08 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 実装の概要
@@ -476,3 +476,7 @@ PR の分け方の理由は 1.3 の 4 つ目の決定にある。
 -   本書の承認の後、`/runplan 0066` で PR-1 から順に実装する。
 -   最後の PR のマージの後、issue #576 を閉じる（`/runpr` が案内する）。
 -   実際の `HOME` で、`config init` から起動までを 1 度確かめる（`brew services` での常駐は #578 で扱う）。
+
+## 変更履歴
+
+- 2026-11-08 承認（isseis、#711）
