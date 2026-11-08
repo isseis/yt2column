@@ -131,7 +131,7 @@ func run(args []string) (bool, error) {
 	}
 	fmt.Printf("base %s\nhead %s\n", base, head)
 
-	d, err := loadData()
+	d, err := loadData(head)
 	if err != nil {
 		return false, err
 	}
@@ -150,7 +150,7 @@ func run(args []string) (bool, error) {
 
 	var violations []violation
 	violations = append(violations, checkScope(changed)...)
-	v, err := checkTargets(head, headPaths, d)
+	v, err := checkTargets(basePaths, head, headPaths, d)
 	if err != nil {
 		return false, err
 	}
@@ -205,13 +205,15 @@ func resolve(rev string) (string, error) {
 	return strings.TrimSpace(out), err
 }
 
-func loadData() (data, error) {
+// loadData reads the check's data at head, like the documents it checks, so a
+// working-tree edit cannot change what the committed head is checked against.
+func loadData(head string) (data, error) {
 	var d data
-	raw, err := os.ReadFile(dataPath)
+	raw, err := read(head, dataPath)
 	if err != nil {
 		return d, err
 	}
-	if err := json.Unmarshal(raw, &d); err != nil {
+	if err := json.Unmarshal([]byte(raw), &d); err != nil {
 		return d, err
 	}
 	return d, nil
@@ -247,29 +249,46 @@ func checkScope(changed []string) []violation {
 
 // checkTargets verifies each target document: every allowed wording appears
 // its stated number of times, and after removing the wordings no old word
-// remains, counting an occurrence split by a line break.
-func checkTargets(head string, headPaths []string, d data) ([]violation, error) {
+// remains, counting an occurrence split by a line break. A target document
+// present at the base and absent at the head is a violation, so deleting a
+// file cannot make its wording pass.
+func checkTargets(basePaths []string, head string, headPaths []string, d data) ([]violation, error) {
+	baseSet := map[string]struct{}{}
+	for _, path := range basePaths {
+		baseSet[path] = struct{}{}
+	}
+	headSet := map[string]struct{}{}
 	var targets []string
 	for _, path := range headPaths {
-		if path == d.Glossary.Path {
-			continue
-		}
-		if strings.HasSuffix(path, ".md") && slices.ContainsFunc(d.TargetDirs, func(dir string) bool {
-			return strings.HasPrefix(path, dir)
-		}) {
+		headSet[path] = struct{}{}
+		if isTarget(path, d) {
 			targets = append(targets, path)
 		}
 	}
-	targets = append(targets, d.TargetFiles...)
-	slices.Sort(targets)
-
+	for _, path := range basePaths {
+		if isTarget(path, d) {
+			targets = append(targets, path)
+		}
+	}
 	groups := map[string][]allowedGroup{}
 	for _, g := range d.Allowed {
 		groups[g.File] = append(groups[g.File], g)
+		if _, ok := headSet[g.File]; !ok {
+			targets = append(targets, g.File)
+		}
 	}
+	targets = slices.Compact(slices.Sorted(slices.Values(targets)))
 
 	var out []violation
 	for _, path := range targets {
+		if _, ok := headSet[path]; !ok {
+			if _, was := baseSet[path]; was {
+				out = append(out, violation{path, 1, "a target document was deleted"})
+			} else {
+				out = append(out, violation{path, 1, "an allowed wording's file is missing"})
+			}
+			continue
+		}
 		text, err := read(head, path)
 		if err != nil {
 			return nil, err
@@ -279,13 +298,28 @@ func checkTargets(head string, headPaths []string, d data) ([]violation, error) 
 			found := strings.Count(text, g.Text)
 			fmt.Printf("ALLOWED %s %d/%d %s\n", path, found, g.Count, g.Text)
 			if found != g.Count {
-				out = append(out, violation{path, 1, fmt.Sprintf("allowed wording appears %d times, want %d: %s", found, g.Count, g.Text)})
+				line := lineNumber(text, strings.Index(text, g.Text))
+				out = append(out, violation{path, line, fmt.Sprintf("allowed wording appears %d times, want %d: %s", found, g.Count, g.Text)})
 			}
-			remaining = strings.ReplaceAll(remaining, g.Text, "")
+			remaining = strings.ReplaceAll(remaining, g.Text, "\x00")
 		}
 		out = append(out, remainingWord(path, remaining, d.Glossary.OldWord)...)
 	}
 	return out, nil
+}
+
+// isTarget reports whether path is one of the documents the terminology change
+// covers. The glossary has its own check.
+func isTarget(path string, d data) bool {
+	if path == d.Glossary.Path {
+		return false
+	}
+	if strings.HasSuffix(path, ".md") && slices.ContainsFunc(d.TargetDirs, func(dir string) bool {
+		return strings.HasPrefix(path, dir)
+	}) {
+		return true
+	}
+	return slices.Contains(d.TargetFiles, path)
 }
 
 // remainingWord reports every occurrence of word in text, including an
@@ -311,13 +345,31 @@ func foldLines(text string) (string, []int) {
 	var b strings.Builder
 	var lineOf []int
 	for i, line := range strings.Split(text, "\n") {
-		line = strings.TrimLeft(line, " \t")
+		line = strings.TrimSpace(line)
+		if line == "" {
+			b.WriteString("\x00")
+			lineOf = append(lineOf, i+1)
+			continue
+		}
 		b.WriteString(line)
 		for range len(line) {
 			lineOf = append(lineOf, i+1)
 		}
 	}
 	return b.String(), lineOf
+}
+
+// lineNumber returns the 1-based line of byte offset in text.
+func lineNumber(text string, offset int) int {
+	if offset < 0 {
+		return 1
+	}
+	return strings.Count(text[:offset], "\n") + 1
+}
+
+// firstLineWith returns the 1-based line of the first occurrence of substr.
+func firstLineWith(text, substr string) int {
+	return lineNumber(text, strings.Index(text, substr))
 }
 
 // checkGlossary verifies the glossary: the old word appears once, inside the
@@ -333,10 +385,11 @@ func checkGlossary(base, head string, g glossaryData) ([]violation, error) {
 		return nil, err
 	}
 	var out []violation
+	oldNameLine := firstLineWith(headText, g.OldName)
 	if n := strings.Count(headText, g.OldName); n != 1 {
-		out = append(out, violation{g.Path, 1, fmt.Sprintf("the old name appears %d times, want 1: %s", n, g.OldName)})
+		out = append(out, violation{g.Path, oldNameLine, fmt.Sprintf("the old name appears %d times, want 1: %s", n, g.OldName)})
 	}
-	if rest := strings.ReplaceAll(headText, g.OldName, ""); strings.Contains(rest, g.OldWord) {
+	if rest := strings.ReplaceAll(headText, g.OldName, "\x00"); strings.Contains(rest, g.OldWord) {
 		out = append(out, remainingWord(g.Path, rest, g.OldWord)...)
 	}
 
@@ -346,28 +399,43 @@ func checkGlossary(base, head string, g glossaryData) ([]violation, error) {
 		return nil, fmt.Errorf("%s: the old word has no table row at the base commit", g.Path)
 	}
 	newTable, newRow := findRow(tables, g.NewWord)
+	stageLine := firstLineWith(headText, "| "+g.NewWord+" |")
 	if newTable < 0 || newRow < 0 {
-		out = append(out, violation{g.Path, 1, "the stage row is missing or appears more than once: " + g.NewWord})
+		out = append(out, violation{g.Path, stageLine, "the stage row is missing or appears more than once: " + g.NewWord})
 	} else {
 		if newTable != baseTable || newRow != baseRow {
-			out = append(out, violation{g.Path, 1, "the stage row moved from the base commit's position"})
+			out = append(out, violation{g.Path, stageLine, "the stage row moved from the base commit's position"})
 		}
 		row := tables[newTable][newRow]
 		if len(row) < 3 {
-			out = append(out, violation{g.Path, 1, "the stage row has fewer than three cells"})
+			out = append(out, violation{g.Path, stageLine, "the stage row has fewer than three cells"})
 		} else {
 			if doctestutil.StripBackticks(row[1]) != g.English {
-				out = append(out, violation{g.Path, 1, "the stage row's English cell is not " + g.English})
+				out = append(out, violation{g.Path, stageLine, "the stage row's English cell is not " + g.English})
 			}
 			if !strings.Contains(row[2], g.OldName) {
-				out = append(out, violation{g.Path, 1, "the stage row's remark does not hold the old name: " + g.OldName})
+				out = append(out, violation{g.Path, stageLine, "the stage row's remark does not hold the old name: " + g.OldName})
 			}
 		}
 	}
-	if table, _ := findRow(tables, g.OldWord); table >= 0 {
-		out = append(out, violation{g.Path, 1, "a row whose first cell is the old word remains: " + g.OldWord})
+	if n := countRows(tables, g.OldWord); n > 0 {
+		oldLine := firstLineWith(headText, "| "+g.OldWord+" |")
+		out = append(out, violation{g.Path, oldLine, fmt.Sprintf("a row whose first cell is the old word remains (%d)", n)})
 	}
 	return out, nil
+}
+
+// countRows returns the number of rows whose first cell is first.
+func countRows(tables [][][]string, first string) int {
+	n := 0
+	for _, cells := range tables {
+		for _, cell := range cells {
+			if len(cell) > 0 && doctestutil.StripBackticks(cell[0]) == first {
+				n++
+			}
+		}
+	}
+	return n
 }
 
 // findRow returns the first table and row whose first cell is first. It
@@ -400,10 +468,10 @@ func checkPipelineProfile(head string, p pipelineProfileData) ([]violation, erro
 	}
 	tables := doctestutil.MarkdownTables(section)
 	if len(tables) == 0 || len(tables[0]) == 0 || len(tables[0][0]) == 0 {
-		return []violation{{p.Path, 1, "the pipeline section has no table"}}, nil
+		return []violation{{p.Path, firstLineWith(text, "| "), "the pipeline section has no table"}}, nil
 	}
 	if got := doctestutil.StripBackticks(tables[0][0][0]); got != p.Column {
-		return []violation{{p.Path, 1, fmt.Sprintf("the pipeline table's first column is %q, want %q", got, p.Column)}}, nil
+		return []violation{{p.Path, firstLineWith(text, "| "+got+" |"), fmt.Sprintf("the pipeline table's first column is %q, want %q", got, p.Column)}}, nil
 	}
 	fmt.Printf("OK   %s: the pipeline table's first column is %s\n", p.Path, p.Column)
 	return nil, nil
@@ -433,11 +501,21 @@ func checkClaude(base, head string, c claudeData) ([]violation, error) {
 		if err != nil {
 			return nil, err
 		}
-		if n := len(afterRE.FindAllStringIndex(headText, -1)); n != 1 {
-			out = append(out, violation{c.Path, 1, fmt.Sprintf("the changed wording appears %d times, want 1: %s", n, r.After)})
+		afterMatches := afterRE.FindAllStringIndex(headText, -1)
+		if len(afterMatches) != 1 {
+			line := 1
+			if len(afterMatches) > 0 {
+				line = lineNumber(headText, afterMatches[0][0])
+			}
+			out = append(out, violation{c.Path, line, fmt.Sprintf("the changed wording appears %d times, want 1: %s", len(afterMatches), r.After)})
 		}
-		if n := len(beforeRE.FindAllStringIndex(baseText, -1)); n != 1 {
-			out = append(out, violation{c.Path, 1, fmt.Sprintf("the base wording appears %d times, want 1: %s", n, r.Before)})
+		beforeMatches := beforeRE.FindAllStringIndex(baseText, -1)
+		if len(beforeMatches) != 1 {
+			line := 1
+			if len(beforeMatches) > 0 {
+				line = lineNumber(baseText, beforeMatches[0][0])
+			}
+			out = append(out, violation{c.Path, line, fmt.Sprintf("the base wording appears %d times, want 1: %s", len(beforeMatches), r.Before)})
 		}
 		headSkeleton = afterRE.ReplaceAllLiteralString(headSkeleton, marker)
 		baseSkeleton = beforeRE.ReplaceAllLiteralString(baseSkeleton, marker)
