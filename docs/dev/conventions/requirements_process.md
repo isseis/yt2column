@@ -539,6 +539,7 @@ exclude internal/articlecache/
 exclude cmd/yt2column-nmhost/
 exclude internal/nmhost/
 exclude internal/serversock/
+exclude internal/privatefile/
 exclude extension/static/manifest.json
 exclude testdata/
 exclude prompts/
