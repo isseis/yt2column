@@ -27,7 +27,7 @@
 -   **廃止した変数は読まない。** `YT2COLUMN_LLM_PROVIDER`・`YT2COLUMN_MODEL`・`YT2COLUMN_REVIEW_PROVIDER`・`YT2COLUMN_REVIEW_MODEL`・`YT2COLUMN_CLAUDE_EFFORT` は、CLI もサーバも読まず、環境にあっても拒否も警告もしない。読まない変数を検査するためだけのコードは持たない。設定ファイルに書かれていれば、ほかの未知のキーと同じく拒否する（[ADR-0018](0018-server-config-file.md)）。
 -   **拒否のメッセージは、変数の名前と固定の理由だけを示し、値を含めない。**
 
-この決定の仕様の正本は [project_overview.md](../project_overview.md) の設定の節である。値の解析と既定の当てはめは `internal/config` が行い、effort の値の一覧は `internal/llm/claudeparam` と `internal/llm/deepseekparam` が 1 か所ずつ持つ。
+この決定の仕様の正本は [project_overview.md](../project_overview.md) の設定の節である。値の解析と既定の当てはめは `internal/config` が行い、effort の値の一覧は `internal/llm/claudeparam` と `internal/llm/deepseekparam` が 1 か所ずつ持つ。環境変数を読む場所は [ADR-0024](0024-env-access-in-config.md) が定める。
 
 ## 採らなかった案
 

@@ -116,7 +116,7 @@
 | `llm-client-contract` | 0001 0003 0019 0022 | 0001 設計書「付録A: 決定履歴」・2026-09-29（設計書の Review date）、0003 設計書「1.1 設計原則」・2026-10-02（同）、0019 設計書「3.2」・2026-10-15（同）、0022 設計書「付録 A」・2026-10-16（同） | - |
 | `cost-estimate` | 0022 0042 | 0022 設計書「1.1 設計原則」・2026-10-16（設計書の Review date）、0042 設計書「1.2. 設計の際に決めたこと（2026-10-25）」・2026-10-25 | - |
 | `artifact-resume` | 0017 0019 0022 | 0017 設計書「1.1 設計原則」・2026-10-14（設計書の Review date）、0019 設計書「3.7」・2026-10-15（同）、0022 設計書「3.5」・2026-10-16（同） | - |
-| `env-access-in-config` | 0005 0011 0026 0055 | （② で埋める） | - |
+| `env-access-in-config` | 0005 0011 0026 0055 | 0005 設計書「3.1」・2026-10-05（設計書の Review date）、0011 設計書「3.14」・2026-10-13（同）、0026 設計書「3.8」・2026-10-19（同）、0055 設計書「3.11」・2026-11-02（同） | - |
 | `claude-output-limit` | 0009 0041 | （② で埋める） | - |
 | `extension-platform` | 0007 0026 0050 | （③ で埋める） | - |
 | `article-job-api` | 0044 0050 0058 0059 | （③ で埋める） | - |
@@ -161,8 +161,8 @@ ADR を書くときに、移し元の「背景」「採らなかった案」「�
 | 2 | `llm-adapter-stdlib` | `strict-json` | move | -   **厳格な JSON の部品を `internal/llm/deepseek` に複製する。** サロゲートの走査などの細かいコードが 2 か所になる（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) 付録 A）。 | - |
 | 2 | `llm-adapter-stdlib` | `strict-json` | move | -   **`internal/transcript` の非公開の関数を公開して LLM の段階から使う。** LLM の段階が字幕取得の段階に依存する（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) 付録 A）。 | - |
 | 2 | `server-architecture` | `pipeline-component-interfaces` | link | -   **サーバは `cmd/yt2column-server` の別の実行ファイルとし、利用者が手動で起動する。** ログイン時の自動起動はしない。記事を作る処理と Slack への投稿の処理は、CLI と同じパッケージを共有し、サーバ固有のコードは HTTP の入口・検査・応答・ジョブに限る。 | -   **サーバは `cmd/yt2column-server` の別の実行ファイルとし、利用者が手動で起動する。** ログイン時の自動起動はしない。記事を作る処理と Slack への投稿の処理は、CLI と同じパッケージを共有し、サーバ固有のコードは HTTP の入口・検査・応答・ジョブに限る。記事を作る処理と Slack への投稿の処理を共有する構成は [ADR-0019](0019-pipeline-component-interfaces.md) の構成要素の分け方に従う。 |
-| 2 | `llm-config-contract` | `env-access-in-config` | link | この決定の仕様の正本は [project_overview.md](../project_overview.md) の設定の節である。値の解析と既定の当てはめは `internal/config` が行い、effort の値の一覧は `internal/llm/claudeparam` と `internal/llm/deepseekparam` が 1 か所ずつ持つ。 | （② で埋める） |
-| 2 | `server-config-file` | `env-access-in-config` | link | -   **サーバは設定ファイルだけから設定を読み、CLI は今までどおり環境変数だけから読む。** 入口ごとに読む場所を 1 つに決め、どの値が効いているかを曖昧にしない。サーバが環境変数から読むのは、パスを導出する `HOME` と、Go のランタイムが出す HTTP/2 のデバッグログについて警告するための `GODEBUG` だけである。 | （② で埋める） |
+| 2 | `llm-config-contract` | `env-access-in-config` | link | この決定の仕様の正本は [project_overview.md](../project_overview.md) の設定の節である。値の解析と既定の当てはめは `internal/config` が行い、effort の値の一覧は `internal/llm/claudeparam` と `internal/llm/deepseekparam` が 1 か所ずつ持つ。 | この決定の仕様の正本は [project_overview.md](../project_overview.md) の設定の節である。値の解析と既定の当てはめは `internal/config` が行い、effort の値の一覧は `internal/llm/claudeparam` と `internal/llm/deepseekparam` が 1 か所ずつ持つ。環境変数を読む場所は [ADR-0024](0024-env-access-in-config.md) が定める。 |
+| 2 | `server-config-file` | `env-access-in-config` | link | -   **サーバは設定ファイルだけから設定を読み、CLI は今までどおり環境変数だけから読む。** 入口ごとに読む場所を 1 つに決め、どの値が効いているかを曖昧にしない。サーバが環境変数から読むのは、パスを導出する `HOME` と、Go のランタイムが出す HTTP/2 のデバッグログについて警告するための `GODEBUG` だけである。 | -   **サーバは設定ファイルだけから設定を読み、CLI は今までどおり環境変数だけから読む。** 入口ごとに読む場所を 1 つに決め、どの値が効いているかを曖昧にしない。サーバが環境変数から読むのは、パスを導出する `HOME` と、Go のランタイムが出す HTTP/2 のデバッグログについて警告するための `GODEBUG` だけである。環境変数を読む場所の規則は [ADR-0024](0024-env-access-in-config.md) が定める。 |
 | 2 | `production-profile` | `claude-output-limit` | move | -   **Claude アダプタの出力の上限の既定は 40,000 トークンとし、3 つの段階で共有する。** 本番の構成で長い動画の出力が打ち切られないようにするためである。 | - |
 | 3 | `extension-stores-nothing` | `article-job-api` | move | -   **サーバの状態はメモリにだけ置く。** 記事のキャッシュはサーバのプロセスの中だけにあり、ディスクに書かない（サーバの構成は [ADR-0005](0005-server-architecture.md)）。サーバを再起動すると、記事と投稿の状態はすべて失われ、ビューアは記事が失われたことを示す。これは受け入れる。 | - |
 | 3 | `extension-stores-nothing` | `article-job-api` | move | -   サーバを再起動すると記事と投稿の状態が失われる。利用者は記事を作り直す。投稿済みの記事を送り直すと、同じ内容がもう一度投稿されうる。 | - |
