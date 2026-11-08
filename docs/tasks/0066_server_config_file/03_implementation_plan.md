@@ -144,30 +144,30 @@
 
 **変えるファイル:** `internal/config/configpath.go`（新規）、`internal/config/socketpath.go`、`internal/config/configpath_test.go`（新規）
 
-- [ ] OS の分類を 1 つの非公開の関数にし、`socketRule` と設定ファイルの規則の両方がそれを使うように `socketpath.go` を変える（設計 3.2.1）。
-- [ ] `serverFileLocation` を設計 3.2.1 のとおりに置き、`serverFileLocationFor(goos string, lookup LookupFunc)` にする（`socketPath(goos, lookup)` と同じ形。本番の呼び出しは `runtime.GOOS` を渡す）。理由の定数 `reasonConfigPathAbsent` に、設計 3.2.1 の文「no absolute configuration file path could be derived from HOME」を置く。
-- [ ] `TestServerFileLocation` を書く: `goos`（`darwin`・`linux`・`freebsd`・規則のない 4 つ）と、`HOME` が未設定・空・相対の場合の表で、パス・基点・作ってよいディレクトリを確かめる。`XDG_CONFIG_HOME` を設定してもパスが変わらないこと、`HOME` のほかに変数を読まないこと（読んだ名前を記録する `LookupFunc`）、エラーが `HOME` の値を含まないことも確かめる。今の `TestSocketPath`（`socketpath_test.go:45`）は、変えずに通ることを確かめる。
+- [x] OS の分類を 1 つの非公開の関数にし、`socketRule` と設定ファイルの規則の両方がそれを使うように `socketpath.go` を変える（設計 3.2.1）。
+- [x] `serverFileLocation` を設計 3.2.1 のとおりに置き、`serverFileLocationFor(goos string, lookup LookupFunc)` にする（`socketPath(goos, lookup)` と同じ形。本番の呼び出しは `runtime.GOOS` を渡す）。理由の定数 `reasonConfigPathAbsent` に、設計 3.2.1 の文「no absolute configuration file path could be derived from HOME」を置く。
+- [x] `TestServerFileLocation` を書く: `goos`（`darwin`・`linux`・`freebsd`・規則のない 4 つ）と、`HOME` が未設定・空・相対の場合の表で、パス・基点・作ってよいディレクトリを確かめる。`XDG_CONFIG_HOME` を設定してもパスが変わらないこと、`HOME` のほかに変数を読まないこと（読んだ名前を記録する `LookupFunc`）、エラーが `HOME` の値を含まないことも確かめる。今の `TestSocketPath`（`socketpath_test.go:45`）は、変えずに通ることを確かめる。
 
 #### ステップ 2-2: 書式の解析とエラーの型
 
 **変えるファイル:** `internal/config/serverfile.go`（新規）、`internal/config/serverfile_test.go`（新規）
 
-- [ ] 設計 3.2.2 の `serverFileKeys`・`serverFileMaxSize`・`serverFileMaxReported`・`serverFile`・`lookup`・`parseServerFile` を、設計 3.2.2 と 6.2 の規則で実装する。行は `bytes.Split` で分ける。
-- [ ] 設計 4.1 の番兵（`ErrConfigFile*`）・`FileError`・`FormatOverflowError` を置く。`Unwrap` は番兵 1 つだけを返す。`Error()` の文の形は設計 4.2 の表に従い、英語の文は実装で決める。
-- [ ] `TestParseServerFileAccepts` を書く: 受理する形（空行、コメントの行、空白を伴わない `#` と `=` を含む値、空の値、LF で終わらない最後の行、64 KiB ちょうど）の表で、`lookup` が返す値と `ok` を確かめる。
-- [ ] `TestParseServerFileRejects` を書く: 要件 F-003「拒否するもの」のそれぞれと、UTF-8 として正しくないファイルの表で、`errors.Is(err, ErrConfigFileFormat)`、行番号（ファイル全体の拒否では 0）、理由、重複のときのキーの名前を確かめる。`Error()` の文が、パスと、行の拒否では `line <n>`、重複ではキーの名前を含み、ファイル全体の拒否では行番号を含まないことも確かめる。どの拒否の文も、ファイルの値・行・未知のキーの文字列を含まないことを、表のすべての行について確かめる。
-- [ ] `TestParseServerFileOverflow` を書く: 拒否が 21 行以上のとき、`*FileError` が行番号の小さい順にちょうど 20 個で、`*FormatOverflowError` が残りの数を持つことを確かめる。
-- [ ] `TestParseServerFileDuplicate` を書く: 最初の出現がほかの理由で拒否されていても、2 回目の出現が「重複」になることを確かめる（設計 3.2.2「重複」）。
+- [x] 設計 3.2.2 の `serverFileKeys`・`serverFileMaxSize`・`serverFileMaxReported`・`serverFile`・`lookup`・`parseServerFile` を、設計 3.2.2 と 6.2 の規則で実装する。行は `bytes.Split` で分ける。
+- [x] 設計 4.1 の番兵（`ErrConfigFile*`）・`FileError`・`FormatOverflowError` を置く。`Unwrap` は番兵 1 つだけを返す。`Error()` の文の形は設計 4.2 の表に従い、英語の文は実装で決める。
+- [x] `TestParseServerFileAccepts` を書く: 受理する形（空行、コメントの行、空白を伴わない `#` と `=` を含む値、空の値、LF で終わらない最後の行、64 KiB ちょうど）の表で、`lookup` が返す値と `ok` を確かめる。
+- [x] `TestParseServerFileRejects` を書く: 要件 F-003「拒否するもの」のそれぞれと、UTF-8 として正しくないファイルの表で、`errors.Is(err, ErrConfigFileFormat)`、行番号（ファイル全体の拒否では 0）、理由、重複のときのキーの名前を確かめる。`Error()` の文が、パスと、行の拒否では `line <n>`、重複ではキーの名前を含み、ファイル全体の拒否では行番号を含まないことも確かめる。どの拒否の文も、ファイルの値・行・未知のキーの文字列を含まないことを、表のすべての行について確かめる。
+- [x] `TestParseServerFileOverflow` を書く: 拒否が 21 行以上のとき、`*FileError` が行番号の小さい順にちょうど 20 個で、`*FormatOverflowError` が残りの数を持つことを確かめる。
+- [x] `TestParseServerFileDuplicate` を書く: 最初の出現がほかの理由で拒否されていても、2 回目の出現が「重複」になることを確かめる（設計 3.2.2「重複」）。
 
 #### ステップ 2-3: 雛形と `InitServerFile`
 
-**変えるファイル:** `internal/config/serverfile.go`、`internal/config/serverfile_test.go`
+**変えるファイル:** `internal/config/serverfile.go`、`internal/config/serverfile_test.go`、`internal/privatefile/privatefile.go`（モードを数値で示す `UnixMode` を公開する）、`internal/privatefile/test_helpers.go`（`Create` を `link` の前で失敗させる、ほかのパッケージのテスト用の補助）
 
-- [ ] `serverFileTemplate`・`InitServerFile`・`InitResult` を設計 3.2.5 のとおりに置く。雛形の英語の文面は実装で決める。
-- [ ] `privatefile` の番兵から `config` の番兵への対応を、設計 4.1 の箇条のとおりに `errors.Is` の `switch` で書く。`default` は `Read` では「読めない」、`Create`・`MkdirBelow` では「作れなかった」にする。`privatefile` の型は `FileError` の外に出さない。
-- [ ] `TestServerFileTemplate` を書く: 雛形を `parseServerFile` に通すと拒否がなく値を 1 つも持たないこと、すべての行が空行かコメントの行であること、`serverFileKeys` のそれぞれが `# <キー>=` の形のコメントの行にあることを確かめる。
-- [ ] `TestInitServerFile` を書く: `t.TempDir` の `HOME` で、作ったファイルのパス・中身（雛形と一致）・モード `0600`、作ったディレクトリのモード `0700` を確かめる。基点がない、すでにある（通常のファイル・リンク先のないシンボリックリンク・ディレクトリ）、作れない（親に書けない）の各場合の番兵と `Path` を確かめ、作れない場合に、それまでに作った親が残ることを確かめる。読んだ変数が `HOME` だけであることを、6 つのキーに値を入れた記録する `LookupFunc` で確かめる。`HOME` の誤りでは `*VarError` を返し、何も作らないことを確かめる。親に書けない場合は、モードを戻す `t.Cleanup` を登録し、root では `t.Skip` する。
-- [ ] `TestFileErrorMapping` を書く: `privatefile` の各番兵と `UnsafeReason` が設計 4.1 の表のとおりの `config` の番兵に対応し、`FileError` の文がパスと設計 4.2 の分類ごとの内容（ファイルがない場合の `yt2column-server config init`、シンボリックリンク、通常のファイルでない、所有者が違う、モードと `chmod 600`、読めない）を含むことを確かめる。
+- [x] `serverFileTemplate`・`InitServerFile`・`InitResult` を設計 3.2.5 のとおりに置く。雛形の英語の文面は実装で決める。
+- [x] `privatefile` の番兵から `config` の番兵への対応を、設計 4.1 の箇条のとおりに `errors.Is` の `switch` で書く。`default` は `Read` では「読めない」、`Create`・`MkdirBelow` では「作れなかった」にする。`privatefile` の型は `FileError` の外に出さない。
+- [x] `TestServerFileTemplate` を書く: 雛形を `parseServerFile` に通すと拒否がなく値を 1 つも持たないこと、すべての行が空行かコメントの行であること、`serverFileKeys` のそれぞれが `# <キー>=` の形のコメントの行にあることを確かめる。
+- [x] `TestInitServerFile` を書く: `t.TempDir` の `HOME` で、作ったファイルのパス・中身（雛形と一致）・モード `0600`、作ったディレクトリのモード `0700` を確かめる。基点がない、すでにある（通常のファイル・リンク先のないシンボリックリンク・ディレクトリ）、作れない（親に書けない）の各場合の番兵と `Path` を確かめ、作れない場合に、それまでに作った親が残ることを確かめる。読んだ変数が `HOME` だけであることを、6 つのキーに値を入れた記録する `LookupFunc` で確かめる。`HOME` の誤りでは `*VarError` を返し、何も作らないことを確かめる。親に書けない場合は、モードを戻す `t.Cleanup` を登録し、root では `t.Skip` する。
+- [x] `TestFileErrorMapping` を書く: `privatefile` の各番兵と `UnsafeReason` が設計 4.1 の表のとおりの `config` の番兵に対応し、`FileError` の文がパスと設計 4.2 の分類ごとの内容（ファイルがない場合の `yt2column-server config init`、シンボリックリンク、通常のファイルでない、所有者が違う、モードと `chmod 600`、読めない）を含むことを確かめる。
 
 ### PR-2 作成ポイント: config file parser and template
 

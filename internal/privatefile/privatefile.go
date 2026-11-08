@@ -117,17 +117,17 @@ type UnsafeError struct {
 
 func (e *UnsafeError) Error() string {
 	if e.Reason == ReasonMode {
-		return fmt.Sprintf("%v: %s has mode %04o, not exactly %04o", ErrUnsafe, e.Path, unixMode(e.Mode), unixMode(Mode))
+		return fmt.Sprintf("%v: %s has mode %04o, not exactly %04o", ErrUnsafe, e.Path, UnixMode(e.Mode), UnixMode(Mode))
 	}
 	return fmt.Sprintf("%v: %s %s", ErrUnsafe, e.Path, e.Reason)
 }
 
 func (e *UnsafeError) Unwrap() error { return ErrUnsafe }
 
-// unixMode returns m's permission and special bits in the numeric form chmod
+// UnixMode returns m's permission and special bits in the numeric form chmod
 // takes (setuid 04000, setgid 02000, sticky 01000), which fs.FileMode does
-// not use.
-func unixMode(m fs.FileMode) uint32 {
+// not use, so a caller can show UnsafeError.Mode as chmod writes it.
+func UnixMode(m fs.FileMode) uint32 {
 	n := uint32(m.Perm())
 	if m&fs.ModeSetuid != 0 {
 		n |= syscall.S_ISUID

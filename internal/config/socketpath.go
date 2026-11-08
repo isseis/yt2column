@@ -1,6 +1,9 @@
 package config
 
-import "path/filepath"
+import (
+	"path/filepath"
+	"slices"
+)
 
 // The longest socket path, in bytes, each operating system accepts: the size
 // of sockaddr_un's sun_path minus the terminating NUL. Linux's sun_path is 108
@@ -15,28 +18,65 @@ const (
 	otherUnixSocketPathMax = 103
 )
 
+// darwinAppSupportParts is macOS's per-user application support directory
+// below HOME, which holds both the socket directory and the configuration
+// file's directory.
+var darwinAppSupportParts = []string{"Library", "Application Support"}
+
 // The parts of the socket path below HOME. The socket directory holds only the
 // socket and the start lock file.
 var (
-	darwinSocketDirParts = []string{"Library", "Application Support", appDirName, "run"}
+	darwinSocketDirParts = slices.Concat(darwinAppSupportParts, []string{appDirName, "run"})
 	unixSocketDirParts   = []string{".local", "state", appDirName, "run"}
 )
 
 // socketFileName is the socket's name in the socket directory.
 const socketFileName = "server.sock"
 
+// osClass is how the path rules under HOME (the socket and the server's
+// configuration file) tell operating systems apart. Its zero value,
+// osNoRule, is a system with no rule, so an unclassified system derives no
+// path.
+type osClass int
+
+const (
+	// osNoRule is a system with no rule under HOME.
+	osNoRule osClass = iota
+	// osDarwin is macOS.
+	osDarwin
+	// osLinux is Linux.
+	osLinux
+	// osOtherUnix is any other Unix, which follows the Linux layout.
+	osOtherUnix
+)
+
+// classifyOS returns goos's class. Both path rules use it, so a system added
+// here gets a rule for both or for neither.
+func classifyOS(goos string) osClass {
+	switch goos {
+	case "darwin":
+		return osDarwin
+	case "linux":
+		return osLinux
+	case "windows", "plan9", "js", "wasip1":
+		return osNoRule
+	default:
+		return osOtherUnix
+	}
+}
+
 // socketRule returns the parts of the socket directory below HOME and the
 // path limit for goos, and false for an operating system with no rule.
 func socketRule(goos string) (parts []string, limit int, ok bool) {
-	switch goos {
-	case "darwin":
+	switch classifyOS(goos) {
+	case osDarwin:
 		return darwinSocketDirParts, darwinSocketPathMax, true
-	case "linux":
+	case osLinux:
 		return unixSocketDirParts, linuxSocketPathMax, true
-	case "windows", "plan9", "js", "wasip1":
-		return nil, 0, false
-	default:
+	case osOtherUnix:
 		return unixSocketDirParts, otherUnixSocketPathMax, true
+	default:
+		return nil, 0, false
 	}
 }
 

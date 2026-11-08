@@ -96,6 +96,7 @@ const (
 	reasonDirRelative          = "must be an absolute path"
 	reasonCacheDirAbsent       = "no absolute default could be derived from HOME or XDG_CACHE_HOME"
 	reasonSocketPathAbsent     = "no absolute socket path could be derived from HOME"
+	reasonConfigPathAbsent     = "no absolute configuration file path could be derived from HOME"
 	reasonSocketPathTooLong    = "the socket path derived from HOME exceeds the operating system's limit"
 	reasonHomeAbsent           = "must be set to an absolute path"
 	// reasonRetiredLLM and reasonRetiredReviewLLM reject a retired variable.
