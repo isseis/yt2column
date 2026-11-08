@@ -311,7 +311,7 @@ func parseServerFile(path string, data []byte) (serverFile, []error) {
 func parseServerFileLine(line []byte, seen map[string]struct{}) (key, value, reason string) {
 	text := string(line)
 	key, value, hasEquals := strings.Cut(text, "=")
-	isKey := hasEquals && len(text) > 0 && text[0] != '#' && slices.Contains(serverFileKeys, key)
+	isKey := hasEquals && slices.Contains(serverFileKeys, key)
 	_, duplicate := seen[key]
 	if isKey {
 		seen[key] = struct{}{}

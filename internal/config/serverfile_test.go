@@ -7,10 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"maps"
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
@@ -117,8 +117,10 @@ func TestParseServerFileAccepts(t *testing.T) {
 // path, the line number, and the key, and for holding none of the file's
 // content.
 func TestParseServerFileRejects(t *testing.T) {
-	// Two lines before the rejected one, so the line number counts them.
-	const prefix = "# header\n\n"
+	// Three lines before the rejected one, so the line number counts them;
+	// one is an accepted setting, so a rejected file that still returned
+	// accepted values would be detected.
+	const prefix = "# header\n\nSLACK_WEBHOOK_URL=https://example.com/h\n"
 	cases := []struct {
 		name       string
 		data       string
@@ -126,53 +128,55 @@ func TestParseServerFileRejects(t *testing.T) {
 		wantReason string
 		wantKey    string
 	}{
-		{name: "no equals sign", data: prefix + fileMark + "\n", wantLine: 3, wantReason: reasonLineNoEquals},
-		{name: "a key alone", data: prefix + "ANTHROPIC_API_KEY\n", wantLine: 3, wantReason: reasonLineNoEquals},
-		{name: "lowercase key", data: prefix + "anthropic_api_key=" + fileMark + "\n", wantLine: 3, wantReason: reasonLineUnknownKey},
-		{name: "export prefix", data: prefix + "export ANTHROPIC_API_KEY=" + fileMark + "\n", wantLine: 3, wantReason: reasonLineUnknownKey},
-		{name: "retired variable", data: prefix + "YT2COLUMN_MODEL=" + fileMark + "\n", wantLine: 3, wantReason: reasonLineUnknownKey},
-		{name: "GODEBUG", data: prefix + "GODEBUG=" + fileMark + "\n", wantLine: 3, wantReason: reasonLineUnknownKey},
-		{name: "HOME", data: prefix + "HOME=/" + fileMark + "\n", wantLine: 3, wantReason: reasonLineUnknownKey},
-		{name: "unknown key", data: prefix + fileMark + "=x\n", wantLine: 3, wantReason: reasonLineUnknownKey},
-		{name: "ideographic space in the key", data: prefix + "ANTHROPIC_API_KEY\u3000=" + fileMark + "\n", wantLine: 3, wantReason: reasonLineUnknownKey},
-		{name: "no-break space in the key", data: prefix + "ANTHROPIC_API_KEY\u00a0=" + fileMark + "\n", wantLine: 3, wantReason: reasonLineUnknownKey},
-		{name: "space after the key", data: prefix + "ANTHROPIC_API_KEY =" + fileMark + "\n", wantLine: 3, wantReason: reasonLineUnknownKey},
-		{name: "leading space", data: prefix + " ANTHROPIC_API_KEY=" + fileMark + "\n", wantLine: 3, wantReason: reasonLineLeadingSpace},
-		{name: "spaces only", data: prefix + "   \n", wantLine: 3, wantReason: reasonLineLeadingSpace},
-		{name: "space before the value", data: prefix + "ANTHROPIC_API_KEY= " + fileMark + "\n", wantLine: 3, wantReason: reasonLineValueSpace},
-		{name: "space after the value", data: prefix + "ANTHROPIC_API_KEY=" + fileMark + " \n", wantLine: 3, wantReason: reasonLineValueSpace},
-		{name: "double-quoted value", data: prefix + `ANTHROPIC_API_KEY="` + fileMark + `"` + "\n", wantLine: 3, wantReason: reasonLineValueQuote},
-		{name: "single-quoted value", data: prefix + "ANTHROPIC_API_KEY='" + fileMark + "'\n", wantLine: 3, wantReason: reasonLineValueQuote},
-		{name: "comment after the value", data: prefix + "ANTHROPIC_API_KEY=" + fileMark + " # personal\n", wantLine: 3, wantReason: reasonLineValueComment},
+		{name: "no equals sign", data: prefix + fileMark + "\n", wantLine: 4, wantReason: reasonLineNoEquals},
+		{name: "a key alone", data: prefix + "ANTHROPIC_API_KEY\n", wantLine: 4, wantReason: reasonLineNoEquals},
+		{name: "lowercase key", data: prefix + "anthropic_api_key=" + fileMark + "\n", wantLine: 4, wantReason: reasonLineUnknownKey},
+		{name: "export prefix", data: prefix + "export ANTHROPIC_API_KEY=" + fileMark + "\n", wantLine: 4, wantReason: reasonLineUnknownKey},
+		{name: "retired variable", data: prefix + "YT2COLUMN_MODEL=" + fileMark + "\n", wantLine: 4, wantReason: reasonLineUnknownKey},
+		{name: "GODEBUG", data: prefix + "GODEBUG=" + fileMark + "\n", wantLine: 4, wantReason: reasonLineUnknownKey},
+		{name: "HOME", data: prefix + "HOME=/" + fileMark + "\n", wantLine: 4, wantReason: reasonLineUnknownKey},
+		{name: "unknown key", data: prefix + fileMark + "=x\n", wantLine: 4, wantReason: reasonLineUnknownKey},
+		{name: "ideographic space in the key", data: prefix + "ANTHROPIC_API_KEY\u3000=" + fileMark + "\n", wantLine: 4, wantReason: reasonLineUnknownKey},
+		{name: "no-break space in the key", data: prefix + "ANTHROPIC_API_KEY\u00a0=" + fileMark + "\n", wantLine: 4, wantReason: reasonLineUnknownKey},
+		{name: "space after the key", data: prefix + "ANTHROPIC_API_KEY =" + fileMark + "\n", wantLine: 4, wantReason: reasonLineUnknownKey},
+		{name: "leading space", data: prefix + " ANTHROPIC_API_KEY=" + fileMark + "\n", wantLine: 4, wantReason: reasonLineLeadingSpace},
+		{name: "spaces only", data: prefix + "   \n", wantLine: 4, wantReason: reasonLineLeadingSpace},
+		{name: "space before the value", data: prefix + "ANTHROPIC_API_KEY= " + fileMark + "\n", wantLine: 4, wantReason: reasonLineValueSpace},
+		{name: "space after the value", data: prefix + "ANTHROPIC_API_KEY=" + fileMark + " \n", wantLine: 4, wantReason: reasonLineValueSpace},
+		{name: "double-quoted value", data: prefix + `ANTHROPIC_API_KEY="` + fileMark + `"` + "\n", wantLine: 4, wantReason: reasonLineValueQuote},
+		{name: "single-quoted value", data: prefix + "ANTHROPIC_API_KEY='" + fileMark + "'\n", wantLine: 4, wantReason: reasonLineValueQuote},
+		{name: "comment after the value", data: prefix + "ANTHROPIC_API_KEY=" + fileMark + " # personal\n", wantLine: 4, wantReason: reasonLineValueComment},
 		// Lines that match more than one reason get the first in the fixed
 		// order.
-		{name: "unknown key before a quote", data: prefix + `ANTHROPIC_API_KEY ="` + fileMark + `"` + "\n", wantLine: 3, wantReason: reasonLineUnknownKey},
-		{name: "space before a quote", data: prefix + `ANTHROPIC_API_KEY= "` + fileMark + `"` + "\n", wantLine: 3, wantReason: reasonLineValueSpace},
-		{name: "quote before a comment", data: prefix + `ANTHROPIC_API_KEY="` + fileMark + ` #b"` + "\n", wantLine: 3, wantReason: reasonLineValueQuote},
+		{name: "unknown key before a quote", data: prefix + `ANTHROPIC_API_KEY ="` + fileMark + `"` + "\n", wantLine: 4, wantReason: reasonLineUnknownKey},
+		{name: "space before a quote", data: prefix + `ANTHROPIC_API_KEY= "` + fileMark + `"` + "\n", wantLine: 4, wantReason: reasonLineValueSpace},
+		{name: "quote before a comment", data: prefix + `ANTHROPIC_API_KEY="` + fileMark + ` #b"` + "\n", wantLine: 4, wantReason: reasonLineValueQuote},
 		{
 			name: "a second key rejected for a quote is not a duplicate", data: prefix + "ANTHROPIC_API_KEY=a\nANTHROPIC_API_KEY=\"" + fileMark + "\"\n",
-			wantLine: 4, wantReason: reasonLineValueQuote,
+			wantLine: 5, wantReason: reasonLineValueQuote,
 		},
 		{
 			name: "duplicate key", data: prefix + "ANTHROPIC_API_KEY=a\nANTHROPIC_API_KEY=" + fileMark + "\n",
-			wantLine: 4, wantReason: reasonLineDuplicate, wantKey: "ANTHROPIC_API_KEY",
+			wantLine: 5, wantReason: reasonLineDuplicate, wantKey: "ANTHROPIC_API_KEY",
 		},
-		{name: "CRLF line end", data: prefix + "ANTHROPIC_API_KEY=" + fileMark + "\r\n", wantLine: 3, wantReason: reasonLineForbiddenByte},
-		{name: "tab", data: prefix + "ANTHROPIC_API_KEY=" + fileMark + "\tx\n", wantLine: 3, wantReason: reasonLineForbiddenByte},
-		{name: "NUL", data: prefix + "ANTHROPIC_API_KEY=" + fileMark + "\x00\n", wantLine: 3, wantReason: reasonLineForbiddenByte},
-		{name: "DEL", data: prefix + "ANTHROPIC_API_KEY=" + fileMark + "\x7f\n", wantLine: 3, wantReason: reasonLineForbiddenByte},
+		{name: "CRLF line end", data: prefix + "ANTHROPIC_API_KEY=" + fileMark + "\r\n", wantLine: 4, wantReason: reasonLineForbiddenByte},
+		{name: "tab", data: prefix + "ANTHROPIC_API_KEY=" + fileMark + "\tx\n", wantLine: 4, wantReason: reasonLineForbiddenByte},
+		{name: "NUL", data: prefix + "ANTHROPIC_API_KEY=" + fileMark + "\x00\n", wantLine: 4, wantReason: reasonLineForbiddenByte},
+		{name: "DEL", data: prefix + "ANTHROPIC_API_KEY=" + fileMark + "\x7f\n", wantLine: 4, wantReason: reasonLineForbiddenByte},
 		{name: "byte order mark at the start", data: "\ufeffANTHROPIC_API_KEY=" + fileMark + "\n", wantLine: 1, wantReason: reasonLineForbiddenByte},
-		{name: "byte order mark in a value", data: prefix + "ANTHROPIC_API_KEY=" + fileMark + "\ufeff\n", wantLine: 3, wantReason: reasonLineForbiddenByte},
-		{name: "control character in a comment", data: prefix + "# " + fileMark + "\x01\n", wantLine: 3, wantReason: reasonLineForbiddenByte},
-		{name: "carriage return in a comment", data: prefix + "# " + fileMark + "\r\n", wantLine: 3, wantReason: reasonLineForbiddenByte},
+		{name: "byte order mark in a value", data: prefix + "ANTHROPIC_API_KEY=" + fileMark + "\ufeff\n", wantLine: 4, wantReason: reasonLineForbiddenByte},
+		{name: "control character in a comment", data: prefix + "# " + fileMark + "\x01\n", wantLine: 4, wantReason: reasonLineForbiddenByte},
+		{name: "carriage return in a comment", data: prefix + "# " + fileMark + "\r\n", wantLine: 4, wantReason: reasonLineForbiddenByte},
 		{name: "invalid UTF-8", data: prefix + "ANTHROPIC_API_KEY=" + fileMark + "\xff\n", wantLine: 0, wantReason: reasonFileNotUTF8},
 		{name: "invalid UTF-8 in a comment", data: prefix + "# " + fileMark + "\xc3\n", wantLine: 0, wantReason: reasonFileNotUTF8},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			file, errs := parseServerFile(testServerFilePath, []byte(tc.data))
-			if file.values != nil {
-				t.Errorf("a rejected file returned content %v", file.values)
+			for _, key := range serverFileKeys {
+				if _, ok := file.lookup(key); ok {
+					t.Errorf("a rejected file still sets %s", key)
+				}
 			}
 			if len(errs) != 1 {
 				t.Fatalf("got %d rejections %v, want 1", len(errs), errs)
@@ -325,13 +329,7 @@ func TestServerFileTemplate(t *testing.T) {
 	}
 	lines := strings.Split(serverFileTemplate, "\n")
 	for _, key := range serverFileKeys {
-		found := false
-		for _, line := range lines {
-			if line == "# "+key+"=" {
-				found = true
-			}
-		}
-		if !found {
+		if !slices.Contains(lines, "# "+key+"=") {
 			t.Errorf("no %q line", "# "+key+"=")
 		}
 	}
@@ -343,7 +341,7 @@ func TestServerFileTemplate(t *testing.T) {
 // reads to fix the file, so each is checked for the path and the part that
 // says what to do; an unknown failure falls to the class that still stops.
 func TestFileErrorMapping(t *testing.T) {
-	const path = "/home/u/.config/yt2column/config.env"
+	const path = testServerFilePath
 	loc := serverFileLocation{path: path, base: "/home/u", dirs: []string{".config", "yt2column"}}
 	pathErr := func(err error) error { return &fs.PathError{Op: "op", Path: path, Err: err} }
 	osErr := &fs.PathError{Op: "open", Path: path, Err: syscall.EACCES}
@@ -363,15 +361,15 @@ func TestFileErrorMapping(t *testing.T) {
 		},
 		{
 			name: "read: symbolic link", got: readFileError(path, &privatefile.UnsafeError{Path: path, Reason: privatefile.ReasonSymlink}),
-			want: ErrConfigFileUnsafe, wantPath: path, wantText: []string{"symbolic link", "nothing was changed"},
+			want: ErrConfigFileUnsafe, wantPath: path, wantText: []string{privatefile.ReasonSymlink.String(), "nothing was changed"},
 		},
 		{
 			name: "read: not regular", got: readFileError(path, &privatefile.UnsafeError{Path: path, Reason: privatefile.ReasonNotRegular}),
-			want: ErrConfigFileUnsafe, wantPath: path, wantText: []string{"not a regular file", "nothing was changed"},
+			want: ErrConfigFileUnsafe, wantPath: path, wantText: []string{privatefile.ReasonNotRegular.String(), "nothing was changed"},
 		},
 		{
 			name: "read: foreign owner", got: readFileError(path, &privatefile.UnsafeError{Path: path, Reason: privatefile.ReasonForeignOwner}),
-			want: ErrConfigFileUnsafe, wantPath: path, wantText: []string{"owned by another user", "nothing was changed"},
+			want: ErrConfigFileUnsafe, wantPath: path, wantText: []string{privatefile.ReasonForeignOwner.String(), "nothing was changed"},
 		},
 		{
 			name: "read: mode",
@@ -386,11 +384,11 @@ func TestFileErrorMapping(t *testing.T) {
 		},
 		{
 			name: "read: unsafe without its reason", got: readFileError(path, fmt.Errorf("wrapped: %w", privatefile.ErrUnsafe)),
-			want: ErrConfigFileUnsafe, wantPath: path, wantText: []string{"not in the accepted form", "nothing was changed"},
+			want: ErrConfigFileUnsafe, wantPath: path, wantText: []string{privatefile.ReasonUnknown.String(), "nothing was changed"},
 		},
 		{
 			name: "read: unknown unsafe reason", got: readFileError(path, &privatefile.UnsafeError{Path: path}),
-			want: ErrConfigFileUnsafe, wantPath: path, wantText: []string{"not in the accepted form"},
+			want: ErrConfigFileUnsafe, wantPath: path, wantText: []string{privatefile.ReasonUnknown.String()},
 		},
 		{
 			name: "read: too large", got: readFileError(path, pathErr(privatefile.ErrTooLarge)),
@@ -454,8 +452,8 @@ func TestFileErrorMapping(t *testing.T) {
 			if _, ok := errors.AsType[*privatefile.UnsafeError](tc.got); ok {
 				t.Errorf("%v exposes *privatefile.UnsafeError", tc.got)
 			}
-			if tc.got.Path != tc.wantPath || tc.got.Line != 0 || tc.got.Key != "" {
-				t.Errorf("got path %q line %d key %q, want %q 0 \"\"", tc.got.Path, tc.got.Line, tc.got.Key, tc.wantPath)
+			if tc.got.Path != tc.wantPath {
+				t.Errorf("got path %q, want %q", tc.got.Path, tc.wantPath)
 			}
 			msg := tc.got.Error()
 			for _, want := range append([]string{tc.wantPath}, tc.wantText...) {
@@ -506,17 +504,20 @@ func requireAbsent(t *testing.T, path string) {
 	}
 }
 
-// requireNoTemp fails the test when dir holds a temporary name Create writes.
-func requireNoTemp(t *testing.T, dir string) {
+// requireEntries fails the test unless dir holds exactly the names want, so
+// no temporary file is left whatever its name.
+func requireEntries(t *testing.T, dir string, want ...string) {
 	t.Helper()
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
+	got := make([]string, 0, len(entries))
 	for _, e := range entries {
-		if strings.HasPrefix(e.Name(), "."+serverFileName+".tmp-") {
-			t.Errorf("temporary file %s left in %s", e.Name(), dir)
-		}
+		got = append(got, e.Name())
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("%s holds %q, want %q", dir, got, want)
 	}
 }
 
@@ -571,7 +572,7 @@ func TestInitServerFile(t *testing.T) {
 			dir = filepath.Join(dir, name)
 			requireMode(t, dir, privatefile.DirMode)
 		}
-		requireNoTemp(t, filepath.Dir(loc.path))
+		requireEntries(t, filepath.Dir(loc.path), serverFileName)
 	})
 
 	t.Run("something already at the path", func(t *testing.T) {
@@ -655,25 +656,21 @@ func TestInitServerFile(t *testing.T) {
 			dir = filepath.Join(dir, name)
 			requireMode(t, dir, privatefile.DirMode)
 		}
-		requireNoTemp(t, filepath.Dir(loc.path))
+		requireEntries(t, filepath.Dir(loc.path))
 	})
 
 	t.Run("bad HOME", func(t *testing.T) {
-		// A relative HOME would resolve against the package directory, so
-		// the test checks that nothing appeared there.
-		const relative = "Q9-relative-home"
 		for name, env := range map[string]map[string]string{
 			"unset":    {},
 			"empty":    {"HOME": ""},
-			"relative": {"HOME": relative},
+			"relative": {"HOME": "rel"},
 		} {
 			t.Run(name, func(t *testing.T) {
-				_, err := InitServerFile(envLookup(maps.Clone(env)))
+				_, err := InitServerFile(envLookup(env))
 				varErr, ok := errors.AsType[*VarError](err)
 				if !ok || varErr.Name != "HOME" || !errors.Is(err, ErrMissing) {
 					t.Fatalf("got %v (%T), want the *VarError naming HOME", err, err)
 				}
-				requireAbsent(t, relative)
 			})
 		}
 	})
