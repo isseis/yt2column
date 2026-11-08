@@ -341,23 +341,23 @@ AC-03 の食い違い（設計書 3.5）を記録した issue を、その ADR �
 
 **変更するファイル:** `docs/dev/adr/0026-extension-platform.md`〜`0030-minimum-chrome-version.md`（新規。1.5 の表の PR 3 の 5 本）、`docs/dev/adr/0005-server-architecture.md`、`0006-threat-model.md`、`0010-extension-stores-nothing.md`、`0011-webhook-publishing.md`、`docs/dev/adr/README.md`、本書（1.6・1.7・1.9 の表）
 
--   [ ] ステップ 2-1 の作業（索引と番号の確かめ、`622db232` の後の照合、ADR の書き方、移し、移さない重なりのリンク、issue、PR の説明）を、B3・B6・B9・B10・B12 の 5 本と、1.7 の表の PR 3 の行について行う。移さない重なりは、設計書 3.1 の表の B3・B6 の行である。B6 と B9 の ADR は 1 つのコミットに入れる（1.2）。
--   [ ] `threat-model` の `allowed_origins` の行の ③ の「書き換えた後の文面」を埋めるコミットで、1.7 の表の ④ の同じ行の「PR の基点の文面」を同じ文面に改める（1.7 の表の後の段落）。
--   [ ] B6 の ADR の「決定」は、拡張とホストとサーバがジョブの API だけを使うこと（ホストが `v` が `1` のメッセージだけを受け付けること）を述べ、旧 API を述べない。旧 API との併存、`v` の判別、0059 による削除は「経緯」に書く（AC-06）。0058 の照会の操作と 0059 の旧 API の削除を、B6 の ADR の「決定」と「経緯」に書く（設計書 3.4「F-002 と B6 の ADR の分担」）。
--   [ ] B12 の経緯は、設計書 1.2 のとおり 0007（102）・0020（103）・0046（103 を保った）・0026（103 を保った）・0050（110）を、出典の節を `main` に加えた順に並べる。
--   [ ] B10 の ADR の「決定」には、`README.md` の表示の言語の段落とコードのずれ（設計書 3.5）を書き、ステップ 2-1 と同じく issue を扱う。
+-   [x] ステップ 2-1 の作業（索引と番号の確かめ、`622db232` の後の照合、ADR の書き方、移し、移さない重なりのリンク、issue、PR の説明）を、B3・B6・B9・B10・B12 の 5 本と、1.7 の表の PR 3 の行について行う。移さない重なりは、設計書 3.1 の表の B3・B6 の行である。B6 と B9 の ADR は 1 つのコミットに入れる（1.2）。
+-   [x] `threat-model` の `allowed_origins` の行の ③ の「書き換えた後の文面」を埋めるコミットで、1.7 の表の ④ の同じ行の「PR の基点の文面」を同じ文面に改める（1.7 の表の後の段落）。
+-   [x] B6 の ADR の「決定」は、拡張とホストとサーバがジョブの API だけを使うこと（ホストが `v` が `1` のメッセージだけを受け付けること）を述べ、旧 API を述べない。旧 API との併存、`v` の判別、0059 による削除は「経緯」に書く（AC-06）。0058 の照会の操作と 0059 の旧 API の削除を、B6 の ADR の「決定」と「経緯」に書く（設計書 3.4「F-002 と B6 の ADR の分担」）。
+-   [x] B12 の経緯は、設計書 1.2 のとおり 0007（102）・0020（103）・0046（103 を保った）・0026（103 を保った）・0050（110）を、出典の節を `main` に加えた順に並べる。
+-   [x] B10 の ADR の「決定」には、`README.md` の表示の言語の段落とコードのずれ（設計書 3.5）を書き、ステップ 2-1 と同じく issue を扱う。
 
 #### ステップ 3-2: `project_overview.md` の B3・B6 へのリンク
 
 **変更するファイル:** `docs/dev/project_overview.md`
 
--   [ ] 「言語」の項目の末尾に B3 の ADR へのリンクを、「実行形式」の項目の末尾に B6 の ADR へのリンクを、ステップ 2-2 と同じ形で足す。「実行形式」は、すでにある ADR-0005・ADR-0008 のリンクの後に足す。
+-   [x] 「言語」の項目の末尾に B3 の ADR へのリンクを、「実行形式」の項目の末尾に B6 の ADR へのリンクを、ステップ 2-2 と同じ形で足す。「実行形式」は、すでにある ADR-0005・ADR-0008 のリンクの後に足す。
 
 #### ステップ 3-3: 確かめの実行と記録
 
 **変更するファイル:** 本書 7.2 節
 
--   [ ] ステップ 1-3 と同じく、`-pr 3` で 2 つの確かめを実行して記録する。
+-   [x] ステップ 1-3 と同じく、`-pr 3` で 2 つの確かめを実行して記録する。
 
 **完了の条件（ステップ 3-1〜3-3）:** グリーンゲートが通る。`task_docs_unchanged.sh` と `adrchecks -pr 3` が 0 で終わり、③ までの ADR と移しに `PENDING` がない。1.7 の表の ④ の `threat-model` の行の「PR の基点の文面」が、head の ADR-0006 の行と一致する。
 
@@ -814,6 +814,169 @@ PENDING overview-items
         links: PENDING
         links: bullet 1 (`docs/tasks/0007_browser_extension_skeleton/`) pending: extension-platform
         links: bullet 2 (`cmd/yt2column-nmhost`) pending: article-job-api
+OK      claude-md-unchanged
+```
+
+#### PR-3
+
+マージの基点 `68d84224ce9c2840a364a8176d876d2f3ff8ad8d`、head `f5e90474186cbef7651e3bb4e30049a754bcab3c`（`git fetch origin main` の後に実行した）。作った issue は [#719](https://github.com/isseis/yt2column/issues/719)（README の表示の言語の段落。ADR-0029）と [#720](https://github.com/isseis/yt2column/issues/720)（`security.md` §3 の再開の記述。ADR-0028）。
+
+`docs/tasks/0065_adr_remaining/_checks/task_docs_unchanged.sh origin/main HEAD`：終了コード 0。
+
+```text
+merge-base: 68d84224ce9c2840a364a8176d876d2f3ff8ad8d
+head: f5e90474186cbef7651e3bb4e30049a754bcab3c
+docs/tasks/: only docs/tasks/0065_adr_remaining/ changed
+```
+
+`go run -tags test ./docs/tasks/0065_adr_remaining/_checks/adrchecks/ -pr 3 68d84224ce9c2840a364a8176d876d2f3ff8ad8d f5e90474186cbef7651e3bb4e30049a754bcab3c`：終了コード 0。`overview-items` と `claude-md-unchanged` が `OK`、5 本の新しい ADR と ③ の移し・リンクはすべて `ok`。`PENDING` は ④ の ADR・移し・リンクだけである。
+
+```text
+PENDING history-sources
+        ok: docs/dev/adr/0006-threat-model.md
+        ok: docs/dev/adr/0008-launch-path.md
+        ok: docs/dev/adr/0009-viewer-opening.md
+        ok: docs/dev/adr/0010-extension-stores-nothing.md
+        ok: docs/dev/adr/0011-webhook-publishing.md
+        ok: docs/dev/adr/0019-pipeline-component-interfaces.md
+        ok: docs/dev/adr/0020-strict-json.md
+        ok: docs/dev/adr/0021-llm-client-contract.md
+        ok: docs/dev/adr/0022-cost-estimate.md
+        ok: docs/dev/adr/0023-artifact-resume.md
+        ok: docs/dev/adr/0024-env-access-in-config.md
+        ok: docs/dev/adr/0025-claude-output-limit.md
+        ok: docs/dev/adr/0026-extension-platform.md
+        ok: docs/dev/adr/0027-article-job-api.md
+        ok: docs/dev/adr/0028-no-automatic-resend.md
+        ok: docs/dev/adr/0029-extension-ui-languages.md
+        ok: docs/dev/adr/0030-minimum-chrome-version.md
+        pending: secret-closure
+        pending: testdata-license
+        pending: transcript-cache-slots
+        pending: template-allowlist
+        pending: language-policy
+        pending: task-document-status-records
+        pending: test-deletion-coverage
+        pending: deadcode-and-race-free-timing
+PENDING moved-items
+        ok: llm-adapter-stdlib -> pipeline-component-interfaces (move, pull request 2)
+        ok: llm-adapter-stdlib -> pipeline-component-interfaces (move, pull request 2)
+        ok: llm-adapter-stdlib -> pipeline-component-interfaces (split, pull request 2)
+        ok: llm-adapter-stdlib -> pipeline-component-interfaces (move, pull request 2)
+        ok: llm-adapter-stdlib -> pipeline-component-interfaces (move, pull request 2)
+        ok: llm-adapter-stdlib -> pipeline-component-interfaces (split, pull request 2)
+        ok: llm-adapter-stdlib -> pipeline-component-interfaces (move, pull request 2)
+        ok: llm-adapter-stdlib -> strict-json (split, pull request 2)
+        ok: llm-adapter-stdlib -> strict-json (move, pull request 2)
+        ok: llm-adapter-stdlib -> strict-json (move, pull request 2)
+        ok: llm-adapter-stdlib -> strict-json (move, pull request 2)
+        ok: server-architecture -> pipeline-component-interfaces (link, pull request 2)
+        ok: llm-config-contract -> env-access-in-config (link, pull request 2)
+        ok: server-config-file -> env-access-in-config (link, pull request 2)
+        ok: production-profile -> claude-output-limit (move, pull request 2)
+        ok: extension-stores-nothing -> article-job-api (move, pull request 3)
+        ok: extension-stores-nothing -> article-job-api (move, pull request 3)
+        ok: webhook-publishing -> no-automatic-resend (split, pull request 3)
+        ok: webhook-publishing -> no-automatic-resend (move, pull request 3)
+        ok: webhook-publishing -> no-automatic-resend (move, pull request 3)
+        ok: webhook-publishing -> article-job-api (link, pull request 3)
+        ok: server-architecture -> article-job-api (link, pull request 3)
+        ok: server-architecture -> extension-platform (link, pull request 3)
+        ok: threat-model -> extension-platform (link, pull request 3)
+        pending: pull request 4: lightweight-check-in-bash -> language-policy (link)
+        pending: pull request 4: deterministic-checks-in-go -> test-deletion-coverage (link)
+        pending: pull request 4: threat-model -> secret-closure (split)
+        pending: pull request 4: webhook-publishing -> secret-closure (split)
+        ---- extension-stores-nothing -> article-job-api (move), section 3
+        removed: -   **サーバの状態はメモリにだけ置く。** 記事のキャッシュはサーバのプロセスの中だけにあり、ディスクに書かない（サーバの構成は [ADR-0005](0005-server-architecture.md)）。サーバを再起動すると、記事と投稿の状態はすべて失われ、ビューアは記事が失われたことを示す。これは受け入れる。
+        destination docs/dev/adr/0027-article-job-api.md, section 3:
+          -   **拡張とホストとサーバは、ジョブの API だけを使う。** ジョブの API は、生成の開始（`POST /jobs`）・状態の取得（`GET /jobs/{key}`）・投稿の操作（`POST /jobs/{key}/publish`）の 3 つの操作である。拡張の Service Worker が生成の開始を送り、ポップアップとビューアが状態の取得を繰り返し、ビューアが投稿の操作を送る。ホストが受け付けるのは、版のメンバ `v` が `1` で、操作 `op`（`start`・`status`・`publish`）を宣言したメッセージだけである。ホストは操作ごとに決めたメソッドとパスへ送り、それ以外のメッセージにはサーバへ何も送らずに `protocol_error` を返す。拡張が送り先のパスやメソッドを指定する手段はない。サーバは、この 3 つの操作のほかのリクエストのターゲットを `not_found` で拒否する。
+          -   **生成と投稿を別の操作にし、どの操作も長い処理を待たずに応答する。** 生成の開始は、記事のキーを返す。記事とその状態は、状態の取得がコードで返す。投稿の操作は、Webhook への送信を待たずに受け付けの応答を返し、投稿の結果は状態の取得で返す。投稿を利用者の操作でだけ始めることは [ADR-0011](0011-webhook-publishing.md) が、投稿を冪等にすることは [ADR-0028](0028-no-automatic-resend.md) が定める。
+          -   **記事のキーは、検査を通った入力の値から、サーバのプロセスごとの秘密を鍵とする HMAC-SHA256 で計算する。** 計算に使うのは、生成の開始の入力の検査を通った後の 5 つの値（正規化した `videoUrl`、`transcript`、省略を空文字列とした `title`・`channelName`・`description`）である。受け取ったバイト列からは計算しない。送り方 `mode` と同じ動画の判定に使う動画 ID は、キーに入れない。秘密は `crypto/rand` の 32 バイトで、サーバの起動ごとに作り、メモリにだけ持ち、ログにも応答にも出さない。
+          -   **記事のキーは不透明な値とする。** 拡張は、生成の開始が返したキーをそのまま送り返すだけで、その形にも計算方法にも依存しない。秘密を使う目的は、攻撃に対する防御ではなく、公開しないキーの計算方法に利用者と拡張を依存させないことである。サーバは、小文字の 16 進の 64 文字のほかのキーを、補正せずに `invalid_key` で拒否する。ホストはキーの形を検査せず、1 つのパスの部分としてエスケープしてから送る。
+          -   **同じ入力では記事を作り直さない。** 生成の開始は、同じキーの記事が処理中か完了なら、LLM を呼ばずにそのキーを返す。失敗したキーは生成し直す。作り直したいときは、サーバを再起動する。
+          -   **サーバの状態はメモリにだけ置く。** 記事のキャッシュはサーバのプロセスの中だけにあり、ディスクに書かない（サーバの構成は [ADR-0005](0005-server-architecture.md)）。サーバを再起動すると、記事と投稿の状態はすべて失われ、ビューアは記事が失われたことを示す。これは受け入れる。
+          -   **記事のキャッシュは有限の件数だけを持ち、コピーした字幕を持たない。** 件数の上限を超えるときは、完了または失敗した古い記録から捨て、処理中と投稿中の記録は捨てない。捨てた記録と再起動の前の記録のキーは、状態の取得で `unknown` になる。記事のキャッシュの記録は、コピーした字幕を持たない。生成中の字幕は、生成のジョブだけが持つ。サーバの停止では処理中の生成を取り消す。停止の後に完了した記事は、キャッシュとともに失われて誰も受け取れないためである。
+          -   **生成の開始は送り方 `mode` を必ず宣言し、照会付きの開始は同じ動画の最新の記事を示す。** `mode` は `inquiry`（照会付き）か `plain`（照会なし）で、ない本文やほかの値は、どちらかに補わずに `invalid_body` で拒否する。照会付きの開始は、今の入力のキーの記事が処理中か完了ならそのキーを返す。そうでなく、同じ動画（動画 ID が同じ）の別のキーの記事が処理中か完了なら、生成を始めず、キャッシュも変えずに、そのうち最も新しく受け付けた 1 件のキーを同じ動画の応答で返す。同じ動画の応答は、記事の状態を持たない。同じ動画の記事を探すことと生成を始めることは、キャッシュの 1 回の排他制御の中で行う。照会なしの開始は、同じ動画の別のキーの記事があっても、今の入力の記事を生成する。今の入力のキーの記事が処理中か完了なら、照会なしの開始もそのキーを返す。
+          -   **前の版との互換の仕組みは作らない。** 拡張とホストとサーバは同じ版で使う。版の食い違いを見分ける仕組みと、そのための表示は設けない。
+          同じ動画の記事の有無を照会で返すことを、信頼の境界の内側で受け入れるリスクとする判断は [ADR-0006](0006-threat-model.md) が、拡張が何も保存せず状態の正しい値をサーバに置くことは [ADR-0010](0010-extension-stores-nothing.md) が定める。
+          この決定の仕様の正本は [development.md](../guides/development.md) の「ジョブの API」、[security.md](../security.md) の §8「ブラウザ拡張と localhost サーバ（#43）」と §8.2「localhost サーバ（#109）」、[package_reference.md](../conventions/package_reference.md) の `internal/articlecache` と `internal/nmhost` の行である。
+        ---- extension-stores-nothing -> article-job-api (move), section 5
+        removed: -   サーバを再起動すると記事と投稿の状態が失われる。利用者は記事を作り直す。投稿済みの記事を送り直すと、同じ内容がもう一度投稿されうる。
+        destination docs/dev/adr/0027-article-job-api.md, section 5:
+          -   サーバを再起動すると記事と投稿の状態が失われる。利用者は記事を作り直す。
+          -   キーは入力のすべての値から計算するので、照会なしの開始では、選択範囲や動画メタデータが少しでも違えば別の記事として生成し直す。照会付きの開始は同じ動画の記事を示すが、キャッシュは件数に上限があり再起動で消えるので、同じ動画の記事がないことは保証しない。
+          -   秘密は起動ごとに作り直すので、再起動の前に得たキーは、再起動の後には同じ入力から得られない。キャッシュも起動ごとに空から始まるので、失うものはない。
+          -   送る前の検査で投稿を拒否される記事は、再起動するか、その記録が捨てられた後に生成し直すまで投稿できない。同じ入力の生成の開始はキャッシュの記事を返し、再生成のフラグもないためである。
+          -   キャッシュの件数の上限で、サーバを長く動かし続けてもメモリは増え続けない。捨てた記録のキーは `unknown` になり、同じ入力の開始は新しい生成になる。
+          -   ソケットに接続できる同じユーザーのプロセスは、照会付きの開始で、動画単位で記事の有無とキーを知れる（[ADR-0006](0006-threat-model.md)）。
+          -   拡張とホストとサーバの版がそろっていないと動かない組み合わせがある。前の版のサーバは `mode` を無視して生成しうる（害は生成 1 回分の料金）。新しいサーバは、前の版の拡張が送る `mode` のない開始を拒否する。利用者は 3 つを同じ版にそろえる。
+          -   サーバの停止で取り消した生成の記事は失われる。
+        ---- webhook-publishing -> no-automatic-resend (split), section 3
+        removed: -   **成功は、HTTP の状態コードが 200 で、応答の本文が `ok` のときとする。** 1 通ごとに 30 秒で打ち切り、応答の本文は上限までしか読まない。リダイレクトには従わない。投稿は冪等ではないので、自動で再送しない。
+        kept:    -   **成功は、HTTP の状態コードが 200 で、応答の本文が `ok` のときとする。** 1 通ごとに 30 秒で打ち切り、応答の本文は上限までしか読まない。リダイレクトには従わない。自動で再送しないことは [ADR-0028](0028-no-automatic-resend.md) が定める。
+        destination docs/dev/adr/0028-no-automatic-resend.md, section 3:
+          -   **生成の開始と投稿の操作は、どの結果でも自動では送り直さない。** 拡張は、生成の開始と投稿の操作について、利用者の 1 回の操作につきホストとのやり取りを 1 回だけ行う。応答がない場合、ホストが失敗した場合、応答が想定外の場合も送り直さない。もう一度送るのは、利用者が操作したときだけである。自動で繰り返すのは、生成も投稿も始めない状態の取得だけで、繰り返しても変わらない結果ではそれも止める。
+          -   **未送信と確定しない失敗は、結果不明として扱う。** サーバに届いていないと確定するのは、ホストが接続の前に失敗した場合（`server_unavailable`・`message_too_large`）だけである。接続の後の失敗、ホストの失敗、想定外の応答は、結果不明とする。ホストのエラーのゼロ値は結果不明の `protocol_error` なので、設定し忘れた値が未送信と表示されて送り直しを促すことはない。結果の分け方と、結果不明のときの案内は [security.md](../security.md) §8.1 に従う。
+          -   **ホストは接続を 1 回だけ行い、再接続も再送もしない。** 1 つのメッセージにつき、サーバのソケットへ 1 回接続し、HTTP のリクエストを 1 回送る。HTTP の送信に使う transport は、渡された接続を 1 回だけ使い、2 回目の接続を失敗させる。このため、送れなかったリクエストを送り直す経路がない。ホストの中継の構成は [ADR-0005](0005-server-architecture.md) が定める。
+          -   **サーバは Webhook への投稿を自動で送り直さない。** Incoming Webhook への投稿は冪等ではないので、メッセージを 1 通ずつ 1 回だけ送る。失敗（HTTP 429 を含む）は、待って送り直さずに投稿の失敗とする。Webhook への送信の成功の条件と時間の上限は [ADR-0011](0011-webhook-publishing.md) が定める。
+          -   **サーバが記事を保持している間は、投稿を冪等にする。** 投稿中または投稿済みの記事への投稿の操作には、投稿し直さずに受け付けたときと同じ応答を返す。記事が長いときの分割と、分割した投稿の途中で失敗したときの報告は、[security.md](../security.md) §3 と §8.2 に従う。
+          -   **投稿に失敗した記事のやり直しは、届かなかった最初のメッセージから送る。** サーバは、Webhook が成功を返したメッセージを、最初から連続して届いた数として記録に持つ。利用者が投稿の操作をやり直すと、その次のメッセージから送り、届いたメッセージは送り直さない。成功の応答を受け取れなかったメッセージは、届かなかったものとして送り直すので、その 1 通だけは重複しうる。[security.md](../security.md) §3 は、分割した投稿の途中で失敗しても続きから再開しないと述べ、このやり直しの振る舞いと、同じ文書の §8.2 の記述の両方と食い違う。このずれは、記録した issue [#720](https://github.com/isseis/yt2column/issues/720) で扱う。
+          この決定の仕様の正本は [security.md](../security.md) の §3「ネットワーク通信」・§8.1「ブラウザ拡張」・§8.2「localhost サーバ」と、[development.md](../guides/development.md) の「ジョブの API」である。ジョブの API と、記事と投稿の状態をサーバのメモリに置くことは [ADR-0027](0027-article-job-api.md) が定める。
+        ---- webhook-publishing -> no-automatic-resend (move), section 3
+        removed: -   **サーバが記事を保持している間は、投稿を冪等にする。** 投稿中または投稿済みの記事への投稿の操作には、投稿し直さずに受け付けたときと同じ応答を返す。記事が長いときの分割と、分割した投稿の途中で失敗したときの報告は、[security.md](../security.md) §3 と §8.2 に従う。
+        destination docs/dev/adr/0028-no-automatic-resend.md, section 3:
+          -   **生成の開始と投稿の操作は、どの結果でも自動では送り直さない。** 拡張は、生成の開始と投稿の操作について、利用者の 1 回の操作につきホストとのやり取りを 1 回だけ行う。応答がない場合、ホストが失敗した場合、応答が想定外の場合も送り直さない。もう一度送るのは、利用者が操作したときだけである。自動で繰り返すのは、生成も投稿も始めない状態の取得だけで、繰り返しても変わらない結果ではそれも止める。
+          -   **未送信と確定しない失敗は、結果不明として扱う。** サーバに届いていないと確定するのは、ホストが接続の前に失敗した場合（`server_unavailable`・`message_too_large`）だけである。接続の後の失敗、ホストの失敗、想定外の応答は、結果不明とする。ホストのエラーのゼロ値は結果不明の `protocol_error` なので、設定し忘れた値が未送信と表示されて送り直しを促すことはない。結果の分け方と、結果不明のときの案内は [security.md](../security.md) §8.1 に従う。
+          -   **ホストは接続を 1 回だけ行い、再接続も再送もしない。** 1 つのメッセージにつき、サーバのソケットへ 1 回接続し、HTTP のリクエストを 1 回送る。HTTP の送信に使う transport は、渡された接続を 1 回だけ使い、2 回目の接続を失敗させる。このため、送れなかったリクエストを送り直す経路がない。ホストの中継の構成は [ADR-0005](0005-server-architecture.md) が定める。
+          -   **サーバは Webhook への投稿を自動で送り直さない。** Incoming Webhook への投稿は冪等ではないので、メッセージを 1 通ずつ 1 回だけ送る。失敗（HTTP 429 を含む）は、待って送り直さずに投稿の失敗とする。Webhook への送信の成功の条件と時間の上限は [ADR-0011](0011-webhook-publishing.md) が定める。
+          -   **サーバが記事を保持している間は、投稿を冪等にする。** 投稿中または投稿済みの記事への投稿の操作には、投稿し直さずに受け付けたときと同じ応答を返す。記事が長いときの分割と、分割した投稿の途中で失敗したときの報告は、[security.md](../security.md) §3 と §8.2 に従う。
+          -   **投稿に失敗した記事のやり直しは、届かなかった最初のメッセージから送る。** サーバは、Webhook が成功を返したメッセージを、最初から連続して届いた数として記録に持つ。利用者が投稿の操作をやり直すと、その次のメッセージから送り、届いたメッセージは送り直さない。成功の応答を受け取れなかったメッセージは、届かなかったものとして送り直すので、その 1 通だけは重複しうる。[security.md](../security.md) §3 は、分割した投稿の途中で失敗しても続きから再開しないと述べ、このやり直しの振る舞いと、同じ文書の §8.2 の記述の両方と食い違う。このずれは、記録した issue [#720](https://github.com/isseis/yt2column/issues/720) で扱う。
+          この決定の仕様の正本は [security.md](../security.md) の §3「ネットワーク通信」・§8.1「ブラウザ拡張」・§8.2「localhost サーバ」と、[development.md](../guides/development.md) の「ジョブの API」である。ジョブの API と、記事と投稿の状態をサーバのメモリに置くことは [ADR-0027](0027-article-job-api.md) が定める。
+        ---- webhook-publishing -> no-automatic-resend (move), section 4
+        removed: -   **投稿を自動でリトライする（HTTP 429 の `Retry-After` に従う待機を含む）。** Incoming Webhook への投稿は冪等ではなく、応答を受け取れなかったメッセージを再送すると、同じメッセージが重複して投稿されうる（[0006 要件定義書](../../tasks/0006_slack_webhook_publisher/01_requirements.md) §2.3）。
+        destination docs/dev/adr/0028-no-automatic-resend.md, section 4:
+          -   **投稿を自動でリトライする（HTTP 429 の `Retry-After` に従う待機を含む）。** Incoming Webhook への投稿は冪等ではなく、応答を受け取れなかったメッセージを再送すると、同じメッセージが重複して投稿されうる（[0006 要件定義書](../../tasks/0006_slack_webhook_publisher/01_requirements.md) §2.3）。
+          -   **応答を受け取れなかった送信を、拡張が自動で再送する。** サーバは `202` が届かなくてもジョブを続けるので、再送すると記事が二重に投稿される（[0020 要件定義書](../../tasks/0020_extension_send/01_requirements.md) §1、[0011 設計書](../../tasks/0011_localhost_server/02_architecture.md) §3.8.1）。
+          -   **クライアントが付けるリクエスト ID で重複を除き、再送しても二重にならないようにする。** 理由は記録されていない（[0026 要件定義書](../../tasks/0026_native_messaging_relay/01_requirements.md) §2.3 は、送信は 1 回だけとし、二重の投稿の検出は別のタスクとするとだけ述べる）。
+          -   **投稿に失敗した記事のやり直しで、最初のメッセージから送り直す。** 届いたメッセージがすべて重複する（[0044 要件定義書](../../tasks/0044_article_job_api/01_requirements.md)「要件定義の際に決めたこと（2026-10-27）」）。
+          -   **生成の開始の結果不明で、送り直す前に Slack を確かめるよう案内する。** 0020 から 0050 までの案内である。生成の開始は、同じ入力に対して処理中または完了した記事のキーを返し、LLM を呼ばない。投稿も利用者の操作になったので、Slack を確かめる必要がなくなった（[0050 要件定義書](../../tasks/0050_viewer_tab/01_requirements.md) §5）。
+PENDING move-links
+        ok: docs/dev/adr/0001-llm-adapter-stdlib.md -> docs/dev/adr/0019-pipeline-component-interfaces.md
+        ok: docs/dev/adr/0001-llm-adapter-stdlib.md -> docs/dev/adr/0020-strict-json.md
+        ok: docs/dev/adr/0004-production-profile.md -> docs/dev/adr/0025-claude-output-limit.md
+        ok: docs/dev/adr/0010-extension-stores-nothing.md -> docs/dev/adr/0027-article-job-api.md
+        ok: docs/dev/adr/0011-webhook-publishing.md -> docs/dev/adr/0028-no-automatic-resend.md
+        pending: threat-model -> secret-closure
+        pending: webhook-publishing -> secret-closure
+PENDING spec-links
+        ok: docs/dev/adr/0019-pipeline-component-interfaces.md
+        ok: docs/dev/adr/0020-strict-json.md
+        ok: docs/dev/adr/0021-llm-client-contract.md
+        ok: docs/dev/adr/0022-cost-estimate.md
+        ok: docs/dev/adr/0023-artifact-resume.md
+        ok: docs/dev/adr/0025-claude-output-limit.md
+        ok: docs/dev/adr/0026-extension-platform.md
+        ok: docs/dev/adr/0027-article-job-api.md
+        ok: docs/dev/adr/0028-no-automatic-resend.md
+        ok: docs/dev/adr/0029-extension-ui-languages.md
+        ok: docs/dev/adr/0030-minimum-chrome-version.md
+        pending: secret-closure
+        pending: testdata-license
+        pending: transcript-cache-slots
+        pending: template-allowlist
+        pending: language-policy
+        pending: task-document-status-records
+        pending: test-deletion-coverage
+        pending: deadcode-and-race-free-timing
+PENDING issue-links
+        ok: docs/dev/adr/0020-strict-json.md
+        ok: docs/dev/adr/0029-extension-ui-languages.md
+        ok: docs/dev/adr/0028-no-automatic-resend.md
+        pending: template-allowlist
+OK      overview-items
+        text: OK
+        links: OK
 OK      claude-md-unchanged
 ```
 
