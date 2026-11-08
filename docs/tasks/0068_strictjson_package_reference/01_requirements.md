@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-08 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-08 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -141,3 +141,7 @@
 -   **使い手の一覧:** `package_reference.md` の `internal/strictjson` の行が、使い手として挙げるパッケージの並び。
 -   **正本:** ある主題の今の仕様を持つ文書（CLAUDE.md「Design decisions (ADR)」の "a document that holds the current specification"）。
 -   ほかの用語は `docs/translation_glossary.md` と統一する。
+
+## 変更履歴
+
+- 2026-11-08 承認（isseis、#717）
