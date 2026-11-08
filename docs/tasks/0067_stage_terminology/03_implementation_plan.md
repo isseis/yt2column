@@ -232,16 +232,16 @@ PR を 1 本にするのは設計書 1.2 の決定である。PR-1 は `cmd/yt2c
 
 -   日付: 2026-11-08
 -   ビルド: `go build -tags test -o <scratchpad>/0067check ./docs/tasks/0067_stage_terminology/_checks/`
--   実行: `<scratchpad>/0067check 7d7d794b0bc505fafdf624d26c4fd2aa8ec528c4 22088df5f78fcd14039d311048760221263e254e`
+-   実行: `<scratchpad>/0067check 7d7d794b0bc505fafdf624d26c4fd2aa8ec528c4 77e55f8f44f89c69670227bd2b1260230ee6b453`
 -   基点: `7d7d794b0bc505fafdf624d26c4fd2aa8ec528c4`（`origin/main` と `HEAD` の merge-base）
--   head: `22088df5f78fcd14039d311048760221263e254e`
+-   head: `77e55f8f44f89c69670227bd2b1260230ee6b453`
 -   終了コード: 0
 
 出力の全文:
 
 ```text
 base 7d7d794b0bc505fafdf624d26c4fd2aa8ec528c4
-head 22088df5f78fcd14039d311048760221263e254e
+head 77e55f8f44f89c69670227bd2b1260230ee6b453
 ALLOWED docs/dev/adr/0004-production-profile.md 1/1 観点と段階の基準
 ALLOWED docs/dev/guides/cli.md 1/1 2 つの段階
 ALLOWED docs/dev/guides/mergepr_guide.md 2/2 | 段階 |
@@ -254,7 +254,7 @@ OK   CLAUDE.md: only the three expected phrases changed
 OK every check passed
 ```
 
-この記録を書くコミットは本計画だけを変える。確かめた head `22088df5` と PR の head の違いは、この記録のコミットだけである。
+この記録を書くコミットは本計画だけを変える。確かめた head `77e55f8f` と PR の head の違いは、この記録のコミットだけである。
 
 **壊し方の記録（ステップ 6-3、`7d7d794b` を基点とする使い捨てのブランチで実行）:**
 
