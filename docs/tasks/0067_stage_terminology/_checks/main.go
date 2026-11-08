@@ -1,3 +1,5 @@
+//go:build test
+
 // Command _checks runs the one-off checks for task 0067: the terminology
 // replacement of the pipeline unit and its related words keeps the target
 // documents, the glossary, CLAUDE.md, the ADRs, and the change's scope as the
@@ -389,9 +391,8 @@ func checkGlossary(base, head string, g glossaryData) ([]violation, error) {
 	if n := strings.Count(headText, g.OldName); n != 1 {
 		out = append(out, violation{g.Path, oldNameLine, fmt.Sprintf("the old name appears %d times, want 1: %s", n, g.OldName)})
 	}
-	if rest := strings.ReplaceAll(headText, g.OldName, "\x00"); strings.Contains(rest, g.OldWord) {
-		out = append(out, remainingWord(g.Path, rest, g.OldWord)...)
-	}
+	rest := strings.ReplaceAll(headText, g.OldName, "\x00")
+	out = append(out, remainingWord(g.Path, rest, g.OldWord)...)
 
 	tables := doctestutil.MarkdownTables(headText)
 	baseTable, baseRow := findRow(doctestutil.MarkdownTables(baseText), g.OldWord)
