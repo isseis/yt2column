@@ -230,18 +230,18 @@ PR を 1 本にするのは設計書 1.2 の決定である。PR-1 は `cmd/yt2c
 
 **実行の記録:**
 
--   日付: 2026-11-08
+-   日付: 2026-11-09
 -   ビルド: `go build -tags test -o <scratchpad>/0067check ./docs/tasks/0067_stage_terminology/_checks/`
--   実行: `<scratchpad>/0067check 7d7d794b0bc505fafdf624d26c4fd2aa8ec528c4 77e55f8f44f89c69670227bd2b1260230ee6b453`
+-   実行: `<scratchpad>/0067check 7d7d794b0bc505fafdf624d26c4fd2aa8ec528c4 047d554b1f0f04f4956940014c724baa123dbd41`
 -   基点: `7d7d794b0bc505fafdf624d26c4fd2aa8ec528c4`（`origin/main` と `HEAD` の merge-base）
--   head: `77e55f8f44f89c69670227bd2b1260230ee6b453`
+-   head: `047d554b1f0f04f4956940014c724baa123dbd41`
 -   終了コード: 0
 
 出力の全文:
 
 ```text
 base 7d7d794b0bc505fafdf624d26c4fd2aa8ec528c4
-head 77e55f8f44f89c69670227bd2b1260230ee6b453
+head 047d554b1f0f04f4956940014c724baa123dbd41
 ALLOWED docs/dev/adr/0004-production-profile.md 1/1 観点と段階の基準
 ALLOWED docs/dev/guides/cli.md 1/1 2 つの段階
 ALLOWED docs/dev/guides/mergepr_guide.md 2/2 | 段階 |
@@ -254,24 +254,29 @@ OK   CLAUDE.md: only the three expected phrases changed
 OK every check passed
 ```
 
-この記録を書くコミットは本計画だけを変える。確かめた head `77e55f8f` と PR の head の違いは、この記録のコミットだけである。
+この記録を書くコミットは本計画だけを変える。確かめた head `047d554b` と PR の head の違いは、この記録のコミットだけである。
 
 **壊し方の記録（ステップ 6-3、`7d7d794b` を基点とする使い捨てのブランチで実行）:**
 
 | 壊し方 | 報告された確かめること | 終了コード |
 |---|---|---|
 | 対象の文書に「段階」を 1 つ足し、字下げした次の行へ「段」「階」を分けて足す | `docs/dev/security.md:160`・`:162`: the old word remains | 1 |
+| 「段」の後に空白を置き、次の行に「階」を置く | `docs/dev/security.md:160`: the old word remains | 1 |
+| 「段」と「階」を CRLF で分ける | `docs/dev/security.md:159`: the old word remains | 1 |
+| 対象の文書 `docs/dev/guides/cli.md` を消す | `docs/dev/guides/cli.md:1`: a target document was deleted | 1 |
 | 許可の組の文言を「2 つのステージ」に置き換える | `docs/dev/guides/cli.md:1`: allowed wording appears 0 times, want 1 | 1 |
-| 許可の組の文言を 2 回にする | `docs/dev/guides/cli.md:1`: allowed wording appears 2 times, want 1 | 1 |
-| 用語集の「ステージ」の行を別の位置へ動かす | `docs/translation_glossary.md:1`: the stage row moved from the base commit's position | 1 |
-| 用語集の英語の列を `phase` にする | `docs/translation_glossary.md:1`: the stage row's English cell is not stage | 1 |
-| 「旧称: 段階」を消す | `docs/translation_glossary.md:1`: the old name appears 0 times, want 1; the stage row's remark does not hold the old name | 1 |
-| 1 列目が「段階」の行を残す | `docs/translation_glossary.md:57`: the old word remains; `:1`: a row whose first cell is the old word remains | 1 |
-| 「ステージ」の行を 2 つにする | `docs/translation_glossary.md:1`: the stage row is missing or appears more than once | 1 |
+| 許可の組の文言を 2 回にする | `docs/dev/guides/cli.md:169`: allowed wording appears 2 times, want 1 | 1 |
+| 用語集の「ステージ」の行を別の位置へ動かす | `docs/translation_glossary.md:52`: the stage row moved from the base commit's position | 1 |
+| 用語集の英語の列を `phase` にする | `docs/translation_glossary.md:49`: the stage row's English cell is not stage | 1 |
+| 「旧称: 段階」を消す | `docs/translation_glossary.md:1`・`:49`: the old name appears 0 times, want 1; the stage row's remark does not hold the old name | 1 |
+| 1 列目が「段階」の行を残す | `docs/translation_glossary.md:57`: the old word remains; a row whose first cell is the old word remains (1) | 1 |
+| 1 列目が「段階」の行を 2 つにする | `docs/translation_glossary.md:57`・`:119`: the old word remains; a row whose first cell is the old word remains (2) | 1 |
+| 「ステージ」の行を 2 つにする | `docs/translation_glossary.md:49`: the stage row is missing or appears more than once | 1 |
 | 旧称の記述の外に「段階」を足す | `docs/translation_glossary.md:191`: the old word remains | 1 |
-| `production_profile.md` のパイプラインの表の列名を「工程」にする | `docs/dev/production_profile.md:1`: the pipeline table's first column is "工程", want "処理" | 1 |
+| `production_profile.md` のパイプラインの表の列名を「工程」にする | `docs/dev/production_profile.md:11`: the pipeline table's first column is "工程", want "処理" | 1 |
+| `production_profile.md` の見出し「## パイプライン」を変える | `0067check: ... section "## パイプライン" not found` | 2 |
 | `CLAUDE.md` の「変えた後」の文言を 1 つ戻す | `CLAUDE.md:1`: the changed wording appears 0 times, want 1; lines outside the three changed phrases differ | 1 |
-| 「変えた後」の文言を 2 回にする | `CLAUDE.md:1`: the changed wording appears 2 times, want 1; lines outside the three changed phrases differ | 1 |
+| 「変えた後」の文言を 2 回にする | `CLAUDE.md:9`: the changed wording appears 2 times, want 1; lines outside the three changed phrases differ | 1 |
 | 3 か所以外の stage（300 行目）を変える | `CLAUDE.md:1`: lines outside the three changed phrases differ | 1 |
 | 禁止のファイル（`README.md`・`package_reference.md`・ほかのタスク・`extension/package.json`）と `cmd/yt2column/main.go` を変える | 5 つの変更を報告: `README.md:1`、`cmd/yt2column/main.go:1`、`docs/dev/conventions/package_reference.md:1`、`docs/tasks/0066_server_config_file/03_implementation_plan.md:1`、`extension/package.json:1` | 1 |
 | ADR の「## 経緯」の節に 1 行足す | `docs/dev/adr/0019-pipeline-component-interfaces.md:40`: the history has 7 lines, want 6 | 1 |
@@ -285,7 +290,7 @@ OK every check passed
 
 -   一回の確認の出力（使った許可の組を含む）は上のとおり。
 -   ステップ 4-4 でデータのファイルに足した組はない。
--   付録 A と設計書 6.1 の判定の食い違いはない。#716 が足した ADR-0019・ADR-0020・ADR-0021・ADR-0022・ADR-0023・ADR-0025 の出現箇所は付録 A になく、設計書 6.1 で割り当てた（0019 はステージと構成要素、0020 は構成要素、0021 はステージと工程、0022・0023・0025 は工程）。
+-   付録 A と設計書 6.1 の判定の食い違いはない。#716 が足した ADR-0019・ADR-0020・ADR-0021・ADR-0022・ADR-0023・ADR-0025 の出現箇所は付録 A になく、設計書 6.1 で割り当てた（0019 はステージ（11・13・20・35・38・42 行目）と構成要素（19 行目）、0020 は構成要素、0021 はステージと工程、0022・0023・0025 は工程）。
 -   AC-16 の「Go のコード」は、本計画 §1.3 のとおり、このタスクのディレクトリの `_checks/` の下の Go のファイルを除いて読む。
 -   タスク 0065 の PR ② はマージ済みなので、0065 の計画の 2 行を引用し直す必要はない。
 -   ADR の「経緯」の語の扱いは、セッション中の再承認で決めた（本計画 §1.5、設計書 1.5）。
