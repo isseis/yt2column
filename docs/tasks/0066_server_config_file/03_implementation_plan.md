@@ -88,36 +88,36 @@
 
 **変えるファイル:** `internal/privatefile/privatefile.go`（新規）、`internal/privatefile/test_helpers.go`（新規、`//go:build test`）、`docs/dev/conventions/package_reference.md`、`docs/dev/conventions/requirements_process.md`
 
-- [ ] `//go:build unix` の `privatefile.go` に、設計 3.1 の定数・番兵・`UnsafeReason`（`String()` を持つ）・`UnsafeError` を置く。パッケージの注釈に、設定に依存しないことと、`MkdirBelow` が umask を一時的に変えるのでほかのファイルの作成と並行して呼ばないことを書く。
-- [ ] 所有者とモードの判定を、`fs.FileInfo` と実効ユーザーの ID を受け取る非公開の関数にする。`Read` の 2 つの検査（`Lstat` と `fstat`）がこれを共有する（設計 7.1）。
-- [ ] テスト用の差し込み口は、`privatefile.go` の非公開のパッケージ変数（関数の値。既定は何もしない）にする。差し込む場所は、`Read` の `Lstat` の後、`Create` の `Lstat` の後と書き込み・`Sync`・`link`・一時ファイルの削除の前、`MkdirBelow` の各 `mkdir` の後である。`test_helpers.go` には、その変数を差し替え、`t.Cleanup` で元に戻す関数だけを置く。
-- [ ] `package_reference.md` に `internal/privatefile` の行を足し（`TestPackageReferenceListsPackages`）、`requirements_process.md` の「Mechanically checked conditions」の表に `exclude internal/privatefile/` を足す。
+- [x] `//go:build unix` の `privatefile.go` に、設計 3.1 の定数・番兵・`UnsafeReason`（`String()` を持つ）・`UnsafeError` を置く。パッケージの注釈に、設定に依存しないことと、`MkdirBelow` が umask を一時的に変えるのでほかのファイルの作成と並行して呼ばないことを書く。
+- [x] 所有者とモードの判定を、`fs.FileInfo` と実効ユーザーの ID を受け取る非公開の関数にする。`Read` の 2 つの検査（`Lstat` と `fstat`）がこれを共有する（設計 7.1）。
+- [x] テスト用の差し込み口は、`privatefile.go` の非公開のパッケージ変数（関数の値。既定は何もしない）にする。差し込む場所は、`Read` の `Lstat` の後、`Create` の `Lstat` の後と書き込み・`Sync`・`link`・一時ファイルの削除の前、`MkdirBelow` の各 `mkdir` の後である。`test_helpers.go` には、その変数を差し替え、`t.Cleanup` で元に戻す関数だけを置く。
+- [x] `package_reference.md` に `internal/privatefile` の行を足し（`TestPackageReferenceListsPackages`）、`requirements_process.md` の「Mechanically checked conditions」の表に `exclude internal/privatefile/` を足す。
 
 #### ステップ 1-2: `Read`
 
 **変えるファイル:** `internal/privatefile/privatefile.go`
 
-- [ ] 設計 3.1「`Read` の手順」と 6.1 のとおりに実装する。`Lstat` の結果は拒否にだけ使い、読んでよいと決めるのは開いた記述子の `fstat` の結果だけにする。開いた後のどの拒否でも記述子を閉じる。
-- [ ] `os.OpenFile` の行に、`cachelock.go:82` と同じく、その 1 行だけを対象にした `//nolint:gosec` と理由を付ける。
+- [x] 設計 3.1「`Read` の手順」と 6.1 のとおりに実装する。`Lstat` の結果は拒否にだけ使い、読んでよいと決めるのは開いた記述子の `fstat` の結果だけにする。開いた後のどの拒否でも記述子を閉じる。
+- [x] `os.OpenFile` の行に、`cachelock.go:82` と同じく、その 1 行だけを対象にした `//nolint:gosec` と理由を付ける。
 
 #### ステップ 1-3: `Create` と `MkdirBelow`
 
 **変えるファイル:** `internal/privatefile/privatefile.go`
 
-- [ ] `Create` を設計 3.1「`Create` の手順」と 6.3 のとおりに実装する。一時ファイルの接頭辞は、パスの最後の要素の前に `.` を、後に `.tmp-` を付けたもの（設定ファイルでは `.config.env.tmp-`）とする。`privatefile` が設定ファイルの名前を持たないためである。
-- [ ] `MkdirBelow` を設計 3.1 の振る舞いと 1.3 の 1 つ目の決定の手順で実装する。umask は `mkdir` の直後に戻し、`defer` でも必ず戻す。作った要素を開く行にも、1 行だけの `//nolint:gosec` と理由を付ける。
+- [x] `Create` を設計 3.1「`Create` の手順」と 6.3 のとおりに実装する。一時ファイルの接頭辞は、パスの最後の要素の前に `.` を、後に `.tmp-` を付けたもの（設定ファイルでは `.config.env.tmp-`）とする。`privatefile` が設定ファイルの名前を持たないためである。
+- [x] `MkdirBelow` を設計 3.1 の振る舞いと 1.3 の 1 つ目の決定の手順で実装する。umask は `mkdir` の直後に戻し、`defer` でも必ず戻す。作った要素を開く行にも、1 行だけの `//nolint:gosec` と理由を付ける。
 
 #### ステップ 1-4: `privatefile` のテスト
 
 **変えるファイル:** `internal/privatefile/privatefile_test.go`（新規）
 
-- [ ] 設計 7.1「`internal/privatefile`」の場合を、`TestRead`・`TestReadUnreadable`・`TestReadChecksDescriptor`・`TestOwnerAndModeCheck`・`TestCreate`・`TestCreateExisting`・`TestCreateRaces`・`TestCreateFailureLeavesNothing`・`TestMkdirBelow`・`TestMkdirBelowSwap` に分けて書く。Unix ドメインソケットの用意は `udstest.Dir` と `udstest.Listen` を使う（パスの長さの上限のため）。
-- [ ] `TestCreate` は、所有者のビットを落とす umask（`0400`・`0200`）を含めて、作ったファイルのモードがちょうど `0600` で中身が一致することを確かめる。`TestMkdirBelow` は、umask `0400`・`0100`・`0000`・`0077` で作ったディレクトリのモードがちょうど `0700` になること（I-01）、すでにある要素（例: モード `0755`）を変えないこと、親が setgid のビットを持つときにも作った要素が `0700` になること（Linux で setgid のディレクトリを用意できないときは `t.Skip`）を確かめる。
-- [ ] `TestReadChecksDescriptor` は、`Lstat` の後の差し込み口で、通常のファイルを、モード `0644` のファイル・ディレクトリ・FIFO・正しいファイルへのシンボリックリンクに差し替える場合と、消す場合を試す（設計 7.3）。FIFO の場合は `Read` を goroutine で呼んで短い期限で待ち、後始末で FIFO を書き込み用に開いて、止まった goroutine を解く。
-- [ ] `TestCreateRaces` は、`Create` の `Lstat` の後の差し込み口でパスにファイルを置き、`ErrExist` になってそのファイルが変わらず、`.config.env.tmp-` で始まる名前が残らないことを確かめる。`TestCreateFailureLeavesNothing` は、書き込み・`Sync`・`link` の前の差し込み口で失敗させて、パスに何もなく一時ファイルが残らないことを確かめ、一時ファイルの削除を失敗させた場合に、成功ならその名前を返し、失敗ならエラーの文がその名前を含むことを確かめる。`TestMkdirBelowSwap` は、`mkdir` の後の差し込み口で作った名前をシンボリックリンクに替え、「作れなかった」になり、リンク先のモードが変わらないことを確かめる。
-- [ ] 所有者の判定は、別の所有者のファイルを root でないと作れないので、`TestOwnerAndModeCheck` で関数を直接呼んで確かめる。
-- [ ] 権限を外したディレクトリを用意したテストは、用意の直後に、モードを戻す `t.Cleanup` を登録する（`t.TempDir` の削除より先に動く）。root では結果が変わるテスト（モード `0000`、探索できない親）は、`os.Geteuid() == 0` のとき `t.Skip` する（設計 7.1）。
-- [ ] 特別なビットのモード（setuid・setgid・sticky）は `t.TempDir` の下のファイルに付け、`Lstat` で付いたことを確かめ、付かなければ `t.Fatalf` にする（macOS の `/tmp` の下では、グループが `wheel` のファイルに setgid を付けられない）。umask を変えるテストは、`t.TempDir` を umask を変える前に作り、呼んだ直後に umask を戻す。どのテストにも `t.Parallel` を付けない。
+- [x] 設計 7.1「`internal/privatefile`」の場合を、`TestRead`・`TestReadUnreadable`・`TestReadChecksDescriptor`・`TestOwnerAndModeCheck`・`TestCreate`・`TestCreateExisting`・`TestCreateRaces`・`TestCreateFailureLeavesNothing`・`TestMkdirBelow`・`TestMkdirBelowSwap` に分けて書く。Unix ドメインソケットの用意は `udstest.Dir` と `udstest.Listen` を使う（パスの長さの上限のため）。
+- [x] `TestCreate` は、所有者のビットを落とす umask（`0400`・`0200`）を含めて、作ったファイルのモードがちょうど `0600` で中身が一致することを確かめる。`TestMkdirBelow` は、umask `0400`・`0100`・`0000`・`0077` で作ったディレクトリのモードがちょうど `0700` になること（I-01）、すでにある要素（例: モード `0755`）を変えないこと、親が setgid のビットを持つときにも作った要素が `0700` になること（Linux で setgid のディレクトリを用意できないときは `t.Skip`）を確かめる。
+- [x] `TestReadChecksDescriptor` は、`Lstat` の後の差し込み口で、通常のファイルを、モード `0644` のファイル・ディレクトリ・FIFO・正しいファイルへのシンボリックリンクに差し替える場合と、消す場合を試す（設計 7.3）。FIFO の場合は `Read` を goroutine で呼んで短い期限で待ち、後始末で FIFO を書き込み用に開いて、止まった goroutine を解く。
+- [x] `TestCreateRaces` は、`Create` の `Lstat` の後の差し込み口でパスにファイルを置き、`ErrExist` になってそのファイルが変わらず、`.config.env.tmp-` で始まる名前が残らないことを確かめる。`TestCreateFailureLeavesNothing` は、書き込み・`Sync`・`link` の前の差し込み口で失敗させて、パスに何もなく一時ファイルが残らないことを確かめ、一時ファイルの削除を失敗させた場合に、成功ならその名前を返し、失敗ならエラーの文がその名前を含むことを確かめる。`TestMkdirBelowSwap` は、`mkdir` の後の差し込み口で作った名前をシンボリックリンクに替え、「作れなかった」になり、リンク先のモードが変わらないことを確かめる。
+- [x] 所有者の判定は、別の所有者のファイルを root でないと作れないので、`TestOwnerAndModeCheck` で関数を直接呼んで確かめる。
+- [x] 権限を外したディレクトリを用意したテストは、用意の直後に、モードを戻す `t.Cleanup` を登録する（`t.TempDir` の削除より先に動く）。root では結果が変わるテスト（モード `0000`、探索できない親）は、`os.Geteuid() == 0` のとき `t.Skip` する（設計 7.1）。
+- [x] 特別なビットのモード（setuid・setgid・sticky）は `t.TempDir` の下のファイルに付け、`Lstat` で付いたことを確かめ、付かなければ `t.Fatalf` にする（macOS の `/tmp` の下では、グループが `wheel` のファイルに setgid を付けられない）。umask を変えるテストは、`t.TempDir` を umask を変える前に作り、呼んだ直後に umask を戻す。どのテストにも `t.Parallel` を付けない。
 
 **完了条件:** 共通の完了条件と `make build`（テストのタグなしで、差し込み口を含めてビルドできること）。
 
