@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -60,8 +61,9 @@ var (
 	// directory.
 	ErrBaseMissing = errors.New("the base directory does not exist or is not a directory")
 
-	// errNegativeLimit reports a negative limit passed to Read.
-	errNegativeLimit = errors.New("the size limit is negative")
+	// errLimitRange reports a limit passed to Read that is negative or so
+	// large that limit+1 bytes cannot be counted.
+	errLimitRange = errors.New("the size limit is out of range")
 	// errBadName reports a name passed to MkdirBelow that is not one path
 	// element.
 	errBadName = errors.New("a directory name is not a single path element")
@@ -147,6 +149,10 @@ const (
 	_ hookPoint = iota
 	// hookReadAfterLstat runs in Read after the path's Lstat, with the path.
 	hookReadAfterLstat
+	// hookReadAfterOpen runs in Read after the open and before the fstat.
+	hookReadAfterOpen
+	// hookReadAfterFstat runs in Read after the fstat and before the read.
+	hookReadAfterFstat
 	// hookCreateAfterLstat runs in Create after the path's Lstat, with the path.
 	hookCreateAfterLstat
 	// hookCreateBeforeWrite runs in Create before the content is written, with
@@ -216,8 +222,8 @@ func refusal(path string, info fs.FileInfo) error {
 // every return. At most limit+1 bytes are read, and opening never blocks on a
 // named pipe or makes a terminal the controlling terminal.
 func Read(path string, limit int) ([]byte, error) {
-	if limit < 0 {
-		return nil, errNegativeLimit
+	if limit < 0 || limit == math.MaxInt {
+		return nil, errLimitRange
 	}
 	info, err := os.Lstat(path)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -247,11 +253,17 @@ func Read(path string, limit int) ([]byte, error) {
 		return nil, err
 	}
 	defer func() { _ = file.Close() }()
+	if err := hook(hookReadAfterOpen, path); err != nil {
+		return nil, err
+	}
 	info, err = file.Stat()
 	if err != nil {
 		return nil, err
 	}
 	if err := refusal(path, info); err != nil {
+		return nil, err
+	}
+	if err := hook(hookReadAfterFstat, path); err != nil {
 		return nil, err
 	}
 	content, err := io.ReadAll(io.LimitReader(file, int64(limit)+1))
@@ -360,7 +372,8 @@ func removeTemp(temp string) error {
 // MkdirBelow creates base/names[0], base/names[0]/names[1], ... that do not
 // exist yet, each with exactly DirMode. base must exist and be a directory,
 // followed through a symbolic link (ErrBaseMissing); an existing element is
-// left as it is.
+// left as it is. An existing last element that is not a directory is not
+// reported here; creating a file below it fails instead.
 //
 // Contract: only a directory this call created has its mode changed, and its
 // mode becomes exactly DirMode whatever the umask (a setgid bit copied from
@@ -412,9 +425,9 @@ func mkdir(dir string) (created bool, err error) {
 }
 
 // setDirMode sets the directory just created at dir to exactly DirMode
-// through a descriptor. O_DIRECTORY and O_NOFOLLOW make the open fail when
-// the name is no longer a directory; a directory of another user swapped in
-// would refuse the chmod.
+// through a descriptor, after checking through it that the name is still a
+// directory owned by the effective user. O_DIRECTORY and O_NOFOLLOW make the
+// open fail when the name is no longer a directory.
 func setDirMode(dir string) error {
 	if err := hook(hookMkdirAfterMkdir, dir); err != nil {
 		return err
@@ -427,5 +440,12 @@ func setDirMode(dir string) error {
 		return err
 	}
 	defer func() { _ = file.Close() }()
+	info, err := file.Stat()
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() || !ownedBy(info, os.Geteuid()) {
+		return &fs.PathError{Op: opMkdir, Path: dir, Err: errReplaced}
+	}
 	return file.Chmod(DirMode)
 }

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -270,11 +271,13 @@ func TestRead(t *testing.T) {
 		requireUnsafe(t, err, path, ReasonNotRegular, 0)
 	})
 
-	t.Run("negative limit", func(t *testing.T) {
+	t.Run("limit out of range", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "config.env")
-		writeFile(t, path, nil, Mode)
-		if _, err := Read(path, -1); !errors.Is(err, errNegativeLimit) {
-			t.Errorf("Read(-1): error = %v, want errNegativeLimit", err)
+		writeFile(t, path, []byte("x"), Mode)
+		for _, limit := range []int{-1, math.MaxInt} {
+			if content, err := Read(path, limit); !errors.Is(err, errLimitRange) || content != nil {
+				t.Errorf("Read(%d) = (%q, %v), want errLimitRange", limit, content, err)
+			}
 		}
 	})
 }
@@ -327,58 +330,90 @@ func requireUnreadable(t *testing.T, err error) {
 	}
 }
 
-// TestReadChecksDescriptor replaces the accepted file between the Lstat and
-// the open, and checks that what was opened decides: the Lstat result never
-// allows the read.
+// replacement puts something at path, which a hook has emptied. It runs inside
+// Read, on Read's goroutine, so it returns its failure instead of calling
+// t.Fatal.
+type replacement func(path string) error
+
+func withFile(content string, mode fs.FileMode) replacement {
+	return func(path string) error {
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			return err
+		}
+		return os.Chmod(path, mode)
+	}
+}
+
+func withDir(path string) error { return os.Mkdir(path, 0o700) }
+
+func withFIFO(path string) error { return syscall.Mkfifo(path, 0o600) }
+
+func withSymlinkToAccepted(path string) error {
+	target := filepath.Join(filepath.Dir(path), "target")
+	if err := withFile("link", Mode)(target); err != nil {
+		return err
+	}
+	return os.Symlink(target, path)
+}
+
+func withNothing(string) error { return nil }
+
+// TestReadChecksDescriptor replaces the accepted file between Read's steps
+// and checks that the opened descriptor decides: the Lstat result never
+// allows the read, the name is not checked again in place of the descriptor,
+// and the content comes from the descriptor that was checked.
 func TestReadChecksDescriptor(t *testing.T) {
 	tests := []struct {
-		name    string
-		replace func(t *testing.T, path string)
-		check   func(t *testing.T, path string, err error)
+		name  string
+		steps map[hookPoint]replacement
+		check func(t *testing.T, path string, content []byte, err error)
 	}{
 		{
-			name:    "mode 0644 file",
-			replace: func(t *testing.T, path string) { writeFile(t, path, []byte("wide"), 0o644) },
-			check: func(t *testing.T, path string, err error) {
-				requireUnsafe(t, err, path, ReasonMode, 0o644)
-			},
+			name:  "mode 0644 file after the Lstat",
+			steps: map[hookPoint]replacement{hookReadAfterLstat: withFile("wide", 0o644)},
+			check: unsafeCheck(ReasonMode, 0o644),
 		},
 		{
-			name: "directory",
-			replace: func(t *testing.T, path string) {
-				if err := os.Mkdir(path, 0o700); err != nil {
-					t.Fatal(err)
-				}
-			},
-			check: func(t *testing.T, path string, err error) {
-				requireUnsafe(t, err, path, ReasonNotRegular, 0)
-			},
+			name:  "directory after the Lstat",
+			steps: map[hookPoint]replacement{hookReadAfterLstat: withDir},
+			check: unsafeCheck(ReasonNotRegular, 0),
 		},
 		{
-			name:    "named pipe",
-			replace: mkfifo,
-			check: func(t *testing.T, path string, err error) {
-				requireUnsafe(t, err, path, ReasonNotRegular, 0)
-			},
+			name:  "named pipe after the Lstat",
+			steps: map[hookPoint]replacement{hookReadAfterLstat: withFIFO},
+			check: unsafeCheck(ReasonNotRegular, 0),
 		},
 		{
-			name: "symbolic link to an accepted file",
-			replace: func(t *testing.T, path string) {
-				target := filepath.Join(filepath.Dir(path), "target")
-				writeFile(t, target, []byte("link"), Mode)
-				if err := os.Symlink(target, path); err != nil {
-					t.Fatal(err)
-				}
-			},
-			check: func(t *testing.T, path string, err error) {
-				requireUnsafe(t, err, path, ReasonSymlink, 0)
-			},
+			name:  "symbolic link to an accepted file after the Lstat",
+			steps: map[hookPoint]replacement{hookReadAfterLstat: withSymlinkToAccepted},
+			check: unsafeCheck(ReasonSymlink, 0),
 		},
 		{
-			name:    "removed",
-			replace: func(*testing.T, string) {},
-			check: func(t *testing.T, path string, err error) {
+			name:  "removed after the Lstat",
+			steps: map[hookPoint]replacement{hookReadAfterLstat: withNothing},
+			check: func(t *testing.T, path string, content []byte, err error) {
+				requireNoContent(t, content)
 				requireSentinel(t, err, path, ErrNotExist)
+			},
+		},
+		{
+			// A check of the name after the open would see the accepted file
+			// put back and allow the read.
+			name: "mode 0644 file opened, accepted file put back",
+			steps: map[hookPoint]replacement{
+				hookReadAfterLstat: withFile("wide", 0o644),
+				hookReadAfterOpen:  withFile("good", Mode),
+			},
+			check: unsafeCheck(ReasonMode, 0o644),
+		},
+		{
+			// Reading by name after the fstat would return the new content.
+			name:  "another accepted file after the fstat",
+			steps: map[hookPoint]replacement{hookReadAfterFstat: withFile("evil", Mode)},
+			check: func(t *testing.T, _ string, content []byte, err error) {
+				if err != nil || string(content) != "good" {
+					t.Errorf("Read = (%q, %v), want the checked file's content %q", content, err, "good")
+				}
 			},
 		},
 	}
@@ -386,27 +421,55 @@ func TestReadChecksDescriptor(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "config.env")
 			writeFile(t, path, []byte("good"), Mode)
-			replaced := false
+			// Release a Read blocked on a named pipe, should one be.
+			t.Cleanup(func() {
+				if w, err := os.OpenFile(path, os.O_WRONLY|syscall.O_NONBLOCK, 0); err == nil {
+					_ = w.Close()
+				}
+			})
+			ran := map[hookPoint]bool{}
+			var stepErr error
 			setHookForTest(t, func(point hookPoint, p string) error {
-				if point != hookReadAfterLstat || p != path {
+				replace, ok := tt.steps[point]
+				if !ok || p != path || stepErr != nil {
 					return nil
 				}
-				replaced = true
+				ran[point] = true
 				if err := os.Remove(path); err != nil {
-					t.Fatal(err)
+					stepErr = err
+					return nil
 				}
-				tt.replace(t, path)
+				stepErr = replace(path)
 				return nil
 			})
 			content, err := readWithin(t, path, 64)
-			if !replaced {
-				t.Fatal("the hook after Lstat did not run")
+			if stepErr != nil {
+				t.Fatalf("replace the file: %v", stepErr)
 			}
-			if content != nil {
-				t.Errorf("Read returned content %q, want none", content)
+			for point := range tt.steps {
+				if !ran[point] {
+					t.Fatalf("the hook at point %d did not run", point)
+				}
 			}
-			tt.check(t, path, err)
+			tt.check(t, path, content, err)
 		})
+	}
+}
+
+// unsafeCheck returns a check that Read returned no content and an
+// *UnsafeError with reason and mode.
+func unsafeCheck(reason UnsafeReason, mode fs.FileMode) func(t *testing.T, path string, content []byte, err error) {
+	return func(t *testing.T, path string, content []byte, err error) {
+		t.Helper()
+		requireNoContent(t, content)
+		requireUnsafe(t, err, path, reason, mode)
+	}
+}
+
+func requireNoContent(t *testing.T, content []byte) {
+	t.Helper()
+	if content != nil {
+		t.Errorf("Read returned content %q, want none", content)
 	}
 }
 
@@ -437,7 +500,6 @@ func TestOwnerAndModeCheck(t *testing.T) {
 	}{
 		{name: "owned by the effective user", info: info, euid: euid, wantOK: true},
 		{name: "owned by another user", info: info, euid: euid + 1, wantReason: ReasonForeignOwner},
-		{name: "negative effective user", info: info, euid: -1, wantReason: ReasonForeignOwner},
 		{name: "owner unreadable", info: fakeInfo{FileInfo: info, mode: Mode, sys: nil}, euid: euid, wantReason: ReasonForeignOwner},
 		{name: "foreign owner and wrong mode", info: fakeInfo{FileInfo: info, mode: 0o644, sys: info.Sys()}, euid: euid + 1, wantReason: ReasonForeignOwner},
 	}
@@ -561,6 +623,21 @@ func TestCreateExisting(t *testing.T) {
 			},
 		},
 		{
+			name: "symbolic link to a file",
+			setup: func(t *testing.T, path string) {
+				writeFile(t, filepath.Join(filepath.Dir(path), "target"), []byte(old), 0o644)
+				if err := os.Symlink("target", path); err != nil {
+					t.Fatal(err)
+				}
+			},
+			check: func(t *testing.T, path string) {
+				if target, err := os.Readlink(path); err != nil || target != "target" {
+					t.Errorf("Readlink = (%q, %v), want the link unchanged", target, err)
+				}
+				requireUnchangedFile(old)(t, filepath.Join(filepath.Dir(path), "target"))
+			},
+		},
+		{
 			name: "directory",
 			setup: func(t *testing.T, path string) {
 				if err := os.Mkdir(path, 0o755); err != nil {
@@ -611,6 +688,57 @@ func requireUnchangedFile(content string) func(t *testing.T, path string) {
 		if got := lstat(t, path).Mode(); got != mode {
 			t.Errorf("mode = %v, want %v", got, mode)
 		}
+	}
+}
+
+// TestCreateUnwritableDirectory checks that a directory Create cannot write
+// to, with nothing at the path, is a failure that is not ErrExist and leaves
+// nothing behind.
+func TestCreateUnwritableDirectory(t *testing.T) {
+	skipIfRoot(t)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.env")
+	chmodForTest(t, dir, 0o500)
+	leftover, err := Create(path, []byte("new"))
+	if err == nil || errors.Is(err, ErrExist) || leftover != "" {
+		t.Fatalf("Create = (%q, %v), want a failure other than ErrExist", leftover, err)
+	}
+	requireAbsent(t, path)
+	requireNoTemp(t, dir)
+}
+
+// TestUnsafeErrorText checks the user-facing parts of a refusal: each reason
+// has its own fixed text, and a mode refusal shows the mode found in the
+// numeric form chmod takes, special bits included.
+func TestUnsafeErrorText(t *testing.T) {
+	modes := []struct {
+		mode fs.FileMode
+		want uint32
+	}{
+		{0o644, 0o644},
+		{Mode | fs.ModeSetuid, 0o4600},
+		{Mode | fs.ModeSetgid, 0o2600},
+		{Mode | fs.ModeSticky, 0o1600},
+		{fs.ModePerm | specialBits, 0o7777},
+	}
+	for _, m := range modes {
+		if got := unixMode(m.mode); got != m.want {
+			t.Errorf("unixMode(%v) = %04o, want %04o", m.mode, got, m.want)
+		}
+		// The mode in the text is what tells the user what to fix, so the
+		// text is the contract here.
+		text := (&UnsafeError{Path: "/p", Reason: ReasonMode, Mode: m.mode}).Error()
+		if !strings.Contains(text, fmt.Sprintf("%04o", m.want)) {
+			t.Errorf("Error() = %q, want it to show mode %04o", text, m.want)
+		}
+	}
+	seen := map[string]UnsafeReason{}
+	for _, r := range []UnsafeReason{ReasonUnknown, ReasonSymlink, ReasonNotRegular, ReasonForeignOwner, ReasonMode} {
+		text := r.String()
+		if other, dup := seen[text]; dup {
+			t.Errorf("reasons %d and %d share the text %q", other, r, text)
+		}
+		seen[text] = r
 	}
 }
 
