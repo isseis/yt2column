@@ -619,17 +619,17 @@ OK      claude-md-unchanged
 
 #### PR-2
 
-マージの基点 `a657854d60aafae593fd013cc0289fed3dc39475`、head `bae63de3887021b30bb905a711d0359a32a808e3`（`git fetch origin main` の後に実行した）。作った issue は [#713](https://github.com/isseis/yt2column/issues/713)。
+マージの基点 `a657854d60aafae593fd013cc0289fed3dc39475`、head `73c5ee4f2e87917c2f393577ab5f832d94435b09`（`git fetch origin main` の後に実行した）。作った issue は [#713](https://github.com/isseis/yt2column/issues/713)。
 
 `docs/tasks/0065_adr_remaining/_checks/task_docs_unchanged.sh origin/main HEAD`：終了コード 0。
 
 ```text
 merge-base: a657854d60aafae593fd013cc0289fed3dc39475
-head: bae63de3887021b30bb905a711d0359a32a808e3
+head: 73c5ee4f2e87917c2f393577ab5f832d94435b09
 docs/tasks/: only docs/tasks/0065_adr_remaining/ changed
 ```
 
-`go run -tags test ./docs/tasks/0065_adr_remaining/_checks/adrchecks/ -pr 2 a657854d60aafae593fd013cc0289fed3dc39475 bae63de3887021b30bb905a711d0359a32a808e3`：終了コード 0。`claude-md-unchanged` が `OK`、7 本の新しい ADR と ② の移しはすべて `ok`。`PENDING` は後の PR の ADR・移し・リンクだけである。
+`go run -tags test ./docs/tasks/0065_adr_remaining/_checks/adrchecks/ -pr 2 a657854d60aafae593fd013cc0289fed3dc39475 73c5ee4f2e87917c2f393577ab5f832d94435b09`：終了コード 0。`claude-md-unchanged` が `OK`、7 本の新しい ADR と ② の移しはすべて `ok`。`PENDING` は後の PR の ADR・移し・リンクだけである。
 
 ```text
 PENDING history-sources
@@ -700,8 +700,7 @@ PENDING moved-items
           -   **段階の間で受け渡すデータ型が契約である。** 段階は値を受け渡し、空の結果を正常として返さないことを各 interface の英語のドキュメントコメントに書く。すべてのメソッドは第 1 引数に `context.Context` を受け取り、キャンセルとタイムアウトに従う。
           -   **プロバイダに依存しない番兵とリクエストの検証は `internal/llm` に置く。** `ErrInvalidRequest`・`ErrTruncated`・`ErrUnexpectedFinishReason`・`ErrEmptyResponse` と `GenerateRequest.Validate` がここにある。
           -   **プロバイダに固有の番兵は各アダプタに置く。** HTTP の状態・応答本文の形・通信の失敗は、プロバイダの名前を持つので `internal/llm/deepseek` と `internal/llm/claude` がそれぞれ持つ。
-          -   **HTTP の送信の経路は `internal/llm/llmhttp` に置き、両方のアダプタが使う。** 期限の適用、リダイレクトの禁止、応答本文の上限、失敗の分類をここで行う。`llmhttp` は番兵を持たず、アダプタが渡した番兵で失敗を報告する。この送信の経路と、アダプタ・プロバイダ固有のパラメータの型の置き場所は [ADR-0001](0001-llm-adapter-stdlib.md) が定める。
-          -   **サーバは、記事を作る処理と Slack への投稿の処理を、CLI と同じパッケージで共有する。** サーバ固有のコードは HTTP の入口・検査・応答・ジョブに限る（[ADR-0005](0005-server-architecture.md)）。
+          LLM のアダプタの構成と送信の経路、プロバイダ固有のパラメータの型は [ADR-0001](0001-llm-adapter-stdlib.md) が、サーバの構成は [ADR-0005](0005-server-architecture.md) が定める。
           この決定の仕様の正本は [CLAUDE.md](../../../CLAUDE.md) の「Key Design Patterns」の「Separation of Concerns」と「Interface-based Design」、[project_overview.md](../project_overview.md) の「パイプライン」、[package_reference.md](../conventions/package_reference.md) のパッケージの表である。
         ---- llm-adapter-stdlib -> pipeline-component-interfaces (split), section 3
         removed: -   **HTTP の送信の経路は `internal/llm/llmhttp` に置き、両方のアダプタが使う。** 期限の適用、リダイレクトの禁止、応答本文の上限、失敗の分類をここで行う。`llmhttp` はプロバイダ固有の番兵を持たず、アダプタが渡した番兵で失敗を報告する。HTTP の状態・応答本文の形・通信の失敗の番兵は、プロバイダの名前を持つので各アダプタに残す。
@@ -711,8 +710,7 @@ PENDING moved-items
           -   **段階の間で受け渡すデータ型が契約である。** 段階は値を受け渡し、空の結果を正常として返さないことを各 interface の英語のドキュメントコメントに書く。すべてのメソッドは第 1 引数に `context.Context` を受け取り、キャンセルとタイムアウトに従う。
           -   **プロバイダに依存しない番兵とリクエストの検証は `internal/llm` に置く。** `ErrInvalidRequest`・`ErrTruncated`・`ErrUnexpectedFinishReason`・`ErrEmptyResponse` と `GenerateRequest.Validate` がここにある。
           -   **プロバイダに固有の番兵は各アダプタに置く。** HTTP の状態・応答本文の形・通信の失敗は、プロバイダの名前を持つので `internal/llm/deepseek` と `internal/llm/claude` がそれぞれ持つ。
-          -   **HTTP の送信の経路は `internal/llm/llmhttp` に置き、両方のアダプタが使う。** 期限の適用、リダイレクトの禁止、応答本文の上限、失敗の分類をここで行う。`llmhttp` は番兵を持たず、アダプタが渡した番兵で失敗を報告する。この送信の経路と、アダプタ・プロバイダ固有のパラメータの型の置き場所は [ADR-0001](0001-llm-adapter-stdlib.md) が定める。
-          -   **サーバは、記事を作る処理と Slack への投稿の処理を、CLI と同じパッケージで共有する。** サーバ固有のコードは HTTP の入口・検査・応答・ジョブに限る（[ADR-0005](0005-server-architecture.md)）。
+          LLM のアダプタの構成と送信の経路、プロバイダ固有のパラメータの型は [ADR-0001](0001-llm-adapter-stdlib.md) が、サーバの構成は [ADR-0005](0005-server-architecture.md) が定める。
           この決定の仕様の正本は [CLAUDE.md](../../../CLAUDE.md) の「Key Design Patterns」の「Separation of Concerns」と「Interface-based Design」、[project_overview.md](../project_overview.md) の「パイプライン」、[package_reference.md](../conventions/package_reference.md) のパッケージの表である。
         ---- llm-adapter-stdlib -> pipeline-component-interfaces (move), section 4
         removed: -   **番兵をすべて各アダプタに置く。** `ArticleWriter` が打ち切りを判別するために、プロバイダのパッケージを import することになる（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) 付録 A）。
@@ -750,11 +748,11 @@ PENDING moved-items
         removed: -   **応答の厳格な検証は `internal/strictjson` に置き、複数のパッケージで共有する。** 字幕のパーサ、両方のアダプタ、`ArticleWriter`、`internal/publisher`、`internal/artifact`、`internal/fixprguard`、`internal/server`、`internal/nmhost`、`internal/codexreview`、`internal/coveragecompare` が使う。
         destination docs/dev/adr/0020-strict-json.md, section 3:
           -   **検証済みの JSON から値を取り出す部品は `internal/strictjson` にだけ置き、複数のパッケージで共有する。** `ParseObject` は、不正な UTF-8、対になっていないサロゲートのエスケープ、後続のデータ、オブジェクトでない入力を拒否する。
-          -   **`Object` と `Value` は不透明な型にし、`ParseObject` から得た値だけを扱えるようにする。** フィールドは非公開で、`AsString`・`AsObject`・`AsArray` などは、検証を通っていないバイト列を受け取れない。ゼロ値は中身を持たず、読み取りはエラーを返す。
+          -   **`Object` と `Value` は不透明な型にし、`ParseObject` から得た値だけを扱えるようにする。** フィールドは非公開で、`AsString`・`AsObject`・`AsArray` などは、検証を通っていないバイト列を受け取れない。ゼロ値の `Value` は中身を持たず、`AsString` などの読み取りはエラーを返す。ゼロ値の `Object` はメンバーを持たない。
           -   **読み取りの手段を、利用者の必要に合わせて 1 か所に持つ。** `Object.Collect` は消費しないキーを無視し、`Object.CollectOnly` は宣言していないキーと重複したキーを拒否する。`Object.Has` はエスケープを解いた名前の完全一致で有無を返し、振る舞いの選択に使える。`Value.AsBool` は `true` と `false` だけを受理する。`Value.IsNull` は `null` とそれ以外を区別する。`Value.Raw` は値の元のバイト列を返す。
           -   **負でない整数の規則は `Value.AsNonNegativeInt64` の 1 か所にする。** 符号・小数部・指数部のない 10 進の整数で `int64` の範囲にあり、負でないものだけを受理する。`-0` も拒否し、拒否のエラーには入力の値を含めない。字幕の `tStartMs`、トークン数、中間生成物の数値、ホストのメッセージの版がこれを使う。`AsInt64` は符号と `-0` を受理するので、負でない整数が要る箇所では使わない。
           -   **この部品を使うパッケージの一覧は [package_reference.md](../conventions/package_reference.md) が持つ。** 現在のコードでは、一覧に挙げられたパッケージに加え、`internal/server`・`internal/nmhost`・`internal/codexreview`・`internal/coveragecompare` もこの部品を使う。一覧にこの 4 つがないことは、記録した issue [#713](https://github.com/isseis/yt2column/issues/713) で扱う。
-          -   **字幕の json3 と info.json の読み取りは、この部品に置き換える。** 部品を移すことで `internal/transcript` の返す番兵とその条件は変えない（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) §3.5）。
+          -   **字幕の json3 と info.json の読み取りは、この部品を使う。** 部品を移すことで `internal/transcript` の返す番兵とその条件は変えない（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) §3.5）。
           この決定の仕様の正本は [package_reference.md](../conventions/package_reference.md) の `internal/strictjson` の行である。部品の置き場所と、LLM のアダプタとの関係は [ADR-0001](0001-llm-adapter-stdlib.md) が定める。
         ---- llm-adapter-stdlib -> strict-json (move), section 4
         removed: -   **厳格な JSON の部品を `internal/llm/deepseek` に複製する。** サロゲートの走査などの細かいコードが 2 か所になる（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) 付録 A）。
