@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-09 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-09 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -188,3 +188,7 @@ GitHub の `lightweight` ラベルを、付いた issue がないことを確か
 -   **軽量プロセスへの参照**：3 章の冒頭で定める。
 -   **簡易な進め方**：タスク 0072 が定める、3 文書を簡易な内容で 1 本の PR で作る進め方（[ADR-0040](../../dev/adr/0040-simple-task-documents.md)）。
 -   用語は `docs/translation_glossary.md` と統一する。
+
+## 変更履歴
+
+- 2026-11-09 承認（isseis、#753）
