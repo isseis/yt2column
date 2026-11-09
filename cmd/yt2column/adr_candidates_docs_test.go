@@ -47,7 +47,7 @@ var acOffForm = []string{
 	"docs/dev/adr/01050-long.md",
 	"docs/dev/adr/0106-text.txt",
 	"docs/dev/adr/nested/0107-nested.md",
-	"docs/dev/adr/0108-café.md",
+	"docs/dev/adr/0108-caf\u00e9.md",
 }
 
 // acFixture is one fixture repository: main holds the ADRs and the other
@@ -279,7 +279,7 @@ func adrCandidatesCases() []acCase {
 			return []string{f.header(), "match " + acAlpha}
 		}},
 		{name: "near misses", setup: changeAlpha, args: []acArg{
-			acExact("docs/dev/adr/0001-аlpha.md"), // Cyrillic a
+			acExact("docs/dev/adr/0001-\u0430lpha.md"), // Cyrillic a
 			acExact(acAlpha + "\n"),
 			acExact("./" + acAlpha),
 			acExact(acAlpha + "\n" + acBeta),
