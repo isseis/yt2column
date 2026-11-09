@@ -274,7 +274,7 @@ Work in the following order.
    When the human chose the simple process, settle the design decisions and
    then the plan decisions in later rounds, before writing anything, as
    `_lib/simple-process.md`, "Writing the three documents", step 1, says. When
-   one of them needs an excluded change, follow `_lib/simple-process.md`, "When
+   a design or plan decision needs an excluded change, follow `_lib/simple-process.md`, "When
    an excluded decision appears".
 
 6. Write the first version of `01_requirements.md`.

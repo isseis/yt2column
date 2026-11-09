@@ -32,7 +32,7 @@ reads:
 | `/mkarch`, `/mkplan` | `origin/main`, right after a `git fetch origin main` and before `_lib/task-pr-handoff.md` Part A, so a simple-process task stops before a branch is created. When `origin/main` has no `01_requirements.md` for the task, leave it to the command's own stop on a requirements document that is not `approved` |
 | `/runplan`, and `/runpr` and `/fixpr` on an implementation PR | `origin/main`, after a fetch. After the three-document PR is merged the record does not change, and an edit on the PR's branch is not read |
 | `/runpr` and `/fixpr` on a three-document PR | The PR's head (the checkout `runpr.md` step 1 brought up to date), checked against the mismatches below, because `01_requirements.md` is not on `origin/main` yet |
-| `/mkreq`, continuing a stopped run | The branch it continues ("Resuming a stopped run" below) |
+| `/mkreq`, continuing a stopped run | The branch it continues, as "Resuming a stopped run" below says |
 
 For `/runpr` on a PR it found `MERGED` (`runpr.md` step 1), compare with the
 parent of the PR's squash commit in place of `origin/main`: after the merge
@@ -99,15 +99,16 @@ open, changes no ADR's decision, and builds no new mechanism.
      decisions recorded in the `…で決めたこと` sections of the documents on the
      branch".
    - The design rounds also take up the mechanism choices `mkreq.md` step 5
-     noted for `design_handoff.md`, as open design decisions.
-   - After the last requirements round, judge again whether the change is
-     excluded, now that the requirements answers are known; when a decision
-     needs an excluded change, follow "When an excluded decision appears"
-     below. Do the same for each design and plan round.
+     noted for `design_handoff.md` (in a resumed run, the items of
+     `design_handoff.md` on the branch), as open design decisions.
+   - When a design or plan decision needs an excluded change, follow "When an
+     excluded decision appears" below. An exclusion judgment the human
+     already overrode is not asked again.
    - Defer the ADR work `_lib/settle-decisions.md` does after its step 5 to the
      writing of the document that records the decision (step 2 below), and
-     keep each run's Output apart, so each ADR change goes in its own
-     document's commit.
+     keep the Output of each `_lib/settle-decisions.md` invocation (one per
+     document) apart, so each ADR change goes in its own document's
+     commit.
 
    Write nothing before the last round is answered.
 2. **Write, one commit per document.** Write `01_requirements.md` (`mkreq.md`
@@ -178,7 +179,8 @@ going on in "When an excluded decision appears"). Then, instead
 of the single review above, give each document the review of its own command:
 `mkreq.md` step 7 for `01_requirements.md`, `mkarch.md` step 8 (panel mode)
 for `02_architecture.md`, and `mkplan.md` step 8 and `mkplan2.md` step 9 for
-`03_implementation_plan.md`, with the same reading of the items.
+`03_implementation_plan.md` (`mkplan2.md` step 9 only when the plan has PR
+markers), with the same reading of the items.
 
 Then run `japrose` on the three documents and on each ADR of the ADR changes,
 after the Critical and Major issues of the review are resolved; as a sub-step
@@ -226,10 +228,15 @@ When all of them hold:
 3. For each of the three documents the branch lacks, settle its decisions
    again and write and commit it, as "Writing the three documents" says; the
    process is not asked again. A document already committed is not written
-   again. When one of these decisions needs an excluded change, do not switch
-   or go on here: stop, and report the decision and its reason, the documents
-   already committed on the branch, and that the human decides how to
-   continue.
+   again. When one of these decisions needs an excluded change that
+   `01_requirements.md` on the branch does not already record as overridden,
+   ask with two options: override the judgment and go on (record the
+   override in `01_requirements.md` in a commit of its own), or stop. A
+   resumed run does not switch to the full process, because documents of the
+   simple process are already committed: on stop, report the decision and its
+   reason and the documents on the branch, and that `/mkreq <N>` run again
+   stops at the same place until the human changes the branch or deletes it
+   and starts over.
 4. Run "Reviewing the three documents" and its prose pass again over all three
    documents, whether or not the stopped run had done them, and then open the
    PR (`mkreq.md` step 8).
@@ -239,9 +246,9 @@ opens the PR reports, by where it stopped:
 
 - **Before `01_requirements.md` is committed:** nothing on the branch names the
   issue, so `/mkreq <N>` run again starts over and asks the decisions again.
-  Name the branch Part A created (local and on `origin`), and say to delete it
-  before running `/mkreq <N>` again, so the new run does not count its task
-  number.
+  When Part A had run, name the branch it created (local and on `origin`), and
+  say to delete it before running `/mkreq <N>` again, so the new run does not
+  count its task number.
 - **After `01_requirements.md` is committed:** `/mkreq <N>` continues the run.
   When the working tree has changes, list their files and say to commit or
   discard them first.
@@ -250,9 +257,8 @@ opens the PR reports, by where it stopped:
 
 ## When an excluded decision appears
 
-**While `/mkreq` confirms the decisions after the human chose the simple
-process** ("Writing the three documents", step 1): when a requirements, design,
-or plan decision needs an excluded change (the requirements
+**While `/mkreq` confirms the design or plan decisions** ("Writing the three
+documents", step 1): when a decision needs an excluded change (the requirements
 process guide, "Simple Process"), show it and the reason, and ask whether to
 switch to the full process, with two options: switch to the full process, or
 override the judgment and go on in the simple process. An answer that is

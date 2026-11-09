@@ -579,9 +579,9 @@ and choose the simple process; `01_requirements.md` records the override
 
 When a decision found later needs an excluded change:
 
-- while `/mkreq` confirms the decisions after the simple process was chosen,
-  it shows this with the reason and asks whether to switch to the full process;
-  the human may go on, as with an override, which is recorded;
+- while `/mkreq` confirms the design or plan decisions, it shows this with the
+  reason and asks whether to switch to the full process; the human may go on,
+  as with an override, which is recorded;
 - while the three-document PR is under review, `/fixpr` does not make that
   fix; the human chooses in `/runpr`'s merge question to override the judgment
   and have it fixed, which is recorded, or to return to the full process;
