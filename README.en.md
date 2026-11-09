@@ -1,4 +1,4 @@
-<!-- translated-from: README.md c5e5c5b34f287433214614706e1c48604cee79a0 -->
+<!-- translated-from: README.md f2603c9a40b9715a1867a3a12ac43d1bf2874973 -->
 [日本語](README.md)
 
 Developer documents: [Using the CLI](docs/dev/guides/cli.md) · [Development procedures](docs/dev/guides/development.md)
@@ -322,10 +322,12 @@ reads this file once, when it starts. After editing the file, stop the server
 and start it again.
 
 The server does not read settings from environment variables. From the process
-environment it reads only `HOME`, which determines the socket path and the
-configuration file's path, and `GODEBUG`. When `GODEBUG` contains
+environment the server's code reads only `HOME`, which determines the socket path and the
+configuration file's path, and `GODEBUG`, for a warning. When `GODEBUG` contains
 `http2debug=1` or `http2debug=2`, Go's HTTP/2 log may write the API key and the
-path of the Webhook URL to standard error, so the server warns about it. When
+path of the Webhook URL to standard error, so the server warns about it. The Go standard library,
+however, uses the proxy variables of the server's environment (`HTTPS_PROXY`,
+`HTTP_PROXY`, `NO_PROXY`) for the requests to the LLM API and the Webhook. When
 environment variables with the names of the six keys below are set, the server
 ignores them: it does not stop and does not warn. The CLI reads environment
 variables as before and does not read the configuration file (see
@@ -352,7 +354,7 @@ on), it leaves it unchanged and ends. It writes the file to a temporary file in
 the same directory (with a name starting with `.config.env.tmp-`) before putting
 it in place, so a failure part way leaves no partly written file. The
 directories it created remain. When it cannot remove the temporary file, it
-names it; remove it by hand. `config init` names the file it created on one
+names it; remove it by hand. `config init` gives the path of the file it created on one
 line of standard error and writes nothing to standard output.
 
 `config init` exit codes:
@@ -372,14 +374,14 @@ variable is expanded and no quote is interpreted.
   the six keys
   `YT2COLUMN_LLM`, `YT2COLUMN_REVIEW_LLM`, `DEEPSEEK_API_KEY`, `ANTHROPIC_API_KEY`, `ANTHROPIC_WORKSPACE_ID`, and `SLACK_WEBHOOK_URL`.
   The meaning of each key is in the table in [Configuration](#configuration), and
-  any key may be left out. A key left out is treated as an unset environment
-  variable is in the CLI.
+  any key may be left out. A key left out is treated the same as an unset
+  environment variable in the CLI.
 - The value is everything after the first `=`, used without conversion. A `#`
-  not preceded by a space and a `=` are part of the value (the value of
+  not preceded by a space, and any further `=`, are part of the value (the value of
   `SLACK_WEBHOOK_URL=https://example.com/hook#x` is
   `https://example.com/hook#x`).
-- A value may be empty (`KEY=`). An empty value is treated as an empty
-  environment variable is in the CLI: it is a configuration error when the key
+- A value may be empty (`KEY=`). An empty value is treated the same as an empty
+  environment variable in the CLI: it is a configuration error when the key
   is used, and is not rejected for a key of a provider that is not used.
 
 A file containing any of the following is rejected as a whole. The server never
@@ -393,14 +395,15 @@ starts using only some of its lines.
   (quotes are not removed), or a value containing a space followed by `#`
   (`ANTHROPIC_API_KEY=sk-xxx # personal`; write a comment on a line of its own)
 - The second and later lines of the same key
-- A CR (including a CRLF line break), a control character other than LF, such
-  as a tab, DEL, or U+FEFF (a BOM)
+- A CR (including a CRLF line break), a control character other than LF (such
+  as a tab), DEL, or U+FEFF (a BOM)
 - A byte sequence that is not valid UTF-8, or a size over 64 KiB (65,536 bytes)
 
 A format rejection names the configuration file's path, and the line number and
 a fixed reason of each rejected line, one per line up to 20 lines; when there
-are more, it gives the number of the remaining lines. It never shows the file's
-content (a value or a key's text).
+are more, it gives the number of the remaining lines. It never shows a value or the
+text of a key other than the six keys. A duplicate-key rejection names that
+key.
 
 **Checks.** Before reading the configuration file, the server checks it. In any
 of the following cases, it stops with exit code `2` without fixing anything (it
@@ -412,11 +415,11 @@ reason.
 - It is a symbolic link (even when its target is a correct file).
 - It is not a regular file (a directory, a FIFO, a socket, and so on).
 - Its owner is not the user running the server.
-- Its mode is not exactly `0600` (`0644`, `0400`, and `0600` with the setuid,
-  setgid, or sticky bit are rejected too). The message gives the mode found and
+- Its mode is not exactly `0600` (`0644`, `0400`, `0600` with the setuid,
+  setgid, or sticky bit, and so on are rejected too). The message gives the mode found and
   the command that fixes it, `chmod 600 '<path>'`.
-- It cannot be opened or read (for example, without the permission to read
-  it).
+- It cannot be opened or read (for example, a parent directory cannot be
+  searched).
 
 The server reads the content from the same file it checked, so even when the
 file at the path is replaced after the check, it never uses the content of a
@@ -687,7 +690,10 @@ The CLI reads these from environment variables. `yt2column-server` reads keys
 with the same names from its configuration file, and does not read the values
 of these environment variables (see [Configuration file](#configuration-file)).
 The rules for values in this section, including how an empty value is handled,
-are the same for environment variables and the configuration file. "When
+are the same for environment variables and the configuration file. The
+configuration file is also subject to the format rules of
+[Configuration file](#configuration-file) (for example, a value with a trailing
+space is rejected as a format error before a client is built). "When
 unset" in the table means, for the configuration file, that the key is absent.
 `SLACK_WEBHOOK_URL` is needed only to post, and the server starts without it
 (see [Localhost server](#localhost-server)). The CLI does not read
@@ -783,8 +789,8 @@ if a default changes later. For the CLI, set the same value in the environment
 variable `YT2COLUMN_LLM`.
 
 `ANTHROPIC_API_KEY` is required. To review with the generation profile, leave
-`YT2COLUMN_REVIEW_LLM` unset. To use another profile, set it instead of relying
-on the defaults: in the configuration file for the server, and in environment
+`YT2COLUMN_REVIEW_LLM` unset. To use another profile, set the values instead of
+relying on the defaults: in the configuration file for the server, and in environment
 variables for the CLI.
 
 The quality target, the results, and the product limitations of this profile

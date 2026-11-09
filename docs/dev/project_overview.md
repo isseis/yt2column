@@ -144,9 +144,9 @@ extension/                # ブラウザ拡張（TypeScript。開発環境・Man
 
 値は前後の空白を取り除くなどの補正をせず、空の値は「未設定」ではなくエラーとして扱う。
 
-CLI は、表の変数を環境変数から読む。localhost サーバは、表のうち `YT2COLUMN_LLM`・`YT2COLUMN_REVIEW_LLM`・`DEEPSEEK_API_KEY`・`ANTHROPIC_API_KEY`・`ANTHROPIC_WORKSPACE_ID`・`SLACK_WEBHOOK_URL` の 6 つを、同じ名前のキーとして設定ファイルから読む（[ADR-0018](adr/0018-server-config-file.md)）。値の規則は、空の値の扱いを含めて、環境変数と同じである。ファイルにないキーは、環境変数が未設定のときと同じに扱う。
+CLI は、表の変数を環境変数から読む。localhost サーバは、表のうち `YT2COLUMN_LLM`・`YT2COLUMN_REVIEW_LLM`・`DEEPSEEK_API_KEY`・`ANTHROPIC_API_KEY`・`ANTHROPIC_WORKSPACE_ID`・`SLACK_WEBHOOK_URL` の 6 つを、同じ名前のキーとして設定ファイルから読む（[ADR-0018](adr/0018-server-config-file.md)）。値の規則は、空の値の扱いを含めて、環境変数と同じで、設定ファイルにはそれに加えて書式の規則がかかる。ファイルにないキーは、環境変数が未設定のときと同じに扱う。
 
-`internal/config` の `LoadServer` は、localhost サーバの設定を読む。段は 3 つで、`HOME` から設定ファイルのパスを導出し、ファイルを検査して読み、書式を解析し、6 つのキーの値を検証する。最初に失敗した段で止まる。値の検証は CLI と共有する。サーバのコードがプロセスの環境から読むのは、`HOME`（ソケットと設定ファイルのパス）と `GODEBUG`（HTTP/2 のデバッグログの警告）だけである。環境に 6 つのキーと同じ名前の変数があっても、読まず、止まらず、警告もしない。`SLACK_WEBHOOK_URL` は任意とし、未設定でもサーバは起動するが、投稿の操作を `webhook_not_configured` で拒否する。サーバは `yt-dlp` を呼ばないので、`YT2COLUMN_CACHE_DIR` と `YT2COLUMN_YTDLP_PATH` は読まない（不正な値でも起動を止めない）。ソケットのパスは `HOME` だけから導出し、`XDG_*`・`TMPDIR` は読まない。
+`internal/config` の `LoadServer` は、localhost サーバの設定を読む。段は 3 つで、`HOME` から設定ファイルのパスを導出し、ファイルを検査して読んで書式を解析し、6 つのキーの値を検証する。最初に失敗した段で止まる。値の検証は CLI と共有する。サーバのコードがプロセスの環境から読むのは、`HOME`（ソケットと設定ファイルのパス）と `GODEBUG`（HTTP/2 のデバッグログの警告）だけである（Go の標準ライブラリが LLM と Webhook へのリクエストにプロキシの変数を使うことは除く）。環境に 6 つのキーと同じ名前の変数があっても、読まず、止まらず、警告もしない。`SLACK_WEBHOOK_URL` は任意とし、未設定でもサーバは起動するが、投稿の操作を `webhook_not_configured` で拒否する。サーバは `yt-dlp` を呼ばないので、`YT2COLUMN_CACHE_DIR` と `YT2COLUMN_YTDLP_PATH` は読まない（不正な値でも起動を止めない）。ソケットのパスは `HOME` だけから導出し、`XDG_*`・`TMPDIR` は読まない。
 
 設定ファイルのパスは `HOME` だけから導出し、macOS もほかの Unix も `$HOME/.config/yt2column/config.env` である（`XDG_CONFIG_HOME` は読まない）。書式は 1 行に 1 つの `KEY=VALUE` で、空行と `#` で始まる行を読み飛ばし、値を変換せずに使う。受理する形に合わない行（`export `、引用符で始まる値、空白に続く `#`、重複したキー、6 つ以外のキーなど）、制御文字・CR・DEL・U+FEFF、UTF-8 として正しくないバイト列、64 KiB を超える大きさは、直さずにファイル全体を拒否する。サーバは、ファイルが自分の所有する通常のファイルで、シンボリックリンクでなく、モードがちょうど `0600` であることを、読む記述子について確かめ、満たさなければ何も直さずに起動を止める（終了コード `2`）。ACL は検査しない。`yt2column-server config init` は、コメントの行と空行だけの雛形をモード `0600` で作り、既存のものは変えない。詳しい規則は README の「設定ファイル」、セキュリティの方針は [security.md](security.md) の §2 と §8.2 にある。
 

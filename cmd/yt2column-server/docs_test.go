@@ -284,7 +284,7 @@ func checkReadmeConfigFile(t *testing.T, v doctestutil.ReadmeVersion, serverSect
 	for _, goos := range configFileSystems {
 		path := "`$HOME" + config.ServerFilePathTailForTest(goos) + "`"
 		if !hasLineContainingAll(section, label, path) {
-			t.Errorf("%s %s does not state the path %s for %s on the line starting with %q", v.Path, heading, path, goos, label)
+			t.Errorf("%s %s does not state the path %s for %s on a line containing %q", v.Path, heading, path, goos, label)
 		}
 	}
 	keys := config.ServerFileKeysForTest()

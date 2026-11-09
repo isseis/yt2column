@@ -110,7 +110,7 @@ var (
 	// socket path for each operating system.
 	ReadmeMacOSLabel     = Locator{JA: "macOS:", EN: "macOS:"}
 	ReadmeOtherUnixLabel = Locator{JA: "ほかの Unix:", EN: "other Unix:"}
-	// ReadmeConfigFileLabel starts the line that states the configuration
+	// ReadmeConfigFileLabel is on the line that states the configuration
 	// file's path, which is the same on every operating system.
 	ReadmeConfigFileLabel = Locator{JA: "設定ファイル:", EN: "configuration file:"}
 )
