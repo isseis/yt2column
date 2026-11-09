@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-09 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-09 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルの内容は、コミット `bd00f1c7` で確かめた。`file:line` の行番号は、このコミットでの行番号である。F-NNN・AC-NN は要件書の項番を指す。受け入れ基準との対応は付録 A にまとめる。本タスクに `design_handoff.md` はない。
@@ -232,3 +232,7 @@ N/A。実行時の振る舞いを変えないので、対象がない。
 | AC-08 | 3.2、7.2 | diff（`_checks/`、マージの前に実行） |
 | AC-09 | 1.2、6.2、7.2 | diff（`_checks/`、マージの前にも実行） |
 | AC-10 | 3.3、7.1 | test（`make test`） |
+
+## 変更履歴
+
+- 2026-11-09 承認（isseis、#742）
