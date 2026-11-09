@@ -73,17 +73,17 @@
 
 **変更するファイル:** `internal/pipeline/strictjson_users_test.go`（新規）、`internal/pipeline/pipeline_test.go`
 
--   [ ] **ステップ 1-1**: `goSources` と `goSource` の型を、設計書 3.4 の規則（`cmd/` と `internal/` を歩く、`testdata` と `_`・`.` で始まるディレクトリとファイルを飛ばす、`_test.go` も返す、ビルドタグを見ない）と 3.6 の型のとおりに書く。
--   [ ] **ステップ 1-2**: `TestGoSources` を書く。`t.TempDir` の下に作ったソースで、次を確かめる（設計書 7.1）。
+-   [x] **ステップ 1-1**: `goSources` と `goSource` の型を、設計書 3.4 の規則（`cmd/` と `internal/` を歩く、`testdata` と `_`・`.` で始まるディレクトリとファイルを飛ばす、`_test.go` も返す、ビルドタグを見ない）と 3.6 の型のとおりに書く。
+-   [x] **ステップ 1-2**: `TestGoSources` を書く。`t.TempDir` の下に作ったソースで、次を確かめる（設計書 7.1）。
     -   飛ばすもの（`testdata`、`_` で始まるディレクトリ、`.` で始まるディレクトリ、`_` で始まるファイル、`.` で始まるファイル）を返さない。
     -   `cmd/` と `internal/` の外の `.go` ファイル（起点の直下のファイルと、`_` でも `.` でも始まらない別のディレクトリ `other/` の下のファイル）を返さない。実際のリポジトリでは、`cmd/` と `internal/` の外にある唯一の使い手 `docs/tasks/0018_article_quality/_material_check` は `_` の規則でも飛ばされるので、この確かめはこの入力でしか観測できない（CLAUDE.md「A layered path needs inputs only one layer can handle」）。
     -   `_test.go`、`//go:build test`・`//go:build ignore` のファイル、GOOS の接尾辞を持つファイル（`_windows.go`）を返す。
     -   起点のパス自身が `_` または `.` で始まる要素を含んでも歩く（起点を `t.TempDir` の下の `_root/` にする）。
     -   返すパッケージが起点からの `/` 区切りの相対パスである。
     -   空の `cmd/` と `internal/` だけを持つ起点では何も返さない。
--   [ ] **ステップ 1-3**: `TestPackageReferenceListsPackages` の走査（`pipeline_test.go:639-659`）を、`goSources` が返すファイルから設計書 3.4 の 3 種類のパッケージを数える形に置き換える。`prompts` の追加と空の確かめは残す。
--   [ ] **ステップ 1-4**: 置き換えの前後で、`TestPackageReferenceListsPackages` が数えるパッケージの集合が同じであることを確かめる（一時的に集合を出力して比べ、出力はコミットしない）。`.go` ファイルのない `testutil` のディレクトリを一時的に作ると、置き換えた後は数えないことも確かめる。結果をコミットメッセージに書く。
--   [ ] **ステップ 1-5**: `TestGoSources` の各確かめについて、`goSources` の該当する規則を一時的に外して失敗することを確かめ、コミットメッセージに書く（CLAUDE.md「Every test must be able to fail for its stated reason」）。壊し方は、少なくとも次の 4 種類を含む。
+-   [x] **ステップ 1-3**: `TestPackageReferenceListsPackages` の走査（`pipeline_test.go:639-659`）を、`goSources` が返すファイルから設計書 3.4 の 3 種類のパッケージを数える形に置き換える。`prompts` の追加と空の確かめは残す。
+-   [x] **ステップ 1-4**: 置き換えの前後で、`TestPackageReferenceListsPackages` が数えるパッケージの集合が同じであることを確かめる（一時的に集合を出力して比べ、出力はコミットしない）。`.go` ファイルのない `testutil` のディレクトリを一時的に作ると、置き換えた後は数えないことも確かめる。結果をコミットメッセージに書く。
+-   [x] **ステップ 1-5**: `TestGoSources` の各確かめについて、`goSources` の該当する規則を一時的に外して失敗することを確かめ、コミットメッセージに書く（CLAUDE.md「Every test must be able to fail for its stated reason」）。壊し方は、少なくとも次の 4 種類を含む。
     -   飛ばす規則のそれぞれを外す。
     -   `cmd/`・`internal/` ではなく起点の全体を歩く。
     -   名前の規則を起点のパスにも当てる。

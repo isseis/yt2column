@@ -629,35 +629,17 @@ func firstLineOf(t *testing.T, path string) string {
 func TestPackageReferenceListsPackages(t *testing.T) {
 	const root = "../.."
 	found := map[string]bool{}
-	add := func(dir string) {
-		rel, err := filepath.Rel(root, dir)
-		if err != nil {
-			t.Fatalf("relative path of %s: %v", dir, err)
-		}
-		found[filepath.ToSlash(rel)] = true
+	sources, err := goSources(root)
+	if err != nil {
+		t.Fatalf("scan %s: %v", root, err)
 	}
-	for _, base := range []string{"cmd", "internal"} {
-		err := filepath.WalkDir(filepath.Join(root, base), func(path string, d fs.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
-			if d.IsDir() {
-				if slices.Contains(strings.Split(filepath.ToSlash(path), "/"), "testutil") {
-					add(path)
-				}
-				return nil
-			}
-			if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-				return nil
-			}
-			add(filepath.Dir(path))
-			return nil
-		})
-		if err != nil {
-			t.Fatalf("walk %s: %v", base, err)
+	for _, src := range sources {
+		if !strings.HasSuffix(src.path, "_test.go") ||
+			slices.Contains(strings.Split(src.pkg, "/"), "testutil") {
+			found[src.pkg] = true
 		}
 	}
-	add(filepath.Join(root, "prompts"))
+	found["prompts"] = true
 	if len(found) == 0 {
 		t.Fatal("found no packages with production code")
 	}
