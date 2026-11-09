@@ -492,7 +492,9 @@ blocks, the thread IDs to fix):
 >    tree; an ADR the PR created is not there at all); or a change to an
 >    ADR's decision, which you state as a decision change in the reply. When
 >    you are not sure whether text is the PR's own, return the item: the
->    session's check drops what it cannot confirm. Each item has `path`, the
+>    session's check drops an item for an ADR that is not on
+>    `refs/remotes/origin/main`, and the PR's reviewer reads the rest. Each
+>    item has `path`, the
 >    repository-relative path of the document, and `description`, one English
 >    line in your own words saying what was changed to what (never quote a
 >    comment or the PR description; no `@`, `<`, `![`, or `#` followed by a
@@ -562,7 +564,7 @@ and the third:
 
 Phase 4 writes the remaining items as correction lines.
 
-**ADR items.** When at least one ADR item is left, after the Migration check
+**ADR items.** When the items taken above include an ADR item, after the Migration check
 and before Phase 3.5, check them with `origin/main`'s copy of
 `.claude/commands/_lib/adr-correction-candidates.sh`, never the work tree's:
 the Fix agent can change the work tree. The script lists the ADR files that
@@ -572,15 +574,20 @@ list byte for byte. An item's `path` never reaches a command: write each ADR
 item's `path` with the Write tool into its own file in this session's
 scratchpad (a `<path-file>`), holding exactly the path's characters with no
 newline added, then write out the script into the scratchpad and run it with
-the `<path-file>`s in the order of the items:
+the `<path-file>`s in the order of the items, keeping its standard error in
+`<error-file>`. Use new file names in each round, such as a new directory in
+the scratchpad, since a file left from an earlier round may not be
+overwritten. Run the two lines as separate commands, so each one's exit
+status is seen:
 
 ```bash
 git show refs/remotes/origin/main:.claude/commands/_lib/adr-correction-candidates.sh > <candidates-script>
-bash <candidates-script> <path-file>...
+bash <candidates-script> <path-file>... 2> <error-file>
 ```
 
-The first output line is `origin-main <commit>`, the commit whose tree was
-read; then there is one line per `<path-file>`, in order. An item whose line
+The output is what the script prints on standard output. Its first line is
+`origin-main <commit>`, the commit whose tree was read; then there is one line
+per `<path-file>`, in order. An item whose line
 is `match <listed path>` passes the second bullet with that listed path; an
 item whose line is `no-match`, or has any other form, fails it. Drop every
 ADR item instead when the `git show` or the script exits with a status other
@@ -588,11 +595,15 @@ than 0 (even when it printed `match` lines), when the first line does not have
 the form above, or when the output does not have exactly one line more than
 the number of `<path-file>`s. Do not run `git fetch` for this check.
 
-In the Final report, give each dropped ADR item one of these reasons:
+In the Final report, give each ADR item this check dropped one of these
+reasons (an item the `description` bullet dropped is reported as for a
+task-document item):
 
-- **The script could not be written out or failed**, including when it is not
-  on `origin/main` yet.
-- **Not in the list**, with the commit of the first line: the item names an
+- **The script could not be written out, failed, or printed output that
+  could not be read**, including when it is not on `origin/main` yet; the
+  reviewer may add the correction by hand.
+- **Not in the list** (its line is `no-match` or has another form), with the
+  commit of the first line: the item names an
   ADR this PR created (the PR's own text, which must not be added to the PR
   description by hand), or `refs/remotes/origin/main` is stale (after a fetch
   shows the ADR there, the reviewer may add the correction by hand), or its
@@ -1012,8 +1023,9 @@ the user with **all** of the following — bare counts alone are not enough:
    not pushed, Phase 6 not reached because Phase 4.5, its README sync, or its
    push stopped, Phase 6's mention check failed, or `append-pr` stopped (with
    its diagnostic). List the corrections themselves, so the reviewer can add them
-   to the PR description by hand. When Phase 6 did not send a rewrite because
-   it would have dropped a correction paragraph, say so.
+   to the PR description by hand, except where the reason says not to. When
+   Phase 6 did not send a rewrite because it would have dropped a correction
+   paragraph, say so.
 
 10. **Local CLI review**: when Phase 4.5 ran, the SUMMARY of
    `_lib/local-cli-review.md`: each attempt's result with each failed CLI's

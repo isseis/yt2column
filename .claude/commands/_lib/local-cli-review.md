@@ -210,7 +210,8 @@ the tool (`make install-codexreview`, `go build`): the user installs it from
      check (step 7) runs before the commit. A revision of the PR's own text
      (text the file does not have in `refs/remotes/origin/main`; an ADR the PR
      created is not there at all) is not an editorial correction and gets no
-     correction line. This holds whether the PR exists yet or not. When a fix changes `README.md`,
+     correction line. Write correction lines this way whether or not the PR
+     exists yet. When a fix changes `README.md`,
      run the README sync check as `.claude/commands/mktrans.md`, "When a
      caller runs it", says before the commit, and include `README.en.md` in
      it.
