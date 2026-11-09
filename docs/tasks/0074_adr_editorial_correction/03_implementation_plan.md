@@ -124,9 +124,9 @@
 
 **変更するファイル:** `cmd/yt2column/test_helpers_bash.go`（新規）、`cmd/yt2column/lightweight_docs_test.go`、`cmd/yt2column/docs_test.go`、`.claude/commands/_lib/adr-correction-candidates.sh`（新規）、`cmd/yt2column/adr_candidates_docs_test.go`（新規）
 
--   [ ] **ステップ 2-1（リファクタリングのコミット）**: 本計画 §1.5 の表のとおり、`lwBash` と `lightweightBashes` を `test_helpers_bash.go` に移して名前を変え、`lightweight_docs_test.go` の使う箇所をすべて新しい名前にする。`codeTexts` を名前を変えずに `docs_test.go` に移す。関数のコメントは、`/runissue` に限らず、テストが bash のスクリプトを実行する 2 つの bash を返すと述べる。振る舞いは変えない。`TestLightweightCheck` と `TestLightweightCheckCallSite` がそのまま通ることを確かめる。`make fmt`・`make test`・`make lint` を通し、このコミットには他の変更を入れない。
--   [ ] **ステップ 2-2**: 候補のスクリプトを書く。設計書 3.2.2 の表のすべての性質と、本計画 §1.3 の出力の形・比較の方法を持たせる。冒頭のコメントに、使い方、契約（表の性質）、出力と終了コード、`/fixpr` が `origin/main` の版を実行すること、bash で書く理由（本計画 §1.3 の ADR-0014 の判断）を書く。コメント・診断のメッセージ・出力は英語にする。bash 3.2 で動く書き方にする。
--   [ ] **ステップ 2-3**: `adr_candidates_docs_test.go` に `TestADRCorrectionCandidates` を足す。各場合を、`scriptBashes` が返すそれぞれの bash で実行する。
+-   [x] **ステップ 2-1（リファクタリングのコミット）**: 本計画 §1.5 の表のとおり、`lwBash` と `lightweightBashes` を `test_helpers_bash.go` に移して名前を変え、`lightweight_docs_test.go` の使う箇所をすべて新しい名前にする。`codeTexts` を名前を変えずに `docs_test.go` に移す。関数のコメントは、`/runissue` に限らず、テストが bash のスクリプトを実行する 2 つの bash を返すと述べる。振る舞いは変えない。`TestLightweightCheck` と `TestLightweightCheckCallSite` がそのまま通ることを確かめる。`make fmt`・`make test`・`make lint` を通し、このコミットには他の変更を入れない。
+-   [x] **ステップ 2-2**: 候補のスクリプトを書く。設計書 3.2.2 の表のすべての性質と、本計画 §1.3 の出力の形・比較の方法を持たせる。冒頭のコメントに、使い方、契約（表の性質）、出力と終了コード、`/fixpr` が `origin/main` の版を実行すること、bash で書く理由（本計画 §1.3 の ADR-0014 の判断）を書く。コメント・診断のメッセージ・出力は英語にする。bash 3.2 で動く書き方にする。
+-   [x] **ステップ 2-3**: `adr_candidates_docs_test.go` に `TestADRCorrectionCandidates` を足す。各場合を、`scriptBashes` が返すそれぞれの bash で実行する。
     -   **土台:** ファイルの中に小さな git の土台を持つ。具体的には、`t.TempDir` のリポジトリ、場合ごとの空の `HOME` と `TMPDIR`、許可リストの環境（`lwFixture.env` と同じく `PATH`・`HOME`・`TMPDIR`・`GIT_CONFIG_NOSYSTEM=1`・`GIT_TERMINAL_PROMPT=0`・`LC_ALL=C` だけ）、決まった作者での git の実行である。`main` に ADR などのファイルをコミットし、`refs/remotes/origin/main` をそこに向けてから、ブランチを作る。
     -   **場合:** 設計書 7.1 の表の 15 の場合に加えて、設計書 3.2.2 の性質のうち、その表では確かめられないものについての場合を足す。
         -   参照: `refs/remotes/origin/main` がなく、変更も何もないときも、0 でない終了コードで終わる。
