@@ -937,7 +937,7 @@ func TestLoadServerWebhookOptional(t *testing.T) {
 	})
 	t.Run("empty", func(t *testing.T) {
 		_, err := LoadServer(ServerLookupForTest(t, with(validServerEnv(t), slackEnv, "")))
-		assertVarError(t, err, ErrMissing, slackEnv)
+		assertVarErrors(t, err, fileKey(wantMissing(slackEnv), reasonEmpty))
 	})
 	t.Run("invalid", func(t *testing.T) {
 		_, err := LoadServer(ServerLookupForTest(t, with(validServerEnv(t), slackEnv, "http://host/"+mark)))
@@ -1477,10 +1477,9 @@ func TestLoadDefaultProviderVariables(t *testing.T) {
 	}
 }
 
-// TestLoadServerLLMDefaults checks the server entry point with no LLM
-// variable. The rules themselves are covered by the Load tests, which
-// LoadServer shares; the retired variables at the server entry point are in
-// TestLoadRejectsRetiredLLMVars.
+// TestLoadServerLLMDefaults checks the server entry point with no LLM key.
+// The rules themselves are covered by the Load tests, which LoadServer
+// shares.
 func TestLoadServerLLMDefaults(t *testing.T) {
 	env := map[string]string{
 		"HOME":             udstest.Dir(t),
@@ -2032,6 +2031,8 @@ func TestVarErrorSource(t *testing.T) {
 	}{
 		{VarSourceUnspecified, llmEnv + ": " + reasonLLMForm},
 		{VarSourceConfigFile, "configuration file key " + llmEnv + ": " + reasonLLMForm},
+		// A value outside the enum falls back to the plain form.
+		{VarSource(99), llmEnv + ": " + reasonLLMForm},
 	}
 	for _, tc := range cases {
 		err := &VarError{Name: llmEnv, Reason: reasonLLMForm, Err: ErrInvalid, Source: tc.source}
@@ -2116,68 +2117,29 @@ func TestLoadServerReadsFile(t *testing.T) {
 	})
 }
 
-// TestLoadServerValueRejections checks that every value the validation
-// rejects is one element of the joined error, marked as a configuration file
-// key, and that no rejection calls it an environment variable or holds the
-// value.
+// TestLoadServerValueRejections checks that the validation reports every
+// value it rejects, each marked as a configuration file key, and returns the
+// zero ServerConfig. It holds the requirements' examples, YT2COLUMN_LLM=Claude/x
+// and SLACK_WEBHOOK_URL=http://example.com/hook; the review stage selects
+// claude, so the missing Anthropic API key is reported too.
 func TestLoadServerValueRejections(t *testing.T) {
-	const mark = "MARK-FILE-VALUE-Q7"
-	cases := []struct {
-		name string
-		file map[string]string
-		want []VarError
-	}{
-		{
-			name: "LLM provider",
-			file: map[string]string{llmEnv: "Claude/" + mark, anthropicAPIKeyEnv: "sk-ant-" + mark},
-			want: []VarError{fileKey(wantInvalid(llmEnv, reasonLLMProvider), "")},
-		},
-		{
-			name: "Webhook URL",
-			file: map[string]string{anthropicAPIKeyEnv: "sk-ant-" + mark, slackEnv: "http://example.com/hook" + mark},
-			want: []VarError{fileKey(wantInvalid(slackEnv, reasonSlackWebhook), "")},
-		},
-		{
-			name: "every rejection reported",
-			file: map[string]string{
-				llmEnv:                  "deepseek/" + mark + "+" + mark,
-				reviewLLMEnv:            "claude/",
-				anthropicWorkspaceIDEnv: "a " + mark,
-				slackEnv:                "http://" + mark,
-			},
-			want: []VarError{
-				fileKey(wantInvalid(llmEnv, reasonDeepSeekEffortPart), ""),
-				fileKey(wantInvalid(reviewLLMEnv, reasonLLMForm), ""),
-				fileKey(wantMissing(deepSeekAPIKeyEnv), reasonNotSet),
-				fileKey(wantMissing(anthropicAPIKeyEnv), reasonNotSet),
-				fileKey(wantInvalid(anthropicWorkspaceIDEnv, reasonAnthropicWorkspaceID), ""),
-				fileKey(wantInvalid(slackEnv, reasonSlackWebhook), ""),
-			},
-		},
+	file := map[string]string{
+		llmEnv:                  "Claude/x",
+		reviewLLMEnv:            "claude/",
+		anthropicWorkspaceIDEnv: "a b",
+		slackEnv:                "http://example.com/hook",
 	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			cfg, err := LoadServer(envLookup(serverEnvWithFile(t, ServerFileForTest(tc.file))))
-			assertVarErrors(t, err, tc.want...)
-			if got := viewServer(cfg); got != (serverView{}) || cfg.SocketPath() != "" {
-				t.Errorf("LoadServer() returned a non-zero ServerConfig on error: %+v", got)
-			}
-			for _, e := range splitJoinedForTest(err) {
-				if strings.Contains(e.Error(), "environment variable") || strings.Contains(e.Error(), mark) {
-					t.Errorf("rejection %q names an environment variable or holds the value", e)
-				}
-			}
-		})
+	cfg, err := LoadServer(envLookup(serverEnvWithFile(t, ServerFileForTest(file))))
+	assertVarErrors(t, err,
+		fileKey(wantInvalid(llmEnv, reasonLLMProvider), ""),
+		fileKey(wantInvalid(reviewLLMEnv, reasonLLMForm), ""),
+		fileKey(wantMissing(anthropicAPIKeyEnv), reasonNotSet),
+		fileKey(wantInvalid(anthropicWorkspaceIDEnv, reasonAnthropicWorkspaceID), ""),
+		fileKey(wantInvalid(slackEnv, reasonSlackWebhook), ""),
+	)
+	if got := viewServer(cfg); got != (serverView{}) || cfg.SocketPath() != "" {
+		t.Errorf("LoadServer() returned a non-zero ServerConfig on error: %+v", got)
 	}
-}
-
-// splitJoinedForTest returns the errors joined by errors.Join, or err alone,
-// as the server's output splits them.
-func splitJoinedForTest(err error) []error {
-	if joined, ok := err.(interface{ Unwrap() []error }); ok {
-		return joined.Unwrap()
-	}
-	return []error{err}
 }
 
 // TestLoadServerEmptyValues checks that an empty value in the file is handled
@@ -2203,11 +2165,10 @@ var retiredVarNames = []string{
 	"YT2COLUMN_REVIEW_PROVIDER", "YT2COLUMN_REVIEW_MODEL", "YT2COLUMN_CLAUDE_EFFORT",
 }
 
-// TestLoadServerIgnoresEnvSettings checks that the six keys and the retired
-// LLM variables in the process environment have no effect on the server's
-// configuration: a key only the environment holds is not set, an LLM choice
-// only the environment holds selects nothing, and any such variable, empty or
-// not, leaves the result as the file alone gives it.
+// TestLoadServerIgnoresEnvSettings checks the requirements' examples of a
+// setting only the process environment holds: an API key there is not set in
+// the file, and an LLM choice there selects nothing. That the server reads no
+// such variable at all, empty or not, is TestLoadServerReadsOnlyHomeAndGodebug.
 func TestLoadServerIgnoresEnvSettings(t *testing.T) {
 	t.Run("API key only in the environment", func(t *testing.T) {
 		env := serverEnvWithFile(t, []byte(serverFileTemplate))
@@ -2227,30 +2188,6 @@ func TestLoadServerIgnoresEnvSettings(t *testing.T) {
 			t.Errorf("generation = %+v, want the default %s", got, defaultLLMValue)
 		}
 	})
-	file := ServerFileForTest(map[string]string{
-		llmEnv: "deepseek/deepseek-chat", deepSeekAPIKeyEnv: "sk-file",
-		slackEnv: "https://hooks.slack.com/services/T000/B000/FILE",
-	})
-	baseEnv := serverEnvWithFile(t, file)
-	want, err := LoadServer(envLookup(baseEnv))
-	if err != nil {
-		t.Fatalf("LoadServer() without environment settings error = %v, want nil", err)
-	}
-	for _, value := range []string{"", "claude/claude-env", "https://hooks.slack.com/services/T000/B000/ENV"} {
-		t.Run(fmt.Sprintf("every variable %q", value), func(t *testing.T) {
-			env := maps.Clone(baseEnv)
-			for _, name := range slices.Concat(serverFileKeys, retiredVarNames) {
-				env[name] = value
-			}
-			got, err := LoadServer(envLookup(env))
-			if err != nil {
-				t.Fatalf("LoadServer() error = %v, want nil", err)
-			}
-			if viewServer(got) != viewServer(want) {
-				t.Errorf("configuration = %+v, want the file's %+v", viewServer(got), viewServer(want))
-			}
-		})
-	}
 }
 
 // TestLoadServerFileRejections checks that each refusal of the configuration
@@ -2260,7 +2197,7 @@ func TestLoadServerFileRejections(t *testing.T) {
 	valid := []byte(anthropicAPIKeyEnv + "=sk-ant-file\n")
 	// padded returns valid followed by a comment line, size bytes in all.
 	padded := func(size int) []byte {
-		return append(slices.Clone(valid), append([]byte("#"), bytes.Repeat([]byte("x"), size-len(valid)-1)...)...)
+		return slices.Concat(valid, []byte("#"), bytes.Repeat([]byte("x"), size-len(valid)-1))
 	}
 	cases := []struct {
 		name     string
@@ -2321,11 +2258,7 @@ func TestLoadServerFileRejections(t *testing.T) {
 	t.Run("format stops before the values", func(t *testing.T) {
 		data := []byte(llmEnv + "=deepseek/\nnot a setting\n")
 		_, err := LoadServer(envLookup(serverEnvWithFile(t, data)))
-		parts := splitJoinedForTest(err)
-		if len(parts) != 1 {
-			t.Fatalf("LoadServer() error = %v, want exactly one rejection", err)
-		}
-		if _, ok := errors.AsType[*VarError](err); ok || !errors.Is(parts[0], ErrConfigFileFormat) {
+		if _, ok := errors.AsType[*VarError](err); ok || !errors.Is(err, ErrConfigFileFormat) {
 			t.Errorf("LoadServer() error = %v, want only the format rejection", err)
 		}
 	})
@@ -2367,12 +2300,25 @@ func writeModeForTest(t *testing.T, path string, data []byte, mode os.FileMode) 
 }
 
 // TestLoadServerReadsOnlyHomeAndGodebug checks that the server's load reads
-// HOME and GODEBUG from the environment, and no other variable.
+// HOME and GODEBUG from the environment, and no other variable, even when
+// the environment holds the six keys and the retired LLM variables, which
+// then leave the configuration as the file alone gives it.
 func TestLoadServerReadsOnlyHomeAndGodebug(t *testing.T) {
 	env := serverEnvWithFile(t, []byte(anthropicAPIKeyEnv+"=sk-ant-file\n"))
+	want, err := LoadServer(envLookup(env))
+	if err != nil {
+		t.Fatalf("LoadServer() without environment settings error = %v, want nil", err)
+	}
+	for _, name := range slices.Concat(serverFileKeys, retiredVarNames) {
+		env[name] = ""
+	}
 	var read []string
-	if _, err := LoadServer(recordingLookup(env, &read)); err != nil {
+	got, err := LoadServer(recordingLookup(env, &read))
+	if err != nil {
 		t.Fatalf("LoadServer() error = %v, want nil", err)
+	}
+	if viewServer(got) != viewServer(want) {
+		t.Errorf("configuration = %+v, want the file's %+v", viewServer(got), viewServer(want))
 	}
 	if !slices.Contains(read, "HOME") {
 		t.Errorf("read = %v, want it to include HOME", read)

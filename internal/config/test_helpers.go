@@ -129,6 +129,9 @@ func ServerFilePathForTest(home string) string {
 	return loc.path
 }
 
+// ServerFileKeysForTest returns the keys the configuration file accepts.
+func ServerFileKeysForTest() []string { return slices.Clone(serverFileKeys) }
+
 // ServerFileMaxSizeForTest returns the largest configuration file accepted,
 // in bytes.
 func ServerFileMaxSizeForTest() int { return serverFileMaxSize }

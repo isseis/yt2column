@@ -162,10 +162,15 @@ func TestStartupFailures(t *testing.T) {
 			configError: true,
 		},
 		{
-			name:        "configuration file line rejected",
-			fileSetup:   func(t *testing.T, path string) { appendFile(t, path, "export ANTHROPIC_API_KEY=x\n") },
+			name: "configuration file line rejected",
+			fileSetup: func(t *testing.T, path string) {
+				// Writing an existing file keeps its mode.
+				if err := os.WriteFile(path, []byte("export ANTHROPIC_API_KEY=x\n"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			},
 			want:        exitUsage,
-			wantStderr:  ": line 4: ",
+			wantStderr:  ": line 1: ",
 			configLines: 1,
 			configError: true,
 		},
@@ -292,6 +297,9 @@ func TestStartupFailures(t *testing.T) {
 			// The path is derived from the valid environment, before setup can
 			// make it invalid.
 			socket := e.socketPath(t)
+			// The socket directories a configuration error must not create:
+			// under the valid HOME, and under HOME as setup leaves it.
+			socketDirs := []string{filepath.Dir(socket)}
 			d := testDeps(validResponseLLM())
 			if tc.setup != nil {
 				tc.setup(t, e, &d)
@@ -299,10 +307,9 @@ func TestStartupFailures(t *testing.T) {
 			e.writeConfig(t)
 			// The socket directory the run would create is derived from HOME
 			// as setup left it, which may differ from the valid one above.
-			var socketDir string
 			var before, unchanged configState
 			if home := e.vars["HOME"]; filepath.IsAbs(home) {
-				socketDir = filepath.Dir(e.socketPath(t))
+				socketDirs = append(socketDirs, filepath.Dir(e.socketPath(t)))
 				unchanged = readConfigState(t, home)
 				if tc.fileSetup != nil {
 					tc.fileSetup(t, config.ServerFilePathForTest(home))
@@ -349,10 +356,12 @@ func TestStartupFailures(t *testing.T) {
 							t.Errorf("the configuration file changed: before %+v, after %+v", unchanged, after)
 						}
 					}
-					// The socket directory holds the start lock and the
-					// socket, so its absence covers both.
-					if _, err := os.Lstat(socketDir); !errors.Is(err, os.ErrNotExist) {
-						t.Errorf("the socket directory %s exists after a configuration error: %v", socketDir, err)
+				}
+				// The socket directory holds the start lock and the socket,
+				// so its absence covers both.
+				for _, dir := range socketDirs {
+					if _, err := os.Lstat(dir); !errors.Is(err, os.ErrNotExist) {
+						t.Errorf("the socket directory %s exists after a configuration error: %v", dir, err)
 					}
 				}
 			}
@@ -479,12 +488,10 @@ func TestModeRejectionChmodCommand(t *testing.T) {
 // show up on its standard error, and that a key only the environment holds
 // counts as not set in the configuration file.
 func TestServerIgnoresEnvSettings(t *testing.T) {
-	names := []string{
-		"YT2COLUMN_LLM", "YT2COLUMN_REVIEW_LLM", "DEEPSEEK_API_KEY",
-		"ANTHROPIC_API_KEY", "ANTHROPIC_WORKSPACE_ID", "SLACK_WEBHOOK_URL",
+	names := append(config.ServerFileKeysForTest(),
 		"YT2COLUMN_LLM_PROVIDER", "YT2COLUMN_MODEL", "YT2COLUMN_REVIEW_PROVIDER",
 		"YT2COLUMN_REVIEW_MODEL", "YT2COLUMN_CLAUDE_EFFORT",
-	}
+	)
 	for _, value := range []string{"", "x"} {
 		t.Run(fmt.Sprintf("every variable %q", value), func(t *testing.T) {
 			e := newServerEnv(t)
