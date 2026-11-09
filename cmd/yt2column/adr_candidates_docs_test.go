@@ -373,12 +373,13 @@ func adrCandidatesCases() []acCase {
 			name: "standard input and GIT_ variables", setup: changeAlpha,
 			opts: acRunOptions{stdin: acBeta + "\n"}, env: acOtherRepo, want: acLines(acAlpha),
 		},
-		// A caller that sets the variable the script runs again under skips
-		// env -i; the script still drops the GIT_ variables.
+		// A caller that presets the variable the script runs again under,
+		// with the value the earlier form of the marker had, does not skip
+		// env -i, and the script also drops the GIT_ variables.
 		{
 			name: "clean environment variable preset", setup: changeAlpha,
 			env: func(f *acFixture) []string {
-				return append(acOtherRepo(f), "ADR_CANDIDATES_CLEAN_ENV=1")
+				return append(acOtherRepo(f), "ADR_CANDIDATES_CLEAN_ENV=1", "BASH_FUNC_command%%=() { return 0; }")
 			}, want: acLines(acAlpha),
 		},
 		// Exported functions that replace git, cmp (always equal), and

@@ -18,9 +18,12 @@
 #     and TMPDIR are kept; its GIT_ variables, exported functions, shell
 #     options, and locale change nothing, and neither do the global and system
 #     git configuration, the attributes, or the repository settings that
-#     GIT_OVERRIDES fixes. One input is left: bash reads the caller's
-#     BASH_ENV file before this script starts, so what that file prints would
-#     reach the output (a caller then drops every item, see below). The
+#     GIT_OVERRIDES fixes. Inputs left: bash reads the caller's BASH_ENV file
+#     and imports the caller's exported functions before this script starts,
+#     so what that file prints would reach the output (a caller then drops
+#     every item, see below), and a function named after a builtin the first
+#     lines run (exec, env) could stop the env -i run. Both are the user's own
+#     environment, not a value from outside the trust boundary. The
 #     repository's core.worktree and core.fileMode still apply.
 #   - Location: the repository is judged from the top of its work tree,
 #     whatever directory the script runs in.
@@ -64,9 +67,11 @@
 
 # Run again in a clean environment, so nothing the caller's environment
 # carries (exported functions, SHELLOPTS, BASHOPTS, LC_ALL, GIT_ variables)
-# reaches the shell or git: only PATH, HOME, and TMPDIR are kept.
-if [ "${ADR_CANDIDATES_CLEAN_ENV:-}" != 1 ]; then
-	exec env -i ADR_CANDIDATES_CLEAN_ENV=1 PATH="${PATH:-}" HOME="${HOME:-}" TMPDIR="${TMPDIR:-}" \
+# reaches the shell or git: only PATH, HOME, and TMPDIR are kept. The marker
+# is this process's ID, which exec keeps, so a caller cannot skip the run by
+# presetting it; [[ is a keyword no function can replace.
+if [[ ${ADR_CANDIDATES_CLEAN_ENV-} != "$$" ]]; then
+	exec env -i ADR_CANDIDATES_CLEAN_ENV=$$ PATH="${PATH:-}" HOME="${HOME:-}" TMPDIR="${TMPDIR:-}" \
 		"${BASH:-bash}" --noprofile --norc "$0" "$@" </dev/null
 fi
 unset ADR_CANDIDATES_CLEAN_ENV
@@ -74,9 +79,9 @@ unset ADR_CANDIDATES_CLEAN_ENV
 set -u -o pipefail
 export LC_ALL=C
 
-# env -i already dropped the caller's variables unless the caller set
-# ADR_CANDIDATES_CLEAN_ENV itself to skip it, so drop every GIT_ variable
-# (GIT_DIR, GIT_WORK_TREE, GIT_CONFIG_PARAMETERS, ...) and function again.
+# env -i already dropped the caller's variables; drop every GIT_ variable
+# (GIT_DIR, GIT_WORK_TREE, GIT_CONFIG_PARAMETERS, ...) and the functions the
+# script relies on again, as a second guard.
 for name in ${!GIT_@}; do
 	unset "$name"
 done
