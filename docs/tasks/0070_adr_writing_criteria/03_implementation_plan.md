@@ -76,19 +76,19 @@
 
 **変更するファイル:** `docs/dev/conventions/adr.md`、`docs/dev/adr/0039-adr-writing-criteria.md`、`docs/tasks/0070_adr_writing_criteria/_checks/main.go`（新規）、`docs/tasks/0070_adr_writing_criteria/_checks/data.json`（新規）、`docs/tasks/0070_adr_writing_criteria/03_implementation_plan.md`（進み具合と §7 の記録）
 
--   [ ] **ステップ 1-1（コミット 1: 規約）**: 規約を設計書 3.1〜3.5 のとおりに変える。変える箇所は本計画 §1.4 の表の 5 つの行である（「背景」の箇条と基準の段落、「Approval and the PR」の 4 文目、訂正の節、「History entries」の 2 つの箇条、`main` でガードが失敗したときの段落の 3 文目）。設計書 7.2 の表が変えないとする部分には触れない。規約だけをコミットする。規約は ADR ではないので、訂正の行は書かない。
--   [ ] **ステップ 1-2（コミット 2: ADR-0039）**: ADR-0039 の「決定」の 2〜5 つ目の項目の最後の文を、次のとおり置き換える（設計書 3.6）。項目のほかの文、ほかの節、「状態」は変えない。「経緯」に項目を足さない（AC-23）。
+-   [x] **ステップ 1-1（コミット 1: 規約）**: 規約を設計書 3.1〜3.5 のとおりに変える。変える箇所は本計画 §1.4 の表の 5 つの行である（「背景」の箇条と基準の段落、「Approval and the PR」の 4 文目、訂正の節、「History entries」の 2 つの箇条、`main` でガードが失敗したときの段落の 3 文目）。設計書 7.2 の表が変えないとする部分には触れない。規約だけをコミットする。規約は ADR ではないので、訂正の行は書かない。
+-   [x] **ステップ 1-2（コミット 2: ADR-0039）**: ADR-0039 の「決定」の 2〜5 つ目の項目の最後の文を、次のとおり置き換える（設計書 3.6）。項目のほかの文、ほかの節、「状態」は変えない。「経緯」に項目を足さない（AC-23）。
     -   2 つ目と 3 つ目の項目：`基準を規約の「Writing an ADR」に足すことは、[#728](https://github.com/isseis/yt2column/issues/728) で扱う。` を `規則は [adr.md](../conventions/adr.md) の「Writing an ADR」にある。` に。
     -   4 つ目の項目：`規則を規約に足すことは、[#728](https://github.com/isseis/yt2column/issues/728) で扱う。` を `規則は [adr.md](../conventions/adr.md) の「Approval and the PR」「Editorial corrections」「History entries」にある。` に。
     -   5 つ目の項目：同じ文を `規則は [adr.md](../conventions/adr.md) の「Writing an ADR」「Editorial corrections」にある。` に。
 
     置き換え後の文の形は、1 つ目と 6 つ目の項目の既存の文（`規則は [adr.md](../conventions/adr.md) の「…」にある。`）にそろえたものである。このファイルだけをコミットする。メッセージには、項目ごとに 1 行、計 4 行の訂正の行を、英語で、第 1 カラムから書く（`requirements_process.md`「Recording in the PR description」）。各行は `Editorial correction: docs/dev/adr/0039-adr-writing-criteria.md: ` で始まり、どの項目の何を何に直したかを自分の言葉で述べ、`; no decision changed` で終わる。`@` と `<` を含めない（設計書 3.6、AC-12）。
--   [ ] **ステップ 1-3（コミット 3: 確認のプログラム）**: 確認のプログラムを `_checks/main.go` と `_checks/data.json` に書く（本計画 §1.3 の形）。確かめる項目は次のとおりである。
+-   [x] **ステップ 1-3（コミット 3: 確認のプログラム）**: 確認のプログラムを `_checks/main.go` と `_checks/data.json` に書く（本計画 §1.3 の形）。確かめる項目は次のとおりである。
     -   設計書 7.2 の表の 6 つの行（AC-20、AC-21、AC-08・AC-22 と 3.1.1、AC-18・AC-19 と 3.3〜3.5、節の構成、AC-23）。規約の変えない部分は本計画 §1.3 の 2 つの粒度で、AC-23 の行は項目ごとの置き換えで確かめる。
     -   ADR-0039 を変える最初のコミットの訂正の行（本計画 §1.3 の最後の項目）。
 
     設計書 7.2 の 3 つの性質を持たせる。(1) 2 つのコミットを引数で受け取り、作業ツリーの文書は読まない。(2) 部分の位置を、見出しと変えない文の内容で決める。(3) 違反でも読み取りの失敗でも、0 でない終了コードで終わる。基点が先頭の祖先でなければ、読み取りの失敗にする。違反は終了コード 1、読み取りの失敗は 2 で終わる。出力には、比べた 2 つのコミットの完全な ID と、項目ごとの結果を含める。コメント・識別子・文字列は英語で書く。`make fmt` と `go vet -tags test ./docs/tasks/0070_adr_writing_criteria/_checks/` を通す。
--   [ ] **ステップ 1-4（コミット 3）**: 確認のプログラムが違反と読み取りの失敗を検出できることを確かめる。PR のブランチから `git worktree` で使い捨てのブランチを作り、壊し方を 1 件ずつ別の一時的なコミットとして作る。それぞれを先頭として、ビルドした実行ファイルを PR のブランチの作業ツリーから走らせる。壊した項目だけが失敗し、ほかの項目は通ることと、終了コード（違反は 1、読み取りの失敗は 2）を確かめる。
+-   [x] **ステップ 1-4（コミット 3）**: 確認のプログラムが違反と読み取りの失敗を検出できることを確かめる。PR のブランチから `git worktree` で使い捨てのブランチを作り、壊し方を 1 件ずつ別の一時的なコミットとして作る。それぞれを先頭として、ビルドした実行ファイルを PR のブランチの作業ツリーから走らせる。壊した項目だけが失敗し、ほかの項目は通ることと、終了コード（違反は 1、読み取りの失敗は 2）を確かめる。
     -   **壊す対象:** ステップ 1-3 の各項目について、その項目の失敗の経路を 1 件以上の壊し方で確かめる。
         -   変えない節：「Template」「Status」「Index」の各節と、「What counts as a major decision」の基準の段落に、それぞれ 1 バイトの変更を加える。
         -   変える節の中の変えない部分：§7 の AC-08・AC-18・AC-19・AC-22 の行が挙げる部分ごと（挿入点で分けた部分は前と後ろのそれぞれ）に 1 バイトの変更を加える。同じ節の 2 つの部分の入れ替え（たとえば「状態」の箇条と「決定」からの箇条）も試す。
@@ -100,8 +100,8 @@
     -   **作り方:** ADR-0039 に関する壊し方は、使い捨てのブランチで、コミット 1 の上にコミット 2 を作り直して作る。こうすると、訂正の行の項目が巻き添えで失敗しない。作り直すコミット 2 には、正しい訂正の行を残す（訂正の行の項目を壊すときを除く）。狙った項目のほかが失敗するときは、壊し方を直す。
 
     使い捨てのブランチは push せず、確かめた後に worktree とともに消す。PR のブランチの履歴は変えない。壊し方ごとの結果をプログラムを足すコミットのメッセージに書き、`_checks/main.go` と `_checks/data.json` をコミットする。
--   [ ] **ステップ 1-5（コミット 4: 記録）**: `make test` と `make lint` を実行して通ることを確かめる（AC-21 の `TestADRRecords` と、`TestInstructionDocPaths` を含む）。`git fetch origin main`（ネットワークの操作なので、利用者の承認を得る）の後、作業ツリーに未コミットの変更がない状態で、確認のプログラムをビルドして引数なしで走らせる（`data.json` を作業ツリーから読むので、未コミットの変更があると、コミットした内容と違う内容で走ってしまうためである）。出力、終了コード、比べた 2 つのコミットの完全な ID を本計画 §7 の該当する行に書き、本計画の進み具合とともにコミットする。このコミットは本計画のファイルしか変えないので、記録した結果は変わらない。
--   [ ] **ステップ 1-6**: 記録したコミットの後に、規約・`docs/dev/adr/`・`_checks/` を変えるコミットや、`main` を取り込むコミットが入ったら、確認のプログラムを走らせ直して §7 の記録を改める（設計書 7.2 の最後の段落）。`/runplan` のフェーズの後のレビュー（deadcode の確認、サブエージェントのレビュー、ローカルの CLI レビュー）の修正のコミットも、これに当たる。PR を作る前に ADR-0039 を直すときは、新しいコミットにせず、`git commit --fixup` と `GIT_SEQUENCE_EDITOR=true git rebase -i --autosquash` でコミット 2 に畳み込む（PR を作る前は、ブランチを push していない）。置き換え後の文が変わったら、コミット 2 の訂正の行とコミット 3 の `data.json` の対もそろえる。PR を作った後に ADR-0039 を変えてよいのは、本 PR が置き換えた文の手直しだけである（本計画 §5.1）。PR を作る（`_lib/task-pr-handoff.md` Part B）前に、記録した先頭の後のコミットが、どれも本計画のファイルしか変えていないことを確かめる（`/runplan` のレビューの記録の空のコミットと、§6 の PR の記録のコミットは、走らせ直しの契機にならない）。
+-   [x] **ステップ 1-5（コミット 4: 記録）**: `make test` と `make lint` を実行して通ることを確かめる（AC-21 の `TestADRRecords` と、`TestInstructionDocPaths` を含む）。`git fetch origin main`（ネットワークの操作なので、利用者の承認を得る）の後、作業ツリーに未コミットの変更がない状態で、確認のプログラムをビルドして引数なしで走らせる（`data.json` を作業ツリーから読むので、未コミットの変更があると、コミットした内容と違う内容で走ってしまうためである）。出力、終了コード、比べた 2 つのコミットの完全な ID を本計画 §7 の該当する行に書き、本計画の進み具合とともにコミットする。このコミットは本計画のファイルしか変えないので、記録した結果は変わらない。
+-   [x] **ステップ 1-6**: 記録したコミットの後に、規約・`docs/dev/adr/`・`_checks/` を変えるコミットや、`main` を取り込むコミットが入ったら、確認のプログラムを走らせ直して §7 の記録を改める（設計書 7.2 の最後の段落）。`/runplan` のフェーズの後のレビュー（deadcode の確認、サブエージェントのレビュー、ローカルの CLI レビュー）の修正のコミットも、これに当たる。PR を作る前に ADR-0039 を直すときは、新しいコミットにせず、`git commit --fixup` と `GIT_SEQUENCE_EDITOR=true git rebase -i --autosquash` でコミット 2 に畳み込む（PR を作る前は、ブランチを push していない）。置き換え後の文が変わったら、コミット 2 の訂正の行とコミット 3 の `data.json` の対もそろえる。PR を作った後に ADR-0039 を変えてよいのは、本 PR が置き換えた文の手直しだけである（本計画 §5.1）。PR を作る（`_lib/task-pr-handoff.md` Part B）前に、記録した先頭の後のコミットが、どれも本計画のファイルしか変えていないことを確かめる（`/runplan` のレビューの記録の空のコミットと、§6 の PR の記録のコミットは、走らせ直しの契機にならない）。
 
 **完了の条件:** コミット 1〜4 がこの順にある（ステップ 1-6 の修正のコミットはその後に続く）。確認のプログラムが終了コード 0 で終わり、その記録が §7 にある。`make test` と `make lint` が通る。
 
@@ -160,8 +160,10 @@ N/A。実行時の振る舞いを変えない（設計書 7.4）。
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
-- [ ] フェーズ 1 完了（ステップ 1-1〜1-6）
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）が通ることを確認した
+- [x] フェーズ 1 完了（ステップ 1-1〜1-6）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）が通ることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/745
+- [x] PR がマージされた
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -176,7 +178,7 @@ N/A。実行時の振る舞いを変えない（設計書 7.4）。
 | AC-05 | manual | 基準の段落を読む | 1-1 |
 | AC-06 | manual | 同上 | 1-1 |
 | AC-07 | manual | 基準の段落と訂正の節の「Discrepancy statements」を読む | 1-1 |
-| AC-08 | diff | `_checks`（「決定」の箇条（分担の文）が前後で 1 バイトも違わない） | 1-3〜1-6 |
+| AC-08 | diff | `_checks`（「決定」の箇条（分担の文）が前後で 1 バイトも違わない） | 1-3〜1-6（記録は本節末の「実行の記録」） |
 | AC-08 | manual | 基準の段落が分担の文と食い違わないことを読む（設計書 7.3） | 1-1 |
 | AC-09 | manual | 訂正の節を読む。手順 2 の番号の付け替えと 4 種類の定めが食い違わないことも読む | 1-1 |
 | AC-10 | manual | 訂正の節の 1 つ目の種類を読む | 1-1 |
@@ -187,17 +189,50 @@ N/A。実行時の振る舞いを変えない（設計書 7.4）。
 | AC-15 | manual | 「Classifying a change」を読む | 1-1 |
 | AC-16 | manual | 「Classifying a change」と「History entries」に足した 2 つ目の箇条を読む | 1-1 |
 | AC-17 | manual | 訂正の節の 1 段落目と「Classifying a change」を読む | 1-1 |
-| AC-18 | diff | `_checks`（「Approval and the PR」の最初の 3 文が前後で 1 バイトも違わない） | 1-3〜1-6 |
+| AC-18 | diff | `_checks`（「Approval and the PR」の最初の 3 文が前後で 1 バイトも違わない） | 1-3〜1-6（記録は本節末の「実行の記録」） |
 | AC-18 | manual | 改めた文が 2 つの例外を名指しし、ADR を足すのは決定を下す PR だけと述べることを読む（設計書 3.3） | 1-1 |
-| AC-19 | diff | `_checks`（「Taking in `main`」の最初の文・手順 1〜3・ガードの失敗の段落の最初の 2 文と、「History entries」の今ある箇条・コードブロックが前後で 1 バイトも違わない） | 1-3〜1-6 |
+| AC-19 | diff | `_checks`（「Taking in `main`」の最初の文・手順 1〜3・ガードの失敗の段落の最初の 2 文と、「History entries」の今ある箇条・コードブロックが前後で 1 バイトも違わない） | 1-3〜1-6（記録は本節末の「実行の記録」） |
 | AC-19 | manual | 手順 2 とガードの失敗の段落を読む（設計書 3.5） | 1-1 |
-| AC-20 | diff | `_checks`（変えたファイルが、規約・ADR-0039・このタスクのディレクトリの下だけ） | 1-3〜1-6 |
-| AC-21 | diff | `_checks`（「Template」「Status」「Index」を含む変えない節が前後で 1 バイトも違わない。コードブロックの外の `##` の見出しの並びが、変更前の並びの「Approval and the PR」と「Taking in `main`」の間に「Editorial corrections」を 1 つ足したもの） | 1-3〜1-6 |
-| AC-21 | test | `cmd/yt2column/adr_test.go::TestADRRecords`（`make test`、CI の `doc-guard`） | 1-5 |
-| AC-22 | diff | `_checks`（3 つのそろえる段落、CLAUDE.md も持つ「What counts as a major decision」の基準の段落、「Writing an ADR」の「背景」以外の箇条、「**Links.**」の段落からその節の終わりまでが前後で 1 バイトも違わない） | 1-3〜1-6 |
+| AC-20 | diff | `_checks`（変えたファイルが、規約・ADR-0039・このタスクのディレクトリの下だけ） | 1-3〜1-6（記録は本節末の「実行の記録」） |
+| AC-21 | diff | `_checks`（「Template」「Status」「Index」を含む変えない節が前後で 1 バイトも違わない。コードブロックの外の `##` の見出しの並びが、変更前の並びの「Approval and the PR」と「Taking in `main`」の間に「Editorial corrections」を 1 つ足したもの） | 1-3〜1-6（記録は本節末の「実行の記録」） |
+| AC-21 | test | `cmd/yt2column/adr_test.go::TestADRRecords`（`make test`、CI の `doc-guard`） | 1-5（2026-11-09、先頭 `daa4ff0371e451d2c3c7bdb2a0ca7dc78d74a598` で `make test` が終了コード 0 で通り、`TestADRRecords` が PASS） |
+| AC-22 | diff | `_checks`（3 つのそろえる段落、CLAUDE.md も持つ「What counts as a major decision」の基準の段落、「Writing an ADR」の「背景」以外の箇条、「**Links.**」の段落からその節の終わりまでが前後で 1 バイトも違わない） | 1-3〜1-6（記録は本節末の「実行の記録」） |
 | AC-22 | manual | 3 つのそろえる段落が今の意味で残ることを読む | 1-1 |
-| AC-23 | diff | `_checks`（ADR-0039 の「決定」の外が前後で違わない。変更後の「決定」の全体が、変更前の「決定」に項目ごとの置き換えを当てたものに等しい。マージでないコミットのうち ADR-0039 を変える最初のものが、ADR-0039 だけを変え、訂正の行を 4 行持つ） | 1-2〜1-6 |
+| AC-23 | diff | `_checks`（ADR-0039 の「決定」の外が前後で違わない。変更後の「決定」の全体が、変更前の「決定」に項目ごとの置き換えを当てたものに等しい。マージでないコミットのうち ADR-0039 を変える最初のものが、ADR-0039 だけを変え、訂正の行を 4 行持つ） | 1-2〜1-6（記録は本節末の「実行の記録」） |
 | AC-23 | manual | ADR-0039 の「決定」、訂正の行の数と内容、PR の説明の訂正の段落を読む（設計書 7.3） | 1-2、PR の作成 |
+
+### 実行の記録
+
+-   **日付:** 2026-11-09
+-   **基点:** `2b983e5a49dcaeaf07e603c4d6025d1037949ae6`（`origin/main` と `HEAD` のマージベース）
+-   **記録した先頭:** `daa4ff0371e451d2c3c7bdb2a0ca7dc78d74a598`
+-   **コマンド:** `go build -tags test -o <scratchpad>/0070check ./docs/tasks/0070_adr_writing_criteria/_checks/` の後、引数なしで `<scratchpad>/0070check`（作業ツリーに未コミットの変更がない状態）
+-   **終了コード:** 0
+-   **同じ先頭での `make test` と `make lint`:** どちらも通った（`TestADRRecords`・`TestInstructionDocPaths`・`TestEnvAccessConfined` が PASS、lint は 0 issues）
+-   **壊して確かめた記録:** コミット 3（`_checks` を足すコミット）のメッセージにある（52 件がすべて期待どおり）
+
+```text
+base 2b983e5a49dcaeaf07e603c4d6025d1037949ae6
+head daa4ff0371e451d2c3c7bdb2a0ca7dc78d74a598
+OK   scope: every changed file is the convention, ADR-0039, or under the task directory
+OK   structure: the convention's headings are the base's with ## Editorial corrections added after ## Approval and the PR
+OK   unchanged-sections: the text before the first level-2 heading and every section the task does not change are byte-identical
+OK   part writing-state-bullet: appears once, byte-identical, in ## Writing an ADR
+OK   part writing-decision-to-history-bullets: appears once, byte-identical, in ## Writing an ADR
+OK   part writing-sync-paragraph: appears once, byte-identical, in ## Writing an ADR
+OK   part writing-links-to-end: appears once, byte-identical, in ## Writing an ADR
+OK   part history-form-to-one-entry-per-event: appears once, byte-identical, in ## History entries
+OK   part history-order-to-end: appears once, byte-identical, in ## History entries
+OK   part approval-first-three-sentences: appears once, byte-identical, in ## Approval and the PR
+OK   part approval-sync-paragraph: appears once, byte-identical, in ## Approval and the PR
+OK   part taking-in-main-first-sentence-and-steps: appears once, byte-identical, in ## Taking in `main`
+OK   part taking-in-main-guard-first-two-sentences: appears once, byte-identical, in ## Taking in `main`
+OK   part-order: the unchanged parts of each changed section keep their order
+OK   adr-decision: docs/dev/adr/0039-adr-writing-criteria.md: the head decision section is the base one with each listed sentence swapped in its item
+OK   adr-outside: docs/dev/adr/0039-adr-writing-criteria.md: everything outside the decision section is byte-identical
+OK   corrections: the first non-merge commit that changes ADR-0039 changes nothing else and carries one correction line per swap
+OK every check passed
+```
 
 ## 8. 成功の基準 (Success Criteria)
 

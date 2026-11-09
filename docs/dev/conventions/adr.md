@@ -119,8 +119,8 @@ is not major. The human may correct the judgement together with the decision
 ## Writing an ADR
 
 - **状態:** the `状態` row, as "Status" says.
-- **背景:** why the subject needs a decision, and the assumptions that bind
-  it.
+- **背景:** only the problem the decision answers and the assumptions that
+  bind it ("What 背景 holds" below).
 - **決定:** only the decision in effect now; past decisions go in 経緯. When a
   document holds the current specification of the subject (for example
   `docs/dev/security.md` for the threat model, `docs/dev/production_profile.md`
@@ -139,6 +139,31 @@ The split between an ADR and a document that holds the current specification,
 above, is also in `CLAUDE.md`, "Design decisions (ADR)", with the rest of the
 split between the ADRs, the task documents, `docs/dev/project_overview.md`, and
 `CLAUDE.md`. When you change it, change both in the same PR.
+
+**Who 背景 and 決定 are for.** A later developer reads an ADR to learn the
+decision on a subject they are about to change, and why it was made. Write
+背景 and 決定 for that reader, as the next two paragraphs say.
+
+**What 背景 holds.** Write only the problem the decision answers and the
+assumptions that bind it. Do not write the content of an earlier rule, the
+figures of an investigation, or where a rule came from, unless it is itself a
+ground of the decision: an earlier decision goes in 経緯, and a rejected form
+in 採らなかった案. A figure the decision rests on stays in 背景, such as a
+measured slowdown that decides which build checks a time limit.
+
+**What 決定 holds.** Write one item for each rule a later change must keep.
+Give each item a short reason and the place of its specification: a document
+and the heading of its section, or a package or a file, without line numbers
+("Links" below). When the source document gives no reason for an item, write
+`理由は記録されていない`; do not supply one. Do not copy into 決定 a list that
+the document holding the specification has (a list of syntax, a list of
+exceptions), and do not write implementation details that go stale while the
+decision stays the same (the order of function calls, a list of call sites,
+the details of a procedure). When the decision, the document holding its
+specification, and the code disagree with one another, keep in 決定 a
+statement of the discrepancy (a discrepancy statement), linked to the issue
+that handles it by the issue's full URL. "Editorial corrections", its
+"Discrepancy statements" paragraph, says who adds and removes one.
 
 **Links.** When an ADR states how the code behaves or what a document
 specifies, it links to the document that holds the specification, or to the
@@ -167,6 +192,18 @@ Each entry of 経緯 is one bullet line of this form:
 - **One entry per event:** each time the decision is made or changed, one
   entry, with the date, the gist of the decision or the change at that time,
   and a link to the document that recorded it.
+- **No entry for an editorial correction** ("Editorial corrections"). When a
+  rewrite to the criteria moves into 経緯 an earlier decision that the ADR or
+  its source documents already hold, and 経緯 has no entry for that decision,
+  put it there as the entry of that decision, in the form above, dated as
+  "Date of an entry copied from an existing decision" below says. It is not an
+  entry for a new event, so it goes in its place by date, not at the end as
+  "Order" says for a new entry. When 経緯 already has its entry, only remove it
+  from where it was.
+- **A disputed correction in a PR with no task document.** When a change
+  becomes a decision change because the PR's reviewer disputed it
+  ("Editorial corrections") and the PR has no task document, the entry links
+  to the PR, whose description records the decision.
 - **Order:** the order in which the decisions reached `main`; a new entry goes
   at the end. Decisions take effect in merge order, so this is oldest first.
 - **Date of a new entry:** the day the entry is written, not the merge day,
@@ -215,11 +252,104 @@ Each entry of 経緯 is one bullet line of this form:
 A PR that makes or changes a major decision creates or updates the ADR in the
 same PR. The rule applies to every PR, including one that no command opens. The
 review and merge of that PR approve the ADR; no other approval step exists. An
-ADR is therefore never added or changed by a PR other than the one that makes
-or changes its decision.
+ADR is added only by the PR that makes its decision. Apart from that PR and a
+PR that changes its decision, only two kinds of PR change an ADR: any PR may
+make the editorial corrections of "Editorial corrections" below, and a PR of
+its own renumbers ADRs when `TestADRRecords` fails on `main` ("Taking in
+`main`").
 
 The same rule is in `CLAUDE.md`, "Design decisions (ADR)". When you change it,
 change both in the same PR.
+
+## Editorial corrections
+
+An editorial correction changes how an ADR is written without changing its
+decision. Any PR, including one that makes or changes no ADR decision, may
+make an editorial correction of these four kinds, and only these, to any ADR,
+an obsolete (`廃止`) one included:
+
+1. **A rewrite to the criteria** of "Writing an ADR". It may move content that
+   the ADR or its source documents already hold to another section, such as
+   an earlier decision out of 背景 into 経緯 or a rejected form into
+   採らなかった案, and it adds no new fact. It may rewrite the title without
+   changing its meaning; the index row then changes in the same PR.
+2. **Removing a discrepancy statement** once the discrepancy is fixed, or
+   rewriting it to state what remains when only part of it is fixed
+   ("Discrepancy statements" below).
+3. **Fixing a stale reference**: a link, a name, or a heading that no longer
+   matches what it refers to.
+4. **Fixing a typo** that does not change the meaning.
+
+The second and third kinds are editorial only when the result matches the
+ADR's 決定 as it stands. When the fix changed the behavior or the
+specification that 決定 states, or a renamed thing is itself part of the
+decision (an environment variable, a protocol member), the change is a
+decision change. Writing an existing decision into the document that holds
+its specification does not change 決定.
+
+Renumbering an ADR when taking in `main` ("Taking in `main`", step 2) is also
+recorded as an editorial correction, but it has its own rule and is not one
+of the four kinds.
+
+A change to the meaning of 決定 is not an editorial correction: only a PR that
+makes or changes the decision makes it ("Approval and the PR"). When you are
+not sure whether a change is editorial, treat it as a decision change.
+
+**Recording.** Record each editorial correction in the message of the commit
+that makes it, as a correction line, and in the PR description, as a
+correction paragraph, in the forms of
+`docs/dev/conventions/requirements_process.md`, "Recording in the PR
+description"; the document path in them is the ADR's repository-relative
+path. The line says what was changed to what and that no decision changed.
+The PR description names the change as an editorial correction, so the PR's
+reviewer can dispute the classification. An editorial correction adds no
+経緯 entry ("History entries").
+
+**After the PR is created.** Make editorial corrections to an ADR only in
+commits made before the PR is created. After that, the commands do not carry
+an ADR's correction lines into the PR description (#732), so the reviewer
+would not see the classification. A correction already recorded may still be
+reworded, as long as its correction line still describes it. Revising text
+that the PR itself added to an ADR, and is not yet on `main`, is not an
+editorial correction and is not limited by this paragraph.
+
+**Classifying a change.**
+
+- When one PR changes an ADR's decision and also makes editorial corrections
+  to the same ADR, record the decision change in 経緯 and the corrections in
+  the commit message and the PR description.
+- When the PR's reviewer disputes that a change is editorial, treat it as a
+  decision change: add a 経緯 entry, and record the decision and its ADR
+  judgement where the PR records its decisions
+  (`.claude/commands/_lib/settle-decisions.md`): in the task document, or in
+  the PR description when the PR has no task document ("History entries").
+- A PR that changes the decision of an ADR written before these criteria
+  brings only the part it changes to the criteria.
+
+**Discrepancy statements.**
+
+- Adding a discrepancy statement is not an editorial correction. Only a PR
+  that makes or changes the ADR's decision adds one; that PR makes sure the
+  body of the issue the statement links to names the ADR. A PR that finds a
+  discrepancy in an ADR whose decision it does not change opens such an issue
+  instead.
+- Before asking for the merge, and again whenever it takes in `main`, the PR
+  that adds a discrepancy statement checks it against the document and the
+  code on the `main` it has fetched or taken in. When the discrepancy is gone
+  there, it removes the statement or rewrites it to state what remains. The
+  statement was never on `main`, so this revises the PR's own change and
+  needs no correction line.
+- The PR that fixes a discrepancy removes its statement in the same PR, or
+  rewrites it to state what remains when the PR fixes only part. Before the
+  PR is created, find the statements on `origin/main`:
+  `git grep -nE 'issues/<N>([^0-9]|$)' origin/main -- docs/dev/adr/`, where
+  `<N>` is the number of the issue the PR handles. Read each hit: remove only
+  a statement in 決定 that describes this discrepancy. When the statement is
+  not on the PR's branch yet, take in `main` first. A statement that reaches
+  `main` after the PR is created is left to a later PR ("After the PR is
+  created").
+- A statement that a later PR finds stale may be removed by that PR, as the
+  second kind above.
 
 ## Taking in `main`
 
@@ -243,6 +373,9 @@ the merge base, do the following.
 
 **When `TestADRRecords` fails on `main`.** Two PRs that both pass CI before
 taking in `main`, and merge without an index conflict, can put a duplicate or
-missing number on `main`. Every PR's `doc-guard` job then fails. Fix it in a PR
-of its own that fixes only that, not inside an unrelated PR: that PR's reviewer
-is not in a position to approve an ADR change.
+missing number on `main`. Every PR's `doc-guard` job then fails. Fix it,
+renumbering the ADRs so that no number is duplicated or missing, in a PR of
+its own that fixes only that, not inside an unrelated PR: that PR's reviewer
+is not in a position to approve a change of an ADR's number. This fix is not
+one of the four kinds of editorial correction that any PR may make
+("Editorial corrections").
