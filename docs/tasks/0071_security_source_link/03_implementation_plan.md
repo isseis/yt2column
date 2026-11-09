@@ -99,7 +99,7 @@
 
     壊し方に加えて、AC-08 の合格の場合を 1 件確かめる。`-created` に渡すコミットの後に、`main` 側の変更に見立てて、ADR-0034 のずれの記述の外の行を変えるコミットを作り、それを取り込む（マージのコミットを作る）。この状態で AC-08 が合格することを確かめる。狙った項目のほかが失敗するときは、壊し方を直す。読み取りの失敗では、ほかの項目の結果は問わない。使い捨てのブランチは push せず、確かめた後に worktree とともに消す。壊し方ごとの結果をコミットのメッセージに書いて、`_checks/main.go` と `_checks/data.json` をコミットする。
 -   [x] **ステップ 1-6（コミット 4）**: `make test` と `make lint` を実行して通ることを確かめる（AC-10）。確認のプログラムを `-created` なしで、引数なしで走らせる。`data.json` のマージのコミットの ID が本計画 §6 のステップ 1-1 の記録と等しいことを確かめる。出力、終了コード、比べたコミットの完全な ID を本計画 §7 の該当する行に書き、本計画の進み具合とステップ 1-1 の記録とともにコミットする。このコミットはこのタスクのディレクトリの下しか変えないので、記録した結果は変わらない。
--   [ ] **ステップ 1-7**: PR を作る直前に、設計書 6.2 を確かめ直し、取得した `origin/main` のコミット ID とともに本計画 §6 に書いてコミットする。時点は、`/runplan` の手順 7.5・7.7 のレビューの修正を入れた後、手順 8 で Part B を始める前である。手順 7.7 が返すローカルの CLI レビューの記録の行は、このコミットのメッセージに載せてよい。Part B 手順 1（ローカルの CLI レビュー）の修正、または手順 2 の確認（CHECKS）の修正でコミットが増えたときは、このステップをやり直してから手順 3 に進む。新たなずれの記述が見つかったときは、設計書 6.2 の 2 のとおり `main` を取り込んでから消し、訂正の行つきでコミットし、`make test`・`make lint`・確認のプログラムを走らせ直す。ステップ 1-6 の記録の後に `security.md`・`docs/dev/adr/`・`_checks/` を変えるコミットや、`main` を取り込むコミットが入ったときも、確認のプログラムを走らせ直して本計画 §7 の記録を改める。
+-   [x] **ステップ 1-7**: PR を作る直前に、設計書 6.2 を確かめ直し、取得した `origin/main` のコミット ID とともに本計画 §6 に書いてコミットする。時点は、`/runplan` の手順 7.5・7.7 のレビューの修正を入れた後、手順 8 で Part B を始める前である。手順 7.7 が返すローカルの CLI レビューの記録の行は、このコミットのメッセージに載せてよい。Part B 手順 1（ローカルの CLI レビュー）の修正、または手順 2 の確認（CHECKS）の修正でコミットが増えたときは、このステップをやり直してから手順 3 に進む。新たなずれの記述が見つかったときは、設計書 6.2 の 2 のとおり `main` を取り込んでから消し、訂正の行つきでコミットし、`make test`・`make lint`・確認のプログラムを走らせ直す。ステップ 1-6 の記録の後に `security.md`・`docs/dev/adr/`・`_checks/` を変えるコミットや、`main` を取り込むコミットが入ったときも、確認のプログラムを走らせ直して本計画 §7 の記録を改める。
 
 **完了の条件:** 内容のコミット 1・2、確認のプログラムのコミット 3、記録のコミット 4 がこの順にある。確認のプログラムが終了コード 0 で終わり、その記録が本計画 §7 にある。AC-08 は PR を作る前には「実行しない」と表示され、本計画 §7 の AC-08 の行もマージの前まで未記録のままである。これは PR を作る前の正しい状態で、`/runplan` の手順 8 の AC の確かめでは欠けとして扱わない。`make test`・`make lint` が通る。
 
@@ -166,8 +166,8 @@ N/A。実行時の振る舞いを変えない（設計書 7.4）。
 ## 6. 実装チェックリスト (Implementation Checklist)
 
 - [x] ステップ 1-1 の確認（`origin/main`：`b98de9052eb635d8c4125ce5771ff2e67d3ff788`、0070 の実装の PR：https://github.com/isseis/yt2column/pull/745、マージのコミット：`af73c4ce4fa1974a64c7331f4799520f7d32cdca`、検索の結果：`git grep -nE 'issues/725([^0-9]|$)' origin/main -- docs/dev/adr/` が返したのは ADR-0034 の `:24` の 1 件で、そのずれの記述を消した）
-- [ ] フェーズ 1 完了（ステップ 1-1〜1-7）
-- [ ] ステップ 1-7 の確認（`origin/main`：未記録）
+- [x] フェーズ 1 完了（ステップ 1-1〜1-7）
+- [x] ステップ 1-7 の確認（`origin/main`：`ae6e7b26bb21cd34504d71b00b0e48c562743c76`、0070 の実装の PR のマージのコミット `af73c4ce4fa1974a64c7331f4799520f7d32cdca` は `origin/main` の祖先、`docs/dev/conventions/adr.md` に `## Editorial corrections` の節がある、`git grep -nE 'issues/725([^0-9]|$)' origin/main -- docs/dev/adr/` の当たりは ADR-0034 の `:24` の 1 件だけで、先頭には当たりがない）
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）が通ることを確認した
 - [ ] マージの前の確認（本計画 §3.3）：AC-08・AC-09 が合格した結果を本計画 §7 に記録した
 
@@ -180,22 +180,22 @@ N/A。実行時の振る舞いを変えない（設計書 7.4）。
 | AC-01 | manual | 変更後の出典リンクの項目を PR のレビューで読む（設計書 3.1・7.3） | 1-2 |
 | AC-02 | manual | 同上。`--artifacts` と `--review-log` の箇条と矛盾しないことも読む | 1-2 |
 | AC-03 | manual | 同上 | 1-2 |
-| AC-04 | diff | `_checks`（`security.md` のうち出典リンクの項目の外が前後で同じで、項目は `security.md` §6 の中の 1 つの箇条のまま前後の箇条の間にある）。実行の記録：2026-11-09、基点 `b98de9052eb635d8c4125ce5771ff2e67d3ff788`、先頭 `330fef12d6442807f5b848f8820fd7ca6913cbed`、`OK source-link-item`、終了コード 0 | 1-4〜1-7 |
+| AC-04 | diff | `_checks`（`security.md` のうち出典リンクの項目の外が前後で同じで、項目は `security.md` §6 の中の 1 つの箇条のまま前後の箇条の間にある）。実行の記録：2026-11-09、基点 `b98de9052eb635d8c4125ce5771ff2e67d3ff788`、先頭 `c2185d1fd70735366bd5023a14131b74fae9ffee`、`OK source-link-item`、終了コード 0 | 1-4〜1-7 |
 | AC-05 | diff | `_checks`（ADR-0034 の該当の行が、変更前の行の 3 つ目の「。」までを残したものに等しい）。実行の記録：2026-11-09、同じ基点と先頭、`OK adr-item`、終了コード 0 | 1-3〜1-7 |
 | AC-05 | manual | 変更後の ADR-0034 の項目を PR のレビューで読む（設計書 7.3） | 1-3 |
 | AC-06 | diff | `_checks`（変わった ADR は基点で `issues/725` へリンクする ADR だけで、変更は文字の削除だけ。ファイルの追加・削除・名前の変更がない）。実行の記録：2026-11-09、同じ基点と先頭、`OK adr-scope`、終了コード 0 | 1-1・1-3〜1-7 |
 | AC-06 | manual | ADR-0034 以外の ADR を変えたときは、消した記述が #725 のずれの記述だけであることを読む（設計書 7.3） | 1-3 |
 | AC-07 | diff | `_checks`（変わった ADR ごとに、基点から先頭までのコミットのメッセージにその ADR のパスの訂正の行がある）。実行の記録：2026-11-09、同じ基点と先頭、`OK corrections`、終了コード 0 | 1-3〜1-7 |
 | AC-07 | manual | 訂正の行の内容と、PR の説明の訂正の段落を PR のレビューで読む（設計書 7.3） | 1-3、PR の作成 |
-| AC-08 | diff | `_checks` の `-created` 付きの実行（PR を作った時点の先頭と、マージの前の先頭で、PR 自身の `docs/dev/adr/` の差分の消した行と足した行が等しい。本計画 §1.3）。マージの前に実行する。`-created` のコミット ID：未記録（本計画 §3.3）。実行の記録：2026-11-09、同じ基点と先頭で `-created` なしの実行は `created-diff` を「実行しない」と表示し、終了コード 0（合格ではない）。壊した場合（`-created` を ADR を変えるコミットより前にした場合）と、`main` の変更に見立てた ADR の行の変更を取り込んだ場合の確認は、コミット `330fef12d6442807f5b848f8820fd7ca6913cbed` のメッセージにある | 本計画 §3.3 |
+| AC-08 | diff | `_checks` の `-created` 付きの実行（PR を作った時点の先頭と、マージの前の先頭で、PR 自身の `docs/dev/adr/` の差分の消した行と足した行が等しい。本計画 §1.3）。マージの前に実行する。`-created` のコミット ID：未記録。実行の記録：未記録（本計画 §3.3 のマージの前の確認で記録する。ステップ 1-6 の実行では `created-diff` を「実行しない」と表示し、終了コード 0 だった。壊した場合と、`main` の変更に見立てた ADR の行の変更を取り込んだ場合の確認は、コミット `330fef12d6442807f5b848f8820fd7ca6913cbed` のメッセージにある） | 本計画 §3.3 |
 | AC-09 | diff | `_checks`（`data.json` の 0070 の実装の PR のマージのコミットが先頭の祖先）。ステップ 1-6 とマージの前に実行する。実行の記録：2026-11-09、同じ基点と先頭、`OK merge-order`（`af73c4ce4fa1974a64c7331f4799520f7d32cdca` が先頭の祖先）、終了コード 0 | 1-1・1-4〜1-7、本計画 §3.3 |
-| AC-10 | test | `make test`（`cmd/yt2column/adr_test.go::TestADRRecords` を含む）、CI の `doc-guard`。実行の記録：2026-11-09、先頭 `330fef12d6442807f5b848f8820fd7ca6913cbed` で `make test` と `make lint` が終了コード 0（lint は 0 issues、`TestADRRecords` は PASS） | 1-6・1-7 |
+| AC-10 | test | `make test`（`cmd/yt2column/adr_test.go::TestADRRecords` を含む）、CI の `doc-guard`。実行の記録：2026-11-09、先頭 `c2185d1fd70735366bd5023a14131b74fae9ffee` で `make test` と `make lint` が終了コード 0（lint は 0 issues、`TestADRRecords` は PASS） | 1-6・1-7 |
 
 ### 実行の記録
 
 -   **日付:** 2026-11-09
 -   **基点:** `b98de9052eb635d8c4125ce5771ff2e67d3ff788`（`origin/main` と `HEAD` のマージベース）
--   **先頭:** `330fef12d6442807f5b848f8820fd7ca6913cbed`
+-   **先頭:** `c2185d1fd70735366bd5023a14131b74fae9ffee`
 -   **コマンド:** `go build -tags test -o <scratchpad>/0071check ./docs/tasks/0071_security_source_link/_checks/` の後、引数なしで `<scratchpad>/0071check`（作業ツリーに未コミットの変更がない状態）
 -   **終了コード:** 0。`created-diff` は「実行しない」と表示される（合格ではない。本計画 §3.3 のマージの前の確認で走らせる）。
 -   **`data.json` のマージのコミット:** `af73c4ce4fa1974a64c7331f4799520f7d32cdca` で、本計画 §6 のステップ 1-1 の記録と等しい。
@@ -204,13 +204,13 @@ N/A。実行時の振る舞いを変えない（設計書 7.4）。
 
 ```text
 base b98de9052eb635d8c4125ce5771ff2e67d3ff788
-head 330fef12d6442807f5b848f8820fd7ca6913cbed
+head c2185d1fd70735366bd5023a14131b74fae9ffee
 OK   source-link-item: docs/dev/security.md: only the source-link item changed, and it is one list item between its neighbours in the section
 OK   adr-item: docs/dev/adr/0034-template-allowlist.md: the decision section's last item is its first sentences and nothing else in the ADR changed
-OK   adr-scope: only ADRs that link the issue at the base commit changed, each change deletes characters only, and no file was added, deleted, or renamed
+OK   adr-scope: only ADRs that link the issue at the base commit changed, every such ADR changed, none still links it at the head, the ADR index did not change, each change deletes characters only, and no file was added, deleted, or renamed
 OK   corrections: each changed ADR has an editorial correction line in a commit on the range
 NOT RUN created-diff: the ADR change from the commit given by -created to the head is the same
-OK   merge-order: af73c4ce4fa1974a64c7331f4799520f7d32cdca is an ancestor of the head commit
+OK   merge-order: af73c4ce4fa1974a64c7331f4799520f7d32cdca is on origin/main and is an ancestor of the head commit
 OK   scope: every changed file is the security guide, an ADR, or under the task directory
 OK every run check passed; created-diff was not run
 ```
