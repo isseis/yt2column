@@ -5,6 +5,8 @@ package main
 import (
 	"errors"
 	"fmt"
+	"maps"
+	"os/exec"
 	"path"
 	"regexp"
 	"slices"
@@ -48,7 +50,7 @@ var (
 	unreadableRE   = regexp.MustCompile(`\]\(|\]\[|^\s*\[[^\]]*\]:|<https?:`)
 	historyDateRE  = regexp.MustCompile(`^\s*[-*]\s+([0-9]{4}-[0-9]{2}-[0-9]{2})`)
 	indexRowADRRE  = regexp.MustCompile(`\[ADR-([0-9]{4})\]`)
-	urlTrailPunct  = ".,;:!?'"
+	urlTrailPunct  = ".,;:!?'*_~"
 	indexTitleCell = 2 // cells[0] is the empty text before the first '|'
 )
 
@@ -164,12 +166,19 @@ func runCheck(name string, args []string) (int, error) {
 		{[]string{kindCorrections}, "each non-merge commit that changes reviewed ADRs or the index changes one ADR at most and carries a well-formed correction line for each file", c.checkCorrections},
 	}
 	for _, ch := range checks {
-		before := len(c.r.violations)
+		countKinds := func() int {
+			n := 0
+			for _, k := range ch.kinds {
+				n += c.r.count(k)
+			}
+			return n
+		}
+		before := countKinds()
 		if err := ch.run(); err != nil {
 			return 0, fmt.Errorf("%s: %w", strings.Join(ch.kinds, "/"), err)
 		}
 		status := "OK  "
-		if len(c.r.violations) > before {
+		if countKinds() > before {
 			status = "FAIL"
 		}
 		fmt.Printf("%s %s: %s\n", status, strings.Join(ch.kinds, "/"), ch.desc)
@@ -211,6 +220,11 @@ func printBlobs(head string) error {
 			return err
 		}
 		fmt.Printf("blob %s %s\n", strings.TrimSpace(blob), f)
+	}
+	// The blob IDs name the files at the head, not the running binary: warn
+	// when the working tree's check files differ from them.
+	if err := exec.Command("git", "diff", "--quiet", head, "--", ":(top)"+checkDir).Run(); err != nil {
+		fmt.Println("WARN the working tree's check files differ from the head; the blob IDs above may not name the running program")
 	}
 	return nil
 }
@@ -271,7 +285,8 @@ func (c *checkRun) checkData() error {
 			}
 		}
 	}
-	for num, gs := range seen {
+	for _, num := range slices.Sorted(maps.Keys(seen)) {
+		gs := seen[num]
 		if len(gs) > 1 {
 			r.fail(kindData, dataPath, "ADR-%s is in the adrs of %d groups: %v", num, len(gs), gs)
 		}
@@ -442,7 +457,7 @@ func firstLine(d doc) string {
 }
 
 // checkIndex verifies that the index is unchanged line for line, except the
-// title cell of the row of an ADR the data retitles.
+// title cell of the row of an ADR the data retitles, which must change.
 func (c *checkRun) checkIndex() error {
 	b, err := readDoc(c.base, c.data.Index)
 	if err != nil {
@@ -457,18 +472,29 @@ func (c *checkRun) checkIndex() error {
 	}
 	retitled := map[string]bool{}
 	for _, p := range c.group.RetitledADRs {
-		retitled[adrNumber(p)] = true
+		// Only a reviewed ADR whose first line changed must change its row;
+		// checkData and checkTitle report the other entries.
+		if b, ok := c.baseDocs[p]; ok && firstLine(b) != firstLine(c.headDocs[p]) {
+			retitled[adrNumber(p)] = true
+		}
 	}
+	cellChanged := map[string]bool{}
 	for i := range min(len(b.lines), len(h.lines)) {
 		bl, hl := strings.TrimSuffix(b.lines[i], "\n"), strings.TrimSuffix(h.lines[i], "\n")
 		if bl == hl {
 			continue
 		}
 		if num, ok := titleCellOnly(bl, hl); ok && retitled[num] {
+			cellChanged[num] = true
 			c.r.note("ALLOW index %s: the title cell of ADR-%s changed", c.data.Index, num)
 			continue
 		}
 		c.r.fail(kindIndex, c.data.Index, "line %d changed from %q to %q", i+1, bl, hl)
+	}
+	for _, num := range slices.Sorted(maps.Keys(retitled)) {
+		if !cellChanged[num] {
+			c.r.fail(kindIndex, c.data.Index, "ADR-%s is retitled, but its row's title cell did not change", num)
+		}
 	}
 	return nil
 }
@@ -571,6 +597,7 @@ func (c *checkRun) checkLinks() error {
 			case i < 0:
 				c.r.fail(kindLinks, p, "the link target %q is gone", t)
 			case c.group.LinkChanges[i].After != "" && !slices.Contains(h.targets, c.group.LinkChanges[i].After):
+				used[i] = true
 				c.r.fail(kindLinks, p, "the link target %q is gone, and its replacement %q is not there", t, c.group.LinkChanges[i].After)
 			default:
 				used[i] = true
@@ -619,7 +646,8 @@ func (c *checkRun) checkLines() error {
 				free[l] = free[l][1:]
 				return i
 			}
-			var kept []int // head indexes of the base lines, in base order
+			var kept []int    // head indexes of the base lines, in base order
+			var redated []int // head indexes of changed lines whose date changed
 			for _, l := range b {
 				if len(free[l]) > 0 {
 					kept = append(kept, take(l))
@@ -634,7 +662,11 @@ func (c *checkRun) checkLines() error {
 				}
 				if i >= 0 {
 					used[i] = true
-					kept = append(kept, take(c.group.LineChanges[i].After))
+					j := take(c.group.LineChanges[i].After)
+					kept = append(kept, j)
+					if historyDate(l) != historyDate(h[j]) {
+						redated = append(redated, j)
+					}
 					c.r.note("ALLOW lines %s %s: %q -> %q (%s)", p, heading, l, c.group.LineChanges[i].After, c.group.LineChanges[i].Reason)
 					continue
 				}
@@ -646,13 +678,23 @@ func (c *checkRun) checkLines() error {
 					added[i] = true
 				}
 			}
+			if !slices.IsSorted(kept) {
+				kind := kindLines
+				if heading == hd.History {
+					kind = kindHistoryOrder
+				}
+				c.r.fail(kind, p, "the lines of %s kept from the base are not in the base's order", heading)
+			}
 			for i, l := range h {
 				if added[i] {
 					c.r.note("ADDED %s %s: %s", p, heading, l)
 				}
 			}
 			if heading == hd.History {
-				c.checkHistoryOrder(p, h, kept, added)
+				for _, j := range redated {
+					added[j] = true // a changed date is placed like an added entry
+				}
+				c.checkHistoryOrder(p, h, added)
 			}
 		}
 	}
@@ -664,29 +706,34 @@ func (c *checkRun) checkLines() error {
 	return nil
 }
 
+// historyDate returns the date a history entry starts with, or "" when the
+// line is not a dated entry.
+func historyDate(l string) string {
+	if m := historyDateRE.FindStringSubmatch(l); m != nil {
+		return m[1]
+	}
+	return ""
+}
+
 // checkHistoryOrder verifies that the PR adds no date inversion to the
-// history: the lines kept from the base stay in the base's order, and each
-// added entry is dated no earlier than the nearest dated entry above it and no
-// later than the nearest dated entry below it. An inversion the base already
-// has is left as it is: the history is in the order the decisions reached
-// main, which reordering could falsify.
-func (c *checkRun) checkHistoryOrder(p string, h []string, kept []int, added []bool) {
-	if !slices.IsSorted(kept) {
-		c.r.fail(kindHistoryOrder, p, "the history entries kept from the base are not in the base's order")
-	}
-	date := func(l string) string {
-		if m := historyDateRE.FindStringSubmatch(l); m != nil {
-			return m[1]
-		}
-		return ""
-	}
+// history: each added entry, and each entry whose date a line change
+// rewrote, is a dated entry, dated no earlier than the nearest dated entry
+// above it and no later than the nearest dated entry below it. checkLines
+// verifies that the entries kept from the base stay in the base's order. An
+// inversion the base already has is left as it is: the history is in the
+// order the decisions reached main, which reordering could falsify.
+func (c *checkRun) checkHistoryOrder(p string, h []string, added []bool) {
 	for i, l := range h {
-		d := date(l)
-		if !added[i] || d == "" {
+		if !added[i] {
+			continue
+		}
+		d := historyDate(l)
+		if d == "" {
+			c.r.fail(kindHistoryOrder, p, "the added history line is not an entry starting with a YYYY-MM-DD date: %q", l)
 			continue
 		}
 		for j := i - 1; j >= 0; j-- {
-			if prev := date(h[j]); prev != "" {
+			if prev := historyDate(h[j]); prev != "" {
 				if d < prev {
 					c.r.fail(kindHistoryOrder, p, "the added entry dated %s comes after one dated %s", d, prev)
 				}
@@ -694,7 +741,7 @@ func (c *checkRun) checkHistoryOrder(p string, h []string, kept []int, added []b
 			}
 		}
 		for j := i + 1; j < len(h); j++ {
-			if next := date(h[j]); next != "" {
+			if next := historyDate(h[j]); next != "" {
 				if d > next {
 					c.r.fail(kindHistoryOrder, p, "the added entry dated %s comes before one dated %s", d, next)
 				}
@@ -705,7 +752,7 @@ func (c *checkRun) checkHistoryOrder(p string, h []string, kept []int, added []b
 }
 
 // sectionLines returns the non-empty lines of a section after its heading,
-// without their newlines.
+// without their newlines. Subheadings are left out: checkHeadings checks them.
 func sectionLines(d doc, heading string) ([]string, error) {
 	start, end, err := sectionRange(d, heading)
 	if err != nil {
@@ -713,7 +760,7 @@ func sectionLines(d doc, heading string) ([]string, error) {
 	}
 	var out []string
 	for _, l := range d.lines[start+1 : end] {
-		if t := strings.TrimSuffix(l, "\n"); strings.TrimSpace(t) != "" {
+		if t := strings.TrimSuffix(l, "\n"); strings.TrimSpace(t) != "" && doctestutil.HeadingLevel(t) == 0 {
 			out = append(out, t)
 		}
 	}
@@ -770,7 +817,7 @@ func (c *checkRun) checkCorrections() error {
 		if err != nil {
 			return err
 		}
-		message, err := git("log", "-1", "--format=%B", commit)
+		message, err := git("show", "-s", "--no-show-signature", "--format=%B", commit)
 		if err != nil {
 			return err
 		}
@@ -816,7 +863,8 @@ func (c *checkRun) checkCorrections() error {
 			}
 		}
 	}
-	for full, i := range unrecorded {
+	for _, full := range slices.Sorted(maps.Keys(unrecorded)) {
+		i := unrecorded[full]
 		if !used[full] {
 			c.r.fail(kindAllowance, dataPath, "unrecorded_commits names %s, which is not a commit of the range that changes a reviewed ADR or the index", c.group.UnrecordedCommits[i].Commit)
 		}

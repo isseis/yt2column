@@ -39,11 +39,11 @@ func mentionPatterns(num string) []string {
 // repository except docs/tasks/ and the ADR itself.
 func findMentions(commit, adr string) ([]mention, error) {
 	num := adrNumber(adr)
-	args := []string{"grep", "-n", "-I", "-E", "--full-name"}
+	args := []string{"grep", "-n", "-I", "-E", "--full-name", "--no-color"}
 	for _, p := range mentionPatterns(num) {
 		args = append(args, "-e", p)
 	}
-	args = append(args, commit, "--", ".", ":(exclude)docs/tasks", ":(exclude)"+adr)
+	args = append(args, commit, "--", ":(top)", ":(top,exclude)docs/tasks", ":(top,exclude)"+adr)
 	out, err := exec.Command("git", args...).Output()
 	if err != nil {
 		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok && exitErr.ExitCode() == 1 {

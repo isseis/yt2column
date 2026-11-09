@@ -392,15 +392,15 @@ AC-12・AC-13・AC-19・AC-20 は、手順の中の作業（issue を立てる�
 
 ステップ 1-2 で、`mentions` の照合の結果と、`check` と `freshness` の各場合の終了コードと違反の種類を、ここに記録する。
 
-確かめは、リポジトリを手元に複製した使い捨てのクローンで行った。基点は `956125ba5b7184d05e2fae2d599c91f9ece26ec2`（PR-1 の基点の `origin/main`）で、その上に、差分の確認・確かめのデータ・本書と設計書の変更を 1 つのコミットにしたもの（`good`）を置いた。各場合は、`good` の上に壊し方のコミットを 1 つ足し、`check s1 <基点> HEAD` を実行した。プログラムのファイルと確かめのデータの blob の ID は、`check.go` `c09867b33e5b78605a8033001e7da67aa7315033`、`main.go` `b330ae42f3cbad690972f759cd0788221a775009`、`mentions.go` `6e66be13c5dcf18f52d227d663241dd699f1dbb9`、`data.json` `e08698f5b7fd3a45daec6c210e1d0d04297cf7c8` である。
+確かめは、リポジトリを手元に複製した使い捨てのクローンで行った。基点は `956125ba5b7184d05e2fae2d599c91f9ece26ec2`（PR-1 の基点の `origin/main`）で、その上に、差分の確認・確かめのデータ・本書と設計書の変更を 1 つのコミットにしたもの（`good`）を置いた。ADR は変えていない。各場合は、`good` の上に壊し方のコミットを足し、断りのない限り `check s1 <基点> HEAD` を実行した。`good` のプログラムのファイルと確かめのデータの blob の ID は、`check.go` `fae4cff24becc3d8f2f3690a0336204cdbf4ae38`、`main.go` `b330ae42f3cbad690972f759cd0788221a775009`、`mentions.go` `e53a9b87b55718f6885ab8933026a4b00c74e443`、`data.json` `e4b027a2c15c2e8123c5cb00932b84c975d8119f` で、このブランチにコミットしたものと同じである。
 
-**`mentions` の照合:** `mentions s1`〜`s5` を本書を確かめたコミット `3709c2d6803c5fad340a2890a2378ef30fc58c6b` で実行した（0 で終わった）。
+**`mentions` の照合:** `mentions s1`〜`s5` を本書を確かめたコミット `3709c2d6803c5fad340a2890a2378ef30fc58c6b` で実行した（0 で終わった）。`mentions s1` は PR-1 の基点でも同じ出力で、リポジトリのルートから実行しても `docs/` から実行しても同じだった。
 
 -   `docs/tasks/` と `docs/dev/adr/` の外で名指しの挙がったファイルは、`.claude/commands/_lib/lightweight-check.sh`・`CLAUDE.md`・`cmd/yt2column/adr_test.go`・`cmd/yt2column/lightweight_docs_test.go`・`docs/dev/conventions/adr.md`・`docs/dev/project_overview.md`・`docs/dev/security.md`・`docs/research/transcript_acquisition/README.md`・`docs/research/transcript_acquisition/glasp_youtube_summary.md` の 9 つで、1.4（設計書 3.3）と一致した。
 -   ADR-0012 には、`lightweight-check.sh` の 33 行目と、`lightweight_docs_test.go` の 485 行目・498 行目が挙がった。
 -   系列 ① の ADR には、ほかの系列の ADR からの名指しとして、ADR-0002 に ADR-0034、ADR-0003 に ADR-0018・ADR-0024、ADR-0019 に ADR-0005、ADR-0021 に ADR-0022・ADR-0023 が挙がり、設計書 3.1.2 の表と一致した。
 
-**`check` と `freshness` の各場合:** 49 の場合のすべてで、期待した終了コードと違反の種類で終わった。「種類」は、出力の `FAIL <種類> <ファイル>: ` の行に現れた種類の集合である。
+**`check` と `freshness` の各場合:** 次の 60 の場合のすべてで、期待した終了コードと違反の種類で終わった。「種類」は、出力の `FAIL <種類> <ファイル>: ` の行に現れた種類の集合である。
 
 | 場合 | 終了コード | 違反の種類 |
 |---|---|---|
@@ -417,27 +417,37 @@ AC-12・AC-13・AC-19・AC-20 は、手順の中の作業（issue を立てる�
 | 範囲: `task_doc_changes` を空にする（設計書は変わっている） | 1 | `scope` |
 | リンク: ADR-0001 の `package_reference.md` へのリンクを外す | 1 | `links` |
 | リンク: ADR-0001 に参照形式のリンク `[参照][ref]` を足す | 1 | `links` |
+| リンク: `link_changes` に挙げたリンクを外し、置き換え先を足さない | 1 | `links` |
 | 「状態」: ADR-0001 の表の行に空白を足す | 1 | `status` |
 | 題名: ADR-0001 の 1 行目を変える（`retitled_adrs` なし） | 1 | `title` |
 | 索引: ADR-0001 の行の状態のセルを変える | 1 | `index` |
+| 索引: 索引に空行を足す | 1 | `index` |
+| 索引: `retitled_adrs` に挙げて ADR-0001 の 1 行目を変え、索引の行を変えない | 1 | `index` |
 | 見出し: ADR-0001 の `## 背景` を変える | 1 | `headings` |
+| 見出し: ADR-0009 の `###` の見出しを変える（`check s4`。`s4` に `checker_changes` と `task_doc_changes` を足したデータで） | 1 | `headings` |
 | 「採らなかった案」の既存の行を消す | 1 | `lines` |
 | 「結果」の既存の行を消す | 1 | `lines` |
+| 「結果」の 2 つの行を入れ替える | 1 | `lines` |
 | 「経緯」の既存の行を消す | 1 | `lines` |
 | 「経緯」の 2 つの項目を入れ替える | 1 | `history-order` |
 | 「経緯」の先頭に、後の日付の項目を足す | 1 | `history-order` |
+| 「経緯」に日付のない行を足す | 1 | `history-order` |
+| `line_changes` に挙げて「経緯」の項目の日付を前の項目より前に変える | 1 | `history-order` |
 | 「経緯」の日付の順の位置に項目を足す | 0 | なし |
-| ADR-0018（`main` ですでに日付が戻っている）の末尾に項目を足す（`s1` を 9 本にしたデータで） | 1 | `data` だけ |
-| ADR-0018 の逆転の区間の中に項目を足す（同じデータで） | 1 | `data`・`history-order` |
+| `check s2`（`s2` に `checker_changes` と `task_doc_changes` を足したデータで）: 何も壊さない。ADR-0018 は `main` ですでに日付が戻っている | 0 | なし |
+| 同じ `check s2`: ADR-0018 の末尾に項目を足す | 0 | なし |
+| 同じ `check s2`: ADR-0018 の逆転の区間の中に項目を足す | 1 | `history-order` |
 | 訂正の行: ADR を変えるコミットに訂正の行がない | 1 | `corrections` |
 | 訂正の行: 索引の題名のセルを変えるコミットに、索引の訂正の行がない | 1 | `corrections` |
 | 訂正の行: 1 つのコミットが ADR-0001 と ADR-0002 を変える | 1 | `corrections` |
 | 訂正の行: `; no decision changed` で終わらない `Editorial correction: ` の行 | 1 | `corrections` |
+| 訂正の行: `@` を含む訂正の行 | 1 | `corrections` |
 | 訂正の行: コミットが変えない ADR-0002 を名指しする訂正の行 | 1 | `corrections` |
 | 許可: 当てはまる変更のない `link_changes` | 1 | `allowance` |
 | 許可: 当てはまる変更のない `line_changes` | 1 | `allowance` |
 | 許可: 当てはまる変更のない `retitled_adrs` | 1 | `allowance` |
 | 許可: ADR を変えないコミットを挙げた `unrecorded_commits` | 1 | `allowance` |
+| 許可: コミットでない ID を挙げた `unrecorded_commits` | 1 | `allowance` |
 | 許可: 変わらない `01_requirements.md` を挙げた `task_doc_changes` | 1 | `allowance` |
 | 許可: Go のファイルが変わらない範囲（`good` から先頭まで）での `checker_changes` | 1 | `allowance` |
 | 通る: `link_changes` に挙げてリンクの先を直す | 0 | なし |
@@ -453,8 +463,15 @@ AC-12・AC-13・AC-19・AC-20 は、手順の中の作業（issue を立てる�
 | `freshness`: `origin/main` が ADR-0001 を変えた（`CHANGED-WATCHED` を表示） | 1 | — |
 | `freshness`: `origin/main` が索引を変えた（`CHANGED-WATCHED` を表示） | 1 | — |
 | `freshness`: `origin/main` が `CLAUDE.md` に ADR-0001 の名指しを足しただけ（`MENTION-NEW` を表示） | 0 | — |
+| `freshness`: `origin/main` が `project_overview.md` から ADR-0019 の名指しを消しただけ（`MENTION-GONE` を表示） | 0 | — |
 
 **見つかったこと:** ADR-0018（系列 ②）・ADR-0027（③）・ADR-0029（④）の「経緯」は、`main` の時点ですでに日付が戻っている。1.3.1 のとおり、差分の確認はこれを違反にせず、各 PR は並べ替えずに残して、見直しの記録の「残した記述」に挙げる。
+
+**確かめの限界:** 次のものは、差分の確認では見つからず、PR のレビューで読む。
+
+-   同じリンクの先が何回あるかと、ずれの記述の issue へのリンクが「決定」に残るか（リンクは ADR ごとの先の集合で比べる。設計書 3.9.1）。
+-   足した「経緯」の項目が、編集上の訂正そのものの項目でないか（足した行は `ADDED` として表示する。設計書 7.3）。
+-   `main` を取り込むマージコミットが、それ自身で加えた ADR の変更（衝突の解き方）。マージコミットは訂正の行の確かめの対象にしない（設計書 3.9.1）。
 
 ### 7.2. 実行の記録
 
