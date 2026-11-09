@@ -385,7 +385,13 @@ above says.
   Only a line that starts with `Editorial correction: ` at its first column is a
   correction line; an indented line or a mention inside a sentence is not. Do
   not start any other line of a commit message with `Editorial correction: `.
-  `<document path>` is the repository-relative path of the task document. The
+  `<document path>` is the repository-relative path of the task document or of
+  the ADR file (`docs/dev/conventions/adr.md`, "Location and naming"). When
+  rewriting an ADR's title changes its row in the index,
+  `docs/dev/adr/README.md`, that ADR's correction line describes the index
+  change too; no correction line names the index. Which changes to an ADR are
+  editorial corrections, and when one may be made, is in
+  `docs/dev/conventions/adr.md`, "Editorial corrections". The
   line contains no `@` or `<`; a command may check it more strictly before it
   posts it (`.claude/commands/fixpr.md`, Phase 4). Its description is written in the
   writer's own words, never quoting a review thread or the PR description.
@@ -401,7 +407,8 @@ above says.
   ```
 
   `<書いた手順>` is `PR の作成` or `/fixpr`. Each item is a correction line put
-  into Japanese, one item for each correction line. When a PR is created, the paragraph is
+  into Japanese, one item for each correction line. The paragraph carries every
+  correction line of the range, whichever document it names. When a PR is created, the paragraph is
   written from the correction lines of `git log origin/main..HEAD`; after that,
   `/fixpr` appends a paragraph for the correction lines of the commits of its
   round. A paragraph already in the description is kept as it is. When the

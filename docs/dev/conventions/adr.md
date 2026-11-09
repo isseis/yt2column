@@ -299,19 +299,22 @@ not sure whether a change is editorial, treat it as a decision change.
 that makes it, as a correction line, and in the PR description, as a
 correction paragraph, in the forms of
 `docs/dev/conventions/requirements_process.md`, "Recording in the PR
-description"; the document path in them is the ADR's repository-relative
-path. The line says what was changed to what and that no decision changed.
+description". The line says what was changed to what and that no decision changed.
 The PR description names the change as an editorial correction, so the PR's
 reviewer can dispute the classification. An editorial correction adds no
 経緯 entry ("History entries").
 
-**After the PR is created.** Make editorial corrections to an ADR only in
-commits made before the PR is created. After that, the commands do not carry
-an ADR's correction lines into the PR description (#732), so the reviewer
-would not see the classification. A correction already recorded may still be
-reworded, as long as its correction line still describes it. Revising text
-that the PR itself added to an ADR, and is not yet on `main`, is not an
-editorial correction and is not limited by this paragraph.
+**After the PR is created.** After the PR is created, make an editorial
+correction to an ADR in a step that carries its correction line into the PR
+description, and record it as above. Today that step is a `/fixpr` round,
+including the local CLI review its Phase 4.5 runs: its Phase 6 appends the
+round's correction paragraph. Taking in `main` has no such step, so make no
+correction while taking in `main`. A commit made by hand has no step that
+carries its correction line, so its author writes the correction line and
+also adds the correction paragraph to the PR description. A correction
+already recorded may still be reworded, as long as its correction line still
+describes it. Revising text that the PR itself added to an ADR, and is not
+yet on `main`, is not an editorial correction.
 
 **Classifying a change.**
 
@@ -346,8 +349,9 @@ editorial correction and is not limited by this paragraph.
   `<N>` is the number of the issue the PR handles. Read each hit: remove only
   a statement in 決定 that describes this discrepancy. When the statement is
   not on the PR's branch yet, take in `main` first. A statement that reaches
-  `main` after the PR is created is left to a later PR ("After the PR is
-  created").
+  `main` after the PR is created is left to a later PR: the PR would have to
+  take in `main` to remove it, and taking in `main` makes no editorial
+  correction ("After the PR is created").
 - A statement that a later PR finds stale may be removed by that PR, as the
   second kind above.
 

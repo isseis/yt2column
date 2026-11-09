@@ -115,8 +115,8 @@
 
 **変更するファイル:** `docs/dev/conventions/requirements_process.md`、`docs/dev/conventions/adr.md`
 
--   [ ] **ステップ 1-1**: `requirements_process.md`「Recording in the PR description」を設計書 3.1 のとおり改める。`:388` の 1 文を、`<document path>`・索引の行・ADR の訂正の条件を述べる文に置き換え、訂正の段落の箇条の `:403-404` の文の後に 1 文を足す。同じ行にある前後の文は変えない。設計書 3.1 の「変えないもの」と「Editing an approved document」には触れない。
--   [ ] **ステップ 1-2**: 規約を設計書 3.3 のとおり改める。「Recording」の読み替えの句を消し（3.3.1）、「After the PR is created」の段落を書き換え（3.3.2）、「Discrepancy statements」の `:348-350` の文を置き換える（3.3.3）。見出しの語 `**After the PR is created.**` は残す。規約は ADR ではないので、訂正の行は書かない。
+-   [x] **ステップ 1-1**: `requirements_process.md`「Recording in the PR description」を設計書 3.1 のとおり改める。`:388` の 1 文を、`<document path>`・索引の行・ADR の訂正の条件を述べる文に置き換え、訂正の段落の箇条の `:403-404` の文の後に 1 文を足す。同じ行にある前後の文は変えない。設計書 3.1 の「変えないもの」と「Editing an approved document」には触れない。
+-   [x] **ステップ 1-2**: 規約を設計書 3.3 のとおり改める。「Recording」の読み替えの句を消し（3.3.1）、「After the PR is created」の段落を書き換え（3.3.2）、「Discrepancy statements」の `:348-350` の文を置き換える（3.3.3）。見出しの語 `**After the PR is created.**` は残す。規約は ADR ではないので、訂正の行は書かない。
 
 **完了の条件:** `make test` と `make lint` が通る（`TestADRRecords` と `TestInstructionDocPaths` を含む）。
 
