@@ -165,14 +165,14 @@ func withRetiredLLMVars(env map[string]string) map[string]string {
 // the derivation itself.
 func TestLoadHost(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
-		env := validServerEnv()
+		env := validServerEnv(t)
 		var read []string
 		cfg, err := LoadHost(recordingLookup(withRetiredLLMVars(env), &read))
 		if err != nil {
 			t.Fatalf("LoadHost() error = %v, want nil", err)
 		}
 		requireReadOnlyHome(t, "LoadHost", read)
-		server, err := LoadServer(envLookup(env))
+		server, err := LoadServer(ServerLookupForTest(t, env))
 		if err != nil {
 			t.Fatalf("LoadServer() error = %v, want nil", err)
 		}

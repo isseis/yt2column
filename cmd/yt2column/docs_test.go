@@ -21,6 +21,7 @@ import (
 	"github.com/isseis/yt2column/internal/pricing"
 	"github.com/isseis/yt2column/internal/publisher"
 	publishertestutil "github.com/isseis/yt2column/internal/publisher/testutil"
+	"github.com/isseis/yt2column/internal/udstest"
 	"github.com/isseis/yt2column/internal/writer"
 )
 
@@ -489,16 +490,17 @@ func checkExportLines(t *testing.T, docName, sectionName string, block doctestut
 	return accepted
 }
 
-// docsProfileEnv is the closed environment test (a) loads the server
-// configuration from: a dummy API key, a dummy Webhook URL under the reserved
-// .invalid domain, and a short fixed HOME, because the socket path derived from
-// it must fit the operating system's limit. No key of the process environment
-// reaches LoadServer through it.
-func docsProfileEnv() map[string]string {
+// docsProfileEnv is the closed set of variables test (a) loads the server
+// configuration from, through config.ServerLookupForTest: a dummy API key, a
+// dummy Webhook URL under the reserved .invalid domain, and a fresh short
+// HOME, because the socket path derived from it must fit the operating
+// system's limit. No key of the process environment reaches LoadServer
+// through it.
+func docsProfileEnv(t *testing.T) map[string]string {
 	return map[string]string{
 		config.AnthropicAPIKeyEnvForTest(): "docs-test-api-key",
 		config.SlackWebhookEnvForTest():    "https://example.invalid/webhook",
-		"HOME":                             "/tmp/yt2column-docs-test",
+		"HOME":                             udstest.Dir(t),
 	}
 }
 
@@ -531,13 +533,13 @@ func checkExportBlockMatchesDefaults(t *testing.T, docName, sectionName string, 
 		t.Errorf("%s %s: the block's %s has no \"+<effort>\" part; the profile must state its effort",
 			docName, sectionName, config.LLMEnvForTest())
 	}
-	without, err := config.LoadServer(lookupFrom(docsProfileEnv()))
+	without, err := config.LoadServer(config.ServerLookupForTest(t, docsProfileEnv(t)))
 	if err != nil {
 		t.Fatalf("%s %s: LoadServer on the default variables: %v", docName, sectionName, err)
 	}
-	env := docsProfileEnv()
+	env := docsProfileEnv(t)
 	maps.Copy(env, block)
-	loaded, err := config.LoadServer(lookupFrom(env))
+	loaded, err := config.LoadServer(config.ServerLookupForTest(t, env))
 	if err != nil {
 		t.Fatalf("%s %s: LoadServer rejected the block's variables: %v", docName, sectionName, err)
 	}
@@ -620,9 +622,9 @@ func checkProfileTable(t *testing.T, section string, defaults config.LLMConfig) 
 		if stage == reviewProfileStage {
 			stageOf, llmEnv = config.LLMConfig.Review, config.ReviewLLMEnvForTest()
 		}
-		env := docsProfileEnv()
+		env := docsProfileEnv(t)
 		env[llmEnv] = values[0] + "/" + values[1] + "+" + values[2]
-		cfg, err := config.LoadServer(lookupFrom(env))
+		cfg, err := config.LoadServer(config.ServerLookupForTest(t, env))
 		if err != nil {
 			t.Errorf("production_profile.md: LoadServer rejects the %q row's values: %v", stage, err)
 			continue

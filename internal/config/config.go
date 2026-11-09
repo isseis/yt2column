@@ -28,7 +28,9 @@ const (
 	ProviderClaude
 )
 
-// Names of the environment variables Load reads.
+// Names of the environment variables Load reads. The first six are also the
+// keys the server's configuration file accepts (serverFileKeys), which
+// LoadServer reads from the file instead of the environment.
 const (
 	llmEnv                  = "YT2COLUMN_LLM"
 	reviewLLMEnv            = "YT2COLUMN_REVIEW_LLM"
@@ -84,7 +86,12 @@ const (
 // constants and the package variables below them, which are built once from
 // code values alone, so a rejected value cannot reach an error message.
 const (
-	reasonUnset   = "is unset or empty"
+	reasonUnset = "is unset or empty"
+	// reasonNotSet and reasonEmpty replace reasonUnset in the rejection of a
+	// configuration file key: the file tells the two cases apart, so the
+	// reason says which one it is.
+	reasonNotSet  = "is not set"
+	reasonEmpty   = "is empty"
 	reasonLLMForm = `must be "<provider>/<model ID>", optionally followed by "+<effort>", with a non-empty model ID`
 	// reasonLLMEffortSeparator rejects a second "+" after the first "/",
 	// which leaves the boundary between the model ID and the effort part
@@ -171,12 +178,26 @@ var retiredLLMVars = []retiredLLMVar{
 // process environment.
 type LookupFunc func(name string) (value string, ok bool)
 
-// ErrMissing reports a variable that is unset, or present with an empty value,
-// and has no usable default.
-var ErrMissing = errors.New("environment variable is unset or empty")
+// ErrMissing reports a setting that is unset, or present with an empty value,
+// and has no usable default: an environment variable, or a key of the
+// server's configuration file.
+var ErrMissing = errors.New("a required setting is unset or empty")
 
-// ErrInvalid reports a variable whose value is present but not acceptable.
-var ErrInvalid = errors.New("environment variable has an invalid value")
+// ErrInvalid reports a setting whose value is present but not acceptable.
+var ErrInvalid = errors.New("a setting has an invalid value")
+
+// VarSource says where a rejected setting was read from. Its zero value is
+// the form every rejection of an environment variable has.
+type VarSource int
+
+const (
+	// VarSourceUnspecified prints "<Name>: <Reason>". The CLI's variables
+	// and HOME use it.
+	VarSourceUnspecified VarSource = iota
+	// VarSourceConfigFile prints "configuration file key <Name>: <Reason>",
+	// so the line does not call the key an environment variable.
+	VarSourceConfigFile
+)
 
 // VarError names a rejected variable and gives a fixed reason. It never holds
 // the variable's value, so an error can be logged safely even when the rejected
@@ -184,12 +205,19 @@ var ErrInvalid = errors.New("environment variable has an invalid value")
 type VarError struct {
 	Name   string
 	Reason string
-	Err    error // ErrMissing or ErrInvalid
+	Err    error     // ErrMissing or ErrInvalid
+	Source VarSource // where Name was read from
 }
 
-// Error implements the error interface as "<Name>: <Reason>".
+// Error implements the error interface in the form Source names. Only the
+// form depends on Source; the reason is chosen where the error is built.
 func (e *VarError) Error() string {
-	return e.Name + ": " + e.Reason
+	switch e.Source {
+	case VarSourceConfigFile:
+		return "configuration file key " + e.Name + ": " + e.Reason
+	default:
+		return e.Name + ": " + e.Reason
+	}
 }
 
 // Unwrap returns the sentinel that classifies the rejection.
@@ -316,9 +344,10 @@ func (c Config) HTTP2DebugEnabled() bool {
 }
 
 // ServerConfig is the server configuration. Its fields are unexported, so a
-// non-zero ServerConfig can only come from LoadServer. LoadServer never reads
-// or checks YT2COLUMN_CACHE_DIR, YT2COLUMN_YTDLP_PATH, or the cache directory
-// defaults.
+// non-zero ServerConfig can only come from LoadServer. The LLM settings and
+// the Webhook URL come from the six keys of the configuration file, never
+// from the environment. LoadServer never reads or checks YT2COLUMN_CACHE_DIR,
+// YT2COLUMN_YTDLP_PATH, or the cache directory defaults.
 type ServerConfig struct {
 	llm               LLMConfig
 	webhookURL        secret.Secret // zero when SLACK_WEBHOOK_URL is unset
@@ -352,22 +381,38 @@ func (c ServerConfig) HTTP2DebugEnabled() bool {
 	return c.http2DebugEnabled
 }
 
-// LoadServer reads and validates the server's variables through lookup: the
-// LLM settings (shared with Load), SLACK_WEBHOOK_URL (optional), and HOME, from
-// which the socket path is derived. It joins every rejection together and
-// returns the zero ServerConfig on any error, so a value that did not pass
-// validation never reaches a caller. It reads no variable the server does not
-// use, with one exception: it checks whether each retired LLM variable is
-// present (never its value), so a leftover setting stops the server instead of
-// silently changing the provider, the model, or the effort.
+// LoadServer reads the server configuration. It derives the configuration
+// file's path from HOME, reads and parses the file, and validates the six keys
+// from it; HOME (the socket path) and GODEBUG (the warning) come from lookup.
+// It reads no other variable. It returns the zero ServerConfig on any error,
+// and stops at the first stage that fails: HOME, the file, its format, then
+// the values.
+//
+// Contract: a key in the process environment never reaches the
+// configuration, since the value loaders shared with Load read the file's
+// lookup and only the socket path and the GODEBUG check read lookup. The
+// rejections of one stage are joined flat, one error per line of the
+// server's output: the format rejections, or the value rejections, each of a
+// key read from the file marked VarSourceConfigFile.
 func LoadServer(lookup LookupFunc) (ServerConfig, error) {
-	llm, errs := loadLLM(lookup, Need{Generation: true, Review: true})
-	var cfg ServerConfig
-	webhook, webhookErr := loadSlackWebhook(lookup)
-	sockPath, sockErr := socketPath(runtime.GOOS, lookup)
-	if webhookErr != nil {
-		errs = append(errs, webhookErr)
+	loc, homeErr := serverFileLocationFor(runtime.GOOS, lookup)
+	if homeErr != nil {
+		return ServerConfig{}, homeErr
 	}
+	file, err := readServerFile(loc.path)
+	if err != nil {
+		return ServerConfig{}, err
+	}
+
+	llm, errs := loadLLM(file.lookup, Need{Generation: true, Review: true})
+	webhook, webhookErr := loadSlackWebhook(file.lookup)
+	errs = append(errs, webhookErr)
+	for i, e := range errs {
+		if varErr, ok := errors.AsType[*VarError](e); ok {
+			errs[i] = file.keyError(varErr)
+		}
+	}
+	sockPath, sockErr := socketPath(runtime.GOOS, lookup)
 	if sockErr != nil {
 		// socketPath's *VarError is a typed nil on success, which errors.Join
 		// would keep as a non-nil error.
@@ -376,11 +421,12 @@ func LoadServer(lookup LookupFunc) (ServerConfig, error) {
 	if err := errors.Join(errs...); err != nil {
 		return ServerConfig{}, err
 	}
-	cfg.llm = llm
-	cfg.webhookURL = webhook
-	cfg.socketPath = sockPath
-	cfg.http2DebugEnabled = hasHTTP2Debug(lookup)
-	return cfg, nil
+	return ServerConfig{
+		llm:               llm,
+		webhookURL:        webhook,
+		socketPath:        sockPath,
+		http2DebugEnabled: hasHTTP2Debug(lookup),
+	}, nil
 }
 
 // HostConfig is the Native Messaging host's relay configuration. Its field is

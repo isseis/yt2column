@@ -196,7 +196,7 @@
 
 **コミット:** このステップだけの、削除だけのコミット。
 
-- [ ] `TestLoadRejectsRetiredLLMVars` の `LoadServer` の行（`config_test.go:1850-1856`）、`TestStartupFailures` の廃止した変数の 2 行（`run_test.go:88-106`）、`lastRetiredLLMVar`（`run_test.go:337-342`）を消し、`make coverage-compare BASE=<親のコミット>` で確かめる（1.2）。
+- [x] `TestLoadRejectsRetiredLLMVars` の `LoadServer` の行（`config_test.go:1850-1856`）、`TestStartupFailures` の廃止した変数の 2 行（`run_test.go:88-106`）、`lastRetiredLLMVar`（`run_test.go:337-342`）を消し、`make coverage-compare BASE=<親のコミット>` で確かめる（1.2）。
 
 #### ステップ 3-2: 設定ファイルへの切り替え
 
@@ -204,13 +204,13 @@
 
 **コミット:** このステップの全体を 1 つのコミットにする。`LoadServer` だけを変えると、環境変数で設定を渡すテストがすべて止まるためである。
 
-- [ ] 設計 3.2.4 の `VarSource`・`VarSourceUnspecified`・`VarSourceConfigFile` と `VarError.Source` を足し、`Error()` を `Source` の `switch` にする（`default` は今の形）。理由の定数 `reasonNotSet`（「is not set」）・`reasonEmpty`（「is empty」）を足す（設計 3.2.3）。
-- [ ] `ErrMissing` の文 `"environment variable is unset or empty"` と `ErrInvalid` の文 `"environment variable has an invalid value"` を、出どころを言わない文に変える（設計 3.2.4）。`config.go:31` のコメントに、これらの名前が設定ファイルのキーでもあることを足す。
-- [ ] `LoadServer` を設計 3.2.3 の 3 つの段に組み替え、注釈を設計 3.2.3 の注釈に置き換える。ファイルから読んだキーの `*VarError` に `Source` を付け、`ErrMissing` の `Reason` を選ぶ（設計 3.2.3・3.2.4）。`ServerConfig` の注釈（`config.go:317-320`）に、6 つのキーを設定ファイルから読むことを足す。`run.go:131-132` の注釈を、拒否ごとに 1 行を書く形に直す。
-- [ ] `internal/config/test_helpers.go` に、1.3 の 2 つ目の決定のアクセサを足す。与えた `HOME` の下の設定ファイルのパスに、与えたバイト列を書いてパスを返す。親は `os.MkdirAll` で作ってから `os.Chmod` で `0700` にし、ファイルは `os.Chmod` で `0600` にする（umask に頼らない。`privatefile.MkdirBelow` は umask を変えるので使わない）。すでにあるファイルは中身を置き換える。キーと値の表から行を作る小さな関数も置く。ファイル操作の各行に、テスト専用である理由を付けた `//nolint:gosec` を付ける。
-- [ ] `serverEnv` を、環境変数の表（`HOME`・`GODEBUG` など）と、設定ファイルの状態（キーと値の表、または生のバイト列、モード、ファイルを置かないこと）を持つ形にする。ファイルは、`setup` の後、`run` の直前（子プロセスでは起動の直前）に 1 回だけ書く。`HOME` が未設定か相対のときは書かない。`socketPath` は、ファイルを書かずに `HOME` からソケットのパスを求める（`LoadServer` を呼ばない）。`childEnv` は 6 つのキーを子の環境に渡さない。
-- [ ] 1.4「サーバのテストが環境変数で設定を渡す場所」の書き込みと削除を、設定ファイルの状態への操作に変える。`run_test.go:74-86` の行の期待を、設定ファイルのキーの行の形に合わせる。
-- [ ] 1.4「`LoadServer` を呼ぶ場所」の `internal/config` のテスト、`provider_test.go:790-810`、`cmd/yt2column/docs_test.go:493-499`・`530-536`・`619-622` を、`udstest.Dir` の `HOME` の下にアクセサでファイルを書いてから `LoadServer` を呼ぶ形にする（1.2「テストの `HOME`」）。`docsProfileEnv` の固定の `HOME` も `udstest.Dir` に変える。`TestLoadServerSocketPathUnderivable`（`config_test.go:989`）の「長すぎる」行は、`udstest.Dir` の下に延ばした `HOME` を作ってファイルを置く。「未設定」の行は `LoadServer` の段 1（設計 3.2.3）で止まるので、期待する理由を設定ファイルのパスの理由に変える。これらのほかは、確かめる内容を変えない。
+- [x] 設計 3.2.4 の `VarSource`・`VarSourceUnspecified`・`VarSourceConfigFile` と `VarError.Source` を足し、`Error()` を `Source` の `switch` にする（`default` は今の形）。理由の定数 `reasonNotSet`（「is not set」）・`reasonEmpty`（「is empty」）を足す（設計 3.2.3）。
+- [x] `ErrMissing` の文 `"environment variable is unset or empty"` と `ErrInvalid` の文 `"environment variable has an invalid value"` を、出どころを言わない文に変える（設計 3.2.4）。`config.go:31` のコメントに、これらの名前が設定ファイルのキーでもあることを足す。
+- [x] `LoadServer` を設計 3.2.3 の 3 つの段に組み替え、注釈を設計 3.2.3 の注釈に置き換える。ファイルから読んだキーの `*VarError` に `Source` を付け、`ErrMissing` の `Reason` を選ぶ（設計 3.2.3・3.2.4）。`ServerConfig` の注釈（`config.go:317-320`）に、6 つのキーを設定ファイルから読むことを足す。`run.go:131-132` の注釈を、拒否ごとに 1 行を書く形に直す。
+- [x] `internal/config/test_helpers.go` に、1.3 の 2 つ目の決定のアクセサを足す。与えた `HOME` の下の設定ファイルのパスに、与えたバイト列を書いてパスを返す。親は `os.MkdirAll` で作ってから `os.Chmod` で `0700` にし、ファイルは `os.Chmod` で `0600` にする（umask に頼らない。`privatefile.MkdirBelow` は umask を変えるので使わない）。すでにあるファイルは中身を置き換える。キーと値の表から行を作る小さな関数と、変数の表を設定ファイルのキーとそれ以外に分け、キーをファイルに書いて残りの環境を返すアクセサ（`ServerLookupForTest`）も置く。`internal/config` の外のテストは、このアクセサで `LoadServer` に渡す。ファイル操作の各行に、テスト専用である理由を付けた `//nolint:gosec` を付ける。
+- [x] `serverEnv` を、環境変数の表（`HOME`・`GODEBUG` など）と、設定ファイルの状態（キーと値の表、または生のバイト列、モード、ファイルを置かないこと）を持つ形にする。ファイルは、`setup` の後、`run` の直前（子プロセスでは起動の直前）に 1 回だけ書く。`HOME` が未設定か相対のときは書かない。`socketPath` は、ファイルを書かずに `HOME` からソケットのパスを求める（`LoadServer` を呼ばない）。`childEnv` は 6 つのキーを子の環境に渡さない。
+- [x] 1.4「サーバのテストが環境変数で設定を渡す場所」の書き込みと削除を、設定ファイルの状態への操作に変える。`run_test.go:74-86` の行の期待を、設定ファイルのキーの行の形に合わせる。
+- [x] 1.4「`LoadServer` を呼ぶ場所」の `internal/config` のテスト、`provider_test.go:790-810`、`cmd/yt2column/docs_test.go:493-499`・`530-536`・`619-622` を、`udstest.Dir` の `HOME` の下にアクセサでファイルを書いてから `LoadServer` を呼ぶ形にする（1.2「テストの `HOME`」）。`docsProfileEnv` の固定の `HOME` も `udstest.Dir` に変える。`TestLoadServerSocketPathUnderivable`（`config_test.go:989`）の「長すぎる」行は、`udstest.Dir` の下に延ばした `HOME` を作ってファイルを置く。「未設定」の行は `LoadServer` の段 1（設計 3.2.3）で止まるので、期待する理由を設定ファイルのパスの理由に変える。これらのほかは、確かめる内容を変えない。
 
 #### ステップ 3-3: `internal/config` の新しいテスト
 

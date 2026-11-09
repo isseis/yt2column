@@ -14,6 +14,8 @@ import (
 	"net/http/httptest"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -108,29 +110,46 @@ var (
 	errUnexpectedWebhook = errors.New("run passed a webhook URL other than the configured one")
 )
 
-// serverEnv is the environment of one server: HOME, from which the socket
-// path is derived, and the other variables config.LoadServer reads. Every start
-// of the same serverEnv uses the same socket path.
+// serverEnv is the setting of one server: its environment (HOME, from which
+// the configuration file's path and the socket path are derived, and GODEBUG)
+// and the keys of its configuration file. Every start of the same serverEnv
+// uses the same socket path.
 type serverEnv struct {
-	vars map[string]string
+	vars map[string]string // the process environment
+	file map[string]string // the configuration file's keys and values
 }
 
-// newServerEnv returns the variables of a valid configuration with HOME in a
-// fresh short directory under /tmp, so the socket path stays within the macOS
-// limit and no two tests share it.
+// newServerEnv returns a valid configuration with HOME in a fresh short
+// directory under /tmp, so the socket path stays within the macOS limit and no
+// two tests share it.
 func newServerEnv(t *testing.T) *serverEnv {
 	t.Helper()
 	// The provider is explicit so the tests keep selecting DeepSeek, not the
 	// default provider.
-	return &serverEnv{vars: map[string]string{
-		"YT2COLUMN_LLM":     "deepseek/" + testModel,
-		"DEEPSEEK_API_KEY":  testAPIKey,
-		"SLACK_WEBHOOK_URL": testWebhook,
-		"HOME":              udstest.Dir(t),
-	}}
+	return &serverEnv{
+		vars: map[string]string{"HOME": udstest.Dir(t)},
+		file: map[string]string{
+			"YT2COLUMN_LLM":     "deepseek/" + testModel,
+			"DEEPSEEK_API_KEY":  testAPIKey,
+			"SLACK_WEBHOOK_URL": testWebhook,
+		},
+	}
 }
 
-// lookup returns a config.LookupFunc over the variables.
+// writeConfig writes the configuration file under HOME from the file's
+// keys. A test calls it once, after its setup has changed the serverEnv and
+// right before the run (or the child's start) reads the file. Nothing is
+// written when HOME is unset or relative, since the server then stops before
+// it reads the file.
+func (e *serverEnv) writeConfig(t *testing.T) {
+	t.Helper()
+	if home, ok := e.vars["HOME"]; ok && filepath.IsAbs(home) {
+		config.WriteServerFileForTest(t, home, config.ServerFileForTest(e.file))
+	}
+}
+
+// lookup returns a config.LookupFunc over the environment. It writes
+// nothing; the configuration file comes from writeConfig.
 func (e *serverEnv) lookup() config.LookupFunc {
 	return func(name string) (string, bool) {
 		value, ok := e.vars[name]
@@ -138,15 +157,16 @@ func (e *serverEnv) lookup() config.LookupFunc {
 	}
 }
 
-// socketPath returns the socket path, derived by config.LoadServer as the
-// server derives it.
+// socketPath returns the socket path the server derives from HOME. It does
+// not call config.LoadServer, so it neither needs nor reads the
+// configuration file.
 func (e *serverEnv) socketPath(t *testing.T) string {
 	t.Helper()
-	cfg, err := config.LoadServer(e.lookup())
-	if err != nil {
-		t.Fatalf("LoadServer: %v", err)
+	home, ok := e.vars["HOME"]
+	if !ok || !filepath.IsAbs(home) {
+		t.Fatalf("no socket path for HOME %q", home)
 	}
-	return cfg.SocketPath()
+	return home + config.SocketPathTailForTest(runtime.GOOS)
 }
 
 // listening reports whether a connection to the socket at path is accepted.
@@ -195,6 +215,7 @@ func startServer(t *testing.T, e *serverEnv, d deps) *runningServer {
 	stderr := &syncBuffer{}
 	ctx, cancel := context.WithCancel(context.Background())
 	r := &runningServer{cancel: cancel, done: make(chan struct{}), stderr: stderr}
+	e.writeConfig(t)
 	lookup := e.lookup()
 	go func() {
 		defer close(r.done)
@@ -570,6 +591,7 @@ type serverChild struct {
 func startServerChild(t *testing.T, mode string, e *serverEnv, extra map[string]string) *serverChild {
 	t.Helper()
 	cmd := exec.Command(os.Args[0]) //nolint:gosec // the test binary itself, re-run as the server
+	e.writeConfig(t)
 	cmd.Env = childEnv(mode, e.vars, extra)
 	cmd.WaitDelay = childWaitDelay
 	c := &serverChild{cmd: cmd, done: make(chan struct{})}

@@ -107,7 +107,8 @@ func (l *lockedWriter) Write(p []byte) (int, error) {
 }
 
 // run starts the server and serves until ctx is canceled, then returns the
-// process exit code. Steps 1 and 2 touch no network and no file; a failure
+// process exit code. Step 1 reads the configuration file and step 2 builds
+// the components; neither touches the network or writes a file, and a failure
 // there stops the start with exitUsage. Step 3 prepares the socket directory,
 // takes the start lock, and binds the socket; a failure there is exitFailure.
 // Nothing is written to standard output; every line goes to standard error.
@@ -128,8 +129,9 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stderr io
 		return exitUsage
 	}
 
-	// 1: the configuration. Each rejected variable is reported on its own
-	// line; a VarError never carries a value.
+	// 1: the configuration. Each rejection (of HOME, the configuration file,
+	// one of its lines, or one of its keys) is reported on its own line; no
+	// rejection carries a value or the file's content.
 	cfg, err := config.LoadServer(lookup)
 	if err != nil {
 		for _, e := range splitJoined(err) {

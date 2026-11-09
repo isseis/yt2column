@@ -76,12 +76,12 @@ func TestStartupFailures(t *testing.T) {
 			// required: two independent rejections.
 			name: "LLM model empty and API key missing",
 			setup: func(_ *testing.T, e *serverEnv, _ *deps) {
-				e.vars["YT2COLUMN_LLM"] = "deepseek/"
-				delete(e.vars, "DEEPSEEK_API_KEY")
+				e.file["YT2COLUMN_LLM"] = "deepseek/"
+				delete(e.file, "DEEPSEEK_API_KEY")
 			},
 			want:        exitUsage,
-			wantStderr:  "configuration: YT2COLUMN_LLM",
-			hint:        "configuration: DEEPSEEK_API_KEY",
+			wantStderr:  "configuration: configuration file key YT2COLUMN_LLM",
+			hint:        "configuration: configuration file key DEEPSEEK_API_KEY",
 			configLines: 2,
 		},
 		{
@@ -199,6 +199,7 @@ func TestStartupFailures(t *testing.T) {
 			if tc.setup != nil {
 				tc.setup(t, e, &d)
 			}
+			e.writeConfig(t)
 			_, err := os.Lstat(socket)
 			existed := err == nil
 
@@ -319,8 +320,8 @@ func TestStartDuringShutdownRefused(t *testing.T) {
 // them.
 func TestOutputsOmitSecrets(t *testing.T) {
 	e := newServerEnv(t)
-	e.vars["YT2COLUMN_REVIEW_LLM"] = "claude/fake-review-model"
-	e.vars["ANTHROPIC_API_KEY"] = testAnthropicKey
+	e.file["YT2COLUMN_REVIEW_LLM"] = "claude/fake-review-model"
+	e.file["ANTHROPIC_API_KEY"] = testAnthropicKey
 	leaking := funcLLM(func(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {
 		return llm.GenerateResponse{}, errors.New("leak " + testAPIKey + " " + testAnthropicKey + " " + testWebhook)
 	})
@@ -380,6 +381,7 @@ func TestWriterOptionsMatchCLIDefaults(t *testing.T) {
 	}
 	d.newPublisher = func(secret.Secret) (server.WebhookPublisher, error) { return nil, errBuildRefused }
 
+	e.writeConfig(t)
 	var stderr strings.Builder
 	if code := run(t.Context(), nil, e.lookup(), &stderr, d); code != exitUsage {
 		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitUsage, stderr.String())
@@ -398,7 +400,7 @@ func TestWriterOptionsMatchCLIDefaults(t *testing.T) {
 // its socket, and never builds the publisher.
 func TestStartsWithoutWebhook(t *testing.T) {
 	e := newServerEnv(t)
-	delete(e.vars, "SLACK_WEBHOOK_URL")
+	delete(e.file, "SLACK_WEBHOOK_URL")
 	publisherCalls := 0
 	d := testDeps(validResponseLLM())
 	d.newPublisher = func(secret.Secret) (server.WebhookPublisher, error) {

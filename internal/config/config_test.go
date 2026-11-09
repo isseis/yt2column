@@ -17,6 +17,7 @@ import (
 
 	"github.com/isseis/yt2column/internal/llm/claudeparam"
 	"github.com/isseis/yt2column/internal/llm/deepseekparam"
+	"github.com/isseis/yt2column/internal/udstest"
 )
 
 // envLookup returns a LookupFunc over env. A key absent from env reports unset,
@@ -328,9 +329,9 @@ func TestLoadClaudeEffortDefault(t *testing.T) {
 	// point, so a server-specific loader would still get the default.
 	t.Run("LoadServer", func(t *testing.T) {
 		env := without(claudeBoth, cacheDirEnv)
-		env = with(env, "HOME", "/home/user")
+		env = with(env, "HOME", udstest.Dir(t))
 		env = with(env, slackEnv, "https://hooks.slack.com/services/T000/B000/XXXX")
-		cfg, err := LoadServer(envLookup(env))
+		cfg, err := LoadServer(ServerLookupForTest(t, env))
 		if err != nil {
 			t.Fatalf("LoadServer() error = %v, want nil", err)
 		}
@@ -828,30 +829,43 @@ func slogOutput(t *testing.T, cfg any, jsonFormat bool) string {
 	return buf.String()
 }
 
-// validServerEnv is an environment LoadServer accepts: the CLI environment
-// without the cache and yt-dlp variables the server does not use, plus HOME,
-// from which the socket path is derived.
-func validServerEnv() map[string]string {
+// validServerEnv is a set of variables LoadServer accepts once
+// ServerLookupForTest has written the configuration file keys among them: the
+// CLI environment without the cache and yt-dlp variables the server does not
+// use, plus HOME, from which the file's path and the socket path are derived.
+// HOME is a fresh short directory, so the socket path stays within the macOS
+// limit.
+func validServerEnv(t *testing.T) map[string]string {
 	env := without(validEnv(), cacheDirEnv, ytDlpEnv)
-	env["HOME"] = "/home/user"
+	env["HOME"] = udstest.Dir(t)
 	return env
 }
 
-// wantServerSocketPath is the socket path LoadServer derives from the HOME of
-// validServerEnv on this operating system.
-func wantServerSocketPath() string {
+// wantServerSocketPath is the socket path LoadServer derives from home on
+// this operating system.
+func wantServerSocketPath(home string) string {
 	if runtime.GOOS == "darwin" {
-		return "/home/user/Library/Application Support/yt2column/run/server.sock"
+		return home + "/Library/Application Support/yt2column/run/server.sock"
 	}
-	return "/home/user/.local/state/yt2column/run/server.sock"
+	return home + "/.local/state/yt2column/run/server.sock"
+}
+
+// fileKey is want as a rejection of a configuration file key: marked
+// VarSourceConfigFile, with reason in place of want's when reason is set.
+func fileKey(want VarError, reason string) VarError {
+	want.Source = VarSourceConfigFile
+	if reason != "" {
+		want.Reason = reason
+	}
+	return want
 }
 
 // TestLoadServerValid checks that LoadServer loads the LLM settings, the
 // configured Webhook URL, the socket path derived from HOME, and the HTTP/2
 // debug flag. The OS-specific socket path rules are fixed by TestSocketPath.
 func TestLoadServerValid(t *testing.T) {
-	env := with(validServerEnv(), godebugEnv, "http2debug=1")
-	cfg, err := LoadServer(envLookup(env))
+	env := with(validServerEnv(t), godebugEnv, "http2debug=1")
+	cfg, err := LoadServer(ServerLookupForTest(t, env))
 	if err != nil {
 		t.Fatalf("LoadServer() error = %v, want nil", err)
 	}
@@ -872,7 +886,7 @@ func TestLoadServerValid(t *testing.T) {
 	if url != env[slackEnv] {
 		t.Errorf("WebhookURL() = %q, want %q", url, env[slackEnv])
 	}
-	if want := wantServerSocketPath(); cfg.SocketPath() != want {
+	if want := wantServerSocketPath(env["HOME"]); cfg.SocketPath() != want {
 		t.Errorf("SocketPath() = %q, want %q", cfg.SocketPath(), want)
 	}
 	if !cfg.HTTP2DebugEnabled() {
@@ -889,12 +903,12 @@ func TestLoadServerLLMRejected(t *testing.T) {
 		value string
 		want  VarError
 	}{
-		{"", wantMissing(llmEnv)},
-		{"deepseek/", wantInvalid(llmEnv, reasonLLMForm)},
+		{"", fileKey(wantMissing(llmEnv), reasonEmpty)},
+		{"deepseek/", fileKey(wantInvalid(llmEnv, reasonLLMForm), "")},
 	}
 	for _, tc := range cases {
 		t.Run(fmt.Sprintf("%q", tc.value), func(t *testing.T) {
-			_, err := LoadServer(envLookup(with(validServerEnv(), llmEnv, tc.value)))
+			_, err := LoadServer(ServerLookupForTest(t, with(validServerEnv(t), llmEnv, tc.value)))
 			assertVarErrors(t, err, tc.want)
 		})
 	}
@@ -906,7 +920,8 @@ func TestLoadServerLLMRejected(t *testing.T) {
 func TestLoadServerWebhookOptional(t *testing.T) {
 	const mark = "MARK-SERVER-WEBHOOK-D4"
 	t.Run("unset", func(t *testing.T) {
-		cfg, err := LoadServer(envLookup(without(validServerEnv(), slackEnv)))
+		env := without(validServerEnv(t), slackEnv)
+		cfg, err := LoadServer(ServerLookupForTest(t, env))
 		if err != nil {
 			t.Fatalf("LoadServer() error = %v, want nil", err)
 		}
@@ -915,16 +930,16 @@ func TestLoadServerWebhookOptional(t *testing.T) {
 		}
 		// The rest of the configuration is still loaded: the Webhook is the
 		// only value an unset variable leaves out.
-		if got, want := cfg.SocketPath(), wantServerSocketPath(); got != want {
+		if got, want := cfg.SocketPath(), wantServerSocketPath(env["HOME"]); got != want {
 			t.Errorf("SocketPath() = %q, want %q", got, want)
 		}
 	})
 	t.Run("empty", func(t *testing.T) {
-		_, err := LoadServer(envLookup(with(validServerEnv(), slackEnv, "")))
+		_, err := LoadServer(ServerLookupForTest(t, with(validServerEnv(t), slackEnv, "")))
 		assertVarError(t, err, ErrMissing, slackEnv)
 	})
 	t.Run("invalid", func(t *testing.T) {
-		_, err := LoadServer(envLookup(with(validServerEnv(), slackEnv, "http://host/"+mark)))
+		_, err := LoadServer(ServerLookupForTest(t, with(validServerEnv(t), slackEnv, "http://host/"+mark)))
 		assertVarError(t, err, ErrInvalid, slackEnv)
 		if strings.Contains(err.Error(), mark) {
 			t.Errorf("LoadServer() error = %q, contains the value mark %q", err, mark)
@@ -936,7 +951,7 @@ func TestLoadServerWebhookOptional(t *testing.T) {
 // ServerConfig holds the Webhook URL it carries.
 func TestServerConfigOutputRedactsWebhook(t *testing.T) {
 	const webhook = "https://hooks.slack.com/services/distinctive-webhook-7Lwz"
-	cfg, err := LoadServer(envLookup(with(validServerEnv(), slackEnv, webhook)))
+	cfg, err := LoadServer(ServerLookupForTest(t, with(validServerEnv(t), slackEnv, webhook)))
 	if err != nil {
 		t.Fatalf("LoadServer() error = %v, want nil", err)
 	}
@@ -971,9 +986,9 @@ func TestServerConfigOutputRedactsWebhook(t *testing.T) {
 // checks YT2COLUMN_CACHE_DIR and YT2COLUMN_YTDLP_PATH, even when Load would
 // reject them.
 func TestLoadServerIgnoresCacheAndYtdlp(t *testing.T) {
-	env := with(validServerEnv(), cacheDirEnv, "relative-cache")
+	env := with(validServerEnv(t), cacheDirEnv, "relative-cache")
 	env = with(env, ytDlpEnv, "")
-	if _, err := LoadServer(envLookup(env)); err != nil {
+	if _, err := LoadServer(ServerLookupForTest(t, env)); err != nil {
 		t.Fatalf("LoadServer() error = %v, want nil", err)
 	}
 	if _, err := Load(envLookup(env)); err == nil {
@@ -981,25 +996,33 @@ func TestLoadServerIgnoresCacheAndYtdlp(t *testing.T) {
 	}
 }
 
-// TestLoadServerSocketPathUnderivable checks that a HOME from which no socket
-// path can be derived ends the load with a *VarError naming HOME and a zero
-// ServerConfig. TestSocketPath fixes the input shapes, the OS-specific
-// branches, and the length limit; here each kind of failure must reach
-// LoadServer.
+// TestLoadServerSocketPathUnderivable checks that a HOME from which no path
+// can be derived ends the load with a *VarError naming HOME, its reason, and a
+// zero ServerConfig. An unset HOME stops at the configuration file's path, the
+// first stage; a HOME too long for the socket path passes the file's stages
+// and stops at the socket path. TestSocketPath fixes the input shapes, the
+// OS-specific branches, and the length limit; here each kind of failure must
+// reach LoadServer.
 func TestLoadServerSocketPathUnderivable(t *testing.T) {
 	const limit = 107 // the longest limit of any operating system
+	tooLong := validServerEnv(t)
+	tooLong["HOME"] += "/" + strings.Repeat("h", limit)
 	cases := []struct {
 		name     string
 		env      map[string]string
 		sentinel error
+		reason   string
 	}{
-		{"unset", without(validServerEnv(), "HOME"), ErrMissing},
-		{"too long", with(validServerEnv(), "HOME", "/"+strings.Repeat("h", limit)), ErrInvalid},
+		{"unset", without(validServerEnv(t), "HOME"), ErrMissing, reasonConfigPathAbsent},
+		{"too long", tooLong, ErrInvalid, reasonSocketPathTooLong},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg, err := LoadServer(envLookup(tc.env))
+			cfg, err := LoadServer(ServerLookupForTest(t, tc.env))
 			assertVarError(t, err, tc.sentinel, "HOME")
+			if varErr, ok := errors.AsType[*VarError](err); ok && varErr.Reason != tc.reason {
+				t.Errorf("VarError.Reason = %q, want %q", varErr.Reason, tc.reason)
+			}
 			if cfg.SocketPath() != "" || cfg.LLM().Generation().Model() != "" {
 				t.Errorf("LoadServer() returned a non-zero ServerConfig on error: socketPath=%q model=%q",
 					cfg.SocketPath(), cfg.LLM().Generation().Model())
@@ -1448,11 +1471,11 @@ func TestLoadDefaultProviderVariables(t *testing.T) {
 // TestLoadRejectsRetiredLLMVars.
 func TestLoadServerLLMDefaults(t *testing.T) {
 	env := map[string]string{
-		"HOME":             "/home/user",
+		"HOME":             udstest.Dir(t),
 		slackEnv:           "https://hooks.slack.com/services/T000/B000/XXXX",
 		anthropicAPIKeyEnv: "sk-ant-test-key",
 	}
-	cfg, err := LoadServer(envLookup(env))
+	cfg, err := LoadServer(ServerLookupForTest(t, env))
 	if err != nil {
 		t.Fatalf("LoadServer() error = %v, want nil", err)
 	}
