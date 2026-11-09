@@ -47,7 +47,7 @@ GitHub に置くものは日本語で書く。一方、squash のコミットは
 -   開発者向けの文書（`docs/dev/guides/cli.md` など）は日本語だけなので、CLI の英語のヘルプが日本語の文書を指す。CLI は補助の経路であり、読み手は日本語の話者の開発者である（[0048 要件定義書](../../tasks/0048_doc_language_policy/01_requirements.md)「要件定義の際に決めたこと（2026-10-28）」）。
 -   squash の件名は PR の材料から書くので、PR のタイトルと違う文になりうる。件名は `/mergepr` の承認の質問で利用者が確かめる（[0032 要件定義書](../../tasks/0032_japanese_pr_title/01_requirements.md) §4.4 と「要件定義の際に決めたこと（2026-10-21）」）。
 -   0032 より前のプランに残る英語の `推奨タイトル` は書き換えない。`/runplan` は、英語の `推奨タイトル` からも日本語の PR のタイトルを書く（[0032 要件定義書](../../tasks/0032_japanese_pr_title/01_requirements.md)「要件定義の際に決めたこと（2026-10-21）」）。
--   ソースに日本語のリテラルが要るときは、「Go Idioms」の例外に当たるかを確かめる。当たらない場合、0061 は、範囲を狭く限った例外を CLAUDE.md の「Go Idioms」に足した（[0061 設計書](../../tasks/0061_lightweight_process/02_architecture.md)「1.2. 設計の際に決めたこと（2026-11-04）」）。この例外は、0075 で軽量プロセスとともに削除する（[0075 要件定義書](../../tasks/0075_remove_lightweight_process/01_requirements.md)）。
+-   ソースに日本語のリテラルが要るときは、「Go Idioms」の例外に当たるかを確かめる。当たらない場合、0061 は、範囲を狭く限った例外を CLAUDE.md の「Go Idioms」に足した（[0061 設計書](../../tasks/0061_lightweight_process/02_architecture.md)「1.2. 設計の際に決めたこと（2026-11-04）」）。この例外は、0075 で軽量プロセスとともに除くことにした（[0075 要件定義書](../../tasks/0075_remove_lightweight_process/01_requirements.md)）。
 
 ## 経緯
 
@@ -61,4 +61,4 @@ GitHub に置くものは日本語で書く。一方、squash のコミットは
 - 2026-10-31 文書のテストを整理したとき、`TestReadmeSyncMarker` を README の同期の仕組みそのものとして残した（[0052 要件定義書](../../tasks/0052_doc_test_pruning/01_requirements.md)「issue #591 で決めたこと」）
 - 2026-11-04 CLAUDE.md の「Document language」の原則 (a) に、ADR と索引を置く `docs/dev/adr/` を足した（[0060 設計書](../../tasks/0060_adr_records/02_architecture.md)「1.2. 設計の際に決めたこと（2026-11-04）」）
 - 2026-11-04 軽量プロセスの確かめ直しのスクリプトとそのテストに、仕様の見出しの日本語のリテラルを許す範囲の狭い例外を、CLAUDE.md の「Go Idioms」に足した（[0061 設計書](../../tasks/0061_lightweight_process/02_architecture.md)「1.2. 設計の際に決めたこと（2026-11-04）」）
-- 2026-11-09 軽量プロセスを削除することにし、その確かめ直しのスクリプトとテストのための日本語のリテラルの例外（lightweight-check literal exception）を、CLAUDE.md の「Go Idioms」から除くことにした。「決定」から [ADR-0012](0012-lightweight-check-in-bash.md) への参照を除いた（[0075 要件定義書](../../tasks/0075_remove_lightweight_process/01_requirements.md)「要件定義の際に決めたこと（2026-11-09）」）
+- 2026-11-09 軽量プロセスを削除することにし、その確かめ直しのスクリプトとテストのための日本語のリテラルの例外（lightweight-check literal exception）を、CLAUDE.md の「Go Idioms」から除くことにし、「決定」から [ADR-0012](0012-lightweight-check-in-bash.md) への参照も除いた（[0075 要件定義書](../../tasks/0075_remove_lightweight_process/01_requirements.md)「要件定義の際に決めたこと（2026-11-09）」）
