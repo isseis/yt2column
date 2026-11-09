@@ -526,7 +526,7 @@ func LoadFor(lookup LookupFunc, need Need) (Config, error) {
 // stored as the Generation selection only when need.Generation is true.
 func loadLLM(lookup LookupFunc, need Need) (LLMConfig, []error) {
 	var cfg LLMConfig
-	errs := retiredLLMErrors(lookup)
+	var errs []error
 
 	reviewValue, reviewSet := "", false
 	if need.Review {
@@ -554,19 +554,6 @@ func loadLLM(lookup LookupFunc, need Need) (LLMConfig, []error) {
 	}
 	errs = append(errs, loadProviderVars(lookup, &cfg, need)...)
 	return cfg, errs
-}
-
-// retiredLLMErrors returns one rejection for each retired variable that is
-// present, an empty value included, in the order of retiredLLMVars. It reads
-// whether each is present and never uses its value.
-func retiredLLMErrors(lookup LookupFunc) []error {
-	var errs []error
-	for _, v := range retiredLLMVars {
-		if _, ok := lookup(v.name); ok {
-			errs = append(errs, invalidVar(v.name, v.reason))
-		}
-	}
-	return errs
 }
 
 // resolveGeneration reads YT2COLUMN_LLM. When it is unset, it parses

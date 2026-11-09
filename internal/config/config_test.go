@@ -635,7 +635,7 @@ func TestLoadErrorsOmitValues(t *testing.T) {
 			name  string
 			env   map[string]string
 			tails []string
-		}{"retired " + v.name, with(base, v.name, "deepseek-"+markRetired), nil})
+		}{"retired " + v.name + " with the API key empty", with(with(base, v.name, "deepseek-"+markRetired), deepSeekAPIKeyEnv, ""), nil})
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -680,9 +680,6 @@ func TestLoadReportsAllInvalid(t *testing.T) {
 				cacheDirEnv:               "relative",
 			},
 			[]VarError{
-				wantInvalid("YT2COLUMN_LLM_PROVIDER", reasonRetiredLLM),
-				wantInvalid("YT2COLUMN_REVIEW_MODEL", reasonRetiredReviewLLM),
-				wantInvalid("YT2COLUMN_CLAUDE_EFFORT", reasonRetiredClaudeEffort),
 				wantInvalid(llmEnv, reasonLLMProvider),
 				wantInvalid(reviewLLMEnv, reasonLLMForm),
 				wantMissing(anthropicAPIKeyEnv),
@@ -691,8 +688,8 @@ func TestLoadReportsAllInvalid(t *testing.T) {
 		},
 		{
 			// The retired effort variable next to its replacement with an
-			// unaccepted effort part: both are reported, and the provider part
-			// still selects claude, whose key is required.
+			// unaccepted effort part: only the effort part is reported, and the
+			// provider part still selects claude, whose key is required.
 			"retired claude effort and an invalid effort part",
 			map[string]string{
 				"YT2COLUMN_CLAUDE_EFFORT": "low",
@@ -700,7 +697,6 @@ func TestLoadReportsAllInvalid(t *testing.T) {
 				cacheDirEnv:               "/tmp/yt2column-test-cache",
 			},
 			[]VarError{
-				wantInvalid("YT2COLUMN_CLAUDE_EFFORT", reasonRetiredClaudeEffort),
 				wantInvalid(llmEnv, reasonClaudeEffortPart),
 				wantMissing(anthropicAPIKeyEnv),
 			},
@@ -716,8 +712,6 @@ func TestLoadReportsAllInvalid(t *testing.T) {
 				cacheDirEnv:              "/tmp/yt2column-test-cache",
 			},
 			[]VarError{
-				wantInvalid("YT2COLUMN_LLM_PROVIDER", reasonRetiredLLM),
-				wantInvalid("YT2COLUMN_MODEL", reasonRetiredLLM),
 				wantMissing(anthropicAPIKeyEnv),
 			},
 		},
@@ -1191,8 +1185,8 @@ func TestLoadFor(t *testing.T) {
 
 	t.Run("no stage reads no LLM variable", func(t *testing.T) {
 		// --after review: not even an invalid LLM value is read, and with no
-		// LLM variable at all no default is applied. Only the presence of the
-		// retired variables is checked, whatever the stages.
+		// LLM variable at all no default is applied. The retired variables
+		// are not read either.
 		envs := map[string]map[string]string{
 			"invalid values": {
 				llmEnv:       "gemini/x",
@@ -1219,12 +1213,7 @@ func TestLoadFor(t *testing.T) {
 				if !slices.Contains(read, cacheDirEnv) {
 					t.Fatalf("read = %v, want it to include %s", read, cacheDirEnv)
 				}
-				for _, v := range retiredLLMVars {
-					if !slices.Contains(read, v.name) {
-						t.Errorf("LoadFor(Need{}) did not check the retired %s", v.name)
-					}
-				}
-				for _, name := range llmVars {
+				for _, name := range slices.Concat(llmVars, retiredVarNames) {
 					if slices.Contains(read, name) {
 						t.Errorf("LoadFor(Need{}) read %s", name)
 					}
@@ -1867,20 +1856,15 @@ func TestRetiredLLMVars(t *testing.T) {
 	}
 }
 
-// TestLoadRejectsRetiredLLMVars checks that a retired variable, set with a
-// value or empty, stops every load whatever the stages, with one ErrInvalid
-// naming it and the reason naming its replacement. The rows with
-// YT2COLUMN_LLM set check that the retired variable is rejected even when the
-// new one is present, so its value can never decide anything.
-func TestLoadRejectsRetiredLLMVars(t *testing.T) {
-	loaders := []struct {
+// TestLoadForIgnoresRetiredVars checks that the retired LLM variables, set
+// empty or with a value that would select deepseek, stop no load whatever the
+// stages and change nothing it returns: they are not read.
+func TestLoadForIgnoresRetiredVars(t *testing.T) {
+	needs := []struct {
 		name string
-		load func(map[string]string) error
+		need Need
 	}{
-		{"LoadFor both", func(env map[string]string) error { _, err := LoadFor(envLookup(env), needBoth); return err }},
-		{"LoadFor generation", func(env map[string]string) error { _, err := LoadFor(envLookup(env), needGeneration); return err }},
-		{"LoadFor review", func(env map[string]string) error { _, err := LoadFor(envLookup(env), needReview); return err }},
-		{"LoadFor none", func(env map[string]string) error { _, err := LoadFor(envLookup(env), Need{}); return err }},
+		{"both", needBoth}, {"generation", needGeneration}, {"review", needReview}, {"none", Need{}},
 	}
 	bases := []struct {
 		name string
@@ -1888,21 +1872,30 @@ func TestLoadRejectsRetiredLLMVars(t *testing.T) {
 	}{
 		{"LLM unset", defaultsBaseEnv()},
 		{"LLM set", with(defaultsBaseEnv(), llmEnv, "claude/claude-opus-5-5")},
-		// Both stages deepseek: the retired claude effort variable stops even
-		// a run in which no stage uses claude.
 		{"both stages deepseek", withVars(defaultsBaseEnv(), map[string]string{
-			llmEnv: "deepseek/deepseek-flash", reviewLLMEnv: "deepseek/deepseek-flash",
+			llmEnv: "deepseek/deepseek-flash", reviewLLMEnv: "deepseek/deepseek-flash", deepSeekAPIKeyEnv: "sk-test-key",
 		})},
 	}
-	for _, v := range retiredLLMVarsWant {
-		for _, value := range []string{"deepseek", ""} {
-			for _, base := range bases {
-				for _, loader := range loaders {
-					t.Run(fmt.Sprintf("%s=%q %s %s", v.name, value, base.name, loader.name), func(t *testing.T) {
-						err := loader.load(with(base.env, v.name, value))
-						assertVarErrors(t, err, wantInvalid(v.name, v.reason))
-					})
-				}
+	for _, base := range bases {
+		for _, n := range needs {
+			want, err := LoadFor(envLookup(base.env), n.need)
+			if err != nil {
+				t.Fatalf("%s %s: LoadFor() without retired variables error = %v, want nil", base.name, n.name, err)
+			}
+			for _, value := range []string{"deepseek", ""} {
+				t.Run(fmt.Sprintf("%s %s retired=%q", base.name, n.name, value), func(t *testing.T) {
+					env := maps.Clone(base.env)
+					for _, name := range retiredVarNames {
+						env[name] = value
+					}
+					got, err := LoadFor(envLookup(env), n.need)
+					if err != nil {
+						t.Fatalf("LoadFor() error = %v, want nil", err)
+					}
+					if viewLLM(got.LLM()) != viewLLM(want.LLM()) {
+						t.Errorf("LoadFor() = %+v, want %+v as without the retired variables", viewLLM(got.LLM()), viewLLM(want.LLM()))
+					}
+				})
 			}
 		}
 	}

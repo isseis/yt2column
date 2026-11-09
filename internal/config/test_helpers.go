@@ -99,18 +99,6 @@ func RetiredLLMVarsForTest() []string {
 	return names
 }
 
-// RetiredLLMVarErrorForTest returns the text of the rejection of the retired
-// variable name, as a configuration error prints it. It panics for a name that
-// is not a retired variable.
-func RetiredLLMVarErrorForTest(name string) string {
-	for _, v := range retiredLLMVars {
-		if v.name == name {
-			return invalidVar(v.name, v.reason).Error()
-		}
-	}
-	panic("config: not a retired LLM variable: " + name)
-}
-
 // The server configuration file, exposed so the tests outside this package
 // write the file the server reads instead of copying its path rule.
 
