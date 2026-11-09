@@ -23,7 +23,12 @@
       "retitled_adrs": [],
       "link_changes": [],
       "line_changes": [],
-      "unrecorded_commits": [],
+      "unrecorded_commits": [
+        {
+          "commit": "8162246d82bfa0564eb21bfff78000aa7f74b211",
+          "reason": "revises text this PR added to ADR-0002 (the reason of the failure item, which the 0010 requirements 4.3 record), not yet on main; not an editorial correction"
+        }
+      ],
       "checker_changes": "PR-1 adds the diff check itself (implementation plan, step 1-1)",
       "task_doc_changes": [
         {
