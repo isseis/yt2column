@@ -169,7 +169,7 @@ N/A。実行時の振る舞いを変えない（設計書 7.4）。
 - [x] フェーズ 1 完了（ステップ 1-1〜1-7）
 - [x] ステップ 1-7 の確認（`origin/main`：`ae6e7b26bb21cd34504d71b00b0e48c562743c76`、0070 の実装の PR のマージのコミット `af73c4ce4fa1974a64c7331f4799520f7d32cdca` は `origin/main` の祖先、`docs/dev/conventions/adr.md` に `## Editorial corrections` の節がある、`git grep -nE 'issues/725([^0-9]|$)' origin/main -- docs/dev/adr/` の当たりは ADR-0034 の `:24` の 1 件だけで、先頭には当たりがない）
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）が通ることを確認した
-- [ ] マージの前の確認（本計画 §3.3）：AC-08・AC-09 が合格した結果を本計画 §7 に記録した
+- [x] マージの前の確認（本計画 §3.3）：AC-08・AC-09 が合格した結果を本計画 §7 に記録した
 - [x] PR を作成した: https://github.com/isseis/yt2column/pull/751
 - [ ] PR がマージされた
 
@@ -189,8 +189,8 @@ N/A。実行時の振る舞いを変えない（設計書 7.4）。
 | AC-06 | manual | ADR-0034 以外の ADR を変えたときは、消した記述が #725 のずれの記述だけであることを読む（設計書 7.3） | 1-3 |
 | AC-07 | diff | `_checks`（変わった ADR ごとに、基点から先頭までのコミットのメッセージにその ADR のパスの訂正の行がある）。実行の記録：2026-11-09、同じ基点と先頭、`OK corrections`、終了コード 0 | 1-3〜1-7 |
 | AC-07 | manual | 訂正の行の内容と、PR の説明の訂正の段落を PR のレビューで読む（設計書 7.3） | 1-3、PR の作成 |
-| AC-08 | diff | `_checks` の `-created` 付きの実行（PR を作った時点の先頭と、マージの前の先頭で、PR 自身の `docs/dev/adr/` の差分の消した行と足した行が等しい。本計画 §1.3）。マージの前に実行する。`-created` のコミット ID：未記録。実行の記録：未記録（本計画 §3.3 のマージの前の確認で記録する。ステップ 1-6 の実行では `created-diff` を「実行しない」と表示し、終了コード 0 だった。壊した場合と、`main` の変更に見立てた ADR の行の変更を取り込んだ場合の確認は、コミット `330fef12d6442807f5b848f8820fd7ca6913cbed` のメッセージにある） | 本計画 §3.3 |
-| AC-09 | diff | `_checks`（`data.json` の 0070 の実装の PR のマージのコミットが先頭の祖先）。ステップ 1-6 とマージの前に実行する。実行の記録：2026-11-09、同じ基点と先頭、`OK merge-order`（`af73c4ce4fa1974a64c7331f4799520f7d32cdca` が先頭の祖先）、終了コード 0 | 1-1・1-4〜1-7、本計画 §3.3 |
+| AC-08 | diff | `_checks` の `-created` 付きの実行（PR を作った時点の先頭と、マージの前の先頭で、PR 自身の `docs/dev/adr/` の差分の消した行と足した行が等しい。本計画 §1.3）。マージの前に実行する。`-created` のコミット ID：`2cccf09edc9196cfb92b9b867b513c3deef39173`。実行の記録：2026-11-09、`-created` 付き、基点 `b98de9052eb635d8c4125ce5771ff2e67d3ff788`、先頭 `e7dca5f2e6a10829c01d911b7c5fe155bcfa9ffc`、`OK created-diff`、終了コード 0（本節末「マージの前の確認の記録」）。ステップ 1-6 の実行では `created-diff` を「実行しない」と表示し、終了コード 0 だった。壊した場合と、`main` の変更に見立てた ADR の行の変更を取り込んだ場合の確認は、コミット `330fef12d6442807f5b848f8820fd7ca6913cbed` のメッセージにある | 本計画 §3.3 |
+| AC-09 | diff | `_checks`（`data.json` の 0070 の実装の PR のマージのコミットが先頭の祖先）。ステップ 1-6 とマージの前に実行する。実行の記録：2026-11-09、同じ基点と先頭、`OK merge-order`（`af73c4ce4fa1974a64c7331f4799520f7d32cdca` が `origin/main` の祖先で先頭の祖先）、終了コード 0。マージの前の確認（2026-11-09、`-created` 付き、基点 `b98de9052eb635d8c4125ce5771ff2e67d3ff788`、先頭 `e7dca5f2e6a10829c01d911b7c5fe155bcfa9ffc`）でも `OK merge-order`、終了コード 0 | 1-1・1-4〜1-7、本計画 §3.3 |
 | AC-10 | test | `make test`（`cmd/yt2column/adr_test.go::TestADRRecords` を含む）、CI の `doc-guard`。実行の記録：2026-11-09、先頭 `c2185d1fd70735366bd5023a14131b74fae9ffee` で `make test` と `make lint` が終了コード 0（lint は 0 issues、`TestADRRecords` は PASS） | 1-6・1-7 |
 
 ### 実行の記録
@@ -215,6 +215,29 @@ NOT RUN created-diff: the ADR change from the commit given by -created to the he
 OK   merge-order: af73c4ce4fa1974a64c7331f4799520f7d32cdca is on origin/main and is an ancestor of the head commit
 OK   scope: every changed file is the security guide, an ADR, or under the task directory
 OK every run check passed; created-diff was not run
+```
+
+### マージの前の確認の記録
+
+-   **日付:** 2026-11-09
+-   **`-created`:** `2cccf09edc9196cfb92b9b867b513c3deef39173`（本計画 §1.3 の求め方で、`git log --format=%H -G '^- \[x\] PR を作成した: https://' -- docs/tasks/0071_security_source_link/03_implementation_plan.md` が返した `e7dca5f2e6a10829c01d911b7c5fe155bcfa9ffc` の最初の親）
+-   **基点:** `b98de9052eb635d8c4125ce5771ff2e67d3ff788`
+-   **先頭:** `e7dca5f2e6a10829c01d911b7c5fe155bcfa9ffc`
+-   **コマンド:** `go build -tags test -o <scratchpad>/0071check ./docs/tasks/0071_security_source_link/_checks/` の後、`<scratchpad>/0071check -created 2cccf09e`
+-   **終了コード:** 0（AC-08・AC-09 とも合格）
+
+```text
+base b98de9052eb635d8c4125ce5771ff2e67d3ff788
+head e7dca5f2e6a10829c01d911b7c5fe155bcfa9ffc
+created 2cccf09edc9196cfb92b9b867b513c3deef39173
+OK   source-link-item: docs/dev/security.md: only the source-link item changed, and it is one list item between its neighbours in the section
+OK   adr-item: docs/dev/adr/0034-template-allowlist.md: the decision section's last item is its first sentences and nothing else in the ADR changed
+OK   adr-scope: only ADRs that link the issue at the base commit changed, every such ADR changed, none still links it at the head, the ADR index did not change, each change deletes characters only, and no file was added, deleted, or renamed
+OK   corrections: each changed ADR has an editorial correction line in a commit on the range
+OK   created-diff: the ADR change from the commit given by -created to the head is the same
+OK   merge-order: af73c4ce4fa1974a64c7331f4799520f7d32cdca is on origin/main and is an ancestor of the head commit
+OK   scope: every changed file is the security guide, an ADR, or under the task directory
+OK every check passed
 ```
 
 ## 8. 成功の基準 (Success Criteria)
