@@ -36,3 +36,4 @@
 | [ADR-0028](0028-no-automatic-resend.md) | 結果が分からないときは自動で送り直さず、投稿の操作を冪等にする | `有効` |
 | [ADR-0029](0029-extension-ui-languages.md) | 拡張の UI を英語と日本語の 2 言語にし、表示の言語は resolveLocale の 1 か所で決める | `有効` |
 | [ADR-0030](0030-minimum-chrome-version.md) | 拡張の minimum_chrome_version を 110 にする | `有効` |
+| [ADR-0031](0031-secret-closure.md) | 秘密を secret.Secret 型のクロージャで持ち、送信先へのリクエストを除くどの出力にも流さない | `有効` |
