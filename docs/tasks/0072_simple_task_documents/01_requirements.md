@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-09 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-09 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -239,3 +239,7 @@
 -   **除外**: 簡易な進め方を選べない変更（F-003）。
 -   **panel**: 役割を分けた 2 人以上のレビュアーによるセルフレビュー（`.claude/commands/_lib/review-subagent-pattern.md` の「Panel mode」）。コマンドの定義の名をそのまま使う。
 -   **軽量プロセス**（lightweight process）: タスク文書を作らず、issue の仕様のコメントをもとに 1 本の PR にする進め方（`docs/dev/conventions/requirements_process.md`「Lightweight Process」）。簡易な進め方とは別のもので、#744 で削除する。
+
+## 変更履歴
+
+- 2026-11-09 承認（isseis、#749）
