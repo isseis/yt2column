@@ -154,11 +154,11 @@ func (e *FileError) message() string {
 	case formUnsafe:
 		return "configuration file " + e.Path + " " + e.Reason + reasonNothingChanged
 	case formMode:
-		// The command quotes the path with single quotes, which the
-		// redaction of the output line does not escape, so a path with a
-		// space (macOS's "Application Support") can be copied as it is.
-		return fmt.Sprintf("configuration file %s has mode %s, not exactly %04o; run chmod %o '%s'",
-			e.Path, e.detail, privatefile.UnixMode(privatefile.Mode), privatefile.UnixMode(privatefile.Mode), e.Path)
+		// The command quotes the path as one shell word, so a path with a
+		// space (macOS's "Application Support") or a single quote (a home
+		// directory such as /home/o'brien) stays one word.
+		return fmt.Sprintf("configuration file %s has mode %s, not exactly %04o; run chmod %o %s",
+			e.Path, e.detail, privatefile.UnixMode(privatefile.Mode), privatefile.UnixMode(privatefile.Mode), shellQuotePath(e.Path))
 	case formDetail:
 		return "configuration file " + e.Path + " " + e.Reason + ": " + e.detail
 	case formBase:
@@ -168,6 +168,14 @@ func (e *FileError) message() string {
 	default:
 		return "configuration file " + e.Path + " " + e.Reason
 	}
+}
+
+// shellQuotePath quotes path as one word of a POSIX shell: in single quotes,
+// with each single quote in the path closed, escaped, and reopened. A path
+// that holds a single quote (a home directory such as /home/o'brien) is then
+// still one word instead of ending the quote early.
+func shellQuotePath(path string) string {
+	return "'" + strings.ReplaceAll(path, "'", `'\''`) + "'"
 }
 
 // Unwrap returns the sentinel that classifies the rejection, and only that:

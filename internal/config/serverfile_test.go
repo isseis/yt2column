@@ -26,6 +26,10 @@ const testServerFilePath = "/home/u/.config/yt2column/config.env"
 // Support", for the tests that need a second path.
 const darwinTestServerFilePath = "/Users/u/Library/Application Support/yt2column/config.env"
 
+// quotedHomePath is a path whose HOME holds a single quote, for the test that
+// pins the shell quoting of the chmod command.
+const quotedHomePath = "/home/o'brien/.config/yt2column/config.env"
+
 // fileMark is part of every value, unknown key, and rejected line the format
 // tests write, so a message that carried the file's content would be
 // detected.
@@ -381,6 +385,12 @@ func TestFileErrorMapping(t *testing.T) {
 			name: "read: mode with the setuid bit",
 			got:  readFileError(path, &privatefile.UnsafeError{Path: path, Reason: privatefile.ReasonMode, Mode: 0o600 | fs.ModeSetuid}),
 			want: ErrConfigFileUnsafe, wantPath: path, wantText: []string{"mode 4600", "chmod 600 '" + path + "'"},
+		},
+		{
+			name: "read: mode with a single quote in the path",
+			got:  readFileError(quotedHomePath, &privatefile.UnsafeError{Path: quotedHomePath, Reason: privatefile.ReasonMode, Mode: 0o644}),
+			want: ErrConfigFileUnsafe, wantPath: quotedHomePath,
+			wantText: []string{"mode 0644", "chmod 600 " + `'/home/o'\''brien/.config/yt2column/config.env'`},
 		},
 		{
 			name: "read: unsafe without its reason", got: readFileError(path, fmt.Errorf("wrapped: %w", privatefile.ErrUnsafe)),
