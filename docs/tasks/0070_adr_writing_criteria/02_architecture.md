@@ -48,15 +48,15 @@
 -   **ずれの記述を見つけて消す手段は、issue・`main` の検索・マージ前の確かめ直しの 3 つにする（H-03・H-05）:**
     1.  ずれを記録する PR は、ずれを扱う issue の本文が ADR を名指しするようにする（issue を作るか、既存の issue の本文に書き足す）。ずれの記述は、その issue へ完全な URL（`https://github.com/isseis/yt2column/issues/<N>`）でリンクする。
     2.  ずれを直す PR は、PR を作る前に、取得した `origin/main` の `docs/dev/adr/` を、扱う issue へのリンクで探す。規約は検索の形を `git grep -nE 'issues/<N>([^0-9]|$)' origin/main -- docs/dev/adr/` として示す。当たった箇所は 1 件ずつ読み、「決定」の中でそのずれを述べる記述だけを消す。当たった記述が PR のブランチにまだないときは、`main` を取り込んでから消す。
-    3.  ずれを記録する PR は、マージを頼む前に、取得した `origin/main` の正本の文書とコードに照らして、足すずれの記述を確かめ直す。ずれが直っていれば、記述を消すか、残りのずれを述べる形に書き換える。
+    3.  ずれを記録する PR は、マージを頼む前と、`main` を取り込むたびに、取得するか取り込んだ `main` の正本の文書とコードに照らして、足すずれの記述を確かめ直す。ずれが直っていれば、記述を消すか、残りのずれを述べる形に書き換える。
     -   **理由:**
         -   **issue の名指し:** ずれを直す PR は、ずれの記述とは別の主題の変更であることが多く、規約を読む機会がない。issue が ADR を名指しすれば、その issue を扱う人が気づく。
         -   **`origin/main` を、PR を作る前に探す:** ずれを直す PR がブランチを作った後に `main` に入ったずれの記述も見つけるためである。PR を作る前に探すのは、記述を消す操作が編集上の訂正（2 つ目の種類）にあたり、PR を作った後には加えられないためである（下の「PR を作った後には」の決定）。
-        -   **マージを頼む前に確かめ直す:** この repo では、`main` を取り込むのは衝突を解くときだけである（`.claude/commands/runpr.md:270-271`）。マージは squash で、PR のブランチに `main` を取り込まずに行う（`docs/dev/guides/mergepr_guide.md:5-7`）。そのため、確かめ直しの契機を `main` の取り込みにすると、確かめ直しがほとんど行われない。
+        -   **マージを頼む前にも確かめ直す:** このリポジトリでは、`main` を取り込むのは衝突を解くときだけである（`.claude/commands/runpr.md:270-271`）。マージは squash で、PR のブランチに `main` を取り込まずに行う（`docs/dev/guides/mergepr_guide.md:5-7`）。そのため、確かめ直しの契機を `main` の取り込みにすると、確かめ直しがほとんど行われない。
         -   **新しいネットワークの操作が要らない:** `origin/main` は、PR を作るときとマージの準備のときに、コマンドがすでに取得している（`.claude/commands/_lib/task-pr-handoff.md` の Part A 手順 2、`.claude/commands/mergepr.md:35`）。
-    -   **採らなかった案:** 検索の 1 文だけを書く案は、ずれを直す PR より後に `main` に入るずれの記述が事実でないまま残るので採らない。`main` を取り込むたびに確かめ直す案は、上の理由で確かめ直しがほとんど起きないので採らない。`gh issue view` で issue が閉じたかを見る案は、issue が閉じてもずれが直ったとは限らないので採らない。
+    -   **採らなかった案:** 検索の 1 文だけを書く案は、ずれを直す PR より後に `main` に入るずれの記述が事実でないまま残るので採らない。`main` を取り込むときだけ確かめ直す案は、上の理由で確かめ直しがほとんど起きないので採らない。`gh issue view` で issue が閉じたかを見る案は、issue が閉じてもずれが直ったとは限らないので採らない。
     -   **残るリスク:** 2 と 3 はコマンドの手順にない（AC-20 でコマンドを変えない）ので、守られるかは規約を読む人に頼る。また、ずれを直す PR を作った後、そのマージより前に `main` に入ったずれの記述は、その PR では消せず、後の PR が消すのを待つ（5.2）。
-    -   **AC-14 との関係:** AC-14 は、ずれを直す PR より後に `main` に入る ADR のずれの記述を、「その ADR の PR が `main` を取り込んだときに消す」と述べる。本書は、契機を `main` の取り込みからマージを頼む前の確かめ直しに改める。`main` の取り込みがほとんど起きないので、AC-14 の文字どおりの契機では、消すべき記述が消えないためである。消す主体（その ADR の PR）と、消す対象は AC-14 と同じである。また、AC-14 の「ずれを直す PR が同じ PR で消す」は、PR を作る時点で `main` にある記述について満たし、PR を作った後に `main` に入った記述は満たせない（上の残るリスク）。どちらの点も、要件書の AC-14 から変わる箇所なので、PR のレビューで確認を求める。
+    -   **AC-14 との関係:** AC-14 は、ずれを直す PR より後に `main` に入る ADR のずれの記述を、「その ADR の PR が `main` を取り込んだときに消す」と述べる。本書は、`main` を取り込んだときの確かめ直しを残したうえで、マージを頼む前の確かめ直しを加える。`main` の取り込みがほとんど起きないので、AC-14 の文字どおりの契機だけでは、消すべき記述が消えないためである。消す主体（その ADR の PR）と、消す対象は AC-14 と同じである。また、AC-14 の「ずれを直す PR が同じ PR で消す」は、PR を作る時点で `main` にある記述について満たし、PR を作った後に `main` に入った記述は満たせない（上の残るリスク）。どちらの点も、要件書の AC-14 から変わる箇所なので、PR のレビューで確認を求める。
     -   ADR：[ADR-0039](../../dev/adr/0039-adr-writing-criteria.md) を更新する。ずれを記録する後のすべてのタスクと、ずれを直すすべての PR を縛る手順だからである。
 -   **訂正の種類に、決定の変更を紛れ込ませない条件を足す（レビューで決めた）:** 2 つ目の種類（ずれの記述の削除）と 3 つ目の種類（参照の訂正）は、直した後の状態が ADR の今の「決定」どおりのときだけ編集上の訂正になる。たとえば次の場合は決定の変更である。訂正かどうか迷う変更も、決定の変更として扱う（3.2）。
     -   正本の文書の側を変えてずれを直し、ADR が要約する振る舞いが変わったとき。
@@ -64,7 +64,7 @@
     -   **理由:** 「ずれが直った」は、どちらの側を直したかを問わない。条件がないと、決定の変更が訂正として「経緯」から落ちる。迷ったときに決定の変更として扱えば、記録を失わない（要件書「要件定義の際に決めたこと」の紛らわしい場合の扱いの理由と同じ）。
     -   **採らなかった案:** 条件を足さず、レビュアーの異論だけで防ぐ案は、異論が出ない限り誤った分類が通るので採らない。
     -   ADR：ADR-0039 を更新する。
--   **PR を作った後には、その PR が決定を下すか変える ADR 以外に編集上の訂正を加えない（レビューで決めた）:** PR を作った後の回（`/fixpr`、ローカルの CLI レビューの修正）では、ADR に新しい訂正を加えない。すでに記録した訂正の文面は、訂正の行がその変更をなお正しく述べる範囲で直してよい。この制限は、コマンドが ADR の訂正を運ぶようになったとき（[#732](https://github.com/isseis/yt2column/issues/732)）に見直す。
+-   **PR を作った後には、ADR に編集上の訂正を加えない（レビューで決めた）:** PR を作った後の回（`/fixpr`、ローカルの CLI レビューの修正）では、どの ADR にも新しい訂正を加えない。PR 自身が ADR に足し、まだ `main` にない文を直すことは、自分の変更の手直しで、訂正ではないので、この制限を受けない。すでに記録した訂正の文面は、訂正の行がその変更をなお正しく述べる範囲で直してよい。この制限は、コマンドが ADR の訂正を運ぶようになったとき（[#732](https://github.com/isseis/yt2column/issues/732)）に見直す。
     -   **理由:** PR を作った後に、ADR の訂正を記録する道筋がないためである。
         -   **PR の説明への道筋:** PR を作った後に訂正の段落を PR の説明に足す道筋は `/fixpr` の `editorial` だけで、これはタスク文書の訂正だけを運ぶ（`.claude/commands/fixpr.md:484-489`）。
         -   **コミットの本文:** `/fixpr` のコミットの本文は、`fixprguard finish` が確かめる。`finish` は、訂正の行以外の行を拒む（`internal/fixprguard/write.go:112-127`）。そのため、`editorial` の一覧にない ADR の訂正の行を、本文に足す道筋もない。
@@ -364,9 +364,11 @@ an obsolete (`廃止`) one included:
 4. **Fixing a typo** that does not change the meaning.
 
 The second and third kinds are editorial only when the result matches the
-ADR's 決定 as it stands. When a discrepancy was fixed by changing what the
-ADR summarizes, or a renamed thing is itself part of the decision (an
-environment variable, a protocol member), the change is a decision change.
+ADR's 決定 as it stands. When the fix changed the behavior or the
+specification that 決定 states, or a renamed thing is itself part of the
+decision (an environment variable, a protocol member), the change is a
+decision change. Writing an existing decision into the document that holds
+its specification does not change 決定.
 
 Renumbering an ADR when taking in `main` ("Taking in `main`", step 2) is also
 recorded as an editorial correction, but it has its own rule and is not one
@@ -387,11 +389,12 @@ reviewer can dispute the classification. An editorial correction adds no
 経緯 entry ("History entries").
 
 **After the PR is created.** Make editorial corrections to an ADR only in
-commits made before the PR is created, except to an ADR whose decision the PR
-makes or changes. After that, the commands do not carry an ADR's correction
-lines into the PR description (#732), so the reviewer would not see the
-classification. A correction already recorded may still be reworded, as long
-as its correction line still describes it.
+commits made before the PR is created. After that, the commands do not carry
+an ADR's correction lines into the PR description (#732), so the reviewer
+would not see the classification. A correction already recorded may still be
+reworded, as long as its correction line still describes it. Revising text
+that the PR itself added to an ADR, and is not yet on `main`, is not an
+editorial correction and is not limited by this paragraph.
 
 **Classifying a change.**
 
@@ -413,9 +416,9 @@ as its correction line still describes it.
   body of the issue the statement links to names the ADR. A PR that finds a
   discrepancy in an ADR whose decision it does not change opens such an issue
   instead.
-- Before asking for the merge, the PR that adds a discrepancy statement
-  checks it against the document and the code on `origin/main`, fetched for
-  the merge. When the discrepancy is gone there, it removes the statement or
+- Before asking for the merge, and again whenever it takes in `main`, the PR
+  that adds a discrepancy statement checks it against the document and the
+  code on the `main` it has fetched or taken in. When the discrepancy is gone there, it removes the statement or
   rewrites it to state what remains. The statement was never on `main`, so
   this revises the PR's own change and needs no correction line.
 - The PR that fixes a discrepancy removes its statement in the same PR, or
@@ -439,7 +442,7 @@ as its correction line still describes it.
 | 番号の付け替えの段落 | 番号の付け替えも訂正として記録するが、4 種類とは別の規則による | AC-09・AC-19 |
 | 「決定」の意味の段落 | 意味を変える変更は訂正ではなく、決定を下すか変える PR だけが行う。迷ったら決定の変更として扱う | AC-11 |
 | 「Recording」 | 訂正の行と訂正の段落の形を ADR のパスにも当てはめる。何を何に変えたかと、決定を変えないことを書く。PR の説明で訂正と明示する。経緯に足さない | AC-12・AC-13 |
-| 「After the PR is created」 | PR を作った後は、決定を下すか変える ADR 以外に訂正を加えない | AC-09（1.2） |
+| 「After the PR is created」 | PR を作った後は、ADR に訂正を加えない。PR 自身が足した文の手直しは訂正ではない | AC-09（1.2） |
 | 「Classifying a change」 | 混ざった変更、異論の扱いと記録の場所、古い ADR に触れる PR | AC-15・AC-16・AC-17 |
 | 「Discrepancy statements」 | 足せる PR、issue の名指し、ずれを記録する PR の確かめ直し、ずれを直す PR の削除と検索、見落としの削除 | AC-07・AC-14、H-03・H-05 |
 
@@ -607,7 +610,7 @@ flowchart TD
     class L3 data
 ```
 
--   図 4 の判断は、その PR が ADR の決定を下すか変える PR でない場合のものである。決定を下すか変える PR が同じ ADR に加える訂正は、「PR を作る前のコミットか」によらず加えられる（3.2「After the PR is created」）。
+-   図 4 の判断は、`main` にすでにある ADR の文への変更についてのものである。PR 自身が足し、まだ `main` にない文を直すことは、自分の変更の手直しで、図 4 の対象ではない（3.2「After the PR is created」）。
 -   `D1` に進んだ変更は、決定を下すか変える PR だけが行える。今の規約の扱いと同じである。
 -   番号の付け替えは図 4 に含めない。「Taking in `main`」の手順 2 と、`main` の上のガードの失敗の段落が、別に扱う（3.5）。
 
@@ -665,7 +668,7 @@ sequenceDiagram
 | AC-08・AC-22、3.1.1 | 次の部分が、前後で 1 バイトも違わない。規約の「決定」の箇条（分担の文）、3 つのそろえる段落、「Writing an ADR」の「背景」以外の箇条、「**Links.**」の段落からその節の終わりまで |
 | AC-18・AC-19、3.3〜3.5 | 次の部分が、前後で 1 バイトも違わない。「Approval and the PR」の最初の 3 文、「History entries」の今ある箇条とコードブロック、「Taking in `main`」の最初の文と手順 1〜3、「When `TestADRRecords` fails on `main`」の段落の最初の 2 文 |
 | 節の構成 | 規約の `##` の見出しの並びが、変更前の並びの「Approval and the PR」と「Taking in `main`」の間に「Editorial corrections」を 1 つ足したものに等しい |
-| AC-23 | ADR-0039 の「決定」の外が、前後で違わない（とくに「経緯」に項目が増えていない）。変更後の「決定」が `issues/728` へのリンクを持たず、「#728 で扱う」「規約に足す」の語句も持たない |
+| AC-23 | ADR-0039 の「決定」の外が、前後で違わない（とくに「経緯」に項目が増えていない。ただし、レビュアーの異論で決定の変更として扱った項目は、実装計画書に記録したうえで許す（4.2））。変更後の「決定」が `issues/728` へのリンクを持たず、「#728 で扱う」「規約に足す」の語句も持たない |
 
 スクリプトは次の性質を持つ。手順の細部（言語・構成）は実装計画書で決める。
 
@@ -717,7 +720,7 @@ N/A。実行時の振る舞いを変えないので、結合テストの対象�
 | H-02 | 場所の粒度を「文書とその節の見出し」か「パッケージかファイル」とし、行番号を使わないと規約に書く（1.2、3.1） |
 | H-03 | ずれを記録する PR は、issue の本文で ADR が名指しされるようにし、ずれの記述を issue の完全な URL でリンクする。ずれを直す PR は、PR を作る前に `origin/main` の `docs/dev/adr/` を issue へのリンクで探し、当たった箇所を 1 件ずつ読む。検索の形は規約に示す。コマンドの手順には入れない（1.2、3.1、3.2） |
 | H-04 | 例は、ADR-0038 の値ではなく一般形にする（1.2、3.1） |
-| H-05 | ずれを記録する PR は、マージを頼む前に `origin/main` の正本の文書とコードに照らして確かめ直す。規則は訂正の節の「Discrepancy statements」に置く。手順に頼る点は、残余のリスクとして記す（1.2、3.2、5.2） |
+| H-05 | ずれを記録する PR は、マージを頼む前と `main` を取り込むたびに、`main` の正本の文書とコードに照らして確かめ直す。規則は訂正の節の「Discrepancy statements」に置く。手順に頼る点は、残余のリスクとして記す（1.2、3.2、5.2） |
 
 ## 付録 B: 受け入れ基準との対応
 
