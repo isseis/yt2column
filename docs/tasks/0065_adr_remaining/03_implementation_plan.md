@@ -984,17 +984,17 @@ OK      claude-md-unchanged
 
 #### PR-4
 
-マージの基点 `0d9f8a4381a8c8d3bb883317e732725fb2d8ac06`、head `4ae6e7815de96fcfc0aa84e13b886a6080c55fa0`（`git fetch origin main` の後に実行した）。作った issue は [#725](https://github.com/isseis/yt2column/issues/725)（`security.md` §6 の出典のリンクの記述。ADR-0034）と [#726](https://github.com/isseis/yt2column/issues/726)（製品のコードの日本語のリテラルと CLAUDE.md「Go Idioms」。ADR-0035）。
+マージの基点 `0d9f8a4381a8c8d3bb883317e732725fb2d8ac06`、head `bb35eab2173cd281e87ae0ed1272c0389b6475b5`（`git fetch origin main` の後に実行した）。作った issue は [#725](https://github.com/isseis/yt2column/issues/725)（`security.md` §6 の出典のリンクの記述。ADR-0034）と [#726](https://github.com/isseis/yt2column/issues/726)（製品のコードの日本語のリテラルと CLAUDE.md「Go Idioms」。ADR-0035）。
 
 `docs/tasks/0065_adr_remaining/_checks/task_docs_unchanged.sh origin/main HEAD`：終了コード 0。
 
 ```text
 merge-base: 0d9f8a4381a8c8d3bb883317e732725fb2d8ac06
-head: 4ae6e7815de96fcfc0aa84e13b886a6080c55fa0
+head: bb35eab2173cd281e87ae0ed1272c0389b6475b5
 docs/tasks/: only docs/tasks/0065_adr_remaining/ changed
 ```
 
-`go run -tags test ./docs/tasks/0065_adr_remaining/_checks/adrchecks/ -pr 4 0d9f8a4381a8c8d3bb883317e732725fb2d8ac06 4ae6e7815de96fcfc0aa84e13b886a6080c55fa0`：終了コード 0。7 つの確かめがすべて `OK` で、`PENDING` はない。
+`go run -tags test ./docs/tasks/0065_adr_remaining/_checks/adrchecks/ -pr 4 0d9f8a4381a8c8d3bb883317e732725fb2d8ac06 bb35eab2173cd281e87ae0ed1272c0389b6475b5`：終了コード 0。7 つの確かめがすべて `OK` で、`PENDING` はない。
 
 ```text
 OK      history-sources
@@ -1057,19 +1057,19 @@ OK      moved-items
         removed: -   **Native Messaging のホストを起動できる拡張を固定し、秘密は `secret.Secret` で持つ。** ホストの `allowed_origins` は固定した拡張 ID のオリジンだけとし、API キーと Webhook URL は、送信先へのリクエストを除き、エラーやログを含むどの出力にも漏らさない。拡張の ID を manifest の `key` で固定することは [ADR-0026](0026-extension-platform.md) が定める。
         kept:    -   **Native Messaging のホストを起動できる拡張を固定する。** ホストの `allowed_origins` は固定した拡張 ID のオリジンだけとする。拡張の ID を manifest の `key` で固定することは [ADR-0026](0026-extension-platform.md) が定める。秘密の持ち方と、秘密を出力に流さないことは [ADR-0031](0031-secret-closure.md) が定める。
         destination docs/dev/adr/0031-secret-closure.md, section 3:
-          -   **秘密は `secret.Secret` で持つ。** 設定を読む `internal/config` は、API キーと Webhook URL を `secret.New` で `secret.Secret` に包む。LLM のアダプタと Webhook への送信は、秘密を `secret.Secret` のまま受け取って持つ。`internal/secret` の役割は [package_reference.md](../conventions/package_reference.md) の `internal/secret` の行に従う。
-          -   **API キーと Webhook URL は、送信先へのリクエストを除き、エラー・ログ・標準出力を含むどの出力にも出さない。** 値が出てよいのは、LLM API へのリクエストのヘッダーと、Webhook への HTTP リクエストの URL だけである。Webhook URL をログとエラーメッセージに含めないことは [security.md](../security.md) の §2「秘密情報（API キー・Webhook URL）」に、サーバが API キーと Webhook URL を出力に流さないことは同じ文書の §8.2「localhost サーバ」に従う。Webhook への送信の失敗（`*url.Error`）を URL を含まないエラーに直すことは、Webhook への送信の実装として [ADR-0011](0011-webhook-publishing.md) が定める。
-          -   **元の値は `func() string` のクロージャで持つ。** 型の唯一のフィールドは、値を閉じ込めたクロージャである。リフレクションが見られるのは関数のアドレスだけなので、`secret.Secret` を非公開フィールドに持つ構造体を `fmt` や `log/slog` で出力しても、元の値は現れない。`fmt` のどの書式指定子でも、`String()`・`GoString()`・`LogValue()`・`MarshalJSON()` でも、元の値の代わりに固定の文字列 `[REDACTED]` を出す（`%q` だけは引用符で囲む）。
-          -   **元の値を取り出す経路は `Reveal()` だけにする。** 空の値からは作れず、`New("")` はエラーを返す。ゼロ値は値がないことを表し、`Reveal()` は空文字列を返さずにエラーを返す。公開のメソッドの集合は、テストで固定する。テスト以外のコードで `Reveal()` を呼ぶのは、送信先へのリクエストを組み立てるとき、値があるかと値の形を確かめるとき、出力の伏せ字にする文字列の一覧を作るとき（`internal/redact`）だけである。
+          -   **秘密は `secret.Secret` で持つ。** API キーと Webhook URL は、設定を読むところで `secret.Secret` に包み、秘密を使う部品は `secret.Secret` のまま受け取って持つ。`internal/secret` の役割は [package_reference.md](../conventions/package_reference.md) の `internal/secret` の行に従う。
+          -   **API キーと Webhook URL は、送信先へのリクエストを除き、エラー・ログ・標準出力を含むどの出力にも出さない。** Webhook URL をログとエラーメッセージに含めないことは [security.md](../security.md) の §2「秘密情報（API キー・Webhook URL）」に、サーバが API キーと Webhook URL を出力に流さないことは同じ文書の §8.2「localhost サーバ」に従う。Webhook への送信の失敗を URL を含まないエラーに直すことは、[ADR-0011](0011-webhook-publishing.md) が定める。
+          -   **元の値は、型の唯一のフィールドであるクロージャに閉じ込める。** リフレクションが見られるのは関数のアドレスだけなので、`secret.Secret` を非公開フィールドに持つ構造体を出力しても、元の値は現れない。`fmt`・`log/slog`・`encoding/json` が呼ぶメソッドは、元の値の代わりに固定の伏せ字を出す。
+          -   **元の値を取り出す経路は `Reveal()` だけにする。** 空の値からは作れず、ゼロ値の `Reveal()` はエラーを返す。`Reveal()` を呼ぶのは、送信先へのリクエストの組み立てなど、値そのものが要る箇所に限る。公開のメソッドの集合は、テストで固定している。
           秘密を出力に流さないことの仕様の正本は、[security.md](../security.md) の §2「秘密情報（API キー・Webhook URL）」と §8.2「localhost サーバ」、[package_reference.md](../conventions/package_reference.md) の `internal/secret` の行である。クロージャで持つ設計を述べる文書はほかにないので、この ADR がコードの振る舞いとして述べる。
         ---- webhook-publishing -> secret-closure (split), section 3
         removed: -   **Webhook URL は `secret.Secret` で持ち、値を出力に流さない。** URL は、送信先への HTTP リクエストを除き、エラー・ログ・標準出力を含むどの出力にも出さない。`*url.Error` をそのまま返すと URL が現れるので、送信の失敗は URL を含まないエラーに直す。
         kept:    -   **Webhook への送信の失敗は、URL を含まないエラーに直す。** `*url.Error` をそのまま返すと URL が現れるためである。Webhook URL の持ち方と、値を出力に流さないことは [ADR-0031](0031-secret-closure.md) が定める。
         destination docs/dev/adr/0031-secret-closure.md, section 3:
-          -   **秘密は `secret.Secret` で持つ。** 設定を読む `internal/config` は、API キーと Webhook URL を `secret.New` で `secret.Secret` に包む。LLM のアダプタと Webhook への送信は、秘密を `secret.Secret` のまま受け取って持つ。`internal/secret` の役割は [package_reference.md](../conventions/package_reference.md) の `internal/secret` の行に従う。
-          -   **API キーと Webhook URL は、送信先へのリクエストを除き、エラー・ログ・標準出力を含むどの出力にも出さない。** 値が出てよいのは、LLM API へのリクエストのヘッダーと、Webhook への HTTP リクエストの URL だけである。Webhook URL をログとエラーメッセージに含めないことは [security.md](../security.md) の §2「秘密情報（API キー・Webhook URL）」に、サーバが API キーと Webhook URL を出力に流さないことは同じ文書の §8.2「localhost サーバ」に従う。Webhook への送信の失敗（`*url.Error`）を URL を含まないエラーに直すことは、Webhook への送信の実装として [ADR-0011](0011-webhook-publishing.md) が定める。
-          -   **元の値は `func() string` のクロージャで持つ。** 型の唯一のフィールドは、値を閉じ込めたクロージャである。リフレクションが見られるのは関数のアドレスだけなので、`secret.Secret` を非公開フィールドに持つ構造体を `fmt` や `log/slog` で出力しても、元の値は現れない。`fmt` のどの書式指定子でも、`String()`・`GoString()`・`LogValue()`・`MarshalJSON()` でも、元の値の代わりに固定の文字列 `[REDACTED]` を出す（`%q` だけは引用符で囲む）。
-          -   **元の値を取り出す経路は `Reveal()` だけにする。** 空の値からは作れず、`New("")` はエラーを返す。ゼロ値は値がないことを表し、`Reveal()` は空文字列を返さずにエラーを返す。公開のメソッドの集合は、テストで固定する。テスト以外のコードで `Reveal()` を呼ぶのは、送信先へのリクエストを組み立てるとき、値があるかと値の形を確かめるとき、出力の伏せ字にする文字列の一覧を作るとき（`internal/redact`）だけである。
+          -   **秘密は `secret.Secret` で持つ。** API キーと Webhook URL は、設定を読むところで `secret.Secret` に包み、秘密を使う部品は `secret.Secret` のまま受け取って持つ。`internal/secret` の役割は [package_reference.md](../conventions/package_reference.md) の `internal/secret` の行に従う。
+          -   **API キーと Webhook URL は、送信先へのリクエストを除き、エラー・ログ・標準出力を含むどの出力にも出さない。** Webhook URL をログとエラーメッセージに含めないことは [security.md](../security.md) の §2「秘密情報（API キー・Webhook URL）」に、サーバが API キーと Webhook URL を出力に流さないことは同じ文書の §8.2「localhost サーバ」に従う。Webhook への送信の失敗を URL を含まないエラーに直すことは、[ADR-0011](0011-webhook-publishing.md) が定める。
+          -   **元の値は、型の唯一のフィールドであるクロージャに閉じ込める。** リフレクションが見られるのは関数のアドレスだけなので、`secret.Secret` を非公開フィールドに持つ構造体を出力しても、元の値は現れない。`fmt`・`log/slog`・`encoding/json` が呼ぶメソッドは、元の値の代わりに固定の伏せ字を出す。
+          -   **元の値を取り出す経路は `Reveal()` だけにする。** 空の値からは作れず、ゼロ値の `Reveal()` はエラーを返す。`Reveal()` を呼ぶのは、送信先へのリクエストの組み立てなど、値そのものが要る箇所に限る。公開のメソッドの集合は、テストで固定している。
           秘密を出力に流さないことの仕様の正本は、[security.md](../security.md) の §2「秘密情報（API キー・Webhook URL）」と §8.2「localhost サーバ」、[package_reference.md](../conventions/package_reference.md) の `internal/secret` の行である。クロージャで持つ設計を述べる文書はほかにないので、この ADR がコードの振る舞いとして述べる。
 OK      move-links
         ok: docs/dev/adr/0001-llm-adapter-stdlib.md -> docs/dev/adr/0019-pipeline-component-interfaces.md
