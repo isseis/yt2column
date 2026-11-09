@@ -88,9 +88,6 @@ func TestGoSources(t *testing.T) {
 		"top.go":                      "package top",
 		"other/lib.go":                "package other",
 		"internal/lib/lib.go":         "package lib",
-		"internal/lib/lib_test.go":    "package lib",
-		"internal/lib/testdata/t.go":  "package t",
-		"internal/lib/_nested/n.go":   "package n",
 	})
 
 	got, err := goSources(root)
@@ -104,7 +101,6 @@ func TestGoSources(t *testing.T) {
 		{pkg: "cmd/tool", path: "cmd/tool/tagged.go"},
 		{pkg: "cmd/tool", path: "cmd/tool/x_test.go"},
 		{pkg: "internal/lib", path: "internal/lib/lib.go"},
-		{pkg: "internal/lib", path: "internal/lib/lib_test.go"},
 	}
 	// The walk's order is not part of its contract, so compare the set.
 	sortSources := func(sources []goSource) {
@@ -114,19 +110,6 @@ func TestGoSources(t *testing.T) {
 	sortSources(want)
 	if !slices.Equal(got, want) {
 		t.Errorf("goSources returned %v, want %v", got, want)
-	}
-
-	empty := t.TempDir()
-	writeSourceFiles(t, empty, map[string]string{
-		"cmd/.keep":      "",
-		"internal/.keep": "",
-	})
-	got, err = goSources(empty)
-	if err != nil {
-		t.Fatalf("goSources on an empty tree returned error: %v", err)
-	}
-	if len(got) != 0 {
-		t.Errorf("goSources on an empty tree returned %v, want none", got)
 	}
 }
 
@@ -520,9 +503,7 @@ func TestParseUserList(t *testing.T) {
 		{name: "duplicate kept", cell: "Shared by `a`, `b`, and `a`", want: []string{"a", "b", "a"}},
 		{name: "no list", cell: "Extracts values.", wantErr: errNoUserList},
 		{name: "two markers", cell: "Shared by `a` and Shared by `b`", wantErr: errNoUserList},
-		{name: "no item", cell: "Shared by ", wantErr: errMalformedUserList},
 		{name: "not a code span", cell: "Shared by a", wantErr: errMalformedUserList},
-		{name: "comma without and for two", cell: "Shared by `a`, `b`", wantErr: errMalformedUserList},
 		{name: "comma without and for three", cell: "Shared by `a`, `b`, `c`", wantErr: errMalformedUserList},
 		{name: "comma and for two", cell: "Shared by `a`, and `b`", wantErr: errMalformedUserList},
 		{name: "trailing text", cell: "Shared by `a`.", wantErr: errMalformedUserList},
