@@ -87,6 +87,7 @@ type adrData struct {
 	ResultsHeading  string `json:"results_heading"`
 	HistoryHeading  string `json:"history_heading"`
 	DecisionPrefix  string `json:"decision_prefix"`
+	SentenceEnd     string `json:"decision_sentence_end"`
 	HistoryLink     string `json:"history_link"`
 }
 
@@ -434,7 +435,7 @@ func checkADR(base, head string, d adrData) ([]string, error) {
 	}
 
 	var out []string
-	first, err := firstSentence(baseDoc.decisionItem)
+	first, err := firstSentence(baseDoc.decisionItem, d.SentenceEnd)
 	if err != nil {
 		return nil, err
 	}
@@ -481,14 +482,17 @@ func (a adrDoc) skeleton() []string {
 	return out
 }
 
-// firstSentence returns item up to the end of its bold first sentence.
-func firstSentence(item string) (string, error) {
-	const end = "。**"
-	i := strings.Index(item, end)
+// firstSentence returns item up to the end of its bold first sentence, which
+// ends with marker.
+func firstSentence(item, marker string) (string, error) {
+	if marker == "" {
+		return "", errors.New("the decision sentence end marker is empty")
+	}
+	i := strings.Index(item, marker)
 	if i < 0 {
 		return "", fmt.Errorf("the decision item has no bold first sentence: %q", item)
 	}
-	return item[:i+len(end)], nil
+	return item[:i+len(marker)], nil
 }
 
 // oneAppendedItem reports whether head is base with exactly one item appended,

@@ -4,6 +4,7 @@
     "results_heading": "## 結果",
     "history_heading": "## 経緯",
     "decision_prefix": "この部品を使うパッケージの一覧は",
+    "decision_sentence_end": "。**",
     "history_link": "../../tasks/0068_strictjson_package_reference/02_architecture.md"
   }
 }
