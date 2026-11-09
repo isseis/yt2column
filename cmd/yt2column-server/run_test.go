@@ -203,12 +203,7 @@ func TestStartupFailures(t *testing.T) {
 			// out so a change to the limit fails this row.
 			name: "socket path one byte over the limit",
 			setup: func(_ *testing.T, e *serverEnv, _ *deps) {
-				limit := 103
-				if runtime.GOOS == "linux" {
-					limit = 107
-				}
-				homeLen := limit + 1 - len(config.SocketPathTailForTest(runtime.GOOS))
-				e.vars["HOME"] += "/" + strings.Repeat("h", homeLen-len(e.vars["HOME"])-1)
+				e.vars["HOME"] = homeOneByteOverSocketLimit(e.vars["HOME"])
 			},
 			want:        exitUsage,
 			wantStderr:  "configuration: HOME",
@@ -896,6 +891,19 @@ func TestAfterCancel(t *testing.T) {
 	})
 }
 
+// homeOneByteOverSocketLimit returns home padded so the socket path derived
+// from it is exactly one byte over this operating system's limit (sun_path
+// minus its NUL), written out so a change to the limit fails the tests that
+// use it.
+func homeOneByteOverSocketLimit(home string) string {
+	limit := 103
+	if runtime.GOOS == "linux" {
+		limit = 107
+	}
+	homeLen := limit + 1 - len(config.SocketPathTailForTest(runtime.GOOS))
+	return home + "/" + strings.Repeat("h", homeLen-len(home)-1)
+}
+
 // prepareInitHome creates the base directory config init requires below
 // HOME, which a fresh HOME lacks on macOS, and returns HOME.
 func prepareInitHome(t *testing.T, e *serverEnv) string {
@@ -956,13 +964,12 @@ func TestRunArgs(t *testing.T) {
 	} {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
 			e := newServerEnv(t)
-			e.noFile = true
 			var stderr strings.Builder
 			if code := run(t.Context(), args, e.lookup(), &stderr, testDeps(validResponseLLM())); code != exitUsage {
 				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitUsage, stderr.String())
 			}
-			if !strings.Contains(stderr.String(), "or exactly the two arguments config init") {
-				t.Errorf("stderr does not name the accepted arguments:\n%s", stderr.String())
+			if !strings.Contains(stderr.String(), "or exactly the two arguments config init") || strings.Count(stderr.String(), "\n") != 1 {
+				t.Errorf("stderr is not the one line naming the accepted arguments:\n%s", stderr.String())
 			}
 			if created := treeUnder(t, e.vars["HOME"]); len(created) != 0 {
 				t.Errorf("the run created %v under HOME", created)
@@ -985,8 +992,14 @@ func TestConfigInit(t *testing.T) {
 		created bool
 		// keepsDirs says the run fails after creating the directories,
 		// which it leaves; every other failure leaves HOME unchanged.
-		keepsDirs  bool
-		wantStderr string
+		keepsDirs bool
+		// leftover says the run leaves its temporary file, which the second
+		// line of standard error names.
+		leftover bool
+		// serverRejects says the server must refuse this HOME, which shows
+		// that the row tests a HOME only config init accepts.
+		serverRejects bool
+		wantStderr    string
 	}{
 		{
 			name:       "empty HOME",
@@ -996,11 +1009,8 @@ func TestConfigInit(t *testing.T) {
 			wantStderr: "created the configuration file ",
 		},
 		{
-			name: "a regular file at the path",
-			setup: func(t *testing.T, e *serverEnv) {
-				e.noFile = false
-				e.writeConfig(t)
-			},
+			name:       "a regular file at the path",
+			setup:      func(t *testing.T, e *serverEnv) { e.writeConfig(t) },
 			want:       exitFailure,
 			wantStderr: "already exists; nothing was changed",
 		},
@@ -1074,6 +1084,7 @@ func TestConfigInit(t *testing.T) {
 			},
 			want:       exitOK,
 			created:    true,
+			leftover:   true,
 			wantStderr: "could not remove the temporary file ",
 		},
 		{
@@ -1083,25 +1094,40 @@ func TestConfigInit(t *testing.T) {
 			wantStderr: "configuration: HOME: ",
 		},
 		{
+			name:       "HOME empty",
+			setup:      func(_ *testing.T, e *serverEnv) { e.vars["HOME"] = "" },
+			want:       exitUsage,
+			wantStderr: "configuration: HOME: ",
+		},
+		{
+			// A relative HOME must not create anything relative to the
+			// working directory, and the error must not hold its value.
+			name:       "HOME relative",
+			setup:      func(_ *testing.T, e *serverEnv) { e.vars["HOME"] = relativeHome },
+			want:       exitUsage,
+			wantStderr: "configuration: HOME: ",
+		},
+		{
 			// config init does not use the socket path, so its limit does not
 			// stop it.
-			name: "HOME too long for the socket path",
+			name: "HOME one byte over the socket path limit",
 			setup: func(t *testing.T, e *serverEnv) {
-				e.vars["HOME"] = filepath.Join(e.vars["HOME"], strings.Repeat("h", 120))
+				e.vars["HOME"] = homeOneByteOverSocketLimit(e.vars["HOME"])
 				prepareInitHome(t, e)
 			},
-			want:       exitOK,
-			created:    true,
-			wantStderr: "created the configuration file ",
+			want:          exitOK,
+			created:       true,
+			serverRejects: true,
+			wantStderr:    "created the configuration file ",
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			e := newServerEnv(t)
-			e.noFile = true
 			originalHome := e.vars["HOME"]
 			tc.setup(t, e)
-			home, homeSet := e.vars["HOME"]
+			home := e.vars["HOME"]
+			homeSet := filepath.IsAbs(home)
 			var path string
 			var before configState
 			if homeSet {
@@ -1118,6 +1144,16 @@ func TestConfigInit(t *testing.T) {
 			if !strings.Contains(stderr.String(), tc.wantStderr) {
 				t.Errorf("stderr does not contain %q:\n%s", tc.wantStderr, stderr.String())
 			}
+			lines := strings.Split(strings.TrimSuffix(stderr.String(), "\n"), "\n")
+			if wantLines := map[bool]int{false: 1, true: 2}[tc.leftover]; len(lines) != wantLines {
+				t.Errorf("stderr has %d lines, want %d:\n%s", len(lines), wantLines, stderr.String())
+			}
+			if _, err := os.Lstat(relativeHome); !errors.Is(err, os.ErrNotExist) {
+				t.Errorf("config init created %s in the working directory: %v", relativeHome, err)
+			}
+			if strings.Contains(stderr.String(), relativeHome) {
+				t.Errorf("stderr holds HOME's value:\n%s", stderr.String())
+			}
 			if homeSet {
 				if _, err := os.Lstat(filepath.Dir(e.socketPath(t))); !errors.Is(err, os.ErrNotExist) {
 					t.Errorf("config init created the socket directory: %v", err)
@@ -1125,8 +1161,8 @@ func TestConfigInit(t *testing.T) {
 			}
 			switch {
 			case tc.created:
-				if !strings.Contains(stderr.String(), "created the configuration file "+path) {
-					t.Errorf("stderr does not name the created file %s:\n%s", path, stderr.String())
+				if want := programName + ": created the configuration file " + path; lines[0] != want {
+					t.Errorf("stderr line = %q, want %q", lines[0], want)
 				}
 				info, err := os.Lstat(path)
 				if err != nil {
@@ -1140,8 +1176,22 @@ func TestConfigInit(t *testing.T) {
 					t.Errorf("content = %q (%v), want the template", data, err)
 				}
 				dirInfo, err := os.Lstat(filepath.Dir(path))
-				if err != nil || dirInfo.Mode().Perm() != 0o700 {
-					t.Errorf("directory mode = %v (%v), want 0700", dirInfo.Mode(), err)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if dirInfo.Mode().Perm() != 0o700 {
+					t.Errorf("directory mode = %v, want 0700", dirInfo.Mode())
+				}
+				if tc.leftover {
+					requireLeftoverNamed(t, path, lines)
+				}
+				if tc.serverRejects {
+					ctx, cancel := context.WithTimeout(context.Background(), exitBound)
+					defer cancel()
+					var serverErr strings.Builder
+					if code := run(ctx, nil, e.lookup(), &serverErr, testDeps(validResponseLLM())); code != exitUsage || !strings.Contains(serverErr.String(), "configuration: HOME: ") {
+						t.Errorf("the server with this HOME exited %d, want %d with a HOME rejection:\n%s", code, exitUsage, serverErr.String())
+					}
 				}
 			case homeSet && before.fileMode != 0:
 				// Something was at the path: it must be unchanged.
@@ -1163,11 +1213,43 @@ func TestConfigInit(t *testing.T) {
 				}
 			}
 			if tc.keepsDirs {
-				if info, err := os.Stat(filepath.Dir(path)); err != nil || !info.IsDir() {
-					t.Errorf("the directories config init created were removed: %v", err)
+				// The directories stay, empty: no temporary file is left.
+				entries, err := os.ReadDir(filepath.Dir(path))
+				if err != nil {
+					t.Fatalf("the directories config init created were removed: %v", err)
+				}
+				if len(entries) != 0 {
+					t.Errorf("the file's directory holds %v, want nothing", entries)
 				}
 			}
 		})
+	}
+}
+
+// relativeHome is the relative HOME TestConfigInit gives config init; no
+// test creates anything by that name in the working directory.
+const relativeHome = "y2c-relative-home"
+
+// requireLeftoverNamed checks that the file's directory holds the file and
+// one temporary file, and that the second line of standard error names that
+// temporary file by its path.
+func requireLeftoverNamed(t *testing.T, path string, lines []string) {
+	t.Helper()
+	entries, err := os.ReadDir(filepath.Dir(path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var temps []string
+	for _, entry := range entries {
+		if entry.Name() != filepath.Base(path) {
+			temps = append(temps, filepath.Join(filepath.Dir(path), entry.Name()))
+		}
+	}
+	if len(temps) != 1 {
+		t.Fatalf("the file's directory holds %v besides the file, want one temporary file", temps)
+	}
+	if want := programName + ": could not remove the temporary file " + temps[0] + "; remove it by hand"; len(lines) < 2 || lines[1] != want {
+		t.Errorf("stderr lines = %q, want the second to be %q", lines, want)
 	}
 }
 

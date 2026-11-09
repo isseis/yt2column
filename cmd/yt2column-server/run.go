@@ -116,18 +116,19 @@ const (
 	initCommand   = "init"
 )
 
-// run dispatches on the arguments: none starts the server (serve), exactly
+// run dispatches on the arguments: none starts the server (runServer), exactly
 // "config init" creates the configuration file's template (runInit), and
 // anything else is a usage error that creates nothing. It returns the process
 // exit code.
 func run(ctx context.Context, args []string, lookup config.LookupFunc, stderr io.Writer, d deps) int {
+	if len(args) == 0 {
+		return runServer(ctx, lookup, stderr, d)
+	}
+	errOut := &stderrWriter{w: stderr}
 	switch {
-	case len(args) == 0:
-		return serve(ctx, lookup, stderr, d)
 	case len(args) == 2 && args[0] == configCommand && args[1] == initCommand:
-		return runInit(lookup, &stderrWriter{w: stderr})
+		return runInit(lookup, errOut)
 	default:
-		errOut := &stderrWriter{w: stderr}
 		errOut.line("%s: takes no arguments, which starts the server, or exactly the two arguments %s %s, which create the configuration file (see README.en.md)",
 			programName, configCommand, initCommand)
 		return exitUsage
@@ -156,7 +157,7 @@ func runInit(lookup config.LookupFunc, errOut *stderrWriter) int {
 	return exitOK
 }
 
-// serve starts the server and serves until ctx is canceled, then returns the
+// runServer starts the server and serves until ctx is canceled, then returns the
 // process exit code. Step 1 reads the configuration file and step 2 builds
 // the components; neither touches the network or writes a file, and a failure
 // there stops the start with exitUsage. Step 3 prepares the socket directory,
@@ -168,8 +169,8 @@ func runInit(lookup config.LookupFunc, errOut *stderrWriter) int {
 // started during the shutdown stops with serversock.ErrAlreadyRunning instead
 // of running jobs beside this one. lock stays reachable until Release, so the
 // lock file is never closed by a finalizer before then.
-func serve(ctx context.Context, lookup config.LookupFunc, stderr io.Writer, d deps) int {
-	// serve's own logger and the server's write to stderr from different
+func runServer(ctx context.Context, lookup config.LookupFunc, stderr io.Writer, d deps) int {
+	// runServer's own logger and the server's write to stderr from different
 	// goroutines, so each write is serialized here rather than relying on
 	// what the writer tolerates.
 	stderr = &lockedWriter{w: stderr}
