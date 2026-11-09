@@ -870,4 +870,4 @@ PR の区切りは実装計画で決める。
 ## 変更履歴
 
 - 2026-11-06 承認（isseis、#706）
-- 2026-11-09 セッション中の再承認：macOS の設定ファイルのパスを、ほかの Unix と同じ `$HOME/.config/yt2column/config.env` に変えた（isseis、#未記入）
+- 2026-11-09 セッション中の再承認：macOS の設定ファイルのパスを、ほかの Unix と同じ `$HOME/.config/yt2column/config.env` に変えた（isseis、#740）
