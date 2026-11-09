@@ -331,9 +331,9 @@
 
 **コミット:** 推奨構成と本番の構成のブロックの形の変更と、このステップの最後の項目（`checkExportBlock` の書き換え）を 1 つのコミットにする。
 
-- [ ] `README.md` を、要件 AC-30・AC-31 の内容に書き換える。設定ファイルの節（パス・書式・検査・ACL・`config init` と終了コードの表・一時ファイルの接頭辞 `.config.env.tmp-`）と移行の手順を足し、クイックスタート・サーバの起動・設定・推奨構成のサーバの手順を、設定ファイルの形にする。`/mktrans README.md` で `README.en.md` に同期し、2 つを同じコミットにする。
-- [ ] 要件 AC-33 に挙げた節を書き換える。`development.md` の「開発用に別のサーバを動かす」は、専用の `HOME` の下に設定ファイルを置いてから起動する手順にする。`package_reference.md` の `cmd/yt2column-server` と `internal/config` の行を直す。`CLAUDE.md` の Architecture Overview のサーバを支えるパッケージに `internal/privatefile` を足し、設定と秘密の記述を直す。`translation_glossary.md` の「設定エラー」（`:165`）と「設定」（`:185`）の定義を環境変数に限らない形にし、「設定ファイル」「雛形」を足す。
-- [ ] `TestProductionProfileDocsContract` の `checkExportBlock`・`checkExportLines`・`exportLineRE` を、設定ファイルの行のブロックを読む形に変える。`internal/config/test_helpers.go` に、バイト列を書式の解析に通して受理したキーと値を返すアクセサを足す。ブロックがこれで受理されることを確かめ、短い `HOME` の下にファイルとして書いて `LoadServer` で読み込み、既定の構成と比べる（1.3）。
+- [x] `README.md` を、要件 AC-30・AC-31 の内容に書き換える。設定ファイルの節（パス・書式・検査・ACL・`config init` と終了コードの表・一時ファイルの接頭辞 `.config.env.tmp-`）と移行の手順を足し、クイックスタート・サーバの起動・設定・推奨構成のサーバの手順を、設定ファイルの形にする。`/mktrans README.md` で `README.en.md` に同期し、2 つを同じコミットにする。
+- [x] 要件 AC-33 に挙げた節を書き換える。`development.md` の「開発用に別のサーバを動かす」は、専用の `HOME` の下に設定ファイルを置いてから起動する手順にする。`package_reference.md` の `cmd/yt2column-server` と `internal/config` の行を直す。`CLAUDE.md` の Architecture Overview のサーバを支えるパッケージに `internal/privatefile` を足し、設定と秘密の記述を直す。`translation_glossary.md` の「設定エラー」（`:165`）と「設定」（`:185`）の定義を環境変数に限らない形にし、「設定ファイル」「雛形」を足す。
+- [x] `TestProductionProfileDocsContract` の `checkExportBlock`・`checkExportLines`・`exportLineRE` を、設定ファイルの行のブロックを読む形に変える。`internal/config/test_helpers.go` に、バイト列を書式の解析に通して受理したキーと値を返すアクセサを足す。ブロックがこれで受理されることを確かめ、短い `HOME` の下にファイルとして書いて `LoadServer` で読み込み、既定の構成と比べる（1.3）。
 
 #### ステップ 7-3: 文書のガードテスト
 

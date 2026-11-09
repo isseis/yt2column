@@ -233,8 +233,8 @@ yt-dlp --list-impersonate-targets   # lists targets whose Source is curl_cffi
 
 ## 設定
 
-CLI は README の
-[設定](../../../README.md#設定)の変数と、CLI だけが読む次の 2 つの変数を読む。
+CLI は、README の
+[設定](../../../README.md#設定)の変数と、CLI だけが読む次の 2 つの変数を、環境変数から読む。localhost サーバの設定ファイル（README の[設定ファイル](../../../README.md#設定ファイル)）は読まない。サーバは、README の設定の変数と同じ名前のキーを、環境変数ではなくその設定ファイルから読む。
 
 | 変数 | 説明 | 未設定のとき |
 |---|---|---|
@@ -243,7 +243,7 @@ CLI は README の
 
 `yt2column-server` は、`yt-dlp` を呼ばないので、`YT2COLUMN_CACHE_DIR` も `YT2COLUMN_YTDLP_PATH` も読まない。
 
-CLI は `SLACK_WEBHOOK_URL` を読まない。設定されていても値を検査せず、実行は変わらない。この変数を読むのは localhost サーバだけである。
+CLI は `SLACK_WEBHOOK_URL` を読まない。設定されていても値を検査せず、実行は変わらない。この名前のキーを読むのは localhost サーバだけで、サーバは設定ファイルから読む。
 
 前後に空白のあるモデルの ID は、工程のクライアントを組み立てるときに、リクエストを送る前に拒否する。CLI は実行が始まる前にクライアントを組み立てる。
 

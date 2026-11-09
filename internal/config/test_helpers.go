@@ -110,6 +110,18 @@ func serverFileLocationForHome(home string) serverFileLocation {
 	return loc
 }
 
+// ParseServerFileForTest parses data as the configuration file's content, as
+// the server does, and returns the accepted keys and values, or the
+// rejections. path names the file in the rejections only. The rejections
+// never hold a value, so a documentation guard may print them.
+func ParseServerFileForTest(path string, data []byte) (map[string]string, []error) {
+	file, rejections := parseServerFile(path, data)
+	if len(rejections) > 0 {
+		return nil, rejections
+	}
+	return maps.Clone(file.values), nil
+}
+
 // ServerFileBaseForTest returns the directory below home that config init
 // requires to exist on this operating system. It panics when no path can be
 // derived from home.

@@ -425,74 +425,57 @@ func firstCodeSpan(cell string) (string, bool) {
 	return match[1], true
 }
 
-// exportLineRE matches one line of a configuration block: "export", one space,
-// an uppercase variable name, "=", and a value of letters, digits, ".", "_",
-// "-", "/" (the separator of an LLM variable's provider and model ID), and "+"
-// (the separator of its model ID and effort).
-var exportLineRE = regexp.MustCompile(`^export ([A-Z][A-Z0-9_]*)=([A-Za-z0-9._/+-]+)$`)
+// configBlockInfo is the info string of the fenced block that holds the
+// lines of a configuration file in a profile section.
+const configBlockInfo = "text"
 
-// checkExportBlock checks that section holds exactly one sh code block and
-// checks that block with checkExportLines, returning its values.
-func checkExportBlock(t *testing.T, docName, sectionName, section string, want []string) map[string]string {
+// checkConfigBlock checks that section holds exactly one closed text code
+// block, that the server's configuration file parser accepts the block's
+// lines as a file, and that the block sets exactly the keys in want. It
+// returns the accepted values. The failure messages name the document,
+// section, and key, and the parser's rejections name a line and a fixed
+// reason, never a value: a secret written into the block by mistake must not
+// reach the log.
+func checkConfigBlock(t *testing.T, docName, sectionName, section string, want []string) map[string]string {
 	t.Helper()
-	var shBlocks []doctestutil.FencedBlock
+	var blocks []doctestutil.FencedBlock
 	for _, block := range doctestutil.FencedBlocks(section) {
-		if block.Info == "sh" {
-			shBlocks = append(shBlocks, block)
+		if block.Info == configBlockInfo {
+			blocks = append(blocks, block)
 		}
 	}
-	if len(shBlocks) != 1 {
-		t.Fatalf("%s %s: %d sh code blocks, want exactly one", docName, sectionName, len(shBlocks))
+	if len(blocks) != 1 {
+		t.Fatalf("%s %s: %d %s code blocks, want exactly one", docName, sectionName, len(blocks), configBlockInfo)
 	}
-	return checkExportLines(t, docName, sectionName, shBlocks[0], want)
-}
-
-// checkExportLines checks that the sh block is closed and that every line of
-// it has the export-line shape, names one of want, and does not repeat a
-// variable. It returns the block's values. The failure messages name the
-// document, section, line, and variable, never a line's value: a secret
-// written into the block by mistake must not reach the log.
-func checkExportLines(t *testing.T, docName, sectionName string, block doctestutil.FencedBlock, want []string) map[string]string {
-	t.Helper()
+	block := blocks[0]
 	if !block.Closed {
-		t.Fatalf("%s %s: the sh code block has no closing fence; an unclosed fence runs to the end of the document", docName, sectionName)
+		t.Fatalf("%s %s: the %s code block has no closing fence; an unclosed fence runs to the end of the document", docName, sectionName, configBlockInfo)
 	}
-	values := make(map[string]string, len(want))
-	for i, line := range block.Lines {
-		match := exportLineRE.FindStringSubmatch(line)
-		if match == nil {
-			t.Errorf("%s %s: block line %d is not an export line of the form export <NAME>=<value>", docName, sectionName, i+1)
-			continue
-		}
-		name, value := match[1], match[2]
-		if _, repeated := values[name]; repeated {
-			t.Errorf("%s %s: block line %d repeats the variable %s", docName, sectionName, i+1, name)
-			continue
-		}
-		values[name] = value
+	data := []byte(strings.Join(block.Lines, "\n") + "\n")
+	values, rejections := config.ParseServerFileForTest(docName+" "+sectionName, data)
+	for _, err := range rejections {
+		t.Errorf("the configuration file parser rejects the block: %v", err)
+	}
+	if len(rejections) > 0 {
+		t.FailNow()
 	}
 	for _, name := range want {
 		if _, ok := values[name]; !ok {
-			t.Errorf("%s %s: the block does not set the variable %s", docName, sectionName, name)
+			t.Errorf("%s %s: the block does not set the key %s", docName, sectionName, name)
 		}
 	}
 	for _, name := range slices.Sorted(maps.Keys(values)) {
 		if !slices.Contains(want, name) {
-			t.Errorf("%s %s: the block sets the unexpected variable %s", docName, sectionName, name)
+			t.Errorf("%s %s: the block sets the unexpected key %s", docName, sectionName, name)
 		}
 	}
-	accepted := make(map[string]string, len(want))
-	for _, name := range want {
-		if value, ok := values[name]; ok {
-			accepted[name] = value
-		}
-	}
-	return accepted
+	return values
 }
 
-// docsProfileEnv is the closed set of variables test (a) loads the server
-// configuration from, through config.ServerLookupForTest: a dummy API key, a
-// dummy Webhook URL under the reserved .invalid domain, and a fresh short
+// docsProfileEnv is the closed set of settings the documentation guards load
+// the server configuration from, through config.ServerLookupForTest, which
+// writes the keys to the configuration file under the HOME: a dummy API key,
+// a dummy Webhook URL under the reserved .invalid domain, and a fresh short
 // HOME, because the socket path derived from it must fit the operating
 // system's limit. No key of the process environment reaches LoadServer
 // through it.
@@ -518,8 +501,8 @@ func selectionMismatch(got, want config.LLMSelection) string {
 		got.ClaudeEffort(), want.ClaudeEffort(), got.DeepSeekEffort(), want.DeepSeekEffort())
 }
 
-// checkExportBlockMatchesDefaults loads the server configuration without the
-// block's variables and with them, and fails unless both load and their
+// checkConfigBlockMatchesDefaults loads the server configuration from a
+// configuration file without the block's keys and from one with them, and fails unless both load and their
 // generation and review selections (provider, model, and effort) are equal.
 // It also fails when the block's YT2COLUMN_LLM has no effort part: a value
 // without one loads to the same selection while the default effort is the
@@ -527,7 +510,7 @@ func selectionMismatch(got, want config.LLMSelection) string {
 // effort to the default, which a later change of the default would then
 // change. It returns the configuration loaded without the block, which is the
 // code's default profile.
-func checkExportBlockMatchesDefaults(t *testing.T, docName, sectionName string, block map[string]string) config.LLMConfig {
+func checkConfigBlockMatchesDefaults(t *testing.T, docName, sectionName string, block map[string]string) config.LLMConfig {
 	t.Helper()
 	if value, ok := block[config.LLMEnvForTest()]; ok && !strings.Contains(value, "+") {
 		t.Errorf("%s %s: the block's %s has no \"+<effort>\" part; the profile must state its effort",
@@ -535,13 +518,13 @@ func checkExportBlockMatchesDefaults(t *testing.T, docName, sectionName string, 
 	}
 	without, err := config.LoadServer(config.ServerLookupForTest(t, docsProfileEnv(t)))
 	if err != nil {
-		t.Fatalf("%s %s: LoadServer on the default variables: %v", docName, sectionName, err)
+		t.Fatalf("%s %s: LoadServer on the default settings: %v", docName, sectionName, err)
 	}
 	env := docsProfileEnv(t)
 	maps.Copy(env, block)
 	loaded, err := config.LoadServer(config.ServerLookupForTest(t, env))
 	if err != nil {
-		t.Fatalf("%s %s: LoadServer rejected the block's variables: %v", docName, sectionName, err)
+		t.Fatalf("%s %s: LoadServer rejected the block's keys: %v", docName, sectionName, err)
 	}
 	got, want := loaded.LLM(), without.LLM()
 	if diff := selectionMismatch(got.Generation(), want.Generation()); diff != "" {
@@ -637,8 +620,9 @@ func checkProfileTable(t *testing.T, section string, defaults config.LLMConfig) 
 
 // TestProductionProfileDocsContract checks the shared production-profile
 // document's profile section and the README's recommended configuration
-// section: each configuration block holds exactly the variables of the
-// production profile and loads to the code's default profile, and the shared
+// section: each configuration block is accepted by the server's configuration
+// file parser, holds exactly the keys of the production profile, and loads to
+// the code's default profile, and the shared
 // document's table names the same profile for each stage.
 func TestProductionProfileDocsContract(t *testing.T) {
 	want := productionProfileVars()
@@ -648,8 +632,8 @@ func TestProductionProfileDocsContract(t *testing.T) {
 	if section == "" {
 		t.Fatalf("production_profile.md has no %q section", productionProfileSection)
 	}
-	values := checkExportBlock(t, "production_profile.md", productionProfileSection, section, want)
-	defaults := checkExportBlockMatchesDefaults(t, "production_profile.md", productionProfileSection, values)
+	values := checkConfigBlock(t, "production_profile.md", productionProfileSection, section, want)
+	defaults := checkConfigBlockMatchesDefaults(t, "production_profile.md", productionProfileSection, values)
 	checkProfileTable(t, section, defaults)
 
 	readmeVersionsUnder(t, func(t *testing.T, v doctestutil.ReadmeVersion, readme string) {
@@ -658,8 +642,8 @@ func TestProductionProfileDocsContract(t *testing.T) {
 		if recommended == "" {
 			t.Fatalf("%s has no %q section", v.Path, heading)
 		}
-		readmeValues := checkExportBlock(t, v.Path, heading, recommended, want)
-		checkExportBlockMatchesDefaults(t, v.Path, heading, readmeValues)
+		readmeValues := checkConfigBlock(t, v.Path, heading, recommended, want)
+		checkConfigBlockMatchesDefaults(t, v.Path, heading, readmeValues)
 	})
 }
 
