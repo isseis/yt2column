@@ -277,7 +277,10 @@ Work in the following order.
    a design or plan decision needs an excluded change, follow `_lib/simple-process.md`, "When
    an excluded decision appears".
 
-6. Write the first version of `01_requirements.md`.
+6. Write the first version of `01_requirements.md`. When step 1 continues a
+   stopped run, write and commit only the documents the branch lacks, as
+   `_lib/simple-process.md`, "Resuming a stopped run", step 3, says: a
+   `01_requirements.md` already committed on the branch is not written again.
    - Start from the template. Write in Japanese. Status `draft`, `Process` the
      process chosen in step 5 (`` `full` `` or `` `simple` ``), `Created` today,
      `Review date` and `Reviewer` `-`.
