@@ -146,10 +146,10 @@ Go のソースのコメント・識別子・文字列は英語で書き、AC �
 
 **変更するファイル:** `docs/dev/adr/0020-strict-json.md`
 
--   [ ] **ステップ 5-1**: 「決定」の `0020-strict-json.md:23` の項目を、設計書 3.8 のとおりに最初の文だけにする（AC-13）。
--   [ ] **ステップ 5-2**: 「結果」の末尾に、設計書 3.8 の 1 項目を足す（AC-14）。
--   [ ] **ステップ 5-3**: 「経緯」の末尾に、設計書 3.8 の形の項目を 1 つ足す。日付は項目を書いた日にする（AC-14）。
--   [ ] **ステップ 5-4**: `TestADRRecords` を含む文書のガードを通してからコミットする。コミットメッセージには、ステップ 5-1 の削除を記録する correction line（`Editorial correction: docs/dev/adr/0020-strict-json.md: <what was changed to what>; no decision changed` の形。`requirements_process.md`「Recording in the PR description」）を書く（AC-15）。
+-   [x] **ステップ 5-1**: 「決定」の `0020-strict-json.md:23` の項目を、設計書 3.8 のとおりに最初の文だけにする（AC-13）。
+-   [x] **ステップ 5-2**: 「結果」の末尾に、設計書 3.8 の 1 項目を足す（AC-14）。
+-   [x] **ステップ 5-3**: 「経緯」の末尾に、設計書 3.8 の形の項目を 1 つ足す。日付は項目を書いた日にする（AC-14）。
+-   [x] **ステップ 5-4**: `TestADRRecords` を含む文書のガードを通してからコミットする。コミットメッセージには、ステップ 5-1 の削除を記録する correction line（`Editorial correction: docs/dev/adr/0020-strict-json.md: <what was changed to what>; no decision changed` の形。`requirements_process.md`「Recording in the PR description」）を書く（AC-15）。
 
 **完了の条件:** ADR-0020 が設計書 3.8 のとおりで、`TestADRRecords` が通る。
 
