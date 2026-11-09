@@ -64,7 +64,7 @@ ADR の仕組みそのもの（タスク 0060 が決めた、生きた文書と�
     -   **理由:** CLAUDE.md「Design decisions (ADR)」は、決定を下す PR だけが ADR を変えるという文（`adr.md:218-219`）を持たない（`CLAUDE.md:124-129`）。ADR と正本の文書の分担の文（`CLAUDE.md:148-150`）は、ADR が正本を要約してリンクするとだけ述べ、新しい基準と食い違わない。規約が両方をそろえるよう求める文の意味は変わらないので、CLAUDE.md を変える理由がない。
     -   **採らなかった案:** CLAUDE.md の「Rule」の項目にも、編集上の訂正を認める文を足す案は、同じ規則を 2 か所で持つことになり、そろえる手間が増えるので採らない。
     -   ADR：なし。規約の既存の分担を当てはめるだけで、本タスクの中で閉じる。
--   **コマンドの定義と `requirements_process.md` は変えない:** ADR の編集上の訂正の記録については、規約が、`requirements_process.md`「Recording in the PR description」の訂正の行と訂正の段落の形を ADR のファイルにも当てはめると述べ、エージェントがその形で書く。`/fixpr`・`/runplan`・ローカルの CLI レビューの記録の手順を ADR に広げることは、別の issue にする（2.3）。
+-   **コマンドの定義と `requirements_process.md` は変えない:** ADR の編集上の訂正の記録については、規約が、`requirements_process.md`「Recording in the PR description」の訂正の行と訂正の段落の形を ADR のファイルにも当てはめると述べ、エージェントがその形で書く。`/fixpr`・`/runplan`・ローカルの CLI レビューの記録の手順を ADR に広げることは、別の issue（[#732](https://github.com/isseis/yt2column/issues/732)）にする（2.3）。
     -   **理由:** 本タスクの範囲を規約に保つためである。コマンドの定義には文書のテストがあり、広げると変更とレビューの範囲が大きくなる。
     -   **採らなかった案:** 本タスクでコマンドの定義と `requirements_process.md` も変える案は、範囲が広がるので採らない。
     -   ADR：ADR-0039 の「結果」に、コマンドがまだ ADR の訂正を運ばないことを書く。
@@ -112,7 +112,7 @@ ADR の仕組みそのもの（タスク 0060 が決めた、生きた文書と�
 
 -   **既存の ADR の見直し。** ADR-0001〜0030 は [#729](https://github.com/isseis/yt2column/issues/729) で見直す。ADR-0031〜0038 は、PR #727 でこの基準に合わせて書かれたので、本タスクでは見直さない。
 -   **CLAUDE.md の変更。** 1 章の「要件定義の際に決めたこと」のとおりである。
--   **コマンドの定義（`.claude/commands/`）と `requirements_process.md` の変更。** 同じく 1 章のとおりである。ADR の編集上の訂正を `/fixpr`・`/runplan`・ローカルの CLI レビューの記録の手順に広げることは、本書の PR を開くときに別の issue にする。
+-   **コマンドの定義（`.claude/commands/`）と `requirements_process.md` の変更。** 同じく 1 章のとおりである。ADR の編集上の訂正を `/fixpr`・`/runplan`・ローカルの CLI レビューの記録の手順に広げることは、[#732](https://github.com/isseis/yt2column/issues/732) で扱う。
 -   **ADR の仕組み全体（0060 の決定）を ADR にすること。** 同じく 1 章のとおりである。
 -   **0068・0069 のタスク文書の変更。** 両タスクが決めたことは、タスク文書の変わらない記録として残す。
 -   **「Writing an ADR」の、「状態」「採らなかった案」「結果」「経緯」の項目と、「Links」の段落の内容の変更。** issue が求めるのは「背景」と「決定」の基準だからである。ただし、F-003 が求める「History entries」への追記は含む。
