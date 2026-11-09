@@ -21,7 +21,7 @@
 -   **UI の言語の文字列の中身から振る舞いを選ぶのは、`resolveLocale` の 1 か所だけにする。** この例外の範囲・理由・境界は、[CLAUDE.md](../../../CLAUDE.md) の「Key Design Patterns」の「Declare, don't infer」にある `resolveLocale` の例外に従う。この ADR は、その理由と、採らなかった案を持つ。
 -   **利用者に表示する文言は言語ごとのメッセージカタログに置き、英語と日本語の両方に必ず置く。** 英語と日本語のカタログは同じ型を持ち、片方に文言が欠けると型の検査が失敗する。開発者向けのログは英語のままとする。カタログの置き場所と、日本語の文言を置いてよいファイルは、[CLAUDE.md](../../../CLAUDE.md) の「Go Idioms」の拡張の段落に従う。ソースの言語の方針は [ADR-0035](0035-language-policy.md) が定める。
 -   **ページの `lang` を表示の言語に合わせる。** ポップアップとビューアは、言語を決めた直後、最初の描画の前に、ページの `lang` を選んだ言語にする。静的な HTML の `lang` は `en` のままで、スクリプトが動かない場合は英語になる。ビューアの記事の本文は、UI の言語によらず `lang="ja"` を持つ。記事の内容の言語であり、UI の表示の言語ではない（[0063 要件定義書](../../tasks/0063_viewer_markdown/01_requirements.md)）。
--   **表示の言語の決まり方を利用者に説明するのは [README.md](../../../README.md) の「ブラウザ拡張」節の段落である。** この段落は、ポップアップの言語だけを述べている。現在のコードでは、ビューアも同じ規則で選んだ言語で表示する。段落がビューアに触れていないことは、記録した issue [#719](https://github.com/isseis/yt2column/issues/719) で扱う。
+-   **表示の言語の決まり方を利用者に説明するのは [README.md](../../../README.md) の「ブラウザ拡張」節の段落である。**
 
 この決定の仕様の正本は、[CLAUDE.md](../../../CLAUDE.md) の「Key Design Patterns」の「Declare, don't infer」にある `resolveLocale` の例外と「Go Idioms」の拡張の段落、[README.md](../../../README.md) の「ブラウザ拡張」節の表示の言語の段落である。拡張の基盤は [ADR-0026](0026-extension-platform.md) が、拡張が何も保存しないことは [ADR-0010](0010-extension-stores-nothing.md) が定める。
 
