@@ -380,11 +380,11 @@ func checkADR(base, head string, d data) ([]violation, error) {
 	}
 	baseLines := strings.Split(baseText, "\n")
 	headLines := strings.Split(headText, "\n")
-	baseItem, err := adrSectionItem(baseLines, d.ADR.Section)
+	baseItem, err := adrSectionItem(baseText, baseLines, d.ADR.Section)
 	if err != nil {
 		return nil, fmt.Errorf("%s at %s: %w", d.ADR.Path, base, err)
 	}
-	headItem, err := adrSectionItem(headLines, d.ADR.Section)
+	headItem, err := adrSectionItem(headText, headLines, d.ADR.Section)
 	if err != nil {
 		return nil, fmt.Errorf("%s at %s: %w", d.ADR.Path, head, err)
 	}
@@ -409,30 +409,36 @@ type item struct {
 }
 
 // adrSectionItem returns the last list item of the section that starts at
-// heading. The section ends at the next heading of the same or a higher level.
-func adrSectionItem(lines []string, heading string) (item, error) {
-	iHeading, err := uniqueLine(lines, heading)
-	if err != nil {
-		return item{}, fmt.Errorf("section heading: %w", err)
+// heading. It uses the shared section reader, so a heading inside a code block
+// is not mistaken for the section's start or end.
+func adrSectionItem(text string, lines []string, heading string) (item, error) {
+	section := doctestutil.SectionOutsideBlocks(text, heading)
+	if strings.TrimSpace(section) == "" {
+		return item{}, fmt.Errorf("section %q not found", heading)
 	}
-	level := doctestutil.HeadingLevel(lines[iHeading])
-	end := len(lines)
-	for i := iHeading + 1; i < len(lines); i++ {
-		if l := doctestutil.HeadingLevel(lines[i]); l > 0 && l <= level {
-			end = i
-			break
+	last := ""
+	for _, line := range strings.Split(section, "\n") {
+		if strings.HasPrefix(line, "- ") {
+			last = line
 		}
 	}
-	found := -1
-	for i := iHeading + 1; i < end; i++ {
-		if strings.HasPrefix(lines[i], "- ") {
-			found = i
-		}
-	}
-	if found < 0 {
+	if last == "" {
 		return item{}, fmt.Errorf("the section %q has no list item", heading)
 	}
-	return item{index: found, line: found + 1, text: lines[found]}, nil
+	index := -1
+	for i, line := range lines {
+		if line != last {
+			continue
+		}
+		if index >= 0 {
+			return item{}, fmt.Errorf("the section %q's last item is not a unique line", heading)
+		}
+		index = i
+	}
+	if index < 0 {
+		return item{}, fmt.Errorf("the section %q's last item is not a unique line", heading)
+	}
+	return item{index: index, line: index + 1, text: last}, nil
 }
 
 // firstSentence returns s up to and including the closing marker of its first
