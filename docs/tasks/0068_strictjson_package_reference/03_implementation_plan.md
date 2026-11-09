@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-09 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-09 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を、H-NN は [design_handoff.md](design_handoff.md) の項番を指す。節番号は [02_architecture.md](02_architecture.md)（以下、設計書）の節を指し、本計画自身の節は「本計画 §N」と書く。用語は、要件書 6 章の用語（部品・使い手・使い手の一覧・正本）と、設計書の冒頭の用語（一覧の文・照合のテスト・表のテスト・走査・作った入力のテスト）を同じ意味で使う。そのほかに、次の用語を使う。
@@ -292,3 +292,7 @@ AC-04 は、文書の文の中身だけを定める AC である（リンクも�
 ## 9. 次のステップ (Next Steps)
 
 -   PR のマージの後、`/runpr` がタスクの issue #713 を閉じるかを尋ねる（最後の計画の PR のため）。
+
+## 変更履歴
+
+- 2026-11-09 承認（isseis、#731）
