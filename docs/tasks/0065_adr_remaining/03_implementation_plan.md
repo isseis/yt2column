@@ -126,7 +126,7 @@
 | `secret-closure` | 0001 | 0001 要件定義書「F-005」「5」・2026-09-29（要件定義書の Review date） | - |
 | `testdata-license` | 0002 | 0002 設計書「1.4」「付録A」・2026-09-30（設計書の Review date） | - |
 | `transcript-cache-slots` | 0002 0005 0010 | 0002 設計書「3.5」「付録A」・2026-09-30（設計書の Review date）、0005 設計書「3.4」「3.7」・2026-10-05（設計書の Review date）、0010 設計書「3.9」・2026-10-10（設計書の Review date） | 0010 設計書「3.9」が、字幕のキャッシュの削除を検証・推敲のログの書き出しの前に行うと決め、ログを書けなかった実行でもキャッシュが消えるように削除の時機を変えたため、経緯に 0010 を足した |
-| `template-allowlist` | 0004 0010 | （④ で埋める） | - |
+| `template-allowlist` | 0004 0010 | 0004 要件定義書「1. 概要」・F-001・F-006・2026-10-05（要件定義書の Review date）、0004 設計書「1.1 設計原則」「3.4」「3.6」「3.9」・2026-10-05（設計書の Review date）、0010 設計書「3.2」「3.4」・2026-10-10（設計書の Review date） | - |
 | `language-policy` | 0032 0040 0043 0048 0052 0060 0061 | （④ で埋める） | - |
 | `task-document-status-records` | 0053 0056 0060 | （④ で埋める） | - |
 | `test-deletion-coverage` | 0027 0038 0052 0054 0055 | （④ で埋める） | - |
@@ -228,7 +228,7 @@ AC-03 の食い違い（設計書 3.5）を記録した issue を、その ADR �
 | `strict-json` | 713 |
 | `extension-ui-languages` | 719 |
 | `no-automatic-resend` | 720 |
-| `template-allowlist` | （④ で埋める） |
+| `template-allowlist` | 725 |
 
 ## 2. 実装手順 (Implementation Steps)
 
