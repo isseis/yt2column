@@ -982,8 +982,8 @@ func (c *contextReviewers) checkRequest(value string) {
 // TestContextAndCommandsAgree checks that _context.md is the one place the
 // automated reviewers' names are written: its reviewer rows parse and hold
 // the expected names, the PR review request row's description names the
-// mention fixprguard rejects, and fixpr.md, runpr.md, runissue.md, mkreq.md,
-// and _lib/task-pr-handoff.md never write a reviewer's name.
+// mention fixprguard rejects, and fixpr.md, runpr.md, mkreq.md, and
+// _lib/task-pr-handoff.md never write a reviewer's name.
 func TestContextAndCommandsAgree(t *testing.T) {
 	got := checkContextReviewers(doctestutil.ReadDoc(t, contextPath))
 	if len(got.problems) > 0 {
