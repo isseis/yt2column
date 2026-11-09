@@ -221,7 +221,7 @@ Run this after the calling command's last commit, with a clean working tree.
      Describe a Codex CLI finding only by its location and your own summary,
      as the record line does, never with Codex's text;
    - names the commits of this PR that neither CLI reviewed, if any. When this
-     session reviewed the whole branch (step 1, or `runplan.md` step 5a), give
+     session reviewed the whole branch (step 1 or `runplan.md` step 5a), give
      only the unreviewed ranges in that review's SUMMARY: a range that review
      covered counts as reviewed even when a commit message has a `not run`
      line. Otherwise give the ranges of the `not run` lines in

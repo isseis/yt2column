@@ -820,12 +820,13 @@ Once `mergepr.md` reports the merge:
   `gh api repos/{owner}/{repo}/issues/<issue>/sub_issues --paginate`); any
   other PR closes no issue. Every task PR is linked to its issue through its
   branch (`_lib/task-pr-handoff.md` Part A step 4), but the repository's
-  "Auto-close issues with merged linked pull requests" setting is off so that the earlier task PRs leave the
-  issue open; whether the squash commit's `Closes` line closes it is not
-  relied on. `<issue>` below stands for each issue to close in turn: the open
-  link sub-issues first, then the `対応 issue`. Check
-  `gh issue view <issue> --json state`, and when it is `OPEN`, close it. For each, write a Japanese comment naming the merged PR to a
-  file. Then run the mention check on the file:
+  "Auto-close issues with merged linked pull requests" setting is off so that
+  the earlier task PRs leave the issue open; whether the squash commit's
+  `Closes` line closes it is not relied on. `<issue>` below stands for each
+  issue to close in turn: the open link sub-issues first, then the
+  `対応 issue`. Check `gh issue view <issue> --json state`, and when it is
+  `OPEN`, close it. For each, write a Japanese comment naming the merged PR
+  to a file (`<comment-file>`). Then run the mention check on the file:
   **Mention check.** Before posting, run `grep -qiF -- '<review-mention>' <file>`
   on each file of text to post. Post only when it exits `1` for every file: exit
   code `0` means the text contains the mention, and any other code means the
