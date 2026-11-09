@@ -82,26 +82,26 @@ git grep -n -i -E 'lightweight|runissue|軽量' HEAD -- docs/tasks/0000_template
 
 **変更するファイル:** 設計書 3.6 の表と、その下の箇条に挙げたファイル。本計画（§7 の記録。削除のコミットとは別のコミット）
 
--   [ ] **ステップ 2-0**: フェーズ 1 の `/runplan` の手順 7.7 が返した記録の行を、中身のないコミット（`git commit --allow-empty -F <file>`）のメッセージに書く。`Codex local review:` の行があれば、書く前に mention check を行う（`.claude/commands/runplan.md:226`）。これにより、削除のコミットのメッセージには、削除の説明と比較の出力だけを書けばよくなる。
--   [ ] **ステップ 2-1（削除のコミット）**: 設計書 3.6 の削除を、1 つのコミットで行う。行や項目は、読んで確かめた文面のとおりに 1 つずつ消す（`.claude/commands/runplan.md` step 5）。
-    -   [ ] `cmd/yt2column/lightweight_docs_test.go` を削除する。
-    -   [ ] `internal/doctestutil/lightweight.go` を削除する。
-    -   [ ] `.claude/commands/runissue.md` を削除する。
-    -   [ ] `.claude/commands/_lib/lightweight-spec.md` を削除する。
-    -   [ ] `.claude/commands/_lib/lightweight-check.sh` を削除する。
-    -   [ ] `.github/ISSUE_TEMPLATE/lightweight.md` を削除する。
-    -   [ ] `codex_review_docs_test.go` の `postingSections` から「runissue.md revert」の行を消す。
-    -   [ ] `codex_review_docs_test.go` の `postingSections` から「mkreq.md lightweight triage」の行を消す。
-    -   [ ] `codex_review_docs_test.go` の `readOnlyInvocations` から `runissueLinkedPRsQuery` を消す。
-    -   [ ] `codex_review_docs_test.go` の `readOnlyInvocations` から `runpr.md` の step 2 の GraphQL の読み取り（`-F n=<number>` の項目）を消す。
-    -   [ ] `fixpr_docs_test.go` の定数 `runissuePath` を消す。
-    -   [ ] `fixpr_docs_test.go` の `TestContextAndCommandsAgree` の表から `runissue.md` の行を消す。
-    -   [ ] `.claude/commands/mkreq.md` の step 1 の「Lightweight triage」の項目（`:70-191`）を消す。
-    -   [ ] `.claude/commands/runpr.md` の分類「Lightweight PR」の項目（`:298-338`）を消す。
+-   [-] **ステップ 2-0**: フェーズ 1 の `/runplan` の手順 7.7 が返した記録の行を、中身のないコミット（`git commit --allow-empty -F <file>`）のメッセージに書く。`Codex local review:` の行があれば、書く前に mention check を行う（`.claude/commands/runplan.md:226`）。これにより、削除のコミットのメッセージには、削除の説明と比較の出力だけを書けばよくなる。スキップした：フェーズ 1 の手順 7.7 は CodeRabbit CLI のレビューが指摘 0 件で、記録の行がなかったので、空のコミットは作らなかった。
+-   [x] **ステップ 2-1（削除のコミット）**: 設計書 3.6 の削除を、1 つのコミットで行う。行や項目は、読んで確かめた文面のとおりに 1 つずつ消す（`.claude/commands/runplan.md` step 5）。
+    -   [x] `cmd/yt2column/lightweight_docs_test.go` を削除する。
+    -   [x] `internal/doctestutil/lightweight.go` を削除する。
+    -   [x] `.claude/commands/runissue.md` を削除する。
+    -   [x] `.claude/commands/_lib/lightweight-spec.md` を削除する。
+    -   [x] `.claude/commands/_lib/lightweight-check.sh` を削除する。
+    -   [x] `.github/ISSUE_TEMPLATE/lightweight.md` を削除する。
+    -   [x] `codex_review_docs_test.go` の `postingSections` から「runissue.md revert」の行を消す。
+    -   [x] `codex_review_docs_test.go` の `postingSections` から「mkreq.md lightweight triage」の行を消す。
+    -   [x] `codex_review_docs_test.go` の `readOnlyInvocations` から `runissueLinkedPRsQuery` を消す。
+    -   [x] `codex_review_docs_test.go` の `readOnlyInvocations` から `runpr.md` の step 2 の GraphQL の読み取り（`-F n=<number>` の項目）を消す。
+    -   [x] `fixpr_docs_test.go` の定数 `runissuePath` を消す。
+    -   [x] `fixpr_docs_test.go` の `TestContextAndCommandsAgree` の表から `runissue.md` の行を消す。
+    -   [x] `.claude/commands/mkreq.md` の step 1 の「Lightweight triage」の項目（`:70-191`）を消す。
+    -   [x] `.claude/commands/runpr.md` の分類「Lightweight PR」の項目（`:298-338`）を消す。
 
     `make fmt` が `fixpr_docs_test.go` の定数の桁をそろえ直す変更は、このコミットに含めてよい（設計書 3.6）。ほかの変更（コメントの言い直し、本計画の進み具合）は含めない。`make test` と `make lint` が通ることを確かめてからコミットする。
--   [ ] **ステップ 2-2**: 削除のコミットを HEAD にしたまま、`make coverage-compare BASE=<削除のコミットの親>` を、コマンドの時間の上限を 10 分以上にするか、バックグラウンドで実行する。最後の行が `coverage-compare: PASS` であることを確かめる。`FAIL` か `STOP <kind>` のときは、先へ進まずに止まり、出力を示して利用者に尋ねる（設計書 7.2）。`PASS` のときは、出力を最後の行まで、削除のコミットのメッセージに足す。amend はメッセージだけを変え、tree の ID が変わらないことを amend の前後の `git rev-parse HEAD^{tree}` で確かめる。
--   [ ] **ステップ 2-3**: 比較の出力、amend の後の削除のコミットの ID、その tree の ID を本計画 §7 の AC-13 の行に書き、本計画の進み具合とともにコミットする（削除のコミットとは別のコミット）。
+-   [x] **ステップ 2-2**: 削除のコミットを HEAD にしたまま、`make coverage-compare BASE=<削除のコミットの親>` を、コマンドの時間の上限を 10 分以上にするか、バックグラウンドで実行する。最後の行が `coverage-compare: PASS` であることを確かめる。`FAIL` か `STOP <kind>` のときは、先へ進まずに止まり、出力を示して利用者に尋ねる（設計書 7.2）。`PASS` のときは、出力を最後の行まで、削除のコミットのメッセージに足す。amend はメッセージだけを変え、tree の ID が変わらないことを amend の前後の `git rev-parse HEAD^{tree}` で確かめる。
+-   [x] **ステップ 2-3**: 比較の出力、amend の後の削除のコミットの ID、その tree の ID を本計画 §7 の AC-13 の行に書き、本計画の進み具合とともにコミットする（削除のコミットとは別のコミット）。
 
 **削除のコミットが誤っていたとき。** フェーズ 2 のレビュー（`/runplan` の手順 7〜7.7）が、削除のコミットの中身の誤り（消し漏れ以外の誤り。削除でない変更や消しすぎ）を見つけたときは、まだ push していないブランチを削除のコミットの親まで戻し（`git reset --hard <親>`。戻す前に、捨てるコミットの ID を控える）、ステップ 2-1〜2-3 をやり直す。
 
@@ -282,7 +282,7 @@ AC-01〜AC-03 は、文書に語がないことを `static`（確認のスクリ
 | AC-10 | （マージの後） | 同上 | 本計画 §10 |
 | AC-11 | static | `_checks` の AC-11 の項目（`Makefile` と `.github/workflows/` が本タスクの `_checks/` を参照しない）。`go list ./...` の対象の外であることは、ディレクトリ名による | 4-1・4-3 |
 | AC-12 | manual | 実装の PR の差分が、テストを足していないことを、PR のレビューで読む（設計書 7.4） | 全ステップ |
-| AC-13 | test | `make coverage-compare BASE=<削除のコミットの親>` の出力（最後の行が `coverage-compare: PASS`）。削除のコミットのメッセージ、PR の説明、この行に記録する。記録：（未記録） | 2-2・2-3 |
+| AC-13 | test | `make coverage-compare BASE=<削除のコミットの親>` の出力（最後の行が `coverage-compare: PASS`）。削除のコミットのメッセージ、PR の説明、この行に記録する。記録（2026-11-09）：削除のコミット `d661acdfbf946b8183141b1236e348797d2860e7`（amend の前は `d8b2bc557732bdd43534f2251c1a900aea92ea4c`。tree `23a69b547facdf9bf2450a98c067f765723078b6` は amend の前後で同じ）、親 `c9565dc5314d4d5d8a37a2ca290ee417159113f8`。出力：`target make coverage-compare BASE="c9565dc5314d4d5d8a37a2ca290ee417159113f8"` / `base c9565dc5314d4d5d8a37a2ca290ee417159113f8` / `head d8b2bc557732bdd43534f2251c1a900aea92ea4c tree 23a69b547facdf9bf2450a98c067f765723078b6` / `toolchain go1.27.1` / `tests base 1294 head 1286` / `files base 139 head 139` / `functions base 1312 head 1312` / `deleted 0` / `no compared function lost coverage` / `coverage-compare: PASS` | 2-2・2-3 |
 
 ## 8. 成功の基準 (Success Criteria)
 
