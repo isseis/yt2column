@@ -1,5 +1,5 @@
 ---
-description: "Create 01_requirements.md for a task from a GitHub issue and open its PR for review, or, for a simple change, post its approved lightweight spec on the issue"
+description: "Create 01_requirements.md for a task from a GitHub issue and open its PR for review"
 argument-hint: "<issue> [task]"
 ---
 
@@ -7,9 +7,7 @@ argument-hint: "<issue> [task]"
 > canonical for every project-specific path, document name, status value, branch
 > name, and reviewer this command names. The review step follows
 > `.claude/commands/_lib/review-subagent-pattern.md`; the branch setup and the PR
-> handoff follow `.claude/commands/_lib/task-pr-handoff.md`. The lightweight
-> triage of step 1 follows `docs/dev/conventions/requirements_process.md`,
-> "Lightweight Process", and `.claude/commands/_lib/lightweight-spec.md`.
+> handoff follow `.claude/commands/_lib/task-pr-handoff.md`.
 
 Your goal is to turn one GitHub issue into the first version of a task's
 `01_requirements.md`, review it, open its PR, and hand the PR to the human
@@ -18,13 +16,6 @@ one. This command does not wait for the merge. The reviewer reviews the PR and
 then runs `/runpr <PR>` by hand, which drives the review threads and the
 merge.
 
-A simple change may take the lightweight process instead: when the issue meets
-its conditions and the user approves the spec comment shown in full (step 1,
-"Lightweight triage"), this command writes no requirements document and creates
-no branch. It posts the spec comment on the issue, adds the label, and stops;
-the user then runs `/runissue <N>`, which implements the spec and opens the one
-PR.
-
 **Input.** `$ARGUMENTS` is `<issue> [task]`:
 
 - `<issue>` (required) — an issue number (`330`, `#330`) or its URL. If it is
@@ -32,28 +23,17 @@ PR.
 - `[task]` (optional) — an existing task directory to write into (`0030` or
   `0030_<name>`). Without it, a new task directory is created.
 
-**Placeholders.** `<lightweight-label>` is the value of `_context.md`'s
-"Lightweight label" row, and `<review-mention>` the first word of its "PR
-review request" row. `<spec-file>` is a file in the scratchpad that holds the
-spec comment's text. Write none of these values into this command's own text;
-read them from `_context.md` when you run it.
-
 **Authorization.** Invoking this command approves, for this issue and this PR
 only, `gh issue view` (also for the issues the issue references),
 `gh repo view`, `gh pr list` for the duplicate search, and the
-network operations `_lib/task-pr-handoff.md` names ("Authorization"). For the
-lightweight triage of step 1, it also approves, for this issue only,
-`gh api user`, `gh api` for the comment listing of
-`_lib/lightweight-spec.md`, `gh label list`, and, after the user approved the
-spec, `gh issue comment` to post the spec comment and
-`gh issue edit --add-label` to add `<lightweight-label>`. Nothing else that
-touches the network runs without asking.
+network operations `_lib/task-pr-handoff.md` names ("Authorization"). Nothing
+else that touches the network runs without asking.
 
 Work in the following order.
 
 1. Check the starting state.
    - Read the issue:
-     `gh issue view <issue> --json number,title,body,state,url,comments,labels`.
+     `gh issue view <issue> --json number,title,body,state,url,comments`.
      If it is closed, stop and report. If its `url` is not under this
      repository's (`gh repo view --json url`), another repository's issue URL
      was given: stop and report rather than using its number. From here on,
@@ -174,8 +154,4 @@ Work in the following order.
 
 9. Report: the PR URL, the task directory, the decisions made in step 5, the
    review results, and the next action for the reviewer (review the PR, then run
-   `/runpr <PR>`). When the lightweight triage posted the spec comment, report
-   instead the type, the spec comment's URL, that `<lightweight-label>` was
-   added, and the next command for the user, `/runissue <N>`. When triage
-   item 1 found a reverted issue that still has `<lightweight-label>`, add
-   that the label should be removed by hand.
+   `/runpr <PR>`).
