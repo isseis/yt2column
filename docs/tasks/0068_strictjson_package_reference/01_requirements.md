@@ -6,7 +6,7 @@
 |---|---|
 | Status | `approved` |
 | Created | 2026-11-08 |
-| Review date | 2026-11-08 |
+| Review date | 2026-11-09 |
 | Reviewer | isseis |
 | Comments | - |
 
@@ -41,7 +41,7 @@
 
 -   **ほかの文書の一覧は、要約とリンクに置き換える（F-002）。** `CLAUDE.md` と `project_overview.md` の使い手の一覧は、どちらも古い。足りない分を足すと、同じ一覧が 3 か所に残り、使い手が増えるたびに 3 か所を直すことになる。一覧を消し、複数のパッケージが共有することと、一覧が `package_reference.md` にあることだけを書く。これは、0065 の設計書の「正本の一覧を書き写さず、要約してリンクする」という扱いと同じである。ADR の判断：ADR は作らない。この決定は、後のタスクにも「使い手の一覧は `package_reference.md` だけを直す」という形で及ぶ。しかし、正本の一覧を書き写さないという 0065 の設計書の既存の扱いを当てはめただけで、新しい決定ではない（CLAUDE.md「Design decisions (ADR)」）。
 -   **一覧とコードのずれを `make test` で見つける（F-003）。** 一覧には、4 つのパッケージが足されないまま残っていた。文書の値をコードと比べるテストは、CLAUDE.md「Testing Strategy」の「Document tests check values, structure, and executable examples, never prose」が許す種類である。同じ節は、誤りが起きにくい確認、害が小さい確認、維持の費用が防ぐ誤りを上回る確認を足さないとする。このテストはどれにも当たらないと判断した。誤りは実際に 4 回起き、気づかれずに残った。F-002 の後は、`package_reference.md` が使い手の一覧を持つ唯一の文書になる（ただし、ADR-0001 の一覧は、タスク 0065 で移されるまで残る）。A2 の ADR も、ここを一覧の置き場所とする。そのため、一覧が古くなっても照合できる別の記述がなく、読み手は誤った一覧をそのまま信じる。維持の費用は、使い手を足すときに一覧に 1 つ足すだけである。ADR の判断：ADR は作らない。ADR-0016 の方針の中でテストを 1 つ足すもので、方針を変えないためである。
--   **A2 の ADR の古くなる文は、タスク 0065 が直す（2.3）。** A2 の ADR は、2026-11-08 の時点で `origin/main` になく、ブランチ `isseis/0065-adr-remaining-05` にだけある。その「決定」は、一覧に 4 つがないことを #713 で扱うと書く（同ブランチの `docs/dev/adr/0020-strict-json.md` の「この部品を使うパッケージの一覧は」で始まる項目）。本タスクが一覧を直すと、この文は古くなる。ADR の規約は、ADR の決定を作るか変える PR 以外は、ADR を追加も変更もしないと定める（`docs/dev/conventions/adr.md`「Approval and the PR」）。本タスクは A2 の ADR の決定を変えないので、本タスクの PR は A2 の ADR に触れず、タスク 0065 の側が、A2 の ADR を書くか `origin/main` に入れるときに、一覧が直っていればずれの文を削除する。A2 の ADR が先に `origin/main` に入った場合は、本タスクの一覧の修正が `origin/main` に入った後に、0065 の後続の PR が削除する（2026-11-08 に決めた）。規約に例外を作らずに済むためである。ADR の判断：ADR は作らず、変えない。
+-   **A2 の ADR（ADR-0020）の古くなる文は、本タスクの実装 PR が削除する（F-004）。** ADR-0020 は #716 で `origin/main` に入った。その「決定」の「この部品を使うパッケージの一覧は」で始まる項目は、一覧に 4 つがないことを #713 で扱うと書く（`docs/dev/adr/0020-strict-json.md:23`）。本タスクが一覧を直すと、この文は古くなる。ADR はコードに合わせるので、一覧を直す PR で、その項目を最初の文（一覧は `package_reference.md` が持つ）だけにする。この削除は決定を変えない編集上の修正で、経緯の項目を足さない。あわせて、一覧とコードのずれを `make test` が見つけることを「結果」に 1 文足し、本タスクの経緯の項目を足す。照合のテストは ADR-0020 の決定から生じる新しい帰結なので、ADR を変える PR として `docs/dev/conventions/adr.md`「Approval and the PR」に収まる。タスク 0065 の最後の PR（#727）は、ADR-0020 の「決定」が #713 にリンクすることを、マージまで一度きりの確認で求める。そのため、ADR-0020 の変更は #727 のマージより前に `main` に入れない（5 章）。当初は、本タスクの PR は ADR-0020 に触れず、0065 の後続の PR が削除すると決めていた。しかし、タスク 0065 の側から、一覧を直す PR で削除するよう依頼があった（2026-11-09 に改めた）。ADR の判断：ADR は新しく作らず、ADR-0020 を上のとおり変える。
 
 ## 2. 目的とスコープ (Goals and Scope)
 
@@ -56,11 +56,11 @@
 -   `docs/dev/conventions/package_reference.md` の `internal/strictjson` の行の使い手の一覧（F-001）
 -   `CLAUDE.md` の「Architecture Overview」の `internal/strictjson` の項目と、`docs/dev/project_overview.md` のディレクトリの構成の `internal/strictjson/` の行（F-002）
 -   使い手の一覧とコードを比べる Go のテスト（F-003）
+-   `docs/dev/adr/0020-strict-json.md` の「決定」の #713 の文と、「結果」と「経緯」への追記（F-004）
 
 ### 2.3. スコープ外 (Out of Scope)
 
 -   **ADR-0001 の使い手の一覧（`docs/dev/adr/0001-llm-adapter-stdlib.md:28`）。** 今の一覧はコードと合っている。タスク 0065 の PR ② が、この一覧を ADR-0001 から移し、移し先では一覧を写さない（1 章の背景）。本タスクで直すと、0065 の作業と重なり、ADR の決定を変えない PR が ADR を変えることになる（`docs/dev/conventions/adr.md`「Approval and the PR」）。0065 の PR ② が入るまでに使い手が増減すると、ADR-0001 の一覧は古くなり、F-003 のテストはそれを見つけない。
--   **A2 の ADR のずれの記述。** 1 章の「要件定義の際に決めたこと」のとおり、タスク 0065 が直す。本タスクの実装 PR の説明には、一覧を直したので A2 の ADR のずれの文が不要になり、0065 の側が削除することを書く。
 -   **タスクの文書（`docs/tasks/` の下）に書かれた使い手。** タスクの文書は、その時点の記録であり、今の仕様を述べる文書ではない。
 -   **`package_reference.md` の `internal/strictjson` の行の、使い手の一覧のほかの記述（部品の契約の説明）。** issue が扱うのは使い手の一覧だけである。
 -   **`internal/strictjson` のほかの部品の一覧（たとえば `CLAUDE.md` のほかの項目や、`package_reference.md` のほかの行の依存の記述）。** issue が扱うのは `internal/strictjson` の使い手だけである。
@@ -104,6 +104,15 @@
 
 一覧の文の形に合わない書き方（コードスパンでない名前など）の扱いは、一覧の形と合わせて設計で決める（design_handoff.md H-01）。
 
+#### F-004: ADR-0020 をコードに合わせる
+
+ADR-0020 の「決定」から、一覧が直ったことで古くなる文を消し、照合のテストの帰結を「結果」に記録する。
+
+**Acceptance Criteria**:
+- **AC-13**: 実装 PR の head で、ADR-0020 の「決定」の「この部品を使うパッケージの一覧は」で始まる項目は、その最初の文（太字の文）だけからなる。「決定」のほかの項目は、マージの基点と実装 PR の head で変わらない。
+- **AC-14**: 実装 PR の head で、ADR-0020 の「結果」は、一覧とコードの使い手が食い違うと `make test` が失敗することを述べる 1 文を持つ。「経緯」の末尾には、本タスクの文書へのリンクを持つ項目が 1 つ足される（`docs/dev/conventions/adr.md`「History entries」）。ADR-0020 のほかの記述は変わらない。
+- **AC-15**: 実装 PR の説明と、ADR-0020 を変えるコミットのメッセージは、AC-13 の削除を、決定を変えない修正として記録する（`docs/dev/conventions/requirements_process.md`「Recording in the PR description」）。
+
 ## 4. 非機能要件 (Non-Functional Requirements)
 
 ### 4.1. 性能 (Performance)
@@ -133,6 +142,7 @@
 -   テストを足す変更は、CLAUDE.md「Testing Strategy」の「Every test must be able to fail for its stated reason」に従い、テストが対象とする誤りをコードや文書に入れ、テストが失敗することを確かめ、そのことをコミットメッセージに書く。
 -   `doc-guard` の CI ジョブの対象のパッケージを変えるときは、同じ PR で CLAUDE.md「Development Notes」、`.github/workflows/ci.yml`、ADR-0016 をそろえる（ADR-0016「決定」の 3 つ目の項目）。
 -   `CLAUDE.md` と `project_overview.md` の書き換えは、それぞれの文書の言語に従う（`CLAUDE.md` は英語、`project_overview.md` は日本語。CLAUDE.md「Document language」）。
+-   ADR-0020 を変える PR は、タスク 0065 の PR #727 がマージされるまでマージしない。#727 の一度きりの確認が、ADR-0020 の「決定」が #713 にリンクすることを求めるためである。マージの前に `gh pr view 727 --json state` で確かめ、#727 が先にマージされない見込みのときは、ADR-0020 の変更を PR から外してレビュアーに確かめる（F-004）。
 
 ## 6. 用語集 (Glossary)
 
@@ -145,3 +155,5 @@
 ## 変更履歴
 
 - 2026-11-08 承認（isseis、#717）
+- 2026-11-09 draft への戻し：ADR-0020 の #713 の文の削除と「結果」の追記を本タスクで行う（#721）
+- 2026-11-09 承認（isseis、#721）
