@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-09 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-09 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を、H-NN は [design_handoff.md](design_handoff.md) の項番を指す。節番号は [02_architecture.md](02_architecture.md)（以下、設計書）の節を指し、本計画自身の節は「本計画 §N」と書く。用語は、要件書 3 章の冒頭と 6 章の用語と、設計書の冒頭の用語（実装の PR・訂正の一覧の確かめ・タスク文書の項目・ADR の項目・ADR の候補の一覧・候補のスクリプト・差分の確認）を、同じ意味で使う。本計画の「確認のプログラム」は、設計書 7.2 の差分の確認のスクリプトに当たる（本計画 §1.3）。比べる 2 つのコミットのうち、変更前のもの（マージベース）を「基点」、変更後のもの（PR のブランチの最新のコミット）を「先頭」と呼ぶ。
@@ -346,3 +346,7 @@ PR は 1 本である（設計書 1.2）。規約が PR を作った後の訂正
 -   PR-1 のマージの後、`/runpr` の案内に従って、タスクの issue（#732）を閉じる。
 -   ADR の訂正の行を squash コミットの本文に引き継ぐかは、#747 で扱う（設計書 9 章）。
 -   タスク 0075 の設計で、CLAUDE.md「Development Notes」の bash と git の項目を、`TestADRCorrectionCandidates` を挙げ、`cmp` も求める形に改める（本計画 §5.1）。
+
+## 変更履歴
+
+- 2026-11-09 承認（isseis、#761）
