@@ -23,7 +23,7 @@
 ## 決定
 
 -   確かめ直しは、リポジトリのファイル `.claude/commands/_lib/lightweight-check.sh` の bash スクリプト（bash 3.2 で動く書き方）で行い、Go のツールは作らない。`/runissue` は、`git show origin/main:` で書き出した版を `bash` で実行し、作業ツリーの版は実行しない。入力・出力・判定の取り決めは [0061 設計書](../../tasks/0061_lightweight_process/02_architecture.md) の 3.5.6 にある。
--   bash の落とし穴への守りはスクリプトの本体にあり、その取り決めは冒頭のコメントに書いてある（[lightweight-check.sh](../../../.claude/commands/_lib/lightweight-check.sh)）。要旨は次のとおりである。
+-   bash の落とし穴への守りはスクリプトの本体にあり、その取り決めは冒頭のコメントに書いてある（[lightweight-check.sh](https://github.com/isseis/yt2column/blob/dcc4edf34c99d8aecd47c81710420fb54b0a1b29/.claude/commands/_lib/lightweight-check.sh)）。要旨は次のとおりである。
     -   `PATH`・`HOME`・`TMPDIR` だけを残した `env -i` で自分を起動し直し、呼び出し元の環境を持ち込まない。
     -   `eval` を使わない。外部から受け取った値を、算術展開に入れる前に数字だけだと確かめる。
     -   道具のコマンドは shell を通さず、語の配列として実行する。git の出力は `-z` で読む。
@@ -40,7 +40,7 @@
 4.  確かめ直しが、構造を持つ新しい種類の入力（JSON など）や、条件の表（軽量プロセスの条件を並べた表）の新しい種類の行を読む必要が出る。
 5.  `origin/main` の版の Go のツールを、インストールの手順なしに、今と同じ程度の時間で動かせる方法が見つかる。
 
-1 と 2 は、`make test` の `TestLightweightCheckRevisitConditions`（[lightweight_docs_test.go](../../../cmd/yt2column/lightweight_docs_test.go)）が、変更のたびに確かめる。行数の上限の値は、このテストの定数が持つ。3〜5 は数えられないので、テストにはしない。
+1 と 2 は、`make test` の `TestLightweightCheckRevisitConditions`（[lightweight_docs_test.go](https://github.com/isseis/yt2column/blob/dcc4edf34c99d8aecd47c81710420fb54b0a1b29/cmd/yt2column/lightweight_docs_test.go)）が、変更のたびに確かめる。行数の上限の値は、このテストの定数が持つ。3〜5 は数えられないので、テストにはしない。
 
 決め直した結果、bash スクリプトのままにするときは、その理由をこの ADR の経緯に書く。1 に当たって bash スクリプトのままにするときは、同じ PR でテストの上限を上げる。Go に移すときは、条件の表と出力の形（0061 設計書 3.5.6）を保てば、`runissue.md` の手順は変わらない。
 
