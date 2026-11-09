@@ -43,7 +43,7 @@ PR のタイトルは、GitHub に置くもののうち唯一、英語の conven
 ## 結果
 
 -   新しい文書の言語は、その文書の読み手と承認者から決まる。新しい種類の文書が原則の当てはめに挙がっていないときは、原則から言語を選ぶ。
--   `README.md` を変えるコミットは、同じコミットで `README.en.md` を同期する。pre-commit のフックと `make test` は、そうでないコミットを断る。pre-commit のフックは飛ばせるので、確実な関門は CI である（[0048 設計書](../../tasks/0048_doc_language_policy/02_architecture.md) §2.4）。
+-   `README.md` を変えるコミットは、同じコミットで `README.en.md` を同期する。pre-commit のフックと `make test` は、印が `README.md` を指していないコミットを断る。pre-commit のフックは飛ばせるので、印の検査の確実な関門は CI である（[0048 設計書](../../tasks/0048_doc_language_policy/02_architecture.md) §2.4）。
 -   `TestReadmeSyncMarker` が確かめるのは、印と `README.md` の対応だけである。`README.en.md` の本文が翻訳されているかは確かめない。印だけを書き換えた変更は、2 つの版の構造の一致のテストと PR のレビューで見つける（[0048 設計書](../../tasks/0048_doc_language_policy/02_architecture.md) §2.4）。
 -   作業ツリーのバイトがブロブのバイトと同じになるように、両方の README の改行を `.gitattributes` で LF に固定する。印の ID は SHA-1 の 40 文字だけを受け入れる。リポジトリのオブジェクトの形式が変わったら、テストを改める（[0048 実装計画書](../../tasks/0048_doc_language_policy/03_implementation_plan.md)「1.3. 計画の際に決めたこと（2026-10-28）」）。
 -   開発者向けの文書（`docs/dev/guides/cli.md` など）は日本語だけなので、CLI の英語のヘルプが日本語の文書を指す。CLI は補助の経路であり、読み手は日本語の話者の開発者である（[0048 要件定義書](../../tasks/0048_doc_language_policy/01_requirements.md)「要件定義の際に決めたこと（2026-10-28）」）。
