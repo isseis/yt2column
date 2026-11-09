@@ -323,7 +323,7 @@
 
 - [x] `README.md` の「設定」の節の廃止した変数の段落（`:431-433`）、「廃止した LLM の変数からの移行」の節（`:467` から）、それを指すトラブルシューティングの項目（`:352`）を消す。`/mktrans README.md` で `README.en.md` に同期する。
 - [x] `cli.md:69-71`・`255`・`257`、`project_overview.md:161` の「次に述べる旧変数の検査だけは例外で」の部分と `:163`、`translation_glossary.md:159`・`186` の行を消す。
-- [ ] `docs/tasks/0066_server_config_file/_checks/` に、merge-base と HEAD の文書を比べて、上の節・段落・用語集の行が HEAD で消え、ほかの見出しが同じ順で残っていることを確かめるスクリプトを置く（`diff` の検証。`requirements_process.md` §4）。PR-4 のブランチで 1 回実行し、出力と 2 つのコミットの ID を 7 章の AC-30・AC-33 の行に書く。
+- [x] `docs/tasks/0066_server_config_file/_checks/` に、merge-base と HEAD の文書を比べて、上の節・段落・用語集の行が HEAD で消え、ほかの見出しが同じ順で残っていることを確かめるスクリプトを置く（`diff` の検証。`requirements_process.md` §4）。PR-4 のブランチで 1 回実行し、出力と 2 つのコミットの ID を 7 章の AC-30・AC-33 の行に書く。
 
 #### ステップ 7-2: README とほかの文書の書き換え
 
@@ -356,7 +356,7 @@
 
 **判定理由**: ガードテストの書き換えはあるが、競合する実装の案も高リスクの手順もない
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [ ] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
@@ -426,7 +426,7 @@ PR の分け方の理由は 1.3 の 4 つ目の決定にある。
 - [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3）
 - [x] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 4-1 / 4-2 / 4-3 / 5-1 / 5-2）
 - [ ] PR-4 マージ済み（対象ステップ: 6-1 / 7-1 / 7-2 / 7-3）
-- [ ] すべての受け入れ基準の検証（7 章）が通った
+- [x] すべての受け入れ基準の検証（7 章）が通った
 
 ## 7. 受け入れ基準の検証
 
@@ -460,9 +460,9 @@ PR の分け方の理由は 1.3 の 4 つ目の決定にある。
 | AC-25 | `internal/privatefile/privatefile_test.go::TestCreateFailureLeavesNothing`、`internal/config/serverfile_test.go::TestInitServerFile`（作った親が残る）、`cmd/yt2column-server/run_test.go::TestConfigInit`（作れない場合） | test | 1-3、5-1 | 1-4、2-3、5-2 |
 | AC-26 | `internal/config/serverfile_test.go::TestServerFileTemplate`、`cmd/yt2column-server/run_test.go::TestConfigInitThenStart` | test | 2-3、5-1 | 2-3、5-2 |
 | AC-27・AC-28・AC-29 | `cmd/yt2column-server/run_test.go::TestRunArgs` | test | 5-1 | 5-2 |
-| AC-30・AC-31 | `cmd/yt2column-server/docs_test.go::TestServerDocsContract`（パス・終了コード・キー・上限）、`cmd/yt2column/docs_test.go::TestProductionProfileDocsContract`（推奨構成のブロック）、`cmd/yt2column/docs_test.go::TestReadmeLinks`、`docs/tasks/0066_server_config_file/_checks/` の削除の確かめ（実行の結果と 2 つのコミットの ID は PR-4 で記入）、文の内容は PR のレビューで読む | static・diff・manual | 7-1、7-2 | 7-1、7-2、7-3 |
+| AC-30・AC-31 | `cmd/yt2column-server/docs_test.go::TestServerDocsContract`（パス・終了コード・キー・上限）、`cmd/yt2column/docs_test.go::TestProductionProfileDocsContract`（推奨構成のブロック）、`cmd/yt2column/docs_test.go::TestReadmeLinks`、`docs/tasks/0066_server_config_file/_checks/retired_docs_removed.sh` の削除の確かめ（`retired_docs_removed.sh origin/main HEAD` を merge-base `66cc61bb465445806124f38dd7a16181c54760fe` と HEAD `9d9813f32379915d0930aec8d4413130ad5bec09` で実行し、終了コード `0`。4 つの文書に廃止した変数の名前がなく、ほかの見出しが同じ順で残り、用語集の 2 つの行が消えた）、文の内容は PR のレビューで読む | static・diff・manual | 7-1、7-2 | 7-1、7-2、7-3 |
 | AC-32 | `cmd/yt2column/readme_sync_test.go::TestReadmeSyncMarker`（`make readme-sync-check`）、`make ext-test` | static | 7-1、7-2 | - |
-| AC-33 | `cmd/yt2column/docs_test.go::TestProductionProfileDocsContract`（`production_profile.md` のブロック）、`cmd/yt2column-server/docs_test.go::TestServerDocsContract`（`security.md` §8.2 のパス）、`internal/pipeline/pipeline_test.go::TestPackageReferenceListsPackages`、`docs/tasks/0066_server_config_file/_checks/` の削除の確かめ、文の内容は PR のレビューで読む | static・diff・manual | 1-1、7-1、7-2 | 7-1、7-2、7-3 |
+| AC-33 | `cmd/yt2column/docs_test.go::TestProductionProfileDocsContract`（`production_profile.md` のブロック）、`cmd/yt2column-server/docs_test.go::TestServerDocsContract`（`security.md` §8.2 のパス）、`internal/pipeline/pipeline_test.go::TestPackageReferenceListsPackages`、`docs/tasks/0066_server_config_file/_checks/retired_docs_removed.sh` の削除の確かめ（結果は AC-30・AC-31 の行）、文の内容は PR のレビューで読む | static・diff・manual | 1-1、7-1、7-2 | 7-1、7-2、7-3 |
 | AC-34 | `cmd/yt2column-server/docs_test.go::TestServerDocsContract` | static | 7-3 | 7-3 |
 | AC-35 | `make ext-check`（`extension/test/secretsAbsent.test.ts` を含む）、案内の文の内容は PR のレビューで読む | static・manual | 6-1 | - |
 
