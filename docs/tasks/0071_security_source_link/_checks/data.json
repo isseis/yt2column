@@ -1,0 +1,21 @@
+{
+  "security": {
+    "path": "docs/dev/security.md",
+    "section": "## 6. 信頼できないテキストの取り扱い",
+    "before": "- 字幕・タイトル・概要欄は",
+    "after": "- LLM の空応答",
+    "prefix": "- "
+  },
+  "adr": {
+    "path": "docs/dev/adr/0034-template-allowlist.md",
+    "dir": "docs/dev/adr/",
+    "section": "## 決定",
+    "item_start": "-   **出典のブロックは、保存・ビューアでの表示・投稿のどれに使う記事にも付く。**",
+    "item_prefix": "- ",
+    "sentences": 3,
+    "sentence_end": "。"
+  },
+  "issue_link": "issues/725",
+  "merge_commit": "af73c4ce4fa1974a64c7331f4799520f7d32cdca",
+  "task_dir": "docs/tasks/0071_security_source_link/"
+}
