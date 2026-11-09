@@ -76,6 +76,10 @@
 |---|---|
 | I-01 `MkdirBelow` が作ったディレクトリのモードを umask によらず `0700` にする | 1.3 の 1 つ目の決定。実装はステップ 1-3、umask `0400`・`0100` を含むテストはステップ 1-4 |
 
+### 1.6. 実装の際に決めたこと（2026-11-09）
+
+-   **macOS の設定ファイルのパスを、ほかの Unix と同じ `$HOME/.config/yt2column/config.env` にする。** 要件定義書の「実装の際に決めたこと（2026-11-09）」のとおりである。PR-2 で入れた規則（ステップ 2-1）を PR-4 で変え、`TestServerFileLocation` の `darwin` の行と、`TestConfigInit` の「基点がない」場合を合わせて直す。README と `security.md` に書くパスは、OS によらず 1 つになる（ステップ 7-2・7-3）。ADR: [ADR-0018](../../dev/adr/0018-server-config-file.md) の決定を更新する。
+
 ## 2. 実装の手順
 
 各ステップの完了条件は、特に書かないかぎり `make fmt`・`make test`・`make lint`・`make deadcode` が通ることである。テスト用のアクセサや補助は、それを最初に使うステップで足す。
@@ -335,7 +339,7 @@
 
 **変えるファイル:** `cmd/yt2column-server/docs_test.go`、`cmd/yt2column/docs_test.go`、`internal/doctestutil/readme.go`、`internal/config/test_helpers.go`
 
-- [ ] `TestServerDocsContract` に、設計 3.5 の表の値の照合を足す: 両 README の設定ファイルのパス（OS ごとの行）、`config init` の終了コードの表（`exitOK`・`exitFailure`・`exitUsage` の 3 つの行）、6 つのキーの名前、大きさの上限（`serverFileMaxSize` から作る文字列）、`security.md` §8.2 の設定ファイルのパス。`internal/config/test_helpers.go` に、設定ファイルのパスの `HOME` より下の部分、`serverFileKeys`、`serverFileMaxSize` を返すアクセサを足す。新しい見出しや表の列の場所は `internal/doctestutil/readme.go` に足す。
+- [ ] `TestServerDocsContract` に、設計 3.5 の表の値の照合を足す: 両 README の設定ファイルのパス（macOS とその他の Unix で同じ 1 つ）、`config init` の終了コードの表（`exitOK`・`exitFailure`・`exitUsage` の 3 つの行）、6 つのキーの名前、大きさの上限（`serverFileMaxSize` から作る文字列）、`security.md` §8.2 の設定ファイルのパス。`internal/config/test_helpers.go` に、設定ファイルのパスの `HOME` より下の部分、`serverFileKeys`、`serverFileMaxSize` を返すアクセサを足す。新しい見出しや表の列の場所は `internal/doctestutil/readme.go` に足す。
 - [ ] 文書を書き換えた後に、`TestLLMDefaultsDocsContract`・`TestEffortValuesDocsContract`・`TestReadmeLinks`・`TestReadmeSyncMarker` と、`make ext-test`（README と `development.md` を読む拡張のテスト）が通ることを確かめる。
 
 **完了条件:** 共通の完了条件、`make readme-sync-check`、`make ext-test`。
@@ -480,3 +484,4 @@ PR の分け方の理由は 1.3 の 4 つ目の決定にある。
 ## 変更履歴
 
 - 2026-11-08 承認（isseis、#711）
+- 2026-11-09 セッション中の再承認：macOS の設定ファイルのパスを、ほかの Unix と同じ `$HOME/.config/yt2column/config.env` に変えた（isseis、#未記入）

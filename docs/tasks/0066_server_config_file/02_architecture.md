@@ -79,6 +79,10 @@ flowchart LR
 
 サーバは、環境変数の 6 つのキーを読まない（図に矢印がない）。`config init` は 6 つのキーをどこからも読まない（AC-22）。
 
+### 1.5. 実装の際に決めたこと（2026-11-09）
+
+-   **macOS の設定ファイルのパスを、ほかの Unix と同じ `$HOME/.config/yt2column/config.env` にする。** 要件定義書の「実装の際に決めたこと（2026-11-09）」のとおりである。規則は OS の分類で規則のある OS とない OS を分けるだけになり、規則のある OS では基点が `$HOME`、作ってよいディレクトリが `.config` と `yt2column` になる（3.2.1）。macOS でも、設定ファイルの親とソケットのディレクトリの親は別になる。ADR: [ADR-0018](../../dev/adr/0018-server-config-file.md) の決定を更新する。
+
 ## 2. システム構成 (System Structure)
 
 ### 2.1. 全体構成
@@ -321,12 +325,11 @@ func MkdirBelow(base string, names []string) error
 
 #### 3.2.1. 設定ファイルのパスの規則（F-001、H-06）
 
-`configpath.go` に OS ごとの規則を置く。規則は、存在しなければならない基点（`HOME` の下の部分）と、`config init` が作ってよいディレクトリの並びと、ファイル名からなる。OS の分類（`darwin`、`linux`、規則のない `windows`・`plan9`・`js`・`wasip1`、その他の Unix）は、`socketRule`（`internal/config/socketpath.go:30-41`）と設定ファイルの規則で 1 つの分類の関数を共有する。OS を足すときに、一方の規則にだけ足されることを防ぐためである。
+`configpath.go` に規則を置く。規則は、存在しなければならない基点（`HOME` の下の部分）と、`config init` が作ってよいディレクトリの並びと、ファイル名からなる。OS の分類（`darwin`、`linux`、規則のない `windows`・`plan9`・`js`・`wasip1`、その他の Unix）は、`socketRule`（`internal/config/socketpath.go:30-41`）と設定ファイルの規則で 1 つの分類の関数を共有する。OS を足すときに、一方の規則にだけ足されることを防ぐためである。
 
 | OS | 基点 | 作ってよいディレクトリ | ファイル名 |
 |---|---|---|---|
-| `darwin` | `$HOME/Library/Application Support` | `yt2column` | `config.env` |
-| `linux` とその他の Unix | `$HOME` | `.config`、`yt2column` | `config.env` |
+| `darwin`・`linux` とその他の Unix | `$HOME` | `.config`、`yt2column` | `config.env` |
 | `windows`・`plan9`・`js`・`wasip1` | 規則なし | - | - |
 
 ```go
@@ -344,7 +347,7 @@ type serverFileLocation struct {
 -   規則は `HOME` だけから導出し、`XDG_CONFIG_HOME` などの変数は読まない（AC-02）。`HOME` は今の `absoluteHome`（`internal/config/cachedir.go:74-80`）で読む。
 -   `HOME` が未設定・空・相対パスのとき、または規則のない OS では、`HOME` を名指しする `*VarError`（`ErrMissing`）を返す。理由は新しい固定の文「no absolute configuration file path could be derived from HOME」で、値は含まない（AC-03）。
 -   アプリケーションのディレクトリ名は、今の `appDirName`（`internal/config/cachedir.go:7`）を共有する。
--   macOS では、設定ファイルの親（`$HOME/Library/Application Support/yt2column`）がソケットのディレクトリの親と同じになる。`serversock.Acquire` は、この親が自分の所有で、グループと他人が書けないことを確かめ、なければ `0700` で作る（`internal/serversock/serversock.go:170-185`・`311-319`）。`config init` が作る親はモード `0700` で実行したユーザーの所有なので、この検査を通る。サーバが先に作っていれば、`config init` は既存の親を変えずに使う。Linux では、設定ファイルの親（`~/.config/yt2column`）とソケットの親（`~/.local/state/yt2column`）は別である。
+-   設定ファイルの親（`~/.config/yt2column`）は、どの OS でもソケットのディレクトリの親（macOS は `~/Library/Application Support/yt2column`、Linux は `~/.local/state/yt2column`）と別である（1.5）。
 
 #### 3.2.2. 書式の解析（F-003、H-04・H-09）
 
@@ -494,7 +497,7 @@ type InitResult struct {
 
 | 値 | コードの出どころ（テスト用のアクセサ） | 照合する文書 | テスト |
 |---|---|---|---|
-| 設定ファイルのパス（macOS・その他の Unix） | `config` の設定ファイルの規則 | `README.md`・`README.en.md` のサーバの節 | `TestServerDocsContract`（確認を追加） |
+| 設定ファイルのパス（macOS とその他の Unix で同じ） | `config` の設定ファイルの規則 | `README.md`・`README.en.md` のサーバの節 | `TestServerDocsContract`（確認を追加） |
 | `config init` の終了コード | `cmd/yt2column-server` の終了コードの定数 | 両 README の `config init` の終了コードの表 | `TestServerDocsContract`（確認を追加） |
 | 6 つのキーの名前 | `serverFileKeys` | 両 README の設定ファイルの節 | `TestServerDocsContract`（確認を追加） |
 | 大きさの上限（64 KiB） | `serverFileMaxSize` | 両 README の設定ファイルの節 | `TestServerDocsContract`（確認を追加） |
@@ -594,7 +597,7 @@ func (e *FormatOverflowError) Unwrap() error // ErrConfigFileFormat
 
 標準エラーの行は、どれも `yt2column-server: ` で始まり、`redact.Line` を通る。値・ファイルの中身・未知のキーの文字列は含まない。設定ファイルのパスは、今の起動の行がソケットのパスを示すのと同じく示す。サーバの設定エラーの行は、今の `run` のとおり `configuration: ` の後にエラーの文を続ける（`run.go:136`）。下の表は、`yt2column-server: ` を除いた部分の形だけを示す。英語の文は実装で決める。
 
-**直し方のコマンドの引用:** `redact.Line` は `strconv.Quote` と同じく `"` と `\` をエスケープする（`internal/redact/redact.go:196-199`）。また macOS のパスは空白を含む（`Application Support`）。そこで、行の中のコマンドのパスは、`'`・`"`・`\`・表示できない文字を含まないときだけ単引用符 `'` で囲む。これらを含むときは、引用符を閉じるための `\` や `"` も `redact.Line` がエスケープするので、写して実行できるコマンドは示せない。その場合はコマンドにパスを入れず、行の先頭に示したパスと `chmod 600` で直す。
+**直し方のコマンドの引用:** `redact.Line` は `strconv.Quote` と同じく `"` と `\` をエスケープする（`internal/redact/redact.go:196-199`）。また `HOME` は空白を含むことがある（`/Users/J Doe` など）。そこで、行の中のコマンドのパスは、`'`・`"`・`\`・表示できない文字を含まないときだけ単引用符 `'` で囲む。これらを含むときは、引用符を閉じるための `\` や `"` も `redact.Line` がエスケープするので、写して実行できるコマンドは示せない。その場合はコマンドにパスを入れず、行の先頭に示したパスと `chmod 600` で直す。
 
 | 分類 | 行の形 |
 |---|---|
@@ -817,7 +820,7 @@ PR の区切りは実装計画で決める。
 | H-03 拒否の型と番兵、メッセージの語 | 分類ごとの番兵と `FileError`（4.1）、`VarError.Source`（3.2.4）。終了コードは失敗した手順で選ぶ（3.3） |
 | H-04 書式の拒否をいくつ報告するか | 最大 20 行まで報告し、超えた分は件数だけ示す。書式の拒否があれば値の検証に進まない（1.3、3.2.2） |
 | H-05 雛形の作り方と文面 | 一時ファイル + `Chmod` + `fsync` + `link`（3.1）。親は `MkdirBelow` で `0700`（3.1）。文面は実装で決め、書式の解析に通すテストで確かめる（3.2.5、7.1） |
-| H-06 ソケットのパスとの規則の共有 | 規則は `socketRule` とは別の関数に置き、OS の分類の関数と `appDirName`・`absoluteHome` を共有する。macOS で `config init` が作る親は `serversock` の親の検査を通る（3.2.1） |
+| H-06 ソケットのパスとの規則の共有 | 規則は `socketRule` とは別の関数に置き、OS の分類の関数と `appDirName`・`absoluteHome` を共有する。設定ファイルの親はソケットのディレクトリの親と別である（1.5、3.2.1） |
 | H-07 廃止した変数の検査の削除 | 削除するコードとテストを 3.2.3 と 3.6 に挙げた。テストの削除は削除だけのコミットと `make coverage-compare` で確かめる（8 章） |
 | H-08 文書のガードテスト | 照合する値・文書・テストを 3.5 の表に挙げた。`development.md` の手順は実行できる例としては確かめない |
 | H-09 標準ライブラリの落とし穴と秘密の名前を書ける場所 | `bufio.Scanner` を使わず `bytes.Split` で分ける（3.2.2）。キーの名前を扱う解析と雛形は `internal/config` に置く（1.2）。行は `stderrWriter`（`redact.Line`）を通す（3.3） |
@@ -867,3 +870,4 @@ PR の区切りは実装計画で決める。
 ## 変更履歴
 
 - 2026-11-06 承認（isseis、#706）
+- 2026-11-09 セッション中の再承認：macOS の設定ファイルのパスを、ほかの Unix と同じ `$HOME/.config/yt2column/config.env` に変えた（isseis、#未記入）

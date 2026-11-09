@@ -15,7 +15,7 @@
 ## 決定
 
 -   **サーバは設定ファイルだけから設定を読み、CLI は今までどおり環境変数だけから読む。** 入口ごとに読む場所を 1 つに決め、どの値が効いているかを曖昧にしない。CLI を環境変数のままにするのは、設定ファイルが解く問題を CLI が持たないからである。CLI は利用者がシェルから実行するので、`.envrc` の値が毎回届く。CLI は開発の経路で、`YT2COLUMN_LLM=… yt2column …` のように実行ごとに値を変えて試す使い方があり、ファイルだけから読むとそれを失う。二系統を保つコストは、両方が同じキーの表と同じ値の検証（[ADR-0003](0003-llm-config-contract.md)）を通ることで小さく保つ。サーバが環境変数から読むのは、パスを導出する `HOME` と、Go のランタイムが出す HTTP/2 のデバッグログについて警告するための `GODEBUG` だけである。環境変数を読む場所の規則は [ADR-0024](0024-env-access-in-config.md) が定める。
--   **パスは `HOME` と OS だけから導出する。** macOS は `$HOME/Library/Application Support/yt2column/config.env`、その他の Unix は `$HOME/.config/yt2column/config.env` で、`XDG_CONFIG_HOME` は読まない。ソケットのパスと同じ考え方である（[ADR-0005](0005-server-architecture.md)）。
+-   **パスは `HOME` だけから導出し、macOS もその他の Unix も `$HOME/.config/yt2column/config.env` にする。** `XDG_CONFIG_HOME` は読まない。`HOME` だけから導出するのは、ソケットのパスと同じ考え方である（[ADR-0005](0005-server-architecture.md)）。macOS でも `~/Library/Application Support` に置かないのは、設定ファイルは利用者が端末から手で編集するもので、macOS の CLI でも `~/.config` が広く使われ、パスが 1 つなら案内が OS によらず同じになり、空白を含まないので案内のコマンドで引用が要らないからである。規則のない OS（Windows など）では、パスを導出せずに止まる。
 -   **書式は Docker の `--env-file` の規則を土台にした `KEY=VALUE` で、それより厳格にする。** `#` で始まる行と空行を読み飛ばし、値は最初の `=` より後ろを変換せずに使う。キーは今の環境変数と同じ名前の 6 つに限る。受理する形に合わないもの（`export `、引用符、行末のコメントに見える形などを含む）は直さずに拒否する。空の値の行（`KEY=`）は書式としては受理し、環境変数の空の値と同じく値の検証で扱う。ファイルはシェルとして実行しない。値の検証は環境変数のときと同じ規則を使う（[ADR-0003](0003-llm-config-contract.md)）。受理する形と拒否するものの一覧は要件定義書の F-003 にある。
 -   **ファイルそのものを検査し、満たさなければ直さずに起動を止める。** 確かめる条件は 3 つで、自分が所有する通常のファイルであること、シンボリックリンクでないこと、モードがちょうど `0600` であることである。これらは、読むファイルそのものについて確かめる。親のディレクトリは検査しない。ファイルがなければ、パスと雛形を作るコマンドを示して止める。
 -   **ACL は検査せず、残余リスクとして受け入れる。** サーバは設定ファイルの ACL（macOS の拡張 ACL と Linux の POSIX ACL）を検査せず、`config init` も作ったファイルの ACL を変えない。README で、モードの検査が ACL を見ないことと、確かめ方と取り除き方を示す。
@@ -43,6 +43,8 @@
 -   **CLI でも、使わないプロバイダの変数の空の値を拒否する。** 環境変数はほかのツールと共有する場所で（`ANTHROPIC_API_KEY` はほかの Anthropic のツールも読む）、読まない値を検査することになる（[0066 要件定義書](../../tasks/0066_server_config_file/01_requirements.md) §1）。
 -   **サーバがファイルと環境変数の両方を読む。** どちらの値が効いているかが曖昧になる（[0066 要件定義書](../../tasks/0066_server_config_file/01_requirements.md) §1）。
 -   **雛形を別のコマンドで作る。** 配布するバイナリが増える（[0066 要件定義書](../../tasks/0066_server_config_file/01_requirements.md) §1）。
+-   **macOS では `$HOME/Library/Application Support/yt2column/config.env` に置く。** 2026-11-06 の決定で、ソケットのディレクトリと親を共有していた。Apple の指針には沿うが、手で編集するファイルのパスに空白が入って案内のコマンドで引用が要り、README の案内と `config init` の作る親が OS ごとに分かれる。ソケットと親を共有することは、設定ファイルにとっての利点ではなかった（[0066 要件定義書](../../tasks/0066_server_config_file/01_requirements.md) の実装の際に決めたこと）。
+-   **ホーム直下のドットファイル（`~/.yt2column.env` など）に置く。** 古くからある形だが、ホームを散らかし、今の CLI の多くは `~/.config` の下に置く（[0066 要件定義書](../../tasks/0066_server_config_file/01_requirements.md) の実装の際に決めたこと）。
 -   **親のディレクトリも検査する。** 読むファイルそのものを検査するので、親の名前を入れ替えられても検査していないファイルは読まない。サーバは設定ファイルの親に何も作らないので、親を検査して守るものがない（[0066 要件定義書](../../tasks/0066_server_config_file/01_requirements.md) §1）。
 
 ## 結果
@@ -58,4 +60,5 @@
 
 - 2026-11-06 サーバは決まった場所の env-file 形式の設定ファイルだけから設定を読み、CLI は環境変数を読み続けることにした（[0066 要件定義書](../../tasks/0066_server_config_file/01_requirements.md)）
 - 2026-11-06 ACL を検査せず、macOS の拡張 ACL が他のユーザーに読む権利を与えるリスクを残余リスクとして受け入れることにした（[0066 要件定義書](../../tasks/0066_server_config_file/01_requirements.md)）
+- 2026-11-09 macOS の設定ファイルのパスを `$HOME/Library/Application Support/yt2column/config.env` から、その他の Unix と同じ `$HOME/.config/yt2column/config.env` に変えた（[0066 要件定義書](../../tasks/0066_server_config_file/01_requirements.md)）
 - 2026-11-06 設定ファイルの空の値の行をどのキーでも拒否するのをやめ、環境変数と同じく値の検証で扱うことにし、CLI を環境変数のままにする理由と見直しの条件を記した（[0066 要件定義書](../../tasks/0066_server_config_file/01_requirements.md)）
