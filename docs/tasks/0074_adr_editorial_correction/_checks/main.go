@@ -31,6 +31,7 @@ import (
 	"go/token"
 	"os"
 	"os/exec"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -70,28 +71,28 @@ const (
 	paraAfter       = "When a PR is created, the paragraph is"
 )
 
-// unchangedPart is a part of a document that must stay byte-identical: the
-// text from the start of Start through the end of End, End being the first
-// match after Start.
+// unchangedPart is a part of a document that must stay byte-identical: a
+// list item (the start line and every following line indented deeper than
+// it) or a table (the start line and every following line that is a row at
+// the same indent). The part ends where its structure ends, so a line added
+// at its end is part of the comparison.
 type unchangedPart struct {
-	name, path, start, end string
+	name, path, start string
+	table             bool
 }
 
 var unchangedParts = []unchangedPart{
 	{
 		name: "fixpr task-document bullet", path: fixpr,
 		start: "- its `path` is a task document (`docs/tasks/*/0[123]_*.md`) that the work tree\n",
-		end:   "  correction);\n",
 	},
 	{
 		name: "local-cli-review mention check", path: localCLIReview,
 		start: "   - **Mention check.** Before committing a message with a\n",
-		end:   "     past the check.\n",
 	},
 	{
 		name: "local-cli-review failure-kind table", path: localCLIReview,
-		start: "   | Kind | Detail | Exit code | Handling |\n",
-		end:   "   | `unreadable` | | 1 | `record` |\n",
+		start: "   | Kind | Detail | Exit code | Handling |\n", table: true,
 	},
 }
 
@@ -232,7 +233,7 @@ func run(args []string) (bool, error) {
 func revisions(args []string) (string, string, error) {
 	switch len(args) {
 	case 0:
-		base, err := git("merge-base", "origin/main", "HEAD")
+		base, err := git("merge-base", "refs/remotes/origin/main", "HEAD")
 		return strings.TrimSpace(base), "HEAD", err
 	case 2:
 		return args[0], args[1], nil
@@ -266,7 +267,20 @@ func loadData() (data, error) {
 
 // readFile returns path's content at commit.
 func readFile(commit, path string) (string, error) {
-	return git("show", commit+":"+path)
+	return git("cat-file", "blob", commit+":"+path)
+}
+
+// requirePaths fails when a path is in neither commit, so a stale path cannot
+// make a diff check pass by matching nothing.
+func requirePaths(base, head string, paths ...string) error {
+	for _, commit := range []string{base, head} {
+		for _, path := range paths {
+			if _, err := git("cat-file", "-e", commit+":"+path); err != nil {
+				return fmt.Errorf("%s is not in %s: %w", path, commit, err)
+			}
+		}
+	}
+	return nil
 }
 
 // section returns the section under heading, heading line included. The
@@ -380,18 +394,28 @@ func checkSection(base, head, path, heading string) ([]violation, error) {
 	return nil, nil
 }
 
-// extractPart returns p's text in text: Start must appear exactly once, and
-// End must follow it.
+// extractPart returns p's text in text. The start line must appear exactly
+// once.
 func extractPart(text string, p unchangedPart, where string) (string, error) {
 	if n := strings.Count(text, p.start); n != 1 {
 		return "", fmt.Errorf("%s: start of %s appears %d times, want 1", where, p.name, n)
 	}
 	from := strings.Index(text, p.start)
-	rel := strings.Index(text[from:], p.end)
-	if rel < 0 {
-		return "", fmt.Errorf("%s: end of %s not found after its start", where, p.name)
+	indent := strings.Repeat(" ", len(p.start)-len(strings.TrimLeft(p.start, " ")))
+	part := p.start
+	for line := range strings.Lines(text[from+len(p.start):]) {
+		var inPart bool
+		if p.table {
+			inPart = strings.HasPrefix(line, indent+"|")
+		} else {
+			inPart = strings.HasPrefix(line, indent+" ") && strings.TrimSpace(line) != ""
+		}
+		if !inPart {
+			break
+		}
+		part += line
 	}
-	return text[from : from+rel+len(p.end)], nil
+	return part, nil
 }
 
 func checkPart(base, head string, p unchangedPart) ([]violation, error) {
@@ -412,6 +436,9 @@ func checkPart(base, head string, p unchangedPart) ([]violation, error) {
 }
 
 func checkUnchangedFiles(base, head string) ([]violation, error) {
+	if err := requirePaths(base, head, unchangedFiles...); err != nil {
+		return nil, err
+	}
 	changed, err := changedFiles(base, head, unchangedFiles...)
 	if err != nil {
 		return nil, err
@@ -426,6 +453,9 @@ func checkUnchangedFiles(base, head string) ([]violation, error) {
 // checkFixprguard checks that only write.go changed under the two fixprguard
 // directories, and that its token sequence without comments is unchanged.
 func checkFixprguard(base, head string) ([]violation, error) {
+	if err := requirePaths(base, head, "internal/fixprguard", "cmd/fixprguard", writeGo); err != nil {
+		return nil, err
+	}
 	changed, err := changedFiles(base, head, "internal/fixprguard/", "cmd/fixprguard/")
 	if err != nil {
 		return nil, err
@@ -452,9 +482,15 @@ func checkFixprguard(base, head string) ([]violation, error) {
 	return out, nil
 }
 
+// directiveRE matches a comment that is a directive to the go tool or the
+// compiler (//go:build, //go:embed, //line, ...), which changes the build
+// though it is a comment.
+var directiveRE = regexp.MustCompile(`^//(line |[a-z0-9]+:\S)`)
+
 // codeTokens returns src's tokens without its comments, each as its kind and
-// literal. The scanner inserts the automatic semicolons; their literal ("\n"
-// or ";") does not change with a comment at the end of a line.
+// literal; a directive comment is kept. The scanner inserts the automatic
+// semicolons; their literal ("\n" or ";") does not change with a comment at
+// the end of a line.
 func codeTokens(src, where string) ([]string, error) {
 	fset := token.NewFileSet()
 	file := fset.AddFile(where, fset.Base(), len(src))
@@ -462,12 +498,15 @@ func codeTokens(src, where string) ([]string, error) {
 	var s scanner.Scanner
 	s.Init(file, []byte(src), func(pos token.Position, msg string) {
 		errs = append(errs, fmt.Sprintf("%s: %s", pos, msg))
-	}, 0)
+	}, scanner.ScanComments)
 	var out []string
 	for {
 		_, tok, lit := s.Scan()
 		if tok == token.EOF {
 			break
+		}
+		if tok == token.COMMENT && !directiveRE.MatchString(lit) {
+			continue
 		}
 		if tok == token.SEMICOLON {
 			lit = ";"
@@ -542,7 +581,7 @@ func listItem(section string, n int) (string, error) {
 // correction lead is a well-formed correction line for ADR-0039, and there is
 // at least one.
 func checkCorrections(base, head string, a adrData) ([]violation, error) {
-	commits, err := gitLines("rev-list", "--no-merges", "--reverse", base+".."+head)
+	commits, err := gitLines("rev-list", "--no-merges", "--topo-order", "--reverse", base+".."+head)
 	if err != nil {
 		return nil, err
 	}
