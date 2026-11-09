@@ -399,26 +399,23 @@ func parseADR(text string, d adrData) (adrDoc, error) {
 // sectionRange returns the body line range of the section under heading: the
 // line after the heading to the next level-2 heading.
 func sectionRange(lines []string, heading string) (int, int, error) {
-	doc := strings.Join(lines, "\n")
-	section := doctestutil.SectionByHeading(doc, heading)
-	if section == "" {
+	headingLine := -1
+	for i, line := range lines {
+		if strings.TrimSpace(line) != heading {
+			continue
+		}
+		if headingLine >= 0 {
+			return 0, 0, fmt.Errorf("heading %q appears more than once", heading)
+		}
+		headingLine = i
+	}
+	if headingLine < 0 {
 		return 0, 0, fmt.Errorf("heading %q not found", heading)
 	}
-	headings := 0
-	for _, line := range lines {
-		if strings.TrimSpace(line) == heading {
-			headings++
-		}
-	}
-	if headings != 1 {
-		return 0, 0, fmt.Errorf("heading %q appears %d times", heading, headings)
-	}
-	offset := strings.Index(doc, section)
-	if offset < 0 {
-		return 0, 0, fmt.Errorf("heading %q is not part of the document", heading)
-	}
-	headingLine := strings.Count(doc[:offset], "\n")
-	body := strings.TrimPrefix(section, lines[headingLine]+"\n")
+	// SectionByHeading reads the body with the shared helper. It returns an
+	// empty body for a heading that ends its section, which is a valid body
+	// here, not a missing heading.
+	body := doctestutil.SectionByHeading(strings.Join(lines, "\n"), heading)
 	bodyLines := strings.Count(body, "\n")
 	if body != "" && !strings.HasSuffix(body, "\n") {
 		bodyLines++
@@ -480,10 +477,10 @@ func (a adrDoc) skeleton() []string {
 		switch {
 		case i == a.decisionLine:
 			out = append(out, "<decision item>")
-		case i == a.results.start:
+		case i == a.results.start && a.results.start < a.results.end:
 			out = append(out, "<results>")
 		case i >= a.results.start && i < a.results.end:
-		case i == a.history.start:
+		case i == a.history.start && a.history.start < a.history.end:
 			out = append(out, "<history>")
 		case i >= a.history.start && i < a.history.end:
 		default:
