@@ -188,8 +188,15 @@ func loadData(head string) (data, error) {
 	return d, nil
 }
 
-// errNoUserList reports that a row has no single user list marker.
-var errNoUserList = errors.New("no single user list")
+var (
+	// errNoUserList reports that a row has no single user list marker.
+	errNoUserList = errors.New("no single user list")
+	// errNoRow reports that the document has no row for the component.
+	errNoRow = errors.New("no strictjson row")
+	// errDuplicateRow reports that the document has more than one row for the
+	// component.
+	errDuplicateRow = errors.New("duplicate strictjson row")
+)
 
 // checkPackageRefScope verifies that package_reference.md differs only inside
 // the user list of the internal/strictjson row.
@@ -208,7 +215,7 @@ func checkPackageRefScope(base, head string) ([]string, error) {
 	}
 	headSkeleton, err := withoutUserList(headText)
 	if err != nil {
-		if errors.Is(err, errNoUserList) {
+		if errors.Is(err, errNoUserList) || errors.Is(err, errNoRow) || errors.Is(err, errDuplicateRow) {
 			return []string{err.Error()}, nil
 		}
 		return nil, err
@@ -229,12 +236,12 @@ func withoutUserList(text string) (string, error) {
 			continue
 		}
 		if found >= 0 {
-			return "", fmt.Errorf("%s has more than one row for %s", packageRefPath, strictjsonPackage)
+			return "", fmt.Errorf("%w: %s has more than one row for %s", errDuplicateRow, packageRefPath, strictjsonPackage)
 		}
 		found = i
 	}
 	if found < 0 {
-		return "", fmt.Errorf("%s has no row for %s", packageRefPath, strictjsonPackage)
+		return "", fmt.Errorf("%w: %s has no row for %s", errNoRow, packageRefPath, strictjsonPackage)
 	}
 	line := lines[found]
 	if n := strings.Count(line, userListMarker); n != 1 {
@@ -392,27 +399,31 @@ func parseADR(text string, d adrData) (adrDoc, error) {
 // sectionRange returns the body line range of the section under heading: the
 // line after the heading to the next level-2 heading.
 func sectionRange(lines []string, heading string) (int, int, error) {
-	start := -1
-	for i, line := range lines {
-		if strings.TrimSpace(line) != heading {
-			continue
-		}
-		if start >= 0 {
-			return 0, 0, fmt.Errorf("heading %q appears more than once", heading)
-		}
-		start = i + 1
-	}
-	if start < 0 {
+	doc := strings.Join(lines, "\n")
+	section := doctestutil.SectionByHeading(doc, heading)
+	if section == "" {
 		return 0, 0, fmt.Errorf("heading %q not found", heading)
 	}
-	end := len(lines)
-	for i := start; i < len(lines); i++ {
-		if strings.HasPrefix(lines[i], "## ") {
-			end = i
-			break
+	headings := 0
+	for _, line := range lines {
+		if strings.TrimSpace(line) == heading {
+			headings++
 		}
 	}
-	return start, end, nil
+	if headings != 1 {
+		return 0, 0, fmt.Errorf("heading %q appears %d times", heading, headings)
+	}
+	offset := strings.Index(doc, section)
+	if offset < 0 {
+		return 0, 0, fmt.Errorf("heading %q is not part of the document", heading)
+	}
+	headingLine := strings.Count(doc[:offset], "\n")
+	body := strings.TrimPrefix(section, lines[headingLine]+"\n")
+	bodyLines := strings.Count(body, "\n")
+	if body != "" && !strings.HasSuffix(body, "\n") {
+		bodyLines++
+	}
+	return headingLine + 1, headingLine + 1 + bodyLines, nil
 }
 
 // checkADR verifies that ADR-0020 changes only in the three planned regions.
@@ -555,37 +566,82 @@ func checkDocGuard(head string) ([]string, error) {
 	}
 
 	var out []string
-	wantPackage := "./" + path.Dir(testFilePath)
+	found, err := definingFile(head, path.Dir(testFilePath), reconciliationTest)
+	if err != nil {
+		return nil, err
+	}
+	wantPackage := "./" + path.Dir(found)
 	if !slices.Contains(strings.Fields(runLine), wantPackage) {
 		out = append(out, fmt.Sprintf("the doc-guard go test line does not name %s", wantPackage))
 	}
 	if !strings.Contains(runLine, "-tags test") {
 		out = append(out, "the doc-guard go test line does not pass -tags test")
 	}
-	source, err := read(head, testFilePath)
+	source, err := read(head, found)
 	if err != nil {
 		return nil, err
 	}
-	first, _, _ := strings.Cut(source, "\n")
-	if err := buildTagHolds(first); err != nil {
+	if err := buildTagHolds(found, source); err != nil {
 		out = append(out, err.Error())
 	}
 	return out, nil
 }
 
-// buildTagHolds reports whether the file's first line lets a test build compile
-// it.
-func buildTagHolds(first string) error {
-	line := strings.TrimSpace(first)
-	if !strings.HasPrefix(line, "//go:build") && !strings.HasPrefix(line, "// +build") {
-		return nil
-	}
-	expr, err := constraint.Parse(line)
+// definingFile returns the path of the Go file at head that defines funcName
+// in dir.
+func definingFile(head, dir, funcName string) (string, error) {
+	paths, err := gitPaths("ls-tree", "-r", "-z", "--name-only", head, "--", dir)
 	if err != nil {
-		return fmt.Errorf("%s: %w", testFilePath, err)
+		return "", err
 	}
-	if !expr.Eval(func(tag string) bool { return tag == "test" }) {
-		return fmt.Errorf("the build constraint %q does not hold with -tags test", line)
+	for _, filePath := range paths {
+		if !strings.HasSuffix(filePath, ".go") {
+			continue
+		}
+		source, err := read(head, filePath)
+		if err != nil {
+			return "", err
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), filePath, source, 0)
+		if err != nil {
+			continue
+		}
+		for _, decl := range file.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if ok && fn.Name != nil && fn.Name.Name == funcName {
+				return filePath, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("head %s has no file under %s defining %s", head, dir, funcName)
+}
+
+// buildTagHolds reports whether every build constraint before the package
+// clause lets a test build compile the file.
+func buildTagHolds(filePath, source string) error {
+	type wireConstraint struct {
+		line string
+		expr constraint.Expr
+	}
+	var constraints []wireConstraint
+	for line := range strings.Lines(source) {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "package ") {
+			break
+		}
+		if !strings.HasPrefix(trimmed, "//go:build") && !strings.HasPrefix(trimmed, "// +build") {
+			continue
+		}
+		expr, err := constraint.Parse(trimmed)
+		if err != nil {
+			return fmt.Errorf("%s: %w", filePath, err)
+		}
+		constraints = append(constraints, wireConstraint{line: trimmed, expr: expr})
+	}
+	for _, c := range constraints {
+		if !c.expr.Eval(func(tag string) bool { return tag == "test" }) {
+			return fmt.Errorf("the build constraint %q in %s does not hold with -tags test", c.line, filePath)
+		}
 	}
 	return nil
 }
@@ -725,7 +781,7 @@ func checkCorrectionLine(base, head string) ([]string, error) {
 		if !commitRE.MatchString(commit) {
 			continue
 		}
-		files, err := gitPaths("diff-tree", "--no-commit-id", "--name-only", "-r", "-z", commit)
+		files, err := gitPaths("diff-tree", "--no-commit-id", "--name-only", "-r", "-z", "--no-renames", "--no-ext-diff", commit)
 		if err != nil {
 			return nil, err
 		}

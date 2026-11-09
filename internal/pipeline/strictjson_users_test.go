@@ -106,6 +106,12 @@ func TestGoSources(t *testing.T) {
 		{pkg: "internal/lib", path: "internal/lib/lib.go"},
 		{pkg: "internal/lib", path: "internal/lib/lib_test.go"},
 	}
+	// The walk's order is not part of its contract, so compare the set.
+	sortSources := func(sources []goSource) {
+		slices.SortFunc(sources, func(a, b goSource) int { return strings.Compare(a.path, b.path) })
+	}
+	sortSources(got)
+	sortSources(want)
 	if !slices.Equal(got, want) {
 		t.Errorf("goSources returned %v, want %v", got, want)
 	}
@@ -201,15 +207,18 @@ var (
 
 // strictjsonRowCell returns the responsibility cell of the single row whose
 // first cell names the component. It fails when the table, the column, or the
-// row is missing, or when the row appears more than once.
+// row is missing, or when the row appears more than once. Every error names
+// the table header, the column, the component, and the number of matching
+// rows.
 func strictjsonRowCell(doc string) (string, error) {
+	const context = "table header %q, column %q, package %q"
 	table := doctestutil.FindTable(doc, packageTableHeader)
 	if table == nil {
-		return "", fmt.Errorf("%w: no table with a %q header", errNoPackageTable, packageTableHeader)
+		return "", fmt.Errorf("%w: "+context+", 0 rows", errNoPackageTable, packageTableHeader, responsibilityColumn, strictjsonPackageName)
 	}
 	col := doctestutil.ColumnIndex(table[0], responsibilityColumn)
 	if col < 0 {
-		return "", fmt.Errorf("%w: the %q table has no %q column", errNoResponsibilityColumn, packageTableHeader, responsibilityColumn)
+		return "", fmt.Errorf("%w: "+context+", 0 rows", errNoResponsibilityColumn, packageTableHeader, responsibilityColumn, strictjsonPackageName)
 	}
 	var rows [][]string
 	for _, row := range table[1:] {
@@ -219,21 +228,22 @@ func strictjsonRowCell(doc string) (string, error) {
 	}
 	switch len(rows) {
 	case 0:
-		return "", fmt.Errorf("%w: no row whose first cell is %q", errNoStrictjsonRow, strictjsonPackageName)
+		return "", fmt.Errorf("%w: "+context+", 0 rows", errNoStrictjsonRow, packageTableHeader, responsibilityColumn, strictjsonPackageName)
 	case 1:
 	default:
-		return "", fmt.Errorf("%w: %d rows whose first cell is %q", errDuplicateStrictjsonRow, len(rows), strictjsonPackageName)
+		return "", fmt.Errorf("%w: "+context+", %d rows", errDuplicateStrictjsonRow, packageTableHeader, responsibilityColumn, strictjsonPackageName, len(rows))
 	}
 	row := rows[0]
 	if col >= len(row) {
-		return "", fmt.Errorf("%w: the row for %q has %d cells", errNoResponsibilityColumn, strictjsonPackageName, len(row))
+		return "", fmt.Errorf("%w: "+context+", 1 row with %d cells", errNoResponsibilityColumn, packageTableHeader, responsibilityColumn, strictjsonPackageName, len(row))
 	}
 	return row[col], nil
 }
 
 // parseUserList returns the code-span names of the cell's "Shared by " list, in
 // the order written and with duplicates kept. It rejects a missing or repeated
-// marker and every form other than `a`, `a` and `b`, or `a`, `b`, and `c`.
+// marker and every form other than one item, two items joined by " and ", or
+// three or more items whose last two are joined by ", and ".
 func parseUserList(cell string) ([]string, error) {
 	if n := strings.Count(cell, userListMarker); n != 1 {
 		return nil, fmt.Errorf("%w: %q appears %d times", errNoUserList, userListMarker, n)
@@ -362,6 +372,7 @@ func TestImportersOf(t *testing.T) {
 	root := t.TempDir()
 	writeSourceFiles(t, root, map[string]string{
 		"internal/plain/a.go":             "package plain\n\nimport \"example.com/target\"\n",
+		"internal/plain/z.go":             "package plain\n\nimport \"example.com/target\"\n",
 		"internal/plain/testonly_test.go": "package plain\n\nimport \"example.com/target\"\n",
 		"internal/tagged/helper.go":       "//go:build test\n\npackage tagged\n\nimport \"example.com/target\"\n",
 		"internal/alias/a.go":             "package alias\n\nimport sj \"example.com/target\"\n",
@@ -383,11 +394,23 @@ func TestImportersOf(t *testing.T) {
 		"internal/alias":  {"internal/alias/a.go"},
 		"internal/blank":  {"internal/blank/a.go"},
 		"internal/dot":    {"internal/dot/a.go"},
-		"internal/plain":  {"internal/plain/a.go"},
+		"internal/plain":  {"internal/plain/a.go", "internal/plain/z.go"},
 		"internal/tagged": {"internal/tagged/helper.go"},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("importersOf returned %v, want %v", got, want)
+	}
+
+	// The files of a package are sorted even when the sources come in another
+	// order.
+	reversed := slices.Clone(sources)
+	slices.Reverse(reversed)
+	got, err = importersOf(root, reversed, target)
+	if err != nil {
+		t.Fatalf("importersOf on reversed sources returned error: %v", err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("importersOf on reversed sources returned %v, want %v", got, want)
 	}
 
 	broken := t.TempDir()
@@ -404,14 +427,23 @@ func TestImportersOf(t *testing.T) {
 	}
 }
 
-// TestStrictjsonRowCell checks the row lookup's success and failure paths.
+// TestStrictjsonRowCell checks the row lookup's success and failure paths. The
+// failure rows also check the message: the accepted plan requires each error to
+// name the table header, the column, the component, and the number of matching
+// rows, so that wording is part of the contract.
 func TestStrictjsonRowCell(t *testing.T) {
-	const header = "| Package | Responsibility |\n|---|---|\n"
+	const (
+		header  = "| Package | Responsibility |\n|---|---|\n"
+		context = `"Package"`
+		column  = `"Responsibility"`
+		pkg     = `"internal/strictjson"`
+	)
 	cases := []struct {
-		name    string
-		doc     string
-		want    string
-		wantErr error
+		name        string
+		doc         string
+		want        string
+		wantErr     error
+		wantMessage []string
 	}{
 		{
 			name: "one row",
@@ -419,24 +451,34 @@ func TestStrictjsonRowCell(t *testing.T) {
 			want: "the responsibility",
 		},
 		{
-			name:    "no table",
-			doc:     "# Packages\n\nNo table.\n",
-			wantErr: errNoPackageTable,
+			name:        "no table",
+			doc:         "# Packages\n\nNo table.\n",
+			wantErr:     errNoPackageTable,
+			wantMessage: []string{context, column, pkg, "0 rows"},
 		},
 		{
-			name:    "no responsibility column",
-			doc:     "| Package | Other |\n|---|---|\n| `internal/strictjson` | x |\n",
-			wantErr: errNoResponsibilityColumn,
+			name:        "no responsibility column",
+			doc:         "| Package | Other |\n|---|---|\n| `internal/strictjson` | x |\n",
+			wantErr:     errNoResponsibilityColumn,
+			wantMessage: []string{context, column, pkg, "0 rows"},
 		},
 		{
-			name:    "no row",
-			doc:     header + "| `internal/other` | other |\n",
-			wantErr: errNoStrictjsonRow,
+			name:        "no row",
+			doc:         header + "| `internal/other` | other |\n",
+			wantErr:     errNoStrictjsonRow,
+			wantMessage: []string{context, column, pkg, "0 rows"},
 		},
 		{
-			name:    "duplicate row",
-			doc:     header + "| `internal/strictjson` | first |\n| `internal/strictjson` | second |\n",
-			wantErr: errDuplicateStrictjsonRow,
+			name:        "duplicate row",
+			doc:         header + "| `internal/strictjson` | first |\n| `internal/strictjson` | second |\n",
+			wantErr:     errDuplicateStrictjsonRow,
+			wantMessage: []string{context, column, pkg, "2 rows"},
+		},
+		{
+			name:        "row without the cell",
+			doc:         header + "| `internal/strictjson` |\n",
+			wantErr:     errNoResponsibilityColumn,
+			wantMessage: []string{context, column, pkg, "1 row with 1 cells"},
 		},
 	}
 	for _, tc := range cases {
@@ -445,6 +487,11 @@ func TestStrictjsonRowCell(t *testing.T) {
 			if tc.wantErr != nil {
 				if !errors.Is(err, tc.wantErr) {
 					t.Fatalf("strictjsonRowCell returned error %v, want %v", err, tc.wantErr)
+				}
+				for _, want := range tc.wantMessage {
+					if !strings.Contains(err.Error(), want) {
+						t.Errorf("error %q does not contain %q", err, want)
+					}
 				}
 				return
 			}
@@ -513,24 +560,30 @@ func TestDiffUsers(t *testing.T) {
 		wantReport []string
 	}{
 		{
-			name:       "user not listed",
-			users:      map[string][]string{"internal/foo": {"internal/foo/a.go"}},
-			wantMiss:   []string{"internal/foo"},
-			wantReport: []string{"internal/foo", "internal/foo/a.go"},
+			name: "user not listed",
+			users: map[string][]string{
+				"internal/foo": {"internal/foo/a.go"},
+				"internal/bar": {"internal/bar/b.go", "internal/bar/z.go"},
+			},
+			wantMiss:   []string{"internal/bar", "internal/foo"},
+			wantReport: []string{"does not list internal/bar,", "does not list internal/foo,", "internal/foo/a.go", "internal/bar/b.go"},
 		},
 		{
 			name:       "names that are not users",
 			listed:     []string{"internal/missing", "internal/strictjson"},
 			users:      map[string][]string{},
 			wantExtra:  []string{"internal/missing", "internal/strictjson"},
-			wantReport: []string{"internal/missing", "internal/strictjson"},
+			wantReport: []string{"lists internal/missing,", "lists internal/strictjson,"},
 		},
 		{
-			name:       "name listed twice",
-			listed:     []string{"internal/foo", "internal/foo"},
-			users:      map[string][]string{"internal/foo": {"internal/foo/a.go"}},
-			wantDup:    []string{"internal/foo"},
-			wantReport: []string{"internal/foo"},
+			name:   "name listed twice",
+			listed: []string{"internal/foo", "internal/foo", "internal/bar", "internal/bar"},
+			users: map[string][]string{
+				"internal/foo": {"internal/foo/a.go"},
+				"internal/bar": {"internal/bar/b.go"},
+			},
+			wantDup:    []string{"internal/bar", "internal/foo"},
+			wantReport: []string{"lists internal/bar more than once", "lists internal/foo more than once"},
 		},
 		{
 			name:   "no differences",
@@ -551,9 +604,15 @@ func TestDiffUsers(t *testing.T) {
 				t.Errorf("duplicated = %v, want %v", dup, tc.wantDup)
 			}
 			report := strings.Join(strictjsonUsersReport(miss, extra, dup, tc.users), "\n")
+			if len(tc.wantReport) == 0 {
+				if report != "" {
+					t.Errorf("report = %q, want none", report)
+				}
+				return
+			}
 			for _, want := range tc.wantReport {
 				if !strings.Contains(report, want) {
-					t.Errorf("report %q does not name %q", report, want)
+					t.Errorf("report %q does not contain %q", report, want)
 				}
 			}
 		})

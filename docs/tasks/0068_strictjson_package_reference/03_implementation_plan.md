@@ -180,7 +180,7 @@ Go のソースのコメント・識別子・文字列は英語で書き、AC �
     -   ADR-0020 を変えるコミットのメッセージから correction line を消す。
     -   読めないコミットを渡す（終了コード 2）。
 -   [x] **ステップ 6-4**: `go vet -tags test ./docs/tasks/0068_strictjson_package_reference/_checks/` を通す（`make lint` は `_` で始まるディレクトリを見ない）。すべての変更をコミットした後に、PR のブランチで一回の確認のプログラムを走らせ、終了コード 0 で終わることを確かめる。出力の全文と、基点と head のコミット ID を、本計画 §5 の実行の記録に書いてコミットする。記録のコミットは本計画だけを変え、本計画はどの確かめることの対象にも入らないので、記録のコミットの後に走らせ直さなくてよい。記録には、確かめた head と PR の head の違いが本計画だけを変えたコミットであることを書く。後のコミット（`/fixpr` の回など）が、一回の確認が対象とするファイル（`package_reference.md`・`CLAUDE.md`・`project_overview.md`・ADR-0020・`ci.yml`・`strictjson_users_test.go`）を変えたときは、走らせ直して記録を改める。
--   [x] **ステップ 6-5**: PR の説明に書く事項を控える。ADR-0020 の「決定」の削除を記録する correction paragraph（AC-15。`requirements_process.md`「Recording in the PR description」）、一回の確認のプログラムの出力、ステップ 3-4 と 6-3 の壊す確認の要点、本計画 §1.3 で設計書の付録 B の確かめ方を補ったこと（AC-09・AC-11・AC-12・AC-15）である。
+-   [x] **ステップ 6-5**: PR の説明に書く事項を控える。ADR-0020 の「決定」の削除を記録する correction paragraph（AC-15。`requirements_process.md`「Recording in the PR description」）、一回の確認のプログラムの出力、ステップ 3-4 と 6-3 の壊す確認の要点、本計画 §1.3 で設計書の付録 B の確かめ方を補ったこと（AC-11・AC-12・AC-15）である。
 
 **完了の条件:** 一回の確認のプログラムが PR のブランチで終了コード 0 で終わり、その記録が本計画 §5 にある。`make test && make lint` が通る。
 
@@ -294,25 +294,25 @@ PR を 1 本にするのは設計書 1.2 の決定である。一覧の修正と
 -   ADR-0020 の「決定」の削除を記録する correction paragraph（AC-15）。
 -   上の一回の確認の出力と、基点・head のコミット ID。
 -   ステップ 3-4 と 6-3 の壊し方の要点。
--   本計画 §1.3 で設計書の付録 B の確かめ方を補ったこと（AC-09・AC-11・AC-12・AC-15 を、manual に加えて実行される確かめでも見る）。
+-   本計画 §1.3 で設計書の付録 B の確かめ方を補ったこと（AC-11・AC-12・AC-15 を、manual に加えて実行される確かめでも見る）。
 
 | AC | 確かめ方 | 種類 |
 |---|---|---|
 | AC-01 | `internal/pipeline/strictjson_users_test.go::TestPackageReferenceStrictjsonUsers` | test |
-| AC-02 | 一回の確認（一覧の範囲） | diff |
-| AC-03 | 3.5 の文が使い手の名前を挙げず、一覧の置き場所を述べ、拒否するものの記述を残すことを PR のレビューで読む。リンクの行き先は `cmd/yt2column/docpaths_test.go::TestInstructionDocPaths`、変更が項目の中だけであることは一回の確認（CLAUDE.md と `project_overview.md` の範囲） | manual、static、diff |
+| AC-02 | 一回の確認（package_reference.md scope） | diff |
+| AC-03 | 3.5 の文が使い手の名前を挙げず、一覧の置き場所を述べ、拒否するものの記述を残すことを PR のレビューで読む。リンクの行き先は `cmd/yt2column/docpaths_test.go::TestInstructionDocPaths`、変更が項目の中だけであることは一回の確認（CLAUDE.md and project_overview.md scope） | manual、static、diff |
 | AC-04 | 3.5 の行が使い手の名前を挙げず、一覧の置き場所を述べ、部品の説明を残すことを PR のレビューで読む | manual |
-| AC-05 | 一回の確認（CLAUDE.md と `project_overview.md` の範囲）。意味が変わらないことは PR のレビューで読む | diff、manual |
+| AC-05 | 一回の確認（CLAUDE.md and project_overview.md scope）。意味が変わらないことは PR のレビューで読む | diff、manual |
 | AC-06 | `internal/pipeline/strictjson_users_test.go::TestDiffUsers`（一覧にない使い手と、報告の文の名前・ファイル）。ステップ 3-2・3-4 の壊す確認 | test |
 | AC-07 | `internal/pipeline/strictjson_users_test.go::TestDiffUsers`（存在しない名前、`internal/strictjson` 自身）、`internal/pipeline/strictjson_users_test.go::TestImportersOf`（`_test.go` だけが import するパッケージ）。ステップ 3-4 の壊す確認 | test |
 | AC-08 | `internal/pipeline/strictjson_users_test.go::TestParseUserList`（重複を残して返す）、`internal/pipeline/strictjson_users_test.go::TestDiffUsers`（重複した名前）。ステップ 3-4 の壊す確認 | test |
 | AC-09 | `internal/pipeline/strictjson_users_test.go::TestStrictjsonRowCell`（表・列・行がない、行が 2 つ）、`internal/pipeline/strictjson_users_test.go::TestParseUserList`（一覧の文がない、形に合わない）、`internal/pipeline/strictjson_users_test.go::TestGoSources`（ソースがない）、`internal/pipeline/strictjson_users_test.go::TestImportersOf`（解析できないファイル）。使い手が 0 の場合とソースが 0 の場合は、ステップ 3-4 の壊す確認 | test |
 | AC-10 | `internal/pipeline/strictjson_users_test.go::TestPackageReferenceStrictjsonUsers` が `make test` で通る | test |
-| AC-11 | 一回の確認（`doc-guard` が照合のテストを実行すること） | static |
-| AC-12 | 一回の確認（照合のテストが一覧の写しを持たないこと）。PR のレビューでもコードを読む | static、manual |
-| AC-13 | 一回の確認（ADR-0020 の範囲） | diff |
-| AC-14 | 一回の確認（ADR-0020 の範囲）。「結果」の 1 文が照合のテストの帰結を述べることは PR のレビューで読む。ADR の構造は `cmd/yt2column/adr_test.go::TestADRRecords` | diff、manual、test |
-| AC-15 | 一回の確認（correction line）。PR の説明の correction paragraph は PR のレビューで読む | static、manual |
+| AC-11 | 一回の確認（doc-guard runs the reconciliation test） | static |
+| AC-12 | 一回の確認（reconciliation test has no copy of the list）。PR のレビューでもコードを読む | static、manual |
+| AC-13 | 一回の確認（ADR-0020 scope） | diff |
+| AC-14 | 一回の確認（ADR-0020 scope）。「結果」の 1 文が照合のテストの帰結を述べることは PR のレビューで読む。ADR の構造は `cmd/yt2column/adr_test.go::TestADRRecords` | diff、manual、test |
+| AC-15 | 一回の確認（ADR-0020 correction line）。PR の説明の correction paragraph は PR のレビューで読む | static、manual |
 
 AC-04 は、文書の文の中身だけを定める AC である（リンクも値も持たない行で、コードブロックの中にある）。そのため、PR のレビューで読むことを確かめ方とする。変更がその行の中だけであることは、AC-05 の一回の確認が確かめる。
 
