@@ -14,15 +14,14 @@
 
 ## 決定
 
--   **本番の構成は、生成・字数の調整・検証・推敲の 3 つの工程を、すべて `claude` の `claude-opus-5-5`、effort `high` で行う。** 生成のテンプレートは v5（`prompts/system.tmpl`・`prompts/user.tmpl`）で、字数の調整と検証・推敲は既定のテンプレートを使う。
--   **本番の構成はコード上の既定である。** LLM の変数を何も設定しなければ、CLI も localhost サーバもこの構成で動く。本番の構成を表す環境変数は `export YT2COLUMN_LLM=claude/claude-opus-5-5+high` の 1 つで、`YT2COLUMN_REVIEW_LLM` を指定しなければ検証・推敲も生成と同じになる。利用者が指定しなければならないのは `ANTHROPIC_API_KEY` で、`SLACK_WEBHOOK_URL` は投稿するときだけ要る。値の文法と、未設定のときの継承は [ADR-0003](0003-llm-config-contract.md) が定める。
--   **品質の目標は、記事が必須の観点をすべて満たし、品質の観点に 1（不十分）がないこととする。** 目標は、既定のテンプレートを選ぶための関門ではなく、記事が目指す水準である。観点と段階の基準は [0008 要件定義書](../../tasks/0008_column_prompt/01_requirements.md) の F-006 が定める。
--   **本番の構成で起こりうる記事の誤りや欠けを、製品の制約として受け入れる。** 意味の変わる言い換え、節の中身と見出しのずれ、発言の主体を広げたまとめ、話者の取り違え、字数の調整の失敗で記事が出ないこと、概要欄を開かずに送ったコピーした字幕、費用、ほかの構成での品質の低下の 8 項目である。
--   **本番の構成・品質の目標・製品の制約・構成の比較を、`docs/dev/production_profile.md` にまとめる。** 本番の構成・品質の目標・製品の制約を変えるタスクは、この文書と、本番の構成の値を繰り返している README の推奨構成の小節を合わせて更新する。
+-   **本番の構成は、生成・字数の調整・検証・推敲の 3 つの工程を、すべて `claude` の `claude-opus-5-5`、effort `high` で行う。** 生成のテンプレートは v5 で、字数の調整と検証・推敲は既定のテンプレートを使う。0008 の評価の構成の比較で、検証・推敲の効果と、生成のモデルの効果の 2 つがあったためである（[production_profile.md](../production_profile.md)「構成の比較と、構成を決めた理由」）。構成の値は [production_profile.md](../production_profile.md) の「本番の構成」にある。
+-   **本番の構成はコード上の既定である。** LLM の変数を何も設定しなければ、CLI も localhost サーバもこの構成で動く。`ANTHROPIC_API_KEY` だけを設定すれば、本番の構成で記事を作れるようにするためである（[0042 要件定義書](../../tasks/0042_default_llm_opus/01_requirements.md) §2.1）。本番の構成を表す設定の値と、利用者が指定しなければならない設定は [production_profile.md](../production_profile.md) の「本番の構成」にある。値の文法と、未設定のときの継承は [ADR-0003](0003-llm-config-contract.md) が定める。
+-   **品質の目標は、記事が必須の観点をすべて満たし、品質の観点に 1（不十分）がないこととする。** 目標は、既定のテンプレートを選ぶための関門ではなく、記事が目指す水準である。理由は記録されていない。目標は [production_profile.md](../production_profile.md) の「品質の目標と結果」にあり、観点と段階の基準は [0008 要件定義書](../../tasks/0008_column_prompt/01_requirements.md) の F-006 が定める。
+-   **本番の構成で起こりうる記事の誤りや欠けを、製品の制約として受け入れる。** 品質の目標に届かなかった点を製品の制約として明記し、この構成で使い始めることにしたためである（[0008 評価記録](../../tasks/0008_column_prompt/02_evaluation.md) §6.1）。製品の制約の項目は [production_profile.md](../production_profile.md) の「製品の制約」にある。
+-   **本番の構成・品質の目標・製品の制約・構成の比較を、`docs/dev/production_profile.md` にまとめる。** これらを、タスクの評価記録を読まずに、1 つの共通の文書で把握できるようにするためである（[0040 要件定義書](../../tasks/0040_production_profile/01_requirements.md) §2.1）。まとめる先の文書は [production_profile.md](../production_profile.md) である。
+-   **本番の構成・品質の目標・製品の制約を変えるタスクは、`docs/dev/production_profile.md` と、本番の構成の値を繰り返している README の推奨構成の小節を合わせて更新する。** 共通の文書が最新の値を持ち続けるには、更新する者を決めておく必要があるためである（[0040 要件定義書](../../tasks/0040_production_profile/01_requirements.md) §1）。規則は [production_profile.md](../production_profile.md) の冒頭の段落「本書を更新するタスク」にある。
 
 Claude アダプタの出力の上限の既定は [ADR-0025](0025-claude-output-limit.md) が定める。
-
-この決定の仕様の正本は [production_profile.md](../production_profile.md) である。
 
 ## 採らなかった案
 
