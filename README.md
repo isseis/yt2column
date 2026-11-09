@@ -53,10 +53,9 @@ flowchart LR
 
 1. `make build` でバイナリをビルドする。バイナリは `build/` に置かれ、何もインストールされない。
    [localhost サーバ](#localhost-サーバ)を参照。
-2. サーバを起動するシェルで、`ANTHROPIC_API_KEY` と、記事を Slack に投稿するなら
-   `SLACK_WEBHOOK_URL` を設定する。ほかの LLM の変数は要らない。既定は本番の構成である（[推奨構成](#推奨構成)を参照）。以前の設定から残った
-   `YT2COLUMN_*` の変数は外す（unset）。プロバイダの変数がなく、モデルの変数だけが設定されていると、設定エラーでサーバが止まる。
-   [設定](#設定)を参照。
+2. `./build/yt2column-server config init` でサーバの設定ファイルの雛形を作り、そのファイルに `ANTHROPIC_API_KEY` と、記事を Slack に投稿するなら
+   `SLACK_WEBHOOK_URL` を書く。ほかのキーは要らない。既定は本番の構成である（[推奨構成](#推奨構成)を参照）。サーバは環境変数の設定を読まない。
+   [設定ファイル](#設定ファイル)を参照。
 3. `./build/yt2column-server 2>>server.log` でサーバを起動する。サーバはフォアグラウンドで動き続ける（シグナルで止める）ので、次の手順は別の端末で実行する。
    [サーバの起動](#サーバの起動)を参照。
 4. 使うブラウザを一度起動した後で、`./build/yt2column-nmhost install chrome`（または
@@ -198,8 +197,8 @@ Webhook への投稿は、それとは別の操作で、拡張はビューアで
 `make build` は `build/yt2column`、`build/yt2column-server`、
 `build/yt2column-nmhost` をビルドし、何もインストールしない。
 
-サーバは LLM の変数を読む。サーバにとって `SLACK_WEBHOOK_URL` は任意である。設定しなくてもサーバは起動して記事を生成するが、投稿は
-`webhook_not_configured` で断られ、拡張のビューアは投稿のボタンを押せなくし、`SLACK_WEBHOOK_URL` を設定してサーバを起動し直す手順を示す。サーバは `yt-dlp` を呼ばず、`YT2COLUMN_CACHE_DIR`
+サーバは、LLM の設定と `SLACK_WEBHOOK_URL` を設定ファイルから読む（[設定ファイル](#設定ファイル)を参照）。サーバにとって `SLACK_WEBHOOK_URL` は任意である。書かなくてもサーバは起動して記事を生成するが、投稿は
+`webhook_not_configured` で断られ、拡張のビューアは投稿のボタンを押せなくし、設定ファイルに `SLACK_WEBHOOK_URL` を書いてサーバを起動し直す手順を示す。サーバは `yt-dlp` を呼ばず、`YT2COLUMN_CACHE_DIR`
 も `YT2COLUMN_YTDLP_PATH` も読まない。待ち受けるのは Unix ドメインソケット（UDS）だけで、TCP
 のポートでは待ち受けない。ソケットのパスは `HOME` だけから決まる。
 
@@ -210,9 +209,79 @@ Webhook への投稿は、それとは別の操作で、拡張はビューアで
 `0700`、ソケットのモードは `0600` なので、自分のユーザーとして動くプロセスだけが接続でき、サーバはそれらを信頼する。サーバが検査するのはリクエストのパスとメソッドだけで、
 `Host`、`Origin`、`Content-Type`、`Authorization` のヘッダは検査しない。
 
+### 設定ファイル
+
+サーバの設定ファイルのパスは、`HOME` だけから決まる。macOS もほかの Unix も同じである。
+
+- 設定ファイル: `$HOME/.config/yt2column/config.env`
+
+`XDG_CONFIG_HOME` などのほかの変数は、パスを変えない。サーバは、起動するときに 1 回だけこのファイルを読む。ファイルを書き換えた後は、サーバを止めてもう一度起動する。
+
+サーバは、設定の値を環境変数から読まない。サーバのコードがプロセスの環境から読むのは、ソケットと設定ファイルのパスを決める `HOME` と、警告のための
+`GODEBUG` だけである。ただし、Go の標準ライブラリは、LLM の API と Webhook へのリクエストに、サーバの環境のプロキシの変数（`HTTPS_PROXY`・`HTTP_PROXY`・`NO_PROXY`）を使う。`GODEBUG` が `http2debug=1` か `http2debug=2` を含むと、Go の HTTP/2 のログが API キーと Webhook の URL のパスを標準エラーに書きうるので、サーバはそのことを警告する。下の 6 つのキーと同じ名前の環境変数があっても、サーバはそれを無視し、止まらず、警告もしない。CLI は、今までどおり環境変数を読み、設定ファイルを読まない（[設定](#設定)を参照）。
+
+**雛形を作る。** 次のコマンドは、設定ファイルの雛形を作る。サーバとしては動かない。
+
+```sh
+./build/yt2column-server config init
+```
+
+雛形は、空行とコメントの行だけからなり、6 つのキーのそれぞれについて、説明と、コメントにしたキーの行（例: `# ANTHROPIC_API_KEY=`）を持つ。キーを設定するには、その行の先頭の `# ` を消し、`=` の後に値を書く。`config init` は環境変数の値を読まないので、雛形に値は入らない。
+
+`config init` は、ファイルをちょうどモード `0600` で作る（umask によらない）。`$HOME/.config` と `$HOME/.config/yt2column` のうちまだないものは、モード
+`0700` で作り、すでにあるディレクトリは変えない。パスにすでに何かあれば（ファイル、シンボリックリンク、ディレクトリなど）、それを変えずに終わる。ファイルは同じディレクトリの一時ファイル（`.config.env.tmp-` で始まる名前）に書いてから置くので、途中で失敗しても、書きかけのファイルは残らない。作ったディレクトリは残る。一時ファイルを消せなかったときは、その名前を示すので、手で消す。`config init` は、作ったファイルのパスを標準エラーに 1 行で示し、標準出力には何も書かない。
+
+`config init` の終了コード:
+
+| コード | 意味 |
+|---|---|
+| `0` | 雛形を作った。 |
+| `1` | 作らなかった、または作れなかった（パスにすでに何かある、`HOME` のディレクトリがない、またはディレクトリかファイルの作成が失敗した）。 |
+| `2` | 引数が正しくない（例えば `config init` の後にほかの引数がある）、または `HOME` が未設定・空・相対パスである。 |
+
+**書式。** 1 行に 1 つの `KEY=VALUE` を書き、行は LF で区切る（最後の行は LF で終わらなくてよい）。ファイルをシェルとして実行することはなく、変数の展開も引用符の解釈もしない。
+
+- 空行と、`#` で始まる行（コメント）は読み飛ばす。
+- キーは最初の `=` より前の全体で、`YT2COLUMN_LLM`、`YT2COLUMN_REVIEW_LLM`、`DEEPSEEK_API_KEY`、`ANTHROPIC_API_KEY`、`ANTHROPIC_WORKSPACE_ID`、`SLACK_WEBHOOK_URL`
+  の 6 つのどれかと完全に一致しなければならない。キーの意味は[設定](#設定)の表のとおりで、どのキーも省ける。省いたキーは、CLI で環境変数が未設定のときと同じに扱う。
+- 値は最初の `=` より後ろの全体で、変換せずに使う。空白に続かない `#` と、2 つ目以降の `=` は値の一部である（`SLACK_WEBHOOK_URL=https://example.com/hook#x`
+  の値は `https://example.com/hook#x`）。
+- 値は空でもよい（`KEY=`）。空の値は、CLI の環境変数の空の値と同じく、そのキーを使うときは設定エラーになり、使わないプロバイダのキーなら拒否しない。
+
+次のものを含むファイルは、全体を拒否する。一部の行だけを使って起動することはない。
+
+- `=` のない行、6 つのキー以外のキー（小文字のキーや、`export ANTHROPIC_API_KEY=...` のように `export ` を付けた行を含む）
+- 空白で始まる行、キーの前後に空白がある行（`ANTHROPIC_API_KEY =x`）
+- 先頭か末尾が空白の値、`"` か `'` で始まる値（引用符は取り除かない）、空白に続く `#` を含む値（`ANTHROPIC_API_KEY=sk-xxx # personal`。コメントは行を分けて書く）
+- 同じキーの 2 回目以降の行
+- CR（CRLF の改行を含む）、タブなどの LF 以外の制御文字、DEL、U+FEFF（BOM）
+- UTF-8 として正しくないバイト列、64 KiB（65,536 バイト）を超える大きさ
+
+書式の拒否は、設定ファイルのパスと、拒否した行の行番号と固定の理由を、20 行まで 1 行ずつ示し、それより多ければ残りの行数を示す。値と、6 つのキー以外のキーの文字列は示さない。重複したキーの拒否は、そのキーの名前を示す。
+
+**検査。** サーバは、読む前に設定ファイルを検査し、次のどれかなら、何も直さずに（モードも所有者も変えずに）終了コード `2` で起動を止める。メッセージは、パスと理由を示す。
+
+- パスに何もない。メッセージは `yt2column-server config init` で作るよう示す。
+- シンボリックリンクである（リンク先が正しいファイルでも）。
+- 通常のファイルでない（ディレクトリ、FIFO、ソケットなど）。
+- 所有者が、サーバを実行したユーザーでない。
+- モードがちょうど `0600` でない（`0644`、`0400`、setuid・setgid・sticky のビットが立った `0600` なども拒否する）。メッセージは、見つかったモードと、直すコマンド `chmod 600 '<パス>'` を示す。
+- 開けない、または読めない（例えば親のディレクトリを探索できない）。
+
+サーバは、検査したファイルと同じファイルから中身を読むので、検査の後にパスのファイルを入れ替えられても、検査していないファイルの中身は使わない。
+
+**ACL は検査しない。** モードの検査は ACL（アクセス制御リスト）を見ない。macOS では、モードがちょうど `0600` でも、ACL がほかのユーザーにファイルを読む権利を与えていれば、サーバはそのファイルを受け付け、ほかのユーザーが API キーを読めてしまう。ACL が付くのは、`chmod +a` で付けた場合や、継承する ACL を持つディレクトリに置いた場合、ACL ごとコピーした場合などである。macOS では、次のコマンドで ACL を確かめ、付いていれば取り除く。
+
+```sh
+ls -le ~/.config/yt2column/config.env
+chmod -N ~/.config/yt2column/config.env
+```
+
+`ls -le` は、ACL があればその項目を番号付きの行で示す。`chmod -N` は、ファイルの ACL をすべて取り除く。Linux では、モードがちょうど `0600` なら POSIX ACL のマスクが空になるので、名前を付けたユーザーやグループの項目は権利を与えない。
+
 ### サーバの起動
 
-プロバイダの変数と、投稿したいなら `SLACK_WEBHOOK_URL` を設定して起動する。
+[設定ファイル](#設定ファイル)を用意してから起動する。
 
 ```sh
 ./build/yt2column-server 2>>server.log
@@ -237,7 +306,7 @@ Webhook への投稿は、それとは別の操作で、拡張はビューアで
 |---|---|
 | `0` | シグナルを受けてサーバが止まった。 |
 | `1` | ソケットのディレクトリの準備、起動のロックの取得、ソケットの作成、またはリクエストの処理（serving）が失敗した（例えば、別のサーバがすでに動いている）。 |
-| `2` | サーバに引数を渡した、または待ち受ける前に、設定（`HOME` と、それから決まるソケットのパスを含む）か構成要素の組み立てが失敗した。 |
+| `2` | `config init` 以外の引数を渡した、または待ち受ける前に、設定（`HOME` と、それから決まるソケットのパス、設定ファイルの検査・書式・値を含む）か構成要素の組み立てが失敗した。 |
 
 ### サーバの停止
 
@@ -339,17 +408,10 @@ macOS の Brave は Chrome の manifest のディレクトリを読むので、C
   `0700` に戻して、もう一度起動する。
 - **`HOME: the socket path derived from HOME exceeds the operating system's
   limit`。** `HOME` がソケットのパスには長すぎる。上の上限を参照。
-- **更新の後の `configuration: YT2COLUMN_LLM_PROVIDER: is no longer supported`（または
-  `YT2COLUMN_MODEL`、`YT2COLUMN_REVIEW_PROVIDER`、`YT2COLUMN_REVIEW_MODEL`、`YT2COLUMN_CLAUDE_EFFORT`）。** プロバイダ・モデル・effort は工程ごとに 1 つの変数で設定するようになり、5 つの古い変数は、設定されていれば空でも必ず拒否する。サーバは待ち受ける前に
-  `2` で終わり、拡張はサーバが動いていないとしか報告できない。古い変数をそれぞれ外し（unset）、`YT2COLUMN_LLM`
-  を設定する。`YT2COLUMN_LLM` を設定せずに古い変数だけを外すと、既定の `claude/claude-opus-5-5` を使い、文字起こしは Anthropic
-  に送られる。`YT2COLUMN_REVIEW_*` の変数をどれか設定していたなら、`YT2COLUMN_REVIEW_LLM`
-  も、検証・推敲の工程が実際に使っていたプロバイダとモデルに設定する。`YT2COLUMN_CLAUDE_EFFORT`
-  を外すときは、使っていた effort を、`YT2COLUMN_LLM` と `YT2COLUMN_REVIEW_LLM` のうちプロバイダが
-  `claude` の値の後ろに `+<effort>` で付ける（`YT2COLUMN_LLM` を設定していなければ
-  `claude/claude-opus-5-5+<effort>` を設定する）。付けなければ、その工程は既定の effort の `high`
-  を使う。古い変数は `deepseek` の工程には効いていなかったので、`deepseek` の値には付けない。
-  [廃止した LLM の変数からの移行](#廃止した-llm-の変数からの移行)を参照し、それからサーバをもう一度起動する。
+- **`configuration: configuration file ... does not exist; create it with yt2column-server config init`。** 設定ファイルがない。`./build/yt2column-server config init`
+  で雛形を作り、値を書いてから、もう一度起動する（[設定ファイル](#設定ファイル)を参照）。環境変数からの設定を使っていたなら、[環境変数からの移行](#環境変数からの移行)を参照。
+- **`configuration: configuration file key ANTHROPIC_API_KEY: is not set`（またはほかのキー）。** そのキーが設定ファイルにない。サーバは環境変数の値を読まないので、シェルで
+  export しても効かない。設定ファイルにそのキーを書く。`is empty` のときは、キーはあるが値が空である。
 - **モデルのエラーを伴う `build the LLM client` または `build the review LLM client`。** プロバイダのクライアントは、前後に空白のあるモデルの
   ID や不正な UTF-8 のモデルの ID を、組み立てるときに、変数を名指しせずに拒否する。サーバは起動時に両方のクライアントを組み立てるので、待ち受ける前に
   `2` で終わり、拡張はサーバが動いていないとしか報告できない。前者は `YT2COLUMN_LLM`
@@ -383,6 +445,17 @@ macOS の Brave は Chrome の manifest のディレクトリを読むので、C
   `extension/dist` をもう一度読み込む。拡張の ID は変わらないので、ホストの
   `install` をし直す必要はない。
 
+### 環境変数からの移行
+
+以前の版のサーバは、設定を環境変数から読んでいた。今のサーバは設定ファイルだけを読み、設定ファイルがなければ起動しない。次の手順で移る。
+
+1. `./build/yt2column-server config init` で雛形を作る。
+2. `.envrc`、`.env`、シェルの起動ファイル、サーバを起動するスクリプトなどで、サーバのために設定していた値（[設定ファイル](#設定ファイル)の 6 つのキー）を、雛形の対応する行に写す。行の先頭の
+   `# ` を消し、`=` の後に値だけを書く。`export ` と、値を囲む引用符は写さない（どちらも拒否する）。
+3. 動いているサーバを止め、もう一度起動する。
+
+環境変数は、もうサーバには効かない。CLI は今までどおり環境変数を読むので、CLI のためには残してよい。
+
 ## 設定
 
 | 変数 | 説明 | 未設定のとき |
@@ -394,13 +467,13 @@ macOS の Brave は Chrome の manifest のディレクトリを読むので、C
 | `ANTHROPIC_WORKSPACE_ID` | Anthropic のワークスペースの ID。ワークスペースに結び付いていない API キーのためのもの | ワークスペースの ID を送らない |
 | `SLACK_WEBHOOK_URL` | Slack 互換の Incoming Webhook の URL（動作を確かめた送り先は Mattermost）。読むのはサーバだけ | サーバは起動するが、投稿はできない |
 
-`yt2column-server` は LLM の変数を読む。`SLACK_WEBHOOK_URL` は投稿にだけ必要で、なくても起動する（[localhost サーバ](#localhost-サーバ)を参照）。CLI は `SLACK_WEBHOOK_URL` を読まない。ソケットのパスは
+CLI はこれらを環境変数から読む。`yt2column-server` は、同じ名前のキーを設定ファイルから読み、環境変数のこれらの値は読まない（[設定ファイル](#設定ファイル)を参照）。この節の値の規則は、空の値の扱いを含めて、環境変数でも設定ファイルでも同じである。設定ファイルでは、それに加えて[設定ファイル](#設定ファイル)の書式の規則がかかる（例えば、末尾に空白のある値は、クライアントを組み立てる前に書式の誤りとして拒否する）。表の「未設定のとき」は、設定ファイルではキーがないときを指す。`SLACK_WEBHOOK_URL` は投稿にだけ必要で、なくてもサーバは起動する（[localhost サーバ](#localhost-サーバ)を参照）。CLI は `SLACK_WEBHOOK_URL` を読まない。ソケットのパスは
 `HOME` だけから求める（[localhost サーバ](#localhost-サーバ)を参照）。
 
 CLI だけが読む変数と、CLI が上の変数をどう読むかは
 [docs/dev/guides/cli.md](docs/dev/guides/cli.md#設定)にある。
 
-環境変数の値は、前後の空白を除くことも、ほかの方法で直すこともしない。空の値は未設定ではなく設定として扱い、拒否する。
+値は、前後の空白を除くことも、ほかの方法で直すこともしない。空の値は未設定ではなく設定として扱い、拒否する。
 
 `YT2COLUMN_LLM` と `YT2COLUMN_REVIEW_LLM` は、最初の `/` で分ける。その前の部分はプロバイダで、ちょうど
 `deepseek` か `claude` でなければならない。その後のすべてはモデルの ID で、さらに `/`
@@ -428,10 +501,6 @@ ID の一部とみなしてプロバイダに送ることはない。`+` より�
 `claude/claude-opus-5-5` を effort `high` で使う。`YT2COLUMN_REVIEW_LLM` を設定しなければ、検証・推敲の工程は、既定を含めて、生成と同じプロバイダ・モデル・effort を使う。`YT2COLUMN_REVIEW_LLM`
 を設定して effort を省けば、生成の effort は受け継がず、上の表の「effort を省いたとき」に従う。どちらの変数も、空の値は拒否し、既定や生成の設定で置き換えることはない。
 
-`YT2COLUMN_LLM_PROVIDER`、`YT2COLUMN_MODEL`、
-`YT2COLUMN_REVIEW_PROVIDER`、`YT2COLUMN_REVIEW_MODEL`、`YT2COLUMN_CLAUDE_EFFORT` の変数は廃止した。どれかが設定されていれば、空の値でも、CLI もサーバも、すべての実行で、その変数を名指しする設定エラーで止まる。その値は使わない。各エラーは、その実行のほかの設定エラーと合わせて報告する。
-[廃止した LLM の変数からの移行](#廃止した-llm-の変数からの移行)を参照。
-
 読んで検査するのは、選んだプロバイダの変数だけである。あるプロバイダの変数は、生成か検証・推敲のプロバイダがそのプロバイダであるときに読む。もう一方のプロバイダの変数は、値が何であれ無視する。そのため、別のツールのために
 `ANTHROPIC_API_KEY=` を export していても、`deepseek` だけを使う実行は止まらない。`YT2COLUMN_LLM`
 のプロバイダの部分が拒否され（空の値、`/` がない、または受け付けないプロバイダ）、`YT2COLUMN_REVIEW_LLM`
@@ -448,80 +517,23 @@ ID の一部とみなしてプロバイダに送ることはない。`+` より�
 
 ### 推奨構成
 
-```sh
-export YT2COLUMN_LLM=claude/claude-opus-5-5+high
+サーバの設定ファイルに書く行:
+
+```text
+YT2COLUMN_LLM=claude/claude-opus-5-5+high
 ```
 
 この値が本番の構成である。生成・字数の調整・検証・推敲のどれも、`claude` の `claude-opus-5-5` を effort
 `high` で使う。これはコードの既定でもある（[#490](https://github.com/isseis/yt2column/issues/490) と
-[#171](https://github.com/isseis/yt2column/issues/171) を参照）ので、設定しなくてよい。LLM
-の変数が `ANTHROPIC_API_KEY` だけなら、生成・字数の調整・検証・推敲のどれもこの構成を使う。export
-しておけば、後で既定が変わっても、シェルの中で構成を固定できる。
+[#171](https://github.com/isseis/yt2column/issues/171) を参照）ので、書かなくてよい。LLM
+の設定が `ANTHROPIC_API_KEY` だけなら、生成・字数の調整・検証・推敲のどれもこの構成を使う。書いておけば、後で既定が変わっても構成を固定できる。CLI
+では、同じ値を環境変数 `YT2COLUMN_LLM` に設定する。
 
 `ANTHROPIC_API_KEY` は必須である。生成の構成で検証・推敲するには、`YT2COLUMN_REVIEW_LLM`
-を設定しない。別の構成を使うには、既定に頼らず環境変数を設定する。
+を設定しない。別の構成を使うには、既定に頼らず、サーバでは設定ファイルに、CLI では環境変数に設定する。
 
 この構成の品質の目標、結果、製品の制約は
 [production_profile.md](docs/dev/production_profile.md)（日本語）にある。
-
-### 廃止した LLM の変数からの移行
-
-各工程のプロバイダとモデルは、以前は 2 つの変数で設定していた。生成と字数の調整は
-`YT2COLUMN_LLM_PROVIDER` と `YT2COLUMN_MODEL`、検証・推敲の工程は
-`YT2COLUMN_REVIEW_PROVIDER` と `YT2COLUMN_REVIEW_MODEL` である。今は工程ごとに 1 つの変数、
-`YT2COLUMN_LLM` と `YT2COLUMN_REVIEW_LLM` で設定し、古い変数は拒否する。例えば、以前の
-DeepSeek の設定
-
-```text
-YT2COLUMN_LLM_PROVIDER=deepseek
-YT2COLUMN_MODEL=deepseek-flash
-```
-
-は、次のようになる。
-
-```sh
-export YT2COLUMN_LLM=deepseek/deepseek-flash
-```
-
-`YT2COLUMN_REVIEW_*` の変数をどれか設定していたなら、`YT2COLUMN_REVIEW_LLM`
-を、検証・推敲の工程が実際に使っていたプロバイダとモデルに設定する。そうでなければ設定せず、検証・推敲の工程は生成のものを使う。次の 2 つの古い設定は、今は書き出す部分を暗に含んでいた。プロバイダが生成と同じに見えるときも、その部分を書き出す。
-
-| 古い設定 | 新しい設定 |
-|---|---|
-| `YT2COLUMN_REVIEW_PROVIDER` だけ（検証・推敲の工程は、そのプロバイダの既定のモデルを使っていた） | `YT2COLUMN_REVIEW_LLM=<provider>/<model ID>`。モデルの ID を書き出す。例えば `claude/claude-opus-5-5` |
-| `YT2COLUMN_REVIEW_MODEL` だけ（検証・推敲の工程は、生成のプロバイダを使っていた） | `YT2COLUMN_REVIEW_LLM=<generation provider>/<model ID>`。生成のプロバイダを書き出す。例えば `deepseek/deepseek-chat` |
-
-Claude の effort は、以前は `YT2COLUMN_CLAUDE_EFFORT` で設定し、生成と検証・推敲のうち `claude` を使う工程に効いていた。今は
-`YT2COLUMN_LLM` と `YT2COLUMN_REVIEW_LLM` の値の後ろに `+<effort>` を付けて工程ごとに設定し、`YT2COLUMN_CLAUDE_EFFORT`
-は拒否する。例えば、以前の設定
-
-```text
-YT2COLUMN_CLAUDE_EFFORT=low
-YT2COLUMN_LLM=claude/claude-sonnet-5-5
-```
-
-は、次のようになる。
-
-```sh
-export YT2COLUMN_LLM=claude/claude-sonnet-5-5+low
-```
-
-`YT2COLUMN_LLM` を設定していなかったなら、既定に effort を付けた
-`YT2COLUMN_LLM=claude/claude-opus-5-5+<effort>` を設定する。`YT2COLUMN_REVIEW_LLM`
-に `claude` の値を設定していたなら、その値にも同じ effort を付ける。付けなければ、検証・推敲の工程は既定の `high`
-を使う。プロバイダが `deepseek` の値には付けない。古い変数は `deepseek` の工程に効いておらず、付けると、それまで送っていなかった
-`reasoning_effort` を送る。この版より前の版は `+<effort>` をモデルの ID の一部とみなしてプロバイダに送るので、そうした版に戻すときは
-`+<effort>` を外す。外さなければ、最初の LLM の呼び出しが失敗する。
-
-古い変数は、ファイルから消すだけでなく外す（unset）。すでに export したシェルは古い変数を持ち続け、空の値も拒否するためである。古い変数を設定しうるすべての場所、すなわち `.envrc`、`.env`、シェルの起動ファイル、サーバを起動するスクリプトを確かめる。
-
-`YT2COLUMN_LLM` を設定せずに古い変数を消すと、既定の
-`claude` を選び、文字起こしは Anthropic に送られる。`YT2COLUMN_LLM_PROVIDER` と `YT2COLUMN_MODEL`
-のエラーの行はそのことを伝え、`ANTHROPIC_API_KEY` が未設定のときは、同じ理由で
-`ANTHROPIC_API_KEY` のエラーがその隣に出る。DeepSeek を使い続けるには、上のとおり `YT2COLUMN_LLM`
-を設定する。Anthropic のキーを設定するだけでは、DeepSeek を使い続けることにならない。
-
-動いているサーバは、起動したときの設定を持ち続ける。変数を変えた後は、サーバを止めてもう一度起動する。サーバは、そのとき待ち受ける前に変数を検査する。
 
 ## ブラウザ拡張
 

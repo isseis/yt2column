@@ -308,8 +308,8 @@
 
 **変えるファイル:** `extension/src/core/i18n/en.ts`、`extension/src/core/i18n/ja.ts`、`extension/test/secretsAbsent.test.ts`
 
-- [ ] `en.ts:27` と `ja.ts:23-24` の `setWebhookStep` を、`yt2column-server` の設定ファイルに `SLACK_WEBHOOK_URL` を書いて `yt2column-server` を起動し直す、という案内に変える。環境変数という語を使わず、設定ファイルのパスは書かない（設計 3.4）。文面は実装で決める。
-- [ ] `secretsAbsent.test.ts:28` の注釈を、許す名前が設定ファイルのキーであることに合わせて直す。
+- [x] `en.ts:27` と `ja.ts:23-24` の `setWebhookStep` を、`yt2column-server` の設定ファイルに `SLACK_WEBHOOK_URL` を書いて `yt2column-server` を起動し直す、という案内に変える。環境変数という語を使わず、設定ファイルのパスは書かない（設計 3.4）。文面は実装で決める。
+- [x] `secretsAbsent.test.ts:28` の注釈を、許す名前が設定ファイルのキーであることに合わせて直す。
 
 **完了条件:** `make ext-check` が通る。
 
@@ -321,9 +321,9 @@
 
 **コミット:** 節の削除と、それを指すリンクの削除を 1 つのコミットにする（`TestReadmeLinks`）。
 
-- [ ] `README.md` の「設定」の節の廃止した変数の段落（`:431-433`）、「廃止した LLM の変数からの移行」の節（`:467` から）、それを指すトラブルシューティングの項目（`:352`）を消す。`/mktrans README.md` で `README.en.md` に同期する。
-- [ ] `cli.md:69-71`・`255`・`257`、`project_overview.md:161` の「次に述べる旧変数の検査だけは例外で」の部分と `:163`、`translation_glossary.md:159`・`186` の行を消す。
-- [ ] `docs/tasks/0066_server_config_file/_checks/` に、merge-base と HEAD の文書を比べて、上の節・段落・用語集の行が HEAD で消え、ほかの見出しが同じ順で残っていることを確かめるスクリプトを置く（`diff` の検証。`requirements_process.md` §4）。PR-4 のブランチで 1 回実行し、出力と 2 つのコミットの ID を 7 章の AC-30・AC-33 の行に書く。
+- [x] `README.md` の「設定」の節の廃止した変数の段落（`:431-433`）、「廃止した LLM の変数からの移行」の節（`:467` から）、それを指すトラブルシューティングの項目（`:352`）を消す。`/mktrans README.md` で `README.en.md` に同期する。
+- [x] `cli.md:69-71`・`255`・`257`、`project_overview.md:161` の「次に述べる旧変数の検査だけは例外で」の部分と `:163`、`translation_glossary.md:159`・`186` の行を消す。
+- [x] `docs/tasks/0066_server_config_file/_checks/` に、merge-base と HEAD の文書を比べて、上の節・段落・用語集の行が HEAD で消え、ほかの見出しが同じ順で残っていることを確かめるスクリプトを置く（`diff` の検証。`requirements_process.md` §4）。PR-4 のブランチで 1 回実行し、出力と 2 つのコミットの ID を 7 章の AC-30・AC-33 の行に書く。
 
 #### ステップ 7-2: README とほかの文書の書き換え
 
@@ -331,16 +331,16 @@
 
 **コミット:** 推奨構成と本番の構成のブロックの形の変更と、このステップの最後の項目（`checkExportBlock` の書き換え）を 1 つのコミットにする。
 
-- [ ] `README.md` を、要件 AC-30・AC-31 の内容に書き換える。設定ファイルの節（パス・書式・検査・ACL・`config init` と終了コードの表・一時ファイルの接頭辞 `.config.env.tmp-`）と移行の手順を足し、クイックスタート・サーバの起動・設定・推奨構成のサーバの手順を、設定ファイルの形にする。`/mktrans README.md` で `README.en.md` に同期し、2 つを同じコミットにする。
-- [ ] 要件 AC-33 に挙げた節を書き換える。`development.md` の「開発用に別のサーバを動かす」は、専用の `HOME` の下に設定ファイルを置いてから起動する手順にする。`package_reference.md` の `cmd/yt2column-server` と `internal/config` の行を直す。`CLAUDE.md` の Architecture Overview のサーバを支えるパッケージに `internal/privatefile` を足し、設定と秘密の記述を直す。`translation_glossary.md` の「設定エラー」（`:165`）と「設定」（`:185`）の定義を環境変数に限らない形にし、「設定ファイル」「雛形」を足す。
-- [ ] `TestProductionProfileDocsContract` の `checkExportBlock`・`checkExportLines`・`exportLineRE` を、設定ファイルの行のブロックを読む形に変える。`internal/config/test_helpers.go` に、バイト列を書式の解析に通して受理したキーと値を返すアクセサを足す。ブロックがこれで受理されることを確かめ、短い `HOME` の下にファイルとして書いて `LoadServer` で読み込み、既定の構成と比べる（1.3）。
+- [x] `README.md` を、要件 AC-30・AC-31 の内容に書き換える。設定ファイルの節（パス・書式・検査・ACL・`config init` と終了コードの表・一時ファイルの接頭辞 `.config.env.tmp-`）と移行の手順を足し、クイックスタート・サーバの起動・設定・推奨構成のサーバの手順を、設定ファイルの形にする。`/mktrans README.md` で `README.en.md` に同期し、2 つを同じコミットにする。
+- [x] 要件 AC-33 に挙げた節を書き換える。`development.md` の「開発用に別のサーバを動かす」は、専用の `HOME` の下に設定ファイルを置いてから起動する手順にする。`package_reference.md` の `cmd/yt2column-server` と `internal/config` の行を直す。`CLAUDE.md` の Architecture Overview のサーバを支えるパッケージに `internal/privatefile` を足し、設定と秘密の記述を直す。`translation_glossary.md` の「設定エラー」（`:165`）と「設定」（`:185`）の定義を環境変数に限らない形にし、「設定ファイル」「雛形」を足す。
+- [x] `TestProductionProfileDocsContract` の `checkExportBlock`・`checkExportLines`・`exportLineRE` を、設定ファイルの行のブロックを読む形に変える。`internal/config/test_helpers.go` に、バイト列を書式の解析に通して受理したキーと値を返すアクセサを足す。ブロックがこれで受理されることを確かめ、短い `HOME` の下にファイルとして書いて `LoadServer` で読み込み、既定の構成と比べる（1.3）。
 
 #### ステップ 7-3: 文書のガードテスト
 
 **変えるファイル:** `cmd/yt2column-server/docs_test.go`、`cmd/yt2column/docs_test.go`、`internal/doctestutil/readme.go`、`internal/config/test_helpers.go`
 
-- [ ] `TestServerDocsContract` に、設計 3.5 の表の値の照合を足す: 両 README の設定ファイルのパス（macOS とその他の Unix で同じ 1 つ）、`config init` の終了コードの表（`exitOK`・`exitFailure`・`exitUsage` の 3 つの行）、6 つのキーの名前、大きさの上限（`serverFileMaxSize` から作る文字列）、`security.md` §8.2 の設定ファイルのパス。`internal/config/test_helpers.go` に、設定ファイルのパスの `HOME` より下の部分、`serverFileKeys`、`serverFileMaxSize` を返すアクセサを足す。新しい見出しや表の列の場所は `internal/doctestutil/readme.go` に足す。
-- [ ] 文書を書き換えた後に、`TestLLMDefaultsDocsContract`・`TestEffortValuesDocsContract`・`TestReadmeLinks`・`TestReadmeSyncMarker` と、`make ext-test`（README と `development.md` を読む拡張のテスト）が通ることを確かめる。
+- [x] `TestServerDocsContract` に、設計 3.5 の表の値の照合を足す: 両 README の設定ファイルのパス（macOS とその他の Unix で同じ 1 つ）、`config init` の終了コードの表（`exitOK`・`exitFailure`・`exitUsage` の 3 つの行）、6 つのキーの名前、大きさの上限（`serverFileMaxSize` から作る文字列）、`security.md` §8.2 の設定ファイルのパス。`internal/config/test_helpers.go` に、設定ファイルのパスの `HOME` より下の部分、`serverFileKeys`、`serverFileMaxSize` を返すアクセサを足す。新しい見出しや表の列の場所は `internal/doctestutil/readme.go` に足す。
+- [x] 文書を書き換えた後に、`TestLLMDefaultsDocsContract`・`TestEffortValuesDocsContract`・`TestReadmeLinks`・`TestReadmeSyncMarker` と、`make ext-test`（README と `development.md` を読む拡張のテスト）が通ることを確かめる。
 
 **完了条件:** 共通の完了条件、`make readme-sync-check`、`make ext-test`。
 
@@ -356,10 +356,10 @@
 
 **判定理由**: ガードテストの書き換えはあるが、競合する実装の案も高リスクの手順もない
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/748
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ## 3. 実装の順序とマイルストーン
 
@@ -425,8 +425,8 @@ PR の分け方の理由は 1.3 の 4 つ目の決定にある。
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4）
 - [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3）
 - [x] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 4-1 / 4-2 / 4-3 / 5-1 / 5-2）
-- [ ] PR-4 マージ済み（対象ステップ: 6-1 / 7-1 / 7-2 / 7-3）
-- [ ] すべての受け入れ基準の検証（7 章）が通った
+- [x] PR-4 マージ済み（対象ステップ: 6-1 / 7-1 / 7-2 / 7-3）
+- [x] すべての受け入れ基準の検証（7 章）が通った
 
 ## 7. 受け入れ基準の検証
 
@@ -460,9 +460,9 @@ PR の分け方の理由は 1.3 の 4 つ目の決定にある。
 | AC-25 | `internal/privatefile/privatefile_test.go::TestCreateFailureLeavesNothing`、`internal/config/serverfile_test.go::TestInitServerFile`（作った親が残る）、`cmd/yt2column-server/run_test.go::TestConfigInit`（作れない場合） | test | 1-3、5-1 | 1-4、2-3、5-2 |
 | AC-26 | `internal/config/serverfile_test.go::TestServerFileTemplate`、`cmd/yt2column-server/run_test.go::TestConfigInitThenStart` | test | 2-3、5-1 | 2-3、5-2 |
 | AC-27・AC-28・AC-29 | `cmd/yt2column-server/run_test.go::TestRunArgs` | test | 5-1 | 5-2 |
-| AC-30・AC-31 | `cmd/yt2column-server/docs_test.go::TestServerDocsContract`（パス・終了コード・キー・上限）、`cmd/yt2column/docs_test.go::TestProductionProfileDocsContract`（推奨構成のブロック）、`cmd/yt2column/docs_test.go::TestReadmeLinks`、`docs/tasks/0066_server_config_file/_checks/` の削除の確かめ（実行の結果と 2 つのコミットの ID は PR-4 で記入）、文の内容は PR のレビューで読む | static・diff・manual | 7-1、7-2 | 7-1、7-2、7-3 |
+| AC-30・AC-31 | `cmd/yt2column-server/docs_test.go::TestServerDocsContract`（パス・終了コード・キー・上限）、`cmd/yt2column/docs_test.go::TestProductionProfileDocsContract`（推奨構成のブロック）、`cmd/yt2column/docs_test.go::TestReadmeLinks`、`docs/tasks/0066_server_config_file/_checks/retired_docs_removed.sh` の削除の確かめ（`retired_docs_removed.sh origin/main HEAD` を merge-base `66cc61bb465445806124f38dd7a16181c54760fe` と HEAD `9d9813f32379915d0930aec8d4413130ad5bec09` で実行し、終了コード `0`。4 つの文書に廃止した変数の名前がなく、ほかの見出しが同じ順で残り、用語集の 2 つの行が消えた）、文の内容は PR のレビューで読む | static・diff・manual | 7-1、7-2 | 7-1、7-2、7-3 |
 | AC-32 | `cmd/yt2column/readme_sync_test.go::TestReadmeSyncMarker`（`make readme-sync-check`）、`make ext-test` | static | 7-1、7-2 | - |
-| AC-33 | `cmd/yt2column/docs_test.go::TestProductionProfileDocsContract`（`production_profile.md` のブロック）、`cmd/yt2column-server/docs_test.go::TestServerDocsContract`（`security.md` §8.2 のパス）、`internal/pipeline/pipeline_test.go::TestPackageReferenceListsPackages`、`docs/tasks/0066_server_config_file/_checks/` の削除の確かめ、文の内容は PR のレビューで読む | static・diff・manual | 1-1、7-1、7-2 | 7-1、7-2、7-3 |
+| AC-33 | `cmd/yt2column/docs_test.go::TestProductionProfileDocsContract`（`production_profile.md` のブロック）、`cmd/yt2column-server/docs_test.go::TestServerDocsContract`（`security.md` §8.2 のパス）、`internal/pipeline/pipeline_test.go::TestPackageReferenceListsPackages`、`docs/tasks/0066_server_config_file/_checks/retired_docs_removed.sh` の削除の確かめ（結果は AC-30・AC-31 の行）、文の内容は PR のレビューで読む | static・diff・manual | 1-1、7-1、7-2 | 7-1、7-2、7-3 |
 | AC-34 | `cmd/yt2column-server/docs_test.go::TestServerDocsContract` | static | 7-3 | 7-3 |
 | AC-35 | `make ext-check`（`extension/test/secretsAbsent.test.ts` を含む）、案内の文の内容は PR のレビューで読む | static・manual | 6-1 | - |
 

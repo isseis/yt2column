@@ -7,7 +7,7 @@
 ## 決定済みの方針
 
 - **言語: Go**（ブラウザ拡張は TypeScript。詳細は §「想定ディレクトリ構成」と `docs/tasks/0007_browser_extension_skeleton/`）。依存関係を最小限にし、シングルバイナリで配布する。 [ADR-0026](adr/0026-extension-platform.md)
-- **実行形式: localhost サーバとブラウザ拡張、開発用の CLI**。主経路は、ブラウザ拡張が YouTube の文字起こしパネルからコピーした字幕を、ブラウザが起動する Native Messaging のホスト（`cmd/yt2column-nmhost`・`internal/nmhost`）がソケットへ中継し、localhost サーバ（`cmd/yt2column-server`・`internal/server`）が記事を生成してメモリに保持し、求めに応じて返すか Slack へ投稿する（タスク `0011_localhost_server`・`0044_article_job_api`）。拡張は、サーバのジョブの API（生成の開始・状態の取得・投稿）を使う。拡張の Service Worker が生成の開始を送り、ビューアとポップアップが状態の取得を繰り返し、ビューアが利用者の操作で投稿を送る（タスク `0050_viewer_tab`）。サーバが受け付けるのはジョブの API だけで、Webhook へ送るのは投稿の操作が求めた記事だけである（タスク `0059_remove_legacy_articles_api`）。サーバは TCP を待ち受けず、`HOME` だけから導出したパスの Unix ドメインソケットの上で HTTP を受ける（タスク `0026_native_messaging_relay`）。ホストの manifest は、利用者が `yt2column-nmhost install <browser>` で登録し、`yt2column-nmhost uninstall <browser>` で削除する（`<browser>` は `chrome` か `brave`。`make build` は登録しない）。サーバの起動は手動とし、サーバは `yt-dlp` を呼ばない。コアロジックは `cmd/` から分離したパッケージとして実装し、両方の入口で共有する。CLI はローカルで実行する。 [ADR-0005](adr/0005-server-architecture.md) [ADR-0008](adr/0008-launch-path.md) [ADR-0027](adr/0027-article-job-api.md)
+- **実行形式: localhost サーバとブラウザ拡張、開発用の CLI**。主経路は、ブラウザ拡張が YouTube の文字起こしパネルからコピーした字幕を、ブラウザが起動する Native Messaging のホスト（`cmd/yt2column-nmhost`・`internal/nmhost`）がソケットへ中継し、localhost サーバ（`cmd/yt2column-server`・`internal/server`）が記事を生成してメモリに保持し、求めに応じて返すか Slack へ投稿する（タスク `0011_localhost_server`・`0044_article_job_api`）。拡張は、サーバのジョブの API（生成の開始・状態の取得・投稿）を使う。拡張の Service Worker が生成の開始を送り、ビューアとポップアップが状態の取得を繰り返し、ビューアが利用者の操作で投稿を送る（タスク `0050_viewer_tab`）。サーバが受け付けるのはジョブの API だけで、Webhook へ送るのは投稿の操作が求めた記事だけである（タスク `0059_remove_legacy_articles_api`）。サーバは TCP を待ち受けず、`HOME` だけから導出したパスの Unix ドメインソケットの上で HTTP を受ける（タスク `0026_native_messaging_relay`）。ホストの manifest は、利用者が `yt2column-nmhost install <browser>` で登録し、`yt2column-nmhost uninstall <browser>` で削除する（`<browser>` は `chrome` か `brave`。`make build` は登録しない）。サーバの起動は手動とし、サーバは `yt-dlp` を呼ばない。サーバは設定を `HOME` だけから導出したパスの設定ファイル（モード `0600`）だけから読み、CLI は環境変数だけから読む（タスク `0066_server_config_file`）。コアロジックは `cmd/` から分離したパッケージとして実装し、両方の入口で共有する。CLI はローカルで実行する。 [ADR-0005](adr/0005-server-architecture.md) [ADR-0008](adr/0008-launch-path.md) [ADR-0027](adr/0027-article-job-api.md) [ADR-0018](adr/0018-server-config-file.md)
 - **字幕取得: 主経路はコピーした字幕、CLI は外部コマンドの `yt-dlp` に委譲する**。主経路では、利用者が YouTube の文字起こしパネルからコピーした字幕の文字列を解析するパーサ（`internal/transcript` で `CopiedSource` が `Raw` を解析する箇所）を使う。これは、パネルが出力する書式に依存する例外である。依存はそのパーサに限り、Go から YouTube のページやパネルを取得・解析しない。CLI は字幕の取得を `yt-dlp` に委譲する。YouTube の非公式な仕様に依存する最も壊れやすい部分を、保守が活発なツールに任せるためであり、Go で字幕取得を自前実装しないこと。書式が変わって拒否が続く間は、`yt-dlp` の経路を代わりの手段として残す。 [ADR-0007](adr/0007-manual-transcript-copy.md)
 - **LLM: 既定は Claude（`claude-opus-5-5`）で、DeepSeek も選べる**。コード上の既定のプロバイダは Claude で、既定で本番の構成になる（[#490](https://github.com/isseis/yt2column/issues/490)・[#171](https://github.com/isseis/yt2column/issues/171)）。本番の構成は [production_profile.md](production_profile.md) にある。どちらも SDK を使わず、標準ライブラリ（`net/http`・`encoding/json`）で呼び出す。Claude は Anthropic Messages API を、DeepSeek は公式 API を直接契約して使う。DeepSeek の API は OpenAI 互換の Chat Completions 形式（`POST https://api.deepseek.com/chat/completions`）である。 [ADR-0001](adr/0001-llm-adapter-stdlib.md) [ADR-0004](adr/0004-production-profile.md)
   - OpenCode Go 経由の利用は採用しない。利用条件が「コーディングエージェントのトラフィック」を前提としており、本ツールの用途に合わないため。
@@ -107,6 +107,7 @@ internal/articlecache/    # 記事のキャッシュ（キー・記録の状態�
 internal/serversock/      # サーバの Unix ドメインソケット（ソケットのディレクトリの検査・起動のロック・stale の判定）
 internal/nmhost/          # Native Messaging のホスト（フレーム・ソケットへの中継・manifest の install/uninstall）
 internal/redact/          # 出力の伏せ字（CLI とサーバが共有）
+internal/privatefile/     # 所有者だけが読めるファイルの検査付きの読み込みと作成（サーバの設定ファイル）
 internal/signalrun/       # シグナルの扱い（CLI とサーバが共有）
 internal/transcript/      # TranscriptSource と yt-dlp 実装、json3 パーサ、コピーした字幕の CopiedSource
 internal/strictjson/      # 検証を通った JSON 文書から値を取り出す厳格な部品（複数のパッケージが共有。使うパッケージの一覧は package_reference.md）
@@ -121,7 +122,7 @@ internal/llm/llmhttp/     # LLM アダプタ共通の HTTP 送信（リダイレ
 internal/llm/gemini/      # Gemini 実装（将来追加。google.golang.org/genai）
 internal/secret/          # 秘密情報（API キー・Webhook URL）を保持する型
 internal/publisher/       # Slack 互換 Incoming Webhook / File
-internal/config/          # 環境変数からの設定読み込み
+internal/config/          # 環境変数（CLI）とサーバの設定ファイルからの設定読み込み
 prompts/                  # プロンプトテンプレート
 testdata/                 # json3・info.json のサンプル、文字起こしパネルの HTML の抜粋、DeepSeek・Claude API の実応答
 extension/                # ブラウザ拡張（TypeScript。開発環境・Manifest V3・選択範囲・URL・動画メタデータの収集・表示、Service Worker からの生成の開始、記事を表示・投稿・保存・コピーするビューア）
@@ -143,7 +144,11 @@ extension/                # ブラウザ拡張（TypeScript。開発環境・Man
 
 値は前後の空白を取り除くなどの補正をせず、空の値は「未設定」ではなくエラーとして扱う。
 
-`internal/config` の `LoadServer` は、localhost サーバの設定を読む。LLM の設定は CLI と共有する。`SLACK_WEBHOOK_URL` は任意とし、未設定でもサーバは起動するが、投稿の操作を `webhook_not_configured` で拒否する。サーバは `yt-dlp` を呼ばないので、`YT2COLUMN_CACHE_DIR` と `YT2COLUMN_YTDLP_PATH` は読まない（不正な値でも起動を止めない）。ソケットのパスは `HOME` だけから導出し、`XDG_*`・`TMPDIR` は読まない。
+CLI は、表の変数を環境変数から読む。localhost サーバは、表のうち `YT2COLUMN_LLM`・`YT2COLUMN_REVIEW_LLM`・`DEEPSEEK_API_KEY`・`ANTHROPIC_API_KEY`・`ANTHROPIC_WORKSPACE_ID`・`SLACK_WEBHOOK_URL` の 6 つを、同じ名前のキーとして設定ファイルから読む（[ADR-0018](adr/0018-server-config-file.md)）。値の規則は、空の値の扱いを含めて、環境変数と同じで、設定ファイルにはそれに加えて書式の規則がかかる。ファイルにないキーは、環境変数が未設定のときと同じに扱う。
+
+`internal/config` の `LoadServer` は、localhost サーバの設定を読む。段は 3 つで、`HOME` から設定ファイルのパスを導出し、ファイルを検査して読んで書式を解析し、6 つのキーの値を検証する。最初に失敗した段で止まる。値の検証は CLI と共有する。サーバのコードがプロセスの環境から読むのは、`HOME`（ソケットと設定ファイルのパス）と `GODEBUG`（HTTP/2 のデバッグログの警告）だけである（Go の標準ライブラリが LLM と Webhook へのリクエストにプロキシの変数を使うことは除く）。環境に 6 つのキーと同じ名前の変数があっても、読まず、止まらず、警告もしない。`SLACK_WEBHOOK_URL` は任意とし、未設定でもサーバは起動するが、投稿の操作を `webhook_not_configured` で拒否する。サーバは `yt-dlp` を呼ばないので、`YT2COLUMN_CACHE_DIR` と `YT2COLUMN_YTDLP_PATH` は読まない（不正な値でも起動を止めない）。ソケットのパスは `HOME` だけから導出し、`XDG_*`・`TMPDIR` は読まない。
+
+設定ファイルのパスは `HOME` だけから導出し、macOS もほかの Unix も `$HOME/.config/yt2column/config.env` である（`XDG_CONFIG_HOME` は読まない）。書式は 1 行に 1 つの `KEY=VALUE` で、空行と `#` で始まる行を読み飛ばし、値を変換せずに使う。受理する形に合わない行（`export `、引用符で始まる値、空白に続く `#`、重複したキー、6 つ以外のキーなど）、制御文字・CR・DEL・U+FEFF、UTF-8 として正しくないバイト列、64 KiB を超える大きさは、直さずにファイル全体を拒否する。サーバは、ファイルが自分の所有する通常のファイルで、シンボリックリンクでなく、モードがちょうど `0600` であることを、読む記述子について確かめ、満たさなければ何も直さずに起動を止める（終了コード `2`）。ACL は検査しない。`yt2column-server config init` は、コメントの行と空行だけの雛形をモード `0600` で作り、既存のものは変えない。詳しい規則は README の「設定ファイル」、セキュリティの方針は [security.md](security.md) の §2 と §8.2 にある。
 
 `YT2COLUMN_LLM` と `YT2COLUMN_REVIEW_LLM` の値は、最初の `/` で区切る。前半がプロバイダで、`deepseek` か `claude` に完全に一致しなければならない。残りの全体がモデル ID で、その中の `/` も含めて、変換せずにそのまま API に送る（`claude/vendor/model-x` ならモデルは `vendor/model-x`）。モデル ID が空の値（`claude`・`claude/`）、プロバイダの部分が空か不正な値（`/claude-opus-5-5`・`Claude/claude-opus-5-5`・` claude/claude-opus-5-5`）は設定エラーにする。前後の空白は取り除かない。前後に空白があるモデル ID は、設定の読み込みでは拒否せず、その工程のクライアントを作るときに、通信の前にアダプタが拒否する。
 
@@ -158,9 +163,7 @@ extension/                # ブラウザ拡張（TypeScript。開発環境・Man
 
 プロバイダ固有の変数は、生成と検証・推敲のどちらかが選んだプロバイダのものを読んで検査する。他のプロバイダの変数は、未設定・空・不正な値のいずれでも拒否しない。`YT2COLUMN_LLM` のプロバイダの部分が決まらず（空の値、`/` を含まない値、プロバイダの部分が空か不正な値）、`YT2COLUMN_REVIEW_LLM` も未設定の場合は、どのプロバイダ固有の変数も検査しない。プロバイダの部分は正しく、モデル ID だけが空の値（`claude/`）や、effort の部分だけが不正な値（`claude/claude-opus-5-5+ultra`）なら、そのプロバイダの変数は検査する。LLM の変数が `ANTHROPIC_API_KEY` だけなら、生成・字数の調整・検証・推敲のすべてを `claude` の `claude-opus-5-5`（effort `high`）で行う。`--no-review` を指定しても検証・推敲の設定は検査する。
 
-中断した実行の再開では、実行する工程の LLM の変数だけを読む。`YT2COLUMN_REVIEW_LLM` を設定して検証・推敲だけを実行する場合は、`YT2COLUMN_LLM` を読まない。ただし、次に述べる旧変数の検査だけは例外で、実行する工程によらず行う。
-
-旧変数（`YT2COLUMN_LLM_PROVIDER`・`YT2COLUMN_MODEL`・`YT2COLUMN_REVIEW_PROVIDER`・`YT2COLUMN_REVIEW_MODEL`・`YT2COLUMN_CLAUDE_EFFORT`）は廃止した。いずれかが設定されていれば（空の値を含む）、CLI もサーバも、その変数を名指しする設定エラーで止まる。LLM の変数を読まない実行（`--after review` など）でも止まる。旧変数の値は使わず、ほかの設定エラーと合わせて報告する。旧変数の値は使わないので、旧変数だけで DeepSeek を指定していた設定では `YT2COLUMN_LLM` が未設定として扱われ、既定の `claude` が選ばれる。生成または検証・推敲の設定を検査する実行では、`ANTHROPIC_API_KEY` が未設定ならそのエラーも出る。旧変数の行も、代わりに設定する新しい変数と、それが未設定のときに使われるもの（`YT2COLUMN_LLM` なら `claude`）を示す。`YT2COLUMN_CLAUDE_EFFORT` は `claude` の工程にだけ効いていたので、その行は、代わりに `YT2COLUMN_LLM`・`YT2COLUMN_REVIEW_LLM` のうちプロバイダが `claude` の値に `+<effort>` を付けることと、付けなければ `claude` の既定の `high` を使うことを示す。`deepseek` の値に付けると、それまで送っていなかった `reasoning_effort` を送ることになる。DeepSeek を使い続けるには、旧変数を外し（unset）、`YT2COLUMN_LLM=deepseek/<モデル ID>` を設定する。移行の手順は README の「廃止した LLM の変数からの移行」にある。ホスト（`yt2column-nmhost`）は LLM の設定を読まないので、旧変数があっても止まらない。
+中断した実行の再開では、実行する工程の LLM の変数だけを読む。`YT2COLUMN_REVIEW_LLM` を設定して検証・推敲だけを実行する場合は、`YT2COLUMN_LLM` を読まない。
 
 ## 開発ルール
 

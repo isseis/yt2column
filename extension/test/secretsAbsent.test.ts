@@ -25,10 +25,10 @@ const secretWords = [
 // "Webhook URL". Matched case-insensitively.
 const webhookUrlPattern = /webhook[ _.-]?url/i;
 
-// The server's environment variable a message may tell the user to set. It is
+// The server's configuration file key a message may tell the user to set. It is
 // allowed only inside the string literals of the message files, so the same
 // name as code (an identifier, a comment, a property name) is still refused.
-const messageEnvName = "SLACK_WEBHOOK_URL";
+const messageKeyName = "SLACK_WEBHOOK_URL";
 const messageFiles = ["src/core/i18n/en.ts", "src/core/i18n/ja.ts"];
 
 // The extension sends to the native messaging host and has no token or port
@@ -83,8 +83,8 @@ function isMessageText(node: ts.Node): boolean {
   );
 }
 
-/** text with messageEnvName removed from its string literals only. */
-function withoutLiteralEnvName(file: string, text: string): string {
+/** text with messageKeyName removed from its string literals only. */
+function withoutLiteralKeyName(file: string, text: string): string {
   const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
   let result = "";
   let last = 0;
@@ -94,7 +94,7 @@ function withoutLiteralEnvName(file: string, text: string): string {
       const end = node.getEnd();
       result +=
         text.slice(last, start) +
-        text.slice(start, end).replaceAll(messageEnvName, "");
+        text.slice(start, end).replaceAll(messageKeyName, "");
       last = end;
       return;
     }
@@ -107,11 +107,11 @@ function withoutLiteralEnvName(file: string, text: string): string {
 /**
  * The secret words in text, the content of file (a "/"-separated path
  * relative to the extension directory). A message file is scanned after the
- * environment name is taken out of its string literals.
+ * key name is taken out of its string literals.
  */
 function secretWordsIn(file: string, text: string): string[] {
   const scanned = messageFiles.includes(file)
-    ? withoutLiteralEnvName(file, text)
+    ? withoutLiteralKeyName(file, text)
     : text;
   const found = wordsIn(scanned, secretWords);
   const url = webhookUrlPattern.exec(scanned);
@@ -179,49 +179,49 @@ describe("secretWordsIn", () => {
       text: "const key = 'webhook_url';",
     },
     {
-      name: "the environment name in a literal outside the message files",
+      name: "the key name in a literal outside the message files",
       file: "src/core/response.ts",
-      text: `const name = "${messageEnvName}";`,
+      text: `const name = "${messageKeyName}";`,
     },
     {
-      name: "the environment name as an identifier in a message file",
+      name: "the key name as an identifier in a message file",
       file: "src/core/i18n/en.ts",
-      text: `const ${messageEnvName} = "x";`,
+      text: `const ${messageKeyName} = "x";`,
     },
     {
-      name: "the environment name in a comment in a message file",
+      name: "the key name in a comment in a message file",
       file: "src/core/i18n/ja.ts",
-      text: `// ${messageEnvName}\nconst m = "x";`,
+      text: `// ${messageKeyName}\nconst m = "x";`,
     },
     {
-      name: "the environment name as a property name in a message file",
+      name: "the key name as a property name in a message file",
       file: "src/core/i18n/en.ts",
-      text: `const m = { "${messageEnvName}": "x" };`,
+      text: `const m = { "${messageKeyName}": "x" };`,
     },
     {
-      name: "the environment name as an interface key in a message file",
+      name: "the key name as an interface key in a message file",
       file: "src/core/i18n/en.ts",
-      text: `interface M { "${messageEnvName}": string }`,
+      text: `interface M { "${messageKeyName}": string }`,
     },
     {
-      name: "the environment name as an accessed key in a message file",
+      name: "the key name as an accessed key in a message file",
       file: "src/core/i18n/ja.ts",
-      text: `const v = m["${messageEnvName}"];`,
+      text: `const v = m["${messageKeyName}"];`,
     },
     {
-      name: "the environment name as a computed key in a message file",
+      name: "the key name as a computed key in a message file",
       file: "src/core/i18n/ja.ts",
-      text: `const m = { ["${messageEnvName}"]: "x" };`,
+      text: `const m = { ["${messageKeyName}"]: "x" };`,
     },
     {
-      name: "the environment name as a literal type in a message file",
+      name: "the key name as a literal type in a message file",
       file: "src/core/i18n/en.ts",
-      text: `type K = "${messageEnvName}";`,
+      text: `type K = "${messageKeyName}";`,
     },
     {
-      name: "the environment name as an enum member in a message file",
+      name: "the key name as an enum member in a message file",
       file: "src/core/i18n/en.ts",
-      text: `enum E { "${messageEnvName}" = 1 }`,
+      text: `enum E { "${messageKeyName}" = 1 }`,
     },
   ];
   for (const { name, file, text } of refused) {
@@ -237,19 +237,19 @@ describe("secretWordsIn", () => {
       text: 'const m = { webhookConfigured: true, reason: "webhook_not_configured", publish: "webhook" };',
     },
     {
-      name: "the environment name in a message string",
+      name: "the key name in a message string",
       file: "src/core/i18n/en.ts",
-      text: `const m = { setUp: "Set ${messageEnvName} and restart." };`,
+      text: `const m = { setUp: "Set ${messageKeyName} and restart." };`,
     },
     {
-      name: "the environment name in a message's steps",
+      name: "the key name in a message's steps",
       file: "src/core/i18n/en.ts",
-      text: `const m = { steps: ["Set ${messageEnvName}."] };`,
+      text: `const m = { steps: ["Set ${messageKeyName}."] };`,
     },
     {
-      name: "the environment name in message template text",
+      name: "the key name in message template text",
       file: "src/core/i18n/ja.ts",
-      text: `const f = (n: number): string => \`${messageEnvName} \${n} ${messageEnvName}\`;`,
+      text: `const f = (n: number): string => \`${messageKeyName} \${n} ${messageKeyName}\`;`,
     },
   ];
   for (const { name, file, text } of allowed) {

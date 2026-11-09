@@ -158,13 +158,14 @@
 | トークンの使用量 | token usage | LLM の API が返したトークンの数。CLI は工程ごとに標準エラーの `tokens:` の行に書く（`cli.md`） |
 | 保存した出力 | artifact | `--artifacts` のディレクトリに工程ごとに保存した出力。`--after` で再開するときに再利用する |
 | 再開した実行 | resumed run | `--after` で、保存した出力から再開した CLI の実行 |
-| 廃止した LLM の変数 | retired LLM variables | `YT2COLUMN_LLM_PROVIDER`・`YT2COLUMN_MODEL`・`YT2COLUMN_REVIEW_PROVIDER`・`YT2COLUMN_REVIEW_MODEL`・`YT2COLUMN_CLAUDE_EFFORT`。設定されていると実行が止まる |
 | 同意の変数 | opt-in variable | 統合テストが実際の API を呼ぶ前に求める環境変数（`YT2COLUMN_DEEPSEEK_INTEGRATION=1` など）。`make` のターゲットがそのテストのためだけに export する（`development.md`） |
 | ソケット | socket | localhost サーバが待ち受ける UDS のファイル。パスは `HOME` だけから決まる |
 | ソケットのディレクトリ | socket directory | ソケットと起動のロックのファイルを置くディレクトリ（`run`）。モードは `0700` |
 | manifest | manifest | ブラウザがホストを見つけるための JSON のファイル（ホストの manifest）、または拡張の `manifest.json`。日本語の文でも英語のまま書く |
 | 終了コード | exit code | プロセスが終了するときに返す数値 |
-| 設定エラー | configuration error | 環境変数の値を拒否したときのエラー。サーバは待ち受ける前に、CLI は実行が始まる前に、終了コード `2` で終わる |
+| 設定エラー | configuration error | 設定を拒否したときのエラー。CLI では環境変数の値、サーバでは `HOME`、設定ファイルの有無・検査・書式、値の拒否。サーバは待ち受ける前に、CLI は実行が始まる前に、終了コード `2` で終わる |
+| 設定ファイル | configuration file | localhost サーバが設定を読むファイル（`$HOME/.config/yt2column/config.env`）。README の見出しでは "Configuration file" |
+| 雛形 | template | `yt2column-server config init` が作る、コメントの行と空行だけの設定ファイル |
 | 元のエラーを含めて返す | wrap an error | Go の `%w` などで、元のエラーを `errors.Is`・`errors.AsType` で取り出せる形のまま、新しいエラーに含めて返すこと。エラーについては「包む」と書かない |
 | 脚注 | footnote | Slack への投稿の最後の 1 行。モデルと推定の料金を示す |
 | フロントマター | front matter | `--out` のファイルの先頭の YAML の部分 |
@@ -184,6 +185,6 @@
 | Native Messaging のホストのインストール | Installing the native messaging host | README の見出し |
 | トラブルシューティング | Troubleshooting | README の見出し |
 | 共有トークンの版からの更新 | Upgrading from the shared-token version | README の見出し |
-| 設定 | Configuration | README と `cli.md` の見出し。環境変数による設定 |
-| 廃止した LLM の変数からの移行 | Migrating from the retired LLM variables | README の見出し |
+| 設定 | Configuration | README と `cli.md` の見出し。CLI では環境変数、サーバでは設定ファイルによる設定 |
+| 環境変数からの移行 | Migrating from environment variables | README の見出し |
 | ブラウザ拡張 | Browser extension | README の見出し。本文では "browser extension"、文脈が明らかなら "extension" |

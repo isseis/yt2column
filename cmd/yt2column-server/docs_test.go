@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"net/url"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -27,12 +28,12 @@ const (
 
 // TestServerDocsContract pins the machine-checkable contract of the localhost
 // server's documents. The values that can drift from the code are derived from
-// it: the socket path and the variable names come from internal/config, and
-// the rejection reasons and status codes come from internal/server's test
-// accessor. A value that changes in the code fails this test until the
+// it: the socket path, the configuration file's path, keys, and size limit,
+// and the variable names come from internal/config, the exit codes from this
+// package's constants, and the rejection reasons and status codes from
+// internal/server's test accessor. A value that changes in the code fails this test until the
 // documents follow, and a document that states a wrong value fails it too.
 func TestServerDocsContract(t *testing.T) {
-	slackEnv := config.SlackWebhookEnvForTest()
 	cacheDirEnv := config.CacheDirEnvForTest()
 	ytDlpEnv := config.YtDlpEnvForTest()
 
@@ -62,9 +63,6 @@ func TestServerDocsContract(t *testing.T) {
 					t.Fatalf("%s server section: the upgrade notes were not excluded", v.Path)
 				}
 			}
-			if !strings.Contains(section, slackEnv) {
-				t.Errorf("%s server section does not mention %q", v.Path, slackEnv)
-			}
 			// The socket path for each operating system, each on its own line
 			// with its label, so a path stated under the wrong label does not
 			// pass.
@@ -86,6 +84,7 @@ func TestServerDocsContract(t *testing.T) {
 					t.Errorf("%s server exit-code table has no code %d", v.Path, code)
 				}
 			}
+			checkReadmeConfigFile(t, v, section)
 		})
 	}
 
@@ -253,7 +252,67 @@ func TestServerDocsContract(t *testing.T) {
 		if !hasLineContainingAll(section, "`allowed_origins`", nmhost.ExtensionOrigin) {
 			t.Error("security.md 8.2 does not name the host's allowed origin")
 		}
+		for _, goos := range configFileSystems {
+			if path := "`$HOME" + config.ServerFilePathTailForTest(goos) + "`"; !strings.Contains(section, path) {
+				t.Errorf("security.md 8.2 does not state the configuration file path %s for %s", path, goos)
+			}
+		}
 	})
+}
+
+// configFileSystems are the operating systems whose configuration file path
+// the documents state: macOS and, standing for the other Unix systems, Linux.
+// The documents state one path for both, so both must derive it.
+var configFileSystems = []string{"darwin", "linux"}
+
+// checkReadmeConfigFile checks the configuration file subsection of one README
+// version's server section against the code: the path for every system on the
+// labelled line, the six keys the file accepts on one line, the size limit in
+// KiB, and the exit-code table of config init with exactly the three codes the
+// entry point defines.
+func checkReadmeConfigFile(t *testing.T, v doctestutil.ReadmeVersion, serverSection string) {
+	t.Helper()
+	heading := doctestutil.ReadmeConfigFileHeading.In(t, v.Lang)
+	section := doctestutil.SectionByHeading(serverSection, heading)
+	if section == "" {
+		t.Fatalf("%s server section has no %q subsection", v.Path, heading)
+	}
+	label := doctestutil.ReadmeConfigFileLabel.In(t, v.Lang)
+	for _, goos := range configFileSystems {
+		path := "`$HOME" + config.ServerFilePathTailForTest(goos) + "`"
+		if !hasLineContainingAll(section, label, path) {
+			t.Errorf("%s %s does not state the path %s for %s on a line containing %q", v.Path, heading, path, goos, label)
+		}
+	}
+	keys := config.ServerFileKeysForTest()
+	spans := make([]string, len(keys))
+	for i, key := range keys {
+		spans[i] = "`" + key + "`"
+	}
+	if !hasLineContainingAll(section, spans...) {
+		t.Errorf("%s %s has no line naming every key the configuration file accepts: %v", v.Path, heading, keys)
+	}
+	maxSize := config.ServerFileMaxSizeForTest()
+	if maxSize%1024 != 0 {
+		t.Fatalf("the configuration file size limit %d is not a whole number of KiB; state it in the documents another way", maxSize)
+	}
+	limit := fmt.Sprintf("%d KiB", maxSize>>10)
+	if !regexp.MustCompile(`(^|[^0-9])` + regexp.QuoteMeta(limit)).MatchString(section) {
+		t.Errorf("%s %s does not state the size limit %q", v.Path, heading, limit)
+	}
+	exitCodes := doctestutil.FindTable(section, doctestutil.ReadmeExitCodeColumn.In(t, v.Lang))
+	if exitCodes == nil {
+		t.Fatalf("%s %s has no config init exit-code table", v.Path, heading)
+	}
+	codes := []int{exitOK, exitFailure, exitUsage}
+	for _, code := range codes {
+		if doctestutil.TableRow(exitCodes, strconv.Itoa(code)) == nil {
+			t.Errorf("%s config init exit-code table has no code %d", v.Path, code)
+		}
+	}
+	if rows := len(exitCodes) - 1; rows != len(codes) {
+		t.Errorf("%s config init exit-code table has %d rows, want %d", v.Path, rows, len(codes))
+	}
 }
 
 // columnIndex returns the index of the header cell equal to name, ignoring case

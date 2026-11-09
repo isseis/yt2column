@@ -1,4 +1,4 @@
-<!-- translated-from: README.md ac0be7bc22e1c2e73296999780a80b305c5be8cf -->
+<!-- translated-from: README.md f2603c9a40b9715a1867a3a12ac43d1bf2874973 -->
 [日本語](README.md)
 
 Developer documents: [Using the CLI](docs/dev/guides/cli.md) · [Development procedures](docs/dev/guides/development.md)
@@ -64,13 +64,13 @@ the section that explains it in detail.
 
 1. Build the binaries with `make build`. They are placed in `build/`, and
    nothing is installed. See [Localhost server](#localhost-server).
-2. In the shell that starts the server, set `ANTHROPIC_API_KEY` and, to post
-   the article to Slack, `SLACK_WEBHOOK_URL`. No other LLM variable is
-   needed: the default is the production profile (see
-   [Recommended configuration](#recommended-configuration)). Unset the
-   `YT2COLUMN_*` variables left from an earlier setup: when a model variable is
-   set without its provider variable, the server stops with a configuration
-   error. See [Configuration](#configuration).
+2. Create the template of the server's configuration file with
+   `./build/yt2column-server config init`, and write `ANTHROPIC_API_KEY` and,
+   to post the article to Slack, `SLACK_WEBHOOK_URL` in that file. No other key
+   is needed: the default is the production profile (see
+   [Recommended configuration](#recommended-configuration)). The server does
+   not read settings from environment variables. See
+   [Configuration file](#configuration-file).
 3. Start the server with `./build/yt2column-server 2>>server.log`. The server
    keeps running in the foreground (stop it with a signal), so run the next
    steps in another terminal. See [Running the server](#running-the-server).
@@ -290,9 +290,12 @@ server's socket (see
 `make build` builds `build/yt2column`, `build/yt2column-server`, and
 `build/yt2column-nmhost`; it installs nothing.
 
-The server reads the LLM variables. `SLACK_WEBHOOK_URL` is optional for the
-server: without it the server still starts and generates articles, but posting
-is refused with `webhook_not_configured`, and the extension's viewer disables the post button and shows the step to set `SLACK_WEBHOOK_URL` and
+The server reads the LLM settings and `SLACK_WEBHOOK_URL` from its
+configuration file (see [Configuration file](#configuration-file)).
+`SLACK_WEBHOOK_URL` is optional for the server: without it the server still
+starts and generates articles, but posting is refused with
+`webhook_not_configured`, and the extension's viewer disables the post button
+and shows the step to write `SLACK_WEBHOOK_URL` in the configuration file and
 restart the server. The server never calls `yt-dlp` and reads
 neither `YT2COLUMN_CACHE_DIR` nor `YT2COLUMN_YTDLP_PATH`. It listens on a Unix
 domain socket (UDS) only, never on a TCP port. The socket path is derived from
@@ -307,10 +310,141 @@ socket mode `0600`, so only processes running as your user can connect, and the
 server trusts them. The server checks only the request path and method, not the
 `Host`, `Origin`, `Content-Type`, or `Authorization` headers.
 
+### Configuration file
+
+The path of the server's configuration file is derived from `HOME` alone. It
+is the same on macOS and on other Unix:
+
+- configuration file: `$HOME/.config/yt2column/config.env`
+
+No other variable, such as `XDG_CONFIG_HOME`, changes the path. The server
+reads this file once, when it starts. After editing the file, stop the server
+and start it again.
+
+The server does not read settings from environment variables. From the process
+environment the server's code reads only `HOME`, which determines the socket path and the
+configuration file's path, and `GODEBUG`, for a warning. When `GODEBUG` contains
+`http2debug=1` or `http2debug=2`, Go's HTTP/2 log may write the API key and the
+path of the Webhook URL to standard error, so the server warns about it. The Go standard library,
+however, uses the proxy variables of the server's environment (`HTTPS_PROXY`,
+`HTTP_PROXY`, `NO_PROXY`) for the requests to the LLM API and the Webhook. When
+environment variables with the names of the six keys below are set, the server
+ignores them: it does not stop and does not warn. The CLI reads environment
+variables as before and does not read the configuration file (see
+[Configuration](#configuration)).
+
+**Creating the template.** The following command creates the template of the
+configuration file. It does not run the server.
+
+```sh
+./build/yt2column-server config init
+```
+
+The template consists of blank lines and comment lines only: for each of the
+six keys, a description and the key's line commented out (for example,
+`# ANTHROPIC_API_KEY=`). To set a key, delete the `# ` at the start of its line
+and write the value after `=`. `config init` does not read the values of
+environment variables, so the template holds no value.
+
+`config init` creates the file with mode exactly `0600`, whatever the umask. It
+creates whichever of `$HOME/.config` and `$HOME/.config/yt2column` does not
+exist yet with mode `0700`, and leaves an existing directory unchanged. When
+something is already at the path (a file, a symbolic link, a directory, and so
+on), it leaves it unchanged and ends. It writes the file to a temporary file in
+the same directory (with a name starting with `.config.env.tmp-`) before putting
+it in place, so a failure part way leaves no partly written file. The
+directories it created remain. When it cannot remove the temporary file, it
+names it; remove it by hand. `config init` gives the path of the file it created on one
+line of standard error and writes nothing to standard output.
+
+`config init` exit codes:
+
+| Code | Meaning |
+|---|---|
+| `0` | The template was created. |
+| `1` | Nothing was created, or creating failed (something is already at the path, the `HOME` directory does not exist, or creating a directory or the file failed). |
+| `2` | The arguments are wrong (for example, another argument follows `config init`), or `HOME` is unset, empty, or relative. |
+
+**Format.** Write one `KEY=VALUE` per line, with lines separated by LF (the
+last line need not end with LF). The file is never run as a shell script: no
+variable is expanded and no quote is interpreted.
+
+- Blank lines and lines starting with `#` (comments) are skipped.
+- The key is everything before the first `=`, and must exactly match one of
+  the six keys
+  `YT2COLUMN_LLM`, `YT2COLUMN_REVIEW_LLM`, `DEEPSEEK_API_KEY`, `ANTHROPIC_API_KEY`, `ANTHROPIC_WORKSPACE_ID`, and `SLACK_WEBHOOK_URL`.
+  The meaning of each key is in the table in [Configuration](#configuration), and
+  any key may be left out. A key left out is treated the same as an unset
+  environment variable in the CLI.
+- The value is everything after the first `=`, used without conversion. A `#`
+  not preceded by a space, and any further `=`, are part of the value (the value of
+  `SLACK_WEBHOOK_URL=https://example.com/hook#x` is
+  `https://example.com/hook#x`).
+- A value may be empty (`KEY=`). An empty value is treated the same as an empty
+  environment variable in the CLI: it is a configuration error when the key
+  is used, and is not rejected for a key of a provider that is not used.
+
+A file containing any of the following is rejected as a whole. The server never
+starts using only some of its lines.
+
+- A line without `=`, a key other than the six keys (including a lowercase key
+  and a line with `export ` in front, such as `export ANTHROPIC_API_KEY=...`)
+- A line starting with a space, or a line with a space before or after the key
+  (`ANTHROPIC_API_KEY =x`)
+- A value that starts or ends with a space, a value that starts with `"` or `'`
+  (quotes are not removed), or a value containing a space followed by `#`
+  (`ANTHROPIC_API_KEY=sk-xxx # personal`; write a comment on a line of its own)
+- The second and later lines of the same key
+- A CR (including a CRLF line break), a control character other than LF (such
+  as a tab), DEL, or U+FEFF (a BOM)
+- A byte sequence that is not valid UTF-8, or a size over 64 KiB (65,536 bytes)
+
+A format rejection names the configuration file's path, and the line number and
+a fixed reason of each rejected line, one per line up to 20 lines; when there
+are more, it gives the number of the remaining lines. It never shows a value or the
+text of a key other than the six keys. A duplicate-key rejection names that
+key.
+
+**Checks.** Before reading the configuration file, the server checks it. In any
+of the following cases, it stops with exit code `2` without fixing anything (it
+changes neither the mode nor the owner). The message names the path and the
+reason.
+
+- Nothing is at the path. The message tells you to create it with
+  `yt2column-server config init`.
+- It is a symbolic link (even when its target is a correct file).
+- It is not a regular file (a directory, a FIFO, a socket, and so on).
+- Its owner is not the user running the server.
+- Its mode is not exactly `0600` (`0644`, `0400`, `0600` with the setuid,
+  setgid, or sticky bit, and so on are rejected too). The message gives the mode found and
+  the command that fixes it, `chmod 600 '<path>'`.
+- It cannot be opened or read (for example, a parent directory cannot be
+  searched).
+
+The server reads the content from the same file it checked, so even when the
+file at the path is replaced after the check, it never uses the content of a
+file it did not check.
+
+**ACLs are not checked.** The mode check does not look at ACLs (access control
+lists). On macOS, even with mode exactly `0600`, when an ACL grants another user
+the right to read the file, the server accepts the file, and other users can
+read the API key. An ACL gets attached when you add one with `chmod +a`, when
+the file is placed in a directory with an inherited ACL, when it is copied with
+its ACL, and so on. On macOS, check for ACLs with the following commands, and
+remove them when there are any.
+
+```sh
+ls -le ~/.config/yt2column/config.env
+chmod -N ~/.config/yt2column/config.env
+```
+
+`ls -le` shows each ACL entry, if any, on a numbered line. `chmod -N` removes
+every ACL of the file. On Linux, when the mode is exactly `0600`, the POSIX ACL
+mask is empty, so entries for named users or groups grant no right.
+
 ### Running the server
 
-Start it with the provider variables set, and `SLACK_WEBHOOK_URL` if you want to
-post.
+Prepare the [configuration file](#configuration-file) before starting it.
 
 ```sh
 ./build/yt2column-server 2>>server.log
@@ -340,7 +474,7 @@ Exit codes:
 |---|---|
 | `0` | The server stopped after a signal. |
 | `1` | Preparing the socket directory, taking the start lock, creating the socket, or serving requests failed (for example, another server is already running). |
-| `2` | The server was given arguments, or the configuration (including `HOME` and the socket path derived from it) or building the components failed before listening. |
+| `2` | The server was given arguments other than `config init`, or the configuration (including `HOME`, the socket path derived from it, and the configuration file's checks, format, and values) or building the components failed before listening. |
 
 ### Stopping the server
 
@@ -462,24 +596,17 @@ The status code of each reason, and how to check the server with `curl`, are in
   example by restoring mode `0700` on the socket directory, and start again.
 - **`HOME: the socket path derived from HOME exceeds the operating system's
   limit`.** `HOME` is too long for the socket path; see the limit above.
-- **`configuration: YT2COLUMN_LLM_PROVIDER: is no longer supported` (or
-  `YT2COLUMN_MODEL`, `YT2COLUMN_REVIEW_PROVIDER`, `YT2COLUMN_REVIEW_MODEL`,
-  `YT2COLUMN_CLAUDE_EFFORT`) after an update.** The provider, model, and effort
-  are now set in one variable per step, and the five old variables are rejected
-  whenever they are set, even empty. The server exits with `2` before it listens, and the extension can
-  only report that the server is not running. Unset each old variable and set
-  `YT2COLUMN_LLM`. If you unset only the old variables without setting
-  `YT2COLUMN_LLM`, the default `claude/claude-opus-5-5` is used and the
-  transcript goes to Anthropic. If any `YT2COLUMN_REVIEW_*` variable was set,
-  also set `YT2COLUMN_REVIEW_LLM` to the provider and model the review step
-  actually used. When you unset `YT2COLUMN_CLAUDE_EFFORT`, append the effort you
-  used as `+<effort>` to the values of `YT2COLUMN_LLM` and `YT2COLUMN_REVIEW_LLM`
-  whose provider is `claude` (if `YT2COLUMN_LLM` is not set, set it to
-  `claude/claude-opus-5-5+<effort>`). If you do not append it, that step uses
-  the default effort `high`. The old variable did not apply to `deepseek` steps,
-  so do not append it to a `deepseek` value. See
-  [Migrating from the retired LLM variables](#migrating-from-the-retired-llm-variables),
-  then start the server again.
+- **`configuration: configuration file ... does not exist; create it with yt2column-server config init`.**
+  The configuration file does not exist. Create the template with
+  `./build/yt2column-server config init`, write the values, and start again
+  (see [Configuration file](#configuration-file)). If you used settings from
+  environment variables, see
+  [Migrating from environment variables](#migrating-from-environment-variables).
+- **`configuration: configuration file key ANTHROPIC_API_KEY: is not set` (or
+  another key).** The key is not in the configuration file. The server does
+  not read the values of environment variables, so exporting it in the shell
+  has no effect. Write the key in the configuration file. `is empty` means the
+  key is there but its value is empty.
 - **`build the LLM client` or `build the review LLM client` with a model
   error.** The provider's client rejects a model ID with surrounding whitespace
   or invalid UTF-8 when it is built, without naming the variable. The server
@@ -530,6 +657,24 @@ The status code of each reason, and how to check the server with `curl`, are in
   load `extension/dist` again. The extension's ID stays the same, so you do not
   need to run the host's `install` again.
 
+### Migrating from environment variables
+
+Earlier versions of the server read the settings from environment variables.
+The server now reads only the configuration file, and does not start without
+it. Migrate with these steps:
+
+1. Create the template with `./build/yt2column-server config init`.
+2. Copy the values you set for the server (the six keys of
+   [Configuration file](#configuration-file)) from `.envrc`, `.env`, your shell
+   startup files, the script that starts the server, and so on, to the
+   matching lines of the template. Delete the `# ` at the start of the line and
+   write only the value after `=`. Do not copy `export ` or quotes around the
+   value (both are rejected).
+3. Stop the running server and start it again.
+
+Environment variables no longer affect the server. The CLI still reads
+environment variables, so you may keep them for the CLI.
+
 ## Configuration
 
 | Variable | Description | When unset |
@@ -541,17 +686,26 @@ The status code of each reason, and how to check the server with `curl`, are in
 | `ANTHROPIC_WORKSPACE_ID` | Anthropic workspace ID, for an API key not bound to a workspace | No workspace ID is sent |
 | `SLACK_WEBHOOK_URL` | Slack-compatible Incoming Webhook URL (Mattermost is the verified target); only the server reads it | The server starts, but cannot post |
 
-`yt2column-server` reads the LLM variables. It needs `SLACK_WEBHOOK_URL` only
-to post, and starts without it (see [Localhost server](#localhost-server)). The
-CLI does not read `SLACK_WEBHOOK_URL`. The server
+The CLI reads these from environment variables. `yt2column-server` reads keys
+with the same names from its configuration file, and does not read the values
+of these environment variables (see [Configuration file](#configuration-file)).
+The rules for values in this section, including how an empty value is handled,
+are the same for environment variables and the configuration file. The
+configuration file is also subject to the format rules of
+[Configuration file](#configuration-file) (for example, a value with a trailing
+space is rejected as a format error before a client is built). "When
+unset" in the table means, for the configuration file, that the key is absent.
+`SLACK_WEBHOOK_URL` is needed only to post, and the server starts without it
+(see [Localhost server](#localhost-server)). The CLI does not read
+`SLACK_WEBHOOK_URL`. The server
 derives its socket path from `HOME` alone (see
 [Localhost server](#localhost-server)).
 
 The variables only the CLI reads, and how the CLI reads the ones above, are in
 [docs/dev/guides/cli.md](docs/dev/guides/cli.md#設定).
 
-The value of an environment variable is never trimmed or otherwise corrected;
-an empty value is treated as set and rejected, not as unset.
+A value is never trimmed or otherwise corrected; an empty value is treated as
+set and rejected, not as unset.
 
 `YT2COLUMN_LLM` and `YT2COLUMN_REVIEW_LLM` are split at the first `/`. The part
 before it is the provider, which must be exactly `deepseek` or `claude`.
@@ -595,14 +749,6 @@ table above applies. An empty
 value of either variable is rejected and never replaced by the default or by
 the generation setting.
 
-The variables `YT2COLUMN_LLM_PROVIDER`, `YT2COLUMN_MODEL`,
-`YT2COLUMN_REVIEW_PROVIDER`, `YT2COLUMN_REVIEW_MODEL`, and
-`YT2COLUMN_CLAUDE_EFFORT` are retired. When any
-of them is set, even to an empty value, the CLI and the server stop with a
-configuration error naming it, on every run. Their values are never used. Each
-error is reported together with the other configuration errors of the run. See
-[Migrating from the retired LLM variables](#migrating-from-the-retired-llm-variables).
-
 Only the variables of the selected providers are read and checked: a provider's
 variables are read when the generation or the review provider is that provider.
 The other provider's variables are ignored whatever their value, so exporting
@@ -627,97 +773,28 @@ fails as truncated. In that case, append a lower effort to the value of
 
 ### Recommended configuration
 
-```sh
-export YT2COLUMN_LLM=claude/claude-opus-5-5+high
+The line to write in the server's configuration file:
+
+```text
+YT2COLUMN_LLM=claude/claude-opus-5-5+high
 ```
 
 This value is the production profile: generation, shortening, and review all
 use `claude` with `claude-opus-5-5` at effort `high`. It is also the code's
 default (see [#490](https://github.com/isseis/yt2column/issues/490)
-and [#171](https://github.com/isseis/yt2column/issues/171)), so it can be left
-unset: with `ANTHROPIC_API_KEY` as the only LLM variable, generation,
-shortening, and review all use this profile. Exporting it pins the profile in
-the shell even if a default changes later.
+and [#171](https://github.com/isseis/yt2column/issues/171)), so it need not be
+written: with `ANTHROPIC_API_KEY` as the only LLM setting, generation,
+shortening, and review all use this profile. Writing it pins the profile even
+if a default changes later. For the CLI, set the same value in the environment
+variable `YT2COLUMN_LLM`.
 
 `ANTHROPIC_API_KEY` is required. To review with the generation profile, leave
-`YT2COLUMN_REVIEW_LLM` unset. To use another profile, set the environment
-variables instead of relying on the defaults.
+`YT2COLUMN_REVIEW_LLM` unset. To use another profile, set the values instead of
+relying on the defaults: in the configuration file for the server, and in environment
+variables for the CLI.
 
 The quality target, the results, and the product limitations of this profile
 are in [production_profile.md](docs/dev/production_profile.md) (Japanese).
-
-### Migrating from the retired LLM variables
-
-The provider and model of each step used to be set in two variables:
-`YT2COLUMN_LLM_PROVIDER` and `YT2COLUMN_MODEL` for generation and shortening,
-and `YT2COLUMN_REVIEW_PROVIDER` and `YT2COLUMN_REVIEW_MODEL` for the review
-step. They are now set in one variable per step, `YT2COLUMN_LLM` and
-`YT2COLUMN_REVIEW_LLM`, and the old variables are rejected. For example, a
-DeepSeek setting that was
-
-```text
-YT2COLUMN_LLM_PROVIDER=deepseek
-YT2COLUMN_MODEL=deepseek-flash
-```
-
-becomes:
-
-```sh
-export YT2COLUMN_LLM=deepseek/deepseek-flash
-```
-
-If any `YT2COLUMN_REVIEW_*` variable was set, set `YT2COLUMN_REVIEW_LLM` to the
-provider and model the review step actually used; otherwise leave it unset, and
-the review step uses generation's. The two old settings below implicitly
-carried a part that is now written out. Write that part out even when the
-provider looks the same as generation's.
-
-| Old setting | New setting |
-|---|---|
-| `YT2COLUMN_REVIEW_PROVIDER` alone (the review step used that provider's default model) | `YT2COLUMN_REVIEW_LLM=<provider>/<model ID>`, with the model ID written out, for example `claude/claude-opus-5-5` |
-| `YT2COLUMN_REVIEW_MODEL` alone (the review step used the generation provider) | `YT2COLUMN_REVIEW_LLM=<generation provider>/<model ID>`, with the generation provider written out, for example `deepseek/deepseek-chat` |
-
-The Claude effort used to be set in `YT2COLUMN_CLAUDE_EFFORT`, which applied to
-whichever of the generation and review steps used `claude`. It is now set per step by appending `+<effort>` to
-the values of `YT2COLUMN_LLM` and `YT2COLUMN_REVIEW_LLM`, and
-`YT2COLUMN_CLAUDE_EFFORT` is rejected. For example, a setting that was
-
-```text
-YT2COLUMN_CLAUDE_EFFORT=low
-YT2COLUMN_LLM=claude/claude-sonnet-5-5
-```
-
-becomes:
-
-```sh
-export YT2COLUMN_LLM=claude/claude-sonnet-5-5+low
-```
-
-If `YT2COLUMN_LLM` was not set, set the default with the effort appended,
-`YT2COLUMN_LLM=claude/claude-opus-5-5+<effort>`. If `YT2COLUMN_REVIEW_LLM` was
-set to a `claude` value, append the same effort to its value too. If you do not
-append it, the review step uses the default `high`. Do not append it to a value
-whose provider is `deepseek`. The old variable did not apply to `deepseek`
-steps, and appending it sends a `reasoning_effort` that was not sent before.
-Versions before this one send `+<effort>` to the provider
-as part of the model ID, so when going back to such a version, remove
-`+<effort>`. Otherwise, the first LLM call fails.
-
-Unset the old variables rather than only deleting them from a file: a shell
-that already exported them keeps them, and an empty value is rejected too.
-Check every place that may set them: `.envrc`, `.env`, the shell's startup
-files, and the script that starts the server.
-
-Removing the old variables without setting `YT2COLUMN_LLM` selects the default
-`claude`, and the transcript is then sent to Anthropic. The error lines for
-`YT2COLUMN_LLM_PROVIDER` and `YT2COLUMN_MODEL` say so, and when
-`ANTHROPIC_API_KEY` is unset an `ANTHROPIC_API_KEY` error appears next to them
-for the same reason. To keep using DeepSeek, set `YT2COLUMN_LLM` as above;
-setting an Anthropic key alone does not keep DeepSeek.
-
-A running server keeps the configuration it started with. After changing the
-variables, stop the server and start it again. The server then checks them
-before it listens.
 
 ## Browser extension
 

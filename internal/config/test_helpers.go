@@ -93,12 +93,14 @@ func EffortValuesByProviderForTest() map[string][]string {
 
 // ServerFilePathForTest returns the configuration file's path under home on
 // this operating system. It panics when no path can be derived from home.
-func ServerFilePathForTest(home string) string { return serverFileLocationForHome(home).path }
+func ServerFilePathForTest(home string) string {
+	return serverFileLocationForHome(runtime.GOOS, home).path
+}
 
-// serverFileLocationForHome derives the configuration file's location from
-// home alone. It panics when no path can be derived from home.
-func serverFileLocationForHome(home string) serverFileLocation {
-	loc, err := serverFileLocationFor(runtime.GOOS, func(name string) (string, bool) {
+// serverFileLocationForHome derives the configuration file's location on goos
+// from home alone. It panics when no path can be derived from home.
+func serverFileLocationForHome(goos, home string) serverFileLocation {
+	loc, err := serverFileLocationFor(goos, func(name string) (string, bool) {
 		if name == "HOME" {
 			return home, true
 		}
@@ -110,10 +112,32 @@ func serverFileLocationForHome(home string) serverFileLocation {
 	return loc
 }
 
+// ServerFilePathTailForTest returns the part of the configuration file's path
+// below HOME for goos, starting with a separator. It panics for an operating
+// system with no rule.
+func ServerFilePathTailForTest(goos string) string {
+	const home = "/home"
+	return strings.TrimPrefix(serverFileLocationForHome(goos, home).path, home)
+}
+
+// ParseServerFileForTest parses data as the configuration file's content, as
+// the server does, and returns the accepted keys and values, or the
+// rejections. path names the file in the rejections only. The rejections
+// never hold a value, so a documentation guard may print them.
+func ParseServerFileForTest(path string, data []byte) (map[string]string, []error) {
+	file, rejections := parseServerFile(path, data)
+	if len(rejections) > 0 {
+		return nil, rejections
+	}
+	return maps.Clone(file.values), nil
+}
+
 // ServerFileBaseForTest returns the directory below home that config init
 // requires to exist on this operating system. It panics when no path can be
 // derived from home.
-func ServerFileBaseForTest(home string) string { return serverFileLocationForHome(home).base }
+func ServerFileBaseForTest(home string) string {
+	return serverFileLocationForHome(runtime.GOOS, home).base
+}
 
 // ServerFileTemplateForTest returns the content config init writes.
 func ServerFileTemplateForTest() string { return serverFileTemplate }

@@ -332,7 +332,8 @@ flowchart LR
   server's post job checks and splits the article with `PrepareSlackMessages`
   and sends the messages with `PostMessages`.
 - `internal/pipeline` orchestrates the stages; `internal/config` reads environment
-  variables; `cmd/yt2column` wires everything together.
+  variables for the CLI and the configuration file for the server;
+  `cmd/yt2column` wires everything together.
 
 Two entry points share the stages: the CLI (`cmd/yt2column`, above), which runs
 them through the pipeline, and a localhost server (`cmd/yt2column-server` +
@@ -342,8 +343,11 @@ and posts it to the Webhook when asked. The extension uses the server's job API:
 the generation start, the popup and the viewer poll the status, and the viewer
 sends a publish on the user's press. The server's supporting packages are
 `internal/serversock` (the socket directory, the start lock, and the socket
-itself), `internal/redact` (secret redaction for every output), and
-`internal/signalrun` (signal handling both entry points share). The
+itself), `internal/privatefile` (the checked read and the safe creation of the
+server's configuration file, which the server reads its settings from and
+`yt2column-server config init` creates), `internal/redact` (secret redaction
+for every output), and `internal/signalrun` (signal handling both entry points
+share). The
 extension does not connect to the socket itself: the browser starts the Native
 Messaging host (`cmd/yt2column-nmhost` + `internal/nmhost`), which relays one
 request to the socket per exchange and manages its own manifest with `install` and
@@ -678,7 +682,9 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
   instead of skipping when either is missing. It runs in the `doc-guard` CI
   job as well.
 - Secrets (`DEEPSEEK_API_KEY`, `ANTHROPIC_API_KEY`, `SLACK_WEBHOOK_URL`, ...) go in `.envrc` / `.env`,
-  which are git-ignored. Never commit them and never print them.
+  which are git-ignored, for the CLI; the localhost server reads them only from
+  its configuration file, `$HOME/.config/yt2column/config.env` (mode `0600`,
+  outside the repository). Never commit them and never print them.
 - Real captured data committed under `testdata/` must come from a video licensed
   for redistribution and must not identify whoever captured it; full-page browser
   snapshots are never committed and live outside the repository. See

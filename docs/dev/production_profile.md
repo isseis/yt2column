@@ -28,16 +28,16 @@ LLM を呼ぶ 3 つの工程の構成を示す。値は [0008 評価記録](../t
 | 字数の調整 | 既定（`prompts/shorten_system.tmpl`・`prompts/shorten_user.tmpl`） | `claude` | `claude-opus-5-5` | `high` |
 | 検証・推敲 | 既定（`prompts/review_system.tmpl`・`prompts/review_user.tmpl`） | `claude` | `claude-opus-5-5` | `high` |
 
-本番の構成を表す環境変数は、次の 1 つである。プロバイダ・モデル・effort は、`YT2COLUMN_LLM` の 1 つの値 `<プロバイダ>/<モデル ID>+<effort>` で指定する。
+本番の構成を表す設定は、次の 1 行である。プロバイダ・モデル・effort は、`YT2COLUMN_LLM` の 1 つの値 `<プロバイダ>/<モデル ID>+<effort>` で指定する。localhost サーバではこの行を設定ファイルに書き、CLI では同じ値を環境変数 `YT2COLUMN_LLM` に設定する。
 
-```sh
-export YT2COLUMN_LLM=claude/claude-opus-5-5+high
+```text
+YT2COLUMN_LLM=claude/claude-opus-5-5+high
 ```
 
 - 検証・推敲のプロバイダ・モデル・effort は、`YT2COLUMN_REVIEW_LLM` を指定しなければ、生成と同じになる。
 - effort は工程ごとに指定できる（生成と字数の調整は `YT2COLUMN_LLM`、検証・推敲は `YT2COLUMN_REVIEW_LLM` の `+<effort>`）。本番の構成では、3 つの工程のどれも `high` である。
-- 本番の構成はコード上の既定である（[#490](https://github.com/isseis/yt2column/issues/490)・[#171](https://github.com/isseis/yt2column/issues/171)）。上の変数を指定しなくても、同じ構成で記事を作る。
-- 利用者が指定しなければならない変数は、`ANTHROPIC_API_KEY` である。`SLACK_WEBHOOK_URL` は、localhost サーバの投稿の操作で Slack へ投稿するときだけ要る（CLI は読まない）。サーバは未設定でも起動し、そのときは投稿を `webhook_not_configured` で拒否する。値は、利用者が自分の環境で設定する。
+- 本番の構成はコード上の既定である（[#490](https://github.com/isseis/yt2column/issues/490)・[#171](https://github.com/isseis/yt2column/issues/171)）。上の設定を指定しなくても、同じ構成で記事を作る。
+- 利用者が指定しなければならない設定は、`ANTHROPIC_API_KEY` である。`SLACK_WEBHOOK_URL` は、localhost サーバの投稿の操作で Slack へ投稿するときだけ要る（CLI は読まない）。サーバは未設定でも起動し、そのときは投稿を `webhook_not_configured` で拒否する。値は、利用者が、サーバでは設定ファイルに、CLI では環境変数に設定する。
 
 ## 品質の目標と結果
 
@@ -66,7 +66,7 @@ export YT2COLUMN_LLM=claude/claude-opus-5-5+high
     補助の経路（CLI）では、同じ失敗で記事を出さずに終了する（終了コード 1）。
 6. **概要欄を開かずに送ったコピーした字幕:** ブラウザ拡張の経路で概要欄を開かずに送ると、根拠が概要欄にだけある箇所（話者の名前など）が素材に入らない（0018 評価記録 §4.9.2）。0008 評価記録では「書き起こし」と書く。
 7. **費用:** 記事 1 本あたりの推定コストは約 0.36 USD である（0018 評価記録 §4.8。失敗した実行の分を除く）。本書の「構成の比較と、構成を決めた理由」の節の B1（生成が `deepseek-flash`、検証・推敲が `claude-opus-5-5`）の約 2.8 倍である。
-8. **ほかの構成では品質が下がる:** 生成を `deepseek-flash` にすると、目標を満たす記事は 10 件中 6 件、さらに検証・推敲を外すと 4 件だった（「構成の比較と、構成を決めた理由」の節）。本番の構成はコード上の既定である。環境変数でプロバイダやモデルを変えると、この低下が起こりうる。
+8. **ほかの構成では品質が下がる:** 生成を `deepseek-flash` にすると、目標を満たす記事は 10 件中 6 件、さらに検証・推敲を外すと 4 件だった（「構成の比較と、構成を決めた理由」の節）。本番の構成はコード上の既定である。設定（サーバでは設定ファイル、CLI では環境変数）でプロバイダやモデルを変えると、この低下が起こりうる。
 
 ## 構成の比較と、構成を決めた理由
 

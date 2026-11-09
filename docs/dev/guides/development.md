@@ -23,10 +23,13 @@ make test-integration-slack  # posts fixed articles to a real Mattermost test We
 
 ## 開発用に別のサーバを動かす
 
-ソケットのパスは `HOME` だけで決まり、1 つの `HOME` で動かせるサーバは 1 つである。自分のサーバと同時に、ワークツリーからビルドしたサーバを動かすには、`/tmp` の下の短いディレクトリを専用の `HOME` として与え（macOS では、`mktemp -d` の既定のディレクトリではソケットのパスが長すぎる）、そのサーバのソケットにリクエストを送る。
+ソケットのパスと設定ファイルのパスは `HOME` だけで決まり、1 つの `HOME` で動かせるサーバは 1 つである。自分のサーバと同時に、ワークツリーからビルドしたサーバを動かすには、`/tmp` の下の短いディレクトリを専用の `HOME` として与え（macOS では、`mktemp -d` の既定のディレクトリではソケットのパスが長すぎる）、その `HOME` の下に設定ファイルを置いてから起動し、そのサーバのソケットにリクエストを送る。
 
 ```sh
 dev_home="$(mktemp -d /tmp/y2c.XXXXXX)"
+HOME="$dev_home" ./build/yt2column-server config init
+printf '%s\n' 'ANTHROPIC_API_KEY=dev-dummy-key' 'SLACK_WEBHOOK_URL=https://example.invalid/hook' \
+  >>"$dev_home/.config/yt2column/config.env"
 HOME="$dev_home" ./build/yt2column-server 2>>"$dev_home/server.log" &
 server_pid=$!
 socket="$dev_home/.local/state/yt2column/run/server.sock"
@@ -42,7 +45,7 @@ kill "$server_pid" 2>/dev/null; wait "$server_pid"; rm -rf "$dev_home"
 
 待機のループは、サーバが起動の途中で終了したとき（設定の誤り、またはその `HOME` の起動のロックを別のサーバが持っているとき）に待つのをやめる。そのときは、最後の行がログを消すので、リクエストを送る代わりにログを表示する。最後の行は、サーバがまだ動いていてもいなくても実行できる。
 
-`HOME` が異なれば、ワークツリーごとのサーバはほかのサーバと同時に動く。それでも、サーバは LLM と Webhook の変数を利用者の環境から読む。本物の値を設定していると、受け付けた生成の開始は LLM を呼んで記事を生成し、受け付けた投稿の操作は Webhook へ投稿する。偽の値（任意の API キーと、`https://example.invalid/hook` のような `https` の Webhook の URL）を設定したときは、ジョブが始まる前に拒否されるリクエストだけを送る。例えば上の誤ったメソッド（`GET /jobs` への `method_not_allowed`）や誤ったパス（`not_found`）である。受け付けられた生成の開始は、LLM の API を呼ぼうとして失敗する。
+`config init` が作った雛形はモード `0600` で、`>>` で行を足してもモードは変わらない。`HOME` が異なれば、ワークツリーごとのサーバはほかのサーバと同時に動く。サーバは LLM と Webhook の設定を専用の `HOME` の下の設定ファイルから読み、利用者の環境変数の設定の値も、利用者の `HOME` の設定ファイルも読まない（Go の標準ライブラリがプロキシの変数を使うことは、README の「設定ファイル」を参照）。設定ファイルに本物の値を書くと、受け付けた生成の開始は LLM を呼んで記事を生成し、受け付けた投稿の操作は Webhook へ投稿する。上の例のように偽の値（任意の API キーと、`https://example.invalid/hook` のような `https` の Webhook の URL）を書いたときは、ジョブが始まる前に拒否されるリクエストだけを送る。例えば上の誤ったメソッド（`GET /jobs` への `method_not_allowed`）や誤ったパス（`not_found`）である。受け付けられた生成の開始は、LLM の API を呼ぼうとして失敗する。
 
 拡張は、そのようなサーバにはつながらない。ブラウザは本物の `HOME` で Native Messaging のホストを起動するので、ホストは本物の `HOME` で起動したサーバのソケットにだけつなぐ。ホストの manifest はブラウザごとに 1 つのファイル（macOS では Chrome と Brave で共有する 1 つのファイル）なので、あるワークツリーのビルドからホストを登録すると、別のワークツリーが登録した manifest を置き換える。拡張を使ってビルドを確かめるときは、一度に 1 つのワークツリーだけで行う。
 
