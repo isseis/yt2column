@@ -132,14 +132,14 @@
 
 **変更するファイル:** `.claude/commands/_lib/simple-process.md`（新規）、`.claude/commands/mkreq.md`、`.claude/commands/_lib/task-pr-handoff.md`
 
--   [ ] **ステップ 2-1**: `simple-process.md` を作る。フロントマターの `description` は、ほかの `_lib/` のファイルにならい「Internal: … (not a command)」の形にする。冒頭に、`mkarch.md`・`mkplan.md`・`mkplan2.md` の step を参照していることと、それらの step の番号か中身を変える PR は本ファイルも見直すことを書く（設計書 3.2）。このフェーズで書く節は次のとおりである（本計画 §1.3）。
+-   [x] **ステップ 2-1**: `simple-process.md` を作る。フロントマターの `description` は、ほかの `_lib/` のファイルにならい「Internal: … (not a command)」の形にする。冒頭に、`mkarch.md`・`mkplan.md`・`mkplan2.md` の step を参照していることと、それらの step の番号か中身を変える PR は本ファイルも見直すことを書く（設計書 3.2）。このフェーズで書く節は次のとおりである（本計画 §1.3）。
     -   Reading the process record（設計書 3.1 の読む版の表と食い違いの確かめ方。値と状態は規約を参照する）。
     -   Recommending a process（設計書 3.2 の推奨の観点 4 つ。数の上限は書かない）。
     -   Writing the three documents（設計書 3.2 の 4 項目。参照する step は番号と見出しの語を併せて書く）。
     -   Reviewing the three documents（設計書 3.2 のチェックリストの渡し方と読み替え、リスクが高いときのレビュー）。
     -   Resuming a stopped run（設計書 3.3 の続けてよい条件と続ける手順）。
     -   When an excluded decision appears のうち `/mkreq` の実行中の扱い（設計書 3.3、6.3 の最初の枝）。
--   [ ] **ステップ 2-2**: `mkreq.md` を設計書 3.3 のとおりに変える。次の箇条は、設計書 3.3 の項目をすべて挙げたものである。
+-   [x] **ステップ 2-2**: `mkreq.md` を設計書 3.3 のとおりに変える。次の箇条は、設計書 3.3 の項目をすべて挙げたものである。
     -   step 5 の SCOPE に、進め方の選択を「常に開いた決定」として足す。最初の質問の回で推奨と除外の判定を示すこと、除外のときの選択肢、選択肢でない答えを尋ね直すこと、軽量プロセスの仕様のコメントを投稿して止まる実行では尋ねないことを書く。
     -   質問の回の順序（進め方と要件、設計、計画）と、設計か計画の決定で除外に当たる決定が出たときの扱いを書く。
     -   簡易な進め方では、`simple-process.md` の Writing・Reviewing の節に従って 3 文書を書き、1 本ずつコミットすることを書く。コミットの件名は今の 3 つの形のままとし、ADR の変更はその決定を記録した文書のコミットに入れる。通常の進め方でも、要件定義書の状態表に `` `full` `` の `Process` 行を書くことを書く。
@@ -147,7 +147,7 @@
     -   step 1 の重複の検索で見つかったときに、`simple-process.md` の Resuming の節の条件を満たせば続けることと、step 2 で新しい番号を選ばないことを書く。
     -   step 9 の報告に、簡易な進め方の実行が PR を開く前に止まったときの、走らせ直すコマンド `/mkreq <issue>` を足す。
     -   Authorization の段落が、続けてよい条件の確かめに使うネットワークの操作（`origin` のブランチの取得、ブランチの PR の一覧）を含むことを確かめ、欠けていれば足す。
--   [ ] **ステップ 2-3**: `_lib/task-pr-handoff.md` の Part A の step 3 に、呼び出し元が `/mkreq` で、`simple-process.md` の Resuming の節の条件を満たしたブランチなら、そのブランチを使う場合を足す（設計書 3.8）。Part B は変えない。
+-   [x] **ステップ 2-3**: `_lib/task-pr-handoff.md` の Part A の step 3 に、呼び出し元が `/mkreq` で、`simple-process.md` の Resuming の節の条件を満たしたブランチなら、そのブランチを使う場合を足す（設計書 3.8）。Part B は変えない。
 
 **完了の条件:** `make test` と `make lint` が通る。`simple-process.md` は投稿のコマンドを書かない。
 

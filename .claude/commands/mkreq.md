@@ -1,5 +1,5 @@
 ---
-description: "Create 01_requirements.md for a task from a GitHub issue and open its PR for review, or, for a simple change, post its approved lightweight spec on the issue"
+description: "Create 01_requirements.md for a task from a GitHub issue and open its PR for review, or, for a small mechanical change, post its approved lightweight spec on the issue"
 argument-hint: "<issue> [task]"
 ---
 
@@ -7,7 +7,10 @@ argument-hint: "<issue> [task]"
 > canonical for every project-specific path, document name, status value, branch
 > name, and reviewer this command names. The review step follows
 > `.claude/commands/_lib/review-subagent-pattern.md`; the branch setup and the PR
-> handoff follow `.claude/commands/_lib/task-pr-handoff.md`. The lightweight
+> handoff follow `.claude/commands/_lib/task-pr-handoff.md`. The choice between
+> the full process and the simple process, and the simple process's procedures,
+> follow `docs/dev/conventions/requirements_process.md` ("Process record" and
+> "Simple Process") and `.claude/commands/_lib/simple-process.md`. The lightweight
 > triage of step 1 follows `docs/dev/conventions/requirements_process.md`,
 > "Lightweight Process", and `.claude/commands/_lib/lightweight-spec.md`.
 
@@ -18,7 +21,12 @@ one. This command does not wait for the merge. The reviewer reviews the PR and
 then runs `/runpr <PR>` by hand, which drives the review threads and the
 merge.
 
-A simple change may take the lightweight process instead: when the issue meets
+Every requirements document records the process its task takes, chosen by the
+human in step 5: the full process, in which this command writes
+`01_requirements.md` alone, or the simple process, in which it writes all three
+task documents and opens one PR for them, the three-document PR.
+
+A small mechanical change may take the lightweight process instead: when the issue meets
 its conditions and the user approves the spec comment shown in full (step 1,
 "Lightweight triage"), this command writes no requirements document and creates
 no branch. It posts the spec comment on the issue, adds the label, and stops;
@@ -40,7 +48,9 @@ read them from `_context.md` when you run it.
 
 **Authorization.** Invoking this command approves, for this issue and this PR
 only, `gh issue view` (also for the issues the issue references),
-`gh repo view`, `gh pr list` for the duplicate search, and the
+`gh repo view`, `gh pr list` for the duplicate search and for the conditions
+of continuing a stopped run (`_lib/simple-process.md`, "Resuming a stopped
+run"), and the
 network operations `_lib/task-pr-handoff.md` names ("Authorization"). For the
 lightweight triage of step 1, it also approves, for this issue only,
 `gh api user`, `gh api` for the comment listing of
@@ -65,8 +75,13 @@ Work in the following order.
      (`git grep -l '対応 issue: \[#N\]' $(git for-each-ref --format='%(refname)' refs/heads refs/remotes/origin) -- docs/tasks`).
      The branches cover open PRs, a branch pushed by a run that stopped before
      opening its PR, and an unpushed branch in another worktree. If one
-     exists, stop and report it: revising an existing requirements document
-     goes through its PR (`/fixpr`, `/runpr`), not this command.
+     exists, check the conditions of `_lib/simple-process.md`, "Resuming a
+     stopped run". When every one holds, continue that simple-process run as
+     that section says: skip the lightweight triage below and step 2 (no new
+     task number), and go on from step 3. Otherwise stop and report the
+     document and each condition that failed: revising an existing
+     requirements document goes through its PR (`/fixpr`, `/runpr`), not this
+     command.
    - **Lightweight triage.** Decide here, before any branch exists, whether
      the issue takes the lightweight process
      (`docs/dev/conventions/requirements_process.md`, "Lightweight Process").
@@ -210,7 +225,9 @@ Work in the following order.
    task-document values of the other
    inputs. A new task's branch has sequence number `01`
    (e.g. `isseis/0027-remove-context-menu-01`). Then create the task directory
-   chosen in step 2 on it.
+   chosen in step 2 on it. When step 1 continues a stopped run, the branch it
+   checked out is the one Part A keeps, and the task directory already
+   exists.
 
 4. Read the input material.
    - The requirements process guide, the requirements template
@@ -233,8 +250,32 @@ Work in the following order.
      the design: record it for `design_handoff.md` (step 6).
    - **RECORD** = the `要件定義の際に決めたこと（YYYY-MM-DD）` list (step 6).
 
+   When step 1 continues a stopped run, the process is already `` `simple` ``
+   and is not asked again: settle only the decisions of the documents the
+   branch lacks (`_lib/simple-process.md`, "Resuming a stopped run").
+   Otherwise, the choice of process is always an open decision, so step 4 of
+   `_lib/settle-decisions.md` ("If nothing is open") never applies here. Ask it
+   in the first round, together with the requirements decisions:
+   - Before asking, show the process you recommend and why, and whether the
+     change is excluded and why (`_lib/simple-process.md`, "Recommending a
+     process"). The options are the full process and the simple process; when
+     you judged the change excluded, they are the full process and overriding
+     the exclusion judgment to take the simple process.
+   - An answer that is none of the options is not a choice: ask again. Never
+     default to the simple process.
+   - Record the chosen process with its reason, the exclusion judgment with its
+     reason, and an override when the human chose one, as the requirements
+     process guide, "Process record", says.
+
+   When the human chose the simple process, settle the design decisions and
+   then the plan decisions in later rounds, before writing anything, as
+   `_lib/simple-process.md`, "Writing the three documents", step 1, says. When
+   one of them needs an excluded change, follow `_lib/simple-process.md`, "When
+   an excluded decision appears".
+
 6. Write the first version of `01_requirements.md`.
-   - Start from the template. Write in Japanese. Status `draft`, `Created` today,
+   - Start from the template. Write in Japanese. Status `draft`, `Process` the
+     process chosen in step 5 (`` `full` `` or `` `simple` ``), `Created` today,
      `Review date` and `Reviewer` `-`.
    - In 概要, link the issue (`対応 issue: [#N](<url>)`, plus prerequisite and
      related issues), state what the document decides and what it leaves to
@@ -253,8 +294,14 @@ Work in the following order.
      `_lib/settle-decisions.md`, "Output", returned):
      `docs(NNNN): draft requirements for <concise English summary>`, with
      `Refs #<issue>` in the body.
+   - In the simple process, go on to write and commit `02_architecture.md` and
+     `03_implementation_plan.md`, one commit each, as `_lib/simple-process.md`,
+     "Writing the three documents", says.
 
-7. Self-review. Run the critical-review procedure in
+7. Self-review. In the simple process, follow `_lib/simple-process.md`,
+   "Reviewing the three documents", instead of this step: it reviews the three
+   documents, runs `japrose` on them and on the ADR changes, and commits the
+   fixes once. In the full process, run the critical-review procedure in
    `.claude/commands/_lib/review-subagent-pattern.md` in single-reviewer mode:
    - **ARTIFACT**: the requirements document.
    - **PERSONA**: an experienced requirements engineer and senior SRE, who reads
@@ -300,4 +347,7 @@ Work in the following order.
    instead the type, the spec comment's URL, that `<lightweight-label>` was
    added, and the next command for the user, `/runissue <N>`. When triage
    item 1 found a reverted issue that still has `<lightweight-label>`, add
-   that the label should be removed by hand.
+   that the label should be removed by hand. When a simple-process run stops
+   before it opens the PR (a failure or the user stopping it), report why it
+   stopped and the command that continues it, `/mkreq <N>`
+   (`_lib/simple-process.md`, "Resuming a stopped run").
