@@ -261,7 +261,7 @@ N/A。実行時の振る舞いを変えない（設計書 7.5）。
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
-確認のスクリプトは `docs/tasks/0075_remove_lightweight_process/_checks/`（`main.go` と `data.json`。以下、`_checks`）である。実行の記録（日付、確かめたコミットの完全な ID、`main.go` と `data.json` の blob の ID、出力、終了コード）は、ステップ 4-3 と作成ポイントの確かめ直しで各行に書く。
+確認のスクリプトは `docs/tasks/0075_remove_lightweight_process/_checks/`（`main.go` と `data.json`。以下、`_checks`）である。実行の記録（日付、確かめたコミットの完全な ID、`main.go` と `data.json` の blob の ID、出力、終了コード）は、ステップ 4-3 と作成ポイントの確かめ直しで、下の「実行の記録」に書く。表の `_checks` の行は、この記録を指す。
 
 実装のブランチの基点：`dcc4edf34c99d8aecd47c81710420fb54b0a1b29`（`git merge-base origin/main HEAD`。このコミットに `.claude/commands/_lib/lightweight-check.sh` と `cmd/yt2column/lightweight_docs_test.go` があることを `git ls-tree` で確かめた）
 

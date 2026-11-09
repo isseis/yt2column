@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strconv"
@@ -164,7 +165,7 @@ func loadData(commit string) (data, error) {
 	if err := dec.Decode(&d); err != nil {
 		return d, fmt.Errorf("%w: %s: %v", errUnreadable, dataPath, err)
 	}
-	if dec.More() {
+	if err := dec.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
 		return d, fmt.Errorf("%w: %s: trailing data", errUnreadable, dataPath)
 	}
 	if len(d.Deleted) == 0 || len(d.Words) == 0 || len(d.CIFiles) == 0 || d.CIPattern == "" {
@@ -173,6 +174,11 @@ func loadData(commit string) (data, error) {
 	for _, w := range d.Words {
 		if w == "" {
 			return d, fmt.Errorf("%w: %s: an empty word", errUnreadable, dataPath)
+		}
+	}
+	for _, e := range d.Excluded {
+		if e.Path == "" || e.Line == "" {
+			return d, fmt.Errorf("%w: %s: an exclusion without a path or a line", errUnreadable, dataPath)
 		}
 	}
 	return d, nil
@@ -197,11 +203,11 @@ func checkDeleted(commit string, d data) ([]string, error) {
 // matches a word of the list and is not an exclusion, and every exclusion that
 // does not match exactly once.
 func checkWords(commit string, d data) ([]string, error) {
-	args := []string{"grep", "-z", "-n", "-i", "-F", "--no-color", "--no-column", "--no-textconv", "--full-name"}
+	args := []string{"--attr-source=" + commit, "grep", "-z", "-n", "-i", "-F", "--no-color", "--no-column", "--no-textconv", "--full-name"}
 	for _, w := range d.Words {
 		args = append(args, "-e", w)
 	}
-	args = append(args, commit, "--", ".")
+	args = append(args, commit, "--", ":(top)")
 	matches, err := grep(commit, args)
 	if err != nil {
 		return nil, err
@@ -249,7 +255,10 @@ func inScope(path string, d data) bool {
 
 // checkCI reports every line of the CI files that holds the pattern.
 func checkCI(commit string, d data) ([]string, error) {
-	args := append([]string{"grep", "-z", "-n", "-F", "--no-color", "--no-column", "--no-textconv", "--full-name", "-e", d.CIPattern, commit, "--"}, d.CIFiles...)
+	args := []string{"--attr-source=" + commit, "grep", "-z", "-n", "-F", "--no-color", "--no-column", "--no-textconv", "--full-name", "-e", d.CIPattern, commit, "--"}
+	for _, f := range d.CIFiles {
+		args = append(args, ":(top)"+f)
+	}
 	matches, err := grep(commit, args)
 	if err != nil {
 		return nil, err
@@ -262,9 +271,12 @@ func checkCI(commit string, d data) ([]string, error) {
 }
 
 // grep runs git grep with -z and parses each output line as
-// "<commit>:<path>\x00<line number>\x00<content>". Exit status 1 means no
-// match; any other failure, and any line of another shape (such as "Binary
-// file ... matches"), is unreadable.
+// "<commit>:<path>\x00<line number>\x00<content>". Exit status 1 with no
+// output means no match; any other failure, any warning on standard error,
+// and any line of another shape (such as "Binary file ... matches") is
+// unreadable. The callers read attributes from the checked commit
+// (--attr-source), so the working tree's .gitattributes cannot change the
+// result.
 func grep(commit string, args []string) ([]match, error) {
 	cmd := exec.Command("git", append(append([]string{}, gitConfig...), args...)...)
 	var stderr bytes.Buffer
@@ -275,6 +287,9 @@ func grep(commit string, args []string) ([]match, error) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("%w: git grep: %v: %s", errUnreadable, err, strings.TrimSpace(stderr.String()))
+	}
+	if stderr.Len() > 0 {
+		return nil, fmt.Errorf("%w: git grep wrote to standard error: %s", errUnreadable, strings.TrimSpace(stderr.String()))
 	}
 	prefix := commit + ":"
 	var matches []match
