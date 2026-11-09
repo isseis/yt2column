@@ -52,9 +52,8 @@ func SocketPathMaxForTest(goos string) int {
 	return limit
 }
 
-// The LLM default, exposed so the CLI
-// tests and the documentation guard in cmd/yt2column compare against the code
-// instead of copying the values.
+// The LLM default, exposed so the CLI tests and the documentation guard in
+// cmd/yt2column compare against the code instead of copying the values.
 
 // DefaultLLMValueForTest returns the YT2COLUMN_LLM value used when the
 // variable is unset.

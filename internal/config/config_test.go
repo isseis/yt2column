@@ -651,9 +651,9 @@ func TestLoadErrorsOmitValues(t *testing.T) {
 
 // TestLoadReportsAllInvalid checks that one load reports every rejection, each
 // as its own element of the joined error: both LLM variables, a provider
-// variable, and a common variable, with retired LLM variables beside them,
-// which are not reported. A nested join would
-// reach a caller that prints one error per line as a single line.
+// variable, and a common variable. Retired LLM variables set next to them are
+// not reported. A nested join would reach a caller that prints one error per
+// line as a single line.
 func TestLoadReportsAllInvalid(t *testing.T) {
 	cases := []struct {
 		name string
@@ -1807,8 +1807,8 @@ func TestLoadReviewOnlyReadsLLM(t *testing.T) {
 }
 
 // TestLoadForIgnoresRetiredVars checks that the retired LLM variables, set
-// empty or with a value that would select deepseek, stop no load whatever the
-// stages and change nothing it returns: they are not read.
+// empty or with a value that would select deepseek, are not read by any load
+// whatever the stages, so they stop none and change nothing it returns.
 func TestLoadForIgnoresRetiredVars(t *testing.T) {
 	needs := []struct {
 		name string
@@ -1823,7 +1823,7 @@ func TestLoadForIgnoresRetiredVars(t *testing.T) {
 		{"LLM unset", defaultsBaseEnv()},
 		{"LLM set", with(defaultsBaseEnv(), llmEnv, "claude/claude-opus-5-5")},
 		{"both stages deepseek", withVars(defaultsBaseEnv(), map[string]string{
-			llmEnv: "deepseek/deepseek-flash", reviewLLMEnv: "deepseek/deepseek-flash", deepSeekAPIKeyEnv: "sk-test-key",
+			llmEnv: "deepseek/deepseek-flash", reviewLLMEnv: "deepseek/deepseek-flash",
 		})},
 	}
 	for _, base := range bases {
@@ -1838,11 +1838,17 @@ func TestLoadForIgnoresRetiredVars(t *testing.T) {
 					for _, name := range retiredVarNames {
 						env[name] = value
 					}
-					got, err := LoadFor(envLookup(env), n.need)
+					var read []string
+					got, err := LoadFor(recordingLookup(env, &read), n.need)
 					if err != nil {
 						t.Fatalf("LoadFor() error = %v, want nil", err)
 					}
-					if viewLLM(got.LLM()) != viewLLM(want.LLM()) {
+					for _, name := range retiredVarNames {
+						if slices.Contains(read, name) {
+							t.Errorf("LoadFor() read %s", name)
+						}
+					}
+					if viewLLM(got.LLM()) != viewLLM(want.LLM()) || got.CacheDir() != want.CacheDir() || got.YtDlpPath() != want.YtDlpPath() {
 						t.Errorf("LoadFor() = %+v, want %+v as without the retired variables", viewLLM(got.LLM()), viewLLM(want.LLM()))
 					}
 				})

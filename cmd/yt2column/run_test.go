@@ -2222,18 +2222,42 @@ func TestResumeNeed(t *testing.T) {
 }
 
 // TestRunIgnoresRetiredLLMVars checks that the CLI neither stops on the
-// retired LLM variables, set empty or with values that would select another
-// provider and model, nor uses their values: the run completes and builds its
-// client from YT2COLUMN_LLM alone.
+// retired LLM variables, set empty or to values that would select another
+// provider, model, and effort, nor uses their values: the run completes and
+// builds its client from YT2COLUMN_LLM, or from the default when that is
+// unset.
 func TestRunIgnoresRetiredLLMVars(t *testing.T) {
-	for _, value := range []string{"claude", ""} {
-		t.Run(fmt.Sprintf("retired=%q", value), func(t *testing.T) {
+	towardClaude := map[string]string{
+		"YT2COLUMN_LLM_PROVIDER": "claude", "YT2COLUMN_MODEL": "claude-opus-5-5",
+		"YT2COLUMN_REVIEW_PROVIDER": "claude", "YT2COLUMN_REVIEW_MODEL": "claude-opus-5-5",
+		"YT2COLUMN_CLAUDE_EFFORT": "low",
+	}
+	towardDeepSeek := map[string]string{
+		"YT2COLUMN_LLM_PROVIDER": "deepseek", "YT2COLUMN_MODEL": "deepseek-flash",
+		"YT2COLUMN_REVIEW_PROVIDER": "deepseek", "YT2COLUMN_REVIEW_MODEL": "deepseek-flash",
+		"YT2COLUMN_CLAUDE_EFFORT": "low",
+	}
+	empty := map[string]string{}
+	for name := range towardClaude {
+		empty[name] = ""
+	}
+	cases := []struct {
+		name    string
+		retired map[string]string
+		llmSet  bool // YT2COLUMN_LLM keeps deepseek/fake-model; otherwise it is unset
+		want    config.LLMSelection
+	}{
+		{"toward claude with YT2COLUMN_LLM", towardClaude, true, deepSeekSelection(t, "fake-model")},
+		{"empty with YT2COLUMN_LLM", empty, true, deepSeekSelection(t, "fake-model")},
+		{"toward deepseek without YT2COLUMN_LLM", towardDeepSeek, false, defaultSelection(t)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
 			e := newRunEnv(t)
-			for _, retired := range []string{
-				"YT2COLUMN_LLM_PROVIDER", "YT2COLUMN_MODEL",
-				"YT2COLUMN_REVIEW_PROVIDER", "YT2COLUMN_REVIEW_MODEL", "YT2COLUMN_CLAUDE_EFFORT",
-			} {
-				e.env[retired] = value
+			maps.Copy(e.env, tc.retired)
+			if !tc.llmSet {
+				delete(e.env, "YT2COLUMN_LLM")
+				e.env["ANTHROPIC_API_KEY"] = testAnthropicKey
 			}
 			var built []config.LLMSelection
 			e.d.newLLMClient = func(cfg config.LLMConfig) (llm.LLMClient, error) {
@@ -2246,11 +2270,37 @@ func TestRunIgnoresRetiredLLMVars(t *testing.T) {
 			if strings.Contains(e.stderr.String(), "configuration:") {
 				t.Errorf("stderr reports a configuration error:\n%s", e.stderr.String())
 			}
-			if len(built) != 1 || built[0].Provider() != config.ProviderDeepSeek || built[0].Model() != "fake-model" {
-				t.Errorf("generation selections built = %+v, want one deepseek/fake-model", built)
+			if len(built) != 1 || built[0] != tc.want {
+				t.Errorf("generation selections built = %+v, want one %+v", built, tc.want)
 			}
 		})
 	}
+}
+
+// deepSeekSelection returns the selection the CLI loads from
+// YT2COLUMN_LLM=deepseek/<model>, through the configuration itself.
+func deepSeekSelection(t *testing.T, model string) config.LLMSelection {
+	t.Helper()
+	return loadedGeneration(t, map[string]string{"YT2COLUMN_LLM": "deepseek/" + model, "DEEPSEEK_API_KEY": testAPIKey})
+}
+
+// defaultSelection returns the selection the CLI loads when YT2COLUMN_LLM is
+// unset.
+func defaultSelection(t *testing.T) config.LLMSelection {
+	t.Helper()
+	return loadedGeneration(t, map[string]string{"ANTHROPIC_API_KEY": testAnthropicKey})
+}
+
+// loadedGeneration loads env, with a cache directory, and returns its
+// generation selection.
+func loadedGeneration(t *testing.T, env map[string]string) config.LLMSelection {
+	t.Helper()
+	env["YT2COLUMN_CACHE_DIR"] = t.TempDir()
+	cfg, err := config.Load(lookupFrom(env))
+	if err != nil {
+		t.Fatalf("config.Load: %v", err)
+	}
+	return cfg.LLM().Generation()
 }
 
 // TestRunNoReviewPaddedReviewModel checks that a run without --after and with

@@ -476,11 +476,12 @@ func LoadFor(lookup LookupFunc, need Need) (Config, error) {
 // returns the validated LLMConfig and each rejection separately, so LoadFor and
 // LoadServer report them the same way.
 //
-// Contract: a variable is read only for a stage the run needs. A rejected value is never replaced by a default, so a run
-// with any rejection sends nothing to a provider. The generation selection is
-// resolved at most once: for the generation stage, or for a review stage that
-// inherits it, effort included, because YT2COLUMN_REVIEW_LLM is unset; it is
-// stored as the Generation selection only when need.Generation is true.
+// Contract: a variable is read only for a stage the run needs. A rejected
+// value is never replaced by a default, so a run with any rejection sends
+// nothing to a provider. The generation selection is resolved at most once:
+// for the generation stage, or for a review stage that inherits it, effort
+// included, because YT2COLUMN_REVIEW_LLM is unset; it is stored as the
+// Generation selection only when need.Generation is true.
 func loadLLM(lookup LookupFunc, need Need) (LLMConfig, []error) {
 	var cfg LLMConfig
 	var errs []error

@@ -437,7 +437,7 @@ PR の分け方の理由は 1.3 の 4 つ目の決定にある。
 | AC-06 | `internal/config/config_test.go::TestLoadServerIgnoresEnvSettings`、`cmd/yt2column-server/run_test.go::TestServerIgnoresEnvSettings`（キーのないファイルと環境のキー） | test | 3-2 | 3-3、3-4 |
 | AC-07 | `internal/config/config_test.go::TestLoadServerIgnoresEnvSettings`、`cmd/yt2column-server/run_test.go::TestServerIgnoresEnvSettings` | test | 3-2 | 3-3、3-4 |
 | AC-09 | `internal/config/config_test.go::TestLoadHTTP2Debug`、`cmd/yt2column-server/run_test.go::TestStartupFailures`（今の `GODEBUG` の行、`run_test.go:145`） | test | 3-2 | 3-3 |
-| AC-10 | `internal/config/config_test.go::TestLoadForIgnoresServerFile`、`internal/config/config_test.go::TestLoadForIgnoresRetiredVars`、`cmd/yt2column/run_test.go::TestRunRejectsRetiredLLMVars` を書き換えたテスト、`Load`・`LoadFor` の今のテスト（`internal/config/config_test.go::TestLoadValid`・`TestLoadFor` ほか） | test | 4-1 | 3-3、4-1 |
+| AC-10 | `internal/config/config_test.go::TestLoadForIgnoresServerFile`、`internal/config/config_test.go::TestLoadForIgnoresRetiredVars`、`cmd/yt2column/run_test.go::TestRunIgnoresRetiredLLMVars`（`TestRunRejectsRetiredLLMVars` を書き換えたテスト）、`Load`・`LoadFor` の今のテスト（`internal/config/config_test.go::TestLoadValid`・`TestLoadFor` ほか） | test | 4-1 | 3-3、4-1 |
 | AC-11 | `internal/config/serverfile_test.go::TestParseServerFileAccepts` | test | 2-2 | 2-2 |
 | AC-11a | `internal/config/serverfile_test.go::TestParseServerFileAccepts`（空の値の受理）、`internal/config/config_test.go::TestLoadServerEmptyValues` | test | 2-2、3-2 | 2-2、3-3 |
 | AC-12 | `internal/config/serverfile_test.go::TestParseServerFileRejects`、`internal/config/config_test.go::TestLoadServerFileRejections`（大きさの上限の境界を含む）、`cmd/yt2column-server/run_test.go::TestStartupFailures`（書式の誤りと大きさの行、ファイルが変わらないこと） | test | 2-2、3-2 | 2-2、3-3、3-4 |
