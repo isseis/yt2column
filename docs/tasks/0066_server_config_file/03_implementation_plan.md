@@ -216,12 +216,12 @@
 
 **変えるファイル:** `internal/config/config_test.go`
 
-- [ ] `TestVarErrorSource`（ゼロ値の `Source` が今の `<Name>: <Reason>` の形で、`VarSourceConfigFile` が設定ファイルのキーとして示す形であること）を書く。
-- [ ] `TestLoadServerReadsFile`（要件 AC-04 の 2 つの例）、`TestLoadServerValueRejections`（拒否ごとに 1 つの要素、`Source` が設定ファイル、文が「environment variable」を含まず値を含まない）、`TestLoadServerEmptyValues`（使うキーの空の値は「is empty」、使わないプロバイダのキーの空の値は受理）を書く。
-- [ ] `TestLoadServerIgnoresEnvSettings` を書く: `ANTHROPIC_API_KEY` を持たない設定ファイル（例: 雛形）と、環境の `ANTHROPIC_API_KEY` で、「is not set」の設定ファイルのキーの拒否になること、環境の `YT2COLUMN_LLM` が生成の選択を変えないこと、環境に 6 つのキーと廃止した 5 つの変数を空の値を含めて入れても結果がファイルだけで決まることを確かめる。
-- [ ] `TestLoadServerFileRejections` を書く: ファイルがない・シンボリックリンク・ディレクトリ・モードの誤り・読めない・書式の誤り・大きさの上限（65,536 バイトは受理、65,537 バイトは行番号 0 の書式の拒否）が、それぞれの番兵の `*FileError` になり、ゼロ値の `ServerConfig` を返すことを確かめる。読めない場合は、モードを戻す `t.Cleanup` を登録し、root では `t.Skip` する。
-- [ ] `TestLoadServerReadsOnlyHomeAndGodebug`（環境から読む名前が `HOME` と `GODEBUG` だけ）を書き、`TestLoadHTTP2Debug`（`config_test.go:1011`）に `LoadServer` の行を足す。
-- [ ] `TestLoadForIgnoresServerFile` を書く: `HOME` の下に、6 つのキーの値を持つ設定ファイル、書式の誤りのあるファイル、モード `0644` のファイルがあっても、`Load`・`LoadFor` の結果が環境変数だけで決まることを確かめる。
+- [x] `TestVarErrorSource`（ゼロ値の `Source` が今の `<Name>: <Reason>` の形で、`VarSourceConfigFile` が設定ファイルのキーとして示す形であること）を書く。
+- [x] `TestLoadServerReadsFile`（要件 AC-04 の 2 つの例）、`TestLoadServerValueRejections`（拒否ごとに 1 つの要素、`Source` が設定ファイル、文が「environment variable」を含まず値を含まない）、`TestLoadServerEmptyValues`（使うキーの空の値は「is empty」、使わないプロバイダのキーの空の値は受理）を書く。
+- [x] `TestLoadServerIgnoresEnvSettings` を書く: `ANTHROPIC_API_KEY` を持たない設定ファイル（例: 雛形）と、環境の `ANTHROPIC_API_KEY` で、「is not set」の設定ファイルのキーの拒否になること、環境の `YT2COLUMN_LLM` が生成の選択を変えないこと、環境に 6 つのキーと廃止した 5 つの変数を空の値を含めて入れても結果がファイルだけで決まることを確かめる。
+- [x] `TestLoadServerFileRejections` を書く: ファイルがない・シンボリックリンク・ディレクトリ・モードの誤り・読めない・書式の誤り・大きさの上限（65,536 バイトは受理、65,537 バイトは行番号 0 の書式の拒否）が、それぞれの番兵の `*FileError` になり、ゼロ値の `ServerConfig` を返すことを確かめる。読めない場合は、モードを戻す `t.Cleanup` を登録し、root では `t.Skip` する。
+- [x] `TestLoadServerReadsOnlyHomeAndGodebug`（環境から読む名前が `HOME` と `GODEBUG` だけ）を書き、`TestLoadHTTP2Debug`（`config_test.go:1011`）に `LoadServer` の行を足す。
+- [x] `TestLoadForIgnoresServerFile` を書く: `HOME` の下に、6 つのキーの値を持つ設定ファイル、書式の誤りのあるファイル、モード `0644` のファイルがあっても、`Load`・`LoadFor` の結果が環境変数だけで決まることを確かめる。
 
 #### ステップ 3-4: サーバの新しいテスト
 
