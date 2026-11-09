@@ -559,3 +559,36 @@ func TestDiffUsers(t *testing.T) {
 		})
 	}
 }
+
+// TestPackageReferenceStrictjsonUsers checks that the user list in
+// package_reference.md names exactly the packages whose non-test sources import
+// the component, with no duplicate.
+func TestPackageReferenceStrictjsonUsers(t *testing.T) {
+	doc := doctestutil.ReadDoc(t, filepath.Join(repoRoot, "docs/dev/conventions/package_reference.md"))
+	cell, err := strictjsonRowCell(doc)
+	if err != nil {
+		t.Fatalf("find the %s user list: %v", strictjsonPackageName, err)
+	}
+	listed, err := parseUserList(cell)
+	if err != nil {
+		t.Fatalf("read the %s user list: %v", strictjsonPackageName, err)
+	}
+	sources, err := goSources(repoRoot)
+	if err != nil {
+		t.Fatalf("scan %s: %v", repoRoot, err)
+	}
+	if len(sources) == 0 {
+		t.Fatalf("found no Go sources under %s/cmd or %s/internal", repoRoot, repoRoot)
+	}
+	users, err := importersOf(repoRoot, sources, strictjsonImportPath)
+	if err != nil {
+		t.Fatalf("read the imports under %s: %v", repoRoot, err)
+	}
+	if len(users) == 0 {
+		t.Fatalf("found no non-test source under %s importing %s", repoRoot, strictjsonImportPath)
+	}
+	missing, extra, duplicated := diffUsers(listed, users)
+	for _, line := range strictjsonUsersReport(missing, extra, duplicated, users) {
+		t.Error(line)
+	}
+}

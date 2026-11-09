@@ -114,10 +114,10 @@ Go のソースのコメント・識別子・文字列は英語で書き、AC �
 
 **変更するファイル:** `internal/pipeline/strictjson_users_test.go`、`docs/dev/conventions/package_reference.md`
 
--   [ ] **ステップ 3-1**: `TestPackageReferenceStrictjsonUsers` を書く。`repoRoot` を起点に、設計書 6.1 の流れ（行を見つける → `parseUserList` → `goSources` と `importersOf` → `diffUsers`）で比べ、設計書 4 章の表のとおりに `t.Errorf`（3 つの結果）と `t.Fatalf`（前提の崩れ）で報告する。テストが持つパッケージの名前は `internal/strictjson` と import のパスだけにする（AC-12）。
--   [ ] **ステップ 3-2**: 一覧を直す前に `go test -tags test -run '^TestPackageReferenceStrictjsonUsers$' ./internal/pipeline` が失敗し、4 つの名前と import するファイルを示すことを確かめる（設計書 7.2 の AC-06 の確認）。
--   [ ] **ステップ 3-3**: `package_reference.md:29` の一覧の文を、設計書 3.1 の文にする。セルのほかの部分と表のほかの行は変えない（AC-02）。
--   [ ] **ステップ 3-4**: 設計書 7.2 の壊す確認を、一覧を直した後の状態で 1 つずつ行い、失敗のメッセージが原因を示すことを確かめてから戻す。壊し方は次の 8 つである。
+-   [x] **ステップ 3-1**: `TestPackageReferenceStrictjsonUsers` を書く。`repoRoot` を起点に、設計書 6.1 の流れ（行を見つける → `parseUserList` → `goSources` と `importersOf` → `diffUsers`）で比べ、設計書 4 章の表のとおりに `t.Errorf`（3 つの結果）と `t.Fatalf`（前提の崩れ）で報告する。テストが持つパッケージの名前は `internal/strictjson` と import のパスだけにする（AC-12）。
+-   [x] **ステップ 3-2**: 一覧を直す前に `go test -tags test -run '^TestPackageReferenceStrictjsonUsers$' ./internal/pipeline` が失敗し、4 つの名前と import するファイルを示すことを確かめる（設計書 7.2 の AC-06 の確認）。
+-   [x] **ステップ 3-3**: `package_reference.md:29` の一覧の文を、設計書 3.1 の文にする。セルのほかの部分と表のほかの行は変えない（AC-02）。
+-   [x] **ステップ 3-4**: 設計書 7.2 の壊す確認を、一覧を直した後の状態で 1 つずつ行い、失敗のメッセージが原因を示すことを確かめてから戻す。壊し方は次の 8 つである。
     -   一覧から 1 つを消す。
     -   存在しないパッケージを足す。
     -   1 つを 2 回書く。
@@ -128,7 +128,7 @@ Go のソースのコメント・識別子・文字列は英語で書き、AC �
     -   照合のテストが `goSources` に渡す起点だけを空のディレクトリに変える（ソースが 0 になる）。
 
     壊し方と出力の要点をコミットメッセージに書く。
--   [ ] **ステップ 3-5**: 照合のテストと一覧の修正を 1 つのコミットにする（設計書 1.2 の「PR は 1 本にする」）。
+-   [x] **ステップ 3-5**: 照合のテストと一覧の修正を 1 つのコミットにする（設計書 1.2 の「PR は 1 本にする」）。
 
 **完了の条件:** `TestPackageReferenceStrictjsonUsers` が通り、`make test`・`make lint` が通る。
 
