@@ -517,7 +517,7 @@ run, writes the three documents as `draft`, and opens the PR; the reviewer
 approves all three in one answer to `/runpr`'s merge question, and `/runplan`
 implements the plan in later PRs ("Review Flow" above). It is an exception to
 "LLM Constraints" above, and to the required sections and Mermaid diagrams of
-sections 2 and 3 below as far as "May be omitted" says; it applies only to a task whose process record is
+sections 1 to 3 below as far as "May be omitted" says. It applies only to a task whose process record is
 `` `simple` `` ("Process record" above): a task whose `01_requirements.md` was
 written before the simple process existed takes the full process. The
 command-side procedures are in `.claude/commands/_lib/simple-process.md`.
@@ -862,7 +862,7 @@ A handoff item (`H-NN` in `design_handoff.md`, `I-NN` in `implementation_handoff
   ```
 
   The later document needs no further record for it. When the PR returns to the full process, the line is removed and the item becomes an ordinary item.
-- **Confirmed item:** a design or plan decision recorded in a `/mkreq` run of the simple process (an item of the `設計の際に決めたこと` or `計画の際に決めたこと` section), moved to `design_handoff.md` (a design decision) or `implementation_handoff.md` (a plan decision) when the task returns or switches to the full process. Its heading ends with `（確かめ済み）`, and its body has these lines (`## I-NN` in `implementation_handoff.md`):
+- **Confirmed item:** a design or plan decision the human confirmed in a `/mkreq` run of the simple process (an item of the `設計の際に決めたこと` or `計画の際に決めたこと` section, which records the decisions `_lib/settle-decisions.md` asked the human about), moved to `design_handoff.md` (a design decision) or `implementation_handoff.md` (a plan decision) when the task returns or switches to the full process. Its heading ends with `（確かめ済み）`, and its body has these lines (`## I-NN` in `implementation_handoff.md`):
 
   ```markdown
   ## H-NN: <決定の要旨>（確かめ済み）
@@ -874,7 +874,7 @@ A handoff item (`H-NN` in `design_handoff.md`, `I-NN` in `implementation_handoff
   **ADR:** <ADR の判断（なし、または作るか更新する ADR とその理由）>
   ```
 
-  `**人の答え:**` is `なし（人に尋ねずに決めた）` for a decision recorded without asking the human; `/mkarch` or `/mkplan` treats such an item as an open decision and asks it. The human has already confirmed every other confirmed item: `/mkarch` or `/mkplan` adopts the decision and its ADR judgment without asking again, and records it in its `…で決めたこと` section. It asks again only when `01_requirements.md` changed after the item was written and the item's premise no longer holds.
+  The human has already confirmed it: `/mkarch` or `/mkplan` adopts the decision and its ADR judgment without asking again, and records it in its `…で決めたこと` section. It asks again only when `01_requirements.md` changed after the item was written and the item's premise no longer holds.
 
 The type-derived checklist below is applied when designing each boundary in `02_architecture.md`. It is an aid against oversights, not a completeness guarantee.
 

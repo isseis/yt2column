@@ -788,9 +788,10 @@ row of `01_requirements.md`. In the simple process, `/mkreq` writes the three
 documents, kept as short as the change allows, before any of them is approved
 and opens one PR for them; the reviewer approves all three in one answer to
 `/runpr`, which can instead return the PR to the full process before the merge.
-No implementation code is written until all three are `approved`. A change to
-a security rule or premise, to a trust boundary of the development tools, or to
-adding or changing an external dependency is excluded unless the human overrides the judgment.
+No implementation code is written until all three are `approved`. A change
+that alters a security rule or premise or a trust boundary of the development
+tools, or that adds or changes an external dependency, is excluded unless the
+human overrides the judgment.
 What may and may not be omitted, the exclusions, and the return are in the
 [Simple Process](docs/dev/conventions/requirements_process.md#simple-process)
 section of the Requirements Process Guide.
