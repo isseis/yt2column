@@ -32,7 +32,7 @@ This command runs in one of two ways:
 - **Standalone**: a person runs `/mktrans README.md`.
 - **Sub-step**: another command runs it as one of its own steps (the README
   sync of `_lib/task-pr-handoff.md` Part B, `runplan.md`, `fixpr.md`,
-  `runpr.md`, and `runissue.md`). The caller passes only `README.md`.
+  and `runpr.md`). The caller passes only `README.md`.
 
 **One commit for both.** A commit that changes `README.md` also carries the
 `README.en.md` sync of that change: `make test` and the pre-commit hook for the
