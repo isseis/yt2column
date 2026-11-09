@@ -140,7 +140,10 @@ func hostEnvs(home string) []struct {
 	env  map[string]string
 } {
 	retired := fullEnv(home)
-	for _, name := range config.RetiredLLMVarsForTest() {
+	for _, name := range []string{
+		"YT2COLUMN_LLM_PROVIDER", "YT2COLUMN_MODEL",
+		"YT2COLUMN_REVIEW_PROVIDER", "YT2COLUMN_REVIEW_MODEL", "YT2COLUMN_CLAUDE_EFFORT",
+	} {
 		retired[name] = "deepseek"
 	}
 	return []struct {

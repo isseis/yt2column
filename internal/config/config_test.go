@@ -571,7 +571,6 @@ func TestLoadErrorsOmitValues(t *testing.T) {
 		markLLM             = "MARK-LLM-A1"
 		markModel           = "MARK-MODEL-B2"
 		markReviewLLM       = "MARK-REVIEW-LLM-I9"
-		markRetired         = "MARK-RETIRED-J0"
 		markAPIKey          = "MARK-APIKEY-C3"
 		markCache           = "MARK-CACHE-E5"
 		markYtDlp           = "MARK-YTDLP-F6"
@@ -581,7 +580,7 @@ func TestLoadErrorsOmitValues(t *testing.T) {
 		markSecret          = "MARK-SECRET-K2"
 	)
 	marks := []string{
-		markLLM, markModel, markReviewLLM, markRetired, markAPIKey, markCache, markYtDlp, markClaudeWorkspace, markEffort, markLLMModel, markSecret,
+		markLLM, markModel, markReviewLLM, markAPIKey, markCache, markYtDlp, markClaudeWorkspace, markEffort, markLLMModel, markSecret,
 	}
 	base := map[string]string{
 		llmEnv:            "deepseek/" + markModel,
@@ -629,13 +628,6 @@ func TestLoadErrorsOmitValues(t *testing.T) {
 		{"cache dir absent", without(base, cacheDirEnv), nil},
 		{"yt-dlp path empty", with(base, ytDlpEnv, ""), nil},
 		{"claude workspace invalid", with(claudeBase, anthropicWorkspaceIDEnv, " "+markClaudeWorkspace), nil},
-	}
-	for _, v := range retiredLLMVars {
-		cases = append(cases, struct {
-			name  string
-			env   map[string]string
-			tails []string
-		}{"retired " + v.name + " with the API key empty", with(with(base, v.name, "deepseek-"+markRetired), deepSeekAPIKeyEnv, ""), nil})
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1678,27 +1670,6 @@ func TestEffortPartReasonsListValues(t *testing.T) {
 	}
 }
 
-// TestRetiredClaudeEffortReason checks the code values the rejection of
-// YT2COLUMN_CLAUDE_EFFORT names: both LLM variables, the claude provider the
-// effort moves to, the value to set while YT2COLUMN_LLM is unset, and the
-// claude default effort. The default effort is searched for with the words in
-// front of it, because "high" is part of "xhigh".
-func TestRetiredClaudeEffortReason(t *testing.T) {
-	// The wording "whose provider is claude" is the observable contract of
-	// the line a user reads, so it is matched as written.
-	fragments := []string{
-		reviewLLMEnv,
-		"whose provider is " + providerClaude,
-		llmEnv + "=" + defaultLLMValue + effortSeparator + "<effort>",
-		"a " + providerClaude + " stage uses " + defaultClaudeEffort.String(),
-	}
-	for _, fragment := range fragments {
-		if !strings.Contains(reasonRetiredClaudeEffort, fragment) {
-			t.Errorf("reasonRetiredClaudeEffort = %q, want it to contain %q", reasonRetiredClaudeEffort, fragment)
-		}
-	}
-}
-
 // TestLoadInheritsEffort checks the effort of each stage for each Need: an
 // unset YT2COLUMN_REVIEW_LLM inherits the generation selection, effort
 // included, and an inherited rejection is reported once; a set one uses its
@@ -1831,28 +1802,6 @@ func TestLoadReviewOnlyReadsLLM(t *testing.T) {
 				t.Errorf("read %s = %v, want %v (read = %v)", llmEnv, got, tc.wantRead, read)
 			}
 		})
-	}
-}
-
-// retiredLLMVarsWant is the retired variables and the replacement each one's
-// reason names, written out here rather than read from retiredLLMVars, so a
-// variable dropped from that table fails TestRetiredLLMVars instead of
-// shrinking the cases of TestLoadRejectsRetiredLLMVars with it. The order is
-// pinned too: the CLI's and the server's tests take YT2COLUMN_CLAUDE_EFFORT as
-// the last entry of RetiredLLMVarsForTest.
-var retiredLLMVarsWant = []retiredLLMVar{
-	{"YT2COLUMN_LLM_PROVIDER", reasonRetiredLLM},
-	{"YT2COLUMN_MODEL", reasonRetiredLLM},
-	{"YT2COLUMN_REVIEW_PROVIDER", reasonRetiredReviewLLM},
-	{"YT2COLUMN_REVIEW_MODEL", reasonRetiredReviewLLM},
-	{"YT2COLUMN_CLAUDE_EFFORT", reasonRetiredClaudeEffort},
-}
-
-// TestRetiredLLMVars checks the table of retired variables against the list
-// above, the reporting order included.
-func TestRetiredLLMVars(t *testing.T) {
-	if !slices.Equal(retiredLLMVars, retiredLLMVarsWant) {
-		t.Errorf("retiredLLMVars = %v, want %v", retiredLLMVars, retiredLLMVarsWant)
 	}
 }
 

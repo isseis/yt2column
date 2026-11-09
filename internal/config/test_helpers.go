@@ -89,16 +89,6 @@ func EffortValuesByProviderForTest() map[string][]string {
 	}
 }
 
-// RetiredLLMVarsForTest returns the names of the retired LLM variables, in the
-// order their rejections are reported.
-func RetiredLLMVarsForTest() []string {
-	names := make([]string, 0, len(retiredLLMVars))
-	for _, v := range retiredLLMVars {
-		names = append(names, v.name)
-	}
-	return names
-}
-
 // The server configuration file, exposed so the tests outside this package
 // write the file the server reads instead of copying its path rule.
 

@@ -151,8 +151,8 @@ func requireReadOnlyHome(t *testing.T, fn string, read []string) {
 // which the CLI and the server reject and the host must not read.
 func withRetiredLLMVars(env map[string]string) map[string]string {
 	out := maps.Clone(env)
-	for _, v := range retiredLLMVars {
-		out[v.name] = "deepseek"
+	for _, name := range retiredVarNames {
+		out[name] = "deepseek"
 	}
 	return out
 }

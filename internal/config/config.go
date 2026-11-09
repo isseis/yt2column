@@ -106,15 +106,6 @@ const (
 	reasonConfigPathAbsent     = "no absolute configuration file path could be derived from HOME"
 	reasonSocketPathTooLong    = "the socket path derived from HOME exceeds the operating system's limit"
 	reasonHomeAbsent           = "must be set to an absolute path"
-	// reasonRetiredLLM and reasonRetiredReviewLLM reject a retired variable.
-	// Each says the variable must be unset, which variable replaces it, and
-	// what is used while the replacement is unset, so the line alone tells a
-	// user that removing the retired variable without setting its replacement
-	// sends the data to the default provider.
-	reasonRetiredLLM = "is no longer supported and must be unset (an empty value counts as set); set " +
-		llmEnv + "=<provider>/<model ID> instead; while " + llmEnv + " is unset, the provider is " + defaultProvider
-	reasonRetiredReviewLLM = "is no longer supported and must be unset (an empty value counts as set); set " +
-		reviewLLMEnv + "=<provider>/<model ID> instead; while " + reviewLLMEnv + " is unset, the review step uses " + llmEnv
 )
 
 // The fixed parts of an effort-part rejection: the accepted values follow
@@ -135,17 +126,6 @@ var (
 	// what parseLLM accepts.
 	reasonClaudeEffortPart   = effortPartReason(providerClaude, claudeparam.EffortValues())
 	reasonDeepSeekEffortPart = effortPartReason(providerDeepSeek, deepseekparam.EffortValues())
-	// reasonRetiredClaudeEffort rejects YT2COLUMN_CLAUDE_EFFORT. The variable
-	// applied only to claude stages, so the effort moves only to the LLM
-	// variables whose provider is claude; appending it to a deepseek value
-	// would change what that stage sends. A user who changed only the effort
-	// may have no YT2COLUMN_LLM to append to, so the reason gives the value to
-	// set in that case, built from the defaults.
-	reasonRetiredClaudeEffort = "is no longer supported and must be unset (an empty value counts as set); append " +
-		effortSeparator + "<effort> to the value of each of " + llmEnv + " and " + reviewLLMEnv +
-		" whose provider is " + providerClaude + " (while " + llmEnv + " is unset, set " +
-		llmEnv + "=" + defaultLLMValue + effortSeparator + "<effort>); without " + effortSeparator +
-		"<effort>, a " + providerClaude + " stage uses " + defaultClaudeEffort.String()
 )
 
 // effortPartReason builds the rejection of an effort part for provider, which
@@ -153,24 +133,6 @@ var (
 func effortPartReason(provider string, values []string) string {
 	return `the effort after "` + effortSeparator + `" is not accepted for provider ` + provider + "; " +
 		effortValuesPrefix + strings.Join(values, effortValuesSeparator)
-}
-
-// retiredLLMVar is a variable that selected a provider, a model, or the Claude
-// effort before the LLM variables carried them. Its presence is a rejection;
-// its value is never used.
-type retiredLLMVar struct {
-	name   string
-	reason string // reasonRetiredLLM, reasonRetiredReviewLLM, or reasonRetiredClaudeEffort
-}
-
-// retiredLLMVars lists the retired variables, each with the reason naming its
-// replacement, in the order their rejections are reported.
-var retiredLLMVars = []retiredLLMVar{
-	{"YT2COLUMN_LLM_PROVIDER", reasonRetiredLLM},
-	{"YT2COLUMN_MODEL", reasonRetiredLLM},
-	{"YT2COLUMN_REVIEW_PROVIDER", reasonRetiredReviewLLM},
-	{"YT2COLUMN_REVIEW_MODEL", reasonRetiredReviewLLM},
-	{"YT2COLUMN_CLAUDE_EFFORT", reasonRetiredClaudeEffort},
 }
 
 // LookupFunc has the signature of os.LookupEnv. Load reads every variable

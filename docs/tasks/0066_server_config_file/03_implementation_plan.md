@@ -248,8 +248,8 @@
 
 **コミット:** このステップだけの、削除だけのコミット。`make coverage-compare BASE=<親のコミット>` で確かめる（1.2）。
 
-- [ ] 本番の定義: `retiredLLMVar`・`retiredLLMVars`、`reasonRetiredLLM`・`reasonRetiredReviewLLM`・`reasonRetiredClaudeEffort`（どれも関数ではない）。
-- [ ] テスト用の補助とテスト: `RetiredLLMVarsForTest`（`test_helpers.go:87-97`。`RetiredLLMVarErrorForTest` はステップ 4-1 で消す）、`withRetiredLLMVars`（`socketpath_test.go:150-158`）と `hostEnvs` の廃止した変数の組（これらが参照する定義が消えるので、廃止した変数の名前をテストの中に直接書くか、組ごと消す。どちらにするかは実装で決める。組ごと消す場合は、その削除もこのコミットに含める）、`CheckRetiredModelEnvNotRead`（`make.go:88-108`）、`retiredLLMEnvs`・`retiredLLMEnvMentioned`・`retiredLLMEnvRE`・`goFilesUnder`（`makefile_test.go`）、`TestRetiredClaudeEffortReason`、`retiredLLMVarsWant`・`TestRetiredLLMVars`、`TestMakeTargetsDoNotReadRetiredModelEnv`、`TestRetiredLLMEnvMentioned`、`TestRetiredModelEnvIsGone`、`markRetired`（`config_test.go:572`・`582`）。使われなくなった import も消す。
+- [x] 本番の定義: `retiredLLMVar`・`retiredLLMVars`、`reasonRetiredLLM`・`reasonRetiredReviewLLM`・`reasonRetiredClaudeEffort`（どれも関数ではない）。
+- [x] テスト用の補助とテスト: `RetiredLLMVarsForTest`（`test_helpers.go:87-97`。`RetiredLLMVarErrorForTest` はステップ 4-1 で消す）、`withRetiredLLMVars`（`socketpath_test.go:150-158`）と `hostEnvs` の廃止した変数の組（これらが参照する定義が消えるので、廃止した変数の名前をテストの中に直接書くか、組ごと消す。どちらにするかは実装で決める。組ごと消す場合は、その削除もこのコミットに含める）、`CheckRetiredModelEnvNotRead`（`make.go:88-108`）、`retiredLLMEnvs`・`retiredLLMEnvMentioned`・`retiredLLMEnvRE`・`goFilesUnder`（`makefile_test.go`）、`TestRetiredClaudeEffortReason`、`retiredLLMVarsWant`・`TestRetiredLLMVars`、`TestMakeTargetsDoNotReadRetiredModelEnv`、`TestRetiredLLMEnvMentioned`、`TestRetiredModelEnvIsGone`、`markRetired`（`config_test.go:572`・`582`）。使われなくなった import も消す。
 
 #### ステップ 4-3: 注釈を直す
 

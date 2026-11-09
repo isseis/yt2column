@@ -459,20 +459,6 @@ func executionPathRows() []pathRow {
 			wantStderr: []string{"build the LLM client", "yt2column -h"},
 		},
 		{
-			// The adapter's rejection is reported only when no client is built
-			// on a failed configuration load; a retired variable no longer
-			// fails it.
-			name: "YT2COLUMN_LLM model ID with surrounding whitespace and a retired variable",
-			setup: func(_ *testing.T, e *runEnv) {
-				e.env["YT2COLUMN_LLM"] = "deepseek/ fake-model "
-				e.env[config.RetiredLLMVarsForTest()[1]] = ""
-				e.d.newLLMClient = productionDeps().newLLMClient
-			},
-			wantCode:   exitUsage,
-			wantStderr: []string{"build the LLM client", "yt2column -h"},
-			notStderr:  []string{"configuration:"},
-		},
-		{
 			name: "missing --system-prompt file",
 			setup: func(_ *testing.T, e *runEnv) {
 				e.args = []string{"--system-prompt", filepath.Join(e.base, "missing.tmpl"), "--out", e.outPath, runVideoURL}
@@ -2243,7 +2229,10 @@ func TestRunIgnoresRetiredLLMVars(t *testing.T) {
 	for _, value := range []string{"claude", ""} {
 		t.Run(fmt.Sprintf("retired=%q", value), func(t *testing.T) {
 			e := newRunEnv(t)
-			for _, retired := range config.RetiredLLMVarsForTest() {
+			for _, retired := range []string{
+				"YT2COLUMN_LLM_PROVIDER", "YT2COLUMN_MODEL",
+				"YT2COLUMN_REVIEW_PROVIDER", "YT2COLUMN_REVIEW_MODEL", "YT2COLUMN_CLAUDE_EFFORT",
+			} {
 				e.env[retired] = value
 			}
 			var built []config.LLMSelection
@@ -2259,41 +2248,6 @@ func TestRunIgnoresRetiredLLMVars(t *testing.T) {
 			}
 			if len(built) != 1 || built[0].Provider() != config.ProviderDeepSeek || built[0].Model() != "fake-model" {
 				t.Errorf("generation selections built = %+v, want one deepseek/fake-model", built)
-			}
-		})
-	}
-
-	// -h and an argument error are reported before the configuration is
-	// read, so a retired variable changes neither; which one is set cannot
-	// matter, so one is enough.
-	{
-		retired := config.RetiredLLMVarsForTest()[0]
-		t.Run(retired+" -h", func(t *testing.T) {
-			e := newRunEnv(t)
-			e.env[retired] = "deepseek"
-			e.args = []string{"-h"}
-			if code := e.run(); code != exitOK {
-				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
-			}
-			if !strings.Contains(e.stdout.String(), "Usage: yt2column") {
-				t.Errorf("stdout does not hold the usage:\n%s", e.stdout.String())
-			}
-			if strings.Contains(e.stderr.String(), "configuration:") {
-				t.Errorf("stderr reports a configuration error for -h:\n%s", e.stderr.String())
-			}
-		})
-		t.Run(retired+" usage error", func(t *testing.T) {
-			e := newRunEnv(t)
-			e.env[retired] = "deepseek"
-			e.args = []string{"--out", e.outPath}
-			if code := e.run(); code != exitUsage {
-				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitUsage, e.stderr.String())
-			}
-			if !strings.Contains(e.stderr.String(), "expected exactly one video URL") {
-				t.Errorf("stderr does not report the argument error:\n%s", e.stderr.String())
-			}
-			if strings.Contains(e.stderr.String(), "configuration:") {
-				t.Errorf("stderr reports a configuration error before the argument error:\n%s", e.stderr.String())
 			}
 		})
 	}

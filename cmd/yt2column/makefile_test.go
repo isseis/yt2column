@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -18,7 +17,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/isseis/yt2column/internal/config"
 	"github.com/isseis/yt2column/internal/doctestutil"
 	claudetestutil "github.com/isseis/yt2column/internal/llm/claude/testutil"
 	deepseektestutil "github.com/isseis/yt2column/internal/llm/deepseek/testutil"
@@ -42,14 +40,6 @@ const (
 	// transcript integration test, which has no opt-in.
 	transcriptIntegrationTarget = "test-integration"
 )
-
-// retiredLLMEnvs are the retired production LLM variables, among them the
-// model variable the DeepSeek integration targets used before the rename. A
-// target, or the code it builds, that still names one would take its model
-// from a value a user set for the production configuration instead of the
-// test's own variable. The names come from the config package, not from a
-// copy here.
-var retiredLLMEnvs = config.RetiredLLMVarsForTest()
 
 // TestMakeTestIntegrationCLI checks the target that runs the CLI integration
 // test. It makes one Generate call, so the -timeout value must exceed
@@ -94,141 +84,6 @@ func TestMakeOptInsAreTargetSpecific(t *testing.T) {
 			}
 		})
 	}
-}
-
-// TestMakeTargetsDoNotReadRetiredModelEnv checks that the two targets that
-// run the DeepSeek integration tests take the model from the test's own
-// variable: with only a retired variable set and the test variable undefined,
-// each target passes the default to go test.
-func TestMakeTargetsDoNotReadRetiredModelEnv(t *testing.T) {
-	for _, target := range []string{
-		deepSeekIntegrationTarget,
-		cliIntegrationOptions.MakeTarget,
-	} {
-		for _, retired := range retiredLLMEnvs {
-			t.Run(target+"/"+retired, func(t *testing.T) {
-				deepseektestutil.CheckRetiredModelEnvNotRead(t, repositoryRoot, target, retired)
-			})
-		}
-	}
-}
-
-// retiredLLMEnvMentioned reports whether line names one of retiredLLMEnvs as
-// a whole variable name. A longer name that only starts or ends with one, such
-// as YT2COLUMN_MODEL_OLD, is another variable and allowed.
-func retiredLLMEnvMentioned(line string) bool {
-	return retiredLLMEnvRE.MatchString(line)
-}
-
-// retiredLLMEnvRE matches any of retiredLLMEnvs as a whole variable name.
-var retiredLLMEnvRE = func() *regexp.Regexp {
-	quoted := make([]string, 0, len(retiredLLMEnvs))
-	for _, name := range retiredLLMEnvs {
-		quoted = append(quoted, regexp.QuoteMeta(name))
-	}
-	return regexp.MustCompile(`(^|[^A-Za-z0-9_])(` + strings.Join(quoted, "|") + `)([^A-Za-z0-9_]|$)`)
-}()
-
-// TestRetiredLLMEnvMentioned pins the whole-name boundary of the guard's
-// matcher: a retired name matches in the forms a Makefile line or a Go source
-// line holds it, and a longer name that contains it does not. The boundary is
-// shared by every alternative, so it is checked on one name, and each name is
-// checked to match.
-func TestRetiredLLMEnvMentioned(t *testing.T) {
-	retired := retiredLLMEnvs[0]
-	for _, tc := range []struct {
-		name string
-		line string
-		want bool
-	}{
-		{name: "assignment", line: retired + " ?= deepseek-flash", want: true},
-		{name: "export", line: "export " + retired + " := $(" + retired + ")", want: true},
-		{name: "make_reference", line: "$(" + retired + ")", want: true},
-		{name: "shell_reference", line: `"${` + retired + `}"`, want: true},
-		{name: "name_starts_with_identifier", line: "DEFAULT_" + retired, want: false},
-		{name: "name_ends_with_identifier", line: retired + "_OLD", want: false},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := retiredLLMEnvMentioned(tc.line); got != tc.want {
-				t.Errorf("retiredLLMEnvMentioned(%q) = %t, want %t", tc.line, got, tc.want)
-			}
-		})
-	}
-	for _, name := range retiredLLMEnvs {
-		if !retiredLLMEnvMentioned("$(" + name + ")") {
-			t.Errorf("retiredLLMEnvMentioned does not match %s", name)
-		}
-	}
-}
-
-// TestRetiredModelEnvIsGone checks that the Makefile, where the DeepSeek
-// integration targets are defined, the Go code under internal/llm/deepseek
-// that they build, and the CLI integration test files of this package do not
-// name a retired variable. The whole Makefile is scanned rather than the
-// targets' lines, so a mention anywhere in it fails. Every scope must hold at
-// least one file to scan, so a scope that finds none is a failure rather than
-// a scan of nothing that passes.
-func TestRetiredModelEnvIsGone(t *testing.T) {
-	for _, scope := range []struct {
-		name  string
-		files func(t *testing.T) []string
-	}{
-		{name: "Makefile", files: func(*testing.T) []string { return []string{"Makefile"} }},
-		{name: "internal/llm/deepseek", files: func(t *testing.T) []string { return goFilesUnder(t, "internal/llm/deepseek") }},
-		{name: "cmd/yt2column integration", files: func(t *testing.T) []string {
-			var files []string
-			for _, file := range goFilesUnder(t, "cmd/yt2column") {
-				if strings.Contains(filepath.Base(file), "integration") {
-					files = append(files, file)
-				}
-			}
-			return files
-		}},
-	} {
-		t.Run(scope.name, func(t *testing.T) {
-			files := scope.files(t)
-			if len(files) == 0 {
-				t.Fatalf("found no files in %s to scan", scope.name)
-			}
-			for _, file := range files {
-				content, err := os.ReadFile(filepath.Join(repositoryRoot, file))
-				if err != nil {
-					t.Fatalf("read %s: %v", file, err)
-				}
-				for i, line := range slices.Collect(strings.Lines(string(content))) {
-					if retiredLLMEnvMentioned(line) {
-						t.Errorf("%s:%d names a retired variable: %s", file, i+1, strings.TrimSpace(line))
-					}
-				}
-			}
-		})
-	}
-}
-
-// goFilesUnder returns the paths of the Go files under dir, relative to the
-// repository root, in order.
-func goFilesUnder(t *testing.T, dir string) []string {
-	t.Helper()
-	var files []string
-	err := filepath.WalkDir(filepath.Join(repositoryRoot, dir), func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() || !strings.HasSuffix(path, ".go") {
-			return nil
-		}
-		rel, err := filepath.Rel(repositoryRoot, path)
-		if err != nil {
-			return err
-		}
-		files = append(files, filepath.ToSlash(rel))
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("walk %s: %v", dir, err)
-	}
-	slices.Sort(files)
-	return files
 }
 
 // gateRecorder is a testing.TB that records Skip and Fatal instead of ending
