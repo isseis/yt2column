@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-09 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-10 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -232,3 +232,7 @@ Phase 4.5 が commit を作ったとき、その push はガードツールが�
 -   **対象のファイル:** git が無視するファイルのうち、監視の一覧に当たるものと、必ず含める `.claude/settings.local.json`（`fixprguard_guide.md` 7.1）。
 -   **ローカルの CLI レビュー:** `.claude/commands/_lib/local-cli-review.md` の手順。CodeRabbit CLI でレビューし、失敗すれば Codex CLI を `codexreview` を経て使う。
 -   用語は `docs/translation_glossary.md` と統一する。
+
+## 変更履歴
+
+- 2026-11-10 承認（isseis、#763）
