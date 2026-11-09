@@ -65,7 +65,7 @@ type adrData struct {
 
 // violation is one failed check at a line of a file.
 type violation struct {
-	ac   string
+	name string
 	file string
 	line int
 	text string
@@ -110,23 +110,23 @@ func run(args []string) (bool, error) {
 	}
 
 	checks := []struct {
-		ac   string
+		name string
 		desc string
 		run  func() ([]violation, error)
 	}{
-		{"AC-04", d.Readme.Path + ": text outside the display-language paragraph is unchanged, the paragraph is one block, and every changed file is in scope", func() ([]violation, error) {
+		{"readme", d.Readme.Path + ": text outside the display-language paragraph is unchanged, the paragraph is one block, and every changed file is in scope", func() ([]violation, error) {
 			return checkReadme(base, head, d)
 		}},
-		{"AC-07", d.ReadmeEN.Path + ": only the sync marker and the display-language paragraph changed, and the paragraph is one block", func() ([]violation, error) {
+		{"readme-en", d.ReadmeEN.Path + ": only the sync marker and the display-language paragraph changed, and the paragraph is one block", func() ([]violation, error) {
 			return checkReadmeEN(base, head, d.ReadmeEN)
 		}},
-		{"AC-08/AC-09", d.ADR.Path + ": the decision section's last item is its first sentence and nothing else in the ADR changed", func() ([]violation, error) {
+		{"adr", d.ADR.Path + ": the decision section's last item is its first sentence and nothing else in the ADR changed", func() ([]violation, error) {
 			return checkADR(base, head, d)
 		}},
-		{"AC-10", "each non-merge commit that changes ADR-0029 carries exactly one editorial correction line", func() ([]violation, error) {
+		{"corrections", "each non-merge commit that changes ADR-0029 carries exactly one editorial correction line", func() ([]violation, error) {
 			return checkCorrections(base, head, d)
 		}},
-		{"AC-11", d.MergeCommit + " is an ancestor of the head commit", func() ([]violation, error) {
+		{"merge-order", d.MergeCommit + " is an ancestor of the head commit", func() ([]violation, error) {
 			return checkMergeCommit(head, d)
 		}},
 	}
@@ -138,14 +138,14 @@ func run(args []string) (bool, error) {
 			return false, err
 		}
 		if len(found) == 0 {
-			fmt.Printf("OK   %s %s\n", check.ac, check.desc)
+			fmt.Printf("OK   %s: %s\n", check.name, check.desc)
 			continue
 		}
 		violations = append(violations, found...)
 	}
 	if len(violations) > 0 {
 		for _, one := range violations {
-			fmt.Printf("FAIL %s %s:%d: %s\n", one.ac, one.file, one.line, one.text)
+			fmt.Printf("FAIL %s %s:%d: %s\n", one.name, one.file, one.line, one.text)
 		}
 		fmt.Printf("FAIL %d violation(s)\n", len(violations))
 		return false, nil
@@ -185,7 +185,7 @@ func loadData() (data, error) {
 	return d, nil
 }
 
-// checkReadme verifies AC-04: README.md changes only inside the
+// checkReadme verifies that README.md changes only inside the
 // display-language paragraph, the head paragraph is one block, and every file
 // the range changes is README.md, README.en.md, ADR-0029, or under the task
 // directory.
@@ -200,7 +200,7 @@ func checkReadme(base, head string, d data) ([]violation, error) {
 		if slices.Contains(allowed, path) || strings.HasPrefix(path, d.TaskDir) {
 			continue
 		}
-		out = append(out, violation{"AC-04", path, 1, "a file outside the allowed scope changed"})
+		out = append(out, violation{"readme", path, 1, "a file outside the allowed scope changed"})
 	}
 
 	baseP, err := readParagraph(d.Readme, base)
@@ -212,15 +212,15 @@ func checkReadme(base, head string, d data) ([]violation, error) {
 		return nil, err
 	}
 	if !singleParagraph(headP) {
-		out = append(out, violation{"AC-04", d.Readme.Path, headP.start + 1, "the display-language paragraph is not one block"})
+		out = append(out, violation{"readme", d.Readme.Path, headP.start + 1, "the display-language paragraph is not one block"})
 	}
 	if maskParagraph(baseP) != maskParagraph(headP) {
-		out = append(out, violation{"AC-04", d.Readme.Path, 1, "text outside the display-language paragraph changed"})
+		out = append(out, violation{"readme", d.Readme.Path, 1, "text outside the display-language paragraph changed"})
 	}
 	return out, nil
 }
 
-// checkReadmeEN verifies AC-07: README.en.md changes only in its first line
+// checkReadmeEN verifies that README.en.md changes only in its first line
 // (the sync marker) and its display-language paragraph, and the head paragraph
 // is one block.
 func checkReadmeEN(base, head string, p paragraphData) ([]violation, error) {
@@ -237,10 +237,10 @@ func checkReadmeEN(base, head string, p paragraphData) ([]violation, error) {
 	headP.lines[0] = "\x00marker\x00"
 	var out []violation
 	if !singleParagraph(headP) {
-		out = append(out, violation{"AC-07", p.Path, headP.start + 1, "the display-language paragraph is not one block"})
+		out = append(out, violation{"readme-en", p.Path, headP.start + 1, "the display-language paragraph is not one block"})
 	}
 	if maskParagraph(baseP) != maskParagraph(headP) {
-		out = append(out, violation{"AC-07", p.Path, 1, "text outside the sync marker and the display-language paragraph changed"})
+		out = append(out, violation{"readme-en", p.Path, 1, "text outside the sync marker and the display-language paragraph changed"})
 	}
 	return out, nil
 }
@@ -345,7 +345,7 @@ func uniqueLine(lines []string, prefix string) (int, error) {
 	return found, nil
 }
 
-// checkADR verifies AC-08 and AC-09: under the ADR directory only ADR-0029
+// checkADR verifies that under the ADR directory only ADR-0029
 // changed, with no addition or deletion, and the decision section's last item
 // at the head is the item at the base cut at the end of its first sentence,
 // which the closing bold marker delimits. Every other byte of the ADR is the
@@ -364,10 +364,10 @@ func checkADR(base, head string, d data) ([]violation, error) {
 	}
 	sort.Strings(inDir)
 	if len(inDir) != 1 || inDir[0] != d.ADR.Path {
-		out = append(out, violation{"AC-09", d.ADR.Dir, 1, fmt.Sprintf("changed files under the ADR directory are %v, want only %s", inDir, d.ADR.Path)})
+		out = append(out, violation{"adr", d.ADR.Dir, 1, fmt.Sprintf("changed files under the ADR directory are %v, want only %s", inDir, d.ADR.Path)})
 	}
 	if status := changed[d.ADR.Path]; status == 'A' || status == 'D' {
-		out = append(out, violation{"AC-09", d.ADR.Path, 1, "ADR-0029 was added or deleted"})
+		out = append(out, violation{"adr", d.ADR.Path, 1, "ADR-0029 was added or deleted"})
 	}
 
 	baseText, err := read(base, d.ADR.Path)
@@ -393,10 +393,10 @@ func checkADR(base, head string, d data) ([]violation, error) {
 		return nil, fmt.Errorf("%s at %s: %w", d.ADR.Path, base, err)
 	}
 	if headItem.text != want {
-		out = append(out, violation{"AC-08", d.ADR.Path, headItem.line, fmt.Sprintf("the last item is %q, want the first sentence %q", headItem.text, want)})
+		out = append(out, violation{"adr", d.ADR.Path, headItem.line, fmt.Sprintf("the last item is %q, want the first sentence %q", headItem.text, want)})
 	}
 	if maskLine(baseLines, baseItem.index) != maskLine(headLines, headItem.index) {
-		out = append(out, violation{"AC-09", d.ADR.Path, 1, "a part of ADR-0029 outside the last item of the decision section changed"})
+		out = append(out, violation{"adr", d.ADR.Path, 1, "a part of ADR-0029 outside the last item of the decision section changed"})
 	}
 	return out, nil
 }
@@ -457,7 +457,7 @@ func maskLine(lines []string, index int) string {
 	return strings.Join(masked, "\n")
 }
 
-// checkCorrections verifies AC-10: at least one non-merge commit in the range
+// checkCorrections verifies that at least one non-merge commit in the range
 // changes ADR-0029, each such commit changes nothing else, and each carries
 // exactly one editorial correction line in its message.
 func checkCorrections(base, head string, d data) ([]violation, error) {
@@ -477,7 +477,7 @@ func checkCorrections(base, head string, d data) ([]violation, error) {
 		}
 		adrCommits++
 		if len(paths) != 1 {
-			out = append(out, violation{"AC-10", commit, 1, fmt.Sprintf("the commit that changes ADR-0029 also changes %v", paths)})
+			out = append(out, violation{"corrections", commit, 1, fmt.Sprintf("the commit that changes ADR-0029 also changes %v", paths)})
 		}
 		message, err := git("log", "-1", "--format=%B", commit)
 		if err != nil {
@@ -490,11 +490,11 @@ func checkCorrections(base, head string, d data) ([]violation, error) {
 			}
 		}
 		if lines != 1 {
-			out = append(out, violation{"AC-10", commit, 1, fmt.Sprintf("the commit carries %d editorial correction lines, want 1", lines)})
+			out = append(out, violation{"corrections", commit, 1, fmt.Sprintf("the commit carries %d editorial correction lines, want 1", lines)})
 		}
 	}
 	if adrCommits == 0 {
-		out = append(out, violation{"AC-10", d.ADR.Path, 1, "no non-merge commit in the range changes ADR-0029"})
+		out = append(out, violation{"corrections", d.ADR.Path, 1, "no non-merge commit in the range changes ADR-0029"})
 	}
 	return out, nil
 }
@@ -513,7 +513,7 @@ func isCorrectionLine(line string, a adrData) bool {
 	return true
 }
 
-// checkMergeCommit verifies AC-11: the pull request that removes the sentences
+// checkMergeCommit verifies that the pull request that removes the sentences
 // from ADR-0029 is merged only after the earlier PR's merge commit.
 func checkMergeCommit(head string, d data) ([]violation, error) {
 	ok, err := isAncestor(d.MergeCommit, head)
@@ -521,7 +521,7 @@ func checkMergeCommit(head string, d data) ([]violation, error) {
 		return nil, err
 	}
 	if !ok {
-		return []violation{{"AC-11", d.MergeCommit, 1, "the merge commit is not an ancestor of the head commit"}}, nil
+		return []violation{{"merge-order", d.MergeCommit, 1, "the merge commit is not an ancestor of the head commit"}}, nil
 	}
 	return nil, nil
 }
