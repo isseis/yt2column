@@ -984,17 +984,17 @@ OK      claude-md-unchanged
 
 #### PR-4
 
-マージの基点 `0d9f8a4381a8c8d3bb883317e732725fb2d8ac06`、head `bb35eab2173cd281e87ae0ed1272c0389b6475b5`（`git fetch origin main` の後に実行した）。作った issue は [#725](https://github.com/isseis/yt2column/issues/725)（`security.md` §6 の出典のリンクの記述。ADR-0034）と [#726](https://github.com/isseis/yt2column/issues/726)（製品のコードの日本語のリテラルと CLAUDE.md「Go Idioms」。ADR-0035）。
+マージの基点 `0d9f8a4381a8c8d3bb883317e732725fb2d8ac06`、head `f2b25e97c65aaced66edc063d73e139891d0f3a6`（`git fetch origin main` の後に実行した）。作った issue は [#725](https://github.com/isseis/yt2column/issues/725)（`security.md` §6 の出典のリンクの記述。ADR-0034）と [#726](https://github.com/isseis/yt2column/issues/726)（製品のコードの日本語のリテラルと CLAUDE.md「Go Idioms」。ADR-0035）。
 
 `docs/tasks/0065_adr_remaining/_checks/task_docs_unchanged.sh origin/main HEAD`：終了コード 0。
 
 ```text
 merge-base: 0d9f8a4381a8c8d3bb883317e732725fb2d8ac06
-head: bb35eab2173cd281e87ae0ed1272c0389b6475b5
+head: f2b25e97c65aaced66edc063d73e139891d0f3a6
 docs/tasks/: only docs/tasks/0065_adr_remaining/ changed
 ```
 
-`go run -tags test ./docs/tasks/0065_adr_remaining/_checks/adrchecks/ -pr 4 0d9f8a4381a8c8d3bb883317e732725fb2d8ac06 bb35eab2173cd281e87ae0ed1272c0389b6475b5`：終了コード 0。7 つの確かめがすべて `OK` で、`PENDING` はない。
+`go run -tags test ./docs/tasks/0065_adr_remaining/_checks/adrchecks/ -pr 4 0d9f8a4381a8c8d3bb883317e732725fb2d8ac06 f2b25e97c65aaced66edc063d73e139891d0f3a6`：終了コード 0。7 つの確かめがすべて `OK` で、`PENDING` はない。
 
 ```text
 OK      history-sources
