@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-09 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-09 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルの内容は、コミット `960e3737` で確かめた。`file:line` の行番号は、このコミットでの行番号である。F-NNN・AC-NN は要件書の項番を指す。受け入れ基準との対応は付録 A にまとめる。本タスクに `design_handoff.md` はない。
@@ -354,3 +354,7 @@ N/A。実行時の振る舞いを変えないので、結合テストの対象�
 | AC-10 | 3.3、6.1 | manual（7.3） |
 | AC-11 | 1.2、6.2 | #727 のコミットが PR の先頭の祖先であることを、PR を作る前に確かめて記録する |
 | AC-12 | 3.4、7.1 | test（`make test`、`make ext-test`） |
+
+## 変更履歴
+
+- 2026-11-09 承認（isseis、#733）
