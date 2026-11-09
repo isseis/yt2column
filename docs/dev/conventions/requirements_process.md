@@ -18,15 +18,19 @@ When implementing new features or security-critical functionality, follow this p
   and `03_implementation_plan.md`: the approved spec comment takes the place of
   the approved documents. The exception reaches no further. A change that
   misses any condition, or an issue without an approved spec comment, takes the
-  normal process and every rule above.
+  normal process (the full or the simple process: "Simple Process" below) and
+  every rule of this section that applies to it.
 - **Exception: the simple process.** In a task whose `01_requirements.md`
   records the simple process (its `Process` row is `` `simple` ``: "Process
   record" below), `/mkreq` writes `02_architecture.md` and
   `03_implementation_plan.md` before `01_requirements.md` is approved, in the
-  same PR as `01_requirements.md` ("Simple Process" below). This lifts only the
-  two rules above about when `02_architecture.md` and
-  `03_implementation_plan.md` may begin. The exception reaches no further: no
-  implementation code is written until all three documents are `approved`.
+  same PR as `01_requirements.md` ("Simple Process" below). This lifts, for
+  `/mkreq` writing the three documents of such a task (in one run, or in a run
+  that continues a stopped one), the two rules above about when
+  `02_architecture.md` and `03_implementation_plan.md` may begin, and the rule
+  above about not proceeding past a document that is not `approved`. The
+  exception reaches no further: no implementation code is written until all
+  three documents are `approved`.
 
 #### Editing an approved document
 
@@ -214,8 +218,8 @@ or the simple process ("Review Flow" above). `02_architecture.md` and
   `/runpr` rewrites it to `` `full` `` when it returns a three-document PR to the
   full process ("Simple Process" below). No other command changes it, and it is
   not edited by hand. Once `01_requirements.md` is on `main`, the record does
-  not change: `/runpr` stops on a PR whose diff changes the `Process` row of a
-  `01_requirements.md` that `origin/main` has.
+  not change: `/runpr` stops on a PR whose diff adds, removes, or changes the
+  `Process` row of a `01_requirements.md` that `origin/main` has.
 - **Where the reasons go:** the reason for the chosen process, the judgment of
   whether the change is excluded ("Simple Process" below) with its reason, a
   human's override of that judgment, and a return to the full process with its
@@ -512,7 +516,8 @@ confirms the requirements, design, and plan decisions with the human in one
 run, writes the three documents as `draft`, and opens the PR; the reviewer
 approves all three in one answer to `/runpr`'s merge question, and `/runplan`
 implements the plan in later PRs ("Review Flow" above). It is an exception to
-"LLM Constraints" above, and applies only to a task whose process record is
+"LLM Constraints" above, and to the required sections and Mermaid diagrams of
+sections 2 and 3 below as far as "May be omitted" says; it applies only to a task whose process record is
 `` `simple` `` ("Process record" above): a task whose `01_requirements.md` was
 written before the simple process existed takes the full process. The
 command-side procedures are in `.claude/commands/_lib/simple-process.md`.
@@ -523,7 +528,7 @@ with the reason and its judgment of whether the change is excluded (below) with
 the reason. The human decides; there is no limit on lines or files and no
 script that judges it.
 
-**Never omitted.** A document of the simple process keeps:
+**Never omitted.** The simple process keeps:
 
 - the acceptance criteria of `01_requirements.md`, each with an identifier
   unique in the document;
@@ -535,8 +540,8 @@ script that judges it.
   security section says N/A with the reason;
 - the PR boundaries of `03_implementation_plan.md`, as `/mkplan` writes them,
   with no limit on the number of implementation PRs;
-- the Japanese prose pass (`japrose`) over the three documents and the ADR
-  changes, and the local CLI review, before the PR is opened.
+- the steps of the Japanese prose pass (`japrose`) over the three documents
+  and the ADR changes, and of the local CLI review, before the PR is opened.
 
 **May be omitted.** A document of the simple process may omit:
 
@@ -586,8 +591,8 @@ When a decision found later needs an excluded change:
 
 **Returning to the full process.** Before the three-document PR is merged, the
 reviewer can return it to the full process, only by answering `/runpr`'s merge
-question or by telling a command to; a review thread asking for it never
-returns it. After the return:
+question or by telling `/runpr` to; a review thread asking for it never
+returns it, and no other command changes the process record. After the return:
 
 - the PR holds `01_requirements.md` alone, without `02_architecture.md` and
   `03_implementation_plan.md`;
@@ -599,16 +604,20 @@ returns it. After the return:
 - the design and plan decisions the human confirmed stay as confirmed items of
   the handoff files ("Design handoff" below), which `/mkarch` and `/mkplan`
   read; the addressed items become ordinary items;
-- `/runpr` merges it as a requirements PR, and `/mkarch` comes next.
+- the concerns of the review threads left unresolved on the deleted documents
+  become ordinary items of the handoff files, in `/runpr`'s own words;
+- `/runpr` asks its merge question again and can merge it as a requirements
+  PR, after which `/mkarch` comes next.
 
 After the three-document PR is merged, the task never returns to the full
 process. A later decision change follows "Editing an approved document" above,
 as in the full process; one that needs an excluded change is handled as the
 list above says.
 
-**"Normal process" in "Lightweight Process".** "Lightweight Process" below says
-"normal process" for any process that writes task documents: both the full
-process and the simple process.
+**"Normal process" and the lightweight process.** Where this guide and the
+command documents speak of the lightweight process, "normal process" means any
+process that writes task documents: both the full process and the simple
+process.
 
 ### Lightweight Process
 
@@ -841,7 +850,7 @@ stays inside the spec.
 
 **Untrusted input boundaries:** when a requirement consumes untrusted input (network responses, external-command output, or files derived from them), state, for each boundary, the accepted form, the sentinel error a rejection maps to, any size/record limit, and the rule that input the standard library would silently repair, discard, or ignore is rejected rather than accepted wherever the accepted form requires that value. State observable behavior only; how a malformed shape is detected (which API, which pre-check) is decided in `02_architecture.md`. State which members the requirement consumes; an unconsumed member is ignored and accepted only when the requirement explicitly declares it extensible, and an unknown or repeated member the requirement does not declare extensible is a rejection reason. Whole-document checks the accepted form requires, such as raw-byte encoding and a single top-level value with no trailing data, still apply to the whole input. Concrete malformed inputs found during review may be added to the acceptance criteria as examples, but they are not a claim of completeness.
 
-**Design handoff:** when requirements review surfaces implementation-level concerns (library pitfalls, mechanism choices, test construction), record them in `docs/tasks/XXXX_feature/design_handoff.md` instead of expanding the requirements. `02_architecture.md` records, for each handoff item, the approach taken or why it does not apply. In the same way, `implementation_handoff.md` collects implementation-level concerns raised on `01_requirements.md` or `02_architecture.md`, and `03_implementation_plan.md` records how it handles each of its items.
+**Design handoff:** when review surfaces concerns that belong to a later document (mechanism choices, library pitfalls, test construction), record them in a handoff file instead of expanding the reviewed document, routed as `.claude/commands/fixpr.md` R2 says: design- and architecture-level concerns raised on `01_requirements.md` go to `docs/tasks/XXXX_feature/design_handoff.md`, whose items `02_architecture.md` records, each with the approach taken or why it does not apply; implementation-level concerns raised on `01_requirements.md` or `02_architecture.md` go to `implementation_handoff.md`, whose items `03_implementation_plan.md` records in the same way.
 
 A handoff item (`H-NN` in `design_handoff.md`, `I-NN` in `implementation_handoff.md`) is a `## H-NN: <要旨>` or `## I-NN: <要旨>` section in Japanese, of one of three kinds:
 
@@ -853,7 +862,7 @@ A handoff item (`H-NN` in `design_handoff.md`, `I-NN` in `implementation_handoff
   ```
 
   The later document needs no further record for it. When the PR returns to the full process, the line is removed and the item becomes an ordinary item.
-- **Confirmed item:** a design or plan decision the human confirmed in a `/mkreq` run of the simple process, moved to `design_handoff.md` (a design decision) or `implementation_handoff.md` (a plan decision) when the task returns or switches to the full process. Its heading ends with `（確かめ済み）`, and its body has these lines:
+- **Confirmed item:** a design or plan decision recorded in a `/mkreq` run of the simple process (an item of the `設計の際に決めたこと` or `計画の際に決めたこと` section), moved to `design_handoff.md` (a design decision) or `implementation_handoff.md` (a plan decision) when the task returns or switches to the full process. Its heading ends with `（確かめ済み）`, and its body has these lines (`## I-NN` in `implementation_handoff.md`):
 
   ```markdown
   ## H-NN: <決定の要旨>（確かめ済み）
@@ -865,7 +874,7 @@ A handoff item (`H-NN` in `design_handoff.md`, `I-NN` in `implementation_handoff
   **ADR:** <ADR の判断（なし、または作るか更新する ADR とその理由）>
   ```
 
-  The human has already confirmed it: `/mkarch` or `/mkplan` adopts the decision and its ADR judgment without asking again, and records it in its `…で決めたこと` section. It asks again only when `01_requirements.md` changed after the item was written and the item's premise no longer holds.
+  `**人の答え:**` is `なし（人に尋ねずに決めた）` for a decision recorded without asking the human; `/mkarch` or `/mkplan` treats such an item as an open decision and asks it. The human has already confirmed every other confirmed item: `/mkarch` or `/mkplan` adopts the decision and its ADR judgment without asking again, and records it in its `…で決めたこと` section. It asks again only when `01_requirements.md` changed after the item was written and the item's premise no longer holds.
 
 The type-derived checklist below is applied when designing each boundary in `02_architecture.md`. It is an aid against oversights, not a completeness guarantee.
 

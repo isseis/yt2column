@@ -790,12 +790,12 @@ and opens one PR for them; the reviewer approves all three in one answer to
 `/runpr`, which can instead return the PR to the full process before the merge.
 No implementation code is written until all three are `approved`. A change to
 a security rule or premise, to a trust boundary of the development tools, or to
-an external dependency is excluded unless the human overrides the judgment.
+adding or changing an external dependency is excluded unless the human overrides the judgment.
 What may and may not be omitted, the exclusions, and the return are in the
 [Simple Process](docs/dev/conventions/requirements_process.md#simple-process)
 section of the Requirements Process Guide.
 
-**Lightweight process.** A simple change (a wording fix, a deletion of
+**Lightweight process.** A small mechanical change (a wording fix, a deletion of
 unreachable code, or a mechanical refactoring, within fixed limits) takes one
 PR and no task documents. `/mkreq <issue>` offers it when the issue meets the
 conditions, and the user's approval of the spec comment it shows takes the
