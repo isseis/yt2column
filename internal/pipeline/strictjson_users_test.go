@@ -211,14 +211,10 @@ var (
 // the table header, the column, the component, and the number of matching
 // rows.
 func strictjsonRowCell(doc string) (string, error) {
-	const context = "table header %q, column %q, package %q"
+	const context = "table header %q, column %q, package %q, matched rows %d"
 	table := doctestutil.FindTable(doc, packageTableHeader)
 	if table == nil {
-		return "", fmt.Errorf("%w: "+context+", 0 rows", errNoPackageTable, packageTableHeader, responsibilityColumn, strictjsonPackageName)
-	}
-	col := doctestutil.ColumnIndex(table[0], responsibilityColumn)
-	if col < 0 {
-		return "", fmt.Errorf("%w: "+context+", 0 rows", errNoResponsibilityColumn, packageTableHeader, responsibilityColumn, strictjsonPackageName)
+		return "", fmt.Errorf("%w: "+context, errNoPackageTable, packageTableHeader, responsibilityColumn, strictjsonPackageName, 0)
 	}
 	var rows [][]string
 	for _, row := range table[1:] {
@@ -226,16 +222,20 @@ func strictjsonRowCell(doc string) (string, error) {
 			rows = append(rows, row)
 		}
 	}
+	col := doctestutil.ColumnIndex(table[0], responsibilityColumn)
+	if col < 0 {
+		return "", fmt.Errorf("%w: "+context, errNoResponsibilityColumn, packageTableHeader, responsibilityColumn, strictjsonPackageName, len(rows))
+	}
 	switch len(rows) {
 	case 0:
-		return "", fmt.Errorf("%w: "+context+", 0 rows", errNoStrictjsonRow, packageTableHeader, responsibilityColumn, strictjsonPackageName)
+		return "", fmt.Errorf("%w: "+context, errNoStrictjsonRow, packageTableHeader, responsibilityColumn, strictjsonPackageName, 0)
 	case 1:
 	default:
-		return "", fmt.Errorf("%w: "+context+", %d rows", errDuplicateStrictjsonRow, packageTableHeader, responsibilityColumn, strictjsonPackageName, len(rows))
+		return "", fmt.Errorf("%w: "+context, errDuplicateStrictjsonRow, packageTableHeader, responsibilityColumn, strictjsonPackageName, len(rows))
 	}
 	row := rows[0]
 	if col >= len(row) {
-		return "", fmt.Errorf("%w: "+context+", 1 row with %d cells", errNoResponsibilityColumn, packageTableHeader, responsibilityColumn, strictjsonPackageName, len(row))
+		return "", fmt.Errorf("%w: "+context+", the row has %d cells", errNoResponsibilityColumn, packageTableHeader, responsibilityColumn, strictjsonPackageName, 1, len(row))
 	}
 	return row[col], nil
 }
@@ -434,9 +434,9 @@ func TestImportersOf(t *testing.T) {
 func TestStrictjsonRowCell(t *testing.T) {
 	const (
 		header  = "| Package | Responsibility |\n|---|---|\n"
-		context = `"Package"`
-		column  = `"Responsibility"`
-		pkg     = `"internal/strictjson"`
+		context = packageTableHeader
+		column  = responsibilityColumn
+		pkg     = strictjsonPackageName
 	)
 	cases := []struct {
 		name        string
@@ -454,31 +454,31 @@ func TestStrictjsonRowCell(t *testing.T) {
 			name:        "no table",
 			doc:         "# Packages\n\nNo table.\n",
 			wantErr:     errNoPackageTable,
-			wantMessage: []string{context, column, pkg, "0 rows"},
+			wantMessage: []string{context, column, pkg, "matched rows 0"},
 		},
 		{
 			name:        "no responsibility column",
 			doc:         "| Package | Other |\n|---|---|\n| `internal/strictjson` | x |\n",
 			wantErr:     errNoResponsibilityColumn,
-			wantMessage: []string{context, column, pkg, "0 rows"},
+			wantMessage: []string{context, column, pkg, "matched rows 1"},
 		},
 		{
 			name:        "no row",
 			doc:         header + "| `internal/other` | other |\n",
 			wantErr:     errNoStrictjsonRow,
-			wantMessage: []string{context, column, pkg, "0 rows"},
+			wantMessage: []string{context, column, pkg, "matched rows 0"},
 		},
 		{
 			name:        "duplicate row",
 			doc:         header + "| `internal/strictjson` | first |\n| `internal/strictjson` | second |\n",
 			wantErr:     errDuplicateStrictjsonRow,
-			wantMessage: []string{context, column, pkg, "2 rows"},
+			wantMessage: []string{context, column, pkg, "matched rows 2"},
 		},
 		{
 			name:        "row without the cell",
 			doc:         header + "| `internal/strictjson` |\n",
 			wantErr:     errNoResponsibilityColumn,
-			wantMessage: []string{context, column, pkg, "1 row with 1 cells"},
+			wantMessage: []string{context, column, pkg, "matched rows 1", "the row has 1 cells"},
 		},
 	}
 	for _, tc := range cases {
@@ -566,7 +566,7 @@ func TestDiffUsers(t *testing.T) {
 				"internal/bar": {"internal/bar/b.go", "internal/bar/z.go"},
 			},
 			wantMiss:   []string{"internal/bar", "internal/foo"},
-			wantReport: []string{"does not list internal/bar,", "does not list internal/foo,", "internal/foo/a.go", "internal/bar/b.go"},
+			wantReport: []string{"does not list internal/bar,", "does not list internal/foo,", "internal/foo/a.go", "internal/bar/b.go", "internal/bar/z.go"},
 		},
 		{
 			name:       "names that are not users",

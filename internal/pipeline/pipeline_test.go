@@ -639,10 +639,10 @@ func TestPackageReferenceListsPackages(t *testing.T) {
 			found[src.pkg] = true
 		}
 	}
-	found["prompts"] = true
 	if len(found) == 0 {
 		t.Fatal("found no packages with production code")
 	}
+	found["prompts"] = true
 
 	listed := packageReferenceRows(doctestutil.ReadDoc(t, "../../docs/dev/conventions/package_reference.md"))
 	var missing []string
