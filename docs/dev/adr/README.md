@@ -38,3 +38,4 @@
 | [ADR-0030](0030-minimum-chrome-version.md) | 拡張の minimum_chrome_version を 110 にする | `有効` |
 | [ADR-0031](0031-secret-closure.md) | 秘密を secret.Secret 型のクロージャで持ち、送信先へのリクエストを除くどの出力にも流さない | `有効` |
 | [ADR-0032](0032-testdata-license.md) | testdata に置く実データは再配布できるライセンスの動画のものに限り、取得した人を特定できないようにする | `有効` |
+| [ADR-0033](0033-transcript-cache-slots.md) | 字幕のキャッシュを 2 つのスロットとポインタで持ち、記事を出した後は既定で消す | `有効` |
