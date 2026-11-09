@@ -136,9 +136,9 @@ Go のソースのコメント・識別子・文字列は英語で書き、AC �
 
 **変更するファイル:** `CLAUDE.md`、`docs/dev/project_overview.md`
 
--   [ ] **ステップ 4-1**: `CLAUDE.md:312-315` の項目を、設計書 3.5 の英語の文にする。改行の位置は前後の項目の行の長さに合わせてよい。ほかの記述は変えない（AC-05）。
--   [ ] **ステップ 4-2**: `project_overview.md:112` の行を、設計書 3.5 の行にする。ほかの行は変えない（AC-05）。
--   [ ] **ステップ 4-3**: 文書のガード（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./cmd/codexreview ./internal/pipeline`）を通してからコミットする。`TestInstructionDocPaths` が、足したリンクの行き先を確かめる。
+-   [x] **ステップ 4-1**: `CLAUDE.md:312-315` の項目を、設計書 3.5 の英語の文にする。改行の位置は前後の項目の行の長さに合わせてよい。ほかの記述は変えない（AC-05）。
+-   [x] **ステップ 4-2**: `project_overview.md:112` の行を、設計書 3.5 の行にする。ほかの行は変えない（AC-05）。
+-   [x] **ステップ 4-3**: 文書のガード（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./cmd/codexreview ./internal/pipeline`）を通してからコミットする。`TestInstructionDocPaths` が、足したリンクの行き先を確かめる。
 
 **完了の条件:** 2 つの文書が設計書 3.5 のとおりで、文書のガードが通る。
 

@@ -309,10 +309,10 @@ flowchart LR
   panel (the primary path). `YtDlpSource` fetches subtitles and info.json by
   invoking the external `yt-dlp` command, parses json3, and caches per video ID
   (the CLI uses it).
-- `internal/strictjson`: strict JSON extraction shared by `internal/transcript`,
-  `internal/llm/deepseek`, `internal/llm/claude`, `internal/publisher`, and
-  `internal/writer`; rejects the byte sequences and structural shapes
-  `encoding/json` would silently repair.
+- `internal/strictjson`: strict JSON extraction shared by several packages
+  (the list of them is in [package_reference.md](docs/dev/conventions/package_reference.md));
+  rejects the byte sequences and structural shapes `encoding/json` would
+  silently repair.
 - `ArticleWriter` (`internal/writer`): provider-independent prompt assembly and
   output post-processing; calls an `LLMClient`. After generation it runs the two
   post-generation steps by default: shorten an over-long body with the
