@@ -106,7 +106,7 @@
     -   `parseUserList` が区切りの検査を緩める。重複を除いて返す。
     -   `diffUsers` が重複を報告しない。使い手でない名前を報告しない。報告の文から import するファイルを落とす。
 
-Go のソースのコメント・識別子・文字列は英語で書き、AC や F の番号を書かない（`requirements_process.md` §4）。作った入力の中のパッケージ名は AC-12 の対象外である（要件書 AC-12）。ステップ 6-1 の AC-12 の確かめることで、作った入力のテストの中のリテラルと外のリテラルを見分けられるように、作った入力のテストの文書の断片やソースは、そのテストの関数の中に書く（パッケージの水準の変数や共有の補助の関数に置かない）。
+Go のソースのコメント・識別子・文字列は英語で書き、AC や F の番号を書かない（`requirements_process.md` §4）。作った入力の中のパッケージ名は AC-12 の対象外である（要件書 AC-12）。したがって、ステップ 6-1 の AC-12 の確かめることは、作った入力のテストの中の値と、照合のテストが一覧の写しとして持つ値を区別して見る。
 
 **完了の条件:** 作った入力のテストが通り、`make test`・`make lint`・`make deadcode` が通る。
 
@@ -162,7 +162,7 @@ Go のソースのコメント・識別子・文字列は英語で書き、AC �
     -   **CLAUDE.md と `project_overview.md` の範囲（AC-05）:** 差分が、`CLAUDE.md` の `internal/strictjson` の項目と、`project_overview.md` の `internal/strictjson/` の行の中だけにあること。
     -   **ADR-0020 の範囲（AC-13・AC-14）:** ADR-0020 の差分が、「決定」の「この部品を使うパッケージの一覧は」で始まる項目、「結果」の末尾に足した 1 項目、「経緯」の末尾に足した 1 項目だけであること。head の「決定」の項目が基点の項目の最初の文（太字の文）だけであること。足した経緯の項目が、本タスクの文書へのリンクを持つこと。
     -   **`doc-guard` が照合のテストを実行すること（AC-11）:** head の `ci.yml` の `doc-guard` ジョブの `go test` の行を読み、次の 2 点を確かめる。(1) 行の対象のパッケージに、head で `TestPackageReferenceStrictjsonUsers` を定義するファイルのパッケージが入っていること。(2) 行が `-tags test` を渡し、そのテストを定義するファイルの build constraint がそのタグで満たされること。
-    -   **照合のテストが一覧の写しを持たないこと（AC-12）:** head の `internal/pipeline/strictjson_users_test.go` を `go/parser` で読み、作った入力のテスト（本計画 §1.3 の 5 つの `Test` 関数）の外にある文字列リテラルのうち、パッケージを指すものが `internal/strictjson` と `github.com/isseis/yt2column/internal/strictjson` だけであること。パッケージを指すリテラルとは、先頭の `github.com/isseis/yt2column/` を除いた値が `cmd/` または `internal/` で始まるものをいう。走査の起点の `"cmd"`・`"internal"` のような、`/` を含まないリテラルは当たらない。照合のテストの失敗のメッセージなど、作った入力のテストの外のリテラルは、`cmd/` や `internal/` で始めない。
+    -   **照合のテストが一覧の写しを持たないこと（AC-12）:** head の `internal/pipeline/strictjson_users_test.go` が、一覧の写し、すなわち使い手の名前を並べた値を持たないことを確かめる。照合のテストが使う import のパスや、一覧の文を読むための対象の部品の名前は写しではない。正しい実装ではこの確認が通り、ステップ 6-4 の一回の確認が終了コード 0 で終わる。どの文字列を写しと見なすかの細目は、正しい実装を違反にしない範囲で実装で決める。
     -   **correction line（AC-15）:** 基点から head までのマージでないコミット（`--no-merges`）のうち ADR-0020 を変えるものの少なくとも 1 つが、`Editorial correction: docs/dev/adr/0020-strict-json.md: ` で始まり `; no decision changed` で終わり、`@` も `<` も含まない行をメッセージに持つこと（`requirements_process.md`「Recording in the PR description」）。
 
     次を守る。
@@ -176,7 +176,7 @@ Go のソースのコメント・識別子・文字列は英語で書き、AC �
     -   `CLAUDE.md` と `project_overview.md` の、対象の項目と行の外を変える。
     -   ADR-0020 の「決定」のほかの項目を変える、「決定」の項目に 2 つ目の文を残す、「結果」に 2 項目足す、「経緯」の項目からリンクを消す、「採らなかった案」を変える。
     -   `ci.yml` の `doc-guard` の行から `./internal/pipeline` を消す。照合のテストのファイルの build constraint を、`doc-guard` が渡すタグで満たされないものに変える。
-    -   照合のテスト（作った入力のテストの外）に、`internal/` の下の別のパッケージの名前の文字列リテラルを足す（違反）。`"internal"` だけのリテラルを足す（違反にならない）。
+    -   照合のテスト（作った入力のテストの外）に、一覧の写しとなる使い手の名前を足す（違反）。対象の部品の名前や、テストが使う import のパスを足す（違反にならない）。
     -   ADR-0020 を変えるコミットのメッセージから correction line を消す。
     -   読めないコミットを渡す（終了コード 2）。
 -   [ ] **ステップ 6-4**: `go vet -tags test ./docs/tasks/0068_strictjson_package_reference/_checks/` を通す（`make lint` は `_` で始まるディレクトリを見ない）。すべての変更をコミットした後に、PR のブランチで一回の確認のプログラムを走らせ、終了コード 0 で終わることを確かめる。出力の全文と、基点と head のコミット ID を、本計画 §5 の実行の記録に書いてコミットする。記録のコミットは本計画だけを変え、本計画はどの確かめることの対象にも入らないので、記録のコミットの後に走らせ直さなくてよい。記録には、確かめた head と PR の head の違いが本計画だけを変えたコミットであることを書く。後のコミット（`/fixpr` の回など）が、一回の確認が対象とするファイル（`package_reference.md`・`CLAUDE.md`・`project_overview.md`・ADR-0020・`ci.yml`・`strictjson_users_test.go`）を変えたときは、走らせ直して記録を改める。
