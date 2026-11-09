@@ -154,14 +154,14 @@ func run(args []string) (bool, error) {
 		{"adr-item", d.ADR.Path + ": the decision section's last item is its first sentences and nothing else in the ADR changed", func() ([]violation, error) {
 			return checkADRItem(base, head, d)
 		}},
-		{"adr-scope", "only ADRs that link the issue at the base commit changed, each change deletes characters only, and no file was added, deleted, or renamed", func() ([]violation, error) {
+		{"adr-scope", "only ADRs that link the issue at the base commit changed, every such ADR changed, none still links it at the head, the ADR index did not change, each change deletes characters only, and no file was added, deleted, or renamed", func() ([]violation, error) {
 			return checkADRScope(base, head, d)
 		}},
 		{"corrections", "each changed ADR has an editorial correction line in a commit on the range", func() ([]violation, error) {
 			return checkCorrections(base, head, d)
 		}},
 		{"created-diff", "the ADR change from the commit given by -created to the head is the same", nil},
-		{"merge-order", d.MergeCommit + " is an ancestor of the head commit", func() ([]violation, error) {
+		{"merge-order", d.MergeCommit + " is on origin/main and is an ancestor of the head commit", func() ([]violation, error) {
 			return checkMergeCommit(head, d)
 		}},
 		{"scope", "every changed file is the security guide, an ADR, or under the task directory", func() ([]violation, error) {
