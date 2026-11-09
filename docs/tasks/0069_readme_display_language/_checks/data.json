@@ -1,0 +1,21 @@
+{
+  "readme": {
+    "path": "README.md",
+    "before": "拡張で設定するものはない。",
+    "after": "送るには、"
+  },
+  "readme_en": {
+    "path": "README.en.md",
+    "before": "There is nothing to set in the extension:",
+    "after": "To send, open the transcript panel on a video page,"
+  },
+  "adr": {
+    "path": "docs/dev/adr/0029-extension-ui-languages.md",
+    "dir": "docs/dev/adr/",
+    "section": "## 決定",
+    "correction_prefix": "Editorial correction: docs/dev/adr/0029-extension-ui-languages.md: ",
+    "correction_suffix": "; no decision changed"
+  },
+  "merge_commit": "cf76c1f622df0883230e9b1de0c426f6aef9cb88",
+  "task_dir": "docs/tasks/0069_readme_display_language/"
+}
