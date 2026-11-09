@@ -36,3 +36,11 @@
 | [ADR-0028](0028-no-automatic-resend.md) | 結果が分からないときは自動で送り直さず、投稿の操作を冪等にする | `有効` |
 | [ADR-0029](0029-extension-ui-languages.md) | 拡張の UI を英語と日本語の 2 言語にし、表示の言語は resolveLocale の 1 か所で決める | `有効` |
 | [ADR-0030](0030-minimum-chrome-version.md) | 拡張の minimum_chrome_version を 110 にする | `有効` |
+| [ADR-0031](0031-secret-closure.md) | 秘密を secret.Secret 型のクロージャで持ち、送信先へのリクエストを除くどの出力にも流さない | `有効` |
+| [ADR-0032](0032-testdata-license.md) | testdata に置く実データは再配布できるライセンスの動画のものに限り、取得した人を特定できないようにする | `有効` |
+| [ADR-0033](0033-transcript-cache-slots.md) | 字幕のキャッシュを 2 つのスロットとポインタで持ち、記事を出した後は既定で消す | `有効` |
+| [ADR-0034](0034-template-allowlist.md) | プロンプトのテンプレートで使える構文を許可リストで絞り、記事の出典のリンクは LLM ではなくコードで付ける | `有効` |
+| [ADR-0035](0035-language-policy.md) | 文書の言語は読み手と承認者で決め、README だけを日英の 2 言語で同期し、PR のタイトルは日本語、squash の件名は英語にする | `有効` |
+| [ADR-0036](0036-task-document-status-records.md) | タスク文書の Comments には今の状態の理由だけを書き、状態の遷移は変更履歴に、編集上の訂正は PR の説明とコミットに記録する | `有効` |
+| [ADR-0037](0037-test-deletion-coverage.md) | テストを削除したことは、削除だけのコミットの前後のカバレッジの比較で確かめ、その出力をコミットメッセージと PR の説明に残す | `有効` |
+| [ADR-0038](0038-deadcode-and-race-free-timing.md) | make deadcode はモジュール全体とテストから届かない関数を報告して失敗し、パースの時間の期限は -race なしのビルドだけで確かめる | `有効` |

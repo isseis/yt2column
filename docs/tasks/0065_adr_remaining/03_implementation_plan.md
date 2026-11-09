@@ -123,14 +123,14 @@
 | `no-automatic-resend` | 0006 0011 0020 0026 0044 0050 | 0006 要件定義書「2.3」・2026-10-07（要件定義書の Review date）、0011 設計書「3.8.1」・2026-10-13（設計書の Review date）、0020 要件定義書 F-003・F-007・2026-10-15（要件定義書の Review date）、0026 設計書「1.1」「3.5.2」・2026-10-19（設計書の Review date）、0044 要件定義書「要件定義の際に決めたこと（2026-10-27）」・2026-10-27（節の見出しの日付）、0050 要件定義書「要件定義の際に決めたこと（2026-10-29）」・2026-10-29（同） | 0006 要件定義書 §2.3 が、Webhook への投稿を自動でリトライしない（HTTP 429 を含む）という、この主題の Webhook の部分の最初の決定を、理由とともに下したため、経緯に 0006 を足した。ADR-0011 から移した採らなかった案の出典も 0006 §2.3 である |
 | `extension-ui-languages` | 0007 0043 0046 0050 | 0007 要件定義書 F-001・2026-10-07（要件定義書の Review date）、0043 要件定義書「issue #506 で決めたこと」「要件定義の際に決めたこと（2026-10-27）」・2026-10-27（節の見出しの日付）、0043 設計書「3.1」「設計の際に決めたこと（2026-10-27）」・2026-10-27（同）、0046 要件定義書「issue #507 で決めたこと（2026-10-25）」・2026-10-25（同）、0050 要件定義書「issue #503 で決めたこと」・2026-11-01（要件定義書の Review date） | 0046 要件定義書が、決定を記録する節「issue #507 で決めたこと（2026-10-25）」で、#506 の 2 言語の土台の上に英語と日本語の文言を書くと明記して方針を保ったため、経緯に 0046 を足した（0050 を入れたのと同じ規則） |
 | `minimum-chrome-version` | 0007 0020 0026 0046 0050 | 0007 設計書「3.1」・2026-10-07（設計書の Review date）、0020 設計書「3.1」・2026-10-16（同）、0026 設計書「3.7.1」・2026-10-19（同）、0046 設計書「設計の際に決めたこと（2026-10-28）」・2026-10-28（節の見出しの日付）、0050 設計書「設計の際に決めたこと（2026-10-31）」・2026-10-31（同） | - |
-| `secret-closure` | 0001 | （④ で埋める） | - |
-| `testdata-license` | 0002 | （④ で埋める） | - |
-| `transcript-cache-slots` | 0002 0005 | （④ で埋める） | - |
-| `template-allowlist` | 0004 0010 | （④ で埋める） | - |
-| `language-policy` | 0032 0040 0043 0048 0052 0060 0061 | （④ で埋める） | - |
-| `task-document-status-records` | 0053 0056 0060 | （④ で埋める） | - |
-| `test-deletion-coverage` | 0027 0038 0052 0054 0055 | （④ で埋める） | - |
-| `deadcode-and-race-free-timing` | 0015 0039 0047 | （④ で埋める） | - |
+| `secret-closure` | 0001 | 0001 要件定義書「F-005」「5」・2026-09-29（要件定義書の Review date） | - |
+| `testdata-license` | 0002 | 0002 設計書「1.4」「付録A」・2026-09-30（設計書の Review date） | - |
+| `transcript-cache-slots` | 0002 0005 0010 | 0002 設計書「3.5」「付録A」・2026-09-30（設計書の Review date）、0005 設計書「3.4」「3.7」・2026-10-05（設計書の Review date）、0010 設計書「3.9」・2026-10-10（設計書の Review date） | 0010 設計書「3.9」が、字幕のキャッシュの削除を検証・推敲のログの書き出しの前に行うと決め、ログを書けなかった実行でもキャッシュが消えるように削除の時機を変えたため、経緯に 0010 を足した |
+| `template-allowlist` | 0004 0010 | 0004 要件定義書「1. 概要」・F-001・F-006・2026-10-05（要件定義書の Review date）、0004 設計書「1.1 設計原則」「3.4」「3.6」「3.9」・2026-10-05（設計書の Review date）、0010 設計書「3.2」「3.4」・2026-10-10（設計書の Review date） | - |
+| `language-policy` | 0032 0040 0043 0048 0052 0060 0061 | 0032 要件定義書「issue #408 で決めたこと」「要件定義の際に決めたこと（2026-10-21）」・2026-10-21（節の見出しの日付）、0032 設計書「1.2」・2026-10-21（節の見出しの日付）、0040 要件定義書「issue #488 で決めたこと」・2026-10-26（要件定義書の Review date）、0043 要件定義書「issue #506 で決めたこと」・2026-10-27（要件定義書の Review date）、0048 要件定義書「issue #537 で決めたこと」「要件定義の際に決めたこと（2026-10-28）」・2026-10-28（節の見出しの日付）、0048 設計書「1.3」・2026-10-28（節の見出しの日付）、0048 実装計画書「1.3」・2026-10-28（節の見出しの日付）、0052 要件定義書「issue #591 で決めたこと」・2026-10-31（要件定義書の Review date）、0060 設計書「1.2」・2026-11-04（節の見出しの日付）、0061 設計書「1.2」・2026-11-04（節の見出しの日付） | - |
+| `task-document-status-records` | 0053 0056 0060 | 0053 要件定義書「issue #596 で決めたこと」「要件定義の際に決めたこと（2026-11-01）」・2026-11-01（節の見出しの日付）、0053 設計書「1.3」・2026-11-01（節の見出しの日付）、0056 要件定義書「issue #621 で決めたこと」「要件定義の際に決めたこと（2026-11-02）」・2026-11-02（節の見出しの日付）、0056 設計書「1.3」「1.4」・2026-11-02（節の見出しの日付）、0060 要件定義書「要件定義の際に決めたこと（2026-11-04）」・2026-11-04（節の見出しの日付） | - |
+| `test-deletion-coverage` | 0027 0038 0052 0054 0055 | 0027 設計書「3.11」・2026-10-19（設計書の Review date）、0038 要件定義書「issue #455 で決めたこと」・2026-10-23（要件定義書の Review date）、0052 要件定義書「issue #591 で決めたこと」・2026-10-31（要件定義書の Review date）、0054 要件定義書「issue #560 で決めたこと」「方針の例外」・2026-11-01（要件定義書の Review date）、0055 要件定義書「issue #618 で決めたこと」「要件定義の際に決めたこと（2026-11-02）」・2026-11-02（節の見出しの日付） | - |
+| `deadcode-and-race-free-timing` | 0015 0039 0047 | 0015 設計書「7.3」・2026-10-14（設計書の Review date）、0039 要件定義書「要件定義の際に決めたこと（2026-10-23）」・2026-10-23（節の見出しの日付）、0039 設計書「1.2」・2026-10-23（節の見出しの日付）、0047 要件定義書「要件定義の際に決めたこと（2026-10-28）」・2026-10-28（節の見出しの日付） | - |
 
 `8437995a` までに `main` に入った 0066 の要件定義書は、決定を記録する節で、サーバが設定ファイルから読み、環境からは `HOME` と `GODEBUG` だけを読むと決めた。② の時点では、0066 の設計書と実装計画も `main` にある。設計書までを照合した結果、0066 が決めたのは、サーバが設定をどこから読み、環境のどの変数を読むかという ADR-0018 の主題である。コードのどの場所が環境を読んでよいかという A8 の主題は決めておらず、その制限（`internal/config/envaccess_test.go` の許す場所）との関係は、0066 の [design_handoff.md](../0066_server_config_file/design_handoff.md) が設計に任せている。そのため `env-access-in-config` の行に 0066 を入れない。
 
@@ -173,10 +173,11 @@ ADR を書くときに、移し元の「背景」「採らなかった案」「�
 | 3 | `server-architecture` | `article-job-api` | link | -   **生成の開始は `202` で受け付け、ジョブをサーバのメモリで動かす。** 同時に走る生成の数、本文の大きさ、読み取り・書き込み・待機の時間の上限は [security.md](../security.md) §8.2 に従う。 | -   **生成の開始は `202` で受け付け、ジョブをサーバのメモリで動かす。** 同時に走る生成の数、本文の大きさ、読み取り・書き込み・待機の時間の上限は [security.md](../security.md) §8.2 に従う。ジョブの API と記事のキー・キャッシュは [ADR-0027](0027-article-job-api.md) が定める。 |
 | 3 | `server-architecture` | `extension-platform` | link | -   **拡張は Native Messaging のホストだけに送り、ホストが UDS へ中継する。** 送り先は固定のホスト名 `io.github.isseis.yt2column` で、ホストを起動できる拡張は manifest の `allowed_origins` に載った固定の拡張だけである。ホストは 1 つのメッセージにつき 1 回起動し、1 つのリクエストを送って 1 つの応答を返し、終了する。ホストはサーバを起動せず、ジョブはサーバに残る。ブラウザを閉じてもジョブは続く。 | -   **拡張は Native Messaging のホストだけに送り、ホストが UDS へ中継する。** 送り先は固定のホスト名 `io.github.isseis.yt2column` で、ホストを起動できる拡張は manifest の `allowed_origins` に載った固定の拡張だけである。ホストは 1 つのメッセージにつき 1 回起動し、1 つのリクエストを送って 1 つの応答を返し、終了する。ホストはサーバを起動せず、ジョブはサーバに残る。ブラウザを閉じてもジョブは続く。拡張の ID を manifest の `key` で固定することは [ADR-0026](0026-extension-platform.md) が定める。 |
 | 3 | `threat-model` | `extension-platform` | link | -   **Native Messaging のホストを起動できる拡張を固定し、秘密は `secret.Secret` で持つ。** ホストの `allowed_origins` は固定した拡張 ID のオリジンだけとし、API キーと Webhook URL は、送信先へのリクエストを除き、エラーやログを含むどの出力にも漏らさない。 | -   **Native Messaging のホストを起動できる拡張を固定し、秘密は `secret.Secret` で持つ。** ホストの `allowed_origins` は固定した拡張 ID のオリジンだけとし、API キーと Webhook URL は、送信先へのリクエストを除き、エラーやログを含むどの出力にも漏らさない。拡張の ID を manifest の `key` で固定することは [ADR-0026](0026-extension-platform.md) が定める。 |
-| 4 | `lightweight-check-in-bash` | `language-policy` | link | -   スクリプトとそのテストには、仕様の見出しのための日本語のリテラルの例外がある（`CLAUDE.md` の「Go Idioms」）。 | （④ で埋める） |
-| 4 | `deterministic-checks-in-go` | `test-deletion-coverage` | link |     -   `coveragecompare`: テストを削除する前後でのカバレッジの比較。`make coverage-compare` と `make ext-coverage-compare` から使う。 | （④ で埋める） |
-| 4 | `threat-model` | `secret-closure` | split | -   **Native Messaging のホストを起動できる拡張を固定し、秘密は `secret.Secret` で持つ。** ホストの `allowed_origins` は固定した拡張 ID のオリジンだけとし、API キーと Webhook URL は、送信先へのリクエストを除き、エラーやログを含むどの出力にも漏らさない。拡張の ID を manifest の `key` で固定することは [ADR-0026](0026-extension-platform.md) が定める。 | （④ で埋める） |
-| 4 | `webhook-publishing` | `secret-closure` | split | -   **Webhook URL は `secret.Secret` で持ち、値を出力に流さない。** URL は、送信先への HTTP リクエストを除き、エラー・ログ・標準出力を含むどの出力にも出さない。`*url.Error` をそのまま返すと URL が現れるので、送信の失敗は URL を含まないエラーに直す。 | （④ で埋める） |
+| 4 | `lightweight-check-in-bash` | `language-policy` | link | -   スクリプトとそのテストには、仕様の見出しのための日本語のリテラルの例外がある（`CLAUDE.md` の「Go Idioms」）。 | -   スクリプトとそのテストには、仕様の見出しのための日本語のリテラルの例外がある（`CLAUDE.md` の「Go Idioms」）。ソースの言語の方針は [ADR-0035](0035-language-policy.md) が定める。 |
+| 4 | `deterministic-checks-in-go` | `test-deletion-coverage` | link |     -   `coveragecompare`: テストを削除する前後でのカバレッジの比較。`make coverage-compare` と `make ext-coverage-compare` から使う。 |     -   `coveragecompare`: テストを削除する前後でのカバレッジの比較。`make coverage-compare` と `make ext-coverage-compare` から使う。テストの削除をこの比較で確かめる方針は [ADR-0037](0037-test-deletion-coverage.md) が定める。 |
+| 4 | `extension-ui-languages` | `language-policy` | link | -   **利用者に表示する文言は言語ごとのメッセージカタログに置き、英語と日本語の両方に必ず置く。** 英語と日本語のカタログは同じ型を持ち、片方に文言が欠けると型の検査が失敗する。開発者向けのログは英語のままとする。カタログの置き場所と、日本語の文言を置いてよいファイルは、[CLAUDE.md](../../../CLAUDE.md) の「Go Idioms」の拡張の段落に従う。 | -   **利用者に表示する文言は言語ごとのメッセージカタログに置き、英語と日本語の両方に必ず置く。** 英語と日本語のカタログは同じ型を持ち、片方に文言が欠けると型の検査が失敗する。開発者向けのログは英語のままとする。カタログの置き場所と、日本語の文言を置いてよいファイルは、[CLAUDE.md](../../../CLAUDE.md) の「Go Idioms」の拡張の段落に従う。ソースの言語の方針は [ADR-0035](0035-language-policy.md) が定める。 |
+| 4 | `threat-model` | `secret-closure` | split | -   **Native Messaging のホストを起動できる拡張を固定し、秘密は `secret.Secret` で持つ。** ホストの `allowed_origins` は固定した拡張 ID のオリジンだけとし、API キーと Webhook URL は、送信先へのリクエストを除き、エラーやログを含むどの出力にも漏らさない。拡張の ID を manifest の `key` で固定することは [ADR-0026](0026-extension-platform.md) が定める。 | -   **Native Messaging のホストを起動できる拡張を固定する。** ホストの `allowed_origins` は固定した拡張 ID のオリジンだけとする。拡張の ID を manifest の `key` で固定することは [ADR-0026](0026-extension-platform.md) が定める。秘密の持ち方と、秘密を出力に流さないことは [ADR-0031](0031-secret-closure.md) が定める。 |
+| 4 | `webhook-publishing` | `secret-closure` | split | -   **Webhook URL は `secret.Secret` で持ち、値を出力に流さない。** URL は、送信先への HTTP リクエストを除き、エラー・ログ・標準出力を含むどの出力にも出さない。`*url.Error` をそのまま返すと URL が現れるので、送信の失敗は URL を含まないエラーに直す。 | -   **Webhook への送信の失敗は、URL を含まないエラーに直す。** `*url.Error` をそのまま返すと URL が現れるためである。Webhook URL の持ち方と、値を出力に流さないことは [ADR-0031](0031-secret-closure.md) が定める。 |
 
 ADR-0010 の結果の行（`extension-stores-nothing` → `article-job-api` の 2 行目）は、前の 2 文を B6 の ADR へ、最後の文「投稿済みの記事を送り直すと、同じ内容がもう一度投稿されうる。」を B9 の ADR へ移す（設計書 3.1）。行の全体を除くので `move` とし、移し先は前の 2 文の B6 とする。B6 と B9 の ADR を 1 つのコミットに入れるので（1.2）、最後の文がどの ADR にもないコミットはできない。B9 の ADR がこの文を述べることは、PR のレビューで読む（7 章 AC-02）。
 
@@ -228,7 +229,8 @@ AC-03 の食い違い（設計書 3.5）を記録した issue を、その ADR �
 | `strict-json` | 713 |
 | `extension-ui-languages` | 719 |
 | `no-automatic-resend` | 720 |
-| `template-allowlist` | （④ で埋める） |
+| `template-allowlist` | 725 |
+| `language-policy` | 726 |
 
 ## 2. 実装手順 (Implementation Steps)
 
@@ -384,16 +386,16 @@ AC-03 の食い違い（設計書 3.5）を記録した issue を、その ADR �
 
 **変更するファイル:** `docs/dev/adr/0031-secret-closure.md`〜`0038-deadcode-and-race-free-timing.md`（新規。1.5 の表の PR 4 の 8 本）、`docs/dev/adr/0006-threat-model.md`、`0011-webhook-publishing.md`、`0012-lightweight-check-in-bash.md`、`0014-deterministic-checks-in-go.md`、`docs/dev/adr/README.md`、本書（1.6・1.7・1.9 の表）
 
--   [ ] ステップ 2-1 の作業を、C1〜C4・D5〜D8 の 8 本と、1.7 の表の PR 4 の行について行う。移さない重なりは、設計書 3.1 の表の D5・D7 の行である。
--   [ ] C1 の移しでは、ADR-0006 の `allowed_origins` の文と、ADR-0011 の `*url.Error` を直す文を移し元に残す（設計書 3.1）。両方の移し元から除くことと C1 の ADR を書くことを、同じコミットに入れる（設計書 5.2）。
--   [ ] D 系（D5・D7・D8）は、CLAUDE.md の規則の文を ADR に移さず、規則へリンクする（設計書 3.2）。CLAUDE.md は変えない（AC-07）。
--   [ ] C4 の ADR の「決定」には、`docs/dev/security.md` §6 の出典のリンクの記述とコードのずれ（設計書 3.5）を書き、ステップ 2-1 と同じく issue を扱う。
+-   [x] ステップ 2-1 の作業を、C1〜C4・D5〜D8 の 8 本と、1.7 の表の PR 4 の行について行う。移さない重なりは、設計書 3.1 の表の D5・D7 の行である。
+-   [x] C1 の移しでは、ADR-0006 の `allowed_origins` の文と、ADR-0011 の `*url.Error` を直す文を移し元に残す（設計書 3.1）。両方の移し元から除くことと C1 の ADR を書くことを、同じコミットに入れる（設計書 5.2）。
+-   [x] D 系（D5・D7・D8）は、CLAUDE.md の規則の文を ADR に移さず、規則へリンクする（設計書 3.2）。CLAUDE.md は変えない（AC-07）。
+-   [x] C4 の ADR の「決定」には、`docs/dev/security.md` §6 の出典のリンクの記述とコードのずれ（設計書 3.5）を書き、ステップ 2-1 と同じく issue を扱う。
 
 #### ステップ 4-2: 確かめの実行と記録
 
 **変更するファイル:** 本書 7.2 節
 
--   [ ] ステップ 1-3 と同じく、`-pr 4` で 2 つの確かめを実行して記録する。
+-   [x] ステップ 1-3 と同じく、`-pr 4` で 2 つの確かめを実行して記録する。
 
 **完了の条件（ステップ 4-1・4-2）:** グリーンゲートが通る。`task_docs_unchanged.sh` と `adrchecks -pr 4` が 0 で終わり、`PENDING` がない。
 
@@ -409,10 +411,10 @@ AC-03 の食い違い（設計書 3.5）を記録した issue を、その ADR �
 
 **判定理由**: ステップ 4-1 で、セキュリティの決定（秘密の持ち方）を 2 本の ADR の文の中から分けて 1 つのコミットで移す。分け方の判断を伴い、誤ると決定がどの ADR からも抜け落ちる、隔離すべき処理である
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/727
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ## 3. 実装順序とマイルストーン (Implementation Order and Milestones)
 
@@ -467,7 +469,7 @@ AC-03 の食い違い（設計書 3.5）を記録した issue を、その ADR �
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3）
 - [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3）
 - [x] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3）
-- [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2）
+- [x] PR-4 マージ済み（対象ステップ: 4-1 / 4-2）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -974,6 +976,135 @@ PENDING issue-links
         ok: docs/dev/adr/0029-extension-ui-languages.md
         ok: docs/dev/adr/0028-no-automatic-resend.md
         pending: template-allowlist
+OK      overview-items
+        text: OK
+        links: OK
+OK      claude-md-unchanged
+```
+
+#### PR-4
+
+マージの基点 `0d9f8a4381a8c8d3bb883317e732725fb2d8ac06`、head `f2b25e97c65aaced66edc063d73e139891d0f3a6`（`git fetch origin main` の後に実行した）。作った issue は [#725](https://github.com/isseis/yt2column/issues/725)（`security.md` §6 の出典のリンクの記述。ADR-0034）と [#726](https://github.com/isseis/yt2column/issues/726)（製品のコードの日本語のリテラルと CLAUDE.md「Go Idioms」。ADR-0035）。
+
+`docs/tasks/0065_adr_remaining/_checks/task_docs_unchanged.sh origin/main HEAD`：終了コード 0。
+
+```text
+merge-base: 0d9f8a4381a8c8d3bb883317e732725fb2d8ac06
+head: f2b25e97c65aaced66edc063d73e139891d0f3a6
+docs/tasks/: only docs/tasks/0065_adr_remaining/ changed
+```
+
+`go run -tags test ./docs/tasks/0065_adr_remaining/_checks/adrchecks/ -pr 4 0d9f8a4381a8c8d3bb883317e732725fb2d8ac06 f2b25e97c65aaced66edc063d73e139891d0f3a6`：終了コード 0。7 つの確かめがすべて `OK` で、`PENDING` はない。
+
+```text
+OK      history-sources
+        ok: docs/dev/adr/0006-threat-model.md
+        ok: docs/dev/adr/0008-launch-path.md
+        ok: docs/dev/adr/0009-viewer-opening.md
+        ok: docs/dev/adr/0010-extension-stores-nothing.md
+        ok: docs/dev/adr/0011-webhook-publishing.md
+        ok: docs/dev/adr/0019-pipeline-component-interfaces.md
+        ok: docs/dev/adr/0020-strict-json.md
+        ok: docs/dev/adr/0021-llm-client-contract.md
+        ok: docs/dev/adr/0022-cost-estimate.md
+        ok: docs/dev/adr/0023-artifact-resume.md
+        ok: docs/dev/adr/0024-env-access-in-config.md
+        ok: docs/dev/adr/0025-claude-output-limit.md
+        ok: docs/dev/adr/0026-extension-platform.md
+        ok: docs/dev/adr/0027-article-job-api.md
+        ok: docs/dev/adr/0028-no-automatic-resend.md
+        ok: docs/dev/adr/0029-extension-ui-languages.md
+        ok: docs/dev/adr/0030-minimum-chrome-version.md
+        ok: docs/dev/adr/0031-secret-closure.md
+        ok: docs/dev/adr/0032-testdata-license.md
+        ok: docs/dev/adr/0033-transcript-cache-slots.md
+        ok: docs/dev/adr/0034-template-allowlist.md
+        ok: docs/dev/adr/0035-language-policy.md
+        ok: docs/dev/adr/0036-task-document-status-records.md
+        ok: docs/dev/adr/0037-test-deletion-coverage.md
+        ok: docs/dev/adr/0038-deadcode-and-race-free-timing.md
+OK      moved-items
+        ok: llm-adapter-stdlib -> pipeline-component-interfaces (move, pull request 2)
+        ok: llm-adapter-stdlib -> pipeline-component-interfaces (move, pull request 2)
+        ok: llm-adapter-stdlib -> pipeline-component-interfaces (split, pull request 2)
+        ok: llm-adapter-stdlib -> pipeline-component-interfaces (move, pull request 2)
+        ok: llm-adapter-stdlib -> pipeline-component-interfaces (move, pull request 2)
+        ok: llm-adapter-stdlib -> pipeline-component-interfaces (split, pull request 2)
+        ok: llm-adapter-stdlib -> pipeline-component-interfaces (move, pull request 2)
+        ok: llm-adapter-stdlib -> strict-json (split, pull request 2)
+        ok: llm-adapter-stdlib -> strict-json (move, pull request 2)
+        ok: llm-adapter-stdlib -> strict-json (move, pull request 2)
+        ok: llm-adapter-stdlib -> strict-json (move, pull request 2)
+        ok: server-architecture -> pipeline-component-interfaces (link, pull request 2)
+        ok: llm-config-contract -> env-access-in-config (link, pull request 2)
+        ok: server-config-file -> env-access-in-config (link, pull request 2)
+        ok: production-profile -> claude-output-limit (move, pull request 2)
+        ok: extension-stores-nothing -> article-job-api (move, pull request 3)
+        ok: extension-stores-nothing -> article-job-api (move, pull request 3)
+        ok: webhook-publishing -> no-automatic-resend (split, pull request 3)
+        ok: webhook-publishing -> no-automatic-resend (move, pull request 3)
+        ok: webhook-publishing -> no-automatic-resend (move, pull request 3)
+        ok: webhook-publishing -> article-job-api (link, pull request 3)
+        ok: server-architecture -> article-job-api (link, pull request 3)
+        ok: server-architecture -> extension-platform (link, pull request 3)
+        ok: threat-model -> extension-platform (link, pull request 3)
+        ok: lightweight-check-in-bash -> language-policy (link, pull request 4)
+        ok: deterministic-checks-in-go -> test-deletion-coverage (link, pull request 4)
+        ok: extension-ui-languages -> language-policy (link, pull request 4)
+        ok: threat-model -> secret-closure (split, pull request 4)
+        ok: webhook-publishing -> secret-closure (split, pull request 4)
+        ---- threat-model -> secret-closure (split), section 3
+        removed: -   **Native Messaging のホストを起動できる拡張を固定し、秘密は `secret.Secret` で持つ。** ホストの `allowed_origins` は固定した拡張 ID のオリジンだけとし、API キーと Webhook URL は、送信先へのリクエストを除き、エラーやログを含むどの出力にも漏らさない。拡張の ID を manifest の `key` で固定することは [ADR-0026](0026-extension-platform.md) が定める。
+        kept:    -   **Native Messaging のホストを起動できる拡張を固定する。** ホストの `allowed_origins` は固定した拡張 ID のオリジンだけとする。拡張の ID を manifest の `key` で固定することは [ADR-0026](0026-extension-platform.md) が定める。秘密の持ち方と、秘密を出力に流さないことは [ADR-0031](0031-secret-closure.md) が定める。
+        destination docs/dev/adr/0031-secret-closure.md, section 3:
+          -   **秘密は `secret.Secret` で持つ。** API キーと Webhook URL は、設定を読むところで `secret.Secret` に包み、秘密を使う部品は `secret.Secret` のまま受け取って持つ。`internal/secret` の役割は [package_reference.md](../conventions/package_reference.md) の `internal/secret` の行に従う。
+          -   **API キーと Webhook URL は、送信先へのリクエストを除き、エラー・ログ・標準出力を含むどの出力にも出さない。** Webhook URL をログとエラーメッセージに含めないことは [security.md](../security.md) の §2「秘密情報（API キー・Webhook URL）」に、サーバが API キーと Webhook URL を出力に流さないことは同じ文書の §8.2「localhost サーバ」に従う。Webhook への送信の失敗を URL を含まないエラーに直すことは、[ADR-0011](0011-webhook-publishing.md) が定める。
+          -   **元の値は、型の唯一のフィールドであるクロージャに閉じ込める。** リフレクションが見られるのは関数のアドレスだけなので、`secret.Secret` を非公開フィールドに持つ構造体を出力しても、元の値は現れない。`fmt`・`log/slog`・`encoding/json` が呼ぶメソッドは、元の値の代わりに固定の伏せ字を出す。
+          -   **元の値を取り出す経路は `Reveal()` だけにする。** 空の値からは作れず、ゼロ値の `Reveal()` はエラーを返す。`Reveal()` を呼ぶのは、送信先へのリクエストの組み立てなど、値そのものが要る箇所に限る。公開のメソッドの集合は、テストで固定している。
+          秘密を出力に流さないことの仕様の正本は、[security.md](../security.md) の §2「秘密情報（API キー・Webhook URL）」と §8.2「localhost サーバ」、[package_reference.md](../conventions/package_reference.md) の `internal/secret` の行である。クロージャで持つ設計を述べる文書はほかにないので、この ADR がコードの振る舞いとして述べる。
+        ---- webhook-publishing -> secret-closure (split), section 3
+        removed: -   **Webhook URL は `secret.Secret` で持ち、値を出力に流さない。** URL は、送信先への HTTP リクエストを除き、エラー・ログ・標準出力を含むどの出力にも出さない。`*url.Error` をそのまま返すと URL が現れるので、送信の失敗は URL を含まないエラーに直す。
+        kept:    -   **Webhook への送信の失敗は、URL を含まないエラーに直す。** `*url.Error` をそのまま返すと URL が現れるためである。Webhook URL の持ち方と、値を出力に流さないことは [ADR-0031](0031-secret-closure.md) が定める。
+        destination docs/dev/adr/0031-secret-closure.md, section 3:
+          -   **秘密は `secret.Secret` で持つ。** API キーと Webhook URL は、設定を読むところで `secret.Secret` に包み、秘密を使う部品は `secret.Secret` のまま受け取って持つ。`internal/secret` の役割は [package_reference.md](../conventions/package_reference.md) の `internal/secret` の行に従う。
+          -   **API キーと Webhook URL は、送信先へのリクエストを除き、エラー・ログ・標準出力を含むどの出力にも出さない。** Webhook URL をログとエラーメッセージに含めないことは [security.md](../security.md) の §2「秘密情報（API キー・Webhook URL）」に、サーバが API キーと Webhook URL を出力に流さないことは同じ文書の §8.2「localhost サーバ」に従う。Webhook への送信の失敗を URL を含まないエラーに直すことは、[ADR-0011](0011-webhook-publishing.md) が定める。
+          -   **元の値は、型の唯一のフィールドであるクロージャに閉じ込める。** リフレクションが見られるのは関数のアドレスだけなので、`secret.Secret` を非公開フィールドに持つ構造体を出力しても、元の値は現れない。`fmt`・`log/slog`・`encoding/json` が呼ぶメソッドは、元の値の代わりに固定の伏せ字を出す。
+          -   **元の値を取り出す経路は `Reveal()` だけにする。** 空の値からは作れず、ゼロ値の `Reveal()` はエラーを返す。`Reveal()` を呼ぶのは、送信先へのリクエストの組み立てなど、値そのものが要る箇所に限る。公開のメソッドの集合は、テストで固定している。
+          秘密を出力に流さないことの仕様の正本は、[security.md](../security.md) の §2「秘密情報（API キー・Webhook URL）」と §8.2「localhost サーバ」、[package_reference.md](../conventions/package_reference.md) の `internal/secret` の行である。クロージャで持つ設計を述べる文書はほかにないので、この ADR がコードの振る舞いとして述べる。
+OK      move-links
+        ok: docs/dev/adr/0001-llm-adapter-stdlib.md -> docs/dev/adr/0019-pipeline-component-interfaces.md
+        ok: docs/dev/adr/0001-llm-adapter-stdlib.md -> docs/dev/adr/0020-strict-json.md
+        ok: docs/dev/adr/0004-production-profile.md -> docs/dev/adr/0025-claude-output-limit.md
+        ok: docs/dev/adr/0010-extension-stores-nothing.md -> docs/dev/adr/0027-article-job-api.md
+        ok: docs/dev/adr/0011-webhook-publishing.md -> docs/dev/adr/0028-no-automatic-resend.md
+        ok: docs/dev/adr/0006-threat-model.md -> docs/dev/adr/0031-secret-closure.md
+        ok: docs/dev/adr/0011-webhook-publishing.md -> docs/dev/adr/0031-secret-closure.md
+OK      spec-links
+        ok: docs/dev/adr/0019-pipeline-component-interfaces.md
+        ok: docs/dev/adr/0020-strict-json.md
+        ok: docs/dev/adr/0021-llm-client-contract.md
+        ok: docs/dev/adr/0022-cost-estimate.md
+        ok: docs/dev/adr/0023-artifact-resume.md
+        ok: docs/dev/adr/0025-claude-output-limit.md
+        ok: docs/dev/adr/0026-extension-platform.md
+        ok: docs/dev/adr/0027-article-job-api.md
+        ok: docs/dev/adr/0028-no-automatic-resend.md
+        ok: docs/dev/adr/0029-extension-ui-languages.md
+        ok: docs/dev/adr/0030-minimum-chrome-version.md
+        ok: docs/dev/adr/0031-secret-closure.md
+        ok: docs/dev/adr/0032-testdata-license.md
+        ok: docs/dev/adr/0033-transcript-cache-slots.md
+        ok: docs/dev/adr/0034-template-allowlist.md
+        ok: docs/dev/adr/0035-language-policy.md
+        ok: docs/dev/adr/0036-task-document-status-records.md
+        ok: docs/dev/adr/0037-test-deletion-coverage.md
+        ok: docs/dev/adr/0038-deadcode-and-race-free-timing.md
+OK      issue-links
+        ok: docs/dev/adr/0020-strict-json.md
+        ok: docs/dev/adr/0029-extension-ui-languages.md
+        ok: docs/dev/adr/0028-no-automatic-resend.md
+        ok: docs/dev/adr/0034-template-allowlist.md
+        ok: docs/dev/adr/0035-language-policy.md
 OK      overview-items
         text: OK
         links: OK

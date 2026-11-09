@@ -54,7 +54,7 @@
 
 -   スクリプトは bash 3.2 で動く書き方に限られる。テストは、`PATH` 上の bash と macOS の `/bin/bash` の両方で走らせる。
 -   `make test` は `bash` と、`--attr-source` を受け付ける `git` を要する（`CLAUDE.md` の「Development Notes」）。
--   スクリプトとそのテストには、仕様の見出しのための日本語のリテラルの例外がある（`CLAUDE.md` の「Go Idioms」）。
+-   スクリプトとそのテストには、仕様の見出しのための日本語のリテラルの例外がある（`CLAUDE.md` の「Go Idioms」）。ソースの言語の方針は [ADR-0035](0035-language-policy.md) が定める。
 -   bash に特有の守りは、テストで支えるしかない。`TestLightweightCheck` は、fixture のリポジトリでスクリプトを実際に動かすので、時間がかかる（手元の開発環境では 30〜50 秒）。
 -   スクリプトを変える PR は、見直しの条件に当たらないかを確かめる。数えられる条件はテストが確かめ、数えられない条件はスクリプトを読んで確かめる。
 

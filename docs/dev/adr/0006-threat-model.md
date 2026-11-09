@@ -17,7 +17,7 @@
 -   **同一ユーザーのフル権限プロセスは信頼する。** サーバや拡張と同じ OS ユーザーとして動き、ファイルの読み書きとプロセスの起動ができるプロセス（AI Agent を含む）は、`.envrc`・API キー・Webhook URL を読め、サーバを経由せずに LLM API や Slack を直接使える。サーバの入口をどう限定しても、これらの資産は守れないので、この相手は排除しない。
 -   **排除する相手ごとに根拠を分ける。** 他のユーザーのプロセスはソケットの権限で排除する。ウェブページは、サーバが TCP を待ち受けないので経路がない。サンドボックス化された Agent を排除しているのはサンドボックスのポリシーであり、UDS の権限ではない。それぞれの仕組みは [security.md](../security.md) §8「ブラウザ拡張と localhost サーバ」と §8.2「localhost サーバ」に従う。
 -   **UDS の権限は同じ uid のプロセスを区別しない。** サーバは `Host`・`Origin`・`Content-Type`・`Authorization` を検査せず、パスとメソッドだけを検査する。共有トークンによる認証も行わない。共有トークンは同じユーザーのフル権限プロセスを防げず、他のユーザーとウェブページは UDS で排除できるので、要らない。
--   **Native Messaging のホストを起動できる拡張を固定し、秘密は `secret.Secret` で持つ。** ホストの `allowed_origins` は固定した拡張 ID のオリジンだけとし、API キーと Webhook URL は、送信先へのリクエストを除き、エラーやログを含むどの出力にも漏らさない。拡張の ID を manifest の `key` で固定することは [ADR-0026](0026-extension-platform.md) が定める。
+-   **Native Messaging のホストを起動できる拡張を固定する。** ホストの `allowed_origins` は固定した拡張 ID のオリジンだけとする。拡張の ID を manifest の `key` で固定することは [ADR-0026](0026-extension-platform.md) が定める。秘密の持ち方と、秘密を出力に流さないことは [ADR-0031](0031-secret-closure.md) が定める。
 
 この決定の仕様の正本は [security.md](../security.md) の §8「ブラウザ拡張と localhost サーバ」、§8.1「ブラウザ拡張」、§8.2「localhost サーバ」である。
 
