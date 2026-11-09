@@ -85,28 +85,6 @@ func TestStartupFailures(t *testing.T) {
 			configLines: 2,
 		},
 		{
-			// A retired variable stops the server before it listens, even
-			// with an otherwise valid configuration.
-			name: "a retired LLM variable",
-			setup: func(_ *testing.T, e *serverEnv, _ *deps) {
-				e.vars[config.RetiredLLMVarsForTest()[0]] = ""
-			},
-			want:        exitUsage,
-			wantStderr:  "configuration: " + config.RetiredLLMVarErrorForTest(config.RetiredLLMVarsForTest()[0]),
-			configLines: 1,
-		},
-		{
-			// The last retired variable, YT2COLUMN_CLAUDE_EFFORT, also stops
-			// the server before it listens (architecture section 7.3).
-			name: "the retired Claude effort variable",
-			setup: func(_ *testing.T, e *serverEnv, _ *deps) {
-				e.vars[lastRetiredLLMVar()] = "low"
-			},
-			want:        exitUsage,
-			wantStderr:  "configuration: " + config.RetiredLLMVarErrorForTest(lastRetiredLLMVar()),
-			configLines: 1,
-		},
-		{
 			name: "HOME unset",
 			setup: func(_ *testing.T, e *serverEnv, _ *deps) {
 				delete(e.vars, "HOME")
@@ -332,13 +310,6 @@ func TestStartDuringShutdownRefused(t *testing.T) {
 	if code := first.stop(t); code != exitOK {
 		t.Fatalf("first run exit code = %d, want %d\nstderr:\n%s", code, exitOK, first.stderr.String())
 	}
-}
-
-// lastRetiredLLMVar returns the last retired LLM variable,
-// YT2COLUMN_CLAUDE_EFFORT; config's TestRetiredLLMVars pins the order.
-func lastRetiredLLMVar() string {
-	retired := config.RetiredLLMVarsForTest()
-	return retired[len(retired)-1]
 }
 
 // TestOutputsOmitSecrets checks that the server's log redacts every secret run

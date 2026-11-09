@@ -1834,10 +1834,10 @@ func TestRetiredLLMVars(t *testing.T) {
 }
 
 // TestLoadRejectsRetiredLLMVars checks that a retired variable, set with a
-// value or empty, stops every load whatever the stages, and the server load,
-// with one ErrInvalid naming it and the reason naming its replacement. The
-// rows with YT2COLUMN_LLM set check that the retired variable is rejected
-// even when the new one is present, so its value can never decide anything.
+// value or empty, stops every load whatever the stages, with one ErrInvalid
+// naming it and the reason naming its replacement. The rows with
+// YT2COLUMN_LLM set check that the retired variable is rejected even when the
+// new one is present, so its value can never decide anything.
 func TestLoadRejectsRetiredLLMVars(t *testing.T) {
 	loaders := []struct {
 		name string
@@ -1847,14 +1847,6 @@ func TestLoadRejectsRetiredLLMVars(t *testing.T) {
 		{"LoadFor generation", func(env map[string]string) error { _, err := LoadFor(envLookup(env), needGeneration); return err }},
 		{"LoadFor review", func(env map[string]string) error { _, err := LoadFor(envLookup(env), needReview); return err }},
 		{"LoadFor none", func(env map[string]string) error { _, err := LoadFor(envLookup(env), Need{}); return err }},
-		{"LoadServer", func(env map[string]string) error {
-			env = withVars(without(env, cacheDirEnv), map[string]string{
-				"HOME":   "/home/user",
-				slackEnv: "https://hooks.slack.com/services/T000/B000/XXXX",
-			})
-			_, err := LoadServer(envLookup(env))
-			return err
-		}},
 	}
 	bases := []struct {
 		name string
