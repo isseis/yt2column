@@ -74,7 +74,7 @@ git grep -n -i -E 'lightweight|runissue|軽量' HEAD -- docs/tasks/0000_template
 
 **変更するファイル:** `docs/dev/adr/0012-lightweight-check-in-bash.md`、本計画（§7 の基点の記録）
 
--   [ ] **ステップ 1-1**: 実装のブランチの基点（`git merge-base origin/main HEAD`）の完全な ID を求め、その ID のコミットに `.claude/commands/_lib/lightweight-check.sh` と `cmd/yt2column/lightweight_docs_test.go` があることを確かめる。ADR-0012 の `:26` と `:43` のリンクの先を、その ID を使った permalink（`https://github.com/isseis/yt2column/blob/<ID>/<パス>`）に直す。リンクの文、状態、経緯、索引は変えない。コミットのメッセージに、設計書 3.7 の形の訂正の行を、行頭から 1 行書く。基点の ID を本計画 §7 の冒頭の「実装のブランチの基点」の行に記録する。
+-   [x] **ステップ 1-1**: 実装のブランチの基点（`git merge-base origin/main HEAD`）の完全な ID を求め、その ID のコミットに `.claude/commands/_lib/lightweight-check.sh` と `cmd/yt2column/lightweight_docs_test.go` があることを確かめる。ADR-0012 の `:26` と `:43` のリンクの先を、その ID を使った permalink（`https://github.com/isseis/yt2column/blob/<ID>/<パス>`）に直す。リンクの文、状態、経緯、索引は変えない。コミットのメッセージに、設計書 3.7 の形の訂正の行を、行頭から 1 行書く。基点の ID を本計画 §7 の冒頭の「実装のブランチの基点」の行に記録する。
 
 **完了の条件:** ADR-0012 のほかの行が変わっていない。`make test` と `make lint` が通る。
 
@@ -263,7 +263,7 @@ N/A。実行時の振る舞いを変えない（設計書 7.5）。
 
 確認のスクリプトは `docs/tasks/0075_remove_lightweight_process/_checks/`（`main.go` と `data.json`。以下、`_checks`）である。実行の記録（日付、確かめたコミットの完全な ID、`main.go` と `data.json` の blob の ID、出力、終了コード）は、ステップ 4-3 と作成ポイントの確かめ直しで各行に書く。
 
-実装のブランチの基点：（未記録。ステップ 1-1 で書く）
+実装のブランチの基点：`dcc4edf34c99d8aecd47c81710420fb54b0a1b29`（`git merge-base origin/main HEAD`。このコミットに `.claude/commands/_lib/lightweight-check.sh` と `cmd/yt2column/lightweight_docs_test.go` があることを `git ls-tree` で確かめた）
 
 AC-01〜AC-03 は、文書に語がないことを `static`（確認のスクリプトの `git grep`）で確かめる。これは `requirements_process.md`「4. Acceptance Tests」の例外で、要件書 1 章（issue #744 の決定）と設計書付録 A が定める。語が軽量プロセスを指すかの判断は、AC-02 の `manual` で読む。
 
