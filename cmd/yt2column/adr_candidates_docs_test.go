@@ -46,8 +46,13 @@ var acOffForm = []string{
 	"docs/dev/adr/104-short.md",
 	"docs/dev/adr/01050-long.md",
 	"docs/dev/adr/0106-text.txt",
+	// git ls-tree lists docs/dev/adr/nested itself, never this file, so the
+	// main check keeps it off the list as well as the form.
 	"docs/dev/adr/nested/0107-nested.md",
 	"docs/dev/adr/0108-caf\u00e9.md",
+	"docs/dev/adr/0109-suffix.mdx",
+	"docs/dev/adr/0110-suffix.md.orig",
+	"docs/dev/adr/0111-newline.md\nx",
 }
 
 // acFixture is one fixture repository: main holds the ADRs and the other
@@ -132,6 +137,15 @@ func (f *acFixture) change(paths ...string) {
 	f.t.Helper()
 	for _, path := range paths {
 		f.write(path, "main "+path+"\nchanged\n")
+	}
+}
+
+// touch changes the modification time of path, not its content.
+func (f *acFixture) touch(path string) {
+	f.t.Helper()
+	later := time.Now().Add(time.Minute)
+	if err := os.Chtimes(filepath.Join(f.repo, filepath.FromSlash(path)), later, later); err != nil {
+		f.t.Fatalf("touch %s: %v", path, err)
 	}
 }
 
@@ -227,6 +241,17 @@ type acCase struct {
 	want  func(f *acFixture) []string
 }
 
+// acNoMatch is the output of one argument that matches nothing.
+func acNoMatch(f *acFixture) []string { return []string{f.header(), "no-match"} }
+
+// acOtherRepo returns GIT_DIR and GIT_WORK_TREE naming a second fixture whose
+// only change is to acBeta.
+func acOtherRepo(f *acFixture) []string {
+	other := newACFixture(f.t)
+	other.change(acBeta)
+	return []string{"GIT_DIR=" + filepath.Join(other.repo, ".git"), "GIT_WORK_TREE=" + other.repo}
+}
+
 // acLines returns want as a case expectation that ignores the fixture.
 func acLines(want ...string) func(*acFixture) []string {
 	return func(*acFixture) []string { return want }
@@ -266,13 +291,29 @@ func adrCandidatesCases() []acCase {
 		}, want: acLines()},
 		// The form check.
 		{name: "index", setup: func(f *acFixture) { f.change(acIndex) }, want: acLines()},
+		// git ls-tree lists only docs/dev/adr/, so the main check keeps the
+		// task document off the list as well as the form.
 		{name: "task document", setup: func(f *acFixture) { f.change(acTaskDoc) }, want: acLines()},
 		{name: "names off the form", setup: func(f *acFixture) { f.change(acOffForm...) }, want: acLines()},
 		// The main check.
 		{name: "ADR of the branch", setup: ownADR, want: acLines()},
+		// The header names refs/remotes/origin/main's commit, not the local
+		// branch's.
 		{name: "local branch named origin/main", setup: func(f *acFixture) {
 			ownADR(f)
 			f.git("branch", "origin/main", "HEAD")
+		}, args: []acArg{acExact(acOwnADR)}, want: func(f *acFixture) []string {
+			return []string{f.header(), "no-match"}
+		}},
+		// The attributes are read from the empty tree, so an encoding
+		// attribute in the work tree cannot make an ADR whose bytes did not
+		// change count as changed.
+		{name: "work tree attributes", setup: func(f *acFixture) {
+			f.write("docs/dev/adr/.gitattributes", "*.md working-tree-encoding=UTF-16LE\n")
+			f.touch(acAlpha)
+			if !strings.Contains(f.git("diff", "--name-only", "HEAD"), acAlpha) {
+				f.t.Fatal("the attribute does not make plain git report the ADR, so the case checks nothing")
+			}
 		}, want: acLines()},
 		// The comparison.
 		{name: "exact path", setup: changeAlpha, args: []acArg{acExact(acAlpha)}, want: func(f *acFixture) []string {
@@ -298,9 +339,7 @@ func adrCandidatesCases() []acCase {
 		}, want: func(f *acFixture) []string {
 			return []string{f.header(), "match " + acGamma, "no-match", "match " + acAlpha}
 		}},
-		{name: "empty list", setup: func(*acFixture) {}, args: []acArg{acExact(acAlpha)}, want: func(f *acFixture) []string {
-			return []string{f.header(), "no-match"}
-		}},
+		{name: "empty list", setup: func(*acFixture) {}, args: []acArg{acExact(acAlpha)}, want: acNoMatch},
 		// The reference check and failures.
 		{name: "no origin/main, ADR changed", setup: func(f *acFixture) {
 			f.git("update-ref", "-d", "refs/remotes/origin/main")
@@ -313,53 +352,74 @@ func adrCandidatesCases() []acCase {
 			f.git("update-ref", "refs/remotes/origin/main", f.rev("HEAD:"+acAlpha))
 			f.change(acAlpha)
 		}},
+		{name: "origin/main names a tree", setup: func(f *acFixture) {
+			f.git("update-ref", "refs/remotes/origin/main", f.rev("HEAD^{tree}"))
+			f.change(acAlpha)
+		}},
+		// The local attributes file is read even with GIT_ATTR_SOURCE.
+		{name: "local attributes file", setup: func(f *acFixture) {
+			f.write(".git/info/attributes", "*.md working-tree-encoding=UTF-16LE\n")
+			f.change(acAlpha)
+		}},
 		{name: "HEAD unreadable", setup: func(f *acFixture) {
 			f.git("symbolic-ref", "HEAD", "refs/heads/no-such-branch")
 			f.change(acAlpha)
 		}},
-		// The inputs and the environment.
-		// GIT_DIR and GIT_WORK_TREE name a second repository whose only
-		// change is to acBeta, so a script that honored them would list it.
+		// The inputs and the environment. GIT_DIR and GIT_WORK_TREE name a
+		// second repository whose only change is to acBeta, so a script that
+		// honored them would list it; standard input is carried only as an
+		// input.
 		{
 			name: "standard input and GIT_ variables", setup: changeAlpha,
-			opts: acRunOptions{stdin: acBeta + "\n"},
+			opts: acRunOptions{stdin: acBeta + "\n"}, env: acOtherRepo, want: acLines(acAlpha),
+		},
+		// A caller that sets the variable the script runs again under skips
+		// env -i; the script still drops the GIT_ variables.
+		{
+			name: "clean environment variable preset", setup: changeAlpha,
 			env: func(f *acFixture) []string {
-				other := newACFixture(f.t)
-				other.change(acBeta)
-				return []string{
-					"GIT_DIR=" + filepath.Join(other.repo, ".git"), "GIT_WORK_TREE=" + other.repo,
-					"GIT_CONFIG_PARAMETERS='diff.relative'='true'",
-				}
+				return append(acOtherRepo(f), "ADR_CANDIDATES_CLEAN_ENV=1")
 			}, want: acLines(acAlpha),
 		},
-		// Under a UTF-8 locale a range such as [a-z] may take in a letter
-		// with a diacritic, so acOffForm's 0108-caf\u00e9.md would match.
-		{name: "locale", setup: func(f *acFixture) {
-			f.change(acAlpha)
-			f.change(acOffForm...)
-		}, env: func(*acFixture) []string {
-			return []string{"LC_ALL=en_US.UTF-8", "LANG=en_US.UTF-8"}
-		}, want: acLines(acAlpha)},
-		// A printf function would replace every line the script prints. The
-		// script runs again under env -i, so neither the function BASH_ENV
-		// defines nor the exported one reaches it.
+		// Exported functions that replace git, cmp (always equal), and
+		// printf would change the output.
 		{
-			name: "shell functions, BASH_ENV, and SHELLOPTS", setup: changeAlpha, args: []acArg{acExact(acAlpha)},
+			name: "exported functions", setup: changeAlpha, args: []acArg{acExact(acBeta)},
+			env: func(*acFixture) []string {
+				return []string{
+					"BASH_FUNC_git%%=() { return 0; }",
+					"BASH_FUNC_cmp%%=() { return 0; }",
+					"BASH_FUNC_printf%%=() { builtin printf 'fake\\n'; }",
+				}
+			}, want: acNoMatch,
+		},
+		// The functions a BASH_ENV file defines are gone when the script
+		// runs again under env -i. (What such a file prints would still reach
+		// the output, a risk the contract states.)
+		{
+			name: "BASH_ENV", setup: changeAlpha, args: []acArg{acExact(acBeta)},
 			env: func(f *acFixture) []string {
 				bashEnv := filepath.Join(f.outside, "bash-env")
-				fake := "printf() { builtin printf 'fake\\n'; }\n"
+				fake := "git() { return 0; }\ncmp() { return 0; }\nprintf() { builtin printf 'fake\\n'; }\n"
 				if err := os.WriteFile(bashEnv, []byte(fake), 0o600); err != nil {
 					f.t.Fatalf("write BASH_ENV: %v", err)
 				}
-				return []string{
-					"BASH_ENV=" + bashEnv,
-					"BASH_FUNC_cmp%%=() { return 0; }",
-					"BASH_FUNC_printf%%=() { builtin printf 'fake\\n'; }",
-					"SHELLOPTS=errexit:noglob",
-				}
-			}, want: func(f *acFixture) []string {
-				return []string{f.header(), "match " + acAlpha}
-			},
+				return []string{"BASH_ENV=" + bashEnv}
+			}, want: acNoMatch,
+		},
+		// No locale this platform offers widens a bracket expression the
+		// script could have written, and the script lists each character
+		// and runs under LC_ALL=C anyway, so the locale and the shell
+		// options below are carried only as inputs.
+		{
+			name: "locale", setup: changeAlpha,
+			env:  func(*acFixture) []string { return []string{"LC_ALL=en_US.UTF-8", "LANG=en_US.UTF-8"} },
+			want: acLines(acAlpha),
+		},
+		{
+			name: "SHELLOPTS", setup: changeAlpha,
+			env:  func(*acFixture) []string { return []string{"SHELLOPTS=errexit:noglob"} },
+			want: acLines(acAlpha),
 		},
 	}
 }
@@ -400,10 +460,11 @@ func acConfigScenarios() []acConfigScenario {
 // checks keeps off the list, and runs with each bash scriptBashes returns.
 //
 // Some guards of the script back each other, so breaking one alone fails no
-// case: the reference check (git ls-tree fails on a missing reference too),
-// turning off diff.relative (the script runs at the top of the work tree,
-// where a relative diff names the same paths), the anchor of the form (git
-// ls-tree lists only docs/dev/adr/), the explicit character lists of the form
+// case: the env -i run (the script also drops the GIT_ variables and the
+// functions), turning off diff.relative (the script runs at the top of the
+// work tree, where a relative diff names the same paths), the ^ anchor and
+// the exclusion of / from the form (git ls-tree lists only the entries
+// directly under docs/dev/adr/), the explicit character lists of the form
 // (the script also runs under LC_ALL=C), and rename detection (git never
 // reports a rename as M).
 func TestADRCorrectionCandidates(t *testing.T) {
@@ -426,18 +487,17 @@ func TestADRCorrectionCandidates(t *testing.T) {
 					}
 					run := f.run(bash, c.args, opts)
 					if c.want == nil {
-						if run.code == 0 {
-							t.Errorf("the run succeeded, want a failure: %v", run)
+						if run.code != 1 || run.stdout != "" || run.stderr == "" {
+							t.Errorf("got %v, want exit 1, no output, and a diagnostic", run)
 						}
 						return
 					}
-					want := c.want(f)
-					got := slices.Collect(strings.Lines(run.stdout))
-					for i := range got {
-						got[i] = strings.TrimSuffix(got[i], "\n")
+					want := ""
+					for _, line := range c.want(f) {
+						want += line + "\n"
 					}
-					if run.code != 0 || !slices.Equal(got, want) || (len(want) > 0) != strings.HasSuffix(run.stdout, "\n") {
-						t.Errorf("got %v, want lines %q and exit 0", run, want)
+					if run.code != 0 || run.stdout != want {
+						t.Errorf("got %v, want output %q and exit 0", run, want)
 					}
 				})
 			}
