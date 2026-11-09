@@ -16,6 +16,7 @@ import (
 	"testing"
 
 	"github.com/isseis/yt2column/internal/privatefile"
+	"github.com/isseis/yt2column/internal/redact"
 )
 
 // testServerFilePath is the path the parser tests pass; it appears in every
@@ -27,7 +28,7 @@ const testServerFilePath = "/home/u/.config/yt2column/config.env"
 const darwinTestServerFilePath = "/Users/u/Library/Application Support/yt2column/config.env"
 
 // quotedHomePath is a path whose HOME holds a single quote, for the test that
-// pins the shell quoting of the chmod command.
+// pins that the chmod command is left out when the redaction would break it.
 const quotedHomePath = "/home/o'brien/.config/yt2column/config.env"
 
 // fileMark is part of every value, unknown key, and rejected line the format
@@ -390,7 +391,7 @@ func TestFileErrorMapping(t *testing.T) {
 			name: "read: mode with a single quote in the path",
 			got:  readFileError(quotedHomePath, &privatefile.UnsafeError{Path: quotedHomePath, Reason: privatefile.ReasonMode, Mode: 0o644}),
 			want: ErrConfigFileUnsafe, wantPath: quotedHomePath,
-			wantText: []string{"mode 0644", "chmod 600 " + `'/home/o'\''brien/.config/yt2column/config.env'`},
+			wantText: []string{"mode 0644", "chmod 600 on the file"},
 		},
 		{
 			name: "read: unsafe without its reason", got: readFileError(path, fmt.Errorf("wrapped: %w", privatefile.ErrUnsafe)),
@@ -472,6 +473,35 @@ func TestFileErrorMapping(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestModeMessageSurvivesRedaction pins the displayed mode rejection: the
+// server writes every line through redact.Line, which escapes a backslash and
+// a double quote, so a path it cannot quote must not be named in the chmod
+// command. The command would otherwise be a shell syntax error when copied.
+func TestModeMessageSurvivesRedaction(t *testing.T) {
+	modeError := func(path string) string {
+		return readFileError(path, &privatefile.UnsafeError{Path: path, Reason: privatefile.ReasonMode, Mode: 0o644}).Error()
+	}
+	unquotable := []string{
+		quotedHomePath,
+		`/home/a\b/.config/yt2column/config.env`,
+		"/home/a\"b/.config/yt2column/config.env",
+	}
+	for _, path := range unquotable {
+		displayed := redact.Line(modeError(path))
+		if strings.Contains(displayed, "chmod 600 '") {
+			t.Errorf("displayed message %q carries a chmod command for a path it cannot quote", displayed)
+		}
+		if !strings.Contains(displayed, "chmod 600 on the file") {
+			t.Errorf("displayed message %q does not name the fix", displayed)
+		}
+	}
+	safe := "/Users/u/Library/Application Support/yt2column/config.env"
+	displayed := redact.Line(modeError(safe))
+	if !strings.Contains(displayed, "chmod 600 '"+safe+"'") {
+		t.Errorf("displayed message %q does not carry the copyable command", displayed)
 	}
 }
 

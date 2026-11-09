@@ -154,11 +154,18 @@ func (e *FileError) message() string {
 	case formUnsafe:
 		return "configuration file " + e.Path + " " + e.Reason + reasonNothingChanged
 	case formMode:
-		// The command quotes the path as one shell word, so a path with a
-		// space (macOS's "Application Support") or a single quote (a home
-		// directory such as /home/o'brien) stays one word.
-		return fmt.Sprintf("configuration file %s has mode %s, not exactly %04o; run chmod %o %s",
-			e.Path, e.detail, privatefile.UnixMode(privatefile.Mode), privatefile.UnixMode(privatefile.Mode), shellQuotePath(e.Path))
+		// The command names the path as one shell word when it can: a path
+		// with a space (macOS's "Application Support") then stays one word.
+		// The redaction of the output line escapes a backslash and a double
+		// quote, which the shell needs to escape a single quote, so a path
+		// with one of those cannot be shown as a command that runs as
+		// displayed; it is named at the start of the line instead.
+		if quoted, ok := shellQuotePath(e.Path); ok {
+			return fmt.Sprintf("configuration file %s has mode %s, not exactly %04o; run chmod %o %s",
+				e.Path, e.detail, privatefile.UnixMode(privatefile.Mode), privatefile.UnixMode(privatefile.Mode), quoted)
+		}
+		return fmt.Sprintf("configuration file %s has mode %s, not exactly %04o; run chmod %o on the file",
+			e.Path, e.detail, privatefile.UnixMode(privatefile.Mode), privatefile.UnixMode(privatefile.Mode))
 	case formDetail:
 		return "configuration file " + e.Path + " " + e.Reason + ": " + e.detail
 	case formBase:
@@ -170,12 +177,23 @@ func (e *FileError) message() string {
 	}
 }
 
-// shellQuotePath quotes path as one word of a POSIX shell: in single quotes,
-// with each single quote in the path closed, escaped, and reopened. A path
-// that holds a single quote (a home directory such as /home/o'brien) is then
-// still one word instead of ending the quote early.
-func shellQuotePath(path string) string {
-	return "'" + strings.ReplaceAll(path, "'", `'\''`) + "'"
+// shellQuotePath quotes path as one word of a POSIX shell, in single quotes,
+// which the redaction of the output line leaves alone: a path with a space
+// (macOS's "Application Support") can then be copied as it is. It reports
+// false when the path holds a single quote (which would end the word), a
+// double quote or a backslash (which the redaction escapes), or a
+// non-printable character: the shell would need an escape that the redaction
+// alters, so no command naming such a path runs as displayed.
+func shellQuotePath(path string) (string, bool) {
+	if strings.ContainsAny(path, "'\"\\") {
+		return "", false
+	}
+	for _, r := range path {
+		if !strconv.IsPrint(r) {
+			return "", false
+		}
+	}
+	return "'" + path + "'", true
 }
 
 // Unwrap returns the sentinel that classifies the rejection, and only that:

@@ -594,7 +594,7 @@ func (e *FormatOverflowError) Unwrap() error // ErrConfigFileFormat
 
 標準エラーの行は、どれも `yt2column-server: ` で始まり、`redact.Line` を通る。値・ファイルの中身・未知のキーの文字列は含まない。設定ファイルのパスは、今の起動の行がソケットのパスを示すのと同じく示す。サーバの設定エラーの行は、今の `run` のとおり `configuration: ` の後にエラーの文を続ける（`run.go:136`）。下の表は、`yt2column-server: ` を除いた部分の形だけを示す。英語の文は実装で決める。
 
-**直し方のコマンドの引用:** `redact.Line` は `strconv.Quote` と同じく `"` を `\"` にエスケープする（`internal/redact/redact.go:196-199`）。また macOS のパスは空白を含む（`Application Support`）。そこで、行の中のコマンドのパスは単引用符 `'` で囲み、パスに含まれる `'` は `'\''` に置き換えて 1 つの語にする。`'` は `strconv.Quote` でエスケープされないので、区切りの引用符はそのまま写せる。パスが `\`・表示できない文字を含む場合は、そのままでは写せない。その場合も、パスはエスケープされた形で正しく示される。
+**直し方のコマンドの引用:** `redact.Line` は `strconv.Quote` と同じく `"` と `\` をエスケープする（`internal/redact/redact.go:196-199`）。また macOS のパスは空白を含む（`Application Support`）。そこで、行の中のコマンドのパスは、`'`・`"`・`\`・表示できない文字を含まないときだけ単引用符 `'` で囲む。これらを含むときは、引用符を閉じるための `\` や `"` も `redact.Line` がエスケープするので、写して実行できるコマンドは示せない。その場合はコマンドにパスを入れず、行の先頭に示したパスと `chmod 600` で直す。
 
 | 分類 | 行の形 |
 |---|---|
@@ -603,7 +603,7 @@ func (e *FormatOverflowError) Unwrap() error // ErrConfigFileFormat
 | シンボリックリンク | `configuration: configuration file <パス> is a symbolic link; nothing was changed` |
 | 通常のファイルでない | `configuration: configuration file <パス> is not a regular file; nothing was changed` |
 | 所有者が違う | `configuration: configuration file <パス> is owned by another user; nothing was changed` |
-| モード | `configuration: configuration file <パス> has mode <見つかったモード>, not exactly 0600; run chmod 600 '<パス>'` |
+| モード | `configuration: configuration file <パス> has mode <見つかったモード>, not exactly 0600; run chmod 600 '<パス>'`（`'`・`"`・`\`・表示できない文字を含むパスでは、コマンドにパスを入れず `run chmod 600 on the file`） |
 | 読めない | `configuration: configuration file <パス> could not be read: <OS のエラー>` |
 | 書式（行） | `configuration: configuration file <パス>: line <n>: <理由>`（重複は理由にキーの名前を含む） |
 | 書式（件数） | `configuration: configuration file <パス>: <m> more lines were rejected` |
