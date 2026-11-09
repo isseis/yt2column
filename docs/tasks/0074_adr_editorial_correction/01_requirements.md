@@ -16,10 +16,12 @@
 
 **背景:**
 
+本書で使う「ADR の訂正」「PR 自身の文」「マージ先の `main`」は、3 章の冒頭と 6 章で定義する。
+
 タスク 0070 は、決定を変えずに ADR を直す変更を編集上の訂正として認めた。その記録は、コミットメッセージの訂正の行と PR の説明の訂正の段落に置く（`docs/dev/conventions/adr.md`「Editorial corrections」の「Recording」）。ただし、記録の形と、それを運ぶコマンドの手順は、今はタスク文書だけを対象にしている。
 
 -   訂正の行の `<document path>` は、タスク文書のリポジトリ相対のパスと定められている（`docs/dev/conventions/requirements_process.md:388`「Recording in the PR description」）。規約は、この形を ADR のパスにも当てはめると述べる（`docs/dev/conventions/adr.md:298-303`）。
--   `/fixpr` の修正のエージェントが返す `editorial` の項目は、承認済みのタスク文書への訂正だけである（`.claude/commands/fixpr.md:484-489`）。このセッションの確かめも、項目のパスが `docs/tasks/*/0[123]_*.md` であり、`HEAD` と作業ツリーで `approved` であることを求める（`.claude/commands/fixpr.md:531-548`）。
+-   `/fixpr` の修正のエージェントが返す `editorial` の項目は、承認済みのタスク文書への訂正だけである（`.claude/commands/fixpr.md:484-489`）。`/fixpr` のセッションの確かめも、項目のパスが `docs/tasks/*/0[123]_*.md` であり、`HEAD` と作業ツリーで `approved` であることを求める（`.claude/commands/fixpr.md:531-548`）。
 -   ローカルの CLI レビューの修正で訂正の行を書くのも、承認済みのタスク文書への訂正だけである（`.claude/commands/_lib/local-cli-review.md:205-209`、step 7 の表の `Editorial correction:` の行。同書 234 行）。
 -   `/runplan` が訂正の行を書くのは、承認済みのタスク文書と実装のずれを直すときだけである（`.claude/commands/runplan.md:63`）。
 
@@ -37,15 +39,15 @@
 
 -   **`requirements_process.md` の訂正の行と訂正の段落の定義を、ADR のパスも含む形に広げる:** 0070 は規約の側で形を ADR に当てはめただけで、形を定める `requirements_process.md` はタスク文書だけを述べている。ADR：[ADR-0039](../../dev/adr/0039-adr-writing-criteria.md) を更新する（要件定義の際に決めたことの 1 つ目の項目）。
 -   **`/fixpr`・`/runplan`・ローカルの CLI レビュー・`_lib/task-pr-handoff.md` が、ADR の編集上の訂正も運ぶようにする:** エージェントが報告した ADR の訂正を、手で PR の説明に書き足すことに頼らず、コマンドの手順でコミットメッセージと PR の説明へ運ぶためである。手順が運ぶのは、エージェントが訂正として書いた行と返した項目だけで、訂正と報告されない変更を見つける手段にはならない（2.3 の「残る経路」）。ADR：ADR-0039 を更新する（同上）。
--   **関係する文書のテスト（`fixprguard` の呼び出しを含む）と ADR-0036・ADR-0039 をそろえる:** ADR-0039 は更新し（要件定義の際に決めたことの 1 つ目の項目）、ADR-0036 は変えない（同じく 7 つ目の項目）。文書のテストは F-008 で扱う。
+-   **関係する文書のテスト（`fixprguard` の呼び出しを含む）と ADR-0036・ADR-0039 をそろえる:** ADR-0039 は更新し（要件定義の際に決めたことの 1 つ目の項目）、ADR-0036 は変えない（同じく 9 つ目の項目）。文書のテストは F-008 で扱う。
 -   **#728 が `main` に入った後に着手する:** 0070 の実装（#745）は `main` に入っている。ADR：なし。作業の順序の決定で、本タスクの中で閉じる。
 
 **要件定義の際に決めたこと（2026-11-09）:**
 
 -   **PR を作った後にも、ADR に編集上の訂正を加えてよいとする:** 規約の「After the PR is created」の制限を外す。PR を作った後の `/fixpr` のラウンドとローカルの CLI レビューの修正でも、ADR に訂正を加えてよく、その訂正は訂正の行と PR の説明の訂正の段落に記録される（F-002・F-003・F-005）。PR を作った後に `main` を取り込むときの訂正は、2 つ目の項目のとおり扱う。
-    -   **理由:** 制限の理由は、PR を作った後に ADR の訂正を記録する道筋がないことだけだった（`docs/tasks/0070_adr_writing_criteria/02_architecture.md:67-74`）。本タスクで `/fixpr` とローカルの CLI レビューが ADR の訂正を運ぶので、理由がなくなる。制限を残すと、レビューで見つかった古いリンクや誤字を ADR について直すのに、別の PR が要る。
-    -   **採らなかった案:** 制限を残し、コマンドは PR を作る前の ADR の訂正だけを運ぶ案は、`/fixpr` の `editorial` をタスク文書に限ったままにでき変更は小さいが、制限を設けた理由がなくなった後も別の PR を求めるので採らない。
-    -   ADR：[ADR-0039](../../dev/adr/0039-adr-writing-criteria.md) を更新する。ADR-0039 の「決定」は、PR を作った後には ADR に訂正を加えないと定めており、それを変えるので、`CLAUDE.md`「Design decisions (ADR)」の基準で major である（既存の ADR の決定を変える決定）。ADR-0036 は更新しない（7 つ目の項目）。
+    -   **理由:** 制限の理由は、PR を作った後に ADR の訂正を記録する道筋がないことだけだった（`docs/tasks/0070_adr_writing_criteria/02_architecture.md:67-74`）。本タスクで `/fixpr` とローカルの CLI レビューが ADR の訂正を運ぶので、理由がなくなる。制限を残すと、レビューで見つかった ADR の古いリンクや誤字を直すのに、別の PR が要る。
+    -   **採らなかった案:** 制限を残し、コマンドは PR を作る前の ADR の訂正だけを運ぶ案は、`/fixpr` の `editorial` をタスク文書に限ったままにでき、変更は小さいが、制限を設けた理由がなくなった後も別の PR を求めるので採らない。
+    -   ADR：[ADR-0039](../../dev/adr/0039-adr-writing-criteria.md) を更新する。ADR-0039 の「決定」は、PR を作った後には ADR に訂正を加えないと定めており、それを変えるので、`CLAUDE.md`「Design decisions (ADR)」の基準で major である（既存の ADR の決定を変える決定）。ADR-0036 は更新しない（9 つ目の項目）。
 -   **PR を作った後に `main` を取り込んだときに見つかったずれの記述は、今のまま後の PR に残す:** 規約の「Discrepancy statements」は、ずれを直す PR を作った後に `main` に入ったずれの記述を、後の PR に残すとしている（`docs/dev/conventions/adr.md:348-350`）。この扱いは変えず、理由だけを、「After the PR is created」の制限から、PR を作った後の `main` の取り込みが訂正の行を PR の説明へ運ばないことに改める（AC-13）。
     -   **理由:** PR を作った後に `main` を取り込むのは、`/runpr` の「Taking in `main`」（`.claude/commands/runpr.md:270-277`）か手作業である。どちらにも、訂正の行を PR の説明へ運ぶ手順がない。`/fixpr` の Phase 6 が追記するのは、そのラウンドのコミットの訂正の行だけである（`.claude/commands/fixpr.md:837-851`）。この経路で訂正を認めると、訂正が PR の説明に載らず、0070 が退けた「記録が漏れうることを残余のリスクとする案」（`docs/tasks/0070_adr_writing_criteria/02_architecture.md:74`）と同じになる。
     -   **採らなかった案:** `/runpr` の「Taking in `main`」が訂正の行を書き、`fixprguard append-pr` で訂正の段落を追記する案は、`runpr.md` まで範囲が広がるので採らない。
@@ -112,7 +114,7 @@
 -   **残る経路。** 次の経路の ADR の訂正は、本タスクの後もコマンドの手順では記録されない。規約の「Editorial corrections」に従い、エージェントか人が訂正の行を書くことに頼る。
     -   `/runissue` が加えた訂正（#744 で軽量プロセスを削除するまで）。
     -   手作業のコミット。
-    -   `/fixpr` の修正のエージェントが、ADR の変更を `editorial` として返さなかったとき。訂正と報告されない変更を見つける手段はない。PR のレビューで差分を読んで見つける。
+    -   `/fixpr` の修正のエージェントが、ADR の変更を `editorial` として返さなかったとき。訂正と報告されない変更を機械的に見つける手段はなく、PR のレビューで差分を読むしかない。
 -   **`fixprguard` の振る舞いの変更（スコープ規則、`finish` と `append-pr` の検査）。** スコープ規則は 1 章のとおり変えない。`finish` と `append-pr` は今もパスを問わずに訂正の行と訂正の段落を扱うので（`finish` は `internal/fixprguard/write.go:112-127`、`append-pr` は同書 382-410 行）、変える必要がない。
 -   **ADR-0036 の変更。** 1 章の「要件定義の際に決めたこと」のとおりである。
 -   **`CLAUDE.md` の変更。** `CLAUDE.md`「Design decisions (ADR)」は ADR の編集上の訂正の記録を述べない。規約と同じ文で持つ部分（ADR を作るか変える PR の規則）の意味は、本タスクで変わらない。
@@ -149,7 +151,7 @@
 **Acceptance Criteria**:
 - **AC-04**: `fixpr.md` の Phase 3 の修正のエージェントへの指示は、`editorial` の項目として、タスク文書の訂正に加えて、スレッドのために ADR のファイルに加えた ADR の訂正を 1 項目ずつ返すよう求める。項目の `path` と `description` の形と制約は、今と同じである。
 - **AC-05**: `fixpr.md` の Phase 3 の訂正の一覧の確かめは、`path` を信頼しないデータとして扱う。`path` が `docs/tasks/` で始まらない項目は、`path` が ADR のファイルの形にバイト単位で一致するときだけ、ADR の項目として次の確かめに進む。一致しない値（`./` や `..` を含むもの、大文字を含むもの、末尾の `/`、ASCII でない文字、索引 `docs/dev/adr/README.md` など）は、直さずに落とす。`path` をコマンドに渡すのはこの確かめの後で、別の引数としてだけ渡す。
-- **AC-06**: ADR の項目は、そのファイルを作業ツリーが変えていて（Phase 3.5 が判定する）、かつマージ先の `main` にそのファイルがあるときに通る。`description` の確かめは、タスク文書の項目と同じである。タスク文書の項目の確かめ（`docs/tasks/*/0[123]_*.md`、`HEAD` と作業ツリーで `approved`）は、今と同じである。
+- **AC-06**: ADR の項目は、作業ツリーでそのファイルが変更されていて（Phase 3.5 が判定する）、かつマージ先の `main` にそのファイルがあるときに通る。`description` の確かめは、タスク文書の項目と同じである。タスク文書の項目の確かめ（`docs/tasks/*/0[123]_*.md`、`HEAD` と作業ツリーで `approved`）は、今と同じである。
 - **AC-07**: AC-05 か AC-06 を満たさない項目（マージ先の `main` にない、PR 自身が作った ADR への項目を含む）は、今のタスク文書の項目と同じく、直さずに落とし、Final report に載せる。項目を落としても、ラウンドのほかの修正は止まらない。
 - **AC-08**: `fixpr.md` の Phase 3 の修正のエージェントへの指示は、PR 自身の文の直しと、ADR の決定の変更を `editorial` に含めない、と述べる。ADR の決定の変更の扱いは、今と同じである。
 - **AC-09**: AC-06 を通った ADR の項目は、Phase 4 でタスク文書の項目と同じく訂正の行としてコミットの本文に書かれ、Phase 6 でそのラウンドの訂正の段落に載る。Phase 4 と Phase 6 の手順（メンションの確かめ、`fixprguard finish --body-file`、`fixprguard append-pr`、失敗したときの扱い）は、今と同じである。
@@ -167,7 +169,7 @@
 `/runplan` のセッションで ADR に加えた訂正が、そのコミットの訂正の行に載り、PR を作るときに訂正の段落に載る。
 
 **Acceptance Criteria**:
-- **AC-12**: `runplan.md` は、フェーズのグループの作業で ADR に ADR の訂正を加えたときは（たとえば、実装で名前が変わり、ADR の参照が古くなったとき）、その訂正を行うコミットのメッセージに、訂正ごとに訂正の行を書く、と述べる。PR 自身の文の直しには訂正の行を書かない、と述べる。PR の説明は、PR を作るときにその行から訂正の段落を得る（`_lib/task-pr-handoff.md` Part B step 3）、と述べる。訂正か決定の変更かの分類は規約の「Editorial corrections」に従い、決定の変更は今のタスク文書の決定の変更と同じく人と決める、と述べる。
+- **AC-12**: `runplan.md` は、フェーズのグループの作業で ADR の訂正を加えたときは（たとえば、実装で名前が変わり、ADR の参照が古くなったとき）、その訂正を行うコミットのメッセージに、訂正ごとに訂正の行を書く、と述べる。PR 自身の文の直しには訂正の行を書かない、と述べる。PR を作るときに、その行から PR の説明の訂正の段落を書く（`_lib/task-pr-handoff.md` Part B step 3）、と述べる。訂正か決定の変更かの分類は規約の「Editorial corrections」に従い、決定の変更は今のタスク文書の決定の変更と同じく人と決める、と述べる。
 
 #### F-005: PR の説明への組み込みと、規約の制限の解除
 
@@ -201,6 +203,8 @@
 
 #### F-008: 文書のテスト
 
+変更で古くなる文書のテストを、信頼の境界でエージェントが実行するコマンドを中心にそろえる。
+
 **Acceptance Criteria**:
 - **AC-21**: 本タスクの実装の PR が変えるか足す、エージェントが信頼の境界で実行するコマンド（`fixprguard` の呼び出し、本文を出力しない `--jq` の式、`editorial` の項目の `path` を渡すコマンド）は、`CLAUDE.md`「Testing Strategy」の文書のテストの例外のとおり、文書のテストで確かめる。どのテストを変えるかは設計で決める（[design_handoff.md](design_handoff.md) H-03）。
 - **AC-22**: 実装の PR の後、`make test` と `make lint` が通る。
@@ -211,8 +215,8 @@
 -   N/A（文書とコマンドの定義だけの変更である）。
 
 ### 4.2. セキュリティ (Security)
--   N/A。外部コマンドの呼び出し、秘密、キャッシュ、ネットワークへの送信、信頼できない文字列の記事やプロンプトへの埋め込みのどれも変えないので、`docs/dev/security.md` を適用する条件に当たらない（`.claude/commands/_context.md`「Conditional-guide trigger」）。
--   `/fixpr` の `editorial` の項目は、レビューのスレッドを読んだエージェントが書くので、信頼しないデータとして扱う（`.claude/commands/fixpr.md:531-548`、[ADR-0015](../../dev/adr/0015-untrusted-review-threads.md)）。ADR の項目の `path` は、形を確かめてからコマンドに渡し（AC-05）、`description` は今のタスク文書の項目と同じ確かめを通して、指示として扱わない（AC-06）。PR を作った後の PR の説明への訂正の段落の追記は、今のまま `fixprguard append-pr` が行い、`@` と `<` を拒む（AC-09・AC-16）。
+-   N/A。外部コマンドの呼び出し、秘密、キャッシュ、ネットワークへの送信、信頼できない文字列を記事やプロンプトへ埋め込むことのどれも変えないので、`docs/dev/security.md` を適用する条件に当たらない（`.claude/commands/_context.md`「Conditional-guide trigger」）。
+-   `/fixpr` の `editorial` の項目は、レビューのスレッドを読んだエージェントが書くので、信頼しないデータとして扱う（`.claude/commands/fixpr.md:531-548`、[ADR-0015](../../dev/adr/0015-untrusted-review-threads.md)）。ADR の項目の `path` は、形を確かめてからコマンドに渡し（AC-05）、`description` は今のタスク文書の項目と同じ確かめを通して、指示として扱わない（AC-06）。PR を作った後に PR の説明へ訂正の段落を追記するのは、今のまま `fixprguard append-pr` が行い、`@` と `<` を拒む（AC-09・AC-16）。
 
 ### 4.3. 信頼性・可用性 (Reliability/Availability)
 -   N/A。
