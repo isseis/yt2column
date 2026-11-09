@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-09 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-09 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルの内容は、コミット `46c1f8bc` で確かめた（以下、本書を確かめたコミット）。`file:line` の行番号は、このコミットでの行番号である。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md)（以下、申し送り）の項番を指す。申し送りへの対応は付録 A に、受け入れ基準との対応は付録 B にまとめる。
@@ -720,3 +720,7 @@ PR の境界、各 PR の手順、`git grep` の具体的な形、確かめの�
 | AC-20 | 3.8 | manual（7.3） |
 | AC-21 | 3.7 | diff（3.9）と manual（7.3） |
 | AC-22 | 3.2.4・3.5 | diff（3.9）と manual（7.3） |
+
+## 変更履歴
+
+- 2026-11-09 承認（isseis、#754）
