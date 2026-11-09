@@ -2050,9 +2050,10 @@ func serverEnvWithFile(t *testing.T, data []byte) map[string]string {
 	return map[string]string{"HOME": home}
 }
 
-// llmView is the comparable part of an LLMConfig: the two selections, the
-// revealed keys, and the workspace ID.
-type llmView struct {
+// serverView is the comparable part of a ServerConfig: the two selections,
+// the revealed keys, the workspace ID, and the revealed Webhook URL. viewLLM
+// fills all but the Webhook URL, which an LLMConfig does not hold.
+type serverView struct {
 	generation, review     LLMSelection
 	deepSeekKey, claudeKey string
 	workspaceID            claudeparam.WorkspaceID
@@ -2060,7 +2061,7 @@ type llmView struct {
 }
 
 // viewServer returns the comparable part of a ServerConfig.
-func viewServer(cfg ServerConfig) llmView {
+func viewServer(cfg ServerConfig) serverView {
 	v := viewLLM(cfg.LLM())
 	if url, ok := cfg.WebhookURL(); ok {
 		v.webhook, _ = url.Reveal()
@@ -2069,10 +2070,10 @@ func viewServer(cfg ServerConfig) llmView {
 }
 
 // viewLLM returns the comparable part of an LLMConfig.
-func viewLLM(c LLMConfig) llmView {
+func viewLLM(c LLMConfig) serverView {
 	deepSeek, _ := c.DeepSeekAPIKey().Reveal()
 	claude, _ := c.AnthropicAPIKey().Reveal()
-	return llmView{
+	return serverView{
 		generation: c.Generation(), review: c.Review(),
 		deepSeekKey: deepSeek, claudeKey: claude, workspaceID: c.AnthropicWorkspaceID(),
 	}
@@ -2158,7 +2159,7 @@ func TestLoadServerValueRejections(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg, err := LoadServer(envLookup(serverEnvWithFile(t, ServerFileForTest(tc.file))))
 			assertVarErrors(t, err, tc.want...)
-			if got := viewServer(cfg); got != (llmView{}) || cfg.SocketPath() != "" {
+			if got := viewServer(cfg); got != (serverView{}) || cfg.SocketPath() != "" {
 				t.Errorf("LoadServer() returned a non-zero ServerConfig on error: %+v", got)
 			}
 			for _, e := range splitJoinedForTest(err) {
@@ -2284,9 +2285,7 @@ func TestLoadServerFileRejections(t *testing.T) {
 		}, ErrConfigFileUnsafe, 0},
 		{"mode 0644", func(t *testing.T, path string) { chmodForTest(t, path, 0o644) }, ErrConfigFileUnsafe, 0},
 		{"unreadable", func(t *testing.T, path string) {
-			if os.Geteuid() == 0 {
-				t.Skip("root reads a file below a directory it cannot search")
-			}
+			skipIfRoot(t)
 			dir := filepath.Dir(path)
 			chmodForTest(t, dir, 0o000)
 			t.Cleanup(func() { chmodForTest(t, dir, 0o700) })
@@ -2312,11 +2311,24 @@ func TestLoadServerFileRejections(t *testing.T) {
 			if fileErr.Path != path || fileErr.Line != tc.line {
 				t.Errorf("FileError path, line = %q, %d, want %q, %d", fileErr.Path, fileErr.Line, path, tc.line)
 			}
-			if viewServer(cfg) != (llmView{}) || cfg.SocketPath() != "" {
+			if viewServer(cfg) != (serverView{}) || cfg.SocketPath() != "" {
 				t.Errorf("LoadServer() returned a non-zero ServerConfig on error")
 			}
 		})
 	}
+	// A rejected line stops the load before the values are validated: the
+	// invalid value and the missing API key of this file are not reported.
+	t.Run("format stops before the values", func(t *testing.T) {
+		data := []byte(llmEnv + "=deepseek/\nnot a setting\n")
+		_, err := LoadServer(envLookup(serverEnvWithFile(t, data)))
+		parts := splitJoinedForTest(err)
+		if len(parts) != 1 {
+			t.Fatalf("LoadServer() error = %v, want exactly one rejection", err)
+		}
+		if _, ok := errors.AsType[*VarError](err); ok || !errors.Is(parts[0], ErrConfigFileFormat) {
+			t.Errorf("LoadServer() error = %v, want only the format rejection", err)
+		}
+	})
 	t.Run("exactly the limit", func(t *testing.T) {
 		data := padded(serverFileMaxSize)
 		if len(data) != serverFileMaxSize {
@@ -2383,7 +2395,7 @@ func TestLoadForIgnoresServerFile(t *testing.T) {
 		t.Fatalf("Load() without a configuration file error = %v, want nil", err)
 	}
 	needs := []Need{needBoth, needGeneration, needReview, {}}
-	wantFor := make([]llmView, len(needs))
+	wantFor := make([]serverView, len(needs))
 	for i, need := range needs {
 		cfg, err := LoadFor(envLookup(env), need)
 		if err != nil {

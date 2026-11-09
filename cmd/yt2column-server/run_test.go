@@ -297,8 +297,13 @@ func TestStartupFailures(t *testing.T) {
 				tc.setup(t, e, &d)
 			}
 			e.writeConfig(t)
-			var before configState
+			// The socket directory the run would create is derived from HOME
+			// as setup left it, which may differ from the valid one above.
+			var socketDir string
+			var before, unchanged configState
 			if home := e.vars["HOME"]; filepath.IsAbs(home) {
+				socketDir = filepath.Dir(e.socketPath(t))
+				unchanged = readConfigState(t, home)
 				if tc.fileSetup != nil {
 					tc.fileSetup(t, config.ServerFilePathForTest(home))
 				}
@@ -337,13 +342,18 @@ func TestStartupFailures(t *testing.T) {
 						t.Errorf("the configuration file changed: before %+v, after %+v", before, after)
 					}
 					if tc.restore != nil {
+						// The file below the directory setup made unsearchable
+						// is compared once the directory's mode is restored.
 						tc.restore(t, config.ServerFilePathForTest(home))
+						if after := readConfigState(t, home); after != unchanged {
+							t.Errorf("the configuration file changed: before %+v, after %+v", unchanged, after)
+						}
 					}
-				}
-				// The socket directory holds the start lock and the socket,
-				// so its absence covers both.
-				if _, err := os.Lstat(filepath.Dir(socket)); !errors.Is(err, os.ErrNotExist) {
-					t.Errorf("the socket directory %s exists after a configuration error: %v", filepath.Dir(socket), err)
+					// The socket directory holds the start lock and the
+					// socket, so its absence covers both.
+					if _, err := os.Lstat(socketDir); !errors.Is(err, os.ErrNotExist) {
+						t.Errorf("the socket directory %s exists after a configuration error: %v", socketDir, err)
+					}
 				}
 			}
 			requireNoSecret(t, "stderr", stderr.String())
@@ -352,12 +362,13 @@ func TestStartupFailures(t *testing.T) {
 }
 
 // configState is what a configuration error must leave unchanged: the
-// configuration file's mode and content and its directory's mode. A part
-// that cannot be read is recorded as such.
+// configuration file's mode (and, through a symbolic link, its target's) and
+// content, and its directory's mode. A part that cannot be read is recorded
+// as such.
 type configState struct {
-	fileMode, dirMode os.FileMode
-	content           string
-	unreadable        bool
+	fileMode, targetMode, dirMode os.FileMode
+	content                       string
+	unreadable                    bool
 }
 
 // readConfigState records the configuration file under home and its
@@ -371,6 +382,9 @@ func readConfigState(t *testing.T, home string) configState {
 	}
 	if info, err := os.Lstat(path); err == nil {
 		st.fileMode = info.Mode()
+	}
+	if info, err := os.Stat(path); err == nil {
+		st.targetMode = info.Mode()
 	}
 	if data, err := os.ReadFile(path); err == nil { //nolint:gosec // the test's own configuration file
 		st.content = string(data)
@@ -503,6 +517,9 @@ func TestServerIgnoresEnvSettings(t *testing.T) {
 		}
 		if want := "configuration: configuration file key ANTHROPIC_API_KEY: is not set"; !strings.Contains(stderr.String(), want) {
 			t.Errorf("stderr does not contain %q:\n%s", want, stderr.String())
+		}
+		if got := strings.Count(stderr.String(), programName+": configuration: "); got != 1 {
+			t.Errorf("configuration lines = %d, want 1:\n%s", got, stderr.String())
 		}
 		requireNoSecret(t, "stderr", stderr.String())
 	})

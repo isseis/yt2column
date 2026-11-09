@@ -166,7 +166,7 @@ func (e *serverEnv) socketPath(t *testing.T) string {
 	if !ok || !filepath.IsAbs(home) {
 		t.Fatalf("no socket path for HOME %q", home)
 	}
-	return home + config.SocketPathTailForTest(runtime.GOOS)
+	return filepath.Join(home, config.SocketPathTailForTest(runtime.GOOS))
 }
 
 // listening reports whether a connection to the socket at path is accepted.
