@@ -8,15 +8,12 @@ import (
 // serverFileName is the configuration file's name in its directory.
 const serverFileName = "config.env"
 
-// The parts of the server configuration file's rule below HOME: the base,
-// which must already exist, and the directories config init creates below it
-// when they are missing. On macOS the file's directory is also the socket
-// directory's parent.
-var (
-	darwinServerFileBase = darwinAppSupportParts
-	darwinServerFileDirs = []string{appDirName}
-	unixServerFileDirs   = []string{".config", appDirName}
-)
+// serverFileDirs are the directories of the server configuration file's rule
+// below HOME, which config init creates when they are missing. HOME is the
+// base, which must already exist. The rule is the same on macOS and the other
+// Unix systems: the user edits the file by hand from a terminal, so one path
+// without a space serves every system.
+var serverFileDirs = []string{".config", appDirName}
 
 // serverFileLocation is where the server's configuration file lives. Only
 // serverFileLocationFor builds one, from HOME alone. It is unexported: the
@@ -35,12 +32,8 @@ type serverFileLocation struct {
 // run from a shell find the same file. The error never holds HOME's value.
 // Unlike the socket path, no length limit applies.
 func serverFileLocationFor(goos string, lookup LookupFunc) (serverFileLocation, *VarError) {
-	var baseParts, dirs []string
 	switch classifyOS(goos) {
-	case osDarwin:
-		baseParts, dirs = darwinServerFileBase, darwinServerFileDirs
-	case osLinux, osOtherUnix:
-		baseParts, dirs = nil, unixServerFileDirs
+	case osDarwin, osLinux, osOtherUnix:
 	default:
 		return serverFileLocation{}, missingVarWithReason("HOME", reasonConfigPathAbsent)
 	}
@@ -48,10 +41,10 @@ func serverFileLocationFor(goos string, lookup LookupFunc) (serverFileLocation, 
 	if !ok {
 		return serverFileLocation{}, missingVarWithReason("HOME", reasonConfigPathAbsent)
 	}
-	base := filepath.Join(append([]string{home}, baseParts...)...)
+	base := filepath.Clean(home)
 	return serverFileLocation{
-		path: filepath.Join(slices.Concat([]string{base}, dirs, []string{serverFileName})...),
+		path: filepath.Join(slices.Concat([]string{base}, serverFileDirs, []string{serverFileName})...),
 		base: base,
-		dirs: slices.Clone(dirs),
+		dirs: slices.Clone(serverFileDirs),
 	}, nil
 }

@@ -12,15 +12,11 @@ import (
 
 // The configuration file's rule below HOME, written out so a change to the
 // derivation fails these tests instead of moving their expectation.
-const (
-	darwinServerFileBaseTail = "/Library/Application Support"
-	darwinServerFileTail     = "/Library/Application Support/yt2column/config.env"
-	unixServerFileTail       = "/.config/yt2column/config.env"
-)
+const serverFileTail = "/.config/yt2column/config.env"
 
 // TestServerFileLocation fixes the configuration file's rule: the path, the
-// base that must exist, and the directories config init may create for each
-// operating system; the systems with no rule; and the HOME shapes that are
+// base that must exist, and the directories config init may create, the same
+// on macOS and the other Unix systems; the systems with no rule; and the HOME shapes that are
 // rejected. The rule reads HOME and nothing else, so the XDG variables do not
 // move the file, and a rejection names HOME without holding its value.
 func TestServerFileLocation(t *testing.T) {
@@ -48,23 +44,23 @@ func TestServerFileLocation(t *testing.T) {
 		wantErr  bool
 	}{
 		{
-			name: "darwin", goos: "darwin", env: withHome("/Users/u"),
-			wantPath: "/Users/u" + darwinServerFileTail, wantBase: "/Users/u" + darwinServerFileBaseTail,
-			wantDirs: []string{"yt2column"},
+			name: "darwin uses the unix rule", goos: "darwin", env: withHome("/Users/u"),
+			wantPath: "/Users/u" + serverFileTail, wantBase: "/Users/u",
+			wantDirs: []string{".config", "yt2column"},
 		},
 		{
 			name: "linux", goos: "linux", env: withHome("/home/u"),
-			wantPath: "/home/u" + unixServerFileTail, wantBase: "/home/u",
+			wantPath: "/home/u" + serverFileTail, wantBase: "/home/u",
 			wantDirs: []string{".config", "yt2column"},
 		},
 		{
 			name: "freebsd uses the unix rule", goos: "freebsd", env: withHome("/home/u"),
-			wantPath: "/home/u" + unixServerFileTail, wantBase: "/home/u",
+			wantPath: "/home/u" + serverFileTail, wantBase: "/home/u",
 			wantDirs: []string{".config", "yt2column"},
 		},
 		{
 			name: "HOME with a trailing separator is cleaned", goos: "linux", env: withHome("/home/u/"),
-			wantPath: "/home/u" + unixServerFileTail, wantBase: "/home/u",
+			wantPath: "/home/u" + serverFileTail, wantBase: "/home/u",
 			wantDirs: []string{".config", "yt2column"},
 		},
 		{name: "windows", goos: "windows", env: withHome("/" + homeMark), wantErr: true},

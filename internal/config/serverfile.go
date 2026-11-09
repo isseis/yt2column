@@ -155,7 +155,7 @@ func (e *FileError) message() string {
 		return "configuration file " + e.Path + " " + e.Reason + reasonNothingChanged
 	case formMode:
 		// The command names the path as one shell word when it can: a path
-		// with a space (macOS's "Application Support") then stays one word.
+		// with a space (a HOME such as "/Users/J Doe") then stays one word.
 		// The redaction of the output line escapes a backslash and a double
 		// quote, which the shell needs to escape a single quote, so a path
 		// with one of those cannot be shown as a command that runs as
@@ -179,7 +179,7 @@ func (e *FileError) message() string {
 
 // shellQuotePath quotes path as one word of a POSIX shell, in single quotes,
 // which the redaction of the output line leaves alone: a path with a space
-// (macOS's "Application Support") can then be copied as it is. It reports
+// (a HOME such as "/Users/J Doe") can then be copied as it is. It reports
 // false when the path holds a single quote (which would end the word), a
 // double quote or a backslash (which the redaction escapes), or a
 // non-printable character: the shell would need an escape that the redaction

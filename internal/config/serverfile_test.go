@@ -23,9 +23,9 @@ import (
 // message they check.
 const testServerFilePath = "/home/u/.config/yt2column/config.env"
 
-// darwinTestServerFilePath is a macOS path, with the space of "Application
-// Support", for the tests that need a second path.
-const darwinTestServerFilePath = "/Users/u/Library/Application Support/yt2column/config.env"
+// spacedTestServerFilePath is a path whose HOME holds a space, for the tests
+// that need a second path.
+const spacedTestServerFilePath = "/Users/J Doe/.config/yt2column/config.env"
 
 // quotedHomePath is a path whose HOME holds a single quote, for the test that
 // pins that the chmod command is left out when the redaction would break it.
@@ -244,7 +244,7 @@ func TestParseServerFileOverflow(t *testing.T) {
 		{name: "one over the reporting limit", rejected: serverFileMaxReported + 1, wantOmitted: 1, wantCount: ": 1 more line was rejected"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			_, errs := parseServerFile(darwinTestServerFilePath, badLines(tc.rejected))
+			_, errs := parseServerFile(spacedTestServerFilePath, badLines(tc.rejected))
 			var lines []int
 			var overflow *FormatOverflowError
 			for i, err := range errs {
@@ -275,14 +275,14 @@ func TestParseServerFileOverflow(t *testing.T) {
 			case tc.wantOmitted > 0 && overflow == nil:
 				t.Errorf("no count of the %d unreported lines", tc.wantOmitted)
 			case overflow != nil:
-				if overflow.Omitted != tc.wantOmitted || overflow.Path != darwinTestServerFilePath {
-					t.Errorf("got %+v, want %d omitted at %s", overflow, tc.wantOmitted, darwinTestServerFilePath)
+				if overflow.Omitted != tc.wantOmitted || overflow.Path != spacedTestServerFilePath {
+					t.Errorf("got %+v, want %d omitted at %s", overflow, tc.wantOmitted, spacedTestServerFilePath)
 				}
 				if !errors.Is(overflow, ErrConfigFileFormat) {
 					t.Errorf("the count does not wrap ErrConfigFileFormat")
 				}
 				// The line is what the user reads, so its wording is checked.
-				if msg := overflow.Error(); !strings.Contains(msg, darwinTestServerFilePath) || !strings.HasSuffix(msg, tc.wantCount) {
+				if msg := overflow.Error(); !strings.Contains(msg, spacedTestServerFilePath) || !strings.HasSuffix(msg, tc.wantCount) {
 					t.Errorf("message %q does not give the path and the count", msg)
 				}
 			}
@@ -378,9 +378,9 @@ func TestFileErrorMapping(t *testing.T) {
 		},
 		{
 			name: "read: mode",
-			got:  readFileError(darwinTestServerFilePath, &privatefile.UnsafeError{Path: darwinTestServerFilePath, Reason: privatefile.ReasonMode, Mode: 0o644}),
-			want: ErrConfigFileUnsafe, wantPath: darwinTestServerFilePath,
-			wantText: []string{"mode 0644", "0600", "chmod 600 '" + darwinTestServerFilePath + "'"},
+			got:  readFileError(spacedTestServerFilePath, &privatefile.UnsafeError{Path: spacedTestServerFilePath, Reason: privatefile.ReasonMode, Mode: 0o644}),
+			want: ErrConfigFileUnsafe, wantPath: spacedTestServerFilePath,
+			wantText: []string{"mode 0644", "0600", "chmod 600 '" + spacedTestServerFilePath + "'"},
 		},
 		{
 			name: "read: mode with the setuid bit",
@@ -498,7 +498,7 @@ func TestModeMessageSurvivesRedaction(t *testing.T) {
 			t.Errorf("displayed message %q does not name the fix", displayed)
 		}
 	}
-	safe := "/Users/u/Library/Application Support/yt2column/config.env"
+	safe := spacedTestServerFilePath
 	displayed := redact.Line(modeError(safe))
 	if !strings.Contains(displayed, "chmod 600 '"+safe+"'") {
 		t.Errorf("displayed message %q does not carry the copyable command", displayed)
