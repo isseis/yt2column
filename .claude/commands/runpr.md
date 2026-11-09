@@ -295,47 +295,6 @@ head; a record already made counts as made, never as absent.
     (`gh pr view <number> --json mergeCommit --jq .mergeCommit.oid`, then
     `git diff --name-only <oid>~1 <oid>`); stop and report, deciding nothing,
     when the oid is empty or `git diff` fails.
-  - **Lightweight PR** — neither of the above, and both of these hold, read
-    only from the values below, never from the PR's title or body:
-    - the PR's closing issues hold exactly one issue of this repository whose
-      labels include `<lightweight-label>`; call its number **LW_ISSUE**;
-    - the PR's head branch (`headRefName`) equals LW_ISSUE's lightweight
-      branch: the form of `_context.md`'s "Lightweight branch name", with the
-      login `gh api user --jq .login` prints and LW_ISSUE.
-
-    Read the values with this query, which GitHub answers for a merged PR
-    too; this repository is the one `gh repo view --json nameWithOwner`
-    names:
-
-    ```bash
-    gh api graphql -F owner='{owner}' -F repo='{repo}' -F n=<number> -f query='
-      query($owner: String!, $repo: String!, $n: Int!) {
-        repository(owner: $owner, name: $repo) {
-          pullRequest(number: $n) {
-            headRefName
-            closingIssuesReferences(first: 20) {
-              nodes {
-                number
-                state
-                repository { nameWithOwner }
-                labels(first: 50) { nodes { name } pageInfo { hasNextPage } }
-              }
-              pageInfo { hasNextPage }
-            }
-          }
-        }
-      }'
-    ```
-
-    Stop and report, deciding nothing, when the query fails, when
-    `gh api user --jq .login` or `gh repo view --json nameWithOwner` fails or
-    prints nothing, when
-    `closingIssuesReferences` or any issue's `labels` has `hasNextPage` true
-    (the list could not be read whole), when two or more issues of this
-    repository carry `<lightweight-label>`, or when one does but the head
-    branch is not its lightweight branch. The report names the linked issue
-    numbers and the head branch; which issue the merge would close cannot be
-    decided.
   - **Standalone change** — anything else.
 - **PRE_MERGE** — what step 4 commits just before the merge, in one commit
   (`docs(<task-id>): record the review of PR #<number>`, or

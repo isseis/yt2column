@@ -76,15 +76,6 @@ var postingSections = []postingSection{
 		itemSection("3. Push and create the PR for the current branch.", "\n4. Run AFTER_CREATE"),
 		[]string{"gh pr create "},
 	},
-	{
-		"runissue.md revert", runissuePath, headingSection(doctestutil.RunissueRevertHeading),
-		[]string{"gh issue comment <N> --body-file"},
-	},
-	{
-		"mkreq.md lightweight triage", mkreqPath,
-		itemSection("- **Lightweight triage.**", "\n2. Resolve the task directory."),
-		[]string{"gh issue comment <N> --body-file"},
-	},
 }
 
 // Section headings of runpr.md and _lib/task-pr-handoff.md that only these
@@ -158,8 +149,6 @@ var (
 // lines, so the code block it opens must hold no mutation.
 var readOnlyInvocations = []string{
 	`gh api graphql -F owner='{owner}' -F repo='{repo}' -F n=<issue> -f query='`,
-	runissueLinkedPRsQuery,
-	`gh api graphql -F owner='{owner}' -F repo='{repo}' -F n=<number> -f query='`,
 }
 
 // invocation returns the command line that starts at doc[at:], with the

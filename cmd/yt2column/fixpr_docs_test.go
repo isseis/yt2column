@@ -20,12 +20,11 @@ import (
 
 // Paths from cmd/yt2column to the command documents these tests check.
 const (
-	fixprPath    = "../../.claude/commands/fixpr.md"
-	runprPath    = "../../.claude/commands/runpr.md"
-	contextPath  = "../../.claude/commands/_context.md"
-	handoffPath  = "../../.claude/commands/_lib/task-pr-handoff.md"
-	runissuePath = "../../.claude/commands/runissue.md"
-	mkreqPath    = "../../.claude/commands/mkreq.md"
+	fixprPath   = "../../.claude/commands/fixpr.md"
+	runprPath   = "../../.claude/commands/runpr.md"
+	contextPath = "../../.claude/commands/_context.md"
+	handoffPath = "../../.claude/commands/_lib/task-pr-handoff.md"
+	mkreqPath   = "../../.claude/commands/mkreq.md"
 )
 
 // Section headings of fixpr.md and runpr.md the contract tests read.
@@ -1001,7 +1000,6 @@ func TestContextAndCommandsAgree(t *testing.T) {
 	for _, tc := range []struct{ name, path string }{
 		{"fixpr.md", fixprPath},
 		{"runpr.md", runprPath},
-		{"runissue.md", runissuePath},
 		{"mkreq.md", mkreqPath},
 		{"_lib/task-pr-handoff.md", handoffPath},
 	} {
