@@ -17,17 +17,20 @@
 ## 決定
 
 -   **生成の設定は `YT2COLUMN_LLM`、検証・推敲の設定は `YT2COLUMN_REVIEW_LLM` で指定する。** どちらも 1 つの値 `<プロバイダ>/<モデル ID>[+<effort>]` を持つ。CLI はこれらと下のプロバイダ固有の設定を環境変数から読み、サーバは同じ名前のキーを設定ファイルから読む（[ADR-0018](0018-server-config-file.md)）。値の規則は、空の値の扱いを含め、環境変数でも設定ファイルでも同じである。
--   **値を最初の `/` で区切る。** 前半はプロバイダで、`claude` か `deepseek` に完全に一致しなければならない。後半の全体がモデル ID で、その中の `/` も含めて変換せずに API へ送る。
+-   **値を最初の `/` で区切る。** 前半はプロバイダで、`claude`・`deepseek`・`openai` のいずれかに完全に一致しなければならない。後半の全体がモデル ID で、その中の `/` も含めて変換せずに API へ送る。OpenAI の追加とその設定の仕様は [0077 要件定義書](../../tasks/0077_openai_llm_client/01_requirements.md) F-001 に従う。
 -   **effort は後半の最初の `+` より後ろである。** `+` は後半に 1 つまでとし、2 つ以上は設定エラーにする。`+` より前のモデル ID が空の値も拒否する。`+` を含むモデル ID は指定できない。
 -   **受理する effort の値はプロバイダごとに決まっている。** Claude は `low`・`medium`・`high`・`xhigh`・`max` で、effort を省くと `high` を送る。DeepSeek は `none`・`low`・`high`・`max` で、effort を省くと `reasoning_effort` を送らず API の既定に任せる。
+-   **OpenAI は API 全体の effort の値を受理し、省略時は `medium` を明示して送る。** モデル ID を制限せず、省略時の振る舞いを固定するためである。値の一覧と拒否の条件は 0077 要件定義書 F-001 が持つ。モデルが対応しない組み合わせは API のエラーとして通知し、設定の読み込みではモデルごとの対応表を持たない。
 -   **値は補正しない。** effort の部分は前後の空白を取り除かず、大文字・小文字も変換せず、受理する値に完全一致しなければ設定エラーにする。不正な effort をモデル ID の一部とみなして受理することはない（`CLAUDE.md`「Reject, don't normalize」）。
 -   **空の値は未設定ではなく設定エラーにする。** 既定を使うのは未設定のときだけである。
 -   **未設定のときの既定と継承を決める。** `YT2COLUMN_LLM` が未設定なら、本番の構成（[ADR-0004](0004-production-profile.md)）を既定として使う。`YT2COLUMN_REVIEW_LLM` が未設定なら、検証・推敲は生成のプロバイダ・モデル・effort をそのまま受け継ぐ。設定して effort を省いた場合は、生成の effort を受け継がず、そのプロバイダの「effort を省いたとき」に従う。
--   **プロバイダ固有の設定は別の変数のままにする。** `ANTHROPIC_API_KEY`・`DEEPSEEK_API_KEY`・`ANTHROPIC_WORKSPACE_ID` は、その実行が使うプロバイダのものだけを読んで検査する。ほかのプロバイダの変数は、未設定・空・不正な値のいずれでも拒否しない。
+-   **プロバイダ固有の設定は別の変数のままにする。** `ANTHROPIC_API_KEY`・`DEEPSEEK_API_KEY`・`ANTHROPIC_WORKSPACE_ID`・`OPENAI_API_KEY` は、その実行が使うプロバイダのものだけを読んで検査する。ほかのプロバイダの変数は、未設定・空・不正な値のいずれでも拒否しない。OpenAI のキーも、CLI は環境変数から、サーバは同名の設定ファイルのキーから読む。読む場所を増やさず既存の規則に合わせるためである（[ADR-0018](0018-server-config-file.md)、0077 要件定義書 F-001）。
 -   **廃止した変数は読まない。** `YT2COLUMN_LLM_PROVIDER`・`YT2COLUMN_MODEL`・`YT2COLUMN_REVIEW_PROVIDER`・`YT2COLUMN_REVIEW_MODEL`・`YT2COLUMN_CLAUDE_EFFORT` は、CLI もサーバも読まず、環境にあっても拒否も警告もしない。読まない変数を検査するためだけのコードは持たない。設定ファイルに書かれていれば、ほかの未知のキーと同じく拒否する（[ADR-0018](0018-server-config-file.md)）。
 -   **拒否のメッセージは、変数の名前と固定の理由だけを示し、値を含めない。**
 
 この決定の仕様の正本は [project_overview.md](../project_overview.md) の設定の節である。値の解析と既定の当てはめは `internal/config` が行い、effort の値の一覧は `internal/llm/claudeparam` と `internal/llm/deepseekparam` が 1 か所ずつ持つ。環境変数を読む場所は [ADR-0024](0024-env-access-in-config.md) が定める。
+
+OpenAI の設定は要件定義の段階であり、コードと project_overview.md にはまだ反映していない。この差分は [#568](https://github.com/isseis/yt2column/issues/568) の実装で解消する。
 
 ## 採らなかった案
 
@@ -43,6 +46,7 @@
 -   **effort の部分が不正な値を、モデル ID の一部とみなして受理する。** 指定と異なる振る舞いを隠さないためである（[0051 要件定義書](../../tasks/0051_llm_effort/01_requirements.md) §1）。
 -   **DeepSeek で、`minimal`・`medium`・`xhigh`・`ultra` も effort として受理する。** API の側がこれらの値を別の値に読み替えるので、指定と異なる振る舞いになる（[0051 要件定義書](../../tasks/0051_llm_effort/01_requirements.md) §1）。
 -   **DeepSeek に effort を付けた値を設定エラーにする。** DeepSeek の API が `reasoning_effort` を受け付けるため、レビュアーの判断で、DeepSeek でも effort を指定できるようにした（[0051 要件定義書](../../tasks/0051_llm_effort/01_requirements.md) §1）。
+-   **OpenAI の effort を候補モデル共通の値だけに限る、または省略時に API の既定に任せる。** 他のモデルで有効な値も指定できるようにし、省略時の振る舞いを提供元に依存させないため、どちらも採らない（[0077 要件定義書](../../tasks/0077_openai_llm_client/01_requirements.md) §1）。
 
 ## 結果
 
@@ -62,3 +66,4 @@
 - 2026-10-29 値に `+<effort>` を含め、effort を工程ごとに指定できるようにした（[0051 要件定義書](../../tasks/0051_llm_effort/01_requirements.md)）
 - 2026-11-06 サーバは同じ名前のキーを設定ファイルから読むようにし、廃止した変数を CLI もサーバも拒否せずに無視するようにし、ファイルでは空の値をどのキーでも拒否するようにした（[0066 要件定義書](../../tasks/0066_server_config_file/01_requirements.md)）
 - 2026-11-06 設定ファイルでも空の値を環境変数と同じに扱い、使わないプロバイダのキーの空の値は拒否しないことにした（[0066 要件定義書](../../tasks/0066_server_config_file/01_requirements.md)）
+- 2026-11-10 OpenAI とその API キーを選択肢に加え、API 全体の effort の値を受理し、省略時は medium を送ることにした（[0077 要件定義書](../../tasks/0077_openai_llm_client/01_requirements.md)）

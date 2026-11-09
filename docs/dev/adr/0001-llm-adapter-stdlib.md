@@ -20,13 +20,15 @@
 
 ## 決定
 
--   **SDK を使わず、標準ライブラリで API を呼ぶ。** Claude は Anthropic Messages API を、DeepSeek は OpenAI 互換の Chat Completions API を、`net/http` と `encoding/json` で直接呼ぶ。現在のモジュールは、標準ライブラリの外のモジュールを 1 つも持たない。
+-   **SDK を使わず、標準ライブラリで API を呼ぶ。** Claude は Anthropic Messages API を、DeepSeek は OpenAI 互換の Chat Completions API を、OpenAI は Responses API を、`net/http` と `encoding/json` で直接呼ぶ。OpenAI の追加は [0077 要件定義書](../../tasks/0077_openai_llm_client/01_requirements.md) が定め、API 固有の方針は [ADR-0041](0041-openai-api.md) に従う。提供元ごとの詳細を閉じ込めるため、OpenAI の要求・応答の処理は DeepSeek と共通化しない。
 -   **プロバイダに依存しない型と番兵、その置き場所は [ADR-0019](0019-pipeline-component-interfaces.md) が定める。**
--   **HTTP の送信の経路は `internal/llm/llmhttp` に置き、両方のアダプタが使う。** 期限の適用、リダイレクトの禁止、応答本文の上限、失敗の分類をここで行う。`llmhttp` はプロバイダ固有の番兵を持たず、アダプタが渡した番兵で失敗を報告する。番兵の置き場所は [ADR-0019](0019-pipeline-component-interfaces.md) が定める。
+-   **HTTP の送信の経路は `internal/llm/llmhttp` に置き、Claude・DeepSeek・OpenAI のアダプタが使う。** 期限の適用、リダイレクトの禁止、応答本文の上限、失敗の分類をここで行う。`llmhttp` はプロバイダ固有の番兵を持たず、アダプタが渡した番兵で失敗を報告する。番兵の置き場所は [ADR-0019](0019-pipeline-component-interfaces.md) が定める。
 -   **プロバイダ固有のパラメータの型は、アダプタの外の小さなパッケージに置く。** Claude は `internal/llm/claudeparam`、DeepSeek は `internal/llm/deepseekparam` である。どちらも標準ライブラリだけに依存し、設定の読み込みとアダプタの両方が使う。
 -   **応答の厳格な検証の部品は [ADR-0020](0020-strict-json.md) が定める。**
 
 この決定の仕様の正本は [project_overview.md](../project_overview.md) の「決定済みの方針」と「パイプライン」、および [package_reference.md](../conventions/package_reference.md) のパッケージの表である。
+
+OpenAI の追加は要件定義の段階であり、コードと上記の仕様の正本にはまだ反映していない。この差分は [#568](https://github.com/isseis/yt2column/issues/568) の実装で解消する。
 
 ## 採らなかった案
 
@@ -39,7 +41,7 @@
 
 ## 結果
 
--   2 つのアダプタは 1 つの送信の経路を共有する。送信の振る舞い（リダイレクト、期限、本文の上限、失敗の分類）を変えると、両方のアダプタに同時に効く。
+-   これらのアダプタは 1 つの送信の経路を共有する。送信の振る舞い（リダイレクト、期限、本文の上限、失敗の分類）を変えると、各アダプタに同時に効く。
 -   モジュールは標準ライブラリの外のモジュールを持たない。プロバイダの API の形と、その API が返す値を検証するコードは、各アダプタが持つ。
 -   プロバイダを足すときは、アダプタのパッケージと、そのプロバイダのパラメータの型のパッケージを足す。`llmhttp` は変えない。プロバイダに依存しない型は [ADR-0019](0019-pipeline-component-interfaces.md) が定める。
 
@@ -48,3 +50,4 @@
 - 2026-10-02 DeepSeek アダプタを標準ライブラリで書き、プロバイダに依存しない型と番兵を `internal/llm` に置いた（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md)）
 - 2026-10-10 Claude アダプタを加えるとき、HTTP の送信の手順を `internal/llm/llmhttp` に切り出し、effort とワークスペース ID の型を `internal/llm/claudeparam` に置いた（[0009 設計書](../../tasks/0009_claude_llm_client/02_architecture.md)）
 - 2026-10-30 DeepSeek でも effort を工程ごとに指定できるようにしたとき、その型を `internal/llm/deepseekparam` に置いた（[0051 設計書](../../tasks/0051_llm_effort/02_architecture.md)）
+- 2026-11-10 OpenAI の Responses API 用のアダプタを標準ライブラリと共有の送信経路で追加し、DeepSeek の要求・応答の処理とは共通化しないことにした（[0077 要件定義書](../../tasks/0077_openai_llm_client/01_requirements.md)）
