@@ -220,7 +220,7 @@
 **判定理由**: ステップ 2-2・3-1 は、信頼しないデータ（エージェントが返した path）を確かめる信頼の境界の確認で、mkplan.md step 8 の panel mode の契機（security-gate）に当たる
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/766
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
