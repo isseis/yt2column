@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-09 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-09 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 実装の概要 (Implementation Overview)
@@ -422,3 +422,7 @@ AC-12・AC-13・AC-19・AC-20 は、手順の中の作業（issue を立てる�
 
 -   本書の承認の後、`/runplan 0073` でフェーズ 1 から実装する。
 -   最後の PR のマージの後、issue #729 を閉じる。
+
+## 変更履歴
+
+- 2026-11-09 承認（isseis、#758）
