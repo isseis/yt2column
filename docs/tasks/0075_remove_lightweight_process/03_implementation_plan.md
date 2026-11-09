@@ -265,13 +265,13 @@ N/A。実行時の振る舞いを変えない（設計書 7.5）。
 
 実装のブランチの基点：`dcc4edf34c99d8aecd47c81710420fb54b0a1b29`（`git merge-base origin/main HEAD`。このコミットに `.claude/commands/_lib/lightweight-check.sh` と `cmd/yt2column/lightweight_docs_test.go` があることを `git ls-tree` で確かめた）
 
-実行の記録（ステップ 4-3、2026-11-09。PR の head での実行）：
+実行の記録（ステップ 4-3、2026-11-09。PR の head での実行。フェーズ 4 のレビューで `_checks/main.go` を直した後に、ステップ 4-2 とともにやり直した）：
 
--   確認のスクリプト：確かめたコミット `a0341c6959984e96a0b1c04d69e90a57f1b248e3`、`main.go` の blob `5fbc819204233a3b49f284ee65e2cf2ac9653233`、`data.json` の blob `e771e8652b95430952c998ae71af38a58d630de4`。終了コード 0。出力は次のとおりである。
+-   確認のスクリプト：確かめたコミット `0ebb34510ba41b060da6771305a729d57ff9e435`、`main.go` の blob `c2dad5318e82b995908d169336e56359ff50cfd7`、`data.json` の blob `e771e8652b95430952c998ae71af38a58d630de4`。終了コード 0。出力は次のとおりである。
 
     ```text
-    commit a0341c6959984e96a0b1c04d69e90a57f1b248e3
-    main.go blob 5fbc819204233a3b49f284ee65e2cf2ac9653233
+    commit 0ebb34510ba41b060da6771305a729d57ff9e435
+    main.go blob c2dad5318e82b995908d169336e56359ff50cfd7
     data.json blob e771e8652b95430952c998ae71af38a58d630de4
     OK   deleted: none of the deleted files is in the commit
     OK   words: outside the task records and the ADRs, no line matches the word list beyond the exclusions, and each exclusion matches exactly once
