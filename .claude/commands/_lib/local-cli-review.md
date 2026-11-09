@@ -204,9 +204,13 @@ the tool (`make install-codexreview`, `go build`): the user installs it from
    - After fixing, run the build checks (`_context.md`) and commit, with the
      record lines of step 7 in the message. When a fix is an editorial
      correction to an approved task document (`docs/dev/conventions/requirements_process.md`,
-     "Editing an approved document"), its correction line (step 7) goes in
-     that fix commit's message too, and its mention check (step 7) runs
-     before the commit. When a fix changes `README.md`,
+     "Editing an approved document") or to an ADR
+     (`docs/dev/conventions/adr.md`, "Editorial corrections"), its correction
+     line (step 7) goes in that fix commit's message too, and its mention
+     check (step 7) runs before the commit. A revision of the PR's own text
+     (text the file does not have in `refs/remotes/origin/main`; an ADR the PR
+     created is not there at all) is not an editorial correction and gets no
+     correction line. This holds whether the PR exists yet or not. When a fix changes `README.md`,
      run the README sync check as `.claude/commands/mktrans.md`, "When a
      caller runs it", says before the commit, and include `README.en.md` in
      it.
@@ -231,7 +235,7 @@ the tool (`make install-codexreview`, `go build`): the user installs it from
    |---|---|---|
    | `CodeRabbit local review:` | a rejected finding and its reason, or a `deferred` or `unclear` finding | for each such CodeRabbit CLI finding |
    | `Codex local review:` | `Codex local review: <path>:<start>-<end> <handling>: <summary>`, where `<handling>` is `rejected (<reason>)`, `deferred`, or `unclear (<why>)`; for a finding with `in_range` false, `Codex local review: (not in range) rejected (not in range)` | for each such Codex CLI finding |
-   | `Editorial correction:` | the correction line `docs/dev/conventions/requirements_process.md`, "Recording in the PR description", gives | for each editorial correction a fix commit makes to an approved task document, in that fix commit's message (and in SUMMARY); it is not a record of the review, and "Reading the record lines" does not read it |
+   | `Editorial correction:` | the correction line `docs/dev/conventions/requirements_process.md`, "Recording in the PR description", gives | for each editorial correction a fix commit makes to an approved task document or to an ADR (step 5), in that fix commit's message (and in SUMMARY); it is not a record of the review, and "Reading the record lines" does not read it |
    | `Local CLI review: not run` | `Local CLI review: not run <START12>..<END12> (coderabbit: <kind>; codex: <kind>)`: the unreviewed range (BASE..HEAD1 or HEAD1..HEAD2, see Terms), with both SHAs cut to 12 characters, and the failure kinds of steps 2 and 3. For HEAD2..HEAD3, `Local CLI review: not run <START12>..<END12> (after the second attempt, reviewed by <coderabbit or codex>)`, with both SHAs cut to 12 characters: no failure kind is written, because the second attempt reviewed | for each unreviewed range; for HEAD2..HEAD3, in the next commit after HEAD3 (the fix commit cannot name its own SHA), or in SUMMARY when that commit is the caller's or when no commit follows before the procedure returns |
 
    - The `<path>` of a `Codex local review:` line is written only for a

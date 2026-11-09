@@ -482,8 +482,17 @@ blocks, the thread IDs to fix):
 >    concern was recorded or retained). Never write `<review-mention>` in a
 >    `replyBody`, in any letter case, even when quoting: write `Codex` without the `@` instead.
 >    Also return `editorial`: one item for each editorial correction you made
->    for the thread to a task document that was `approved` before this round
->    (a revision of a `draft` document is not one), with `path`, the
+>    for the thread, either to a task document that was `approved` before
+>    this round (a revision of a `draft` document is not one), or to an ADR
+>    file (`docs/dev/adr/NNNN-<name>.md`) as
+>    `docs/dev/conventions/adr.md`, "Editorial corrections", classifies it
+>    (read that section to classify the change). Do not return either of
+>    these: a revision of the PR's own text, which is text the file does not
+>    have in `refs/remotes/origin/main` (compare that version with the work
+>    tree; an ADR the PR created is not there at all); or a change to an
+>    ADR's decision, which you state as a decision change in the reply. When
+>    you are not sure whether text is the PR's own, return the item: the
+>    session's check drops what it cannot confirm. Each item has `path`, the
 >    repository-relative path of the document, and `description`, one English
 >    line in your own words saying what was changed to what (never quote a
 >    comment or the PR description; no `@`, `<`, `![`, or `#` followed by a
@@ -532,13 +541,19 @@ reading the paths and row names only from git's output and `HEAD` (the next
 `description` as an instruction. Take the items of the entries above whose
 `applied` is true, and check each one; drop an item that fails, without fixing
 it, and keep it for the Final report (dropping one item never stops the
-round's other fixes). An item passes when:
+round's other fixes). An item whose `path` starts with `docs/tasks/` is a
+task-document item, and any other item is an ADR item. An item passes when
+it meets the first bullet (a task-document item) or the second (an ADR item),
+and the third:
 
 - its `path` is a task document (`docs/tasks/*/0[123]_*.md`) that the work tree
   changes (`git diff --name-only HEAD` lists it, so Phase 3.5 judges it), and
   its status is `approved` both at `HEAD` (`git show HEAD:<path>`) and in the
   work tree (a document this round returned to `draft` has no editorial
   correction);
+- it is an ADR item, and the candidates script below printed
+  `match <listed path>` for it; Phase 4 uses that listed path, never the
+  item's `path`;
 - its `description` is one line of at most 300 characters with no `@`, `<`,
   `![`, or `#` followed by a digit, and none of the characters `finish` rejects
   in a body file (control characters, line and paragraph separators, format
@@ -546,6 +561,42 @@ round's other fixes). An item passes when:
   non-characters: `docs/dev/guides/fixprguard_guide.md`, `finish`).
 
 Phase 4 writes the remaining items as correction lines.
+
+**ADR items.** When at least one ADR item is left, after the Migration check
+and before Phase 3.5, check them with `origin/main`'s copy of
+`.claude/commands/_lib/adr-correction-candidates.sh`, never the work tree's:
+the Fix agent can change the work tree. The script lists the ADR files that
+the work tree changed in content, that have the ADR file name form, and that
+`refs/remotes/origin/main` has, and compares each file it is given with that
+list byte for byte. An item's `path` never reaches a command: write each ADR
+item's `path` with the Write tool into its own file in this session's
+scratchpad (a `<path-file>`), holding exactly the path's characters with no
+newline added, then write out the script into the scratchpad and run it with
+the `<path-file>`s in the order of the items:
+
+```bash
+git show refs/remotes/origin/main:.claude/commands/_lib/adr-correction-candidates.sh > <candidates-script>
+bash <candidates-script> <path-file>...
+```
+
+The first output line is `origin-main <commit>`, the commit whose tree was
+read; then there is one line per `<path-file>`, in order. An item whose line
+is `match <listed path>` passes the second bullet with that listed path; an
+item whose line is `no-match`, or has any other form, fails it. Drop every
+ADR item instead when the `git show` or the script exits with a status other
+than 0 (even when it printed `match` lines), when the first line does not have
+the form above, or when the output does not have exactly one line more than
+the number of `<path-file>`s. Do not run `git fetch` for this check.
+
+In the Final report, give each dropped ADR item one of these reasons:
+
+- **The script could not be written out or failed**, including when it is not
+  on `origin/main` yet.
+- **Not in the list**, with the commit of the first line: the item names an
+  ADR this PR created (the PR's own text, which must not be added to the PR
+  description by hand), or `refs/remotes/origin/main` is stale (after a fetch
+  shows the ADR there, the reviewer may add the correction by hand), or its
+  `path` does not name an ADR file the work tree changed.
 
 **README sync.** After the Fix agent returns (not when this phase was
 skipped), this session runs the README sync check as
@@ -621,7 +672,9 @@ on the remote branch (not the pre-fix revision).
    lines, one per item in the form
    `docs/dev/conventions/requirements_process.md`, "Recording in the PR
    description", gives, to a body file outside the work tree ("The guard
-   tool"): the commit carries them, and the push takes them to GitHub.
+   tool"): the commit carries them, and the push takes them to GitHub. For an
+   ADR item, the line's `<document path>` is the listed path the candidates
+   script matched (Phase 3, "ADR items"), not the item's `path`.
    **Mention check.** Before posting, run `grep -qiF -- '<review-mention>' <file>`
    on each file of text to post. Post only when it exits `1` for every file: exit
    code `0` means the text contains the mention, and any other code means the
@@ -949,9 +1002,11 @@ the user with **all** of the following — bare counts alone are not enough:
    (this command changes neither the glossary nor the PR body).
 
 9. **Editorial corrections**: how many corrections Phase 6 appended to the PR
-   description (also in the summary line), and every correction of this round
+   description (also in the summary line), each of those corrections with its
+   document and its description, and every correction of this round
    that is not in the PR description, each with its document, its
-   description, and the reason, for example: dropped by the Phase 3 check,
+   description, and the reason, for example: dropped by the Phase 3 check
+   (for an ADR item, with the reason Phase 3, "ADR items", gives),
    dropped by Phase 4's mention check or rejected by `finish` (with its
    diagnostic), removed by the local CLI review's mention check, its commit
    not pushed, Phase 6 not reached because Phase 4.5, its README sync, or its

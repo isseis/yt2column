@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/isseis/yt2column/internal/doctestutil"
 )
 
 // adrCandidatesPath is the work tree's copy of the candidates script. The
@@ -539,5 +541,55 @@ func checkACIgnoresGitConfig(t *testing.T, bash scriptBash, scope string, s acCo
 	}
 	if got := f.run(bash, nil, opts); got != want {
 		t.Errorf("with %s set the script printed %v, without it %v", s.name, got, want)
+	}
+}
+
+// The code block lines a command document may write the candidates script
+// in: the write-out of origin/main's copy to <candidates-script>, named by
+// its full reference so a local branch named origin/main cannot stand in,
+// and the run of that copy on the <path-file>s.
+const (
+	adrCandidatesShow = "git show refs/remotes/origin/main:.claude/commands/_lib/adr-correction-candidates.sh > <candidates-script>"
+	adrCandidatesRun  = "bash <candidates-script> <path-file>..."
+)
+
+// adrCandidatesNames are the code spans that only name the candidates script
+// or its placeholders.
+var adrCandidatesNames = []string{
+	".claude/commands/_lib/adr-correction-candidates.sh", "_lib/adr-correction-candidates.sh",
+	"<candidates-script>", "<path-file>",
+}
+
+// TestADRCorrectionCandidatesCallSite checks that the command documents run
+// the candidates script only as origin/main's copy and pass it only the
+// <path-file>s: every code block line that names the script or a placeholder
+// is the write-out or the run, and every code span that names them is the
+// name alone. Running the work tree's copy would let the Fix agent change
+// the check, and a path written into the run line would put the agent's
+// value on a command line. fixpr.md's Phase 3 writes out and runs it, so a
+// renamed form does not pass by matching nothing.
+func TestADRCorrectionCandidatesCallSite(t *testing.T) {
+	for _, rel := range doctestutil.CommandDocs(t, repositoryRoot) {
+		blockLines, spans := codeTexts(doctestutil.ReadDoc(t, filepath.Join(repositoryRoot, rel)))
+		for i, code := range slices.Concat(blockLines, spans) {
+			if !strings.Contains(code, "adr-correction-candidates") &&
+				!strings.Contains(code, "<candidates-script>") && !strings.Contains(code, "<path-file>") {
+				continue
+			}
+			inBlock := i < len(blockLines)
+			switch {
+			case inBlock && (code == adrCandidatesShow || code == adrCandidatesRun):
+			case !inBlock && slices.Contains(adrCandidatesNames, code):
+			default:
+				t.Errorf("%s has %q, which neither names the candidates script nor writes out or runs origin/main's copy", rel, code)
+			}
+		}
+	}
+	phase3 := requireSection(t, "fixpr.md", doctestutil.ReadDoc(t, fixprPath), fixprPhase3)
+	blockLines, _ := codeTexts(phase3)
+	for _, want := range []string{adrCandidatesShow, adrCandidatesRun} {
+		if !slices.Contains(blockLines, want) {
+			t.Errorf("fixpr.md's Phase 3 has no code block line %q", want)
+		}
 	}
 }

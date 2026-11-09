@@ -147,7 +147,7 @@
 
 **変更するファイル:** `.claude/commands/fixpr.md`、`cmd/yt2column/adr_candidates_docs_test.go`、`.claude/commands/_lib/local-cli-review.md`、`.claude/commands/runplan.md`、`internal/fixprguard/write.go`
 
--   [ ] **ステップ 3-1**: `fixpr.md` を設計書 3.2 のとおり改める。
+-   [x] **ステップ 3-1**: `fixpr.md` を設計書 3.2 のとおり改める。
     -   Phase 3 の `editorial` を求める文（`:484-490`）に、ADR の訂正と、含めない変更（PR 自身の文の直し、ADR の決定の変更）を足す（3.2.1）。
     -   「Correction list」の通る条件を、タスク文書の項目と ADR の項目に分ける（3.2.2）。
     -   「Correction list」の中に、候補のスクリプトを実行する手順を足す。実行は、ADR の項目が 1 つ以上あるとき、「Migration check」の後、Phase 3.5 の前に行う。コードブロックは、`refs/remotes/origin/main` の版をスクラッチパッドのファイル `<candidates-script>` に書き出す行と、それを `bash` で実行して `<path-file>` を渡す行の 2 行である。プレースホルダは、`TestLightweightCheckCallSite` が拒む `<check-script>` と別の名前にする。`path` を `<path-file>` に書く方法（項目ごとに 1 ファイル、そのままの内容で、改行を足さない）と、本計画 §1.3 の出力の読み方（すべてを落とす 3 つのときを含む）を文で述べる。
@@ -155,7 +155,7 @@
     -   Phase 4 の 1 の文に、ADR の項目の訂正の行の `<document path>` には一致した一覧の値を書く、と足す（3.2.3）。
     -   Final report の 9 項目めに、Phase 6 が追記した訂正を、その文書と説明とともに 1 つずつ挙げる、と足す（3.2.4）。
     -   Phase 6 の手順の文は変えない。
--   [ ] **ステップ 3-2**: `adr_candidates_docs_test.go` に `TestADRCorrectionCandidatesCallSite` を足す。対象は `doctestutil.CommandDocs` の各文書である。次の 3 つを確かめる。
+-   [x] **ステップ 3-2**: `adr_candidates_docs_test.go` に `TestADRCorrectionCandidatesCallSite` を足す。対象は `doctestutil.CommandDocs` の各文書である。次の 3 つを確かめる。
     -   スクリプトの名前か、`<candidates-script>`・`<path-file>` のどれかを含むコードブロックの行が、ステップ 3-1 の取り出しの行か実行の行のどちらかと等しい。
     -   それらを含むコードスパンが、名前かプレースホルダだけである。
     -   `fixpr.md` の Phase 3 の節（`doctestutil.SectionByHeading`）に、取り出しの行と実行の行がそれぞれ 1 回以上ある。
@@ -166,9 +166,9 @@
     -   実行の行の `<path-file>` を `path` の値に置き換えたもの。
     -   正しい実行の行を残したまま、違う 2 つ目の実行の行を足したもの。
     -   取り出しの行か実行の行をなくしたもの。
--   [ ] **ステップ 3-3**: `local-cli-review.md` の step 5（`:205-209`）と step 7 の表の `Editorial correction:` の行（`:234`）を、設計書 3.4 のとおり ADR の訂正に広げる。PR 自身の文の直しには訂正の行を書かない、と足す。メンションの確かめ（`:243-254`）と失敗の種類の表は変えない。
--   [ ] **ステップ 3-4**: `runplan.md:63` の箇条の後に、設計書 3.5 の ADR の訂正の箇条を足す。
--   [ ] **ステップ 3-5**: `write.go:97-98` のコメントを、設計書 3.7 のとおり直す。変更前は「`// editorialCorrectionPrefix starts every line of a finish commit body: the`」と「`// line that records an editorial correction to an approved task document.`」の 2 行である。変更後は「`// editorialCorrectionPrefix starts every line of a finish commit body: the`」と「`// line that records an editorial correction to a task document or an ADR.`」の 2 行にする。コードの行と `checkCommitBody` のコメントは変えない。
+-   [x] **ステップ 3-3**: `local-cli-review.md` の step 5（`:205-209`）と step 7 の表の `Editorial correction:` の行（`:234`）を、設計書 3.4 のとおり ADR の訂正に広げる。PR 自身の文の直しには訂正の行を書かない、と足す。メンションの確かめ（`:243-254`）と失敗の種類の表は変えない。
+-   [x] **ステップ 3-4**: `runplan.md:63` の箇条の後に、設計書 3.5 の ADR の訂正の箇条を足す。
+-   [x] **ステップ 3-5**: `write.go:97-98` のコメントを、設計書 3.7 のとおり直す。変更前は「`// editorialCorrectionPrefix starts every line of a finish commit body: the`」と「`// line that records an editorial correction to an approved task document.`」の 2 行である。変更後は「`// editorialCorrectionPrefix starts every line of a finish commit body: the`」と「`// line that records an editorial correction to a task document or an ADR.`」の 2 行にする。コードの行と `checkCommitBody` のコメントは変えない。
 
 **完了の条件:** `make fmt`・`make test`・`make lint` が通る（`cmd/codexreview/docs_test.go` と、設計書 3.8 の既存のテストを含む）。
 
