@@ -129,6 +129,10 @@ func ServerFilePathForTest(home string) string {
 	return loc.path
 }
 
+// ServerFileMaxSizeForTest returns the largest configuration file accepted,
+// in bytes.
+func ServerFileMaxSizeForTest() int { return serverFileMaxSize }
+
 // WriteServerFileForTest writes data to the configuration file under home,
 // replacing a file already there, and returns its path. The modes are set
 // with chmod, so they do not depend on the umask: 0700 for the file's
