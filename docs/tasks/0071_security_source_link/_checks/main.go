@@ -355,6 +355,9 @@ func checkItem(base, head string, d data) ([]violation, error) {
 	if err != nil {
 		return nil, err
 	}
+	if headItem.text() == baseItem.text() {
+		return []violation{{"source-link-item", d.Security.Path, headItem.line(), "the source-link item did not change"}}, nil
+	}
 	if maskItem(baseItem) == maskItem(headItem) {
 		return nil, nil
 	}
@@ -377,10 +380,14 @@ func checkADRItem(base, head string, d data) ([]violation, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%s at %s: %w", d.ADR.Path, base, err)
 	}
+	var out []violation
 	if headItem.text() != want {
-		return []violation{{"adr-item", d.ADR.Path, headItem.line(), fmt.Sprintf("the last item is %q, want %q", headItem.text(), want)}}, nil
+		out = append(out, violation{"adr-item", d.ADR.Path, headItem.line(), fmt.Sprintf("the last item is %q, want %q", headItem.text(), want)})
 	}
-	return nil, nil
+	if maskItem(baseItem) != maskItem(headItem) {
+		out = append(out, violation{"adr-item", d.ADR.Path, 1, "a part of the ADR outside the last item changed"})
+	}
+	return out, nil
 }
 
 // cutAtSentence returns s up to and including the end of its n-th sentence.
@@ -420,7 +427,23 @@ func checkADRScope(base, head string, d data) ([]violation, error) {
 		return nil, err
 	}
 	var out []violation
+	for _, path := range linked {
+		if _, ok := changed[path]; !ok {
+			out = append(out, violation{"adr-scope", path, 1, "the ADR links the issue at the base commit but did not change"})
+		}
+	}
+	remaining, err := adrPathsLinking(head, d)
+	if err != nil {
+		return nil, err
+	}
+	for _, path := range remaining {
+		out = append(out, violation{"adr-scope", path, 1, "the ADR still links the issue at the head commit"})
+	}
 	for _, path := range changedADRs {
+		if path == d.ADR.Dir+adrIndexName {
+			out = append(out, violation{"adr-scope", path, 1, "the ADR index changed"})
+			continue
+		}
 		if status := changed[path]; status != 'M' {
 			out = append(out, violation{"adr-scope", path, 1, fmt.Sprintf("the file status is %c, want a modification", status)})
 			continue
@@ -510,7 +533,7 @@ func checkCorrections(base, head string, d data) ([]violation, error) {
 	}
 	var changedADRs []string
 	for path := range changed {
-		if strings.HasPrefix(path, d.ADR.Dir) {
+		if strings.HasPrefix(path, d.ADR.Dir) && path != d.ADR.Dir+adrIndexName {
 			changedADRs = append(changedADRs, path)
 		}
 	}
@@ -526,7 +549,7 @@ func checkCorrections(base, head string, d data) ([]violation, error) {
 	for _, path := range changedADRs {
 		found := false
 		for _, commit := range commits {
-			message, err := git("log", "-1", "--format=%B", commit)
+			message, err := git("log", "-1", "--no-show-signature", "--format=%B", commit)
 			if err != nil {
 				return nil, err
 			}
@@ -546,6 +569,7 @@ func checkCorrections(base, head string, d data) ([]violation, error) {
 const (
 	correctionPrefix = "Editorial correction: "
 	correctionSuffix = "; no decision changed"
+	adrIndexName     = "README.md"
 )
 
 // isCorrectionLine reports whether line is an editorial correction line for
@@ -595,74 +619,54 @@ type fileChange struct {
 	added   []string
 }
 
-// ownADRChanges returns the ADR changes the branch itself makes at commit: the
-// changes of the non-merge commits on the first-parent chain from the commit
-// back to the first commit that is an ancestor of origin/main. A merge commit
-// is skipped, so the ADR changes a take-in of main brings are not compared.
+// ownADRChanges returns the ADR change the branch itself makes at commit: the
+// diff from the main side the commit last took in, limited to the ADR
+// directory. The base is the second parent of the most recent merge on the
+// commit's first-parent chain, so a merge resolution counts as the branch's
+// change while the ADR changes main brought in do not. Without a merge, the
+// base is the first ancestor of origin/main, the fork point.
 func ownADRChanges(commit string, d data) (map[string]fileChange, error) {
-	chain, err := firstParentChain(commit)
+	base, err := ownBase(commit)
 	if err != nil {
 		return nil, err
 	}
-	changes := map[string]fileChange{}
-	for _, one := range chain {
-		parents, err := gitLines("rev-list", "--parents", "-n", "1", one)
-		if err != nil {
-			return nil, err
-		}
-		if len(parents) != 1 {
-			return nil, fmt.Errorf("git rev-list --parents -n 1 %s returned %d lines, want 1", one, len(parents))
-		}
-		if fields := strings.Fields(parents[0]); len(fields) > 2 {
-			continue
-		}
-		out, err := git("diff", "--no-renames", "--no-ext-diff", "--no-color", "-U0", one+"^", one, "--", d.ADR.Dir)
-		if err != nil {
-			return nil, err
-		}
-		parsed, err := parseUnified(out)
-		if err != nil {
-			return nil, err
-		}
-		for path, change := range parsed {
-			acc := changes[path]
-			acc.removed = append(acc.removed, change.removed...)
-			acc.added = append(acc.added, change.added...)
-			changes[path] = acc
-		}
+	out, err := git("diff", "--no-renames", "--no-ext-diff", "--no-color", "-U0",
+		"--src-prefix=a/", "--dst-prefix=b/", base, commit, "--", d.ADR.Dir)
+	if err != nil {
+		return nil, err
 	}
-	return changes, nil
+	return parseUnified(out)
 }
 
-// firstParentChain returns the commits from the first ancestor of origin/main
-// (excluded) to commit (included), following first parents.
-func firstParentChain(commit string) ([]string, error) {
-	var chain []string
+// ownBase returns the commit ownADRChanges diffs against: the second parent of
+// the most recent merge on commit's first-parent chain, or the fork point with
+// origin/main when the branch took main in no later than commit.
+func ownBase(commit string) (string, error) {
 	cur := commit
 	for {
 		ok, err := isAncestor(cur, "origin/main")
 		if err != nil {
-			return nil, err
+			return "", err
 		}
 		if ok {
-			break
+			return cur, nil
 		}
-		chain = append(chain, cur)
 		out, err := gitLines("rev-list", "--parents", "-n", "1", cur)
 		if err != nil {
-			return nil, err
+			return "", err
 		}
 		if len(out) != 1 {
-			return nil, fmt.Errorf("git rev-list --parents -n 1 %s returned %d lines, want 1", cur, len(out))
+			return "", fmt.Errorf("git rev-list --parents -n 1 %s returned %d lines, want 1", cur, len(out))
 		}
 		fields := strings.Fields(out[0])
+		if len(fields) > 2 {
+			return fields[2], nil
+		}
 		if len(fields) < 2 {
-			break
+			return "", fmt.Errorf("commit %s has no parent to compare with", cur)
 		}
 		cur = fields[1]
 	}
-	slices.Reverse(chain)
-	return chain, nil
 }
 
 // parseUnified collects the removed and added line contents of a unified diff
@@ -732,17 +736,23 @@ func describeChanges(changes map[string]fileChange) string {
 	return strings.Join(parts, ", ")
 }
 
-// checkMergeCommit verifies that the earlier PR's merge commit is an ancestor
-// of the head commit.
+// checkMergeCommit verifies that the earlier PR's merge commit is on
+// origin/main and is an ancestor of the head commit.
 func checkMergeCommit(head string, d data) ([]violation, error) {
-	ok, err := isAncestor(d.MergeCommit, head)
-	if err != nil {
-		return nil, err
+	var out []violation
+	for _, desc := range []struct{ ref, what string }{
+		{"origin/main", "origin/main"},
+		{head, "the head commit"},
+	} {
+		ok, err := isAncestor(d.MergeCommit, desc.ref)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			out = append(out, violation{"merge-order", d.MergeCommit, 1, "the merge commit is not an ancestor of " + desc.what})
+		}
 	}
-	if !ok {
-		return []violation{{"merge-order", d.MergeCommit, 1, "the merge commit is not an ancestor of the head commit"}}, nil
-	}
-	return nil, nil
+	return out, nil
 }
 
 // checkScope verifies that every file the range changed is the security guide,
@@ -855,11 +865,16 @@ func gitNoMatch(args ...string) (string, error) {
 	return "", fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
 }
 
-// gitLines runs git and splits its output into lines.
+// gitLines runs git and splits its output into lines, with none when git
+// printed nothing.
 func gitLines(args ...string) ([]string, error) {
 	out, err := git(args...)
 	if err != nil {
 		return nil, err
 	}
-	return strings.Split(strings.TrimSuffix(out, "\n"), "\n"), nil
+	out = strings.TrimSuffix(out, "\n")
+	if out == "" {
+		return nil, nil
+	}
+	return strings.Split(out, "\n"), nil
 }
