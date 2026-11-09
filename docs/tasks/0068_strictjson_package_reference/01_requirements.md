@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-08 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 決定の変更で draft に戻した：ADR-0020 の #713 の文の削除と「結果」の追記を、タスク 0065 ではなく本タスクの実装 PR で行う |
+| Review date | 2026-11-09 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 概要 (Overview)
 
@@ -156,3 +156,4 @@ ADR-0020 の「決定」から、一覧が直ったことで古くなる文を�
 
 - 2026-11-08 承認（isseis、#717）
 - 2026-11-09 draft への戻し：ADR-0020 の #713 の文の削除と「結果」の追記を本タスクで行う（#721）
+- 2026-11-09 承認（isseis、#721）
