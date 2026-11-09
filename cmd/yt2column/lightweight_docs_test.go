@@ -324,26 +324,6 @@ func TestRevertTemplateMarker(t *testing.T) {
 	checkTemplateMarker(t, "runissue.md", runissuePath, doctestutil.RunissueRevertCommentHeading, revertMarkerRow)
 }
 
-// codeTexts returns the code of doc: the lines inside fenced code blocks,
-// fences left out, and the contents of the code spans outside the blocks.
-func codeTexts(doc string) (blockLines, spans []string) {
-	var prose strings.Builder
-	for _, line := range doctestutil.ScanDocLines(slices.Collect(strings.Lines(doc))) {
-		switch {
-		case line.Fence:
-		case line.Block:
-			blockLines = append(blockLines, strings.TrimSpace(line.Text))
-		default:
-			prose.WriteString(line.Text)
-			prose.WriteString("\n")
-		}
-	}
-	for _, m := range codeSpanRE.FindAllStringSubmatch(prose.String(), -1) {
-		spans = append(spans, strings.TrimSpace(m[1]))
-	}
-	return blockLines, spans
-}
-
 // The code block lines a command document may write the recheck script in:
 // the write-out of origin/main's copy to <check-script> and the run of that
 // copy.
@@ -532,34 +512,6 @@ const (
 	lwTool      = "lwtool"
 	lwOtherTool = "othertool"
 )
-
-// lwBash is a bash the recheck script runs with.
-type lwBash struct {
-	name, path string
-}
-
-// lightweightBashes returns the bash on PATH and, when /bin/bash is a
-// different bash 3.x (macOS), that one too, since /runissue runs the script
-// with whichever bash the user's PATH gives. It fails t when bash is missing.
-func lightweightBashes(t *testing.T) []lwBash {
-	t.Helper()
-	onPath, err := exec.LookPath("bash")
-	if err != nil {
-		t.Fatalf("bash is not on PATH: %v", err)
-	}
-	bashes := []lwBash{{"path-bash", onPath}}
-	const system = "/bin/bash"
-	out, err := exec.Command(system, "-c", "printf %s \"$BASH_VERSION\"").Output()
-	if err != nil || !strings.HasPrefix(string(out), "3.") {
-		return bashes
-	}
-	resolvedPath, errPath := filepath.EvalSymlinks(onPath)
-	resolvedSystem, errSystem := filepath.EvalSymlinks(system)
-	if errPath == nil && errSystem == nil && resolvedPath == resolvedSystem {
-		return bashes
-	}
-	return append(bashes, lwBash{"bin-bash-3", system})
-}
 
 // lwFixture is one fixture repository: main holds the real recheck script and
 // a conditions table, refs/remotes/origin/main points at it, and the
@@ -926,7 +878,7 @@ type lwRunOptions struct {
 // outside the repository, as /runissue does, runs the script with bash, and
 // checks that the run printed only prefixed lines, that its exit status
 // matches its verdict, and that it left TMPDIR empty and no worktree behind.
-func (f *lwFixture) check(bash lwBash, spec string, opts lwRunOptions) lwRun {
+func (f *lwFixture) check(bash scriptBash, spec string, opts lwRunOptions) lwRun {
 	f.t.Helper()
 	script := filepath.Join(f.outside, "lightweight-check.sh")
 	specFile := filepath.Join(f.outside, "spec.md")
@@ -1004,7 +956,7 @@ type lwCase struct {
 	branch func(f *lwFixture)
 	want   string
 	lines  func(f *lwFixture) []string
-	after  func(f *lwFixture, bash lwBash, spec string, first lwRun)
+	after  func(f *lwFixture, bash scriptBash, spec string, first lwRun)
 }
 
 // counts is the counts line for the given numbers and the type's limits.
@@ -1228,14 +1180,14 @@ func lightweightCheckCases() []lwCase {
 			f.commit("refactor: hand")
 		}, want: "PASS", lines: func(f *lwFixture) []string {
 			return []string{f.counts("M", f.limit("M added"), 0, 1)}
-		}, after: func(f *lwFixture, _ lwBash, _ string, first lwRun) {
+		}, after: func(f *lwFixture, _ scriptBash, _ string, first lwRun) {
 			if got, want := first.field("tool"), f.rev("HEAD~1"); got != want {
 				f.t.Errorf("tool=%s, want the tool commit %s", got, want)
 			}
 		}},
 		{name: "the record amended into the last tool commit", typ: "M", table: tools, branch: func(f *lwFixture) {
 			f.toolCommit(lwTool + " -w gen/f01.txt")
-		}, want: "PASS", after: func(f *lwFixture, bash lwBash, spec string, first lwRun) {
+		}, want: "PASS", after: func(f *lwFixture, bash scriptBash, spec string, first lwRun) {
 			record := lwToolMessage(lwTool+" -w gen/f01.txt") + "\nLightweight process: #1, type M\n" +
 				lwCheckPrefix + strings.Join(first.lines, "\n"+lwCheckPrefix) + "\n"
 			f.gitStdin(f.repo, record, "commit", "-q", "--amend", "-F", "-")
@@ -1257,7 +1209,7 @@ func lightweightCheckCases() []lwCase {
 			f.commit("refactor: hand")
 		}, want: "PASS", lines: func(f *lwFixture) []string {
 			return []string{f.counts("M", 1, 0, 1)}
-		}, after: func(f *lwFixture, _ lwBash, _ string, first lwRun) {
+		}, after: func(f *lwFixture, _ scriptBash, _ string, first lwRun) {
 			if got, want := first.field("tool"), f.rev("HEAD~1"); got != want {
 				f.t.Errorf("tool=%s, want the second tool commit %s", got, want)
 			}
@@ -1402,12 +1354,12 @@ func lwSpecCase(name, detail string, edit func(string) string) lwCase {
 // fixture repositories: each case's last line and exit status, the counts and
 // the values behind a FAIL, and that every run leaves no temporary file or
 // worktree, and that the user's git configuration changes nothing. Every case
-// runs with each bash lightweightBashes returns.
+// runs with each bash scriptBashes returns.
 func TestLightweightCheck(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Fatalf("git is not on PATH: %v", err)
 	}
-	for _, bash := range lightweightBashes(t) {
+	for _, bash := range scriptBashes(t) {
 		t.Run(bash.name, func(t *testing.T) {
 			t.Parallel()
 			for _, c := range lightweightCheckCases() {
@@ -1713,7 +1665,7 @@ func (f *lwFixture) signHead() {
 // plain git prints for the scenario's branch, after checking that it does
 // change that output. The script's output must be the same as without the
 // setting.
-func checkIgnoresGitConfig(t *testing.T, bash lwBash) {
+func checkIgnoresGitConfig(t *testing.T, bash scriptBash) {
 	for _, scope := range []string{"repository", "global"} {
 		for _, s := range lwConfigScenarios() {
 			t.Run("git config/"+scope+"/"+s.name, func(t *testing.T) {
