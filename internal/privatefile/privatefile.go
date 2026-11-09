@@ -117,17 +117,17 @@ type UnsafeError struct {
 
 func (e *UnsafeError) Error() string {
 	if e.Reason == ReasonMode {
-		return fmt.Sprintf("%v: %s has mode %04o, not exactly %04o", ErrUnsafe, e.Path, unixMode(e.Mode), unixMode(Mode))
+		return fmt.Sprintf("%v: %s has mode %04o, not exactly %04o", ErrUnsafe, e.Path, UnixMode(e.Mode), UnixMode(Mode))
 	}
 	return fmt.Sprintf("%v: %s %s", ErrUnsafe, e.Path, e.Reason)
 }
 
 func (e *UnsafeError) Unwrap() error { return ErrUnsafe }
 
-// unixMode returns m's permission and special bits in the numeric form chmod
+// UnixMode returns m's permission and special bits in the numeric form chmod
 // takes (setuid 04000, setgid 02000, sticky 01000), which fs.FileMode does
-// not use.
-func unixMode(m fs.FileMode) uint32 {
+// not use, so a caller can show UnsafeError.Mode as chmod writes it.
+func UnixMode(m fs.FileMode) uint32 {
 	n := uint32(m.Perm())
 	if m&fs.ModeSetuid != 0 {
 		n |= syscall.S_ISUID
@@ -278,6 +278,21 @@ func Read(path string, limit int) ([]byte, error) {
 	return content, nil
 }
 
+// LeftoverError reports a failure of Create after which the temporary file
+// could not be removed either, so the caller can name the leftover whatever
+// the failure was. It wraps the failure, so errors.Is still classifies it.
+type LeftoverError struct {
+	Err       error
+	Temp      string
+	RemoveErr error
+}
+
+func (e *LeftoverError) Error() string {
+	return fmt.Sprintf("%v; the temporary file %s could not be removed: %v", e.Err, e.Temp, e.RemoveErr)
+}
+
+func (e *LeftoverError) Unwrap() error { return e.Err }
+
 // tempPrefix is the start of the temporary name Create writes next to path:
 // a dot, path's base name, and ".tmp-", so a leftover is hidden and the user
 // can still find it by the file's own name.
@@ -316,7 +331,7 @@ func Create(path string, content []byte) (leftoverTemp string, err error) {
 	err = place(file, path, content)
 	if removeErr := removeTemp(temp); removeErr != nil {
 		if err != nil {
-			return "", fmt.Errorf("%w; the temporary file %s could not be removed: %v", err, temp, removeErr)
+			return "", &LeftoverError{Err: err, Temp: temp, RemoveErr: removeErr}
 		}
 		return temp, nil
 	}

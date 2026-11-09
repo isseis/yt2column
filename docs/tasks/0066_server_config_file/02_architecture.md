@@ -379,7 +379,7 @@ func parseServerFile(path string, data []byte) (serverFile, []error)
 -   6 つのキーの名前は、今の定数（`internal/config/config.go:32-38`）をそのまま使い、`serverFileKeys` の 1 か所で並べる。書式の解析、雛形の検査、文書のガードテスト（テスト用のアクセサ経由）はこれを使う（要件 4.5）。
 -   **最初に、ファイル全体が UTF-8 として正しいことを `utf8.Valid` で確かめる。** 正しくなければ、ファイル全体の拒否 1 つだけを返し（行番号を示さない。AC-13）、行の検査はしない。
 -   **次に、各行のバイトを検査する。** LF 以外の制御文字（U+0000 から U+001F）・DEL（U+007F）・U+FEFF を含む行は拒否する。CR もこの検査で拒否される。コメントの行もこの検査を受ける。
--   **行は `bytes.Split` で LF ごとに分ける。** `bufio.Scanner` は使わない。`ScanLines` は行末の CR を黙って取り除き、既定のトークンの上限で長い行を `bufio.ErrTooLong` にするためである（H-09）。最後の要素が空なら（ファイルが LF で終わるなら）、それは行として数えない。
+-   **行は `bytes.Split` で LF ごとに分ける。** `bufio.Scanner` は使わない。`ScanLines` は行末の CR を黙って取り除き、既定のトークンの上限で長い行を `bufio.ErrTooLong` にするためである（H-09）。最後の要素が空なら（ファイルが LF で終わるなら）、それは空行として読まれ、何も変えない。
 -   各行は、要件 F-003 の受理する形だけを受け付ける。0 バイトなら空行、最初のバイトが `#` ならコメントの行で、それ以外は設定の行として最初の `=` で分ける。キーは `serverFileKeys` との完全な一致で決める（`HasPrefix` などで推し量らない。要件 5 章）。
 -   拒否の固定の理由は、1 行につき 1 つだけ、次の順で最初に当たるものを選ぶ: 禁じたバイトを含む、空白で始まる（空白だけの行を含む）、`=` がない、キーが 6 つのどれでもない（キーの前後の空白を含む）、値の先頭か末尾が空白、値が `"` か `'` で始まる、値に「空白に続く `#`」がある、キーが重複している。キーが 6 つのどれでもないとき、ファイルから読んだキーの文字列は示さない（要件 3.1「値を出さない」）。
 -   **重複:** キーの部分が 6 つのどれかに完全に一致する行は、その行がほかの理由で拒否されたとしても、そのキーの出現として数える。2 回目以降の出現の行のうち、ほかの理由に当たらない行を「重複」で拒否し、キーの名前を示す（AC-13）。
@@ -594,7 +594,7 @@ func (e *FormatOverflowError) Unwrap() error // ErrConfigFileFormat
 
 標準エラーの行は、どれも `yt2column-server: ` で始まり、`redact.Line` を通る。値・ファイルの中身・未知のキーの文字列は含まない。設定ファイルのパスは、今の起動の行がソケットのパスを示すのと同じく示す。サーバの設定エラーの行は、今の `run` のとおり `configuration: ` の後にエラーの文を続ける（`run.go:136`）。下の表は、`yt2column-server: ` を除いた部分の形だけを示す。英語の文は実装で決める。
 
-**直し方のコマンドの引用:** `redact.Line` は `strconv.Quote` と同じく `"` を `\"` にエスケープする（`internal/redact/redact.go:196-199`）。また macOS のパスは空白を含む（`Application Support`）。そこで、行の中のコマンドのパスは単引用符 `'` で囲む。`'` は `strconv.Quote` でエスケープされないので、そのまま写して実行できる。パスが `'`・`\`・表示できない文字を含む場合は、そのままでは写せない。その場合も、パスはエスケープされた形で正しく示される。
+**直し方のコマンドの引用:** `redact.Line` は `strconv.Quote` と同じく `"` と `\` をエスケープする（`internal/redact/redact.go:196-199`）。また macOS のパスは空白を含む（`Application Support`）。そこで、行の中のコマンドのパスは、`'`・`"`・`\`・表示できない文字を含まないときだけ単引用符 `'` で囲む。これらを含むときは、引用符を閉じるための `\` や `"` も `redact.Line` がエスケープするので、写して実行できるコマンドは示せない。その場合はコマンドにパスを入れず、行の先頭に示したパスと `chmod 600` で直す。
 
 | 分類 | 行の形 |
 |---|---|
@@ -603,7 +603,7 @@ func (e *FormatOverflowError) Unwrap() error // ErrConfigFileFormat
 | シンボリックリンク | `configuration: configuration file <パス> is a symbolic link; nothing was changed` |
 | 通常のファイルでない | `configuration: configuration file <パス> is not a regular file; nothing was changed` |
 | 所有者が違う | `configuration: configuration file <パス> is owned by another user; nothing was changed` |
-| モード | `configuration: configuration file <パス> has mode <見つかったモード>, not exactly 0600; run chmod 600 '<パス>'` |
+| モード | `configuration: configuration file <パス> has mode <見つかったモード>, not exactly 0600; run chmod 600 '<パス>'`（`'`・`"`・`\`・表示できない文字を含むパスでは、コマンドにパスを入れず `run chmod 600 on the file`） |
 | 読めない | `configuration: configuration file <パス> could not be read: <OS のエラー>` |
 | 書式（行） | `configuration: configuration file <パス>: line <n>: <理由>`（重複は理由にキーの名前を含む） |
 | 書式（件数） | `configuration: configuration file <パス>: <m> more lines were rejected` |

@@ -842,9 +842,13 @@ func TestCreateFailureLeavesNothing(t *testing.T) {
 		if !errors.Is(err, errInjected) || leftover != "" {
 			t.Fatalf("Create = (%q, %v), want the injected failure and no name", leftover, err)
 		}
-		// The name in the error text is how the user learns what to remove,
-		// so the wording is the contract here.
-		if temp == "" || !strings.Contains(err.Error(), temp) {
+		// The caller names the leftover from the *LeftoverError; the text
+		// carries it too for a caller that only prints the error.
+		left, ok := errors.AsType[*LeftoverError](err)
+		if temp == "" || !ok || left.Temp != temp || !errors.Is(left.RemoveErr, errInjected) {
+			t.Errorf("error = %#v, want a *LeftoverError naming the temporary file %q", err, temp)
+		}
+		if !strings.Contains(err.Error(), temp) {
 			t.Errorf("error = %q, want it to name the temporary file %q", err, temp)
 		}
 		requireAbsent(t, path)
