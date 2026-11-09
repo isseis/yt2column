@@ -24,6 +24,7 @@ import (
 	"github.com/isseis/yt2column/internal/llm/deepseek"
 	"github.com/isseis/yt2column/internal/llm/llmhttp/llmhttptest"
 	llmtestutil "github.com/isseis/yt2column/internal/llm/testutil"
+	"github.com/isseis/yt2column/internal/udstest"
 )
 
 const (
@@ -791,7 +792,7 @@ func TestNewSendsStageEffort(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			env := map[string]string{
-				"HOME":              "/home/provider-test",
+				"HOME":              udstest.Dir(t),
 				"YT2COLUMN_LLM":     tc.llm,
 				"ANTHROPIC_API_KEY": testAPIKey,
 				"DEEPSEEK_API_KEY":  testAPIKey,
@@ -799,7 +800,7 @@ func TestNewSendsStageEffort(t *testing.T) {
 			if tc.reviewLLM != "" {
 				env["YT2COLUMN_REVIEW_LLM"] = tc.reviewLLM
 			}
-			cfg, err := config.LoadServer(lookupFrom(env))
+			cfg, err := config.LoadServer(config.ServerLookupForTest(t, env))
 			if err != nil {
 				t.Fatalf("config.LoadServer() error = %v", err)
 			}

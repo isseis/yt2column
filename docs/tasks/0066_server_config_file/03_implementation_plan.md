@@ -196,40 +196,40 @@
 
 **コミット:** このステップだけの、削除だけのコミット。
 
-- [ ] `TestLoadRejectsRetiredLLMVars` の `LoadServer` の行（`config_test.go:1850-1856`）、`TestStartupFailures` の廃止した変数の 2 行（`run_test.go:88-106`）、`lastRetiredLLMVar`（`run_test.go:337-342`）を消し、`make coverage-compare BASE=<親のコミット>` で確かめる（1.2）。
+- [x] `TestLoadRejectsRetiredLLMVars` の `LoadServer` の行（`config_test.go:1850-1856`）、`TestStartupFailures` の廃止した変数の 2 行（`run_test.go:88-106`）、`lastRetiredLLMVar`（`run_test.go:337-342`）を消し、`make coverage-compare BASE=<親のコミット>` で確かめる（1.2）。
 
 #### ステップ 3-2: 設定ファイルへの切り替え
 
-**変えるファイル:** `internal/config/config.go`・`test_helpers.go`・`config_test.go`・`socketpath_test.go`、`cmd/yt2column-server/run.go`・`test_helpers.go`・`run_test.go`・`relay_e2e_test.go`、`internal/llm/provider/provider_test.go`、`cmd/yt2column/docs_test.go`
+**変えるファイル:** `internal/config/config.go`・`test_helpers.go`・`config_test.go`・`socketpath_test.go`、`cmd/yt2column-server/run.go`・`test_helpers.go`・`run_test.go`、`internal/llm/provider/provider_test.go`、`cmd/yt2column/docs_test.go`
 
 **コミット:** このステップの全体を 1 つのコミットにする。`LoadServer` だけを変えると、環境変数で設定を渡すテストがすべて止まるためである。
 
-- [ ] 設計 3.2.4 の `VarSource`・`VarSourceUnspecified`・`VarSourceConfigFile` と `VarError.Source` を足し、`Error()` を `Source` の `switch` にする（`default` は今の形）。理由の定数 `reasonNotSet`（「is not set」）・`reasonEmpty`（「is empty」）を足す（設計 3.2.3）。
-- [ ] `ErrMissing` の文 `"environment variable is unset or empty"` と `ErrInvalid` の文 `"environment variable has an invalid value"` を、出どころを言わない文に変える（設計 3.2.4）。`config.go:31` のコメントに、これらの名前が設定ファイルのキーでもあることを足す。
-- [ ] `LoadServer` を設計 3.2.3 の 3 つの段に組み替え、注釈を設計 3.2.3 の注釈に置き換える。ファイルから読んだキーの `*VarError` に `Source` を付け、`ErrMissing` の `Reason` を選ぶ（設計 3.2.3・3.2.4）。`ServerConfig` の注釈（`config.go:317-320`）に、6 つのキーを設定ファイルから読むことを足す。`run.go:131-132` の注釈を、拒否ごとに 1 行を書く形に直す。
-- [ ] `internal/config/test_helpers.go` に、1.3 の 2 つ目の決定のアクセサを足す。与えた `HOME` の下の設定ファイルのパスに、与えたバイト列を書いてパスを返す。親は `os.MkdirAll` で作ってから `os.Chmod` で `0700` にし、ファイルは `os.Chmod` で `0600` にする（umask に頼らない。`privatefile.MkdirBelow` は umask を変えるので使わない）。すでにあるファイルは中身を置き換える。キーと値の表から行を作る小さな関数も置く。ファイル操作の各行に、テスト専用である理由を付けた `//nolint:gosec` を付ける。
-- [ ] `serverEnv` を、環境変数の表（`HOME`・`GODEBUG` など）と、設定ファイルの状態（キーと値の表、または生のバイト列、モード、ファイルを置かないこと）を持つ形にする。ファイルは、`setup` の後、`run` の直前（子プロセスでは起動の直前）に 1 回だけ書く。`HOME` が未設定か相対のときは書かない。`socketPath` は、ファイルを書かずに `HOME` からソケットのパスを求める（`LoadServer` を呼ばない）。`childEnv` は 6 つのキーを子の環境に渡さない。
-- [ ] 1.4「サーバのテストが環境変数で設定を渡す場所」の書き込みと削除を、設定ファイルの状態への操作に変える。`run_test.go:74-86` の行の期待を、設定ファイルのキーの行の形に合わせる。
-- [ ] 1.4「`LoadServer` を呼ぶ場所」の `internal/config` のテスト、`provider_test.go:790-810`、`cmd/yt2column/docs_test.go:493-499`・`530-536`・`619-622` を、`udstest.Dir` の `HOME` の下にアクセサでファイルを書いてから `LoadServer` を呼ぶ形にする（1.2「テストの `HOME`」）。`docsProfileEnv` の固定の `HOME` も `udstest.Dir` に変える。`TestLoadServerSocketPathUnderivable`（`config_test.go:989`）の「長すぎる」行は、`udstest.Dir` の下に延ばした `HOME` を作ってファイルを置く。「未設定」の行は `LoadServer` の段 1（設計 3.2.3）で止まるので、期待する理由を設定ファイルのパスの理由に変える。これらのほかは、確かめる内容を変えない。
+- [x] 設計 3.2.4 の `VarSource`・`VarSourceUnspecified`・`VarSourceConfigFile` と `VarError.Source` を足し、`Error()` を `Source` の `switch` にする（`default` は今の形）。理由の定数 `reasonNotSet`（「is not set」）・`reasonEmpty`（「is empty」）を足す（設計 3.2.3）。
+- [x] `ErrMissing` の文 `"environment variable is unset or empty"` と `ErrInvalid` の文 `"environment variable has an invalid value"` を、出どころを言わない文に変える（設計 3.2.4）。`config.go:31` のコメントに、これらの名前が設定ファイルのキーでもあることを足す。
+- [x] `LoadServer` を設計 3.2.3 の 3 つの段に組み替え、注釈を設計 3.2.3 の注釈に置き換える。ファイルから読んだキーの `*VarError` に `Source` を付け、`ErrMissing` の `Reason` を選ぶ（設計 3.2.3・3.2.4）。`ServerConfig` の注釈（`config.go:317-320`）に、6 つのキーを設定ファイルから読むことを足す。`run.go:131-132` の注釈を、拒否ごとに 1 行を書く形に直す。
+- [x] `internal/config/test_helpers.go` に、1.3 の 2 つ目の決定のアクセサを足す。与えた `HOME` の下の設定ファイルのパスに、与えたバイト列を書いてパスを返す。親は `os.MkdirAll` で作ってから `os.Chmod` で `0700` にし、ファイルは `os.Chmod` で `0600` にする（umask に頼らない。`privatefile.MkdirBelow` は umask を変えるので使わない）。すでにあるファイルは中身を置き換える。キーと値の表から行を作る小さな関数と、変数の表を設定ファイルのキーとそれ以外に分け、キーをファイルに書いて残りの環境を返すアクセサ（`ServerLookupForTest`）も置く。`internal/config` の外のテストは、このアクセサで `LoadServer` に渡す。ファイル操作の各行に、テスト専用である理由を付けた `//nolint:gosec` を付ける。
+- [x] `serverEnv` を、環境変数の表（`HOME`・`GODEBUG` など）と、設定ファイルのキーと値の表を持つ形にする。生のバイト列・モード・ファイルがないことなどの状態は、テストが書いたファイルを変えて作る（`TestStartupFailures` では行ごとの `fileSetup`）。ファイルは、`setup` の後、`run` の直前（子プロセスでは起動の直前）に 1 回だけ書く。`HOME` が未設定か相対のときは書かない。`socketPath` は、ファイルを書かずに `HOME` からソケットのパスを求める（`LoadServer` を呼ばない）。`childEnv` は 6 つのキーを子の環境に渡さない。
+- [x] 1.4「サーバのテストが環境変数で設定を渡す場所」の書き込みと削除を、設定ファイルの状態への操作に変える。`run_test.go:74-86` の行の期待を、設定ファイルのキーの行の形に合わせる。
+- [x] 1.4「`LoadServer` を呼ぶ場所」の `internal/config` のテスト、`provider_test.go:790-810`、`cmd/yt2column/docs_test.go:493-499`・`530-536`・`619-622` を、`udstest.Dir` の `HOME` の下にアクセサでファイルを書いてから `LoadServer` を呼ぶ形にする（1.2「テストの `HOME`」）。`docsProfileEnv` の固定の `HOME` も `udstest.Dir` に変える。`TestLoadServerSocketPathUnderivable`（`config_test.go:989`）の「長すぎる」行は、`udstest.Dir` の下に延ばした `HOME` を作ってファイルを置く。「未設定」の行は `LoadServer` の段 1（設計 3.2.3）で止まるので、期待する理由を設定ファイルのパスの理由に変える。これらのほかは、確かめる内容を変えない。
 
 #### ステップ 3-3: `internal/config` の新しいテスト
 
 **変えるファイル:** `internal/config/config_test.go`
 
-- [ ] `TestVarErrorSource`（ゼロ値の `Source` が今の `<Name>: <Reason>` の形で、`VarSourceConfigFile` が設定ファイルのキーとして示す形であること）を書く。
-- [ ] `TestLoadServerReadsFile`（要件 AC-04 の 2 つの例）、`TestLoadServerValueRejections`（拒否ごとに 1 つの要素、`Source` が設定ファイル、文が「environment variable」を含まず値を含まない）、`TestLoadServerEmptyValues`（使うキーの空の値は「is empty」、使わないプロバイダのキーの空の値は受理）を書く。
-- [ ] `TestLoadServerIgnoresEnvSettings` を書く: `ANTHROPIC_API_KEY` を持たない設定ファイル（例: 雛形）と、環境の `ANTHROPIC_API_KEY` で、「is not set」の設定ファイルのキーの拒否になること、環境の `YT2COLUMN_LLM` が生成の選択を変えないこと、環境に 6 つのキーと廃止した 5 つの変数を空の値を含めて入れても結果がファイルだけで決まることを確かめる。
-- [ ] `TestLoadServerFileRejections` を書く: ファイルがない・シンボリックリンク・ディレクトリ・モードの誤り・読めない・書式の誤り・大きさの上限（65,536 バイトは受理、65,537 バイトは行番号 0 の書式の拒否）が、それぞれの番兵の `*FileError` になり、ゼロ値の `ServerConfig` を返すことを確かめる。読めない場合は、モードを戻す `t.Cleanup` を登録し、root では `t.Skip` する。
-- [ ] `TestLoadServerReadsOnlyHomeAndGodebug`（環境から読む名前が `HOME` と `GODEBUG` だけ）を書き、`TestLoadHTTP2Debug`（`config_test.go:1011`）に `LoadServer` の行を足す。
-- [ ] `TestLoadForIgnoresServerFile` を書く: `HOME` の下に、6 つのキーの値を持つ設定ファイル、書式の誤りのあるファイル、モード `0644` のファイルがあっても、`Load`・`LoadFor` の結果が環境変数だけで決まることを確かめる。
+- [x] `TestVarErrorSource`（ゼロ値の `Source` が今の `<Name>: <Reason>` の形で、`VarSourceConfigFile` が設定ファイルのキーとして示す形であること）を書く。
+- [x] `TestLoadServerReadsFile`（要件 AC-04 の 2 つの例）、`TestLoadServerValueRejections`（拒否ごとに 1 つの要素、`Source` が設定ファイル、文が「environment variable」を含まず値を含まない）、`TestLoadServerEmptyValues`（使うキーの空の値は「is empty」、使わないプロバイダのキーの空の値は受理）を書く。
+- [x] `TestLoadServerIgnoresEnvSettings` を書く: `ANTHROPIC_API_KEY` を持たない設定ファイル（例: 雛形）と、環境の `ANTHROPIC_API_KEY` で、「is not set」の設定ファイルのキーの拒否になること、環境の `YT2COLUMN_LLM` が生成の選択を変えないこと、環境に 6 つのキーと廃止した 5 つの変数を空の値を含めて入れても結果がファイルだけで決まることを確かめる。
+- [x] `TestLoadServerFileRejections` を書く: ファイルがない・シンボリックリンク・ディレクトリ・モードの誤り・読めない・書式の誤り・大きさの上限（65,536 バイトは受理、65,537 バイトは行番号 0 の書式の拒否）が、それぞれの番兵の `*FileError` になり、ゼロ値の `ServerConfig` を返すことを確かめる。読めない場合は、モードを戻す `t.Cleanup` を登録し、root では `t.Skip` する。
+- [x] `TestLoadServerReadsOnlyHomeAndGodebug`（環境から読む名前が `HOME` と `GODEBUG` だけ）を書き、`TestLoadHTTP2Debug`（`config_test.go:1011`）に `LoadServer` の行を足す。
+- [x] `TestLoadForIgnoresServerFile` を書く: `HOME` の下に、6 つのキーの値を持つ設定ファイル、書式の誤りのあるファイル、モード `0644` のファイルがあっても、`Load`・`LoadFor` の結果が環境変数だけで決まることを確かめる。
 
 #### ステップ 3-4: サーバの新しいテスト
 
 **変えるファイル:** `cmd/yt2column-server/run_test.go`
 
-- [ ] `TestStartupFailures` に、設定ファイルがない、シンボリックリンク、ディレクトリ、モード `0644`、読めない（root では飛ばす）、書式の誤り（1 行）、大きさの上限を超える、値の拒否の行を足す。それぞれについて、終了コードが `2` であること、設定エラーの行が出ること、ソケットのディレクトリ・起動のロック・ソケットが作られないこと、設定ファイルとその親のモードと中身が変わらないことを確かめる。今の `HOME` の誤りの行とソケットのパスが長すぎる行は、そのまま通ることを確かめる。
-- [ ] `TestFormatRejectionLines`（21 行以上の書式の拒否で、標準エラーの設定エラーの行がちょうど 21 行）と、`TestModeRejectionChmodCommand`（パスに空白を含む `HOME` で、モードの拒否の行から `chmod` のコマンドを取り出して `sh -c` で実行すると、ファイルのモードが `0600` になる。設計 4.2「直し方のコマンドの引用」）を書く。
-- [ ] `TestServerIgnoresEnvSettings` を書く: 環境に 6 つのキーと廃止した 5 つの変数（空の値を含む）を入れ、ファイルが正しければサーバが待ち受け、標準エラーにそれらの変数について何も書かないことを確かめる。`ANTHROPIC_API_KEY` を持たないファイルと環境の `ANTHROPIC_API_KEY` では、そのキーが設定ファイルにないことを示す設定エラーで止まることを確かめる。
+- [x] `TestStartupFailures` に、設定ファイルがない、シンボリックリンク、ディレクトリ、モード `0644`、読めない（root では飛ばす）、書式の誤り（1 行）、大きさの上限を超える、値の拒否の行を足す。それぞれについて、終了コードが `2` であること、設定エラーの行が出ること、ソケットのディレクトリ・起動のロック・ソケットが作られないこと、設定ファイルとその親のモードと中身が変わらないことを確かめる。今の `HOME` の誤りの行とソケットのパスが長すぎる行は、そのまま通ることを確かめる。
+- [x] `TestFormatRejectionLines`（21 行以上の書式の拒否で、標準エラーの設定エラーの行がちょうど 21 行）と、`TestModeRejectionChmodCommand`（パスに空白を含む `HOME` で、モードの拒否の行から `chmod` のコマンドを取り出して `sh -c` で実行すると、ファイルのモードが `0600` になる。設計 4.2「直し方のコマンドの引用」）を書く。
+- [x] `TestServerIgnoresEnvSettings` を書く: 環境に 6 つのキーと廃止した 5 つの変数（空の値を含む）を入れ、ファイルが正しければサーバが待ち受け、標準エラーにそれらの変数について何も書かないことを確かめる。`ANTHROPIC_API_KEY` を持たないファイルと環境の `ANTHROPIC_API_KEY` では、そのキーが設定ファイルにないことを示す設定エラーで止まることを確かめる。
 
 ### フェーズ 4: 廃止した変数の検査の削除（設計 8 章の 4）
 
@@ -239,8 +239,8 @@
 
 **コミット:** このステップだけのコミット。振る舞いを変えるコミットで、テストの削除のコミットではない（`loadLLM` の行が書き換わるので `coverage-compare` は使えない。1.2）。コミットメッセージにも、これが振る舞いの変更のコミットであり、テストの削除のコミットではないことを書く。
 
-- [ ] `retiredLLMErrors` と、`loadLLM` の中のその呼び出しを消す（`config.go:482` は空の `errs` で始める）。
-- [ ] 拒否を確かめるテストを、無視することを確かめる形に書き換える。`TestLoadRejectsRetiredLLMVars` を `TestLoadForIgnoresRetiredVars` にする（廃止した 5 つの変数を、空の値と DeepSeek を選ぶ値で環境に入れても、`Load` と `LoadFor`（`Need{}` を含む）が拒否せず、結果が廃止した変数のない環境と同じであること）。`TestRunRejectsRetiredLLMVars`（`cmd/yt2column/run_test.go:2239`）を、CLI が止まらず、その値を使わないことを確かめる形にする。`cmd/yt2column/run_test.go:464-471` の行、`TestLoadErrorsOmitValues`（`config_test.go:631-636`）・`TestLoadReportsAllInvalid`（`:659-720`）・`TestLoadFor`（`:1187-1191`）の廃止した変数の部分は、このコミットでは消さずに、拒否を期待しない形に直す。不要になった部分は、ステップ 4-2 の削除だけのコミットで消す。`withRetiredLLMVars` の呼び出し（`socketpath_test.go`）と `hostEnvs`（`cmd/yt2column-nmhost/main_test.go:142-151`）は、このコミットでは変えない。
+- [x] `retiredLLMErrors` と、`loadLLM` の中のその呼び出しを消す（`config.go:482` は空の `errs` で始める）。呼ぶテストがなくなる `RetiredLLMVarErrorForTest`（`test_helpers.go`）も、`make deadcode` を通すため、このコミットで消す。
+- [x] 拒否を確かめるテストを、無視することを確かめる形に書き換える。`TestLoadRejectsRetiredLLMVars` を `TestLoadForIgnoresRetiredVars` にする（廃止した 5 つの変数を、空の値と DeepSeek を選ぶ値で環境に入れても、`Load` と `LoadFor`（`Need{}` を含む）が拒否せず、結果が廃止した変数のない環境と同じであること）。`TestRunRejectsRetiredLLMVars`（`cmd/yt2column/run_test.go:2239`）を、CLI が止まらず、その値を使わないことを確かめる形にする。`cmd/yt2column/run_test.go:464-471` の行、`TestLoadErrorsOmitValues`（`config_test.go:631-636`）・`TestLoadReportsAllInvalid`（`:659-720`）・`TestLoadFor`（`:1187-1191`）の廃止した変数の部分は、このコミットでは消さずに、拒否を期待しない形に直す。不要になった部分は、ステップ 4-2 の削除だけのコミットで消す。`withRetiredLLMVars` の呼び出し（`socketpath_test.go`）と `hostEnvs`（`cmd/yt2column-nmhost/main_test.go:142-151`）は、このコミットでは変えない。
 
 #### ステップ 4-2: 使われなくなったテストと定義を削除する
 
@@ -248,15 +248,15 @@
 
 **コミット:** このステップだけの、削除だけのコミット。`make coverage-compare BASE=<親のコミット>` で確かめる（1.2）。
 
-- [ ] 本番の定義: `retiredLLMVar`・`retiredLLMVars`、`reasonRetiredLLM`・`reasonRetiredReviewLLM`・`reasonRetiredClaudeEffort`（どれも関数ではない）。
-- [ ] テスト用の補助とテスト: `RetiredLLMVarsForTest`・`RetiredLLMVarErrorForTest`（`test_helpers.go:87-107`）、`withRetiredLLMVars`（`socketpath_test.go:150-158`）と `hostEnvs` の廃止した変数の組（これらが参照する定義が消えるので、廃止した変数の名前をテストの中に直接書くか、組ごと消す。どちらにするかは実装で決める。組ごと消す場合は、その削除もこのコミットに含める）、`CheckRetiredModelEnvNotRead`（`make.go:88-108`）、`retiredLLMEnvs`・`retiredLLMEnvMentioned`・`retiredLLMEnvRE`・`goFilesUnder`（`makefile_test.go`）、`TestRetiredClaudeEffortReason`、`retiredLLMVarsWant`・`TestRetiredLLMVars`、`TestMakeTargetsDoNotReadRetiredModelEnv`、`TestRetiredLLMEnvMentioned`、`TestRetiredModelEnvIsGone`、`markRetired`（`config_test.go:572`・`582`）。使われなくなった import も消す。
+- [x] 本番の定義: `retiredLLMVar`・`retiredLLMVars`、`reasonRetiredLLM`・`reasonRetiredReviewLLM`・`reasonRetiredClaudeEffort`（どれも関数ではない）。
+- [x] テスト用の補助とテスト: `RetiredLLMVarsForTest`（`test_helpers.go:87-97`。`RetiredLLMVarErrorForTest` はステップ 4-1 で消す）、`withRetiredLLMVars`（`socketpath_test.go:150-158`）と `hostEnvs` の廃止した変数の組（これらが参照する定義が消えるので、廃止した変数の名前をテストの中に直接書くか、組ごと消す。どちらにするかは実装で決める。組ごと消す場合は、その削除もこのコミットに含める）、`CheckRetiredModelEnvNotRead`（`make.go:88-108`）、`retiredLLMEnvs`・`retiredLLMEnvMentioned`・`retiredLLMEnvRE`・`goFilesUnder`（`makefile_test.go`）、`TestRetiredClaudeEffortReason`、`retiredLLMVarsWant`・`TestRetiredLLMVars`、`TestMakeTargetsDoNotReadRetiredModelEnv`、`TestRetiredLLMEnvMentioned`、`TestRetiredModelEnvIsGone`、`markRetired`（`config_test.go:572`・`582`）。使われなくなった import も消す。
 
 #### ステップ 4-3: 注釈を直す
 
 **変えるファイル:** `internal/config/config.go`・`test_helpers.go`・`config_test.go`・`socketpath_test.go`、`cmd/yt2column/run_test.go`、`cmd/yt2column-nmhost/main_test.go`
 
-- [ ] `defaultProvider` の注釈（`config.go:65-66`）から「The retired variables' rejection names it too, so it is written once.」を消す。`LoadFor` の注釈（`:448-452`）から廃止した変数の例外の文を消す。`loadLLM` の注釈（`:473-474`）の契約から廃止した変数の部分を消す。パッケージの注釈（`:1-3`）を、CLI は環境変数から、サーバは設定ファイルから読むことに合わせて直す（設計 3.2.3）。
-- [ ] `test_helpers.go:50-52`、`cmd/yt2column/run_test.go:1828-1831`、`main_test.go:135-137`・`253`・`319`、`config_test.go:1160`・`1445-1448`、`socketpath_test.go:161-163`・`206` の注釈の、廃止した変数を拒否するという記述を消す。
+- [x] `defaultProvider` の注釈（`config.go:65-66`）から「The retired variables' rejection names it too, so it is written once.」を消す。`LoadFor` の注釈（`:448-452`）から廃止した変数の例外の文を消す。`loadLLM` の注釈（`:473-474`）の契約から廃止した変数の部分を消す。パッケージの注釈（`:1-3`）を、CLI は環境変数から、サーバは設定ファイルから読むことに合わせて直す（設計 3.2.3）。
+- [x] `test_helpers.go:50-52`、`cmd/yt2column/run_test.go:1828-1831`、`main_test.go:135-137`・`253`・`319`、`config_test.go:1160`・`1445-1448`、`socketpath_test.go:161-163`・`206` の注釈の、廃止した変数を拒否するという記述を消す。
 
 ### フェーズ 5: 引数の振り分けと `runInit`（設計 8 章の 5）
 
@@ -266,20 +266,20 @@
 
 **コミット:** このステップとステップ 5-2 を 1 つのコミットにする。
 
-- [ ] `run` の最初で、設計 3.3 のとおりに引数を振り分ける。引数の拒否の行（`run.go:127`）を、受け付ける形（引数なし、または `config init`）を示し、`README.en.md` へ案内する行に置き換える。
-- [ ] `runInit` を設計 3.3 と 6.3 のとおりに実装する。`*VarError` は `exitUsage`、それ以外の失敗は `exitFailure`、成功は `exitOK` を返す。成功のときは作ったパスの 1 行を、一時ファイルが残ったときはその名前の 1 行を足して、`stderrWriter` を通して標準エラーに書く。標準出力には何も書かない。
-- [ ] 終了コードの注釈（`run.go:23-28`）に、`config init` の失敗が `exitFailure` になることを足す。`run` の注釈の「Steps 1 and 2 touch no network and no file」（`:110-112`）を、手順 1 が設定ファイルを読み、何も書かないことに合わせて直す。
+- [x] `run` の最初で、設計 3.3 のとおりに引数を振り分ける。引数の拒否の行（`run.go:127`）を、受け付ける形（引数なし、または `config init`）を示し、`README.en.md` へ案内する行に置き換える。
+- [x] `runInit` を設計 3.3 と 6.3 のとおりに実装する。`*VarError` は `exitUsage`、それ以外の失敗は `exitFailure`、成功は `exitOK` を返す。成功のときは作ったパスの 1 行を、一時ファイルが残ったときはその名前の 1 行を足して、`stderrWriter` を通して標準エラーに書く。標準出力には何も書かない。
+- [x] 終了コードの注釈（`run.go:23-28`）に、`config init` の失敗が `exitFailure` になることを足す。`run` の注釈の「Steps 1 and 2 touch no network and no file」（`:110-112`）を、手順 1 が設定ファイルを読み、何も書かないことに合わせて直す。
 
 #### ステップ 5-2: 引数と `config init` のテスト
 
-**変えるファイル:** `cmd/yt2column-server/run_test.go`、`cmd/yt2column-server/test_helpers.go`、`internal/config/test_helpers.go`
+**変えるファイル:** `cmd/yt2column-server/run_test.go`、`cmd/yt2column-server/test_helpers.go`、`internal/config/test_helpers.go`、`internal/privatefile/test_helpers.go`（一時ファイルの削除を失敗させる、ほかのパッケージのテスト用の補助）
 
-- [ ] `TestStartupFailures` の「an argument」の行（`run_test.go:64-70`）は、削除せずに、新しい行の文に合わせて期待を直す。`configDocument` の注釈（`:30-31`）も合わせる。
-- [ ] `TestRunArgs` を書く: 引数なし（ファイルが正しければ待ち受ける）、`config init`（雛形を作る）、要件 AC-29 の例（`config`、`init`、`config init extra`、`--help`、`config Init`）の表で、終了コードを確かめ、拒否のときに空の `HOME` の下に何も作らないことを確かめる。この表の `serverEnv` は、ファイルを書かない状態で始める。
-- [ ] `TestConfigInit` を書く: 空の `HOME` では、終了コードが `0` で、作ったファイルが雛形と一致してモードが `0600` であり、標準エラーにパスの 1 行があり、ソケットのディレクトリ・起動のロック・ソケットが作られていないこと。すでにある（通常のファイル・リンク先のないシンボリックリンク・ディレクトリ）ときは、終了コードが `1` で、既存のものが変わらないこと。基点（macOS では `$HOME/Library/Application Support`、ほかでは `$HOME`）がないときは、終了コードが `1` で、何も作らないこと。作れないとき（親に書けない）は、終了コードが `1` で、書きかけがなく、作った親が残ること。一時ファイルの削除に失敗したとき（`privatefile` の差し込み口）は、終了コードが `0` で、その名前の行があること。`HOME` の誤りでは、終了コードが `2` で、何も作らないこと。ソケットのパスの上限を超える長い `HOME` でも作れること。親に書けない場合は、モードを戻す `t.Cleanup` を登録し、root では `t.Skip` する。雛形と比べるため、`internal/config/test_helpers.go` に雛形をバイト列で返すアクセサを足す。
-- [ ] `TestConfigInitStdout` を書く: 子プロセスで `main` を `config init` の引数で動かし、標準出力が空で、終了コードが `0` であることを確かめる（`run` は標準出力を受け取らないので、子プロセスで確かめる）。`test_helpers.go` に、ソケットを待たずに子プロセスを最後まで動かす補助を足す。
-- [ ] `TestConfigInitThenStart` を書く: ファイルを書かない状態の `serverEnv` で `config init` を実行し、そのファイルのままサーバを起動すると、書式と検査を通って `ANTHROPIC_API_KEY` がないことを示す設定エラーで止まり（AC-26）、そのファイルにキーを書き足すとサーバが待ち受けることを確かめる（設計 7.2）。
-- [ ] このステップのテストに `t.Parallel` を付けない（1.3）。
+- [x] `TestStartupFailures` の「an argument」の行（`run_test.go:64-70`）は、削除せずに、新しい行の文に合わせて期待を直す。`configDocument` の注釈（`:30-31`）も合わせる。
+- [x] `TestRunArgs` を書く: 引数なし（ファイルが正しければ待ち受ける）、`config init`（雛形を作る）、要件 AC-29 の例（`config`、`init`、`config init extra`、`--help`、`config Init`）の表で、終了コードを確かめ、拒否のときに空の `HOME` の下に何も作らないことを確かめる。この表の `serverEnv` は、ファイルを書かない状態で始める。
+- [x] `TestConfigInit` を書く: 空の `HOME` では、終了コードが `0` で、作ったファイルが雛形と一致してモードが `0600` であり、標準エラーにパスの 1 行があり、ソケットのディレクトリ・起動のロック・ソケットが作られていないこと。すでにある（通常のファイル・リンク先のないシンボリックリンク・ディレクトリ）ときは、終了コードが `1` で、既存のものが変わらないこと。基点（macOS では `$HOME/Library/Application Support`、ほかでは `$HOME`）がないときは、終了コードが `1` で、何も作らないこと。作れないとき（ファイルの親に書けない、または `privatefile` の差し込み口で `link` の前に失敗させる）は、終了コードが `1` で、書きかけがなく、後者では作った親が残ること。一時ファイルの削除に失敗したとき（`privatefile` の差し込み口）は、終了コードが `0` で、その名前の行があること。`HOME` の誤りでは、終了コードが `2` で、何も作らないこと。ソケットのパスの上限を超える長い `HOME` でも作れること。親に書けない場合は、モードを戻す `t.Cleanup` を登録し、root では `t.Skip` する。雛形と比べるため、`internal/config/test_helpers.go` に雛形をバイト列で返すアクセサを足す。
+- [x] `TestConfigInitStdout` を書く: 子プロセスで `main` を `config init` の引数で動かし、標準出力が空で、終了コードが `0` であることを確かめる（`run` は標準出力を受け取らないので、子プロセスで確かめる）。`test_helpers.go` に、ソケットを待たずに子プロセスを最後まで動かす補助を足す。
+- [x] `TestConfigInitThenStart` を書く: ファイルを書かない状態の `serverEnv` で `config init` を実行し、そのファイルのままサーバを起動すると、書式と検査を通って `ANTHROPIC_API_KEY` がないことを示す設定エラーで止まり（AC-26）、そのファイルにキーを書き足すとサーバが待ち受けることを確かめる（設計 7.2）。
+- [x] このステップのテストに `t.Parallel` を付けない（1.3）。
 
 ### PR-3 作成ポイント: server reads the config file
 
@@ -293,10 +293,10 @@
 
 **判定理由**: ステップ 3-2 は振る舞いの切り替えと多数のテストの書き換えを 1 つのコミットで行う移行で、ステップ 4-1 は CLI とサーバの拒否を同時にやめる。mkplan のパネルモードの条件（移行・多数のテストの更新）に当たる
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/735
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 6: 拡張のビューアの案内（設計 8 章の 6）
 
@@ -420,7 +420,7 @@ PR の分け方の理由は 1.3 の 4 つ目の決定にある。
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4）
 - [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3）
-- [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 4-1 / 4-2 / 4-3 / 5-1 / 5-2）
+- [x] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 4-1 / 4-2 / 4-3 / 5-1 / 5-2）
 - [ ] PR-4 マージ済み（対象ステップ: 6-1 / 7-1 / 7-2 / 7-3）
 - [ ] すべての受け入れ基準の検証（7 章）が通った
 
@@ -437,7 +437,7 @@ PR の分け方の理由は 1.3 の 4 つ目の決定にある。
 | AC-06 | `internal/config/config_test.go::TestLoadServerIgnoresEnvSettings`、`cmd/yt2column-server/run_test.go::TestServerIgnoresEnvSettings`（キーのないファイルと環境のキー） | test | 3-2 | 3-3、3-4 |
 | AC-07 | `internal/config/config_test.go::TestLoadServerIgnoresEnvSettings`、`cmd/yt2column-server/run_test.go::TestServerIgnoresEnvSettings` | test | 3-2 | 3-3、3-4 |
 | AC-09 | `internal/config/config_test.go::TestLoadHTTP2Debug`、`cmd/yt2column-server/run_test.go::TestStartupFailures`（今の `GODEBUG` の行、`run_test.go:145`） | test | 3-2 | 3-3 |
-| AC-10 | `internal/config/config_test.go::TestLoadForIgnoresServerFile`、`internal/config/config_test.go::TestLoadForIgnoresRetiredVars`、`cmd/yt2column/run_test.go::TestRunRejectsRetiredLLMVars` を書き換えたテスト、`Load`・`LoadFor` の今のテスト（`internal/config/config_test.go::TestLoadValid`・`TestLoadFor` ほか） | test | 4-1 | 3-3、4-1 |
+| AC-10 | `internal/config/config_test.go::TestLoadForIgnoresServerFile`、`internal/config/config_test.go::TestLoadForIgnoresRetiredVars`、`cmd/yt2column/run_test.go::TestRunIgnoresRetiredLLMVars`（`TestRunRejectsRetiredLLMVars` を書き換えたテスト）、`Load`・`LoadFor` の今のテスト（`internal/config/config_test.go::TestLoadValid`・`TestLoadFor` ほか） | test | 4-1 | 3-3、4-1 |
 | AC-11 | `internal/config/serverfile_test.go::TestParseServerFileAccepts` | test | 2-2 | 2-2 |
 | AC-11a | `internal/config/serverfile_test.go::TestParseServerFileAccepts`（空の値の受理）、`internal/config/config_test.go::TestLoadServerEmptyValues` | test | 2-2、3-2 | 2-2、3-3 |
 | AC-12 | `internal/config/serverfile_test.go::TestParseServerFileRejects`、`internal/config/config_test.go::TestLoadServerFileRejections`（大きさの上限の境界を含む）、`cmd/yt2column-server/run_test.go::TestStartupFailures`（書式の誤りと大きさの行、ファイルが変わらないこと） | test | 2-2、3-2 | 2-2、3-3、3-4 |
@@ -462,7 +462,7 @@ PR の分け方の理由は 1.3 の 4 つ目の決定にある。
 | AC-34 | `cmd/yt2column-server/docs_test.go::TestServerDocsContract` | static | 7-3 | 7-3 |
 | AC-35 | `make ext-check`（`extension/test/secretsAbsent.test.ts` を含む）、案内の文の内容は PR のレビューで読む | static・manual | 6-1 | - |
 
-要件 4.2「拒否の分類」の番兵ごとの `errors.Is` は、`TestFileErrorMapping`（ステップ 2-3）、`TestLoadServerFileRejections`（ステップ 3-3）、`TestConfigInit`（ステップ 5-2）で確かめる。
+要件 4.2「拒否の分類」の番兵ごとの `errors.Is` は、`TestFileErrorMapping`（ステップ 2-3）、`TestInitServerFile`（ステップ 2-3）、`TestLoadServerFileRejections`（ステップ 3-3）で確かめる。`TestConfigInit`（ステップ 5-2）は、分類ごとの終了コードと標準エラーの行を確かめる。
 
 ## 8. 成功基準
 

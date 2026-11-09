@@ -285,6 +285,39 @@ func (f serverFile) lookup(name string) (string, bool) {
 	return value, ok
 }
 
+// keyError returns the rejection of a key read from the file: e marked
+// VarSourceConfigFile, with the reason of an ErrMissing chosen by whether the
+// file has the key ("is not set") or has it with an empty value ("is empty").
+// The choice is made from the parsed keys, never from e's text.
+func (f serverFile) keyError(e *VarError) *VarError {
+	out := *e
+	out.Source = VarSourceConfigFile
+	if errors.Is(e.Err, ErrMissing) {
+		if _, present := f.values[e.Name]; present {
+			out.Reason = reasonEmpty
+		} else {
+			out.Reason = reasonNotSet
+		}
+	}
+	return &out
+}
+
+// readServerFile reads the configuration file at path with privatefile.Read
+// and parses it. Contract: it returns the content only when the file passed
+// every check and every line was accepted; otherwise a *FileError, or the
+// format rejections joined flat, so the server reports each on its own line.
+func readServerFile(path string) (serverFile, error) {
+	data, err := privatefile.Read(path, serverFileMaxSize)
+	if err != nil {
+		return serverFile{}, readFileError(path, err)
+	}
+	file, rejections := parseServerFile(path, data)
+	if len(rejections) > 0 {
+		return serverFile{}, errors.Join(rejections...)
+	}
+	return file, nil
+}
+
 // parseServerFile returns the accepted content, or the rejections: one
 // *FileError per rejected line, at most serverFileMaxReported of them in line
 // order, and a *FormatOverflowError when more lines were rejected. Contract:

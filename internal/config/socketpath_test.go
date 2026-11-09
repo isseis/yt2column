@@ -147,32 +147,32 @@ func requireReadOnlyHome(t *testing.T, fn string, read []string) {
 	}
 }
 
-// withRetiredLLMVars returns a copy of env with every retired LLM variable set,
-// which the CLI and the server reject and the host must not read.
+// withRetiredLLMVars returns a copy of env with every retired LLM variable
+// set, which the host must not read.
 func withRetiredLLMVars(env map[string]string) map[string]string {
 	out := maps.Clone(env)
-	for _, v := range retiredLLMVars {
-		out[v.name] = "deepseek"
+	for _, name := range retiredVarNames {
+		out[name] = "deepseek"
 	}
 	return out
 }
 
 // TestLoadHost checks that LoadHost reads HOME and nothing else, derives the
 // same socket path as LoadServer from an environment that sets every variable
-// the server reads (and the retired LLM variables the server would reject),
+// the server reads (and the retired LLM variables),
 // and returns a *VarError naming HOME
 // and the zero HostConfig when no path can be derived. TestSocketPath fixes
 // the derivation itself.
 func TestLoadHost(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
-		env := validServerEnv()
+		env := validServerEnv(t)
 		var read []string
 		cfg, err := LoadHost(recordingLookup(withRetiredLLMVars(env), &read))
 		if err != nil {
 			t.Fatalf("LoadHost() error = %v, want nil", err)
 		}
 		requireReadOnlyHome(t, "LoadHost", read)
-		server, err := LoadServer(envLookup(env))
+		server, err := LoadServer(ServerLookupForTest(t, env))
 		if err != nil {
 			t.Fatalf("LoadServer() error = %v, want nil", err)
 		}

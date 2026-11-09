@@ -25,7 +25,10 @@ import (
 // configuration, HOME and the socket path derived from it included, or building
 // a component) is exitUsage, and a failure to listen (the socket directory, the
 // start lock, the name at the socket path) or to keep serving is exitFailure. A
-// stop by a signal is exitOK.
+// stop by a signal is exitOK. For config init, HOME that yields no path is
+// exitUsage, a file that was not created (it exists, its base directory is
+// missing, or creating it failed) is exitFailure, and a created file is
+// exitOK.
 const (
 	exitOK      = 0
 	exitFailure = 1
@@ -106,8 +109,57 @@ func (l *lockedWriter) Write(p []byte) (int, error) {
 	return l.w.Write(p)
 }
 
-// run starts the server and serves until ctx is canceled, then returns the
-// process exit code. Steps 1 and 2 touch no network and no file; a failure
+// Subcommand words. run compares the arguments with them exactly, case
+// included, so no other spelling selects config init.
+const (
+	configCommand = "config"
+	initCommand   = "init"
+)
+
+// run dispatches on the arguments: none starts the server (runServer), exactly
+// "config init" creates the configuration file's template (runInit), and
+// anything else is a usage error that creates nothing. It returns the process
+// exit code.
+func run(ctx context.Context, args []string, lookup config.LookupFunc, stderr io.Writer, d deps) int {
+	if len(args) == 0 {
+		return runServer(ctx, lookup, stderr, d)
+	}
+	errOut := &stderrWriter{w: stderr}
+	switch {
+	case len(args) == 2 && args[0] == configCommand && args[1] == initCommand:
+		return runInit(lookup, errOut)
+	default:
+		errOut.line("%s: takes no arguments, which starts the server, or exactly the two arguments %s %s, which create the configuration file (see README.en.md)",
+			programName, configCommand, initCommand)
+		return exitUsage
+	}
+}
+
+// runInit creates the configuration file's template and reports it on one
+// line of standard error; it writes nothing to standard output. Contract: the
+// exit code is chosen by the error's type: a *config.VarError (HOME yields no
+// path) is exitUsage, any other failure exitFailure. It reads no variable but
+// HOME, and creates no socket directory, start lock, or socket.
+func runInit(lookup config.LookupFunc, errOut *stderrWriter) int {
+	result, err := config.InitServerFile(lookup)
+	if err != nil {
+		if _, ok := errors.AsType[*config.VarError](err); ok {
+			errOut.line("%s: configuration: %v", programName, err)
+			return exitUsage
+		}
+		errOut.line("%s: %v", programName, err)
+		return exitFailure
+	}
+	errOut.line("%s: created the configuration file %s", programName, result.Path)
+	if result.LeftoverTemp != "" {
+		errOut.line("%s: could not remove the temporary file %s; remove it by hand", programName, result.LeftoverTemp)
+	}
+	return exitOK
+}
+
+// runServer starts the server and serves until ctx is canceled, then returns the
+// process exit code. Step 1 reads the configuration file and step 2 builds
+// the components; neither touches the network or writes a file, and a failure
 // there stops the start with exitUsage. Step 3 prepares the socket directory,
 // takes the start lock, and binds the socket; a failure there is exitFailure.
 // Nothing is written to standard output; every line goes to standard error.
@@ -117,19 +169,16 @@ func (l *lockedWriter) Write(p []byte) (int, error) {
 // started during the shutdown stops with serversock.ErrAlreadyRunning instead
 // of running jobs beside this one. lock stays reachable until Release, so the
 // lock file is never closed by a finalizer before then.
-func run(ctx context.Context, args []string, lookup config.LookupFunc, stderr io.Writer, d deps) int {
-	// run's own logger and the server's write to stderr from different
+func runServer(ctx context.Context, lookup config.LookupFunc, stderr io.Writer, d deps) int {
+	// runServer's own logger and the server's write to stderr from different
 	// goroutines, so each write is serialized here rather than relying on
 	// what the writer tolerates.
 	stderr = &lockedWriter{w: stderr}
 	errOut := &stderrWriter{w: stderr}
-	if len(args) != 0 {
-		errOut.line("%s: takes no arguments; the configuration is read from environment variables (see README.en.md)", programName)
-		return exitUsage
-	}
 
-	// 1: the configuration. Each rejected variable is reported on its own
-	// line; a VarError never carries a value.
+	// 1: the configuration. Each rejection (of HOME, the configuration file,
+	// one of its lines, or one of its keys) is reported on its own line; no
+	// rejection carries a value or the file's content.
 	cfg, err := config.LoadServer(lookup)
 	if err != nil {
 		for _, e := range splitJoined(err) {

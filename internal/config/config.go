@@ -1,6 +1,8 @@
-// Package config loads and validates the process configuration from
-// environment variables. It is the only package that names the secret
-// variables; every other package receives already-validated values.
+// Package config loads and validates the process configuration: the CLI's
+// from environment variables, and the server's from its configuration file,
+// with HOME and GODEBUG from the environment. It is the only package that
+// names the secret settings; every other package receives already-validated
+// values.
 package config
 
 import (
@@ -28,7 +30,9 @@ const (
 	ProviderClaude
 )
 
-// Names of the environment variables Load reads.
+// Names of the environment variables Load reads. The first six are also the
+// keys the server's configuration file accepts (serverFileKeys), which
+// LoadServer reads from the file instead of the environment.
 const (
 	llmEnv                  = "YT2COLUMN_LLM"
 	reviewLLMEnv            = "YT2COLUMN_REVIEW_LLM"
@@ -62,8 +66,7 @@ const effortSeparator = "+"
 // alone, so changing the default touches one line of code and the documents
 // that state it.
 const (
-	// defaultProvider is the provider part of the default selection. The
-	// retired variables' rejection names it too, so it is written once.
+	// defaultProvider is the provider part of the default selection.
 	defaultProvider = providerClaude
 	// defaultClaudeModel is the model ID of the default selection.
 	defaultClaudeModel = "claude-opus-5-5"
@@ -84,7 +87,12 @@ const (
 // constants and the package variables below them, which are built once from
 // code values alone, so a rejected value cannot reach an error message.
 const (
-	reasonUnset   = "is unset or empty"
+	reasonUnset = "is unset or empty"
+	// reasonNotSet and reasonEmpty replace reasonUnset in the rejection of a
+	// configuration file key: the file tells the two cases apart, so the
+	// reason says which one it is.
+	reasonNotSet  = "is not set"
+	reasonEmpty   = "is empty"
 	reasonLLMForm = `must be "<provider>/<model ID>", optionally followed by "+<effort>", with a non-empty model ID`
 	// reasonLLMEffortSeparator rejects a second "+" after the first "/",
 	// which leaves the boundary between the model ID and the effort part
@@ -99,15 +107,6 @@ const (
 	reasonConfigPathAbsent     = "no absolute configuration file path could be derived from HOME"
 	reasonSocketPathTooLong    = "the socket path derived from HOME exceeds the operating system's limit"
 	reasonHomeAbsent           = "must be set to an absolute path"
-	// reasonRetiredLLM and reasonRetiredReviewLLM reject a retired variable.
-	// Each says the variable must be unset, which variable replaces it, and
-	// what is used while the replacement is unset, so the line alone tells a
-	// user that removing the retired variable without setting its replacement
-	// sends the data to the default provider.
-	reasonRetiredLLM = "is no longer supported and must be unset (an empty value counts as set); set " +
-		llmEnv + "=<provider>/<model ID> instead; while " + llmEnv + " is unset, the provider is " + defaultProvider
-	reasonRetiredReviewLLM = "is no longer supported and must be unset (an empty value counts as set); set " +
-		reviewLLMEnv + "=<provider>/<model ID> instead; while " + reviewLLMEnv + " is unset, the review step uses " + llmEnv
 )
 
 // The fixed parts of an effort-part rejection: the accepted values follow
@@ -128,17 +127,6 @@ var (
 	// what parseLLM accepts.
 	reasonClaudeEffortPart   = effortPartReason(providerClaude, claudeparam.EffortValues())
 	reasonDeepSeekEffortPart = effortPartReason(providerDeepSeek, deepseekparam.EffortValues())
-	// reasonRetiredClaudeEffort rejects YT2COLUMN_CLAUDE_EFFORT. The variable
-	// applied only to claude stages, so the effort moves only to the LLM
-	// variables whose provider is claude; appending it to a deepseek value
-	// would change what that stage sends. A user who changed only the effort
-	// may have no YT2COLUMN_LLM to append to, so the reason gives the value to
-	// set in that case, built from the defaults.
-	reasonRetiredClaudeEffort = "is no longer supported and must be unset (an empty value counts as set); append " +
-		effortSeparator + "<effort> to the value of each of " + llmEnv + " and " + reviewLLMEnv +
-		" whose provider is " + providerClaude + " (while " + llmEnv + " is unset, set " +
-		llmEnv + "=" + defaultLLMValue + effortSeparator + "<effort>); without " + effortSeparator +
-		"<effort>, a " + providerClaude + " stage uses " + defaultClaudeEffort.String()
 )
 
 // effortPartReason builds the rejection of an effort part for provider, which
@@ -148,35 +136,31 @@ func effortPartReason(provider string, values []string) string {
 		effortValuesPrefix + strings.Join(values, effortValuesSeparator)
 }
 
-// retiredLLMVar is a variable that selected a provider, a model, or the Claude
-// effort before the LLM variables carried them. Its presence is a rejection;
-// its value is never used.
-type retiredLLMVar struct {
-	name   string
-	reason string // reasonRetiredLLM, reasonRetiredReviewLLM, or reasonRetiredClaudeEffort
-}
-
-// retiredLLMVars lists the retired variables, each with the reason naming its
-// replacement, in the order their rejections are reported.
-var retiredLLMVars = []retiredLLMVar{
-	{"YT2COLUMN_LLM_PROVIDER", reasonRetiredLLM},
-	{"YT2COLUMN_MODEL", reasonRetiredLLM},
-	{"YT2COLUMN_REVIEW_PROVIDER", reasonRetiredReviewLLM},
-	{"YT2COLUMN_REVIEW_MODEL", reasonRetiredReviewLLM},
-	{"YT2COLUMN_CLAUDE_EFFORT", reasonRetiredClaudeEffort},
-}
-
 // LookupFunc has the signature of os.LookupEnv. Load reads every variable
 // through one, so a test can supply an environment without changing the
 // process environment.
 type LookupFunc func(name string) (value string, ok bool)
 
-// ErrMissing reports a variable that is unset, or present with an empty value,
-// and has no usable default.
-var ErrMissing = errors.New("environment variable is unset or empty")
+// ErrMissing reports a setting that is unset, or present with an empty value,
+// and has no usable default: an environment variable, or a key of the
+// server's configuration file.
+var ErrMissing = errors.New("a required setting is unset or empty")
 
-// ErrInvalid reports a variable whose value is present but not acceptable.
-var ErrInvalid = errors.New("environment variable has an invalid value")
+// ErrInvalid reports a setting whose value is present but not acceptable.
+var ErrInvalid = errors.New("a setting has an invalid value")
+
+// VarSource says where a rejected setting was read from. Its zero value is
+// the form every rejection of an environment variable has.
+type VarSource int
+
+const (
+	// VarSourceUnspecified prints "<Name>: <Reason>". The CLI's variables
+	// and HOME use it.
+	VarSourceUnspecified VarSource = iota
+	// VarSourceConfigFile prints "configuration file key <Name>: <Reason>",
+	// so the line does not call the key an environment variable.
+	VarSourceConfigFile
+)
 
 // VarError names a rejected variable and gives a fixed reason. It never holds
 // the variable's value, so an error can be logged safely even when the rejected
@@ -184,12 +168,19 @@ var ErrInvalid = errors.New("environment variable has an invalid value")
 type VarError struct {
 	Name   string
 	Reason string
-	Err    error // ErrMissing or ErrInvalid
+	Err    error     // ErrMissing or ErrInvalid
+	Source VarSource // where Name was read from
 }
 
-// Error implements the error interface as "<Name>: <Reason>".
+// Error implements the error interface in the form Source names. Only the
+// form depends on Source; the reason is chosen where the error is built.
 func (e *VarError) Error() string {
-	return e.Name + ": " + e.Reason
+	switch e.Source {
+	case VarSourceConfigFile:
+		return "configuration file key " + e.Name + ": " + e.Reason
+	default:
+		return e.Name + ": " + e.Reason
+	}
 }
 
 // Unwrap returns the sentinel that classifies the rejection.
@@ -316,9 +307,10 @@ func (c Config) HTTP2DebugEnabled() bool {
 }
 
 // ServerConfig is the server configuration. Its fields are unexported, so a
-// non-zero ServerConfig can only come from LoadServer. LoadServer never reads
-// or checks YT2COLUMN_CACHE_DIR, YT2COLUMN_YTDLP_PATH, or the cache directory
-// defaults.
+// non-zero ServerConfig can only come from LoadServer. The LLM settings and
+// the Webhook URL come from the six keys of the configuration file, never
+// from the environment. LoadServer never reads or checks YT2COLUMN_CACHE_DIR,
+// YT2COLUMN_YTDLP_PATH, or the cache directory defaults.
 type ServerConfig struct {
 	llm               LLMConfig
 	webhookURL        secret.Secret // zero when SLACK_WEBHOOK_URL is unset
@@ -352,22 +344,38 @@ func (c ServerConfig) HTTP2DebugEnabled() bool {
 	return c.http2DebugEnabled
 }
 
-// LoadServer reads and validates the server's variables through lookup: the
-// LLM settings (shared with Load), SLACK_WEBHOOK_URL (optional), and HOME, from
-// which the socket path is derived. It joins every rejection together and
-// returns the zero ServerConfig on any error, so a value that did not pass
-// validation never reaches a caller. It reads no variable the server does not
-// use, with one exception: it checks whether each retired LLM variable is
-// present (never its value), so a leftover setting stops the server instead of
-// silently changing the provider, the model, or the effort.
+// LoadServer reads the server configuration. It derives the configuration
+// file's path from HOME, reads and parses the file, and validates the six keys
+// from it; HOME (the socket path) and GODEBUG (the warning) come from lookup.
+// It reads no other variable. It returns the zero ServerConfig on any error,
+// and stops at the first stage that fails: HOME, the file, its format, then
+// the values.
+//
+// Contract: a key in the process environment never reaches the
+// configuration, since the value loaders shared with Load read the file's
+// lookup and only the socket path and the GODEBUG check read lookup. The
+// rejections of one stage are joined flat, one error per line of the
+// server's output: the format rejections, or the value rejections, each of a
+// key read from the file marked VarSourceConfigFile.
 func LoadServer(lookup LookupFunc) (ServerConfig, error) {
-	llm, errs := loadLLM(lookup, Need{Generation: true, Review: true})
-	var cfg ServerConfig
-	webhook, webhookErr := loadSlackWebhook(lookup)
-	sockPath, sockErr := socketPath(runtime.GOOS, lookup)
-	if webhookErr != nil {
-		errs = append(errs, webhookErr)
+	loc, homeErr := serverFileLocationFor(runtime.GOOS, lookup)
+	if homeErr != nil {
+		return ServerConfig{}, homeErr
 	}
+	file, err := readServerFile(loc.path)
+	if err != nil {
+		return ServerConfig{}, err
+	}
+
+	llm, errs := loadLLM(file.lookup, Need{Generation: true, Review: true})
+	webhook, webhookErr := loadSlackWebhook(file.lookup)
+	errs = append(errs, webhookErr)
+	for i, e := range errs {
+		if varErr, ok := errors.AsType[*VarError](e); ok {
+			errs[i] = file.keyError(varErr)
+		}
+	}
+	sockPath, sockErr := socketPath(runtime.GOOS, lookup)
 	if sockErr != nil {
 		// socketPath's *VarError is a typed nil on success, which errors.Join
 		// would keep as a non-nil error.
@@ -376,11 +384,12 @@ func LoadServer(lookup LookupFunc) (ServerConfig, error) {
 	if err := errors.Join(errs...); err != nil {
 		return ServerConfig{}, err
 	}
-	cfg.llm = llm
-	cfg.webhookURL = webhook
-	cfg.socketPath = sockPath
-	cfg.http2DebugEnabled = hasHTTP2Debug(lookup)
-	return cfg, nil
+	return ServerConfig{
+		llm:               llm,
+		webhookURL:        webhook,
+		socketPath:        sockPath,
+		http2DebugEnabled: hasHTTP2Debug(lookup),
+	}, nil
 }
 
 // HostConfig is the Native Messaging host's relay configuration. Its field is
@@ -446,11 +455,7 @@ type Need struct {
 // selected providers' own variables; a need that is false does not check them.
 // When Review is true but Generation is false and YT2COLUMN_REVIEW_LLM is
 // unset, YT2COLUMN_LLM is still read and validated, because the review step
-// inherits its selection. The one exception to reading only what the run
-// needs: whatever need is, LoadFor checks whether each retired LLM variable is
-// present (never its value) and rejects the run if one is, so a leftover
-// setting is noticed even by a run that calls no LLM, YT2COLUMN_CLAUDE_EFFORT
-// included when no stage uses claude.
+// inherits its selection.
 func LoadFor(lookup LookupFunc, need Need) (Config, error) {
 	llm, errs := loadLLM(lookup, need)
 	var cfg Config
@@ -471,16 +476,15 @@ func LoadFor(lookup LookupFunc, need Need) (Config, error) {
 // returns the validated LLMConfig and each rejection separately, so LoadFor and
 // LoadServer report them the same way.
 //
-// Contract: the retired variables are checked first, whatever need is, and
-// their values are never read; every other variable is read only for a stage
-// the run needs. A rejected value is never replaced by a default, so a run
-// with any rejection sends nothing to a provider. The generation selection is
-// resolved at most once: for the generation stage, or for a review stage that
-// inherits it, effort included, because YT2COLUMN_REVIEW_LLM is unset; it is
-// stored as the Generation selection only when need.Generation is true.
+// Contract: a variable is read only for a stage the run needs. A rejected
+// value is never replaced by a default, so a run with any rejection sends
+// nothing to a provider. The generation selection is resolved at most once:
+// for the generation stage, or for a review stage that inherits it, effort
+// included, because YT2COLUMN_REVIEW_LLM is unset; it is stored as the
+// Generation selection only when need.Generation is true.
 func loadLLM(lookup LookupFunc, need Need) (LLMConfig, []error) {
 	var cfg LLMConfig
-	errs := retiredLLMErrors(lookup)
+	var errs []error
 
 	reviewValue, reviewSet := "", false
 	if need.Review {
@@ -508,19 +512,6 @@ func loadLLM(lookup LookupFunc, need Need) (LLMConfig, []error) {
 	}
 	errs = append(errs, loadProviderVars(lookup, &cfg, need)...)
 	return cfg, errs
-}
-
-// retiredLLMErrors returns one rejection for each retired variable that is
-// present, an empty value included, in the order of retiredLLMVars. It reads
-// whether each is present and never uses its value.
-func retiredLLMErrors(lookup LookupFunc) []error {
-	var errs []error
-	for _, v := range retiredLLMVars {
-		if _, ok := lookup(v.name); ok {
-			errs = append(errs, invalidVar(v.name, v.reason))
-		}
-	}
-	return errs
 }
 
 // resolveGeneration reads YT2COLUMN_LLM. When it is unset, it parses

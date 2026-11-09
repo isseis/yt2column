@@ -1,7 +1,8 @@
 // Package main is the entry point of yt2column-server, the server that listens
 // on a Unix domain socket, turns the transcript the browser extension sends
 // through the native messaging host into an article, and posts it to the
-// webhook.
+// webhook. Its one subcommand, config init, creates the template of the
+// configuration file the server reads.
 package main
 
 import (
@@ -15,7 +16,9 @@ import (
 
 // main hands the process boundary to signalrun.Run: the first signal cancels
 // the context, which stops the server after its in-flight jobs finish, and a
-// second signal ends the process at once. os.LookupEnv is passed here and
+// second signal ends the process at once. config init does not watch the
+// context: it is short and touches no network, so a first signal takes effect
+// when it returns. os.LookupEnv is passed here and
 // nowhere else in this package's production code, so internal/config is the
 // only code that reads a variable's value.
 func main() {
