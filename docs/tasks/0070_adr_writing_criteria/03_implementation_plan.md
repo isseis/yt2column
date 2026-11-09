@@ -163,7 +163,7 @@ N/A。実行時の振る舞いを変えない（設計書 7.4）。
 - [x] フェーズ 1 完了（ステップ 1-1〜1-6）
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）が通ることを確認した
 - [x] PR を作成した: https://github.com/isseis/yt2column/pull/745
-- [ ] PR がマージされた
+- [x] PR がマージされた
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
