@@ -69,21 +69,21 @@
 
 **変更するファイル:** `README.md`、`README.en.md`、`docs/dev/adr/0029-extension-ui-languages.md`、`docs/tasks/0069_readme_display_language/_checks/main.go`（新規）、`docs/tasks/0069_readme_display_language/_checks/data.json`（新規）、`docs/tasks/0069_readme_display_language/03_implementation_plan.md`（進み具合と §7 の記録）
 
--   [ ] **ステップ 1-1（内容のコミット 1）**: `README.md:574-575` の段落を、設計書 3.1 の表の 3 文の内容に改める。1 文目の主語は画面の文言だけを指す語にし、記事の本文が選んだ言語で表示されるとは読めない形にする（AC-01）。段落は 1 つのまま、場所も変えない。段落の外は変えない（AC-04）。
--   [ ] **ステップ 1-2（内容のコミット 1）**: `make readme-sync-check` を実行し、失敗したら `.claude/commands/mktrans.md`「When a caller runs it」のとおり `/mktrans README.md` を sub-step として実行する。変更後の `README.en.md` の段落の 3 文目が「英語の版」を述べていること（設計書 3.2）と、段落の外の行が変わっていないことを読んで確かめる。どちらか一方でも満たさなければ、`README.en.md` を `/mktrans` の前の状態に戻してやり直す（設計書 4.2）。`/mktrans` が止まったときは、`README.md` だけをコミットせずに作業を止め、利用者に報告する。用語集にない語として報告された語を書き留める（PR の説明に載せる）。
--   [ ] **ステップ 1-3（内容のコミット 1）**: `make readme-sync-check` と `make ext-test` が通ることを確かめ、`README.md` と `README.en.md` を 1 つのコミットに入れる。
--   [ ] **ステップ 1-4（内容のコミット 2）**: `docs/dev/adr/0029-extension-ui-languages.md:24` の項目から、ずれの記述の 3 文を消す。変更の前後は次のとおりで、項目のほかの部分と ADR のほかの行は変えない（AC-08・AC-09）。
+-   [x] **ステップ 1-1（内容のコミット 1）**: `README.md:574-575` の段落を、設計書 3.1 の表の 3 文の内容に改める。1 文目の主語は画面の文言だけを指す語にし、記事の本文が選んだ言語で表示されるとは読めない形にする（AC-01）。段落は 1 つのまま、場所も変えない。段落の外は変えない（AC-04）。
+-   [x] **ステップ 1-2（内容のコミット 1）**: `make readme-sync-check` を実行し、失敗したら `.claude/commands/mktrans.md`「When a caller runs it」のとおり `/mktrans README.md` を sub-step として実行する。変更後の `README.en.md` の段落の 3 文目が「英語の版」を述べていること（設計書 3.2）と、段落の外の行が変わっていないことを読んで確かめる。どちらか一方でも満たさなければ、`README.en.md` を `/mktrans` の前の状態に戻してやり直す（設計書 4.2）。`/mktrans` が止まったときは、`README.md` だけをコミットせずに作業を止め、利用者に報告する。用語集にない語として報告された語を書き留める（PR の説明に載せる）。
+-   [x] **ステップ 1-3（内容のコミット 1）**: `make readme-sync-check` と `make ext-test` が通ることを確かめ、`README.md` と `README.en.md` を 1 つのコミットに入れる。
+-   [x] **ステップ 1-4（内容のコミット 2）**: `docs/dev/adr/0029-extension-ui-languages.md:24` の項目から、ずれの記述の 3 文を消す。変更の前後は次のとおりで、項目のほかの部分と ADR のほかの行は変えない（AC-08・AC-09）。
     -   変更前：`-   **表示の言語の決まり方を利用者に説明するのは [README.md](../../../README.md) の「ブラウザ拡張」節の段落である。** この段落は、ポップアップの言語だけを述べている。現在のコードでは、ビューアも同じ規則で選んだ言語で表示する。段落がビューアに触れていないことは、記録した issue [#719](https://github.com/isseis/yt2column/issues/719) で扱う。`
     -   変更後：`-   **表示の言語の決まり方を利用者に説明するのは [README.md](../../../README.md) の「ブラウザ拡張」節の段落である。**`
 
     このファイルだけをコミットする。コミットのメッセージには、設計書 3.3 の形の訂正の行を 1 行だけ書く（AC-10）。行は `Editorial correction: docs/dev/adr/0029-extension-ui-languages.md: ` で始まり、何を何に直したかを自分の言葉で述べ、`; no decision changed` で終わる。`@` と `<` を含めない。経緯の項目は足さない。PR は squash でマージされ、`main` に入るコミットのメッセージは `/mergepr` が書くので、AC-10 が求める記録は、マージの前の PR のコミットと PR の説明にあるものである。
--   [ ] **ステップ 1-5（コミット 3）**: 確認のプログラムを `_checks/main.go` と `_checks/data.json` に書く（本計画 §1.3 の形）。確かめる項目は次のとおりである。
+-   [x] **ステップ 1-5（コミット 3）**: 確認のプログラムを `_checks/main.go` と `_checks/data.json` に書く（本計画 §1.3 の形）。確かめる項目は次のとおりである。
     -   AC-04・AC-07・AC-09（AC-08 も兼ねる）・変えたファイルの範囲：設計書 7.2 の表のとおり。
     -   AC-10：比べる範囲のコミットのうちマージでないもの（`--no-merges`）について、次の 3 つを確かめる。(a) ADR-0029 を変えるコミットが 1 つ以上ある。(b) そのどれもが ADR-0029 以外のファイルを変えない。(c) そのどれもが、メッセージに ADR-0029 の訂正の行（`Editorial correction: docs/dev/adr/0029-extension-ui-languages.md: ` で始まり `; no decision changed` で終わり、`@` と `<` を含まない行）をちょうど 1 つ持つ。マージのコミットを除くのは、`main` を取り込むと、そのマージのコミットが `docs/dev/adr/` の下のほかのタスクの変更を含むためである。
     -   AC-11：`cf76c1f622df0883230e9b1de0c426f6aef9cb88` が PR の先頭の祖先である。
 
     設計書 7.2 の 3 つの性質（2 つのコミットを引数で受け取って作業ツリーの文書を読まない、段落の位置を前後の変わらない段落で決める、違反でも読み取りの失敗でも 0 でない終了コードで終わる）を持たせる。基点が先頭の祖先でなければ、読み取りの失敗として終わる。違反は終了コード 1、読み取りの失敗は 2 で終わる。出力には、比べた 2 つのコミットの完全な ID と、項目ごとの結果を含める。コメント・識別子・文字列は英語で書く。`make fmt` と `go vet -tags test ./docs/tasks/0069_readme_display_language/_checks/` を通す。
--   [ ] **ステップ 1-6（コミット 3）**: 確認のプログラムが違反と読み取りの失敗を検出できることを確かめる。PR のブランチから `git worktree` で使い捨てのブランチを作り、壊し方を 1 件ずつ別の一時的なコミットとして作る。それぞれを先頭として、ビルドした実行ファイルを PR のブランチの作業ツリーから走らせ、壊した項目だけが失敗し、ほかの項目は通ることと、終了コード（違反は 1、読み取りの失敗は 2）を確かめる。
+-   [x] **ステップ 1-6（コミット 3）**: 確認のプログラムが違反と読み取りの失敗を検出できることを確かめる。PR のブランチから `git worktree` で使い捨てのブランチを作り、壊し方を 1 件ずつ別の一時的なコミットとして作る。それぞれを先頭として、ビルドした実行ファイルを PR のブランチの作業ツリーから走らせ、壊した項目だけが失敗し、ほかの項目は通ることと、終了コード（違反は 1、読み取りの失敗は 2）を確かめる。
     -   **作り方:** 一時的なコミットは `git commit --no-verify` で作る。`README.md` を変えると、pre-commit hook の `readme-sync` が同期の目印のずれを理由にコミットを拒むためである。`--no-verify` は使い捨ての worktree の中だけで使う。ADR-0029 に関する壊し方は、使い捨てのブランチで、内容のコミット 1 の上に、内容を変えた内容のコミット 2 を作り直して作る。こうすると、AC-10 の項目が巻き添えで失敗しない。変える行は、目印にする段落の外から選ぶ。
     -   **壊す対象:** 次の失敗の経路を、それぞれ 1 件以上の壊し方で確かめる。
         -   AC-04：`README.md` の表示の言語の段落の外の 1 行の変更。段落の中に空行を入れて 2 つの段落にすること。
@@ -97,8 +97,8 @@
         壊し方ごとに、失敗した項目と通った項目を確かめ、狙った項目のほかが失敗するときは壊し方を直す。読み取りの失敗の壊し方では、終了コードが 2 であることを確かめ、ほかの項目の結果は問わない。ADR-0029 の壊し方で作り直す内容のコミット 2 には、正しい訂正の行を残す。
 
     使い捨てのブランチは push せず、確かめた後に worktree とともに消す。PR のブランチの履歴は変えない。壊し方ごとの結果を、プログラムを足すコミットのメッセージに書いて、`_checks/main.go` と `_checks/data.json` をコミットする。
--   [ ] **ステップ 1-7（コミット 4）**: `make test`・`make ext-test`・`make lint` を実行して通ることを確かめる（AC-12）。`git fetch origin main` の後、確認のプログラムをビルドして引数なしで走らせる。出力、終了コード、比べた 2 つのコミットの完全な ID を本計画 §7 の該当する行に書き、本計画の進み具合とともにコミットする。このコミットはこのタスクのディレクトリの下しか変えないので、記録した結果は変わらない（設計書 6.1）。
--   [ ] **ステップ 1-8**: 記録したコミットの後に、`README.md`・`README.en.md`・`docs/dev/adr/`・`_checks/` を変えるコミットや、`main` を取り込むコミットが入ったら、確認のプログラムを走らせ直して §7 の記録を改める（設計書 7.2 の最後の段落）。`/runplan` のフェーズの後のレビュー（deadcode の確認、サブエージェントのレビュー、ローカルの CLI のレビュー）の修正のコミットも、これに当たる。PR を作る（`_lib/task-pr-handoff.md` Part B）前に、記録が PR の先頭のものであることを確かめる。
+-   [x] **ステップ 1-7（コミット 4）**: `make test`・`make ext-test`・`make lint` を実行して通ることを確かめる（AC-12）。`git fetch origin main` の後、確認のプログラムをビルドして引数なしで走らせる。出力、終了コード、比べた 2 つのコミットの完全な ID を本計画 §7 の該当する行に書き、本計画の進み具合とともにコミットする。このコミットはこのタスクのディレクトリの下しか変えないので、記録した結果は変わらない（設計書 6.1）。
+-   [x] **ステップ 1-8**: 記録したコミットの後に、`README.md`・`README.en.md`・`docs/dev/adr/`・`_checks/` を変えるコミットや、`main` を取り込むコミットが入ったら、確認のプログラムを走らせ直して §7 の記録を改める（設計書 7.2 の最後の段落）。`/runplan` のフェーズの後のレビュー（deadcode の確認、サブエージェントのレビュー、ローカルの CLI のレビュー）の修正のコミットも、これに当たる。PR を作る（`_lib/task-pr-handoff.md` Part B）前に、記録が PR の先頭のものであることを確かめる。
 
 **完了の条件:** 内容のコミット 1・2、確認のプログラムのコミット 3、記録のコミット 4 がこの順にある。確認のプログラムが終了コード 0 で終わり、その記録が §7 にある。`make test`・`make ext-test`・`make lint`・`make readme-sync-check` が通る。
 
@@ -158,8 +158,8 @@ N/A。実行時の振る舞いを変えない（設計書 7.4）。
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
-- [ ] フェーズ 1 完了（ステップ 1-1〜1-8）
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）と `make ext-test` が通ることを確認した
+- [x] フェーズ 1 完了（ステップ 1-1〜1-8）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）と `make ext-test` が通ることを確認した
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -170,15 +170,15 @@ N/A。実行時の振る舞いを変えない（設計書 7.4）。
 | AC-01 | manual | 変更後の `README.md` の段落を PR のレビューで読む。記事の本文まで UI の言語で表示されると読めないこと（設計書 3.1・7.3） | 1-1 |
 | AC-02 | manual | 同上 | 1-1 |
 | AC-03 | manual | 同上 | 1-1 |
-| AC-04 | diff | `_checks`（`README.md` の表示の言語の段落の外が前後で同じで、変更後の段落が 1 つの段落のまま。変えたファイルが `README.md`・`README.en.md`・ADR-0029・このタスクのディレクトリの下だけであることも確かめる）。実行の記録: （ステップ 1-7 で書く） | 1-5〜1-8 |
+| AC-04 | diff | `_checks`（`README.md` の表示の言語の段落の外が前後で同じで、変更後の段落が 1 つの段落のまま。変えたファイルが `README.md`・`README.en.md`・ADR-0029・このタスクのディレクトリの下だけであることも確かめる）。実行の記録（2026-11-09、基点 `ed64cf39549c153e5d8143e32b6b92bf28328505`、先頭 `2854512d63ed6e0db61f46843510b9c9917ab5dd`、終了コード 0）: `OK   AC-04 README.md: text outside the display-language paragraph is unchanged, the paragraph is one block, and every changed file is in scope` | 1-5〜1-8 |
 | AC-05 | manual | 変更後の `README.en.md` の段落を PR のレビューで読む。3 文目が「英語の版」を述べること（設計書 3.2・7.3） | 1-2 |
 | AC-06 | test | `cmd/yt2column/readme_sync_test.go::TestReadmeSyncMarker`（`make readme-sync-check`、`make test`、CI の `doc-guard`） | 1-2・1-3・1-7 |
-| AC-07 | diff | `_checks`（`README.en.md` の 1 行目と表示の言語の段落の外が前後で同じで、変更後の段落が 1 つの段落のまま）。実行の記録: （ステップ 1-7 で書く） | 1-5〜1-8 |
+| AC-07 | diff | `_checks`（`README.en.md` の 1 行目と表示の言語の段落の外が前後で同じで、変更後の段落が 1 つの段落のまま）。実行の記録（2026-11-09、基点 `ed64cf39549c153e5d8143e32b6b92bf28328505`、先頭 `2854512d63ed6e0db61f46843510b9c9917ab5dd`、終了コード 0）: `OK   AC-07 README.en.md: only the sync marker and the display-language paragraph changed, and the paragraph is one block` | 1-5〜1-8 |
 | AC-08 | manual | 変更後の ADR-0029 の「決定」の最後の項目を PR のレビューで読む（設計書 7.3）。項目の形は AC-09 の行の `_checks` でも確かめる | 1-4 |
-| AC-09 | diff | `_checks`（`docs/dev/adr/` の下で変わったのは ADR-0029 だけで、追加・削除・名前の変更がなく、ADR-0029 の変更後の項目は変更前の項目を 1 文目の末尾で切ったものに等しく、ほかの部分は前後で同じ。AC-08 も兼ねる）。実行の記録: （ステップ 1-7 で書く） | 1-5〜1-8 |
-| AC-10 | diff | `_checks`（ADR-0029 を変えるマージでないコミットが 1 つ以上あり、どれも ADR-0029 だけを変え、メッセージに ADR-0029 の訂正の行をちょうど 1 行持つ）。実行の記録: （ステップ 1-7 で書く） | 1-4〜1-8 |
+| AC-09 | diff | `_checks`（`docs/dev/adr/` の下で変わったのは ADR-0029 だけで、追加・削除・名前の変更がなく、ADR-0029 の変更後の項目は変更前の項目を 1 文目の末尾で切ったものに等しく、ほかの部分は前後で同じ。AC-08 も兼ねる）。実行の記録（2026-11-09、基点 `ed64cf39549c153e5d8143e32b6b92bf28328505`、先頭 `2854512d63ed6e0db61f46843510b9c9917ab5dd`、終了コード 0）: `OK   AC-08/AC-09 docs/dev/adr/0029-extension-ui-languages.md: the decision section's last item is its first sentence and nothing else in the ADR changed` | 1-5〜1-8 |
+| AC-10 | diff | `_checks`（ADR-0029 を変えるマージでないコミットが 1 つ以上あり、どれも ADR-0029 だけを変え、メッセージに ADR-0029 の訂正の行をちょうど 1 行持つ）。実行の記録（2026-11-09、基点 `ed64cf39549c153e5d8143e32b6b92bf28328505`、先頭 `2854512d63ed6e0db61f46843510b9c9917ab5dd`、終了コード 0）: `OK   AC-10 each non-merge commit that changes ADR-0029 carries exactly one editorial correction line` | 1-4〜1-8 |
 | AC-10 | manual | 訂正の行の内容と、PR の説明の訂正の段落を PR のレビューで読む（設計書 7.3） | 1-4、PR の作成 |
-| AC-11 | diff | `_checks`（`cf76c1f622df0883230e9b1de0c426f6aef9cb88` が PR の先頭の祖先）。実行の記録: （ステップ 1-7 で書く） | 1-5〜1-8 |
+| AC-11 | diff | `_checks`（`cf76c1f622df0883230e9b1de0c426f6aef9cb88` が PR の先頭の祖先）。実行の記録（2026-11-09、基点 `ed64cf39549c153e5d8143e32b6b92bf28328505`、先頭 `2854512d63ed6e0db61f46843510b9c9917ab5dd`、終了コード 0）: `OK   AC-11 cf76c1f622df0883230e9b1de0c426f6aef9cb88 is an ancestor of the head commit` | 1-5〜1-8 |
 | AC-12 | test | `make test`、`make ext-test` | 1-3・1-7 |
 
 ## 8. 成功の基準 (Success Criteria)
