@@ -170,6 +170,8 @@ N/A。実行時の振る舞いを変えない（設計書 7.4）。
 - [x] ステップ 1-7 の確認（`origin/main`：`ae6e7b26bb21cd34504d71b00b0e48c562743c76`、0070 の実装の PR のマージのコミット `af73c4ce4fa1974a64c7331f4799520f7d32cdca` は `origin/main` の祖先、`docs/dev/conventions/adr.md` に `## Editorial corrections` の節がある、`git grep -nE 'issues/725([^0-9]|$)' origin/main -- docs/dev/adr/` の当たりは ADR-0034 の `:24` の 1 件だけで、先頭には当たりがない）
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）が通ることを確認した
 - [ ] マージの前の確認（本計画 §3.3）：AC-08・AC-09 が合格した結果を本計画 §7 に記録した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/751
+- [ ] PR がマージされた
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
