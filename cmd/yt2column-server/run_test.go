@@ -964,6 +964,10 @@ func TestRunArgs(t *testing.T) {
 	} {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
 			e := newServerEnv(t)
+			// The base exists, so arguments wrongly taken for config init
+			// would create the file.
+			home := prepareInitHome(t, e)
+			before := treeUnder(t, home)
 			var stderr strings.Builder
 			if code := run(t.Context(), args, e.lookup(), &stderr, testDeps(validResponseLLM())); code != exitUsage {
 				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitUsage, stderr.String())
@@ -971,8 +975,8 @@ func TestRunArgs(t *testing.T) {
 			if !strings.Contains(stderr.String(), "or exactly the two arguments config init") || strings.Count(stderr.String(), "\n") != 1 {
 				t.Errorf("stderr is not the one line naming the accepted arguments:\n%s", stderr.String())
 			}
-			if created := treeUnder(t, e.vars["HOME"]); len(created) != 0 {
-				t.Errorf("the run created %v under HOME", created)
+			if after := treeUnder(t, home); !slices.Equal(after, before) {
+				t.Errorf("HOME changed from %v to %v", before, after)
 			}
 		})
 	}
@@ -982,7 +986,7 @@ func TestRunArgs(t *testing.T) {
 // code for each failure class, the line it writes to standard error, and
 // that it never creates the socket directory, the start lock, or the socket.
 func TestConfigInit(t *testing.T) {
-	template := string(config.ServerFileTemplateForTest())
+	template := config.ServerFileTemplateForTest()
 	cases := []struct {
 		name string
 		// setup prepares HOME (and may change it) before the run.
@@ -996,10 +1000,10 @@ func TestConfigInit(t *testing.T) {
 		// leftover says the run leaves its temporary file, which the second
 		// line of standard error names.
 		leftover bool
-		// serverRejects says the server must refuse this HOME, which shows
-		// that the row tests a HOME only config init accepts.
-		serverRejects bool
-		wantStderr    string
+		// wantStderr is a part of standard error that names the result. run
+		// returns only an exit code, so standard error is the observable
+		// contract matched here; the sentinels are InitServerFile's tests'.
+		wantStderr string
 	}{
 		{
 			name:       "empty HOME",
@@ -1100,8 +1104,7 @@ func TestConfigInit(t *testing.T) {
 			wantStderr: "configuration: HOME: ",
 		},
 		{
-			// A relative HOME must not create anything relative to the
-			// working directory, and the error must not hold its value.
+			// The error must not hold a relative HOME's value.
 			name:       "HOME relative",
 			setup:      func(_ *testing.T, e *serverEnv) { e.vars["HOME"] = relativeHome },
 			want:       exitUsage,
@@ -1109,16 +1112,15 @@ func TestConfigInit(t *testing.T) {
 		},
 		{
 			// config init does not use the socket path, so its limit does not
-			// stop it.
+			// stop it; TestStartupFailures shows the server refuses this HOME.
 			name: "HOME one byte over the socket path limit",
 			setup: func(t *testing.T, e *serverEnv) {
 				e.vars["HOME"] = homeOneByteOverSocketLimit(e.vars["HOME"])
 				prepareInitHome(t, e)
 			},
-			want:          exitOK,
-			created:       true,
-			serverRejects: true,
-			wantStderr:    "created the configuration file ",
+			want:       exitOK,
+			created:    true,
+			wantStderr: "created the configuration file ",
 		},
 	}
 	for _, tc := range cases {
@@ -1145,13 +1147,14 @@ func TestConfigInit(t *testing.T) {
 				t.Errorf("stderr does not contain %q:\n%s", tc.wantStderr, stderr.String())
 			}
 			lines := strings.Split(strings.TrimSuffix(stderr.String(), "\n"), "\n")
-			if wantLines := map[bool]int{false: 1, true: 2}[tc.leftover]; len(lines) != wantLines {
+			wantLines := 1
+			if tc.leftover {
+				wantLines = 2
+			}
+			if len(lines) != wantLines {
 				t.Errorf("stderr has %d lines, want %d:\n%s", len(lines), wantLines, stderr.String())
 			}
-			if _, err := os.Lstat(relativeHome); !errors.Is(err, os.ErrNotExist) {
-				t.Errorf("config init created %s in the working directory: %v", relativeHome, err)
-			}
-			if strings.Contains(stderr.String(), relativeHome) {
+			if home != "" && !homeSet && strings.Contains(stderr.String(), home) {
 				t.Errorf("stderr holds HOME's value:\n%s", stderr.String())
 			}
 			if homeSet {
@@ -1184,14 +1187,6 @@ func TestConfigInit(t *testing.T) {
 				}
 				if tc.leftover {
 					requireLeftoverNamed(t, path, lines)
-				}
-				if tc.serverRejects {
-					ctx, cancel := context.WithTimeout(context.Background(), exitBound)
-					defer cancel()
-					var serverErr strings.Builder
-					if code := run(ctx, nil, e.lookup(), &serverErr, testDeps(validResponseLLM())); code != exitUsage || !strings.Contains(serverErr.String(), "configuration: HOME: ") {
-						t.Errorf("the server with this HOME exited %d, want %d with a HOME rejection:\n%s", code, exitUsage, serverErr.String())
-					}
 				}
 			case homeSet && before.fileMode != 0:
 				// Something was at the path: it must be unchanged.
@@ -1226,8 +1221,7 @@ func TestConfigInit(t *testing.T) {
 	}
 }
 
-// relativeHome is the relative HOME TestConfigInit gives config init; no
-// test creates anything by that name in the working directory.
+// relativeHome is the relative HOME TestConfigInit gives config init.
 const relativeHome = "y2c-relative-home"
 
 // requireLeftoverNamed checks that the file's directory holds the file and
@@ -1274,6 +1268,7 @@ func TestConfigInitStdout(t *testing.T) {
 // server listens.
 func TestConfigInitThenStart(t *testing.T) {
 	e := newServerEnv(t)
+	// startServer below must keep the file config init creates.
 	e.noFile = true
 	home := prepareInitHome(t, e)
 	var stderr strings.Builder

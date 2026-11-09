@@ -462,7 +462,7 @@ PR の分け方の理由は 1.3 の 4 つ目の決定にある。
 | AC-34 | `cmd/yt2column-server/docs_test.go::TestServerDocsContract` | static | 7-3 | 7-3 |
 | AC-35 | `make ext-check`（`extension/test/secretsAbsent.test.ts` を含む）、案内の文の内容は PR のレビューで読む | static・manual | 6-1 | - |
 
-要件 4.2「拒否の分類」の番兵ごとの `errors.Is` は、`TestFileErrorMapping`（ステップ 2-3）、`TestLoadServerFileRejections`（ステップ 3-3）、`TestConfigInit`（ステップ 5-2）で確かめる。
+要件 4.2「拒否の分類」の番兵ごとの `errors.Is` は、`TestFileErrorMapping`（ステップ 2-3）、`TestInitServerFile`（ステップ 2-3）、`TestLoadServerFileRejections`（ステップ 3-3）で確かめる。`TestConfigInit`（ステップ 5-2）は、分類ごとの終了コードと標準エラーの行を確かめる。
 
 ## 8. 成功基準
 

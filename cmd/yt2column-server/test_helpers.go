@@ -117,8 +117,8 @@ var (
 type serverEnv struct {
 	vars map[string]string // the process environment
 	file map[string]string // the configuration file's keys and values
-	// noFile makes writeConfig write nothing, for a test that leaves the
-	// path empty or creates the file itself (with config init).
+	// noFile makes writeConfig write nothing, so startServer keeps the
+	// file a test created with config init.
 	noFile bool
 }
 
@@ -638,6 +638,9 @@ func runChildToEnd(t *testing.T, e *serverEnv, args ...string) (code int, stdout
 	cmd.Stdout = &out
 	cmd.Stderr = &errOut
 	if err := cmd.Run(); err != nil {
+		if ctx.Err() != nil {
+			t.Fatalf("the child did not exit within %v", exitBound)
+		}
 		if _, ok := errors.AsType[*exec.ExitError](err); !ok {
 			t.Fatalf("run the child: %v", err)
 		}

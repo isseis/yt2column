@@ -93,7 +93,11 @@ func EffortValuesByProviderForTest() map[string][]string {
 
 // ServerFilePathForTest returns the configuration file's path under home on
 // this operating system. It panics when no path can be derived from home.
-func ServerFilePathForTest(home string) string {
+func ServerFilePathForTest(home string) string { return serverFileLocationForHome(home).path }
+
+// serverFileLocationForHome derives the configuration file's location from
+// home alone. It panics when no path can be derived from home.
+func serverFileLocationForHome(home string) serverFileLocation {
 	loc, err := serverFileLocationFor(runtime.GOOS, func(name string) (string, bool) {
 		if name == "HOME" {
 			return home, true
@@ -103,27 +107,16 @@ func ServerFilePathForTest(home string) string {
 	if err != nil {
 		panic("config: no configuration file path for HOME " + home + ": " + err.Error())
 	}
-	return loc.path
+	return loc
 }
 
 // ServerFileBaseForTest returns the directory below home that config init
 // requires to exist on this operating system. It panics when no path can be
 // derived from home.
-func ServerFileBaseForTest(home string) string {
-	loc, err := serverFileLocationFor(runtime.GOOS, func(name string) (string, bool) {
-		if name == "HOME" {
-			return home, true
-		}
-		return "", false
-	})
-	if err != nil {
-		panic("config: no configuration file path for HOME " + home + ": " + err.Error())
-	}
-	return loc.base
-}
+func ServerFileBaseForTest(home string) string { return serverFileLocationForHome(home).base }
 
 // ServerFileTemplateForTest returns the content config init writes.
-func ServerFileTemplateForTest() []byte { return []byte(serverFileTemplate) }
+func ServerFileTemplateForTest() string { return serverFileTemplate }
 
 // ServerFileKeysForTest returns the keys the configuration file accepts.
 func ServerFileKeysForTest() []string { return slices.Clone(serverFileKeys) }
