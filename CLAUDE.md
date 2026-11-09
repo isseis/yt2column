@@ -204,10 +204,10 @@ change, retire, and withdraw an ADR is in the convention,
 ### Claude Commands (`.claude/commands/`)
 Project-specific values these commands depend on are defined once in
 [_context.md](.claude/commands/_context.md).
-- `/mkreq <issue> [task]` - Create `01_requirements.md` from a GitHub issue and open its PR; first, for an issue that meets the lightweight conditions, offer the lightweight process and, when the user approves the spec shown, post it on the issue and add the label instead
+- `/mkreq <issue> [task]` - Create `01_requirements.md` from a GitHub issue and open its PR, after asking whether the task takes the full process or the simple process; in the simple process it also writes `02_architecture.md` and `03_implementation_plan.md` and opens one PR for the three documents. First, for an issue that meets the lightweight conditions, offer the lightweight process and, when the user approves the spec shown, post it on the issue and add the label instead
 - `/runissue <issue>` - Implement an issue's approved lightweight spec on its own branch, recheck the conditions on the real diff, and open its one PR
-- `/mkarch <task>` - Create `02_architecture.md` (requires approved requirements) and open its PR
-- `/mkplan <task>` - Create `03_implementation_plan.md` with its PR boundaries (requires approved architecture) and open its PR
+- `/mkarch <task>` - Create `02_architecture.md` (requires approved requirements) and open its PR; it stops without writing for a task that takes the simple process, whose documents `/mkreq` writes
+- `/mkplan <task>` - Create `03_implementation_plan.md` with its PR boundaries (requires approved architecture) and open its PR; it stops without writing for a task that takes the simple process, whose documents `/mkreq` writes
 - `/mkplan2 <task>` - Embed PR boundaries into an approved plan that lacks them (plans written before `/mkplan` did it) and open its PR
 - `/runplan <task>` - Implement the phase groups of an approved plan up to the next PR checkpoint, then open the PR
 - `/runpr [PR | branch | task]` - Drive a PR through Codex's PR review and CI, record its bookkeeping (a document's approval, a plan checkpoint), merge it, and offer the next command, which it runs only when the user chooses; for a standalone change it also creates the PR
@@ -773,13 +773,27 @@ When implementing new features, follow the process documented in [Requirements P
 
 **Quick summary:**
 1. Create an issue, then run `/mkreq <issue>` to create `01_requirements.md` with explicit acceptance criteria
-2. Create `02_architecture.md` with high-level design (Mermaid diagrams)
+2. Create `02_architecture.md` with high-level design (Mermaid diagrams, which the simple process may omit)
 3. Create `03_implementation_plan.md` with progress tracking (checkboxes) and AC traceability
 4. Verify each acceptance criterion with a test, a static check, a diff check for an AC that states a before/after relation, or a manual reading for an AC that specifies prose alone
 5. Link each verification to its acceptance criterion in the implementation plan
 
 Each document is created as `draft`; the next one is not started until a human
-reviewer sets the previous one to `approved`.
+reviewer sets the previous one to `approved`. The exception is the simple
+process below.
+
+**Simple process.** `/mkreq` asks for each task whether to take the full
+process above or the simple process, and records the answer in the `Process`
+row of `01_requirements.md`. In the simple process, `/mkreq` writes the three
+documents, kept as short as the change allows, before any of them is approved
+and opens one PR for them; the reviewer approves all three in one answer to
+`/runpr`, which can instead return the PR to the full process before the merge.
+No implementation code is written until all three are `approved`. A change to
+a security rule or premise, to a trust boundary of the development tools, or to
+an external dependency is excluded unless the human overrides the judgment.
+What may and may not be omitted, the exclusions, and the return are in the
+[Simple Process](docs/dev/conventions/requirements_process.md#simple-process)
+section of the Requirements Process Guide.
 
 **Lightweight process.** A simple change (a wording fix, a deletion of
 unreachable code, or a mechanical refactoring, within fixed limits) takes one

@@ -113,7 +113,7 @@
 
 **変更するファイル:** `docs/dev/conventions/requirements_process.md`、`docs/tasks/0000_template/requirements.md`、`docs/translation_glossary.md`、`.claude/commands/_context.md`、`CLAUDE.md`
 
--   [ ] **ステップ 1-1**: 要件プロセスの規約を、設計書 3.9 の「要件プロセスの規約」の項目のとおりに変える。
+-   [x] **ステップ 1-1**: 要件プロセスの規約を、設計書 3.9 の「要件プロセスの規約」の項目のとおりに変える。
     -   「LLM Constraints」に簡易な進め方の例外を足す（AC-13）。
     -   「Review Flow」に簡易な進め方の流れを、通常の流れと並べて足す。
     -   「Document Status Format」に `Process` 行の値と 4 つの記録の状態（設計書 3.1 の表）を書く。記録の置き場所の段落には、本計画 §1.3 の 3 つ目の項目の 2 点だけを足し、「Six places」の数は変えない。
@@ -121,10 +121,10 @@
     -   「Design handoff」の段落に、申し送りの項目の 3 つの種類と形を書く。
     -   新しい節「Simple Process」を「Lightweight Process」の前に置く。省かないものと省いてよいもの（AC-05・AC-06）、除外の一覧（AC-14・AC-15）、戻すことの要約、"normal process" の意味を述べる 1 文を書く。
     -   「Lightweight Process」の節の文と表は変えない。
--   [ ] **ステップ 1-2**: 要件定義書のテンプレートの状態表で、`Status` の次に `` | Process | `full` | `` の行を足す（設計書 3.1 の例と 3.9）。
--   [ ] **ステップ 1-3**: 用語集に「簡易な進め方」（simple process）、「通常の進め方」（full process）、「進め方の記録」（process record）の 3 行を、既存の行の形で足す。
--   [ ] **ステップ 1-4**: `_context.md` を設計書 2.2 の行のとおりに変える。「Process convention」の表に「Task process record」の行を足し、値の定めは規約の「Document Status Format」を参照させる（値そのものは書かない）。申し送りの 2 行の書く者と項目の種類を改め、実装モデルの行に `/mkreq` を足す。レビュアーの行は変えない。
--   [ ] **ステップ 1-5**: `CLAUDE.md` を設計書 3.9 の「`CLAUDE.md`」のとおりに変える。「Requirements and Acceptance Criteria」の手順の 2 と `:781` の文に簡易な進め方の例外と規約への参照を足し、「Claude Commands」の `/mkreq`・`/mkarch`・`/mkplan` の行に簡易な進め方に触れる語句を足す。
+-   [x] **ステップ 1-2**: 要件定義書のテンプレートの状態表で、`Status` の次に `` | Process | `full` | `` の行を足す（設計書 3.1 の例と 3.9）。
+-   [x] **ステップ 1-3**: 用語集に「簡易な進め方」（simple process）、「通常の進め方」（full process）、「進め方の記録」（process record）の 3 行を、既存の行の形で足す。
+-   [x] **ステップ 1-4**: `_context.md` を設計書 2.2 の行のとおりに変える。「Process convention」の表に「Task process record」の行を足し、値の定めは規約の「Document Status Format」を参照させる（値そのものは書かない）。申し送りの 2 行の書く者と項目の種類を改め、実装モデルの行に `/mkreq` を足す。レビュアーの行は変えない。
+-   [x] **ステップ 1-5**: `CLAUDE.md` を設計書 3.9 の「`CLAUDE.md`」のとおりに変える。「Requirements and Acceptance Criteria」の手順の 2 と `:781` の文に簡易な進め方の例外と規約への参照を足し、「Claude Commands」の `/mkreq`・`/mkarch`・`/mkplan` の行に簡易な進め方に触れる語句を足す。
 
 **完了の条件:** `make test` と `make lint` が通る。フェーズ 1 の変更をコミットしてある。
 
