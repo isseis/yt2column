@@ -14,7 +14,7 @@
 
 ## 決定
 
--   **記録の置き場所は、読む人と読む時期で決める。** タスク文書についての記録の置き場所は、状態表の `Comments`、変更履歴、本文の「…で決めたこと（YYYY-MM-DD）」の節、PR の説明、コミットメッセージ、ADR の 6 つである。それぞれに何を置くかは、[requirements_process.md](../conventions/requirements_process.md) の「Document Status Format」の段落に従う。ADR は状態表と変更履歴を持たない（[adr.md](../conventions/adr.md)「Status」）。
+-   **記録の置き場所は、読む人と読む時期で決める。** タスク文書についての記録の置き場所は、状態表の `Comments`、変更履歴、本文の「…で決めたこと（YYYY-MM-DD）」の節、PR の説明、コミットメッセージ、ADR の 6 つである。それぞれに何を置くかは、[requirements_process.md](../conventions/requirements_process.md) の「Document Status Format」の段落に従う。ADR は、タスク文書の形の状態表と変更履歴を持たない。ADR の状態は ADR の「状態」の節に、決定の変遷は「経緯」に書き、`/runpr` は ADR の承認を記録しない（[adr.md](../conventions/adr.md)「Status」「History entries」）。
 -   **承認済みの文書への編集を、決定の変更・セッション中の再承認・編集上の訂正の 3 つに分ける。** 決定の変更は、文書を `draft` に戻して承認し直す。`/runplan` が実装中に見つけた決定の変更は、セッションでのレビュアーの答えを再承認とする。編集上の訂正は、状態も `Comments` も変更履歴も変えない。分け方と、それぞれで何を書き換えるかは、[requirements_process.md](../conventions/requirements_process.md)「Editing an approved document」に従う。
 -   **`Comments` には、今の状態についてレビュアーが今知るべき理由だけを書く。** 状態が変わるたびに書き換え、前の値を残さない。状態ごとの値は、[requirements_process.md](../conventions/requirements_process.md)「Comments」に従う。
 -   **状態の遷移は、文書の末尾の変更履歴に 1 件 1 行で追記する。** 変更履歴には編集上の訂正を書かない。各行は、原則としてその行を加えた PR の番号を持ち、PR を作る前に書いた行の番号は `/runpr` がマージの直前に埋める（[runpr.md](../../../.claude/commands/runpr.md)）。行の形と PR 番号の例外は、[requirements_process.md](../conventions/requirements_process.md)「Change history」に従う。
@@ -57,4 +57,4 @@
 - 2026-11-02 移し替えの対象を、変更履歴のないすべての文書に広げた。承認済みの文書には、状態表の `Review date` と `Reviewer` から写した承認の行を PR 番号なしで作り、値を直さずに写し、写せないときは止まる（[0056 要件定義書](../../tasks/0056_legacy_approval_history/01_requirements.md)「issue #621 で決めたこと」「要件定義の際に決めたこと（2026-11-02）」）
 - 2026-11-02 写した承認の行の印を `状態表から写した` にし、規則の節を「Documents without a change history」に改めた。写した値は `HEAD` の状態表から組み立てた項目と `cmp` で比べ、写せないときは何もコミットせずに作業ツリーに残す（[0056 設計書](../../tasks/0056_legacy_approval_history/02_architecture.md)「1.3. 設計の際に決めたこと（2026-11-02）」）
 - 2026-11-02 移し替えの手順 1 で `Status` と `Comments` の行も確かめ、旧 `Comments` に `#未記入` があれば止まることにした。`/runpr` の PRE_MERGE も止まりうるとした（[0056 設計書](../../tasks/0056_legacy_approval_history/02_architecture.md)「1.4. 実装の際に決めたこと（2026-11-02）」）
-- 2026-11-04 タスク文書についての記録の置き場所に ADR を加えた。ADR は状態表を持たず、`/runpr` の承認の記録の対象にしない（[0060 要件定義書](../../tasks/0060_adr_records/01_requirements.md)「要件定義の際に決めたこと（2026-11-04）」）
+- 2026-11-04 タスク文書についての記録の置き場所に ADR を加えた。ADR の状態は `有効` と `廃止` の 2 つだけとし、タスク文書の状態表（`draft` → `approved`）と `/runpr` の承認の記録を持ち込まない（[0060 要件定義書](../../tasks/0060_adr_records/01_requirements.md)「要件定義の際に決めたこと（2026-11-04）」）
