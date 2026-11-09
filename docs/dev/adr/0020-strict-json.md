@@ -20,7 +20,7 @@ LLM の API の応答、字幕の json3 と info.json、中間生成物、サー
 -   **`Object` と `Value` は不透明な型にし、`ParseObject` から得た値だけを扱えるようにする。** フィールドは非公開で、`AsString`・`AsObject`・`AsArray` などは、検証を通っていないバイト列を受け取れない。ゼロ値の `Value` は中身を持たず、`AsString` などの読み取りはエラーを返す。ゼロ値の `Object` はメンバーを持たない。
 -   **読み取りの手段を、利用者の必要に合わせて 1 か所に持つ。** `Object.Collect` は消費しないキーを無視し、`Object.CollectOnly` は宣言していないキーと重複したキーを拒否する。`Object.Has` はエスケープを解いた名前の完全一致で有無を返し、振る舞いの選択に使える。`Value.AsBool` は `true` と `false` だけを受理する。`Value.IsNull` は `null` とそれ以外を区別する。`Value.Raw` は値の元のバイト列を返す。
 -   **負でない整数の規則は `Value.AsNonNegativeInt64` の 1 か所にする。** 符号・小数部・指数部のない 10 進の整数で `int64` の範囲にあり、負でないものだけを受理する。`-0` も拒否し、拒否のエラーには入力の値を含めない。字幕の `tStartMs`、トークン数、中間生成物の数値、ホストのメッセージの版がこれを使う。`AsInt64` は符号と `-0` を受理するので、負でない整数が要る箇所では使わない。
--   **この部品を使うパッケージの一覧は [package_reference.md](../conventions/package_reference.md) が持つ。** 現在のコードでは、一覧に挙げられたパッケージに加え、`internal/server`・`internal/nmhost`・`internal/codexreview`・`internal/coveragecompare` もこの部品を使う。一覧にこの 4 つがないことは、記録した issue [#713](https://github.com/isseis/yt2column/issues/713) で扱う。
+-   **この部品を使うパッケージの一覧は [package_reference.md](../conventions/package_reference.md) が持つ。**
 -   **字幕の json3 と info.json の読み取りは、この部品を使う。** 部品を移すことで `internal/transcript` の返す番兵とその条件は変えない（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) §3.5）。
 
 この決定の仕様の正本は [package_reference.md](../conventions/package_reference.md) の `internal/strictjson` の行である。部品の置き場所と、LLM のアダプタとの関係は [ADR-0001](0001-llm-adapter-stdlib.md) が定める。
@@ -37,6 +37,7 @@ LLM の API の応答、字幕の json3 と info.json、中間生成物、サー
 -   拒否のエラーは破られた規則を示す。`CollectOnly` と `AsNonNegativeInt64` は、入力の値やキーの文字列を含めない。`Collect` は、重複したキーを `%q` で示す。
 -   負でない整数の規則が 1 か所になり、`-0`・小数・指数・範囲外の扱いが利用者ごとにずれない。
 -   利用者を足すときは、`package_reference.md` の一覧を同じ変更で更新する。この ADR は部品の形を定め、使うパッケージの一覧は持たない。
+-   `package_reference.md` の利用者の一覧とコードの利用者が食い違うと、`internal/pipeline` のテストが失敗し、`make test` と CI の `doc-guard` が通らない。
 
 ## 経緯
 
@@ -45,3 +46,4 @@ LLM の API の応答、字幕の json3 と info.json、中間生成物、サー
 - 2026-10-15 トークン数を読むために `Value.IsNull` と `Value.AsNonNegativeInt64` を加え、負でない整数を `int64` で表すことにした（[0019 設計書](../../tasks/0019_token_usage/02_architecture.md)）
 - 2026-10-16 字幕の `tStartMs` の読み取りを `Value.AsNonNegativeInt64` に一本化し、自前の負の値の検査を削除した（[0023 設計書](../../tasks/0023_non_negative_int_unification/02_architecture.md)）
 - 2026-10-27 ホストがサーバへ本文をそのまま中継できるように `Value.Raw` を加え、`Object.Has` を振る舞いの選択に使える契約に改めた（[0044 設計書](../../tasks/0044_article_job_api/02_architecture.md)）
+- 2026-11-09 `package_reference.md` の利用者の一覧をコードに合わせ、一覧とコードのずれを `make test` で見つけるテストを加えた（[0068 設計書](../../tasks/0068_strictjson_package_reference/02_architecture.md)）
