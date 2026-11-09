@@ -87,7 +87,9 @@ Work in the following order.
      (`docs/dev/conventions/requirements_process.md`, "Lightweight Process").
      Use the placeholders of "Placeholders" above. Go through these in order;
      "take the normal process" means continue with step 2, posting nothing on
-     the issue and adding no label.
+     the issue and adding no label. The normal process here is any process
+     that writes task documents: step 5 still asks whether it is the full
+     process or the simple process.
      1. **Reverted issue.** List the user's marker comments as
         `.claude/commands/_lib/lightweight-spec.md`, "Listing own marker
         comments", says. When the listing cannot be read, stop and report.
@@ -221,7 +223,8 @@ Work in the following order.
 3. Create the feature branch: follow `.claude/commands/_lib/task-pr-handoff.md`,
    Part A, with **TASK_DIR** = the step 2 directory,
    **REPORT** = the step 9 report, **ISSUE** = the issue number from step 1
-   (the requirements document that names it does not exist yet), and the
+   (the requirements document that names it does not exist yet, unless step 1
+   continues a stopped run), and the
    task-document values of the other
    inputs. A new task's branch has sequence number `01`
    (e.g. `isseis/0027-remove-context-menu-01`). Then create the task directory
@@ -255,7 +258,8 @@ Work in the following order.
    branch lacks (`_lib/simple-process.md`, "Resuming a stopped run").
    Otherwise, the choice of process is always an open decision, so step 4 of
    `_lib/settle-decisions.md` ("If nothing is open") never applies here. Ask it
-   in the first round, together with the requirements decisions:
+   in the first round, as one of that call's four questions, together with
+   the requirements decisions; the rest go to further rounds:
    - Before asking, show the process you recommend and why, and whether the
      change is excluded and why (`_lib/simple-process.md`, "Recommending a
      process"). The options are the full process and the simple process; when
@@ -349,5 +353,5 @@ Work in the following order.
    item 1 found a reverted issue that still has `<lightweight-label>`, add
    that the label should be removed by hand. When a simple-process run stops
    before it opens the PR (a failure or the user stopping it), report why it
-   stopped and the command that continues it, `/mkreq <N>`
-   (`_lib/simple-process.md`, "Resuming a stopped run").
+   stopped and what to do next, as `_lib/simple-process.md`, "Resuming a stopped
+   run" ("What to report when a run stops"), says.
