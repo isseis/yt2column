@@ -255,8 +255,8 @@
 
 **変えるファイル:** `internal/config/config.go`・`test_helpers.go`・`config_test.go`・`socketpath_test.go`、`cmd/yt2column/run_test.go`、`cmd/yt2column-nmhost/main_test.go`
 
-- [ ] `defaultProvider` の注釈（`config.go:65-66`）から「The retired variables' rejection names it too, so it is written once.」を消す。`LoadFor` の注釈（`:448-452`）から廃止した変数の例外の文を消す。`loadLLM` の注釈（`:473-474`）の契約から廃止した変数の部分を消す。パッケージの注釈（`:1-3`）を、CLI は環境変数から、サーバは設定ファイルから読むことに合わせて直す（設計 3.2.3）。
-- [ ] `test_helpers.go:50-52`、`cmd/yt2column/run_test.go:1828-1831`、`main_test.go:135-137`・`253`・`319`、`config_test.go:1160`・`1445-1448`、`socketpath_test.go:161-163`・`206` の注釈の、廃止した変数を拒否するという記述を消す。
+- [x] `defaultProvider` の注釈（`config.go:65-66`）から「The retired variables' rejection names it too, so it is written once.」を消す。`LoadFor` の注釈（`:448-452`）から廃止した変数の例外の文を消す。`loadLLM` の注釈（`:473-474`）の契約から廃止した変数の部分を消す。パッケージの注釈（`:1-3`）を、CLI は環境変数から、サーバは設定ファイルから読むことに合わせて直す（設計 3.2.3）。
+- [x] `test_helpers.go:50-52`、`cmd/yt2column/run_test.go:1828-1831`、`main_test.go:135-137`・`253`・`319`、`config_test.go:1160`・`1445-1448`、`socketpath_test.go:161-163`・`206` の注釈の、廃止した変数を拒否するという記述を消す。
 
 ### フェーズ 5: 引数の振り分けと `runInit`（設計 8 章の 5）
 

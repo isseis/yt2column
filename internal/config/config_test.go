@@ -650,8 +650,9 @@ func TestLoadErrorsOmitValues(t *testing.T) {
 }
 
 // TestLoadReportsAllInvalid checks that one load reports every rejection, each
-// as its own element of the joined error: the retired variables, both LLM
-// variables, a provider variable, and a common variable. A nested join would
+// as its own element of the joined error: both LLM variables, a provider
+// variable, and a common variable, with retired LLM variables beside them,
+// which are not reported. A nested join would
 // reach a caller that prints one error per line as a single line.
 func TestLoadReportsAllInvalid(t *testing.T) {
 	cases := []struct {

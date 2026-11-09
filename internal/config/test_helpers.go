@@ -52,7 +52,7 @@ func SocketPathMaxForTest(goos string) int {
 	return limit
 }
 
-// The LLM default and the retired-variable rejection, exposed so the CLI
+// The LLM default, exposed so the CLI
 // tests and the documentation guard in cmd/yt2column compare against the code
 // instead of copying the values.
 

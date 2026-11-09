@@ -133,8 +133,8 @@ func fullEnv(home string) map[string]string {
 }
 
 // hostEnvs returns fullEnv and fullEnv with every retired LLM variable set as
-// well. The CLI and the server reject the retired variables; the host does not
-// read the LLM configuration, so it must give the same result with both.
+// well. The host does not read the LLM configuration, so it must give the
+// same result with both.
 func hostEnvs(home string) []struct {
 	name string
 	env  map[string]string

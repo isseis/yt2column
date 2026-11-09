@@ -1,6 +1,8 @@
-// Package config loads and validates the process configuration from
-// environment variables. It is the only package that names the secret
-// variables; every other package receives already-validated values.
+// Package config loads and validates the process configuration: the CLI's
+// from environment variables, and the server's from its configuration file,
+// with HOME and GODEBUG from the environment. It is the only package that
+// names the secret settings; every other package receives already-validated
+// values.
 package config
 
 import (
@@ -64,8 +66,7 @@ const effortSeparator = "+"
 // alone, so changing the default touches one line of code and the documents
 // that state it.
 const (
-	// defaultProvider is the provider part of the default selection. The
-	// retired variables' rejection names it too, so it is written once.
+	// defaultProvider is the provider part of the default selection.
 	defaultProvider = providerClaude
 	// defaultClaudeModel is the model ID of the default selection.
 	defaultClaudeModel = "claude-opus-5-5"
@@ -454,11 +455,7 @@ type Need struct {
 // selected providers' own variables; a need that is false does not check them.
 // When Review is true but Generation is false and YT2COLUMN_REVIEW_LLM is
 // unset, YT2COLUMN_LLM is still read and validated, because the review step
-// inherits its selection. The one exception to reading only what the run
-// needs: whatever need is, LoadFor checks whether each retired LLM variable is
-// present (never its value) and rejects the run if one is, so a leftover
-// setting is noticed even by a run that calls no LLM, YT2COLUMN_CLAUDE_EFFORT
-// included when no stage uses claude.
+// inherits its selection.
 func LoadFor(lookup LookupFunc, need Need) (Config, error) {
 	llm, errs := loadLLM(lookup, need)
 	var cfg Config
@@ -479,9 +476,7 @@ func LoadFor(lookup LookupFunc, need Need) (Config, error) {
 // returns the validated LLMConfig and each rejection separately, so LoadFor and
 // LoadServer report them the same way.
 //
-// Contract: the retired variables are checked first, whatever need is, and
-// their values are never read; every other variable is read only for a stage
-// the run needs. A rejected value is never replaced by a default, so a run
+// Contract: a variable is read only for a stage the run needs. A rejected value is never replaced by a default, so a run
 // with any rejection sends nothing to a provider. The generation selection is
 // resolved at most once: for the generation stage, or for a review stage that
 // inherits it, effort included, because YT2COLUMN_REVIEW_LLM is unset; it is
