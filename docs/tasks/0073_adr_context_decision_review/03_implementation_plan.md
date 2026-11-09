@@ -479,9 +479,9 @@ AC-12・AC-13・AC-19・AC-20 は、手順の中の作業（issue を立てる�
 
 #### PR-1
 
--   `check s1` を、マージベース `956125ba5b7184d05e2fae2d599c91f9ece26ec2` と先頭 `d32ea65f7f576012724e3d094358e44436cf87ad` で実行し、0 で終わった。すべての確かめが `OK` で、違反はない。
--   blob の ID: `check.go` `fae4cff24becc3d8f2f3690a0336204cdbf4ae38`、`data.json` `e4b027a2c15c2e8123c5cb00932b84c975d8119f`、`main.go` `b330ae42f3cbad690972f759cd0788221a775009`、`mentions.go` `e53a9b87b55718f6885ab8933026a4b00c74e443`。
--   許した変更: 設計書 `02_architecture.md` の変更（`task_doc_changes`。1.3.1 の決定の変更）と、差分の確認の Go のファイルの追加（`checker_changes`）。`link_changes`・`line_changes`・`retitled_adrs`・`unrecorded_commits` はない。
+-   `check s1` を、マージベース `956125ba5b7184d05e2fae2d599c91f9ece26ec2` と先頭 `b43592f81afa4c00015a1e1fb3db04f30b6553ec` で実行し、0 で終わった（PR を作った後に ADR-0002 の理由を直したので、実行し直した）。すべての確かめが `OK` で、違反はない。
+-   blob の ID: `check.go` `fae4cff24becc3d8f2f3690a0336204cdbf4ae38`、`data.json` `fbe87d90f9b51e38f38863ae8832adbed29eee3a`、`main.go` `b330ae42f3cbad690972f759cd0788221a775009`、`mentions.go` `e53a9b87b55718f6885ab8933026a4b00c74e443`。
+-   許した変更: 設計書 `02_architecture.md` の変更（`task_doc_changes`。1.3.1 の決定の変更）と、差分の確認の Go のファイルの追加（`checker_changes`）。`unrecorded_commits` に、PR を作った後に ADR-0002 の「いずれかの工程の失敗」の項目の理由を出典の理由に直したコミット `8162246d82bfa0564eb21bfff78000aa7f74b211` を挙げた（この PR が足したまだ `main` にない文の修正で、編集上の訂正ではない）。`link_changes`・`line_changes`・`retitled_adrs` はない。
 -   足した行（`ADDED`）はない。8 本の ADR は、「採らなかった案」「結果」「経緯」を変えていない。
 
 #### PR-2
