@@ -651,9 +651,8 @@ func TestLoadErrorsOmitValues(t *testing.T) {
 
 // TestLoadReportsAllInvalid checks that one load reports every rejection, each
 // as its own element of the joined error: both LLM variables, a provider
-// variable, and a common variable. Retired LLM variables set next to them are
-// not reported. A nested join would reach a caller that prints one error per
-// line as a single line.
+// variable, and a common variable. A nested join would reach a caller that
+// prints one error per line as a single line.
 func TestLoadReportsAllInvalid(t *testing.T) {
 	cases := []struct {
 		name string
@@ -663,14 +662,11 @@ func TestLoadReportsAllInvalid(t *testing.T) {
 		{
 			"every kind of rejection",
 			map[string]string{
-				"YT2COLUMN_LLM_PROVIDER": "deepseek",
-				"YT2COLUMN_REVIEW_MODEL": "",
-				llmEnv:                   "gemini/x",
+				llmEnv: "gemini/x",
 				// The review provider part is accepted, so claude's own
 				// variables are still checked.
-				reviewLLMEnv:              "claude/",
-				"YT2COLUMN_CLAUDE_EFFORT": "High",
-				cacheDirEnv:               "relative",
+				reviewLLMEnv: "claude/",
+				cacheDirEnv:  "relative",
 			},
 			[]VarError{
 				wantInvalid(llmEnv, reasonLLMProvider),
@@ -680,14 +676,12 @@ func TestLoadReportsAllInvalid(t *testing.T) {
 			},
 		},
 		{
-			// The retired effort variable next to its replacement with an
-			// unaccepted effort part: only the effort part is reported, and the
-			// provider part still selects claude, whose key is required.
-			"retired claude effort and an invalid effort part",
+			// An unaccepted effort part: the provider part still selects
+			// claude, whose key is required.
+			"invalid effort part",
 			map[string]string{
-				"YT2COLUMN_CLAUDE_EFFORT": "low",
-				llmEnv:                    "claude/claude-opus-5-5+ultra",
-				cacheDirEnv:               "/tmp/yt2column-test-cache",
+				llmEnv:      "claude/claude-opus-5-5+ultra",
+				cacheDirEnv: "/tmp/yt2column-test-cache",
 			},
 			[]VarError{
 				wantInvalid(llmEnv, reasonClaudeEffortPart),
@@ -1178,8 +1172,7 @@ func TestLoadFor(t *testing.T) {
 
 	t.Run("no stage reads no LLM variable", func(t *testing.T) {
 		// --after review: not even an invalid LLM value is read, and with no
-		// LLM variable at all no default is applied. The retired variables
-		// are not read either.
+		// LLM variable at all no default is applied.
 		envs := map[string]map[string]string{
 			"invalid values": {
 				llmEnv:       "gemini/x",
@@ -1206,7 +1199,7 @@ func TestLoadFor(t *testing.T) {
 				if !slices.Contains(read, cacheDirEnv) {
 					t.Fatalf("read = %v, want it to include %s", read, cacheDirEnv)
 				}
-				for _, name := range slices.Concat(llmVars, retiredVarNames) {
+				for _, name := range llmVars {
 					if slices.Contains(read, name) {
 						t.Errorf("LoadFor(Need{}) read %s", name)
 					}
@@ -1843,6 +1836,11 @@ func TestLoadForIgnoresRetiredVars(t *testing.T) {
 					if err != nil {
 						t.Fatalf("LoadFor() error = %v, want nil", err)
 					}
+					// The positive check keeps the negative one meaningful: a
+					// lookup that recorded nothing would pass it.
+					if !slices.Contains(read, cacheDirEnv) {
+						t.Fatalf("read = %v, want it to include %s", read, cacheDirEnv)
+					}
 					for _, name := range retiredVarNames {
 						if slices.Contains(read, name) {
 							t.Errorf("LoadFor() read %s", name)
@@ -2107,8 +2105,8 @@ func TestLoadServerEmptyValues(t *testing.T) {
 	})
 }
 
-// retiredVarNames are the retired LLM variables, written out here: the
-// server must ignore them in its environment.
+// retiredVarNames are the retired LLM variables, written out here; no load
+// (the CLI's, the server's, or the host's) reads them.
 var retiredVarNames = []string{
 	"YT2COLUMN_LLM_PROVIDER", "YT2COLUMN_MODEL",
 	"YT2COLUMN_REVIEW_PROVIDER", "YT2COLUMN_REVIEW_MODEL", "YT2COLUMN_CLAUDE_EFFORT",
