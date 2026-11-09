@@ -200,8 +200,8 @@
     コミットのメッセージを壊すもの（訂正の行をなくす、`@` か `<` を含める、`; no decision changed` で終えない、ステップ 4-1 のコミットでほかのファイルも変える）は、使い捨てのブランチでステップ 4-1 のコミットを作り直し、その上の先頭で走らせる。一時的なコミットを上に足しても、ステップ 4-1 のコミットは変わらないためである。
 
     使い捨てのブランチは push せず、確かめた後に worktree とともに消す。壊し方ごとの結果をコミットのメッセージに書き、`_checks/` をコミットする。
--   [ ] **ステップ 4-4（記録のコミット）**: `make test` と `make lint` を実行して通ることを確かめる（AC-22）。`git fetch origin main` を実行する（ネットワークの操作なので、利用者の承認を得る）。作業ツリーに未コミットの変更がない状態で、確認のプログラムを引数なしで走らせる。出力・終了コード・比べた 2 つのコミットの完全な ID を本計画 §7 に書き、本計画の進み具合とともにコミットする。
--   [ ] **ステップ 4-5**: 記録した先頭の後に、本計画のファイルのほかを変えるコミット（`main` を取り込むコミットと、`/runplan` のフェーズの後のレビューの修正のコミットを含む）が入ったら、確認のプログラムを走らせ直して §7 の記録を改める。
+-   [x] **ステップ 4-4（記録のコミット）**: `make test` と `make lint` を実行して通ることを確かめる（AC-22）。`git fetch origin main` を実行する（ネットワークの操作なので、利用者の承認を得る）。作業ツリーに未コミットの変更がない状態で、確認のプログラムを引数なしで走らせる。出力・終了コード・比べた 2 つのコミットの完全な ID を本計画 §7 に書き、本計画の進み具合とともにコミットする。
+-   [x] **ステップ 4-5**: 記録した先頭の後に、本計画のファイルのほかを変えるコミット（`main` を取り込むコミットと、`/runplan` のフェーズの後のレビューの修正のコミットを含む）が入ったら、確認のプログラムを走らせ直して §7 の記録を改める。
     -   PR を作る前に ADR-0039 を直すときは、`git commit --fixup` と `GIT_SEQUENCE_EDITOR=true git rebase -i --autosquash` でステップ 4-1 のコミットに畳み込む（PR を作る前は push していない）。畳み込みは、ステップ 4-1 より後のすべてのコミットを作り直すので、記録した先頭はブランチから外れる。そのため、畳み込んだ後は、確認のプログラムを走らせ直し、§7 の記録を新しいコミットの ID で書き直す。
     -   PR を作る前に、記録した先頭がブランチの祖先であることと、その後のコミットがどれも本計画のファイルしか変えていないことを確かめる。
 
@@ -332,7 +332,29 @@ PR は 1 本である（設計書 1.2）。規約が PR を作った後の訂正
 
 ### 実行の記録
 
-（ステップ 4-4・4-5 で書く）
+-   **日付:** 2026-11-10
+-   **基点:** `10a4c6f95ca5b7ea8d926dd1ceeaa9df5bfbe4fe`（`git merge-base refs/remotes/origin/main HEAD`。タスク 0075 の PR #764 を取り込んだ後の `main`）
+-   **先頭:** `d60f2a1fb468e1226a1c2edad0f5ea1d5396c78d`
+-   **実行:** 作業ツリーに未コミットの変更がない状態で、`go build -tags test -o <bin> ./docs/tasks/0074_adr_editorial_correction/_checks/` でビルドし、引数なしで実行した。終了コードは 0。
+-   **出力:**
+
+```text
+base 10a4c6f95ca5b7ea8d926dd1ceeaa9df5bfbe4fe
+head d60f2a1fb468e1226a1c2edad0f5ea1d5396c78d
+OK   recording: docs/dev/conventions/requirements_process.md: "Recording in the PR description" is byte-identical outside the replaced <document path> sentence and the added paragraph sentence, and the old sentence is gone
+OK   editing: docs/dev/conventions/requirements_process.md: "Editing an approved document" is byte-identical
+OK   phase6: .claude/commands/fixpr.md: Phase 6 is byte-identical
+OK   part fixpr task-document bullet: .claude/commands/fixpr.md: appears once, byte-identical
+OK   part local-cli-review mention check: .claude/commands/_lib/local-cli-review.md: appears once, byte-identical
+OK   part local-cli-review failure-kind table: .claude/commands/_lib/local-cli-review.md: appears once, byte-identical
+OK   unchanged-files: the files the task leaves alone have no diff
+OK   fixprguard: internal/fixprguard/ and cmd/fixprguard/ change only write.go, and write.go only in comments
+OK   adr-0039: docs/dev/adr/0039-adr-writing-criteria.md: the head is the base with the listed sentences removed from the decision section's item
+OK   corrections: the first non-merge commit that changes ADR-0039 changes nothing else and carries a well-formed correction line for it
+OK every check passed
+```
+
+-   **補足:** 確認のプログラムを書いた後に `main` を取り込んだ。タスク 0075 が `.claude/commands/runissue.md` を消したので、AC-17 の確かめでは、このファイルを両方のコミットにないものとして扱う（`_checks/main.go` の `deletedOnMain`）。この記録の後のコミットは、本計画のファイルだけを変える。
 
 ## 8. 成功の基準 (Success Criteria)
 
