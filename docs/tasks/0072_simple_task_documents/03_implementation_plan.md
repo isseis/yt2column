@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-09 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-09 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を、H-NN は [design_handoff.md](design_handoff.md) の項番を指す。節番号は [02_architecture.md](02_architecture.md)（以下、設計書）の節を指し、本計画自身の節は「本計画 §N」と書く。用語は、要件書 6 章の用語と、設計書の冒頭の用語（進め方の記録・`simple-process.md`・要件プロセスの規約・戻す・除外のスレッド・実装の PR・確かめ済みの項目・扱い済みの項目）を、同じ意味で使う。
@@ -376,3 +376,7 @@ AC に対応しない次の変更は、PR のレビューで設計書の節と�
 -   本計画と設計書の承認の後、`/runplan 0072` で PR-1 から順に実装する。
 -   PR-3 のマージの後、issue #743 を閉じる（`/runpr` が閉じる。`Closes #N` では自動で閉じない）。
 -   PR-3 のマージの後に要件定義書を書くタスクから、簡易な進め方を選べる。
+
+## 変更履歴
+
+- 2026-11-09 承認（isseis、#759）
