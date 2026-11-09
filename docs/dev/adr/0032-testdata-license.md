@@ -19,7 +19,6 @@
 -   **`testdata/` に置く実データは、再配布が許諾されたライセンス（CC BY など）の動画から取得したものに限る。** 出典とライセンスを [testdata/README.md](../../../testdata/README.md) に明記する。規則の正本は [security.md](../security.md) の §7「リポジトリに保存する実データ」である。個々のファイルの出典・加工の内容・作り直し方は、testdata/README.md を正本とする。この ADR は、規則の理由と、採らなかった案と、経緯を持つ。
 -   **取得した人を特定できる情報は、コミットする前に取り除く。** 何を取り除くか（info.json の署名付きの URL、ログインした状態で保存したページのアカウントの情報など）と、ページの HTML から要素だけを切り出すことは、security.md の §7 に従う。取り除いた値と、それ以外を無改変で保存したことは、testdata/README.md にファイルごとに記録する。
 -   **ページ全体のスナップショットは、リポジトリにコミットしない。** リポジトリの外に置き、テストはそれを参照しない。置き場所は security.md の §7 と testdata/README.md の「文字起こしパネルの HTML の抜粋」に従う。
--   **コピーした字幕のサンプルは、記録の漏れをテストで止める。** `TestCopiedTranscriptSurveyRecords` は、`testdata/` の `*.transcript_copy.txt` のそれぞれについて、testdata/README.md の「コピーした字幕（文字起こしパネルからのコピー）」の節がファイル名と動画の URL を挙げていることを確かめる（`cmd/yt2column/copied_transcript_docs_test.go`）。ライセンスの確認と、取得した人を特定できる情報の除去は、テストせず、コミットする人が確かめて testdata/README.md に記録する。
 
 ## 採らなかった案
 
@@ -32,7 +31,7 @@
 -   info.json を取得し直したときは、コミットする前に同じ置き換えをやり直し、IP アドレスが残っていないことを確かめる（[testdata/README.md](../../../testdata/README.md)）。
 -   テストに使える実データは、再配布できるライセンスの動画のものに限られる。タスク 0002 は、統合テストの既定の動画にも CC BY の動画を選んだ（[0002 設計書](../../tasks/0002_ytdlp_transcript_source/02_architecture.md) §1.4「統合テストの既定の動画」）。
 -   ページ全体のスナップショットはリポジトリにないので、HTML の抜粋を作り直すときは、リポジトリの外に置いたスナップショットから切り出すか、開発者ツールで要素を直接コピーする（[testdata/README.md](../../../testdata/README.md) の「文字起こしパネルの HTML の抜粋」）。
--   ライセンスの確認と、取得した人を特定できる情報の除去は、テストで止まらない。コミットする人の確認と PR のレビューに頼る。
+-   ライセンスの確認と、取得した人を特定できる情報の除去は、テストで止まらない。コミットする人の確認と PR のレビューに頼る。テストが確かめるのは、コピーした字幕のサンプルの記録だけである。`TestCopiedTranscriptSurveyRecords`（`cmd/yt2column/copied_transcript_docs_test.go`）は、`testdata/` の `*.transcript_copy.txt` のそれぞれについて、testdata/README.md の「コピーした字幕（文字起こしパネルからのコピー）」の節がファイル名と動画の URL を挙げていることを確かめる。
 
 ## 経緯
 

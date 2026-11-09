@@ -175,8 +175,9 @@ ADR を書くときに、移し元の「背景」「採らなかった案」「�
 | 3 | `threat-model` | `extension-platform` | link | -   **Native Messaging のホストを起動できる拡張を固定し、秘密は `secret.Secret` で持つ。** ホストの `allowed_origins` は固定した拡張 ID のオリジンだけとし、API キーと Webhook URL は、送信先へのリクエストを除き、エラーやログを含むどの出力にも漏らさない。 | -   **Native Messaging のホストを起動できる拡張を固定し、秘密は `secret.Secret` で持つ。** ホストの `allowed_origins` は固定した拡張 ID のオリジンだけとし、API キーと Webhook URL は、送信先へのリクエストを除き、エラーやログを含むどの出力にも漏らさない。拡張の ID を manifest の `key` で固定することは [ADR-0026](0026-extension-platform.md) が定める。 |
 | 4 | `lightweight-check-in-bash` | `language-policy` | link | -   スクリプトとそのテストには、仕様の見出しのための日本語のリテラルの例外がある（`CLAUDE.md` の「Go Idioms」）。 | -   スクリプトとそのテストには、仕様の見出しのための日本語のリテラルの例外がある（`CLAUDE.md` の「Go Idioms」）。ソースの言語の方針は [ADR-0035](0035-language-policy.md) が定める。 |
 | 4 | `deterministic-checks-in-go` | `test-deletion-coverage` | link |     -   `coveragecompare`: テストを削除する前後でのカバレッジの比較。`make coverage-compare` と `make ext-coverage-compare` から使う。 |     -   `coveragecompare`: テストを削除する前後でのカバレッジの比較。`make coverage-compare` と `make ext-coverage-compare` から使う。テストの削除をこの比較で確かめる方針は [ADR-0037](0037-test-deletion-coverage.md) が定める。 |
+| 4 | `extension-ui-languages` | `language-policy` | link | -   **利用者に表示する文言は言語ごとのメッセージカタログに置き、英語と日本語の両方に必ず置く。** 英語と日本語のカタログは同じ型を持ち、片方に文言が欠けると型の検査が失敗する。開発者向けのログは英語のままとする。カタログの置き場所と、日本語の文言を置いてよいファイルは、[CLAUDE.md](../../../CLAUDE.md) の「Go Idioms」の拡張の段落に従う。 | -   **利用者に表示する文言は言語ごとのメッセージカタログに置き、英語と日本語の両方に必ず置く。** 英語と日本語のカタログは同じ型を持ち、片方に文言が欠けると型の検査が失敗する。開発者向けのログは英語のままとする。カタログの置き場所と、日本語の文言を置いてよいファイルは、[CLAUDE.md](../../../CLAUDE.md) の「Go Idioms」の拡張の段落に従う。ソースの言語の方針は [ADR-0035](0035-language-policy.md) が定める。 |
 | 4 | `threat-model` | `secret-closure` | split | -   **Native Messaging のホストを起動できる拡張を固定し、秘密は `secret.Secret` で持つ。** ホストの `allowed_origins` は固定した拡張 ID のオリジンだけとし、API キーと Webhook URL は、送信先へのリクエストを除き、エラーやログを含むどの出力にも漏らさない。拡張の ID を manifest の `key` で固定することは [ADR-0026](0026-extension-platform.md) が定める。 | -   **Native Messaging のホストを起動できる拡張を固定する。** ホストの `allowed_origins` は固定した拡張 ID のオリジンだけとする。拡張の ID を manifest の `key` で固定することは [ADR-0026](0026-extension-platform.md) が定める。秘密の持ち方と、秘密を出力に流さないことは [ADR-0031](0031-secret-closure.md) が定める。 |
-| 4 | `webhook-publishing` | `secret-closure` | split | -   **Webhook URL は `secret.Secret` で持ち、値を出力に流さない。** URL は、送信先への HTTP リクエストを除き、エラー・ログ・標準出力を含むどの出力にも出さない。`*url.Error` をそのまま返すと URL が現れるので、送信の失敗は URL を含まないエラーに直す。 | -   **Webhook への送信の失敗は、URL を含まないエラーに直す。** `*url.Error` をそのまま返すと URL が現れるので、送信の失敗は URL を含まないエラーに直す。Webhook URL の持ち方と、値を出力に流さないことは [ADR-0031](0031-secret-closure.md) が定める。 |
+| 4 | `webhook-publishing` | `secret-closure` | split | -   **Webhook URL は `secret.Secret` で持ち、値を出力に流さない。** URL は、送信先への HTTP リクエストを除き、エラー・ログ・標準出力を含むどの出力にも出さない。`*url.Error` をそのまま返すと URL が現れるので、送信の失敗は URL を含まないエラーに直す。 | -   **Webhook への送信の失敗は、URL を含まないエラーに直す。** `*url.Error` をそのまま返すと URL が現れるためである。Webhook URL の持ち方と、値を出力に流さないことは [ADR-0031](0031-secret-closure.md) が定める。 |
 
 ADR-0010 の結果の行（`extension-stores-nothing` → `article-job-api` の 2 行目）は、前の 2 文を B6 の ADR へ、最後の文「投稿済みの記事を送り直すと、同じ内容がもう一度投稿されうる。」を B9 の ADR へ移す（設計書 3.1）。行の全体を除くので `move` とし、移し先は前の 2 文の B6 とする。B6 と B9 の ADR を 1 つのコミットに入れるので（1.2）、最後の文がどの ADR にもないコミットはできない。B9 の ADR がこの文を述べることは、PR のレビューで読む（7 章 AC-02）。
 
@@ -229,6 +230,7 @@ AC-03 の食い違い（設計書 3.5）を記録した issue を、その ADR �
 | `extension-ui-languages` | 719 |
 | `no-automatic-resend` | 720 |
 | `template-allowlist` | 725 |
+| `language-policy` | 726 |
 
 ## 2. 実装手順 (Implementation Steps)
 

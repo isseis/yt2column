@@ -30,8 +30,8 @@ LLM の API キーと Slack の Webhook URL は、ログやエラーメッセー
 
 -   `secret.Secret` は関数のフィールドを持つので、比較できない。`==` はコンパイルエラーになり、`reflect.DeepEqual` は同じ値を持つ 2 つの `secret.Secret` を等しいとしない。`map` のキーにもできない（[0001 設計書](../../tasks/0001_pipeline_skeleton/02_architecture.md) §3.3）。
 -   非公開フィールドを経た出力には、`[REDACTED]` ではなく、プロセスごとに変わる関数のアドレス（`0x...`）が出る。`secret.Secret` を非公開フィールドに持つ構造体に、フィールドの値をそのまま出す `String()` や `Format` を足してはならない。足すと、そのメソッドが元の値を出す経路になりうる（[0001 設計書](../../tasks/0001_pipeline_skeleton/02_architecture.md) §5.1）。
--   型が守るのは、`fmt`・`log/slog`・`encoding/json` の経路だけである。`Reveal()` で取り出した値は、呼び出し元が秘密として扱う。送信の失敗のエラーのように、型を経ない素の文字列に秘密が入る経路は型では防げないので、秘密を扱うかネットワークへ送る部品が、それぞれエラーに秘密を含めないことを確かめる（[0001 設計書](../../tasks/0001_pipeline_skeleton/02_architecture.md) §5.1・§5.2）。
+-   型が守るのは、`fmt`・`log/slog`・`encoding/json` の経路だけである。`Reveal()` で取り出した値は、呼び出し元が秘密として扱う。送信の失敗のエラーのように、型を経ない素の文字列に秘密が入る経路は型では防げないので、秘密を扱うかネットワークへ送る部品が、それぞれエラーに秘密を含めないことを確かめる（[0001 設計書](../../tasks/0001_pipeline_skeleton/02_architecture.md) §5.1・§5.2）。CLI とサーバは、これとは別に、出力する文字列の中の秘密の値を `internal/redact` で伏せ字にする。この伏せ字の仕組みは、この ADR の主題ではない。
 
 ## 経緯
 
-- 2026-09-29 秘密を持つ型 `Secret` を `internal/secret` に置いた。元の値を `func() string` のクロージャで持ち、`fmt`・`log/slog`・`encoding/json` のどの経路でも `[REDACTED]` を出し、元の値は `Reveal()` でだけ取り出せる。空の値とゼロ値は拒否する（[0001 要件定義書](../../tasks/0001_pipeline_skeleton/01_requirements.md) F-005・§5）
+- 2026-09-29 秘密を持つ型 `Secret` を `internal/secret` に置いた。元の値を `func() string` のクロージャで持ち、`fmt`・`log/slog`・`encoding/json` のどの経路でも元の値を出さず、元の値は `Reveal()` でだけ取り出せる。空の値とゼロ値は拒否する（[0001 要件定義書](../../tasks/0001_pipeline_skeleton/01_requirements.md) F-005・§5）
