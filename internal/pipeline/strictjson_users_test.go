@@ -527,7 +527,10 @@ func TestParseUserList(t *testing.T) {
 		{name: "comma and for two", cell: "Shared by `a`, and `b`", wantErr: errMalformedUserList},
 		{name: "trailing text", cell: "Shared by `a`.", wantErr: errMalformedUserList},
 		{name: "unclosed code span", cell: "Shared by `a", wantErr: errMalformedUserList},
-		{name: "no final item", cell: "Shared by `a` and", wantErr: errMalformedUserList},
+		{name: "no final item", cell: "Shared by `a` and ", wantErr: errMalformedUserList},
+		{name: "empty item", cell: "Shared by ``", wantErr: errMalformedUserList},
+		{name: "text after two items", cell: "Shared by `a` and `b`.", wantErr: errMalformedUserList},
+		{name: "text after three items", cell: "Shared by `a`, `b`, and `c`.", wantErr: errMalformedUserList},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
