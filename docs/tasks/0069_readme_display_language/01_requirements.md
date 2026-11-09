@@ -54,7 +54,13 @@ README は、ポップアップの文言だけでなく、ビューアの文言�
 -   **直す箇所:** `README.md` の段落を、ポップアップとビューアの両方に触れる形に改め、`/mktrans README.md` で `README.en.md` に写す（F-001・F-002）。issue が案として挙げた方向である。日本語を正とし、英語版は `/mktrans` で写すのが README の規則でもある（`CLAUDE.md`「Translation Guidelines」）。ADR：なし。README の 1 段落の直しで、このタスクの中で閉じるので、`CLAUDE.md`「Design decisions (ADR)」の基準で major ではない。
 -   **3 文目をビューアにも広げる:** 「この README が引用する文言は日本語の版である」という 3 文目を、ポップアップとビューアの両方の文言に当てはめる（F-001）。README はビューアの文言も引用しているので、3 文目がポップアップに限られていると、ビューアの引用がどの版なのかを読み手が判断できないからである。ADR：なし。README の 1 文の範囲の決定で、このタスクの中で閉じるので、major ではない。
 -   **記事の本文の言語には触れない:** 段落が述べるのは、ポップアップとビューアの文言が選んだ言語で表示されることである。記事の本文の言語（いつも `ja`）に段落で触れることは、スコープ外にする（2.3）。issue が求めているのは、画面の文言の言語についての記述をコードに合わせることだからである。ADR：なし。README の記述の範囲の決定で、このタスクの中で閉じるので、major ではない。
--   **ADR のずれの記述は、タスク 0065 が直す:** ADR の規約は、ADR の決定を作るか変える PR 以外は、ADR を追加も変更もしないと定める（`docs/dev/conventions/adr.md`「Approval and the PR」）。本タスクは ADR の決定を変えないので、本タスクの PR は `docs/dev/adr/` の下のファイルに触れない（F-003）。ADR-0029 は先に `main` に入った（#722）ので、ずれの記述は、本タスクの修正が `main` に入った後に、タスク 0065 の後続の PR が削除する。issue #713 と ADR-0020（`strict-json`）のずれの記述でも、同じ扱いにしている（`docs/tasks/0068_strictjson_package_reference/01_requirements.md:44`）。規約に例外を作らずに済むためである。ADR の判断：ADR は作らず、変えない。
+-   **ADR のずれの記述は、本タスクの実装の PR が消す（ADR の規約の例外）:** README の段落を直す実装の PR が、同じ PR で、ADR-0029 の「決定」の最後の項目を 1 文目（「表示の言語の決まり方を利用者に説明するのは README の「ブラウザ拡張」節の段落である。」）だけにし、ずれの記述の 3 文を消す（F-003）。
+    -   **例外とする規約:** ADR の規約は、ADR の決定を作るか変える PR 以外は、ADR を追加も変更もしないと定める（`docs/dev/conventions/adr.md:214-218`「Approval and the PR」）。この削除は、事実でなくなった記述を消す編集上の修正で、ADR の決定を変えない。それでも、決定を作りも変えもしない本タスクの PR が ADR を変えるので、規約の例外になる。
+    -   **理由:** ADR-0029 を書いたタスク 0065 の側では消せないからである。0065 の最後の PR（[#727](https://github.com/isseis/yt2column/pull/727)）は、マージされるまで ADR-0029 の「決定」が #719 にリンクしていることを確かめる 1 回限りの検査を実行するので、その PR では消せない。また、0065 には #727 の後に PR が残らない。README を直す PR と同じ PR で消せば、ずれの記述が事実でない期間が生じない。
+    -   **範囲:** ADR-0029 の、ずれの記述の 3 文の削除だけに限る。ADR-0029 のほかの記述と、ほかの ADR は変えない。決定を変えないので、経緯の項目は足さない。
+    -   **順序の条件:** #727 がマージされる前には、ADR-0029 の削除をマージしない。実装の PR が #727 より先にマージされそうなときは、ADR の削除を PR から外し、利用者に確かめる。
+    -   この決定は、タスク 0065 からの申し送り（2026-11-09）を受けて、当初の「ADR に触れず、0065 が消す」決定を改めたものである。当初の決定は、issue #713 と ADR-0020 の扱い（`docs/tasks/0068_strictjson_package_reference/01_requirements.md:44`）にならっていた。
+    -   ADR の判断：ADR は作らず、変えない（ずれの記述の削除は決定の変更ではない）。規約の例外は、本タスクの 1 回の削除に限るもので、規約そのものを変えないので、`CLAUDE.md`「Design decisions (ADR)」の基準で major ではない。
 
 ## 2. 目的とスコープ (Goals and Scope)
 
@@ -67,7 +73,7 @@ README は、ポップアップの文言だけでなく、ビューアの文言�
 
 -   `README.md` の「ブラウザ拡張」節の、表示の言語の段落（F-001）。
 -   その変更の `README.en.md` への写し（F-002）。
--   ADR のずれの記述が不要になることの、PR の説明での記録（F-003）。
+-   ADR-0029 のずれの記述の削除（F-003）。
 
 ### 2.3. スコープ外 (Out of Scope)
 
@@ -75,7 +81,7 @@ README は、ポップアップの文言だけでなく、ビューアの文言�
 -   記事の本文の言語（いつも `ja`）を段落に書き足すこと。1 章の「要件定義の際に決めたこと」のとおりである。
 -   数と日時の書式（`Intl.NumberFormat` と `Intl.DateTimeFormat` を、選んだ言語で使うこと）を README に書き足すこと。issue が求めていないからである。
 -   表示の言語の段落の外にある README の記述。issue が挙げているのはこの段落だけだからである。
--   ADR-0029 の編集。1 章の「要件定義の際に決めたこと」のとおり、タスク 0065 が直す。
+-   ADR-0029 の、ずれの記述の外にある記述と、ほかの ADR の編集。1 章の「要件定義の際に決めたこと」の例外の範囲の外だからである。
 -   表示の言語を確かめる新しい文書のテスト。段落の文の意味は PR のレビューで読んで確かめる、というのが文書のテストの方針だからである（`CLAUDE.md`「Testing Strategy」の「Document tests check values, structure, and executable examples, never prose.」、[ADR-0016](../../dev/adr/0016-document-test-policy.md)）。
 
 ## 3. 機能要件 (Functional Requirements)
@@ -101,18 +107,20 @@ F-001 の変更を `/mktrans README.md` で `README.en.md` に写す。
 - **AC-06**: `README.en.md` の 1 行目の同期の目印は、変更後の `README.md` を指し、`make readme-sync-check` が通る。
 - **AC-07**: 変更前と比べて、`README.en.md` の変更は、1 行目の同期の目印と、表示の言語の段落の中だけにある。
 
-#### F-003: ADR のずれの記述の記録
+#### F-003: ADR-0029 のずれの記述の削除
 
-本タスクの PR は ADR に触れず、ずれの記述が不要になることを PR の説明に記す。
+README の段落を直す実装の PR が、同じ PR で、ADR-0029 のずれの記述を消す（1 章の「要件定義の際に決めたこと」の、ADR の規約の例外）。
 
 **Acceptance Criteria**:
-- **AC-08**: 本タスクの PR は、`docs/dev/adr/` の下のファイルを変えない。
-- **AC-09**: 本タスクの実装の PR の説明は、README の段落がビューアに触れたので、ADR-0029 の「決定」にある、段落がビューアに触れていないとする記述が不要になり、タスク 0065 の側が削除することを述べる。
+- **AC-08**: 実装の PR の後の ADR-0029 の「決定」の最後の項目は、1 文目の「**表示の言語の決まり方を利用者に説明するのは [README.md](../../../README.md) の「ブラウザ拡張」節の段落である。**」だけからなる。その後にあった、段落がポップアップの言語だけを述べ、ビューアに触れていないことを #719 で扱うとする 3 文はない。
+- **AC-09**: 変更前と比べて、実装の PR の `docs/dev/adr/` の下の変更は、AC-08 の 3 文の削除だけにある。経緯の項目は足さない。
+- **AC-10**: 実装の PR の、ADR-0029 を変えるコミットのメッセージと PR の説明は、この削除を編集上の修正として、決定を変えないことと合わせて記す（`docs/dev/conventions/requirements_process.md`「Recording in the PR description」の形）。
+- **AC-11**: ADR-0029 の削除を含む実装の PR は、[#727](https://github.com/isseis/yt2column/pull/727) がマージされた後にだけマージされる。
 
 #### F-004: 既存の検査
 
 **Acceptance Criteria**:
-- **AC-10**: 変更後に `make test` と `make ext-test` が通る。どちらも README を読む既存の文書のテストを含む（`CLAUDE.md`「Development Notes」）。
+- **AC-12**: 変更後に `make test` と `make ext-test` が通る。どちらも README を読む既存の文書のテストを含む（`CLAUDE.md`「Development Notes」）。
 
 ## 4. 非機能要件 (Non-Functional Requirements)
 
@@ -135,7 +143,7 @@ F-001 の変更を `/mktrans README.md` で `README.en.md` に写す。
 
 -   `docs/dev/project_overview.md` の「決定済みの方針」「前提・制約」に従う。
 -   README の「ブラウザ拡張」節は拡張の node のテストが読むので、変更の後に `make ext-test` を実行する（`CLAUDE.md`「Development Notes」）。
--   ADR は、その決定を作るか変える PR だけが変える（`docs/dev/conventions/adr.md`「Approval and the PR」）。
+-   ADR は、その決定を作るか変える PR だけが変える（`docs/dev/conventions/adr.md`「Approval and the PR」）。本タスクの例外は、1 章の「要件定義の際に決めたこと」の F-003 の削除に限る。
 
 ## 6. 用語集 (Glossary)
 
