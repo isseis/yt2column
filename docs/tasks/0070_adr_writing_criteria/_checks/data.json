@@ -1,0 +1,104 @@
+{
+  "task_dir": "docs/tasks/0070_adr_writing_criteria/",
+  "convention": {
+    "path": "docs/dev/conventions/adr.md",
+    "changed_sections": [
+      "## Writing an ADR",
+      "## History entries",
+      "## Approval and the PR",
+      "## Taking in `main`"
+    ],
+    "added_section": "## Editorial corrections",
+    "added_after": "## Approval and the PR",
+    "parts": [
+      {
+        "name": "writing-state-bullet",
+        "section": "## Writing an ADR",
+        "start": "- **状態:**",
+        "end": "as \"Status\" says.\n"
+      },
+      {
+        "name": "writing-decision-to-history-bullets",
+        "section": "## Writing an ADR",
+        "start": "- **決定:**",
+        "end": "- **経緯:** \"History entries\" below.\n\n"
+      },
+      {
+        "name": "writing-sync-paragraph",
+        "section": "## Writing an ADR",
+        "start": "The split between an ADR and a document that holds the current specification,",
+        "end": "change both in the same PR.\n"
+      },
+      {
+        "name": "writing-links-to-end",
+        "section": "## Writing an ADR",
+        "start": "**Links.**",
+        "end": ""
+      },
+      {
+        "name": "history-form-to-one-entry-per-event",
+        "section": "## History entries",
+        "start": "Each entry of 経緯 is one bullet line of this form:",
+        "end": "and a link to the document that recorded it.\n"
+      },
+      {
+        "name": "history-order-to-end",
+        "section": "## History entries",
+        "start": "- **Order:**",
+        "end": ""
+      },
+      {
+        "name": "approval-first-three-sentences",
+        "section": "## Approval and the PR",
+        "start": "A PR that makes or changes a major decision",
+        "end": "no other approval step exists."
+      },
+      {
+        "name": "approval-sync-paragraph",
+        "section": "## Approval and the PR",
+        "start": "\n\nThe same rule is in `CLAUDE.md`, \"Design decisions (ADR)\".",
+        "end": "change both in the same PR.\n"
+      },
+      {
+        "name": "taking-in-main-first-sentence-and-steps",
+        "section": "## Taking in `main`",
+        "start": "When a PR's branch takes in `main`",
+        "end": "The PR's 経緯 entries go after `main`'s (\"History entries\").\n\n"
+      },
+      {
+        "name": "taking-in-main-guard-first-two-sentences",
+        "section": "## Taking in `main`",
+        "start": "**When `TestADRRecords` fails on `main`.**",
+        "end": "job then fails."
+      }
+    ]
+  },
+  "adr": {
+    "path": "docs/dev/adr/0039-adr-writing-criteria.md",
+    "section": "## 決定",
+    "replacements": [
+      {
+        "item": 2,
+        "from": "基準を規約の「Writing an ADR」に足すことは、[#728](https://github.com/isseis/yt2column/issues/728) で扱う。",
+        "to": "規則は [adr.md](../conventions/adr.md) の「Writing an ADR」にある。"
+      },
+      {
+        "item": 3,
+        "from": "基準を規約の「Writing an ADR」に足すことは、[#728](https://github.com/isseis/yt2column/issues/728) で扱う。",
+        "to": "規則は [adr.md](../conventions/adr.md) の「Writing an ADR」にある。"
+      },
+      {
+        "item": 4,
+        "from": "規則を規約に足すことは、[#728](https://github.com/isseis/yt2column/issues/728) で扱う。",
+        "to": "規則は [adr.md](../conventions/adr.md) の「Approval and the PR」「Editorial corrections」「History entries」にある。"
+      },
+      {
+        "item": 5,
+        "from": "規則を規約に足すことは、[#728](https://github.com/isseis/yt2column/issues/728) で扱う。",
+        "to": "規則は [adr.md](../conventions/adr.md) の「Writing an ADR」「Editorial corrections」にある。"
+      }
+    ],
+    "correction_prefix": "Editorial correction: docs/dev/adr/0039-adr-writing-criteria.md: ",
+    "correction_suffix": "; no decision changed"
+  }
+}
