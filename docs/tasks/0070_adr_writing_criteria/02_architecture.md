@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-09 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-09 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルの内容は、コミット `2ea9103d` で確かめた。`file:line` の行番号は、このコミットでの行番号である。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md)（以下、申し送り）の項番を指す。申し送りへの対応は付録 A に、受け入れ基準との対応は付録 B にまとめる。
@@ -749,3 +749,7 @@ N/A。実行時の振る舞いを変えないので、結合テストの対象�
 | AC-21 | 1.1、7.1 | diff（`_checks/`）と test（`TestADRRecords`） |
 | AC-22 | 3.1.1、3.3 | diff（`_checks/`）と manual（7.3） |
 | AC-23 | 3.6 | diff（`_checks/`）と manual（7.3） |
+
+## 変更履歴
+
+- 2026-11-09 承認（isseis、#736）
