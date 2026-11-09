@@ -3,6 +3,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"maps"
@@ -453,11 +454,8 @@ func checkConfigBlock(t *testing.T, docName, sectionName, section string, want [
 	}
 	data := []byte(strings.Join(block.Lines, "\n") + "\n")
 	values, rejections := config.ParseServerFileForTest(docName+" "+sectionName, data)
-	for _, err := range rejections {
-		t.Errorf("the configuration file parser rejects the block: %v", err)
-	}
 	if len(rejections) > 0 {
-		t.FailNow()
+		t.Fatalf("the configuration file parser rejects the block: %v", errors.Join(rejections...))
 	}
 	for _, name := range want {
 		if _, ok := values[name]; !ok {

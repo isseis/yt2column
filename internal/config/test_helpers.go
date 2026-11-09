@@ -93,12 +93,14 @@ func EffortValuesByProviderForTest() map[string][]string {
 
 // ServerFilePathForTest returns the configuration file's path under home on
 // this operating system. It panics when no path can be derived from home.
-func ServerFilePathForTest(home string) string { return serverFileLocationForHome(home).path }
+func ServerFilePathForTest(home string) string {
+	return serverFileLocationForHome(runtime.GOOS, home).path
+}
 
-// serverFileLocationForHome derives the configuration file's location from
-// home alone. It panics when no path can be derived from home.
-func serverFileLocationForHome(home string) serverFileLocation {
-	loc, err := serverFileLocationFor(runtime.GOOS, func(name string) (string, bool) {
+// serverFileLocationForHome derives the configuration file's location on goos
+// from home alone. It panics when no path can be derived from home.
+func serverFileLocationForHome(goos, home string) serverFileLocation {
+	loc, err := serverFileLocationFor(goos, func(name string) (string, bool) {
 		if name == "HOME" {
 			return home, true
 		}
@@ -115,16 +117,7 @@ func serverFileLocationForHome(home string) serverFileLocation {
 // system with no rule.
 func ServerFilePathTailForTest(goos string) string {
 	const home = "/home"
-	loc, err := serverFileLocationFor(goos, func(name string) (string, bool) {
-		if name == "HOME" {
-			return home, true
-		}
-		return "", false
-	})
-	if err != nil {
-		panic("config: no configuration file path rule for " + goos)
-	}
-	return strings.TrimPrefix(loc.path, home)
+	return strings.TrimPrefix(serverFileLocationForHome(goos, home).path, home)
 }
 
 // ParseServerFileForTest parses data as the configuration file's content, as
@@ -142,7 +135,9 @@ func ParseServerFileForTest(path string, data []byte) (map[string]string, []erro
 // ServerFileBaseForTest returns the directory below home that config init
 // requires to exist on this operating system. It panics when no path can be
 // derived from home.
-func ServerFileBaseForTest(home string) string { return serverFileLocationForHome(home).base }
+func ServerFileBaseForTest(home string) string {
+	return serverFileLocationForHome(runtime.GOOS, home).base
+}
 
 // ServerFileTemplateForTest returns the content config init writes.
 func ServerFileTemplateForTest() string { return serverFileTemplate }

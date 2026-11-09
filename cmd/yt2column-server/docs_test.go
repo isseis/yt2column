@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"net/url"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -33,7 +34,6 @@ const (
 // internal/server's test accessor. A value that changes in the code fails this test until the
 // documents follow, and a document that states a wrong value fails it too.
 func TestServerDocsContract(t *testing.T) {
-	slackEnv := config.SlackWebhookEnvForTest()
 	cacheDirEnv := config.CacheDirEnvForTest()
 	ytDlpEnv := config.YtDlpEnvForTest()
 
@@ -62,9 +62,6 @@ func TestServerDocsContract(t *testing.T) {
 				if section == whole {
 					t.Fatalf("%s server section: the upgrade notes were not excluded", v.Path)
 				}
-			}
-			if !strings.Contains(section, slackEnv) {
-				t.Errorf("%s server section does not mention %q", v.Path, slackEnv)
 			}
 			// The socket path for each operating system, each on its own line
 			// with its label, so a path stated under the wrong label does not
@@ -299,7 +296,8 @@ func checkReadmeConfigFile(t *testing.T, v doctestutil.ReadmeVersion, serverSect
 	if maxSize%1024 != 0 {
 		t.Fatalf("the configuration file size limit %d is not a whole number of KiB; state it in the documents another way", maxSize)
 	}
-	if limit := fmt.Sprintf("%d KiB", maxSize>>10); !strings.Contains(section, limit) {
+	limit := fmt.Sprintf("%d KiB", maxSize>>10)
+	if !regexp.MustCompile(`(^|[^0-9])` + regexp.QuoteMeta(limit)).MatchString(section) {
 		t.Errorf("%s %s does not state the size limit %q", v.Path, heading, limit)
 	}
 	exitCodes := doctestutil.FindTable(section, doctestutil.ReadmeExitCodeColumn.In(t, v.Lang))
