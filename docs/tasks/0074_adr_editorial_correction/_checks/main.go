@@ -96,6 +96,11 @@ var unchangedParts = []unchangedPart{
 	},
 }
 
+// deletedOnMain are files of unchangedFiles that task 0075 deleted on main
+// before this branch took main in. They must be absent at both commits; the
+// diff check then shows that this branch did not add them back.
+var deletedOnMain = []string{".claude/commands/runissue.md"}
+
 // unchangedFiles are the files the task must not change at all.
 var unchangedFiles = []string{
 	".claude/commands/_lib/task-pr-handoff.md",
@@ -436,7 +441,17 @@ func checkPart(base, head string, p unchangedPart) ([]violation, error) {
 }
 
 func checkUnchangedFiles(base, head string) ([]violation, error) {
-	if err := requirePaths(base, head, unchangedFiles...); err != nil {
+	var present []string
+	for _, path := range unchangedFiles {
+		if !slices.Contains(deletedOnMain, path) {
+			present = append(present, path)
+			continue
+		}
+		if _, err := git("cat-file", "-e", base+":"+path); err == nil {
+			return nil, fmt.Errorf("%s, listed as deleted on main, is in %s", path, base)
+		}
+	}
+	if err := requirePaths(base, head, present...); err != nil {
 		return nil, err
 	}
 	changed, err := changedFiles(base, head, unchangedFiles...)
