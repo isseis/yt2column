@@ -150,7 +150,7 @@ git grep -n -i -E 'lightweight|runissue|軽量' HEAD -- docs/tasks/0000_template
 
 **変更するファイル:** `docs/tasks/0075_remove_lightweight_process/_checks/main.go`（新規）、`docs/tasks/0075_remove_lightweight_process/_checks/data.json`（新規）、本計画（§7 の記録）
 
--   [ ] **ステップ 4-1**: 確認のスクリプトを `_checks/main.go` と `_checks/data.json` に書く（本計画 §1.3 の形）。確かめる項目は、設計書 7.3 の表の 2 行（AC-01、AC-02・AC-03）と、本計画 §1.3 の AC-11 の項目である。スクリプトには、設計書 7.3 の次の性質を持たせる。
+-   [x] **ステップ 4-1**: 確認のスクリプトを `_checks/main.go` と `_checks/data.json` に書く（本計画 §1.3 の形）。確かめる項目は、設計書 7.3 の表の 2 行（AC-01、AC-02・AC-03）と、本計画 §1.3 の AC-11 の項目である。スクリプトには、設計書 7.3 の次の性質を持たせる。
     -   コミットを 1 つ引数で受け取り、完全な ID に解決する。
     -   作業ツリーの対象のファイルを読まない。
     -   git の設定の影響を除く。
@@ -163,7 +163,7 @@ git grep -n -i -E 'lightweight|runissue|軽量' HEAD -- docs/tasks/0000_template
     -   確かめたコミットの完全な ID と、`main.go`・`data.json` の blob の ID を出力する。
 
     コメント・識別子・文字列リテラルは英語で書く。`make fmt` と `go vet -tags test ./docs/tasks/0075_remove_lightweight_process/_checks/` を通してから、`_checks/` の 2 つのファイルをコミットする。ビルドは、リポジトリの根で `go build -tags test -o <スクラッチパッドの中のパス> ./docs/tasks/0075_remove_lightweight_process/_checks/` とする（タスク 0071 と同じ）。出力する `main.go` の blob の ID は、ビルドに使った作業ツリーの `main.go` から求める。
--   [ ] **ステップ 4-2**: 確認のスクリプトが、狙った理由で失敗できることを確かめる。ステップ 4-1 のコミットから `git worktree` で使い捨てのブランチを作り、次の壊し方を 1 件ずつ別の一時的なコミットとして作る。それぞれのコミットを引数にして、ビルドした実行ファイルを走らせ、狙った項目が失敗することと、終了コード（違反は 1、読み取りの失敗は 2。タスク 0071 の `_checks/` と同じ）を確かめる。
+-   [x] **ステップ 4-2**: 確認のスクリプトが、狙った理由で失敗できることを確かめる。ステップ 4-1 のコミットから `git worktree` で使い捨てのブランチを作り、次の壊し方を 1 件ずつ別の一時的なコミットとして作る。それぞれのコミットを引数にして、ビルドした実行ファイルを走らせ、狙った項目が失敗することと、終了コード（違反は 1、読み取りの失敗は 2。タスク 0071 の `_checks/` と同じ）を確かめる。
     -   AC-01（違反）：専用ファイルの 1 つを戻す。
     -   AC-02（違反）：残すファイルの 1 行に、大文字の英語の語（`RUNISSUE`）を足す。別の一時的なコミットで、日本語の語（`軽量`）を足す。
     -   AC-02 の範囲（違反）：`docs/tasks/0000_template/` のファイルに語の一覧の語を足す。
@@ -173,7 +173,7 @@ git grep -n -i -E 'lightweight|runissue|軽量' HEAD -- docs/tasks/0000_template
     -   読み取りの失敗：存在しないコミットを引数にする。
 
     加えて、`docs/tasks/` の別のタスク文書と `docs/dev/adr/` の ADR に語を足しても合格すること（終了コード 0）を、タスク文書と ADR のそれぞれについて確かめる。`git grep` が 2 以上の終了コードで終わる場合は、壊して再現できないので、PR のレビューでコードを読む。狙った項目以外が失敗するときは、壊し方を直す。使い捨てのブランチは push せず、確かめた後に worktree とともに消す。壊し方ごとの結果は、ステップ 4-3 のコミットのメッセージに書く。
--   [ ] **ステップ 4-3**: PR の head で、確認のスクリプト、`make test`、`make lint`、`make deadcode` を実行する（AC-01〜AC-04・AC-11）。確認のスクリプトの出力と終了コード、確かめたコミットの完全な ID、3 つの `make` の結果を本計画 §7 に書き、本計画の進み具合とともにコミットする。このコミットは本タスクのディレクトリの下しか変えないので、記録した結果はそのまま head に当てはまる（設計書 6.1 の 5）。
+-   [x] **ステップ 4-3**: PR の head で、確認のスクリプト、`make test`、`make lint`、`make deadcode` を実行する（AC-01〜AC-04・AC-11）。確認のスクリプトの出力と終了コード、確かめたコミットの完全な ID、3 つの `make` の結果を本計画 §7 に書き、本計画の進み具合とともにコミットする。このコミットは本タスクのディレクトリの下しか変えないので、記録した結果はそのまま head に当てはまる（設計書 6.1 の 5）。
 
 **PR の作成ポイントでの確かめ直し（以下、作成ポイントの確かめ直し）。** フェーズ 4 の後の `/runplan` のレビュー（手順 6〜7.7）の修正が入った後、手順 5a でグリーンゲートを確かめる前に、次を行う。`/runplan` がこれを実装のまとまりとして拾わないよう、チェックボックスにはしない。
 
@@ -264,6 +264,23 @@ N/A。実行時の振る舞いを変えない（設計書 7.5）。
 確認のスクリプトは `docs/tasks/0075_remove_lightweight_process/_checks/`（`main.go` と `data.json`。以下、`_checks`）である。実行の記録（日付、確かめたコミットの完全な ID、`main.go` と `data.json` の blob の ID、出力、終了コード）は、ステップ 4-3 と作成ポイントの確かめ直しで各行に書く。
 
 実装のブランチの基点：`dcc4edf34c99d8aecd47c81710420fb54b0a1b29`（`git merge-base origin/main HEAD`。このコミットに `.claude/commands/_lib/lightweight-check.sh` と `cmd/yt2column/lightweight_docs_test.go` があることを `git ls-tree` で確かめた）
+
+実行の記録（ステップ 4-3、2026-11-09。PR の head での実行）：
+
+-   確認のスクリプト：確かめたコミット `a0341c6959984e96a0b1c04d69e90a57f1b248e3`、`main.go` の blob `5fbc819204233a3b49f284ee65e2cf2ac9653233`、`data.json` の blob `e771e8652b95430952c998ae71af38a58d630de4`。終了コード 0。出力は次のとおりである。
+
+    ```text
+    commit a0341c6959984e96a0b1c04d69e90a57f1b248e3
+    main.go blob 5fbc819204233a3b49f284ee65e2cf2ac9653233
+    data.json blob e771e8652b95430952c998ae71af38a58d630de4
+    OK   deleted: none of the deleted files is in the commit
+    OK   words: outside the task records and the ADRs, no line matches the word list beyond the exclusions, and each exclusion matches exactly once
+    OK   ci: the Makefile and the CI workflows do not refer to this directory
+    OK every check passed
+    ```
+
+-   同じコミットで、`make test`・`make lint`・`make deadcode` は、どれも終了コード 0 で終わった（`make lint` は `0 issues.`、`make deadcode` は出力なし）。
+-   この記録のコミットは本タスクのディレクトリの下しか変えないので、結果は PR の head に当てはまる。
 
 AC-01〜AC-03 は、文書に語がないことを `static`（確認のスクリプトの `git grep`）で確かめる。これは `requirements_process.md`「4. Acceptance Tests」の例外で、要件書 1 章（issue #744 の決定）と設計書付録 A が定める。語が軽量プロセスを指すかの判断は、AC-02 の `manual` で読む。
 
