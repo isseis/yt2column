@@ -21,6 +21,7 @@ GitHub App として入っている自動レビュアー（Codex・CodeRabbit）
 -   **スレッドのすべてのコメントの著者を確かめ、1 件でも想定外の著者があれば、スレッド全体を想定外とする。** コメントの数が 11 件以上でも、1 つのスレッドから取得する上限（100 件）まで見る。上限を超えるスレッドと、取得できないコメントがあるスレッドも想定外とする。想定外のスレッドは、トリアージ・修正・返信・解決をせず、URL と理由を報告する。本文は取得せず、セッションにも渡さない。利用者が内容を確かめて名指ししたスレッドだけを処理する。
 -   **修正の範囲は、スレッドの `path` と同じディレクトリと、その `path` があるタスクのディレクトリのうち、許可リストに当たるファイルに限る。** 許可リストは `*.md`・`*.txt`・`testdata/` の下のファイルと、`.go` の規則に当たるファイルである（[fixprguard_guide.md](../guides/fixprguard_guide.md) §6）。実行関連ファイル（build checks と CI が読むファイル、指示ファイル、`.` で始まる要素を含むパス）は、スレッドの著者と `path` にかかわらず範囲外とする。範囲外の変更が出たら、build checks・commit・push の前に、利用者に一覧を示して確かめる。commit は判定したパスだけを stage する。
 -   **GitHub のレビューのスレッドへの返信・スレッドの解決・PR の説明の更新は、ガードツールの `reply`・`edit-pr`・`append-pr` で行う。** 道具はシェルを介さず、本文を標準入力で渡す。`push` も道具が行い、PR の作成は `gh`、マージは `/mergepr` の `mergepr` ツールが行う。`@codex` のメンションを含む文面は、レビューのスレッドへの返信と PR の説明の更新では、GitHub に書き込む前に拒否する。コマンドが投稿する文面は、レビューを頼む `@codex review` だけがメンションを含み、ほかは投稿の前にメンションがないことを確かめる（[ADR-0014](0014-deterministic-checks-in-go.md)）。
+-   **fix round の push は、ローカルの CLI レビューの修正の後のものも含めて、すべて道具が行う。ローカルの CLI レビュー（`/fixpr` の Phase 4.5）では、最初に git を起動する前、各 commit の前、push の前に、hooks・config・info・監視する無視されたファイルを基準値と比べ、違えば止める。範囲の検査は行わない。** 比べるのは、修正のフェーズの push の確認の後に書き換えられた hooks や config を、後の git の起動、commit、push で実行しないためである。範囲の検査を行わないのは、範囲の規則が元にするスレッドの `path` がローカルの CLI レビューにはなく、`finish` の commit のメッセージの規則がローカルの CLI レビューの記録の行と合わないためである（[0076 要件定義書](../../tasks/0076_fixpr_local_review_guard/01_requirements.md) §1）。この決定は、まだ [fixpr.md](../../../.claude/commands/fixpr.md) とガードツールに反映されていない。今の Phase 4.5 は、比べずに commit し、`git push` を直接実行する。このずれは [#426](https://github.com/isseis/yt2column/issues/426) で扱う。
 -   **fork の PR では、`/fixpr` と `/runpr` は何もせずに止まる。** head を外部の人が管理すると、チェックアウトした `CLAUDE.md` や `.claude/commands/` そのものが攻撃者のものになる。
 -   **interaction limits をアカウントに設定し、`/runpr` は PR ごとにその状態を確かめる。** 対象は 4 つの設定（interaction limits の `collaborators_only`、PR の作成の制限、issue の作成の制限、`main` を除くすべてのブランチの push の制限）で、設定は利用者が行う。`/runpr` は、`fixprguard interaction-limits` で制限の状態を読み、PR の作成の時刻と比べ、利用者以外の `@codex` のメンションがないことを確かめる。確かめられないとき、制限がないとき、制限が弱いとき、PR が制限の設定より前に作られたときは、レビューを待たずに止まる。
 -   **制限の状態の判定は、GitHub の応答を厳密に検査する Go のサブコマンドで行う。** 「今」は同じ応答の `Date` ヘッダ（GitHub の時刻）から取る。応答の検査は 1 つの番兵のエラーにまとめ、部分的な結果を使わない。
@@ -41,6 +42,8 @@ GitHub App として入っている自動レビュアー（Codex・CodeRabbit）
 -   **interaction limits を `gh api --jq` で読む。** `jq` は重複した項目を黙って後勝ちにするので、応答を厳密に検査できない（[0057 設計書](../../tasks/0057_reviewer_relay_guard/02_architecture.md) §1.2）。
 -   **制限の状態をローカルの時計で判定する。** ローカルの時計がずれていると、判定もずれる。同じ応答の `Date` ヘッダを使えば、1 回の取得で制限と時刻がそろう（[0057 設計書](../../tasks/0057_reviewer_relay_guard/02_architecture.md) §1.2）。
 -   **制限が外れているか確かめられないときに、警告して処理を続ける。** 制限が外れていた間に自動レビュアーが作ったスレッドは、本来のレビューのスレッドと見分けられず、利用者が手で探すと見逃しうる（[0057 設計書](../../tasks/0057_reviewer_relay_guard/02_architecture.md) §1.2）。
+-   **ローカルの CLI レビューの commit と push の前に比べるだけで、push は `git push` のままにする。** push 先の OID の確認と明示した refspec が付かず、`push` を道具が行うという決定と食い違う（[0076 要件定義書](../../tasks/0076_fixpr_local_review_guard/01_requirements.md) §1）。
+-   **ローカルの CLI レビューの修正も `inspect` → `finish` → `push` に通す。** スレッドがないので新しい範囲の規則が要り、`finish` の commit のメッセージの規則を記録の行と README の同期の commit に合わせて変える必要がある（[0076 要件定義書](../../tasks/0076_fixpr_local_review_guard/01_requirements.md) §1）。
 -   **疑わしいコメントを一律に削除する。** 正当なレビューも消え、取り消せない（[0057 要件定義書](../../tasks/0057_reviewer_relay_guard/01_requirements.md) §1）。
 -   **信頼する自動レビュアーの一覧から CodeRabbit を外す。** Web から CodeRabbit のレビューを頼む使い方があり、書き込み権限のない人は制限が有効な間はどちらの Bot にも指示できない。CodeRabbit だけを厳しく扱っても減る危険は小さい（[0057 要件定義書](../../tasks/0057_reviewer_relay_guard/01_requirements.md) §1「実装の際に決めたこと（2026-11-04）」）。
 
@@ -52,6 +55,7 @@ GitHub App として入っている自動レビュアー（Codex・CodeRabbit）
 -   interaction limits はアカウント全体に効き、ほかの公開リポジトリにも及ぶ。期限は最長 6 か月で、切れる前に利用者が更新する。`/runpr` は、制限がない、弱い、確かめられない、または PR が設定より前に作られたときは、その PR をマージしない。
 -   `/runpr` は、4 つの設定のうち interaction limits だけを読む。PR と issue の作成の制限と push の制限は、利用者が設定画面で確かめる。
 -   信頼する自動レビュアーの一覧には CodeRabbit も残る。Web から CodeRabbit のレビューを頼んだ場合のスレッドも、`/fixpr` と `/runpr` は処理できる。
+-   ローカルの CLI レビューの修正は、範囲外のファイルを変えても利用者の確認に回らない。その修正は、信頼できないテキストの影響を間接的に受けた指摘に従う。比較が検出するのは、hooks・config・info・監視する無視されたファイルの書き換えだけである。
 
 ## 経緯
 
@@ -61,3 +65,4 @@ GitHub App として入っている自動レビュアー（Codex・CodeRabbit）
 - 2026-11-02 外部の人が自動レビュアーを介して指示を届ける経路を塞ぐため、Codex を外部の指示に応じうるものとして扱い、interaction limits と PR・issue の作成の制限、ブランチの push の制限を設けた。実行関連ファイルは信頼する著者のスレッドでも範囲外とし、`/runpr` が制限の状態と PR の作成の時刻、利用者以外のメンションを確かめることにした（[0057 要件定義書](../../tasks/0057_reviewer_relay_guard/01_requirements.md)）
 - 2026-11-03 interaction limits をアカウント全体の設定とし、制限が外れているとき、弱いとき、確かめられないときは、警告して続けずに止めることにした。push の制限の対象から `main` を外し、PR のマージを止めないようにした（[0057 設計書](../../tasks/0057_reviewer_relay_guard/02_architecture.md) §1.2）
 - 2026-11-04 信頼する自動レビュアーの一覧に CodeRabbit を残し、一覧から外す要件（F-002）を取り下げた。Web から CodeRabbit のレビューを頼む使い方を残すためである（[0057 要件定義書](../../tasks/0057_reviewer_relay_guard/01_requirements.md) §1「実装の際に決めたこと（2026-11-04）」）
+- 2026-11-09 `/fixpr` のローカルの CLI レビューの push も道具が行い、その最初、各 commit の前、push の前に git の状態を基準値と比べることにした。範囲の検査は行わない（[0076 要件定義書](../../tasks/0076_fixpr_local_review_guard/01_requirements.md)）
