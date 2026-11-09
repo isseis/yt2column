@@ -25,7 +25,7 @@ const secretWords = [
 // "Webhook URL". Matched case-insensitively.
 const webhookUrlPattern = /webhook[ _.-]?url/i;
 
-// The server's environment variable a message may tell the user to set. It is
+// The server's configuration file key a message may tell the user to set. It is
 // allowed only inside the string literals of the message files, so the same
 // name as code (an identifier, a comment, a property name) is still refused.
 const messageEnvName = "SLACK_WEBHOOK_URL";

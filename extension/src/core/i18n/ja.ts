@@ -21,7 +21,7 @@ const repeatedPostStep =
   "この記事の前の版を投稿していた場合、新しい記事を投稿すると Slack で重複します。";
 const checksAgainStep = "状態は自動でもう一度取得します。";
 const setWebhookStep =
-  "SLACK_WEBHOOK_URL を設定して、yt2column-server を起動し直してください。";
+  "yt2column-server の設定ファイルに SLACK_WEBHOOK_URL を書いて、yt2column-server を起動し直してください。";
 const publishUnknownStep = "投稿の状態は自動でもう一度取得します。";
 const publishAgainStep =
   "もう一度押しても二重に投稿されないのは、サーバが記事を投稿中か投稿済みとして持っている場合だけです。投稿が失敗した後にやり直すと、届いたことを確かめられなかった 1 通が重複することがあります。";

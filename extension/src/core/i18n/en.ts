@@ -24,7 +24,8 @@ const sendAgainStep =
 const repeatedPostStep =
   "If an earlier copy of this article was posted, posting the new one repeats it in Slack.";
 const checksAgainStep = "The status is checked again automatically.";
-const setWebhookStep = "Set SLACK_WEBHOOK_URL and restart yt2column-server.";
+const setWebhookStep =
+  "Write SLACK_WEBHOOK_URL in the yt2column-server configuration file and restart yt2column-server.";
 const publishUnknownStep = "The posting status is checked again automatically.";
 const publishAgainStep =
   "Pressing the button again posts nothing twice only while the server holds the article as posting or posted; after a failed post, posting again may repeat the one message whose delivery was not confirmed.";

@@ -308,8 +308,8 @@
 
 **変えるファイル:** `extension/src/core/i18n/en.ts`、`extension/src/core/i18n/ja.ts`、`extension/test/secretsAbsent.test.ts`
 
-- [ ] `en.ts:27` と `ja.ts:23-24` の `setWebhookStep` を、`yt2column-server` の設定ファイルに `SLACK_WEBHOOK_URL` を書いて `yt2column-server` を起動し直す、という案内に変える。環境変数という語を使わず、設定ファイルのパスは書かない（設計 3.4）。文面は実装で決める。
-- [ ] `secretsAbsent.test.ts:28` の注釈を、許す名前が設定ファイルのキーであることに合わせて直す。
+- [x] `en.ts:27` と `ja.ts:23-24` の `setWebhookStep` を、`yt2column-server` の設定ファイルに `SLACK_WEBHOOK_URL` を書いて `yt2column-server` を起動し直す、という案内に変える。環境変数という語を使わず、設定ファイルのパスは書かない（設計 3.4）。文面は実装で決める。
+- [x] `secretsAbsent.test.ts:28` の注釈を、許す名前が設定ファイルのキーであることに合わせて直す。
 
 **完了条件:** `make ext-check` が通る。
 
