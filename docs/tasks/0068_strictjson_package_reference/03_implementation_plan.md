@@ -95,12 +95,12 @@
 
 **変更するファイル:** `internal/pipeline/strictjson_users_test.go`
 
--   [ ] **ステップ 2-1**: `importersOf` を設計書 3.4 のとおりに書く（`_test.go` でないファイルを `parser.ImportsOnly` で読み、与えた import のパスを持つファイルをパッケージごとにまとめる。別名・`_`・`.` の import も数える。読めない、または解析できないファイルはエラー）。
--   [ ] **ステップ 2-2**: `TestImportersOf` を書く。`t.TempDir` の下のソースで、`_test.go` だけが import するパッケージが入らないこと、`//go:build test` のファイルだけが import するパッケージが入ること、別名・`_`・`.` の import が数えられること、構文を解析できないファイルでエラーになることを確かめる（設計書 7.1）。
--   [ ] **ステップ 2-3**: 表の行を見つける関数 `strictjsonRowCell` を書く（本計画 §1.3）。設計書 3.2 の手順 1〜2 を行い、`internal/strictjson` の行の `Responsibility` のセルを返す。表がない、列がない、行がない、行が 2 つ以上ある、の 4 つの場合は、それぞれ別の番兵（`errNoPackageTable`・`errNoResponsibilityColumn`・`errNoStrictjsonRow`・`errDuplicateStrictjsonRow`）を元のエラーとして含めて返す。エラーの文には探した見出し・列名・パッケージ名と見つかった行の数を含める（設計書 4 章）。`TestStrictjsonRowCell` は、作った文書の断片（行が 1 つ、表がない、列がない、行がない、行が 2 つ）で、成功の行はセルを、失敗の行は `errors.Is` で番兵を確かめる（CLAUDE.md「Error Testing」）。
--   [ ] **ステップ 2-4**: `parseUserList` と番兵 `errNoUserList`・`errMalformedUserList` を設計書 3.2・3.6 のとおりに書く。`TestParseUserList` は設計書 7.1 の成功の行と失敗の行を持ち、失敗の行は `errors.Is` で番兵を確かめ、重複した名前を重複を残したまま返すことを確かめる。
--   [ ] **ステップ 2-5**: `diffUsers` と、その結果から報告の文を組み立てる関数を書く（設計書 3.3、本計画 §1.3）。`TestDiffUsers` は、一覧にない使い手、使い手でない名前（存在しない名前と `internal/strictjson` 自身）、重複した名前、3 つとも空の行を持ち、各行で 3 つの結果と、報告の文が該当する名前（一覧にない使い手では import するファイルも）を含むことを確かめる。
--   [ ] **ステップ 2-6**: ステップ 2-2〜2-5 の各テストについて、対象の関数の該当する分岐を一時的に壊して失敗することを確かめ、コミットメッセージに書く。壊し方は、少なくとも次を含む。
+-   [x] **ステップ 2-1**: `importersOf` を設計書 3.4 のとおりに書く（`_test.go` でないファイルを `parser.ImportsOnly` で読み、与えた import のパスを持つファイルをパッケージごとにまとめる。別名・`_`・`.` の import も数える。読めない、または解析できないファイルはエラー）。
+-   [x] **ステップ 2-2**: `TestImportersOf` を書く。`t.TempDir` の下のソースで、`_test.go` だけが import するパッケージが入らないこと、`//go:build test` のファイルだけが import するパッケージが入ること、別名・`_`・`.` の import が数えられること、構文を解析できないファイルでエラーになることを確かめる（設計書 7.1）。
+-   [x] **ステップ 2-3**: 表の行を見つける関数 `strictjsonRowCell` を書く（本計画 §1.3）。設計書 3.2 の手順 1〜2 を行い、`internal/strictjson` の行の `Responsibility` のセルを返す。表がない、列がない、行がない、行が 2 つ以上ある、の 4 つの場合は、それぞれ別の番兵（`errNoPackageTable`・`errNoResponsibilityColumn`・`errNoStrictjsonRow`・`errDuplicateStrictjsonRow`）を元のエラーとして含めて返す。エラーの文には探した見出し・列名・パッケージ名と見つかった行の数を含める（設計書 4 章）。`TestStrictjsonRowCell` は、作った文書の断片（行が 1 つ、表がない、列がない、行がない、行が 2 つ）で、成功の行はセルを、失敗の行は `errors.Is` で番兵を確かめる（CLAUDE.md「Error Testing」）。
+-   [x] **ステップ 2-4**: `parseUserList` と番兵 `errNoUserList`・`errMalformedUserList` を設計書 3.2・3.6 のとおりに書く。`TestParseUserList` は設計書 7.1 の成功の行と失敗の行を持ち、失敗の行は `errors.Is` で番兵を確かめ、重複した名前を重複を残したまま返すことを確かめる。
+-   [x] **ステップ 2-5**: `diffUsers` と、その結果から報告の文を組み立てる関数を書く（設計書 3.3、本計画 §1.3）。`TestDiffUsers` は、一覧にない使い手、使い手でない名前（存在しない名前と `internal/strictjson` 自身）、重複した名前、3 つとも空の行を持ち、各行で 3 つの結果と、報告の文が該当する名前（一覧にない使い手では import するファイルも）を含むことを確かめる。
+-   [x] **ステップ 2-6**: ステップ 2-2〜2-5 の各テストについて、対象の関数の該当する分岐を一時的に壊して失敗することを確かめ、コミットメッセージに書く。壊し方は、少なくとも次を含む。
     -   `importersOf` が `_test.go` を除かない。別名・`_`・`.` の import を数えない。解析できないファイルを飛ばす。
     -   `strictjsonRowCell` が行を数えずに最初の行を返す。番兵を取り違える。
     -   `parseUserList` が区切りの検査を緩める。重複を除いて返す。

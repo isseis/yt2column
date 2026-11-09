@@ -3,12 +3,20 @@
 package pipeline
 
 import (
+	"errors"
+	"fmt"
+	"go/parser"
+	"go/token"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/isseis/yt2column/internal/doctestutil"
 )
 
 // goSource is one Go source file found by the walk, with the package (the
@@ -128,5 +136,426 @@ func writeSourceFiles(t *testing.T, root string, files map[string]string) {
 		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 			t.Fatalf("write %s: %v", name, err)
 		}
+	}
+}
+
+// importersOf returns, for each package with a non-test Go source that imports
+// importPath, the sorted slash-separated paths of the files that import it. An
+// alias, blank, or dot import counts. Test files are skipped, and a file it
+// cannot read or parse is an error.
+func importersOf(root string, sources []goSource, importPath string) (map[string][]string, error) {
+	users := map[string][]string{}
+	fset := token.NewFileSet()
+	for _, src := range sources {
+		if strings.HasSuffix(src.path, "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(fset, filepath.Join(root, filepath.FromSlash(src.path)), nil, parser.ImportsOnly)
+		if err != nil {
+			return nil, fmt.Errorf("parse %s: %w", src.path, err)
+		}
+		for _, imp := range file.Imports {
+			path, err := strconv.Unquote(imp.Path.Value)
+			if err != nil {
+				return nil, fmt.Errorf("import path in %s: %w", src.path, err)
+			}
+			if path == importPath {
+				users[src.pkg] = append(users[src.pkg], src.path)
+				break
+			}
+		}
+	}
+	for pkg := range users {
+		slices.Sort(users[pkg])
+	}
+	return users, nil
+}
+
+const (
+	packageTableHeader    = "Package"
+	responsibilityColumn  = "Responsibility"
+	strictjsonPackageName = "internal/strictjson"
+	strictjsonImportPath  = "github.com/isseis/yt2column/internal/strictjson"
+	userListMarker        = "Shared by "
+)
+
+var (
+	// errNoPackageTable reports that the document has no table whose header
+	// names the package column.
+	errNoPackageTable = errors.New("no package table")
+	// errNoResponsibilityColumn reports that the table has no responsibility
+	// column, or that the row has no cell for it.
+	errNoResponsibilityColumn = errors.New("no responsibility column")
+	// errNoStrictjsonRow reports that no table row names the component.
+	errNoStrictjsonRow = errors.New("no strictjson row")
+	// errDuplicateStrictjsonRow reports that more than one table row names the
+	// component.
+	errDuplicateStrictjsonRow = errors.New("duplicate strictjson row")
+	// errNoUserList reports that the cell has no "Shared by " list, or has it
+	// more than once.
+	errNoUserList = errors.New("no single user list")
+	// errMalformedUserList reports that the list does not have the accepted
+	// form.
+	errMalformedUserList = errors.New("malformed user list")
+)
+
+// strictjsonRowCell returns the responsibility cell of the single row whose
+// first cell names the component. It fails when the table, the column, or the
+// row is missing, or when the row appears more than once.
+func strictjsonRowCell(doc string) (string, error) {
+	table := doctestutil.FindTable(doc, packageTableHeader)
+	if table == nil {
+		return "", fmt.Errorf("%w: no table with a %q header", errNoPackageTable, packageTableHeader)
+	}
+	col := doctestutil.ColumnIndex(table[0], responsibilityColumn)
+	if col < 0 {
+		return "", fmt.Errorf("%w: the %q table has no %q column", errNoResponsibilityColumn, packageTableHeader, responsibilityColumn)
+	}
+	var rows [][]string
+	for _, row := range table[1:] {
+		if len(row) > 0 && doctestutil.StripBackticks(row[0]) == strictjsonPackageName {
+			rows = append(rows, row)
+		}
+	}
+	switch len(rows) {
+	case 0:
+		return "", fmt.Errorf("%w: no row whose first cell is %q", errNoStrictjsonRow, strictjsonPackageName)
+	case 1:
+	default:
+		return "", fmt.Errorf("%w: %d rows whose first cell is %q", errDuplicateStrictjsonRow, len(rows), strictjsonPackageName)
+	}
+	row := rows[0]
+	if col >= len(row) {
+		return "", fmt.Errorf("%w: the row for %q has %d cells", errNoResponsibilityColumn, strictjsonPackageName, len(row))
+	}
+	return row[col], nil
+}
+
+// parseUserList returns the code-span names of the cell's "Shared by " list, in
+// the order written and with duplicates kept. It rejects a missing or repeated
+// marker and every form other than `a`, `a` and `b`, or `a`, `b`, and `c`.
+func parseUserList(cell string) ([]string, error) {
+	if n := strings.Count(cell, userListMarker); n != 1 {
+		return nil, fmt.Errorf("%w: %q appears %d times", errNoUserList, userListMarker, n)
+	}
+	rest := cell[strings.Index(cell, userListMarker)+len(userListMarker):]
+	name, rest, err := cutListName(rest)
+	if err != nil {
+		return nil, err
+	}
+	names := []string{name}
+	if rest == "" {
+		return names, nil
+	}
+	if after, ok := strings.CutPrefix(rest, " and "); ok {
+		last, rest, err := cutListName(after)
+		if err != nil {
+			return nil, err
+		}
+		if rest != "" {
+			return nil, malformedUserList("text after the last item: %q", rest)
+		}
+		return append(names, last), nil
+	}
+	for {
+		after, ok := strings.CutPrefix(rest, ", ")
+		if !ok {
+			return nil, malformedUserList("separator %q is neither \", \" nor \" and \"", rest)
+		}
+		if final, isAnd := strings.CutPrefix(after, "and "); isAnd {
+			if len(names) < 2 {
+				return nil, malformedUserList("two items are joined by \", and \"")
+			}
+			last, rest, err := cutListName(final)
+			if err != nil {
+				return nil, err
+			}
+			if rest != "" {
+				return nil, malformedUserList("text after the last item: %q", rest)
+			}
+			return append(names, last), nil
+		}
+		name, tail, err := cutListName(after)
+		if err != nil {
+			return nil, err
+		}
+		names = append(names, name)
+		if tail == "" {
+			return nil, malformedUserList("the last item is not preceded by \", and \"")
+		}
+		rest = tail
+	}
+}
+
+// cutListName removes the leading code span of s and returns its name and the
+// rest.
+func cutListName(s string) (name, rest string, err error) {
+	if !strings.HasPrefix(s, "`") {
+		return "", "", malformedUserList("item %q is not a code span", s)
+	}
+	end := strings.IndexByte(s[1:], '`')
+	if end < 0 {
+		return "", "", malformedUserList("item %q has no closing backquote", s)
+	}
+	name = s[1 : end+1]
+	if name == "" {
+		return "", "", malformedUserList("an item is empty")
+	}
+	return name, s[end+2:], nil
+}
+
+// malformedUserList returns an error that wraps errMalformedUserList and
+// describes the part of the list that does not fit the form.
+func malformedUserList(format string, args ...any) error {
+	return fmt.Errorf("%w: %s", errMalformedUserList, fmt.Sprintf(format, args...))
+}
+
+// diffUsers compares the listed names with the packages the code uses and
+// returns the users no name lists, the names no user justifies, and the names
+// listed more than once, each sorted.
+func diffUsers(listed []string, users map[string][]string) (missing, extra, duplicated []string) {
+	counts := map[string]int{}
+	for _, name := range listed {
+		counts[name]++
+	}
+	for name, n := range counts {
+		if n > 1 {
+			duplicated = append(duplicated, name)
+		}
+	}
+	for pkg := range users {
+		if counts[pkg] == 0 {
+			missing = append(missing, pkg)
+		}
+	}
+	for name := range counts {
+		if _, ok := users[name]; !ok {
+			extra = append(extra, name)
+		}
+	}
+	slices.Sort(missing)
+	slices.Sort(extra)
+	slices.Sort(duplicated)
+	return missing, extra, duplicated
+}
+
+// strictjsonUsersReport returns one failure line for each difference.
+func strictjsonUsersReport(missing, extra, duplicated []string, users map[string][]string) []string {
+	var lines []string
+	for _, pkg := range missing {
+		lines = append(lines, fmt.Sprintf("package_reference.md does not list %s, which imports %s (files: %s)",
+			pkg, strictjsonImportPath, strings.Join(users[pkg], ", ")))
+	}
+	for _, name := range extra {
+		lines = append(lines, fmt.Sprintf("package_reference.md lists %s, which no non-test source under cmd/ or internal/ imports %s",
+			name, strictjsonImportPath))
+	}
+	for _, name := range duplicated {
+		lines = append(lines, fmt.Sprintf("package_reference.md lists %s more than once", name))
+	}
+	return lines
+}
+
+// TestImportersOf checks which packages the import read finds.
+func TestImportersOf(t *testing.T) {
+	const target = "example.com/target"
+	root := t.TempDir()
+	writeSourceFiles(t, root, map[string]string{
+		"internal/plain/a.go":             "package plain\n\nimport \"example.com/target\"\n",
+		"internal/plain/testonly_test.go": "package plain\n\nimport \"example.com/target\"\n",
+		"internal/tagged/helper.go":       "//go:build test\n\npackage tagged\n\nimport \"example.com/target\"\n",
+		"internal/alias/a.go":             "package alias\n\nimport sj \"example.com/target\"\n",
+		"internal/blank/a.go":             "package blank\n\nimport _ \"example.com/target\"\n",
+		"internal/dot/a.go":               "package dot\n\nimport . \"example.com/target\"\n",
+		"internal/other/a.go":             "package other\n\nimport \"example.com/other\"\n",
+		"internal/testonly/only_test.go":  "package testonly\n\nimport \"example.com/target\"\n",
+		"cmd/.keep":                       "",
+	})
+	sources, err := goSources(root)
+	if err != nil {
+		t.Fatalf("goSources returned error: %v", err)
+	}
+	got, err := importersOf(root, sources, target)
+	if err != nil {
+		t.Fatalf("importersOf returned error: %v", err)
+	}
+	want := map[string][]string{
+		"internal/alias":  {"internal/alias/a.go"},
+		"internal/blank":  {"internal/blank/a.go"},
+		"internal/dot":    {"internal/dot/a.go"},
+		"internal/plain":  {"internal/plain/a.go"},
+		"internal/tagged": {"internal/tagged/helper.go"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("importersOf returned %v, want %v", got, want)
+	}
+
+	broken := t.TempDir()
+	writeSourceFiles(t, broken, map[string]string{
+		"internal/broken/bad.go": "package broken\n\nimport \"example.com/target\n",
+		"cmd/.keep":              "",
+	})
+	sources, err = goSources(broken)
+	if err != nil {
+		t.Fatalf("goSources returned error: %v", err)
+	}
+	if _, err := importersOf(broken, sources, target); err == nil {
+		t.Error("importersOf accepted a file it cannot parse")
+	}
+}
+
+// TestStrictjsonRowCell checks the row lookup's success and failure paths.
+func TestStrictjsonRowCell(t *testing.T) {
+	const header = "| Package | Responsibility |\n|---|---|\n"
+	cases := []struct {
+		name    string
+		doc     string
+		want    string
+		wantErr error
+	}{
+		{
+			name: "one row",
+			doc:  header + "| `internal/strictjson` | the responsibility |\n| `internal/other` | other |\n",
+			want: "the responsibility",
+		},
+		{
+			name:    "no table",
+			doc:     "# Packages\n\nNo table.\n",
+			wantErr: errNoPackageTable,
+		},
+		{
+			name:    "no responsibility column",
+			doc:     "| Package | Other |\n|---|---|\n| `internal/strictjson` | x |\n",
+			wantErr: errNoResponsibilityColumn,
+		},
+		{
+			name:    "no row",
+			doc:     header + "| `internal/other` | other |\n",
+			wantErr: errNoStrictjsonRow,
+		},
+		{
+			name:    "duplicate row",
+			doc:     header + "| `internal/strictjson` | first |\n| `internal/strictjson` | second |\n",
+			wantErr: errDuplicateStrictjsonRow,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := strictjsonRowCell(tc.doc)
+			if tc.wantErr != nil {
+				if !errors.Is(err, tc.wantErr) {
+					t.Fatalf("strictjsonRowCell returned error %v, want %v", err, tc.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("strictjsonRowCell returned error: %v", err)
+			}
+			if got != tc.want {
+				t.Errorf("strictjsonRowCell returned %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestParseUserList checks the accepted list forms and the rejected ones.
+func TestParseUserList(t *testing.T) {
+	cases := []struct {
+		name    string
+		cell    string
+		want    []string
+		wantErr error
+	}{
+		{name: "one item", cell: "Shared by `a`", want: []string{"a"}},
+		{name: "two items", cell: "Shared by `a` and `b`", want: []string{"a", "b"}},
+		{name: "three items", cell: "Shared by `a`, `b`, and `c`", want: []string{"a", "b", "c"}},
+		{name: "after contract text", cell: "Extracts values. Shared by `a`, `b`, and `c`", want: []string{"a", "b", "c"}},
+		{name: "duplicate kept", cell: "Shared by `a`, `b`, and `a`", want: []string{"a", "b", "a"}},
+		{name: "no list", cell: "Extracts values.", wantErr: errNoUserList},
+		{name: "two markers", cell: "Shared by `a` and Shared by `b`", wantErr: errNoUserList},
+		{name: "no item", cell: "Shared by ", wantErr: errMalformedUserList},
+		{name: "not a code span", cell: "Shared by a", wantErr: errMalformedUserList},
+		{name: "comma without and for two", cell: "Shared by `a`, `b`", wantErr: errMalformedUserList},
+		{name: "comma without and for three", cell: "Shared by `a`, `b`, `c`", wantErr: errMalformedUserList},
+		{name: "comma and for two", cell: "Shared by `a`, and `b`", wantErr: errMalformedUserList},
+		{name: "trailing text", cell: "Shared by `a`.", wantErr: errMalformedUserList},
+		{name: "unclosed code span", cell: "Shared by `a", wantErr: errMalformedUserList},
+		{name: "no final item", cell: "Shared by `a` and", wantErr: errMalformedUserList},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := parseUserList(tc.cell)
+			if tc.wantErr != nil {
+				if !errors.Is(err, tc.wantErr) {
+					t.Fatalf("parseUserList returned error %v, want %v", err, tc.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("parseUserList returned error: %v", err)
+			}
+			if !slices.Equal(got, tc.want) {
+				t.Errorf("parseUserList returned %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestDiffUsers checks the three differences and the report they produce.
+func TestDiffUsers(t *testing.T) {
+	cases := []struct {
+		name       string
+		listed     []string
+		users      map[string][]string
+		wantMiss   []string
+		wantExtra  []string
+		wantDup    []string
+		wantReport []string
+	}{
+		{
+			name:       "user not listed",
+			users:      map[string][]string{"internal/foo": {"internal/foo/a.go"}},
+			wantMiss:   []string{"internal/foo"},
+			wantReport: []string{"internal/foo", "internal/foo/a.go"},
+		},
+		{
+			name:       "names that are not users",
+			listed:     []string{"internal/missing", "internal/strictjson"},
+			users:      map[string][]string{},
+			wantExtra:  []string{"internal/missing", "internal/strictjson"},
+			wantReport: []string{"internal/missing", "internal/strictjson"},
+		},
+		{
+			name:       "name listed twice",
+			listed:     []string{"internal/foo", "internal/foo"},
+			users:      map[string][]string{"internal/foo": {"internal/foo/a.go"}},
+			wantDup:    []string{"internal/foo"},
+			wantReport: []string{"internal/foo"},
+		},
+		{
+			name:   "no differences",
+			listed: []string{"internal/foo"},
+			users:  map[string][]string{"internal/foo": {"internal/foo/a.go"}},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			miss, extra, dup := diffUsers(tc.listed, tc.users)
+			if !slices.Equal(miss, tc.wantMiss) {
+				t.Errorf("missing = %v, want %v", miss, tc.wantMiss)
+			}
+			if !slices.Equal(extra, tc.wantExtra) {
+				t.Errorf("extra = %v, want %v", extra, tc.wantExtra)
+			}
+			if !slices.Equal(dup, tc.wantDup) {
+				t.Errorf("duplicated = %v, want %v", dup, tc.wantDup)
+			}
+			report := strings.Join(strictjsonUsersReport(miss, extra, dup, tc.users), "\n")
+			for _, want := range tc.wantReport {
+				if !strings.Contains(report, want) {
+					t.Errorf("report %q does not name %q", report, want)
+				}
+			}
+		})
 	}
 }
