@@ -1045,11 +1045,8 @@ func TestConfigInit(t *testing.T) {
 		{
 			name: "base directory missing",
 			setup: func(_ *testing.T, e *serverEnv) {
-				// On macOS a fresh HOME lacks Library/Application Support;
-				// elsewhere the base is HOME, so HOME is made to name nothing.
-				if runtime.GOOS != "darwin" {
-					e.vars["HOME"] = filepath.Join(e.vars["HOME"], "missing")
-				}
+				// The base is HOME, so HOME is made to name nothing.
+				e.vars["HOME"] = filepath.Join(e.vars["HOME"], "missing")
 			},
 			want:       exitFailure,
 			wantStderr: "does not exist or is not a directory; nothing was created",
