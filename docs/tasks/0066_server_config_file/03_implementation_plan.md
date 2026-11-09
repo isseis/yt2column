@@ -321,8 +321,8 @@
 
 **コミット:** 節の削除と、それを指すリンクの削除を 1 つのコミットにする（`TestReadmeLinks`）。
 
-- [ ] `README.md` の「設定」の節の廃止した変数の段落（`:431-433`）、「廃止した LLM の変数からの移行」の節（`:467` から）、それを指すトラブルシューティングの項目（`:352`）を消す。`/mktrans README.md` で `README.en.md` に同期する。
-- [ ] `cli.md:69-71`・`255`・`257`、`project_overview.md:161` の「次に述べる旧変数の検査だけは例外で」の部分と `:163`、`translation_glossary.md:159`・`186` の行を消す。
+- [x] `README.md` の「設定」の節の廃止した変数の段落（`:431-433`）、「廃止した LLM の変数からの移行」の節（`:467` から）、それを指すトラブルシューティングの項目（`:352`）を消す。`/mktrans README.md` で `README.en.md` に同期する。
+- [x] `cli.md:69-71`・`255`・`257`、`project_overview.md:161` の「次に述べる旧変数の検査だけは例外で」の部分と `:163`、`translation_glossary.md:159`・`186` の行を消す。
 - [ ] `docs/tasks/0066_server_config_file/_checks/` に、merge-base と HEAD の文書を比べて、上の節・段落・用語集の行が HEAD で消え、ほかの見出しが同じ順で残っていることを確かめるスクリプトを置く（`diff` の検証。`requirements_process.md` §4）。PR-4 のブランチで 1 回実行し、出力と 2 つのコミットの ID を 7 章の AC-30・AC-33 の行に書く。
 
 #### ステップ 7-2: README とほかの文書の書き換え

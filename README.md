@@ -339,17 +339,6 @@ macOS の Brave は Chrome の manifest のディレクトリを読むので、C
   `0700` に戻して、もう一度起動する。
 - **`HOME: the socket path derived from HOME exceeds the operating system's
   limit`。** `HOME` がソケットのパスには長すぎる。上の上限を参照。
-- **更新の後の `configuration: YT2COLUMN_LLM_PROVIDER: is no longer supported`（または
-  `YT2COLUMN_MODEL`、`YT2COLUMN_REVIEW_PROVIDER`、`YT2COLUMN_REVIEW_MODEL`、`YT2COLUMN_CLAUDE_EFFORT`）。** プロバイダ・モデル・effort は工程ごとに 1 つの変数で設定するようになり、5 つの古い変数は、設定されていれば空でも必ず拒否する。サーバは待ち受ける前に
-  `2` で終わり、拡張はサーバが動いていないとしか報告できない。古い変数をそれぞれ外し（unset）、`YT2COLUMN_LLM`
-  を設定する。`YT2COLUMN_LLM` を設定せずに古い変数だけを外すと、既定の `claude/claude-opus-5-5` を使い、文字起こしは Anthropic
-  に送られる。`YT2COLUMN_REVIEW_*` の変数をどれか設定していたなら、`YT2COLUMN_REVIEW_LLM`
-  も、検証・推敲の工程が実際に使っていたプロバイダとモデルに設定する。`YT2COLUMN_CLAUDE_EFFORT`
-  を外すときは、使っていた effort を、`YT2COLUMN_LLM` と `YT2COLUMN_REVIEW_LLM` のうちプロバイダが
-  `claude` の値の後ろに `+<effort>` で付ける（`YT2COLUMN_LLM` を設定していなければ
-  `claude/claude-opus-5-5+<effort>` を設定する）。付けなければ、その工程は既定の effort の `high`
-  を使う。古い変数は `deepseek` の工程には効いていなかったので、`deepseek` の値には付けない。
-  [廃止した LLM の変数からの移行](#廃止した-llm-の変数からの移行)を参照し、それからサーバをもう一度起動する。
 - **モデルのエラーを伴う `build the LLM client` または `build the review LLM client`。** プロバイダのクライアントは、前後に空白のあるモデルの
   ID や不正な UTF-8 のモデルの ID を、組み立てるときに、変数を名指しせずに拒否する。サーバは起動時に両方のクライアントを組み立てるので、待ち受ける前に
   `2` で終わり、拡張はサーバが動いていないとしか報告できない。前者は `YT2COLUMN_LLM`
@@ -428,10 +417,6 @@ ID の一部とみなしてプロバイダに送ることはない。`+` より�
 `claude/claude-opus-5-5` を effort `high` で使う。`YT2COLUMN_REVIEW_LLM` を設定しなければ、検証・推敲の工程は、既定を含めて、生成と同じプロバイダ・モデル・effort を使う。`YT2COLUMN_REVIEW_LLM`
 を設定して effort を省けば、生成の effort は受け継がず、上の表の「effort を省いたとき」に従う。どちらの変数も、空の値は拒否し、既定や生成の設定で置き換えることはない。
 
-`YT2COLUMN_LLM_PROVIDER`、`YT2COLUMN_MODEL`、
-`YT2COLUMN_REVIEW_PROVIDER`、`YT2COLUMN_REVIEW_MODEL`、`YT2COLUMN_CLAUDE_EFFORT` の変数は廃止した。どれかが設定されていれば、空の値でも、CLI もサーバも、すべての実行で、その変数を名指しする設定エラーで止まる。その値は使わない。各エラーは、その実行のほかの設定エラーと合わせて報告する。
-[廃止した LLM の変数からの移行](#廃止した-llm-の変数からの移行)を参照。
-
 読んで検査するのは、選んだプロバイダの変数だけである。あるプロバイダの変数は、生成か検証・推敲のプロバイダがそのプロバイダであるときに読む。もう一方のプロバイダの変数は、値が何であれ無視する。そのため、別のツールのために
 `ANTHROPIC_API_KEY=` を export していても、`deepseek` だけを使う実行は止まらない。`YT2COLUMN_LLM`
 のプロバイダの部分が拒否され（空の値、`/` がない、または受け付けないプロバイダ）、`YT2COLUMN_REVIEW_LLM`
@@ -463,65 +448,6 @@ export YT2COLUMN_LLM=claude/claude-opus-5-5+high
 
 この構成の品質の目標、結果、製品の制約は
 [production_profile.md](docs/dev/production_profile.md)（日本語）にある。
-
-### 廃止した LLM の変数からの移行
-
-各工程のプロバイダとモデルは、以前は 2 つの変数で設定していた。生成と字数の調整は
-`YT2COLUMN_LLM_PROVIDER` と `YT2COLUMN_MODEL`、検証・推敲の工程は
-`YT2COLUMN_REVIEW_PROVIDER` と `YT2COLUMN_REVIEW_MODEL` である。今は工程ごとに 1 つの変数、
-`YT2COLUMN_LLM` と `YT2COLUMN_REVIEW_LLM` で設定し、古い変数は拒否する。例えば、以前の
-DeepSeek の設定
-
-```text
-YT2COLUMN_LLM_PROVIDER=deepseek
-YT2COLUMN_MODEL=deepseek-flash
-```
-
-は、次のようになる。
-
-```sh
-export YT2COLUMN_LLM=deepseek/deepseek-flash
-```
-
-`YT2COLUMN_REVIEW_*` の変数をどれか設定していたなら、`YT2COLUMN_REVIEW_LLM`
-を、検証・推敲の工程が実際に使っていたプロバイダとモデルに設定する。そうでなければ設定せず、検証・推敲の工程は生成のものを使う。次の 2 つの古い設定は、今は書き出す部分を暗に含んでいた。プロバイダが生成と同じに見えるときも、その部分を書き出す。
-
-| 古い設定 | 新しい設定 |
-|---|---|
-| `YT2COLUMN_REVIEW_PROVIDER` だけ（検証・推敲の工程は、そのプロバイダの既定のモデルを使っていた） | `YT2COLUMN_REVIEW_LLM=<provider>/<model ID>`。モデルの ID を書き出す。例えば `claude/claude-opus-5-5` |
-| `YT2COLUMN_REVIEW_MODEL` だけ（検証・推敲の工程は、生成のプロバイダを使っていた） | `YT2COLUMN_REVIEW_LLM=<generation provider>/<model ID>`。生成のプロバイダを書き出す。例えば `deepseek/deepseek-chat` |
-
-Claude の effort は、以前は `YT2COLUMN_CLAUDE_EFFORT` で設定し、生成と検証・推敲のうち `claude` を使う工程に効いていた。今は
-`YT2COLUMN_LLM` と `YT2COLUMN_REVIEW_LLM` の値の後ろに `+<effort>` を付けて工程ごとに設定し、`YT2COLUMN_CLAUDE_EFFORT`
-は拒否する。例えば、以前の設定
-
-```text
-YT2COLUMN_CLAUDE_EFFORT=low
-YT2COLUMN_LLM=claude/claude-sonnet-5-5
-```
-
-は、次のようになる。
-
-```sh
-export YT2COLUMN_LLM=claude/claude-sonnet-5-5+low
-```
-
-`YT2COLUMN_LLM` を設定していなかったなら、既定に effort を付けた
-`YT2COLUMN_LLM=claude/claude-opus-5-5+<effort>` を設定する。`YT2COLUMN_REVIEW_LLM`
-に `claude` の値を設定していたなら、その値にも同じ effort を付ける。付けなければ、検証・推敲の工程は既定の `high`
-を使う。プロバイダが `deepseek` の値には付けない。古い変数は `deepseek` の工程に効いておらず、付けると、それまで送っていなかった
-`reasoning_effort` を送る。この版より前の版は `+<effort>` をモデルの ID の一部とみなしてプロバイダに送るので、そうした版に戻すときは
-`+<effort>` を外す。外さなければ、最初の LLM の呼び出しが失敗する。
-
-古い変数は、ファイルから消すだけでなく外す（unset）。すでに export したシェルは古い変数を持ち続け、空の値も拒否するためである。古い変数を設定しうるすべての場所、すなわち `.envrc`、`.env`、シェルの起動ファイル、サーバを起動するスクリプトを確かめる。
-
-`YT2COLUMN_LLM` を設定せずに古い変数を消すと、既定の
-`claude` を選び、文字起こしは Anthropic に送られる。`YT2COLUMN_LLM_PROVIDER` と `YT2COLUMN_MODEL`
-のエラーの行はそのことを伝え、`ANTHROPIC_API_KEY` が未設定のときは、同じ理由で
-`ANTHROPIC_API_KEY` のエラーがその隣に出る。DeepSeek を使い続けるには、上のとおり `YT2COLUMN_LLM`
-を設定する。Anthropic のキーを設定するだけでは、DeepSeek を使い続けることにならない。
-
-動いているサーバは、起動したときの設定を持ち続ける。変数を変えた後は、サーバを止めてもう一度起動する。サーバは、そのとき待ち受ける前に変数を検査する。
 
 ## ブラウザ拡張
 
