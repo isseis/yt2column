@@ -43,7 +43,7 @@
 -   **照合のテストは `internal/pipeline` に置く（H-03）。** このパッケージは CI の `doc-guard` ジョブの対象で（`.github/workflows/ci.yml:187`）、AC-11 を変更なしに満たす。走査を共有する `TestPackageReferenceListsPackages` も同じパッケージにある。ほかのパッケージに置くと、`doc-guard` の対象を変えることになり、CLAUDE.md・`ci.yml`・ADR-0016 をそろえる変更が要る（要件書 5 章）。
 -   **表の読み取りには `internal/doctestutil` の関数を使い、`packageReferenceRows` は使わない（H-03）。** `packageReferenceRows`（`internal/pipeline/pipeline_test.go:690-701`）は、表の各行の最初のコードスパンだけを集合にして返し、セルの中身を捨てるので、一覧の文を読めない。`TestPackageReferenceListsPackages` は今のまま `packageReferenceRows` を使う。
 -   **CLAUDE.md「Development Notes」の guard の列挙には足さない（H-04）。** その列挙（`CLAUDE.md:645-656`）は、文書を読む Go の guard のうち、node を要しないことを読み手に伝えたいものを挙げている。網羅的な一覧ではない。同じ文書を読む `TestPackageReferenceListsPackages` も載っていない。足さないので、AC-05 が許す CLAUDE.md の変更の範囲にも収まる。
--   **ADR-0020 には触れない。** ADR-0020 は #716 で `main` に入っており、「決定」に、一覧に 4 つのパッケージがないことを #713 で扱うと書いた文がある（`docs/dev/adr/0020-strict-json.md:23`）。要件書 1 章の決定のとおり、この文はタスク 0065 の後続の PR が、本タスクの一覧の修正が `main` に入った後に削除する。本タスクの PR の説明には、この文が不要になったことを書く（要件書 2.3）。
+-   **ADR-0020 は、本タスクの実装 PR で変える（F-004、3.8）。** 「決定」の #713 の文を消し、「結果」に照合のテストの帰結を 1 文足す。要件書 1 章の決定（2026-11-09 に改めた）に従う。ADR-0020 を変える PR は、タスク 0065 の PR #727 がマージされるまでマージしない（要件書 5 章、6.2）。
 -   **PR は 1 本にする。** 一覧の修正と照合のテストは同じコミットに入れる。テストを先に入れると `make test` が失敗し、一覧を先に直すと、テストのない状態で一覧が `main` に入る。CLAUDE.md と `project_overview.md` の書き換えも小さいので、同じ PR に入れる。
 
 ### 1.3. なぜ既存の表のテストを広げないか
@@ -100,7 +100,7 @@ flowchart LR
 
 ### 2.1. 全体構成
 
-変更は、文書 3 つと、`internal/pipeline` のテストのコードである。製品のコードは変えない。
+変更は、文書 3 つと ADR-0020、`internal/pipeline` のテストのコードである。製品のコードは変えない。
 
 | 種類 | 対象 | 変更 |
 |---|---|---|
@@ -108,6 +108,7 @@ flowchart LR
 | 文書 | `CLAUDE.md` の「Architecture Overview」の `internal/strictjson` の項目 | 使い手の列挙を、要約と `package_reference.md` へのリンクに置き換える（F-002、3.5） |
 | 文書 | `docs/dev/project_overview.md` の「想定ディレクトリ構成」の `internal/strictjson/` の行 | 使い手の列挙を、要約に置き換える（F-002、3.5） |
 | テスト | `internal/pipeline` | 走査を共有の処理にし、照合のテストと、作った入力のテストを足す（F-003、3.2〜3.4） |
+| ADR | `docs/dev/adr/0020-strict-json.md` | 「決定」の #713 の文を消し、「結果」と「経緯」に 1 項目ずつ足す（F-004、3.8） |
 
 ### 2.2. コンポーネント配置
 
@@ -340,8 +341,33 @@ var (
 | `docs/dev/project_overview.md` | 「想定ディレクトリ構成」の `internal/strictjson/` の行を 3.5 の文にする | F-002 |
 | `internal/pipeline/pipeline_test.go` | `TestPackageReferenceListsPackages` の走査を `goSources` に置き換える | H-02 |
 | `internal/pipeline` の新しいテストのファイル（名前は実装計画で決める） | 照合のテスト、`goSources`・`importersOf`・`parseUserList`・`diffUsers`、作った入力のテスト | F-003 |
+| `docs/dev/adr/0020-strict-json.md` | 3.8 のとおり変える | F-004 |
 
 挙動の変わる既存のテストは、`TestPackageReferenceListsPackages` だけである。変わるのは数える範囲で、3.4 の 2 点（無視するディレクトリとファイル、`.go` ファイルのない `testutil` のディレクトリ）である。今のリポジトリでは結果は変わらない（3.4）。
+
+### 3.8. ADR-0020（F-004）
+
+**「決定」。** `docs/dev/adr/0020-strict-json.md:23` の項目を、その最初の文だけにする（AC-13）。
+
+```
+-   **この部品を使うパッケージの一覧は [package_reference.md](../conventions/package_reference.md) が持つ。**
+```
+
+消す 2 文は、一覧に 4 つのパッケージがないことと、それを #713 で扱うことを述べる。一覧が直った後は、存在しないずれを述べる文になる。この削除は決定を変えない修正なので、経緯の項目を足さず、コミットメッセージの correction line と PR の説明の correction paragraph で記録する（AC-15。`requirements_process.md`「Recording in the PR description」）。
+
+**「結果」。** 末尾に次の 1 項目を足す（AC-14）。ADR-0020 は使い手を「利用者」と呼ぶので（`docs/dev/adr/0020-strict-json.md:15`）、その語に合わせる。
+
+```
+-   `package_reference.md` の利用者の一覧とコードの利用者が食い違うと、`internal/pipeline` のテストが失敗し、`make test` と CI の `doc-guard` が通らない。
+```
+
+**「経緯」。** 末尾に、本書へのリンクを持つ項目を 1 つ足す（AC-14。`docs/dev/conventions/adr.md`「History entries」）。日付は項目を書いた日にする。
+
+```
+- YYYY-MM-DD `package_reference.md` の利用者の一覧をコードに合わせ、一覧とコードのずれを `make test` で見つけるテストを加えた（[0068 設計書](../../tasks/0068_strictjson_package_reference/02_architecture.md)）
+```
+
+照合のテストは、ADR-0020 の決定（一覧は `package_reference.md` が持つ）から生じる新しい帰結である。そのため、本タスクの実装 PR は、ADR-0020 の内容を変える PR として `docs/dev/conventions/adr.md`「Approval and the PR」に収まる。ADR-0020 のほかの記述は変えない。
 
 ## 4. エラーハンドリング設計 (Error Handling Design)
 
@@ -401,9 +427,9 @@ flowchart TD
     class L3 pass
 ```
 
-### 6.2. ADR-0020 の文との順序
+### 6.2. ADR-0020 の変更とタスク 0065 の PR #727 の順序
 
-ADR-0020 の「決定」の #713 の文（`docs/dev/adr/0020-strict-json.md:23`）は、本タスクの PR が `main` に入ると古くなる。要件書 1 章の決定のとおり、本タスクの PR はこの ADR に触れない。削除は、本タスクの PR が `main` に入った後に、タスク 0065 の後続の PR が行う。本タスクの PR の説明には、この文が不要になったことを書く。
+タスク 0065 の PR #727 は、マージまで一度きりの確認を走らせ、その確認は ADR-0020 の「決定」が #713 にリンクすることを求める。そのため、3.8 の変更を含む PR は、#727 がマージされるまでマージしない（要件書 5 章）。実装 PR のマージの前に `gh pr view 727 --json state` で #727 の状態を確かめる。#727 がまだマージされておらず、実装 PR が先にマージされる見込みのときは、ADR-0020 の変更をその PR から外し、レビュアーに確かめる。
 
 ## 7. テスト戦略 (Test Strategy)
 
@@ -444,11 +470,13 @@ AC-02 と AC-05 は変更の前後の関係を述べるので、恒久的なテ�
 
 -   **AC-02:** `package_reference.md` の差分が、`internal/strictjson` の行の一覧の文の中だけにあること。
 -   **AC-05（範囲）:** CLAUDE.md と `project_overview.md` の差分が、3.5 の項目と行の中だけにあること。
+-   **AC-13・AC-14（範囲）:** ADR-0020 の差分が、3.8 の「決定」の項目、「結果」の末尾の 1 項目、「経緯」の末尾の 1 項目だけであること。
 
 ### 7.4. 読んで確かめる（manual）
 
 -   **AC-03・AC-04・AC-05（意味）:** 3.5 の文が、使い手の名前を挙げず、一覧の置き場所を述べ、部品の説明の意味を変えていないこと。文の意味は PR のレビューで読む（CLAUDE.md「Document tests check values, structure, and executable examples, never prose」）。
 -   **AC-12:** 照合のテストのコードが、`internal/strictjson` と import のパスのほかに、パッケージの名前を持たないこと。
+-   **AC-14（意味）・AC-15:** 「結果」の 1 文が照合のテストの帰結を述べていること。ADR-0020 を変えるコミットのメッセージと PR の説明が、「決定」の削除を、決定を変えない修正として記録していること。
 
 ### 7.5. セキュリティテスト
 
@@ -462,7 +490,9 @@ N/A（5 章）。
 2.  `importersOf`・`parseUserList`・`diffUsers` と、作った入力のテストを足す。
 3.  照合のテストを足し、`package_reference.md` の一覧に 4 つを足す。一覧を直す前に照合のテストが失敗することと、7.2 の壊す確認は、コミットせずに手元で確かめる。
 4.  CLAUDE.md と `project_overview.md` を書き換える。
-5.  `_checks/` のスクリプトを置き、実行する。
+5.  ADR-0020 を 3.8 のとおり変える。`TestADRRecords` が通ることを確かめる。
+6.  `_checks/` のスクリプトを置き、実行する。
+7.  マージの前に、#727 がマージされていることを確かめる（6.2）。
 
 ## 9. 将来の拡張 (Future Extensibility)
 
@@ -495,3 +525,6 @@ N/A（5 章）。
 | AC-10 | 3.3 | 照合のテスト（7.2） |
 | AC-11 | 1.2（H-03） | 静的確認：テストが `internal/pipeline` にあり、`ci.yml:187` の `doc-guard` の対象であること |
 | AC-12 | 3.3 | manual（7.4） |
+| AC-13 | 3.8 | 一回の確認（7.3） |
+| AC-14 | 3.8 | 一回の確認（範囲）と manual（意味）（7.3、7.4） |
+| AC-15 | 3.8 | manual（7.4） |
