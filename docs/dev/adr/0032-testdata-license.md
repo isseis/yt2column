@@ -8,17 +8,17 @@
 
 ## 背景
 
-パーサのテストは、`testdata/` に保存した実際の取得結果で行う（[0002 要件定義書](../../tasks/0002_ytdlp_transcript_source/01_requirements.md) AC-13、[CLAUDE.md](../../../CLAUDE.md) の「Testing Strategy」）。そのため、外部から取得したデータをリポジトリに置くことになる。
+パーサのテストは、`testdata/` に保存した実際の取得結果で行う（[0002 要件定義書](../../tasks/0002_ytdlp_transcript_source/01_requirements.md) AC-13、[CLAUDE.md](../../../CLAUDE.md) の「Testing Strategy」）。そのため、外部から取得したデータを公開のリポジトリに置くことになる。
 
-一方で、字幕・タイトル・概要欄は著作物でありうる（[0002 設計書](../../tasks/0002_ytdlp_transcript_source/02_architecture.md) §1.4「保存する実データの条件」）。リポジトリは公開されるので、そこに置くデータは再配布できるものでなければならない。また、取得した結果には、取得した人を特定できる情報が混じる。`yt-dlp` の info.json は、署名付きの URL に取得した人の IP アドレスを埋め込む（同 付録A、[testdata/README.md](../../../testdata/README.md)）。
+字幕・タイトル・概要欄は著作物でありうるので、置くデータは再配布できるものでなければならない（[0002 設計書](../../tasks/0002_ytdlp_transcript_source/02_architecture.md) §1.4「保存する実データの条件」）。また、取得した結果には、取得した人を特定できる情報が混じる。たとえば `yt-dlp` の info.json は、署名付きの URL に取得した人の IP アドレスを埋め込む（同 付録A、[testdata/README.md](../../../testdata/README.md)）。
 
-この主題の規則は、タスク 0002 が `yt-dlp` の出力について決めた。その後、文字起こしパネルの HTML の抜粋を加えた PR #101 が、[security.md](../security.md) に §7「リポジトリに保存する実データ」を書き、規則を YouTube のページの HTML に広げた。ログインしていない状態で保存すること、ページ全体のスナップショットをコミットせずリポジトリの外に置くことは、このときに加わった。PR #101 はどのタスクにも属さないので、経緯には入れない。CLAUDE.md の「Development Notes」の `testdata/` の項は、この規則を短く述べ直したもので、§7 を参照している。
+規則は、タスク 0002 が `yt-dlp` の出力について決めた。YouTube のページの HTML の抜粋への適用は、どのタスクにも属さない PR #101 が [security.md](../security.md) の §7 を書いたときに加わったので、経緯には入れない。
 
 ## 決定
 
--   **`testdata/` に置く実データは、再配布が許諾されたライセンス（CC BY など）の動画から取得したものに限る。** 出典とライセンスを [testdata/README.md](../../../testdata/README.md) に明記する。規則の正本は [security.md](../security.md) の §7「リポジトリに保存する実データ」である。個々のファイルの出典・加工の内容・作り直し方は、testdata/README.md を正本とする。この ADR は、規則の理由と、採らなかった案と、経緯を持つ。
--   **取得した人を特定できる情報は、コミットする前に取り除く。** 何を取り除くか（info.json の署名付きの URL、ログインした状態で保存したページのアカウントの情報など）と、ページの HTML から要素だけを切り出すことは、security.md の §7 に従う。取り除いた値と、それ以外を無改変で保存したことは、testdata/README.md にファイルごとに記録する。
--   **ページ全体のスナップショットは、リポジトリにコミットしない。** リポジトリの外に置き、テストはそれを参照しない。置き場所は security.md の §7 と testdata/README.md の「文字起こしパネルの HTML の抜粋」に従う。
+-   **`testdata/` に置く実データは、再配布が許諾されたライセンス（CC BY など）の動画から取得したものに限る。** 出典とライセンスを [testdata/README.md](../../../testdata/README.md) に明記する。規則の正本は [security.md](../security.md) の §7「リポジトリに保存する実データ」で、個々のファイルの出典・加工の内容・作り直し方は testdata/README.md が持つ。
+-   **取得した人を特定できる情報は、コミットする前に取り除く。** 何を取り除くかは security.md の §7 に従い、取り除いた値をファイルごとに testdata/README.md に記録する。
+-   **ページ全体のスナップショットは、リポジトリにコミットしない。** リポジトリの外に置き、テストはそれを参照しない。
 
 ## 採らなかった案
 

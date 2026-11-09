@@ -8,17 +8,17 @@
 
 ## 背景
 
-この ADR は、開発の確認の範囲についての 2 つの決定を持つ。1 つは、到達できない関数を報告する `make deadcode` が何を解析し、いつ失敗するかである。もう 1 つは、コピーした字幕のパーサの時間の期限を、どのビルドで確かめるかである。
+この ADR は、開発の確認の範囲についての 2 つの決定を持つ。到達できない関数を報告する `make deadcode` が何を解析し、いつ失敗するかと、コピーした字幕のパーサの時間の期限をどのビルドで確かめるかである。
 
-`make deadcode` は、もとは CLI の `main` パッケージとそのテストだけを解析の起点にしていた。ほかの `main` パッケージやほかのパッケージのテストから届く関数まで到達できないと報告し、報告は数百件になった。本当に到達できない関数が加わっても、ノイズに紛れて見逃す。報告があっても終了コード 0 で終わるので、タスクの完了の条件にも使えなかった（[0047 要件定義書](../../tasks/0047_deadcode_scope/01_requirements.md) §1）。
+到達できない関数の報告は、ほかの `main` パッケージやほかのパッケージのテストから届く関数まで含むと数百件のノイズになり、本当に到達できない関数を見逃す。報告があっても失敗しなければ、タスクの完了の条件に使えない（[0047 要件定義書](../../tasks/0047_deadcode_scope/01_requirements.md) §1）。
 
-コピーした字幕のパーサには、4 MiB の入力を 30 秒未満で解析する予算と、1 秒未満の目標がある。サーバのリクエストの時間の中で解析を終えるためである（[0015 設計書](../../tasks/0015_copied_transcript_source/02_architecture.md) §7.3）。`make test` と CI の `Test` ジョブは、全パッケージを `-race` 付きで並行に実行する。`-race` 付きのビルドでは、時間の長い入力の解析が、手元の計測で `-race` なしの約 23〜31 倍かかる。本番の `yt2column-server` は `-race` なしでビルドされる（[0039 要件定義書](../../tasks/0039_large_input_test_timeout/01_requirements.md) §1）。
+コピーした字幕のパーサには、サーバのリクエストの時間の中で解析を終えるための予算がある（[0015 設計書](../../tasks/0015_copied_transcript_source/02_architecture.md) §7.3）。`make test` と CI の `Test` ジョブは全パッケージを `-race` 付きで実行するが、`-race` 付きのビルドでは長い入力の解析が手元の計測で約 23〜31 倍遅くなる。本番の `yt2column-server` は `-race` なしでビルドされる（[0039 要件定義書](../../tasks/0039_large_input_test_timeout/01_requirements.md) §1）。
 
 ## 決定
 
--   **`make deadcode` は、モジュール全体と、`test`・`integration` のタグのテストを起点に、到達できない関数を報告する。出力があれば失敗する。** 解析の範囲と失敗の条件は、[CLAUDE.md](../../../CLAUDE.md) の「Code Quality」の `make deadcode` の項に従う。この ADR は、その規則の理由と、採らなかった案を持つ。合否は `deadcode` コマンドの終了コードと出力のバイト数だけで決め、出力の中身を読まない。`deadcode` コマンドが `PATH` にないときも失敗する。`make deadcode` は手元で実行するターゲットで、CI では実行しない。
--   **パーサの時間の期限は、`-race` なしのビルドだけで確かめる。** `make test` は、全パッケージの `-race` 付きの実行の後に `make test-parse-norace` を実行し、このターゲットが `TestParseCopiedLargeInputs` だけを `-race` なし・カバレッジなしで単独に実行して時間を確かめる。`make test` と `make test-parse-norace` の振る舞いは、[CLAUDE.md](../../../CLAUDE.md) の「Test Commands」の `make test` と `make test-parse-norace` の項に従う。CI の `Test` ジョブも、`make test-ci` の後の別の手順として `make test-parse-norace` を実行する（[.github/workflows/ci.yml](../../../.github/workflows/ci.yml)）。
--   **`-race` 付きのビルドでも、時間以外は確かめ続ける。** `TestParseCopiedLargeInputs` は、どちらのビルドでも、解析の成功、セグメントの数、入力 1 バイトあたりのメモリの確保量の上限を確かめる。確保量の上限と、時間を確かめるかどうかは、ビルドタグ `race` と `!race` のテストのファイルにビルドごとの定数として置く。
+-   **`make deadcode` は、モジュール全体と、`test`・`integration` のタグのテストを起点に、到達できない関数を報告する。出力があれば失敗する。** 解析の範囲と失敗の条件は、[CLAUDE.md](../../../CLAUDE.md) の「Code Quality」の `make deadcode` の項に従う。合否は終了コードと出力の有無だけで決め、出力の中身を読まない。`make deadcode` は手元で実行するターゲットで、CI では実行しない。
+-   **パーサの時間の期限は、`-race` なしのビルドだけで確かめる。** `make test` は、`-race` 付きの実行の後に `make test-parse-norace` を実行し、そこで時間を確かめる。CI の `Test` ジョブも別の手順として同じターゲットを実行する（[.github/workflows/ci.yml](../../../.github/workflows/ci.yml)）。`make test` と `make test-parse-norace` の振る舞いは、[CLAUDE.md](../../../CLAUDE.md) の「Test Commands」の `make test` と `make test-parse-norace` の項に従う。
+-   **`-race` 付きのビルドでも、時間以外は確かめ続ける。** どちらのビルドでも、解析の成功、セグメントの数、メモリの確保量の上限を確かめる。ビルドごとに違う値は、ビルドタグ `race` と `!race` のテストのファイルに置く。
 
 ## 採らなかった案
 

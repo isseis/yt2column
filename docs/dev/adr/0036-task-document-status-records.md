@@ -8,22 +8,18 @@
 
 ## 背景
 
-タスク文書（`01_requirements.md`・`02_architecture.md`・`03_implementation_plan.md`）は、状態表の `Status` が `approved` になるまで次の段階に進めない。承認済みの文書にも、後から編集が入る。そのため、承認した後の編集が承認を取り消すものかどうかと、その記録をどこに残すかを決める必要がある。
+タスク文書は、`approved` になるまで次の段階に進めないが、承認した後にも編集が入る。そのため、承認した後の編集が承認を取り消すかどうかと、状態とその理由・経緯をどこに記録するかを決める必要がある。編集を分けないと、言い回しを直すたびに承認をやり直すことになる（[requirements_process.md](../conventions/requirements_process.md)「Editing an approved document」）。記録の置き場所が曖昧だと、今の状態の理由と過去の経緯が混ざり、レビュアーが今読むべきことが埋もれる。
 
-承認済みの文書への編集を、決定の変更と編集上の訂正に分ける規則は、リポジトリを作ったときに go-safe-cmd-runner から移した開発の手順にあった。タスクで決めたものではない。分けないと、言い回しを直すたびに `draft` に戻り、何も決めない再承認が繰り返される（[requirements_process.md](../conventions/requirements_process.md)「Editing an approved document」）。
-
-この規則のもとで、状態表の `Comments` が肥大化した。旧規則は、編集上の訂正を `Comments` に記録し、`draft` に戻すときは過去の承認も `Comments` に残すとしていた。issue #596 の調べでは、150 文書のうち 77 文書で `Comments` が 500 バイトを超え、最大は約 8.9KB だった。今の状態の理由と過去の経緯が 1 つのセルに混ざり、レビュアーが今読むべきことが埋もれていた（[0053 要件定義書](../../tasks/0053_status_comments_policy/01_requirements.md) §1）。
-
-また、状態の遷移を変更履歴に書く規則より前に承認された文書には、変更履歴がない。そうした文書を決定の変更で `draft` に戻すと、`Review date` と `Reviewer` が `-` になり、過去の承認が文書から消える。2026-11-02 の時点で、変更履歴のない承認済みの文書は 155 件あった（[0056 要件定義書](../../tasks/0056_legacy_approval_history/01_requirements.md) §1）。
+実際に、状態表の `Comments` に訂正と過去の承認を積み重ねた結果、1 つのセルが数 KB に膨らんだ（[0053 要件定義書](../../tasks/0053_status_comments_policy/01_requirements.md) §1）。また、変更履歴のない古い文書を `draft` に戻すと、過去の承認が文書から消えた（[0056 要件定義書](../../tasks/0056_legacy_approval_history/01_requirements.md) §1）。
 
 ## 決定
 
--   **記録の置き場所は、読む人と読む時期で決める。** タスク文書についての記録の置き場所は 6 つである。状態表の `Comments`、変更履歴、本文の「…で決めたこと（YYYY-MM-DD）」の節、PR の説明、コミットメッセージ、ADR である。それぞれに何を置くかは、[requirements_process.md](../conventions/requirements_process.md) の「Document Status Format」の段落に従う。ADR は状態表と変更履歴を持たず、`/runpr` は ADR の承認を記録しない（[adr.md](../conventions/adr.md)「Status」）。
--   **承認済みの文書への編集を、決定の変更・セッション中の再承認・編集上の訂正の 3 つに分ける。** 決定の変更は、本文に決定を書き、文書を `draft` に戻して `/runpr` で承認し直す。`/runplan` が実装中に見つけた決定の変更は、セッションでのレビュアーの答えを再承認とし、文書は `approved` のままにする。決定と理由は、変えた文書の「実装の際に決めたこと（YYYY-MM-DD）」の節に書く。編集上の訂正は、状態も `Comments` も変更履歴も変えない。分け方と、それぞれで何を書き換えるかは、[requirements_process.md](../conventions/requirements_process.md)「Editing an approved document」に従う。
+-   **記録の置き場所は、読む人と読む時期で決める。** タスク文書についての記録の置き場所は、状態表の `Comments`、変更履歴、本文の「…で決めたこと（YYYY-MM-DD）」の節、PR の説明、コミットメッセージ、ADR の 6 つである。それぞれに何を置くかは、[requirements_process.md](../conventions/requirements_process.md) の「Document Status Format」の段落に従う。ADR は状態表と変更履歴を持たない（[adr.md](../conventions/adr.md)「Status」）。
+-   **承認済みの文書への編集を、決定の変更・セッション中の再承認・編集上の訂正の 3 つに分ける。** 決定の変更は、文書を `draft` に戻して承認し直す。`/runplan` が実装中に見つけた決定の変更は、セッションでのレビュアーの答えを再承認とする。編集上の訂正は、状態も `Comments` も変更履歴も変えない。分け方と、それぞれで何を書き換えるかは、[requirements_process.md](../conventions/requirements_process.md)「Editing an approved document」に従う。
 -   **`Comments` には、今の状態についてレビュアーが今知るべき理由だけを書く。** 状態が変わるたびに書き換え、前の値を残さない。状態ごとの値は、[requirements_process.md](../conventions/requirements_process.md)「Comments」に従う。
--   **状態の遷移は、文書の最後の変更履歴に 1 件 1 行で追記する。** 遷移は、承認・`draft` への戻し・セッション中の再承認・取り下げの 4 種類である。変更履歴には編集上の訂正を書かない。節は最初の 1 行を書くときに作る。`main` に入った行は、移した項目と状態表から写した承認の行を除き、その行を加えた PR の番号を持つ。PR を作る前に書いた行は未記入の印 `#未記入` を持ち、マージの直前に `/runpr` の PRE_MERGE がこの PR の番号に置き換える（[runpr.md](../../../.claude/commands/runpr.md)）。承認の行も PRE_MERGE が書く。行の形と PR 番号の例外は、[requirements_process.md](../conventions/requirements_process.md)「Change history」に従う。
--   **変更履歴のない文書は、最初の状態の遷移を書くときに移す。** 旧 `Comments` を、内容を変えずに変更履歴の先頭の項目にする。承認済みの文書なら、状態表の `Review date` と `Reviewer` から写した承認の行を作る。写した値は、`HEAD` の状態表から組み立てた項目と機械的に比べる。写せないときは、遷移を書かずに止まる。編集上の訂正だけでは移さない。対象と手順は、[requirements_process.md](../conventions/requirements_process.md)「Documents without a change history」に従う。
--   **編集上の訂正と決定の変更は、PR の説明にも書く。** 編集上の訂正は、それを加えたコミットのメッセージに訂正の行として書き、PR の説明の訂正の段落はその行から作る。PR を作るときは、ブランチの訂正の行から訂正の段落を、ブランチが加えた変更履歴の行から決定の変更を書く（[task-pr-handoff.md](../../../.claude/commands/_lib/task-pr-handoff.md) の Part B）。PR を作った後は、`/fixpr` がその回の訂正の段落を追記する。`/fixpr` が PR を作った後に `draft` に戻した決定の変更は、PR の説明に足さない（[fixpr.md](../../../.claude/commands/fixpr.md)）。訂正の行と訂正の段落の形は、[requirements_process.md](../conventions/requirements_process.md)「Recording in the PR description」に従う。`/fixpr` が PR の説明に追記する道具と、その文面を信頼しないデータとして扱うことは、[ADR-0015](0015-untrusted-review-threads.md) が定める。
+-   **状態の遷移は、文書の末尾の変更履歴に 1 件 1 行で追記する。** 変更履歴には編集上の訂正を書かない。各行は、原則としてその行を加えた PR の番号を持ち、PR を作る前に書いた行の番号は `/runpr` がマージの直前に埋める（[runpr.md](../../../.claude/commands/runpr.md)）。行の形と PR 番号の例外は、[requirements_process.md](../conventions/requirements_process.md)「Change history」に従う。
+-   **変更履歴のない文書は、最初の状態の遷移を書くときに移す。** 旧 `Comments` を変更履歴の先頭の項目にし、承認済みの文書なら状態表から承認の行を写す。写せないときは、遷移を書かずに止まる。一括では移さない。対象と手順は、[requirements_process.md](../conventions/requirements_process.md)「Documents without a change history」に従う。
+-   **編集上の訂正と決定の変更は、PR の説明にも書く。** 編集上の訂正はコミットのメッセージに訂正の行として書き、PR の説明の訂正の段落はその行から作る（[task-pr-handoff.md](../../../.claude/commands/_lib/task-pr-handoff.md) の Part B、[fixpr.md](../../../.claude/commands/fixpr.md)）。形は、[requirements_process.md](../conventions/requirements_process.md)「Recording in the PR description」に従う。`/fixpr` が PR の説明に追記する道具と、その文面を信頼しないデータとして扱うことは、[ADR-0015](0015-untrusted-review-threads.md) が定める。
 -   **書式は規則の 1 か所で定め、コマンドの定義は規則の節を名指しして参照する。** `Comments` の値、変更履歴の行の形、訂正の行と訂正の段落の形は、[requirements_process.md](../conventions/requirements_process.md) だけに書く。[runpr.md](../../../.claude/commands/runpr.md)・[task-pr-handoff.md](../../../.claude/commands/_lib/task-pr-handoff.md)・[runplan.md](../../../.claude/commands/runplan.md)・[fixpr.md](../../../.claude/commands/fixpr.md) などのコマンドの定義には、いつどの文書に書くかだけを書く。
 
 ## 採らなかった案
