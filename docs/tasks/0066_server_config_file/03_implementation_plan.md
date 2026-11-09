@@ -266,20 +266,20 @@
 
 **コミット:** このステップとステップ 5-2 を 1 つのコミットにする。
 
-- [ ] `run` の最初で、設計 3.3 のとおりに引数を振り分ける。引数の拒否の行（`run.go:127`）を、受け付ける形（引数なし、または `config init`）を示し、`README.en.md` へ案内する行に置き換える。
-- [ ] `runInit` を設計 3.3 と 6.3 のとおりに実装する。`*VarError` は `exitUsage`、それ以外の失敗は `exitFailure`、成功は `exitOK` を返す。成功のときは作ったパスの 1 行を、一時ファイルが残ったときはその名前の 1 行を足して、`stderrWriter` を通して標準エラーに書く。標準出力には何も書かない。
-- [ ] 終了コードの注釈（`run.go:23-28`）に、`config init` の失敗が `exitFailure` になることを足す。`run` の注釈の「Steps 1 and 2 touch no network and no file」（`:110-112`）を、手順 1 が設定ファイルを読み、何も書かないことに合わせて直す。
+- [x] `run` の最初で、設計 3.3 のとおりに引数を振り分ける。引数の拒否の行（`run.go:127`）を、受け付ける形（引数なし、または `config init`）を示し、`README.en.md` へ案内する行に置き換える。
+- [x] `runInit` を設計 3.3 と 6.3 のとおりに実装する。`*VarError` は `exitUsage`、それ以外の失敗は `exitFailure`、成功は `exitOK` を返す。成功のときは作ったパスの 1 行を、一時ファイルが残ったときはその名前の 1 行を足して、`stderrWriter` を通して標準エラーに書く。標準出力には何も書かない。
+- [x] 終了コードの注釈（`run.go:23-28`）に、`config init` の失敗が `exitFailure` になることを足す。`run` の注釈の「Steps 1 and 2 touch no network and no file」（`:110-112`）を、手順 1 が設定ファイルを読み、何も書かないことに合わせて直す。
 
 #### ステップ 5-2: 引数と `config init` のテスト
 
-**変えるファイル:** `cmd/yt2column-server/run_test.go`、`cmd/yt2column-server/test_helpers.go`、`internal/config/test_helpers.go`
+**変えるファイル:** `cmd/yt2column-server/run_test.go`、`cmd/yt2column-server/test_helpers.go`、`internal/config/test_helpers.go`、`internal/privatefile/test_helpers.go`（一時ファイルの削除を失敗させる、ほかのパッケージのテスト用の補助）
 
-- [ ] `TestStartupFailures` の「an argument」の行（`run_test.go:64-70`）は、削除せずに、新しい行の文に合わせて期待を直す。`configDocument` の注釈（`:30-31`）も合わせる。
-- [ ] `TestRunArgs` を書く: 引数なし（ファイルが正しければ待ち受ける）、`config init`（雛形を作る）、要件 AC-29 の例（`config`、`init`、`config init extra`、`--help`、`config Init`）の表で、終了コードを確かめ、拒否のときに空の `HOME` の下に何も作らないことを確かめる。この表の `serverEnv` は、ファイルを書かない状態で始める。
-- [ ] `TestConfigInit` を書く: 空の `HOME` では、終了コードが `0` で、作ったファイルが雛形と一致してモードが `0600` であり、標準エラーにパスの 1 行があり、ソケットのディレクトリ・起動のロック・ソケットが作られていないこと。すでにある（通常のファイル・リンク先のないシンボリックリンク・ディレクトリ）ときは、終了コードが `1` で、既存のものが変わらないこと。基点（macOS では `$HOME/Library/Application Support`、ほかでは `$HOME`）がないときは、終了コードが `1` で、何も作らないこと。作れないとき（親に書けない）は、終了コードが `1` で、書きかけがなく、作った親が残ること。一時ファイルの削除に失敗したとき（`privatefile` の差し込み口）は、終了コードが `0` で、その名前の行があること。`HOME` の誤りでは、終了コードが `2` で、何も作らないこと。ソケットのパスの上限を超える長い `HOME` でも作れること。親に書けない場合は、モードを戻す `t.Cleanup` を登録し、root では `t.Skip` する。雛形と比べるため、`internal/config/test_helpers.go` に雛形をバイト列で返すアクセサを足す。
-- [ ] `TestConfigInitStdout` を書く: 子プロセスで `main` を `config init` の引数で動かし、標準出力が空で、終了コードが `0` であることを確かめる（`run` は標準出力を受け取らないので、子プロセスで確かめる）。`test_helpers.go` に、ソケットを待たずに子プロセスを最後まで動かす補助を足す。
-- [ ] `TestConfigInitThenStart` を書く: ファイルを書かない状態の `serverEnv` で `config init` を実行し、そのファイルのままサーバを起動すると、書式と検査を通って `ANTHROPIC_API_KEY` がないことを示す設定エラーで止まり（AC-26）、そのファイルにキーを書き足すとサーバが待ち受けることを確かめる（設計 7.2）。
-- [ ] このステップのテストに `t.Parallel` を付けない（1.3）。
+- [x] `TestStartupFailures` の「an argument」の行（`run_test.go:64-70`）は、削除せずに、新しい行の文に合わせて期待を直す。`configDocument` の注釈（`:30-31`）も合わせる。
+- [x] `TestRunArgs` を書く: 引数なし（ファイルが正しければ待ち受ける）、`config init`（雛形を作る）、要件 AC-29 の例（`config`、`init`、`config init extra`、`--help`、`config Init`）の表で、終了コードを確かめ、拒否のときに空の `HOME` の下に何も作らないことを確かめる。この表の `serverEnv` は、ファイルを書かない状態で始める。
+- [x] `TestConfigInit` を書く: 空の `HOME` では、終了コードが `0` で、作ったファイルが雛形と一致してモードが `0600` であり、標準エラーにパスの 1 行があり、ソケットのディレクトリ・起動のロック・ソケットが作られていないこと。すでにある（通常のファイル・リンク先のないシンボリックリンク・ディレクトリ）ときは、終了コードが `1` で、既存のものが変わらないこと。基点（macOS では `$HOME/Library/Application Support`、ほかでは `$HOME`）がないときは、終了コードが `1` で、何も作らないこと。作れないとき（ファイルの親に書けない、または `privatefile` の差し込み口で `link` の前に失敗させる）は、終了コードが `1` で、書きかけがなく、後者では作った親が残ること。一時ファイルの削除に失敗したとき（`privatefile` の差し込み口）は、終了コードが `0` で、その名前の行があること。`HOME` の誤りでは、終了コードが `2` で、何も作らないこと。ソケットのパスの上限を超える長い `HOME` でも作れること。親に書けない場合は、モードを戻す `t.Cleanup` を登録し、root では `t.Skip` する。雛形と比べるため、`internal/config/test_helpers.go` に雛形をバイト列で返すアクセサを足す。
+- [x] `TestConfigInitStdout` を書く: 子プロセスで `main` を `config init` の引数で動かし、標準出力が空で、終了コードが `0` であることを確かめる（`run` は標準出力を受け取らないので、子プロセスで確かめる）。`test_helpers.go` に、ソケットを待たずに子プロセスを最後まで動かす補助を足す。
+- [x] `TestConfigInitThenStart` を書く: ファイルを書かない状態の `serverEnv` で `config init` を実行し、そのファイルのままサーバを起動すると、書式と検査を通って `ANTHROPIC_API_KEY` がないことを示す設定エラーで止まり（AC-26）、そのファイルにキーを書き足すとサーバが待ち受けることを確かめる（設計 7.2）。
+- [x] このステップのテストに `t.Parallel` を付けない（1.3）。
 
 ### PR-3 作成ポイント: server reads the config file
 

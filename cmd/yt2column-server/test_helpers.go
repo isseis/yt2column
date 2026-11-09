@@ -117,6 +117,9 @@ var (
 type serverEnv struct {
 	vars map[string]string // the process environment
 	file map[string]string // the configuration file's keys and values
+	// noFile makes writeConfig write nothing, for a test that leaves the
+	// path empty or creates the file itself (with config init).
+	noFile bool
 }
 
 // newServerEnv returns a valid configuration with HOME in a fresh short
@@ -143,6 +146,9 @@ func newServerEnv(t *testing.T) *serverEnv {
 // it reads the file.
 func (e *serverEnv) writeConfig(t *testing.T) {
 	t.Helper()
+	if e.noFile {
+		return
+	}
 	if home, ok := e.vars["HOME"]; ok && filepath.IsAbs(home) {
 		config.WriteServerFileForTest(t, home, config.ServerFileForTest(e.file))
 	}
@@ -615,6 +621,28 @@ func startServerChild(t *testing.T, mode string, e *serverEnv, extra map[string]
 		t.Fatalf("the server child did not listen within %v", readyBound)
 	}
 	return c
+}
+
+// runChildToEnd runs the test binary as a childModeMain child with args and
+// e's environment, waits up to exitBound for it to exit, and returns its exit
+// code, standard output, and standard error. It writes no configuration file
+// and waits for no socket.
+func runChildToEnd(t *testing.T, e *serverEnv, args ...string) (code int, stdout, stderr string) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), exitBound)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, os.Args[0], args...) //nolint:gosec // the test binary itself, re-run as the server
+	cmd.Env = childEnv(childModeMain, e.vars)
+	cmd.WaitDelay = childWaitDelay
+	var out, errOut bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &errOut
+	if err := cmd.Run(); err != nil {
+		if _, ok := errors.AsType[*exec.ExitError](err); !ok {
+			t.Fatalf("run the child: %v", err)
+		}
+	}
+	return cmd.ProcessState.ExitCode(), out.String(), errOut.String()
 }
 
 // childEnv builds a child's environment from the allowlist, the variable

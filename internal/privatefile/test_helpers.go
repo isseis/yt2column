@@ -32,3 +32,16 @@ func FailCreateBeforeLinkForTest(t *testing.T) {
 		return nil
 	})
 }
+
+// FailRemoveTempForTest makes every Create for the rest of the test fail to
+// remove its temporary file after the link, so a test in another package can
+// reach a success that leaves the temporary file behind.
+func FailRemoveTempForTest(t *testing.T) {
+	t.Helper()
+	setHookForTest(t, func(point hookPoint, _ string) error {
+		if point == hookCreateBeforeRemoveTemp {
+			return errInjectedForTest
+		}
+		return nil
+	})
+}

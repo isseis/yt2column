@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -21,6 +22,7 @@ import (
 	"github.com/isseis/yt2column/internal/config"
 	"github.com/isseis/yt2column/internal/llm"
 	llmtestutil "github.com/isseis/yt2column/internal/llm/testutil"
+	"github.com/isseis/yt2column/internal/privatefile"
 	"github.com/isseis/yt2column/internal/publisher"
 	"github.com/isseis/yt2column/internal/secret"
 	"github.com/isseis/yt2column/internal/server"
@@ -30,7 +32,8 @@ import (
 )
 
 // configDocument is the document the argument diagnostic points at for the
-// configuration: the English README, since the diagnostic is in English.
+// accepted arguments and the configuration file: the English README, since
+// the diagnostic is in English.
 const configDocument = "README.en.md"
 
 // errBuildRefused is what a constructor substituted by TestStartupFailures
@@ -78,7 +81,7 @@ func TestStartupFailures(t *testing.T) {
 			name:       "an argument",
 			args:       []string{"--port", "8765"},
 			want:       exitUsage,
-			wantStderr: "takes no arguments",
+			wantStderr: "takes no arguments, which starts the server, or exactly the two arguments config init",
 			hint:       configDocument,
 		},
 		{
@@ -891,4 +894,324 @@ func TestAfterCancel(t *testing.T) {
 			t.Error("the callback ran although ctx was not canceled when finish was called")
 		}
 	})
+}
+
+// prepareInitHome creates the base directory config init requires below
+// HOME, which a fresh HOME lacks on macOS, and returns HOME.
+func prepareInitHome(t *testing.T, e *serverEnv) string {
+	t.Helper()
+	home := e.vars["HOME"]
+	if err := os.MkdirAll(config.ServerFileBaseForTest(home), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	return home
+}
+
+// treeUnder returns every path below dir, relative to it, so a test can tell
+// that a run created nothing.
+func treeUnder(t *testing.T, dir string) []string {
+	t.Helper()
+	var paths []string
+	err := filepath.WalkDir(dir, func(path string, _ os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if path != dir {
+			rel, _ := filepath.Rel(dir, path)
+			paths = append(paths, rel)
+		}
+		return nil
+	})
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		t.Fatal(err)
+	}
+	return paths
+}
+
+// TestRunArgs checks the argument dispatch: no argument starts the server,
+// exactly config init creates the configuration file, and any other
+// arguments stop with exitUsage, name the accepted forms, and create nothing
+// under HOME.
+func TestRunArgs(t *testing.T) {
+	t.Run("no argument", func(t *testing.T) {
+		e := newServerEnv(t)
+		srv := startServer(t, e, testDeps(validResponseLLM()))
+		if code := srv.stop(t); code != exitOK {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, srv.stderr.String())
+		}
+	})
+	t.Run("config init", func(t *testing.T) {
+		e := newServerEnv(t)
+		home := prepareInitHome(t, e)
+		var stderr strings.Builder
+		if code := run(t.Context(), []string{"config", "init"}, e.lookup(), &stderr, testDeps(validResponseLLM())); code != exitOK {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, stderr.String())
+		}
+		if _, err := os.Lstat(config.ServerFilePathForTest(home)); err != nil {
+			t.Errorf("config init created no configuration file: %v", err)
+		}
+	})
+	for _, args := range [][]string{
+		{"config"}, {"init"}, {"config", "init", "extra"}, {"--help"}, {"config", "Init"}, {"init", "config"},
+	} {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			e := newServerEnv(t)
+			e.noFile = true
+			var stderr strings.Builder
+			if code := run(t.Context(), args, e.lookup(), &stderr, testDeps(validResponseLLM())); code != exitUsage {
+				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitUsage, stderr.String())
+			}
+			if !strings.Contains(stderr.String(), "or exactly the two arguments config init") {
+				t.Errorf("stderr does not name the accepted arguments:\n%s", stderr.String())
+			}
+			if created := treeUnder(t, e.vars["HOME"]); len(created) != 0 {
+				t.Errorf("the run created %v under HOME", created)
+			}
+		})
+	}
+}
+
+// TestConfigInit checks config init through run: what it creates, its exit
+// code for each failure class, the line it writes to standard error, and
+// that it never creates the socket directory, the start lock, or the socket.
+func TestConfigInit(t *testing.T) {
+	template := string(config.ServerFileTemplateForTest())
+	cases := []struct {
+		name string
+		// setup prepares HOME (and may change it) before the run.
+		setup func(t *testing.T, e *serverEnv)
+		want  int
+		// created says the run must leave the template at the path.
+		created bool
+		// keepsDirs says the run fails after creating the directories,
+		// which it leaves; every other failure leaves HOME unchanged.
+		keepsDirs  bool
+		wantStderr string
+	}{
+		{
+			name:       "empty HOME",
+			setup:      func(t *testing.T, e *serverEnv) { prepareInitHome(t, e) },
+			want:       exitOK,
+			created:    true,
+			wantStderr: "created the configuration file ",
+		},
+		{
+			name: "a regular file at the path",
+			setup: func(t *testing.T, e *serverEnv) {
+				e.noFile = false
+				e.writeConfig(t)
+			},
+			want:       exitFailure,
+			wantStderr: "already exists; nothing was changed",
+		},
+		{
+			name: "a dangling symbolic link at the path",
+			setup: func(t *testing.T, e *serverEnv) {
+				path := config.ServerFilePathForTest(prepareInitHome(t, e))
+				if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(path+".missing", path); err != nil {
+					t.Fatal(err)
+				}
+			},
+			want:       exitFailure,
+			wantStderr: "already exists; nothing was changed",
+		},
+		{
+			name: "a directory at the path",
+			setup: func(t *testing.T, e *serverEnv) {
+				if err := os.MkdirAll(config.ServerFilePathForTest(prepareInitHome(t, e)), 0o700); err != nil {
+					t.Fatal(err)
+				}
+			},
+			want:       exitFailure,
+			wantStderr: "already exists; nothing was changed",
+		},
+		{
+			name: "base directory missing",
+			setup: func(_ *testing.T, e *serverEnv) {
+				// On macOS a fresh HOME lacks Library/Application Support;
+				// elsewhere the base is HOME, so HOME is made to name nothing.
+				if runtime.GOOS != "darwin" {
+					e.vars["HOME"] = filepath.Join(e.vars["HOME"], "missing")
+				}
+			},
+			want:       exitFailure,
+			wantStderr: "does not exist or is not a directory; nothing was created",
+		},
+		{
+			name: "file directory not writable",
+			setup: func(t *testing.T, e *serverEnv) {
+				if os.Geteuid() == 0 {
+					t.Skip("root writes into a directory without write permission")
+				}
+				dir := filepath.Dir(config.ServerFilePathForTest(prepareInitHome(t, e)))
+				if err := os.MkdirAll(dir, 0o700); err != nil {
+					t.Fatal(err)
+				}
+				chmodFile(t, dir, 0o500)
+				t.Cleanup(func() { chmodFile(t, dir, 0o700) })
+			},
+			want:       exitFailure,
+			wantStderr: "could not create the configuration file ",
+		},
+		{
+			name: "creation fails after the directories",
+			setup: func(t *testing.T, e *serverEnv) {
+				prepareInitHome(t, e)
+				privatefile.FailCreateBeforeLinkForTest(t)
+			},
+			want:       exitFailure,
+			keepsDirs:  true,
+			wantStderr: "could not create the configuration file ",
+		},
+		{
+			name: "temporary file not removed",
+			setup: func(t *testing.T, e *serverEnv) {
+				prepareInitHome(t, e)
+				privatefile.FailRemoveTempForTest(t)
+			},
+			want:       exitOK,
+			created:    true,
+			wantStderr: "could not remove the temporary file ",
+		},
+		{
+			name:       "HOME unset",
+			setup:      func(_ *testing.T, e *serverEnv) { delete(e.vars, "HOME") },
+			want:       exitUsage,
+			wantStderr: "configuration: HOME: ",
+		},
+		{
+			// config init does not use the socket path, so its limit does not
+			// stop it.
+			name: "HOME too long for the socket path",
+			setup: func(t *testing.T, e *serverEnv) {
+				e.vars["HOME"] = filepath.Join(e.vars["HOME"], strings.Repeat("h", 120))
+				prepareInitHome(t, e)
+			},
+			want:       exitOK,
+			created:    true,
+			wantStderr: "created the configuration file ",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newServerEnv(t)
+			e.noFile = true
+			originalHome := e.vars["HOME"]
+			tc.setup(t, e)
+			home, homeSet := e.vars["HOME"]
+			var path string
+			var before configState
+			if homeSet {
+				path = config.ServerFilePathForTest(home)
+				before = readConfigState(t, home)
+			}
+			treeBefore := treeUnder(t, originalHome)
+
+			var stderr strings.Builder
+			code := run(t.Context(), []string{"config", "init"}, e.lookup(), &stderr, testDeps(validResponseLLM()))
+			if code != tc.want {
+				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, tc.want, stderr.String())
+			}
+			if !strings.Contains(stderr.String(), tc.wantStderr) {
+				t.Errorf("stderr does not contain %q:\n%s", tc.wantStderr, stderr.String())
+			}
+			if homeSet {
+				if _, err := os.Lstat(filepath.Dir(e.socketPath(t))); !errors.Is(err, os.ErrNotExist) {
+					t.Errorf("config init created the socket directory: %v", err)
+				}
+			}
+			switch {
+			case tc.created:
+				if !strings.Contains(stderr.String(), "created the configuration file "+path) {
+					t.Errorf("stderr does not name the created file %s:\n%s", path, stderr.String())
+				}
+				info, err := os.Lstat(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if info.Mode() != 0o600 {
+					t.Errorf("mode = %v, want -rw-------", info.Mode())
+				}
+				data, err := os.ReadFile(path) //nolint:gosec // the test's own configuration file
+				if err != nil || string(data) != template {
+					t.Errorf("content = %q (%v), want the template", data, err)
+				}
+				dirInfo, err := os.Lstat(filepath.Dir(path))
+				if err != nil || dirInfo.Mode().Perm() != 0o700 {
+					t.Errorf("directory mode = %v (%v), want 0700", dirInfo.Mode(), err)
+				}
+			case homeSet && before.fileMode != 0:
+				// Something was at the path: it must be unchanged.
+				if after := readConfigState(t, home); after != before {
+					t.Errorf("the path changed: before %+v, after %+v", before, after)
+				}
+			default:
+				// Nothing was at the path, and nothing may be left there: no
+				// partly written file.
+				if homeSet {
+					if _, err := os.Lstat(path); !errors.Is(err, os.ErrNotExist) {
+						t.Errorf("config init left %s: %v", path, err)
+					}
+				}
+			}
+			if tc.want != exitOK && !tc.keepsDirs {
+				if after := treeUnder(t, originalHome); !slices.Equal(after, treeBefore) {
+					t.Errorf("HOME changed from %v to %v", treeBefore, after)
+				}
+			}
+			if tc.keepsDirs {
+				if info, err := os.Stat(filepath.Dir(path)); err != nil || !info.IsDir() {
+					t.Errorf("the directories config init created were removed: %v", err)
+				}
+			}
+		})
+	}
+}
+
+// TestConfigInitStdout checks, through the production main in a child
+// process, that config init exits with exitOK and writes nothing to standard
+// output: run receives no standard output, so only a child can show it.
+func TestConfigInitStdout(t *testing.T) {
+	e := newServerEnv(t)
+	prepareInitHome(t, e)
+	code, stdout, stderr := runChildToEnd(t, e, "config", "init")
+	if code != exitOK {
+		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, stderr)
+	}
+	if stdout != "" {
+		t.Errorf("stdout = %q, want nothing written to it", stdout)
+	}
+}
+
+// TestConfigInitThenStart checks the first-start flow: the template config
+// init creates passes the format and the file checks and stops the server on
+// the missing Anthropic API key, and once the key is written to it the
+// server listens.
+func TestConfigInitThenStart(t *testing.T) {
+	e := newServerEnv(t)
+	e.noFile = true
+	home := prepareInitHome(t, e)
+	var stderr strings.Builder
+	if code := run(t.Context(), []string{"config", "init"}, e.lookup(), &stderr, testDeps(validResponseLLM())); code != exitOK {
+		t.Fatalf("config init exit code = %d, want %d\nstderr:\n%s", code, exitOK, stderr.String())
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), exitBound)
+	defer cancel()
+	stderr.Reset()
+	if code := run(ctx, nil, e.lookup(), &stderr, testDeps(validResponseLLM())); code != exitUsage {
+		t.Fatalf("start with the template: exit code = %d, want %d\nstderr:\n%s", code, exitUsage, stderr.String())
+	}
+	if want := programName + ": configuration: configuration file key ANTHROPIC_API_KEY: is not set"; strings.TrimSpace(stderr.String()) != want {
+		t.Errorf("stderr = %q, want only %q", stderr.String(), want)
+	}
+
+	appendFile(t, config.ServerFilePathForTest(home), "ANTHROPIC_API_KEY="+testAnthropicKey+"\n")
+	srv := startServer(t, e, testDeps(validResponseLLM()))
+	if code := srv.stop(t); code != exitOK {
+		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, srv.stderr.String())
+	}
 }
