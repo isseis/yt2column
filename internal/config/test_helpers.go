@@ -110,6 +110,23 @@ func serverFileLocationForHome(home string) serverFileLocation {
 	return loc
 }
 
+// ServerFilePathTailForTest returns the part of the configuration file's path
+// below HOME for goos, starting with a separator. It panics for an operating
+// system with no rule.
+func ServerFilePathTailForTest(goos string) string {
+	const home = "/home"
+	loc, err := serverFileLocationFor(goos, func(name string) (string, bool) {
+		if name == "HOME" {
+			return home, true
+		}
+		return "", false
+	})
+	if err != nil {
+		panic("config: no configuration file path rule for " + goos)
+	}
+	return strings.TrimPrefix(loc.path, home)
+}
+
 // ParseServerFileForTest parses data as the configuration file's content, as
 // the server does, and returns the accepted keys and values, or the
 // rejections. path names the file in the rejections only. The rejections

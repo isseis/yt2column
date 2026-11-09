@@ -84,6 +84,10 @@ var (
 	ReadmeInstallHostHeading       = Locator{JA: "### Native Messaging のホストのインストール", EN: "### Installing the native messaging host"}
 	ReadmeUpgradeHeading           = Locator{JA: "### 共有トークンの版からの更新", EN: "### Upgrading from the shared-token version"}
 	ReadmeRecommendedConfigHeading = Locator{JA: "### 推奨構成", EN: "### Recommended configuration"}
+	// ReadmeConfigFileHeading heads the server section's subsection on the
+	// configuration file, which states its path, its keys, its size limit,
+	// and the exit codes of config init.
+	ReadmeConfigFileHeading = Locator{JA: "### 設定ファイル", EN: "### Configuration file"}
 
 	// ReadmeVariableColumn and ReadmeUnsetColumn head the configuration
 	// table's first and third columns.
@@ -106,6 +110,9 @@ var (
 	// socket path for each operating system.
 	ReadmeMacOSLabel     = Locator{JA: "macOS:", EN: "macOS:"}
 	ReadmeOtherUnixLabel = Locator{JA: "ほかの Unix:", EN: "other Unix:"}
+	// ReadmeConfigFileLabel starts the line that states the configuration
+	// file's path, which is the same on every operating system.
+	ReadmeConfigFileLabel = Locator{JA: "設定ファイル:", EN: "configuration file:"}
 )
 
 // RejectionDisplayIn returns how the version in lang writes the categories of

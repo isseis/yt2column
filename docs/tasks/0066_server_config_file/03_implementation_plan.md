@@ -339,8 +339,8 @@
 
 **変えるファイル:** `cmd/yt2column-server/docs_test.go`、`cmd/yt2column/docs_test.go`、`internal/doctestutil/readme.go`、`internal/config/test_helpers.go`
 
-- [ ] `TestServerDocsContract` に、設計 3.5 の表の値の照合を足す: 両 README の設定ファイルのパス（macOS とその他の Unix で同じ 1 つ）、`config init` の終了コードの表（`exitOK`・`exitFailure`・`exitUsage` の 3 つの行）、6 つのキーの名前、大きさの上限（`serverFileMaxSize` から作る文字列）、`security.md` §8.2 の設定ファイルのパス。`internal/config/test_helpers.go` に、設定ファイルのパスの `HOME` より下の部分、`serverFileKeys`、`serverFileMaxSize` を返すアクセサを足す。新しい見出しや表の列の場所は `internal/doctestutil/readme.go` に足す。
-- [ ] 文書を書き換えた後に、`TestLLMDefaultsDocsContract`・`TestEffortValuesDocsContract`・`TestReadmeLinks`・`TestReadmeSyncMarker` と、`make ext-test`（README と `development.md` を読む拡張のテスト）が通ることを確かめる。
+- [x] `TestServerDocsContract` に、設計 3.5 の表の値の照合を足す: 両 README の設定ファイルのパス（macOS とその他の Unix で同じ 1 つ）、`config init` の終了コードの表（`exitOK`・`exitFailure`・`exitUsage` の 3 つの行）、6 つのキーの名前、大きさの上限（`serverFileMaxSize` から作る文字列）、`security.md` §8.2 の設定ファイルのパス。`internal/config/test_helpers.go` に、設定ファイルのパスの `HOME` より下の部分、`serverFileKeys`、`serverFileMaxSize` を返すアクセサを足す。新しい見出しや表の列の場所は `internal/doctestutil/readme.go` に足す。
+- [x] 文書を書き換えた後に、`TestLLMDefaultsDocsContract`・`TestEffortValuesDocsContract`・`TestReadmeLinks`・`TestReadmeSyncMarker` と、`make ext-test`（README と `development.md` を読む拡張のテスト）が通ることを確かめる。
 
 **完了条件:** 共通の完了条件、`make readme-sync-check`、`make ext-test`。
 
