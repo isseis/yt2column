@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-09 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-09 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を、H-NN は [design_handoff.md](design_handoff.md) の項番を指す。節番号は [02_architecture.md](02_architecture.md)（以下、設計書）の節を指し、本計画自身の節は「本計画 §N」と書く。用語は、要件書 6 章の用語と、設計書の冒頭の用語（規約・実装の PR・分担の文・そろえる段落・基準の段落・訂正の節・訂正の行・訂正の段落・差分の確認）を同じ意味で使う。本計画の「確認のプログラム」は、設計書 7.2 の「差分の確認のスクリプト」に当たる（本計画 §1.3）。
@@ -211,3 +211,7 @@ N/A。実行時の振る舞いを変えない（設計書 7.4）。
 -   本計画の承認の後、`/runplan 0070` でフェーズ 1 を行い、PR を作る。
 -   実装の PR のマージの後、issue #728 を閉じる（`/runpr` が閉じる。`Closes #N` では自動で閉じない）。
 -   後続の [#729](https://github.com/isseis/yt2column/issues/729)（ADR-0001〜0030 の見直し）と [#732](https://github.com/isseis/yt2column/issues/732)（コマンドが ADR の訂正を運ぶようにする）は、実装の PR のマージの後に始められる。
+
+## 変更履歴
+
+- 2026-11-09 承認（isseis、#739）
