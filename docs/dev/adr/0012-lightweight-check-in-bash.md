@@ -4,7 +4,10 @@
 
 | 項目 | 値 |
 |---|---|
-| 状態 | `有効` |
+| 状態 | `廃止` |
+| 廃止の日付 | 2026-11-09 |
+| 廃止の理由 | 軽量プロセスを削除し、確かめ直しのスクリプトも削除するため（[0075 要件定義書](../../tasks/0075_remove_lightweight_process/01_requirements.md)） |
+| 代わりの ADR | [ADR-0040](0040-simple-task-documents.md) |
 
 ## 背景
 
@@ -62,3 +65,4 @@
 
 - 2026-11-04 確かめ直しを、リポジトリに置いた bash スクリプトで行い、`origin/main` の版を実行し、Go のツールを作らないと決めた（[0061 設計書](../../tasks/0061_lightweight_process/02_architecture.md) 1.2・3.5.6・9 章）
 - 2026-11-05 見直しの条件を決め、数えられる 2 つ（行数の上限と `eval` を使わないこと）を `make test` のテストにした。スクリプトから `eval` を除いた（[0061 設計書](../../tasks/0061_lightweight_process/02_architecture.md) 1.5）
+- 2026-11-09 軽量プロセスを削除することにし、確かめ直しのスクリプトとそのテストも削除するので、この ADR を廃止した。文書を作る負荷を減らす役目は、[ADR-0040](0040-simple-task-documents.md) の簡易な進め方が引き継ぐ（[0075 要件定義書](../../tasks/0075_remove_lightweight_process/01_requirements.md)「要件定義の際に決めたこと（2026-11-09）」）
