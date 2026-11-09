@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-09 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-09 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルの内容は、コミット `9475c02b` で確かめた。`file:line` の行番号は、このコミットでの行番号である。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md)（以下、申し送り）の項番を指す。申し送りへの対応は付録 A に、受け入れ基準との対応は付録 B にまとめる。
@@ -766,3 +766,7 @@ flowchart TD
 | AC-20 | 3.9 | 差分の確認（7.2）、PR の説明の訂正の段落（7.4） |
 | AC-21 | 3.8、7.1 | テスト（7.1） |
 | AC-22 | 7.5 | `make test`・`make lint` |
+
+## 変更履歴
+
+- 2026-11-09 承認（isseis、#756）
