@@ -171,7 +171,7 @@ N/A。実行時の振る舞いを変えない（設計書 7.4）。
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）が通ることを確認した
 - [x] マージの前の確認（本計画 §3.3）：AC-08・AC-09 が合格した結果を本計画 §7 に記録した
 - [x] PR を作成した: https://github.com/isseis/yt2column/pull/751
-- [ ] PR がマージされた
+- [x] PR がマージされた
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
