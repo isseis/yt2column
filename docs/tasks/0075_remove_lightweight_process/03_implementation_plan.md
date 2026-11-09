@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-09 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-09 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を、H-NN は [design_handoff.md](design_handoff.md) の項番を指す。節番号は [02_architecture.md](02_architecture.md)（以下、設計書）の節を指し、本計画自身の節は「本計画 §N」と書く。用語は、要件書 6 章の用語（軽量プロセス・通常の進め方・軽量プロセスへの参照・簡易な進め方）と、設計書の冒頭の用語（専用ファイル・実装の PR・削除のコミット・書き換えのコミット・確認のスクリプト・マージの後の手順）で定めた意味のまま使う。
@@ -306,3 +306,7 @@ AC-01〜AC-03 は、文書に語がないことを `static`（確認のスクリ
 3.  件数が 0 のときだけ、`AskUserQuestion` で削除と #744 へのコメントの承認を求める。
 4.  承認の後、削除の直前に同じ問い合わせを読み直し、条件を満たすときだけ `gh label delete lightweight -R isseis/yt2column --yes` で削除し、読み直して `label` が `null` であることを確かめる。
 5.  どの場合も、結果を日本語のコメントにしてファイルに書き、mention check を通してから #744 に投稿する。削除の場合のコメントは、3 の承認に含まれている。止まった場合と「ラベルがない」場合のコメントは、投稿の前に利用者に示して承認を得る（設計書 6.3 の「承認の範囲」）。
+
+## 変更履歴
+
+- 2026-11-09 承認（isseis、#762）
