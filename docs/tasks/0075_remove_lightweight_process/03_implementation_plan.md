@@ -115,11 +115,11 @@ git grep -n -i -E 'lightweight|runissue|軽量' HEAD -- docs/tasks/0000_template
 
 各ステップを 1 つのコミットにする。どのステップも、テストの関数・表の行・サブテストを消さない（設計書 6.1 の 3）。各コミットの前に `make test` と `make lint` を実行する。本フェーズで変える文書のうち、テストが見出し・項目の書き出し・表の行で読む文書（`runpr.md`・`_lib/task-pr-handoff.md`・`mkreq.md`・`_context.md`・`AGENTS.md`・`CLAUDE.md`）では、テストが読む目印と値を変えない。
 
--   [ ] **ステップ 3-1**: `mkreq.md` から、設計書 3.2 の「除くもの」のうち、ステップ 2-1 で消した step 1 の項目以外を、すべて取り除く（`description`、冒頭の引用の文、紹介の段落、「Placeholders」の段落、「Authorization」の承認の文、`gh issue view` の `--json` の `labels`、step 9 の報告の 2 つの文）。step 1 の残りの 3 つの確認と、step 2 へ進む流れは変えない（AC-05）。
--   [ ] **ステップ 3-2**: `runpr.md` から、設計書 3.3 の表の箇所のうち、ステップ 2-1 で消した分類の項目以外を取り除き、文の組み立てを直す。設計書 3.3 の箇条（Standalone change の定義は「anything else」のままにする；`fixprguard` のための `gh repo view` と `gh api graphql` の承認と `gh api user` は残す；step 5 の `gh issue close` の前の mention check は残す）を守る（AC-06・AC-07）。
--   [ ] **ステップ 3-3**: `_lib/task-pr-handoff.md` と `_context.md` から、設計書 3.4 の箇所を除く。Part B 手順 3 の ISSUE の行は、`refs` の場合の文だけにする（H-01）。
--   [ ] **ステップ 3-4**: 設計書 3.5 の表のファイル（`CLAUDE.md`、`AGENTS.md`、`requirements_process.md`、`mktrans.md`、`_lib/local-cli-review.md`）から、表の箇所を除く。`CLAUDE.md` の `jq` の項目は、残る 3 つのテストと 3 つのフィルタを述べる文にする。`requirements_process.md` の「Lightweight Process」の節の後の区切りの線 `---` は残す。
--   [ ] **ステップ 3-5**: テストのコメントを、次のとおりに直す（設計書 3.6）。コードは変えない。
+-   [x] **ステップ 3-1**: `mkreq.md` から、設計書 3.2 の「除くもの」のうち、ステップ 2-1 で消した step 1 の項目以外を、すべて取り除く（`description`、冒頭の引用の文、紹介の段落、「Placeholders」の段落、「Authorization」の承認の文、`gh issue view` の `--json` の `labels`、step 9 の報告の 2 つの文）。step 1 の残りの 3 つの確認と、step 2 へ進む流れは変えない（AC-05）。
+-   [x] **ステップ 3-2**: `runpr.md` から、設計書 3.3 の表の箇所のうち、ステップ 2-1 で消した分類の項目以外を取り除き、文の組み立てを直す。設計書 3.3 の箇条（Standalone change の定義は「anything else」のままにする；`fixprguard` のための `gh repo view` と `gh api graphql` の承認と `gh api user` は残す；step 5 の `gh issue close` の前の mention check は残す）を守る（AC-06・AC-07）。
+-   [x] **ステップ 3-3**: `_lib/task-pr-handoff.md` と `_context.md` から、設計書 3.4 の箇所を除く。Part B 手順 3 の ISSUE の行は、`refs` の場合の文だけにする（H-01）。
+-   [x] **ステップ 3-4**: 設計書 3.5 の表のファイル（`CLAUDE.md`、`AGENTS.md`、`requirements_process.md`、`mktrans.md`、`_lib/local-cli-review.md`）から、表の箇所を除く。`CLAUDE.md` の `jq` の項目は、残る 3 つのテストと 3 つのフィルタを述べる文にする。`requirements_process.md` の「Lightweight Process」の節の後の区切りの線 `---` は残す。
+-   [x] **ステップ 3-5**: テストのコメントを、次のとおりに直す（設計書 3.6）。コードは変えない。
     -   `codex_review_docs_test.go` の `postingSections` のコメントの 1 行目を、`// postingSections are the ten sections that post text to GitHub. fixpr.md` から `// postingSections are the eight sections that post text to GitHub. fixpr.md` に変える。続く 2 行は変えない。
     -   `codex_review_docs_test.go` の `readOnlyInvocations` のコメントを、変更前の全文
 
