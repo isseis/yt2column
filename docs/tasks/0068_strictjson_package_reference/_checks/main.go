@@ -71,6 +71,7 @@ var inputTestFunctions = map[string]struct{}{
 var (
 	packagePathRE = regexp.MustCompile(`^(cmd|internal)/[A-Za-z0-9._/-]+$`)
 	jobNameRE     = regexp.MustCompile(`^  [A-Za-z0-9_-]+:$`)
+	commitRE      = regexp.MustCompile(`^[0-9a-f]{40}$`)
 )
 
 // data holds every Japanese string the checks compare with the documents.
@@ -710,14 +711,14 @@ func listNames(cell string) ([]string, error) {
 // checkCorrectionLine verifies that a commit that changes ADR-0020 records the
 // editorial correction.
 func checkCorrectionLine(base, head string) ([]string, error) {
-	out, err := git("log", "--no-merges", "--format=%H", base+".."+head)
+	out, err := git("log", "--no-show-signature", "--no-merges", "--format=%H", base+".."+head)
 	if err != nil {
 		return nil, err
 	}
 	checked := 0
 	for commit := range strings.Lines(out) {
 		commit = strings.TrimSpace(commit)
-		if commit == "" {
+		if !commitRE.MatchString(commit) {
 			continue
 		}
 		files, err := gitPaths("diff-tree", "--no-commit-id", "--name-only", "-r", "-z", commit)
@@ -728,7 +729,7 @@ func checkCorrectionLine(base, head string) ([]string, error) {
 			continue
 		}
 		checked++
-		message, err := git("log", "-1", "--format=%B", commit)
+		message, err := git("log", "--no-show-signature", "-1", "--format=%B", commit)
 		if err != nil {
 			return nil, err
 		}
