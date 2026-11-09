@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-09 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-09 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -243,3 +243,7 @@
 -   **訂正の段落:** PR の説明の、`**編集上の訂正（` で始まる段落と、その項目（同上）。
 -   **ずれの記述:** ADR の「決定」にある、正本の文書とコードの食い違いと、それを扱う issue を述べる記述（規約「Writing an ADR」）。
 -   **マージ先の `main`:** PR がマージされる先の `main` の木。`/fixpr` がどの参照で比べるかは設計で決める（[design_handoff.md](design_handoff.md) H-01）。
+
+## 変更履歴
+
+- 2026-11-09 承認（isseis、#752）
