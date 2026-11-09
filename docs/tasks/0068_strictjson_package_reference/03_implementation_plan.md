@@ -250,14 +250,14 @@ PR を 1 本にするのは設計書 1.2 の決定である。一覧の修正と
 **実行の記録（2026-11-09）:**
 
 -   基点: `ed64cf39549c153e5d8143e32b6b92bf28328505`（`git merge-base origin/main HEAD`。`origin/main` を取り込んだ後のマージの基点。取り込みはタスク 0069 の実装計画を足すだけで、使い手も ADR-0020 も変えていない）
--   head: `2be8c81b6e7984176652f6094326afb0a585c798`
--   走らせ方: `go build -tags test -o <scratchpad の中のパス> ./docs/tasks/0068_strictjson_package_reference/_checks/` の後、`<実行ファイル> ed64cf39549c153e5d8143e32b6b92bf28328505 2be8c81b6e7984176652f6094326afb0a585c798`。`go vet -tags test ./docs/tasks/0068_strictjson_package_reference/_checks/` も通した。
+-   head: `918d9a5bafd99ad7754df2e4573839deb11b09c0`
+-   走らせ方: `go build -tags test -o <scratchpad の中のパス> ./docs/tasks/0068_strictjson_package_reference/_checks/` の後、`<実行ファイル> ed64cf39549c153e5d8143e32b6b92bf28328505 918d9a5bafd99ad7754df2e4573839deb11b09c0`。`go vet -tags test ./docs/tasks/0068_strictjson_package_reference/_checks/` も通した。
 -   終了コード: 0
 -   出力の全文:
 
     ```text
     base ed64cf39549c153e5d8143e32b6b92bf28328505
-    head 2be8c81b6e7984176652f6094326afb0a585c798
+    head 918d9a5bafd99ad7754df2e4573839deb11b09c0
     OK   package_reference.md scope
     OK   CLAUDE.md and project_overview.md scope
     OK   ADR-0020 scope
