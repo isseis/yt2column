@@ -307,14 +307,15 @@ reviewer can dispute the classification. An editorial correction adds no
 **After the PR is created.** After the PR is created, make an editorial
 correction to an ADR in a step that carries its correction line into the PR
 description, and record it as above. Today that step is a `/fixpr` round,
-including the local CLI review its Phase 4.5 runs: its Phase 6 appends the
-round's correction paragraph. Taking in `main` has no such step, so make no
-correction while taking in `main`. A commit made by hand has no step that
-carries its correction line, so its author writes the correction line and
-also adds the correction paragraph to the PR description. A correction
-already recorded may still be reworded, as long as its correction line still
-describes it. Revising text that the PR itself added to an ADR, and is not
-yet on `main`, is not an editorial correction.
+including the local CLI review its Phase 4.5 runs: the round's Phase 6
+appends its correction paragraph. Taking in `main` has no such step, so make
+none of the four kinds of correction above while taking in `main`;
+renumbering follows its own rule ("Taking in `main`", step 2). A commit made
+by hand has no step that carries its correction line, so its author writes
+the correction line and also adds the correction paragraph to the PR
+description. A correction already recorded may still be reworded, as long as
+its correction line still describes it. Revising text that the PR itself
+added to an ADR, and is not yet on `main`, is not an editorial correction.
 
 **Classifying a change.**
 
@@ -350,8 +351,8 @@ yet on `main`, is not an editorial correction.
   a statement in 決定 that describes this discrepancy. When the statement is
   not on the PR's branch yet, take in `main` first. A statement that reaches
   `main` after the PR is created is left to a later PR: the PR would have to
-  take in `main` to remove it, and taking in `main` makes no editorial
-  correction ("After the PR is created").
+  take in `main` to remove it, and taking in `main` makes none of the four
+  kinds of editorial correction ("After the PR is created").
 - A statement that a later PR finds stale may be removed by that PR, as the
   second kind above.
 
