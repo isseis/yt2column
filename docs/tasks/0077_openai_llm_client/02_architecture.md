@@ -23,7 +23,8 @@
 ### 1.2. 設計の際に決めたこと（2026-11-10）
 
 - **処理方式は Standard、プロンプトキャッシュの最低保持期間は30分に固定する。** 要求に `service_tier: "default"` と `prompt_cache_options.ttl: "30m"` を明示する。プロジェクトの設定や保持期間によって単価が変わり、4区分の使用量だけでは料金を決められなくなるためである。切り替える設定は設けない。外部サービスとデータ保持の契約を定める主要な決定なので、[ADR-0041](../../dev/adr/0041-openai-api.md) を更新する。
-- **応答でも Standard を確認する。** `service_tier` を追加の消費メンバーとし、重複のない文字列 `default` だけを受理する。欠け・`null`・型違い・重複・ほかの値は `openai.ErrInvalidResponse` にする。API は実際に使った方式を応答するため、要求の指定だけを根拠に通常単価を当てはめない。料金のために共有の結果型と中間生成物の形式を拡張せず、前提を確認できない応答を拒否する判断である。H-03 を具体化する追加の境界としてレビュアーが確認した。外部応答の契約なので ADR-0041 に記録する。
+- **Standard を確認できない場合は、トークン数を保ち、料金だけを不明にする。** AC-19 の「料金の不明で生成・公開を止めない」を維持する。要求は固定するが、応答の `service_tier` が欠け・重複・型違い・`null`・`default` 以外でも、それだけで本文を拒否しない。料金の適用条件を表す汎用の情報を `Usage` に添え、中間生成物にも保存する。既存の4区分だけでは、トークン数が分かっていても通常単価を適用できない状態を表せないためである。共有の契約と料金の前提を変える主要な決定なので、[ADR-0021](../../dev/adr/0021-llm-client-contract.md)・[ADR-0022](../../dev/adr/0022-cost-estimate.md) を更新する。プロバイダ固有の応答型やフィールドは共有の `GenerateResponse` に加えない。
+- **中間生成物は版4を書き、既存の版3も読み込む。** 料金の適用条件を保存し、再開後も料金の既知・不明を維持する。要件の互換性と既存の再開を保つため、版3の記録を再計算・書き換えずに再利用する。形式と互換性を変える主要な決定なので、[ADR-0023](../../dev/adr/0023-artifact-resume.md) を更新する。詳細と従来方針に対する例外は §3.4.2 に記す。
 - **出力上限の測定は製品のアダプタを実装する前に行う。** テスト専用キーを使い、既存の公開動画2本、2モデルの `medium`、3工程を対象にする。最大14回・予算枠20米ドル・自動再送なしで実行する許可を得た。製品コードは変更せず、基準コミットの作業用コピーに測定用の入口を置いて、既存の字幕パーサとプロンプトの検証・展開を呼ぶ。数値と制約は §1.4 に記す。実測で決める方針は ADR-0041 の既決事項であり、測定用ファイルの配置に別の ADR は不要である。
 
 そのほかの構成は、要件書の決定と既存のパッケージ境界に従う。`openaiparam` は設定とアダプタが共有する effort の型だけを持つ。新しいプロバイダを追加する際の既存方針（ADR-0001）の適用であり、別の ADR は作らない。
@@ -63,7 +64,7 @@ flowchart LR
 
 **既定値は6,080トークンとする。** `internal/llm/openai/request.go` の `defaultMaxOutputTokens` に置き、生成・字数の調整・検証・推敲で共有する。正の要求値をこの定数で制限しない。
 
-2026-11-10、基準コミット `cf0784392b08982694e3b1c020b47113b881071d` のコピーで、2モデルをそれぞれ `medium`、Standard、キャッシュ TTL 30分、`store: false`、非ストリーミングで逐次実行した。本文の上限は32,000、各呼び出しの期限は15分である。素材は既存の評価用キャッシュの `roNZ-rLxhUE`（32分台）と `qjAz-VOAdz4`（39分台）で、[0008 評価記録](../0008_column_prompt/02_evaluation.md) §3.2 の動画を使った。字幕は取り直していない。
+2026-11-10、基準コミット `cf0784392b08982694e3b1c020b47113b881071d` のコピーで、2モデルをそれぞれ `medium`、Standard、キャッシュ TTL 30分、`store: false`、非ストリーミングで逐次実行した。出力の上限は32,000トークン、各呼び出しの期限は15分である。素材は既存の評価用キャッシュの `roNZ-rLxhUE`（32分台）と `qjAz-VOAdz4`（39分台）で、[0008 評価記録](../0008_column_prompt/02_evaluation.md) §3.2 の動画を使った。字幕は取り直していない。
 
 プロンプトは当該コミットの `writer` の型と展開処理をそのまま使った。字数の調整には、両モデルとも生成記事が4,000字以内だったため、32分台の同じ動画の既存の長い記事（0018 B3、roNZ-rLxhUE-1 の generation、本文4,401字）を使った。39分台の動画には該当する既存記事がなく、字数の調整は呼んでいない。検証・推敲は、32分台では今回の字数の調整の結果、39分台では今回の生成結果を入力にした。
 
@@ -90,11 +91,11 @@ flowchart LR
 | (b) 最低速度でも450秒以内 | 最低速度は Astra の39分台の検証・推敲、90 / 6.642151 ≒ 13.549828 トークン/秒。整数の上限は6,097で、6,080の見積もりは約448.714秒 |
 | (c) 両モデルが受理する範囲 | [Astra](https://developers.openai.com/api/docs/models/gpt-6-astra) と [Sol](https://developers.openai.com/api/docs/models/gpt-6.1-sol) の公式の最大出力は128,000。2026-11-10に確認し、測定では両方が32,000の指定を受理した |
 
-3条件から得られた整数の範囲は6,040〜6,097であり、その中から6,080を選んだ。範囲は狭い。短い応答では通信の待ち時間の割合が大きく、同じ速度で長い応答を見積もることは保守的だが、混雑時や異なる出力長の性能を保証しない。起動・プロンプト展開を含めた工程全体の半期限内の完了も保証しない。出力が変動して最大値が増える、または再測定の速度が落ちて3条件を両立できなくなった場合は、上限を推測で増減せず再相談する。
+3条件から得られた整数の範囲は6,040〜6,097であり、その中から6,080を選んだ。範囲は狭い。短い応答では通信の待ち時間の割合が大きく、同じ速度で長い応答を見積もることは保守的だが、混雑時や異なる出力長の性能を保証しない。起動・プロンプト展開を含む工程全体が `LLMTimeout` の半分の時間内に完了することも保証しない。出力が変動して最大値が増える、または再測定の速度が落ちて3条件を両立できなくなった場合は、上限を推測で増減せず再相談する。
 
 実装では `provider_test.go` に、実際に送られる既定上限が最大出力の2倍以上、最低速度で `LLMTimeout` の半分以内、両モデルの最大出力以内であることを確かめる検査を置く。定数と同じ数値を比較するだけのテストにはしない。モデル・effort・テンプレート・処理方式・保持期間が変わったときは測り直す。`docs/dev/guides/openai_output_limit.md` は測定方法と更新対象を示し、本節を現在の根拠として参照する。
 
-測定回数は各条件1回で、品質の評価ではない。入力を超える長い素材、ほかのモデル、既定以外の effort、継続的な性能の変化には打ち切りと期限切れが残る。素材・生成記事・生応答・測定用コードはリポジトリにコミットしない。テスト用に保存する実応答は §7.2 の短い独自プロンプトで別途取得する。
+測定回数は各条件1回で、品質の評価ではない。今回測定したものより長い素材、ほかのモデル、既定以外の effort、継続的な性能の変化には打ち切りと期限切れが残る。素材・生成記事・生応答・測定用コードはリポジトリにコミットしない。テスト用に保存する実応答は §7.2 の短い独自プロンプトで別途取得する。
 
 ## 2. システム構成 (System Structure)
 
@@ -209,7 +210,7 @@ type Options struct {
 
 ### 3.3. 応答の検証とテキストの選択（AC-11〜15、H-01）
 
-本文は `strictjson.ParseObject` を通す。各階層で消費する名前だけを `Collect` し、消費するメンバーの重複を拒否する。エスケープ後の名前を完全一致で扱う。応答本文・出力要素・文面要素・不完全終了の詳細の形と、欠け・`null` の例外は要件書 F-003 の表に従う。追加で `service_tier` は §1.2 の契約を適用する。
+本文は `strictjson.ParseObject` を通す。各階層で消費する名前だけを `Collect` し、消費するメンバーの重複を拒否する。エスケープ後の名前を完全一致で扱う。応答本文・出力要素・文面要素・不完全終了の詳細の形と、欠け・`null` の例外は要件書 F-003 の表に従う。`service_tier` は本文の受理条件には含めず、料金の適用条件として別に読む。JSON 全体の不正は従来どおり拒否する。
 
 配列の各要素を検証し、後ろに不正な要素がある場合も、それより前のテキストを返さない。`reasoning` は種類だけを消費し、その他のメンバーを読まない。`message` は `role`・`status`・`content`・任意の `phase` を検査する。`output_text` の文字列と、`refusal` の文字列は型を検証するが、拒否の自由文は結果にもエラーにも使わない。
 
@@ -228,7 +229,7 @@ type Options struct {
 | `TokenCounts.CacheWrite` | `input_tokens_details.cache_write_tokens` |
 | `TokenCounts.Output` | 推論を含む `output_tokens` |
 
-`total_tokens` と推論の内訳は加算しない。`cache_write_tokens` のない旧モデルの応答を0で補わない。不明の理由には、既存の `UnknownRule` に加え、内訳が合計と整合しないことを表す汎用の規則を設ける。応答の値を含めず、固定した規則とメンバー名を返す。`Usage` のフィールドと中間生成物の書式を変えず、保存済みの不明は引き続き `null` で扱う。
+`total_tokens` と推論の内訳は加算しない。`cache_write_tokens` のない旧モデルの応答を0で補わない。不明の理由には、既存の `UnknownRule` に `RuleInconsistent` を加え、内訳が合計と整合しない場合を `usage.input_tokens_details:inconsistent` として示す。応答の値を含めず、固定した規則とメンバー名を返す。保存する使用量の4区分と、不明を表す `null` は維持する。料金の適用条件は以下の別の情報で表す。
 
 料金は既存の `pricing` に置く。次の Standard・30分キャッシュの単価を追加し、入力全体が272,000トークンを超えたときは入力3区分を2倍、出力を1.5倍にする。しきい値は通常入力だけでなくキャッシュの2区分も含む。既存の `schemePromptTier` を使い、新しい計算方式は作らない（`internal/pricing/rates.go:31`、基準コミットは §2.1）。
 
@@ -241,6 +242,32 @@ type Options struct {
 
 料金表は完全一致のモデル名で照合する。応答のモデル名が表になければ、使用量が分かっていても料金は不明である。モデル名を推測してエイリアスへ寄せない。工程ごとの使用量、記事・失敗時の料金、中間生成物と再開には共有の経路を使う。
 
+### 3.4.1. トークン数と料金の適用条件の分離
+
+`llm.Usage` の非公開フィールドに、`PricingContext` 型の値を持たせる。これは「今回の使用量に、どの前提の単価を適用できるか」を表すプロバイダに依存しない列挙型であり、トークン数が分かるかどうかとは別に扱う。`Usage` の比較可能性を維持する。既存の `KnownUsage` はゼロ値の条件を持つ使用量を作り、新しい構築口 `KnownUsageWithPricingContext` はトークン数と検証済みの条件を受け取る。列挙外の値はエラーにし、`Usage.PricingContext()` で条件を取得できるようにする。
+
+| 型の値 | 意味 | 版4の保存値 |
+|---|---|---|
+| `PricingContextUnspecified`（ゼロ値） | 追加の料金条件を報告していない。追加条件を要求しない単価表の行にだけ適用できる | `unspecified` |
+| `PricingContextStandard30m` | Standard と30分のキャッシュ設定を確認した | `standard-30m` |
+| `PricingContextUnverified` | 料金に必要な条件を確認できない | `unverified` |
+
+OpenAI は、送った要求が30分の設定で、応答に重複のない文字列 `service_tier: default` がある場合だけ `PricingContextStandard30m` を設定する。それ以外は `PricingContextUnverified` とする。`service_tier` の自由文は保持しない。本文が正常なら生成を成功させ、有効な使用量の4区分とモデル名を返す。打ち切り等の3種の失敗でも同じ情報を返す。使用量自体が不明の場合は、料金も不明なので条件を `unspecified` として扱う。
+
+単価表の各行は必要な `PricingContext` を宣言する。OpenAI の2行は `PricingContextStandard30m`、既存モデルの行は追加条件を要求しない `PricingContextUnspecified` とする。`pricing` は条件が一致する場合だけ算出する。`unverified`・列挙外・必要条件との不一致は `ReasonPricingContextUnknown` とし、出力の固定した理由は `pricing-context-unknown` にする。モデル名の完全一致、使用量の既知・不明の区別、整数での計算は維持する。応答のモデル名が別のプロバイダの料金表に一致した場合も、条件の不一致で通常単価を誤って適用しない。
+
+料金にこの状態を加えても、トークン数の行・記事・ジョブ API の書式は変えない。料金が不明の場合は既存の不明の表現を使い、生成・保存・公開を続ける。CLI と統合テストの料金の理由の表示に新しい列挙値の対応を加える。
+
+### 3.4.2. 中間生成物と既存の再開の互換性
+
+版4は、現在の版3のフィールドに、必須の `pricing_context` を加える。受理する保存値は §3.4.1 の3つだけとし、欠け・`null`・型違い・重複・未知の値は中間生成物の不正として拒否する。使用量が `null` なら条件は `unspecified` に限る。版4の識別子には、版と料金の条件も含める。本文やトークン数を保ったまま条件だけを書き換えたファイルも、既存の識別子の検査で拒否する。識別子は秘密の鍵を使わないため、書き換えた人が識別子も計算し直す改ざんは検出できない。この残余リスクは従来と同じである。
+
+版3はその版の既存の形と識別子の規則で厳格に検証し、料金の条件を報告していない記録として読み込む。版3に `pricing_context` を加えたファイルは、その版にないキーなので拒否する。版3の内容・識別子・呼び出し時刻・使用量を変えず、再利用したファイルを書き直さない。後続工程の新しい記録は版4で保存し、入力の識別子は再利用した版3の記録をそのまま指す。版3と版4が混ざる連鎖も検証して再開できる。版1・2と、ほかの未知の版は引き続き拒否する。
+
+**従来の方針との関係。** [0022 設計書](../0022_cost_estimate/02_architecture.md) §1.3 の例外2と [ADR-0023](../../dev/adr/0023-artifact-resume.md) は、形式を上げたら古い版を拒否する方針である。本タスクは、要件 AC-18 と互換性の節に従って既存の版3からの再開を保つため、版3を読み込む例外を設ける。版3には時刻と4区分があり（`internal/artifact/format.go:58`、基準コミットは §2.1）、既存モデルの料金に必要な情報がそろうため、その料金を再解釈する必要がない。OpenAI の単価表の行は確認済みの条件を要求するので、条件のない版3の記録が OpenAI のモデル名を持つ場合も料金を既知と推測しない。
+
+更新する既存テストは、`internal/artifact/format_test.go` の `TestMarshalParseRoundTrip`・`TestParseRecordRejects`・`TestParseRecordRejectsUsage`・`TestParseRejectsVersion1`・`TestParseRejectsVersion2`・`TestRecordIDCoversUsage`、`store_test.go` の連鎖の保存・読み込み、および文書の版の値を照合する `cmd/yt2column/docs_test.go` の検査である。版3の既存の識別子のままでの読解、版を偽った入力、混在する連鎖、条件の変更の検出を追加する。旧バイナリは版4を読めないため、更新後に作った中間生成物から再開するときは対応版を使う。自動での書き戻しや旧版用の変換は行わない。
+
 ### 3.5. ファイルごとの責務
 
 次の表は実装で追加・変更するファイルの範囲である。本設計の PR は設計書と ADR の変更だけを含める。製品コード・利用案内・実応答のサンプルは、実装計画の承認後に反映する。
@@ -252,21 +279,23 @@ type Options struct {
 | 同パッケージの `openai_test.go`・`response_test.go`・`test_helpers.go`・`test_helpers_endpoint.go`（新規） | 偽のキーとループバックによる境界・通信の確認。送り先の差し替えはテスト限定 |
 | 同パッケージの `integration_env_test.go`・`integration_test.go`・`makefile_test.go`（新規） | 実 API の実行条件と Make ターゲットの確認 |
 | `internal/llm/openai/testutil/integration.go`・`integration_settings_test.go`（新規） | テスト専用の設定、オプトイン、デバッグ拒否の判定 |
-| `internal/llm/usage.go`・`usage_test.go` | 入力の内訳が整合しない場合の不明の規則 |
+| `internal/llm/usage.go`・`usage_test.go` | 使用量の不明の規則、料金の適用条件の型・構築・取得 |
+| `internal/artifact/artifact.go`・`format.go`・`format_test.go`・`store_test.go` | 版4の条件の保存と識別子、版3との混在した再開、厳格な検証 |
 | `internal/config/config.go`・`config_test.go` | provider、工程の選択、OpenAI キー、effort の既定と継承 |
 | `internal/config/serverfile.go`・`serverfile_test.go` | 7キーの許可リストと雛形、従来の書式の維持 |
 | `internal/config/envaccess_test.go` | 秘密の設定名の一覧に `OPENAI_API_KEY` を追加 |
 | `internal/llm/provider/provider.go`・`provider_test.go` | 両工程の構築、混在、実測値と既定上限・期限の関係 |
-| `cmd/yt2column/run.go`・`run_test.go` | 伏せ字への追加、設定エラーの終了コード、再開と配線の確認 |
+| `cmd/yt2column/run.go`・`run_test.go`・`cost_test.go` | 伏せ字への追加、設定エラーの終了コード、再開と配線、料金の新しい不明の理由の表示 |
 | `cmd/yt2column-server/run.go`・`run_test.go` | サーバの伏せ字と、環境のキーを使わないことの確認 |
-| `internal/pricing/rates.go`・`rates_test.go`・`pricing_test.go` | 2モデルの単価、出典、手計算した費用としきい値の確認 |
+| `internal/pricing/pricing.go`・`rates.go`・`rates_test.go`・`pricing_test.go` | 2モデルの単価と適用条件、出典、手計算した費用としきい値の確認 |
+| `internal/pricing/testutil/helpers.go`・`helpers_test.go` | 統合テスト用の料金の新しい不明の理由の表示 |
 | `internal/pipeline/pipeline_test.go` | `TestConfigImports` にパラメータ型を追加し、`TestFakesCarryBuildTag` のファイル数を更新 |
-| `cmd/yt2column/docs_test.go` | `TestEffortValuesDocsContract` 等に OpenAI の設定・effort・統合テストの値を追加 |
+| `cmd/yt2column/docs_test.go` | `TestEffortValuesDocsContract` 等に OpenAI の設定・effort・統合テストの値と保存形式の版を追加 |
 | `Makefile` | 有料実行の注意を示す `test-integration-openai` を追加 |
 | `testdata/openai_responses_completed.json`・`openai_responses_incomplete.json`（新規）、`testdata/README.md` | 独自の短いプロンプトの実応答と、取得・加工・再取得の記録 |
 | `README.md`・`README.en.md` | OpenAI の指定例、課金、effort、上限、データ保持。日本語を変更後に `/mktrans` で同期 |
 | `CLAUDE.md`、`docs/dev/project_overview.md`・`security.md`・`conventions/package_reference.md` | 実装したプロバイダ、秘密の経路、保持の説明、JSON の利用者と新パッケージの参照表 |
-| `docs/dev/guides/development.md`・`pricing_update.md`、`openai_output_limit.md`（新規） | 統合テスト、単価の照合、出力上限の測り直し |
+| `docs/dev/guides/development.md`・`cli.md`・`pricing_update.md`、`openai_output_limit.md`（新規） | 統合テスト、単価の照合、出力上限の測り直し |
 
 既存の検査では `TestParseServerFileAccepts`・`TestParseServerFileRejects`・`TestServerFileTemplate` が受理するキー、`TestLoadParsesLLMValue`・`TestParseLLMProvider`・`TestLoadProviderVarsFollowSelection` が provider と必要な設定、`TestEnvAccessConfined` が秘密の設定名、`TestRateTableModels` がモデル一覧を対象とする。これらの期待値を更新する。`TestLoadProductionDefaults` と既存2プロバイダの通信テストは維持し、既定や既存の送信条件の変更を検出する。
 
@@ -283,13 +312,13 @@ type HTTPStatusError struct {
 | 優先順・境界 | エラー | 返す結果 |
 |---|---|---|
 | 要求の不正 | `llm.ErrInvalidRequest` | ゼロ値 |
-| 通信・HTTP 状態・本文上限・JSON と各要素の形・Standard の検査 | context のエラー、または `openai` の番兵 | ゼロ値 |
+| 通信・HTTP 状態・本文上限・JSON と各要素の形 | context のエラー、または `openai` の番兵 | ゼロ値 |
 | 形を検査後、`incomplete` と `max_output_tokens` | `llm.ErrTruncated` | モデル名と使用量のみ |
 | それ以外の不完全終了・未知の終了状態・未完了メッセージ・拒否・error オブジェクト | `llm.ErrUnexpectedFinishReason` | モデル名と使用量のみ |
 | 完了した最終回答がない・空・空白だけ | `llm.ErrEmptyResponse` | モデル名と使用量のみ |
 | 完了した最終回答 | なし | テキスト・モデル名・使用量。版は空 |
 
-使用量の不正だけでは生成を失敗させない。JSON 全体の不正は、`usage` の中だけに現れても本文の不正である。打ち切りは文面がない場合も検出し、送った上限と effort を固定の書式で示す。最終回答の文面がないときは effort を下げる案内を添える。推論・途中経過があるだけで「文面あり」としない。
+使用量の不正や料金の適用条件の不明だけでは生成を失敗させない。JSON 全体の不正は、`usage` の中だけに現れても本文の不正である。打ち切りは文面がない場合も検出し、送った上限と effort を固定の書式で示す。最終回答の文面がないときは effort を下げる案内を添える。推論・途中経過があるだけで「文面あり」としない。
 
 HTTP の案内は、401なら認証、403なら権限、400・404ならモデル・effort・上限・入力、429なら利用上限・課金・時間を置いた再実行、5xxなら提供元の障害を示す。応答の自由文、未知の終了状態の値、API キー、プロンプトをエラーに含めない。`HTTPStatusError` は `ErrHTTPStatus` を unwrap し、呼び出し側は既存の `errors.Is` と `errors.AsType` を使えるようにする。
 
@@ -362,8 +391,8 @@ flowchart TD
     classDef process fill:#fff1e6,stroke:#ff7f0e,stroke-width:1px,color:#8a3e00;
     classDef enhanced fill:#e8f5e8,stroke:#2e8b57,stroke-width:2px,color:#006400;
     IN["共有の要求検証"] --> SEND["HTTP 送信"]
-    SEND --> SHAPE["本文と Standard の検証"]
-    SHAPE --> USAGE["使用量の検証"]
+    SEND --> SHAPE["本文の検証"]
+    SHAPE --> USAGE["使用量と料金の適用条件の確認"]
     USAGE --> FINISH["終了状態の判定"]
     FINISH -->|"正常な完了"| EMPTY["最終回答の空判定"]
     FINISH -->|"打ち切り・想定外の終了"| REJECT["テキストのない結果とエラー"]
@@ -379,7 +408,7 @@ flowchart TD
     class L2 enhanced
 ```
 
-要求・送信・本文の検証で失敗したときは、図の後続の処理へ進まずゼロ値を返す。使用量の不正は「不明」として後続へ進む。本文の形を検査してから、打ち切り・想定外の終了・空の順に判定する。最終回答がなくても、出力上限による終了なら打ち切りを優先する。
+要求・送信・本文の検証で失敗したときは、図の後続の処理へ進まずゼロ値を返す。使用量の不正は使用量を「不明」とし、料金の条件を確認できない場合は有効なトークン数を保って料金だけを「不明」として後続へ進む。本文の形を検査してから、打ち切り・想定外の終了・空の順に判定する。最終回答がなくても、出力上限による終了なら打ち切りを優先する。
 
 ## 7. テスト戦略 (Test Strategy)
 
@@ -399,7 +428,7 @@ flowchart TD
 | AC-20〜22 | リダイレクト先にキーを送らないこと、送信中と本文読み取り中の期限・キャンセル・切断・8 MiB 超過、HTTP 状態と固定の案内、送信回数、両入口の秘密と末尾断片の伏せ字 |
 | AC-23〜25 | 加工した実応答の読解、統合テストの実行条件、設定名と effort 等の文書の値。保持の説明と実測の限界は人が読む |
 
-追加の Standard の検査は、正しい応答、欠け・型違い・重複・未知の方式を偽の応答で確かめる。API キーに似せた値や制御文字を未知のメンバー・終了状態・拒否の文面に入れ、診断や結果に出さないことも確認する。偽のプロバイダを使った CLI・サーバのテストで、設定から構築・記事の結果までを確認する。
+Standard の確認は、正しい応答、欠け・型違い・重複・未知の方式を偽の応答で確かめる。後者でもテキストと有効な使用量は返り、料金だけが不明になることを確認する。版4への保存と再開、版3との混在、条件だけの改変の拒否、旧2プロバイダの料金が維持されることも確認する。API キーに似せた値や制御文字を未知のメンバー・終了状態・拒否の文面に入れ、診断や結果に出さないことも確認する。偽のプロバイダを使った CLI・サーバのテストで、設定から構築・記事の結果までを確認する。
 
 §3.5 に挙げた既存テストの期待値を更新し、旧2プロバイダと本番の既定の回帰も実行する。新設・変更した各テストでは、そのテストが対象とする振る舞いを一時的に壊して実際に失敗することを確認し、実装のコミットに記録する。文書の意味は PR レビューで読み、タスク文書の文章や測定表の文字列を固定するテストは作らない。
 
@@ -426,6 +455,6 @@ flowchart TD
 
 追加のモデルは不透明な ID のまま API に渡し、料金を求めるモデルだけを料金表に追加する。固定の処理方式・保持期間に未対応のモデルは HTTP エラーになる旨を案内する。対応表やモデル名の接頭辞による分岐を追加しない。
 
-処理方式とキャッシュ保持期間の選択、ストリーミング、ツール、会話の継続は別の要件とする。とくに料金の条件を増やすなら、4区分だけで料金を求める前提と、中間生成物・再開の契約も合わせて見直す。現時点ではそのためのフィールドや拡張口を設けない。
+処理方式とキャッシュ保持期間の選択、ストリーミング、ツール、会話の継続は別の要件とする。とくに料金の条件を増やすなら、本設計の料金の適用条件で表せるかを判断し、中間生成物・再開の契約も合わせて見直す。現在の列挙値で表せない条件を推測で既存の値へ寄せない。
 
 ## 変更履歴
