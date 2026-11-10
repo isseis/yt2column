@@ -142,7 +142,7 @@ Phase 4.5 は、手順が定める git の起動の前に比べる。Phase 4 の
     -   push されていない Phase 4.5 の commit の数。
     -   ローカルの CLI レビューを受けていない範囲。手順が定める `Local CLI review: not run` の行の形で示す（`local-cli-review.md` の手順 7）。
     -   Phase 6 で PR の説明に足していない編集上の訂正。
-    -   復旧のために利用者が確かめること。作業ツリーに変更が残るとき、次の `/fixpr` は `dirty-work-tree` で止まる。push されていない commit が残るとき、次の `/fixpr` の Phase 4 は、その回に直す指摘がなければ失敗し（`.claude/commands/fixpr.md:682-688`）、直す指摘があれば、`push` がその commit も一緒に push する。止まった種類が対象のファイルなら、`fixprguard_guide.md` 8.1 の手順に従う。
+    -   復旧のために利用者が確かめること。作業ツリーに変更が残るとき、次の `/fixpr` は `dirty-work-tree` で止まる。push されていない commit が残るとき、次の `/fixpr` の Phase 4 は、commit を作らなければ失敗し（`.claude/commands/fixpr.md:682-688`）、commit を作れば、`push` がその commit も一緒に push する。直す指摘がなく Phase 4 を飛ばす回は、止まらずにその commit を残す。止まった種類が対象のファイルなら、`fixprguard_guide.md` 8.1 の手順に従う。
 
 #### F-003: Phase 4.5 の push をガードツールで行う
 

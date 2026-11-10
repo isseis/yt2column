@@ -31,13 +31,15 @@ func validArgs() map[string][]string {
 		fingerprint = "f"
 	)
 	return map[string][]string{
-		cmdHead:    args(cmdHead, testPR),
-		cmdList:    args(cmdList, "--reviewer", testReviewer, testPR),
-		cmdBegin:   args(cmdBegin, "--reviewer", testReviewer, testPR),
-		cmdFence:   args(cmdFence, "file"),
-		cmdInspect: args(cmdInspect, "--reviewer", testReviewer, "--baseline", baseline, testPR),
-		cmdFinish:  args(cmdFinish, "--baseline", baseline, "--judged-set", "j", testPR),
-		cmdPush:    args(cmdPush, "--baseline", baseline, "--commit", "c"),
+		cmdHead:       args(cmdHead, testPR),
+		cmdList:       args(cmdList, "--reviewer", testReviewer, testPR),
+		cmdBegin:      args(cmdBegin, "--reviewer", testReviewer, testPR),
+		cmdFence:      args(cmdFence, "file"),
+		cmdInspect:    args(cmdInspect, "--reviewer", testReviewer, "--baseline", baseline, testPR),
+		cmdFinish:     args(cmdFinish, "--baseline", baseline, "--judged-set", "j", testPR),
+		cmdPush:       args(cmdPush, "--baseline", baseline, "--commit", "c"),
+		cmdCheck:      args(cmdCheck, "--baseline", baseline, "--commit", "c"),
+		cmdPushReview: args(cmdPushReview, "--baseline", baseline, "--commit", "c"),
 		cmdReply: args(cmdReply, "--reviewer", testReviewer, "--thread-id", testThreadID, "--comment-id", "1",
 			"--fingerprint", fingerprint, "--body-file", "body.md", testPR),
 		cmdEditPR:   args(cmdEditPR, "--title-file", "title.txt", "--body-file", "body.md", testPR),
@@ -1418,4 +1420,138 @@ func mustParsePR(t *testing.T) fixprguard.PRNumber {
 		t.Fatalf("ParsePRNumber: %v", err)
 	}
 	return pr
+}
+
+// reviewRepo is a repository after Phase 4: the baseline taken as begin does,
+// then the Phase 4 commit made and pushed to origin's branch (without -u, so
+// the configuration does not change), then n commits on top.
+func reviewRepo(t *testing.T, n int) (repo *testRepo, base fixprguard.Baseline, phase4 string) {
+	t.Helper()
+	repo = newTestRepo(t)
+	base = repo.Begin()
+	commit := func(content string) {
+		repo.Write(testFile, content)
+		repo.Git("add", "-A")
+		repo.Git("commit", "-q", "-m", content)
+	}
+	commit("phase 4\n")
+	phase4 = strings.TrimSpace(repo.Git("rev-parse", "HEAD"))
+	repo.Git("push", "-q", "origin", "HEAD:refs/heads/"+testBranch)
+	for i := range n {
+		commit(fmt.Sprintf("review %d\n", i))
+	}
+	return repo, base, phase4
+}
+
+// TestCheckCommand: check prints exactly protocol, base, head and commits,
+// runs no gh (the gh fake fails any call), and stops on a branch switch with
+// the part branch.
+func TestCheckCommand(t *testing.T) {
+	repo, base, phase4 := reviewRepo(t, 2)
+	r := newTestRun(t, nil)
+	if code := r.Run(t, args(cmdCheck, "--baseline", base.String(), "--commit", phase4)...); code != exitContinue {
+		t.Fatalf("check: exit %d (%s)", code, r.Stderr)
+	}
+	var out map[string]any
+	r.Decode(t, &out)
+	want := map[string]any{
+		"protocol": float64(fixprguard.Protocol),
+		"base":     strings.TrimSpace(repo.Git("rev-parse", "HEAD~3")),
+		"head":     strings.TrimSpace(repo.Git("rev-parse", "HEAD")),
+		"commits":  float64(2),
+	}
+	if !reflect.DeepEqual(out, want) {
+		t.Errorf("output = %v, want %v", out, want)
+	}
+
+	repo.Git("switch", "-q", "-c", "other")
+	r = newTestRun(t, nil)
+	if code := r.Run(t, args(cmdCheck, "--baseline", base.String(), "--commit", phase4)...); code != exitStop {
+		t.Fatalf("check after a branch switch: exit %d, want %d", code, exitStop)
+	}
+	var stopped stopJSON
+	r.Decode(t, &stopped)
+	if stopped.Stop != fixprguard.StopGitStateChanged || !slices.Equal(stopped.Parts, []string{fixprguard.PartBranch}) {
+		t.Errorf("stop = %+v, want git-state-changed on branch", stopped)
+	}
+}
+
+// TestPushReviewCommand: push-review prints exactly protocol, pushed and
+// commit, refuses with nothing to send, and names the rule push when the push
+// itself fails, the word the fixpr document reports an unknown push result by.
+func TestPushReviewCommand(t *testing.T) {
+	t.Run("pushes", func(t *testing.T) {
+		repo, base, phase4 := reviewRepo(t, 1)
+		r := newTestRun(t, nil)
+		if code := r.Run(t, args(cmdPushReview, "--baseline", base.String(), "--commit", phase4)...); code != exitContinue {
+			t.Fatalf("push-review: exit %d (%s)", code, r.Stderr)
+		}
+		var out map[string]any
+		r.Decode(t, &out)
+		want := map[string]any{
+			"protocol": float64(fixprguard.Protocol),
+			"pushed":   true,
+			"commit":   strings.TrimSpace(repo.Git("rev-parse", "HEAD")),
+		}
+		if !reflect.DeepEqual(out, want) {
+			t.Errorf("output = %v, want %v", out, want)
+		}
+	})
+
+	t.Run("nothing_to_send", func(t *testing.T) {
+		_, base, phase4 := reviewRepo(t, 0)
+		r := newTestRun(t, nil)
+		if code := r.Run(t, args(cmdPushReview, "--baseline", base.String(), "--commit", phase4)...); code != exitUsage {
+			t.Errorf("push-review: exit %d, want %d", code, exitUsage)
+		}
+	})
+
+	t.Run("push_failure", func(t *testing.T) {
+		repo, base, phase4 := reviewRepo(t, 1)
+		hooks := filepath.Join(filepath.Dir(repo.Dir), "remote.git", "hooks")
+		repo.Write("../remote.git/hooks/pre-receive", "#!/bin/sh\nexit 1\n")
+		if err := os.Chmod(filepath.Join(hooks, "pre-receive"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		r := newTestRun(t, nil)
+		if code := r.Run(t, args(cmdPushReview, "--baseline", base.String(), "--commit", phase4)...); code != exitStop {
+			t.Fatalf("push-review: exit %d, want %d", code, exitStop)
+		}
+		var stopped stopJSON
+		r.Decode(t, &stopped)
+		// The rule word is the diagnostic's contract here; no error value
+		// reaches the user.
+		if stopped.Stop != fixprguard.StopGitFailed || !strings.Contains(r.Stderr.String(), "push failed") {
+			t.Errorf("stop = %+v, stderr %q, want git-failed naming push", stopped, r.Stderr)
+		}
+	})
+}
+
+// TestReviewCommandsRefuse: for check and push-review, a malformed --commit
+// is a usage error, and a head stop prints exactly the rule line: the rule
+// word and no SHA, the diagnostic's contract. A run below the top is left to
+// the library tests, which tell its layers apart.
+func TestReviewCommandsRefuse(t *testing.T) {
+	for _, name := range []string{cmdCheck, cmdPushReview} {
+		t.Run(name+"/commit_malformed", func(t *testing.T) {
+			_, base, phase4 := reviewRepo(t, 1)
+			r := newTestRun(t, nil)
+			if code := r.Run(t, args(name, "--baseline", base.String(), "--commit", strings.ToUpper(phase4))...); code != exitUsage {
+				t.Errorf("exit %d, want %d (%s)", code, exitUsage, r.Stderr)
+			}
+		})
+		t.Run(name+"/head_rule", func(t *testing.T) {
+			repo, base, _ := reviewRepo(t, 1)
+			// Naming the review commit as the Phase 4 commit fails the line.
+			wrong := strings.TrimSpace(repo.Git("rev-parse", "HEAD"))
+			r := newTestRun(t, nil)
+			if code := r.Run(t, args(name, "--baseline", base.String(), "--commit", wrong)...); code != exitStop {
+				t.Fatalf("exit %d, want %d", code, exitStop)
+			}
+			want := "fixprguard: " + fixprguard.ErrGitStateChanged.Error() + ": " + fixprguard.PartHead + " (rule phase4-mismatch)\n"
+			if got := r.Stderr.String(); got != want {
+				t.Errorf("stderr = %q, want %q", got, want)
+			}
+		})
+	}
 }

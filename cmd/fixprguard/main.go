@@ -55,16 +55,21 @@ const (
 
 // The subcommands.
 const (
-	cmdHead     = "head"
-	cmdList     = "list"
-	cmdBegin    = "begin"
-	cmdFence    = "fence"
-	cmdInspect  = "inspect"
-	cmdFinish   = "finish"
-	cmdPush     = "push"
-	cmdReply    = "reply"
-	cmdEditPR   = "edit-pr"
-	cmdAppendPR = "append-pr"
+	cmdHead    = "head"
+	cmdList    = "list"
+	cmdBegin   = "begin"
+	cmdFence   = "fence"
+	cmdInspect = "inspect"
+	cmdFinish  = "finish"
+	cmdPush    = "push"
+	// cmdCheck and cmdPushReview serve /fixpr's local review phase: they
+	// compare the git state with the baseline over the Phase 4 commit, and
+	// push-review pushes the commits made after it.
+	cmdCheck      = "check"
+	cmdPushReview = "push-review"
+	cmdReply      = "reply"
+	cmdEditPR     = "edit-pr"
+	cmdAppendPR   = "append-pr"
 
 	cmdInteractionLimits = "interaction-limits"
 )
@@ -112,6 +117,10 @@ var specs = map[string]spec{
 	cmdInspect: {flags: []string{flagReviewer, flagBaseline, flagThread}, required: []string{flagReviewer, flagBaseline}, arg: argOptionalPR, usesGH: true},
 	cmdFinish:  {flags: []string{flagBaseline, flagJudgedSet, flagBodyFile}, required: []string{flagBaseline, flagJudgedSet}, arg: argRequiredPR},
 	cmdPush:    {flags: []string{flagBaseline, flagCommit}, required: []string{flagBaseline, flagCommit}},
+	// check and push-review take the Phase 4 commit as --commit and run no
+	// gh.
+	cmdCheck:      {flags: []string{flagBaseline, flagCommit}, required: []string{flagBaseline, flagCommit}},
+	cmdPushReview: {flags: []string{flagBaseline, flagCommit}, required: []string{flagBaseline, flagCommit}},
 	cmdReply: {
 		flags:    []string{flagReviewer, flagThreadID, flagCommentID, flagFingerprint, flagBodyFile, flagAccept},
 		required: []string{flagReviewer, flagThreadID, flagCommentID, flagFingerprint, flagBodyFile},
@@ -375,6 +384,10 @@ func execute(ctx context.Context, inv invocation, e env) (any, int, error) {
 		return finish(ctx, inv, w)
 	case cmdPush:
 		return push(ctx, inv, w)
+	case cmdCheck:
+		return check(ctx, inv, w)
+	case cmdPushReview:
+		return pushReview(ctx, inv, w)
 	case cmdReply:
 		return reply(ctx, inv, e)
 	case cmdEditPR:
@@ -656,6 +669,24 @@ func push(ctx context.Context, inv invocation, w *fixprguard.Worktree) (any, int
 		return nil, 0, err
 	}
 	result, err := w.Push(ctx, base, inv.values[flagCommit])
+	return result, exitContinue, err
+}
+
+func check(ctx context.Context, inv invocation, w *fixprguard.Worktree) (any, int, error) {
+	base, err := fixprguard.ParseBaseline(inv.values[flagBaseline])
+	if err != nil {
+		return nil, 0, err
+	}
+	result, err := w.CheckReviewState(ctx, base, inv.values[flagCommit])
+	return result, exitContinue, err
+}
+
+func pushReview(ctx context.Context, inv invocation, w *fixprguard.Worktree) (any, int, error) {
+	base, err := fixprguard.ParseBaseline(inv.values[flagBaseline])
+	if err != nil {
+		return nil, 0, err
+	}
+	result, err := w.PushReviewed(ctx, base, inv.values[flagCommit])
 	return result, exitContinue, err
 }
 

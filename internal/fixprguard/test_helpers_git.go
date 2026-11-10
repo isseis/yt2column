@@ -43,6 +43,11 @@ type gitRouter struct {
 	fake       *cmdrunnertestutil.Fake
 	Calls      []string
 	ConfigList *configListResult
+	// Before runs a function right before the git call it is keyed by (as
+	// Calls records it), outside the router, so a test can change the
+	// repository between two calls of the code under test. It runs before
+	// every matching call and covers the git runner only, not ListRunner.
+	Before map[string]func()
 }
 
 // ListRunner returns the runner a Worktree lists ignored files with: it
@@ -64,6 +69,9 @@ func (r *gitRouter) Run(ctx context.Context, name string, args ...string) ([]byt
 	}
 	call := gitCommand + " " + gitSubcommand(args)
 	r.Calls = append(r.Calls, call)
+	if f := r.Before[call]; f != nil {
+		f()
+	}
 	if r.ConfigList != nil && call == gitConfigList {
 		return r.ConfigList.Out, r.ConfigList.Err
 	}
