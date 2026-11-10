@@ -139,7 +139,7 @@
     -   ADR-0013 で、決定の 4 つ目の項目からずれの記述の 3 文を除いた行が後の行と同じで、ほかの行は前後で同じであること。
     -   台帳の消す名前（`itemStash`・`refsArgs`・`stashArgs`・`errRefsUnreadable`・`parseRefs`）が、後のコミットの `internal/codexreview` に単語として現れないこと。フィールド `refs`・`stash` は、`refs` がほかの識別子の引数名にも使われるので、後のコミットの `state.go` の `type gitState struct { … }` の本体だけを見て、ないことを確かめる。
 -   [x] `_checks/check.sh` の各項目について、確かめる対象を壊したコミット（一時的なもの）を後のコミットとして渡すと失敗することを、1 回ずつ確かめる。確かめたことをコミットメッセージに書く。
--   [ ] PR のブランチで `sh docs/tasks/0079_codexreview_state_scope/_checks/check.sh $(git merge-base origin/main HEAD) HEAD` を実行し、出力と 2 つのコミット ID を 7 章の記録に書く。
+-   [x] PR のブランチで `sh docs/tasks/0079_codexreview_state_scope/_checks/check.sh $(git merge-base origin/main HEAD) HEAD` を実行し、出力と 2 つのコミット ID を 7 章の記録に書く。
 
 PR の説明には、入れ直しの前後の食い違いの見分け方（設計書 6.2：`changed` に `stash` が入るか、`changed_refs` に HEAD のブランチ以外の ref が入れば、入れ直す前のツールである）と、マージの後に `make install-codexreview` で入れ直すことを書く。`/runplan` が PR を作るときに書くので、チェックボックスにはしない。
 
@@ -207,7 +207,7 @@ PR の説明には、入れ直しの前後の食い違いの見分け方（設�
 ## 6. 実装チェックリスト (Implementation Checklist)
 
 -   [ ] PR-1 マージ済み（対象ステップ: 1-1 / 2-1 / 3-1）
--   [ ] 7 章のすべての AC の検証が通り、`_checks/check.sh` の実行を記録した
+-   [x] 7 章のすべての AC の検証が通り、`_checks/check.sh` の実行を記録した
 
 ## 7. 受け入れ条件の検証 (Acceptance Criteria Verification)
 
@@ -234,9 +234,24 @@ PR の説明には、入れ直しの前後の食い違いの見分け方（設�
 
 | 項目 | 値 |
 |---|---|
-| 変更の前（merge-base） | （実装の PR で書く） |
-| 変更の後（PR の head） | （実装の PR で書く） |
-| 出力 | （実装の PR で書く） |
+| 変更の前（merge-base） | `fcd726e3c8dc8784dfb1406b111e4d16e847f86a` |
+| 変更の後（PR の head） | `c30672cced447b3b45ec4f428344f916449aad19` |
+| 出力 | 下のとおり（終了コード 0） |
+
+```text
+base fcd726e3c8dc8784dfb1406b111e4d16e847f86a
+head c30672cced447b3b45ec4f428344f916449aad19
+docs/tasks/0079_codexreview_state_scope/_checks/check.sh blob da421c48694c4ea567111ddf47792684e409053a
+OK   protocol: const Protocol = 1 in both
+OK   result-names: protocol kind detail changed changed_refs codex_version run_dir instructions_changed findings in both
+OK   status-args: the statusArgs value is the same
+OK   procedure: only the text from "A `state_changed` caused by" to the end of the stop bullet differs
+OK   adr: the head is the base without the three sentences
+OK   removed-names: itemStash, refsArgs, stashArgs, errRefsUnreadable, parseRefs, and the refs and stash fields are gone
+OK every check passed
+```
+
+`procedure` の項目は、「A `state_changed` caused by」から `stop` の箇条の終わりまでを切り取って比べるので、切り取った部分に文が加わっても通る。切り取った部分（書き換えた文）は、AC-12 の manual の読み取りで、箇条の終わりまで読んで確かめる。
 
 ## 8. 完了条件 (Success Criteria)
 
