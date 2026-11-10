@@ -262,7 +262,7 @@
 **判定理由**: ステップ 4-2・4-3 は開発の道具の信頼の境界（ADR-0015。mention check・`fixprguard`・信頼しないスレッド）を変える security-gate に当たる手順と、途中で止まった後に再開する復旧の手順を含む
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/786
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
