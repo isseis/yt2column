@@ -30,7 +30,7 @@
 
 -   **規則は規約に、手順は `simple-process.md` に、それぞれ 1 か所だけ書く**（設計書 1.1）。コマンドの定義は、規約や `simple-process.md` の節を名指しして参照し、中身を写さない。
 -   **通常の進め方の手順は、step の番号と見出しの語で参照する。参照される側（`mkarch.md`・`mkplan.md`・`mkplan2.md`）にも、参照されていることを書く**（設計書 1.1・3.2・3.4）。参照される側の既存の step の番号は変えない。
--   **変えないと設計書が決めた部分は変えない。** 規約の「Lightweight Process」の節の文と表（設計書 3.9）、`fixpr.md`・`runpr.md` の節の見出し（設計書 7.1）、`_lib/task-pr-handoff.md` の Part B（設計書 3.8）、`_lib/settle-decisions.md`・`_lib/review-subagent-pattern.md`・`docs/dev/project_overview.md`（設計書 2.2）である。テストが読むのはこのうち一部だけなので（本計画 §1.4）、残りは PR のレビューで差分を読んで確かめる。
+-   **変えないと設計書が決めた部分は変えない。** `fixpr.md`・`runpr.md` の節の見出し（設計書 7.1）、`_lib/task-pr-handoff.md` の Part B（設計書 3.8）、`_lib/settle-decisions.md`・`_lib/review-subagent-pattern.md`・`docs/dev/project_overview.md`（設計書 2.2）である。テストが読むのはこのうち一部だけなので（本計画 §1.4）、残りは PR のレビューで差分を読んで確かめる。
 -   **新しい文書のテストを足さない**（設計書 1.2 の H-07 の決定）。既存の表に値を足す変更（本計画 §1.4 の表の最後の 3 行）だけを行う。
 -   **コマンドの定義の文は英語で書き、規約・ガイド・用語集・ADR は既存の言語のまま書く**（`CLAUDE.md`「Document language」）。`simple-process.md` は `.claude/commands/` の下なので英語で書く。
 
@@ -100,10 +100,16 @@
 -   `cmd/yt2column/fixpr_docs_test.go::TestRemovedCommandLiterals`（`:1105`）: `fixpr.md` のどこにも `git add -A`・`git commit -m`・`comments(first:`・`reviewThreads` を書かず、`gh pr edit` と `--title "` を同じ行に書かず、Phase 1〜6 に `git push` を書かない（Phase 4.5 は除く）。
 -   `cmd/yt2column/fixpr_docs_test.go::TestRunprDocContract`（`:156`）: `runpr.md` のどこにも `reviewThreads`・`comments(first:` を書かない（`no_body_fetch`）。step 3 の `gh api` の呼び出しは、許した形だけにする（`listings_print_no_body`、`step3ReadCalls`）。
 -   `cmd/yt2column/fixpr_docs_test.go` の節の見出しの定数（`:31-43`）と `cmd/yt2column/codex_review_docs_test.go` の `runprStep5`・`handoffLinkIssue`（`:88-91`）: これらの見出しは変えない。`runpr.md` の step 2 の見出しはテストが読まないので、PR のレビューで変えていないことを確かめる。
--   `cmd/yt2column/lightweight_docs_test.go` の各テスト: 規約の「Lightweight Process」のうち読むのは「Mechanically checked conditions」の表だけである（`lightweight_docs_test.go:65-120`）。節のほかの文は、PR のレビューで変えていないことを確かめる。
 -   `CLAUDE.md` を読むテスト（`TestCoverageCompareDocumented`、`TestExtensionDocumentation` など）: ステップ 1-5 は、これらが読む値（`make` の目標の名前など）を変えない。
 -   `cmd/fixprguard/docs_test.go` のガイドを読むテスト（`TestGuideDescribesReviewerList`・`TestDocumentedProtocolMatches`・`TestGuideDescribesMentionCheck` など）: ステップ 4-5 の変更を読む。
 -   `cmd/yt2column/adr_test.go::TestADRRecords`（`:434`）: ADR-0040 の構造と索引を読む。
+
+### 1.5. 実装の際に決めたこと（2026-11-10）
+
+-   **タスク 0075（軽量プロセスの削除、#764）が先にマージされたので、0072 の変更から軽量プロセスへの参照を取り除く（人の答え、2026-11-10）。** 規約に "normal process" の意味を述べる 1 文（設計書 3.9）を書かず、「Simple Process」の節は「Lightweight Process」の節の前ではなく、規約の同じ位置にそのまま置く。`/mkreq` には軽量プロセスの判定がなくなったので、要件定義書を書く実行では常に進め方を尋ねる（設計書 3.3）。要件書 AC-01 の「軽量プロセスの仕様のコメントを投稿して止まる実行では尋ねない」は、そのような実行がなくなったので、常に満たされる。
+    -   **理由:** 0075 の要件定義書は、後からマージする側が軽量プロセスへの参照を取り除くと決めている。"normal process" の 1 文は、軽量プロセスの文書の語の意味を述べるためのもので、その文書がなくなると述べる対象がない。
+    -   **採らなかった案:** 設計書のとおり 1 文を残す案。意味を述べる対象のない文が規約に残る。
+    -   ADR：なし。ADR-0040 の決定は、軽量プロセスに依らない。
 
 ## 2. 実装のステップ (Implementation Steps)
 
@@ -119,8 +125,7 @@
     -   「Document Status Format」に `Process` 行の値と 4 つの記録の状態（設計書 3.1 の表）を書く。記録の置き場所の段落には、本計画 §1.3 の 3 つ目の項目の 2 点だけを足し、「Six places」の数は変えない。
     -   「Recording in the PR description」の、訂正の段落をそのまま残す規則に、戻すときの例外を 1 文で足す（設計書 3.9、本計画 §1.3 の 2 つ目の項目）。
     -   「Design handoff」の段落に、申し送りの項目の 3 つの種類と形を書く。
-    -   新しい節「Simple Process」を「Lightweight Process」の前に置く。省かないものと省いてよいもの（AC-05・AC-06）、除外の一覧（AC-14・AC-15）、戻すことの要約、"normal process" の意味を述べる 1 文を書く。
-    -   「Lightweight Process」の節の文と表は変えない。
+    -   新しい節「Simple Process」を置く。省かないものと省いてよいもの（AC-05・AC-06）、除外の一覧（AC-14・AC-15）、戻すことの要約を書く（本計画 §1.5）。
 -   [x] **ステップ 1-2**: 要件定義書のテンプレートの状態表で、`Status` の次に `` | Process | `full` | `` の行を足す（設計書 3.1 の例と 3.9）。
 -   [x] **ステップ 1-3**: 用語集に「簡易な進め方」（simple process）、「通常の進め方」（full process）、「進め方の記録」（process record）の 3 行を、既存の行の形で足す。
 -   [x] **ステップ 1-4**: `_context.md` を設計書 2.2 の行のとおりに変える。「Process convention」の表に「Task process record」の行を足し、値の定めは規約の「Document Status Format」を参照させる（値そのものは書かない）。申し送りの 2 行の書く者と項目の種類を改め、実装モデルの行に `/mkreq` を足す。レビュアーの行は変えない。
@@ -157,7 +162,7 @@
 
 **推奨タイトル**: `docs(0072): 簡易な進め方の規則と /mkreq の分岐を足す`
 
-**レビュー観点**: 規約・テンプレートの進め方の記録の値と 4 つの状態が設計書 3.1 と一致するか / `/mkreq` の進め方の質問と続ける条件が AC-01〜AC-04・AC-12 を満たすか / `simple-process.md` が参照する step の番号と見出しの語が今の定義と合うか / 「Lightweight Process」の節の文を変えていないか
+**レビュー観点**: 規約・テンプレートの進め方の記録の値と 4 つの状態が設計書 3.1 と一致するか / `/mkreq` の進め方の質問と続ける条件が AC-01〜AC-04・AC-12 を満たすか / `simple-process.md` が参照する step の番号と見出しの語が今の定義と合うか
 
 **実装モデル要件**: frontier-recommended
 
@@ -380,3 +385,4 @@ AC に対応しない次の変更は、PR のレビューで設計書の節と�
 ## 変更履歴
 
 - 2026-11-09 承認（isseis、#759）
+- 2026-11-10 セッション中の再承認：先にマージされたタスク 0075 に合わせ、軽量プロセスへの参照と "normal process" の 1 文を取り除いた（isseis、#未記入）

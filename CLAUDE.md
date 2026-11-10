@@ -34,14 +34,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   palette, and Legend blocks).
 - Each task lives in `docs/tasks/NNNN_<name>/` (four-digit sequence number).
   `docs/tasks/0000_template/requirements.md` is the starting point for
-  `01_requirements.md`. Exception: a change that takes the lightweight process
-  has no task and creates nothing under `docs/tasks/`. Scope: a change that
-  meets every condition of
-  [requirements_process.md](docs/dev/conventions/requirements_process.md),
-  "Lightweight Process", and whose spec comment the user approved on its issue.
-  Reason: for such a change the task documents cost more than the change, and
-  the approved spec comment takes their place. Outside that scope the rule
-  above applies unchanged.
+  `01_requirements.md`.
 
 ### Document language
 
@@ -107,7 +100,7 @@ marker against the current `README.md`; it runs in `make test`, in CI's
 `doc-guard` job, and in a pre-commit hook for the two READMEs
 (`make readme-sync-check` runs it alone), so a `README.md` change is not
 committed or merged without the sync, whoever makes it. `/runplan`, `/fixpr`,
-`/runpr`, and `/runissue` run `/mktrans` when the check fails. `/mktrans` stops
+and `/runpr` run `/mktrans` when the check fails. `/mktrans` stops
 and asks on any other file. The translation principles (accuracy over fluency,
 faithful translation, structural consistency) and the glossary workflow live in
 [mktrans.md](.claude/commands/mktrans.md); the glossary is
@@ -204,8 +197,7 @@ change, retire, and withdraw an ADR is in the convention,
 ### Claude Commands (`.claude/commands/`)
 Project-specific values these commands depend on are defined once in
 [_context.md](.claude/commands/_context.md).
-- `/mkreq <issue> [task]` - Create `01_requirements.md` from a GitHub issue and open its PR, after asking whether the task takes the full process or the simple process; in the simple process it also writes `02_architecture.md` and `03_implementation_plan.md` and opens one PR for the three documents. First, for an issue that meets the lightweight conditions, offer the lightweight process and, when the user approves the spec shown, post it on the issue and add the label instead
-- `/runissue <issue>` - Implement an issue's approved lightweight spec on its own branch, recheck the conditions on the real diff, and open its one PR
+- `/mkreq <issue> [task]` - Create `01_requirements.md` from a GitHub issue and open its PR, after asking whether the task takes the full process or the simple process; in the simple process it also writes `02_architecture.md` and `03_implementation_plan.md` and opens one PR for the three documents
 - `/mkarch <task>` - Create `02_architecture.md` (requires approved requirements) and open its PR; it stops without writing for a task that takes the simple process, whose documents `/mkreq` writes
 - `/mkplan <task>` - Create `03_implementation_plan.md` with its PR boundaries (requires approved architecture) and open its PR; it stops without writing for a task that takes the simple process, whose documents `/mkreq` writes
 - `/mkplan2 <task>` - Embed PR boundaries into an approved plan that lacks them (plans written before `/mkplan` did it) and open its PR
@@ -229,13 +221,6 @@ then asks one question that decides the bookkeeping (for a document, its
 `approved` status) and the merge with `/mergepr`, and offers the next command
 when there is one. When the user chooses to run it, it runs, opens the next PR,
 and stops again.
-
-A lightweight change has no task PR. `/mkreq` writes no requirements document
-for it: it posts the spec comment the user approved on the issue, adds the
-label, and stops. `/runissue` implements the spec, checks and reviews it,
-rechecks the conditions on the real diff, opens the one PR, pings the reviewer,
-and stops. The reviewer then runs `/runpr`, which drives the PR as it drives a
-standalone change, merges it, and closes the issue.
 
 Codex does the PR review. Its allowance is shared with the user's other
 ChatGPT use and its size is not published, so a PR gets one PR review, when it
@@ -671,16 +656,10 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
 - `yt-dlp` must be on `PATH` (or set `YT2COLUMN_YTDLP_PATH`) to run the CLI; it is
   not needed for `make test`.
 - `make test` needs `jq` on `PATH`: `TestRunprDocContract`,
-  `TestHandoffListingPrintsNoBody`, `TestFixprPhase6CountFilter`, and
-  `TestLightweightSpecListing` run the `--jq` filters of `runpr.md` step 3,
-  `_lib/task-pr-handoff.md` Part B step 5, `fixpr.md` Phase 6, and
-  `_lib/lightweight-spec.md` with it, and fail instead of skipping when it is
+  `TestHandoffListingPrintsNoBody`, and `TestFixprPhase6CountFilter` run the
+  `--jq` filters of `runpr.md` step 3, `_lib/task-pr-handoff.md` Part B step
+  5, and `fixpr.md` Phase 6 with it, and fail instead of skipping when it is
   missing. The `doc-guard` CI job runs these tests too.
-- `make test` also needs `bash` and a `git` that accepts `--attr-source` on
-  `PATH`: `TestLightweightCheck` runs the recheck script
-  `_lib/lightweight-check.sh` with them on fixture repositories, and fails
-  instead of skipping when either is missing. It runs in the `doc-guard` CI
-  job as well.
 - Secrets (`DEEPSEEK_API_KEY`, `ANTHROPIC_API_KEY`, `SLACK_WEBHOOK_URL`, ...) go in `.envrc` / `.env`,
   which are git-ignored, for the CLI; the localhost server reads them only from
   its configuration file, `$HOME/.config/yt2column/config.env` (mode `0600`,
@@ -743,18 +722,6 @@ Only the conventions a linter does not check are worth stating:
   literal has to equal the document's text, and the document is Japanese
   ("Document language" above). Comments and identifiers in those files stay
   English.
-- A second exception, the lightweight-check literal exception: a Japanese
-  literal in the lightweight process's recheck script
-  (`.claude/commands/_lib/lightweight-check.sh`) and its test
-  (`cmd/yt2column/lightweight_docs_test.go`). Scope: a literal that must equal
-  a heading of the spec comment (such as `### 類型`, under which the script
-  reads the type), the body of a fixture spec comment in the test, and the
-  file name of a fixture that checks how a Japanese path is matched. Reason:
-  the spec comment is Japanese (`.claude/commands/_lib/lightweight-spec.md`),
-  so the script must hold its heading to read the type, and the test must
-  write such a spec and such a path to run the script on them. Boundary: no
-  other literal of the two files is Japanese, the output lines of the script
-  included, and their comments and identifiers stay English.
 - The same rule applies to the browser extension: its comments, identifiers,
   and string literals are English. There are three exceptions: the messages in
   a catalog file for a language other than English under
@@ -794,15 +761,6 @@ tools, or that adds or changes an external dependency, is excluded unless the
 human overrides the judgment.
 What may and may not be omitted, the exclusions, and the return are in the
 [Simple Process](docs/dev/conventions/requirements_process.md#simple-process)
-section of the Requirements Process Guide.
-
-**Lightweight process.** A small mechanical change (a wording fix, a deletion of
-unreachable code, or a mechanical refactoring, within fixed limits) takes one
-PR and no task documents. `/mkreq <issue>` offers it when the issue meets the
-conditions, and the user's approval of the spec comment it shows takes the
-place of the approved documents; `/runissue <issue>` implements it. The
-conditions, the limits, and the flow are in the
-[Lightweight Process](docs/dev/conventions/requirements_process.md#lightweight-process)
 section of the Requirements Process Guide.
 
 ## Tool Execution Safety

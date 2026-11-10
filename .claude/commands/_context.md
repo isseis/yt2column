@@ -48,15 +48,11 @@ what changes under which condition:
 | Document status values | `draft` → `approved`; `withdrawn` for every document of a task withdrawn after review (see the requirements process guide, "Document Status Format") |
 | Task process record | The `Process` row of the requirements document's status table, which records whether the task takes the full process or the simple process. Its values, the states of the record, and who writes it are defined only in the requirements process guide, "Document Status Format" ("Process record"); the rules of the simple process are in its "Simple Process" section |
 | Feature branch name | `<GitHub user name>/<slug>-<NN>`, where `<slug>` is the task directory name with each `_` replaced by `-`, and `-<NN>` is appended once: a two-digit sequence number starting at `01` (e.g. `isseis/0027-remove-context-menu-01`). `_lib/task-pr-handoff.md` Part A chooses `NN` for the commands that open a task PR, and `runpr.md` step 5 names the next branch after a merge |
-| Reviewer ping | After a task-document command (`mkreq.md`, `mkarch.md`, `mkplan.md`, `mkplan2.md`), `runplan.md`, or `runissue.md` opens its PR (`_lib/task-pr-handoff.md` Part B), notify the human reviewer with the `PushNotification` tool (the PR author cannot be requested as a GitHub reviewer of their own PR) and repeat the PR URL and the next action in the final report, which is the only channel when the tool is unavailable or the notification is not sent |
+| Reviewer ping | After a task-document command (`mkreq.md`, `mkarch.md`, `mkplan.md`, `mkplan2.md`) or `runplan.md` opens its PR (`_lib/task-pr-handoff.md` Part B), notify the human reviewer with the `PushNotification` tool (the PR author cannot be requested as a GitHub reviewer of their own PR) and repeat the PR URL and the next action in the final report, which is the only channel when the tool is unavailable or the notification is not sent |
 | PR merge method | Squash merge, run with `/mergepr`. The squash commit is the only commit of a PR that reaches `main`, so its message carries what CLAUDE.md requires commit messages to record |
 | Document language | Japanese — the language of the task documents and the guides (`CLAUDE.md`, "Document language", principle (a)); instruction files and conventions are English |
 | Translation glossary | `docs/translation_glossary.md` |
 | Translation language pair | `README.md` (Japanese, primary) → `README.en.md` (English), the only pair `mktrans.md` translates; it stops and asks on any other file *(reference only — `mktrans.md` defines the pair itself, not from this value)* |
-| Lightweight label | `lightweight` — the GitHub label of an issue whose spec comment the user approved for the lightweight process (`docs/dev/conventions/requirements_process.md`, "Lightweight Process") |
-| Lightweight spec marker | `<!-- yt2column:lightweight-spec -->` — the first line of a spec comment, whose format `.claude/commands/_lib/lightweight-spec.md` defines |
-| Lightweight revert marker | `<!-- yt2column:lightweight-reverted -->` — the first line of the revert comment `/runissue` posts when it returns an issue to the normal process |
-| Lightweight branch name | `<GitHub user name>/issue-<N>`, where `<N>` is the issue number, with no sequence number: the branch `/runissue` works on |
 
 ### PR marker conventions
 
@@ -85,8 +81,6 @@ instead of restating them. The one exception is the PR marker template that
 | Plan PR title | The prefix is the `推奨タイトル`'s own when that value starts with an accepted prefix that has a `<scope>`, and `<type>(<task-id>): ` otherwise; the summary is in Japanese. `runplan.md` step 5a (with a PR marker) and step 8 (without one) give the procedure |
 | `推奨タイトル` | The source `runplan.md` step 5a writes the PR title from: a PR title, not a squash subject. A value written now has the form `<type>(<task-id>): <Japanese summary>`, with `<type>` from the prefix table. A value an older plan wrote in another form stays valid input for `runplan.md` step 5a, which never rewrites the plan |
 | Squash subject | `<type>(<scope>): <English summary> (#<number>)` or `<type>: <English summary> (#<number>)`, made only of printable ASCII characters. `mergepr.md` step 2 decides it and checks it as "Checking a squash subject" says |
-| Lightweight PR title | `<type>(issue-<N>): <Japanese summary>`, where `<N>` is the issue number and `<type>` comes from the prefix table: the title of the PR `/runissue` opens |
-| Lightweight commit subject | `<type>(issue-<N>): <English summary>`: the subject of a commit `/runissue` makes. The squash subject is still written by `mergepr.md` step 2 |
 
 The accepted prefix:
 

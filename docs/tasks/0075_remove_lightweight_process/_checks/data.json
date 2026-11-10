@@ -1,0 +1,43 @@
+{
+  "deleted": [
+    ".claude/commands/runissue.md",
+    ".claude/commands/_lib/lightweight-spec.md",
+    ".claude/commands/_lib/lightweight-check.sh",
+    "cmd/yt2column/lightweight_docs_test.go",
+    "internal/doctestutil/lightweight.go",
+    ".github/ISSUE_TEMPLATE/lightweight.md"
+  ],
+  "words": [
+    "lightweight",
+    "runissue",
+    "軽量",
+    "LW_ISSUE",
+    "spec comment",
+    "仕様のコメント",
+    "spec-marker",
+    "spec marker",
+    "revert marker",
+    "issue-<",
+    "ISSUE_KEYWORD",
+    "closingIssuesReferences",
+    "attr-source"
+  ],
+  "excluded": [
+    {
+      "path": "docs/dev/conventions/test_organization.md",
+      "line": "    ├── mocks.go              # Lightweight mocks (no external dependencies)"
+    }
+  ],
+  "out_of_scope": [
+    "docs/tasks/",
+    "docs/dev/adr/"
+  ],
+  "back_in_scope": [
+    "docs/tasks/0000_template/"
+  ],
+  "ci_files": [
+    "Makefile",
+    ".github/workflows/"
+  ],
+  "ci_pattern": "docs/tasks/0075_remove_lightweight_process/_checks"
+}
