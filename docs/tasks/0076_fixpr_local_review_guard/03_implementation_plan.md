@@ -317,9 +317,9 @@
 
 **変更するファイル:** `docs/dev/adr/0015-untrusted-review-threads.md`
 
--   [ ] PR を作る前に、`git grep -nE 'issues/426([^0-9]|$)' origin/main -- docs/dev/adr/` で、ずれの記述を探す（`adr.md`「Discrepancy statements」）。決定の節の「この決定は、まだ…このずれは #426 で扱う。」の 3 文（`85feed05` で `:24` の末尾）を取り除く。
--   [ ] 決定の節の残りが、フェーズ 2〜6 の実装と合うことを読んで確かめる。合わなければ、決定の変更として利用者に確かめる。
--   [ ] コミットメッセージに、訂正の行（`Editorial correction: docs/dev/adr/0015-untrusted-review-threads.md: ...; no decision changed` の形。`requirements_process.md`「Recording in the PR description」）を書く。経緯の節には足さない（`adr.md`「History entries」）。
+-   [x] PR を作る前に、`git grep -nE 'issues/426([^0-9]|$)' origin/main -- docs/dev/adr/` で、ずれの記述を探す（`adr.md`「Discrepancy statements」）。決定の節の「この決定は、まだ…このずれは #426 で扱う。」の 3 文（`85feed05` で `:24` の末尾）を取り除く。
+-   [x] 決定の節の残りが、フェーズ 2〜6 の実装と合うことを読んで確かめる。合わなければ、決定の変更として利用者に確かめる。
+-   [x] コミットメッセージに、訂正の行（`Editorial correction: docs/dev/adr/0015-untrusted-review-threads.md: ...; no decision changed` の形。`requirements_process.md`「Recording in the PR description」）を書く。経緯の節には足さない（`adr.md`「History entries」）。
 
 **成功の条件:** `make test`（`TestADRRecords` を含む）が通る。
 
