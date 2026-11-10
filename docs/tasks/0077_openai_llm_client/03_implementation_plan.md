@@ -56,21 +56,40 @@
 
 #### ステップ 1-1：OpenAI の設定を読み取る
 
-**変更ファイル:** `internal/llm/openaiparam/openaiparam.go`・`openaiparam_test.go`（新規）、`internal/config/config.go`・`config_test.go`。
+**変更ファイル:** `internal/llm/openaiparam/openaiparam.go`・`openaiparam_test.go`（新規）、`internal/config/config.go`・`config_test.go`・`test_helpers.go`。
 
 - [ ] 設計書 §3.1 の effort 型・一覧・解析と `ProviderOpenAI`、工程の選択、キーの取得口を加える。
-- [ ] 既存の設定テストを拡張し、7 effort、既定・継承、未知モデルと `/`、不正な選択、両方向の混在を検証する。
+- [ ] `test_helpers.go` の `EffortValuesByProviderForTest` と OpenAI の既定 effort の取得口を更新し、既存の設定テストを拡張して、7 effort、既定・継承、未知モデルと `/`、不正な選択、両方向の混在を検証する。
 - [ ] キーの欠け・空、未選択のキーの無視、再開で必要な工程だけを読むことを検証する。旧2プロバイダと本番の既定を維持する。
 
 #### ステップ 1-2：サーバの入力境界とガードをそろえる
 
-**変更ファイル:** `internal/config/serverfile.go`・`serverfile_test.go`・`envaccess_test.go`、`internal/pipeline/pipeline_test.go`。
+**変更ファイル:** `internal/config/serverfile.go`・`serverfile_test.go`・`envaccess_test.go`、`internal/pipeline/pipeline_test.go`、`cmd/yt2column/docs_test.go`・`cmd/yt2column-server/docs_test.go`、`README.md`・`README.en.md`、`docs/dev/project_overview.md`・`docs/dev/security.md`・`docs/dev/conventions/package_reference.md`。
 
 - [ ] 許可する7キーとコメントだけの雛形を追加し、既存6キーのファイルも読み込む。環境による補完を設けない。
 - [ ] `TestParseServerFileAccepts`・`TestParseServerFileRejects`・`TestServerFileTemplate` と設定のテストを拡張し、書式・サイズ・所有者・権限・未知キーの拒否を保つ。
 - [ ] `TestEnvAccessConfined` の秘密名と `TestConfigImports` の許可パッケージを更新する。新しい環境読み込みを入口と config 以外に広げない。
 
-**完了条件:** 対象テストとグリーンゲートが通る。この時点では provider の通信経路を追加しない。
+- [ ] `TestEffortValuesDocsContract` と `TestServerDocsContract` が参照する provider・effort・7キーの値を両 README・project_overview・security に反映する。`openaiparam` をパッケージ参照表に加え、`TestPackageReferenceListsPackages` を実行する。README は同じコミットで `/mktrans README.md` により同期する。案内では配線が後続の PR であることを区別する。
+
+**完了条件:** 対象テスト、README 同期、`make ext-test` とグリーンゲートが通る。この時点では provider の通信経路を追加しない。
+
+### PR-1 作成ポイント: configuration and effort
+
+**対象ステップ**: 1-1 / 1-2
+
+**推奨タイトル**: `feat(0077): OpenAIの設定とeffortの型を追加する`
+
+**レビュー観点**: 工程の継承と再開 / 7キーの入力境界 / ガードと日英同期
+
+**実装モデル要件**: standard
+
+**判定理由**: 確定済みの設定拡張であり、上位モデルを要する条件に該当しない。
+
+- [ ] グリーンゲート（`make test`・`make lint`）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ2：OpenAI の要求・応答・使用量・エラー
 
@@ -93,9 +112,27 @@
 
 **完了条件:** PR-2 は PR-3 の前提作業として完了させる。既存2プロバイダの round-trip と料金の回帰、混在連鎖、グリーンゲートが通る。
 
+### PR-2 作成ポイント: pricing context and artifact compatibility
+
+**対象ステップ**: 2-1 / 2-2
+
+**推奨タイトル**: `feat(0077): 料金条件を保存し版3と版4の再開を支える`
+
+**レビュー観点**: 旧版の識別子 / 版3/4の混在連鎖と再利用ファイルの保持 / 条件の厳格な検証
+
+**実装モデル要件**: frontier-required
+
+**判定理由**: 2-2 が保存形式の移行と旧版の受理範囲の拡張を含み、移行時のレビュー条件に該当する。
+
+- [ ] グリーンゲート（`make test`・`make lint`）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 #### ステップ 2-3：OpenAI アダプタとループバックの検証を追加する
 
 **追加ファイル:** `internal/llm/openai/` の `openai.go`・`request.go`・`response.go`・`errors.go`・`openai_test.go`・`response_test.go`・`test_helpers.go`・`test_helpers_endpoint.go`。
+**変更ファイル:** `docs/dev/conventions/package_reference.md`。
 
 - [ ] 設計書 §3.2 の非公開クライアントと `Options`・`New` を追加し、共有の要求検証・HTTP 送信・strictjson を使う。
 - [ ] 新規 `TestNew`・`TestGenerateRequest` で構築と要求の拒否時の送信0回、固定先、認証、役割、effort、正の上限と既定上限、保存・方式・TTL の設定を記録した要求で検証する。
@@ -106,7 +143,26 @@
 - [ ] 新規 `TestGenerateTransport` でリダイレクト拒否、HTTP 状態と固定案内、送信回数、送信中・本文読取中の期限・キャンセル・切断、本文上限を検証する。未知値や拒否文に偽の秘密・制御文字を含め、結果と診断に出さない。
 - [ ] 非公開構築口を使うテスト補助には `test` タグを付け、ループバックだけを許可する。`llmhttptest` の既存ケースを再利用し、共有部品自体の同じテスト表は作り直さない。
 
+- [ ] `openai` をパッケージ参照表に加え、`TestPackageReferenceListsPackages` を実行する。
+
 **完了条件:** 新しいアダプタのユニットテスト、旧アダプタの回帰、グリーンゲートが通る。実 API は呼ばない。
+
+### PR-3 作成ポイント: Responses API adapter
+
+**対象ステップ**: 2-3
+
+**推奨タイトル**: `feat(0077): OpenAIのResponses APIアダプタを追加する`
+
+**レビュー観点**: 消費境界と終了の優先順位 / 使用量と料金条件 / 通信と秘密
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: 2-3 が応答の状態判定を含む複雑な処理であり、リスクを独立してレビューする。
+
+- [ ] グリーンゲート（`make test`・`make lint`）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ3：両工程の配線・伏せ字・料金
 
@@ -130,6 +186,23 @@
 
 **完了条件:** 3プロバイダを両方向に混在させた配線、秘密、不明の料金、再開の検証とグリーンゲートが通る。
 
+### PR-4 作成ポイント: provider wiring and cost estimates
+
+**対象ステップ**: 3-1 / 3-2
+
+**推奨タイトル**: `feat(0077): OpenAIを両工程に接続し料金を見積もる`
+
+**レビュー観点**: 両方向の混在 / 両入口の伏せ字 / 条件付きの料金と再開
+
+**実装モデル要件**: standard
+
+**判定理由**: 設計済みの配線と料金表の拡張であり、上位モデルを要する条件に該当しない。
+
+- [ ] グリーンゲート（`make test`・`make lint`）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ### フェーズ4：統合テスト・実応答・利用案内
 
 #### ステップ 4-1：実 API のテストを明示的な実行に限る
@@ -140,7 +213,7 @@
 - [ ] 設計書 §7.2 の純粋な設定判定と薄い実行ラッパーを追加する。偽 lookup で未指定・不正・正常伝播を検証し、本番のキーへアクセスしないこと、オプトインと HTTP/2 デバッグの拒否を新規 `TestIntegrationSettings` で確認する。
 - [ ] 課金の注意・呼び出し数・既定モデルと effort・全体の期限を Make ターゲットに定義し、新規 `TestMakeIntegrationOpenAI` で実 API を呼ばず検証する。他のオプトインを有効にしない。
 - [ ] 新規 `TestIntegrationResponses` で独自の短い英語プロンプトによる成功と打ち切りを確認する。前提が成立しない場合は報告し、再送しない。ログの秘密の伏せ字と表示のエスケープを行い、本文を出力しない。
-- [ ] `openaitestutil` の共有ファイルは `test || integration` タグ、非公開の構築口だけを使う補助は `test` タグにする。導入時に実際のタグでコンパイルを確認し、`TestFakesCarryBuildTag` の固定ファイル数を同じ PR で更新する。
+- [ ] `openaitestutil` の共有ファイルは `test || integration` タグ、非公開の構築口だけを使う補助は `test` タグにする。導入時に実際のタグでコンパイルを確認し、`TestFakesCarryBuildTag` の固定ファイル数とパッケージ参照表の `openai/testutil` 行を同じ PR で更新する。
 
 #### ステップ 4-2：実応答を取得し、利用案内を同期する
 
@@ -156,21 +229,48 @@
 
 **完了条件:** 実応答の検証、文書の値のガード、手動の読解、README 同期、グリーンゲートと必要な拡張テストが通る。取得が未許可・未完了なら AC-23 を完了扱いにしない。
 
+### PR-5 作成ポイント: integration fixtures and documentation
+
+**対象ステップ**: 4-1 / 4-2
+
+**推奨タイトル**: `test(0077): OpenAIの実応答と統合テストと利用案内を追加する`
+
+**レビュー観点**: 有料実行のオプトイン / 実応答の加工 / 値のガードと日英同期
+
+**実装モデル要件**: frontier-recommended
+
+**判定理由**: 4-1 が環境による実行判定とビルドタグ別の補助を導入し、複数の条件付きチェックに該当する。
+
+- [ ] グリーンゲート（`make test`・`make lint`）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ## 3. 実装順序とマイルストーン (Implementation Order and Milestones)
 
 ### 3.1 順序
 
 設定 → 使用量と保存・再開 → アダプタ → 配線と料金 → 統合テストと利用案内の順に進める。各 PR で依存する型と利用者・ガードをそろえ、後続 PR のスタブを置かずビルド可能にする。PR-1〜3 の段階では OpenAI の選択が読み取れてもアプリケーションの通信には接続しない。機能が利用可能になるのは PR-4、タスク全体の完了は PR-5 とする。
 
+### 3.2 PR 構成
+
+| PR | 対象ステップ | 主な変更内容 | 実装モデル要件 |
+|---|---|---|---|
+| PR-1 | 1-1 / 1-2 | OpenAIの設定とeffortの型を追加する | standard |
+| PR-2 | 2-1 / 2-2 | 料金条件を保存し版3と版4の再開を支える | frontier-required |
+| PR-3 | 2-3 | OpenAIのResponses APIアダプタを追加する | frontier-recommended |
+| PR-4 | 3-1 / 3-2 | OpenAIを両工程に接続し料金を見積もる | standard |
+| PR-5 | 4-1 / 4-2 | OpenAIの実応答と統合テストと利用案内を追加する | frontier-recommended |
+
 ## 4. テスト戦略 (Test Strategy)
 
 ユニットテストは偽のキー、既存の fake、ループバック HTTP、`t.TempDir` を使う。ネットワークの資源は取得時に cleanup を登録する。実サービスの応答ID・日時を固定比較せず、消費する構造と分類を検証する。永続的な外部の資源を作らず、統合テストは保存応答の一覧や順序に依存しない。
 
-新しい非 `*_test.go` の補助は導入した PR で利用するタグのコンパイルを検証する。実 API の統合テストはオプトインを設定せずにタグ付きビルドを検証し、課金される実行は別の許可の範囲で行う。Make ターゲットの引数は既存の統合テストターゲットと Go のヘルプに照合する。
+`*_test.go` 以外の新しい補助ファイルは、導入する PR で、実際に使うビルドタグを指定してコンパイルを確認する。実 API の統合テストはオプトインを設定せずにタグ付きビルドを検証し、課金される実行は別の許可の範囲で行う。Make ターゲットの引数は既存の統合テストターゲットと Go のヘルプに照合する。実装では統合テスト用のタグだけでも補助がコンパイルされることを確認する。
 
 変更した各テストでは実装中に対応する分岐・デフォルト・協力オブジェクトを一時的に壊して実際に失敗することを確認し、コミットに記録する。特に料金条件の改変はその条件を読み出す経路、版3の互換性は旧版の識別子の検証経路、終了の優先順位は複数条件を含む応答の分類を対象にする。
 
-各 PR の完了時に `make test`・`make lint` を実行する。Go を編集した場合は先に `make fmt` を実行する。最終 PR は README と development ガイドを変更するため `make ext-test` も実行する。使われない構築口が残っていないことを `make deadcode` で確かめる。既存のテストは削除しない。
+各 PR の完了時に `make test`・`make lint` を実行する。Go を編集した場合は先に `make fmt` を実行する。README または development ガイドを変更する PR-1・PR-5 では `make ext-test` も実行する。使われない構築口が残っていないことを `make deadcode` で確かめる。既存のテストは削除しない。
 
 ## 5. リスク管理 (Risk Management)
 
@@ -200,9 +300,9 @@
 |---|---|---|
 | AC-01 | 1-1 / 2-3 / 3-1 | test: `internal/config/config_test.go::TestParseLLMProvider`、`internal/llm/openai/openai_test.go::TestGenerateRequest`（新規） |
 | AC-02 | 1-1 / 2-3 | test: `internal/config/config_test.go::TestLoadParsesLLMValue`、`internal/llm/openai/openai_test.go::TestGenerateRequest`（新規） |
-| AC-03 | 1-1 / 3-1 | test: `internal/llm/provider/provider_test.go::TestNewSendsStageEffort` を3プロバイダに拡張、両入口 `run_test.go::TestOpenAIConfiguration`（新規） |
-| AC-04 | 1-1 / 3-1 | test: 両入口 `run_test.go::TestOpenAIConfiguration`（新規、キーの欠け・空の終了コードと送信回数） |
-| AC-05 | 1-1 / 1-2 / 3-1 | test: `internal/config/config_test.go::TestLoadProviderVarsFollowSelection`、`TestLoadServerReadsOnlyHomeAndGodebug`、両入口 `run_test.go::TestOpenAIConfiguration`（新規） |
+| AC-03 | 1-1 / 3-1 | test: `internal/llm/provider/provider_test.go::TestNewSendsStageEffort` を3プロバイダに拡張、`cmd/yt2column/run_test.go::TestOpenAIConfiguration`・`cmd/yt2column-server/run_test.go::TestOpenAIConfiguration`（新規） |
+| AC-04 | 1-1 / 3-1 | test: `cmd/yt2column/run_test.go::TestOpenAIConfiguration`・`cmd/yt2column-server/run_test.go::TestOpenAIConfiguration`（新規、キーの欠け・空の終了コードと送信回数） |
+| AC-05 | 1-1 / 1-2 / 3-1 | test: `internal/config/config_test.go::TestLoadProviderVarsFollowSelection`、`TestLoadServerReadsOnlyHomeAndGodebug`、`cmd/yt2column/run_test.go::TestOpenAIConfiguration`・`cmd/yt2column-server/run_test.go::TestOpenAIConfiguration`（新規） |
 | AC-06 | 1-2 | test: `internal/config/serverfile_test.go::TestParseServerFileAccepts`、`TestParseServerFileRejects`、`TestServerFileTemplate` |
 | AC-07 | 2-3 | test: `internal/llm/openai/openai_test.go::TestGenerateRequest`（新規） |
 | AC-08 | 2-3 | test: `internal/llm/openai/openai_test.go::TestNew`、`TestGenerateRequest`（新規、拒否と送信0回） |
@@ -212,14 +312,14 @@
 | AC-12 | 2-3 | test: `internal/llm/openai/response_test.go::TestResponseFinish`（新規） |
 | AC-13 | 2-3 | test: `internal/llm/openai/response_test.go::TestResponseFinish`（新規、文面なしの打ち切りと固定の案内） |
 | AC-14 | 2-3 | test: `internal/llm/openai/response_test.go::TestResponseFinish`（新規、複合異常と優先順位） |
-| AC-15 | 2-3 / 3-2 | test: `internal/llm/openai/response_test.go::TestResponseFinish`、`TestResponseShape`、両入口 `run_test.go::TestOpenAIConfiguration`（新規、失敗した記事を出さない） |
+| AC-15 | 2-3 / 3-2 | test: `internal/llm/openai/response_test.go::TestResponseFinish`、`TestResponseShape`、`cmd/yt2column/run_test.go::TestOpenAIConfiguration`・`cmd/yt2column-server/run_test.go::TestOpenAIConfiguration`（新規、失敗した記事を出さない） |
 | AC-16 | 2-3 | test: `internal/llm/openai/response_test.go::TestResponseUsage`（新規） |
 | AC-17 | 2-1 / 2-3 | test: `internal/llm/openai/response_test.go::TestResponseUsage`（新規、成功と拒否時の不明の使用量） |
 | AC-18 | 2-2 / 3-2 | test: `internal/artifact/chain_test.go::TestMixedVersionResume`、`cmd/yt2column/run_test.go::TestRunOpenAIUsageRecords`（新規）、`cmd/yt2column/cost_test.go::TestRunCostLinesResume` |
 | AC-19 | 2-3 / 3-2 | test: `internal/pricing/pricing_test.go::TestEstimateOpenAI`、`internal/llm/openai/response_test.go::TestResponsePricingContext`（新規）、`cmd/yt2column/cost_test.go::TestRunCostLinesUnknown`。static: `internal/pricing/rates_test.go::TestRateTableSourceComments`。manual: 公式単価との照合 |
 | AC-20 | 2-3 / 3-1 | test: `internal/llm/openai/openai_test.go::TestGenerateRequest`、`TestGenerateTransport`、`internal/llm/provider/provider_test.go::TestOpenAIDefaultMaxTokensFitsBudget`（新規） |
 | AC-21 | 2-3 | test: `internal/llm/openai/openai_test.go::TestGenerateTransport`（新規） |
-| AC-22 | 1-2 / 2-3 / 3-1 / 4-1 / 4-2 | test: 両入口 `run_test.go::TestOpenAIOutputsOmitSecrets`、`internal/llm/openai/testutil/integration_settings_test.go::TestIntegrationSettings`（新規）。static: `internal/config/envaccess_test.go::TestEnvAccessConfined`。manual: 保存サンプルの加工確認 |
+| AC-22 | 1-2 / 2-3 / 3-1 / 4-1 / 4-2 | test: `cmd/yt2column/run_test.go::TestOpenAIOutputsOmitSecrets`・`cmd/yt2column-server/run_test.go::TestOpenAIOutputsOmitSecrets`、`internal/llm/openai/testutil/integration_settings_test.go::TestIntegrationSettings`（新規）。static: `internal/config/envaccess_test.go::TestEnvAccessConfined`。manual: 保存サンプルの加工確認 |
 | AC-23 | 4-1 / 4-2 | test: `internal/llm/openai/response_test.go::TestCapturedResponses`、`internal/llm/openai/integration_test.go::TestIntegrationResponses`（新規、後者は別途許可）。manual: 出典・取得条件・加工・再取得の記録 |
 | AC-24 | 1-1 / 4-2 | test: `internal/config/config_test.go::TestLoadProductionDefaults`、`make ext-test`。static: `cmd/yt2column/docs_test.go::TestEffortValuesDocsContract`、`TestOpenAIDocsContract`（新規）、`make readme-sync-check`。manual: 日英 README と project_overview・CLAUDE・cli・development・pricing_update・package_reference・上限ガイドを実装と照合 |
 | AC-25 | 4-2 | manual: `docs/dev/security.md` と README の送信データ・保存範囲・監視ログ・キャッシュの説明を公式出典と照合。自然言語の内容だけを定める AC として手動で検証 |
