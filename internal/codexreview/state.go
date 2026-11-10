@@ -40,8 +40,7 @@ var statusArgs = []string{"status", "--porcelain=v1", "-z", "--untracked-files=a
 
 // gitState is the state of this worktree compared before and after codex
 // runs: its status, and where HEAD is. Other branches, tags, and the stash
-// are shared by every worktree of the repository and are not compared, so
-// work in another worktree does not stop the review.
+// are not compared.
 type gitState struct {
 	status    string // the output of statusArgs, compared as it is
 	branchRef string // the ref of the branch HEAD is on, such as "refs/heads/main"; empty when HEAD is detached
