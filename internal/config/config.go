@@ -236,9 +236,10 @@ func (s LLMSelection) DeepSeekEffort() deepseekparam.Effort {
 	return s.deepSeekEffort
 }
 
-// OpenAIEffort is not openaiparam.EffortUnset exactly when Provider is
-// ProviderOpenAI: the effort part of the value, or defaultOpenAIEffort when
-// the value has none.
+// OpenAIEffort is the effort part of the value when Provider is
+// ProviderOpenAI and the value parsed to an accepted selection; otherwise it
+// is openaiparam.EffortUnset. A rejected selection that kept its accepted
+// provider part also holds EffortUnset, because no effort was read.
 func (s LLMSelection) OpenAIEffort() openaiparam.Effort {
 	return s.openAIEffort
 }

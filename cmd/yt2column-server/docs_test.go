@@ -267,7 +267,7 @@ var configFileSystems = []string{"darwin", "linux"}
 
 // checkReadmeConfigFile checks the configuration file subsection of one README
 // version's server section against the code: the path for every system on the
-// labelled line, the six keys the file accepts on one line, the size limit in
+// labelled line, the seven keys the file accepts on one line, the size limit in
 // KiB, and the exit-code table of config init with exactly the three codes the
 // entry point defines.
 func checkReadmeConfigFile(t *testing.T, v doctestutil.ReadmeVersion, serverSection string) {

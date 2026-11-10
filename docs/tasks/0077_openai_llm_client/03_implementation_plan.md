@@ -301,7 +301,7 @@
 | AC-01 | 1-1 / 2-3 / 3-1 | test: `internal/config/config_test.go::TestParseLLMProvider`、`internal/llm/openai/openai_test.go::TestGenerateRequest`（新規） |
 | AC-02 | 1-1 / 2-3 | test: `internal/config/config_test.go::TestLoadParsesLLMValue`、`internal/llm/openai/openai_test.go::TestGenerateRequest`（新規） |
 | AC-03 | 1-1 / 3-1 | test: `internal/llm/provider/provider_test.go::TestNewSendsStageEffort` を3プロバイダに拡張、`cmd/yt2column/run_test.go::TestOpenAIConfiguration`・`cmd/yt2column-server/run_test.go::TestOpenAIConfiguration`（新規） |
-| AC-04 | 1-1 / 3-1 | test: `cmd/yt2column/run_test.go::TestOpenAIConfiguration`・`cmd/yt2column-server/run_test.go::TestOpenAIConfiguration`（新規、キーの欠け・空の終了コードと送信回数） |
+| AC-04 | 1-1 / 3-1 | test: `internal/config/config_test.go::TestLoadOpenAI`（新規、キーの欠け・空）、`cmd/yt2column/run_test.go::TestOpenAIConfiguration`・`cmd/yt2column-server/run_test.go::TestOpenAIConfiguration`（新規、キーの欠け・空の終了コードと送信回数） |
 | AC-05 | 1-1 / 1-2 / 3-1 | test: `internal/config/config_test.go::TestLoadProviderVarsFollowSelection`、`TestLoadServerReadsOnlyHomeAndGodebug`、`cmd/yt2column/run_test.go::TestOpenAIConfiguration`・`cmd/yt2column-server/run_test.go::TestOpenAIConfiguration`（新規） |
 | AC-06 | 1-2 | test: `internal/config/serverfile_test.go::TestParseServerFileAccepts`、`TestParseServerFileRejects`、`TestServerFileTemplate` |
 | AC-07 | 2-3 | test: `internal/llm/openai/openai_test.go::TestGenerateRequest`（新規） |

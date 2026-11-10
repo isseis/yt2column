@@ -352,6 +352,81 @@ func assertClaudeEfforts(t *testing.T, llm LLMConfig, wantGeneration, wantReview
 	}
 }
 
+// TestLoadOpenAI checks that an openai environment loads with its key and
+// effort, that an unset or empty OPENAI_API_KEY is ErrMissing naming the
+// variable, and that a stage that does not select openai reads no effort and
+// holds no key for it.
+func TestLoadOpenAI(t *testing.T) {
+	openAIEnv := func() map[string]string {
+		return map[string]string{
+			llmEnv:          "openai/gpt-6-astra+high",
+			reviewLLMEnv:    "openai/gpt-6-astra",
+			openAIAPIKeyEnv: "sk-openai-test-key",
+			cacheDirEnv:     "/tmp/yt2column-test-cache",
+		}
+	}
+
+	t.Run("key and efforts", func(t *testing.T) {
+		env := openAIEnv()
+		cfg, err := Load(envLookup(env))
+		if err != nil {
+			t.Fatalf("Load() error = %v, want nil", err)
+		}
+		llm := cfg.LLM()
+		if got := llm.Generation().Provider(); got != ProviderOpenAI {
+			t.Errorf("Generation().Provider() = %v, want ProviderOpenAI", got)
+		}
+		if got := llm.Generation().Model(); got != "gpt-6-astra" {
+			t.Errorf("Generation().Model() = %q, want gpt-6-astra", got)
+		}
+		if got := llm.Generation().OpenAIEffort(); got != openaiparam.EffortHigh {
+			t.Errorf("Generation().OpenAIEffort() = %v, want EffortHigh", got)
+		}
+		if got := llm.Review().OpenAIEffort(); got != openaiparam.EffortMedium {
+			t.Errorf("Review().OpenAIEffort() = %v, want the default EffortMedium", got)
+		}
+		key, err := llm.OpenAIAPIKey().Reveal()
+		if err != nil {
+			t.Fatalf("OpenAIAPIKey().Reveal() error = %v", err)
+		}
+		if key != env[openAIAPIKeyEnv] {
+			t.Errorf("OpenAIAPIKey() = %q, want %q", key, env[openAIAPIKeyEnv])
+		}
+		// The efforts of the providers this selection does not use stay unset.
+		if got := llm.Generation().ClaudeEffort(); got != claudeparam.EffortUnset {
+			t.Errorf("Generation().ClaudeEffort() = %v, want EffortUnset", got)
+		}
+		if got := llm.Generation().DeepSeekEffort(); got != deepseekparam.EffortUnspecified {
+			t.Errorf("Generation().DeepSeekEffort() = %v, want EffortUnspecified", got)
+		}
+	})
+
+	t.Run("key unset", func(t *testing.T) {
+		_, err := Load(envLookup(without(openAIEnv(), openAIAPIKeyEnv)))
+		assertVarError(t, err, ErrMissing, openAIAPIKeyEnv)
+	})
+
+	t.Run("key empty", func(t *testing.T) {
+		_, err := Load(envLookup(with(openAIEnv(), openAIAPIKeyEnv, "")))
+		assertVarError(t, err, ErrMissing, openAIAPIKeyEnv)
+	})
+
+	t.Run("not selected", func(t *testing.T) {
+		// The key is present but no stage selects openai, so neither the key
+		// nor the effort reaches the configuration.
+		cfg, err := Load(envLookup(with(validEnv(), openAIAPIKeyEnv, "sk-openai-test-key")))
+		if err != nil {
+			t.Fatalf("Load() error = %v, want nil", err)
+		}
+		if _, err := cfg.LLM().OpenAIAPIKey().Reveal(); err == nil {
+			t.Error("OpenAIAPIKey() is set, want the zero secret")
+		}
+		if got := cfg.LLM().Generation().OpenAIEffort(); got != openaiparam.EffortUnset {
+			t.Errorf("Generation().OpenAIEffort() = %v, want EffortUnset", got)
+		}
+	})
+}
+
 // TestLoadClaudeInvalid checks that an unusable claude provider variable wraps
 // ErrInvalid and names the variable.
 func TestLoadClaudeInvalid(t *testing.T) {
@@ -2086,10 +2161,10 @@ func serverEnvWithFile(t *testing.T, data []byte) map[string]string {
 // the revealed keys, the workspace ID, and the revealed Webhook URL. viewLLM
 // fills all but the Webhook URL, which an LLMConfig does not hold.
 type serverView struct {
-	generation, review     LLMSelection
-	deepSeekKey, claudeKey string
-	workspaceID            claudeparam.WorkspaceID
-	webhook                string
+	generation, review                LLMSelection
+	deepSeekKey, claudeKey, openAIKey string
+	workspaceID                       claudeparam.WorkspaceID
+	webhook                           string
 }
 
 // viewServer returns the comparable part of a ServerConfig.
@@ -2105,9 +2180,10 @@ func viewServer(cfg ServerConfig) serverView {
 func viewLLM(c LLMConfig) serverView {
 	deepSeek, _ := c.DeepSeekAPIKey().Reveal()
 	claude, _ := c.AnthropicAPIKey().Reveal()
+	openAI, _ := c.OpenAIAPIKey().Reveal()
 	return serverView{
 		generation: c.Generation(), review: c.Review(),
-		deepSeekKey: deepSeek, claudeKey: claude, workspaceID: c.AnthropicWorkspaceID(),
+		deepSeekKey: deepSeek, claudeKey: claude, openAIKey: openAI, workspaceID: c.AnthropicWorkspaceID(),
 	}
 }
 
@@ -2144,6 +2220,25 @@ func TestLoadServerReadsFile(t *testing.T) {
 		}
 		if got.deepSeekKey != "sk-file" {
 			t.Errorf("DeepSeek API key = %q, want the file's", got.deepSeekKey)
+		}
+	})
+	t.Run("openai", func(t *testing.T) {
+		env := serverEnvWithFile(t, []byte(
+			llmEnv+"=openai/gpt-6-astra+high\n"+
+				reviewLLMEnv+"=openai/gpt-6-astra\n"+
+				openAIAPIKeyEnv+"=sk-openai-file\n"))
+		cfg, err := LoadServer(envLookup(env))
+		if err != nil {
+			t.Fatalf("LoadServer() error = %v, want nil", err)
+		}
+		goWant := LLMSelection{provider: ProviderOpenAI, model: "gpt-6-astra", openAIEffort: openaiparam.EffortHigh}
+		reviewWant := LLMSelection{provider: ProviderOpenAI, model: "gpt-6-astra", openAIEffort: openaiparam.EffortMedium}
+		got := viewServer(cfg)
+		if got.generation != goWant || got.review != reviewWant {
+			t.Errorf("selections = %+v/%+v, want %+v/%+v", got.generation, got.review, goWant, reviewWant)
+		}
+		if got.openAIKey != "sk-openai-file" {
+			t.Errorf("OpenAI API key = %q, want the file's", got.openAIKey)
 		}
 	})
 }
@@ -2332,7 +2427,7 @@ func writeModeForTest(t *testing.T, path string, data []byte, mode os.FileMode) 
 
 // TestLoadServerReadsOnlyHomeAndGodebug checks that the server's load reads
 // HOME and GODEBUG from the environment, and no other variable, even when
-// the environment holds the six keys and the retired LLM variables, which
+// the environment holds the seven keys and the retired LLM variables, which
 // then leave the configuration as the file alone gives it.
 func TestLoadServerReadsOnlyHomeAndGodebug(t *testing.T) {
 	env := serverEnvWithFile(t, []byte(anthropicAPIKeyEnv+"=sk-ant-file\n"))
