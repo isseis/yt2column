@@ -122,6 +122,18 @@
       ],
       "checker_changes": "",
       "task_doc_changes": []
+    },
+    "s6": {
+      "adrs": [],
+      "carried_in": [
+        "docs/dev/adr/0015-untrusted-review-threads.md"
+      ],
+      "retitled_adrs": [],
+      "link_changes": [],
+      "line_changes": [],
+      "unrecorded_commits": [],
+      "checker_changes": "",
+      "task_doc_changes": []
     }
   }
 }
