@@ -324,16 +324,16 @@ PR-1 を先にする（設計書 8 章）。
 
 PR-1 の実行の記録（ステップ 1-9）:
 
--   コマンド：`docs/tasks/0080_diff_check_proportion/_checks/scope.sh <base> <commit> pr1`（作業ツリーの最上位で実行した）
+-   コマンド：`docs/tasks/0080_diff_check_proportion/_checks/scope.sh <base> <commit> pr1`
 -   マージの基点（`git merge-base origin/main HEAD`。`git fetch origin main` の後）：`bc6866d5edb490d56bd02593ecd786d6947e6074`
--   比べたコミット（PR-1 の最後の実装のコミット）：`baec77a570d237f36f479c56c611f6c1818561a1`
--   スクリプトの blob の ID：`8ca3335b9983cbe34354b2fc88dff842345849df`
+-   比べたコミット（この記録の前の最後のコミット）：`f6c2ff0b4eacb8a1e5d81a512305ec5b351085cc`
+-   スクリプトの blob の ID：`904e80e9c204e104762d30d939bae7e044ccac8c`
 -   終了コード：0
 -   出力:
 
     ```text
     base:   bc6866d5edb490d56bd02593ecd786d6947e6074
-    commit: baec77a570d237f36f479c56c611f6c1818561a1
+    commit: f6c2ff0b4eacb8a1e5d81a512305ec5b351085cc
     mode:   pr1
     ok   file-scope
     ok   adr-deletions-only
