@@ -13,86 +13,97 @@
 
 ## 1. 概要 (Overview)
 
-**目的:** 本書は、Slack 互換の Incoming Webhook への投稿の機能（以下、投稿の機能）を廃止し、記事によるメンションへの対策を、ビューアの Markdown のコピーに移すための要件を定義する。
+**目的:** 本書は、Slack 互換の Incoming Webhook への投稿の機能（以下、投稿の機能）を廃止し、記事によるメンションの無効化を、ビューアの Markdown のコピーに移すための要件を定義する。
 
 **背景:**
 
-拡張のビューアには、記事を Webhook へ投稿する操作と、記事を Markdown 形式でクリップボードへコピーする操作がある。投稿の代わりに、利用者が Slack や Mattermost のチャンネルを開いて、コピーした記事を貼り付ければよい。親 issue [#769](https://github.com/isseis/yt2column/issues/769) は、拡張だけの構成へ移る方針を決めた。そこへ移る前に、秘密（Webhook の URL）と、任意の送り先への `host_permissions` を要する機能をなくしておく。
+拡張のビューアには、記事を Webhook へ投稿する操作、`.md` で保存する操作、Markdown 形式でクリップボードへコピーする操作がある（`extension/src/viewerApp.ts:557`〜`559`）。投稿の代わりに、利用者が Slack や Mattermost のチャンネルを開いて、コピーした記事を貼り付ければよい。親 issue [#769](https://github.com/isseis/yt2column/issues/769) は、拡張だけの構成へ移る方針を決めた。そこへ移る前に、秘密（Webhook の URL）と、任意の送り先への `host_permissions` を要する機能をなくしておく。
 
-ただし、いまのコピーは、サーバが返す表示用の Markdown（`publisher.DisplayMarkdown`、`internal/publisher/display_render.go:15`）をそのまま書く（`extension/src/viewerApp.ts:548`）。メンションの無効化は、投稿の経路だけにある（`docs/dev/security.md` §6「信頼できないテキストの取り扱い」の 3 つの層、`internal/publisher/slack_render.go:116`・`internal/publisher/slack_message.go:220`）。投稿の機能だけを消すと、メンションへの対策がなくなる。YouTube のハンドルは `@` で始まるので、概要欄やチャンネル名から `@名前` が記事に入りうる。
+ただし、いまのコピーは、サーバが返す表示用の Markdown（`publisher.DisplayMarkdown`、`internal/publisher/display_render.go:15`）をそのまま書く（`extension/src/viewerApp.ts:548`）。メンションの無効化は、投稿の経路だけにある（`docs/dev/security.md` §6「信頼できないテキストの取り扱い」の 3 つの層、`internal/publisher/slack_render.go:116`・`internal/publisher/slack_message.go:220`）。投稿の機能だけを消すと、メンションの無効化がなくなる。YouTube のハンドルは `@` で始まるので、概要欄やチャンネル名から `@名前` が記事に入りうる。
 
-対応 issue: [#770](https://github.com/isseis/yt2column/issues/770)（親: [#769](https://github.com/isseis/yt2column/issues/769)、関連: [#771](https://github.com/isseis/yt2column/issues/771)・[#772](https://github.com/isseis/yt2column/issues/772)・[#773](https://github.com/isseis/yt2column/issues/773)）
+対応 issue: [#770](https://github.com/isseis/yt2column/issues/770)（親: [#769](https://github.com/isseis/yt2column/issues/769)、関連: [#771](https://github.com/isseis/yt2column/issues/771)・[#772](https://github.com/isseis/yt2column/issues/772)・[#773](https://github.com/isseis/yt2column/issues/773)・[#720](https://github.com/isseis/yt2column/issues/720)）
 
-**本書の記述範囲:** 本書は、観測できる振る舞いを定める。廃止する機能、廃止の後にサーバ・ホスト・拡張が返すもの、コピーした文章のどの `@` をどう変えるか、利用者に何を示すかである。無効化をどの部品で行うか（サーバか拡張か）、数をどう拡張に渡すか、規則のコードをどこに置くか、テストの手段は、設計（`02_architecture.md`）で決める。設計へ申し送る事項は [design_handoff.md](design_handoff.md) にある。
+**本書の記述範囲:** 本書は、観測できる振る舞いを定める。廃止する機能、廃止の後にサーバ・ホスト・拡張が返すもの、コピーした文章のどの `@` をどう変えるか、利用者に何を示すかである。無効化をどの部品で行うか（サーバか拡張か）、数をどう拡張に渡すか、規則のコードをどこに置くか、URL とコードの範囲の判定の細部、テストの手段は、設計（`02_architecture.md`）で決める。設計へ申し送る事項は [design_handoff.md](design_handoff.md) にある。
 
 **issue #770 で決めたこと:**
 
 -   **廃止するもの:** サーバの投稿の操作とその API、`SlackWebhookPublisher`・`PrepareSlackMessages`・`PostMessages`、`internal/slackwebhook`、`SLACK_WEBHOOK_URL` の設定、`make test-integration-slack`、拡張のビューアの投稿の操作。メンションへの対策のうち、Webhook に固有の層（`silent` の付与、メッセージの分割）も廃止する。利用者が手で貼り付ける方法で置き換えられるためである。
--   **コピーへ移す規則:** コピーでは、対象の `@`（`docs/dev/security.md` §6 の定義）を、`@` の直後に U+200B を入れていつも無効化する。対象は見出し行と、本文のコードスパンとフェンス付きコードブロックの外である。語の途中の `@` と、直前が `/` の `@` は変えない。コードの範囲を判定できない本文では、すべての対象の `@` を無効化する。
--   **変えないもの:** 表示（ビューア）と `--out` のファイルの内容は変えない。
--   **実機での確かめ:** 貼り付けた `@channel`・`@here`・`@名前` がメンションになるか、U+200B が送信の後も残って無効化が効くか、`<!channel>`・`<@…>`・文字参照・`<a|b>` の形が貼り付けで特別な意味を持つかを、実機で確かめる。その結果で、いまの拒否の規則（§6 の層 (3)）をコピーに残すかを決める。
+-   **コピーへ移す規則:** コピーでは、対象の `@`（`docs/dev/security.md` §6 の定義）を、`@` の直後に U+200B を入れていつも無効化する。対象は見出し行と、本文のコードスパンとフェンス付きコードブロックの外である。語の途中の `@` は変えない。コードの範囲を判定できない本文では、すべての対象の `@` を無効化する。issue は直前が `/` の `@` も変えないとしたが、実機での確かめの結果で、URL のパスの `/@` だけを変えないことに改めた。コードの範囲を判定できない本文でも、URL のパスの `/@` は変えない（下の「要件定義の際に決めたこと」）。
+-   **変えないもの:** 表示（ビューア）と `--out` のファイルの内容は変えない。理由は記録されていない。
+-   **実機での確かめ:** 貼り付けた `@channel`・`@here`・`@名前` がメンションになるか、U+200B が送信の後も残って無効化が効くか、`<!channel>`・`<@…>`・文字参照・`<a|b>` の形が貼り付けで特別な意味を持つかを、実機で確かめる。その結果で、いまの拒否の規則（§6 の層 (3)。issue は §3 と書くが、規則は §6 にある）をコピーに残すかどうかを決める。
 -   **文書:** ADR-0011 を廃止し、ADR-0028 の投稿に関する決定と、ADR-0027 の投稿の状態を改める。`security.md` の該当の項を、コピーの経路の規則として書き直す。`production_profile.md`・`project_overview.md`・README（と `README.en.md`）・`development.md`・`CLAUDE.md` を改める。
 -   **テストの削除:** テストの削除を含むので、coverage-compare の手続き（`CLAUDE.md`「Testing Strategy」）に従う。
 
 **要件定義の際に決めたこと（2026-11-11）:**
 
--   **進め方は full とする。** 簡易プロセスの除外に当たる変更と判断した。`docs/dev/security.md` の規則（§2 の秘密、§3 の Webhook への通信、§6 のメンションの扱い、§8 のサーバの投稿）を書き換えるためである（`requirements_process.md`「Simple Process」の除外の 1 つ目）。人もこの判断のとおり full を選んだ。ADR の判断: ADR を作らない（`Process` 行と本節に記録する）。
--   **実機での確かめを、要件を書く前に行った。** 2026-11-11 に、利用者が Mattermost のチャンネルに次の並びを貼り付けて送信し、表示を確かめた。Mattermost の版は記録していない。Slack では確かめていない（いまの方針で Slack は best effort であり、確かめの対象ではない。`.claude/commands/_context.md`「Target client environments」）。
+-   **進め方は full とする。** 簡易プロセスの除外に当たる変更と判断した。`docs/dev/security.md` の規則（§2 の秘密、§3 の Webhook への通信、§6 のメンションの扱い、§8 のサーバの投稿）を書き換えるためである（`requirements_process.md`「Simple Process」の除外の 1 つ目）。レビュー担当者もこの判断のとおり full を選んだ。ADR の判断: ADR を作らない（`Process` 行と本節に記録する）。
+-   **実機での確かめを、要件を書く前に行った。** 2026-11-11 に、利用者が Mattermost のテスト用のチャンネルに次の並びを貼り付けて送信した。Mattermost の版は記録していない。Slack では確かめていない（いまの方針で Slack は best effort であり、確かめの対象ではない。`.claude/commands/_context.md`「Target client environments」）。確かめは 2 回に分けた。1 回目は、送った人の画面で、メンションとして強調されるか（「メンションになった」）、ただの文字列か、リンクかを見た。2 回目は、同じチャンネルの 2 つ目のアカウントで、通知・メンションの数のバッジ・「最近のメンション」への掲載のどれかが起きるか（「通知された」）を見た。
 
     | 貼り付けた並び | 結果 |
     |---|---|
-    | `@channel`・`@here`・実在の利用者の `@名前` | メンションになった |
-    | 上の 3 つの `@` の直後に U+200B を入れたもの | メンションにならず、ただの文字列になった |
-    | `＠channel`（全角）、`＠` の直後に U+200B を入れたもの | ただの文字列になった |
-    | コードスパンの中の `` `@channel` ``、フェンス付きコードブロックの中の `@channel` | メンションにならなかった |
-    | `https://example.com/@channel` | 全体で 1 つのリンクになり、メンションにならなかった |
-    | `<!channel>`・`<@名前>`・`&#64;channel`・`&lt;!channel&gt;` | ただの文字列になった |
-    | `<https://example.com\|click>` | `about:blank#blocked` へのリンクになり、メンションにならなかった |
+    | `@channel`・`@here`・実在の利用者の `@名前` | メンションになった（1 回目） |
+    | 上の 3 つの `@` の直後に U+200B を入れたもの | メンションにならず、ただの文字列になった（1 回目） |
+    | `＠channel`（全角）、`＠` の直後に U+200B を入れたもの | ただの文字列になった（1 回目） |
+    | コードスパンの中の `` `@channel` ``、フェンス付きコードブロック（` ``` `）の中の `@channel` | メンションにならなかった（1 回目） |
+    | `https://example.com/@channel` | 全体で 1 つのリンクになり、メンションにならなかった（1 回目） |
+    | `<!channel>`・`<@名前>`・`&#64;channel`・`&lt;!channel&gt;` | ただの文字列になった（1 回目） |
+    | `<https://example.com\|click>` | `about:blank#blocked` へのリンクになり、メンションにならなかった（1 回目） |
+    | `https://example.com/@名前`・`https://example.com/@here` | 通知されなかった（2 回目） |
+    | `AC/@名前`（URL でない、直前が `/` の `@`） | **通知された**（2 回目） |
+    | コードスパンの中の `` `@名前` ``、`~~~` のフェンスの中の `@名前` | 通知されなかった（2 回目） |
 
     ADR の判断: [ADR-0043](../../dev/adr/0043-copy-mention-neutralization.md)（クリップボードへのコピーで記事のメンションを無効化し、コピーは拒否しない）を作り、確かめた結果を背景に置く。
--   **拒否の層 (3) をコピーに持ち込まない。** コピーは、記事の内容によって拒否しない。いまの投稿が拒否する並び（コードの中の対象の `@`、直前が `/` の対象の `@`、`<!`・`<@`、文字参照、`<a|b>` の形）は、コピーした文章にそのまま残す（F-002）。上の確かめで、どの並びも貼り付けた後にメンションにならなかったためである。拒否すると、利用者はコピーできず、保存したファイルなどから手でコピーするしかなくなる。コードの範囲を判定できない本文の扱いは issue のとおりで、拒否せずにすべての対象の `@` を無効化する。ADR の判断: ADR-0043 に含める。
--   **見出しの下のチャンネル名の行も、無効化の対象にする。** コピーする文章（表示用の Markdown）では、チャンネル名はタイトルの見出しの下の独立した行にある（`internal/publisher/display_render.go:31`）。いまの投稿では、チャンネル名は見出し行の中にあり、無効化の対象である（`internal/publisher/slack_render.go:68`）。チャンネル名は外部由来の値で、YouTube のハンドルのように `@` を含みうるので、行が分かれても対象から外さない。ADR の判断: ADR-0043 に含める。
--   **無効化した数を、コピーの結果の表示で知らせる。** 1 個以上の `@` を無効化したときだけ、コピーの結果の通知にその数を示す（F-003）。0 個のときは、いまの通知のままにする。貼り付けた文章が見た目と違う文字を含むことを、利用者が知れるようにするためである。ADR の判断: ADR-0043 に含める。
+-   **拒否の層 (3) をコピーに持ち込まない。** コピーは、記事の内容によって拒否しない。いまの投稿が拒否する並びのうち、コードの中の対象の `@`、URL のパスの `/@`、`<!`・`<@`、文字参照、`<a|b>` の形は、コピーした文章にそのまま残す（F-002）。上の確かめで、どれも貼り付けた後にメンションにも通知にもならなかったためである。拒否すると、利用者はコピーできず、保存したファイルなどから手でコピーするしかなくなる。コードの範囲を判定できない本文の扱いは issue のとおりで、拒否せずにすべての対象の `@` を無効化する。ADR の判断: ADR-0043 に含める。
+-   **直前が `/` の `@` は、URL のパスの `/@` のときだけ変えない。** ほかの直前が `/` の対象の `@` は無効化する（F-002）。URL のパスの `/@` は、§3.1 の定義による（ホストの後ろの `/` の直後の `@`。例: `https://www.youtube.com/@ハンドル`）。上の確かめで、`AC/@名前` は通知され、URL のパスの `/@`（`https://example.com/@名前`）は通知されなかったためである。issue の「直前が `/` の `@` は変えない」を、この結果で改めた。URL のパスの `/@` を無効化すると、`https://www.youtube.com/@ハンドル` のような URL が壊れる。URL の中でも、確かめていない位置の `@`（ホストのない `https://@channel`、クエリの `?@here` など）は無効化する。`https://` を付けるだけで無効化を逃れられないよう、プロンプトインジェクションに備えるためである。この規則はタイトルの行・チャンネル名の行・本文で同じとする。こちらの URL の判定と Mattermost の判定が細部（末尾の `)`・`>` など）で食い違う場合は、残るリスクとする（§4.2）。食い違いの洗い出しは設計で行う（[design_handoff.md](design_handoff.md) H-06）。ADR の判断: ADR-0043 に含める。
+-   **コードの範囲の中の `@` は変えず、判定の食い違いは残るリスクとする。** こちらがコードと判定する範囲（`writer.ProseRanges`）を Mattermost がコードと扱わない書き方では、`@` がメンションのまま残る（§4.2）。食い違いの洗い出しは設計で行う（H-06）。コードの中も無効化する案は採らない。コードの中に見えない文字が入り、貼り付けたコードを写すと、その文字が混じるためである。ADR の判断: ADR-0043 に含める。
+-   **見出しの下のチャンネル名の行も、無効化の対象にする。** コピーする文章（表示用の Markdown）では、チャンネル名はタイトルの見出しの下の独立した行にある（`internal/publisher/display_render.go:31`）。いまの投稿では、チャンネル名は見出し行の中にあり、無効化の対象である（`internal/publisher/slack_render.go:68`〜`70`）。チャンネル名は外部由来の値で、YouTube のハンドルのように `@` を含みうるので、行が分かれても対象から外さない。ADR の判断: ADR-0043 に含める。
+-   **無効化した数を、コピーの結果の通知で知らせる。** 1 個以上の `@` を無効化したときだけ、コピーの結果の通知にその数を示す（F-003）。0 個のときは、いまの通知のままにする。貼り付けた文章が見た目と違う文字を含むことを、利用者が知れるようにするためである。ADR の判断: ADR-0043 に含める。
+-   **本文が正しい UTF-8 でない記事は、完了の時点の検査で `article_invalid` として失敗させる。** いまは、送る前の検査だけが本文の UTF-8 を検査し、そのような記事を `done` のまま投稿できない記事にしている（`internal/publisher/slack_message.go:30`〜`35`、`internal/server/generation.go:89`〜`98`）。送る前の検査を廃止するので、検査を完了の時点に移す（F-001）。CLI の `--out` も、同じ検査で記事を書かずに失敗する。黙って U+FFFD に置き換えると、`CLAUDE.md`「Reject, don't normalize」に反するためである。ADR の判断: ADR を作らない。既存の完了の時点の検査に 1 つの値の検査を加えるだけで、後のタスクを縛る新しい決定ではないためである。
 -   **サーバの設定ファイルに残った `SLACK_WEBHOOK_URL` の行は、知らないキーとして拒否する。** サーバは起動しない（F-001）。廃止した `YT2COLUMN_MODEL` と同じ扱いである（`internal/config/serverfile.go:71`、`internal/config/serverfile_test.go:140`）。黙って無視すると、設定の誤りを隠し、`CLAUDE.md`「Reject, don't normalize」に反するためである。利用者には README で行の削除を案内する。ADR の判断: [ADR-0018](../../dev/adr/0018-server-config-file.md) を改める。
--   **投稿の廃止に合わせて ADR を改める。** [ADR-0011](../../dev/adr/0011-webhook-publishing.md) を廃止し、代わりの ADR を ADR-0043 とする。[ADR-0027](../../dev/adr/0027-article-job-api.md) は投稿の操作と投稿の状態を、[ADR-0028](../../dev/adr/0028-no-automatic-resend.md) は投稿の冪等性と Webhook への送り直しの決定を除く。Webhook や投稿に触れる [ADR-0005](../../dev/adr/0005-server-architecture.md)・[ADR-0006](../../dev/adr/0006-threat-model.md)・[ADR-0008](../../dev/adr/0008-launch-path.md)・[ADR-0009](../../dev/adr/0009-viewer-opening.md)・[ADR-0010](../../dev/adr/0010-extension-stores-nothing.md)・[ADR-0022](../../dev/adr/0022-cost-estimate.md)・[ADR-0031](../../dev/adr/0031-secret-closure.md)・[ADR-0034](../../dev/adr/0034-template-allowlist.md) も、決定から Webhook と投稿を除く。既存の ADR の決定を変えるので、どれも主要な決定である（`CLAUDE.md`「Design decisions (ADR)」）。
+-   **確かめの対象の環境を、Mattermost への貼り付けに改める。** `.claude/commands/_context.md` の「Target client environments」は、いま Incoming Webhook と `silent` を前提にしている。これを「Mattermost（ビューアでコピーした Markdown の貼り付け）。Slack は best effort で、確かめの対象ではない」に改める（F-004）。ADR の判断: ADR を作らない。確かめの対象が Mattermost で Slack が best effort であることは変わらず、経路の名前を改めるだけだからである。
+-   **投稿の廃止に合わせて ADR を改める。** [ADR-0011](../../dev/adr/0011-webhook-publishing.md) を廃止し、代わりの ADR を ADR-0043 とする。[ADR-0027](../../dev/adr/0027-article-job-api.md) は投稿の操作と投稿の状態を、[ADR-0028](../../dev/adr/0028-no-automatic-resend.md) は投稿の冪等性と Webhook への送り直しの決定を除く。Webhook や投稿に触れる [ADR-0005](../../dev/adr/0005-server-architecture.md)・[ADR-0006](../../dev/adr/0006-threat-model.md)・[ADR-0008](../../dev/adr/0008-launch-path.md)・[ADR-0010](../../dev/adr/0010-extension-stores-nothing.md)・[ADR-0022](../../dev/adr/0022-cost-estimate.md)・[ADR-0031](../../dev/adr/0031-secret-closure.md)・[ADR-0034](../../dev/adr/0034-template-allowlist.md) も、決定から Webhook と投稿を除く。既存の ADR の決定を変えるので、どれも主要な決定である（`CLAUDE.md`「Design decisions (ADR)」）。実装までの間、各 ADR は #770 へリンクした食い違いの注記を持ち、#770 の本文はそれらの ADR を名指しする。[ADR-0009](../../dev/adr/0009-viewer-opening.md) の背景は投稿に触れるが、決定は変わらないので、実装の PR で編集上の訂正として直す。
 
 ## 2. 目的とスコープ (Goals and Scope)
 
 ### 2.1. 目的 (Goals)
 
 -   Webhook の URL という秘密と、それを使う送信の経路をなくす。
--   コピーした記事を Slack や Mattermost に貼り付けても、記事の中の `@channel`・`@here`・`@名前` などがメンションにならないようにする。
+-   コピーした記事を Mattermost に貼り付けても、記事の中の `@channel`・`@here`・`@名前` などがメンションにならないようにする。Slack は best effort とする。
 -   コピーは、記事の内容によって失敗させない。
 -   記事の表示・保存・`--out` のファイルは、いまのまま保つ。
 
 ### 2.2. スコープ (In Scope)
 
 -   投稿の機能の廃止（F-001）。サーバの投稿の操作・投稿のジョブ・投稿の状態・Webhook の設定と送信、ホストの `publish` の操作、拡張のビューアの投稿の操作と表示、`make test-integration-slack` とそのテスト専用の変数。
+-   本文の UTF-8 の検査を、完了の時点の検査へ移すこと（F-001）。
 -   ビューアのコピーでのメンションの無効化（F-002）。
 -   コピーの結果の通知に、無効化した数を示すこと（F-003）。
--   文書の改訂（F-004）。`docs/dev/security.md`・`docs/dev/production_profile.md`・`docs/dev/project_overview.md`・`docs/dev/guides/development.md`・`README.md`・`README.en.md`・`CLAUDE.md`・`docs/translation_glossary.md` と、ほかに投稿の機能を説明する文書（`docs/dev/conventions/package_reference.md` など）。
+-   文書の改訂（F-004）。`docs/dev/security.md`・`docs/dev/production_profile.md`・`docs/dev/project_overview.md`・`docs/dev/guides/development.md`・`docs/dev/conventions/package_reference.md`・`README.md`・`README.en.md`・`CLAUDE.md`・`AGENTS.md`・`docs/translation_glossary.md`、エージェントの指示（`.claude/commands/_context.md` の「Conditional-guide trigger」「Target client environments」、`.claude/commands/runplan.md` など投稿の機能に触れるもの）、CI のレビューの指示（`.github/workflows/deepseek-review.yml`）と、ほかに投稿の機能を今の機能として説明する文書。
 -   投稿の機能だけが使うテストの削除と、その coverage-compare による確かめ。
+-   issue [#720](https://github.com/isseis/yt2column/issues/720)（security.md §3 と投稿のやり直しの食い違い）の解消。投稿の機能をなくすと、食い違う規則とコードがともになくなる。
 
 ### 2.3. スコープ外 (Out of Scope)
 
--   **`.md` で保存するファイルの無効化。** 保存するファイルは `--out` のファイルと同じ中身で（`extension/src/viewerApp.ts:535`）、issue が変えないと決めたものである。保存したファイルの中身を貼り付けると、メンションになりうる。これは受け入れる。
+-   **`.md` で保存するファイルの無効化。** 保存するファイルは `--out` のファイルと同じ中身で（`internal/server/status.go:51`〜`52`、`internal/publisher/display_render.go:24`〜`25`）、issue が変えないと決めたものである。保存したファイルの中身を貼り付けると、メンションになりうる。これは受け入れる。
 -   **Slack での確かめ。** Slack は best effort で、確かめの対象ではない（§1「要件定義の際に決めたこと」）。
 -   **localhost サーバと Native Messaging のホストの撤去、WASM への移行。** [#771](https://github.com/isseis/yt2column/issues/771)・[#772](https://github.com/isseis/yt2column/issues/772)・[#773](https://github.com/isseis/yt2column/issues/773) で扱う。
 -   **ほかの投稿先や、新しい送信の経路。**
 -   **前の版の拡張・ホスト・サーバとの互換。** 互換の仕組みは作らない（[ADR-0027](../../dev/adr/0027-article-job-api.md)）。前の版の拡張が投稿の操作を送れば、F-001 の拒否になる。
--   **CLI の変更。** CLI はすでに投稿せず、`SLACK_WEBHOOK_URL` を読まない（[0062 要件定義書](../0062_remove_cli_slack/01_requirements.md)）。CLI の振る舞いは変えない。
+-   **CLI の変更。** CLI はすでに投稿せず、`SLACK_WEBHOOK_URL` を読まない（[0062 要件定義書](../0062_remove_cli_slack/01_requirements.md)）。CLI の振る舞いは、本文の UTF-8 の検査（F-001）のほかは変えない。
 
 ## 3. 機能要件 (Functional Requirements)
 
-### 3.1. 用語
+### 3.1. 機能一覧
 
--   **対象の `@`:** `docs/dev/security.md` §6 の定義による。`@` の直後に名前の文字（文字・数字・`_`・`.`・`-`）が続き、かつ `@` が先頭にあるか、`@` の直前が文字でも数字でもない `@` である。`＠` などの見た目の似た文字を含む。いまの判定は `internal/publisher/slack_message.go:394` にある。語の途中の `@`（`Tech@Work`、`user@example.com`）は対象の `@` ではない。
+本節で使う語は次のとおりとする。
+
+-   **対象の `@`:** `docs/dev/security.md` §6 の定義による。直後に名前の文字（文字・数字・`_`・`.`・`-`）が続く `@` のうち、先頭にあるもの、または直前が文字でも数字でもないものである。`＠` などの見た目の似た文字を含む。いまの判定は `internal/publisher/slack_message.go:372`〜`420`（`replaceLookAlike`・`mentionAts`・`mentionAtsOf`）にある。語の途中の `@`（`Tech@Work`、`user@example.com`）は対象の `@` ではない。
 -   **無効化:** 対象の `@` の直後に U+200B（ゼロ幅スペース）を 1 つ入れること。`@` そのもの（見た目の似た文字を含む）は変えない。
+-   **URL:** `http://` か `https://` で始まり、空白か改行の直前までの並び。
+-   **URL のパスの `/@`:** URL の中の対象の `@` のうち、直前が `/` で、その `/` が URL のホストの後ろ、かつ URL の最初の `?`・`#` より前にあるもの。ホストは、`http://` か `https://` の直後から続く 1 文字以上の並びで、`/`・`@`・`?`・`#`・空白を含まない。例えば `https://www.youtube.com/@handle` の `@` は当たり、`https://@channel`・`https://example.com/?@here`・`https://example.com)@here`・`https://example.com?/@here` の `@` は当たらない。
 -   **コードの範囲:** 本文のコードスパンとフェンス付きコードブロック。いまの判定は `writer.ProseRanges`（`internal/writer/markdown.go:49`）で、判定できない本文（対にならないバッククォートなど）では範囲がないことを返す。
--   **表示用の Markdown:** 状態の取得の応答の `markdown`。タイトルの見出しの行、チャンネル名があればその行、本文の順に並ぶ（`internal/publisher/display_render.go:28`）。
+-   **表示用の Markdown:** 状態の取得の応答の `job.article.markdown`。タイトルの見出しの行、チャンネル名があればその行、本文の順に並ぶ（`internal/publisher/display_render.go:28`）。
 -   **コピーする文章:** ビューアの「Markdown をコピーする」がクリップボードに書く文字列。
-
-### 3.2. 機能一覧
 
 #### F-001: 投稿の機能の廃止
 
@@ -102,13 +113,14 @@
 
 -   **AC-01**: ビューアは、投稿のボタン（いまの「Slack に投稿する」）、投稿の状態とその理由の表示、Webhook が設定されていないことの表示を持たない。記事の表示・「.md で保存する」・「Markdown をコピーする」は、いまの条件で使える。
 -   **AC-02**: サーバは、`POST /jobs/{key}/publish` のリクエストを、ほかの受け付けないリクエストのターゲットと同じく `not_found` で拒否する。本文を読まず、記事のキャッシュを変えず、ネットワークへ何も送らない（いまのターゲットの拒否の規則は `docs/dev/security.md` §8.2「ヘッダの検査はパスとメソッドだけ」）。
--   **AC-03**: 状態の取得の応答の差分は、最上位の `webhookConfigured` のメンバと、`job` の `publish` のメンバ（いまは `done` の応答だけが持つ）をなくすことに限る（いまの応答の形は `internal/server/status.go:24`）。
+-   **AC-03**: 状態の取得の応答の差分は、最上位の `webhookConfigured` のメンバと、`job` の `publish` のメンバ（いまは `done` の応答だけが持つ）をなくすことと、F-002・F-003 のために設計が加えるメンバに限る（いまの応答の形は `internal/server/status.go:26`）。
 -   **AC-04**: ホストは、`op` が `publish` のメッセージを、ほかの受け付けない `op` と同じく、サーバへ何も送らずに `protocol_error` で返す（いまの規則は [ADR-0027](../../dev/adr/0027-article-job-api.md)）。
--   **AC-05**: サーバの設定ファイルに `SLACK_WEBHOOK_URL` をキーとする行があれば、値が空でも、サーバは起動しない。拒否は知らないキーの拒否（`ErrConfigFileFormat`、その行の番号と固定の理由）で、エラーとログは行の値を含まない。`#` で始まるコメントの行は、`SLACK_WEBHOOK_URL` を含んでいても受理する。
+-   **AC-05**: サーバの設定ファイルに `SLACK_WEBHOOK_URL` をキーとする行があれば、値が空でも、サーバは起動しない。拒否は知らないキーの拒否（`ErrConfigFileFormat`、その行の番号と固定の理由）で、エラーとログは行の値を含まない。`#` で始まるコメントの行は、いまと同じく、`SLACK_WEBHOOK_URL` を含んでいても受理する（いまの規則は `internal/config/serverfile.go:59`）。
 -   **AC-06**: `yt2column-server config init` が作る雛形は、`SLACK_WEBHOOK_URL` を含む行を持たない。
--   **AC-07**: サーバは、送る前の検査（いまの `PrepareSlackMessages`）を記事の完了の判定に使わない。完了の時点の検査（`CheckPublishable` など、いまの `article_invalid`・`article_too_large`）を通る記事は、`done` になり、表示・保存・コピーできる。メンションを含む記事も含む。
--   **AC-08**: サーバは、終了の合図を受けたとき、投稿のジョブの終わりを待たない（いまは最長でおよそ 5 分待つ。`README.md:314`）。生成の取り消しなど、ほかの終了の振る舞いは変えない。起動のログの `listening` の行の差分は `webhookConfigured` をなくすことに限り、Webhook が設定されていないことの警告の行（いまは `cmd/yt2column-server/run.go:223`）は出さない。
+-   **AC-07**: 生成のジョブの成功のログの行（いまは `generation job succeeded`、`internal/server/generation.go:103`）の差分は、`publish` の属性をなくすことに限る。完了の時点の検査を通る記事は、メンションを含む記事や、いまの分割の上限を超える記事も、`done` になる。
+-   **AC-08**: サーバは、終了の合図を受けたとき、投稿のジョブの終わりを待たない（いまは最長でおよそ 5 分待つ。`README.md:314`）。生成の取り消しなど、ほかの終了の振る舞いは変えない。起動のログの `listening` の行の差分は `webhookConfigured` をなくすことに限り、Webhook が設定されていないことの警告の行（いまは `cmd/yt2column-server/run.go:226`）は出さない。
 -   **AC-09**: `make test-integration-slack` のターゲットは存在しない。`YT2COLUMN_TEST_SLACK_WEBHOOK_URL` と `YT2COLUMN_SLACK_INTEGRATION` を読むコードとターゲットもない。
+-   **AC-09a**: 本文が正しい UTF-8 でない記事は、サーバでは完了の時点の検査で `failed` の `article_invalid` になり、CLI では `--out` のファイルを書かずに失敗する。どちらも本文の値をエラーとログに含めない。本文の文字を U+FFFD などに置き換えて受理しない。
 
 #### F-002: コピーでのメンションの無効化
 
@@ -117,21 +129,21 @@
 **Acceptance Criteria**:
 
 -   **AC-10**: コピーする文章と表示用の Markdown との差分は、U+200B を入れることに限る。U+200B は、AC-11 と AC-13 が定める `@` の直後にだけ入り、1 つの `@` に 1 つだけ入る。
--   **AC-11**: タイトルの見出しの行と、チャンネル名の行では、すべての対象の `@` を無効化する。本文では、コードの範囲の外の対象の `@` を無効化する。ただし、どの行でも、直前が `/` の対象の `@` は無効化しない（URL を壊さないため）。
--   **AC-12**: 本文のコードの範囲の中の `@`、語の途中の `@`、直前が `/` の `@` は変えない。
--   **AC-13**: コードの範囲を判定できない本文では、本文のすべての対象の `@`（直前が `/` のものを除く）を無効化する。
+-   **AC-11**: タイトルの見出しの行と、チャンネル名の行では、URL のパスの `/@` を除くすべての対象の `@` を無効化する。本文では、コードの範囲の外の対象の `@` を、URL のパスの `/@` を除いて無効化する。直前が `/` の対象の `@` も、URL のパスの `/@` でなければ無効化する（例: `AC/@here`、`https://@channel`）。URL の中でも、URL のパスの `/@` でない対象の `@` は無効化する（例: `https://example.com/?@here`）。
+-   **AC-12**: どの行でも、語の途中の `@` と、URL のパスの `/@`（例: `https://www.youtube.com/@handle`）は変えない。本文のコードの範囲の中の `@` は変えない。
+-   **AC-13**: コードの範囲を判定できない本文では、本文の対象の `@` を、URL のパスの `/@` を除いてすべて無効化する。
 -   **AC-14**: いまの投稿が拒否する並び（コードの中の対象の `@`、直前が `/` の対象の `@`、`<!`・`<@`、文字参照、`<a|b>` の形）を含む記事も、コピーできる。それらの並びは、AC-10〜AC-13 のとおりに書かれ、そのほかは変わらない。
--   **AC-15**: 対象の `@` を無効化しない記事（対象の `@` がないか、すべてがコードの中か直前が `/`）では、コピーする文章は表示用の Markdown とバイト単位で同じである。
--   **AC-16**: ビューアに表示する記事、「.md で保存する」が保存するファイル、CLI の `--out` のファイルは、この task の前と比べて変わらない。それぞれの差分は空である。
--   **AC-17**: 実装の後、ビューアから、タイトル・チャンネル名・本文のコードの外に `@channel`・`@here`・実在の利用者の `@名前` を含む記事をコピーし、Mattermost のチャンネルに貼り付けて送信すると、どれもメンションにならない。確かめた日と Mattermost の版を記録する（手動の確かめ）。
+-   **AC-15**: 無効化する `@` がない記事（対象の `@` がないか、すべてがコードの範囲の中にあるか URL のパスの `/@` である）では、コピーする文章は表示用の Markdown とバイト単位で同じである。
+-   **AC-16**: ビューアに表示する記事、「.md で保存する」が保存するファイル、CLI の `--out` のファイルは、本文が正しい UTF-8 の記事について、この task の前と比べて変わらない。それぞれの差分は空である。
+-   **AC-17**: 実装の後、次の手動の確かめを行い、日付と Mattermost の版を記録する。ビューアから、タイトル・チャンネル名・本文のコードの外に `@channel`・`@here`・実在の利用者の `@名前`・`AC/@名前` を含み、本文に URL のパスの `/@名前` と、`https://@channel`・`https://example.com/?@here` を含む記事をコピーする。それを Mattermost のテスト用のチャンネルに 1 つ目のアカウントで貼り付けて送信する。同じチャンネルの 2 つ目のアカウントでは、通知・メンションの数のバッジ・「最近のメンション」への掲載のどれも起きない。送るときに `@channel` の確かめのダイアログも出ない。
 
-#### F-003: コピーの結果の表示
+#### F-003: コピーの結果の通知
 
 コピーの結果の通知で、無効化した `@` の数を知らせる。
 
 **Acceptance Criteria**:
 
--   **AC-18**: コピーに成功し、無効化した `@` の数 N が 1 以上のとき、通知は「Markdown をコピーしました。メンションにならないよう、N 個の @ の後ろに見えない文字を入れました。」（英語の表示では同じ内容の英文）を示す。N は、コピーする文章に入れた U+200B の数である。
+-   **AC-18**: コピーに成功し、無効化した `@` の数 N が 1 以上のとき、通知は日本語の表示では「Markdown をコピーしました。メンションにならないよう、N 個の @ の後ろに見えない文字を入れました。」を示す。英語の表示では、コピーしたことと、N 個の `@` の後ろに見えない文字を入れたことを、N の単数と複数に合った英文で示す（文面は設計で決める）。N は、コピーする文章に入れた U+200B の数である。
 -   **AC-19**: コピーに成功し、N が 0 のとき、通知はいまの「Markdown をコピーしました。」のままである。コピーに失敗したときは、いまの「Markdown をコピーできませんでした。」を示し、数を示さない。
 -   **AC-20**: AC-18 の通知は、いまのコピーの通知と同じく、フォーカスを動かさずに支援技術へ伝わる（WCAG 2.2 の 4.1.3。いまの通知の領域は `extension/static/viewer.html:29` の `role="status"`）。通知は英語と日本語のメッセージのカタログの両方にある。
 
@@ -139,8 +151,10 @@
 
 **Acceptance Criteria**:
 
--   **AC-21**: `docs/dev/security.md` は、投稿の機能の規則（§2 の Webhook の URL、§3 の Webhook への送信、§6 のメンションの 3 つの層、§8 の投稿の操作と投稿のジョブ）を持たず、§6 にコピーの経路の無効化の規則（F-002 の内容）を持つ。手動で読んで確かめる。
--   **AC-22**: §2.2 に挙げたほかの文書は、投稿の機能がない今の振る舞いを説明し、コピーの無効化に触れる必要のあるところ（README のビューアの説明）では F-002 と F-003 の振る舞いを説明する。`README.en.md` は `README.md` と同期している（`TestReadmeSyncMarker`）。文書の値や構造を確かめる既存のテスト（`CLAUDE.md`「Development Notes」の text-sync のガード）は、改めた文書と合う。
+-   **AC-21**: `docs/dev/security.md` は、投稿の機能の規則（§2 の Webhook の URL、§3 の Webhook への送信、§6 のメンションの 3 つの層、§8 の投稿の操作と投稿のジョブ）を持たず、§6 にコピーの経路の無効化の規則（F-002 の内容）と、§4.2 の残るリスクを持つ。手動で読んで確かめる。
+-   **AC-22**: §2.2 に挙げたほかの文書とエージェントの指示は、投稿の機能を今の機能として説明しない。README（と `README.en.md`）のビューアの説明は、コピーで `@` を無効化することと、無効化した数の通知（F-002・F-003）を説明する。手動で読んで確かめる。`README.en.md` は `README.md` と同期している（`TestReadmeSyncMarker`）。文書の値や構造を確かめる既存のテスト（`CLAUDE.md`「Development Notes」の text-sync のガード）は、改めた文書と合う。
+-   **AC-23**: README の設定ファイルの説明は、`SLACK_WEBHOOK_URL` の行が残っているとサーバが起動しないことと、その行を消す手順を示す。手動で読んで確かめる。
+-   **AC-24**: `.claude/commands/_context.md` の「Target client environments」は、Mattermost へのコピーした Markdown の貼り付けを確かめの対象とし、Slack を best effort とする。
 
 ## 4. 非機能要件 (Non-Functional Requirements)
 
@@ -153,16 +167,21 @@
 `docs/dev/security.md` を適用する（`.claude/commands/_context.md`「Conditional-guide trigger」の、Webhook の URL を扱うことと、信頼できないテキストを出力に入れることに当たる）。
 
 -   **信頼できない入力:** コピーの入力は表示用の Markdown で、LLM の出力と、外部由来のタイトル・チャンネル名を含む。字幕と動画メタデータへのプロンプトインジェクションで、記事に `@channel` などを入れられることを前提にする。
-    -   受け付ける形: 状態の取得の `done` の応答の `markdown`。応答の検査は、いまの拡張の規則のまま変えない。
-    -   拒否: コピーは記事の内容によって拒否しない（§1「要件定義の際に決めたこと」）。記事の値の検査は、いまの完了の時点の検査（`CheckPublishable` など。`article_invalid`・`article_too_large`）が行い、これは変えない。
-    -   標準ライブラリが黙って直す入力: 本文が正しい UTF-8 でない場合の扱いは、設計で確かめる（[design_handoff.md](design_handoff.md) H-03）。無効化が、記事の文字を U+FFFD などに黙って置き換えてはならない。
--   **秘密:** Webhook の URL は秘密ではなくなる（存在しなくなる）。API キーの扱いは変えない。秘密を出力に流さない規則（[ADR-0031](../../dev/adr/0031-secret-closure.md)）は、残る秘密に引き続き適用する。
+    -   受け付ける形: 状態の取得の `done` の応答。拡張は、いまと同じく、応答のメンバの集まりが、定められた応答の形とどの階層でもちょうど一致するときだけ受理し、拡張できるメンバを宣言しない（`extension/src/core/response.ts:1`〜`7`）。応答の形は、`publish`・`webhookConfigured` を除き、F-002・F-003 のために設計が加えるメンバを含めた形に改める（AC-03）。コピーが使うのは、表示用の Markdown（`job.article.markdown`）と、設計が加えるメンバだけである。
+    -   拒否: コピーは記事の内容によって拒否しない（§1「要件定義の際に決めたこと」）。記事の値の検査は、完了の時点の検査（いまの `article_invalid`・`article_too_large`）が行う。本文が正しい UTF-8 でない記事は、そこで `article_invalid` として拒否する（AC-09a）。
+    -   黙って直さない: 無効化は U+200B を入れるだけで、記事のほかの文字を変えない（AC-10）。
+-   **秘密:** Webhook の URL は存在しなくなる。API キーの扱いは変えない。秘密を出力に流さない規則（[ADR-0031](../../dev/adr/0031-secret-closure.md)）は、残る秘密に引き続き適用する。
 -   **ネットワーク:** サーバが外へ送るのは LLM の API だけになる。
--   **残るリスク:** (1) Slack では確かめていない。(2) 保存したファイルの中身を貼り付けた場合は無効化されない（§2.3）。(3) `<https://…|表示>` の形は、Mattermost でリンクになる（行き先は `about:blank#blocked` で、メンションにはならない）。
+-   **残るリスク:**
+    1.  Slack では確かめていない。
+    2.  保存したファイルの中身を貼り付けた場合は無効化されない（§2.3）。
+    3.  `<https://…|表示>` の形は、Mattermost でリンクになる（行き先は `about:blank#blocked` で、メンションにはならない）。
+    4.  こちらがコードの範囲と判定するのに Mattermost がコードと扱わない書き方では、その中の `@` がメンションになる（H-06）。
+    5.  こちらが URL のパスの `/@` と判定するのに Mattermost が URL と扱わない並び（末尾の `)`・`>` の扱いの違いなど）では、その `@` がメンションになる（H-06）。
 
 ### 4.3. 信頼性・可用性 (Reliability/Availability)
 
--   サーバの設定ファイルに `SLACK_WEBHOOK_URL` の行が残っていると、サーバは起動しない（AC-05）。利用者は、README の案内に従ってその行を消す。
+-   サーバの設定ファイルに `SLACK_WEBHOOK_URL` の行が残っていると、サーバは起動しない（AC-05）。利用者は、README の案内（AC-23）に従ってその行を消す。
 
 ### 4.4. 互換性 (Compatibility)
 
@@ -170,7 +189,7 @@
 
 ### 4.5. 保守性 (Maintainability)
 
--   無効化の規則（対象の `@` の定義、コードの範囲）は 1 か所に置き、`docs/dev/security.md` §6 を正本とする。issue は、規則が Go の `internal/publisher` にあり、拡張だけの構成への移行の後は WASM の中でそのまま使えることを挙げる。規則の置き場所は設計で決める（[design_handoff.md](design_handoff.md) H-01）。
+-   無効化の規則（対象の `@` の定義、URL とコードの範囲）は 1 か所に置き、`docs/dev/security.md` §6 を正本とする。issue は、規則が Go の `internal/publisher` にあり、拡張だけの構成への移行の後は WASM の中でそのまま使えることを挙げる。規則の置き場所は設計で決める（[design_handoff.md](design_handoff.md) H-01）。
 
 ### 4.6. アクセシビリティ (Accessibility)
 
@@ -189,6 +208,7 @@
 
 ## 6. 用語集 (Glossary)
 
--   用語は `docs/translation_glossary.md` と統一する。投稿の機能に固有の用語（「投稿の状態」など）は、F-004 で用語集から除くか、意味を改める。
--   **メンションの無効化:** §3.1 の「無効化」。
--   **コピーする文章:** §3.1 を参照。
+-   用語は `docs/translation_glossary.md` と統一する。F-004 で、用語集を次のように改める。
+    -   除く: 「投稿の状態」など、投稿の機能に固有の用語。
+    -   意味を改める: 「主経路」「ビューア」（投稿を除き、コピーを加える）、「結果不明」（投稿の操作を除く）、「完了の時点の検査」（送る前の検査を除き、本文の UTF-8 の検査を加える）。
+    -   加える: 「メンションの無効化」（§3.1 の「無効化」）、「対象の `@`」、「コピーする文章」。
