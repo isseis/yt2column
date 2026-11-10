@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-10 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-10 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -266,3 +266,7 @@ ADR を、ADR の規約（`docs/dev/conventions/adr.md`）に従って更新す�
 -   **チェック**：スクリプトが確かめる性質の一つ一つ。チェックが成り立たないとき、スクリプトはそのチェックを名指して失敗する。
 -   **壊し方**：スクリプトのチェックが、その性質を破った入力で失敗することを確かめるための変更（`CLAUDE.md`「Testing Strategy」の「Every test must be able to fail for its stated reason.」）。
 -   用語は `docs/translation_glossary.md` と統一する。
+
+## 変更履歴
+
+- 2026-11-10 承認（isseis、#791）
