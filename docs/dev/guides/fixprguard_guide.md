@@ -200,7 +200,7 @@ fixprguard reply --protocol 5 --reviewer coderabbitai --thread-id 'PRRT_...' --c
 
 ### `edit-pr --title-file FILE --body-file FILE [PR]`
 
-PR のタイトルと本文を更新する。タイトルは `--title=<値>` の形で、本文は検査した内容を標準入力から渡す（`gh` にファイルを読み直させない）。タイトルのファイルは、本文のファイルと同じ検査に加えて、制御文字と行区切りを含まない 1 行であること。タイトルと本文のどちらかが `@codex` のメンションを含むときは、`reply` の本文と同じ規則で、`gh pr edit` を起動する前に終了コード `2` で拒否する。
+PR のタイトルと本文を更新する。`/fixpr` は Phase 6 で古くなった説明を書き直すときに、`/runpr` はステップ 4 で 3 文書の PR を通常の進め方へ戻すとき（タスク 0072）に、これを使う。どちらも、送る前にタイトルと本文のファイルにメンションの確かめを行う。タイトルは `--title=<値>` の形で、本文は検査した内容を標準入力から渡す（`gh` にファイルを読み直させない）。タイトルのファイルは、本文のファイルと同じ検査に加えて、制御文字と行区切りを含まない 1 行であること。タイトルと本文のどちらかが `@codex` のメンションを含むときは、`reply` の本文と同じ規則で、`gh pr edit` を起動する前に終了コード `2` で拒否する。
 
 ```sh
 fixprguard edit-pr --protocol 5 --title-file /path/to/title.txt --body-file /path/to/body.md 42
@@ -403,7 +403,7 @@ fixprguard interaction-limits --protocol 5 42
 - include の先を FIFO に置き換えた場合、`git config --list` が時間切れ（2 分）まで待つので、ツールが `git-state-changed`（`config`）で止まるまで最大 2 分かかる。2 分は Claude Code の Bash ツールの既定のタイムアウトと同じなので、止まったことがセッションに遅れて届くことがある。
 - `gh` が起動する git について確かめた範囲。`inspect` は、PR 番号を渡すと、`gh repo view`、スレッドの照会の `gh api graphql`、権限の照会の `gh api` を起動する。`gh` 2.96.0 で確かめたところ、`gh repo view` が起動する git は `git remote -v` と `remote.*` の読み取りだけで、後の 2 つは git を起動しなかった。`git remote -v` は、ほかのブランチの設定を読み込むが、宛先の決定には使わない。値のない設定や `[branch ""]` の節があると失敗する。PR 番号を省いたときに `gh pr view --json number` が起動する git は確かめていない（`/fixpr` は PR 番号を渡す）。`gh` の版が変われば変わりうる。並行するセッションの `gh pr checkout` は、通常の PR で `branch.<そのブランチ>.*` だけを書き込むことを確かめた。fork の PR は確かめていない。ほかの設定にも書き込むなら、`git-state-changed` で止まりすぎるだけである。
 - 確認の時点の状態だけを保証する。確認から実行までの間に別のプロセスが hooks や config を書き換えること、修正のフェーズの間に変えて元に戻したことは検出しない。
-- 基準値を持たない `head`・`list`・`reply`・`edit-pr` が `gh` を起動する前の比較。`/fixpr` はこれらを `finish`・`push` の後に呼ぶので、それまでの比較が書き換えを検出するが、`push` の後の書き換えは検出しない。`interaction-limits` も基準値を持たず、`/runpr` がステップ 1 で `begin` より前に 1 回だけ呼ぶので、それ以前の比較はない。
+- 基準値を持たない `head`・`list`・`reply`・`edit-pr` が `gh` を起動する前の比較。`/fixpr` はこれらを `finish`・`push` の後に呼ぶので、それまでの比較が書き換えを検出するが、`push` の後の書き換えは検出しない。`/runpr` は `begin` を呼ばずに `head`・`list`・`reply` を使い、3 文書の PR を通常の進め方へ戻すときは `edit-pr` も使うので、その前に基準値との比較はない。`interaction-limits` も基準値を持たず、`/runpr` がステップ 1 で `begin` より前に 1 回だけ呼ぶので、それ以前の比較はない。
 - hooks のディレクトリの外にあり、hook が実行するファイル（pre-commit のフレームワークのキャッシュなど）。
 
 #### 7.2.5 git が無視するファイル
