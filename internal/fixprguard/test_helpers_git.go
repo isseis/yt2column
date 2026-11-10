@@ -45,8 +45,8 @@ type gitRouter struct {
 	ConfigList *configListResult
 	// Before runs a function right before the git call it is keyed by (as
 	// Calls records it), outside the router, so a test can change the
-	// repository between two calls of the code under test. It covers the git
-	// runner only, not ListRunner.
+	// repository between two calls of the code under test. It runs before
+	// every matching call and covers the git runner only, not ListRunner.
 	Before map[string]func()
 }
 

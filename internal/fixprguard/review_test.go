@@ -346,10 +346,10 @@ func TestPushReviewed(t *testing.T) {
 		}
 	})
 
+	// A failed push and a failed push target read are both git failures; the
+	// rule word in the diagnostic, the output contract the fixpr document
+	// reports by, tells them apart.
 	t.Run("push_failure", func(t *testing.T) {
-		// A failed push and a failed push target read are both git failures;
-		// the rule word in the diagnostic, the output contract the fixpr
-		// document reports by, tells them apart.
 		p := newReviewRound(t, newTestRepo(t), 1)
 		failRemotePushes(t, p.r)
 		w, _ := newTestWorktree(t)
@@ -357,17 +357,19 @@ func TestPushReviewed(t *testing.T) {
 		if !errors.Is(err, ErrGitFailed) || !strings.Contains(err.Error(), "push failed") {
 			t.Errorf("PushReviewed = %v, want a git failure of push", err)
 		}
+	})
 
-		p = newReviewRound(t, newTestRepo(t), 1)
+	t.Run("ls_remote_failure", func(t *testing.T) {
+		p := newReviewRound(t, newTestRepo(t), 1)
 		w, router := newTestWorktree(t)
 		router.Before = map[string]func(){gitCommand + " ls-remote": func() {
 			if err := os.Rename(p.r.Remote, p.r.Remote+".gone"); err != nil {
 				t.Fatal(err)
 			}
 		}}
-		_, err = w.PushReviewed(t.Context(), p.base, p.phase4)
-		if !errors.Is(err, ErrGitFailed) || strings.Contains(err.Error(), "push") {
-			t.Errorf("PushReviewed = %v, want a git failure not of push", err)
+		_, err := w.PushReviewed(t.Context(), p.base, p.phase4)
+		if !errors.Is(err, ErrGitFailed) || !strings.Contains(err.Error(), "ls-remote failed") || strings.Contains(err.Error(), "push") {
+			t.Errorf("PushReviewed = %v, want a git failure of ls-remote, not of push", err)
 		}
 	})
 }
@@ -386,6 +388,7 @@ func TestPushReviewedStops(t *testing.T) {
 		edit    func(p reviewRound)
 		commit  func(p reviewRound) string // the Phase 4 commit passed; p.phase4 when nil
 		below   bool                       // run from a directory below the top
+		layer   stopLayer                  // the git calls the stop allows
 		check   func(t *testing.T, err error)
 	}{
 		{name: "nothing_to_send", check: func(t *testing.T, err error) { t.Helper(); wantInvalidInput(t, err) }},
@@ -395,11 +398,11 @@ func TestPushReviewedStops(t *testing.T) {
 			p.r.Git("switch", "-q", "-c", "other")
 		}, check: func(t *testing.T, err error) { t.Helper(); wantStateParts(t, err, PartBranch) }},
 		{
-			name: "commit_malformed", reviews: 1, commit: func(p reviewRound) string { return strings.ToUpper(p.phase4) },
+			name: "commit_malformed", reviews: 1, commit: func(p reviewRound) string { return strings.ToUpper(p.phase4) }, layer: layerFiles,
 			check: func(t *testing.T, err error) { t.Helper(); wantInvalidInput(t, err) },
 		},
 		{
-			name: "below_the_top", reviews: 1, below: true,
+			name: "below_the_top", reviews: 1, below: true, layer: layerFiles,
 			check: func(t *testing.T, err error) { t.Helper(); wantInvalidInput(t, err) },
 		},
 		{name: "phase4_push_not_arrived", reviews: 1, edit: func(p reviewRound) {
@@ -409,16 +412,9 @@ func TestPushReviewedStops(t *testing.T) {
 			p.r.Git("push", "-q", testRemote, p.r.Head()+":"+headsPrefix+testBranch)
 			p.addReviewCommits(1)
 		}, check: func(t *testing.T, err error) { t.Helper(); wantStateParts(t, err, PartRemote) }},
-		{name: "branch_switched", reviews: 1, edit: func(p reviewRound) {
-			p.r.Git("switch", "-q", "-c", "other")
-		}, check: func(t *testing.T, err error) { t.Helper(); wantStateParts(t, err, PartBranch) }},
-		{
-			name: "merge_on_the_line", reviews: 1, edit: func(p reviewRound) { p.mergeOnHead() },
-			check: func(t *testing.T, err error) { t.Helper(); wantLineRule(t, err, lineMergeCommit) },
-		},
 		{name: "config_changed", reviews: 1, edit: func(p reviewRound) {
 			p.r.Git("config", "remote."+testRemote+".receivepack", "evil")
-		}, check: func(t *testing.T, err error) { t.Helper(); wantStateParts(t, err, PartConfig) }},
+		}, layer: layerList, check: func(t *testing.T, err error) { t.Helper(); wantStateParts(t, err, PartConfig) }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			p := newReviewRound(t, newTestRepo(t), tc.reviews)
@@ -436,6 +432,7 @@ func TestPushReviewedStops(t *testing.T) {
 			w, router := newTestWorktree(t)
 			_, err := w.PushReviewed(t.Context(), p.base, phase4)
 			tc.check(t, err)
+			wantLayer(t, tc.layer, router.Calls)
 			if indexOf(router.Calls, gitCommand+" push") >= 0 {
 				t.Errorf("pushed: %v", router.Calls)
 			}
