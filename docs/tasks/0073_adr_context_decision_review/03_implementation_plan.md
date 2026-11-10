@@ -493,7 +493,7 @@ AC-12・AC-13・AC-19・AC-20 は、手順の中の作業（issue を立てる�
 
 #### PR-3
 
--   `check s3` を、マージベース `b633a13858855ec254898bba18cc3a0f45a447a2` と先頭 `9c0db3a25dab0b6aaa232987dce153b63ee7c579` で実行し、0 で終わった。すべての確かめが `OK` で、違反はない。先頭の後のコミットは本書だけを変える。
+-   `check s3` を、マージベース `b633a13858855ec254898bba18cc3a0f45a447a2` と先頭 `9c0db3a25dab0b6aaa232987dce153b63ee7c579` で実行し、0 で終わった。すべての確かめが `OK` で、違反はない。先頭の後のコミットは本書と見直しの記録だけを変える。
 -   同じ先頭で `make test` を通した（`TestADRRecords`・`TestInstructionDocPaths` で `cmd/yt2column` を通し、全体で 0 件の失敗）。`make lint` も通した。
 -   blob の ID: `check.go` `fae4cff24becc3d8f2f3690a0336204cdbf4ae38`、`data.json` `fbe87d90f9b51e38f38863ae8832adbed29eee3a`、`main.go` `b330ae42f3cbad690972f759cd0788221a775009`、`mentions.go` `e53a9b87b55718f6885ab8933026a4b00c74e443`。
 -   許した変更はない。`s3` の `carried_in`・`retitled_adrs`・`link_changes`・`line_changes`・`unrecorded_commits`・`checker_changes`・`task_doc_changes` は空のままで、確かめのデータは変えていない（2.0 の手順 5 で書き足すものがなかった）。
