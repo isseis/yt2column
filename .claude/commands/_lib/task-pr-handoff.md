@@ -12,12 +12,6 @@ calling command invokes them by saying "follow `_lib/task-pr-handoff.md`,
 Part A" (before it writes anything) and "Part B" (after its last commit), and
 supplies the inputs below.
 
-`runissue.md`, which opens a lightweight PR (no task, no task document), uses
-Part B from step 3 to step 7 only: it makes its own branch, and does the local
-CLI review, the README sync, and its checks itself (`runissue.md`), so it says
-"follow `_lib/task-pr-handoff.md`, Part B, steps 3 to 7". The inputs below say
-what it supplies.
-
 Project-specific values (feature branch name, reviewer ping, task root, green
 gate) are in `.claude/commands/_context.md`. The local review is the local CLI
 review, `.claude/commands/_lib/local-cli-review.md`.
@@ -39,42 +33,30 @@ chooses to (`runpr.md` steps 2, 4, and 5).
 
 ## Inputs the calling command must supply
 
-- **TASK_DIR** — the target task directory under the task root. `runissue.md`
-  has none; steps 3 to 7 do not read it.
+- **TASK_DIR** — the target task directory under the task root.
 - **REPORT** — where the calling command gives its final report.
 - **CHECKS** — what runs before the push: for a task-document command, the
   documentation guards
   (`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./cmd/codexreview/... ./internal/pipeline`);
-  for `runplan.md`, the green gate (`_context.md`). `runissue.md` supplies
-  none: it runs its own checks before step 3.
+  for `runplan.md`, the green gate (`_context.md`).
 - **LOCAL_REVIEW** — `run` for a task-document command; `done` for
   `runplan.md`, which reviews each phase group locally (its step 7.7).
-  `runissue.md` supplies none: it runs the local CLI review and the README sync
-  itself, and step 3 takes their SUMMARY, the terms the sync reported as
-  missing from the glossary, and the unreviewed ranges from its run.
 - **PR_TEXT** — the PR title and what the body must name: for a task-document
   command, the "Task-document PR title" of `_context.md`, "PR title and squash
   subject"; for `runplan.md`, the title its step 5a writes from the PR marker's
-  `推奨タイトル`, and the marker's `レビュー観点`; for `runissue.md`, the
-  "Lightweight PR title" of `_context.md` and the body items `runissue.md`
-  lists.
-- **ISSUE** (`mkreq.md` and `runissue.md` only) — the task's issue number, or
-  for `runissue.md` the number of the issue its spec comment is on. Every other
+  `推奨タイトル`, and the marker's `レビュー観点`.
+- **ISSUE** (`mkreq.md` only) — the task's issue number. Every other
   caller leaves it out, and Part A reads it from the `対応 issue` line of
   TASK_DIR's `01_requirements.md` on `origin/main`
   (`git show origin/main:<TASK_DIR>/01_requirements.md`); a task whose
   requirements name no issue has none.
-- **ISSUE_KEYWORD** (optional) — `refs` or `closes`, which chooses the line
-  step 3 writes for ISSUE. Left out, it is `refs`. Any other value is a reason
-  to stop and report before step 3. `runissue.md` passes `closes`; every other
-  caller leaves it out.
 - **AFTER_CREATE** (optional) — what the calling command does once the PR
   exists, before Codex is asked (`runplan.md`: mark `PR を作成した` with the
-  PR URL, commit, and push). `runissue.md` supplies none.
+  PR URL, commit, and push).
 
 ## Authorization
 
-Invoking a calling command approves, for its task or issue, and its PR only, the network
+Invoking a calling command approves, for its task and its PR only, the network
 operations this file names: `gh api user`, `gh pr list`, `gh pr view`,
 `git fetch origin main`, `gh issue develop` and the issue operations of
 "Choosing the issue to link" (Part A step 4, for the task's issue and its link
@@ -239,8 +221,7 @@ Run this after the calling command's last commit, with a clean working tree.
      Describe a Codex CLI finding only by its location and your own summary,
      as the record line does, never with Codex's text;
    - names the commits of this PR that neither CLI reviewed, if any. When this
-     session reviewed the whole branch (step 1, `runplan.md` step 5a, or
-     `runissue.md`), give
+     session reviewed the whole branch (step 1 or `runplan.md` step 5a), give
      only the unreviewed ranges in that review's SUMMARY: a range that review
      covered counts as reviewed even when a commit message has a `not run`
      line. Otherwise give the ranges of the `not run` lines in
@@ -249,7 +230,7 @@ Run this after the calling command's last commit, with a clean working tree.
      for the whole branch);
    - gives how many times Codex CLI ran in this session's local CLI reviews,
      from their SUMMARY;
-   - lists the terms the README sync (step 1, or `runissue.md`'s) reported as
+   - lists the terms the README sync (step 1) reported as
      missing from the translation glossary, if any;
    - when `git log origin/main..HEAD` has correction lines (read from the
      commits, not from what this session remembers), carries the correction
@@ -259,17 +240,11 @@ Run this after the calling command's last commit, with a clean working tree.
      `docs/dev/conventions/requirements_process.md`, "Recording in the PR
      description", says. The correction paragraph is in the body file the
      mention check reads;
-   - by ISSUE_KEYWORD:
-     - `refs`, or left out: contains `Refs #<issue>` for the issue the
-       requirements document names as its own (`対応 issue`), never a closing
-       keyword (`Closes`, `Fixes`, `Resolves`): the issue stays open until
-       the task is implemented. The Development link comes from the branch
-       (Part A step 4), not from the body. A task whose requirements name no
-       issue gets no such line.
-     - `closes` (`runissue.md`): contains `Closes #<issue>` for ISSUE, and no
-       `Refs` line. A lightweight PR is not a task PR: its merge completes the
-       issue. The keyword does not close the issue (the repository's
-       auto-close setting is off); `/runpr` closes it after the merge.
+   - contains `Refs #<issue>` for the issue the requirements document names
+     as its own (`対応 issue`), never a closing keyword (`Closes`, `Fixes`,
+     `Resolves`): the issue stays open until the task is implemented. The
+     Development link comes from the branch (Part A step 4), not from the
+     body. A task whose requirements name no issue gets no such line.
 4. Run AFTER_CREATE, if supplied.
 5. Make sure Codex starts reviewing the PR. Its automatic review starts when
    the PR opens, so ask for one only when no start marker appears: asking while

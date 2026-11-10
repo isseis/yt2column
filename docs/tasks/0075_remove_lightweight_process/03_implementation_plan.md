@@ -74,7 +74,7 @@ git grep -n -i -E 'lightweight|runissue|軽量' HEAD -- docs/tasks/0000_template
 
 **変更するファイル:** `docs/dev/adr/0012-lightweight-check-in-bash.md`、本計画（§7 の基点の記録）
 
--   [ ] **ステップ 1-1**: 実装のブランチの基点（`git merge-base origin/main HEAD`）の完全な ID を求め、その ID のコミットに `.claude/commands/_lib/lightweight-check.sh` と `cmd/yt2column/lightweight_docs_test.go` があることを確かめる。ADR-0012 の `:26` と `:43` のリンクの先を、その ID を使った permalink（`https://github.com/isseis/yt2column/blob/<ID>/<パス>`）に直す。リンクの文、状態、経緯、索引は変えない。コミットのメッセージに、設計書 3.7 の形の訂正の行を、行頭から 1 行書く。基点の ID を本計画 §7 の冒頭の「実装のブランチの基点」の行に記録する。
+-   [x] **ステップ 1-1**: 実装のブランチの基点（`git merge-base origin/main HEAD`）の完全な ID を求め、その ID のコミットに `.claude/commands/_lib/lightweight-check.sh` と `cmd/yt2column/lightweight_docs_test.go` があることを確かめる。ADR-0012 の `:26` と `:43` のリンクの先を、その ID を使った permalink（`https://github.com/isseis/yt2column/blob/<ID>/<パス>`）に直す。リンクの文、状態、経緯、索引は変えない。コミットのメッセージに、設計書 3.7 の形の訂正の行を、行頭から 1 行書く。基点の ID を本計画 §7 の冒頭の「実装のブランチの基点」の行に記録する。
 
 **完了の条件:** ADR-0012 のほかの行が変わっていない。`make test` と `make lint` が通る。
 
@@ -82,26 +82,26 @@ git grep -n -i -E 'lightweight|runissue|軽量' HEAD -- docs/tasks/0000_template
 
 **変更するファイル:** 設計書 3.6 の表と、その下の箇条に挙げたファイル。本計画（§7 の記録。削除のコミットとは別のコミット）
 
--   [ ] **ステップ 2-0**: フェーズ 1 の `/runplan` の手順 7.7 が返した記録の行を、中身のないコミット（`git commit --allow-empty -F <file>`）のメッセージに書く。`Codex local review:` の行があれば、書く前に mention check を行う（`.claude/commands/runplan.md:226`）。これにより、削除のコミットのメッセージには、削除の説明と比較の出力だけを書けばよくなる。
--   [ ] **ステップ 2-1（削除のコミット）**: 設計書 3.6 の削除を、1 つのコミットで行う。行や項目は、読んで確かめた文面のとおりに 1 つずつ消す（`.claude/commands/runplan.md` step 5）。
-    -   [ ] `cmd/yt2column/lightweight_docs_test.go` を削除する。
-    -   [ ] `internal/doctestutil/lightweight.go` を削除する。
-    -   [ ] `.claude/commands/runissue.md` を削除する。
-    -   [ ] `.claude/commands/_lib/lightweight-spec.md` を削除する。
-    -   [ ] `.claude/commands/_lib/lightweight-check.sh` を削除する。
-    -   [ ] `.github/ISSUE_TEMPLATE/lightweight.md` を削除する。
-    -   [ ] `codex_review_docs_test.go` の `postingSections` から「runissue.md revert」の行を消す。
-    -   [ ] `codex_review_docs_test.go` の `postingSections` から「mkreq.md lightweight triage」の行を消す。
-    -   [ ] `codex_review_docs_test.go` の `readOnlyInvocations` から `runissueLinkedPRsQuery` を消す。
-    -   [ ] `codex_review_docs_test.go` の `readOnlyInvocations` から `runpr.md` の step 2 の GraphQL の読み取り（`-F n=<number>` の項目）を消す。
-    -   [ ] `fixpr_docs_test.go` の定数 `runissuePath` を消す。
-    -   [ ] `fixpr_docs_test.go` の `TestContextAndCommandsAgree` の表から `runissue.md` の行を消す。
-    -   [ ] `.claude/commands/mkreq.md` の step 1 の「Lightweight triage」の項目（`:70-191`）を消す。
-    -   [ ] `.claude/commands/runpr.md` の分類「Lightweight PR」の項目（`:298-338`）を消す。
+-   [-] **ステップ 2-0**: フェーズ 1 の `/runplan` の手順 7.7 が返した記録の行を、中身のないコミット（`git commit --allow-empty -F <file>`）のメッセージに書く。`Codex local review:` の行があれば、書く前に mention check を行う（`.claude/commands/runplan.md:226`）。これにより、削除のコミットのメッセージには、削除の説明と比較の出力だけを書けばよくなる。スキップした：フェーズ 1 の手順 7.7 は CodeRabbit CLI のレビューが指摘 0 件で、記録の行がなかったので、空のコミットは作らなかった。
+-   [x] **ステップ 2-1（削除のコミット）**: 設計書 3.6 の削除を、1 つのコミットで行う。行や項目は、読んで確かめた文面のとおりに 1 つずつ消す（`.claude/commands/runplan.md` step 5）。
+    -   [x] `cmd/yt2column/lightweight_docs_test.go` を削除する。
+    -   [x] `internal/doctestutil/lightweight.go` を削除する。
+    -   [x] `.claude/commands/runissue.md` を削除する。
+    -   [x] `.claude/commands/_lib/lightweight-spec.md` を削除する。
+    -   [x] `.claude/commands/_lib/lightweight-check.sh` を削除する。
+    -   [x] `.github/ISSUE_TEMPLATE/lightweight.md` を削除する。
+    -   [x] `codex_review_docs_test.go` の `postingSections` から「runissue.md revert」の行を消す。
+    -   [x] `codex_review_docs_test.go` の `postingSections` から「mkreq.md lightweight triage」の行を消す。
+    -   [x] `codex_review_docs_test.go` の `readOnlyInvocations` から `runissueLinkedPRsQuery` を消す。
+    -   [x] `codex_review_docs_test.go` の `readOnlyInvocations` から `runpr.md` の step 2 の GraphQL の読み取り（`-F n=<number>` の項目）を消す。
+    -   [x] `fixpr_docs_test.go` の定数 `runissuePath` を消す。
+    -   [x] `fixpr_docs_test.go` の `TestContextAndCommandsAgree` の表から `runissue.md` の行を消す。
+    -   [x] `.claude/commands/mkreq.md` の step 1 の「Lightweight triage」の項目（`:70-191`）を消す。
+    -   [x] `.claude/commands/runpr.md` の分類「Lightweight PR」の項目（`:298-338`）を消す。
 
     `make fmt` が `fixpr_docs_test.go` の定数の桁をそろえ直す変更は、このコミットに含めてよい（設計書 3.6）。ほかの変更（コメントの言い直し、本計画の進み具合）は含めない。`make test` と `make lint` が通ることを確かめてからコミットする。
--   [ ] **ステップ 2-2**: 削除のコミットを HEAD にしたまま、`make coverage-compare BASE=<削除のコミットの親>` を、コマンドの時間の上限を 10 分以上にするか、バックグラウンドで実行する。最後の行が `coverage-compare: PASS` であることを確かめる。`FAIL` か `STOP <kind>` のときは、先へ進まずに止まり、出力を示して利用者に尋ねる（設計書 7.2）。`PASS` のときは、出力を最後の行まで、削除のコミットのメッセージに足す。amend はメッセージだけを変え、tree の ID が変わらないことを amend の前後の `git rev-parse HEAD^{tree}` で確かめる。
--   [ ] **ステップ 2-3**: 比較の出力、amend の後の削除のコミットの ID、その tree の ID を本計画 §7 の AC-13 の行に書き、本計画の進み具合とともにコミットする（削除のコミットとは別のコミット）。
+-   [x] **ステップ 2-2**: 削除のコミットを HEAD にしたまま、`make coverage-compare BASE=<削除のコミットの親>` を、コマンドの時間の上限を 10 分以上にするか、バックグラウンドで実行する。最後の行が `coverage-compare: PASS` であることを確かめる。`FAIL` か `STOP <kind>` のときは、先へ進まずに止まり、出力を示して利用者に尋ねる（設計書 7.2）。`PASS` のときは、出力を最後の行まで、削除のコミットのメッセージに足す。amend はメッセージだけを変え、tree の ID が変わらないことを amend の前後の `git rev-parse HEAD^{tree}` で確かめる。
+-   [x] **ステップ 2-3**: 比較の出力、amend の後の削除のコミットの ID、その tree の ID を本計画 §7 の AC-13 の行に書き、本計画の進み具合とともにコミットする（削除のコミットとは別のコミット）。
 
 **削除のコミットが誤っていたとき。** フェーズ 2 のレビュー（`/runplan` の手順 7〜7.7）が、削除のコミットの中身の誤り（消し漏れ以外の誤り。削除でない変更や消しすぎ）を見つけたときは、まだ push していないブランチを削除のコミットの親まで戻し（`git reset --hard <親>`。戻す前に、捨てるコミットの ID を控える）、ステップ 2-1〜2-3 をやり直す。
 
@@ -115,11 +115,11 @@ git grep -n -i -E 'lightweight|runissue|軽量' HEAD -- docs/tasks/0000_template
 
 各ステップを 1 つのコミットにする。どのステップも、テストの関数・表の行・サブテストを消さない（設計書 6.1 の 3）。各コミットの前に `make test` と `make lint` を実行する。本フェーズで変える文書のうち、テストが見出し・項目の書き出し・表の行で読む文書（`runpr.md`・`_lib/task-pr-handoff.md`・`mkreq.md`・`_context.md`・`AGENTS.md`・`CLAUDE.md`）では、テストが読む目印と値を変えない。
 
--   [ ] **ステップ 3-1**: `mkreq.md` から、設計書 3.2 の「除くもの」のうち、ステップ 2-1 で消した step 1 の項目以外を、すべて取り除く（`description`、冒頭の引用の文、紹介の段落、「Placeholders」の段落、「Authorization」の承認の文、`gh issue view` の `--json` の `labels`、step 9 の報告の 2 つの文）。step 1 の残りの 3 つの確認と、step 2 へ進む流れは変えない（AC-05）。
--   [ ] **ステップ 3-2**: `runpr.md` から、設計書 3.3 の表の箇所のうち、ステップ 2-1 で消した分類の項目以外を取り除き、文の組み立てを直す。設計書 3.3 の箇条（Standalone change の定義は「anything else」のままにする；`fixprguard` のための `gh repo view` と `gh api graphql` の承認と `gh api user` は残す；step 5 の `gh issue close` の前の mention check は残す）を守る（AC-06・AC-07）。
--   [ ] **ステップ 3-3**: `_lib/task-pr-handoff.md` と `_context.md` から、設計書 3.4 の箇所を除く。Part B 手順 3 の ISSUE の行は、`refs` の場合の文だけにする（H-01）。
--   [ ] **ステップ 3-4**: 設計書 3.5 の表のファイル（`CLAUDE.md`、`AGENTS.md`、`requirements_process.md`、`mktrans.md`、`_lib/local-cli-review.md`）から、表の箇所を除く。`CLAUDE.md` の `jq` の項目は、残る 3 つのテストと 3 つのフィルタを述べる文にする。`requirements_process.md` の「Lightweight Process」の節の後の区切りの線 `---` は残す。
--   [ ] **ステップ 3-5**: テストのコメントを、次のとおりに直す（設計書 3.6）。コードは変えない。
+-   [x] **ステップ 3-1**: `mkreq.md` から、設計書 3.2 の「除くもの」のうち、ステップ 2-1 で消した step 1 の項目以外を、すべて取り除く（`description`、冒頭の引用の文、紹介の段落、「Placeholders」の段落、「Authorization」の承認の文、`gh issue view` の `--json` の `labels`、step 9 の報告の 2 つの文）。step 1 の残りの 3 つの確認と、step 2 へ進む流れは変えない（AC-05）。
+-   [x] **ステップ 3-2**: `runpr.md` から、設計書 3.3 の表の箇所のうち、ステップ 2-1 で消した分類の項目以外を取り除き、文の組み立てを直す。設計書 3.3 の箇条（Standalone change の定義は「anything else」のままにする；`fixprguard` のための `gh repo view` と `gh api graphql` の承認と `gh api user` は残す；step 5 の `gh issue close` の前の mention check は残す）を守る（AC-06・AC-07）。
+-   [x] **ステップ 3-3**: `_lib/task-pr-handoff.md` と `_context.md` から、設計書 3.4 の箇所を除く。Part B 手順 3 の ISSUE の行は、`refs` の場合の文だけにする（H-01）。
+-   [x] **ステップ 3-4**: 設計書 3.5 の表のファイル（`CLAUDE.md`、`AGENTS.md`、`requirements_process.md`、`mktrans.md`、`_lib/local-cli-review.md`）から、表の箇所を除く。`CLAUDE.md` の `jq` の項目は、残る 3 つのテストと 3 つのフィルタを述べる文にする。`requirements_process.md` の「Lightweight Process」の節の後の区切りの線 `---` は残す。
+-   [x] **ステップ 3-5**: テストのコメントを、次のとおりに直す（設計書 3.6）。コードは変えない。
     -   `codex_review_docs_test.go` の `postingSections` のコメントの 1 行目を、`// postingSections are the ten sections that post text to GitHub. fixpr.md` から `// postingSections are the eight sections that post text to GitHub. fixpr.md` に変える。続く 2 行は変えない。
     -   `codex_review_docs_test.go` の `readOnlyInvocations` のコメントを、変更前の全文
 
@@ -150,7 +150,7 @@ git grep -n -i -E 'lightweight|runissue|軽量' HEAD -- docs/tasks/0000_template
 
 **変更するファイル:** `docs/tasks/0075_remove_lightweight_process/_checks/main.go`（新規）、`docs/tasks/0075_remove_lightweight_process/_checks/data.json`（新規）、本計画（§7 の記録）
 
--   [ ] **ステップ 4-1**: 確認のスクリプトを `_checks/main.go` と `_checks/data.json` に書く（本計画 §1.3 の形）。確かめる項目は、設計書 7.3 の表の 2 行（AC-01、AC-02・AC-03）と、本計画 §1.3 の AC-11 の項目である。スクリプトには、設計書 7.3 の次の性質を持たせる。
+-   [x] **ステップ 4-1**: 確認のスクリプトを `_checks/main.go` と `_checks/data.json` に書く（本計画 §1.3 の形）。確かめる項目は、設計書 7.3 の表の 2 行（AC-01、AC-02・AC-03）と、本計画 §1.3 の AC-11 の項目である。スクリプトには、設計書 7.3 の次の性質を持たせる。
     -   コミットを 1 つ引数で受け取り、完全な ID に解決する。
     -   作業ツリーの対象のファイルを読まない。
     -   git の設定の影響を除く。
@@ -163,7 +163,7 @@ git grep -n -i -E 'lightweight|runissue|軽量' HEAD -- docs/tasks/0000_template
     -   確かめたコミットの完全な ID と、`main.go`・`data.json` の blob の ID を出力する。
 
     コメント・識別子・文字列リテラルは英語で書く。`make fmt` と `go vet -tags test ./docs/tasks/0075_remove_lightweight_process/_checks/` を通してから、`_checks/` の 2 つのファイルをコミットする。ビルドは、リポジトリの根で `go build -tags test -o <スクラッチパッドの中のパス> ./docs/tasks/0075_remove_lightweight_process/_checks/` とする（タスク 0071 と同じ）。出力する `main.go` の blob の ID は、ビルドに使った作業ツリーの `main.go` から求める。
--   [ ] **ステップ 4-2**: 確認のスクリプトが、狙った理由で失敗できることを確かめる。ステップ 4-1 のコミットから `git worktree` で使い捨てのブランチを作り、次の壊し方を 1 件ずつ別の一時的なコミットとして作る。それぞれのコミットを引数にして、ビルドした実行ファイルを走らせ、狙った項目が失敗することと、終了コード（違反は 1、読み取りの失敗は 2。タスク 0071 の `_checks/` と同じ）を確かめる。
+-   [x] **ステップ 4-2**: 確認のスクリプトが、狙った理由で失敗できることを確かめる。ステップ 4-1 のコミットから `git worktree` で使い捨てのブランチを作り、次の壊し方を 1 件ずつ別の一時的なコミットとして作る。それぞれのコミットを引数にして、ビルドした実行ファイルを走らせ、狙った項目が失敗することと、終了コード（違反は 1、読み取りの失敗は 2。タスク 0071 の `_checks/` と同じ）を確かめる。
     -   AC-01（違反）：専用ファイルの 1 つを戻す。
     -   AC-02（違反）：残すファイルの 1 行に、大文字の英語の語（`RUNISSUE`）を足す。別の一時的なコミットで、日本語の語（`軽量`）を足す。
     -   AC-02 の範囲（違反）：`docs/tasks/0000_template/` のファイルに語の一覧の語を足す。
@@ -173,7 +173,7 @@ git grep -n -i -E 'lightweight|runissue|軽量' HEAD -- docs/tasks/0000_template
     -   読み取りの失敗：存在しないコミットを引数にする。
 
     加えて、`docs/tasks/` の別のタスク文書と `docs/dev/adr/` の ADR に語を足しても合格すること（終了コード 0）を、タスク文書と ADR のそれぞれについて確かめる。`git grep` が 2 以上の終了コードで終わる場合は、壊して再現できないので、PR のレビューでコードを読む。狙った項目以外が失敗するときは、壊し方を直す。使い捨てのブランチは push せず、確かめた後に worktree とともに消す。壊し方ごとの結果は、ステップ 4-3 のコミットのメッセージに書く。
--   [ ] **ステップ 4-3**: PR の head で、確認のスクリプト、`make test`、`make lint`、`make deadcode` を実行する（AC-01〜AC-04・AC-11）。確認のスクリプトの出力と終了コード、確かめたコミットの完全な ID、3 つの `make` の結果を本計画 §7 に書き、本計画の進み具合とともにコミットする。このコミットは本タスクのディレクトリの下しか変えないので、記録した結果はそのまま head に当てはまる（設計書 6.1 の 5）。
+-   [x] **ステップ 4-3**: PR の head で、確認のスクリプト、`make test`、`make lint`、`make deadcode` を実行する（AC-01〜AC-04・AC-11）。確認のスクリプトの出力と終了コード、確かめたコミットの完全な ID、3 つの `make` の結果を本計画 §7 に書き、本計画の進み具合とともにコミットする。このコミットは本タスクのディレクトリの下しか変えないので、記録した結果はそのまま head に当てはまる（設計書 6.1 の 5）。
 
 **PR の作成ポイントでの確かめ直し（以下、作成ポイントの確かめ直し）。** フェーズ 4 の後の `/runplan` のレビュー（手順 6〜7.7）の修正が入った後、手順 5a でグリーンゲートを確かめる前に、次を行う。`/runplan` がこれを実装のまとまりとして拾わないよう、チェックボックスにはしない。
 
@@ -196,10 +196,10 @@ git grep -n -i -E 'lightweight|runissue|軽量' HEAD -- docs/tasks/0000_template
 
 **判定理由**: ステップ 4-1 が、除外がちょうど 1 回当たることの確かめと終了コード 1・2 の区別を持つ新しい確認のスクリプトを作り、ステップ 3-2・3-3 が投稿の守りを確かめるテスト（AC-07）が読むコマンドの文書を書き換える。削除のコミット（ステップ 2-1〜2-2）は、PR ではなくフェーズとして切り離している。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/764
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ## 3. 実装の順序とマイルストーン (Implementation Order and Milestones)
 
@@ -257,13 +257,31 @@ N/A。実行時の振る舞いを変えない（設計書 7.5）。
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
-- [ ] PR-1 マージ済み（対象ステップ: 1-1 / 2-0 / 2-1 / 2-2 / 2-3 / 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 4-1 / 4-2 / 4-3）
+- [x] PR-1 マージ済み（対象ステップ: 1-1 / 2-0 / 2-1 / 2-2 / 2-3 / 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 4-1 / 4-2 / 4-3）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
-確認のスクリプトは `docs/tasks/0075_remove_lightweight_process/_checks/`（`main.go` と `data.json`。以下、`_checks`）である。実行の記録（日付、確かめたコミットの完全な ID、`main.go` と `data.json` の blob の ID、出力、終了コード）は、ステップ 4-3 と作成ポイントの確かめ直しで各行に書く。
+確認のスクリプトは `docs/tasks/0075_remove_lightweight_process/_checks/`（`main.go` と `data.json`。以下、`_checks`）である。実行の記録（日付、確かめたコミットの完全な ID、`main.go` と `data.json` の blob の ID、出力、終了コード）は、ステップ 4-3 と作成ポイントの確かめ直しで、下の「実行の記録」に書く。表の `_checks` の行は、この記録を指す。
 
-実装のブランチの基点：（未記録。ステップ 1-1 で書く）
+実装のブランチの基点：`dcc4edf34c99d8aecd47c81710420fb54b0a1b29`（`git merge-base origin/main HEAD`。このコミットに `.claude/commands/_lib/lightweight-check.sh` と `cmd/yt2column/lightweight_docs_test.go` があることを `git ls-tree` で確かめた）
+
+実行の記録（ステップ 4-3、2026-11-09。PR の head での実行。フェーズ 4 のレビューで `_checks/main.go` を直した後に、ステップ 4-2 とともにやり直した）：
+
+-   確認のスクリプト：確かめたコミット `0ebb34510ba41b060da6771305a729d57ff9e435`、`main.go` の blob `c2dad5318e82b995908d169336e56359ff50cfd7`、`data.json` の blob `e771e8652b95430952c998ae71af38a58d630de4`。終了コード 0。出力は次のとおりである。
+
+    ```text
+    commit 0ebb34510ba41b060da6771305a729d57ff9e435
+    main.go blob c2dad5318e82b995908d169336e56359ff50cfd7
+    data.json blob e771e8652b95430952c998ae71af38a58d630de4
+    OK   deleted: none of the deleted files is in the commit
+    OK   words: outside the task records and the ADRs, no line matches the word list beyond the exclusions, and each exclusion matches exactly once
+    OK   ci: the Makefile and the CI workflows do not refer to this directory
+    OK every check passed
+    ```
+
+-   同じコミットで、`make test`・`make lint`・`make deadcode` は、どれも終了コード 0 で終わった（`make lint` は `0 issues.`、`make deadcode` は出力なし）。
+-   この記録のコミットは本タスクのディレクトリの下しか変えないので、結果は PR の head に当てはまる。
+-   作成ポイントの確かめ直し（2026-11-09）：`git fetch origin main` の後の `origin/main`（`7f7e85a0506dc43a9b0705fb515db6e53f1a9107`）が本ブランチの外に持つ変更は、タスク 0074 の `03_implementation_plan.md` の追加だけで、`docs/tasks/` の下にあり、衝突もない（`git merge-tree` で確かめた）。AC-02 の範囲の外なので、取り込まなかった。ステップ 4-3 の後に本タスクのディレクトリの外を変えたコミットはないので、記録はそのまま head に当てはまる。
 
 AC-01〜AC-03 は、文書に語がないことを `static`（確認のスクリプトの `git grep`）で確かめる。これは `requirements_process.md`「4. Acceptance Tests」の例外で、要件書 1 章（issue #744 の決定）と設計書付録 A が定める。語が軽量プロセスを指すかの判断は、AC-02 の `manual` で読む。
 
@@ -282,7 +300,7 @@ AC-01〜AC-03 は、文書に語がないことを `static`（確認のスクリ
 | AC-10 | （マージの後） | 同上 | 本計画 §10 |
 | AC-11 | static | `_checks` の AC-11 の項目（`Makefile` と `.github/workflows/` が本タスクの `_checks/` を参照しない）。`go list ./...` の対象の外であることは、ディレクトリ名による | 4-1・4-3 |
 | AC-12 | manual | 実装の PR の差分が、テストを足していないことを、PR のレビューで読む（設計書 7.4） | 全ステップ |
-| AC-13 | test | `make coverage-compare BASE=<削除のコミットの親>` の出力（最後の行が `coverage-compare: PASS`）。削除のコミットのメッセージ、PR の説明、この行に記録する。記録：（未記録） | 2-2・2-3 |
+| AC-13 | test | `make coverage-compare BASE=<削除のコミットの親>` の出力（最後の行が `coverage-compare: PASS`）。削除のコミットのメッセージ、PR の説明、この行に記録する。記録（2026-11-09）：削除のコミット `d661acdfbf946b8183141b1236e348797d2860e7`（amend の前は `d8b2bc557732bdd43534f2251c1a900aea92ea4c`。tree `23a69b547facdf9bf2450a98c067f765723078b6` は amend の前後で同じ）、親 `c9565dc5314d4d5d8a37a2ca290ee417159113f8`。出力：`target make coverage-compare BASE="c9565dc5314d4d5d8a37a2ca290ee417159113f8"` / `base c9565dc5314d4d5d8a37a2ca290ee417159113f8` / `head d8b2bc557732bdd43534f2251c1a900aea92ea4c tree 23a69b547facdf9bf2450a98c067f765723078b6` / `toolchain go1.27.1` / `tests base 1294 head 1286` / `files base 139 head 139` / `functions base 1312 head 1312` / `deleted 0` / `no compared function lost coverage` / `coverage-compare: PASS` | 2-2・2-3 |
 
 ## 8. 成功の基準 (Success Criteria)
 

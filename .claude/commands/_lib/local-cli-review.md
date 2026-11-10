@@ -7,7 +7,7 @@ description: "Internal: shared local CLI review pattern, CodeRabbit CLI with a C
 The local CLI review reviews committed changes with a review CLI of a model
 other than Claude before the PR-side review, then triages and fixes the
 findings. The CodeRabbit CLI reviews first; when it fails, Codex CLI reviews
-the same range in the same attempt, through the `codexreview` tool. Six
+the same range in the same attempt, through the `codexreview` tool. Five
 callers run it:
 
 - `runplan.md` step 7.7 (a phase group);
@@ -16,8 +16,7 @@ callers run it:
 - `runpr.md` step 1 (a standalone change);
 - `_lib/task-pr-handoff.md` Part B step 1 (the whole branch of a task-document
   PR);
-- `fixpr.md` Phase 4.5 (a fix round);
-- `runissue.md` (the whole branch of a lightweight PR).
+- `fixpr.md` Phase 4.5 (a fix round).
 
 This file defines the procedure once. A calling command invokes it by saying
 "follow `_lib/local-cli-review.md`" and supplying the inputs below. A caller
