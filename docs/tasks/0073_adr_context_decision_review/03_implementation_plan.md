@@ -521,7 +521,7 @@ AC-12・AC-13・AC-19・AC-20 は、手順の中の作業（issue を立てる�
 
 #### PR-6
 
--   `check s6` を、マージベース `fc4305b9bf9832c258545972fda172e3ad01c122` と先頭 `1465c9bb45ee3f95d98af15effe3224badc2ced2` で実行し、0 で終わった。すべての確かめが `OK` で、違反はない。先頭の後のコミットは本書だけを変える。
+-   `check s6` を、マージベース `fc4305b9bf9832c258545972fda172e3ad01c122` と先頭 `3a9600b74544d025bc448a33e1eadfcbc62beb23` で実行し、0 で終わった（レビューで ADR-0015 を直した後に実行し直した）。すべての確かめが `OK` で、違反はない。先頭の後のコミットは本書だけを変える。
 -   同じ先頭で `make test` を通した（`TestADRRecords`・`TestInstructionDocPaths` で `cmd/yt2column` を通し、全体で 0 件の失敗）。`make lint` も通した。
 -   blob の ID: `check.go` `fae4cff24becc3d8f2f3690a0336204cdbf4ae38`、`data.json` `7285a0e2111689085b52820d11f693853abe3680`、`main.go` `b330ae42f3cbad690972f759cd0788221a775009`、`mentions.go` `e53a9b87b55718f6885ab8933026a4b00c74e443`。
 -   許した変更はない。`s6` の `retitled_adrs`・`link_changes`・`line_changes`・`unrecorded_commits`・`checker_changes`・`task_doc_changes` は空で、`carried_in` に ADR-0015 を挙げただけである。
