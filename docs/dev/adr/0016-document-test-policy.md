@@ -24,7 +24,6 @@
 -   **計画は、前のタスクの `_checks/` を手本として写させず、壊し方は「チェックごとに少なくとも 1 つ」とだけ書いて並べ挙げない。** 前のタスクの大きなプログラムの構造が受け継がれ、計画に並べた壊し方がそのまま作業になるためである（[mkplan.md](../../../.claude/commands/mkplan.md)）。
 -   **確かめる差分に比べて過大な `diff` の確かめを、計画のレビュー・フェーズのまとまりのレビュー・弱いモデルの作業のレビューで指摘する。** 大きさは計画を書くときに決まるので、実装の前にも見つけられるようにするためである（[mkplan.md](../../../.claude/commands/mkplan.md) の「Technical correctness checklist」、[runplan.md](../../../.claude/commands/runplan.md) の「Phase-group review checklist」、[weakreview.md](../../../.claude/commands/weakreview.md) の「Weak-model failure checklist」）。
 -   **文書を読む Go の guard は、`doc-guard` の CI ジョブで、変更の種類にかかわらずすべての PR に実行する。** 対象のパッケージと、文書だけの変更で `make ext-test` を要求しない範囲は、[CLAUDE.md](../../../CLAUDE.md) の「Development Notes」と [.github/workflows/ci.yml](../../../.github/workflows/ci.yml) を正本とする。変えるときは、同じ PR で正本とこの ADR をそろえる。文書だけを変える PR でも、文書とコードの食い違いを同じ PR で見つけるためである。
--   上の `diff` の確かめの作りの基準・記録した差分の読み取り・受け入れ基準の書き方・計画の規則・レビューの観点は、まだ要件定義の段階にあり、requirements_process.md・mkplan.md・runplan.md・weakreview.md・CLAUDE.md には反映していない。この差分は [#789](https://github.com/isseis/yt2column/issues/789) の実装で解消する。
 
 ## 採らなかった案
 

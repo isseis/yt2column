@@ -606,6 +606,7 @@ list above says.
   - Specific and measurable
   - Independently verifiable
   - Focused on behavior, not implementation
+- **Write an AC that states a relation between the state before and after the change as a limited diff.** Such an AC (something is preserved, unchanged, or still present in the same order) takes the form "the diff of X is limited to Y and Z", and does not enumerate the parts that must be kept: each part listed becomes a piece of checking code (§ 4, "`diff` verification"). The one exception is an AC for a move or a split, which may take the form "the content of A is in B unchanged", because a move or a split cannot be stated as a limited diff.
 - Assign a **document-wide unique identifier** (`AC-01`, `AC-02`, …) to each acceptance criterion. Rules for managing identifiers:
   - On initial creation, assign sequentially across all requirements (e.g., `F-001` gets `AC-01`–`AC-05`, `F-002` gets `AC-06`–`AC-08`)
   - **Deletion**: remove the criterion and leave the identifier unused — gaps are permitted
@@ -787,7 +788,7 @@ The type-derived checklist below is applied when designing each boundary in `02_
 - Follow normal test naming conventions based on what is being tested
 - Tests can be unit tests, integration tests, or any appropriate type
 - Each acceptance criterion must have at least one `test`, `static`, or `diff` verification (see "Acceptance Criteria Verification" in `03_implementation_plan.md`); a `static` check alone is sufficient only for criteria that are purely about textual presence or absence in code or configuration, never for the presence or absence of a word in a document. An AC that specifies only the natural-language content of a document is verified by a `manual` reading in the PR review instead; a mixed AC still needs the test, static, or diff verification for its value or structure
-- A `diff` verification is for an AC that states a relation between the state before and after the change: something is preserved, unchanged, or still present in the same order (for example, a document's existing headings keep their wording and order). Such a property belongs to the change, not to the resulting state, so it is not a permanent test: a permanent test would have to pin a copy of the old values, which `CLAUDE.md` forbids ("Document tests check values, structure, and executable examples, never prose"), or read git history, which makes it depend on the checkout and blocks later changes once the "before" no longer means anything. Instead, a script committed under the task directory (`docs/tasks/NNNN_<name>/_checks/`; `go list ./...` ignores a directory whose name starts with `_`) compares the merge-base with the PR's head. It is run once on the PR branch, and its output and both commit IDs are recorded in the implementation plan's verification row. `make test` and CI do not run it, and it is not maintained after the merge
+- A `diff` verification is for an AC that states a relation between the state before and after the change; it is a script or a recorded diff reading, as "`diff` verification" below says
 - Tests must verify the actual behavior, not just the happy path
 - Link each verification to its acceptance criterion in the implementation plan
 
@@ -820,6 +821,80 @@ Traceability between this test and its acceptance criteria is recorded in
 `03_implementation_plan.md` (see "Traceability in implementation plan" above),
 not as `AC-NN`/`F-NNN` references in source comments — `runplan.md`'s
 pre-commit checks reject such references in Go source.
+
+### `diff` verification
+
+- **What it verifies.** An AC that states a relation between the state before and after the change: something is preserved, unchanged, or still present in the same order. Section 1 gives the form such an AC takes, for example "the diff of section S is limited to rewriting the one line of item X". The property belongs to the change, not to the resulting state, so it is not a permanent test: a permanent test would have to pin a copy of the old values, which `CLAUDE.md` forbids ("Document tests check values, structure, and executable examples, never prose"), or read git history, which makes it depend on the checkout and blocks later changes once the "before" no longer means anything.
+- **Two forms.** A `diff` verification is either a **script** or a **recorded diff reading**, and both carry the `diff` label. Both compare the merge-base with a commit of the PR (the **compared commit**), are done once per PR on the PR branch, and leave their result with both commit IDs in the implementation plan's verification row. `make test` and CI run neither, and neither is maintained after the merge.
+- **Proportion.** Build the verification in proportion to the diff it checks: weigh what the reviewer has to read (the script, or the recorded output) against the size of the diff it verifies.
+- **Script.** A script is committed under the task directory (`docs/tasks/NNNN_<name>/_checks/`; `go list ./...` ignores a directory whose name starts with `_`). Its default language is shell (`git diff`, `cmp`, `sed`, and the like); another language is used only when the plan states why shell is not enough. Whoever writes it confirms that each of its checks fails under at least one breakage, runs it on the PR branch, and records its output and both commit IDs in the plan's verification row.
+- **Recorded diff reading.** For a document change whose diff is small, the PR review may read the recorded diff instead of a script. Whether the diff is small is the plan author's judgment, with no numeric threshold, and the reviewer may object to it ("Objection" below). The plan states that the AC uses a recorded diff reading and names the compared paths. It needs no breakage step: there is no code to break.
+- **Compared paths.** The compared paths may be limited to the paths the AC names. They never include the implementation plan, which holds the record: each recording would change the diff it records. An AC about the plan itself is verified by a script. For an AC that limits which files change, the record also holds the file list of the whole diff, so a change outside the compared paths is not missed.
+- **Recording.** `/runplan` runs the fixed commands below after the commit that implements the AC and writes the diff record, in the form below, into the plan's verification row in a later commit. Committing the record advances the PR's head; the record stays valid as long as the compared paths have the same content at the final head.
+- **Recheck.** The record is rechecked before the PR is created (`/runplan`) and before the merge (`/runpr`, PRE_MERGE), by "Rechecking a record" below. The recheck runs nothing but `git fetch origin main`, the fixed commands, and the comparison: it never evaluates a string from the record in the shell, and it never runs a `_checks/` script.
+- **Output too long to read.** Output too long to be read whole means the diff is not small. Found while planning, the plan uses a script; found while recording, `/runplan` records nothing and settles the change of verification with the human as a decision change ("Editing an approved document"); found in the review, the reviewer objects. The output is never truncated.
+- **Objection.** When the reviewer objects that a diff recorded for reading is not small, the AC's verification is replaced by a script before the merge. Changing the form of a verification changes what the approved plan decides, so it is a decision change ("Editing an approved document"): the plan returns to `draft` and is approved again at the merge. Whoever adds the script runs and records it as "Script" above says; `/runpr` stops at the merge while the record is missing.
+
+#### Fixed commands
+
+The record holds no command: both commands are fixed here, so rerunning one gives the same output whatever the git configuration, except for the one part named after the commands. Their arguments fix color, the path prefixes, the number of context lines, the merging of nearby hunks, the diff algorithm, the abbreviation of blob IDs, the order of files, the quoting of path names, rename detection, external diff and text conversion programs, a binary marking (the output is always text), the relative-path setting, and the form of an empty context line; `env -u GIT_DIFF_OPTS` removes the environment variable that would override the number of context lines. Rename detection is off, so a moved file shows as the deletion of its old path and the addition of its new path. Run them from the top level of the work tree, with `<base>` the merge-base (`git merge-base origin/main HEAD`, after `git fetch origin main`) and `<commit>` the compared commit, both as full commit IDs.
+
+Path diff, with each compared path passed literally as its own single-quoted argument after `--` (a path that holds a single quote or a newline cannot be passed this way: stop and report it):
+
+```bash
+env -u GIT_DIFF_OPTS git --no-pager --literal-pathspecs -c core.quotePath=true -c diff.suppressBlankEmpty=false \
+  diff --no-color --no-ext-diff --no-textconv --text --default-prefix --no-relative --full-index \
+  -U3 --inter-hunk-context=0 --diff-algorithm=myers --indent-heuristic --no-renames -O/dev/null \
+  <base> <commit> -- '<path>' ...
+```
+
+File list, only for an AC that limits which files change:
+
+```bash
+env -u GIT_DIFF_OPTS git --no-pager -c core.quotePath=true \
+  diff --no-ext-diff --no-relative --no-renames -O/dev/null --name-only <base> <commit>
+```
+
+One part of the output stays outside these arguments: the function name after the `@@` of a hunk header comes from the `diff` attribute (`.gitattributes`, `$GIT_DIR/info/attributes`, `core.attributesFile`) and the `diff.<driver>.funcname` or `diff.<driver>.xfuncname` setting of the driver it selects, which no `git diff` argument fixes. The record is made and rechecked in the same repository, so the attributes are normally the same; a recheck in a checkout whose attributes differ can see a difference in hunk headers alone, and it is treated like any other difference (re-recorded).
+
+#### Diff record form
+
+The diff records follow the verification table of the plan's Acceptance Criteria Verification section, one block per AC (and, when several PRs verify one AC row, one per PR, under a line naming the PR). The plan author writes the first line and the compared paths; `/runplan` writes the rest:
+
+`````markdown
+Diff record (AC-NN):
+
+- Compared paths: `docs/dev/security.md`
+- Merge-base: `<full commit ID>`
+- Compared commit: `<full commit ID>`
+
+Path diff:
+
+````text
+<the whole output of the path diff command>
+````
+
+File list (only for an AC that limits which files change):
+
+````text
+<the whole output of the file list command>
+````
+`````
+
+- The compared paths are listed one per code span. The plan author names them; `/runplan` does not change them.
+- The label line before a code block (`Path diff:`, or the line starting `File list`) says which command's output the block holds.
+- Each output is the command's whole output, never truncated, in a code block that starts at the beginning of the line. Its fence is a run of backquotes longer than any run of backquotes in the output, and at least three, because a document's diff can hold a fence of its own.
+- Nothing inside a record's code block is read as a plan marker or a checkbox (a PR checkpoint marker, `- [ ]`, the not-yet-filled PR number marker, and the like): a command that reads the plan's markers skips those code blocks.
+
+#### Rechecking a record
+
+`/runplan` (before it creates the PR) and `/runpr` (PRE_MERGE) recheck each diff record the same way, and compare mechanically, never by eye:
+
+1. Run `git fetch origin main`, then compute `<base>` as `git merge-base origin/main HEAD`, with `HEAD` as `<commit>`.
+2. Run the path diff command with the record's compared paths, and the file list command when the record has a file list, writing each output to a file outside the work tree.
+3. Copy the lines strictly between the opening and the closing fence of each of the record's code blocks, unedited, to another file outside the work tree: `awk -v a=<opening fence line> -v b=<closing fence line> 'NR > a && NR < b' <plan>`. An empty code block gives an empty file.
+4. Drop the trailing whitespace of every line of both files (`sed 's/[[:space:]]*$//'`) and compare them with `cmp`. The repository's pre-commit hook removes trailing whitespace from the plan, so a committed record can differ from the command's output there alone.
+5. When every comparison exits `0`, the record stays valid. When one exits `1`, re-record: replace the outputs and both commit IDs with the new ones. When a command or a comparison fails (any other exit status), or the record lacks a compared path or a commit ID, stop and report: an output that cannot be compared cannot be told from an unchanged one.
 
 ## 5. Pre-Commit Checklist
 

@@ -147,9 +147,10 @@ Work in the following order.
      `docs/tasks/0029_transcript_panel_read/01_requirements.md` is an example of
      this shape.
    - Follow the requirements process guide, section 1: acceptance criteria with
-     document-wide unique IDs that state observable behavior, and the
-     untrusted-input boundary rules where the requirement consumes untrusted
-     input.
+     document-wide unique IDs that state observable behavior, an AC that
+     states a relation between the state before and after the change written
+     as a limited diff, and the untrusted-input boundary rules where the
+     requirement consumes untrusted input.
    - Put implementation-level concerns that came up in `design_handoff.md`
      (`H-NN` items) instead of the requirements.
    - Commit the task directory and the ADR changes (the files
