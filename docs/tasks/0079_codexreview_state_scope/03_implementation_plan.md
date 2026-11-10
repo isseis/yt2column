@@ -161,8 +161,8 @@ PR の説明には、入れ直しの前後の食い違いの見分け方（設�
 
 - [x] グリーンゲート（`make test`・`make lint`）がパスしていることを確認した
 - [x] PR を作成した: https://github.com/isseis/yt2column/pull/809
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ## 3. 実装順序とマイルストーン (Implementation Order and Milestones)
 
@@ -206,7 +206,7 @@ PR の説明には、入れ直しの前後の食い違いの見分け方（設�
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
--   [ ] PR-1 マージ済み（対象ステップ: 1-1 / 2-1 / 3-1）
+-   [x] PR-1 マージ済み（対象ステップ: 1-1 / 2-1 / 3-1）
 -   [x] 7 章のすべての AC の検証が通り、`_checks/check.sh` の実行を記録した
 
 ## 7. 受け入れ条件の検証 (Acceptance Criteria Verification)
