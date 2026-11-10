@@ -47,3 +47,4 @@
 | [ADR-0039](0039-adr-writing-criteria.md) | ADR の背景には決定が答える問題と前提だけを、決定には守るべき規則を理由と正本の場所とともに書き、決定を変えない直しは編集上の訂正として認める | `有効` |
 | [ADR-0040](0040-simple-task-documents.md) | 小さな変更のタスクは、人の判断で 3 文書を簡易な内容にして 1 本の PR で作れるようにし、機械的な判定は設けない | `有効` |
 | [ADR-0041](0041-openai-api.md) | OpenAI は Responses API を応答の保存なしで呼び、出力上限は実測で決める | `有効` |
+| [ADR-0042](0042-implementation-model-tiers.md) | 実装モデル要件を opus・sonnet+opus-review・sonnet の 3 つにし、sonnet+opus-review の PR は開く前に Opus がレビューする | `有効` |
