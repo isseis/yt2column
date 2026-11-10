@@ -15,9 +15,28 @@ argument-hint: "<task>"
 
 Your goal is to create `03_implementation_plan.md` for one task under `docs/tasks/`.
 
+`/mkreq` uses steps 4 to 8 of this command through
+`.claude/commands/_lib/simple-process.md` when it writes and reviews the three
+documents of the simple process; a change that renumbers those steps or changes
+what they do must check that file in the same PR.
+
 Work in the following order.
 
 1. Identify the target task directory by following the rules in `docs/dev/conventions/task_identification.md`.
+
+   Then read the task's process record before reading or writing anything else:
+   run `git fetch origin main`, then read the `Process` row of the task's
+   `01_requirements.md` on `origin/main`, following
+   `.claude/commands/_lib/simple-process.md`, "Reading the process record".
+   - If the record is `` `simple` ``, do not create `03_implementation_plan.md`:
+     report that this task takes the simple process and that `/mkreq` writes
+     its three documents, then stop. When `origin/main` lacks
+     `02_architecture.md` or `03_implementation_plan.md`, report that mismatch
+     instead, as "Reading the process record" says.
+   - If the record is broken, stop and report as that section says.
+   - If the record is absent, `` `full` ``, or `origin/main` has no
+     `01_requirements.md` for the task, go on; the checks below stop on a
+     document that is not `approved`.
 
 1.5. Prepare the branch: follow `.claude/commands/_lib/task-pr-handoff.md`, Part A,
    with **TASK_DIR** = the target task directory, **REPORT** = the step 11
@@ -60,6 +79,13 @@ Work in the following order.
    - **RECORD** = a `計画の際に決めたこと（YYYY-MM-DD）` list in the
      implementation overview of `03_implementation_plan.md`, each item with its
      reason.
+
+   A confirmed item of `implementation_handoff.md` (the requirements process
+   guide, "Design handoff") is not an open decision: adopt its decision and its
+   ADR judgment without asking again, and record them in
+   `計画の際に決めたこと（YYYY-MM-DD）`. Ask again only when
+   `01_requirements.md` changed after the item was written and the item's
+   premise no longer holds.
 
 6. Create `03_implementation_plan.md` in the same task directory.
 

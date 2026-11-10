@@ -281,3 +281,10 @@ neither is not a choice: ask again.
   `要件定義の際に決めたこと（YYYY-MM-DD）` section of `01_requirements.md`, and
   continue "Writing the three documents" where it was: settle the remaining
   decisions, then write.
+
+**After the three-document PR is merged (`/runplan`):** when a decision change
+a phase group needs is an excluded change, follow `runplan.md` step 5: stop
+before settling the change, and report its content and that it becomes a
+separate task in the full process, for which an issue is created. The task
+does not return to the full process, and a decision change that is not
+excluded follows that step's `Decision change` procedure.
