@@ -314,8 +314,9 @@ func TestPushReviewed(t *testing.T) {
 		checked := p.r.Head()
 		w, router := newTestWorktree(t)
 		router.Before = map[string]func(){gitCommand + " push": func() { p.addReviewCommits(1) }}
-		if _, err := w.PushReviewed(t.Context(), p.base, p.phase4); err != nil {
-			t.Fatalf("PushReviewed = %v", err)
+		got, err := w.PushReviewed(t.Context(), p.base, p.phase4)
+		if err != nil || got.Commit != checked {
+			t.Fatalf("PushReviewed = %+v, %v, want the checked commit %s", got, err, checked)
 		}
 		if p.r.Head() == checked {
 			t.Fatal("HEAD did not move before the push")
@@ -371,19 +372,36 @@ func TestPushReviewed(t *testing.T) {
 	})
 }
 
+func wantInvalidInput(t *testing.T, err error) {
+	t.Helper()
+	if !errors.Is(err, ErrInvalidInput) {
+		t.Errorf("err = %v, want ErrInvalidInput", err)
+	}
+}
+
 func TestPushReviewedStops(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		reviews int
 		edit    func(p reviewRound)
+		commit  func(p reviewRound) string // the Phase 4 commit passed; p.phase4 when nil
+		below   bool                       // run from a directory below the top
 		check   func(t *testing.T, err error)
 	}{
-		{name: "nothing_to_send", check: func(t *testing.T, err error) {
-			t.Helper()
-			if !errors.Is(err, ErrInvalidInput) {
-				t.Errorf("err = %v, want ErrInvalidInput", err)
-			}
-		}},
+		{name: "nothing_to_send", check: func(t *testing.T, err error) { t.Helper(); wantInvalidInput(t, err) }},
+		{name: "nothing_to_send_and_branch_switched", edit: func(p reviewRound) {
+			// The refusal comes after the comparison, so a changed state is
+			// reported as such even with nothing to send.
+			p.r.Git("switch", "-q", "-c", "other")
+		}, check: func(t *testing.T, err error) { t.Helper(); wantStateParts(t, err, PartBranch) }},
+		{
+			name: "commit_malformed", reviews: 1, commit: func(p reviewRound) string { return strings.ToUpper(p.phase4) },
+			check: func(t *testing.T, err error) { t.Helper(); wantInvalidInput(t, err) },
+		},
+		{
+			name: "below_the_top", reviews: 1, below: true,
+			check: func(t *testing.T, err error) { t.Helper(); wantInvalidInput(t, err) },
+		},
 		{name: "phase4_push_not_arrived", reviews: 1, edit: func(p reviewRound) {
 			p.r.Git("push", "-q", "-f", testRemote, p.base.head+":"+headsPrefix+testBranch)
 		}, check: func(t *testing.T, err error) { t.Helper(); wantStateParts(t, err, PartRemote) }},
@@ -408,8 +426,15 @@ func TestPushReviewedStops(t *testing.T) {
 				tc.edit(p)
 			}
 			remote := p.r.RemoteHead()
+			phase4 := p.phase4
+			if tc.commit != nil {
+				phase4 = tc.commit(p)
+			}
+			if tc.below {
+				t.Chdir(filepath.Join(p.r.Dir, "docs"))
+			}
 			w, router := newTestWorktree(t)
-			_, err := w.PushReviewed(t.Context(), p.base, p.phase4)
+			_, err := w.PushReviewed(t.Context(), p.base, phase4)
 			tc.check(t, err)
 			if indexOf(router.Calls, gitCommand+" push") >= 0 {
 				t.Errorf("pushed: %v", router.Calls)

@@ -644,7 +644,9 @@ func (w *Worktree) pushCommit(ctx context.Context, target pushTarget, commit str
 // branch is at phase4 (so Phase 4's push arrived and nobody moved the branch
 // since), then pushes the checked HEAD OID, never the symbolic HEAD: a HEAD
 // moved during the push target read is not sent. It refuses, after the
-// check and without pushing, when no commit follows phase4.
+// check and without pushing, when no commit follows phase4. The check is of
+// one moment; a process that rewrites the configuration or the hooks between
+// the check and the push is not stopped.
 func (w *Worktree) PushReviewed(ctx context.Context, base Baseline, phase4 string) (PushResult, error) {
 	if err := checkReviewInput(phase4); err != nil {
 		return PushResult{}, err
