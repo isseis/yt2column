@@ -836,11 +836,85 @@ type headRule struct {
 	commit string
 }
 
-// stateResult is what compareState checked: the push target and the HEAD OID
-// it read.
+// stateResult is what compareState checked: the push target, the HEAD OID it
+// read, and, under headFollowsPhase4, the number of commits after commit.
 type stateResult struct {
-	target pushTarget
-	head   string
+	target  pushTarget
+	head    string
+	commits int
+}
+
+// maxReviewCommits bounds the commits after the Phase 4 commit that the line
+// check walks, so a long line that never reaches the baseline's commit does
+// not run git without end.
+const maxReviewCommits = 32
+
+// lineRule names the rule a line from the Phase 4 commit failed. Its values
+// are fixed words, never a SHA; GitStateError.Rule holds only these.
+type lineRule string
+
+const (
+	// lineMergeCommit: a commit on the line has two or more parents.
+	lineMergeCommit lineRule = "merge-commit"
+	// lineRootCommit: a commit on the line has no parent.
+	lineRootCommit lineRule = "root-commit"
+	// lineNoPhase4: HEAD is the baseline's commit, so there is no Phase 4
+	// commit.
+	lineNoPhase4 lineRule = "no-phase4-commit"
+	// linePhase4Mismatch: the commit whose parent is the baseline's commit is
+	// not the Phase 4 commit the caller named.
+	linePhase4Mismatch lineRule = "phase4-mismatch"
+	// lineTooLong: more than maxReviewCommits commits follow the Phase 4
+	// commit, or the line does not reach the baseline's commit within them.
+	lineTooLong lineRule = "line-too-long"
+)
+
+// HeadLineRules lists the rule names a head stop of check and push-review
+// prints, in the order the guide's table lists them, so the guide can be
+// checked against them.
+func HeadLineRules() []string {
+	return []string{string(lineMergeCommit), string(lineRootCommit), string(lineNoPhase4), string(linePhase4Mismatch), string(lineTooLong)}
+}
+
+// lineError is the only way a GitStateError gets a Rule.
+func lineError(rule lineRule) *GitStateError {
+	return &GitStateError{Parts: []string{PartHead}, Rule: string(rule)}
+}
+
+// followsPhase4 walks the parents from head, the OID headState read (the
+// symbolic HEAD is never resolved again). Every commit walked has exactly one
+// parent; the first whose parent is the baseline's commit is the Phase 4
+// commit, and it must be phase4. It returns the number of commits after it.
+// Commits are read with commitObject, so neither replace refs nor the
+// commit-graph can fake a parent.
+func (w *Worktree) followsPhase4(ctx context.Context, base Baseline, head, phase4 string) (int, error) {
+	if head == base.head {
+		return 0, lineError(lineNoPhase4)
+	}
+	oid := head
+	for n := 0; ; n++ {
+		_, parents, _, err := w.commitObject(ctx, oid)
+		if err != nil {
+			return 0, err
+		}
+		switch len(parents) {
+		case 0:
+			return 0, lineError(lineRootCommit)
+		case 1:
+		default:
+			return 0, lineError(lineMergeCommit)
+		}
+		if parents[0] == base.head {
+			if oid != phase4 {
+				return 0, lineError(linePhase4Mismatch)
+			}
+			return n, nil
+		}
+		if n == maxReviewCommits {
+			return 0, lineError(lineTooLong)
+		}
+		oid = parents[0]
+	}
 }
 
 // checkBranch is the one place a branch difference is classified: HEAD off
@@ -873,6 +947,7 @@ func (w *Worktree) compareState(ctx context.Context, base Baseline, rule headRul
 		return stateResult{}, err
 	}
 	var wantRemote string
+	commits := 0
 	switch rule.kind {
 	case headIsCommit:
 		if head != rule.commit {
@@ -880,7 +955,10 @@ func (w *Worktree) compareState(ctx context.Context, base Baseline, rule headRul
 		}
 		wantRemote = base.remoteOID
 	case headFollowsPhase4:
-		return stateResult{}, fmt.Errorf("%w: head rule not implemented", ErrInvalidInput)
+		if commits, err = w.followsPhase4(ctx, base, head, rule.commit); err != nil {
+			return stateResult{}, err
+		}
+		wantRemote = rule.commit
 	default:
 		return stateResult{}, fmt.Errorf("%w: unknown head rule", ErrInvalidInput)
 	}
@@ -888,7 +966,7 @@ func (w *Worktree) compareState(ctx context.Context, base Baseline, rule headRul
 	if err != nil {
 		return stateResult{}, err
 	}
-	result := stateResult{target: target, head: head}
+	result := stateResult{target: target, head: head, commits: commits}
 	if check == checkLocal {
 		return result, nil
 	}

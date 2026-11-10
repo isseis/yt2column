@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"hash"
 	"io"
+	"io/fs"
 	"os"
 	"slices"
 	"strings"
@@ -554,6 +555,45 @@ func objectID(h hash.Hash, data []byte) string {
 	_, _ = fmt.Fprintf(h, "blob %d\x00", len(data))
 	_, _ = h.Write(data)
 	return hex.EncodeToString(h.Sum(nil))
+}
+
+// ReviewState is the output of check: the git state matches the baseline,
+// HEAD is on the baseline's branch, and HEAD continues in one line from the
+// Phase 4 commit, whose only parent is the baseline's commit.
+type ReviewState struct {
+	Protocol int    `json:"protocol"`
+	Base     string `json:"base"`    // the baseline's commit
+	Head     string `json:"head"`    // the HEAD commit that was checked
+	Commits  int    `json:"commits"` // commits after the Phase 4 commit
+}
+
+// checkReviewInput refuses, before any git runs, a Phase 4 commit not in the
+// accepted shape and a run away from the top of a work tree (no .git here).
+// A .git that exists in another shape is left to CheckState, which reports
+// it as a config change: rewriting it changes the state compared.
+func checkReviewInput(phase4 string) error {
+	if !validOID(phase4) {
+		return fmt.Errorf("%w: commit", ErrInvalidInput)
+	}
+	if _, err := os.Lstat(".git"); errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("%w: not at the top of a work tree", ErrInvalidInput)
+	}
+	return nil
+}
+
+// CheckReviewState compares the git state as check does. phase4 is the
+// Phase 4 commit the caller names; it only narrows the check, since the tool
+// finds the Phase 4 commit from the git state itself. It reads no push target
+// and changes nothing but the ignored stop record.
+func (w *Worktree) CheckReviewState(ctx context.Context, base Baseline, phase4 string) (ReviewState, error) {
+	if err := checkReviewInput(phase4); err != nil {
+		return ReviewState{}, err
+	}
+	state, err := w.compareState(ctx, base, headRule{kind: headFollowsPhase4, commit: phase4}, checkLocal)
+	if err != nil {
+		return ReviewState{}, err
+	}
+	return ReviewState{Protocol: Protocol, Base: base.head, Head: state.head, Commits: state.commits}, nil
 }
 
 // PushResult is the output of push.

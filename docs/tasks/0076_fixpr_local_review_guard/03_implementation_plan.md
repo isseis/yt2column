@@ -170,18 +170,19 @@
 
 **変更するファイル:** `internal/fixprguard/gitstate.go`、`internal/fixprguard/worktree.go`、`internal/fixprguard/review_test.go`（新規）
 
--   [ ] `headFollowsPhase4` の分岐に、系列の判定を設計書 3.3 のとおりに書く。たどる数の上限は、Phase 4 の commit より後の commit で 32 個である。止まる 5 つの規則（マージの commit、親のない commit、Phase 4 の commit がない、`--commit` との不一致、上限）には、それぞれ固定の英語の名前を付け、`GitStateError.Rule` に入れる。
--   [ ] 規則の名前の一覧を返す公開の関数を加える（1.3。`IgnoredFailureRules()` と同じ形）。
--   [ ] `ReviewState` と `CheckReviewState` を設計書 3.2 のとおりに加える。最初に `--commit` の形（`validOID`）と、今の場所に `.git` があること（git を起動せずに確かめる。1.3）を確かめ、どちらも違えば `ErrInvalidInput` を返す。その後に `compareState` を `headFollowsPhase4` と `checkLocal` で呼ぶ（設計書 3.4・3.10。`check` は push 先を読まない）。
--   [ ] `review_test.go` に、設計書 7.1 の「系列の判定」と「比較の順序」の各場合を書く。加えて、次の行を書く。
+-   [x] `headFollowsPhase4` の分岐に、系列の判定を設計書 3.3 のとおりに書く。たどる数の上限は、Phase 4 の commit より後の commit で 32 個である。止まる 5 つの規則（マージの commit、親のない commit、Phase 4 の commit がない、`--commit` との不一致、上限）には、それぞれ固定の英語の名前を付け、`GitStateError.Rule` に入れる。名前は型 `lineRule` の定数にし、`Rule` を持つ誤りは関数 `lineError` だけが作る。
+-   [x] 規則の名前の一覧を返す公開の関数 `HeadLineRules()` を加える（1.3。`IgnoredFailureRules()` と同じ形）。`head` の各行の確かめは、期待の規則がこの一覧にあることも確かめる。
+-   [x] `GitStateError.Error()` の規則の名前の添え方を、`TestGitStateErrorText` で確かめる（文面が出力の契約であるため）。
+-   [x] `ReviewState` と `CheckReviewState` を設計書 3.2 のとおりに加える。最初に `--commit` の形（`validOID`）と、今の場所に `.git` があること（git を起動せずに確かめる。1.3）を確かめ、どちらも違えば `ErrInvalidInput` を返す。その後に `compareState` を `headFollowsPhase4` と `checkLocal` で呼ぶ（設計書 3.4・3.10。`check` は push 先を読まない）。
+-   [x] `review_test.go` に、設計書 7.1 の「系列の判定」と「比較の順序」の各場合を書く。加えて、次の行を書く。
     -   上限の境界: Phase 4 の commit より後の commit が 32 個（通る）と 33 個（`head`）。
     -   系列の途中にマージの commit がある場合（HEAD 自身は親が 1 つ）。
     -   `.git` がない場所（`ErrInvalidInput` で、git を 1 回も起動しない）と、形の誤った `.git` ファイル（`config`）。
     -   `--commit` の形の誤り（大文字、短い値、空）。
     -   `ignored` で止まったとき、止まった時点の記録のファイルが書かれること（設計書 3.8 の最後の段落）。
     -   push 先が基準値の OID のまま（Phase 4 の push が届いていない）でも `check` が通り、どの行でも `git ls-remote` を起動しないこと（設計書 3.10）。
--   [ ] 行の確かめ方: 通る行では、`Base`・`Head`・`Commits` の 3 つの値を確かめる。`head` の各行では、その行が当たるべき規則の名前を期待の値として持ち、`GitStateError.Rule` と等しいことを確かめる（`wantStateParts` の隣に補助を置く）。`head` 以外で止まる行では、`Rule` が空であることを確かめる。基準値の commit から続かない列の行は、基準値の commit がリポジトリの最初の commit にならないように作る（`newTestRepo` の最初の commit の上に commit を足してから基準値を取る）。親のない commit の行と区別するためである。
--   [ ] 壊して確かめる: 親が 2 つの commit を通す、`--commit` との照合を外す、HEAD が基準値の commit であることの確かめを外す、ブランチの比較を外す、`CheckState` の呼び出しを外す、上限の比較を 1 つずらす、`checkLocal` を `checkWithRemote` にする（設計書 7.2）。どの行が失敗したかをコミットメッセージに書く。
+-   [x] 行の確かめ方: 通る行では、`Base`・`Head`・`Commits` の 3 つの値を確かめる。`head` の各行では、その行が当たるべき規則の名前を期待の値として持ち、`GitStateError.Rule` と等しいことを確かめる（`wantStateParts` の隣に補助を置く）。`head` 以外で止まる行では、`Rule` が空であることを確かめる。基準値の commit から続かない列の行は、基準値の commit がリポジトリの最初の commit にならないように作る（`newTestRepo` の最初の commit の上に commit を足してから基準値を取る）。親のない commit の行と区別するためである。
+-   [x] 壊して確かめる: 親が 2 つの commit を通す、`--commit` との照合を外す、HEAD が基準値の commit であることの確かめを外す、ブランチの比較を外す、`CheckState` の呼び出しを外す、上限の比較を 1 つずらす、`checkLocal` を `checkWithRemote` にする（設計書 7.2）。どの行が失敗したかをコミットメッセージに書く。
 
 **成功の条件:** `make fmt` と `make lint` を実行し、`go test -tags test ./internal/fixprguard/...` が通る。
 
