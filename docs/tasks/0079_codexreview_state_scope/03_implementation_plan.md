@@ -159,7 +159,7 @@ PR の説明には、入れ直しの前後の食い違いの見分け方（設�
 
 **判定理由**: ステップ 2-1 が、Codex に sandbox を破られたときの検出の範囲という開発用ツールの守りを狭める。これは mkplan2 の手順 4 が挙げる security-gate の条件に当たり、正しさは AC-05・AC-09 の条件の組み立てに懸かる。
 
-- [ ] グリーンゲート（`make test`・`make lint`）がパスしていることを確認した
+- [x] グリーンゲート（`make test`・`make lint`）がパスしていることを確認した
 - [ ] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
@@ -255,11 +255,11 @@ OK every check passed
 
 ## 8. 完了条件 (Success Criteria)
 
--   [ ] AC-01〜AC-12 の検証が 7 章のとおり通る。
--   [ ] ほかのブランチ・タグ・stash の変化では止まらず、この worktree の `git status`・HEAD・HEAD のブランチの ref の変化では今と同じく止まる。
--   [ ] HEAD の読み取りの想定外の出力を補わず、読めないものとして扱う（要件書 4.2 の「信頼できない入力」）。
--   [ ] 共通手順の文、`types.go` のコメント、`package_reference.md`、ADR-0013 が、新しい比べるものと食い違わない。
--   [ ] `make test`・`make lint`・`make deadcode` が通る。
+-   [x] AC-01〜AC-12 の検証が 7 章のとおり通る。
+-   [x] ほかのブランチ・タグ・stash の変化では止まらず、この worktree の `git status`・HEAD・HEAD のブランチの ref の変化では今と同じく止まる。
+-   [x] HEAD の読み取りの想定外の出力を補わず、読めないものとして扱う（要件書 4.2 の「信頼できない入力」）。
+-   [x] 共通手順の文、`types.go` のコメント、`package_reference.md`、ADR-0013 が、新しい比べるものと食い違わない。
+-   [x] `make test`・`make lint`・`make deadcode` が通る。
 
 ## 9. 次のステップ (Next Steps)
 
