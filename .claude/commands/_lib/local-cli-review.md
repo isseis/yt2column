@@ -44,7 +44,9 @@ convergence rules are in `.claude/commands/_lib/review-subagent-pattern.md`.
   Today only `fixpr.md` Phase 4.5 passes GUARD. A caller that does not pass it
   gets the procedure exactly as written without the GUARD sentences.
 - **ROOT** (with GUARD) — the absolute path of the worktree root, which the
-  caller recorded without running git. GUARD runs from it.
+  caller recorded without running git. GUARD runs from it. With GUARD, run
+  no `git rev-parse HEAD` for HEAD3 (step 7): leave that record line to the
+  caller, which takes HEAD3 from its own comparison.
 
 ## Authorization
 

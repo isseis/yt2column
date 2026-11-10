@@ -802,7 +802,8 @@ tool compared the git state with the baseline again. `check` compares, and
 `push-review` compares and pushes the commits this phase made. Both take
 Phase 4's `commitSha` as `--commit` (the Phase 4 commit, not the commit to
 push), print `protocol` with their output, and run from `<root>` (Phase 1),
-each as a call of its own, never behind `cd ... &&`:
+each as a call of its own, never behind `cd ... &&`. When the current
+directory may not be `<root>`, first `cd <root>` as a call of its own:
 
 ```
 fixprguard check --protocol 6 --baseline <baseline> --commit <commitSha>
@@ -811,10 +812,11 @@ fixprguard push-review --protocol 6 --baseline <baseline> --commit <commitSha>
 
 `check` prints `base` (the baseline's commit), `head` (the HEAD it checked),
 and `commits` (the commits after `commitSha`). Keep the output of the last
-`check` that passed, the procedure's GUARD runs included, and count every
-`git commit` you make after it that succeeds. A `git commit` that timed out
-or ended by a signal may or may not have made a commit: count it as "at
-least".
+`check` that passed, the procedure's GUARD runs included. Keep two counts of
+the `git commit` calls you make in this phase that succeed: the total since
+step 1, and the number since the last passing `check`. A `git commit` that
+timed out or ended by a signal may or may not have made a commit: count it
+as "at least".
 
 1. Run `check`. Take BASE from its `base`.
 2. Follow `.claude/commands/_lib/local-cli-review.md` with **BASE** = that
@@ -824,22 +826,25 @@ least".
    not the Phase 4 subject, so the round count in the Convergence policy is
    unaffected.
 3. When the procedure returns, run `check` again. Its `head` is HEAD3 of the
-   procedure's record lines: read no HEAD any other way. When its `commits`
-   differs from the number of commits you made in the procedure, stop (below);
-   this stop is yours, not the tool's, so it has no `stop` or `parts`. When
-   `commits` is `0`, the phase is done: go to Phase 5.
+   procedure's record lines: read no HEAD any other way. **Count check:**
+   when its `commits` differs from your total since step 1, or the total is
+   "at least", stop (below); this stop is yours, not the tool's, so it has
+   no `stop` or `parts`. When `commits` is `0`, the phase is done: go to
+   Phase 5.
 4. Run the README sync check of Phase 3 again, and act on its result the same
    way. For `translated`, run `check` once more, then stage and commit
    `README.en.md` alone, as the procedure commits its fixes, with a message
-   such as `docs: sync README.en.md with README.md`. For `stopped`, stop
-   (below): push nothing.
-5. Run `push-review`. On exit code `0`, go to Phase 5. The replies in Phase 5
-   name Phase 4's `commitSha`; they stay accurate because the later commits
-   only refine that fix.
+   such as `docs: sync README.en.md with README.md`. For `stopped`, and for
+   `already in sync` or `not applicable` after a failed check, stop (below):
+   push nothing.
+5. Run `check` once more, with the count check of step 3, then run
+   `push-review`, running nothing in between. On exit code `0`, go to
+   Phase 5. The replies in Phase 5 name Phase 4's `commitSha`; they stay
+   accurate because the later commits only refine that fix.
 
 **Stops.** A stop of `check`, of the GUARD, or of `push-review` (exit code
 `1`, `2`, or anything else, as "The guard tool" says), a stop of the
-procedure, a stopped README sync, and the mismatch of step 3 end the phase:
+procedure, a stopped README sync, and a failed count check end the phase:
 run no further git (no build checks, staging, commit, or push) and no Phase 5
 or 6, and leave the work tree and the commits as they are. For a stop on the
 ignored files, also follow "Stops on the ignored files" under "The guard
@@ -865,6 +870,14 @@ been rewritten. Build the values for the Final report from what you kept:
   `Local CLI review: not run` line. When the range ends at a commit made after
   the last passing `check`, whose SHA you do not know, end it at that
   `check`'s `head` and add the number of commits made after it.
+- **The point that stopped:** Phase 4.5 step 1, 3, 4, or 5, or the
+  procedure's step and the point in it (before the attempt, before step 3's
+  git, before the build checks, the README sync check, staging, or
+  `findings --clear`), or `push-review`.
+- **A fix left uncommitted:** a stop inside the procedure's fix step (before
+  its build checks, README sync check, or staging) leaves the fix in the work
+  tree; the next `/fixpr` stops with `dirty-work-tree` until the user
+  examines it and discards or commits it.
 - **A stop of the first `check`:** no `check` passed, no commit was made, and
   BASE, HEAD1, and HEAD2 do not exist. No commit of this phase is unpushed,
   and the range the local review did not see is Phase 4's `commitSha` alone:
@@ -1030,8 +1043,10 @@ the user with **all** of the following — bare counts alone are not enough:
    "stopped: the git state differs from the baseline" (`git-state-changed`,
    with its `parts`), "stopped: the README sync stopped", "stopped: the local
    CLI review stopped" (Phase 4.5), "stopped: the Phase 4.5 comparison
-   stopped" (a stop of `check`, the GUARD, or `push-review`, or the commit
-   count mismatch), or the stop kind the tool printed.
+   stopped" (a stop of `check`, the GUARD, or `push-review`, or a failed
+   count check; in Phase 4.5 this label is used instead of the
+   `git-state-changed` one, with the `parts` added), or the stop kind the
+   tool printed.
 
 2. **Bot-comment assessment**: a table built from the Phase 2 triage results
    (`topic`, `severity`, `verdict`) plus the Phase 3 `applied` flag, grouped by
@@ -1096,16 +1111,19 @@ the user with **all** of the following — bare counts alone are not enough:
    threads neither replied to nor resolved (list them), and any difference in
    the worktree or refs it found, which the user examines before the next
    `/fixpr` (a changed work tree makes it stop with `dirty-work-tree`).
-   When the Phase 4.5 comparison stopped, give the call that stopped, its
-   stop kind and `parts` (or, for the commit count mismatch, both counts),
+   When the Phase 4.5 comparison stopped, give the point that stopped
+   (Phase 4.5, "Stops"), its stop kind and `parts` (or, for a failed count
+   check, both counts), whether a fix was left uncommitted (the next
+   `/fixpr` stops with `dirty-work-tree` until the user examines it),
    that Phase 4's commit is pushed, its threads neither replied to nor
    resolved (list them), and the number of unpushed commits of Phase 4.5 or
    "the push result is unknown" (Phase 4.5, "Stops"). Say what the user
    checks before the next `/fixpr`: the guide's chapter 8 row of the stop
-   kind (8.1 for `ignored`), and the unpushed commits: the next `/fixpr`
-   carries them (a Phase 4 push sends them along with its own commit, and a
-   round with no commit stops in Phase 4 on them), so the user examines them
-   first and keeps or discards them.
+   kind (8.1 for `ignored`), and the unpushed commits: a later Phase 4 push
+   sends them along with its own commit, a round whose Phase 4 runs but makes
+   no commit stops on them, and a round that skips Phase 4 (nothing to fix
+   or to process) leaves them unpushed without a stop. So the user examines
+   them first and pushes or discards them by hand.
 
 8. **README sync**: when the README sync changed `README.en.md`, the terms it
    reported as missing from the glossary, for the user to add to the glossary
