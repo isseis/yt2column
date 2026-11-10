@@ -83,8 +83,9 @@ yt2column: tokens: <stage> <origin> unknown reason=<reason> <model-field>
   （プロンプトのキャッシュから読まず、キャッシュにも書かなかった分）、`cache_read=`（プロンプトのキャッシュから読んだ分）、`cache_write=`（プロンプトのキャッシュに書いた分。この区分を持たない DeepSeek では常に 0）、`output=`（出力。推論と思考を含む）である。`reused` の工程では、保存した出力が記録した数である。
 - `unknown` は、使用量を読めなかったか、規則を満たさなかったことを示す。数は書かず、`reason=` が空白を含まない 1 語を示す。`not-read`（使用量を読めなかった。使用量を読む前に失敗した呼び出し、または使用量を報告しないクライアント）、`recorded-unknown`（保存した出力が、その工程を不明として記録していた）、`invalid-rule`（既知のどの規則にも当たらない規則）のいずれか、または、規則を破ったのが `usage` メンバか、読み取るメンバの 1 つであるときの `usage:missing`・
   `usage:duplicate`・`usage:not-an-object`・
-  `usage:not-a-non-negative-integer` と、その `usage.<member>:missing`・
-  `usage.<member>:duplicate`・`usage.<member>:not-a-non-negative-integer` の形である。
+  `usage:not-a-non-negative-integer`・`usage:inconsistent` と、その `usage.<member>:missing`・
+  `usage.<member>:duplicate`・`usage.<member>:not-a-non-negative-integer`・
+  `usage.<member>:inconsistent` の形である。`inconsistent` は、内訳の数の合計が全体の数を超えることを示す。
 - `<model-field>` は、モデルの名前を示す `model=<model>` か、モデルの名前の規則を満たすモデルを工程が報告しなかったときの固定の語
   `nomodel` である。モデルの名前は、`redact.Line` が標準エラーのすべての行をエスケープするのと同じ方法でエスケープするので、名前の中の `"` と `\` はエスケープされる。元に戻すには、
   `model=` の後のすべてを二重引用符で囲み、`strconv.Unquote` に渡す。設定した秘密情報（またはその末尾の 8 文字）を含むモデルの名前は、伏せ字の印に置き換わり、元に戻せない。

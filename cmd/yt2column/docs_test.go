@@ -817,6 +817,7 @@ func TestTokenUsageDocsContract(t *testing.T) {
 		llm.UnknownUsage(llm.RuleDuplicate, ""),
 		llm.UnknownUsage(llm.RuleNotObject, ""),
 		llm.UnknownUsage(llm.RuleNotNonNegativeInteger, ""),
+		llm.UnknownUsage(llm.RuleInconsistent, ""),
 		llm.UnknownUsage(llm.UnknownRule(99), ""),
 	}
 	for _, usage := range reasons {

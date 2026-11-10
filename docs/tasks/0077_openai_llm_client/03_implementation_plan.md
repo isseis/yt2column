@@ -97,8 +97,8 @@
 
 **変更ファイル:** `internal/llm/usage.go`・`usage_test.go`。
 
-- [ ] 設計書 §3.4.1 の `PricingContext` と構築・取得口、および内訳の不整合を示す固定の不明理由を追加する。
-- [ ] 新規 `TestKnownUsageWithPricingContext` で列挙外の拒否、既存構築口の条件、比較可能性、既知の数と条件の分離を検証する。未知の使用量の条件は `unspecified` とする。
+- [x] 設計書 §3.4.1 の `PricingContext` と構築・取得口、および内訳の不整合を示す固定の不明理由を追加する。
+- [x] 新規 `TestKnownUsageWithPricingContext` で列挙外の拒否、既存構築口の条件、比較可能性、既知の数と条件の分離を検証する。未知の使用量の条件は `unspecified` とする。
 
 #### ステップ 2-2：版4を書き、版3の再開を保つ
 
