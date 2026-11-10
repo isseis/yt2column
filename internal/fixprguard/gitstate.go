@@ -876,7 +876,8 @@ func HeadLineRules() []string {
 	return []string{string(lineMergeCommit), string(lineRootCommit), string(lineNoPhase4), string(linePhase4Mismatch), string(lineTooLong)}
 }
 
-// lineError is the only way a GitStateError gets a Rule.
+// lineError builds every head stop that carries a Rule; by convention no
+// other code in the package sets Rule.
 func lineError(rule lineRule) *GitStateError {
 	return &GitStateError{Parts: []string{PartHead}, Rule: string(rule)}
 }

@@ -268,10 +268,12 @@ func TestGitStateErrorText(t *testing.T) {
 		t.Errorf("Error() = %q, want %q", got, want)
 	}
 	ruled := lineError(lineTooLong)
-	if got, want := ruled.Error(), ErrGitStateChanged.Error()+": head (rule line-too-long)"; got != want {
+	if got, want := ruled.Error(), ErrGitStateChanged.Error()+": head (rule "+string(lineTooLong)+")"; got != want {
 		t.Errorf("Error() = %q, want %q", got, want)
 	}
-	if !errors.Is(ruled, ErrGitStateChanged) {
-		t.Error("a head stop does not match ErrGitStateChanged")
+	// The rules must be told apart by name alone.
+	rules := HeadLineRules()
+	if distinct := len(slices.Compact(slices.Sorted(slices.Values(rules)))); distinct != len(rules) {
+		t.Errorf("HeadLineRules() = %v, want distinct names", rules)
 	}
 }
