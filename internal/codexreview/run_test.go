@@ -702,7 +702,8 @@ func TestRunAfterStateUnreadable(t *testing.T) {
 		// act sets up the repository and makes the fake codex leave a state
 		// that cannot be read.
 		act func(fx fixture, b *codexreviewtestutil.Behavior)
-		// headUnreadable: the HEAD output, not git, is what fails.
+		// headUnreadable: the HEAD output, not git, is what fails; for the
+		// other rows a failed git command must reach the caller as it is.
 		headUnreadable bool
 	}{
 		{
@@ -740,8 +741,8 @@ func TestRunAfterStateUnreadable(t *testing.T) {
 			if !errors.Is(err, errAfterStateUnreadable) || !reflect.DeepEqual(r, Result{}) {
 				t.Errorf("Run = %+v, %v, want no result and %v", r, err, errAfterStateUnreadable)
 			}
-			if tt.headUnreadable && !errors.Is(err, errHeadUnreadable) {
-				t.Errorf("Run = %v, want %v", err, errHeadUnreadable)
+			if errors.Is(err, errHeadUnreadable) != tt.headUnreadable {
+				t.Errorf("Run = %v, wrapping %v: %t, want %t", err, errHeadUnreadable, !tt.headUnreadable, tt.headUnreadable)
 			}
 		})
 	}

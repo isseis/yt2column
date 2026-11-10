@@ -90,8 +90,9 @@ func readHead(ctx context.Context, g git) (branchRef, commit string, err error) 
 	branchOut, err := g.run(ctx, "symbolic-ref", "-q", "HEAD")
 	detached := false
 	if exitErr, ok := errors.AsType[*cmdrunner.ExitError](err); ok && exitErr.Code == 1 {
-		// Exit status 1 with -q means HEAD is detached.
-		branchOut, err, detached = nil, nil, true
+		// Exit status 1 with -q means HEAD is detached; parseHead checks that
+		// it printed nothing.
+		branchOut, err, detached = exitErr.Stdout, nil, true
 	}
 	if err != nil {
 		return "", "", err
