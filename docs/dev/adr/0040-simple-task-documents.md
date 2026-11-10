@@ -14,7 +14,7 @@
 
 ## 決定
 
-以下の決定の仕様は、規則を [requirements_process.md](../conventions/requirements_process.md) の「Review Flow」「Process record」「Simple Process」「Design handoff」が、コマンドの手順を [simple-process.md](../../../.claude/commands/_lib/simple-process.md) が定める。
+以下の決定の仕様は、規則を [requirements_process.md](../conventions/requirements_process.md) の「Review Flow」「Process record」「Simple Process」の節と「Design handoff」の段落が、コマンドの手順を [simple-process.md](../../../.claude/commands/_lib/simple-process.md) と、それを呼ぶ各コマンドの定義（`mkreq.md`・`runpr.md`・`fixpr.md` など）が定める。
 
 -   **タスクは、通常の進め方か簡易な進め方で進める。`/mkreq` は、要件定義書を書くたびに、どちらにするかを推奨を添えて人に尋ね、選んだ進め方を要件定義書に記録する。** 文書の分量を変更の規模に合わせる判断を、その場の判断ではなく、決まった手順にするためである。
 -   **簡易な進め方では、`/mkreq` が 3 文書を簡易な内容で書き、1 本の PR で開く。人は 3 文書を 1 回のマージの質問で承認し、実装は別の PR で行う。** PR の往復の待ちを減らしつつ、実装の前に人が承認する関門を残すためである。
