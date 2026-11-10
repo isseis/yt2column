@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"hash"
 	"io"
+	"io/fs"
 	"os"
 	"slices"
 	"strings"
@@ -141,7 +142,7 @@ type Inspection struct {
 // each against the scope of threads. threads comes from GitHub.ThreadPaths,
 // never from the caller's arguments. It changes nothing.
 func (w *Worktree) Inspect(ctx context.Context, base Baseline, threads []ThreadPath) (Inspection, error) {
-	if _, err := w.compareState(ctx, base, base.head, checkWithRemote); err != nil {
+	if _, err := w.compareState(ctx, base, headRule{kind: headIsCommit, commit: base.head}, checkWithRemote); err != nil {
 		return Inspection{}, err
 	}
 	changes, err := w.changesAgainst(ctx, base)
@@ -340,7 +341,7 @@ func commitMessage(req FinishRequest) (finishMessage, error) {
 // target branch, which finish does not touch) and lists the changes against
 // the baseline's commit.
 func (w *Worktree) checkedChanges(ctx context.Context, base Baseline) ([]change, error) {
-	if _, err := w.compareState(ctx, base, base.head, checkLocal); err != nil {
+	if _, err := w.compareState(ctx, base, headRule{kind: headIsCommit, commit: base.head}, checkLocal); err != nil {
 		return nil, err
 	}
 	return w.changesAgainst(ctx, base)
@@ -459,12 +460,14 @@ func (w *Worktree) checkCommit(ctx context.Context, base Baseline, want []change
 	if err != nil {
 		return "", err
 	}
+	if err := checkBranch(base, branch); err != nil {
+		return "", err
+	}
 	tree, parents, stored, err := w.commitObject(ctx, commit)
 	if err != nil {
 		return "", err
 	}
-	if branch == "" || digestString(branch) != base.branch || !slices.Equal(parents, []string{base.head}) ||
-		(message.pinned && stored != message.text) {
+	if !slices.Equal(parents, []string{base.head}) || (message.pinned && stored != message.text) {
 		return "", &GitStateError{Parts: []string{PartHead}}
 	}
 	baseTree, _, _, err := w.commitObject(ctx, base.head)
@@ -554,6 +557,45 @@ func objectID(h hash.Hash, data []byte) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
+// ReviewState is the output of check: the git state matches the baseline,
+// HEAD is on the baseline's branch, and HEAD continues in one line from the
+// Phase 4 commit, whose only parent is the baseline's commit.
+type ReviewState struct {
+	Protocol int    `json:"protocol"`
+	Base     string `json:"base"`    // the baseline's commit
+	Head     string `json:"head"`    // the HEAD commit that was checked
+	Commits  int    `json:"commits"` // commits after the Phase 4 commit
+}
+
+// checkReviewInput refuses, before any git runs, a Phase 4 commit not in the
+// accepted shape and a run away from the top of a work tree (no .git here).
+// A .git that exists in another shape is left to CheckState, which reports
+// it as a config change: rewriting it changes the state compared.
+func checkReviewInput(phase4 string) error {
+	if !validOID(phase4) {
+		return fmt.Errorf("%w: commit", ErrInvalidInput)
+	}
+	if _, err := os.Lstat(".git"); errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("%w: not at the top of a work tree", ErrInvalidInput)
+	}
+	return nil
+}
+
+// CheckReviewState compares the git state as check does. phase4 is the
+// Phase 4 commit the caller names; it only narrows the check, since the tool
+// finds the Phase 4 commit from the git state itself. It reads no push target
+// and changes nothing but the ignored stop record.
+func (w *Worktree) CheckReviewState(ctx context.Context, base Baseline, phase4 string) (ReviewState, error) {
+	if err := checkReviewInput(phase4); err != nil {
+		return ReviewState{}, err
+	}
+	state, err := w.compareState(ctx, base, headRule{kind: headFollowsPhase4, commit: phase4}, checkLocal)
+	if err != nil {
+		return ReviewState{}, err
+	}
+	return ReviewState{Protocol: Protocol, Base: base.head, Head: state.head, Commits: state.commits}, nil
+}
+
 // PushResult is the output of push.
 type PushResult struct {
 	Protocol int    `json:"protocol"`
@@ -572,18 +614,52 @@ func (w *Worktree) Push(ctx context.Context, base Baseline, commit string) (Push
 	if !validOID(commit) {
 		return PushResult{}, fmt.Errorf("%w: commit", ErrInvalidInput)
 	}
-	target, err := w.compareState(ctx, base, commit, checkWithRemote)
+	state, err := w.compareState(ctx, base, headRule{kind: headIsCommit, commit: commit}, checkWithRemote)
 	if err != nil {
 		return PushResult{}, err
 	}
+	target := state.target
 	if _, parents, _, err := w.commitObject(ctx, commit); err != nil {
 		return PushResult{}, err
 	} else if !slices.Equal(parents, []string{base.head}) {
 		return PushResult{}, &GitStateError{Parts: []string{PartHead}}
 	}
-	refspec := commit + ":" + headsPrefix + target.branch
-	if _, err := w.git(ctx, "push", "push", "-q", "--no-follow-tags", "--recurse-submodules=no", "--", target.remote, refspec); err != nil {
+	if err := w.pushCommit(ctx, target, commit); err != nil {
 		return PushResult{}, err
 	}
 	return PushResult{Protocol: Protocol, Pushed: true, Commit: commit}, nil
+}
+
+// pushCommit sends commit, an OID already checked, to the target branch with
+// an explicit refspec and without tags or submodules, so no configured
+// refspec or push option decides what is sent. Its failure names the rule
+// push, which tells a failed push from a failed check.
+func (w *Worktree) pushCommit(ctx context.Context, target pushTarget, commit string) error {
+	refspec := commit + ":" + headsPrefix + target.branch
+	_, err := w.git(ctx, "push", "push", "-q", "--no-follow-tags", "--recurse-submodules=no", "--", target.remote, refspec)
+	return err
+}
+
+// PushReviewed checks as CheckReviewState does and that the push target
+// branch is at phase4 (so Phase 4's push arrived and nobody moved the branch
+// since), then pushes the checked HEAD OID, never the symbolic HEAD: a HEAD
+// moved during the push target read is not sent. It refuses, after the
+// check and without pushing, when no commit follows phase4. The check is of
+// one moment; a process that rewrites the configuration or the hooks between
+// the check and the push is not stopped.
+func (w *Worktree) PushReviewed(ctx context.Context, base Baseline, phase4 string) (PushResult, error) {
+	if err := checkReviewInput(phase4); err != nil {
+		return PushResult{}, err
+	}
+	state, err := w.compareState(ctx, base, headRule{kind: headFollowsPhase4, commit: phase4}, checkWithRemote)
+	if err != nil {
+		return PushResult{}, err
+	}
+	if state.commits == 0 {
+		return PushResult{}, fmt.Errorf("%w: no commit after the Phase 4 commit", ErrInvalidInput)
+	}
+	if err := w.pushCommit(ctx, state.target, state.head); err != nil {
+		return PushResult{}, err
+	}
+	return PushResult{Protocol: Protocol, Pushed: true, Commit: state.head}, nil
 }

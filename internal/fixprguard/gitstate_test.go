@@ -100,10 +100,16 @@ func TestBaselineDetectsChange(t *testing.T) {
 		}, parts: []string{PartHead}},
 		{name: "branch_switch_same_commit", edit: func(_ *testing.T, r *testRepo) {
 			r.Git("switch", "-q", "-c", "other")
-		}, parts: []string{PartHead}},
+		}, parts: []string{PartBranch}},
 		{name: "detached_head_same_commit", edit: func(_ *testing.T, r *testRepo) {
 			r.Git("switch", "-q", "--detach")
-		}, parts: []string{PartHead}},
+		}, parts: []string{PartBranch}},
+		{name: "branch_and_head_differ", edit: func(_ *testing.T, r *testRepo) {
+			// A differing branch is reported alone: HEAD is not compared.
+			r.Git("switch", "-q", "-c", "other")
+			r.Write(testFile, "changed\n")
+			r.CommitAll("agent commit")
+		}, parts: []string{PartBranch}},
 		{name: "remote_moved", edit: func(_ *testing.T, r *testRepo) {
 			r.Write(testFile, "remote\n")
 			r.CommitAll("pushed elsewhere")
@@ -265,16 +271,31 @@ func TestBaselineDetectsChange(t *testing.T) {
 			}
 			base := mustBaseline(t)
 			w, _ := newTestWorktree(t)
-			if _, err := w.compareState(t.Context(), base, base.head, checkWithRemote); err != nil {
+			if _, err := w.compareState(t.Context(), base, headRule{kind: headIsCommit, commit: base.head}, checkWithRemote); err != nil {
 				t.Fatalf("compareState before the edit = %v", err)
 			}
 			tc.edit(t, r)
 			w, router := newTestWorktree(t)
-			_, err := w.compareState(t.Context(), base, base.head, checkWithRemote)
+			_, err := w.compareState(t.Context(), base, headRule{kind: headIsCommit, commit: base.head}, checkWithRemote)
 			wantStateParts(t, err, tc.parts...)
 			wantLayer(t, tc.layer, router.Calls)
 		})
 	}
+
+	t.Run("unknown_head_rule", func(t *testing.T) {
+		// A kind outside the list (no declared kind is negative) fails secure:
+		// an error, and the push target is never read.
+		newTestRepo(t)
+		base := mustBaseline(t)
+		w, router := newTestWorktree(t)
+		_, err := w.compareState(t.Context(), base, headRule{kind: headRuleKind(-1), commit: base.head}, checkWithRemote)
+		if !errors.Is(err, ErrInvalidInput) {
+			t.Errorf("compareState = %v, want ErrInvalidInput", err)
+		}
+		if indexOf(router.Calls, gitCommand+" ls-remote") >= 0 {
+			t.Errorf("read the push target: %v", router.Calls)
+		}
+	})
 
 	t.Run("baseline_refuses_flagged_entry", func(t *testing.T) {
 		r := newTestRepo(t)
@@ -316,7 +337,7 @@ func TestBaselineIgnoresIndexAndFetchHead(t *testing.T) {
 		t.Fatal("the index did not change")
 	}
 	w, _ := newTestWorktree(t)
-	if _, err := w.compareState(t.Context(), base, base.head, checkWithRemote); err != nil {
+	if _, err := w.compareState(t.Context(), base, headRule{kind: headIsCommit, commit: base.head}, checkWithRemote); err != nil {
 		t.Errorf("compareState = %v, want nil", err)
 	}
 }
@@ -530,7 +551,7 @@ func TestOtherBranchConfigIgnored(t *testing.T) {
 				}
 				return
 			}
-			if _, err := w.compareState(t.Context(), base, base.head, checkWithRemote); err != nil {
+			if _, err := w.compareState(t.Context(), base, headRule{kind: headIsCommit, commit: base.head}, checkWithRemote); err != nil {
 				t.Errorf("compareState = %v, want nil", err)
 			}
 		})
