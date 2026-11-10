@@ -1,0 +1,115 @@
+{
+  "task_dir": "docs/tasks/0073_adr_context_decision_review/",
+  "index": "docs/dev/adr/README.md",
+  "headings": {
+    "status": "## 状態",
+    "alternatives": "## 採らなかった案",
+    "consequences": "## 結果",
+    "history": "## 経緯"
+  },
+  "groups": {
+    "s1": {
+      "adrs": [
+        "docs/dev/adr/0001-llm-adapter-stdlib.md",
+        "docs/dev/adr/0002-post-generation-steps.md",
+        "docs/dev/adr/0003-llm-config-contract.md",
+        "docs/dev/adr/0004-production-profile.md",
+        "docs/dev/adr/0019-pipeline-component-interfaces.md",
+        "docs/dev/adr/0020-strict-json.md",
+        "docs/dev/adr/0021-llm-client-contract.md",
+        "docs/dev/adr/0025-claude-output-limit.md"
+      ],
+      "carried_in": [],
+      "retitled_adrs": [],
+      "link_changes": [],
+      "line_changes": [],
+      "unrecorded_commits": [
+        {
+          "commit": "8162246d82bfa0564eb21bfff78000aa7f74b211",
+          "reason": "revises text this PR added to ADR-0002 (the reason of the failure item, which the 0010 requirements 4.3 record), not yet on main; not an editorial correction"
+        }
+      ],
+      "checker_changes": "PR-1 adds the diff check itself (implementation plan, step 1-1)",
+      "task_doc_changes": [
+        {
+          "path": "docs/tasks/0073_adr_context_decision_review/02_architecture.md",
+          "reason": "the decision changes approved in the PR-1 session (02_architecture.md 1.2.1) rewrite 2.2, 3.5, 3.9.1, 3.9.3, and 3.9.4"
+        }
+      ]
+    },
+    "s2": {
+      "adrs": [
+        "docs/dev/adr/0018-server-config-file.md",
+        "docs/dev/adr/0022-cost-estimate.md",
+        "docs/dev/adr/0023-artifact-resume.md",
+        "docs/dev/adr/0024-env-access-in-config.md",
+        "docs/dev/adr/0032-testdata-license.md",
+        "docs/dev/adr/0034-template-allowlist.md",
+        "docs/dev/adr/0038-deadcode-and-race-free-timing.md"
+      ],
+      "carried_in": [],
+      "retitled_adrs": [],
+      "link_changes": [],
+      "line_changes": [],
+      "unrecorded_commits": [],
+      "checker_changes": "",
+      "task_doc_changes": []
+    },
+    "s3": {
+      "adrs": [
+        "docs/dev/adr/0005-server-architecture.md",
+        "docs/dev/adr/0006-threat-model.md",
+        "docs/dev/adr/0007-manual-transcript-copy.md",
+        "docs/dev/adr/0011-webhook-publishing.md",
+        "docs/dev/adr/0027-article-job-api.md",
+        "docs/dev/adr/0028-no-automatic-resend.md",
+        "docs/dev/adr/0031-secret-closure.md",
+        "docs/dev/adr/0033-transcript-cache-slots.md"
+      ],
+      "carried_in": [],
+      "retitled_adrs": [],
+      "link_changes": [],
+      "line_changes": [],
+      "unrecorded_commits": [],
+      "checker_changes": "",
+      "task_doc_changes": []
+    },
+    "s4": {
+      "adrs": [
+        "docs/dev/adr/0008-launch-path.md",
+        "docs/dev/adr/0009-viewer-opening.md",
+        "docs/dev/adr/0010-extension-stores-nothing.md",
+        "docs/dev/adr/0017-viewer-markdown-rendering.md",
+        "docs/dev/adr/0026-extension-platform.md",
+        "docs/dev/adr/0029-extension-ui-languages.md",
+        "docs/dev/adr/0030-minimum-chrome-version.md"
+      ],
+      "carried_in": [],
+      "retitled_adrs": [],
+      "link_changes": [],
+      "line_changes": [],
+      "unrecorded_commits": [],
+      "checker_changes": "",
+      "task_doc_changes": []
+    },
+    "s5": {
+      "adrs": [
+        "docs/dev/adr/0012-lightweight-check-in-bash.md",
+        "docs/dev/adr/0013-review-setup.md",
+        "docs/dev/adr/0014-deterministic-checks-in-go.md",
+        "docs/dev/adr/0015-untrusted-review-threads.md",
+        "docs/dev/adr/0016-document-test-policy.md",
+        "docs/dev/adr/0035-language-policy.md",
+        "docs/dev/adr/0036-task-document-status-records.md",
+        "docs/dev/adr/0037-test-deletion-coverage.md"
+      ],
+      "carried_in": [],
+      "retitled_adrs": [],
+      "link_changes": [],
+      "line_changes": [],
+      "unrecorded_commits": [],
+      "checker_changes": "",
+      "task_doc_changes": []
+    }
+  }
+}

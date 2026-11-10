@@ -10,20 +10,18 @@
 
 LLM の API の応答、字幕の json3 と info.json、中間生成物、サーバとホストのメッセージなど、外部から受け取る JSON を読む箇所が複数ある。標準ライブラリの `encoding/json` は、不正な UTF-8、対になっていないサロゲートのエスケープ、後続のデータ、重複したメンバー、`null` を黙って補正することがある。補正された値をそのまま使うと、検証した値と実際に受理される値がずれる。
 
-最初はこの部品が字幕のパーサの中にだけあった。二つ目の利用者として LLM のアダプタが加わり、部品を `internal/transcript` に残すと LLM のアダプタ（構成要素）が字幕取得の構成要素に依存し、複製するとサロゲートの走査などの細かいコードが 2 か所になる。検証済みの値だけを扱えることを型で保証すれば、公開範囲を広げても不変条件を保てる（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) §3.5）。
-
-利用者が増えるにつれて、宣言したキー以外を拒否する読み取り、真偽値、`null` の判定、元のバイト列、負でない整数の読み取りも必要になった。負でない整数の検査を各利用者が書くと、`-0` や小数の扱いが箇所ごとにずれる。
+負でない整数の検査を各利用者が書くと、`-0` や小数の扱いが箇所ごとにずれる。
 
 ## 決定
 
--   **検証済みの JSON から値を取り出す部品は `internal/strictjson` にだけ置き、複数のパッケージで共有する。** `ParseObject` は、不正な UTF-8、対になっていないサロゲートのエスケープ、後続のデータ、オブジェクトでない入力を拒否する。
--   **`Object` と `Value` は不透明な型にし、`ParseObject` から得た値だけを扱えるようにする。** フィールドは非公開で、`AsString`・`AsObject`・`AsArray` などは、検証を通っていないバイト列を受け取れない。ゼロ値の `Value` は中身を持たず、`AsString` などの読み取りはエラーを返す。ゼロ値の `Object` はメンバーを持たない。
--   **読み取りの手段を、利用者の必要に合わせて 1 か所に持つ。** `Object.Collect` は消費しないキーを無視し、`Object.CollectOnly` は宣言していないキーと重複したキーを拒否する。`Object.Has` はエスケープを解いた名前の完全一致で有無を返し、振る舞いの選択に使える。`Value.AsBool` は `true` と `false` だけを受理する。`Value.IsNull` は `null` とそれ以外を区別する。`Value.Raw` は値の元のバイト列を返す。
--   **負でない整数の規則は `Value.AsNonNegativeInt64` の 1 か所にする。** 符号・小数部・指数部のない 10 進の整数で `int64` の範囲にあり、負でないものだけを受理する。`-0` も拒否し、拒否のエラーには入力の値を含めない。字幕の `tStartMs`、トークン数、中間生成物の数値、ホストのメッセージの版がこれを使う。`AsInt64` は符号と `-0` を受理するので、負でない整数が要る箇所では使わない。
--   **この部品を使うパッケージの一覧は [package_reference.md](../conventions/package_reference.md) が持つ。**
--   **字幕の json3 と info.json の読み取りは、この部品を使う。** 部品を移すことで `internal/transcript` の返す番兵とその条件は変えない（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) §3.5）。
+-   **検証済みの JSON から値を取り出す部品は `internal/strictjson` にだけ置き、複数のパッケージで共有する。部品は、`encoding/json` が黙って補正する入力を拒否する。** 部品を複製するとサロゲートの走査などの細かいコードが 2 か所になり、`internal/transcript` に残すと LLM のアダプタ（構成要素）が字幕取得の構成要素に依存するためである。拒否する入力は [package_reference.md](../conventions/package_reference.md) の `internal/strictjson` の行と、[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) の「3.5. `internal/strictjson`（厳格な JSON の部品）」にある。
+-   **`Object` と `Value` は不透明な型にし、中身を持つ値は `ParseObject` からしか得られないようにする。** フィールドは非公開にする。ゼロ値の `Value` は中身を持たず、その読み取りはエラーを返す。ゼロ値の `Object` はメンバーを持たない。検証を経ていないバイト列を読み取りの関数に渡して U+FFFD への置き換えを受ける呼び出しを、規約でなく型で防ぎ、公開範囲を広げても検証済みの値だけを扱うという不変条件を保つためである。型の形は [0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) の「3.5. `internal/strictjson`（厳格な JSON の部品）」にある。
+-   **読み取りの手段は、利用者の必要に合わせて `internal/strictjson` の 1 か所に持つ。** 検査を呼び出し元ごとに書くと書き忘れる余地が残り、部品の中で完結させればその余地がないためである（[0010 設計書](../../tasks/0010_post_generation_review/02_architecture.md) の「3.5.3. 応答の形と受理の規則（H-01）」）。各手段の契約は [package_reference.md](../conventions/package_reference.md) の `internal/strictjson` の行にある。`Object.Collect` の契約は [0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) の「3.5. `internal/strictjson`（厳格な JSON の部品）」にある。
+-   **負でない整数の規則は `Value.AsNonNegativeInt64` の 1 か所にする。** 負でない整数の検査を各利用者が書くと、`-0` や小数の扱いが箇所ごとにずれるためである。受理する構文と、拒否のエラーに入力の値を含めないことは、[package_reference.md](../conventions/package_reference.md) の `internal/strictjson` の行にある。
+-   **負でない整数が要る箇所では `Value.AsInt64` を使わない。** `AsInt64` は符号と `-0` を受理するためである。規則は [0023 設計書](../../tasks/0023_non_negative_int_unification/02_architecture.md) の「1. 設計の全体像 (Design Overview)」にある。
+-   **この部品を使うパッケージの一覧は [package_reference.md](../conventions/package_reference.md) が持つ。** 同じ一覧をほかの文書にも書くと、利用者が増えるたびに何か所も直すことになるためである（[0068 要件定義書](../../tasks/0068_strictjson_package_reference/01_requirements.md) の「1. 概要 (Overview)」）。一覧は [package_reference.md](../conventions/package_reference.md) の `internal/strictjson` の行にある。
 
-この決定の仕様の正本は [package_reference.md](../conventions/package_reference.md) の `internal/strictjson` の行である。部品の置き場所と、LLM のアダプタとの関係は [ADR-0001](0001-llm-adapter-stdlib.md) が定める。
+部品の置き場所と、LLM のアダプタとの関係は [ADR-0001](0001-llm-adapter-stdlib.md) が定める。
 
 ## 採らなかった案
 

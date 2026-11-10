@@ -8,25 +8,21 @@
 
 ## 背景
 
-記事の生成は、プロバイダごとの薄いアダプタ（`LLMClient` の実装）を通して LLM を呼ぶ。DeepSeek と Claude の 2 つのプロバイダがあり、将来 Gemini を加える前提である（[project_overview.md](../project_overview.md)「決定済みの方針」）。
+記事の生成は、プロバイダごとの薄いアダプタ（`LLMClient` の実装）を通して LLM を呼ぶ。DeepSeek と Claude の 2 つのプロバイダがあり、将来 Gemini を加える前提である（[project_overview.md](../project_overview.md)「決定済みの方針」「パイプライン」）。
 
-アダプタを足すたびに、次のものが同じ振る舞いを求められる。
-
--   HTTP の送信の手順: リダイレクトに従わない、1 本の期限で送信から本文の読み取りまでをカバーする、応答本文を上限までしか読まない、通信の失敗を期限切れ・キャンセル・通信の失敗に分ける。
--   応答の厳格な検証: 標準ライブラリのデコーダが黙って補正する入力を拒否する部品（[ADR-0020](0020-strict-json.md) が定める）。
--   プロバイダ固有のパラメータの型: Claude の effort・ワークスペース ID、DeepSeek の reasoning effort。
+アダプタを足すたびに、HTTP の送信の手順、応答の厳格な検証、プロバイダ固有のパラメータの型が、どのアダプタでも同じ振る舞いを求められる。
 
 これらを各アダプタに複製すると、秘密情報の扱いに関わるコードと検証のコードがプロバイダの数だけ増える。また、設定の読み込み（`internal/config`）はアダプタのパッケージを import できないので、設定とアダプタの両方が使う型は、どちらのパッケージにも置けない。
 
 ## 決定
 
--   **SDK を使わず、標準ライブラリで API を呼ぶ。** Claude は Anthropic Messages API を、DeepSeek は OpenAI 互換の Chat Completions API を、`net/http` と `encoding/json` で直接呼ぶ。現在のモジュールは、標準ライブラリの外のモジュールを 1 つも持たない。
--   **プロバイダに依存しない型と番兵、その置き場所は [ADR-0019](0019-pipeline-component-interfaces.md) が定める。**
--   **HTTP の送信の経路は `internal/llm/llmhttp` に置き、両方のアダプタが使う。** 期限の適用、リダイレクトの禁止、応答本文の上限、失敗の分類をここで行う。`llmhttp` はプロバイダ固有の番兵を持たず、アダプタが渡した番兵で失敗を報告する。番兵の置き場所は [ADR-0019](0019-pipeline-component-interfaces.md) が定める。
--   **プロバイダ固有のパラメータの型は、アダプタの外の小さなパッケージに置く。** Claude は `internal/llm/claudeparam`、DeepSeek は `internal/llm/deepseekparam` である。どちらも標準ライブラリだけに依存し、設定の読み込みとアダプタの両方が使う。
--   **応答の厳格な検証の部品は [ADR-0020](0020-strict-json.md) が定める。**
+-   **SDK を使わず、標準ライブラリで API を呼ぶ。** Claude は Anthropic Messages API を、DeepSeek は OpenAI 互換の Chat Completions API を、`net/http` と `encoding/json` で直接呼ぶ。SDK の JSON のデコードは寛容で、応答を補正せずに拒否する検証と両立しにくく、外部モジュールを増やさない方針にも合うためである（[0009 要件定義書](../../tasks/0009_claude_llm_client/01_requirements.md) §2.3）。規則は [project_overview.md](../project_overview.md) の「決定済みの方針」にある。
+-   **HTTP の送信の経路は `internal/llm/llmhttp` の 1 か所に置き、両方のアダプタが使う。** 秘密情報の扱いに関わるコードを 2 か所に持たないためである（[0009 設計書](../../tasks/0009_claude_llm_client/02_architecture.md) §1.1）。`llmhttp` が受け持つ送信の手順は、[package_reference.md](../conventions/package_reference.md) のパッケージの表の `internal/llm/llmhttp` の行にある。
+-   **`llmhttp` はプロバイダ固有の番兵を持たず、アダプタが渡した番兵で失敗を報告する。** 各アダプタが自分の番兵を保つためである（[0009 設計書](../../tasks/0009_claude_llm_client/02_architecture.md) §3.4）。規則は [package_reference.md](../conventions/package_reference.md) のパッケージの表の `internal/llm/llmhttp` の行にある。
+-   **プロバイダ固有のパラメータの型は、アダプタの外の小さなパッケージに置く。** Claude は `internal/llm/claudeparam`、DeepSeek は `internal/llm/deepseekparam` である。どちらも標準ライブラリだけに依存し、設定の読み込みとアダプタの両方が使う。`internal/config` はアダプタのパッケージを import できないので、両方が参照する型はアダプタの外に置く必要があるためである（[0051 設計書](../../tasks/0051_llm_effort/02_architecture.md) §1.2）。規則は [package_reference.md](../conventions/package_reference.md) のパッケージの表の 2 つのパッケージの行にある。
+-   **アダプタは、応答の厳格な検証に、[ADR-0020](0020-strict-json.md) が定める共有の部品を使う。** 部品を複製すると、サロゲートの走査などの細かいコードが 2 か所になるためである（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) 付録 A）。部品の規則は [ADR-0020](0020-strict-json.md) が定める。
 
-この決定の仕様の正本は [project_overview.md](../project_overview.md) の「決定済みの方針」と「パイプライン」、および [package_reference.md](../conventions/package_reference.md) のパッケージの表である。
+プロバイダに依存しない型と番兵、その置き場所は [ADR-0019](0019-pipeline-component-interfaces.md) が定める。
 
 ## 採らなかった案
 
