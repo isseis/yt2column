@@ -4,7 +4,7 @@
 
 対応表の「行き先」が「消した」の行はない。見直して変える箇所がなかった ADR はない。PR-1〜PR-4 から持ち越した ADR はない（[実装計画書](03_implementation_plan.md) 1.5「持ち越しの一覧」）。
 
-「決定」に列挙として残したもののうち、ADR-0014 の 4 つの道具の名前と ADR-0036 の 6 つの記録の置き場所は、規則の範囲そのものである。正本は、前者が [CLAUDE.md](../../CLAUDE.md) の「Build Commands」と各道具のガイド、後者が [requirements_process.md](../conventions/requirements_process.md) の「Document Status Format」で、どれも何をどこに書くかを定める。道具ごとの役割と、範囲・設定の細目は、それぞれの ADR とガイドに置いた。
+「決定」に列挙として残したもののうち、ADR-0014 の 4 つの道具の名前と ADR-0036 の 6 つの記録の置き場所は、規則の範囲そのものである。正本は、前者が [CLAUDE.md](../../../CLAUDE.md) の「Build Commands」と各道具のガイド、後者が [requirements_process.md](../../dev/conventions/requirements_process.md) の「Document Status Format」で、どれも何をどこに書くかを定める。道具ごとの役割と、範囲・設定の細目は、それぞれの ADR とガイドに置いた。
 
 ## [ADR-0012](../../dev/adr/0012-lightweight-check-in-bash.md)
 
