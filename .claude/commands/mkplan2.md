@@ -13,7 +13,7 @@ argument-hint: "<task>"
 
 Your goal is to design PR boundaries for an existing `03_implementation_plan.md` and embed them directly into the document.
 
-`mkplan.md` runs steps 4, 5, 6, 7, 8, and 9 of this command (not 8.5, 9.5, or later) as its step 8.5, so a plan it creates already has its PR boundaries. Run this command on its own only for an approved plan without them (one written before `mkplan.md` did this), or when the user asks to redesign them.
+`mkplan.md` runs steps 4, 5, 6, 7, 8, and 9 of this command (not 8.5, 9.5, or later) as its step 8.5, so a plan it creates already has its PR boundaries. `/mkreq` uses steps 4 to 8 of this command through `.claude/commands/_lib/simple-process.md` when it writes the three documents of the simple process and the plan has two or more phases, and passes this command's step 9 checklist to that review when the plan has PR markers. Run this command on its own only for an approved plan without them (one written before `mkplan.md` did this), or when the user asks to redesign them.
 
 Work in the following order.
 

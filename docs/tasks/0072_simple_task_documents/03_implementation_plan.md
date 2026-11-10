@@ -177,14 +177,14 @@
 
 **変更するファイル:** `.claude/commands/mkarch.md`、`.claude/commands/mkplan.md`、`.claude/commands/mkplan2.md`、`.claude/commands/runplan.md`、`.claude/commands/_lib/simple-process.md`
 
--   [ ] **ステップ 3-1**: `mkarch.md` を設計書 3.4 のとおりに変える。
+-   [x] **ステップ 3-1**: `mkarch.md` を設計書 3.4 のとおりに変える。
     -   step 1 の中に、タスクを決めた後の手順として、`git fetch origin main` を行い、`simple-process.md` の Reading の節で `origin/main` の記録を読むことを足す。記録が `` `simple` `` ならば文書を作らずに止まる。記録が壊れていれば止まる。食い違いがあれば、それを報告して止まる（AC-22）。既存の step の番号は変えない（`simple-process.md` が番号で参照するため）。
     -   step 6.5 に、確かめ済みの項目を問い直さずに採ることを足す。
     -   冒頭に、`/mkreq` が `simple-process.md` を通して step を参照していることを 1 文で書く。
--   [ ] **ステップ 3-2**: `mkplan.md` に、ステップ 3-1 と同じ 3 つの変更を加える（確かめ済みの項目は step 5.5 で採る）。
--   [ ] **ステップ 3-3**: `mkplan2.md` の冒頭（`:16`）に、`/mkreq` が `simple-process.md` を通して steps 4–8 を使い、step 9 のチェックリストを 3 文書のレビューに渡すことを足す（設計書 2.2）。
--   [ ] **ステップ 3-4**: `runplan.md` を設計書 3.7 のとおりに変える。step 3 で `origin/main` の記録を読み、壊れているか食い違いがあれば止まる。step 5 の「Decision change」の前に、記録が `` `simple` `` のタスクで決定の変更が除外に当たるかを判定し、当たるか迷うときは `settle-decisions.md` を呼ばずに止まる。報告に書くことは設計書 3.7 のとおりである。
--   [ ] **ステップ 3-5**: `simple-process.md` の When an excluded decision appears の節に、`/runplan` の扱い（設計書 6.3 の「マージの後」の枝）を足す。
+-   [x] **ステップ 3-2**: `mkplan.md` に、ステップ 3-1 と同じ 3 つの変更を加える（確かめ済みの項目は step 5.5 で採る）。
+-   [x] **ステップ 3-3**: `mkplan2.md` の冒頭（`:16`）に、`/mkreq` が `simple-process.md` を通して steps 4–8 を使い、step 9 のチェックリストを 3 文書のレビューに渡すことを足す（設計書 2.2）。
+-   [x] **ステップ 3-4**: `runplan.md` を設計書 3.7 のとおりに変える。step 3 で `origin/main` の記録を読み、壊れているか食い違いがあれば止まる。step 5 の「Decision change」の前に、記録が `` `simple` `` のタスクで決定の変更が除外に当たるかを判定し、当たるか迷うときは `settle-decisions.md` を呼ばずに止まる。報告に書くことは設計書 3.7 のとおりである。
+-   [x] **ステップ 3-5**: `simple-process.md` の When an excluded decision appears の節に、`/runplan` の扱い（設計書 6.3 の「マージの後」の枝）を足す。
 
 **完了の条件:** `make test` と `make lint` が通る。
 
@@ -200,10 +200,10 @@
 
 **判定理由**: 既存の止まる手順に、記録の読み取りと 1 つの判定を足すだけで、どの昇格の条件にも当たらない
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/781
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 4: `/runpr`・`/fixpr`・`fixprguard_guide.md` と呼び出しの表のテスト（設計書 8 章の 4）
 
@@ -325,7 +325,7 @@ N/A。製品の実行時の振る舞いは変わらない（設計書 7.3）。�
 ## 6. 実装チェックリスト (Implementation Checklist)
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 2-1 / 2-2 / 2-3）
-- [ ] PR-2 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5）
+- [x] PR-2 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5）
 - [ ] PR-3 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 5-1）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
