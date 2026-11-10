@@ -601,13 +601,14 @@ info.json parsers with real samples under `testdata/`.
   that must not print a body, the `--protocol` value of the `codexreview`
   calls, and the absence of a command that runs `codex` directly). A mistake
   there disables a guard at run time, so a test is worth its brittleness. A
-  property of the change itself, such as existing headings kept unchanged, is
-  not a document test either: it is a `diff` verification, a script under the
-  task's `_checks/` directory run once against the merge-base
-  (`requirements_process.md` §4). Three more rules follow from the same cost.
-  Do not add a permanent test that a document still holds a retired
-  specification — a retired environment variable, a migration step, a replaced
-  section — or a value inside that description: deleting the description would
+  property of the change itself, such as "the diff of section S is limited to
+  rewriting one line", is not a document test either: it is a `diff`
+  verification, done once against the merge-base, either as a script under
+  the task's `_checks/` directory or as a recorded diff reading of a small
+  document change (`requirements_process.md` §4, "`diff` verification").
+  Three more rules follow from the same cost. Do not add a permanent test that
+  a document still holds a retired specification — a retired environment
+  variable, a migration step, a replaced section — or a value inside that description: deleting the description would
   fail the test, so the document would be forced to keep the retired
   specification after the specification changed. That the code rejects a retired
   value is checked by a code test. Do not check the same value of the same

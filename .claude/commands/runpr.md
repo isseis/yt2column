@@ -335,11 +335,37 @@ head; a record already made counts as made, never as absent.
     "PR number") with `#<number>`. Change no other line: a marker already on
     `main` belongs to another PR and is only shown in step 4's question, and
     the marker's text outside a change history (a quotation of the rule) is not
-    a marker.
+    a marker, nor is anything inside a diff record's code block
+    (`docs/dev/conventions/requirements_process.md` §4, "Diff record form").
   - **Checkpoint** (plan PR): "PR がマージされた" on that PR's record, and in
     the plan's PR checklist (§6) its `PR-N マージ済み`. On a checkpoint, also
     "次のブランチへ切り替えた": `[x]` when NEXT is set (step 5 creates the next
-    branch only then), `[-]` (not applicable) on the final PR.
+    branch only then), `[-]` (not applicable) on the final PR. Read the
+    plan's markers and checkboxes outside the diff records' code blocks.
+  - **Diff record update** (plan PR): the `diff` verification rows of the
+    ACs this PR verifies — the ACs of the steps its PR marker's `対象ステップ`
+    names, or every row for a plan without PR markers. When several PRs
+    verify one AC row, the plan keeps each PR's result apart (for example
+    under a heading per PR), and this item reads only this PR's.
+    - **Presence.** When such a row lacks this PR's result (the diff record
+      of a recorded diff reading, or a script's output with both commit IDs),
+      stop and report, deciding nothing; do not merge. This also catches a row
+      whose recorded diff reading was replaced by a script after an objection
+      but not run.
+    - **Recheck.** Recheck each diff record as
+      `docs/dev/conventions/requirements_process.md` §4, "Rechecking a
+      record", says, and run nothing else: no string from the record is
+      evaluated in the shell, and no `_checks/` script is run. When the
+      recheck stops, stop and report, deciding nothing; do not merge. A record
+      whose outputs match is left as it is, so this item is empty when every
+      record matches and a rerun records nothing twice.
+    - **Re-recording.** For each record that differs, the item replaces its
+      outputs and both commit IDs with the new ones. Judge whether the AC
+      still holds on the new output; when it does not (for example, the file
+      list of an AC that limits which files change now names a path the AC
+      does not allow), stop and report, deciding nothing; do not merge.
+    - **Scripts.** A script's row is checked for its result only; the script
+      is not run again.
 - **NEXT** — the command offered after the merge:
   - plan PR: `/runplan <task>` unless it is the final PR; none on the final
     PR;
@@ -705,7 +731,9 @@ stops, stop here: no question, no merge.
    and the version without the approval line when it applies), the PRE_MERGE change (which lines of which files, and for an
    approval the reviewer name and date it writes, and the PR number fill-in
    lines separately, since the merge without the approvals commits only
-   those), every editorial correction any `fixpr` run of this session reported
+   those), each diff record PRE_MERGE re-records (with the AC's text, the
+   difference between the recorded and the new output, and your judgment
+   that the AC holds on the new output), every editorial correction any `fixpr` run of this session reported
    it could not append to the PR description (each run's Final report,
    accumulated across rounds), and, for each task document this PR changes
    that exists on `origin/main`, the lines of its change history (the rule's
