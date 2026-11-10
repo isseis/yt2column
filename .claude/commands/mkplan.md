@@ -15,7 +15,7 @@ argument-hint: "<task>"
 
 Your goal is to create `03_implementation_plan.md` for one task under `docs/tasks/`.
 
-`/mkreq` uses steps 4 to 8 of this command through
+`/mkreq` uses steps 4 to 8 and step 8.5 of this command through
 `.claude/commands/_lib/simple-process.md` when it writes and reviews the three
 documents of the simple process; a change that renumbers those steps or changes
 what they do must check that file in the same PR.
@@ -82,10 +82,11 @@ Work in the following order.
 
    A confirmed item of `implementation_handoff.md` (the requirements process
    guide, "Design handoff") is not an open decision: adopt its decision and its
-   ADR judgment without asking again, and record them in
-   `計画の際に決めたこと（YYYY-MM-DD）`. Ask again only when
-   `01_requirements.md` changed after the item was written and the item's
-   premise no longer holds.
+   ADR judgment without asking again, record them in
+   `計画の際に決めたこと（YYYY-MM-DD）`, and make the ADR change its judgment
+   calls for, recreating one the return to the full process removed. Step 7.5
+   commits it with this document. Ask again only when `01_requirements.md`
+   changed after the item was written and the item's premise no longer holds.
 
 6. Create `03_implementation_plan.md` in the same task directory.
 

@@ -80,10 +80,11 @@ Work in the following order.
 
    A confirmed item of `design_handoff.md` (the requirements process guide,
    "Design handoff") is not an open decision: adopt its decision and its ADR
-   judgment without asking again, and record them in
-   `設計の際に決めたこと（YYYY-MM-DD）`. Ask again only when
-   `01_requirements.md` changed after the item was written and the item's
-   premise no longer holds.
+   judgment without asking again, record them in
+   `設計の際に決めたこと（YYYY-MM-DD）`, and make the ADR change its judgment
+   calls for, recreating one the return to the full process removed. Step 7.5
+   commits it with this document. Ask again only when `01_requirements.md`
+   changed after the item was written and the item's premise no longer holds.
 
 7. Create `02_architecture.md` in the same task directory.
 - Write in Japanese.

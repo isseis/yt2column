@@ -18,9 +18,10 @@ stopped run".
 
 **Steps of other commands this file uses.** "Writing the three documents" and
 "Reviewing the three documents" use steps of `mkreq.md`, `mkarch.md`,
-`mkplan.md`, and `mkplan2.md`, named by their number and the words of their
-heading. A change that renumbers those steps or changes what they do must check
-this file in the same PR.
+`mkplan.md`, and `mkplan2.md`, and "When an excluded decision appears" uses
+`runplan.md` step 5 ("Implement the selected phase group"), named by their
+number and the words of their heading. A change that renumbers those steps or
+changes what they do must check this file in the same PR.
 
 ## Reading the process record
 
@@ -283,8 +284,9 @@ neither is not a choice: ask again.
   decisions, then write.
 
 **After the three-document PR is merged (`/runplan`):** when a decision change
-a phase group needs is an excluded change, follow `runplan.md` step 5: stop
-before settling the change, and report its content and that it becomes a
-separate task in the full process, for which an issue is created. The task
-does not return to the full process, and a decision change that is not
-excluded follows that step's `Decision change` procedure.
+a phase group needs is an excluded change, follow `runplan.md` step 5: judge it
+against the excluded changes the requirements process guide, "Simple Process",
+lists, stop before settling the change, and report its content and that it
+becomes a separate task in the full process, for which an issue is to be
+created by the human (`/runplan` does not create it). A decision change that is
+not excluded follows that step's `Decision change` procedure.
