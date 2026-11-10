@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-10 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-10 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -169,3 +169,7 @@
 -   **比べるもの:** `codexreview` が Codex CLI の実行の前と後で読み、違いがあれば `state_changed` にするもの。本書の F-001 が定める。
 -   **ほかの worktree:** 同じリポジトリの、`codexreview` を実行した worktree 以外の worktree。ブランチ、タグ、stash は、すべての worktree が共有する。
 -   ほかの用語は `docs/translation_glossary.md` と統一する。
+
+## 変更履歴
+
+- 2026-11-10 承認（isseis、#788）
