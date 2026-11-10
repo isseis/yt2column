@@ -212,6 +212,13 @@ and the thing it builds is rarely load-bearing)
       `make coverage-compare BASE=<that commit's parent>` and/or
       `make ext-coverage-compare BASE=<that commit's parent>` — both when both
       kinds of test were deleted.
+- [ ] No `diff` verification added in this range (a `_checks/` script, or a
+      diff record in the plan) is oversized for what it checks: weigh what
+      the reviewer will read (the script, or the recorded output) against the
+      size of the diff it verifies, and a script in a language other than
+      shell has the plan's reason why shell is not enough. This item does not
+      apply to a plan approved before this item reached `main`, nor to its
+      `_checks/`.
 
 **Cross-document synchronization**
 - [ ] If this diff's implementation diverges from `02_architecture.md` or
