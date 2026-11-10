@@ -16,15 +16,13 @@ GitHub に置くものは日本語で書く。一方、squash のコミットは
 
 ## 決定
 
--   **文書の言語は、置き場所ではなく、誰が読み誰が承認するかで決める。** 人間が判断・承認する文書と人間向けの手引きは日本語、エージェントの実行を制御する指示とコードは英語、エンドユーザー向けの文書（README）は日本語を正本として英語版を同期する。原則、ディレクトリへの当てはめ、例外は、[CLAUDE.md](../../../CLAUDE.md) の「Document language」に従う。
--   **会話・リポジトリ・AI へのプロンプト・GitHub のそれぞれの言語は、[CLAUDE.md](../../../CLAUDE.md) の「Language」に従う。** Claude Code のセッションの会話と GitHub に置くものは日本語、コード・コミットのメッセージ・プロンプトは英語である。
+-   **文書の言語は、置き場所ではなく、誰が読み誰が承認するかで決める。** 人間が判断・承認する文書と人間向けの手引きは日本語、エージェントの実行を制御する指示とコードは英語、エンドユーザー向けの文書（README）は日本語を正本として英語版を同期する。原則、ディレクトリへの当てはめ、例外は、[CLAUDE.md](../../../CLAUDE.md) の「Document language」に従う。置き場所ごとの例外の列挙では原則から導けず、新しい文書を足すたびに判断が要るためである。
+-   **会話・リポジトリ・AI へのプロンプト・GitHub のそれぞれの言語は、[CLAUDE.md](../../../CLAUDE.md) の「Language」に従う。** Claude Code のセッションの会話と GitHub に置くものは日本語、コード・コミットのメッセージ・プロンプトは英語である。理由は記録されていない。
 -   **ソースのコメント・識別子・文字列リテラルは英語とし、日本語のリテラルを置いてよい場所は例外として範囲を限る。** 例外の一覧と、それぞれの範囲・理由・境界は、[CLAUDE.md](../../../CLAUDE.md) の「Go Idioms」に従う。現在のコードでは、例外に当たらない日本語の文字列リテラルも製品のコードにある。記事の本文として出力する出典のブロックの見出しと、YouTube の文字起こしパネルが出す文字列と照合する字幕のパーサの単位と操作のラベルである。どちらもコメントで日本語にする理由を述べている。このずれは、記録した issue [#726](https://github.com/isseis/yt2column/issues/726) で扱う。拡張の UI を 2 言語にすることは [ADR-0029](0029-extension-ui-languages.md) が定める。
--   **2 言語で持つ文書は README だけである。** `README.md` を先に変え、[mktrans.md](../../../.claude/commands/mktrans.md) の `/mktrans` で `README.en.md` に反映し、両方を 1 つのコミットに入れる。`README.en.md` の 1 行目の同期の印は、翻訳の元にした `README.md` の版を指し、`/mktrans` はその版からの差分を翻訳する。印の形と翻訳の手順は [mktrans.md](../../../.claude/commands/mktrans.md) に、同期の規則は [CLAUDE.md](../../../CLAUDE.md) の「Translation Guidelines (Japanese to English)」に従う。
--   **同期の印は、エージェントの判断ではなく Go のテスト `TestReadmeSyncMarker` で確かめる。** テストは、印が今の `README.md` を指すことを確かめ、`make test`・CI の `doc-guard` のジョブ・pre-commit のフックで走る。同期の手順を持つコマンドは、この検査が失敗したときに `/mktrans` を実行する。
--   **PR のタイトルは日本語で書き、squash のコミットの件名と本文は英語で書く。** PR のタイトルは conventional-commit の接頭辞を ASCII のまま残し、その後の要約を日本語で書く。squash の件名は、`/mergepr` が PR の材料から英語で書き、PR のタイトルからは接頭辞だけを読む。形は [_context.md](../../../.claude/commands/_context.md) の「PR title and squash subject」の 1 か所に定める。
+-   **2 言語で持つ文書は README だけである。** `README.md` を先に変え、[mktrans.md](../../../.claude/commands/mktrans.md) の `/mktrans` で `README.en.md` に反映し、両方を 1 つのコミットに入れる。`README.en.md` の 1 行目の同期の印は、翻訳の元にした `README.md` の版を指し、`/mktrans` はその版からの差分を翻訳する。印の形と翻訳の手順は [mktrans.md](../../../.claude/commands/mktrans.md) に、同期の規則は [CLAUDE.md](../../../CLAUDE.md) の「Translation Guidelines (Japanese to English)」に従う。2 つの言語で持つ文書は、片方を変えたときにもう片方が古くなりやすく、同期をエージェントの判断に任せると、手作業の変更や手順を通らない変更で同期が抜けるためである。
+-   **同期の印は、エージェントの判断ではなく Go のテスト `TestReadmeSyncMarker` で確かめる。** テストは、印が今の `README.md` を指すことを確かめ、`make test`・CI の `doc-guard` のジョブ・pre-commit のフックで走る。同期の手順を持つコマンドは、この検査が失敗したときに `/mktrans` を実行する。プロンプトの判定は決定的でなく、手作業の変更は手順を通らないためである。規則は [CLAUDE.md](../../../CLAUDE.md) の「Translation Guidelines (Japanese to English)」にある。
+-   **PR のタイトルは日本語で書き、squash のコミットの件名と本文は英語で書く。** PR のタイトルは conventional-commit の接頭辞を ASCII のまま残し、その後の要約を日本語で書く。squash の件名は、`/mergepr` が PR の材料から英語で書き、PR のタイトルからは接頭辞だけを読む。squash のコミットは `main` に残る唯一のコミットであり、リポジトリに残るものは英語で書くためである。形は [_context.md](../../../.claude/commands/_context.md) の「PR title and squash subject」の 1 か所に定める。
 -   次の 2 点は、まだ要件定義の段階にあり、CLAUDE.md の「Go Idioms」と mkplan.md・runplan.md・weakreview.md には反映していない。1 つは、タスクの `_checks/` のスクリプトに、日本語の文書の文字列と一致しなければならないリテラルを種類を限らずに置いてよいとする例外の拡大である。もう 1 つは、英語だけを求めるコマンドの定義の規則が、その例外のリテラルを指摘しないことである。この差分は [#789](https://github.com/isseis/yt2column/issues/789) の実装で解消する。
-
-この決定の仕様の正本は、[CLAUDE.md](../../../CLAUDE.md) の「Document language」「Translation Guidelines (Japanese to English)」「Language」「Go Idioms」、[_context.md](../../../.claude/commands/_context.md) の「PR title and squash subject」、[mktrans.md](../../../.claude/commands/mktrans.md) である。この ADR は、その規則の理由と、採らなかった案と、経緯を持つ。
 
 ## 採らなかった案
 
