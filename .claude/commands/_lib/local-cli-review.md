@@ -37,6 +37,18 @@ convergence rules are in `.claude/commands/_lib/review-subagent-pattern.md`.
   (e.g. "phase group"); used for the attempt cap and the summary.
 - **SUMMARY** — where the calling command reports the result (e.g. the step 8
   summary).
+- **GUARD** (optional) — a command this procedure runs, each time as a call of
+  its own, before it runs git at the points steps 1, 3, 5, and 6 name. Go on
+  only when it exits 0; on any other result (exit code 1, 2, or 3, a signal,
+  or output that cannot be read), stop this procedure and the calling
+  command, run no further git, and report as the caller says. No decision of
+  this procedure reads GUARD's output; the caller records it for its report.
+  Today only `fixpr.md` Phase 4.5 passes GUARD. A caller that does not pass it
+  gets the procedure exactly as written without the GUARD sentences.
+- **ROOT** (with GUARD) — the absolute path of the worktree root, which the
+  caller recorded without running git. GUARD runs from it. With GUARD, run
+  no `git rev-parse HEAD` for HEAD3 (step 7): leave that record line to the
+  caller, which takes HEAD3 from its own comparison.
 
 ## Authorization
 
@@ -68,7 +80,8 @@ the tool (`make install-codexreview`, `go build`): the user installs it from
 
 ## Procedure
 
-1. **Before each attempt.** Confirm `git status --short` is empty: both CLIs
+1. **Before each attempt.** When GUARD is given, run it first. Confirm
+   `git status --short` is empty: both CLIs
    review only committed changes, and `codexreview` refuses to run otherwise.
    When it is not empty, stop and report; do not commit or discard anything to
    clean it. Resolve BASE to its full 40-hex SHA with `git rev-parse <BASE>`,
@@ -103,7 +116,9 @@ the tool (`make install-codexreview`, `go build`): the user installs it from
 3. **On a CodeRabbit CLI failure, run `codexreview`** in the same attempt,
    from the worktree root (when the current directory is not
    `git rev-parse --show-toplevel`, change to it first with a `cd` call of its
-   own), in the foreground, with the Bash tool's timeout set
+   own; when GUARD is given, run no `git rev-parse --show-toplevel`: change to
+   ROOT with a `cd` call of its own, then run GUARD before any other git of
+   this step), in the foreground, with the Bash tool's timeout set
    to 600000 ms (the tool stops Codex CLI after 480 seconds and still returns a
    result). Never run it in the background: the worktree must not change while
    Codex reads it. Write the 40-hex SHA of step 1 into the command, and run the
@@ -215,7 +230,10 @@ the tool (`make install-codexreview`, `go build`): the user installs it from
      exists yet. When a fix changes `README.md`,
      run the README sync check as `.claude/commands/mktrans.md`, "When a
      caller runs it", says before the commit, and include `README.en.md` in
-     it.
+     it. When GUARD is given, run it before the build checks, again before
+     the README sync check when that check runs, and again right before
+     staging; between that last GUARD and the commit, run no git but the
+     staging and the commit.
 
 6. **Attempts.** Make at most two attempts per SCOPE. Make the second only if
    the first led to a fix; a first attempt that is `none` has no fix, so there
@@ -226,8 +244,8 @@ the tool (`make install-codexreview`, `go build`): the user installs it from
    and `invalid` finding. A reviewer returns findings whenever it is asked, so
    "it found something" is not a reason for another attempt. When an attempt
    of this SCOPE was `coderabbit`, run `coderabbit review findings --clear`
-   after triage so stored findings are not surfaced again; Codex CLI stores
-   none.
+   after triage so stored findings are not surfaced again (when GUARD is
+   given, run it first); Codex CLI stores none.
 
 7. **Record lines.** Write one line per item, in the message of the fix
    commit, or of the next commit on the branch when there is no fix commit,
