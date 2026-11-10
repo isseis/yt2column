@@ -1,0 +1,15 @@
+{
+  "adr": {
+    "path": "docs/dev/adr/0024-env-access-in-config.md",
+    "consequence_heading": "## 結果",
+    "consequence_item_prefix": "-   ",
+    "history_heading": "## 経緯",
+    "history_item_prefix": "- ",
+    "source_link": "0018-server-config-file.md",
+    "history_link_open": "（[",
+    "history_link_middle": "](",
+    "history_link_close": ")）",
+    "history_link": "../../tasks/0078_adr0024_server_env_result/01_requirements.md"
+  },
+  "task_dir": "docs/tasks/0078_adr0024_server_env_result/"
+}
