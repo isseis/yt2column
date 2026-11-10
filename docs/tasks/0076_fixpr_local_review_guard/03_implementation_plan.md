@@ -327,11 +327,11 @@
 
 **変更するファイル:** `docs/tasks/0030_fixpr_untrusted_threads/02_architecture.md`、`docs/tasks/0076_fixpr_local_review_guard/_checks/notes_only.sh`（新規）、`docs/tasks/0076_fixpr_local_review_guard/03_implementation_plan.md`（AC-13 の記録）
 
--   [ ] 3.7・5.2・5.3 の節の初めに、`> **注記（タスク 0076）:** ...` の引用ブロックを 1 つずつ加える。内容は設計書 3.9 の「タスク 0030 の設計書」のとおりで、本タスクの要件書と設計書へのリンクを持つ。同じ節に 0057 の注記がある場合は、その後に置く。本文は変えない（AC-13）。
--   [ ] コミットメッセージに、節ごとに 1 行の訂正の行を書く。
--   [ ] `_checks/notes_only.sh <upstream> <head>` を書く。merge-base と head の間で、0030 の設計書について次を確かめる。(1) 文書が変わり、ファイルのモードは変わっていない。(2) 差分に消した行がなく、加えた行はどれも `>` で始まるか空である。(3) `## Document Status` の表がバイト単位で同じである（0030 の設計書には `## 変更履歴` の節がない）。(4) 3 つの節のそれぞれに、`> **注記（タスク 0076）:**` で始まる引用ブロックがちょうど 1 つ加わり、ほかの節には加わっていない。(5) その注記が、節の本文より前（0057 の注記があればその後）にある。(6) 各注記が、本タスクの文書への相対リンク（`../0076_fixpr_local_review_guard/`）を持ち、リンク先のファイルが head にある。引数・出力・終了コード・書き方は、`docs/tasks/0057_reviewer_relay_guard/_checks/notes_only.sh` の形に合わせる（POSIX の `sh` と `git`）。
--   [ ] `_checks/notes_only.sh origin/main HEAD` を PR のブランチで 1 回実行し、出力と 2 つのコミット ID を 7 章の AC-13 の行に記録する。記録するのは実行した時点の head である。その後の commit が 0030 の設計書を変えたときだけ、実行し直して記録を改める。
--   [ ] 壊して確かめる: 次のそれぞれを一時的なコミットで作り、それに対して実行して終了コード `1` になることと、出た理由の行が壊した性質のものであることを確かめ、一時的なコミットを捨てる。本文の 1 行の書き換え、`>` で始まらない行の追加、`## Document Status` の節の中への `>` で始まる行の追加（(2) を通り (3) だけに当たる）、ある節の注記の削除、ある節への 2 つ目の注記、対象の外の節への注記、注記を節の本文の後ろへ移す、リンクのない注記、ファイルのモードの変更。結果を AC-13 の行に書く。
+-   [x] 3.7・5.2・5.3 の節の初めに、`> **注記（タスク 0076）:** ...` の引用ブロックを 1 つずつ加える。内容は設計書 3.9 の「タスク 0030 の設計書」のとおりで、本タスクの要件書と設計書へのリンクを持つ。同じ節に 0057 の注記がある場合は、その後に置く。本文は変えない（AC-13）。
+-   [x] コミットメッセージに、節ごとに 1 行の訂正の行を書く。
+-   [x] `_checks/notes_only.sh <upstream> <head>` を書く。merge-base と head の間で、0030 の設計書について次を確かめる。(1) 文書が変わり、ファイルのモードは変わっていない。(2) 差分に消した行がなく、加えた行はどれも `>` で始まるか空である。(3) `## Document Status` の表がバイト単位で同じである（0030 の設計書には `## 変更履歴` の節がない）。(4) 3 つの節のそれぞれに、`> **注記（タスク 0076）:**` で始まる引用ブロックがちょうど 1 つ加わり、ほかの節には加わっていない。(5) その注記が、節の本文より前（0057 の注記があればその後）にある。(6) 各注記が、本タスクの文書への相対リンク（`../0076_fixpr_local_review_guard/`）を持ち、リンク先のファイルが head にある。引数・出力・終了コード・書き方は、`docs/tasks/0057_reviewer_relay_guard/_checks/notes_only.sh` の形に合わせる（POSIX の `sh` と `git`）。
+-   [x] `_checks/notes_only.sh origin/main HEAD` を PR のブランチで 1 回実行し、出力と 2 つのコミット ID を 7 章の AC-13 の行に記録する。記録するのは実行した時点の head である。その後の commit が 0030 の設計書を変えたときだけ、実行し直して記録を改める。
+-   [x] 壊して確かめる: 次のそれぞれを一時的なコミットで作り、それに対して実行して終了コード `1` になることと、出た理由の行が壊した性質のものであることを確かめ、一時的なコミットを捨てる。本文の 1 行の書き換え、`>` で始まらない行の追加、`## Document Status` の節の中への `>` で始まる行の追加（(2) を通り (3) だけに当たる）、ある節の注記の削除、ある節への 2 つ目の注記、対象の外の節への注記、注記を節の本文の後ろへ移す、リンクのない注記、ファイルのモードの変更。結果を AC-13 の行に書く。
 
 **成功の条件:** スクリプトが終了コード `0` で終わり、9 つの壊した場合のどれもが、その性質の理由で終了コード `1` になる。
 
@@ -480,7 +480,7 @@
 | AC-10 | `cmd/fixprguard/main_test.go::TestProtocolMismatch`（`check`・`push-review` を含む）、`cmd/fixprguard/docs_test.go::TestDocumentedProtocolMatches`。案内の内容は PR-1 のレビューで読む | test・static・manual | ステップ 5-1・6-1・6-3・6-4 |
 | AC-11 | `_checks/unchanged_callers.sh`（`runplan.md`・`task-pr-handoff.md` の全体と、`runpr.md` の step 1 の standalone の変更の項目）。`local-cli-review.md` に加えた文が GUARD を渡されたときだけに働くことは PR-1 のレビューで読む | diff・manual | ステップ 6-2・7-3 |
 | AC-12 | `TestDocumentedInvocationsParse`・`TestDocumentedProtocolMatches`・`TestGuideNamesGitStateParts`・ステップ 6-8 の規則の名前のガード（`cmd/fixprguard/docs_test.go`）、`TestADRRecords`。各文書の内容は PR-1 のレビューで読む | static・manual | ステップ 6-1〜6-7・6-8・7-1 |
-| AC-13 | `_checks/notes_only.sh origin/main HEAD`（記録: ステップ 7-2 で書く）。注記の文面は PR-1 のレビューで読む | diff・manual | ステップ 7-2 |
+| AC-13 | `_checks/notes_only.sh origin/main HEAD`。注記の文面は PR-1 のレビューで読む。記録（2026-11-10）: merge-base `9f57e8c3086a607a8cf36f51d70a934a9970f673`、head `a767d27c3acfbf3de9b0b3e24f575715ba4f0583`、終了コード `0`、出力の最後の行「docs/tasks/0030_fixpr_untrusted_threads/02_architecture.md adds one task 0076 note per listed section, before the body, and changes nothing else」。壊した 9 つの場合は、どれも終了コード `1` で、その性質の理由の行を出した。本文の 1 行の書き換え（removed と added without >）、`>` で始まらない行の追加（added block does not start with the note）、ある節の注記の削除（holds 0 task 0076 notes）、ある節への 2 つ目の注記（holds 2）、対象の外の節への注記（holds 4 ..., not one per listed section）、注記を節の本文の後ろへ移す（comes after the body）、リンクのない注記（has no link）、ファイルのモードの変更（changed its file mode）。`## Document Status` の節の中への追加は、(2) を通るよう注記の形の行で作った。(3) の理由（changed its Document Status table）を出したが、注記の数が増えるので (4) の理由も出た。(3) だけに当たる場合は作れなかった（ほかの形の行は (2) で止まる） | diff・manual | ステップ 7-2 |
 | AC-14 | 各 PR の `make test`・`make lint` と CI の `doc-guard` | static | すべてのステップ |
 
 ## 8. 成功基準 (Success Criteria)
