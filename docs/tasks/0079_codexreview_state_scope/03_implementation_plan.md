@@ -134,7 +134,7 @@
 -   [x] `_checks/check.sh` を書く。引数に変更の前と後の 2 つのコミットを受け取り、次を確かめて、項目ごとに結果を 1 行出す（手本はタスク 0078 の `docs/tasks/0078_adr0024_server_env_result/_checks/check.sh`）。
     -   `internal/codexreview/types.go` の `Protocol` の定義の行が前後で同じであること（AC-11）。
     -   `types.go` の `Result` の型の各フィールドの JSON の名前の並びが、前後で同じであること（AC-11）。
-    -   `internal/codexreview/state.go` の `statusArgs` の定義の行が前後で同じであること（AC-04）。
+    -   `internal/codexreview/state.go` の `statusArgs` の値（`[]string{…}` の部分）が前後で同じであること（AC-04）。宣言は `var` のブロックから単独の宣言に移るので、行ではなく値を比べる。
     -   `local-cli-review.md` で、手順 3 の `stop` の箇条を前後とも 1 つの段落につなぎ、「A `state_changed` caused by」から箇条の終わりまでを切り取ったとき、残りのファイル全体が前後で同じであり、切り取った部分は前後で違うこと（AC-12）。行の折り返しが変わっても比べられるようにするためである。
     -   ADR-0013 で、決定の 4 つ目の項目からずれの記述の 3 文を除いた行が後の行と同じで、ほかの行は前後で同じであること。
     -   台帳の消す名前（`itemStash`・`refsArgs`・`stashArgs`・`errRefsUnreadable`・`parseRefs`）が、後のコミットの `internal/codexreview` に単語として現れないこと。フィールド `refs`・`stash` は、`refs` がほかの識別子の引数名にも使われるので、後のコミットの `state.go` の `type gitState struct { … }` の本体だけを見て、ないことを確かめる。
@@ -218,7 +218,7 @@ PR の説明には、入れ直しの前後の食い違いの見分け方（設�
 | AC-01 | 2-1 | test: `internal/codexreview/run_test.go::TestRunIgnoresSharedRefs`（新規、ブランチを作る・消す・動かす・ほかの worktree が checkout しているブランチを動かす行） |
 | AC-02 | 2-1 | test: `run_test.go::TestRunIgnoresSharedRefs`（新規、タグを作る・動かす・消す行） |
 | AC-03 | 2-1 | test: `run_test.go::TestRunIgnoresSharedRefs`（新規、stash を加える・消す・入れ替える行） |
-| AC-04 | 2-1 / 3-1 | test: `run_test.go::TestRunStateChanged`（`tracked_file`・`untracked_file_hidden_by_configuration`）。diff: `_checks/check.sh`（`statusArgs` の行が前後で同じ。サブモジュールの変更を含む読み方を変えていない） |
+| AC-04 | 2-1 / 3-1 | test: `run_test.go::TestRunStateChanged`（`tracked_file`・`untracked_file_hidden_by_configuration`）。diff: `_checks/check.sh`（`statusArgs` の値が前後で同じ。サブモジュールの変更を含む読み方を変えていない） |
 | AC-05 | 2-1 | test: `run_test.go::TestRunStateChanged`（`detach_at_same_commit`、新規の detached のまま commit・detached からブランチへ・同じ commit の別のブランチへ switch・別の commit のブランチへ checkout の行） |
 | AC-06 | 2-1 | test: `run_test.go::TestRunStateChanged`（`commit`、新規の HEAD のブランチをほかの worktree が動かす 2 行）、`cmd/codexreview/main_test.go::TestOutputIsOneJSONObject`（`state_changed` の行） |
 | AC-07 | 2-1 | test: `run_test.go::TestRunStateChanged`（`with_failed_exit`・`with_timeout`） |

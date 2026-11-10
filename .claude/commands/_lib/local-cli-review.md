@@ -179,9 +179,10 @@ the tool (`make install-codexreview`, `go build`): the user installs it from
      revert the
      difference, do not commit, and do not push. A `state_changed` caused by
      another worktree is still a stop: the user decides. Another worktree
-     causes one by moving the branch this worktree's HEAD is on (`refs` in
-     `changed`). A change to other branches, tags, or the stash, in any
-     worktree, never causes a `state_changed`: they are not compared.
+     causes one when it moves the branch this worktree's HEAD is on (`head`
+     and `refs` in `changed`). Other branches, tags, and the stash are not
+     compared: a change to them causes a `state_changed` only when the same
+     operation also changes this worktree's status or HEAD.
 
    When the result has `instructions_changed` set, note in SUMMARY that
    BASE..HEAD changes a file Codex reads its instructions from (`AGENTS.md`,

@@ -13,6 +13,8 @@ adr=docs/dev/adr/0013-review-setup.md
 echo "base $base"
 echo "head $head"
 echo "$0 blob $(git hash-object "$0")"
+# Pathspecs below are relative to the root.
+cd "$(git rev-parse --show-toplevel)"
 fail() { echo "FAIL $*"; exit 1; }
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
@@ -82,7 +84,8 @@ if git grep -qwE 'itemStash|refsArgs|stashArgs|errRefsUnreadable|parseRefs' "$he
 fi
 awk '/^type gitState struct \{$/{body=1; next} body && /^\}$/{exit} body' "$tmp/head.state" >"$tmp/head.gitstate"
 [ -s "$tmp/head.gitstate" ] || fail "removed-names: head has no gitState body"
-if awk '{ print $1 }' "$tmp/head.gitstate" | grep -qxE 'refs|stash'; then
+# Field names are the words before the type; comments are dropped first.
+if sed 's://.*$::' "$tmp/head.gitstate" | grep -qwE 'refs|stash'; then
 	fail "removed-names: gitState still has a refs or stash field"
 fi
 echo "OK   removed-names: itemStash, refsArgs, stashArgs, errRefsUnreadable, parseRefs, and the refs and stash fields are gone"
