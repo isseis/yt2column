@@ -1,0 +1,114 @@
+# 要件定義書：ADR-0024「結果」の、サーバが環境から読む変数の記述の更新
+
+## Document Status
+
+| Item | Value |
+|---|---|
+| Status | `approved` |
+| Process | `simple` |
+| Created | 2026-11-10 |
+| Review date | 2026-11-10 |
+| Reviewer | isseis |
+| Comments | - |
+
+## 1. 概要 (Overview)
+
+**目的:** 本書は、ADR-0024（`docs/dev/adr/0024-env-access-in-config.md`）の「結果」の最後の項目を、今のコードに合わせる要件を定義する。
+
+**背景:**
+
+-   ADR-0024 の「結果」の最後の項目は、「[ADR-0018](../../dev/adr/0018-server-config-file.md) は、サーバが設定ファイルだけから設定を読み、環境からは `HOME` と `GODEBUG` だけを読むと決めている。この決定はまだコードに入っていない。実装されると、サーバが環境から読むのはその 2 つだけになる。」と述べる（`docs/dev/adr/0024-env-access-in-config.md:35`）。
+-   ADR-0018 の決定は、タスク 0066 の実装の PR（#735・#740）で `main` に入った。サーバの `main` は `os.LookupEnv` を設定の読み込みに渡すだけである（`cmd/yt2column-server/main.go:32`）。`internal/config` の `LoadServer` は、その関数で `HOME`（設定ファイルとソケットのパスの導出。`internal/config/config.go:361`・`internal/config/config.go:378`）と `GODEBUG`（HTTP/2 のデバッグログの警告。`internal/config/config.go:391`）だけを読み、LLM と Webhook の設定を設定ファイルから読む（`internal/config/config.go:370-371`）。`docs/dev/security.md` §8.2 と `docs/dev/project_overview.md`「設定（環境変数）」も、この今の状態を述べている。
+-   そのため、「この決定はまだコードに入っていない」という記述は、今のコードと食い違う。タスク 0073（#729）の PR-2 が見つけた。タスク 0073 は ADR の「結果」を変えないので、規約（`docs/dev/conventions/adr.md`「Editorial corrections」の「Discrepancy statements」）に従い、ADR を直さずに issue #776 を立てた。
+
+対応 issue: [#776](https://github.com/isseis/yt2column/issues/776)（関連: [#729](https://github.com/isseis/yt2column/issues/729)（タスク 0073）、[#576](https://github.com/isseis/yt2column/issues/576)（タスク 0066））
+
+**本書の記述範囲:** 本書は、書き直した後の項目が述べること、ADR-0024 のほかの部分を変えないこと、直しの分類と「経緯」への記録を定める。直しは決定の変更なので、ADR-0024 の書き直しと「経緯」の項目は本書の PR で行う（下の「要件定義の際に決めたこと」）。確かめ方は `02_architecture.md` と `03_implementation_plan.md` で決める。
+
+**issue #776 で決めたこと:**
+
+-   **ADR-0024 の「結果」の最後の項目を、ADR-0018 の決定が実装された今の状態に合わせて書き直すか、消す。** 今のコードと食い違うためである。
+    -   ADR：ADR-0024 を直す。直しが編集上の訂正か決定の変更かは、下の「要件定義の際に決めたこと」で決める。
+-   **編集上の訂正か決定の変更かは、直す PR で規約の「Editorial corrections」に照らして決める。**
+
+**要件定義の際に決めたこと（2026-11-10）:**
+
+-   **進め方は簡易な進め方（`simple`）とする。この変更は、除外される変更に当たらない。** 直すのは ADR の 1 項目だけで、関わるコンポーネントもコマンドもない。開いている決定は少なく、どの ADR の「決定」も変えず、新しい仕組みを作らない。除外の判断：`docs/dev/security.md` の規則と前提（脅威モデル）を変えず、ADR の記述を今のコードに合わせるだけである。開発ツールの信頼境界にも、外部依存にも触れない（`docs/dev/conventions/requirements_process.md`「Simple Process」の「Excluded changes」）。
+    -   ADR：なし。本タスクの中で閉じる、進め方の選択である。
+-   **項目は消さずに書き直す。書き直しは次の 2 点にとどめ、ADR-0018 へのリンクは残す（F-001）。未実装を述べる部分（「この決定はまだコードに入っていない」と、「実装されると」で始まる条件の形）を除くこと。「サーバが環境から読むのはその 2 つだけになる」を、主語を「サーバのコード」とした今の事実の形にすること。** 主語を改めるのは、Go のランタイムが自分で読む `GOGC` などの変数を含まないことを明確にするためで、`docs/dev/security.md` §8.2 と同じ言い方である。 ADR-0024 の「決定」は ADR-0018 にリンクしていない。この項目を消すと、ADR-0024 の読み手は、サーバの入口が渡す関数で実際に読まれる変数までたどれなくなる。書き直しをこの範囲にとどめるのは、項目がすでに述べている内容のほかに事実を足さないためである。
+    -   採らなかった案：項目を消す案。同じ事実は ADR-0018 の「決定」にあるので、重複はなくなる。しかし、ADR-0024 から ADR-0018 へのつながりが失われる。
+    -   ADR：ADR-0024 の「結果」を本書の PR で更新する（次の項目）。「決定」は変わらない。
+-   **この直しは編集上の訂正とせず、決定の変更として扱う。ADR-0024 は本書の PR で直し、「経緯」の最後に項目を 1 つ足す（F-002）。** 直しは、規約の「Editorial corrections」が挙げる 4 種類のどれかに確定できない。近いのは種類 2（ずれの記述を、ずれが直った後に消すこと）だが、種類 2 が定めるずれの記述は「決定」にあって issue にリンクしたものであり、この項目は「結果」にあって issue にリンクしていない。規約は、編集上の訂正か迷う変更を決定の変更として扱うとする（`docs/dev/conventions/adr.md`「Editorial corrections」）。この点は PR #780 のレビューで指摘され、2026-11-10 にレビュアーと確かめた。決定の変更は、その決定をする PR が ADR を変える（`docs/dev/conventions/adr.md`「Approval and the PR」）。この決定をするのは本書の PR なので、ADR-0024 の直しも本書の PR で行う。
+    -   採らなかった案：編集上の訂正として扱い、「経緯」に項目を足さず、直したコミットのメッセージの訂正の行と PR の説明の訂正の段落で記録する案。「この決定はまだコードに入っていない」は ADR-0018 の決定とコードのずれを述べる文で、そのずれはタスク 0066 で直ったので、種類 2 に準じる直しとみなす余地はある。しかし種類 2 そのものではなく分類に迷いが残るので、規約に従い採らない。
+    -   ADR：ADR-0024 を本書の PR で更新する（「結果」の最後の項目と、「経緯」の項目 1 つ）。ADR-0024 の「決定」は変えない。新しい ADR は作らない。
+
+## 2. 目的とスコープ (Goals and Scope)
+
+### 2.1. 目的 (Goals)
+
+-   ADR-0024 の「結果」が、今のコードと食い違わないようにする。
+
+### 2.2. スコープ (In Scope)
+
+-   ADR-0024 の「結果」の最後の項目の書き直し。
+-   ADR-0024 の「経緯」への、この直しの項目 1 つの追加。
+
+### 2.3. スコープ外 (Out of Scope)
+
+-   ADR-0024 のほかの部分と、ほかの ADR の変更。issue #776 が扱うのはこの 1 項目だけである。`docs/dev/adr/` の中で、未実装を前提にする記述はこの 1 項目だけである（コミット `3747237f` で `git grep -n "まだコードに\|実装されると" -- docs/dev/adr/` の出力は 1 行）。
+-   コードと、`docs/dev/security.md`・`docs/dev/project_overview.md` の変更。どちらもすでに今の状態を述べている（1 章の背景）。
+-   ADR-0024 を、今の ADR の書き方の基準（`docs/dev/conventions/adr.md`「Writing an ADR」）にそろえ直すこと。issue #776 の対象ではない。
+
+## 3. 機能要件 (Functional Requirements)
+
+### 3.1. 機能一覧
+
+#### F-001: 「結果」の最後の項目を今の状態に合わせる
+
+ADR-0024 の「結果」の最後の項目を、ADR-0018 の決定が実装された今の状態を述べる文に書き直す。
+
+**Acceptance Criteria**:
+- **AC-01**: ADR-0024 の「結果」の最後の項目は、ADR-0018 へのリンク（`0018-server-config-file.md`）を持ち、サーバのコードがプロセスの環境から読むのは `HOME` と `GODEBUG` だけであることを、今の事実として述べる。ADR-0018 の決定がまだコードに入っていないことや、これから実装されることを述べる記述を含まない。
+- **AC-02**: ADR-0024 のうち、「結果」の最後の項目と、F-002 で「経緯」の最後に足す項目 1 つより外の部分は、変更の前と同じである。題名、「状態」「背景」「決定」「採らなかった案」の各節、「結果」のほかの 3 項目、「経緯」の既存の項目が変わらない。「結果」の項目の数と順序も変わらず、「経緯」の既存の項目の数と順序も変わらない。
+- **AC-03**: ADR-0024 と本タスクのディレクトリ（`docs/tasks/0078_adr0024_server_env_result/`）の外のファイルは、ADR の索引（`docs/dev/adr/README.md`）とほかの ADR を含め、変更の前と同じである。ファイルの追加も削除もない。
+
+#### F-002: 直しを決定の変更として「経緯」に記録する
+
+ADR-0024 の「経緯」の最後に、F-001 の直しの項目を 1 つ足す。
+
+**Acceptance Criteria**:
+- **AC-06**: ADR-0024 の「経緯」の最後に、項目がちょうど 1 つ足されている。その項目は `docs/dev/conventions/adr.md`「History entries」の形（日付、その時点の変更の要旨、出典の文書へのリンク）に従い、ADR-0018 の決定がタスク 0066 で実装されたので「結果」の項目を今の状態に合わせたことを述べ、本タスクの要件定義書（`../../tasks/0078_adr0024_server_env_result/01_requirements.md`）にリンクする。
+
+AC-04 と AC-05 は欠番である。直しを編集上の訂正として記録すること（訂正の行と訂正の段落）を求めていたが、直しを決定の変更として扱うことにしたので除いた。
+
+## 4. 非機能要件 (Non-Functional Requirements)
+
+### 4.1. 性能 (Performance)
+-   N/A。文書の変更だけで、実行時の処理を変えない。
+
+### 4.2. セキュリティ (Security)
+-   N/A。直すのは ADR の記述だけで、コード・秘密情報の扱い・`docs/dev/security.md` の規則と前提を変えない。書き直す記述の事実は、`docs/dev/security.md` §8.2 がすでに述べている。
+
+### 4.3. 信頼性・可用性 (Reliability/Availability)
+-   N/A。文書の変更だけである。
+
+### 4.4. 互換性 (Compatibility)
+-   N/A。文書の変更だけである。
+
+### 4.5. 保守性 (Maintainability)
+-   ADR の検査 `TestADRRecords`（`cmd/yt2column/adr_test.go`）を含む文書のガードが、変更の後も通る。
+
+## 5. 制約条件 (Constraints)
+
+-   `docs/dev/project_overview.md` の「決定済みの方針」「前提・制約」に従う。
+-   ADR の直しは、`docs/dev/conventions/adr.md` の決定の変更の規則（「Approval and the PR」「History entries」）に従う。
+
+## 6. 用語集 (Glossary)
+
+-   用語は `docs/translation_glossary.md` と統一する。
+-   **編集上の訂正:** ADR の決定を変えずに書き方を直すことのうち、規約が挙げる 4 種類のもの。「経緯」に項目を足さない（`docs/dev/conventions/adr.md`「Editorial corrections」）。
+-   **決定の変更:** 編集上の訂正に当たらない ADR の変更。その決定をする PR が ADR を変え、「経緯」に項目を足す（`docs/dev/conventions/adr.md`「Approval and the PR」「History entries」）。
+
+## 変更履歴
+
+- 2026-11-10 承認（isseis、#780）
