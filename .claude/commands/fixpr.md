@@ -570,13 +570,15 @@ blocks, the thread IDs to fix):
 >    document" in the requirements process guide
 >    (`docs/dev/conventions/requirements_process.md`): a decision change
 >    (including any handoff item change) resets the affected approved document,
->    and any later approved document after it, to `draft`. For each document a
+>    and any later approved document after it, to `draft`; on a three-document
+>    PR whose documents are approved, it resets all three (R3). For each document a
 >    decision change reaches, set `Comments` and append the `draft` revert line,
 >    with the PR number `#NUMBER`, as the guide's "Document Status Format"
 >    ("Comments" and "Change history") says, including its rule for a document
->    already `draft` from a decision change; for a later document R3 resets
->    without editing its body, use the form for a revert along with an earlier
->    document's decision change. Migrate a document without a change history
+>    already `draft` from a decision change; for a document R3 resets without
+>    editing its body (a later document, or on a three-document PR any other of
+>    the three), use the form for a revert along with an earlier document's
+>    decision change, naming the changed document. Migrate a document without a change history
 >    first, as the guide's "Documents without a change history" says (its
 >    steps 1-6 and "Stopping"); this session runs the guide's step 7 check
 >    after you return. An editorial correction keeps the status and changes
@@ -637,7 +639,7 @@ that list and is checked by neither.
    fails when one of them has no change history at `HEAD` and either gives
    no cell text for `Status` at `HEAD` or is `approved` at `HEAD` and does not
    meet the guide's step 1. This catches a fix that left out the transition
-   of such a document, or the later documents returned along with it.
+   of such a document, or the documents returned along with it.
 2. **The step 7 check**, as the guide defines it, on the listed paths.
 
 Extract the texts into files in this session's scratchpad with commands and
@@ -1089,7 +1091,7 @@ the user with **all** of the following — bare counts alone are not enough:
    again. If most threads were off-level, say so: the document is converging
    and the remaining concerns now wait in the handoff document. Name every
    process document Phase 3 returned from `approved` to `draft` (edited
-   documents and the later-phase documents reset with them), so the user knows
+   documents and the documents reset with them), so the user knows
    it needs re-approval before the next phase proceeds.
 
 3. **Deferred threads**: list every `deferred` thread (round cap) with its

@@ -389,11 +389,12 @@ handoff".
    the `要件定義の際に決めたこと（YYYY-MM-DD）` section of the overview chapter
    (with today's date, as a new section of that name when it has none of
    today's date) an item saying the task returned from the simple process to
-   the full process, with REASON. When `runpr.md` step 4 had already recorded
-   its approval (the PRE_MERGE commit is on the branch), set it back to
-   `draft` as a `draft` revert, with its `Comments` and its `draft` revert
-   line for this PR, as the requirements process guide, "Document Status
-   Format", says; otherwise it stays `draft`.
+   the full process, with REASON. When its status is `approved` (`runpr.md`
+   step 4 had recorded its approval), set it back to `draft` as a `draft`
+   revert, with its `Comments` and its `draft` revert line for this PR, as the
+   requirements process guide, "Document Status Format", says; when it is
+   already `draft` from a decision change of this PR, follow that section's
+   rule for a document already `draft`; otherwise it stays `draft`.
 3. Move each item of the `設計の際に決めたこと（YYYY-MM-DD）` section of the
    deleted `02_architecture.md` to `design_handoff.md`, and each item of the
    `計画の際に決めたこと（YYYY-MM-DD）` section of the deleted
