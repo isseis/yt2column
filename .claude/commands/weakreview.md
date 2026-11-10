@@ -304,8 +304,8 @@ attack-vector list against this diff even where no AC mentions it explicitly)
       is English, except a literal the guard-test literal exception of
       `CLAUDE.md`, "Go Idioms", covers; any non-ASCII found by the step-3
       grep is in a test-data literal, an intentionally localized error
-      string, or such an excepted literal (a `_checks/` script literal that
-      must match a Japanese document's text), not an identifier or a
+      string, or such an excepted literal (a Go program under `_checks/`
+      whose literal must match a Japanese document's text), not an identifier or a
       non-test comment (a weak model tends to apply this rule uniformly
       instead of case-by-case).
 - [ ] Any new test file's assertion style (testify `assert`/`require` vs.

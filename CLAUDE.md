@@ -732,7 +732,7 @@ Only the conventions a linter does not check are worth stating:
   message the script prints. Reason: the same as the exception above; unlike
   there, the kinds are not limited, because a task's check has to compare
   words, fragments, and sentences of a document, and limiting the kinds would
-  keep the `data.json` file this exception exists to remove.
+  keep the `data.json` file this extension exists to remove.
 - The same rule applies to the browser extension: its comments, identifiers,
   and string literals are English. There are three exceptions: the messages in
   a catalog file for a language other than English under
