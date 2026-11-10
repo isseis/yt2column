@@ -22,6 +22,7 @@ const (
 	keyModel        = "model"
 	keyModelVersion = "model_version"
 	keyUsage        = "usage"
+	keyPricing      = "pricing_context"
 	keyCallTime     = "call_time"
 	keySystem       = "system"
 	keyUser         = "user"
@@ -37,11 +38,19 @@ const (
 	keyOutput       = "output"
 )
 
-// artifactKeys are the top-level keys CollectOnly accepts.
+// artifactKeys are the top-level keys CollectOnly accepts. pricing_context is
+// accepted here and then required or refused by the version the file states.
 var artifactKeys = []string{
-	keyVersion, keyStage, keyModel, keyModelVersion, keyUsage, keyCallTime,
+	keyVersion, keyStage, keyModel, keyModelVersion, keyUsage, keyPricing, keyCallTime,
 	keySystem, keyUser, keyInput, keyID, keyTitle, keyBody, keyRevisions,
 }
+
+// The pricing_context spellings of version 4, one per llm.PricingContext.
+const (
+	pricingUnspecifiedWire = "unspecified"
+	pricingStandard30mWire = "standard-30m"
+	pricingUnverifiedWire  = "unverified"
+)
 
 // usageKeys are the keys a known-usage object must carry, in the order they are
 // read and written.
@@ -55,19 +64,20 @@ var identityKeys = []string{keyEmbedded, keyDigest}
 // writes an empty array while generation and shorten omit the key. Usage is a
 // pointer so a known usage writes an object and an unknown usage writes null.
 type recordJSON struct {
-	Version      int             `json:"version"`
-	Stage        string          `json:"stage"`
-	Model        string          `json:"model"`
-	ModelVersion string          `json:"model_version"`
-	Usage        *usageJSON      `json:"usage"`
-	CallTime     string          `json:"call_time"`
-	System       identityJSON    `json:"system"`
-	User         identityJSON    `json:"user"`
-	Input        string          `json:"input"`
-	ID           string          `json:"id"`
-	Title        string          `json:"title"`
-	Body         string          `json:"body"`
-	Revisions    *[]revisionJSON `json:"revisions,omitempty"`
+	Version        int             `json:"version"`
+	Stage          string          `json:"stage"`
+	Model          string          `json:"model"`
+	ModelVersion   string          `json:"model_version"`
+	Usage          *usageJSON      `json:"usage"`
+	PricingContext string          `json:"pricing_context"`
+	CallTime       string          `json:"call_time"`
+	System         identityJSON    `json:"system"`
+	User           identityJSON    `json:"user"`
+	Input          string          `json:"input"`
+	ID             string          `json:"id"`
+	Title          string          `json:"title"`
+	Body           string          `json:"body"`
+	Revisions      *[]revisionJSON `json:"revisions,omitempty"`
 }
 
 // usageJSON is the wire form of a known token usage. An unknown usage is
@@ -95,9 +105,9 @@ type revisionJSON struct {
 	Evidence string `json:"evidence"`
 }
 
-// Marshal builds the JSON body of one artifact from a record and returns it
-// with the record's identifier, computed from its content and stored under the
-// id key. It does
+// Marshal builds the JSON body of one artifact, in artifactVersion, from a
+// record and returns it with the record's identifier, computed from its content
+// and stored under the id key. It does
 // not escape HTML, so a body's "<", ">", and "&" do not expand (the file is
 // read back by this package, not by a browser). It refuses a record whose
 // CallTime is zero, not in UTC, or has sub-second precision, then rejects the
@@ -113,13 +123,17 @@ func Marshal(record writer.StageRecord) (data []byte, id string, err error) {
 		Stage:        record.Stage.String(),
 		Model:        record.Model,
 		ModelVersion: record.ModelVersion,
-		CallTime:     record.CallTime.Format(CallTimeLayout),
-		System:       identityJSON{Embedded: record.System.Embedded, Digest: record.System.Digest},
-		User:         identityJSON{Embedded: record.User.Embedded, Digest: record.User.Digest},
-		Input:        record.Input,
-		ID:           id,
-		Title:        record.Title,
-		Body:         record.Body,
+		// A Usage never holds a context outside the enumeration, so the
+		// wire value is never empty; if it were, the round-trip Parse
+		// below would reject it.
+		PricingContext: pricingContextWire(record.Usage.PricingContext()),
+		CallTime:       record.CallTime.Format(CallTimeLayout),
+		System:         identityJSON{Embedded: record.System.Embedded, Digest: record.System.Digest},
+		User:           identityJSON{Embedded: record.User.Embedded, Digest: record.User.Digest},
+		Input:          record.Input,
+		ID:             id,
+		Title:          record.Title,
+		Body:           record.Body,
 	}
 	if record.Stage == writer.StageReview {
 		out.Revisions = revisionsJSON(record.Revisions)
@@ -167,6 +181,10 @@ func Parse(data []byte) (writer.StageRecord, error) {
 	if err != nil {
 		return writer.StageRecord{}, malformedf("artifact has an unlisted or duplicate key: %s", err)
 	}
+	version, err := parseVersion(members)
+	if err != nil {
+		return writer.StageRecord{}, err
+	}
 	stage, err := parseStage(members)
 	if err != nil {
 		return writer.StageRecord{}, err
@@ -180,6 +198,10 @@ func Parse(data []byte) (writer.StageRecord, error) {
 		return writer.StageRecord{}, err
 	}
 	usage, err := parseUsage(members)
+	if err != nil {
+		return writer.StageRecord{}, err
+	}
+	usage, err = parsePricingContext(members, version, usage)
 	if err != nil {
 		return writer.StageRecord{}, err
 	}
@@ -225,28 +247,35 @@ func Parse(data []byte) (writer.StageRecord, error) {
 		Input:        input,
 		ID:           id,
 	}
-	if recordID(record) != id {
+	if recordIDForVersion(version, record) != id {
 		return writer.StageRecord{}, malformed("id does not match the artifact's content")
 	}
 	return record, nil
 }
 
-// parseStage reads the format version and stage. It rejects an unsupported
-// version and an unknown stage.
-func parseStage(members map[string]strictjson.Value) (writer.Stage, error) {
+// parseVersion reads the format version and rejects one this package does not
+// read.
+func parseVersion(members map[string]strictjson.Value) (int, error) {
 	versionValue, err := strictjson.Required(members, keyVersion)
 	if err != nil {
-		return writer.StageUnset, malformedf("version: %s", err)
+		return 0, malformedf("version: %s", err)
 	}
 	version, err := versionValue.AsInt64()
 	if err != nil {
-		return writer.StageUnset, malformedf("version: %s", err)
+		return 0, malformedf("version: %s", err)
 	}
-	if version != artifactVersion {
-		return writer.StageUnset, malformedf(
-			"unsupported artifact version %d; this CLI reads version %d only; move away the artifacts an older CLI saved, or use a new --artifacts directory, then rerun",
-			version, artifactVersion)
+	switch version {
+	case artifactVersion3, artifactVersion:
+		return int(version), nil
+	default:
+		return 0, malformedf(
+			"unsupported artifact version %d; this CLI reads versions %d and %d only; move away the artifacts an older CLI saved, or use a new --artifacts directory, then rerun",
+			version, artifactVersion3, artifactVersion)
 	}
+}
+
+// parseStage reads the stage and rejects an unknown one.
+func parseStage(members map[string]strictjson.Value) (writer.Stage, error) {
 	wire, err := strictjson.RequiredString(members, keyStage)
 	if err != nil {
 		return writer.StageUnset, malformedf("stage: %s", err)
@@ -333,6 +362,68 @@ func parseUsage(members map[string]strictjson.Value) (llm.Usage, error) {
 		*member.dest = uint64(number) //nolint:gosec // number is non-negative
 	}
 	return llm.KnownUsage(counts), nil
+}
+
+// parsePricingContext applies the pricing_context element of version to usage,
+// as parseUsage read it. Version 3 has no such element: one present is an
+// unlisted key, and its usage keeps PricingContextUnspecified. Version 4
+// requires it as one of the listed spellings, and an unknown usage must state
+// unspecified, because there are no counts to price. The reason never carries
+// a file value.
+func parsePricingContext(members map[string]strictjson.Value, version int, usage llm.Usage) (llm.Usage, error) {
+	if version == artifactVersion3 {
+		if _, present := members[keyPricing]; present {
+			return llm.Usage{}, malformed("pricing_context is present in a version 3 artifact")
+		}
+		return usage, nil
+	}
+	wire, err := strictjson.RequiredString(members, keyPricing)
+	if err != nil {
+		return llm.Usage{}, malformedf("pricing_context: %s", err)
+	}
+	pricing, ok := pricingContextFromWire(wire)
+	if !ok {
+		return llm.Usage{}, malformed("pricing_context is not known")
+	}
+	counts, known := usage.Counts()
+	if !known {
+		if pricing != llm.PricingContextUnspecified {
+			return llm.Usage{}, malformed("pricing_context is not unspecified for an unknown usage")
+		}
+		return usage, nil
+	}
+	// pricing comes from the enumeration above, so the constructor accepts it.
+	return llm.KnownUsageWithPricingContext(counts, pricing)
+}
+
+// pricingContextWire is the version 4 spelling of a pricing context, or "" for
+// a value outside the enumeration, which Parse rejects.
+func pricingContextWire(pricing llm.PricingContext) string {
+	switch pricing {
+	case llm.PricingContextUnspecified:
+		return pricingUnspecifiedWire
+	case llm.PricingContextStandard30m:
+		return pricingStandard30mWire
+	case llm.PricingContextUnverified:
+		return pricingUnverifiedWire
+	default:
+		return ""
+	}
+}
+
+// pricingContextFromWire returns the pricing context a version 4 spelling
+// names, and whether it named one.
+func pricingContextFromWire(wire string) (llm.PricingContext, bool) {
+	switch wire {
+	case pricingUnspecifiedWire:
+		return llm.PricingContextUnspecified, true
+	case pricingStandard30mWire:
+		return llm.PricingContextStandard30m, true
+	case pricingUnverifiedWire:
+		return llm.PricingContextUnverified, true
+	default:
+		return llm.PricingContextUnspecified, false
+	}
 }
 
 // parseCallTime reads the required call_time member: a UTC time in whole
@@ -482,17 +573,31 @@ func revisionsJSON(revisions []writer.Revision) *[]revisionJSON {
 	return &out
 }
 
-// recordID returns the identifier of a record, computed from every value that
-// defines its content. The id field itself is not part of it. The order and
-// the revision tag keep distinct records from sharing an identifier.
+// recordID returns the identifier Marshal stores for a record: the
+// artifactVersion identifier.
 func recordID(record writer.StageRecord) string {
+	return recordIDForVersion(artifactVersion, record)
+}
+
+// recordIDForVersion returns the identifier of a record in the given format
+// version, computed from every value that defines its content in that version.
+// The id field itself is not part of it. Version 3 keeps its original rule,
+// without a pricing context, so a version 3 file keeps the identifier it was
+// saved with and a later stage's input still names it; version 4 adds the
+// pricing context after the usage. The version is the first part, so the same
+// content has a different identifier in each version. The order and the
+// revision tag keep distinct records from sharing an identifier.
+func recordIDForVersion(version int, record writer.StageRecord) string {
 	parts := []string{
-		strconv.Itoa(artifactVersion),
+		strconv.Itoa(version),
 		record.Stage.String(),
 		record.Model,
 		record.ModelVersion,
 	}
 	parts = append(parts, usageIDParts(record.Usage)...)
+	if version != artifactVersion3 {
+		parts = append(parts, pricingContextWire(record.Usage.PricingContext()))
+	}
 	parts = append(parts, record.CallTime.Format(CallTimeLayout))
 	parts = append(parts,
 		boolWire(record.System.Embedded),
