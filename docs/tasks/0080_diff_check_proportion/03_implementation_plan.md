@@ -346,14 +346,14 @@ PR-2 の実行の記録（ステップ 2-4）:
 
 -   コマンド：`docs/tasks/0080_diff_check_proportion/_checks/scope.sh <base> <commit> pr2`
 -   マージの基点（`git merge-base origin/main HEAD`。`git fetch origin main` の後）：`fcd726e3c8dc8784dfb1406b111e4d16e847f86a`
--   比べたコミット（この記録の前の最後のコミット）：`6fd570656ba237a175d0ad54991ebdec6546fc26`
+-   比べたコミット（この記録の前の最後のコミット）：`cd7e4d25718acca76b5037bf74180bd16a3fc770`
 -   スクリプトの blob の ID：`904e80e9c204e104762d30d939bae7e044ccac8c`
 -   終了コード：0
 -   出力:
 
     ```text
     base:   fcd726e3c8dc8784dfb1406b111e4d16e847f86a
-    commit: 6fd570656ba237a175d0ad54991ebdec6546fc26
+    commit: cd7e4d25718acca76b5037bf74180bd16a3fc770
     mode:   pr2
     ok   file-scope
     ok   adr-deletions-only
