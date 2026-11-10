@@ -4,16 +4,16 @@
 
 ## H-01: HEAD のブランチの ref を、どう読んで比べるか
 
-AC-06 は、HEAD のブランチの ref の変化を `head` として示すことを求める。HEAD がブランチにいるとき、今の `readHead` が読む commit（`git rev-parse --verify HEAD`。`internal/codexreview/state.go:82`）は、そのブランチの ref を通して読まれる。そのため、ref の変化は commit の変化として必ず現れる。ブランチの ref を別に読む（`refs/heads/<branch>` を指定した `for-each-ref` など）か、HEAD の読み取りで足りるとするかを決める。足りるとする場合は、その根拠を設計に書く。比べるものを読めないときの扱い（AC-07）も保つ。
+AC-06 と AC-10 は、HEAD のブランチの ref の変化を `head` と `refs` で示し、`changed_refs` にその ref を入れることを求める。HEAD がブランチにいるとき、今の `readHead` が読む commit（`git rev-parse --verify HEAD`。`internal/codexreview/state.go:82`）は、そのブランチの ref を経由して決まるので、ref の変化は commit の変化としても現れる。ブランチの ref をどう読むか（HEAD のブランチ名を使って `for-each-ref` の対象を 1 つに絞るか、など）を決める。読んだ出力の決まった形と、形に合わない出力を読めないときとして扱う方法（AC-08 の 3。今の `parseRefs`、`state.go:97-115`）も決める。HEAD が detached のときは、ref を読まない。
 
-## H-02: 使われなくなるコードと、プロトコルを上げる順序
+## H-02: 使われなくなるコード
 
-`changed_refs` を外すと（AC-09）、`describeRefs`・`parseWorktrees`（`state.go:146-182`）と、`refs`・`stash` の読み取り（`state.go:42-43`・`64-75`）が使われなくなる。`make deadcode` が報告するので、消すものを決める。プロトコルを 2 に上げる（AC-10・AC-11）ときの、ツールと共通手順を変える順序も決める。どちらも同じ PR で変えるか、分けるかである。その PR の `/runpr` の前に、その PR のブランチから入れ直すこと（[ADR-0014](../../dev/adr/0014-deterministic-checks-in-go.md) の「道具は `main` からインストールして使う」）も、手順として決める。
+stash の一覧を比べなくなると、`stashArgs`（`state.go:43`）、`itemStash`（`state.go:19`）、`gitState` の `stash` のフィールド（`state.go:51`）とその読み取り（`state.go:72-75`）が使われなくなる。`make deadcode` は関数だけを報告し、フィールドや定数は報告しないので、消すものを設計で列挙する。`refs` の読み取り（`state.go:42`・`64-71`）、`describeRefs`・`parseWorktrees`（`state.go:146-182`）は、H-01 の決め方によって残るか変わる。
 
 ## H-03: テストの作り方
 
-AC-01〜AC-03 は、Codex CLI の実行の間に、ほかのブランチ・タグ・stash が変わる状況を作る必要がある。今の `cmd/codexreview/main_test.go:188` は、ブランチ `made-by-codex` を作る偽の `codex` で `state_changed` を確かめている。この行は、AC-01 では `state_changed` にならない入力になる。HEAD のブランチの ref だけを動かす入力（AC-06）と、ほかの worktree が checkout しているブランチを動かす入力（AC-01）を、どう作るかを決める。`CLAUDE.md` の「Testing Strategy」に従い、各テストが、比較の範囲を戻すと失敗することを確かめる。
+AC-01〜AC-03 は、Codex CLI の実行の間に、ほかのブランチ・タグ・stash が変わる状況を作る必要がある。今の `cmd/codexreview/main_test.go:188` は、ブランチ `made-by-codex` を作る偽の `codex` で `state_changed` を確かめている。この入力は、AC-01 では `state_changed` にならない。HEAD のブランチの ref だけを動かす入力（AC-06）、ほかの worktree が checkout しているブランチを動かす入力（AC-01）、HEAD のブランチの ref を消す入力（AC-08 の 2）をどう作るかを決める。`CLAUDE.md` の「Testing Strategy」に従い、比較の範囲を元の広さに戻すと各テストが失敗することを確かめる。
 
-## H-04: 比べるものを記述している文書
+## H-04: 比べるものを記述している文書とコメント
 
-`docs/dev/conventions/package_reference.md` の `internal/codexreview` の行は、比べるものとして「branches and tags, and stash list」と `ChangedRefs` を挙げている。`internal/codexreview` のパッケージのコメントと `types.go` のコメントも、同じ内容を述べる。どれを改めるかを決め、AC-08〜AC-10 と矛盾しないようにする。`CLAUDE.md` の document test の例外（「the `--protocol` value of the `codexreview` calls」）に当たるテストが、プロトコルの値をどう確かめているかも確かめる。
+`docs/dev/conventions/package_reference.md` の `internal/codexreview` の行は、比べるものとして「branches and tags, and stash list」を挙げている。`internal/codexreview` のパッケージのコメント、`types.go:40-41` の `Changed`・`ChangedRefs` のコメント、`state.go` の `refsArgs` 周りのコメント、`run.go:425` 周りも、同じ内容を前提にしている。どれを改めるかを決め、AC-09〜AC-11 と矛盾しないようにする。
