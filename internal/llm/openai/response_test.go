@@ -178,6 +178,8 @@ func TestResponseShape(t *testing.T) {
 		{"message content", `"content":[`, `"content":[],"content":[`},
 		{"message type", `"type":"message"`, `"type":"message","type":"message"`},
 		{"reasoning type", `"type":"reasoning"`, `"type":"reasoning","type":"reasoning"`},
+		{"model written with an escape", `"model":"` + testResponseModel + `"`, `"model":"` + testResponseModel + `",` + escapedKey(keyModel) + `:"other"`},
+		{"content type written with an escape", `"type":"output_text"`, `"type":"output_text",` + escapedKey(keyType) + `:"output_text"`},
 	}
 	for _, tc := range duplicates {
 		t.Run("rejects a duplicate "+tc.name, func(t *testing.T) {
@@ -198,18 +200,6 @@ func TestResponseShape(t *testing.T) {
 			t.Errorf("Model = %q, want %q", response.Model, testResponseModel)
 		}
 	})
-
-	escapedDuplicates := []struct {
-		name, old, replacement string
-	}{
-		{"model", `"model":"` + testResponseModel + `"`, `"model":"` + testResponseModel + `",` + escapedKey(keyModel) + `:"other"`},
-		{"content type", `"type":"output_text"`, `"type":"output_text",` + escapedKey(keyType) + `:"output_text"`},
-	}
-	for _, tc := range escapedDuplicates {
-		t.Run("rejects a duplicate "+tc.name+" written with an escape", func(t *testing.T) {
-			assertBodyRejected(t, replaceOnce(t, base, tc.old, tc.replacement), ErrInvalidResponse)
-		})
-	}
 
 	t.Run("extensible members are ignored, duplicates and other kinds included", func(t *testing.T) {
 		body := replaceOnce(t, base, `"id":"resp_test"`, `"id":"resp_test","id":1,"extra":{"model":null}`)
@@ -278,6 +268,8 @@ func TestResponseFinish(t *testing.T) {
 		})
 	}
 
+	// The truncation message names the sent limit and effort and gives the
+	// advice a user acts on, so its wording is the contract checked here.
 	t.Run("a truncation without text names the limit and advises a lower effort", func(t *testing.T) {
 		err := assertBodyRejectedWithResponse(t, encodeDocument(t, truncatedDocument()), llm.ErrTruncated, usage)
 		for _, want := range []string{"max_output_tokens " + strconv.Itoa(defaultMaxOutputTokens), "effort medium", "lower the effort"} {
@@ -358,6 +350,8 @@ func TestResponseFinish(t *testing.T) {
 			d[keyOutput] = []any{}
 		}, "status is failed"},
 	}
+	// Every cause shares one sentinel, so the fixed cause label in the
+	// message is the only observable that tells them apart.
 	for _, tc := range unexpected {
 		t.Run("unexpected: "+tc.name, func(t *testing.T) {
 			err := assertBodyRejectedWithResponse(t, bodyOf(t, tc.mutate), llm.ErrUnexpectedFinishReason, usage)
@@ -504,25 +498,19 @@ func TestResponseUsage(t *testing.T) {
 	}
 
 	duplicates := []struct {
-		name, old, replacement, want string
+		name, old, replacement, member string
 	}{
-		{"usage", `"usage":{`, `"usage":{},"usage":{`, "usage:duplicate"},
-		{"input_tokens", `"input_tokens":120`, `"input_tokens":120,"input_tokens":120`, "usage.input_tokens:duplicate"},
-		{"input_tokens_details", `"input_tokens_details":{`, `"input_tokens_details":{},"input_tokens_details":{`, "usage.input_tokens_details:duplicate"},
-		{"cached_tokens", `"cached_tokens":30`, `"cached_tokens":30,"cached_tokens":30`, "usage.input_tokens_details.cached_tokens:duplicate"},
-		{"cache_write_tokens", `"cache_write_tokens":50`, `"cache_write_tokens":50,"cache_write_tokens":50`, "usage.input_tokens_details.cache_write_tokens:duplicate"},
-		{"output_tokens", `"output_tokens":40`, `"output_tokens":40,"output_tokens":40`, "usage.output_tokens:duplicate"},
+		{"usage", `"usage":{`, `"usage":{},"usage":{`, ""},
+		{"input_tokens", `"input_tokens":120`, `"input_tokens":120,"input_tokens":120`, "input_tokens"},
+		{"input_tokens_details", `"input_tokens_details":{`, `"input_tokens_details":{},"input_tokens_details":{`, "input_tokens_details"},
+		{"cached_tokens", `"cached_tokens":30`, `"cached_tokens":30,"cached_tokens":30`, "input_tokens_details.cached_tokens"},
+		{"cache_write_tokens", `"cache_write_tokens":50`, `"cache_write_tokens":50,"cache_write_tokens":50`, "input_tokens_details.cache_write_tokens"},
+		{"output_tokens", `"output_tokens":40`, `"output_tokens":40,"output_tokens":40`, "output_tokens"},
 	}
 	for _, tc := range duplicates {
 		t.Run("duplicate "+tc.name, func(t *testing.T) {
 			body := replaceOnce(t, encodeDocument(t, completedDocument()), tc.old, tc.replacement)
-			response := assertAccepted(t, body)
-			if got := response.Usage.UnknownReason(); got != tc.want {
-				t.Errorf("UnknownReason() = %q, want %q", got, tc.want)
-			}
-			if response.Usage.PricingContext() != llm.PricingContextUnspecified {
-				t.Errorf("PricingContext() = %v, want unspecified for an unknown usage", response.Usage.PricingContext())
-			}
+			assertUsage(t, body, nil, llm.UnknownUsage(llm.RuleDuplicate, tc.member))
 		})
 	}
 

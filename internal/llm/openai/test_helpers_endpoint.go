@@ -28,6 +28,7 @@ func NewForLoopbackTest(t testing.TB, opts Options, endpoint string) llm.LLMClie
 	client, ok := value.(*client)
 	if !ok {
 		t.Fatalf("New returned %T, want *client", value)
+		return nil
 	}
 	client.endpoint = endpoint
 	return client

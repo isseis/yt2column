@@ -1,7 +1,6 @@
 package openai
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"strings"
@@ -98,9 +97,6 @@ const (
 	reasonContentFilter   = "content_filter"
 )
 
-// jsonWhitespace is the set of insignificant whitespace bytes of RFC 8259.
-const jsonWhitespace = " \t\r\n"
-
 // Shape errors of the response body. None of them carries a response value:
 // every value of the body is untrusted.
 var (
@@ -110,7 +106,6 @@ var (
 	errRoleNotAssistant   = errors.New("role: not assistant")
 	errIncompleteDetails  = errors.New("incomplete_details: must be an object exactly when status is incomplete")
 	errErrorMember        = errors.New("error: not null or an object")
-	errWhitespaceBody     = errors.New("response body is empty or whitespace only")
 )
 
 // requestSummary carries the request-side values that a truncation or
@@ -140,11 +135,6 @@ type responseBody struct {
 // in this order: a truncation, an unexpected finish, an empty answer. Each of
 // those three failures carries the rejected response's model and usage.
 func parseResponse(data []byte, summary requestSummary) (llm.GenerateResponse, error) {
-	// Only JSON whitespace counts: bytes.TrimSpace would also strip Unicode
-	// spaces such as U+00A0, which are not JSON whitespace.
-	if len(bytes.Trim(data, jsonWhitespace)) == 0 {
-		return llm.GenerateResponse{}, invalidResponse(errWhitespaceBody)
-	}
 	object, err := strictjson.ParseObject(data)
 	if err != nil {
 		return llm.GenerateResponse{}, invalidResponse(err)
@@ -365,7 +355,7 @@ func parseOutput(members map[string]strictjson.Value, body *responseBody) error 
 // answer only when the message has no phase or the final_answer phase; a
 // commentary message is checked the same way but contributes no text.
 func parseMessage(item strictjson.Object, body *responseBody, text *strings.Builder) error {
-	members, err := item.Collect(keyType, keyRole, keyStatus, keyContent, keyPhase)
+	members, err := item.Collect(keyRole, keyStatus, keyContent, keyPhase)
 	if err != nil {
 		return fmt.Errorf("%s: %w", outputMessage, err)
 	}
@@ -462,7 +452,7 @@ func elementType(element strictjson.Object) (string, error) {
 // partString returns the required string member key of a content element.
 // The empty string is shape-valid.
 func partString(part strictjson.Object, key string) (string, error) {
-	members, err := part.Collect(keyType, key)
+	members, err := part.Collect(key)
 	if err != nil {
 		return "", fmt.Errorf("%s: %w", keyContent, err)
 	}

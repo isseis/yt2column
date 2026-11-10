@@ -101,29 +101,30 @@ func TestNew(t *testing.T) {
 		name      string
 		modify    func(t *testing.T, options *Options)
 		forbidden string
+		want      error
 	}{
-		{"zero API key", func(_ *testing.T, o *Options) { o.APIKey = secret.Secret{} }, ""},
-		{"API key with a leading space", func(t *testing.T, o *Options) { o.APIKey = mustSecret(t, " key") }, ""},
-		{"API key with a newline", func(t *testing.T, o *Options) { o.APIKey = mustSecret(t, "key\n"+fakeSecretMarker) }, fakeSecretMarker},
-		{"API key with DEL", func(t *testing.T, o *Options) { o.APIKey = mustSecret(t, "key\x7f"+fakeSecretMarker) }, fakeSecretMarker},
-		{"API key with a control character", func(t *testing.T, o *Options) { o.APIKey = mustSecret(t, "key\x01"+fakeSecretMarker) }, fakeSecretMarker},
-		{"API key with non-ASCII", func(t *testing.T, o *Options) { o.APIKey = mustSecret(t, "\u9375"+fakeSecretMarker) }, fakeSecretMarker},
-		{"empty model", func(_ *testing.T, o *Options) { o.Model = "" }, ""},
-		{"model with a leading space", func(_ *testing.T, o *Options) { o.Model = " gpt-6-astra" }, "gpt-6-astra"},
-		{"model with a trailing newline", func(_ *testing.T, o *Options) { o.Model = "gpt-6-astra\n" }, "gpt-6-astra"},
-		{"model with invalid UTF-8", func(_ *testing.T, o *Options) { o.Model = "gpt\xff" }, "gpt"},
-		{"unset effort", func(_ *testing.T, o *Options) { o.Effort = openaiparam.EffortUnset }, ""},
-		{"out-of-range effort", func(_ *testing.T, o *Options) { o.Effort = openaiparam.Effort(99) }, ""},
-		{"zero timeout", func(_ *testing.T, o *Options) { o.Timeout = 0 }, ""},
-		{"negative timeout", func(_ *testing.T, o *Options) { o.Timeout = -time.Second }, ""},
+		{"zero API key", func(_ *testing.T, o *Options) { o.APIKey = secret.Secret{} }, "", errZeroAPIKey},
+		{"API key with a leading space", func(t *testing.T, o *Options) { o.APIKey = mustSecret(t, " key") }, "", errInvalidAPIKey},
+		{"API key with a newline", func(t *testing.T, o *Options) { o.APIKey = mustSecret(t, "key\n"+fakeSecretMarker) }, "", errInvalidAPIKey},
+		{"API key with DEL", func(t *testing.T, o *Options) { o.APIKey = mustSecret(t, "key\x7f"+fakeSecretMarker) }, "", errInvalidAPIKey},
+		{"API key with a control character", func(t *testing.T, o *Options) { o.APIKey = mustSecret(t, "key\x01"+fakeSecretMarker) }, "", errInvalidAPIKey},
+		{"API key with non-ASCII", func(t *testing.T, o *Options) { o.APIKey = mustSecret(t, "\u9375"+fakeSecretMarker) }, "", errInvalidAPIKey},
+		{"empty model", func(_ *testing.T, o *Options) { o.Model = "" }, "", errEmptyModel},
+		{"model with a leading space", func(_ *testing.T, o *Options) { o.Model = " gpt-6-astra" }, "gpt-6-astra", errPaddedModel},
+		{"model with a trailing newline", func(_ *testing.T, o *Options) { o.Model = "gpt-6-astra\n" }, "gpt-6-astra", errPaddedModel},
+		{"model with invalid UTF-8", func(_ *testing.T, o *Options) { o.Model = "gpt\xff" }, "gpt", errInvalidModel},
+		{"unset effort", func(_ *testing.T, o *Options) { o.Effort = openaiparam.EffortUnset }, "", errInvalidEffort},
+		{"out-of-range effort", func(_ *testing.T, o *Options) { o.Effort = openaiparam.Effort(99) }, "", errInvalidEffort},
+		{"zero timeout", func(_ *testing.T, o *Options) { o.Timeout = 0 }, "", errNonPositiveTimeout},
+		{"negative timeout", func(_ *testing.T, o *Options) { o.Timeout = -time.Second }, "", errNonPositiveTimeout},
 	}
 	for _, tc := range rejected {
 		t.Run("rejects "+tc.name, func(t *testing.T) {
 			options := validOptions(t)
 			tc.modify(t, &options)
 			value, err := New(options)
-			if err == nil {
-				t.Fatal("New() error = nil, want an error")
+			if !errors.Is(err, tc.want) {
+				t.Fatalf("New() error = %v, want %v", err, tc.want)
 			}
 			if value != nil {
 				t.Errorf("New() = %v, want nil", value)
@@ -131,6 +132,8 @@ func TestNew(t *testing.T) {
 			if !strings.HasPrefix(err.Error(), errorPrefix) {
 				t.Errorf("New() error %q does not start with %q", err, errorPrefix)
 			}
+			// assertNoLeak covers the API key and the fake secret marker;
+			// forbidden names a rejected model, which must not be echoed.
 			assertNoLeak(t, err)
 			if tc.forbidden != "" && strings.Contains(err.Error(), tc.forbidden) {
 				t.Errorf("New() error %q contains the rejected value %q", err, tc.forbidden)
@@ -322,6 +325,8 @@ func TestGenerateRequest(t *testing.T) {
 		})
 	}
 
+	// A deliberate static guard, as in the other adapters: the key is
+	// revealed in one file only, so a review of that file sees every use.
 	t.Run("the API key is revealed only in request.go", func(t *testing.T) {
 		entries, err := os.ReadDir(".")
 		if err != nil {
@@ -407,6 +412,8 @@ func TestGenerateTransport(t *testing.T) {
 			if count := requests.Load(); count != 1 {
 				t.Errorf("server received %d requests, want exactly 1", count)
 			}
+			// The fixed guidance and the sent configuration are the wording
+			// a user acts on, so the message itself is the contract here.
 			for _, want := range []string{tc.guidance, testModel, "max_output_tokens 256", "effort high"} {
 				if !strings.Contains(err.Error(), want) {
 					t.Errorf("error %q does not contain %q", err, want)
@@ -415,25 +422,27 @@ func TestGenerateTransport(t *testing.T) {
 		})
 	}
 
+	t.Run("a status error names the default limit it sent", func(t *testing.T) {
+		server := llmhttptest.NewResponseServer(t, http.StatusBadRequest, nil)
+		response, err := generateAgainst(t, server.URL, validRequest(), nil)
+		assertRejected(t, response, err, ErrHTTPStatus)
+		// The sent max_output_tokens is part of the message a user acts on.
+		if want := "max_output_tokens " + strconv.Itoa(defaultMaxOutputTokens); !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q does not contain %q", err, want)
+		}
+	})
+
 	const shortTimeout = 100 * time.Millisecond
-	timeouts := []struct {
-		name  string
-		start func(t *testing.T) string
-	}{
-		{"timeout before the response headers", func(t *testing.T) string { return llmhttptest.NewStallingServer(t).URL }},
-	}
-	for _, tc := range timeouts {
-		t.Run(tc.name, func(t *testing.T) {
-			start := time.Now()
-			response, err := generateAgainst(t, tc.start(t), validRequest(), func(options *Options) {
-				options.Timeout = shortTimeout
-			})
-			assertRejected(t, response, err, context.DeadlineExceeded)
-			if elapsed := time.Since(start); elapsed > shortTimeout+testTimeoutGrace {
-				t.Errorf("Generate() took %v, want at most %v", elapsed, shortTimeout+testTimeoutGrace)
-			}
+	t.Run("the adapter timeout ends a stalled call", func(t *testing.T) {
+		start := time.Now()
+		response, err := generateAgainst(t, llmhttptest.NewStallingServer(t).URL, validRequest(), func(options *Options) {
+			options.Timeout = shortTimeout
 		})
-	}
+		assertRejected(t, response, err, context.DeadlineExceeded)
+		if elapsed := time.Since(start); elapsed > shortTimeout+testTimeoutGrace {
+			t.Errorf("Generate() took %v, want at most %v", elapsed, shortTimeout+testTimeoutGrace)
+		}
+	})
 
 	t.Run("a canceled context sends nothing", func(t *testing.T) {
 		server, recorder := llmhttptest.NewRecordingServer(t, encodeDocument(t, completedDocument()))
