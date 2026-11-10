@@ -122,6 +122,27 @@
       ],
       "checker_changes": "",
       "task_doc_changes": []
+    },
+    "s6": {
+      "adrs": [],
+      "carried_in": [
+        "docs/dev/adr/0015-untrusted-review-threads.md"
+      ],
+      "retitled_adrs": [],
+      "link_changes": [],
+      "line_changes": [],
+      "unrecorded_commits": [
+        {
+          "commit": "ada0b7c3301056d281e81806caab4dd3dba96d4a",
+          "reason": "restores to decision item 6 the rule and reason of the version on main that the series 6 rewrite had dropped (the /fixpr round's local review), so it records no change against main"
+        },
+        {
+          "commit": "ac25075a0f9db8b7b7b4117f00ad1a6c1e3a44f6",
+          "reason": "restores the scope and allow-list sentences of decision item 4 as they are on main (AC-14), undoing the rewrite that would have changed the decision; the gap with the guide and code is #811, so it records no change against main"
+        }
+      ],
+      "checker_changes": "",
+      "task_doc_changes": []
     }
   }
 }
