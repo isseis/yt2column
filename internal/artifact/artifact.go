@@ -16,10 +16,19 @@ import (
 // with margin for JSON escaping.
 const maxArtifactBytes = 4 << 20 // 4 MiB
 
-// artifactVersion is the only format version this package reads and writes.
-// Version 2 added the usage element to version 1; version 3 adds the call_time
-// element (when the stage's Generate call returned) after usage.
-const artifactVersion = 3
+// The format versions. Version 2 added the usage element to version 1, and
+// version 3 added the call_time element (when the stage's Generate call
+// returned). Version 4 adds the pricing_context element, the condition the
+// usage was produced under.
+//
+// Marshal writes artifactVersion only. Parse reads artifactVersion and
+// artifactVersion3: a version 3 file is validated by its own shape and
+// identifier rule and read as reporting PricingContextUnspecified, so a resume
+// keeps the version 3 files an earlier CLI saved without rewriting them.
+const (
+	artifactVersion3 = 3
+	artifactVersion  = 4
+)
 
 // CallTimeLayout is the layout of the call_time element and the only accepted
 // spelling of a call time: UTC, whole seconds. The trailing Z is a literal

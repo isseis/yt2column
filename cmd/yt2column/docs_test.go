@@ -14,6 +14,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/isseis/yt2column/internal/artifact"
 	"github.com/isseis/yt2column/internal/config"
 	"github.com/isseis/yt2column/internal/doctestutil"
 	"github.com/isseis/yt2column/internal/llm"
@@ -777,6 +778,22 @@ func checkExampleLines(t *testing.T, section, prefix string, allowed map[string]
 	}
 }
 
+// TestPricingContextDocsContract checks that the CLI guide's Token usage
+// section lists every pricing_context spelling an artifact can hold. The
+// spellings come from internal/artifact, so the test does not spell them; the
+// format itself is pinned by internal/artifact's tests.
+func TestPricingContextDocsContract(t *testing.T) {
+	cli := doctestutil.SectionByHeading(doctestutil.ReadDoc(t, cliDocPath), doctestutil.CLIUsageHeading)
+	if cli == "" {
+		t.Fatal("cli.md has no Token usage section")
+	}
+	for _, spelling := range artifact.PricingContextSpellingsForTest() {
+		if !strings.Contains(cli, "`"+spelling+"`") {
+			t.Errorf("cli.md Token usage section does not contain the pricing_context spelling %q", spelling)
+		}
+	}
+}
+
 // TestTokenUsageDocsContract checks that the CLI guide's (cli.md) Token usage
 // section contains the line's words and every reason llm.Usage can produce.
 //
@@ -817,6 +834,7 @@ func TestTokenUsageDocsContract(t *testing.T) {
 		llm.UnknownUsage(llm.RuleDuplicate, ""),
 		llm.UnknownUsage(llm.RuleNotObject, ""),
 		llm.UnknownUsage(llm.RuleNotNonNegativeInteger, ""),
+		llm.UnknownUsage(llm.RuleInconsistent, ""),
 		llm.UnknownUsage(llm.UnknownRule(99), ""),
 	}
 	for _, usage := range reasons {

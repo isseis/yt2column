@@ -97,7 +97,7 @@ func sameRecord(a, b writer.StageRecord) bool {
 }
 
 // sameUsage reports whether two usages are equal: both unknown, or both known
-// with the same counts.
+// with the same counts and pricing context.
 func sameUsage(a, b llm.Usage) bool {
 	aCounts, aKnown := a.Counts()
 	bCounts, bKnown := b.Counts()
@@ -107,7 +107,18 @@ func sameUsage(a, b llm.Usage) bool {
 	if !aKnown {
 		return true
 	}
-	return aCounts == bCounts
+	return aCounts == bCounts && a.PricingContext() == b.PricingContext()
+}
+
+// mustPricedUsage builds a known usage with a pricing context or fails the
+// test.
+func mustPricedUsage(t *testing.T, counts llm.TokenCounts, pricing llm.PricingContext) llm.Usage {
+	t.Helper()
+	usage, err := llm.KnownUsageWithPricingContext(counts, pricing)
+	if err != nil {
+		t.Fatalf("KnownUsageWithPricingContext error = %v", err)
+	}
+	return usage
 }
 
 // mustMarshal marshals a record or fails the test.
@@ -130,22 +141,23 @@ func mustParse(t *testing.T, data []byte) writer.StageRecord {
 	return rec
 }
 
-// fieldsFrom builds the wire form of a record as a field map, so a test can
-// break one field at a time.
+// fieldsFrom builds the version 4 wire form of a record as a field map, so a
+// test can break one field at a time.
 func fieldsFrom(rec writer.StageRecord) map[string]any {
 	fields := map[string]any{
-		"version":       float64(artifactVersion),
-		"stage":         rec.Stage.String(),
-		"model":         rec.Model,
-		"model_version": rec.ModelVersion,
-		"usage":         usageFields(rec.Usage),
-		"call_time":     rec.CallTime.Format(CallTimeLayout),
-		"system":        map[string]any{"embedded": rec.System.Embedded, "digest": rec.System.Digest},
-		"user":          map[string]any{"embedded": rec.User.Embedded, "digest": rec.User.Digest},
-		"input":         rec.Input,
-		"id":            rec.ID,
-		"title":         rec.Title,
-		"body":          rec.Body,
+		"version":         float64(artifactVersion),
+		"stage":           rec.Stage.String(),
+		"model":           rec.Model,
+		"model_version":   rec.ModelVersion,
+		"usage":           usageFields(rec.Usage),
+		"pricing_context": pricingContextWire(rec.Usage.PricingContext()),
+		"call_time":       rec.CallTime.Format(CallTimeLayout),
+		"system":          map[string]any{"embedded": rec.System.Embedded, "digest": rec.System.Digest},
+		"user":            map[string]any{"embedded": rec.User.Embedded, "digest": rec.User.Digest},
+		"input":           rec.Input,
+		"id":              rec.ID,
+		"title":           rec.Title,
+		"body":            rec.Body,
 	}
 	if rec.Stage == writer.StageReview {
 		revisions := make([]any, len(rec.Revisions))
@@ -259,10 +271,26 @@ func TestMarshalParseRoundTrip(t *testing.T) {
 			rec.ID = recordID(rec)
 			return rec
 		}()},
+		{"generation with a confirmed pricing context", func() writer.StageRecord {
+			rec := validGeneration()
+			rec.Usage = mustPricedUsage(t, llm.TokenCounts{Input: 3, CacheRead: 5386, CacheWrite: 13405, Output: 3020}, llm.PricingContextStandard30m)
+			rec.ID = recordID(rec)
+			return rec
+		}()},
+		{"review with an unverified pricing context", func() writer.StageRecord {
+			rec := validReview()
+			rec.Usage = mustPricedUsage(t, llm.TokenCounts{Input: 1, CacheRead: 2, CacheWrite: 3, Output: 4}, llm.PricingContextUnverified)
+			rec.ID = recordID(rec)
+			return rec
+		}()},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := mustParse(t, mustMarshal(t, tc.rec))
+			data := mustMarshal(t, tc.rec)
+			if version := fieldsOf(t, data)["version"]; version != float64(artifactVersion) {
+				t.Errorf("Marshal wrote version %v, want %d", version, artifactVersion)
+			}
+			got := mustParse(t, data)
 			if !sameRecord(got, tc.rec) {
 				t.Errorf("Parse(Marshal(record)) = %+v, want %+v", got, tc.rec)
 			}
@@ -270,9 +298,23 @@ func TestMarshalParseRoundTrip(t *testing.T) {
 	}
 }
 
+// fieldsOf decodes an artifact into a field map or fails the test.
+func fieldsOf(t *testing.T, data []byte) map[string]any {
+	t.Helper()
+	var fields map[string]any
+	if err := json.Unmarshal(data, &fields); err != nil {
+		t.Fatalf("decode artifact: %v", err)
+	}
+	return fields
+}
+
 func TestParseRecordRejects(t *testing.T) {
 	generation := fieldsFrom(validGeneration())
 	review := fieldsFrom(validReview())
+	// The unbroken field maps parse, so each case below is rejected by the
+	// rule it breaks, not by a gap in the base.
+	mustParse(t, marshalFields(t, generation))
+	mustParse(t, marshalFields(t, review))
 	cases := []struct {
 		name string
 		data func(t *testing.T) []byte
@@ -717,7 +759,7 @@ func TestParseRejectsVersion1(t *testing.T) {
 	delete(fields, "usage")
 	delete(fields, "call_time")
 	err := requireMalformed(t, marshalFields(t, fields))
-	for _, want := range []string{"unsupported artifact version 1", "version 3", "new --artifacts directory"} {
+	for _, want := range []string{"unsupported artifact version 1", "versions 3 and 4", "new --artifacts directory"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("Parse error = %v, want it to contain %q", err, want)
 		}
@@ -733,7 +775,7 @@ func TestParseRejectsVersion2(t *testing.T) {
 	fields["version"] = float64(2)
 	delete(fields, "call_time")
 	err := requireMalformed(t, marshalFields(t, fields))
-	for _, want := range []string{"unsupported artifact version 2", "version 3", "new --artifacts directory"} {
+	for _, want := range []string{"unsupported artifact version 2", "versions 3 and 4", "new --artifacts directory"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("Parse error = %v, want it to contain %q", err, want)
 		}
@@ -895,5 +937,197 @@ func TestRecordIDCoversUsage(t *testing.T) {
 		if a.ID != b.ID {
 			t.Error("unknown usages with different reasons have different ids")
 		}
+	})
+}
+
+// requireMalformedPricing is requireMalformed for a rejection the
+// pricing_context rule itself must produce: the error also names
+// pricing_context, which the id rule's message does not. Every artifact rule
+// shares the ErrMalformed sentinel, so the named element is what tells the
+// rules apart; it is the same check requireMalformedUsage makes for usage.
+func requireMalformedPricing(t *testing.T, data []byte) {
+	t.Helper()
+	err := requireMalformed(t, data)
+	if !strings.Contains(err.Error(), "pricing_context") {
+		t.Errorf("Parse error %q does not name pricing_context", err)
+	}
+}
+
+// requireIDMismatch is requireMalformed for a file whose every element is
+// valid, so the id rule alone must reject it: the error is the id rule's. Every
+// artifact rule shares ErrMalformed, so its message is what tells the rules
+// apart.
+func requireIDMismatch(t *testing.T, data []byte) {
+	t.Helper()
+	err := requireMalformed(t, data)
+	if !strings.Contains(err.Error(), "id does not match") {
+		t.Errorf("Parse error %q is not the id rule's", err)
+	}
+}
+
+func TestPricingContextFormat(t *testing.T) {
+	counts := llm.TokenCounts{Input: 1, CacheRead: 2, CacheWrite: 3, Output: 4}
+	priced := func(pricing llm.PricingContext) writer.StageRecord {
+		rec := validGeneration()
+		rec.Usage = mustPricedUsage(t, counts, pricing)
+		rec.ID = recordID(rec)
+		return rec
+	}
+
+	t.Run("each context is written with its spelling", func(t *testing.T) {
+		cases := []struct {
+			rec  writer.StageRecord
+			want string
+		}{
+			{priced(llm.PricingContextUnspecified), "unspecified"},
+			{priced(llm.PricingContextStandard30m), "standard-30m"},
+			{priced(llm.PricingContextUnverified), "unverified"},
+			{validGeneration(), "unspecified"}, // the zero usage is unknown
+		}
+		for _, tc := range cases {
+			if got := fieldsOf(t, mustMarshal(t, tc.rec))["pricing_context"]; got != tc.want {
+				t.Errorf("pricing_context = %v, want %q", got, tc.want)
+			}
+		}
+	})
+
+	t.Run("rejects", func(t *testing.T) {
+		base := fieldsFrom(priced(llm.PricingContextStandard30m))
+		unknown := fieldsFrom(validGeneration())
+		cases := []struct {
+			name   string
+			fields map[string]any
+		}{
+			{"missing", mutate(t, base, func(f map[string]any) { delete(f, "pricing_context") })},
+			{"null", mutate(t, base, func(f map[string]any) { f["pricing_context"] = nil })},
+			{"a number", mutate(t, base, func(f map[string]any) { f["pricing_context"] = 1 })},
+			{"an object", mutate(t, base, func(f map[string]any) { f["pricing_context"] = map[string]any{} })},
+			{"an unknown value", mutate(t, base, func(f map[string]any) { f["pricing_context"] = "standard" })},
+			{"another case", mutate(t, base, func(f map[string]any) { f["pricing_context"] = "Standard-30m" })},
+			{"empty", mutate(t, base, func(f map[string]any) { f["pricing_context"] = "" })},
+			{"confirmed for an unknown usage", mutate(t, unknown, func(f map[string]any) { f["pricing_context"] = "standard-30m" })},
+			{"unverified for an unknown usage", mutate(t, unknown, func(f map[string]any) { f["pricing_context"] = "unverified" })},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				requireMalformedPricing(t, marshalFields(t, tc.fields))
+			})
+		}
+		t.Run("duplicate", func(t *testing.T) {
+			// A duplicate top-level key is rejected by the artifact key
+			// check, which never names the untrusted key.
+			data := mustMarshal(t, priced(llm.PricingContextStandard30m))
+			requireMalformed(t, []byte(strings.Replace(string(data),
+				`"pricing_context":"standard-30m"`, `"pricing_context":"standard-30m","pricing_context":"standard-30m"`, 1)))
+		})
+	})
+
+	t.Run("the id covers the context", func(t *testing.T) {
+		if priced(llm.PricingContextStandard30m).ID == priced(llm.PricingContextUnverified).ID {
+			t.Error("records differing only in the pricing context share an id")
+		}
+		// Both spellings are valid, so only the id check can reject the
+		// rewritten file.
+		data := mustMarshal(t, priced(llm.PricingContextStandard30m))
+		rewritten := strings.Replace(string(data), `"pricing_context":"standard-30m"`, `"pricing_context":"unverified"`, 1)
+		if rewritten == string(data) {
+			t.Fatal("the rewrite did not apply")
+		}
+		requireIDMismatch(t, []byte(rewritten))
+	})
+
+	t.Run("the message carries no value", func(t *testing.T) {
+		const marker = "pricing-value-marker-W3n"
+		fields := mutate(t, fieldsFrom(priced(llm.PricingContextStandard30m)), func(f map[string]any) { f["pricing_context"] = marker })
+		if err := requireMalformed(t, marshalFields(t, fields)); strings.Contains(err.Error(), marker) {
+			t.Errorf("Parse error %q contains the injected pricing_context value", err)
+		}
+	})
+}
+
+// Version 3 artifacts written by Marshal at commit
+// 34b2bf23d54be21afecdfefa2cf44b3293deb205, before version 4 existed, with
+// their identifiers. The generation is validGeneration with a known usage; the
+// shorten is shortenOf that generation's id, and the review is reviewOf the
+// shorten's id, both with the zero (unknown) usage.
+// They are literals so a change to the version 3 identifier rule or shape
+// cannot pass by changing both sides.
+const (
+	version3Generation   = `{"version":3,"stage":"generation","model":"test-model","model_version":"","usage":{"input":46,"cache_read":7,"cache_write":3,"output":85},"call_time":"2026-10-16T01:00:00Z","system":{"embedded":true,"digest":"b466815e3b7be63f5b0baf7b032f581b9e31387dce9a46afc96849e74044e336"},"user":{"embedded":false,"digest":"90a9fe6a451ab226818f07ec68032e3d8b818cbd5f96981250b025b1e4a5d45e"},"input":"6535da820f8e4b56d5936cdc875a7960ef2d064cf0dc15fde03a07a299becc6e","id":"96027989d76e0a25d7c4ae69a754fd9d2650b0cb1fa2eeea4718dc7ed793cdb8","title":"Title","body":"mark-artifact-body-R4kd"}`
+	version3GenerationID = "96027989d76e0a25d7c4ae69a754fd9d2650b0cb1fa2eeea4718dc7ed793cdb8"
+	version3Shorten      = `{"version":3,"stage":"shorten","model":"test-model","model_version":"","usage":null,"call_time":"2026-10-16T01:00:00Z","system":{"embedded":true,"digest":"b466815e3b7be63f5b0baf7b032f581b9e31387dce9a46afc96849e74044e336"},"user":{"embedded":false,"digest":"90a9fe6a451ab226818f07ec68032e3d8b818cbd5f96981250b025b1e4a5d45e"},"input":"96027989d76e0a25d7c4ae69a754fd9d2650b0cb1fa2eeea4718dc7ed793cdb8","id":"9602cb0041ebd849b305339ff21913b8fcd4ed383d874fd2ccea5222e9c44c5a","title":"Short title","body":"Short body."}`
+	version3ShortenID    = "9602cb0041ebd849b305339ff21913b8fcd4ed383d874fd2ccea5222e9c44c5a"
+	version3Review       = `{"version":3,"stage":"review","model":"test-model","model_version":"","usage":null,"call_time":"2026-10-16T01:00:00Z","system":{"embedded":true,"digest":"b466815e3b7be63f5b0baf7b032f581b9e31387dce9a46afc96849e74044e336"},"user":{"embedded":false,"digest":"90a9fe6a451ab226818f07ec68032e3d8b818cbd5f96981250b025b1e4a5d45e"},"input":"9602cb0041ebd849b305339ff21913b8fcd4ed383d874fd2ccea5222e9c44c5a","id":"2360f514fd663913ef8c92f94e2343a2ff58d31b5b720fc110a278a24bc37b18","title":"Title","body":"mark-artifact-body-R4kd","revisions":[{"before":"mark-artifact-body-R4kd","after":"mark-artifact-body-R4kd revised","reason":"meaning_change","evidence":"mark-artifact-revision-T7wm"},{"before":"extra","delete":true,"reason":"unsupported","evidence":"mark-artifact-revision-T7wm"}]}`
+	version3ReviewID     = "2360f514fd663913ef8c92f94e2343a2ff58d31b5b720fc110a278a24bc37b18"
+)
+
+func TestVersion3Compatibility(t *testing.T) {
+	t.Run("a version 3 generation keeps its values and id", func(t *testing.T) {
+		got := mustParse(t, []byte(version3Generation))
+		want := validGeneration()
+		want.Usage = llm.KnownUsage(llm.TokenCounts{Input: 46, CacheRead: 7, CacheWrite: 3, Output: 85})
+		want.ID = version3GenerationID
+		// sameRecord also compares the pricing context, which must be
+		// PricingContextUnspecified, the context of KnownUsage.
+		if !sameRecord(got, want) {
+			t.Errorf("Parse = %+v, want %+v", got, want)
+		}
+	})
+
+	t.Run("a version 3 shorten with an unknown usage keeps its values and id", func(t *testing.T) {
+		got := mustParse(t, []byte(version3Shorten))
+		if got.ID != version3ShortenID || got.Input != version3GenerationID {
+			t.Errorf("id, input = %s, %s, want %s, %s", got.ID, got.Input, version3ShortenID, version3GenerationID)
+		}
+		if _, known := got.Usage.Counts(); known {
+			t.Error("usage is known, want unknown")
+		}
+		if !got.CallTime.Equal(testCallTime) {
+			t.Errorf("call time = %v, want %v", got.CallTime, testCallTime)
+		}
+	})
+
+	t.Run("a version 3 review keeps its revisions and id", func(t *testing.T) {
+		got := mustParse(t, []byte(version3Review))
+		want := reviewOf(version3ShortenID)
+		want.ID = version3ReviewID
+		if !sameRecord(got, want) {
+			t.Errorf("Parse = %+v, want %+v", got, want)
+		}
+	})
+
+	// relabel replaces the first occurrence of old in data, failing the test
+	// when it is absent so a case never passes on an unchanged file.
+	relabel := func(t *testing.T, data, old, replacement string) []byte {
+		t.Helper()
+		if !strings.Contains(data, old) {
+			t.Fatalf("%q is not in the artifact", old)
+		}
+		return []byte(strings.Replace(data, old, replacement, 1))
+	}
+	version4 := func(t *testing.T) string {
+		t.Helper()
+		rec := validGeneration()
+		rec.Usage = llm.KnownUsage(llm.TokenCounts{Input: 46, CacheRead: 7, CacheWrite: 3, Output: 85})
+		rec.ID = recordID(rec)
+		return string(mustMarshal(t, rec))
+	}
+
+	t.Run("a version 3 file with a pricing_context is rejected", func(t *testing.T) {
+		requireMalformedPricing(t, relabel(t, version3Generation, `"usage":{`, `"pricing_context":"unspecified","usage":{`))
+	})
+	t.Run("a version 3 file labeled version 4 with a pricing_context is rejected", func(t *testing.T) {
+		// The shape is a valid version 4, so only the id check, whose
+		// version 4 rule differs from the version 3 rule, can reject it.
+		data := relabel(t, version3Generation, `"version":3`, `"version":4`)
+		requireIDMismatch(t, relabel(t, string(data), `"usage":{`, `"pricing_context":"unspecified","usage":{`))
+	})
+	t.Run("a version 4 file labeled version 3 without its pricing_context is rejected", func(t *testing.T) {
+		// The shape is a valid version 3, so only the id check can reject it.
+		data := relabel(t, version4(t), `"version":4`, `"version":3`)
+		requireIDMismatch(t, relabel(t, string(data), `"pricing_context":"unspecified",`, ``))
+	})
+	t.Run("a rewritten version 3 count is rejected", func(t *testing.T) {
+		requireIDMismatch(t, relabel(t, version3Generation, `"output":85`, `"output":86`))
 	})
 }

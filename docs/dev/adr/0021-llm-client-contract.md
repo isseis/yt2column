@@ -27,7 +27,7 @@
 
 型の置き場所とアダプタの構成は [ADR-0001](0001-llm-adapter-stdlib.md) が、番兵の置き場所は [ADR-0019](0019-pipeline-component-interfaces.md) が定める。
 
-コードへの反映は [#568](https://github.com/isseis/yt2column/issues/568) の実装で行う。
+`Usage` の料金の適用条件はコードに反映した。OpenAI のアダプタがその条件を設定する部分は [#568](https://github.com/isseis/yt2column/issues/568) の残りの実装で加える。
 
 ## 採らなかった案
 

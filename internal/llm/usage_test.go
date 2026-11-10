@@ -3,6 +3,7 @@
 package llm
 
 import (
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -35,16 +36,18 @@ func TestUnknownReason(t *testing.T) {
 		usage Usage
 		want  string
 	}{
-		"known":                        {KnownUsage(TokenCounts{}), ""},
-		"not read":                     {UnknownUsage(RuleNotRead, ""), "not-read"},
-		"missing without a member":     {UnknownUsage(RuleMissing, ""), "usage:missing"},
-		"missing with a member":        {UnknownUsage(RuleMissing, "output_tokens"), "usage.output_tokens:missing"},
-		"duplicate without a member":   {UnknownUsage(RuleDuplicate, ""), "usage:duplicate"},
-		"duplicate with a member":      {UnknownUsage(RuleDuplicate, "completion_tokens"), "usage.completion_tokens:duplicate"},
-		"not an object":                {UnknownUsage(RuleNotObject, ""), "usage:not-an-object"},
-		"not a non-negative integer":   {UnknownUsage(RuleNotNonNegativeInteger, "input_tokens"), "usage.input_tokens:not-a-non-negative-integer"},
-		"recorded unknown":             {UnknownUsage(RuleRecordedUnknown, ""), "recorded-unknown"},
-		"rule outside the enumeration": {UnknownUsage(UnknownRule(99), "output_tokens"), "invalid-rule"},
+		"known":                         {KnownUsage(TokenCounts{}), ""},
+		"not read":                      {UnknownUsage(RuleNotRead, ""), "not-read"},
+		"missing without a member":      {UnknownUsage(RuleMissing, ""), "usage:missing"},
+		"missing with a member":         {UnknownUsage(RuleMissing, "output_tokens"), "usage.output_tokens:missing"},
+		"duplicate without a member":    {UnknownUsage(RuleDuplicate, ""), "usage:duplicate"},
+		"duplicate with a member":       {UnknownUsage(RuleDuplicate, "completion_tokens"), "usage.completion_tokens:duplicate"},
+		"not an object":                 {UnknownUsage(RuleNotObject, ""), "usage:not-an-object"},
+		"not a non-negative integer":    {UnknownUsage(RuleNotNonNegativeInteger, "input_tokens"), "usage.input_tokens:not-a-non-negative-integer"},
+		"recorded unknown":              {UnknownUsage(RuleRecordedUnknown, ""), "recorded-unknown"},
+		"inconsistent without a member": {UnknownUsage(RuleInconsistent, ""), "usage:inconsistent"},
+		"inconsistent with a member":    {UnknownUsage(RuleInconsistent, "input_tokens_details"), "usage.input_tokens_details:inconsistent"},
+		"rule outside the enumeration":  {UnknownUsage(UnknownRule(99), "output_tokens"), "invalid-rule"},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -52,6 +55,47 @@ func TestUnknownReason(t *testing.T) {
 				t.Errorf("UnknownReason() = %q, want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+// TestKnownUsageWithPricingContext checks that the pricing context is kept
+// apart from the counts: it is accepted only from the enumeration, it does not
+// change the counts, and it makes otherwise equal usages differ.
+func TestKnownUsageWithPricingContext(t *testing.T) {
+	counts := TokenCounts{Input: 1, CacheRead: 2, CacheWrite: 3, Output: 4}
+
+	for _, pricing := range []PricingContext{PricingContextUnspecified, PricingContextStandard30m, PricingContextUnverified} {
+		usage, err := KnownUsageWithPricingContext(counts, pricing)
+		if err != nil {
+			t.Fatalf("KnownUsageWithPricingContext(%d) error = %v", pricing, err)
+		}
+		if got, ok := usage.Counts(); !ok || got != counts {
+			t.Errorf("context %d: Counts() = %+v, %v, want %+v, true", pricing, got, ok, counts)
+		}
+		if got := usage.PricingContext(); got != pricing {
+			t.Errorf("PricingContext() = %d, want %d", got, pricing)
+		}
+	}
+
+	for _, pricing := range []PricingContext{PricingContextUnverified + 1, -1} {
+		usage, err := KnownUsageWithPricingContext(counts, pricing)
+		if !errors.Is(err, ErrInvalidPricingContext) {
+			t.Errorf("KnownUsageWithPricingContext(%d) error = %v, want ErrInvalidPricingContext", pricing, err)
+		}
+		if usage != (Usage{}) {
+			t.Errorf("KnownUsageWithPricingContext(%d) = %+v, want the zero Usage", pricing, usage)
+		}
+	}
+
+	// The loop above checked that these constructions succeed.
+	unspecified, _ := KnownUsageWithPricingContext(counts, PricingContextUnspecified)
+	if unspecified != KnownUsage(counts) {
+		t.Error("KnownUsageWithPricingContext(counts, PricingContextUnspecified) != KnownUsage(counts)")
+	}
+	standard, _ := KnownUsageWithPricingContext(counts, PricingContextStandard30m)
+	unverified, _ := KnownUsageWithPricingContext(counts, PricingContextUnverified)
+	if standard == KnownUsage(counts) || standard == unverified {
+		t.Error("usages with the same counts and different pricing contexts compare equal")
 	}
 }
 
