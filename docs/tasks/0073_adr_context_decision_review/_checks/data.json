@@ -114,7 +114,12 @@
         }
       ],
       "line_changes": [],
-      "unrecorded_commits": [],
+      "unrecorded_commits": [
+        {
+          "commit": "c98fd4025d9fb8abdfb2ad1b1b88882d7000e8a6",
+          "reason": "restores ADR-0015 to the version on main: main changed the ADR after the series 5 base (the 0076 implementation, #799), so the pre-merge freshness check withdraws the series 5 rewrite and carries the review over to the additional PR"
+        }
+      ],
       "checker_changes": "",
       "task_doc_changes": []
     }
