@@ -185,7 +185,7 @@ func TestOutputIsOneJSONObject(t *testing.T) {
 		code int
 	}{
 		{"reviewed", nil, codexreview.KindNoFindings, exitReviewed},
-		{"state_changed", [][]string{{"branch", "made-by-codex"}}, codexreview.KindStateChanged, exitStateChanged},
+		{"state_changed", [][]string{{"commit", "-q", "--allow-empty", "-m", "by codex"}}, codexreview.KindStateChanged, exitStateChanged},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			fx := newFixture(t)

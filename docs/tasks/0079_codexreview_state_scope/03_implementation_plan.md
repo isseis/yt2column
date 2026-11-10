@@ -97,29 +97,29 @@
 
 **変更するファイル:** `internal/codexreview/state.go`、`internal/codexreview/types.go`、`internal/codexreview/run_test.go`、`cmd/codexreview/main_test.go`、`docs/dev/conventions/package_reference.md`
 
--   [ ] `readState` が `status` と HEAD だけを読むようにし、`changedItems` を設計書 3.3 の表の規則にする。違いのあった ref は 0 個か 1 個で、並べ替えはしない。
--   [ ] 比べるものを述べるコメントと文書を、設計書 3.5 の表のとおりに改める：`state.go` の `gitState`・`changedItems`・読む git のコマンド（`state.go:35-39`）のコメント、`types.go` のパッケージのコメントと `Changed`・`ChangedRefs` のコメント（型と JSON の名前は変えない）、`package_reference.md` の `internal/codexreview` の行。
--   [ ] 定数 `itemStash` を消す。
--   [ ] 変数 `refsArgs` を消す。
--   [ ] 変数 `stashArgs` を消す。
--   [ ] `gitState` のフィールド `refs` と `stash` を消す。
--   [ ] `errRefsUnreadable` を消す。
--   [ ] `parseRefs` を消す。
--   [ ] `TestRunStateChanged` の行 `branch`・`deleted_branch`・`tag`・`stash`・`branch_in_another_worktree` を、`TestRunIgnoresSharedRefs`（下の項目）に移す。
--   [ ] `TestRunStateChanged` に、設計書 7.1 の 4 行（HEAD のブランチをほかの worktree が動かす、detached のまま commit、detached からブランチへ、別の commit のブランチへ checkout）を加える。
--   [ ] `TestRunStateChanged` に、本書 1.2 の 2 行を加える。
+-   [x] `readState` が `status` と HEAD だけを読むようにし、`changedItems` を設計書 3.3 の表の規則にする。違いのあった ref は 0 個か 1 個で、並べ替えはしない。
+-   [x] 比べるものを述べるコメントと文書を、設計書 3.5 の表のとおりに改める：`state.go` の `gitState`・`changedItems`・読む git のコマンド（`state.go:35-39`）のコメント、`types.go` のパッケージのコメントと `Changed`・`ChangedRefs` のコメント（型と JSON の名前は変えない）、`package_reference.md` の `internal/codexreview` の行。
+-   [x] 定数 `itemStash` を消す。
+-   [x] 変数 `refsArgs` を消す。
+-   [x] 変数 `stashArgs` を消す。
+-   [x] `gitState` のフィールド `refs` と `stash` を消す。
+-   [x] `errRefsUnreadable` を消す。
+-   [x] `parseRefs` を消す。
+-   [x] `TestRunStateChanged` の行 `branch`・`deleted_branch`・`tag`・`stash`・`branch_in_another_worktree` を、`TestRunIgnoresSharedRefs`（下の項目）に移す。
+-   [x] `TestRunStateChanged` に、設計書 7.1 の 4 行（HEAD のブランチをほかの worktree が動かす、detached のまま commit、detached からブランチへ、別の commit のブランチへ checkout）を加える。
+-   [x] `TestRunStateChanged` に、本書 1.2 の 2 行を加える。
     -   あらかじめ HEAD と同じ commit に作ったブランチへ、実行の間に switch する行。期待は `head` だけで、`changed_refs` は空である。
     -   ほかの worktree が、追跡しているファイルを変えて commit し、HEAD のブランチをその commit に向け、同時にタグを 1 つ作る行。期待は `status`・`head`・`refs` の順で、`changed_refs` はこの worktree を併記した HEAD のブランチだけである。
--   [ ] `TestRunStateChanged` の行を書くときの注意を守る。偽の `codex` は決まった引数で git を実行するので、HEAD のブランチを動かすには、ほかの worktree で `update-ref refs/heads/main HEAD` を実行し、新しい値を commit ID ではなく、その worktree の `HEAD` で渡す（`NewRepo` はブランチ `main` で作る。`helpers.go:536`）。`changed_refs` が空になる行では、空の配列（nil でない）であることも確かめる。関数のコメントを、比べるものの変化を確かめる表だと読める形に改める。
--   [ ] `TestRunIgnoresSharedRefs` を加え、設計書 7.1 の「比べないもののテスト」の 9 行と、stash の項目を入れ替える行（あらかじめ作った stash を消し、別の変更を stash する）で、結果の種類が `no_findings` であることを確かめる。
--   [ ] `TestOutputIsOneJSONObject` の `state_changed` の行の入力を、この worktree で空の commit を作る操作に替える（設計書 7.1）。
--   [ ] 失敗することを確かめ、コミットメッセージに書く（設計書 7.1「失敗することの確かめ」の 1 つ目と 2 つ目に、本書で足した行の分を加えたもの）。
+-   [x] `TestRunStateChanged` の行を書くときの注意を守る。偽の `codex` は決まった引数で git を実行するので、HEAD のブランチを動かすには、ほかの worktree で `update-ref refs/heads/main HEAD` を実行し、新しい値を commit ID ではなく、その worktree の `HEAD` で渡す（`NewRepo` はブランチ `main` で作る。`helpers.go:536`）。`changed_refs` が空になる行では、空の配列（nil でない）であることも確かめる。関数のコメントを、比べるものの変化を確かめる表だと読める形に改める。
+-   [x] `TestRunIgnoresSharedRefs` を加え、設計書 7.1 の「比べないもののテスト」の 9 行と、stash の項目を入れ替える行（あらかじめ作った stash を消し、別の変更を stash する）で、結果の種類が `no_findings` であることを確かめる。
+-   [x] `TestOutputIsOneJSONObject` の `state_changed` の行の入力を、この worktree で空の commit を作る操作に替える（設計書 7.1）。
+-   [x] 失敗することを確かめ、コミットメッセージに書く（設計書 7.1「失敗することの確かめ」の 1 つ目と 2 つ目に、本書で足した行の分を加えたもの）。
     -   比べるものを元の広さに戻すと、`TestRunIgnoresSharedRefs` の各行が失敗する。
     -   `refs` の条件から「`branchRef` が前後で同じ」を外すと「別の commit のブランチへ checkout」の行が、「空でない」を外すと「detached のまま commit」の行が失敗する。`refs` を導くこと自体をやめると、`commit` の行と「HEAD のブランチをほかの worktree が動かす」の行が失敗する。
     -   `head` の条件を `commit` の比較だけにすると、「同じ commit の別のブランチへ switch」と「detached からブランチへ」の行が失敗する。`branchRef` が空かどうかだけの比較にすると、「同じ commit の別のブランチへ switch」の行が失敗する。
     -   `status` と `head` を並べる順を入れ替えると、「ほかの worktree が中身の違う commit で動かす」の行が失敗する。
     -   `TestOutputIsOneJSONObject` の `state_changed` の行は、偽の `codex` の空の commit を外すと失敗する。
--   [ ] `make deadcode` を実行し、何も報告されないことを確かめる。
+-   [x] `make deadcode` を実行し、何も報告されないことを確かめる。
 
 **完了の条件:** `make fmt`・`make test`・`make lint`・`make deadcode` が通る。
 

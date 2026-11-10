@@ -462,8 +462,10 @@ func TestRunKinds(t *testing.T) {
 	}
 }
 
-// TestRunStateChanged checks that every compared item codex changes is
-// reported as state_changed, ahead of the run's own result.
+// TestRunStateChanged checks that a change of this worktree's status, of
+// where HEAD is, or of the ref of HEAD's branch, by codex or by another
+// worktree, is reported as state_changed with the items and the ref that
+// differ, ahead of the run's own result.
 func TestRunStateChanged(t *testing.T) {
 	tests := []struct {
 		name string
@@ -510,53 +512,77 @@ func TestRunStateChanged(t *testing.T) {
 			changed: []string{itemHead},
 		},
 		{
-			name: "branch",
+			name: "commit_while_detached",
 			act: func(_ *testing.T, fx fixture, b *codexreviewtestutil.Behavior) {
+				fx.repo.Git("switch", "-q", "--detach")
 				b.GitDir = fx.repo.Dir
-				b.Git = [][]string{{"branch", "made-by-codex"}}
+				b.Git = [][]string{{"commit", "-q", "--allow-empty", "-m", "by codex"}}
 			},
-			changed: []string{itemRefs},
-			refs:    func(fixture) []string { return []string{"refs/heads/made-by-codex"} },
+			changed: []string{itemHead},
 		},
 		{
-			name: "deleted_branch",
+			name: "detached_to_branch",
 			act: func(_ *testing.T, fx fixture, b *codexreviewtestutil.Behavior) {
-				fx.repo.Git("branch", "old")
+				fx.repo.Git("switch", "-q", "--detach")
 				b.GitDir = fx.repo.Dir
-				b.Git = [][]string{{"branch", "-D", "old"}}
+				b.Git = [][]string{{"switch", "-q", "main"}}
 			},
-			changed: []string{itemRefs},
-			refs:    func(fixture) []string { return []string{"refs/heads/old"} },
+			changed: []string{itemHead},
 		},
 		{
-			name: "tag",
+			name: "switch_to_branch_at_same_commit",
 			act: func(_ *testing.T, fx fixture, b *codexreviewtestutil.Behavior) {
+				fx.repo.Git("branch", "same")
 				b.GitDir = fx.repo.Dir
-				b.Git = [][]string{{"tag", "v-by-codex"}}
+				b.Git = [][]string{{"switch", "-q", "same"}}
 			},
-			changed: []string{itemRefs},
-			refs:    func(fixture) []string { return []string{"refs/tags/v-by-codex"} },
+			changed: []string{itemHead},
 		},
 		{
-			name: "stash",
+			name: "checkout_branch_at_other_commit",
 			act: func(_ *testing.T, fx fixture, b *codexreviewtestutil.Behavior) {
-				b.Writes = map[string]string{filepath.Join(fx.repo.Dir, "a.go"): "edited\n"}
+				fx.repo.Git("branch", "other", emptyCommit(fx))
 				b.GitDir = fx.repo.Dir
-				b.Git = [][]string{{"stash", "push", "-q"}}
+				b.Git = [][]string{{"switch", "-q", "other"}}
 			},
-			changed: []string{itemStash},
+			changed: []string{itemHead},
 		},
 		{
-			name: "branch_in_another_worktree",
+			// The tree is the same, so only HEAD's branch differs.
+			name: "head_branch_moved_by_another_worktree",
 			act: func(_ *testing.T, fx fixture, b *codexreviewtestutil.Behavior) {
 				other := filepath.Join(fx.fake.Dir, "other")
-				fx.repo.Git("worktree", "add", "-q", "-b", "side", other)
+				fx.repo.Git("worktree", "add", "-q", "--detach", other)
 				b.GitDir = other
-				b.Git = [][]string{{"commit", "-q", "--allow-empty", "-m", "elsewhere"}}
+				b.Git = [][]string{
+					{"commit", "-q", "--allow-empty", "-m", "elsewhere"},
+					{"update-ref", "refs/heads/main", "HEAD"},
+				}
 			},
-			changed: []string{itemRefs},
+			changed: []string{itemHead, itemRefs},
 			refs: func(fx fixture) []string {
-				return []string{"refs/heads/side (worktree " + filepath.Join(fx.fake.Dir, "other") + ")"}
+				return []string{"refs/heads/main (worktree " + fx.repo.Dir + ")"}
+			},
+		},
+		{
+			// This worktree's index and files stay at the old tree, so the
+			// status differs too; the tag made at the same time is not
+			// named.
+			name: "head_branch_moved_to_other_tree_by_another_worktree",
+			act: func(_ *testing.T, fx fixture, b *codexreviewtestutil.Behavior) {
+				other := filepath.Join(fx.fake.Dir, "other")
+				fx.repo.Git("worktree", "add", "-q", "--detach", other)
+				b.Writes = map[string]string{filepath.Join(other, "a.go"): "moved\n"}
+				b.GitDir = other
+				b.Git = [][]string{
+					{"commit", "-q", "-a", "-m", "elsewhere"},
+					{"update-ref", "refs/heads/main", "HEAD"},
+					{"tag", "made-elsewhere"},
+				}
+			},
+			changed: []string{itemStatus, itemHead, itemRefs},
+			refs: func(fx fixture) []string {
+				return []string{"refs/heads/main (worktree " + fx.repo.Dir + ")"}
 			},
 		},
 		{
@@ -597,9 +623,112 @@ func TestRunStateChanged(t *testing.T) {
 			if tt.refs != nil {
 				wantRefs = tt.refs(fx)
 			}
-			if !slices.Equal(r.ChangedRefs, wantRefs) {
-				t.Errorf("ChangedRefs = %q, want %q", r.ChangedRefs, wantRefs)
+			// Compared as JSON, an empty list must be [] rather than null.
+			if r.ChangedRefs == nil || !slices.Equal(r.ChangedRefs, wantRefs) {
+				t.Errorf("ChangedRefs = %#v, want %q", r.ChangedRefs, wantRefs)
 			}
+		})
+	}
+}
+
+// emptyCommit returns a new commit whose parent is HEAD and whose tree is
+// HEAD's, so pointing a ref at it leaves the status unchanged.
+func emptyCommit(fx fixture) string {
+	return strings.TrimSpace(fx.repo.Git("commit-tree", "-p", "HEAD", "-m", "empty", "HEAD^{tree}"))
+}
+
+// TestRunIgnoresSharedRefs checks that branches other than HEAD's, tags, and
+// the stash, which every worktree shares, are not compared: changing one
+// while codex runs leaves the run's own result.
+func TestRunIgnoresSharedRefs(t *testing.T) {
+	tests := []struct {
+		name string
+		// act sets up the repository and returns what the fake codex does.
+		act func(fx fixture, b *codexreviewtestutil.Behavior)
+	}{
+		{
+			name: "create_branch",
+			act: func(_ fixture, b *codexreviewtestutil.Behavior) {
+				b.Git = [][]string{{"branch", "made-by-codex"}}
+			},
+		},
+		{
+			name: "delete_branch",
+			act: func(fx fixture, b *codexreviewtestutil.Behavior) {
+				fx.repo.Git("branch", "old")
+				b.Git = [][]string{{"branch", "-D", "old"}}
+			},
+		},
+		{
+			name: "move_branch",
+			act: func(fx fixture, b *codexreviewtestutil.Behavior) {
+				fx.repo.Git("branch", "old")
+				b.Git = [][]string{{"branch", "-f", "old", emptyCommit(fx)}}
+			},
+		},
+		{
+			name: "branch_in_another_worktree",
+			act: func(fx fixture, b *codexreviewtestutil.Behavior) {
+				other := filepath.Join(fx.fake.Dir, "other")
+				fx.repo.Git("worktree", "add", "-q", "-b", "side", other)
+				b.GitDir = other
+				b.Git = [][]string{{"commit", "-q", "--allow-empty", "-m", "elsewhere"}}
+			},
+		},
+		{
+			name: "create_tag",
+			act: func(_ fixture, b *codexreviewtestutil.Behavior) {
+				b.Git = [][]string{{"tag", "v-by-codex"}}
+			},
+		},
+		{
+			name: "move_tag",
+			act: func(fx fixture, b *codexreviewtestutil.Behavior) {
+				fx.repo.Git("tag", "v-old")
+				b.Git = [][]string{{"tag", "-f", "v-old", emptyCommit(fx)}}
+			},
+		},
+		{
+			name: "delete_tag",
+			act: func(fx fixture, b *codexreviewtestutil.Behavior) {
+				fx.repo.Git("tag", "v-old")
+				b.Git = [][]string{{"tag", "-d", "v-old"}}
+			},
+		},
+		{
+			// The change is stashed, so the worktree is as it was.
+			name: "push_stash",
+			act: func(fx fixture, b *codexreviewtestutil.Behavior) {
+				b.Writes = map[string]string{filepath.Join(fx.repo.Dir, "a.go"): "edited\n"}
+				b.Git = [][]string{{"stash", "push", "-q"}}
+			},
+		},
+		{
+			name: "drop_stash",
+			act: func(fx fixture, b *codexreviewtestutil.Behavior) {
+				fx.repo.Write("a.go", "stashed\n")
+				fx.repo.Git("stash", "push", "-q")
+				b.Git = [][]string{{"stash", "drop", "-q"}}
+			},
+		},
+		{
+			name: "replace_stash",
+			act: func(fx fixture, b *codexreviewtestutil.Behavior) {
+				fx.repo.Write("a.go", "stashed\n")
+				fx.repo.Git("stash", "push", "-q")
+				b.Writes = map[string]string{filepath.Join(fx.repo.Dir, "a.go"): "edited\n"}
+				b.Git = [][]string{{"stash", "drop", "-q"}, {"stash", "push", "-q"}}
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fx := newFixture(t)
+			b := completed(noFindingsMessage)
+			b.GitDir = fx.repo.Dir
+			tt.act(fx, &b)
+			fx.fake.Set(b)
+			assertKind(t, mustRun(t, fx.base), KindNoFindings, "")
 		})
 	}
 }

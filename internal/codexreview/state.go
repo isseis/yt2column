@@ -17,7 +17,6 @@ const (
 	itemStatus = "status"
 	itemHead   = "head"
 	itemRefs   = "refs"
-	itemStash  = "stash"
 )
 
 // instructionFiles are the base names of the files codex reads its
@@ -33,24 +32,20 @@ func (g git) run(ctx context.Context, args ...string) ([]byte, error) {
 	return g.runner.Run(ctx, "git", append(cmdrunner.GitHardening(), args...)...)
 }
 
-// The git commands whose output is compared. Each pins the options that a
-// user's configuration could otherwise change, so the comparison does not
-// depend on it: status lists every untracked file (status.showUntrackedFiles
-// cannot hide one) and every submodule change, the refs are sorted by name,
-// and the stash list prints only each entry's commit.
-var (
-	statusArgs = []string{"status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignore-submodules=none", "--no-renames"}
-	refsArgs   = []string{"for-each-ref", "--sort=refname", "--format=%(refname)%00%(objectname)", "refs/heads", "refs/tags"}
-	stashArgs  = []string{"stash", "list", "--no-show-signature", "--format=%H"}
-)
+// statusArgs is the git status command whose output is compared. It pins the
+// options that a user's configuration could otherwise change, so the
+// comparison does not depend on it: it lists every untracked file
+// (status.showUntrackedFiles cannot hide one) and every submodule change.
+var statusArgs = []string{"status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignore-submodules=none", "--no-renames"}
 
-// gitState is the repository state compared before and after codex runs.
+// gitState is the state of this worktree compared before and after codex
+// runs: its status, and where HEAD is. Other branches, tags, and the stash
+// are shared by every worktree of the repository and are not compared, so
+// work in another worktree does not stop the review.
 type gitState struct {
-	status    string
-	branchRef string            // the ref of the branch HEAD is on, such as "refs/heads/main"; empty when HEAD is detached
-	commit    string            // the object ID HEAD resolves to
-	refs      map[string]string // ref name to the object it points at
-	stash     string
+	status    string // the output of statusArgs, compared as it is
+	branchRef string // the ref of the branch HEAD is on, such as "refs/heads/main"; empty when HEAD is detached
+	commit    string // the object ID HEAD resolves to
 }
 
 // readState reads the compared state.
@@ -63,19 +58,7 @@ func readState(ctx context.Context, g git) (gitState, error) {
 	if err != nil {
 		return gitState{}, err
 	}
-	refsOut, err := g.run(ctx, refsArgs...)
-	if err != nil {
-		return gitState{}, err
-	}
-	refs, err := parseRefs(refsOut)
-	if err != nil {
-		return gitState{}, err
-	}
-	stash, err := g.run(ctx, stashArgs...)
-	if err != nil {
-		return gitState{}, err
-	}
-	return gitState{status: string(status), branchRef: branchRef, commit: commit, refs: refs, stash: string(stash)}, nil
+	return gitState{status: string(status), branchRef: branchRef, commit: commit}, nil
 }
 
 // readHead runs rev-parse and symbolic-ref and returns what parseHead reads
@@ -142,28 +125,12 @@ func oneLine(out []byte) (string, bool) {
 	return string(line), true
 }
 
-// errRefsUnreadable reports for-each-ref output that is not one name and
-// object per line.
-var errRefsUnreadable = errors.New("unexpected for-each-ref output")
-
-// parseRefs reads the output of refsArgs.
-func parseRefs(out []byte) (map[string]string, error) {
-	refs := make(map[string]string)
-	for line := range strings.SplitSeq(strings.TrimSuffix(string(out), "\n"), "\n") {
-		if line == "" {
-			continue
-		}
-		name, object, ok := strings.Cut(line, "\x00")
-		if !ok || name == "" || object == "" {
-			return nil, errRefsUnreadable
-		}
-		refs[name] = object
-	}
-	return refs, nil
-}
-
 // changedItems returns the names of the items that differ between before and
-// after, in a fixed order, and the refs that differ, sorted.
+// after, in the order status, head, refs, and the refs that differ: at most
+// HEAD's branch. HEAD's branch moved when HEAD is on the same branch before
+// and after and resolves to another commit; that is reported as head and
+// refs, whichever worktree moved it. A change of the branch HEAD is on,
+// detached included, is head alone.
 func changedItems(before, after gitState) (items, refs []string) {
 	if before.status != after.status {
 		items = append(items, itemStatus)
@@ -171,23 +138,10 @@ func changedItems(before, after gitState) (items, refs []string) {
 	if before.branchRef != after.branchRef || before.commit != after.commit {
 		items = append(items, itemHead)
 	}
-	for name, object := range before.refs {
-		if after.refs[name] != object {
-			refs = append(refs, name)
-		}
-	}
-	for name := range after.refs {
-		if _, ok := before.refs[name]; !ok {
-			refs = append(refs, name)
-		}
-	}
-	if len(refs) > 0 {
+	if before.branchRef == after.branchRef && before.branchRef != "" && before.commit != after.commit {
 		items = append(items, itemRefs)
+		refs = []string{before.branchRef}
 	}
-	if before.stash != after.stash {
-		items = append(items, itemStash)
-	}
-	slices.Sort(refs)
 	return items, refs
 }
 
