@@ -83,8 +83,9 @@ yt2column: tokens: <stage> <origin> unknown reason=<reason> <model-field>
   （プロンプトのキャッシュから読まず、キャッシュにも書かなかった分）、`cache_read=`（プロンプトのキャッシュから読んだ分）、`cache_write=`（プロンプトのキャッシュに書いた分。この区分を持たない DeepSeek では常に 0）、`output=`（出力。推論と思考を含む）である。`reused` の工程では、保存した出力が記録した数である。
 - `unknown` は、使用量を読めなかったか、規則を満たさなかったことを示す。数は書かず、`reason=` が空白を含まない 1 語を示す。`not-read`（使用量を読めなかった。使用量を読む前に失敗した呼び出し、または使用量を報告しないクライアント）、`recorded-unknown`（保存した出力が、その工程を不明として記録していた）、`invalid-rule`（既知のどの規則にも当たらない規則）のいずれか、または、規則を破ったのが `usage` メンバか、読み取るメンバの 1 つであるときの `usage:missing`・
   `usage:duplicate`・`usage:not-an-object`・
-  `usage:not-a-non-negative-integer` と、その `usage.<member>:missing`・
-  `usage.<member>:duplicate`・`usage.<member>:not-a-non-negative-integer` の形である。
+  `usage:not-a-non-negative-integer`・`usage:inconsistent` と、その `usage.<member>:missing`・
+  `usage.<member>:duplicate`・`usage.<member>:not-a-non-negative-integer`・
+  `usage.<member>:inconsistent` の形である。`inconsistent` は、内訳の数の合計が全体の数を超えることを示す。
 - `<model-field>` は、モデルの名前を示す `model=<model>` か、モデルの名前の規則を満たすモデルを工程が報告しなかったときの固定の語
   `nomodel` である。モデルの名前は、`redact.Line` が標準エラーのすべての行をエスケープするのと同じ方法でエスケープするので、名前の中の `"` と `\` はエスケープされる。元に戻すには、
   `model=` の後のすべてを二重引用符で囲み、`strconv.Unquote` に渡す。設定した秘密情報（またはその末尾の 8 文字）を含むモデルの名前は、伏せ字の印に置き換わり、元に戻せない。
@@ -102,7 +103,9 @@ yt2column: tokens: generation run unknown reason=not-read nomodel
 
 LLM を 1 度も呼ばずに終わった実行（使い方または設定の誤り、文字起こしの取得の失敗、`--after` の入力の拒否、使えない `--artifacts` のディレクトリ、または組み立てられなかった工程）は、トークンの行を書かない。要約を書かずに止められた実行（2 度目のシグナル、`kill -9`、panic）も書かない。
 
-数は、`--artifacts` のファイルにも `usage` の要素として保存する。工程の呼び出しの時刻はその隣に `call_time` の要素として保存する。工程の LLM の呼び出しが戻った時点を、UTC の秒単位で表す。保存した出力の形式は版 3 である。版 1 と版 2 のファイルは再開のときに拒否するので、更新した後は、新しい `--artifacts` のディレクトリを使うか、古いディレクトリを移す。
+数は、`--artifacts` のファイルにも `usage` の要素として保存する。工程の呼び出しの時刻は `call_time` の要素として保存する。工程の LLM の呼び出しが戻った時点を、UTC の秒単位で表す。保存した出力の形式は版 4 である。版 4 は `usage` の隣に、料金の適用条件を `pricing_context` の要素として保存する。値は `unspecified`（追加の条件を報告していない）、`standard-30m`（Standard の処理方式と 30 分のプロンプトキャッシュの設定を確認した）、`unverified`（料金に必要な条件を確認できなかった）のいずれかで、`usage` が `null` のときは `unspecified` だけを受理する。
+
+再開では版 3 のファイルも読み込む。版 3 のファイルはその版の形と識別子の規則で検証し、料金の適用条件を `unspecified` として扱う。再利用したファイルは書き換えず、後の工程だけを版 4 で保存するので、版 3 と版 4 のファイルが混ざった `--artifacts` のディレクトリからも再開できる。版 1 と版 2 のファイルは再開のときに拒否するので、新しい `--artifacts` のディレクトリを使うか、古いディレクトリを移す。版 4 より前の形式しか読めない CLI は版 4 のファイルを拒否するので、版 4 のファイルから再開するときは、版 4 を読める CLI を使う。
 
 ## 出力の書式
 
