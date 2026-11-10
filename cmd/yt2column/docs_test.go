@@ -903,7 +903,8 @@ func TestCostDocsContract(t *testing.T) {
 	}
 	for _, reason := range []pricing.UnknownReason{
 		pricing.ReasonUnset, pricing.ReasonUsageUnknown, pricing.ReasonNoModel,
-		pricing.ReasonUnpricedModel, pricing.ReasonInvalid, pricing.UnknownReason(99),
+		pricing.ReasonUnpricedModel, pricing.ReasonPricingContextUnknown,
+		pricing.ReasonInvalid, pricing.UnknownReason(99),
 	} {
 		if word := costReasonWord(reason); word != costInvalid && !containsToken(section, word) {
 			t.Errorf("cli.md Estimated cost section does not contain the reason word %q", word)

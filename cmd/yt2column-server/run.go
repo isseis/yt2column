@@ -188,7 +188,7 @@ func runServer(ctx context.Context, lookup config.LookupFunc, stderr io.Writer, 
 	}
 	llmCfg := cfg.LLM()
 	webhookURL, webhookConfigured := cfg.WebhookURL()
-	secrets := redact.SecretStrings(webhookURL, llmCfg.DeepSeekAPIKey(), llmCfg.AnthropicAPIKey())
+	secrets := redact.SecretStrings(webhookURL, llmCfg.DeepSeekAPIKey(), llmCfg.AnthropicAPIKey(), llmCfg.OpenAIAPIKey())
 	errOut.secrets = secrets
 	if cfg.HTTP2DebugEnabled() {
 		errOut.line("%s: warning: GODEBUG enables http2debug, so the Go HTTP/2 log may write the API key and the Webhook URL path to standard error", programName)

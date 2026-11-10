@@ -23,6 +23,7 @@ import (
 	"github.com/isseis/yt2column/internal/llm/claudeparam"
 	"github.com/isseis/yt2column/internal/llm/deepseek"
 	"github.com/isseis/yt2column/internal/llm/llmhttp/llmhttptest"
+	"github.com/isseis/yt2column/internal/llm/openai"
 	llmtestutil "github.com/isseis/yt2column/internal/llm/testutil"
 	"github.com/isseis/yt2column/internal/udstest"
 )
@@ -34,6 +35,10 @@ const (
 	testClaudeModel = "claude-opus-5-5"
 	// testClaudeReviewModel is a review model distinct from testClaudeModel.
 	testClaudeReviewModel = "claude-sonnet-5-5"
+	// testOpenAIModel is the model name of an openai test environment.
+	testOpenAIModel = "gpt-6-astra"
+	// testOpenAIReviewModel is a review model distinct from testOpenAIModel.
+	testOpenAIReviewModel = "gpt-6.1-sol"
 	// testAPIKey is a fixed, non-secret value. No test uses a real key.
 	testAPIKey = "sk-test-key-0123456789"
 	// testClaudeWorkspaceID is a fixed, non-secret workspace id.
@@ -44,6 +49,11 @@ const (
 	// claudeEndTurnFixture is the committed Claude end-turn fixture, relative
 	// to this package directory.
 	claudeEndTurnFixture = "../../../testdata/claude_messages_end_turn.json"
+	// openAICompletedBody is the smallest Responses API response the OpenAI
+	// adapter accepts: one completed message whose output text is non-empty.
+	// It reports no usage, which the adapter records as unknown without
+	// rejecting the body.
+	openAICompletedBody = `{"model":"` + testOpenAIModel + `","status":"completed","output":[{"type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"the article"}]}]}`
 )
 
 // testProxy is the proxy TestMain installed. Tests read it to confirm that the
@@ -90,6 +100,16 @@ func claudeValidEnv() map[string]string {
 	return map[string]string{
 		"YT2COLUMN_LLM":       "claude/" + testClaudeModel,
 		"ANTHROPIC_API_KEY":   testAPIKey,
+		"YT2COLUMN_CACHE_DIR": "/tmp/yt2column-provider-test",
+	}
+}
+
+// openAIValidEnv is an environment config.Load accepts with the openai
+// provider.
+func openAIValidEnv() map[string]string {
+	return map[string]string{
+		"YT2COLUMN_LLM":       "openai/" + testOpenAIModel,
+		"OPENAI_API_KEY":      testAPIKey,
 		"YT2COLUMN_CACHE_DIR": "/tmp/yt2column-provider-test",
 	}
 }
@@ -212,9 +232,9 @@ func TestNewUsesDeepSeekAdapter(t *testing.T) {
 
 // TestNewUnknownProvider verifies that a selection with no enumerated provider
 // (the zero LLMSelection, the only one outside config that can be made) fails
-// with errUnknownProvider and never calls either adapter constructor.
+// with errUnknownProvider and never calls any adapter constructor.
 func TestNewUnknownProvider(t *testing.T) {
-	deepseekCalled, claudeCalled := false, false
+	deepseekCalled, claudeCalled, openAICalled := false, false, false
 	build := builders{
 		deepseek: func(deepseek.Options) (llm.LLMClient, error) {
 			deepseekCalled = true
@@ -223,6 +243,10 @@ func TestNewUnknownProvider(t *testing.T) {
 		claude: func(claude.Options) (llm.LLMClient, error) {
 			claudeCalled = true
 			return nil, errors.New("the claude constructor must not be called")
+		},
+		openai: func(openai.Options) (llm.LLMClient, error) {
+			openAICalled = true
+			return nil, errors.New("the openai constructor must not be called")
 		},
 	}
 	cfg := loadConfig(t, validEnv())
@@ -233,7 +257,7 @@ func TestNewUnknownProvider(t *testing.T) {
 	if client != nil {
 		t.Errorf("newClient() = %v, want nil", client)
 	}
-	if deepseekCalled || claudeCalled {
+	if deepseekCalled || claudeCalled || openAICalled {
 		t.Error("newClient called an adapter constructor for an unknown provider")
 	}
 }
@@ -438,6 +462,201 @@ func TestNewUsesClaudeAdapter(t *testing.T) {
 	if got := typ.Elem().PkgPath(); got != wantPkg {
 		t.Errorf("New() returned a client from %q, want %q", got, wantPkg)
 	}
+}
+
+// TestNewUsesOpenAIAdapter verifies that New passes the production OpenAI
+// constructor to newClient by checking the dynamic type of the built client.
+func TestNewUsesOpenAIAdapter(t *testing.T) {
+	cfg := loadConfig(t, openAIValidEnv())
+	client, err := New(cfg.LLM())
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	typ := reflect.TypeOf(client)
+	if typ == nil || typ.Kind() != reflect.Pointer {
+		t.Fatalf("New() returned %v, want a pointer", typ)
+	}
+	const wantPkg = "github.com/isseis/yt2column/internal/llm/openai"
+	if got := typ.Elem().PkgPath(); got != wantPkg {
+		t.Errorf("New() returned a client from %q, want %q", got, wantPkg)
+	}
+}
+
+// TestNewOpenAISendsConfiguredRequest verifies that newGeneration builds the
+// OpenAI adapter with the configured API key, model, effort, and LLMTimeout,
+// and that the built client sends those values to the loopback destination.
+// The key is a value of its own, so passing another provider's key would not
+// satisfy the header check.
+func TestNewOpenAISendsConfiguredRequest(t *testing.T) {
+	const configuredKey = "sk-openai-configured-key-0123456789"
+	env := openAIValidEnv()
+	env["YT2COLUMN_LLM"] = "openai/" + testOpenAIModel + "+high"
+	env["OPENAI_API_KEY"] = configuredKey
+	cfg := loadConfig(t, env)
+	server, recorder := llmhttptest.NewRecordingServer(t, []byte(openAICompletedBody))
+
+	var received openai.Options
+	build := func(opts openai.Options) (llm.LLMClient, error) {
+		received = opts
+		return openai.NewForLoopbackTest(t, opts, server.URL), nil
+	}
+	client, err := newGeneration(cfg.LLM(), builders{openai: build})
+	if err != nil {
+		t.Fatalf("newGeneration() error = %v", err)
+	}
+	if received.Timeout != 15*time.Minute {
+		t.Errorf("build received Timeout = %v, want 15m", received.Timeout)
+	}
+	if got, err := received.APIKey.Reveal(); err != nil || got != configuredKey {
+		t.Errorf("build received APIKey = (%q, %v), want the configured key", got, err)
+	}
+	if _, err := client.Generate(context.Background(), llm.GenerateRequest{SystemPrompt: "system", UserPrompt: "user"}); err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	recorded := recorder.Only(t)
+	if got := recorded.Header.Get("Authorization"); got != "Bearer "+configuredKey {
+		t.Errorf("Authorization = %q, want the configured Bearer key", got)
+	}
+	var decoded struct {
+		Model     string `json:"model"`
+		Reasoning struct {
+			Effort string `json:"effort"`
+		} `json:"reasoning"`
+	}
+	if err := json.Unmarshal(recorded.Body, &decoded); err != nil {
+		t.Fatalf("decode request body: %v", err)
+	}
+	if decoded.Model != testOpenAIModel {
+		t.Errorf("request model = %q, want %q", decoded.Model, testOpenAIModel)
+	}
+	if decoded.Reasoning.Effort != "high" {
+		t.Errorf("reasoning.effort = %q, want %q", decoded.Reasoning.Effort, "high")
+	}
+}
+
+// TestNewOpenAIRejectsConstructionError verifies that newClient returns the
+// OpenAI constructor's error and no client, so a rejected key, model, effort,
+// or timeout stops the build instead of yielding a usable client.
+func TestNewOpenAIRejectsConstructionError(t *testing.T) {
+	cfg := loadConfig(t, openAIValidEnv())
+	sentinel := errors.New("refused by the test")
+	called := false
+	build := builders{openai: func(openai.Options) (llm.LLMClient, error) {
+		called = true
+		return nil, sentinel
+	}}
+	client, err := newClient(cfg.LLM().Generation(), cfg.LLM(), build)
+	if !called {
+		t.Fatal("newClient did not call the openai constructor")
+	}
+	if !errors.Is(err, sentinel) {
+		t.Errorf("newClient() error = %v, want it to wrap the constructor's error", err)
+	}
+	if client != nil {
+		t.Errorf("newClient() = %v, want nil", client)
+	}
+}
+
+// openAIRequestFor builds the OpenAI adapter of the stage that stage builds
+// for env against a recording loopback server that answers with the minimal
+// completed response, sends one Generate with req, and returns the recorded
+// request. It checks the LLMTimeout the constructor received, which no request
+// field exposes.
+func openAIRequestFor(t *testing.T, env map[string]string, req llm.GenerateRequest, stage stageBuilder) llmhttptest.Recorded {
+	t.Helper()
+	cfg := loadConfig(t, env)
+	server, recorder := llmhttptest.NewRecordingServer(t, []byte(openAICompletedBody))
+	build := func(opts openai.Options) (llm.LLMClient, error) {
+		if opts.Timeout != 15*time.Minute {
+			t.Errorf("build received Timeout = %v, want 15m", opts.Timeout)
+		}
+		return openai.NewForLoopbackTest(t, opts, server.URL), nil
+	}
+	client, err := stage(cfg.LLM(), builders{openai: build})
+	if err != nil {
+		t.Fatalf("building the stage client: %v", err)
+	}
+	if _, err := client.Generate(context.Background(), req); err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	return recorder.Only(t)
+}
+
+// openAIMaxOutputTokens returns the max_output_tokens one OpenAI request sent.
+func openAIMaxOutputTokens(t *testing.T, recorded llmhttptest.Recorded) int {
+	t.Helper()
+	var decoded struct {
+		MaxOutputTokens int `json:"max_output_tokens"`
+	}
+	if err := json.Unmarshal(recorded.Body, &decoded); err != nil {
+		t.Fatalf("decode request body: %v", err)
+	}
+	return decoded.MaxOutputTokens
+}
+
+// Measurements the OpenAI adapter's default output limit is sized against
+// (docs/tasks/0077_openai_llm_client/02_architecture.md section 1.4): the
+// largest output of a successful measured run, the slowest observed output
+// rate (gpt-6-astra, review of the 39-minute video), and the largest output
+// both candidate models accept.
+const (
+	// openAILargestObservedOutputTokens is the largest output of a successful
+	// measured run.
+	openAILargestObservedOutputTokens = 3020
+	// openAISlowestRateTokens over openAISlowestRateDuration is the slowest
+	// observed output rate.
+	openAISlowestRateTokens   = 90
+	openAISlowestRateDuration = 6642151 * time.Microsecond
+	// openAIModelMaxOutputTokens is the largest output both gpt-6-astra and
+	// gpt-6.1-sol accept.
+	openAIModelMaxOutputTokens = 128000
+)
+
+// TestOpenAIDefaultMaxTokensFitsBudget verifies that the max_output_tokens the
+// OpenAI adapter sends for MaxOutputTokens 0 is at least twice the largest
+// observed output, is within both candidate models' maximum, and that
+// producing it at the slowest observed rate takes at most half of LLMTimeout.
+// It also checks that a positive MaxOutputTokens is sent unchanged and that the
+// generation and review stages share the default.
+func TestOpenAIDefaultMaxTokensFitsBudget(t *testing.T) {
+	env := openAIValidEnv()
+	generation := openAIMaxOutputTokens(t, openAIRequestFor(t, env,
+		llm.GenerateRequest{SystemPrompt: "system", UserPrompt: "user"}, newGeneration))
+	if want := 2 * openAILargestObservedOutputTokens; generation < want {
+		t.Errorf("max_output_tokens = %d, want at least %d (twice the largest observed output)", generation, want)
+	}
+	if generation > openAIModelMaxOutputTokens {
+		t.Errorf("max_output_tokens = %d, want at most %d (both models' maximum)", generation, openAIModelMaxOutputTokens)
+	}
+	// Compare max_output_tokens * duration/tokens with LLMTimeout/2 by
+	// multiplying both sides by tokens, so no division rounds the boundary.
+	produce := time.Duration(generation) * openAISlowestRateDuration
+	budget := time.Duration(openAISlowestRateTokens) * (LLMTimeout / 2)
+	if produce > budget {
+		t.Errorf("max_output_tokens = %d takes %v at the slowest observed rate, want at most half of LLMTimeout (%v)",
+			generation, produce/time.Duration(openAISlowestRateTokens), LLMTimeout/2)
+	}
+
+	t.Run("a positive limit is sent unchanged", func(t *testing.T) {
+		const positive = 1234
+		got := openAIMaxOutputTokens(t, openAIRequestFor(t, env,
+			llm.GenerateRequest{SystemPrompt: "system", UserPrompt: "user", MaxOutputTokens: positive}, newGeneration))
+		if got != positive {
+			t.Errorf("max_output_tokens = %d, want the requested %d", got, positive)
+		}
+	})
+
+	t.Run("the review stage shares the default", func(t *testing.T) {
+		reviewEnv := maps.Clone(env)
+		reviewEnv["YT2COLUMN_REVIEW_LLM"] = "openai/" + testOpenAIReviewModel
+		review := openAIMaxOutputTokens(t, openAIRequestFor(t, reviewEnv,
+			llm.GenerateRequest{SystemPrompt: "system", UserPrompt: "user"}, newReview))
+		// The shorten step calls the generation client, so only generation and
+		// review build an adapter; both apply the same default.
+		if review != generation {
+			t.Errorf("review max_output_tokens = %d, want the generation default %d", review, generation)
+		}
+	})
 }
 
 // TestNewDeepSeekIgnoresClaudeVars verifies that the claude provider variables
@@ -645,8 +864,8 @@ func TestNewReviewUsesReviewModel(t *testing.T) {
 
 // sentEffort is what one stage's client sent: the provider whose loopback
 // server received the request, the request's model, and its effort member
-// (output_config.effort for claude, reasoning_effort for deepseek), which may
-// be absent.
+// (output_config.effort for claude, reasoning_effort for deepseek,
+// reasoning.effort for openai), which may be absent.
 type sentEffort struct {
 	provider config.Provider
 	model    string
@@ -669,12 +888,16 @@ func sentByStage(t *testing.T, cfg config.LLMConfig, stage stageBuilder) sentEff
 	}
 	deepseekServer, deepseekRecorder := llmhttptest.NewRecordingServer(t, deepseekBody)
 	claudeServer, claudeRecorder := llmhttptest.NewRecordingServer(t, claudeBody)
+	openAIServer, openAIRecorder := llmhttptest.NewRecordingServer(t, []byte(openAICompletedBody))
 	client, err := stage(cfg, builders{
 		deepseek: func(opts deepseek.Options) (llm.LLMClient, error) {
 			return deepseek.NewForLoopbackTest(t, opts, deepseekServer.URL), nil
 		},
 		claude: func(opts claude.Options) (llm.LLMClient, error) {
 			return claude.NewForLoopbackTest(t, opts, claudeServer.URL), nil
+		},
+		openai: func(opts openai.Options) (llm.LLMClient, error) {
+			return openai.NewForLoopbackTest(t, opts, openAIServer.URL), nil
 		},
 	})
 	if err != nil {
@@ -686,7 +909,7 @@ func sentByStage(t *testing.T, cfg config.LLMConfig, stage stageBuilder) sentEff
 	var members map[string]json.RawMessage
 	var got sentEffort
 	switch {
-	case deepseekRecorder.Count() == 1 && claudeRecorder.Count() == 0:
+	case deepseekRecorder.Count() == 1 && claudeRecorder.Count() == 0 && openAIRecorder.Count() == 0:
 		got.provider = config.ProviderDeepSeek
 		if err := json.Unmarshal(deepseekRecorder.Only(t).Body, &members); err != nil {
 			t.Fatalf("decode request body: %v", err)
@@ -697,7 +920,7 @@ func sentByStage(t *testing.T, cfg config.LLMConfig, stage stageBuilder) sentEff
 				t.Fatalf("decode reasoning_effort: %v", err)
 			}
 		}
-	case claudeRecorder.Count() == 1 && deepseekRecorder.Count() == 0:
+	case claudeRecorder.Count() == 1 && deepseekRecorder.Count() == 0 && openAIRecorder.Count() == 0:
 		got.provider = config.ProviderClaude
 		if err := json.Unmarshal(claudeRecorder.Only(t).Body, &members); err != nil {
 			t.Fatalf("decode request body: %v", err)
@@ -713,9 +936,25 @@ func sentByStage(t *testing.T, cfg config.LLMConfig, stage stageBuilder) sentEff
 		if outputConfig.Effort != nil {
 			got.present, got.effort = true, *outputConfig.Effort
 		}
+	case openAIRecorder.Count() == 1 && deepseekRecorder.Count() == 0 && claudeRecorder.Count() == 0:
+		got.provider = config.ProviderOpenAI
+		if err := json.Unmarshal(openAIRecorder.Only(t).Body, &members); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
+		var reasoning struct {
+			Effort *string `json:"effort"`
+		}
+		if raw, ok := members["reasoning"]; ok {
+			if err := json.Unmarshal(raw, &reasoning); err != nil {
+				t.Fatalf("decode reasoning: %v", err)
+			}
+		}
+		if reasoning.Effort != nil {
+			got.present, got.effort = true, *reasoning.Effort
+		}
 	default:
-		t.Fatalf("deepseek server received %d requests and claude server %d, want exactly one in total",
-			deepseekRecorder.Count(), claudeRecorder.Count())
+		t.Fatalf("deepseek server received %d requests, claude server %d, and openai server %d, want exactly one in total",
+			deepseekRecorder.Count(), claudeRecorder.Count(), openAIRecorder.Count())
 	}
 	if err := json.Unmarshal(members["model"], &got.model); err != nil {
 		t.Fatalf("decode model: %v", err)
@@ -740,6 +979,7 @@ func TestNewSendsStageEffort(t *testing.T) {
 	}
 	claudeAt := func(model, effort string) stage { return stage{config.ProviderClaude, model, effort, true} }
 	deepseekAt := func(effort string) stage { return stage{config.ProviderDeepSeek, testModel, effort, true} }
+	openAIAt := func(model, effort string) stage { return stage{config.ProviderOpenAI, model, effort, true} }
 	deepseekNone := stage{config.ProviderDeepSeek, testModel, "", false}
 	cases := []testCase{
 		{
@@ -756,6 +996,31 @@ func TestNewSendsStageEffort(t *testing.T) {
 			"claude generation, deepseek review",
 			"claude/" + testClaudeModel + "+low", "deepseek/" + testModel + "+none",
 			claudeAt(testClaudeModel, "low"), deepseekAt("none"),
+		},
+		{
+			"openai generation, claude review",
+			"openai/" + testOpenAIModel + "+high", "claude/" + testClaudeModel + "+xhigh",
+			openAIAt(testOpenAIModel, "high"), claudeAt(testClaudeModel, "xhigh"),
+		},
+		{
+			"claude generation, openai review",
+			"claude/" + testClaudeModel + "+low", "openai/" + testOpenAIReviewModel + "+minimal",
+			claudeAt(testClaudeModel, "low"), openAIAt(testOpenAIReviewModel, "minimal"),
+		},
+		{
+			"openai generation, deepseek review",
+			"openai/" + testOpenAIModel + "+none", "deepseek/" + testModel + "+high",
+			openAIAt(testOpenAIModel, "none"), deepseekAt("high"),
+		},
+		{
+			"deepseek generation, openai review",
+			"deepseek/" + testModel + "+low", "openai/" + testOpenAIReviewModel + "+max",
+			deepseekAt("low"), openAIAt(testOpenAIReviewModel, "max"),
+		},
+		{
+			"openai without an effort, inherited",
+			"openai/" + testOpenAIModel, "",
+			openAIAt(testOpenAIModel, "medium"), openAIAt(testOpenAIModel, "medium"),
 		},
 		{
 			"deepseek effort and no effort",
@@ -784,6 +1049,7 @@ func TestNewSendsStageEffort(t *testing.T) {
 				"YT2COLUMN_LLM":     tc.llm,
 				"ANTHROPIC_API_KEY": testAPIKey,
 				"DEEPSEEK_API_KEY":  testAPIKey,
+				"OPENAI_API_KEY":    testAPIKey,
 			}
 			if tc.reviewLLM != "" {
 				env["YT2COLUMN_REVIEW_LLM"] = tc.reviewLLM

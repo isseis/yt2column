@@ -14,8 +14,10 @@ import (
 // counts. The rate of each category is per million tokens, so a count c at a
 // rate r contributes c*r/1e6 USD.
 
-// TestEstimateCategories checks the cost of one stage of each model from four
-// distinct, non-zero token counts, so a category mix-up changes the value.
+// TestEstimateCategories checks the cost of one stage of each model whose
+// rates require no extra pricing condition, from four distinct, non-zero token
+// counts, so a category mix-up changes the value. The OpenAI rows, which
+// require a confirmed condition, are checked in TestEstimateOpenAI.
 func TestEstimateCategories(t *testing.T) {
 	// Saturday noon UTC and Monday 01:00 UTC: deepseek-flash is off-peak and
 	// peak respectively.
@@ -281,6 +283,166 @@ func TestEstimateUnknownScheme(t *testing.T) {
 	reason, ok := cost.Unknown()
 	if !ok || reason != ReasonInvalid {
 		t.Errorf("estimateEntry with an unknown scheme = %v, want unknown with %v", reason, ReasonInvalid)
+	}
+}
+
+// TestEstimateOpenAI checks the two OpenAI models' Standard, 30-minute-cache
+// rates against hand-calculated amounts: the four categories, the
+// prompt-length threshold counted over all three input categories, exact
+// model-name matching, and the pricing context the rates require.
+func TestEstimateOpenAI(t *testing.T) {
+	standard := func(t *testing.T, counts llm.TokenCounts) llm.Usage {
+		t.Helper()
+		usage, err := llm.KnownUsageWithPricingContext(counts, llm.PricingContextStandard30m)
+		if err != nil {
+			t.Fatalf("KnownUsageWithPricingContext: %v", err)
+		}
+		return usage
+	}
+	unverified, err := llm.KnownUsageWithPricingContext(llm.TokenCounts{Input: 1}, llm.PricingContextUnverified)
+	if err != nil {
+		t.Fatalf("KnownUsageWithPricingContext: %v", err)
+	}
+	cases := []struct {
+		name       string
+		model      string
+		usage      llm.Usage
+		want       string // "" means the cost is unknown with wantReason
+		wantBasis  RateBasis
+		wantReason UnknownReason
+	}{
+		{
+			// gpt-6-astra: 1000*10 + 2000*1 + 3000*12.5 + 4000*50 = 249,500
+			// microUSD = 0.249500 USD.
+			name:      "astra four categories",
+			model:     "gpt-6-astra",
+			usage:     standard(t, llm.TokenCounts{Input: 1000, CacheRead: 2000, CacheWrite: 3000, Output: 4000}),
+			want:      "0.249500",
+			wantBasis: BasisShortPrompt,
+		},
+		{
+			// gpt-6.1-sol: 1000*2 + 2000*0.10 + 3000*2.5 + 4000*10 = 49,700
+			// microUSD = 0.049700 USD.
+			name:      "sol four categories",
+			model:     "gpt-6.1-sol",
+			usage:     standard(t, llm.TokenCounts{Input: 1000, CacheRead: 2000, CacheWrite: 3000, Output: 4000}),
+			want:      "0.049700",
+			wantBasis: BasisShortPrompt,
+		},
+		{
+			name:      "astra input at the threshold",
+			model:     "gpt-6-astra",
+			usage:     standard(t, llm.TokenCounts{Input: 272000, Output: 1000}),
+			want:      "2.770000",
+			wantBasis: BasisShortPrompt,
+		},
+		{
+			// gpt-6.1-sol at the same threshold uses its base rates:
+			// 272000*2 = 544,000 microUSD.
+			name:      "sol input at the threshold",
+			model:     "gpt-6.1-sol",
+			usage:     standard(t, llm.TokenCounts{Input: 272000}),
+			want:      "0.544000",
+			wantBasis: BasisShortPrompt,
+		},
+		{
+			// One token over doubles the input categories and multiplies the
+			// output by 1.5: 272001*20 + 1000*75 = 5,515,020 microUSD.
+			name:      "astra input one over the threshold",
+			model:     "gpt-6-astra",
+			usage:     standard(t, llm.TokenCounts{Input: 272001, Output: 1000}),
+			want:      "5.515020",
+			wantBasis: BasisLongPrompt,
+		},
+		{
+			// All four categories over the threshold: 100000*20 +
+			// 70000*2 + 102001*25 + 1000*75 = 4,765,025 microUSD.
+			name:      "astra four categories over the threshold",
+			model:     "gpt-6-astra",
+			usage:     standard(t, llm.TokenCounts{Input: 100000, CacheRead: 70000, CacheWrite: 102001, Output: 1000}),
+			want:      "4.765025",
+			wantBasis: BasisLongPrompt,
+		},
+		{
+			// gpt-6.1-sol, all four categories over the threshold: 200000*4 +
+			// 40000*0.2 + 32001*5 + 1000*15 = 983,005 microUSD.
+			name:      "sol four categories over the threshold",
+			model:     "gpt-6.1-sol",
+			usage:     standard(t, llm.TokenCounts{Input: 200000, CacheRead: 40000, CacheWrite: 32001, Output: 1000}),
+			want:      "0.983005",
+			wantBasis: BasisLongPrompt,
+		},
+		{
+			// The threshold counts every input category, so the cache read
+			// alone can cross it: 272001*2 = 544,002 microUSD.
+			name:      "astra cache read alone crosses the threshold",
+			model:     "gpt-6-astra",
+			usage:     standard(t, llm.TokenCounts{CacheRead: 272001}),
+			want:      "0.544002",
+			wantBasis: BasisLongPrompt,
+		},
+		{
+			// The cache write alone can cross it too: 272001*5 = 1,360,005
+			// microUSD.
+			name:      "sol cache write alone crosses the threshold",
+			model:     "gpt-6.1-sol",
+			usage:     standard(t, llm.TokenCounts{CacheWrite: 272001}),
+			want:      "1.360005",
+			wantBasis: BasisLongPrompt,
+		},
+		{
+			name:       "an unregistered response model",
+			model:      "gpt-6-astra-2026-11-10",
+			usage:      standard(t, llm.TokenCounts{Input: 1}),
+			wantReason: ReasonUnpricedModel,
+		},
+		{
+			name:       "a usage without the required context",
+			model:      "gpt-6-astra",
+			usage:      llm.KnownUsage(llm.TokenCounts{Input: 1}),
+			wantReason: ReasonPricingContextUnknown,
+		},
+		{
+			name:       "a usage whose context could not be confirmed",
+			model:      "gpt-6.1-sol",
+			usage:      unverified,
+			wantReason: ReasonPricingContextUnknown,
+		},
+		{
+			// A Claude row requires no extra condition, so a usage that
+			// confirmed one does not match it.
+			name:       "a claude row with a confirmed openai condition",
+			model:      "claude-opus-5-5",
+			usage:      standard(t, llm.TokenCounts{Input: 1}),
+			wantReason: ReasonPricingContextUnknown,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if (tc.want == "") == (tc.wantReason == ReasonUnset) {
+				t.Fatalf("case has neither an expected amount nor a reason")
+			}
+			cost := Estimate(tc.model, tc.usage, time.Time{})
+			if tc.want != "" {
+				amount, basis, ok := cost.Known()
+				if !ok {
+					t.Fatalf("Estimate(%s) is unknown, want %s USD", tc.model, tc.want)
+				}
+				if got := amount.Format(6); got != tc.want {
+					t.Errorf("Estimate(%s) = %s USD, want %s", tc.model, got, tc.want)
+				}
+				if basis != tc.wantBasis {
+					t.Errorf("Estimate(%s) basis = %v, want %v", tc.model, basis, tc.wantBasis)
+				}
+				return
+			}
+			if _, _, ok := cost.Known(); ok {
+				t.Fatalf("Estimate(%s) is known, want unknown", tc.model)
+			}
+			if reason, _ := cost.Unknown(); reason != tc.wantReason {
+				t.Errorf("Estimate(%s) reason = %v, want %v", tc.model, reason, tc.wantReason)
+			}
+		})
 	}
 }
 

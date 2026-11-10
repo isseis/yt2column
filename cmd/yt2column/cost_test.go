@@ -163,6 +163,41 @@ func TestRunCostLinesAllStages(t *testing.T) {
 		t.Errorf("--out has no line %q:\n%s", want, data)
 	}
 	requireSafeOutput(t, e.stdout.String(), e.stderr.String(), e.outPath)
+
+	// A stage whose counts are known but whose pricing condition is not
+	// reports an unknown cost without losing its token counts.
+	t.Run("counts known, cost unknown", func(t *testing.T) {
+		e := newRunEnv(t)
+		e.withSteps = true
+		useFixedClock(e, costGenTime, costShortTime, costReviewTime)
+		e.client = usageSequence(
+			usageResponse(longGeneratedText(), costGenModel, costGenTokens),
+			usageResponse(shortGeneratedText(), costShortModel, costShortTokens),
+		)
+		reviewUsage := llm.KnownUsage(llm.TokenCounts{Input: 1000, Output: 200})
+		e.useReviewClient(usageLLM(usageResponse(reviewJSON("A short body.", "A shorter body."), "gpt-6-astra", reviewUsage)))
+
+		if code := e.run(); code != exitOK {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
+		}
+		requireCostLines(t, e, []string{
+			costGenLine,
+			costShortLine,
+			"yt2column: cost: review run unknown reason=" + costReasonPricingContextUnknown + " at=2026-10-16T04:03:15Z",
+			"yt2column: cost-total: run unknown",
+			"yt2column: cost-total: article unknown",
+		})
+		if want := knownLine("review", tokensRun, "gpt-6-astra", reviewUsage); !slices.Contains(tokenLines(e.stderr.String()), want) {
+			t.Errorf("the review token line is missing %q:\n%s", want, e.stderr.String())
+		}
+		data, err := os.ReadFile(e.outPath) //nolint:gosec // a path inside the test's temporary directory
+		if err != nil {
+			t.Fatalf("read --out: %v", err)
+		}
+		if want := "estimated_cost_usd: \"unknown\"\n"; !strings.Contains(string(data), want) {
+			t.Errorf("--out has no line %q:\n%s", want, data)
+		}
+	})
 }
 
 func TestRunCostLinesRateBasis(t *testing.T) {
@@ -252,6 +287,14 @@ func TestRunCostLinesUnknown(t *testing.T) {
 			"unpriced model",
 			usageLLM(usageResponse(shortGeneratedText(), "gpt-5", costGenTokens)),
 			costReasonUnpricedModel,
+			exitOK,
+		},
+		{
+			// The counts are known; only the condition the OpenAI rates
+			// require is not.
+			"pricing context unknown",
+			usageLLM(usageResponse(shortGeneratedText(), "gpt-6-astra", llm.KnownUsage(llm.TokenCounts{Input: 100, Output: 10}))),
+			costReasonPricingContextUnknown,
 			exitOK,
 		},
 	}
@@ -400,6 +443,7 @@ func TestCostWords(t *testing.T) {
 		{pricing.ReasonUsageUnknown, costReasonUsageUnknown},
 		{pricing.ReasonNoModel, costReasonNoModel},
 		{pricing.ReasonUnpricedModel, costReasonUnpricedModel},
+		{pricing.ReasonPricingContextUnknown, costReasonPricingContextUnknown},
 		{pricing.ReasonUnset, costInvalid},
 		{pricing.ReasonInvalid, costInvalid},
 		{pricing.UnknownReason(99), costInvalid},
@@ -526,6 +570,32 @@ func TestRunCostLinesFailure(t *testing.T) {
 			"yt2column: cost-total: run unknown",
 			"yt2column: cost-total: article unknown",
 		})
+	})
+
+	t.Run("a rejected response with an unconfirmed condition", func(t *testing.T) {
+		// The rejected response's counts are known, but the OpenAI rate's
+		// condition is not, so the failure's cost line is unknown while the
+		// token line keeps the counts, and no article is published.
+		e := newRunEnv(t)
+		e.withSteps = true
+		e.args = []string{"--no-shorten", "--no-review", "--out", e.outPath, runVideoURL}
+		useFixedClock(e, costGenTime)
+		rejectedUsage := llm.KnownUsage(llm.TokenCounts{Input: 1000, Output: 200})
+		e.client = funcLLM(func(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {
+			return usageResponse("", "gpt-6-astra", rejectedUsage),
+				fmt.Errorf("stub: %w", llm.ErrTruncated)
+		})
+
+		if code := e.run(); code == exitOK {
+			t.Fatalf("exit code = %d, want a failure (the response was rejected)", code)
+		}
+		requireTokenLines(t, e, []string{knownLine("generation", tokensRun, "gpt-6-astra", rejectedUsage)})
+		requireCostLines(t, e, []string{
+			"yt2column: cost: generation run unknown reason=" + costReasonPricingContextUnknown + " at=2026-10-16T01:00:00Z",
+			"yt2column: cost-total: run unknown",
+			"yt2column: cost-total: article unknown",
+		})
+		requireNoFile(t, e.outPath)
 	})
 
 	t.Run("review call fails", func(t *testing.T) {
@@ -726,6 +796,35 @@ func TestRunCostLinesResume(t *testing.T) {
 			costArtTotal,
 		})
 	})
+
+	t.Run("a reused stage keeps an unknown cost", func(t *testing.T) {
+		// Save an OpenAI review whose counts are known but whose pricing
+		// condition is not, so the reused stage stays unknown after the
+		// resume.
+		dir := saveCostArtifacts(t, func(e *runEnv) {
+			useFixedClock(e, costGenTime, costShortTime, costReviewTime)
+			e.client = usageSequence(
+				usageResponse(longGeneratedText(), costGenModel, costGenTokens),
+				usageResponse(shortGeneratedText(), costShortModel, costShortTokens),
+			)
+			e.useReviewClient(usageLLM(usageResponse(emptyReviewJSON, "gpt-6-astra",
+				llm.KnownUsage(llm.TokenCounts{Input: 1000, Output: 200}))))
+		})
+		e := newRunEnv(t)
+		e.withSteps = true
+		e.args = []string{"--artifacts", dir, "--after", "review", "--out", e.outPath, runVideoURL}
+
+		if code := e.run(); code != exitOK {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
+		}
+		requireCostLines(t, e, []string{
+			"yt2column: cost: generation reused known usd=0.000600 flat at=2026-10-16T01:00:00Z",
+			"yt2column: cost: shorten reused known usd=0.000300 flat at=2026-10-16T04:02:41Z",
+			"yt2column: cost: review reused unknown reason=" + costReasonPricingContextUnknown + " at=2026-10-16T04:03:15Z",
+			"yt2column: cost-total: run known usd=0.000000",
+			"yt2column: cost-total: article unknown",
+		})
+	})
 }
 
 func TestRunCostLinesResumeUnknownStage(t *testing.T) {
@@ -802,4 +901,131 @@ func TestRunCostLinesResumeUsesSavedTime(t *testing.T) {
 			t.Errorf("reused generation line = %q, want the saved off-peak basis and time", first)
 		}
 	})
+}
+
+// TestRunOpenAIUsageRecords checks an OpenAI run end to end: each stage's four
+// token categories and model reach the token lines, the cost lines are the
+// hand-checked Standard 30-minute-cache amounts, the article records the cost,
+// the artifact files store the four categories, the model, and the pricing
+// condition, and a resume reuses those records without changing their bytes.
+func TestRunOpenAIUsageRecords(t *testing.T) {
+	const (
+		openAIGenModel    = "gpt-6-astra"
+		openAIShortModel  = "gpt-6.1-sol"
+		openAIReviewModel = "gpt-6-astra"
+	)
+	genUsage := openAIStandardUsage(t, llm.TokenCounts{Input: 1000, CacheRead: 2000, CacheWrite: 3000, Output: 4000})
+	shortUsage := openAIStandardUsage(t, llm.TokenCounts{Input: 10, CacheRead: 20, CacheWrite: 30, Output: 40})
+	reviewUsage := openAIStandardUsage(t, llm.TokenCounts{Input: 272001, Output: 1000})
+
+	first := newRunEnv(t)
+	first.withSteps = true
+	dir := artifactsPath(t, first.base)
+	first.args = []string{"--artifacts", dir, "--keep-cache", "--out", first.outPath, runVideoURL}
+	useFixedClock(first, costGenTime, costShortTime, costReviewTime)
+	first.client = usageSequence(
+		usageResponse(longGeneratedText(), openAIGenModel, genUsage),
+		usageResponse(shortGeneratedText(), openAIShortModel, shortUsage),
+	)
+	first.useReviewClient(usageLLM(usageResponse(reviewJSON("A short body.", "A shorter body."), openAIReviewModel, reviewUsage)))
+	if code := first.run(); code != exitOK {
+		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, first.stderr.String())
+	}
+
+	// The token lines carry each stage's four categories and its model.
+	requireTokenLines(t, first, []string{
+		knownLine("generation", tokensRun, openAIGenModel, genUsage),
+		knownLine("shorten", tokensRun, openAIShortModel, shortUsage),
+		knownLine("review", tokensRun, openAIReviewModel, reviewUsage),
+	})
+	// The amounts are hand-calculated from the published Standard rates:
+	// generation 1000*10 + 2000*1 + 3000*12.5 + 4000*50 = 249,500 microUSD;
+	// shorten 10*2 + 20*0.10 + 30*2.50 + 40*10 = 497 microUSD; review, above
+	// the 272,000-token threshold, 272001*20 + 1000*75 = 5,515,020 microUSD.
+	requireCostLines(t, first, []string{
+		"yt2column: cost: generation run known usd=0.249500 short-prompt at=2026-10-16T01:00:00Z",
+		"yt2column: cost: shorten run known usd=0.000497 short-prompt at=2026-10-16T04:02:41Z",
+		"yt2column: cost: review run known usd=5.515020 long-prompt at=2026-10-16T04:03:15Z",
+		"yt2column: cost-total: run known usd=5.765017",
+		"yt2column: cost-total: article known usd=5.765017",
+	})
+
+	data, err := os.ReadFile(first.outPath) //nolint:gosec // a path inside the test's temporary directory
+	if err != nil {
+		t.Fatalf("read --out: %v", err)
+	}
+	for _, want := range []string{
+		"\nmodel: \"" + openAIGenModel + "\"\n",
+		"\nshorten_model: \"" + openAIShortModel + "\"\n",
+		"\nreview_model: \"" + openAIReviewModel + "\"\n",
+		"\nestimated_cost_usd: \"5.7650\"\n",
+	} {
+		if !strings.Contains(string(data), want) {
+			t.Errorf("--out does not contain %q:\n%s", want, data)
+		}
+	}
+
+	// The artifacts store the four categories, the model, and the confirmed
+	// condition, so a resume can price the reused stages.
+	artifactWants := map[string][]string{
+		"generation": {
+			`"model":"` + openAIGenModel + `"`,
+			`"input":1000`, `"cache_read":2000`, `"cache_write":3000`, `"output":4000`,
+			`"pricing_context":"standard-30m"`,
+		},
+		"shorten": {
+			`"model":"` + openAIShortModel + `"`,
+			`"input":10`, `"cache_read":20`, `"cache_write":30`, `"output":40`,
+			`"pricing_context":"standard-30m"`,
+		},
+		"review": {
+			`"model":"` + openAIReviewModel + `"`,
+			`"input":272001`, `"output":1000`,
+			`"pricing_context":"standard-30m"`,
+		},
+	}
+	before := make(map[string][]byte, len(artifactWants))
+	for stage, wants := range artifactWants {
+		path := artifactFile(dir, runVideoID, stage)
+		content, err := os.ReadFile(path) //nolint:gosec // a path inside the test's temporary directory
+		if err != nil {
+			t.Fatalf("read the %s artifact: %v", stage, err)
+		}
+		for _, want := range wants {
+			if !strings.Contains(string(content), want) {
+				t.Errorf("the %s artifact does not contain %q:\n%s", stage, want, content)
+			}
+		}
+		before[stage] = content
+	}
+
+	// A resume reuses every stage: the records keep their categories, model,
+	// and condition, the cost stays known, and no artifact's bytes change.
+	second := newRunEnv(t)
+	second.withSteps = true
+	second.args = []string{"--artifacts", dir, "--after", "review", "--out", second.outPath, runVideoURL}
+	if code := second.run(); code != exitOK {
+		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, second.stderr.String())
+	}
+	requireTokenLines(t, second, []string{
+		knownLine("generation", tokensReused, openAIGenModel, genUsage),
+		knownLine("shorten", tokensReused, openAIShortModel, shortUsage),
+		knownLine("review", tokensReused, openAIReviewModel, reviewUsage),
+	})
+	requireCostLines(t, second, []string{
+		"yt2column: cost: generation reused known usd=0.249500 short-prompt at=2026-10-16T01:00:00Z",
+		"yt2column: cost: shorten reused known usd=0.000497 short-prompt at=2026-10-16T04:02:41Z",
+		"yt2column: cost: review reused known usd=5.515020 long-prompt at=2026-10-16T04:03:15Z",
+		"yt2column: cost-total: run known usd=0.000000",
+		"yt2column: cost-total: article known usd=5.765017",
+	})
+	for stage, want := range before {
+		got, err := os.ReadFile(artifactFile(dir, runVideoID, stage)) //nolint:gosec // a path inside the test's temporary directory
+		if err != nil {
+			t.Fatalf("read the %s artifact after the resume: %v", stage, err)
+		}
+		if !slices.Equal(got, want) {
+			t.Errorf("the resume changed the bytes of the %s artifact", stage)
+		}
+	}
 }

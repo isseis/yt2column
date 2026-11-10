@@ -38,6 +38,9 @@ func TestCostSummary(t *testing.T) {
 		{"unknown usage", pricing.Estimate("claude-opus-5-5", llm.UnknownUsage(llm.RuleNotRead, ""), time.Time{}), "unknown reason=usage-unknown"},
 		{"no model", pricing.Estimate("", usage, time.Time{}), "unknown reason=no-model"},
 		{"unpriced model", pricing.Estimate("gpt-5", usage, time.Time{}), "unknown reason=unpriced-model"},
+		// An OpenAI rate requires the confirmed Standard and 30-minute-cache
+		// condition, which this usage does not report.
+		{"pricing context unknown", pricing.Estimate("gpt-6-astra", usage, time.Time{}), "unknown reason=pricing-context-unknown"},
 		// A time-of-day model with a zero call time breaks an invariant.
 		{"invalid", pricing.Estimate("deepseek-flash", usage, time.Time{}), "unknown reason=invalid"},
 		{"zero value", pricing.StageCost{}, "unknown reason=invalid"},
