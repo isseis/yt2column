@@ -545,15 +545,17 @@ func checkACIgnoresGitConfig(t *testing.T, bash scriptBash, scope string, s acCo
 }
 
 // The code block lines a command document may write the candidates script
-// in: the write-out of origin/main's copy to <candidates-script>, named by
-// its full reference so a local branch named origin/main cannot stand in,
-// and the run of that copy on the <path-file>s. adrCandidatesRef reads the
-// reference: fixpr.md records it before the Fix agent runs and reads it
-// again just before the write-out, so an agent that moves the reference
-// cannot choose the script that judges its items.
+// in: the reading of origin/main's commit, by its full reference so a
+// local branch named origin/main cannot stand in; the write-out of that
+// commit's copy to <candidates-script>, by the commit ID recorded before the
+// Fix agent ran (<origin-main-commit>), not by the reference, so an agent
+// that moves the reference cannot choose the script that judges its items;
+// and the run of that copy on the <path-file>s. fixpr.md records the commit
+// with adrCandidatesRef before the Fix agent runs and reads it again with
+// the same line just before the write-out.
 const (
 	adrCandidatesRef  = "git rev-parse --verify 'refs/remotes/origin/main^{commit}'"
-	adrCandidatesShow = "git show refs/remotes/origin/main:.claude/commands/_lib/adr-correction-candidates.sh > <candidates-script>"
+	adrCandidatesShow = "git show <origin-main-commit>:.claude/commands/_lib/adr-correction-candidates.sh > <candidates-script>"
 	adrCandidatesRun  = "bash <candidates-script> <path-file>... 2> <error-file>"
 )
 

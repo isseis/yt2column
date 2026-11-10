@@ -584,12 +584,15 @@ overwritten. The script is trusted only while `refs/remotes/origin/main` is
 where it was before the Fix agent ran: the agent is told not to write under
 `.git`, but nothing else stops it from moving the ref to a commit whose script
 says what the agent wants. So the first line below reads the ref again, and
-what it prints must equal the round's `origin/main` commit. Run the three
-lines as separate commands, so each one's exit status is seen:
+what it prints must equal the round's `origin/main` commit; the second line
+writes out the script from that recorded commit ID (`<origin-main-commit>`),
+not from the ref, so a ref moved after the first line does not choose the
+script either. Run the three lines as separate commands, so each one's exit
+status is seen:
 
 ```bash
 git rev-parse --verify 'refs/remotes/origin/main^{commit}'
-git show refs/remotes/origin/main:.claude/commands/_lib/adr-correction-candidates.sh > <candidates-script>
+git show <origin-main-commit>:.claude/commands/_lib/adr-correction-candidates.sh > <candidates-script>
 bash <candidates-script> <path-file>... 2> <error-file>
 ```
 
