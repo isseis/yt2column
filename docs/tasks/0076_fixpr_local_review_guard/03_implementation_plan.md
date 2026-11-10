@@ -339,13 +339,13 @@
 
 **変更するファイル:** `docs/tasks/0076_fixpr_local_review_guard/_checks/unchanged_callers.sh`（新規）、`docs/tasks/0076_fixpr_local_review_guard/03_implementation_plan.md`（AC-03・AC-11 の記録）
 
--   [ ] `_checks/unchanged_callers.sh <upstream> <head>` を書く。merge-base と head の間で、次がバイト単位で同じであることを確かめる（設計書 7.4 の最後の段落）。
+-   [x] `_checks/unchanged_callers.sh <upstream> <head>` を書く。merge-base と head の間で、次がバイト単位で同じであることを確かめる（設計書 7.4 の最後の段落）。
     -   `.claude/commands/runplan.md` と `.claude/commands/_lib/task-pr-handoff.md` の全体。
     -   `runpr.md` の step 1 の standalone の変更の項目（`85feed05` で `:117-171`。ローカルの CLI レビュー、README の同期、push を含む）。項目は、`- If none exists, it is a standalone change:` の行から、同じ字下げの次の `-` の行の前までとする。
     -   `local-cli-review.md` の手順 7（記録の行。AC-03）。`7. **Record lines.**` の行から `8. **SUMMARY.**` の行の前までとする。
--   [ ] 項目と手順 7 は、どちらの版でもちょうど 1 つ見つからなければ、終了コード `1` で止める（見つける文が変わって、両方の版で見つからないまま通るのを防ぐ）。
--   [ ] PR のブランチで 1 回実行し、出力と 2 つのコミット ID を 7 章の AC-03・AC-11 の行に記録する。記録するのは実行した時点の head である。その後の commit が対象のファイルを変えたときだけ、実行し直して記録を改める。
--   [ ] 壊して確かめる: 4 つの対象のそれぞれに 1 文字の変更を一時的なコミットで作り、終了コード `1` になることを確かめる。2 つの見つける行（standalone の変更の項目と手順 7）のそれぞれの文を変えたとき（見つからない）も終了コード `1` になることを確かめる。`runpr.md` の step 1 の `head` の項目だけを変えたときに終了コード `0` のままであることも確かめる。結果を記録する。
+-   [x] 項目と手順 7 は、どちらの版でもちょうど 1 つ見つからなければ、終了コード `1` で止める（見つける文が変わって、両方の版で見つからないまま通るのを防ぐ）。
+-   [x] PR のブランチで 1 回実行し、出力と 2 つのコミット ID を 7 章の AC-03・AC-11 の行に記録する。記録するのは実行した時点の head である。その後の commit が対象のファイルを変えたときだけ、実行し直して記録を改める。
+-   [x] 壊して確かめる: 4 つの対象のそれぞれに 1 文字の変更を一時的なコミットで作り、終了コード `1` になることを確かめる。2 つの見つける行（standalone の変更の項目と手順 7）のそれぞれの文を変えたとき（見つからない）も終了コード `1` になることを確かめる。`runpr.md` の step 1 の `head` の項目だけを変えたときに終了コード `0` のままであることも確かめる。結果を記録する。
 
 **成功の条件:** スクリプトが終了コード `0` で終わり、6 つの壊した場合のどれもが終了コード `1` になる。
 
@@ -470,7 +470,7 @@
 |---|---|---|---|
 | AC-01 | `cmd/yt2column/fixpr_docs_test.go` の GUARD の構造の検査（手順 1・3・5・6 と入力の `**GUARD**`、`fixpr.md` の Phase 4.5 が渡す `fixprguard check`）、`TestFixprguardCallSites`（Phase 4.5 の `check`）。1 つの step の中の時点（手順 5 の 3 つ）と `fixpr.md` の 3 つの時点は PR-1 のレビューで読む（設計書 5.3） | static・manual | ステップ 6-2・6-3・6-8 |
 | AC-02 | `internal/fixprguard/review_test.go`（系列の判定の各行、`--commit` との不一致、ブランチの切り替え、config・hooks・info・対象のファイルの各行、比較の順序）、`internal/fixprguard/gitstate_test.go::TestBaselineDetectsChange` | test | ステップ 2-1・3-1 |
-| AC-03 | `_checks/unchanged_callers.sh`（`local-cli-review.md` の手順 7 の本文）。`fixpr.md` の README の同期の commit のメッセージは PR-1 のレビューで読む | diff・manual | ステップ 6-3・7-3 |
+| AC-03 | `_checks/unchanged_callers.sh`（`local-cli-review.md` の手順 7 の本文）。`fixpr.md` の README の同期の commit のメッセージは PR-1 のレビューで読む。記録（2026-11-10）: `_checks/unchanged_callers.sh origin/main HEAD` を merge-base `9f57e8c3086a607a8cf36f51d70a934a9970f673`、head `800e19413d2b9066e1e4716e04e9e5f95412bbc2` で実行し、終了コード `0`、出力の最後の行「runplan.md, task-pr-handoff.md, runpr.md's standalone-change item, and local-cli-review.md step 7 are unchanged」。壊した 6 つの場合（`runplan.md`・`task-pr-handoff.md`・standalone の変更の項目・手順 7 のそれぞれの 1 文字の変更と、2 つの見つける行の変更）は、どれも終了コード `1` だった。`runpr.md` の step 1 の `head` の項目だけを変えた場合は、終了コード `0` のままだった | diff・manual | ステップ 6-3・7-3 |
 | AC-04 | `internal/fixprguard/review_test.go`（止まるどの行でも `git push` を起動せず、リモートが動かない）。`fixpr.md` の止まったときの振る舞いは PR-1 のレビューで読む | test・manual | ステップ 4-1・6-3 |
 | AC-05 | `internal/fixprguard/review_test.go`（`branch`・`head`・`remote` の区別、規則の名前、止まった時点の記録のファイル）、`cmd/fixprguard/main_test.go`（標準エラーの規則の名前）、`cmd/fixprguard/docs_test.go::TestGuideNamesGitStateParts` とステップ 6-8 の規則の名前のガード。Final report の項目は PR-1 のレビューで読む | test・static・manual | ステップ 2-1・3-1・5-1・6-3・6-6・6-8 |
 | AC-06 | `cmd/yt2column/fixpr_docs_test.go::TestRemovedCommandLiterals`（Phase 4.5 を含む）、`TestFixprguardCallSites`（Phase 4.5 の `push-review`）。ツールが push することは `internal/fixprguard/review_test.go` と `cmd/fixprguard/main_test.go` の `push-review` の成功の行。`commits` が 1 以上のときだけ呼ぶことは PR-1 のレビューで読む | static・test・manual | ステップ 4-1・5-1・6-3・6-8 |
@@ -478,7 +478,7 @@
 | AC-08 | `internal/fixprguard/review_test.go`（設定された push の refspec とタグ、`ls-remote` の後に HEAD を進める行）、既存の `worktree_flow_test.go::TestPushExplicitRefspec` | test | ステップ 4-1 |
 | AC-09 | `internal/fixprguard/review_test.go` と `cmd/fixprguard/main_test.go`（Phase 4.5 の commit がないときの `push-review` の拒否）。`fixpr.md` が呼ばないことは PR-1 のレビューで読む | test・manual | ステップ 4-1・5-1・6-3 |
 | AC-10 | `cmd/fixprguard/main_test.go::TestProtocolMismatch`（`check`・`push-review` を含む）、`cmd/fixprguard/docs_test.go::TestDocumentedProtocolMatches`。案内の内容は PR-1 のレビューで読む | test・static・manual | ステップ 5-1・6-1・6-3・6-4 |
-| AC-11 | `_checks/unchanged_callers.sh`（`runplan.md`・`task-pr-handoff.md` の全体と、`runpr.md` の step 1 の standalone の変更の項目）。`local-cli-review.md` に加えた文が GUARD を渡されたときだけに働くことは PR-1 のレビューで読む | diff・manual | ステップ 6-2・7-3 |
+| AC-11 | `_checks/unchanged_callers.sh`（`runplan.md`・`task-pr-handoff.md` の全体と、`runpr.md` の step 1 の standalone の変更の項目）。`local-cli-review.md` に加えた文が GUARD を渡されたときだけに働くことは PR-1 のレビューで読む。記録（2026-11-10）: `_checks/unchanged_callers.sh origin/main HEAD` を merge-base `9f57e8c3086a607a8cf36f51d70a934a9970f673`、head `800e19413d2b9066e1e4716e04e9e5f95412bbc2` で実行し、終了コード `0`、出力の最後の行「runplan.md, task-pr-handoff.md, runpr.md's standalone-change item, and local-cli-review.md step 7 are unchanged」。壊した 6 つの場合（`runplan.md`・`task-pr-handoff.md`・standalone の変更の項目・手順 7 のそれぞれの 1 文字の変更と、2 つの見つける行の変更）は、どれも終了コード `1` だった。`runpr.md` の step 1 の `head` の項目だけを変えた場合は、終了コード `0` のままだった | diff・manual | ステップ 6-2・7-3 |
 | AC-12 | `TestDocumentedInvocationsParse`・`TestDocumentedProtocolMatches`・`TestGuideNamesGitStateParts`・ステップ 6-8 の規則の名前のガード（`cmd/fixprguard/docs_test.go`）、`TestADRRecords`。各文書の内容は PR-1 のレビューで読む | static・manual | ステップ 6-1〜6-7・6-8・7-1 |
 | AC-13 | `_checks/notes_only.sh origin/main HEAD`。注記の文面は PR-1 のレビューで読む。記録（2026-11-10）: merge-base `9f57e8c3086a607a8cf36f51d70a934a9970f673`、head `a767d27c3acfbf3de9b0b3e24f575715ba4f0583`、終了コード `0`、出力の最後の行「docs/tasks/0030_fixpr_untrusted_threads/02_architecture.md adds one task 0076 note per listed section, before the body, and changes nothing else」。壊した 9 つの場合は、どれも終了コード `1` で、その性質の理由の行を出した。本文の 1 行の書き換え（removed と added without >）、`>` で始まらない行の追加（added block does not start with the note）、ある節の注記の削除（holds 0 task 0076 notes）、ある節への 2 つ目の注記（holds 2）、対象の外の節への注記（holds 4 ..., not one per listed section）、注記を節の本文の後ろへ移す（comes after the body）、リンクのない注記（has no link）、ファイルのモードの変更（changed its file mode）。`## Document Status` の節の中への追加は、(2) を通るよう注記の形の行で作った。(3) の理由（changed its Document Status table）を出したが、注記の数が増えるので (4) の理由も出た。(3) だけに当たる場合は作れなかった（ほかの形の行は (2) で止まる） | diff・manual | ステップ 7-2 |
 | AC-14 | 各 PR の `make test`・`make lint` と CI の `doc-guard` | static | すべてのステップ |
