@@ -108,6 +108,8 @@
 
 ## [ADR-0015](../../dev/adr/0015-untrusted-review-threads.md)
 
+**取り下げ（2026-11-10）:** この ADR は、PR-5 の基点の後で `main` が変えた（[#799](https://github.com/isseis/yt2column/pull/799)。0076 の実装）。マージの前の確認で、PR-5 の変更を戻して `main` の版にした（[設計書](02_architecture.md) 3.10）。以下の対応表・頼る参照は、戻す前の見直しの記録である。足りない書き直しは、追加の PR が受け持つ（[実装計画書](03_implementation_plan.md) 1.5）。
+
 ### 対応表
 
 | 前の記述 | 行き先 | 根拠 |
