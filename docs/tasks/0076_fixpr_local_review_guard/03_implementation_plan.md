@@ -211,14 +211,14 @@
 
 **変更するファイル:** `cmd/fixprguard/main.go`、`cmd/fixprguard/main_test.go`、`internal/fixprguard/types.go`
 
--   [ ] `check` と `push-review` を、サブコマンドの名前の定数、`specs`（`flags` は `--baseline` と `--commit`、どちらも必須、`arg: argNone`、`usesGH: false`）、`execute` の `switch` に加える。処理は `push`（1.4）と同じ形で、`ParseBaseline` の後に `CheckReviewState`・`PushReviewed` を呼ぶ。出力の `protocol` は、`internal/fixprguard` が入れる（1.3）。
--   [ ] `Protocol` を `5` から `6` にする（`types.go:21`）。
--   [ ] 2 つのサブコマンドを `validArgs` に加える（`--protocol` の不一致は `TestProtocolMismatch` が確かめる）。`TestPreviousBaselineRejected` には加えない。このテストは `.git` のない場所で実行するので、新しいサブコマンドでは `.git` の確かめも同じ終了コード `2` になり、基準値の拒否と区別できないためである。基準値の解析は `push` と共有の `ParseBaseline` である。`TestGhTargetEnvRejected` は、`usesGH` が `false` なので行を求めない。
--   [ ] 新しいテストを書く（設計書 7.3）。どちらも、実際のリポジトリで実行し、`gh` の fake に呼び出しがないこと（`newTestRun(t, nil)`）を確かめる。Phase 4 の commit は、`repo.Begin()` で基準値を取った後に `repo.Git` で commit し、`origin` の同じ名前のブランチに push して作る（`-u` は付けない。設定を変えないため）。新しい補助が要れば `cmd/fixprguard/test_helpers.go`（`//go:build test`）に置く。
+-   [x] `check` と `push-review` を、サブコマンドの名前の定数、`specs`（`flags` は `--baseline` と `--commit`、どちらも必須、`arg: argNone`、`usesGH: false`）、`execute` の `switch` に加える。処理は `push`（1.4）と同じ形で、`ParseBaseline` の後に `CheckReviewState`・`PushReviewed` を呼ぶ。出力の `protocol` は、`internal/fixprguard` が入れる（1.3）。
+-   [x] `Protocol` を `5` から `6` にする（`types.go:21`）。
+-   [x] 2 つのサブコマンドを `validArgs` に加える（`--protocol` の不一致は `TestProtocolMismatch` が確かめる）。`TestPreviousBaselineRejected` には加えない。このテストは `.git` のない場所で実行するので、新しいサブコマンドでは `.git` の確かめも同じ終了コード `2` になり、基準値の拒否と区別できないためである。基準値の解析は `push` と共有の `ParseBaseline` である。`TestGhTargetEnvRejected` は、`usesGH` が `false` なので行を求めない。
+-   [x] 新しいテストを書く（設計書 7.3）。どちらも、実際のリポジトリで実行し、`gh` の fake に呼び出しがないこと（`newTestRun(t, nil)`）を確かめる。Phase 4 の commit は、`repo.Begin()` で基準値を取った後に `repo.Git` で commit し、`origin` の同じ名前のブランチに push して作る（`-u` は付けない。設定を変えないため）。新しい補助が要れば `cmd/fixprguard/test_helpers.go`（`//go:build test`）に置く。
     -   `check`: 終了コード `0` で、出力の JSON の項目が `protocol`・`base`・`head`・`commits` のちょうど 4 つであり、`protocol` が `fixprguard.Protocol`、ほかの 3 つがリポジトリの値（基準値の commit、HEAD、Phase 4.5 の commit の数）と等しいこと。ブランチを切り替えたときに終了コード `1` で `parts` が `branch` であること。
     -   `push-review`: 終了コード `0` で、出力が `protocol`・`pushed`・`commit` であり、`commit` が HEAD と等しいこと。Phase 4.5 の commit がないとき、終了コード `2` になること（push しないことはステップ 4-1 の行が確かめる）。リモートの pre-receive の hook で push を失敗させたとき、終了コード `1` で `stop` が `git-failed`、標準エラーの 1 行が規則の名前 `push` を含むこと（1.2）。
     -   どちらも: `.git` のない場所と、`--commit` の形の誤りで、終了コード `2` になること。`head` で止まったときに、標準エラーの 1 行が規則の名前を含み、SHA を含まないこと。
--   [ ] 壊して確かめる: `specs` の `usesGH` を `true` にする（`TestGhTargetEnvRejected`）、出力の `Protocol` を入れない、`push-review` の送るものがないときの拒否を外す、push の規則の名前を変える。どの行が失敗したかをコミットメッセージに書く。
+-   [x] 壊して確かめる: `specs` の `usesGH` を `true` にする（`TestGhTargetEnvRejected`）、出力の `Protocol` を入れない、`push-review` の送るものがないときの拒否を外す、push の規則の名前を変える。どの行が失敗したかをコミットメッセージに書く。
 
 **成功の条件（フェーズ 5 の完了の条件）:** このフェーズだけでは、文書が `--protocol 5` のままなので、`TestDocumentedProtocolMatches` と `TestDocumentedInvocationsParse` の 2 つだけが失敗する。`make fmt`、`make lint`、`go test -tags test ./... -skip '^(TestDocumentedProtocolMatches|TestDocumentedInvocationsParse)$'` が通ることを確かめ、フェーズ 6 に進む。`/runplan` は、フェーズ 5 と 6 を 1 つの実装のまとまりとして進める。
 
@@ -228,8 +228,8 @@
 
 **変更するファイル:** `.claude/commands/fixpr.md`、`.claude/commands/runpr.md`、`docs/dev/guides/fixprguard_guide.md`
 
--   [ ] `fixpr.md`・`runpr.md` のすべての `--protocol 5` を `--protocol 6` にし、`runpr.md:195` の出力の例の `"protocol":5` を `"protocol":6` にする（1.4）。
--   [ ] ガイドの例の `--protocol 5`、出力の `"protocol":5`、4 章の「現在の番号は `5`」を `6` にする（1.4 の数）。
+-   [x] `fixpr.md`・`runpr.md` のすべての `--protocol 5` を `--protocol 6` にし、`runpr.md:195` の出力の例の `"protocol":5` を `"protocol":6` にする（1.4）。
+-   [x] ガイドの例の `--protocol 5`、出力の `"protocol":5`、4 章の「現在の番号は `5`」を `6` にする（1.4 の数）。
 
 **成功の条件:** `TestDocumentedProtocolMatches` が通る。
 
@@ -237,9 +237,9 @@
 
 **変更するファイル:** `.claude/commands/_lib/local-cli-review.md`
 
--   [ ] 入力に、任意の入力 **GUARD** と **ROOT** を、設計書 3.6 のとおりに加える。GUARD の項目は、太字のラベル `**GUARD**` で始める（ステップ 6-8 のガードが探す）。
--   [ ] 設計書 3.6 の表の `local-cli-review.md` の時点（手順 1 の最初、手順 3 の最初、手順 5 の build checks の前・README の同期の検査の前・stage の前、手順 6 の `coderabbit review findings --clear` の前）に、GUARD を実行する文を書く。手順 3 では、GUARD を渡されたとき、`git rev-parse --show-toplevel` を起動せず、ROOT への単独の `cd` の後に GUARD を実行する。
--   [ ] 加える文は、どれも GUARD を渡されたときだけに働く形にする。渡されないときの文と振る舞いは変えない（AC-11）。手順 7（記録の行）は変えない（AC-03。ステップ 7-3 の確かめの対象）。
+-   [x] 入力に、任意の入力 **GUARD** と **ROOT** を、設計書 3.6 のとおりに加える。GUARD の項目は、太字のラベル `**GUARD**` で始める（ステップ 6-8 のガードが探す）。
+-   [x] 設計書 3.6 の表の `local-cli-review.md` の時点（手順 1 の最初、手順 3 の最初、手順 5 の build checks の前・README の同期の検査の前・stage の前、手順 6 の `coderabbit review findings --clear` の前）に、GUARD を実行する文を書く。手順 3 では、GUARD を渡されたとき、`git rev-parse --show-toplevel` を起動せず、ROOT への単独の `cd` の後に GUARD を実行する。
+-   [x] 加える文は、どれも GUARD を渡されたときだけに働く形にする。渡されないときの文と振る舞いは変えない（AC-11）。手順 7（記録の行）は変えない（AC-03。ステップ 7-3 の確かめの対象）。
 
 **成功の条件:** ステップ 6-8 のガードが通る。GUARD を渡されたときだけに働く形かは、PR-1 のレビューで読む。
 
@@ -247,14 +247,14 @@
 
 **変更するファイル:** `.claude/commands/fixpr.md`
 
--   [ ] Phase 1: `begin` が通った直後に、今の場所を `pwd` で記録することを書く（設計書 3.6「実行する場所」）。
--   [ ] Phase 4.5 を、設計書 3.6〜3.8 のとおりに書き直す。内容は、次の順に書く。最初の `check`（BASE は出力の `base`）、手順に渡す BASE・SCOPE・SUMMARY・GUARD・ROOT、手順が戻った直後の `check`（`commits` とセッションが数えた commit の数の照合、HEAD3）、README の同期の検査、`README.en.md` の stage の前の `check`、`push-review`（`commits` が 1 以上のときだけ）。`git push`・`git commit -m` と書かない（1.2）。`check` と `push-review` の呼び出しの形は、コードブロックの行としても書く（`TestDocumentedInvocationsParse` はコードブロックの `fixprguard ` で始まる行だけを解析するため。`cmd/fixprguard/docs_test.go:187-204`）。
--   [ ] Phase 3.5 の止まったときの記述（`:680-686`）の `parts` の値の列挙に `branch` を加える（1.4）。
--   [ ] 止まったときの振る舞いと、報告に使う値（設計書 3.8）を Phase 4.5 に書く。止まった後に git を起動しないこと、`push-review` の結果が不明な場合、最初の `check` で止まった場合を含める。
--   [ ] 「The guard tool」: 番号の合わないツールの案内（設計書 3.7。診断が `--protocol does not match` を含むときの 2 つの直し方）を書く。「Stops on the ignored files」に、`check`・`push-review` と、GUARD として実行した `check` の停止を加える（設計書 3.7）。
--   [ ] 「Authorization」: `git push` を Phase 4（`push`）と Phase 4.5（`push-review`）でガードツールが行うと書き直し、`README.en.md` の commit が `push-review` で push されると直す（設計書 3.7）。
--   [ ] Final report: 設計書 3.8 の表のとおりに、「Stops to act on」（7）、「Editorial corrections」（9）、「Local CLI review」（10）を直す。1 の要約の行に、Phase 4.5 の比較で止まったことを示す語を加える。
--   [ ] 書いた内容を設計書と照合する。設計書 3.6 の表の 10 の時点、3.7 の各項目、3.8 の各項目（報告に使う値、「少なくとも」の数、push の結果が不明な場合、最初の `check` で止まった場合）と Final report の表のそれぞれについて、それを書いた `fixpr.md`・`local-cli-review.md`・`runpr.md` の箇所を対応させ、その対応をコミットメッセージに書く。PR-1 のレビューは、この対応に沿って読む。
+-   [x] Phase 1: `begin` が通った直後に、今の場所を `pwd` で記録することを書く（設計書 3.6「実行する場所」）。
+-   [x] Phase 4.5 を、設計書 3.6〜3.8 のとおりに書き直す。内容は、次の順に書く。最初の `check`（BASE は出力の `base`）、手順に渡す BASE・SCOPE・SUMMARY・GUARD・ROOT、手順が戻った直後の `check`（`commits` とセッションが数えた commit の数の照合、HEAD3）、README の同期の検査、`README.en.md` の stage の前の `check`、`push-review`（`commits` が 1 以上のときだけ）。`git push`・`git commit -m` と書かない（1.2）。`check` と `push-review` の呼び出しの形は、コードブロックの行としても書く（`TestDocumentedInvocationsParse` はコードブロックの `fixprguard ` で始まる行だけを解析するため。`cmd/fixprguard/docs_test.go:187-204`）。
+-   [x] Phase 3.5 の止まったときの記述（`:680-686`）の `parts` の値の列挙に `branch` を加える（1.4）。
+-   [x] 止まったときの振る舞いと、報告に使う値（設計書 3.8）を Phase 4.5 に書く。止まった後に git を起動しないこと、`push-review` の結果が不明な場合、最初の `check` で止まった場合を含める。
+-   [x] 「The guard tool」: 番号の合わないツールの案内（設計書 3.7。診断が `--protocol does not match` を含むときの 2 つの直し方）を書く。「Stops on the ignored files」に、`check`・`push-review` と、GUARD として実行した `check` の停止を加える（設計書 3.7）。
+-   [x] 「Authorization」: `git push` を Phase 4（`push`）と Phase 4.5（`push-review`）でガードツールが行うと書き直し、`README.en.md` の commit が `push-review` で push されると直す（設計書 3.7）。
+-   [x] Final report: 設計書 3.8 の表のとおりに、「Stops to act on」（7）、「Editorial corrections」（9）、「Local CLI review」（10）を直す。1 の要約の行に、Phase 4.5 の比較で止まったことを示す語を加える。
+-   [x] 書いた内容を設計書と照合する。設計書 3.6 の表の 10 の時点、3.7 の各項目、3.8 の各項目（報告に使う値、「少なくとも」の数、push の結果が不明な場合、最初の `check` で止まった場合）と Final report の表のそれぞれについて、それを書いた `fixpr.md`・`local-cli-review.md`・`runpr.md` の箇所を対応させ、その対応をコミットメッセージに書く。PR-1 のレビューは、この対応に沿って読む。
 
 **成功の条件:** ステップ 6-8 のガードが通る。内容は PR-1 のレビューで読む。
 
@@ -262,8 +262,8 @@
 
 **変更するファイル:** `.claude/commands/runpr.md`
 
--   [ ] step 1 の `head` の呼び出し（`:173-182`）に、番号の合わないツールの案内（設計書 3.7）を足す。この診断を、fork の PR の停止として報告しないことを書く。
--   [ ] step 1 の standalone の変更の項目（`:117-171`。ローカルの CLI レビュー、README の同期、push を含む）は変えない（AC-11。ステップ 7-3 の確かめの対象）。
+-   [x] step 1 の `head` の呼び出し（`:173-182`）に、番号の合わないツールの案内（設計書 3.7）を足す。この診断を、fork の PR の停止として報告しないことを書く。
+-   [x] step 1 の standalone の変更の項目（`:117-171`。ローカルの CLI レビュー、README の同期、push を含む）は変えない（AC-11。ステップ 7-3 の確かめの対象）。
 
 **成功の条件:** `TestDocumentedInvocationsParse` と `TestRunprDocContract` が通る。内容は PR-1 のレビューで読む。
 
@@ -271,7 +271,7 @@
 
 **変更するファイル:** `.claude/commands/_context.md`
 
--   [ ] 「Guard tool」の行（`:189`）に、Phase 4.5 で `check` が git の起動の前に比べ、`push-review` が push すること、Phase 4.5 の commit が範囲の検査を受けないことを書く（設計書 3.9、AC-12）。
+-   [x] 「Guard tool」の行（`:189`）に、Phase 4.5 で `check` が git の起動の前に比べ、`push-review` が push すること、Phase 4.5 の commit が範囲の検査を受けないことを書く（設計書 3.9、AC-12）。
 
 **成功の条件:** PR-1 のレビューで読む。
 
@@ -279,13 +279,13 @@
 
 **変更するファイル:** `docs/dev/guides/fixprguard_guide.md`
 
--   [ ] 設計書 3.9 の「`fixprguard_guide.md`」の各項目（2 章、4 章、5 章、7.1、7.2、8 章、9 章）を書く。5 章の節の見出しは、既存の節と同じく ``### `check --baseline TOKEN --commit SHA` `` と ``### `push-review --baseline TOKEN --commit SHA` `` の形にする。
--   [ ] 基準値と比べるサブコマンドを列挙する箇所に `check`・`push-review` を加え、書き直す箇所（`:31`、7.2.4 と 7.2.5 の `push` の後の書き換え、7.1 の範囲外の変更の行）を書き直す（どちらも 1.4 の一覧）。
--   [ ] 7.2 の新しい項目は、1.3 の置き場のとおり、7.2.3 と 7.2.4 に書く。
--   [ ] ステップ 1-1 で見つけた VS Code の書き込み（新しく作ったブランチの `branch.<今のブランチ>.vscode-merge-base`）を、7.2.5 の正当な書き込みと 8 章の `config` の対処に書く（書き込みが済んでからやり直す）。
--   [ ] 8 章の `git-state-changed` の行に、`finish` が commit の後に `branch` で止まったとき、commit が基準値のブランチに残ることと、取り消す前に基準値のブランチへ戻ることを書く。同じ行の「HEAD と push 先をその後に比べる」に、ブランチを加える。
--   [ ] 8 章に、`head` の規則の名前の表を置く（ステップ 6-8 のガードが探す）。`line-too-long` は、基準値の commit に着かない長い列（新しい `main` に rebase したブランチなど）も含むことを書く。`git-failed` の行に、`push-review` の push そのものの失敗が規則の名前 `push` で示され、そのときは push が届いたかが分からないことを書く（1.2、設計書 3.8）。
--   [ ] 新しい内容を、もとになる事実と照合する。5 章の出力の例は `ReviewState`・`PushResult` の JSON のタグとステップ 5-1 のテストの出力と、規則の名前の表はステップ 3-1 の一覧と、2 章・4 章の終了コード `2` の条件はステップ 3-1・4-1・5-1 のテストと、それぞれ照合する。照合したものをコミットメッセージに書く。
+-   [x] 設計書 3.9 の「`fixprguard_guide.md`」の各項目（2 章、4 章、5 章、7.1、7.2、8 章、9 章）を書く。5 章の節の見出しは、既存の節と同じく ``### `check --baseline TOKEN --commit SHA` `` と ``### `push-review --baseline TOKEN --commit SHA` `` の形にする。
+-   [x] 基準値と比べるサブコマンドを列挙する箇所に `check`・`push-review` を加え、書き直す箇所（`:31`、7.2.4 と 7.2.5 の `push` の後の書き換え、7.1 の範囲外の変更の行）を書き直す（どちらも 1.4 の一覧）。
+-   [x] 7.2 の新しい項目は、1.3 の置き場のとおり、7.2.3 と 7.2.4 に書く。
+-   [x] ステップ 1-1 で見つけた VS Code の書き込み（新しく作ったブランチの `branch.<今のブランチ>.vscode-merge-base`）を、7.2.5 の正当な書き込みと 8 章の `config` の対処に書く（書き込みが済んでからやり直す）。
+-   [x] 8 章の `git-state-changed` の行に、`finish` が commit の後に `branch` で止まったとき、commit が基準値のブランチに残ることと、取り消す前に基準値のブランチへ戻ることを書く。同じ行の「HEAD と push 先をその後に比べる」に、ブランチを加える。
+-   [x] 8 章に、`head` の規則の名前の表を置く（ステップ 6-8 のガードが探す）。`line-too-long` は、基準値の commit に着かない長い列（新しい `main` に rebase したブランチなど）も含むことを書く。`git-failed` の行に、`push-review` の push そのものの失敗が規則の名前 `push` で示され、そのときは push が届いたかが分からないことを書く（1.2、設計書 3.8）。
+-   [x] 新しい内容を、もとになる事実と照合する。5 章の出力の例は `ReviewState`・`PushResult` の JSON のタグとステップ 5-1 のテストの出力と、規則の名前の表はステップ 3-1 の一覧と、2 章・4 章の終了コード `2` の条件はステップ 3-1・4-1・5-1 のテストと、それぞれ照合する。照合したものをコミットメッセージに書く。
 
 **成功の条件:** `go test -tags test ./cmd/fixprguard` が通る。内容は PR-1 のレビューで読む。
 
@@ -293,7 +293,7 @@
 
 **変更するファイル:** `docs/dev/conventions/package_reference.md`
 
--   [ ] `cmd/fixprguard` の行（`:16`）のサブコマンドの一覧に `check`・`push-review` を英語で加える（1.4）。
+-   [x] `cmd/fixprguard` の行（`:16`）のサブコマンドの一覧に `check`・`push-review` を英語で加える（1.4）。
 
 **成功の条件:** PR-1 のレビューで読む。
 
@@ -301,13 +301,13 @@
 
 **変更するファイル:** `cmd/fixprguard/docs_test.go`、`cmd/yt2column/fixpr_docs_test.go`
 
--   [ ] `TestDocumentedInvocationsParse` の `fixpr.md` の期待（`docs_test.go:217`）に `cmdCheck`・`cmdPushReview` を加える。
--   [ ] `cmd/fixprguard/docs_test.go` に、ガイド 8 章の `head` の規則の名前の表がコードの区切りで挙げる名前の集合が、ステップ 3-1 の一覧と等しいことを確かめるテストを加える（1.3）。
--   [ ] `TestDocumentedProtocolMatches` の `"protocol":N` の照合を、コマンドの文書にも広げる（1.3）。
--   [ ] `fixpr_docs_test.go` に Phase 4.5 の見出しの定数を加え、`TestFixprguardCallSites` に、Phase 4.5 が `fixprguard check ` と `fixprguard push-review ` を呼ぶ 2 行を加える。
--   [ ] `TestRemovedCommandLiterals` の Phase 4.5 の例外とその注記（`:1115-1116`）を外し、見出しの一覧に Phase 4.5 を加える。
--   [ ] 設計書 7.4 の GUARD の構造の検査を加える。`local-cli-review.md` の入力の節に `**GUARD**` で始まる項目があること、手順 1・3・5・6 の各 step の本文が `GUARD` を含むこと、`fixpr.md` の Phase 4.5 が `**GUARD**` に `fixprguard check` を渡すこと。節は、見出し・太字のラベル・step の番号で見つける。この検査は、`CLAUDE.md`「Document tests」の例外のうち、エージェントが信頼の境界で実行するコマンド（`fixprguard` の呼び出し箇所）に当たる（設計書 7.4）。1 つの step の中の時点の数は確かめず、PR のレビューで読む（設計書 5.3）。
--   [ ] 壊して確かめる: ガイドの規則の名前の表から 1 つ消す・1 つ足す、`runpr.md` の出力の例の番号を変える、Phase 4.5 の `push-review` の呼び出しを消す、Phase 4.5 に `git push` の語を戻す、手順 5 の GUARD の文をすべて消す、入力の `**GUARD**` の項目を消す、`fixpr.md` の GUARD に別のコマンドを渡す。
+-   [x] `TestDocumentedInvocationsParse` の `fixpr.md` の期待（`docs_test.go:217`）に `cmdCheck`・`cmdPushReview` を加える。
+-   [x] `cmd/fixprguard/docs_test.go` に、ガイド 8 章の `head` の規則の名前の表の 1 列目がコードの区切りで挙げる名前の集合が、ステップ 3-1 の一覧と等しいことを確かめるテスト（`TestGuideListsHeadLineRules`）を加える（1.3）。
+-   [x] `TestDocumentedProtocolMatches` の `"protocol":N` の照合を、`fixprguard` の出力を示すコマンドの文書（`fixpr.md`・`runpr.md`）にも広げる（1.3）。
+-   [x] `fixpr_docs_test.go` に Phase 4.5 の見出しの定数を加え、`TestFixprguardCallSites` に、Phase 4.5 が `fixprguard check ` と `fixprguard push-review ` を呼ぶ 2 行を加える。
+-   [x] `TestRemovedCommandLiterals` の Phase 4.5 の例外とその注記（`:1115-1116`）を外し、見出しの一覧に Phase 4.5 を加える。
+-   [x] 設計書 7.4 の GUARD の構造の検査（`TestLocalReviewGuard`）を加える。`local-cli-review.md` の入力の節に `**GUARD**` で始まる項目があること、手順 1・3・5・6 の各 step の本文が `GUARD` を含むこと、`fixpr.md` の Phase 4.5 が `**GUARD**` に `fixprguard check` を渡すこと。節は、見出し・太字のラベル・step の番号で見つける。この検査は、`CLAUDE.md`「Document tests」の例外のうち、エージェントが信頼の境界で実行するコマンド（`fixprguard` の呼び出し箇所）に当たる（設計書 7.4）。1 つの step の中の時点の数は確かめず、PR のレビューで読む（設計書 5.3）。
+-   [x] 壊して確かめる: ガイドの規則の名前の表から 1 つ消す・1 つ足す、`runpr.md` の出力の例の番号を変える、Phase 4.5 の `push-review` の呼び出しを消す、Phase 4.5 に `git push` の語を戻す、手順 5 の GUARD の文をすべて消す、入力の `**GUARD**` の項目を消す、`fixpr.md` の GUARD に別のコマンドを渡す。
 
 **成功の条件（フェーズ 6 の完了の条件）:** `make fmt`、`make test`、`make lint` が通る。
 

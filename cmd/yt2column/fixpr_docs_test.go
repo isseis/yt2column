@@ -20,11 +20,12 @@ import (
 
 // Paths from cmd/yt2column to the command documents these tests check.
 const (
-	fixprPath   = "../../.claude/commands/fixpr.md"
-	runprPath   = "../../.claude/commands/runpr.md"
-	contextPath = "../../.claude/commands/_context.md"
-	handoffPath = "../../.claude/commands/_lib/task-pr-handoff.md"
-	mkreqPath   = "../../.claude/commands/mkreq.md"
+	fixprPath       = "../../.claude/commands/fixpr.md"
+	runprPath       = "../../.claude/commands/runpr.md"
+	contextPath     = "../../.claude/commands/_context.md"
+	handoffPath     = "../../.claude/commands/_lib/task-pr-handoff.md"
+	mkreqPath       = "../../.claude/commands/mkreq.md"
+	localReviewPath = "../../.claude/commands/_lib/local-cli-review.md"
 )
 
 // Section headings of fixpr.md and runpr.md the contract tests read.
@@ -35,6 +36,7 @@ const (
 	fixprPhase3      = "## Phase 3 — Fix (model: default)"
 	fixprPhase35     = "## Phase 3.5 — Scope check (this session)"
 	fixprPhase4      = "## Phase 4 — Build + commit + push (this session)"
+	fixprPhase45     = "## Phase 4.5 — Local CLI review of the fix (model: default)"
 	fixprPhase5      = "## Phase 5 — Reply + resolve (this session)"
 	fixprPhase6      = "## Phase 6 — Wrap: PR description (model: haiku)"
 	runprStep1       = "## 1. Resolve the PR, and create it for a standalone change"
@@ -716,6 +718,8 @@ func TestFixprguardCallSites(t *testing.T) {
 		{"fixpr.md", fixpr, fixprPhase35, "fixprguard inspect "},
 		{"fixpr.md", fixpr, fixprPhase4, "fixprguard finish "},
 		{"fixpr.md", fixpr, fixprPhase4, "fixprguard push "},
+		{"fixpr.md", fixpr, fixprPhase45, "fixprguard check "},
+		{"fixpr.md", fixpr, fixprPhase45, "fixprguard push-review "},
 		{"fixpr.md", fixpr, fixprPhase5, "fixprguard reply "},
 		{"fixpr.md", fixpr, fixprPhase6, "fixprguard edit-pr "},
 		{"fixpr.md", fixpr, fixprPhase6, "fixprguard append-pr "},
@@ -1112,11 +1116,65 @@ func TestRemovedCommandLiterals(t *testing.T) {
 			t.Errorf("fixpr.md still passes a PR title inline: %q", strings.TrimSpace(line))
 		}
 	}
-	// Phase 4.5 keeps git push: its commits come after finish, so fixprguard
-	// push, which requires HEAD to be finish's commit, cannot push them.
-	for _, heading := range []string{fixprPhase1, fixprPhase2, fixprPhase3, fixprPhase35, fixprPhase4, fixprPhase5, fixprPhase6} {
+	for _, heading := range []string{fixprPhase1, fixprPhase2, fixprPhase3, fixprPhase35, fixprPhase4, fixprPhase45, fixprPhase5, fixprPhase6} {
 		if strings.Contains(requireSection(t, "fixpr.md", fixpr, heading), "git push") {
-			t.Errorf("fixpr.md %q pushes with git push instead of fixprguard push", heading)
+			t.Errorf("fixpr.md %q pushes with git push instead of fixprguard push or push-review", heading)
 		}
+	}
+}
+
+// procedureStep returns step n of a numbered procedure: from the line that
+// starts "<n>. **" up to the next line that starts a numbered bold step, or ""
+// when there is no such line.
+func procedureStep(doc string, n int) string {
+	start := fmt.Sprintf("%d. **", n)
+	var b strings.Builder
+	in := false
+	for line := range strings.Lines(doc) {
+		if numberedStep.MatchString(line) {
+			if in {
+				break
+			}
+			in = strings.HasPrefix(line, start)
+		}
+		if in {
+			b.WriteString(line)
+		}
+	}
+	return b.String()
+}
+
+// numberedStep matches the first line of a numbered bold step at column 0.
+var numberedStep = regexp.MustCompile(`^[0-9]+\. \*\*`)
+
+// TestLocalReviewGuard: the guard call at the trust boundary of fixpr.md
+// Phase 4.5 is wired in. local-cli-review.md declares a GUARD input, steps 1,
+// 3, 5, and 6 run it (each names it; how many points one step holds is read
+// in review), and fixpr.md Phase 4.5 passes fixprguard check as GUARD.
+func TestLocalReviewGuard(t *testing.T) {
+	review := doctestutil.ReadDoc(t, localReviewPath)
+	inputs := requireSection(t, "local-cli-review.md", review, "## Inputs the calling command must supply")
+	declared := false
+	for line := range strings.Lines(inputs) {
+		if strings.HasPrefix(line, "- **GUARD**") {
+			declared = true
+		}
+	}
+	if !declared {
+		t.Error("local-cli-review.md declares no **GUARD** input")
+	}
+	procedure := requireSection(t, "local-cli-review.md", review, "## Procedure")
+	for _, n := range []int{1, 3, 5, 6} {
+		step := procedureStep(procedure, n)
+		if step == "" {
+			t.Errorf("local-cli-review.md has no step %d", n)
+		} else if !strings.Contains(step, "GUARD") {
+			t.Errorf("local-cli-review.md step %d does not run GUARD", n)
+		}
+	}
+	phase := flat(requireSection(t, "fixpr.md", doctestutil.ReadDoc(t, fixprPath), fixprPhase45))
+	_, after, ok := strings.Cut(phase, "**GUARD** = ")
+	if !ok || !strings.HasPrefix(after, "the `fixprguard check` call") {
+		t.Error("fixpr.md Phase 4.5 does not pass the fixprguard check call as **GUARD**")
 	}
 }
