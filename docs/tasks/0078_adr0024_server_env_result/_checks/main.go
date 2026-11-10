@@ -393,11 +393,11 @@ func checkScope(base, head string, d data) ([]violation, error) {
 		if path == d.ADR.Path {
 			continue
 		}
-		if changed[path] == 'D' {
-			out = append(out, violation{"scope", path, 1, "the file was deleted"})
+		if strings.HasPrefix(path, d.TaskDir) {
 			continue
 		}
-		if strings.HasPrefix(path, d.TaskDir) {
+		if changed[path] == 'D' {
+			out = append(out, violation{"scope", path, 1, "the file was deleted"})
 			continue
 		}
 		out = append(out, violation{"scope", path, 1, "a file outside the ADR and the task directory changed"})
@@ -524,13 +524,11 @@ func resolve(rev string) (string, error) {
 
 // isAncestor reports whether anc is an ancestor of desc.
 func isAncestor(anc, desc string) (bool, error) {
-	cmd := exec.Command("git", "merge-base", "--is-ancestor", anc, desc)
-	err := cmd.Run()
+	err := exec.Command("git", "merge-base", "--is-ancestor", anc, desc).Run()
 	if err == nil {
 		return true, nil
 	}
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
+	if exitErr, ok := errors.AsType[*exec.ExitError](err); ok && exitErr.ExitCode() == 1 {
 		return false, nil
 	}
 	return false, fmt.Errorf("git merge-base --is-ancestor %s %s: %w", anc, desc, err)
@@ -539,9 +537,8 @@ func isAncestor(anc, desc string) (bool, error) {
 func git(args ...string) (string, error) {
 	out, err := exec.Command("git", args...).Output()
 	if err != nil {
-		var exitErr *exec.ExitError
 		msg := ""
-		if errors.As(err, &exitErr) {
+		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 			msg = strings.TrimSpace(string(exitErr.Stderr))
 		}
 		return "", fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, msg)
