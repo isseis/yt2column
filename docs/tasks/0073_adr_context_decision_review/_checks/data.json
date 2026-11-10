@@ -105,7 +105,14 @@
       ],
       "carried_in": [],
       "retitled_adrs": [],
-      "link_changes": [],
+      "link_changes": [
+        {
+          "adr": "docs/dev/adr/0012-lightweight-check-in-bash.md",
+          "before": "docs/dev/conventions/requirements_process.md",
+          "after": "",
+          "reason": "the Lightweight Process section the link pointed at was removed with the process (0075), and the sentence states the conditions itself"
+        }
+      ],
       "line_changes": [],
       "unrecorded_commits": [],
       "checker_changes": "",
