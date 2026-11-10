@@ -297,7 +297,10 @@ and the PR-number fill-in of `/runpr` follow this definition.
   the marker in a PR of its own.
 - **`draft` revert along with an earlier document's decision change:** only
   `/fixpr` writes this line, when a changed handoff item returns a later
-  document whose body it did not change (`.claude/commands/fixpr.md`, R3).
+  document whose body it did not change (`.claude/commands/fixpr.md`, R3). On
+  a three-document PR whose documents are approved, a decision change in one
+  of them returns the other two as well, an earlier one included, each with
+  this line naming the changed document ("Simple Process" below).
 - **Migrated item:** the old `Comments` of a document without a change history,
   when it is not `-`, becomes the first item, starting with the prefix
   `旧規則の Comments：`. It has no date, transition, or PR number, and it is the
