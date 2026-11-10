@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/writer"
 )
 
@@ -130,6 +131,8 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	store, dir := newTestStore(t)
 	materialID := validGeneration().Input
 	generation := validGeneration()
+	generation.Usage = mustPricedUsage(t, llm.TokenCounts{Input: 3, CacheRead: 0, CacheWrite: 17300, Output: 2979}, llm.PricingContextStandard30m)
+	generation.ID = recordID(generation)
 	genID := mustSave(t, store, generation)
 	shorten := shortenOf(genID)
 	shortenID := mustSave(t, store, shorten)

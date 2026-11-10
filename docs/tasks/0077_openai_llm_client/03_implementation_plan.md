@@ -97,18 +97,18 @@
 
 **変更ファイル:** `internal/llm/usage.go`・`usage_test.go`。
 
-- [ ] 設計書 §3.4.1 の `PricingContext` と構築・取得口、および内訳の不整合を示す固定の不明理由を追加する。
-- [ ] 新規 `TestKnownUsageWithPricingContext` で列挙外の拒否、既存構築口の条件、比較可能性、既知の数と条件の分離を検証する。未知の使用量の条件は `unspecified` とする。
+- [x] 設計書 §3.4.1 の `PricingContext` と構築・取得口、および内訳の不整合を示す固定の不明理由を追加する。
+- [x] 新規 `TestKnownUsageWithPricingContext` で列挙外の拒否、既存構築口の条件、比較可能性、既知の数と条件の分離を検証する。未知の使用量の条件は `unspecified` とする。
 
 #### ステップ 2-2：版4を書き、版3の再開を保つ
 
 **変更ファイル:** `internal/artifact/artifact.go`・`format.go`・`format_test.go`・`store_test.go`・`chain_test.go`、`cmd/yt2column/docs_test.go`、版の説明を持つ `docs/dev/guides/cli.md`・`docs/dev/project_overview.md`。
 
-- [ ] 設計書 §3.4.2 に従い版4の必須条件と識別子を保存し、版3は元の形式・識別子で検証する。版1・2・未知の版の拒否を保つ。
-- [ ] 既存の round-trip・不正 usage・識別子のテストを拡張する。新規 `TestPricingContextFormat` で条件の欠け・重複・型違い・未知値、未知 usage との不整合、条件だけの改変を検証する。
-- [ ] 新規 `TestVersion3Compatibility` で変更前の版3のバイト列と識別子を使い、元の時刻・使用量・識別子を返すことを検証する。版3に版4のキーを加えた入力と版を偽った入力も拒否する。
-- [ ] 新規 `TestMixedVersionResume` を `chain_test.go` に加え、版3から版4への連鎖と再開を検証する。再利用したファイルのバイト列が変わらず、新しい工程が元の識別子を参照することを確認する。
-- [ ] 版についての現行コメント・診断・利用案内を更新し、既存の文書ガードを同じ PR で合わせる。自然言語は手動で読み、版の値は実装と照合する。
+- [x] 設計書 §3.4.2 に従い版4の必須条件と識別子を保存し、版3は元の形式・識別子で検証する。版1・2・未知の版の拒否を保つ。
+- [x] 既存の round-trip・不正 usage・識別子のテストを拡張する。新規 `TestPricingContextFormat` で条件の欠け・重複・型違い・未知値、未知 usage との不整合、条件だけの改変を検証する。
+- [x] 新規 `TestVersion3Compatibility` で変更前の版3のバイト列と識別子を使い、元の時刻・使用量・識別子を返すことを検証する。版3に版4のキーを加えた入力と版を偽った入力も拒否する。
+- [x] 新規 `TestMixedVersionResume` を `chain_test.go` に加え、版3から版4への連鎖と再開を検証する。再利用したファイルのバイト列が変わらず、新しい工程が元の識別子を参照することを確認する。
+- [x] 版についての現行コメント・診断・利用案内を更新し、既存の文書ガードを同じ PR で合わせる。自然言語は手動で読み、版の値は実装と照合する。
 
 **完了条件:** PR-2 は PR-3 の前提作業として完了させる。既存2プロバイダの round-trip と料金の回帰、混在連鎖、グリーンゲートが通る。
 
@@ -124,10 +124,10 @@
 
 **判定理由**: 2-2 が保存形式の移行と旧版の受理範囲の拡張を含み、移行時のレビュー条件に該当する。
 
-- [ ] グリーンゲート（`make test`・`make lint`）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`make test`・`make lint`）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/797
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 #### ステップ 2-3：OpenAI アダプタとループバックの検証を追加する
 
@@ -286,7 +286,7 @@
 ## 6. 実装チェックリスト (Implementation Checklist)
 
 - [x] PR-1 マージ済み（1-1 / 1-2）
-- [ ] PR-2 マージ済み（2-1 / 2-2）
+- [x] PR-2 マージ済み（2-1 / 2-2）
 - [ ] PR-3 マージ済み（2-3）
 - [ ] PR-4 マージ済み（3-1 / 3-2）
 - [ ] PR-5 マージ済み（4-1 / 4-2）
@@ -314,7 +314,7 @@
 | AC-14 | 2-3 | test: `internal/llm/openai/response_test.go::TestResponseFinish`（新規、複合異常と優先順位） |
 | AC-15 | 2-3 / 3-2 | test: `internal/llm/openai/response_test.go::TestResponseFinish`、`TestResponseShape`、`cmd/yt2column/run_test.go::TestOpenAIConfiguration`・`cmd/yt2column-server/run_test.go::TestOpenAIConfiguration`（新規、失敗した記事を出さない） |
 | AC-16 | 2-3 | test: `internal/llm/openai/response_test.go::TestResponseUsage`（新規） |
-| AC-17 | 2-1 / 2-3 | test: `internal/llm/openai/response_test.go::TestResponseUsage`（新規、成功と拒否時の不明の使用量） |
+| AC-17 | 2-1 / 2-3 | test: `internal/llm/usage_test.go::TestUnknownReason`・`TestKnownUsageWithPricingContext`、`internal/llm/openai/response_test.go::TestResponseUsage`（新規、成功と拒否時の不明の使用量） |
 | AC-18 | 2-2 / 3-2 | test: `internal/artifact/chain_test.go::TestMixedVersionResume`、`cmd/yt2column/run_test.go::TestRunOpenAIUsageRecords`（新規）、`cmd/yt2column/cost_test.go::TestRunCostLinesResume` |
 | AC-19 | 2-3 / 3-2 | test: `internal/pricing/pricing_test.go::TestEstimateOpenAI`、`internal/llm/openai/response_test.go::TestResponsePricingContext`（新規）、`cmd/yt2column/cost_test.go::TestRunCostLinesUnknown`。static: `internal/pricing/rates_test.go::TestRateTableSourceComments`。manual: 公式単価との照合 |
 | AC-20 | 2-3 / 3-1 | test: `internal/llm/openai/openai_test.go::TestGenerateRequest`、`TestGenerateTransport`、`internal/llm/provider/provider_test.go::TestOpenAIDefaultMaxTokensFitsBudget`（新規） |

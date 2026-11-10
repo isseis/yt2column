@@ -14,18 +14,16 @@
 
 変更の前後の関係を述べる受け入れ基準は、PR ごとに 1 回だけ実行する `diff` の確かめで確かめる。この確かめはマージの後に保守しないので、費用は PR のレビューで読む量と書く作業である。ところが、確かめの作りの基準がなく、前のタスクの確かめを手本として写したため、確かめが変更に比べて大きくなりやすかった。差分が 2 行の ADR の直しに 547 行の確かめを書いたこともある（[0080 要件定義書](../../tasks/0080_diff_check_proportion/01_requirements.md) 1 章）。
 
-この決定の仕様の正本は [CLAUDE.md](../../../CLAUDE.md) の「Testing Strategy」の「Document tests check values, structure, and executable examples, never prose」以降と「Development Notes」の文書を読む guard の一覧、[.github/workflows/ci.yml](../../../.github/workflows/ci.yml) の `doc-guard` ジョブ、[requirements_process.md](../conventions/requirements_process.md) の「1. Requirements Document」と「4. Acceptance Tests」（受け入れ基準の書き方と確かめ方の種類）、[mkplan.md](../../../.claude/commands/mkplan.md)・[runplan.md](../../../.claude/commands/runplan.md)・[weakreview.md](../../../.claude/commands/weakreview.md) の計画の規則とレビューのチェックリストである。
-
 ## 決定
 
--   **文書のテストは、値・構造・実行できる例だけを確かめる。** 文の意味は、PR のレビューで読む。どの値・構造・例を確かめてよいか、直書きのリテラル・古い名前の不在・タスクの記録を扱わないこと、2 つの例外、同じ値を 2 つのテストで確かめないこと、廃止した仕様を残させるテストを足さないこと、維持の費用が防ぐ誤りを上回る確認を足さないことは、[CLAUDE.md](../../../CLAUDE.md) の「Testing Strategy」の「Document tests check values, structure, and executable examples, never prose」の段落と、その後の 3 つの規則に従う。この ADR は、その規則の理由と、採らなかった案を持つ。
--   **変更の前後関係（既存の見出しが変わっていないことなど）は、文書のテストにしない。** `diff` の確かめとして、マージの基点と PR の head を比べ、PR ごとに 1 回だけ実行する（[requirements_process.md](../conventions/requirements_process.md) §4）。
+-   **文書のテストは、値・構造・実行できる例だけを確かめる。** 文の意味は、PR のレビューで読む。どの値・構造・例を確かめてよいか、直書きのリテラル・古い名前の不在・タスクの記録を扱わないこと、2 つの例外、同じ値を 2 つのテストで確かめないこと、廃止した仕様を残させるテストを足さないこと、維持の費用が防ぐ誤りを上回る確認を足さないことは、[CLAUDE.md](../../../CLAUDE.md) の「Testing Strategy」の「Document tests check values, structure, and executable examples, never prose」の段落と、その後の 3 つの規則に従う。語を照合して文の意味を固定すると、言い換えのたびにテストを直すことになり、意味を反転させた文を見逃すこともあるためである。この ADR は、その規則の理由と、採らなかった案を持つ。
+-   **変更の前後関係（既存の見出しが変わっていないことなど）は、文書のテストにしない。** `diff` の確かめとして、マージの基点と PR の head を比べ、PR ごとに 1 回だけ実行する（[requirements_process.md](../conventions/requirements_process.md) §4）。前後の関係は PR ごとの性質なので、恒久的なテストにすると、文書を直すたびにテストを直すことになるためである。
 -   **`diff` の確かめの作りは、確かめる差分の大きさに見合ったものにする。既定はタスクの `_checks/` に置くシェルスクリプトとし、ほかの言語はシェルで足りない理由を計画に書いたときに使う。** 確かめはマージの後に保守しないので、その費用を確かめる変更に見合ったものにするためである（[requirements_process.md](../conventions/requirements_process.md) の「4. Acceptance Tests」）。
 -   **差分が小さい文書の変更では、記録した `git diff` の出力を PR のレビューで読むことも、`diff` の確かめとする。** 「小さい」かどうかは計画を書く者が判断し、レビュアーは異論を述べられる。数の閾値は設けない。差分が数行の変更では、差分そのものを読むほうが、それを確かめるスクリプトを読むより少なく済むためである。この形には壊して失敗を確かめる対象のコードがないので、その手順は要らない。レビュアーが異論を述べたときはスクリプトに替える（[requirements_process.md](../conventions/requirements_process.md) の「4. Acceptance Tests」）。
 -   **前後の関係を述べる受け入れ基準は、「X の差分は Y と Z に限られる」の形で書き、守る部分を並べ挙げない。移動と分割だけは「A の内容が B に変わらずにある」の形で書いてよい。** 並べ挙げた部分の一つ一つを解析するコードが生まれるためである。移動と分割は、差分が限られる形では言い表せない（[requirements_process.md](../conventions/requirements_process.md) の「1. Requirements Document」）。
--   **計画は、前のタスクの `_checks/` を手本として写させず、壊し方は「チェックごとに少なくとも 1 つ」とだけ書いて並べ挙げない。** 前のタスクの大きなプログラムの構造が受け継がれ、計画に並べた壊し方がそのまま作業になるためである（[mkplan.md](../../../.claude/commands/mkplan.md) の計画の規則）。
+-   **計画は、前のタスクの `_checks/` を手本として写させず、壊し方は「チェックごとに少なくとも 1 つ」とだけ書いて並べ挙げない。** 前のタスクの大きなプログラムの構造が受け継がれ、計画に並べた壊し方がそのまま作業になるためである（[mkplan.md](../../../.claude/commands/mkplan.md)）。
 -   **確かめる差分に比べて過大な `diff` の確かめを、計画のレビュー・フェーズのまとまりのレビュー・弱いモデルの作業のレビューで指摘する。** 大きさは計画を書くときに決まるので、実装の前にも見つけられるようにするためである（[mkplan.md](../../../.claude/commands/mkplan.md) の「Technical correctness checklist」、[runplan.md](../../../.claude/commands/runplan.md) の「Phase-group review checklist」、[weakreview.md](../../../.claude/commands/weakreview.md) の「Weak-model failure checklist」）。
--   **文書を読む Go の guard は、`doc-guard` の CI ジョブで、変更の種類にかかわらずすべての PR に実行する。** 対象のパッケージと、文書だけの変更で `make ext-test` を要求しない範囲は、[CLAUDE.md](../../../CLAUDE.md) の「Development Notes」と [.github/workflows/ci.yml](../../../.github/workflows/ci.yml) を正本とする。変えるときは、同じ PR で正本とこの ADR をそろえる。
+-   **文書を読む Go の guard は、`doc-guard` の CI ジョブで、変更の種類にかかわらずすべての PR に実行する。** 対象のパッケージと、文書だけの変更で `make ext-test` を要求しない範囲は、[CLAUDE.md](../../../CLAUDE.md) の「Development Notes」と [.github/workflows/ci.yml](../../../.github/workflows/ci.yml) を正本とする。変えるときは、同じ PR で正本とこの ADR をそろえる。文書だけを変える PR でも、文書とコードの食い違いを同じ PR で見つけるためである。
 
 ## 採らなかった案
 

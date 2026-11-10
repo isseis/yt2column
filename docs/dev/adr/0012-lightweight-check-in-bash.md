@@ -11,7 +11,7 @@
 
 ## 背景
 
-軽量プロセスでは、エージェントが要件・設計・計画の文書を作らずに 1 本の PR を作る。そのため、変更が軽量プロセスの条件を満たすかを、エージェントの申告ではなく、ブランチの実際の diff で確かめ直す必要がある。条件は、行数・ファイル数・除外するパス・道具のコミット（条件の表が許可したコマンド、つまり道具のコマンドが生成したコミット）についてのものである（[requirements_process.md](../conventions/requirements_process.md) の「Lightweight Process」）。確かめ直しの結果が `FAIL` なら変更を戻すので、確かめ直しは信頼境界にある。
+軽量プロセスでは、エージェントが要件・設計・計画の文書を作らずに 1 本の PR を作る。そのため、変更が軽量プロセスの条件を満たすかを、エージェントの申告ではなく、ブランチの実際の diff で確かめ直す必要がある。条件は、行数・ファイル数・除外するパス・道具のコミット（条件の表が許可したコマンド、つまり道具のコマンドが生成したコミット）についてのものである（[0061 設計書](../../tasks/0061_lightweight_process/02_architecture.md) 3.1「条件の定義」）。確かめ直しの結果が `FAIL` なら変更を戻すので、確かめ直しは信頼境界にある。
 
 決定を縛る前提は次のとおりである。
 
@@ -22,13 +22,10 @@
 
 ## 決定
 
--   確かめ直しは、リポジトリのファイル `.claude/commands/_lib/lightweight-check.sh` の bash スクリプト（bash 3.2 で動く書き方）で行い、Go のツールは作らない。`/runissue` は、`git show origin/main:` で書き出した版を `bash` で実行し、作業ツリーの版は実行しない。入力・出力・判定の取り決めは [0061 設計書](../../tasks/0061_lightweight_process/02_architecture.md) の 3.5.6 にある。
--   bash の落とし穴への守りはスクリプトの本体にあり、その取り決めは冒頭のコメントに書いてある（[lightweight-check.sh](https://github.com/isseis/yt2column/blob/dcc4edf34c99d8aecd47c81710420fb54b0a1b29/.claude/commands/_lib/lightweight-check.sh)）。要旨は次のとおりである。
-    -   `PATH`・`HOME`・`TMPDIR` だけを残した `env -i` で自分を起動し直し、呼び出し元の環境を持ち込まない。
-    -   `eval` を使わない。外部から受け取った値を、算術展開に入れる前に数字だけだと確かめる。
-    -   道具のコマンドは shell を通さず、語の配列として実行する。git の出力は `-z` で読む。
-    -   一時的なファイルと worktree は `trap` で消す。
--   git の設定・属性に左右されないための守り（設定の上書き、属性を空の tree から読むこと）は、bash に限らず Go でも要る守りで、同じスクリプトが持つ。
+-   **確かめ直しは、リポジトリのファイル `.claude/commands/_lib/lightweight-check.sh` の bash スクリプト（bash 3.2 で動く書き方）で行い、Go のツールは作らない。** パッケージ・テスト・インストールの手順を増やさず、確かめる仕組みを確かめる対象の変更より大きくしないためである。入力・出力・判定の取り決めは [0061 設計書](../../tasks/0061_lightweight_process/02_architecture.md) の 3.5.6「確かめ直しのスクリプト」にある。
+-   **確かめ直しは、`git show origin/main:` で書き出した版のスクリプトを `bash` で実行し、作業ツリーの版は実行しない。** 確かめられる側のブランチが仕組みを書き換えられないようにするためである。呼び出しの形は、同じ 3.5.6 にある。
+-   **bash の落とし穴への守りはスクリプトの本体に置く。** 呼び出し元の環境を持ち込まず、`eval` を使わず、外部のコマンドをシェルを通さずに語の配列として実行し、一時的なファイルと worktree を `trap` で消す。意図しないコマンドが動くのを防ぐためである（[lightweight-check.sh](https://github.com/isseis/yt2column/blob/dcc4edf34c99d8aecd47c81710420fb54b0a1b29/.claude/commands/_lib/lightweight-check.sh)）。
+-   **git の設定・属性に左右されないための守り（設定の上書き、属性を空の tree から読むこと）も、同じスクリプトが持つ。** 利用者の git の設定（diff のアルゴリズム、外部の diff、textconv、hook など）で、数・コミットの読み取り・作業ツリーの判定が変わらないようにするためである。規則は [0061 設計書](../../tasks/0061_lightweight_process/02_architecture.md) の 3.1.2「行・ファイルの数え方」にある。
 
 ### 見直しの条件
 
@@ -42,7 +39,7 @@
 
 1 と 2 は、`make test` の `TestLightweightCheckRevisitConditions`（[lightweight_docs_test.go](https://github.com/isseis/yt2column/blob/dcc4edf34c99d8aecd47c81710420fb54b0a1b29/cmd/yt2column/lightweight_docs_test.go)）が、変更のたびに確かめる。行数の上限の値は、このテストの定数が持つ。3〜5 は数えられないので、テストにはしない。
 
-決め直した結果、bash スクリプトのままにするときは、その理由をこの ADR の経緯に書く。1 に当たって bash スクリプトのままにするときは、同じ PR でテストの上限を上げる。Go に移すときは、条件の表と出力の形（0061 設計書 3.5.6）を保てば、`runissue.md` の手順は変わらない。
+決め直した結果、bash スクリプトのままにするときは、その理由をこの ADR の経緯に書く。1 に当たって bash スクリプトのままにするときは、同じ PR でテストの上限を上げる。Go に移すときは、条件の表と出力の形（0061 設計書 3.5.6）を保てば、実装の手順は変わらない。
 
 ## 採らなかった案
 
