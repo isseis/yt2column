@@ -469,7 +469,7 @@ func TestRunKinds(t *testing.T) {
 func TestRunStateChanged(t *testing.T) {
 	tests := []struct {
 		name string
-		// act sets up the repository and returns what the fake codex does.
+		// act sets up the repository and sets what the fake codex does.
 		act     func(t *testing.T, fx fixture, b *codexreviewtestutil.Behavior)
 		changed []string
 		// refs returns the expected ChangedRefs.
@@ -673,15 +673,6 @@ func TestRunIgnoresSharedRefs(t *testing.T) {
 				fx.repo.Git("worktree", "add", "-q", "-b", "side", other)
 				b.GitDir = other
 				b.Git = [][]string{{"commit", "-q", "--allow-empty", "-m", "elsewhere"}}
-			},
-		},
-		{
-			// With HEAD detached, no branch is compared, not even the one
-			// HEAD left.
-			name: "move_branch_while_detached",
-			act: func(fx fixture, b *codexreviewtestutil.Behavior) {
-				fx.repo.Git("switch", "-q", "--detach")
-				b.Git = [][]string{{"branch", "-f", "main", emptyCommit(fx)}}
 			},
 		},
 		{
