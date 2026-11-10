@@ -13,7 +13,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -1444,9 +1443,6 @@ func reviewRepo(t *testing.T, n int) (repo *testRepo, base fixprguard.Baseline, 
 	return repo, base, phase4
 }
 
-// sha matches an object ID anywhere in a diagnostic.
-var sha = regexp.MustCompile(`[0-9a-f]{40}`)
-
 // TestCheckCommand: check prints exactly protocol, base, head and commits,
 // runs no gh (the gh fake fails any call), and stops on a branch switch with
 // the part branch.
@@ -1531,20 +1527,12 @@ func TestPushReviewCommand(t *testing.T) {
 	})
 }
 
-// TestReviewCommandsRefuse: for check and push-review, a run below the top
-// of the work tree and a malformed --commit are usage errors, and a head stop
-// names its rule on standard error without any SHA.
+// TestReviewCommandsRefuse: for check and push-review, a malformed --commit
+// is a usage error, and a head stop prints exactly the rule line: the rule
+// word and no SHA, the diagnostic's contract. A run below the top is left to
+// the library tests, which tell its layers apart.
 func TestReviewCommandsRefuse(t *testing.T) {
 	for _, name := range []string{cmdCheck, cmdPushReview} {
-		t.Run(name+"/below_the_top", func(t *testing.T) {
-			repo, base, phase4 := reviewRepo(t, 1)
-			repo.Write("docs/x.md", "x\n")
-			t.Chdir(filepath.Join(repo.Dir, "docs"))
-			r := newTestRun(t, nil)
-			if code := r.Run(t, args(name, "--baseline", base.String(), "--commit", phase4)...); code != exitUsage {
-				t.Errorf("exit %d, want %d (%s)", code, exitUsage, r.Stderr)
-			}
-		})
 		t.Run(name+"/commit_malformed", func(t *testing.T) {
 			_, base, phase4 := reviewRepo(t, 1)
 			r := newTestRun(t, nil)
@@ -1560,9 +1548,9 @@ func TestReviewCommandsRefuse(t *testing.T) {
 			if code := r.Run(t, args(name, "--baseline", base.String(), "--commit", wrong)...); code != exitStop {
 				t.Fatalf("exit %d, want %d", code, exitStop)
 			}
-			stderr := r.Stderr.String()
-			if !strings.Contains(stderr, "rule phase4-mismatch") || sha.MatchString(stderr) {
-				t.Errorf("stderr %q, want the rule name and no SHA", stderr)
+			want := "fixprguard: " + fixprguard.ErrGitStateChanged.Error() + ": " + fixprguard.PartHead + " (rule phase4-mismatch)\n"
+			if got := r.Stderr.String(); got != want {
+				t.Errorf("stderr = %q, want %q", got, want)
 			}
 		})
 	}

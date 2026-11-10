@@ -217,7 +217,7 @@
 -   [x] 新しいテストを書く（設計書 7.3）。どちらも、実際のリポジトリで実行し、`gh` の fake に呼び出しがないこと（`newTestRun(t, nil)`）を確かめる。Phase 4 の commit は、`repo.Begin()` で基準値を取った後に `repo.Git` で commit し、`origin` の同じ名前のブランチに push して作る（`-u` は付けない。設定を変えないため）。新しい補助が要れば `cmd/fixprguard/test_helpers.go`（`//go:build test`）に置く。
     -   `check`: 終了コード `0` で、出力の JSON の項目が `protocol`・`base`・`head`・`commits` のちょうど 4 つであり、`protocol` が `fixprguard.Protocol`、ほかの 3 つがリポジトリの値（基準値の commit、HEAD、Phase 4.5 の commit の数）と等しいこと。ブランチを切り替えたときに終了コード `1` で `parts` が `branch` であること。
     -   `push-review`: 終了コード `0` で、出力が `protocol`・`pushed`・`commit` であり、`commit` が HEAD と等しいこと。Phase 4.5 の commit がないとき、終了コード `2` になること（push しないことはステップ 4-1 の行が確かめる）。リモートの pre-receive の hook で push を失敗させたとき、終了コード `1` で `stop` が `git-failed`、標準エラーの 1 行が規則の名前 `push` を含むこと（1.2）。
-    -   どちらも: `.git` のない場所と、`--commit` の形の誤りで、終了コード `2` になること。`head` で止まったときに、標準エラーの 1 行が規則の名前を含み、SHA を含まないこと。
+    -   どちらも: `--commit` の形の誤りで、終了コード `2` になること。`head` で止まったときに、標準エラーの 1 行が規則の名前を含み、SHA を含まないこと（1 行全体を照合する）。`.git` のない場所は、層を分けて確かめられるステップ 3-1・4-1 のテストに任せる（この層では、もう 1 つの層も同じ終了コード `2` にするため）。
 -   [x] 壊して確かめる: `specs` の `usesGH` を `true` にする（`TestGhTargetEnvRejected`）、出力の `Protocol` を入れない、`push-review` の送るものがないときの拒否を外す、push の規則の名前を変える。どの行が失敗したかをコミットメッセージに書く。
 
 **成功の条件（フェーズ 5 の完了の条件）:** このフェーズだけでは、文書が `--protocol 5` のままなので、`TestDocumentedProtocolMatches` と `TestDocumentedInvocationsParse` の 2 つだけが失敗する。`make fmt`、`make lint`、`go test -tags test ./... -skip '^(TestDocumentedProtocolMatches|TestDocumentedInvocationsParse)$'` が通ることを確かめ、フェーズ 6 に進む。`/runplan` は、フェーズ 5 と 6 を 1 つの実装のまとまりとして進める。

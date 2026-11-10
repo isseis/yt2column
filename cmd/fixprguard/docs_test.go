@@ -343,8 +343,8 @@ var (
 // is the binary's Protocol: each --protocol N in the guide and in every
 // command document under .claude/commands (prose included, not only code
 // blocks) that is not in a codexreview call, which codexreview's own guard
-// checks, each "protocol":N of the output examples in the guide, fixpr.md, and
-// runpr.md (the documents that show fixprguard's output), and the current
+// checks, each "protocol":N of the output examples in the guide and runpr.md
+// (the command document that shows fixprguard's output), and the current
 // number chapter 4 of the guide states. The guide must write each at least
 // once, so a guide that stops writing them is not read as agreeing; that
 // fixpr.md and runpr.md write them is TestDocumentedInvocationsParse's check.
@@ -367,9 +367,7 @@ func TestDocumentedProtocolMatches(t *testing.T) {
 			t.Errorf("%s: %q, want %s", rel, text, want)
 		}
 	}
-	for _, rel := range []string{".claude/commands/fixpr.md", ".claude/commands/runpr.md"} {
-		check(rel, readRepoFile(t, rel), protocolOutput, false)
-	}
+	check(".claude/commands/runpr.md", readRepoFile(t, ".claude/commands/runpr.md"), protocolOutput, true)
 	guide := readRepoFile(t, guidePath)
 	check(guidePath, guide, protocolFlag, true)
 	check(guidePath, guide, protocolOutput, true)

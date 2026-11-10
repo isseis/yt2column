@@ -1154,13 +1154,7 @@ var numberedStep = regexp.MustCompile(`^[0-9]+\. \*\*`)
 func TestLocalReviewGuard(t *testing.T) {
 	review := doctestutil.ReadDoc(t, localReviewPath)
 	inputs := requireSection(t, "local-cli-review.md", review, "## Inputs the calling command must supply")
-	declared := false
-	for line := range strings.Lines(inputs) {
-		if strings.HasPrefix(line, "- **GUARD**") {
-			declared = true
-		}
-	}
-	if !declared {
+	if !strings.Contains("\n"+inputs, "\n- **GUARD**") {
 		t.Error("local-cli-review.md declares no **GUARD** input")
 	}
 	procedure := requireSection(t, "local-cli-review.md", review, "## Procedure")
@@ -1173,8 +1167,10 @@ func TestLocalReviewGuard(t *testing.T) {
 		}
 	}
 	phase := flat(requireSection(t, "fixpr.md", doctestutil.ReadDoc(t, fixprPath), fixprPhase45))
+	// The value passed runs to the next bold input name.
 	_, after, ok := strings.Cut(phase, "**GUARD** = ")
-	if !ok || !strings.HasPrefix(after, "the `fixprguard check` call") {
+	value, _, _ := strings.Cut(after, "**")
+	if !ok || !strings.Contains(value, "`fixprguard check`") {
 		t.Error("fixpr.md Phase 4.5 does not pass the fixprguard check call as **GUARD**")
 	}
 }
