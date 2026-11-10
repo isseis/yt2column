@@ -164,7 +164,7 @@ Work in order.
    ```
 
    - If Check 1 has any matches: fix them, run `make fmt && make test && make lint`, commit, then continue (these are never intentional in source).
-   - If Check 2 has matches: inspect each — test-data literals and error strings may legitimately contain non-ASCII, but identifiers and non-test comments must not. Fix any unintentional occurrences, run `make fmt && make test && make lint`, and commit before continuing.
+   - If Check 2 has matches: inspect each — test-data literals, error strings, and a literal the guard-test literal exception of `CLAUDE.md`, "Go Idioms", covers (such as a `_checks/` script literal that must match a Japanese document's text) may legitimately contain non-ASCII, but identifiers and non-test comments must not. Fix any unintentional occurrences, run `make fmt && make test && make lint`, and commit before continuing.
 
 7. Run the critical-review subagent procedure in `.claude/commands/_lib/review-subagent-pattern.md` with these inputs:
    - **ARTIFACT**: this phase group's code changes.

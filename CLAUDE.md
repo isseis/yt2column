@@ -723,6 +723,16 @@ Only the conventions a linter does not check are worth stating:
   literal has to equal the document's text, and the document is Japanese
   ("Document language" above). Comments and identifiers in those files stay
   English.
+- The same exception covers a script under `docs/tasks/*/_checks/`, in whatever
+  language the script is written. In that scope a literal of any kind — a word,
+  a fragment of a sentence, or a whole sentence — may be Japanese when it has
+  to equal the text of a Japanese document, so no Japanese string has to be
+  moved into a separate data file. Comments and identifiers stay English, and
+  so does a literal that does not have to equal the document's text, such as a
+  message the script prints. Reason: the same as the exception above; unlike
+  there, the kinds are not limited, because a task's check has to compare
+  words, fragments, and sentences of a document, and limiting the kinds would
+  keep the `data.json` file this exception exists to remove.
 - The same rule applies to the browser extension: its comments, identifiers,
   and string literals are English. There are three exceptions: the messages in
   a catalog file for a language other than English under
