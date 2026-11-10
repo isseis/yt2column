@@ -8,17 +8,15 @@
 
 ## 背景
 
-拡張は Chrome と Brave で動く（[ADR-0026](0026-extension-platform.md)）。manifest の `minimum_chrome_version` は、拡張を読み込める Chrome の最も古い版を宣言する。拡張が頼る API や振る舞いのうち最も新しいものが、この版で使えなければならない。拡張が使う API が増えるたびに、値は見直されてきた。
+拡張は Chrome と Brave で動く（[ADR-0026](0026-extension-platform.md)）。manifest の `minimum_chrome_version` は、拡張を読み込める Chrome の最も古い版を宣言する。拡張が頼る API や振る舞いのうち最も新しいものが、この版で使えなければならない。
 
 タスク 0050 は、生成の開始を Service Worker（SW）から送るようにした。生成の開始のやり取りは最大 25 秒かかり、その間、ブラウザの API の呼び出しはない。Chrome 109 以前の SW は、イベントから 30 秒たつと止められうる。Chrome 110 以降は、拡張の API の呼び出しとイベントが、アイドルのタイマーを延ばす（[0050 設計書](../../tasks/0050_viewer_tab/02_architecture.md)「設計の際に決めたこと（2026-10-31）」）。
 
 ## 決定
 
--   **manifest の `minimum_chrome_version` は `"110"` とする。** 生成の開始のやり取りの間に SW が止められないことは、Chrome 110 以降の SW のアイドルのタイマーの振る舞いに頼る。
--   **両方の README は、必要なブラウザとして Chrome 110 以降と、Chromium 110 以降の Brave を記す。** `README.md` と `README.en.md` は、同じ値を利用者向けに書く。`extension/test/manifest.test.ts` は、manifest の値が `"110"` であることと、両方の README が書く版が manifest の値と等しいことを確かめる。
--   **`:dir()`（Chrome 120 以降）を使うポップアップの末尾のプレビューの規則は、最小の版を上げずに使う。** Chrome 119 以前では、その規則だけが捨てられる。右から左の文字だけの末尾のプレビューで最後の文字が隠れることは、保証の外とする（[0046 設計書](../../tasks/0046_popup_redesign/02_architecture.md)「設計の際に決めたこと（2026-10-28）」）。
-
-この決定の仕様の正本は [extension/static/manifest.json](../../../extension/static/manifest.json) の `minimum_chrome_version` である。対象のブラウザと拡張の基盤は [ADR-0026](0026-extension-platform.md) が定める。
+-   **manifest の `minimum_chrome_version` は `"110"` とする。** 生成の開始のやり取りの間に SW が止められないことは、Chrome 110 以降の SW のアイドルのタイマーの振る舞いに頼る。規則は [extension/static/manifest.json](../../../extension/static/manifest.json) の `minimum_chrome_version` と [0050 設計書](../../tasks/0050_viewer_tab/02_architecture.md)「設計の際に決めたこと（2026-10-31）」にある。
+-   **両方の README は、必要なブラウザとして Chrome 110 以降と、Chromium 110 以降の Brave を記す。** `README.md` と `README.en.md` は、同じ値を利用者向けに書く。[extension/test/manifest.test.ts](../../../extension/test/manifest.test.ts) は、manifest の値が `"110"` であることと、両方の README が書く版が manifest の値と等しいことを確かめる。利用者が読み込める版を知り、文書と manifest の値が食い違わないようにするためである。
+-   **`:dir()`（Chrome 120 以降）を使うポップアップの末尾のプレビューの規則は、最小の版を上げずに使う。** Chrome 119 以前では、その規則だけが捨てられる。右から左の文字だけの末尾のプレビューで最後の文字が隠れることは、保証の外とする。Chrome 119 以前で捨てられるのはその規則だけで、保証の外とした範囲が少し広がるだけだからである（[0046 設計書](../../tasks/0046_popup_redesign/02_architecture.md)「設計の際に決めたこと（2026-10-28）」）。
 
 ## 採らなかった案
 
