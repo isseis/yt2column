@@ -280,8 +280,8 @@ PR-6 を作るかどうかは、PR-5 のマージの前の確認（2.1 の手順
 
 **変えるファイル:** 1.5 で追加の PR に持ち越した ADR、必要なら索引、`review_s6.md`、`_checks/data.json`
 
--   [ ] 1.5 で追加の PR に持ち越した ADR を `s6` の `carried_in` に書き足す。
--   [ ] 2.0 の手順 1〜8 を行う。
+-   [x] 1.5 で追加の PR に持ち越した ADR を `s6` の `carried_in` に書き足す。
+-   [x] 2.0 の手順 1〜8 を行う。（手順 8 の PR の説明は、PR-6 の作成時に 3.7.3 のとおり書く）
 
 追加の PR に持ち越す ADR が 8 本を超えるときは、PR を分ける。それには、PR の作成ポイント、3.2 と 6 章の行、7.2 の節、確かめのデータの系列（`s7` 以降）を足す必要がある。PR の境界を足すことは決定の変更なので、それが分かった PR の `/fixpr` の回で、本書を決定の変更として `draft` に戻し（`docs/dev/conventions/requirements_process.md`「Editing an approved document」）、`/runpr` で承認し直す。
 
@@ -521,7 +521,11 @@ AC-12・AC-13・AC-19・AC-20 は、手順の中の作業（issue を立てる�
 
 #### PR-6
 
--   （ステップ 6-1 で記録する）
+-   `check s6` を、マージベース `fc4305b9bf9832c258545972fda172e3ad01c122` と先頭 `1465c9bb45ee3f95d98af15effe3224badc2ced2` で実行し、0 で終わった。すべての確かめが `OK` で、違反はない。先頭の後のコミットは本書だけを変える。
+-   同じ先頭で `make test` を通した（`TestADRRecords`・`TestInstructionDocPaths` で `cmd/yt2column` を通し、全体で 0 件の失敗）。`make lint` も通した。
+-   blob の ID: `check.go` `fae4cff24becc3d8f2f3690a0336204cdbf4ae38`、`data.json` `7285a0e2111689085b52820d11f693853abe3680`、`main.go` `b330ae42f3cbad690972f759cd0788221a775009`、`mentions.go` `e53a9b87b55718f6885ab8933026a4b00c74e443`。
+-   許した変更はない。`s6` の `retitled_adrs`・`link_changes`・`line_changes`・`unrecorded_commits`・`checker_changes`・`task_doc_changes` は空で、`carried_in` に ADR-0015 を挙げただけである。
+-   足した行（`ADDED`）はない。ADR-0015 は「採らなかった案」「結果」「経緯」を変えておらず、「状態」も題名も変えていない。リンクは `fixpr.md` と 0057 設計書を足したが、前のリンクの先はすべて残した（差分で確認）。ずれの記述は残っていない。
 
 ## 8. 成功基準 (Success Criteria)
 
