@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-10 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-10 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -190,3 +190,7 @@ macOS と Linux の既存の実行経路を保つ。Claude・DeepSeek の設定�
 - **使用量:** 1回の LLM 呼び出しが報告したトークン数。通常の入力、キャッシュから読んだ入力、キャッシュに書き込んだ入力、推論を含む出力の4区分で扱う。
 - **打ち切り:** 出力上限に達して生成が完了しなかった状態。文面が出る前に発生する場合も含む。
 - その他の用語は [translation_glossary.md](../../translation_glossary.md) と統一する。
+
+## 変更履歴
+
+- 2026-11-10 承認（isseis、#768）
