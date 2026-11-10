@@ -383,8 +383,20 @@
 
 **変更するファイル:** `docs/tasks/0076_fixpr_local_review_guard/03_implementation_plan.md`（記録）
 
--   [ ] 利用者の許可を得て `main` を最新にし（`git pull` はネットワークの操作である）、`main` で `make install-fixprguard` を再実行する（`main` がほかの worktree で使われていれば、その worktree で行う）。`go version -m "$(command -v fixprguard)"` の `vcs.revision` が PR-1 の squash commit で、`vcs.modified` が `false` であることを確かめて記録する。
--   [ ] `git worktree list` で作業中のブランチを列挙し、文書がまだ `--protocol 5` を渡すブランチ（`main` を取り込んでいないもの）を利用者に示す。古い文書の `--protocol 5` は、新しいツールで終了コード `2` になる。取り込みは、そのブランチを使うセッションで行う（ほかのセッションの作業と衝突しないため）。示したブランチを、このステップに書く。
+-   [x] 利用者の許可を得て `main` を最新にし（`git pull` はネットワークの操作である）、`main` で `make install-fixprguard` を再実行する（`main` がほかの worktree で使われていれば、その worktree で行う）。`go version -m "$(command -v fixprguard)"` の `vcs.revision` が PR-1 の squash commit で、`vcs.modified` が `false` であることを確かめて記録する。
+-   [x] `git worktree list` で作業中のブランチを列挙し、文書がまだ `--protocol 5` を渡すブランチ（`main` を取り込んでいないもの）を利用者に示す。古い文書の `--protocol 5` は、新しいツールで終了コード `2` になる。取り込みは、そのブランチを使うセッションで行う（ほかのセッションの作業と衝突しないため）。示したブランチを、このステップに書く。
+
+**記録（2026-11-10）:**
+
+-   再インストール: 利用者の許可を得た。`git fetch origin main` の後、ローカルの `main` はすでに PR-1 の squash commit `437836af0429d0e855395cfeaeaf64e3a07c0698` と同じだったので `git pull` は要らなかった。`main` を checkout した一時的な worktree で `make install-fixprguard` を実行した（`main` はほかの worktree で checkout されていなかった）。`go version -m "$(command -v fixprguard)"` は `vcs.revision=437836af0429d0e855395cfeaeaf64e3a07c0698`、`vcs.modified=false`、`vcs.time=2026-11-10T06:20:58Z` を示した。一時的な worktree は削除した。
+-   示したブランチ（`git worktree list` の 7 つ。どれも `437836af` をまだ取り込んでいない）:
+    -   `isseis/0073-adr-context-decision-review-08`（`0c63d8c8`、`/Users/issei/git/yt2column`。`--protocol 5`）
+    -   `isseis/0077-openai-llm-client-05`（`fc1ce6f5`、`backend`。`--protocol 5`）
+    -   `isseis/0079-codexreview-state-scope-03`（`18a4781b`、`codex-review`。`--protocol 5`）
+    -   `isseis/0081-implementation-model-choice-01`（`063c5ff0`、`front-end`。`--protocol 5`）
+    -   `isseis/0080-diff-check-proportion-03`（`f5d5eccf`、`process`。`--protocol 5`）
+    -   detached HEAD（`03c9f30e`、`/private/var/…/0069wt`。`--protocol 5`）
+    -   detached HEAD（`f0749c6d`、`article-quality`。`--protocol 4`）
 
 **成功の条件:** 再インストールの commit と、示したブランチの一覧（なければ「なし」）が記録されている。
 
@@ -392,9 +404,15 @@
 
 **変更するファイル:** `docs/tasks/0076_fixpr_local_review_guard/03_implementation_plan.md`（記録）
 
--   [ ] 再インストールの後に、`/fixpr` の Phase 4.5 が動いた実行を観察する（設計書 7.6 の 2 つ目。文書だけの小さな PR が望ましい）。Phase 4.5 は、Phase 4 が commit を作ったときにだけ動く。PR-1 の `/runpr` で、ステップ 7-4 で入れたツールの Phase 4.5 が動いていれば、その結果もあわせて記録する。
--   [ ] 観察したことを記録する。PR の番号、そのブランチを `/fixpr` の直前に作ったか（ステップ 1-1 の VS Code の書き込みのため）、各時点の `check` が止まらなかったか、`push-review` が push したか。止まったときは、`stop`・`parts`・規則の名前と、ガイド 7.2.5 の正当な書き込みに当たるかの判断。
--   [ ] PR-2 のブランチで作業を始める時点で、Phase 4.5 が動いた実行がまだなければ、利用者に進め方を確かめる（観察を待つか、観察していないことを記録して issue を開いたままにするか）。
+-   [x] 再インストールの後に、`/fixpr` の Phase 4.5 が動いた実行を観察する（設計書 7.6 の 2 つ目。文書だけの小さな PR が望ましい）。Phase 4.5 は、Phase 4 が commit を作ったときにだけ動く。PR-1 の `/runpr` で、ステップ 7-4 で入れたツールの Phase 4.5 が動いていれば、その結果もあわせて記録する。
+-   [x] 観察したことを記録する。PR の番号、そのブランチを `/fixpr` の直前に作ったか（ステップ 1-1 の VS Code の書き込みのため）、各時点の `check` が止まらなかったか、`push-review` が push したか。止まったときは、`stop`・`parts`・規則の名前と、ガイド 7.2.5 の正当な書き込みに当たるかの判断。
+-   [x] PR-2 のブランチで作業を始める時点で、Phase 4.5 が動いた実行がまだなければ、利用者に進め方を確かめる（観察を待つか、観察していないことを記録して issue を開いたままにするか）。
+
+**記録（2026-11-10）:**
+
+-   PR-1 の `/runpr`: PR #799 のブランチは、ステップ 7-4 でツールを入れた commit `71986337` の後に、`ce588c7b`（`docs(0076): record the PR-1 URL`）と `17c75476`（`docs(0076): record the review of PR #799`）の 2 つの文書の commit だけを足してマージされた。修正のフェーズの commit がないので、Phase 4 は commit を作らず、Phase 4.5 は動いていない。記録する観察はない。
+-   再インストールの後の観察: `/fixpr` の Phase 4.5 が動いた実行は、まだ観察していない。
+-   利用者が決めた進め方（2026-11-10）: 観察を待たずに、観察していないことをここに記録し、issue #426 を開いたままにする。`/runpr` ステップ 5 は、タスクの最終の plan PR をマージした後に、この記録を読まずに #426 を閉じる。そのため、PR-2 のマージの後、利用者が #426 を開き直し、Phase 4.5 を観察した後に閉じる（`9. 次のステップ` の「ステップ 8-2 で観察していないことを記録した場合は、利用者が決めたとおりにする」に当たる）。
 
 **成功の条件:** 観察の結果、または利用者が決めた進め方が記録されている。
 
