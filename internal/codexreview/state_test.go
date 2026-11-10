@@ -56,7 +56,6 @@ func TestParseHead(t *testing.T) {
 		{name: "commit_64_digits", commitOut: headCommit + headCommit[:24] + "\n", branchOut: valid, marker: headCommit[:24]},
 		{name: "commit_not_hex", commitOut: "g" + headCommit[1:] + "\n", branchOut: valid, marker: "g" + headCommit[1:]},
 		{name: "commit_empty", commitOut: "", branchOut: valid},
-		{name: "commit_detached_without_newline", commitOut: headCommit, detached: true, marker: headCommit},
 		{name: "branch_without_newline", commitOut: headCommit + "\n", branchOut: "refs/heads/marker", marker: "marker"},
 		{name: "branch_two_lines", commitOut: headCommit + "\n", branchOut: "refs/heads/main\nrefs/heads/marker\n", marker: "marker"},
 		{name: "branch_outside_heads", commitOut: headCommit + "\n", branchOut: "refs/tags/marker\n", marker: "marker"},
@@ -74,6 +73,39 @@ func TestParseHead(t *testing.T) {
 			// The output is untrusted: the error names the rule only.
 			if tt.marker != "" && strings.Contains(err.Error(), tt.marker) {
 				t.Errorf("error %q quotes the rejected output", err)
+			}
+		})
+	}
+}
+
+// TestReadHead checks that readHead hands parseHead what symbolic-ref
+// printed when it reports a detached HEAD, so output there is rejected
+// rather than dropped.
+func TestReadHead(t *testing.T) {
+	gitArgs := func(args ...string) []string { return append(cmdrunner.GitHardening(), args...) }
+	tests := []struct {
+		name      string
+		branchOut string
+		wantErr   error
+	}{
+		{name: "detached", branchOut: ""},
+		{name: "detached_with_output", branchOut: "refs/heads/main\n", wantErr: errHeadUnreadable},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := git{runner: cmdrunnertestutil.New(t,
+				cmdrunnertestutil.Step{Name: "git", Args: gitArgs("rev-parse", "--verify", "HEAD"), Out: headCommit + "\n"},
+				cmdrunnertestutil.Step{Name: "git", Args: gitArgs("symbolic-ref", "-q", "HEAD"), Err: &cmdrunner.ExitError{Code: 1, Stdout: []byte(tt.branchOut)}},
+			)}
+			branchRef, commit, err := readHead(context.Background(), g)
+			if tt.wantErr != nil {
+				if !errors.Is(err, tt.wantErr) {
+					t.Errorf("readHead = %q, %q, %v, want %v", branchRef, commit, err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil || branchRef != "" || commit != headCommit {
+				t.Errorf("readHead = %q, %q, %v, want \"\", %q, nil", branchRef, commit, err, headCommit)
 			}
 		})
 	}
