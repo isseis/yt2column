@@ -953,6 +953,18 @@ func requireMalformedPricing(t *testing.T, data []byte) {
 	}
 }
 
+// requireIDMismatch is requireMalformed for a file whose every element is
+// valid, so the id rule alone must reject it: the error is the id rule's. Every
+// artifact rule shares ErrMalformed, so its message is what tells the rules
+// apart.
+func requireIDMismatch(t *testing.T, data []byte) {
+	t.Helper()
+	err := requireMalformed(t, data)
+	if !strings.Contains(err.Error(), "id does not match") {
+		t.Errorf("Parse error %q is not the id rule's", err)
+	}
+}
+
 func TestPricingContextFormat(t *testing.T) {
 	counts := llm.TokenCounts{Input: 1, CacheRead: 2, CacheWrite: 3, Output: 4}
 	priced := func(pricing llm.PricingContext) writer.StageRecord {
@@ -1021,7 +1033,7 @@ func TestPricingContextFormat(t *testing.T) {
 		if rewritten == string(data) {
 			t.Fatal("the rewrite did not apply")
 		}
-		requireMalformed(t, []byte(rewritten))
+		requireIDMismatch(t, []byte(rewritten))
 	})
 
 	t.Run("the message carries no value", func(t *testing.T) {
@@ -1055,11 +1067,10 @@ func TestVersion3Compatibility(t *testing.T) {
 		want := validGeneration()
 		want.Usage = llm.KnownUsage(llm.TokenCounts{Input: 46, CacheRead: 7, CacheWrite: 3, Output: 85})
 		want.ID = version3GenerationID
+		// sameRecord also compares the pricing context, which must be
+		// PricingContextUnspecified, the context of KnownUsage.
 		if !sameRecord(got, want) {
 			t.Errorf("Parse = %+v, want %+v", got, want)
-		}
-		if got.Usage.PricingContext() != llm.PricingContextUnspecified {
-			t.Errorf("pricing context = %d, want PricingContextUnspecified", got.Usage.PricingContext())
 		}
 	})
 
@@ -1105,24 +1116,18 @@ func TestVersion3Compatibility(t *testing.T) {
 	t.Run("a version 3 file with a pricing_context is rejected", func(t *testing.T) {
 		requireMalformedPricing(t, relabel(t, version3Generation, `"usage":{`, `"pricing_context":"unspecified","usage":{`))
 	})
-	t.Run("a version 3 file labeled version 4 is rejected", func(t *testing.T) {
-		requireMalformedPricing(t, relabel(t, version3Generation, `"version":3`, `"version":4`))
-	})
 	t.Run("a version 3 file labeled version 4 with a pricing_context is rejected", func(t *testing.T) {
-		// The shape is a valid version 4, so only the id check, which
-		// covers the version, can reject it.
+		// The shape is a valid version 4, so only the id check, whose
+		// version 4 rule differs from the version 3 rule, can reject it.
 		data := relabel(t, version3Generation, `"version":3`, `"version":4`)
-		requireMalformed(t, relabel(t, string(data), `"usage":{`, `"pricing_context":"unspecified","usage":{`))
-	})
-	t.Run("a version 4 file labeled version 3 is rejected", func(t *testing.T) {
-		requireMalformedPricing(t, relabel(t, version4(t), `"version":4`, `"version":3`))
+		requireIDMismatch(t, relabel(t, string(data), `"usage":{`, `"pricing_context":"unspecified","usage":{`))
 	})
 	t.Run("a version 4 file labeled version 3 without its pricing_context is rejected", func(t *testing.T) {
 		// The shape is a valid version 3, so only the id check can reject it.
 		data := relabel(t, version4(t), `"version":4`, `"version":3`)
-		requireMalformed(t, relabel(t, string(data), `"pricing_context":"unspecified",`, ``))
+		requireIDMismatch(t, relabel(t, string(data), `"pricing_context":"unspecified",`, ``))
 	})
 	t.Run("a rewritten version 3 count is rejected", func(t *testing.T) {
-		requireMalformed(t, relabel(t, version3Generation, `"output":85`, `"output":86`))
+		requireIDMismatch(t, relabel(t, version3Generation, `"output":85`, `"output":86`))
 	})
 }

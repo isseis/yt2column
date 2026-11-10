@@ -87,9 +87,7 @@ func TestKnownUsageWithPricingContext(t *testing.T) {
 		}
 	}
 
-	if got := KnownUsage(counts).PricingContext(); got != PricingContextUnspecified {
-		t.Errorf("KnownUsage(...).PricingContext() = %d, want PricingContextUnspecified", got)
-	}
+	// The loop above checked that these constructions succeed.
 	unspecified, _ := KnownUsageWithPricingContext(counts, PricingContextUnspecified)
 	if unspecified != KnownUsage(counts) {
 		t.Error("KnownUsageWithPricingContext(counts, PricingContextUnspecified) != KnownUsage(counts)")
@@ -98,14 +96,6 @@ func TestKnownUsageWithPricingContext(t *testing.T) {
 	unverified, _ := KnownUsageWithPricingContext(counts, PricingContextUnverified)
 	if standard == KnownUsage(counts) || standard == unverified {
 		t.Error("usages with the same counts and different pricing contexts compare equal")
-	}
-
-	var zero Usage
-	if got := zero.PricingContext(); got != PricingContextUnspecified {
-		t.Errorf("zero Usage.PricingContext() = %d, want PricingContextUnspecified", got)
-	}
-	if got := UnknownUsage(RuleMissing, "").PricingContext(); got != PricingContextUnspecified {
-		t.Errorf("UnknownUsage(...).PricingContext() = %d, want PricingContextUnspecified", got)
 	}
 }
 

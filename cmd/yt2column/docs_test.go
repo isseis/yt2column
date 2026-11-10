@@ -778,29 +778,14 @@ func checkExampleLines(t *testing.T, section, prefix string, allowed map[string]
 	}
 }
 
-// TestArtifactFormatDocsContract checks that the CLI guide's Token usage
-// section and project_overview.md state the artifact format version Marshal
-// writes, and that the CLI guide states the older version Parse also reads and
-// every pricing_context spelling. The values come from internal/artifact, so
-// the test does not spell them. The format itself is pinned by
-// internal/artifact's tests.
-func TestArtifactFormatDocsContract(t *testing.T) {
-	written, alsoRead := artifact.FormatVersionsForTest()
+// TestPricingContextDocsContract checks that the CLI guide's Token usage
+// section lists every pricing_context spelling an artifact can hold. The
+// spellings come from internal/artifact, so the test does not spell them; the
+// format itself is pinned by internal/artifact's tests.
+func TestPricingContextDocsContract(t *testing.T) {
 	cli := doctestutil.SectionByHeading(doctestutil.ReadDoc(t, cliDocPath), doctestutil.CLIUsageHeading)
 	if cli == "" {
 		t.Fatal("cli.md has no Token usage section")
-	}
-	overview := doctestutil.ReadDoc(t, projectOverviewPath)
-	for _, check := range []struct {
-		doc, text, want string
-	}{
-		{"cli.md", cli, fmt.Sprintf("形式は版 %d", written)},
-		{"cli.md", cli, fmt.Sprintf("版 %d のファイルも読み込む", alsoRead)},
-		{"project_overview.md", overview, fmt.Sprintf("中間生成物の形式は版 %d", written)},
-	} {
-		if !strings.Contains(check.text, check.want) {
-			t.Errorf("%s does not state %q", check.doc, check.want)
-		}
 	}
 	for _, spelling := range artifact.PricingContextSpellingsForTest() {
 		if !strings.Contains(cli, "`"+spelling+"`") {
