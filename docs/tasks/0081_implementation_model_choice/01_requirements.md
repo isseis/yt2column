@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-10 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-10 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -235,3 +235,7 @@ PR マーカーのない単一フェーズの計画書にも、実装モデル�
 -   **読み替えの表:** 旧い値を新しい値として扱うための、`_context.md` の表（AC-09）。
 -   **通常の進め方・簡易な進め方:** `docs/translation_glossary.md` のとおり。
 -   ほかの用語は `docs/translation_glossary.md` と統一する。
+
+## 変更履歴
+
+- 2026-11-10 承認（isseis、#795）
