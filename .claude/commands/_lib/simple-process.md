@@ -12,8 +12,9 @@ changes, the return to the full process, and the kinds of handoff item — are i
 `docs/dev/conventions/requirements_process.md` ("Process record" under
 "Document Status Format", "Simple Process", and "Design handoff"). This file
 holds only the procedures the commands follow, and refers to those sections by
-name instead of copying them. A calling command says "follow
-`_lib/simple-process.md`, <section>".
+name instead of copying them. A calling command invokes a section by naming the
+file and the section's heading, as in `_lib/simple-process.md`, "Resuming a
+stopped run".
 
 **Steps of other commands this file uses.** "Writing the three documents" and
 "Reviewing the three documents" use steps of `mkreq.md`, `mkarch.md`,
