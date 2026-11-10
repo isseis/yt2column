@@ -111,16 +111,35 @@
 
 **変更するファイル:** `docs/tasks/0076_fixpr_local_review_guard/03_implementation_plan.md`（記録）
 
--   [ ] 利用者に、確かめに使う開いている PR（このタスクのものでなくてよい。設計書 7.6）を選んでもらい、次の実行の許可を求める: その PR のブランチの取得（`git fetch`）、`fixprguard begin`・`inspect` の `gh` の読み取り、`coderabbit review`、`codexreview`（Codex の割り当てを 1 回使う）。この確かめの `codexreview` は手順の外での実行なので、`CLAUDE.md`「Tool Execution Safety」の常設の許可に当たらない。
--   [ ] この worktree（作業ツリーが clean）で、選んだ PR のブランチに `git switch` し、今インストールされているツールで `fixprguard begin --protocol 5 --reviewer <reviewer> <PR>` を実行して基準値を取る。`GH_REPO`・`GH_HOST` は、この後のどの呼び出しでも設定しない。権限の確認には「今後は聞かない」と答えない（`.claude/settings.local.json` が書き換わり、`ignored` で止まるため。設計書 5.3）。
--   [ ] 次の 6 つを、この順に 1 つずつ実行する。`codexreview` は作業ツリーが clean であることを求めるので、`make` より前に置く。レビューの範囲は、HEAD の親から HEAD までにする。
+-   [x] 利用者に、確かめに使う開いている PR（このタスクのものでなくてよい。設計書 7.6）を選んでもらい、次の実行の許可を求める: その PR のブランチの取得（`git fetch`）、`fixprguard begin`・`inspect` の `gh` の読み取り、`coderabbit review`、`codexreview`（Codex の割り当てを 1 回使う）。この確かめの `codexreview` は手順の外での実行なので、`CLAUDE.md`「Tool Execution Safety」の常設の許可に当たらない。
+-   [x] この worktree（作業ツリーが clean）で、選んだ PR のブランチ（ほかの worktree で checkout 中のときは、その head のコミットに `--no-track` で作った別名のローカルブランチ。push 先の OID は比べる対象だが、push はしない）に `git switch` し、今インストールされているツールで `fixprguard begin --protocol 5 --reviewer <reviewer> <PR>` を実行して基準値を取る。`GH_REPO`・`GH_HOST` は、この後のどの呼び出しでも設定しない。権限の確認には「今後は聞かない」と答えない（`.claude/settings.local.json` が書き換わり、`ignored` で止まるため。設計書 5.3）。
+-   [x] 次の 6 つを、この順に 1 つずつ実行する。`codexreview` は作業ツリーが clean であることを求めるので、`make` より前に置く。レビューの範囲は、HEAD の親から HEAD までにする。
     -   CodeRabbit CLI（手順 2 の形）
     -   `coderabbit review findings --clear`
     -   `codexreview --protocol 1 --base <HEAD の親の 40 桁の SHA>`（手順 3 の形）
     -   `make fmt`、`make test`、`make lint`
--   [ ] それぞれの直後に、`fixprguard inspect --protocol 5 --reviewer <reviewer> --baseline <baseline> <PR>`（`--thread` は渡さない）で比べる。6 回とも同じ形で呼ぶ。
--   [ ] 各 `inspect` の終了コードと、止まったときの `stop`・`parts` を、選んだ PR と実行した commit とともに控える。終了コード `3`（範囲外の変更）は、比較に通ったものとして扱う（設計書 7.6）。終わったら実装のブランチに戻り、控えた結果をこのステップに記録する。
--   [ ] 1 つでも `git-state-changed` で止まったら、フェーズ 2 に進まない。止まったツールと `parts` を利用者に報告し、設計の変更として扱う（設計書 7.6 の前提が崩れるため）。
+-   [x] それぞれの直後に、`fixprguard inspect --protocol 5 --reviewer <reviewer> --baseline <baseline> <PR>`（`--thread` は渡さない）で比べる。6 回とも同じ形で呼ぶ。
+-   [x] 各 `inspect` の終了コードと、止まったときの `stop`・`parts` を、選んだ PR と実行した commit とともに控える。終了コード `3`（範囲外の変更）は、比較に通ったものとして扱う（設計書 7.6）。終わったら実装のブランチに戻り、控えた結果をこのステップに記録する。
+-   [x] 1 つでも `git-state-changed` で止まったら、フェーズ 2 に進まない。止まったツールと `parts` を利用者に報告し、設計の変更として扱う（設計書 7.6 の前提が崩れるため）。
+
+
+**記録（2026-11-10）:**
+
+-   選んだ PR: #783（`isseis/0077-openai-llm-client-02`）。このブランチはほかの worktree で checkout 中だったので、その head `ed4e3035eac2992fa7c9da319d9f704c3fd59222` に `--no-track` で別名のローカルブランチ `isseis/0076-observe-783` を作って実行した（確かめの後に削除した）。レビューの範囲は `d93b24b1651cfba75c2463b0034fe56dd749ad46`（HEAD の親）から HEAD まで。`fixprguard` は `vcs.revision=0fa614feb75b44119e224770fd958a43e800beb9`（`vcs.modified=false`）。
+-   1 回目の基準値（`begin` 終了コード `0`）の後の結果:
+
+    | 実行したもの | 実行の結果 | 直後の `inspect` |
+    |---|---|---|
+    | CodeRabbit CLI | 終了コード `1`、`errorType` `rate_limit`（レビューは行われなかった） | `0` |
+    | `coderabbit review findings --clear` | 終了コード `0` | `0` |
+    | `codexreview --protocol 1 --base d93b24b1…` | `kind` `no_findings` | `0` |
+    | `make fmt` | 終了コード `0` | `0` |
+    | `make test` | 終了コード `0` | `1`（`git-state-changed`、`parts` `config`） |
+    | `make lint` | 終了コード `0` | `1`（`git-state-changed`、`parts` `config`） |
+
+-   `config` の違いの原因: 共有の config に、VS Code が新しく作ったブランチについて `branch.isseis/0076-observe-783.vscode-merge-base` を書き込んでいた（config の更新時刻は `make fmt` の後・`make test` の最中）。今のブランチの設定なので比べる対象であり、比べる対象から外さないのは設計どおりである。ほかの既存のブランチには、同じ値がすでにある。
+-   確かめ直し: 基準値を取り直し（`begin` 終了コード `0`）、`make test`・`make lint` の後にそれぞれ `inspect` を実行すると、どちらも終了コード `0` だった。前後の `git config --list` に差分はなかった。
+-   判断: 止まった原因は、観察のために新しいブランチを作ったことと VS Code の書き込みで、確かめる対象のツールではない。人間のレビュアー（isseis）の判断で、比較に通ったものとして扱い、フェーズ 2 に進む。
 
 **成功の条件:** 6 つの `inspect` が、どれも終了コード `0` か `3` で終わったことが記録されている。
 
