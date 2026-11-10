@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-10 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-10 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルの内容は、コミット `df655ec6` で確かめた。`file:line` の行番号は、このコミットでの行番号である。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md)（以下、申し送り）の項番を指す。申し送りへの対応は付録 A に、受け入れ基準との対応は付録 B にまとめる。
@@ -555,3 +555,7 @@ N/A。実行時の振る舞いと、開発の道具の振る舞いを変えな�
 | AC-11 | 3.11 | 要件書の PR（#791）、PR-1 | manual、`TestADRRecords` |
 | AC-12 | 3.11 | 要件書の PR（#791） | `TestADRRecords` |
 | AC-13 | 3.11 | PR-1、PR-2 | manual（最後の PR の後の `main` に記述がないこと） |
+
+## 変更履歴
+
+- 2026-11-10 承認（isseis、#796）
