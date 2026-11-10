@@ -18,6 +18,7 @@ import (
 
 	"github.com/isseis/yt2column/internal/llm/claudeparam"
 	"github.com/isseis/yt2column/internal/llm/deepseekparam"
+	"github.com/isseis/yt2column/internal/llm/openaiparam"
 	"github.com/isseis/yt2column/internal/udstest"
 )
 
@@ -349,6 +350,75 @@ func assertClaudeEfforts(t *testing.T, llm LLMConfig, wantGeneration, wantReview
 	if got := llm.Review().ClaudeEffort(); got != wantReview {
 		t.Errorf("Review().ClaudeEffort() = %v, want %v", got, wantReview)
 	}
+}
+
+// TestLoadOpenAI checks that an openai selection exposes its effort and key
+// through the accessors, that an unset or empty OPENAI_API_KEY is ErrMissing
+// naming the variable, and that a run selecting no openai stage does not read
+// the key. The model and the whole selection are in TestLoadParsesLLMValue.
+func TestLoadOpenAI(t *testing.T) {
+	openAIEnv := func() map[string]string {
+		return map[string]string{
+			llmEnv:          "openai/gpt-6-astra+high",
+			reviewLLMEnv:    "openai/gpt-6-astra",
+			openAIAPIKeyEnv: "sk-openai-test-key",
+			cacheDirEnv:     "/tmp/yt2column-test-cache",
+		}
+	}
+
+	t.Run("effort and key", func(t *testing.T) {
+		env := openAIEnv()
+		cfg, err := Load(envLookup(env))
+		if err != nil {
+			t.Fatalf("Load() error = %v, want nil", err)
+		}
+		llm := cfg.LLM()
+		if got := llm.Generation().OpenAIEffort(); got != openaiparam.EffortHigh {
+			t.Errorf("Generation().OpenAIEffort() = %v, want EffortHigh", got)
+		}
+		if got := llm.Review().OpenAIEffort(); got != openaiparam.EffortMedium {
+			t.Errorf("Review().OpenAIEffort() = %v, want the default EffortMedium", got)
+		}
+		key, err := llm.OpenAIAPIKey().Reveal()
+		if err != nil {
+			t.Fatalf("OpenAIAPIKey().Reveal() error = %v", err)
+		}
+		if key != env[openAIAPIKeyEnv] {
+			t.Errorf("OpenAIAPIKey() = %q, want %q", key, env[openAIAPIKeyEnv])
+		}
+	})
+
+	t.Run("required key", func(t *testing.T) {
+		cases := []struct {
+			name string
+			env  map[string]string
+		}{
+			{"unset", without(openAIEnv(), openAIAPIKeyEnv)},
+			{"empty", with(openAIEnv(), openAIAPIKeyEnv, "")},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				_, err := Load(envLookup(tc.env))
+				assertVarError(t, err, ErrMissing, openAIAPIKeyEnv)
+			})
+		}
+	})
+
+	t.Run("not selected", func(t *testing.T) {
+		// The key is present but no stage selects openai, so the key is not
+		// read and the configuration holds the zero secret.
+		var read []string
+		cfg, err := LoadFor(recordingLookup(with(validEnv(), openAIAPIKeyEnv, "sk-openai-test-key"), &read), needBoth)
+		if err != nil {
+			t.Fatalf("LoadFor() error = %v, want nil", err)
+		}
+		if slices.Contains(read, openAIAPIKeyEnv) {
+			t.Errorf("LoadFor() read %s, want it unread", openAIAPIKeyEnv)
+		}
+		if _, err := cfg.LLM().OpenAIAPIKey().Reveal(); err == nil {
+			t.Error("OpenAIAPIKey() is set, want the zero secret")
+		}
+	})
 }
 
 // TestLoadClaudeInvalid checks that an unusable claude provider variable wraps
@@ -1241,13 +1311,14 @@ func TestLoadFor(t *testing.T) {
 	})
 }
 
-// defaultsBaseEnv is an environment with no LLM variable: the API keys of both
-// providers and the non-LLM variable Load needs. A row adds the LLM variables
-// it is about.
+// defaultsBaseEnv is an environment with no LLM variable: the API keys of the
+// three providers and the non-LLM variable Load needs. A row adds the LLM
+// variables it is about.
 func defaultsBaseEnv() map[string]string {
 	return map[string]string{
 		anthropicAPIKeyEnv: "sk-ant-test-key",
 		deepSeekAPIKeyEnv:  "sk-test-key",
+		openAIAPIKeyEnv:    "sk-openai-test-key",
 		cacheDirEnv:        "/tmp/yt2column-test-cache",
 	}
 }
@@ -1504,12 +1575,15 @@ func TestLoadProductionDefaults(t *testing.T) {
 // the variable with its sentinel and fixed reason, once, for the first rule it
 // breaks.
 func TestLoadParsesLLMValue(t *testing.T) {
-	// claude and deepSeek build an accepted row's selection.
+	// claude, deepSeek, and openAI build an accepted row's selection.
 	claude := func(model string, effort claudeparam.Effort) LLMSelection {
 		return LLMSelection{provider: ProviderClaude, model: model, claudeEffort: effort}
 	}
 	deepSeek := func(model string, effort deepseekparam.Effort) LLMSelection {
 		return LLMSelection{provider: ProviderDeepSeek, model: model, deepSeekEffort: effort}
+	}
+	openAI := func(model string, effort openaiparam.Effort) LLMSelection {
+		return LLMSelection{provider: ProviderOpenAI, model: model, openAIEffort: effort}
 	}
 	rejected := func(reason string) *VarError { return &VarError{Reason: reason, Err: ErrInvalid} }
 	cases := []struct {
@@ -1520,7 +1594,9 @@ func TestLoadParsesLLMValue(t *testing.T) {
 		// Values without "+": the effort is the provider's default.
 		{"deepseek/deepseek-flash", deepSeek("deepseek-flash", deepseekparam.EffortUnspecified), nil},
 		{"claude/claude-sonnet-5-5", claude("claude-sonnet-5-5", claudeparam.EffortHigh), nil},
+		{"openai/gpt-6-astra", openAI("gpt-6-astra", openaiparam.EffortMedium), nil},
 		{"claude/vendor/model-x", claude("vendor/model-x", claudeparam.EffortHigh), nil},
+		{"openai/vendor/model-x", openAI("vendor/model-x", openaiparam.EffortMedium), nil},
 		{"claude/claude-opus-5-5 ", claude("claude-opus-5-5 ", claudeparam.EffortHigh), nil},
 		{"claude/ claude-opus-5-5", claude(" claude-opus-5-5", claudeparam.EffortHigh), nil},
 		{"claude/\xffmodel", claude("\xffmodel", claudeparam.EffortHigh), nil},
@@ -1532,6 +1608,8 @@ func TestLoadParsesLLMValue(t *testing.T) {
 		{"gemini/x", LLMSelection{}, rejected(reasonLLMProvider)},
 		{"gemini/", LLMSelection{}, rejected(reasonLLMProvider)},
 		{"Claude/claude-opus-5-5", LLMSelection{}, rejected(reasonLLMProvider)},
+		{"OpenAI/gpt-6-astra", LLMSelection{}, rejected(reasonLLMProvider)},
+		{"openai /gpt-6-astra", LLMSelection{}, rejected(reasonLLMProvider)},
 		{" claude/claude-opus-5-5", LLMSelection{}, rejected(reasonLLMProvider)},
 		{"claude /claude-opus-5-5", LLMSelection{}, rejected(reasonLLMProvider)},
 		// Every effort each provider accepts.
@@ -1544,6 +1622,16 @@ func TestLoadParsesLLMValue(t *testing.T) {
 		{"deepseek/deepseek-flash+low", deepSeek("deepseek-flash", deepseekparam.EffortLow), nil},
 		{"deepseek/deepseek-flash+high", deepSeek("deepseek-flash", deepseekparam.EffortHigh), nil},
 		{"deepseek/deepseek-flash+max", deepSeek("deepseek-flash", deepseekparam.EffortMax), nil},
+		// Every effort openai accepts, and a model the price table does not
+		// list: the model ID is opaque here.
+		{"openai/gpt-6-astra+none", openAI("gpt-6-astra", openaiparam.EffortNone), nil},
+		{"openai/gpt-6-astra+minimal", openAI("gpt-6-astra", openaiparam.EffortMinimal), nil},
+		{"openai/gpt-6-astra+low", openAI("gpt-6-astra", openaiparam.EffortLow), nil},
+		{"openai/gpt-6-astra+medium", openAI("gpt-6-astra", openaiparam.EffortMedium), nil},
+		{"openai/gpt-6-astra+high", openAI("gpt-6-astra", openaiparam.EffortHigh), nil},
+		{"openai/gpt-6-astra+xhigh", openAI("gpt-6-astra", openaiparam.EffortXHigh), nil},
+		{"openai/gpt-6-astra+max", openAI("gpt-6-astra", openaiparam.EffortMax), nil},
+		{"openai/model-not-in-the-price-table+high", openAI("model-not-in-the-price-table", openaiparam.EffortHigh), nil},
 		// "+" is looked for after the first "/" only, and the model ID keeps
 		// its later "/" and its white space.
 		{"claude/vendor/model-x+medium", claude("vendor/model-x", claudeparam.EffortMedium), nil},
@@ -1563,12 +1651,20 @@ func TestLoadParsesLLMValue(t *testing.T) {
 		{"deepseek/deepseek-flash+medium", LLMSelection{}, rejected(reasonDeepSeekEffortPart)},
 		{"deepseek/deepseek-flash+xhigh", LLMSelection{}, rejected(reasonDeepSeekEffortPart)},
 		{"deepseek/deepseek-flash+ultra", LLMSelection{}, rejected(reasonDeepSeekEffortPart)},
+		{"openai/gpt-6-astra+", LLMSelection{}, rejected(reasonOpenAIEffortPart)},
+		{"openai/gpt-6-astra+High", LLMSelection{}, rejected(reasonOpenAIEffortPart)},
+		{"openai/gpt-6-astra+ high", LLMSelection{}, rejected(reasonOpenAIEffortPart)},
+		{"openai/gpt-6-astra+high ", LLMSelection{}, rejected(reasonOpenAIEffortPart)},
+		{"openai/gpt-6-astra+ultra", LLMSelection{}, rejected(reasonOpenAIEffortPart)},
+		{"openai/model+high/low", LLMSelection{}, rejected(reasonOpenAIEffortPart)},
 		// An empty model ID with an effort.
 		{"claude/+high", LLMSelection{}, rejected(reasonLLMForm)},
+		{"openai/+high", LLMSelection{}, rejected(reasonLLMForm)},
 		// Values breaking several rules: the first rule in the order decides.
 		{"claude/+", LLMSelection{}, rejected(reasonLLMForm)},
 		{"claude/+ultra", LLMSelection{}, rejected(reasonLLMForm)},
 		{"deepseek/deepseek-flash+a+b", LLMSelection{}, rejected(reasonLLMEffortSeparator)},
+		{"openai/gpt-6-astra+medium+high", LLMSelection{}, rejected(reasonLLMEffortSeparator)},
 	}
 	stages := []struct {
 		name     string
@@ -1609,11 +1705,15 @@ func TestParseLLMProvider(t *testing.T) {
 	}{
 		{"claude/", ProviderClaude},
 		{"deepseek/", ProviderDeepSeek},
+		{"openai/", ProviderOpenAI},
 		{"claude/+high", ProviderClaude},
 		{"claude/claude-opus-5-5+high+low", ProviderClaude},
 		{"claude/claude-opus-5-5+ultra", ProviderClaude},
 		{"deepseek/deepseek-flash+a+b", ProviderDeepSeek},
 		{"deepseek/deepseek-flash+medium", ProviderDeepSeek},
+		{"openai/gpt-6-astra+a+b", ProviderOpenAI},
+		{"openai/gpt-6-astra+ultra", ProviderOpenAI},
+		{"openai/+high", ProviderOpenAI},
 		{"", ProviderUnset},
 		{"claude", ProviderUnset},
 		{"gemini/x", ProviderUnset},
@@ -1643,6 +1743,7 @@ func TestEffortPartReasonsListValues(t *testing.T) {
 	}{
 		{providerClaude, reasonClaudeEffortPart, claudeparam.EffortValues()},
 		{providerDeepSeek, reasonDeepSeekEffortPart, deepseekparam.EffortValues()},
+		{providerOpenAI, reasonOpenAIEffortPart, openaiparam.EffortValues()},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1676,6 +1777,9 @@ func TestLoadInheritsEffort(t *testing.T) {
 	deepSeek := func(effort deepseekparam.Effort) LLMSelection {
 		return LLMSelection{provider: ProviderDeepSeek, model: "deepseek-flash", deepSeekEffort: effort}
 	}
+	openAI := func(effort openaiparam.Effort) LLMSelection {
+		return LLMSelection{provider: ProviderOpenAI, model: "gpt-6-astra", openAIEffort: effort}
+	}
 	cases := []struct {
 		name                       string
 		need                       Need
@@ -1699,9 +1803,29 @@ func TestLoadInheritsEffort(t *testing.T) {
 			deepSeek(deepseekparam.EffortMax), deepSeek(deepseekparam.EffortMax), nil,
 		},
 		{
+			"both, review unset inherits an openai effort", needBoth,
+			map[string]string{llmEnv: "openai/gpt-6-astra+xhigh"},
+			openAI(openaiparam.EffortXHigh), openAI(openaiparam.EffortXHigh), nil,
+		},
+		{
 			"both, review set without an effort uses the claude default", needBoth,
 			map[string]string{llmEnv: "claude/claude-opus-5-5+low", reviewLLMEnv: "claude/claude-opus-5-5"},
 			claude("claude-opus-5-5", claudeparam.EffortLow), claude("claude-opus-5-5", claudeparam.EffortHigh), nil,
+		},
+		{
+			"both, review set without an effort uses the openai default", needBoth,
+			map[string]string{llmEnv: "openai/gpt-6-astra+low", reviewLLMEnv: "openai/gpt-6-astra"},
+			openAI(openaiparam.EffortLow), openAI(openaiparam.EffortMedium), nil,
+		},
+		{
+			"both, openai generation with a claude review", needBoth,
+			map[string]string{llmEnv: "openai/gpt-6-astra+low", reviewLLMEnv: "claude/claude-opus-5-5"},
+			openAI(openaiparam.EffortLow), claude("claude-opus-5-5", claudeparam.EffortHigh), nil,
+		},
+		{
+			"both, claude generation with an openai review", needBoth,
+			map[string]string{llmEnv: "claude/claude-opus-5-5+low", reviewLLMEnv: "openai/gpt-6-astra+none"},
+			claude("claude-opus-5-5", claudeparam.EffortLow), openAI(openaiparam.EffortNone), nil,
 		},
 		{
 			"both, review set without an effort sends none to deepseek", needBoth,
@@ -1862,6 +1986,7 @@ func TestLoadForIgnoresRetiredVars(t *testing.T) {
 // selection that is accepted still has its provider's variables checked.
 func TestLoadProviderVarsFollowSelection(t *testing.T) {
 	claudeVars := []string{anthropicAPIKeyEnv, anthropicWorkspaceIDEnv}
+	openAIVars := []string{openAIAPIKeyEnv}
 	cases := []struct {
 		name        string
 		need        Need
@@ -1874,20 +1999,20 @@ func TestLoadProviderVarsFollowSelection(t *testing.T) {
 			"LLM empty, review inherits", needBoth,
 			map[string]string{llmEnv: ""},
 			[]VarError{wantMissing(llmEnv)},
-			nil, append([]string{deepSeekAPIKeyEnv}, claudeVars...),
+			nil, append([]string{deepSeekAPIKeyEnv, openAIAPIKeyEnv}, claudeVars...),
 		},
 		{
 			"LLM without a separator, review inherits", needBoth,
 			map[string]string{llmEnv: "claude"},
 			[]VarError{wantInvalid(llmEnv, reasonLLMForm)},
-			nil, append([]string{deepSeekAPIKeyEnv}, claudeVars...),
+			nil, append([]string{deepSeekAPIKeyEnv, openAIAPIKeyEnv}, claudeVars...),
 		},
 		{
 			"LLM with an empty model ID", needBoth,
 			map[string]string{llmEnv: "claude/"},
 			[]VarError{wantInvalid(llmEnv, reasonLLMForm), wantMissing(anthropicAPIKeyEnv)},
 			claudeVars,
-			[]string{deepSeekAPIKeyEnv},
+			[]string{deepSeekAPIKeyEnv, openAIAPIKeyEnv},
 		},
 		{
 			// The review step inherits the rejected generation value, whose
@@ -1896,7 +2021,7 @@ func TestLoadProviderVarsFollowSelection(t *testing.T) {
 			map[string]string{llmEnv: "claude/"},
 			[]VarError{wantInvalid(llmEnv, reasonLLMForm), wantMissing(anthropicAPIKeyEnv)},
 			claudeVars,
-			[]string{deepSeekAPIKeyEnv},
+			[]string{deepSeekAPIKeyEnv, openAIAPIKeyEnv},
 		},
 		{
 			// Exactly two rejections: the effort part and the key of the
@@ -1905,21 +2030,49 @@ func TestLoadProviderVarsFollowSelection(t *testing.T) {
 			map[string]string{llmEnv: "claude/claude-opus-5-5+ultra"},
 			[]VarError{wantInvalid(llmEnv, reasonClaudeEffortPart), wantMissing(anthropicAPIKeyEnv)},
 			claudeVars,
-			[]string{deepSeekAPIKeyEnv},
+			[]string{deepSeekAPIKeyEnv, openAIAPIKeyEnv},
 		},
 		{
 			"LLM with an unaccepted deepseek effort part", needBoth,
 			map[string]string{llmEnv: "deepseek/deepseek-flash+medium"},
 			[]VarError{wantInvalid(llmEnv, reasonDeepSeekEffortPart), wantMissing(deepSeekAPIKeyEnv)},
 			[]string{deepSeekAPIKeyEnv},
-			claudeVars,
+			append([]string{openAIAPIKeyEnv}, claudeVars...),
+		},
+		{
+			"LLM with an unaccepted openai effort part", needBoth,
+			map[string]string{llmEnv: "openai/gpt-6-astra+ultra"},
+			[]VarError{wantInvalid(llmEnv, reasonOpenAIEffortPart), wantMissing(openAIAPIKeyEnv)},
+			openAIVars,
+			append([]string{deepSeekAPIKeyEnv}, claudeVars...),
 		},
 		{
 			"LLM with an empty model ID and an effort", needBoth,
 			map[string]string{llmEnv: "claude/+high"},
 			[]VarError{wantInvalid(llmEnv, reasonLLMForm), wantMissing(anthropicAPIKeyEnv)},
 			claudeVars,
+			[]string{deepSeekAPIKeyEnv, openAIAPIKeyEnv},
+		},
+		{
+			"openai generation with a claude review", needBoth,
+			map[string]string{llmEnv: "openai/gpt-6-astra+high", reviewLLMEnv: "claude/claude-opus-5-5"},
+			[]VarError{wantMissing(openAIAPIKeyEnv), wantMissing(anthropicAPIKeyEnv)},
+			append([]string{openAIAPIKeyEnv}, claudeVars...),
 			[]string{deepSeekAPIKeyEnv},
+		},
+		{
+			"claude generation with an openai review", needBoth,
+			map[string]string{llmEnv: "claude/claude-opus-5-5+high", reviewLLMEnv: "openai/gpt-6-astra+low"},
+			[]VarError{wantMissing(anthropicAPIKeyEnv), wantMissing(openAIAPIKeyEnv)},
+			append([]string{openAIAPIKeyEnv}, claudeVars...),
+			[]string{deepSeekAPIKeyEnv},
+		},
+		{
+			"deepseek generation with an openai review", needBoth,
+			map[string]string{llmEnv: "deepseek/deepseek-flash", reviewLLMEnv: "openai/gpt-6-astra"},
+			[]VarError{wantMissing(deepSeekAPIKeyEnv), wantMissing(openAIAPIKeyEnv)},
+			[]string{deepSeekAPIKeyEnv, openAIAPIKeyEnv},
+			claudeVars,
 		},
 		{
 			"review LLM with two effort separators", needBoth,
@@ -1929,21 +2082,21 @@ func TestLoadProviderVarsFollowSelection(t *testing.T) {
 				wantMissing(anthropicAPIKeyEnv), wantMissing(deepSeekAPIKeyEnv),
 			},
 			append([]string{deepSeekAPIKeyEnv}, claudeVars...),
-			nil,
+			openAIVars,
 		},
 		{
 			"LLM provider invalid, review set", needBoth,
 			map[string]string{llmEnv: "gemini/x", reviewLLMEnv: "deepseek/deepseek-flash"},
 			[]VarError{wantInvalid(llmEnv, reasonLLMProvider), wantMissing(deepSeekAPIKeyEnv)},
 			[]string{deepSeekAPIKeyEnv},
-			claudeVars,
+			append([]string{openAIAPIKeyEnv}, claudeVars...),
 		},
 		{
 			"review provider invalid", needBoth,
 			map[string]string{llmEnv: "deepseek/deepseek-flash", reviewLLMEnv: "gemini/x"},
 			[]VarError{wantInvalid(reviewLLMEnv, reasonLLMProvider), wantMissing(deepSeekAPIKeyEnv)},
 			[]string{deepSeekAPIKeyEnv},
-			claudeVars,
+			append([]string{openAIAPIKeyEnv}, claudeVars...),
 		},
 	}
 	for _, tc := range cases {
@@ -2002,10 +2155,10 @@ func serverEnvWithFile(t *testing.T, data []byte) map[string]string {
 // the revealed keys, the workspace ID, and the revealed Webhook URL. viewLLM
 // fills all but the Webhook URL, which an LLMConfig does not hold.
 type serverView struct {
-	generation, review     LLMSelection
-	deepSeekKey, claudeKey string
-	workspaceID            claudeparam.WorkspaceID
-	webhook                string
+	generation, review                LLMSelection
+	deepSeekKey, claudeKey, openAIKey string
+	workspaceID                       claudeparam.WorkspaceID
+	webhook                           string
 }
 
 // viewServer returns the comparable part of a ServerConfig.
@@ -2021,9 +2174,10 @@ func viewServer(cfg ServerConfig) serverView {
 func viewLLM(c LLMConfig) serverView {
 	deepSeek, _ := c.DeepSeekAPIKey().Reveal()
 	claude, _ := c.AnthropicAPIKey().Reveal()
+	openAI, _ := c.OpenAIAPIKey().Reveal()
 	return serverView{
 		generation: c.Generation(), review: c.Review(),
-		deepSeekKey: deepSeek, claudeKey: claude, workspaceID: c.AnthropicWorkspaceID(),
+		deepSeekKey: deepSeek, claudeKey: claude, openAIKey: openAI, workspaceID: c.AnthropicWorkspaceID(),
 	}
 }
 
@@ -2060,6 +2214,25 @@ func TestLoadServerReadsFile(t *testing.T) {
 		}
 		if got.deepSeekKey != "sk-file" {
 			t.Errorf("DeepSeek API key = %q, want the file's", got.deepSeekKey)
+		}
+	})
+	t.Run("openai", func(t *testing.T) {
+		env := serverEnvWithFile(t, []byte(
+			llmEnv+"=openai/gpt-6-astra+high\n"+
+				reviewLLMEnv+"=openai/gpt-6-astra\n"+
+				openAIAPIKeyEnv+"=sk-openai-file\n"))
+		cfg, err := LoadServer(envLookup(env))
+		if err != nil {
+			t.Fatalf("LoadServer() error = %v, want nil", err)
+		}
+		goWant := LLMSelection{provider: ProviderOpenAI, model: "gpt-6-astra", openAIEffort: openaiparam.EffortHigh}
+		reviewWant := LLMSelection{provider: ProviderOpenAI, model: "gpt-6-astra", openAIEffort: openaiparam.EffortMedium}
+		got := viewServer(cfg)
+		if got.generation != goWant || got.review != reviewWant {
+			t.Errorf("selections = %+v/%+v, want %+v/%+v", got.generation, got.review, goWant, reviewWant)
+		}
+		if got.openAIKey != "sk-openai-file" {
+			t.Errorf("OpenAI API key = %q, want the file's", got.openAIKey)
 		}
 	})
 }
@@ -2248,7 +2421,7 @@ func writeModeForTest(t *testing.T, path string, data []byte, mode os.FileMode) 
 
 // TestLoadServerReadsOnlyHomeAndGodebug checks that the server's load reads
 // HOME and GODEBUG from the environment, and no other variable, even when
-// the environment holds the six keys and the retired LLM variables, which
+// the environment holds the seven keys and the retired LLM variables, which
 // then leave the configuration as the file alone gives it.
 func TestLoadServerReadsOnlyHomeAndGodebug(t *testing.T) {
 	env := serverEnvWithFile(t, []byte(anthropicAPIKeyEnv+"=sk-ant-file\n"))
