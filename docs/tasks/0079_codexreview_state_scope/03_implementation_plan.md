@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-10 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-10 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 実装概要 (Implementation Overview)
@@ -250,3 +250,7 @@ PR の説明には、入れ直しの前後の食い違いの見分け方（設�
 
 -   本書の PR のマージの後、`/runplan 0079` で実装の PR を作る。
 -   実装の PR のマージの後、利用者が `make install-codexreview` で `codexreview` を入れ直す（要件書 4.4、設計書 6.2）。
+
+## 変更履歴
+
+- 2026-11-10 承認（isseis、#未記入）
