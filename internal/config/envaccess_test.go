@@ -556,6 +556,10 @@ const _ = "SLACK_WEBHOOK_URL"
 
 const key = "SLACK_WEBHOOK_URL"
 `,
+		"internal/other/openaisecret.go": `package other
+
+const openAIKey = "OPENAI_API_KEY"
+`,
 	}
 
 	root := t.TempDir()
@@ -585,6 +589,7 @@ const key = "SLACK_WEBHOOK_URL"
 		"internal/other/envvalue.go value:os.Getenv",
 		"internal/other/internalreader.go call:os.UserCacheDir",
 		"internal/other/methodreader.go method:Environ",
+		"internal/other/openaisecret.go secret:OPENAI_API_KEY",
 		"internal/other/others.go call:os.ExpandEnv",
 		"internal/other/others.go call:os.UserConfigDir",
 		"internal/other/others.go call:os.UserHomeDir",

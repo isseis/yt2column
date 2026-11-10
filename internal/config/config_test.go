@@ -352,10 +352,10 @@ func assertClaudeEfforts(t *testing.T, llm LLMConfig, wantGeneration, wantReview
 	}
 }
 
-// TestLoadOpenAI checks that an openai environment loads with its key and
-// effort, that an unset or empty OPENAI_API_KEY is ErrMissing naming the
-// variable, and that a stage that does not select openai reads no effort and
-// holds no key for it.
+// TestLoadOpenAI checks that an openai selection exposes its effort and key
+// through the accessors, that an unset or empty OPENAI_API_KEY is ErrMissing
+// naming the variable, and that a run selecting no openai stage does not read
+// the key. The model and the whole selection are in TestLoadParsesLLMValue.
 func TestLoadOpenAI(t *testing.T) {
 	openAIEnv := func() map[string]string {
 		return map[string]string{
@@ -366,19 +366,13 @@ func TestLoadOpenAI(t *testing.T) {
 		}
 	}
 
-	t.Run("key and efforts", func(t *testing.T) {
+	t.Run("effort and key", func(t *testing.T) {
 		env := openAIEnv()
 		cfg, err := Load(envLookup(env))
 		if err != nil {
 			t.Fatalf("Load() error = %v, want nil", err)
 		}
 		llm := cfg.LLM()
-		if got := llm.Generation().Provider(); got != ProviderOpenAI {
-			t.Errorf("Generation().Provider() = %v, want ProviderOpenAI", got)
-		}
-		if got := llm.Generation().Model(); got != "gpt-6-astra" {
-			t.Errorf("Generation().Model() = %q, want gpt-6-astra", got)
-		}
 		if got := llm.Generation().OpenAIEffort(); got != openaiparam.EffortHigh {
 			t.Errorf("Generation().OpenAIEffort() = %v, want EffortHigh", got)
 		}
@@ -392,37 +386,37 @@ func TestLoadOpenAI(t *testing.T) {
 		if key != env[openAIAPIKeyEnv] {
 			t.Errorf("OpenAIAPIKey() = %q, want %q", key, env[openAIAPIKeyEnv])
 		}
-		// The efforts of the providers this selection does not use stay unset.
-		if got := llm.Generation().ClaudeEffort(); got != claudeparam.EffortUnset {
-			t.Errorf("Generation().ClaudeEffort() = %v, want EffortUnset", got)
-		}
-		if got := llm.Generation().DeepSeekEffort(); got != deepseekparam.EffortUnspecified {
-			t.Errorf("Generation().DeepSeekEffort() = %v, want EffortUnspecified", got)
-		}
 	})
 
-	t.Run("key unset", func(t *testing.T) {
-		_, err := Load(envLookup(without(openAIEnv(), openAIAPIKeyEnv)))
-		assertVarError(t, err, ErrMissing, openAIAPIKeyEnv)
-	})
-
-	t.Run("key empty", func(t *testing.T) {
-		_, err := Load(envLookup(with(openAIEnv(), openAIAPIKeyEnv, "")))
-		assertVarError(t, err, ErrMissing, openAIAPIKeyEnv)
+	t.Run("required key", func(t *testing.T) {
+		cases := []struct {
+			name string
+			env  map[string]string
+		}{
+			{"unset", without(openAIEnv(), openAIAPIKeyEnv)},
+			{"empty", with(openAIEnv(), openAIAPIKeyEnv, "")},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				_, err := Load(envLookup(tc.env))
+				assertVarError(t, err, ErrMissing, openAIAPIKeyEnv)
+			})
+		}
 	})
 
 	t.Run("not selected", func(t *testing.T) {
-		// The key is present but no stage selects openai, so neither the key
-		// nor the effort reaches the configuration.
-		cfg, err := Load(envLookup(with(validEnv(), openAIAPIKeyEnv, "sk-openai-test-key")))
+		// The key is present but no stage selects openai, so the key is not
+		// read and the configuration holds the zero secret.
+		var read []string
+		cfg, err := LoadFor(recordingLookup(with(validEnv(), openAIAPIKeyEnv, "sk-openai-test-key"), &read), needBoth)
 		if err != nil {
-			t.Fatalf("Load() error = %v, want nil", err)
+			t.Fatalf("LoadFor() error = %v, want nil", err)
+		}
+		if slices.Contains(read, openAIAPIKeyEnv) {
+			t.Errorf("LoadFor() read %s, want it unread", openAIAPIKeyEnv)
 		}
 		if _, err := cfg.LLM().OpenAIAPIKey().Reveal(); err == nil {
 			t.Error("OpenAIAPIKey() is set, want the zero secret")
-		}
-		if got := cfg.LLM().Generation().OpenAIEffort(); got != openaiparam.EffortUnset {
-			t.Errorf("Generation().OpenAIEffort() = %v, want EffortUnset", got)
 		}
 	})
 }
