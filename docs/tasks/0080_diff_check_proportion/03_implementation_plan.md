@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-10 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-10 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を、節番号は [02_architecture.md](02_architecture.md)（以下、設計書）の節を指す。H-NN は [design_handoff.md](design_handoff.md) の項番で、どれも設計書の付録 A が扱いを記録している。本タスクに `implementation_handoff.md` はない。用語（規約・記録した差分の読み取り・差分の記録・記録の再確認・記録し直し・決まった形のコマンド・チェック・壊し方・PR-1・PR-2）は、要件書 3 章と 6 章、設計書の冒頭と同じ意味で使う（PR-1・PR-2 は設計書の冒頭が定める）。
@@ -216,3 +216,7 @@ PR-2 の実行の記録（ステップ 2-4）:
 
 -   PR-2 のマージの後、`/runpr` が issue #789 を閉じる。
 -   新しい規則は、PR-1 のマージの後に書く計画から当てはめる（F-007）。
+
+## 変更履歴
+
+- 2026-11-10 承認（isseis、#800）
