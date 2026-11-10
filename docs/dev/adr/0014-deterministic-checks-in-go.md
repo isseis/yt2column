@@ -12,20 +12,18 @@
 
 これらをエージェントの判断や、コマンドの定義に書いたシェルの手順に任せると、同じ入力でも結果が変わりうる。誤ると、レビューの信頼の境界が実行時に働かなくなったり、範囲外の変更が commit されたりする。誤りは、テストで壊して失敗を確かめられなければ見つけられない。
 
-この決定の仕様の正本は [CLAUDE.md](../../../CLAUDE.md) の「Build Commands」と「Test Commands」と「Development Notes」、[.claude/commands/_context.md](../../../.claude/commands/_context.md) の「Guard tool」の行、[fixprguard_guide.md](../guides/fixprguard_guide.md)、[mergepr_guide.md](../guides/mergepr_guide.md) である。
-
 ## 決定
 
--   **判定と副作用を持つ開発の道具は Go で書き、テストを持つ。** 今日あるのは次の 4 つで、どれも `cmd/<名前>` と `internal/<名前>` の組である。製品の 3 つのバイナリ（`yt2column`・`yt2column-server`・`yt2column-nmhost`）には入らない。
+-   **判定と副作用を持つ開発の道具は Go で書き、テストを持つ。** 判定の誤りを、テストで壊して失敗を確かめることで見つけられるようにするためである。今日あるのは次の 4 つで、どれも `cmd/<名前>` と `internal/<名前>` の組であり、製品の 3 つのバイナリには入らない。導入手順は [CLAUDE.md](../../../CLAUDE.md) の「Build Commands」にある。
     -   `fixprguard`: `/fixpr` と `/runpr` の著者・範囲・git の状態の判定、`finish` の中の build checks と commit、`push` の直前の再確認、`reply`・`edit-pr`・`append-pr` の GitHub への書き込み（[ADR-0015](0015-untrusted-review-threads.md)）。
     -   `codexreview`: Codex CLI のローカルレビューの実行と、最終メッセージの形の判定（[ADR-0013](0013-review-setup.md)）。
     -   `coveragecompare`: テストを削除する前後でのカバレッジの比較。`make coverage-compare` と `make ext-coverage-compare` から使う。テストの削除をこの比較で確かめる方針は [ADR-0037](0037-test-deletion-coverage.md) が定める。
     -   `mergepr`: `/mergepr` の prepare・merge・cleanup・discard。判定の道具をこの形で書く先例になった。
--   **道具は、判定に使う基準値を状態のファイルから読み返さない。** 基準値と判定した集合は、サブコマンドの出力として返し、セッションが次の呼び出しの引数で渡す。`fixprguard` は利用者のために git のディレクトリへ記録を書くが、それを判定に読み返さない。判定をディスクに置くと、修正のフェーズや build checks が実行するコードに書き換えられる。
--   **順序を、コマンドの定義ではなく道具の中で強制する。** 確認より前に build checks を動かさないこと、commit と push の間で hooks や config が変わっていたら push しないこと、は道具のコードが守る。コマンドの定義に残るのは、サブコマンドを呼ぶ順序と、利用者への確認だけである。
--   **拡張の関数の範囲だけは、TypeScript の補助に求める。** `coveragecompare` は Go と拡張の両方の比較を受け持つが、拡張の関数の終わりの行は node の lcov が出さないので、`extension/scripts/function-ranges.ts` が入っている `typescript` の構文木から求める。新しい npm のパッケージは加えない。
--   **道具は `main` からインストールして使う。** `mergepr`・`fixprguard`・`codexreview` は `make install-mergepr`・`make install-fixprguard`・`make install-codexreview` で入れ、道具を変えたマージの後は再インストールする。`--protocol` の番号を上げる PR では、その PR の `/runpr` の前に、その PR のブランチで再インストールする（[fixprguard_guide.md](../guides/fixprguard_guide.md) §3）。`coveragecompare` は `make coverage-compare` と `make ext-coverage-compare` が、そのつど一時ディレクトリにビルドして実行する。`fixprguard` は `--protocol` の番号で、呼び出し側の文書と道具の版が合っているかを照合する。あわせて、文書と道具を変える順序は、両方が動き続ける形にする（[fixprguard_guide.md](../guides/fixprguard_guide.md) §9）。
--   **道具の引数・出力・終了コードは、コマンドの定義と文書のガードが読む契約にする。** 変えたときは、道具と、それを呼ぶ文書と、ガードを同じ PR で変える。
+-   **道具は、判定に使う基準値を状態のファイルから読み返さない。** 基準値と判定した集合は、サブコマンドの出力として返し、セッションが次の呼び出しの引数で渡す。`fixprguard` は利用者のために git のディレクトリへ記録を書くが、それを判定に読み返さない。判定をディスクに置くと、修正のフェーズや build checks が実行するコードに書き換えられるためである。保証の内容は [fixprguard_guide.md](../guides/fixprguard_guide.md) の「7. ツールが保証すること・しないこと」にある。
+-   **順序を、コマンドの定義ではなく道具の中で強制する。** 確認より前に build checks を動かさないこと、commit と push の間で hooks や config が変わっていたら push しないこと、は道具のコードが守る。コマンドの定義に残るのは、サブコマンドを呼ぶ順序と、利用者への確認だけである。エージェントが手順を読み違えても、範囲外の変更が commit されたり、信頼の境界が迂回されたりしないためである。保証の内容は [fixprguard_guide.md](../guides/fixprguard_guide.md) の「7. ツールが保証すること・しないこと」にある。
+-   **拡張の関数の範囲だけは、TypeScript の補助に求める。** `coveragecompare` は Go と拡張の両方の比較を受け持つが、拡張の関数の終わりの行は node の lcov が出さないので、`extension/scripts/function-ranges.ts` が入っている `typescript` の構文木から求める。新しい npm のパッケージは加えない。拡張の関数の終わりの行を、lcov からは求められないためである。規則は [0055 設計書](../../tasks/0055_coverage_compare/02_architecture.md) の 3.5「拡張の測り方」にある。
+-   **道具は `main` からインストールして使う。** `mergepr`・`fixprguard`・`codexreview` は `make install-mergepr`・`make install-fixprguard`・`make install-codexreview` で入れ、道具を変えたマージの後は再インストールする。`--protocol` の番号を上げる PR では、その PR の `/runpr` の前に、その PR のブランチで再インストールする（[fixprguard_guide.md](../guides/fixprguard_guide.md) §3）。`coveragecompare` は `make coverage-compare` と `make ext-coverage-compare` が、そのつど一時ディレクトリにビルドして実行する。`fixprguard` は `--protocol` の番号で、呼び出し側の文書と道具の版が合っているかを照合する。あわせて、文書と道具を変える順序は、両方が動き続ける形にする（[fixprguard_guide.md](../guides/fixprguard_guide.md) §9）。インストール済みの古い道具が、古い想定で黙って判定しないようにするためである。
+-   **道具の引数・出力・終了コードは、コマンドの定義と文書のガードが読む契約にする。** 変えたときは、道具と、それを呼ぶ文書と、ガードを同じ PR で変える。契約が食い違うと、レビューの信頼の境界が実行時に働かなくなるためである。契約は、[CLAUDE.md](../../../CLAUDE.md) の「Build Commands」「Test Commands」「Development Notes」、[.claude/commands/_context.md](../../../.claude/commands/_context.md) の「Guard tool」の行、[fixprguard_guide.md](../guides/fixprguard_guide.md)、[mergepr_guide.md](../guides/mergepr_guide.md) にある。
 
 ## 採らなかった案
 
