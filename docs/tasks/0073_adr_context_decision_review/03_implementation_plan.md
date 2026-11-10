@@ -194,8 +194,8 @@ PR へのコメントは、投稿の前に Codex を呼ぶ言及を含まない�
 
 **変えるファイル:** ADR-0005・0006・0007・0011・0027・0028・0031・0033、持ち越しの ADR、必要なら索引、`review_s3.md`、`_checks/data.json`
 
--   [ ] 1.5 で ③ に持ち越した ADR を `s3` の `carried_in` に書き足す。
--   [ ] 2.0 の手順 1〜8 を行う。
+-   [-] 1.5 で ③ に持ち越した ADR を `s3` の `carried_in` に書き足す。（PR-1・PR-2 からの持ち越しはない）
+-   [x] 2.0 の手順 1〜8 を行う。
 
 **完了の条件:** `check s3` が 0 で終わり、`make test` が通る。
 
@@ -211,10 +211,10 @@ PR へのコメントは、投稿の前に Codex を呼ぶ言及を含まない�
 
 **判定理由**: 手順はフェーズ 1 で定まり、プログラムの変更もなく、該当する契機がない
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/785
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 4: 系列 ④（設計書 8 章の 2）
 
@@ -493,7 +493,11 @@ AC-12・AC-13・AC-19・AC-20 は、手順の中の作業（issue を立てる�
 
 #### PR-3
 
--   （ステップ 3-1 で記録する）
+-   `check s3` を、マージベース `b633a13858855ec254898bba18cc3a0f45a447a2` と先頭 `9c0db3a25dab0b6aaa232987dce153b63ee7c579` で実行し、0 で終わった。すべての確かめが `OK` で、違反はない。先頭の後のコミットは本書と見直しの記録だけを変える。
+-   同じ先頭で `make test` を通した（`TestADRRecords`・`TestInstructionDocPaths` で `cmd/yt2column` を通し、全体で 0 件の失敗）。`make lint` も通した。
+-   blob の ID: `check.go` `fae4cff24becc3d8f2f3690a0336204cdbf4ae38`、`data.json` `fbe87d90f9b51e38f38863ae8832adbed29eee3a`、`main.go` `b330ae42f3cbad690972f759cd0788221a775009`、`mentions.go` `e53a9b87b55718f6885ab8933026a4b00c74e443`。
+-   許した変更はない。`s3` の `carried_in`・`retitled_adrs`・`link_changes`・`line_changes`・`unrecorded_commits`・`checker_changes`・`task_doc_changes` は空のままで、確かめのデータは変えていない（2.0 の手順 5 で書き足すものがなかった）。
+-   足した行（`ADDED`）はない。8 本の ADR は、「採らなかった案」「結果」「経緯」を変えていない。「採らなかった案」「決定」にあるずれの記述（ADR-0006 の #678、ADR-0028 の #720）は、意味を変えずに残した。見つけたずれはこの 2 つだけで、どちらも既存の issue が扱うため、新しい issue は立てていない。
 
 #### PR-4
 
