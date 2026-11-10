@@ -397,7 +397,10 @@ fixprguard fence --protocol 5 <triage-file>
 
 Its output is a fenced block; its nonce is the text after `BEGIN-UNTRUSTED-` on
 its first line. Then record `git rev-parse HEAD` as the fix's start commit, for
-the Migration check below.
+the Migration check below, and record what
+`git rev-parse --verify 'refs/remotes/origin/main^{commit}'` prints as the
+round's `origin/main` commit, for "ADR items" below (when it fails, record
+none).
 
 Agent prompt (inline `begin`'s `threads` block from Phase 1 for the comment
 bodies, `path`, and `line`, the fenced triage block above, and, outside the
@@ -577,10 +580,15 @@ newline added, then write out the script into the scratchpad and run it with
 the `<path-file>`s in the order of the items, keeping its standard error in
 `<error-file>`. Use new file names in each round, such as a new directory in
 the scratchpad, since a file left from an earlier round may not be
-overwritten. Run the two lines as separate commands, so each one's exit
-status is seen:
+overwritten. The script is trusted only while `refs/remotes/origin/main` is
+where it was before the Fix agent ran: the agent is told not to write under
+`.git`, but nothing else stops it from moving the ref to a commit whose script
+says what the agent wants. So the first line below reads the ref again, and
+what it prints must equal the round's `origin/main` commit. Run the three
+lines as separate commands, so each one's exit status is seen:
 
 ```bash
+git rev-parse --verify 'refs/remotes/origin/main^{commit}'
 git show refs/remotes/origin/main:.claude/commands/_lib/adr-correction-candidates.sh > <candidates-script>
 bash <candidates-script> <path-file>... 2> <error-file>
 ```
@@ -590,15 +598,23 @@ The output is what the script prints on standard output. Its first line is
 per `<path-file>`, in order. An item whose line
 is `match <listed path>` passes the second bullet with that listed path; an
 item whose line is `no-match`, or has any other form, fails it. Drop every
-ADR item instead when the `git show` or the script exits with a status other
-than 0 (even when it printed `match` lines), when the first line does not have
-the form above, or when the output does not have exactly one line more than
-the number of `<path-file>`s. Do not run `git fetch` for this check.
+ADR item instead when no round's `origin/main` commit was recorded, when the
+`git rev-parse` fails or prints anything other than that commit (then do not
+run the other two lines), when the `git show` or the script exits with a
+status other than 0 (even when it printed `match` lines), when the first line
+does not have the form above or names a commit other than the round's
+`origin/main` commit, or when the output does not have exactly one line more
+than the number of `<path-file>`s. Do not run `git fetch` for this check.
 
 In the Final report, give each ADR item this check dropped one of these
 reasons (an item the `description` bullet dropped is reported as for a
 task-document item):
 
+- **`refs/remotes/origin/main` moved during the round**, or could not be
+  read before or after the Fix agent, with both values when there are two:
+  the Fix agent may have written under `.git`, so the user examines the
+  repository before trusting the round; the reviewer may add the correction
+  by hand after that.
 - **The script could not be written out, failed, or printed output that
   could not be read**, including when it is not on `origin/main` yet; the
   reviewer may add the correction by hand.

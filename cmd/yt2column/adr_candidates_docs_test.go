@@ -547,8 +547,12 @@ func checkACIgnoresGitConfig(t *testing.T, bash scriptBash, scope string, s acCo
 // The code block lines a command document may write the candidates script
 // in: the write-out of origin/main's copy to <candidates-script>, named by
 // its full reference so a local branch named origin/main cannot stand in,
-// and the run of that copy on the <path-file>s.
+// and the run of that copy on the <path-file>s. adrCandidatesRef reads the
+// reference: fixpr.md records it before the Fix agent runs and reads it
+// again just before the write-out, so an agent that moves the reference
+// cannot choose the script that judges its items.
 const (
+	adrCandidatesRef  = "git rev-parse --verify 'refs/remotes/origin/main^{commit}'"
 	adrCandidatesShow = "git show refs/remotes/origin/main:.claude/commands/_lib/adr-correction-candidates.sh > <candidates-script>"
 	adrCandidatesRun  = "bash <candidates-script> <path-file>... 2> <error-file>"
 )
@@ -563,9 +567,10 @@ var adrCandidatesNames = []string{".claude/commands/_lib/adr-correction-candidat
 // or a placeholder is the write-out or the run, and every code span that
 // names them is the name alone. Running the work tree's copy would let the
 // Fix agent change the check, and a path written into the run line would put
-// the agent's value on a command line. fixpr.md's Phase 3 has the write-out
-// with the run on the next line, so a renamed form does not pass by matching
-// nothing. A line that names neither the script nor a placeholder, or a
+// the agent's value on a command line. fixpr.md's Phase 3 has the reading
+// of the reference, the write-out, and the run on consecutive lines, and
+// names the reading in a code span too (the record before the Fix agent), so
+// a renamed form does not pass by matching nothing. A line that names neither the script nor a placeholder, or a
 // block fenced otherwise, is out of its reach.
 func TestADRCorrectionCandidatesCallSite(t *testing.T) {
 	for _, rel := range doctestutil.CommandDocs(t, repositoryRoot) {
@@ -585,8 +590,12 @@ func TestADRCorrectionCandidatesCallSite(t *testing.T) {
 		}
 	}
 	phase3 := requireSection(t, "fixpr.md", doctestutil.ReadDoc(t, fixprPath), fixprPhase3)
-	blockLines, _ := codeTexts(phase3)
-	if i := slices.Index(blockLines, adrCandidatesShow); i < 0 || i+1 >= len(blockLines) || blockLines[i+1] != adrCandidatesRun {
-		t.Errorf("fixpr.md's Phase 3 has no code block line %q followed by %q", adrCandidatesShow, adrCandidatesRun)
+	blockLines, spans := codeTexts(phase3)
+	if i := slices.Index(blockLines, adrCandidatesShow); i < 1 || i+1 >= len(blockLines) ||
+		blockLines[i-1] != adrCandidatesRef || blockLines[i+1] != adrCandidatesRun {
+		t.Errorf("fixpr.md's Phase 3 has no code block lines %q, %q, %q in this order", adrCandidatesRef, adrCandidatesShow, adrCandidatesRun)
+	}
+	if !slices.Contains(spans, adrCandidatesRef) {
+		t.Errorf("fixpr.md's Phase 3 has no code span %q recording the reference before the Fix agent", adrCandidatesRef)
 	}
 }

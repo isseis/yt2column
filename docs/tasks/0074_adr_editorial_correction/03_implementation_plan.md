@@ -57,6 +57,7 @@
     -   **`/fixpr` のセッションの読み方:** 引数の順に行を読み、`match ` で始まる行の残りを一覧の値として項目に添える。`no-match` と、それ以外の形の行の項目は落とす。次のときは、ADR の項目をすべて落とす。
         -   終了コードが 0 でない（`match` の行があっても）。
         -   1 行目の形が違う。
+        -   1 行目のコミットが、ラウンドの `origin/main` のコミット（設計書 1.5）と違う。
         -   行の数が、引数の数に 1 を足した数と違う。
     -   **この形にする理由:** 空の行で一致なしを表すと、出力の行の数の誤りと見分けにくい。
 -   **比較では、ファイルの内容をコマンド置換で読まない。** コマンド置換は末尾の改行を落とすので、末尾に改行を足した `path` が一致してしまう。一覧の値と内容は、`cmp` のようにバイトで比べる道具で比べる。`cmp` は macOS（`/usr/bin/cmp`）と CI の Linux（diffutils）にある。`printf %s <値> | cmp -s - <末尾に改行のあるファイル>` が 1 で終わることは、計画を書くときに macOS で確かめた。
@@ -108,6 +109,11 @@
 | 関数 | `lightweightBashes` | `scriptBashes` |
 | `lwBash`・`lightweightBashes` のファイル | `cmd/yt2column/lightweight_docs_test.go` の中 | `cmd/yt2column/test_helpers_bash.go`（新規、`//go:build test`） |
 | `codeTexts` のファイル（名前は変えない） | `cmd/yt2column/lightweight_docs_test.go` の中 | `cmd/yt2column/docs_test.go` |
+
+### 1.6. 実装の際に決めたこと（2026-11-10）
+
+-   **`/fixpr` は、ラウンドの前の `refs/remotes/origin/main` の値と、候補のスクリプトを取り出す直前の値を比べる**（設計書 1.5）。PR を作った後のレビューで決めた。手順はステップ 3-6 で足す。
+    -   **理由:** 修正のエージェントがこの参照を動かすと、判定するスクリプトをエージェントが選べる。Phase 3.5 はこの参照を確かめない（設計書 1.5）。
 
 ## 2. 実装のステップ (Implementation Steps)
 
@@ -169,6 +175,7 @@
 -   [x] **ステップ 3-3**: `local-cli-review.md` の step 5（`:205-209`）と step 7 の表の `Editorial correction:` の行（`:234`）を、設計書 3.4 のとおり ADR の訂正に広げる。PR 自身の文の直しには訂正の行を書かない、と足す。メンションの確かめ（`:243-254`）と失敗の種類の表は変えない。
 -   [x] **ステップ 3-4**: `runplan.md:63` の箇条の後に、設計書 3.5 の ADR の訂正の箇条を足す。
 -   [x] **ステップ 3-5**: `write.go:97-98` のコメントを、設計書 3.7 のとおり直す。変更前は「`// editorialCorrectionPrefix starts every line of a finish commit body: the`」と「`// line that records an editorial correction to an approved task document.`」の 2 行である。変更後は「`// editorialCorrectionPrefix starts every line of a finish commit body: the`」と「`// line that records an editorial correction to a task document or an ADR.`」の 2 行にする。コードの行と `checkCommitBody` のコメントは変えない。
+-   [x] **ステップ 3-6**（PR を作った後に足した。本計画 §1.6）: `fixpr.md` の Phase 3 で、修正のエージェントを起動する前に `git rev-parse --verify 'refs/remotes/origin/main^{commit}'` の出力をラウンドの `origin/main` のコミットとして記録する。「ADR items」のコードブロックの最初に同じ行を足し、その出力が記録した値と等しいときだけ残りの 2 行を実行する。スクリプトの出力の 1 行目のコミットも記録した値と比べる。どちらかが違うとき、記録がないとき、読めないときは ADR の項目をすべて落とし、Final report に決まった理由を載せる（設計書 3.2.2）。`TestADRCorrectionCandidatesCallSite` に、Phase 3 のコードブロックで参照を読む行・取り出しの行・実行の行がこの順に続くことと、記録のコードスパンがあることを足す。どちらかをなくすとテストが失敗することを確かめ、コミットのメッセージに書く。
 
 **完了の条件:** `make fmt`・`make test`・`make lint` が通る（`cmd/codexreview/docs_test.go` と、設計書 3.8 の既存のテストを含む）。
 
@@ -372,3 +379,4 @@ OK every check passed
 ## 変更履歴
 
 - 2026-11-09 承認（isseis、#761）
+- 2026-11-10 セッション中の再承認：`/fixpr` が、ラウンドの前の `refs/remotes/origin/main` の値と、候補のスクリプトを取り出す直前の値を比べる手順を足した（isseis、#766）
