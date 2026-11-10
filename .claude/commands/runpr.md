@@ -731,9 +731,9 @@ stops, stop here: no question, no merge.
    and the version without the approval line when it applies), the PRE_MERGE change (which lines of which files, and for an
    approval the reviewer name and date it writes, and the PR number fill-in
    lines separately, since the merge without the approvals commits only
-   those), for each diff record PRE_MERGE re-records the AC's text, the
-   difference between the recorded and the new output, and your judgment that
-   the AC holds on the new output, every editorial correction any `fixpr` run of this session reported
+   those), each diff record PRE_MERGE re-records (with the AC's text, the
+   difference between the recorded and the new output, and your judgment
+   that the AC holds on the new output), every editorial correction any `fixpr` run of this session reported
    it could not append to the PR description (each run's Final report,
    accumulated across rounds), and, for each task document this PR changes
    that exists on `origin/main`, the lines of its change history (the rule's

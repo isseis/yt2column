@@ -216,8 +216,9 @@ and the thing it builds is rarely load-bearing)
       diff record in the plan) is oversized for what it checks: weigh what
       the reviewer will read (the script, or the recorded output) against the
       size of the diff it verifies, and a script in a language other than
-      shell has the plan's reason why shell is not enough. This item does not
-      apply to a plan approved before this item reached `main`, nor to its
+      shell has the plan's reason why shell is not enough, and a script is not
+      copied from or modeled on an earlier task's `_checks/`. This item does
+      not apply to a plan approved before this item reached `main`, nor to its
       `_checks/`.
 
 **Cross-document synchronization**
