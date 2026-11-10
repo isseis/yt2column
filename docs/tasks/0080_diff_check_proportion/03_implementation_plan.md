@@ -197,30 +197,34 @@ PR-1 を先にする（設計書 8 章）。
 決まった形のコマンドの実行の記録（ステップ 1-8。コマンドの例の確かめで、AC の行の差分の記録ではない）:
 
 -   この記録はコマンドの例の確かめで、AC の行の差分の記録ではない。§4 の差分の記録の形で書かず、記録の再確認の対象にもならない。
--   実行した環境：`git version 2.50.1 (Apple Git-155)`。PR のブランチの HEAD（`57110f4b802b2361bed58e6df41991329955e056`。規約の §4 のコマンドは `8e748b5a` で入った）から、使い捨ての worktree（detached HEAD。push しない）にコミットの組を作った。
+-   実行した環境：`git version 2.50.1 (Apple Git-155)`。PR のブランチのコミット `6c9f888351c4845be54b7b855a335c853c7f3d19` から、使い捨ての worktree（detached HEAD。push しない）にコミットの組を作った。§4 のコマンドは、レビューの修正（`--text` と `env -u GIT_DIFF_OPTS` を足した）の後の形で実行した。
 -   コミットの組を作ったコマンド（worktree の中で実行した）:
 
     ```sh
     mkdir -p t
-    # t/a.md: "line 1" .. "line 30"; every fifth line is blank
+    awk 'BEGIN { for (i = 1; i <= 30; i++) print (i % 5 == 0 ? "" : "line " i) }' > t/a.md
     printf 'b one\nb two\nb three\n' > t/b.md
     printf 'こんにちは\n世界\n' > t/日本語.md
     printf 'old one\nold two\n' > t/old.md
+    printf '{\n  foo\n}\n{\n  bar\n}\n' > t/c.md
+    printf 'a\n  a\nb\n}\n\n}\n  b\n' > t/d.md
     git add t && git commit -q --no-verify -m "throwaway base"
     git mv t/old.md t/new.md
     sed -i '' -e 's/^line 7$/line 7 changed/' -e 's/^line 17$/line 17 changed/' t/a.md
     printf 'b one\nb two changed\nb three\n' > t/b.md
     printf 'こんにちは\n世界!\n' > t/日本語.md
+    printf '{\n  bar\n}\n{\n  foo\n}\n' > t/c.md
+    printf 'a\n\n  b\nb\na\n  a\nb\n}\n\n}\n  b\n' > t/d.md
     git commit -q --no-verify -am "throwaway change"
     ```
 
-    改名（`t/old.md` → `t/new.md`）、引用が要る非 ASCII のパス（`t/日本語.md`）、8 行離れた 2 つの hunk（`t/a.md`）、複数のファイルを含む。
--   2 つのコミット：`<base>` = `6ef2aae91672f166c8b45cf832fa579421cfb932`、`<commit>` = `fcda119cc8c39d30bab39469335650c3c63b1de8`。比べたパスは `t/a.md`・`t/b.md`・`t/日本語.md`・`t/old.md`・`t/new.md`。
--   既定と逆にした設定（2 回目の実行で `git -c` で与えた）：`color.ui=always`・`color.diff=always`・`diff.noprefix=true`・`diff.mnemonicPrefix=true`・`diff.context=10`・`diff.interHunkContext=10`・`diff.algorithm=histogram`・`core.abbrev=12`・`diff.orderFile=<t/new.md と t/b.md を先に並べるファイル>`・`core.quotePath=false`・`diff.renames=true`・`diff.external=<引数を出すだけのスクリプト>`・`diff.relative=true`・`diff.suppressBlankEmpty=true`・`diff.indentHeuristic=false`・`core.attributesFile=<*.md diff=up>`・`diff.up.textconv=<英字を大文字にするスクリプト>`。
+    改名（`t/old.md` → `t/new.md`）、引用が要る非 ASCII のパス（`t/日本語.md`）、7 行目と 17 行目を変えた近い 2 つの hunk（`t/a.md`）、差分のアルゴリズムで出力が変わる変更（`t/c.md`）、indent heuristic で出力が変わる変更（`t/d.md`）、複数のファイルを含む。
+-   2 つのコミット：`<base>` = `06d4d60087c08e178a41889db7df5baa2abb626a`、`<commit>` = `44bfc763608d004b9bad54d3eda9fb365a0a3889`。比べたパスは `t/a.md`・`t/b.md`・`t/c.md`・`t/d.md`・`t/日本語.md`・`t/old.md`・`t/new.md`。
+-   既定と逆にした設定（2 回目の実行で与えた）：環境変数 `GIT_DIFF_OPTS=--unified=0` と、`git -c` の `color.ui=always`・`color.diff=always`・`diff.noprefix=true`・`diff.mnemonicPrefix=true`・`diff.srcPrefix=SRC/`・`diff.dstPrefix=DST/`・`diff.context=10`・`diff.interHunkContext=10`・`diff.algorithm=histogram`・`core.abbrev=12`・`diff.orderFile=<t/new.md と t/b.md を先に並べるファイル>`・`core.quotePath=false`・`diff.renames=true`・`diff.external=<引数を出すだけのスクリプト>`・`diff.relative=true`・`diff.suppressBlankEmpty=true`・`diff.indentHeuristic=false`・`core.attributesFile=<t/b.md diff=up と t/a.md -diff>`・`diff.up.textconv=<英字を大文字にするスクリプト>`。
 -   比べた結果：
     -   パスの差分のコマンドの出力は、素の設定と逆にした設定で同じだった（`cmp` の終了コード 0）。ファイルの一覧のコマンドも同じだった（同 0）。
-    -   §4 の固定の引数を外した `git diff <base> <commit> -- <paths>` と `git diff --name-only <base> <commit>` を逆にした設定で実行すると、どちらも素の設定の出力と違った（外部の差分のプログラムの出力に替わり、ファイルの一覧は改名を 1 行にまとめ、`diff.orderFile` の順に並び、非 ASCII のパスを引用しなかった）。
-    -   記録の再確認の比べ方：上の出力を §4 の差分の記録の形でファイル（`t/record.md`）に書き、pre-commit のフックを経てコミットした（フックが、空のコンテキストの行の行末の空白 4 行を消した）。§4「Rechecking a record」の 3〜4 のとおり、コードブロックの中身を行番号で取り出し、両方の行末の空白を落として `cmp` で比べると、終了コードは 0（同じ）だった。続けて比べたパス `t/a.md` に 1 行足してコミットし、HEAD と比べ直すと、終了コードは 1（違う）だった。
+    -   逆にした設定のまま、§4 の固定の部分を 1 つずつ外して実行した。パスの差分のコマンドでは、`--no-color`・`--no-ext-diff`・`--no-textconv`・`--text`・`--default-prefix`・`--full-index`・`-U3`・`--inter-hunk-context=0`・`--diff-algorithm=myers`・`--indent-heuristic`・`--no-renames`・`-O/dev/null`・`-c core.quotePath=true`・`-c diff.suppressBlankEmpty=false`・`env -u GIT_DIFF_OPTS` のどれを外しても、出力が素の設定のものと違った。`--no-relative` を外しても同じだった（作業ツリーの最上位で実行したため。`diff.relative` は下のディレクトリで実行したときに効く）。ファイルの一覧のコマンドでは、`--no-renames`・`-O/dev/null`・`-c core.quotePath=true` を外すと違い、`--no-ext-diff` と `--no-relative` を外しても同じだった（`--name-only` は外部の差分のプログラムを呼ばず、`--no-relative` は上と同じ理由による）。
+    -   記録の再確認の比べ方：上の出力を §4 の差分の記録の形でファイル（`t/record.md`）に書き、pre-commit のフックを経てコミットした（フックが、空のコンテキストの行の行末の空白 4 行を消した）。§4「Rechecking a record」の 3〜4 のとおり、コードブロックの中身を `awk` で囲みの行を除いて取り出し、両方の行末の空白を落として `cmp` で比べると、終了コードは 0（同じ）だった。続けて比べたパス `t/a.md` に 1 行足してコミットし、HEAD と比べ直すと、終了コードは 1（違う）だった。
 -   パスの差分のコマンドの出力（素の設定。逆にした設定でも同じ）:
 
     ````text
@@ -255,6 +259,31 @@ PR-1 を先にする（設計書 8 章）。
     -b two
     +b two changed
      b three
+    diff --git a/t/c.md b/t/c.md
+    index 66b501b6de03e643fed9649ba933e19dbab4a56d..9bc351d1f2fb45fc4120af0a6e9139a0ad0c4aad 100644
+    --- a/t/c.md
+    +++ b/t/c.md
+    @@ -1,6 +1,6 @@
+     {
+    -  foo
+    +  bar
+     }
+     {
+    -  bar
+    +  foo
+     }
+    diff --git a/t/d.md b/t/d.md
+    index d674c28d912b35623f632c96756c36bb4a464d61..541151ff704da20bdf15c820ae2e8f5e606c9f0e 100644
+    --- a/t/d.md
+    +++ b/t/d.md
+    @@ -1,3 +1,7 @@
+    +a
+    +
+    +  b
+    +b
+     a
+       a
+     b
     diff --git a/t/new.md b/t/new.md
     new file mode 100644
     index 0000000000000000000000000000000000000000..445cea22ee57b8ce2a2434dc79312b0cb63b33eb
@@ -286,6 +315,8 @@ PR-1 を先にする（設計書 8 章）。
     ````text
     t/a.md
     t/b.md
+    t/c.md
+    t/d.md
     t/new.md
     t/old.md
     "t/\346\227\245\346\234\254\350\252\236.md"
