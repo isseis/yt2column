@@ -361,7 +361,8 @@ OK   corrections: the first non-merge commit that changes ADR-0039 changes nothi
 OK every check passed
 ```
 
--   **補足:** 確認のプログラムを書いた後に `main` を取り込んだ。タスク 0075 が `.claude/commands/runissue.md` を消したので、AC-17 の確かめでは、このファイルを両方のコミットにないものとして扱う（`_checks/main.go` の `deletedOnMain`）。この記録の後のコミットは、本計画のファイルだけを変える。
+-   **補足:** 確認のプログラムを書いた後に `main` を取り込んだ。タスク 0075 が `.claude/commands/runissue.md` を消したので、AC-17 の確かめでは、このファイルを両方のコミットにないものとして扱う（`_checks/main.go` の `deletedOnMain`）。この記録の後、PR を作るまでのコミットは、本計画のファイルだけを変える。
+-   **再実行（2026-11-10、PR を作った後）:** ステップ 3-6 のコミットの後、先頭 `a0adc2c210bf330a784a20ef7716bcff899879cc` で、同じ基点と同じ手順で実行した。終了コードは 0 で、出力は `head` の行のほかは上と同じだった。この記録の後のコミットは、本計画のファイルだけを変える。
 
 ## 8. 成功の基準 (Success Criteria)
 
