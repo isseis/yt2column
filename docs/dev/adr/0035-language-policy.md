@@ -22,7 +22,6 @@ GitHub に置くものは日本語で書く。一方、squash のコミットは
 -   **2 言語で持つ文書は README だけである。** `README.md` を先に変え、[mktrans.md](../../../.claude/commands/mktrans.md) の `/mktrans` で `README.en.md` に反映し、両方を 1 つのコミットに入れる。`README.en.md` の 1 行目の同期の印は、翻訳の元にした `README.md` の版を指し、`/mktrans` はその版からの差分を翻訳する。印の形と翻訳の手順は [mktrans.md](../../../.claude/commands/mktrans.md) に、同期の規則は [CLAUDE.md](../../../CLAUDE.md) の「Translation Guidelines (Japanese to English)」に従う。2 つの言語で持つ文書は、片方を変えたときにもう片方が古くなりやすく、同期をエージェントの判断に任せると、手作業の変更や手順を通らない変更で同期が抜けるためである。
 -   **同期の印は、エージェントの判断ではなく Go のテスト `TestReadmeSyncMarker` で確かめる。** テストは、印が今の `README.md` を指すことを確かめ、`make test`・CI の `doc-guard` のジョブ・pre-commit のフックで走る。同期の手順を持つコマンドは、この検査が失敗したときに `/mktrans` を実行する。プロンプトの判定は決定的でなく、手作業の変更は手順を通らないためである。規則は [CLAUDE.md](../../../CLAUDE.md) の「Translation Guidelines (Japanese to English)」にある。
 -   **PR のタイトルは日本語で書き、squash のコミットの件名と本文は英語で書く。** PR のタイトルは conventional-commit の接頭辞を ASCII のまま残し、その後の要約を日本語で書く。squash の件名は、`/mergepr` が PR の材料から英語で書き、PR のタイトルからは接頭辞だけを読む。squash のコミットは `main` に残る唯一のコミットであり、リポジトリに残るものは英語で書くためである。形は [_context.md](../../../.claude/commands/_context.md) の「PR title and squash subject」の 1 か所に定める。
--   次の 2 点は、まだ要件定義の段階にあり、CLAUDE.md の「Go Idioms」と mkplan.md・runplan.md・weakreview.md には反映していない。1 つは、タスクの `_checks/` のスクリプトに、日本語の文書の文字列と一致しなければならないリテラルを種類を限らずに置いてよいとする例外の拡大である。もう 1 つは、英語だけを求めるコマンドの定義の規則が、その例外のリテラルを指摘しないことである。この差分は [#789](https://github.com/isseis/yt2column/issues/789) の実装で解消する。
 
 ## 採らなかった案
 
