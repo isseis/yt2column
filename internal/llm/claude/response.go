@@ -97,7 +97,7 @@ func parseResponse(data []byte, summary requestSummary) (llm.GenerateResponse, e
 	if err != nil {
 		return llm.GenerateResponse{}, topLevelFailure(object, err)
 	}
-	stopReason, err := requiredString(members, keyStopReason)
+	stopReason, err := strictjson.RequiredStringAllowEmpty(members, keyStopReason)
 	if err != nil {
 		return llm.GenerateResponse{}, topLevelFailure(object, err)
 	}
@@ -275,21 +275,6 @@ func textBlockText(object, block strictjson.Object) (string, error) {
 	text, err := value.AsString()
 	if err != nil {
 		return "", topLevelFailure(object, fmt.Errorf("%s: %w", keyText, err))
-	}
-	return text, nil
-}
-
-// requiredString returns the named member as a string, rejecting a missing
-// member, null, or another kind, but not the empty string: an empty stop_reason
-// is a shape-valid value classified by the stop-reason check.
-func requiredString(members map[string]strictjson.Value, key string) (string, error) {
-	value, err := strictjson.Required(members, key)
-	if err != nil {
-		return "", err
-	}
-	text, err := value.AsString()
-	if err != nil {
-		return "", fmt.Errorf("%s: %w", key, err)
 	}
 	return text, nil
 }

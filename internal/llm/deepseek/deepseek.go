@@ -56,7 +56,7 @@ type client struct {
 // production endpoint. It never reads environment variables. The concrete
 // type is unexported, so a client can only be obtained through New.
 func New(opts Options) (llm.LLMClient, error) {
-	if err := checkAPIKey(opts.APIKey); err != nil {
+	if err := llmhttp.CheckAPIKey(opts.APIKey); err != nil {
 		return nil, wrapError(err)
 	}
 	if opts.Model == "" {

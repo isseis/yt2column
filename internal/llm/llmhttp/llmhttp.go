@@ -2,7 +2,8 @@
 // adapter's timeout over the caller's context, sends a request, reads the
 // response body under a size cap, and classifies a send or read failure into a
 // context error or one of the adapter's own sentinels. It defines no sentinel
-// of its own, so each adapter keeps the sentinels that name its provider.
+// for a send failure, so each adapter keeps the sentinels that name its
+// provider. It also checks the shape of an API key before an adapter is built.
 package llmhttp
 
 import (
@@ -12,6 +13,8 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"github.com/isseis/yt2column/internal/secret"
 )
 
 // MaxResponseBytes caps the response body an adapter reads. Post reads one
@@ -25,6 +28,31 @@ var (
 	errAdapterTimeout = errors.New("adapter timeout")
 	errIncompleteCall = errors.New("incomplete call")
 )
+
+// Construction errors for an API key, shared by every adapter that sends the
+// key in a header. They name no provider; an adapter wraps them with its own
+// prefix.
+var (
+	ErrZeroAPIKey    = errors.New("the API key is the zero value")
+	ErrInvalidAPIKey = errors.New("the API key contains a character outside printable ASCII (0x21-0x7E)")
+)
+
+// CheckAPIKey validates the shape of an API key: it must be present and made
+// only of printable ASCII, so it can be sent as a header value unchanged. The
+// revealed string is discarded after the check and is never stored or put in
+// an error.
+func CheckAPIKey(apiKey secret.Secret) error {
+	value, err := apiKey.Reveal()
+	if err != nil {
+		return ErrZeroAPIKey
+	}
+	for i := range len(value) {
+		if value[i] < '!' || value[i] > '~' {
+			return ErrInvalidAPIKey
+		}
+	}
+	return nil
+}
 
 // NewClient returns an http.Client that never follows a redirect and leaves
 // Transport nil, so the proxy environment variables apply.

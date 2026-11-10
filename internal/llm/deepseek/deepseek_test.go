@@ -28,33 +28,26 @@ import (
 	"github.com/isseis/yt2column/internal/llm"
 	deepseektestutil "github.com/isseis/yt2column/internal/llm/deepseek/testutil"
 	"github.com/isseis/yt2column/internal/llm/deepseekparam"
+	"github.com/isseis/yt2column/internal/llm/llmhttp/llmhttptest"
 	"github.com/isseis/yt2column/internal/secret"
 )
+
+// testProxy is the proxy TestMain installed. Tests read it to confirm that the
+// production endpoint is routed to the blackhole listener.
+var testProxy *llmhttptest.BlackholeProxy
 
 // TestMain routes every non-loopback request through a blackhole listener via
 // the proxy environment variables, so a unit test that accidentally targets
 // the production endpoint fails without reaching the network.
 func TestMain(m *testing.M) {
-	proxy, err := startBlackholeProxy()
+	proxy, err := llmhttptest.InstallBlackholeProxy()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "start test proxy: %v\n", err)
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 	testProxy = proxy
-	for _, name := range []string{"HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"} {
-		if err := os.Setenv(name, proxy.url()); err != nil {
-			fmt.Fprintf(os.Stderr, "set %s: %v\n", name, err)
-			os.Exit(1)
-		}
-	}
-	for _, name := range []string{"NO_PROXY", "no_proxy"} {
-		if err := os.Unsetenv(name); err != nil {
-			fmt.Fprintf(os.Stderr, "unset %s: %v\n", name, err)
-			os.Exit(1)
-		}
-	}
 	code := m.Run()
-	proxy.stop()
+	proxy.Stop()
 	os.Exit(code)
 }
 
@@ -732,12 +725,12 @@ func checkTransportFailure(t *testing.T, response llm.GenerateResponse, err erro
 
 func TestGenerateTransportFailure(t *testing.T) {
 	t.Run("listener closes the connection", func(t *testing.T) {
-		proxy, err := startBlackholeProxy()
+		proxy, err := llmhttptest.StartBlackholeProxy()
 		if err != nil {
 			t.Fatalf("start listener: %v", err)
 		}
-		t.Cleanup(proxy.stop)
-		response, err := generateAgainst(t, proxy.url(), validRequest(), nil)
+		t.Cleanup(proxy.Stop)
+		response, err := generateAgainst(t, proxy.URL(), validRequest(), nil)
 		checkTransportFailure(t, response, err)
 	})
 
@@ -797,8 +790,8 @@ func TestRevealOnlyInRequestFile(t *testing.T) {
 			return true
 		})
 	}
-	if positions["request.go"] != 2 {
-		t.Errorf("request.go calls Reveal %d times, want 2: %v", positions["request.go"], positions)
+	if positions["request.go"] != 1 {
+		t.Errorf("request.go calls Reveal %d times, want 1: %v", positions["request.go"], positions)
 	}
 	for name, count := range positions {
 		if name != "request.go" {
@@ -813,8 +806,8 @@ func TestUnitTestsCannotReachProductionEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ProxyFromEnvironment error = %v", err)
 	}
-	if proxyURL == nil || proxyURL.String() != testProxy.url() {
-		t.Fatalf("proxy for %s = %v, want %s", productionURL, proxyURL, testProxy.url())
+	if proxyURL == nil || proxyURL.String() != testProxy.URL() {
+		t.Fatalf("proxy for %s = %v, want %s", productionURL, proxyURL, testProxy.URL())
 	}
 
 	value, err := New(Options{APIKey: mustSecret(t, testAPIKey), Model: testModel, Timeout: testClientTimeout})
@@ -829,13 +822,13 @@ func TestUnitTestsCannotReachProductionEndpoint(t *testing.T) {
 		t.Fatal("client uses a custom Transport; refusing to send to the production endpoint")
 	}
 
-	before := testProxy.accepted.Load()
+	before := testProxy.Accepted()
 	response, err := client.Generate(context.Background(), validRequest())
 	if !errors.Is(err, ErrTransport) {
 		t.Errorf("Generate() error = %v, want ErrTransport", err)
 	}
 	assertRejected(t, response, err)
-	if testProxy.accepted.Load() <= before {
+	if testProxy.Accepted() <= before {
 		t.Error("the blackhole listener accepted no connection; the request did not use the test proxy")
 	}
 }
@@ -879,12 +872,12 @@ func TestGenerateSentinelsDistinct(t *testing.T) {
 			return generateAgainst(t, server.URL, validRequest(), nil)
 		}},
 		{"transport", ErrTransport, nil, func(t *testing.T) (llm.GenerateResponse, error) {
-			proxy, err := startBlackholeProxy()
+			proxy, err := llmhttptest.StartBlackholeProxy()
 			if err != nil {
 				t.Fatalf("start listener: %v", err)
 			}
-			t.Cleanup(proxy.stop)
-			return generateAgainst(t, proxy.url(), validRequest(), nil)
+			t.Cleanup(proxy.Stop)
+			return generateAgainst(t, proxy.URL(), validRequest(), nil)
 		}},
 		{"deadline", context.DeadlineExceeded, nil, func(t *testing.T) (llm.GenerateResponse, error) {
 			server := newStallingServer(t, false)

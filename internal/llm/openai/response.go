@@ -248,7 +248,7 @@ func parseBody(object strictjson.Object) (responseBody, error) {
 	if err != nil {
 		return responseBody{}, err
 	}
-	status, err := requiredString(members, keyStatus)
+	status, err := strictjson.RequiredStringAllowEmpty(members, keyStatus)
 	if err != nil {
 		return responseBody{}, err
 	}
@@ -295,7 +295,7 @@ func parseIncompleteDetails(members map[string]strictjson.Value, status string) 
 	if err != nil {
 		return "", fmt.Errorf("%s: %w", keyIncompleteDetails, err)
 	}
-	reason, err := requiredString(detailMembers, keyReason)
+	reason, err := strictjson.RequiredStringAllowEmpty(detailMembers, keyReason)
 	if err != nil {
 		return "", fmt.Errorf("%s: %w", keyIncompleteDetails, err)
 	}
@@ -359,14 +359,14 @@ func parseMessage(item strictjson.Object, body *responseBody, text *strings.Buil
 	if err != nil {
 		return fmt.Errorf("%s: %w", outputMessage, err)
 	}
-	role, err := requiredString(members, keyRole)
+	role, err := strictjson.RequiredStringAllowEmpty(members, keyRole)
 	if err != nil {
 		return fmt.Errorf("%s: %w", outputMessage, err)
 	}
 	if role != roleAssistant {
 		return errRoleNotAssistant
 	}
-	status, err := requiredString(members, keyStatus)
+	status, err := strictjson.RequiredStringAllowEmpty(members, keyStatus)
 	if err != nil {
 		return fmt.Errorf("%s: %w", outputMessage, err)
 	}
@@ -446,7 +446,7 @@ func elementType(element strictjson.Object) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return requiredString(members, keyType)
+	return strictjson.RequiredStringAllowEmpty(members, keyType)
 }
 
 // partString returns the required string member key of a content element.
@@ -456,26 +456,11 @@ func partString(part strictjson.Object, key string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("%s: %w", keyContent, err)
 	}
-	value, err := requiredString(members, key)
+	value, err := strictjson.RequiredStringAllowEmpty(members, key)
 	if err != nil {
 		return "", fmt.Errorf("%s: %w", keyContent, err)
 	}
 	return value, nil
-}
-
-// requiredString returns the named member as a string, rejecting a missing
-// member, null, or another kind, but not the empty string, which the caller
-// classifies.
-func requiredString(members map[string]strictjson.Value, key string) (string, error) {
-	value, err := strictjson.Required(members, key)
-	if err != nil {
-		return "", err
-	}
-	text, err := value.AsString()
-	if err != nil {
-		return "", fmt.Errorf("%s: %w", key, err)
-	}
-	return text, nil
 }
 
 // parseUsage reads the response's top-level usage member into an llm.Usage,

@@ -9,7 +9,6 @@ import (
 
 	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/llm/claudeparam"
-	"github.com/isseis/yt2column/internal/secret"
 )
 
 // Fixed request values of the Messages API.
@@ -98,26 +97,9 @@ func newRequestBody(model string, effort claudeparam.Effort, req llm.GenerateReq
 	return data, nil
 }
 
-// checkAPIKey validates the shape of the API key: it must be present and made
-// only of printable ASCII. This is one of exactly two places that call
-// Reveal; the other sets the x-api-key header. The revealed string is
-// discarded after the check and is never stored in a field or an error.
-func checkAPIKey(apiKey secret.Secret) error {
-	value, err := apiKey.Reveal()
-	if err != nil {
-		return errZeroAPIKey
-	}
-	for i := range len(value) {
-		if value[i] < '!' || value[i] > '~' {
-			return errInvalidAPIKey
-		}
-	}
-	return nil
-}
-
 // newRequest builds the POST request with the JSON body and the required
-// headers. It sets x-api-key through the other Reveal call site; the revealed
-// string is used for the header and discarded. The anthropic-workspace-id
+// headers. It sets x-api-key through the package's only Reveal call site; the
+// revealed string is used for the header and discarded. The anthropic-workspace-id
 // header is set only when a workspace ID was specified. A header failure
 // returns without sending the request.
 func (c *client) newRequest(ctx context.Context, body []byte) (*http.Request, error) {

@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/isseis/yt2column/internal/llm"
+	"github.com/isseis/yt2column/internal/llm/llmhttp"
 	"github.com/isseis/yt2column/internal/llm/llmhttp/llmhttptest"
 	"github.com/isseis/yt2column/internal/llm/openaiparam"
 	"github.com/isseis/yt2column/internal/secret"
@@ -38,24 +39,12 @@ var testProxy *llmhttptest.BlackholeProxy
 // the proxy environment variables, so a unit test that accidentally targets
 // the production endpoint fails without reaching the network.
 func TestMain(m *testing.M) {
-	proxy, err := llmhttptest.StartBlackholeProxy()
+	proxy, err := llmhttptest.InstallBlackholeProxy()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "start test proxy: %v\n", err)
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 	testProxy = proxy
-	for _, name := range []string{"HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"} {
-		if err := os.Setenv(name, proxy.URL()); err != nil {
-			fmt.Fprintf(os.Stderr, "set %s: %v\n", name, err)
-			os.Exit(1)
-		}
-	}
-	for _, name := range []string{"NO_PROXY", "no_proxy"} {
-		if err := os.Unsetenv(name); err != nil {
-			fmt.Fprintf(os.Stderr, "unset %s: %v\n", name, err)
-			os.Exit(1)
-		}
-	}
 	code := m.Run()
 	proxy.Stop()
 	os.Exit(code)
@@ -103,12 +92,12 @@ func TestNew(t *testing.T) {
 		forbidden string
 		want      error
 	}{
-		{"zero API key", func(_ *testing.T, o *Options) { o.APIKey = secret.Secret{} }, "", errZeroAPIKey},
-		{"API key with a leading space", func(t *testing.T, o *Options) { o.APIKey = mustSecret(t, " key") }, "", errInvalidAPIKey},
-		{"API key with a newline", func(t *testing.T, o *Options) { o.APIKey = mustSecret(t, "key\n"+fakeSecretMarker) }, "", errInvalidAPIKey},
-		{"API key with DEL", func(t *testing.T, o *Options) { o.APIKey = mustSecret(t, "key\x7f"+fakeSecretMarker) }, "", errInvalidAPIKey},
-		{"API key with a control character", func(t *testing.T, o *Options) { o.APIKey = mustSecret(t, "key\x01"+fakeSecretMarker) }, "", errInvalidAPIKey},
-		{"API key with non-ASCII", func(t *testing.T, o *Options) { o.APIKey = mustSecret(t, "\u9375"+fakeSecretMarker) }, "", errInvalidAPIKey},
+		{"zero API key", func(_ *testing.T, o *Options) { o.APIKey = secret.Secret{} }, "", llmhttp.ErrZeroAPIKey},
+		{"API key with a leading space", func(t *testing.T, o *Options) { o.APIKey = mustSecret(t, " key") }, "", llmhttp.ErrInvalidAPIKey},
+		{"API key with a newline", func(t *testing.T, o *Options) { o.APIKey = mustSecret(t, "key\n"+fakeSecretMarker) }, "", llmhttp.ErrInvalidAPIKey},
+		{"API key with DEL", func(t *testing.T, o *Options) { o.APIKey = mustSecret(t, "key\x7f"+fakeSecretMarker) }, "", llmhttp.ErrInvalidAPIKey},
+		{"API key with a control character", func(t *testing.T, o *Options) { o.APIKey = mustSecret(t, "key\x01"+fakeSecretMarker) }, "", llmhttp.ErrInvalidAPIKey},
+		{"API key with non-ASCII", func(t *testing.T, o *Options) { o.APIKey = mustSecret(t, "\u9375"+fakeSecretMarker) }, "", llmhttp.ErrInvalidAPIKey},
 		{"empty model", func(_ *testing.T, o *Options) { o.Model = "" }, "", errEmptyModel},
 		{"model with a leading space", func(_ *testing.T, o *Options) { o.Model = " gpt-6-astra" }, "gpt-6-astra", errPaddedModel},
 		{"model with a trailing newline", func(_ *testing.T, o *Options) { o.Model = "gpt-6-astra\n" }, "gpt-6-astra", errPaddedModel},
@@ -350,8 +339,8 @@ func TestGenerateRequest(t *testing.T) {
 				return true
 			})
 		}
-		if positions["request.go"] != 2 {
-			t.Errorf("request.go calls Reveal %d times, want 2: %v", positions["request.go"], positions)
+		if positions["request.go"] != 1 {
+			t.Errorf("request.go calls Reveal %d times, want 1: %v", positions["request.go"], positions)
 		}
 		for name, count := range positions {
 			if name != "request.go" {

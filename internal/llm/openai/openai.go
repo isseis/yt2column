@@ -50,7 +50,7 @@ type client struct {
 // model ID is kept as given: it is opaque, and a model or effort the API does
 // not support is reported by the API.
 func New(opts Options) (llm.LLMClient, error) {
-	if err := checkAPIKey(opts.APIKey); err != nil {
+	if err := llmhttp.CheckAPIKey(opts.APIKey); err != nil {
 		return nil, wrapError(err)
 	}
 	if opts.Model == "" {

@@ -8,10 +8,12 @@ package llmhttptest
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -250,6 +252,31 @@ func StartBlackholeProxy() (*BlackholeProxy, error) {
 	}
 	proxy := &BlackholeProxy{listener: listener, acceptDone: make(chan struct{})}
 	go proxy.acceptLoop()
+	return proxy, nil
+}
+
+// InstallBlackholeProxy starts a blackhole proxy and installs it in the proxy
+// environment variables (HTTPS_PROXY and HTTP_PROXY in both cases), unsetting
+// NO_PROXY in both cases, so every non-loopback request of the test binary
+// fails without reaching the network. It is meant for TestMain, which stops the
+// proxy after m.Run. On an error the proxy is already stopped.
+func InstallBlackholeProxy() (*BlackholeProxy, error) {
+	proxy, err := StartBlackholeProxy()
+	if err != nil {
+		return nil, fmt.Errorf("start test proxy: %w", err)
+	}
+	for _, name := range []string{"HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"} {
+		if err := os.Setenv(name, proxy.URL()); err != nil {
+			proxy.Stop()
+			return nil, fmt.Errorf("set %s: %w", name, err)
+		}
+	}
+	for _, name := range []string{"NO_PROXY", "no_proxy"} {
+		if err := os.Unsetenv(name); err != nil {
+			proxy.Stop()
+			return nil, fmt.Errorf("unset %s: %w", name, err)
+		}
+	}
 	return proxy, nil
 }
 
