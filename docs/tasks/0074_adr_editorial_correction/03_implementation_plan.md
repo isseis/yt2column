@@ -57,6 +57,7 @@
     -   **`/fixpr` のセッションの読み方:** 引数の順に行を読み、`match ` で始まる行の残りを一覧の値として項目に添える。`no-match` と、それ以外の形の行の項目は落とす。次のときは、ADR の項目をすべて落とす。
         -   終了コードが 0 でない（`match` の行があっても）。
         -   1 行目の形が違う。
+        -   1 行目のコミットが、ラウンドの `origin/main` のコミット（設計書 1.5）と違う。
         -   行の数が、引数の数に 1 を足した数と違う。
     -   **この形にする理由:** 空の行で一致なしを表すと、出力の行の数の誤りと見分けにくい。
 -   **比較では、ファイルの内容をコマンド置換で読まない。** コマンド置換は末尾の改行を落とすので、末尾に改行を足した `path` が一致してしまう。一覧の値と内容は、`cmp` のようにバイトで比べる道具で比べる。`cmp` は macOS（`/usr/bin/cmp`）と CI の Linux（diffutils）にある。`printf %s <値> | cmp -s - <末尾に改行のあるファイル>` が 1 で終わることは、計画を書くときに macOS で確かめた。
@@ -109,14 +110,19 @@
 | `lwBash`・`lightweightBashes` のファイル | `cmd/yt2column/lightweight_docs_test.go` の中 | `cmd/yt2column/test_helpers_bash.go`（新規、`//go:build test`） |
 | `codeTexts` のファイル（名前は変えない） | `cmd/yt2column/lightweight_docs_test.go` の中 | `cmd/yt2column/docs_test.go` |
 
+### 1.6. 実装の際に決めたこと（2026-11-10）
+
+-   **`/fixpr` は、ラウンドの前の `refs/remotes/origin/main` の値と、候補のスクリプトを取り出す直前の値を比べる**（設計書 1.5）。PR を作った後のレビューで決めた。手順はステップ 3-6 で足す。
+    -   **理由:** 修正のエージェントがこの参照を動かすと、判定するスクリプトをエージェントが選べる。Phase 3.5 はこの参照を確かめない（設計書 1.5）。
+
 ## 2. 実装のステップ (Implementation Steps)
 
 ### フェーズ 1: 定義（設計書 8 章の優先順位 1）
 
 **変更するファイル:** `docs/dev/conventions/requirements_process.md`、`docs/dev/conventions/adr.md`
 
--   [ ] **ステップ 1-1**: `requirements_process.md`「Recording in the PR description」を設計書 3.1 のとおり改める。`:388` の 1 文を、`<document path>`・索引の行・ADR の訂正の条件を述べる文に置き換え、訂正の段落の箇条の `:403-404` の文の後に 1 文を足す。同じ行にある前後の文は変えない。設計書 3.1 の「変えないもの」と「Editing an approved document」には触れない。
--   [ ] **ステップ 1-2**: 規約を設計書 3.3 のとおり改める。「Recording」の読み替えの句を消し（3.3.1）、「After the PR is created」の段落を書き換え（3.3.2）、「Discrepancy statements」の `:348-350` の文を置き換える（3.3.3）。見出しの語 `**After the PR is created.**` は残す。規約は ADR ではないので、訂正の行は書かない。
+-   [x] **ステップ 1-1**: `requirements_process.md`「Recording in the PR description」を設計書 3.1 のとおり改める。`:388` の 1 文を、`<document path>`・索引の行・ADR の訂正の条件を述べる文に置き換え、訂正の段落の箇条の `:403-404` の文の後に 1 文を足す。同じ行にある前後の文は変えない。設計書 3.1 の「変えないもの」と「Editing an approved document」には触れない。
+-   [x] **ステップ 1-2**: 規約を設計書 3.3 のとおり改める。「Recording」の読み替えの句を消し（3.3.1）、「After the PR is created」の段落を書き換え（3.3.2）、「Discrepancy statements」の `:348-350` の文を置き換える（3.3.3）。見出しの語 `**After the PR is created.**` は残す。規約は ADR ではないので、訂正の行は書かない。
 
 **完了の条件:** `make test` と `make lint` が通る（`TestADRRecords` と `TestInstructionDocPaths` を含む）。
 
@@ -124,9 +130,9 @@
 
 **変更するファイル:** `cmd/yt2column/test_helpers_bash.go`（新規）、`cmd/yt2column/lightweight_docs_test.go`、`cmd/yt2column/docs_test.go`、`.claude/commands/_lib/adr-correction-candidates.sh`（新規）、`cmd/yt2column/adr_candidates_docs_test.go`（新規）
 
--   [ ] **ステップ 2-1（リファクタリングのコミット）**: 本計画 §1.5 の表のとおり、`lwBash` と `lightweightBashes` を `test_helpers_bash.go` に移して名前を変え、`lightweight_docs_test.go` の使う箇所をすべて新しい名前にする。`codeTexts` を名前を変えずに `docs_test.go` に移す。関数のコメントは、`/runissue` に限らず、テストが bash のスクリプトを実行する 2 つの bash を返すと述べる。振る舞いは変えない。`TestLightweightCheck` と `TestLightweightCheckCallSite` がそのまま通ることを確かめる。`make fmt`・`make test`・`make lint` を通し、このコミットには他の変更を入れない。
--   [ ] **ステップ 2-2**: 候補のスクリプトを書く。設計書 3.2.2 の表のすべての性質と、本計画 §1.3 の出力の形・比較の方法を持たせる。冒頭のコメントに、使い方、契約（表の性質）、出力と終了コード、`/fixpr` が `origin/main` の版を実行すること、bash で書く理由（本計画 §1.3 の ADR-0014 の判断）を書く。コメント・診断のメッセージ・出力は英語にする。bash 3.2 で動く書き方にする。
--   [ ] **ステップ 2-3**: `adr_candidates_docs_test.go` に `TestADRCorrectionCandidates` を足す。各場合を、`scriptBashes` が返すそれぞれの bash で実行する。
+-   [x] **ステップ 2-1（リファクタリングのコミット）**: 本計画 §1.5 の表のとおり、`lwBash` と `lightweightBashes` を `test_helpers_bash.go` に移して名前を変え、`lightweight_docs_test.go` の使う箇所をすべて新しい名前にする。`codeTexts` を名前を変えずに `docs_test.go` に移す。関数のコメントは、`/runissue` に限らず、テストが bash のスクリプトを実行する 2 つの bash を返すと述べる。振る舞いは変えない。`TestLightweightCheck` と `TestLightweightCheckCallSite` がそのまま通ることを確かめる。`make fmt`・`make test`・`make lint` を通し、このコミットには他の変更を入れない。
+-   [x] **ステップ 2-2**: 候補のスクリプトを書く。設計書 3.2.2 の表のすべての性質と、本計画 §1.3 の出力の形・比較の方法を持たせる。冒頭のコメントに、使い方、契約（表の性質）、出力と終了コード、`/fixpr` が `origin/main` の版を実行すること、bash で書く理由（本計画 §1.3 の ADR-0014 の判断）を書く。コメント・診断のメッセージ・出力は英語にする。bash 3.2 で動く書き方にする。
+-   [x] **ステップ 2-3**: `adr_candidates_docs_test.go` に `TestADRCorrectionCandidates` を足す。各場合を、`scriptBashes` が返すそれぞれの bash で実行する。
     -   **土台:** ファイルの中に小さな git の土台を持つ。具体的には、`t.TempDir` のリポジトリ、場合ごとの空の `HOME` と `TMPDIR`、許可リストの環境（`lwFixture.env` と同じく `PATH`・`HOME`・`TMPDIR`・`GIT_CONFIG_NOSYSTEM=1`・`GIT_TERMINAL_PROMPT=0`・`LC_ALL=C` だけ）、決まった作者での git の実行である。`main` に ADR などのファイルをコミットし、`refs/remotes/origin/main` をそこに向けてから、ブランチを作る。
     -   **場合:** 設計書 7.1 の表の 15 の場合に加えて、設計書 3.2.2 の性質のうち、その表では確かめられないものについての場合を足す。
         -   参照: `refs/remotes/origin/main` がなく、変更も何もないときも、0 でない終了コードで終わる。
@@ -147,7 +153,7 @@
 
 **変更するファイル:** `.claude/commands/fixpr.md`、`cmd/yt2column/adr_candidates_docs_test.go`、`.claude/commands/_lib/local-cli-review.md`、`.claude/commands/runplan.md`、`internal/fixprguard/write.go`
 
--   [ ] **ステップ 3-1**: `fixpr.md` を設計書 3.2 のとおり改める。
+-   [x] **ステップ 3-1**: `fixpr.md` を設計書 3.2 のとおり改める。
     -   Phase 3 の `editorial` を求める文（`:484-490`）に、ADR の訂正と、含めない変更（PR 自身の文の直し、ADR の決定の変更）を足す（3.2.1）。
     -   「Correction list」の通る条件を、タスク文書の項目と ADR の項目に分ける（3.2.2）。
     -   「Correction list」の中に、候補のスクリプトを実行する手順を足す。実行は、ADR の項目が 1 つ以上あるとき、「Migration check」の後、Phase 3.5 の前に行う。コードブロックは、`refs/remotes/origin/main` の版をスクラッチパッドのファイル `<candidates-script>` に書き出す行と、それを `bash` で実行して `<path-file>` を渡す行の 2 行である。プレースホルダは、`TestLightweightCheckCallSite` が拒む `<check-script>` と別の名前にする。`path` を `<path-file>` に書く方法（項目ごとに 1 ファイル、そのままの内容で、改行を足さない）と、本計画 §1.3 の出力の読み方（すべてを落とす 3 つのときを含む）を文で述べる。
@@ -155,7 +161,7 @@
     -   Phase 4 の 1 の文に、ADR の項目の訂正の行の `<document path>` には一致した一覧の値を書く、と足す（3.2.3）。
     -   Final report の 9 項目めに、Phase 6 が追記した訂正を、その文書と説明とともに 1 つずつ挙げる、と足す（3.2.4）。
     -   Phase 6 の手順の文は変えない。
--   [ ] **ステップ 3-2**: `adr_candidates_docs_test.go` に `TestADRCorrectionCandidatesCallSite` を足す。対象は `doctestutil.CommandDocs` の各文書である。次の 3 つを確かめる。
+-   [x] **ステップ 3-2**: `adr_candidates_docs_test.go` に `TestADRCorrectionCandidatesCallSite` を足す。対象は `doctestutil.CommandDocs` の各文書である。次の 3 つを確かめる。
     -   スクリプトの名前か、`<candidates-script>`・`<path-file>` のどれかを含むコードブロックの行が、ステップ 3-1 の取り出しの行か実行の行のどちらかと等しい。
     -   それらを含むコードスパンが、名前かプレースホルダだけである。
     -   `fixpr.md` の Phase 3 の節（`doctestutil.SectionByHeading`）に、取り出しの行と実行の行がそれぞれ 1 回以上ある。
@@ -166,9 +172,10 @@
     -   実行の行の `<path-file>` を `path` の値に置き換えたもの。
     -   正しい実行の行を残したまま、違う 2 つ目の実行の行を足したもの。
     -   取り出しの行か実行の行をなくしたもの。
--   [ ] **ステップ 3-3**: `local-cli-review.md` の step 5（`:205-209`）と step 7 の表の `Editorial correction:` の行（`:234`）を、設計書 3.4 のとおり ADR の訂正に広げる。PR 自身の文の直しには訂正の行を書かない、と足す。メンションの確かめ（`:243-254`）と失敗の種類の表は変えない。
--   [ ] **ステップ 3-4**: `runplan.md:63` の箇条の後に、設計書 3.5 の ADR の訂正の箇条を足す。
--   [ ] **ステップ 3-5**: `write.go:97-98` のコメントを、設計書 3.7 のとおり直す。変更前は「`// editorialCorrectionPrefix starts every line of a finish commit body: the`」と「`// line that records an editorial correction to an approved task document.`」の 2 行である。変更後は「`// editorialCorrectionPrefix starts every line of a finish commit body: the`」と「`// line that records an editorial correction to a task document or an ADR.`」の 2 行にする。コードの行と `checkCommitBody` のコメントは変えない。
+-   [x] **ステップ 3-3**: `local-cli-review.md` の step 5（`:205-209`）と step 7 の表の `Editorial correction:` の行（`:234`）を、設計書 3.4 のとおり ADR の訂正に広げる。PR 自身の文の直しには訂正の行を書かない、と足す。メンションの確かめ（`:243-254`）と失敗の種類の表は変えない。
+-   [x] **ステップ 3-4**: `runplan.md:63` の箇条の後に、設計書 3.5 の ADR の訂正の箇条を足す。
+-   [x] **ステップ 3-5**: `write.go:97-98` のコメントを、設計書 3.7 のとおり直す。変更前は「`// editorialCorrectionPrefix starts every line of a finish commit body: the`」と「`// line that records an editorial correction to an approved task document.`」の 2 行である。変更後は「`// editorialCorrectionPrefix starts every line of a finish commit body: the`」と「`// line that records an editorial correction to a task document or an ADR.`」の 2 行にする。コードの行と `checkCommitBody` のコメントは変えない。
+-   [x] **ステップ 3-6**（PR を作った後に足した。本計画 §1.6）: `fixpr.md` の Phase 3 で、修正のエージェントを起動する前に `git rev-parse --verify 'refs/remotes/origin/main^{commit}'` の出力をラウンドの `origin/main` のコミットとして記録する。「ADR items」のコードブロックの最初に同じ行を足し、その出力が記録した値と等しいときだけ残りの 2 行を実行する。取り出しの行は、参照ではなく記録したコミット ID（`<origin-main-commit>`）から取り出す。スクリプトの出力の 1 行目のコミットも記録した値と比べる。どちらかが違うとき、記録がないとき、読めないときは ADR の項目をすべて落とし、Final report に決まった理由を載せる（設計書 3.2.2）。`TestADRCorrectionCandidatesCallSite` に、Phase 3 のコードブロックで参照を読む行・取り出しの行・実行の行がこの順に続くことと、記録のコードスパンがあることを足す。どちらかをなくすとテストが失敗することを確かめ、コミットのメッセージに書く。
 
 **完了の条件:** `make fmt`・`make test`・`make lint` が通る（`cmd/codexreview/docs_test.go` と、設計書 3.8 の既存のテストを含む）。
 
@@ -176,10 +183,10 @@
 
 **変更するファイル:** `docs/dev/adr/0039-adr-writing-criteria.md`、`docs/tasks/0074_adr_editorial_correction/_checks/main.go`（新規）、`docs/tasks/0074_adr_editorial_correction/_checks/data.json`（新規）、本計画（進み具合と §7 の記録）
 
--   [ ] **ステップ 4-1（ADR-0039 のコミット）**: `git fetch origin main`（ネットワークの操作なので、利用者の承認を得る）の後、`git grep -nE 'issues/732([^0-9]|$)' origin/main -- docs/dev/adr/` をもう一度実行し、ほかの ADR に #732 を扱うずれの記述がないことを確かめる。ADR-0039 の「決定」の 4 つ目の項目の最後の 4 文（設計書 3.9）を消す。項目のほかの文、ほかの節、「状態」、「結果」は変えない。「経緯」に項目を足さない。このファイルだけをコミットする。
+-   [x] **ステップ 4-1（ADR-0039 のコミット）**: `git fetch origin main`（ネットワークの操作なので、利用者の承認を得る）の後、`git grep -nE 'issues/732([^0-9]|$)' origin/main -- docs/dev/adr/` をもう一度実行し、ほかの ADR に #732 を扱うずれの記述がないことを確かめる。ADR-0039 の「決定」の 4 つ目の項目の最後の 4 文（設計書 3.9）を消す。項目のほかの文、ほかの節、「状態」、「結果」は変えない。「経緯」に項目を足さない。このファイルだけをコミットする。
     -   **訂正の行:** このコミットのメッセージに、訂正の行を英語で第 1 カラムから書く（`requirements_process.md`「Recording in the PR description」の形）。行は `Editorial correction: docs/dev/adr/0039-adr-writing-criteria.md: ` で始め、何を消したかを自分の言葉で述べ、`; no decision changed` で終える。`@` と `<` を含めない。
     -   **この手順を明記する理由:** 実装の PR を動かす `/runplan` は、変える前の `runplan.md` を読んでいる。変える前の `runplan.md` は、ADR の訂正の行を書く手順を持たない（設計書 8 章の 6）。
--   [ ] **ステップ 4-2**: 確認のプログラムを `_checks/main.go` と `_checks/data.json` に書く（本計画 §1.3 の形）。確かめる項目は、設計書 7.2 の表の 5 つの行と、ADR-0039 を変える最初のコミットの訂正の行（本計画 §1.3）である。あわせて、`_lib/task-pr-handoff.md` と `runpr.md` に差分がないことも確かめる（設計書 2.2・3.6）。
+-   [x] **ステップ 4-2**: 確認のプログラムを `_checks/main.go` と `_checks/data.json` に書く（本計画 §1.3 の形）。確かめる項目は、設計書 7.2 の表の 5 つの行と、ADR-0039 を変える最初のコミットの訂正の行（本計画 §1.3）である。あわせて、`_lib/task-pr-handoff.md` と `runpr.md` に差分がないことも確かめる（設計書 2.2・3.6）。
     -   **AC-02 の範囲:** 基点の文書からは、置き換え前の 1 文（`:388` の行頭から「The line contains」の直前まで）を除く。先頭の文書からは、その位置にある新しい文と、訂正の段落の箇条に足した 1 文を除く。新しい文の範囲は、前の変えない文「…with `Editorial correction: `.」の終わりから「The line contains」の始まりまで、足す 1 文は「one item for each correction line.」の終わりから「When a PR is created」の始まりまでとする。境の空白と改行をどう扱うかを、プログラムのコメントに書く。置き換え前の文が先頭にないことも確かめる。
     -   **AC-16 の範囲:** `write.go` は、基点と先頭を `go/scanner` でトークンに分け、コメントのトークンを除いた並びが等しいことを確かめる。`internal/fixprguard/` と `cmd/fixprguard/` のほかのファイルは、1 バイトも違わないことを確かめる。
     -   **今と同じであることの行:** 次の部分が 1 バイトも違わないことも確かめる。`fixpr.md` の Phase 6 の節（AC-09・AC-15）、`fixpr.md` の「Correction list」のタスク文書の項目の条件の箇条（`:537-541`、AC-06）、`local-cli-review.md` のメンションの確かめ（`:243-254`）と失敗の種類の表（AC-10）。設計書の案どおりに書くと、これらの部分を変えることになるときは、その行を外し、理由を §7 に書く。
@@ -189,7 +196,7 @@
     -   **出力:** 比べた 2 つのコミットの完全な ID と、項目ごとの結果を含める。
     -   **ソースの文字列:** コメント・識別子・文字列は英語で書く。日本語は `data.json` に置く。
     -   `make fmt` と `go vet -tags test ./docs/tasks/0074_adr_editorial_correction/_checks/` を通す。
--   [ ] **ステップ 4-3**: 確認のプログラムが違反と読み取りの失敗を検出できることを確かめる。手順は 0070 の計画のステップ 1-4 にならう。PR のブランチから `git worktree` で使い捨てのブランチを作り、壊し方を 1 件ずつ一時的なコミットにして、それぞれを先頭として走らせる。各項目について、その項目だけが失敗することと、終了コードを確かめる。壊し方の例は次のとおりである。
+-   [x] **ステップ 4-3**: 確認のプログラムが違反と読み取りの失敗を検出できることを確かめる。手順は 0070 の計画のステップ 1-4 にならう。PR のブランチから `git worktree` で使い捨てのブランチを作り、壊し方を 1 件ずつ一時的なコミットにして、それぞれを先頭として走らせる。各項目について、その項目だけが失敗することと、終了コードを確かめる。壊し方の例は次のとおりである。
     -   `requirements_process.md` の訂正の行の箇条の変えない文（「The line contains no `@` or `<`」を含む）と、形のコードブロックに、それぞれ 1 バイト足す。
     -   「Editing an approved document」に 1 バイト足す。
     -   `write.go` のコードの行をコメントにする。末尾にコメントのある行のコードのトークンを変える。`cmd/fixprguard/` のファイルを変える。
@@ -200,8 +207,8 @@
     コミットのメッセージを壊すもの（訂正の行をなくす、`@` か `<` を含める、`; no decision changed` で終えない、ステップ 4-1 のコミットでほかのファイルも変える）は、使い捨てのブランチでステップ 4-1 のコミットを作り直し、その上の先頭で走らせる。一時的なコミットを上に足しても、ステップ 4-1 のコミットは変わらないためである。
 
     使い捨てのブランチは push せず、確かめた後に worktree とともに消す。壊し方ごとの結果をコミットのメッセージに書き、`_checks/` をコミットする。
--   [ ] **ステップ 4-4（記録のコミット）**: `make test` と `make lint` を実行して通ることを確かめる（AC-22）。`git fetch origin main` を実行する（ネットワークの操作なので、利用者の承認を得る）。作業ツリーに未コミットの変更がない状態で、確認のプログラムを引数なしで走らせる。出力・終了コード・比べた 2 つのコミットの完全な ID を本計画 §7 に書き、本計画の進み具合とともにコミットする。
--   [ ] **ステップ 4-5**: 記録した先頭の後に、本計画のファイルのほかを変えるコミット（`main` を取り込むコミットと、`/runplan` のフェーズの後のレビューの修正のコミットを含む）が入ったら、確認のプログラムを走らせ直して §7 の記録を改める。
+-   [x] **ステップ 4-4（記録のコミット）**: `make test` と `make lint` を実行して通ることを確かめる（AC-22）。`git fetch origin main` を実行する（ネットワークの操作なので、利用者の承認を得る）。作業ツリーに未コミットの変更がない状態で、確認のプログラムを引数なしで走らせる。出力・終了コード・比べた 2 つのコミットの完全な ID を本計画 §7 に書き、本計画の進み具合とともにコミットする。
+-   [x] **ステップ 4-5**: 記録した先頭の後に、本計画のファイルのほかを変えるコミット（`main` を取り込むコミットと、`/runplan` のフェーズの後のレビューの修正のコミットを含む）が入ったら、確認のプログラムを走らせ直して §7 の記録を改める。
     -   PR を作る前に ADR-0039 を直すときは、`git commit --fixup` と `GIT_SEQUENCE_EDITOR=true git rebase -i --autosquash` でステップ 4-1 のコミットに畳み込む（PR を作る前は push していない）。畳み込みは、ステップ 4-1 より後のすべてのコミットを作り直すので、記録した先頭はブランチから外れる。そのため、畳み込んだ後は、確認のプログラムを走らせ直し、§7 の記録を新しいコミットの ID で書き直す。
     -   PR を作る前に、記録した先頭がブランチの祖先であることと、その後のコミットがどれも本計画のファイルしか変えていないことを確かめる。
 
@@ -219,10 +226,10 @@
 
 **判定理由**: ステップ 2-2・3-1 は、信頼しないデータ（エージェントが返した path）を確かめる信頼の境界の確認で、mkplan.md step 8 の panel mode の契機（security-gate）に当たる
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/766
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ## 3. 実装の順序とマイルストーン (Implementation Order and Milestones)
 
@@ -288,7 +295,7 @@ PR は 1 本である（設計書 1.2）。規約が PR を作った後の訂正
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
-- [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 2-1 / 2-2 / 2-3 / 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 4-1 / 4-2 / 4-3 / 4-4 / 4-5）
+- [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 2-1 / 2-2 / 2-3 / 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 4-1 / 4-2 / 4-3 / 4-4 / 4-5）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -332,7 +339,31 @@ PR は 1 本である（設計書 1.2）。規約が PR を作った後の訂正
 
 ### 実行の記録
 
-（ステップ 4-4・4-5 で書く）
+-   **日付:** 2026-11-10
+-   **基点:** `10a4c6f95ca5b7ea8d926dd1ceeaa9df5bfbe4fe`（`git merge-base refs/remotes/origin/main HEAD`。タスク 0075 の PR #764 を取り込んだ後の `main`）
+-   **先頭:** `d60f2a1fb468e1226a1c2edad0f5ea1d5396c78d`
+-   **実行:** 作業ツリーに未コミットの変更がない状態で、`go build -tags test -o <bin> ./docs/tasks/0074_adr_editorial_correction/_checks/` でビルドし、引数なしで実行した。終了コードは 0。
+-   **出力:**
+
+```text
+base 10a4c6f95ca5b7ea8d926dd1ceeaa9df5bfbe4fe
+head d60f2a1fb468e1226a1c2edad0f5ea1d5396c78d
+OK   recording: docs/dev/conventions/requirements_process.md: "Recording in the PR description" is byte-identical outside the replaced <document path> sentence and the added paragraph sentence, and the old sentence is gone
+OK   editing: docs/dev/conventions/requirements_process.md: "Editing an approved document" is byte-identical
+OK   phase6: .claude/commands/fixpr.md: Phase 6 is byte-identical
+OK   part fixpr task-document bullet: .claude/commands/fixpr.md: appears once, byte-identical
+OK   part local-cli-review mention check: .claude/commands/_lib/local-cli-review.md: appears once, byte-identical
+OK   part local-cli-review failure-kind table: .claude/commands/_lib/local-cli-review.md: appears once, byte-identical
+OK   unchanged-files: the files the task leaves alone have no diff
+OK   fixprguard: internal/fixprguard/ and cmd/fixprguard/ change only write.go, and write.go only in comments
+OK   adr-0039: docs/dev/adr/0039-adr-writing-criteria.md: the head is the base with the listed sentences removed from the decision section's item
+OK   corrections: the first non-merge commit that changes ADR-0039 changes nothing else and carries a well-formed correction line for it
+OK every check passed
+```
+
+-   **補足:** 確認のプログラムを書いた後に `main` を取り込んだ。タスク 0075 が `.claude/commands/runissue.md` を消したので、AC-17 の確かめでは、このファイルを両方のコミットにないものとして扱う（`_checks/main.go` の `deletedOnMain`）。この記録の後、PR を作るまでのコミットは、本計画のファイルだけを変える。
+-   **再実行（2026-11-10、PR を作った後）:** ステップ 3-6 のコミット（ローカルの CLI レビューの指摘の修正を含む）の後、先頭 `59dc624023965165e5dce8055578934f5522a389` で、同じ基点と同じ手順で実行した。終了コードは 0 で、出力は `head` の行のほかは上と同じだった。この記録の後のコミットは、本計画のファイルだけを変える。
+-   **再実行（2026-11-10、`main` を取り込んだ後）:** タスク 0073 の PR #765 とタスク 0072 の PR #775 を `main` から取り込むマージコミット `ecbc1539edd31ff4045ebab88d265792980d255d` の後、基点 `0b1ff0bba0a9e7386043aff96d87690247f93ac0` で、同じ手順で実行した。終了コードは 0 で、出力は `base` と `head` の行のほかは上と同じだった。`requirements_process.md` の訂正の段落の箇条は、取り込みで 1 か所だけ衝突した（`main` が `<書いた手順>` に `通常の進め方へ戻す` を足し、本ブランチが「訂正の段落は範囲のすべての訂正の行を載せる」の文を足した）。両方を残して解いた。この記録の後のコミットは、本計画のファイルだけを変える。
 
 ## 8. 成功の基準 (Success Criteria)
 
@@ -350,3 +381,4 @@ PR は 1 本である（設計書 1.2）。規約が PR を作った後の訂正
 ## 変更履歴
 
 - 2026-11-09 承認（isseis、#761）
+- 2026-11-10 セッション中の再承認：`/fixpr` が、ラウンドの前の `refs/remotes/origin/main` の値と、候補のスクリプトを取り出す直前の値を比べる手順を足した（isseis、#766）

@@ -95,7 +95,7 @@ func checkPostText(text string) error {
 }
 
 // editorialCorrectionPrefix starts every line of a finish commit body: the
-// line that records an editorial correction to an approved task document.
+// line that records an editorial correction to a task document or an ADR.
 const editorialCorrectionPrefix = "Editorial correction: "
 
 // checkCommitBody holds a finish commit body to the editorial correction

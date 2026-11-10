@@ -417,6 +417,26 @@ func tableFlagContains(table [][]string, want string) bool {
 // documents do not nest code spans.
 var codeSpanRE = regexp.MustCompile("`([^`]*)`")
 
+// codeTexts returns the code of doc: the lines inside fenced code blocks,
+// fences left out, and the contents of the code spans outside the blocks.
+func codeTexts(doc string) (blockLines, spans []string) {
+	var prose strings.Builder
+	for _, line := range doctestutil.ScanDocLines(slices.Collect(strings.Lines(doc))) {
+		switch {
+		case line.Fence:
+		case line.Block:
+			blockLines = append(blockLines, strings.TrimSpace(line.Text))
+		default:
+			prose.WriteString(line.Text)
+			prose.WriteString("\n")
+		}
+	}
+	for _, m := range codeSpanRE.FindAllStringSubmatch(prose.String(), -1) {
+		spans = append(spans, strings.TrimSpace(m[1]))
+	}
+	return blockLines, spans
+}
+
 // firstCodeSpan returns the content of the first code span in cell.
 func firstCodeSpan(cell string) (string, bool) {
 	match := codeSpanRE.FindStringSubmatch(cell)
