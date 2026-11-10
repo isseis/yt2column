@@ -353,8 +353,8 @@
 
 **変更するファイル:** なし
 
--   [ ] PR-1 を作る直前（このブランチの最後の commit の後）に、ほかの worktree で `/fixpr`・`/runpr` が動いていないことを利用者に確かめる（ツールを入れ直すと、ほかの worktree の文書の `--protocol 5` が終了コード `2` で止まるため）。
--   [ ] このブランチで、作業ツリーが clean な状態で `make install-fixprguard` を実行する（ガイド 3 章。PR-1 の `/runpr` は新しい `runpr.md` と `fixpr.md` を新しいツールで実行する）。
+-   [x] PR-1 を作る直前（このブランチの最後の commit の後）に、ほかの worktree で `/fixpr`・`/runpr` が動いていないことを利用者に確かめる（ツールを入れ直すと、ほかの worktree の文書の `--protocol 5` が終了コード `2` で止まるため）。
+-   [x] このブランチで、作業ツリーが clean な状態で `make install-fixprguard` を実行する（ガイド 3 章。PR-1 の `/runpr` は新しい `runpr.md` と `fixpr.md` を新しいツールで実行する）。
 
 **成功の条件:** `go version -m "$(command -v fixprguard)"` の `vcs.revision` がこのブランチの head で、`vcs.modified` が `false` である。この後の commit（`/fixpr` の修正を含む）が `cmd/fixprguard` か `internal/fixprguard` を変えたら、その `/fixpr` の実行が終わった後、`/runpr` を続ける前に入れ直す。1 回の `/fixpr` の実行の中では、Phase 4 が変えたツールのコードではなく、入れてあるツールで Phase 4.5 を行う（番号は同じ `6` である）。
 
@@ -372,7 +372,7 @@
 
 **判定理由**: `protocol` を上げ、既存のサブコマンドの出力の契約と新しい検査を同時に変えるセキュリティの関門（パネルモードの条件）を含み、ステップ 1-1 は設計の前提を確かめる観察である
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [ ] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
