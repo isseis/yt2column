@@ -12,15 +12,13 @@
 
 ## 決定
 
--   **拡張は `chrome.storage` を使わない。** 設定を保存せず、オプションページも持たない。送信ごとの値は、ビューアの URL と各ページのメモリにだけ置く。Service Worker のメモリにある値は、ビューアに届けるまでの短い間だけのものである。
--   **要求する権限は `activeTab`・`scripting`・`nativeMessaging` の 3 つだけにする。** `host_permissions`・`storage`・`options_ui`・`tabs`・`downloads`・`clipboardWrite` を加えず、ページの読み込み時に自動で実行されるコード（`content_scripts`）も宣言しない（起動の経路は [ADR-0008](0008-launch-path.md)）。
--   **権限を広げずに、ビューアを開き、保存し、コピーする。** ビューアのタブは `chrome.tabs` の権限の要らない操作（作成・選択・削除・取得）で開き、`chrome.windows.update` で前面に出す。記事の保存は拡張のページからの Blob のダウンロードで、コピーは利用者の操作の中のクリップボードへの書き込みで行う。
--   **状態の正しい値はサーバに置く。** 生成・状態・投稿の状態はサーバが持ち、Service Worker は生成の開始を 1 回送るだけで、ポーリングはしない。ポップアップとビューアは、記事のキーを使って自分で状態の取得を送る。Service Worker が停止しても、キーを受け取った後の表示は失われない。
+-   **拡張は `chrome.storage` を使わない。** 設定を保存せず、オプションページも持たない。送信ごとの値は、ビューアの URL と各ページのメモリにだけ置き、Service Worker のメモリにある値はビューアに届けるまでの短い間だけのものとする。保存した値の更新と、保存の権限の管理を要さないためである。規則は [security.md](../security.md) §8.1「ブラウザ拡張」にある。
+-   **要求する権限は `activeTab`・`scripting`・`nativeMessaging` の 3 つだけにする。** `host_permissions`・`storage`・`options_ui`・`tabs`・`downloads`・`clipboardWrite` を加えず、ページの読み込み時に自動で実行されるコード（`content_scripts`）も宣言しない（起動の経路は [ADR-0008](0008-launch-path.md)）。閲覧内容全般に及ぶ権限を持たないためである。規則は [security.md](../security.md) §8.1 と [extension/static/manifest.json](../../../extension/static/manifest.json) にある。
+-   **権限を広げずに、ビューアを開き、保存し、コピーする。** ビューアのタブは `chrome.tabs` の権限の要らない操作で開き、`chrome.windows.update` で前面に出す。記事の保存は拡張のページからの Blob のダウンロードで、コピーは利用者の操作の中のクリップボードへの書き込みで行う。権限を広げずに要件を満たすためである。規則は [security.md](../security.md) §8.1 にある。
+-   **状態の正しい値はサーバに置く。** 生成・状態・投稿の状態はサーバが持ち、Service Worker は生成の開始を 1 回送るだけで、ポーリングはしない。ポップアップとビューアが記事のキーで状態の取得を送る。Service Worker はいつでも停止されるので、そのメモリだけを状態の正しい置き場所にしないためである。規則は [security.md](../security.md) §8.1・§8.2「localhost サーバ」と [project_overview.md](../project_overview.md) にある。
 -   **サーバの記事と投稿の状態の持ち方は [ADR-0027](0027-article-job-api.md) が、投稿を送り直したときの扱いは [ADR-0028](0028-no-automatic-resend.md) が定める。**
--   **古い版が保存した値は、読めないまま残ることを受け入れる。** 0020 の版が `chrome.storage.local` に保存した共有トークンとポートは、拡張を更新しても残りうる。拡張は `storage` の権限を持たないので、これを読むことも削除することもできない。サーバはトークンを読まないので、残った値が通用する相手はない。
--   **ビューアの URL に持つ値は、ブラウザの履歴に残ることを受け入れる。** 見出し・チャンネル名・動画タイトル・動画の URL・送信の時刻と、記事のキーを受け取った後（受け付けの応答か同じ動画の応答の後）はそのキーを、同じ動画の既存の記事を表示するときは、そのことを示す印 `e` を URL に持つ。コピーした字幕と概要欄は URL に入れない。
-
-この決定の仕様の正本は [security.md](../security.md) §8.1「ブラウザ拡張」と §8.2「localhost サーバ」、[project_overview.md](../project_overview.md)、[extension/static/manifest.json](../../../extension/static/manifest.json) である。
+-   **古い版が保存した値は、読めないまま残ることを受け入れる。** 0020 の版が `chrome.storage.local` に保存した共有トークンとポートは、拡張を更新しても残りうる。拡張は `storage` の権限を持たないので、これを読むことも削除することもできない。サーバはトークンを読まないので、残った値が通用する相手はない。規則は [0026 設計書](../../tasks/0026_native_messaging_relay/02_architecture.md) §3.7.1「manifest」と [security.md](../security.md) §8.1 にある。
+-   **ビューアの URL に持つ値は、ブラウザの履歴に残ることを受け入れる。** 見出し・チャンネル名・動画タイトル・動画の URL・送信の時刻・記事のキー・既存の記事を表示していることを示す印を URL に持ち、コピーした字幕と概要欄は入れない。値を URL に置けば、再読み込み・閉じたタブの復元・履歴からの表示の後も同じ記事を表示できるためである。規則は [security.md](../security.md) §8.1 と [0058 要件定義書](../../tasks/0058_same_video_article/01_requirements.md) F-004 にある。
 
 ## 採らなかった案
 
