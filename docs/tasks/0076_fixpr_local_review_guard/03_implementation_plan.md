@@ -383,8 +383,26 @@
 
 **変更するファイル:** `docs/tasks/0076_fixpr_local_review_guard/03_implementation_plan.md`（記録）
 
--   [ ] 利用者の許可を得て `main` を最新にし（`git pull` はネットワークの操作である）、`main` で `make install-fixprguard` を再実行する（`main` がほかの worktree で使われていれば、その worktree で行う）。`go version -m "$(command -v fixprguard)"` の `vcs.revision` が PR-1 の squash commit で、`vcs.modified` が `false` であることを確かめて記録する。
--   [ ] `git worktree list` で作業中のブランチを列挙し、文書がまだ `--protocol 5` を渡すブランチ（`main` を取り込んでいないもの）を利用者に示す。古い文書の `--protocol 5` は、新しいツールで終了コード `2` になる。取り込みは、そのブランチを使うセッションで行う（ほかのセッションの作業と衝突しないため）。示したブランチを、このステップに書く。
+-   [x] 利用者の許可を得て `main` を最新にし（`git pull` はネットワークの操作である）、`main` で `make install-fixprguard` を再実行する（`main` がほかの worktree で使われていれば、その worktree で行う）。`go version -m "$(command -v fixprguard)"` の `vcs.revision` が PR-1 の squash commit で、`vcs.modified` が `false` であることを確かめて記録する。
+-   [x] `git worktree list` で作業中のブランチを列挙し、文書がまだ `--protocol 5` を渡すブランチ（`main` を取り込んでいないもの）を利用者に示す。古い文書の `--protocol 5` は、新しいツールで終了コード `2` になる。取り込みは、そのブランチを使うセッションで行う（ほかのセッションの作業と衝突しないため）。示したブランチを、このステップに書く。
+
+**記録（2026-11-10）:**
+
+-   再インストール: 利用者の許可を得た。`git fetch origin main` の後、ローカルの `main` はすでに PR-1 の squash commit `437836af0429d0e855395cfeaeaf64e3a07c0698` と同じだったので `git pull` は要らなかった。`main` を checkout した一時的な worktree で `make install-fixprguard` を実行した（`main` はほかの worktree で checkout されていなかった）。`go version -m "$(command -v fixprguard)"` は `vcs.revision=437836af0429d0e855395cfeaeaf64e3a07c0698`、`vcs.modified=false`、`vcs.time=2026-11-10T06:20:58Z` を示した。一時的な worktree は削除した。再インストール前の `go version -m` は `vcs.revision=71986337edf970ff215caad0ed96e5a7f1ec8151`（ステップ 7-4 で入れた PR-1 のブランチの head）だった。
+-   示したブランチ: `main` の取り込みを、`git worktree list` の各 worktree で `git merge-base --is-ancestor 437836af HEAD` と `git show HEAD:.claude/commands/fixpr.md` で確かめた。状態はほかのセッションの作業で動くので、2 つの時点を記録する（この worktree を除く）。
+    -   再インストールした時点（2026-11-10 15:26 JST ごろ。`fixprguard` の更新時刻）、`437836af` をまだ取り込んでいなかった worktree:
+        -   `isseis/0073-adr-context-decision-review-08`（`0c63d8c8`、`/Users/issei/git/yt2column`。`--protocol 5`）
+        -   `isseis/0077-openai-llm-client-05`（`fc1ce6f5`、`backend`。`--protocol 5`）
+        -   `isseis/0079-codexreview-state-scope-03`（`18a4781b`、`codex-review`。`--protocol 5`）
+        -   `isseis/0081-implementation-model-choice-01`（`063c5ff0`、`front-end`。`--protocol 5`）
+        -   `isseis/0080-diff-check-proportion-03`（`f5d5eccf`、`process`。`--protocol 5`）
+        -   detached HEAD（`03c9f30e`、`/private/var/…/0069wt`。`--protocol 5`）
+        -   detached HEAD（`f0749c6d`、`article-quality`。`--protocol 4`）
+    -   記録の commit の直前（2026-11-10 15:41 JST）、`437836af` をまだ取り込んでいなかった worktree:
+        -   detached HEAD（`03c9f30e`、`/private/var/…/0069wt`。`--protocol 5`）
+        -   detached HEAD（`f0749c6d`、`article-quality`。`--protocol 4`）
+        -   上の名前のある 5 つのブランチは、この間に `main` を取り込み（`backend` は `main` を checkout した）、どれも `--protocol 6` になった。`main` はこの間にも進んだ（`origin/main` は `bc6866d5`）。
+-   フェーズ 8 の完了の条件: 変更の後に `make test` と `make lint` を実行し、どちらも通った（`make test` は `cmd/fixprguard` などの文書のガードを含む）。
 
 **成功の条件:** 再インストールの commit と、示したブランチの一覧（なければ「なし」）が記録されている。
 
@@ -392,9 +410,15 @@
 
 **変更するファイル:** `docs/tasks/0076_fixpr_local_review_guard/03_implementation_plan.md`（記録）
 
--   [ ] 再インストールの後に、`/fixpr` の Phase 4.5 が動いた実行を観察する（設計書 7.6 の 2 つ目。文書だけの小さな PR が望ましい）。Phase 4.5 は、Phase 4 が commit を作ったときにだけ動く。PR-1 の `/runpr` で、ステップ 7-4 で入れたツールの Phase 4.5 が動いていれば、その結果もあわせて記録する。
--   [ ] 観察したことを記録する。PR の番号、そのブランチを `/fixpr` の直前に作ったか（ステップ 1-1 の VS Code の書き込みのため）、各時点の `check` が止まらなかったか、`push-review` が push したか。止まったときは、`stop`・`parts`・規則の名前と、ガイド 7.2.5 の正当な書き込みに当たるかの判断。
--   [ ] PR-2 のブランチで作業を始める時点で、Phase 4.5 が動いた実行がまだなければ、利用者に進め方を確かめる（観察を待つか、観察していないことを記録して issue を開いたままにするか）。
+-   [x] 再インストールの後に、`/fixpr` の Phase 4.5 が動いた実行を観察する（設計書 7.6 の 2 つ目。文書だけの小さな PR が望ましい）。Phase 4.5 は、Phase 4 が commit を作ったときにだけ動く。PR-1 の `/runpr` で、ステップ 7-4 で入れたツールの Phase 4.5 が動いていれば、その結果もあわせて記録する。
+-   [x] 観察したことを記録する。PR の番号、そのブランチを `/fixpr` の直前に作ったか（ステップ 1-1 の VS Code の書き込みのため）、各時点の `check` が止まらなかったか、`push-review` が push したか。止まったときは、`stop`・`parts`・規則の名前と、ガイド 7.2.5 の正当な書き込みに当たるかの判断。
+-   [x] PR-2 のブランチで作業を始める時点で、Phase 4.5 が動いた実行がまだなければ、利用者に進め方を確かめる（観察を待つか、観察していないことを記録して issue を開いたままにするか）。
+
+**記録（2026-11-10）:**
+
+-   PR-1 の `/runpr`: PR #799 のブランチは、ステップ 7-4 でツールを入れた commit `71986337`（再インストール前の `go version -m` の `vcs.revision`）の後に、`ce588c7b`（`docs(0076): record the PR-1 URL`）と `17c75476`（`docs(0076): record the review of PR #799`）の 2 つの文書の commit だけを足してマージされた（`git rev-list 71986337..17c75476` と、どちらも `03_implementation_plan.md` だけを変えることの確認による）。修正のフェーズの commit がないので、Phase 4 は commit を作らず、Phase 4.5 は動いていない。記録する観察はない。
+-   再インストールの後の観察: `/fixpr` の Phase 4.5 が動いた実行は、まだ観察していない。設計書 7.6 の 2 つ目の確かめは、この PR では行わない。
+-   利用者が決めた進め方（2026-11-10）: 観察を待たずに、観察していないことをここに記録し、issue #426 を開いたままにする。`/runpr` ステップ 5 は、タスクの最終の plan PR をマージした後に、この記録を読まずに #426 を閉じる。そのため、PR-2 のマージの後、利用者が #426 を開き直し、Phase 4.5 を観察した後に閉じる（`9. 次のステップ` の「ステップ 8-2 で観察していないことを記録した場合は、利用者が決めたとおりにする」に当たる）。`/runpr` の step 1 の `MERGED` の場合もステップ 5 の閉じる処理をやり直すので（`runpr.md:116-122`）、開き直した後に同じ PR へ `/runpr` を実行し直すと再び閉じる。そのときは、また開き直す。
 
 **成功の条件:** 観察の結果、または利用者が決めた進め方が記録されている。
 
@@ -412,10 +436,10 @@
 
 **判定理由**: パネルモードの条件にも条件付きの確認の 2 つ以上にも当たらず、既存コード調査結果に競合する案もない。観察の記録だけである
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/802
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ## 3. 実装順序とマイルストーン (Implementation Order and Milestones)
 
@@ -426,7 +450,7 @@
 | M1 | 実際のツールが比べる状態を書き換えないことを確かめる | フェーズ 1 の記録 |
 | M2 | ガードツールが Phase 4.5 の比較と push を行える | フェーズ 2〜5（`check`・`push-review`、`Protocol` の `6`） |
 | M3 | `/fixpr` の Phase 4.5 が比較と `push-review` を使い、文書が実際と一致する | フェーズ 6・7（PR-1） |
-| M4 | マージの後の実際の `/fixpr` で、Phase 4.5 が止まらずに push まで進むことを確かめる | フェーズ 8（PR-2） |
+| M4 | マージの後の実際の `/fixpr` で、Phase 4.5 が止まらずに push まで進むことを確かめる（フェーズ 8 では観察できなかった。観察した後に #426 を閉じる） | フェーズ 8（PR-2） |
 
 ### 3.2. PR 構成
 
@@ -443,7 +467,7 @@
 -   **セキュリティテスト:** 書き換えられた config で `git config --list` 以外の git を起動しないこと、マージの commit と基準値の commit から続かない列を押し通せないこと、確かめていない commit を送らないことを、ステップ 3-1・4-1 のテストで確かめる（設計書 7.5）。
 -   **文書のガード:** `--protocol` の番号、`fixpr.md` の呼び出し、Phase 4.5 に `git push` がないこと、GUARD の構造、ガイドの `parts` と規則の名前（ステップ 6-8）。文面は PR のレビューで読む（設計書 7.4）。
 -   **前後の関係:** タスク 0030 の設計書に注記だけを加えること、ほかの呼び出し元と記録の行が変わらないことは、`_checks/` のスクリプトを一度実行して確かめる（ステップ 7-2・7-3）。
--   **実際のツールでの確かめ:** フェーズ 1 とステップ 8-2 で、観察を記録する（設計書 7.6）。
+-   **実際のツールでの確かめ:** フェーズ 1 の観察を記録する。ステップ 8-2 の観察はまだ行っていないことを記録し、#426 で追跡する（設計書 7.6）。
 -   **後方互換:** 古いツールと新しい文書、新しいツールと古い文書の組み合わせが終了コード `2` で止まることを、`TestProtocolMismatch`（`Protocol + 1` と `Protocol - 1`、`check`・`push-review` を含むすべてのサブコマンド）で確かめる（AC-10）。
 -   **カバレッジ:** テストを削除しないので、`make coverage-compare` は要らない。既存の 2 行は期待を変えるだけである。
 
@@ -460,7 +484,7 @@
 ## 6. 実装チェックリスト (Implementation Checklist)
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 2-1 / 3-1 / 4-1 / 5-1 / 6-1 / 6-2 / 6-3 / 6-4 / 6-5 / 6-6 / 6-7 / 6-8 / 7-1 / 7-2 / 7-3 / 7-4）
-- [ ] PR-2 マージ済み（対象ステップ: 8-1 / 8-2）
+- [x] PR-2 マージ済み（対象ステップ: 8-1 / 8-2）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -489,7 +513,7 @@
 -   **品質:** 各 PR で `make test`・`make lint` が通り、壊して失敗することをコミットメッセージに記録している。
 -   **セキュリティ:** 系列の判定の各規則、`push-review` の push 先の確認と送り元、比較の順序が、1 つずつテストされている。`fixpr.md` の Phase 4.5 は `git push` を含まない。
 -   **文書:** `fixpr.md`・`local-cli-review.md`・`runpr.md`・`_context.md`・ガイド・ADR-0015・0030 の注記・`package_reference.md` が実際と一致し、PR のレビューで読まれている。
--   **実際の動作:** フェーズ 1 とステップ 8-2 の観察が記録されている。
+-   **実際の動作:** フェーズ 1 の観察が記録され、ステップ 8-2 の観察はまだ行っていないことと、その追跡（#426）が記録されている。
 
 ## 9. 次のステップ (Next Steps)
 
