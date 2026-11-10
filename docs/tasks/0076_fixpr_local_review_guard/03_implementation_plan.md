@@ -420,6 +420,26 @@
 -   再インストールの後の観察: `/fixpr` の Phase 4.5 が動いた実行は、まだ観察していない。設計書 7.6 の 2 つ目の確かめは、この PR では行わない。
 -   利用者が決めた進め方（2026-11-10）: 観察を待たずに、観察していないことをここに記録し、issue #426 を開いたままにする。`/runpr` ステップ 5 は、タスクの最終の plan PR をマージした後に、この記録を読まずに #426 を閉じる。そのため、PR-2 のマージの後、利用者が #426 を開き直し、Phase 4.5 を観察した後に閉じる（`9. 次のステップ` の「ステップ 8-2 で観察していないことを記録した場合は、利用者が決めたとおりにする」に当たる）。`/runpr` の step 1 の `MERGED` の場合もステップ 5 の閉じる処理をやり直すので（`runpr.md:116-122`）、開き直した後に同じ PR へ `/runpr` を実行し直すと再び閉じる。そのときは、また開き直す。
 
+**記録（2026-11-10、PR-2 のマージの後の観察）:**
+
+-   前提: インストール済みの `fixprguard` は、`go version -m` で `vcs.revision=437836af0429d0e855395cfeaeaf64e3a07c0698`（PR-1 の squash commit）、`vcs.modified=false` だった。`437836af` から観察の時点の `main`（`origin/main` は `fcd726e3`）までに、`cmd/fixprguard` と `internal/fixprguard` は変わっていない（`git diff --stat` が空）。
+-   観察した PR: #807（`docs(0073): 持ち越しの ADR を見直す`、文書だけ、4 ファイル）。ブランチ `isseis/0073-adr-context-decision-review-09` は `437836af` を取り込み、`fixpr.md` は `--protocol 6` を渡していた。Codex の未解決スレッド 1 件（P3）を `/fixpr 807` が valid と判定し、Phase 4 が commit `53a1d1728dde3b20e09a9f0f41669f0d334f607b`（`fix: address PR #807 review comments`、親は基準値の commit `5513fdf45d340e403d9a132fd1a5a36891f72468`）を作って push した。`/fixpr` は、このブランチを checkout した worktree（`/Users/issei/git/yt2column`）で、別のセッションが実行した。下の値は、そのセッションの報告と、この記録のセッションが読んだ git の状態による。
+-   ブランチを作った時点: `/fixpr` の直前ではない。ローカルのブランチは 16:15 JST に `origin` から作られ（reflog の `branch: Created from origin/...`）、PR は 16:47 JST に作られ、`/fixpr` はその後の Codex のレビューを待ってから始めた。`/fixpr` の実行中に読んだ config には、`branch.isseis/0073-adr-context-decision-review-09.vscode-merge-base` がすでにあった。VS Code の書き込みによる `config` の停止（ステップ 1-1 の残るリスク、ガイド 7.2.5）は、この回の条件では起こりえず、起きなかった。
+-   Phase 4.5 の流れ: CodeRabbit CLI の 1 回目の試行は成功し（`"type":"complete"`・`"status":"review_completed"` の行があり、error の行はない）、指摘は 2 件だった。1 件を直して commit `ada0b7c3301056d281e81806caab4dd3dba96d4a`（`docs(0073): restore the Phase 4 commit rule in ADR-0015`、親は `53a1d172`）を作り、残る 1 件は利用者の判断に回した。2 回目の試行も成功し、指摘は 0 件だった。`codexreview` は起動せず、Codex CLI の実行は 0 回だった。ローカルの CLI レビュー自体の停止（`rate_limit`・`state_changed` など）はなかった。
+-   `check` の結果: 8 回呼び、どれも終了コード `0`、標準エラーは空で、止まったもの（`stop`・`parts`・規則の名前）はなかった。どの呼び出しも `--protocol 6`、同じ基準値、`--commit 53a1d172…` を渡し、作業ツリーの最上位から実行した。出力の `base` はどれも `5513fdf4…` だった。呼んだ順に、時点・出力の `head`・`commits` は次のとおりである。
+    1.  Phase 4.5 の最初: `53a1d172…`、`0`
+    2.  手順 1 の GUARD（1 回目の試行の前）: `53a1d172…`、`0`
+    3.  手順 5 の GUARD（build checks の前）: `53a1d172…`、`0`
+    4.  手順 5 の GUARD（stage の直前）: `53a1d172…`、`0`
+    5.  手順 1 の GUARD（2 回目の試行の前）: `ada0b7c3…`、`1`
+    6.  手順 6 の GUARD（`coderabbit review findings --clear` の前）: `ada0b7c3…`、`1`
+    7.  手順が戻った後: `ada0b7c3…`、`1`
+    8.  `push-review` の直前: `ada0b7c3…`、`1`
+-   呼ばなかった時点: 手順 3 の GUARD は、`codexreview` を起動しなかったので呼んでいない。手順 5 の README の同期の確認の前の GUARD は、修正が `README.md` を変えなかったので呼んでいない。README.en.md の commit の前の `check` は、`make readme-sync-check` が通って README.en.md の commit がなかったので呼んでいない。
+-   commits の数の照合: 7 と 8 の `commits` は、どちらも Phase 4.5 で作った commit の数 `1` と一致した。この記録のセッションでも、`git rev-list --count 53a1d172..ada0b7c3` が `1` を示した。
+-   `push-review`: 終了コード `0`、出力は `{"protocol":6,"pushed":true,"commit":"ada0b7c3301056d281e81806caab4dd3dba96d4a"}` だった。push の後、ローカルのブランチの先頭、`origin/isseis/0073-adr-context-decision-review-09`、`git ls-remote origin refs/heads/isseis/0073-adr-context-decision-review-09` は、どれも `ada0b7c3…` だった。作業ツリーに未コミットの変更はなかった。
+-   結論: 設計書 7.6 の 2 つ目の確かめは済んだ。`/fixpr` の Phase 4.5 は、どの時点の `check` でも止まらずに `push-review` の push まで進んだ。正当な書き込みかを判断すべき停止はなかった。この回に通らなかった時点（手順 3 の GUARD、README の同期の前の GUARD、README.en.md の commit の前の `check`）は、`codexreview` が起動する回や `README.md` を変える回でしか通らないので、観察していない。
+
 **成功の条件:** 観察の結果、または利用者が決めた進め方が記録されている。
 
 **フェーズ 8 の完了の条件:** 文書のガードが通る。
@@ -450,7 +470,7 @@
 | M1 | 実際のツールが比べる状態を書き換えないことを確かめる | フェーズ 1 の記録 |
 | M2 | ガードツールが Phase 4.5 の比較と push を行える | フェーズ 2〜5（`check`・`push-review`、`Protocol` の `6`） |
 | M3 | `/fixpr` の Phase 4.5 が比較と `push-review` を使い、文書が実際と一致する | フェーズ 6・7（PR-1） |
-| M4 | マージの後の実際の `/fixpr` で、Phase 4.5 が止まらずに push まで進むことを確かめる（フェーズ 8 では観察できなかった。観察した後に #426 を閉じる） | フェーズ 8（PR-2） |
+| M4 | マージの後の実際の `/fixpr` で、Phase 4.5 が止まらずに push まで進むことを確かめる（PR-2 では観察できず、そのマージの後に PR #807 の `/fixpr` で観察した。記録の PR のマージの後に #426 を閉じる） | フェーズ 8（PR-2 と、ステップ 8-2 の観察の記録の PR） |
 
 ### 3.2. PR 構成
 
@@ -467,7 +487,7 @@
 -   **セキュリティテスト:** 書き換えられた config で `git config --list` 以外の git を起動しないこと、マージの commit と基準値の commit から続かない列を押し通せないこと、確かめていない commit を送らないことを、ステップ 3-1・4-1 のテストで確かめる（設計書 7.5）。
 -   **文書のガード:** `--protocol` の番号、`fixpr.md` の呼び出し、Phase 4.5 に `git push` がないこと、GUARD の構造、ガイドの `parts` と規則の名前（ステップ 6-8）。文面は PR のレビューで読む（設計書 7.4）。
 -   **前後の関係:** タスク 0030 の設計書に注記だけを加えること、ほかの呼び出し元と記録の行が変わらないことは、`_checks/` のスクリプトを一度実行して確かめる（ステップ 7-2・7-3）。
--   **実際のツールでの確かめ:** フェーズ 1 の観察を記録する。ステップ 8-2 の観察はまだ行っていないことを記録し、#426 で追跡する（設計書 7.6）。
+-   **実際のツールでの確かめ:** フェーズ 1 の観察と、ステップ 8-2 の観察（PR #807 の `/fixpr` の Phase 4.5）を記録する（設計書 7.6）。
 -   **後方互換:** 古いツールと新しい文書、新しいツールと古い文書の組み合わせが終了コード `2` で止まることを、`TestProtocolMismatch`（`Protocol + 1` と `Protocol - 1`、`check`・`push-review` を含むすべてのサブコマンド）で確かめる（AC-10）。
 -   **カバレッジ:** テストを削除しないので、`make coverage-compare` は要らない。既存の 2 行は期待を変えるだけである。
 
@@ -513,11 +533,11 @@
 -   **品質:** 各 PR で `make test`・`make lint` が通り、壊して失敗することをコミットメッセージに記録している。
 -   **セキュリティ:** 系列の判定の各規則、`push-review` の push 先の確認と送り元、比較の順序が、1 つずつテストされている。`fixpr.md` の Phase 4.5 は `git push` を含まない。
 -   **文書:** `fixpr.md`・`local-cli-review.md`・`runpr.md`・`_context.md`・ガイド・ADR-0015・0030 の注記・`package_reference.md` が実際と一致し、PR のレビューで読まれている。
--   **実際の動作:** フェーズ 1 の観察が記録され、ステップ 8-2 の観察はまだ行っていないことと、その追跡（#426）が記録されている。
+-   **実際の動作:** フェーズ 1 の観察と、ステップ 8-2 の観察（Phase 4.5 が止まらずに `push-review` の push まで進んだこと）が記録されている。
 
 ## 9. 次のステップ (Next Steps)
 
--   PR-2 のマージの後、タスクの issue（#426）を閉じる（`/runpr` ステップ 5）。ステップ 8-2 で観察していないことを記録した場合は、利用者が決めたとおりにする。
+-   PR-2 のマージの後、タスクの issue（#426）を閉じる（`/runpr` ステップ 5）。ステップ 8-2 で観察していないことを記録した場合は、利用者が決めたとおりにする。PR-2 では観察していなかったので、#426 は、ステップ 8-2 の観察の記録の PR をマージした後に閉じる。
 -   Phase 5・6 の `reply`・`edit-pr`・`append-pr` の前の比較は、要件書 2.3 のスコープ外である（設計書 9 章）。
 
 ## 変更履歴
