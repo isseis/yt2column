@@ -27,12 +27,12 @@ func newReviewRound(t *testing.T, r *testRepo, n int) reviewRound {
 	t.Helper()
 	r.Write("docs/notes/base.md", "base\n")
 	r.CommitAll("base")
-	r.Git("push", "-q", testRemote, testBranch)
+	r.Git("push", "-q", testRemote, "HEAD:"+headsPrefix+testBranch)
 	base := mustBaseline(t)
 	r.Write(testFile, "phase 4\n")
 	r.CommitAll("phase 4")
 	phase4 := r.Head()
-	r.Git("push", "-q", testRemote, testBranch)
+	r.Git("push", "-q", testRemote, "HEAD:"+headsPrefix+testBranch)
 	round := reviewRound{r: r, base: base, phase4: phase4}
 	round.addReviewCommits(n)
 	return round
@@ -41,7 +41,7 @@ func newReviewRound(t *testing.T, r *testRepo, n int) reviewRound {
 // addReviewCommits commits n times on HEAD.
 func (p reviewRound) addReviewCommits(n int) {
 	for i := range n {
-		p.r.Write("docs/notes/review.md", fmt.Sprintf("review %d\n", i))
+		p.r.Write("docs/notes/review.md", fmt.Sprintf("review %d after %s\n", i, p.r.Head()))
 		p.r.CommitAll("review")
 	}
 }
@@ -279,5 +279,144 @@ func TestGitStateErrorText(t *testing.T) {
 	rules := HeadLineRules()
 	if distinct := len(slices.Compact(slices.Sorted(slices.Values(rules)))); distinct != len(rules) {
 		t.Errorf("HeadLineRules() = %v, want distinct names", rules)
+	}
+}
+
+// failRemotePushes makes the remote refuse every push.
+func failRemotePushes(t *testing.T, r *testRepo) {
+	t.Helper()
+	hooks := filepath.Join(r.Remote, "hooks")
+	if err := os.MkdirAll(hooks, testDirMode); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(hooks, "pre-receive"), "#!/bin/sh\nexit 1\n")
+	chmod(t, filepath.Join(hooks, "pre-receive"), 0o700)
+}
+
+func TestPushReviewed(t *testing.T) {
+	t.Run("pushes_the_checked_head", func(t *testing.T) {
+		p := newReviewRound(t, newTestRepo(t), 2)
+		w, _ := newTestWorktree(t)
+		got, err := w.PushReviewed(t.Context(), p.base, p.phase4)
+		want := PushResult{Protocol: Protocol, Pushed: true, Commit: p.r.Head()}
+		if err != nil || got != want {
+			t.Fatalf("PushReviewed = %+v, %v, want %+v", got, err, want)
+		}
+		if remote := p.r.RemoteHead(); remote != want.Commit {
+			t.Errorf("remote branch = %s, want %s", remote, want.Commit)
+		}
+	})
+
+	t.Run("head_moved_after_the_check", func(t *testing.T) {
+		// HEAD moves after the push target is read; the push still sends the
+		// OID that was checked.
+		p := newReviewRound(t, newTestRepo(t), 1)
+		checked := p.r.Head()
+		w, router := newTestWorktree(t)
+		router.Before = map[string]func(){gitCommand + " push": func() { p.addReviewCommits(1) }}
+		if _, err := w.PushReviewed(t.Context(), p.base, p.phase4); err != nil {
+			t.Fatalf("PushReviewed = %v", err)
+		}
+		if p.r.Head() == checked {
+			t.Fatal("HEAD did not move before the push")
+		}
+		if remote := p.r.RemoteHead(); remote != checked {
+			t.Errorf("remote branch = %s, want the checked %s", remote, checked)
+		}
+	})
+
+	t.Run("explicit_refspec", func(t *testing.T) {
+		// A configured push refspec would send the branch elsewhere, and
+		// followTags would send a tag of the review commit along.
+		r := newTestRepo(t)
+		r.Git("config", "remote."+testRemote+".push", headsPrefix+"*:"+headsPrefix+"other/*")
+		r.Git("config", "push.followTags", "true")
+		p := newReviewRound(t, r, 1)
+		r.Git("tag", "-a", "-m", "agent tag", "agent-tag", r.Head())
+		w, _ := newTestWorktree(t)
+		if _, err := w.PushReviewed(t.Context(), p.base, p.phase4); err != nil {
+			t.Fatalf("PushReviewed = %v", err)
+		}
+		if got := r.RemoteHead(); got != r.Head() {
+			t.Errorf("remote branch = %s, want %s", got, r.Head())
+		}
+		if refs := r.gitIn(r.Remote, "for-each-ref", "--format=%(refname)", headsPrefix+"other/", "refs/tags/"); refs != "" {
+			t.Errorf("pushed more than the branch: %q", refs)
+		}
+	})
+
+	t.Run("push_failure", func(t *testing.T) {
+		// A failed push and a failed push target read are both git failures;
+		// the rule word in the diagnostic, the output contract the fixpr
+		// document reports by, tells them apart.
+		p := newReviewRound(t, newTestRepo(t), 1)
+		failRemotePushes(t, p.r)
+		w, _ := newTestWorktree(t)
+		_, err := w.PushReviewed(t.Context(), p.base, p.phase4)
+		if !errors.Is(err, ErrGitFailed) || !strings.Contains(err.Error(), "push failed") {
+			t.Errorf("PushReviewed = %v, want a git failure of push", err)
+		}
+
+		p = newReviewRound(t, newTestRepo(t), 1)
+		w, router := newTestWorktree(t)
+		router.Before = map[string]func(){gitCommand + " ls-remote": func() {
+			if err := os.Rename(p.r.Remote, p.r.Remote+".gone"); err != nil {
+				t.Fatal(err)
+			}
+		}}
+		_, err = w.PushReviewed(t.Context(), p.base, p.phase4)
+		if !errors.Is(err, ErrGitFailed) || strings.Contains(err.Error(), "push") {
+			t.Errorf("PushReviewed = %v, want a git failure not of push", err)
+		}
+	})
+}
+
+func TestPushReviewedStops(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		reviews int
+		edit    func(p reviewRound)
+		check   func(t *testing.T, err error)
+	}{
+		{name: "nothing_to_send", check: func(t *testing.T, err error) {
+			t.Helper()
+			if !errors.Is(err, ErrInvalidInput) {
+				t.Errorf("err = %v, want ErrInvalidInput", err)
+			}
+		}},
+		{name: "phase4_push_not_arrived", reviews: 1, edit: func(p reviewRound) {
+			p.r.Git("push", "-q", "-f", testRemote, p.base.head+":"+headsPrefix+testBranch)
+		}, check: func(t *testing.T, err error) { t.Helper(); wantStateParts(t, err, PartRemote) }},
+		{name: "remote_moved_on", reviews: 1, edit: func(p reviewRound) {
+			p.r.Git("push", "-q", testRemote, p.r.Head()+":"+headsPrefix+testBranch)
+			p.addReviewCommits(1)
+		}, check: func(t *testing.T, err error) { t.Helper(); wantStateParts(t, err, PartRemote) }},
+		{name: "branch_switched", reviews: 1, edit: func(p reviewRound) {
+			p.r.Git("switch", "-q", "-c", "other")
+		}, check: func(t *testing.T, err error) { t.Helper(); wantStateParts(t, err, PartBranch) }},
+		{
+			name: "merge_on_the_line", reviews: 1, edit: func(p reviewRound) { p.mergeOnHead() },
+			check: func(t *testing.T, err error) { t.Helper(); wantLineRule(t, err, lineMergeCommit) },
+		},
+		{name: "config_changed", reviews: 1, edit: func(p reviewRound) {
+			p.r.Git("config", "remote."+testRemote+".receivepack", "evil")
+		}, check: func(t *testing.T, err error) { t.Helper(); wantStateParts(t, err, PartConfig) }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := newReviewRound(t, newTestRepo(t), tc.reviews)
+			if tc.edit != nil {
+				tc.edit(p)
+			}
+			remote := p.r.RemoteHead()
+			w, router := newTestWorktree(t)
+			_, err := w.PushReviewed(t.Context(), p.base, p.phase4)
+			tc.check(t, err)
+			if indexOf(router.Calls, gitCommand+" push") >= 0 {
+				t.Errorf("pushed: %v", router.Calls)
+			}
+			if got := p.r.RemoteHead(); got != remote {
+				t.Errorf("remote moved to %s", got)
+			}
+		})
 	}
 }

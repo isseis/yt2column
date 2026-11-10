@@ -624,9 +624,40 @@ func (w *Worktree) Push(ctx context.Context, base Baseline, commit string) (Push
 	} else if !slices.Equal(parents, []string{base.head}) {
 		return PushResult{}, &GitStateError{Parts: []string{PartHead}}
 	}
-	refspec := commit + ":" + headsPrefix + target.branch
-	if _, err := w.git(ctx, "push", "push", "-q", "--no-follow-tags", "--recurse-submodules=no", "--", target.remote, refspec); err != nil {
+	if err := w.pushCommit(ctx, target, commit); err != nil {
 		return PushResult{}, err
 	}
 	return PushResult{Protocol: Protocol, Pushed: true, Commit: commit}, nil
+}
+
+// pushCommit sends commit, an OID already checked, to the target branch with
+// an explicit refspec and without tags or submodules, so no configured
+// refspec or push option decides what is sent. Its failure names the rule
+// push, which tells a failed push from a failed check.
+func (w *Worktree) pushCommit(ctx context.Context, target pushTarget, commit string) error {
+	refspec := commit + ":" + headsPrefix + target.branch
+	_, err := w.git(ctx, "push", "push", "-q", "--no-follow-tags", "--recurse-submodules=no", "--", target.remote, refspec)
+	return err
+}
+
+// PushReviewed checks as CheckReviewState does and that the push target
+// branch is at phase4 (so Phase 4's push arrived and nobody moved the branch
+// since), then pushes the checked HEAD OID, never the symbolic HEAD: a HEAD
+// moved during the push target read is not sent. It refuses, after the
+// check and without pushing, when no commit follows phase4.
+func (w *Worktree) PushReviewed(ctx context.Context, base Baseline, phase4 string) (PushResult, error) {
+	if err := checkReviewInput(phase4); err != nil {
+		return PushResult{}, err
+	}
+	state, err := w.compareState(ctx, base, headRule{kind: headFollowsPhase4, commit: phase4}, checkWithRemote)
+	if err != nil {
+		return PushResult{}, err
+	}
+	if state.commits == 0 {
+		return PushResult{}, fmt.Errorf("%w: no commit after the Phase 4 commit", ErrInvalidInput)
+	}
+	if err := w.pushCommit(ctx, state.target, state.head); err != nil {
+		return PushResult{}, err
+	}
+	return PushResult{Protocol: Protocol, Pushed: true, Commit: state.head}, nil
 }

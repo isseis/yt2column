@@ -192,16 +192,16 @@
 
 **変更するファイル:** `internal/fixprguard/worktree.go`、`internal/fixprguard/review_test.go`、`internal/fixprguard/test_helpers_git.go`
 
--   [ ] `Push` の、refspec を組み立てて push する部分（`worktree.go:584-586`）を 1 つの関数にし、`Push` と `PushReviewed` の両方で使う（1.4）。`w.git` に渡す規則の名前は `push` のままにする（1.2）。
--   [ ] `PushReviewed` を設計書 3.2・3.5 のとおりに加える。`CheckReviewState` と同じ入力の確かめの後に、`compareState` を `headFollowsPhase4` と `checkWithRemote` で呼び、push 先の OID が `--commit` であることを確かめる。Phase 4 の commit より後の commit がなければ、比較の後に、push せずに `ErrInvalidInput` を返す（設計書 3.1、1.3）。送り元は、系列をたどった OID である。
--   [ ] `gitRouter` に、指定した git のサブコマンドの前に処理を差し込む口を加える（1.3。`test_helpers_git.go` は `//go:build test`）。
--   [ ] `review_test.go` に、設計書 7.1 の「`push-review`」の各場合を書く。加えて、次の行を書く。
+-   [x] `Push` の、refspec を組み立てて push する部分（`worktree.go:584-586`）を 1 つの関数にし、`Push` と `PushReviewed` の両方で使う（1.4）。`w.git` に渡す規則の名前は `push` のままにする（1.2）。
+-   [x] `PushReviewed` を設計書 3.2・3.5 のとおりに加える。`CheckReviewState` と同じ入力の確かめの後に、`compareState` を `headFollowsPhase4` と `checkWithRemote` で呼び、push 先の OID が `--commit` であることを確かめる。Phase 4 の commit より後の commit がなければ、比較の後に、push せずに `ErrInvalidInput` を返す（設計書 3.1、1.3）。送り元は、系列をたどった OID である。
+-   [x] `gitRouter` に、指定した git のサブコマンドの前に処理を差し込む口（`Before`）を加える（1.3。`test_helpers_git.go` は `//go:build test`）。`ls-remote` の失敗の行も、この口で `ls-remote` の前にリモートを動かして作る。
+-   [x] `review_test.go` に、設計書 7.1 の「`push-review`」の各場合を書く。加えて、次の行を書く。
     -   push 先が基準値の OID のまま（Phase 4 の push が届いていない）: `remote` で、push しない。
     -   `ls-remote` の後に HEAD を進めても、push 先のブランチが比べた OID になる（差し込みの口を使う）。差し込みは `push` のサブコマンドの前に置き、`PushReviewed` の呼び出しだけに使う新しい router に付ける。HEAD は router を通さずに `testRepo.Git` で進める。行の初めに、差し込みが働いてローカルの HEAD が比べた OID より先にあることを確かめる。
     -   設定された push の refspec と `push.followTags` は基準値を取る前に設定し（`TestPushExplicitRefspec` と同じ）、注釈付きのタグは Phase 4.5 の commit に付ける。
     -   止まるどの行でも、`git push` を起動せず（`router.Calls`）、リモートのブランチが動かないこと。送るものがない行も同じである（`cmd` の層の終了コード `2` だけでは、push しないことを確かめられないため）。
     -   push そのものの失敗が `ErrGitFailed` になり、診断が規則の名前 `push` を含むこと（`TestPushFailure` と同じく、リモートの pre-receive の hook で失敗させる）。`ls-remote` の失敗の診断は `push` を含まないこと。
--   [ ] 壊して確かめる: push 先の比較の相手を基準値の OID に戻す、送り元を記号の `HEAD` にする、送るものがないときの拒否を外す、`--no-follow-tags` を外す、push の規則の名前を変える（設計書 7.2）。どの行が失敗したかをコミットメッセージに書く。
+-   [x] 壊して確かめる: push 先の比較の相手を基準値の OID に戻す、送り元を記号の `HEAD` にする、送るものがないときの拒否を外す、`--no-follow-tags` を外す、push の規則の名前を変える（設計書 7.2）。どの行が失敗したかをコミットメッセージに書く。
 
 **成功の条件:** `make fmt` と `make lint` を実行し、`go test -tags test ./internal/fixprguard/...` が通る。
 
