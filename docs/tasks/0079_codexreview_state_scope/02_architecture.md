@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-10 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-10 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルの内容は、コミット `76e63cb8`（`76e63cb8aed90c19022448c699b4e43dae92088f`）で確かめた。`file:line` の行番号は、このコミットでの行番号である。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md)（設計への引き継ぎ事項）の項番を指す。受け入れ基準との対応は付録 A に、引き継ぎ事項の各項目の扱いは付録 B にまとめる。
@@ -495,3 +495,7 @@ N/A。`codexreview` のテストは、今と同じく、実際の git と偽の 
 | H-02 | 消すものを 3.3 の表に列挙した。`describeRefs` と `parseWorktrees` は、AC-10 の worktree の併記に使うので残す（1.2） |
 | H-03 | 7.1 で、HEAD のブランチだけを動かす入力、ほかの worktree が checkout しているブランチを動かす入力、HEAD のブランチの ref を消す入力、HEAD を `refs/heads/` の外に向ける入力を定めた。比較の範囲を元の広さに戻すと失敗することと、`refs` の各条件を外すと失敗することの確かめも 7.1 に置いた |
 | H-04 | 改める記述を 3.5 の表に列挙した。`run.go:207-220` は比べるものを列挙していないので変えない |
+
+## 変更履歴
+
+- 2026-11-10 承認（isseis、#793）
