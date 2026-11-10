@@ -1,0 +1,14 @@
+{
+  "fixpr_phase6_heading": "## Phase 6 — Wrap: PR description (model: haiku)",
+  "adr": {
+    "path": "docs/dev/adr/0039-adr-writing-criteria.md",
+    "decision_heading": "## 決定",
+    "item": 4,
+    "removed_sentences": [
+      "規約は今も、PR を作った後には ADR に訂正を加えないと定める。",
+      "`requirements_process.md` の訂正の行の形とコマンドの定義も、タスク文書の訂正だけを運ぶ。",
+      "このため、「結果」の 5 つ目の項目が述べる記録は、まだ行われない。",
+      "このずれは https://github.com/isseis/yt2column/issues/732 で扱う。"
+    ]
+  }
+}

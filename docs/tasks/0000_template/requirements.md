@@ -5,6 +5,7 @@
 | Item | Value |
 |---|---|
 | Status | `draft` |
+| Process | `full` |
 | Created | YYYY-MM-DD |
 | Review date | - |
 | Reviewer | - |

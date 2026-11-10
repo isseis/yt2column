@@ -80,7 +80,7 @@ lands on, not from a stale checkout.
    edit: `/runpr` commits it at the merge, on the reviewer's answer.)
 2. `git fetch origin main`.
 3. Use the current branch when its name follows the feature branch convention
-   (`_context.md`) for TASK_DIR and either:
+   (`_context.md`) for TASK_DIR and one of these holds:
    - the branch has no commits of its own (`HEAD` is an ancestor of
      `origin/main`: the branch `/runpr` created after the previous merge, even
      if more was merged since); fast-forward it with
@@ -89,11 +89,16 @@ lands on, not from a stale checkout.
      `origin/main`, none of them a task-document command's commit (a subject
      starting `docs(<task-id>): draft` or a PR-boundary commit of `mkplan2.md`),
      and it has no PR yet (`gh pr view <branch>` finds none): the PR group in
-     progress, continued with its next phase group.
+     progress, continued with its next phase group; or
+   - the calling command is `mkreq.md`, continuing a stopped simple-process
+     run on this branch because the branch meets every condition of
+     `_lib/simple-process.md`, "Resuming a stopped run" (`mkreq.md` step 1
+     checked them and checked it out): keep it as it is, without merging
+     `origin/main` into it.
 
    A convention-named branch for TASK_DIR in any other state (commits beyond
    `origin/main` with a PR, or with no PR when the caller is a task-document
-   command) is a reason to stop and report.
+   command and the case above does not apply) is a reason to stop and report.
 4. Otherwise create a new branch from `origin/main`:
    - Get the GitHub user name with `gh api user --jq .login`.
    - Choose `NN` one above the highest sequence number this task's branches have

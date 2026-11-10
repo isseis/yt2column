@@ -8,18 +8,16 @@
 
 ## 背景
 
-Claude のアダプタは、非ストリーミングで 1 回の応答として記事を受け取る。`max_tokens` が小さすぎると、長い記事や推論の多い実行が途中で打ち切られ、記事が出ない。最初の既定は 16,000 トークンで、Anthropic が非ストリーミングの目安とする値に合わせていた（[0009 設計書](../../tasks/0009_claude_llm_client/02_architecture.md) §3.6）。しかし評価では、16,000 で打ち切られる実行が現れた。生成・字数の調整・検証・推敲の 3 つの工程は同じ上限を共有するので（[0041 設計書](../../tasks/0041_claude_effort_max_tokens/02_architecture.md) §1.1）、上限は記事の長さと推論の量の両方に余裕を持つ必要がある。本番の構成で長い動画の出力が打ち切られないようにするためである（[0041 設計書](../../tasks/0041_claude_effort_max_tokens/02_architecture.md) §1.2）。
+Claude のアダプタは、非ストリーミングで 1 回の応答として記事を受け取る。`max_tokens` が小さすぎると、長い記事や推論の多い実行が途中で打ち切られ、記事が出ない。生成・字数の調整・検証・推敲の 3 つの工程は同じ上限を共有するので（[0041 設計書](../../tasks/0041_claude_effort_max_tokens/02_architecture.md) §1.1）、上限は記事の長さと推論の量の両方に余裕を持つ必要がある。本番の構成で長い動画の出力が打ち切られないようにするためである（[0041 設計書](../../tasks/0041_claude_effort_max_tokens/02_architecture.md) §1.2）。
 
 ## 決定
 
--   **Claude アダプタの `max_tokens` の既定は 40,000 とする。** リクエストの `MaxOutputTokens` が 0 のときだけ既定を使い、正の値が指定されたときはその値を使う。3 つの工程は同じ既定を共有する。
--   **ストリーミングを使わない。** 1 回の HTTP リクエストで応答を受け取り、送信から本文の読み取りまでを 1 本の `context` の期限で覆う。
--   **打ち切りは `ErrTruncated` として報告する。** メッセージは、そのリクエストが送った `max_tokens` を示す。テキストがないまま打ち切られた場合は、effort を下げるよう案内する。
--   **上限の値はコードの 1 つの定数に置き、値の根拠と測り直しの手順は [claude_output_limit.md](../guides/claude_output_limit.md) に置く。** README と上限のガイドは数値を書かず、本番の構成の文書は本番の上限として 40,000 を記す。値が満たす条件はテストで固定する。
--   **非ストリーミングの長い無通信で接続が切れるリスクは受け入れる。** HTTP/2 の PING などの仕組みは、無通信による切断が実際に観測されるまで足さない。
--   **既定の値でも、`max` の effort では推論だけで上限に達しうる。** その場合は打ち切りとして報告し、記事を公開しない。README で案内する。
-
-この決定の仕様の正本は [claude_output_limit.md](../guides/claude_output_limit.md) と [production_profile.md](../production_profile.md) である。値の文法と effort の既定は [ADR-0003](0003-llm-config-contract.md) が定める。
+-   **Claude アダプタの `max_tokens` の既定は 40,000 とし、3 つの工程は同じ既定を共有する。** リクエストの `MaxOutputTokens` が 0 のときだけ既定を使い、正の値が指定されたときはその値を使う。40 分前後の動画を v5 で測っておらず、16,000 で打ち切られた実行の出力の真の値も分からないので、観測した出力の最大の 2 倍より大きい余裕を取って備えるためである。値はコードの定数 `defaultMaxOutputTokens`（`internal/llm/claude/request.go`）にあり、根拠の記録の場所は [claude_output_limit.md](../guides/claude_output_limit.md) の「現在の記録」にある。
+-   **ストリーミングを使わない。** 1 回の HTTP リクエストで応答を受け取り、送信から本文の読み取りまでを 1 本の `context` の期限で覆う。`high`・`xhigh` の非ストリーミングの所要時間を測り、期限に収まると分かったためである。送る経路は `internal/llm/llmhttp` にある。
+-   **打ち切りは `ErrTruncated` として報告し、記事を公開しない。** 打ち切られた生成を公開しないためである（`CLAUDE.md`「Empty is an error」）。メッセージに示す内容は [0009 設計書](../../tasks/0009_claude_llm_client/02_architecture.md) の「4.2. エラーメッセージ設計パターン」にある。
+-   **上限の値はコードの 1 つの定数に置き、README と上限のガイドには数値を書かない。値の根拠と測り直しの手順は上限のガイドに置き、値が満たす条件はテストで固定する。** 数値を写すと、値の一致を確かめるテストが要り、写した値がコードと食い違いうるためである。本番の構成の文書は、本番の上限として 40,000 を記す。手順と更新するものは [claude_output_limit.md](../guides/claude_output_limit.md) の「測り方」「判定の仕方」「更新するもの」に、本番の上限は [production_profile.md](../production_profile.md) の「品質の目標と結果」にある。
+-   **非ストリーミングの長い無通信で接続が切れるリスクは受け入れる。** HTTP/2 の PING などの仕組みは、無通信による切断が実際に観測されるまで足さない。無通信で接続が切れたという観測がなく、`CLAUDE.md`「Performance」の「Do not close a review finding by adding a mechanism until the finding's premise is verified」に従うためである。決定は [0041 設計書](../../tasks/0041_claude_effort_max_tokens/02_architecture.md) の「1.2. 設計の際に決めたこと（2026-10-25）」にある。
+-   **既定の値でも、`max` の effort では推論だけで上限に達しうる。その場合は打ち切りとして報告し、記事を公開しない。README で案内する。** 64,000 トークンでも、`max` は推論だけで上限に達したためである。案内は README の「設定」にある。値の文法と effort の既定は [ADR-0003](0003-llm-config-contract.md) が定める。
 
 ## 採らなかった案
 

@@ -12,18 +12,18 @@
 
 実装を差し替えられるようにするには、呼び出す側が実装の型ではなく契約だけに依存する必要がある。契約を各ステージのパッケージに置けば、実装を足してもパイプラインは変わらない。逆に、プロバイダに依存する型や番兵を共通の場所へ集めると、プロバイダを足すたびに共通の型を変えることになる。
 
-LLM の失敗は、どのプロバイダでも起こるもの（不正なリクエスト・打ち切り・想定外の終了理由・空の応答）と、プロバイダの API に固有のもの（HTTP の状態・応答本文の形・通信の失敗）に分かれる。前者を共通の型に、後者を各アダプタに置くと、呼び出し側は共通の番兵だけで打ち切りなどを判別できる（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) §1.1）。Claude のアダプタも同じ方針を保った（[0009 設計書](../../tasks/0009_claude_llm_client/02_architecture.md) §1.1）。
+LLM の失敗は、どのプロバイダでも起こるもの（不正なリクエスト・打ち切り・想定外の終了理由・空の応答）と、プロバイダの API に固有のもの（HTTP の状態・応答本文の形・通信の失敗）に分かれる（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) §1.1）。
 
 ## 決定
 
--   **構成要素は、それぞれのパッケージが interface と入出力のデータ型を持つ。** `TranscriptSource` は `internal/transcript`、`ArticleWriter` は `internal/writer`、`Publisher` は `internal/publisher`、`LLMClient` は `internal/llm` が持つ。`internal/pipeline` は interface だけに依存し、実装の詳細を知らない（[0001 設計書](../../tasks/0001_pipeline_skeleton/02_architecture.md) §1.1・§3.2）。
--   **ステージの間で受け渡すデータ型が契約である。** ステージは値を受け渡し、空の結果を正常として返さないことを各 interface の英語のドキュメントコメントに書く。すべてのメソッドは第 1 引数に `context.Context` を受け取り、キャンセルとタイムアウトに従う。
--   **プロバイダに依存しない番兵とリクエストの検証は `internal/llm` に置く。** `ErrInvalidRequest`・`ErrTruncated`・`ErrUnexpectedFinishReason`・`ErrEmptyResponse` と `GenerateRequest.Validate` がここにある。
--   **プロバイダに固有の番兵は各アダプタに置く。** HTTP の状態・応答本文の形・通信の失敗は、プロバイダの名前を持つので `internal/llm/deepseek` と `internal/llm/claude` がそれぞれ持つ。
+-   **構成要素は、それぞれのパッケージが interface と入出力のデータ型を持つ。** `TranscriptSource` は `internal/transcript`、`ArticleWriter` は `internal/writer`、`Publisher` は `internal/publisher`、`LLMClient` は `internal/llm` が持つ（[0001 設計書](../../tasks/0001_pipeline_skeleton/02_architecture.md) §1.1・§3.2）。後続のタスクが、定めた型と interface だけに依存し、fake を相手に単体で開発とテストを進められるようにするためである（[0001 要件定義書](../../tasks/0001_pipeline_skeleton/01_requirements.md) §1）。規則は [CLAUDE.md](../../../CLAUDE.md) の「Key Design Patterns」の「Separation of Concerns」と、[package_reference.md](../conventions/package_reference.md) のパッケージの表にある。
+-   **`internal/pipeline` は interface だけに依存し、実装の詳細を知らない。** 各構成要素の実装を差し替えられるようにするためである。規則は [CLAUDE.md](../../../CLAUDE.md) の「Key Design Patterns」の「Interface-based Design」と、[project_overview.md](../project_overview.md) の「パイプライン」にある。
+-   **ステージの間で受け渡すデータ型が契約である。ステージは値を受け渡し、空の結果を正常として返さないことを各 interface の英語のドキュメントコメントに書く。** 値で返すので nil で正否を判定できず、空の場合は必ずエラーを返す契約にするためである（[0001 設計書](../../tasks/0001_pipeline_skeleton/02_architecture.md) §3.2）。契約の文面は、各構成要素のパッケージの interface のドキュメントコメントにある。
+-   **すべてのメソッドは第 1 引数に `context.Context` を受け取り、キャンセルとタイムアウトに従う。** 理由は記録されていない。規則は [0001 設計書](../../tasks/0001_pipeline_skeleton/02_architecture.md) の「3.2. 段階の interface」にある。
+-   **どのプロバイダでも起こる失敗の番兵と、リクエストの検証は `internal/llm` に置く。** 不正なリクエスト・打ち切り・想定外の終了理由・空の応答の番兵と、`GenerateRequest.Validate` である。呼び出し側が、プロバイダのパッケージを import せずに、共通の番兵だけで打ち切りなどを判別できるようにするためである（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) §3.2）。番兵の一覧は [package_reference.md](../conventions/package_reference.md) のパッケージの表の `internal/llm` の行にある。
+-   **プロバイダの API に固有の失敗の番兵は、各アダプタのパッケージに置く。** HTTP の状態・応答本文の形・通信の失敗の番兵は、`internal/llm/deepseek` と `internal/llm/claude` がそれぞれ持つ。これらは HTTP と JSON の形に依存し、SDK を使うプロバイダでは SDK のエラーから変換する別の形になるためである（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) §3.2）。規則は [package_reference.md](../conventions/package_reference.md) のパッケージの表の、各アダプタの行にある。
 
 LLM のアダプタの構成と送信の経路、プロバイダ固有のパラメータの型は [ADR-0001](0001-llm-adapter-stdlib.md) が、サーバの構成は [ADR-0005](0005-server-architecture.md) が定める。
-
-この決定の仕様の正本は [CLAUDE.md](../../../CLAUDE.md) の「Key Design Patterns」の「Separation of Concerns」と「Interface-based Design」、[project_overview.md](../project_overview.md) の「パイプライン」、[package_reference.md](../conventions/package_reference.md) のパッケージの表である。
 
 ## 採らなかった案
 

@@ -142,6 +142,17 @@ flowchart LR
     class L3 enhanced
 ```
 
+### 1.6. 実装の際に決めたこと（2026-11-10）
+
+-   **3 文書のレビューを文書ごとの通常のレビューにする条件（リスクが高いとき）に、除外の判定に迷った場合ではなく、人が除外の判定を覆したすべての場合を含める（人の答え、2026-11-10）。** 最初の質問で覆した場合と、決定を確かめる途中で除外に当たる決定が出て、覆して続けた場合の両方である（3.2）。
+    -   **理由:** 迷わずに除外と判定した変更を人が覆したときのほうが、迷った場合よりリスクが高い。迷った場合だけを条件にすると、その変更が 1 人のレビュアーのセルフレビューで通る。除外に当たると判定した変更は、迷った場合も含めて、覆されない限り簡易な進め方にならないので、「覆した場合」は「迷った場合」を含む。
+    -   **採らなかった案:** 承認した版のまま、除外の判定に迷った場合だけを条件にする案。
+    -   ADR：なし。3 文書のレビューの単位（1.2 の H-04）と同じく、手順の内部の選択で、本タスクの中で閉じる。
+-   **タスク 0075（軽量プロセスの削除、#764）が先にマージされたので、0072 の変更から軽量プロセスへの参照を取り除く（人の答え、2026-11-10）。** 規約に "normal process" の意味を述べる 1 文（3.9）を書かず、「Simple Process」の節は「Lightweight Process」の節の前ではなく、規約の同じ位置にそのまま置く。`/mkreq` には軽量プロセスの判定がなくなったので、要件定義書を書く実行では常に進め方を尋ねる（3.3）。要件書 AC-01 の「軽量プロセスの仕様のコメントを投稿して止まる実行では尋ねない」は、そのような実行がなくなったので、常に満たされる。
+    -   **理由:** 0075 の要件定義書は、後からマージする側が軽量プロセスへの参照を取り除くと決めている。"normal process" の 1 文は、軽量プロセスの文書の語の意味を述べるためのもので、その文書がなくなると述べる対象がない。
+    -   **採らなかった案:** 設計書のとおり 1 文を残す案。意味を述べる対象のない文が規約に残る。
+    -   ADR：なし。ADR-0040 の決定は、軽量プロセスに依らない。
+
 ## 2. システム構成 (System Structure)
 
 ### 2.1. 全体構成
@@ -220,7 +231,7 @@ flowchart LR
 | `.claude/commands/_lib/local-cli-review.md` | 変更 | 呼び出し元の一覧に、`/runpr` の戻す場合を足す（3.5） | なし |
 | `.claude/commands/_lib/task-pr-handoff.md` | 変更 | Part A の step 3 に、`/mkreq` が続ける場合を足す（3.8） | `TestHandoffListingPrintsNoBody`（Part B の step 5 は変えない） |
 | `.claude/commands/_context.md` | 変更 | 「Task process record」の行を足す。申し送りの 2 行（`_context.md:46-47`）の書く者と項目の種類を改める。実装モデルの行（`_context.md:67`）に `/mkreq` を足す | `TestContextAndCommandsAgree`（レビュアーの行は変えない） |
-| `docs/dev/conventions/requirements_process.md` | 変更 | 進め方の規則と申し送りの項目の形（3.9） | `TestLightweight*`（「Lightweight Process」の節の中身は変えない） |
+| `docs/dev/conventions/requirements_process.md` | 変更 | 進め方の規則と申し送りの項目の形（3.9） | なし |
 | `docs/tasks/0000_template/requirements.md` | 変更 | 状態表に `` `full` `` の `Process` 行を足す | なし |
 | `CLAUDE.md` | 変更 | 「Requirements and Acceptance Criteria」と「Claude Commands」の説明（3.9） | なし |
 | `docs/translation_glossary.md` | 変更 | 「簡易な進め方」「通常の進め方」「進め方の記録」を足す | なし |
@@ -328,14 +339,14 @@ sequenceDiagram
 -   **推奨の観点:** 次の 4 つを挙げる。(1) 変更が及ぶコンポーネントやコマンドの数、(2) 開いた決定の数、(3) 既存の ADR の決定を変えるか、(4) 新しい仕組みを作るのか、今の仕組みの文言や値を変えるだけか。数の上限は書かない（AC-15）。除外の判定は規約の除外の一覧に照らして行い、迷うときは当たるとし（AC-02）、当たるときは通常の進め方を推奨する。
 -   **3 文書の書き方（AC-04）:**
     1.  **決定を先に確かめる。** 要件の決定（`mkreq.md` の step 5）、設計の決定（`mkarch.md` の steps 4–6.5）、計画の決定（`mkplan.md` の steps 4–5.5）の順に、すべて確かめてから書き始める。設計と計画の調べと決定の範囲を定める箇所にある「承認済みの要件定義書」「承認済みの設計書」は、それぞれ「同じ実行で確かめた要件の決定」「同じ実行で確かめた設計の決定」と読み替える。
-    2.  **書く。** 要件定義書（`mkreq.md` の step 6）、設計書（`mkarch.md` の step 7）、計画書（`mkplan.md` の steps 6–7、PR の境界は `mkplan2.md` の steps 4–8）の順に書き、1 本ずつコミットする。`mkplan2.md` の step 9（PR の境界のレビュー）は走らせず、そのチェックリストを下のレビューに渡す。
+    2.  **書く。** 要件定義書（`mkreq.md` の step 6）、設計書（`mkarch.md` の step 7）、計画書（`mkplan.md` の steps 6–7、PR の境界は、フェーズが 2 つ以上のとき `mkplan.md` の step 8.5 と同じく `mkplan2.md` の steps 4–8）の順に書き、1 本ずつコミットする。`mkplan2.md` の step 9（PR の境界のレビュー）は走らせず、そのチェックリストを下のレビューに渡す。
     3.  **書いている間に前の文書の誤りに気づいたとき**（`mkplan.md` の step 6「When the architecture is wrong」に当たるとき）は、同じ実行の `draft` の前の文書を直す。確かめ済みの決定を変える直しなら、人に尋ねてから直す。
     4.  規約が省いてよいとするもの（当てはまらない節の本文、設計書の Mermaid 図）は省いてよい。規約が省かないとするもの（AC-05 の 4 つ）は省かない。
 -   **3 文書のレビュー（AC-06）:** 1 人のレビュアーに、次のチェックリストを文書ごとの見出しの下にそのまま渡す。`mkreq.md` の step 7、`mkarch.md` の step 8 にある 2 つのチェックリスト、`mkplan.md` の step 8 にある 3 つのチェックリスト、`mkplan2.md` の step 9 のチェックリストである。チェックリストの項目は、次のように読み替える。
     -   「`01_requirements.md` is `approved`」「`02_architecture.md` is `approved`」は、「3 文書がどれも `draft` で、記録が `` `simple` ``」と読む。
     -   「All required sections ... are present」は、見出しを残して N/A とその理由を書いた節も満たすと読む。Mermaid の図の項目は、図を書いたときだけ当てはまる。
 
-    リスクが高いと判断するのは、`mkplan.md` の step 8 が panel にする場合（`mkplan.md:104`）と、除外の判定に迷った場合である。高いときは、3 文書のそれぞれを、`mkreq.md`・`mkarch.md`・`mkplan.md` と同じレビューにかける。
+    リスクが高いと判断するのは、`mkplan.md` の step 8 が panel にする場合（`mkplan.md:104`）と、人が除外の判定を覆した場合（最初の質問で覆した場合と、決定を確かめる途中で除外に当たる決定が出て、覆して続けた場合）である（1.6）。高いときは、3 文書のそれぞれを、`mkreq.md`・`mkarch.md`・`mkplan.md` と同じレビューにかける。
 -   **戻す手順（AC-18）:** 3.5 と 6.2 に示す。
 
 ### 3.3. `/mkreq`（F-001・F-002・AC-12・AC-16、H-09・H-10）
@@ -343,7 +354,7 @@ sequenceDiagram
 -   **進め方の質問（AC-01・AC-02、H-09）:** step 5 の SCOPE に、進め方の選択を「常に開いた決定」として足す。そのため、`settle-decisions.md` の step 4（開いた決定がなければ 1 行で述べて続ける、`.claude/commands/_lib/settle-decisions.md:52`）には当たらず、`settle-decisions.md` は変えない。最初の質問の回で、推奨とその理由、除外の判定とその理由を示してから尋ねる。
     -   除外に当たると判定したときの選択肢は、「通常の進め方」と「除外の判定を覆して簡易な進め方」の 2 つにする。後者を選んだときだけ、覆したことを記録する。
     -   選択肢のどれでもない答えは、決まっていないものとして尋ね直す。簡易な進め方を既定にしない。
-    -   軽量プロセスの判定（step 1）で仕様のコメントを投稿して止まる実行では、step 5 に達しないので尋ねない。
+    -   `/mkreq` に軽量プロセスの判定はないので、要件定義書を書く実行では常に尋ねる（1.6）。
 -   **質問の回の分け方（H-09）:** 1 回の `AskUserQuestion` は 4 問までという規則（`settle-decisions.md` の step 3）に従う。進め方と要件の決定を先に確かめ、簡易な進め方のときは、続けて設計、計画の決定の順に確かめる（3.2）。後の決定は前の答えによって変わるためである。
 -   **除外に当たる決定が出たとき（AC-16 の 1 項目め）:** 設計か計画の決定を確かめている間に、除外に当たる決定が要ると分かったら、そのことと理由を示し、通常の進め方に切り替えるかを尋ねる。切り替えるときは、記録を `` `full` `` にして要件定義書だけを書き、確かめ済みの設計と計画の決定を確かめ済みの項目として申し送りのファイルに書く。続けるときは、覆したことを要件定義書に記録する。
 -   **書く順とコミット:** 3.2 のとおりである。コミットの件名は今の形のまま（`docs(NNNN): draft requirements for …`、`docs(NNNN): draft the architecture for …`、`docs(NNNN): draft the implementation plan for …`）とし、ADR の変更はその決定を記録した文書のコミットに入れる。
@@ -441,8 +452,7 @@ sequenceDiagram
         -   扱い済みの項目: 3 文書の PR で、同じ PR の後の文書で扱った箇所を持つ。
         -   確かめ済みの項目: 決めた日付、人の答え、ADR の判断を持ち、人が確かめ済みであることを示す。
     -   「Recording in the PR description」の、PR の説明にある訂正の段落をそのまま残す規則に、戻すときの例外を 1 文で足す。戻すときは、PR の説明を書き直し、訂正の段落をコミットの訂正の行から作り直す（3.5）。
-    -   新しい節「Simple Process」を「Lightweight Process」の前に置く。省かないものと省いてよいもの、除外の一覧（要件書 AC-14 の 3 つと、AC-15 の除外しない変更）、戻すことの要約を書く。#744 で「Lightweight Process」を消しても、この節は残る。
-    -   「Lightweight Process」の中の "normal process" は「軽量プロセスでない進め方」（簡易な進め方と通常の進め方の両方）を指す、と「Simple Process」の節で 1 文で述べる。「Lightweight Process」の節の文は変えない。
+    -   新しい節「Simple Process」を置く。省かないものと省いてよいもの、除外の一覧（要件書 AC-14 の 3 つと、AC-15 の除外しない変更）、戻すことの要約を書く。
 -   **`CLAUDE.md`:**
     -   「Requirements and Acceptance Criteria」の手順の 2（Mermaid の図を求める箇所）と、「the next one is not started until ...」（`CLAUDE.md:781`）に、簡易な進め方の例外と規約への参照を足す。
     -   「Claude Commands」の `/mkreq`・`/mkarch`・`/mkplan` の説明に、簡易な進め方に触れる語句を足す。
@@ -600,7 +610,6 @@ flowchart TD
     -   `cmd/fixprguard/docs_test.go` の `TestDocumentedInvocationsParse` の呼び出しの表。
     -   `cmd/yt2column/codex_review_docs_test.go` の `TestPostingCommandsInventory` の投稿の節の表（`codex_review_docs_test.go:66-69`）。呼び出しは、その節の最初のメンションの確かめより後に置く。
 -   `cmd/yt2column/docpaths_test.go` の `TestInstructionDocPaths`。`simple-process.md` の中のパスが実在することを確かめる。
--   `cmd/yt2column/lightweight_docs_test.go` の各テスト。要件プロセスの規約の「Lightweight Process」の節と、その中の条件の表は変えない。
 -   `TestADRRecords`。ADR-0040 の構造を変えない。
 
 `TestContextAndCommandsAgree` は、名指ししたファイルについてだけ、レビュアーの名前がないことを確かめる（`fixpr_docs_test.go:1001-1007`）。`simple-process.md` はレビュアーを名指ししないので、表に足さない。
@@ -625,7 +634,6 @@ PR の分け方は、計画書で決める。
 
 ## 9. 将来の拡張 (Future Extensibility)
 
--   **軽量プロセスの削除（#744）。** 「Simple Process」の節と除外の一覧は、「Lightweight Process」の節から独立させて置くので、#744 はその節と `/runissue` などを消すだけでよい。そのとき、"normal process" の意味を述べた 1 文（3.9）も消す。`/mkreq` の step 1 の軽量プロセスの判定が消えると、`/mkreq` は最初に進め方を尋ねるようになる。
 -   **通常の進め方で書き始めたタスクを簡易な進め方に切り替えること。** スコープ外である（要件書 2.3）。必要になれば、記録を `` `full` `` から `` `simple` `` に変える入口を、戻す入口と対にして設ける。
 
 ## 付録 A: 申し送り（design_handoff.md）への対応
@@ -689,3 +697,5 @@ PR の分け方は、計画書で決める。
 - 2026-11-09 承認（isseis、#755）
 - 2026-11-09 draft への戻し：戻すときの PR の説明の訂正の段落を、コミットの訂正の行から作り直すことにした（#759）
 - 2026-11-09 承認（isseis、#759）
+- 2026-11-10 セッション中の再承認：3 文書のレビューを文書ごとの通常のレビューにする条件を、人が除外の判定を覆したすべての場合にした（isseis、#775）
+- 2026-11-10 セッション中の再承認：先にマージされたタスク 0075 に合わせ、軽量プロセスへの参照と "normal process" の 1 文を取り除いた（isseis、#775）
