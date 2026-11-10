@@ -511,7 +511,7 @@ AC-12・AC-13・AC-19・AC-20 は、手順の中の作業（issue を立てる�
 
 #### PR-5
 
--   `check s5` を、マージベース `437836af0429d0e855395cfeaeaf64e3a07c0698` と先頭 `99b532caedec25d9ada4ddc4666ff7177fda1ad9` で実行し、0 で終わった。すべての確かめが `OK` で、違反はない。先頭の後のコミットは本書だけを変える。マージの前の確認で `main` を取り込み、ADR-0015 を取り下げた後の実行である（1.5）。
+-   `check s5` を、マージベース `437836af0429d0e855395cfeaeaf64e3a07c0698` と先頭 `99b532caedec25d9ada4ddc4666ff7177fda1ad9` で実行し、0 で終わった。すべての確かめが `OK` で、違反はない。先頭の後のコミットは、本書と見直しの記録だけを変える。マージの前の確認で `main` を取り込み、ADR-0015 を取り下げた後の実行である（1.5）。
 -   同じ先頭で `make test` を通した（`TestADRRecords`・`TestInstructionDocPaths` で `cmd/yt2column` を通し、全体で 0 件の失敗）。`make lint` も通した。
 -   blob の ID: `check.go` `fae4cff24becc3d8f2f3690a0336204cdbf4ae38`、`data.json` `9830bd6d60b0f380da3df956e81ca32841f42fc2`、`main.go` `b330ae42f3cbad690972f759cd0788221a775009`、`mentions.go` `e53a9b87b55718f6885ab8933026a4b00c74e443`。
 -   許した変更は `link_changes` の 1 つと、`unrecorded_commits` に挙げた取り下げのコミット `c98fd4025d9fb8abdfb2ad1b1b88882d7000e8a6` である。ADR-0012 の条件の出典を、軽量プロセスの削除でなくなった Lightweight Process の節から、条件を定義する 0061 設計書 3.1「条件の定義」へ張り直した。`unrecorded_commits` のコミットは、ADR-0015 を `main` の版に戻したもので、訂正の行を持たない（1.5）。`s5` の `carried_in`・`retitled_adrs`・`line_changes`・`checker_changes`・`task_doc_changes` は空である。
