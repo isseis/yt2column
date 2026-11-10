@@ -50,7 +50,7 @@
 **issue #426 で決めたこと:**
 
 -   **完了の条件:** Phase 4.5 の commit と push の前に、少なくとも hooks・config・info を基準値と比べ、違えば止める。文書のガードと `make test`・`make lint` が通る。
--   **ほかの呼び出し元を対象にしない:** `local-cli-review.md` を呼ぶ `/fixpr` 以外のコマンド（`/runpr` の step 1、`/runplan`、`/runissue`、`_lib/task-pr-handoff.md` の Part B）は対象にしない。どれも `begin` の基準値を持たないので、比べる相手がない。ただし、同じ手順を共有するので、手順を変える場合は、その影響を確かめる（F-005）。
+-   **ほかの呼び出し元を対象にしない:** `local-cli-review.md` を呼ぶ `/fixpr` 以外のコマンド（`/runpr` の step 1、`/runplan`、`_lib/task-pr-handoff.md` の Part B）は対象にしない。どれも `begin` の基準値を持たないので、比べる相手がない。ただし、同じ手順を共有するので、手順を変える場合は、その影響を確かめる（F-005）。
 -   **文書を合わせる:** `_context.md` の「Guard tool」の行と、タスク 0030 の設計書の 5.2・5.3 を、決めた対応に合わせる。設計書の直し方は、下の「要件定義の際に決めたこと」で決めた。
 
 **要件定義の際に決めたこと（2026-11-09）:**
@@ -169,7 +169,7 @@ Phase 4.5 が commit を作ったとき、その push はガードツールが�
 
 **Acceptance Criteria**:
 
--   **AC-11**: `/runpr` の step 1、`/runplan`、`/runissue`、`_lib/task-pr-handoff.md` の Part B が行うローカルの CLI レビューは、本タスクの後もガードツールを呼ばず、今までと同じ手順で commit と push をする。
+-   **AC-11**: `/runpr` の step 1、`/runplan`、`_lib/task-pr-handoff.md` の Part B が行うローカルの CLI レビューは、本タスクの後もガードツールを呼ばず、今までと同じ手順で commit と push をする。
 
 #### F-006: 文書
 
