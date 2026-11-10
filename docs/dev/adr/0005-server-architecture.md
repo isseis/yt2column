@@ -8,20 +8,22 @@
 
 ## 背景
 
-記事を作る処理は、開発用の CLI とブラウザ拡張の両方から使う。拡張は、利用者が YouTube の文字起こしパネルからコピーした字幕と動画ページの情報を、利用者のマシンで動くサーバへ送る。サーバは LLM を呼んで記事を作り、メモリに保持して、求めに応じて返すか Slack へ投稿する。ブラウザは、拡張が送るたびにプロセスを起動する Native Messaging の仕組みを持つが、そのプロセスは長く動かず、シェルの環境変数も引き継がない。
+記事を作る処理は、開発用の CLI とブラウザ拡張の両方から使う。拡張は、利用者が YouTube の文字起こしパネルからコピーした字幕と動画ページの情報を、利用者のマシンで動くサーバへ送る。記事の生成と Slack への投稿は、利用者のマシンで、ブラウザを閉じた後も続けられる必要がある。ブラウザは、拡張が送るたびにプロセスを起動する Native Messaging の仕組みを持つが、そのプロセスは長く動かず、シェルの環境変数も引き継がない。
 
 サーバが loopback の TCP ポートで待ち受けると、ウェブページからサーバへ届く経路が残り、DNS rebinding や preflight の不要な `POST` への対策を別に要する（[0011 設計書](../../tasks/0011_localhost_server/02_architecture.md)、[0026 設計書](../../tasks/0026_native_messaging_relay/02_architecture.md)）。
 
 ## 決定
 
--   **サーバは `cmd/yt2column-server` の別の実行ファイルとし、利用者が手動で起動する。** ログイン時の自動起動はしない。記事を作る処理と Slack への投稿の処理は、CLI と同じパッケージを共有し、サーバ固有のコードは HTTP の入口・検査・応答・ジョブに限る。記事を作る処理と Slack への投稿の処理を共有する構成は [ADR-0019](0019-pipeline-component-interfaces.md) の構成要素の分け方に従う。
--   **サーバは `yt-dlp` を呼ばない。** 字幕は拡張から受け取り、`internal/transcript` の `CopiedSource` で解析する。`yt-dlp` を使うのは CLI の経路だけである（字幕の入力の決定は [ADR-0007](0007-manual-transcript-copy.md)）。
--   **待ち受けは Unix ドメインソケット（UDS）だけにし、TCP のポートを開かない。** ソケットのパスは `HOME` だけから導出する。ソケットの置き場所と権限、起動のロック、stale の扱いは [security.md](../security.md) §8.2「localhost サーバ」に従う。
--   **UDS の上でも HTTP/1.1 を使い、新しいフレーム形式を作らない。** サーバの `http.Server` とハンドラを `UnixListener` の上で動かす。リクエストの検査はパスとメソッドだけで、`Host`・`Origin`・`Content-Type`・`Authorization` は検査しない。ソケットに接続できる相手はこれらのヘッダを偽れるので、検査しても排除できる相手がいないためである。
--   **生成の開始は `202` で受け付け、ジョブをサーバのメモリで動かす。** 同時に走る生成の数、本文の大きさ、読み取り・書き込み・待機の時間の上限は [security.md](../security.md) §8.2 に従う。ジョブの API と記事のキー・キャッシュは [ADR-0027](0027-article-job-api.md) が定める。
--   **拡張は Native Messaging のホストだけに送り、ホストが UDS へ中継する。** 送り先は固定のホスト名 `io.github.isseis.yt2column` で、ホストを起動できる拡張は manifest の `allowed_origins` に載った固定の拡張だけである。ホストは 1 つのメッセージにつき 1 回起動し、1 つのリクエストを送って 1 つの応答を返し、終了する。ホストはサーバを起動せず、ジョブはサーバに残る。ブラウザを閉じてもジョブは続く。拡張の ID を manifest の `key` で固定することは [ADR-0026](0026-extension-platform.md) が定める。
-
-この決定の仕様の正本は [security.md](../security.md) の §8「ブラウザ拡張と localhost サーバ」と §8.2「localhost サーバ」、[project_overview.md](../project_overview.md) の「決定済みの方針」の実行形式、および [package_reference.md](../conventions/package_reference.md) のパッケージの表である。
+-   **サーバは `cmd/yt2column-server` の別の実行ファイルとし、利用者が手動で起動する。ログイン時の自動起動はしない。** 理由は記録されていない。規則は [0011 要件定義書](../../tasks/0011_localhost_server/01_requirements.md) F-001 にある。
+-   **記事を作る処理と Slack への投稿の処理は、CLI と同じパッケージを共有し、サーバ固有のコードは HTTP の入口・検査・応答・ジョブに限る。** CLI と同じコアロジックを共有するためである。規則は 0011 要件定義書 §2.1「目的 (Goals)」に、構成要素の分け方は [ADR-0019](0019-pipeline-component-interfaces.md) と、[package_reference.md](../conventions/package_reference.md) のパッケージの表にある。
+-   **サーバは `yt-dlp` を呼ばない。** 字幕は拡張から受け取り、`internal/transcript` の `CopiedSource` で解析する。`yt-dlp` を使うのは CLI の経路だけである。サーバは拡張から字幕を受け取る経路だけで記事を作るので、`yt-dlp` を呼ぶ必要がない。字幕の入力の決定は [ADR-0007](0007-manual-transcript-copy.md) が定める。規則は 0011 要件定義書 §2.3「スコープ外 (Out of Scope)」にある。
+-   **待ち受けは Unix ドメインソケット（UDS）だけにし、TCP のポートを開かない。** ソケットのパスは `HOME` だけから導出する。TCP を待ち受けるとウェブページからサーバへ届く経路が残り、DNS rebinding と preflight の対策を別に要するためである。規則は [security.md](../security.md) の §8「ブラウザ拡張と localhost サーバ」と §8.2「localhost サーバ」にあり、ソケットの置き場所と権限、起動のロック、stale の扱いもそこに従う。
+-   **UDS の上でも HTTP/1.1 を使い、新しいフレーム形式を作らない。** リクエストの検査はパスとメソッドだけで、`Host`・`Origin`・`Content-Type`・`Authorization` は検査しない。`http.Server` の上限と時間の設定、既存のテスト、`curl` による確認を再利用でき、ソケットに接続できる相手はこれらのヘッダを偽れるので、検査しても排除できる相手がいないためである。規則は [0026 設計書](../../tasks/0026_native_messaging_relay/02_architecture.md) §3.4「UDS 上のプロトコル」と security.md §8.2 にある。
+-   **生成の開始は `202` で受け付け、ジョブをサーバのメモリで動かす。** 1 回の中継が 20 秒で打ち切られるので、長い処理を待たずに受け付ける。同時に走る生成の数、本文の大きさ、読み取り・書き込み・待機の時間の上限は security.md §8「ブラウザ拡張と localhost サーバ」と §8.2 に従う。ジョブの API と記事のキー・キャッシュは [ADR-0027](0027-article-job-api.md) が定める。
+-   **拡張は Native Messaging のホストだけに送り、ホストが UDS へ中継する。** ブラウザはページから UDS へ接続できないので、拡張の送信はホストを通す。規則は security.md §8 と §8.2、[ADR-0026](0026-extension-platform.md) にある。
+-   **送り先は固定のホスト名 `io.github.isseis.yt2column` とし、ホストを起動できる拡張は manifest の `allowed_origins` に載った固定の拡張だけとする。** 拡張以外からホストを起動させないためである。拡張の ID を manifest の `key` で固定することは ADR-0026 が定め、規則は security.md §8.1「ブラウザ拡張」と §8.2 にある。
+-   **ホストは 1 つのメッセージにつき 1 回起動し、1 つのリクエストを送って 1 つの応答を返し、終了する。** ブラウザが送信のたびにプロセスを起動する仕組みに合わせるためである。規則は security.md §8.2 と、0026 設計書 §3.5.1「起動の形」にある。
+-   **ホストはサーバを起動せず、ジョブはサーバに残る。ブラウザを閉じてもジョブは続く。** 記事の生成をブラウザの寿命から切り離すためである。規則は security.md §8 と、[project_overview.md](../project_overview.md) の「決定済みの方針」にある。
 
 ## 採らなかった案
 
