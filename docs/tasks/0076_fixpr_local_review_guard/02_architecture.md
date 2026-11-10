@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-10 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-10 |
+| Reviewer | isseis |
 | Comments | - |
 
 対応する要件定義書: [01_requirements.md](01_requirements.md)（対応 issue: [#426](https://github.com/isseis/yt2column/issues/426)）
@@ -682,3 +682,7 @@ PR の切り方は、実装計画で決める。
 | AC-12 | 3.7・3.9 |
 | AC-13 | 3.9 |
 | AC-14 | 7 章 |
+
+## 変更履歴
+
+- 2026-11-10 承認（isseis、#777）
