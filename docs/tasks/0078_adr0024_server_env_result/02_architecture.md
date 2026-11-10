@@ -61,6 +61,16 @@ ADR-0024 の変更は 3 文書の PR（#780）に入るので、確かめる変�
 -   **構造の確かめ（AC-01 のリンクの部分・AC-02・AC-03・AC-06 の形）:** 変更の前と後の関係なので、タスクの `_checks/` に置くスクリプトで、上の 2 つのコミットを比べる（`diff`。`docs/dev/conventions/requirements_process.md`「4. Acceptance Tests」）。スクリプトは 2 つのコミットを引数で受け取る。
 -   恒久のテストは足さない。文の言い回しを確かめる文書テストは、`CLAUDE.md`「Testing Strategy」が禁じる。
 
+**規約の例外：`diff` の確かめを、変更の PR の上ではなくマージの後に行う。**
+
+-   **元の規約:** `diff` の確かめのスクリプトは、PR のブランチの上で 1 回走らせ、マージベースと PR の head を比べる（`docs/dev/conventions/requirements_process.md`「4. Acceptance Tests」）。
+-   **例外にする理由:** 2 つの規約が両立しないためである。
+    -   ADR の決定を変える変更は、その決定をする PR が行う（`docs/dev/conventions/adr.md`「Approval and the PR」）。本タスクでは、それは 3 文書の PR #780 である。
+    -   簡易な進め方では、3 文書が承認されるまで実装の成果物を書かない（`docs/dev/conventions/requirements_process.md`「Simple Process」）。
+    -   そのため、スクリプトは PR #780 の中には書けない。
+-   **代わりの手当て:** PR #780 の ADR-0024 の差分は 3 行なので、PR #780 のレビューで読んで確かめる（`manual`）。マージの後のスクリプトがずれを見つけたときは、ADR-0024 を直す PR を別に作る。
+-   **この例外が及ぶ既存のテスト:** ない。
+
 ## 8. 実装の優先順位
 
 フェーズは 1 つで、実装の PR も 1 つである。PR #780 のマージの後に `/runplan` で、`_checks/` のスクリプトを足し、上の 2 つのコミットを引数にして 1 回走らせる。
