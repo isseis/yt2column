@@ -376,7 +376,8 @@ Phase 4.5 で、`check`・GUARD・`push-review` が止まったときは、次�
     -   その `check` の後にセッションが作った commit の数。セッションは、自分が実行した `git commit` が成功したかを知っている。ただし、Bash ツールの時間切れや信号で終わった `git commit` は、ref を動かしたかが分からない。その場合は、数を「少なくとも N 個」と報告する。
     -   `local-cli-review.md` の手順 1 が記録した BASE・HEAD1・HEAD2。
 -   **push されていない commit の数:** 最後に通った `check` の `commits` と、その後に作った commit の数の和。
--   **`push-review` の push そのものの失敗:** `push-review` が `git-failed` で止まり、標準エラーの規則の名前が `push` のときは、push が届いたかが分からない（接続が ref の更新の後に切れた場合など）。そのときは、push されていない commit の数の代わりに「push の結果は不明」と報告する。比べる段階（`git-state-changed`、`ls-remote` の失敗）で止まったときは、push していない。
+-   **`push-review` の push そのものの失敗:** `push-review` が `git-failed` で止まり、標準エラーの規則の名前が `push` のときは、push が届いたかが分からない（接続が ref の更新の後に切れた場合など）。そのときは、push されていない commit の数の代わりに「push の結果は不明」と報告する。比べる段階（`git-state-changed`、`ls-remote` の失敗）で止まったときは、push していない。`push-review` が時間切れや信号で終わったとき、または出力を読めないときも、push の後に終わった可能性があるので、「push の結果は不明」と報告する。
+-   **Phase 4.5 の最初の `check` で止まったとき:** 通った `check` はなく、BASE・HEAD1・HEAD2 もまだない。このときセッションは commit を作っていないので、push されていない Phase 4.5 の commit は 0 個である。ローカルの CLI レビューを受けていない範囲は、Phase 4 の commit（Phase 4 の `commitSha`）だけであり、`Local CLI review: not run` の行の形ではなく、その SHA で示す。ほかの値を推測して報告しない。
 -   **ローカルの CLI レビューを受けていない範囲:** `local-cli-review.md` の手順 7 の `Local CLI review: not run` の行の形で示す。範囲の終わりの commit の SHA が、最後に通った `check` の後に作った commit のものである場合は、セッションはその SHA を知らない。その場合は、範囲の終わりを最後に通った `check` の `head` とし、その後に作った commit の数を添える。
 
 Final report への組み込み（AC-05・H-04）は次のとおりである。
@@ -620,7 +621,7 @@ CLAUDE.md の「Document tests」の例外（エージェントが信頼の境�
 -   **GUARD の構造の検査:** `local-cli-review.md` の「Inputs the calling command must supply」の節に、太字のラベル `**GUARD**` で始まる項目があること。手順 1・3・5・6 の各 step の本文が、`GUARD` の語を含むこと。`fixpr.md` の Phase 4.5 が、`**GUARD**` に `fixprguard check` を渡すこと。どれも、見出しと太字のラベルと step の番号で節を見つける、構造の検査である。
 -   既存の `TestDocumentedInvocationsParse` が、文書の `check`・`push-review` の呼び出しを解析すること（呼び出しがあるべきサブコマンドの一覧に 2 つを加える）。`--protocol` の一致（`cmd/fixprguard/docs_test.go:343`）と、`parts` の一覧（`TestGuideNamesGitStateParts`）も、既存のガードが確かめる。
 
-AC-11（ほかの呼び出し元が変わらないこと）は、タスクの `_checks/` の diff の確認で確かめる（`requirements_process.md` §4）。対象は、ほかの呼び出し元が共有の手順を呼ぶ箇所（`runpr.md` の step 1、`runplan.md`、`task-pr-handoff.md` の Part B）の文である。`runpr.md` は番号の変更を含むので、ファイル全体ではなく、その箇所に限る。
+AC-11（ほかの呼び出し元が変わらないこと）は、タスクの `_checks/` の diff の確認で確かめる（`requirements_process.md` §4）。対象は、ほかの呼び出し元が共有の手順を呼ぶ箇所（`runpr.md` の step 1、`runplan.md`、`task-pr-handoff.md` の Part B）の文である。`runpr.md` は番号の変更を含むので、ファイル全体ではなく、その箇所に限る。あわせて、GUARD を渡さない経路が変わらないことを確かめる。`local-cli-review.md` の diff で加わる文が、どれも GUARD を渡されたときだけに働く文であることを、PR のレビューで読んで確かめる（`manual`）。
 
 ### 7.5. セキュリティテスト
 
