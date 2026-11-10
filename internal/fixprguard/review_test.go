@@ -99,11 +99,13 @@ func TestCheckReviewStateLine(t *testing.T) {
 			p.r.Git("reset", "-q", "--hard", p.base.head)
 		}, rule: lineNoPhase4},
 		{name: "line_not_from_the_baseline", edit: func(p reviewRound) {
-			// Built on the baseline's parent, the line walks back to the first
-			// commit without reaching the baseline's commit.
+			// Built on the baseline's parent, a line longer than the limit never
+			// reaches the baseline's commit: the walk stops at the limit, before
+			// the first commit, as it does on a branch rebased onto newer
+			// history.
 			p.r.Git("reset", "-q", "--hard", p.base.head+"^")
-			p.addReviewCommits(2)
-		}, rule: lineRootCommit},
+			p.addReviewCommits(maxReviewCommits + 1)
+		}, rule: lineTooLong},
 		{name: "head_has_no_parent", edit: func(p reviewRound) {
 			orphan := strings.TrimSpace(p.r.Git("commit-tree", "HEAD^{tree}", "-m", "orphan"))
 			p.r.Git("reset", "-q", "--hard", orphan)
@@ -132,7 +134,9 @@ func TestCheckReviewStateLine(t *testing.T) {
 					t.Fatalf("CheckReviewState = %+v, %v, want %+v", got, err, want)
 				}
 			}
-			if indexOf(router.Calls, gitCommand+" ls-remote") >= 0 {
+			// The push target is read only after the line passes, so only a
+			// passing row can show that check reads none.
+			if tc.rule == "" && indexOf(router.Calls, gitCommand+" ls-remote") >= 0 {
 				t.Errorf("read the push target: %v", router.Calls)
 			}
 		})
