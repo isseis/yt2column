@@ -8,9 +8,9 @@
 #   <commit>  the compared commit of the PR
 #   pr1|pr2   which PR of the task is checked
 #
-# Run it from the top level of the work tree. It exits 0 when every check
-# holds, 1 when a check fails (each failure is named), and 2 on a usage or git
-# error.
+# It runs from the top level of the work tree, whatever the current
+# directory. It exits 0 when every check holds, 1 when a check fails (each
+# failure is named), and 2 on a usage or git error.
 
 set -u
 
@@ -25,6 +25,11 @@ pr1 | pr2) mode=$3 ;;
 	exit 2
 	;;
 esac
+
+top=$(git rev-parse --show-toplevel) && cd "$top" || {
+	echo "error: not inside a git work tree" >&2
+	exit 2
+}
 
 base=$(git rev-parse --verify --quiet "$1^{commit}") || {
 	echo "error: cannot resolve base $1" >&2
@@ -63,7 +68,7 @@ links_issue() {
 # Check 1: the changed files are limited to the files the task may change.
 # The file list is the fixed file list command of requirements_process.md
 # section 4, so a moved file shows both its old and its new path.
-files=$(git --no-pager -c core.quotePath=true \
+files=$(env -u GIT_DIFF_OPTS git --no-pager -c core.quotePath=true \
 	diff --no-ext-diff --no-relative --no-renames -O/dev/null --name-only "$base" "$commit") || {
 	echo "error: git diff --name-only failed" >&2
 	exit 2
@@ -92,14 +97,15 @@ else
 fi
 
 # Check 2: the diff under docs/dev/adr/ only deletes lines linking issue 789.
-adr_diff=$(git --no-pager --literal-pathspecs -c core.quotePath=true \
-	diff --no-color --no-ext-diff --no-textconv --default-prefix --no-relative \
+adr_diff=$(env -u GIT_DIFF_OPTS git --no-pager --literal-pathspecs -c core.quotePath=true \
+	diff --no-color --no-ext-diff --no-textconv --text --default-prefix --no-relative \
 	--no-renames -U0 "$base" "$commit" -- docs/dev/adr) || {
 	echo "error: git diff of docs/dev/adr failed" >&2
 	exit 2
 }
 bad=$(printf '%s\n' "$adr_diff" | awk -v re="$issue_re" '
 	/^diff --git / { hunk = 0; next }
+	!hunk && /^(old mode|new mode) / { print "mode change: " $0; next }
 	/^@@ / { hunk = 1; next }
 	hunk && /^\+/ { print "added: " substr($0, 2); next }
 	hunk && /^-/ && substr($0, 2) !~ re { print "removed: " substr($0, 2) }
