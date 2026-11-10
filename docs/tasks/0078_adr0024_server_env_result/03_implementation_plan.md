@@ -53,14 +53,14 @@ PR #780 のマージの後に `/runplan` で行う。
     -   後の版の「経緯」が、前の版の「経緯」の項目をそのまま並べた後に、項目をちょうど 1 つ持つ。その項目が `docs/dev/conventions/adr.md`「History entries」の形で、本タスクの要件定義書にリンクする（AC-06 の形）。
 
     違反があれば 0 でない終了コードで終わり、違反の内容と、確かめた 2 つのコミットの完全な ID と、`main.go`（と `data.json`）の blob の ID を出力する。コメント・識別子・文字列リテラルは英語で書く。「結果」「経緯」の見出しのような日本語の文字列は、`_checks/` が guard-test literal exception（`CLAUDE.md`「Go Idioms」）の対象ではないので、タスク 0071 と同じく `_checks/data.json` に置く。`make fmt` と `go vet -tags test ./docs/tasks/0078_adr0024_server_env_result/_checks/` を通してからコミットする。
--   [ ] **ステップ 1-2**: スクリプトが狙った理由で失敗できることを確かめる。PR #780 のスカッシュのコミットから使い捨てのブランチを作り、次の壊し方を 1 件ずつ一時的なコミットにし、スカッシュのコミットの親とその一時的なコミットを引数にして走らせて、狙った項目で失敗することを確かめる。
+-   [x] **ステップ 1-2**: スクリプトが狙った理由で失敗できることを確かめる。PR #780 のスカッシュのコミットから使い捨てのブランチを作り、次の壊し方を 1 件ずつ一時的なコミットにし、スカッシュのコミットの親とその一時的なコミットを引数にして走らせて、狙った項目で失敗することを確かめる。
     -   AC-01：「結果」の最後の項目から ADR-0018 へのリンクを除く。
     -   AC-02：「決定」の 1 行を変える。「経緯」の既存の項目を 1 つ変える。「結果」の最後の項目を消す。「結果」に 5 つ目の項目を足す。
     -   AC-03：ほかの ADR の 1 行を変える。索引 `docs/dev/adr/README.md` の 1 行を変える。`docs/dev/adr/` に新しいファイルを足す。
     -   AC-06：足した「経緯」の項目を消す。「経緯」の最後にもう 1 つ項目を足す。足した項目を既存の項目の前に移す。足した項目のリンク先をほかの文書にする。
 
     使い捨てのブランチは push せず、確かめた後に消す。壊し方ごとの結果は、ステップ 1-3 のコミットのメッセージに書く。
--   [ ] **ステップ 1-3**: 確認のスクリプトを、PR #780 のスカッシュのコミットの親とそのスカッシュのコミットを引数にして実行する。出力・終了コード・2 つのコミットの完全な ID を本計画 §7 に書き、本計画の進み具合とともにコミットする。確かめる 2 つのコミットは `main` の上で決まっているので、この後に実装のブランチにコミットが増えても §7 の記録は変わらない。`make test` と `make lint` を通す。
+-   [x] **ステップ 1-3**: 確認のスクリプトを、PR #780 のスカッシュのコミットの親とそのスカッシュのコミットを引数にして実行する。出力・終了コード・2 つのコミットの完全な ID を本計画 §7 に書き、本計画の進み具合とともにコミットする。確かめる 2 つのコミットは `main` の上で決まっているので、この後に実装のブランチにコミットが増えても §7 の記録は変わらない。`make test` と `make lint` を通す。
 
 **PR を作る直前の確かめ直し。** `/runplan` のレビュー（手順 6〜7.7）の後、PR を作る前（`.claude/commands/_lib/task-pr-handoff.md` Part B の手順 1・2 の修正の後も含む）に、ステップ 1-3 の後で `_checks/` を変えるコミットが入ったときは、ステップ 1-2 と 1-3 をやり直して §7 の記録を改める。`/runplan` がこれを実装のまとまりとして拾わないよう、チェックボックスにはしない。
 
@@ -89,7 +89,7 @@ PR #780 のマージの後に `/runplan` で行う。
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
--   [ ] フェーズ 1（ステップ 1-1〜1-3）
+-   [x] フェーズ 1（ステップ 1-1〜1-3）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -102,7 +102,28 @@ PR #780 のマージの後に `/runplan` で行う。
 
 AC-04 と AC-05 は欠番である（要件書 F-002）。
 
-実行の記録（ステップ 1-3）：未記入。
+実行の記録（ステップ 1-3）:
+
+-   確かめたコミット：前が `b633a13858855ec254898bba18cc3a0f45a447a2`、後が `9a30d0d38e83144c27ce4fd468d44fea01a94cfd`。後者は PR #780 のスカッシュのコミットで、subject が `docs(0078): update ADR-0024's server environment consequence and add the task documents (#780)`、親が前者であることを確かめた。
+-   スクリプトの blob：`main.go` が `1555f207a90719dd856444cb9cb3bb8e6a9dd841`、`data.json` が `d6a79d06067635a498f408529b04a9b1d9c7b1bb`。
+-   実行したコマンドと出力（終了コード 0）：
+
+```
+$ go build -tags test -o /tmp/0078check ./docs/tasks/0078_adr0024_server_env_result/_checks/
+$ /tmp/0078check b633a13858855ec254898bba18cc3a0f45a447a2 9a30d0d38e83144c27ce4fd468d44fea01a94cfd
+base b633a13858855ec254898bba18cc3a0f45a447a2
+head 9a30d0d38e83144c27ce4fd468d44fea01a94cfd
+docs/tasks/0078_adr0024_server_env_result/_checks/main.go blob 1555f207a90719dd856444cb9cb3bb8e6a9dd841
+docs/tasks/0078_adr0024_server_env_result/_checks/data.json blob d6a79d06067635a498f408529b04a9b1d9c7b1bb
+OK   consequence-link: the last consequence item changed and links to 0018-server-config-file.md
+OK   consequence: the two versions differ only in the last consequence item and the added history entry
+OK   scope: only docs/dev/adr/0024-env-access-in-config.md changed outside the task directory, and no file was added or deleted outside it
+OK   history-items: the history section is the earlier items unchanged, followed by exactly one new item
+OK   history-entry: the new history item has the history entry's form and links to ../../tasks/0078_adr0024_server_env_result/01_requirements.md
+OK every check passed
+```
+
+-   壊し方ごとの結果は、ステップ 1-3 のコミットのメッセージにある。
 
 ## 8. 成功の基準 (Success Criteria)
 
