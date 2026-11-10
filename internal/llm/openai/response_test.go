@@ -4,6 +4,7 @@ package openai
 
 import (
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -11,6 +12,14 @@ import (
 
 	"github.com/isseis/yt2column/internal/llm"
 )
+
+// escapedKey returns the JSON encoding of a member name whose first letter is
+// written as a backslash-u escape of four hex digits, so the decoded name is
+// name itself. The backslash is built from its rune, so the escape cannot be
+// lost when the file is edited.
+func escapedKey(name string) string {
+	return `"` + string(rune(0x5c)) + fmt.Sprintf("u%04x", name[0]) + name[1:] + `"`
+}
 
 // mutation changes a completed test document before it is encoded.
 type mutation func(t *testing.T, document map[string]any)
@@ -165,7 +174,10 @@ func TestResponseShape(t *testing.T) {
 		{"message phase", `"phase":"final_answer"`, `"phase":"final_answer","phase":"final_answer"`},
 		{"output_text text", `"text":"` + testAnswer + `"`, `"text":"x","text":"` + testAnswer + `"`},
 		{"content type", `"text":"` + testAnswer + `","type":"output_text"`, `"text":"` + testAnswer + `","type":"output_text","type":"output_text"`},
-		{"model through an escaped key", `"model":"` + testResponseModel + `"`, `"model":"` + testResponseModel + `","model":"other"`},
+		{"message status", `"role":"assistant","status":"completed"`, `"role":"assistant","status":"completed","status":"completed"`},
+		{"message content", `"content":[`, `"content":[],"content":[`},
+		{"message type", `"type":"message"`, `"type":"message","type":"message"`},
+		{"reasoning type", `"type":"reasoning"`, `"type":"reasoning","type":"reasoning"`},
 	}
 	for _, tc := range duplicates {
 		t.Run("rejects a duplicate "+tc.name, func(t *testing.T) {
@@ -178,11 +190,26 @@ func TestResponseShape(t *testing.T) {
 	})
 
 	t.Run("an escaped consumed key is the member", func(t *testing.T) {
-		body := replaceOnce(t, base, `"model":`, `"model":`)
+		body := replaceOnce(t, base, `"model":`, escapedKey(keyModel)+`:`)
+		if !strings.Contains(string(body), string(rune(0x5c))+"u006dodel") {
+			t.Fatalf("body %s does not carry the escaped key", body)
+		}
 		if response := assertAccepted(t, body); response.Model != testResponseModel {
 			t.Errorf("Model = %q, want %q", response.Model, testResponseModel)
 		}
 	})
+
+	escapedDuplicates := []struct {
+		name, old, replacement string
+	}{
+		{"model", `"model":"` + testResponseModel + `"`, `"model":"` + testResponseModel + `",` + escapedKey(keyModel) + `:"other"`},
+		{"content type", `"type":"output_text"`, `"type":"output_text",` + escapedKey(keyType) + `:"output_text"`},
+	}
+	for _, tc := range escapedDuplicates {
+		t.Run("rejects a duplicate "+tc.name+" written with an escape", func(t *testing.T) {
+			assertBodyRejected(t, replaceOnce(t, base, tc.old, tc.replacement), ErrInvalidResponse)
+		})
+	}
 
 	t.Run("extensible members are ignored, duplicates and other kinds included", func(t *testing.T) {
 		body := replaceOnce(t, base, `"id":"resp_test"`, `"id":"resp_test","id":1,"extra":{"model":null}`)
@@ -192,6 +219,19 @@ func TestResponseShape(t *testing.T) {
 		if response := assertAccepted(t, body); response.Text != testAnswer {
 			t.Errorf("Text = %q, want %q", response.Text, testAnswer)
 		}
+	})
+
+	t.Run("rejects a duplicate incomplete_details reason", func(t *testing.T) {
+		body := replaceOnce(t, encodeDocument(t, truncatedDocument()),
+			`"reason":"max_output_tokens"`, `"reason":"max_output_tokens","reason":"max_output_tokens"`)
+		assertBodyRejected(t, body, ErrInvalidResponse)
+	})
+
+	t.Run("rejects a duplicate refusal text", func(t *testing.T) {
+		document := completedDocument()
+		messageOf(t, document)[keyContent] = []any{map[string]any{keyType: contentRefusal, keyRefusal: "no"}}
+		body := replaceOnce(t, encodeDocument(t, document), `"refusal":"no"`, `"refusal":"no","refusal":"no"`)
+		assertBodyRejected(t, body, ErrInvalidResponse)
 	})
 
 	t.Run("incomplete_details may carry extra members", func(t *testing.T) {
@@ -305,6 +345,14 @@ func TestResponseFinish(t *testing.T) {
 		{"a refusal alone", func(t *testing.T, d map[string]any) {
 			messageOf(t, d)[keyContent] = []any{map[string]any{keyType: contentRefusal, keyRefusal: fakeSecretMarker}}
 		}, "refusal"},
+		{"an error object wins over an empty answer", func(_ *testing.T, d map[string]any) {
+			d[keyError] = map[string]any{}
+			d[keyOutput] = []any{}
+		}, "error object"},
+		{"an unfinished message wins over an empty answer", func(t *testing.T, d map[string]any) {
+			d[keyOutput] = []any{messageItem(phaseFinalAnswer, textPart(" "))}
+			messageOf(t, d)[keyStatus] = statusInProgress
+		}, "message is not completed"},
 		{"a failed status wins over an empty answer", func(_ *testing.T, d map[string]any) {
 			d[keyStatus] = statusFailed
 			d[keyOutput] = []any{}
@@ -508,6 +556,7 @@ func TestResponsePricingContext(t *testing.T) {
 		{"differently cased", bodyOf(t, func(_ *testing.T, d map[string]any) { d[keyServiceTier] = "Default" })},
 		{"unknown with a fake secret", bodyOf(t, func(_ *testing.T, d map[string]any) { d[keyServiceTier] = fakeSecretMarker })},
 		{"duplicate with equal values", replaceOnce(t, base, `"service_tier":"default"`, `"service_tier":"default","service_tier":"default"`)},
+		{"duplicate written with an escape", replaceOnce(t, base, `"service_tier":"default"`, `"service_tier":"default",`+escapedKey(keyServiceTier)+`:"default"`)},
 	}
 	for _, tc := range unverified {
 		t.Run(tc.name+" is unverified and keeps the text and counts", func(t *testing.T) {

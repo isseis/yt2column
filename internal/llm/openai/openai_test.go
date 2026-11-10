@@ -21,6 +21,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -423,8 +424,8 @@ func TestGenerateTransport(t *testing.T) {
 		status   int
 		guidance string
 	}{
-		{http.StatusBadRequest, statusGuidance(http.StatusBadRequest)},
-		{http.StatusNotFound, statusGuidance(http.StatusBadRequest)},
+		{http.StatusBadRequest, "check the model name, the effort, max_output_tokens, and the input"},
+		{http.StatusNotFound, "check the model name, the effort, max_output_tokens, and the input"},
 		{http.StatusUnauthorized, "check the API key"},
 		{http.StatusForbidden, "permissions"},
 		{http.StatusTooManyRequests, "billing"},
@@ -437,7 +438,13 @@ func TestGenerateTransport(t *testing.T) {
 	for _, tc := range statuses {
 		t.Run("status "+strconv.Itoa(tc.status), func(t *testing.T) {
 			body := []byte(`{"error":{"message":"` + fakeSecretMarker + `"}}`)
-			server := llmhttptest.NewResponseServer(t, tc.status, body)
+			var requests atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				requests.Add(1)
+				w.WriteHeader(tc.status)
+				_, _ = w.Write(body)
+			}))
+			t.Cleanup(server.Close)
 			req := validRequest()
 			req.MaxOutputTokens = 256
 			response, err := generateAgainst(t, server.URL, req, func(options *Options) { options.Effort = openaiparam.EffortHigh })
@@ -445,6 +452,10 @@ func TestGenerateTransport(t *testing.T) {
 			statusErr, ok := errors.AsType[*HTTPStatusError](err)
 			if !ok || statusErr.StatusCode != tc.status {
 				t.Fatalf("Generate() error = %v, want *HTTPStatusError with %d", err, tc.status)
+			}
+			// A status failure is never retried: exactly one request is sent.
+			if count := requests.Load(); count != 1 {
+				t.Errorf("server received %d requests, want exactly 1", count)
 			}
 			for _, want := range []string{tc.guidance, testModel, "max_output_tokens 256", "effort high"} {
 				if !strings.Contains(err.Error(), want) {
