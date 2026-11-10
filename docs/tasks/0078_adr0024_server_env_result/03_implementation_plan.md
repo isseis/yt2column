@@ -102,10 +102,10 @@ PR #780 のマージの後に `/runplan` で行う。
 
 AC-04 と AC-05 は欠番である（要件書 F-002）。
 
-実行の記録（ステップ 1-3）:
+実行の記録（ステップ 1-3、レビューの修正の後・PR を作る前のやり直し）:
 
 -   確かめたコミット：前が `b633a13858855ec254898bba18cc3a0f45a447a2`、後が `9a30d0d38e83144c27ce4fd468d44fea01a94cfd`。後者は PR #780 のスカッシュのコミットで、subject が `docs(0078): update ADR-0024's server environment consequence and add the task documents (#780)`、親が前者であることを確かめた。
--   スクリプトの blob：`main.go` が `1555f207a90719dd856444cb9cb3bb8e6a9dd841`、`data.json` が `d6a79d06067635a498f408529b04a9b1d9c7b1bb`。
+-   スクリプトの blob：`main.go` が `ce83e0daefbc7222f195da2c4946488e9f02ef92`、`data.json` が `d6a79d06067635a498f408529b04a9b1d9c7b1bb`。
 -   実行したコマンドと出力（終了コード 0）：
 
 ```
@@ -113,7 +113,7 @@ $ go build -tags test -o /tmp/0078check ./docs/tasks/0078_adr0024_server_env_res
 $ /tmp/0078check b633a13858855ec254898bba18cc3a0f45a447a2 9a30d0d38e83144c27ce4fd468d44fea01a94cfd
 base b633a13858855ec254898bba18cc3a0f45a447a2
 head 9a30d0d38e83144c27ce4fd468d44fea01a94cfd
-docs/tasks/0078_adr0024_server_env_result/_checks/main.go blob 1555f207a90719dd856444cb9cb3bb8e6a9dd841
+docs/tasks/0078_adr0024_server_env_result/_checks/main.go blob ce83e0daefbc7222f195da2c4946488e9f02ef92
 docs/tasks/0078_adr0024_server_env_result/_checks/data.json blob d6a79d06067635a498f408529b04a9b1d9c7b1bb
 OK   consequence-link: the last consequence item changed and links to 0018-server-config-file.md
 OK   consequence: the two versions differ only in the last consequence item and the added history entry
