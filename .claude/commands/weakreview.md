@@ -301,10 +301,13 @@ attack-vector list against this diff even where no AC mentions it explicitly)
 
 **Language and convention discipline**
 - [ ] Every Go comment, identifier, and string literal added in this range
-      is English; any non-ASCII found by the step-3 grep is in a test-data
-      literal or an intentionally localized error string, not an
-      identifier or a non-test comment (a weak model tends to apply this
-      rule uniformly instead of case-by-case).
+      is English, except a literal the guard-test literal exception of
+      `CLAUDE.md`, "Go Idioms", covers; any non-ASCII found by the step-3
+      grep is in a test-data literal, an intentionally localized error
+      string, or such an excepted literal (a Go program under `_checks/`
+      whose literal must match a Japanese document's text), not an identifier or a
+      non-test comment (a weak model tends to apply this rule uniformly
+      instead of case-by-case).
 - [ ] Any new test file's assertion style (testify `assert`/`require` vs.
       hand-rolled `if`/`t.Errorf`), package naming (`testutil` vs.
       package-internal `test_helpers.go`), and import style match the
