@@ -149,17 +149,17 @@
 
 **変更するファイル:** `internal/fixprguard/gitstate.go`、`internal/fixprguard/worktree.go`、`internal/fixprguard/gitstate_test.go`、`internal/fixprguard/worktree_flow_test.go`、`docs/dev/guides/fixprguard_guide.md`（8 章の `parts` の一覧だけ）
 
--   [ ] `PartBranch` を加え、`GitStateParts()` に含める（設計書 3.2）。
--   [ ] `headRuleKind`・`headRule`・`stateResult` を設計書 3.2 のとおりに加え、`compareState` の引数と戻り値を変える。このステップでは `headIsCommit` の分岐だけを書き、`headFollowsPhase4` の分岐は誤りを返す（ステップ 3-1 で書く）。
--   [ ] ブランチの比較と `branch`・`head` の振り分けを 1 つの関数にし、`compareState` と `checkCommit` の両方で使う（設計書 3.2）。`checkCommit` の親とメッセージの違いは、今までどおり `head` にする。
--   [ ] `GitStateError` に `Rule` を加える。`Error()` は、`Rule` があるときだけ、規則の名前を添える（設計書 3.2・4 章）。
--   [ ] `compareState` の呼び出し 7 か所（1.4）を `headIsCommit` に合わせる。振る舞いは変えない。
--   [ ] `branch_switch_same_commit`・`detached_head_same_commit` の期待を `PartBranch` にする。
--   [ ] `finish`・`push` でブランチの違いが `branch` になることを確かめる行を加える。`push` は `TestPushRechecks` の表にブランチを切り替える行を加える。`finish` は、`checkCommit` に届くように、post-commit の hook がブランチを切り替える行を加える（hook は基準値を取る前に置くので、hooks の比較は通る）。`inspect` は、更新した 2 つの行（`Inspect` と同じ形で `compareState` を直接呼ぶ）で確かめる。
--   [ ] ブランチと HEAD の両方が違う行を加え、`parts` がちょうど `branch` だけであることを確かめる（設計書 4 章。ブランチが違えば HEAD は比べない）。
--   [ ] `headRuleKind` の一覧の外の値を渡したときに、誤りが返り、`git ls-remote` を起動しないことを確かめる行を加える。
--   [ ] ガイド 8 章の `git-state-changed` の行の `parts` の一覧に `branch` を加える（`TestGuideNamesGitStateParts` が `GitStateParts()` と照合するため）。8 章のほかの記述は、ステップ 6-6 で書く。
--   [ ] 壊して確かめる: 振り分けの関数がブランチの違いを `head` にする形に戻す、ブランチが違うときも HEAD を比べる、`switch` の `default` が誤りを返さない。加えた行と更新した 2 つの行のうち、どれが失敗したかをコミットメッセージに書く。
+-   [x] `PartBranch` を加え、`GitStateParts()` に含める（設計書 3.2）。
+-   [x] `headRuleKind`・`headRule`・`stateResult` を設計書 3.2 のとおりに加え、`compareState` の引数と戻り値を変える（`stateResult` の `commits` の欄は、使い始めるステップ 3-1 で加える）。このステップでは `headIsCommit` の分岐だけを書き、`headFollowsPhase4` の分岐は誤りを返す（ステップ 3-1 で書く）。
+-   [x] ブランチの比較と `branch`・`head` の振り分けを 1 つの関数にし、`compareState` と `checkCommit` の両方で使う（設計書 3.2）。`checkCommit` の親とメッセージの違いは、今までどおり `head` にする。
+-   [x] `GitStateError` に `Rule` を加える。`Error()` は、`Rule` があるときだけ、規則の名前を添える（設計書 3.2・4 章）。
+-   [x] `compareState` の呼び出し 7 か所（1.4）を `headIsCommit` に合わせる。振る舞いは変えない。
+-   [x] `branch_switch_same_commit`・`detached_head_same_commit` の期待を `PartBranch` にする。
+-   [x] `finish`・`push` でブランチの違いが `branch` になることを確かめる行を加える。`push` は `TestPushRechecks` の表にブランチを切り替える行を加える。`finish` は、`checkCommit` に届くように、post-commit の hook がブランチを切り替える行を加える（hook は基準値を取る前に置くので、hooks の比較は通る）。`inspect` は、更新した 2 つの行（`Inspect` と同じ形で `compareState` を直接呼ぶ）で確かめる。
+-   [x] ブランチと HEAD の両方が違う行を加え、`parts` がちょうど `branch` だけであることを確かめる（設計書 4 章。ブランチが違えば HEAD は比べない）。
+-   [x] `headRuleKind` の一覧の外の値を渡したときに、誤りが返り、`git ls-remote` を起動しないことを確かめる行を加える。
+-   [x] ガイド 8 章の `git-state-changed` の行の `parts` の一覧に `branch` を加える（`TestGuideNamesGitStateParts` が `GitStateParts()` と照合するため）。8 章のほかの記述は、ステップ 6-6 で書く。
+-   [x] 壊して確かめる: 振り分けの関数がブランチの違いを `head` にする形に戻す、ブランチが違うときも HEAD を比べる、`switch` の `default` が誤りを返さない。加えた行と更新した 2 つの行のうち、どれが失敗したかをコミットメッセージに書く。
 
 **成功の条件:** `make fmt` と `make lint` を実行し、`go test -tags test ./internal/fixprguard/... ./cmd/fixprguard/...` が通る。
 

@@ -141,7 +141,7 @@ type Inspection struct {
 // each against the scope of threads. threads comes from GitHub.ThreadPaths,
 // never from the caller's arguments. It changes nothing.
 func (w *Worktree) Inspect(ctx context.Context, base Baseline, threads []ThreadPath) (Inspection, error) {
-	if _, err := w.compareState(ctx, base, base.head, checkWithRemote); err != nil {
+	if _, err := w.compareState(ctx, base, headRule{kind: headIsCommit, commit: base.head}, checkWithRemote); err != nil {
 		return Inspection{}, err
 	}
 	changes, err := w.changesAgainst(ctx, base)
@@ -340,7 +340,7 @@ func commitMessage(req FinishRequest) (finishMessage, error) {
 // target branch, which finish does not touch) and lists the changes against
 // the baseline's commit.
 func (w *Worktree) checkedChanges(ctx context.Context, base Baseline) ([]change, error) {
-	if _, err := w.compareState(ctx, base, base.head, checkLocal); err != nil {
+	if _, err := w.compareState(ctx, base, headRule{kind: headIsCommit, commit: base.head}, checkLocal); err != nil {
 		return nil, err
 	}
 	return w.changesAgainst(ctx, base)
@@ -463,8 +463,10 @@ func (w *Worktree) checkCommit(ctx context.Context, base Baseline, want []change
 	if err != nil {
 		return "", err
 	}
-	if branch == "" || digestString(branch) != base.branch || !slices.Equal(parents, []string{base.head}) ||
-		(message.pinned && stored != message.text) {
+	if err := checkBranch(base, branch); err != nil {
+		return "", err
+	}
+	if !slices.Equal(parents, []string{base.head}) || (message.pinned && stored != message.text) {
 		return "", &GitStateError{Parts: []string{PartHead}}
 	}
 	baseTree, _, _, err := w.commitObject(ctx, base.head)
@@ -572,10 +574,11 @@ func (w *Worktree) Push(ctx context.Context, base Baseline, commit string) (Push
 	if !validOID(commit) {
 		return PushResult{}, fmt.Errorf("%w: commit", ErrInvalidInput)
 	}
-	target, err := w.compareState(ctx, base, commit, checkWithRemote)
+	state, err := w.compareState(ctx, base, headRule{kind: headIsCommit, commit: commit}, checkWithRemote)
 	if err != nil {
 		return PushResult{}, err
 	}
+	target := state.target
 	if _, parents, _, err := w.commitObject(ctx, commit); err != nil {
 		return PushResult{}, err
 	} else if !slices.Equal(parents, []string{base.head}) {

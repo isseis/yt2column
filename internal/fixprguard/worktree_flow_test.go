@@ -282,6 +282,20 @@ func TestFinishPostCommitTreeCheck(t *testing.T) {
 			t.Errorf("Finish returned commit %s", result.Commit)
 		}
 	})
+	t.Run("branch_switched_by_hook", func(t *testing.T) {
+		// After the commit the hook moves HEAD to another branch at the same
+		// commit; the hook exists before the baseline, so the hooks match.
+		r := newTestRepo(t)
+		r.WriteHook("post-commit", "git switch -q -c other\n")
+		base := mustBaseline(t)
+		fixTestFile(r)
+		p := prepared{r: r, base: base, judged: mustInspect(t, base).JudgedSet}
+		result, _, err := p.finish(t, buildCheckSteps()...)
+		wantStateParts(t, err, PartBranch)
+		if result.Commit != "" {
+			t.Errorf("Finish returned commit %s", result.Commit)
+		}
+	})
 	t.Run("clean_filter", func(t *testing.T) {
 		// The filter is configured before the baseline, so the state checks
 		// pass; only the committed blob differs from the work tree.
@@ -603,6 +617,9 @@ func TestPushRechecks(t *testing.T) {
 		{"remote_branch_moved", func(_ *testing.T, p prepared, commit string) {
 			p.r.Git("push", "-q", testRemote, commit+":"+headsPrefix+testBranch)
 		}, []string{PartRemote}, false},
+		{"branch_switched", func(_ *testing.T, p prepared, _ string) {
+			p.r.Git("switch", "-q", "-c", "other")
+		}, []string{PartBranch}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			p := prepareRound(t, fixTestFile)
