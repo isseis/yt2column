@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-10 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-10 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 実装概要 (Implementation Overview)
@@ -334,3 +334,7 @@
 ## 9. 次のステップ (Next Steps)
 
 本書の PR をレビューし、`/runpr` で承認・マージ後、`/runplan 0077` で PR-1 から順に進める。実装完了後、モデルの組み合わせの品質評価と本番構成の判断を #569 に引き継ぐ。
+
+## 変更履歴
+
+- 2026-11-10 承認（isseis、#784）
