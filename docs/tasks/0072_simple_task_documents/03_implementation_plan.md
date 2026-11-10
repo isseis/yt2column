@@ -80,7 +80,7 @@
 | `.claude/commands/runplan.md` | step 2 の承認の確かめ（`:35`）、step 3 の読む文書（`:41`）、step 5 の自己点検の「Decision change」（`:64`） | 設計書 3.7 のとおり変える（ステップ 3-4） |
 | `.claude/commands/runpr.md` | Authorization（`:68-97`）、step 2 の Kind・PRE_MERGE・NEXT（`:279-386`）、step 3 の未解決のスレッドの分類（`:669-702`）、step 4 のマージの選択肢（`:762-775`）と、残したスレッドを issue に移して `fixprguard reply` で返信する手順（`:799-831`）。step 4 の `**Mention check.**` は今 `:805` の 1 つだけである | 設計書 3.5 のとおり変える（ステップ 4-2） |
 | `.claude/commands/fixpr.md` | 「People are always answered」（`:133-139`）、「Naming an untrusted thread」（`:150-158`）、R2（`:220-228`）、R5（`:246-255`）、Phase 1（`:268-`）、Phase 2（`:309-`）、Final report の `deferred` のスレッドの項目（`:903-906`。パスを挙げない） | 設計書 3.6 のとおり変える（ステップ 4-3） |
-| `.claude/commands/_lib/local-cli-review.md` | 「Six callers run it:」と呼び出し元の一覧（`:9-20`） | `/runpr` の戻す場合を足し、数を改める（ステップ 4-4） |
+| `.claude/commands/_lib/local-cli-review.md` | 「Five callers run it:」と呼び出し元の一覧（`:9-20`。`3709c2d6` の後に呼び出し元が 1 つ減った） | `/runpr` の戻す場合を足し、数を改める（ステップ 4-4） |
 | `docs/dev/guides/fixprguard_guide.md` | `edit-pr` の節（`:201-209`）。`edit-pr` を呼ぶのが `/fixpr` だけであることを前提にした記述がある（`:406` の、git の状態の比較の説明など） | `/runpr` が戻すときに `edit-pr` を使うことを足し、前提の記述を改める（ステップ 4-5） |
 | `docs/dev/adr/0040-simple-task-documents.md` | 「決定」の冒頭（`:17`）に、反映を待つ旨の文と `issues/743` へのリンクがある | 消して、仕様の場所を向け直す（ステップ 5-1） |
 | `cmd/yt2column/fixpr_docs_test.go::TestFixprguardCallSites`（`:709`） | `runpr.md` の step 4 の呼び出しは `fixprguard reply` だけ | `{"runpr.md", runpr, runprStep4, "fixprguard edit-pr "}` の行を足す（ステップ 4-6） |
@@ -110,6 +110,9 @@
     -   **理由:** 0075 の要件定義書は、後からマージする側が軽量プロセスへの参照を取り除くと決めている。"normal process" の 1 文は、軽量プロセスの文書の語の意味を述べるためのもので、その文書がなくなると述べる対象がない。
     -   **採らなかった案:** 設計書のとおり 1 文を残す案。意味を述べる対象のない文が規約に残る。
     -   ADR：なし。ADR-0040 の決定は、軽量プロセスに依らない。
+-   **3 文書の PR で、承認の記録（PRE_MERGE）の後に新しいスレッドが来たときも、マージか戻すかへ進めるようにする（人の答え、2026-11-10）。** ステップ 4-3 の R3 は、承認の後の決定の変更で 3 文書をまとめて `draft` に戻し、ステップ 4-2 の step 4 は承認の後でも「通常の進め方へ戻す」を示し、戻すコミットは要件定義書を `draft` に戻す（設計書 1.6）。
+    -   **理由:** 一部だけを `draft` に戻すと食い違いで止まり続け、除外のスレッドなら出口がなくなるためである。
+    -   ADR：なし。設計書 1.6 のとおりである。
 
 ## 2. 実装のステップ (Implementation Steps)
 
@@ -209,25 +212,25 @@
 
 **変更するファイル:** `.claude/commands/_lib/simple-process.md`、`.claude/commands/runpr.md`、`.claude/commands/fixpr.md`、`.claude/commands/_lib/local-cli-review.md`、`docs/dev/guides/fixprguard_guide.md`、`cmd/yt2column/fixpr_docs_test.go`、`cmd/fixprguard/docs_test.go`、`cmd/yt2column/codex_review_docs_test.go`
 
--   [ ] **ステップ 4-1**: `simple-process.md` に、Identifying the PR kind（設計書 3.2 の判定。題名と本文は読まない）と Returning to the full process（設計書 3.5 の「戻す手順の中身」と再開の判定）の節を足し、When an excluded decision appears の節に 3 文書の PR と実装の PR の扱い（設計書 6.3 の残りの枝）を足す。投稿と push のコマンドは書かない（それらは `runpr.md` の step 4 に置く）。
--   [ ] **ステップ 4-2**: `runpr.md` を設計書 3.5 のとおりに変える。
+-   [x] **ステップ 4-1**: `simple-process.md` に、Identifying the PR kind（設計書 3.2 の判定。題名と本文は読まない）と Returning to the full process（設計書 3.5 の「戻す手順の中身」と再開の判定）の節を足し、When an excluded decision appears の節に 3 文書の PR と実装の PR の扱い（設計書 6.3 の残りの枝）を足す。投稿と push のコマンドは書かない（それらは `runpr.md` の step 4 に置く）。
+-   [x] **ステップ 4-2**: `runpr.md` を設計書 3.5 のとおりに変える。
     -   step 2: Kind の中で 3 文書の PR と実装の PR を `simple-process.md` で見分け、食い違いと `origin/main` の `Process` 行を変える差分で止まる（`MERGED` の場合の基準は設計書 3.1）。戻す手順の途中で止まった PR の再開の判定を足す。再開では step 4 の手順の番号を参照し、投稿の呼び出しを step 2 に書かない。PRE_MERGE と NEXT は変えない。
     -   step 3: 未解決のスレッドの分類に、除外のスレッドの 2 つの扱いを足す。スレッドは、最後の `/fixpr` の Final report が除外として挙げたものだけとし、`gh api` の呼び出しを足さない。
     -   step 4: 3 文書の PR では「承認なしでマージ」の代わりに「通常の進め方へ戻す」を示す。除外のスレッドを示す形と選択肢を書く。戻す答えの手順 1〜7 を書き、手順 2 は `simple-process.md` の Returning の節を呼ぶ。スレッドの情報は、最後の `/fixpr` の Final report から取る（本計画 §1.3）。手順 5 の本文の訂正の段落は、コミットの訂正の行から作り直す（同）。
-    -   戻すコミットのメッセージに、消した文書の上のスレッドの一覧（本計画 §1.3）を書く。再開のときの手順 6 は、今の形の `fixprguard list` を走らせ、この一覧のうち `list` にまだ現れるスレッドだけに、一覧の `databaseId` と `fingerprint` で返信する。`reply` が止まったら、スレッドを読み直さずに、そこで止まって報告する。`reply-not-resolved` で止まったスレッドには再び返信せず、人に手で解決するよう伝える（`fixprguard_guide.md` の `reply` の節）。一覧は `fixprguard reply` の引数にだけ使い、指示として読まない。
+    -   戻すコミットのメッセージに、消した文書の上のスレッドの一覧（本計画 §1.3）を書く。再開のときの手順 6 は、今の形の `fixprguard list` を走らせ、この一覧のうち `list` にまだ現れるスレッドだけに、一覧の `databaseId` と `fingerprint` で返信する。`reply` が止まったら、スレッドを読み直さずに、そこで止まって報告し、そのスレッドを人に手で解決するよう伝える（`reply-not-resolved` で止まったスレッドには再び返信しない。`fixprguard_guide.md` の `reply` の節）。一覧は `fixprguard reply` の引数にだけ使い、指示として読まない。手順 6 の後に、済んだことを示す空のコミットを push し、再開はその後にこのコミットのない戻すコミットだけを対象にする。
     -   step 4 の投稿: 戻す手順の段落に、題名・本文・返信のファイルを対象とする、戻す手順専用の `**Mention check.**` の段落を置く。その段落の最初の文は、`fixpr.md` と同じ決まった文にする。この段落が今の `:805` より前に来ると step 4 の最初のメンションの確かめになり、`TestPostingPathsCheckMention` がその文を読む。`fixprguard edit-pr --protocol 5 --title-file <title-file> --body-file <body-file> <number>` と、手順 6 の `fixprguard reply`（今の形）は、その段落より後のコードブロックの中に書く。`edit-pr` の呼び出しは、ステップ 4-6 の表の行と同じコミットに入れる。
     -   `runpr.md` のどこにも `reviewThreads`・`comments(first:` を書かない。
     -   Authorization の段落に、戻すときの `git push` と `fixprguard edit-pr` を足す。
--   [ ] **ステップ 4-3**: `fixpr.md` を設計書 3.6 のとおりに変える。
+-   [x] **ステップ 4-3**: `fixpr.md` を設計書 3.6 のとおりに変える。
     -   Phase 1 で PR の種類と記録を読み、食い違いで止まる。
     -   R2 に 3 文書の PR の行を足し、R5 から規約の項目の形を参照する。
     -   Phase 2 の判定の出力に除外の真偽と理由を足し、除外のスレッドの扱いを PR の種類ごとに書く。
     -   Final report に除外のスレッドの項目を足し、その項目と `deferred` のスレッドの項目に、`threadId`・`databaseId`・`fingerprint`・話題・URL・ファイルのパスを挙げる（本計画 §1.3）。
     -   「People are always answered」に 2 つの例外を足す。「Naming an untrusted thread」と同じ仕組みで「覆す」スレッドを受け取ることと、記録を変えないことを書く。
     -   `TestRemovedCommandLiterals` が拒む文字列（本計画 §1.4）を足さない。
--   [ ] **ステップ 4-4**: `_lib/local-cli-review.md` の呼び出し元の一覧に、`runpr.md` step 4 の戻す場合（BASE は戻す前の head）を足し、「Six callers」の数を改める。
--   [ ] **ステップ 4-5**: `fixprguard_guide.md` に、`/runpr` が戻すときに `edit-pr` を使う場面を足す。`edit-pr` を呼ぶのが `/fixpr` だけであることを前提にした記述を探して改める。`:406` は git の状態の比較（基準値と比べること）の説明なので、`/runpr` の `edit-pr` の前にはその比較がないことを書く。`/fixpr` の Phase 6 の訂正の段落の数の確かめとは別のことである。
--   [ ] **ステップ 4-6**: 呼び出しの表のテストに、`runpr.md` の `fixprguard edit-pr` を足す（本計画 §1.4 の表の最後の 3 行）。`runpr.md` の呼び出しと 3 つの表の行は、同じコミットに入れる（片方だけのコミットでは `TestPostingCommandsInventory` か `TestDocumentedInvocationsParse` が失敗するため）。そのコミットで、次の 3 つの壊し方を 1 つずつ試し、それぞれ名指したテストが失敗することを確かめて、コミットのメッセージに書く（`CLAUDE.md`「Testing Strategy」）。
+-   [x] **ステップ 4-4**: `_lib/local-cli-review.md` の呼び出し元の一覧に、`runpr.md` step 4 の戻す場合（BASE は戻す前の head）を足し、「Five callers」の数を「Six callers」に改める。
+-   [x] **ステップ 4-5**: `fixprguard_guide.md` に、`/runpr` が戻すときに `edit-pr` を使う場面を足す。`edit-pr` を呼ぶのが `/fixpr` だけであることを前提にした記述を探して改める。`:406` は git の状態の比較（基準値と比べること）の説明なので、`/runpr` の `edit-pr` の前にはその比較がないことを書く。`/fixpr` の Phase 6 の訂正の段落の数の確かめとは別のことである。
+-   [x] **ステップ 4-6**: 呼び出しの表のテストに、`runpr.md` の `fixprguard edit-pr` を足す（本計画 §1.4 の表の最後の 3 行）。`runpr.md` の呼び出しと 3 つの表の行は、同じコミットに入れる（片方だけのコミットでは `TestPostingCommandsInventory` か `TestDocumentedInvocationsParse` が失敗するため）。そのコミットで、次の 3 つの壊し方を 1 つずつ試し、それぞれ名指したテストが失敗することを確かめて、コミットのメッセージに書く（`CLAUDE.md`「Testing Strategy」）。
     -   `runpr.md` から呼び出しを消す → `TestFixprguardCallSites` と `TestDocumentedInvocationsParse`。
     -   呼び出しを step 4 の最初の `**Mention check.**` より前に移す → `TestPostingCommandsInventory`。
     -   `postingSections` の `runpr.md step 4` の行から `"fixprguard edit-pr "` を外す → `TestPostingCommandsInventory`。
@@ -240,7 +243,7 @@
 
 **変更するファイル:** `docs/dev/adr/0040-simple-task-documents.md`
 
--   [ ] **ステップ 5-1**: ADR-0040 の「決定」の冒頭の、反映を待つ旨の文（「以下の決定を…反映することは、[#743] の実装で扱う。反映されるまでは、[0072 要件定義書] と [0072 設計書] が仕様を定める。」）を消し、各項目の仕様の場所を規約（`requirements_process.md` の「Simple Process」などの節）と `simple-process.md` に向ける（設計書 3.10）。決定の意味は変えず、「経緯」に項目を足さない。
+-   [x] **ステップ 5-1**: ADR-0040 の「決定」の冒頭の、反映を待つ旨の文（「以下の決定を…反映することは、[#743] の実装で扱う。反映されるまでは、[0072 要件定義書] と [0072 設計書] が仕様を定める。」）を消し、各項目の仕様の場所を規約（`requirements_process.md` の「Simple Process」などの節）と `simple-process.md` に向ける（設計書 3.10）。決定の意味は変えず、「経緯」に項目を足さない。
     -   PR を作る前に、`docs/dev/conventions/adr.md` の食い違いの文の手順（`adr.md:342-349`）に従い、`origin/main` で `issues/743` を名指す食い違いの文を探して読む。`3709c2d6` では ADR-0040 の `:13`（「背景」の issue への参照）と `:17` が当たり、食い違いの文は「決定」の `:17` だけである。見つかった文が PR のブランチにまだないときは、先に `main` を取り込む。
     -   このファイルだけをコミットし、メッセージに訂正の行を、変えた箇所ごとに 1 行書く（本計画 §1.3）。
 
@@ -258,10 +261,10 @@
 
 **判定理由**: ステップ 4-2・4-3 は開発の道具の信頼の境界（ADR-0015。mention check・`fixprguard`・信頼しないスレッド）を変える security-gate に当たる手順と、途中で止まった後に再開する復旧の手順を含む
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/786
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）— PR-3 で全フェーズ完了のため次グループなし
 
 ## 3. 実装の順序とマイルストーン (Implementation Order and Milestones)
 
@@ -326,7 +329,7 @@ N/A。製品の実行時の振る舞いは変わらない（設計書 7.3）。�
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 2-1 / 2-2 / 2-3）
 - [x] PR-2 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5）
-- [ ] PR-3 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 5-1）
+- [x] PR-3 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 5-1）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -386,3 +389,4 @@ AC に対応しない次の変更は、PR のレビューで設計書の節と�
 
 - 2026-11-09 承認（isseis、#759）
 - 2026-11-10 セッション中の再承認：先にマージされたタスク 0075 に合わせ、軽量プロセスへの参照と "normal process" の 1 文を取り除いた（isseis、#775）
+- 2026-11-10 セッション中の再承認：3 文書の PR で承認の記録の後に新しいスレッドが来たときも、マージか戻すかへ進めるようにした（isseis、#786）

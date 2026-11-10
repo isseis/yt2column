@@ -727,6 +727,7 @@ func TestFixprguardCallSites(t *testing.T) {
 		{"runpr.md", runpr, runprStep1, "fixprguard interaction-limits "},
 		{"runpr.md", runpr, runprStep3, "fixprguard list "},
 		{"runpr.md", runpr, runprStep4, "fixprguard reply "},
+		{"runpr.md", runpr, runprStep4, "fixprguard edit-pr "},
 	} {
 		if !strings.Contains(requireSection(t, tc.name, tc.doc, tc.heading), tc.call) {
 			t.Errorf("%s %q does not call %q", tc.name, tc.heading, strings.TrimSpace(tc.call))

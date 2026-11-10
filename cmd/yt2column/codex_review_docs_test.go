@@ -64,7 +64,7 @@ var postingSections = []postingSection{
 	{"runpr.md step 1", runprPath, headingSection(runprStep1), []string{"gh pr create "}},
 	{
 		"runpr.md step 4", runprPath, headingSection(runprStep4),
-		[]string{"gh issue comment <issue> --body-file", "gh issue create ", "fixprguard reply "},
+		[]string{"gh issue comment <issue> --body-file", "gh issue create ", "fixprguard reply ", "fixprguard edit-pr "},
 	},
 	{"runpr.md step 5", runprPath, headingSection(runprStep5), []string{"gh issue close "}},
 	{

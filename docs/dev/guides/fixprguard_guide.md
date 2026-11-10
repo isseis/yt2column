@@ -224,7 +224,7 @@ fixprguard reply --protocol 6 --reviewer coderabbitai --thread-id 'PRRT_...' --c
 
 ### `edit-pr --title-file FILE --body-file FILE [PR]`
 
-PR のタイトルと本文を更新する。タイトルは `--title=<値>` の形で、本文は検査した内容を標準入力から渡す（`gh` にファイルを読み直させない）。タイトルのファイルは、本文のファイルと同じ検査に加えて、制御文字と行区切りを含まない 1 行であること。タイトルと本文のどちらかが `@codex` のメンションを含むときは、`reply` の本文と同じ規則で、`gh pr edit` を起動する前に終了コード `2` で拒否する。
+PR のタイトルと本文を更新する。`/fixpr` は Phase 6 で古くなった説明を書き直すときに、`/runpr` はステップ 4 で 3 文書の PR を通常の進め方へ戻すとき（タスク 0072）に、これを使う。どちらも、送る前にタイトルと本文のファイルにメンションの確かめを行う。タイトルは `--title=<値>` の形で、本文は検査した内容を標準入力から渡す（`gh` にファイルを読み直させない）。タイトルのファイルは、本文のファイルと同じ検査に加えて、制御文字と行区切りを含まない 1 行であること。タイトルと本文のどちらかが `@codex` のメンションを含むときは、`reply` の本文と同じ規則で、`gh pr edit` を起動する前に終了コード `2` で拒否する。
 
 ```sh
 fixprguard edit-pr --protocol 6 --title-file /path/to/title.txt --body-file /path/to/body.md 42
@@ -436,7 +436,7 @@ fixprguard interaction-limits --protocol 6 42
 - `/fixpr` の Phase 4.5 で、手順が定めない git の起動。`check` を呼ぶのは手順が定める時点だけで、セッションがそれ以外に git を起動すれば、その前には比べない。比較を呼ぶこと自体もコマンドの文書に依存する（7.2.2）。
 - Phase 4 の commit から 1 本につながる commit の出所。`check` は、Phase 4.5 の commit を誰が作ったかを区別しない。修正のフェーズや build checks が残したプロセスが、1 本につながる commit を足しても、`check` は通る。`/fixpr` は、手順が戻った後と `push-review` の直前の `check` で、`commits` とセッションが数えた commit の数を照合し、違えば止まる。最後の照合から `push-review` までの間に足されたものは数えない。
 - HEAD とブランチの 2 回の読み取り。HEAD の OID と、HEAD がいるブランチは、2 回の git の起動で読む。その間にブランチを切り替えられると、切り替え先の OID と、基準値のブランチの名前の組を読みうる。
-- 基準値を持たない `head`・`list`・`reply`・`edit-pr` が `gh` を起動する前の比較。`/fixpr` はこれらを `finish`・`push`（Phase 4.5 の commit があれば `push-review`）の後に呼ぶので、それまでの比較が書き換えを検出するが、最後の push の後の書き換えは検出しない。`interaction-limits` も基準値を持たず、`/runpr` がステップ 1 で `begin` より前に 1 回だけ呼ぶので、それ以前の比較はない。
+- 基準値を持たない `head`・`list`・`reply`・`edit-pr` が `gh` を起動する前の比較。`/fixpr` はこれらを `finish`・`push`（Phase 4.5 の commit があれば `push-review`）の後に呼ぶので、それまでの比較が書き換えを検出するが、最後の push の後の書き換えは検出しない。`/runpr` は `begin` を呼ばずに `head`・`list`・`reply` を使い、3 文書の PR を通常の進め方へ戻すときは `edit-pr` も使うので、その前に基準値との比較はない。`interaction-limits` も基準値を持たず、`/runpr` がステップ 1 で `begin` より前に 1 回だけ呼ぶので、それ以前の比較はない。
 - hooks のディレクトリの外にあり、hook が実行するファイル（pre-commit のフレームワークのキャッシュなど）。
 
 #### 7.2.5 git が無視するファイル

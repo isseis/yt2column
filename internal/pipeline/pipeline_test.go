@@ -803,17 +803,18 @@ func TestWriterImports(t *testing.T) {
 
 // TestConfigImports checks that the configuration loader and the parameter
 // packages stay independent of the network and of the LLM adapters: no
-// non-test Go file directly in internal/config, internal/llm/claudeparam, or
-// internal/llm/deepseekparam directly imports the network packages. A direct
-// import of an adapter would pull net/http into the CLI's startup path. The two
-// parameter packages may import neither parameter package nor an adapter;
-// internal/config may import the two parameter packages.
+// non-test Go file directly in internal/config, internal/llm/claudeparam,
+// internal/llm/deepseekparam, or internal/llm/openaiparam directly imports the
+// network packages. A direct import of an adapter would pull net/http into the
+// CLI's startup path. A parameter package may import neither another parameter
+// package nor an adapter; internal/config may import the parameter packages.
 func TestConfigImports(t *testing.T) {
 	const (
 		module            = "github.com/isseis/yt2column/"
 		llmPrefix         = module + "internal/llm/"
 		claudeparamPath   = module + "internal/llm/claudeparam"
 		deepseekparamPath = module + "internal/llm/deepseekparam"
+		openaiparamPath   = module + "internal/llm/openaiparam"
 	)
 	patterns := []struct {
 		glob             string
@@ -822,6 +823,7 @@ func TestConfigImports(t *testing.T) {
 		{"../config/*.go", false},
 		{"../llm/claudeparam/*.go", true},
 		{"../llm/deepseekparam/*.go", true},
+		{"../llm/openaiparam/*.go", true},
 	}
 	fset := token.NewFileSet()
 	for _, pattern := range patterns {
@@ -855,7 +857,7 @@ func TestConfigImports(t *testing.T) {
 					t.Errorf("%s imports %s", path, ipath)
 				case !strings.HasPrefix(ipath, llmPrefix):
 					// A package outside internal/llm, including the standard library.
-				case ipath == claudeparamPath, ipath == deepseekparamPath:
+				case ipath == claudeparamPath, ipath == deepseekparamPath, ipath == openaiparamPath:
 					if pattern.parameterPackage {
 						t.Errorf("%s imports %s; a parameter package must not import another parameter package", path, ipath)
 					}

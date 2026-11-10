@@ -23,13 +23,19 @@
 -   **それ以外の失敗では、応答のゼロ値を返す。** 不正なリクエスト・HTTP の状態・応答本文の形の誤り・通信の失敗・期限切れ・キャンセルがこれに当たる。使用量を得られない失敗では、ゼロ値の応答がそのまま不明の使用量になり、アダプタの拒否の経路を変えずに済むためである（[0019 設計書](../../tasks/0019_token_usage/02_architecture.md) の「3.2. `GenerateResponse` と `LLMClient` の契約（H-02）」）。規則は [project_overview.md](../project_overview.md) の「パイプライン」の `LLMClient` の項目にある。
 -   **使用量は、プロバイダに依存しない型で表す。** `TokenCounts` が料金の区分ごとのトークン数を持ち、`Usage` が「分かった使用量」か「不明の理由と、その理由が当てはまるメンバー」のどちらかを持つ。ゼロ値は「使用量を読まなかった」を意味する不明である。プロバイダ固有の要素名と区分への対応はアダプタの中に閉じるためである（[0019 要件定義書](../../tasks/0019_token_usage/01_requirements.md) の「F-001: 呼び出しごとのトークン数の取得」）。ゼロ値を不明にするのは、トークン数を返さない失敗とトークン数を返さない fake が、変更なしで不明を返すためである（[0019 設計書](../../tasks/0019_token_usage/02_architecture.md) の「3.1. `internal/llm` の使用量の型」）。型は `internal/llm` パッケージ（`internal/llm/usage.go`）にあり、[package_reference.md](../conventions/package_reference.md) の `internal/llm` の行が説明する。
 
+-   **使用量が分かることと、その使用量に単価を適用できることは別に表す。** トークン数が有効でも、実際の処理方式などの料金の前提を確認できない場合があるためである。プロバイダ固有の応答値を共有の結果に加えず、`Usage` が料金の適用条件を汎用の型で持つ。既存の構築口は追加の条件を報告しない使用量を作り、追加の条件を要する単価には適用しない。形と条件の契約は [0077 設計書](../../tasks/0077_openai_llm_client/02_architecture.md) の「トークン数と料金の適用条件の分離」にある。
+
 型の置き場所とアダプタの構成は [ADR-0001](0001-llm-adapter-stdlib.md) が、番兵の置き場所は [ADR-0019](0019-pipeline-component-interfaces.md) が定める。
+
+コードへの反映は [#568](https://github.com/isseis/yt2column/issues/568) の実装で行う。
 
 ## 採らなかった案
 
 -   **生成テキストだけを返す。** モデル名が返らず、エイリアスが指すモデルを記事のメタデータに残せない（[0001 設計書](../../tasks/0001_pipeline_skeleton/02_architecture.md) 付録 A）。
 -   **使用量を持つエラー型を `internal/llm` に加え、`errors.AsType` で取り出す。** アダプタの 3 つのエラーの経路に包むエラーを加えることになり、呼び出し側は取り出せなかったときの既定値を別に持つことになる（[0019 設計書](../../tasks/0019_token_usage/02_architecture.md)）。
 -   **アダプタが呼び出しの時刻を返す。** `GenerateResponse` の形と 2 つのアダプタ、既存の fake を変えることになる（[0022 設計書](../../tasks/0022_cost_estimate/02_architecture.md) 付録 A）。
+
+-   **料金の条件を確認できないとき、使用量まで不明にする。** 有効なトークン数を返す OpenAI の要件 AC-16 と、料金が不明でも生成を続ける AC-19 を両立できないため採らない（[0077 設計書](../../tasks/0077_openai_llm_client/02_architecture.md)）。
 
 ## 結果
 
@@ -44,3 +50,5 @@
 - 2026-10-02 DeepSeek アダプタが、応答の `model` と `system_fingerprint` をモデル名とモデルの版として返すようにした（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md)）
 - 2026-10-15 応答の `usage` を `GenerateResponse.Usage` として返し、打ち切り・想定外の終了理由・空の応答でもモデル名と使用量を返す契約に変えた（[0019 設計書](../../tasks/0019_token_usage/02_architecture.md)）
 - 2026-10-16 料金の算出のために呼び出しの時刻を加えるとき、アダプタが時刻を返す形は採らず、`GenerateResponse` の形を保った（[0022 設計書](../../tasks/0022_cost_estimate/02_architecture.md) 付録 A）
+
+- 2026-11-10 OpenAI の料金の前提を確認できない場合も有効なトークン数を返すため、使用量に汎用の料金の適用条件を添えることにした（[0077 設計書](../../tasks/0077_openai_llm_client/02_architecture.md)）

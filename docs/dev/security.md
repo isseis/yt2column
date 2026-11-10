@@ -15,9 +15,9 @@ yt2column はローカルで実行する。主経路では、利用者がブラ�
 
 ## 2. 秘密情報（API キー・Webhook URL）
 
-- `DEEPSEEK_API_KEY` などの API キーと `SLACK_WEBHOOK_URL` は、CLI では環境変数からのみ読み込み、localhost サーバではモード `0600` の設定ファイル（`$HOME/.config/yt2column/config.env`。§8.2）からのみ読み込む。リポジトリ内のファイルに書かない（`.envrc` / `.env` は `.gitignore` 済みで、サーバの設定ファイルはリポジトリの外にある）。サーバは環境変数の値を読まない。
+- `DEEPSEEK_API_KEY`・`ANTHROPIC_API_KEY`・`OPENAI_API_KEY` などの API キーと `SLACK_WEBHOOK_URL` は、CLI では環境変数からのみ読み込み、localhost サーバではモード `0600` の設定ファイル（`$HOME/.config/yt2column/config.env`。§8.2）からのみ読み込む。リポジトリ内のファイルに書かない（`.envrc` / `.env` は `.gitignore` 済みで、サーバの設定ファイルはリポジトリの外にある）。サーバは環境変数の値を読まない。
 - Webhook URL は URL 自体が秘密情報である。ログ・エラーメッセージに含めない。`*url.Error` など、URL を含む値をラップしたエラーをそのまま出力しない。
-- テストでは、本番の API キー（`DEEPSEEK_API_KEY`・`ANTHROPIC_API_KEY` に設定するもの）と本番の Webhook URL を使わない。ただし、実 API を呼ぶ統合テストに限り、本番とは別に用意した**テスト用の API キー**を使う例外を設ける（`docs/tasks/0003_deepseek_llm_client/02_architecture.md` §5.2）。テスト用の API キーは、DeepSeek API・Anthropic API に実際に通る有効なキーであり、使えば料金が発生する。
+- テストでは、本番の API キー（`DEEPSEEK_API_KEY`・`ANTHROPIC_API_KEY`・`OPENAI_API_KEY` に設定するもの）と本番の Webhook URL を使わない。ただし、実 API を呼ぶ統合テストに限り、本番とは別に用意した**テスト用の API キー**を使う例外を設ける（`docs/tasks/0003_deepseek_llm_client/02_architecture.md` §5.2）。テスト用の API キーは、DeepSeek API・Anthropic API に実際に通る有効なキーであり、使えば料金が発生する。
   - ユニットテストは、本番のキーもテスト用の API キーも使わない。偽の値だけを使い、Webhook URL も偽の値だけを使う。どのテストも API キーをコードやテストデータに書かない。
   - テスト用の API キーは、テスト専用の環境変数 `YT2COLUMN_TEST_DEEPSEEK_API_KEY` からだけ読む。統合テストは、本番の `DEEPSEEK_API_KEY` を、設定されていても読まない。テスト用の API キーには、本番と別のキー（利用上限を設けたものなど）を割り当てる。
   - Claude の統合テストも同じ方針で、テスト専用の `YT2COLUMN_TEST_ANTHROPIC_API_KEY` からだけ API キーを読み、本番の `ANTHROPIC_API_KEY` は設定されていても読まない。ワークスペース ID もテスト専用の `YT2COLUMN_TEST_ANTHROPIC_WORKSPACE_ID` からだけ読み、本番の `ANTHROPIC_WORKSPACE_ID` は読まない。テスト用の API キーには、利用上限を設けたワークスペースのものを割り当てる。
@@ -129,10 +129,10 @@ yt2column はローカルで実行する。主経路では、利用者がブラ�
 
 サーバ（`cmd/yt2column-server`・`internal/server`・`internal/articlecache`・`internal/serversock`）は、拡張から送られた字幕をもとに記事を生成し、メモリに保持して、求めに応じて返すか Slack へ投稿する。§8 の方針に加え、次を守る。
 
-- **設定ファイル。** サーバは、API キー・Webhook URL・LLM の設定を、`HOME` だけから導出したパスの設定ファイル（`$HOME/.config/yt2column/config.env`。macOS とほかの Unix で同じ。`XDG_CONFIG_HOME` は読まない）からだけ読む（`internal/config`・`internal/privatefile`。[ADR-0018](adr/0018-server-config-file.md)）。サーバのコードがプロセスの環境から読むのは `HOME` と `GODEBUG` だけで、環境の 6 つのキーは読まない。
+- **設定ファイル。** サーバは、API キー・Webhook URL・LLM の設定を、`HOME` だけから導出したパスの設定ファイル（`$HOME/.config/yt2column/config.env`。macOS とほかの Unix で同じ。`XDG_CONFIG_HOME` は読まない）からだけ読む（`internal/config`・`internal/privatefile`。[ADR-0018](adr/0018-server-config-file.md)）。サーバのコードがプロセスの環境から読むのは `HOME` と `GODEBUG` だけで、環境の 7 つのキーは読まない。
   - **検査してから、検査した記述子から読む。** `O_NOFOLLOW`・`O_NONBLOCK` で開いた記述子の `fstat` で、通常のファイルであること・所有者が実効ユーザーであること・モードがちょうど `0600`（setuid・setgid・sticky のビットもなし）であることを確かめ、同じ記述子から読む。パスの `Lstat` は拒否にだけ使う。検査の後にパスのファイルを入れ替えられても、検査していないファイルの中身は使わない。シンボリックリンク・通常のファイルでないもの（FIFO は書き手を待たない）・他人の所有のファイル・モードの違うファイルは、何も直さずに起動を中止する（終了コード `2`）。親のディレクトリは検査しない。サーバは設定ファイルの親に何も作らないので、親を検査して守るものがない。
   - **シェルとして実行せず、直さずに拒否する。** 書式は 1 行に 1 つの `KEY=VALUE` で、値を変換しない。変数の展開・コマンドの置換・引用符の解釈をしない。受理する形に合わない行、制御文字・CR・DEL・U+FEFF、UTF-8 として正しくないバイト列、64 KiB を超える大きさは、ファイル全体を拒否し、一部の行だけを使って起動しない（大きさは全体を読まずに拒否する）。
-  - **拒否の文に値と中身を出さない。** 拒否は、パス・行番号・固定の理由と、6 つのキーの名前だけを示す。値・行の文字列・未知のキーの文字列は示さない。起動の後のログは今までどおり `redact` を通し、ファイルから読んだ秘密の値を伏せ字にする。
+  - **拒否の文に値と中身を出さない。** 拒否は、パス・行番号・固定の理由と、7 つのキーの名前だけを示す。値・行の文字列・未知のキーの文字列は示さない。起動の後のログは今までどおり `redact` を通し、ファイルから読んだ秘密の値を伏せ字にする。
   - **雛形に秘密を入れない。** `yt2column-server config init` は `HOME` だけを読み、コメントの行と空行だけの雛形を、同じディレクトリの一時ファイルに書いて `link` で置く。モードは umask によらず `0600` で、既存のものは上書きしない。ない親（`.config`・`yt2column`）は umask によらず `0700` で作り、既存の親は変えない。
 - **UDS だけを待ち受ける。** ソケットのパスは `HOME` だけから導出する（macOS は `$HOME/Library/Application Support/yt2column/run/server.sock`、他の Unix は `$HOME/.local/state/yt2column/run/server.sock`）。`XDG_*`・`TMPDIR` などほかの変数は読まない。ブラウザが起動するホストは利用者のシェルの環境変数を引き継がないので、ほかの変数を読むと、サーバとホストが別のパスを導出しうるためである。導出したパスが OS の上限（Linux は 107 バイト、macOS と他の Unix は 103 バイト）を超えれば、値を含めずに `HOME` を名指して起動を中止する（終了コード `2`）。
 - **ソケットのディレクトリ（`run`）は `0700`、ソケットは `0600`。** 他ユーザーを排除する主な防御は、ディレクトリの `0700` である。起動時に、ディレクトリの親が symlink でないディレクトリで、所有者が自分で、グループとその他の書き込みのビット（`0022`）が立っていないことを確かめる（親に他人が書き込めると、検査の後に `run` の名前を入れ替えられる）。`run` がなければ `0700` で作り、symlink でないディレクトリで、所有者が自分で、権限がちょうど `0700`（setuid・setgid・sticky のビットもなし）であることを確かめる。bind の直後、ソケットは umask に従う広い権限で存在しうるが、その間も他ユーザーはディレクトリを検索できない。bind の後に `chmod` で `0600` にし、`Lstat` でソケットであること・所有者が自分であること・権限がちょうど `0600` であることを確かめ直す（2 つ目の防御）。プロセス全体の umask は変えない。

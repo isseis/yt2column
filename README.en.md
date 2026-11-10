@@ -1,4 +1,4 @@
-<!-- translated-from: README.md f2603c9a40b9715a1867a3a12ac43d1bf2874973 -->
+<!-- translated-from: README.md 1e86d6015148aa221e93de64baa9657757d6fc19 -->
 [日本語](README.md)
 
 Developer documents: [Using the CLI](docs/dev/guides/cli.md) · [Development procedures](docs/dev/guides/development.md)
@@ -51,7 +51,8 @@ flowchart LR
   all use `claude` with `claude-opus-5-5` at effort `high`. See
   [Recommended configuration](#recommended-configuration) and
   [production_profile.md](docs/dev/production_profile.md) (Japanese).
-  DeepSeek is also available; providers are pluggable.
+  DeepSeek is also available; providers are pluggable. OpenAI settings and
+  effort are accepted, and wiring the OpenAI adapter is a later change.
 - Designed for local execution.
 
 > **Status:** early development; no release yet.
@@ -100,7 +101,7 @@ the section that explains it in detail.
   still starts and generates articles)
 
 An API key for the selected provider is required: `DEEPSEEK_API_KEY` for
-`deepseek`, `ANTHROPIC_API_KEY` for `claude`. When the review step uses a
+`deepseek`, `ANTHROPIC_API_KEY` for `claude`, `OPENAI_API_KEY` for `openai`. When the review step uses a
 different provider, that provider's key is required too.
 
 The CLI's requirements are in
@@ -328,7 +329,7 @@ configuration file's path, and `GODEBUG`, for a warning. When `GODEBUG` contains
 path of the Webhook URL to standard error, so the server warns about it. The Go standard library,
 however, uses the proxy variables of the server's environment (`HTTPS_PROXY`,
 `HTTP_PROXY`, `NO_PROXY`) for the requests to the LLM API and the Webhook. When
-environment variables with the names of the six keys below are set, the server
+environment variables with the names of the seven keys below are set, the server
 ignores them: it does not stop and does not warn. The CLI reads environment
 variables as before and does not read the configuration file (see
 [Configuration](#configuration)).
@@ -341,7 +342,7 @@ configuration file. It does not run the server.
 ```
 
 The template consists of blank lines and comment lines only: for each of the
-six keys, a description and the key's line commented out (for example,
+seven keys, a description and the key's line commented out (for example,
 `# ANTHROPIC_API_KEY=`). To set a key, delete the `# ` at the start of its line
 and write the value after `=`. `config init` does not read the values of
 environment variables, so the template holds no value.
@@ -371,8 +372,8 @@ variable is expanded and no quote is interpreted.
 
 - Blank lines and lines starting with `#` (comments) are skipped.
 - The key is everything before the first `=`, and must exactly match one of
-  the six keys
-  `YT2COLUMN_LLM`, `YT2COLUMN_REVIEW_LLM`, `DEEPSEEK_API_KEY`, `ANTHROPIC_API_KEY`, `ANTHROPIC_WORKSPACE_ID`, and `SLACK_WEBHOOK_URL`.
+  the seven keys
+  `YT2COLUMN_LLM`, `YT2COLUMN_REVIEW_LLM`, `DEEPSEEK_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_WORKSPACE_ID`, and `SLACK_WEBHOOK_URL`.
   The meaning of each key is in the table in [Configuration](#configuration), and
   any key may be left out. A key left out is treated the same as an unset
   environment variable in the CLI.
@@ -387,7 +388,7 @@ variable is expanded and no quote is interpreted.
 A file containing any of the following is rejected as a whole. The server never
 starts using only some of its lines.
 
-- A line without `=`, a key other than the six keys (including a lowercase key
+- A line without `=`, a key other than the seven keys (including a lowercase key
   and a line with `export ` in front, such as `export ANTHROPIC_API_KEY=...`)
 - A line starting with a space, or a line with a space before or after the key
   (`ANTHROPIC_API_KEY =x`)
@@ -402,7 +403,7 @@ starts using only some of its lines.
 A format rejection names the configuration file's path, and the line number and
 a fixed reason of each rejected line, one per line up to 20 lines; when there
 are more, it gives the number of the remaining lines. It never shows a value or the
-text of a key other than the six keys. A duplicate-key rejection names that
+text of a key other than the seven keys. A duplicate-key rejection names that
 key.
 
 **Checks.** Before reading the configuration file, the server checks it. In any
@@ -664,7 +665,7 @@ The server now reads only the configuration file, and does not start without
 it. Migrate with these steps:
 
 1. Create the template with `./build/yt2column-server config init`.
-2. Copy the values you set for the server (the six keys of
+2. Copy the values you set for the server (the seven keys of
    [Configuration file](#configuration-file)) from `.envrc`, `.env`, your shell
    startup files, the script that starts the server, and so on, to the
    matching lines of the template. Delete the `# ` at the start of the line and
@@ -679,10 +680,11 @@ environment variables, so you may keep them for the CLI.
 
 | Variable | Description | When unset |
 |---|---|---|
-| `YT2COLUMN_LLM` | Provider, model, and effort of generation and shortening, written as `<provider>/<model ID>`, optionally followed by `+<effort>`; the provider is `deepseek` or `claude` (e.g. `deepseek/deepseek-flash`, `claude/claude-sonnet-5-5+low`) | `claude/claude-opus-5-5` |
+| `YT2COLUMN_LLM` | Provider, model, and effort of generation and shortening, written as `<provider>/<model ID>`, optionally followed by `+<effort>`; the provider is `deepseek`, `claude`, or `openai` (e.g. `deepseek/deepseek-flash`, `claude/claude-sonnet-5-5+low`, `openai/gpt-6-astra+medium`) | `claude/claude-opus-5-5` |
 | `YT2COLUMN_REVIEW_LLM` | Provider, model, and effort of the review step, in the same form as `YT2COLUMN_LLM` | The same as generation (`YT2COLUMN_LLM`, or its default, including the effort) |
 | `DEEPSEEK_API_KEY` | DeepSeek API key | Required when the generation or review provider is `deepseek` (an error) |
 | `ANTHROPIC_API_KEY` | Anthropic API key | Required when the generation or review provider is `claude` (an error) |
+| `OPENAI_API_KEY` | OpenAI API key (the API is billed separately from a ChatGPT subscription) | Required when the generation or review provider is `openai` (an error) |
 | `ANTHROPIC_WORKSPACE_ID` | Anthropic workspace ID, for an API key not bound to a workspace | No workspace ID is sent |
 | `SLACK_WEBHOOK_URL` | Slack-compatible Incoming Webhook URL (Mattermost is the verified target); only the server reads it | The server starts, but cannot post |
 
@@ -708,7 +710,7 @@ A value is never trimmed or otherwise corrected; an empty value is treated as
 set and rejected, not as unset.
 
 `YT2COLUMN_LLM` and `YT2COLUMN_REVIEW_LLM` are split at the first `/`. The part
-before it is the provider, which must be exactly `deepseek` or `claude`.
+before it is the provider, which must be exactly `deepseek`, `claude`, or `openai`.
 Everything after it is the model ID, sent to the provider's API as it is,
 including any further `/` (`claude/vendor/model-x` sends the model
 `vendor/model-x`). The model ID must not be empty, so `claude` and `claude/`
@@ -734,11 +736,17 @@ space and is rejected when the client is built, as above.
 | Provider | Accepted efforts | Without an effort |
 |---|---|---|
 | `claude` | `low`, `medium`, `high`, `xhigh`, `max` | Sends `high` |
+| `openai` | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` | Sends `medium` |
 | `deepseek` | `none`, `low`, `high`, `max` | Sends nothing (thinking stays at the API's default) |
 
-With `claude`, the effort is sent as the request's effort. With `deepseek`, it
-is sent as the request's `reasoning_effort`. `none` turns thinking off, and the
-other values turn it on.
+With `claude`, the effort is sent as the request's effort. With `openai`, it is
+sent as the request's `reasoning.effort`, and `none` turns reasoning off. With
+`deepseek`, it is sent as the request's `reasoning_effort`. `none` turns thinking
+off, and the other values turn it on.
+
+OpenAI settings are accepted and checked, but wiring the OpenAI adapter into the
+steps is a separate change. Until that wiring is present, a step that selects
+`openai` fails while building its client, and no article is generated.
 
 With `YT2COLUMN_LLM` unset, generation and shortening use
 `claude/claude-opus-5-5` at effort `high`. With `YT2COLUMN_REVIEW_LLM` unset,
