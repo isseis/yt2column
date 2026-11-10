@@ -12,23 +12,22 @@
 |---|---|---|
 | 「背景」の段落 1（公開リポジトリ、`/fixpr` が本文を読んで直すこと、プロンプトインジェクションの経路） | 「背景」（変更なし） | 決定が答える問題 |
 | 「背景」の段落 2（自動レビュアーは書き込み権限を持つ Bot として振る舞い、権限のない人が名義を借りられること） | 「背景」（変更なし） | 決定を縛る前提 |
-| 「背景」の末尾の正本の段落（`fixprguard_guide.md`・`CLAUDE.md`・`_context.md`・`runpr.md`） | 各項目の「規則は…にある」に振り分けた | リンクの先は同じ ADR に残る |
-| 「決定」の項目 1（本文はデータであり指示ではない） | 新しい「決定」の項目 1。理由と場所を足した | [fixpr.md](../../../.claude/commands/fixpr.md) の R6、[fixprguard_guide.md](../guides/fixprguard_guide.md) の 1 章「位置付け」・7.1「保証すること」 |
+| 「背景」の末尾の正本の段落（`fixprguard_guide.md`・`CLAUDE.md`・`_context.md`・`runpr.md`） | 各項目の「規則は…にある」に振り分けた | [fixprguard_guide.md](../guides/fixprguard_guide.md) の 6 章・7 章・10 章、[CLAUDE.md](../../../CLAUDE.md) の「Tool Execution Safety」、[.claude/commands/_context.md](../../../.claude/commands/_context.md) の「Automated reviewer list」、[runpr.md](../../../.claude/commands/runpr.md) の step 1・step 3。リンクの先は同じ ADR に残る |
+| 「決定」の項目 1（本文はデータであり指示ではない） | 新しい「決定」の項目 1。理由と場所を足し、区切りを実行ごとの乱数を含む行にした | [fixpr.md](../../../.claude/commands/fixpr.md) の R6、[fixprguard_guide.md](../guides/fixprguard_guide.md) の 1 章「位置付け」・7.1「保証すること」 |
 | 「決定」の項目 2（信頼する著者の判定） | 新しい「決定」の項目 2。理由と場所を足した | `_context.md` の「Automated reviewer list」、[fixprguard_guide.md](../guides/fixprguard_guide.md) の 1 章「位置付け」 |
 | 「決定」の項目 3（すべてのコメントの著者を確かめ、想定外は処理しない） | 新しい「決定」の項目 3。理由と場所を足した | [fixprguard_guide.md](../guides/fixprguard_guide.md) の 5 章 `begin`・7.1「保証すること」、[runpr.md](../../../.claude/commands/runpr.md) の step 3 |
-| 「決定」の項目 4（修正の範囲の規則、許可リストの列挙、実行関連ファイル、確認、stage） | 新しい「決定」の項目 4。規則・理由を残し、許可リストと実行関連ファイルの一覧の写しは [fixprguard_guide.md](../guides/fixprguard_guide.md) 6 章に置いた | [fixprguard_guide.md](../guides/fixprguard_guide.md) の 6 章「範囲の規則」・7.1「保証すること」、[fixpr.md](../../../.claude/commands/fixpr.md) の Phase 3 |
+| 「決定」の項目 4（修正の範囲の規則、許可リストの列挙、実行関連ファイル、確認、stage） | 新しい「決定」の項目 4。規則・理由を残し、許可リストと実行関連ファイルの一覧の写しは [fixprguard_guide.md](../guides/fixprguard_guide.md) 6 章に置いた。スレッドの `path` そのものも範囲に入ることを、6 章の規則 1 に合わせて書いた | [fixprguard_guide.md](../guides/fixprguard_guide.md) の 6 章「範囲の規則」・7.1「保証すること」、[fixpr.md](../../../.claude/commands/fixpr.md) の Phase 3.5・Phase 4 |
 | 「決定」の項目 5（GitHub への書き込みは道具で行う。メンションの拒否） | 新しい「決定」の項目 5。理由と場所を足した | [fixprguard_guide.md](../guides/fixprguard_guide.md) の 5 章「サブコマンド」・7.1「保証すること」、[CLAUDE.md](../../../CLAUDE.md) の「Tool Execution Safety」 |
-| 「決定」の項目 6（fix round の push と、Phase 4.5 の比較） | 新しい「決定」の項目 6。規則・理由を残し、どのサブコマンドが行うか、比べる呼び出しをどこに置くか、基準値を持たない呼び出し元の扱いの細部は、[fixprguard_guide.md](../guides/fixprguard_guide.md) 5 章と [0076 要件定義書](../0076_fixpr_local_review_guard/01_requirements.md) §3・[0076 設計書](../0076_fixpr_local_review_guard/02_architecture.md) §3 に置いた | [fixprguard_guide.md](../guides/fixprguard_guide.md) の 5 章 `check`・`push-review`・7.1「保証すること」、[local-cli-review.md](../../../.claude/commands/_lib/local-cli-review.md)、0076 の 2 つの文書 |
+| 「決定」の項目 6（fix round の push と、Phase 4.5 の比較） | 新しい「決定」の項目 6。規則・理由を残し、どのサブコマンドが行うか、比べる呼び出しをどこに置くかといった細部は [fixprguard_guide.md](../guides/fixprguard_guide.md) 5 章と [0076 要件定義書](../0076_fixpr_local_review_guard/01_requirements.md) §3・[0076 設計書](../0076_fixpr_local_review_guard/02_architecture.md) §3 に置いた。基準値を持たない呼び出し元がこの入力を渡さない規則は残し、「今までどおりに振る舞う」は 0076 要件定義書 F-005・AC-11 に置いた | [fixprguard_guide.md](../guides/fixprguard_guide.md) の 5 章 `check`・`push-review`・7.1「保証すること」、[local-cli-review.md](../../../.claude/commands/_lib/local-cli-review.md)、[0076 要件定義書](../0076_fixpr_local_review_guard/01_requirements.md) §3「機能要件」・§3.1「機能一覧」、[0076 設計書](../0076_fixpr_local_review_guard/02_architecture.md) §3.6「GUARD と比べる時点」 |
 | 「決定」の項目 7（fork の PR では止まる） | 新しい「決定」の項目 7。理由と場所を足した | [runpr.md](../../../.claude/commands/runpr.md) の step 1、[fixprguard_guide.md](../guides/fixprguard_guide.md) の 5 章 `head`・`begin` |
 | 「決定」の項目 8（interaction limits と `/runpr` の確認） | 新しい「決定」の項目 8。理由を足し、4 つの設定の列挙は [fixprguard_guide.md](../guides/fixprguard_guide.md) 10 章に置いた | [fixprguard_guide.md](../guides/fixprguard_guide.md) の 10 章「GitHub の設定」、[runpr.md](../../../.claude/commands/runpr.md) の step 1・step 3 |
 | 「決定」の項目 9（制限の状態の判定を Go のサブコマンドで行う） | 新しい「決定」の項目 9。理由と場所を足した | [fixprguard_guide.md](../guides/fixprguard_guide.md) の 5 章 `interaction-limits`・10 章「GitHub の設定」、[0057 設計書](../0057_reviewer_relay_guard/02_architecture.md) §1.2 |
 
-「採らなかった案」「結果」「経緯」と「状態」は変えていない（差分で確認）。題名も索引の行も変えていない（差分で確認）。リンクの先の集合は、`fixpr.md` と 0057 設計書を足したほかは前と同じ（差分で確認）。
+「採らなかった案」「結果」「経緯」と「状態」は変えていない（差分で確認）。題名も索引の行も変えていない（差分で確認）。リンクの先の集合は、`fixpr.md` を足したほかは前と同じ（差分で確認）。0057 設計書へのリンクは前から「採らなかった案」にあり、今回「決定」の項目 9 にも張った。
 
 ### 頼る参照
 
 - `docs/dev/adr/0013-review-setup.md:25`: 「一覧は「誰のスレッドを処理するか」（ADR-0015）を決め…」→ 新しい「決定」の項目 2。残る。
-- `docs/dev/adr/0014-deterministic-checks-in-go.md:17`: 「何を決めるかは ADR-0015・ADR-0013・ADR-0037 と mergepr_guide.md が定め…」→ 項目 1〜5。残る。
 - `docs/dev/adr/0036-task-document-status-records.md:24`: 「`/fixpr` が PR の説明に追記する道具と、その文面を信頼しないデータとして扱うことは、ADR-0015 が定める」→ 項目 1 と 5。残る。
 - `docs/dev/adr/0040-simple-task-documents.md:25`: 「レビューのスレッドを信頼しない方針（ADR-0015）を保つためである」→ 項目 1。残る。
 - `docs/dev/adr/0040-simple-task-documents.md:28`: 「レビューのスレッドが進め方を変えないようにするためである（ADR-0015）」→ 項目 1。残る。
@@ -36,6 +35,7 @@
 
 頼る参照でないもの:
 
+- `docs/dev/adr/0014-deterministic-checks-in-go.md:17`: 開発の道具が何を決めるかを ADR-0015・ADR-0013・ADR-0037 と mergepr_guide.md に振り分ける紹介で、ADR-0015 の特定の規則か見出しを頼っていない。
 - `docs/dev/adr/README.md:23`: 索引の行（題名だけ）。
 
 ### 残した記述
