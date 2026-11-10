@@ -45,7 +45,7 @@ GitHub. Its subcommands, outputs, and stop kinds are in
   a `gh` or `git` command, and never fetch review-thread comments any other way:
   no `gh api graphql` query of review threads, no `gh pr view --comments`, no
   opening a thread URL.
-- Every call passes `--protocol 5`. `--reviewer <reviewer>` stands for one
+- Every call passes `--protocol 6`. `--reviewer <reviewer>` stands for one
   `--reviewer` per name in `_context.md`'s "Automated reviewer list": pass
   every name on that list, each once, in the GraphQL form (without `[bot]`).
   Build that sequence once, before Phase 1, and pass the same one to every
@@ -66,11 +66,20 @@ GitHub. Its subcommands, outputs, and stop kinds are in
   a stop. On a stop, report the stop kind and the detail fields the tool
   printed; exit code `2` prints no JSON, so report its one-line diagnostic on
   standard error instead. The guide's chapter 8 says what to do for each kind.
+- **A tool of another protocol.** When an exit code `2` diagnostic contains
+  `--protocol does not match`, the installed tool and this document use
+  different protocol numbers. Stop, and give the user both fixes: when the
+  tool is older, run `make install-fixprguard` from an up-to-date `main`;
+  when this branch is older than `main` (a newer tool running this older
+  document), merge `main` into the branch first. The first call, `begin`,
+  meets this before anything is committed or pushed.
 - **Stops on the ignored files.** A stop is on the ignored files when it is
   `git-state-changed` with `ignored` in its `parts`, or `git-failed` whose
   one-line diagnostic on standard error names an ignored-file rule: a rule
   name that contains `ignored`, or `.git name below .claude`. `begin`,
-  `inspect`, `finish`, and `push` can each stop this way. On such a stop, do
+  `inspect`, `finish`, `push`, `check`, and `push-review` can each stop this
+  way, and so can a `check` run as the GUARD of the local CLI review
+  (Phase 4.5). On such a stop, do
   not list or read the files git ignores, and do not look for the cause in any
   other way: run no `git status --ignored`, no `git ls-files -o -i`, no
   `ls .claude`, and no command that prints or opens such a file, and start no
@@ -100,15 +109,16 @@ names, all of which `fixprguard` makes except where noted: `gh pr view` and
 `gh pr edit` (Phase 6, rewriting the description and appending the
 corrections), `gh pr view --json body --jq` (Phase 6, run by this session to
 count the correction paragraphs, printing no body),
-`git ls-remote` (the remote branch for the baseline), `git push` (Phase 4, and
-Phase 4.5 itself after its commits), `git fetch origin main` (Phase 1, run by
+`git ls-remote` (the remote branch for the baseline and, in Phase 4.5, for
+`push-review`), `git push` (made by the guard tool: `push` in Phase 4 and
+`push-review` in Phase 4.5), `git fetch origin main` (Phase 1, run by
 this session before `begin`, for the PR kind), and `git fetch --prune` (Phase
 4, run by this session). `coderabbit review` and `codexreview` (Phase 4.5) have standing
 approval (`CLAUDE.md`, "Tool Execution Safety"): the local CLI review runs
 `codexreview`, which runs Codex CLI and sends the diff and what Codex reads to
 OpenAI's service, only when the CodeRabbit CLI fails. Invoking this command also approves
 the commit of `README.en.md` that Phase 4.5 makes after its README sync; that commit is
-pushed with Phase 4.5's own `git push`.
+pushed by Phase 4.5's `push-review`.
 
 ---
 
@@ -330,7 +340,7 @@ First run `git fetch origin main`, so the PR kind below reads a current
 `origin/main`; when it fails, report it and stop. Then run:
 
 ```
-fixprguard begin --protocol 5 --reviewer <reviewer> --accept <threadId>=<fingerprint> <number>
+fixprguard begin --protocol 6 --reviewer <reviewer> --accept <threadId>=<fingerprint> <number>
 ```
 
 - `<number>` is `$ARGUMENTS` when it was given, without a leading `#`; leave it
@@ -349,7 +359,9 @@ fixprguard begin --protocol 5 --reviewer <reviewer> --accept <threadId>=<fingerp
   for a stop on the ignored files, follow "Stops on the ignored files" under
   "The guard tool". Run no further phase.
 
-On exit code `0`, keep the output's `number`, `baseline`, `capHit`,
+On exit code `0`, run `pwd` once, as a call of its own, and keep its output
+as `<root>`: the directory where `begin` found the top of the work tree.
+Phase 4.5 runs the guard tool from it. Keep the output's `number`, `baseline`, `capHit`,
 `processCount`, `untrusted`, `changed`, `acceptNotFound`, `nonce`, and
 `threads`. `threads` is a JSON string: decode it, and the decoded text is a fenced
 block (R6) of three lines with the nonce `nonce`. Wherever a phase says to
@@ -497,7 +509,7 @@ from Phase 2, and the Phase 2 entries of the `valid` and `off-level` threads
 ("The guard tool"), and fence it:
 
 ```
-fixprguard fence --protocol 5 <triage-file>
+fixprguard fence --protocol 6 <triage-file>
 ```
 
 Its output is a fenced block; its nonce is the text after `BEGIN-UNTRUSTED-` on
@@ -764,7 +776,7 @@ Before the build checks run any code, check what the fix changed. Run, with one
 each with the `fingerprint` `begin` printed for it:
 
 ```
-fixprguard inspect --protocol 5 --reviewer <reviewer> --baseline <baseline> --thread <threadId>=<fingerprint> <number>
+fixprguard inspect --protocol 6 --reviewer <reviewer> --baseline <baseline> --thread <threadId>=<fingerprint> <number>
 ```
 
 The tool compares the git state with the baseline before it starts `gh`, takes
@@ -789,8 +801,8 @@ change in the work tree, and checks each against the scope of those paths.
   else): stop without build checks,
   commit, push, reply, or resolve. Report the stop kind; for
   `git-state-changed`, name the `parts` that differ from the baseline (HEAD,
-  the remote branch, the hooks, the config, the info, or `ignored`, the
-  watched files git ignores); for a stop on the ignored files, follow "Stops
+  the branch HEAD is on, the remote branch, the hooks, the config, the info,
+  or `ignored`, the watched files git ignores); for a stop on the ignored files, follow "Stops
   on the ignored files" under "The guard tool"; for exit code `3`,
   list `outOfScope` as the exit code `3` bullet does. The changes stay in the
   work tree.
@@ -824,8 +836,8 @@ on the remote branch (not the pre-fix revision).
    body file:
 
    ```
-   fixprguard finish --protocol 5 --baseline <baseline> --judged-set <judgedSet> <number>
-   fixprguard finish --protocol 5 --baseline <baseline> --judged-set <judgedSet> --body-file <correction-file> <number>
+   fixprguard finish --protocol 6 --baseline <baseline> --judged-set <judgedSet> <number>
+   fixprguard finish --protocol 6 --baseline <baseline> --judged-set <judgedSet> --body-file <correction-file> <number>
    ```
 
    It checks that the work tree still matches the judged set and the git state
@@ -860,7 +872,7 @@ on the remote branch (not the pre-fix revision).
 2. Only if a commit was made, push it:
 
    ```
-   fixprguard push --protocol 5 --baseline <baseline> --commit <commit>
+   fixprguard push --protocol 6 --baseline <baseline> --commit <commit>
    ```
 
    It checks again, just before pushing, that HEAD is that commit on top of the
@@ -890,26 +902,95 @@ Skip this phase when Phase 4 made no commit (`commitSha` is empty).
 The fix is not seen by a PR review, so review it here with the local CLI
 review: the CodeRabbit CLI, whose allowance is separate from the PR review's,
 or, when it fails, Codex CLI, which spends the allowance the Codex PR review
-shares. Do it yourself in this session, not in a subagent: it follows
-`.claude/commands/_lib/local-cli-review.md` with **BASE** =
-`$(git rev-parse <commitSha>^)` (the head before the fix), **SCOPE** = "fixpr
-round", and **SUMMARY** = the Final report. The procedure commits what it fixes;
-those commits keep their own messages, not the Phase 4 subject, so the round
-count in the Convergence policy is unaffected. When the procedure stops, push
-nothing and run no Phase 5 or 6, and report as it says. When it leaves a range
-neither CLI reviewed, give that range (its `Local CLI review: not run` line)
-in the Final report.
+shares. Do it yourself in this session, not in a subagent.
 
-When the procedure made commits, run the README sync check of Phase 3 again
-before the push, and act on its result the same way. For `translated`, commit `README.en.md` alone, as the procedure commits
-its fixes, with a message such as `docs: sync README.en.md with README.md`.
-For `stopped`, push nothing and run no Phase 5 or 6: the procedure's commits
-stay unpushed, as the Final report says.
+Phase 4's push checked the git state for the last time; from here on, every
+git this phase runs, itself or through the procedure, comes after the guard
+tool compared the git state with the baseline again. `check` compares, and
+`push-review` compares and pushes the commits this phase made. Both take
+Phase 4's `commitSha` as `--commit` (the Phase 4 commit, not the commit to
+push), print `protocol` with their output, and run from `<root>` (Phase 1),
+each as a call of its own, never behind `cd ... &&`. When the current
+directory may not be `<root>`, first `cd <root>` as a call of its own:
 
-When the procedure made commits, run `git push` once after it ends (a failed
-push stops here like a Phase 4 push failure: report it and do not run Phase 5
-or 6). The replies in Phase 5 name Phase 4's `commitSha`; they stay accurate
-because the later commits only refine that fix.
+```
+fixprguard check --protocol 6 --baseline <baseline> --commit <commitSha>
+fixprguard push-review --protocol 6 --baseline <baseline> --commit <commitSha>
+```
+
+`check` prints `base` (the baseline's commit), `head` (the HEAD it checked),
+and `commits` (the commits after `commitSha`). Keep the output of the last
+`check` that passed, the procedure's GUARD runs included. Keep two counts of
+the `git commit` calls you make in this phase that succeed: the total since
+step 1, and the number since the last passing `check`. A `git commit` that
+timed out or ended by a signal may or may not have made a commit: count it
+as "at least".
+
+1. Run `check`. Take BASE from its `base`.
+2. Follow `.claude/commands/_lib/local-cli-review.md` with **BASE** = that
+   value, **SCOPE** = "fixpr round", **SUMMARY** = the Final report,
+   **GUARD** = the `fixprguard check` call above, and **ROOT** = `<root>`. The
+   procedure commits what it fixes; those commits keep their own messages,
+   not the Phase 4 subject, so the round count in the Convergence policy is
+   unaffected.
+3. When the procedure returns, run `check` again. Its `head` is HEAD3 of the
+   procedure's record lines: read no HEAD any other way. **Count check:**
+   when its `commits` differs from your total since step 1, or the total is
+   "at least", stop (below); this stop is yours, not the tool's, so it has
+   no `stop` or `parts`. When `commits` is `0`, the phase is done: go to
+   Phase 5.
+4. Run the README sync check of Phase 3 again, and act on its result the same
+   way. For `translated`, run `check` once more, then stage and commit
+   `README.en.md` alone, as the procedure commits its fixes, with a message
+   such as `docs: sync README.en.md with README.md`. For `stopped`, and for
+   `already in sync` or `not applicable` after a failed check, stop (below):
+   push nothing.
+5. Run `check` once more, with the count check of step 3, then run
+   `push-review`, running nothing in between. On exit code `0`, go to
+   Phase 5. The replies in Phase 5 name Phase 4's `commitSha`; they stay
+   accurate because the later commits only refine that fix.
+
+**Stops.** A stop of `check`, of the GUARD, or of `push-review` (exit code
+`1`, `2`, or anything else, as "The guard tool" says), a stop of the
+procedure, a stopped README sync, and a failed count check end the phase:
+run no further git (no build checks, staging, commit, or push) and no Phase 5
+or 6, and leave the work tree and the commits as they are. For a stop on the
+ignored files, also follow "Stops on the ignored files" under "The guard
+tool". For `git-state-changed`, its `parts` name what differs: `branch` (HEAD
+left the baseline's branch), `head` (HEAD does not continue in one line from
+`commitSha`; the rule name is on standard error), `remote` (the remote branch
+is not at `commitSha`), and the hooks, config, info, or `ignored` parts as in
+Phase 3.5.
+
+Report without running git: after a stop, the hooks or the config may have
+been rewritten. Build the values for the Final report from what you kept:
+
+- **Unpushed commits of this phase:** the last passing `check`'s `commits`
+  plus the commits you made after it ("at least" when a commit's result is
+  unknown).
+- **Push result unknown:** when `push-review` stopped on `git-failed` and the
+  rule name on standard error is `push`, or it timed out, ended by a signal,
+  or printed output that cannot be read, the push may have reached the remote:
+  report "the push result is unknown" instead of the count. A stop in its
+  comparison (`git-state-changed`, or a `git-failed` of another rule such as
+  `ls-remote`) pushed nothing.
+- **Range neither CLI reviewed:** in the form of the procedure's
+  `Local CLI review: not run` line. When the range ends at a commit made after
+  the last passing `check`, whose SHA you do not know, end it at that
+  `check`'s `head` and add the number of commits made after it.
+- **The point that stopped:** Phase 4.5 step 1, 3, 4, or 5, or the
+  procedure's step and the point in it (before the attempt, before step 3's
+  git, before the build checks, the README sync check, staging, or
+  `findings --clear`), or `push-review`.
+- **A fix left uncommitted:** a stop inside the procedure's fix step (before
+  its build checks, README sync check, or staging) leaves the fix in the work
+  tree; the next `/fixpr` stops with `dirty-work-tree` until the user
+  examines it and discards or commits it.
+- **A stop of the first `check`:** no `check` passed, no commit was made, and
+  BASE, HEAD1, and HEAD2 do not exist. No commit of this phase is unpushed,
+  and the range the local review did not see is Phase 4's `commitSha` alone:
+  name that SHA instead of a `Local CLI review: not run` line, and guess no
+  other value.
 
 ## Phase 5 — Reply + resolve (this session)
 
@@ -944,7 +1025,7 @@ check failed. Never rewrite the text to get past the check. When the check fails
 Otherwise run:
 
 ```
-fixprguard reply --protocol 5 --reviewer <reviewer> --thread-id <threadId> --comment-id <databaseId> --fingerprint <fingerprint> --body-file <reply-file> --accept <threadId>=<fingerprint> <number>
+fixprguard reply --protocol 6 --reviewer <reviewer> --thread-id <threadId> --comment-id <databaseId> --fingerprint <fingerprint> --body-file <reply-file> --accept <threadId>=<fingerprint> <number>
 ```
 
 Pass `--accept` (the same pair Phase 1 passed) only for a named thread
@@ -1019,7 +1100,7 @@ it is, and list it in the Final report.
 Otherwise run:
 
 ```
-fixprguard edit-pr --protocol 5 --title-file <title-file> --body-file <body-file> <number>
+fixprguard edit-pr --protocol 6 --title-file <title-file> --body-file <body-file> <number>
 ```
 
 The tool passes the title and body to `gh` without a shell, reading the title
@@ -1038,7 +1119,7 @@ description", gives, to a file outside the work tree, run the mention check
 above on it, and only when it passes run:
 
 ```
-fixprguard append-pr --protocol 5 --body-file <paragraph-file> <number>
+fixprguard append-pr --protocol 6 --body-file <paragraph-file> <number>
 ```
 
 The tool reads the current description, appends the paragraph after a blank
@@ -1069,10 +1150,13 @@ the user with **all** of the following — bare counts alone are not enough:
    that could not be copied when there are any),
    "stopped: the git state differs from the baseline" (`git-state-changed`,
    with its `parts`), "stopped: the README sync stopped", "stopped: the local
-   CLI review stopped" (Phase 4.5), "stopped: the process record" (Phase 1,
-   with what `_lib/simple-process.md` says to report), "stopped: an excluded
-   thread on an implementation PR" (Phase 2), or the stop kind the tool
-   printed.
+   CLI review stopped" (Phase 4.5), "stopped: the Phase 4.5 comparison
+   stopped" (a stop of `check`, the GUARD, or `push-review`, or a failed
+   count check; in Phase 4.5 this label is used instead of the
+   `git-state-changed` one, with the `parts` added), "stopped: the process
+   record" (Phase 1, with what `_lib/simple-process.md` says to report),
+   "stopped: an excluded thread on an implementation PR" (Phase 2), or the
+   stop kind the tool printed.
 
 2. **Bot-comment assessment**: a table built from the Phase 2 triage results
    (`topic`, `severity`, `verdict`) plus the Phase 3 `applied` flag, grouped by
@@ -1149,6 +1233,19 @@ the user with **all** of the following — bare counts alone are not enough:
    threads neither replied to nor resolved (list them), and any difference in
    the worktree or refs it found, which the user examines before the next
    `/fixpr` (a changed work tree makes it stop with `dirty-work-tree`).
+   When the Phase 4.5 comparison stopped, give the point that stopped
+   (Phase 4.5, "Stops"), its stop kind and `parts` (or, for a failed count
+   check, both counts), whether a fix was left uncommitted (the next
+   `/fixpr` stops with `dirty-work-tree` until the user examines it),
+   that Phase 4's commit is pushed, its threads neither replied to nor
+   resolved (list them), and the number of unpushed commits of Phase 4.5 or
+   "the push result is unknown" (Phase 4.5, "Stops"). Say what the user
+   checks before the next `/fixpr`: the guide's chapter 8 row of the stop
+   kind (8.1 for `ignored`), and the unpushed commits: a later Phase 4 push
+   sends them along with its own commit, a round whose Phase 4 runs but makes
+   no commit stops on them, and a round that skips Phase 4 (nothing to fix
+   or to process) leaves them unpushed without a stop. So the user examines
+   them first and pushes or discards them by hand.
 
 8. **README sync**: when the README sync changed `README.en.md`, the terms it
    reported as missing from the glossary, for the user to add to the glossary
@@ -1162,8 +1259,8 @@ the user with **all** of the following — bare counts alone are not enough:
    (for an ADR item, with the reason Phase 3, "ADR items", gives),
    dropped by Phase 4's mention check or rejected by `finish` (with its
    diagnostic), removed by the local CLI review's mention check, its commit
-   not pushed, Phase 6 not reached because Phase 4.5, its README sync, or its
-   push stopped, Phase 6's mention check failed, or `append-pr` stopped (with
+   not pushed, Phase 6 not reached because Phase 4.5, its README sync, its
+   comparison, or its `push-review` stopped, Phase 6's mention check failed, or `append-pr` stopped (with
    its diagnostic). List the corrections themselves, so the reviewer can add them
    to the PR description by hand, except where the reason says not to. When
    Phase 6 did not send a rewrite because it would have dropped a correction
@@ -1172,4 +1269,6 @@ the user with **all** of the following — bare counts alone are not enough:
 10. **Local CLI review**: when Phase 4.5 ran, the SUMMARY of
    `_lib/local-cli-review.md`: each attempt's result with each failed CLI's
    failure kind, how many times Codex CLI ran, the findings by CLI, and every
-   range neither CLI reviewed (its `Local CLI review: not run` line).
+   range neither CLI reviewed (its `Local CLI review: not run` line). When
+   the Phase 4.5 comparison stopped, the range neither CLI reviewed as
+   Phase 4.5, "Stops", gives it.

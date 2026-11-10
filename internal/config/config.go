@@ -13,6 +13,7 @@ import (
 
 	"github.com/isseis/yt2column/internal/llm/claudeparam"
 	"github.com/isseis/yt2column/internal/llm/deepseekparam"
+	"github.com/isseis/yt2column/internal/llm/openaiparam"
 	"github.com/isseis/yt2column/internal/secret"
 	"github.com/isseis/yt2column/internal/slackwebhook"
 )
@@ -28,9 +29,10 @@ const (
 	ProviderUnset Provider = iota
 	ProviderDeepSeek
 	ProviderClaude
+	ProviderOpenAI
 )
 
-// Names of the environment variables Load reads. The first six are also the
+// Names of the environment variables Load reads. The first seven are also the
 // keys the server's configuration file accepts (serverFileKeys), which
 // LoadServer reads from the file instead of the environment.
 const (
@@ -38,6 +40,7 @@ const (
 	reviewLLMEnv            = "YT2COLUMN_REVIEW_LLM"
 	deepSeekAPIKeyEnv       = "DEEPSEEK_API_KEY"  //nolint:gosec // the variable's name, not a credential value
 	anthropicAPIKeyEnv      = "ANTHROPIC_API_KEY" //nolint:gosec // the variable's name, not a credential value
+	openAIAPIKeyEnv         = "OPENAI_API_KEY"    //nolint:gosec // the variable's name, not a credential value
 	anthropicWorkspaceIDEnv = "ANTHROPIC_WORKSPACE_ID"
 	slackEnv                = "SLACK_WEBHOOK_URL"
 	cacheDirEnv             = "YT2COLUMN_CACHE_DIR"
@@ -49,6 +52,7 @@ const (
 const (
 	providerDeepSeek = "deepseek"
 	providerClaude   = "claude"
+	providerOpenAI   = "openai"
 )
 
 // llmSeparator separates the provider from the model ID in an LLM variable.
@@ -98,7 +102,7 @@ const (
 	// which leaves the boundary between the model ID and the effort part
 	// undecided.
 	reasonLLMEffortSeparator   = `may contain at most one "+" after the first "/", which separates the model ID from the effort`
-	reasonLLMProvider          = `the provider before the first "/" must be exactly "` + providerDeepSeek + `" or "` + providerClaude + `"`
+	reasonLLMProvider          = `the provider before the first "/" must be exactly "` + providerDeepSeek + `", "` + providerClaude + `", or "` + providerOpenAI + `"`
 	reasonAnthropicWorkspaceID = "must be a non-empty string of printable ASCII characters other than space"
 	reasonSlackWebhook         = "must be an https URL with a host"
 	reasonDirRelative          = "must be an absolute path"
@@ -127,6 +131,7 @@ var (
 	// what parseLLM accepts.
 	reasonClaudeEffortPart   = effortPartReason(providerClaude, claudeparam.EffortValues())
 	reasonDeepSeekEffortPart = effortPartReason(providerDeepSeek, deepseekparam.EffortValues())
+	reasonOpenAIEffortPart   = effortPartReason(providerOpenAI, openaiparam.EffortValues())
 )
 
 // effortPartReason builds the rejection of an effort part for provider, which
@@ -201,6 +206,7 @@ type LLMSelection struct {
 	model          string
 	claudeEffort   claudeparam.Effort
 	deepSeekEffort deepseekparam.Effort
+	openAIEffort   openaiparam.Effort
 }
 
 // Provider returns the stage's provider: the provider part of its LLM
@@ -230,6 +236,15 @@ func (s LLMSelection) DeepSeekEffort() deepseekparam.Effort {
 	return s.deepSeekEffort
 }
 
+// OpenAIEffort is the effort part of the value when Provider is
+// ProviderOpenAI and the value parsed to an accepted selection, or
+// defaultOpenAIEffort when the value has no effort part. Otherwise it is
+// openaiparam.EffortUnset: a rejected selection that kept its accepted
+// provider part also holds EffortUnset, because no effort was read.
+func (s LLMSelection) OpenAIEffort() openaiparam.Effort {
+	return s.openAIEffort
+}
+
 // LLMConfig is the validated configuration of the generation and review LLM
 // calls. Its fields are unexported, so a non-zero LLMConfig can only come from
 // Load, LoadFor, or LoadServer.
@@ -238,6 +253,7 @@ type LLMConfig struct {
 	review               LLMSelection
 	deepSeekAPIKey       secret.Secret
 	anthropicAPIKey      secret.Secret
+	openAIAPIKey         secret.Secret
 	anthropicWorkspaceID claudeparam.WorkspaceID
 }
 
@@ -267,6 +283,12 @@ func (c LLMConfig) DeepSeekAPIKey() secret.Secret {
 // generation or the review provider is ProviderClaude.
 func (c LLMConfig) AnthropicAPIKey() secret.Secret {
 	return c.anthropicAPIKey
+}
+
+// OpenAIAPIKey returns the OpenAI API key. It is non-zero when the generation
+// or the review provider is ProviderOpenAI.
+func (c LLMConfig) OpenAIAPIKey() secret.Secret {
+	return c.openAIAPIKey
 }
 
 // AnthropicWorkspaceID returns the workspace ID. It is the zero value when
@@ -308,7 +330,7 @@ func (c Config) HTTP2DebugEnabled() bool {
 
 // ServerConfig is the server configuration. Its fields are unexported, so a
 // non-zero ServerConfig can only come from LoadServer. The LLM settings and
-// the Webhook URL come from the six keys of the configuration file, never
+// the Webhook URL come from the seven keys of the configuration file, never
 // from the environment. LoadServer never reads or checks YT2COLUMN_CACHE_DIR,
 // YT2COLUMN_YTDLP_PATH, or the cache directory defaults.
 type ServerConfig struct {
@@ -345,8 +367,9 @@ func (c ServerConfig) HTTP2DebugEnabled() bool {
 }
 
 // LoadServer reads the server configuration. It derives the configuration
-// file's path from HOME, reads and parses the file, and validates the six keys
-// from it; HOME (the socket path) and GODEBUG (the warning) come from lookup.
+// file's path from HOME, reads and parses the file, and validates the seven
+// keys from it; HOME (the socket path) and GODEBUG (the warning) come from
+// lookup.
 // It reads no other variable. It returns the zero ServerConfig on any error,
 // and stops at the first stage that fails: HOME, the file, its format, then
 // the values.
@@ -537,7 +560,8 @@ func resolveGeneration(lookup LookupFunc) (LLMSelection, error) {
 // first: the number of "+", then an empty model ID, then the effort part. The
 // effort part must match one of the provider's values exactly; an invalid one
 // is never read as part of the model ID. Without an effort part, claude gets
-// defaultClaudeEffort and deepseek gets deepseekparam.EffortUnspecified.
+// defaultClaudeEffort, openai gets defaultOpenAIEffort, and deepseek gets
+// deepseekparam.EffortUnspecified.
 //
 // Contract: when the provider part is accepted, the returned selection holds
 // that provider even with an error (too many "+", an empty model ID, or an
@@ -557,6 +581,8 @@ func parseLLM(name, value string) (LLMSelection, error) {
 		provider = ProviderDeepSeek
 	case providerClaude:
 		provider = ProviderClaude
+	case providerOpenAI:
+		provider = ProviderOpenAI
 	default:
 		return LLMSelection{}, invalidVar(name, reasonLLMProvider)
 	}
@@ -589,6 +615,15 @@ func parseLLM(name, value string) (LLMSelection, error) {
 			}
 			sel.deepSeekEffort = parsed
 		}
+	case ProviderOpenAI:
+		sel.openAIEffort = defaultOpenAIEffort
+		if hasEffort {
+			parsed, err := openaiparam.ParseEffort(effort)
+			if err != nil {
+				return rejected, invalidVar(name, reasonOpenAIEffortPart)
+			}
+			sel.openAIEffort = parsed
+		}
 	default:
 		// Unreachable: the provider switch above returns for any other
 		// provider part. Kept so a provider added there without an effort
@@ -602,7 +637,7 @@ func parseLLM(name, value string) (LLMSelection, error) {
 // and reads no others. A provider's variables are read only when a stage the
 // run needs (need) uses that provider, so a key shared by the generation and
 // review stages is read once and a stage that does not run contributes
-// nothing. It returns nothing when no needed stage uses either provider, so an
+// nothing. It returns nothing when no needed stage uses any provider, so an
 // LLM variable whose provider part was rejected is reported once by parseLLM
 // and no provider variable rejects a value the user did not intend to use. Each
 // rejection is a separate element so LoadFor joins them flat; a nested join
@@ -621,6 +656,11 @@ func loadProviderVars(lookup LookupFunc, cfg *LLMConfig, need Need) []error {
 			loadAnthropicAPIKey(lookup, cfg),
 			loadAnthropicWorkspaceID(lookup, cfg),
 		)
+	}
+	openAI := (need.Generation && cfg.generation.provider == ProviderOpenAI) ||
+		(need.Review && cfg.review.provider == ProviderOpenAI)
+	if openAI {
+		errs = append(errs, loadOpenAIAPIKey(lookup, cfg))
 	}
 	return errs
 }
@@ -657,11 +697,33 @@ func loadAnthropicAPIKey(lookup LookupFunc, cfg *LLMConfig) error {
 	return nil
 }
 
+// loadOpenAIAPIKey validates OPENAI_API_KEY, which is required when the
+// generation or the review provider is openai. It is called only when one of
+// them is, so the variable is never read, and never rejected, otherwise.
+func loadOpenAIAPIKey(lookup LookupFunc, cfg *LLMConfig) error {
+	value, ok := lookup(openAIAPIKeyEnv)
+	if !ok || value == "" {
+		return missingVar(openAIAPIKeyEnv)
+	}
+	key, err := secret.New(value)
+	if err != nil {
+		return missingVar(openAIAPIKeyEnv)
+	}
+	cfg.openAIAPIKey = key
+	return nil
+}
+
 // defaultClaudeEffort is the effort a claude stage uses when its LLM
 // variable's value has no effort part. The adapter's default output limit was
 // sized for this effort; changing it calls for the re-measurement in
 // docs/dev/guides/claude_output_limit.md.
 const defaultClaudeEffort = claudeparam.EffortHigh
+
+// defaultOpenAIEffort is the effort an openai stage uses when its LLM
+// variable's value has no effort part. The adapter's default output limit was
+// sized for this effort; changing it calls for the re-measurement in
+// docs/dev/guides/openai_output_limit.md.
+const defaultOpenAIEffort = openaiparam.EffortMedium
 
 // loadAnthropicWorkspaceID validates ANTHROPIC_WORKSPACE_ID, which is optional
 // when the generation or the review provider is claude. It is called only when

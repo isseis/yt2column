@@ -8,7 +8,7 @@
 
 ## 背景
 
-`yt-dlp` による字幕の取得は、YouTube から HTTP 429 を繰り返し受けることがある。そこで、利用者が文字起こしパネルで字幕を選び、ブラウザ拡張がそれをサーバへ送る形にした（[0007 要件定義書](../../tasks/0007_browser_extension_skeleton/01_requirements.md) §1）。
+ブラウザ拡張は、利用者が YouTube の文字起こしパネルで選んだ字幕をサーバへ送る（[0007 要件定義書](../../tasks/0007_browser_extension_skeleton/01_requirements.md) §1）。
 
 開発中は、拡張をストアに公開せず、利用者がビルドしたものを「パッケージ化されていない拡張機能を読み込む」で読み込む（[0007 要件定義書](../../tasks/0007_browser_extension_skeleton/01_requirements.md) §1）。最終的には、拡張をストアに公開し、サーバを brew などでインストールできるようにする想定である。ただし、パッケージングの方式などの技術的な詳細と時期は決まっていない。パッケージ化されていない拡張の ID は、既定では読み込んだディレクトリのパスから決まり、環境ごとに異なる（同 §6）。一方、拡張からの送り先は、受け付ける送り手の拡張を ID で指定する。今の送り先は Native Messaging のホストで、ホストの manifest の `allowed_origins` が ID を指定する。そのため、ID はどの環境でも同じでなければならない。
 
@@ -16,14 +16,14 @@
 
 ## 決定
 
--   **ブラウザ拡張は TypeScript で書き、Manifest V3 の拡張とする。** ソース・設定・テストは `extension/` に置く。型検査は `strict` を含む厳格な設定で行い、型検査のエラーがあればビルドは失敗する。`src/core/` は、`chrome` の型も DOM の型も含まない設定で別に型検査する。バックグラウンドの処理は、モジュールとして読む Service Worker で行う。Go の `./...` は `go.mod` の `ignore ./extension` で拡張のディレクトリを含まず、Go の手順は Node.js を呼ばない。拡張のファイルを文書と照合する Go のテストはある。
--   **バンドラを使わず、`tsc` だけでビルドする。** ビルドは、`tsc` が `src/` の各 `.ts` を 1 対 1 で `dist/` の `.js` に変換し、`static/` のファイルを複製する。その後、`dist/` がこの 2 つの和にちょうど一致し、モジュールの指定がすべて `dist/` の中を指す相対パスで、動的な `import()` がないことを検査する。npm の依存パッケージはすべて開発用で、`dist/` に入るのは本リポジトリで書いたコードだけである。
--   **拡張の ID を manifest の `key` で固定する。** `key` には RSA 2048 ビットの公開鍵（DER の SubjectPublicKeyInfo を base64 にしたもの）を置く。ID はこの公開鍵から決まり、読み込むマシンやディレクトリによらず `clfmbbcdpnjcefbdihdoahomaifbabkk` になる。鍵の組を作った直後に秘密鍵を削除し、リポジトリに含めない。`key` は公開情報なので、ID は秘密ではない。
--   **対象のブラウザは Chrome と Brave だけにする。** Native Messaging のホストの manifest を登録・削除するコマンドが受け付けるブラウザは、`chrome` と `brave` だけである。登録先は、それぞれのブラウザの決まった置き場所だけで、ほかのブラウザ向けに置き場所を指定する手段は持たない。
+-   **ブラウザ拡張は TypeScript で書き、Manifest V3 の拡張とする。** ソース・設定・テストは `extension/` に置く。バックグラウンドの処理は、モジュールとして読む Service Worker で行う。理由は記録されていない。規則は [0007 設計書](../../tasks/0007_browser_extension_skeleton/02_architecture.md) §1.1「設計原則」・§3.8「開発環境」と [CLAUDE.md](../../../CLAUDE.md) の「Extension Commands」にある。
+-   **型検査は `strict` を含む厳格な設定で行い、`src/core/` は `chrome` の型も DOM の型も含まない設定で別に型検査する。** ブラウザに依存しない部分を分けるためである。規則は [0007 設計書](../../tasks/0007_browser_extension_skeleton/02_architecture.md) §1.1・§3.8 にある。
+-   **Go の手順は拡張のディレクトリを含まず、Node.js を呼ばない。** Go の手順の結果を変えないためである。規則は [0007 設計書](../../tasks/0007_browser_extension_skeleton/02_architecture.md) §1.1・§3.10「既存のファイルの変更と、Go の手順への影響」にある。
+-   **バンドラを使わず、`tsc` だけでビルドする。** ビルドは `tsc` の出力と `static/` の写しだけを成果物とし、本リポジトリで書いたコード以外が成果物に入らないことを検査する。実行時に読み込む npm のパッケージがなく、まとめる対象がないためである。規則は [0007 設計書](../../tasks/0007_browser_extension_skeleton/02_architecture.md) §3.8・§3.9「成果物の検査」と [security.md](../security.md) §8.1「ブラウザ拡張（#110）」にある。
+-   **拡張の ID を manifest の `key` で固定する。** `key` には RSA 2048 ビットの公開鍵を置き、ID はこの公開鍵から決まる `clfmbbcdpnjcefbdihdoahomaifbabkk` になる。ホストの `allowed_origins` が ID を指定するので、ID はどの環境でも同じでなければならない。鍵の組を作った直後に秘密鍵を削除し、リポジトリに含めない。`key` は公開情報なので、ID は秘密ではない。規則は [0007 設計書](../../tasks/0007_browser_extension_skeleton/02_architecture.md) §3.1「manifest」にある。
+-   **対象のブラウザは Chrome と Brave だけにする。** Native Messaging のホストの manifest を登録・削除するコマンドが受け付けるブラウザは、`chrome` と `brave` だけである。登録先は、それぞれのブラウザの決まった置き場所だけで、ほかのブラウザ向けに置き場所を指定する手段は持たない。手動で確認していないブラウザ向けの手段を、確かめないまま提供しないためである。規則は [0007 要件定義書](../../tasks/0007_browser_extension_skeleton/01_requirements.md) §1・§2.3 と [0026 設計書](../../tasks/0026_native_messaging_relay/02_architecture.md) §3.6「manifest の install/uninstall」、[internal/nmhost/manifest.go](../../../internal/nmhost/manifest.go) にある。
 
 拡張が要求する Chrome の最小の版は [ADR-0030](0030-minimum-chrome-version.md) が、拡張の表示の言語は [ADR-0029](0029-extension-ui-languages.md) が定める。拡張の権限と、何も保存しないことは [ADR-0010](0010-extension-stores-nothing.md) が、起動の経路は [ADR-0008](0008-launch-path.md) が定める。ホストを起動できる拡張を、固定した ID の拡張だけにすること（`allowed_origins`）は、ホストの中継として [ADR-0005](0005-server-architecture.md) が、脅威モデルとして [ADR-0006](0006-threat-model.md) が定める。
-
-この決定の仕様の正本は、[CLAUDE.md](../../../CLAUDE.md) の「Extension Commands」と「Dependencies」、[security.md](../security.md) の §8.1「ブラウザ拡張（#110）」、対象のブラウザについては [internal/nmhost/manifest.go](../../../internal/nmhost/manifest.go) である。
 
 ## 採らなかった案
 

@@ -19,9 +19,9 @@
 -   **生成の設定は `YT2COLUMN_LLM`、検証・推敲の設定は `YT2COLUMN_REVIEW_LLM` で指定し、どちらも 1 つの値 `<プロバイダ>/<モデル ID>[+<effort>]` を持つ。** 1 つの値にすれば、「モデルだけが設定されていて、プロバイダは既定の値になる」状態は構文の上で起こらない。effort も値に含めるのは、プロバイダを足すたびに effort の変数が増えないようにし、effort を工程ごとに選べるようにするためである。規則は [project_overview.md](../project_overview.md) の「設定（環境変数）」にある。
 -   **CLI はこれらと下のプロバイダ固有の設定を環境変数から読み、サーバは同じ名前のキーを設定ファイルから読む。値の規則は、空の値の扱いを含め、環境変数でも設定ファイルでも同じである。** 二系統を保つコストを、両方が同じキーの表と同じ値の検証を通ることで小さく保つためである。入口ごとに読む場所は [ADR-0018](0018-server-config-file.md) が、環境変数を読む場所は [ADR-0024](0024-env-access-in-config.md) が定める。規則は [project_overview.md](../project_overview.md) の「設定（環境変数）」にある。
 -   **値の解析と既定の当てはめは `internal/config` が行う。** 理由は記録されていない。コードは `internal/config` にある。
--   **値を最初の `/` で区切る。前半はプロバイダで、受理するプロバイダの名前に完全に一致しなければならない。後半の全体がモデル ID で、その中の `/` も含めて変換せずに API へ送る。** 中継するプロバイダ（OpenRouter など）を足しても、構文を変えずに表せるようにするためである。受理するプロバイダの名前は、[project_overview.md](../project_overview.md) の「設定（環境変数）」にある。OpenAI を加えることは [0077 要件定義書](../../tasks/0077_openai_llm_client/01_requirements.md) F-001 が定め、project_overview.md への反映は実装で行う。
+-   **値を最初の `/` で区切る。前半はプロバイダで、受理するプロバイダの名前に完全に一致しなければならない。後半の全体がモデル ID で、その中の `/` も含めて変換せずに API へ送る。** 中継するプロバイダ（OpenRouter など）を足しても、構文を変えずに表せるようにするためである。受理するプロバイダの名前は、[project_overview.md](../project_overview.md) の「設定（環境変数）」にある。OpenAI を加えることは [0077 要件定義書](../../tasks/0077_openai_llm_client/01_requirements.md) F-001 が定める。
 -   **effort は後半の最初の `+` より後ろである。** `+` は後半に 1 つまでとし、2 つ以上は設定エラーにする。`+` より前のモデル ID が空の値も拒否する。`+` を含むモデル ID は指定できない。`+` は、モデル ID に現れず、シェルで引用符なしに書いても意味が変わらず、dotenv の書式で壊れないためである。規則は [project_overview.md](../project_overview.md) の「設定（環境変数）」にある。
--   **受理する effort の値はプロバイダごとに決まっており、その一覧はプロバイダごとに 1 か所に置く。** 受理する effort の値はプロバイダごとに異なるためである。一覧は `internal/llm/claudeparam` と `internal/llm/deepseekparam` が 1 か所ずつ持ち、その表は [project_overview.md](../project_overview.md) の「設定（環境変数）」にある。
+-   **受理する effort の値はプロバイダごとに決まっており、その一覧はプロバイダごとに 1 か所に置く。** 受理する effort の値はプロバイダごとに異なるためである。一覧は `internal/llm/claudeparam`、`internal/llm/deepseekparam`、`internal/llm/openaiparam` が 1 か所ずつ持ち、その表は [project_overview.md](../project_overview.md) の「設定（環境変数）」にある。
 -   **effort を省くと、Claude では `high` を送り、DeepSeek では `reasoning_effort` を送らず API の既定に任せる。** Claude の `high` は、何も指定しない利用者が本番の構成の effort で記事を作れるようにするためである。DeepSeek で何も送らないのは、今までの DeepSeek の設定が同じ要求を送り続けるようにするためである。規則は [project_overview.md](../project_overview.md) の「設定（環境変数）」にある。
 -   **OpenAI は API 全体の effort の値を受理し、省略時は `medium` を明示して送る。** モデルの一覧を制限せず、省略時の振る舞いを固定するためである。値の一覧と拒否の条件は [0077 要件定義書](../../tasks/0077_openai_llm_client/01_requirements.md) F-001 が持つ。モデルが対応しない組み合わせは API のエラーとして通知し、設定の読み込みではモデルごとの対応表を持たない。
 -   **値は補正しない。** effort の部分は前後の空白を取り除かず、大文字・小文字も変換せず、受理する値に完全一致しなければ設定エラーにする。不正な effort をモデル ID の一部とみなして受理することはない。指定と異なる振る舞いを隠さないためである（`CLAUDE.md`「Reject, don't normalize」）。規則は [project_overview.md](../project_overview.md) の「設定（環境変数）」にある。
@@ -32,7 +32,7 @@
 -   **廃止した変数は読まない。** `YT2COLUMN_LLM_PROVIDER`・`YT2COLUMN_MODEL`・`YT2COLUMN_REVIEW_PROVIDER`・`YT2COLUMN_REVIEW_MODEL`・`YT2COLUMN_CLAUDE_EFFORT` は、CLI もサーバも読まず、環境にあっても拒否も警告もしない。読まない変数を検査するためだけのコードは持たない。設定ファイルに書かれていれば、ほかの未知のキーと同じく拒否する（[ADR-0018](0018-server-config-file.md)）。サーバでは、止めると CLI のために `.envrc` を読み込んだシェルからサーバを起動できなくなるためである。CLI では、サーバの経路から検査を外すのと同じ変更で、CLI にだけ残す理由がないためである。規則は [0066 要件定義書](../../tasks/0066_server_config_file/01_requirements.md) の「1. 概要 (Overview)」にある。
 -   **拒否のメッセージは、変数の名前と固定の理由だけを示し、値を含めない。** 秘密情報を誤って別の変数に設定した場合でも、エラーの出力から漏れないようにするためである。規則は [0045 要件定義書](../../tasks/0045_llm_env_var/01_requirements.md) の「4.2. セキュリティ (Security)」にある。
 
-OpenAI の設定は要件定義の段階であり、コードと project_overview.md にはまだ反映していない。この差分は [#568](https://github.com/isseis/yt2column/issues/568) の実装で解消する。
+OpenAI の設定はコードと project_overview.md に反映した。アダプタ本体と工程への配線は [#568](https://github.com/isseis/yt2column/issues/568) の残りの実装で加える。
 
 ## 採らなかった案
 
@@ -52,7 +52,7 @@ OpenAI の設定は要件定義の段階であり、コードと project_overvie
 
 ## 結果
 
--   値の文法は 1 か所で決まり、プロバイダごとに受理する effort の値の一覧は `claudeparam` と `deepseekparam` に 1 か所ずつある。
+-   値の文法は 1 か所で決まり、プロバイダごとに受理する effort の値の一覧は `claudeparam`・`deepseekparam`・`openaiparam` に 1 か所ずつある。
 -   未設定のときの既定の値（本番の構成）は [ADR-0004](0004-production-profile.md) が定める。本番の構成を変えるときは、両方の ADR を照らす。
 -   プロバイダを足すときは、プロバイダの部分にその名前を加え、そのプロバイダの effort の値の一覧を足す。環境変数は増えない。
 -   プロバイダの部分の誤りは起動時の設定エラーになる。既定のプロバイダに黙って落ちることはない。

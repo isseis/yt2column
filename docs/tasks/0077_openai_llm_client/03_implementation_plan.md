@@ -58,19 +58,19 @@
 
 **変更ファイル:** `internal/llm/openaiparam/openaiparam.go`・`openaiparam_test.go`（新規）、`internal/config/config.go`・`config_test.go`・`test_helpers.go`。
 
-- [ ] 設計書 §3.1 の effort 型・一覧・解析と `ProviderOpenAI`、工程の選択、キーの取得口を加える。
-- [ ] `test_helpers.go` の `EffortValuesByProviderForTest` と OpenAI の既定 effort の取得口を更新し、既存の設定テストを拡張して、7 effort、既定・継承、未知モデルと `/`、不正な選択、両方向の混在を検証する。
-- [ ] キーの欠け・空、未選択のキーの無視、再開で必要な工程だけを読むことを検証する。旧2プロバイダと本番の既定を維持する。
+- [x] 設計書 §3.1 の effort 型・一覧・解析と `ProviderOpenAI`、工程の選択、キーの取得口を加える。
+- [x] `test_helpers.go` の `EffortValuesByProviderForTest` と OpenAI の既定 effort の取得口を更新し、既存の設定テストを拡張して、7 effort、既定・継承、未知モデルと `/`、不正な選択、両方向の混在を検証する。
+- [x] キーの欠け・空、未選択のキーの無視、再開で必要な工程だけを読むことを検証する。旧2プロバイダと本番の既定を維持する。
 
 #### ステップ 1-2：サーバの入力境界とガードをそろえる
 
 **変更ファイル:** `internal/config/serverfile.go`・`serverfile_test.go`・`envaccess_test.go`、`internal/pipeline/pipeline_test.go`、`cmd/yt2column/docs_test.go`・`cmd/yt2column-server/docs_test.go`、`README.md`・`README.en.md`、`docs/dev/project_overview.md`・`docs/dev/security.md`・`docs/dev/conventions/package_reference.md`。
 
-- [ ] 許可する7キーとコメントだけの雛形を追加し、既存6キーのファイルも読み込む。環境による補完を設けない。
-- [ ] `TestParseServerFileAccepts`・`TestParseServerFileRejects`・`TestServerFileTemplate` と設定のテストを拡張し、書式・サイズ・所有者・権限・未知キーの拒否を保つ。
-- [ ] `TestEnvAccessConfined` の秘密名と `TestConfigImports` の許可パッケージを更新する。新しい環境読み込みを入口と config 以外に広げない。
+- [x] 許可する7キーとコメントだけの雛形を追加し、既存6キーのファイルも読み込む。環境による補完を設けない。
+- [x] `TestParseServerFileAccepts`・`TestParseServerFileRejects`・`TestServerFileTemplate` と設定のテストを拡張し、書式・サイズ・所有者・権限・未知キーの拒否を保つ。
+- [x] `TestEnvAccessConfined` の秘密名と `TestConfigImports` の許可パッケージを更新する。新しい環境読み込みを入口と config 以外に広げない。
 
-- [ ] `TestEffortValuesDocsContract` と `TestServerDocsContract` が参照する provider・effort・7キーの値を両 README・project_overview・security に反映する。`openaiparam` をパッケージ参照表に加え、`TestPackageReferenceListsPackages` を実行する。README は同じコミットで `/mktrans README.md` により同期する。案内では配線が後続の PR であることを区別する。
+- [x] `TestEffortValuesDocsContract` と `TestServerDocsContract` が参照する provider・effort・7キーの値を両 README・project_overview・security に反映する。`openaiparam` をパッケージ参照表に加え、`TestPackageReferenceListsPackages` を実行する。README は同じコミットで `/mktrans README.md` により同期する。案内では配線が後続の PR であることを区別する。
 
 **完了条件:** 対象テスト、README 同期、`make ext-test` とグリーンゲートが通る。この時点では provider の通信経路を追加しない。
 
@@ -86,10 +86,10 @@
 
 **判定理由**: 確定済みの設定拡張であり、上位モデルを要する条件に該当しない。
 
-- [ ] グリーンゲート（`make test`・`make lint`）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`make test`・`make lint`）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/792
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ2：OpenAI の要求・応答・使用量・エラー
 
@@ -285,7 +285,7 @@
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
-- [ ] PR-1 マージ済み（1-1 / 1-2）
+- [x] PR-1 マージ済み（1-1 / 1-2）
 - [ ] PR-2 マージ済み（2-1 / 2-2）
 - [ ] PR-3 マージ済み（2-3）
 - [ ] PR-4 マージ済み（3-1 / 3-2）
@@ -301,7 +301,7 @@
 | AC-01 | 1-1 / 2-3 / 3-1 | test: `internal/config/config_test.go::TestParseLLMProvider`、`internal/llm/openai/openai_test.go::TestGenerateRequest`（新規） |
 | AC-02 | 1-1 / 2-3 | test: `internal/config/config_test.go::TestLoadParsesLLMValue`、`internal/llm/openai/openai_test.go::TestGenerateRequest`（新規） |
 | AC-03 | 1-1 / 3-1 | test: `internal/llm/provider/provider_test.go::TestNewSendsStageEffort` を3プロバイダに拡張、`cmd/yt2column/run_test.go::TestOpenAIConfiguration`・`cmd/yt2column-server/run_test.go::TestOpenAIConfiguration`（新規） |
-| AC-04 | 1-1 / 3-1 | test: `cmd/yt2column/run_test.go::TestOpenAIConfiguration`・`cmd/yt2column-server/run_test.go::TestOpenAIConfiguration`（新規、キーの欠け・空の終了コードと送信回数） |
+| AC-04 | 1-1 / 3-1 | test: `internal/config/config_test.go::TestLoadOpenAI`（新規、キーの欠け・空）、`cmd/yt2column/run_test.go::TestOpenAIConfiguration`・`cmd/yt2column-server/run_test.go::TestOpenAIConfiguration`（新規、キーの欠け・空の終了コードと送信回数） |
 | AC-05 | 1-1 / 1-2 / 3-1 | test: `internal/config/config_test.go::TestLoadProviderVarsFollowSelection`、`TestLoadServerReadsOnlyHomeAndGodebug`、`cmd/yt2column/run_test.go::TestOpenAIConfiguration`・`cmd/yt2column-server/run_test.go::TestOpenAIConfiguration`（新規） |
 | AC-06 | 1-2 | test: `internal/config/serverfile_test.go::TestParseServerFileAccepts`、`TestParseServerFileRejects`、`TestServerFileTemplate` |
 | AC-07 | 2-3 | test: `internal/llm/openai/openai_test.go::TestGenerateRequest`（新規） |

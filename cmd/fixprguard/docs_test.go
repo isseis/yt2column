@@ -214,7 +214,7 @@ func TestDocumentedInvocationsParse(t *testing.T) {
 		rel  string
 		want []string
 	}{
-		{".claude/commands/fixpr.md", []string{cmdBegin, cmdFence, cmdInspect, cmdFinish, cmdPush, cmdReply, cmdEditPR, cmdAppendPR}},
+		{".claude/commands/fixpr.md", []string{cmdBegin, cmdFence, cmdInspect, cmdFinish, cmdPush, cmdCheck, cmdPushReview, cmdReply, cmdEditPR, cmdAppendPR}},
 		{".claude/commands/runpr.md", []string{cmdHead, cmdInteractionLimits, cmdList, cmdReply, cmdEditPR}},
 	} {
 		calls := documentedInvocations(readRepoFile(t, tc.rel))
@@ -343,7 +343,8 @@ var (
 // is the binary's Protocol: each --protocol N in the guide and in every
 // command document under .claude/commands (prose included, not only code
 // blocks) that is not in a codexreview call, which codexreview's own guard
-// checks, each "protocol":N of the guide's output examples, and the current
+// checks, each "protocol":N of the output examples in the guide and runpr.md
+// (the command document that shows fixprguard's output), and the current
 // number chapter 4 of the guide states. The guide must write each at least
 // once, so a guide that stops writing them is not read as agreeing; that
 // fixpr.md and runpr.md write them is TestDocumentedInvocationsParse's check.
@@ -366,6 +367,7 @@ func TestDocumentedProtocolMatches(t *testing.T) {
 			t.Errorf("%s: %q, want %s", rel, text, want)
 		}
 	}
+	check(".claude/commands/runpr.md", readRepoFile(t, ".claude/commands/runpr.md"), protocolOutput, true)
 	guide := readRepoFile(t, guidePath)
 	check(guidePath, guide, protocolFlag, true)
 	check(guidePath, guide, protocolOutput, true)
@@ -492,6 +494,26 @@ func TestGuideNamesGitStateParts(t *testing.T) {
 				t.Errorf("%s: the git-state-changed row's parts do not name `%s`", guidePath, part)
 			}
 		}
+	}
+}
+
+// TestGuideListsHeadLineRules: the first column of the head rule table in
+// chapter 8 names exactly the rules HeadLineRules returns. Only the first
+// column is read, since the meaning column names flags and branches too.
+func TestGuideListsHeadLineRules(t *testing.T) {
+	want := map[string]struct{}{}
+	for _, rule := range fixprguard.HeadLineRules() {
+		want[rule] = struct{}{}
+	}
+	table := guideTable(section(readRepoFile(t, guidePath), "## 8."), "**`head` の規則の名前。**")
+	got := map[string]struct{}{}
+	for line := range strings.Lines(table) {
+		if cells := strings.Split(line, "|"); len(cells) > 2 {
+			maps.Copy(got, codeSpans(cells[1]))
+		}
+	}
+	if !maps.Equal(got, want) {
+		t.Errorf("the head rule table lists %v, want %v", slices.Sorted(maps.Keys(got)), slices.Sorted(maps.Keys(want)))
 	}
 }
 

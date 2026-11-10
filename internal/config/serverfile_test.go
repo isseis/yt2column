@@ -65,11 +65,11 @@ func TestParseServerFileAccepts(t *testing.T) {
 		{
 			name: "every key",
 			data: "YT2COLUMN_LLM=deepseek/deepseek-flash\nYT2COLUMN_REVIEW_LLM=claude/claude-opus-5-5+low\n" +
-				"DEEPSEEK_API_KEY=d\nANTHROPIC_API_KEY=a\nANTHROPIC_WORKSPACE_ID=w\nSLACK_WEBHOOK_URL=https://example.com/h\n",
+				"DEEPSEEK_API_KEY=d\nANTHROPIC_API_KEY=a\nOPENAI_API_KEY=o\nANTHROPIC_WORKSPACE_ID=w\nSLACK_WEBHOOK_URL=https://example.com/h\n",
 			want: map[string]string{
 				"YT2COLUMN_LLM": "deepseek/deepseek-flash", "YT2COLUMN_REVIEW_LLM": "claude/claude-opus-5-5+low",
-				"DEEPSEEK_API_KEY": "d", "ANTHROPIC_API_KEY": "a", "ANTHROPIC_WORKSPACE_ID": "w",
-				"SLACK_WEBHOOK_URL": "https://example.com/h",
+				"DEEPSEEK_API_KEY": "d", "ANTHROPIC_API_KEY": "a", "OPENAI_API_KEY": "o",
+				"ANTHROPIC_WORKSPACE_ID": "w", "SLACK_WEBHOOK_URL": "https://example.com/h",
 			},
 		},
 		{

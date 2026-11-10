@@ -42,7 +42,7 @@ flowchart LR
   `claude-opus-5-5` を effort `high` で使う。
   [推奨構成](#推奨構成)と
   [production_profile.md](docs/dev/production_profile.md)（日本語）を参照。
-  DeepSeek も使える。プロバイダは差し替えられる。
+  DeepSeek も使える。プロバイダは差し替えられる。OpenAI は設定と effort を受理し、アダプタの配線は後続の変更で加える。
 - ローカルでの実行を想定している。
 
 > **状態:** 開発の初期段階。まだリリースしていない。
@@ -79,7 +79,7 @@ flowchart LR
 - `SLACK_WEBHOOK_URL`（ビューアからの投稿に必要。なくてもサーバは起動し、記事を生成する）
 
 選んだプロバイダの API キーが必要である。`deepseek` では `DEEPSEEK_API_KEY`、`claude` では
-`ANTHROPIC_API_KEY` である。検証・推敲の工程が別のプロバイダを使うときは、そのプロバイダのキーも必要である。
+`ANTHROPIC_API_KEY`、`openai` では `OPENAI_API_KEY` である。検証・推敲の工程が別のプロバイダを使うときは、そのプロバイダのキーも必要である。
 
 CLI に必要なものは
 [docs/dev/guides/cli.md](docs/dev/guides/cli.md#必要なもの)にある。
@@ -218,7 +218,7 @@ Webhook への投稿は、それとは別の操作で、拡張はビューアで
 `XDG_CONFIG_HOME` などのほかの変数は、パスを変えない。サーバは、起動するときに 1 回だけこのファイルを読む。ファイルを書き換えた後は、サーバを止めてもう一度起動する。
 
 サーバは、設定の値を環境変数から読まない。サーバのコードがプロセスの環境から読むのは、ソケットと設定ファイルのパスを決める `HOME` と、警告のための
-`GODEBUG` だけである。ただし、Go の標準ライブラリは、LLM の API と Webhook へのリクエストに、サーバの環境のプロキシの変数（`HTTPS_PROXY`・`HTTP_PROXY`・`NO_PROXY`）を使う。`GODEBUG` が `http2debug=1` か `http2debug=2` を含むと、Go の HTTP/2 のログが API キーと Webhook の URL のパスを標準エラーに書きうるので、サーバはそのことを警告する。下の 6 つのキーと同じ名前の環境変数があっても、サーバはそれを無視し、止まらず、警告もしない。CLI は、今までどおり環境変数を読み、設定ファイルを読まない（[設定](#設定)を参照）。
+`GODEBUG` だけである。ただし、Go の標準ライブラリは、LLM の API と Webhook へのリクエストに、サーバの環境のプロキシの変数（`HTTPS_PROXY`・`HTTP_PROXY`・`NO_PROXY`）を使う。`GODEBUG` が `http2debug=1` か `http2debug=2` を含むと、Go の HTTP/2 のログが API キーと Webhook の URL のパスを標準エラーに書きうるので、サーバはそのことを警告する。下の 7 つのキーと同じ名前の環境変数があっても、サーバはそれを無視し、止まらず、警告もしない。CLI は、今までどおり環境変数を読み、設定ファイルを読まない（[設定](#設定)を参照）。
 
 **雛形を作る。** 次のコマンドは、設定ファイルの雛形を作る。サーバとしては動かない。
 
@@ -226,7 +226,7 @@ Webhook への投稿は、それとは別の操作で、拡張はビューアで
 ./build/yt2column-server config init
 ```
 
-雛形は、空行とコメントの行だけからなり、6 つのキーのそれぞれについて、説明と、コメントにしたキーの行（例: `# ANTHROPIC_API_KEY=`）を持つ。キーを設定するには、その行の先頭の `# ` を消し、`=` の後に値を書く。`config init` は環境変数の値を読まないので、雛形に値は入らない。
+雛形は、空行とコメントの行だけからなり、7 つのキーのそれぞれについて、説明と、コメントにしたキーの行（例: `# ANTHROPIC_API_KEY=`）を持つ。キーを設定するには、その行の先頭の `# ` を消し、`=` の後に値を書く。`config init` は環境変数の値を読まないので、雛形に値は入らない。
 
 `config init` は、ファイルをちょうどモード `0600` で作る（umask によらない）。`$HOME/.config` と `$HOME/.config/yt2column` のうちまだないものは、モード
 `0700` で作り、すでにあるディレクトリは変えない。パスにすでに何かあれば（ファイル、シンボリックリンク、ディレクトリなど）、それを変えずに終わる。ファイルは同じディレクトリの一時ファイル（`.config.env.tmp-` で始まる名前）に書いてから置くので、途中で失敗しても、書きかけのファイルは残らない。作ったディレクトリは残る。一時ファイルを消せなかったときは、その名前を示すので、手で消す。`config init` は、作ったファイルのパスを標準エラーに 1 行で示し、標準出力には何も書かない。
@@ -242,22 +242,22 @@ Webhook への投稿は、それとは別の操作で、拡張はビューアで
 **書式。** 1 行に 1 つの `KEY=VALUE` を書き、行は LF で区切る（最後の行は LF で終わらなくてよい）。ファイルをシェルとして実行することはなく、変数の展開も引用符の解釈もしない。
 
 - 空行と、`#` で始まる行（コメント）は読み飛ばす。
-- キーは最初の `=` より前の全体で、`YT2COLUMN_LLM`、`YT2COLUMN_REVIEW_LLM`、`DEEPSEEK_API_KEY`、`ANTHROPIC_API_KEY`、`ANTHROPIC_WORKSPACE_ID`、`SLACK_WEBHOOK_URL`
-  の 6 つのどれかと完全に一致しなければならない。キーの意味は[設定](#設定)の表のとおりで、どのキーも省ける。省いたキーは、CLI で環境変数が未設定のときと同じに扱う。
+- キーは最初の `=` より前の全体で、`YT2COLUMN_LLM`、`YT2COLUMN_REVIEW_LLM`、`DEEPSEEK_API_KEY`、`ANTHROPIC_API_KEY`、`OPENAI_API_KEY`、`ANTHROPIC_WORKSPACE_ID`、`SLACK_WEBHOOK_URL`
+  の 7 つのどれかと完全に一致しなければならない。キーの意味は[設定](#設定)の表のとおりで、どのキーも省ける。省いたキーは、CLI で環境変数が未設定のときと同じに扱う。
 - 値は最初の `=` より後ろの全体で、変換せずに使う。空白に続かない `#` と、2 つ目以降の `=` は値の一部である（`SLACK_WEBHOOK_URL=https://example.com/hook#x`
   の値は `https://example.com/hook#x`）。
 - 値は空でもよい（`KEY=`）。空の値は、CLI の環境変数の空の値と同じく、そのキーを使うときは設定エラーになり、使わないプロバイダのキーなら拒否しない。
 
 次のものを含むファイルは、全体を拒否する。一部の行だけを使って起動することはない。
 
-- `=` のない行、6 つのキー以外のキー（小文字のキーや、`export ANTHROPIC_API_KEY=...` のように `export ` を付けた行を含む）
+- `=` のない行、7 つのキー以外のキー（小文字のキーや、`export ANTHROPIC_API_KEY=...` のように `export ` を付けた行を含む）
 - 空白で始まる行、キーの前後に空白がある行（`ANTHROPIC_API_KEY =x`）
 - 先頭か末尾が空白の値、`"` か `'` で始まる値（引用符は取り除かない）、空白に続く `#` を含む値（`ANTHROPIC_API_KEY=sk-xxx # personal`。コメントは行を分けて書く）
 - 同じキーの 2 回目以降の行
 - CR（CRLF の改行を含む）、タブなどの LF 以外の制御文字、DEL、U+FEFF（BOM）
 - UTF-8 として正しくないバイト列、64 KiB（65,536 バイト）を超える大きさ
 
-書式の拒否は、設定ファイルのパスと、拒否した行の行番号と固定の理由を、20 行まで 1 行ずつ示し、それより多ければ残りの行数を示す。値と、6 つのキー以外のキーの文字列は示さない。重複したキーの拒否は、そのキーの名前を示す。
+書式の拒否は、設定ファイルのパスと、拒否した行の行番号と固定の理由を、20 行まで 1 行ずつ示し、それより多ければ残りの行数を示す。値と、7 つのキー以外のキーの文字列は示さない。重複したキーの拒否は、そのキーの名前を示す。
 
 **検査。** サーバは、読む前に設定ファイルを検査し、次のどれかなら、何も直さずに（モードも所有者も変えずに）終了コード `2` で起動を止める。メッセージは、パスと理由を示す。
 
@@ -450,7 +450,7 @@ macOS の Brave は Chrome の manifest のディレクトリを読むので、C
 以前の版のサーバは、設定を環境変数から読んでいた。今のサーバは設定ファイルだけを読み、設定ファイルがなければ起動しない。次の手順で移る。
 
 1. `./build/yt2column-server config init` で雛形を作る。
-2. `.envrc`、`.env`、シェルの起動ファイル、サーバを起動するスクリプトなどで、サーバのために設定していた値（[設定ファイル](#設定ファイル)の 6 つのキー）を、雛形の対応する行に写す。行の先頭の
+2. `.envrc`、`.env`、シェルの起動ファイル、サーバを起動するスクリプトなどで、サーバのために設定していた値（[設定ファイル](#設定ファイル)の 7 つのキー）を、雛形の対応する行に写す。行の先頭の
    `# ` を消し、`=` の後に値だけを書く。`export ` と、値を囲む引用符は写さない（どちらも拒否する）。
 3. 動いているサーバを止め、もう一度起動する。
 
@@ -460,10 +460,11 @@ macOS の Brave は Chrome の manifest のディレクトリを読むので、C
 
 | 変数 | 説明 | 未設定のとき |
 |---|---|---|
-| `YT2COLUMN_LLM` | 生成と字数の調整のプロバイダ・モデル・effort。`<provider>/<model ID>` の形で書き、後ろに `+<effort>` を付けられる。プロバイダは `deepseek` か `claude`（例: `deepseek/deepseek-flash`、`claude/claude-sonnet-5-5+low`） | `claude/claude-opus-5-5` |
+| `YT2COLUMN_LLM` | 生成と字数の調整のプロバイダ・モデル・effort。`<provider>/<model ID>` の形で書き、後ろに `+<effort>` を付けられる。プロバイダは `deepseek`、`claude`、`openai`（例: `deepseek/deepseek-flash`、`claude/claude-sonnet-5-5+low`、`openai/gpt-6-astra+medium`） | `claude/claude-opus-5-5` |
 | `YT2COLUMN_REVIEW_LLM` | 検証・推敲の工程のプロバイダ・モデル・effort。形は `YT2COLUMN_LLM` と同じ | 生成と同じ（`YT2COLUMN_LLM`、またはその既定。effort も含む） |
 | `DEEPSEEK_API_KEY` | DeepSeek の API キー | 生成か検証・推敲のプロバイダが `deepseek` のときは必須（エラー） |
 | `ANTHROPIC_API_KEY` | Anthropic の API キー | 生成か検証・推敲のプロバイダが `claude` のときは必須（エラー） |
+| `OPENAI_API_KEY` | OpenAI API の API キー（ChatGPT の契約とは別に、API の課金が必要） | 生成か検証・推敲のプロバイダが `openai` のときは必須（エラー） |
 | `ANTHROPIC_WORKSPACE_ID` | Anthropic のワークスペースの ID。ワークスペースに結び付いていない API キーのためのもの | ワークスペースの ID を送らない |
 | `SLACK_WEBHOOK_URL` | Slack 互換の Incoming Webhook の URL（動作を確かめた送り先は Mattermost）。読むのはサーバだけ | サーバは起動するが、投稿はできない |
 
@@ -476,7 +477,7 @@ CLI だけが読む変数と、CLI が上の変数をどう読むかは
 値は、前後の空白を除くことも、ほかの方法で直すこともしない。空の値は未設定ではなく設定として扱い、拒否する。
 
 `YT2COLUMN_LLM` と `YT2COLUMN_REVIEW_LLM` は、最初の `/` で分ける。その前の部分はプロバイダで、ちょうど
-`deepseek` か `claude` でなければならない。その後のすべてはモデルの ID で、さらに `/`
+`deepseek`、`claude`、`openai` のどれかでなければならない。その後のすべてはモデルの ID で、さらに `/`
 があってもそのまま、プロバイダの API に送る（`claude/vendor/model-x` はモデル
 `vendor/model-x` を送る）。モデルの ID は空であってはならないので、`claude` と `claude/`
 は拒否する。`/claude-opus-5-5`、`Claude/claude-opus-5-5`、
@@ -492,10 +493,13 @@ ID の一部とみなしてプロバイダに送ることはない。`+` より�
 | プロバイダ | 受理する effort | effort を省いたとき |
 |---|---|---|
 | `claude` | `low`、`medium`、`high`、`xhigh`、`max` | `high` を送る |
+| `openai` | `none`、`minimal`、`low`、`medium`、`high`、`xhigh`、`max` | `medium` を送る |
 | `deepseek` | `none`、`low`、`high`、`max` | 何も送らない（thinking は API の既定のまま） |
 
-`claude` では、effort を要求の effort として送る。`deepseek` では、要求の `reasoning_effort` として送る。`none`
+`claude` では、effort を要求の effort として送る。`openai` では、要求の `reasoning.effort` として送り、`none` は推論を無効にする。`deepseek` では、要求の `reasoning_effort` として送る。`none`
 は thinking を無効にし、ほかの値は有効にする。
+
+OpenAI の設定は受理して検査するが、OpenAI のアダプタを工程に配線するのはこれとは別の変更である。配線が入るまでは、`openai` を選んだ工程はクライアントの構築で失敗し、記事は生成されない。
 
 `YT2COLUMN_LLM` を設定しなければ、生成と字数の調整は
 `claude/claude-opus-5-5` を effort `high` で使う。`YT2COLUMN_REVIEW_LLM` を設定しなければ、検証・推敲の工程は、既定を含めて、生成と同じプロバイダ・モデル・effort を使う。`YT2COLUMN_REVIEW_LLM`

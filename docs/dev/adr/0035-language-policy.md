@@ -22,6 +22,7 @@ GitHub に置くものは日本語で書く。一方、squash のコミットは
 -   **2 言語で持つ文書は README だけである。** `README.md` を先に変え、[mktrans.md](../../../.claude/commands/mktrans.md) の `/mktrans` で `README.en.md` に反映し、両方を 1 つのコミットに入れる。`README.en.md` の 1 行目の同期の印は、翻訳の元にした `README.md` の版を指し、`/mktrans` はその版からの差分を翻訳する。印の形と翻訳の手順は [mktrans.md](../../../.claude/commands/mktrans.md) に、同期の規則は [CLAUDE.md](../../../CLAUDE.md) の「Translation Guidelines (Japanese to English)」に従う。
 -   **同期の印は、エージェントの判断ではなく Go のテスト `TestReadmeSyncMarker` で確かめる。** テストは、印が今の `README.md` を指すことを確かめ、`make test`・CI の `doc-guard` のジョブ・pre-commit のフックで走る。同期の手順を持つコマンドは、この検査が失敗したときに `/mktrans` を実行する。
 -   **PR のタイトルは日本語で書き、squash のコミットの件名と本文は英語で書く。** PR のタイトルは conventional-commit の接頭辞を ASCII のまま残し、その後の要約を日本語で書く。squash の件名は、`/mergepr` が PR の材料から英語で書き、PR のタイトルからは接頭辞だけを読む。形は [_context.md](../../../.claude/commands/_context.md) の「PR title and squash subject」の 1 か所に定める。
+-   次の 2 点は、まだ要件定義の段階にあり、CLAUDE.md の「Go Idioms」と mkplan.md・runplan.md・weakreview.md には反映していない。1 つは、タスクの `_checks/` のスクリプトに、日本語の文書の文字列と一致しなければならないリテラルを種類を限らずに置いてよいとする例外の拡大である。もう 1 つは、英語だけを求めるコマンドの定義の規則が、その例外のリテラルを指摘しないことである。この差分は [#789](https://github.com/isseis/yt2column/issues/789) の実装で解消する。
 
 この決定の仕様の正本は、[CLAUDE.md](../../../CLAUDE.md) の「Document language」「Translation Guidelines (Japanese to English)」「Language」「Go Idioms」、[_context.md](../../../.claude/commands/_context.md) の「PR title and squash subject」、[mktrans.md](../../../.claude/commands/mktrans.md) である。この ADR は、その規則の理由と、採らなかった案と、経緯を持つ。
 
@@ -37,6 +38,9 @@ GitHub に置くものは日本語で書く。一方、squash のコミットは
 -   **PR のタイトルも、squash の件名の要約の情報源にする。** 要約が、タイトルをほぼ訳しただけの文になりやすい（[0032 要件定義書](../../tasks/0032_japanese_pr_title/01_requirements.md)「要件定義の際に決めたこと（2026-10-21）」）。
 -   **`推奨タイトル` を英語の件名の下書きとして残す、または日本語のタイトルと英語の件名の両方の欄を持つ。** プランは実装の前に書くので、件名の下書きは実際の内容とずれうる（[0032 要件定義書](../../tasks/0032_japanese_pr_title/01_requirements.md)「要件定義の際に決めたこと（2026-10-21）」）。
 -   **PR のタイトルと squash の件名の形を、すべて CLAUDE.md に書く。** CLAUDE.md は毎回のセッションで読み込まれるので、接頭辞の文法のような、コマンドだけが使う細部を置く場所に向かない（[0032 設計書](../../tasks/0032_japanese_pr_title/02_architecture.md)「1.2. 設計の際に決めたこと（2026-10-21）」）。
+
+-   **`_checks/` のスクリプトのリテラルの例外を、guard のテストと同じ 4 種類（見出し・表のセル・行の始めの項目の名前・太字の印）に限る。** 確かめに要る語・文の断片・文を置く `data.json` が残る（[0080 要件定義書](../../tasks/0080_diff_check_proportion/01_requirements.md)「要件定義の際に決めたこと（2026-11-10）」）。
+-   **`_checks/` のスクリプトで見出しを構造で見つけることを既定にし、例外を広げない。** 構造で見つけられるのは節の位置だけで、語や文そのものを確かめる場合には足りない（同）。
 
 ## 結果
 
@@ -62,3 +66,4 @@ GitHub に置くものは日本語で書く。一方、squash のコミットは
 - 2026-11-04 CLAUDE.md の「Document language」の原則 (a) に、ADR と索引を置く `docs/dev/adr/` を足した（[0060 設計書](../../tasks/0060_adr_records/02_architecture.md)「1.2. 設計の際に決めたこと（2026-11-04）」）
 - 2026-11-04 軽量プロセスの確かめ直しのスクリプトとそのテストに、仕様の見出しの日本語のリテラルを許す範囲の狭い例外を、CLAUDE.md の「Go Idioms」に足した（[0061 設計書](../../tasks/0061_lightweight_process/02_architecture.md)「1.2. 設計の際に決めたこと（2026-11-04）」）
 - 2026-11-09 軽量プロセスを削除することにし、その確かめ直しのスクリプトとテストのための日本語のリテラルの例外（lightweight-check literal exception）を、CLAUDE.md の「Go Idioms」から除くことにし、「決定」から [ADR-0012](0012-lightweight-check-in-bash.md) への参照も除いた（[0075 要件定義書](../../tasks/0075_remove_lightweight_process/01_requirements.md)「要件定義の際に決めたこと（2026-11-09）」）
+- 2026-11-10 guard のテストの日本語のリテラルの例外（guard-test literal exception）を、言語にかかわらずタスクの `_checks/` のスクリプトに広げ、そこでは日本語の文書の文字列と一致しなければならないリテラルを種類を限らずに認めることにした。英語だけを求めるコマンドの定義の規則は、例外に当たるリテラルを指摘しない。日本語の文字列を `data.json` に逃がす仕組みを要らなくするためである（[0080 要件定義書](../../tasks/0080_diff_check_proportion/01_requirements.md)「要件定義の際に決めたこと（2026-11-10）」）

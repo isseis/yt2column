@@ -9,9 +9,9 @@
 - **言語: Go**（ブラウザ拡張は TypeScript。詳細は §「想定ディレクトリ構成」と `docs/tasks/0007_browser_extension_skeleton/`）。依存関係を最小限にし、シングルバイナリで配布する。 [ADR-0026](adr/0026-extension-platform.md)
 - **実行形式: localhost サーバとブラウザ拡張、開発用の CLI**。主経路は、ブラウザ拡張が YouTube の文字起こしパネルからコピーした字幕を、ブラウザが起動する Native Messaging のホスト（`cmd/yt2column-nmhost`・`internal/nmhost`）がソケットへ中継し、localhost サーバ（`cmd/yt2column-server`・`internal/server`）が記事を生成してメモリに保持し、求めに応じて返すか Slack へ投稿する（タスク `0011_localhost_server`・`0044_article_job_api`）。拡張は、サーバのジョブの API（生成の開始・状態の取得・投稿）を使う。拡張の Service Worker が生成の開始を送り、ビューアとポップアップが状態の取得を繰り返し、ビューアが利用者の操作で投稿を送る（タスク `0050_viewer_tab`）。サーバが受け付けるのはジョブの API だけで、Webhook へ送るのは投稿の操作が求めた記事だけである（タスク `0059_remove_legacy_articles_api`）。サーバは TCP を待ち受けず、`HOME` だけから導出したパスの Unix ドメインソケットの上で HTTP を受ける（タスク `0026_native_messaging_relay`）。ホストの manifest は、利用者が `yt2column-nmhost install <browser>` で登録し、`yt2column-nmhost uninstall <browser>` で削除する（`<browser>` は `chrome` か `brave`。`make build` は登録しない）。サーバの起動は手動とし、サーバは `yt-dlp` を呼ばない。サーバは設定を `HOME` だけから導出したパスの設定ファイル（モード `0600`）だけから読み、CLI は環境変数だけから読む（タスク `0066_server_config_file`）。コアロジックは `cmd/` から分離したパッケージとして実装し、両方の入口で共有する。CLI はローカルで実行する。 [ADR-0005](adr/0005-server-architecture.md) [ADR-0008](adr/0008-launch-path.md) [ADR-0027](adr/0027-article-job-api.md) [ADR-0018](adr/0018-server-config-file.md)
 - **字幕取得: 主経路はコピーした字幕、CLI は外部コマンドの `yt-dlp` に委譲する**。主経路では、利用者が YouTube の文字起こしパネルからコピーした字幕の文字列を解析するパーサ（`internal/transcript` で `CopiedSource` が `Raw` を解析する箇所）を使う。これは、パネルが出力する書式に依存する例外である。依存はそのパーサに限り、Go から YouTube のページやパネルを取得・解析しない。CLI は字幕の取得を `yt-dlp` に委譲する。YouTube の非公式な仕様に依存する最も壊れやすい部分を、保守が活発なツールに任せるためであり、Go で字幕取得を自前実装しないこと。書式が変わって拒否が続く間は、`yt-dlp` の経路を代わりの手段として残す。 [ADR-0007](adr/0007-manual-transcript-copy.md)
-- **LLM: 既定は Claude（`claude-opus-5-5`）で、DeepSeek も選べる**。コード上の既定のプロバイダは Claude で、既定で本番の構成になる（[#490](https://github.com/isseis/yt2column/issues/490)・[#171](https://github.com/isseis/yt2column/issues/171)）。本番の構成は [production_profile.md](production_profile.md) にある。どちらも SDK を使わず、標準ライブラリ（`net/http`・`encoding/json`）で呼び出す。Claude は Anthropic Messages API を、DeepSeek は公式 API を直接契約して使う。DeepSeek の API は OpenAI 互換の Chat Completions 形式（`POST https://api.deepseek.com/chat/completions`）である。 [ADR-0001](adr/0001-llm-adapter-stdlib.md) [ADR-0004](adr/0004-production-profile.md)
+- **LLM: 既定は Claude（`claude-opus-5-5`）で、DeepSeek も選べる**。コード上の既定のプロバイダは Claude で、既定で本番の構成になる（[#490](https://github.com/isseis/yt2column/issues/490)・[#171](https://github.com/isseis/yt2column/issues/171)）。本番の構成は [production_profile.md](production_profile.md) にある。どちらも SDK を使わず、標準ライブラリ（`net/http`・`encoding/json`）で呼び出す。Claude は Anthropic Messages API を、DeepSeek は公式 API を直接契約して使う。DeepSeek の API は OpenAI 互換の Chat Completions 形式（`POST https://api.deepseek.com/chat/completions`）である。OpenAI も選択肢に加えつつあり、設定と effort の型は受理する。Responses API を使うアダプタと工程への配線は後続の変更で加える。 [ADR-0001](adr/0001-llm-adapter-stdlib.md) [ADR-0004](adr/0004-production-profile.md)
   - OpenCode Go 経由の利用は採用しない。利用条件が「コーディングエージェントのトラフィック」を前提としており、本ツールの用途に合わないため。
-- **LLM プロバイダは差し替え可能にする**。DeepSeek と Claude を実装済みで、Claude は公式 SDK を使わず標準ライブラリで Anthropic Messages API を呼ぶ（タスク `0009_claude_llm_client` の要件定義書 §2.3）。将来 Gemini（`google.golang.org/genai`）などを追加する前提。プロバイダとモデル名は設定で切り替える。Gemini を追加する場合、旧 SDK の `github.com/google/generative-ai-go` はレガシーなので使わないこと。 [ADR-0001](adr/0001-llm-adapter-stdlib.md)
+- **LLM プロバイダは差し替え可能にする**。DeepSeek と Claude を実装済みで、Claude は公式 SDK を使わず標準ライブラリで Anthropic Messages API を呼ぶ（タスク `0009_claude_llm_client` の要件定義書 §2.3）。OpenAI の設定と effort の型も追加しており、アダプタと配線は後続の変更で加える。将来 Gemini（`google.golang.org/genai`）などを追加する前提。プロバイダとモデル名は設定で切り替える。Gemini を追加する場合、旧 SDK の `github.com/google/generative-ai-go` はレガシーなので使わないこと。 [ADR-0001](adr/0001-llm-adapter-stdlib.md)
 - **LangChain 相当のフレームワークや、複数プロバイダを束ねる抽象化ライブラリは使わない**。自前の薄い interface で十分。 [ADR-0019](adr/0019-pipeline-component-interfaces.md)
 - **外部ライブラリは必要最小限にする**。HTTP・JSON・CLI 引数・設定は標準ライブラリで書く。追加する場合は理由を明示すること。
 
@@ -118,6 +118,7 @@ internal/llm/deepseek/    # DeepSeek 実装（標準ライブラリで OpenAI �
 internal/llm/claude/      # Claude 実装（標準ライブラリで Anthropic Messages API を呼ぶ）
 internal/llm/claudeparam/ # Claude の effort・ワークスペース ID の型（config と claude が共有）
 internal/llm/deepseekparam/ # DeepSeek の reasoning_effort の型（config と deepseek が共有）
+internal/llm/openaiparam/ # OpenAI の reasoning effort の型（config と openai が共有）
 internal/llm/llmhttp/     # LLM アダプタ共通の HTTP 送信（リダイレクト防止・本文の上限・失敗の分類）
 internal/llm/gemini/      # Gemini 実装（将来追加。google.golang.org/genai）
 internal/secret/          # 秘密情報（API キー・Webhook URL）を保持する型
@@ -132,10 +133,11 @@ extension/                # ブラウザ拡張（TypeScript。開発環境・Man
 
 | 変数 | 説明 | 未設定のとき |
 |---|---|---|
-| `YT2COLUMN_LLM` | 生成と字数の調整のプロバイダ・モデル・effort を `<プロバイダ>/<モデル ID>` の形で指定し、後ろに省略できる `+<effort>` を付ける。プロバイダは `deepseek`／`claude` を受理。将来 `gemini` を追加（例: `deepseek/deepseek-flash`・`claude/claude-sonnet-5-5+low`） | `claude/claude-opus-5-5` |
+| `YT2COLUMN_LLM` | 生成と字数の調整のプロバイダ・モデル・effort を `<プロバイダ>/<モデル ID>` の形で指定し、後ろに省略できる `+<effort>` を付ける。プロバイダは `deepseek`／`claude`／`openai` を受理。将来 `gemini` を追加（例: `deepseek/deepseek-flash`・`claude/claude-sonnet-5-5+low`・`openai/gpt-6-astra+medium`） | `claude/claude-opus-5-5` |
 | `YT2COLUMN_REVIEW_LLM` | 検証・推敲のプロバイダ・モデル・effort。形と受理するプロバイダは `YT2COLUMN_LLM` と同じ | 生成と同じ（`YT2COLUMN_LLM`、またはその既定値。effort を含む） |
 | `DEEPSEEK_API_KEY` | DeepSeek 用 | 生成または検証・推敲のプロバイダが `deepseek` ならエラー |
 | `ANTHROPIC_API_KEY` | Anthropic（Claude）用 | 生成または検証・推敲のプロバイダが `claude` ならエラー |
+| `OPENAI_API_KEY` | OpenAI API 用（ChatGPT の契約とは別に課金される） | 生成または検証・推敲のプロバイダが `openai` ならエラー |
 | `ANTHROPIC_WORKSPACE_ID` | ワークスペースに紐付かない Anthropic の API キー用のワークスペース ID（任意） | ワークスペース ID を送らない |
 | `GEMINI_API_KEY` | Gemini 実装を追加したとき用 | （未実装） |
 | `SLACK_WEBHOOK_URL` | 投稿先の Slack 互換 Incoming Webhook URL（Mattermost を検証済み）。読むのはサーバだけで、CLI は読まない | サーバでは任意で、投稿するときだけ要る |
@@ -144,20 +146,23 @@ extension/                # ブラウザ拡張（TypeScript。開発環境・Man
 
 値は前後の空白を取り除くなどの補正をせず、空の値は「未設定」ではなくエラーとして扱う。
 
-CLI は、表の変数を環境変数から読む。localhost サーバは、表のうち `YT2COLUMN_LLM`・`YT2COLUMN_REVIEW_LLM`・`DEEPSEEK_API_KEY`・`ANTHROPIC_API_KEY`・`ANTHROPIC_WORKSPACE_ID`・`SLACK_WEBHOOK_URL` の 6 つを、同じ名前のキーとして設定ファイルから読む（[ADR-0018](adr/0018-server-config-file.md)）。値の規則は、空の値の扱いを含めて、環境変数と同じで、設定ファイルにはそれに加えて書式の規則がかかる。ファイルにないキーは、環境変数が未設定のときと同じに扱う。
+CLI は、表の変数を環境変数から読む。localhost サーバは、表のうち `YT2COLUMN_LLM`・`YT2COLUMN_REVIEW_LLM`・`DEEPSEEK_API_KEY`・`ANTHROPIC_API_KEY`・`OPENAI_API_KEY`・`ANTHROPIC_WORKSPACE_ID`・`SLACK_WEBHOOK_URL` の 7 つを、同じ名前のキーとして設定ファイルから読む（[ADR-0018](adr/0018-server-config-file.md)）。値の規則は、空の値の扱いを含めて、環境変数と同じで、設定ファイルにはそれに加えて書式の規則がかかる。ファイルにないキーは、環境変数が未設定のときと同じに扱う。
 
-`internal/config` の `LoadServer` は、localhost サーバの設定を読む。段は 3 つで、`HOME` から設定ファイルのパスを導出し、ファイルを検査して読んで書式を解析し、6 つのキーの値を検証する。最初に失敗した段で止まる。値の検証は CLI と共有する。サーバのコードがプロセスの環境から読むのは、`HOME`（ソケットと設定ファイルのパス）と `GODEBUG`（HTTP/2 のデバッグログの警告）だけである（Go の標準ライブラリが LLM と Webhook へのリクエストにプロキシの変数を使うことは除く）。環境に 6 つのキーと同じ名前の変数があっても、読まず、止まらず、警告もしない。`SLACK_WEBHOOK_URL` は任意とし、未設定でもサーバは起動するが、投稿の操作を `webhook_not_configured` で拒否する。サーバは `yt-dlp` を呼ばないので、`YT2COLUMN_CACHE_DIR` と `YT2COLUMN_YTDLP_PATH` は読まない（不正な値でも起動を止めない）。ソケットのパスは `HOME` だけから導出し、`XDG_*`・`TMPDIR` は読まない。
+`internal/config` の `LoadServer` は、localhost サーバの設定を読む。段は 3 つで、`HOME` から設定ファイルのパスを導出し、ファイルを検査して読んで書式を解析し、7 つのキーの値を検証する。最初に失敗した段で止まる。値の検証は CLI と共有する。サーバのコードがプロセスの環境から読むのは、`HOME`（ソケットと設定ファイルのパス）と `GODEBUG`（HTTP/2 のデバッグログの警告）だけである（Go の標準ライブラリが LLM と Webhook へのリクエストにプロキシの変数を使うことは除く）。環境に 7 つのキーと同じ名前の変数があっても、読まず、止まらず、警告もしない。`SLACK_WEBHOOK_URL` は任意とし、未設定でもサーバは起動するが、投稿の操作を `webhook_not_configured` で拒否する。サーバは `yt-dlp` を呼ばないので、`YT2COLUMN_CACHE_DIR` と `YT2COLUMN_YTDLP_PATH` は読まない（不正な値でも起動を止めない）。ソケットのパスは `HOME` だけから導出し、`XDG_*`・`TMPDIR` は読まない。
 
-設定ファイルのパスは `HOME` だけから導出し、macOS もほかの Unix も `$HOME/.config/yt2column/config.env` である（`XDG_CONFIG_HOME` は読まない）。書式は 1 行に 1 つの `KEY=VALUE` で、空行と `#` で始まる行を読み飛ばし、値を変換せずに使う。受理する形に合わない行（`export `、引用符で始まる値、空白に続く `#`、重複したキー、6 つ以外のキーなど）、制御文字・CR・DEL・U+FEFF、UTF-8 として正しくないバイト列、64 KiB を超える大きさは、直さずにファイル全体を拒否する。サーバは、ファイルが自分の所有する通常のファイルで、シンボリックリンクでなく、モードがちょうど `0600` であることを、読む記述子について確かめ、満たさなければ何も直さずに起動を止める（終了コード `2`）。ACL は検査しない。`yt2column-server config init` は、コメントの行と空行だけの雛形をモード `0600` で作り、既存のものは変えない。詳しい規則は README の「設定ファイル」、セキュリティの方針は [security.md](security.md) の §2 と §8.2 にある。
+設定ファイルのパスは `HOME` だけから導出し、macOS もほかの Unix も `$HOME/.config/yt2column/config.env` である（`XDG_CONFIG_HOME` は読まない）。書式は 1 行に 1 つの `KEY=VALUE` で、空行と `#` で始まる行を読み飛ばし、値を変換せずに使う。受理する形に合わない行（`export `、引用符で始まる値、空白に続く `#`、重複したキー、7 つ以外のキーなど）、制御文字・CR・DEL・U+FEFF、UTF-8 として正しくないバイト列、64 KiB を超える大きさは、直さずにファイル全体を拒否する。サーバは、ファイルが自分の所有する通常のファイルで、シンボリックリンクでなく、モードがちょうど `0600` であることを、読む記述子について確かめ、満たさなければ何も直さずに起動を止める（終了コード `2`）。ACL は検査しない。`yt2column-server config init` は、コメントの行と空行だけの雛形をモード `0600` で作り、既存のものは変えない。詳しい規則は README の「設定ファイル」、セキュリティの方針は [security.md](security.md) の §2 と §8.2 にある。
 
-`YT2COLUMN_LLM` と `YT2COLUMN_REVIEW_LLM` の値は、最初の `/` で区切る。前半がプロバイダで、`deepseek` か `claude` に完全に一致しなければならない。残りの全体がモデル ID で、その中の `/` も含めて、変換せずにそのまま API に送る（`claude/vendor/model-x` ならモデルは `vendor/model-x`）。モデル ID が空の値（`claude`・`claude/`）、プロバイダの部分が空か不正な値（`/claude-opus-5-5`・`Claude/claude-opus-5-5`・` claude/claude-opus-5-5`）は設定エラーにする。前後の空白は取り除かない。前後に空白があるモデル ID は、設定の読み込みでは拒否せず、その工程のクライアントを作るときに、通信の前にアダプタが拒否する。
+`YT2COLUMN_LLM` と `YT2COLUMN_REVIEW_LLM` の値は、最初の `/` で区切る。前半がプロバイダで、`deepseek`、`claude`、`openai` に完全に一致しなければならない。残りの全体がモデル ID で、その中の `/` も含めて、変換せずにそのまま API に送る（`claude/vendor/model-x` ならモデルは `vendor/model-x`）。モデル ID が空の値（`claude`・`claude/`）、プロバイダの部分が空か不正な値（`/claude-opus-5-5`・`Claude/claude-opus-5-5`・` claude/claude-opus-5-5`）は設定エラーにする。前後の空白は取り除かない。前後に空白があるモデル ID は、設定の読み込みでは拒否せず、その工程のクライアントを作るときに、通信の前にアダプタが拒否する。
 
 最初の `/` より後ろ（後半）に `+` があれば、`+` より前がモデル ID、後ろが effort の部分である。`+` を探すのは後半だけで、後半の `+` は 1 つまでとする（2 つ以上は設定エラー）。effort の部分は、プロバイダごとに次の表の値に完全に一致しなければならない。空の effort の部分（`claude/claude-opus-5-5+`）と、一致しない値（`claude/claude-opus-5-5+High`・`deepseek/deepseek-flash+medium`）は、既定の effort で補わず、モデル ID の一部ともみなさずに設定エラーにする。`+` より前のモデル ID が空の値（`claude/+high`）も設定エラーにする。
 
 | プロバイダ | 受理する effort | effort を省いたとき |
 |---|---|---|
 | `claude` | `low`・`medium`・`high`・`xhigh`・`max` | `high` を送る |
+| `openai` | `none`・`minimal`・`low`・`medium`・`high`・`xhigh`・`max` | `medium` を送る |
 | `deepseek` | `none`・`low`・`high`・`max` | 何も送らない（thinking は API のデフォルト） |
+
+OpenAI の設定は受理して検査するが、OpenAI のアダプタを工程に配線するのは後続の変更である。配線が入るまでは、`openai` を選んだ工程はクライアントの構築で失敗する。
 
 `YT2COLUMN_LLM` が未設定なら、生成と字数の調整は `claude/claude-opus-5-5` を effort `high` で使う。`YT2COLUMN_REVIEW_LLM` が未設定なら、検証・推敲は生成と同じプロバイダ・モデル・effort（既定値を含む）を使う。`YT2COLUMN_REVIEW_LLM` を設定して effort を省けば、生成の effort は受け継がず、上の表の「effort を省いたとき」に従う。どちらも、空の値は既定値や生成の組で補わずに設定エラーにする。
 

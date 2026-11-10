@@ -13,6 +13,7 @@ import (
 
 	"github.com/isseis/yt2column/internal/llm/claudeparam"
 	"github.com/isseis/yt2column/internal/llm/deepseekparam"
+	"github.com/isseis/yt2column/internal/llm/openaiparam"
 )
 
 // The server-relevant variable names and the socket path rule, exposed so the
@@ -79,12 +80,17 @@ func AnthropicAPIKeyEnvForTest() string { return anthropicAPIKeyEnv }
 // LLM variable's value has no effort part.
 func DefaultClaudeEffortForTest() string { return defaultClaudeEffort.String() }
 
+// DefaultOpenAIEffortForTest returns the effort an openai stage uses when its
+// LLM variable's value has no effort part.
+func DefaultOpenAIEffortForTest() string { return defaultOpenAIEffort.String() }
+
 // EffortValuesByProviderForTest returns, for each provider part the LLM
 // variables accept, the effort values parseLLM accepts for it.
 func EffortValuesByProviderForTest() map[string][]string {
 	return map[string][]string{
 		providerClaude:   claudeparam.EffortValues(),
 		providerDeepSeek: deepseekparam.EffortValues(),
+		providerOpenAI:   openaiparam.EffortValues(),
 	}
 }
 
