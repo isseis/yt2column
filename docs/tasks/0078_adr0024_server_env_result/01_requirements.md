@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `simple` |
 | Created | 2026-11-10 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-10 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -108,3 +108,7 @@ AC-04 と AC-05 は欠番である。直しを編集上の訂正として記録�
 -   用語は `docs/translation_glossary.md` と統一する。
 -   **編集上の訂正:** ADR の決定を変えずに書き方を直すことのうち、規約が挙げる 4 種類のもの。「経緯」に項目を足さない（`docs/dev/conventions/adr.md`「Editorial corrections」）。
 -   **決定の変更:** 編集上の訂正に当たらない ADR の変更。その決定をする PR が ADR を変え、「経緯」に項目を足す（`docs/dev/conventions/adr.md`「Approval and the PR」「History entries」）。
+
+## 変更履歴
+
+- 2026-11-10 承認（isseis、#780）

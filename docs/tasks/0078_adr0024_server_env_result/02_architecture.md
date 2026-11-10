@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-10 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-10 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 設計の全体像
@@ -78,3 +78,7 @@ ADR-0024 の変更は 3 文書の PR（#780）に入るので、確かめる変�
 ## 9. 将来の拡張性
 
 N/A。拡張の対象がない。
+
+## 変更履歴
+
+- 2026-11-10 承認（isseis、#780）
