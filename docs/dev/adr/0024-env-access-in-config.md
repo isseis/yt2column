@@ -12,13 +12,10 @@ API キーと Webhook URL は環境変数から読む。読む場所がコード
 
 ## 決定
 
--   **プロセスの環境変数を設定として読むのは `internal/config` だけにする。** 設定を使うコードは、環境そのものではなく、`internal/config` が返した値か、名前を引く関数を受け取る。秘密情報の変数名（`DEEPSEEK_API_KEY`・`ANTHROPIC_API_KEY`・`SLACK_WEBHOOK_URL`）は、テスト以外の Go のコードでは `internal/config` にだけ現れる。
--   **`internal/config` の外で環境を参照してよいのは、次の場所だけである。**
-    -   `cmd/yt2column/main.go`・`cmd/yt2column-server/main.go`・`cmd/yt2column-nmhost/main.go` は、`os.LookupEnv` を 1 回だけ参照し、その関数を設定の読み込みに渡す。
-    -   `internal/transcript/ytdlp.go` は、`os.Environ` を 1 回だけ参照し、`yt-dlp` に引き継ぐ変数を allowlist で選ぶ（[security.md](../security.md) §1）。
-    -   `cmd/fixprguard/main.go` は、git に渡す環境を読み、`GH_REPO` と `GH_HOST` は拒否するためだけに参照する。`cmd/codexreview/main.go`・`cmd/coveragecompare/main.go` は、子プロセスに渡す環境を読む。
--   **標準ライブラリが自分の動作のために読む変数は、この規則の対象にしない。** `exec.LookPath` の `PATH`、`os.TempDir` の `TMPDIR`、`os.Getwd` の `PWD` などは、呼び出し元に値を返さず、秘密情報の変数を読まない。
--   **規則は `internal/config/envaccess_test.go` が、テスト以外の Go のコードを走査して確かめる。** 対象の関数と許す場所を一覧で持ち、一覧にない参照と、`internal/config` 以外の秘密情報の変数名を失敗にする。新しい入口を足すときは、この一覧に行を足す。
+-   **プロセスの環境変数を設定として読むのは `internal/config` だけにする。** 設定を使うコードは、環境そのものではなく、`internal/config` が返した値か、名前を引く関数を受け取る。秘密情報の変数名は、テスト以外の Go のコードでは `internal/config` にだけ現れる。秘密情報を読む場所を限るためである（[0005 設計書](../../tasks/0005_cli_assembly/02_architecture.md) §3.1 の「環境変数を読む場所の検査（F-002・AC-09）」）。規則は [0005 要件定義書](../../tasks/0005_cli_assembly/01_requirements.md) の F-002 にある。秘密情報の変数名の一覧は `internal/config/envaccess_test.go` にある。
+-   **`internal/config` の外で環境を参照してよいのは、決めた入口だけである。** 入口は 3 種類で、プロセスの環境を名前を引く関数として設定の読み込みに渡す、CLI・サーバ・Native Messaging のホストの `main` パッケージ、`yt-dlp` に引き継ぐ変数を allowlist で選ぶ処理（[security.md](../security.md) §1）、子プロセスに渡す環境を読む開発者向けの道具である。各 `main` はプロセスの環境を `internal/config` に渡すためだけに参照し、`yt-dlp` に引き継ぐ処理は秘密情報の変数を引き継がない（0005 要件定義書 F-002）。開発者向けの道具は、子プロセスに環境を渡すために環境全体を読む必要がある。許す場所とその参照の数の一覧は `internal/config/envaccess_test.go` にある。
+-   **標準ライブラリが自分の動作のために読む変数は、この規則の対象にしない。** `exec.LookPath` の `PATH`、`os.TempDir` の `TMPDIR`、`os.Getwd` の `PWD` などは、呼び出し元に値を返さず、秘密情報の変数を読まない。秘密情報を読む場所を限るという目的は、この区別で満たせるためである（0005 設計書 §3.1 の「環境変数を読む場所の検査（F-002・AC-09）」）。
+-   **規則は `internal/config/envaccess_test.go` が、テスト以外の Go のコードを走査して確かめる。** 対象の関数と許す場所を一覧で持ち、一覧にない参照と、`internal/config` 以外の秘密情報の変数名を失敗にする。新しい入口を足すときは、この一覧に行を足す。理由は記録されていない。
 
 LLM の設定の値の文法と、値の解析を `internal/config` が行うことは [ADR-0003](0003-llm-config-contract.md) が定める。
 
