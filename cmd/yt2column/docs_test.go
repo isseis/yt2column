@@ -309,8 +309,9 @@ func TestLLMDefaultsDocsContract(t *testing.T) {
 // both README versions and project_overview.md: each provider the
 // configuration accepts has exactly one row, no other provider has one, and
 // the code spans of the row's accepted-values cell are exactly the values the
-// configuration accepts for that provider. The claude row's next cell, the
-// effort sent when the value has none, starts with the code's default effort.
+// configuration accepts for that provider. The next cell of a row whose
+// provider has a code default (claude, openai), the effort sent when the value
+// has none, starts with the code's default effort.
 func TestEffortValuesDocsContract(t *testing.T) {
 	docs := []struct {
 		name, path, providerHeader, valuesHeader string
@@ -324,11 +325,16 @@ func TestEffortValuesDocsContract(t *testing.T) {
 		})
 	}
 	want := config.EffortValuesByProviderForTest()
-	// claudeProvider is the provider part whose omitted effort has a code
-	// default; deepseek sends none.
-	const claudeProvider = "claude"
-	if _, ok := want[claudeProvider]; !ok {
-		t.Fatalf("the configuration accepts no %q provider", claudeProvider)
+	// codeDefaults maps a provider part to the effort its omitted effort has
+	// in the code; deepseek sends none and has no entry.
+	codeDefaults := map[string]string{
+		"claude": config.DefaultClaudeEffortForTest(),
+		"openai": config.DefaultOpenAIEffortForTest(),
+	}
+	for provider := range codeDefaults {
+		if _, ok := want[provider]; !ok {
+			t.Fatalf("the configuration accepts no %q provider", provider)
+		}
 	}
 	for _, doc := range docs {
 		t.Run(doc.name, func(t *testing.T) {
@@ -361,14 +367,14 @@ func TestEffortValuesDocsContract(t *testing.T) {
 				if !slices.Equal(slices.Sorted(slices.Values(got)), slices.Sorted(slices.Values(values))) {
 					t.Errorf("%s: the %s row lists %q, want %q", doc.name, provider, got, values)
 				}
-				if provider == claudeProvider {
+				if defaultEffort, ok := codeDefaults[provider]; ok {
 					if len(row) <= valuesColumn+1 {
 						t.Errorf("%s: the %s row has no cell after the accepted values", doc.name, provider)
 						continue
 					}
-					if first, ok := firstCodeSpan(row[valuesColumn+1]); !ok || first != config.DefaultClaudeEffortForTest() {
+					if first, ok := firstCodeSpan(row[valuesColumn+1]); !ok || first != defaultEffort {
 						t.Errorf("%s: the %s row's omitted-effort cell starts with %q, want the default %q",
-							doc.name, provider, first, config.DefaultClaudeEffortForTest())
+							doc.name, provider, first, defaultEffort)
 					}
 				}
 			}

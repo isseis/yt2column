@@ -13,11 +13,11 @@ import (
 	"github.com/isseis/yt2column/internal/privatefile"
 )
 
-// serverFileKeys are the six keys the configuration file accepts: the names
+// serverFileKeys are the seven keys the configuration file accepts: the names
 // of the variables the CLI reads, written once at the top of config.go.
 var serverFileKeys = []string{
 	llmEnv, reviewLLMEnv, deepSeekAPIKeyEnv,
-	anthropicAPIKeyEnv, anthropicWorkspaceIDEnv, slackEnv,
+	anthropicAPIKeyEnv, openAIAPIKeyEnv, anthropicWorkspaceIDEnv, slackEnv,
 }
 
 // serverFileMaxSize is the largest configuration file accepted, in bytes.
@@ -420,7 +420,7 @@ const serverFileTemplate = `# yt2column-server configuration file.
 # To set a key, remove the "# " before it and write the value after "=".
 
 # The LLM that writes and shortens the article, as <provider>/<model ID>,
-# optionally followed by +<effort>; the provider is ` + providerDeepSeek + ` or ` + providerClaude + `.
+# optionally followed by +<effort>; the provider is ` + providerDeepSeek + `, ` + providerClaude + `, or ` + providerOpenAI + `.
 # When unset: ` + defaultLLMValue + `.
 # ` + llmEnv + `=
 
@@ -434,6 +434,9 @@ const serverFileTemplate = `# yt2column-server configuration file.
 
 # The Anthropic API key, required when a step uses ` + providerClaude + `.
 # ` + anthropicAPIKeyEnv + `=
+
+# The OpenAI API key, required when a step uses ` + providerOpenAI + `.
+# ` + openAIAPIKeyEnv + `=
 
 # The Anthropic workspace ID, for an API key not bound to a workspace.
 # When unset, no workspace ID is sent.

@@ -58,19 +58,19 @@
 
 **変更ファイル:** `internal/llm/openaiparam/openaiparam.go`・`openaiparam_test.go`（新規）、`internal/config/config.go`・`config_test.go`・`test_helpers.go`。
 
-- [ ] 設計書 §3.1 の effort 型・一覧・解析と `ProviderOpenAI`、工程の選択、キーの取得口を加える。
-- [ ] `test_helpers.go` の `EffortValuesByProviderForTest` と OpenAI の既定 effort の取得口を更新し、既存の設定テストを拡張して、7 effort、既定・継承、未知モデルと `/`、不正な選択、両方向の混在を検証する。
-- [ ] キーの欠け・空、未選択のキーの無視、再開で必要な工程だけを読むことを検証する。旧2プロバイダと本番の既定を維持する。
+- [x] 設計書 §3.1 の effort 型・一覧・解析と `ProviderOpenAI`、工程の選択、キーの取得口を加える。
+- [x] `test_helpers.go` の `EffortValuesByProviderForTest` と OpenAI の既定 effort の取得口を更新し、既存の設定テストを拡張して、7 effort、既定・継承、未知モデルと `/`、不正な選択、両方向の混在を検証する。
+- [x] キーの欠け・空、未選択のキーの無視、再開で必要な工程だけを読むことを検証する。旧2プロバイダと本番の既定を維持する。
 
 #### ステップ 1-2：サーバの入力境界とガードをそろえる
 
 **変更ファイル:** `internal/config/serverfile.go`・`serverfile_test.go`・`envaccess_test.go`、`internal/pipeline/pipeline_test.go`、`cmd/yt2column/docs_test.go`・`cmd/yt2column-server/docs_test.go`、`README.md`・`README.en.md`、`docs/dev/project_overview.md`・`docs/dev/security.md`・`docs/dev/conventions/package_reference.md`。
 
-- [ ] 許可する7キーとコメントだけの雛形を追加し、既存6キーのファイルも読み込む。環境による補完を設けない。
-- [ ] `TestParseServerFileAccepts`・`TestParseServerFileRejects`・`TestServerFileTemplate` と設定のテストを拡張し、書式・サイズ・所有者・権限・未知キーの拒否を保つ。
-- [ ] `TestEnvAccessConfined` の秘密名と `TestConfigImports` の許可パッケージを更新する。新しい環境読み込みを入口と config 以外に広げない。
+- [x] 許可する7キーとコメントだけの雛形を追加し、既存6キーのファイルも読み込む。環境による補完を設けない。
+- [x] `TestParseServerFileAccepts`・`TestParseServerFileRejects`・`TestServerFileTemplate` と設定のテストを拡張し、書式・サイズ・所有者・権限・未知キーの拒否を保つ。
+- [x] `TestEnvAccessConfined` の秘密名と `TestConfigImports` の許可パッケージを更新する。新しい環境読み込みを入口と config 以外に広げない。
 
-- [ ] `TestEffortValuesDocsContract` と `TestServerDocsContract` が参照する provider・effort・7キーの値を両 README・project_overview・security に反映する。`openaiparam` をパッケージ参照表に加え、`TestPackageReferenceListsPackages` を実行する。README は同じコミットで `/mktrans README.md` により同期する。案内では配線が後続の PR であることを区別する。
+- [x] `TestEffortValuesDocsContract` と `TestServerDocsContract` が参照する provider・effort・7キーの値を両 README・project_overview・security に反映する。`openaiparam` をパッケージ参照表に加え、`TestPackageReferenceListsPackages` を実行する。README は同じコミットで `/mktrans README.md` により同期する。案内では配線が後続の PR であることを区別する。
 
 **完了条件:** 対象テスト、README 同期、`make ext-test` とグリーンゲートが通る。この時点では provider の通信経路を追加しない。
 
