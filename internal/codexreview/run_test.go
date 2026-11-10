@@ -261,6 +261,17 @@ func TestRunPreconditions(t *testing.T) {
 			kind:     KindPrecondition, detail: detailVersionUnreadable, versionStarted: true,
 		},
 		{
+			// HEAD on a ref outside refs/heads/ cannot be read as a branch,
+			// so the run stops before codex reviews.
+			name: "head_outside_branches",
+			prepare: func(_ *testing.T, fx fixture) string {
+				fx.repo.Git("tag", "at-head")
+				fx.repo.Git("symbolic-ref", "HEAD", "refs/tags/at-head")
+				return fx.base
+			},
+			kind: KindPrecondition, detail: detailGitFailed, versionStarted: true,
+		},
+		{
 			// A change after the first clean check must still keep codex from
 			// reviewing: the baseline itself has to be clean.
 			name: "change_while_version_runs",
@@ -686,13 +697,53 @@ func TestRunCancelStopsProcessGroup(t *testing.T) {
 // TestRunAfterStateUnreadable checks that a run whose state after codex
 // cannot be read returns no result.
 func TestRunAfterStateUnreadable(t *testing.T) {
-	fx := newFixture(t)
-	b := completed(noFindingsMessage)
-	b.Removes = []string{filepath.Join(fx.fake.BinDir, "git")}
-	fx.fake.Set(b)
-	r, err := Run(context.Background(), fx.base, os.Environ())
-	if !errors.Is(err, errAfterStateUnreadable) || !reflect.DeepEqual(r, Result{}) {
-		t.Errorf("Run = %+v, %v, want no result and %v", r, err, errAfterStateUnreadable)
+	tests := []struct {
+		name string
+		// act sets up the repository and makes the fake codex leave a state
+		// that cannot be read.
+		act func(fx fixture, b *codexreviewtestutil.Behavior)
+		// headUnreadable: the HEAD output, not git, is what fails.
+		headUnreadable bool
+	}{
+		{
+			name: "git_removed",
+			act: func(fx fixture, b *codexreviewtestutil.Behavior) {
+				b.Removes = []string{filepath.Join(fx.fake.BinDir, "git")}
+			},
+		},
+		{
+			name: "head_outside_branches",
+			act: func(fx fixture, b *codexreviewtestutil.Behavior) {
+				fx.repo.Git("tag", "at-head")
+				b.GitDir = fx.repo.Dir
+				b.Git = [][]string{{"symbolic-ref", "HEAD", "refs/tags/at-head"}}
+			},
+			headUnreadable: true,
+		},
+		{
+			// HEAD then names a branch that does not exist, so it resolves
+			// to no commit.
+			name: "head_branch_deleted",
+			act: func(fx fixture, b *codexreviewtestutil.Behavior) {
+				b.GitDir = fx.repo.Dir
+				b.Git = [][]string{{"update-ref", "-d", "refs/heads/main"}}
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fx := newFixture(t)
+			b := completed(noFindingsMessage)
+			tt.act(fx, &b)
+			fx.fake.Set(b)
+			r, err := Run(context.Background(), fx.base, os.Environ())
+			if !errors.Is(err, errAfterStateUnreadable) || !reflect.DeepEqual(r, Result{}) {
+				t.Errorf("Run = %+v, %v, want no result and %v", r, err, errAfterStateUnreadable)
+			}
+			if tt.headUnreadable && !errors.Is(err, errHeadUnreadable) {
+				t.Errorf("Run = %v, want %v", err, errHeadUnreadable)
+			}
+		})
 	}
 }
 

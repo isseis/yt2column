@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -45,10 +46,11 @@ var (
 
 // gitState is the repository state compared before and after codex runs.
 type gitState struct {
-	status string
-	head   string
-	refs   map[string]string // ref name to the object it points at
-	stash  string
+	status    string
+	branchRef string            // the ref of the branch HEAD is on, such as "refs/heads/main"; empty when HEAD is detached
+	commit    string            // the object ID HEAD resolves to
+	refs      map[string]string // ref name to the object it points at
+	stash     string
 }
 
 // readState reads the compared state.
@@ -57,7 +59,7 @@ func readState(ctx context.Context, g git) (gitState, error) {
 	if err != nil {
 		return gitState{}, err
 	}
-	head, err := readHead(ctx, g)
+	branchRef, commit, err := readHead(ctx, g)
 	if err != nil {
 		return gitState{}, err
 	}
@@ -73,25 +75,70 @@ func readState(ctx context.Context, g git) (gitState, error) {
 	if err != nil {
 		return gitState{}, err
 	}
-	return gitState{status: string(status), head: head, refs: refs, stash: string(stash)}, nil
+	return gitState{status: string(status), branchRef: branchRef, commit: commit, refs: refs, stash: string(stash)}, nil
 }
 
-// readHead returns the branch HEAD is on (empty when detached) and the commit
-// it points at, so a checkout of another branch at the same commit differs.
-func readHead(ctx context.Context, g git) (string, error) {
-	commit, err := g.run(ctx, "rev-parse", "--verify", "HEAD")
+// readHead runs rev-parse and symbolic-ref and returns what parseHead reads
+// from their output: the ref of the branch HEAD is on (empty when detached)
+// and the commit HEAD resolves to, so a checkout of another branch at the same
+// commit differs.
+func readHead(ctx context.Context, g git) (branchRef, commit string, err error) {
+	commitOut, err := g.run(ctx, "rev-parse", "--verify", "HEAD")
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	branch, err := g.run(ctx, "symbolic-ref", "-q", "HEAD")
+	branchOut, err := g.run(ctx, "symbolic-ref", "-q", "HEAD")
+	detached := false
 	if exitErr, ok := errors.AsType[*cmdrunner.ExitError](err); ok && exitErr.Code == 1 {
 		// Exit status 1 with -q means HEAD is detached.
-		branch, err = nil, nil
+		branchOut, err, detached = nil, nil, true
 	}
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	return string(branch) + string(commit), nil
+	return parseHead(commitOut, branchOut, detached)
+}
+
+// errHeadUnreadable reports rev-parse or symbolic-ref output that is not the
+// one line of its fixed form.
+var errHeadUnreadable = errors.New("unexpected HEAD output")
+
+// parseHead checks the output of rev-parse --verify HEAD and of
+// symbolic-ref -q HEAD against their fixed forms. detached is true when
+// symbolic-ref exited with status 1, and branchOut must then be empty.
+//
+// Contract: output of any other form is rejected, never repaired, and none of
+// it reaches the error. The commit is a full SHA-1 object ID in lowercase hex,
+// the only form Run accepts as the base. The branch is a ref under
+// refs/heads/: HEAD pointing anywhere else is unreadable, so the caller stops
+// instead of comparing a ref that is not a branch.
+func parseHead(commitOut, branchOut []byte, detached bool) (branchRef, commit string, err error) {
+	commit, ok := oneLine(commitOut)
+	if !ok || !ValidBase(commit) {
+		return "", "", fmt.Errorf("rev-parse: %w", errHeadUnreadable)
+	}
+	if detached {
+		if len(branchOut) != 0 {
+			return "", "", fmt.Errorf("symbolic-ref: %w", errHeadUnreadable)
+		}
+		return "", commit, nil
+	}
+	branchRef, ok = oneLine(branchOut)
+	name, isBranch := strings.CutPrefix(branchRef, "refs/heads/")
+	if !ok || !isBranch || name == "" || strings.ContainsRune(branchRef, 0) {
+		return "", "", fmt.Errorf("symbolic-ref: %w", errHeadUnreadable)
+	}
+	return branchRef, commit, nil
+}
+
+// oneLine returns out without its newline when out is exactly one line that
+// ends in one newline.
+func oneLine(out []byte) (string, bool) {
+	line, ok := bytes.CutSuffix(out, []byte("\n"))
+	if !ok || bytes.ContainsRune(line, '\n') {
+		return "", false
+	}
+	return string(line), true
 }
 
 // errRefsUnreadable reports for-each-ref output that is not one name and
@@ -120,7 +167,7 @@ func changedItems(before, after gitState) (items, refs []string) {
 	if before.status != after.status {
 		items = append(items, itemStatus)
 	}
-	if before.head != after.head {
+	if before.branchRef != after.branchRef || before.commit != after.commit {
 		items = append(items, itemHead)
 	}
 	for name, object := range before.refs {

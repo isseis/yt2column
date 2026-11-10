@@ -81,13 +81,13 @@
 
 **変更するファイル:** `internal/codexreview/state.go`、`internal/codexreview/state_test.go`（新規）、`internal/codexreview/run_test.go`
 
--   [ ] `errHeadUnreadable` と `parseHead` を加え、`readHead` が `parseHead` を通して `branchRef` と `commit` を返すようにする（設計書 3.2、4 章）。エラーの文には、コマンド名（`rev-parse` か `symbolic-ref`）を前に付け、元のエラーとして `errHeadUnreadable` を含めて返す。git の出力の中身はエラーの文に入れない。
--   [ ] `gitState.head` を `branchRef` と `commit` に分ける（台帳）。このフェーズの `changedItems` は、`branchRef` か `commit` が違えば `head` とする。すべての参照と stash の比較は、このフェーズでは変えない。`readHead` のコメントを、形の確かめを述べる形に改める（設計書 3.5）。
--   [ ] `state_test.go` に `describeRefs` の単体テスト `TestDescribeRefs` を加える。`internal/cmdrunner/testutil` の `Fake` を `runner` にした `git` を使い、`Fake` の手順には `git.run` が前に付ける `cmdrunner.GitHardening()` の引数も含める。確かめるのは、`worktree list` が失敗するときは ref だけが返ること、どの worktree も checkout していない ref は ref だけで返ること、checkout している ref は worktree を併記して返ることである（本書 1.2）。
--   [ ] `state_test.go` に `TestParseHead` を加え、設計書 3.2 の表の受け入れる形と受け入れない形を表で確かめる。受け入れない形には、設計書 7.1 の形に加えて、64 桁の 16 進数、16 進数でない小文字（`g` など）、空の commit の出力、detached でないのに空のブランチの出力を入れる。規則ごとに、その規則が適用される出力（commit の出力とブランチの出力）のそれぞれで、規則に反する形を 1 行以上置く。受け入れない形では `errors.Is(err, errHeadUnreadable)` と、受け入れない出力に入れた目印の文字列がエラーの文にないことを確かめる。ファイルの先頭は、同じパッケージのほかのテストと同じく `//go:build test` にする。
--   [ ] `TestRunPreconditions` に、`git symbolic-ref` で HEAD を、あらかじめ HEAD の commit を指すタグへ向けておく行を加える。期待は `precondition`/`git_failed` で、偽の `codex` の記録は `version` だけ（レビューの実行がない）である。
--   [ ] `TestRunAfterStateUnreadable` を表の形にし、今の場合（git を消す）のほかに、実行の間に HEAD をタグへ向ける行と、実行の間に `git update-ref -d` で HEAD のブランチの ref を消す行を加える。どの行も、`errAfterStateUnreadable` を含むエラーと空の `Result` を確かめる。HEAD をタグへ向ける行は、`errHeadUnreadable` を含むことも確かめる。
--   [ ] 失敗することを確かめ、コミットメッセージに書く：`readHead` が `parseHead` を通さないようにすると、HEAD をタグへ向ける 2 つの行が失敗すること。`parseHead` の規則を 1 つずつ外すと、`TestParseHead` の対応する行が失敗すること。`readHead` が `rev-parse` の失敗を握りつぶし、`parseHead` を通さずに空の commit を返すようにすると、HEAD のブランチの ref を消す行が失敗すること。
+-   [x] `errHeadUnreadable` と `parseHead` を加え、`readHead` が `parseHead` を通して `branchRef` と `commit` を返すようにする（設計書 3.2、4 章）。エラーの文には、コマンド名（`rev-parse` か `symbolic-ref`）を前に付け、元のエラーとして `errHeadUnreadable` を含めて返す。git の出力の中身はエラーの文に入れない。
+-   [x] `gitState.head` を `branchRef` と `commit` に分ける（台帳）。このフェーズの `changedItems` は、`branchRef` か `commit` が違えば `head` とする。すべての参照と stash の比較は、このフェーズでは変えない。`readHead` のコメントを、形の確かめを述べる形に改める（設計書 3.5）。
+-   [x] `state_test.go` に `describeRefs` の単体テスト `TestDescribeRefs` を加える。`internal/cmdrunner/testutil` の `Fake` を `runner` にした `git` を使い、`Fake` の手順には `git.run` が前に付ける `cmdrunner.GitHardening()` の引数も含める。確かめるのは、`worktree list` が失敗するときは ref だけが返ること、どの worktree も checkout していない ref は ref だけで返ること、checkout している ref は worktree を併記して返ることである（本書 1.2）。
+-   [x] `state_test.go` に `TestParseHead` を加え、設計書 3.2 の表の受け入れる形と受け入れない形を表で確かめる。受け入れない形には、設計書 7.1 の形に加えて、64 桁の 16 進数、16 進数でない小文字（`g` など）、空の commit の出力、detached でないのに空のブランチの出力を入れる。規則ごとに、その規則が適用される出力（commit の出力とブランチの出力）のそれぞれで、規則に反する形を 1 行以上置く。受け入れない形では `errors.Is(err, errHeadUnreadable)` と、受け入れない出力に入れた目印の文字列がエラーの文にないことを確かめる。ファイルの先頭は、同じパッケージのほかのテストと同じく `//go:build test` にする。
+-   [x] `TestRunPreconditions` に、`git symbolic-ref` で HEAD を、あらかじめ HEAD の commit を指すタグへ向けておく行を加える。期待は `precondition`/`git_failed` で、偽の `codex` の記録は `version` だけ（レビューの実行がない）である。
+-   [x] `TestRunAfterStateUnreadable` を表の形にし、今の場合（git を消す）のほかに、実行の間に HEAD をタグへ向ける行と、実行の間に `git update-ref -d` で HEAD のブランチの ref を消す行を加える。どの行も、`errAfterStateUnreadable` を含むエラーと空の `Result` を確かめる。HEAD をタグへ向ける行は、`errHeadUnreadable` を含むことも確かめる。
+-   [x] 失敗することを確かめ、コミットメッセージに書く：`readHead` が `parseHead` を通さないようにすると、HEAD をタグへ向ける 2 つの行が失敗すること。`parseHead` の規則を 1 つずつ外すと、`TestParseHead` の対応する行が失敗すること。`readHead` が `rev-parse` の失敗を握りつぶし、`parseHead` を通さずに空の commit を返すようにすると、HEAD のブランチの ref を消す行が失敗すること。
 
 **完了の条件:** `make fmt`・`make test`・`make lint` が通る。
 
