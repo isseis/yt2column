@@ -109,8 +109,8 @@
         {
           "adr": "docs/dev/adr/0012-lightweight-check-in-bash.md",
           "before": "docs/dev/conventions/requirements_process.md",
-          "after": "",
-          "reason": "the Lightweight Process section the link pointed at was removed with the process (0075), and the sentence states the conditions itself"
+          "after": "docs/tasks/0061_lightweight_process/02_architecture.md",
+          "reason": "the Lightweight Process section the old link pointed at was removed with the process (0075); the conditions it defined are in the 0061 design 3.1"
         }
       ],
       "line_changes": [],
