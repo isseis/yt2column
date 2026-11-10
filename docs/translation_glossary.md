@@ -113,6 +113,9 @@
 | 受け付ける接頭辞 | accepted prefix | `.claude/commands/_context.md` の「PR title and squash subject」の表に合う接頭辞。合わないものは直さず、ないものとして扱う |
 | 要約 | summary | PR のタイトルまたは件名のうち、接頭辞の後の部分。PR のタイトルでは日本語、件名では英語。日本語の要約にも、コマンド名・ファイル名・識別子を表記を変えずに含めてよい |
 | プランの PR | plan PR | `/runplan` が開く、実装計画書に基づく PR。判定は `.claude/commands/_context.md` の「Plan PR」 |
+| 通常の進め方 | full process | 要件定義書・アーキテクチャ設計書・実装計画書を 1 本ずつ別の PR で作り、前の文書が `approved` になってから次の文書を書く進め方。進め方の記録が `` `full` `` か、記録の行がないタスク（`requirements_process.md`「Review Flow」） |
+| 簡易な進め方 | simple process | 3 文書を変更の規模に合わせた簡易な内容で、`/mkreq` が 1 本の PR で作る進め方。人は 3 文書を 1 回のマージの質問で承認する。進め方の記録が `` `simple` `` のタスク（`requirements_process.md`「Simple Process」） |
+| 進め方の記録 | process record | 要件定義書の状態表の `Process` 行。値は `` `simple` `` か `` `full` ``。値と記録の状態は `requirements_process.md`「Document Status Format」の「Process record」に定める |
 | 対処 | remedy | 問題が起きたときに開発者が取る手順。見出しでは "What to Do When ..." とする |
 | 高圧縮ファイル爆弾 | decompression bomb | 展開すると膨大なサイズになり、メモリなどを使い切らせる圧縮データ、およびそれを使った攻撃。HTTP 応答の gzip も含む。旧称: 圧縮爆弾 |
 | フェーズ | phase | `/fixpr` を構成する処理の単位（Phase 1〜6 と、その間の Phase 3.5・4.5。取得・トリアージ・修正・範囲の確認・build と push・ローカルのレビュー・返信と解決・PR の説明の確認）。パイプラインの「ステージ」（stage）とは区別する |
