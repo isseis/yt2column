@@ -129,16 +129,16 @@
 
 **変更するファイル:** `.claude/commands/_lib/local-cli-review.md`、`docs/dev/adr/0013-review-setup.md`、`docs/tasks/0079_codexreview_state_scope/_checks/check.sh`（新規）、本書（7 章の記録）
 
--   [ ] `local-cli-review.md` の手順 3、`stop` の説明の最後の文（「A `state_changed` caused by another session's commit or stash in another worktree ... is still a stop: the user decides.」）を、設計書 3.4 の 2 点（ほかの worktree の操作でも HEAD のブランチが動けば `state_changed` になって止めること、ほかのブランチ・タグ・stash の変化では `state_changed` にならないこと）を述べる文に書き換える。`_checks/check.sh` がこの文を切り取れるよう、書き換えた文も「A `state_changed` caused by」で始める。
--   [ ] ADR-0013 の決定の 4 つ目の項目から、ずれの記述の 3 文（「この決定は、まだ…」から「…#778 で扱う。」まで）を除く。PR を作る前に、`docs/dev/conventions/adr.md`「Discrepancy statements」のとおり `git grep -nE 'issues/778([^0-9]|$)' origin/main -- docs/dev/adr/` でほかにずれの記述がないかを確かめる。編集上の訂正なので、コミットメッセージに correction line（`Editorial correction: docs/dev/adr/0013-review-setup.md: ...; no decision changed`）を書く。PR の説明の correction paragraph は、`/runplan` が PR を作るときに書く。
--   [ ] `_checks/check.sh` を書く。引数に変更の前と後の 2 つのコミットを受け取り、次を確かめて、項目ごとに結果を 1 行出す（手本はタスク 0078 の `docs/tasks/0078_adr0024_server_env_result/_checks/check.sh`）。
+-   [x] `local-cli-review.md` の手順 3、`stop` の説明の最後の文（「A `state_changed` caused by another session's commit or stash in another worktree ... is still a stop: the user decides.」）を、設計書 3.4 の 2 点（ほかの worktree の操作でも HEAD のブランチが動けば `state_changed` になって止めること、ほかのブランチ・タグ・stash の変化では `state_changed` にならないこと）を述べる文に書き換える。`_checks/check.sh` がこの文を切り取れるよう、書き換えた文も「A `state_changed` caused by」で始める。
+-   [x] ADR-0013 の決定の 4 つ目の項目から、ずれの記述の 3 文（「この決定は、まだ…」から「…#778 で扱う。」まで）を除く。PR を作る前に、`docs/dev/conventions/adr.md`「Discrepancy statements」のとおり `git grep -nE 'issues/778([^0-9]|$)' origin/main -- docs/dev/adr/` でほかにずれの記述がないかを確かめる。編集上の訂正なので、コミットメッセージに correction line（`Editorial correction: docs/dev/adr/0013-review-setup.md: ...; no decision changed`）を書く。PR の説明の correction paragraph は、`/runplan` が PR を作るときに書く。
+-   [x] `_checks/check.sh` を書く。引数に変更の前と後の 2 つのコミットを受け取り、次を確かめて、項目ごとに結果を 1 行出す（手本はタスク 0078 の `docs/tasks/0078_adr0024_server_env_result/_checks/check.sh`）。
     -   `internal/codexreview/types.go` の `Protocol` の定義の行が前後で同じであること（AC-11）。
     -   `types.go` の `Result` の型の各フィールドの JSON の名前の並びが、前後で同じであること（AC-11）。
     -   `internal/codexreview/state.go` の `statusArgs` の定義の行が前後で同じであること（AC-04）。
     -   `local-cli-review.md` で、手順 3 の `stop` の箇条を前後とも 1 つの段落につなぎ、「A `state_changed` caused by」から箇条の終わりまでを切り取ったとき、残りのファイル全体が前後で同じであり、切り取った部分は前後で違うこと（AC-12）。行の折り返しが変わっても比べられるようにするためである。
     -   ADR-0013 で、決定の 4 つ目の項目からずれの記述の 3 文を除いた行が後の行と同じで、ほかの行は前後で同じであること。
     -   台帳の消す名前（`itemStash`・`refsArgs`・`stashArgs`・`errRefsUnreadable`・`parseRefs`）が、後のコミットの `internal/codexreview` に単語として現れないこと。フィールド `refs`・`stash` は、`refs` がほかの識別子の引数名にも使われるので、後のコミットの `state.go` の `type gitState struct { … }` の本体だけを見て、ないことを確かめる。
--   [ ] `_checks/check.sh` の各項目について、確かめる対象を壊したコミット（一時的なもの）を後のコミットとして渡すと失敗することを、1 回ずつ確かめる。確かめたことをコミットメッセージに書く。
+-   [x] `_checks/check.sh` の各項目について、確かめる対象を壊したコミット（一時的なもの）を後のコミットとして渡すと失敗することを、1 回ずつ確かめる。確かめたことをコミットメッセージに書く。
 -   [ ] PR のブランチで `sh docs/tasks/0079_codexreview_state_scope/_checks/check.sh $(git merge-base origin/main HEAD) HEAD` を実行し、出力と 2 つのコミット ID を 7 章の記録に書く。
 
 PR の説明には、入れ直しの前後の食い違いの見分け方（設計書 6.2：`changed` に `stash` が入るか、`changed_refs` に HEAD のブランチ以外の ref が入れば、入れ直す前のツールである）と、マージの後に `make install-codexreview` で入れ直すことを書く。`/runplan` が PR を作るときに書くので、チェックボックスにはしない。
