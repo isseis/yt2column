@@ -4,7 +4,7 @@
 # nothing else in it: no line is removed, every added line belongs to a note
 # block that starts with "> **注記（タスク 0076）:**" (the other lines of the
 # block start with ">", and an added empty line is allowed), the Document
-# Status table is byte-identical (the document has no change-history section),
+# Status section is byte-identical (the document has no change-history section),
 # the file's mode does not change, each listed section gains exactly one note
 # before its body (after a task 0057 note when the section has one), no other
 # section gains one, and each note links to a document of task 0076 that
@@ -179,11 +179,11 @@ if ! awk -v marker="$note" '
 	ret=1
 fi
 
-# (3) the Document Status table is byte-identical.
+# (3) the Document Status section is byte-identical.
 extract_status "$tmp/base-doc" >"$tmp/status-base"
 extract_status "$tmp/head-doc" >"$tmp/status-head"
 if ! cmp -s "$tmp/status-base" "$tmp/status-head"; then
-	echo "$doc changed its Document Status table" >&2
+	echo "$doc changed its Document Status section" >&2
 	ret=1
 fi
 
@@ -215,7 +215,18 @@ while IFS= read -r heading; do
 		ret=1
 	fi
 	line=$(grep -F -- "$note" "$tmp/section")
-	targets=$(printf '%s\n' "$line" | grep -oE "\]\($link[^)]*\)" | sed -e 's/^](//' -e 's/)$//' || true)
+	targets=$(printf '%s\n' "$line" | awk -v prefix="]($link" '
+		{
+			s = $0
+			while ((i = index(s, prefix)) > 0) {
+				s = substr(s, i + 2)
+				j = index(s, ")")
+				if (j == 0) break
+				print substr(s, 1, j - 1)
+				s = substr(s, j + 1)
+			}
+		}
+	')
 	if [ -z "$targets" ]; then
 		echo "$doc: the note of section \"$heading\" has no link to a task 0076 document" >&2
 		ret=1
