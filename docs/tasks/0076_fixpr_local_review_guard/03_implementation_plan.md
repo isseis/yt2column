@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-10 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-10 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）の実装計画である。F-NNN・AC-NN は要件書の項番を、「設計書 3.6」などは設計書の節を指す。用語は要件書 3 章・6 章と設計書の用語（基準値、基準値の commit、Phase 4 の commit、1 本につながる、比べる、HEAD の決まり、GUARD、ROOT、対象のファイル）に従う。「ガイド」は `docs/dev/guides/fixprguard_guide.md` を、「手順」と「手順 N」は設計書 1 章と同じく `.claude/commands/_lib/local-cli-review.md` の手順の全体とその step N を指す。
@@ -472,3 +472,7 @@
 
 -   PR-2 のマージの後、タスクの issue（#426）を閉じる（`/runpr` ステップ 5）。ステップ 8-2 で観察していないことを記録した場合は、利用者が決めたとおりにする。
 -   Phase 5・6 の `reply`・`edit-pr`・`append-pr` の前の比較は、要件書 2.3 のスコープ外である（設計書 9 章）。
+
+## 変更履歴
+
+- 2026-11-10 承認（isseis、#782）
