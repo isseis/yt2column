@@ -459,11 +459,11 @@ func (w *Worktree) checkCommit(ctx context.Context, base Baseline, want []change
 	if err != nil {
 		return "", err
 	}
-	tree, parents, stored, err := w.commitObject(ctx, commit)
-	if err != nil {
+	if err := checkBranch(base, branch); err != nil {
 		return "", err
 	}
-	if err := checkBranch(base, branch); err != nil {
+	tree, parents, stored, err := w.commitObject(ctx, commit)
+	if err != nil {
 		return "", err
 	}
 	if !slices.Equal(parents, []string{base.head}) || (message.pinned && stored != message.text) {
