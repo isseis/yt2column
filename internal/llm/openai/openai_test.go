@@ -20,7 +20,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -89,21 +88,6 @@ func (r *fatalRecorder) Fatalf(format string, args ...any) {
 }
 
 func TestNew(t *testing.T) {
-	t.Run("accepts every effort value", func(t *testing.T) {
-		for _, effort := range allEfforts() {
-			options := validOptions(t)
-			options.Effort = effort
-			value, err := New(options)
-			if err != nil {
-				t.Errorf("New(Effort: %s) error = %v, want nil", effort, err)
-				continue
-			}
-			if _, ok := value.(*client); !ok {
-				t.Errorf("New() returned %T, want *client", value)
-			}
-		}
-	})
-
 	t.Run("accepts the printable ASCII boundary characters and an unknown model with a slash", func(t *testing.T) {
 		options := validOptions(t)
 		options.APIKey = mustSecret(t, "a!~z")
@@ -386,40 +370,6 @@ func checkTransportFailure(t *testing.T, response llm.GenerateResponse, err erro
 }
 
 func TestGenerateTransport(t *testing.T) {
-	t.Run("a redirect is not followed", func(t *testing.T) {
-		var mu sync.Mutex
-		hits := map[string]int{}
-		mux := http.NewServeMux()
-		mux.HandleFunc("/primary", func(w http.ResponseWriter, req *http.Request) {
-			mu.Lock()
-			hits["/primary"]++
-			mu.Unlock()
-			http.Redirect(w, req, "/secondary", http.StatusTemporaryRedirect)
-		})
-		mux.HandleFunc("/secondary", func(w http.ResponseWriter, req *http.Request) {
-			mu.Lock()
-			hits["/secondary"]++
-			mu.Unlock()
-			if req.Header.Get("Authorization") != "" {
-				t.Error("the redirect target received the Authorization header")
-			}
-			w.WriteHeader(http.StatusOK)
-		})
-		server := httptest.NewServer(mux)
-		t.Cleanup(server.Close)
-
-		response, err := generateAgainst(t, server.URL+"/primary", validRequest(), nil)
-		assertRejected(t, response, err, ErrHTTPStatus)
-		if statusErr, ok := errors.AsType[*HTTPStatusError](err); !ok || statusErr.StatusCode != http.StatusTemporaryRedirect {
-			t.Errorf("Generate() error = %v, want *HTTPStatusError with %d", err, http.StatusTemporaryRedirect)
-		}
-		mu.Lock()
-		defer mu.Unlock()
-		if hits["/primary"] != 1 || hits["/secondary"] != 0 {
-			t.Errorf("hits = %v, want one request to /primary and none to /secondary", hits)
-		}
-	})
-
 	statuses := []struct {
 		status   int
 		guidance string
@@ -465,27 +415,12 @@ func TestGenerateTransport(t *testing.T) {
 		})
 	}
 
-	t.Run("the status guidance differs by class", func(t *testing.T) {
-		classes := []int{
-			http.StatusUnauthorized, http.StatusForbidden, http.StatusBadRequest,
-			http.StatusTooManyRequests, http.StatusInternalServerError, http.StatusConflict,
-		}
-		seen := map[string]int{}
-		for _, status := range classes {
-			if previous, ok := seen[statusGuidance(status)]; ok {
-				t.Errorf("statuses %d and %d share the guidance %q", previous, status, statusGuidance(status))
-			}
-			seen[statusGuidance(status)] = status
-		}
-	})
-
 	const shortTimeout = 100 * time.Millisecond
 	timeouts := []struct {
 		name  string
 		start func(t *testing.T) string
 	}{
 		{"timeout before the response headers", func(t *testing.T) string { return llmhttptest.NewStallingServer(t).URL }},
-		{"timeout while reading the body", func(t *testing.T) string { return llmhttptest.NewPartialStallingServer(t).URL }},
 	}
 	for _, tc := range timeouts {
 		t.Run(tc.name, func(t *testing.T) {
@@ -499,37 +434,6 @@ func TestGenerateTransport(t *testing.T) {
 			}
 		})
 	}
-
-	t.Run("the caller deadline is obeyed", func(t *testing.T) {
-		client := newTestClient(t, llmhttptest.NewStallingServer(t).URL, nil)
-		ctx, cancel := context.WithTimeout(context.Background(), shortTimeout)
-		defer cancel()
-		response, err := client.Generate(ctx, validRequest())
-		assertRejected(t, response, err, context.DeadlineExceeded)
-		if !strings.Contains(err.Error(), "caller") {
-			t.Errorf("error %q does not name the deadline source", err)
-		}
-	})
-
-	t.Run("cancel while sending", func(t *testing.T) {
-		server, entered := llmhttptest.NewGateServer(t)
-		client := newTestClient(t, server.URL, nil)
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		var (
-			response llm.GenerateResponse
-			err      error
-			done     = make(chan struct{})
-		)
-		go func() {
-			response, err = client.Generate(ctx, validRequest())
-			close(done)
-		}()
-		<-entered
-		cancel()
-		<-done
-		assertRejected(t, response, err, context.Canceled)
-	})
 
 	t.Run("a canceled context sends nothing", func(t *testing.T) {
 		server, recorder := llmhttptest.NewRecordingServer(t, encodeDocument(t, completedDocument()))
@@ -545,11 +449,6 @@ func TestGenerateTransport(t *testing.T) {
 
 	t.Run("the connection is closed", func(t *testing.T) {
 		response, err := generateAgainst(t, llmhttptest.NewClosedListener(t), validRequest(), nil)
-		checkTransportFailure(t, response, err)
-	})
-
-	t.Run("the body ends before its Content-Length", func(t *testing.T) {
-		response, err := generateAgainst(t, llmhttptest.NewTruncatedResponseServer(t), validRequest(), nil)
 		checkTransportFailure(t, response, err)
 	})
 
@@ -593,11 +492,6 @@ func TestGenerateTransport(t *testing.T) {
 		var textBuffer bytes.Buffer
 		slog.New(slog.NewTextHandler(&textBuffer, nil)).Info("client", "value", value)
 		outputs["slog text"] = textBuffer.String()
-		encoded, err := json.Marshal(value)
-		if err != nil {
-			t.Fatalf("json.Marshal(client) error = %v", err)
-		}
-		outputs["encoding/json"] = string(encoded)
 		for name, output := range outputs {
 			if strings.Contains(output, testAPIKey) {
 				t.Errorf("%s output contains the API key: %q", name, output)

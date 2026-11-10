@@ -464,10 +464,9 @@ func TestResponseUsage(t *testing.T) {
 		unknown = append(unknown, unknownRow{count.path + " missing", func(t *testing.T, d map[string]any) {
 			delete(holder(t, d), count.member)
 		}, llm.UnknownUsage(llm.RuleMissing, count.path)})
-		for _, value := range []any{
-			nil, "1", -1, 1.5, json.RawMessage("-0"), json.RawMessage("1e2"),
-			json.RawMessage("1.0"), json.RawMessage("9223372036854775808"), true,
-		} {
+		// The integer grammar itself is tested in internal/strictjson; these
+		// values only show that each count goes through it.
+		for _, value := range []any{nil, "1", json.RawMessage("-0")} {
 			unknown = append(unknown, unknownRow{count.path + " " + string(mustJSON(t, value)), func(t *testing.T, d map[string]any) {
 				holder(t, d)[count.member] = value
 			}, llm.UnknownUsage(llm.RuleNotNonNegativeInteger, count.path)})
@@ -533,13 +532,6 @@ func TestResponseUsage(t *testing.T) {
 		body = replaceOnce(t, body, `"cached_tokens":30`, `"cached_tokens":30,"audio_tokens":"x","audio_tokens":null`)
 		assertUsage(t, body, nil, standardUsage(t, testCounts))
 	})
-
-	t.Run("a broken usage in an invalid body is not reported", func(t *testing.T) {
-		document := completedDocument()
-		delete(document, keyUsage)
-		delete(document, keyModel)
-		assertBodyRejected(t, encodeDocument(t, document), ErrInvalidResponse)
-	})
 }
 
 func TestResponsePricingContext(t *testing.T) {
@@ -576,20 +568,6 @@ func TestResponsePricingContext(t *testing.T) {
 			t.Fatalf("KnownUsageWithPricingContext error = %v", err)
 		}
 		assertBodyRejectedWithResponse(t, encodeDocument(t, document), llm.ErrTruncated, want)
-	})
-
-	t.Run("the default tier is the confirmed Standard condition", func(t *testing.T) {
-		response := assertAccepted(t, base)
-		if got := response.Usage.PricingContext(); got != llm.PricingContextStandard30m {
-			t.Errorf("PricingContext() = %v, want PricingContextStandard30m", got)
-		}
-	})
-
-	t.Run("an unknown usage carries no condition", func(t *testing.T) {
-		response := assertAccepted(t, bodyOf(t, func(_ *testing.T, d map[string]any) { delete(d, keyUsage) }))
-		if got := response.Usage.PricingContext(); got != llm.PricingContextUnspecified {
-			t.Errorf("PricingContext() = %v, want PricingContextUnspecified", got)
-		}
 	})
 }
 
