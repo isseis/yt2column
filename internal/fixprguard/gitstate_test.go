@@ -283,12 +283,12 @@ func TestBaselineDetectsChange(t *testing.T) {
 	}
 
 	t.Run("unknown_head_rule", func(t *testing.T) {
-		// A kind outside the list fails secure: an error, and the push target
-		// is never read.
+		// A kind outside the list (no declared kind is negative) fails secure:
+		// an error, and the push target is never read.
 		newTestRepo(t)
 		base := mustBaseline(t)
 		w, router := newTestWorktree(t)
-		_, err := w.compareState(t.Context(), base, headRule{kind: headFollowsPhase4 + 1, commit: base.head}, checkWithRemote)
+		_, err := w.compareState(t.Context(), base, headRule{kind: headRuleKind(-1), commit: base.head}, checkWithRemote)
 		if !errors.Is(err, ErrInvalidInput) {
 			t.Errorf("compareState = %v, want ErrInvalidInput", err)
 		}

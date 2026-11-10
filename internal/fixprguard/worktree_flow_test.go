@@ -290,10 +290,14 @@ func TestFinishPostCommitTreeCheck(t *testing.T) {
 		base := mustBaseline(t)
 		fixTestFile(r)
 		p := prepared{r: r, base: base, judged: mustInspect(t, base).JudgedSet}
-		result, _, err := p.finish(t, buildCheckSteps()...)
+		result, router, err := p.finish(t, buildCheckSteps()...)
 		wantStateParts(t, err, PartBranch)
 		if result.Commit != "" {
 			t.Errorf("Finish returned commit %s", result.Commit)
+		}
+		// The commit off the branch is not read: the branch is compared first.
+		if commit := indexOf(router.Calls, "git commit"); commit < 0 || slices.Contains(router.Calls[commit:], gitCommand+" cat-file") {
+			t.Errorf("read the commit after the branch changed: %v", router.Calls)
 		}
 	})
 	t.Run("clean_filter", func(t *testing.T) {
