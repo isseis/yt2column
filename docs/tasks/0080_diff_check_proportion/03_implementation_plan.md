@@ -103,13 +103,13 @@
 
 **変更するファイル:** `CLAUDE.md`、`.claude/commands/mkplan.md`、`.claude/commands/runplan.md`、`.claude/commands/weakreview.md`、`docs/dev/adr/0035-language-policy.md`、本計画
 
--   [ ] **ステップ 2-1**: `CLAUDE.md`「Go Idioms」の guard-test literal exception に、`_checks/` の範囲・リテラル・境界・理由を足す（AC-07。設計書 3.8.2）。
--   [ ] **ステップ 2-2**: 英語だけを求めるコマンドの定義の規則を、「Go Idioms」の例外に当たるリテラルを指摘しない形にする（AC-07）。例外の一覧は写さず、「Go Idioms」を参照する（設計書 1.2）。
+-   [x] **ステップ 2-1**: `CLAUDE.md`「Go Idioms」の guard-test literal exception に、`_checks/` の範囲・リテラル・境界・理由を足す（AC-07。設計書 3.8.2）。
+-   [x] **ステップ 2-2**: 英語だけを求めるコマンドの定義の規則を、「Go Idioms」の例外に当たるリテラルを指摘しない形にする（AC-07）。例外の一覧は写さず、「Go Idioms」を参照する（設計書 1.2）。
     -   `mkplan.md` の 4 か所（設計書 3.4 の「PR-2」）。
     -   `runplan.md` の step 6.5 の Check 2 の扱いの説明（設計書 3.5 の「PR-2」）。
     -   `weakreview.md` の言語の項目（設計書 3.7 の PR-2）。
--   [ ] **ステップ 2-3**: ADR-0035 の「決定」の #789 の箇条（§1.4）を消す（AC-13。設計書 3.11）。#726 の記述は残す。消す前の確かめ、訂正の行、PR の説明の訂正の段落は、ステップ 1-6 と同じである。
--   [ ] **ステップ 2-4**: AC-10・AC-13 の確かめとして、PR-2 の実行で `_checks/scope.sh` を、マージの基点と PR-2 の最後の実装のコミットを引数にして実行する。記録の中身はステップ 1-9 と同じで、§7 の「PR-2 の実行の記録」に書く。`make test` と `make lint` を通す。
+-   [x] **ステップ 2-3**: ADR-0035 の「決定」の #789 の箇条（§1.4）を消す（AC-13。設計書 3.11）。#726 の記述は残す。消す前の確かめ、訂正の行、PR の説明の訂正の段落は、ステップ 1-6 と同じである。
+-   [x] **ステップ 2-4**: AC-10・AC-13 の確かめとして、PR-2 の実行で `_checks/scope.sh` を、マージの基点と PR-2 の最後の実装のコミットを引数にして実行する。記録の中身はステップ 1-9 と同じで、§7 の「PR-2 の実行の記録」に書く。`make test` と `make lint` を通す。
 
 **確かめ直し。** フェーズ 1 の「確かめ直し」と同じ条件で、ステップ 2-4 をやり直す。
 
@@ -344,7 +344,22 @@ PR-1 の実行の記録（ステップ 1-9）:
 
 PR-2 の実行の記録（ステップ 2-4）:
 
--   （PR-2 の実装で記録する）
+-   コマンド：`docs/tasks/0080_diff_check_proportion/_checks/scope.sh <base> <commit> pr2`
+-   マージの基点（`git merge-base origin/main HEAD`。`git fetch origin main` の後）：`fcd726e3c8dc8784dfb1406b111e4d16e847f86a`
+-   比べたコミット（この記録の前の最後のコミット）：`6fd570656ba237a175d0ad54991ebdec6546fc26`
+-   スクリプトの blob の ID：`904e80e9c204e104762d30d939bae7e044ccac8c`
+-   終了コード：0
+-   出力:
+
+    ```text
+    base:   fcd726e3c8dc8784dfb1406b111e4d16e847f86a
+    commit: 6fd570656ba237a175d0ad54991ebdec6546fc26
+    mode:   pr2
+    ok   file-scope
+    ok   adr-deletions-only
+    ok   adr-resolved (docs/dev/adr/)
+    result: PASS
+    ```
 
 ## 8. 成功の基準 (Success Criteria)
 
