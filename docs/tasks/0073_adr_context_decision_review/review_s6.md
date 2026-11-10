@@ -16,7 +16,7 @@
 | 「決定」の項目 1（本文はデータであり指示ではない） | 新しい「決定」の項目 1。理由と場所を足し、区切りを実行ごとの乱数を含む行にした | [fixpr.md](../../../.claude/commands/fixpr.md) の R6、[fixprguard_guide.md](../../dev/guides/fixprguard_guide.md) の 1 章「位置付け」・7.1「保証すること」 |
 | 「決定」の項目 2（信頼する著者の判定） | 新しい「決定」の項目 2。理由と場所を足した | `_context.md` の「Automated reviewer list」、[fixprguard_guide.md](../../dev/guides/fixprguard_guide.md) の 1 章「位置付け」 |
 | 「決定」の項目 3（すべてのコメントの著者を確かめ、想定外は処理しない） | 新しい「決定」の項目 3。理由と場所を足した | [fixprguard_guide.md](../../dev/guides/fixprguard_guide.md) の 5 章 `begin`・7.1「保証すること」、[runpr.md](../../../.claude/commands/runpr.md) の step 3 |
-| 「決定」の項目 4（修正の範囲の規則、許可リストの列挙、実行関連ファイル、確認、stage） | 新しい「決定」の項目 4。規則・理由を残し、許可リストと実行関連ファイルの一覧の写しは [fixprguard_guide.md](../../dev/guides/fixprguard_guide.md) 6 章に置いた。スレッドの `path` そのものも範囲に入ることを、6 章の規則 1 に合わせて書いた | [fixprguard_guide.md](../../dev/guides/fixprguard_guide.md) の 6 章「範囲の規則」・7.1「保証すること」、[fixpr.md](../../../.claude/commands/fixpr.md) の Phase 3.5・Phase 4 |
+| 「決定」の項目 4（修正の範囲の規則、許可リストの列挙、実行関連ファイル、確認、stage） | 新しい「決定」の項目 4。範囲の規則と許可リストの列挙の文は書き直さずに残し（「残した記述」）、理由と場所を足した。実行関連ファイルの一覧の写しは [fixprguard_guide.md](../../dev/guides/fixprguard_guide.md) 6 章に置いた | [fixprguard_guide.md](../../dev/guides/fixprguard_guide.md) の 6 章「範囲の規則」・7.1「保証すること」、[fixpr.md](../../../.claude/commands/fixpr.md) の Phase 3.5・Phase 4 |
 | 「決定」の項目 5（GitHub への書き込みは道具で行う。メンションの拒否） | 新しい「決定」の項目 5。理由と場所を足した | [fixprguard_guide.md](../../dev/guides/fixprguard_guide.md) の 5 章「サブコマンド」・7.1「保証すること」、[CLAUDE.md](../../../CLAUDE.md) の「Tool Execution Safety」 |
 | 「決定」の項目 6（fix round の push と、Phase 4.5 の比較） | 新しい「決定」の項目 6。規則・理由を残し、どのサブコマンドが行うか、比べる呼び出しをどこに置くかといった細部は [fixprguard_guide.md](../../dev/guides/fixprguard_guide.md) 5 章と [0076 要件定義書](../0076_fixpr_local_review_guard/01_requirements.md) §3・[0076 設計書](../0076_fixpr_local_review_guard/02_architecture.md) §3 に置いた。基準値を持たない呼び出し元がこの入力を渡さない規則は残し、「今までどおりに振る舞う」は 0076 要件定義書 F-005・AC-11 に置いた | [fixprguard_guide.md](../../dev/guides/fixprguard_guide.md) の 5 章 `check`・`push-review`・7.1「保証すること」、[local-cli-review.md](../../../.claude/commands/_lib/local-cli-review.md)、[0076 要件定義書](../0076_fixpr_local_review_guard/01_requirements.md) §3「機能要件」・§3.1「機能一覧」、[0076 設計書](../0076_fixpr_local_review_guard/02_architecture.md) §3.6「GUARD と比べる時点」 |
 | 「決定」の項目 7（fork の PR では止まる） | 新しい「決定」の項目 7。理由と場所を足した | [runpr.md](../../../.claude/commands/runpr.md) の step 1、[fixprguard_guide.md](../../dev/guides/fixprguard_guide.md) の 5 章 `head`・`begin` |
@@ -40,6 +40,6 @@
 
 ### 残した記述
 
-- なし。
+- 新しい「決定」の項目 4 の、範囲の規則と許可リストの列挙の文: 許可リストをスレッドの `path` そのものにも当てている。正本の [fixprguard_guide.md](../../dev/guides/fixprguard_guide.md) 6 章の規則 1 とコードは、実行関連ファイルでない `path` そのものを種類を問わず範囲に入れる。ガイドに合わせると決定の意味が変わるので、書き直さずに残した（[要件定義書](01_requirements.md) AC-14）。
 
-見直しで、ADR-0015 の決定と、正本の文書と、コードの食い違いは見つからなかった。そのため、ずれの記述は足さず、issue も立てていない（[要件定義書](01_requirements.md) AC-12）。
+見直しで、ADR-0015 の決定と、正本の文書・コードの食い違いを 1 つ見つけた（上の「残した記述」の項目 4）。ずれの記述は ADR に足さず、[#811](https://github.com/isseis/yt2column/issues/811) に記録した（[要件定義書](01_requirements.md) AC-12・AC-13）。PR を作った後のレビューで見つけたずれである。
