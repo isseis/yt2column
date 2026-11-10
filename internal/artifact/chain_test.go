@@ -157,6 +157,7 @@ func TestMixedVersionResume(t *testing.T) {
 	materialID := validGeneration().Input
 	generationPath := func(dir string) string { return filepath.Join(dir, testVideoID+".generation.json") }
 	shortenPath := func(dir string) string { return filepath.Join(dir, testVideoID+".shorten.json") }
+	reviewPath := func(dir string) string { return filepath.Join(dir, testVideoID+".review.json") }
 	writeFile := func(t *testing.T, path, data string) {
 		t.Helper()
 		if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
@@ -236,6 +237,25 @@ func TestMixedVersionResume(t *testing.T) {
 		}
 		requireBytes(t, generationPath(dir), version3Generation)
 		requireBytes(t, shortenPath(dir), version3Shorten)
+	})
+
+	t.Run("every stage version 3, resumed after the review", func(t *testing.T) {
+		store, dir := newTestStore(t)
+		writeFile(t, generationPath(dir), version3Generation)
+		writeFile(t, shortenPath(dir), version3Shorten)
+		writeFile(t, reviewPath(dir), version3Review)
+
+		chain, err := store.Load(context.Background(), testVideoID, writer.StageReview, materialID)
+		if err != nil {
+			t.Fatalf("Load review error = %v", err)
+		}
+		if chain.Generation.ID != version3GenerationID || chain.Shorten == nil || chain.Shorten.ID != version3ShortenID ||
+			chain.Review == nil || chain.Review.ID != version3ReviewID {
+			t.Errorf("chain = %+v, want the version 3 ids", chain)
+		}
+		requireBytes(t, generationPath(dir), version3Generation)
+		requireBytes(t, shortenPath(dir), version3Shorten)
+		requireBytes(t, reviewPath(dir), version3Review)
 	})
 }
 

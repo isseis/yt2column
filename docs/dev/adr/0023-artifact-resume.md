@@ -25,8 +25,6 @@
 
 使用量の返し方は [ADR-0021](0021-llm-client-contract.md) が、呼び出しの時刻と料金は [ADR-0022](0022-cost-estimate.md) が定める。
 
-版4と版3の互換性のコードへの反映は [#568](https://github.com/isseis/yt2column/issues/568) の実装で行う。
-
 ## 採らなかった案
 
 -   **当初案の `--article <path>` と `--review-only` を、別々のフラグとして設ける。** `--article <path>` は任意の記事ファイルを入力にするもので、再開の入力が保存した中間生成物に限られない。`--after` は、保存した記録を動画 ID で選び、工程の順序から前段を決められるので、2 つのフラグを一般化できる（[0017 要件定義書](../../tasks/0017_intermediate_artifacts/01_requirements.md) §4.4）。

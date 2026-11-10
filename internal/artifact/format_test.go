@@ -942,7 +942,9 @@ func TestRecordIDCoversUsage(t *testing.T) {
 
 // requireMalformedPricing is requireMalformed for a rejection the
 // pricing_context rule itself must produce: the error also names
-// pricing_context, which the id rule's message does not.
+// pricing_context, which the id rule's message does not. Every artifact rule
+// shares the ErrMalformed sentinel, so the named element is what tells the
+// rules apart; it is the same check requireMalformedUsage makes for usage.
 func requireMalformedPricing(t *testing.T, data []byte) {
 	t.Helper()
 	err := requireMalformed(t, data)
@@ -1034,7 +1036,8 @@ func TestPricingContextFormat(t *testing.T) {
 // Version 3 artifacts written by Marshal at commit
 // 34b2bf23d54be21afecdfefa2cf44b3293deb205, before version 4 existed, with
 // their identifiers. The generation is validGeneration with a known usage; the
-// shorten is shortenOf that generation's id, with the zero (unknown) usage.
+// shorten is shortenOf that generation's id, and the review is reviewOf the
+// shorten's id, both with the zero (unknown) usage.
 // They are literals so a change to the version 3 identifier rule or shape
 // cannot pass by changing both sides.
 const (
@@ -1042,6 +1045,8 @@ const (
 	version3GenerationID = "96027989d76e0a25d7c4ae69a754fd9d2650b0cb1fa2eeea4718dc7ed793cdb8"
 	version3Shorten      = `{"version":3,"stage":"shorten","model":"test-model","model_version":"","usage":null,"call_time":"2026-10-16T01:00:00Z","system":{"embedded":true,"digest":"b466815e3b7be63f5b0baf7b032f581b9e31387dce9a46afc96849e74044e336"},"user":{"embedded":false,"digest":"90a9fe6a451ab226818f07ec68032e3d8b818cbd5f96981250b025b1e4a5d45e"},"input":"96027989d76e0a25d7c4ae69a754fd9d2650b0cb1fa2eeea4718dc7ed793cdb8","id":"9602cb0041ebd849b305339ff21913b8fcd4ed383d874fd2ccea5222e9c44c5a","title":"Short title","body":"Short body."}`
 	version3ShortenID    = "9602cb0041ebd849b305339ff21913b8fcd4ed383d874fd2ccea5222e9c44c5a"
+	version3Review       = `{"version":3,"stage":"review","model":"test-model","model_version":"","usage":null,"call_time":"2026-10-16T01:00:00Z","system":{"embedded":true,"digest":"b466815e3b7be63f5b0baf7b032f581b9e31387dce9a46afc96849e74044e336"},"user":{"embedded":false,"digest":"90a9fe6a451ab226818f07ec68032e3d8b818cbd5f96981250b025b1e4a5d45e"},"input":"9602cb0041ebd849b305339ff21913b8fcd4ed383d874fd2ccea5222e9c44c5a","id":"2360f514fd663913ef8c92f94e2343a2ff58d31b5b720fc110a278a24bc37b18","title":"Title","body":"mark-artifact-body-R4kd","revisions":[{"before":"mark-artifact-body-R4kd","after":"mark-artifact-body-R4kd revised","reason":"meaning_change","evidence":"mark-artifact-revision-T7wm"},{"before":"extra","delete":true,"reason":"unsupported","evidence":"mark-artifact-revision-T7wm"}]}`
+	version3ReviewID     = "2360f514fd663913ef8c92f94e2343a2ff58d31b5b720fc110a278a24bc37b18"
 )
 
 func TestVersion3Compatibility(t *testing.T) {
@@ -1068,6 +1073,15 @@ func TestVersion3Compatibility(t *testing.T) {
 		}
 		if !got.CallTime.Equal(testCallTime) {
 			t.Errorf("call time = %v, want %v", got.CallTime, testCallTime)
+		}
+	})
+
+	t.Run("a version 3 review keeps its revisions and id", func(t *testing.T) {
+		got := mustParse(t, []byte(version3Review))
+		want := reviewOf(version3ShortenID)
+		want.ID = version3ReviewID
+		if !sameRecord(got, want) {
+			t.Errorf("Parse = %+v, want %+v", got, want)
 		}
 	})
 

@@ -314,7 +314,7 @@
 | AC-14 | 2-3 | test: `internal/llm/openai/response_test.go::TestResponseFinish`（新規、複合異常と優先順位） |
 | AC-15 | 2-3 / 3-2 | test: `internal/llm/openai/response_test.go::TestResponseFinish`、`TestResponseShape`、`cmd/yt2column/run_test.go::TestOpenAIConfiguration`・`cmd/yt2column-server/run_test.go::TestOpenAIConfiguration`（新規、失敗した記事を出さない） |
 | AC-16 | 2-3 | test: `internal/llm/openai/response_test.go::TestResponseUsage`（新規） |
-| AC-17 | 2-1 / 2-3 | test: `internal/llm/openai/response_test.go::TestResponseUsage`（新規、成功と拒否時の不明の使用量） |
+| AC-17 | 2-1 / 2-3 | test: `internal/llm/usage_test.go::TestUnknownReason`・`TestKnownUsageWithPricingContext`、`internal/llm/openai/response_test.go::TestResponseUsage`（新規、成功と拒否時の不明の使用量） |
 | AC-18 | 2-2 / 3-2 | test: `internal/artifact/chain_test.go::TestMixedVersionResume`、`cmd/yt2column/run_test.go::TestRunOpenAIUsageRecords`（新規）、`cmd/yt2column/cost_test.go::TestRunCostLinesResume` |
 | AC-19 | 2-3 / 3-2 | test: `internal/pricing/pricing_test.go::TestEstimateOpenAI`、`internal/llm/openai/response_test.go::TestResponsePricingContext`（新規）、`cmd/yt2column/cost_test.go::TestRunCostLinesUnknown`。static: `internal/pricing/rates_test.go::TestRateTableSourceComments`。manual: 公式単価との照合 |
 | AC-20 | 2-3 / 3-1 | test: `internal/llm/openai/openai_test.go::TestGenerateRequest`、`TestGenerateTransport`、`internal/llm/provider/provider_test.go::TestOpenAIDefaultMaxTokensFitsBudget`（新規） |

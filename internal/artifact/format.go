@@ -392,8 +392,13 @@ func parsePricingContext(members map[string]strictjson.Value, version int, usage
 		}
 		return usage, nil
 	}
-	// pricing comes from the enumeration above, so the constructor accepts it.
-	return llm.KnownUsageWithPricingContext(counts, pricing)
+	// pricing comes from the enumeration above, so the constructor accepts
+	// it; a rejection is still reported as malformed, keeping Parse's contract.
+	priced, err := llm.KnownUsageWithPricingContext(counts, pricing)
+	if err != nil {
+		return llm.Usage{}, malformed("pricing_context is not known")
+	}
+	return priced, nil
 }
 
 // pricingContextWire is the version 4 spelling of a pricing context, or "" for
