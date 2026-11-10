@@ -646,6 +646,8 @@ flowchart TD
 
 ### 3.7. git の状態の基準値（F-004・H-08）
 
+> **注記（タスク 0076）:** タスク 0076（[要件定義書](../0076_fixpr_local_review_guard/01_requirements.md)、[設計書](../0076_fixpr_local_review_guard/02_architecture.md)）は、`parts` の `head` から、HEAD がいるブランチの違いを `branch` に分けた。HEAD が基準値のブランチにないとき、`parts` は `branch` で、HEAD は比べない。今の仕様は [fixprguard_guide.md](../../dev/guides/fixprguard_guide.md) の 8 章にある。
+
 `begin` は、次の値から成る基準値を出力する。`inspect`・`finish`・`push` は、現在の値を求めて、基準値と比べる（AC-26）。
 
 | 値 | 求め方 | 比べる時点 |
@@ -829,6 +831,8 @@ flowchart TD
 
 ### 5.2. 守りの対応
 
+> **注記（タスク 0076）:** タスク 0076（[要件定義書](../0076_fixpr_local_review_guard/01_requirements.md)、[設計書](../0076_fixpr_local_review_guard/02_architecture.md)）は、`/fixpr` の Phase 4.5（ローカルの CLI レビュー）の守りを加えた。手順が定める git の起動の前に、新しいサブコマンド `check` が git の状態を基準値と比べ、Phase 4.5 の commit は `push-review` が、比べた HEAD の OID を明示した refspec で push する。
+
 「コード」は、ガードツールが強制するものである。「文書」は、セッションが文書の手順に従うことに依存するものである。
 
 | 経路 | 守り | 強制する主体 | 保証の強さ |
@@ -846,6 +850,8 @@ flowchart TD
 ### 5.3. 残余のリスク
 
 > **注記（タスク 0057）:** タスク 0057（[要件定義書](../0057_reviewer_relay_guard/01_requirements.md)、[設計書](../0057_reviewer_relay_guard/02_architecture.md)）は、この残余のリスクに次を加えた。第三者が自動レビュアー（Codex や CodeRabbit）を介して信頼する著者のスレッドを作れること（設定が外れている間）。`make` に渡す環境から秘密を落とさないこと。interaction limits・作成の制限・push の制限を GitHub に設定し、`/runpr` が制限の外れた期間と古い PR を止めること、およびその設定と設定の時刻の見積もりに残る限界。実行関連ファイルを常に範囲外にした後も、同じディレクトリの `.go` のファイルと、build checks のテストが実行するガイドの `sh` のブロックは、確認なしに実行されうる。10 項目の一覧は、0057 の要件定義書 4.2 と `docs/dev/guides/fixprguard_guide.md` の 7.2 にある。
+
+> **注記（タスク 0076）:** タスク 0076（[要件定義書](../0076_fixpr_local_review_guard/01_requirements.md)、[設計書](../0076_fixpr_local_review_guard/02_architecture.md)）により、「確認と実行の間のずれ」は、Phase 4.5 では `check` を呼ぶ各時点の間に縮んだ。残る残余のリスク（範囲の検査がないこと、比較が時点だけの確認であること、手順が定めない git の起動、1 本につながる commit の出所を区別しないこと）は、0076 の要件定義書 4.2 と [fixprguard_guide.md](../../dev/guides/fixprguard_guide.md) の 7.2 にある。
 
 要件書 4.2 の 5 つに加えて、設計で次のことが分かっている。
 
