@@ -62,3 +62,4 @@ GitHub に置くものは日本語で書く。一方、squash のコミットは
 - 2026-11-04 CLAUDE.md の「Document language」の原則 (a) に、ADR と索引を置く `docs/dev/adr/` を足した（[0060 設計書](../../tasks/0060_adr_records/02_architecture.md)「1.2. 設計の際に決めたこと（2026-11-04）」）
 - 2026-11-04 軽量プロセスの確かめ直しのスクリプトとそのテストに、仕様の見出しの日本語のリテラルを許す範囲の狭い例外を、CLAUDE.md の「Go Idioms」に足した（[0061 設計書](../../tasks/0061_lightweight_process/02_architecture.md)「1.2. 設計の際に決めたこと（2026-11-04）」）
 - 2026-11-09 軽量プロセスを削除することにし、その確かめ直しのスクリプトとテストのための日本語のリテラルの例外（lightweight-check literal exception）を、CLAUDE.md の「Go Idioms」から除くことにし、「決定」から [ADR-0012](0012-lightweight-check-in-bash.md) への参照も除いた（[0075 要件定義書](../../tasks/0075_remove_lightweight_process/01_requirements.md)「要件定義の際に決めたこと（2026-11-09）」）
+- 2026-11-10 guard のテストの日本語のリテラルの例外（guard-test literal exception）を、言語にかかわらずタスクの `_checks/` のスクリプトに広げることにした。日本語の文字列を `data.json` に逃がす仕組みを要らなくするためである（[0080 要件定義書](../../tasks/0080_diff_check_proportion/01_requirements.md)「要件定義の際に決めたこと（2026-11-10）」）
