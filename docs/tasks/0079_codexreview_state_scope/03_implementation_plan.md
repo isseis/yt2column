@@ -81,13 +81,13 @@
 
 **変更するファイル:** `internal/codexreview/state.go`、`internal/codexreview/state_test.go`（新規）、`internal/codexreview/run_test.go`
 
--   [ ] `errHeadUnreadable` と `parseHead` を加え、`readHead` が `parseHead` を通して `branchRef` と `commit` を返すようにする（設計書 3.2、4 章）。エラーの文には、コマンド名（`rev-parse` か `symbolic-ref`）を前に付け、元のエラーとして `errHeadUnreadable` を含めて返す。git の出力の中身はエラーの文に入れない。
--   [ ] `gitState.head` を `branchRef` と `commit` に分ける（台帳）。このフェーズの `changedItems` は、`branchRef` か `commit` が違えば `head` とする。すべての参照と stash の比較は、このフェーズでは変えない。`readHead` のコメントを、形の確かめを述べる形に改める（設計書 3.5）。
--   [ ] `state_test.go` に `describeRefs` の単体テスト `TestDescribeRefs` を加える。`internal/cmdrunner/testutil` の `Fake` を `runner` にした `git` を使い、`Fake` の手順には `git.run` が前に付ける `cmdrunner.GitHardening()` の引数も含める。確かめるのは、`worktree list` が失敗するときは ref だけが返ること、どの worktree も checkout していない ref は ref だけで返ること、checkout している ref は worktree を併記して返ることである（本書 1.2）。
--   [ ] `state_test.go` に `TestParseHead` を加え、設計書 3.2 の表の受け入れる形と受け入れない形を表で確かめる。受け入れない形には、設計書 7.1 の形に加えて、64 桁の 16 進数、16 進数でない小文字（`g` など）、空の commit の出力、detached でないのに空のブランチの出力を入れる。規則ごとに、その規則が適用される出力（commit の出力とブランチの出力）のそれぞれで、規則に反する形を 1 行以上置く。受け入れない形では `errors.Is(err, errHeadUnreadable)` と、受け入れない出力に入れた目印の文字列がエラーの文にないことを確かめる。ファイルの先頭は、同じパッケージのほかのテストと同じく `//go:build test` にする。
--   [ ] `TestRunPreconditions` に、`git symbolic-ref` で HEAD を、あらかじめ HEAD の commit を指すタグへ向けておく行を加える。期待は `precondition`/`git_failed` で、偽の `codex` の記録は `version` だけ（レビューの実行がない）である。
--   [ ] `TestRunAfterStateUnreadable` を表の形にし、今の場合（git を消す）のほかに、実行の間に HEAD をタグへ向ける行と、実行の間に `git update-ref -d` で HEAD のブランチの ref を消す行を加える。どの行も、`errAfterStateUnreadable` を含むエラーと空の `Result` を確かめる。HEAD をタグへ向ける行は、`errHeadUnreadable` を含むことも確かめる。
--   [ ] 失敗することを確かめ、コミットメッセージに書く：`readHead` が `parseHead` を通さないようにすると、HEAD をタグへ向ける 2 つの行が失敗すること。`parseHead` の規則を 1 つずつ外すと、`TestParseHead` の対応する行が失敗すること。`readHead` が `rev-parse` の失敗を握りつぶし、`parseHead` を通さずに空の commit を返すようにすると、HEAD のブランチの ref を消す行が失敗すること。
+-   [x] `errHeadUnreadable` と `parseHead` を加え、`readHead` が `parseHead` を通して `branchRef` と `commit` を返すようにする（設計書 3.2、4 章）。エラーの文には、コマンド名（`rev-parse` か `symbolic-ref`）を前に付け、元のエラーとして `errHeadUnreadable` を含めて返す。git の出力の中身はエラーの文に入れない。
+-   [x] `gitState.head` を `branchRef` と `commit` に分ける（台帳）。このフェーズの `changedItems` は、`branchRef` か `commit` が違えば `head` とする。すべての参照と stash の比較は、このフェーズでは変えない。`readHead` のコメントを、形の確かめを述べる形に改める（設計書 3.5）。
+-   [x] `state_test.go` に `describeRefs` の単体テスト `TestDescribeRefs` を加える。`internal/cmdrunner/testutil` の `Fake` を `runner` にした `git` を使い、`Fake` の手順には `git.run` が前に付ける `cmdrunner.GitHardening()` の引数も含める。確かめるのは、`worktree list` が失敗するときは ref だけが返ること、どの worktree も checkout していない ref は ref だけで返ること、checkout している ref は worktree を併記して返ることである（本書 1.2）。
+-   [x] `state_test.go` に `TestParseHead` を加え、設計書 3.2 の表の受け入れる形と受け入れない形を表で確かめる。受け入れない形には、設計書 7.1 の形に加えて、64 桁の 16 進数、16 進数でない小文字（`g` など）、空の commit の出力、detached でないのに空のブランチの出力を入れる。規則ごとに、その規則が適用される出力（commit の出力とブランチの出力）のそれぞれで、規則に反する形を 1 行以上置く。受け入れない形では `errors.Is(err, errHeadUnreadable)` と、受け入れない出力に入れた目印の文字列がエラーの文にないことを確かめる。ファイルの先頭は、同じパッケージのほかのテストと同じく `//go:build test` にする。
+-   [x] `TestRunPreconditions` に、`git symbolic-ref` で HEAD を、あらかじめ HEAD の commit を指すタグへ向けておく行を加える。期待は `precondition`/`git_failed` で、偽の `codex` の記録は `version` だけ（レビューの実行がない）である。
+-   [x] `TestRunAfterStateUnreadable` を表の形にし、今の場合（git を消す）のほかに、実行の間に HEAD をタグへ向ける行と、実行の間に `git update-ref -d` で HEAD のブランチの ref を消す行を加える。どの行も、`errAfterStateUnreadable` を含むエラーと空の `Result` を確かめる。HEAD をタグへ向ける行は、`errHeadUnreadable` を含むことも確かめる。
+-   [x] 失敗することを確かめ、コミットメッセージに書く：`readHead` が `parseHead` を通さないようにすると、HEAD をタグへ向ける 2 つの行が失敗すること。`parseHead` の規則を 1 つずつ外すと、`TestParseHead` の対応する行が失敗すること。`readHead` が `rev-parse` の失敗を握りつぶし、`parseHead` を通さずに空の commit を返すようにすると、HEAD のブランチの ref を消す行が失敗すること。
 
 **完了の条件:** `make fmt`・`make test`・`make lint` が通る。
 
@@ -97,29 +97,29 @@
 
 **変更するファイル:** `internal/codexreview/state.go`、`internal/codexreview/types.go`、`internal/codexreview/run_test.go`、`cmd/codexreview/main_test.go`、`docs/dev/conventions/package_reference.md`
 
--   [ ] `readState` が `status` と HEAD だけを読むようにし、`changedItems` を設計書 3.3 の表の規則にする。違いのあった ref は 0 個か 1 個で、並べ替えはしない。
--   [ ] 比べるものを述べるコメントと文書を、設計書 3.5 の表のとおりに改める：`state.go` の `gitState`・`changedItems`・読む git のコマンド（`state.go:35-39`）のコメント、`types.go` のパッケージのコメントと `Changed`・`ChangedRefs` のコメント（型と JSON の名前は変えない）、`package_reference.md` の `internal/codexreview` の行。
--   [ ] 定数 `itemStash` を消す。
--   [ ] 変数 `refsArgs` を消す。
--   [ ] 変数 `stashArgs` を消す。
--   [ ] `gitState` のフィールド `refs` と `stash` を消す。
--   [ ] `errRefsUnreadable` を消す。
--   [ ] `parseRefs` を消す。
--   [ ] `TestRunStateChanged` の行 `branch`・`deleted_branch`・`tag`・`stash`・`branch_in_another_worktree` を、`TestRunIgnoresSharedRefs`（下の項目）に移す。
--   [ ] `TestRunStateChanged` に、設計書 7.1 の 4 行（HEAD のブランチをほかの worktree が動かす、detached のまま commit、detached からブランチへ、別の commit のブランチへ checkout）を加える。
--   [ ] `TestRunStateChanged` に、本書 1.2 の 2 行を加える。
+-   [x] `readState` が `status` と HEAD だけを読むようにし、`changedItems` を設計書 3.3 の表の規則にする。違いのあった ref は 0 個か 1 個で、並べ替えはしない。
+-   [x] 比べるものを述べるコメントと文書を、設計書 3.5 の表のとおりに改める：`state.go` の `gitState`・`changedItems`・読む git のコマンド（`state.go:35-39`）のコメント、`types.go` のパッケージのコメントと `Changed`・`ChangedRefs` のコメント（型と JSON の名前は変えない）、`package_reference.md` の `internal/codexreview` の行。
+-   [x] 定数 `itemStash` を消す。
+-   [x] 変数 `refsArgs` を消す。
+-   [x] 変数 `stashArgs` を消す。
+-   [x] `gitState` のフィールド `refs` と `stash` を消す。
+-   [x] `errRefsUnreadable` を消す。
+-   [x] `parseRefs` を消す。
+-   [x] `TestRunStateChanged` の行 `branch`・`deleted_branch`・`tag`・`stash`・`branch_in_another_worktree` を、`TestRunIgnoresSharedRefs`（下の項目）に移す。
+-   [x] `TestRunStateChanged` に、設計書 7.1 の 4 行（HEAD のブランチをほかの worktree が動かす、detached のまま commit、detached からブランチへ、別の commit のブランチへ checkout）を加える。
+-   [x] `TestRunStateChanged` に、本書 1.2 の 2 行を加える。
     -   あらかじめ HEAD と同じ commit に作ったブランチへ、実行の間に switch する行。期待は `head` だけで、`changed_refs` は空である。
     -   ほかの worktree が、追跡しているファイルを変えて commit し、HEAD のブランチをその commit に向け、同時にタグを 1 つ作る行。期待は `status`・`head`・`refs` の順で、`changed_refs` はこの worktree を併記した HEAD のブランチだけである。
--   [ ] `TestRunStateChanged` の行を書くときの注意を守る。偽の `codex` は決まった引数で git を実行するので、HEAD のブランチを動かすには、ほかの worktree で `update-ref refs/heads/main HEAD` を実行し、新しい値を commit ID ではなく、その worktree の `HEAD` で渡す（`NewRepo` はブランチ `main` で作る。`helpers.go:536`）。`changed_refs` が空になる行では、空の配列（nil でない）であることも確かめる。関数のコメントを、比べるものの変化を確かめる表だと読める形に改める。
--   [ ] `TestRunIgnoresSharedRefs` を加え、設計書 7.1 の「比べないもののテスト」の 9 行と、stash の項目を入れ替える行（あらかじめ作った stash を消し、別の変更を stash する）で、結果の種類が `no_findings` であることを確かめる。
--   [ ] `TestOutputIsOneJSONObject` の `state_changed` の行の入力を、この worktree で空の commit を作る操作に替える（設計書 7.1）。
--   [ ] 失敗することを確かめ、コミットメッセージに書く（設計書 7.1「失敗することの確かめ」の 1 つ目と 2 つ目に、本書で足した行の分を加えたもの）。
+-   [x] `TestRunStateChanged` の行を書くときの注意を守る。偽の `codex` は決まった引数で git を実行するので、HEAD のブランチを動かすには、ほかの worktree で `update-ref refs/heads/main HEAD` を実行し、新しい値を commit ID ではなく、その worktree の `HEAD` で渡す（`NewRepo` はブランチ `main` で作る。`helpers.go:536`）。`changed_refs` が空になる行では、空の配列（nil でない）であることも確かめる。関数のコメントを、比べるものの変化を確かめる表だと読める形に改める。
+-   [x] `TestRunIgnoresSharedRefs` を加え、設計書 7.1 の「比べないもののテスト」の 9 行と、stash の項目を入れ替える行（あらかじめ作った stash を消し、別の変更を stash する）で、結果の種類が `no_findings` であることを確かめる。
+-   [x] `TestOutputIsOneJSONObject` の `state_changed` の行の入力を、この worktree で空の commit を作る操作に替える（設計書 7.1）。
+-   [x] 失敗することを確かめ、コミットメッセージに書く（設計書 7.1「失敗することの確かめ」の 1 つ目と 2 つ目に、本書で足した行の分を加えたもの）。
     -   比べるものを元の広さに戻すと、`TestRunIgnoresSharedRefs` の各行が失敗する。
     -   `refs` の条件から「`branchRef` が前後で同じ」を外すと「別の commit のブランチへ checkout」の行が、「空でない」を外すと「detached のまま commit」の行が失敗する。`refs` を導くこと自体をやめると、`commit` の行と「HEAD のブランチをほかの worktree が動かす」の行が失敗する。
     -   `head` の条件を `commit` の比較だけにすると、「同じ commit の別のブランチへ switch」と「detached からブランチへ」の行が失敗する。`branchRef` が空かどうかだけの比較にすると、「同じ commit の別のブランチへ switch」の行が失敗する。
     -   `status` と `head` を並べる順を入れ替えると、「ほかの worktree が中身の違う commit で動かす」の行が失敗する。
     -   `TestOutputIsOneJSONObject` の `state_changed` の行は、偽の `codex` の空の commit を外すと失敗する。
--   [ ] `make deadcode` を実行し、何も報告されないことを確かめる。
+-   [x] `make deadcode` を実行し、何も報告されないことを確かめる。
 
 **完了の条件:** `make fmt`・`make test`・`make lint`・`make deadcode` が通る。
 
@@ -129,17 +129,17 @@
 
 **変更するファイル:** `.claude/commands/_lib/local-cli-review.md`、`docs/dev/adr/0013-review-setup.md`、`docs/tasks/0079_codexreview_state_scope/_checks/check.sh`（新規）、本書（7 章の記録）
 
--   [ ] `local-cli-review.md` の手順 3、`stop` の説明の最後の文（「A `state_changed` caused by another session's commit or stash in another worktree ... is still a stop: the user decides.」）を、設計書 3.4 の 2 点（ほかの worktree の操作でも HEAD のブランチが動けば `state_changed` になって止めること、ほかのブランチ・タグ・stash の変化では `state_changed` にならないこと）を述べる文に書き換える。`_checks/check.sh` がこの文を切り取れるよう、書き換えた文も「A `state_changed` caused by」で始める。
--   [ ] ADR-0013 の決定の 4 つ目の項目から、ずれの記述の 3 文（「この決定は、まだ…」から「…#778 で扱う。」まで）を除く。PR を作る前に、`docs/dev/conventions/adr.md`「Discrepancy statements」のとおり `git grep -nE 'issues/778([^0-9]|$)' origin/main -- docs/dev/adr/` でほかにずれの記述がないかを確かめる。編集上の訂正なので、コミットメッセージに correction line（`Editorial correction: docs/dev/adr/0013-review-setup.md: ...; no decision changed`）を書く。PR の説明の correction paragraph は、`/runplan` が PR を作るときに書く。
--   [ ] `_checks/check.sh` を書く。引数に変更の前と後の 2 つのコミットを受け取り、次を確かめて、項目ごとに結果を 1 行出す（手本はタスク 0078 の `docs/tasks/0078_adr0024_server_env_result/_checks/check.sh`）。
+-   [x] `local-cli-review.md` の手順 3、`stop` の説明の最後の文（「A `state_changed` caused by another session's commit or stash in another worktree ... is still a stop: the user decides.」）を、設計書 3.4 の 2 点（ほかの worktree の操作でも HEAD のブランチが動けば `state_changed` になって止めること、ほかのブランチ・タグ・stash の変化では `state_changed` にならないこと）を述べる文に書き換える。`_checks/check.sh` がこの文を切り取れるよう、書き換えた文も「A `state_changed` caused by」で始める。
+-   [x] ADR-0013 の決定の 4 つ目の項目から、ずれの記述の 3 文（「この決定は、まだ…」から「…#778 で扱う。」まで）を除く。PR を作る前に、`docs/dev/conventions/adr.md`「Discrepancy statements」のとおり `git grep -nE 'issues/778([^0-9]|$)' origin/main -- docs/dev/adr/` でほかにずれの記述がないかを確かめる。編集上の訂正なので、コミットメッセージに correction line（`Editorial correction: docs/dev/adr/0013-review-setup.md: ...; no decision changed`）を書く。PR の説明の correction paragraph は、`/runplan` が PR を作るときに書く。
+-   [x] `_checks/check.sh` を書く。引数に変更の前と後の 2 つのコミットを受け取り、次を確かめて、項目ごとに結果を 1 行出す（手本はタスク 0078 の `docs/tasks/0078_adr0024_server_env_result/_checks/check.sh`）。
     -   `internal/codexreview/types.go` の `Protocol` の定義の行が前後で同じであること（AC-11）。
     -   `types.go` の `Result` の型の各フィールドの JSON の名前の並びが、前後で同じであること（AC-11）。
-    -   `internal/codexreview/state.go` の `statusArgs` の定義の行が前後で同じであること（AC-04）。
+    -   `internal/codexreview/state.go` の `statusArgs` の値（`[]string{…}` の部分）が前後で同じであること（AC-04）。宣言は `var` のブロックから単独の宣言に移るので、行ではなく値を比べる。
     -   `local-cli-review.md` で、手順 3 の `stop` の箇条を前後とも 1 つの段落につなぎ、「A `state_changed` caused by」から箇条の終わりまでを切り取ったとき、残りのファイル全体が前後で同じであり、切り取った部分は前後で違うこと（AC-12）。行の折り返しが変わっても比べられるようにするためである。
     -   ADR-0013 で、決定の 4 つ目の項目からずれの記述の 3 文を除いた行が後の行と同じで、ほかの行は前後で同じであること。
     -   台帳の消す名前（`itemStash`・`refsArgs`・`stashArgs`・`errRefsUnreadable`・`parseRefs`）が、後のコミットの `internal/codexreview` に単語として現れないこと。フィールド `refs`・`stash` は、`refs` がほかの識別子の引数名にも使われるので、後のコミットの `state.go` の `type gitState struct { … }` の本体だけを見て、ないことを確かめる。
--   [ ] `_checks/check.sh` の各項目について、確かめる対象を壊したコミット（一時的なもの）を後のコミットとして渡すと失敗することを、1 回ずつ確かめる。確かめたことをコミットメッセージに書く。
--   [ ] PR のブランチで `sh docs/tasks/0079_codexreview_state_scope/_checks/check.sh $(git merge-base origin/main HEAD) HEAD` を実行し、出力と 2 つのコミット ID を 7 章の記録に書く。
+-   [x] `_checks/check.sh` の各項目について、確かめる対象を壊したコミット（一時的なもの）を後のコミットとして渡すと失敗することを、1 回ずつ確かめる。確かめたことをコミットメッセージに書く。
+-   [x] PR のブランチで `sh docs/tasks/0079_codexreview_state_scope/_checks/check.sh $(git merge-base origin/main HEAD) HEAD` を実行し、出力と 2 つのコミット ID を 7 章の記録に書く。
 
 PR の説明には、入れ直しの前後の食い違いの見分け方（設計書 6.2：`changed` に `stash` が入るか、`changed_refs` に HEAD のブランチ以外の ref が入れば、入れ直す前のツールである）と、マージの後に `make install-codexreview` で入れ直すことを書く。`/runplan` が PR を作るときに書くので、チェックボックスにはしない。
 
@@ -159,10 +159,10 @@ PR の説明には、入れ直しの前後の食い違いの見分け方（設�
 
 **判定理由**: ステップ 2-1 が、Codex に sandbox を破られたときの検出の範囲という開発用ツールの守りを狭める。これは mkplan2 の手順 4 が挙げる security-gate の条件に当たり、正しさは AC-05・AC-09 の条件の組み立てに懸かる。
 
-- [ ] グリーンゲート（`make test`・`make lint`）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`make test`・`make lint`）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/809
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ## 3. 実装順序とマイルストーン (Implementation Order and Milestones)
 
@@ -206,8 +206,8 @@ PR の説明には、入れ直しの前後の食い違いの見分け方（設�
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
--   [ ] PR-1 マージ済み（対象ステップ: 1-1 / 2-1 / 3-1）
--   [ ] 7 章のすべての AC の検証が通り、`_checks/check.sh` の実行を記録した
+-   [x] PR-1 マージ済み（対象ステップ: 1-1 / 2-1 / 3-1）
+-   [x] 7 章のすべての AC の検証が通り、`_checks/check.sh` の実行を記録した
 
 ## 7. 受け入れ条件の検証 (Acceptance Criteria Verification)
 
@@ -218,7 +218,7 @@ PR の説明には、入れ直しの前後の食い違いの見分け方（設�
 | AC-01 | 2-1 | test: `internal/codexreview/run_test.go::TestRunIgnoresSharedRefs`（新規、ブランチを作る・消す・動かす・ほかの worktree が checkout しているブランチを動かす行） |
 | AC-02 | 2-1 | test: `run_test.go::TestRunIgnoresSharedRefs`（新規、タグを作る・動かす・消す行） |
 | AC-03 | 2-1 | test: `run_test.go::TestRunIgnoresSharedRefs`（新規、stash を加える・消す・入れ替える行） |
-| AC-04 | 2-1 / 3-1 | test: `run_test.go::TestRunStateChanged`（`tracked_file`・`untracked_file_hidden_by_configuration`）。diff: `_checks/check.sh`（`statusArgs` の行が前後で同じ。サブモジュールの変更を含む読み方を変えていない） |
+| AC-04 | 2-1 / 3-1 | test: `run_test.go::TestRunStateChanged`（`tracked_file`・`untracked_file_hidden_by_configuration`）。diff: `_checks/check.sh`（`statusArgs` の値が前後で同じ。サブモジュールの変更を含む読み方を変えていない） |
 | AC-05 | 2-1 | test: `run_test.go::TestRunStateChanged`（`detach_at_same_commit`、新規の detached のまま commit・detached からブランチへ・同じ commit の別のブランチへ switch・別の commit のブランチへ checkout の行） |
 | AC-06 | 2-1 | test: `run_test.go::TestRunStateChanged`（`commit`、新規の HEAD のブランチをほかの worktree が動かす 2 行）、`cmd/codexreview/main_test.go::TestOutputIsOneJSONObject`（`state_changed` の行） |
 | AC-07 | 2-1 | test: `run_test.go::TestRunStateChanged`（`with_failed_exit`・`with_timeout`） |
@@ -234,17 +234,32 @@ PR の説明には、入れ直しの前後の食い違いの見分け方（設�
 
 | 項目 | 値 |
 |---|---|
-| 変更の前（merge-base） | （実装の PR で書く） |
-| 変更の後（PR の head） | （実装の PR で書く） |
-| 出力 | （実装の PR で書く） |
+| 変更の前（merge-base） | `fcd726e3c8dc8784dfb1406b111e4d16e847f86a` |
+| 変更の後（PR の head） | `c30672cced447b3b45ec4f428344f916449aad19` |
+| 出力 | 下のとおり（終了コード 0） |
+
+```text
+base fcd726e3c8dc8784dfb1406b111e4d16e847f86a
+head c30672cced447b3b45ec4f428344f916449aad19
+docs/tasks/0079_codexreview_state_scope/_checks/check.sh blob da421c48694c4ea567111ddf47792684e409053a
+OK   protocol: const Protocol = 1 in both
+OK   result-names: protocol kind detail changed changed_refs codex_version run_dir instructions_changed findings in both
+OK   status-args: the statusArgs value is the same
+OK   procedure: only the text from "A `state_changed` caused by" to the end of the stop bullet differs
+OK   adr: the head is the base without the three sentences
+OK   removed-names: itemStash, refsArgs, stashArgs, errRefsUnreadable, parseRefs, and the refs and stash fields are gone
+OK every check passed
+```
+
+`procedure` の項目は、「A `state_changed` caused by」から `stop` の箇条の終わりまでを切り取って比べるので、切り取った部分に文が加わっても通る。切り取った部分（書き換えた文）は、AC-12 の manual の読み取りで、箇条の終わりまで読んで確かめる。
 
 ## 8. 完了条件 (Success Criteria)
 
--   [ ] AC-01〜AC-12 の検証が 7 章のとおり通る。
--   [ ] ほかのブランチ・タグ・stash の変化では止まらず、この worktree の `git status`・HEAD・HEAD のブランチの ref の変化では今と同じく止まる。
--   [ ] HEAD の読み取りの想定外の出力を補わず、読めないものとして扱う（要件書 4.2 の「信頼できない入力」）。
--   [ ] 共通手順の文、`types.go` のコメント、`package_reference.md`、ADR-0013 が、新しい比べるものと食い違わない。
--   [ ] `make test`・`make lint`・`make deadcode` が通る。
+-   [x] AC-01〜AC-12 の検証が 7 章のとおり通る。
+-   [x] ほかのブランチ・タグ・stash の変化では止まらず、この worktree の `git status`・HEAD・HEAD のブランチの ref の変化では今と同じく止まる。
+-   [x] HEAD の読み取りの想定外の出力を補わず、読めないものとして扱う（要件書 4.2 の「信頼できない入力」）。
+-   [x] 共通手順の文、`types.go` のコメント、`package_reference.md`、ADR-0013 が、新しい比べるものと食い違わない。
+-   [x] `make test`・`make lint`・`make deadcode` が通る。
 
 ## 9. 次のステップ (Next Steps)
 

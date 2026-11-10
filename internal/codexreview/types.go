@@ -1,7 +1,8 @@
 // Package codexreview runs Codex CLI's local review once, with fixed
 // arguments, and judges what it returns: whether the run completed, whether
 // its final message has one of the accepted forms, where each finding points,
-// and whether the run changed the repository's git state.
+// and whether the run changed the state of this worktree: its git status,
+// where HEAD is, and the ref of the branch HEAD is on.
 //
 // It is a developer tool. Codex's output is untrusted: it is checked against a
 // fixed grammar, never repaired, and no text of it reaches an error message,
@@ -37,8 +38,8 @@ type Result struct {
 	Protocol            int       `json:"protocol"`
 	Kind                Kind      `json:"kind"`
 	Detail              string    `json:"detail"`               // a fixed token naming the cause within Kind, never codex's text
-	Changed             []string  `json:"changed"`              // for KindStateChanged: which compared items differ
-	ChangedRefs         []string  `json:"changed_refs"`         // for KindStateChanged: refs that differ, with the worktree each is checked out in
+	Changed             []string  `json:"changed"`              // for KindStateChanged: which compared items differ, of status, head, and refs, in that order
+	ChangedRefs         []string  `json:"changed_refs"`         // for KindStateChanged: HEAD's branch when its ref moved (refs in Changed), with the worktree it is checked out in; otherwise empty
 	CodexVersion        string    `json:"codex_version"`        // the output of codex --version, when it was read
 	RunDir              string    `json:"run_dir"`              // where the final message is kept
 	InstructionsChanged bool      `json:"instructions_changed"` // BASE..HEAD touches a file named AGENTS.md, AGENTS.override.md or CLAUDE.md
