@@ -16,7 +16,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -468,53 +467,4 @@ func newTruncatedResponseServer(t *testing.T) string {
 		_, _ = conn.Write([]byte(head + body))
 	}()
 	return "http://" + listener.Addr().String()
-}
-
-// blackholeProxy accepts connections on a loopback listener and closes them
-// immediately. TestMain installs it in the proxy environment variables so a
-// test that accidentally targets a non-loopback endpoint cannot reach the
-// network.
-type blackholeProxy struct {
-	listener   net.Listener
-	accepted   atomic.Int64
-	acceptDone chan struct{}
-}
-
-// testProxy is the proxy TestMain installed. Tests read it to confirm that the
-// production endpoint is routed to the blackhole listener.
-var testProxy *blackholeProxy
-
-// startBlackholeProxy opens the loopback listener and begins accepting.
-func startBlackholeProxy() (*blackholeProxy, error) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		return nil, err
-	}
-	proxy := &blackholeProxy{listener: listener, acceptDone: make(chan struct{})}
-	go proxy.acceptLoop()
-	return proxy, nil
-}
-
-// acceptLoop closes every accepted connection.
-func (p *blackholeProxy) acceptLoop() {
-	defer close(p.acceptDone)
-	for {
-		conn, err := p.listener.Accept()
-		if err != nil {
-			return
-		}
-		p.accepted.Add(1)
-		_ = conn.Close()
-	}
-}
-
-// url returns the proxy URL to install in the proxy environment variables.
-func (p *blackholeProxy) url() string {
-	return "http://" + p.listener.Addr().String()
-}
-
-// stop closes the listener and waits for the accept loop to end.
-func (p *blackholeProxy) stop() {
-	_ = p.listener.Close()
-	<-p.acceptDone
 }

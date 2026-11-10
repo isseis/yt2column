@@ -319,6 +319,29 @@ func TestRequiredAndRequiredString(t *testing.T) {
 			}
 		})
 	}
+
+	accepted := map[string]struct{ key, want string }{
+		"a non-empty string": {"title", "t"},
+		"the empty string":   {"empty", ""},
+	}
+	for name, tc := range accepted {
+		t.Run("RequiredStringAllowEmpty accepts "+name, func(t *testing.T) {
+			text, err := RequiredStringAllowEmpty(consumed, tc.key)
+			if err != nil || text != tc.want {
+				t.Errorf("RequiredStringAllowEmpty(%q) = %q, %v; want %q, nil", tc.key, text, err, tc.want)
+			}
+		})
+	}
+	for name, tc := range rejected {
+		if tc.target == errEmptyField {
+			continue
+		}
+		t.Run("RequiredStringAllowEmpty rejects "+name, func(t *testing.T) {
+			if _, err := RequiredStringAllowEmpty(consumed, tc.key); !errors.Is(err, tc.target) {
+				t.Errorf("RequiredStringAllowEmpty(%q) error = %v, want %v", tc.key, err, tc.target)
+			}
+		})
+	}
 }
 
 func TestOptionalString(t *testing.T) {

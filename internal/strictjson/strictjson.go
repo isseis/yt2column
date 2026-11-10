@@ -144,6 +144,19 @@ func Required(members map[string]Value, key string) (Value, error) {
 // RequiredString returns the named member as a non-empty string, rejecting a
 // missing member, null, another kind, or the empty string.
 func RequiredString(members map[string]Value, key string) (string, error) {
+	text, err := RequiredStringAllowEmpty(members, key)
+	if err != nil {
+		return "", err
+	}
+	if text == "" {
+		return "", fmt.Errorf("%w: %s", errEmptyField, key)
+	}
+	return text, nil
+}
+
+// RequiredStringAllowEmpty returns the named member as a string, rejecting a
+// missing member, null, or another kind. The empty string is accepted.
+func RequiredStringAllowEmpty(members map[string]Value, key string) (string, error) {
 	value, err := Required(members, key)
 	if err != nil {
 		return "", err
@@ -151,9 +164,6 @@ func RequiredString(members map[string]Value, key string) (string, error) {
 	text, err := value.AsString()
 	if err != nil {
 		return "", fmt.Errorf("%s: %w", key, err)
-	}
-	if text == "" {
-		return "", fmt.Errorf("%w: %s", errEmptyField, key)
 	}
 	return text, nil
 }

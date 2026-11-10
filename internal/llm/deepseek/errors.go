@@ -23,8 +23,6 @@ var ErrPaddedModel = errors.New("the model has leading or trailing whitespace")
 // Static errors for constructing a client and for failure paths that have no
 // public sentinel.
 var (
-	errZeroAPIKey         = errors.New("the API key is the zero value")
-	errInvalidAPIKey      = errors.New("the API key contains a character outside printable ASCII (0x21-0x7E)")
 	errEmptyModel         = errors.New("the model is empty")
 	errInvalidModel       = errors.New("the model is not valid UTF-8")
 	errInvalidEffort      = errors.New("the effort is not a supported reasoning_effort value")

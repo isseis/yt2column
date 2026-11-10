@@ -9,7 +9,6 @@ import (
 
 	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/llm/deepseekparam"
-	"github.com/isseis/yt2column/internal/secret"
 )
 
 // Message roles of the Chat Completions API.
@@ -72,26 +71,9 @@ func newChatRequestBody(model string, req llm.GenerateRequest, effort deepseekpa
 	return data, nil
 }
 
-// checkAPIKey validates the shape of the API key: it must be present and made
-// only of printable ASCII. This is one of exactly two places that call
-// Reveal; the other sets the Authorization header. The revealed string is
-// discarded after the check and is never stored in a field or an error.
-func checkAPIKey(apiKey secret.Secret) error {
-	value, err := apiKey.Reveal()
-	if err != nil {
-		return errZeroAPIKey
-	}
-	for i := range len(value) {
-		if value[i] < '!' || value[i] > '~' {
-			return errInvalidAPIKey
-		}
-	}
-	return nil
-}
-
 // newRequest builds the POST request with the JSON body and the two required
-// headers. It sets the Authorization header through the other Reveal call
-// site; the revealed string is used for the header and discarded. A header
+// headers. It sets the Authorization header through the package's only Reveal
+// call site; the revealed string is used for the header and discarded. A header
 // failure returns without sending the request.
 func (c *client) newRequest(ctx context.Context, body []byte) (*http.Request, error) {
 	//nolint:gosec // the endpoint is the fixed production URL or a loopback URL checked by the test helper

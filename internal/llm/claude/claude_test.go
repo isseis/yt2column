@@ -41,24 +41,12 @@ var testProxy *llmhttptest.BlackholeProxy
 // the proxy environment variables, so a unit test that accidentally targets
 // the production endpoint fails without reaching the network.
 func TestMain(m *testing.M) {
-	proxy, err := llmhttptest.StartBlackholeProxy()
+	proxy, err := llmhttptest.InstallBlackholeProxy()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "start test proxy: %v\n", err)
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 	testProxy = proxy
-	for _, name := range []string{"HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"} {
-		if err := os.Setenv(name, proxy.URL()); err != nil {
-			fmt.Fprintf(os.Stderr, "set %s: %v\n", name, err)
-			os.Exit(1)
-		}
-	}
-	for _, name := range []string{"NO_PROXY", "no_proxy"} {
-		if err := os.Unsetenv(name); err != nil {
-			fmt.Fprintf(os.Stderr, "unset %s: %v\n", name, err)
-			os.Exit(1)
-		}
-	}
 	code := m.Run()
 	proxy.Stop()
 	os.Exit(code)
@@ -747,8 +735,8 @@ func TestRevealOnlyInRequestFile(t *testing.T) {
 			return true
 		})
 	}
-	if positions["request.go"] != 2 {
-		t.Errorf("request.go calls Reveal %d times, want 2: %v", positions["request.go"], positions)
+	if positions["request.go"] != 1 {
+		t.Errorf("request.go calls Reveal %d times, want 1: %v", positions["request.go"], positions)
 	}
 	for name, count := range positions {
 		if name != "request.go" {
