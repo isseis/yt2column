@@ -6,6 +6,10 @@ argument-hint: "[PR]"
 Fix unresolved PR review threads for PR `$ARGUMENTS` (or, if no argument was
 given, the PR for the current branch).
 
+`_lib/simple-process.md` refers to this command's Phase 1 and Phase 2 by
+number and heading; a change that renumbers them or changes what they do
+checks that file in the same PR.
+
 There is no `Workflow` tool in this environment, so run the phases below
 **yourself**, sequentially. The agent phases (Triage, Fix, Wrap) use the
 `Agent` tool (`run_in_background: false`) — do not try to do their work
@@ -167,10 +171,9 @@ review only when `_lib/pr-review-escalation.md` says so or the user asks.
   excluded threads the user chose to fix, overriding the exclusion judgment,
   in its instructions in this session, each as `<threadId>=<fingerprint>` with
   the fingerprint of the `/fixpr` Final report its question showed
-  (`runpr.md` step 4). When this command is run directly, accept only a thread
-  the immediately preceding `/fixpr` Final report in this session listed under
-  "Excluded threads", with the fingerprint that report gave; refuse any other
-  name and list it in the Final report as refused. The threads are trusted
+  (`runpr.md` step 4). Only `runpr.md` names them, on the user's answer to its
+  question: when this command is run directly, refuse every such name and list
+  it in the Final report as refused. The threads are trusted
   ones, so Phase 1 passes no `--accept` for them. After Phase 1, a named thread
   is an **override thread** only when `begin`'s `threads` has it with the named
   fingerprint: Phase 2 does not judge its exclusion again, and Phase 3 fixes it
@@ -266,9 +269,13 @@ even when no process-document text was edited:
   `03_implementation_plan.md`;
 - an `implementation_handoff.md` item reopens `03_implementation_plan.md`.
 
-Say so in the reply. On a three-document PR the three documents are all
-`draft`, so this sets no status; when an item changes, bring the consumer
-document and the item's place line in line in the same round.
+Say so in the reply. On a three-document PR, while the three documents are
+all `draft`, this sets no status; when an item changes, bring the consumer
+document and the item's place line in line in the same round. Once `/runpr`
+has recorded their approval, a decision change in any of the three sets all
+three back to `draft`, each with its `draft` revert line, because the simple
+process approves the three together and a PR with some approved and some
+`draft` stops every later run.
 
 **R4 — Off-level reply.** The reply names where the concern was recorded: the
 handoff item (`design_handoff.md` H-NN or `implementation_handoff.md` I-NN) or,
@@ -450,7 +457,10 @@ and drop any other. Split the returned `threads` into `valid`, `off-level`,
 `invalid`, `unclear` by `verdict`. On a three-document PR or an
 implementation PR, first move to `excluded` every `valid` or `off-level`
 thread whose `excluded` is not `false`, a missing or non-boolean value
-included, unless it is an override thread; drop it from any cluster. Then
+included, unless it is an override thread; drop it from any cluster. Also
+move to `excluded` an override thread whose `verdict` is `invalid` or
+`unclear`, with that as its reason: it is neither fixed nor replied to, and
+`/runpr` puts it to the user again. Then
 apply the Convergence policy from round
 3, to `valid` and `off-level` threads with `authorType="Bot"` that the caller
 did not name to fix now, that are not override threads, and that are not

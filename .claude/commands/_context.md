@@ -141,12 +141,14 @@ A PR is a **plan PR** when, in the tree of the PR's head, a task's
 (`runplan.md` writes it, at a PR checkpoint or, for a plan without PR markers,
 in its single-PR record). Its task ID is the number of the task directory that
 holds that plan. It is the task's **final PR** when no `### PR-N 作成ポイント`
-marker after that line is unchecked. `runpr.md` step 2 and `mergepr.md` step 2
-use this definition.
+marker after that line is unchecked. `runpr.md` step 2, `mergepr.md` step 2,
+and `fixpr.md` Phase 1 (through `_lib/simple-process.md`, "Identifying the PR
+kind") use this definition.
 
 - **Tree.** `runpr.md` reads its checkout of the PR's head branch, which its
   step 1 brought up to date (for a PR its step 1 finds merged, whose head
-  branch is gone, `origin/main`). `mergepr.md` reads the tree of the `headRefOid`
+  branch is gone, `origin/main`). `fixpr.md` reads its work tree's `HEAD`,
+  which `begin` checked is clean. `mergepr.md` reads the tree of the `headRefOid`
   that `prepare` recorded, the commit `merge` is pinned to with
   `--match-head-commit`, so the tree judged is the tree merged.
 - **Match.** Count only a line where the whole URL matches: looking for
