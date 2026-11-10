@@ -273,9 +273,10 @@ Say so in the reply. On a three-document PR, while the three documents are
 all `draft`, this sets no status; when an item changes, bring the consumer
 document and the item's place line in line in the same round. Once `/runpr`
 has recorded their approval, a decision change in any of the three sets all
-three back to `draft`, each with its `draft` revert line, because the simple
-process approves the three together and a PR with some approved and some
-`draft` stops every later run.
+three back to `draft`, the changed document with its `draft` revert line and
+the others with the line for a revert along with that document's decision
+change, because the simple process approves the three together and a PR with
+some approved and some `draft` stops every later run.
 
 **R4 — Off-level reply.** The reply names where the concern was recorded: the
 handoff item (`design_handoff.md` H-NN or `implementation_handoff.md` I-NN) or,

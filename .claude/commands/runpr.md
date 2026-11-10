@@ -754,14 +754,13 @@ stops, stop here: no question, no merge.
        A three-document PR is never offered this option: merged with its
        documents `draft`, it would leave a task that `/mkarch`, `/mkplan`,
        and `/runplan` all stop on;
-     - return to the full process (only for a three-document PR whose three
-       documents are all `draft`; once PRE_MERGE has approved them, the
-       return is no longer offered);
+     - return to the full process (only for a three-document PR, whether or
+       not PRE_MERGE has already approved its documents);
      - do not merge (revising the message goes through the free-text answer).
 
      While an excluded thread of a three-document PR is unresolved, the Merge
-     options are only "return to the full process" (when offered) and "do not
-     merge": the three documents are never merged with one left open.
+     options are only "return to the full process" and "do not merge": the
+     three documents are never merged with one left open.
 
    An answer that merges is the explicit approval `mergepr.md` step 3 asks for.
    Do not merge on anything less. When the free-text answer revises the
@@ -796,8 +795,9 @@ stops, stop here: no question, no merge.
    return in progress"):
 
    1. **Ask first.** First run `mergepr discard --state <state-file>`. Before
-      touching any file, settle everything the return needs. An answer that chooses the return together with anything else
-      (threads to fix, a PR review) is not a choice: ask step 4 again. REASON
+      touching any file, settle everything the return needs. An answer that
+      chooses the return together with anything else (threads to fix, a PR
+      review) is not a choice: ask step 4 again, from its item 1. REASON
       is the answer's free text as written, or `理由の記載なし` when it gives
       none; never infer one. Work out ADR_SPLIT from the ADR judgments of the
       three documents; when one ADR change cannot be split that way, ask the
@@ -847,7 +847,12 @@ stops, stop here: no question, no merge.
       fixprguard edit-pr --protocol 5 --title-file <title-file> --body-file <body-file> <number>
       ```
 
-      On a stop, stop and report the same.
+      On a stop, stop and report the same. When the same stop would repeat
+      (a correction line of a commit holds the mention, or `edit-pr` rejects
+      the same text), also say that the user rewrites the PR's title and body
+      on GitHub by hand and then makes and pushes the finish commit
+      (`_lib/simple-process.md`, "The finish commit") by hand, after return
+      step 6's threads are resolved.
    6. **Replies.** For each thread of THREADS (in a later run, each thread of
       the return commit's list that the current `fixprguard list` still shows
       unresolved), write a Japanese reply to a file outside the work tree
@@ -869,8 +874,10 @@ stops, stop here: no question, no merge.
       unresolved, and a stop such as `thread-changed` would repeat. When
       every listed thread is replied to and resolved, make and push the
       finish commit (`_lib/simple-process.md`, "Returning to the full
-      process", "The finish commit"); when its push fails, stop and report,
-      and a later run pushes it (step 2).
+      process", "The finish commit"); when its push fails, stop and report.
+      A later run pushes it (step 2) after a failure that does not move the
+      head; for a rejected push (the head moved), report the recovery of
+      return step 4.
    7. Return to step 2, then step 3, and ask step 4 again. The PR is no longer
       a three-document PR, so step 3 runs `fixpr` once more for the excluded
       threads left on `01_requirements.md`, which are now handled as in the
