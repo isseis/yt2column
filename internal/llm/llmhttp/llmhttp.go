@@ -1,9 +1,11 @@
 // Package llmhttp performs one HTTP POST for an LLM adapter: it applies the
 // adapter's timeout over the caller's context, sends a request, reads the
 // response body under a size cap, and classifies a send or read failure into a
-// context error or one of the adapter's own sentinels. It defines no sentinel
-// for a send failure, so each adapter keeps the sentinels that name its
-// provider. It also checks the shape of an API key before an adapter is built.
+// context error or one of the adapter's own sentinels. It returns the body of a
+// 200 response without reading the body of a non-200 response, and it never
+// follows a redirect. It defines no sentinel for a send failure, so each
+// adapter keeps the sentinels that name its provider. It also checks the shape
+// of an API key before an adapter is built.
 package llmhttp
 
 import (
