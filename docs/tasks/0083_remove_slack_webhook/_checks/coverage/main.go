@@ -60,6 +60,9 @@
 // that no declaration holds, a declaration that declares no name, or two
 // declarations that map to the same package, receiver, and name).
 //
+// The first argument ext selects the extension side instead, which compares
+// two lcov reports of the extension suite (ext.go).
+//
 // Run it from the repository root. make test and CI do not run it, and it is
 // not maintained after the merge. The //go:build test first line makes the
 // repository-wide environment access check treat the file as test code.
@@ -90,6 +93,9 @@ var testConstraint = regexp.MustCompile(`^//go:build test([^A-Za-z0-9_.]|$)`)
 var profileLine = regexp.MustCompile(`^(.+\.go):(\d+)\.(\d+),(\d+)\.(\d+) (\d+) (\d+)$`)
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "ext" {
+		os.Exit(runExt(os.Args[2:]))
+	}
 	if len(os.Args) != 5 {
 		fmt.Fprintln(os.Stderr, "usage: coverage <before-commit> <after-commit> <before.prof> <after.prof>")
 		os.Exit(2)
