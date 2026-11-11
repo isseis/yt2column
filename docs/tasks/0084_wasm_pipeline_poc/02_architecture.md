@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-11 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-11 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 設計の全体像 (Design Overview)
@@ -894,3 +894,7 @@ PoC のコードにはテストを書かない（要件書 §5「受け入れの
 | AC-18 | §3.2（`probe`）、§3.3、§3.4（サイズと読み込みの時間）、§6.2、§7.3 |
 | AC-21 | §3.5 |
 | AC-24〜AC-28 | §3.6、§5.2 |
+
+## 変更履歴
+
+-   2026-11-11 承認（isseis、#820）

@@ -4,12 +4,12 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-11 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 決定の変更で draft に戻した：AC-04・AC-05 に、yt-dlp の経路を別のパッケージへ移すのに要る書き換えを足し、F-002 のモデルと effort を CLI と同じ 2 組にし、WASM でビルドできることを #772 まで検査で守ることにした（AC-29） |
+| Review date | 2026-11-11 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 概要 (Overview)
 
@@ -332,4 +332,5 @@ PoC で次の値を測る。実 API を呼ぶ測定は、その都度、人の�
 ## 変更履歴
 
 -   2026-11-11 承認（isseis、#814）
--   2026-11-11 draft への戻し：AC-04・AC-05 に、yt-dlp の経路を別のパッケージへ移すのに要る書き換えを足し、F-002 のモデルと effort を CLI と同じ 2 組にし、WASM でビルドできることを #772 まで検査で守ることにした（AC-29）（#未記入）
+-   2026-11-11 draft への戻し：AC-04・AC-05 に、yt-dlp の経路を別のパッケージへ移すのに要る書き換えを足し、F-002 のモデルと effort を CLI と同じ 2 組にし、WASM でビルドできることを #772 まで検査で守ることにした（AC-29）（#820）
+-   2026-11-11 承認（isseis、#820）
