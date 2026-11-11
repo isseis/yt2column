@@ -130,6 +130,19 @@ marker_plan() { # <file> <N>:<value>... ; value "-" leaves out the field
 		printf '## 3. order\n\n### 3.2 PR 構成\n\n| PR | value |\n|---|---|\n'
 	} >"$1"
 }
+# mkplan_single_plan <file> <value>: a single-phase plan in the form
+# mkplan.md step 8.5 has the writer produce: a PR 構成 subsection under
+# chapter 3 that says the work is one PR and ends with the value line and the
+# reason line, a blank line between them, and the next chapter after it.
+mkplan_single_plan() {
+	{
+		printf '# plan\n\n## 2. steps\n\n### phase 1: a\n\n- [x] step\n\n'
+		printf '## 3. order\n\n### 3.1. milestones\n\ntext\n\n'
+		printf '### 3.2 PR 構成\n\nThe work is one PR.\n\n'
+		printf '**実装モデル要件**: %s\n\n**判定理由**: 理由\n\n' "$2"
+		printf '## 4. tests\n\ntext\n'
+	} >"$1"
+}
 single_plan() { # <file> <heading> <value|-> [<chapter of the section>]
 	local chapter=${4:-3}
 	{
@@ -378,6 +391,24 @@ expect unclosed-fence RUN fail
 marker_plan "$p" 1:sonnet
 fixture real "$p"; code_commit c1
 expect plan-path-not-canonical RUN fail "./$PLAN" 1
+
+# --- The value: the single-phase form mkplan.md writes ---------------------
+mkplan_single_plan "$p" sonnet
+fixture real "$p"; code_commit c1
+expect mkplan-single-sonnet "NONE value-sonnet" ok "$PLAN" single
+
+mkplan_single_plan "$p" sonnet+opus-review
+fixture real "$p"; code_commit c1
+expect mkplan-single-sonnet-opus-review RUN ok "$PLAN" single
+
+mkplan_single_plan "$p" opus
+fixture real "$p"; code_commit c1
+expect mkplan-single-opus RUN ok "$PLAN" single
+
+# A value the writer mistyped is unreadable, not another value: RUN.
+mkplan_single_plan "$p" sonnet+review
+fixture real "$p"; code_commit c1
+expect mkplan-single-unreadable RUN ok "$PLAN" single
 
 # --- Records ----------------------------------------------------------------
 marker_plan "$p" 1:opus
