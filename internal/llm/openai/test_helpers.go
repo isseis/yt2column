@@ -36,6 +36,9 @@ const (
 	// fakeSecretMarker stands in for a secret or free text that a response
 	// carries in an untrusted value. No result or error may contain it.
 	fakeSecretMarker = "sk-FAKE-SECRET-MARKER-7731" //nolint:gosec // a fake marker, not a credential
+	// Paths to the saved real responses, relative to this package directory.
+	capturedCompletedFixture  = "../../../testdata/openai_responses_completed.json"
+	capturedIncompleteFixture = "../../../testdata/openai_responses_incomplete.json"
 )
 
 // The usage of the base test response and the counts it maps to: 120 input
