@@ -1,4 +1,4 @@
-package transcript
+package ytdlpsource
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"io/fs"
 	"os"
 	"time"
+
+	"github.com/isseis/yt2column/internal/transcript"
 )
 
 // Options configures a YtDlpSource. CacheDir and Timeout are required.
@@ -30,7 +32,7 @@ type YtDlpSource struct {
 	exec    commandExecutor
 }
 
-var _ TranscriptSource = (*YtDlpSource)(nil)
+var _ transcript.TranscriptSource = (*YtDlpSource)(nil)
 
 // NewYtDlpSource validates opts and returns a source that runs the real
 // yt-dlp. An empty YtDlpPath means "yt-dlp" on PATH.
@@ -51,13 +53,13 @@ func NewYtDlpSource(opts Options) (*YtDlpSource, error) {
 // running yt-dlp and runs yt-dlp only for a cache miss or a forced refresh. A
 // run changes the cache only when it produces a usable transcript; after any
 // outcome Fetch removes the video's dangling entries.
-func (s *YtDlpSource) Fetch(ctx context.Context, videoURL string) (Transcript, error) {
+func (s *YtDlpSource) Fetch(ctx context.Context, videoURL string) (transcript.Transcript, error) {
 	if err := ctx.Err(); err != nil {
-		return Transcript{}, err
+		return transcript.Transcript{}, err
 	}
-	id, normalizedURL, err := ValidateVideoURL(videoURL)
+	id, normalizedURL, err := transcript.ValidateVideoURL(videoURL)
 	if err != nil {
-		return Transcript{}, err
+		return transcript.Transcript{}, err
 	}
 	defer func() {
 		// The cleanup is local and must not be skipped just because the
@@ -66,12 +68,12 @@ func (s *YtDlpSource) Fetch(ctx context.Context, videoURL string) (Transcript, e
 	}()
 
 	if !s.options.ForceRefresh {
-		transcript, hit, err := s.readCached(id, normalizedURL)
+		cached, hit, err := s.readCached(id, normalizedURL)
 		if err != nil {
-			return Transcript{}, err
+			return transcript.Transcript{}, err
 		}
 		if hit {
-			return transcript, nil
+			return cached, nil
 		}
 	}
 	return s.runYtDlp(ctx, id, normalizedURL)
@@ -83,7 +85,7 @@ func (s *YtDlpSource) RemoveCache(ctx context.Context, videoURL string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	id, _, err := ValidateVideoURL(videoURL)
+	id, _, err := transcript.ValidateVideoURL(videoURL)
 	if err != nil {
 		return err
 	}
@@ -144,46 +146,46 @@ func (s *YtDlpSource) PruneCache(ctx context.Context) error {
 // readCached returns the transcript of a complete cache hit. hit is false when
 // the pair is incomplete or a file disappeared while reading, which turns the
 // call into a cache miss.
-func (s *YtDlpSource) readCached(id, normalizedURL string) (Transcript, bool, error) {
+func (s *YtDlpSource) readCached(id, normalizedURL string) (transcript.Transcript, bool, error) {
 	dir := s.options.CacheDir
 	state, err := readPointer(dir, id)
 	if err != nil {
-		return Transcript{}, false, err
+		return transcript.Transcript{}, false, err
 	}
 	slot, ok := state.validSlot()
 	if !ok {
-		return Transcript{}, false, nil
+		return transcript.Transcript{}, false, nil
 	}
 
 	slotDir := slotDirPath(dir, id, slot)
 	if info, err := os.Lstat(slotDir); err != nil || !info.IsDir() {
 		// A missing or non-directory slot, including a symlink, is not a
 		// valid generation and is never followed.
-		return Transcript{}, false, nil
+		return transcript.Transcript{}, false, nil
 	}
 	subtitleFile := subtitlesPath(slotDir, id)
 	infoFile := infoPath(slotDir, id)
 	if !cacheFileExists(subtitleFile) || !cacheFileExists(infoFile) {
-		return Transcript{}, false, nil
+		return transcript.Transcript{}, false, nil
 	}
 
 	segments, err := readSubtitlesFile(subtitleFile)
 	if errors.Is(err, errFileMissing) {
-		return Transcript{}, false, nil
+		return transcript.Transcript{}, false, nil
 	}
 	if err != nil {
-		return Transcript{}, false, err
+		return transcript.Transcript{}, false, err
 	}
 	if len(segments) == 0 {
-		return Transcript{}, false, fmt.Errorf("%w: %s: cached subtitles contain no text segments", ErrNoSubtitles, id)
+		return transcript.Transcript{}, false, fmt.Errorf("%w: %s: cached subtitles contain no text segments", transcript.ErrNoSubtitles, id)
 	}
 
 	info, err := readInfoFile(infoFile, id)
 	if errors.Is(err, errFileMissing) {
-		return Transcript{}, false, nil
+		return transcript.Transcript{}, false, nil
 	}
 	if err != nil {
-		return Transcript{}, false, err
+		return transcript.Transcript{}, false, err
 	}
 	return newTranscript(id, normalizedURL, info, segments), true, nil
 }
@@ -191,16 +193,16 @@ func (s *YtDlpSource) readCached(id, normalizedURL string) (Transcript, bool, er
 // runYtDlp runs one yt-dlp into the slot that is not currently valid, verifies
 // the output, and commits it. A failure leaves the existing cache untouched;
 // docs/dev/cache_consistency.md §5.1 walks through every interruption point.
-func (s *YtDlpSource) runYtDlp(ctx context.Context, id, normalizedURL string) (Transcript, error) {
+func (s *YtDlpSource) runYtDlp(ctx context.Context, id, normalizedURL string) (transcript.Transcript, error) {
 	dir := s.options.CacheDir
 	state, err := readPointer(dir, id)
 	if err != nil {
-		return Transcript{}, err
+		return transcript.Transcript{}, err
 	}
 	slot := writeSlot(state)
 	slotDir, err := prepareWriteSlot(dir, id, slot)
 	if err != nil {
-		return Transcript{}, err
+		return transcript.Transcript{}, err
 	}
 
 	runCtx, cancel := context.WithTimeout(ctx, s.options.Timeout)
@@ -211,24 +213,24 @@ func (s *YtDlpSource) runYtDlp(ctx context.Context, id, normalizedURL string) (T
 		// Run returns raw results; a timeout or a cancellation is recognized
 		// through the context that was used for the run.
 		if ctxErr := runCtx.Err(); ctxErr != nil {
-			return Transcript{}, ctxErr
+			return transcript.Transcript{}, ctxErr
 		}
 		message := fmt.Sprintf("%s: %s failed: %v", id, s.options.YtDlpPath, err)
 		if captured := redactStderr(stderr.String(), env); captured != "" {
 			message += ": " + captured
 		}
-		return Transcript{}, fmt.Errorf("%w: %s", ErrYtDlpExec, message)
+		return transcript.Transcript{}, fmt.Errorf("%w: %s", transcript.ErrYtDlpExec, message)
 	}
 
 	segments, info, err := verifyRunOutput(slotDir, id)
 	if err != nil {
-		return Transcript{}, err
+		return transcript.Transcript{}, err
 	}
 	if err := persistSlot(slotDir, id); err != nil {
-		return Transcript{}, err
+		return transcript.Transcript{}, err
 	}
 	if err := commitCache(dir, id, slot); err != nil {
-		return Transcript{}, err
+		return transcript.Transcript{}, err
 	}
 	return newTranscript(id, normalizedURL, info, segments), nil
 }
@@ -236,22 +238,22 @@ func (s *YtDlpSource) runYtDlp(ctx context.Context, id, normalizedURL string) (T
 // verifyRunOutput validates the files yt-dlp wrote into the write slot and
 // returns the segments and metadata. The subtitle file is checked first, so a
 // composite failure reports the subtitle sentinel.
-func verifyRunOutput(slotDir, id string) ([]Segment, videoInfo, error) {
+func verifyRunOutput(slotDir, id string) ([]transcript.Segment, videoInfo, error) {
 	segments, err := readSubtitlesFile(subtitlesPath(slotDir, id))
 	if errors.Is(err, errFileMissing) {
-		return nil, videoInfo{}, fmt.Errorf("%w: %s: no subtitle file was produced", ErrNoSubtitles, id)
+		return nil, videoInfo{}, fmt.Errorf("%w: %s: no subtitle file was produced", transcript.ErrNoSubtitles, id)
 	}
 	if err != nil {
 		return nil, videoInfo{}, err
 	}
 	if len(segments) == 0 {
-		return nil, videoInfo{}, fmt.Errorf("%w: %s: subtitle file contains no text segments", ErrNoSubtitles, id)
+		return nil, videoInfo{}, fmt.Errorf("%w: %s: subtitle file contains no text segments", transcript.ErrNoSubtitles, id)
 	}
 
 	info, err := readInfoFile(infoPath(slotDir, id), id)
 	if errors.Is(err, errFileMissing) {
 		// ErrParseInfo always travels in a *ParseError so the caller gets the path.
-		return nil, videoInfo{}, &ParseError{Path: infoPath(slotDir, id), Err: fmt.Errorf("%w: %s: no info.json was produced", ErrParseInfo, id)}
+		return nil, videoInfo{}, &transcript.ParseError{Path: infoPath(slotDir, id), Err: fmt.Errorf("%w: %s: no info.json was produced", transcript.ErrParseInfo, id)}
 	}
 	if err != nil {
 		return nil, videoInfo{}, err
@@ -269,8 +271,8 @@ func (s *YtDlpSource) cleanDangling(ctx context.Context, id string) {
 	_ = removeDangling(ctx, s.options.CacheDir, id, state)
 }
 
-func newTranscript(id, normalizedURL string, info videoInfo, segments []Segment) Transcript {
-	return Transcript{
+func newTranscript(id, normalizedURL string, info videoInfo, segments []transcript.Segment) transcript.Transcript {
+	return transcript.Transcript{
 		VideoID:     id,
 		VideoURL:    normalizedURL,
 		Title:       info.Title,

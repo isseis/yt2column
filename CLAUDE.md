@@ -190,7 +190,8 @@ change, retire, and withdraw an ADR is in the convention,
 - `go test -tags test -v ./internal/specific/package` - Run tests for specific package
 
 ### Code Quality
-- `make lint` - Run golangci-lint (version pinned in `Makefile`; includes `govet`)
+- `make lint` - Run golangci-lint (version pinned in `Makefile`; includes `govet`) and `make wasm-check`
+- `make wasm-check` - Build `internal/transcript`, `internal/writer`, `internal/llm/claude`, and `internal/pricing` for `GOOS=js GOARCH=wasm` and vet the first two, so the core stays buildable as WebAssembly (it checks the build only, not run-time behavior); CI's `lint` job runs it too
 - `make fmt` - Format changed Go files with gofumpt (`make fmt-all` for every file)
 - `make deadcode` - Report unreachable functions across the whole module and its
   tests (`test` and `integration` tags); any output or non-zero exit status fails
@@ -297,9 +298,10 @@ flowchart LR
 
 - `TranscriptSource` (`internal/transcript`): `CopiedSource` implements it by
   parsing the copied transcript text a user takes from YouTube's transcript
-  panel (the primary path). `YtDlpSource` fetches subtitles and info.json by
-  invoking the external `yt-dlp` command, parses json3, and caches per video ID
-  (the CLI uses it).
+  panel (the primary path). `YtDlpSource` (`internal/ytdlpsource`) fetches
+  subtitles and info.json by invoking the external `yt-dlp` command, parses
+  json3, and caches per video ID (the CLI uses it); it lives in its own package
+  so `internal/transcript` can be built for WebAssembly.
 - `internal/strictjson`: strict JSON extraction shared by several packages
   (the list of them is in [package_reference.md](docs/dev/conventions/package_reference.md));
   rejects the byte sequences and structural shapes `encoding/json` would

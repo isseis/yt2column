@@ -1,6 +1,6 @@
 //go:build test
 
-package transcript
+package ytdlpsource
 
 import (
 	"context"
@@ -17,6 +17,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/isseis/yt2column/internal/transcript"
 )
 
 func watchURL(id string) string { return "https://www.youtube.com/watch?v=" + id }
@@ -55,7 +57,7 @@ func runGeneration(id string) generation { return generationFor(id, "run") }
 
 // assertSingleGeneration checks that the metadata and the first segment come
 // from the same generation, so a transcript mixing two generations fails.
-func assertSingleGeneration(t *testing.T, transcript Transcript) {
+func assertSingleGeneration(t *testing.T, transcript transcript.Transcript) {
 	t.Helper()
 	titleLabel := strings.TrimPrefix(transcript.Title, "title-")
 	if titleLabel == transcript.Title {
@@ -298,7 +300,7 @@ func TestFetchYtDlpFailure(t *testing.T) {
 	source := newTestSource(t, dir, fake, nil)
 
 	_, err := source.Fetch(t.Context(), watchURL(id))
-	if !errors.Is(err, ErrYtDlpExec) {
+	if !errors.Is(err, transcript.ErrYtDlpExec) {
 		t.Fatalf("Fetch error = %v, want ErrYtDlpExec", err)
 	}
 	if !strings.Contains(err.Error(), source.options.YtDlpPath) {
@@ -336,7 +338,7 @@ func TestFetchTimeoutAndCancel(t *testing.T) {
 		if !errors.Is(err, context.DeadlineExceeded) {
 			t.Fatalf("Fetch error = %v, want context.DeadlineExceeded", err)
 		}
-		if errors.Is(err, ErrYtDlpExec) {
+		if errors.Is(err, transcript.ErrYtDlpExec) {
 			t.Errorf("timeout error also matches ErrYtDlpExec")
 		}
 	})
@@ -353,7 +355,7 @@ func TestFetchTimeoutAndCancel(t *testing.T) {
 		if !errors.Is(err, context.Canceled) {
 			t.Fatalf("Fetch error = %v, want context.Canceled", err)
 		}
-		if errors.Is(err, ErrYtDlpExec) {
+		if errors.Is(err, transcript.ErrYtDlpExec) {
 			t.Errorf("cancellation error also matches ErrYtDlpExec")
 		}
 	})
@@ -380,10 +382,10 @@ func TestFetchNoSubtitles(t *testing.T) {
 			source := newTestSource(t, dir, fake, nil)
 
 			_, err := source.Fetch(t.Context(), watchURL(id))
-			if !errors.Is(err, ErrNoSubtitles) {
+			if !errors.Is(err, transcript.ErrNoSubtitles) {
 				t.Fatalf("Fetch error = %v, want ErrNoSubtitles", err)
 			}
-			if errors.Is(err, ErrParseInfo) {
+			if errors.Is(err, transcript.ErrParseInfo) {
 				t.Errorf("error also matches ErrParseInfo")
 			}
 			if !strings.Contains(err.Error(), id) {
@@ -406,13 +408,13 @@ func TestFetchInfoMissing(t *testing.T) {
 	source := newTestSource(t, dir, fake, nil)
 
 	_, err := source.Fetch(t.Context(), watchURL(id))
-	if !errors.Is(err, ErrParseInfo) {
+	if !errors.Is(err, transcript.ErrParseInfo) {
 		t.Fatalf("Fetch error = %v, want ErrParseInfo", err)
 	}
-	if errors.Is(err, ErrNoSubtitles) {
+	if errors.Is(err, transcript.ErrNoSubtitles) {
 		t.Errorf("missing info.json also matches ErrNoSubtitles")
 	}
-	parseErr, ok := errors.AsType[*ParseError](err)
+	parseErr, ok := errors.AsType[*transcript.ParseError](err)
 	if !ok {
 		t.Fatalf("Fetch error = %v, want *ParseError", err)
 	}
@@ -436,9 +438,9 @@ func TestFetchValidationOrder(t *testing.T) {
 			writeInfo bool
 			want      error
 		}{
-			{"zero segments and invalid info", `{"events":[]}`, invalidInfo, true, ErrNoSubtitles},
-			{"invalid subtitles and invalid info", `{"events":`, invalidInfo, true, ErrParseSubtitles},
-			{"missing subtitles and invalid info", "", invalidInfo, true, ErrNoSubtitles},
+			{"zero segments and invalid info", `{"events":[]}`, invalidInfo, true, transcript.ErrNoSubtitles},
+			{"invalid subtitles and invalid info", `{"events":`, invalidInfo, true, transcript.ErrParseSubtitles},
+			{"missing subtitles and invalid info", "", invalidInfo, true, transcript.ErrNoSubtitles},
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
@@ -458,7 +460,7 @@ func TestFetchValidationOrder(t *testing.T) {
 				if !errors.Is(err, tc.want) {
 					t.Fatalf("Fetch error = %v, want %v", err, tc.want)
 				}
-				if errors.Is(err, ErrParseInfo) {
+				if errors.Is(err, transcript.ErrParseInfo) {
 					t.Errorf("error %v also matches ErrParseInfo", err)
 				}
 			})
@@ -472,8 +474,8 @@ func TestFetchValidationOrder(t *testing.T) {
 			info      string
 			want      error
 		}{
-			{"zero segments and invalid info", `{"events":[]}`, invalidInfo, ErrNoSubtitles},
-			{"invalid subtitles and invalid info", `{"events":`, invalidInfo, ErrParseSubtitles},
+			{"zero segments and invalid info", `{"events":[]}`, invalidInfo, transcript.ErrNoSubtitles},
+			{"invalid subtitles and invalid info", `{"events":`, invalidInfo, transcript.ErrParseSubtitles},
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
@@ -488,7 +490,7 @@ func TestFetchValidationOrder(t *testing.T) {
 				if !errors.Is(err, tc.want) {
 					t.Fatalf("Fetch error = %v, want %v", err, tc.want)
 				}
-				if errors.Is(err, ErrParseInfo) {
+				if errors.Is(err, transcript.ErrParseInfo) {
 					t.Errorf("error %v also matches ErrParseInfo", err)
 				}
 				if fake.callCount() != 0 {
@@ -515,7 +517,7 @@ func TestFetchParseErrorPath(t *testing.T) {
 				return nil
 			},
 			file:     func(slotDir string) string { return subtitlesPath(slotDir, id) },
-			sentinel: ErrParseSubtitles,
+			sentinel: transcript.ErrParseSubtitles,
 		},
 		{
 			name: "invalid info",
@@ -524,7 +526,7 @@ func TestFetchParseErrorPath(t *testing.T) {
 				return nil
 			},
 			file:     func(slotDir string) string { return infoPath(slotDir, id) },
-			sentinel: ErrParseInfo,
+			sentinel: transcript.ErrParseInfo,
 		},
 	}
 	for _, tc := range cases {
@@ -537,7 +539,7 @@ func TestFetchParseErrorPath(t *testing.T) {
 			if !errors.Is(err, tc.sentinel) {
 				t.Fatalf("Fetch error = %v, want %v", err, tc.sentinel)
 			}
-			parseErr, ok := errors.AsType[*ParseError](err)
+			parseErr, ok := errors.AsType[*transcript.ParseError](err)
 			if !ok {
 				t.Fatalf("Fetch error = %v, want *ParseError", err)
 			}
@@ -564,14 +566,14 @@ func TestFetchCacheParseError(t *testing.T) {
 			subtitles: `{"events":`,
 			info:      infoDocument(id, "old"),
 			file:      func(dir string) string { return subtitlesPath(slotDirPath(dir, id, slotNameA), id) },
-			sentinel:  ErrParseSubtitles,
+			sentinel:  transcript.ErrParseSubtitles,
 		},
 		{
 			name:      "invalid cached info",
 			subtitles: subtitleDocument("old"),
 			info:      `{"id":"` + id + `","title":`,
 			file:      func(dir string) string { return infoPath(slotDirPath(dir, id, slotNameA), id) },
-			sentinel:  ErrParseInfo,
+			sentinel:  transcript.ErrParseInfo,
 		},
 	}
 	for _, tc := range cases {
@@ -586,7 +588,7 @@ func TestFetchCacheParseError(t *testing.T) {
 			if !errors.Is(err, tc.sentinel) {
 				t.Fatalf("Fetch error = %v, want %v", err, tc.sentinel)
 			}
-			parseErr, ok := errors.AsType[*ParseError](err)
+			parseErr, ok := errors.AsType[*transcript.ParseError](err)
 			if !ok {
 				t.Fatalf("Fetch error = %v, want *ParseError", err)
 			}
@@ -675,7 +677,7 @@ func TestFetchOversizedPointer(t *testing.T) {
 		fake := &fakeCommandExecutor{behavior: failRun(errors.New("exit status 1"))}
 		source := newTestSource(t, dir, fake, nil)
 
-		if _, err := source.Fetch(t.Context(), watchURL(id)); !errors.Is(err, ErrYtDlpExec) {
+		if _, err := source.Fetch(t.Context(), watchURL(id)); !errors.Is(err, transcript.ErrYtDlpExec) {
 			t.Fatalf("Fetch error = %v, want ErrYtDlpExec", err)
 		}
 		assertNoDangling(t, dir, id)
@@ -714,7 +716,7 @@ func TestFetchStaleFileNotMistaken(t *testing.T) {
 			source := newTestSource(t, dir, fake, nil)
 
 			_, err := source.Fetch(t.Context(), watchURL(id))
-			if !errors.Is(err, ErrNoSubtitles) {
+			if !errors.Is(err, transcript.ErrNoSubtitles) {
 				t.Fatalf("Fetch error = %v, want ErrNoSubtitles", err)
 			}
 			assertNoDangling(t, dir, id)
@@ -940,7 +942,7 @@ func TestFetchUnrelatedEntriesUntouched(t *testing.T) {
 	t.Run("failed refresh", func(t *testing.T) {
 		fake := &fakeCommandExecutor{behavior: failRun(errors.New("exit status 1"))}
 		source := newTestSource(t, dir, fake, func(options *Options) { options.ForceRefresh = true })
-		if _, err := source.Fetch(t.Context(), watchURL(id)); !errors.Is(err, ErrYtDlpExec) {
+		if _, err := source.Fetch(t.Context(), watchURL(id)); !errors.Is(err, transcript.ErrYtDlpExec) {
 			t.Fatalf("Fetch error = %v, want ErrYtDlpExec", err)
 		}
 		assertUnrelatedUntouched(t, dir, id, unrelated, otherID)
@@ -1176,7 +1178,7 @@ func TestFetchStderrCapAndRedaction(t *testing.T) {
 	})
 
 	_, err := source.Fetch(t.Context(), watchURL(id))
-	if !errors.Is(err, ErrYtDlpExec) {
+	if !errors.Is(err, transcript.ErrYtDlpExec) {
 		t.Fatalf("Fetch error = %v, want ErrYtDlpExec", err)
 	}
 	if errors.Is(err, context.DeadlineExceeded) {
@@ -1205,7 +1207,7 @@ func TestFetchStderrCapAndRedaction(t *testing.T) {
 
 func TestFetchSentinelDistinction(t *testing.T) {
 	id := testdataRealVideoID
-	all := []error{ErrInvalidVideoURL, ErrYtDlpExec, ErrParseSubtitles, ErrParseInfo, ErrNoSubtitles, context.DeadlineExceeded, context.Canceled}
+	all := []error{transcript.ErrInvalidVideoURL, transcript.ErrYtDlpExec, transcript.ErrParseSubtitles, transcript.ErrParseInfo, transcript.ErrNoSubtitles, context.DeadlineExceeded, context.Canceled}
 
 	cases := []struct {
 		name  string
@@ -1214,21 +1216,21 @@ func TestFetchSentinelDistinction(t *testing.T) {
 	}{
 		{
 			name: "invalid URL",
-			own:  ErrInvalidVideoURL,
+			own:  transcript.ErrInvalidVideoURL,
 			build: func(t *testing.T, dir string) (*YtDlpSource, context.Context) {
 				return newTestSource(t, dir, &fakeCommandExecutor{}, nil), t.Context()
 			},
 		},
 		{
 			name: "exec failure",
-			own:  ErrYtDlpExec,
+			own:  transcript.ErrYtDlpExec,
 			build: func(t *testing.T, dir string) (*YtDlpSource, context.Context) {
 				return newTestSource(t, dir, &fakeCommandExecutor{behavior: failRun(errors.New("exit status 1"))}, nil), t.Context()
 			},
 		},
 		{
 			name: "subtitle parse failure",
-			own:  ErrParseSubtitles,
+			own:  transcript.ErrParseSubtitles,
 			build: func(t *testing.T, dir string) (*YtDlpSource, context.Context) {
 				behavior := func(call fakeCommandCall) error {
 					writeSlotFiles(t, slotDirFromArgs(t, call.args), id, `{"events":`, infoDocument(id, "run"))
@@ -1239,7 +1241,7 @@ func TestFetchSentinelDistinction(t *testing.T) {
 		},
 		{
 			name: "info parse failure",
-			own:  ErrParseInfo,
+			own:  transcript.ErrParseInfo,
 			build: func(t *testing.T, dir string) (*YtDlpSource, context.Context) {
 				behavior := func(call fakeCommandCall) error {
 					writeSlotFiles(t, slotDirFromArgs(t, call.args), id, subtitleDocument("text"), `{"id":"`+id+`","title":`)
@@ -1250,7 +1252,7 @@ func TestFetchSentinelDistinction(t *testing.T) {
 		},
 		{
 			name: "no subtitles",
-			own:  ErrNoSubtitles,
+			own:  transcript.ErrNoSubtitles,
 			build: func(t *testing.T, dir string) (*YtDlpSource, context.Context) {
 				return newTestSource(t, dir, &fakeCommandExecutor{}, nil), t.Context()
 			},
@@ -1288,7 +1290,7 @@ func TestFetchSentinelDistinction(t *testing.T) {
 			dir := filepath.Join(t.TempDir(), "cache")
 			source, ctx := tc.build(t, dir)
 			url := watchURL(id)
-			if tc.own == ErrInvalidVideoURL {
+			if tc.own == transcript.ErrInvalidVideoURL {
 				url = "https://example.com/watch?v=" + id
 			}
 			_, err := source.Fetch(ctx, url)
@@ -1443,13 +1445,13 @@ func TestFetchUnreadableSubtitleFile(t *testing.T) {
 		source := newTestSource(t, dir, fake, nil)
 
 		_, err := source.Fetch(t.Context(), watchURL(id))
-		if !errors.Is(err, ErrParseSubtitles) {
+		if !errors.Is(err, transcript.ErrParseSubtitles) {
 			t.Fatalf("Fetch error = %v, want ErrParseSubtitles", err)
 		}
-		if errors.Is(err, ErrNoSubtitles) {
+		if errors.Is(err, transcript.ErrNoSubtitles) {
 			t.Errorf("unreadable subtitle also matches ErrNoSubtitles")
 		}
-		parseErr, ok := errors.AsType[*ParseError](err)
+		parseErr, ok := errors.AsType[*transcript.ParseError](err)
 		if !ok {
 			t.Fatalf("Fetch error = %v, want *ParseError", err)
 		}
@@ -1471,10 +1473,10 @@ func TestFetchUnreadableSubtitleFile(t *testing.T) {
 		source := newTestSource(t, dir, fake, nil)
 
 		_, err := source.Fetch(t.Context(), watchURL(id))
-		if !errors.Is(err, ErrParseInfo) {
+		if !errors.Is(err, transcript.ErrParseInfo) {
 			t.Fatalf("Fetch error = %v, want ErrParseInfo", err)
 		}
-		parseErr, ok := errors.AsType[*ParseError](err)
+		parseErr, ok := errors.AsType[*transcript.ParseError](err)
 		if !ok {
 			t.Fatalf("Fetch error = %v, want *ParseError", err)
 		}
@@ -1492,10 +1494,10 @@ func TestFetchUnreadableSubtitleFile(t *testing.T) {
 		source := newTestSource(t, dir, &fakeCommandExecutor{}, nil)
 
 		_, err := source.Fetch(t.Context(), watchURL(id))
-		if !errors.Is(err, ErrParseSubtitles) {
+		if !errors.Is(err, transcript.ErrParseSubtitles) {
 			t.Fatalf("Fetch error = %v, want ErrParseSubtitles", err)
 		}
-		parseErr, ok := errors.AsType[*ParseError](err)
+		parseErr, ok := errors.AsType[*transcript.ParseError](err)
 		if !ok {
 			t.Fatalf("Fetch error = %v, want *ParseError", err)
 		}
@@ -1516,10 +1518,10 @@ func TestFetchUnreadableSubtitleFile(t *testing.T) {
 		source := newTestSource(t, dir, fake, nil)
 
 		_, err := source.Fetch(t.Context(), watchURL(id))
-		if !errors.Is(err, ErrParseSubtitles) {
+		if !errors.Is(err, transcript.ErrParseSubtitles) {
 			t.Fatalf("Fetch error = %v, want ErrParseSubtitles", err)
 		}
-		parseErr, ok := errors.AsType[*ParseError](err)
+		parseErr, ok := errors.AsType[*transcript.ParseError](err)
 		if !ok {
 			t.Fatalf("Fetch error = %v, want *ParseError", err)
 		}
@@ -1574,10 +1576,10 @@ func TestFetchOversizedFiles(t *testing.T) {
 		source := newTestSource(t, dir, fake, nil)
 
 		_, err := source.Fetch(t.Context(), watchURL(id))
-		if !errors.Is(err, ErrParseSubtitles) || !errors.Is(err, errInputTooLarge) {
+		if !errors.Is(err, transcript.ErrParseSubtitles) || !errors.Is(err, errInputTooLarge) {
 			t.Fatalf("Fetch error = %v, want ErrParseSubtitles with the size limit", err)
 		}
-		parseErr, ok := errors.AsType[*ParseError](err)
+		parseErr, ok := errors.AsType[*transcript.ParseError](err)
 		if !ok || parseErr.Path != subtitlesPath(slotDir, id) {
 			t.Errorf("Fetch error = %v, want a ParseError with the subtitle path", err)
 		}
@@ -1596,10 +1598,10 @@ func TestFetchOversizedFiles(t *testing.T) {
 		source := newTestSource(t, dir, fake, nil)
 
 		_, err := source.Fetch(t.Context(), watchURL(id))
-		if !errors.Is(err, ErrParseInfo) || !errors.Is(err, errInputTooLarge) {
+		if !errors.Is(err, transcript.ErrParseInfo) || !errors.Is(err, errInputTooLarge) {
 			t.Fatalf("Fetch error = %v, want ErrParseInfo with the size limit", err)
 		}
-		parseErr, ok := errors.AsType[*ParseError](err)
+		parseErr, ok := errors.AsType[*transcript.ParseError](err)
 		if !ok || parseErr.Path != infoPath(slotDir, id) {
 			t.Errorf("Fetch error = %v, want a ParseError with the info path", err)
 		}
@@ -1616,7 +1618,7 @@ func TestFetchOversizedFiles(t *testing.T) {
 		source := newTestSource(t, dir, fake, nil)
 
 		_, err := source.Fetch(t.Context(), watchURL(id))
-		if !errors.Is(err, ErrParseSubtitles) || !errors.Is(err, errInputTooLarge) {
+		if !errors.Is(err, transcript.ErrParseSubtitles) || !errors.Is(err, errInputTooLarge) {
 			t.Fatalf("Fetch error = %v, want ErrParseSubtitles with the size limit", err)
 		}
 		if _, err := os.Lstat(pointerPath(dir, id)); !errors.Is(err, fs.ErrNotExist) {
@@ -1650,10 +1652,10 @@ func TestFetchSymlinkSlotOutput(t *testing.T) {
 		source := newTestSource(t, dir, fake, nil)
 
 		_, err := source.Fetch(t.Context(), watchURL(id))
-		if !errors.Is(err, ErrParseSubtitles) || !errors.Is(err, errNotRegularFile) {
+		if !errors.Is(err, transcript.ErrParseSubtitles) || !errors.Is(err, errNotRegularFile) {
 			t.Fatalf("Fetch error = %v, want ErrParseSubtitles with errNotRegularFile", err)
 		}
-		parseErr, ok := errors.AsType[*ParseError](err)
+		parseErr, ok := errors.AsType[*transcript.ParseError](err)
 		if !ok {
 			t.Fatalf("Fetch error = %v, want *ParseError", err)
 		}
@@ -1681,10 +1683,10 @@ func TestFetchSymlinkSlotOutput(t *testing.T) {
 		source := newTestSource(t, dir, &fakeCommandExecutor{}, nil)
 
 		_, err := source.Fetch(t.Context(), watchURL(id))
-		if !errors.Is(err, ErrParseInfo) || !errors.Is(err, errNotRegularFile) {
+		if !errors.Is(err, transcript.ErrParseInfo) || !errors.Is(err, errNotRegularFile) {
 			t.Fatalf("Fetch error = %v, want ErrParseInfo with errNotRegularFile", err)
 		}
-		parseErr, ok := errors.AsType[*ParseError](err)
+		parseErr, ok := errors.AsType[*transcript.ParseError](err)
 		if !ok {
 			t.Fatalf("Fetch error = %v, want *ParseError", err)
 		}

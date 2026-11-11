@@ -24,10 +24,10 @@ import (
 	llmtestutil "github.com/isseis/yt2column/internal/llm/testutil"
 	"github.com/isseis/yt2column/internal/publisher"
 	publishertestutil "github.com/isseis/yt2column/internal/publisher/testutil"
-	"github.com/isseis/yt2column/internal/transcript"
 	transcripttestutil "github.com/isseis/yt2column/internal/transcript/testutil"
 	"github.com/isseis/yt2column/internal/writer"
 	writertestutil "github.com/isseis/yt2column/internal/writer/testutil"
+	"github.com/isseis/yt2column/internal/ytdlpsource"
 )
 
 const (
@@ -71,7 +71,7 @@ func seedCache(t *testing.T, dir, videoID, subtitles, info string) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		t.Fatalf("create cache dir: %v", err)
 	}
-	if err := transcript.SeedCacheForTest(dir, videoID, []byte(subtitles), []byte(info)); err != nil {
+	if err := ytdlpsource.SeedCacheForTest(dir, videoID, []byte(subtitles), []byte(info)); err != nil {
 		t.Fatalf("SeedCacheForTest: %v", err)
 	}
 }

@@ -76,6 +76,10 @@
 -   **PoC では、ビューアの役割を拡張の別のページが受け持つ（F-003・F-004、設計の際、2026-11-11）。** 本書の F-003・F-004 と用語集の「ビューア」は、PoC では、設計が定める PoC のページ（[02_architecture.md](02_architecture.md)）を指す。今のビューアはサーバに状態を問い合わせる作りで、PoC の処理と混ぜないためである。同じ拡張のタブのページなので、背面のタブの条件は変わらない。ADR: なし。
 -   **PoC に貼り付ける API キーは、テスト用の API キーとする（§4.2）。** テスト用の API キーとそのワークスペース ID は、`YT2COLUMN_TEST_ANTHROPIC_API_KEY`・`YT2COLUMN_TEST_ANTHROPIC_WORKSPACE_ID` に割り当てているものである。そのワークスペースには利用の上限がある（[security.md](../../dev/security.md) §2）。キーが漏れたときや暴走したときの被害をその上限で抑えるために、テスト用の API キーを使う。ADR: なし（例外は PoC の中に限り、`main` の規則を変えない）。
 
+**実装の際に決めたこと（2026-11-11）:**
+
+-   **番兵の一覧を固定するテストを、`internal/transcript` のテストに残す（AC-04）。** 番兵の一覧を固定するテスト `TestExportedSentinelErrorsUnchanged`（`internal/transcript/json3_test.go`）は、テストを動かすパッケージのディレクトリの、`Err` で始まる公開の名前を走査して、6 つの番兵と照らす。このテストを `internal/ytdlpsource` へ移すと、走査する先の番兵のない側のディレクトリになり、`make test` が失敗する（実際に移して確かめた）。番兵は移した後も `internal/transcript`（`errors.go`）にあるので、このテストは `internal/transcript` のテストに残す。人の答えは「`internal/transcript` へ戻す」である。選ばなかった案は、移す側で期待の一覧を空にする案（アサーションの変更になり、`internal/transcript` の 6 つの番兵を守るテストがなくなる）と、移す側から `../transcript` を走査する案（走査するディレクトリのパスの書き換えになり、テストが別のパッケージのソースを読む形になる）である。テストの関数の削除ではなく移動なので、AC-04 の「テストの関数の削除はない」は変わらない。ADR: なし（このタスクの中で閉じる）。
+
 ## 2. 目的とスコープ (Goals and Scope)
 
 ### 2.1. 目的 (Goals)
@@ -128,6 +132,7 @@
     -   ビルドの制約の行。
     -   移す側のテストの補助が、残る側の非公開の `videoIDPattern` で動画 ID を確かめる箇所の、公開の `NormalizedVideoURL` を使う等価な形への書き換え（`testVideoID`）。
     -   両方の側のテストが使うテストの補助の関数（`readTestdataFile`）の、移す側への複製。
+    -   番兵の一覧を固定するテスト（`TestExportedSentinelErrorsUnchanged`）の、`internal/transcript` のテストへの移動（移す側のテストのファイルから、残る側の新しいテストのファイルへ。本体は変えない）と、そのテストが使う補助の関数の扱い（`exportedErrNames` は一緒に移し、`parsePackageFile` は移す側の別のテストも使うので残る側へ複製する）。
     -   移したファイルを指す、リポジトリの中のパスの文字列の書き換え（環境変数の参照を限る検査 `internal/config/envaccess_test.go` の、`internal/transcript/ytdlp.go`）。許可する参照の種類と数は変えない。
 
     テストの関数の削除と、アサーションの変更はない。
@@ -338,3 +343,4 @@ PoC で次の値を測る。実 API を呼ぶ測定は、その都度、人の�
 -   2026-11-11 承認（isseis、#820）
 -   2026-11-11 draft への戻し：AC-05 に、パッケージ名を隠すローカル変数の改名（`YtDlpSource.Fetch` の `transcript`）を足した（#830）
 -   2026-11-11 承認（isseis、#830）
+-   2026-11-11 セッション中の再承認：番兵の一覧を固定するテスト（`TestExportedSentinelErrorsUnchanged`）を `internal/transcript` のテストに残し、その補助の複製を許す（isseis、#843）

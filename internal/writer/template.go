@@ -4,10 +4,8 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"os"
 	"reflect"
 	"strings"
-	"syscall"
 	"text/template"
 	"text/template/parse"
 	"unicode/utf8"
@@ -30,12 +28,6 @@ const (
 // probeNameSuffix names the second parse that detects a define with the
 // template's own name (see checkNoDefinitions).
 const probeNameSuffix = ".probe"
-
-// overrideOpenFlags opens an override file read-only without blocking on a
-// FIFO that has no writer (O_NONBLOCK) and without making a terminal the
-// controlling terminal (O_NOCTTY). The type of the opened file is checked
-// right after, so neither flag is relied on for anything but the open itself.
-const overrideOpenFlags = os.O_RDONLY | syscall.O_NONBLOCK | syscall.O_NOCTTY
 
 // variadic marks a function with no upper bound on its argument count.
 const variadic = -1
@@ -105,18 +97,6 @@ func loadTemplate[T any](src templateSource, embedded string) (checkedTemplate[T
 	}
 	tmpl.identity.Embedded = src.path == ""
 	return tmpl, nil
-}
-
-// readOverrideFile opens the override file, following symbolic links, and
-// reads it with readOpenedFile. Every failure wraps both ErrInvalidTemplate
-// and the underlying os error.
-func readOverrideFile(src templateSource) ([]byte, error) {
-	file, err := os.OpenFile(src.path, overrideOpenFlags, 0) //nolint:gosec // opens, read-only, the override file the caller named
-	if err != nil {
-		return nil, fmt.Errorf("%w: %s: %w", ErrInvalidTemplate, src, err)
-	}
-	defer func() { _ = file.Close() }()
-	return readOpenedFile(src, file)
 }
 
 // openedFile is the part of *os.File that readOpenedFile uses.

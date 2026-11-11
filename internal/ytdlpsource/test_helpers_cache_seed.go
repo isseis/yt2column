@@ -1,6 +1,6 @@
 //go:build test || integration
 
-package transcript
+package ytdlpsource
 
 import (
 	"fmt"

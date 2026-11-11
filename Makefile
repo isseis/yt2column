@@ -54,7 +54,7 @@ define format_files_from_list
 	fi
 endef
 
-.PHONY: all build clean test test-ci test-parse-norace readme-sync-check test-integration test-integration-deepseek test-integration-claude test-integration-openai test-integration-cli test-integration-slack lint fmt fmt-all deadcode tidy install-mergepr install-fixprguard install-codexreview ext-install ext-typecheck ext-lint ext-fmt-check ext-fmt ext-test ext-build ext-check coverage-compare ext-coverage-compare
+.PHONY: all build clean test test-ci test-parse-norace readme-sync-check test-integration test-integration-deepseek test-integration-claude test-integration-openai test-integration-cli test-integration-slack lint wasm-check fmt fmt-all deadcode tidy install-mergepr install-fixprguard install-codexreview ext-install ext-typecheck ext-lint ext-fmt-check ext-fmt ext-test ext-build ext-check coverage-compare ext-coverage-compare
 
 all: build
 
@@ -213,7 +213,7 @@ INTEGRATION_TIMEOUT ?= 10m
 
 test-integration:
 	@printf 'test-integration: uses the real yt-dlp and the network (video: %s)\n' "$$YT2COLUMN_TEST_VIDEO_URL"
-	$(GOTEST) -tags integration -count=1 -timeout $(INTEGRATION_TIMEOUT) -v ./internal/transcript
+	$(GOTEST) -tags integration -count=1 -timeout $(INTEGRATION_TIMEOUT) -v ./internal/ytdlpsource
 
 # DeepSeek integration test. Calls the real DeepSeek API, which incurs
 # charges, so it is kept out of `make test` by the `integration` build tag and
@@ -321,9 +321,21 @@ test-integration-slack:
 # `make test-integration-deepseek`, `make test-integration-claude`,
 # `make test-integration-openai`, `make test-integration-cli`, and `make test-integration-slack` run, so a
 # compile error there fails lint too.
-lint:
+lint: wasm-check
 	$(GOLINT)
 	$(GOCMD) vet -tags integration ./...
+
+# The packages the WebAssembly core is built from (the transcript types and
+# CopiedSource, the article writer, the Claude adapter, and the pricing table)
+# must keep compiling for js/wasm. This checks only that they build; behavior
+# that fails at run time in a browser (file system access) is not found here.
+# The two vet runs also compile the js-only files, which `make test` skips.
+WASM_PACKAGES = ./internal/transcript ./internal/writer ./internal/llm/claude ./internal/pricing
+WASM_VET_PACKAGES = ./internal/writer ./internal/transcript
+
+wasm-check:
+	GOOS=js GOARCH=wasm $(GOCMD) build $(WASM_PACKAGES)
+	GOOS=js GOARCH=wasm $(GOCMD) vet $(WASM_VET_PACKAGES)
 
 fmt:
 	$(call check_gofumpt)

@@ -82,7 +82,7 @@ Work in order.
   - Validators/parsers/env-checks have a happy-path test (all-valid → no error), not only failure cases.
   - A helper guarding a precondition calls its own guard internally; callers shouldn't have to.
   - Sub-test names match what they test (`slack_webhook_missing` tests `SLACK_WEBHOOK_URL`, not `YT2COLUMN_CACHE_DIR`).
-  - Reuse existing utilities before writing new ones (e.g. the json3 parser in `internal/transcript`); consolidate duplicate regexes/constants.
+  - Reuse existing utilities before writing new ones (e.g. the json3 parser in `internal/ytdlpsource`); consolidate duplicate regexes/constants.
   - Test-only behavior stays in test packages; don't branch production code for tests.
   - A Go test file importing a `testutil` that imports the package under test uses `package foo_test` to avoid an import cycle.
   - Any new or modified file with build tags beyond `//go:build test` alone (e.g. `//go:build test && foo`): confirm it is reached by at least one `make lint` invocation, or explicitly document the gap. Ask: "does `make lint` compile this file?"

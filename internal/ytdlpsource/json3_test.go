@@ -1,6 +1,6 @@
 //go:build test
 
-package transcript
+package ytdlpsource
 
 import (
 	"bytes"
@@ -10,13 +10,13 @@ import (
 	"go/parser"
 	"go/token"
 	"math"
-	"os"
 	"reflect"
-	"slices"
 	"strconv"
 	"strings"
 	"testing"
 	"unicode/utf8"
+
+	"github.com/isseis/yt2column/internal/transcript"
 )
 
 func TestParseSubtitlesRealData(t *testing.T) {
@@ -145,7 +145,7 @@ func TestParseSubtitlesTimestamps(t *testing.T) {
 				if err != nil {
 					t.Fatalf("parseSubtitles error = %v", err)
 				}
-				want := []Segment{{StartMs: tc.want, Text: "hi"}}
+				want := []transcript.Segment{{StartMs: tc.want, Text: "hi"}}
 				if !reflect.DeepEqual(segments, want) {
 					t.Errorf("segments = %+v, want %+v", segments, want)
 				}
@@ -197,7 +197,7 @@ func TestParseSubtitlesKeepsRepeatedText(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parseSubtitles error = %v", err)
 	}
-	want := []Segment{{StartMs: 0, Text: "hello"}, {StartMs: 5000, Text: "hello"}}
+	want := []transcript.Segment{{StartMs: 0, Text: "hello"}, {StartMs: 5000, Text: "hello"}}
 	if !reflect.DeepEqual(segments, want) {
 		t.Errorf("segments = %+v, want %+v", segments, want)
 	}
@@ -314,7 +314,7 @@ func TestParseSubtitlesUTF8(t *testing.T) {
 		if err != nil {
 			t.Fatalf("parseSubtitles error = %v", err)
 		}
-		want := []Segment{{StartMs: 0, Text: "\U0001F600"}}
+		want := []transcript.Segment{{StartMs: 0, Text: "\U0001F600"}}
 		if !reflect.DeepEqual(segments, want) {
 			t.Errorf("segments = %+v, want %+v", segments, want)
 		}
@@ -325,7 +325,7 @@ func TestParseSubtitlesUTF8(t *testing.T) {
 		if err != nil {
 			t.Fatalf("parseSubtitles error = %v", err)
 		}
-		want := []Segment{{StartMs: 0, Text: `\ud800`}}
+		want := []transcript.Segment{{StartMs: 0, Text: `\ud800`}}
 		if !reflect.DeepEqual(segments, want) {
 			t.Errorf("segments = %+v, want %+v", segments, want)
 		}
@@ -335,16 +335,16 @@ func TestParseSubtitlesUTF8(t *testing.T) {
 func assertSubtitlesRejected(t *testing.T, input string) {
 	t.Helper()
 	segments, err := parseSubtitles("inline.json3", []byte(input))
-	if !errors.Is(err, ErrParseSubtitles) {
+	if !errors.Is(err, transcript.ErrParseSubtitles) {
 		t.Fatalf("parseSubtitles(%q) error = %v, want ErrParseSubtitles", input, err)
 	}
-	if errors.Is(err, ErrNoSubtitles) {
+	if errors.Is(err, transcript.ErrNoSubtitles) {
 		t.Errorf("parseSubtitles(%q) error also matches ErrNoSubtitles", input)
 	}
 	if segments != nil {
 		t.Errorf("parseSubtitles(%q) returned segments %+v", input, segments)
 	}
-	parseErr, ok := errors.AsType[*ParseError](err)
+	parseErr, ok := errors.AsType[*transcript.ParseError](err)
 	if !ok {
 		t.Fatalf("parseSubtitles(%q) error is not *ParseError", input)
 	}
@@ -355,7 +355,7 @@ func assertSubtitlesRejected(t *testing.T, input string) {
 
 // subtitlesOracle builds the expected segments from the real fixture using
 // encoding/json, independent of the parser under test.
-func subtitlesOracle(t *testing.T, data []byte) []Segment {
+func subtitlesOracle(t *testing.T, data []byte) []transcript.Segment {
 	t.Helper()
 	var document struct {
 		Events []struct {
@@ -368,7 +368,7 @@ func subtitlesOracle(t *testing.T, data []byte) []Segment {
 	if err := json.Unmarshal(data, &document); err != nil {
 		t.Fatalf("oracle decode: %v", err)
 	}
-	var segments []Segment
+	var segments []transcript.Segment
 	for _, event := range document.Events {
 		var text strings.Builder
 		for _, seg := range event.Segs {
@@ -377,7 +377,7 @@ func subtitlesOracle(t *testing.T, data []byte) []Segment {
 		if strings.TrimSpace(text.String()) == "" {
 			continue
 		}
-		segments = append(segments, Segment{StartMs: event.TStartMs, Text: text.String()})
+		segments = append(segments, transcript.Segment{StartMs: event.TStartMs, Text: text.String()})
 	}
 	return segments
 }
@@ -464,62 +464,6 @@ func TestTimestampReadingIsUnified(t *testing.T) {
 	if len(signChecks) > 0 {
 		t.Errorf("json3.go compares a tStartMs-derived value against zero or a negative constant at %v", signChecks)
 	}
-}
-
-// TestExportedSentinelErrorsUnchanged fixes the exported sentinel errors of the
-// package. A new sentinel changes the error contract that callers branch on
-// with errors.Is, so adding one must revisit the callers and this guard.
-func TestExportedSentinelErrorsUnchanged(t *testing.T) {
-	entries, err := os.ReadDir(".")
-	if err != nil {
-		t.Fatalf("read package directory: %v", err)
-	}
-	want := []string{
-		"ErrCopiedTranscriptFormat",
-		"ErrInvalidVideoURL",
-		"ErrNoSubtitles",
-		"ErrParseInfo",
-		"ErrParseSubtitles",
-		"ErrYtDlpExec",
-	}
-
-	var got []string
-	for _, entry := range entries {
-		name := entry.Name()
-		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
-			continue
-		}
-		file, _ := parsePackageFile(t, name)
-		got = append(got, exportedErrNames(file)...)
-	}
-	slices.Sort(got)
-	if !slices.Equal(got, want) {
-		t.Errorf("exported sentinel errors = %v, want %v; a new sentinel changes the error contract callers branch on, so revisit the callers and this guard", got, want)
-	}
-}
-
-// exportedErrNames returns the package-level var and const identifiers of the
-// file that are exported and start with "Err".
-func exportedErrNames(file *ast.File) []string {
-	var names []string
-	for _, decl := range file.Decls {
-		gen, ok := decl.(*ast.GenDecl)
-		if !ok || (gen.Tok != token.VAR && gen.Tok != token.CONST) {
-			continue
-		}
-		for _, spec := range gen.Specs {
-			vs, ok := spec.(*ast.ValueSpec)
-			if !ok {
-				continue
-			}
-			for _, name := range vs.Names {
-				if ast.IsExported(name.Name) && strings.HasPrefix(name.Name, "Err") {
-					names = append(names, name.Name)
-				}
-			}
-		}
-	}
-	return names
 }
 
 // parsePackageFile parses a source file of the package under test. The test

@@ -1,10 +1,11 @@
-package transcript
+package ytdlpsource
 
 import (
 	"errors"
 	"fmt"
 
 	"github.com/isseis/yt2column/internal/strictjson"
+	"github.com/isseis/yt2column/internal/transcript"
 )
 
 // maxInfoBytes caps the size of one info.json file.
@@ -28,7 +29,7 @@ type videoInfo struct {
 func parseInfo(path, wantID string, data []byte) (videoInfo, error) {
 	info, err := decodeInfo(wantID, data)
 	if err != nil {
-		return videoInfo{}, &ParseError{Path: path, Err: fmt.Errorf("%w: %w", ErrParseInfo, err)}
+		return videoInfo{}, &transcript.ParseError{Path: path, Err: fmt.Errorf("%w: %w", transcript.ErrParseInfo, err)}
 	}
 	return info, nil
 }
