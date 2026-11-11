@@ -200,14 +200,16 @@ Work in the following order.
    (its other steps — the approval check, branch, status, commit, japrose, and
    PR steps — do not apply). With one
    phase, there are no PR markers: `/runplan` opens the single PR when the
-   phase is done. Write one `### 3.2 PR 構成` subsection under §3 (or whichever
-   section covers the implementation overview/test strategy) instead: it says
+   phase is done. Write one `### 3.2 PR 構成` subsection inside the `## 3.`
+   chapter (no other place: `/runplan` reads the value only from there) instead: it says
    the work is one PR, and it ends with the two lines `**実装モデル要件**: <value>`
    and `**判定理由**: <one line>`, each starting in the first column, in this
    order, with a blank line between them. `/runplan` and `/runpr` read the value
    from the subsection whose heading text, without its number, is `PR 構成`. Decide the value and write the
    `判定理由` as `mkplan2.md` step 4, "Model requirement", says, applied to the
-   steps of the single phase.
+   steps of the single phase. Step 8 ran before this subsection existed, so check
+   the written subsection yourself against the single-phase item of step 8's
+   Technical correctness checklist and fix it before step 9.
 
 9. Run the Japanese prose-quality pass by invoking the `japrose` command
    (`.claude/commands/japrose.md`) on the created implementation plan document (path in
