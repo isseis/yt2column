@@ -18,7 +18,7 @@ show_new() { git show "HEAD:$1" | norm; }
 squeeze() { sed -E 's/^[[:space:]]+//; s/[[:space:]]+/ /g' | grep -v '^$' | sort; }
 
 # 1. The set of changed files is the designed one.
-allowed='^(internal/(transcript|ytdlpsource)/|internal/writer/template(_open|_open_js)?\.go$|internal/(job|cachelock|config)/|cmd/yt2column/(run_test|test_helpers_integration)\.go$|docs/tasks/0018_article_quality/_material_check/main\.go$|Makefile$|\.github/workflows/ci\.yml$|docs/dev/conventions/package_reference\.md$|CLAUDE\.md$|docs/dev/guides/development\.md$|\.claude/commands/(runplan|mkplan)\.md$|docs/dev/(project_overview|cache_consistency)\.md$|docs/dev/adr/(0019|0033)-|docs/tasks/0084_wasm_pipeline_poc/)'
+allowed='^(internal/(transcript|ytdlpsource)/((exec|ytdlp|cache|info|json3)(_test)?|integration_test|test_helpers_cache_seed|test_helpers|sentinel_test|doc)\.go$|internal/writer/template(_open|_open_js)?\.go$|internal/job/(job|job_test)\.go$|internal/cachelock/cachelock_test\.go$|internal/config/envaccess_test\.go$|cmd/yt2column/(run_test|test_helpers_integration)\.go$|docs/tasks/0018_article_quality/_material_check/main\.go$|Makefile$|\.github/workflows/ci\.yml$|docs/dev/conventions/package_reference\.md$|CLAUDE\.md$|docs/dev/guides/development\.md$|\.claude/commands/(runplan|mkplan)\.md$|docs/dev/(project_overview|cache_consistency)\.md$|docs/dev/adr/(0019|0033)-|docs/tasks/0084_wasm_pipeline_poc/)'
 extra=$(git diff --name-only --no-renames "$base" HEAD | grep -Ev "$allowed" || true)
 [ -z "$extra" ] || fail "files outside the design changed: $extra"
 echo "OK files: every changed file is one the design names"

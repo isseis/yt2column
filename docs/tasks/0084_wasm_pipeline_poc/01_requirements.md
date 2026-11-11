@@ -132,7 +132,7 @@
     -   ビルドの制約の行。
     -   移す側のテストの補助が、残る側の非公開の `videoIDPattern` で動画 ID を確かめる箇所の、公開の `NormalizedVideoURL` を使う等価な形への書き換え（`testVideoID`）。
     -   両方の側のテストが使うテストの補助の関数（`readTestdataFile`）の、移す側への複製。
-    -   番兵の一覧を固定するテスト（`TestExportedSentinelErrorsUnchanged`）の、`internal/transcript` のテストへの移動（移す側のテストのファイルから、残る側の新しいテストのファイルへ。本体は変えない）と、そのテストが使う補助の関数（`exportedErrNames`・`parsePackageFile`）の、残る側への複製。
+    -   番兵の一覧を固定するテスト（`TestExportedSentinelErrorsUnchanged`）の、`internal/transcript` のテストへの移動（移す側のテストのファイルから、残る側の新しいテストのファイルへ。本体は変えない）と、そのテストが使う補助の関数の扱い（`exportedErrNames` は一緒に移し、`parsePackageFile` は移す側の別のテストも使うので残る側へ複製する）。
     -   移したファイルを指す、リポジトリの中のパスの文字列の書き換え（環境変数の参照を限る検査 `internal/config/envaccess_test.go` の、`internal/transcript/ytdlp.go`）。許可する参照の種類と数は変えない。
 
     テストの関数の削除と、アサーションの変更はない。
