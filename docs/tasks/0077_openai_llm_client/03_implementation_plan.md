@@ -199,7 +199,7 @@
 **判定理由**: 設計済みの配線と料金表の拡張であり、上位モデルを要する条件に該当しない。
 
 - [x] グリーンゲート（`make test`・`make lint`）がパスしていることを確認した
-- [x] PR を作成した: https://github.com/issei/yt2column/pull/815
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/815
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
