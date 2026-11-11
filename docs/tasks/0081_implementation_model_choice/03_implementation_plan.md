@@ -188,14 +188,14 @@
 
 **変更するファイル:** `.claude/commands/mkplan2.md`、`.claude/commands/mkplan.md`、`.claude/commands/_lib/simple-process.md`、`.claude/commands/_context.md`、`docs/dev/adr/0042-implementation-model-tiers.md`、`docs/tasks/0081_implementation_model_choice/_checks/old_values.sh`（新規）、`docs/tasks/0081_implementation_model_choice/_checks/decision_cases.sh`、本計画
 
--   [ ] **ステップ 3-1**: `mkplan2.md` の step 4 の「Model requirement」、step 6 の書式と `**判定理由**` の規則、step 7 の表の例、step 9 のペルソナとチェックリストを新しい値にする（設計書 3.2）。値の意味と判定理由の書き方は step 4 だけが定め、step 6 は step 4 を名指す（AC-05）。
--   [ ] **ステップ 3-2**: `mkplan.md` の step 8.5 に、単一フェーズの計画書の「PR 構成」の節と値の 2 行を書くことを足す。「Technical correctness checklist」に、その項目を足す（設計書 3.3）。
--   [ ] **ステップ 3-3**: `_lib/simple-process.md` の「Writing the three documents」に、単一フェーズの計画書の値を書くことを足す（設計書 3.3）。
--   [ ] **ステップ 3-4**: `_context.md` の PR marker conventions の値の項目に、値を書くコマンドとして `mkplan.md` の step 8.5（単一フェーズの計画書）を足す（設計書 3.1 の 1、AC-37 の書く側）。
--   [ ] **ステップ 3-5**: ADR-0042 の「決定」の食い違いの記述を消す（設計書 3.11.2、§1.3 の決定 4）。commit のメッセージに訂正の行を書く。
--   [ ] **ステップ 3-6**: `_checks/old_values.sh` を書いて実行する（AC-01、AC-04、AC-05、AC-39）。比べるコミットの `.claude/commands/` の下で、`frontier-required`・`frontier-recommended` と、単語としての `standard` を探す。`standard` の値でない使い方（`standard error`・`standard output`・`standard input`・`standard library`・`standard-library`・`standard classDef` など）は、スクリプトの中の名前の付いた一覧で除く。残ったすべての箇所が `_context.md` の PR marker conventions の節にあることを確かめ、ほかの箇所はすべて表示して失敗する。値でない使い方を除く一覧に語句を足すときは、その語句の前後の文を実行の記録に示せばよい。値としての使い方を `_context.md` の外に許す必要が出たときは、計画の決定の変更として人と決める（`runplan.md` step 5 の「Decision change」）。各チェックが少なくとも 1 つの壊し方で失敗することを確かめ、その結果を commit のメッセージに書く。実行の出力・終了コード・コミットの ID を §7 の「PR-3 の実行の記録」に書く。
--   [ ] **ステップ 3-7**: `_checks/decision_cases.sh` に、ステップ 3-2 の `mkplan.md` step 8.5 が書かせる形の単一フェーズの計画書の場合を足し、PR-3 のブランチで実行する（AC-06・AC-07・AC-08。ステップ 3-4 が `_context.md` を変えるので、フェーズ 2 の「確かめ直し」にも当たる）。結果を §7 の「PR-3 の実行の記録」に書く。
--   [ ] **ステップ 3-8**: AC-13 の差分の記録を書く（§7 の「差分の記録」の PR-3 の欄）。
+-   [x] **ステップ 3-1**: `mkplan2.md` の step 4 の「Model requirement」、step 6 の書式と `**判定理由**` の規則、step 7 の表の例、step 9 のペルソナとチェックリストを新しい値にする（設計書 3.2）。値の意味と判定理由の書き方は step 4 だけが定め、step 6 は step 4 を名指す（AC-05）。
+-   [x] **ステップ 3-2**: `mkplan.md` の step 8.5 に、単一フェーズの計画書の「PR 構成」の節と値の 2 行を書くことを足す。「Technical correctness checklist」に、その項目を足す（設計書 3.3）。
+-   [x] **ステップ 3-3**: `_lib/simple-process.md` の「Writing the three documents」に、単一フェーズの計画書の値を書くことを足す（設計書 3.3）。
+-   [x] **ステップ 3-4**: `_context.md` の PR marker conventions の値の項目に、値を書くコマンドとして `mkplan.md` の step 8.5（単一フェーズの計画書）を足す（設計書 3.1 の 1、AC-37 の書く側）。
+-   [x] **ステップ 3-5**: ADR-0042 の「決定」の食い違いの記述を消す（設計書 3.11.2、§1.3 の決定 4）。commit のメッセージに訂正の行を書く。
+-   [x] **ステップ 3-6**: `_checks/old_values.sh` を書いて実行する（AC-01、AC-04、AC-05、AC-39）。比べるコミットの `.claude/commands/` の下で、`frontier-required`・`frontier-recommended` と、単語としての `standard` を探す。`standard` の値でない使い方（`standard error`・`standard output`・`standard input`・`standard library`・`standard-library`・`standard classDef` など）は、スクリプトの中の名前の付いた一覧で除く。残ったすべての箇所が `_context.md` の PR marker conventions の節にあることを確かめ、ほかの箇所はすべて表示して失敗する。値でない使い方を除く一覧に語句を足すときは、その語句の前後の文を実行の記録に示せばよい。値としての使い方を `_context.md` の外に許す必要が出たときは、計画の決定の変更として人と決める（`runplan.md` step 5 の「Decision change」）。各チェックが少なくとも 1 つの壊し方で失敗することを確かめ、その結果を commit のメッセージに書く。実行の出力・終了コード・コミットの ID を §7 の「PR-3 の実行の記録」に書く。
+-   [x] **ステップ 3-7**: `_checks/decision_cases.sh` に、ステップ 3-2 の `mkplan.md` step 8.5 が書かせる形の単一フェーズの計画書の場合を足し、PR-3 のブランチで実行する（AC-06・AC-07・AC-08。ステップ 3-4 が `_context.md` を変えるので、フェーズ 2 の「確かめ直し」にも当たる）。結果を §7 の「PR-3 の実行の記録」に書く。
+-   [x] **ステップ 3-8**: AC-13 の差分の記録を書く（§7 の「差分の記録」の PR-3 の欄）。
 
 **確かめ直し。** ステップ 3-6 か 3-7 の比べたコミットより後に `.claude/commands/` か `_checks/` のスクリプトを変える commit が入ったら（PR を作った後の `/fixpr` の修正を含む）、そのステップをやり直して §7 の記録を改める。
 
@@ -362,6 +362,13 @@ PR-3:
 Diff record (AC-13):
 
 - Compared paths: `docs/tasks/0073_adr_context_decision_review/03_implementation_plan.md` `docs/tasks/0076_fixpr_local_review_guard/03_implementation_plan.md` `docs/tasks/0077_openai_llm_client/03_implementation_plan.md`
+- Merge-base: `5a1b3452a664669b74d8fae941714dc4b5989463`
+- Compared commit: `61eda2ceeb0c989d1a3bd461990e6b9336768e79`
+
+Path diff:
+
+```text
+```
 
 ### PR-1 の実行の記録
 
@@ -474,7 +481,99 @@ cases: 77 fixtures, failures: 0
 
 ### PR-3 の実行の記録
 
-（ステップ 3-6 と 3-7 で書く。）
+**ステップ 3-6（`_checks/old_values.sh`）。** clean な作業ツリーで `bash docs/tasks/0081_implementation_model_choice/_checks/old_values.sh 61eda2ceeb0c989d1a3bd461990e6b9336768e79` を実行した。終了コードは 0。比べたコミットは `61eda2ceeb0c989d1a3bd461990e6b9336768e79`、`_checks/old_values.sh` の blob は `f92b71a5571f846ebf1adefdb95398a63a825610` である。各チェックを壊すと失敗することは、`docs(0081): add the one-off checks for the old values and the single-phase plan form` のメッセージに書いた（`mkplan2.md` に `frontier-required` を足す、`mkplan.md` に値としての `standard` を足す、`_context.md` の表の行を消す、`_context.md` の節の外に旧い値を足す、の 4 つで、どれも失敗した）。値でない使い方を除く一覧（`standard` の後に `error`・`output`・`input`・`library` が続く場合、`standard-library`、`standard classDef`）に足した語句はない。出力:
+
+```text
+PASS: old values appear only in the old-value table of .claude/commands/_context.md (lines 57-120)
+```
+
+**ステップ 3-7（`_checks/decision_cases.sh`）。** clean な作業ツリーで `bash docs/tasks/0081_implementation_model_choice/_checks/decision_cases.sh 61eda2ceeb0c989d1a3bd461990e6b9336768e79` を実行した。終了コードは 0。比べたコミットは `61eda2ceeb0c989d1a3bd461990e6b9336768e79`、判断のスクリプト（`.claude/commands/_lib/opus-review-decision.sh`）の blob は `edb00139969c7aea909bd6a45c3e0efc99b3bd4d`、`_checks/decision_cases.sh` の blob は `94b97ee6d7d034142366a4a7b9075dea93462728` である。足した 4 つの場合（`mkplan-single-*`）は、判断のスクリプトの「PR 構成」の見出しの照合を壊すと 4 つとも失敗し、読めない値を RUN としない壊し方では `mkplan-single-unreadable` が失敗した（同じメッセージに書いた）。このコミットの `_context.md` で旧い値の表と値の場所を読む既存の場合も、同じ実行で通った。出力:
+
+```text
+PASS value-opus-uncovered: RUN (ok)
+PASS value-sonnet: NONE value-sonnet (ok)
+PASS value-field-missing: NONE value-absent (ok)
+PASS value-sonnet-opus-review-uncovered: RUN (ok)
+PASS value-surrounding-space: NONE value-sonnet (ok)
+PASS value-unreadable: RUN (ok)
+PASS value-empty-is-unreadable: RUN (ok)
+PASS value-case-differs-is-unreadable: RUN (ok)
+PASS marker-pr1-not-pr10: NONE value-sonnet (ok)
+PASS marker-section-ends-at-next-heading: NONE value-absent (ok)
+PASS marker-missing-at-head: RUN (fail)
+PASS marker-twice: RUN (fail)
+PASS value-line-twice: RUN (fail)
+PASS fenced-block-not-read: NONE value-sonnet (ok)
+PASS value-not-in-first-column: NONE value-absent (ok)
+PASS origin-main-opus-head-sonnet: RUN (ok)
+PASS origin-main-opus-head-absent: RUN (ok)
+PASS origin-main-sonnet-head-absent: NONE value-sonnet (ok)
+PASS origin-main-without-plan: NONE value-sonnet (ok)
+PASS origin-main-without-marker: NONE value-sonnet (ok)
+PASS origin-main-marker-twice: RUN (fail)
+PASS old-standard: NONE value-sonnet (ok)
+PASS old-frontier-recommended: RUN (ok)
+PASS old-frontier-required: RUN (ok)
+PASS old-without-table: RUN (ok)
+PASS old-malformed-row: RUN (ok)
+PASS old-two-rows: RUN (ok)
+PASS old-without-context: RUN (ok)
+PASS empty-value-without-table: RUN (ok)
+PASS single-heading-3.2: NONE value-sonnet (ok)
+PASS single-heading-3.2-dot: NONE value-sonnet (ok)
+PASS single-opus-uncovered: RUN (ok)
+PASS single-section-outside-chapter-3: NONE value-absent (ok)
+PASS single-section-ends-at-subheading: NONE value-sonnet (ok)
+PASS single-section-twice: RUN (fail)
+PASS single-on-plan-with-markers: RUN (fail)
+PASS marker-crlf-lines: NONE value-sonnet (ok)
+PASS tilde-fence-not-read: NONE value-sonnet (ok)
+PASS value-inside-fence: RUN (fail)
+PASS indented-closer-is-content: RUN (ok)
+PASS nested-fence: RUN (ok)
+PASS unclosed-fence: RUN (fail)
+PASS plan-path-not-canonical: RUN (fail)
+PASS mkplan-single-sonnet: NONE value-sonnet (ok)
+PASS mkplan-single-sonnet-opus-review: RUN (ok)
+PASS mkplan-single-opus: RUN (ok)
+PASS mkplan-single-unreadable: RUN (ok)
+PASS all-opus-with-excludable: NONE all-opus (ok)
+PASS record-mixed-models: RUN (ok)
+PASS record-sonnet: RUN (ok)
+PASS commit-after-record: RUN (ok)
+PASS overlapping-opus-and-sonnet: RUN (ok)
+PASS two-opus-records: NONE all-opus (ok)
+PASS record-indented: RUN (ok)
+PASS record-short-ids: RUN (ok)
+PASS record-without-model: RUN (ok)
+PASS record-comma-without-space: RUN (ok)
+PASS record-trailing-word: RUN (ok)
+PASS record-unknown-start: RUN (ok)
+PASS plan-and-code-not-excludable: RUN (ok)
+PASS merge-commit-covered: RUN (ok)
+PASS rewritten-out-of-range: RUN (ok)
+PASS done-then-excludable: SKIP [checkbox and done,checkbox 2,readme sync] (ok)
+PASS done-then-code: RUN (ok)
+PASS done-with-sonnet-value: NONE value-sonnet (ok)
+PASS last-done-wins: SKIP [new done] (ok)
+PASS last-done-is-newest-commit: RUN (ok)
+PASS done-unknown-start: RUN (ok)
+PASS done-start-after-base: RUN (ok)
+PASS done-end-not-ancestor: RUN (ok)
+PASS done-malformed: RUN (ok)
+PASS done-not-at-line-start: RUN (ok)
+PASS done-then-merge: RUN (ok)
+PASS base-not-merge-base: RUN (fail)
+PASS no-origin-main: RUN (fail)
+PASS plan-missing-at-head: RUN (fail)
+PASS target-not-a-number: RUN (fail)
+PASS not-a-repository: RUN (fail)
+PASS real-0077-pr1-standard: NONE value-sonnet (ok)
+PASS real-0077-pr2-frontier-required: RUN (ok)
+PASS real-0077-pr3-frontier-recommended: RUN (ok)
+PASS real-0071-single: NONE value-absent (ok)
+cases: 81 fixtures, failures: 0
+```
 
 ## 8. 成功の基準 (Success Criteria)
 
