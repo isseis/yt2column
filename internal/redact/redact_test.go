@@ -177,8 +177,8 @@ func TestLineSecretOfEveryPrintableByte(t *testing.T) {
 }
 
 // TestSecretStrings verifies that SecretStrings returns the value of each
-// secret, in order, with nothing for a zero secret, so a line holding a value
-// or its exposed tail is redacted.
+// secret it is given and nothing for a zero secret. What is redacted from a
+// line, the exposed tail included, is TestLine's concern.
 func TestSecretStrings(t *testing.T) {
 	const (
 		key   = "sk-ant-APIKEYVALUE-0123456789-TAIL8ANT"
@@ -194,18 +194,7 @@ func TestSecretStrings(t *testing.T) {
 	}
 	got := SecretStrings(keySecret, secret.Secret{}, otherSecret)
 	if want := []string{key, other}; !slices.Equal(got, want) {
-		t.Fatalf("SecretStrings = %q, want %q", got, want)
-	}
-	line := Line("POST with "+key+" failed", got...)
-	if strings.Contains(line, key) {
-		t.Errorf("Line left the secret value: %q", line)
-	}
-	tail := key[len(key)-8:]
-	if strings.Contains(line, tail) {
-		t.Errorf("Line left the exposed tail %q: %q", tail, line)
-	}
-	if got := SecretStrings(secret.Secret{}); len(got) != 0 {
-		t.Errorf("SecretStrings(zero) = %v, want none", got)
+		t.Errorf("SecretStrings = %q, want %q", got, want)
 	}
 }
 

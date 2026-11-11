@@ -328,8 +328,9 @@ func TestParseServerFileDuplicate(t *testing.T) {
 
 // TestServerFileTemplate fixes the template's shape: it parses with no
 // rejection and sets no key, so it holds only blank and comment lines, and its
-// commented-out "# <KEY>=" lines and the accepted keys match one to one, so
-// the template names no key the file rejects.
+// commented-out "# <KEY>=" lines (an uppercase key) are exactly the accepted
+// keys, in order. Other spellings of a key in the template are not checked
+// here.
 func TestServerFileTemplate(t *testing.T) {
 	file, errs := parseServerFile(testServerFilePath, []byte(serverFileTemplate))
 	if len(errs) != 0 {

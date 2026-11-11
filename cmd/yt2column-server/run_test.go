@@ -61,8 +61,8 @@ func TestStartupFailures(t *testing.T) {
 		wantStderr string
 		// hint, when set, is a second part standard error must hold.
 		hint string
-		// absent, when set, is a value standard error must not hold.
-		absent string
+		// absent lists the values standard error must not hold.
+		absent []string
 		// configLines, when set, is how many configuration lines standard
 		// error must hold: one per rejection.
 		configLines int
@@ -187,7 +187,7 @@ func TestStartupFailures(t *testing.T) {
 			},
 			want:        exitUsage,
 			wantStderr:  "that is not one of",
-			absent:      removedWebhookMarker,
+			absent:      []string{removedWebhookMarker, "SLACK_WEBHOOK_URL"},
 			configLines: 1,
 			configError: true,
 		},
@@ -198,7 +198,7 @@ func TestStartupFailures(t *testing.T) {
 			},
 			want:        exitUsage,
 			wantStderr:  "that is not one of",
-			absent:      "SLACK_WEBHOOK_URL",
+			absent:      []string{"SLACK_WEBHOOK_URL"},
 			configLines: 1,
 			configError: true,
 		},
@@ -350,8 +350,10 @@ func TestStartupFailures(t *testing.T) {
 			if !strings.Contains(stderr.String(), tc.hint) {
 				t.Errorf("stderr does not contain %q:\n%s", tc.hint, stderr.String())
 			}
-			if tc.absent != "" && strings.Contains(stderr.String(), tc.absent) {
-				t.Errorf("stderr contains %q:\n%s", tc.absent, stderr.String())
+			for _, value := range tc.absent {
+				if strings.Contains(stderr.String(), value) {
+					t.Errorf("stderr contains %q:\n%s", value, stderr.String())
+				}
 			}
 			if tc.configLines != 0 {
 				if got := strings.Count(stderr.String(), programName+": configuration: "); got != tc.configLines {
