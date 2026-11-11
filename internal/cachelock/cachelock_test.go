@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/isseis/yt2column/internal/transcript"
+	"github.com/isseis/yt2column/internal/ytdlpsource"
 )
 
 const (
@@ -329,7 +329,7 @@ func TestLockFileSurvivesPrune(t *testing.T) {
 		t.Fatalf("Close: %v", err)
 	}
 
-	source, err := transcript.NewYtDlpSource(transcript.Options{CacheDir: dir, Timeout: time.Minute})
+	source, err := ytdlpsource.NewYtDlpSource(ytdlpsource.Options{CacheDir: dir, Timeout: time.Minute})
 	if err != nil {
 		t.Fatalf("NewYtDlpSource: %v", err)
 	}

@@ -1,6 +1,6 @@
 //go:build test
 
-package transcript
+package ytdlpsource
 
 import (
 	"bytes"
@@ -8,6 +8,8 @@ import (
 	"errors"
 	"testing"
 	"unicode/utf8"
+
+	"github.com/isseis/yt2column/internal/transcript"
 )
 
 func TestParseInfoRealData(t *testing.T) {
@@ -221,13 +223,13 @@ func assertInfoRejected(t *testing.T, input string) {
 func assertInfoRejectedWithID(t *testing.T, wantID, input string) {
 	t.Helper()
 	info, err := parseInfo("inline.info.json", wantID, []byte(input))
-	if !errors.Is(err, ErrParseInfo) {
+	if !errors.Is(err, transcript.ErrParseInfo) {
 		t.Fatalf("parseInfo(%q) error = %v, want ErrParseInfo", input, err)
 	}
 	if info != (videoInfo{}) {
 		t.Errorf("parseInfo(%q) returned %+v on error", input, info)
 	}
-	parseErr, ok := errors.AsType[*ParseError](err)
+	parseErr, ok := errors.AsType[*transcript.ParseError](err)
 	if !ok {
 		t.Fatalf("parseInfo(%q) error is not *ParseError", input)
 	}

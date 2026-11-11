@@ -1,6 +1,6 @@
 # キャッシュの一貫性と耐障害性
 
-`internal/transcript` の字幕キャッシュが**何を保証し、何を保証しないか**と、その保証の根拠をまとめる。対象は、キャッシュへの書き込み（`Fetch` のキャッシュミス・強制再取得）、読み込み（キャッシュヒット）、削除（`RemoveCache`）、掃除（`PruneCache`）である。
+`internal/ytdlpsource` の字幕キャッシュが**何を保証し、何を保証しないか**と、その保証の根拠をまとめる。対象は、キャッシュへの書き込み（`Fetch` のキャッシュミス・強制再取得）、読み込み（キャッシュヒット）、削除（`RemoveCache`）、掃除（`PruneCache`）である。
 
 キャッシュの構成と手順の定義（何をするか）は、タスク 0002 のアーキテクチャ設計書 [§3.5](../tasks/0002_ytdlp_transcript_source/02_architecture.md#35-キャッシュ) と [§6.3](../tasks/0002_ytdlp_transcript_source/02_architecture.md#63-キャッシュ更新の状態と中断時の残留) にある。本書は、その手順が**なぜ安全か**を説明する。セキュリティ上の規則は [security.md](security.md) の §5 にある。
 
@@ -155,7 +155,7 @@ macOS の `fsync(2)` は、データをドライブに渡すだけで、ドラ�
 
 ## 7. 変更時のチェックリスト
 
-キャッシュのコード（`internal/transcript/cache.go` と `ytdlp.go` のキャッシュ関連部分）を変更するときに確認する。
+キャッシュのコード（`internal/ytdlpsource/cache.go` と `ytdlp.go` のキャッシュ関連部分）を変更するときに確認する。
 
 - [ ] 有効な世代を切り替える操作が、ポインタの `rename` の 1 回だけのままである（§4.1・§4.2）。
 - [ ] ポインタが指すスロットに、読み込み以外の操作をしていない（§4.1）。
@@ -167,7 +167,7 @@ macOS の `fsync(2)` は、データをドライブに渡すだけで、ドラ�
 
 ## 8. コードとの対応
 
-| 関数（`internal/transcript`） | 本書の節 |
+| 関数（`internal/ytdlpsource`） | 本書の節 |
 |---|---|
 | `readPointer` | §4.6 |
 | `writeSlot`・`prepareWriteSlot` | §4.1・§5.3 |

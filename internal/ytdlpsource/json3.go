@@ -1,4 +1,4 @@
-package transcript
+package ytdlpsource
 
 import (
 	"errors"
@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/isseis/yt2column/internal/strictjson"
+	"github.com/isseis/yt2column/internal/transcript"
 )
 
 const (
@@ -28,15 +29,15 @@ var (
 
 // parseSubtitles parses a json3 subtitle file and returns one segment per event
 // that carries text. path is attached to the returned *ParseError on failure.
-func parseSubtitles(path string, data []byte) ([]Segment, error) {
+func parseSubtitles(path string, data []byte) ([]transcript.Segment, error) {
 	segments, err := decodeSubtitles(data)
 	if err != nil {
-		return nil, &ParseError{Path: path, Err: fmt.Errorf("%w: %w", ErrParseSubtitles, err)}
+		return nil, &transcript.ParseError{Path: path, Err: fmt.Errorf("%w: %w", transcript.ErrParseSubtitles, err)}
 	}
 	return segments, nil
 }
 
-func decodeSubtitles(data []byte) ([]Segment, error) {
+func decodeSubtitles(data []byte) ([]transcript.Segment, error) {
 	if len(data) > maxSubtitlesBytes {
 		return nil, fmt.Errorf("%w: limit %d bytes", errInputTooLarge, maxSubtitlesBytes)
 	}
@@ -55,7 +56,7 @@ func decodeSubtitles(data []byte) ([]Segment, error) {
 	return decodeEvents(events)
 }
 
-func decodeEvents(value strictjson.Value) ([]Segment, error) {
+func decodeEvents(value strictjson.Value) ([]transcript.Segment, error) {
 	events, err := value.AsArray()
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", errEventsNotArray, err)
@@ -64,7 +65,7 @@ func decodeEvents(value strictjson.Value) ([]Segment, error) {
 		return nil, fmt.Errorf("%w: limit %d", errTooManyEvents, maxSubtitleEvents)
 	}
 
-	segments := []Segment{}
+	segments := []transcript.Segment{}
 	for _, event := range events {
 		eventMembers, err := event.AsObject()
 		if err != nil {
@@ -84,37 +85,37 @@ func decodeEvents(value strictjson.Value) ([]Segment, error) {
 // decodeEvent returns one segment and whether the event should be kept. Events
 // without segs and events whose concatenated text is whitespace only are
 // discarded; their tStartMs is not validated.
-func decodeEvent(members strictjson.Object) (Segment, bool, error) {
+func decodeEvent(members strictjson.Object) (transcript.Segment, bool, error) {
 	consumed, err := members.Collect("segs")
 	if err != nil {
-		return Segment{}, false, err
+		return transcript.Segment{}, false, err
 	}
 	segs, ok := consumed["segs"]
 	if !ok {
-		return Segment{}, false, nil
+		return transcript.Segment{}, false, nil
 	}
 	text, err := decodeSegs(segs)
 	if err != nil {
-		return Segment{}, false, err
+		return transcript.Segment{}, false, err
 	}
 	if strings.TrimSpace(text) == "" {
-		return Segment{}, false, nil
+		return transcript.Segment{}, false, nil
 	}
 	consumed, err = members.Collect("tStartMs")
 	if err != nil {
-		return Segment{}, false, err
+		return transcript.Segment{}, false, err
 	}
 	start, ok := consumed["tStartMs"]
 	if !ok {
-		return Segment{}, false, errMissingTimestamp
+		return transcript.Segment{}, false, errMissingTimestamp
 	}
 	// The non-negative integer rule lives only in AsNonNegativeInt64; do not
 	// reimplement it here.
 	startMs, err := start.AsNonNegativeInt64()
 	if err != nil {
-		return Segment{}, false, err
+		return transcript.Segment{}, false, err
 	}
-	return Segment{StartMs: startMs, Text: text}, true, nil
+	return transcript.Segment{StartMs: startMs, Text: text}, true, nil
 }
 
 func decodeSegs(value strictjson.Value) (string, error) {

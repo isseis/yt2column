@@ -1,6 +1,6 @@
 //go:build test
 
-package transcript
+package ytdlpsource
 
 import (
 	"bytes"
@@ -19,6 +19,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/isseis/yt2column/internal/transcript"
 )
 
 // waitBoundMargin is added to execWaitDelay when a test asserts that a run
@@ -263,7 +265,7 @@ func TestCommandExecutorStartFailure(t *testing.T) {
 					t.Fatalf("NewYtDlpSource error = %v", err)
 				}
 				_, err = source.Fetch(t.Context(), "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
-				if !errors.Is(err, ErrYtDlpExec) {
+				if !errors.Is(err, transcript.ErrYtDlpExec) {
 					t.Fatalf("Fetch error = %v, want ErrYtDlpExec", err)
 				}
 				if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {

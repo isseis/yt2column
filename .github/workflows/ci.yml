@@ -105,6 +105,10 @@ jobs:
       - name: Vet the integration build
         run: go vet -tags integration ./...
 
+      # The WebAssembly core packages must keep building for js/wasm.
+      - name: Check the WebAssembly build
+        run: make wasm-check
+
       - name: Verify modules
         run: |
           go mod tidy

@@ -18,8 +18,8 @@ import (
 	"github.com/isseis/yt2column/internal/nilcheck"
 	"github.com/isseis/yt2column/internal/pipeline"
 	"github.com/isseis/yt2column/internal/publisher"
-	"github.com/isseis/yt2column/internal/transcript"
 	"github.com/isseis/yt2column/internal/writer"
+	"github.com/isseis/yt2column/internal/ytdlpsource"
 )
 
 // YtDlpTimeout bounds one yt-dlp run.
@@ -108,7 +108,7 @@ func Run(ctx context.Context, req Request) (Result, error) {
 	}
 	defer func() { _ = lock.Close() }()
 
-	source, err := transcript.NewYtDlpSource(transcript.Options{
+	source, err := ytdlpsource.NewYtDlpSource(ytdlpsource.Options{
 		CacheDir:       req.CacheDir,
 		YtDlpPath:      req.YtDlpPath,
 		Timeout:        YtDlpTimeout,

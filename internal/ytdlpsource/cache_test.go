@@ -1,6 +1,6 @@
 //go:build test
 
-package transcript
+package ytdlpsource
 
 import (
 	"bytes"
@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/isseis/yt2column/internal/transcript"
 )
 
 func TestCachePermissions(t *testing.T) {
@@ -326,7 +328,7 @@ func TestRemoveCacheNoEntries(t *testing.T) {
 
 	// An invalid URL fails without touching the directory.
 	err := source.RemoveCache(ctx, "https://example.com/watch?v="+id)
-	if !errors.Is(err, ErrInvalidVideoURL) {
+	if !errors.Is(err, transcript.ErrInvalidVideoURL) {
 		t.Fatalf("RemoveCache error = %v, want ErrInvalidVideoURL", err)
 	}
 	if afterInvalid := readDirNames(t, dir); strings.Join(after, "\n") != strings.Join(afterInvalid, "\n") {

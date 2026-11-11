@@ -63,10 +63,10 @@ var secretEnvNames = []string{"DEEPSEEK_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_A
 // maximum count. The key is "<kind>:<qualified name>", where kind is "call",
 // "value", "import", or "secret".
 var allowedEnvRefs = map[string]map[string]int{
-	"cmd/yt2column/main.go":        {"value:os.LookupEnv": 1},
-	"cmd/yt2column-server/main.go": {"value:os.LookupEnv": 1},
-	"cmd/yt2column-nmhost/main.go": {"value:os.LookupEnv": 1},
-	"internal/transcript/ytdlp.go": {"call:os.Environ": 1},
+	"cmd/yt2column/main.go":         {"value:os.LookupEnv": 1},
+	"cmd/yt2column-server/main.go":  {"value:os.LookupEnv": 1},
+	"cmd/yt2column-nmhost/main.go":  {"value:os.LookupEnv": 1},
+	"internal/ytdlpsource/ytdlp.go": {"call:os.Environ": 1},
 	// The fixprguard developer tool passes its environment, minus GIT_*, to
 	// git, and looks up GH_REPO and GH_HOST only to refuse them.
 	"cmd/fixprguard/main.go": {"call:os.Environ": 1, "value:os.LookupEnv": 1},
@@ -389,8 +389,8 @@ func TestEnvAccessConfined(t *testing.T) {
 	for _, finding := range rep.findings {
 		t.Errorf("environment reference outside the allowed places: %s", finding)
 	}
-	if got := rep.observed["internal/transcript/ytdlp.go call:os.Environ"]; got != 1 {
-		t.Errorf("observed internal/transcript/ytdlp.go os.Environ = %d, want 1", got)
+	if got := rep.observed["internal/ytdlpsource/ytdlp.go call:os.Environ"]; got != 1 {
+		t.Errorf("observed internal/ytdlpsource/ytdlp.go os.Environ = %d, want 1", got)
 	}
 	if got := rep.observed["cmd/yt2column/main.go value:os.LookupEnv"]; got != 1 {
 		t.Errorf("observed cmd/yt2column/main.go os.LookupEnv = %d, want 1", got)
@@ -409,7 +409,7 @@ import "os"
 var _ = os.Getenv("X")
 const _ = "DEEPSEEK_API_KEY"
 `,
-		"internal/transcript/ytdlp.go": `package transcript
+		"internal/ytdlpsource/ytdlp.go": `package transcript
 
 import (
 	"os"
@@ -596,8 +596,8 @@ const openAIKey = "OPENAI_API_KEY"
 		"internal/other/others.go call:syscall.Environ",
 		"internal/other/platform_linux.go call:os.Getenv",
 		"internal/other/secretname.go secret:SLACK_WEBHOOK_URL",
-		"internal/transcript/ytdlp.go call:os.Getenv",
-		"internal/transcript/ytdlp.go call:syscall.Getenv",
+		"internal/ytdlpsource/ytdlp.go call:os.Getenv",
+		"internal/ytdlpsource/ytdlp.go call:syscall.Getenv",
 	}
 	if !slices.Equal(rep.findings, want) {
 		t.Errorf("scanEnvAccess() findings = %v, want %v", rep.findings, want)
@@ -608,7 +608,7 @@ const openAIKey = "OPENAI_API_KEY"
 	for _, key := range []string{
 		"internal/config/config.go call:os.Getenv",
 		"internal/config/config.go secret:DEEPSEEK_API_KEY",
-		"internal/transcript/ytdlp.go call:os.Environ",
+		"internal/ytdlpsource/ytdlp.go call:os.Environ",
 		"cmd/yt2column/main.go value:os.LookupEnv",
 	} {
 		if rep.observed[key] == 0 {

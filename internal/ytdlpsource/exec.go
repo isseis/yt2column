@@ -1,4 +1,4 @@
-package transcript
+package ytdlpsource
 
 import (
 	"cmp"

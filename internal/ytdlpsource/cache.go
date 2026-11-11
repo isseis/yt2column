@@ -1,4 +1,4 @@
-package transcript
+package ytdlpsource
 
 import (
 	"context"
@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/isseis/yt2column/internal/transcript"
 )
 
 // Fixed names of the per-video cache layout. A video has two slots, one
@@ -181,13 +183,13 @@ func readFileBounded(path string, maxBytes int64) ([]byte, error) {
 
 // readSubtitlesFile reads and parses the subtitle file at path. A missing file
 // returns errFileMissing; every other failure is a *ParseError.
-func readSubtitlesFile(path string) ([]Segment, error) {
+func readSubtitlesFile(path string) ([]transcript.Segment, error) {
 	data, err := readFileBounded(path, maxSubtitlesBytes)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, errFileMissing
 		}
-		return nil, &ParseError{Path: path, Err: fmt.Errorf("%w: %w", ErrParseSubtitles, err)}
+		return nil, &transcript.ParseError{Path: path, Err: fmt.Errorf("%w: %w", transcript.ErrParseSubtitles, err)}
 	}
 	return parseSubtitles(path, data)
 }
@@ -200,7 +202,7 @@ func readInfoFile(path, wantID string) (videoInfo, error) {
 		if errors.Is(err, fs.ErrNotExist) {
 			return videoInfo{}, errFileMissing
 		}
-		return videoInfo{}, &ParseError{Path: path, Err: fmt.Errorf("%w: %w", ErrParseInfo, err)}
+		return videoInfo{}, &transcript.ParseError{Path: path, Err: fmt.Errorf("%w: %w", transcript.ErrParseInfo, err)}
 	}
 	return parseInfo(path, wantID, data)
 }
@@ -402,7 +404,12 @@ func removeDangling(ctx context.Context, dir, id string, state pointerState) err
 // <video ID>.<a|b|current|current.tmp> and the ID part is a valid video ID.
 func pruneCandidateID(name string) (string, bool) {
 	id, suffix, ok := strings.Cut(name, ".")
-	if !ok || !videoIDPattern.MatchString(id) {
+	if !ok {
+		return "", false
+	}
+	// NormalizedVideoURL reports false exactly when id does not match the
+	// video ID pattern, so this is the same check without the private regexp.
+	if _, valid := transcript.NormalizedVideoURL(id); !valid {
 		return "", false
 	}
 	switch suffix {

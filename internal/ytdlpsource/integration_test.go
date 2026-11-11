@@ -1,6 +1,6 @@
 //go:build integration
 
-package transcript
+package ytdlpsource
 
 import (
 	"context"
@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/isseis/yt2column/internal/transcript"
 )
 
 // The integration test runs the real yt-dlp against the network. It is
@@ -50,7 +52,7 @@ func TestIntegration(t *testing.T) {
 	wantID := os.Getenv(integrationVideoIDEnv)
 	cacheDir := t.TempDir()
 
-	var first Transcript
+	var first transcript.Transcript
 	if !t.Run("fetch", func(t *testing.T) {
 		source := newIntegrationSource(t, Options{CacheDir: cacheDir})
 		transcript, err := source.Fetch(context.Background(), videoURL)
@@ -166,7 +168,7 @@ func replaceCacheWithMarker(t *testing.T, cacheDir, id string) {
 }
 
 // assertUsableTranscript checks what any real fetch must return.
-func assertUsableTranscript(t *testing.T, transcript Transcript) {
+func assertUsableTranscript(t *testing.T, transcript transcript.Transcript) {
 	t.Helper()
 	if transcript.Title == "" {
 		t.Error("Title is empty")
@@ -180,7 +182,7 @@ func assertUsableTranscript(t *testing.T, transcript Transcript) {
 }
 
 // containsMarker reports whether any text of the transcript holds the marker.
-func containsMarker(transcript Transcript) bool {
+func containsMarker(transcript transcript.Transcript) bool {
 	texts := []string{transcript.Title, transcript.ChannelName, transcript.Description}
 	for _, segment := range transcript.Segments {
 		texts = append(texts, segment.Text)
@@ -195,7 +197,7 @@ func containsMarker(transcript Transcript) bool {
 
 // describeTranscript summarizes a transcript for a failure message without
 // dumping the whole subtitle text.
-func describeTranscript(transcript Transcript) string {
+func describeTranscript(transcript transcript.Transcript) string {
 	firstText := ""
 	if len(transcript.Segments) > 0 {
 		firstText = transcript.Segments[0].Text

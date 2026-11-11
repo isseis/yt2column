@@ -45,6 +45,10 @@
     ADR: なし（このタスクの進め方の決定で、タスクの外に及ばない）。
 -   **PoC のブランチの名前は `poc/0084-wasm-pipeline` とする。** 作業ブランチの命名の規約（`<GitHub のユーザ名>/<slug>-<NN>`）に合わない名前にすることで、`/runplan`・`/runpr` が自分の作業ブランチと取り違えないようにする。ADR: なし。
 
+**実装の際に決めたこと（2026-11-11）:**
+
+-   **番兵の一覧を固定するテストを、`internal/transcript` のテストに残す（ステップ 1-1）。** 番兵の一覧を固定するテスト `TestExportedSentinelErrorsUnchanged`（`internal/transcript/json3_test.go`）は、テストを動かすパッケージのディレクトリの、`Err` で始まる公開の名前を走査して、6 つの番兵と照らす。このテストを `internal/ytdlpsource` へ移すと、走査する先の番兵のない側のディレクトリになり、`make test` が失敗する（実際に移して確かめた）。番兵は移した後も `internal/transcript`（`errors.go`）にあるので、このテストは `internal/transcript` のテストに残す。人の答えは「`internal/transcript` へ戻す」である。要件書 AC-04 と設計書 §3.1.3 に、このテストの移動と補助の複製を足した。ADR: なし（このタスクの中で閉じる）。
+
 ### 1.4. 既存コード調査結果
 
 調べたのはコミット 4135c266 の時点のコードで、Go は 1.27.1 である。
@@ -127,6 +131,7 @@
 -   [ ] `YtDlpSource.Fetch` のローカル変数 `transcript` を `cached` に改名する（設計書 §3.1.3）。
 -   [ ] `pruneCandidateID` を `transcript.NormalizedVideoURL` の 2 つ目の戻り値で判定する形に書き換える（設計書 §3.1.3）。書き換えた条件の否定を外すと `TestPruneCache`（移す前は `internal/transcript/cache_test.go:56`）が失敗することを確かめ、コミットメッセージに書く。`testVideoID` の失敗する分岐はテストで確かめないが、これはテストの補助なので受け入れる。
 -   [ ] `internal/transcript/test_helpers.go` を分ける。§1.4 の分け方のとおり、移す側だけが使う補助を `internal/ytdlpsource/test_helpers.go` へ移し、`readTestdataFile` は両方に置き、`testVideoID` は設計書 §3.1.3 の形にする。ビルドの制約の行（`//go:build test`）は両方に置く。
+-   [ ] `json3_test.go` の `TestExportedSentinelErrorsUnchanged` を、`internal/transcript/sentinel_test.go`（新規）へ、本体を変えずに移す。補助の `exportedErrNames` と `parsePackageFile` もそこに複製する。`parsePackageFile` は `internal/ytdlpsource/json3_test.go` の `TestTimestampReadingIsUnified` も使うので残し、`exportedErrNames` はそのテストだけが使うので移す側から外す（設計書 §3.1.3）。
 -   [ ] `internal/ytdlpsource/doc.go` に、パッケージの doc コメントを英語で書く。
 -   [ ] §1.4 の「移す宣言を使う、パッケージの外の箇所」の 6 か所の import と修飾を書き換える。
 -   [ ] `internal/config/envaccess_test.go` のパスの文字列 7 つ（`:69`・`:392`・`:393`・`:412` のキー・`:599`・`:600`・`:611`）だけを `internal/ytdlpsource/ytdlp.go` に書き換える。`:412` のキーに続く偽のソースの本文（`package transcript` で始まる）は変えない。走査は import と呼び出しだけを見るので、この文字列の `package` の行に依らない（`envaccess_test.go:99`〜`135`）。許可する参照の種類と数は変えない。
@@ -185,7 +190,7 @@
     -   4 つのパッケージの `GOOS=js GOARCH=wasm go list -deps` に、`internal/ytdlpsource` が含まれない。
     -   依存のうち、このリポジトリのパッケージが、どれも `os/exec` を import しない。
 -   [ ] AC-04・AC-05・AC-06 を確かめるシェルのスクリプトを書く。merge-base と PR のコミットを比べ、次の性質を確かめる。
-    -   Go のファイル（製品のコードとテストのコード）について、パッケージ名の行・import の行・ビルドの制約の行・移動に伴う修飾を正規化すると、移した宣言と書き換えた呼び出し側の差分がなくなる。正規化の後に残る差分は、設計書 §3.1.3 の表の箇所（ローカル変数の改名を含む）と `doc.go` だけである。
+    -   Go のファイル（製品のコードとテストのコード）について、パッケージ名の行・import の行・ビルドの制約の行・移動に伴う修飾を正規化すると、移した宣言と書き換えた呼び出し側の差分がなくなる。正規化の後に残る差分は、設計書 §3.1.3 の表の箇所（ローカル変数の改名と、番兵のテストの移動・補助の複製を含む）と `doc.go` だけである。
     -   2 つに分けた `test_helpers.go` は、正規化した後の行の多重集合（`sort` した行）で比べる。分ける前の行と、分けた後の 2 つのファイルを合わせた行の違いが、`readTestdataFile` の複製と `testVideoID` の書き換えの行だけである。
     -   `internal/writer` の分割は移動として確かめる。`template.go` から消えた行が、`template_open.go` のビルドの制約・パッケージ名・import の行を除いた本文と同じである。新しい内容は `template_open_js.go` だけである。
     -   PR 全体で変わったファイルの一覧（`--name-only --no-renames`）が、設計書 §3.1.4 の表のファイル、`docs/dev/guides/development.md`、ADR-0019・ADR-0033、`docs/tasks/0084_wasm_pipeline_poc/` の下に限られる。
@@ -424,3 +429,4 @@ AC-26 の確かめ（ステップ 4-2 で書く）：未記入
 ## 変更履歴
 
 -   2026-11-11 承認（isseis、#830）
+-   2026-11-11 セッション中の再承認：番兵の一覧を固定するテスト（`TestExportedSentinelErrorsUnchanged`）を `internal/transcript` のテストに残し、その補助の複製を許す（isseis、#未記入）

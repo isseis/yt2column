@@ -109,7 +109,8 @@ internal/nmhost/          # Native Messaging のホスト（フレーム・ソ�
 internal/redact/          # 出力の伏せ字（CLI とサーバが共有）
 internal/privatefile/     # 所有者だけが読めるファイルの検査付きの読み込みと作成（サーバの設定ファイル）
 internal/signalrun/       # シグナルの扱い（CLI とサーバが共有）
-internal/transcript/      # TranscriptSource と yt-dlp 実装、json3 パーサ、コピーした字幕の CopiedSource
+internal/transcript/      # TranscriptSource、コピーした字幕の CopiedSource
+internal/ytdlpsource/     # yt-dlp による TranscriptSource の実装、json3 パーサ、字幕のキャッシュ
 internal/strictjson/      # 検証を通った JSON 文書から値を取り出す厳格な部品（複数のパッケージが共有。使うパッケージの一覧は package_reference.md）
 internal/nilcheck/        # typed nil を含む nil の判定
 internal/writer/          # ArticleWriter（プロバイダ非依存）

@@ -14,8 +14,8 @@ import (
 	"github.com/isseis/yt2column/internal/llm"
 	deepseektestutil "github.com/isseis/yt2column/internal/llm/deepseek/testutil"
 	"github.com/isseis/yt2column/internal/nilcheck"
-	"github.com/isseis/yt2column/internal/transcript"
 	transcripttestutil "github.com/isseis/yt2column/internal/transcript/testutil"
+	"github.com/isseis/yt2column/internal/ytdlpsource"
 )
 
 const (
@@ -108,7 +108,7 @@ func newIntegrationRun(t *testing.T, settings deepseektestutil.IntegrationSettin
 	if err != nil {
 		t.Fatalf("read info.json: %v", err)
 	}
-	if err := transcript.SeedCacheForTest(cacheDir, integrationVideoID, subtitles, info); err != nil {
+	if err := ytdlpsource.SeedCacheForTest(cacheDir, integrationVideoID, subtitles, info); err != nil {
 		t.Fatalf("SeedCacheForTest: %v", err)
 	}
 	if len(videoCacheEntries(t, cacheDir)) == 0 {

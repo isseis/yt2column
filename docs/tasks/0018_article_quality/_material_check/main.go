@@ -27,6 +27,7 @@ import (
 	"github.com/isseis/yt2column/internal/strictjson"
 	"github.com/isseis/yt2column/internal/transcript"
 	"github.com/isseis/yt2column/internal/writer"
+	"github.com/isseis/yt2column/internal/ytdlpsource"
 )
 
 // videoIDs are the five videos of 0008 evaluation record §2.1.
@@ -155,7 +156,7 @@ func checkVideo(w io.Writer, cacheDir, materialDir, id string) error {
 // readEvaluation reads the cached transcript as the CLI does. The yt-dlp path
 // always fails, so a missing cache entry is an error instead of a fetch.
 func readEvaluation(cacheDir, id string) (transcript.Transcript, error) {
-	source, err := transcript.NewYtDlpSource(transcript.Options{
+	source, err := ytdlpsource.NewYtDlpSource(ytdlpsource.Options{
 		CacheDir:  cacheDir,
 		YtDlpPath: "/usr/bin/false",
 		Timeout:   time.Minute,

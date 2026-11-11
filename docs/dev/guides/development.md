@@ -7,7 +7,8 @@
 ```sh
 make build   # build the three binaries into build/
 make test    # unit tests (no network, no yt-dlp)
-make lint    # golangci-lint (pinned version)
+make lint    # golangci-lint (pinned version) と make wasm-check
+make wasm-check  # Go の WASM（GOOS=js GOARCH=wasm）でビルドできることの検査
 make fmt     # gofumpt on changed files
 make test-integration  # real yt-dlp + network; see below
 make test-integration-deepseek  # real DeepSeek API; see below

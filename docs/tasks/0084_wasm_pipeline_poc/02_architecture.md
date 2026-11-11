@@ -77,6 +77,10 @@
     -   Anthropic API がこのヘッダのない `Origin` 付きの要求を拒否するかは、確かめていない。
     -   ADR: なし（本番でどれを採るかは #772 が決める）。
 
+### 1.2.1. 実装の際に決めたこと（2026-11-11）
+
+-   **番兵の一覧を固定するテストを、`internal/transcript` のテストに残す（§3.1.3）。** 番兵の一覧を固定するテスト `TestExportedSentinelErrorsUnchanged`（`internal/transcript/json3_test.go`）は、テストを動かすパッケージのディレクトリの、`Err` で始まる公開の名前を走査して、6 つの番兵と照らす。このテストを `internal/ytdlpsource` へ移すと、走査する先の番兵のない側のディレクトリになり、`make test` が失敗する（実際に移して確かめた）。番兵は移した後も `internal/transcript`（`errors.go`）にあるので、このテストは `internal/transcript` のテストに残す。人の答えは「`internal/transcript` へ戻す」である。要件書 AC-04 に、このテストの移動と補助の複製を足した。ADR: なし（このタスクの中で閉じる）。
+
 ### 1.3. 概念モデル
 
 矢印 A → B は「A が B を生む、または B の材料になる」を表す。
@@ -334,6 +338,7 @@ func readOverrideFile(src templateSource) ([]byte, error)
 | `testVideoID`（`internal/transcript/test_helpers.go:283`。使う行は `:285`） | 同上 | 同上 |
 | `YtDlpSource.Fetch`（`internal/transcript/ytdlp.go:69`〜`74`） | ローカル変数 `transcript` のスコープの中で `Transcript{}` を返す。移した後に `transcript.Transcript{}` と修飾すると、ローカル変数がパッケージ名を隠してコンパイルできない | ローカル変数を `cached` に改名する。振る舞いは変わらない（計画の際に足した。要件書の「要件定義の際に決めたこと」） |
 | `readTestdataFile`（`internal/transcript/test_helpers.go:232`） | 1 つの定義を両方の側のテストが使う | `internal/transcript` と `internal/ytdlpsource` の両方のテストの補助に、同じ定義を置く |
+| `TestExportedSentinelErrorsUnchanged`（`internal/transcript/json3_test.go`）と、その補助の `exportedErrNames`・`parsePackageFile` | テストを動かすパッケージのディレクトリの、`Err` で始まる公開の名前を走査して、6 つの番兵と照らす | テスト本体を変えずに、`internal/transcript/sentinel_test.go`（新規）へ移す。補助の 2 つは、そこに複製する（`parsePackageFile` は `internal/ytdlpsource/json3_test.go` の別のテストも使うので、そちらにも残す）。番兵は `internal/transcript` に残るので、走査する先と 6 つの名前は変わらない（計画の際に足した。「実装の際に決めたこと」） |
 | `internal/config/envaccess_test.go` の `internal/transcript/ytdlp.go`（`:69`・`:392`〜`393`・`:412`・`:599`〜`600`・`:611`） | 移す前のパスの文字列 | `internal/ytdlpsource/ytdlp.go`。許可する参照の種類（`call:os.Environ`）と数（1）は変えない |
 
 ほかに、新しいパッケージの doc コメントと、`Makefile` の `test-integration` の目標のパス（`./internal/transcript` から `./internal/ytdlpsource`）を書き換える。`test-parse-norace` の目標（`TestParseCopiedLargeInputs`）は、コピーした字幕のテストなので `./internal/transcript` に残る。
@@ -346,6 +351,7 @@ func readOverrideFile(src templateSource) ([]byte, error)
 |---|---|
 | `internal/transcript/exec.go`・`ytdlp.go`・`cache.go`・`info.go`・`json3.go` | `internal/ytdlpsource/` へ移す。`cache.go`・`ytdlp.go` は §3.1.3 の書き換えを含む |
 | `internal/transcript/cache_test.go`・`exec_test.go`・`info_test.go`・`json3_test.go`・`ytdlp_test.go`・`integration_test.go`・`test_helpers_cache_seed.go` | `internal/ytdlpsource/` へ移す |
+| `internal/transcript/sentinel_test.go`（新規） | §3.1.3 の `TestExportedSentinelErrorsUnchanged` と、その補助 |
 | `internal/transcript/test_helpers.go` | yt-dlp の経路の補助を `internal/ytdlpsource/test_helpers.go` へ移す。§3.1.3 の `testVideoID`・`readTestdataFile` を含む |
 | `internal/ytdlpsource/doc.go`（新規） | パッケージの doc コメント |
 | `internal/writer/template.go` | `overrideOpenFlags` と `readOverrideFile` を外す |
@@ -903,3 +909,4 @@ PoC のコードにはテストを書かない（要件書 §5「受け入れの
 -   2026-11-11 承認（isseis、#820）
 -   2026-11-11 draft への戻し：§3.1.3 に、パッケージ名を隠すローカル変数の改名（`YtDlpSource.Fetch` の `transcript`）を足した（#830）
 -   2026-11-11 承認（isseis、#830）
+-   2026-11-11 セッション中の再承認：番兵の一覧を固定するテスト（`TestExportedSentinelErrorsUnchanged`）を `internal/transcript` のテストに残し、その補助の複製を許す（isseis、#未記入）
