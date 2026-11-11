@@ -141,7 +141,7 @@
 
 **判定理由**: どのステップも、既存の検査への 1 つの検査の追加と振る舞いを変えない移動で、mkplan.md のパネルの契機にも Conditional checks にも当たらない。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [ ] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
@@ -197,7 +197,7 @@
 
 **判定理由**: ステップ 2-2 は、貼り付けた記事の通知を防ぐセキュリティの規則を新しく実装し（mkplan.md のパネルの契機のセキュリティの関門）、2-4・2-5 が応答の形を変える側と受ける側を同時に変える。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [ ] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
@@ -268,7 +268,7 @@
 
 **判定理由**: ステップ 3-5 が Go・拡張・文書を 1 つのコミットで同時に消し書き換える移行で、多くのテストの更新を伴う（mkplan.md のパネルの契機の移行）。3-2 は並行の振る舞い（合図・取り消し・待ち）のテストを書き換え、3-6 は記事のキャッシュの状態の遷移と追い出しを変える。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [ ] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
@@ -320,7 +320,7 @@
 
 **判定理由**: ステップ 4-5（秘密の伏せ字の対象の書き換え）と 4-6・4-7（秘密を持つ設定の行の起動の拒否）が、同じ PR で振る舞いを狭める側と強める側に同時に変えるセキュリティの関門の変更である（mkplan.md のパネルの契機）。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [ ] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
@@ -352,7 +352,7 @@
 
 **判定理由**: 文書の改訂と手動の確かめで、mkplan.md のパネルの契機にも Conditional checks にも当たらない。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [ ] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
@@ -460,24 +460,24 @@
 
 PR-1:
 
-**`_checks/golden_md_unchanged.sh`（AC-16a）。** 比べたコミットは、merge-base `a56f085eb59fc2d65e0fd393773067013be3727c` と、このフェーズの最後のコミット `d6c86425` である。出力と終了コード:
+**`_checks/golden_md_unchanged.sh`（AC-16a）。** 比べたコミットは、merge-base `a56f085eb59fc2d65e0fd393773067013be3727c` と、このフェーズの最後のコミット `58e19c01` である（PR を作る前の確かめ直しで、最後のコミットをこの値に改めた）。出力と終了コード:
 
 ```text
 before: a56f085eb59fc2d65e0fd393773067013be3727c
-after:  d6c86425
+after:  58e19c01
 files:  internal/publisher/testdata/golden/*.md
-OK   the same 10 file(s) at both commits
+OK   the same 10 file(s) with the same content at both commits
 OK   all 10 file(s) are byte for byte the same
 exit=0
 ```
 
 壊し方（それぞれ赤くなり、戻した）: ファイルの中身を変えると `NG   <path> changed at HEAD` と `NG   the .md files changed` で終了コード `1`。ファイルを足すと `NG   the files differ:` と前後の一覧で `1`。ファイルを消すと `NG   <path> is missing at HEAD` で `1`。空白を含む名前のファイルを足すと `1`、そのファイルを両側で変えずに置くと `0`、変えると `1`（名前を NUL とタブで切る）。知らないコミットを渡すと `<ID> is not a commit` で `2`。
 
-**`_checks/coverage`（ステップ 1-1 の変更の確認）。** 2 つの側の profile を `go test -tags test -count=1 -coverpkg=./... -coverprofile=<profile> ./...` で測った（どちらも終了コード `0`、失敗なし）。比べたコミットは `a56f085eb59fc2d65e0fd393773067013be3727c` と `d6c86425` である。出力と終了コード:
+**`_checks/coverage`（ステップ 1-1 の変更の確認）。** 2 つの側の profile を `go test -tags test -count=1 -coverpkg=./... -coverprofile=<profile> ./...` で測った（どちらも終了コード `0`、失敗なし）。比べたコミットは `a56f085eb59fc2d65e0fd393773067013be3727c` と `58e19c01` である。出力と終了コード:
 
 ```text
 before  a56f085eb59fc2d65e0fd393773067013be3727c (1369 product functions)
-after   d6c86425 (1369 product functions)
+after   58e19c01 (1369 product functions)
 only before (removed): 0
 only after (added): 0
 more unexecuted (fails): 0
