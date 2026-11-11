@@ -61,7 +61,60 @@ PR boundary markers embedded in the implementation plan use these labels:
 - Section heading: `### PR-N 作成ポイント: <scope label in English>`
 - Fields: `**対象ステップ**`, `**推奨タイトル**`, `**レビュー観点**`, `**実装モデル要件**`, `**判定理由**`
 - `**推奨タイトル**`: the source `runplan.md` step 5a writes the PR title from. It is a PR title, not a squash subject (`mergepr.md` writes that at the merge); its form is in "PR title and squash subject" below
-- Implementation model tiers (`**実装モデル要件**` values): `frontier-required`, `frontier-recommended`, `standard` — assigned by `mkplan2.md` (step 4, "Model requirement"; `mkplan.md` runs it as its step 8.5, and `mkreq.md` runs it in the simple process), read by `runplan.md` when choosing the implementing model and shown both in the merge question when `/runpr` offers the next `/runplan` and in the `/clear` guidance of `runpr.md` step 5, which says when that guidance is given
+- Implementation model requirement (`**実装モデル要件**`), in five parts:
+  1. **Values.** `opus`, `sonnet+opus-review`, and `sonnet`. `mkplan2.md`
+     step 4, "Model requirement", assigns them (`mkplan.md` runs it as its
+     step 8.5, and `mkreq.md` runs it in the simple process); the meaning of
+     each value, when it applies, and how its `**判定理由**` is written are
+     defined there only, not here. They are read by `runplan.md` (its
+     guidance before a phase group), by `_lib/opus-review.md` (entry 1, which
+     decides whether the Opus review runs), and by `runpr.md` (the merge
+     question of step 4 and the `/clear` guidance of step 5).
+  2. **Where the value is.** In a plan with PR markers, the PR marker's
+     section: from its `### PR-N 作成ポイント` heading to the next heading of
+     any level. In a plan without PR markers (a single-phase plan), the
+     section inside §3 (the `## 3.` chapter) whose heading text, without its
+     number, is `PR 構成` (`### 3.2 PR 構成` and `### 3.2. PR 構成` both
+     count), up to the next heading of any level. Lines inside a fenced code
+     block are not read, as headings or as values.
+  3. **How it is read.** In that section, find the line that starts in its
+     first column with `**実装モデル要件**: ` and take the rest of the line
+     with the leading and trailing white space removed:
+     - when it equals one of the three values, it is that value;
+     - when it equals an old value of the table in part 4, it is read as that
+       table's value; show both the old value and the value it is read as;
+     - otherwise it is an **unreadable value**: never read it as another
+       value by guessing, and show the text as written with the note that it
+       is unreadable;
+     - when there is no such line (including a single-phase plan with no
+       `PR 構成` section), there is **no value**.
+
+     `_lib/opus-review-decision.sh` is the executable form of parts 2 to 4
+     for entry 1 of `_lib/opus-review.md`; it reads part 4 from
+     `origin/main`'s copy of this file.
+  4. **Old values.** Plans written before these values existed carry the
+     old values, which are read as follows. This table is the only place
+     that maps them. It may be removed once no plan has an old value in a PR
+     marker whose PR has not been created yet.
+
+     | Old value | Read as |
+     |---|---|
+     | `frontier-required` | `opus` |
+     | `frontier-recommended` | `sonnet+opus-review` |
+     | `standard` | `sonnet` |
+
+  5. **What a reading recommends.** `runplan.md` and `runpr.md` show the
+     model to start a session with from this table, by naming it rather than
+     repeating it. The Opus review column is decided in detail by entry 1 of
+     `_lib/opus-review.md`.
+
+     | Reading | Model to start the session with | Opus review |
+     |---|---|---|
+     | `opus` | Opus | decided by entry 1: runs when a commit is not covered by an Opus implementation record |
+     | `sonnet+opus-review` | Sonnet | decided by entry 1, as for `opus` |
+     | `sonnet` | Sonnet | does not run |
+     | unreadable value | none (show the text and that it is unreadable) | treated as for `sonnet+opus-review` |
+     | no value | none (show that there is no value) | does not run |
 
 ### PR title and squash subject
 
