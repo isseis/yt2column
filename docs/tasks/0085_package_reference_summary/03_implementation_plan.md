@@ -207,14 +207,14 @@ Go files checked: 2 (comment-only except internal/pipeline/strictjson_users_test
 OK: the PR stays in scope and its Go diffs are comment-only
 ```
 
-PR-2（2026-11-11）: merge-base `224ef0d8b04e4667510aee6cef5c97bce46e8cf2`、記録したコミット `0ee9c490f739d3a0f727a3feafc391364d2537e7`。この記録のコミットと、PR チェックポイントのチェックボックスのコミットは、本計画だけを変える。
+PR-2（2026-11-11）: merge-base `224ef0d8b04e4667510aee6cef5c97bce46e8cf2`、記録したコミット `61433b45ddde04f26b2abf2b5677373ddf3a402f`。この記録のコミットと、PR チェックポイントのチェックボックスのコミットは、本計画だけを変える。
 
 `_checks/check_state.sh 15000`:
 
 ```text
 sections: 6
 rows: 57
-bytes: 14959
+bytes: 14969
 OK: six kind headings, one table each, no duplicate package row
 ```
 
@@ -222,7 +222,7 @@ OK: six kind headings, one table each, no duplicate package row
 
 ```text
 base: 224ef0d8b04e4667510aee6cef5c97bce46e8cf2
-head: 0ee9c490f739d3a0f727a3feafc391364d2537e7
+head: 61433b45ddde04f26b2abf2b5677373ddf3a402f
 changed files: 4
 Go files checked: 0 (comment-only except internal/pipeline/strictjson_users_test.go)
 OK: the PR stays in scope and its Go diffs are comment-only
