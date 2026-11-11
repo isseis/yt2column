@@ -104,6 +104,12 @@ to GitHub and never pushes.
    TASK_DIR is the task directory's repository-relative path (such as
    `docs/tasks/0081_implementation_model_choice`).
 
+   The review reads the task's documents from the work tree. So when RANGE's
+   `<head>` is not `HEAD` and `git diff --quiet HEAD <head> -- <TASK_DIR>`
+   does not exit `0` (the documents differ, or the directory is on one side
+   only), stop, change nothing, and ask the user to check out RANGE's head
+   first.
+
 4. **When FIX is `fix`, check before reviewing.** Stop, change nothing, and
    report the reason when any of these fails:
    - A branch is checked out (`git symbolic-ref -q --short HEAD` prints its
