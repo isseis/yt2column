@@ -94,10 +94,11 @@ to GitHub and never pushes.
      `_` replaced by `-`, equals the name's `<slug>`, when exactly one does.
      A range that does not end at `HEAD` says nothing about the current
      branch;
-   - the task of a file open in the IDE (its rule 2);
+   - the task of a file open in the IDE (its rule 2), when RANGE changes no
+     task directory or the file's task is one of those it changes;
    - otherwise ask with AskUserQuestion, offering the task directories RANGE
-     changes as the options, or, when it changes none, asking for the task's
-     number. Do not stop as its rule 3 says: this command takes no task
+     changes as the options when they fit in its options, and otherwise
+     asking for the task's number. Do not stop as its rule 3 says: this command takes no task
      argument.
 
    TASK_DIR is the task directory's repository-relative path (such as

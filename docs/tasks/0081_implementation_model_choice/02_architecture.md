@@ -434,7 +434,7 @@ step 5a（`:78-127`）では、グリーンゲートの確認（`:80`）と、�
 
 1.  ブランチ全体のローカル CLI レビューを行う場合（`git log origin/main..HEAD` に `Local CLI review: not run` か `CodeRabbit local review: not run` の行がある場合）は、Part B の LOCAL_REVIEW の規則のとおりに、BASE を `$(git merge-base origin/main HEAD)`、SCOPE をブランチとして、これを先に行う。レビューが止まったときは、何も push せずに `/runplan` も止まる。このレビューの直しの commit も、次の要否の判断と Opus のレビューの範囲（`BASE..HEAD`）に入る。
 2.  共通の手順の要否の判断（入口 1）を走らせる。
-3.  `RUN` のときは、レビュー（入口 2）を RANGE `BASE..HEAD`・FIX `fix` で行う。OUTCOME が `stopped-unavailable`・`stopped-limit`・`stopped-error` のときは、`/runplan` も止まる。PR を開かず、何も push せず、その旨と、利用者にできること（Opus が使えるようになってから `/runplan` を再び実行する。上限のときは、残った指摘を見て決める）を報告する（AC-22、AC-25）。
+3.  `RUN` のときは、レビュー（入口 2）を RANGE `BASE..HEAD`・FIX `fix` で行う。OUTCOME が `stopped-unavailable`・`stopped-limit`・`stopped-error` のときは、`/runplan` も止まる。PR を開かず、何も push せず、その旨と、利用者にできること（Opus が使えるようになってから `/runplan` を再び実行する。上限のときは、残った指摘を見て決める。`stopped-error` のときは、その理由と、作業ツリーに残ったコミットしていない直しを残すか捨てるかを決める）を報告する（AC-22、AC-25）。
 4.  直しの commit があれば、グリーンゲートをもう一度通し、最後の PR のときの AC の確かめと、差分の記録の再確認もやり直す。AC の確かめか差分の記録の再確認が、除いてよい commit でもビルドの直し（3.4 の完了の記録の範囲）でもない commit を作ったときは、2 の要否の判断からやり直す。
 5.  最初のチェックボックスの commit のメッセージに、完了の記録を書く（3.4）。チェックボックスが既に `[x]` のとき（前のセッションが付けた後に止まったとき）は、記録の行だけの空の commit を作る。`NONE` と `SKIP` のときは、記録の行を書かない。
 6.  PR_TEXT に、Opus のレビューの結果（3.9）を加える。
@@ -545,7 +545,9 @@ N/A。Go のコードを変えないので、エラーの型はない。
 | 確認のレビューの上限に達した | `_lib/review-subagent-pattern.md` の規則で止まる。`/runplan` は PR を開かず、何も push しない。残った指摘を報告する | AC-22 |
 | セッションが指摘を誤りと考える | 人に尋ねる。退けられたものだけ、残した指摘の記録に書いて進む | AC-23 |
 | 直すのに決定の変更が要る | `/runplan`: step 5 の規則で人と決める。`/weakreview`: 直さずに報告する | AC-24、AC-31 |
-| commit メッセージに mention が入る | 指摘から書いた文を消して確かめ直す。それでも入るなら止まる | 3.4 |
+| commit メッセージに mention が入る | 指摘から書いた文を消して確かめ直す。それでも入るなら `stopped-error` で止まる | 3.4 |
+| TASK_DIR がディレクトリでない | レビューの前に `stopped-error` で止まる | 1.5 の決定 2 |
+| 直しの後のビルドの確かめを、直しの範囲で通せない | `stopped-error` で止まる。コミットしていない直しは作業ツリーに残す | 1.5 の決定 2 |
 | `/weakreview` の引数が矛盾する、または受け付けない | 止まり、受け付ける引数を示す | AC-32 |
 | `/weakreview` で、既定のブランチの上、範囲の終わりが `HEAD` でない、または作業ツリーが clean でない（直すとき） | 何も変えずに止まり、理由を報告する | AC-33 |
 | `/weakreview` で、`gh pr view` が失敗した | PR の状態を確かめられなかったことを報告する | AC-34 |
@@ -619,9 +621,10 @@ flowchart TD
     Left -->|"はい"| Limit{"上限の規則で<br>続けられる?"}
     Limit -->|"はい"| Ask
     Limit -->|"いいえ"| Stop2["stopped-limit"]
+    Ask -->|"ビルドの確かめを通せない<br>・mention の確かめが通らない"| Stop3["stopped-error"]
 
     class Pre,Panel,Syn,Ask,Verify newpkg
-    class Stop1,Stop2 problem
+    class Stop1,Stop2,Stop3 problem
 
     subgraph Legend["Legend"]
         L1["本タスクで加える手順"]

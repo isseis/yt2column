@@ -92,7 +92,7 @@ copy a subagent's text into a commit message, fix commits included.
 
 | Output | Meaning |
 |---|---|
-| OUTCOME | `completed` (no Critical or Major finding is left unhandled), `reported` (FIX is `report`), `stopped-unavailable` (a review could not run on Opus), or `stopped-limit` (the pass limit stopped the loop), or `stopped-error` with its reason (any other stop this file names) |
+| OUTCOME | `completed` (no Critical or Major finding is left unhandled), `reported` (FIX is `report`), `stopped-unavailable` (a review could not run on Opus), `stopped-limit` (the pass limit stopped the loop), or `stopped-error` with its reason (any other stop this file names) |
 | FINDINGS | The merged findings, each with its severity, location, and gist in your own words, and the count for each severity |
 | KEPT | The Critical and Major findings moved past without a fix, each with its reason: the kept lines, and the findings DECISION_CHANGE left unfixed |
 | COMMITS | The fix commits and the commits of record lines this procedure made |
