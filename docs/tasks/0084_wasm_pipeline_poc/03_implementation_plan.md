@@ -216,7 +216,7 @@
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した: https://github.com/isseis/yt2column/pull/843
-- [ ] PR がマージされた
+- [x] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: PoC のコード（PoC のブランチ）
@@ -533,4 +533,4 @@ AC-26 の確かめ（ステップ 4-2 で書く）：未記入
 ## 変更履歴
 
 -   2026-11-11 承認（isseis、#830）
--   2026-11-11 セッション中の再承認：番兵の一覧を固定するテスト（`TestExportedSentinelErrorsUnchanged`）を `internal/transcript` のテストに残し、その補助の複製を許す（isseis、#未記入）
+-   2026-11-11 セッション中の再承認：番兵の一覧を固定するテスト（`TestExportedSentinelErrorsUnchanged`）を `internal/transcript` のテストに残し、その補助の複製を許す（isseis、#843）
