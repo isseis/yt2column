@@ -16,7 +16,7 @@
 | [ADR-0008](0008-launch-path.md) | 拡張の起動の経路をツールバーのポップアップだけにし、生成の開始は利用者のボタンの押下だけで行う | `有効` |
 | [ADR-0009](0009-viewer-opening.md) | ビューアは生成の開始と同時に背面のタブで開き、ポップアップは閉じずに状態を表示する | `有効` |
 | [ADR-0010](0010-extension-stores-nothing.md) | 拡張は何も保存せず、権限も加えず、状態の正しい値をサーバに置く | `有効` |
-| [ADR-0011](0011-webhook-publishing.md) | 投稿先は Slack 互換の Incoming Webhook とし、投稿は利用者の操作でだけ行う | `有効` |
+| [ADR-0011](0011-webhook-publishing.md) | 投稿先は Slack 互換の Incoming Webhook とし、投稿は利用者の操作でだけ行う | `廃止` |
 | [ADR-0012](0012-lightweight-check-in-bash.md) | 軽量プロセスの確かめ直しは、origin/main の版の bash スクリプトで行い、Go のツールにしない | `廃止` |
 | [ADR-0013](0013-review-setup.md) | PR レビューは作成時の 1 回だけ Codex に頼み、その後の変更はローカルの CLI レビューで見る | `有効` |
 | [ADR-0014](0014-deterministic-checks-in-go.md) | 決定的な判定はエージェントに任せず、テストのある Go の開発ツールに置く | `有効` |
@@ -32,8 +32,8 @@
 | [ADR-0024](0024-env-access-in-config.md) | プロセスの環境変数を設定として読むのは internal/config と決めた入口だけに限る | `有効` |
 | [ADR-0025](0025-claude-output-limit.md) | Claude アダプタの出力の上限の既定は 40,000 トークンとし、ストリーミングを使わない | `有効` |
 | [ADR-0026](0026-extension-platform.md) | ブラウザ拡張は TypeScript の Manifest V3 の拡張とし、バンドラを使わず、manifest の key で ID を固定し、Chrome と Brave だけを対象にする | `有効` |
-| [ADR-0027](0027-article-job-api.md) | 拡張とホストとサーバはジョブの API で生成と投稿を分け、記事をプロセスごとの秘密によるキーでサーバのメモリに持つ | `有効` |
-| [ADR-0028](0028-no-automatic-resend.md) | 結果が分からないときは自動で送り直さず、投稿の操作を冪等にする | `有効` |
+| [ADR-0027](0027-article-job-api.md) | 拡張とホストとサーバはジョブの API で生成と状態の取得を分け、記事をプロセスごとの秘密によるキーでサーバのメモリに持つ | `有効` |
+| [ADR-0028](0028-no-automatic-resend.md) | 結果が分からないときは生成の開始を自動で送り直さず、ホストも再接続しない | `有効` |
 | [ADR-0029](0029-extension-ui-languages.md) | 拡張の UI を英語と日本語の 2 言語にし、表示の言語は resolveLocale の 1 か所で決める | `有効` |
 | [ADR-0030](0030-minimum-chrome-version.md) | 拡張の minimum_chrome_version を 110 にする | `有効` |
 | [ADR-0031](0031-secret-closure.md) | 秘密を secret.Secret 型のクロージャで持ち、送信先へのリクエストを除くどの出力にも流さない | `有効` |
@@ -48,3 +48,4 @@
 | [ADR-0040](0040-simple-task-documents.md) | 小さな変更のタスクは、人の判断で 3 文書を簡易な内容にして 1 本の PR で作れるようにし、機械的な判定は設けない | `有効` |
 | [ADR-0041](0041-openai-api.md) | OpenAI は Responses API を応答の保存なしで呼び、出力上限は実測で決める | `有効` |
 | [ADR-0042](0042-implementation-model-tiers.md) | 実装モデル要件を opus・sonnet+opus-review・sonnet の 3 つにし、Opus 以外で実装した部分がある sonnet+opus-review・opus の PR は、開く前に Opus がレビューする | `有効` |
+| [ADR-0043](0043-copy-mention-neutralization.md) | ビューアの表示とクリップボードへのコピーで記事のメンションを無効化し、コピーは拒否しない | `有効` |
