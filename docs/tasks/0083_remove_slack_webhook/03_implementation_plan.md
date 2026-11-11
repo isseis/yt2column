@@ -460,11 +460,11 @@
 
 PR-1:
 
-**`_checks/golden_md_unchanged.sh`（AC-16a）。** 比べたコミットは、merge-base `a56f085eb59fc2d65e0fd393773067013be3727c` と、このフェーズの最後のコミット `857e27a2070a` である。出力と終了コード:
+**`_checks/golden_md_unchanged.sh`（AC-16a）。** 比べたコミットは、merge-base `a56f085eb59fc2d65e0fd393773067013be3727c` と、このフェーズの最後のコミット `d6c86425` である。出力と終了コード:
 
 ```text
 before: a56f085eb59fc2d65e0fd393773067013be3727c
-after:  857e27a2070a
+after:  d6c86425
 files:  internal/publisher/testdata/golden/*.md
 OK   the same 10 file(s) at both commits
 OK   all 10 file(s) are byte for byte the same
@@ -473,23 +473,22 @@ exit=0
 
 壊し方（それぞれ赤くなり、戻した）: ファイルの中身を変えると `NG   <path> changed at HEAD` と `NG   the .md files changed` で終了コード `1`。ファイルを足すと `NG   the files differ:` と前後の一覧で `1`。ファイルを消すと `NG   <path> is missing at HEAD` で `1`。知らないコミットを渡すと `<ID> is not a commit` で `2`。
 
-**`_checks/coverage`（ステップ 1-1 の変更の確認）。** 2 つの側の profile を `go test -tags test -count=1 -coverpkg=./... -coverprofile=<profile> ./...` で測った（どちらも終了コード `0`、失敗なし）。比べたコミットは `a56f085eb59fc2d65e0fd393773067013be3727c` と `857e27a2070a`（ステップ 1-1 と、その下で実行されなくなった Slack の本文の検査を消したコミット）である。出力と終了コード:
+**`_checks/coverage`（ステップ 1-1 の変更の確認）。** 2 つの側の profile を `go test -tags test -count=1 -coverpkg=./... -coverprofile=<profile> ./...` で測った（どちらも終了コード `0`、失敗なし）。比べたコミットは `a56f085eb59fc2d65e0fd393773067013be3727c` と `d6c86425` である。出力と終了コード:
 
 ```text
 before  a56f085eb59fc2d65e0fd393773067013be3727c (1369 product functions)
-after   857e27a2070a (1369 product functions)
+after   d6c86425 (1369 product functions)
 only before (removed): 0
 only after (added): 0
 more unexecuted (fails): 0
 fewer executed (give each a reason): 1
      internal/publisher prepareSlackMessages: executed 12 -> 10 (0 of 12 unexecuted -> 0 of 10 unexecuted)
-fewer unexecuted: 1
-     internal/cmdrunner signalGroup: 1 of 3 unexecuted -> 0 of 3 unexecuted
+fewer unexecuted: 0
 OK   no function found on both sides has more unexecuted statements
 exit=0
 ```
 
-`prepareSlackMessages` は、消した本文の検査（2 文。どちらも実行されていた）の分だけ実行された文が減った。`signalGroup`（`internal/cmdrunner`）は、実行されていた文が増えた（このフェーズの変更と関係がない）。ステップ 1-1 の変更だけを比べた途中の実行では、`prepareSlackMessages: 0 of 12 unexecuted -> 1 of 12 unexecuted` で不合格（`NG   1 function(s)...`、終了コード `1`）になり、Slack の検査の文が実行されなくなったことを報告した。その検査を消した後の上の実行で、この報告が消えた。
+`prepareSlackMessages` は、消した本文の検査の分だけ実行された文が減った。ステップ 1-1 の変更だけを比べた途中の実行（`a56f085e..d5de06b0`）では、`prepareSlackMessages: 0 of 12 unexecuted -> 1 of 12 unexecuted` で不合格（`NG   1 function(s) found on both sides have more unexecuted statements`、終了コード `1`）になり、Slack の本文の検査の文が実行されなくなったことを報告した。その検査を消した後の上の実行で、この報告が消えた。
 
 壊し方（それぞれ赤くなり、戻した）: 関数に属さない塊（文の数が `0` の位置）を混ぜると `0 declarations hold the block` で終了コード `2`。`var` の本体の塊を両側で実行させたまま比べると、前後で対応づけられ、不合格にならない。実行されていた文を後ろの側で実行されなくすると `0 of 2 unexecuted -> 1 of 2 unexecuted` で終了コード `1`。0062 の道具を同じ 2 つの側に使うと、`internal/privatefile/privatefile.go:174.44` で `0 function declarations hold the block, want 1` を出して止まる（終了コード `2`）。
 
