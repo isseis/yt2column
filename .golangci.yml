@@ -106,21 +106,21 @@ linters:
           deny:
             - pkg: github.com/isseis/yt2column/internal/serversock
               desc: "internal/server must not import internal/serversock; the entry point binds the socket and hands the listener over"
-        # The server posts to the Webhook only through the publish
-        # operation's post job (PostMessages). The pipeline publishes an
-        # article as a whole, the CLI's path, so a server importing it would
-        # bring back a second way to post.
+        # The server only generates articles and reports them; the extension
+        # saves or copies them. The pipeline publishes an article as a whole,
+        # the CLI's path, so a server importing it would bring publishing back
+        # into the server.
         server-no-pipeline:
           list-mode: lax
           files:
             - "**/internal/server/**"
           deny:
             - pkg: github.com/isseis/yt2column/internal/pipeline
-              desc: "internal/server must not import internal/pipeline; the server posts only through the publish operation's post job"
+              desc: "internal/server must not import internal/pipeline; the server does not publish articles"
         # The article cache holds records and their transitions only: it uses
         # internal/writer's value types and knows nothing of HTTP, LLMs, the
-        # Webhook, or the server that drives it, so it is tested with a fake
-        # clock alone.
+        # rendering of an article, or the server that drives it, so it is
+        # tested with a fake clock alone.
         articlecache-boundaries:
           list-mode: lax
           files:

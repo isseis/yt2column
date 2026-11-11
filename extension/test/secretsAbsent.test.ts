@@ -9,8 +9,8 @@ import { extensionDir } from "./helpers/paths.ts";
 
 // The extension must not hold an API key or a Webhook URL: these words would
 // name such a setting, input field or storage key. Matched case-insensitively.
-// The word "webhook" alone is allowed: the job API's member, reasons and the
-// messages about posting name the Webhook without naming its URL.
+// The word "webhook" alone is allowed: it names no setting by itself, so only
+// its pairing with "url" below is refused.
 const secretWords = [
   "api key",
   "apikey",

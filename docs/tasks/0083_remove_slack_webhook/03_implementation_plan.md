@@ -206,53 +206,53 @@
 
 **変更するファイル:** `internal/server/`（`generation.go`・`status.go`・`handler.go`・`response.go`・`jobs_api.go`・`server.go`・`publish.go`・`test_helpers.go` とテスト）、`internal/articlecache/`（`record.go`・`cache.go`・`cache_test.go`）、`internal/nmhost/relay.go`・`relay_test.go`、`cmd/yt2column-server/`（`run.go`・`test_helpers.go`・テスト）、`cmd/yt2column-nmhost/main_test.go`、`docs/dev/guides/development.md`・`README.md`・`README.en.md`（ガードが読む表）、`internal/doctestutil/guides.go`、拡張（`src/`・`static/`・`scripts/`・`test/`）、`.golangci.yml`、`docs/tasks/0083_remove_slack_webhook/_checks/coverage/main.go`（新規）
 
--   [ ] **ステップ 3-1**: `_checks/coverage/main.go` を作る（§1.3 の決定 7、設計書 7.4）。
-    -   Go で書く。関数を (パッケージ, レシーバ, 名前) で対応づけるには、各コミットのソースを `go/parser` で読む必要があり、シェルでは足りないためである。拡張は、lcov の報告の関数を (ファイル, 名前) で対応づけ、名前のない関数は対応づけず、その数が前後で変わったファイルを挙げる。
+-   [x] **ステップ 3-1**: `_checks/coverage/main.go` を作る（§1.3 の決定 7、設計書 7.4）。
+    -   Go で書く。関数を (パッケージ, レシーバ, 名前) で対応づけるには、各コミットのソースを `go/parser` で読む必要があり、シェルでは足りないためである。拡張は、lcov の報告の関数を (ファイル, 名前) で対応づけ、名前のない関数は対応づけず、その数が前後で変わったファイルを挙げる。拡張の側は、同じパッケージの `_checks/coverage/ext.go` に置き、1 つ目の引数 `ext` で選ぶ。
     -   入力は 2 つのコミットと、それぞれで測った Go の網羅の profile と拡張の lcov の報告である。親のコミットにだけある関数を「消した関数」として挙げ、残る関数について、Go は網羅率が下がらないこと、拡張は親で実行された関数の実行回数が 0 にならないことを確かめる。終了コードは、合格が `0`、不合格が `1`、比べられない（対応が 1 つに決まらない、測れていない、テストが失敗した）が `2` である。
     -   各チェックが少なくとも 1 つの壊し方で失敗することを確かめ、commit のメッセージに書く。テストのコミットとして入れる。
--   [ ] **ステップ 3-2（テストのコミット）**: 投稿のジョブに依る `cmd/yt2column-server` のテストの仕組みを、生成のジョブに依る形に書き換える（§1.4）。投稿のテストは消さない。
+-   [x] **ステップ 3-2（テストのコミット）**: 投稿のジョブに依る `cmd/yt2column-server` のテストの仕組みを、生成のジョブに依る形に書き換える（§1.4）。投稿のテストは消さない。
     -   `blockingChild` と子のプロセスの止め方を、生成を止めておく偽の書き手で止める形にし、`TestSignalWaitsForJob` を「最初の合図で、止めておいた生成を取り消して待ってから終わる」、`TestSecondSignalExitsAtOnce` を「生成を止めたまま、二度目の合図ですぐ終わる」確かめに書き換える。
     -   `TestServerEndToEnd` の 2 回目の起動の確かめを、生成の開始と状態の取得にする。`TestStartDuringShutdownRefused` の停止を待たせる仕組みを、生成で待たせる形にする。`TestWriterOptionsMatchCLIDefaults` の止め方と、`TestOpenAIConfiguration` の投稿の部分を、投稿に依らない形にする。
     -   書き換えた各テストは、確かめる振る舞い（取り消し・待ち・すぐの終了・同じソケット）を壊すと失敗することを確かめる。
     -   `make coverage-compare` で確かめる。投稿の関数の網羅率が下がると報告されたら、その書き換えをステップ 3-5 のコミットに移し、移したテストを 3-5 の commit のメッセージに書く。
--   [ ] **ステップ 3-3（書き換えのコミット）**: テストを消さずに済む書き換えを先に行う（設計書 8 章の 4）。
+-   [x] **ステップ 3-3（書き換えのコミット）**: テストを消さずに済む書き換えを先に行う（設計書 8 章の 4）。
     -   `completeGeneration` は `PrepareSlackMessages` を呼ばず、記事をいつも `CompletePostable` で `done` にし、成功のログの行から `publish` の属性を除く。`TestGenerationUnpostable` を `TestGenerationMentionsDone`（§1.5）に書き換え、メンションを含む本文といまの分割の上限を超える本文の記事が `done` になり、成功のログの行の属性の集まりがちょうど `key`・`videoId`・`model`・`modelVersion`・`duration` であることを確かめる。
     -   `stopNoticeLogger`（`cmd/yt2column-server/run.go:268`〜`276`）から投稿の待ちの文を除き、二度目の合図ですぐ終わる案内を残す。`TestRunLogsListeningAndStop`・`TestOutputsOmitSecrets` の停止の案内の確かめを新しい文に合わせる。
     -   `completeGeneration` が `CompleteUnpostable` を呼ぶ形に戻すと `TestGenerationMentionsDone` が失敗することを確かめる。
--   [ ] **ステップ 3-4（テストのコミット）**: 使われなくなった `approxMinutes` と `cmd/yt2column-server/run_test.go::TestApproxMinutes` を消す。関数を丸ごと消すだけなので、`make coverage-compare` で確かめる。
--   [ ] **ステップ 3-5（書き換えを伴う削除のコミット）**: ジョブの API の投稿を、サーバ・ホスト・`cmd/yt2column-server`・拡張・文書の表で 1 つのコミットとして消す（設計書 3.6・3.8、3.10 の投稿の部分）。投稿の状態と理由・拒否の理由の表が、Go・拡張・`development.md`・README の間で縛り合うので、これらを 1 つにする（§1.4）。
+-   [x] **ステップ 3-4（テストのコミット）**: 使われなくなった `approxMinutes` と `cmd/yt2column-server/run_test.go::TestApproxMinutes` を消す。関数を丸ごと消すだけなので、`make coverage-compare` で確かめる。
+-   [x] **ステップ 3-5（書き換えを伴う削除のコミット）**: ジョブの API の投稿を、サーバ・ホスト・`cmd/yt2column-server`・拡張・文書の表で 1 つのコミットとして消す（設計書 3.6・3.8、3.10 の投稿の部分）。投稿の状態と理由・拒否の理由の表が、Go・拡張・`development.md`・README の間で縛り合うので、これらを 1 つにする（§1.4）。
     -   `internal/server`: `publish.go`・`publish_test.go`、`routePublish`・`PublishSuffix`、`webhook_not_configured` と `article_not_ready`・`article_not_found`・`article_not_postable`、`statusResponse.WebhookConfigured`・`statusJob.Publish` と `statusPublish`・`publishStatus`・`publishStateCode`・`unpostableCode`・`publishFailureCode`、`Options.Webhook`・`WebhookOptions`・`WebhookPublisher`・`webhookConfigured()`・`errNilWebhookPublisher`・`beforePublishJob`・`postJobs`、`test_helpers.go` の `loopbackWebhook` まわりと `RejectReasonsForTest` の投稿の表。`logEviction` の行から `publish` の属性を除く。`maxStatusSize`・`renderStatus`・`matchTarget`・`handler`・`New`・`Serve` から投稿の分岐を除く。サーバは、記事のキャッシュの投稿の API（`BeginPublish`・`Snapshot` の投稿の欄・`Eviction.Publish`）を使わなくなる。
     -   `internal/nmhost`: `OperationPublish`・`opPublish`・`publishSuffix` とその経路。
     -   `cmd/yt2column-server`: `newPublisher` の配線と `deps.newPublisher`、`listening` の行の `webhookConfigured`、Webhook がないことの警告の行。`cfg.WebhookURL()` の行は `webhookURL, _ :=` にして PR-4 まで残す。テストの補助（`test_helpers.go` の `nopPublisher`・`loopbackDeps`・`requireTestWebhook`・`errUnexpectedWebhook`・`webhookServer`・`waitPublished`・`generateAndPublish`・`blockingPublisher`）と、それを使うテスト（`relay_e2e_test.go` の `accepted_job_continues_after_host_exits`・`invalid_transcript_posts_nothing`・`new_form_operations` の投稿の部分、`TestServerEndToEnd` の前半の投稿の部分、`run_test.go:709`〜`733`・`:830` の投稿の部分）を消すか書き換える。
-    -   拡張: `poll.ts` は `done` の記事でいつもポーリングを止める。`JobDisplay` から `publish`・`webhookConfigured` を除き、`response.ts` が `done` の `job` の `publish` と `ok` の応答の `webhookConfigured` を受け付けない形にする。ビューアの投稿のボタンと状態の行（`static/viewer.html`・`viewer.css`）、`publishArticle` と投稿中の状態、投稿の状態の告知、`PublishOpNotice` の `none` 以外、`classifyPublish`・`PublishOutcome`・投稿の拒否の理由、`hostMessage.ts` の `publish` と `publishMessage`、`sendMessages.ts` の `publishResultMessage`、カタログの投稿のメッセージ（設計書 3.10 の一覧。`repeatedPostStep` は、ほかの使い道が残らなければ消す）、`scripts/popup-preview.ts` の投稿の状態の行ごとのページ。
+    -   拡張: `poll.ts` は `done` の記事でいつもポーリングを止める。`JobDisplay` から `publish`・`webhookConfigured` を除き、`response.ts` が `done` の `job` の `publish` と `ok` の応答の `webhookConfigured` を受け付けない形にする。ビューアの投稿のボタンと状態の行（`static/viewer.html`・`viewer.css`）、`publishArticle` と投稿中の状態、投稿の状態の告知、`PublishOpNotice` の `none` 以外、`classifyPublish`・`PublishOutcome`・投稿の拒否の理由、`hostMessage.ts` の `publish` と `publishMessage`、`sendMessages.ts` の `publishResultMessage`、カタログの投稿のメッセージ（設計書 3.10 の一覧。`repeatedPostStep` は、残る使い道の `viewer.lost` の手順が「もう一度投稿すると重複する」という、投稿がなくなると成り立たない文なので、その手順と一緒に消す）、`scripts/popup-preview.ts` の投稿の状態の行ごとのページ。
     -   文書の表: `development.md` の API の表の投稿の行、投稿の状態と理由の表、拒否の理由の 4 行、2 つの README の拒否の理由の表の 4 行（`README.md` を変え `/mktrans` で `README.en.md` を同期する）。`internal/doctestutil/guides.go:52`〜`53` と `extension/test/helpers/developmentDoc.ts:25`〜`26` の見出し、`cmd/yt2column-server/docs_test.go` の `PublishSuffix` の確かめ。
     -   消すテスト（それぞれ 1 つずつ確かめて消す）:
-        -   [ ] `internal/server/status_test.go::TestStatusWebhookConfigured`
-        -   [ ] `internal/server/server_test.go::TestNewWebhookOptions`（Webhook の行を消し、書き手とログの出力がないときの行は `TestNewOptions` として残す）
-        -   [ ] `internal/server/server_test.go::TestNewCopiesWebhookOptions`
-        -   [ ] `cmd/yt2column-server/run_test.go::TestBuildsSlackPublisher`
-        -   [ ] `cmd/yt2column-server/run_test.go::TestStartsWithoutWebhook`
-        -   [ ] `cmd/yt2column-server/run_test.go::TestStartupFailures` の `publisher not built` の行
+        -   [x] `internal/server/status_test.go::TestStatusWebhookConfigured`
+        -   [x] `internal/server/server_test.go::TestNewWebhookOptions`（Webhook の行を消し、書き手とログの出力がないときの行は `TestNewOptions` として残す）
+        -   [x] `internal/server/server_test.go::TestNewCopiesWebhookOptions`
+        -   [x] `cmd/yt2column-server/run_test.go::TestBuildsSlackPublisher`
+        -   [x] `cmd/yt2column-server/run_test.go::TestStartsWithoutWebhook`
+        -   [x] `cmd/yt2column-server/run_test.go::TestStartupFailures` の `publisher not built` の行
     -   書き換えるテスト: `TestStatusResponseWithinLimit` の投稿の状態の繰り返しを除く。拡張の `poll.test.ts`・`poller.test.ts`・`response.test.ts`・`jobView.test.ts`・`launch.test.ts`・`jobCodes.test.ts`・`serverReasons.test.ts`・`test/helpers/job.ts`・`test/helpers/dom.ts` の応答の例と期待を新しい形に合わせ、投稿中にポーリングを続ける場合と、投稿の状態・理由・拒否の理由の行を除く。
     -   ほかのテストの中の、投稿の状態・`webhookConfigured`・投稿の拒否の理由・投稿のジョブを確かめる部分を消す（`git grep -n -i -E 'publish|webhook' -- internal/server internal/nmhost cmd/yt2column-server cmd/yt2column-nmhost extension/src extension/test extension/static extension/scripts` の当たり。拡張では `renderViewer.test.ts` の `publish rows`・`publish state announcements` の describe、`viewerApp.test.ts`・`entryPoints.test.ts`・`popupHtml.test.ts`・`hostMessage.test.ts`・`sendMessages.test.ts`・`startCoordinator.test.ts`・`popupPreview.test.ts`・`catalog.test.ts`・`metadataDocs.test.ts` の投稿の部分）。
     -   `_checks/coverage` で確かめ、出力を commit のメッセージと PR の説明に書く。残る関数で網羅率が下がったものは、テストを加える。加えない場合は、実行されていた文を消しただけであることを理由として書く。
--   [ ] **ステップ 3-6（書き換えを伴う削除のコミット）**: 記事のキャッシュの投稿の状態を消す（設計書 3.7）。
+-   [x] **ステップ 3-6（書き換えを伴う削除のコミット）**: 記事のキャッシュの投稿の状態を消す（設計書 3.7）。
     -   `PublishState`・`UnpostableReason`・`PublishFailureReason` とその列挙、`Snapshot` の投稿の欄、記録の投稿の欄と `publishGen`・`delivered`、`BeginPublish`・`PublishRun`、`Eviction.Publish`。`CompletePostable`・`CompleteUnpostable` を `Complete` にまとめ（§1.5。`completeGeneration` の呼び出しも合わせる）、`evictable` を `done` の記録をいつも落とせる形にする。
     -   消すテスト（それぞれ 1 つずつ確かめて消す）:
-        -   [ ] `internal/articlecache/cache_test.go::TestStalePublishRunAfterEviction`
-        -   [ ] `internal/articlecache/cache_test.go::TestCompleteUnpostable`
-        -   [ ] `internal/articlecache/cache_test.go::TestBeginPublishOutcomes`
-        -   [ ] `internal/articlecache/cache_test.go::TestPublishResumeFrom`
-        -   [ ] `internal/articlecache/cache_test.go::TestBeginPublishConcurrentStartsOnce`
+        -   [x] `internal/articlecache/cache_test.go::TestStalePublishRunAfterEviction`
+        -   [x] `internal/articlecache/cache_test.go::TestCompleteUnpostable`
+        -   [x] `internal/articlecache/cache_test.go::TestBeginPublishOutcomes`
+        -   [x] `internal/articlecache/cache_test.go::TestPublishResumeFrom`
+        -   [x] `internal/articlecache/cache_test.go::TestBeginPublishConcurrentStartsOnce`
     -   書き換えるテスト: `TestEvictionKeepsRunningAndPosting` は、投稿中の行を除き、実行中を残し失敗と `done` を落とす行を残して `TestEvictionKeepsRunning` にする（§1.5）。`TestEvictionOrder`・`TestRunEndsAfterFirstOutcome` と `internal/server/handler_test.go:139` の `CompletePostable`・`CompleteUnpostable`・`Eviction.Publish` の使い方を合わせる。
     -   `_checks/coverage` で確かめる。
--   [ ] **ステップ 3-7（テストのコミット）**: 消した後の振る舞いを確かめるテストを加える。
+-   [x] **ステップ 3-7（テストのコミット）**: 消した後の振る舞いを確かめるテストを加える。
     -   `internal/server/jobs_api_test.go::TestUnknownPathTouchesNothing` に `POST /jobs/{key}/publish` を加え、`not_found` で本文を読まず、枠・キャッシュ・書き手を変えないことを確かめる。`TestJobsTargetRejections` にも同じターゲットの行を加える。
     -   `internal/nmhost/relay_test.go::TestRelayNewFormRejections` に、`op` が `publish` のメッセージがサーバへ何も送らずに `protocol_error` になる行を加える。`cmd/yt2column-nmhost/main_test.go` の `publish` を受け付ける確かめを、同じ拒否の確かめに改める。
     -   `internal/server/status_test.go::TestStatusArticleNeutralized` に、`done` の応答の最上位と `job` のメンバの集まりがちょうど設計書 3.1 の形（`webhookConfigured`・`publish` がない）であることを加え、`running` の応答の最上位のメンバの集まりを確かめるテスト `TestStatusTopLevelMembers` を加える。`cmd/yt2column-server/run_test.go::TestRunLogsListeningAndStop` に、`listening` の行の属性の集まりと、警告の行がないことを加える。
     -   壊して確かめる対象: 経路の選び方に `publish` の経路を戻すと `TestUnknownPathTouchesNothing` が、ホストに `publish` の操作を戻すと `TestRelayNewFormRejections` の加えた行が、応答に `webhookConfigured` を戻すと `TestStatusTopLevelMembers` が失敗することを確かめる。
     -   `extension/test/popupHtml.test.ts` のビューアの要素の並びの確かめが、投稿のボタンと行を除いた見た目の順（要件書 4.6 節のフォーカスの順）を確かめていることを見る。
--   [ ] **ステップ 3-8**: 投稿に触れるコメントを改める。`src/poller.ts`・`src/send.ts`・`static/theme.css`・`test/secretsAbsent.test.ts` のコメント、`.golangci.yml` の `server-no-pipeline`・`articlecache-boundaries` の理由の文（規則は変えない）。
+-   [x] **ステップ 3-8**: 投稿に触れるコメントを改める。`src/poller.ts`・`src/send.ts`・`static/theme.css`・`test/secretsAbsent.test.ts` のコメント、`.golangci.yml` の `server-no-pipeline`・`articlecache-boundaries` の理由の文（規則は変えない）。
 
 **完了の条件:** 上のテストが加わり通る。ステップ 3-2・3-4 の比較と、ステップ 3-5・3-6 の `_checks/coverage` の出力が commit のメッセージと PR の説明にある。`make test`・`make lint`・`make deadcode`・`make ext-check` が通る。
 
