@@ -494,11 +494,11 @@ exit=0
 
 PR-2:
 
-**`_checks/golden_md_unchanged.sh`（AC-16a）。** 比べたコミットは、merge-base `141ee751b0fa053c9f287408153e97f1d355c26a` と、PR の実装の最後のコミット `ff1ec8c1` である。出力と終了コード:
+**`_checks/golden_md_unchanged.sh`（AC-16a）。** 比べたコミットは、merge-base `141ee751b0fa053c9f287408153e97f1d355c26a` と、PR の作成ポイントで確かめ直した head `7b670722` である。出力と終了コード:
 
 ```text
 before: 141ee751b0fa053c9f287408153e97f1d355c26a
-after:  ff1ec8c1
+after:  7b670722
 files:  internal/publisher/testdata/golden/*.md
 OK   the same 10 file(s) with the same content at both commits
 OK   all 10 file(s) are byte for byte the same
