@@ -162,9 +162,9 @@ var codexEnvNames = []string{
 // codexEnv returns the environment codex runs with.
 //
 // Contract: only the variables named in codexEnvNames pass, so a secret the
-// caller's environment holds (an API key) is not in the
-// environment of codex or of any command it runs, where printing the
-// environment would send it to OpenAI. Optional git locks and terminal
+// caller's environment holds (an API key) is not in the environment of codex
+// or of any command it runs, where printing the environment would send it to
+// OpenAI. Optional git locks and terminal
 // prompts are off, as for the tool's own git.
 func codexEnv(environ []string) []string {
 	added := []string{"GIT_OPTIONAL_LOCKS=0", "GIT_TERMINAL_PROMPT=0"}

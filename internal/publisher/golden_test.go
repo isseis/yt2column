@@ -20,9 +20,8 @@ import (
 var update = flag.Bool("update", false, "rewrite the golden files under testdata/golden/")
 
 // goldenDir holds <case>.md (renderFileArticle) for each case of
-// TestRenderGolden. The files are
-// compared byte for byte, so the pre-commit whitespace hooks skip this
-// directory and .gitattributes marks it -text.
+// TestRenderGolden. The files are compared byte for byte, so the pre-commit
+// whitespace hooks skip this directory and .gitattributes marks it -text.
 var goldenDir = filepath.Join("testdata", "golden")
 
 // goldenCallTime is a Monday 00:00 UTC: outside deepseek-flash's peak window,

@@ -910,7 +910,8 @@ func fileKey(want VarError, reason string) VarError {
 }
 
 // TestLoadServerValid checks that LoadServer loads the LLM settings, the
-// socket path derived from HOME, and the HTTP/2 debug flag. The OS-specific socket path rules are fixed by TestSocketPath.
+// socket path derived from HOME, and the HTTP/2 debug flag. The OS-specific
+// socket path rules are fixed by TestSocketPath.
 func TestLoadServerValid(t *testing.T) {
 	env := with(validServerEnv(t), godebugEnv, "http2debug=1")
 	cfg, err := LoadServer(ServerLookupForTest(t, env))

@@ -19,7 +19,8 @@ var errEmptyValue = errors.New("secret: empty value")
 // errZeroValue is returned by Reveal on the zero value.
 var errZeroValue = errors.New("secret: zero value")
 
-// Secret holds a value that must never appear in output (an API key, ...). The original value is captured in a closure so that reflection over the
+// Secret holds a value that must never appear in output (an API key, ...).
+// The original value is captured in a closure so that reflection over the
 // field, as done by fmt and log/slog, cannot reach it.
 type Secret struct {
 	value func() string

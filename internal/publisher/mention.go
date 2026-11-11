@@ -30,9 +30,9 @@ func replaceLookAlike(r rune) rune {
 // a reader selects and copies the rendered article, so "@**channel**" pastes
 // as "@channel". text is the checked string with replaceLookAlike applied
 // (look-alikes replaced one for one, nothing dropped or unescaped), so an
-// index is also an index of the original string. Format characters and backslashes
-// are word separators here, not stripped, so "a", U+200B, "@here" reports the
-// '@'. The rule is wider than Mattermost's word splitting on purpose: it looks
+// index is also an index of the original string. Format characters and
+// backslashes are word separators here, not stripped, so "a", U+200B, "@here"
+// reports the '@'. The rule is wider than Mattermost's word splitting on purpose: it looks
 // only at the rune before the '@', so it also reports "foo_@bar" and "x@@y",
 // and a '@' after emphasis markup.
 func mentionAts(text []rune) []int {

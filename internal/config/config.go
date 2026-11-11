@@ -327,8 +327,9 @@ func (c Config) HTTP2DebugEnabled() bool {
 
 // ServerConfig is the server configuration. Its fields are unexported, so a
 // non-zero ServerConfig can only come from LoadServer. The LLM settings come
-// from the six keys of the configuration file, never from the environment. LoadServer never reads or checks YT2COLUMN_CACHE_DIR,
-// YT2COLUMN_YTDLP_PATH, or the cache directory defaults.
+// from the six keys of the configuration file, never from the environment.
+// LoadServer never reads or checks YT2COLUMN_CACHE_DIR, YT2COLUMN_YTDLP_PATH,
+// or the cache directory defaults.
 type ServerConfig struct {
 	llm               LLMConfig
 	socketPath        string // absolute, within the OS limit
