@@ -135,7 +135,13 @@ func TestRelayEndToEnd(t *testing.T) {
 		startServer(t, e, loopbackDeps(t, validResponseLLM(), webhookURL))
 		socket := e.socketPath(t)
 
-		started := requireJobReply(t, runHost(t, host, e, newFormStartMessage(testValidRaw)), 202)
+		start, err := json.Marshal(map[string]any{"v": 1, "op": "start", "input": map[string]string{
+			"videoUrl": testVideoURL, "transcript": testValidRaw, "title": "Live @here", "mode": "plain",
+		}})
+		if err != nil {
+			t.Fatalf("marshal the start message: %v", err)
+		}
+		started := requireJobReply(t, runHost(t, host, e, string(start)), 202)
 		if started.Status != "accepted" || started.Key == "" {
 			t.Fatalf("generation start response = %+v, want accepted with a key", started)
 		}
@@ -143,6 +149,12 @@ func TestRelayEndToEnd(t *testing.T) {
 		status := requireJobReply(t, runHost(t, host, e, newFormKeyMessage(t, "status", started.Key)), 200)
 		if status.Job.State != "done" || status.Job.Publish == nil || status.Job.Publish.State != "not_posted" {
 			t.Fatalf("job status = %+v, want done and not posted", status.Job)
+		}
+		// The done article carries the neutralized heading values and the
+		// neutralization flag through the host.
+		if a := status.Job.Article; a == nil || a.MentionsNeutralized == nil || a.ChannelName == nil ||
+			a.VideoTitle == nil || *a.VideoTitle != "Live @\u200bhere" {
+			t.Fatalf("job article = %+v, want the neutralized video title and the new members", status.Job.Article)
 		}
 
 		injected := []string{

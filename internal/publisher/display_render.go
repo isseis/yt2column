@@ -7,18 +7,6 @@ import (
 	"github.com/isseis/yt2column/internal/writer"
 )
 
-// DisplayMarkdown returns the Markdown the Viewer displays for a: the title
-// heading, the channel name line when there is one, and the body (which ends
-// with the source block). It runs the same CheckPublishable check as
-// FileContent. The strings are placed as they are: nothing is converted to
-// HTML or sanitized here.
-func DisplayMarkdown(a writer.Article) (string, error) {
-	if err := a.CheckPublishable(); err != nil {
-		return "", err
-	}
-	return renderDisplayMarkdown(a), nil
-}
-
 // NeutralizedDisplay is the display Markdown of an article with its mentions
 // neutralized, as the Viewer displays and copies it.
 type NeutralizedDisplay struct {

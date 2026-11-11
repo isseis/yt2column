@@ -13,46 +13,6 @@ import (
 	"github.com/isseis/yt2column/internal/writer"
 )
 
-func TestDisplayMarkdown(t *testing.T) {
-	withChannel := validArticle()
-	withChannel.ChannelName = "Example Channel"
-
-	cases := []struct {
-		name    string
-		article writer.Article
-		want    string
-	}{
-		{"without a channel name", validArticle(), "# A title\n\n" + validArticle().Body},
-		{"with a channel name", withChannel, "# A title\n\nExample Channel\n\n" + withChannel.Body},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			got, err := DisplayMarkdown(tc.article)
-			if err != nil {
-				t.Fatalf("DisplayMarkdown error = %v, want nil", err)
-			}
-			if got != tc.want {
-				t.Errorf("DisplayMarkdown =\n%q\nwant\n%q", got, tc.want)
-			}
-		})
-	}
-}
-
-// TestDisplayMarkdownRejectsUnpublishable checks that DisplayMarkdown runs
-// CheckPublishable: an article it rejects yields no text. FileContent's check
-// is covered through FilePublisher by TestFilePublisherRejectsArticle.
-func TestDisplayMarkdownRejectsUnpublishable(t *testing.T) {
-	article := validArticle()
-	article.Title = "a\nb"
-	got, err := DisplayMarkdown(article)
-	if !errors.Is(err, writer.ErrInvalidArticle) {
-		t.Errorf("DisplayMarkdown error = %v, want ErrInvalidArticle", err)
-	}
-	if got != "" {
-		t.Errorf("DisplayMarkdown = %q, want empty", got)
-	}
-}
-
 // z is the U+200B the neutralization inserts, short so that a want string
 // shows where it goes.
 const z = zeroWidthSpace
@@ -144,6 +104,7 @@ func TestNeutralizedDisplayMarkdown(t *testing.T) {
 
 		// Nothing to neutralize: the display Markdown is returned unchanged.
 		{"no target", validArticle(), "# A title\n\n" + validArticle().Body},
+		{"no target with a channel name", articleWith("A title", "Example Channel", validArticle().Body), "# A title\n\nExample Channel\n\n" + validArticle().Body},
 		{"U+200B already present", articleWith("T", "", "a"+z+"b\n"), "# T\n\na" + z + "b\n"},
 	}
 	for _, tc := range cases {

@@ -455,8 +455,11 @@ type jobResponse struct {
 	Job    struct {
 		State   string `json:"state"`
 		Article *struct {
-			Markdown string `json:"markdown"`
-			File     string `json:"file"`
+			Markdown            string  `json:"markdown"`
+			MentionsNeutralized *bool   `json:"mentionsNeutralized"`
+			VideoTitle          *string `json:"videoTitle"`
+			ChannelName         *string `json:"channelName"`
+			File                string  `json:"file"`
 		} `json:"article"`
 		Publish *struct {
 			State string `json:"state"`

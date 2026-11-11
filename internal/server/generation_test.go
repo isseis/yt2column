@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -283,64 +284,85 @@ func TestGenerationPanic(t *testing.T) {
 // article whose largest status response is exactly maxStatusResponseBytes is
 // done, one a byte larger fails as article_too_large, and the done article's
 // status responses fit the limit in every publish state and reason a done
-// record can hold, with the values the server varies at their longest.
+// record can hold, with the values the server varies at their longest. The
+// second case fills the body and the start's video title with '@' units, so
+// the bytes the neutralization adds and the title must both be counted.
 func TestStatusResponseWithinLimit(t *testing.T) {
-	at, over := articlesAtStatusLimit(t)
-
-	ts := newJobsTestServer(t, jobsServerOptions{})
-	ts.writer.Result = at
-	key := ts.beginGeneration(t, validBody(testValidVideoURL, testValidRaw))
-	ts.waitJobs()
-	snap := ts.cache.Lookup(key)
-	if snap.State != articlecache.JobDone || snap.Publish != articlecache.PublishNotPosted {
-		t.Fatalf("the article at the limit: state %d publish %d, want done and not posted", snap.State, snap.Publish)
+	cases := []struct {
+		name       string
+		videoTitle string // "" sends no title member
+		line       string // the body starts with lines copies of line
+		lines      int
+		postable   bool
+	}{
+		{"plain", "", strings.Repeat("a", 999) + "\n", 120, true},
+		{"mentions and a long title", strings.Repeat("@t ", 1000), strings.Repeat("@a ", 300) + "\n", 40, false},
 	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			at, over := articlesAtStatusLimit(t, tc.videoTitle, strings.Repeat(tc.line, tc.lines))
+			body := validBody(testValidVideoURL, testValidRaw)
+			if tc.videoTitle != "" {
+				body = `{"videoUrl":` + strconv.Quote(testValidVideoURL) + `,"transcript":` + strconv.Quote(testValidRaw) +
+					`,"title":` + strconv.Quote(tc.videoTitle) + `,"mode":"plain"}`
+			}
 
-	other := newJobsTestServer(t, jobsServerOptions{})
-	other.writer.Result = over
-	overKey := other.beginGeneration(t, validBody(testValidVideoURL, testValidRaw))
-	other.waitJobs()
-	if got := other.statusOf(t, overKey).Job; got.State != "failed" || got.Failure != "article_too_large" {
-		t.Errorf("the article a byte over: job = %+v, want failed with article_too_large", got)
-	}
+			ts := newJobsTestServer(t, jobsServerOptions{})
+			ts.writer.Result = at
+			key := ts.beginGeneration(t, body)
+			ts.waitJobs()
+			snap := ts.cache.Lookup(key)
+			if snap.State != articlecache.JobDone || (tc.postable && snap.Publish != articlecache.PublishNotPosted) {
+				t.Fatalf("the article at the limit: state %d publish %d, want done", snap.State, snap.Publish)
+			}
 
-	snap.Duration = 1<<63 - 1
-	snap.Stages = articlecache.Stages{Draft: articlecache.StageSkipped, Shorten: articlecache.StageSkipped, Review: articlecache.StageSkipped}
-	// The enumerations are walked as the server walks them; the values the
-	// server varies are this test's own choice of their longest.
-	for _, publish := range articlecache.PublishStates() {
-		for _, unpostable := range articlecache.UnpostableReasons() {
-			for _, failure := range articlecache.PublishFailureReasons() {
-				snap.Publish, snap.Unpostable, snap.PublishFailure = publish, unpostable, failure
-				data, err := renderStatus(strings.Repeat("f", 2*requestIDBytes), false, snap)
-				if err != nil {
-					t.Fatalf("renderStatus: %v", err)
-				}
-				if len(data) > maxStatusResponseBytes {
-					t.Errorf("publish %d/%d/%d: response is %d bytes, over the %d limit", publish, unpostable, failure, len(data), maxStatusResponseBytes)
+			other := newJobsTestServer(t, jobsServerOptions{})
+			other.writer.Result = over
+			overKey := other.beginGeneration(t, body)
+			other.waitJobs()
+			if got := other.statusOf(t, overKey).Job; got.State != "failed" || got.Failure != "article_too_large" {
+				t.Errorf("the article a byte over: job = %+v, want failed with article_too_large", got)
+			}
+
+			snap.Duration = 1<<63 - 1
+			snap.Stages = articlecache.Stages{Draft: articlecache.StageSkipped, Shorten: articlecache.StageSkipped, Review: articlecache.StageSkipped}
+			// The enumerations are walked as the server walks them; the values
+			// the server varies are this test's own choice of their longest.
+			for _, publish := range articlecache.PublishStates() {
+				for _, unpostable := range articlecache.UnpostableReasons() {
+					for _, failure := range articlecache.PublishFailureReasons() {
+						snap.Publish, snap.Unpostable, snap.PublishFailure = publish, unpostable, failure
+						data, err := renderStatus(strings.Repeat("f", 2*requestIDBytes), false, snap)
+						if err != nil {
+							t.Fatalf("renderStatus: %v", err)
+						}
+						if len(data) > maxStatusResponseBytes {
+							t.Errorf("publish %d/%d/%d: response is %d bytes, over the %d limit", publish, unpostable, failure, len(data), maxStatusResponseBytes)
+						}
+					}
 				}
 			}
-		}
+		})
 	}
 }
 
-// articlesAtStatusLimit returns a postable article whose largest status
-// response is exactly maxStatusResponseBytes, and the same article a byte
-// larger. The body, which the response holds twice, takes most of the room in
-// lines short enough to split; the model, which it holds once, takes the last
-// byte.
-func articlesAtStatusLimit(t *testing.T) (at, over writer.Article) {
+// articlesAtStatusLimit returns an article whose largest status response,
+// started with videoTitle, is exactly maxStatusResponseBytes, and the same
+// article a byte larger. The body, which the response holds twice, takes most
+// of the room: start, then 'a's; the model, which it holds once, takes the
+// last byte.
+func articlesAtStatusLimit(t *testing.T, videoTitle, start string) (at, over writer.Article) {
 	t.Helper()
 	size := func(a writer.Article) int {
 		t.Helper()
-		n, err := maxStatusSize(a)
+		n, err := maxStatusSize(a, videoTitle)
 		if err != nil {
 			t.Fatalf("maxStatusSize: %v", err)
 		}
 		return n
 	}
 	at = testArticle()
-	at.Body = strings.Repeat(strings.Repeat("a", 999)+"\n", 120)
+	at.Body = start
 	base := size(at)
 	at.Body += strings.Repeat("a", (maxStatusResponseBytes-base)/2)
 	at.Model += strings.Repeat("m", maxStatusResponseBytes-size(at))
