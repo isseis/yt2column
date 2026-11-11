@@ -12,15 +12,23 @@
 //		--test-reporter-destination=<report> --test-reporter=dot \
 //		--test-reporter-destination=/dev/null "test/**/*.test.ts"
 //
-// Both runs must pass: a run with a failing test is not a valid result. The
-// commits are only printed; the lcov report already holds every name.
+// Both runs must pass: a run with a failing test is not a valid result.
+//
+// A report holds only the files some test loaded, so a function missing from
+// the after report is not proof it was removed. The source at the after
+// commit is read (git show, never the working tree): a product file of the
+// before report that still exists at the after commit but is missing from the
+// after report stops the run, and a function missing from the after report
+// whose name still appears in its file at the after commit is listed for the
+// reader to check (a name can survive as another declaration, such as a
+// constant).
 //
 // A file is product code when its path, relative to the extension directory,
 // is under src/ or scripts/. Each FN record is paired with the FNDA record at
 // the same position of its section. A named function is matched by its file
-// and name. node names a function it cannot name anonymous_<n>, where n counts
-// the anonymous functions of the file, so that name moves when an earlier one
-// is added or removed: anonymous functions are not matched, and the files
+// and name. node names a function it cannot name anonymous_<n>, where n is the
+// function's index among all the functions of the file, so that name moves
+// when an earlier function is added or removed: anonymous functions are not matched, and the files
 // whose number of anonymous functions changed are listed. A name used more
 // than once in a file (two methods of one name, two arrow functions assigned
 // to one property) is matched occurrence by occurrence, in line order, when
@@ -34,8 +42,9 @@
 // Exit status: 0 when no function matched on both sides went from run to not
 // run; 1 when one did; 2 when the comparison cannot be made (an unreadable
 // report, a record the reports do not hold, an FN record without its FNDA
-// record, a side without a product function, or a name whose occurrences
-// differ in number between the sides).
+// record, a side without a product function, a name whose occurrences differ
+// in number between the sides, or a file the after report lacks although the
+// after commit has it).
 package main
 
 import (
@@ -89,7 +98,7 @@ func runExt(args []string) int {
 	if namedCount(before) == 0 || namedCount(after) == 0 {
 		stop("compare", fmt.Errorf("a side has no named product function"))
 	}
-	status, err := reportExt(before, after)
+	status, err := reportExt(args[1], before, after)
 	if err != nil {
 		stop("compare", err)
 	}
@@ -107,8 +116,23 @@ func namedCount(files map[string]*extFile) int {
 }
 
 // reportExt prints the comparison and returns the exit status.
-func reportExt(before, after map[string]*extFile) (int, error) {
-	var onlyBefore, onlyAfter, stoppedRunning, anonymousChanged []string
+func reportExt(afterCommit string, before, after map[string]*extFile) (int, error) {
+	var onlyBefore, stillNamed, onlyAfter, stoppedRunning, anonymousChanged []string
+	sources := map[string]string{}
+	// source returns the file at the after commit, or "" when it does not
+	// exist there.
+	source := func(p string) string {
+		if text, ok := sources[p]; ok {
+			return text
+		}
+		data, err := gitShow(afterCommit, "extension/"+p)
+		text := ""
+		if err == nil {
+			text = string(data)
+		}
+		sources[p] = text
+		return text
+	}
 	paths := map[string]struct{}{}
 	for p := range before {
 		paths[p] = struct{}{}
@@ -118,6 +142,9 @@ func reportExt(before, after map[string]*extFile) (int, error) {
 	}
 	for _, p := range sortedSet(paths) {
 		b, a := before[p], after[p]
+		if b != nil && a == nil && source(p) != "" {
+			return 0, fmt.Errorf("%s is in the before report and at the after commit but not in the after report: no test loads it any more", p)
+		}
 		if b == nil {
 			b = &extFile{}
 		}
@@ -138,8 +165,13 @@ func reportExt(before, after map[string]*extFile) (int, error) {
 			bf, af := b.named[n], a.named[n]
 			switch {
 			case len(af) == 0:
+				named := identifierIn(source(p), n)
 				for _, f := range bf {
-					onlyBefore = append(onlyBefore, fmt.Sprintf("%s %s (line %d, ran %d)", p, n, f.line, f.runs))
+					line := fmt.Sprintf("%s %s (line %d, ran %d)", p, n, f.line, f.runs)
+					onlyBefore = append(onlyBefore, line)
+					if named {
+						stillNamed = append(stillNamed, line)
+					}
 				}
 			case len(bf) == 0:
 				for _, f := range af {
@@ -157,6 +189,7 @@ func reportExt(before, after map[string]*extFile) (int, error) {
 		}
 	}
 	section("only before (removed)", onlyBefore)
+	section("only before, name still in the after source (check each)", stillNamed)
 	section("only after (added)", onlyAfter)
 	section("ran before, not after (fails)", stoppedRunning)
 	section("anonymous count changed (not compared)", anonymousChanged)
@@ -280,4 +313,13 @@ func numberAndName(s string) (int, string, bool) {
 // is product code: a file under src/ or scripts/.
 func isExtProductPath(p string) bool {
 	return strings.HasPrefix(p, "src/") || strings.HasPrefix(p, "scripts/")
+}
+
+// identifierIn reports whether name, or its last dotted part for a method
+// such as "record.onWait", appears in text as a whole identifier.
+func identifierIn(text, name string) bool {
+	if i := strings.LastIndex(name, "."); i >= 0 {
+		name = name[i+1:]
+	}
+	return regexp.MustCompile(`(^|[^A-Za-z0-9_$])` + regexp.QuoteMeta(name) + `($|[^A-Za-z0-9_$])`).MatchString(text)
 }

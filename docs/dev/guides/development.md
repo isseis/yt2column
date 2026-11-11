@@ -135,17 +135,14 @@ curl -sS --unix-socket "$socket" -X POST http://localhost/jobs \
 
 状態の取得の応答は、ジョブの状態を下のコードのいずれかで示す。`running` のジョブは
 `steps` を持つ。`done` のジョブは `steps`（`done` か `skipped` だけ）、
-`article`、`publish` を持つ。`failed` のジョブは `steps` と、失敗のコードである `failure` を持つ。工程が `failed` になるのは、生成がその工程で失敗したときだけである。完了の時点の検査の失敗（`article_invalid`・`article_too_large`）と、工程より前の失敗は、どの工程も `failed` にしない。`unknown` のキーは `state` のほかにメンバを持たない。
+`article` を持つ。`failed` のジョブは `steps` と、失敗のコードである `failure` を持つ。工程が `failed` になるのは、生成がその工程で失敗したときだけである。完了の時点の検査の失敗（`article_invalid`・`article_too_large`）と、工程より前の失敗は、どの工程も `failed` にしない。`unknown` のキーは `state` のほかにメンバを持たない。
 `article` は、`markdown`（表示用の Markdown）、
 `file`（`--out` が書くものとバイト単位で同じ）、`cost`、`durationMs` のメンバを持つ。`durationMs` は、記事を生成した開始を受け付けた時点から、または失敗の後の再試行を受け付けた時点から数える。`cost` は `{"state":"known","usd":"…"}` か `{"state":"unknown"}` である。
-`publish` は `{"state":"…"}` の形で、状態が `failed` か `unpostable` のときは `reason` も持つ。
-`webhookConfigured` は、このサーバが投稿できるかどうかを示す。
 
 ```json
 {
   "status": "ok",
   "requestId": "0123456789abcdef",
-  "webhookConfigured": true,
   "job": {
     "state": "done",
     "steps": { "draft": "done", "shorten": "skipped", "review": "done" },
@@ -154,8 +151,7 @@ curl -sS --unix-socket "$socket" -X POST http://localhost/jobs \
       "file": "---\n…",
       "cost": { "state": "known", "usd": "0.1234" },
       "durationMs": 81234
-    },
-    "publish": { "state": "not_posted" }
+    }
   }
 }
 ```

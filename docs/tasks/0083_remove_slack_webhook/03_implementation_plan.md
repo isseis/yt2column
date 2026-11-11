@@ -248,7 +248,7 @@
     -   `_checks/coverage` で確かめる。
 -   [x] **ステップ 3-7（テストのコミット）**: 消した後の振る舞いを確かめるテストを加える。
     -   `internal/server/jobs_api_test.go::TestUnknownPathTouchesNothing` に `POST /jobs/{key}/publish` を加え、`not_found` で本文を読まず、枠・キャッシュ・書き手を変えないことを確かめる。`TestJobsTargetRejections` にも同じターゲットの行を加える。
-    -   `internal/nmhost/relay_test.go::TestRelayNewFormRejections` に、`op` が `publish` のメッセージがサーバへ何も送らずに `protocol_error` になる行を加える。`cmd/yt2column-nmhost/main_test.go` の `publish` を受け付ける確かめを、同じ拒否の確かめに改める。
+    -   `internal/nmhost/relay_test.go::TestRelayNewFormRejections` に、`op` が `publish` のメッセージがサーバへ何も送らずに `protocol_error` になる行を加える。`cmd/yt2column-nmhost/main_test.go` には `publish` を受け付ける確かめがないので、変えない。
     -   `internal/server/status_test.go::TestStatusArticleNeutralized` に、`done` の応答の最上位と `job` のメンバの集まりがちょうど設計書 3.1 の形（`webhookConfigured`・`publish` がない）であることを加え、`running` の応答の最上位のメンバの集まりを確かめるテスト `TestStatusTopLevelMembers` を加える。`cmd/yt2column-server/run_test.go::TestRunLogsListeningAndStop` に、`listening` の行の属性の集まりと、警告の行がないことを加える。
     -   壊して確かめる対象: 経路の選び方に `publish` の経路を戻すと `TestUnknownPathTouchesNothing` が、ホストに `publish` の操作を戻すと `TestRelayNewFormRejections` の加えた行が、応答に `webhookConfigured` を戻すと `TestStatusTopLevelMembers` が失敗することを確かめる。
     -   `extension/test/popupHtml.test.ts` のビューアの要素の並びの確かめが、投稿のボタンと行を除いた見た目の順（要件書 4.6 節のフォーカスの順）を確かめていることを見る。
@@ -428,7 +428,7 @@
 | AC-01 | `extension/test/popupHtml.test.ts`（ビューアの要素の並び）、`extension/test/viewerApp.test.ts`（保存とコピーが動く）、`extension/test/metadataDocs.test.ts`、ビューアを開いて見る | test、manual | ステップ 3-5・3-7 | PR-3 |
 | AC-02 | `internal/server/jobs_api_test.go::TestUnknownPathTouchesNothing`、`::TestJobsTargetRejections` | test | ステップ 3-5・3-7 | PR-3 |
 | AC-03 | `internal/server/status_test.go::TestStatusArticleNeutralized`、`::TestStatusTopLevelMembers`、`cmd/yt2column-server/relay_e2e_test.go::TestRelayEndToEnd`、`extension/test/response.test.ts` | test | ステップ 2-4・2-5・3-5・3-7 | PR-2、PR-3 |
-| AC-04 | `internal/nmhost/relay_test.go::TestRelayNewFormRejections`、`cmd/yt2column-nmhost/main_test.go` | test | ステップ 3-5・3-7 | PR-3 |
+| AC-04 | `internal/nmhost/relay_test.go::TestRelayNewFormRejections` | test | ステップ 3-5・3-7 | PR-3 |
 | AC-05 | `internal/config/serverfile_test.go::TestParseServerFileRejects`、`::TestParseServerFileAccepts`、`cmd/yt2column-server/run_test.go::TestStartupFailures` | test | ステップ 4-6・4-7 | PR-4 |
 | AC-06 | `internal/config/serverfile_test.go::TestServerFileTemplate`（キーと行の 1 対 1）、`_checks/slack_removed.sh` | test、static | ステップ 4-6・4-7・4-9 | PR-4 |
 | AC-07 | `internal/server/generation_test.go::TestGenerationMentionsDone` | test | ステップ 3-3 | PR-3 |

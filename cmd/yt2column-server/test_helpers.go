@@ -72,7 +72,7 @@ const (
 const (
 	// childModeMain runs the production main, so a test observes exactly the
 	// signal handling main installs. No request is sent to it, so its real
-	// LLM client and publisher never send anything.
+	// LLM client never sends anything.
 	childModeMain = "main"
 	// childModeBlock runs signalrun.Run with an LLM client whose call waits
 	// until the test creates the release marker.
@@ -98,8 +98,7 @@ const (
 	// childWaitDelay bounds how long Wait drains a child's output after it
 	// exits.
 	childWaitDelay = 10 * time.Second
-	// loopbackTimeout bounds one post to the loopback webhook and one request
-	// to the server.
+	// loopbackTimeout bounds one request to the server.
 	loopbackTimeout = 10 * time.Second
 )
 
@@ -273,9 +272,9 @@ func (r *runningServer) waitStderr(t *testing.T, sub string) string {
 var logAttrName = regexp.MustCompile(`(?:^| )([A-Za-z][A-Za-z0-9]*)=`)
 
 // logAttrNames returns the sorted names of a slog text line's attributes,
-// without the time, level, and msg the handler adds. A quoted value such as a
-// path with a space never holds a word directly followed by "=", so it adds
-// no name.
+// without the time, level, and msg the handler adds. It reads the lines these
+// tests write, whose quoted values (the message, a path with a space) hold no
+// word directly followed by "=".
 func logAttrNames(line string) []string {
 	var names []string
 	for _, m := range logAttrName.FindAllStringSubmatch(line, -1) {
@@ -375,8 +374,8 @@ func unixClient(path string) *http.Client {
 }
 
 // jobResponse is the part of a job API response the tests read: a rejection's
-// reason, a generation start's key, and a status response's job state,
-// article, and publish state.
+// reason, a generation start's key, and a status response's job state and
+// article.
 type jobResponse struct {
 	Status string `json:"status"`
 	Reason string `json:"reason"`

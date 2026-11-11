@@ -29,8 +29,9 @@ func TestServerEndToEnd(t *testing.T) {
 	}
 	status := waitJobDone(t, socket, started.Key)
 	if status.Job.State != "done" || status.Job.Article == nil ||
-		!strings.Contains(status.Job.Article.Markdown, "A title") || !strings.Contains(status.Job.Article.File, testNormalizedURL) {
-		t.Errorf("job status = %+v, want done with the generated article", status.Job)
+		!strings.Contains(status.Job.Article.Markdown, "A title") || !strings.Contains(status.Job.Article.File, testNormalizedURL) ||
+		strings.Contains(status.Job.Article.File, "youtu.be") {
+		t.Errorf("job status = %+v, want done with the generated article under the normalized URL only", status.Job)
 	}
 
 	if code := first.stop(t); code != exitOK {

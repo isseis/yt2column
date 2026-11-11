@@ -36,9 +36,8 @@ const (
 // logger takes over.
 const programName = "yt2column-server"
 
-// deps are the constructors run substitutes in a test: the two LLM clients
-// and the article publisher, the only components that reach the network, and
-// the writer, so a test can observe the options it is built with. main passes
+// deps are the constructors run substitutes in a test: the two LLM clients,
+// the only components that reach the network, and the writer, so a test can observe the options it is built with. main passes
 // productionDeps().
 type deps struct {
 	newLLMClient       func(config.LLMConfig) (llm.LLMClient, error)

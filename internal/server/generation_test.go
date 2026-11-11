@@ -415,8 +415,9 @@ func articlesAtStatusLimit(t *testing.T, videoTitle, start string) (at, over wri
 var logAttrName = regexp.MustCompile(`(?:^| )([A-Za-z][A-Za-z0-9]*)=`)
 
 // logAttrNames returns the sorted names of a slog text line's attributes,
-// without the time, level, and msg the handler adds. Values are not quoted
-// in the lines it reads, apart from msg, which holds no "=".
+// without the time, level, and msg the handler adds. It reads the lines these
+// tests write, whose quoted values (the message) hold no word directly
+// followed by "=".
 func logAttrNames(line string) []string {
 	var names []string
 	for _, m := range logAttrName.FindAllStringSubmatch(line, -1) {
