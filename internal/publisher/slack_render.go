@@ -10,9 +10,6 @@ import (
 // footnoteSeparator joins the parts of the footnote.
 const footnoteSeparator = " \u00b7 "
 
-// zeroWidthSpace is inserted after an '@' to keep it from starting a mention.
-const zeroWidthSpace = "\xe2\x80\x8b"
-
 // slackPost is the full text of a post.
 type slackPost struct {
 	text string
@@ -127,35 +124,6 @@ func neutralizeMentions(value string) string {
 // is, and rejectMention refuses its targets.
 func neutralizeProse(body string, prose []writer.ByteRange) string {
 	return insertAfterAts(body, func(offset int) bool { return inRanges(prose, offset) })
-}
-
-// insertAfterAts inserts U+200B after each target '@' of value that does not
-// follow '/' and whose byte offset in value satisfies inScope.
-func insertAfterAts(value string, inScope func(offset int) bool) string {
-	runes := []rune(value)
-	ats := mentionAtsOf(runes)
-	if len(ats) == 0 {
-		return value
-	}
-	var b strings.Builder
-	b.Grow(len(value) + len(ats)*len(zeroWidthSpace))
-	next, offset := 0, 0
-	for i, r := range runes {
-		b.WriteRune(r)
-		if next < len(ats) && ats[next] == i {
-			next++
-			if !followsSlash(runes, i) && inScope(offset) {
-				b.WriteString(zeroWidthSpace)
-			}
-		}
-		offset += utf8.RuneLen(r)
-	}
-	return b.String()
-}
-
-// followsSlash reports whether the rune before index i is '/'.
-func followsSlash(runes []rune, i int) bool {
-	return i > 0 && runes[i-1] == '/'
 }
 
 // inRanges reports whether offset lies in one of ranges.

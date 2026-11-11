@@ -102,21 +102,38 @@ func TestGenerationFailedStep(t *testing.T) {
 }
 
 // TestGenerationUnpublishable checks that an article the publishers would
-// refuse to render fails the generation as article_invalid, with no article.
+// refuse to render fails the generation as article_invalid, with no article: an
+// empty title, and a body with invalid UTF-8 that also carries a marker, whose
+// bytes reach neither the status nor the log.
 func TestGenerationUnpublishable(t *testing.T) {
-	ts := newJobsTestServer(t, jobsServerOptions{})
-	article := testArticle()
-	article.Title = ""
-	ts.writer.Result = article
-	key := ts.beginGeneration(t, validBody(testValidVideoURL, testValidRaw))
-	ts.waitJobs()
-
-	got := ts.statusOf(t, key).Job
-	if got.State != "failed" || got.Failure != "article_invalid" {
-		t.Errorf("job = %+v, want failed with article_invalid", got)
+	const mark = "mark-body-V7dq"
+	cases := []struct {
+		name   string
+		mutate func(a *writer.Article)
+	}{
+		{"title empty", func(a *writer.Article) { a.Title = "" }},
+		{"body invalid UTF-8", func(a *writer.Article) { a.Body = mark + "\xff" }},
 	}
-	if got.Article != nil {
-		t.Errorf("a failed job carries an article: %+v", got.Article)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ts := newJobsTestServer(t, jobsServerOptions{})
+			article := testArticle()
+			tc.mutate(&article)
+			ts.writer.Result = article
+			key := ts.beginGeneration(t, validBody(testValidVideoURL, testValidRaw))
+			ts.waitJobs()
+
+			got := ts.statusOf(t, key).Job
+			if got.State != "failed" || got.Failure != "article_invalid" {
+				t.Errorf("job = %+v, want failed with article_invalid", got)
+			}
+			if got.Article != nil {
+				t.Errorf("a failed job carries an article: %+v", got.Article)
+			}
+			if logs := ts.logs.String(); strings.Contains(logs, mark) {
+				t.Errorf("the log holds the body's text:\n%s", logs)
+			}
+		})
 	}
 }
 
