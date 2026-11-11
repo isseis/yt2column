@@ -426,18 +426,21 @@ Diff record (AC-05):
 
 - Compared paths: `docs/dev/conventions/package_reference.md`
 - Merge-base: `e6e051aedf2a2f4066bdd4f39c4a7504f9e945f0`
-- Compared commit: `8d7157f0adacd7ab71c32bddb4c6a4cdd539c844`
+- Compared commit: `b996eb69cd9a839e4de41f2a88ba3d714aa3c646`
 
 Path diff:
 
 ````text
 diff --git a/docs/dev/conventions/package_reference.md b/docs/dev/conventions/package_reference.md
-index 2c1287bdf692aded1fd47d419de9b0d50110ec5d..b0aae3a80ac23f4e513f28b9879ced4b28829137 100644
+index 2c1287bdf692aded1fd47d419de9b0d50110ec5d..b3c7f6ff54d50846e97e73ee7b05440310ce0603 100644
 --- a/docs/dev/conventions/package_reference.md
 +++ b/docs/dev/conventions/package_reference.md
-@@ -72,6 +72,7 @@ add a kind here or to widen one of these definitions.
+@@ -70,8 +70,9 @@ add a kind here or to widen one of these definitions.
+ | `internal/pipeline` | Runs the three stages in order: `Pipeline`, `Stage`, `StageError`, `ErrNilStage`. |
+ | `internal/pricing` | Estimates an LLM call's cost from its token counts and the providers' published rates: `Estimate`, `Totals`, `StageCost`, `Amount`, `RateBasis`, `UnknownReason`. Updating the rates: [pricing update guide](../guides/pricing_update.md). |
  | `internal/publisher` | Defines the publishing stage: `Publisher`, `FilePublisher`, `SlackWebhookPublisher`, `PrepareSlackMessages`, `FileContent`, `ReviewLogWriter`; `ErrOutputExists`, `*KeptFileError`, `SlackHTTPStatusError`, `*SlackPostError`. File format: [CLI guide](../guides/cli.md); post text: [README](../../../README.md#slack-への投稿). |
- | `internal/transcript` | Defines the transcript stage (`Transcript`, `TranscriptSource`) with `YtDlpSource` and `CopiedSource`; `ValidateVideoURL` and `NormalizedVideoURL` are the video URL rules. Cache guarantees: [cache consistency](../cache_consistency.md); the `yt-dlp` boundary: [security.md](../security.md). |
+-| `internal/transcript` | Defines the transcript stage (`Transcript`, `TranscriptSource`) with `YtDlpSource` and `CopiedSource`; `ValidateVideoURL` and `NormalizedVideoURL` are the video URL rules. Cache guarantees: [cache consistency](../cache_consistency.md); the `yt-dlp` boundary: [security.md](../security.md). |
++| `internal/transcript` | Defines the transcript stage (`Transcript`, `TranscriptSource`) with `CopiedSource`; `ValidateVideoURL` and `NormalizedVideoURL` are the video URL rules. The `yt-dlp` path and its cache live in `internal/ytdlpsource`. |
  | `internal/writer` | Defines the article-writing stage: `Article`, `ArticleWriter`, `ProgressWriter`, `New`, `NewProgressWriter`, `RunUsage`, `CheckChannelName`, `ProseRanges`. The template contract: [prompts/README.md](../../../prompts/README.md). |
 +| `internal/ytdlpsource` | Implements `transcript.TranscriptSource` with `YtDlpSource`: runs `yt-dlp` without a shell and parses its json3 and info.json output. It is the development path of the CLI and is not built into the WebAssembly core. The cache's guarantees: [cache consistency](../cache_consistency.md); the `yt-dlp` boundary: [security.md](../security.md). |
  | `prompts` | Embeds the default prompt templates and returns them: `System`/`User`, `ShortenSystem`/`ShortenUser`, `ReviewSystem`/`ReviewUser`. [README](../../../prompts/README.md) documents the contract. |
@@ -512,97 +515,6 @@ internal/ytdlpsource/test_helpers_cache_seed.go
 internal/ytdlpsource/ytdlp.go
 internal/ytdlpsource/ytdlp_test.go
 ````
-- Merge-base: `a56f085eb59fc2d65e0fd393773067013be3727c`
-- Compared commit: `8072b8d2c6267a99ee570f24e9fc2953e44f9647`
-
-Path diff:
-
-````text
-diff --git a/docs/dev/conventions/package_reference.md b/docs/dev/conventions/package_reference.md
-index 3e5091a8b2b6e94de6672ab7bfa0dc9c7beab224..f0615e25082221509dc149399b411527aa8b3c12 100644
---- a/docs/dev/conventions/package_reference.md
-+++ b/docs/dev/conventions/package_reference.md
-@@ -70,8 +70,9 @@ add a kind here or to widen one of these definitions.
- | `internal/pipeline` | Runs the three stages in order: `Pipeline`, `Stage`, `StageError`, `ErrNilStage`. |
- | `internal/pricing` | Estimates what an LLM call cost from its token counts and the providers' published rates, which it holds as constants: `Estimate` returns one stage's `StageCost` (a known amount and `RateBasis`, or an unknown `UnknownReason`), `Totals` sums the stages into a run total and an article total, and `Amount.Format` renders an amount as US dollars. How to update the rates: [pricing update guide](../guides/pricing_update.md). |
- | `internal/publisher` | Defines the publishing stage: the `Publisher` interface and `FilePublisher`, which writes one article to one new file and never overwrites it. `PrepareSlackMessages` checks an article and splits it into `SlackMessages`, and `SlackWebhookPublisher` posts them to a Slack-compatible Incoming Webhook. `DisplayMarkdown`, `FileContent`, and `FormatArticleCost` expose the same rendering and cost formatting; `ReviewLogWriter` writes a review log. `ErrOutputExists`, `*KeptFileError`, `SlackHTTPStatusError`, and `*SlackPostError` report the failures. File format: [CLI guide](../guides/cli.md); post text, mentions, and splitting: [README](../../../README.md#slack-への投稿). |
--| `internal/transcript` | Defines the transcript stage (`Transcript`, `Segment`, `TranscriptSource`) and implements it with `YtDlpSource` (a shell-free `yt-dlp` run and a per-video cache) and `CopiedSource` (the transcript a user copies from YouTube's panel). `ValidateVideoURL` and `NormalizedVideoURL` are the video URL rules. The cache's guarantees: [cache consistency](../cache_consistency.md); the `yt-dlp` boundary: [security.md](../security.md). |
-+| `internal/transcript` | Defines the transcript stage (`Transcript`, `Segment`, `TranscriptSource`) and implements it with `CopiedSource` (the transcript a user copies from YouTube's panel). `ValidateVideoURL` and `NormalizedVideoURL` are the video URL rules. The `yt-dlp` path lives in `internal/ytdlpsource`. |
- | `internal/writer` | Defines the article-writing stage: `Article`, the `ArticleWriter` and `ProgressWriter` interfaces, and their implementation. `New` and `NewProgressWriter` validate the options and the prompt templates; `Write` runs the generation, shorten, and review steps, checks each result, and records each stage's token usage in `RunUsage`. `CheckChannelName`, `Article.CheckPublishable`, and `ProseRanges` hold the checks callers share, and `Options.Artifacts` saves and reuses completed stages through a `writer.ArtifactStore`. The template contract: [prompts/README.md](../../../prompts/README.md). |
-+| `internal/ytdlpsource` | Implements `transcript.TranscriptSource` with `YtDlpSource`: a shell-free `yt-dlp` run, the json3 and info.json parsers, and a per-video cache (`RemoveCache`, `PruneCache`). It is the development path of the CLI and is not built into the WebAssembly core. The cache's guarantees: [cache consistency](../cache_consistency.md); the `yt-dlp` boundary: [security.md](../security.md). |
- | `prompts` | Embeds the default prompt templates and returns them: the generation pair with `System` and `User`, and the shorten and review pairs with `ShortenSystem`/`ShortenUser` and `ReviewSystem`/`ReviewUser`. [README](../../../prompts/README.md) documents the template contract and the values each pair may reference. |
-
- ## Server and Host
-@@ -112,7 +113,7 @@ add a kind here or to widen one of these definitions.
- | `internal/redact` | Keeps secret values out of output: `Line` renders one line for a terminal, `Writer` redacts each write for output already formatted by `log/slog`, and `SecretStrings` builds the string list from `secret.Secret` values. Depends on `internal/secret` and `internal/slackwebhook`, not on `internal/config`. |
- | `internal/secret` | Holds a secret (API key, Webhook URL) and guarantees it never appears in `fmt`, `log/slog`, or JSON output. |
- | `internal/signalrun` | `Run` calls a program's main function under a context that the first subscribed signal cancels: SIGTERM always, and SIGINT and SIGHUP unless each was ignored at startup; the subscription is dropped on that first signal before cancellation, so a second signal terminates the process. |
--| `internal/strictjson` | Extracts values from JSON documents that passed strict checks: rejects the byte sequences and structural shapes `encoding/json` would silently repair (invalid UTF-8, unpaired surrogate escapes, trailing data, duplicate or `null` consumed members). Main types and methods: `Object.CollectOnly`, `Object.Has`, `Value.AsBool`, `Value.IsNull`, `Value.AsNonNegativeInt64`, `Value.Raw`. The rejected inputs: [0003 design §3.5](../../tasks/0003_deepseek_llm_client/02_architecture.md). Shared by `internal/transcript`, `internal/llm/deepseek`, `internal/llm/claude`, `internal/llm/openai`, `internal/publisher`, `internal/writer`, `internal/artifact`, `internal/fixprguard`, `internal/server`, `internal/nmhost`, `internal/codexreview`, and `internal/coveragecompare` |
-+| `internal/strictjson` | Extracts values from JSON documents that passed strict checks: rejects the byte sequences and structural shapes `encoding/json` would silently repair (invalid UTF-8, unpaired surrogate escapes, trailing data, duplicate or `null` consumed members). Main types and methods: `Object.CollectOnly`, `Object.Has`, `Value.AsBool`, `Value.IsNull`, `Value.AsNonNegativeInt64`, `Value.Raw`. The rejected inputs: [0003 design §3.5](../../tasks/0003_deepseek_llm_client/02_architecture.md). Shared by `internal/ytdlpsource`, `internal/llm/deepseek`, `internal/llm/claude`, `internal/llm/openai`, `internal/publisher`, `internal/writer`, `internal/artifact`, `internal/fixprguard`, `internal/server`, `internal/nmhost`, `internal/codexreview`, and `internal/coveragecompare` |
-
- ## Development Tools
-
-````
-
-File list (only for an AC that limits which files change):
-
-````text
-.claude/commands/mkplan.md
-.claude/commands/runplan.md
-.github/workflows/ci.yml
-CLAUDE.md
-Makefile
-cmd/yt2column/run_test.go
-cmd/yt2column/test_helpers_integration.go
-docs/dev/adr/0019-pipeline-component-interfaces.md
-docs/dev/adr/0033-transcript-cache-slots.md
-docs/dev/cache_consistency.md
-docs/dev/conventions/package_reference.md
-docs/dev/guides/development.md
-docs/dev/project_overview.md
-docs/tasks/0018_article_quality/_material_check/main.go
-docs/tasks/0084_wasm_pipeline_poc/01_requirements.md
-docs/tasks/0084_wasm_pipeline_poc/02_architecture.md
-docs/tasks/0084_wasm_pipeline_poc/03_implementation_plan.md
-docs/tasks/0084_wasm_pipeline_poc/_checks/check_diff.sh
-docs/tasks/0084_wasm_pipeline_poc/_checks/check_wasm.sh
-internal/cachelock/cachelock_test.go
-internal/config/envaccess_test.go
-internal/job/job.go
-internal/job/job_test.go
-internal/transcript/cache.go
-internal/transcript/cache_test.go
-internal/transcript/exec.go
-internal/transcript/exec_test.go
-internal/transcript/info.go
-internal/transcript/info_test.go
-internal/transcript/integration_test.go
-internal/transcript/json3.go
-internal/transcript/json3_test.go
-internal/transcript/sentinel_test.go
-internal/transcript/test_helpers.go
-internal/transcript/test_helpers_cache_seed.go
-internal/transcript/ytdlp.go
-internal/transcript/ytdlp_test.go
-internal/writer/template.go
-internal/writer/template_open.go
-internal/writer/template_open_js.go
-internal/ytdlpsource/cache.go
-internal/ytdlpsource/cache_test.go
-internal/ytdlpsource/doc.go
-internal/ytdlpsource/exec.go
-internal/ytdlpsource/exec_test.go
-internal/ytdlpsource/info.go
-internal/ytdlpsource/info_test.go
-internal/ytdlpsource/integration_test.go
-internal/ytdlpsource/json3.go
-internal/ytdlpsource/json3_test.go
-internal/ytdlpsource/test_helpers.go
-internal/ytdlpsource/test_helpers_cache_seed.go
-internal/ytdlpsource/ytdlp.go
-internal/ytdlpsource/ytdlp_test.go
-````
-
 AC-26 の確かめ（ステップ 4-2 で書く）：未記入
 
 ## 8. 成功基準 (Success Criteria)
