@@ -214,7 +214,7 @@
 
 **判定理由**: 条件付きの検査（Conditional checks）の 2 つに当たる。ビルドのタグの下だけでコンパイルされる新しいソース（`template_open_js.go`、`internal/ytdlpsource/test_helpers.go`）と、多くのテスト・文書が指すファイルの移動である。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [ ] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
