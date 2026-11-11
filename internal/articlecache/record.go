@@ -126,6 +126,7 @@ type Snapshot struct {
 	Stages         Stages
 	Failure        FailureReason        // JobFailed only
 	Article        writer.Article       // JobDone only; Review.Revisions is always nil
+	VideoTitle     string               // JobDone only; "" when the start sent none
 	Duration       time.Duration        // JobDone only
 	Publish        PublishState         // JobDone only
 	Unpostable     UnpostableReason     // PublishUnpostable only
@@ -145,6 +146,10 @@ type record struct {
 	// created or restarted it. Begin compares it only for equality, and no
 	// Snapshot carries it.
 	videoID string
+	// videoTitle is the video title the generation start sent ("" for none),
+	// from the same Subject. The Viewer's heading shows it once the article
+	// is done.
+	videoTitle string
 
 	state   JobState
 	stages  Stages
@@ -173,6 +178,7 @@ func (r *record) snapshot() Snapshot {
 		s.Failure = r.failure
 	case JobDone:
 		s.Article = r.article
+		s.VideoTitle = r.videoTitle
 		s.Duration = r.duration()
 		s.Publish = r.publish
 		switch r.publish {

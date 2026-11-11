@@ -153,7 +153,7 @@ func (c *Cache) Begin(subject Subject, mode StartMode, acquire func() bool) Begi
 		}
 	}
 	c.nextGen++
-	fresh := record{gen: c.nextGen, videoID: subject.videoID, state: JobRunning, accepted: now}
+	fresh := record{gen: c.nextGen, videoID: subject.videoID, videoTitle: subject.videoTitle, state: JobRunning, accepted: now}
 	if exists {
 		// Restarting a failed record forgets the failure and every stage.
 		*rec = fresh
