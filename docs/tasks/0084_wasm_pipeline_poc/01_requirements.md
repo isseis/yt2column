@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-11 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-11 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -317,3 +317,7 @@ PoC で次の値を測る。実 API を呼ぶ測定は、その都度、人の�
 -   **本番の構成:** 3 つの工程とも `claude-opus-5-5`、effort `high` の構成（[production_profile.md](../../dev/production_profile.md)）。
 -   **調査記録:** `docs/research/` の下に置く、測定の結果の文書（F-005）。
 -   **テスト用の API キー:** 本番とは別に用意し、利用の上限のあるワークスペースに割り当てた Anthropic API のキー（[security.md](../../dev/security.md) §2）。
+
+## 変更履歴
+
+-   2026-11-11 承認（isseis、#814）
