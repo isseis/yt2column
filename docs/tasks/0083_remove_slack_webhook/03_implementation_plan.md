@@ -277,7 +277,7 @@
 
 **変更するファイル:** `internal/publisher/`（Slack のコード、`mention.go`・`mention_test.go`、`golden_test.go`、`testdata/golden/*.slack.txt`、`makefile_test.go`、`test_helpers_slack.go`、`testutil/`）、`internal/writer/markdown.go`・`markdown_test.go`、`internal/slackwebhook/`、`internal/config/`、`internal/redact/`、`cmd/yt2column-server/run.go`・`test_helpers.go`・`run_test.go`、`cmd/yt2column/` のテスト・`run.go`、`cmd/yt2column-nmhost/main_test.go`、`internal/codexreview/run_test.go`、`internal/doctestutil/readme.go`、`Makefile`、`docs/dev/conventions/package_reference.md`（ガードが読む行）、`docs/tasks/0083_remove_slack_webhook/_checks/slack_removed.sh`（新規）
 
--   [ ] **ステップ 4-1（テストのコミット）**: `replaceLookAlike` の `<`・`!` の分岐を確かめるテストを `mention_test.go` に加える。ステップ 4-2 で消すテストだけが網羅していた分岐を、4-2 の比較の前に網羅しておくためである。
+-   [x] **ステップ 4-1（テストのコミット）**: `replaceLookAlike` の `<`・`!` の分岐を確かめるテストを `mention_test.go` に加える。ステップ 4-2 で消すテストだけが網羅していた分岐を、4-2 の比較の前に網羅しておくためである。
 -   [ ] **ステップ 4-2（書き換えを伴う削除のコミット）**: `internal/publisher` の投稿のコードを消す（設計書 3.4）。
     -   消すファイル: `slack.go`、`slack_errors.go`、`slack_integration_test.go`、`slack_test.go`、`slack_errors_test.go`、`slack_articles_test.go`、`slack_message_test.go`、`slack_render_test.go`、`test_helpers_slack.go`、`makefile_test.go`、`testutil/integration.go`、`testutil/integration_settings_test.go`、`testdata/golden/*.slack.txt`（10 ファイル）。
     -   消す部分: `slack_message.go`・`slack_render.go` の残り（ステップ 2-1 の Slack 専用の包み、`renderSlackPost`・`slackFootnote`・`stageModels`、`neutralizeMentions`・`neutralizeProse`・`inRanges`）、`mention.go` の `insertAfterAts`・`followsSlash`・`isMentionNameChar`、`golden_test.go` の `.slack.txt` の比較と `TestRenderGoldenNeutralized`、`testutil/mocks.go`・`mocks_test.go` の `PostMessages` の偽物（§1.4）。
