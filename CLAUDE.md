@@ -464,6 +464,22 @@ for the packages that exist today. The server's startup is documented in the
   the run, and a missing, repeated, or malformed TAP summary line stops it;
   the only lines read past are the lcov record kinds the requirements list
   and the TAP lines that are neither a summary nor a failure.
+  Exception: the mention neutralization in `internal/publisher`
+  (`NeutralizedDisplayMarkdown` and `NeutralizeHeading`, with the rule in
+  `neutralizeAts` in `mention.go`) chooses where to insert U+200B by
+  inspecting the content of the display Markdown, the video title, and the
+  channel name. Scope: it finds the '@' units (a raw '@' or a look-alike, and
+  a character reference that can stand for '@'), judges whether each is a
+  target and, in the display Markdown, whether it is a URL path '/@', and
+  inserts U+200B after the targets it does not keep; this is the only place
+  their content selects behavior, and the status response passes on only
+  the resulting strings and a boolean. Reason: the display Markdown is an
+  LLM's output with a title and a channel name from outside, external values
+  the server cannot express in a type, and judging them is the purpose of the
+  neutralization. Boundary: a form the rule is unsure of is neutralized, not
+  kept: only an '@' inside a word and a URL path '/@' that meets every
+  condition are left as they are; and the neutralization inserts U+200B and
+  changes no other character.
 - **Enforce invariants with the type, not with convention**: if a value must pass
   validation before use (e.g. a video ID), make the compiler the thing that
   guarantees it — unexported fields plus a mandatory constructor — rather than

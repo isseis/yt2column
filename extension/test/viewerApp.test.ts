@@ -70,6 +70,9 @@ const seed = {
 
 const article = {
   markdown: "# Title\n\nBody\r\nmore",
+  mentionsNeutralized: false,
+  videoTitle: "Video title",
+  channelName: "Channel",
   file: "---\ntitle: Title\n---\n\nBody\r\nmore\n",
   cost: { state: "known", usd: "0.1234" },
   durationMs: 65_000,
@@ -762,6 +765,9 @@ describe("startViewer: operations", () => {
     await viewer.host.answer(publishRejected("article_not_found"));
     assert.equal(viewer.elements.publish.disabled, true);
     assert.ok(stateText(viewer).includes(catalogs.en.viewer.lost.text));
+    // The kept article still gives the heading its values.
+    assert.equal(viewer.elements.heading.textContent, article.videoTitle);
+    assert.equal(viewer.elements.channel.textContent, article.channelName);
     viewer.elements.save.click();
     assert.deepEqual(
       viewer.saves.saved.map(({ text }) => text),
@@ -843,6 +849,107 @@ describe("startViewer: operations", () => {
       viewer.elements.actionStatus.textContent,
       catalogs.en.viewer.copyFailed,
     );
+  });
+
+  for (const locale of ["en", "ja"] as const) {
+    it(`says a copy neutralized mentions, with no count, without moving focus in ${locale}`, async () => {
+      const viewer = await open({
+        query: queryOf({ key }),
+        uiLanguage: locale,
+      });
+      await viewer.host.answer(
+        statusReply({
+          ...doneJob({ state: "not_posted" }),
+          article: { ...article, mentionsNeutralized: true },
+        }),
+      );
+      const focused = viewer.doc.activeElement;
+      viewer.elements.copy.click();
+      await settle();
+      assert.deepEqual(viewer.clipboard.written, [article.markdown]);
+      assert.equal(
+        viewer.elements.actionStatus.textContent,
+        catalogs[locale].viewer.copiedNeutralized,
+      );
+      assert.equal(viewer.doc.activeElement, focused);
+    });
+  }
+
+  it("does not say a failed copy neutralized mentions", async () => {
+    const viewer = await showing({
+      ...doneJob({ state: "not_posted" }),
+      article: { ...article, mentionsNeutralized: true },
+    });
+    viewer.clipboard.fail();
+    viewer.elements.copy.click();
+    await settle();
+    assert.equal(
+      viewer.elements.actionStatus.textContent,
+      catalogs.en.viewer.copyFailed,
+    );
+  });
+
+  // The viewer has no copy listener: a reader's own copy of a selection
+  // must not touch the operation result's region.
+  it("leaves the operation result alone when the reader copies a selection", async () => {
+    const viewer = await showing(doneJob({ state: "not_posted" }));
+    viewer.elements.save.click();
+    const status = viewer.elements.actionStatus;
+    const before = { text: status.textContent, first: status.firstChild };
+    for (const target of [viewer.doc, viewer.elements.article]) {
+      target.dispatchEvent(
+        new viewer.doc.defaultView!.Event("copy", { bubbles: true }),
+      );
+    }
+    await settle();
+    assert.equal(status.textContent, before.text);
+    assert.equal(status.firstChild, before.first);
+    assert.deepEqual(viewer.clipboard.written, []);
+  });
+
+  it("neither shows nor copies a done article without mentionsNeutralized", async () => {
+    const older: Json = { ...article };
+    delete older.mentionsNeutralized;
+    const viewer = await showing({
+      ...doneJob({ state: "not_posted" }),
+      article: older,
+    });
+    assert.equal(viewer.elements.article.hidden, true);
+    assert.equal(viewer.elements.article.textContent, "");
+    viewer.elements.copy.click();
+    await settle();
+    assert.deepEqual(viewer.clipboard.written, []);
+  });
+
+  it("keeps the heading's text through the redraw each second of a running job", async () => {
+    const viewer = await showing(runningJob);
+    const node = viewer.elements.heading.firstChild;
+    assert.ok(node !== null);
+    const before = stateText(viewer);
+    viewer.clock.advance(elapsedRedrawMs);
+    await settle();
+    // The elapsed time changed, so the page was drawn again.
+    assert.notEqual(stateText(viewer), before);
+    assert.equal(viewer.elements.heading.firstChild, node);
+  });
+
+  it("shows the done article's video title and channel name in the heading", async () => {
+    const viewer = await open({ query: queryOf({ key }) });
+    assert.equal(viewer.elements.heading.textContent, "Heading");
+    await viewer.host.answer(
+      statusReply({
+        ...doneJob({ state: "not_posted" }),
+        article: {
+          ...article,
+          videoTitle: "Live @\u200bhere",
+          channelName: "@\u200bhandle",
+        },
+      }),
+    );
+    assert.equal(viewer.elements.heading.textContent, "Live @\u200bhere");
+    assert.equal(viewer.elements.channel.textContent, "@\u200bhandle");
+    // The tab title keeps the URL's heading.
+    assert.equal(viewer.doc.title, "Heading - yt2column");
   });
 });
 

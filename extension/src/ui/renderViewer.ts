@@ -14,6 +14,7 @@ import type {
   PublishRow,
   ViewerState,
 } from "../core/jobView.ts";
+import type { Article } from "../core/response.ts";
 import { publishResultMessage } from "../core/sendMessages.ts";
 import type { ViewerParams } from "../core/viewerUrl.ts";
 import { drawArticleBody } from "./articleBody.ts";
@@ -80,7 +81,7 @@ export interface ViewerView {
 export type ActionNotice =
   | PublishOpNotice
   | { readonly kind: "saved" }
-  | { readonly kind: "copied" }
+  | { readonly kind: "copied"; readonly mentionsNeutralized: boolean }
   | { readonly kind: "copy-failed" };
 
 /**
@@ -89,17 +90,26 @@ export type ActionNotice =
  * link is shown only for a URL that passes isAcceptedWatchUrl: its href is
  * that URL's own text, never built from the article, and it opens a new tab
  * that gets neither the opener nor the referrer.
+ *
+ * Once the article is done (article is the shown one), the heading and the
+ * channel name are the server's neutralized values, shown as they are, so a
+ * selection of the whole page pastes no mention: an empty video title keeps
+ * the URL's heading (the start sent no title), and an empty channel name hides
+ * the line. Before that they are the URL's values.
  */
 export function renderViewerHeader(
   elements: ViewerElements,
   header: ViewerHeader | undefined,
   locale: Locale,
+  article: Article | undefined,
 ): void {
   const { heading, channel, videoLink } = elements;
-  heading.hidden = header === undefined;
-  heading.textContent = header?.heading ?? "";
-  channel.hidden = header?.channelName === undefined;
-  channel.textContent = header?.channelName ?? "";
+  const shown =
+    header === undefined ? undefined : headerValues(header, article);
+  heading.hidden = shown === undefined;
+  heading.textContent = shown?.heading ?? "";
+  channel.hidden = shown?.channelName === undefined;
+  channel.textContent = shown?.channelName ?? "";
   if (header === undefined || !isAcceptedWatchUrl(header.url)) {
     videoLink.hidden = true;
     videoLink.removeAttribute("href");
@@ -111,6 +121,24 @@ export function renderViewerHeader(
   videoLink.target = "_blank";
   videoLink.rel = "noopener noreferrer";
   videoLink.textContent = catalogs[locale].viewer.videoLink;
+}
+
+/**
+ * The heading and the channel name to show: the done article's neutralized
+ * values, with the URL's heading for an empty video title and no channel
+ * line for an empty channel name, or the URL's values before the article.
+ */
+function headerValues(
+  header: ViewerHeader,
+  article: Article | undefined,
+): { readonly heading: string; readonly channelName: string | undefined } {
+  if (article === undefined) {
+    return { heading: header.heading, channelName: header.channelName };
+  }
+  return {
+    heading: article.videoTitle === "" ? header.heading : article.videoTitle,
+    channelName: article.channelName === "" ? undefined : article.channelName,
+  };
 }
 
 /** A done or lost job: the jobs whose article and publish button can show. */
@@ -354,7 +382,12 @@ function actionMessage(
     case "saved":
       return { text: viewer.saved, steps: [] };
     case "copied":
-      return { text: viewer.copied, steps: [] };
+      return {
+        text: notice.mentionsNeutralized
+          ? viewer.copiedNeutralized
+          : viewer.copied,
+        steps: [],
+      };
     case "copy-failed":
       return { text: viewer.copyFailed, steps: [] };
   }

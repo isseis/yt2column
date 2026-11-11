@@ -38,6 +38,7 @@ import type {
   PopupView,
 } from "../src/core/popupView.ts";
 import type { RejectionReason } from "../src/core/types.ts";
+import { jobArticle } from "../src/core/jobView.ts";
 import type { JobDisplay, PollNotice } from "../src/core/jobView.ts";
 import { classifyStatus, parseRequestId } from "../src/core/response.ts";
 import type { Article, PublishStatus, Steps } from "../src/core/response.ts";
@@ -283,6 +284,9 @@ function previewArticleFrom(): Article {
       steps: doneSteps,
       article: {
         markdown: previewMarkdown,
+        mentionsNeutralized: false,
+        videoTitle: "A video title",
+        channelName: "A channel",
         file: "---\ntitle: A video title\n---\n\nThe article\n",
         cost: { state: "known", usd: "0.1234" },
         durationMs: 81_234,
@@ -742,6 +746,11 @@ function renderPage(
   return dom.serialize();
 }
 
+/** The article a viewer case shows, which its heading then shows the values of. */
+export function shownPreviewArticle(view: ViewerView): Article | undefined {
+  return view.state.kind === "job" ? jobArticle(view.state.job) : undefined;
+}
+
 /** The viewer page for one case: the shipped skeleton, the locale, and the render. */
 function renderViewerPage(
   skeleton: string,
@@ -754,7 +763,12 @@ function renderViewerPage(
   if (elements === undefined) {
     throw new Error("viewer.html does not have the skeleton's elements");
   }
-  renderViewerHeader(elements, previewCase.header, previewCase.locale);
+  renderViewerHeader(
+    elements,
+    previewCase.header,
+    previewCase.locale,
+    shownPreviewArticle(previewCase.view),
+  );
   renderViewer(elements, previewCase.view, previewCase.locale);
   for (const script of doc.querySelectorAll("script")) {
     script.remove();

@@ -135,8 +135,13 @@ export type Cost =
   | { readonly state: "unknown" };
 
 export interface Article {
-  /** The display Markdown: the viewer draws it rendered and copies it unchanged. */
+  /** The neutralized display Markdown: the viewer draws it rendered and copies it unchanged. */
   readonly markdown: string;
+  /** Whether markdown neutralized at least one mention. */
+  readonly mentionsNeutralized: boolean;
+  /** The neutralized video title and channel name ("" for none), for the heading. */
+  readonly videoTitle: string;
+  readonly channelName: string;
   /** The file content, saved unchanged. */
   readonly file: string;
   readonly cost: Cost;
@@ -338,6 +343,15 @@ function textMember(members: Members, name: string): string {
   return value;
 }
 
+/** The boolean member name. */
+function booleanMember(members: Members, name: string): boolean {
+  const value = member(members, name);
+  if (value.kind !== "boolean") {
+    throw new Rejected("value-shape");
+  }
+  return value.value;
+}
+
 /** The string member name of an object whose member set depends on it, read before that set is checked. */
 function discriminant(value: JsonValue, name: string): string {
   if (value.kind !== "object") {
@@ -446,12 +460,18 @@ function duration(value: JsonValue): number {
 function article(value: JsonValue): Article {
   const members = exactMembers(value, [
     "markdown",
+    "mentionsNeutralized",
+    "videoTitle",
+    "channelName",
     "file",
     "cost",
     "durationMs",
   ]);
   return {
     markdown: textMember(members, "markdown"),
+    mentionsNeutralized: booleanMember(members, "mentionsNeutralized"),
+    videoTitle: stringMember(members, "videoTitle"),
+    channelName: stringMember(members, "channelName"),
     file: textMember(members, "file"),
     cost: cost(member(members, "cost")),
     durationMs: duration(member(members, "durationMs")),
@@ -633,16 +653,13 @@ export function classifyStatus(received: HostOutcome): StatusOutcomeLog {
           "job",
         ]);
         const requestId = requestIdMember(members);
-        const configured = member(members, "webhookConfigured");
-        if (configured.kind !== "boolean") {
-          throw new Rejected("value-shape");
-        }
+        const configured = booleanMember(members, "webhookConfigured");
         const result = job(member(members, "job"));
         requirePairing(status, 200);
         return {
           kind: "ok",
           requestId,
-          webhookConfigured: configured.value,
+          webhookConfigured: configured,
           job: result,
         };
       }

@@ -271,6 +271,23 @@ func TestDurationFromAcceptance(t *testing.T) {
 	}
 }
 
+// TestSnapshotVideoTitle checks that a done record returns the video title of
+// the input that started it, and "" when the start sent none.
+func TestSnapshotVideoTitle(t *testing.T) {
+	for _, title := range []string{"A video by @someone", ""} {
+		t.Run(fmt.Sprintf("%q", title), func(t *testing.T) {
+			c, _ := newTestCache(t, 1)
+			in := baseKeyInput()
+			in.Title = title
+			subject := NewKeyer(testSecret).Subject(in)
+			begin(t, c, subject).CompletePostable(testArticle("an article title"))
+			if got := c.Lookup(subject.Key()).VideoTitle; got != title {
+				t.Errorf("VideoTitle = %q, want %q", got, title)
+			}
+		})
+	}
+}
+
 func TestBeginFullChangesNothing(t *testing.T) {
 	c, _ := newTestCache(t, 2)
 	begin(t, c, testSubject(1))

@@ -384,6 +384,9 @@ type Json = Record<string, unknown>;
 
 const article = {
   markdown: "# Title\n\nBody",
+  mentionsNeutralized: false,
+  videoTitle: "",
+  channelName: "",
   file: "---\ntitle: Title\n---\n\nBody\n",
   cost: { state: "known", usd: "0.1234" },
   durationMs: 65_000,

@@ -27,6 +27,9 @@ export const doneSteps: Steps = {
 
 export const article: Article = {
   markdown: "# Title\n\nBody",
+  mentionsNeutralized: false,
+  videoTitle: "",
+  channelName: "",
   file: "---\ntitle: Title\n---\n\nBody\n",
   cost: { state: "known", usd: "0.1234" as UsdAmount },
   durationMs: 65_000,

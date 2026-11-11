@@ -47,12 +47,15 @@ type Key struct {
 	sum [sha256.Size]byte
 }
 
-// Subject is an article key together with the video its input names. It can
-// only be built by Keyer.Subject, so the key and the video ID always come from
-// one KeyInput.
+// Subject is an article key together with the video its input names and the
+// video title the generation start sent. It can only be built by
+// Keyer.Subject, so the key, the video ID, and the title always come from one
+// KeyInput. The title is part of the key, so every Subject of one key holds
+// the same title.
 type Subject struct {
-	key     Key
-	videoID string
+	key        Key
+	videoID    string
+	videoTitle string
 }
 
 // Key returns the subject's article key.
@@ -87,9 +90,9 @@ func (k Keyer) Key(in KeyInput) Key {
 	return key
 }
 
-// Subject returns in's key, as Key returns it, and in's video ID.
+// Subject returns in's key, as Key returns it, in's video ID, and in's title.
 func (k Keyer) Subject(in KeyInput) Subject {
-	return Subject{key: k.Key(in), videoID: in.VideoID}
+	return Subject{key: k.Key(in), videoID: in.VideoID, videoTitle: in.Title}
 }
 
 // writeField writes value's length prefix and bytes. A hash.Hash never

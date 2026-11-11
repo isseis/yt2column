@@ -150,11 +150,11 @@
 
 **変更するファイル:** `internal/publisher/mention.go`・`mention_test.go`・`display_render.go`・`display_render_test.go`・`slack_message.go`・`slack_render.go`、`internal/articlecache/key.go`・`record.go`・`cache.go`・`cache_test.go`、`internal/server/status.go`・`generation.go`・`status_test.go`・`generation_test.go`、`cmd/yt2column-server/relay_e2e_test.go`、`extension/src/core/response.ts`・`jobView.ts`・`i18n/catalog.ts`・`en.ts`・`ja.ts`、`extension/src/ui/renderViewer.ts`、`extension/src/viewerApp.ts`、`extension/scripts/popup-preview.ts`、拡張のテストと `test/helpers/job.ts`、`CLAUDE.md`
 
--   [ ] **ステップ 2-1**: 対象の `@` の規則を変える（設計書 3.3 の「`@` の単位と対象の判定」のうち生の `@` の部分、§1.3 の決定 4）。
+-   [x] **ステップ 2-1**: 対象の `@` の規則を変える（設計書 3.3 の「`@` の単位と対象の判定」のうち生の `@` の部分、§1.3 の決定 4）。
     -   `mentionAts` から、直後に名前の文字が続く条件を除き、末尾の `@` も対象にする。移した `TestMentionAts` の行のうち、直後が空白・記号・U+200B・末尾の行を新しい期待に改める。
     -   投稿の経路（`insertAfterAts` を通る `neutralizeMentions`・`neutralizeProse`、`cutStartsMention`、`findMention`）には、名前の文字の条件を保つ Slack 専用の包みを通し、投稿の振る舞いを変えない。既存の Slack のテスト（`slack_render_test.go`・`slack_message_test.go`・`golden_test.go`）を変えずに通す。包みを外すと失敗する既存のテストの名前を commit のメッセージに書く。
     -   ステップ 1-2 のコミットとも、ステップ 2-2 のコミットとも分けたコミットにする（設計書 3.2）。
--   [ ] **ステップ 2-2**: 無効化の部品を作る（設計書 3.2、3.3、6.1）。
+-   [x] **ステップ 2-2**: 無効化の部品を作る（設計書 3.2、3.3、6.1）。
     -   `mention.go` に、`@` の単位を前から 1 回たどって探し、対象かどうかと URL のパスの `/@` の 5 つの条件を判定して、U+200B を入れる処理を加える。生の `@` の対象の判定には、ステップ 2-1 で変えた `mentionAtsOf` を使う。`@` を表しうる文字参照の判定と、U+200B を入れる処理（文字参照では `;` の直後に入れる）は新しく書き、`insertAfterAts`・`followsSlash` は使わない。入力の長さに比例する時間で終える（設計書 1.2）。
     -   `NeutralizedDisplay`・`NeutralizedDisplayMarkdown`・`NeutralizeHeading` を設計書 3.2 の形で `display_render.go` に置く（§1.5）。`DisplayMarkdown` を消すのは、唯一の呼び出し元（`internal/server/status.go:135`）を変えるステップ 2-4 と同じコミットにする。
     -   `display_render_test.go` に、設計書 7.1 の「無効化の部品」「層を分ける入力」「時間」を確かめるテストを置く。
@@ -166,22 +166,22 @@
         -   `TestNeutralizeHeading`: URL のパスの `/@` を含むすべての対象の `@` を無効化することを確かめる。
     -   書き換えのコミットとして入れる。`TestDisplayMarkdown`・`TestDisplayMarkdownRejectsUnpublishable` を新しい名前（§1.5）と新しい期待に書き換えるのは、`DisplayMarkdown` を消すステップ 2-4 のコミットで行い、行は消さない。
     -   壊して確かめる対象: URL のパスの `/@` の判定（いつも無効化する形にすると `TestNeutralizedDisplayMarkdownKeptAts` の URL の行が失敗する）、語の途中の判定（同じテストの語の途中の行）、条件 1〜5 のそれぞれ（`TestNeutralizedDisplayMarkdownURLPathConditions` の該当の行）、文字参照の判定（`TestNeutralizedDisplayMarkdown` の文字参照の行）、URL の判定のたびに前から探し直す形（2 乗の時間になり `TestNeutralizedDisplayMarkdownLinearTime` が失敗する）。
--   [ ] **ステップ 2-3**: 記事のキャッシュの記録に、生成の開始が送った動画のタイトルを持たせ、`Snapshot` で返す（設計書 3.7、§1.3 の決定 6）。`internal/articlecache/cache_test.go` に `TestSnapshotVideoTitle` を加え、タイトルがあるとき・ないとき（空文字列）に `Snapshot` が返す値を確かめる。
--   [ ] **ステップ 2-4**: 状態の取得の応答を改める（設計書 3.1、3.6 の `statusArticle`）。
+-   [x] **ステップ 2-3**: 記事のキャッシュの記録に、生成の開始が送った動画のタイトルを持たせ、`Snapshot` で返す（設計書 3.7、§1.3 の決定 6）。`internal/articlecache/cache_test.go` に `TestSnapshotVideoTitle` を加え、タイトルがあるとき・ないとき（空文字列）に `Snapshot` が返す値を確かめる。
+-   [x] **ステップ 2-4**: 状態の取得の応答を改める（設計書 3.1、3.6 の `statusArticle`）。
     -   `done` の `article` を、`markdown`（無効化した表示用の Markdown）・`mentionsNeutralized`・`videoTitle`・`channelName`（`NeutralizeHeading` の値）・`file`・`cost`・`durationMs` にする。`webhookConfigured` と `publish` は PR-3 まで残す。
     -   `maxStatusSize` が、加えたメンバと無効化で増えたバイトを含めて測るようにする。動画のタイトルは記録にあり記事にないので（§1.4）、完了の時点の検査（`completeGeneration`）が、生成の開始の値の動画のタイトルを `maxStatusSize` に渡す形にする。
     -   `internal/server/generation_test.go::TestStatusResponseWithinLimit` に、`@` の多い本文と長い動画のタイトルで、上限ちょうどの記事が `done` になり 1 バイト超える記事が `article_too_large` になる場合を加える。無効化する前の文字列で測る形に壊すと失敗することを確かめる。
     -   `internal/server/status_test.go` に `TestStatusArticleNeutralized` を加える。`article` のメンバの集まりがちょうど設計書 3.1 の形であること、`markdown` が `NeutralizedDisplayMarkdown` の値で `mentionsNeutralized` がその `Neutralized` と同じこと、`videoTitle`・`channelName` が無効化した値で、ないときは空文字列であること、`file` が `FileContent` の値と同じことを確かめる。いまの投稿が拒否する並びを含む記事も `markdown` を返すことを確かめる（AC-14）。既存の `TestStatusDoneArticle` は新しいメンバに合わせる（ステップ 2-4・2-5 は書き換えのコミットで、テストを消さない）。
     -   `cmd/yt2column-server/relay_e2e_test.go::TestRelayEndToEnd` と `TestStatusResponseFitsRelay` を新しい応答の形に合わせる。
--   [ ] **ステップ 2-5**: 拡張の応答の検査・見出し・コピー・通知を改める（設計書 3.10 のうち投稿の部分を除くもの）。
+-   [x] **ステップ 2-5**: 拡張の応答の検査・見出し・コピー・通知を改める（設計書 3.10 のうち投稿の部分を除くもの）。
     -   `response.ts`: `done` の記事の決まったメンバに `mentionsNeutralized`・`videoTitle`・`channelName` を加える。`Article` の型を設計書 3.10 の形にする。
     -   `renderViewer.ts` の `renderViewerHeader`: 完了した記事では応答の `videoTitle`・`channelName` を表示し、`videoTitle` が空ならビューアの URL のタイトルのまま、`channelName` が空ならチャンネル名の行を隠す。完了する前はビューアの URL の値のまま。
     -   `viewerApp.ts` の `copyArticle`: `article.markdown` をそのまま書き、`ActionNotice` の `copied` に `mentionsNeutralized` を持たせ、真なら `viewer.copiedNeutralized` を示す。
     -   カタログ: `viewer.copiedNeutralized` を英語（文面は設計書 1.2）と日本語（要件書 AC-18 の文）に加える。
     -   `scripts/popup-preview.ts` と `test/helpers/job.ts` の `done` の記事に、加えたメンバを持たせる。
     -   テスト（`response.test.ts`・`renderViewer.test.ts`・`viewerApp.test.ts`）: 加えたメンバを求め、`mentionsNeutralized` を欠く応答を想定外として拒否し記事を表示もコピーもしないこと、見出しの表示、コピーの通知の 3 つの場合（無効化した・しなかった・失敗した）、`copy` イベントを送っても通知の領域が変わらないことを確かめる。`popupHtml.test.ts` の通知の領域（`role="status"`）の確かめは、そのまま通ることを確かめる。
--   [ ] **ステップ 2-6**: `CLAUDE.md`「Declare, don't infer」に、無効化の部品の例外を、設計書 3.12 の表の `CLAUDE.md` の行のとおりの範囲・理由・境界で加える（§1.3 の決定 5）。
--   [ ] **ステップ 2-7**: `_checks/golden_md_unchanged.sh` を PR-2 の merge-base と最後のコミットで実行し、§7 の「実行の記録」の PR-2 の欄に書く（AC-16a）。
+-   [x] **ステップ 2-6**: `CLAUDE.md`「Declare, don't infer」に、無効化の部品の例外を、設計書 3.12 の表の `CLAUDE.md` の行のとおりの範囲・理由・境界で加える（§1.3 の決定 5）。
+-   [x] **ステップ 2-7**: `_checks/golden_md_unchanged.sh` を PR-2 の merge-base と最後のコミットで実行し、§7 の「実行の記録」の PR-2 の欄に書く（AC-16a）。
 
 **完了の条件:** 上のテストが加わり通る。§7 に AC-16a の PR-2 の記録がある。`make test`・`make lint`・`make deadcode`・`make ext-check` が通る。この PR の後も、ビューアの投稿の操作は動く（投稿の削除は PR-3）。
 
@@ -198,9 +198,9 @@
 **判定理由**: ステップ 2-2 は、貼り付けた記事の通知を防ぐセキュリティの規則を新しく実装し（mkplan.md のパネルの契機のセキュリティの関門）、2-4・2-5 が応答の形を変える側と受ける側を同時に変える。
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/850
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 3: ジョブの API の投稿を消す（設計書 8 章の 4 の前半）
 
@@ -409,7 +409,7 @@
 ## 6. 実装チェックリスト (Implementation Checklist)
 
 -   [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3）
--   [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7）
+-   [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7）
 -   [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8）
 -   [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7 / 4-8 / 4-9 / 4-10）
 -   [ ] PR-5 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6 / 5-7 / 5-8）
@@ -494,7 +494,16 @@ exit=0
 
 PR-2:
 
-（ステップ 2-7 で書く。）
+**`_checks/golden_md_unchanged.sh`（AC-16a）。** 比べたコミットは、merge-base `141ee751b0fa053c9f287408153e97f1d355c26a` と、PR の作成ポイントで確かめ直した head `7b670722` である。出力と終了コード:
+
+```text
+before: 141ee751b0fa053c9f287408153e97f1d355c26a
+after:  7b670722
+files:  internal/publisher/testdata/golden/*.md
+OK   the same 10 file(s) with the same content at both commits
+OK   all 10 file(s) are byte for byte the same
+exit=0
+```
 
 PR-4:
 

@@ -21,7 +21,7 @@ const maxStatusResponseBytes = 256 << 10
 
 // statusResponse is the body of a status response. Every value is a code, an
 // identifier the server generated, a number, a boolean, or, for a done
-// article, the article's two strings.
+// article, the article's strings and the neutralized heading values.
 type statusResponse struct {
 	Status            string    `json:"status"`
 	RequestID         string    `json:"requestId"`
@@ -48,13 +48,18 @@ type statusSteps struct {
 	Review  string `json:"review"`
 }
 
-// statusArticle is a done article: the display Markdown, the --out file
-// content, the cost, and the generation's duration.
+// statusArticle is a done article: the neutralized display Markdown, whether
+// it neutralized a mention, the neutralized video title and channel name for
+// the Viewer's heading, the --out file content, the cost, and the generation's
+// duration.
 type statusArticle struct {
-	Markdown   string     `json:"markdown"`
-	File       string     `json:"file"`
-	Cost       statusCost `json:"cost"`
-	DurationMs int64      `json:"durationMs"`
+	Markdown            string     `json:"markdown"`
+	MentionsNeutralized bool       `json:"mentionsNeutralized"`
+	VideoTitle          string     `json:"videoTitle"`
+	ChannelName         string     `json:"channelName"`
+	File                string     `json:"file"`
+	Cost                statusCost `json:"cost"`
+	DurationMs          int64      `json:"durationMs"`
 }
 
 // statusCost is the article's cost. USD is set only when State is known.
@@ -86,16 +91,16 @@ const (
 )
 
 // renderStatus returns the status response body for snap. For a done record
-// it renders the article's Markdown and file with the publisher's functions;
-// their error is returned, which for an article the completion check passed
-// means an implementation mistake.
+// it renders the article's neutralized Markdown, heading values, and file
+// with the publisher's functions; their error is returned, which for an
+// article the completion check passed means an implementation mistake.
 func renderStatus(requestID string, webhookConfigured bool, snap articlecache.Snapshot) ([]byte, error) {
 	job := statusJob{State: jobStateCode(snap.State)}
 	switch snap.State {
 	case articlecache.JobRunning:
 		job.Steps = stepsStatus(snap.Stages)
 	case articlecache.JobDone:
-		article, err := articleStatus(snap.Article, snap.Duration)
+		article, err := articleStatus(snap.Article, snap.VideoTitle, snap.Duration)
 		if err != nil {
 			return nil, err
 		}
@@ -129,10 +134,13 @@ func stepsStatus(st articlecache.Stages) *statusSteps {
 	}
 }
 
-// articleStatus renders a done article's member. The cost is formatted by the
-// function the --out file and the Slack footnote use, so the three agree.
-func articleStatus(a writer.Article, duration time.Duration) (*statusArticle, error) {
-	markdown, err := publisher.DisplayMarkdown(a)
+// articleStatus renders a done article's member. The Markdown, the video
+// title, and the channel name have their mentions neutralized, so neither the
+// copy nor a selection of the Viewer's page pastes a mention; the file is not
+// changed. The cost is formatted by the function the --out file and the Slack
+// footnote use, so the three agree.
+func articleStatus(a writer.Article, videoTitle string, duration time.Duration) (*statusArticle, error) {
+	display, err := publisher.NeutralizedDisplayMarkdown(a)
 	if err != nil {
 		return nil, fmt.Errorf("render the display Markdown: %w", err)
 	}
@@ -144,7 +152,15 @@ func articleStatus(a writer.Article, duration time.Duration) (*statusArticle, er
 	if usd, known := publisher.FormatArticleCost(a.RunUsage); known {
 		cost = statusCost{State: costStateKnown, USD: usd}
 	}
-	return &statusArticle{Markdown: markdown, File: file, Cost: cost, DurationMs: duration.Milliseconds()}, nil
+	return &statusArticle{
+		Markdown:            display.Markdown,
+		MentionsNeutralized: display.Neutralized,
+		VideoTitle:          publisher.NeutralizeHeading(videoTitle),
+		ChannelName:         publisher.NeutralizeHeading(a.ChannelName),
+		File:                file,
+		Cost:                cost,
+		DurationMs:          duration.Milliseconds(),
+	}, nil
 }
 
 // publishStatus returns a done record's publish state, with the reason the
@@ -163,13 +179,15 @@ func publishStatus(snap articlecache.Snapshot) *statusPublish {
 }
 
 // maxStatusSize returns the size of the longest status response a done record
-// of a can get. The values other than the article that a response can carry
-// vary only within fixed bounds, so it renders a response with each of them at
-// its longest: a request ID of the generated length, a false
-// webhookConfigured, the longest duration, every step state, and every
-// publish state with every reason. The article's strings and
-// its cost do not change once it is stored.
-func maxStatusSize(a writer.Article) (int, error) {
+// of a, started with videoTitle, can get. The values other than the article
+// and the title that a response can carry vary only within fixed bounds, so
+// it renders a response with each of them at its longest: a request ID of the
+// generated length, a false webhookConfigured, the longest duration, every
+// step state, and every publish state with every reason. The article's
+// strings, the title, and the cost do not change once they are stored, and
+// the rendering neutralizes the strings as a real response does, so the
+// bytes the neutralization adds are counted.
+func maxStatusSize(a writer.Article, videoTitle string) (int, error) {
 	requestID := strings.Repeat("0", hex.EncodedLen(requestIDBytes))
 	duration := time.Duration(math.MaxInt64)
 	largest := 0
@@ -181,6 +199,7 @@ func maxStatusSize(a writer.Article) (int, error) {
 						State:          articlecache.JobDone,
 						Stages:         articlecache.Stages{Draft: step, Shorten: step, Review: step},
 						Article:        a,
+						VideoTitle:     videoTitle,
 						Duration:       duration,
 						Publish:        publish,
 						Unpostable:     unpostable,

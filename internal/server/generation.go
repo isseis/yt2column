@@ -60,9 +60,9 @@ func (s *Server) runGeneration(run *articlecache.Run, key articlecache.Key, inpu
 // run with its outcome. The checks run in this order:
 //
 //  1. CheckPublishable: an article no output can render fails as invalid.
-//  2. The status response size: an article whose status response could exceed
-//     maxStatusResponseBytes fails as too large, so no response is ever
-//     refused for its size.
+//  2. The status response size: an article whose status response, with the
+//     start's video title, could exceed maxStatusResponseBytes fails as too
+//     large, so no response is ever refused for its size.
 //  3. The Slack pre-send checks: an article they refuse is done but
 //     unpostable, with the mention reason when they refused a mention.
 //
@@ -73,7 +73,7 @@ func (s *Server) completeGeneration(run *articlecache.Run, key articlecache.Key,
 		s.failGeneration(run, key, input, articlecache.FailureArticleInvalid, err)
 		return
 	}
-	size, err := maxStatusSize(article)
+	size, err := maxStatusSize(article, input.key.Title)
 	if err != nil {
 		// CheckPublishable passed, so rendering cannot fail.
 		s.failGeneration(run, key, input, articlecache.FailureInternal, err)

@@ -6,8 +6,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"maps"
 	"net/http"
 	"reflect"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -27,8 +30,8 @@ func pricedUsage() writer.RunUsage {
 	}}
 }
 
-// TestStatusDoneArticle checks a done article's status: the display Markdown
-// and the file content are what the publisher renders for the article (the
+// TestStatusDoneArticle checks a done article's status: the neutralized
+// display Markdown and the file content are what the publisher renders for the article (the
 // file being what --out writes), the cost is the formatted known cost, and
 // the post has not started.
 func TestStatusDoneArticle(t *testing.T) {
@@ -42,10 +45,11 @@ func TestStatusDoneArticle(t *testing.T) {
 	if job.State != "done" || job.Article == nil || job.Publish == nil {
 		t.Fatalf("job = %+v, want done with an article and a publish state", job)
 	}
-	wantMarkdown, err := publisher.DisplayMarkdown(article)
+	display, err := publisher.NeutralizedDisplayMarkdown(article)
 	if err != nil {
-		t.Fatalf("DisplayMarkdown: %v", err)
+		t.Fatalf("NeutralizedDisplayMarkdown: %v", err)
 	}
+	wantMarkdown := display.Markdown
 	wantFile, err := publisher.FileContent(article)
 	if err != nil {
 		t.Fatalf("FileContent: %v", err)
@@ -65,6 +69,84 @@ func TestStatusDoneArticle(t *testing.T) {
 	}
 	if *job.Publish != (statusPublish{State: "not_posted"}) {
 		t.Errorf("publish = %+v, want not_posted", *job.Publish)
+	}
+}
+
+// TestStatusArticleNeutralized checks the article member of a done status
+// response: exactly the members the Viewer reads, the Markdown and its flag
+// from NeutralizedDisplayMarkdown, the start's video title and the article's
+// channel name neutralized for the heading ("" for none), and the file
+// unchanged. The article holds every sequence the Webhook post refuses, and
+// it is still returned.
+func TestStatusArticleNeutralized(t *testing.T) {
+	refused := testArticle()
+	refused.Title = "Talk @channel"
+	refused.ChannelName = "@handle"
+	refused.Body = "Hi @here and `@code`, <!channel> <@name> <a|b> AC/@x &#64;y https://www.youtube.com/@kept\n\nSource: " + testValidVideoURL + "\n"
+	plain := testArticle()
+	plain.ChannelName = ""
+
+	cases := []struct {
+		name        string
+		article     writer.Article
+		videoTitle  string // "" sends no title member
+		wantTitle   string
+		wantChannel string
+	}{
+		{"mentions", refused, "Live with @here https://www.youtube.com/@x", "Live with @\u200bhere https://www.youtube.com/@\u200bx", "@\u200bhandle"},
+		{"no title and no channel", plain, "", "", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ts := newJobsTestServer(t, jobsServerOptions{})
+			ts.writer.Result = tc.article
+			body := validBody(testValidVideoURL, testValidRaw)
+			if tc.videoTitle != "" {
+				body = `{"videoUrl":` + strconv.Quote(testValidVideoURL) + `,"transcript":` + strconv.Quote(testValidRaw) +
+					`,"title":` + strconv.Quote(tc.videoTitle) + `,"mode":"plain"}`
+			}
+			key := acceptedKey(t, ts.startBody(body))
+			rec := ts.statusRequest(key)
+			var raw struct {
+				Job struct {
+					State   string                     `json:"state"`
+					Article map[string]json.RawMessage `json:"article"`
+				} `json:"job"`
+			}
+			if err := json.Unmarshal(rec.Body.Bytes(), &raw); err != nil {
+				t.Fatalf("decode %q: %v", rec.Body.String(), err)
+			}
+			if raw.Job.State != "done" {
+				t.Fatalf("state = %q, want done (body %s)", raw.Job.State, rec.Body.String())
+			}
+			members := slices.Sorted(maps.Keys(raw.Job.Article))
+			want := []string{"channelName", "cost", "durationMs", "file", "markdown", "mentionsNeutralized", "videoTitle"}
+			if !slices.Equal(members, want) {
+				t.Errorf("article members = %v, want %v", members, want)
+			}
+
+			got := ts.getStatus(t, key).Job.Article
+			display, err := publisher.NeutralizedDisplayMarkdown(tc.article)
+			if err != nil {
+				t.Fatalf("NeutralizedDisplayMarkdown: %v", err)
+			}
+			file, err := publisher.FileContent(tc.article)
+			if err != nil {
+				t.Fatalf("FileContent: %v", err)
+			}
+			if got.Markdown != display.Markdown || got.MentionsNeutralized != display.Neutralized {
+				t.Errorf("markdown, mentionsNeutralized = %q, %v; want %q, %v", got.Markdown, got.MentionsNeutralized, display.Markdown, display.Neutralized)
+			}
+			if got.VideoTitle != tc.wantTitle {
+				t.Errorf("videoTitle = %q, want %q", got.VideoTitle, tc.wantTitle)
+			}
+			if got.ChannelName != tc.wantChannel {
+				t.Errorf("channelName = %q, want %q", got.ChannelName, tc.wantChannel)
+			}
+			if got.File != file {
+				t.Errorf("file = %q, want %q", got.File, file)
+			}
+		})
 	}
 }
 
@@ -168,7 +250,9 @@ func TestStatusUnknownAfterRestart(t *testing.T) {
 
 // TestResponsesOmitInputs checks that no job API response, a rejection and a
 // same-video answer included, carries a request value, an error text, or a
-// secret, apart from the done article's Markdown and file, and that the log
+// secret, apart from the done article's Markdown and file and its heading
+// values (the video title the start sent and the article's channel name),
+// and that the log
 // carries neither the transcript, a secret, nor the video URL string a start
 // sent.
 func TestResponsesOmitInputs(t *testing.T) {
@@ -213,8 +297,14 @@ func TestResponsesOmitInputs(t *testing.T) {
 	if resp.Job.Article == nil || !strings.Contains(resp.Job.Article.Markdown, testTranscriptMarker) {
 		t.Fatalf("the done article does not carry its title: %+v", resp.Job.Article)
 	}
+	// The heading shows the video title the start sent, and the article's
+	// channel name, never the start's.
+	if resp.Job.Article.VideoTitle != testTranscriptMarker || resp.Job.Article.ChannelName != article.ChannelName {
+		t.Fatalf("heading = %q, %q; want the start's title and the article's channel name", resp.Job.Article.VideoTitle, resp.Job.Article.ChannelName)
+	}
 	// The article's own strings may hold anything the article holds.
 	resp.Job.Article.Markdown, resp.Job.Article.File = "", ""
+	resp.Job.Article.VideoTitle = ""
 	rest, err := json.Marshal(resp)
 	if err != nil {
 		t.Fatalf("marshal: %v", err)

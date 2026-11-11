@@ -189,7 +189,7 @@ export async function startViewer(
   const parsed = parseViewerUrl(deps.page.search, deps.page.hash, loadedAt);
   if (!parsed.ok) {
     deps.log.error(viewerUrlLabel, { error: parsed.error });
-    renderViewerHeader(elements, undefined, locale);
+    renderViewerHeader(elements, undefined, locale, undefined);
     renderViewer(
       elements,
       {
@@ -205,7 +205,7 @@ export async function startViewer(
   let params: ViewerParams = parsed.params;
   /** The page shows an existing article of the same video: its URL holds e=1. */
   const existing = (): boolean => showsExisting(params);
-  renderViewerHeader(elements, params, locale);
+  renderViewerHeader(elements, params, locale, undefined);
   doc.title = `${params.heading}${pageTitleSuffix}`;
 
   let state: ViewerState = { kind: "sending" };
@@ -220,7 +220,17 @@ export async function startViewer(
   // publish answer that was in flight belong to the send it replaced.
   let restarts = 0;
 
+  /** The article the heading was last drawn with. */
+  let headerArticle: Article | undefined;
   const draw = (): void => {
+    // The heading shows the server's neutralized values once the article
+    // is done. It is drawn again only when the shown article changes, so
+    // the redraw each second keeps a selection in the heading.
+    const article = shownArticle(state);
+    if (article !== headerArticle) {
+      headerArticle = article;
+      renderViewerHeader(elements, params, locale, article);
+    }
     renderViewer(
       elements,
       {
@@ -551,7 +561,11 @@ export async function startViewer(
     if (restarts !== startedIn) {
       return;
     }
-    showActionNotice(copied.ok ? { kind: "copied" } : { kind: "copy-failed" });
+    showActionNotice(
+      copied.ok
+        ? { kind: "copied", mentionsNeutralized: article.mentionsNeutralized }
+        : { kind: "copy-failed" },
+    );
   };
 
   elements.publish.addEventListener("click", () => void publishArticle());

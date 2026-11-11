@@ -87,6 +87,7 @@ describe("renderViewerHeader", () => {
         elements,
         { heading: malicious, channelName: "A channel", url: watchUrl },
         locale,
+        undefined,
       );
       assert.equal(elements.heading.hidden, false);
       assert.equal(elements.heading.textContent, malicious);
@@ -101,6 +102,7 @@ describe("renderViewerHeader", () => {
         elements,
         { heading: "A video", url: watchUrl },
         locale,
+        undefined,
       );
       assert.equal(elements.channel.hidden, true);
     });
@@ -111,6 +113,7 @@ describe("renderViewerHeader", () => {
         elements,
         { heading: "A video", url: watchUrl },
         locale,
+        undefined,
       );
       const link = elements.videoLink;
       assert.equal(link.hidden, false);
@@ -126,7 +129,12 @@ describe("renderViewerHeader", () => {
     ]) {
       it(`shows no link for ${url} in ${locale}`, () => {
         const elements = viewerElements();
-        renderViewerHeader(elements, { heading: "A video", url }, locale);
+        renderViewerHeader(
+          elements,
+          { heading: "A video", url },
+          locale,
+          undefined,
+        );
         assert.equal(elements.videoLink.hidden, true);
         assert.equal(elements.videoLink.hasAttribute("href"), false);
       });
@@ -138,12 +146,43 @@ describe("renderViewerHeader", () => {
         elements,
         { heading: "A video", channelName: "A channel", url: watchUrl },
         locale,
+        undefined,
       );
-      renderViewerHeader(elements, undefined, locale);
+      renderViewerHeader(elements, undefined, locale, undefined);
       assert.equal(elements.heading.hidden, true);
       assert.equal(elements.channel.hidden, true);
       assert.equal(elements.videoLink.hidden, true);
       assert.equal(elements.videoLink.hasAttribute("href"), false);
+    });
+    it(`shows the done article's neutralized heading and channel name in ${locale}`, () => {
+      const elements = viewerElements();
+      renderViewerHeader(
+        elements,
+        { heading: "Live @here", channelName: "@handle", url: watchUrl },
+        locale,
+        {
+          ...article,
+          videoTitle: "Live @\u200bhere",
+          channelName: "@\u200bhandle",
+        },
+      );
+      assert.equal(elements.heading.textContent, "Live @\u200bhere");
+      assert.equal(elements.channel.hidden, false);
+      assert.equal(elements.channel.textContent, "@\u200bhandle");
+    });
+
+    it(`keeps the URL's heading for an empty video title and hides an empty channel name in ${locale}`, () => {
+      const elements = viewerElements();
+      renderViewerHeader(
+        elements,
+        { heading: "A tab title", channelName: "A channel", url: watchUrl },
+        locale,
+        { ...article, videoTitle: "", channelName: "" },
+      );
+      assert.equal(elements.heading.hidden, false);
+      assert.equal(elements.heading.textContent, "A tab title");
+      assert.equal(elements.channel.hidden, true);
+      assert.equal(elements.channel.textContent, "");
     });
   }
 });
@@ -641,7 +680,11 @@ describe("status regions", () => {
         locale,
       );
       const summary = elements.stateStatus.firstChild;
-      renderActionNotice(elements, { kind: "copied" }, locale);
+      renderActionNotice(
+        elements,
+        { kind: "copied", mentionsNeutralized: false },
+        locale,
+      );
       assert.equal(
         elements.actionStatus.textContent,
         catalogs[locale].viewer.copied,
@@ -863,7 +906,11 @@ describe("renderActionNotice", () => {
 
     it(`clears the result for none in ${locale}`, () => {
       const elements = viewerElements();
-      renderActionNotice(elements, { kind: "copied" }, locale);
+      renderActionNotice(
+        elements,
+        { kind: "copied", mentionsNeutralized: false },
+        locale,
+      );
       renderActionNotice(elements, { kind: "none" }, locale);
       assert.equal(elements.actionStatus.textContent, "");
     });
@@ -880,6 +927,7 @@ describe("order and controls", () => {
         elements,
         { heading: "A video", url: watchUrl },
         locale,
+        undefined,
       );
       renderViewer(
         elements,
