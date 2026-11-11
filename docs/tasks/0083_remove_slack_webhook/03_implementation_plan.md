@@ -142,7 +142,7 @@
 **判定理由**: どのステップも、既存の検査への 1 つの検査の追加と振る舞いを変えない移動で、mkplan.md のパネルの契機にも Conditional checks にも当たらない。
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/842
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
