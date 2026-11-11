@@ -143,8 +143,8 @@
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した: https://github.com/isseis/yt2column/pull/842
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: 無効化の部品と、応答・拡張の変更（設計書 8 章の 3）
 
@@ -408,7 +408,7 @@
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
--   [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3）
+-   [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3）
 -   [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7）
 -   [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8）
 -   [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7 / 4-8 / 4-9 / 4-10）
@@ -460,11 +460,11 @@
 
 PR-1:
 
-**`_checks/golden_md_unchanged.sh`（AC-16a）。** 比べたコミットは、merge-base `a56f085eb59fc2d65e0fd393773067013be3727c` と、このフェーズの最後のコミット `58e19c01` である（PR を作る前の確かめ直しで、最後のコミットをこの値に改めた）。出力と終了コード:
+**`_checks/golden_md_unchanged.sh`（AC-16a）。** 比べたコミットは、merge-base `a56f085eb59fc2d65e0fd393773067013be3727c` と、マージの前の確かめ直しで読んだ PR の head `84a96e0e` である。出力と終了コード:
 
 ```text
 before: a56f085eb59fc2d65e0fd393773067013be3727c
-after:  58e19c01
+after:  84a96e0e
 files:  internal/publisher/testdata/golden/*.md
 OK   the same 10 file(s) with the same content at both commits
 OK   all 10 file(s) are byte for byte the same
