@@ -992,7 +992,7 @@ func TestRelayKeyPassedUnchecked(t *testing.T) {
 		"empty":           "",
 		"uppercase":       "ABC",
 		"long":            strings.Repeat("f", 1000),
-		"publish suffix":  "abc/publish",
+		"extra segment":   "abc/publish",
 		"query":           "?x=1",
 		"query inside":    "a?x=1",
 		"dot segment":     "..",
@@ -1004,35 +1004,28 @@ func TestRelayKeyPassedUnchecked(t *testing.T) {
 		"parent and root": "../../articles",
 	}
 	for name, key := range keys {
-		for _, op := range []struct{ name, method, suffix string }{
-			{"status", http.MethodGet, ""},
-		} {
-			t.Run(name+"/"+op.name, func(t *testing.T) {
-				path, got := recordingServer(t, []byte("{}"))
-				msg := newFormMessage(t, map[string]any{"v": 1, "op": op.name, "key": key})
-				requireResponse(t, runRelay(message(msg), SocketDialer(path), testTimeout).reply(t), http.StatusAccepted, []byte("{}"))
+		t.Run(name, func(t *testing.T) {
+			path, got := recordingServer(t, []byte("{}"))
+			msg := newFormMessage(t, map[string]any{"v": 1, "op": "status", "key": key})
+			requireResponse(t, runRelay(message(msg), SocketDialer(path), testTimeout).reply(t), http.StatusAccepted, []byte("{}"))
 
-				req := got()
-				if req.requests != 1 || req.method != op.method {
-					t.Fatalf("the server received %d requests, the last %s; want one %s", req.requests, req.method, op.method)
-				}
-				segment, ok := strings.CutPrefix(req.requestURI, "/jobs/")
-				if ok {
-					segment, ok = strings.CutSuffix(segment, op.suffix)
-				}
-				if !ok || strings.ContainsAny(segment, "/?") {
-					t.Fatalf("request target = %q, want /jobs/, one path segment, then %q", req.requestURI, op.suffix)
-				}
-				if decoded, err := url.PathUnescape(segment); err != nil || decoded != key {
-					t.Errorf("the segment %q decodes to %q (%v), want the key %q", segment, decoded, err, key)
-				}
-				// The client sends the escaped form as is: it neither
-				// normalizes the path nor escapes it again.
-				if want := "/jobs/" + url.PathEscape(key) + op.suffix; req.requestURI != want {
-					t.Errorf("request target = %q, want %q", req.requestURI, want)
-				}
-			})
-		}
+			req := got()
+			if req.requests != 1 || req.method != http.MethodGet {
+				t.Fatalf("the server received %d requests, the last %s; want one GET", req.requests, req.method)
+			}
+			segment, ok := strings.CutPrefix(req.requestURI, "/jobs/")
+			if !ok || strings.ContainsAny(segment, "/?") {
+				t.Fatalf("request target = %q, want /jobs/ and one path segment", req.requestURI)
+			}
+			if decoded, err := url.PathUnescape(segment); err != nil || decoded != key {
+				t.Errorf("the segment %q decodes to %q (%v), want the key %q", segment, decoded, err, key)
+			}
+			// The client sends the escaped form as is: it neither
+			// normalizes the path nor escapes it again.
+			if want := "/jobs/" + url.PathEscape(key); req.requestURI != want {
+				t.Errorf("request target = %q, want %q", req.requestURI, want)
+			}
+		})
 	}
 }
 
@@ -1040,21 +1033,16 @@ func TestRelayKeyPassedUnchecked(t *testing.T) {
 // answers ends with server_timeout after exactly one request. The status
 // request is TestRelayHostErrors' "server never answers" row.
 func TestRelayNewFormTimeout(t *testing.T) {
-	for _, msg := range []string{
-		`{"v":1,"op":"start","input":{"videoUrl":"x","transcript":"y"}}`,
-	} {
-		t.Run(msg, func(t *testing.T) {
-			var requests atomic.Int32
-			path := serveRaw(t, func(conn net.Conn) {
-				requests.Add(1)
-				_, _ = io.Copy(io.Discard, conn)
-			})
-			dial, dials := countDials(SocketDialer(path))
-			requireError(t, runRelay(message([]byte(msg)), dial, shortTimeout).reply(t), HostErrorServerTimeout)
-			if n, d := requests.Load(), dials.Load(); n != 1 || d != 1 {
-				t.Errorf("the server read %d requests over %d dials, want 1 over 1", n, d)
-			}
-		})
+	const msg = `{"v":1,"op":"start","input":{"videoUrl":"x","transcript":"y"}}`
+	var requests atomic.Int32
+	path := serveRaw(t, func(conn net.Conn) {
+		requests.Add(1)
+		_, _ = io.Copy(io.Discard, conn)
+	})
+	dial, dials := countDials(SocketDialer(path))
+	requireError(t, runRelay(message([]byte(msg)), dial, shortTimeout).reply(t), HostErrorServerTimeout)
+	if n, d := requests.Load(), dials.Load(); n != 1 || d != 1 {
+		t.Errorf("the server read %d requests over %d dials, want 1 over 1", n, d)
 	}
 }
 

@@ -85,6 +85,11 @@ func runExt(args []string) int {
 		fmt.Fprintln(os.Stderr, "usage: coverage ext <before-commit> <after-commit> <before.lcov> <after.lcov>")
 		return 2
 	}
+	// The after commit's source decides what was removed, so an unknown
+	// commit, which would make every file look removed, stops the run.
+	if _, err := gitShow(args[1], "extension/package.json"); err != nil {
+		stop("read the after commit", err)
+	}
 	before, err := loadLCOV(args[2])
 	if err != nil {
 		stop("read the first side", err)

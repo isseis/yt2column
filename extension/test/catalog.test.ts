@@ -238,6 +238,10 @@ describe("catalogs", () => {
       ]) {
         assert.ok(paths.includes(path), path);
       }
+      // Precondition: the pattern matches the word in both languages, so the
+      // check below can fail.
+      assert.match("Post to Slack", slackWord);
+      assert.match("\u30b9\u30e9\u30c3\u30af\u3078", slackWord);
       for (const [path, message] of checked) {
         assert.doesNotMatch(textOf(message), slackWord, path);
       }

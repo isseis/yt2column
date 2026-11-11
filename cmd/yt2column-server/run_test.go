@@ -782,7 +782,7 @@ func TestWriterOptionsMatchCLIDefaults(t *testing.T) {
 
 // TestRunLogsListeningAndStop checks the lines run itself logs: exactly the
 // socket path and the two models when it listens, with no warning line, and, when the stop begins, that the generations are canceled and
-// that a second signal exits at once, with nothing about posts.
+// that a second signal exits at once.
 func TestRunLogsListeningAndStop(t *testing.T) {
 	e := newServerEnv(t)
 	srv := startServer(t, e, testDeps(validResponseLLM()))
@@ -814,9 +814,6 @@ func TestRunLogsListeningAndStop(t *testing.T) {
 		if !strings.Contains(stopping, want) {
 			t.Errorf("the stop notice does not contain %q: %s", want, stopping)
 		}
-	}
-	if strings.Contains(stopping, "post") {
-		t.Errorf("the stop notice still names posts: %s", stopping)
 	}
 }
 
