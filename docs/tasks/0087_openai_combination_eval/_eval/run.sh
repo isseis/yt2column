@@ -1,0 +1,193 @@
+#!/bin/zsh
+# Task 0087's run script (design section 3.1-section 3.3). It holds the config table, the
+# only place the configs' LLM values are written, and runs the pinned CLI for
+# one article of one config.
+#
+# Usage:
+#   run.sh configs
+#       Print the config table: "<id>\t<stage>\t<YT2COLUMN_LLM>\t<YT2COLUMN_REVIEW_LLM>\t<mode>".
+#   run.sh run <config> <article> <cli> [--preflight [--after-review]]
+#       Run <cli> for <article> ("<video ID>-<1|2>") with <config>'s values.
+#       --preflight writes under 0087/preflight/ instead of 0087/ and removes
+#       the API keys from the CLI's environment, so the CLI cannot call an API;
+#       --after-review (preflight only) resumes from a copy of B3's complete
+#       artifacts with --after review, whatever the config (design section 3.4 item 1).
+#
+# The evaluation root is $YT2COLUMN_EVAL_ROOT, or ~/yt2column-eval when unset.
+# The script never reads, writes, or prints an API key's value: the CLI reads
+# the keys from the environment it inherits.
+#
+# It assumes macOS (shasum, BSD stat), the machine the evaluation runs on.
+
+emulate -L zsh
+set -u
+setopt pipefail
+
+# The config table. mode "full" runs every stage; "resume" reuses B3's
+# generation (and, for roNZ-rLxhUE-1, its shorten) and runs the rest.
+CONFIGS=(
+  $'C-sol\t1\topenai/gpt-6.1-sol+medium\topenai/gpt-6.1-sol+medium\tfull'
+  $'C-astra\t1\topenai/gpt-6-astra+medium\topenai/gpt-6-astra+medium\tfull'
+  $'A-sol\t1\tclaude/claude-opus-5-5+high\topenai/gpt-6.1-sol+medium\tresume'
+  $'A-astra\t1\tclaude/claude-opus-5-5+high\topenai/gpt-6-astra+medium\tresume'
+  $'B-sol\t2\topenai/gpt-6.1-sol+medium\tclaude/claude-opus-5-5+high\tfull'
+  $'B-astra\t2\topenai/gpt-6-astra+medium\tclaude/claude-opus-5-5+high\tfull'
+)
+
+# The five videos of the evaluation.
+VIDEOS=(roNZ-rLxhUE 18tbwwPM91A zW1RBacSqjk leE02uqgaKg EqnGQDU71-Y)
+
+# The article B3 resumed after shorten (its shorten ran in B3's retry).
+RESUME_AFTER_SHORTEN=roNZ-rLxhUE-1
+
+# CLEANUP holds the directories this run created before the CLI starts; a
+# failure before the start removes them, so a retry is not blocked by them.
+CLEANUP=()
+
+die() {
+  print -r -- "run.sh: $*" >&2
+  (( ${#CLEANUP} )) && rm -rf -- $CLEANUP
+  exit 1
+}
+
+# copy_checked <src> <dst> <hash-list key>: copy the file's content only, mode
+# 0600, and check its SHA-256 against the first hash list's entry for the key.
+copy_checked() {
+  local src=$1 dst=$2 key=$3 want got
+  [[ -f $src && ! -L $src ]] || die "not a regular file: $src"
+  cat -- $src > $dst || die "cannot copy $src"
+  chmod 600 $dst || die "cannot chmod $dst"
+  want=$(awk -F'\t' -v k="$key" '$1 == k { n++; h = $3 } END { if (n == 1) print h }' $LIST) || die "cannot read $LIST"
+  [[ -n $want ]] || die "the hash list has no single entry for $key"
+  got=$(shasum -a 256 -- $dst | cut -d' ' -f1) || die "cannot hash $dst"
+  [[ $got == $want ]] || die "the copy of $key differs from the hash list"
+}
+
+cmd_configs() {
+  local row
+  for row in $CONFIGS; do print -r -- $row; done
+}
+
+cmd_run() {
+  (( $# >= 3 )) || die "usage: run.sh run <config> <article> <cli> [--preflight [--after-review]]"
+  local cfg=$1 art=$2 cli=$3
+  shift 3
+  local preflight=0 after_review=0 opt
+  for opt in "$@"; do
+    case $opt in
+      --preflight) preflight=1 ;;
+      --after-review) after_review=1 ;;
+      *) die "unknown option $opt" ;;
+    esac
+  done
+  (( after_review == 0 || preflight == 1 )) || die "--after-review needs --preflight"
+
+  local row fields llm review mode
+  row=${${(M)CONFIGS:#${cfg}$'\t'*}[1]-}
+  [[ -n $row ]] || die "unknown config $cfg"
+  fields=("${(@ps:\t:)row}")
+  llm=$fields[3] review=$fields[4] mode=$fields[5]
+
+  [[ $art =~ '^[A-Za-z0-9_-]{11}-[12]$' ]] || die "not an article: $art"
+  local vid=${art%-*}
+  (( ${VIDEOS[(Ie)$vid]} )) || die "not a video of the evaluation: $vid"
+  [[ -x $cli && -f $cli ]] || die "not an executable CLI: $cli"
+
+  local E=${YT2COLUMN_EVAL_ROOT:-$HOME/yt2column-eval}
+  local R=$E/0087
+  (( preflight )) && R=$E/0087/preflight
+  LIST=$E/0087/hash/1-initial.tsv
+  [[ -f $LIST ]] || die "no first hash list $LIST"
+
+  # Which artifacts to copy, and from which tree of the hash list.
+  local after=none tree= src=
+  local -a files
+  if (( after_review )); then
+    after=review tree=work src=$E/0018/work/B3/$art
+    files=($src/*.json(N:t))
+  elif [[ $mode == resume && $art == $RESUME_AFTER_SHORTEN ]]; then
+    after=shorten tree=work src=$E/0018/work/B3/$art
+    files=($vid.generation.json $vid.shorten.json)
+  elif [[ $mode == resume ]]; then
+    after=generation tree=base src=$E/0018/base/B3/$art
+    files=($vid.generation.json)
+  fi
+  if [[ $after != none ]]; then
+    [[ -d $src ]] || die "no artifacts to resume from: $src"
+    (( ${#files} )) || die "no artifacts in $src"
+  fi
+
+  local W=$R/work/$cfg/$art O=$R/out/$cfg/$art.md V=$R/review/$cfg/$art.md
+  local L=$R/log/$cfg/$art.txt WH=$R/log/$cfg/$art.when C=$R/runcache/$cfg/$art
+  local p
+  for p in $W $O $V $L $WH $C; do
+    [[ -e $p || -L $p ]] && die "already exists: $p"
+  done
+  umask 077
+  mkdir -p $R/work/$cfg $R/out/$cfg $R/review/$cfg $R/log/$cfg $R/runcache/$cfg || die "cannot create $R"
+  mkdir -m 700 $W $C || die "cannot create $W or $C"
+  CLEANUP=($W $C)
+
+  # The run's own cache copy: the video's pointer and the slot it names.
+  local slot f
+  slot=$(cat -- $E/cache/$vid.current) || die "no cache pointer for $vid"
+  [[ $slot == a || $slot == b ]] || die "the cache pointer of $vid names no slot"
+  copy_checked $E/cache/$vid.current $C/$vid.current cache/$vid.current
+  mkdir -m 700 $C/$vid.$slot || die "cannot create $C/$vid.$slot"
+  for f in $E/cache/$vid.$slot/*(N); do
+    copy_checked $f $C/$vid.$slot/${f:t} cache/$vid.$slot/${f:t}
+  done
+  for f in $files; do
+    copy_checked $src/$f $W/$f $tree/$art/$f
+  done
+
+  local sha
+  sha=$(shasum -a 256 -- $cli | cut -d' ' -f1) || die "cannot hash $cli"
+  # From here on the run's files are kept, whatever happens.
+  CLEANUP=()
+  {
+    print -r -- "config=$cfg"
+    print -r -- "article=$art"
+    print -r -- "after=$after"
+    print -r -- "llm=$llm"
+    print -r -- "review_llm=$review"
+    print -r -- "ytdlp_path=/usr/bin/false"
+    print -r -- "keep_cache=yes"
+    print -r -- "binary_sha256=$sha"
+    print -r -- "start=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  } > $WH || die "cannot write $WH"
+
+  local -a args
+  args=(--keep-cache --artifacts $W --out $O)
+  if [[ $after == review ]]; then
+    args+=(--after review)
+  else
+    args+=(--review-log $V)
+    [[ $after != none ]] && args+=(--after $after)
+  fi
+
+  # Only the values set here reach the CLI from the YT2COLUMN_ family.
+  local v
+  for v in ${(k)parameters[(I)YT2COLUMN_*]}; do unset $v; done
+  unset ANTHROPIC_WORKSPACE_ID
+  (( preflight )) && unset ANTHROPIC_API_KEY OPENAI_API_KEY DEEPSEEK_API_KEY
+  # zsh's default TIMEFMT, the form of the 0018 logs.
+  TIMEFMT='%J  %U user %S system %P cpu %*E total'
+  local rc
+  ( time env YT2COLUMN_YTDLP_PATH=/usr/bin/false YT2COLUMN_CACHE_DIR=$C \
+      YT2COLUMN_LLM=$llm YT2COLUMN_REVIEW_LLM=$review \
+      $cli $args "https://www.youtube.com/watch?v=$vid" ) 2> $L
+  rc=$?
+  {
+    print -r -- "end=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    print -r -- "exit=$rc"
+  } >> $WH || die "cannot finish $WH"
+  return $rc
+}
+
+(( $# >= 1 )) || die "usage: run.sh configs | run.sh run <config> <article> <cli> [...]"
+case $1 in
+  configs) cmd_configs ;;
+  run) shift; cmd_run "$@" ;;
+  *) die "unknown command $1" ;;
+esac

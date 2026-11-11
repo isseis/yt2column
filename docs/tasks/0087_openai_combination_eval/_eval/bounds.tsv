@@ -1,0 +1,19 @@
+table bounds keys=2
+config	stage	model	input_bound	output_bound	usd
+C-sol	generation	gpt-6.1-sol	17303	6080	0.104058
+C-sol	shorten	gpt-6.1-sol	9922	6080	0.085605
+C-sol	review	gpt-6.1-sol	20985	6080	0.113263
+C-astra	generation	gpt-6-astra	17303	6080	0.520288
+C-astra	shorten	gpt-6-astra	9922	6080	0.428025
+C-astra	review	gpt-6-astra	21142	6080	0.568275
+A-sol	shorten	claude-opus-5-5	44663	40000	1.023315
+A-sol	review	gpt-6.1-sol	31905	6080	0.140563
+A-astra	shorten	claude-opus-5-5	44663	40000	1.023315
+A-astra	review	gpt-6-astra	32062	6080	0.704775
+B-sol	generation	gpt-6.1-sol	17303	6080	0.104058
+B-sol	shorten	gpt-6.1-sol	9922	6080	0.085605
+B-sol	review	claude-opus-5-5	36055	40000	0.980275
+B-astra	generation	gpt-6-astra	17303	6080	0.520288
+B-astra	shorten	gpt-6-astra	9922	6080	0.428025
+B-astra	review	claude-opus-5-5	36055	40000	0.980275
+end
