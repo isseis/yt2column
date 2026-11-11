@@ -92,12 +92,12 @@
 
 **変更するファイル:** 設計書 3 章の表のうち PR-2 の行と、本計画
 
--   [ ] **ステップ 2-1**: サーバとホストの行を絞る（設計書 3.2・3.4 節、AC-07・AC-10・AC-11）。外した文か節と、その行き先を、PR の説明の一覧の材料として控える（AC-13）。
--   [ ] **ステップ 2-2**: 開発ツールの行を絞る。秘密の扱いと子プロセスの環境変数に関わる詳細は、設計書 3.4 節のとおり、削るだけにしない。
--   [ ] **ステップ 2-3**: テスト専用の行を絞る。
--   [ ] **ステップ 2-4**: 設計書 3.3 節の PR-2 の ADR の参照 2 か所（ADR-0027）を、編集上の訂正として直す（AC-14・AC-15）。コミットメッセージに訂正の行を書く。
--   [ ] **ステップ 2-5**: ADR-0044 のずれの記述を消す（AC-17）。編集上の訂正（ずれの記述の削除）として記録する。PR を作る前に、`git grep -nE 'issues/817([^0-9]|$)' origin/main -- docs/dev/adr/` で、ほかに消すずれの記述がないことを確かめる。
--   [ ] **ステップ 2-6**: `check_state.sh` を上限の判定つき（15,000 バイト）で、`check_diff.sh` を PR-2 のマージベースと PR のコミットで走らせる。出力と 2 つのコミットの完全な ID を 7 章 に書く。AC-15 の diff の記録は、`/runplan` が 7 章 の記録の形で書く。`make test` と `make lint` を通す。
+-   [x] **ステップ 2-1**: サーバとホストの行を絞る（設計書 3.2・3.4 節、AC-07・AC-10・AC-11）。外した文か節と、その行き先を、PR の説明の一覧の材料として控える（AC-13）。
+-   [x] **ステップ 2-2**: 開発ツールの行を絞る。秘密の扱いと子プロセスの環境変数に関わる詳細は、設計書 3.4 節のとおり、削るだけにしない。
+-   [x] **ステップ 2-3**: テスト専用の行を絞る。
+-   [x] **ステップ 2-4**: 設計書 3.3 節の PR-2 の ADR の参照 2 か所（ADR-0027）を、編集上の訂正として直す（AC-14・AC-15）。コミットメッセージに訂正の行を書く。
+-   [x] **ステップ 2-5**: ADR-0044 のずれの記述を消す（AC-17）。編集上の訂正（ずれの記述の削除）として記録する。PR を作る前に、`git grep -nE 'issues/817([^0-9]|$)' origin/main -- docs/dev/adr/` で、ほかに消すずれの記述がないことを確かめる。
+-   [x] **ステップ 2-6**: `check_state.sh` を上限の判定つき（15,000 バイト）で、`check_diff.sh` を PR-2 のマージベースと PR のコミットで走らせる。上限を超えるときは、前半の 3 つの表の行も含めて絞り直す（5 章のリスクの対策）。出力と 2 つのコミットの完全な ID を 7 章 に書く。AC-15 の diff の記録は、`/runplan` が 7 章 の記録の形で書く。`make test` と `make lint` を通す。
 
 **完了の条件:** 2 つのスクリプトが終了コード 0 で終わり、7 章 にその記録と diff の記録がある。`make test` と `make lint` が通る。
 
@@ -113,10 +113,10 @@
 
 **判定理由**: 文書の書き直しと doc コメントの追加だけで、前例のない設計判断・panel の条件・競合する実装の方法のどれにも当たらない
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/831
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ## 3. 実装の順序とマイルストーン (Implementation Order and Milestones)
 
@@ -156,7 +156,7 @@
 ## 6. 実装チェックリスト (Implementation Checklist)
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8 / 1-9 / 1-10 / 1-11）
-- [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6）
+- [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -207,79 +207,97 @@ Go files checked: 2 (comment-only except internal/pipeline/strictjson_users_test
 OK: the PR stays in scope and its Go diffs are comment-only
 ```
 
+PR-2（2026-11-11）: merge-base `224ef0d8b04e4667510aee6cef5c97bce46e8cf2`、記録したコミット `61433b45ddde04f26b2abf2b5677373ddf3a402f`。この記録のコミットと、PR チェックポイントのチェックボックスのコミットは、本計画だけを変える。
+
+`_checks/check_state.sh 15000`:
+
+```text
+sections: 6
+rows: 57
+bytes: 14969
+OK: six kind headings, one table each, no duplicate package row
+```
+
+`_checks/check_diff.sh <merge-base> <commit>`:
+
+```text
+base: 224ef0d8b04e4667510aee6cef5c97bce46e8cf2
+head: 61433b45ddde04f26b2abf2b5677373ddf3a402f
+changed files: 4
+Go files checked: 0 (comment-only except internal/pipeline/strictjson_users_test.go)
+OK: the PR stays in scope and its Go diffs are comment-only
+```
+
 Diff record (AC-15):
 
 PR-1:
 
 - Compared paths: `docs/dev/adr/0001-llm-adapter-stdlib.md` `docs/dev/adr/0020-strict-json.md` `docs/dev/adr/0023-artifact-resume.md` `docs/dev/adr/0044-package-reference-row-granularity.md`
-- Merge-base: `cecc4c7b4822a3983ad707a41736a58ea1522864`
-- Compared commit: `81aa1d966c9fd1d2cd65089a97c189b98dd08423`
+- Merge-base: `224ef0d8b04e4667510aee6cef5c97bce46e8cf2`
+- Compared commit: `8a87b5658c9008c21bb9c0c4eca51c29a693d448`
 
 Path diff:
 
 ```text
-diff --git a/docs/dev/adr/0001-llm-adapter-stdlib.md b/docs/dev/adr/0001-llm-adapter-stdlib.md
-index ec9716d40e7859d655caf102cc8fef1fcdc9eb58..76506e6f85562311fda4f6346c01636fc5acd750 100644
---- a/docs/dev/adr/0001-llm-adapter-stdlib.md
-+++ b/docs/dev/adr/0001-llm-adapter-stdlib.md
-@@ -17,7 +17,7 @@
- ## 決定
-
- -   **SDK を使わず、標準ライブラリで API を呼ぶ。** Claude は Anthropic Messages API を、DeepSeek は OpenAI 互換の Chat Completions API を、OpenAI は Responses API を、`net/http` と `encoding/json` で直接呼ぶ。OpenAI の追加は [0077 要件定義書](../../tasks/0077_openai_llm_client/01_requirements.md) が定め、API 固有の方針は [ADR-0041](0041-openai-api.md) に従う。提供元ごとの詳細を閉じ込め、OpenAI の要求・応答の処理は DeepSeek と共通化しない。SDK の JSON のデコードは寛容で、応答を補正せずに拒否する検証と両立しにくく、外部モジュールを増やさない方針にも合うためである（[0009 要件定義書](../../tasks/0009_claude_llm_client/01_requirements.md) §2.3）。規則は [project_overview.md](../project_overview.md) の「決定済みの方針」にある。
---   **HTTP の送信の経路は `internal/llm/llmhttp` の 1 か所に置き、Claude・DeepSeek・OpenAI のアダプタが使う。** 秘密情報の扱いに関わるコードを 2 か所に持たないためである（[0009 設計書](../../tasks/0009_claude_llm_client/02_architecture.md) §1.1）。`llmhttp` が受け持つ送信の手順は、[package_reference.md](../conventions/package_reference.md) のパッケージの表の `internal/llm/llmhttp` の行にある。
-+-   **HTTP の送信の経路は `internal/llm/llmhttp` の 1 か所に置き、Claude・DeepSeek・OpenAI のアダプタが使う。** 秘密情報の扱いに関わるコードを 2 か所に持たないためである（[0009 設計書](../../tasks/0009_claude_llm_client/02_architecture.md) §1.1）。`llmhttp` が受け持つ送信の手順は、`internal/llm/llmhttp` のパッケージの doc コメントにある。
- -   **`llmhttp` はプロバイダ固有の番兵を持たず、アダプタが渡した番兵で失敗を報告する。** 各アダプタが自分の番兵を保つためである（[0009 設計書](../../tasks/0009_claude_llm_client/02_architecture.md) §3.4）。規則は [package_reference.md](../conventions/package_reference.md) のパッケージの表の `internal/llm/llmhttp` の行にある。
- -   **プロバイダ固有のパラメータの型は、アダプタの外の小さなパッケージに置く。** Claude は `internal/llm/claudeparam`、DeepSeek は `internal/llm/deepseekparam`、OpenAI は `internal/llm/openaiparam` である。どれも標準ライブラリだけに依存し、設定の読み込みとアダプタの両方が使う。`internal/config` はアダプタのパッケージを import できないので、両方が参照する型はアダプタの外に置く必要があるためである（[0051 設計書](../../tasks/0051_llm_effort/02_architecture.md) §1.2）。規則は [package_reference.md](../conventions/package_reference.md) のパッケージの表のそれぞれのパッケージの行にある。
- -   **アダプタは、応答の厳格な検証に、[ADR-0020](0020-strict-json.md) が定める共有の部品を使う。** 部品を複製すると、サロゲートの走査などの細かいコードが 2 か所になるためである（[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) 付録 A）。部品の規則は [ADR-0020](0020-strict-json.md) が定める。
-diff --git a/docs/dev/adr/0020-strict-json.md b/docs/dev/adr/0020-strict-json.md
-index 10456f83658c798821a82d10a7989bb1b6072e6a..460d8942f5c8355386fc3d7ca92a2f97e9b9ee9f 100644
---- a/docs/dev/adr/0020-strict-json.md
-+++ b/docs/dev/adr/0020-strict-json.md
-@@ -14,10 +14,10 @@ LLM の API の応答、字幕の json3 と info.json、中間生成物、サー
-
- ## 決定
-
---   **検証済みの JSON から値を取り出す部品は `internal/strictjson` にだけ置き、複数のパッケージで共有する。部品は、`encoding/json` が黙って補正する入力を拒否する。** 部品を複製するとサロゲートの走査などの細かいコードが 2 か所になり、`internal/transcript` に残すと LLM のアダプタ（構成要素）が字幕取得の構成要素に依存するためである。拒否する入力は [package_reference.md](../conventions/package_reference.md) の `internal/strictjson` の行と、[0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) の「3.5. `internal/strictjson`（厳格な JSON の部品）」にある。
-+-   **検証済みの JSON から値を取り出す部品は `internal/strictjson` にだけ置き、複数のパッケージで共有する。部品は、`encoding/json` が黙って補正する入力を拒否する。** 部品を複製するとサロゲートの走査などの細かいコードが 2 か所になり、`internal/transcript` に残すと LLM のアダプタ（構成要素）が字幕取得の構成要素に依存するためである。拒否する入力は [0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) の「3.5. `internal/strictjson`（厳格な JSON の部品）」と、`internal/strictjson` のパッケージと各メソッドの doc コメントにある。
- -   **`Object` と `Value` は不透明な型にし、中身を持つ値は `ParseObject` からしか得られないようにする。** フィールドは非公開にする。ゼロ値の `Value` は中身を持たず、その読み取りはエラーを返す。ゼロ値の `Object` はメンバーを持たない。検証を経ていないバイト列を読み取りの関数に渡して U+FFFD への置き換えを受ける呼び出しを、規約でなく型で防ぎ、公開範囲を広げても検証済みの値だけを扱うという不変条件を保つためである。型の形は [0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) の「3.5. `internal/strictjson`（厳格な JSON の部品）」にある。
---   **読み取りの手段は、利用者の必要に合わせて `internal/strictjson` の 1 か所に持つ。** 検査を呼び出し元ごとに書くと書き忘れる余地が残り、部品の中で完結させればその余地がないためである（[0010 設計書](../../tasks/0010_post_generation_review/02_architecture.md) の「3.5.3. 応答の形と受理の規則（H-01）」）。各手段の契約は [package_reference.md](../conventions/package_reference.md) の `internal/strictjson` の行にある。`Object.Collect` の契約は [0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) の「3.5. `internal/strictjson`（厳格な JSON の部品）」にある。
---   **負でない整数の規則は `Value.AsNonNegativeInt64` の 1 か所にする。** 負でない整数の検査を各利用者が書くと、`-0` や小数の扱いが箇所ごとにずれるためである。受理する構文と、拒否のエラーに入力の値を含めないことは、[package_reference.md](../conventions/package_reference.md) の `internal/strictjson` の行にある。
-+-   **読み取りの手段は、利用者の必要に合わせて `internal/strictjson` の 1 か所に持つ。** 検査を呼び出し元ごとに書くと書き忘れる余地が残り、部品の中で完結させればその余地がないためである（[0010 設計書](../../tasks/0010_post_generation_review/02_architecture.md) の「3.5.3. 応答の形と受理の規則（H-01）」）。各手段の契約は `internal/strictjson` の各メソッドの doc コメントにある。`Object.Collect` の契約は [0003 設計書](../../tasks/0003_deepseek_llm_client/02_architecture.md) の「3.5. `internal/strictjson`（厳格な JSON の部品）」にある。
-+-   **負でない整数の規則は `Value.AsNonNegativeInt64` の 1 か所にする。** 負でない整数の検査を各利用者が書くと、`-0` や小数の扱いが箇所ごとにずれるためである。受理する構文と、拒否のエラーに入力の値を含めないことは、`Value.AsNonNegativeInt64` の doc コメントにある。
- -   **負でない整数が要る箇所では `Value.AsInt64` を使わない。** `AsInt64` は符号と `-0` を受理するためである。規則は [0023 設計書](../../tasks/0023_non_negative_int_unification/02_architecture.md) の「1. 設計の全体像 (Design Overview)」にある。
- -   **この部品を使うパッケージの一覧は [package_reference.md](../conventions/package_reference.md) が持つ。** 同じ一覧をほかの文書にも書くと、利用者が増えるたびに何か所も直すことになるためである（[0068 要件定義書](../../tasks/0068_strictjson_package_reference/01_requirements.md) の「1. 概要 (Overview)」）。一覧は [package_reference.md](../conventions/package_reference.md) の `internal/strictjson` の行にある。
-
-diff --git a/docs/dev/adr/0023-artifact-resume.md b/docs/dev/adr/0023-artifact-resume.md
-index 8cdfa118a1d0d3468419f341a184e043752c802c..049ea00a683c6657e76bc34ef9b4df9efa7d814f 100644
---- a/docs/dev/adr/0023-artifact-resume.md
-+++ b/docs/dev/adr/0023-artifact-resume.md
-@@ -17,7 +17,7 @@
- -   **中間生成物を残すかどうかは、`--artifacts <dir>` で明示する。** ディレクトリを渡さない実行は、保存も再開もしない。中間生成物には記事の本文が入り、既定で保存すると本番の実行のたびにディスクに残るうえ、保存先を実行ごとに選べる必要があるためである（[0017 要件定義書](../../tasks/0017_intermediate_artifacts/01_requirements.md) F-002）。規則は [cli.md](../guides/cli.md) の「使い方」のフラグの表にある。
- -   **ディレクトリは利用者が用意し、CLI は作らない。キャッシュの削除で消えないよう、キャッシュディレクトリの中は拒否する。** キャッシュディレクトリの字幕と info.json は投稿の成功後に既定で削除されるので、その中に置くと中間生成物が消えるためである（0017 要件定義書 F-002）。規則は cli.md の「使い方」と、[security.md](../security.md) §5「キャッシュディレクトリ」にある。
- -   **再開する工程は `--after <stage>` で指定する。** `generation`・`shorten`・`review` のいずれかで、指定した工程の出力を再利用し、それより後の工程だけを実行する。工程の実行の有無は、この値と `--no-shorten`・`--no-review` から導き、保存された値から推測しない。呼び出し元が渡した値の中身から振る舞いを選ばないためである（[CLAUDE.md](../../../CLAUDE.md)「Declare, don't infer」）。規則は cli.md の「使い方」と「生成の後の工程」にある。
---   **保存の単位は、動画 ID と工程の組ごとの 1 つの JSON ファイルである。新しく書く形式は版4で、工程の名前・モデル名とモデルの版・テンプレートの識別子・入力の識別子・文面・使用量・呼び出しの時刻・料金の適用条件を持つ。** 各記録は内容から計算した識別子を持ち、生成以外の記録の入力は前の工程の記録の識別子を、生成の入力は素材の識別子を指す。別の実行の中間生成物を、別の素材や別の前段の出力に当てないためである（0017 要件定義書 F-004）。形式は [package_reference.md](../conventions/package_reference.md) の `internal/artifact` の行と、[0017 設計書](../../tasks/0017_intermediate_artifacts/02_architecture.md) §3.2「成果物の形式と識別子（H-01）」にある。
-+-   **保存の単位は、動画 ID と工程の組ごとの 1 つの JSON ファイルである。新しく書く形式は版4で、工程の名前・モデル名とモデルの版・テンプレートの識別子・入力の識別子・文面・使用量・呼び出しの時刻・料金の適用条件を持つ。** 各記録は内容から計算した識別子を持ち、生成以外の記録の入力は前の工程の記録の識別子を、生成の入力は素材の識別子を指す。別の実行の中間生成物を、別の素材や別の前段の出力に当てないためである（0017 要件定義書 F-004）。形式は `internal/artifact` のパッケージの doc コメントと、[0077 設計書](../../tasks/0077_openai_llm_client/02_architecture.md) の「3.4.2. 中間生成物と既存の再開の互換性」にある。
- -   **読み込みは信頼しない入力として検証する。** 構文は `internal/strictjson` で厳密に検査し、規則に合わない入力を補正せずに拒否する。再開する工程から生成の出力まで入力をたどり、生成の入力が今の素材と一致することを確かめる。不在・破損・食い違いは、部分的に受理せずに実行の失敗にする。再開の入力は、検証・推敲の応答から作られ、ディスクを経由して戻ってくるためである（0017 要件定義書 F-004）。拒否するものは 0017 要件定義書の F-004 と §3.2「信頼できない入力の境界 (Untrusted Input Boundaries)」、[0022 設計書](../../tasks/0022_cost_estimate/02_architecture.md) の §3.5「中間生成物の形式の変更（H-05）」に、たどり方は 0017 設計書の §3.3「連鎖の検証（H-11・F-004）」にある。
- -   **工程が完了した時点で保存する。** 後の工程が失敗しても、それより前の工程の出力は残る。保存の失敗は、その工程の失敗として扱い、記事を公開しない。再開の実行でも、実行した工程は保存する。後の工程の失敗で前の工程の出力を失わず、保存した中間生成物と公開した記事が食い違う状態を残さないためである（0017 要件定義書 §4.3「信頼性・可用性 (Reliability/Availability)」）。規則は cli.md の「生成の後の工程」にある。
- -   **書き込みは一時ファイルと `rename(2)` で行う。** 中断の後、ファイルは置き換えの前か後のどちらかであり、書きかけの内容が次の再開に受理されない。手順は 0017 設計書の §3.4「保存の手順と中断への強さ（H-03）」にある。
 diff --git a/docs/dev/adr/0044-package-reference-row-granularity.md b/docs/dev/adr/0044-package-reference-row-granularity.md
-index 747d925f5212de49bf17e60c557697dbfb784727..91197105704cf563b468ee40122a73ab0149bebd 100644
+index 91197105704cf563b468ee40122a73ab0149bebd..dceb949e54bb491e3ef6f21c6c5a889a5d58cefb 100644
 --- a/docs/dev/adr/0044-package-reference-row-granularity.md
 +++ b/docs/dev/adr/0044-package-reference-row-granularity.md
-@@ -19,7 +19,7 @@
+@@ -19,8 +19,6 @@
  -   **表は、パッケージの種類ごとに分ける。** 1 つの表に全パッケージが並ぶと、目的のパッケージを探しにくいためである。種類とその定義は [package_reference.md](../conventions/package_reference.md) の冒頭にある。
  -   **行の粒度の上限は、行ごとのバイト数やテストでは決めず、PR のレビューで読んで確かめる。** テストで止めると、正当に長い行があるたびに規則と衝突するためである。維持の費用が防ぐ誤りを上回る文書の確認は足さない（[ADR-0016](0016-document-test-policy.md)）。規則は [package_reference.md](../conventions/package_reference.md) の冒頭にある。
 
--パッケージの参照表の冒頭は、まだこの規則を述べていない。行もまだ規則に従っておらず、表も種類ごとに分かれていない。この差分は [#817](https://github.com/isseis/yt2column/issues/817) の実装で解消する。
-+パッケージの参照表の冒頭はこの規則を述べており、表も種類ごとに分かれている。サーバとホスト・開発ツール・テスト専用の 3 つの表の行は、まだこの規則に従っていない。この差分は [#817](https://github.com/isseis/yt2column/issues/817) の実装で解消する。
-
+-パッケージの参照表の冒頭はこの規則を述べており、表も種類ごとに分かれている。サーバとホスト・開発ツール・テスト専用の 3 つの表の行は、まだこの規則に従っていない。この差分は [#817](https://github.com/isseis/yt2column/issues/817) の実装で解消する。
+-
  ## 採らなかった案
 
+ -   **行には責務だけを書き、公開の名前も挙げない。** ADR が規則の置き場所として参照する番兵の名前などが行からなくなり、ADR の参照を張り替える箇所が増える（[0085 要件定義書](../../tasks/0085_package_reference_summary/01_requirements.md)「要件定義の際に決めたこと（2026-11-11）」）。
 ```
 
 PR-2:
 
 - Compared paths: `docs/dev/adr/0027-article-job-api.md` `docs/dev/adr/0044-package-reference-row-granularity.md`
+- Merge-base: `224ef0d8b04e4667510aee6cef5c97bce46e8cf2`
+- Compared commit: `0ee9c490f739d3a0f727a3feafc391364d2537e7`
+
+Path diff:
+
+````text
+diff --git a/docs/dev/adr/0027-article-job-api.md b/docs/dev/adr/0027-article-job-api.md
+index a32b6fbbd18c1b62735357a0415cbf4fd1d9cd3e..0a7a4773b4ff96adf071e976927e223b343d6e48 100644
+--- a/docs/dev/adr/0027-article-job-api.md
++++ b/docs/dev/adr/0027-article-job-api.md
+@@ -17,14 +17,14 @@
+ ## 決定
+
+ -   **拡張とホストとサーバは、ジョブの API だけを使う。** ジョブの API は、生成の開始（`POST /jobs`）と状態の取得（`GET /jobs/{key}`）の 2 つの操作である。この ADR で「生成の開始」「状態の取得」と書くときは、この 2 つの操作を指す。拡張の Service Worker が生成の開始を送り、ポップアップとビューアが状態の取得を繰り返す。拡張とホストとサーバの間の操作を、この 2 つに固定するためである。規則は [development.md](../guides/development.md) の「ジョブの API」と、[security.md](../security.md) §8.2「localhost サーバ」にある。
+--   **ホストが受け付けるのは、版のメンバ `v` が `1` で、操作 `op`（`start`・`status`）を宣言したメッセージだけとする。** ホストは操作ごとに決めたメソッドとパスへ送り、それ以外のメッセージにはサーバへ何も送らずに `protocol_error` を返す。拡張が送り先のパスやメソッドを指定する手段はない。拡張に送り先を選ばせないためである。規則は security.md §8.2 と、[package_reference.md](../conventions/package_reference.md) の `internal/nmhost` の行にある。
++-   **ホストが受け付けるのは、版のメンバ `v` が `1` で、操作 `op`（`start`・`status`）を宣言したメッセージだけとする。** ホストは操作ごとに決めたメソッドとパスへ送り、それ以外のメッセージにはサーバへ何も送らずに `protocol_error` を返す。拡張が送り先のパスやメソッドを指定する手段はない。拡張に送り先を選ばせないためである。規則は security.md §8.2 にある。
+ -   **サーバは、この 2 つの操作のほかのリクエストのターゲットを `not_found` で拒否する。** 受け付ける操作を 2 つに限るためである。規則は security.md §8.2 にある。
+ -   **生成と状態の取得を別の操作にし、どの操作も長い処理を待たずに応答する。** 生成の開始は、記事のキーを返す。記事の状態は、状態の取得が、決まった値（`running`・`done`・`failed` など）で返す。完了した記事は、状態の取得の応答が、無効化した表示用の Markdown（`markdown`。記事の中のメンションを無効化した文字列、[ADR-0043](0043-copy-mention-neutralization.md)）と保存するファイルの中身（`file`）として持ち、無効化したかどうか（`mentionsNeutralized`）と、ビューアの見出しに使う無効化した動画のタイトルとチャンネル名（`videoTitle`・`channelName`）を添える。記録は、`videoTitle` を返すために、生成の開始が送った動画のタイトルを持つ。`file` は無効化しない。ファイルへの保存とクリップボードへのコピーはビューアが拡張のページで行い、サーバへの操作を持たない（[ADR-0010](0010-extension-stores-nothing.md)、コピーでのメンションの無効化は [ADR-0043](0043-copy-mention-neutralization.md)）。1 回の中継が 20 秒で打ち切られ、記事の生成はこの時間に収まらないことがあるためである（背景）。規則は development.md の「ジョブの API」にある。
+ -   **記事のキーは、検査を通った入力の値から、サーバのプロセスごとの秘密を鍵とする HMAC-SHA256 で計算する。** 計算に使うのは、生成の開始の入力の検査を通った後の 5 つの値（正規化した `videoUrl`、`transcript`、省略を空文字列とした `title`・`channelName`・`description`）である。受け取ったバイト列からは計算しない。送り方 `mode` と同じ動画の判定に使う動画 ID は、キーに入れない。秘密は `crypto/rand` の 32 バイトで、サーバの起動ごとに作り、メモリにだけ持ち、ログにも応答にも出さない。同じ入力には同じキーを返して記事を二度生成せず、誰でも計算できる値にはしないためである。規則は security.md §8「ブラウザ拡張と localhost サーバ」と §8.2 に、キーの計算の詳細は [0044 設計書](../../tasks/0044_article_job_api/02_architecture.md) §3.2「記事のキー」にある。
+ -   **記事のキーは不透明な値とする。** 拡張は、生成の開始が返したキーをそのまま送り返すだけで、その形にも計算方法にも依存しない。秘密を使う目的は、攻撃に対する防御ではなく、公開しないキーの計算方法に利用者と拡張を依存させないことである。サーバは、小文字の 16 進の 64 文字のほかのキーを、補正せずに `invalid_key` で拒否する。ホストはキーの形を検査せず、1 つのパスの部分としてエスケープしてから送る。規則は security.md の §8「ブラウザ拡張と localhost サーバ」と §8.2、0044 設計書 §3.2 にある。
+ -   **同じ入力では記事を作り直さない。** 生成の開始は、同じキーの記事が処理中か完了なら、LLM を呼ばずにそのキーを返す。失敗したキーは生成し直す。作り直したいときは、サーバを再起動する。LLM の呼び出しには料金がかかり、同じ記事を二度生成しないためである。規則は [0044 要件定義書](../../tasks/0044_article_job_api/01_requirements.md)「要件定義の際に決めたこと（2026-10-27）」と security.md §8.2 にある。
+ -   **サーバの状態はメモリにだけ置く。** 記事のキャッシュはサーバのプロセスの中だけにあり、ディスクに書かない（サーバの構成は [ADR-0005](0005-server-architecture.md)）。サーバを再起動すると、記事の状態はすべて失われ、ビューアは記事が失われたことを示す。これは受け入れる。理由は記録されていない（0044 要件定義書 §2.3 は、親 issue #501 で永続化しないと決めたとだけ述べる）。規則は security.md §8.2 にある。
+--   **記事のキャッシュは有限の件数だけを持ち、コピーした字幕を持たない。** 件数の上限を超えるときは、完了または失敗した古い記録から捨て、処理中の記録は捨てない。捨てた記録と再起動の前の記録のキーは、状態の取得で `unknown` になる。記事のキャッシュの記録は、コピーした字幕を持たない。生成中の字幕は、生成のジョブだけが持つ。サーバの停止では処理中の生成を取り消す。停止の後に完了した記事は、キャッシュとともに失われて誰も受け取れないためである。規則は security.md §8.2 と、package_reference.md の `internal/articlecache` の行にある。
++-   **記事のキャッシュは有限の件数だけを持ち、コピーした字幕を持たない。** 件数の上限を超えるときは、完了または失敗した古い記録から捨て、処理中の記録は捨てない。捨てた記録と再起動の前の記録のキーは、状態の取得で `unknown` になる。記事のキャッシュの記録は、コピーした字幕を持たない。生成中の字幕は、生成のジョブだけが持つ。サーバの停止では処理中の生成を取り消す。停止の後に完了した記事は、キャッシュとともに失われて誰も受け取れないためである。規則は security.md §8.2 にある。
+ -   **生成の開始は送り方 `mode` を必ず宣言する。** `mode` は `inquiry`（照会付き）か `plain`（照会なし）で、ない本文やほかの値は、どちらかに補わずに `invalid_body` で拒否する。生成を始めるかどうかを、送り手が宣言した値で選べるようにするためである。規則は [0058 要件定義書](../../tasks/0058_same_video_article/01_requirements.md)「設計のレビューで決めたこと（2026-11-04）」と security.md §8.2 にある。
+ -   **照会付きの開始は、同じ動画の最新の記事を示す。** 今の入力のキーの記事が処理中か完了ならそのキーを返す。そうでなく、同じ動画（動画 ID が同じ）の別のキーの記事が処理中か完了なら、生成を始めず、キャッシュも変えずに、そのうち最も新しく受け付けた 1 件のキーを同じ動画の応答で返す。同じ動画の応答は、記事の状態を持たない。同じ動画の記事を探すことと生成を始めることは、キャッシュの 1 回の排他制御の中で行う。同じ動画の記事を二度生成しないためである。規則は 0058 要件定義書「要件定義の際に決めたこと（2026-11-03）」、[0058 設計書](../../tasks/0058_same_video_article/02_architecture.md)「設計の際に決めたこと（2026-11-04）」、security.md §8「ブラウザ拡張と localhost サーバ」にある。
+ -   **照会なしの開始は、同じ動画の別のキーの記事があっても、今の入力の記事を生成する。** 今の入力のキーの記事が処理中か完了なら、照会なしの開始もそのキーを返す。利用者が今の入力の記事を求めたときは、同じ動画の別の記事があってもそれを作るためである。規則は 0058 要件定義書「要件定義の際に決めたこと（2026-11-03）」にある。
+diff --git a/docs/dev/adr/0044-package-reference-row-granularity.md b/docs/dev/adr/0044-package-reference-row-granularity.md
+index 91197105704cf563b468ee40122a73ab0149bebd..dceb949e54bb491e3ef6f21c6c5a889a5d58cefb 100644
+--- a/docs/dev/adr/0044-package-reference-row-granularity.md
++++ b/docs/dev/adr/0044-package-reference-row-granularity.md
+@@ -19,8 +19,6 @@
+ -   **表は、パッケージの種類ごとに分ける。** 1 つの表に全パッケージが並ぶと、目的のパッケージを探しにくいためである。種類とその定義は [package_reference.md](../conventions/package_reference.md) の冒頭にある。
+ -   **行の粒度の上限は、行ごとのバイト数やテストでは決めず、PR のレビューで読んで確かめる。** テストで止めると、正当に長い行があるたびに規則と衝突するためである。維持の費用が防ぐ誤りを上回る文書の確認は足さない（[ADR-0016](0016-document-test-policy.md)）。規則は [package_reference.md](../conventions/package_reference.md) の冒頭にある。
+
+-パッケージの参照表の冒頭はこの規則を述べており、表も種類ごとに分かれている。サーバとホスト・開発ツール・テスト専用の 3 つの表の行は、まだこの規則に従っていない。この差分は [#817](https://github.com/isseis/yt2column/issues/817) の実装で解消する。
+-
+ ## 採らなかった案
+
+ -   **行には責務だけを書き、公開の名前も挙げない。** ADR が規則の置き場所として参照する番兵の名前などが行からなくなり、ADR の参照を張り替える箇所が増える（[0085 要件定義書](../../tasks/0085_package_reference_summary/01_requirements.md)「要件定義の際に決めたこと（2026-11-11）」）。
+````
 
 Diff record (AC-18):
 
