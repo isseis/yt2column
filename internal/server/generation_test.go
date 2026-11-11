@@ -131,8 +131,11 @@ func TestGenerationUnpublishable(t *testing.T) {
 				t.Errorf("a failed job carries an article: %+v", got.Article)
 			}
 			line := logLine(ts.logs.String(), "generation job failed")
-			if line == "" || strings.Contains(line, mark) {
-				t.Errorf("the failure log line = %q, want one that holds no body text", line)
+			if line == "" {
+				t.Fatalf("no generation job failed line in the log")
+			}
+			if strings.Contains(line, mark) {
+				t.Errorf("the failure log line holds the body's text: %q", line)
 			}
 		})
 	}
