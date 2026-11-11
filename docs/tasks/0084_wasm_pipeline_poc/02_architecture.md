@@ -442,7 +442,7 @@ type GenerateResult =
 -   **受け付ける形（AC-08）。** 記事のメンバは、サーバの `validateBody`（`internal/server/request.go:63`〜`122`）と同じ段を、同じ順で行う。
     -   `validateBody` は `*Server` の非公開のメソッドで、非公開の `optionalMember` を使う。また、`internal/server` は WASM でビルドできない。そのため、入口はこの段の並びを写す。写したものの正しさは、PoC のコードのレビューで `request.go:63`〜`122` と見比べて確かめる。
     -   段の順は次のとおりである。
-        1.  要求の大きさの上限（`maxBodyBytes`、4 MiB、`request.go:19`）。サーバは本文を読む前にこれで拒否する。入口では、記事のメンバだけをサーバの本文と同じ形にしたときの大きさで判定する。
+        1.  要求の大きさの上限（`maxBodyBytes`、4 MiB、`request.go:19`）。サーバは本文を読む前にこれで拒否する。入口では、受け取った要求の文字列全体の大きさで判定する。PoC で加えたメンバの分だけサーバより厳しくなるが、サーバが受け付けない大きさの要求を入口が受け付けることはない。
         2.  `strictjson` による本文の検査。
         3.  必須の `videoUrl`・`transcript`（空白だけも拒否）。
         4.  `title`、`channelName` と `writer.CheckChannelName`、`description`。
@@ -538,14 +538,14 @@ interface ProbeResult {
 | `extension/static/poc/wasm_exec.js`・`yt2column.wasm` | ビルドで作る成果物。`.gitignore` に入れ、コミットしない |
 | `extension/static/manifest.json` | §7.3 の試行で要ったものだけを加える。候補は、`content_security_policy.extension_pages` の `'wasm-unsafe-eval'`、`host_permissions` の `https://api.anthropic.com/*`、プローブのための `http://127.0.0.1/*` である |
 | `extension/scripts/check-dist.ts` | 成果物の検査が `poc/` の WASM と `wasm_exec.js` を拒否するなら、PoC のブランチでそれを許す（H-05） |
-| `Makefile` | WASM をビルドし、`wasm_exec.js`（`$(go env GOROOT)/lib/wasm/wasm_exec.js`）を写す目標。ビルドのフラグ（`-trimpath`）を固定し、調査記録に書く |
+| `Makefile` | WASM のビルド、`wasm_exec.js`（`$(go env GOROOT)/lib/wasm/wasm_exec.js`）の写し、拡張のビルドを 1 回で行う目標。作業ツリーに変更があれば、何もビルドせずに失敗する。ビルドのフラグ（`-trimpath`）を固定し、調査記録に書く |
 
 -   **ボタンの規則（AC-12・AC-13）。**
     -   WASM が呼べる状態になるまでは、どのボタンも呼び出しを行わず、理由を表示する。
     -   記事の生成と長い応答の測定は、API キーかワークスペース ID の欄が空なら呼ばない。
     -   どれかの呼び出しの実行中は、新しい呼び出しを始めない。
--   **ランタイムの終わり。** ページは `go.run()` の Promise を見る。Go のランタイムが終わったら、実行中の状態を解き、「WASM のランタイムが終了した」と表示して、以後の呼び出しを止める。1 回の呼び出しが 20 分を超えたときも、実行中の状態を解いてその旨を表示する。§3.2 の `*_body` の試行のとおり、本文の途中で止まった送信は期限で終わらない見込みだからである。
--   **ビルドの同一性（AC-25・AC-26）。** ページは、`buildInfo()` の Go の版・`vcsRevision`・`vcsModified` を表示し、各回の記録に残す。`vcsModified` が真なら、測定のボタンを押せないようにする。同じ SHA で別のコードを測るのを防ぐためである。
+-   **ランタイムの終わり。** ページは `go.run()` の Promise を見る。Go のランタイムが終わったら、実行中の状態を解き、「WASM のランタイムが終了した」と表示して、以後の呼び出しを止める。1 回の呼び出しが 20 分を超えたときは、止まった呼び出しとして表示し、ページを読み込み直すまで新しい呼び出しを始めない。§3.2 の `*_body` の試行のとおり、本文の途中で止まった送信は期限で終わらない見込みで、実行中の状態を解くと、後から再開した呼び出しと新しい呼び出しが重なりうるためである（AC-13）。
+-   **ビルドの同一性（AC-25・AC-26）。** ページは、`buildInfo()` の Go の版・`vcsRevision`・`vcsModified` を表示し、各回の記録に残す。`vcsModified` が真なら、測定のボタンを押せないようにする。`vcsModified` が覆うのは WASM のビルドだけなので、拡張の側は、上の `Makefile` の目標で WASM と一緒に、変更のない作業ツリーからビルドする。測定の前には毎回この目標でビルドし直す。同じ SHA で別のコードを測るのを防ぐためである。
 -   **API キーの扱い（AC-14）。**
     -   API キーとワークスペース ID は、入力欄の値と、呼び出しの間だけの変数にだけ置く。`chrome.storage`・Web Storage・IndexedDB・Cookie・URL に書かない。`console` に要求を出さない。
     -   API キーの入力欄は `type=password` とし、`<form>` の中に置かない。ボタンは `type=button` とする。パスワードの保存の確認をブラウザに出させないためである。
@@ -561,7 +561,7 @@ interface ProbeResult {
 問い 2 が失敗したブラウザでだけ、記事の生成を Offscreen Document に移した形を作る。
 
 -   **役割の分け方。** PoC のページは入力と表示だけを受け持ち、`chrome.runtime` のメッセージで要求を Service Worker に渡す。Service Worker は Offscreen Document を作り、要求を渡す。Offscreen Document は、同じ WASM の入口を読み込んで実行する。
--   **API キー。** メッセージで渡すだけで、どこにも保存しない（AC-14 は、この形にも当てはめる）。
+-   **API キー。** メッセージで渡すだけで、どこにも保存しない。ただし、この形では、PoC のページのタブを閉じても、記事の生成が終わるまで Offscreen Document のメモリにキーが残る。これは AC-14 の「タブを閉じると、どこにも残らない」と両立しない。この形を作ることになったら、作る前に、この点の例外を人に承認してもらう。
 -   **`reasons` の値。** Offscreen Document を作るときに指定する `reasons` は、実装の際に選び、調査記録に書く。
 -   **AC-16 との関係。** この形は AC-16 の対象外である（要件書 AC-16）。
 
@@ -831,8 +831,8 @@ PoC のコードにはテストを書かない（要件書 §5「受け入れの
     -   以後の測定には、通った組み合わせのうち、追加する設定が最も少ないものを使う。
 4.  **問い 1・2 の試行。** Haiku で、AC-17・AC-18・AC-22 の試行を Chrome と Brave で行う。
 5.  **長い応答。** Haiku で、長い応答の測定（AC-19）を行う。
-6.  **Offscreen Document。** 問い 2 が失敗したブラウザがあれば、Offscreen Document の形で同じ試行を行う（AC-21）。
-7.  **本番の構成。** 3 本の動画を Chrome で 1 回ずつ生成する（AC-20）。
+6.  **本番の構成。** 3 本の動画を Chrome で 1 回ずつ生成する（AC-20）。
+7.  **Offscreen Document。** 4 と 6 の結果で問い 2 が失敗したブラウザがあれば、Offscreen Document の形で同じ試行を行う（AC-21）。本番の構成の回で背面での中断や破棄が起きた場合も、問い 2 の失敗に数える（AC-17）。
 8.  **後片付け。** テスト用の API キーを失効させ、新しいキーに替える（§5.2）。
 
 ### 7.4. セキュリティの確かめ方
