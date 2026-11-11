@@ -60,6 +60,7 @@
     -   `js` のビルドから上書きを受け取る経路（`Options` のパスのフィールド）を外す案も採らなかった。`writer.Options` の形がプラットフォームによって変わり、AC-05 の許す書き換えに収まらないためである。
     -   `internal/writer` の分け方はビルドタグだが、上の H-01 の理由 2 には当てはまらない。型と関数の集合は両方のビルドで同じで、変わるのは上書きのパスを受け取ったときの振る舞いだけだからである。
     -   ADR: なし（`internal/writer` の中で閉じる）。
+-   **WASM でビルドできることの検査は、`make wasm-check` の目標とし、`make lint` と CI の `lint` のジョブから呼ぶ（AC-29）。** 目標は、AC-01 の 4 つのパッケージを `GOOS=js GOARCH=wasm go build` し、`internal/writer` と `internal/transcript` に `GOOS=js GOARCH=wasm go vet` を掛ける。`go vet` は、ネイティブのビルドではコンパイルされない `template_open_js.go` も検査するためである。`make lint` から呼ぶのは、`make lint` がすでにビルドのタグを変えた `go vet` を走らせる、静的な検査の目標だからである。CI の `lint` のジョブは golangci-lint の action を使い `make lint` を呼ばないので、`make wasm-check` を 1 つの手順として足す。このジョブは Go のコードを変える PR だけで走るが、文書だけの変更はコアのビルドを壊さないので足りる。AC-02 の依存の検査は加えない。yt-dlp の経路のファイルは `js` のビルドに失敗する `syscall` のフィールドを使うので（要件書の背景）、4 つのパッケージがそれを import すれば、ビルドの検査が失敗するためである。ADR: [ADR-0019](../../dev/adr/0019-pipeline-component-interfaces.md) を更新する（検査を置く決定）。
 -   **PoC の画面は、拡張の別のページ `poc.html` とする（F-003）。** 今のビューア（`extension/src/viewerApp.ts`）は、URL の記事のキーでサーバに状態を問い合わせる作りで、PoC の処理と混ぜると両方が読みにくくなる。記事の描画は、今のビューアの部品（`parseArticleMarkdown` と `extension/src/ui/articleBody.ts` の `buildArticleBody`）をそのまま使う。同じ拡張のタブで開くページなので、問い 2 の条件（拡張のページのタブを背面に置く）はビューアと同じである。要件書の F-003・F-004 の「ビューア」は、PoC ではこのページを指す（要件書の「要件定義の際に決めたこと」にも書いた）。ADR: なし（PoC の中に閉じる）。
 -   **`fetch` を通した送信でアダプタの守りが働くかは、localhost のプローブ用サーバで確かめる（H-04）。** PoC のブランチに、リダイレクト・上限を超える本文・止まる応答を返す小さなサーバを置き、WASM から `llmhttp.Post` をダミーのキーで呼ぶ。費用はかからず、本物の API キーを Anthropic 以外へ送らない。`api.anthropic.com` だけを観測する案では、リダイレクトと本文の上限を確かめられない。ADR: なし（PoC の中に閉じる）。
 -   **字幕とメタ情報は、PoC のページの貼り付けの欄から渡す（H-06）。** 申し送りの候補のとおりである。字幕は、文字起こしパネルからコピーしたものを貼り付ける（AC-20）。ポップアップの収集を使う案は、PoC の実装の量が増える割に、測る値（WASM と `fetch` の振る舞い）を変えない。ADR: なし。
@@ -353,9 +354,10 @@ func readOverrideFile(src templateSource) ([]byte, error)
 | `internal/cachelock/cachelock_test.go` | import と修飾 |
 | `internal/config/envaccess_test.go` | §3.1.3 のパスの文字列 |
 | `docs/tasks/0018_article_quality/_material_check/main.go` | import と修飾。`_` で始まるディレクトリは `./...` に含まれないので、ビルドの検査は落ちない。過去のタスクの道具を `go run` で動かせるように保つために直す |
-| `Makefile` | `test-integration` のパス |
+| `Makefile` | `test-integration` のパス。`wasm-check` の目標を足し、`lint` から呼ぶ（AC-29） |
+| `.github/workflows/ci.yml` | `lint` のジョブに `make wasm-check` の手順を足す（AC-29） |
 | `docs/dev/conventions/package_reference.md` | `internal/transcript` の行を分け、`internal/ytdlpsource` の行を足す。`internal/strictjson` の行の「Shared by」の一覧で、`internal/transcript` を `internal/ytdlpsource` に替える（`internal/transcript` で `internal/strictjson` を import するのは、移す `info.go`・`json3.go` だけである。一覧は `internal/pipeline/strictjson_users_test.go` が import の実際と照らす） |
-| `CLAUDE.md` | 「Architecture Overview」の `TranscriptSource` の段落の、`YtDlpSource` の置き場所 |
+| `CLAUDE.md` | 「Architecture Overview」の `TranscriptSource` の段落の、`YtDlpSource` の置き場所。「Code Quality」の目標の一覧に `make wasm-check` を足す（AC-29） |
 | `.claude/commands/runplan.md`・`mkplan.md` | 例に挙げた json3 のパーサと `TestParseJSON3` の場所（`internal/transcript`） |
 | `docs/dev/project_overview.md` | ディレクトリの構成の一覧の `internal/transcript/` の行と、`internal/ytdlpsource/` の行 |
 | `docs/dev/cache_consistency.md` | キャッシュのコードの場所（`internal/transcript/cache.go` などのパスと、関数の表の見出し） |
@@ -545,7 +547,7 @@ interface ProbeResult {
     -   記事の生成と長い応答の測定は、API キーかワークスペース ID の欄が空なら呼ばない。
     -   どれかの呼び出しの実行中は、新しい呼び出しを始めない。
 -   **ランタイムの終わり。** ページは `go.run()` の Promise を見る。Go のランタイムが終わったら、実行中の状態を解き、「WASM のランタイムが終了した」と表示して、以後の呼び出しを止める。1 回の呼び出しが 20 分を超えたときは、止まった呼び出しとして表示し、ページを読み込み直すまで新しい呼び出しを始めない。§3.2 の `*_body` の試行のとおり、本文の途中で止まった送信は期限で終わらない見込みで、実行中の状態を解くと、後から再開した呼び出しと新しい呼び出しが重なりうるためである（AC-13）。
--   **ビルドの同一性（AC-25・AC-26）。** ページは、`buildInfo()` の Go の版・`vcsRevision`・`vcsModified` を表示し、各回の記録に残す。`vcsModified` が真なら、測定のボタンを押せないようにする。`vcsModified` が覆うのは WASM のビルドだけなので、拡張の側は、上の `Makefile` の目標で WASM と一緒に、変更のない作業ツリーからビルドする。測定の前には毎回この目標でビルドし直す。同じ SHA で別のコードを測るのを防ぐためである。
+-   **ビルドの同一性（AC-25・AC-26）。** ページは、`buildInfo()` の Go の版・`vcsRevision`・`vcsModified` を表示し、各回の記録に残す。`vcsModified` が真なら、測定のボタンを押せないようにする。`vcsModified` が示すのは WASM のビルドの作業ツリーの状態だけなので、拡張の側は、上の `Makefile` の目標で WASM と一緒に、変更のない作業ツリーからビルドする。測定の前には毎回この目標でビルドし直す。同じ SHA で別のコードを測るのを防ぐためである。
 -   **API キーの扱い（AC-14）。**
     -   API キーとワークスペース ID は、入力欄の値と、呼び出しの間だけの変数にだけ置く。`chrome.storage`・Web Storage・IndexedDB・Cookie・URL に書かない。`console` に要求を出さない。
     -   API キーの入力欄は `type=password` とし、`<form>` の中に置かない。ボタンは `type=button` とする。パスワードの保存の確認をブラウザに出させないためである。
@@ -813,9 +815,10 @@ sequenceDiagram
 | AC-03 | `make test`・`make lint`・`make deadcode` |
 | AC-04・AC-05 | `diff` の検証（[requirements_process.md](../../dev/conventions/requirements_process.md) §4）。`_checks/` のスクリプトで、移した宣言が修飾の書き換えのほかは同じであることを確かめる。例外は §3.1.3 の箇所（`envaccess_test.go` のパスの文字列を含む）だけである |
 | AC-06 | `.golangci.yml` の差分がないことを確かめる |
+| AC-29 | `make wasm-check` が分割の後の `main` で通ることと、検査が失敗しうることを確かめる。後者は、作業用のコミットで `template_open_js.go` を消して `make wasm-check` が失敗することを見て、そのコミットを捨てる。CI の手順は、PR の CI の `lint` のジョブの記録で確かめる |
 
--   これらのスクリプトは、タスクの検証に一度使うもので、`make test` と CI には加えない（要件書 §2.3）。
--   `template_open_js.go` は、`make test`・`make lint` のネイティブのビルドではコンパイルされない。上の AC-01 のビルドと `go vet` と、PoC のブランチでの実行で確かめる。`main` に入った後に壊れても、`make test` と CI は検出しない。これは、WASM でビルドできることを守る検査を加えないという要件の決定（要件書 §2.3）が受け入れている。
+-   AC-01・AC-02・AC-04・AC-05 のスクリプトは、タスクの検証に一度使うもので、`make test` と CI には加えない。`main` に残って WASM でビルドできることを守るのは、AC-29 の `make wasm-check` である。
+-   `template_open_js.go` は、`make test` のネイティブのビルドではコンパイルされない。`make wasm-check` の `go vet` が `make lint` と CI で検査する。
 
 ### 7.2. PoC（PoC のブランチ）
 
@@ -859,7 +862,8 @@ PoC のコードにはテストを書かない（要件書 §5「受け入れの
     -   `fetch` を通した送信でリダイレクトの守りが働かなければ、`js.fetch:redirect` で直す（`redirect_manual` の試行の結果による）。
     -   本文の途中で期限が効かなければ、`context` の終わりを見て応答の本文を閉じる（`stall_body` の試行の結果による）。
 
-    WASM でビルドできることを守る検査を加えるかは、#772・#773 が ADR とともに決める。
+    `make wasm-check` は残る。#773 で WASM の入口を `main` に入れるときに、その `cmd/` のパッケージを対象に足すかを決める。
+-   `make wasm-check` を残すか外すかは、#772 が [ADR-0019](../../dev/adr/0019-pipeline-component-interfaces.md) とともに決める。TS に一本化するなら、目標と CI の手順を外す。
 -   TypeScript に一本化する構成を選んだときは、`internal/ytdlpsource` の分割は、CLI の字幕の取得とコアの境界として残る。
 -   ストリーミングが要ると分かったときは、#772 の設計の範囲に入る（要件書 §2.3）。
 
@@ -882,6 +886,7 @@ PoC のコードにはテストを書かない（要件書 §5「受け入れの
 |---|---|
 | AC-01・AC-02 | §3.1、§7.1 |
 | AC-03〜AC-06 | §3.1.3・§3.1.4、§7.1 |
+| AC-29 | §1.2、§3.1.4、§7.1 |
 | AC-07・AC-08・AC-09・AC-11 | §3.2、§4.2、§6.1 |
 | AC-10 | §3.2（`longOutput`） |
 | AC-12〜AC-16 | §3.4 |
