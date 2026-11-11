@@ -236,7 +236,7 @@ func isASCIIAlnum(r rune) bool {
 // path '/@' is open at the current rune. A URL path '/@' is a raw '@' right
 // after '/' (condition 1) inside a URL whose start, lowercase "http://" or
 // "https://", is on the same line (condition 2) and comes after a line start,
-// whitespace, a non-ASCII rune, or '(' — or after a '<' that comes after one
+// whitespace, a non-ASCII rune, or '(', or after a '<' that comes after one
 // of those; whose host is one or more letters, digits, '.', and '-', starting
 // with a letter or a digit, followed by '/' (condition 3); with no
 // whitespace, '<', '>', '?', '#', or '`' from the start up to the '@'
