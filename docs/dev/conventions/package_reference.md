@@ -64,7 +64,7 @@ add a kind here or to widen one of these definitions.
 
 | Package | Responsibility |
 |---|---|
-| `cmd/yt2column` | Entry point of the CLI (`yt2column [flags] <video URL>`): `main` builds the stages and runs one job through `internal/job`, writing the article to `--out` and the run's summaries and costs to standard error. Usage and exit codes: [CLI guide](../guides/cli.md). |
+| `cmd/yt2column` | Entry point of the CLI (`yt2column [flags] <video URL>`): `main` builds the stages and runs one job through `internal/job`, writing the article to `--out` and the run's summaries to standard error. Usage and exit codes: [CLI guide](../guides/cli.md). |
 | `internal/artifact` | Persists and resumes the article writer's intermediate artifacts, one file per video ID and stage: `Parse`, `Marshal`, `NewStore`, `Save`, `Load`; `ErrMissing`, `ErrMalformed`, `ErrMismatch`. Format: [0077 design §3.4.2](../../tasks/0077_openai_llm_client/02_architecture.md). |
 | `internal/job` | Runs one job end to end, from the output checks and the cache lock through publishing: `Run`, `Request`, `Result`, `*ReviewLogError`. Output rules: [CLI guide](../guides/cli.md). |
 | `internal/pipeline` | Runs the three stages in order: `Pipeline`, `Stage`, `StageError`, `ErrNilStage`. |
@@ -80,7 +80,7 @@ add a kind here or to widen one of these definitions.
 |---|---|
 | `cmd/yt2column-nmhost` | Entry point of the Native Messaging host: relays one request with `nmhost.Relay`, and `install`/`uninstall` manage the browser manifest. Rules: [security.md §8.2](../security.md). |
 | `cmd/yt2column-server` | Entry point of the localhost server and of `yt2column-server config init`. Startup and configuration rules: [security.md §8.2](../security.md). |
-| `internal/articlecache` | The server's in-memory article cache: `Cache`, `Keyer`, `Subject`, `StartMode`, `Run`, `PublishRun`; `ParseKey`, `PublishStates`, `UnpostableReasons`, `PublishFailureReasons`. Rules: [security.md §8.2](../security.md). |
+| `internal/articlecache` | The server's in-memory article cache: `Cache`, `Keyer`, `Subject`, `StartMode`, `Run`, `PublishRun`; `ParseKey`, `PublishStates`, `UnpostableReasons`, `PublishFailureReasons`. Rules: [security.md §8.2](../security.md); API: [development.md](../guides/development.md). |
 | `internal/nmhost` | The Native Messaging host's relay and manifest management: `Relay`, `SocketDialer`, `HostError`, `Install`, `Uninstall`. Rules: [security.md §8.2](../security.md). |
 | `internal/privatefile` | Reads and creates files only their owner may read: `Read`, `Create`, `MkdirBelow`; `*UnsafeError`, `ErrUnsafe`, `ErrNotExist`, `ErrExist`, `ErrTooLarge`, `ErrBaseMissing`. Rules: [security.md §8.2](../security.md). |
 | `internal/server` | The HTTP server on a Unix domain socket that serves the job API: `New`, `Serve`, `JobsPath`, `PublishSuffix`, `Options`, `WebhookOptions`. Rules: [security.md §8.2](../security.md); API: [development.md](../guides/development.md). |
@@ -91,7 +91,7 @@ add a kind here or to widen one of these definitions.
 
 | Package | Responsibility |
 |---|---|
-| `internal/llm` | Defines the provider-independent `LLMClient` contract: `GenerateRequest`/`GenerateResponse` with `Validate`, the common sentinels `ErrInvalidRequest`, `ErrTruncated`, `ErrUnexpectedFinishReason`, `ErrEmptyResponse`, and the usage types `TokenCounts` and `Usage`. |
+| `internal/llm` | Defines the provider-independent `LLMClient` contract: `GenerateRequest` (with `Validate`) and `GenerateResponse`, the common sentinels `ErrInvalidRequest`, `ErrTruncated`, `ErrUnexpectedFinishReason`, `ErrEmptyResponse`, and the usage types `TokenCounts` and `Usage`. |
 | `internal/llm/claude` | Implements `llm.LLMClient` against the Anthropic Messages API: `New`; `ErrHTTPStatus`, `ErrInvalidResponse`, `ErrTransport`. |
 | `internal/llm/claudeparam` | The Claude adapter's parameter types `Effort` and `WorkspaceID`, used by the adapter and `internal/config`; standard library only. |
 | `internal/llm/deepseek` | Implements `llm.LLMClient` against the DeepSeek Chat Completions API: `New`; `ErrHTTPStatus`, `ErrInvalidResponse`, `ErrTransport`, `ErrPaddedModel`. |
@@ -122,17 +122,17 @@ add a kind here or to widen one of these definitions.
 | `cmd/coveragecompare` | Entry point of the coverage comparison tool behind `make coverage-compare` and `make ext-coverage-compare`: it parses `go --base <rev>` or `ext --base <rev>` and runs `coveragecompare.Run`. |
 | `cmd/fixprguard` | Entry point of the `fixprguard` guard tool behind `/fixpr` and `/runpr`: it parses the subcommands and orders the `internal/fixprguard` calls. Usage: [fixprguard guide](../guides/fixprguard_guide.md). |
 | `cmd/mergepr` | Entry point of the `/mergepr` developer tool: it prepares a PR for message drafting, then merges and cleans up after the user approves the message. Usage: [mergepr guide](../guides/mergepr_guide.md). |
-| `internal/codexreview` | The checks behind the `codexreview` tool: `Run`, `Result`, `Kind`, `Protocol`; `BadArgumentsResult`, `ProtocolMismatchResult`. |
+| `internal/codexreview` | The checks behind the `codexreview` tool: `Run`, `Result`, `Kind`, `Protocol`. |
 | `internal/coveragecompare` | The coverage comparison tool's core: `Run`, `Write`, `ExitCode`, `StopError`, and the input parsers. |
 | `internal/fixprguard` | The deterministic checks for `/fixpr` and `/runpr`: `GitHub`, `NewGitHub`, `ParseReviewers`, `CheckState`, `Worktree.Baseline`. Usage: [fixprguard guide](../guides/fixprguard_guide.md). |
-| `internal/mergepr` | Implements the `/mergepr` mechanics: prepares the drafting material after CI passes, squash-merges with `--match-head-commit`, and updates the local base and branch. Usage: [mergepr guide](../guides/mergepr_guide.md). |
+| `internal/mergepr` | Implements the `/mergepr` mechanics: prepares the drafting material after CI passes, squash-merges with `--match-head-commit`, and updates the local base and deletes the local head branch only while it still points at the merged head. Usage: [mergepr guide](../guides/mergepr_guide.md). |
 
 ## Test-Only Packages
 
 | Package | Responsibility |
 |---|---|
 | `internal/cmdrunner/testutil` | Test double `Fake` for `cmdrunner.InputRunner`: replays a scripted command sequence, records standard input, and runs a side-effect function per step. |
-| `internal/codexreview/testutil` | The fake Codex CLI and clean `PATH`, `HOME`, and `TMPDIR` a `codexreview` test runs with: `Main`, `NewFake`, `Fake.Set`, `Starts`, `Args`, `Env`, `NewRepo`, `ReadPID`, `WaitGone`. |
+| `internal/codexreview/testutil` | The fake Codex CLI and clean `PATH`, `HOME`, and `TMPDIR` a `codexreview` test runs with: `Main`, `NewFake`, `Fake.Set`, `Starts`, `Args`, `Env`. |
 | `internal/doctestutil` | The Markdown helpers the document guard tests share: `ReadDoc`, `ScanDocLines`, `FencedBlocks`, `SectionByHeading`, `ParseStructure`, `CompareStructures`, `FindTable`, `ProtocolFlags`. |
 | `internal/llm/claude/testutil` | What the Anthropic integration test needs: `SettingsFrom` decides from the environment whether it runs, skips, or fails. |
 | `internal/llm/deepseek/testutil` | What the DeepSeek integration tests share: `SettingsFrom` for the opt-in, and `RunMakeTarget`, `CheckChargedTarget`, `FirstLineIs` for the make targets that keep them out of `make test`. |
@@ -143,6 +143,6 @@ add a kind here or to widen one of these definitions.
 | `internal/maketestutil` | Checks the make targets that run charged integration tests: `RunTarget`, `CheckChargedTarget`, `RecordedNames`, `FirstLineIs`. |
 | `internal/pricing/testutil` | Formats a stage's estimated cost as one log line: `CostSummary`. |
 | `internal/publisher/testutil` | Test double `FakePublisher` for the publisher and the server's Webhook sender, and what the Webhook integration test uses: `SettingsFrom`, `SlackIntegrationOptions`, `IntegrationArticles`. |
-| `internal/transcript/testutil` | Test fixtures the other packages share: `FakeTranscriptSource`, fake `yt-dlp` scripts, and a directory listing. |
+| `internal/transcript/testutil` | Test fixtures the other packages share: `FakeTranscriptSource` and fake `yt-dlp` scripts. |
 | `internal/udstest` | Short directories and listeners for tests that use Unix domain sockets: `Dir`, `Listen`. |
 | `internal/writer/testutil` | Test double `FakeArticleWriter` for `writer.ProgressWriter`, and `DefaultOptions`, the default `writer.Options` a run uses. |
