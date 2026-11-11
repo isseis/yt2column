@@ -61,13 +61,16 @@ X=$here/secretscan.sh
 fake=fake-value-for-selftest-$$
 mkdir $tmp/scan $tmp/clean
 print -r -- "a line with $fake in it" > $tmp/scan/leak.txt
-print -r -- "a line with sk-abcdefghijklmnopqrstuvwxyz in it" > $tmp/scan/prefix.txt
+# The prefix sample is built at run time so this file does not hold one.
+pad=abcdefghijklmnopqrst
+print -r -- "a line with sk-$pad in it" > $tmp/scan/prefix.txt
 print -r -- "nothing to see" > $tmp/clean/ok.txt
 clean_env=(env -u ANTHROPIC_API_KEY -u OPENAI_API_KEY -u DEEPSEEK_API_KEY -u SLACK_WEBHOOK_URL)
 step "secretscan: finds a key value in a file" expect_status 1 $clean_env OPENAI_API_KEY=$fake $X $tmp/scan/leak.txt
 step "secretscan: finds the sk- prefix" expect_status 1 $clean_env OPENAI_API_KEY=$fake $X $tmp/scan/prefix.txt
 step "secretscan: passes a clean file" expect_status 0 $clean_env OPENAI_API_KEY=$fake $X $tmp/clean
 step "secretscan: fails with no key variable" expect_status 2 $clean_env $X $tmp/clean
+step "secretscan: fails on a missing path" expect_status 2 $clean_env OPENAI_API_KEY=$fake $X $tmp/missing
 step "secretscan: never prints the value" test -z "$($clean_env OPENAI_API_KEY=$fake $X $tmp/scan 2>&1 | grep -F -- $fake)"
 
 if (( fails )); then

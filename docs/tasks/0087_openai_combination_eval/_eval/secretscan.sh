@@ -6,8 +6,8 @@
 #
 # Usage: secretscan.sh [path ...]
 #   Without paths it scans _eval/ and 04_evaluation.md of task 0087.
-# It exits 0 when nothing is found, 1 when something is, and 2 when no
-# variable is set (there would be nothing to compare).
+# It exits 0 when nothing is found, 1 when something is, and 2 when a path
+# does not exist or no variable is set (there would be nothing to compare).
 
 emulate -L zsh
 set -u
@@ -20,6 +20,11 @@ if (( $# )); then
 else
   targets=($here ${here:h}/04_evaluation.md)
 fi
+
+local t
+for t in $targets; do
+  [[ -e $t ]] || { print -r -- "secretscan: no such path: $t" >&2; exit 2 }
+done
 
 local -a vars=(ANTHROPIC_API_KEY OPENAI_API_KEY DEEPSEEK_API_KEY SLACK_WEBHOOK_URL)
 local v val set_any=0 found=0
