@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-10 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-11 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 設計の全体像
@@ -96,3 +96,7 @@ ADR-0015 の変更は本書の 3 文書の PR に入る。そのため、確か�
 ## 9. 将来の拡張性
 
 N/A。拡張の対象がない。
+
+## 変更履歴
+
+- 2026-11-11 承認（isseis、#812）

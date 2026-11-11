@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `simple` |
 | Created | 2026-11-10 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-11 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -124,3 +124,7 @@ ADR-0015 の「決定」の修正の範囲の項目を、スレッドの `path` 
 -   **許可リスト:** 範囲の規則の規則 2・3 で範囲に入りうるファイルの種類（`*.md`・`*.txt`・`testdata/` の下のファイルと、`.go` の規則に当たるファイル。`docs/dev/guides/fixprguard_guide.md` 6 章）。
 -   **実行関連ファイル:** スレッドの著者と `path` にかかわらず範囲外とするファイル（拒否リスト。`docs/dev/guides/fixprguard_guide.md` 6 章）。
 -   **決定の変更:** 編集上の訂正に当たらない ADR の変更。その決定をする PR が ADR を変え、「経緯」に項目を足す（`docs/dev/conventions/adr.md`「Approval and the PR」「History entries」）。
+
+## 変更履歴
+
+- 2026-11-11 承認（isseis、#812）
