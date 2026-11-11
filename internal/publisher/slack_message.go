@@ -27,11 +27,6 @@ func prepareSlackMessages(article writer.Article) ([]string, error) {
 	if err := article.CheckPublishable(); err != nil {
 		return nil, err
 	}
-	// CheckPublishable checks the UTF-8 of every other value the post holds;
-	// the body is the one value it does not check.
-	if !utf8.ValidString(article.Body) {
-		return nil, fmt.Errorf("%w: the body is not valid UTF-8", writer.ErrInvalidArticle)
-	}
 
 	post := renderSlackPost(article)
 	posted := post.text
