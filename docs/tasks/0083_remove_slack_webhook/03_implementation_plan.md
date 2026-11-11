@@ -301,7 +301,7 @@
     -   §1.4 の「Go のコメントだけで Webhook を例に挙げるもの」と `config_test.go:45`・`2243` のコメントから、Webhook と投稿を除く。
     -   `.golangci.yml` の `publisher-no-server` のコメントと `articlecache-boundaries` の `desc` から Webhook を除く。
     -   `git grep -n -i -E 'webhook|slack' -- '*.go' '*.ts' Makefile .golangci.yml` の残りが、§1.4 の「変えないもの」と、ステップ 4-7 の拒否の確かめだけであることを確かめ、その一覧を commit のメッセージに書く。
--   [ ] **ステップ 4-9**: `_checks/slack_removed.sh` を書いて実行する（AC-06・AC-09）。`Makefile` に `test-integration-slack` のターゲットがないこと、`cmd/`・`internal/`・`Makefile`・`.github/` に `YT2COLUMN_TEST_SLACK_WEBHOOK_URL` と `YT2COLUMN_SLACK_INTEGRATION` がないこと、`internal/config/serverfile.go` の雛形が `SLACK_WEBHOOK_URL` を含まないことを確かめる。シェルで書く。各チェックが少なくとも 1 つの壊し方で失敗することを確かめ、commit のメッセージに書く。出力・終了コード・比べたコミットの ID を §7 の「実行の記録」の PR-4 の欄に書く。
+-   [x] **ステップ 4-9**: `_checks/slack_removed.sh` を書いて実行する（AC-06・AC-09）。`Makefile` に `test-integration-slack` のターゲットがないこと、`cmd/`・`internal/`・`Makefile`・`.github/` に `YT2COLUMN_TEST_SLACK_WEBHOOK_URL` と `YT2COLUMN_SLACK_INTEGRATION` がないこと、`internal/config/serverfile.go` の雛形が `SLACK_WEBHOOK_URL` を含まないことを確かめる。シェルで書く。各チェックが少なくとも 1 つの壊し方で失敗することを確かめ、commit のメッセージに書く。出力・終了コード・比べたコミットの ID を §7 の「実行の記録」の PR-4 の欄に書く。
 -   [ ] **ステップ 4-10**: `_checks/golden_md_unchanged.sh` を PR-4 の merge-base と最後のコミットで実行し、§7 の「実行の記録」の PR-4 の欄に書く（AC-16a）。
 
 **確かめ直し。** ステップ 4-9・4-10 の比べたコミットより後に、`Makefile`・`cmd/`・`internal/`・`.github/` を変える commit が入ったら（`/fixpr` の修正を含む）、そのステップをやり直して §7 の記録を改める。
