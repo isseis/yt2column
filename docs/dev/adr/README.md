@@ -49,3 +49,4 @@
 | [ADR-0041](0041-openai-api.md) | OpenAI は Responses API を応答の保存なしで呼び、出力上限は実測で決める | `有効` |
 | [ADR-0042](0042-implementation-model-tiers.md) | 実装モデル要件を opus・sonnet+opus-review・sonnet の 3 つにし、Opus 以外で実装した部分がある sonnet+opus-review・opus の PR は、開く前に Opus がレビューする | `有効` |
 | [ADR-0043](0043-copy-mention-neutralization.md) | ビューアの表示とクリップボードへのコピーで記事のメンションを無効化し、コピーは拒否しない | `有効` |
+| [ADR-0044](0044-dev-fake-llm.md) | 本番のバイナリに fake の LLM を入れず、fake の LLM はサーバに依存しない部品にして開発用のバイナリから使う | `有効` |
