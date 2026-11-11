@@ -131,7 +131,7 @@ func TestAnchorFromHeading(t *testing.T) {
 		{"### Installing the native messaging host", "installing-the-native-messaging-host"},
 		{"## Cache and concurrency", "cache-and-concurrency"},
 		{"### The `--out` file", "the---out-file"},
-		{"### The Slack post", "the-slack-post"},
+		{"### The saved file", "the-saved-file"},
 		{"### Using DeepSeek", "using-deepseek"},
 		{"## Step 2", "step-2"},
 		{"## prompt_v2 notes", "prompt_v2-notes"},

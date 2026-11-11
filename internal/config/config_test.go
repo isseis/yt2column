@@ -41,8 +41,7 @@ func validEnv() map[string]string {
 	}
 }
 
-// validClaudeEnv is an environment every claude rule accepts. SLACK_WEBHOOK_URL
-// is optional, so it is absent here.
+// validClaudeEnv is an environment every claude rule accepts.
 func validClaudeEnv() map[string]string {
 	return map[string]string{
 		llmEnv:                  "claude/claude-opus-5-5",

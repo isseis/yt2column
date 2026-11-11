@@ -124,9 +124,9 @@ describe("classifyStart", () => {
     );
   });
 
-  // An older host relays a start to /articles; with the Webhook set and a
-  // generation slot free, the server reads no videoUrl and answers this, the
-  // form of a valid rejection.
+  // An older host relays a start to /articles; with a generation slot free,
+  // the server reads no videoUrl and answers this, the form of a valid
+  // rejection.
   it("reads an old host's /articles answer as an invalid_body rejection", () => {
     const answer = `{"status":"rejected","reason":"invalid_body","requestId":"${requestId}"}`;
     assert.deepEqual(classifyStart(response(400, answer)), {

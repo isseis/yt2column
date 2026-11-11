@@ -120,7 +120,6 @@ func TestRunPassesFixedArguments(t *testing.T) {
 func TestRunPassesOnlyAllowedEnvironment(t *testing.T) {
 	fx := newFixture(t)
 	t.Setenv("DEEPSEEK_API_KEY", "secret-key")
-	t.Setenv("SLACK_WEBHOOK_URL", "https://hooks.example.com/secret")
 	t.Setenv("GIT_DIR", "/elsewhere")
 	t.Setenv("LANG", "C.UTF-8")
 	t.Setenv("HTTPS_PROXY", "http://proxy.example.com:8080")

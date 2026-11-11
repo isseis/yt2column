@@ -1,7 +1,7 @@
 // Package main is the entry point of yt2column-server, the server that listens
 // on a Unix domain socket, turns the transcript the browser extension sends
-// through the native messaging host into an article, and posts it to the
-// webhook. Its one subcommand, config init, creates the template of the
+// through the native messaging host into an article, and returns it on
+// request. Its one subcommand, config init, creates the template of the
 // configuration file the server reads.
 package main
 

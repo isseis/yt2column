@@ -296,7 +296,7 @@
     -   `TestServerFileTemplate` に、雛形の `# KEY=` の行がどれも `serverFileKeys` のキーを名指すことを加える（キーと行が 1 対 1 で対応する）。
     -   `cmd/yt2column-server/run_test.go::TestStartupFailures` に、設定ファイルに `SLACK_WEBHOOK_URL` の行があるとサーバが起動せず（終了コード `2`）、標準エラーが値を含まない行を加える。
     -   `serverFileKeys` に `slackEnv` を戻すと、加えた拒否の行と `TestStartupFailures` の加えた行が失敗することを確かめる。
--   [ ] **ステップ 4-8**: 残りの参照を改める。
+-   [x] **ステップ 4-8**: 残りの参照を改める。
     -   `internal/config/envaccess_test.go:59` の `secretEnvNames` から `SLACK_WEBHOOK_URL` を除き、`:553`・`557`・`598` の自己確かめの例を、一覧に残る名前に改める。`cmd/yt2column-nmhost/main_test.go:126` の `fullEnv` と `internal/codexreview/run_test.go:123` から `SLACK_WEBHOOK_URL` を除く。
     -   §1.4 の「Go のコメントだけで Webhook を例に挙げるもの」と `config_test.go:45`・`2243` のコメントから、Webhook と投稿を除く。
     -   `.golangci.yml` の `publisher-no-server` のコメントと `articlecache-boundaries` の `desc` から Webhook を除く。

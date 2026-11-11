@@ -97,7 +97,7 @@ func TestNeutralizedDisplayMarkdown(t *testing.T) {
 		{"code span", articleWith("T", "", "Run `@here` now.\n"), "# T\n\nRun `@" + z + "here` now.\n"},
 		{"fenced code block", articleWith("T", "", "```\n@here\n```\n"), "# T\n\n```\n@" + z + "here\n```\n"},
 
-		// The sequences the Webhook post refuses.
+		// The sequences the removed Webhook post refused.
 		{"post refusals", articleWith("T", "", "<!channel> <@name> <a|b>\n"), "# T\n\n<!channel> <@" + z + "name> <a|b>\n"},
 		{"look-alike", articleWith("T", "", "＠channel\n"), "# T\n\n＠" + z + "channel\n"},
 		{"two URL paths", articleWith("T", "", "(https://example.com/@a/@b)\n"), "# T\n\n(https://example.com/@a/@b)\n"},

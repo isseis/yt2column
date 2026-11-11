@@ -89,7 +89,7 @@ clean:
 	rm -rf build
 	rm -f coverage.out coverage.html
 
-# Unit tests. Never reach yt-dlp, an LLM API, or a Webhook (fakes only).
+# Unit tests. Never reach yt-dlp or an LLM API (fakes only).
 # After the -race run, test-parse-norace checks the copied-transcript parse
 # deadline, which the -race build does not check.
 test:
