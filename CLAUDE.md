@@ -733,6 +733,19 @@ Only the conventions a linter does not check are worth stating:
   there, the kinds are not limited, because a task's check has to compare
   words, fragments, and sentences of a document, and limiting the kinds would
   keep the `data.json` file this extension exists to remove.
+- The same exception covers one script outside the guard tests and
+  `_checks/`: the Opus review's decision script
+  `.claude/commands/_lib/opus-review-decision.sh`. Scope: a literal that has
+  to equal a heading's text or a fixed part of it, a field label, or a value
+  line's prefix in an implementation plan (such as `作成ポイント`,
+  `**実装モデル要件**: `, and `PR 構成`), which the script reads to find the
+  plan's implementation model requirement. Comments, identifiers, the
+  script's arguments, and the literals of the lines it prints stay English.
+  Reason: the plan is a Japanese document, so the literal has to equal its
+  text, as for a guard test; passing the labels in from an English command
+  document instead would make a mistyped label read as no value, which skips
+  the review.
+  Boundary: no other `.claude/commands/` script takes this exception.
 - The same rule applies to the browser extension: its comments, identifiers,
   and string literals are English. There are three exceptions: the messages in
   a catalog file for a language other than English under
