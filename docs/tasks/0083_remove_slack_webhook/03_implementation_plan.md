@@ -507,10 +507,10 @@ exit=0
 
 PR-4:
 
-**`_checks/slack_removed.sh`（AC-06・AC-09）。** 確かめたコミットは PR のブランチの `b63bae99` である（merge-base は `7defcb9ac5a6d0de6a0a88421903619b3c7b7bb2`）。出力と終了コード:
+**`_checks/slack_removed.sh`（AC-06・AC-09）。** 確かめたコミットは、PR の作成ポイントで確かめ直した PR のブランチの `08b99cce` である（merge-base は `7defcb9ac5a6d0de6a0a88421903619b3c7b7bb2`）。出力と終了コード:
 
 ```text
-commit: b63bae99
+commit: 08b99cce
 OK   the Makefile does not name test-integration-slack
 OK   cmd/, internal/, Makefile, and .github/ name neither YT2COLUMN_TEST_SLACK_WEBHOOK_URL nor YT2COLUMN_SLACK_INTEGRATION
 OK   the template config init writes (31 lines) holds no SLACK_WEBHOOK_URL
@@ -519,11 +519,11 @@ exit=0
 
 壊し方: merge-base `7defcb9a`（Slack のターゲット、統合テストの 2 つの変数、雛形の Webhook の行がまだある）で走らせると、3 つのチェックがどれも `NG` と見つけた行を出し、終了コード `1`。ないコミットを渡すと `is not a commit` で `2`、引数がないと `2`。
 
-**`_checks/golden_md_unchanged.sh`（AC-16a）。** 比べたコミットは、merge-base `7defcb9ac5a6d0de6a0a88421903619b3c7b7bb2` と PR のブランチの `b63bae99` である。出力と終了コード:
+**`_checks/golden_md_unchanged.sh`（AC-16a）。** 比べたコミットは、merge-base `7defcb9ac5a6d0de6a0a88421903619b3c7b7bb2` と、PR の作成ポイントで確かめ直した PR のブランチの `08b99cce` である。出力と終了コード:
 
 ```text
 before: 7defcb9ac5a6d0de6a0a88421903619b3c7b7bb2
-after:  b63bae99
+after:  08b99cce
 files:  internal/publisher/testdata/golden/*.md
 OK   the same 10 file(s) with the same content at both commits
 OK   all 10 file(s) are byte for byte the same
