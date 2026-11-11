@@ -621,10 +621,10 @@ func waitForFile(t *testing.T, path string) {
 }
 
 // requireNoSecret fails the test when output holds any marked part of an API
-// key or the webhook URL.
+// key.
 func requireNoSecret(t *testing.T, name, output string) {
 	t.Helper()
-	for _, s := range []string{apiKeyMarker, anthropicMarker, openAIMarker, webhookPathMarker} {
+	for _, s := range []string{apiKeyMarker, anthropicMarker, openAIMarker} {
 		if strings.Contains(output, s) {
 			t.Errorf("%s holds a secret (%.8s...):\n%s", name, s, output)
 		}

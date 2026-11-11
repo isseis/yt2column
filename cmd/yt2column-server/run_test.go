@@ -587,15 +587,14 @@ func TestStartDuringShutdownRefused(t *testing.T) {
 
 // TestOutputsOmitSecrets checks that the server's log redacts every secret run
 // hands it: the LLM client fails with an error that holds both API keys (the
-// review step uses Claude, so both are configured) and the webhook URL, and
-// the "generation job failed" line that carries that error shows none of
-// them.
+// review step uses Claude, so both are configured), and the "generation job
+// failed" line that carries that error shows neither of them.
 func TestOutputsOmitSecrets(t *testing.T) {
 	e := newServerEnv(t)
 	e.file["YT2COLUMN_REVIEW_LLM"] = "claude/fake-review-model"
 	e.file["ANTHROPIC_API_KEY"] = testAnthropicKey
 	leaking := funcLLM(func(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {
-		return llm.GenerateResponse{}, errors.New("leak " + testAPIKey + " " + testAnthropicKey + " " + testWebhook)
+		return llm.GenerateResponse{}, errors.New("leak " + testAPIKey + " " + testAnthropicKey)
 	})
 
 	srv := startServer(t, e, testDeps(leaking))

@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"slices"
 	"strings"
 	"testing"
 
@@ -175,15 +176,26 @@ func TestLineSecretOfEveryPrintableByte(t *testing.T) {
 	}
 }
 
-// TestSecretStrings verifies that SecretStrings redacts a secret's value and
-// its exposed tail, and that a zero secret contributes nothing.
+// TestSecretStrings verifies that SecretStrings returns the value of each
+// secret, in order, with nothing for a zero secret, so a line holding a value
+// or its exposed tail is redacted.
 func TestSecretStrings(t *testing.T) {
-	const key = "sk-ant-APIKEYVALUE-0123456789-TAIL8ANT"
+	const (
+		key   = "sk-ant-APIKEYVALUE-0123456789-TAIL8ANT"
+		other = "sk-OTHERKEYVALUE-0123456789-TAIL8OTH"
+	)
 	keySecret, err := secret.New(key)
 	if err != nil {
 		t.Fatalf("secret.New: %v", err)
 	}
-	got := SecretStrings(secret.Secret{}, keySecret)
+	otherSecret, err := secret.New(other)
+	if err != nil {
+		t.Fatalf("secret.New: %v", err)
+	}
+	got := SecretStrings(keySecret, secret.Secret{}, otherSecret)
+	if want := []string{key, other}; !slices.Equal(got, want) {
+		t.Fatalf("SecretStrings = %q, want %q", got, want)
+	}
 	line := Line("POST with "+key+" failed", got...)
 	if strings.Contains(line, key) {
 		t.Errorf("Line left the secret value: %q", line)
@@ -194,22 +206,6 @@ func TestSecretStrings(t *testing.T) {
 	}
 	if got := SecretStrings(secret.Secret{}); len(got) != 0 {
 		t.Errorf("SecretStrings(zero) = %v, want none", got)
-	}
-}
-
-// TestSecretStringsWebhookParts verifies that the Webhook URL contributes its
-// slackwebhook.SensitiveParts, so a line holding only its path is redacted.
-func TestSecretStringsWebhookParts(t *testing.T) {
-	const marker = "WEBHOOKVALUE"
-	path := "/services/T0/B0/" + marker + "-TAIL8HKS"
-	webhookURL, err := secret.New("https://hooks.slack.com" + path)
-	if err != nil {
-		t.Fatalf("secret.New: %v", err)
-	}
-	got := SecretStrings(webhookURL)
-	line := Line("POST "+path+" failed", got...)
-	if strings.Contains(line, marker) {
-		t.Errorf("Line left part of the webhook path: %q", line)
 	}
 }
 

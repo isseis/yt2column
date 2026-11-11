@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/isseis/yt2column/internal/secret"
-	"github.com/isseis/yt2column/internal/slackwebhook"
 )
 
 // redactedMarker replaces every occurrence of a secret value and its trailing
@@ -83,22 +82,17 @@ func (rw *redactWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-// SecretStrings returns the strings to redact for the given secrets: each
-// value, and for webhookURL also its slackwebhook.SensitiveParts. A zero
-// secret contributes nothing. (Moved from cmd/yt2column/run.go
-// configuredSecrets, generalized.)
-func SecretStrings(webhookURL secret.Secret, others ...secret.Secret) []string {
-	var secrets []string
-	for _, s := range others {
+// SecretStrings returns the strings to redact for the given secrets: the
+// value of each. A zero secret contributes nothing. (Moved from
+// cmd/yt2column/run.go configuredSecrets, generalized.)
+func SecretStrings(secrets ...secret.Secret) []string {
+	var values []string
+	for _, s := range secrets {
 		if value, err := s.Reveal(); err == nil {
-			secrets = append(secrets, value)
+			values = append(values, value)
 		}
 	}
-	if value, err := webhookURL.Reveal(); err == nil {
-		secrets = append(secrets, value)
-		secrets = append(secrets, slackwebhook.SensitiveParts(value)...)
-	}
-	return secrets
+	return values
 }
 
 // secretReplacements returns the distinct strings to redact, longest first:
