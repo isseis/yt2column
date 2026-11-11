@@ -344,7 +344,7 @@ func readOverrideFile(src templateSource) ([]byte, error)
 
 | ファイル | 変更 |
 |---|---|
-| `internal/transcript/exec.go`・`ytdlp.go`・`cache.go`・`info.go`・`json3.go` | `internal/ytdlpsource/` へ移す。`cache.go` は §3.1.3 の書き換えを含む |
+| `internal/transcript/exec.go`・`ytdlp.go`・`cache.go`・`info.go`・`json3.go` | `internal/ytdlpsource/` へ移す。`cache.go`・`ytdlp.go` は §3.1.3 の書き換えを含む |
 | `internal/transcript/cache_test.go`・`exec_test.go`・`info_test.go`・`json3_test.go`・`ytdlp_test.go`・`integration_test.go`・`test_helpers_cache_seed.go` | `internal/ytdlpsource/` へ移す |
 | `internal/transcript/test_helpers.go` | yt-dlp の経路の補助を `internal/ytdlpsource/test_helpers.go` へ移す。§3.1.3 の `testVideoID`・`readTestdataFile` を含む |
 | `internal/ytdlpsource/doc.go`（新規） | パッケージの doc コメント |
@@ -358,7 +358,9 @@ func readOverrideFile(src templateSource) ([]byte, error)
 | `Makefile` | `test-integration` のパス。`wasm-check` の目標を足し、`lint` から呼ぶ（AC-29） |
 | `.github/workflows/ci.yml` | `lint` のジョブに `make wasm-check` の手順を足す（AC-29） |
 | `docs/dev/conventions/package_reference.md` | `internal/transcript` の行を分け、`internal/ytdlpsource` の行を足す。`internal/strictjson` の行の「Shared by」の一覧で、`internal/transcript` を `internal/ytdlpsource` に替える（`internal/transcript` で `internal/strictjson` を import するのは、移す `info.go`・`json3.go` だけである。一覧は `internal/pipeline/strictjson_users_test.go` が import の実際と照らす） |
-| `CLAUDE.md` | 「Architecture Overview」の `TranscriptSource` の段落の、`YtDlpSource` の置き場所。「Code Quality」の目標の一覧に `make wasm-check` を足す（AC-29） |
+| `CLAUDE.md` | 「Architecture Overview」の `TranscriptSource` の段落の、`YtDlpSource` の置き場所。「Code Quality」の目標の一覧に `make wasm-check` を足し、`make lint` の説明に `wasm-check` を呼ぶことを足す（AC-29） |
+| `docs/dev/guides/development.md` | `make` のターゲットの一覧に `make wasm-check` を足す（AC-29） |
+| `docs/dev/adr/0019-pipeline-component-interfaces.md` | 分割と検査で解消する食い違いの記述を消し、検査の目標の参照先を `make wasm-check` に直す。編集上の訂正である |
 | `.claude/commands/runplan.md`・`mkplan.md` | 例に挙げた json3 のパーサと `TestParseJSON3` の場所（`internal/transcript`） |
 | `docs/dev/project_overview.md` | ディレクトリの構成の一覧の `internal/transcript/` の行と、`internal/ytdlpsource/` の行 |
 | `docs/dev/cache_consistency.md` | キャッシュのコードの場所（`internal/transcript/cache.go` などのパスと、関数の表の見出し） |
