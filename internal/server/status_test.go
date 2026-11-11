@@ -115,6 +115,15 @@ func TestStatusArticleNeutralized(t *testing.T) {
 			if raw.Job.State != "done" {
 				t.Fatalf("state = %q, want done (body %s)", raw.Job.State, rec.Body.String())
 			}
+			// The response and its job carry exactly these members: nothing
+			// of the removed publish operation.
+			top, job := memberSets(t, rec.Body.Bytes())
+			if want := []string{"job", "requestId", "status"}; !slices.Equal(top, want) {
+				t.Errorf("response members = %v, want %v", top, want)
+			}
+			if want := []string{"article", "state", "steps"}; !slices.Equal(job, want) {
+				t.Errorf("job members = %v, want %v", job, want)
+			}
 			members := slices.Sorted(maps.Keys(raw.Job.Article))
 			want := []string{"channelName", "cost", "durationMs", "file", "markdown", "mentionsNeutralized", "videoTitle"}
 			if !slices.Equal(members, want) {
@@ -208,6 +217,43 @@ func TestStatusUnknown(t *testing.T) {
 	if got.Status != "ok" || !requestIDShape.MatchString(got.RequestID) || !reflect.DeepEqual(got.Job, statusJob{State: "unknown"}) {
 		t.Errorf("response = %+v, want ok with a request ID and the unknown state alone", got)
 	}
+}
+
+// TestStatusTopLevelMembers checks that a running job's status response
+// carries exactly the status, the request ID, and the job, and the job
+// exactly its state and steps: no Webhook setting.
+func TestStatusTopLevelMembers(t *testing.T) {
+	ts := newJobsTestServer(t, jobsServerOptions{})
+	reached, release := holdAtDraft(ts.writer)
+	t.Cleanup(func() {
+		release()
+		ts.waitJobs()
+	})
+	key := acceptedKey(t, ts.start(strings.NewReader(validBody(testValidVideoURL, testValidRaw))))
+	<-reached
+	rec := ts.statusRequest(key)
+	top, job := memberSets(t, rec.Body.Bytes())
+	if want := []string{"job", "requestId", "status"}; !slices.Equal(top, want) {
+		t.Errorf("response members = %v, want %v (body %s)", top, want, rec.Body.String())
+	}
+	if want := []string{"state", "steps"}; !slices.Equal(job, want) {
+		t.Errorf("job members = %v, want %v (body %s)", job, want, rec.Body.String())
+	}
+}
+
+// memberSets returns the sorted member names of a status response body and of
+// its job member.
+func memberSets(t *testing.T, body []byte) (top, job []string) {
+	t.Helper()
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(body, &raw); err != nil {
+		t.Fatalf("decode %q: %v", body, err)
+	}
+	var jobRaw map[string]json.RawMessage
+	if err := json.Unmarshal(raw["job"], &jobRaw); err != nil {
+		t.Fatalf("decode the job of %q: %v", body, err)
+	}
+	return slices.Sorted(maps.Keys(raw)), slices.Sorted(maps.Keys(jobRaw))
 }
 
 // TestStatusHasNoSideEffects checks that status requests change no record and

@@ -780,8 +780,8 @@ func TestWriterOptionsMatchCLIDefaults(t *testing.T) {
 	}
 }
 
-// TestRunLogsListeningAndStop checks the lines run itself logs: the socket
-// path when it listens, and, when the stop begins, that the generations are canceled and
+// TestRunLogsListeningAndStop checks the lines run itself logs: exactly the
+// socket path and the two models when it listens, with no warning line, and, when the stop begins, that the generations are canceled and
 // that a second signal exits at once, with nothing about posts.
 func TestRunLogsListeningAndStop(t *testing.T) {
 	e := newServerEnv(t)
@@ -796,6 +796,12 @@ func TestRunLogsListeningAndStop(t *testing.T) {
 	}
 	if !strings.Contains(listening, e.socketPath(t)) {
 		t.Errorf("the listening log does not name the socket %s: %s", e.socketPath(t), listening)
+	}
+	if attrs, want := logAttrNames(listening), []string{"model", "reviewModel", "socket"}; !slices.Equal(attrs, want) {
+		t.Errorf("the listening log's attributes = %v, want %v: %s", attrs, want, listening)
+	}
+	if warning := stderrLine(stderr, "level=WARN"); warning != "" {
+		t.Errorf("stderr has a warning line: %s", warning)
 	}
 	stopping := stderrLine(stderr, "stopping:")
 	if stopping == "" {

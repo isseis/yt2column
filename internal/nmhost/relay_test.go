@@ -950,6 +950,7 @@ func TestRelayNewFormRejections(t *testing.T) {
 		{"operation missing", `{"v":1,"key":"k"}`, ruleOperation},
 		{"operation not in the set", `{"v":1,"op":"delete","key":"k"}`, ruleOperation},
 		{"operation in another case", `{"v":1,"op":"Status","key":"k"}`, ruleOperation},
+		{"removed publish operation", `{"v":1,"op":"publish","key":"k"}`, ruleOperation},
 		{"operation not a string", `{"v":1,"op":1,"key":"k"}`, ruleOperation},
 		{"start without input", `{"v":1,"op":"start"}`, ruleMembers},
 		{"start with a key", `{"v":1,"op":"start","input":{},"key":"k"}`, ruleMembers},

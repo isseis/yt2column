@@ -14,7 +14,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -265,6 +267,26 @@ func (r *runningServer) waitStderr(t *testing.T, sub string) string {
 	}
 	t.Fatalf("standard error has no line with %q within %v:\n%s", sub, readyBound, r.stderr.String())
 	return ""
+}
+
+// logAttrName matches the name of one attribute of a slog text line.
+var logAttrName = regexp.MustCompile(`(?:^| )([A-Za-z][A-Za-z0-9]*)=`)
+
+// logAttrNames returns the sorted names of a slog text line's attributes,
+// without the time, level, and msg the handler adds. A quoted value such as a
+// path with a space never holds a word directly followed by "=", so it adds
+// no name.
+func logAttrNames(line string) []string {
+	var names []string
+	for _, m := range logAttrName.FindAllStringSubmatch(line, -1) {
+		switch m[1] {
+		case "time", "level", "msg":
+		default:
+			names = append(names, m[1])
+		}
+	}
+	slices.Sort(names)
+	return names
 }
 
 // stderrLine returns the first line of output that contains sub, or "" when
