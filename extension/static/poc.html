@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>yt2column WASM PoC</title>
+    <link rel="stylesheet" href="theme.css" />
+    <link rel="stylesheet" href="viewer.css" />
+    <link rel="stylesheet" href="poc.css" />
+  </head>
+  <body>
+    <h1>yt2column WASM PoC</h1>
+    <p>
+      PoC branch only. Every button press sends at most one request; nothing is
+      sent automatically. The API key and the workspace ID stay in this tab's
+      memory and are never stored.
+    </p>
+
+    <section aria-labelledby="runtime-heading">
+      <h2 id="runtime-heading">Runtime</h2>
+      <dl id="runtime"></dl>
+      <div id="runtime-status" role="status"></div>
+    </section>
+
+    <section aria-labelledby="credentials-heading">
+      <h2 id="credentials-heading">API</h2>
+      <!-- Not inside a <form>, so the browser offers no password saving. -->
+      <label for="api-key">API key (test key)</label>
+      <input
+        id="api-key"
+        type="password"
+        autocomplete="off"
+        spellcheck="false"
+      />
+      <label for="workspace-id">Workspace ID</label>
+      <input
+        id="workspace-id"
+        type="password"
+        autocomplete="off"
+        spellcheck="false"
+      />
+      <label class="inline">
+        <input id="browser-access" type="checkbox" />
+        Send anthropic-dangerous-direct-browser-access
+      </label>
+    </section>
+
+    <section aria-labelledby="generate-heading">
+      <h2 id="generate-heading">Generate an article</h2>
+      <label for="video-url">Video URL</label>
+      <input id="video-url" type="text" autocomplete="off" spellcheck="false" />
+      <label for="title">Title</label>
+      <input id="title" type="text" autocomplete="off" />
+      <label for="channel-name">Channel name</label>
+      <input id="channel-name" type="text" autocomplete="off" />
+      <label for="description">Description</label>
+      <textarea id="description" rows="3"></textarea>
+      <label for="transcript"
+        >Transcript (copied from the transcript panel)</label
+      >
+      <textarea id="transcript" rows="8"></textarea>
+      <fieldset>
+        <legend>Generation (also used by the shorten step)</legend>
+        <label for="generation-model">Model</label>
+        <input
+          id="generation-model"
+          type="text"
+          value="claude-haiku-5-5"
+          spellcheck="false"
+        />
+        <label for="generation-effort">Effort</label>
+        <input
+          id="generation-effort"
+          type="text"
+          value="medium"
+          spellcheck="false"
+        />
+      </fieldset>
+      <fieldset>
+        <legend>Review</legend>
+        <label for="review-model">Model</label>
+        <input
+          id="review-model"
+          type="text"
+          value="claude-haiku-5-5"
+          spellcheck="false"
+        />
+        <label for="review-effort">Effort</label>
+        <input
+          id="review-effort"
+          type="text"
+          value="medium"
+          spellcheck="false"
+        />
+      </fieldset>
+      <button id="generate" class="action-button" type="button">
+        Generate
+      </button>
+    </section>
+
+    <section aria-labelledby="long-heading">
+      <h2 id="long-heading">Long output</h2>
+      <label for="long-model">Model</label>
+      <input
+        id="long-model"
+        type="text"
+        value="claude-haiku-5-5"
+        spellcheck="false"
+      />
+      <label for="long-effort">Effort</label>
+      <input id="long-effort" type="text" value="medium" spellcheck="false" />
+      <label for="long-variant">Prompt</label>
+      <select id="long-variant">
+        <option value="essay">essay (about 30,000 words)</option>
+        <option value="essay_longer">essay_longer (about 48,000 words)</option>
+      </select>
+      <button id="long-output" class="action-button" type="button">
+        Measure long output
+      </button>
+    </section>
+
+    <section aria-labelledby="probe-heading">
+      <h2 id="probe-heading">Probe (dummy key, local probe server)</h2>
+      <label for="probe-base">Base URL</label>
+      <input
+        id="probe-base"
+        type="text"
+        value="http://127.0.0.1:8787"
+        spellcheck="false"
+      />
+      <label for="probe-foreign">Foreign URL</label>
+      <input
+        id="probe-foreign"
+        type="text"
+        value="http://localhost:8788"
+        spellcheck="false"
+      />
+      <label for="probe-case">Case</label>
+      <select id="probe-case">
+        <option value="redirect_same">redirect_same</option>
+        <option value="redirect_foreign">redirect_foreign</option>
+        <option value="redirect_manual">redirect_manual</option>
+        <option value="large_body">large_body</option>
+        <option value="stall_header">stall_header</option>
+        <option value="stall_body">stall_body</option>
+        <option value="cancel_header">cancel_header</option>
+        <option value="cancel_body">cancel_body</option>
+      </select>
+      <button id="probe" class="action-button" type="button">Run probe</button>
+    </section>
+
+    <section aria-labelledby="result-heading">
+      <h2 id="result-heading">Result</h2>
+      <div id="call-status" role="status"></div>
+      <table id="stages" hidden>
+        <thead>
+          <tr>
+            <th scope="col">Stage</th>
+            <th scope="col">Status</th>
+            <th scope="col">Elapsed (ms)</th>
+            <th scope="col">Model</th>
+            <th scope="col">Input tokens</th>
+            <th scope="col">Output tokens</th>
+            <th scope="col">Cost (USD)</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <section id="article" hidden></section>
+      <h3>Record (no key, no workspace ID, no article or transcript text)</h3>
+      <pre id="record"></pre>
+    </section>
+    <script type="module" src="poc.js"></script>
+  </body>
+</html>

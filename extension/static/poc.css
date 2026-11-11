@@ -1,0 +1,61 @@
+/* The PoC page's layout, on top of theme.css and viewer.css. PoC branch
+   only. */
+
+label,
+input[type="text"],
+input[type="password"],
+textarea,
+select {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+label {
+  margin-top: 0.5rem;
+}
+
+label.inline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+}
+
+input[type="checkbox"] {
+  width: 24px;
+  height: 24px;
+}
+
+input[type="text"],
+input[type="password"],
+select {
+  min-height: 44px;
+}
+
+fieldset {
+  margin-top: 0.75rem;
+}
+
+.action-button {
+  margin-top: 0.75rem;
+  min-height: 44px;
+  min-width: 44px;
+}
+
+#stages {
+  border-collapse: collapse;
+  margin-top: 0.5rem;
+}
+
+#stages th,
+#stages td {
+  border: 1px solid var(--muted);
+  padding: 0.25rem 0.5rem;
+  text-align: left;
+}
+
+#record {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

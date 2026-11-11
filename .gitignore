@@ -10,6 +10,8 @@ coverage*.html
 
 extension/node_modules/
 extension/dist/
+# 0084 PoC build artifacts (PoC branch only).
+extension/static/poc/
 *.pem
 
 # Go fuzz writes failing inputs here; a found input is added to a table test and

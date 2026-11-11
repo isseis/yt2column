@@ -54,7 +54,7 @@ define format_files_from_list
 	fi
 endef
 
-.PHONY: all build clean test test-ci test-parse-norace readme-sync-check test-integration test-integration-deepseek test-integration-claude test-integration-openai test-integration-cli test-integration-slack lint wasm-check fmt fmt-all deadcode tidy install-mergepr install-fixprguard install-codexreview ext-install ext-typecheck ext-lint ext-fmt-check ext-fmt ext-test ext-build ext-check coverage-compare ext-coverage-compare
+.PHONY: poc-build all build clean test test-ci test-parse-norace readme-sync-check test-integration test-integration-deepseek test-integration-claude test-integration-openai test-integration-cli test-integration-slack lint wasm-check fmt fmt-all deadcode tidy install-mergepr install-fixprguard install-codexreview ext-install ext-typecheck ext-lint ext-fmt-check ext-fmt ext-test ext-build ext-check coverage-compare ext-coverage-compare
 
 all: build
 
@@ -336,6 +336,25 @@ WASM_VET_PACKAGES = ./internal/writer ./internal/transcript
 wasm-check:
 	GOOS=js GOARCH=wasm $(GOCMD) build $(WASM_PACKAGES)
 	GOOS=js GOARCH=wasm $(GOCMD) vet $(WASM_VET_PACKAGES)
+
+# 0084 PoC (PoC branch only): build the WebAssembly entry point, copy the Go
+# toolchain's wasm_exec.js next to it, and build the extension, in one step.
+# It refuses to build from a working tree with changes (untracked files
+# included), so the vcs.revision stamped into the module names the code that
+# runs. The flags are fixed (-trimpath, default -buildvcs) and recorded in the
+# research record. The artifacts under extension/static/poc/ are git-ignored.
+POC_DIR = extension/static/poc
+poc-build:
+	@if [ -n "$$(git status --porcelain)" ]; then \
+		echo "poc-build: the working tree has changes; commit or remove them first"; \
+		exit 1; \
+	fi
+	mkdir -p $(POC_DIR)
+	GOOS=js GOARCH=wasm $(GOCMD) build -trimpath -o $(POC_DIR)/yt2column.wasm ./cmd/yt2column-wasm
+	cp "$$($(GOCMD) env GOROOT)/lib/wasm/wasm_exec.js" $(POC_DIR)/wasm_exec.js
+	@$(MAKE) --no-print-directory ext-build
+	@echo "poc-build: revision $$(git rev-parse HEAD)"
+	@echo "poc-build: yt2column.wasm $$(wc -c < $(POC_DIR)/yt2column.wasm | tr -d ' ') bytes, gzip -9 $$(gzip -9 -c $(POC_DIR)/yt2column.wasm | wc -c | tr -d ' ') bytes"
 
 fmt:
 	$(call check_gofumpt)

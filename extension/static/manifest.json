@@ -13,5 +13,6 @@
   "action": {
     "default_popup": "popup.html"
   },
-  "permissions": ["activeTab", "scripting", "nativeMessaging"]
+  "permissions": ["activeTab", "scripting", "nativeMessaging"],
+  "host_permissions": ["http://127.0.0.1/*"]
 }
