@@ -115,7 +115,7 @@
 
 -   [x] **ステップ 1-1**: `writer.Article.CheckPublishable` に本文の UTF-8 の検査を加える（設計書 3.5）。違反は `ErrInvalidArticle` を包み、理由は本文の値を含まない固定の文字列にする。制御文字の検査より前に置く。
     -   `internal/writer/article_test.go` に `TestArticleCheckPublishableBodyUTF8` を加える。不正なバイトだけを含み制御文字を含まない本文を `ErrInvalidArticle` で拒否し、エラーの文字列が本文のバイトを含まないことを確かめる。`TestArticleCheckPublishable` にも不正な UTF-8 の本文の行を加える。
-    -   `internal/server/generation_test.go::TestGenerationUnpublishable` に、目印の文字列と不正なバイトを含む本文の場合を加え、`failed` の `article_invalid` で記事を持たないことと、ログの行が目印を含まないことを確かめる。
+    -   `internal/server/generation_test.go::TestGenerationUnpublishable` に、目印の文字列と不正なバイトを含む本文の場合を加え、`failed` の `article_invalid` で記事を持たないことと、失敗のログの行（`generation job failed`）が目印を含まないことを確かめる。
     -   `internal/publisher/file_test.go::TestFilePublisherRejectsArticle` に、不正な UTF-8 の本文の場合を加え、ファイルを書かずに `ErrInvalidArticle` で失敗することを確かめる。
     -   `internal/publisher/slack_message_test.go::TestSlackPrepareRejectsInvalidArticle` の `body invalid utf-8` の行（`:742`）は、`CheckPublishable` が先に拒否するようになるので、前提の `checkPublishableOK` を偽に改める。その行が確かめていた Slack の側の検査の分岐は、ステップ 4-2 で消す（`_checks/coverage` が、その文が実行されなくなったことを報告する）。
     -   加えた検査を外すと `TestArticleCheckPublishableBodyUTF8`・`TestArticleCheckPublishable`・`TestFilePublisherRejectsArticle`・`TestGenerationUnpublishable` が失敗することを確かめる。

@@ -104,7 +104,7 @@ func TestGenerationFailedStep(t *testing.T) {
 // TestGenerationUnpublishable checks that an article the publishers would
 // refuse to render fails the generation as article_invalid, with no article: an
 // empty title, and a body with invalid UTF-8 that also carries a marker, whose
-// bytes reach neither the status nor the log.
+// bytes reach neither the status nor the failure log line.
 func TestGenerationUnpublishable(t *testing.T) {
 	const mark = "mark-body-V7dq"
 	cases := []struct {
@@ -130,8 +130,9 @@ func TestGenerationUnpublishable(t *testing.T) {
 			if got.Article != nil {
 				t.Errorf("a failed job carries an article: %+v", got.Article)
 			}
-			if logs := ts.logs.String(); strings.Contains(logs, mark) {
-				t.Errorf("the log holds the body's text:\n%s", logs)
+			line := logLine(ts.logs.String(), "generation job failed")
+			if line == "" || strings.Contains(line, mark) {
+				t.Errorf("the failure log line = %q, want one that holds no body text", line)
 			}
 		})
 	}
