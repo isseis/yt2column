@@ -889,11 +889,10 @@ describe("startViewer: operations", () => {
     );
   });
 
+  // The viewer has no copy listener: a reader's own copy of a selection
+  // must not touch the operation result's region.
   it("leaves the operation result alone when the reader copies a selection", async () => {
-    const viewer = await showing({
-      ...doneJob({ state: "not_posted" }),
-      article: { ...article, mentionsNeutralized: true },
-    });
+    const viewer = await showing(doneJob({ state: "not_posted" }));
     viewer.elements.save.click();
     const status = viewer.elements.actionStatus;
     const before = { text: status.textContent, first: status.firstChild };
@@ -903,7 +902,6 @@ describe("startViewer: operations", () => {
       );
     }
     await settle();
-    assert.equal(status.textContent, catalogs.en.viewer.saved);
     assert.equal(status.textContent, before.text);
     assert.equal(status.firstChild, before.first);
     assert.deepEqual(viewer.clipboard.written, []);
@@ -927,8 +925,11 @@ describe("startViewer: operations", () => {
     const viewer = await showing(runningJob);
     const node = viewer.elements.heading.firstChild;
     assert.ok(node !== null);
-    viewer.clock.advance(3_000);
+    const before = stateText(viewer);
+    viewer.clock.advance(elapsedRedrawMs);
     await settle();
+    // The elapsed time changed, so the page was drawn again.
+    assert.notEqual(stateText(viewer), before);
     assert.equal(viewer.elements.heading.firstChild, node);
   });
 

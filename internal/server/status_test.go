@@ -297,10 +297,14 @@ func TestResponsesOmitInputs(t *testing.T) {
 	if resp.Job.Article == nil || !strings.Contains(resp.Job.Article.Markdown, testTranscriptMarker) {
 		t.Fatalf("the done article does not carry its title: %+v", resp.Job.Article)
 	}
-	// The article's own strings may hold anything the article holds, and the
-	// heading shows the video title the start sent.
+	// The heading shows the video title the start sent, and the article's
+	// channel name, never the start's.
+	if resp.Job.Article.VideoTitle != testTranscriptMarker || resp.Job.Article.ChannelName != article.ChannelName {
+		t.Fatalf("heading = %q, %q; want the start's title and the article's channel name", resp.Job.Article.VideoTitle, resp.Job.Article.ChannelName)
+	}
+	// The article's own strings may hold anything the article holds.
 	resp.Job.Article.Markdown, resp.Job.Article.File = "", ""
-	resp.Job.Article.VideoTitle, resp.Job.Article.ChannelName = "", ""
+	resp.Job.Article.VideoTitle = ""
 	rest, err := json.Marshal(resp)
 	if err != nil {
 		t.Fatalf("marshal: %v", err)

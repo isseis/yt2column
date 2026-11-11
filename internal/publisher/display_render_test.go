@@ -128,8 +128,8 @@ func TestNeutralizedDisplayMarkdown(t *testing.T) {
 }
 
 // TestNeutralizedDisplayMarkdownURLPathConditions checks each of the five
-// conditions of a URL path '/@': every input meets the other four and fails
-// only the one named, so its '@' is neutralized.
+// conditions of a URL path '/@': each input is meant to fail the condition
+// its name gives, so its '@' is neutralized.
 func TestNeutralizedDisplayMarkdownURLPathConditions(t *testing.T) {
 	const kept = "x https://example.com/@here"
 	got, err := NeutralizedDisplayMarkdown(articleWith("T", "", kept))
@@ -150,7 +150,7 @@ func TestNeutralizedDisplayMarkdownURLPathConditions(t *testing.T) {
 		{"2 ASCII punctuation before the scheme", "x:https://example.com/@", "here"},
 		{"2 letter before an angle bracket", "x<https://example.com/@", "here>"},
 		{"2 angle bracket before an angle bracket", "x <<https://example.com/@", "here>"},
-		{"2 scheme on an earlier line", "x https://example.com/\n/@", "here"},
+		{"4 newline before the slash", "x https://example.com/\n/@", "here"},
 		{"3 empty host", "x https:///@", "here"},
 		{"3 host starting with a hyphen", "x https://-example.com/@", "here"},
 		{"3 underscore in the host", "x https://a_b.example.com/@", "here"},
@@ -200,11 +200,10 @@ func TestNeutralizedDisplayMarkdownURLPathConditions(t *testing.T) {
 func TestNeutralizedDisplayMarkdownKeptAts(t *testing.T) {
 	t.Run("inside a word", func(t *testing.T) {
 		const body = "Tech@Work"
-		runes := []rune(body)
 		at := strings.Index(body, "@")
 		// The URL path rule would not keep it: it does not follow '/' and no
 		// URL starts before it.
-		if runes[at-1] == '/' || strings.Contains(body, "://") {
+		if body[at-1] == '/' || strings.Contains(body, "://") {
 			t.Fatalf("%q could be a URL path '/@'", body)
 		}
 		got, err := NeutralizedDisplayMarkdown(articleWith("T", "", body))
