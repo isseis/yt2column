@@ -73,7 +73,74 @@ evaltool check-record -record docs/tasks/0087_openai_combination_eval/04_evaluat
 
 ### 2.5. 道具の確かめ（ステップ 1-5）
 
-（下に出力を記録する）
+PR-1 のブランチのコミット `c4c32567bc69`（squash merge の前のコミット）で実行した。どれも API を呼ばない。`repo_impact.sh` だけは、その 1 つ前のコミット `a8d5b7f37291` で実行した。間のコミットが変えたのは `_eval/evaltool/` の `record.go`・`record_test.go` だけで、`./...` に含まれないので、`repo_impact.sh` の 3 つの出力は変わらない。この後に変えたのは本節と計画書だけである。
+
+**`selftest.sh`:** `evaltool` のテスト（合成の入力だけを使う）・`go vet`・`golangci-lint`（`Makefile` の版）・`gofumpt`、`hashlist.sh` の変更の検出、`secretscan.sh` の検出を確かめた。
+
+```text
+selftest: ok   go test ./docs/tasks/0087_openai_combination_eval/_eval/evaltool
+selftest: ok   go vet ./docs/tasks/0087_openai_combination_eval/_eval/evaltool
+selftest: ok   golangci-lint v2.13.2 ./docs/tasks/0087_openai_combination_eval/_eval/evaltool
+selftest: ok   gofumpt ./docs/tasks/0087_openai_combination_eval/_eval/evaltool
+selftest: ok   hashlist: first list
+selftest: ok   hashlist: unchanged tree gives an empty diff
+selftest: ok   hashlist: changed content gives a diff
+selftest: ok   hashlist: restored content gives an empty diff
+selftest: ok   hashlist: changed mode gives a diff
+selftest: ok   secretscan: finds a key value in a file
+selftest: ok   secretscan: finds the sk- prefix
+selftest: ok   secretscan: passes a clean file
+selftest: ok   secretscan: fails with no key variable
+selftest: ok   secretscan: fails on a missing path
+selftest: ok   secretscan: never prints the value
+selftest: all checks passed
+selftest exit=0
+```
+
+`hashlist.sh` が固定のモードを書くように壊すと「changed mode gives a diff」が、固定のハッシュを書くように壊すと「changed content gives a diff」が、`secretscan.sh` の値の比較を外すと「finds a key value in a file」が失敗することも確かめた（`selftest.sh` を加えたコミットのメッセージに記録し、PR の説明に載せる）。
+
+**`reproduce0018.sh`:** 集計と同じ関数で、0018 の B3・C03 のログから 0018 評価記録 §4.8 の値（B3 の合計 3.615544・平均 0.361554・最大 0.610696 USD、所要時間の平均 1:53.4・最大 3:06.2、C03 の合計 3.572464 USD・1:52.1・3:05.2）を再現した。`baseline.json` の推定コストの平均と所要時間の平均との一致も `evaltool` が確かめた。字数の調整の時間（roNZ-rLxhUE-1 の 54 秒）は、定数ではなく B3 のやり直しのログ（開始から `cost: shorten run` の `at=` まで）から求めている。
+
+```text
+table reproduce0018 keys=1
+config	cost_sum_usd	cost_avg_usd	cost_max_usd	cost_max_article	duration_avg	duration_max	duration_max_article
+B3	3.615544	0.361554	0.610696	roNZ-rLxhUE-1	1:53.4	3:06.2	roNZ-rLxhUE-1
+C03	3.572464	0.357246	0.602652	roNZ-rLxhUE-1	1:52.1	3:05.2	roNZ-rLxhUE-1
+end
+reproduce0018: matches the 0018 evaluation record
+exit=0
+```
+
+**`repo_impact.sh`:** マージベースと HEAD で、`go list ./...`・`make test` が実行するテストの名前・`make lint` の出力が同じだった（要件 §4.5、設計 §7.3）。
+
+```text
+repo_impact: same list (42 lines)
+repo_impact: same tests (1336 lines)
+repo_impact: same lint (4 lines)
+repo_impact: base 188ed2cac1b0d9414cf17da35978302ee0d37312, head a8d5b7f372914741e0acf1dc811d64d543bc97bc
+exit=0
+```
+
+**`rates` と `rates-compare.sh`（AC-15）:** `rates` の `claude-opus-5-5` の単価（入力 4、キャッシュの読み取り 0.2、キャッシュの書き込み 5、出力 20 USD/MTok）は、`986449c6` の料金表（`internal/pricing/rates.go:114`）の値と一致した。`rates` の出力は §6 の表である。B3 の CLI のコミット `2fc2e2a` との比較は次のとおりで、同じだった。評価に使うコミットでの比較はステップ 1-7 で行う。
+
+```text
+evaluation commit c4c32567bc69: base:rates{input:4000000,cacheRead:200000,cacheWrite:5000000,output:20000000},
+B3 commit 2fc2e2a: base:rates{input:4000000,cacheRead:200000,cacheWrite:5000000,output:20000000},
+rates-compare: same
+exit=0
+```
+
+**`secretscan.sh`:** 環境にある API キーの値と `sk-` の接頭辞は、`_eval/` と本書のどちらにもなかった。`OPENAI_API_KEY` はこのときの環境になかったので比べていない。PR の作成の後に `_eval/` か本書を変えた場合は、マージの前に実行し直す。
+
+```text
+secretscan: the value of ANTHROPIC_API_KEY is absent
+secretscan: the value of DEEPSEEK_API_KEY is absent
+secretscan: the value of SLACK_WEBHOOK_URL is absent
+secretscan: no sk- key prefix
+exit=0
+```
+
+**`check-record`（骨組み）:** 本書の骨組み（本節を書いた後のもの）の印が、同じコミットの `aggregate`（0087 の実行はまだない）・`estimate`・`rates` の出力の 28 の表と一致した（`check-record: 28 tables match`）。評価の記録の照合はステップ 5-1 で行う。
 
 ## 3. 基準の構成
 
