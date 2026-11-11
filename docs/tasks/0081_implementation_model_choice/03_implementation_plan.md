@@ -481,13 +481,13 @@ cases: 77 fixtures, failures: 0
 
 ### PR-3 の実行の記録
 
-**ステップ 3-6（`_checks/old_values.sh`）。** clean な作業ツリーで `bash docs/tasks/0081_implementation_model_choice/_checks/old_values.sh 53bc5e7cfd0d9a68af83fe88cc92d68b8c9ef414` を実行した。終了コードは 0。比べたコミットは `53bc5e7cfd0d9a68af83fe88cc92d68b8c9ef414`、`_checks/old_values.sh` の blob は `f92b71a5571f846ebf1adefdb95398a63a825610` である。各チェックを壊すと失敗することは、`docs(0081): add the one-off checks for the old values and the single-phase plan form` のメッセージに書いた（`mkplan2.md` に `frontier-required` を足す、`mkplan.md` に値としての `standard` を足す、`_context.md` の表の行を消す、`_context.md` の節の外に旧い値を足す、の 4 つで、どれも失敗した）。値でない使い方を除く一覧（`standard` の後に `error`・`output`・`input`・`library` が続く場合、`standard-library`、`standard classDef`）に足した語句はない。出力:
+**ステップ 3-6（`_checks/old_values.sh`）。** clean な作業ツリーで `bash docs/tasks/0081_implementation_model_choice/_checks/old_values.sh 6b18df2f828e400230268115f5eeeb5e2cb16457` を実行した。終了コードは 0。比べたコミットは `6b18df2f828e400230268115f5eeeb5e2cb16457`、`_checks/old_values.sh` の blob は `127a6d19ba7ce559df4bc5b3527d723fec311eed` である。各チェックを壊すと失敗することは、`docs(0081): add the one-off checks for the old values and the single-phase plan form` のメッセージに書いた（`mkplan2.md` に `frontier-required` を足す、`mkplan.md` に値としての `standard` を足す、`_context.md` の表の行を消す、`_context.md` の節の外に旧い値を足す、の 4 つで、どれも失敗した）。値でない使い方を除く一覧（`standard` の後に `error`・`output`・`input`・`library` が続く場合、`standard-library`、`standard classDef`）に足した語句はない。出力:
 
 ```text
 PASS: old values appear only in the old-value table of .claude/commands/_context.md (lines 57-120)
 ```
 
-**ステップ 3-7（`_checks/decision_cases.sh`）。** clean な作業ツリーで `bash docs/tasks/0081_implementation_model_choice/_checks/decision_cases.sh 53bc5e7cfd0d9a68af83fe88cc92d68b8c9ef414` を実行した。終了コードは 0。比べたコミットは `53bc5e7cfd0d9a68af83fe88cc92d68b8c9ef414`、判断のスクリプト（`.claude/commands/_lib/opus-review-decision.sh`）の blob は `edb00139969c7aea909bd6a45c3e0efc99b3bd4d`、`_checks/decision_cases.sh` の blob は `94b97ee6d7d034142366a4a7b9075dea93462728` である。足した 4 つの場合（`mkplan-single-*`）は、判断のスクリプトの「PR 構成」の見出しの照合を壊すと 4 つとも失敗し、読めない値を RUN としない壊し方では `mkplan-single-unreadable` が失敗した（同じメッセージに書いた）。このコミットの `_context.md` で旧い値の表と値の場所を読む既存の場合も、同じ実行で通った。出力:
+**ステップ 3-7（`_checks/decision_cases.sh`）。** clean な作業ツリーで `bash docs/tasks/0081_implementation_model_choice/_checks/decision_cases.sh 6b18df2f828e400230268115f5eeeb5e2cb16457` を実行した。終了コードは 0。比べたコミットは `6b18df2f828e400230268115f5eeeb5e2cb16457`、判断のスクリプト（`.claude/commands/_lib/opus-review-decision.sh`）の blob は `edb00139969c7aea909bd6a45c3e0efc99b3bd4d`、`_checks/decision_cases.sh` の blob は `8e9d24c65f33959b02f34f48d971f4b142b7c8cb` である。足した 4 つの場合（`mkplan-single-*`）は、判断のスクリプトの「PR 構成」の見出しの照合を壊すと 4 つとも失敗し、読めない値を RUN としない壊し方では `mkplan-single-unreadable` が失敗した（同じメッセージに書いた）。このコミットの `_context.md` で旧い値の表と値の場所を読む既存の場合も、同じ実行で通った。出力:
 
 ```text
 PASS value-opus-uncovered: RUN (ok)
