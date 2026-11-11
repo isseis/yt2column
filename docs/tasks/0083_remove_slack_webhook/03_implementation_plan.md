@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-11 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-11 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を、節番号は [02_architecture.md](02_architecture.md)（以下、設計書）の節を指す。H-NN は [design_handoff.md](design_handoff.md) の項番で、どれも設計書の付録 A が扱いを記録している。本タスクに `implementation_handoff.md` はない。用語（対象の `@`・無効化・URL・文字参照・URL のパスの `/@`・表示用の Markdown・コピーする文章・無効化した表示用の Markdown・無効化の部品・`@` の単位）は、要件書 §3.1 と設計書の冒頭と同じ意味で使う。本計画は、次の用語を加える。
