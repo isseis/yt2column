@@ -471,7 +471,7 @@ OK   all 10 file(s) are byte for byte the same
 exit=0
 ```
 
-壊し方（それぞれ赤くなり、戻した）: ファイルの中身を変えると `NG   <path> changed at HEAD` と `NG   the .md files changed` で終了コード `1`。ファイルを足すと `NG   the files differ:` と前後の一覧で `1`。ファイルを消すと `NG   <path> is missing at HEAD` で `1`。知らないコミットを渡すと `<ID> is not a commit` で `2`。
+壊し方（それぞれ赤くなり、戻した）: ファイルの中身を変えると `NG   <path> changed at HEAD` と `NG   the .md files changed` で終了コード `1`。ファイルを足すと `NG   the files differ:` と前後の一覧で `1`。ファイルを消すと `NG   <path> is missing at HEAD` で `1`。空白を含む名前のファイルを足すと、その名前も一覧に出て `1`（`git ls-tree -z` の NUL で切る）。知らないコミットを渡すと `<ID> is not a commit` で `2`。
 
 **`_checks/coverage`（ステップ 1-1 の変更の確認）。** 2 つの側の profile を `go test -tags test -count=1 -coverpkg=./... -coverprofile=<profile> ./...` で測った（どちらも終了コード `0`、失敗なし）。比べたコミットは `a56f085eb59fc2d65e0fd393773067013be3727c` と `d6c86425` である。出力と終了コード:
 
@@ -490,7 +490,7 @@ exit=0
 
 `prepareSlackMessages` は、消した本文の検査の分だけ実行された文が減った。ステップ 1-1 の変更だけを比べた途中の実行（`a56f085e..d5de06b0`）では、`prepareSlackMessages: 0 of 12 unexecuted -> 1 of 12 unexecuted` で不合格（`NG   1 function(s) found on both sides have more unexecuted statements`、終了コード `1`）になり、Slack の本文の検査の文が実行されなくなったことを報告した。その検査を消した後の上の実行で、この報告が消えた。
 
-壊し方（それぞれ赤くなり、戻した）: 関数に属さない塊（文の数が `0` の位置）を混ぜると `0 declarations hold the block` で終了コード `2`。`var` の本体の塊を両側で実行させたまま比べると、前後で対応づけられ、不合格にならない。実行されていた文を後ろの側で実行されなくすると `0 of 2 unexecuted -> 1 of 2 unexecuted` で終了コード `1`。0062 の道具を同じ 2 つの側に使うと、`internal/privatefile/privatefile.go:174.44` で `0 function declarations hold the block, want 1` を出して止まる（終了コード `2`）。
+この道具は、`go run` ではなく `go build -tags test` で作った実行ファイルで走らせる（`go run` は 1 と 2 をどちらも `1` にする）。壊し方（それぞれ赤くなり、戻した）: 関数に属さない塊（文の数が `0` の位置）を混ぜると `0 declarations hold the block` で終了コード `2`。`var` の本体の塊を両側で実行させたまま比べると、前後で対応づけられ、不合格にならない。実行されていた文を後ろの側で実行されなくすると `0 of 2 unexecuted -> 1 of 2 unexecuted` で終了コード `1`。0062 の道具を同じ 2 つの側に使うと、`internal/privatefile/privatefile.go:174.44` で `0 function declarations hold the block, want 1` を出して止まる（終了コード `2`）。
 
 PR-2:
 

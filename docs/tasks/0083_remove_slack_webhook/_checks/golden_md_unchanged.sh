@@ -1,6 +1,6 @@
 #!/bin/sh
 # Checks that a set of .md files is the same at two commits, by name and by
-# content: their names and modes (git ls-tree) and their bytes (git cat-file).
+# content: their names and modes, and their bytes.
 #
 #	golden_md_unchanged.sh <before-commit> <after-commit> <directory>
 #
@@ -8,6 +8,12 @@
 # a commit or a file, and 0 otherwise. Reads blobs rather than a checkout, so
 # the working tree is never touched. Run it from the top level of the work tree.
 # make test and CI do not run it.
+#
+# git ls-tree separates the path with a tab and -z ends each entry with a NUL,
+# so a path that holds a space stays whole.
+
+LC_ALL=C
+export LC_ALL
 
 if [ $# -ne 3 ]; then
 	echo "usage: golden_md_unchanged.sh <before-commit> <after-commit> <directory>" >&2
@@ -28,23 +34,22 @@ done
 work=$(mktemp -d) || exit 2
 trap 'rm -rf "$work"' EXIT
 
-# list writes the ls-tree lines of the .md files of commit, sorted by path.
+# list writes "<mode> <blob> <path>" for each .md file of commit at the NUL of
+# the entry, then sorts by path.
 list() {
-	if ! git ls-tree -r "$1" -- "$dir"; then
-		return 1
-	fi
+	git ls-tree -r -z "$1" -- "$dir" |
+		perl -0nE '$/ = "\0"; while (/\G([0-7]+) \S+ (\S+)\t(.*?)\.md\0/gs) { print "$1 $2 $3.md\n" }' |
+		LC_ALL=C sort
 }
 
 echo "before: $before"
 echo "after:  $after"
 echo "files:  $dir/*.md"
 
-if ! list "$before" >"$work/before.ls" || ! list "$after" >"$work/after.ls"; then
+if ! list "$before" >"$work/before.md" || ! list "$after" >"$work/after.md"; then
 	echo "golden_md_unchanged: cannot list the files under $dir" >&2
 	exit 2
 fi
-awk '$4 ~ /\.md$/ { print $1, $3, $4 }' "$work/before.ls" >"$work/before.md"
-awk '$4 ~ /\.md$/ { print $1, $3, $4 }' "$work/after.ls" >"$work/after.md"
 if [ ! -s "$work/before.md" ]; then
 	echo "golden_md_unchanged: no .md file under $dir at $before" >&2
 	exit 2
@@ -52,12 +57,13 @@ fi
 
 status=0
 
-# Check 1: the same file names, with the same modes, at both commits.
-awk '{ print $1, $3 }' "$work/before.md" >"$work/before.names"
-awk '{ print $1, $3 }' "$work/after.md" >"$work/after.names"
+# Check 1: the same file names, with the same modes and blob IDs, at both
+# commits.
+awk '{ print $3, $1, $2 }' "$work/before.md" >"$work/before.names"
+awk '{ print $3, $1, $2 }' "$work/after.md" >"$work/after.names"
 count=$(wc -l <"$work/before.names" | tr -d ' ')
 if cmp -s "$work/before.names" "$work/after.names"; then
-	echo "OK   the same $count file(s) at both commits"
+	echo "OK   the same $count file(s) with the same content at both commits"
 else
 	echo "NG   the files differ:"
 	sed 's/^/before  /' "$work/before.names"

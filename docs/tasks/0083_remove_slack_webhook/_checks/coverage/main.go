@@ -6,8 +6,13 @@
 // package, receiver, and name, so a function whose line moved, or that moved
 // to another file of the same package, is still compared with itself.
 //
-//	go run -tags test ./docs/tasks/0083_remove_slack_webhook/_checks/coverage/ \
-//		<before-commit> <after-commit> <before.prof> <after.prof>
+//	go build -tags test -o <binary> ./docs/tasks/0083_remove_slack_webhook/_checks/coverage/ \
+//		&& <binary> <before-commit> <after-commit> <before.prof> <after.prof>
+//
+// Build the binary and run it, rather than run it with `go run`: the go
+// command reports every non-zero exit of the program as 1, which would hide
+// the difference between 1 (a function lost coverage) and 2 (the comparison
+// could not be made).
 //
 // Make each profile from the repository root, with the commit checked out in
 // a clean working tree, with
