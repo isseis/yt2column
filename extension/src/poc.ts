@@ -250,15 +250,21 @@ async function runCall(
   const visibility = stopTracking();
   state.running = null;
   const parsed = JSON.parse(resultText) as unknown;
-  const summary = show(parsed);
+  // Set before show, which appends the failure or the result to it.
   setStatus("call-status", `${name} finished in ${pageElapsedMs} ms.`);
+  const summary = show(parsed);
+  // An invalid_config failure can mean a key was pasted into a model or
+  // effort field, so the settings of that call are not recorded.
+  const invalidConfig =
+    (parsed as { failure?: { kind?: string } | null }).failure?.kind ===
+    "invalid_config";
   appendRecord({
     call: name,
     startedAt,
     userAgent: navigator.userAgent,
     build: state.build,
     loadMs: state.loadMs,
-    settings,
+    settings: invalidConfig ? "(withheld: invalid_config)" : settings,
     pageElapsedMs,
     visibility,
     ...summary,
@@ -267,10 +273,8 @@ async function runCall(
 
 function showFailure(failure: Failure): void {
   const status = failure.httpStatus === null ? "" : ` (${failure.httpStatus})`;
-  setStatus(
-    "call-status",
-    `Failed: ${failure.kind}${status}: ${failure.message}`,
-  );
+  element("call-status").textContent +=
+    ` Failed: ${failure.kind}${status}: ${failure.message}`;
 }
 
 function showStages(stages: StageReport[]): void {
