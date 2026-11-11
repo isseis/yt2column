@@ -60,6 +60,8 @@ func costReasonWord(reason pricing.UnknownReason) string {
 		return "no-model"
 	case pricing.ReasonUnpricedModel:
 		return "unpriced-model"
+	case pricing.ReasonPricingContextUnknown:
+		return "pricing-context-unknown"
 	default:
 		return "invalid"
 	}

@@ -93,10 +93,11 @@ const (
 	costBasisPeak        = "peak"
 	costBasisShortPrompt = "short-prompt"
 	costBasisLongPrompt  = "long-prompt"
-	// Unknown-reason words of a stage: the three user-facing reasons.
-	costReasonUsageUnknown  = "usage-unknown"
-	costReasonNoModel       = "no-model"
-	costReasonUnpricedModel = "unpriced-model"
+	// Unknown-reason words of a stage: the four user-facing reasons.
+	costReasonUsageUnknown          = "usage-unknown"
+	costReasonNoModel               = "no-model"
+	costReasonUnpricedModel         = "unpriced-model"
+	costReasonPricingContextUnknown = "pricing-context-unknown"
 	// costInvalid names a rate basis or reason outside the enumeration, which
 	// the rate table's validation and the writer's invariants keep out of a
 	// real run; a user reads it as a defect in the CLI.
@@ -298,7 +299,7 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, s
 	if err != nil {
 		return configurationError(errOut, err)
 	}
-	errOut.secrets = redact.SecretStrings(cfg.LLM().DeepSeekAPIKey(), cfg.LLM().AnthropicAPIKey())
+	errOut.secrets = redact.SecretStrings(cfg.LLM().DeepSeekAPIKey(), cfg.LLM().AnthropicAPIKey(), cfg.LLM().OpenAIAPIKey())
 	warnHTTP2Debug(errOut, cfg)
 
 	// A4: the --out file, the review log, and the artifacts directory must not
@@ -722,7 +723,7 @@ func costBasisWord(basis pricing.RateBasis) string {
 	}
 }
 
-// costReasonWord returns the fixed word of an unknown cost's reason. The three
+// costReasonWord returns the fixed word of an unknown cost's reason. The four
 // user-facing reasons get their own words; ReasonUnset and ReasonInvalid, and a
 // value outside the enumeration, are "invalid", which a user reads as a defect
 // in the CLI rather than something the environment caused.
@@ -734,6 +735,8 @@ func costReasonWord(reason pricing.UnknownReason) string {
 		return costReasonNoModel
 	case pricing.ReasonUnpricedModel:
 		return costReasonUnpricedModel
+	case pricing.ReasonPricingContextUnknown:
+		return costReasonPricingContextUnknown
 	default:
 		return costInvalid
 	}

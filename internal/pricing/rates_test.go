@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/isseis/yt2column/internal/llm"
 )
 
 // TestRateTableValid checks that the real rate table satisfies every rule
@@ -22,20 +24,25 @@ func TestRateTableValid(t *testing.T) {
 	}
 }
 
-// TestRateTableModels pins, for each model, how its rate set is chosen and how
-// many rate sets it carries. The threshold and the values are checked by
-// behavior in TestEstimatePromptTier and TestEstimateCategories, not here.
+// TestRateTableModels pins, for each model, how its rate set is chosen, how
+// many rate sets it carries, and the pricing context it requires. The
+// threshold and the values are checked by behavior in TestEstimatePromptTier
+// (claude-haiku-5-5), TestEstimateCategories (the DeepSeek and Claude rows),
+// and TestEstimateOpenAI (the OpenAI rows), not here.
 func TestRateTableModels(t *testing.T) {
 	want := []struct {
-		model  string
-		scheme rateScheme
-		sets   int
+		model    string
+		scheme   rateScheme
+		sets     int
+		requires llm.PricingContext
 	}{
-		{"deepseek-flash", schemeTimeOfDay, 2},
-		{"claude-fable-5-1", schemeFlat, 1},
-		{"claude-opus-5-5", schemeFlat, 1},
-		{"claude-sonnet-5-5", schemeFlat, 1},
-		{"claude-haiku-5-5", schemePromptTier, 2},
+		{"deepseek-flash", schemeTimeOfDay, 2, llm.PricingContextUnspecified},
+		{"claude-fable-5-1", schemeFlat, 1, llm.PricingContextUnspecified},
+		{"claude-opus-5-5", schemeFlat, 1, llm.PricingContextUnspecified},
+		{"claude-sonnet-5-5", schemeFlat, 1, llm.PricingContextUnspecified},
+		{"claude-haiku-5-5", schemePromptTier, 2, llm.PricingContextUnspecified},
+		{"gpt-6-astra", schemePromptTier, 2, llm.PricingContextStandard30m},
+		{"gpt-6.1-sol", schemePromptTier, 2, llm.PricingContextStandard30m},
 	}
 	if len(rateTable) != len(want) {
 		t.Fatalf("rate table has %d entries, want %d", len(rateTable), len(want))
@@ -47,6 +54,9 @@ func TestRateTableModels(t *testing.T) {
 		}
 		if m.scheme != w.scheme {
 			t.Errorf("%s scheme = %v, want %v", w.model, m.scheme, w.scheme)
+		}
+		if m.requires != w.requires {
+			t.Errorf("%s requires = %v, want %v", w.model, m.requires, w.requires)
 		}
 		sets := 1
 		if m.alternate != (rates{}) {
@@ -102,6 +112,8 @@ func TestValidateRejects(t *testing.T) {
 		{"empty model", func(tb []modelRates) { tb[0].model = "" }, errEmptyModel},
 		{"duplicate model", func(tb []modelRates) { tb[1].model = tb[0].model }, errDuplicateModel},
 		{"unset scheme", func(tb []modelRates) { tb[0].scheme = schemeUnset }, errUnknownScheme},
+		{"entry requiring an unverified context", func(tb []modelRates) { tb[0].requires = llm.PricingContextUnverified }, errInvalidPricingCtx},
+		{"entry requiring a context outside the enumeration", func(tb []modelRates) { tb[0].requires = llm.PricingContext(99) }, errInvalidPricingCtx},
 		{"flat model with a peak rule", func(tb []modelRates) { tb[0].peak = validPeak }, errUnusedField},
 		{"flat model with a threshold", func(tb []modelRates) { tb[0].threshold = 1 }, errUnusedField},
 		{"flat model with an alternate set", func(tb []modelRates) { tb[0].alternate = rates{input: 1} }, errUnusedField},

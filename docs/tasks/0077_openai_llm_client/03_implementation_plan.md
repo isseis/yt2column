@@ -170,19 +170,19 @@
 
 **変更ファイル:** `internal/llm/provider/provider.go`・`provider_test.go`、`cmd/yt2column/run.go`・`run_test.go`、`cmd/yt2column-server/run.go`・`run_test.go`。
 
-- [ ] `builders`・`productionBuilders`・`newClient` に OpenAI を追加し、生成・調整と検証・推敲の選択を正しく渡す。既存の provider の spy とループバックの検証を拡張する。
-- [ ] 両入口の `redact.SecretStrings` に OpenAI のキーを加え、偽のキーと末尾断片をエラー・ログ・メタデータ・一覧へ出さないことを既存の秘密検証と新規 `TestOpenAIOutputsOmitSecrets` で確認する。
-- [ ] 両入口に新規 `TestOpenAIConfiguration` を追加する。設定からクライアント・工程の結果までを偽の依存で通し、欠け・空のキーの終了コード2と送信0回、サーバの環境無視、再開時の設定範囲、混在を確認する。
-- [ ] `provider_test.go` に新規 `TestOpenAIDefaultMaxTokensFitsBudget` を加え、実際の要求の既定上限と設計書 §1.4 の観測最大・最低速度・モデルの最大出力・`LLMTimeout` の関係を検証する。正の上限はそのまま送り、3工程で既定を共有することも確認する。
+- [x] `builders`・`productionBuilders`・`newClient` に OpenAI を追加し、生成・調整と検証・推敲の選択を正しく渡す。既存の provider の spy とループバックの検証を拡張する。
+- [x] 両入口の `redact.SecretStrings` に OpenAI のキーを加え、偽のキーと末尾断片をエラー・ログ・メタデータ・一覧へ出さないことを既存の秘密検証と新規 `TestOpenAIOutputsOmitSecrets` で確認する。
+- [x] 両入口に新規 `TestOpenAIConfiguration` を追加する。設定からクライアント・工程の結果までを偽の依存で通し、欠け・空のキーの終了コード2と送信0回、サーバの環境無視、再開時の設定範囲、混在を確認する。
+- [x] `provider_test.go` に新規 `TestOpenAIDefaultMaxTokensFitsBudget` を加え、実際の要求の既定上限と設計書 §1.4 の観測最大・最低速度・モデルの最大出力・`LLMTimeout` の関係を検証する。正の上限はそのまま送り、3工程で既定を共有することも確認する。
 
 #### ステップ 3-2：料金と工程の記録を確認する
 
-**変更ファイル:** `internal/pricing/pricing.go`・`rates.go`・`rates_test.go`・`pricing_test.go`、`internal/pricing/testutil/helpers.go`・`helpers_test.go`、`cmd/yt2column/run.go`・`cost_test.go`。
+**変更ファイル:** `internal/pricing/pricing.go`・`rates.go`・`rates_test.go`・`pricing_test.go`、`internal/pricing/testutil/helpers.go`・`helpers_test.go`、`cmd/yt2column/run.go`・`cost_test.go`・`docs_test.go`、`docs/dev/guides/cli.md`。
 
-- [ ] 設計書 §3.4 の2モデルの単価・条件・しきい値と新しい不明理由を追加する。CLI と統合テスト用の表示を同時に追加する。
-- [ ] 新規 `TestEstimateOpenAI` で独立した手計算、入力合計272,000と272,001、キャッシュだけでしきい値を越える場合、未登録の応答モデル、条件の不一致を検証する。既存2プロバイダの単価・計算を維持する。
-- [ ] `TestRunCostLinesAllStages`・`TestRunCostLinesUnknown`・`TestRunCostLinesFailure`・`TestRunCostLinesResume` を拡張し、数が既知でも料金が不明のケースを含める。新規 `TestRunOpenAIUsageRecords` で工程・記事・中間生成物への4区分とモデル、再開時の記録の保持を確認する。
-- [ ] 失敗時に記事を保存・表示・投稿しないことと、料金が不明でも生成・保存・公開が継続することを CLI とサーバの偽の依存で検証する。
+- [x] 設計書 §3.4 の2モデルの単価・条件・しきい値と新しい不明理由を追加する。CLI と統合テスト用の表示を同時に追加する。
+- [x] 新規 `TestEstimateOpenAI` で独立した手計算、入力合計272,000と272,001、キャッシュだけでしきい値を越える場合、未登録の応答モデル、条件の不一致を検証する。既存2プロバイダの単価・計算を維持する。
+- [x] `TestRunCostLinesAllStages`・`TestRunCostLinesUnknown`・`TestRunCostLinesFailure`・`TestRunCostLinesResume` を拡張し、数が既知でも料金が不明のケースを含める。新規 `TestRunOpenAIUsageRecords` で工程・記事・中間生成物への4区分とモデル、再開時の記録の保持を確認する。
+- [x] 失敗時に記事を保存・表示・投稿しないことと、料金が不明でも生成・保存・公開が継続することを CLI とサーバの偽の依存で検証する。
 
 **完了条件:** 3プロバイダを両方向に混在させた配線、秘密、不明の料金、再開の検証とグリーンゲートが通る。
 
@@ -198,10 +198,10 @@
 
 **判定理由**: 設計済みの配線と料金表の拡張であり、上位モデルを要する条件に該当しない。
 
-- [ ] グリーンゲート（`make test`・`make lint`）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`make test`・`make lint`）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/815
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ4：統合テスト・実応答・利用案内
 
@@ -288,7 +288,7 @@
 - [x] PR-1 マージ済み（1-1 / 1-2）
 - [x] PR-2 マージ済み（2-1 / 2-2）
 - [x] PR-3 マージ済み（2-3）
-- [ ] PR-4 マージ済み（3-1 / 3-2）
+- [x] PR-4 マージ済み（3-1 / 3-2）
 - [ ] PR-5 マージ済み（4-1 / 4-2）
 - [ ] 下表の全 AC の検証結果を記録した
 

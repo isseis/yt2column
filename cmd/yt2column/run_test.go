@@ -20,6 +20,7 @@ import (
 	"github.com/isseis/yt2column/internal/artifact"
 	"github.com/isseis/yt2column/internal/config"
 	"github.com/isseis/yt2column/internal/llm"
+	"github.com/isseis/yt2column/internal/llm/openaiparam"
 	llmtestutil "github.com/isseis/yt2column/internal/llm/testutil"
 	"github.com/isseis/yt2column/internal/publisher"
 	publishertestutil "github.com/isseis/yt2column/internal/publisher/testutil"
@@ -40,7 +41,12 @@ const (
 	// testAnthropicKey is the Anthropic key of a claude configuration; a
 	// failure whose message holds it must be redacted too.
 	testAnthropicKey = "sk-ant-APIKEYVALUE-0123456789-TAIL8ANT"
-	lockFileName     = ".yt2column.lock"
+	// testOpenAIKey is the OpenAI key of an openai configuration; a failure
+	// whose message holds it must be redacted too.
+	testOpenAIKey = "sk-openai-OPENAIKEYVALUE-0123456789-TAIL8OAI"
+	// testOpenAIModel is the generation model of an openai configuration.
+	testOpenAIModel = "gpt-6-astra"
+	lockFileName    = ".yt2column.lock"
 
 	// runBound bounds a wait for a run started in a goroutine to return.
 	runBound = 30 * time.Second
@@ -2347,4 +2353,237 @@ func TestRunAfterShortenEmptyModelVersion(t *testing.T) {
 	if !strings.Contains(string(data), "shorten_model_version: \"(none)\"") {
 		t.Errorf("--out does not write the empty reused model version as (none):\n%s", data)
 	}
+}
+
+// openAIStandardUsage returns the usage a successful OpenAI call reports under
+// the confirmed Standard tier and 30-minute prompt cache, the condition the
+// OpenAI rate table rows require.
+func openAIStandardUsage(t *testing.T, counts llm.TokenCounts) llm.Usage {
+	t.Helper()
+	usage, err := llm.KnownUsageWithPricingContext(counts, llm.PricingContextStandard30m)
+	if err != nil {
+		t.Fatalf("KnownUsageWithPricingContext: %v", err)
+	}
+	return usage
+}
+
+// TestOpenAIConfiguration checks the OpenAI selection from the configuration
+// to the built clients and the article's recorded result, that a missing or
+// empty key exits 2 before any call, that a resume reads only the stages it
+// runs, and that an OpenAI stage mixes with a DeepSeek stage in both
+// directions.
+func TestOpenAIConfiguration(t *testing.T) {
+	const openAIReviewModel = "gpt-6.1-sol"
+	selectOpenAI := func(e *runEnv) {
+		e.env["YT2COLUMN_LLM"] = "openai/" + testOpenAIModel
+		e.env["YT2COLUMN_REVIEW_LLM"] = "openai/" + openAIReviewModel
+		e.env["OPENAI_API_KEY"] = testOpenAIKey
+	}
+
+	t.Run("the settings reach the clients and the article", func(t *testing.T) {
+		e := newRunEnv(t)
+		e.withSteps = true
+		selectOpenAI(e)
+		usage := openAIStandardUsage(t, llm.TokenCounts{Input: 1000, Output: 100})
+		e.client = usageLLM(usageResponse(shortGeneratedText(), testOpenAIModel, usage))
+		var generation, review config.LLMSelection
+		e.d.newLLMClient = func(cfg config.LLMConfig) (llm.LLMClient, error) {
+			generation = cfg.Generation()
+			return e.counter.wrap(e.client), nil
+		}
+		e.d.newReviewLLMClient = func(cfg config.LLMConfig) (llm.LLMClient, error) {
+			review = cfg.Review()
+			client := funcLLM(func(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {
+				return llm.GenerateResponse{Text: emptyReviewJSON, Model: openAIReviewModel}, nil
+			})
+			return e.counter.wrap(client), nil
+		}
+
+		if code := e.run(); code != exitOK {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
+		}
+		// The stages' selections kept each stage's own model and the effort
+		// the configuration applies when the value has none.
+		if generation.Provider() != config.ProviderOpenAI || generation.Model() != testOpenAIModel {
+			t.Errorf("generation selection = %v/%q, want openai/%q", generation.Provider(), generation.Model(), testOpenAIModel)
+		}
+		if generation.OpenAIEffort() != openaiparam.EffortMedium {
+			t.Errorf("generation effort = %v, want the openai default %v", generation.OpenAIEffort(), openaiparam.EffortMedium)
+		}
+		if review.Provider() != config.ProviderOpenAI || review.Model() != openAIReviewModel {
+			t.Errorf("review selection = %v/%q, want openai/%q", review.Provider(), review.Model(), openAIReviewModel)
+		}
+		if review.OpenAIEffort() != openaiparam.EffortMedium {
+			t.Errorf("review effort = %v, want the openai default %v", review.OpenAIEffort(), openaiparam.EffortMedium)
+		}
+		if got := e.counter.count(); got != 2 {
+			t.Errorf("LLM calls = %d, want one generation and one review", got)
+		}
+		data, err := os.ReadFile(e.outPath) //nolint:gosec // a path inside the test's temporary directory
+		if err != nil {
+			t.Fatalf("read --out: %v", err)
+		}
+		for _, want := range []string{
+			"\nmodel: \"" + testOpenAIModel + "\"\n",
+			"\nreview_model: \"" + openAIReviewModel + "\"\n",
+		} {
+			if !strings.Contains(string(data), want) {
+				t.Errorf("--out does not contain %q:\n%s", want, data)
+			}
+		}
+	})
+
+	for _, tc := range []struct {
+		name string
+		set  bool
+	}{
+		{"missing", false},
+		{"empty", true},
+	} {
+		t.Run("a "+tc.name+" key exits 2 before any call", func(t *testing.T) {
+			e := newRunEnv(t)
+			e.withSteps = true
+			selectOpenAI(e)
+			if tc.set {
+				e.env["OPENAI_API_KEY"] = ""
+			} else {
+				delete(e.env, "OPENAI_API_KEY")
+			}
+			if code := e.run(); code != exitUsage {
+				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitUsage, e.stderr.String())
+			}
+			if want := "OPENAI_API_KEY: is unset or empty"; !strings.Contains(e.stderr.String(), want) {
+				t.Errorf("stderr does not contain %q:\n%s", want, e.stderr.String())
+			}
+			if got := e.counter.count(); got != 0 {
+				t.Errorf("LLM calls = %d, want none", got)
+			}
+			requireNoFile(t, e.outPath)
+		})
+	}
+
+	// A resume runs only the stages after its resume point, so the key of a
+	// provider those stages select is required and the run stops before any
+	// call. The "no stage runs, so no key is required" case is provider-
+	// agnostic and covered by TestRunResumeConfigScoping.
+	t.Run("a resume that runs an openai stage needs its key", func(t *testing.T) {
+		dir := saveArtifactsOnce(t, func(e *runEnv) {
+			selectOpenAI(e)
+			e.client = usageLLM(usageResponse(shortGeneratedText(), testOpenAIModel,
+				openAIStandardUsage(t, llm.TokenCounts{Input: 10, Output: 5})))
+		})
+		e := newRunEnv(t)
+		e.withSteps = true
+		e.args = []string{"--artifacts", dir, "--after", "generation", "--out", e.outPath, runVideoURL}
+		selectOpenAI(e)
+		delete(e.env, "OPENAI_API_KEY")
+		if code := e.run(); code != exitUsage {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitUsage, e.stderr.String())
+		}
+		if want := "OPENAI_API_KEY: is unset or empty"; !strings.Contains(e.stderr.String(), want) {
+			t.Errorf("stderr does not contain %q:\n%s", want, e.stderr.String())
+		}
+		if got := e.counter.count(); got != 0 {
+			t.Errorf("LLM calls = %d, want none", got)
+		}
+	})
+
+	t.Run("openai mixes with deepseek in both directions", func(t *testing.T) {
+		cases := []struct {
+			name                       string
+			generation, review         string
+			wantGeneration, wantReview config.Provider
+		}{
+			{
+				"openai generation, deepseek review",
+				"openai/" + testOpenAIModel, "deepseek/fake-model",
+				config.ProviderOpenAI, config.ProviderDeepSeek,
+			},
+			{
+				"deepseek generation, openai review",
+				"deepseek/fake-model", "openai/" + openAIReviewModel,
+				config.ProviderDeepSeek, config.ProviderOpenAI,
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				e := newRunEnv(t)
+				e.withSteps = true
+				e.env["YT2COLUMN_LLM"] = tc.generation
+				e.env["YT2COLUMN_REVIEW_LLM"] = tc.review
+				e.env["OPENAI_API_KEY"] = testOpenAIKey
+				e.env["ANTHROPIC_API_KEY"] = testAnthropicKey
+				e.client = usageLLM(usageResponse(shortGeneratedText(), "gen-model", llm.KnownUsage(llm.TokenCounts{Input: 1})))
+				var generation, review config.LLMSelection
+				e.d.newLLMClient = func(cfg config.LLMConfig) (llm.LLMClient, error) {
+					generation = cfg.Generation()
+					return e.counter.wrap(e.client), nil
+				}
+				e.d.newReviewLLMClient = func(cfg config.LLMConfig) (llm.LLMClient, error) {
+					review = cfg.Review()
+					return reviewLLM(emptyReviewJSON), nil
+				}
+
+				if code := e.run(); code != exitOK {
+					t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
+				}
+				if got := generation.Provider(); got != tc.wantGeneration {
+					t.Errorf("generation provider = %v, want %v", got, tc.wantGeneration)
+				}
+				if got := review.Provider(); got != tc.wantReview {
+					t.Errorf("review provider = %v, want %v", got, tc.wantReview)
+				}
+			})
+		}
+	})
+}
+
+// TestOpenAIOutputsOmitSecrets checks that the OpenAI key and its tail reach
+// neither standard output nor standard error, on a failure whose message
+// carries the key and a bare tail and on a run whose reported model name
+// carries it. It covers the CLI's own lines only: the published article's
+// raw model-name header is the pre-existing behavior TestRunCostLinesOmitModel
+// documents, which this task does not change.
+func TestOpenAIOutputsOmitSecrets(t *testing.T) {
+	tail := testOpenAIKey[len(testOpenAIKey)-8:]
+	selectOpenAI := func(e *runEnv) {
+		e.env["YT2COLUMN_LLM"] = "openai/" + testOpenAIModel
+		e.env["OPENAI_API_KEY"] = testOpenAIKey
+	}
+	requireOmitted := func(t *testing.T, e *runEnv) {
+		t.Helper()
+		for _, output := range []string{e.stdout.String(), e.stderr.String()} {
+			if strings.Contains(output, testOpenAIKey) || strings.Contains(output, tail) {
+				t.Errorf("an output holds the OpenAI key or its tail:\n%s", output)
+			}
+		}
+	}
+
+	t.Run("a failure message carrying the key", func(t *testing.T) {
+		e := newRunEnv(t)
+		e.withSteps = true
+		selectOpenAI(e)
+		e.client = funcLLM(func(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {
+			return llm.GenerateResponse{}, errors.New("request failed for key " + testOpenAIKey + " " + tail)
+		})
+		e.useReviewClient(reviewLLM(emptyReviewJSON))
+		if code := e.run(); code != exitFailure {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitFailure, e.stderr.String())
+		}
+		requireOmitted(t, e)
+		requireNoFile(t, e.outPath)
+	})
+
+	t.Run("a model name carrying the key on the CLI's lines", func(t *testing.T) {
+		e := newRunEnv(t)
+		e.withSteps = true
+		selectOpenAI(e)
+		e.client = usageLLM(usageResponse(shortGeneratedText(), testOpenAIKey,
+			openAIStandardUsage(t, llm.TokenCounts{Input: 100, Output: 10})))
+		e.useReviewClient(reviewLLM(emptyReviewJSON))
+		if code := e.run(); code != exitOK {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, e.stderr.String())
+		}
+		requireOmitted(t, e)
+	})
 }

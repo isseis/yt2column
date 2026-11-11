@@ -6,6 +6,8 @@ package pricing
 import (
 	"errors"
 	"time"
+
+	"github.com/isseis/yt2column/internal/llm"
 )
 
 // microUSDPerMTok is a rate in 10^-6 USD per million tokens. A rate of
@@ -33,14 +35,17 @@ const (
 )
 
 // modelRates is one entry of the rate table. Each field other than model,
-// scheme, and base belongs to one scheme and must be zero for the others.
+// scheme, base, and requires belongs to one scheme and must be zero for the
+// others. requires is the pricing context a usage must report for the entry's
+// rates to apply; it is required of every scheme.
 type modelRates struct {
 	model     string
 	scheme    rateScheme
-	base      rates    // flat: the rates; time of day: off-peak; prompt tier: at or below the threshold
-	alternate rates    // time of day: peak; prompt tier: above the threshold
-	threshold uint64   // prompt tier only: the largest prompt length that uses base
-	peak      peakRule // time of day only
+	requires  llm.PricingContext // the pricing context a usage must report
+	base      rates              // flat: the rates; time of day: off-peak; prompt tier: at or below the threshold
+	alternate rates              // time of day: peak; prompt tier: above the threshold
+	threshold uint64             // prompt tier only: the largest prompt length that uses base
+	peak      peakRule           // time of day only
 }
 
 // peakRule is the weekly peak window of a time-of-day model, in UTC: the
@@ -72,6 +77,7 @@ var (
 	errUnusedField          = errors.New("pricing: rate table: field is not used by the scheme")
 	errNonPositiveThreshold = errors.New("pricing: rate table: prompt-length threshold is not positive")
 	errInvalidPeakRule      = errors.New("pricing: rate table: invalid peak rule")
+	errInvalidPricingCtx    = errors.New("pricing: rate table: invalid required pricing context")
 )
 
 // rateTable holds the rates this package prices with. Each entry declares how
@@ -121,6 +127,24 @@ var rateTable = []modelRates{
 		alternate: rates{input: 500000, cacheRead: 50000, cacheWrite: 625000, output: 2500000}, //nolint:mnd // published per-million-token rates
 		threshold: 100000,                                                                      //nolint:mnd // published prompt-length threshold in tokens
 	},
+	// Source: https://developers.openai.com/api/docs/pricing (checked 2026-11-10)
+	{
+		model:     "gpt-6-astra",
+		scheme:    schemePromptTier,
+		requires:  llm.PricingContextStandard30m,
+		base:      rates{input: 10000000, cacheRead: 1000000, cacheWrite: 12500000, output: 50000000}, //nolint:mnd // published per-million-token rates
+		alternate: rates{input: 20000000, cacheRead: 2000000, cacheWrite: 25000000, output: 75000000}, //nolint:mnd // published long-input rates
+		threshold: 272000,                                                                             //nolint:mnd // published prompt-length threshold in tokens
+	},
+	// Source: https://developers.openai.com/api/docs/pricing (checked 2026-11-10)
+	{
+		model:     "gpt-6.1-sol",
+		scheme:    schemePromptTier,
+		requires:  llm.PricingContextStandard30m,
+		base:      rates{input: 2000000, cacheRead: 100000, cacheWrite: 2500000, output: 10000000}, //nolint:mnd // published per-million-token rates
+		alternate: rates{input: 4000000, cacheRead: 200000, cacheWrite: 5000000, output: 15000000}, //nolint:mnd // published long-input rates
+		threshold: 272000,                                                                          //nolint:mnd // published prompt-length threshold in tokens
+	},
 }
 
 // validate reports the first rule the table breaks, or nil when it satisfies
@@ -144,6 +168,9 @@ func validate(table []modelRates) error {
 
 // validateEntry checks the fields one entry uses against its scheme.
 func validateEntry(m modelRates) error {
+	if !validRequiredPricingContext(m.requires) {
+		return errInvalidPricingCtx
+	}
 	switch m.scheme {
 	case schemeFlat:
 		if m.alternate != (rates{}) || m.threshold != 0 || !peakIsZero(m.peak) {
@@ -176,6 +203,19 @@ func validateEntry(m modelRates) error {
 // peakIsZero reports whether a peak rule carries no rule at all.
 func peakIsZero(p peakRule) bool {
 	return len(p.weekdays) == 0 && len(p.ranges) == 0
+}
+
+// validRequiredPricingContext reports whether a rate table entry may require c.
+// Only "no extra condition" and a confirmed Standard tier with a 30-minute
+// cache can gate a rate: an unverified condition names nothing a rate can be
+// selected on, so an entry requiring it would be a broken row.
+func validRequiredPricingContext(c llm.PricingContext) bool {
+	switch c {
+	case llm.PricingContextUnspecified, llm.PricingContextStandard30m:
+		return true
+	default:
+		return false
+	}
 }
 
 // validatePeakRule checks the weekly peak window: non-empty, distinct

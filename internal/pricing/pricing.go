@@ -47,6 +47,9 @@ const (
 	ReasonNoModel
 	// ReasonUnpricedModel means the model is not in the rate table.
 	ReasonUnpricedModel
+	// ReasonPricingContextUnknown means the usage's pricing context does not
+	// match the condition the model's rates require.
+	ReasonPricingContextUnknown
 	// ReasonInvalid marks a broken invariant: no call time for a time-of-day
 	// model, or an unknown rate scheme.
 	ReasonInvalid
@@ -94,8 +97,10 @@ func (t Total) Amount() (Amount, bool) {
 }
 
 // Estimate returns the cost of one call of model with usage, whose Generate
-// returned at callTime. The model is matched against the rate table exactly.
-// callTime is read in UTC and is used only by a time-of-day model.
+// returned at callTime. The model is matched against the rate table exactly,
+// and its rates are used only when the usage's pricing context is the one the
+// entry requires. callTime is read in UTC and is used only by a time-of-day
+// model.
 func Estimate(model string, usage llm.Usage, callTime time.Time) StageCost {
 	counts, known := usage.Counts()
 	if !known {
@@ -107,6 +112,9 @@ func Estimate(model string, usage llm.Usage, callTime time.Time) StageCost {
 	entry, ok := lookupModel(model)
 	if !ok {
 		return unknownCost(ReasonUnpricedModel)
+	}
+	if usage.PricingContext() != entry.requires {
+		return unknownCost(ReasonPricingContextUnknown)
 	}
 	return estimateEntry(entry, counts, callTime)
 }

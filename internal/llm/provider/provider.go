@@ -11,16 +11,17 @@ import (
 	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/llm/claude"
 	"github.com/isseis/yt2column/internal/llm/deepseek"
+	"github.com/isseis/yt2column/internal/llm/openai"
 )
 
 // LLMTimeout bounds one LLM call, for every provider. DeepSeek holds a request
 // for up to ten minutes before inference starts; the remaining five minutes
-// cover the generation itself. The Claude adapter's default output limit is
-// sized so that a non-streaming call producing that many tokens at the slowest
-// observed output rate finishes within half of this timeout; a test in this
-// package pins that relation, and
-// docs/dev/guides/claude_output_limit.md describes how to re-measure
-// it.
+// cover the generation itself. The Claude adapter's default output limit and
+// the OpenAI adapter's default max_output_tokens are each sized so that a
+// non-streaming call producing that many tokens at the slowest observed output
+// rate finishes within half of this timeout; tests in this package pin that
+// relation, and docs/dev/guides/claude_output_limit.md describes how to
+// re-measure the Claude value.
 const LLMTimeout = 15 * time.Minute
 
 // errUnknownProvider reports a Provider value whose construction is undefined.
@@ -42,16 +43,17 @@ func NewReview(cfg config.LLMConfig) (llm.LLMClient, error) {
 	return newReview(cfg, productionBuilders())
 }
 
-// builders are the adapter constructors. Production passes deepseek.New and
-// claude.New; a test passes a loopback constructor or a spy.
+// builders are the adapter constructors. Production passes deepseek.New,
+// claude.New, and openai.New; a test passes a loopback constructor or a spy.
 type builders struct {
 	deepseek func(deepseek.Options) (llm.LLMClient, error)
 	claude   func(claude.Options) (llm.LLMClient, error)
+	openai   func(openai.Options) (llm.LLMClient, error)
 }
 
 // productionBuilders returns the real adapter constructors.
 func productionBuilders() builders {
-	return builders{deepseek: deepseek.New, claude: claude.New}
+	return builders{deepseek: deepseek.New, claude: claude.New, openai: openai.New}
 }
 
 // newGeneration builds the generation client from cfg.Generation(). It is New
@@ -98,6 +100,17 @@ func newClient(sel config.LLMSelection, cfg config.LLMConfig, build builders) (l
 		})
 		if err != nil {
 			return nil, fmt.Errorf("building the claude client: %w", err)
+		}
+		return client, nil
+	case config.ProviderOpenAI:
+		client, err := build.openai(openai.Options{
+			APIKey:  cfg.OpenAIAPIKey(),
+			Model:   sel.Model(),
+			Effort:  sel.OpenAIEffort(),
+			Timeout: LLMTimeout,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("building the openai client: %w", err)
 		}
 		return client, nil
 	default:

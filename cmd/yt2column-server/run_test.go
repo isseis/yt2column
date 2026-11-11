@@ -640,6 +640,130 @@ func TestOutputsOmitSecrets(t *testing.T) {
 	requireNoSecret(t, "stderr", srv.stderr.String())
 }
 
+// TestOpenAIOutputsOmitSecrets checks that the OpenAI key and its tail reach
+// neither standard error nor a log line of the server, when a generation
+// failure's message carries both.
+func TestOpenAIOutputsOmitSecrets(t *testing.T) {
+	e := newServerEnv(t)
+	e.file["YT2COLUMN_LLM"] = "openai/" + testOpenAIModel
+	e.file["OPENAI_API_KEY"] = testOpenAIKey
+	tail := testOpenAIKey[len(testOpenAIKey)-8:]
+	leaking := funcLLM(func(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {
+		return llm.GenerateResponse{}, errors.New("leak " + testOpenAIKey + " " + tail)
+	})
+
+	srv := startServer(t, e, testDeps(leaking))
+	doJobs(t, e.socketPath(t), http.MethodPost, server.JobsPath, strings.NewReader(requestBody(testValidRaw)), http.StatusAccepted)
+	line := srv.waitStderr(t, "generation job failed")
+	if code := srv.stop(t); code != exitOK {
+		t.Fatalf("exit code = %d, want %d", code, exitOK)
+	}
+
+	// Both the full key and the bare tail are replaced separately.
+	if !strings.Contains(line, "leak [REDACTED] [REDACTED]") {
+		t.Fatalf("the failure line does not hold both redactions: %s", line)
+	}
+	if strings.Contains(line, tail) {
+		t.Fatalf("the failure line holds the key's tail: %s", line)
+	}
+	requireNoSecret(t, "stderr", srv.stderr.String())
+}
+
+// TestOpenAIConfiguration checks that the server takes the OpenAI selection and
+// key from its configuration file only, passes each stage's selection to its
+// client constructor, and serves a generation job through those clients.
+func TestOpenAIConfiguration(t *testing.T) {
+	t.Run("the file's settings reach the clients and a job", func(t *testing.T) {
+		e := newServerEnv(t)
+		e.file["YT2COLUMN_LLM"] = "openai/" + testOpenAIModel
+		e.file["YT2COLUMN_REVIEW_LLM"] = "openai/" + testOpenAIReviewModel
+		e.file["OPENAI_API_KEY"] = testOpenAIKey
+		var generation, review config.LLMSelection
+		d := testDeps(validResponseLLM())
+		d.newLLMClient = func(cfg config.LLMConfig) (llm.LLMClient, error) {
+			generation = cfg.Generation()
+			return validResponseLLM(), nil
+		}
+		d.newReviewLLMClient = func(cfg config.LLMConfig) (llm.LLMClient, error) {
+			review = cfg.Review()
+			return reviewLLM(), nil
+		}
+
+		srv := startServer(t, e, d)
+		started := doJobs(t, e.socketPath(t), http.MethodPost, server.JobsPath, strings.NewReader(requestBody(testValidRaw)), http.StatusAccepted)
+		if done := waitJobDone(t, e.socketPath(t), started.Key); done.Job.State != "done" {
+			t.Fatalf("job = %+v, want done\nstderr:\n%s", done.Job, srv.stderr.String())
+		}
+		if code := srv.stop(t); code != exitOK {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, srv.stderr.String())
+		}
+		if generation.Provider() != config.ProviderOpenAI || generation.Model() != testOpenAIModel {
+			t.Errorf("generation selection = %v/%q, want openai/%q", generation.Provider(), generation.Model(), testOpenAIModel)
+		}
+		if review.Provider() != config.ProviderOpenAI || review.Model() != testOpenAIReviewModel {
+			t.Errorf("review selection = %v/%q, want openai/%q", review.Provider(), review.Model(), testOpenAIReviewModel)
+		}
+	})
+
+	t.Run("a failed generation exposes no article", func(t *testing.T) {
+		webhook, webhookURL := newWebhookServer(t)
+		e := newServerEnv(t)
+		e.file["YT2COLUMN_LLM"] = "openai/" + testOpenAIModel
+		e.file["OPENAI_API_KEY"] = testOpenAIKey
+		failing := funcLLM(func(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {
+			return llm.GenerateResponse{}, errors.New("generation failed")
+		})
+
+		srv := startServer(t, e, loopbackDeps(t, failing, webhookURL))
+		started := doJobs(t, e.socketPath(t), http.MethodPost, server.JobsPath, strings.NewReader(requestBody(testValidRaw)), http.StatusAccepted)
+		done := waitJobDone(t, e.socketPath(t), started.Key)
+		if done.Job.State == "done" || done.Job.Article != nil {
+			t.Fatalf("job = %+v, want a failure with no article", done.Job)
+		}
+		// The failed key has no article to publish, so the publish operation
+		// is refused and nothing reaches the Webhook.
+		rejected := doJobs(t, e.socketPath(t), http.MethodPost,
+			server.JobsPath+"/"+started.Key+server.PublishSuffix, nil, http.StatusNotFound)
+		if rejected.Reason != "article_not_found" {
+			t.Errorf("publish reason = %q, want article_not_found", rejected.Reason)
+		}
+		if code := srv.stop(t); code != exitOK {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, srv.stderr.String())
+		}
+		if got := webhook.messages(); len(got) != 0 {
+			t.Errorf("messages = %q, want none", got)
+		}
+	})
+
+	for _, tc := range []struct {
+		name       string
+		set        bool
+		wantReason string
+	}{
+		{"missing", false, "is not set"},
+		{"empty", true, "is empty"},
+	} {
+		t.Run("the environment does not fill a "+tc.name+" key", func(t *testing.T) {
+			e := newServerEnv(t)
+			e.file["YT2COLUMN_LLM"] = "openai/" + testOpenAIModel
+			delete(e.file, "DEEPSEEK_API_KEY")
+			if tc.set {
+				e.file["OPENAI_API_KEY"] = ""
+			}
+			e.writeConfig(t)
+			e.vars["OPENAI_API_KEY"] = testOpenAIKey
+			var stderr strings.Builder
+			if code := run(t.Context(), nil, e.lookup(), &stderr, testDeps(validResponseLLM())); code != exitUsage {
+				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitUsage, stderr.String())
+			}
+			if want := "configuration: configuration file key OPENAI_API_KEY: " + tc.wantReason; !strings.Contains(stderr.String(), want) {
+				t.Errorf("stderr does not contain %q:\n%s", want, stderr.String())
+			}
+			requireNoSecret(t, "stderr", stderr.String())
+		})
+	}
+}
+
 // TestBuildsSlackPublisher checks that the production constructor builds the
 // SlackWebhookPublisher the server posts with, and that a rejected webhook URL
 // yields a nil interface rather than a typed nil.

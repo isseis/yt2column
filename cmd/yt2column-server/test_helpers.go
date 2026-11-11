@@ -39,12 +39,18 @@ const (
 	apiKeyMarker      = "APIKEYVALUE"
 	testAnthropicKey  = "sk-ant-ANTHROPICVALUE-0123456789-TAIL8ANT" //nolint:gosec // a fake key the redaction checks look for
 	anthropicMarker   = "ANTHROPICVALUE"
+	testOpenAIKey     = "sk-openai-OPENAIKEYVALUE-0123456789-TAIL8OAI" //nolint:gosec // a fake key the redaction checks look for
+	openAIMarker      = "OPENAIKEYVALUE"
 	webhookPathMarker = "WEBHOOKVALUE"
 	testWebhookPath   = "/services/T0/B0/" + webhookPathMarker + "-TAIL8HKS"
 	// testWebhook passes slackwebhook.ValidURL, as config.LoadServer
 	// requires; the tests never send to it.
 	testWebhook = "https://hooks.slack.com" + testWebhookPath
 	testModel   = "fake-model"
+	// testOpenAIModel and testOpenAIReviewModel are the models of an openai
+	// server configuration.
+	testOpenAIModel       = "gpt-6-astra"
+	testOpenAIReviewModel = "gpt-6.1-sol"
 	// testVideoURL is not the normalized form, so a post that names the
 	// normalized URL proves the server derived it.
 	testVideoURL      = "https://youtu.be/dQw4w9WgXcQ?t=42"
@@ -714,7 +720,7 @@ func waitForFile(t *testing.T, path string) {
 // key or the webhook URL.
 func requireNoSecret(t *testing.T, name, output string) {
 	t.Helper()
-	for _, s := range []string{apiKeyMarker, anthropicMarker, webhookPathMarker} {
+	for _, s := range []string{apiKeyMarker, anthropicMarker, openAIMarker, webhookPathMarker} {
 		if strings.Contains(output, s) {
 			t.Errorf("%s holds a secret (%.8s...):\n%s", name, s, output)
 		}
