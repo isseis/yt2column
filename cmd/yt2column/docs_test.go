@@ -231,11 +231,14 @@ func TestClaudeDocsContract(t *testing.T) {
 // exported constants and the make target constant, not from the documents.
 func TestOpenAIDocsContract(t *testing.T) {
 	limit := groupThousands(openai.DefaultMaxOutputTokensForTest())
-	if !strings.Contains(doctestutil.ReadDoc(t, projectOverviewPath), limit) {
+	// The number must stand alone, so a longer number that ends in it (such as
+	// 16,080) does not satisfy the check.
+	statesLimit := regexp.MustCompile(`(^|[^0-9,])` + regexp.QuoteMeta(limit) + `([^0-9,]|$)`).MatchString
+	if !statesLimit(doctestutil.ReadDoc(t, projectOverviewPath)) {
 		t.Errorf("project_overview.md does not state the default output limit %s", limit)
 	}
 	readmeVersionsUnder(t, func(t *testing.T, v doctestutil.ReadmeVersion, readme string) {
-		if !strings.Contains(readme, limit) {
+		if !statesLimit(readme) {
 			t.Errorf("%s does not state the default output limit %s", v.Path, limit)
 		}
 	})

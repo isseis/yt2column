@@ -39,7 +39,10 @@ func completeEnv() map[string]string {
 // TestIntegrationSettings checks the decision SettingsFrom makes in each
 // environment: the action, that the reason names the variable behind it and
 // holds neither key, and, when the test runs, every setting it carries. The
-// production key is set throughout and must never be read.
+// production key is set throughout and must never be read. The rules of the
+// effort and GODEBUG values themselves are tested in openaiparam and config;
+// one rejected row each shows they are applied, and godebug_unrelated shows
+// that an unrelated GODEBUG setting still runs.
 func TestIntegrationSettings(t *testing.T) {
 	optInReason := []string{testOptInEnv, "make " + testMakeTarget}
 	for _, tc := range []struct {
@@ -66,10 +69,8 @@ func TestIntegrationSettings(t *testing.T) {
 		{name: "effort_unset", unset: []string{EffortEnv}, wantAction: ActionFail, wantReason: []string{EffortEnv, "make " + testMakeTarget}},
 		{name: "effort_empty", change: map[string]string{EffortEnv: ""}, wantAction: ActionFail, wantReason: []string{EffortEnv}},
 		{name: "effort_unknown", change: map[string]string{EffortEnv: invalidEffort}, wantAction: ActionFail, wantReason: []string{EffortEnv}},
-		{name: "effort_upper_case", change: map[string]string{EffortEnv: "MEDIUM"}, wantAction: ActionFail, wantReason: []string{EffortEnv}},
 		{name: "effort_checked_before_godebug", change: map[string]string{EffortEnv: invalidEffort, GODEBUGEnv: "http2debug=1"}, wantAction: ActionFail, wantReason: []string{EffortEnv}},
 		{name: "godebug_http2debug_1", change: map[string]string{GODEBUGEnv: "http2debug=1"}, wantAction: ActionFail, wantReason: []string{GODEBUGEnv, "http2debug"}},
-		{name: "godebug_http2debug_2_among_others", change: map[string]string{GODEBUGEnv: "gctrace=1,http2debug=2"}, wantAction: ActionFail, wantReason: []string{GODEBUGEnv, "http2debug"}},
 		{name: "godebug_unrelated", change: map[string]string{GODEBUGEnv: "http2client=0"}, wantAction: ActionRun},
 		{name: "complete", wantAction: ActionRun},
 	} {
