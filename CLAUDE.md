@@ -216,7 +216,12 @@ feature branch, reviews its work (subagent review, `japrose` for documents,
 the local CLI review — the CodeRabbit CLI, or Codex CLI when it fails —),
 opens the PR, pings the reviewer, and stops. `/mkreq`,
 `/mkarch`, and `/mkplan` first ask the human about the decisions their input
-leaves open; `/runplan` asks when implementation meets a decision change. After reviewing, the reviewer runs `/runpr`, which drives
+leaves open; `/runplan` asks when implementation meets a decision change.
+Before it opens the PR, `/runplan` also runs the Opus review
+(`_lib/opus-review.md`: a correctness review and a weak-model failure review
+on Opus, whose Critical and Major findings it fixes) when the PR's
+implementation model requirement is `opus`, `sonnet+opus-review`, or
+unreadable, and some commit of the PR is not recorded as implemented on Opus. After reviewing, the reviewer runs `/runpr`, which drives
 it: it waits for Codex's PR review and CI and resolves the threads with `/fixpr`. It
 then asks one question that decides the bookkeeping (for a document, its
 `approved` status) and the merge with `/mergepr`, and offers the next command

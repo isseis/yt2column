@@ -744,19 +744,25 @@ stops, stop here: no question, no merge.
    excluded threads of a three-document PR (step 3; each numbered in the same
    sequence, marked as excluded, with its topic, the reason, and its URL), and
    NEXT.
-   When NEXT is `/runplan`, also show the `実装モデル要件` of the next PR
-   marker: the `### PR-N 作成ポイント` marker of the PR that NEXT will open,
-   which is the plan's first marker whose `PR を作成した` box is unchecked
-   (for a plan PR, a marker after this PR's own; for a task-document PR that
-   first approves the plan, its first marker). When
-   there is no value, say so and, as far as known, why (the plan has no PR
-   marker, which happens for a single-phase plan, or the marker has no
-   `実装モデル要件` field). The value lets the user decide whether this
-   session's model fits and, since step 5 suggests `/clear` before NEXT, which
-   model to start the new session with. Step 5 reuses the value (or its
-   absence) shown here, without reading the plan again; when step 4 is asked
-   more than once, it uses the one shown in the question that decided the
-   merge. Give LIMITS_NOTE (step 1) when there is one. Each question has two
+   When NEXT is `/runplan`, also show the `実装モデル要件` of the PR that
+   NEXT will open, and the model to start the new session with. That PR is
+   the one of the plan's first `### PR-N 作成ポイント` marker whose
+   `PR を作成した` box is unchecked (for a plan PR, a marker after this PR's
+   own; for a task-document PR that first approves the plan, its first
+   marker), or, in a plan without PR markers, the plan itself, whose value is
+   in the `PR 構成` section of its §3. Read the value as `_context.md`, "PR
+   marker conventions", says, and show the model from that section's table:
+   for an old value, show the old value and the value it is read as; for an
+   unreadable value, show its text as written and that it is unreadable, and
+   that no model is recommended; when there is no value, say so and, as far
+   as known, why (the marker has no `実装モデル要件` field, or the plan
+   without PR markers has no `PR 構成` section or no value line in it), and
+   that no model is recommended. The value and the model let the user decide
+   whether this session's model fits and, since step 5 suggests `/clear`
+   before NEXT, which model to start the new session with. Step 5 reuses the
+   value and the model (or their absence) shown here, without reading the
+   plan again; when step 4 is asked more than once, it uses the ones shown in
+   the question that decided the merge. Give LIMITS_NOTE (step 1) when there is one. Each question has two
    to four options:
    - **Deferred threads** (only when there are some, counting the excluded
      threads): with one to three,
@@ -1049,8 +1055,9 @@ Once `mergepr.md` reports the merge:
   3. the next branch's name and the path of this worktree: NEXT is to run in
      this worktree with that branch checked out. Run anywhere else, NEXT would
      create another branch with Part A step 4 and leave this one unused;
-  4. when NEXT is `/runplan`, the `実装モデル要件` shown in step 4, or that
-     there is none and why, as step 4 showed it.
+  4. when NEXT is `/runplan`, the `実装モデル要件` and the model to start the
+     new session with, shown in step 4, or that there is none and why, as
+     step 4 showed them.
 
 **Stopping before the next branch is ready.** When NEXT is set and this step
 stops before the next branch is ready (the cleanup cannot finish,

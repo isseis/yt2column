@@ -44,7 +44,8 @@ chooses to (`runpr.md` steps 2, 4, and 5).
 - **PR_TEXT** — the PR title and what the body must name: for a task-document
   command, the "Task-document PR title" of `_context.md`, "PR title and squash
   subject"; for `runplan.md`, the title its step 5a writes from the PR marker's
-  `推奨タイトル`, and the marker's `レビュー観点`.
+  `推奨タイトル`, the marker's `レビュー観点`, and the Opus review result
+  (`runplan.md` step 5a, "Before the PR", item 5).
 - **ISSUE** (`mkreq.md` only) — the task's issue number. Every other
   caller leaves it out, and Part A reads it from the `対応 issue` line of
   TASK_DIR's `01_requirements.md` on `origin/main`
@@ -232,7 +233,13 @@ Run this after the calling command's last commit, with a clean working tree.
      line. Otherwise give the ranges of the `not run` lines in
      `git log origin/main..HEAD`, of either form (`Local CLI review: not run`,
      or an earlier session's `CodeRabbit local review: not run`, which stands
-     for the whole branch);
+     for the whole branch). For `runplan.md`, the Opus review's fix commits
+     are reviewed by neither CLI (Codex's PR review sees them instead), and
+     are outside any branch review's SUMMARY: add them to the unreviewed
+     ranges;
+   - for `runplan.md`, gives PR_TEXT's Opus review result: whether the Opus
+     review ran, and with what result, or which condition kept it from
+     running;
    - gives how many times Codex CLI ran in this session's local CLI reviews,
      from their SUMMARY;
    - lists the terms the README sync (step 1) reported as
