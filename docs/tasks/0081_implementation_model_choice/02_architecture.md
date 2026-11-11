@@ -457,6 +457,7 @@ step 5a は Part B に LOCAL_REVIEW = `done` を渡す（ブランチ全体の�
 -   **Purpose:** `code-review` と `simplify` が別に走ることを前提にしない形に書き換える。Opus で正しさのレビューと弱いモデルの失敗のレビューを一度に行い、既定で直すことを述べる（AC-35）。
 -   **引数（AC-32、AC-36）:** 範囲の指定（commit の範囲、PR 番号、省略時の `origin/main...HEAD`）は今と同じに受け付ける。`--no-fix` は報告だけにする。`--fix` は受け入れ、何もしない。`--no-fix` と `--fix` が両方あるとき、範囲の指定が二つ以上あるとき、ほかの引数があるときは、推し量らずに止まり、受け付ける引数を示す。
 -   **範囲のそろえ方:** 受け付けた範囲を、共通の手順の RANGE の形（`<base>..<head>`）にそろえる。省略時は `git fetch origin main` の後に `$(git merge-base origin/main HEAD)..HEAD` とする。`A...B` の形は `$(git merge-base A B)..B` とする。PR 番号は、その PR の base と head から同じ形にする。三つの点の範囲を `git log` に渡すと、両側の commit を含む対称差になるからである。
+-   **タスクの特定:** 引数は範囲を名指すので、`task_identification.md` の規則 1 の代わりに、範囲が変える `docs/tasks/` の下のファイルが一つのタスクのディレクトリにだけあれば、そのタスクとする。どのタスクのディレクトリにもなく、範囲の終わりが `HEAD` で、今のブランチの名前が `_context.md` の feature branch の名前の規約に従うときは、その名前の `<slug>` に当たるタスクとする。それ以外は、規則 2・3 に従う。TASK_DIR は、タスクのディレクトリのリポジトリからの相対パスである。
 -   **直すときの確かめ（AC-33）:** FIX が `fix` のとき、共通の手順を呼ぶ前に次を確かめ、成り立たなければ何も変えずに理由を報告して止まる。
     -   ブランチを checkout している（detached HEAD でない）。そのブランチが既定のブランチ（`main`）でない。
     -   RANGE の head が `HEAD` と同じ commit である。範囲の終わりが `HEAD` でないと、直しの commit が、範囲の外の commit の上に積まれるからである。

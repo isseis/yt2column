@@ -67,6 +67,8 @@ to GitHub and never pushes.
    so it is never passed on.
    - No range: run `git fetch origin main`; RANGE is
      `$(git merge-base origin/main HEAD)..$(git rev-parse HEAD)`.
+   Match `...` before `..`. An end left out of a range (`HEAD~3..`) is
+   `HEAD`, as in `git log`.
    - `<A>..<B>`: resolve each end with
      `git rev-parse --verify --end-of-options '<A>^{commit}'` (the same for
      `<B>`); RANGE is `<A's ID>..<B's ID>`.
@@ -84,9 +86,13 @@ to GitHub and never pushes.
    with its rule 1 replaced, because the arguments name a range, not a task:
    when the files RANGE changes (`git diff --name-only <RANGE> -- docs/tasks/`)
    lie under exactly one task directory, that is the task. When they lie under
-   none, and the current branch's name follows the feature branch name
-   convention (`_context.md`), the task is the one the name gives. Otherwise
-   apply its rules 2 and 3. TASK_DIR is the task directory.
+   none, RANGE's `<head>` is `HEAD`, and the current branch's name follows the
+   feature branch name convention (`_context.md`), the task is the directory
+   under `docs/tasks/` whose name, with each `_` replaced by `-`, equals the
+   name's `<slug>`; a range that does not end at `HEAD` says nothing about the
+   current branch. Otherwise apply its rules 2 and 3. TASK_DIR is the task
+   directory's repository-relative path (such as
+   `docs/tasks/0081_implementation_model_choice`).
 
 4. **When FIX is `fix`, check before reviewing.** Stop, change nothing, and
    report the reason when any of these fails:
@@ -103,11 +109,12 @@ to GitHub and never pushes.
    This command writes no record that the review finished: its range is
    whatever the user gave, so it need not match a PR's range.
 
-6. **When the review made fix commits, check for an open PR**: run
+6. **When the review made commits (COMMITS is not empty), check for an open
+   PR**: run
    `gh pr view <current-branch> --json state,url`. When its state is `OPEN`,
    add to the report:
-   - the fix commits are not pushed, so the first PR review, which ran when
-     the PR was opened, does not see them;
+   - the commits are not pushed, so the first PR review, which ran when the
+     PR was opened, does not see them;
    - `/fixpr` run without a push stops on the unpushed commits when its round
      commits nothing, and pushes these fixes together with its own when it
      commits; `/runpr` and `/mergepr` merge the head on GitHub, so an unpushed
@@ -116,8 +123,9 @@ to GitHub and never pushes.
      whether a pushed change gets another PR review is decided by
      `_lib/pr-review-escalation.md`.
 
-   When `gh pr view` fails, keep the note out but report that the PR's state
-   could not be checked. When no PR exists for the branch, add nothing.
+   When `gh pr view` fails, for any reason (a branch with no PR also makes it
+   fail), add the note all the same and report that the PR's state could not
+   be checked.
 
 7. **Report** in Japanese: RANGE and TASK_DIR, the outputs of
    `_lib/opus-review.md` (OUTCOME, FINDINGS grouped by severity, KEPT,

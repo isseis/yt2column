@@ -50,11 +50,13 @@ Opus" below uses it.
 past without fixing:
 
 ```text
-Opus review: kept <path>:<line> (<severity>; <reason>)[ <summary>]
+Opus review: kept <path>[:<line>] (<severity>; <reason>)[ <summary>]
 ```
 
-- `<path>:<line>`: the finding's location, a repository-relative path and a
-  line number in the commit the finding was raised on.
+- `<path>[:<line>]`: the finding's location, a repository-relative path and,
+  when the finding has one, a line number in the commit the finding was raised
+  on. A finding located in a commit message names the commit as
+  `commit:<START12>`, its ID cut to 12 characters.
 - `<severity>`: `critical` or `major`.
 - `<reason>`: `rejected by human` (the human rejected the finding, "Fixing
   and verifying" below) or `decision change declined` (fixing it needed a
@@ -69,9 +71,10 @@ Opus review: kept <path>:<line> (<severity>; <reason>)[ <summary>]
 commit of record lines), write the message to a file and run
 `grep -qiF -- '<review-mention>' <file>`. Commit only when it exits `1`. Exit
 code `0` means the message contains the mention, and any other code means the
-check failed. Then remove every `<summary>` of a record line and every
-sentence of the message written from a finding, and run the check once more.
-When that run does not exit `1`, stop and report instead of committing. Never
+check failed. When the first run does not exit `1`, remove every `<summary>`
+of a record line and every sentence of the message written from a finding, and
+run the check once more; commit when that run exits `1`, and otherwise stop
+and report instead of committing. Never
 copy a subagent's text into a commit message, fix commits included.
 
 ## Entry 2: the review
@@ -81,7 +84,7 @@ copy a subagent's text into a commit message, fix commits included.
 | Input | Meaning |
 |---|---|
 | RANGE | `<base>..<head>`, both resolved to full commit IDs before the review starts. When FIX is `fix`, `<head>` is `HEAD` at the start: the fix commits go on top of it |
-| TASK_DIR | The task directory under the task root whose documents the reviews read |
+| TASK_DIR | The repository-relative path of the task directory whose documents the reviews read (such as `docs/tasks/0081_implementation_model_choice`), not its bare name |
 | FIX | `fix`: fix the Critical and Major findings and commit the fixes. `report`: change nothing and report |
 | DECISION_CHANGE | What to do with a finding whose fix needs a change to a decision of the requirements, the architecture, or the plan. The caller gives the rule |
 
@@ -150,9 +153,13 @@ copy a subagent's text into a commit message, fix commits included.
 
 These are mechanical and cheaper than AI review — catch them here, not in the
 subagent pass. Run them over the changed files in RANGE, with RANGE and
-TASK_DIR put in for `<RANGE>` and `<TASK_DIR>`, as a `bash` script: in zsh,
-the block's `path` variable would replace the command search path. The
-block's last line exits `1` when no Go file changed; that is not a failure.
+TASK_DIR put in for `<RANGE>` and `<TASK_DIR>`. First confirm that
+`<TASK_DIR>/03_implementation_plan.md` exists, and stop and report when it
+does not: Check 2 would otherwise find no document and print `OK`. Write the
+block to a file in the scratchpad and run it with `bash <file>`, not in the
+session's shell: in zsh, the block's `path` variable would replace the command
+search path. The block's last line exits `1` when no Go file changed; that is
+not a failure.
 
 ```bash
 RANGE="<RANGE>"
@@ -218,12 +225,16 @@ the verification review alike:
 - The first line of the output is `Model: <model-id>`, where `<model-id>` is
   copied from the subagent's own system prompt, which states the model it runs
   on. Name no model ID in the prompt.
-- Report no cleanup finding (reuse, simplification, efficiency).
+- Report no cleanup finding (reuse, simplification, efficiency). The
+  weak-model checklist's item on reimplemented logic is not cleanup: it looks
+  for a weak model rebuilding an existing function under a new name, and stays
+  in reviewer B's scope.
 - The pre-check FLAGs, to verify in context rather than re-derive.
 - RANGE, with the instruction to run `git diff <RANGE>` and `git log <RANGE>`
   itself.
 - The kept lines on the branch (`Opus review: kept` lines in
-  `git log <RANGE>`), when there are any: a finding with the same gist near the
+  `git log <base>..HEAD`, which includes those committed during this run),
+  when there are any: a finding with the same gist near the
   same place in the same file was already decided by the human and is not
   raised again. Fixes shift line numbers, so a matching location alone does
   not decide it.
@@ -259,7 +270,8 @@ This replaces "Fix all Critical and Major issues" and "Apply Minor fixes at
 your discretion" of `_lib/review-subagent-pattern.md`, "Procedure". Its pass
 limit applies as it is.
 
-1. A merged finding that matches a kept line already in `git log <RANGE>`
+1. A merged finding that matches a kept line already in
+   `git log <base>..HEAD` (this run's kept lines included)
    (same gist, near the same place in the same file) was already decided by
    the human: do not ask about it again and do not fix it. List it in KEPT.
 2. When you think a Critical or Major finding is wrong, do not reject it on
@@ -278,9 +290,11 @@ limit applies as it is.
 6. When nothing was fixed (the human rejected every finding, or every finding
    was kept), run no verification review.
 7. Otherwise run one verification review on Opus ("Running on Opus") over
-   `<base>..HEAD`, which now holds the fix commits. Give it the list of the
-   findings you fixed and the checklist or checklists those findings came
-   from, with "The review prompts" added.
+   `<base>..HEAD`, which now holds the fix commits. Give it the persona of
+   the reviewer, or of both reviewers, whose findings you fixed, the list of
+   those findings, and the checklist or checklists they came from, with "The
+   review prompts" added. Its mandate is to confirm that each fix is correct
+   and introduced no new defect within those checklists.
 8. When it reports a Critical or Major finding, go back to item 1 for those
    findings. The discovery reviews count as the first pass. After the third
    pass, go on only as "Procedure" says (the remaining findings are concrete,
