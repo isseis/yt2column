@@ -84,7 +84,7 @@ ADR-0015 の直しは、決定の変更として 3 文書の PR で入れる（�
 ## 6. 実装チェックリスト (Implementation Checklist)
 
 -   [x] フェーズ 1（ステップ 1-1〜1-3）
--   [ ] PR を作成した
+-   [x] PR を作成した: https://github.com/isseis/yt2column/pull/818
 -   [ ] PR がマージされた
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
