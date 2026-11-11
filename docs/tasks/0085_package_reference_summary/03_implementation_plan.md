@@ -83,7 +83,7 @@
 
 **判定理由**: 文書の書き直しと doc コメントの追加、テストの探し方の小さな直しだけで、前例のない設計判断・panel の条件・競合する実装の方法のどれにも当たらない
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [ ] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
@@ -186,7 +186,26 @@
 
 実行の記録（ステップ 1-11・2-6）：
 
-- PR-1（2026-11-11）: merge-base `cecc4c7b4822a3983ad707a41736a58ea1522864`、PR のコミット `ea776ecdc86ab7e4622be873fd6f296dff79352a`。`_checks/check_state.sh`（上限なし）は `sections: 6`、`rows: 57`、`bytes: 56597` を出して終了コード 0。`_checks/check_diff.sh <merge-base> <commit>` は `changed files: 11`、`Go files checked: 2` を出して終了コード 0。
+PR-1（2026-11-11）: merge-base `cecc4c7b4822a3983ad707a41736a58ea1522864`、記録したコミット `4639b802d8f4426d98d4214230bb248664e07520`。この記録のコミットと、PR チェックポイントのチェックボックスのコミットは、本計画だけを変える。
+
+`_checks/check_state.sh`（上限の判定なし）:
+
+```text
+sections: 6
+rows: 57
+bytes: 57078
+OK: six kind headings, one table each, no duplicate package row
+```
+
+`_checks/check_diff.sh <merge-base> <commit>`:
+
+```text
+base: cecc4c7b4822a3983ad707a41736a58ea1522864
+head: 4639b802d8f4426d98d4214230bb248664e07520
+changed files: 12
+Go files checked: 2 (comment-only except internal/pipeline/strictjson_users_test.go)
+OK: the PR stays in scope and its Go diffs are comment-only
+```
 
 Diff record (AC-15):
 
