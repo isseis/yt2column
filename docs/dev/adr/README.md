@@ -51,3 +51,4 @@
 | [ADR-0043](0043-copy-mention-neutralization.md) | ビューアの表示とクリップボードへのコピーで記事のメンションを無効化し、コピーは拒否しない | `有効` |
 | [ADR-0044](0044-package-reference-row-granularity.md) | package_reference.md の行には責務の要約・主な公開の名前・仕様の置き場所だけを書き、挙動の詳細は doc コメントと仕様の文書に置く | `有効` |
 | [ADR-0045](0045-dev-fake-llm.md) | 本番のバイナリに fake の LLM を入れず、fake の LLM はサーバに依存しない構成要素にして開発用のバイナリから使う | `有効` |
+| [ADR-0046](0046-chief-of-staff.md) | chief は人の判断を待つものを示し、決まった入力だけをほかのエージェントに送り、マージの後の次のコマンドを自動で送る | `有効` |
