@@ -58,6 +58,12 @@ func TestCheckRecord(t *testing.T) {
 	if err := check(goodRecord); err != nil {
 		t.Fatalf("matching record: %v", err)
 	}
+	if err := check(goodRecord + "\nProse may quote `check-record: 3 tables match`.\n"); err != nil {
+		t.Errorf("a prose mention of the tool is not a marker: %v", err)
+	}
+	if err := check(goodRecord + "\n<!-- check-record spend -->\n"); !errors.Is(err, errRecord) {
+		t.Errorf("a malformed marker: err = %v", err)
+	}
 	for name, c := range map[string]struct{ record, table string }{
 		"value differs": {strings.Replace(goodRecord, "0.200000", "0.200001", 1), "runs"},
 		// The table without rows shows a missing or repeated marker that no

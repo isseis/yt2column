@@ -50,7 +50,7 @@ func parseRecord(r io.Reader) ([]recordTable, error) {
 			if m := markerRE.FindStringSubmatch(line); m != nil {
 				cur = &recordTable{Name: m[1], FilterCol: m[2], FilterVal: m[3], Line: lineNo}
 				state = 1
-			} else if strings.Contains(line, "check-record:") {
+			} else if strings.HasPrefix(strings.TrimSpace(line), "<!--") && strings.Contains(line, "check-record") {
 				return nil, fmt.Errorf("%w: line %d: malformed marker", errRecord, lineNo)
 			}
 		case 1, 2: //nolint:mnd // the header and the separator lines
