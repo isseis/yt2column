@@ -362,8 +362,8 @@ PR-3:
 Diff record (AC-13):
 
 - Compared paths: `docs/tasks/0073_adr_context_decision_review/03_implementation_plan.md` `docs/tasks/0076_fixpr_local_review_guard/03_implementation_plan.md` `docs/tasks/0077_openai_llm_client/03_implementation_plan.md`
-- Merge-base: `5a1b3452a664669b74d8fae941714dc4b5989463`
-- Compared commit: `61eda2ceeb0c989d1a3bd461990e6b9336768e79`
+- Merge-base: `e483c18fddbb0c0c62dd2a05ba4006584dfae56e`
+- Compared commit: `e483c18fddbb0c0c62dd2a05ba4006584dfae56e`
 
 Path diff:
 
