@@ -139,7 +139,7 @@ mkplan_single_plan() {
 		printf '# plan\n\n## 2. steps\n\n### phase 1: a\n\n- [x] step\n\n'
 		printf '## 3. order\n\n### 3.1. milestones\n\ntext\n\n'
 		printf '### 3.2 PR 構成\n\nThe work is one PR.\n\n'
-		printf '**実装モデル要件**: %s\n\n**判定理由**: 理由\n\n' "$2"
+		printf '**実装モデル要件**: %s\n\n**判定理由**: reason\n\n' "$2"
 		printf '## 4. tests\n\ntext\n'
 	} >"$1"
 }

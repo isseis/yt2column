@@ -172,7 +172,7 @@ Work in the following order.
 - [ ] The plan contains no counterfactual claims about unwritten code ("this row fails if the implementation is reverted to X", "this is the only thing that guarantees Y"). Such obligations appear as implementer tasks instead.
 - [ ] Statements about existing behavior (reachability, uniqueness, equivalence of two constructions) cite `file:line` and the commit they were verified against.
 - [ ] Every decision in the document that is major by the criterion in `CLAUDE.md`, "Design decisions (ADR)", has its ADR judgement recorded and is in this PR's ADR changes, and the `## 決定` section of each such ADR matches the document's current decision.
-- [ ] A plan with one `### フェーズ` header has exactly one `PR 構成` subsection under §3, ending with the two lines `**実装モデル要件**: <value>` and `**判定理由**: <one line>`, where the value is one of `opus`, `sonnet+opus-review`, or `sonnet` and the `判定理由` is written as `mkplan2.md` step 4, "Model requirement", says. A plan with two or more phases is checked by `mkplan2.md` step 9's checklist instead.
+- [ ] A plan with one `### フェーズ` header (this item applies only once step 8.5 has written the subsection: at step 8, before it exists, mark it N/A — N/A is not a finding; step 8.5 and `_lib/simple-process.md`, "Reviewing the three documents", apply it to the written plan) has exactly one `PR 構成` subsection under §3, ending with the two lines `**実装モデル要件**: <value>` and `**判定理由**: <one line>`, where the value is one of `opus`, `sonnet+opus-review`, or `sonnet` and the `判定理由` is written as `mkplan2.md` step 4, "Model requirement", says. A plan with two or more phases is checked by `mkplan2.md` step 9's checklist instead.
 
 **Conditional checks (apply each only when its trigger matches; mark N/A otherwise — N/A is not a finding):**
 - [ ] Integration tests touch external/long-lived state (containers, DBs, mailboxes, queues, files outside `t.TempDir`) → rerun isolation is planned: identifiers unique per run (not just per test name), and tests locate their own artifacts by a stable marker instead of assuming result length/ordering. When a unique identifier is length-limited (e.g. a 32-char mailbox name), the stable prefix is truncated first and the uniqueness suffix appended afterward, so truncation never drops the suffix.
@@ -207,7 +207,8 @@ Work in the following order.
    order, with a blank line between them. `/runplan` and `/runpr` read the value
    from the subsection whose heading text, without its number, is `PR 構成`. Decide the value and write the
    `判定理由` as `mkplan2.md` step 4, "Model requirement", says, applied to the
-   steps of the single phase. Step 8 ran before this subsection existed, so check
+   steps of the single phase. If the plan already has a `PR 構成` subsection, update
+   it instead; the plan never has two. Step 8 ran before this subsection existed, so check
    the written subsection yourself against the single-phase item of step 8's
    Technical correctness checklist and fix it before step 9.
 

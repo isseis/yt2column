@@ -43,7 +43,13 @@ for v in frontier-required frontier-recommended standard; do
 done
 
 # Check 2: every other hit is outside .claude/commands/ or inside that range.
-hits=$(git grep -nwE 'frontier-required|frontier-recommended|standard' "$commit" -- .claude/commands || true)
+# git grep exits 1 when nothing matches; any other failure is a failure of this check.
+rc=0
+hits=$(git grep -nwE 'frontier-required|frontier-recommended|standard' "$commit" -- .claude/commands) || rc=$?
+if [ "$rc" -gt 1 ]; then
+	echo "FAIL: git grep failed with status $rc"
+	exit 1
+fi
 stray=0
 while IFS= read -r hit; do
 	[ -n "$hit" ] || continue
