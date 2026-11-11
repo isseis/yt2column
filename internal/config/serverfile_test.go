@@ -63,6 +63,11 @@ func TestParseServerFileAccepts(t *testing.T) {
 			want: map[string]string{},
 		},
 		{
+			name: "comment line naming the removed Webhook key",
+			data: "# SLACK_WEBHOOK_URL=https://example.com/h\n#SLACK_WEBHOOK_URL=\n",
+			want: map[string]string{},
+		},
+		{
 			name: "every key",
 			data: "YT2COLUMN_LLM=deepseek/deepseek-flash\nYT2COLUMN_REVIEW_LLM=claude/claude-opus-5-5+low\n" +
 				"DEEPSEEK_API_KEY=d\nANTHROPIC_API_KEY=a\nOPENAI_API_KEY=o\nANTHROPIC_WORKSPACE_ID=w\n",
@@ -141,6 +146,8 @@ func TestParseServerFileRejects(t *testing.T) {
 		{name: "GODEBUG", data: prefix + "GODEBUG=" + fileMark + "\n", wantLine: 4, wantReason: reasonLineUnknownKey},
 		{name: "HOME", data: prefix + "HOME=/" + fileMark + "\n", wantLine: 4, wantReason: reasonLineUnknownKey},
 		{name: "unknown key", data: prefix + fileMark + "=x\n", wantLine: 4, wantReason: reasonLineUnknownKey},
+		{name: "removed Webhook key", data: prefix + "SLACK_WEBHOOK_URL=https://example.com/" + fileMark + "\n", wantLine: 4, wantReason: reasonLineUnknownKey},
+		{name: "removed Webhook key, empty", data: prefix + "SLACK_WEBHOOK_URL=\n", wantLine: 4, wantReason: reasonLineUnknownKey},
 		{name: "ideographic space in the key", data: prefix + "ANTHROPIC_API_KEY\u3000=" + fileMark + "\n", wantLine: 4, wantReason: reasonLineUnknownKey},
 		{name: "no-break space in the key", data: prefix + "ANTHROPIC_API_KEY\u00a0=" + fileMark + "\n", wantLine: 4, wantReason: reasonLineUnknownKey},
 		{name: "space after the key", data: prefix + "ANTHROPIC_API_KEY =" + fileMark + "\n", wantLine: 4, wantReason: reasonLineUnknownKey},
@@ -320,8 +327,9 @@ func TestParseServerFileDuplicate(t *testing.T) {
 }
 
 // TestServerFileTemplate fixes the template's shape: it parses with no
-// rejection and sets no key, so it holds only blank and comment lines, and it
-// has a commented-out "# <KEY>=" line for every accepted key.
+// rejection and sets no key, so it holds only blank and comment lines, and its
+// commented-out "# <KEY>=" lines and the accepted keys match one to one, so
+// the template names no key the file rejects.
 func TestServerFileTemplate(t *testing.T) {
 	file, errs := parseServerFile(testServerFilePath, []byte(serverFileTemplate))
 	if len(errs) != 0 {
@@ -332,11 +340,25 @@ func TestServerFileTemplate(t *testing.T) {
 			t.Errorf("the template sets %s", key)
 		}
 	}
-	lines := strings.Split(serverFileTemplate, "\n")
-	for _, key := range serverFileKeys {
-		if !slices.Contains(lines, "# "+key+"=") {
-			t.Errorf("no %q line", "# "+key+"=")
+	var named []string
+	for line := range strings.SplitSeq(serverFileTemplate, "\n") {
+		rest, ok := strings.CutPrefix(line, "# ")
+		if !ok {
+			continue
 		}
+		key, _, ok := strings.Cut(rest, "=")
+		if ok && key != "" && !strings.ContainsFunc(key, func(r rune) bool {
+			return (r < 'A' || r > 'Z') && (r < '0' || r > '9') && r != '_'
+		}) {
+			named = append(named, line)
+		}
+	}
+	want := make([]string, len(serverFileKeys))
+	for i, key := range serverFileKeys {
+		want[i] = "# " + key + "="
+	}
+	if !slices.Equal(named, want) {
+		t.Errorf("the template's key lines are %q, want %q", named, want)
 	}
 }
 

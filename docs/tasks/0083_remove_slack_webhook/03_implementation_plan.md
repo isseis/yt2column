@@ -291,7 +291,7 @@
     -   消すもの: `internal/slackwebhook/`（`slackwebhook.go`・`slackwebhook_test.go`）と `package_reference.md` の行（`TestPackageReferenceListsPackages` のため）、`ServerConfig.webhookURL`・`WebhookURL()`・`loadSlackWebhook`・`reasonSlackWebhook`・`slackEnv`・`SlackWebhookEnvForTest`、`serverFileKeys` の `slackEnv`、雛形の 3 行、`config_test.go::TestLoadServerWebhookOptional`・`TestServerConfigOutputRedactsWebhook`、`TestLoadServerValueRejections` の Webhook の行。
     -   書き換えるテストと fixture（消さずに、残るキーに置き換える）: `serverfile_test.go` の `TestParseServerFileAccepts` の `SLACK_WEBHOOK_URL` の行（値に `#` を含む行の解析の確かめは残る）と、`TestParseServerFileRejects` の前置きの行。`config_test.go` の環境の fixture（`:39`・`335`・`1532`）、`TestLoadServerValid` の Webhook の確かめ、`serverEnvWithFile`。`cmd/yt2column-server/test_helpers.go:44`〜`48`・`143` と `cmd/yt2column/docs_test.go:557` の設定。`git grep -n -i -E 'slack|webhook' -- internal/config cmd/yt2column-server cmd/yt2column` の残りを、この一覧と照らす。
     -   `_checks/coverage` で確かめる。
--   [ ] **ステップ 4-7（テストのコミット）**: 拒否の確かめを加える。
+-   [x] **ステップ 4-7（テストのコミット）**: 拒否の確かめを加える。
     -   `internal/config/serverfile_test.go::TestParseServerFileRejects` に、`SLACK_WEBHOOK_URL` の行（値があるとき・空のとき）が `ErrConfigFileFormat` と行の番号で拒否され、エラーの文字列が値を含まない行を加える。`TestParseServerFileAccepts` に、`SLACK_WEBHOOK_URL` を含む `#` の行を受理する行を加える。
     -   `TestServerFileTemplate` に、雛形の `# KEY=` の行がどれも `serverFileKeys` のキーを名指すことを加える（キーと行が 1 対 1 で対応する）。
     -   `cmd/yt2column-server/run_test.go::TestStartupFailures` に、設定ファイルに `SLACK_WEBHOOK_URL` の行があるとサーバが起動せず（終了コード `2`）、標準エラーが値を含まない行を加える。

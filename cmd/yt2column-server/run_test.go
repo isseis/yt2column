@@ -43,6 +43,7 @@ var errBuildRefused = errors.New("the test refuses to build this component")
 // no secret reaches it, and that the socket path is left as it was: no socket
 // is created where none was, and an existing one is not removed.
 func TestStartupFailures(t *testing.T) {
+	const removedWebhookMarker = "REMOVEDWEBHOOKVALUE"
 	// The argument diagnostic points the user at the configuration document,
 	// which must exist.
 	if _, err := os.Stat(filepath.Join(repositoryRoot, configDocument)); err != nil {
@@ -60,6 +61,8 @@ func TestStartupFailures(t *testing.T) {
 		wantStderr string
 		// hint, when set, is a second part standard error must hold.
 		hint string
+		// absent, when set, is a value standard error must not hold.
+		absent string
 		// configLines, when set, is how many configuration lines standard
 		// error must hold: one per rejection.
 		configLines int
@@ -172,6 +175,30 @@ func TestStartupFailures(t *testing.T) {
 			},
 			want:        exitUsage,
 			wantStderr:  ": line 1: ",
+			configLines: 1,
+			configError: true,
+		},
+		{
+			// The removed Webhook key is an unknown key whatever its value,
+			// and the rejection names neither the key nor the value.
+			name: "removed Webhook key in the configuration file",
+			setup: func(_ *testing.T, e *serverEnv, _ *deps) {
+				e.file["SLACK_WEBHOOK_URL"] = "https://hooks.example.invalid/services/" + removedWebhookMarker
+			},
+			want:        exitUsage,
+			wantStderr:  "that is not one of",
+			absent:      removedWebhookMarker,
+			configLines: 1,
+			configError: true,
+		},
+		{
+			name: "removed Webhook key in the configuration file, empty",
+			setup: func(_ *testing.T, e *serverEnv, _ *deps) {
+				e.file["SLACK_WEBHOOK_URL"] = ""
+			},
+			want:        exitUsage,
+			wantStderr:  "that is not one of",
+			absent:      "SLACK_WEBHOOK_URL",
 			configLines: 1,
 			configError: true,
 		},
@@ -322,6 +349,9 @@ func TestStartupFailures(t *testing.T) {
 			}
 			if !strings.Contains(stderr.String(), tc.hint) {
 				t.Errorf("stderr does not contain %q:\n%s", tc.hint, stderr.String())
+			}
+			if tc.absent != "" && strings.Contains(stderr.String(), tc.absent) {
+				t.Errorf("stderr contains %q:\n%s", tc.absent, stderr.String())
 			}
 			if tc.configLines != 0 {
 				if got := strings.Count(stderr.String(), programName+": configuration: "); got != tc.configLines {
