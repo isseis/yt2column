@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `simple` |
 | Created | 2026-11-11 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-11 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -219,3 +219,7 @@
 -   **doc コメント（godoc）:** Go のパッケージ宣言か公開の識別子の直前に書くコメント。
 -   **ずれの記述:** ADR の「決定」のうち、決定と正本の文書とコードの食い違いを述べ、それを扱う issue にリンクする記述（`docs/dev/conventions/adr.md`「Writing an ADR」）。
 -   **編集上の訂正:** 決定を変えない、決まった種類の ADR の直し（`docs/dev/conventions/adr.md`「Editorial corrections」）。
+
+## 変更履歴
+
+- 2026-11-11 承認（isseis、#821）
