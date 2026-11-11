@@ -203,7 +203,7 @@ Project-specific values these commands depend on are defined once in
 - `/mkplan2 <task>` - Embed PR boundaries into an approved plan that lacks them (plans written before `/mkplan` did it) and open its PR
 - `/runplan <task>` - Implement the phase groups of an approved plan up to the next PR checkpoint, then open the PR
 - `/runpr [PR | branch | task]` - Drive a PR through Codex's PR review and CI, record its bookkeeping (a document's approval, a plan checkpoint), merge it, and offer the next command, which it runs only when the user chooses; for a standalone change it also creates the PR
-- `/weakreview [range]` - Second-pass review of work done by a lower-capability model
+- `/weakreview [range | PR] [--no-fix | --fix]` - Opus review of a commit range: a correctness review and a weak-model failure review run on Opus in one pass; by default it fixes the Critical and Major findings and commits the fixes on the current branch without pushing, and `--no-fix` only reports
 - `/fixpr [PR]` - Resolve unresolved PR review threads
 - `/mergepr [PR]` - Squash-merge a PR with a generated commit message and clean up its branch
 - `/japrose <file>` - Japanese prose-quality pass

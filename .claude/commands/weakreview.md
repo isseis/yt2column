@@ -1,6 +1,6 @@
 ---
-description: "Second-pass review of work done by a lower-capability model"
-argument-hint: "[range | PR]"
+description: "Opus review of a commit range: a correctness review and a weak-model failure review in one pass, fixing by default"
+argument-hint: "[range | PR] [--no-fix | --fix]"
 ---
 
 > **Project context (read first)**: Read `.claude/commands/_context.md`. It is the
@@ -8,8 +8,8 @@ argument-hint: "[range | PR]"
 > conventions, build checks (`make fmt`/`make test`/`make lint`/`make deadcode`),
 > the green gate, source layout, and test-helper placement. Where this command
 > names such a path or command, treat the entry in `_context.md` as canonical.
-> The review step uses the shared procedure in
-> `.claude/commands/_lib/review-subagent-pattern.md`.
+> The review itself is the shared procedure in
+> `.claude/commands/_lib/opus-review.md`.
 
 ## Purpose
 
@@ -19,312 +19,107 @@ rule it states. In practice, a lower-capability model following the same
 ticked, code compiles, tests pass) while missing the *judgment* the
 instruction actually depends on: noticing an implicit invariant, keeping
 several documents in sync, resisting a shortcut, or applying an exception
-correctly. `code-review` and `simplify` already cover general correctness and
-cleanup; this command is a **targeted second pass** for the specific failure
-patterns a weaker model produces when executing `runplan.md` — it assumes the
-generic review already ran (or runs alongside it) and does not duplicate its
-checklist.
+correctly.
 
-Use this after a phase group (or a full task) was implemented by a
-lower-capability model, before merging.
+This command runs the Opus review of `_lib/opus-review.md` over a commit
+range, in one pass and on Opus whatever model runs the session: a correctness
+review (bugs, and divergence from the requirements, the architecture, and the
+plan) and a weak-model failure review (the failure patterns above), merged
+into one report. It needs no other review to run alongside it, and it does not
+review cleanup (`/simplify`'s scope). By default it fixes the Critical and
+Major findings and commits the fixes on the current branch without pushing;
+`--no-fix` makes it report only.
 
-## Scope
+Use it after work was implemented by a lower-capability model, before the
+merge.
 
-Argument `$ARGUMENTS`: a commit range (e.g. `HEAD~N..HEAD`), a PR number, or
-empty (defaults to `origin/main...HEAD` on the current branch). Resolve it to
-a concrete commit range yourself before continuing — the checklist below
-needs `git diff <range>` and `git log <range>` to work from.
+## Arguments
+
+`$ARGUMENTS` holds at most one range and at most one flag, in any order:
+
+| Argument | Meaning |
+|---|---|
+| (no range) | The current branch: `origin/main...HEAD` |
+| `<A>..<B>` or `<A>...<B>` | A commit range, each end a revision `git rev-parse` resolves to a commit |
+| `<N>` (digits only) | A PR number |
+| `--no-fix` | Report only; change nothing |
+| `--fix` | Accepted and does nothing: fixing is the default |
+
+Stop without changing anything, and show the accepted arguments above, when
+`$ARGUMENTS` holds both `--no-fix` and `--fix`, a flag twice, two ranges, or
+any other token. Do not guess what an unaccepted argument meant.
+
+FIX is `report` with `--no-fix`, and `fix` otherwise.
+
+## Network operations
+
+Running this command approves `git fetch origin main` and `gh pr view`, the
+only network operations it runs. Both only read; this command writes nothing
+to GitHub and never pushes.
 
 ## Procedure
 
-1. Identify the target task directory per
-   `docs/dev/conventions/task_identification.md`, and resolve the commit
-   range from `$ARGUMENTS` as above.
+1. **Parse the arguments** as "Arguments" says.
 
-2. Read the task's `01_requirements.md`, `02_architecture.md`,
-   `03_implementation_plan.md`, `docs/dev/conventions/test_organization.md`,
-   `docs/dev/conventions/requirements_process.md`, and
-   `docs/dev/security.md`. These are the documents whose rules the weak
-   model was supposed to have followed while producing the diff.
+2. **Resolve RANGE** to the form `_lib/opus-review.md` takes, `<base>..<head>`
+   with both ends as full commit IDs. A three-dot range given to `git log`
+   would be the symmetric difference, which includes commits of both sides,
+   so it is never passed on.
+   - No range: run `git fetch origin main`; RANGE is
+     `$(git merge-base origin/main HEAD)..$(git rev-parse HEAD)`.
+   - `<A>..<B>`: resolve each end with
+     `git rev-parse --verify --end-of-options '<A>^{commit}'` (the same for
+     `<B>`); RANGE is `<A's ID>..<B's ID>`.
+   - `<A>...<B>`: resolve both ends the same way; RANGE is
+     `$(git merge-base <A's ID> <B's ID>)..<B's ID>`.
+   - `<N>`: run `gh pr view <N> --json baseRefName,headRefOid`. Stop when the
+     base is not `main`, or when the head commit is not in the local
+     repository (`git cat-file -e '<headRefOid>^{commit}'` fails; tell the
+     user to fetch the PR's branch). Otherwise run `git fetch origin main`;
+     RANGE is `$(git merge-base origin/main <headRefOid>)..<headRefOid>`.
+   - Stop and report when a command fails, or when the range is empty
+     (`git rev-list --count <RANGE>` is `0`).
 
-3. Run the deterministic pre-checks below over the changed files in the
-   resolved range. These are mechanical and cheaper than AI review — catch
-   them here, not in the subagent pass.
+3. **Identify the task** per `docs/dev/conventions/task_identification.md`,
+   with its rule 1 replaced, because the arguments name a range, not a task:
+   when the files RANGE changes (`git diff --name-only <RANGE> -- docs/tasks/`)
+   lie under exactly one task directory, that is the task. Otherwise apply its
+   rules 2 and 3. TASK_DIR is the task directory.
 
-   ```bash
-   RANGE="<resolved range>"
-   CHANGED_GO=$(git diff $RANGE --diff-filter=d --name-only | grep '\.go$' || true)
-   CHANGED_ALL=$(git diff $RANGE --diff-filter=d --name-only || true)
+4. **When FIX is `fix`, check before reviewing.** Stop, change nothing, and
+   report the reason when any of these fails:
+   - A branch is checked out (`git symbolic-ref -q --short HEAD` prints its
+     name), and it is not `main`.
+   - RANGE's `<head>` is `HEAD` (`git rev-parse HEAD`). A fix committed on a
+     `HEAD` other than the range's end would sit on commits outside the
+     range.
+   - The working tree is clean (`git status --short` prints nothing).
 
-   # Check 1: planning-doc references leaked into source (should live only in the plan doc)
-   if [ -n "$CHANGED_GO" ]; then
-     echo "$CHANGED_GO" | xargs rg -n '\bAC-[0-9]+[a-z]?\b|\bF-[0-9]+[a-z]?\b' 2>/dev/null \
-       && echo "FLAG: planning-doc references in Go source" || echo "OK: no planning-doc references"
-   fi
+5. **Run the review**: follow `_lib/opus-review.md`, entry 2, with RANGE,
+   TASK_DIR, FIX, and **DECISION_CHANGE** = do not fix the finding; report it
+   in KEPT with the decision it needs, and leave it to the human. Do not push.
+   This command writes no record that the review finished: its range is
+   whatever the user gave, so it need not match a PR's range.
 
-   # Check 2: draft-status documents with commits already built on top of them
-   NON_APPROVED=""
-   for f in 01_requirements.md 02_architecture.md 03_implementation_plan.md; do
-     path="docs/tasks/<task-dir>/$f"
-     rg -n '^\| Status \|' "$path"
-     if [ -f "$path" ] && ! rg -q '^\| Status \|.*approved' "$path"; then
-       NON_APPROVED="$NON_APPROVED $f"
-     fi
-   done
-   # Any non-`approved` status for a document whose successor exists (e.g. a
-   # 03_implementation_plan.md exists while 02_architecture.md is still draft)
-   # means implementation started before its gate — FLAG regardless of what
-   # the commit history says about being told to proceed.
-   if [ -n "$NON_APPROVED" ] && [ -f "docs/tasks/<task-dir>/03_implementation_plan.md" ]; then
-     echo "FLAG: non-approved doc(s) with a successor doc present:$NON_APPROVED"
-   else
-     echo "OK: no non-approved doc precedes a successor doc"
-   fi
+6. **When the review made fix commits, check for an open PR**: run
+   `gh pr view <current-branch> --json state,url`. When its state is `OPEN`,
+   add to the report:
+   - the fix commits are not pushed, so the first PR review, which ran when
+     the PR was opened, does not see them;
+   - `/fixpr` run without a push stops on the unpushed commits when its round
+     commits nothing, and pushes these fixes together with its own when it
+     commits; `/runpr` and `/mergepr` merge the head on GitHub, so an unpushed
+     fix does not reach the squash merge;
+   - before `/runpr`, the user decides whether to push the fixes or drop them;
+     whether a pushed change gets another PR review is decided by
+     `_lib/pr-review-escalation.md`.
 
-   # Check 3: Dockerfile base images pinned by tag instead of digest
-   CHANGED_DOCKERFILES=$(git diff $RANGE --diff-filter=d --name-only | grep -i dockerfile || true)
-   if [ -n "$CHANGED_DOCKERFILES" ]; then
-     echo "$CHANGED_DOCKERFILES" | xargs rg -n '^FROM .*:[a-zA-Z0-9._-]+\s*$|^FROM .*:[a-zA-Z0-9._-]+\s+[Aa][Ss]\s+\S+\s*$' 2>/dev/null \
-       && echo "FLAG: tag-pinned FROM (expect @sha256: digest)" || echo "OK: no tag-only FROM lines"
-   else
-     echo "OK: no Dockerfile changes"
-   fi
+   When `gh pr view` fails, keep the note out but report that the PR's state
+   could not be checked. When no PR exists for the branch, add nothing.
 
-   # Check 4: build-tagged files actually reachable by `make lint`
-   [ -n "$CHANGED_GO" ] && echo "$CHANGED_GO" | xargs rg -l '^//go:build' 2>/dev/null
-   # For each hit with a tag other than a bare `test`, confirm the Makefile's
-   # lint target actually passes that tag (grep the Makefile / CI config for
-   # -tags). A file only ever compiled under a tag no invocation passes is a
-   # silent dead corner.
-
-   # Check 5: non-ASCII in Go source (same as runplan.md step 6.5 — re-verify,
-   # since a weak model's self-check in runplan step 5 may have been superficial)
-   [ -n "$CHANGED_GO" ] && echo "$CHANGED_GO" | xargs rg -Pn '[^\x00-\x7F]' 2>/dev/null
-   ```
-
-   Report every FLAG before continuing to the subagent pass — do not let the
-   subagent re-discover what a grep already found.
-
-4. Spawn the review subagent via `.claude/commands/_lib/review-subagent-pattern.md`
-   with these inputs:
-   - **ARTIFACT**: the code changes in the resolved commit range.
-   - **PERSONA**: a skeptical senior Go engineer and senior SRE who has
-     reviewed many PRs produced by a lower-capability LLM executing a
-     detailed implementation plan. Their default assumption is that any
-     instruction requiring cross-document synchronization, an implicit
-     invariant, or resisting a shortcut was *not* actually carried out just
-     because the surface artifact (checkbox, test, comment) suggests it was
-     — each such claim must be checked against the actual diff, not taken on
-     faith.
-   - **FILES**: `01_requirements.md`, `02_architecture.md`,
-     `03_implementation_plan.md`, `docs/dev/security.md`, and every file
-     touched in the resolved range (all as resolved absolute paths). Include
-     the exact commit range and instruct the subagent to run
-     `git diff <range>` and `git log <range>` itself.
-   - **CRITERIA**: every item in the "Weak-model failure checklist" below,
-     copied verbatim, plus the pre-check FLAGS from step 3 (so the subagent
-     verifies them in context rather than re-deriving them).
-
-5. After the subagent returns, run the fix / re-review loop as defined in
-   `_lib/review-subagent-pattern.md`. This command does not auto-fix by
-   default — report findings grouped by severity, and apply fixes only if
-   the invocation explicitly asked for `--fix` (mirrors `code-review`'s
-   convention).
-
-## Weak-model failure checklist
-
-(Use verbatim as evaluation criteria in the subagent prompt. Each item names
-the concrete thing to check, not just the underlying rule, since these are
-exactly the checks a weaker executing model would have applied only
-superficially.)
-
-**Invariant discipline**
-- [ ] For every generated identifier (IDs, names, per-call tokens), the code
-      enforces uniqueness/length constraints the plan or architecture implies
-      — not just "looks unique in the happy path". Check the actual generation
-      site, not just its call sites.
-- [ ] Every flag or mode documented as suppressing side effects (`--dry-run`
-      and equivalents) is checked at *every* side-effecting call site it
-      should gate (deletes, unfollows, network sends), not only the ones
-      exercised by the tests actually added in this range.
-- [ ] Every session-scoped or resource-scoped block (`WithSession`-style
-      helpers, opened clients, acquired locks) releases its resource on
-      **every exit path**, including panics and early returns/errors — not
-      only the success path. Read the actual `defer`/`recover` placement,
-      don't infer it from a comment saying it does.
-
-**Unearned mechanism** (a weak model closes a finding by building something,
-and the thing it builds is rarely load-bearing)
-- [ ] Every optimization in this range (cache, pre-filter, fast path, pooled
-      buffer) is justified against an absolute budget stated in the commit
-      message, not against a relative delta versus the previous commit
-      ("1.9x slower" with no conversion to real wall time is a finding).
-      Check whether the stage optimized is even a significant fraction of
-      its path's cost, and whether the cached step leaves the expensive
-      setup still running per call.
-- [ ] For each mechanism added in this range, ask what deleting it would
-      change. If the answer is only a benchmark number, it is a finding —
-      especially where the regression it offsets was introduced by an
-      earlier commit in this same range (the model creating and then
-      solving its own problem).
-- [ ] No optimization added here carries an unstated correctness
-      obligation: byte-wise case folding where the real path folds under
-      Unicode rules, an ASCII assumption over arbitrary input, a fast path
-      that must agree with the slow path, a cache whose key omits an input.
-      Read the fast path against the slow one; do not trust a comment.
-- [ ] No behavior change and its motivating optimization share a commit.
-
-**Inference where declaration belongs**
-- [ ] No code path is selected by inspecting the content of caller-supplied
-      data (`strings.Contains(x, ":")`, `HasPrefix`, length checks) where
-      the intent could be carried in the type. The tell: the intent is
-      documented in a comment next to the data's definition while the
-      routing lives in a condition in a different file, so nothing ties the
-      two together and a value that happens to contain the sniffed
-      character silently takes the wrong path.
-- [ ] Any `switch` added over a kind/mode enum has a `default` branch, and
-      that branch fails secure rather than falling through to the most
-      permissive case.
-- [ ] Any invariant this range claims ("patterns are always validated",
-      "this is only ever built by X") is enforced by the type — unexported
-      fields plus a constructor — not by convention. If an exported field
-      was kept as an extension point, the range shows the count of its
-      actual uses.
-- [ ] No helper added here silently repairs a malformed caller input
-      (trimming, defaulting, coercing) where rejecting it would surface a
-      programming mistake.
-
-**Tests that cannot fail**
-- [ ] Every test added in this range can fail for the reason it names.
-      Spot-check by nil-ing the collaborator or reverting the branch it
-      covers; a test that still passes is a finding. Highest-yield targets:
-      tests over a layered path (two mechanisms that produce the same
-      output) whose assertions are only "output differs from input" or
-      "output contains the placeholder" — those cannot say which layer ran.
-- [ ] No test asserts that a constant equals its own literal, that a field
-      holds what was just assigned to it, or that two literals are equal.
-- [ ] No table test added for a helper duplicates rows the caller's table
-      already covers with the same literals, where the helper differs from
-      the caller only by a loop.
-- [ ] Any test deleted in this range is the subject of a commit that holds
-      nothing but test deletions, and that commit's message and the PR
-      description carry the passing output (through its last line) of
-      `make coverage-compare BASE=<that commit's parent>` and/or
-      `make ext-coverage-compare BASE=<that commit's parent>` — both when both
-      kinds of test were deleted.
-- [ ] No `diff` verification added in this range (a `_checks/` script, or a
-      diff record in the plan) is oversized for what it checks: weigh what
-      the reviewer will read (the script, or the recorded output) against the
-      size of the diff it verifies, and a script in a language other than
-      shell has the plan's reason why shell is not enough, and a script is not
-      copied from or modeled on an earlier task's `_checks/`. This item does
-      not apply to a plan approved before this item reached `main`, nor to its
-      `_checks/`.
-
-**Cross-document synchronization**
-- [ ] If this diff's implementation diverges from `02_architecture.md` or
-      the corresponding step description in `03_implementation_plan.md`
-      (a simpler approach was substituted, an assumed API turned out
-      different), the plan's *description text* (not only its checkbox) and
-      the architecture section were updated in the same commit range. A
-      `[x]` with stale prose describing the old approach is a finding.
-- [ ] `03_implementation_plan.md`'s Acceptance Criteria Verification section
-      still names real test locations (`path::TestName`) or real static
-      commands for every AC this range claims to close — not a placeholder
-      or a description of a test that does not exist under that name. An AC
-      that specifies only the natural-language content of a document may name
-      a `manual` reading in the PR review instead; a mixed AC still needs the
-      test or static verification for its value or structure.
-
-**Approval-gate integrity**
-- [ ] No implementation commit in this range is dated/ordered before its
-      governing document (`01_requirements.md`/`02_architecture.md`/
-      `03_implementation_plan.md`) reached `approved` status. If any
-      commit message or plan history suggests the model proceeded because
-      a user asked it to despite a draft-status gate, flag it regardless of
-      the user request — the gate has no override clause.
-
-**Traceability leakage**
-- [ ] No `AC-NN` / `F-NNN` planning identifiers appear in Go source comments,
-      identifiers, or string literals (confirm the step-3 grep result was
-      accurate, i.e. no escaped/split variant like `AC` + `-01` across a
-      line break defeats it).
-- [ ] Conversely, every AC this range claims to satisfy has a corresponding
-      entry in the plan's Acceptance Criteria Verification table — a test
-      added in the diff with no plan-side traceability entry is a finding
-      (the model implemented the behavior but skipped the paperwork the
-      process depends on for future audits).
-
-**Shortcut resistance**
-- [ ] Any removal of 3+ scattered same-shaped code sites (test functions,
-      duplicated blocks) in this range was done as discrete edits, not a
-      generated brace-counting / regex-based bulk deletion — check for
-      accidental over-deletion of adjacent code (a truncated function, a
-      dangling brace, an orphaned comment) as the tell.
-- [ ] Any newly authored non-code artifact in this range (runbook step,
-      command example, table, translated text) was checked against ground
-      truth (the command was actually run, the cited implementation exists
-      at the cited location, the translation matches its source) — not
-      verified only by confirming an old term is absent.
-
-**PR/phase boundary judgment**
-- [ ] The set of changes in this range corresponds to a coherent phase
-      group per `03_implementation_plan.md` — it doesn't stop mid-phase in
-      a state that cannot pass `make test` on its own, and it doesn't bundle
-      unrelated later-phase work that the plan intended to separate.
-
-**Security-adjacent omissions** (judgment-heavy; a weak model satisfies the
-ticket but misses the neighboring risk — check `docs/dev/security.md`'s
-attack-vector list against this diff even where no AC mentions it explicitly)
-- [ ] Any new or modified network response handling (HTTP client reads,
-      pagination loops) bounds response size and iteration count — an
-      unbounded `io.Copy`/`Decode` or a pagination loop whose only stop
-      condition is a value an untrusted server controls is a finding, per
-      the response-size rule in `docs/dev/security.md`.
-- [ ] Any new error path that wraps an HTTP client error, request, or
-      response object does not carry `Authorization` headers or session
-      tokens through to a log line or notification payload — check what the
-      wrapped struct actually serializes to, not whether the code "looks
-      like" it redacts.
-- [ ] Any new external-endpoint resolution (redirect following, webhook target
-      validation, YouTube URL / video-ID validation) fails closed on
-      mismatch/ambiguity rather than falling back to a default or a
-      best-effort continue.
-- [ ] Any new retry/backoff loop has a bounded ceiling (attempts or elapsed
-      time), not an open-ended loop relying on the remote side to eventually
-      succeed or fail.
-- [ ] Any new interruption/partial-failure path (timeout mid-operation,
-      crash-and-resume) is treated as "outcome unknown, safe to retry" and
-      not silently promoted to either "succeeded" or "failed" — check this
-      against the operation's actual idempotency guarantee, not the
-      surrounding code's comment.
-
-**Language and convention discipline**
-- [ ] Every Go comment, identifier, and string literal added in this range
-      is English, except a literal the guard-test literal exception of
-      `CLAUDE.md`, "Go Idioms", covers; any non-ASCII found by the step-3
-      grep is in a test-data literal, an intentionally localized error
-      string, or such an excepted literal (a Go program under `_checks/`
-      whose literal must match a Japanese document's text), not an identifier or a
-      non-test comment (a weak model tends to apply this rule uniformly
-      instead of case-by-case).
-- [ ] Any new test file's assertion style (testify `assert`/`require` vs.
-      hand-rolled `if`/`t.Errorf`), package naming (`testutil` vs.
-      package-internal `test_helpers.go`), and import style match the
-      convention of an existing file in the same package — evidence the
-      model actually read a sibling file rather than generating from a
-      generic template.
-- [ ] No logic is reimplemented where an existing function in the codebase
-      already does it — check for a near-duplicate helper, not just an
-      identical one (weak models often rename rather than reuse).
-
-## Output format
-
-Report, grouped by severity (Critical / Major / Minor) as in
-`_lib/review-subagent-pattern.md`, plus one line per checklist category
-above stating whether it was clean, flagged, or not applicable to this
-range. End with a one-line overall read: is this range's failure profile
-consistent with a lower-capability model cutting corners on judgment-heavy
-rules (expected — fix and move on), or does it suggest the plan/architecture
-itself was unclear (escalate: revise the plan before continuing further
-phase groups with the same model).
+7. **Report** in Japanese: RANGE and TASK_DIR, the outputs of
+   `_lib/opus-review.md` (OUTCOME, FINDINGS grouped by severity, KEPT,
+   COMMITS, CATEGORIES, READ), and the note of step 6. On
+   `stopped-unavailable`, report that the review could not run on Opus and
+   that the user can run this command again once Opus is available. On
+   `stopped-limit`, report the remaining findings for the user to decide on.
