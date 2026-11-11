@@ -81,7 +81,7 @@ evaltool check-record -record docs/tasks/0087_openai_combination_eval/04_evaluat
 
 ### 2.5. 道具の確かめ（ステップ 1-5）
 
-PR-1 のブランチのコミット `c4c32567bc69`（squash merge の前のコミット）で実行した。どれも API を呼ばない。`repo_impact.sh` だけは、その 1 つ前のコミット `a8d5b7f37291` で実行した。間のコミットが変えたのは `_eval/evaltool/` の `record.go`・`record_test.go` だけで、`./...` に含まれないので、`repo_impact.sh` の 3 つの出力は変わらない。この後に変えたのは本節と計画書だけである。
+PR-1 のブランチのコミット `7107df2dacee`（squash merge の前のコミット）で実行した。どれも API を呼ばない。この後に変えたのは本節だけである。
 
 **`selftest.sh`:** `evaltool` のテスト（合成の入力だけを使う）・`go vet`・`golangci-lint`（`Makefile` の版）・`gofumpt`、`hashlist.sh` の変更の検出、`secretscan.sh` の検出を確かめた。
 
@@ -100,6 +100,7 @@ selftest: ok   secretscan: finds the sk- prefix
 selftest: ok   secretscan: passes a clean file
 selftest: ok   secretscan: fails with no key variable
 selftest: ok   secretscan: fails on a missing path
+selftest: ok   secretscan: fails when grep cannot read a file
 selftest: ok   secretscan: never prints the value
 selftest: all checks passed
 selftest exit=0
@@ -125,14 +126,14 @@ exit=0
 repo_impact: same list (42 lines)
 repo_impact: same tests (1336 lines)
 repo_impact: same lint (4 lines)
-repo_impact: base 188ed2cac1b0d9414cf17da35978302ee0d37312, head a8d5b7f372914741e0acf1dc811d64d543bc97bc
+repo_impact: base 188ed2cac1b0d9414cf17da35978302ee0d37312, head 7107df2daceed1ee4b980e916e8c5a20c1d2e8ec
 exit=0
 ```
 
 **`rates` と `rates-compare.sh`（AC-15）:** `rates` の `claude-opus-5-5` の単価（入力 4、キャッシュの読み取り 0.2、キャッシュの書き込み 5、出力 20 USD/MTok）は、`986449c6` の料金表（`internal/pricing/rates.go:114`）の値と一致した。`rates` の出力は §6 の表である。B3 の CLI のコミット `2fc2e2a` との比較は次のとおりで、同じだった。評価に使うコミットでの比較はステップ 1-7 で行う。
 
 ```text
-evaluation commit c4c32567bc69: base:rates{input:4000000,cacheRead:200000,cacheWrite:5000000,output:20000000},
+evaluation commit 7107df2dacee: base:rates{input:4000000,cacheRead:200000,cacheWrite:5000000,output:20000000},
 B3 commit 2fc2e2a: base:rates{input:4000000,cacheRead:200000,cacheWrite:5000000,output:20000000},
 rates-compare: same
 exit=0
@@ -148,7 +149,14 @@ secretscan: no sk- key prefix
 exit=0
 ```
 
-**`check-record`（骨組み）:** 本書の骨組み（本節を書いた後のもの）の印が、同じコミットの `aggregate`（0087 の実行はまだない）・`estimate`・`rates` の出力の 28 の表と一致した（`check-record: 28 tables match`）。評価の記録の照合はステップ 5-1 で行う。
+**`check-record`（骨組み）:** 同じコミットで、0087 の実行がない状態の `aggregate`（`-root` に存在しないディレクトリを渡した）・`estimate`・`rates` の出力をファイルに書き、本書と照合した。本書自身の SHA-256 は、本節を書く前の版のものなので載せない。評価の記録の照合はステップ 5-1 で行う。
+
+```text
+sha256 bdac64f70a433d0252afac182d6bbd1b2a4fe12566efe554ea639de77170c0ca <作業ディレクトリ>/agg.txt
+sha256 c55fce120901d78757c0c0dbef9a67b6457782259a61703b969c60ad07083e13 <作業ディレクトリ>/est.txt
+sha256 4441024ebddce789f8b0ccc23512bf78a776b069fa9b625dc81a67f221c9a097 <作業ディレクトリ>/rates.txt
+check-record: 28 tables match
+```
 
 ## 3. 基準の構成
 
