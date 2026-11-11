@@ -388,7 +388,7 @@ PASS pre-check block: 48 lines identical
 
 ### PR-2 の実行の記録
 
-**ステップ 2-4（`_checks/decision_cases.sh`）。** clean な作業ツリーで `bash docs/tasks/0081_implementation_model_choice/_checks/decision_cases.sh d43a15c1e202854ca9b42e64f9b013af4f07dfd8` を実行した。終了コードは 0。比べたコミットは `d43a15c1e202854ca9b42e64f9b013af4f07dfd8`、判断のスクリプト（`.claude/commands/_lib/opus-review-decision.sh`）の blob は `ad40fb3d92d41a11ebd87aacd2d8a6cd1e607606`、`_checks/decision_cases.sh` の blob は `7df8d2173a7a09855a86729d8698dd57544018d0` である。各場合が判断のスクリプトを壊すと失敗することは、fdbd151a のメッセージに書いた（43 の壊し方。どの壊し方も少なくとも 1 つの場合を失敗させ、どの場合も少なくとも 1 つの壊し方で失敗した）。出力:
+**ステップ 2-4（`_checks/decision_cases.sh`）。** clean な作業ツリーで `bash docs/tasks/0081_implementation_model_choice/_checks/decision_cases.sh 082df5fcdfbbe4b4ccd5e9150f14845283e0c9b6` を実行した。終了コードは 0。比べたコミットは `082df5fcdfbbe4b4ccd5e9150f14845283e0c9b6`、判断のスクリプト（`.claude/commands/_lib/opus-review-decision.sh`）の blob は `fd9b810c44ae74607b35260f5812b70a0182c310`、`_checks/decision_cases.sh` の blob は `cbc610a5903db947cb53ce829967cc4006c3d7c5` である。各場合が判断のスクリプトを壊すと失敗することは、fdbd151a・329702dd・082df5fc のメッセージに書いた（最後は 47 の壊し方。どの壊し方も少なくとも 1 つの場合を失敗させ、どの場合も少なくとも 1 つの壊し方で失敗した）。出力:
 
 ```text
 PASS value-opus-uncovered: RUN (ok)
@@ -426,6 +426,11 @@ PASS single-opus-uncovered: RUN (ok)
 PASS single-section-outside-chapter-3: NONE value-absent (ok)
 PASS single-section-ends-at-subheading: NONE value-sonnet (ok)
 PASS single-section-twice: RUN (fail)
+PASS single-on-plan-with-markers: RUN (fail)
+PASS marker-crlf-lines: NONE value-sonnet (ok)
+PASS tilde-fence-not-read: NONE value-sonnet (ok)
+PASS nested-fence: RUN (ok)
+PASS unclosed-fence: RUN (fail)
 PASS plan-path-not-canonical: RUN (fail)
 PASS all-opus-with-excludable: NONE all-opus (ok)
 PASS record-mixed-models: RUN (ok)
@@ -453,16 +458,16 @@ PASS done-end-not-ancestor: RUN (ok)
 PASS done-malformed: RUN (ok)
 PASS done-not-at-line-start: RUN (ok)
 PASS done-then-merge: RUN (ok)
+PASS base-not-merge-base: RUN (fail)
 PASS no-origin-main: RUN (fail)
 PASS plan-missing-at-head: RUN (fail)
 PASS target-not-a-number: RUN (fail)
-PASS base-not-ancestor: RUN (fail)
 PASS not-a-repository: RUN (fail)
 PASS real-0077-pr1-standard: NONE value-sonnet (ok)
 PASS real-0077-pr2-frontier-required: RUN (ok)
 PASS real-0077-pr3-frontier-recommended: RUN (ok)
 PASS real-0071-single: NONE value-absent (ok)
-cases: 70 fixtures, failures: 0
+cases: 75 fixtures, failures: 0
 ```
 
 ### PR-3 の実行の記録
