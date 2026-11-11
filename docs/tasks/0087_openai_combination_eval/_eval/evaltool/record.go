@@ -131,7 +131,11 @@ func checkRecord(rec []recordTable, computed []*table) error {
 func compareTable(t *table, rts []recordTable) error {
 	want := map[string][]string{}
 	for _, row := range t.Rows {
-		want[strings.Join(row[:t.Keys], "\t")] = row
+		key := strings.Join(row[:t.Keys], "\t")
+		if _, dup := want[key]; dup {
+			return fmt.Errorf("%w: table %s: computed row %q appears twice", errRecord, t.Name, key)
+		}
+		want[key] = row
 	}
 	got := map[string]bool{}
 	for _, rt := range rts {

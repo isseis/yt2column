@@ -64,6 +64,15 @@ func TestCheckRecord(t *testing.T) {
 	if err := check(goodRecord + "\n<!-- check-record spend -->\n"); !errors.Is(err, errRecord) {
 		t.Errorf("a malformed marker: err = %v", err)
 	}
+	dup := recordComputed()
+	dup[1].add("record", "0.300000")
+	rec, err := parseRecord(strings.NewReader(goodRecord))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := checkRecord(rec, dup); !errors.Is(err, errRecord) {
+		t.Errorf("a computed key that appears twice: err = %v", err)
+	}
 	for name, c := range map[string]struct{ record, table string }{
 		"value differs": {strings.Replace(goodRecord, "0.200000", "0.200001", 1), "runs"},
 		// The table without rows shows a missing or repeated marker that no

@@ -22,8 +22,8 @@
 
 ### 2.1. 置き場所と記法
 
-- `_eval/` は `docs/tasks/0087_openai_combination_eval/_eval/`、`E` は `~/yt2column-eval`、`0087/` は `$E/0087/` を指す。コマンドはリポジトリのルートで実行する。
-- `evaltool` は `go run ./docs/tasks/0087_openai_combination_eval/_eval/evaltool` を指す。サブコマンドは `aggregate`（集計）・`estimate`（見積もりと上限）・`rates`（単価）・`check-record`（照合）・`material`（採点の素材）・`launch`（起動）・`reproduce0018`（0018 の再現）である。
+- `_eval/` は `docs/tasks/0087_openai_combination_eval/_eval/`、`0087/` は `~/yt2column-eval/0087/` を指す。§2.3 のコマンドは、リポジトリのルートで、そこに書いた変数 `X`・`E` と関数 `evaltool` を定めたシェルで実行する。
+- `evaltool` は `go run ./$X/evaltool` を指す。サブコマンドは `aggregate`（集計）・`estimate`（見積もりと上限）・`rates`（単価）・`check-record`（照合）・`material`（採点の素材）・`launch`（起動）・`reproduce0018`（0018 の再現）である。
 - zsh のスクリプトは `run.sh`（1 件の実行と構成の変数の表）・`hashlist.sh`（ハッシュの一覧）・`retire.sh`（やり直しの前の移動）・`rates-compare.sh`（単価の比較）・`secretscan.sh`（キーの値の検索）・`selftest.sh`・`reproduce0018.sh`・`repo_impact.sh`（確かめ）である。スクリプトは macOS（`shasum`、BSD の `stat`）を前提にする。
 - 採点の指示は `_eval/scoring-prompt.md`、採点のエージェントの定義は `_eval/scorer-agent.md` である。値のファイルは `_eval/bounds-input.json`（見積もりと上限の入力と出典）・`_eval/baseline.json`（基準の構成の値と出典）・`_eval/bounds.tsv`（`estimate` が書いた上限の表）である。
 
@@ -34,6 +34,7 @@
 - **実行の記録（`log/<構成 ID>/<記事>.when`）:** `run.sh` が 1 行に 1 項目、`<鍵>=<値>` で書く。鍵は `config`・`article`・`after`（`none`・`generation`・`shorten`・`review`）・`llm`・`review_llm`・`ytdlp_path`・`keep_cache`・`binary_sha256`・`start`・`end`・`exit` で、時刻は UTC の RFC 3339 である。`end` と `exit` は CLI が終わった後に加わる。
 - **承認の記録（`0087/approval`）:** 1 行に 1 つの承認を `<時刻（RFC 3339）>\t<構成 ID のカンマ区切り>\t<上限（USD）>` で追記する（計画 §1.2 の決めたこと 8）。
 - **起動の記録（`0087/launch.log`）:** `launch` が起動の前に `<時刻>\t<構成 ID>\t<記事のカンマ区切り>` を追記する。
+- **起動のロック（`0087/launch.lock`）と各実行の出力（`0087/launch-output/`）:** `launch` は、確かめの前にロックのファイルを排他的に作り、起動ごとのトークンを書く。起動したすべての実行が終わるまで持ち、その後に消す。ロックがあれば `launch` は止まるので、2 つの起動が同じ使った額で上限を確かめることはない。`launch` はトークンを `run.sh` の引数 `--launch-token` で渡し、`run.sh` は、`--preflight` のない実行（API を呼ぶ実行）を、トークンがロックの中身と一致する場合だけ始める。`run.sh` 自身の出力（止まった理由など）は `launch-output/<時刻>-<構成 ID>-<記事>.txt` に残る。`launch` が途中で止まってロックが残った場合は、実行中のものがないことを確かめてから人が消す。
 - **支払い前と確かめた実行（`0087/prepayment.tsv`）:** 1 行に 1 つの実行を `<構成 ID>\t<記事>\t<回>` で書く。回は `cur`（今の実行）か `f<N>`（`failed/` に移した実行）である（計画 §1.2 の決めたこと 7）。
 - **判定のファイル（`0087/score/<段>/judgments.tsv`）:** 1 行目は `article	config	criterion	interp	literal	judge	human_check`。観点の鍵は `format_choice`（形式の選択）・`format_rules`（形式の規則）・`evidence`（根拠）・`length`（長さ）・`notation`（表記）・`coverage`（要点の網羅）・`importance`（重要度の順）・`structure`（構成）・`readability`（読みやすさ）・`title_lead`（タイトル・リード文）・`redundancy`（冗長さ）・`constraint1`〜`constraint3`（製品の制約 1〜3）である。判定者は `script`（長さだけ）・`llm`・`human`（人が LLM の判定を変えた）である。
 - **人の確認の印（`0087/score/1/human-confirmed`）:** 1 段目の判定を人が確認した時刻（RFC 3339）を書く。`launch` は、これがなければ `B-*` を起動しない（計画 §1.2 の決めたこと 10）。
@@ -43,25 +44,29 @@
 ### 2.3. コマンド
 
 ```sh
+X=docs/tasks/0087_openai_combination_eval/_eval
+E=~/yt2column-eval
+evaltool() { go run ./$X/evaltool "$@" }
 # 構成の変数の表（run.sh だけが持つ）
-_eval/run.sh configs
+$X/run.sh configs
 # ハッシュの一覧（最初の一覧は前の一覧なし。2 回目以降は前の一覧と diff する）
-_eval/hashlist.sh $E/0087/hash/1-initial.tsv - base=$E/0018/base/B3 work=$E/0018/work/B3 cache=$E/cache
+mkdir -p -m 700 $E/0087/hash
+$X/hashlist.sh $E/0087/hash/1-initial.tsv - base=$E/0018/base/B3 work=$E/0018/work/B3 cache=$E/cache
 # 見積もりと上限の表
-evaltool estimate -input _eval/bounds-input.json -runsh _eval/run.sh -write-bounds _eval/bounds.tsv
+evaltool estimate -input $X/bounds-input.json -runsh $X/run.sh -write-bounds $X/bounds.tsv
 # 実行の前の確認（API キーを外し、0087/preflight/ に出力する）
-_eval/run.sh run <構成 ID> <記事> $E/0087/bin/<コミット>/yt2column --preflight [--after-review]
-# 1 つの構成の 10 件（またはやり直しの 1 件）の起動
-evaltool launch -root $E/0087 -runsh _eval/run.sh -cli $E/0087/bin/<コミット>/yt2column \
-  -stage1 $E/0087/score/1 -bounds-input _eval/bounds-input.json -bounds _eval/bounds.tsv \
+$X/run.sh run <構成 ID> <記事> $E/0087/bin/<コミット>/yt2column --preflight [--after-review]
+# 1 つの構成の 10 件（またはやり直しの 1 件）の起動。API を呼ぶ実行は必ずこれで起動する
+evaltool launch -root $E/0087 -runsh $X/run.sh -cli $E/0087/bin/<コミット>/yt2column \
+  -stage1 $E/0087/score/1 -bounds-input $X/bounds-input.json -bounds $X/bounds.tsv \
   -config <構成 ID> [-retry <記事>] -now "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 # やり直しの前の移動
-_eval/retire.sh $E/0087 <構成 ID> <記事>
+$X/retire.sh $E/0087 <構成 ID> <記事>
 # 採点の素材
-evaltool material -root $E/0087 -out $E/0087/score/<段> -runsh _eval/run.sh -stage <段>
+evaltool material -root $E/0087 -out $E/0087/score/<段> -runsh $X/run.sh -stage <段>
 # 集計（-exclude は F-006 の手順 3 で除いた候補）
-evaltool aggregate -root $E/0087 -base0018 $E/0018 -runsh _eval/run.sh -bounds _eval/bounds.tsv \
-  -baseline _eval/baseline.json [-exclude <構成 ID>]
+evaltool aggregate -root $E/0087 -base0018 $E/0018 -runsh $X/run.sh -bounds $X/bounds.tsv \
+  -baseline $X/baseline.json [-exclude <構成 ID>]
 # 照合（集計・見積もり・単価の出力のファイルを渡す）
 evaltool check-record -record docs/tasks/0087_openai_combination_eval/04_evaluation.md <表のファイル>...
 ```
@@ -69,6 +74,8 @@ evaltool check-record -record docs/tasks/0087_openai_combination_eval/04_evaluat
 ### 2.4. 設計からの逸れ
 
 - **採点の素材の記事:** 設計 §3.6 の手順 2 は記事のファイルからタイトルと本文を取り出す。`material` は、同じタイトルと本文を検証・推敲の保存した出力から取り、記事のファイルがそのタイトルと本文を含むことを確かめる。記事のファイルの出典の行（日本語の固定の文言）を解析しないためである。字幕は、実行ごとのキャッシュの写しを CLI と同じ読み取り口（`YtDlpSource`）で読み、時刻つきの文にして素材に置く。採点のサブエージェントはファイルを読む道具だけを持ち、json3 を自分で変換できないためである。
+- **キャッシュの間隔:** 設計 §3.5 は、同じ OpenAI のモデルを使う直前の構成の終了から 30 分を待つ。`launch` は、同じ OpenAI のモデルを使うほかのすべての構成の最後の実行の終了から 30 分を待つ。設計より厳しい側である。
+- **起動の関門の強化:** `launch` は、ロックで同時の起動を止め、`run.sh` は `launch` のトークンなしに API を呼ぶ実行を始めない（§2.2）。`launch` は、支払い前と確かめた実行を除いて 2 回やり直した記事の 3 回目のやり直しと、最後の承認より前の時刻を止める。どれも設計の関門（§3.5）を手順の誤りから守るためで、設計の条件は変えない。
 - **素材の検査:** `material` は、素材のどのファイルにもその段の構成 ID とモデル ID が含まれないことを確かめ、含まれれば止まる。
 
 ### 2.5. 道具の確かめ（ステップ 1-5）
@@ -564,7 +571,7 @@ exit=0
 **比較の表（AC-18）:** 平均と最大は比較に使う記事（成功し、手順から外れていない実行）だけで求める。品質の観点の分布は解釈による判定の 60 の判定である。
 
 <!-- check-record: comparison -->
-| 構成 | 比較に使う | 得られなかった | 合格（解釈） | 合格（文言） | 品質 1 | 品質 2 | 品質 3 | 推定コストの平均（USD） | 推定コストの最大 | 最大の記事 | 所要時間の平均 | 所要時間の最大 | 最大の記事 | 失敗した実行 | 失敗の推定コスト | キャッシュを読んだ工程 | 補助の推定コストの平均 |
+| 構成 | 比較に使う | 得られなかった | 合格（解釈） | 合格（文言） | 品質 1 | 品質 2 | 品質 3 | 推定コストの平均（USD） | 推定コストの最大 | 最大の記事 | 所要時間の平均 | 所要時間の最大 | 最大の記事 | 失敗した実行 | 失敗の推定コスト | 推定コストが不明の失敗 | キャッシュを読んだ工程 | 補助の推定コストの平均 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 
 ## 10. 結論

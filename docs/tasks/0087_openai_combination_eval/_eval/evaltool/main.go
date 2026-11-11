@@ -6,7 +6,8 @@
 //
 // It reads the CLI's standard-error lines and the run records the evaluation
 // scripts write, never calls an LLM API, and never touches the network. Every
-// subcommand writes only to the paths its flags name.
+// subcommand writes only under the paths its flags name, and material also to
+// a temporary directory it removes.
 //
 // Usage: evaltool <subcommand> [flags]. The subcommands are aggregate,
 // estimate, rates, check-record, material, launch, and reproduce0018; each

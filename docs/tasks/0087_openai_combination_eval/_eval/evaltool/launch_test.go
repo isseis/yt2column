@@ -24,7 +24,9 @@ func newLaunchFixture(t *testing.T) launchFixture {
 	dir := t.TempDir()
 	f := launchFixture{Root: filepath.Join(dir, "0087"), Calls: filepath.Join(dir, "calls")}
 	stub := filepath.Join(dir, "run.sh")
-	writeFile(t, stub, "#!/bin/sh\necho \"$*\" >> "+f.Calls+"\n")
+	// The stub records its arguments, the token it was handed, and the lock's
+	// token at the time it ran.
+	writeFile(t, stub, "#!/bin/sh\necho \"$* lock=$(cat "+filepath.Join(f.Root, launchLockName)+")\" >> "+f.Calls+"\n")
 	if err := os.Chmod(stub, 0o700); err != nil { //nolint:gosec // the stub must be executable
 		t.Fatal(err)
 	}
@@ -45,13 +47,11 @@ func newLaunchFixture(t *testing.T) launchFixture {
 // calls.
 func (f launchFixture) launch(t *testing.T, q launchRequest) ([]string, error) {
 	t.Helper()
-	if err := checkLaunch(q); err != nil {
-		return f.calls(t), err
-	}
-	if _, err := startRuns(q); err != nil {
+	_, err := launchRuns(q)
+	if err != nil && !errors.Is(err, errLaunch) {
 		t.Fatal(err)
 	}
-	return f.calls(t), nil
+	return f.calls(t), err
 }
 
 // calls returns the stub's recorded calls.
@@ -92,8 +92,18 @@ func TestLaunchPositive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(calls) != 10 || !strings.HasPrefix(calls[0], "run C-sol ") || !strings.HasSuffix(calls[0], " /bin/false") {
+	if len(calls) != 10 || !strings.HasPrefix(calls[0], "run C-sol ") || !strings.Contains(calls[0], " /bin/false "+launchTokenFlag+" ") {
 		t.Errorf("calls = %q", calls)
+	}
+	for _, c := range calls {
+		_, rest, _ := strings.Cut(c, " "+launchTokenFlag+" ")
+		token, lock, _ := strings.Cut(rest, " lock=")
+		if token == "" || token != lock {
+			t.Errorf("the run got token %q while the lock held %q", token, lock)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(f.Root, launchLockName)); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("the lock must be removed after the runs exit: %v", err)
 	}
 	entries, err := readParsed(filepath.Join(f.Root, launchLogName), parseLaunchLog)
 	if err != nil || len(entries) != 1 || entries[0].Config != "C-sol" || len(entries[0].Articles) != 10 {
@@ -125,6 +135,28 @@ func TestLaunchStops(t *testing.T) {
 		}},
 		{"a run that has not finished", func(t *testing.T, f *launchFixture) {
 			writeRun(t, f.Root, fakeRun{Config: "C-astra", Article: "roNZ-rLxhUE-1", Start: t0, Unfinished: true, Log: ""})
+		}},
+		{"another launch holds the lock", func(t *testing.T, f *launchFixture) {
+			writeFile(t, filepath.Join(f.Root, launchLockName), "other")
+		}},
+		{"now before the last approval", func(_ *testing.T, f *launchFixture) { f.Req.Now = t0.Add(-time.Second) }},
+		{"a target article already has a current run", func(t *testing.T, f *launchFixture) {
+			writeRun(t, f.Root, fakeRun{Config: "C-sol", Article: "zW1RBacSqjk-1", Start: t0, Exit: 0, Log: "x\n"})
+		}},
+		{"a third retry", func(t *testing.T, f *launchFixture) {
+			for _, n := range []string{"f1", "f2"} {
+				writeRun(t, f.Root, fakeRun{Config: "C-sol", Article: "zW1RBacSqjk-1", Attempt: n, Start: t0, Exit: 2, Log: "x\n"})
+			}
+			writeFile(t, filepath.Join(f.Root, "approval"), t0.Format(time.RFC3339)+"\tC-sol\t30\n")
+			f.Req.Retry = "zW1RBacSqjk-1"
+		}},
+		{"B-sol while a stage-1 config has not run", func(t *testing.T, f *launchFixture) {
+			for _, c := range []string{"C-sol", "C-astra", "A-sol"} {
+				f.finishConfig(t, c, t0)
+			}
+			writeJudgments(t, filepath.Join(f.Req.Stage1Dir, "judgments.tsv"), []string{"C-sol", "C-astra", "A-sol"}, nil)
+			writeFile(t, filepath.Join(f.Req.Stage1Dir, stage1ConfirmedName), t0.Format(time.RFC3339)+"\n")
+			f.Req.Config = "B-sol"
 		}},
 		{"stale bounds table", func(_ *testing.T, f *launchFixture) { f.Req.BoundsInput.ArticlePartMaxBytes++ }},
 		{"an unpriced model", func(t *testing.T, f *launchFixture) {

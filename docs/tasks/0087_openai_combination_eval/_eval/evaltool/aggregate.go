@@ -279,7 +279,11 @@ func runTables(d evalData) ([]*table, error) {
 	env.add("runs", strconv.Itoa(n))
 	env.add("ytdlp_path_false", strconv.Itoa(ytdlpFalse))
 	env.add("keep_cache", strconv.Itoa(keepCache))
-	env.add("all_kept_conditions", yesNo(ytdlpFalse == n && keepCache == n))
+	kept := none
+	if n > 0 {
+		kept = yesNo(ytdlpFalse == n && keepCache == n)
+	}
+	env.add("all_kept_conditions", kept)
 	binCell := none
 	if len(binaries) > 0 {
 		binCell = strings.Join(binaries, ",")
@@ -733,7 +737,7 @@ func (d evalData) addCostAndTime(s *configStats, c config, r run) error {
 func comparisonTables(d evalData) ([]*table, error) {
 	cmp := newTable("comparison", 1, "config", "usable", "not_obtained", "pass_interp", "pass_literal", "quality_1",
 		"quality_2", "quality_3", "cost_avg_usd", "cost_max_usd", "cost_max_article", "duration_avg", "duration_max",
-		"duration_max_article", "failed_runs", "failed_usd", "cache_read_stages", "aux_cost_avg_usd")
+		"duration_max_article", "failed_runs", "failed_usd", "failed_unknown_cost", "cache_read_stages", "aux_cost_avg_usd")
 	var results []f006Result
 	for _, c := range d.Configs {
 		if !slices.ContainsFunc(d.Runs, func(r run) bool { return r.Config == c.ID }) {
@@ -784,14 +788,22 @@ func comparisonTables(d evalData) ([]*table, error) {
 
 // comparisonRow renders one config's comparison values.
 func (d evalData) comparisonRow(c config, s configStats) []string {
-	failedRuns := 0
+	// A failed run is any finished run that did not succeed, the current one
+	// included (an article given up after its last retry keeps it there),
+	// except a run the human confirmed as stopped before payment. A run whose
+	// cost is not fully known is counted apart rather than as 0.
+	failedRuns, failedUnknown := 0, 0
 	var failedUSD micro
 	for _, r := range d.Runs {
-		if r.Config != c.ID || r.Attempt == attemptCurrent || d.Prepay[r.key()] {
+		if r.Config != c.ID || !r.finished() || r.succeeded() || d.Prepay[r.key()] {
 			continue
 		}
 		failedRuns++
-		sum, _ := runCost(r.Log)
+		sum, unknown := runCost(r.Log)
+		if unknown > 0 || uncosted(r.Log) || (r.Log.hasRunTokens() && (r.Log.TotalRun == nil || !r.Log.TotalRun.Known)) {
+			failedUnknown++
+			continue
+		}
 		failedUSD += sum
 	}
 	pass, lit, q1, q2, q3 := none, none, none, none, none
@@ -812,7 +824,7 @@ func (d evalData) comparisonRow(c config, s configStats) []string {
 	return []string{
 		c.ID, strconv.Itoa(s.Usable), strconv.Itoa(len(articles()) - s.Usable), pass, lit, q1, q2, q3,
 		costAvg, costMax, costMaxArt, durAvg, durMax, durMaxArt, strconv.Itoa(failedRuns), failedUSD.String(),
-		strconv.Itoa(s.CacheReadStages), aux,
+		strconv.Itoa(failedUnknown), strconv.Itoa(s.CacheReadStages), aux,
 	}
 }
 

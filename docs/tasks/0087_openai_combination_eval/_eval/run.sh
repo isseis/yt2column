@@ -6,12 +6,17 @@
 # Usage:
 #   run.sh configs
 #       Print the config table: "<id>\t<stage>\t<YT2COLUMN_LLM>\t<YT2COLUMN_REVIEW_LLM>\t<mode>".
-#   run.sh run <config> <article> <cli> [--preflight [--after-review]]
+#   run.sh run <config> <article> <cli> [--launch-token <token> | --preflight [--after-review]]
 #       Run <cli> for <article> ("<video ID>-<1|2>") with <config>'s values.
 #       --preflight writes under 0087/preflight/ instead of 0087/ and removes
 #       the API keys from the CLI's environment, so the CLI cannot call an API;
 #       --after-review (preflight only) resumes from a copy of B3's complete
 #       artifacts with --after review, whatever the config (design section 3.4 item 1).
+#
+# A run without --preflight calls a paid API, so it starts only from
+# "evaltool launch": launch holds 0087/launch.lock with a per-launch token and
+# hands the same token with --launch-token; without a match the script stops
+# before copying anything.
 #
 # The evaluation root is $YT2COLUMN_EVAL_ROOT, or ~/yt2column-eval when unset.
 # The script never reads, writes, or prints an API key's value: the CLI reads
@@ -72,13 +77,15 @@ cmd_run() {
   (( $# >= 3 )) || die "usage: run.sh run <config> <article> <cli> [--preflight [--after-review]]"
   local cfg=$1 art=$2 cli=$3
   shift 3
-  local preflight=0 after_review=0 opt
-  for opt in "$@"; do
-    case $opt in
+  local preflight=0 after_review=0 token=
+  while (( $# )); do
+    case $1 in
       --preflight) preflight=1 ;;
       --after-review) after_review=1 ;;
-      *) die "unknown option $opt" ;;
+      --launch-token) (( $# >= 2 )) || die "--launch-token needs a value"; token=$2; shift ;;
+      *) die "unknown option $1" ;;
     esac
+    shift
   done
   (( after_review == 0 || preflight == 1 )) || die "--after-review needs --preflight"
 
@@ -98,6 +105,11 @@ cmd_run() {
   (( preflight )) && R=$E/0087/preflight
   LIST=$E/0087/hash/1-initial.tsv
   [[ -f $LIST ]] || die "no first hash list $LIST"
+  if (( ! preflight )); then
+    local lock=$E/0087/launch.lock
+    [[ -n $token && -f $lock && "$(cat -- $lock)" == "$token" ]] ||
+      die "a run that calls an API starts only from evaltool launch (no matching launch token)"
+  fi
 
   # Which artifacts to copy, and from which tree of the hash list.
   local after=none tree= src=
@@ -141,6 +153,10 @@ cmd_run() {
     copy_checked $src/$f $W/$f $tree/$art/$f
   done
 
+  # The run conditions the record states and the CLI receives come from the
+  # same two values.
+  local ytdlp=/usr/bin/false keep=--keep-cache
+
   local sha
   sha=$(shasum -a 256 -- $cli | cut -d' ' -f1) || die "cannot hash $cli"
   # From here on the run's files are kept, whatever happens.
@@ -151,14 +167,14 @@ cmd_run() {
     print -r -- "after=$after"
     print -r -- "llm=$llm"
     print -r -- "review_llm=$review"
-    print -r -- "ytdlp_path=/usr/bin/false"
-    print -r -- "keep_cache=yes"
+    print -r -- "ytdlp_path=$ytdlp"
+    print -r -- "keep_cache=${${keep:+yes}:-no}"
     print -r -- "binary_sha256=$sha"
     print -r -- "start=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   } > $WH || die "cannot write $WH"
 
   local -a args
-  args=(--keep-cache --artifacts $W --out $O)
+  args=($keep --artifacts $W --out $O)
   if [[ $after == review ]]; then
     args+=(--after review)
   else
@@ -174,7 +190,7 @@ cmd_run() {
   # zsh's default TIMEFMT, the form of the 0018 logs.
   TIMEFMT='%J  %U user %S system %P cpu %*E total'
   local rc
-  ( time env YT2COLUMN_YTDLP_PATH=/usr/bin/false YT2COLUMN_CACHE_DIR=$C \
+  ( time env YT2COLUMN_YTDLP_PATH=$ytdlp YT2COLUMN_CACHE_DIR=$C \
       YT2COLUMN_LLM=$llm YT2COLUMN_REVIEW_LLM=$review \
       $cli $args "https://www.youtube.com/watch?v=$vid" ) 2> $L
   rc=$?

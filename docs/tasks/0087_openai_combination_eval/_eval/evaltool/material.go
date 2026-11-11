@@ -175,11 +175,20 @@ func writeArticleMaterial(q materialRequest, a articleKey, prefix string, forbid
 }
 
 // writeTranscript writes the video's title, channel, description, and
-// time-stamped transcript, read with the CLI's own cache reader from the
-// cache copy of the first config's first article (a yt-dlp path that always
-// fails keeps a cache miss from fetching).
+// time-stamped transcript, read with the CLI's own cache reader (a yt-dlp path
+// that always fails keeps a cache miss from fetching). The reader locks and
+// may tidy its cache directory, so it reads a temporary copy of the first
+// config's first article's cache copy, never a run's own.
 func writeTranscript(q materialRequest, video, dir string, forbidden []string) error {
-	cache := filepath.Join(q.Root, "runcache", q.Configs[0].ID, video+"-1")
+	cache, err := os.MkdirTemp("", "evaltool-cache-")
+	if err != nil {
+		return err
+	}
+	defer func() { _ = os.RemoveAll(cache) }()
+	src := filepath.Join(q.Root, "runcache", q.Configs[0].ID, video+"-1")
+	if err := os.CopyFS(cache, os.DirFS(src)); err != nil {
+		return fmt.Errorf("%w: copy the cache of %s: %w", errMaterial, video, err)
+	}
 	source, err := transcript.NewYtDlpSource(transcript.Options{CacheDir: cache, YtDlpPath: "/usr/bin/false", Timeout: time.Minute})
 	if err != nil {
 		return err

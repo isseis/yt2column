@@ -122,3 +122,22 @@ func TestLoad0018(t *testing.T) {
 		t.Errorf("a non-JST time: err = %v", err)
 	}
 }
+
+// TestParseWhen0087Rejects rejects a run record with an unknown, repeated, or
+// missing key, or a bad keep_cache.
+func TestParseWhen0087Rejects(t *testing.T) {
+	good := whenText("C-sol", "roNZ-rLxhUE-1", "none", t0, t0.Add(time.Minute), 0, true)
+	if _, err := parseWhen0087(strings.NewReader(good)); err != nil {
+		t.Fatalf("valid record rejected: %v", err)
+	}
+	for name, bad := range map[string]string{
+		"unknown key":    good + "color=red\n",
+		"repeated key":   good + "exit=1\n",
+		"missing key":    strings.Replace(good, "keep_cache=yes\n", "", 1),
+		"bad keep_cache": strings.Replace(good, "keep_cache=yes", "keep_cache=maybe", 1),
+	} {
+		if _, err := parseWhen0087(strings.NewReader(bad)); !errors.Is(err, errRunRecord) {
+			t.Errorf("%s: err = %v", name, err)
+		}
+	}
+}

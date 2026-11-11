@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -56,6 +57,19 @@ func TestComputeSpend(t *testing.T) {
 	}
 	if !prepaymentCandidate(noLLM) || prepaymentCandidate(killed) || prepaymentCandidate(paid) {
 		t.Errorf("only a finished run without run tokens is a prepayment candidate")
+	}
+	// An unknown "cost-total: run" line, or a called stage without its cost
+	// line, counts the run at its bound even when the other lines are known.
+	unknownTotal := run{Config: "C-sol", Article: "e-1", Attempt: attemptCurrent, Log: mustLog(t, logText([]stageLines{
+		{Stage: stageReview, Origin: originRun, USD: "0.045000", Model: "gpt-6.1-sol"},
+	}, "unknown", "unknown", "1.0"))}
+	uncostedRun := run{Config: "C-sol", Article: "f-1", Attempt: attemptCurrent, Log: mustLog(t,
+		"yt2column: tokens: review run known input=1 cache_read=0 cache_write=0 output=1 model=m\nyt2column: cost-total: run known usd=0.000000\n")}
+	for _, r := range []run{unknownTotal, uncostedRun} {
+		s, err := computeSpend([]run{r}, testBounds, nil)
+		if err != nil || s.BoundRuns != 1 || s.Total() != testBounds["C-sol"] {
+			t.Errorf("%s: spend = %+v, %v; want the run bound", r.Article, s, err)
+		}
 	}
 	if _, err := computeSpend([]run{{Config: "Z"}}, testBounds, nil); !errors.Is(err, errSpend) {
 		t.Errorf("a config without a bound: err = %v", err)
@@ -116,6 +130,9 @@ func newEvalFixture(t *testing.T) evalFixture {
 			}
 		}
 	}
+	// Finder's .DS_Store files must not stop the aggregation.
+	writeFile(t, filepath.Join(f.Root, "log", ".DS_Store"), "x")
+	writeFile(t, filepath.Join(f.Root, "log", "C-sol", ".DS_Store"), "x")
 	writeFile(t, filepath.Join(f.Root, "approval"), t0.Add(-time.Minute).Format(time.RFC3339)+"\tC-sol,C-astra,A-sol,A-astra\t30\n")
 	writeJudgments(t, filepath.Join(f.Root, "score", "1", "judgments.tsv"), []string{"C-sol", "A-sol"}, nil)
 	var err error
@@ -298,6 +315,52 @@ func TestAggregateComparison(t *testing.T) {
 	}
 }
 
+// TestAggregateAuxCost recounts a stage's cache-read input at the
+// cache-write rate for the auxiliary cost, and counts the stages that read
+// the cache.
+func TestAggregateAuxCost(t *testing.T) {
+	f := newEvalFixture(t)
+	// roNZ-rLxhUE-1's review read 10000 tokens from the cache. Recounted:
+	// 3*2 + 15000*2.5 + 800*10 per million = 0.045506 instead of the CLI's
+	// 0.050000, so its article costs 0.095506 instead of 0.150000.
+	writeFile(t, filepath.Join(f.Root, "log", "C-sol", "roNZ-rLxhUE-1.txt"), logText([]stageLines{
+		{Stage: stageGeneration, Origin: originRun, In: 3, CW: 17300, Out: 2000, USD: "0.050000", Model: "gpt-6.1-sol"},
+		{Stage: stageReview, Origin: originRun, In: 3, CR: 10000, CW: 5000, Out: 800, USD: "0.100000", Model: "gpt-6.1-sol"},
+	}, "known usd=0.150000", "known usd=0.150000", "1:10.0"))
+	ts := f.mustTables(t)
+	if got := cell(t, ts, "comparison", "cache_read_stages", "C-sol"); got != "1" {
+		t.Errorf("cache_read_stages = %s", got)
+	}
+	// (1.545000 - 0.150000 + 0.095506) / 10 = 0.1490506, rounded half up.
+	if got := cell(t, ts, "comparison", "aux_cost_avg_usd", "C-sol"); got != "0.149051" {
+		t.Errorf("aux_cost_avg_usd = %s, want 0.149051", got)
+	}
+	if got := cell(t, ts, "comparison", "aux_cost_avg_usd", "A-sol"); got != none {
+		t.Errorf("a config that read no cache has no auxiliary cost: %s", got)
+	}
+}
+
+// TestAggregateRunConditions reports a run record without --keep-cache.
+func TestAggregateRunConditions(t *testing.T) {
+	f := newEvalFixture(t)
+	if got := cell(t, f.mustTables(t), "run-conditions", "value", "all_kept_conditions"); got != "yes" {
+		t.Fatalf("all_kept_conditions = %s", got)
+	}
+	path := filepath.Join(f.Root, "log", "C-sol", "zW1RBacSqjk-1.when")
+	data, err := os.ReadFile(path) //nolint:gosec // a file the test wrote
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, path, strings.Replace(string(data), "keep_cache=yes", "keep_cache=no", 1))
+	ts := f.mustTables(t)
+	if got := cell(t, ts, "run-conditions", "value", "all_kept_conditions"); got != "no" {
+		t.Errorf("all_kept_conditions = %s, want no", got)
+	}
+	if got := cell(t, ts, "run-conditions", "value", "keep_cache"); got != "19" {
+		t.Errorf("keep_cache = %s, want 19 of 20", got)
+	}
+}
+
 // TestAggregateOffProcedure takes a resumed article off the comparison when
 // its shorten ran or a reused identifier differs.
 func TestAggregateOffProcedure(t *testing.T) {
@@ -348,6 +411,22 @@ func TestAggregateFailures(t *testing.T) {
 	}
 	if got := cell(t, ts, "comparison", "failed_usd", "C-sol"); got != "0.312000" {
 		t.Errorf("failed_usd = %s", got)
+	}
+	// A failed current run (an article given up after its last attempt)
+	// counts as a failure, and a killed run without totals is counted apart.
+	writeRun(t, f.Root, fakeRun{
+		Config: "C-astra", Article: "zW1RBacSqjk-1", Start: t0, Exit: 1,
+		Log: logText([]stageLines{{Stage: stageGeneration, Origin: originRun, CW: 1, Out: 1, USD: "0.104000", Model: "gpt-6-astra"}}, "known usd=0.104000", "known usd=0.104000", "1.0"),
+	})
+	writeRun(t, f.Root, fakeRun{
+		Config: "C-astra", Article: "zW1RBacSqjk-1", Attempt: "f1", Start: t0, Exit: 137,
+		Log: logText([]stageLines{{Stage: stageGeneration, Origin: originRun, CW: 1, Out: 1, USD: "0.104000", Model: "gpt-6-astra"}}, "", "", ""),
+	})
+	ts = f.mustTables(t)
+	for col, want := range map[string]string{"failed_runs": "2", "failed_usd": "0.104000", "failed_unknown_cost": "1"} {
+		if got := cell(t, ts, "comparison", col, "C-astra"); got != want {
+			t.Errorf("C-astra %s = %s, want %s", col, got, want)
+		}
 	}
 	launchBefore := cell(t, ts, "spend", "total_usd", "launch")
 

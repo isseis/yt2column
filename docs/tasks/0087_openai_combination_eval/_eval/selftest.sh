@@ -71,6 +71,9 @@ step "secretscan: finds the sk- prefix" expect_status 1 $clean_env OPENAI_API_KE
 step "secretscan: passes a clean file" expect_status 0 $clean_env OPENAI_API_KEY=$fake $X $tmp/clean
 step "secretscan: fails with no key variable" expect_status 2 $clean_env $X $tmp/clean
 step "secretscan: fails on a missing path" expect_status 2 $clean_env OPENAI_API_KEY=$fake $X $tmp/missing
+print -r -- x > $tmp/clean/unreadable.txt && chmod 000 $tmp/clean/unreadable.txt
+step "secretscan: fails when grep cannot read a file" expect_status 2 $clean_env OPENAI_API_KEY=$fake $X $tmp/clean
+chmod 600 $tmp/clean/unreadable.txt
 step "secretscan: never prints the value" test -z "$($clean_env OPENAI_API_KEY=$fake $X $tmp/scan 2>&1 | grep -F -- $fake)"
 
 if (( fails )); then

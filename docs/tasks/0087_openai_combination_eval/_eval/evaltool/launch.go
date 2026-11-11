@@ -3,6 +3,8 @@ package main
 import (
 	"bufio"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
@@ -18,6 +20,24 @@ import (
 // launchLogName is the file under the 0087 root where launch appends one line
 // per launch, before it starts the runs.
 const launchLogName = "launch.log"
+
+// The lock launch holds from its checks until every run it started exits,
+// so two launches never pass the reservation on the same spend. It holds a
+// per-launch token, which launch also hands each run with launchTokenFlag;
+// the run script starts a paid run only when the two match, so a run started
+// without launch never escapes the checks.
+const (
+	launchLockName  = "launch.lock"
+	launchTokenFlag = "--launch-token"
+	launchOutDir    = "launch-output"
+	tokenBytes      = 16
+	// maxRetries is the number of retries an article may have (requirements
+	// decision 9).
+	maxRetries = 2
+)
+
+// clockSkew bounds how far -now may be from the system clock.
+const clockSkew = time.Minute
 
 // cacheGap is how long launch waits after the last run of another config that
 // used the same OpenAI model, so the next config does not read that config's
@@ -99,9 +119,15 @@ func checkLaunch(q launchRequest) error {
 	if !slices.Contains(last.Configs, q.Config) {
 		return fmt.Errorf("%w: the approval does not include %s", errLaunch, q.Config)
 	}
+	if q.Now.Before(last.At) {
+		return fmt.Errorf("%w: now is before the last approval", errLaunch)
+	}
 	runs, err := loadRuns0087(q.Root, q.Configs)
 	if err != nil {
 		return fmt.Errorf("%w: %w", errLaunch, err)
+	}
+	if err := checkRetryLimit(q, runs); err != nil {
+		return err
 	}
 	if err := checkRunsState(q, runs); err != nil {
 		return err
@@ -115,6 +141,29 @@ func checkLaunch(q launchRequest) error {
 		}
 	}
 	return checkReservation(q, runs, last.Limit)
+}
+
+// checkRetryLimit refuses a retry of an article that already has its
+// maxRetries retired attempts, not counting the runs the human confirmed as
+// stopped before payment.
+func checkRetryLimit(q launchRequest, runs []run) error {
+	if q.Retry == "" {
+		return nil
+	}
+	prepay, err := optional(filepath.Join(q.Root, "prepayment.tsv"), parsePrepayment, map[runKey]bool{})
+	if err != nil {
+		return fmt.Errorf("%w: %w", errLaunch, err)
+	}
+	n := 0
+	for _, r := range runs {
+		if r.Config == q.Config && r.Article == q.Retry && r.Attempt != attemptCurrent && !prepay[r.key()] {
+			n++
+		}
+	}
+	if n >= maxRetries {
+		return fmt.Errorf("%w: %s %s already has %d retries", errLaunch, q.Config, q.Retry, n)
+	}
+	return nil
 }
 
 // checkRunsState requires every earlier run to have finished, and the target
@@ -198,11 +247,55 @@ func checkReservation(q launchRequest, runs []run, limit micro) error {
 	return nil
 }
 
+// acquireLock creates the launch lock with a new token. It fails when the
+// lock exists: another launch is running, or one stopped without removing
+// it, which a human removes after checking that no run is in flight.
+func acquireLock(root string) (string, func(), error) {
+	raw := make([]byte, tokenBytes)
+	if _, err := rand.Read(raw); err != nil {
+		return "", nil, err
+	}
+	token := hex.EncodeToString(raw)
+	path := filepath.Join(root, launchLockName)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600) //nolint:gosec // path under the operator's root
+	if err != nil {
+		return "", nil, fmt.Errorf("%w: cannot take %s (another launch, or a stale lock): %w", errLaunch, path, err)
+	}
+	_, err = f.WriteString(token)
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	release := func() { _ = os.Remove(path) }
+	if err != nil {
+		release()
+		return "", nil, err
+	}
+	return token, release, nil
+}
+
+// launchRuns takes the lock, runs every check, and only when they pass
+// starts the runs and waits for them; the lock is held until they exit.
+func launchRuns(q launchRequest) (map[string]error, error) {
+	if err := os.MkdirAll(q.Root, 0o700); err != nil {
+		return nil, err
+	}
+	token, release, err := acquireLock(q.Root)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+	if err := checkLaunch(q); err != nil {
+		return nil, err
+	}
+	return startRuns(q, token)
+}
+
 // startRuns appends the launch to launch.log, starts the run script for each
-// target in parallel, and waits for every one. It returns each article's exit
-// error, nil for a run that exited 0. The run script writes each run's output
-// to the run's own files, so its own output is discarded.
-func startRuns(q launchRequest) (map[string]error, error) {
+// target in parallel with the launch token, and waits for every one. It
+// returns each article's exit error, nil for a run that exited 0. Each run
+// script's own output goes to launch-output/, so a reason it stopped for is
+// kept.
+func startRuns(q launchRequest, token string) (map[string]error, error) {
 	logPath := filepath.Join(q.Root, launchLogName)
 	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600) //nolint:gosec // path under the operator's root
 	if err != nil {
@@ -215,19 +308,39 @@ func startRuns(q launchRequest) (map[string]error, error) {
 	if err != nil {
 		return nil, err
 	}
+	outDir := filepath.Join(q.Root, launchOutDir)
+	if err := os.MkdirAll(outDir, 0o700); err != nil {
+		return nil, err
+	}
+	stamp := q.Now.UTC().Format("20060102T150405Z")
+	var started []string
 	cmds := map[string]*exec.Cmd{}
+	files := map[string]*os.File{}
+	waitAll := func() map[string]error {
+		results := map[string]error{}
+		for _, a := range started {
+			results[a] = cmds[a].Wait()
+			_ = files[a].Close()
+		}
+		return results
+	}
 	for _, a := range q.targets() {
-		cmd := exec.CommandContext(context.Background(), q.RunScript, "run", q.Config, a, q.CLI) //nolint:gosec // operator's run script
+		out, err := os.Create(filepath.Join(outDir, stamp+"-"+q.Config+"-"+a+".txt")) //nolint:gosec // path under the operator's root
+		if err != nil {
+			waitAll()
+			return nil, err
+		}
+		cmd := exec.CommandContext(context.Background(), q.RunScript, "run", q.Config, a, q.CLI, launchTokenFlag, token) //nolint:gosec // operator's run script
+		cmd.Stdout, cmd.Stderr = out, out
 		if err := cmd.Start(); err != nil {
+			_ = out.Close()
+			waitAll()
 			return nil, fmt.Errorf("start %s: %w", a, err)
 		}
-		cmds[a] = cmd
+		started = append(started, a)
+		cmds[a], files[a] = cmd, out
 	}
-	results := map[string]error{}
-	for _, a := range q.targets() {
-		results[a] = cmds[a].Wait()
-	}
-	return results, nil
+	return waitAll(), nil
 }
 
 // runLaunch implements "launch".
@@ -250,6 +363,9 @@ func runLaunch(args []string, stdout io.Writer) error {
 	if q.Now, err = time.Parse(time.RFC3339, *now); err != nil {
 		return fmt.Errorf("%w: -now: %w", errLaunch, err)
 	}
+	if d := time.Since(q.Now); d > clockSkew || d < -clockSkew {
+		return fmt.Errorf("%w: -now is more than %s from the system clock", errLaunch, clockSkew)
+	}
 	if q.BoundsInput, err = loadBoundsInput(*boundsInputPath); err != nil {
 		return fmt.Errorf("%w: %w", errLaunch, err)
 	}
@@ -259,10 +375,7 @@ func runLaunch(args []string, stdout io.Writer) error {
 	if q.Configs, err = loadConfigTable(q.RunScript); err != nil {
 		return fmt.Errorf("%w: %w", errLaunch, err)
 	}
-	if err := checkLaunch(q); err != nil {
-		return err
-	}
-	results, err := startRuns(q)
+	results, err := launchRuns(q)
 	if err != nil {
 		return err
 	}

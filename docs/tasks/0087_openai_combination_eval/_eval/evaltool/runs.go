@@ -326,7 +326,8 @@ func checkWhenIdentity(r run) error {
 }
 
 // readDirNames returns the sorted entry names of dir, or none when dir does
-// not exist.
+// not exist. Names starting with "." (such as the .DS_Store Finder leaves)
+// are skipped; no file the evaluation writes starts with one.
 func readDirNames(dir string) ([]string, error) {
 	entries, err := os.ReadDir(dir)
 	if errors.Is(err, os.ErrNotExist) {
@@ -337,7 +338,9 @@ func readDirNames(dir string) ([]string, error) {
 	}
 	names := make([]string, 0, len(entries))
 	for _, e := range entries {
-		names = append(names, e.Name())
+		if !strings.HasPrefix(e.Name(), ".") {
+			names = append(names, e.Name())
+		}
 	}
 	slices.Sort(names)
 	return names, nil

@@ -14,7 +14,8 @@ type spendResult struct {
 	// are all known and that wrote "cost-total: run".
 	Known micro
 	// BoundRuns counts the runs counted at their config's run bound instead:
-	// a run with an unknown run-origin cost line, or with no "cost-total: run"
+	// a run with an unknown run-origin cost line or "cost-total: run" line, a
+	// run-origin tokens line without its cost line, or no "cost-total: run"
 	// line (a run stopped before its summary, or one that never called an
 	// LLM, which the log cannot tell apart).
 	BoundRuns int
@@ -54,7 +55,7 @@ func computeSpend(runs []run, bounds map[string]micro, exclude map[runKey]bool) 
 		}
 		known, unknownStages := runCost(r.Log)
 		s.UnknownStages += unknownStages
-		if unknownStages > 0 || r.Log.TotalRun == nil {
+		if unknownStages > 0 || r.Log.TotalRun == nil || !r.Log.TotalRun.Known || uncosted(r.Log) {
 			s.BoundRuns++
 			s.Bound += bound
 			continue
@@ -80,6 +81,18 @@ func runCost(l runLog) (micro, int) {
 		sum += c.USD
 	}
 	return sum, unknown
+}
+
+// uncosted reports whether a stage the run called has a tokens line but no
+// cost line, which a correct CLI never writes; the run is then counted at its
+// bound rather than at a sum that leaves the stage out.
+func uncosted(l runLog) bool {
+	for stage, t := range l.Tokens {
+		if _, ok := l.Costs[stage]; t.Origin == originRun && !ok {
+			return true
+		}
+	}
+	return false
 }
 
 // prepaymentCandidate reports whether a finished run called no LLM: it has an
