@@ -38,12 +38,16 @@ Work in the following order.
    - **Risk isolation**: Place high-risk or complex steps (e.g. recovery flows, concurrency) in their own PRs so they can be reviewed in detail without unrelated noise.
    - **Internal-before-cmd**: Changes to `internal/` packages should land before the `cmd/` layer that depends on them.
    - **Small over large**: Prefer more, smaller PRs over fewer large ones; 3–6 PRs is a reasonable target for a medium-sized feature.
-   - **Model requirement**: Decide which capability tier the implementing model needs for each PR, so a frontier model is spent where it pays off and the rest is left to a cheaper model backed by the `weakreview.md` pass. Label each PR:
-     - `frontier-required` — the PR contains a step that requires an unprecedented design decision (e.g. a Phase 0-style PoC or feasibility probe), or a step matching `mkplan.md` step 8's panel-mode triggers (a heavy integration-test / CI / external-resource surface, or a security-gate / migration step such as a staged rollout or simultaneous behavior raises and lowers).
-     - `frontier-recommended` — the PR contains a step whose approach is not yet settled (the plan's `既存コード調査結果` section lists two or more competing implementation approaches for it), a step matching two or more of `mkplan.md`'s Conditional checks, or an isolated high-risk/complex step (e.g. recovery flows, concurrency, state machines).
-     - `standard` — everything else.
+   - **Model requirement**: Decide which model implements each PR and whether an Opus review is added, so Opus is spent where it pays off and the rest is left to Sonnet backed by one Opus review before the PR opens. This step is the only place that defines the values, their triggers, and how the `**判定理由**` is written; every other file names this step. Label each PR with one value:
+     - `opus` — implement the PR on Opus. Its trigger: the PR contains a step that requires an unprecedented design decision (e.g. a Phase 0-style PoC or feasibility probe), or a step matching `mkplan.md` step 8's panel-mode triggers (a heavy integration-test / CI / external-resource surface, or a security-gate / migration step such as a staged rollout or simultaneous behavior raises and lowers).
+     - `sonnet+opus-review` — implement the PR on Sonnet, and run one Opus review before the PR opens (`runplan.md` decides whether it runs, through `_lib/opus-review.md`). Its trigger: the PR contains a step whose approach is not yet settled (the plan's `既存コード調査結果` section lists two or more competing implementation approaches for it), a step matching two or more of `mkplan.md`'s Conditional checks, or an isolated high-risk/complex step (e.g. recovery flows, concurrency, state machines).
+     - `sonnet` — implement the PR on Sonnet with no further review. Its trigger: everything else.
 
-     Derive these labels in the same analysis pass as **Risk isolation** — they read the same signals (step risk, complexity, external surface). Do not re-analyse the steps a second time for labelling.
+     A PR takes the highest value any of its steps requires (`opus` is the highest, `sonnet` the lowest).
+
+     Write the `**判定理由**` as a one-line Japanese justification. For `opus` and `sonnet+opus-review`, name the trigger that decided the value (the step ID and its unprecedented design decision, the panel-mode trigger it matches, the competing approaches in `既存コード調査結果`, or the Conditional checks it matches) together with what is likely to go wrong when Sonnet implements the step. For `sonnet`, state that no trigger matched.
+
+     Derive these values in the same analysis pass as **Risk isolation** — they read the same signals (step risk, complexity, external surface). Do not re-analyse the steps a second time for labelling.
 
    Decide whether any steps need to be reordered within their phase to align with the PR groupings. Only reorder steps when necessary — do not change step order unless it is required to make a PR group coherent.
 
@@ -63,7 +67,7 @@ Work in the following order.
 
    **レビュー観点**: <key1> / <key2> / <key3>
 
-   **実装モデル要件**: frontier-required | frontier-recommended | standard
+   **実装モデル要件**: opus | sonnet+opus-review | sonnet
 
    **判定理由**: <one line>
 
@@ -81,8 +85,8 @@ Work in the following order.
      title from, in the `推奨タイトル` form of `_context.md`, "PR title and squash subject"
      (`<type>` from its prefix table, no backquotes).
    - `**レビュー観点**` lists 2–4 key review points in Japanese.
-   - `**実装モデル要件**` is exactly one of `frontier-required`, `frontier-recommended`, or `standard`, chosen by applying the **Model requirement** principle in step 4 to the steps this PR covers. A PR takes the highest tier any of its steps requires.
-   - `**判定理由**` is a one-line Japanese justification naming the specific trigger that decided the tier (e.g. the step ID and its unprecedented design decision, the panel-mode trigger it matches, the competing approaches in `既存コード調査結果`, or the Conditional checks it matches). For `standard`, state that no trigger matched.
+   - `**実装モデル要件**` is exactly one of `opus`, `sonnet+opus-review`, or `sonnet`, chosen by applying the **Model requirement** principle in step 4 to the steps this PR covers.
+   - `**判定理由**` is a one-line Japanese justification written as the **Model requirement** principle in step 4 says.
 
 7. Add or update a `### 3.2 PR 構成` subsection under §3 (or whichever section covers the implementation overview/test strategy) with a summary table:
 
@@ -91,8 +95,8 @@ Work in the following order.
 
    | PR | 対象ステップ | 主な変更内容 | 実装モデル要件 |
    |---|---|---|---|
-   | PR-1 | 1-1 / 1-2 / 1-3 | … | frontier-required |
-   | PR-2 | 1-4 / 1-5 / 1-6 | … | standard |
+   | PR-1 | 1-1 / 1-2 / 1-3 | … | opus |
+   | PR-2 | 1-4 / 1-5 / 1-6 | … | sonnet |
    …
    ```
 
@@ -108,7 +112,7 @@ Work in the following order.
 
 9. Run the critical-review subagent procedure in `.claude/commands/_lib/review-subagent-pattern.md` with these inputs:
     - **ARTIFACT**: the PR boundary design.
-    - **PERSONA**: an experienced senior engineer and senior SRE. Direct it to surface PRs that are too large to review, PRs that cannot be built independently, missing risk isolation, and cross-references that were not updated after renumbering. Also direct it to assess whether each PR's `実装モデル要件` label is justified by the steps that PR covers — both an over-labelled PR (frontier tier with no matching trigger) and an under-labelled one (a high-risk or unsettled step labelled `standard`).
+    - **PERSONA**: an experienced senior engineer and senior SRE. Direct it to surface PRs that are too large to review, PRs that cannot be built independently, missing risk isolation, and cross-references that were not updated after renumbering. Also direct it to assess whether each PR's `実装モデル要件` label is justified by the steps that PR covers — both an over-labelled PR (`opus` or `sonnet+opus-review` with no matching trigger) and an under-labelled one (a high-risk or unsettled step labelled `sonnet`). Also direct it to check that each `判定理由` says what is likely to go wrong when Sonnet implements the step, for an `opus` or `sonnet+opus-review` PR.
     - **FILES**: the implementation plan document, the architecture document, and the requirements document (paths in `_context.md`), as resolved absolute-path strings.
     - **CRITERIA**: every item from the PR boundary review checklist below, copied verbatim.
 
@@ -122,8 +126,8 @@ Work in the following order.
 - [ ] No step that modifies an `internal/` interface lands in a later PR than the `cmd/` step that depends on it.
 - [ ] Each PR group can pass the green gate (defined in `_context.md`) on its own without stubs from future steps.
 - [ ] High-risk or complex steps (recovery, concurrency, state machines) are isolated in their own PR or placed last in a PR so they do not block review of simpler changes.
-- [ ] Every PR marker's `実装モデル要件` label is consistent with its risk-isolation status — a PR containing an isolated high-risk step is not labeled `standard`.
-- [ ] Every PR marker has a `判定理由` line that names the specific trigger behind its `実装モデル要件` label (or states that none matched, for `standard`).
+- [ ] Every PR marker's `実装モデル要件` label is consistent with its risk-isolation status — a PR containing an isolated high-risk step is not labeled `sonnet`.
+- [ ] Every PR marker has a `判定理由` line that names the specific trigger behind its `実装モデル要件` value and, for `opus` and `sonnet+opus-review`, what is likely to go wrong when Sonnet implements the step (or states that no trigger matched, for `sonnet`).
 - [ ] The `**対象ステップ**` field in each PR marker lists exactly the steps in that group and no others.
 - [ ] The `### 3.2 PR 構成` table is present and consistent with the PR marker sections.
 - [ ] §6 checklist entries reference PRs (not phases) and are consistent with the PR markers.

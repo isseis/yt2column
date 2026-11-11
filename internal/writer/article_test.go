@@ -44,6 +44,8 @@ func TestArticleCheckPublishable(t *testing.T) {
 		{"body escape", func(a *Article) { a.Body = "text\x1b[2J" }, true},
 		{"body carriage return", func(a *Article) { a.Body = "a\rb" }, true},
 		{"body delete", func(a *Article) { a.Body = "a\x7fb" }, true},
+		{"body invalid UTF-8", func(a *Article) { a.Body = "\xff\xfe" }, true},
+		{"body invalid UTF-8 after text", func(a *Article) { a.Body = "text\xff" }, true},
 		{"source URL empty", func(a *Article) { a.SourceURL = "" }, true},
 		{"source URL invalid UTF-8", func(a *Article) { a.SourceURL += "\xff" }, true},
 		{"title invalid UTF-8", func(a *Article) { a.Title += "\xff" }, true},
@@ -205,5 +207,24 @@ func TestArticleCheckPublishableSourceURLOmitsValue(t *testing.T) {
 	}
 	if strings.Contains(err.Error(), mark) {
 		t.Errorf("error %q contains the source URL", err)
+	}
+}
+
+// TestArticleCheckPublishableBodyUTF8 checks that a body with invalid UTF-8 is
+// rejected as an invalid article, before the control-character rule that would
+// read an invalid byte as U+FFFD, and that the error carries neither the byte
+// nor the text before it.
+func TestArticleCheckPublishableBodyUTF8(t *testing.T) {
+	const mark = "mark-secret-V2pc"
+	for _, body := range []string{"\xff\xfe", mark + "\xff"} {
+		a := validPublishableArticle()
+		a.Body = body
+		err := a.CheckPublishable()
+		if !errors.Is(err, ErrInvalidArticle) {
+			t.Fatalf("body %q: CheckPublishable() = %v, want ErrInvalidArticle", body, err)
+		}
+		if strings.Contains(err.Error(), "\xff") || strings.Contains(err.Error(), mark) {
+			t.Errorf("body %q: error %q contains the body's bytes", body, err)
+		}
 	}
 }

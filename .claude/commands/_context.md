@@ -64,7 +64,9 @@ PR boundary markers embedded in the implementation plan use these labels:
 - Implementation model requirement (`**実装モデル要件**`), in five parts:
   1. **Values.** `opus`, `sonnet+opus-review`, and `sonnet`. `mkplan2.md`
      step 4, "Model requirement", assigns them (`mkplan.md` runs it as its
-     step 8.5, and `mkreq.md` runs it in the simple process); the meaning of
+     step 8.5, and `mkreq.md` runs it in the simple process; `mkplan.md` step
+     8.5 also writes the value of a single-phase plan, and `_lib/simple-process.md`,
+     "Writing the three documents", reaches it through `mkplan.md`); the meaning of
      each value, when it applies, and how its `**判定理由**` is written are
      defined there only, not here. They are read by `runplan.md` (its
      guidance before a phase group), by `_lib/opus-review.md` (entry 1, which

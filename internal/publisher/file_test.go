@@ -272,6 +272,7 @@ func TestFilePublisherRejectsArticle(t *testing.T) {
 		{"body blank", func(a *writer.Article) { a.Body = " \n\t" }},
 		{"body escape", func(a *writer.Article) { a.Body = "x\x1b[2J" }},
 		{"body carriage return", func(a *writer.Article) { a.Body = "x\ry" }},
+		{"body invalid UTF-8", func(a *writer.Article) { a.Body = "x\xffy" }},
 		{"model empty", func(a *writer.Article) { a.Model = "" }},
 		{"model blank", func(a *writer.Article) { a.Model = " " }},
 		{"model control", func(a *writer.Article) { a.Model = "m\x07" }},

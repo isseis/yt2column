@@ -404,13 +404,13 @@ PR の分け方の理由：PR-1 は `main` に入るコードの変更で、そ�
 
 スクリプトの結果（ステップ 1-5 で書く）:
 
--   AC-01・AC-02 のスクリプト（`_checks/check_wasm.sh`、merge-base `a56f085eb59fc2d65e0fd393773067013be3727c`、PR のコミット `8072b8d2c6267a99ee570f24e9fc2953e44f9647`）：成功（終了状態 0）。出力：
+-   AC-01・AC-02 のスクリプト（`_checks/check_wasm.sh`、merge-base `e6e051aedf2a2f4066bdd4f39c4a7504f9e945f0`、PR のコミット `8d7157f0adacd7ab71c32bddb4c6a4cdd539c844`）：成功（終了状態 0）。出力：
 
     ```text
     OK AC-01: build of 4 packages and vet of writer and transcript for js/wasm
     OK AC-02: no ytdlpsource dependency, no repository package imports os/exec
     ```
--   AC-04〜AC-06 のスクリプト（`_checks/check_diff.sh`、merge-base `a56f085eb59fc2d65e0fd393773067013be3727c`、PR のコミット `8072b8d2c6267a99ee570f24e9fc2953e44f9647`）：成功（終了状態 0）。出力：
+-   AC-04〜AC-06 のスクリプト（`_checks/check_diff.sh`、merge-base `e6e051aedf2a2f4066bdd4f39c4a7504f9e945f0`、PR のコミット `8d7157f0adacd7ab71c32bddb4c6a4cdd539c844`）：成功（終了状態 0）。出力：
 
     ```text
     OK files: every changed file is one the design names
@@ -425,6 +425,93 @@ PR の分け方の理由：PR-1 は `main` に入るコードの変更で、そ�
 Diff record (AC-05):
 
 - Compared paths: `docs/dev/conventions/package_reference.md`
+- Merge-base: `e6e051aedf2a2f4066bdd4f39c4a7504f9e945f0`
+- Compared commit: `8d7157f0adacd7ab71c32bddb4c6a4cdd539c844`
+
+Path diff:
+
+````text
+diff --git a/docs/dev/conventions/package_reference.md b/docs/dev/conventions/package_reference.md
+index 2c1287bdf692aded1fd47d419de9b0d50110ec5d..b0aae3a80ac23f4e513f28b9879ced4b28829137 100644
+--- a/docs/dev/conventions/package_reference.md
++++ b/docs/dev/conventions/package_reference.md
+@@ -72,6 +72,7 @@ add a kind here or to widen one of these definitions.
+ | `internal/publisher` | Defines the publishing stage: `Publisher`, `FilePublisher`, `SlackWebhookPublisher`, `PrepareSlackMessages`, `FileContent`, `ReviewLogWriter`; `ErrOutputExists`, `*KeptFileError`, `SlackHTTPStatusError`, `*SlackPostError`. File format: [CLI guide](../guides/cli.md); post text: [README](../../../README.md#slack-への投稿). |
+ | `internal/transcript` | Defines the transcript stage (`Transcript`, `TranscriptSource`) with `YtDlpSource` and `CopiedSource`; `ValidateVideoURL` and `NormalizedVideoURL` are the video URL rules. Cache guarantees: [cache consistency](../cache_consistency.md); the `yt-dlp` boundary: [security.md](../security.md). |
+ | `internal/writer` | Defines the article-writing stage: `Article`, `ArticleWriter`, `ProgressWriter`, `New`, `NewProgressWriter`, `RunUsage`, `CheckChannelName`, `ProseRanges`. The template contract: [prompts/README.md](../../../prompts/README.md). |
++| `internal/ytdlpsource` | Implements `transcript.TranscriptSource` with `YtDlpSource`: runs `yt-dlp` without a shell and parses its json3 and info.json output. It is the development path of the CLI and is not built into the WebAssembly core. The cache's guarantees: [cache consistency](../cache_consistency.md); the `yt-dlp` boundary: [security.md](../security.md). |
+ | `prompts` | Embeds the default prompt templates and returns them: `System`/`User`, `ShortenSystem`/`ShortenUser`, `ReviewSystem`/`ReviewUser`. [README](../../../prompts/README.md) documents the contract. |
+ 
+ ## Server and Host
+@@ -112,7 +113,7 @@ add a kind here or to widen one of these definitions.
+ | `internal/redact` | Keeps secret values out of output: `Line`, `Writer`, `SecretStrings`. |
+ | `internal/secret` | Holds a secret (API key, Webhook URL) and guarantees it never appears in `fmt`, `log/slog`, or JSON output. |
+ | `internal/signalrun` | `Run` calls a program's main function under a context that the first subscribed signal cancels; a second signal terminates the process. |
+-| `internal/strictjson` | Extracts values from JSON documents that passed strict checks: `Object.CollectOnly`, `Object.Has`, `Value.AsBool`, `Value.IsNull`, `Value.AsNonNegativeInt64`, `Value.Raw`. The rejected inputs: [0003 design §3.5](../../tasks/0003_deepseek_llm_client/02_architecture.md). Shared by `internal/transcript`, `internal/llm/deepseek`, `internal/llm/claude`, `internal/llm/openai`, `internal/publisher`, `internal/writer`, `internal/artifact`, `internal/fixprguard`, `internal/server`, `internal/nmhost`, `internal/codexreview`, and `internal/coveragecompare` |
++| `internal/strictjson` | Extracts values from JSON documents that passed strict checks: `Object.CollectOnly`, `Object.Has`, `Value.AsBool`, `Value.IsNull`, `Value.AsNonNegativeInt64`, `Value.Raw`. The rejected inputs: [0003 design §3.5](../../tasks/0003_deepseek_llm_client/02_architecture.md). Shared by `internal/ytdlpsource`, `internal/llm/deepseek`, `internal/llm/claude`, `internal/llm/openai`, `internal/publisher`, `internal/writer`, `internal/artifact`, `internal/fixprguard`, `internal/server`, `internal/nmhost`, `internal/codexreview`, and `internal/coveragecompare` |
+ 
+ ## Development Tools
+ 
+````
+
+File list (only for an AC that limits which files change):
+
+````text
+.claude/commands/mkplan.md
+.claude/commands/runplan.md
+.github/workflows/ci.yml
+CLAUDE.md
+Makefile
+cmd/yt2column/run_test.go
+cmd/yt2column/test_helpers_integration.go
+docs/dev/adr/0019-pipeline-component-interfaces.md
+docs/dev/adr/0033-transcript-cache-slots.md
+docs/dev/cache_consistency.md
+docs/dev/conventions/package_reference.md
+docs/dev/guides/development.md
+docs/dev/project_overview.md
+docs/tasks/0018_article_quality/_material_check/main.go
+docs/tasks/0084_wasm_pipeline_poc/01_requirements.md
+docs/tasks/0084_wasm_pipeline_poc/02_architecture.md
+docs/tasks/0084_wasm_pipeline_poc/03_implementation_plan.md
+docs/tasks/0084_wasm_pipeline_poc/_checks/check_diff.sh
+docs/tasks/0084_wasm_pipeline_poc/_checks/check_wasm.sh
+internal/cachelock/cachelock_test.go
+internal/config/envaccess_test.go
+internal/job/job.go
+internal/job/job_test.go
+internal/transcript/cache.go
+internal/transcript/cache_test.go
+internal/transcript/exec.go
+internal/transcript/exec_test.go
+internal/transcript/info.go
+internal/transcript/info_test.go
+internal/transcript/integration_test.go
+internal/transcript/json3.go
+internal/transcript/json3_test.go
+internal/transcript/sentinel_test.go
+internal/transcript/test_helpers.go
+internal/transcript/test_helpers_cache_seed.go
+internal/transcript/ytdlp.go
+internal/transcript/ytdlp_test.go
+internal/writer/template.go
+internal/writer/template_open.go
+internal/writer/template_open_js.go
+internal/ytdlpsource/cache.go
+internal/ytdlpsource/cache_test.go
+internal/ytdlpsource/doc.go
+internal/ytdlpsource/exec.go
+internal/ytdlpsource/exec_test.go
+internal/ytdlpsource/info.go
+internal/ytdlpsource/info_test.go
+internal/ytdlpsource/integration_test.go
+internal/ytdlpsource/json3.go
+internal/ytdlpsource/json3_test.go
+internal/ytdlpsource/test_helpers.go
+internal/ytdlpsource/test_helpers_cache_seed.go
+internal/ytdlpsource/ytdlp.go
+internal/ytdlpsource/ytdlp_test.go
+````
 - Merge-base: `a56f085eb59fc2d65e0fd393773067013be3727c`
 - Compared commit: `8072b8d2c6267a99ee570f24e9fc2953e44f9647`
 
