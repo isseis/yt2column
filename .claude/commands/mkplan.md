@@ -172,6 +172,7 @@ Work in the following order.
 - [ ] The plan contains no counterfactual claims about unwritten code ("this row fails if the implementation is reverted to X", "this is the only thing that guarantees Y"). Such obligations appear as implementer tasks instead.
 - [ ] Statements about existing behavior (reachability, uniqueness, equivalence of two constructions) cite `file:line` and the commit they were verified against.
 - [ ] Every decision in the document that is major by the criterion in `CLAUDE.md`, "Design decisions (ADR)", has its ADR judgement recorded and is in this PR's ADR changes, and the `## 決定` section of each such ADR matches the document's current decision.
+- [ ] A plan with one `### フェーズ` header has exactly one `PR 構成` subsection under §3, ending with the two lines `**実装モデル要件**: <value>` and `**判定理由**: <one line>`, where the value is one of `opus`, `sonnet+opus-review`, or `sonnet` and the `判定理由` is written as `mkplan2.md` step 4, "Model requirement", says. A plan with two or more phases is checked by `mkplan2.md` step 9's checklist instead.
 
 **Conditional checks (apply each only when its trigger matches; mark N/A otherwise — N/A is not a finding):**
 - [ ] Integration tests touch external/long-lived state (containers, DBs, mailboxes, queues, files outside `t.TempDir`) → rerun isolation is planned: identifiers unique per run (not just per test name), and tests locate their own artifacts by a stable marker instead of assuming result length/ordering. When a unique identifier is length-limited (e.g. a 32-char mailbox name), the stable prefix is truncated first and the uniqueness suffix appended afterward, so truncation never drops the suffix.
@@ -199,7 +200,14 @@ Work in the following order.
    (its other steps — the approval check, branch, status, commit, japrose, and
    PR steps — do not apply). With one
    phase, there are no PR markers: `/runplan` opens the single PR when the
-   phase is done.
+   phase is done. Write one `### 3.2 PR 構成` subsection under §3 (or whichever
+   section covers the implementation overview/test strategy) instead: it says
+   the work is one PR, and it ends with the two lines `**実装モデル要件**: <value>`
+   and `**判定理由**: <one line>`, each starting in the first column, in this
+   order, with a blank line between them. `/runplan` and `/runpr` read the value
+   from the subsection whose heading text, without its number, is `PR 構成`. Decide the value and write the
+   `判定理由` as `mkplan2.md` step 4, "Model requirement", says, applied to the
+   steps of the single phase.
 
 9. Run the Japanese prose-quality pass by invoking the `japrose` command
    (`.claude/commands/japrose.md`) on the created implementation plan document (path in

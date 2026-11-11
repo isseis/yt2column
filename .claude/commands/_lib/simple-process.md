@@ -160,7 +160,9 @@ open, changes no ADR's decision, and builds no new mechanism.
    headers, design its PR boundaries by `mkplan2.md` steps 4 to 8 ("Analyse
    the implementation steps and design PR groupings" to "Update §6"), as
    `mkplan.md` step 8.5 ("Design the PR boundaries") does; with one phase there
-   are no PR markers. Do not run `mkplan2.md` step 9 (the PR boundary review):
+   are no PR markers, and the plan gets the `PR 構成` subsection with the two
+   lines of the implementation model requirement and its reason, as
+   `mkplan.md` step 8.5 says. Do not run `mkplan2.md` step 9 (the PR boundary review):
    its checklist goes to "Reviewing the three documents" below.
    Commit each document by itself, with the subject its step gives
    (`mkreq.md` step 6, `mkarch.md` step 7.5, `mkplan.md` step 7.5). Before
