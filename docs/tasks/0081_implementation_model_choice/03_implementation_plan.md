@@ -388,7 +388,7 @@ PASS pre-check block: 48 lines identical
 
 ### PR-2 の実行の記録
 
-**ステップ 2-4（`_checks/decision_cases.sh`）。** clean な作業ツリーで `bash docs/tasks/0081_implementation_model_choice/_checks/decision_cases.sh 082df5fcdfbbe4b4ccd5e9150f14845283e0c9b6` を実行した。終了コードは 0。比べたコミットは `082df5fcdfbbe4b4ccd5e9150f14845283e0c9b6`、判断のスクリプト（`.claude/commands/_lib/opus-review-decision.sh`）の blob は `fd9b810c44ae74607b35260f5812b70a0182c310`、`_checks/decision_cases.sh` の blob は `cbc610a5903db947cb53ce829967cc4006c3d7c5` である。各場合が判断のスクリプトを壊すと失敗することは、fdbd151a・329702dd・082df5fc のメッセージに書いた（最後は 47 の壊し方。どの壊し方も少なくとも 1 つの場合を失敗させ、どの場合も少なくとも 1 つの壊し方で失敗した）。出力:
+**ステップ 2-4（`_checks/decision_cases.sh`）。** clean な作業ツリーで `bash docs/tasks/0081_implementation_model_choice/_checks/decision_cases.sh dcb1e3c93cabd60b862c01892c34a5e6ac88a744` を実行した。終了コードは 0。比べたコミットは `dcb1e3c93cabd60b862c01892c34a5e6ac88a744`、判断のスクリプト（`.claude/commands/_lib/opus-review-decision.sh`）の blob は `edb00139969c7aea909bd6a45c3e0efc99b3bd4d`、`_checks/decision_cases.sh` の blob は `91759356f5f579e06f76067f1919ebd64bad8e30` である。各場合が判断のスクリプトを壊すと失敗することは、fdbd151a・329702dd・082df5fc・dcb1e3c9 のメッセージに書いた（最後は 49 の壊し方。どの壊し方も少なくとも 1 つの場合を失敗させ、どの場合も少なくとも 1 つの壊し方で失敗した）。出力:
 
 ```text
 PASS value-opus-uncovered: RUN (ok)
@@ -429,6 +429,8 @@ PASS single-section-twice: RUN (fail)
 PASS single-on-plan-with-markers: RUN (fail)
 PASS marker-crlf-lines: NONE value-sonnet (ok)
 PASS tilde-fence-not-read: NONE value-sonnet (ok)
+PASS value-inside-fence: RUN (fail)
+PASS indented-closer-is-content: RUN (ok)
 PASS nested-fence: RUN (ok)
 PASS unclosed-fence: RUN (fail)
 PASS plan-path-not-canonical: RUN (fail)
@@ -467,7 +469,7 @@ PASS real-0077-pr1-standard: NONE value-sonnet (ok)
 PASS real-0077-pr2-frontier-required: RUN (ok)
 PASS real-0077-pr3-frontier-recommended: RUN (ok)
 PASS real-0071-single: NONE value-absent (ok)
-cases: 75 fixtures, failures: 0
+cases: 77 fixtures, failures: 0
 ```
 
 ### PR-3 の実行の記録
