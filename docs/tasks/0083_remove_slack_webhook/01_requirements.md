@@ -4,12 +4,12 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `draft` |
 | Process | `full` |
 | Created | 2026-11-11 |
-| Review date | 2026-11-11 |
-| Reviewer | isseis |
-| Comments | - |
+| Review date | - |
+| Reviewer | - |
+| Comments | 決定の変更で draft に戻した：テストの削除の確かめ方を、本タスクに限り 0059・0062 の前例の例外にした |
 
 ## 1. 概要 (Overview)
 
@@ -74,6 +74,10 @@
 -   **URL のパスの `/@` の `[` の条件を、表示用の Markdown の全体に広げる。** 選択によるコピーでは、リストやコードブロックの後ろの空行が 1 つの改行になることがある。そのため、元の文字列では別の段落にある `[` が、貼り付けた後は URL と同じ段落に入り、Mattermost が自動リンクを作らなくなる（例: `- [x`、空行、`https://example.com/@here`）。段落の切れ目がコピーで変わっても効くように、URL の始まりより前の表示用の Markdown のどこかに `[` があれば、URL のパスの `/@` としない（§3.1 の条件 5）。代わりに、記事の前のほうに `[` があると、その後ろの `https://www.youtube.com/@ハンドル` のような URL に U+200B が入って壊れる。ADR の判断: ADR-0043 を改める。
 -   **ビューアの見出しも無効化する。** ビューアは、記事の上に、動画のタイトルとチャンネル名を見出しとして表示する。いまは、拡張がビューアの URL から読んだ値をそのまま表示する。ページの全体を選択してコピーすると、見出しの `@channel` がそのまま貼り付けられる。そこで、サーバは、生成の開始が送った動画のタイトルとチャンネル名を記録に持ち、記事が完了したら、無効化したものを返す。ビューアの見出しはそれを表示する（AC-16b）。記事のタイトル（LLM が書いたもの）ではなく、動画のタイトルを返すのは、見出しの文字をいまと同じに保つためである。ただし、いまの見出しはポップアップが長い値を切り詰めたものなので、完了した後は切り詰めない値になる。見出しでは、URL のパスの `/@` も無効化する。タイトルとチャンネル名に URL が入ることはまれで、見出しの規則を簡単に保つためである。記事が完了する前の見出しと、生成の開始が動画のタイトルを送らなかった（見出しがタブのタイトルである）ときの見出しは、いまと同じく拡張が読んだ値を表示する（§4.2 の残るリスク 9）。ADR の判断: ADR-0043 と ADR-0027 を改める。
 
+**実装計画の際に改めたこと（2026-11-11）:**
+
+-   **テストの削除の確かめ方を、本タスクに限り `CLAUDE.md`「Testing Strategy」の手順の例外にした。** 投稿の分岐は、残る関数（サーバの経路の選び方・状態の取得の応答の組み立て、ホストの操作の選び方、設定の読み込み、拡張のビューアの表示など）の中にある。分岐を残したままテストだけを消すと網羅率が下がり、テストは消す識別子を参照するので分岐を先に消すこともできない。`make coverage-compare` と `make ext-coverage-compare` は、残る関数の中に削除でない差分の行があると止まる。そこで、0059 と 0062 の前例に従い、残る関数を書き換えながらテストを消すコミットは、タスクの `_checks/` のスクリプトで、関数を名前で対応づけて比べる（§5、[02_architecture.md](02_architecture.md) 7.4）。レビュー担当者が選んだ。ADR の判断: [ADR-0037](../../dev/adr/0037-test-deletion-coverage.md) の「結果」の前例のタスクの並びに 0083 を加える（規則は変えない）。
+
 ## 2. 目的とスコープ (Goals and Scope)
 
 ### 2.1. 目的 (Goals)
@@ -90,7 +94,7 @@
 -   ビューアの表示とコピーでのメンションの無効化（F-002）。
 -   「Markdown をコピーする」ボタンの結果の通知で、無効化したことを示すこと（F-003）。
 -   文書の改訂（F-004）。`docs/dev/security.md`・`docs/dev/production_profile.md`・`docs/dev/project_overview.md`・`docs/dev/guides/development.md`・`docs/dev/conventions/package_reference.md`・`README.md`・`README.en.md`・`CLAUDE.md`・`AGENTS.md`・`docs/translation_glossary.md`、エージェントの指示（`.claude/commands/_context.md` の「Conditional-guide trigger」「Target client environments」、`.claude/commands/runplan.md` など投稿の機能に触れるもの）、CI のレビューの指示（`.github/workflows/deepseek-review.yml`）と、ほかに投稿の機能を今の機能として説明する文書。
--   投稿の機能だけが使うテストの削除と、その coverage-compare による確かめ。
+-   投稿の機能だけが使うテストの削除と、その確かめ（§5）。
 -   issue [#720](https://github.com/isseis/yt2column/issues/720)（security.md §3 と投稿のやり直しの食い違い）の解消。投稿の機能をなくすと、食い違う規則とコードがともになくなる。
 
 ### 2.3. スコープ外 (Out of Scope)
@@ -229,7 +233,7 @@
 ## 5. 制約条件 (Constraints)
 
 -   `docs/dev/project_overview.md` の「決定済みの方針」「前提・制約」に従う。
--   テストの削除は、削除だけのコミットにして coverage-compare で確かめる（`CLAUDE.md`「Testing Strategy」、[ADR-0037](../../dev/adr/0037-test-deletion-coverage.md)）。
+-   テストの削除は、本タスクに限り `CLAUDE.md`「Testing Strategy」の手順の例外とし、0059 と 0062 の前例に従って確かめる（§1「実装計画の際に改めたこと」、[ADR-0037](../../dev/adr/0037-test-deletion-coverage.md)「結果」）。製品のコードを変えずにテストを消すコミットと、関数を丸ごと消すだけのコミットは、今の手順のとおり coverage-compare で確かめる。残る関数を書き換えながらテストを消すコミットは、関数を名前で対応づけて前後の網羅を比べ、消した関数を挙げる。
 -   本番の Webhook にも、テスト用の Webhook にも送らない。この task の確かめで Webhook を使う手順はない。
 
 ## 6. 用語集 (Glossary)
@@ -244,3 +248,4 @@
 - 2026-11-11 承認（isseis、#813）
 - 2026-11-11 draft への戻し：URL のパスの `/@` の定義を、Mattermost が自動リンクにする形だけに狭めた；コードの中の `@` と、文字参照が表す `@` も無効化する；直後の文字を問わずに `@` を無効化し、スキームの直前の文字を限る；ビューアの見出しも無効化し、URL のパスの `/@` の `[` の条件を表示用の Markdown の全体に広げる（#826）
 - 2026-11-11 承認（isseis、#826）
+- 2026-11-11 draft への戻し：テストの削除の確かめ方を、本タスクに限り 0059・0062 の前例の例外にした（#未記入）
