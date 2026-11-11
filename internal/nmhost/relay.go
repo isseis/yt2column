@@ -52,9 +52,8 @@ const (
 	// transport's only dial.
 	serverURL = "http://yt2column"
 	// jobsURL is the target of a generation start; a status request appends
-	// a slash and the escaped key, and a publish operation then publishSuffix.
-	jobsURL       = serverURL + "/jobs"
-	publishSuffix = "/publish"
+	// a slash and the escaped key.
+	jobsURL = serverURL + "/jobs"
 	// newFormVersion is the only "v" value a new-form message may carry. It
 	// is independent of protocolVersion, the reply's "v".
 	newFormVersion = 1
@@ -381,15 +380,13 @@ const (
 	OperationUnknown Operation = iota
 	OperationStart             // POST /jobs
 	OperationStatus            // GET /jobs/{key}
-	OperationPublish           // POST /jobs/{key}/publish
 )
 
 // The "op" values of a new-form message, which are also the log's "op"
 // values.
 const (
-	opStart   = "start"
-	opStatus  = "status"
-	opPublish = "publish"
+	opStart  = "start"
+	opStatus = "status"
 )
 
 // parseOperation returns the operation an "op" value names, and
@@ -400,8 +397,6 @@ func parseOperation(op string) Operation {
 		return OperationStart
 	case opStatus:
 		return OperationStatus
-	case opPublish:
-		return OperationPublish
 	default:
 		return OperationUnknown
 	}
@@ -415,8 +410,6 @@ func (o Operation) logValue() string {
 		return opStart
 	case OperationStatus:
 		return opStatus
-	case OperationPublish:
-		return opPublish
 	default: // OperationUnknown and every value outside the constants
 		return ""
 	}
@@ -440,7 +433,7 @@ const (
 type destination struct {
 	op   Operation
 	body []byte // a start's "input"
-	key  string // the key of a status request or a publish operation
+	key  string // the key of a status request
 }
 
 // route decides the destination of msg.
@@ -486,7 +479,7 @@ func route(msg []byte) (destination, rule) {
 			return dest, ruleInput
 		}
 		dest.body = input.Raw()
-	case OperationStatus, OperationPublish:
+	case OperationStatus:
 		if !hasKey || hasInput {
 			return dest, ruleMembers
 		}
@@ -524,8 +517,6 @@ func (d destination) request(ctx context.Context) (*http.Request, error) {
 		return bodyRequest(ctx, jobsURL, d.body)
 	case OperationStatus:
 		return http.NewRequestWithContext(ctx, http.MethodGet, keyURL, nil)
-	case OperationPublish:
-		return http.NewRequestWithContext(ctx, http.MethodPost, keyURL+publishSuffix, nil)
 	default: // OperationUnknown and every value outside the constants: send nothing
 		return nil, errUnroutable
 	}

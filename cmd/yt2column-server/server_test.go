@@ -11,17 +11,15 @@ import (
 )
 
 // TestServerEndToEnd runs the assembled server on a real Unix socket with a
-// fake LLM client and the real webhook publisher posting to a loopback
-// webhook. It checks, in one server's lifetime, that a generation start with
-// no header beyond what net/http adds returns a key whose status becomes done
-// with the generated article, and that its publish operation posts the
-// article once, under the normalized URL. A second start with the same HOME,
+// fake LLM client. It checks, in one server's lifetime, that a generation
+// start with no header beyond what net/http adds returns a key whose status
+// becomes done with the generated article under the normalized URL. A second
+// start with the same HOME,
 // after a normal stop, serves a generation start and its status on the same
 // socket path.
 func TestServerEndToEnd(t *testing.T) {
-	webhook, webhookURL := newWebhookServer(t)
 	e := newServerEnv(t)
-	d := loopbackDeps(t, validResponseLLM(), webhookURL)
+	d := testDeps(validResponseLLM())
 	socket := e.socketPath(t)
 
 	first := startServer(t, e, d)
@@ -33,16 +31,6 @@ func TestServerEndToEnd(t *testing.T) {
 	if status.Job.State != "done" || status.Job.Article == nil ||
 		!strings.Contains(status.Job.Article.Markdown, "A title") || !strings.Contains(status.Job.Article.File, testNormalizedURL) {
 		t.Errorf("job status = %+v, want done with the generated article", status.Job)
-	}
-	publish := doJobs(t, socket, http.MethodPost, server.JobsPath+"/"+started.Key+server.PublishSuffix, nil, http.StatusAccepted)
-	if publish.Status != "accepted" {
-		t.Errorf("publish response = %+v, want accepted", publish)
-	}
-	if state := waitPublished(t, socket, started.Key); state != "posted" {
-		t.Errorf("publish state = %q, want posted", state)
-	}
-	if got := webhook.messages(); len(got) != 1 || !containsAll(got[0], []string{"A title", testNormalizedURL}) || strings.Contains(got[0], "youtu.be") {
-		t.Errorf("messages posted by the publish operation = %q, want the one article under the normalized URL", got)
 	}
 
 	if code := first.stop(t); code != exitOK {

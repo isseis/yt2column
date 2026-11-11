@@ -228,7 +228,7 @@
     -   文書の表: `development.md` の API の表の投稿の行、投稿の状態と理由の表、拒否の理由の 4 行、2 つの README の拒否の理由の表の 4 行（`README.md` を変え `/mktrans` で `README.en.md` を同期する）。`internal/doctestutil/guides.go:52`〜`53` と `extension/test/helpers/developmentDoc.ts:25`〜`26` の見出し、`cmd/yt2column-server/docs_test.go` の `PublishSuffix` の確かめ。
     -   消すテスト（それぞれ 1 つずつ確かめて消す）:
         -   [ ] `internal/server/status_test.go::TestStatusWebhookConfigured`
-        -   [ ] `internal/server/server_test.go::TestNewWebhookOptions`
+        -   [ ] `internal/server/server_test.go::TestNewWebhookOptions`（Webhook の行を消し、書き手とログの出力がないときの行は `TestNewOptions` として残す）
         -   [ ] `internal/server/server_test.go::TestNewCopiesWebhookOptions`
         -   [ ] `cmd/yt2column-server/run_test.go::TestBuildsSlackPublisher`
         -   [ ] `cmd/yt2column-server/run_test.go::TestStartsWithoutWebhook`

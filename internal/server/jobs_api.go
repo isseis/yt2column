@@ -200,18 +200,13 @@ func (s *Server) readStartRequest(w http.ResponseWriter, r *http.Request) (*jobI
 
 // logEviction writes the one line for a record the cache dropped to make room.
 func (s *Server) logEviction(e *articlecache.Eviction) {
-	attrs := []any{"key", e.Key.String(), "state", jobStateCode(e.State)}
-	if e.State == articlecache.JobDone {
-		attrs = append(attrs, "publish", publishStateCode(e.Publish))
-	}
-	attrs = append(attrs, "age", e.Age)
-	s.logger.Info("article record evicted", attrs...)
+	s.logger.Info("article record evicted", "key", e.Key.String(), "state", jobStateCode(e.State), "age", e.Age)
 }
 
 // statusHandler serves a status request: it checks the method, that the
 // request has no body (refused without reading one), and that keyPart is a
 // key in its one accepted form, then answers with the key's record. It changes
-// no record, calls no LLM or Webhook, and writes no log line on success:
+// no record, calls no LLM, and writes no log line on success:
 // clients poll it every few seconds.
 func (s *Server) statusHandler(w http.ResponseWriter, r *http.Request, requestID, keyPart string) {
 	responded := false
@@ -239,7 +234,7 @@ func (s *Server) statusHandler(w http.ResponseWriter, r *http.Request, requestID
 		responded = true
 		return
 	}
-	data, err := renderStatus(requestID, s.webhookConfigured(), s.cache.Lookup(key))
+	data, err := renderStatus(requestID, s.cache.Lookup(key))
 	if err != nil {
 		s.logger.Error("status response build failed", "requestId", requestID, "key", key.String(), "error", err)
 		s.reject(w, requestID, rejection{reason: reasonInternal, detail: detailInternalError})

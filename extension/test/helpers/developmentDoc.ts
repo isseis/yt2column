@@ -22,7 +22,5 @@ export const developmentDoc = {
     step: "工程",
     stepState: "工程の状態",
     failure: "失敗",
-    publishState: "投稿の状態",
-    publishReason: "投稿の理由",
   },
 } as const;

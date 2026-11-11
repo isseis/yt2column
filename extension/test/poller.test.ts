@@ -10,7 +10,7 @@ import { fakeClock, settle, type FakeClock } from "./helpers/clock.ts";
 import { article, doneSteps, requestId, runningSteps } from "./helpers/job.ts";
 
 function ok(job: JobStatus): StatusOutcome {
-  return { kind: "ok", requestId, webhookConfigured: true, job };
+  return { kind: "ok", requestId, job };
 }
 
 const running = ok({ state: "running", steps: runningSteps });
@@ -19,18 +19,7 @@ const failed = ok({
   steps: doneSteps,
   failure: "llm_failed",
 });
-const notPosted = ok({
-  state: "done",
-  steps: doneSteps,
-  article,
-  publish: { state: "not_posted" },
-});
-const posting = ok({
-  state: "done",
-  steps: doneSteps,
-  article,
-  publish: { state: "posting" },
-});
+const done = ok({ state: "done", steps: doneSteps, article });
 const unknown = ok({ state: "unknown" });
 
 interface Harness {
@@ -148,18 +137,18 @@ describe("createPoller", () => {
   it("stops on a reply of the current epoch whose decision is stop", async () => {
     const { clock, poller, steps, fetches, reply } = harness();
     poller.start();
-    await reply(notPosted);
+    await reply(done);
     clock.advance(10 * pollIntervalMs);
     assert.equal(fetches(), 1);
     assert.equal(steps.at(-1)?.decision, "stop");
   });
 
-  // A take-over or a publish moves to a new epoch while a fetch sent before
-  // it is in flight; each row's reply would stop polling in the current
+  // A take-over moves to a new epoch while a fetch sent before it is in
+  // flight; each row's reply would stop polling in the current
   // epoch (the test above).
   for (const { name, outcome } of [
     { name: "a failed job sent before a take-over", outcome: failed },
-    { name: "a not posted article sent before a publish", outcome: notPosted },
+    { name: "a done article sent before a take-over", outcome: done },
   ]) {
     it(`does not stop on ${name}, and fetches the new epoch at once`, async () => {
       const { poller, steps, infos, fetches, reply } = harness();
@@ -237,9 +226,9 @@ describe("createPoller", () => {
   it("gives afterStatus the last job shown since start, which start clears", async () => {
     const { poller, steps, reply } = harness();
     poller.start();
-    await reply(posting);
+    await reply(done);
     // A notice-only step keeps the job shown as the previous display.
-    poller.fetchNow();
+    poller.bumpEpoch();
     await reply({ kind: "host-failed" });
     assert.equal(steps.at(-1)?.job, undefined);
     poller.fetchNow();

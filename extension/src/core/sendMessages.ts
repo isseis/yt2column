@@ -13,16 +13,12 @@ import type {
   StartFailure,
   StoppingStatus,
 } from "./jobView.ts";
-import type {
-  PublishOutcome,
-  ServerRejectReason,
-  StartOutcome,
-} from "./response.ts";
+import type { ServerRejectReason, StartOutcome } from "./response.ts";
 
 // The job API's messages. Each operation has its own exchange messages: a
 // result that is not known means something different for a generation start,
 // which the same input resolves, than for a status query, which repeats by
-// itself, or a publish, which may repeat a message. A server rejection has
+// itself. A server rejection has
 // one message per reason, whichever operation returned it.
 
 /** Message for a job API rejection; distinct for every reason. */
@@ -128,26 +124,6 @@ export function statusNoticeMessage(
     default: {
       const exhaustive: never = outcome;
       throw new Error(`Unhandled status notice: ${String(exhaustive)}`);
-    }
-  }
-}
-
-/** Message for a publish operation that was not accepted. */
-export function publishResultMessage(
-  outcome: Exclude<PublishOutcome, { kind: "accepted" }>,
-  locale: Locale,
-): Message {
-  switch (outcome.kind) {
-    case "rejected":
-      return jobRejectMessage(outcome.reason, locale);
-    case "not-sent":
-    case "no-response":
-    case "host-failed":
-    case "unexpected":
-      return exchangeMessage(outcome, catalogs[locale].publishExchange);
-    default: {
-      const exhaustive: never = outcome;
-      throw new Error(`Unhandled publish result: ${String(exhaustive)}`);
     }
   }
 }

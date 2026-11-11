@@ -166,9 +166,8 @@ body {
   gap: 0.5rem;
 }
 
-/* The publish row's sentence takes a line of its own under the publish
-   button, and the operation result one under the save and copy buttons. */
-#publish-row,
+/* The operation result takes a line of its own under the save and copy
+   buttons. */
 #action-status {
   flex-basis: 100%;
 }

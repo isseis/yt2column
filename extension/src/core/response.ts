@@ -1,5 +1,5 @@
 // Interprets the server's response to each job API operation: a generation
-// start, a status query and a publish. The body is untrusted: it is parsed by
+// start and a status query. The body is untrusted: it is parsed by
 // parseStrictJson, and accepted only when its member set matches the
 // documented shape exactly at every level, every code is in its closed set and
 // the status code fits. No member is declared extensible, and a response that
@@ -86,41 +86,6 @@ export const failureCodes: Record<FailureCode, true> = {
   article_too_large: true,
 };
 
-export type PublishState =
-  "not_posted" | "posting" | "posted" | "failed" | "unpostable";
-
-export const publishStates: Record<PublishState, true> = {
-  not_posted: true,
-  posting: true,
-  posted: true,
-  failed: true,
-  unpostable: true,
-};
-
-type FailedPublishReason = "webhook" | "internal";
-type UnpostableReason = "mention" | "other";
-export type PublishReason = FailedPublishReason | UnpostableReason;
-
-const failedPublishReasons: Record<FailedPublishReason, true> = {
-  webhook: true,
-  internal: true,
-};
-
-const unpostableReasons: Record<UnpostableReason, true> = {
-  mention: true,
-  other: true,
-};
-
-export const publishReasons: Record<PublishReason, true> = {
-  ...failedPublishReasons,
-  ...unpostableReasons,
-};
-
-export type PublishStatus =
-  | { readonly state: "not_posted" | "posting" | "posted" }
-  | { readonly state: "failed"; readonly reason: FailedPublishReason }
-  | { readonly state: "unpostable"; readonly reason: UnpostableReason };
-
 declare const usdBrand: unique symbol;
 
 /** One to six digits, ".", four digits: the server's cost text. Only response.ts creates it. */
@@ -155,7 +120,6 @@ export type JobStatus =
       readonly state: "done";
       readonly steps: Steps;
       readonly article: Article;
-      readonly publish: PublishStatus;
     }
   | {
       readonly state: "failed";
@@ -164,8 +128,8 @@ export type JobStatus =
     };
 
 // The reasons each operation's path can return, with the status code each is
-// sent with. The host relays a status query and a publish without a body, so
-// invalid_body is not in their sets; not_found and method_not_allowed answer a
+// sent with. The host relays a status query without a body, so invalid_body
+// is not in its set; not_found and method_not_allowed answer a
 // wrong path or method, which the extension never sends. Both are unexpected.
 
 export type StartRejectReason =
@@ -192,26 +156,8 @@ export const statusRejectStatus: Record<StatusRejectReason, number> = {
   internal_error: 500,
 };
 
-export type PublishRejectReason =
-  | "invalid_key"
-  | "webhook_not_configured"
-  | "article_not_ready"
-  | "article_not_found"
-  | "article_not_postable"
-  | "internal_error";
-
-export const publishRejectStatus: Record<PublishRejectReason, number> = {
-  invalid_key: 400,
-  webhook_not_configured: 503,
-  article_not_ready: 409,
-  article_not_found: 404,
-  article_not_postable: 409,
-  internal_error: 500,
-};
-
 /** Every reason the extension shows with a fixed message; the catalog is keyed by it. */
-export type ServerRejectReason =
-  StartRejectReason | StatusRejectReason | PublishRejectReason;
+export type ServerRejectReason = StartRejectReason | StatusRejectReason;
 
 /** A generation start's result as displayed. */
 export type StartOutcome =
@@ -239,22 +185,11 @@ export type StatusOutcome =
   | {
       readonly kind: "ok";
       readonly requestId: RequestId;
-      readonly webhookConfigured: boolean;
       readonly job: JobStatus;
     }
   | {
       readonly kind: "rejected";
       readonly reason: StatusRejectReason;
-      readonly requestId: RequestId;
-    }
-  | ExchangeFailure;
-
-/** A publish's result as displayed. */
-export type PublishOutcome =
-  | { readonly kind: "accepted"; readonly requestId: RequestId }
-  | {
-      readonly kind: "rejected";
-      readonly reason: PublishRejectReason;
       readonly requestId: RequestId;
     }
   | ExchangeFailure;
@@ -265,8 +200,6 @@ export type StartOutcomeLog =
   Exclude<StartOutcome, ExchangeFailure> | ExchangeFailureLog;
 export type StatusOutcomeLog =
   Exclude<StatusOutcome, ExchangeFailure> | ExchangeFailureLog;
-export type PublishOutcomeLog =
-  Exclude<PublishOutcome, ExchangeFailure> | ExchangeFailureLog;
 
 /** Thrown inside the checks only; classify turns it into an unexpected result. */
 class Rejected {
@@ -478,42 +411,6 @@ function article(value: JsonValue): Article {
   };
 }
 
-function publishStatus(value: JsonValue): PublishStatus {
-  const state = discriminant(value, "state");
-  if (!isIn(publishStates, state)) {
-    throw new Rejected("value-shape");
-  }
-  switch (state) {
-    case "not_posted":
-    case "posting":
-    case "posted":
-      exactMembers(value, ["state"]);
-      return { state };
-    case "failed":
-      return {
-        state,
-        reason: codeMember(
-          exactMembers(value, ["state", "reason"]),
-          "reason",
-          failedPublishReasons,
-        ),
-      };
-    case "unpostable":
-      return {
-        state,
-        reason: codeMember(
-          exactMembers(value, ["state", "reason"]),
-          "reason",
-          unpostableReasons,
-        ),
-      };
-    default: {
-      const exhaustive: never = state;
-      throw new Error(`Unhandled publish state: ${String(exhaustive)}`);
-    }
-  }
-}
-
 function job(value: JsonValue): JobStatus {
   const state = discriminant(value, "state");
   if (!isIn(jobStates, state)) {
@@ -528,17 +425,11 @@ function job(value: JsonValue): JobStatus {
       return { state, steps: steps(member(members, "steps")) };
     }
     case "done": {
-      const members = exactMembers(value, [
-        "state",
-        "steps",
-        "article",
-        "publish",
-      ]);
+      const members = exactMembers(value, ["state", "steps", "article"]);
       return {
         state,
         steps: finishedSteps(member(members, "steps")),
         article: article(member(members, "article")),
-        publish: publishStatus(member(members, "publish")),
       };
     }
     case "failed": {
@@ -646,43 +537,14 @@ export function classifyStatus(received: HostOutcome): StatusOutcomeLog {
   return classify(received, (value, status): StatusOutcomeLog => {
     switch (discriminant(value, "status")) {
       case "ok": {
-        const members = exactMembers(value, [
-          "status",
-          "requestId",
-          "webhookConfigured",
-          "job",
-        ]);
+        const members = exactMembers(value, ["status", "requestId", "job"]);
         const requestId = requestIdMember(members);
-        const configured = booleanMember(members, "webhookConfigured");
         const result = job(member(members, "job"));
         requirePairing(status, 200);
-        return {
-          kind: "ok",
-          requestId,
-          webhookConfigured: configured,
-          job: result,
-        };
+        return { kind: "ok", requestId, job: result };
       }
       case "rejected":
         return rejection(value, status, statusRejectStatus);
-      default:
-        throw new Rejected("member-set");
-    }
-  });
-}
-
-/** Interprets a publish's reply. Never throws. */
-export function classifyPublish(received: HostOutcome): PublishOutcomeLog {
-  return classify(received, (value, status): PublishOutcomeLog => {
-    switch (discriminant(value, "status")) {
-      case "accepted": {
-        const members = exactMembers(value, ["status", "requestId"]);
-        const requestId = requestIdMember(members);
-        requirePairing(status, 202);
-        return { kind: "accepted", requestId };
-      }
-      case "rejected":
-        return rejection(value, status, publishRejectStatus);
       default:
         throw new Rejected("member-set");
     }
@@ -730,17 +592,6 @@ export function toStatusOutcome(log: StatusOutcomeLog): StatusOutcome {
   }
 }
 
-/** Drops the log-only members; the only way a PublishOutcomeLog becomes a displayed value. */
-export function toPublishOutcome(log: PublishOutcomeLog): PublishOutcome {
-  switch (log.kind) {
-    case "accepted":
-    case "rejected":
-      return log;
-    default:
-      return toExchangeFailure(log);
-  }
-}
-
 // The values a developer log may hold for each result: kinds, checks, codes,
 // status codes, request ids and the browser's error text. A view never holds
 // a key, an article or any text from the response, so a log that takes only
@@ -765,7 +616,6 @@ export type JobLogView =
   | {
       readonly state: "done";
       readonly steps: Steps;
-      readonly publish: PublishStatus;
       readonly costKnown: boolean;
     }
   | {
@@ -788,26 +638,13 @@ export type StatusLogView =
     }
   | ExchangeFailureLog;
 
-/** A publish's result as logged. */
-export type PublishLogView =
-  | { readonly kind: "accepted"; readonly requestId: RequestId }
-  | {
-      readonly kind: "rejected";
-      readonly reason: PublishRejectReason;
-      readonly requestId: RequestId;
-    }
-  | ExchangeFailureLog;
-
 /**
  * Whether a logged result is a failed exchange, which goes to the error log;
  * a server's answer, accepted or rejected, goes to info.
  */
-export function isExchangeFailureView(
-  view: StatusLogView | PublishLogView,
-): boolean {
+export function isExchangeFailureView(view: StatusLogView): boolean {
   switch (view.kind) {
     case "ok":
-    case "accepted":
     case "rejected":
       return false;
     case "not-sent":
@@ -842,17 +679,6 @@ function stepsView(value: Steps): Steps {
   return { draft: value.draft, shorten: value.shorten, review: value.review };
 }
 
-function publishView(value: PublishStatus): PublishStatus {
-  switch (value.state) {
-    case "failed":
-      return { state: value.state, reason: value.reason };
-    case "unpostable":
-      return { state: value.state, reason: value.reason };
-    default:
-      return { state: value.state };
-  }
-}
-
 function jobLogView(value: JobStatus): JobLogView {
   switch (value.state) {
     case "unknown":
@@ -863,7 +689,6 @@ function jobLogView(value: JobStatus): JobLogView {
       return {
         state: value.state,
         steps: stepsView(value.steps),
-        publish: publishView(value.publish),
         costKnown: value.article.cost.state === "known",
       };
     case "failed":
@@ -898,18 +723,6 @@ export function statusLogView(log: StatusOutcomeLog): StatusLogView {
   switch (log.kind) {
     case "ok":
       return { kind: "ok", requestId: log.requestId, job: jobLogView(log.job) };
-    case "rejected":
-      return { kind: "rejected", reason: log.reason, requestId: log.requestId };
-    default:
-      return failureLogView(log);
-  }
-}
-
-/** What a publish's log may hold. */
-export function publishLogView(log: PublishOutcomeLog): PublishLogView {
-  switch (log.kind) {
-    case "accepted":
-      return { kind: "accepted", requestId: log.requestId };
     case "rejected":
       return { kind: "rejected", reason: log.reason, requestId: log.requestId };
     default:

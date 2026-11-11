@@ -105,7 +105,6 @@ func TestServerDocsContract(t *testing.T) {
 		for _, example := range []struct{ operation, method, path string }{
 			{"the job API's generation start", "POST", server.JobsPath},
 			{"the job API's status", "GET", server.JobsPath + "/<key>"},
-			{"the job API's publish", "POST", server.JobsPath + "/<key>" + server.PublishSuffix},
 		} {
 			if !hasCurlCommand(api, example.method, example.path) {
 				t.Errorf("development.md %s has no curl example for %s (%s %s)", doctestutil.DevAPIHeading, example.operation, example.method, example.path)
@@ -198,17 +197,6 @@ func TestServerDocsContract(t *testing.T) {
 					t.Errorf("development.md %q table lists %q twice", set.Name, code)
 				}
 				documented[code] = struct{}{}
-				// A set that names each code's state documents it in the
-				// second column.
-				if want, ok := set.States[code]; ok {
-					got := ""
-					if len(row) > 1 {
-						got = doctestutil.StripBackticks(row[1])
-					}
-					if got != want {
-						t.Errorf("development.md %q table gives %q the state %q, want %q", set.Name, code, got, want)
-					}
-				}
 			}
 			defined := map[string]struct{}{}
 			for _, code := range set.Codes {
@@ -459,12 +447,6 @@ func pathForm(rawURL string) string {
 	rest, ok := strings.CutPrefix(u.Path, server.JobsPath+"/")
 	if !ok || rest == "" {
 		return ""
-	}
-	if key, found := strings.CutSuffix(rest, server.PublishSuffix); found {
-		if key == "" || strings.Contains(key, "/") {
-			return ""
-		}
-		return server.JobsPath + "/<key>" + server.PublishSuffix
 	}
 	if strings.Contains(rest, "/") {
 		return ""

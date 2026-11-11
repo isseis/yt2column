@@ -246,17 +246,6 @@ describe("host sends", () => {
     );
   });
 
-  it("builds a publish message only in the viewer's handler of the publish button", () => {
-    const found = callsIn(files, (call) => calls(call, "publishMessage"));
-    assert.deepEqual(
-      found.map(({ file, call }) => [
-        file,
-        functionName(enclosingFunction(call)),
-      ]),
-      [["src/viewerApp.ts", "publishArticle"]],
-    );
-  });
-
   it("builds a start message only in the handler of an accepted start request", () => {
     const found = callsIn(files, (call) => calls(call, "startMessage"));
     assert.deepEqual(

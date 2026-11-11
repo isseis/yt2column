@@ -11,9 +11,7 @@ import (
 	"github.com/isseis/yt2column/internal/config"
 	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/llm/provider"
-	"github.com/isseis/yt2column/internal/publisher"
 	"github.com/isseis/yt2column/internal/redact"
-	"github.com/isseis/yt2column/internal/secret"
 	"github.com/isseis/yt2column/internal/server"
 	"github.com/isseis/yt2column/internal/serversock"
 	"github.com/isseis/yt2column/internal/writer"
@@ -46,7 +44,6 @@ type deps struct {
 	newLLMClient       func(config.LLMConfig) (llm.LLMClient, error)
 	newReviewLLMClient func(config.LLMConfig) (llm.LLMClient, error)
 	newWriter          func(llm.LLMClient, writer.Options) (writer.ProgressWriter, error)
-	newPublisher       func(webhookURL secret.Secret) (server.WebhookPublisher, error)
 }
 
 // productionDeps returns the real constructors.
@@ -55,19 +52,7 @@ func productionDeps() deps {
 		newLLMClient:       provider.New,
 		newReviewLLMClient: provider.NewReview,
 		newWriter:          writer.NewProgressWriter,
-		newPublisher:       newPublisher,
 	}
-}
-
-// newPublisher builds the SlackWebhookPublisher the server posts with. It
-// returns a nil interface, never a typed nil, when construction fails, so
-// server.New's nil check is not misled.
-func newPublisher(webhookURL secret.Secret) (server.WebhookPublisher, error) {
-	p, err := publisher.NewSlackWebhookPublisher(webhookURL)
-	if err != nil {
-		return nil, err
-	}
-	return p, nil
 }
 
 // writerOptions returns the writer options of the server: the same as a CLI
@@ -186,7 +171,7 @@ func runServer(ctx context.Context, lookup config.LookupFunc, stderr io.Writer, 
 		return exitUsage
 	}
 	llmCfg := cfg.LLM()
-	webhookURL, webhookConfigured := cfg.WebhookURL()
+	webhookURL, _ := cfg.WebhookURL()
 	secrets := redact.SecretStrings(webhookURL, llmCfg.DeepSeekAPIKey(), llmCfg.AnthropicAPIKey(), llmCfg.OpenAIAPIKey())
 	errOut.secrets = secrets
 	if cfg.HTTP2DebugEnabled() {
@@ -217,13 +202,7 @@ func runServer(ctx context.Context, lookup config.LookupFunc, stderr io.Writer, 
 		"socket", cfg.SocketPath(),
 		"model", llmCfg.Generation().Model(),
 		"reviewModel", llmCfg.Review().Model(),
-		"webhookConfigured", webhookConfigured,
 	)
-	if !webhookConfigured {
-		// The server now starts without the Webhook, where it used to stop, so
-		// a forgotten setting has to show up here instead.
-		logger.Warn("no Webhook is configured, so the publish operation answers webhook_not_configured")
-	}
 
 	// 4: serve until ctx is canceled. The stop notice is logged as soon as
 	// the cancellation arrives, while Serve is still waiting for in-flight
@@ -325,22 +304,11 @@ func buildServer(d deps, cfg config.ServerConfig, logOutput io.Writer, secrets [
 	if err != nil {
 		return nil, fmt.Errorf("build the article writer: %w", err)
 	}
-	opts := server.Options{
+	srv, err := server.New(server.Options{
 		Writer:    articleWriter,
 		LogOutput: logOutput,
 		Secrets:   secrets,
-	}
-	// A server without SLACK_WEBHOOK_URL still serves the operations that do
-	// not post, so it is built without a publisher: the publish operation
-	// rejects what needs one.
-	if webhookURL, configured := cfg.WebhookURL(); configured {
-		pub, err := d.newPublisher(webhookURL)
-		if err != nil {
-			return nil, fmt.Errorf("build the publisher: %w", err)
-		}
-		opts.Webhook = &server.WebhookOptions{Publisher: pub}
-	}
-	srv, err := server.New(opts)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("build the server: %w", err)
 	}

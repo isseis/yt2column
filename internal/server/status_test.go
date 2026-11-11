@@ -32,8 +32,7 @@ func pricedUsage() writer.RunUsage {
 
 // TestStatusDoneArticle checks a done article's status: the neutralized
 // display Markdown and the file content are what the publisher renders for the article (the
-// file being what --out writes), the cost is the formatted known cost, and
-// the post has not started.
+// file being what --out writes), and the cost is the formatted known cost.
 func TestStatusDoneArticle(t *testing.T) {
 	ts := newJobsTestServer(t, jobsServerOptions{})
 	article := testArticle()
@@ -42,8 +41,8 @@ func TestStatusDoneArticle(t *testing.T) {
 	key := acceptedKey(t, ts.startBody(validBody(testValidVideoURL, testValidRaw)))
 
 	job := ts.getStatus(t, key).Job
-	if job.State != "done" || job.Article == nil || job.Publish == nil {
-		t.Fatalf("job = %+v, want done with an article and a publish state", job)
+	if job.State != "done" || job.Article == nil {
+		t.Fatalf("job = %+v, want done with an article", job)
 	}
 	display, err := publisher.NeutralizedDisplayMarkdown(article)
 	if err != nil {
@@ -67,17 +66,14 @@ func TestStatusDoneArticle(t *testing.T) {
 	if job.Article.Cost != (statusCost{State: "known", USD: usd}) {
 		t.Errorf("cost = %+v, want known %s", job.Article.Cost, usd)
 	}
-	if *job.Publish != (statusPublish{State: "not_posted"}) {
-		t.Errorf("publish = %+v, want not_posted", *job.Publish)
-	}
 }
 
 // TestStatusArticleNeutralized checks the article member of a done status
 // response: exactly the members the Viewer reads, the Markdown and its flag
 // from NeutralizedDisplayMarkdown, the start's video title and the article's
 // channel name neutralized for the heading ("" for none), and the file
-// unchanged. The article holds every sequence the Webhook post refuses, and
-// it is still returned.
+// unchanged. The article holds every sequence the removed Webhook post
+// refused, and it is still returned.
 func TestStatusArticleNeutralized(t *testing.T) {
 	refused := testArticle()
 	refused.Title = "Talk @channel"
@@ -215,7 +211,7 @@ func TestStatusUnknown(t *testing.T) {
 }
 
 // TestStatusHasNoSideEffects checks that status requests change no record and
-// call no writer or publisher.
+// call no writer.
 func TestStatusHasNoSideEffects(t *testing.T) {
 	ts := newJobsTestServer(t, jobsServerOptions{})
 	key := acceptedKey(t, ts.startBody(validBody(testValidVideoURL, testValidRaw)))
@@ -227,9 +223,8 @@ func TestStatusHasNoSideEffects(t *testing.T) {
 	if after := ts.cache.DumpRecordsForTest(); after != before {
 		t.Errorf("status requests changed the records:\nbefore %s\nafter  %s", before, after)
 	}
-	if len(ts.writer.Calls) != 1 || len(ts.publisher.PostCalls) != 0 {
-		t.Errorf("side effects: writer=%d post=%d, want only the one generation",
-			len(ts.writer.Calls), len(ts.publisher.PostCalls))
+	if len(ts.writer.Calls) != 1 {
+		t.Errorf("side effects: writer=%d, want only the one generation", len(ts.writer.Calls))
 	}
 }
 
@@ -359,28 +354,5 @@ func TestResponsesOmitInputs(t *testing.T) {
 		if strings.Contains(logs, marker) {
 			t.Errorf("the log carries %q:\n%s", marker, logs)
 		}
-	}
-}
-
-// TestStatusWebhookConfigured checks that a server with a Webhook reports it
-// and a done article as not posted, and that a server without one runs the
-// same start and reports the same job, with webhookConfigured false.
-func TestStatusWebhookConfigured(t *testing.T) {
-	clock := newTestClock()
-	jobs := map[bool]statusJob{}
-	for _, configured := range []bool{true, false} {
-		ts := newJobsTestServer(t, jobsServerOptions{clock: clock.Now, noWebhook: !configured})
-		key := acceptedKey(t, ts.startBody(validBody(testValidVideoURL, testValidRaw)))
-		resp := ts.getStatus(t, key)
-		if resp.WebhookConfigured != configured {
-			t.Errorf("webhookConfigured = %v, want %v", resp.WebhookConfigured, configured)
-		}
-		if resp.Job.Publish == nil || resp.Job.Publish.State != "not_posted" {
-			t.Errorf("configured=%v: publish = %+v, want not_posted", configured, resp.Job.Publish)
-		}
-		jobs[configured] = resp.Job
-	}
-	if !reflect.DeepEqual(jobs[true], jobs[false]) {
-		t.Errorf("the job differs without a Webhook:\nwith    %+v\nwithout %+v", jobs[true], jobs[false])
 	}
 }

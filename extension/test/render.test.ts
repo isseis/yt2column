@@ -753,7 +753,7 @@ describe("job view", () => {
     },
     {
       name: "done",
-      state: jobState(doneJob({ state: "not_posted" })),
+      state: jobState(doneJob),
       checks: (locale) => [
         catalogs[locale].popup.articleReady.text,
         ...Object.values(catalogs[locale].stepNames),

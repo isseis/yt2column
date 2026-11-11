@@ -10,12 +10,7 @@ import { JSDOM } from "jsdom";
 import { catalogs } from "../src/core/i18n/catalog.ts";
 import { metadataDisplayLimit } from "../src/core/popupView.ts";
 import { truncate } from "../src/core/summary.ts";
-import { publishControl } from "../src/core/jobView.ts";
-import type {
-  JobDisplay,
-  PublishRow,
-  ViewerState,
-} from "../src/core/jobView.ts";
+import type { JobDisplay, ViewerState } from "../src/core/jobView.ts";
 import type { ExistingState, PopupJobState } from "../src/core/popupView.ts";
 import { renderPopup } from "../src/ui/render.ts";
 import { renderViewer, renderViewerHeader } from "../src/ui/renderViewer.ts";
@@ -260,7 +255,7 @@ describe("popup preview script", () => {
     }
   });
 
-  it("writes one page per viewer state, job kind and publish row, styled as the viewer is", () => {
+  it("writes one page per viewer state and job kind, styled as the viewer is", () => {
     const output = mkdtempSync(path.join(tmpdir(), "popup-preview-"));
     dirs.push(output);
     const result = spawnSync(
@@ -285,15 +280,6 @@ describe("popup preview script", () => {
       failed: 0,
       lost: 0,
     };
-    const rows: Record<PublishRow["row"], number> = {
-      lost: 0,
-      posted: 0,
-      posting: 0,
-      unpostable: 0,
-      "webhook-not-configured": 0,
-      failed: 0,
-      "not-posted": 0,
-    };
     const stylesheets = [
       ...viewerDocument().querySelectorAll("link[rel=stylesheet]"),
     ].map((link) => link.getAttribute("href") ?? "");
@@ -315,9 +301,6 @@ describe("popup preview script", () => {
       }
       if (state.kind === "job") {
         jobs[state.job.kind] += 1;
-        if (state.job.kind === "done" || state.job.kind === "lost") {
-          rows[publishControl(state.job, false).row.row] += 1;
-        }
       }
       const file = `${previewCase.name}.html`;
       const full = path.join(output, file);
@@ -366,7 +349,7 @@ describe("popup preview script", () => {
         `${file}: body`,
       );
     }
-    for (const [name, counts] of Object.entries({ states, jobs, rows })) {
+    for (const [name, counts] of Object.entries({ states, jobs })) {
       for (const [kind, count] of Object.entries(counts)) {
         assert.ok(count > 0, `no page for the ${kind} ${name}`);
       }

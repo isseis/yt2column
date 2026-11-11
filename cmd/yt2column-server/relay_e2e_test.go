@@ -39,23 +39,22 @@ const hostPackage = "github.com/isseis/yt2column/cmd/yt2column-nmhost"
 const unreachableProxy = "http://127.0.0.1:9"
 
 // TestRelayEndToEnd connects the real host binary to the assembled server
-// over the server's Unix socket, with a fake LLM client and the real webhook
-// publisher posting to a loopback webhook. Every host run is checked to exit
-// 0 having written exactly one frame to standard output, and nothing else.
+// over the server's Unix socket, with a fake LLM client. Every host run is
+// checked to exit 0 having written exactly one frame to standard output, and
+// nothing else.
 func TestRelayEndToEnd(t *testing.T) {
 	host := buildHost(t)
 
 	// The generation job outlives the host: the accepted reply arrives and
 	// the host exits while the LLM call is still blocked, the generation
-	// finishes only after the call is released, and the publish operation
-	// then posts the article once.
+	// finishes only after the call is released, and a status request through
+	// the host then returns the article.
 	t.Run("accepted_job_continues_after_host_exits", func(t *testing.T) {
-		webhook, webhookURL := newWebhookServer(t)
 		e := newServerEnv(t)
 		gate := gatedLLM{entered: make(chan struct{}, 1), release: make(chan struct{})}
 		var once sync.Once
 		release := func() { once.Do(func() { close(gate.release) }) }
-		srv := startServer(t, e, loopbackDeps(t, gate, webhookURL))
+		srv := startServer(t, e, testDeps(gate))
 		// Registered after startServer, so it runs first and a failing test
 		// does not leave the server's stop waiting on the blocked job.
 		t.Cleanup(release)
@@ -74,40 +73,29 @@ func TestRelayEndToEnd(t *testing.T) {
 		if done := waitJobDone(t, socket, started.Key); done.Job.State != "done" {
 			t.Fatalf("job = %+v, want done", done.Job)
 		}
-		if published := requireJobReply(t, runHost(t, host, e, newFormKeyMessage(t, "publish", started.Key)), 202); published.Status != "accepted" {
-			t.Fatalf("publish response = %+v, want accepted", published)
+		status := requireJobReply(t, runHost(t, host, e, newFormKeyMessage(t, "status", started.Key)), 200)
+		if a := status.Job.Article; status.Job.State != "done" || a == nil ||
+			!strings.Contains(a.Markdown, "A title") || !strings.Contains(a.File, testNormalizedURL) {
+			t.Fatalf("job status = %+v, want done with the article under the normalized URL", status.Job)
 		}
-		if state := waitPublished(t, socket, started.Key); state != "posted" {
-			t.Fatalf("publish state = %q, want posted", state)
-		}
-		// stop waits for the jobs, so a second article would be posted by now.
 		if code := srv.stop(t); code != exitOK {
 			t.Fatalf("run exit code = %d, want %d\nstderr:\n%s", code, exitOK, srv.stderr.String())
 		}
-		if got := webhook.messages(); len(got) != 1 || !containsAll(got[0], []string{"A title", testNormalizedURL}) {
-			t.Errorf("messages = %q, want the one article", got)
-		}
 	})
 
-	// A rejected generation start posts nothing to the webhook: the server
-	// sends the webhook only the articles a publish operation asks for.
-	t.Run("invalid_transcript_posts_nothing", func(t *testing.T) {
-		webhook, webhookURL := newWebhookServer(t)
+	// A rejected generation start reaches the server through the host and
+	// comes back as the server's rejection.
+	t.Run("invalid_transcript_is_rejected", func(t *testing.T) {
 		e := newServerEnv(t)
-		srv := startServer(t, e, loopbackDeps(t, validResponseLLM(), webhookURL))
+		srv := startServer(t, e, testDeps(validResponseLLM()))
 
 		reply := runHost(t, host, e, newFormStartMessage("not a copied transcript"))
 		rejected := requireServerReply(t, reply, 400)
 		if rejected.Status != "rejected" || rejected.Reason != "invalid_transcript" {
 			t.Fatalf("rejected response = %+v, want status rejected and reason invalid_transcript", rejected)
 		}
-		// stop waits for every job the server started, so a post caused by
-		// the rejection would have arrived by now.
 		if code := srv.stop(t); code != exitOK {
 			t.Fatalf("run exit code = %d, want %d\nstderr:\n%s", code, exitOK, srv.stderr.String())
-		}
-		if got := webhook.messages(); len(got) != 0 {
-			t.Errorf("messages = %q, want none", got)
 		}
 	})
 
@@ -124,15 +112,13 @@ func TestRelayEndToEnd(t *testing.T) {
 		}
 	})
 
-	// The new form's three operations go through the real host: a
-	// generation start, a status request, and a publish operation. A key
-	// that would turn a status request into a publish operation if the host
-	// embedded it unescaped, or that would point outside the key's segment, is
-	// rejected as invalid_key by both operations, and publishes nothing.
+	// The new form's two operations go through the real host: a generation
+	// start and a status request. A key that would add a path segment or a
+	// query if the host embedded it unescaped, or that would point outside
+	// the key's segment, is rejected as invalid_key and changes nothing.
 	t.Run("new_form_operations", func(t *testing.T) {
-		webhook, webhookURL := newWebhookServer(t)
 		e := newServerEnv(t)
-		startServer(t, e, loopbackDeps(t, validResponseLLM(), webhookURL))
+		startServer(t, e, testDeps(validResponseLLM()))
 		socket := e.socketPath(t)
 
 		start, err := json.Marshal(map[string]any{"v": 1, "op": "start", "input": map[string]string{
@@ -147,8 +133,8 @@ func TestRelayEndToEnd(t *testing.T) {
 		}
 		waitJobDone(t, socket, started.Key)
 		status := requireJobReply(t, runHost(t, host, e, newFormKeyMessage(t, "status", started.Key)), 200)
-		if status.Job.State != "done" || status.Job.Publish == nil || status.Job.Publish.State != "not_posted" {
-			t.Fatalf("job status = %+v, want done and not posted", status.Job)
+		if status.Job.State != "done" {
+			t.Fatalf("job status = %+v, want done", status.Job)
 		}
 		// The done article carries the neutralized heading values and the
 		// neutralization flag through the host.
@@ -161,29 +147,13 @@ func TestRelayEndToEnd(t *testing.T) {
 			started.Key + "/publish", started.Key + "?x=1", "../articles", "../" + started.Key,
 			started.Key + "/x", "%2F", "\u3042",
 		}
-		for _, op := range []string{"status", "publish"} {
-			for _, key := range injected {
-				if rejected := requireServerReply(t, runHost(t, host, e, newFormKeyMessage(t, op, key)), 400); rejected.Reason != "invalid_key" {
-					t.Errorf("%s of %q = %+v, want reason invalid_key", op, key, rejected)
-				}
+		for _, key := range injected {
+			if rejected := requireServerReply(t, runHost(t, host, e, newFormKeyMessage(t, "status", key)), 400); rejected.Reason != "invalid_key" {
+				t.Errorf("status of %q = %+v, want reason invalid_key", key, rejected)
 			}
 		}
-		if after := doJobs(t, socket, http.MethodGet, server.JobsPath+"/"+started.Key, nil, http.StatusOK); after.Job.Publish == nil || after.Job.Publish.State != "not_posted" {
-			t.Fatalf("job after the injected keys = %+v, want still not posted", after.Job)
-		}
-		if got := webhook.messages(); len(got) != 0 {
-			t.Fatalf("messages after the injected keys = %q, want none", got)
-		}
-
-		published := requireJobReply(t, runHost(t, host, e, newFormKeyMessage(t, "publish", started.Key)), 202)
-		if published.Status != "accepted" {
-			t.Errorf("publish response = %+v, want accepted", published)
-		}
-		if state := waitPublished(t, socket, started.Key); state != "posted" {
-			t.Errorf("publish state = %q, want posted", state)
-		}
-		if got := webhook.messages(); len(got) != 1 || !strings.Contains(got[0], "A title") {
-			t.Errorf("messages = %q, want the one article", got)
+		if after := doJobs(t, socket, http.MethodGet, server.JobsPath+"/"+started.Key, nil, http.StatusOK); after.Job.State != "done" {
+			t.Fatalf("job after the injected keys = %+v, want still done", after.Job)
 		}
 	})
 
@@ -325,8 +295,7 @@ func newFormStartMessage(raw string) string {
 	return `{"v":1,"op":"start","input":` + requestBody(raw) + `}`
 }
 
-// newFormKeyMessage returns a new-form message for op (status or publish)
-// naming key.
+// newFormKeyMessage returns a new-form message for op naming key.
 func newFormKeyMessage(t *testing.T, op, key string) string {
 	t.Helper()
 	data, err := json.Marshal(map[string]any{"v": 1, "op": op, "key": key})

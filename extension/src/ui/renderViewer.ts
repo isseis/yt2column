@@ -7,15 +7,9 @@ import { isAcceptedWatchUrl } from "../core/acceptedUrl.ts";
 import { catalogs } from "../core/i18n/catalog.ts";
 import type { Message } from "../core/i18n/catalog.ts";
 import type { Locale } from "../core/i18n/locale.ts";
-import { jobArticle, publishControl } from "../core/jobView.ts";
-import type {
-  JobDisplay,
-  PublishOpNotice,
-  PublishRow,
-  ViewerState,
-} from "../core/jobView.ts";
+import { jobArticle } from "../core/jobView.ts";
+import type { JobDisplay, ViewerState } from "../core/jobView.ts";
 import type { Article } from "../core/response.ts";
-import { publishResultMessage } from "../core/sendMessages.ts";
 import type { ViewerParams } from "../core/viewerUrl.ts";
 import { drawArticleBody } from "./articleBody.ts";
 import { messageNodes } from "./message.ts";
@@ -25,7 +19,6 @@ import {
   loadingIndicator,
   noticeSummary,
   renderJobState,
-  requestIdNode,
   startFailure,
   startFailureSummary,
   waitingNodes,
@@ -46,8 +39,6 @@ export interface ViewerElements {
   readonly stateStatus: HTMLElement;
   readonly article: HTMLElement;
   readonly actions: HTMLElement;
-  readonly publish: HTMLButtonElement;
-  readonly publishRow: HTMLElement;
   readonly save: HTMLButtonElement;
   readonly copy: HTMLButtonElement;
   /** The operation result's status region, among the operations. */
@@ -68,8 +59,6 @@ export interface ViewerView {
    * existing.
    */
   readonly elapsedMs: number;
-  /** A publish operation is in flight or waits for its first status. */
-  readonly publishing: boolean;
   /**
    * The viewer shows an existing article of the same video (its URL holds
    * e=1): the notice is shown, and a running job's elapsed time is not.
@@ -79,7 +68,7 @@ export interface ViewerView {
 
 /** The result of the last operation, shown in the operation result's region. */
 export type ActionNotice =
-  | PublishOpNotice
+  | { readonly kind: "none" }
   | { readonly kind: "saved" }
   | { readonly kind: "copied"; readonly mentionsNeutralized: boolean }
   | { readonly kind: "copy-failed" };
@@ -141,50 +130,6 @@ function headerValues(
   };
 }
 
-/** A done or lost job: the jobs whose article and publish button can show. */
-type PublishableJob = Extract<JobDisplay, { kind: "done" | "lost" }>;
-
-/** The view's job when it is done or lost; undefined for every other state. */
-function publishableJob(state: ViewerState): PublishableJob | undefined {
-  if (state.kind !== "job") {
-    return undefined;
-  }
-  switch (state.job.kind) {
-    case "done":
-    case "lost":
-      return state.job;
-    case "running":
-    case "failed":
-      return undefined;
-  }
-}
-
-/** The messages beside the publish button for the row that applies. */
-function publishRowMessages(row: PublishRow, locale: Locale): Message[] {
-  const catalog = catalogs[locale];
-  switch (row.row) {
-    case "lost":
-      // The state section shows the steps to send again; the row says only
-      // why the button cannot be pressed.
-      return [{ text: catalog.viewer.lost.text, steps: [] }];
-    case "posted":
-      return [catalog.publishStates.posted];
-    case "posting":
-      return [catalog.publishStates.posting];
-    case "unpostable":
-      return [
-        catalog.publishStates.unpostable,
-        catalog.publishReasons[row.reason],
-      ];
-    case "webhook-not-configured":
-      return [catalog.viewer.webhookNotConfigured];
-    case "failed":
-      return [catalog.publishStates.failed, catalog.publishReasons[row.reason]];
-    case "not-posted":
-      return [catalog.publishStates.not_posted];
-  }
-}
-
 /** Whether the view's running job shows its elapsed time. */
 function viewElapsed(view: ViewerView): ElapsedTime {
   return view.existing
@@ -232,23 +177,17 @@ function drawState(
 
 /** The job's part of the summary: what changed for assistive technology. */
 function jobSummary(job: JobDisplay, locale: Locale): string[] {
-  if (job.kind !== "done") {
-    return jobStateSummary(job, [], locale);
-  }
-  // The same sentence the popup shows when the article is ready, then the
-  // publish state, so a post starting, finishing or failing is announced.
-  return [
-    catalogs[locale].popup.articleReady.text,
-    ...publishRowMessages(publishControl(job, false).row, locale).map(
-      (message) => message.text,
-    ),
-  ];
+  // A done job has the same sentence the popup shows when the article is ready.
+  return jobStateSummary(
+    job,
+    [catalogs[locale].popup.articleReady.text],
+    locale,
+  );
 }
 
 /**
  * The state summary's sentences: loading started or ended, a step changed,
- * the job finished or failed, the publish state changed, the status could not
- * be read, after the existing-article notice's sentence when it is shown.
+ * the job finished or failed, the status could not be read, after the existing-article notice's sentence when it is shown.
  * They hold no elapsed time, so the same state gives the same summary
  * whatever the clock says.
  */
@@ -306,8 +245,7 @@ function drawExisting(
  * article, in that order. The state summary's region is written only when
  * its text changes, so a poll that repeats the same result, or the elapsed
  * time's redraw, is not read out again. The operations are shown with an
- * article: save and copy can always be pressed, and the publish button only
- * when publishControl's row allows it. They are set before the article is
+ * article: save and copy can always be pressed. They are set before the article is
  * drawn, so saving and copying work even if drawing the article fails. The
  * article is drawn from its Markdown again only when the Markdown changed or
  * the article was hidden in between, so a redraw keeps the reader's focus
@@ -318,7 +256,6 @@ export function renderViewer(
   view: ViewerView,
   locale: Locale,
 ): void {
-  const doc = elements.state.ownerDocument;
   const catalog = catalogs[locale];
   drawExisting(elements.existing, view.existing, locale);
   drawStateOnChange(
@@ -333,27 +270,17 @@ export function renderViewer(
   writeStatusSummary(elements.stateStatus, stateSummary(view, locale));
 
   // The article is a done job's, or the one a lost job kept.
-  const job = publishableJob(view.state);
-  const article = jobArticle(job);
-  if (job === undefined || article === undefined) {
+  const article =
+    view.state.kind === "job" ? jobArticle(view.state.job) : undefined;
+  if (article === undefined) {
     elements.article.hidden = true;
     elements.article.replaceChildren();
     elements.actions.hidden = true;
-    elements.publishRow.replaceChildren();
-    elements.publish.disabled = true;
     elements.save.disabled = true;
     elements.copy.disabled = true;
     return;
   }
-  const control = publishControl(job, view.publishing);
   elements.actions.hidden = false;
-  elements.publish.textContent = catalog.viewer.publish;
-  elements.publish.disabled = !control.enabled;
-  elements.publishRow.replaceChildren(
-    ...publishRowMessages(control.row, locale).flatMap((message) =>
-      messageNodes(doc, message),
-    ),
-  );
   elements.save.textContent = catalog.viewer.save;
   elements.save.disabled = false;
   elements.copy.textContent = catalog.viewer.copy;
@@ -374,11 +301,6 @@ function actionMessage(
   switch (notice.kind) {
     case "none":
       return undefined;
-    case "rejected":
-    case "not-sent":
-      return publishResultMessage(notice, locale);
-    case "unknown":
-      return publishResultMessage(notice.outcome, locale);
     case "saved":
       return { text: viewer.saved, steps: [] };
     case "copied":
@@ -395,7 +317,7 @@ function actionMessage(
 
 /**
  * Writes the last operation's result into its status region beside the
- * operations, with a rejection's request id; focus stays where it is.
+ * operations; focus stays where it is.
  */
 export function renderActionNotice(
   elements: ViewerElements,
@@ -408,9 +330,5 @@ export function renderActionNotice(
     elements.actionStatus.replaceChildren();
     return;
   }
-  const nodes: HTMLElement[] = messageNodes(doc, message);
-  if (notice.kind === "rejected") {
-    nodes.push(requestIdNode(doc, notice.requestId));
-  }
-  elements.actionStatus.replaceChildren(...nodes);
+  elements.actionStatus.replaceChildren(...messageNodes(doc, message));
 }

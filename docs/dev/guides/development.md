@@ -104,11 +104,7 @@ curl -sS --unix-socket "$socket" -X POST http://localhost/jobs \
 | `invalid_body` | 400 | 固定のメッセージ |
 | `invalid_video_url` | 400 | 固定のメッセージ |
 | `invalid_transcript` | 400 | 固定のメッセージ |
-| `webhook_not_configured` | 503 | 固定のメッセージ |
 | `invalid_key` | 400 | 固定のメッセージ |
-| `article_not_ready` | 409 | 固定のメッセージ |
-| `article_not_found` | 404 | 固定のメッセージ |
-| `article_not_postable` | 409 | 固定のメッセージ |
 | `internal_error` | 500 | 固定のメッセージ（`requestId` が空のときは想定外の応答） |
 
 `not_found` と `method_not_allowed` は、誤ったパスかメソッドへの応答である。本文を読まず、ジョブを始めない。拡張は、ホストの新しい形のメッセージで操作を指定し、パスもメソッドも指定しないので、拡張・ホスト・サーバの版がそろっていれば、どちらの拒否も受け取らない。受け取れば（例えば、ジョブの API を持たない古いサーバ）、想定外の応答として表示する。
@@ -120,8 +116,7 @@ curl -sS --unix-socket "$socket" -X POST http://localhost/jobs \
 | 操作 | リクエスト | 成功の応答 |
 |---|---|---|
 | 生成の開始 | `POST /jobs`、上の `request.json` の形の JSON のオブジェクト | `202`、`{"status":"accepted","key":"…","requestId":"…"}`。同じ動画の応答は `200`、`{"status":"same_video","key":"…","requestId":"…"}` |
-| 状態の取得 | `GET /jobs/<key>`、本文なし | `200`、`{"status":"ok","requestId":"…","webhookConfigured":true,"job":{…}}` |
-| 投稿 | `POST /jobs/<key>/publish`、本文なし | `202`、`{"status":"accepted","requestId":"…"}` |
+| 状態の取得 | `GET /jobs/<key>`、本文なし | `200`、`{"status":"ok","requestId":"…","job":{…}}` |
 
 生成の開始の本文は、必須のメンバ `videoUrl`・`transcript`・`mode` と、任意のメンバ `title`・`channelName`・`description` を持つ。`mode` は送り方で、`inquiry`（照会付き）か `plain`（照会なし）のどちらかの文字列である。`mode` がない本文、文字列でない値、この 2 つ以外の値（大文字や前後の空白を含むもの、空の文字列を含む）、`mode` を 2 回書いた本文は、どちらかに補わずに `invalid_body` で拒否し、ジョブを始めない。`mode` はキーの計算に入らないので、同じ入力はどちらの送り方でも同じキーになる。
 
@@ -189,7 +184,6 @@ curl -sS --unix-socket "$socket" -X POST http://localhost/jobs \
 ```sh
 curl -sS --unix-socket "$socket" -X POST http://localhost/jobs --data-binary @request.json
 curl -sS --unix-socket "$socket" -X GET "http://localhost/jobs/$key"
-curl -sS --unix-socket "$socket" -X POST "http://localhost/jobs/$key/publish"
 ```
 
 `$key` は生成の開始が返したキーである。
@@ -229,21 +223,6 @@ curl -sS --unix-socket "$socket" -X POST "http://localhost/jobs/$key/publish"
 | `llm_failed` | そのほかの LLM の失敗 |
 | `article_invalid` | 生成した記事を公開できない |
 | `article_too_large` | 生成した記事が状態の取得の応答に収まらない |
-
-| 投稿の状態 | 意味 |
-|---|---|
-| `unpostable` | Slack へ送る前の検査が記事を拒否する |
-| `not_posted` | 投稿でき、まだ投稿していない |
-| `posting` | 投稿している |
-| `posted` | すべてのメッセージが届いた |
-| `failed` | 最後の投稿が終わりの前に止まった |
-
-| 投稿の理由 | 投稿の状態 | 意味 |
-|---|---|---|
-| `other` | `unpostable` | メンション以外の、送る前の検査による拒否 |
-| `mention` | `unpostable` | 記事がメンションを含む |
-| `internal` | `failed` | 投稿のジョブが異常に終わった |
-| `webhook` | `failed` | Webhook がメッセージを受け取ったと返さなかった |
 
 ## 統合テスト
 

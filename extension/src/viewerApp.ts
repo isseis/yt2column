@@ -3,10 +3,9 @@
 // result from the service worker or, holding a key, polls the job's status.
 // A URL marked e=1 shows an existing article of the same video: the mark is
 // added on a same-video answer, and once added it is never removed.
-// The viewer answers the other pages' queries for its key, takes a send over
-// only from a query it answered, and sends a publish only when the button is
-// pressed on a row that allows it, never again by itself. Every result is a
-// value drawn into viewer.html; the log gets only what the log views allow.
+// The viewer answers the other pages' queries for its key and takes a send
+// over only from a query it answered. Every result is a value drawn into
+// viewer.html; the log gets only what the log views allow.
 
 import type {
   OpenViewerChannel,
@@ -25,18 +24,11 @@ import {
 } from "./core/extensionMessages.ts";
 import type { ViewerChannelMessage } from "./core/extensionMessages.ts";
 import { articleFileName } from "./core/fileName.ts";
-import { publishMessage } from "./core/hostMessage.ts";
 import { resolveLocale } from "./core/i18n/locale.ts";
-import { jobArticle, publishControl } from "./core/jobView.ts";
+import { jobArticle } from "./core/jobView.ts";
 import type { ViewerState } from "./core/jobView.ts";
 import type { PollStep } from "./core/poll.ts";
 import { elapsedRedrawMs, startResultDeadlineMs } from "./core/poll.ts";
-import {
-  classifyPublish,
-  isExchangeFailureView,
-  publishLogView,
-  toPublishOutcome,
-} from "./core/response.ts";
 import type { Article, StartOutcome } from "./core/response.ts";
 import {
   parseViewerUrl,
@@ -46,8 +38,7 @@ import {
 import type { ViewerParams } from "./core/viewerUrl.ts";
 import type { Logger } from "./core/types.ts";
 import { createStatusPoller } from "./poller.ts";
-import type { Poller, StepInfo } from "./poller.ts";
-import { exchange } from "./send.ts";
+import type { Poller } from "./poller.ts";
 import type { SendDeps } from "./send.ts";
 import { applyPageLocale } from "./ui/pageLocale.ts";
 import {
@@ -88,7 +79,6 @@ export interface ViewerStartDeps {
 
 const awaitStartLabel = "yt2column await start";
 const viewerUrlLabel = "yt2column viewer url";
-const publishResultLabel = "yt2column publish result";
 const takeOverLabel = "yt2column take over";
 
 const pageTitleSuffix = " - yt2column";
@@ -119,8 +109,6 @@ export function findViewerElements(doc: Document): ViewerElements | undefined {
     stateStatus: element("state-status"),
     article: element("article"),
     actions: element("actions"),
-    publish: button("publish"),
-    publishRow: element("publish-row"),
     save: button("save"),
     copy: button("copy"),
     actionStatus: element("action-status"),
@@ -195,7 +183,6 @@ export async function startViewer(
       {
         state: { kind: "invalid-link" },
         elapsedMs: 0,
-        publishing: false,
         existing: false,
       },
       locale,
@@ -209,15 +196,12 @@ export async function startViewer(
   doc.title = `${params.heading}${pageTitleSuffix}`;
 
   let state: ViewerState = { kind: "sending" };
-  let publishing = false;
-  /** An accepted publish waits for the first status of a later epoch to end publishing. */
-  let awaitingPublishStatus = false;
   let actionNotice: ActionNotice = { kind: "none" };
   let poller: Poller | undefined;
   let key: ArticleKey | undefined;
   let cancelRedraw = (): void => {};
   // Counts the starts of polling: a take-over that restarts the send makes a
-  // publish answer that was in flight belong to the send it replaced.
+  // copy result that was in flight belong to the send it replaced.
   let restarts = 0;
 
   /** The article the heading was last drawn with. */
@@ -236,7 +220,6 @@ export async function startViewer(
       {
         state,
         elapsedMs: deps.now() - params.sentAt,
-        publishing,
         existing: existing(),
       },
       locale,
@@ -279,14 +262,7 @@ export async function startViewer(
     deps.page.replaceQuery(viewerQuery(params));
   };
 
-  const onStep = (step: PollStep, info: StepInfo): void => {
-    // The first reply of the current epoch after an accepted publish ends
-    // publishing; a take-over that goes on may have moved the epoch again
-    // since the publish, and that epoch's reply ends it as well.
-    if (!info.earlierEpoch && awaitingPublishStatus) {
-      publishing = false;
-      awaitingPublishStatus = false;
-    }
+  const onStep = (step: PollStep): void => {
     if (step.job !== undefined) {
       show({ kind: "job", job: step.job, notice: step.notice });
     } else if (state.kind === "job") {
@@ -423,8 +399,6 @@ export async function startViewer(
     }
     params = { ...params, sentAt: message.sentAt };
     writeUrl();
-    publishing = false;
-    awaitingPublishStatus = false;
     showActionNotice({ kind: "none" });
     if (key !== undefined) {
       startPolling(key);
@@ -466,76 +440,6 @@ export async function startViewer(
     }
   };
 
-  /**
-   * The one place a publish is sent: on a press of the button, only while
-   * publishControl's row allows it, exactly once, and never again by itself.
-   * An accepted publish keeps the button off until the first status of the
-   * new epoch; an unknown result is settled by polling, not by a resend.
-   */
-  const publishArticle = async (): Promise<void> => {
-    if (
-      key === undefined ||
-      state.kind !== "job" ||
-      state.job.kind !== "done" ||
-      !publishControl(state.job, publishing).enabled
-    ) {
-      return;
-    }
-    publishing = true;
-    showActionNotice({ kind: "none" });
-    draw();
-    const pressedIn = restarts;
-    const log = classifyPublish(await exchange(publishMessage(key), deps.send));
-    const view = publishLogView(log);
-    const replaced = restarts !== pressedIn;
-    if (isExchangeFailureView(view)) {
-      deps.log.error(publishResultLabel, { result: view, replaced });
-    } else {
-      deps.log.info(publishResultLabel, { result: view, replaced });
-    }
-    // The send was restarted while the publish was in flight: its answer is
-    // about the article the new send replaces, so it changes nothing shown.
-    if (replaced) {
-      return;
-    }
-    const outcome = toPublishOutcome(log);
-    switch (outcome.kind) {
-      case "accepted":
-        poller?.bumpEpoch();
-        awaitingPublishStatus = true;
-        break;
-      case "rejected": {
-        publishing = false;
-        showActionNotice(outcome);
-        if (outcome.reason === "article_not_found") {
-          // The server no longer holds the article: shown as lost, keeping
-          // what was shown so it can still be saved and copied.
-          poller?.stop();
-          const kept = shownArticle(state);
-          state = {
-            kind: "job",
-            job: kept === undefined ? { kind: "lost" } : { kind: "lost", kept },
-            notice: { kind: "none" },
-          };
-        }
-        break;
-      }
-      case "not-sent":
-        publishing = false;
-        showActionNotice(outcome);
-        break;
-      case "no-response":
-      case "host-failed":
-      case "unexpected":
-        publishing = false;
-        showActionNotice({ kind: "unknown", outcome });
-        poller?.bumpEpoch();
-        break;
-    }
-    draw();
-    armRedraw();
-  };
-
   const saveArticle = (): void => {
     const article = shownArticle(state);
     const videoId = watchVideoId(params.url);
@@ -568,7 +472,6 @@ export async function startViewer(
     );
   };
 
-  elements.publish.addEventListener("click", () => void publishArticle());
   elements.save.addEventListener("click", saveArticle);
   elements.copy.addEventListener("click", () => void copyArticle());
 

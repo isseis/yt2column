@@ -436,7 +436,7 @@ func TestStartCacheFull(t *testing.T) {
 // serve is refused as not_found, closing the connection, whatever the method,
 // without reading a byte of the body or taking a slot: with every generation
 // and reading slot already taken the answer is still not_found, not
-// too_many_requests. No writer or Webhook call and no record follow.
+// too_many_requests. No writer call and no record follow.
 func TestUnknownPathTouchesNothing(t *testing.T) {
 	for _, method := range []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete} {
 		t.Run(method, func(t *testing.T) {
@@ -462,8 +462,8 @@ func TestUnknownPathTouchesNothing(t *testing.T) {
 				t.Errorf("slots held: generation %d, reading %d, want the %d and %d the test took",
 					len(ts.slots), len(ts.reading), maxInFlight, maxReading)
 			}
-			if len(ts.writer.Calls) != 0 || len(ts.publisher.PostCalls) != 0 {
-				t.Errorf("side effects: writer=%d post=%d, want none", len(ts.writer.Calls), len(ts.publisher.PostCalls))
+			if len(ts.writer.Calls) != 0 {
+				t.Errorf("side effects: writer=%d, want none", len(ts.writer.Calls))
 			}
 			if dump := ts.cache.DumpRecordsForTest(); dump != "" {
 				t.Errorf("a rejected request added a record:\n%s", dump)
@@ -681,8 +681,8 @@ func sameVideoAnswer(t *testing.T, rec *httptest.ResponseRecorder) (key, request
 // TestStartInquirySameVideo checks that an inquiry start for a video that
 // already has a done or a running article under another key is answered
 // with that article's key, whichever URL form names the video and whichever
-// of the transcript and the metadata differs: no generation, no Webhook call,
-// no change to the cache, and one log line that carries the fixed attributes
+// of the transcript and the metadata differs: no generation, no change to the
+// cache, and one log line that carries the fixed attributes
 // and neither the request's URL string nor its text.
 func TestStartInquirySameVideo(t *testing.T) {
 	const sentURL = "https://youtu.be/" + testVideoID
@@ -739,9 +739,6 @@ func TestStartInquirySameVideo(t *testing.T) {
 			}
 			if calls := len(ts.writer.RecordedCalls()); calls != 1 {
 				t.Errorf("writer calls = %d, want only the existing article's 1", calls)
-			}
-			if posts := len(ts.publisher.RecordedPostCalls()); posts != 0 {
-				t.Errorf("Webhook posts = %d, want 0", posts)
 			}
 			wantSlots := 0
 			if tc.running {

@@ -21,14 +21,7 @@ const sendSameInputStep =
   "You can send the same input again from the popup. While the server is generating or holds that article, it returns it instead of generating it again; a changed input, a failed article or a restarted server generates it again.";
 const sendAgainStep =
   "Send the same input again from the popup to generate the article again.";
-const repeatedPostStep =
-  "If an earlier copy of this article was posted, posting the new one repeats it in Slack.";
 const checksAgainStep = "The status is checked again automatically.";
-const setWebhookStep =
-  "Write SLACK_WEBHOOK_URL in the yt2column-server configuration file and restart yt2column-server.";
-const publishUnknownStep = "The posting status is checked again automatically.";
-const publishAgainStep =
-  "Pressing the button again posts nothing twice only while the server holds the article as posting or posted; after a failed post, posting again may repeat the one message whose delivery was not confirmed.";
 // Button names a step quotes, kept in one place with the button's own name.
 const generateButton = "Generate article";
 const generateFromSelectionButton = "Generate from current selection";
@@ -120,22 +113,6 @@ export const en: Catalog = {
       text: "The server did not accept the article key.",
       steps: [sameVersionStep, "Send the article again from the popup."],
     },
-    webhook_not_configured: {
-      text: "The server cannot post: it has no Slack Webhook configured.",
-      steps: [setWebhookStep],
-    },
-    article_not_ready: {
-      text: "The article is not finished yet, so it cannot be posted.",
-      steps: ["Post it once the article is shown."],
-    },
-    article_not_found: {
-      text: "The server no longer has this article, so it cannot be posted.",
-      steps: [sendAgainStep, repeatedPostStep],
-    },
-    article_not_postable: {
-      text: "The server refused to post this article.",
-      steps: [],
-    },
     internal_error: {
       text: "The server hit an internal error.",
       steps: ["Check the server log."],
@@ -187,30 +164,6 @@ export const en: Catalog = {
     unexpected: {
       text: "Could not interpret the status reply, so status checks stopped.",
       steps: [sameVersionStep, "Send the article again from the popup."],
-    },
-  },
-  publishExchange: {
-    notSent: {
-      "server-unavailable": {
-        text: "Could not connect to the yt2column server, so the article was not posted.",
-        steps: [startServerStep, "Then post again."],
-      },
-      "message-too-large": {
-        text: "The host refused the publish request as too large, so the article was not posted.",
-        steps: [sameVersionStep],
-      },
-    },
-    noResponse: {
-      text: "The server did not answer the publish request in time. It may be posting the article.",
-      steps: [publishUnknownStep, publishAgainStep],
-    },
-    hostFailed: {
-      text: "The native messaging host could not be started, or it exited without replying. The publish request may have been sent.",
-      steps: [installHostStep, publishUnknownStep, publishAgainStep],
-    },
-    unexpected: {
-      text: "Could not interpret the reply to the publish request. The server may be posting the article.",
-      steps: [sameVersionStep, publishUnknownStep, publishAgainStep],
     },
   },
   startResult: {
@@ -269,36 +222,6 @@ export const en: Catalog = {
     skipped: "Skipped",
     failed: "Failed",
   },
-  publishStates: {
-    not_posted: { text: "Not posted to Slack yet.", steps: [] },
-    posting: { text: "Posting to Slack...", steps: [] },
-    posted: { text: "Posted to Slack.", steps: [] },
-    failed: {
-      text: "The last post to Slack stopped before it finished.",
-      steps: [
-        "Posting again resumes from the first message that did not arrive; the one message whose delivery was not confirmed may arrive twice.",
-      ],
-    },
-    unpostable: { text: "This article cannot be posted to Slack.", steps: [] },
-  },
-  publishReasons: {
-    mention: {
-      text: "The article contains a mention, which the server does not post.",
-      steps: [],
-    },
-    other: {
-      text: "The server's check before posting refused the article.",
-      steps: [],
-    },
-    webhook: {
-      text: "Slack did not confirm that it received a message.",
-      steps: [],
-    },
-    internal: {
-      text: "The posting job ended abnormally.",
-      steps: ["Check the server log."],
-    },
-  },
   viewer: {
     sending: { text: "Sending the request to the server...", steps: [] },
     loading: { text: "Loading the article's status...", steps: [] },
@@ -309,7 +232,7 @@ export const en: Catalog = {
     running: "Generating the article",
     lost: {
       text: "The server no longer has this article: it restarted, or dropped the article from its cache.",
-      steps: [sendAgainStep, repeatedPostStep],
+      steps: [sendAgainStep],
     },
     existing: {
       text: "This viewer shows an existing article of the same video. It was not generated from your current selection.",
@@ -318,16 +241,11 @@ export const en: Catalog = {
         `If the popup offers a choice, choose "${generateFromSelectionButton}".`,
       ],
     },
-    webhookNotConfigured: {
-      text: "The server has no Slack Webhook configured.",
-      steps: [setWebhookStep],
-    },
     videoLink: "Open the video on YouTube",
     elapsed: "Elapsed",
     duration: "Time taken",
     cost: "Estimated cost",
     costUnknown: "Unknown",
-    publish: "Post to Slack",
     save: "Save as .md",
     saved: "The download started.",
     copy: "Copy Markdown",

@@ -192,7 +192,7 @@ describe("catalogs", () => {
       const { messages, labels } = entries(catalogs[locale]);
       // Precondition: the walk reached the job API's sections too.
       assert.ok(messages.has("startExchange.noResponse"));
-      assert.ok(labels.has("viewer.publish"));
+      assert.ok(labels.has("viewer.save"));
       for (const [path, message] of messages) {
         assert.doesNotMatch(textOf(message), forbiddenWords[locale], path);
       }
@@ -241,12 +241,6 @@ describe("catalogs", () => {
       for (const [path, message] of checked) {
         assert.doesNotMatch(textOf(message), slackWord, path);
       }
-      // The scan reaches the wording: the publish messages may name Slack, and do.
-      assert.ok(
-        Object.values(catalog.publishStates).some((message) =>
-          slackWord.test(textOf(message)),
-        ),
-      );
     });
   }
 });

@@ -139,8 +139,6 @@ describe("viewer.html skeleton", () => {
         "div#state-status",
         "section#article",
         "section#actions",
-        "button#publish",
-        "div#publish-row",
         "button#save",
         "button#copy",
         "div#action-status",
@@ -168,7 +166,7 @@ describe("viewer.html skeleton", () => {
 
   it("starts with native buttons disabled and the link opening a new tab without the opener or referrer", () => {
     const doc = viewerDocument();
-    for (const id of ["publish", "save", "copy"]) {
+    for (const id of ["save", "copy"]) {
       const button = doc.getElementById(id);
       assert.equal(button?.tagName.toLowerCase(), "button", id);
       assert.equal(button?.getAttribute("type"), "button", id);

@@ -304,7 +304,7 @@ describe("primaryAction and secondaryAction", () => {
     ],
     [
       "a done job",
-      { kind: "job", job: doneJob({ state: "not_posted" }), notice: none },
+      { kind: "job", job: doneJob, notice: none },
       "open-viewer",
       "none",
     ],

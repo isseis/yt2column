@@ -1,11 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import {
-  publishRejectStatus,
-  startRejectStatus,
-  statusRejectStatus,
-} from "../src/core/response.ts";
+import { startRejectStatus, statusRejectStatus } from "../src/core/response.ts";
 import type { ServerRejectReason } from "../src/core/response.ts";
 import { developmentDoc } from "./helpers/developmentDoc.ts";
 import { cells, readRepoFile } from "./helpers/repoFile.ts";
@@ -66,16 +62,11 @@ function documentedFixedMessageReasons(): Map<string, number> {
 const serverRejectStatus: Record<ServerRejectReason, number> = {
   ...startRejectStatus,
   ...statusRejectStatus,
-  ...publishRejectStatus,
 };
 
 describe("server reasons match the development guide", () => {
   it("gives a reason the same status code in every operation", () => {
-    for (const table of [
-      startRejectStatus,
-      statusRejectStatus,
-      publishRejectStatus,
-    ]) {
+    for (const table of [startRejectStatus, statusRejectStatus]) {
       for (const [reason, status] of Object.entries(table)) {
         assert.equal(
           serverRejectStatus[reason as ServerRejectReason],

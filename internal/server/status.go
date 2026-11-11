@@ -23,20 +23,18 @@ const maxStatusResponseBytes = 256 << 10
 // identifier the server generated, a number, a boolean, or, for a done
 // article, the article's strings and the neutralized heading values.
 type statusResponse struct {
-	Status            string    `json:"status"`
-	RequestID         string    `json:"requestId"`
-	WebhookConfigured bool      `json:"webhookConfigured"`
-	Job               statusJob `json:"job"`
+	Status    string    `json:"status"`
+	RequestID string    `json:"requestId"`
+	Job       statusJob `json:"job"`
 }
 
 // statusJob is the job member. Which members it carries depends on State: none
-// for unknown, Steps for running, Steps, Article, and Publish for done, and
-// Steps and Failure for failed.
+// for unknown, Steps for running, Steps and Article for done, and Steps and
+// Failure for failed.
 type statusJob struct {
 	State   string         `json:"state"`
 	Steps   *statusSteps   `json:"steps,omitempty"`
 	Article *statusArticle `json:"article,omitempty"`
-	Publish *statusPublish `json:"publish,omitempty"`
 	Failure string         `json:"failure,omitempty"`
 }
 
@@ -68,15 +66,8 @@ type statusCost struct {
 	USD   string `json:"usd,omitempty"`
 }
 
-// statusPublish is a done article's publish state, with its reason for the
-// failed and unpostable states.
-type statusPublish struct {
-	State  string `json:"state"`
-	Reason string `json:"reason,omitempty"`
-}
-
 // The codes more than one set shares: a job and a step are both running,
-// done, or failed, and a post can fail too.
+// done, or failed.
 const (
 	codeRunning = "running"
 	codeDone    = "done"
@@ -94,7 +85,7 @@ const (
 // it renders the article's neutralized Markdown, heading values, and file
 // with the publisher's functions; their error is returned, which for an
 // article the completion check passed means an implementation mistake.
-func renderStatus(requestID string, webhookConfigured bool, snap articlecache.Snapshot) ([]byte, error) {
+func renderStatus(requestID string, snap articlecache.Snapshot) ([]byte, error) {
 	job := statusJob{State: jobStateCode(snap.State)}
 	switch snap.State {
 	case articlecache.JobRunning:
@@ -106,7 +97,6 @@ func renderStatus(requestID string, webhookConfigured bool, snap articlecache.Sn
 		}
 		job.Steps = stepsStatus(snap.Stages)
 		job.Article = article
-		job.Publish = publishStatus(snap)
 	case articlecache.JobFailed:
 		job.Steps = stepsStatus(snap.Stages)
 		job.Failure = failureCode(snap.Failure)
@@ -114,10 +104,9 @@ func renderStatus(requestID string, webhookConfigured bool, snap articlecache.Sn
 		// An unknown key carries no member but its state.
 	}
 	data, err := json.Marshal(statusResponse{
-		Status:            "ok",
-		RequestID:         requestID,
-		WebhookConfigured: webhookConfigured,
-		Job:               job,
+		Status:    "ok",
+		RequestID: requestID,
+		Job:       job,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("marshal the status response: %w", err)
@@ -137,8 +126,8 @@ func stepsStatus(st articlecache.Stages) *statusSteps {
 // articleStatus renders a done article's member. The Markdown, the video
 // title, and the channel name have their mentions neutralized, so neither the
 // copy nor a selection of the Viewer's page pastes a mention; the file is not
-// changed. The cost is formatted by the function the --out file and the Slack
-// footnote use, so the three agree.
+// changed. The cost is formatted by the function the --out file uses, so the
+// two agree.
 func articleStatus(a writer.Article, videoTitle string, duration time.Duration) (*statusArticle, error) {
 	display, err := publisher.NeutralizedDisplayMarkdown(a)
 	if err != nil {
@@ -163,27 +152,11 @@ func articleStatus(a writer.Article, videoTitle string, duration time.Duration) 
 	}, nil
 }
 
-// publishStatus returns a done record's publish state, with the reason the
-// state carries.
-func publishStatus(snap articlecache.Snapshot) *statusPublish {
-	p := &statusPublish{State: publishStateCode(snap.Publish)}
-	switch snap.Publish {
-	case articlecache.PublishUnpostable:
-		p.Reason = unpostableCode(snap.Unpostable)
-	case articlecache.PublishFailed:
-		p.Reason = publishFailureCode(snap.PublishFailure)
-	default:
-		// The other states carry no reason.
-	}
-	return p
-}
-
 // maxStatusSize returns the size of the longest status response a done record
 // of a, started with videoTitle, can get. The values other than the article
 // and the title that a response can carry vary only within fixed bounds, so
 // it renders a response with each of them at its longest: a request ID of the
-// generated length, a false webhookConfigured, the longest duration, every
-// step state, and every publish state with every reason. The article's
+// generated length, the longest duration, and every step state. The article's
 // strings, the title, and the cost do not change once they are stored, and
 // the rendering neutralizes the strings as a real response does, so the
 // bytes the neutralization adds are counted.
@@ -192,26 +165,17 @@ func maxStatusSize(a writer.Article, videoTitle string) (int, error) {
 	duration := time.Duration(math.MaxInt64)
 	largest := 0
 	for _, step := range articlecache.StageStates() {
-		for _, publish := range articlecache.PublishStates() {
-			for _, unpostable := range articlecache.UnpostableReasons() {
-				for _, publishFailure := range articlecache.PublishFailureReasons() {
-					data, err := renderStatus(requestID, false, articlecache.Snapshot{
-						State:          articlecache.JobDone,
-						Stages:         articlecache.Stages{Draft: step, Shorten: step, Review: step},
-						Article:        a,
-						VideoTitle:     videoTitle,
-						Duration:       duration,
-						Publish:        publish,
-						Unpostable:     unpostable,
-						PublishFailure: publishFailure,
-					})
-					if err != nil {
-						return 0, err
-					}
-					largest = max(largest, len(data))
-				}
-			}
+		data, err := renderStatus(requestID, articlecache.Snapshot{
+			State:      articlecache.JobDone,
+			Stages:     articlecache.Stages{Draft: step, Shorten: step, Review: step},
+			Article:    a,
+			VideoTitle: videoTitle,
+			Duration:   duration,
+		})
+		if err != nil {
+			return 0, err
 		}
+		largest = max(largest, len(data))
 	}
 	return largest, nil
 }
@@ -266,45 +230,6 @@ func failureCode(r articlecache.FailureReason) string {
 		return "article_invalid"
 	case articlecache.FailureArticleTooLarge:
 		return "article_too_large"
-	default:
-		return "internal"
-	}
-}
-
-// publishStateCode returns the code of a publish state. A value outside the
-// enumeration is unpostable, which neither sends nor claims a delivery.
-func publishStateCode(s articlecache.PublishState) string {
-	switch s {
-	case articlecache.PublishNotPosted:
-		return "not_posted"
-	case articlecache.PublishPosting:
-		return "posting"
-	case articlecache.PublishPosted:
-		return "posted"
-	case articlecache.PublishFailed:
-		return codeFailed
-	default:
-		return "unpostable"
-	}
-}
-
-// unpostableCode returns the code of an unpostable reason. A value outside the
-// enumeration is other.
-func unpostableCode(r articlecache.UnpostableReason) string {
-	switch r {
-	case articlecache.UnpostableMention:
-		return "mention"
-	default:
-		return "other"
-	}
-}
-
-// publishFailureCode returns the code of a publish failure reason. A value
-// outside the enumeration is internal.
-func publishFailureCode(r articlecache.PublishFailureReason) string {
-	switch r {
-	case articlecache.PublishFailureWebhook:
-		return "webhook"
 	default:
 		return "internal"
 	}

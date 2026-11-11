@@ -396,7 +396,6 @@ const doneJob: Json = {
   state: "done",
   steps: doneSteps,
   article,
-  publish: { state: "not_posted" },
 };
 const failedJob: Json = {
   state: "failed",
@@ -406,10 +405,7 @@ const failedJob: Json = {
 
 /** The host's reply to a status query that found job. */
 function statusReply(job: Json): NativeReply {
-  return responseReply(
-    200,
-    JSON.stringify({ status: "ok", requestId, webhookConfigured: true, job }),
-  );
+  return responseReply(200, JSON.stringify({ status: "ok", requestId, job }));
 }
 
 /** A popup pressed once whose start was accepted with the viewer in tab viewerTabId. */
@@ -1046,7 +1042,7 @@ describe("popup job states", () => {
       checksText(popup),
       drawnChecks(collected(launch), {
         kind: "job",
-        job: doneDisplay({ state: "not_posted" }),
+        job: doneDisplay,
         notice: { kind: "none" },
       }),
     );
@@ -1829,7 +1825,6 @@ describe("popup status log", () => {
               job: {
                 state: "done",
                 steps: doneSteps,
-                publish: { state: "not_posted" },
                 costKnown: true,
               },
             },

@@ -14,8 +14,8 @@ import {
 } from "./helpers/job.ts";
 
 /** A status the server returned for the job. */
-function ok(job: JobStatus, webhookConfigured = true): StatusOutcome {
-  return { kind: "ok", requestId, webhookConfigured, job };
+function ok(job: JobStatus): StatusOutcome {
+  return { kind: "ok", requestId, job };
 }
 
 const running: JobDisplay = { kind: "running", steps: runningSteps };
@@ -33,53 +33,11 @@ describe("afterStatus", () => {
       step: { decision: "continue", job: running, notice: { kind: "none" } },
     },
     {
-      name: "a done article that is posting continues",
-      previous: doneJob({ state: "not_posted" }),
-      outcome: ok({
-        state: "done",
-        steps: doneSteps,
-        article,
-        publish: { state: "posting" },
-      }),
-      step: {
-        decision: "continue",
-        job: doneJob({ state: "posting" }),
-        notice: { kind: "none" },
-      },
-    },
-    {
-      name: "a done article not posting stops, with its Webhook setting",
+      name: "a done article stops",
       previous: running,
-      outcome: ok(
-        {
-          state: "done",
-          steps: doneSteps,
-          article,
-          publish: { state: "posted" },
-        },
-        false,
-      ),
-      step: {
-        decision: "stop",
-        job: doneJob({ state: "posted" }, false),
-        notice: { kind: "none" },
-      },
+      outcome: ok({ state: "done", steps: doneSteps, article }),
+      step: { decision: "stop", job: doneJob, notice: { kind: "none" } },
     },
-    ...(
-      [
-        { state: "not_posted" },
-        { state: "failed", reason: "webhook" },
-        { state: "unpostable", reason: "mention" },
-      ] as const
-    ).map((publish) => ({
-      name: `a done article ${publish.state} stops`,
-      outcome: ok({ state: "done", steps: doneSteps, article, publish }),
-      step: {
-        decision: "stop" as const,
-        job: doneJob(publish),
-        notice: { kind: "none" as const },
-      },
-    })),
     {
       name: "a failed job stops",
       previous: running,
@@ -115,7 +73,7 @@ describe("afterStatus", () => {
     },
     {
       name: "an unknown job after a done article keeps the article",
-      previous: doneJob({ state: "posted" }),
+      previous: doneJob,
       outcome: ok({ state: "unknown" }),
       step: {
         decision: "stop",

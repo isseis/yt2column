@@ -11,12 +11,10 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -24,8 +22,6 @@ import (
 
 	"github.com/isseis/yt2column/internal/config"
 	"github.com/isseis/yt2column/internal/llm"
-	"github.com/isseis/yt2column/internal/publisher"
-	"github.com/isseis/yt2column/internal/secret"
 	"github.com/isseis/yt2column/internal/server"
 	"github.com/isseis/yt2column/internal/signalrun"
 	"github.com/isseis/yt2column/internal/udstest"
@@ -110,10 +106,7 @@ const (
 // HOME, and GODEBUG, is left out; the test sets what the child needs.
 var childEnvAllowlist = []string{"PATH", "TMPDIR"}
 
-var (
-	errBlockExpired      = errors.New("the blocking fake reached its lifetime")
-	errUnexpectedWebhook = errors.New("run passed a webhook URL other than the configured one")
-)
+var errBlockExpired = errors.New("the blocking fake reached its lifetime")
 
 // serverEnv is the setting of one server: its environment (HOME, from which
 // the configuration file's path and the socket path are derived, and GODEBUG)
@@ -326,99 +319,14 @@ func reviewLLM() llm.LLMClient {
 	})
 }
 
-// nopPublisher is a Webhook publisher that accepts every post and sends
-// nothing.
-type nopPublisher struct{}
-
-// PostMessages implements server.WebhookPublisher.
-func (nopPublisher) PostMessages(context.Context, publisher.SlackMessages, int, func(int)) error {
-	return nil
-}
-
-// testDeps returns deps that build client for generation, a review client
-// that revises nothing, and a publisher that sends nothing, so no test reaches
-// the LLM API or the webhook the environment names.
+// testDeps returns deps that build client for generation and a review client
+// that revises nothing, so no test reaches the LLM API.
 func testDeps(client llm.LLMClient) deps {
 	return deps{
 		newLLMClient:       func(config.LLMConfig) (llm.LLMClient, error) { return client, nil },
 		newReviewLLMClient: func(config.LLMConfig) (llm.LLMClient, error) { return reviewLLM(), nil },
 		newWriter:          writer.NewProgressWriter,
-		newPublisher:       func(secret.Secret) (server.WebhookPublisher, error) { return nopPublisher{}, nil },
 	}
-}
-
-// loopbackDeps returns testDeps(client) with the real SlackWebhookPublisher
-// posting to serverURL, a loopback webhook. It is built here, in the test
-// goroutine, because its constructor may fail t; the deps return it after
-// checking that run passes the configured webhook URL. The endpoint keeps the
-// configured path, so it carries the same secret path the server redacts.
-func loopbackDeps(t *testing.T, client llm.LLMClient, serverURL string) deps {
-	t.Helper()
-	endpoint := serverURL + testWebhookPath
-	pub := publisher.NewSlackWebhookPublisherForLoopbackTest(t, publisher.SlackTestOptions{Timeout: loopbackTimeout}, endpoint)
-	d := testDeps(client)
-	d.newPublisher = func(webhookURL secret.Secret) (server.WebhookPublisher, error) {
-		if err := requireTestWebhook(webhookURL); err != nil {
-			return nil, err
-		}
-		return pub, nil
-	}
-	return d
-}
-
-// requireTestWebhook reports errUnexpectedWebhook unless webhookURL is
-// testWebhook, the value the test environment configures.
-func requireTestWebhook(webhookURL secret.Secret) error {
-	if value, err := webhookURL.Reveal(); err != nil || value != testWebhook {
-		return errUnexpectedWebhook
-	}
-	return nil
-}
-
-// webhookServer is a loopback webhook that records the text of every message
-// it receives and answers 200 "ok".
-type webhookServer struct {
-	mu    sync.Mutex
-	texts []string
-}
-
-// newWebhookServer starts a webhookServer and returns it with its URL.
-func newWebhookServer(t *testing.T) (*webhookServer, string) {
-	t.Helper()
-	w := &webhookServer{}
-	srv := httptest.NewServer(w)
-	t.Cleanup(srv.Close)
-	return w, srv.URL
-}
-
-// ServeHTTP records the message and answers it.
-func (s *webhookServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	var payload struct {
-		Text string `json:"text"`
-	}
-	body, _ := io.ReadAll(r.Body)
-	_ = json.Unmarshal(body, &payload)
-	s.mu.Lock()
-	s.texts = append(s.texts, payload.Text)
-	s.mu.Unlock()
-	_, _ = io.WriteString(w, "ok")
-}
-
-// messages returns the text of every message received so far.
-func (s *webhookServer) messages() []string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return slices.Clone(s.texts)
-}
-
-// containsAll reports whether s contains every string in subs.
-func containsAll(s string, subs []string) bool {
-	for _, sub := range subs {
-		if !strings.Contains(s, sub) {
-			return false
-		}
-	}
-	return true
 }
 
 // apiResponse is the JSON body the server answers with a rejection.
@@ -460,9 +368,6 @@ type jobResponse struct {
 			ChannelName         *string `json:"channelName"`
 			File                string  `json:"file"`
 		} `json:"article"`
-		Publish *struct {
-			State string `json:"state"`
-		} `json:"publish"`
 	} `json:"job"`
 }
 
@@ -498,23 +403,6 @@ func waitJobDone(t *testing.T, path, key string) jobResponse {
 		resp := doJobs(t, path, http.MethodGet, server.JobsPath+"/"+key, nil, http.StatusOK)
 		if resp.Job.State != "running" || time.Now().After(deadline) {
 			return resp
-		}
-		time.Sleep(pollInterval)
-	}
-}
-
-// waitPublished polls the status of key on the socket at path until its
-// article is no longer posting, and returns its publish state.
-func waitPublished(t *testing.T, path, key string) string {
-	t.Helper()
-	deadline := time.Now().Add(blockLifetime)
-	for {
-		resp := doJobs(t, path, http.MethodGet, server.JobsPath+"/"+key, nil, http.StatusOK)
-		if resp.Job.Publish == nil {
-			t.Fatalf("job = %+v, want a done article with a publish state", resp.Job)
-		}
-		if resp.Job.Publish.State != "posting" || time.Now().After(deadline) {
-			return resp.Job.Publish.State
 		}
 		time.Sleep(pollInterval)
 	}

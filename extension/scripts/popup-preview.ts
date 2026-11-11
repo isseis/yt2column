@@ -41,7 +41,7 @@ import type { RejectionReason } from "../src/core/types.ts";
 import { jobArticle } from "../src/core/jobView.ts";
 import type { JobDisplay, PollNotice } from "../src/core/jobView.ts";
 import { classifyStatus, parseRequestId } from "../src/core/response.ts";
-import type { Article, PublishStatus, Steps } from "../src/core/response.ts";
+import type { Article, Steps } from "../src/core/response.ts";
 import { findPopupElements } from "../src/launch.ts";
 import { applyPageLocale } from "../src/ui/pageLocale.ts";
 import { renderPopup } from "../src/ui/render.ts";
@@ -278,7 +278,6 @@ function previewArticleFrom(): Article {
   const body = {
     status: "ok",
     requestId: previewRequestId,
-    webhookConfigured: true,
     job: {
       state: "done",
       steps: doneSteps,
@@ -291,7 +290,6 @@ function previewArticleFrom(): Article {
         cost: { state: "known", usd: "0.1234" },
         durationMs: 81_234,
       },
-      publish: { state: "not_posted" },
     },
   };
   const result = classifyStatus({
@@ -307,15 +305,11 @@ function previewArticleFrom(): Article {
 
 const previewArticle = previewArticleFrom();
 
-function doneJob(publish: PublishStatus, webhookConfigured = true): JobDisplay {
-  return {
-    kind: "done",
-    steps: doneSteps,
-    article: previewArticle,
-    publish,
-    webhookConfigured,
-  };
-}
+const doneJob: JobDisplay = {
+  kind: "done",
+  steps: doneSteps,
+  article: previewArticle,
+};
 
 /** A viewer state drawn on the shipped viewer.html, one file each. */
 export interface ViewerPreviewCase {
@@ -337,16 +331,14 @@ function jobView(job: JobDisplay, elapsedMs = 0): ViewerView {
   return {
     state: { kind: "job", job, notice: { kind: "none" } },
     elapsedMs,
-    publishing: false,
     existing: false,
   };
 }
 
 /**
- * Every viewer state kind, every job kind and every row of the publish
- * button's table, one page each; the running job also in Japanese, a loading
- * state whose polling stopped, a publish in flight, and an existing article's
- * running and done jobs in both locales.
+ * Every viewer state kind and every job kind, one page each; the running job
+ * also in Japanese, a loading state whose polling stopped, and an existing
+ * article's running and done jobs in both locales.
  */
 export const viewerPreviewCases: readonly ViewerPreviewCase[] = [
   {
@@ -355,7 +347,6 @@ export const viewerPreviewCases: readonly ViewerPreviewCase[] = [
     view: {
       state: { kind: "invalid-link" },
       elapsedMs: 0,
-      publishing: false,
       existing: false,
     },
   },
@@ -366,7 +357,6 @@ export const viewerPreviewCases: readonly ViewerPreviewCase[] = [
     view: {
       state: { kind: "sending" },
       elapsedMs: 0,
-      publishing: false,
       existing: false,
     },
   },
@@ -377,7 +367,6 @@ export const viewerPreviewCases: readonly ViewerPreviewCase[] = [
     view: {
       state: { kind: "start-failed", failure: { kind: "no-result" } },
       elapsedMs: 0,
-      publishing: false,
       existing: false,
     },
   },
@@ -388,7 +377,6 @@ export const viewerPreviewCases: readonly ViewerPreviewCase[] = [
     view: {
       state: { kind: "loading", notice: { kind: "none" } },
       elapsedMs: 0,
-      publishing: false,
       existing: false,
     },
   },
@@ -405,7 +393,6 @@ export const viewerPreviewCases: readonly ViewerPreviewCase[] = [
         },
       },
       elapsedMs: 0,
-      publishing: false,
       existing: false,
     },
   },
@@ -438,46 +425,10 @@ export const viewerPreviewCases: readonly ViewerPreviewCase[] = [
     view: jobView({ kind: "lost", kept: previewArticle }),
   },
   {
-    name: "viewer-posted-en",
+    name: "viewer-done-en",
     locale: "en",
     header: viewerHeader,
-    view: jobView(doneJob({ state: "posted" })),
-  },
-  {
-    name: "viewer-posting-en",
-    locale: "en",
-    header: viewerHeader,
-    view: jobView(doneJob({ state: "posting" })),
-  },
-  {
-    name: "viewer-unpostable-en",
-    locale: "en",
-    header: viewerHeader,
-    view: jobView(doneJob({ state: "unpostable", reason: "mention" })),
-  },
-  {
-    name: "viewer-webhook-not-configured-en",
-    locale: "en",
-    header: viewerHeader,
-    view: jobView(doneJob({ state: "not_posted" }, false)),
-  },
-  {
-    name: "viewer-publish-failed-en",
-    locale: "en",
-    header: viewerHeader,
-    view: jobView(doneJob({ state: "failed", reason: "webhook" })),
-  },
-  {
-    name: "viewer-publishing-en",
-    locale: "en",
-    header: viewerHeader,
-    view: { ...jobView(doneJob({ state: "not_posted" })), publishing: true },
-  },
-  {
-    name: "viewer-not-posted-en",
-    locale: "en",
-    header: viewerHeader,
-    view: jobView(doneJob({ state: "not_posted" })),
+    view: jobView(doneJob),
   },
   // A viewer of an existing article of the same video (its URL holds e=1),
   // running and done, in both locales.
@@ -495,7 +446,7 @@ export const viewerPreviewCases: readonly ViewerPreviewCase[] = [
       name: `viewer-existing-done-${locale}`,
       locale,
       header: viewerHeader,
-      view: { ...jobView(doneJob({ state: "not_posted" })), existing: true },
+      view: { ...jobView(doneJob), existing: true },
     },
   ]),
 ];
@@ -668,7 +619,7 @@ export const popupJobPreviewCases: readonly PopupJobPreviewCase[] = [
     locale: "en",
     state: {
       kind: "job",
-      job: doneJob({ state: "not_posted" }),
+      job: doneJob,
       notice: noNotice,
     },
     elapsedMs: 81_000,

@@ -879,11 +879,6 @@ func TestRelayNewFormOperations(t *testing.T) {
 			method: http.MethodGet, requestURI: "/jobs/" + key,
 		},
 		{
-			name: "publish", msg: `{"v":1,"op":"publish","key":"` + key + `"}`, op: "publish",
-			method: http.MethodPost, requestURI: "/jobs/" + key + "/publish",
-			contentLength: "0",
-		},
-		{
 			// The version member's name is written with an escape.
 			name: "escaped version name", msg: `{"\u0076":1,"op":"status","key":"` + key + `"}`, op: "status",
 			method: http.MethodGet, requestURI: "/jobs/" + key,
@@ -962,8 +957,6 @@ func TestRelayNewFormRejections(t *testing.T) {
 		{"start input null", `{"v":1,"op":"start","input":null}`, ruleInput},
 		{"status without key", `{"v":1,"op":"status"}`, ruleMembers},
 		{"status with input", `{"v":1,"op":"status","key":"k","input":{}}`, ruleMembers},
-		{"publish without key", `{"v":1,"op":"publish"}`, ruleMembers},
-		{"publish key not a string", `{"v":1,"op":"publish","key":1}`, ruleKey},
 		{"status key null", `{"v":1,"op":"status","key":null}`, ruleKey},
 		// The version is checked before the members, so a message with both
 		// faults breaks the version rule.
@@ -1012,7 +1005,6 @@ func TestRelayKeyPassedUnchecked(t *testing.T) {
 	for name, key := range keys {
 		for _, op := range []struct{ name, method, suffix string }{
 			{"status", http.MethodGet, ""},
-			{"publish", http.MethodPost, "/publish"},
 		} {
 			t.Run(name+"/"+op.name, func(t *testing.T) {
 				path, got := recordingServer(t, []byte("{}"))
@@ -1047,10 +1039,8 @@ func TestRelayKeyPassedUnchecked(t *testing.T) {
 // answers ends with server_timeout after exactly one request. The status
 // request is TestRelayHostErrors' "server never answers" row.
 func TestRelayNewFormTimeout(t *testing.T) {
-	const key = testKey
 	for _, msg := range []string{
 		`{"v":1,"op":"start","input":{"videoUrl":"x","transcript":"y"}}`,
-		`{"v":1,"op":"publish","key":"` + key + `"}`,
 	} {
 		t.Run(msg, func(t *testing.T) {
 			var requests atomic.Int32
@@ -1077,7 +1067,6 @@ func TestRelayNewFormLogOmitsMessage(t *testing.T) {
 	tests := []struct{ name, msg, want string }{
 		{"start input", `{"v":1,"op":"start","input":{"transcript":"` + marker + `","` + marker + `":1}}`, "op=start"},
 		{"status key", `{"v":1,"op":"status","key":"` + marker + `"}`, "op=status"},
-		{"publish key", `{"v":1,"op":"publish","key":"` + marker + `"}`, "op=publish"},
 		{"unknown operation", `{"v":1,"op":"` + marker + `","key":"k"}`, "rule=operation"},
 		{"undeclared member", `{"v":1,"op":"status","key":"k","` + marker + `":1}`, "rule=members"},
 		{"version missing", `{"op":"status","key":"` + marker + `"}`, "rule=version"},
@@ -1105,7 +1094,7 @@ func TestRelayNewFormLogOmitsMessage(t *testing.T) {
 func TestRequestRefusesUnroutable(t *testing.T) {
 	for _, dest := range []destination{
 		{},
-		{op: OperationPublish + 1, key: "k"},
+		{op: OperationStatus + 1, key: "k"},
 		{op: -1, body: []byte("{}")},
 	} {
 		if req, err := dest.request(context.Background()); req != nil || !errors.Is(err, errUnroutable) {
