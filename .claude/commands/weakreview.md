@@ -67,8 +67,8 @@ to GitHub and never pushes.
    so it is never passed on.
    - No range: run `git fetch origin main`; RANGE is
      `$(git merge-base origin/main HEAD)..$(git rev-parse HEAD)`.
-   Match `...` before `..`. An end left out of a range (`HEAD~3..`) is
-   `HEAD`, as in `git log`.
+   - Match `...` before `..`. An end left out of a range (`HEAD~3..`) is
+     `HEAD`, as in `git log`.
    - `<A>..<B>`: resolve each end with
      `git rev-parse --verify --end-of-options '<A>^{commit}'` (the same for
      `<B>`); RANGE is `<A's ID>..<B's ID>`.
@@ -89,7 +89,7 @@ to GitHub and never pushes.
    none, RANGE's `<head>` is `HEAD`, and the current branch's name follows the
    feature branch name convention (`_context.md`), the task is the directory
    under `docs/tasks/` whose name, with each `_` replaced by `-`, equals the
-   name's `<slug>`; a range that does not end at `HEAD` says nothing about the
+   name's `<slug>`, when exactly one does; a range that does not end at `HEAD` says nothing about the
    current branch. Otherwise apply its rules 2 and 3. TASK_DIR is the task
    directory's repository-relative path (such as
    `docs/tasks/0081_implementation_model_choice`).
@@ -124,8 +124,8 @@ to GitHub and never pushes.
      `_lib/pr-review-escalation.md`.
 
    When `gh pr view` fails, for any reason (a branch with no PR also makes it
-   fail), add the note all the same and report that the PR's state could not
-   be checked.
+   fail), report that the PR's state could not be checked, and add the note
+   all the same, introduced as applying if a PR is open for the branch.
 
 7. **Report** in Japanese: RANGE and TASK_DIR, the outputs of
    `_lib/opus-review.md` (OUTCOME, FINDINGS grouped by severity, KEPT,

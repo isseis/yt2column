@@ -50,13 +50,13 @@ Opus" below uses it.
 past without fixing:
 
 ```text
-Opus review: kept <path>[:<line>] (<severity>; <reason>)[ <summary>]
+Opus review: kept <path>:<line> (<severity>; <reason>)[ <summary>]
 ```
 
-- `<path>[:<line>]`: the finding's location, a repository-relative path and,
-  when the finding has one, a line number in the commit the finding was raised
-  on. A finding located in a commit message names the commit as
-  `commit:<START12>`, its ID cut to 12 characters.
+- `<path>:<line>`: the finding's location, a repository-relative path and a
+  line number in the commit the finding was raised on. A finding that names a
+  section or a checklist item but no line takes the line where that section or
+  item starts.
 - `<severity>`: `critical` or `major`.
 - `<reason>`: `rejected by human` (the human rejected the finding, "Fixing
   and verifying" below) or `decision change declined` (fixing it needed a
@@ -154,8 +154,9 @@ copy a subagent's text into a commit message, fix commits included.
 These are mechanical and cheaper than AI review — catch them here, not in the
 subagent pass. Run them over the changed files in RANGE, with RANGE and
 TASK_DIR put in for `<RANGE>` and `<TASK_DIR>`. First confirm that
-`<TASK_DIR>/03_implementation_plan.md` exists, and stop and report when it
-does not: Check 2 would otherwise find no document and print `OK`. Write the
+TASK_DIR is a directory (`test -d <TASK_DIR>`): with a bare directory name,
+Check 2 would find no document and print `OK`. When it is not, stop before
+the reviews and report the wrong TASK_DIR; the caller stops too. Write the
 block to a file in the scratchpad and run it with `bash <file>`, not in the
 session's shell: in zsh, the block's `path` variable would replace the command
 search path. The block's last line exits `1` when no Go file changed; that is
@@ -232,9 +233,10 @@ the verification review alike:
 - The pre-check FLAGs, to verify in context rather than re-derive.
 - RANGE, with the instruction to run `git diff <RANGE>` and `git log <RANGE>`
   itself.
-- The kept lines on the branch (`Opus review: kept` lines in
-  `git log <base>..HEAD`, which includes those committed during this run),
-  when there are any: a finding with the same gist near the
+- The kept lines, when there are any: the `Opus review: kept` lines in
+  `git log <base>..HEAD` when FIX is `fix` (this run's kept lines included),
+  and in `git log <RANGE>` when FIX is `report`, which commits nothing and may
+  run on a branch other than the range's: a finding with the same gist near the
   same place in the same file was already decided by the human and is not
   raised again. Fixes shift line numbers, so a matching location alone does
   not decide it.
