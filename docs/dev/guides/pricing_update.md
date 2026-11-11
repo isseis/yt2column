@@ -39,4 +39,4 @@
 - README の「出力の書式」の Slack への投稿の例と、[cli.md の「`--out` のファイル」](cli.md#--out-のファイル)の例は、料金表から求めた推定額（`0.0094`）を示している。`TestOutputLayoutDocsContract` が実際の出力と比べるので、料金が変われば、2 つの例の金額を更新するまでそのテストは失敗する。
 - README の「設定」の節と `project_overview.md` はモデルの名前を挙げているので、対応するモデルが増減したときだけ更新が必要になる。
 
-`package_reference.md` の `internal/pricing` の行は、パッケージが公開する型を列挙している。料金の変更では変えない。この行が古くなっていないかは、PR のレビューで読んで確かめる。
+`package_reference.md` の `internal/pricing` の行は、パッケージの責務と、主な公開の名前（`Estimate`・`Totals`・`Amount`・`RateBasis`・`UnknownReason`）を挙げている。料金の変更では変えない。この行が古くなっていないかは、PR のレビューで読んで確かめる。
