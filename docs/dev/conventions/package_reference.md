@@ -86,7 +86,6 @@ add a kind here or to widen one of these definitions.
 | `internal/privatefile` | Reads and creates files only their owner may read: `Read`, `Create`, `MkdirBelow`; `*UnsafeError`, `ErrUnsafe`, `ErrNotExist`, `ErrExist`, `ErrTooLarge`, `ErrBaseMissing`. Rules: [security.md §8.2](../security.md). |
 | `internal/server` | The HTTP server on a Unix domain socket that serves the job API: `New`, `Serve`, `JobsPath`, `PublishSuffix`, `Options`, `WebhookOptions`. Rules: [security.md §8.2](../security.md); API: [development.md](../guides/development.md). |
 | `internal/serversock` | Prepares the server's Unix domain socket and start lock: `Acquire`, `Lock`, `ErrAlreadyRunning`, `ErrInUse`, `*UnsafeError`. Rules: [security.md §8.2](../security.md). |
-| `internal/slackwebhook` | The rule a Slack-compatible Incoming Webhook URL must meet (`ValidURL`) and the parts that must never appear in output (`SensitiveParts`). |
 
 ## LLM
 

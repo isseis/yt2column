@@ -471,7 +471,7 @@ func TestModeRejectionChmodCommand(t *testing.T) {
 	}
 }
 
-// TestServerIgnoresEnvSettings checks that the seven keys and the retired LLM
+// TestServerIgnoresEnvSettings checks that the six keys and the retired LLM
 // variables in the environment, empty or not, neither stop the server nor
 // show up on its standard error, and that a key only the environment holds
 // counts as not set in the configuration file.

@@ -21,9 +21,6 @@ import (
 // tests derive them from the code instead of copying them. Built only with the
 // test tag.
 
-// SlackWebhookEnvForTest is the environment variable naming the Webhook URL.
-func SlackWebhookEnvForTest() string { return slackEnv }
-
 // CacheDirEnvForTest is the environment variable naming the cache directory,
 // which LoadServer does not read.
 func CacheDirEnvForTest() string { return cacheDirEnv }

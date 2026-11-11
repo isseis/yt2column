@@ -65,17 +65,17 @@ func TestParseServerFileAccepts(t *testing.T) {
 		{
 			name: "every key",
 			data: "YT2COLUMN_LLM=deepseek/deepseek-flash\nYT2COLUMN_REVIEW_LLM=claude/claude-opus-5-5+low\n" +
-				"DEEPSEEK_API_KEY=d\nANTHROPIC_API_KEY=a\nOPENAI_API_KEY=o\nANTHROPIC_WORKSPACE_ID=w\nSLACK_WEBHOOK_URL=https://example.com/h\n",
+				"DEEPSEEK_API_KEY=d\nANTHROPIC_API_KEY=a\nOPENAI_API_KEY=o\nANTHROPIC_WORKSPACE_ID=w\n",
 			want: map[string]string{
 				"YT2COLUMN_LLM": "deepseek/deepseek-flash", "YT2COLUMN_REVIEW_LLM": "claude/claude-opus-5-5+low",
 				"DEEPSEEK_API_KEY": "d", "ANTHROPIC_API_KEY": "a", "OPENAI_API_KEY": "o",
-				"ANTHROPIC_WORKSPACE_ID": "w", "SLACK_WEBHOOK_URL": "https://example.com/h",
+				"ANTHROPIC_WORKSPACE_ID": "w",
 			},
 		},
 		{
 			name: "hash without a space and equals signs are part of the value",
-			data: "SLACK_WEBHOOK_URL=https://example.com/hook#x=y\n",
-			want: map[string]string{"SLACK_WEBHOOK_URL": "https://example.com/hook#x=y"},
+			data: "OPENAI_API_KEY=sk-o#x=y\n",
+			want: map[string]string{"OPENAI_API_KEY": "sk-o#x=y"},
 		},
 		{
 			name: "a space inside the value is kept",
@@ -125,7 +125,7 @@ func TestParseServerFileRejects(t *testing.T) {
 	// Three lines before the rejected one, so the line number counts them;
 	// one is an accepted setting, so a rejected file that still returned
 	// accepted values would be detected.
-	const prefix = "# header\n\nSLACK_WEBHOOK_URL=https://example.com/h\n"
+	const prefix = "# header\n\nOPENAI_API_KEY=o\n"
 	cases := []struct {
 		name       string
 		data       string

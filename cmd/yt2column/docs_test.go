@@ -515,15 +515,13 @@ func checkConfigBlock(t *testing.T, docName, sectionName, section string, want [
 
 // docsProfileEnv is the closed set of settings the documentation guards load
 // the server configuration from, through config.ServerLookupForTest, which
-// writes the keys to the configuration file under the HOME: a dummy API key,
-// a dummy Webhook URL under the reserved .invalid domain, and a fresh short
-// HOME, because the socket path derived from it must fit the operating
-// system's limit. No key of the process environment reaches LoadServer
-// through it.
+// writes the keys to the configuration file under the HOME: a dummy API key
+// and a fresh short HOME, because the socket path derived from it must fit
+// the operating system's limit. No key of the process environment reaches
+// LoadServer through it.
 func docsProfileEnv(t *testing.T) map[string]string {
 	return map[string]string{
 		config.AnthropicAPIKeyEnvForTest(): "docs-test-api-key",
-		config.SlackWebhookEnvForTest():    "https://example.invalid/webhook",
 		"HOME":                             udstest.Dir(t),
 	}
 }

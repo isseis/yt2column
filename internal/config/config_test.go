@@ -36,7 +36,6 @@ func validEnv() map[string]string {
 	return map[string]string{
 		llmEnv:            "deepseek/deepseek-chat",
 		deepSeekAPIKeyEnv: "sk-test-key",
-		slackEnv:          "https://hooks.slack.com/services/T000/B000/XXXX",
 		cacheDirEnv:       "/tmp/yt2column-test-cache",
 		ytDlpEnv:          "/usr/local/bin/yt-dlp",
 	}
@@ -332,7 +331,6 @@ func TestLoadClaudeEffortDefault(t *testing.T) {
 	t.Run("LoadServer", func(t *testing.T) {
 		env := without(claudeBoth, cacheDirEnv)
 		env = with(env, "HOME", udstest.Dir(t))
-		env = with(env, slackEnv, "https://hooks.slack.com/services/T000/B000/XXXX")
 		cfg, err := LoadServer(ServerLookupForTest(t, env))
 		if err != nil {
 			t.Fatalf("LoadServer() error = %v, want nil", err)
@@ -913,8 +911,7 @@ func fileKey(want VarError, reason string) VarError {
 }
 
 // TestLoadServerValid checks that LoadServer loads the LLM settings, the
-// configured Webhook URL, the socket path derived from HOME, and the HTTP/2
-// debug flag. The OS-specific socket path rules are fixed by TestSocketPath.
+// socket path derived from HOME, and the HTTP/2 debug flag. The OS-specific socket path rules are fixed by TestSocketPath.
 func TestLoadServerValid(t *testing.T) {
 	env := with(validServerEnv(t), godebugEnv, "http2debug=1")
 	cfg, err := LoadServer(ServerLookupForTest(t, env))
@@ -926,17 +923,6 @@ func TestLoadServerValid(t *testing.T) {
 	}
 	if cfg.LLM().Generation().Model() != "deepseek-chat" {
 		t.Errorf("LLM().Generation().Model() = %q, want deepseek-chat", cfg.LLM().Generation().Model())
-	}
-	webhook, configured := cfg.WebhookURL()
-	if !configured {
-		t.Fatal("WebhookURL() reports unset, want set")
-	}
-	url, err := webhook.Reveal()
-	if err != nil {
-		t.Fatalf("WebhookURL().Reveal() error = %v", err)
-	}
-	if url != env[slackEnv] {
-		t.Errorf("WebhookURL() = %q, want %q", url, env[slackEnv])
 	}
 	if want := wantServerSocketPath(env["HOME"]); cfg.SocketPath() != want {
 		t.Errorf("SocketPath() = %q, want %q", cfg.SocketPath(), want)
@@ -963,74 +949,6 @@ func TestLoadServerLLMRejected(t *testing.T) {
 			_, err := LoadServer(ServerLookupForTest(t, with(validServerEnv(t), llmEnv, tc.value)))
 			assertVarErrors(t, err, tc.want)
 		})
-	}
-}
-
-// TestLoadServerWebhookOptional checks that an unset SLACK_WEBHOOK_URL is
-// accepted and reported as unconfigured, that an empty or invalid value is
-// rejected, and that neither rejection holds the value.
-func TestLoadServerWebhookOptional(t *testing.T) {
-	const mark = "MARK-SERVER-WEBHOOK-D4"
-	t.Run("unset", func(t *testing.T) {
-		env := without(validServerEnv(t), slackEnv)
-		cfg, err := LoadServer(ServerLookupForTest(t, env))
-		if err != nil {
-			t.Fatalf("LoadServer() error = %v, want nil", err)
-		}
-		if _, configured := cfg.WebhookURL(); configured {
-			t.Error("WebhookURL() reports set, want unset")
-		}
-		// The rest of the configuration is still loaded: the Webhook is the
-		// only value an unset variable leaves out.
-		if got, want := cfg.SocketPath(), wantServerSocketPath(env["HOME"]); got != want {
-			t.Errorf("SocketPath() = %q, want %q", got, want)
-		}
-	})
-	t.Run("empty", func(t *testing.T) {
-		_, err := LoadServer(ServerLookupForTest(t, with(validServerEnv(t), slackEnv, "")))
-		assertVarErrors(t, err, fileKey(wantMissing(slackEnv), reasonEmpty))
-	})
-	t.Run("invalid", func(t *testing.T) {
-		_, err := LoadServer(ServerLookupForTest(t, with(validServerEnv(t), slackEnv, "http://host/"+mark)))
-		assertVarError(t, err, ErrInvalid, slackEnv)
-		if strings.Contains(err.Error(), mark) {
-			t.Errorf("LoadServer() error = %q, contains the value mark %q", err, mark)
-		}
-	})
-}
-
-// TestServerConfigOutputRedactsWebhook checks that no rendering of a
-// ServerConfig holds the Webhook URL it carries.
-func TestServerConfigOutputRedactsWebhook(t *testing.T) {
-	const webhook = "https://hooks.slack.com/services/distinctive-webhook-7Lwz"
-	cfg, err := LoadServer(ServerLookupForTest(t, with(validServerEnv(t), slackEnv, webhook)))
-	if err != nil {
-		t.Fatalf("LoadServer() error = %v, want nil", err)
-	}
-	// Confirm the URL reached the ServerConfig before checking it is hidden,
-	// so the check cannot pass because the value was never stored.
-	if url, configured := cfg.WebhookURL(); !configured {
-		t.Fatal("WebhookURL() reports unset, want set")
-	} else if revealed, err := url.Reveal(); err != nil || revealed != webhook {
-		t.Fatalf("WebhookURL().Reveal() = %q, %v, want %q", revealed, err, webhook)
-	}
-
-	outputs := map[string]string{
-		"fmt %v":    fmt.Sprintf("%v", cfg),
-		"fmt %+v":   fmt.Sprintf("%+v", cfg),
-		"fmt %#v":   fmt.Sprintf("%#v", cfg),
-		"slog text": slogOutput(t, cfg, false),
-		"slog JSON": slogOutput(t, cfg, true),
-	}
-	data, err := json.Marshal(cfg) //nolint:staticcheck // no exported fields is the point
-	if err != nil {
-		t.Fatalf("json.Marshal(ServerConfig) error = %v", err)
-	}
-	outputs["json"] = string(data)
-	for name, out := range outputs {
-		if strings.Contains(out, webhook) {
-			t.Errorf("%s output contains the Webhook URL: %q", name, out)
-		}
 	}
 }
 
@@ -1529,7 +1447,6 @@ func TestLoadDefaultProviderVariables(t *testing.T) {
 func TestLoadServerLLMDefaults(t *testing.T) {
 	env := map[string]string{
 		"HOME":             udstest.Dir(t),
-		slackEnv:           "https://hooks.slack.com/services/T000/B000/XXXX",
 		anthropicAPIKeyEnv: "sk-ant-test-key",
 	}
 	cfg, err := LoadServer(ServerLookupForTest(t, env))
@@ -2152,22 +2069,16 @@ func serverEnvWithFile(t *testing.T, data []byte) map[string]string {
 }
 
 // serverView is the comparable part of a ServerConfig: the two selections,
-// the revealed keys, the workspace ID, and the revealed Webhook URL. viewLLM
-// fills all but the Webhook URL, which an LLMConfig does not hold.
+// the revealed keys, and the workspace ID.
 type serverView struct {
 	generation, review                LLMSelection
 	deepSeekKey, claudeKey, openAIKey string
 	workspaceID                       claudeparam.WorkspaceID
-	webhook                           string
 }
 
 // viewServer returns the comparable part of a ServerConfig.
 func viewServer(cfg ServerConfig) serverView {
-	v := viewLLM(cfg.LLM())
-	if url, ok := cfg.WebhookURL(); ok {
-		v.webhook, _ = url.Reveal()
-	}
-	return v
+	return viewLLM(cfg.LLM())
 }
 
 // viewLLM returns the comparable part of an LLMConfig.
@@ -2239,15 +2150,14 @@ func TestLoadServerReadsFile(t *testing.T) {
 
 // TestLoadServerValueRejections checks that the validation reports every
 // value it rejects, each marked as a configuration file key, and returns the
-// zero ServerConfig. It holds the requirements' examples, YT2COLUMN_LLM=Claude/x
-// and SLACK_WEBHOOK_URL=http://example.com/hook; the review stage selects
-// claude, so the missing Anthropic API key is reported too.
+// zero ServerConfig. It holds the requirements' example YT2COLUMN_LLM=Claude/x;
+// the review stage selects claude, so the missing Anthropic API key is
+// reported too.
 func TestLoadServerValueRejections(t *testing.T) {
 	file := map[string]string{
 		llmEnv:                  "Claude/x",
 		reviewLLMEnv:            "claude/",
 		anthropicWorkspaceIDEnv: "a b",
-		slackEnv:                "http://example.com/hook",
 	}
 	cfg, err := LoadServer(envLookup(serverEnvWithFile(t, ServerFileForTest(file))))
 	assertVarErrors(t, err,
@@ -2255,7 +2165,6 @@ func TestLoadServerValueRejections(t *testing.T) {
 		fileKey(wantInvalid(reviewLLMEnv, reasonLLMForm), ""),
 		fileKey(wantMissing(anthropicAPIKeyEnv), reasonNotSet),
 		fileKey(wantInvalid(anthropicWorkspaceIDEnv, reasonAnthropicWorkspaceID), ""),
-		fileKey(wantInvalid(slackEnv, reasonSlackWebhook), ""),
 	)
 	if got := viewServer(cfg); got != (serverView{}) || cfg.SocketPath() != "" {
 		t.Errorf("LoadServer() returned a non-zero ServerConfig on error: %+v", got)
@@ -2421,7 +2330,7 @@ func writeModeForTest(t *testing.T, path string, data []byte, mode os.FileMode) 
 
 // TestLoadServerReadsOnlyHomeAndGodebug checks that the server's load reads
 // HOME and GODEBUG from the environment, and no other variable, even when
-// the environment holds the seven keys and the retired LLM variables, which
+// the environment holds the six keys and the retired LLM variables, which
 // then leave the configuration as the file alone gives it.
 func TestLoadServerReadsOnlyHomeAndGodebug(t *testing.T) {
 	env := serverEnvWithFile(t, []byte(anthropicAPIKeyEnv+"=sk-ant-file\n"))
