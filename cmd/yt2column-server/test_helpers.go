@@ -62,12 +62,12 @@ const (
 )
 
 // Environment variables that switch the test binary into a server child
-// process (see TestMain) and tell the child's fake Webhook publisher where its
-// markers are.
+// process (see TestMain) and tell the child's blocking fake LLM client where
+// its markers are.
 const (
 	childModeEnv    = "YT2COLUMN_TEST_SERVER_MODE"
-	childReadyEnv   = "YT2COLUMN_TEST_POST_READY"
-	childReleaseEnv = "YT2COLUMN_TEST_POST_RELEASE"
+	childReadyEnv   = "YT2COLUMN_TEST_GENERATION_READY"
+	childReleaseEnv = "YT2COLUMN_TEST_GENERATION_RELEASE"
 )
 
 // Child modes.
@@ -76,9 +76,8 @@ const (
 	// signal handling main installs. No request is sent to it, so its real
 	// LLM client and publisher never send anything.
 	childModeMain = "main"
-	// childModeBlock runs signalrun.Run with an LLM client that succeeds at
-	// once and a Webhook publisher whose post waits until the test creates
-	// the release marker.
+	// childModeBlock runs signalrun.Run with an LLM client whose call waits
+	// until the test creates the release marker.
 	childModeBlock = "block"
 )
 
@@ -86,10 +85,10 @@ const (
 const childExitUnknownMode = 99
 
 const (
-	// blockLifetime caps how long the blocking fake publisher waits, so a
-	// leaked child's post job ends by itself (the child then keeps serving
-	// until the cleanup kills it). It is far longer than any bound a test
-	// waits for.
+	// blockLifetime caps how long the blocking fake LLM client waits, so a
+	// leaked child's generation job ends by itself (the child then keeps
+	// serving until the cleanup kills it). It is far longer than any bound a
+	// test waits for.
 	blockLifetime = 3 * time.Minute
 	// readyBound bounds a wait for a server to listen or a fake to signal
 	// readiness.
@@ -521,41 +520,37 @@ func waitPublished(t *testing.T, path, key string) string {
 	}
 }
 
-// generateAndPublish generates an article for requestBody(testValidRaw) on
-// the socket at path, waits until it is done, and sends its publish
-// operation, failing the test unless the operation is accepted.
-func generateAndPublish(t *testing.T, path string) {
+// startGeneration sends a generation start for requestBody(testValidRaw) to
+// the socket at path, failing the test unless it is accepted, and returns
+// the job's key.
+func startGeneration(t *testing.T, path string) string {
 	t.Helper()
-	started := doJobs(t, path, http.MethodPost, server.JobsPath, strings.NewReader(requestBody(testValidRaw)), http.StatusAccepted)
-	if done := waitJobDone(t, path, started.Key); done.Job.State != "done" {
-		t.Fatalf("job = %+v, want done", done.Job)
-	}
-	doJobs(t, path, http.MethodPost, server.JobsPath+"/"+started.Key+server.PublishSuffix, nil, http.StatusAccepted)
+	return doJobs(t, path, http.MethodPost, server.JobsPath, strings.NewReader(requestBody(testValidRaw)), http.StatusAccepted).Key
 }
 
-// blockingPublisher is a Webhook publisher whose post creates ready, then
-// waits until release exists, and then reports every message delivered. It
-// gives up after blockLifetime. It ignores its context, as the server never
-// cancels a post job's context.
-type blockingPublisher struct {
+// blockingLLM is an LLM client whose call creates ready, then waits until
+// release exists, ignoring its context as an LLM call already sent does, and
+// then returns the context's error, or a valid response when the context was
+// not canceled. It gives up after blockLifetime.
+type blockingLLM struct {
 	ready   string
 	release string
 }
 
-// PostMessages implements server.WebhookPublisher.
-func (b blockingPublisher) PostMessages(_ context.Context, m publisher.SlackMessages, from int, delivered func(int)) error {
+// Generate implements llm.LLMClient.
+func (b blockingLLM) Generate(ctx context.Context, _ llm.GenerateRequest) (llm.GenerateResponse, error) {
 	writeMarker(b.ready)
 	deadline := time.Now().Add(blockLifetime)
 	for time.Now().Before(deadline) {
 		if _, err := os.Stat(b.release); err == nil {
-			for i := from; i < m.Len(); i++ {
-				delivered(i)
+			if err := ctx.Err(); err != nil {
+				return llm.GenerateResponse{}, err
 			}
-			return nil
+			return validResponse(), nil
 		}
 		time.Sleep(pollInterval)
 	}
-	return errBlockExpired
+	return llm.GenerateResponse{}, errBlockExpired
 }
 
 // writeMarker creates path by renaming a temporary file, so a reader never
@@ -578,10 +573,7 @@ func runChildMode(mode string) int {
 		main()
 		return exitFailure // main exits; this line is never reached
 	case childModeBlock:
-		d := testDeps(validResponseLLM())
-		d.newPublisher = func(secret.Secret) (server.WebhookPublisher, error) {
-			return blockingPublisher{ready: os.Getenv(childReadyEnv), release: os.Getenv(childReleaseEnv)}, nil
-		}
+		d := testDeps(blockingLLM{ready: os.Getenv(childReadyEnv), release: os.Getenv(childReleaseEnv)})
 		return signalrun.Run(func(ctx context.Context) int {
 			return run(ctx, os.Args[1:], os.LookupEnv, os.Stderr, d)
 		})

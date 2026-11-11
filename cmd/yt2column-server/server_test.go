@@ -16,7 +16,8 @@ import (
 // no header beyond what net/http adds returns a key whose status becomes done
 // with the generated article, and that its publish operation posts the
 // article once, under the normalized URL. A second start with the same HOME,
-// after a normal stop, serves on the same socket path.
+// after a normal stop, serves a generation start and its status on the same
+// socket path.
 func TestServerEndToEnd(t *testing.T) {
 	webhook, webhookURL := newWebhookServer(t)
 	e := newServerEnv(t)
@@ -47,17 +48,14 @@ func TestServerEndToEnd(t *testing.T) {
 	if code := first.stop(t); code != exitOK {
 		t.Fatalf("first run exit code = %d, want %d\nstderr:\n%s", code, exitOK, first.stderr.String())
 	}
-	before := len(webhook.messages())
 
 	second := startServer(t, e, d)
-	generateAndPublish(t, socket)
-	// stop waits for the post job, so its article has been posted when it
-	// returns.
+	again := waitJobDone(t, socket, startGeneration(t, socket))
+	if again.Job.State != "done" || again.Job.Article == nil || !strings.Contains(again.Job.Article.Markdown, "A title") {
+		t.Errorf("second run's job status = %+v, want done with the generated article", again.Job)
+	}
 	if code := second.stop(t); code != exitOK {
 		t.Fatalf("second run exit code = %d, want %d\nstderr:\n%s", code, exitOK, second.stderr.String())
-	}
-	if posted := webhook.messages()[before:]; len(posted) != 1 || !strings.Contains(posted[0], "A title") {
-		t.Errorf("messages posted by the second run = %q, want the one article", posted)
 	}
 	requireNoSecret(t, "first stderr", first.stderr.String())
 	requireNoSecret(t, "second stderr", second.stderr.String())

@@ -544,47 +544,31 @@ func (g gatedLLM) Generate(context.Context, llm.GenerateRequest) (llm.GenerateRe
 	return validResponse(), nil
 }
 
-// gatedPublisher is a Webhook publisher whose posts signal entered and then
-// wait until release is closed.
-type gatedPublisher struct {
-	entered chan struct{}
-	release chan struct{}
-}
-
-// PostMessages implements server.WebhookPublisher.
-func (g gatedPublisher) PostMessages(_ context.Context, m publisher.SlackMessages, from int, delivered func(int)) error {
-	g.entered <- struct{}{}
-	<-g.release
-	for i := from; i < m.Len(); i++ {
-		delivered(i)
-	}
-	return nil
-}
-
 // TestStartDuringShutdownRefused checks that a server started while another is
-// shutting down (its listener closed and its socket gone, but its post job
-// still running) stops with exitFailure instead of serving beside it: the
-// first server holds the start lock until its jobs have finished.
+// shutting down (its listener closed and its socket gone, but its canceled
+// generation job still inside its LLM call) stops with exitFailure instead of
+// serving beside it: the first server holds the start lock until its jobs
+// have finished.
 func TestStartDuringShutdownRefused(t *testing.T) {
 	e := newServerEnv(t)
-	gate := gatedPublisher{entered: make(chan struct{}, 1), release: make(chan struct{})}
+	gate := gatedLLM{entered: make(chan struct{}, 1), release: make(chan struct{})}
 	var once sync.Once
 	release := func() { once.Do(func() { close(gate.release) }) }
+	first := startServer(t, e, testDeps(gate))
+	// Registered after startServer, so it runs first and a failing test does
+	// not leave the server's stop waiting on the blocked job.
 	t.Cleanup(release)
-	d := testDeps(validResponseLLM())
-	d.newPublisher = func(secret.Secret) (server.WebhookPublisher, error) { return gate, nil }
-	first := startServer(t, e, d)
 	socket := e.socketPath(t)
-	generateAndPublish(t, socket)
+	startGeneration(t, socket)
 	select {
 	case <-gate.entered:
 	case <-time.After(readyBound):
-		t.Fatal("the post job did not start")
+		t.Fatal("the generation job's LLM call did not start")
 	}
 
 	first.cancel()
 	// Closing the listener removes the socket: from then on the first server
-	// only waits for its post job.
+	// only waits for its generation job.
 	deadline := time.Now().Add(readyBound)
 	for _, err := os.Lstat(socket); err == nil; _, err = os.Lstat(socket) {
 		if time.Now().After(deadline) {
@@ -706,7 +690,6 @@ func TestOpenAIConfiguration(t *testing.T) {
 	})
 
 	t.Run("a failed generation exposes no article", func(t *testing.T) {
-		webhook, webhookURL := newWebhookServer(t)
 		e := newServerEnv(t)
 		e.file["YT2COLUMN_LLM"] = "openai/" + testOpenAIModel
 		e.file["OPENAI_API_KEY"] = testOpenAIKey
@@ -714,24 +697,14 @@ func TestOpenAIConfiguration(t *testing.T) {
 			return llm.GenerateResponse{}, errors.New("generation failed")
 		})
 
-		srv := startServer(t, e, loopbackDeps(t, failing, webhookURL))
+		srv := startServer(t, e, testDeps(failing))
 		started := doJobs(t, e.socketPath(t), http.MethodPost, server.JobsPath, strings.NewReader(requestBody(testValidRaw)), http.StatusAccepted)
 		done := waitJobDone(t, e.socketPath(t), started.Key)
 		if done.Job.State == "done" || done.Job.Article != nil {
 			t.Fatalf("job = %+v, want a failure with no article", done.Job)
 		}
-		// The failed key has no article to publish, so the publish operation
-		// is refused and nothing reaches the Webhook.
-		rejected := doJobs(t, e.socketPath(t), http.MethodPost,
-			server.JobsPath+"/"+started.Key+server.PublishSuffix, nil, http.StatusNotFound)
-		if rejected.Reason != "article_not_found" {
-			t.Errorf("publish reason = %q, want article_not_found", rejected.Reason)
-		}
 		if code := srv.stop(t); code != exitOK {
 			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, srv.stderr.String())
-		}
-		if got := webhook.messages(); len(got) != 0 {
-			t.Errorf("messages = %q, want none", got)
 		}
 	})
 
@@ -790,18 +763,18 @@ func TestBuildsSlackPublisher(t *testing.T) {
 // TestWriterOptionsMatchCLIDefaults checks that run builds the writer with
 // writertestutil.DefaultOptions and the review client it built, the value
 // the CLI's options with no step flags are checked against in cmd/yt2column.
-// The publisher is refused, so run stops right after building the writer.
+// The fake constructor records the options and then fails, so run stops
+// there.
 func TestWriterOptionsMatchCLIDefaults(t *testing.T) {
 	e := newServerEnv(t)
 	review := &llmtestutil.FakeLLMClient{}
 	d := testDeps(validResponseLLM())
 	d.newReviewLLMClient = func(config.LLMConfig) (llm.LLMClient, error) { return review, nil }
 	var got []writer.Options
-	d.newWriter = func(client llm.LLMClient, opts writer.Options) (writer.ProgressWriter, error) {
+	d.newWriter = func(_ llm.LLMClient, opts writer.Options) (writer.ProgressWriter, error) {
 		got = append(got, opts)
-		return writer.NewProgressWriter(client, opts)
+		return nil, errBuildRefused
 	}
-	d.newPublisher = func(secret.Secret) (server.WebhookPublisher, error) { return nil, errBuildRefused }
 
 	e.writeConfig(t)
 	var stderr strings.Builder
