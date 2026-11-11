@@ -336,7 +336,7 @@ PR-1:
 Diff record (AC-13):
 
 - Compared paths: `docs/tasks/0073_adr_context_decision_review/03_implementation_plan.md` `docs/tasks/0076_fixpr_local_review_guard/03_implementation_plan.md` `docs/tasks/0077_openai_llm_client/03_implementation_plan.md`
-- Merge-base: `04dc4824145e2243bbf8dcfa82c5ff853c43eb11`
+- Merge-base: `b64fbfcba2e8968f898e3ea66ae203f396279521`
 - Compared commit: `49b7627aff9c347c111f2fe29bd6ea6a35ded09b`
 
 Path diff:
@@ -349,7 +349,7 @@ PR-2:
 Diff record (AC-13):
 
 - Compared paths: `docs/tasks/0073_adr_context_decision_review/03_implementation_plan.md` `docs/tasks/0076_fixpr_local_review_guard/03_implementation_plan.md` `docs/tasks/0077_openai_llm_client/03_implementation_plan.md`
-- Merge-base: `d6678ee92cda0d25dfe95c8ae0b47e0d762eead3`
+- Merge-base: `e4cbff08ccd8daebc8278f87e88c576183b11eb6`
 - Compared commit: `d43a15c1e202854ca9b42e64f9b013af4f07dfd8`
 
 Path diff:
@@ -362,8 +362,8 @@ PR-3:
 Diff record (AC-13):
 
 - Compared paths: `docs/tasks/0073_adr_context_decision_review/03_implementation_plan.md` `docs/tasks/0076_fixpr_local_review_guard/03_implementation_plan.md` `docs/tasks/0077_openai_llm_client/03_implementation_plan.md`
-- Merge-base: `e483c18fddbb0c0c62dd2a05ba4006584dfae56e`
-- Compared commit: `e483c18fddbb0c0c62dd2a05ba4006584dfae56e`
+- Merge-base: `5a1b3452a664669b74d8fae941714dc4b5989463`
+- Compared commit: `61eda2ceeb0c989d1a3bd461990e6b9336768e79`
 
 Path diff:
 
