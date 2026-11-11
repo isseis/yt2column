@@ -365,3 +365,10 @@ func assertBodyRejectedWithResponse(t *testing.T, body []byte, want error, wantU
 	assertFailure(t, response, err, want, llm.GenerateResponse{Model: testResponseModel, Usage: wantUsage})
 	return err
 }
+
+// DefaultMaxOutputTokensForTest returns the max_output_tokens the adapter
+// sends when a request leaves the output limit to the provider, so a document
+// guard in another package can compare a stated value with the code.
+func DefaultMaxOutputTokensForTest() int {
+	return defaultMaxOutputTokens
+}

@@ -25,6 +25,13 @@ const (
 
 	// OptInValue is the only opt-in value that runs the test.
 	OptInValue = "1"
+
+	// MakeDefaultModel and MakeDefaultEffort are the model and effort
+	// `make test-integration-openai` passes when ModelEnv and EffortEnv are
+	// undefined. The make target test and the development guide's guard
+	// compare the Makefile and the guide with them.
+	MakeDefaultModel  = "gpt-6.1-sol"
+	MakeDefaultEffort = "medium"
 )
 
 // IntegrationOptions names the opt-in variable and the make target shown in

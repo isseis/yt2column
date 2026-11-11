@@ -127,7 +127,7 @@ var rateTable = []modelRates{
 		alternate: rates{input: 500000, cacheRead: 50000, cacheWrite: 625000, output: 2500000}, //nolint:mnd // published per-million-token rates
 		threshold: 100000,                                                                      //nolint:mnd // published prompt-length threshold in tokens
 	},
-	// Source: https://developers.openai.com/api/docs/pricing (checked 2026-11-10)
+	// Source: https://developers.openai.com/api/docs/pricing (checked 2026-11-11)
 	{
 		model:     "gpt-6-astra",
 		scheme:    schemePromptTier,
@@ -136,7 +136,7 @@ var rateTable = []modelRates{
 		alternate: rates{input: 20000000, cacheRead: 2000000, cacheWrite: 25000000, output: 75000000}, //nolint:mnd // published long-input rates
 		threshold: 272000,                                                                             //nolint:mnd // published prompt-length threshold in tokens
 	},
-	// Source: https://developers.openai.com/api/docs/pricing (checked 2026-11-10)
+	// Source: https://developers.openai.com/api/docs/pricing (checked 2026-11-11)
 	{
 		model:     "gpt-6.1-sol",
 		scheme:    schemePromptTier,

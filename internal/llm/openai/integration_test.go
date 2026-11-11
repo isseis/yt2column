@@ -79,6 +79,11 @@ func TestIntegrationResponses(t *testing.T) {
 		if response.Model == "" {
 			t.Error("Generate() Model is empty")
 		}
+		// The request always names the Standard tier; a response that does
+		// not confirm it would leave every OpenAI cost unknown.
+		if got := response.Usage.PricingContext(); got != llm.PricingContextStandard30m {
+			t.Errorf("Generate() Usage.PricingContext() = %v, want %v", got, llm.PricingContextStandard30m)
+		}
 		logResponse(t, response, key, now.Sub(start), now)
 	})
 

@@ -4,7 +4,6 @@ package openai
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -580,14 +579,6 @@ func mustJSON(t *testing.T, value any) []byte {
 // values are read from the capture by hand, not from the parser.
 func TestCapturedResponses(t *testing.T) {
 	const capturedModel = "gpt-6.1-sol"
-	knownUsage := func(t *testing.T, counts llm.TokenCounts) llm.Usage {
-		t.Helper()
-		usage, err := llm.KnownUsageWithPricingContext(counts, llm.PricingContextStandard30m)
-		if err != nil {
-			t.Fatalf("KnownUsageWithPricingContext error = %v", err)
-		}
-		return usage
-	}
 
 	t.Run("completed", func(t *testing.T) {
 		body, err := os.ReadFile(capturedCompletedFixture)
@@ -602,7 +593,7 @@ func TestCapturedResponses(t *testing.T) {
 		if response.Model != capturedModel {
 			t.Errorf("Model = %q, want %q", response.Model, capturedModel)
 		}
-		if want := knownUsage(t, llm.TokenCounts{Input: 27, Output: 21}); response.Usage != want {
+		if want := standardUsage(t, llm.TokenCounts{Input: 27, Output: 21}); response.Usage != want {
 			t.Errorf("Usage = %+v, want %+v", response.Usage, want)
 		}
 	})
@@ -613,18 +604,9 @@ func TestCapturedResponses(t *testing.T) {
 			t.Fatalf("read fixture: %v", err)
 		}
 		response, err := generateBody(t, body)
-		if !errors.Is(err, llm.ErrTruncated) {
-			t.Fatalf("Generate() error = %v, want llm.ErrTruncated", err)
-		}
-		assertSingleSentinel(t, err)
-		if response.Text != "" {
-			t.Errorf("Text = %q, want empty", response.Text)
-		}
-		if response.Model != capturedModel {
-			t.Errorf("Model = %q, want %q", response.Model, capturedModel)
-		}
-		if want := knownUsage(t, llm.TokenCounts{Input: 31, Output: 16}); response.Usage != want {
-			t.Errorf("Usage = %+v, want %+v", response.Usage, want)
-		}
+		assertFailure(t, response, err, llm.ErrTruncated, llm.GenerateResponse{
+			Model: capturedModel,
+			Usage: standardUsage(t, llm.TokenCounts{Input: 31, Output: 16}),
+		})
 	})
 }

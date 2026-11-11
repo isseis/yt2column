@@ -142,4 +142,18 @@ CC BY の条件に従い、各動画の出典（動画 URL・チャンネル名�
 - `created_at` と `completed_at`（Unix 時刻）: 取得日時を示すため、10 桁の合成の値（`1700000000` 以降）に置き換えた。完了した応答の `created_at` と `completed_at` の差（2 秒）は保った。打ち切られた応答の `completed_at` は元から `null` である。
 - `reasoning` 要素の `encrypted_content`（暗号化された推論の不透明な値）: 末尾の `=` を除く全文字を `A` に置き換えた。
 
-再取得するときは、テスト専用のキーで上記の要求本文を 1 回ずつ送り、応答本文だけを保存して、同じ値を同じ規則で置き換える。キーは認証ヘッダーにだけ渡し、コマンドラインの引数やファイルに書かない。応答の形が変わっていれば `TestCapturedResponses` の期待値を本文から手で読み直す。課金されるため、実行には別途許可を得る。打ち切られた応答が完了した場合や、完了を求めた応答が打ち切られた場合は、上限を変えて送り直さず、前提が成立しなかったとして報告する。
+再取得するときは、テスト専用のキーで次の要求本文を 1 回ずつ送り、応答本文だけを保存して、同じ値を同じ規則で置き換える。完了の応答の要求本文は次のとおりである（打ち切りの応答では、user の文を上記のものに、`max_output_tokens` を 16 に替える）。
+
+```json
+{"model":"gpt-6.1-sol","input":[{"role":"system","content":"You are a concise assistant."},{"role":"user","content":"In one short sentence, why is the sky blue?"}],"reasoning":{"effort":"medium"},"max_output_tokens":2048,"stream":false,"store":false,"service_tier":"default","prompt_cache_options":{"ttl":"30m"}}
+```
+
+キーは認証ヘッダーにだけ渡し、コマンドラインの引数やファイルに書かない。今回は、要求本文をファイル（`<request-file>`）に置き、ヘッダーを標準入力から渡して送った。
+
+```sh
+printf 'Authorization: Bearer %s\n' "$YT2COLUMN_TEST_OPENAI_API_KEY" |
+  curl -sS --max-time 300 -o <response-file> -H @- -H 'Content-Type: application/json' \
+    --data-binary @<request-file> https://api.openai.com/v1/responses
+```
+
+応答の形が変わっていれば `TestCapturedResponses` の期待値を本文から手で読み直す。課金されるため、実行には別途許可を得る。打ち切られた応答が完了した場合や、完了を求めた応答が打ち切られた場合は、上限を変えて送り直さず、前提が成立しなかったとして報告する。

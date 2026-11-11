@@ -32,8 +32,8 @@ func TestMakeIntegrationOpenAI(t *testing.T) {
 		// what the integration test makes.
 		ChargeNotice: fmt.Sprintf("calls the real OpenAI API, which incurs charges (%d calls;", integrationGenerateCalls),
 		Vars: []maketestutil.TargetVar{
-			{Env: openaitestutil.ModelEnv, Default: "gpt-6.1-sol", Custom: "gpt-custom"},
-			{Env: openaitestutil.EffortEnv, Default: "medium", Custom: "high"},
+			{Env: openaitestutil.ModelEnv, Default: openaitestutil.MakeDefaultModel, Custom: "gpt-custom"},
+			{Env: openaitestutil.EffortEnv, Default: openaitestutil.MakeDefaultEffort, Custom: "high"},
 		},
 	})
 }

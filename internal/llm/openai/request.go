@@ -23,7 +23,9 @@ const (
 	// the largest observed output, producing it at the slowest observed
 	// output rate takes at most half of provider.LLMTimeout, and both
 	// candidate models accept it; the measurement is recorded in
-	// docs/tasks/0077_openai_llm_client/02_architecture.md.
+	// docs/tasks/0077_openai_llm_client/02_architecture.md, and
+	// docs/dev/guides/openai_output_limit.md says when and how to re-measure
+	// it.
 	defaultMaxOutputTokens = 6080
 	// serviceTierDefault is the Standard processing tier. The request always
 	// names it, so the rates a usage is priced at never depend on a project
