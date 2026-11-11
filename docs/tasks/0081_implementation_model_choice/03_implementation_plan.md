@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-11 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-11 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を、節番号は [02_architecture.md](02_architecture.md)（以下、設計書）の節を指す。H-NN は [design_handoff.md](design_handoff.md) の項番で、どれも設計書の付録 A が扱いを記録している。本タスクに `implementation_handoff.md` はない。用語（実装モデル要件・正しさのレビュー・弱いモデルの失敗のレビュー・phase group・確認のレビュー・Opus のレビュー・旧い値・読めない値・読み替えの表・共通の手順・記録の行・実装の記録・完了の記録・残した指摘の記録・除いてよい commit・要否の判断・Opus の ID）は、要件書 6 章と設計書の冒頭と同じ意味で使う。本計画は、次の用語を加える。
@@ -373,3 +373,7 @@ Diff record (AC-13):
 
 -   PR-2 のマージの後に作ったブランチで `/runplan` を初めて実行するとき、値が `sonnet+opus-review` か `opus` の PR で、Opus のレビューが行われ、PR の説明に結果が載ることを見る（設計書 7.4）。
 -   PR がまだ作られていない PR マーカーに旧い値を持つ計画書（0073・0076・0077 と、本計画）がなくなったら、読み替えの表を消せる（要件書 4.5 節）。
+
+## 変更履歴
+
+- 2026-11-11 承認（isseis、#816）
