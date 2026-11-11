@@ -21,7 +21,8 @@ Neither review reports cleanup (reuse, simplification, efficiency): that is
 
 This file defines the procedure once. It has two entry points: entry 1 decides
 whether a caller needs the review, and entry 2 is the review itself.
-`weakreview.md` calls entry 2. Entry 1 is not defined yet.
+`runplan.md` calls both, before it opens a PR; `weakreview.md` calls entry 2
+only.
 
 Project-specific values (the build checks, the PR review request whose first
 word is `<review-mention>`) are in `.claude/commands/_context.md`. The prompt
@@ -40,11 +41,69 @@ column, in one of the forms below. A line that is indented, or that mentions
 a form inside a sentence, is not a record line. Never start a line of a
 commit message's prose with one of these prefixes. Only a line in the full
 form is read; a line that starts with a prefix but does not match its form is
-read as no record.
+read as no record. `_lib/opus-review-decision.sh` is the executable form that
+reads the implementation and done records ("Entry 1"); when it and this
+section disagree, this section is right and the script is fixed.
+
+In the forms below, `<START12>..<END12>` is a commit range given by the first
+12 hexadecimal characters of each commit ID; a commit is inside it when it is
+in `git rev-list <START12>..<END12>`. A `<model-id>` is printable ASCII with
+no space and no comma.
 
 **Opus.** A model ID is Opus when it starts with `claude-opus-`, and only
 then. This is the only rule that decides whether a model is Opus; "Running on
-Opus" below uses it.
+Opus" below and entry 1 use it.
+
+**Implementation record.** One line, written by `runplan.md` at the end of
+each phase group, saying which models implemented it:
+
+```text
+Implementation model: <START12>..<END12> <model-id>[, <model-id> ...]
+```
+
+- Write it in an empty commit (`git commit --allow-empty -F <file>`) that
+  `runplan.md` makes after its step 7.7 returns.
+- `<START12>`: the phase group's `PHASE_START` (`runplan.md` step 4.5).
+  `<END12>`: `HEAD` just before the empty commit.
+- `<model-id>`: the model ID the session knows as its own (the one Claude Code
+  gives in its system prompt). The session checks it at step 4.5 and at each
+  commit of the phase group, and lists every ID it saw, in the order it saw
+  them, without repeats.
+- When the session did not know its model ID at one of those points, it
+  writes no implementation record: the range stays uncovered, and entry 1
+  then runs the review.
+
+Example (fictional IDs; a real record carries the session's real ID):
+
+```text
+Implementation model: 0123456789ab..cdef01234567 claude-opus-example, claude-sonnet-example
+```
+
+**Done record.** One line, written by `runplan.md` when the review is over:
+
+```text
+Opus review: done <START12>..<END12> (critical <n>, major <n>, minor <n>)
+```
+
+- `<START12>`: the merge-base the review started from (BASE of entry 1).
+  `<END12>`: `HEAD` just before the commit that holds the line, which may
+  include green-gate fixes made after the last verification review: they are
+  limited to making the build pass.
+- The counts: the merged findings of the discovery reviews plus the new
+  findings of the verification reviews, for each severity.
+- `weakreview.md` never writes it: its range is free, and need not be a PR's.
+
+Example:
+
+```text
+Opus review: done 0123456789ab..cdef01234567 (critical 0, major 2, minor 5)
+```
+
+**Excludable commit.** A commit with one parent that is either empty or
+changes no file other than the task's `03_implementation_plan.md` and
+`README.en.md` (a checkbox commit, a commit of record lines, a README sync
+commit). A merge commit is never excludable. Entry 1 does not need an
+excludable commit to be covered by an implementation record.
 
 **Kept finding.** One line for each Critical or Major finding the review moved
 past without fixing:
@@ -67,6 +126,12 @@ Opus review: kept <path>:<line> (<severity>; <reason>)[ <summary>]
   record lines (`git commit --allow-empty -F <file>`), so a session that stops
   and runs again does not ask the human the same question again.
 
+Example:
+
+```text
+Opus review: kept internal/example/example.go:42 (major; rejected by human) the retry count is bounded by the caller
+```
+
 **Mention check.** Before every commit this procedure makes (a fix commit or a
 commit of record lines), write the message to a file and run
 `grep -qiF -- '<review-mention>' <file>`. Commit only when it exits `1`. Exit
@@ -76,6 +141,76 @@ of a record line and every sentence of the message written from a finding, and
 run the check once more; commit when that run exits `1`, and otherwise
 return `stopped-error` instead of committing. Never
 copy a subagent's text into a commit message, fix commits included.
+
+## Entry 1: whether the review runs
+
+Only `runplan.md` uses this entry, before it opens a PR. The session that is
+about to be reviewed does not decide by reading prose: a fixed script decides,
+and the session only reads its output.
+
+### Inputs the calling command must supply
+
+| Input | Meaning |
+|---|---|
+| PLAN | The repository-relative path of the task's `03_implementation_plan.md` |
+| TARGET | The PR: `N` of its `### PR-N 作成ポイント` marker, or `single` for a plan without PR markers |
+| BASE | `$(git merge-base origin/main HEAD)`, after a `git fetch origin main` |
+
+### Output
+
+| Output | Meaning |
+|---|---|
+| `RUN` | Run the review (entry 2) |
+| `NONE <reason>` | Do not run it. `<reason>` is `value-sonnet` (the value is `sonnet`), `value-absent` (there is no value), or `all-opus` (every commit other than an excludable one is covered by Opus implementation records) |
+| `SKIP <done-line>` | Skip it: a done record still covers the branch. The lines after it list the commits after the record's END, each as `<12-hex-id> <subject>`, oldest first |
+
+### Running the decision
+
+Run `origin/main`'s copy of the script, never the work tree's, so a change
+made on the branch under review does not change the decision. Run these
+three lines as separate commands, writing the script to a new file in the
+scratchpad (`<decision-script>`), outside the work tree:
+
+```bash
+git rev-parse --verify 'refs/remotes/origin/main^{commit}'
+git show <origin-main-commit>:.claude/commands/_lib/opus-review-decision.sh > <decision-script>
+bash <decision-script> <PLAN> <TARGET> <BASE>
+```
+
+`<origin-main-commit>` is the commit ID the first line printed. Read the
+output's first line. The output is `RUN` whenever the first or second line
+fails, the third exits with a status other than `0`, or the first line is not
+exactly `RUN`, `NONE value-sonnet`, `NONE value-absent`, `NONE all-opus`, or
+`SKIP ` followed by a done record. Before the script exists on `origin/main`,
+the second line fails, so the output is `RUN`.
+
+### What the script decides
+
+The script carries out these rules; this list is their definition.
+
+1. **The value.** Read PLAN from both `origin/main` and `HEAD`, by the
+   location and the reading of `_context.md`, "PR marker conventions" (the
+   old-value table taken from `origin/main`'s `_context.md`). When either
+   copy reads as `opus`, `sonnet+opus-review`, or an unreadable value, go on.
+   Otherwise return `NONE value-sonnet` when either copy reads as `sonnet`,
+   and `NONE value-absent` when neither does. A copy that does not exist on
+   `origin/main`, or that lacks the target marker or section there, does not
+   count; `HEAD` lacking the target marker is a failure.
+2. **A done record.** Take the last done record in the messages of
+   `BASE..HEAD` (the newest commit that has one, and its last such line).
+   Return `SKIP` when its START is BASE or an ancestor of it, its END is an
+   ancestor of `HEAD`, and every commit after END is excludable.
+3. **Coverage.** Return `NONE all-opus` when every commit of `BASE..HEAD`
+   other than an excludable one is inside at least one implementation
+   record's range, and every implementation record whose range holds it
+   names only Opus model IDs. Otherwise (a phase group with no record, a
+   record naming a model that is not Opus, a commit made outside a phase
+   group, a merge commit, a commit rewritten out of its record's range)
+   return `RUN`.
+
+Any failure (a git error, an unreadable plan, two places that could hold the
+value, two value lines) returns `RUN`. A record line is read only from a
+commit of `BASE..HEAD`.
 
 ## Entry 2: the review
 
