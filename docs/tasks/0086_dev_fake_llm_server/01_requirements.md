@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-11 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-11 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -209,3 +209,7 @@ fake は、選んだ工程で選んだ種類の失敗を返し、指定した遅
 -   **シナリオ**: 開発用のサーバの起動のときに選ぶ fake の振る舞いで、記事の種類と失敗の組である。遅れは別の引数で指定する。
 -   **工程**: `ArticleWriter` の中の 3 つの処理、すなわち生成、字数の調整、検証・推敲（「検証・推敲」で 1 つの工程。`docs/translation_glossary.md`「構成要素パッケージ」）。
 -   用語は `docs/translation_glossary.md` と統一する。
+
+## 変更履歴
+
+- 2026-11-11 承認（isseis、#824）
