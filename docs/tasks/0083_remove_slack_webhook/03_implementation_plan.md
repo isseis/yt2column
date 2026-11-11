@@ -111,21 +111,23 @@
 
 ### フェーズ 1: 本文の UTF-8 の検査と規則の移動（設計書 8 章の 1・2）
 
-**変更するファイル:** `internal/writer/article.go`・`article_test.go`、`internal/server/generation_test.go`、`internal/publisher/file_test.go`、`internal/publisher/mention.go`（新規）・`mention_test.go`（新規）、`internal/publisher/slack_message.go`・`slack_render.go`・`slack_message_test.go`、`docs/tasks/0083_remove_slack_webhook/_checks/golden_md_unchanged.sh`（新規）
+**変更するファイル:** `internal/writer/article.go`・`article_test.go`、`internal/server/generation_test.go`、`internal/publisher/file_test.go`・`slack_message.go`・`slack_message_test.go`・`slack_render.go`、`internal/publisher/mention.go`（新規）・`mention_test.go`（新規）、`docs/tasks/0083_remove_slack_webhook/_checks/coverage/main.go`（新規）、`_checks/golden_md_unchanged.sh`（新規）
 
--   [ ] **ステップ 1-1**: `writer.Article.CheckPublishable` に本文の UTF-8 の検査を加える（設計書 3.5）。違反は `ErrInvalidArticle` を包み、理由は本文の値を含まない固定の文字列にする。制御文字の検査より前に置く。
-    -   `internal/writer/article_test.go` に `TestArticleCheckPublishableBodyUTF8` を加える。不正なバイトだけを含み制御文字を含まない本文を `ErrInvalidArticle` で拒否し、エラーの文字列が本文のバイトを含まないことを確かめる。
-    -   `internal/server/generation_test.go::TestGenerationUnpublishable` に、目印の文字列と不正なバイトを含む本文の場合を加え、`failed` の `article_invalid` で記事を持たないことと、ログの行が目印を含まないことを確かめる。
+-   [x] **ステップ 1-1**: `writer.Article.CheckPublishable` に本文の UTF-8 の検査を加える（設計書 3.5）。違反は `ErrInvalidArticle` を包み、理由は本文の値を含まない固定の文字列にする。制御文字の検査より前に置く。
+    -   `internal/writer/article_test.go` に `TestArticleCheckPublishableBodyUTF8` を加える。不正なバイトだけを含み制御文字を含まない本文を `ErrInvalidArticle` で拒否し、エラーの文字列が本文のバイトを含まないことを確かめる。`TestArticleCheckPublishable` にも不正な UTF-8 の本文の行を加える。
+    -   `internal/server/generation_test.go::TestGenerationUnpublishable` に、目印の文字列と不正なバイトを含む本文の場合を加え、`failed` の `article_invalid` で記事を持たないことと、失敗のログの行（`generation job failed`）が目印を含まないことを確かめる。
     -   `internal/publisher/file_test.go::TestFilePublisherRejectsArticle` に、不正な UTF-8 の本文の場合を加え、ファイルを書かずに `ErrInvalidArticle` で失敗することを確かめる。
-    -   `internal/publisher/slack_message_test.go::TestSlackPrepareRejectsInvalidArticle` の `body invalid utf-8` の行（`:742`）は、`CheckPublishable` が先に拒否するようになるので、前提の `checkPublishableOK` を偽に改める。その行が確かめていた Slack の側の検査の分岐は、ステップ 4-2 で消す。
-    -   加えた検査を外すと上の 3 つのテストが失敗することを確かめる。
--   [ ] **ステップ 1-2**: 対象の `@` の判定と U+200B を入れる処理を、振る舞いを変えずに `internal/publisher/mention.go` へ移す（設計書 3.2「ファイルの分け方」、H-04、§1.3 の決定 8）。
+    -   `internal/publisher/slack_message_test.go::TestSlackPrepareRejectsInvalidArticle` の `body invalid utf-8` の行（`:742`）は、`CheckPublishable` が先に拒否するようになるので、前提の `checkPublishableOK` を偽に改める。その行が確かめていた Slack の側の検査の分岐は、ステップ 4-2 で消す（`_checks/coverage` が、その文が実行されなくなったことを報告する）。
+    -   加えた検査を外すと `TestArticleCheckPublishableBodyUTF8`・`TestArticleCheckPublishable`・`TestFilePublisherRejectsArticle`・`TestGenerationUnpublishable` が失敗することを確かめる。
+-   [x] **ステップ 1-2**: 対象の `@` の判定と U+200B を入れる処理を、振る舞いを変えずに `internal/publisher/mention.go` へ移す（設計書 3.2「ファイルの分け方」、H-04、§1.3 の決定 8）。
     -   移すもの: `zeroWidthSpace`、`replaceLookAlike`、`mentionAts`、`mentionAtsOf`、`isMentionNameChar`、`insertAfterAts`、`followsSlash`。Slack に固有の `neutralizeMentions`・`neutralizeProse`・`inRanges` は `slack_render.go` に残す。
     -   移すテスト: `TestMentionAts`（`slack_message_test.go:872`）を `mention_test.go` へ移す。
     -   移すだけの書き換えのコミットにする（関数がファイルの間を動くので coverage-compare は使えず、テストも消さないので比較は要らない）。テストの関数の数と名前が移す前と同じであることを commit のメッセージに書く。
--   [ ] **ステップ 1-3**: `_checks/golden_md_unchanged.sh` を書いて実行する（AC-16a）。2 つのコミットを引数で受け取り、`internal/publisher/testdata/golden/` の `.md` のファイルの集まりと中身が両者で同じであることを確かめる。シェルで書く。各チェックが少なくとも 1 つの壊し方で失敗することを確かめ、commit のメッセージに書く。merge-base と PR の最後のコミットで実行し、出力・終了コード・2 つのコミットの ID を §7 の「実行の記録」の PR-1 の欄に書く。
+-   [x] **ステップ 1-3**: `_checks/coverage/main.go` と `_checks/golden_md_unchanged.sh` を書く（§1.3 の決定 7、設計書 7.4）。`_checks/coverage` はステップ 3-1 で作るものだが、実装の後の網羅の比較でステップ 1-1 の変更を確かめるのに要るので、この PR で先に作る（フェーズ 3 のステップ 3-1 は、Go の側をこの PR のものとし、拡張の側を加える）。
+    -   `_checks/golden_md_unchanged.sh` で AC-16a を確かめる。2 つのコミットを引数で受け取り、`internal/publisher/testdata/golden/` の `.md` のファイルの集まりと中身が両者で同じであることを確かめる。シェルで書く。各チェックが少なくとも 1 つの壊し方で失敗することを確かめ、commit のメッセージに書く。merge-base と PR の最後のコミットで実行し、出力・終了コード・2 つのコミットの ID を §7 の「実行の記録」の PR-1 の欄に書く。
+    -   `_checks/coverage/main.go` は、0059・0062 の `_checks/coverage` と同じく、関数を (パッケージ, レシーバ, 名前) で対応づけて 2 つのコミットの網羅を比べる。そのうち 0062 の道具は、関数に属さない塊（トップレベルの `var` の本体など）で `0 function declarations hold the block` を出して止まる。このリポジトリの `internal/privatefile` はその形（`gofmt` が `var hook = func(...)` の本体を宣言の行に置く）を含むので、その塊を宣言の名前で対応づける形にする（壊し方で確かめる）。このフェーズの merge-base と最後のコミットで実行し、出力と終了コードを §7 の「実行の記録」の PR-1 の欄に書く。
 
-**完了の条件:** 上の 3 つのテストが加わり通る。`mention.go` が移した名前を持ち、`slack_message.go`・`slack_render.go` に同じ名前の定義がない。§7 に AC-16a の PR-1 の記録がある。`make test`・`make lint`・`make deadcode` が通る。
+**完了の条件:** 上の 3 つのテストが加わり通る。`mention.go` が移した名前を持ち、`slack_message.go`・`slack_render.go` に同じ名前の定義がない。§7 に AC-16a の PR-1 の記録と、`_checks/coverage` の PR-1 の記録がある。`make test`・`make lint`・`make deadcode` が通る。
 
 ### PR-1 作成ポイント: body UTF-8 check and mention rule move
 
@@ -139,10 +141,10 @@
 
 **判定理由**: どのステップも、既存の検査への 1 つの検査の追加と振る舞いを変えない移動で、mkplan.md のパネルの契機にも Conditional checks にも当たらない。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/842
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: 無効化の部品と、応答・拡張の変更（設計書 8 章の 3）
 
@@ -195,7 +197,7 @@
 
 **判定理由**: ステップ 2-2 は、貼り付けた記事の通知を防ぐセキュリティの規則を新しく実装し（mkplan.md のパネルの契機のセキュリティの関門）、2-4・2-5 が応答の形を変える側と受ける側を同時に変える。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [ ] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
@@ -266,7 +268,7 @@
 
 **判定理由**: ステップ 3-5 が Go・拡張・文書を 1 つのコミットで同時に消し書き換える移行で、多くのテストの更新を伴う（mkplan.md のパネルの契機の移行）。3-2 は並行の振る舞い（合図・取り消し・待ち）のテストを書き換え、3-6 は記事のキャッシュの状態の遷移と追い出しを変える。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [ ] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
@@ -318,7 +320,7 @@
 
 **判定理由**: ステップ 4-5（秘密の伏せ字の対象の書き換え）と 4-6・4-7（秘密を持つ設定の行の起動の拒否）が、同じ PR で振る舞いを狭める側と強める側に同時に変えるセキュリティの関門の変更である（mkplan.md のパネルの契機）。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [ ] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
@@ -350,7 +352,7 @@
 
 **判定理由**: 文書の改訂と手動の確かめで、mkplan.md のパネルの契機にも Conditional checks にも当たらない。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [ ] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
@@ -406,7 +408,7 @@
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
--   [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3）
+-   [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3）
 -   [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7）
 -   [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8）
 -   [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7 / 4-8 / 4-9 / 4-10）
@@ -458,7 +460,37 @@
 
 PR-1:
 
-（ステップ 1-3 で書く。）
+**`_checks/golden_md_unchanged.sh`（AC-16a）。** 比べたコミットは、merge-base `a56f085eb59fc2d65e0fd393773067013be3727c` と、マージの前の確かめ直しで読んだ PR の head `84a96e0e` である。出力と終了コード:
+
+```text
+before: a56f085eb59fc2d65e0fd393773067013be3727c
+after:  84a96e0e
+files:  internal/publisher/testdata/golden/*.md
+OK   the same 10 file(s) with the same content at both commits
+OK   all 10 file(s) are byte for byte the same
+exit=0
+```
+
+壊し方（それぞれ赤くなり、戻した）: ファイルの中身を変えると `NG   <path> changed at HEAD` と `NG   the .md files changed` で終了コード `1`。ファイルを足すと `NG   the files differ:` と前後の一覧で `1`。ファイルを消すと `NG   <path> is missing at HEAD` で `1`。空白を含む名前のファイルを足すと `1`、そのファイルを両側で変えずに置くと `0`、変えると `1`（名前を NUL とタブで切る）。知らないコミットを渡すと `<ID> is not a commit` で `2`。
+
+**`_checks/coverage`（ステップ 1-1 の変更の確認）。** 2 つの側の profile を `go test -tags test -count=1 -coverpkg=./... -coverprofile=<profile> ./...` で測った（どちらも終了コード `0`、失敗なし）。比べたコミットは `a56f085eb59fc2d65e0fd393773067013be3727c` と `58e19c01` である。出力と終了コード:
+
+```text
+before  a56f085eb59fc2d65e0fd393773067013be3727c (1369 product functions)
+after   58e19c01 (1369 product functions)
+only before (removed): 0
+only after (added): 0
+more unexecuted (fails): 0
+fewer executed (give each a reason): 1
+     internal/publisher prepareSlackMessages: executed 12 -> 10 (0 of 12 unexecuted -> 0 of 10 unexecuted)
+fewer unexecuted: 0
+OK   no function found on both sides has more unexecuted statements
+exit=0
+```
+
+`prepareSlackMessages` は、消した本文の検査の分だけ実行された文が減った。ステップ 1-1 の変更だけを比べた途中の実行（`a56f085e..d5de06b0`）では、`prepareSlackMessages: 0 of 12 unexecuted -> 1 of 12 unexecuted` で不合格（`NG   1 function(s) found on both sides have more unexecuted statements`、終了コード `1`）になり、Slack の本文の検査の文が実行されなくなったことを報告した。その検査を消した後の上の実行で、この報告が消えた。
+
+この道具は、`go run` ではなく `go build -tags test` で作った実行ファイルで走らせる（`go run` は 1 と 2 をどちらも `1` にする）。壊し方（それぞれ赤くなり、戻した）: 関数に属さない塊（文の数が `0` の位置）を混ぜると `0 declarations hold the block` で終了コード `2`。`var` の本体の塊を両側で実行させたまま比べると、前後で対応づけられ、不合格にならない。実行されていた文を後ろの側で実行されなくすると `0 of 2 unexecuted -> 1 of 2 unexecuted` で終了コード `1`。0062 の道具を同じ 2 つの側に使うと、`internal/privatefile/privatefile.go:174.44` で `0 function declarations hold the block, want 1` を出して止まる（終了コード `2`）。
 
 PR-2:
 

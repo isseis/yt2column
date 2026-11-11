@@ -44,6 +44,13 @@ func (a Article) CheckPublishable() error {
 	if strings.TrimSpace(a.Body) == "" {
 		return invalidArticle("body is empty or whitespace only")
 	}
+	// The UTF-8 check precedes the control-character check because
+	// strings.ContainsFunc reads each invalid byte as U+FFFD, which is not a
+	// control character. Rejecting here keeps a body the publishers would
+	// otherwise repair, or refuse at their own layer, out of every output.
+	if !utf8.ValidString(a.Body) {
+		return invalidArticle("body is not valid UTF-8")
+	}
 	// A body is Markdown text: a line feed and a tab are content, any other
 	// control character could drive a terminal that displays the file.
 	if strings.ContainsFunc(a.Body, func(r rune) bool {
