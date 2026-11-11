@@ -328,7 +328,7 @@ frontmatter の `description` は、ほかの `_lib/` と同じく「Internal: �
 
 要否の判断は、共通の手順が呼ぶ判断のスクリプトで行い、セッションは出力を読むだけにする。`/runplan` は、スクリプトを `origin/main` から取り出して走らせ、取り出せないとき・出力が決まった形でないとき・終了コードが 0 でないときは `RUN` とする（1.2 の決定 10）。今の `weakreview.md` step 3 の事前の確かめと同じく、決まった処理を文の解釈に任せないためである。判断のスクリプトが失敗したとき（`git` の失敗、計画書を読めない、場所が二つ以上見つかる）は `RUN` とする。
 
-1.  **値を読む:** PLAN を、`git show origin/main:<PLAN>` と `HEAD` の作業ツリーの両方から、3.1 の場所と読み方で読む（1.2 の決定 9）。どちらかが `opus`・`sonnet+opus-review`・読めない値なら、レビューを行う側とする。両方が `sonnet` か値がないときだけ、`NONE value-sonnet` か `NONE value-absent` を返す（どちらかが `sonnet` なら `value-sonnet` を理由にする）。`origin/main` に計画書がない、または対象の PR マーカーがないときは、`HEAD` だけで決める。
+1.  **値を読む:** PLAN を、`git show origin/main:<PLAN>` と `git show HEAD:<PLAN>` の両方から、3.1 の場所と読み方で読む（1.2 の決定 9）。どちらかが `opus`・`sonnet+opus-review`・読めない値なら、レビューを行う側とする。両方が `sonnet` か値がないときだけ、`NONE value-sonnet` か `NONE value-absent` を返す（どちらかが `sonnet` なら `value-sonnet` を理由にする）。`origin/main` に計画書がない、または対象の PR マーカーがないときは、`HEAD` だけで決める。
 2.  **完了の記録を確かめる:** `git log BASE..HEAD` の commit メッセージに、完了の記録があるか探す。最後の完了の記録について、次のすべてが成り立てば `SKIP` を返す。
     -   その END の commit が存在し、`HEAD` の祖先である。
     -   END から `HEAD` までの commit が、すべて除いてよい commit である。
@@ -430,13 +430,13 @@ step 5a（`:78-127`）では、グリーンゲートの確認（`:80`）と、�
 1.  ブランチ全体のローカル CLI レビューを行う場合（`git log origin/main..HEAD` に `Local CLI review: not run` か `CodeRabbit local review: not run` の行がある場合）は、Part B の LOCAL_REVIEW の規則のとおりに、BASE を `$(git merge-base origin/main HEAD)`、SCOPE をブランチとして、これを先に行う。レビューが止まったときは、何も push せずに `/runplan` も止まる。このレビューの直しの commit も、次の要否の判断と Opus のレビューの範囲（`BASE..HEAD`）に入る。
 2.  共通の手順の要否の判断（入口 1）を走らせる。
 3.  `RUN` のときは、レビュー（入口 2）を RANGE `BASE..HEAD`・FIX `fix` で行う。OUTCOME が `stopped-unavailable` か `stopped-limit` のときは、`/runplan` も止まる。PR を開かず、何も push せず、その旨と、利用者にできること（Opus が使えるようになってから `/runplan` を再び実行する。上限のときは、残った指摘を見て決める）を報告する（AC-22、AC-25）。
-4.  直しの commit があれば、グリーンゲートをもう一度通し、最後の PR のときの AC の確かめと、差分の記録の再確認もやり直す。
+4.  直しの commit があれば、グリーンゲートをもう一度通し、最後の PR のときの AC の確かめと、差分の記録の再確認もやり直す。AC の確かめか差分の記録の再確認が、除いてよい commit でもビルドの直し（3.4 の完了の記録の範囲）でもない commit を作ったときは、2 の要否の判断からやり直す。
 5.  最初のチェックボックスの commit のメッセージに、完了の記録を書く（3.4）。チェックボックスが既に `[x]` のとき（前のセッションが付けた後に止まったとき）は、記録の行だけの空の commit を作る。`NONE` と `SKIP` のときは、記録の行を書かない。
 6.  PR_TEXT に、Opus のレビューの結果（3.9）を加える。
 
 step 5a は Part B に LOCAL_REVIEW = `done` を渡す（ブランチ全体のレビューは、行う場合には 1 で済ませてある）。
 
-単一フェーズの計画書の PR（step 8、`:233`）では、step 8 の既存の確かめ（ブランチに PR がないこと、commit があること）の後、Part B の前に、同じ 1〜4 と 6 を行う。完了の記録は、記録の行だけの空の commit に書く。Part B にも LOCAL_REVIEW = `done` を渡す。Part B の CHECKS は、step 5a と同じく、グリーンゲートと push の前のやり直し（下記、1.2 の決定 11）である。Opus のレビューの直しの範囲は、ローカルの CLI レビューにかけ直さない（1.2 の決定 3）。
+単一フェーズの計画書の PR（step 8、`:233`）では、step 8 の既存の確かめ（ブランチに PR がないこと、commit があること）の後、Part B の前に、同じ 1〜4 と 6 を行う。完了の記録は、`RUN` のときだけ、記録の行だけの空の commit に書く（`NONE` と `SKIP` のときは書かない）。Part B にも LOCAL_REVIEW = `done` を渡す。Part B の CHECKS は、step 5a と同じく、グリーンゲートと push の前のやり直し（下記、1.2 の決定 11）である。Opus のレビューの直しの範囲は、ローカルの CLI レビューにかけ直さない（1.2 の決定 3）。
 
 この位置に置く理由: 直しの commit が PR を開く前にブランチへ入り（AC-26）、最初の Codex の PR レビューが直した後のコードを見るためである。ブランチ全体のローカル CLI レビューも要否の判断より前に置くのは、その直しの commit を Opus のレビューの範囲から外さないためである（AC-21）。
 
