@@ -54,7 +54,7 @@ define format_files_from_list
 	fi
 endef
 
-.PHONY: all build clean test test-ci test-parse-norace readme-sync-check test-integration test-integration-deepseek test-integration-claude test-integration-cli test-integration-slack lint fmt fmt-all deadcode tidy install-mergepr install-fixprguard install-codexreview ext-install ext-typecheck ext-lint ext-fmt-check ext-fmt ext-test ext-build ext-check coverage-compare ext-coverage-compare
+.PHONY: all build clean test test-ci test-parse-norace readme-sync-check test-integration test-integration-deepseek test-integration-claude test-integration-openai test-integration-cli test-integration-slack lint fmt fmt-all deadcode tidy install-mergepr install-fixprguard install-codexreview ext-install ext-typecheck ext-lint ext-fmt-check ext-fmt ext-test ext-build ext-check coverage-compare ext-coverage-compare
 
 all: build
 
@@ -259,6 +259,28 @@ test-integration-claude:
 	@printf 'test-integration-claude: calls the real Anthropic API, which incurs charges (model: %s, effort: %s)\n' "$$YT2COLUMN_TEST_CLAUDE_MODEL" "$$YT2COLUMN_TEST_CLAUDE_EFFORT"
 	$(GOTEST) -tags integration -count=1 -timeout $(CLAUDE_INTEGRATION_TIMEOUT) -v ./internal/llm/claude
 
+# OpenAI integration test. Calls the real OpenAI API, which incurs charges,
+# so it is kept out of `make test` by the `integration` build tag and skips
+# unless the opt-in variable below is set. It reads its API key from
+# YT2COLUMN_TEST_OPENAI_API_KEY, never from OPENAI_API_KEY. The model and
+# effort default to gpt-6.1-sol and medium only when undefined; an empty value
+# is passed through, and the test fails on it.
+YT2COLUMN_TEST_OPENAI_MODEL ?= gpt-6.1-sol
+YT2COLUMN_TEST_OPENAI_EFFORT ?= medium
+# Two Generate calls of at most 5 minutes each, plus margin (see
+# internal/llm/openai/integration_env_test.go).
+OPENAI_INTEGRATION_TIMEOUT ?= 15m
+
+# Exported to this target's recipe only; the recipe never splices the values
+# into shell text.
+test-integration-openai: export YT2COLUMN_TEST_OPENAI_MODEL := $(YT2COLUMN_TEST_OPENAI_MODEL)
+test-integration-openai: export YT2COLUMN_TEST_OPENAI_EFFORT := $(YT2COLUMN_TEST_OPENAI_EFFORT)
+test-integration-openai: export YT2COLUMN_OPENAI_INTEGRATION := 1
+
+test-integration-openai:
+	@printf 'test-integration-openai: calls the real OpenAI API, which incurs charges (2 calls; model: %s, effort: %s)\n' "$$YT2COLUMN_TEST_OPENAI_MODEL" "$$YT2COLUMN_TEST_OPENAI_EFFORT"
+	$(GOTEST) -tags integration -count=1 -timeout $(OPENAI_INTEGRATION_TIMEOUT) -v ./internal/llm/openai
+
 # CLI integration test. Runs cmd/yt2column from a seeded transcript cache to
 # the --out file with the real DeepSeek API, which incurs charges; yt-dlp is
 # never started. Like the DeepSeek integration test it is kept out of
@@ -297,7 +319,7 @@ test-integration-slack:
 # golangci-lint compiles the integration tests only together with the `test`
 # helpers; vet the `-tags integration` build that `make test-integration`,
 # `make test-integration-deepseek`, `make test-integration-claude`,
-# `make test-integration-cli`, and `make test-integration-slack` run, so a
+# `make test-integration-openai`, `make test-integration-cli`, and `make test-integration-slack` run, so a
 # compile error there fails lint too.
 lint:
 	$(GOLINT)

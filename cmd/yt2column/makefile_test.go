@@ -20,6 +20,7 @@ import (
 	"github.com/isseis/yt2column/internal/doctestutil"
 	claudetestutil "github.com/isseis/yt2column/internal/llm/claude/testutil"
 	deepseektestutil "github.com/isseis/yt2column/internal/llm/deepseek/testutil"
+	openaitestutil "github.com/isseis/yt2column/internal/llm/openai/testutil"
 	"github.com/isseis/yt2column/internal/llm/provider"
 	publishertestutil "github.com/isseis/yt2column/internal/publisher/testutil"
 )
@@ -35,6 +36,10 @@ const (
 	// claudeIntegrationTarget is the make target that runs the Claude
 	// adapter's charged integration test.
 	claudeIntegrationTarget = "test-integration-claude"
+
+	// openAIIntegrationTarget is the make target that runs the OpenAI
+	// adapter's charged integration test.
+	openAIIntegrationTarget = "test-integration-openai"
 
 	// transcriptIntegrationTarget is the make target that runs the
 	// transcript integration test, which has no opt-in.
@@ -62,6 +67,7 @@ func TestMakeOptInsAreTargetSpecific(t *testing.T) {
 		deepseektestutil.DeepSeekOptInEnv,
 		deepseektestutil.CLIOptInEnv,
 		claudetestutil.OptInEnv,
+		openaitestutil.OptInEnv,
 		publishertestutil.SlackOptInEnv,
 	}
 	for _, tc := range []struct {
@@ -71,12 +77,13 @@ func TestMakeOptInsAreTargetSpecific(t *testing.T) {
 		{target: transcriptIntegrationTarget},
 		{target: deepSeekIntegrationTarget, own: deepseektestutil.DeepSeekOptInEnv},
 		{target: claudeIntegrationTarget, own: claudetestutil.OptInEnv},
+		{target: openAIIntegrationTarget, own: openaitestutil.OptInEnv},
 		{target: cliIntegrationOptions.MakeTarget, own: deepseektestutil.CLIOptInEnv},
 		{target: publishertestutil.SlackIntegrationOptions.MakeTarget, own: publishertestutil.SlackOptInEnv},
 	} {
 		t.Run(tc.target, func(t *testing.T) {
 			_, invocation := deepseektestutil.RunMakeTarget(t, repositoryRoot, tc.target, nil,
-				claudetestutil.OptInEnv, publishertestutil.SlackOptInEnv)
+				claudetestutil.OptInEnv, openaitestutil.OptInEnv, publishertestutil.SlackOptInEnv)
 			for _, optIn := range optIns {
 				if value, ok := invocation.Env[optIn]; ok && optIn != tc.own {
 					t.Errorf("make %s exported %s=%q", tc.target, optIn, value)
