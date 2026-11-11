@@ -6,6 +6,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -142,41 +144,41 @@ func TestGenerationUnpublishable(t *testing.T) {
 	}
 }
 
-// TestGenerationUnpostable checks that an article the Slack pre-send checks
-// refuse is done, with its article, and unpostable with the reason the check
-// gives: mention for a mention, other for a body that cannot be split. The
-// check runs the same with and without a Webhook.
-func TestGenerationUnpostable(t *testing.T) {
+// TestGenerationMentionsDone checks that an article is done, with its
+// article, whatever mentions it holds or however long its body is: a body
+// with a Slack mention and a body longer than one Slack message could carry
+// both complete. The success log line carries exactly the key, the video ID,
+// the model, its version, and the duration.
+func TestGenerationMentionsDone(t *testing.T) {
 	tests := []struct {
-		name   string
-		body   string
-		reason string
+		name string
+		body string
 	}{
-		{"mention", "Hello <!channel>.\n", "mention"},
-		{"unsplittable", strings.Repeat(" ", 20000) + "x\n", "other"},
+		{"mention", "Hello <!channel>.\n"},
+		{"longer than one post", strings.Repeat(" ", 20000) + "x\n"},
 	}
 	for _, tc := range tests {
-		for _, noWebhook := range []bool{false, true} {
-			t.Run(fmt.Sprintf("%s/noWebhook=%v", tc.name, noWebhook), func(t *testing.T) {
-				ts := newJobsTestServer(t, jobsServerOptions{noWebhook: noWebhook})
-				article := testArticle()
-				article.Body = tc.body
-				ts.writer.Result = article
-				key := ts.beginGeneration(t, validBody(testValidVideoURL, testValidRaw))
-				ts.waitJobs()
+		t.Run(tc.name, func(t *testing.T) {
+			ts := newJobsTestServer(t, jobsServerOptions{})
+			article := testArticle()
+			article.Body = tc.body
+			ts.writer.Result = article
+			key := ts.beginGeneration(t, validBody(testValidVideoURL, testValidRaw))
+			ts.waitJobs()
 
-				got := ts.statusOf(t, key).Job
-				if got.State != "done" || got.Article == nil {
-					t.Fatalf("job = %+v, want done with the article", got)
-				}
-				if got.Publish == nil || *got.Publish != (statusPublish{State: "unpostable", Reason: tc.reason}) {
-					t.Errorf("publish = %+v, want unpostable with reason %s", got.Publish, tc.reason)
-				}
-				if line := logLine(ts.logs.String(), "generation job succeeded"); !strings.Contains(line, "publish=unpostable") {
-					t.Errorf("the success log line = %q, want publish=unpostable", line)
-				}
-			})
-		}
+			got := ts.statusOf(t, key).Job
+			if got.State != "done" || got.Article == nil {
+				t.Fatalf("job = %+v, want done with the article", got)
+			}
+			line := logLine(ts.logs.String(), "generation job succeeded")
+			if line == "" {
+				t.Fatalf("no generation job succeeded line in the log:\n%s", ts.logs.String())
+			}
+			want := []string{"duration", "key", "model", "modelVersion", "videoId"}
+			if attrs := logAttrNames(line); !slices.Equal(attrs, want) {
+				t.Errorf("the success log line's attributes = %v, want %v: %q", attrs, want, line)
+			}
+		})
 	}
 }
 
@@ -375,6 +377,25 @@ func articlesAtStatusLimit(t *testing.T, videoTitle, start string) (at, over wri
 		t.Fatalf("the larger article's largest status response is %d bytes, want %d", got, maxStatusResponseBytes+1)
 	}
 	return at, over
+}
+
+// logAttrName matches the name of one attribute of a slog text line.
+var logAttrName = regexp.MustCompile(`(?:^| )([A-Za-z][A-Za-z0-9]*)=`)
+
+// logAttrNames returns the sorted names of a slog text line's attributes,
+// without the time, level, and msg the handler adds. Values are not quoted
+// in the lines it reads, apart from msg, which holds no "=".
+func logAttrNames(line string) []string {
+	var names []string
+	for _, m := range logAttrName.FindAllStringSubmatch(line, -1) {
+		switch m[1] {
+		case "time", "level", "msg":
+		default:
+			names = append(names, m[1])
+		}
+	}
+	slices.Sort(names)
+	return names
 }
 
 // logLine returns the first line of logs that contains msg, or "".

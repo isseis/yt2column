@@ -265,13 +265,12 @@ func releaseLock(errOut *stderrWriter, lock *serversock.Lock) {
 	}
 }
 
-// stopNoticeLogger returns the function that logs the stop notice. The wait
-// it names is the longest one post job can take, publisher.SlackMaxPostDuration:
-// the post jobs run in parallel and are never retried by themselves.
+// stopNoticeLogger returns the function that logs the stop notice. A canceled
+// generation ends only when its LLM call returns, so the notice keeps the way
+// to exit without waiting for that.
 func stopNoticeLogger(logger *slog.Logger) func() {
 	return func() {
-		logger.Info(fmt.Sprintf("stopping: the in-flight generations are canceled and their articles lost; the posts sent from the viewer are allowed to finish, which can take up to about %d minutes; send the signal again to exit at once, which drops them",
-			approxMinutes(publisher.SlackMaxPostDuration)))
+		logger.Info("stopping: the in-flight generations are canceled and their articles lost; the server exits once their LLM calls return; send the signal again to exit at once")
 	}
 }
 

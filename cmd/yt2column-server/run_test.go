@@ -844,8 +844,8 @@ func TestStartsWithoutWebhook(t *testing.T) {
 
 // TestRunLogsListeningAndStop checks the lines run itself logs: the socket
 // path and the configured Webhook when it listens (with no warning about the
-// Webhook), and, when the stop begins, that the generations are canceled, the
-// longest wait for the posts, and that a second signal exits at once.
+// Webhook), and, when the stop begins, that the generations are canceled and
+// that a second signal exits at once, with nothing about posts.
 func TestRunLogsListeningAndStop(t *testing.T) {
 	e := newServerEnv(t)
 	srv := startServer(t, e, testDeps(validResponseLLM()))
@@ -866,16 +866,20 @@ func TestRunLogsListeningAndStop(t *testing.T) {
 	if warning := stderrLine(stderr, "no Webhook is configured"); warning != "" {
 		t.Errorf("stderr warns that no Webhook is configured although one is: %s", warning)
 	}
+	stopping := stderrLine(stderr, "stopping:")
+	if stopping == "" {
+		t.Fatalf("stderr has no stop notice:\n%s", stderr)
+	}
 	for _, want := range []string{
-		// Ten messages of at most 30 seconds each, a second apart: 309 s.
-		"up to about 5 minutes",
 		"the in-flight generations are canceled",
-		"the posts sent from the viewer are allowed to finish",
 		"send the signal again to exit at once",
 	} {
-		if !strings.Contains(stderr, want) {
-			t.Errorf("stderr does not contain %q:\n%s", want, stderr)
+		if !strings.Contains(stopping, want) {
+			t.Errorf("the stop notice does not contain %q: %s", want, stopping)
 		}
+	}
+	if strings.Contains(stopping, "post") {
+		t.Errorf("the stop notice still names posts: %s", stopping)
 	}
 }
 
