@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-11 |
-| Review date | - |
-| Reviewer | - |
-| Comments | - |
+| Review date | 2026-11-11 |
+| Reviewer | isseis |
+| Comments | 初版の承認（PR #844）。 |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を指し、節番号は [02_architecture.md](02_architecture.md)（以下、設計書）の節を指す。H-NN は [design_handoff.md](design_handoff.md) の項番で、どれも設計書の付録 B が扱いを記録している。本タスクに `implementation_handoff.md` はない。用語（fake の構成要素・開発用のサーバ・シナリオ・ジョブ・工程・`perJobWriter`）は、要件書 §6 と設計書 §1.3 と同じ意味で使う。
 
@@ -361,3 +361,7 @@ PR-3:
 
 -   拡張だけの構成への移行（[#772](https://github.com/isseis/yt2column/issues/772)・[#773](https://github.com/isseis/yt2column/issues/773)）で、`devfake` を開発用のビルドに配線する。開発用のサーバは #773 でサーバと一緒に消す（設計書 §9）。
 -   #772 が TS への一本化を決めたら、`make wasm-check` の `devfake` の行と ADR-0045 の該当の項を #772 が見直す。
+
+## 変更履歴
+
+- 2026-11-11 承認（isseis、#844）
