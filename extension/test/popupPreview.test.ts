@@ -22,6 +22,7 @@ import { renderViewer, renderViewerHeader } from "../src/ui/renderViewer.ts";
 import {
   popupJobPreviewCases,
   previewCases,
+  shownPreviewArticle,
   viewerPreviewCases,
 } from "../scripts/popup-preview.ts";
 import {
@@ -339,7 +340,12 @@ describe("popup preview script", () => {
       // the same body, element by element, with each element's class, text
       // when it has no children, and whether it is hidden or disabled.
       const expected = viewerElements();
-      renderViewerHeader(expected, previewCase.header, previewCase.locale);
+      renderViewerHeader(
+        expected,
+        previewCase.header,
+        previewCase.locale,
+        shownPreviewArticle(previewCase.view),
+      );
       renderViewer(expected, previewCase.view, previewCase.locale);
       const shape = (body: HTMLElement): string[] =>
         [...body.querySelectorAll("*")]

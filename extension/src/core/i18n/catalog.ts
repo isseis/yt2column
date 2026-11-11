@@ -105,6 +105,8 @@ export interface Catalog {
     readonly saved: string;
     readonly copy: string;
     readonly copied: string;
+    /** Copied, with an invisible character after an '@' to keep a mention from starting. */
+    readonly copiedNeutralized: string;
     readonly copyFailed: string;
   };
   /** The popup's job states. */

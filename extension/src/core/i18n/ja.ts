@@ -355,6 +355,8 @@ export const ja: Catalog = {
     saved: "ダウンロードを始めました。",
     copy: "Markdown をコピーする",
     copied: "Markdown をコピーしました。",
+    copiedNeutralized:
+      "Markdown をコピーしました。メンションにならないよう、@ の後ろに見えない文字を入れました。",
     copyFailed: "Markdown をコピーできませんでした。",
   },
   popup: {

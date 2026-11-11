@@ -189,7 +189,7 @@ export async function startViewer(
   const parsed = parseViewerUrl(deps.page.search, deps.page.hash, loadedAt);
   if (!parsed.ok) {
     deps.log.error(viewerUrlLabel, { error: parsed.error });
-    renderViewerHeader(elements, undefined, locale);
+    renderViewerHeader(elements, undefined, locale, undefined);
     renderViewer(
       elements,
       {
@@ -205,7 +205,7 @@ export async function startViewer(
   let params: ViewerParams = parsed.params;
   /** The page shows an existing article of the same video: its URL holds e=1. */
   const existing = (): boolean => showsExisting(params);
-  renderViewerHeader(elements, params, locale);
+  renderViewerHeader(elements, params, locale, undefined);
   doc.title = `${params.heading}${pageTitleSuffix}`;
 
   let state: ViewerState = { kind: "sending" };
@@ -221,6 +221,9 @@ export async function startViewer(
   let restarts = 0;
 
   const draw = (): void => {
+    // The heading shows the server's neutralized values once the article
+    // is done.
+    renderViewerHeader(elements, params, locale, shownArticle(state));
     renderViewer(
       elements,
       {
@@ -551,7 +554,11 @@ export async function startViewer(
     if (restarts !== startedIn) {
       return;
     }
-    showActionNotice(copied.ok ? { kind: "copied" } : { kind: "copy-failed" });
+    showActionNotice(
+      copied.ok
+        ? { kind: "copied", mentionsNeutralized: article.mentionsNeutralized }
+        : { kind: "copy-failed" },
+    );
   };
 
   elements.publish.addEventListener("click", () => void publishArticle());

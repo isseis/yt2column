@@ -65,8 +65,11 @@ function doneBody(): Json {
       state: "done",
       steps: { draft: "done", shorten: "skipped", review: "done" },
       article: {
-        markdown: "# Title\n\nBody",
-        file: "---\ntitle: Title\n---\n\nBody\n",
+        markdown: "# Title\n\n@\u200bhere Body",
+        mentionsNeutralized: true,
+        videoTitle: "A video",
+        channelName: "A channel",
+        file: "---\ntitle: Title\n---\n\n@here Body\n",
         cost: { state: "known", usd: "0.1234" },
         durationMs: 81234,
       },
@@ -528,8 +531,11 @@ describe("classifyStatus", () => {
         state: "done",
         steps: { draft: "done", shorten: "skipped", review: "done" },
         article: {
-          markdown: "# Title\n\nBody",
-          file: "---\ntitle: Title\n---\n\nBody\n",
+          markdown: "# Title\n\n@\u200bhere Body",
+          mentionsNeutralized: true,
+          videoTitle: "A video",
+          channelName: "A channel",
+          file: "---\ntitle: Title\n---\n\n@here Body\n",
           cost: { state: "known", usd: "0.1234" },
           durationMs: 81234,
         },
@@ -574,6 +580,15 @@ describe("classifyStatus", () => {
       name: "the largest cost",
       change: (b) => {
         at(b, "job", "article", "cost").usd = "999999.9999";
+      },
+    },
+    {
+      name: "an article that neutralized nothing, with no video title or channel name",
+      change: (b) => {
+        const article = at(b, "job", "article");
+        article.mentionsNeutralized = false;
+        article.videoTitle = "";
+        article.channelName = "";
       },
     },
     {
@@ -693,6 +708,13 @@ describe("classifyStatus refuses each malformed response as unexpected", () => {
       change: (b) => void delete at(b, "job", "article").file,
       check: "member-set",
     },
+    // An older server's done article, which neutralizes nothing and lacks
+    // these members: the viewer neither shows nor copies it.
+    ...["mentionsNeutralized", "videoTitle", "channelName"].map((name) => ({
+      name: `a missing ${name}`,
+      change: (b: Json) => void delete at(b, "job", "article")[name],
+      check: "member-set" as const,
+    })),
     {
       name: "a missing usd",
       change: (b) => void delete at(b, "job", "article", "cost").usd,
@@ -836,6 +858,17 @@ describe("classifyStatus refuses each malformed response as unexpected", () => {
       change: (b) => void (at(b, "job", "article").file = ""),
       check: "value-shape",
     },
+    {
+      name: "a mentionsNeutralized string",
+      change: (b) =>
+        void (at(b, "job", "article").mentionsNeutralized = "true"),
+      check: "value-shape",
+    },
+    ...["videoTitle", "channelName"].map((name) => ({
+      name: `a ${name} that is not a string`,
+      change: (b: Json) => void (at(b, "job", "article")[name] = null),
+      check: "value-shape" as const,
+    })),
     {
       name: "a webhookConfigured string",
       change: (b) => void (b.webhookConfigured = "true"),

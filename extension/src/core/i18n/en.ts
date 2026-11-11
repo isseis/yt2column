@@ -332,6 +332,8 @@ export const en: Catalog = {
     saved: "The download started.",
     copy: "Copy Markdown",
     copied: "Copied the Markdown.",
+    copiedNeutralized:
+      "Copied the Markdown. Invisible characters were inserted after @ so that they do not become mentions.",
     copyFailed: "Could not copy the Markdown.",
   },
   popup: {
