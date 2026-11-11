@@ -1,4 +1,4 @@
-<!-- translated-from: README.md 1e86d6015148aa221e93de64baa9657757d6fc19 -->
+<!-- translated-from: README.md 1f4b61d65a6123b68aba2d3308d02006821b079b -->
 [日本語](README.md)
 
 Developer documents: [Using the CLI](docs/dev/guides/cli.md) · [Development procedures](docs/dev/guides/development.md)
@@ -51,8 +51,7 @@ flowchart LR
   all use `claude` with `claude-opus-5-5` at effort `high`. See
   [Recommended configuration](#recommended-configuration) and
   [production_profile.md](docs/dev/production_profile.md) (Japanese).
-  DeepSeek is also available; providers are pluggable. OpenAI settings and
-  effort are accepted, and wiring the OpenAI adapter is a later change.
+  DeepSeek and OpenAI are also available; providers are pluggable.
 - Designed for local execution.
 
 > **Status:** early development; no release yet.
@@ -199,6 +198,11 @@ provider's invoice.
   the provider billed it, because the server's time is when the response was
   read and validated, and the provider's billing time is not documented.
 - A server on a machine whose clock is wrong judges the window wrongly.
+- OpenAI costs are estimated at the rates of the Standard processing tier and a
+  30-minute prompt cache. When the response does not show these, the cost is
+  `unknown` even when the token counts are known. A call whose input (cache
+  reads and writes included) totals more than 272,000 tokens is estimated at
+  the long-input rates.
 - The rate table can be stale, for example when the provider changes a rate or
   when the `deepseek-flash` alias starts to point at a model with different
   rates. Each entry records its source and checked date, and the update
@@ -744,9 +748,46 @@ sent as the request's `reasoning.effort`, and `none` turns reasoning off. With
 `deepseek`, it is sent as the request's `reasoning_effort`. `none` turns thinking
 off, and the other values turn it on.
 
-OpenAI settings are accepted and checked, but wiring the OpenAI adapter into the
-steps is a separate change. Until that wiring is present, a step that selects
-`openai` fails while building its client, and no article is generated.
+**Using OpenAI.** `openai` calls OpenAI's Responses API. It needs API billing;
+a ChatGPT subscription cannot be used. Set the API key in `OPENAI_API_KEY`. For
+example, to run generation and shortening on `gpt-6-astra` at effort `medium`
+and review on `gpt-6.1-sol` at its default effort, set these environment
+variables for the CLI:
+
+```sh
+export YT2COLUMN_LLM=openai/gpt-6-astra+medium
+export YT2COLUMN_REVIEW_LLM=openai/gpt-6.1-sol
+export OPENAI_API_KEY=<OpenAI API key>
+```
+
+For the server, write the keys of the same names in the configuration file:
+
+```text
+YT2COLUMN_LLM=openai/gpt-6-astra+medium
+YT2COLUMN_REVIEW_LLM=openai/gpt-6.1-sol
+OPENAI_API_KEY=<OpenAI API key>
+```
+
+All seven effort values in the table above are accepted; they are not narrowed
+by a per-model list. An effort or parameter combination a model does not support is
+returned by OpenAI's API as an error (an HTTP status), and the step fails with
+no article generated. The request is never switched to another model or effort
+automatically. Costs can be estimated only for `gpt-6-astra` and
+`gpt-6.1-sol`; the cost of any other model is `unknown` (see
+[Estimated cost](#estimated-cost)).
+
+The request is fixed to the Standard processing tier (`service_tier` set to
+`default`), a minimum prompt cache retention of 30 minutes, and
+`store: false`, and no setting changes them. The data sent and what OpenAI
+retains (what `store: false` covers, the monitoring logs, and the prompt
+cache) are in
+[docs/dev/security.md](docs/dev/security.md#4-llm-プロバイダへ送るデータ) (Japanese).
+
+When the request does not specify an output limit, the OpenAI adapter sends a
+limit of 6,080 tokens for reasoning and the answer together. All three steps
+use this value. The basis of the value and how to re-measure it are in
+[docs/dev/guides/openai_output_limit.md](docs/dev/guides/openai_output_limit.md)
+(Japanese).
 
 With `YT2COLUMN_LLM` unset, generation and shortening use
 `claude/claude-opus-5-5` at effort `high`. With `YT2COLUMN_REVIEW_LLM` unset,

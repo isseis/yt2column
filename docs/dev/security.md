@@ -17,19 +17,21 @@ yt2column はローカルで実行する。主経路では、利用者がブラ�
 
 - `DEEPSEEK_API_KEY`・`ANTHROPIC_API_KEY`・`OPENAI_API_KEY` などの API キーと `SLACK_WEBHOOK_URL` は、CLI では環境変数からのみ読み込み、localhost サーバではモード `0600` の設定ファイル（`$HOME/.config/yt2column/config.env`。§8.2）からのみ読み込む。リポジトリ内のファイルに書かない（`.envrc` / `.env` は `.gitignore` 済みで、サーバの設定ファイルはリポジトリの外にある）。サーバは環境変数の値を読まない。
 - Webhook URL は URL 自体が秘密情報である。ログ・エラーメッセージに含めない。`*url.Error` など、URL を含む値をラップしたエラーをそのまま出力しない。
-- テストでは、本番の API キー（`DEEPSEEK_API_KEY`・`ANTHROPIC_API_KEY`・`OPENAI_API_KEY` に設定するもの）と本番の Webhook URL を使わない。ただし、実 API を呼ぶ統合テストに限り、本番とは別に用意した**テスト用の API キー**を使う例外を設ける（`docs/tasks/0003_deepseek_llm_client/02_architecture.md` §5.2）。テスト用の API キーは、DeepSeek API・Anthropic API に実際に通る有効なキーであり、使えば料金が発生する。
+- テストでは、本番の API キー（`DEEPSEEK_API_KEY`・`ANTHROPIC_API_KEY`・`OPENAI_API_KEY` に設定するもの）と本番の Webhook URL を使わない。ただし、実 API を呼ぶ統合テストに限り、本番とは別に用意した**テスト用の API キー**を使う例外を設ける（`docs/tasks/0003_deepseek_llm_client/02_architecture.md` §5.2）。テスト用の API キーは、DeepSeek API・Anthropic API・OpenAI API に実際に通る有効なキーであり、使えば料金が発生する。
   - ユニットテストは、本番のキーもテスト用の API キーも使わない。偽の値だけを使い、Webhook URL も偽の値だけを使う。どのテストも API キーをコードやテストデータに書かない。
   - テスト用の API キーは、テスト専用の環境変数 `YT2COLUMN_TEST_DEEPSEEK_API_KEY` からだけ読む。統合テストは、本番の `DEEPSEEK_API_KEY` を、設定されていても読まない。テスト用の API キーには、本番と別のキー（利用上限を設けたものなど）を割り当てる。
   - Claude の統合テストも同じ方針で、テスト専用の `YT2COLUMN_TEST_ANTHROPIC_API_KEY` からだけ API キーを読み、本番の `ANTHROPIC_API_KEY` は設定されていても読まない。ワークスペース ID もテスト専用の `YT2COLUMN_TEST_ANTHROPIC_WORKSPACE_ID` からだけ読み、本番の `ANTHROPIC_WORKSPACE_ID` は読まない。テスト用の API キーには、利用上限を設けたワークスペースのものを割り当てる。
-  - テスト用の API キーを使うのは、`//go:build integration` の次の 3 つの統合テストだけである。どれも、対応する make のターゲットだけがエクスポートするオプトインの変数の値がちょうど `1` でなければスキップする。各ターゲットは自分のオプトインだけをエクスポートし、他のオプトインはエクスポートしない。テスト用の API キーが `.envrc` などで常にエクスポートされていても、`go test -tags integration ./...` や IDE からの実行で料金が発生しない。
+  - OpenAI の統合テストも同じ方針で、テスト専用の `YT2COLUMN_TEST_OPENAI_API_KEY` からだけ API キーを読み、本番の `OPENAI_API_KEY` は設定されていても読まない。テスト用の API キーには、本番と別の、利用上限を設けたプロジェクトのキーを割り当てる。
+  - テスト用の API キーを使うのは、`//go:build integration` の次の 4 つの統合テストだけである。どれも、対応する make のターゲットだけがエクスポートするオプトインの変数の値がちょうど `1` でなければスキップする。各ターゲットは自分のオプトインだけをエクスポートし、他のオプトインはエクスポートしない。テスト用の API キーが `.envrc` などで常にエクスポートされていても、`go test -tags integration ./...` や IDE からの実行で料金が発生しない。
 
     | 統合テスト | make のターゲット | オプトインの変数 | テスト用の API キーがない場合 |
     |---|---|---|---|
     | `internal/llm/deepseek/integration_test.go`（DeepSeek のアダプタ） | `make test-integration-deepseek` | `YT2COLUMN_DEEPSEEK_INTEGRATION=1` | スキップする |
     | `internal/llm/claude/integration_test.go`（Claude のアダプタ） | `make test-integration-claude` | `YT2COLUMN_CLAUDE_INTEGRATION=1` | スキップする |
+    | `internal/llm/openai/integration_test.go`（OpenAI のアダプタ） | `make test-integration-openai` | `YT2COLUMN_OPENAI_INTEGRATION=1` | スキップする |
     | `cmd/yt2column/integration_test.go`（CLI の組み立てで testdata の字幕からファイル出力まで） | `make test-integration-cli` | `YT2COLUMN_CLI_INTEGRATION=1` | 失敗する（本番の `DEEPSEEK_API_KEY` だけがある場合も、それを代わりに使わない） |
 
-  - 実行するかどうかの判定とテスト用の API キーの読み込みは、DeepSeek の 2 つのテストが `internal/llm/deepseek/testutil` の `SettingsFrom` で、Claude のテストが `internal/llm/claude/testutil` の `SettingsFrom` で行う。
+  - 実行するかどうかの判定とテスト用の API キーの読み込みは、DeepSeek の 2 つのテストが `internal/llm/deepseek/testutil` の `SettingsFrom` で、Claude のテストが `internal/llm/claude/testutil` の `SettingsFrom` で、OpenAI のテストが `internal/llm/openai/testutil` の `SettingsFrom` で行う。
   - CLI は API キーを `DEEPSEEK_API_KEY` という名前で受け取るので、CLI の統合テストは、読み込んだテスト用の API キーを、テストが組み立てて CLI に与える環境の中で `DEEPSEEK_API_KEY` という名前で渡す。プロセスの環境変数は変えない。名前は本番と同じだが、値はテスト用の API キーである。
   - テストの出力（ログ・失敗メッセージ・スキップの理由）に API キーもその一部も書かない。
 - 本番の `SLACK_WEBHOOK_URL` は、本番の API キーと同様、テストでは使わない。統合テストは、テスト専用の環境変数 `YT2COLUMN_TEST_SLACK_WEBHOOK_URL` からだけ Webhook URL を読む。本番の `SLACK_WEBHOOK_URL` は、設定されていても読まない。テスト用の Webhook は、本番とは別の Mattermost のテスト用チャンネルに投稿するものを用意する。テスト用の Webhook URL を使うのは `//go:build integration` の次の 1 つのテストであり、オプトインの変数の値がちょうど `1` でなければスキップする。値 `1` は、make のターゲットからでも、IDE や `go test -tags integration` を起動した環境からでも、どこから渡されてもテストを実行する。ターゲットは自分のオプトインだけをエクスポートし、ほかの統合テストのオプトインはエクスポートしない。テスト用の Webhook URL がない場合と、HTTP/2 のデバッグ（下記の `GODEBUG`）が有効な場合は、スキップせずに失敗し、Webhook に送らない。
@@ -49,12 +51,17 @@ yt2column はローカルで実行する。主経路では、利用者がブラ�
 - **リダイレクトに従わない**: Webhook への送信では `http.Client.CheckRedirect` が `http.ErrUseLastResponse` を返し、3xx の応答に従わない。リダイレクト先が Webhook URL を別のホストへ送ることを防ぐ。
 - **応答から取り出すものを限定する**: `200` 以外の応答からは、エラーの識別子（`id`・`request_id`）だけを取り出し、`message` などの自由文は読まない・表示しない。`200` の応答は、本文がちょうど `ok` のときだけ成功とする。
 - Webhook 送信の失敗は、分割投稿の途中で失敗した場合も含め、どこまで投稿済みかが分かるエラーにする。
-- **モデル ID は要求本文にだけ入れる**: モデル ID（`YT2COLUMN_LLM`・`YT2COLUMN_REVIEW_LLM` の最初の `/` より後ろ。そこに `+` があれば `+` より前）は、`/` を含んだまま、要求本文（JSON）の値としてだけ送り、要求の URL には入れない。今の 2 つのアダプタは、モデルを要求本文の `model` の値としてだけ送る。URL のパスにモデルを入れる API のプロバイダを加えるときは、モデル ID の中の `/` や `..` がパスを変えないようにする。
+- **モデル ID は要求本文にだけ入れる**: モデル ID（`YT2COLUMN_LLM`・`YT2COLUMN_REVIEW_LLM` の最初の `/` より後ろ。そこに `+` があれば `+` より前）は、`/` を含んだまま、要求本文（JSON）の値としてだけ送り、要求の URL には入れない。今の 3 つのアダプタは、モデルを要求本文の `model` の値としてだけ送る。URL のパスにモデルを入れる API のプロバイダを加えるときは、モデル ID の中の `/` や `..` がパスを変えないようにする。
 
 ## 4. LLM プロバイダへ送るデータ
 
 - DeepSeek の API への入力は中国で処理・保存され、プライバシーポリシー上はデフォルトでモデルの学習に使われる（オプトアウトあり）。運用開始前にオプトアウトの設定を確認する。
 - Anthropic の Messages API へ送る入力と出力は、商用製品の既定では Anthropic のモデルの学習に使われない（利用者がフィードバックを明示的に送った場合や、利用者が許可した場合を除く）。Anthropic API の入力と出力は、受け取りまたは生成から 30 日以内にバックエンドから自動的に削除される。利用者側で保持期間を延ばす機能を使う場合、別途合意した場合（ゼロデータ保持など）、利用ポリシー違反の調査、法令上の保持は例外である。出典: Anthropic Privacy Center [「Is my data used for model training?」](https://privacy.claude.com/en/articles/7996868-is-my-data-used-for-model-training)・[「How long do you store my organization's data?」](https://privacy.claude.com/en/articles/7996866-how-long-do-you-store-my-organization-s-data)（2026-10-12 確認）。
+- OpenAI の Responses API（`POST https://api.openai.com/v1/responses`）へ送るデータは、ほかのプロバイダと同じである（この節の最後の 2 項目）。アダプタは要求に `store: false` を常に付け、変える設定はない。出典: OpenAI [Data controls in the OpenAI platform](https://developers.openai.com/api/docs/guides/your-data)・[Prompt caching](https://developers.openai.com/api/docs/guides/prompt-caching)（2026-11-11 確認）。
+  - API へ送った入力と出力は、既定では OpenAI のモデルの学習・改善に使われない（利用者が明示的にオプトインした場合を除く）。
+  - `store: false` は、応答を後から API で取り出すための保存（既定や `store: true` では 30 日）を止めるだけである。下のプロンプトキャッシュの状態は止めない。不正利用の監視ログは `store` の値にかかわらず既定で作られ、通常は最大 30 日保持されうる（法令上の必要や、サービス・第三者を害から守るために長く保持する場合を除く）。監視ログから内容を除くのは、承認を受けた利用者の Modified Abuse Monitoring やゼロデータ保持であり、`store: false` はそれに当たらない。本ツールの要求をゼロデータ保持と説明しない。
+  - プロンプトキャッシュは、`store` とは別に、暗号化したキーと値のテンソル（KV テンソル）をアプリケーションの状態として保持しうる。要求が指定する 30 分（`prompt_cache_options.ttl`）は最低保持期間であり、OpenAI はそれより長く保持しうる。30 分後の削除は保証されない。公式の文書は、プロンプトキャッシュの保持の上限を 24 時間としている。
+  - これらは設計時（2026-11-10）と実装時（2026-11-11）に確認した公式の文書の記述であり、外部の仕様は変わりうる。設計の判断は [ADR-0041](adr/0041-openai-api.md) にある。
 - 字数の調整の工程は生成した文面（タイトルと本文）も LLM に送る。検証・推敲の工程は、生成した文面に加えて素材（字幕・概要欄・動画タイトル・チャンネル名）も送る。検証・推敲のプロバイダを生成と別にする（`YT2COLUMN_REVIEW_LLM`）と、送り先の事業者が増える。
 - LLM に送るのは、生成では公開動画の字幕・メタ情報、字数の調整では生成した文面、検証・推敲では生成した文面と素材、そしていずれの工程でもプロンプトテンプレートだけにする。API キー、Webhook URL、ローカルのファイルパス、利用者の個人情報をプロンプトに含めない。
 

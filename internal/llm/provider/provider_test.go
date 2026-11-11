@@ -598,7 +598,8 @@ func openAIMaxOutputTokens(t *testing.T, recorded llmhttptest.Recorded) int {
 // (docs/tasks/0077_openai_llm_client/02_architecture.md section 1.4): the
 // largest output of a successful measured run, the slowest observed output
 // rate (gpt-6-astra, review of the 39-minute video), and the largest output
-// both candidate models accept.
+// both candidate models accept. docs/dev/guides/openai_output_limit.md says
+// when and how to re-measure them.
 const (
 	// openAILargestObservedOutputTokens is the largest output of a successful
 	// measured run.

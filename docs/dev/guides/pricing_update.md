@@ -6,11 +6,13 @@
 
 - DeepSeek: <https://api-docs.deepseek.com/quick_start/pricing>
 - Anthropic (Claude): <https://platform.claude.com/docs/en/about-claude/pricing>
+- OpenAI: <https://developers.openai.com/api/docs/pricing>（キャッシュの書き込みの単価は [Prompt caching](https://developers.openai.com/api/docs/guides/prompt-caching) でも確かめる）
 
 各ページで、対象のモデルについて次を確かめる。
 
 - 入力、キャッシュの読み取り、キャッシュの書き込み、出力のそれぞれの料金（100 万トークンあたり）。
 - 料金の組の選び方（以下「方式」）。単一の料金（一律の方式）、週ごとのピークの時間帯、プロンプトの長さのしきい値のいずれかである。
+- OpenAI のモデルでは、Standard の処理方式の単価であること、キャッシュの書き込みはアダプタが送る保持期間（30 分）の単価であること、長い入力の単価に切り替わるしきい値（入力の合計のトークン数）。料金表の OpenAI の項目は `requires` に `llm.PricingContextStandard30m` を持ち、応答がその条件を示した呼び出しだけを推定する。アダプタが送る処理方式や保持期間を変えるときは、この条件と単価を一緒に見直す。
 - 時刻で変わるモデルでは、ピークにあたる曜日と、分単位まで指定した時刻の範囲。CLI はこれらを UTC で読む。DeepSeek のピークの時間帯は月曜日から金曜日の 01:00-04:00 と 06:00-10:00 UTC である。
 
 ## 料金表を更新する
@@ -26,6 +28,7 @@
 - `internal/pricing/pricing_test.go` の `TestEstimateCategories`: 各モデルの 1 工程の費用。そのテストのコメントに計算式（`count * rate / 1e6 USD`）を示している。計算式と `want` の文字列を、料金と一緒に更新する。
 - `TestEstimatePeakWindow`: 時間帯が変わったときの、DeepSeek のピークの時間帯とそれ以外の境界。
 - `TestEstimatePromptTier`: しきい値が変わったときの、Claude Haiku のプロンプトの長さに応じた料金の階層。
+- `TestEstimateOpenAI`: OpenAI の 2 モデルの費用、しきい値の前後（入力の合計が 272,000 と 272,001）、キャッシュだけでしきい値を越える場合、料金の適用条件が一致しない場合。
 - `internal/pricing/amount_test.go` の `TestAmountFormat`: 金額を小数点以下 6 桁と 4 桁に丸める処理。
 
 ## 料金の変更がほかに触れるもの

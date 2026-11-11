@@ -51,7 +51,7 @@ what changes under which condition:
 | Reviewer ping | After a task-document command (`mkreq.md`, `mkarch.md`, `mkplan.md`, `mkplan2.md`) or `runplan.md` opens its PR (`_lib/task-pr-handoff.md` Part B), notify the human reviewer with the `PushNotification` tool (the PR author cannot be requested as a GitHub reviewer of their own PR) and repeat the PR URL and the next action in the final report, which is the only channel when the tool is unavailable or the notification is not sent |
 | PR merge method | Squash merge, run with `/mergepr`. The squash commit is the only commit of a PR that reaches `main`, so its message carries what CLAUDE.md requires commit messages to record |
 | Document language | Japanese — the language of the task documents and the guides (`CLAUDE.md`, "Document language", principle (a)); instruction files and conventions are English |
-| Translation glossary | `docs/translation_glossary.md` |
+| Translation glossary | `docs/translation_glossary.md` — also the authority for the Japanese terms of a PR title and a PR description: read it before writing either, use its terms, and never use a term it marks as deprecated (旧称) or a rendering it says not to use. A term the text needs but the glossary lacks is not invented silently: name it in the final report, for the user to add to the glossary |
 | Translation language pair | `README.md` (Japanese, primary) → `README.en.md` (English), the only pair `mktrans.md` translates; it stops and asks on any other file *(reference only — `mktrans.md` defines the pair itself, not from this value)* |
 
 ### PR marker conventions

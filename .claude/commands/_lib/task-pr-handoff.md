@@ -212,8 +212,10 @@ Run this after the calling command's last commit, with a clean working tree.
    writing the title and the body to files in the scratchpad with the Write tool
    (`_context.md`, "Passing a title to `gh`"). Do not pause for the user to
    adjust the title or body; the reviewer can edit them on GitHub. The title is
-   PR_TEXT's and follows `_context.md`, "PR title and squash subject". The body
-   is in Japanese (`CLAUDE.md`, "Language"):
+   PR_TEXT's and follows `_context.md`, "PR title and squash subject". The title
+   and the body use the terms of the translation glossary, as `_context.md`,
+   "Translation glossary", says. The body is in Japanese (`CLAUDE.md`,
+   "Language"):
    - summarizes the change;
    - lists the decisions made with the reviewer during this run, if any;
    - names the points the reviewer should check (for `runplan.md`, the

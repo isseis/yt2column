@@ -91,25 +91,25 @@
 
 **変更するファイル:** `.claude/commands/_lib/opus-review.md`（新規）、`.claude/commands/weakreview.md`、`CLAUDE.md`、`docs/dev/adr/0016-document-test-policy.md`、`docs/dev/adr/0042-implementation-model-tiers.md`、`docs/tasks/0081_implementation_model_choice/_checks/moved_checklist.sh`（新規）、本計画
 
--   [ ] **ステップ 1-1**: `_lib/opus-review.md` を作る（設計書 3.4 のうち Opus かどうかの規則・残した指摘の記録・mention の確かめ、3.5 の冒頭、3.5.3〜3.5.5）。
+-   [x] **ステップ 1-1**: `_lib/opus-review.md` を作る（設計書 3.4 のうち Opus かどうかの規則・残した指摘の記録・mention の確かめ、3.5 の冒頭、3.5.3〜3.5.5）。
     -   frontmatter と入口 2。入口 1 は PR-2 で足す。
     -   「Record lines」の節: Opus かどうかの規則（`claude-opus-` で始まる）、残した指摘の記録（`Opus review: kept`）、記録の行の一般の規則、mention の確かめ。
     -   入口 2: 入力（RANGE・TASK_DIR・FIX・DECISION_CHANGE）と出力（OUTCOME・FINDINGS・KEPT・COMMITS・CATEGORIES・READ）、読む文書、決定的な事前の確かめ（`weakreview.md` step 3 の Check 1〜5 を移す）、二人のレビュアー、統合、直しと確認、止まる条件。
     -   「Correctness checklist」を新しく書く。範囲は設計書 3.5.3 の Reviewer A の担当（バグと、AC・設計書・計画書とのずれ）で、テストの網羅と cleanup の項目を入れない（AC-28）。
     -   「Weak-model failure checklist」と事前の確かめを `weakreview.md` から移す。文は変えない。ただし、`weakreview.md` の手順への参照（§1.4 の「the step-3 grep」の 2 か所と、事前の確かめのコードブロックの範囲と task のディレクトリの置き場所）は、移した先の名前（事前の確かめの手順の名前、RANGE・TASK_DIR）に合わせて直す。直す参照の一覧を、ステップ 1-7 の `_checks/` のスクリプトの置き換えの一覧にする。
     -   具体的なモデル ID（版を含む ID）を書かない（設計書 3.5 の冒頭）。
--   [ ] **ステップ 1-2**: `weakreview.md` を書き換える（設計書 3.7、6.3）。frontmatter の `argument-hint`、Purpose、引数の解釈と止まる条件、範囲のそろえ方、直すときの確かめ、PR が開いているときの添え書き、ネットワークの操作、共通の手順の入口 2 の呼び出し、報告を書く。チェックリストと事前の確かめは消す（ステップ 1-1 で移した）。
--   [ ] **ステップ 1-3**: `CLAUDE.md` のコマンドの一覧の `/weakreview` の行を書き換える（設計書 3.11.1 の 1 つ目）。
--   [ ] **ステップ 1-4**: ADR-0016 の `weakreview.md` の「Weak-model failure checklist」へのリンクを、`_lib/opus-review.md` の同じチェックリストへのリンクに直す（設計書 3.11.3）。commit のメッセージに訂正の行を書く。
--   [ ] **ステップ 1-5**: ADR-0042 の「決定」の食い違いの記述を、残るずれを述べる形に書き換える（§1.3 の決定 4）。issue #760 への完全な URL のリンクは残す。残るずれは、ADR-0042 の「決定」の箇条ごとに、PR-1 のブランチの状態（マージの後の `main` になるもの）に照らして確かめる（`_context.md` と `mkplan2.md`・`mkplan.md`・`_lib/simple-process.md` が旧い値を書き、単一フェーズの計画書が値を持たず、`runplan.md` が Opus のレビューを行わず、共通の手順が要否の判断と実装の記録・完了の記録を持たない、など）。commit のメッセージに訂正の行を書く。
--   [ ] **ステップ 1-6**: PR-1 のブランチで、ステップ 1-2 の `/weakreview` を実地で確かめる（AC-28〜AC-30、AC-33）。
+-   [x] **ステップ 1-2**: `weakreview.md` を書き換える（設計書 3.7、6.3）。frontmatter の `argument-hint`、Purpose、引数の解釈と止まる条件、範囲のそろえ方、タスクの特定、直すときの確かめ、PR が開いているときの添え書き、ネットワークの操作、共通の手順の入口 2 の呼び出し、報告を書く。チェックリストと事前の確かめは消す（ステップ 1-1 で移した）。
+-   [x] **ステップ 1-3**: `CLAUDE.md` のコマンドの一覧の `/weakreview` の行を書き換える（設計書 3.11.1 の 1 つ目）。
+-   [x] **ステップ 1-4**: ADR-0016 の `weakreview.md` の「Weak-model failure checklist」へのリンクを、`_lib/opus-review.md` の同じチェックリストへのリンクに直す（設計書 3.11.3）。commit のメッセージに訂正の行を書く。
+-   [x] **ステップ 1-5**: ADR-0042 の「決定」の食い違いの記述を、残るずれを述べる形に書き換える（§1.3 の決定 4）。issue #760 への完全な URL のリンクは残す。残るずれは、ADR-0042 の「決定」の箇条ごとに、PR-1 のブランチの状態（マージの後の `main` になるもの）に照らして確かめる（`_context.md` と `mkplan2.md`・`mkplan.md`・`_lib/simple-process.md` が旧い値を書き、単一フェーズの計画書が値を持たず、`runplan.md` が Opus のレビューを行わず、共通の手順が要否の判断と実装の記録・完了の記録を持たない、など）。commit のメッセージに訂正の行を書く。
+-   [x] **ステップ 1-6**: PR-1 のブランチで、ステップ 1-2 の `/weakreview` を実地で確かめる（AC-28〜AC-30、AC-33）。
     -   `--no-fix` で一度実行し、二つのレビューの出力の最初の行を共通の手順が定める確かめで判定して通ったことと、統合した報告の形を確かめる。あわせて、その確かめを、Sonnet の ID を書いた行と、形の合わない行の両方に当て、どちらも通らないことを確かめる。
     -   直すときの止まる条件の 2 つ（作業ツリーが clean でない、範囲の終わりが `HEAD` でない）を、使い捨ての変更と範囲で一度ずつ実行し、レビューを始める前に止まることを確かめる。
     -   §7 の「PR-1 の実行の記録」には、判定の結果（通った・通らなかった）と照らした規則だけを書き、レビューが返したモデル ID の文字列は書かない（後の Opus のレビューが本計画を読むため。設計書 3.5.5）。
     -   Opus で走らせられずに止まったときは、何も push せずに止まって報告し、Opus が使えるようになってからこのステップをやり直す。
     -   Critical と Major の指摘は、step 7 の指摘と同じく、この PR の範囲で直す。
--   [ ] **ステップ 1-7**: `_checks/moved_checklist.sh` を書いて実行する（AC-28）。マージの基点のコミットと、比べるコミットの 2 つを引数で受け取り、基点の `weakreview.md` の「Weak-model failure checklist」の項目と事前の確かめのコードブロックが、比べるコミットの `_lib/opus-review.md` に同じ文で、同じ順にあることを確かめる。見出しの階層の違いと、ステップ 1-1 の置き換えの一覧にある置き換えだけを許す。各チェックが少なくとも 1 つの壊し方で失敗することを確かめ、その結果を commit のメッセージに書く。実行の出力・終了コード・2 つのコミットの ID を §7 の「PR-1 の実行の記録」に書く。ステップ 1-6 の直しの後に行う。
--   [ ] **ステップ 1-8**: AC-13 の差分の記録を書く（§7 の「差分の記録」の PR-1 の欄）。
+-   [x] **ステップ 1-7**: `_checks/moved_checklist.sh` を書いて実行する（AC-28）。マージの基点のコミットと、比べるコミットの 2 つを引数で受け取り、基点の `weakreview.md` の「Weak-model failure checklist」の項目と事前の確かめのコードブロックが、比べるコミットの `_lib/opus-review.md` に同じ文で、同じ順にあることを確かめる。見出しの階層の違い、コードブロックの字下げ（リストの入れ子による）の違い、ステップ 1-1 の置き換えの一覧にある置き換えだけを許す。各チェックが少なくとも 1 つの壊し方で失敗することを確かめ、その結果を commit のメッセージに書く。実行の出力・終了コード・2 つのコミットの ID を §7 の「PR-1 の実行の記録」に書く。ステップ 1-6 の直しの後に行う。
+-   [x] **ステップ 1-8**: AC-13 の差分の記録を書く（§7 の「差分の記録」の PR-1 の欄）。
 
 **確かめ直し。** ステップ 1-7 の比べたコミットより後に `_lib/opus-review.md` か `_checks/moved_checklist.sh` を変える commit が入ったら（PR を作った後の `/fixpr` の修正を含む）、ステップ 1-7 をやり直して §7 の記録を改める。
 
@@ -127,10 +127,10 @@
 
 **判定理由**: ステップ 1-1 が、繰り返しの上限と止まる条件を持つ直しと確認のループ（状態機械に近い手順）を新しく書く。1-2・1-6・1-7 がこれに依るので、PR の中で隔離はできない。Sonnet で実装し、旧い値の意味に従って `/weakreview` で確かめるときは、このブランチで書き換え中の `weakreview.md` ではなく、`origin/main` の `weakreview.md` で行う。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/822
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: 読む側と `/runplan` への組み込み（設計書 8 章の 2）
 
@@ -269,7 +269,7 @@
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
--   [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8）
+-   [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8）
 -   [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7 / 2-8 / 2-9 / 2-10）
 -   [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8）
 
@@ -336,6 +336,13 @@ PR-1:
 Diff record (AC-13):
 
 - Compared paths: `docs/tasks/0073_adr_context_decision_review/03_implementation_plan.md` `docs/tasks/0076_fixpr_local_review_guard/03_implementation_plan.md` `docs/tasks/0077_openai_llm_client/03_implementation_plan.md`
+- Merge-base: `04dc4824145e2243bbf8dcfa82c5ff853c43eb11`
+- Compared commit: `49b7627aff9c347c111f2fe29bd6ea6a35ded09b`
+
+Path diff:
+
+```text
+```
 
 PR-2:
 
@@ -351,7 +358,26 @@ Diff record (AC-13):
 
 ### PR-1 の実行の記録
 
-（ステップ 1-6 と 1-7 で書く。）
+**ステップ 1-6（`/weakreview` の実地の確かめ）。** このブランチで、書き換えた `weakreview.md` の手順に従い、`--no-fix` で実行した（範囲 `04dc4824145e..e47b01579f48`、タスクはブランチの名前から特定した）。
+
+-   二つのレビューの出力の最初の行を、`_lib/opus-review.md`「Running on Opus」の確かめ（最初の行だけを書いたファイルに `grep -Eqx 'Model: claude-opus-[!-~]+'`）で判定した。どちらも通った（終了コード 0）。照らした規則は「Record lines」の Opus かどうかの規則（`claude-opus-` で始まる）である。確認のレビュー（2 回）の最初の行も、同じ確かめで通った。
+-   同じ確かめを、Sonnet の ID を書いた行（`Model: claude-sonnet-` で始まる行）と、形の合わない 4 つの行（`:` の後に空白がない、`model:` が小文字、`claude-opus-` の後が空、ID の後に語が続く）に当てた。どれも通らなかった（終了コード 1）。
+-   統合した報告の形: 二つのレビューの指摘を統合し、重複を除いて高い重大度をとった結果は、Critical 1・Major 3・Minor 9 だった。各チェックリストの分類の行（clean・flagged・該当なし）と全体の見立ての 1 行を得た。
+-   直すときの止まる条件は、`/weakreview` を呼び出してではなく、手順の step 4 の確かめのコマンドを書いたとおりに並べたスクリプトで確かめた（報告の文はそのスクリプトのもので、`weakreview.md` の文ではない）。範囲の終わりを `HEAD~1` にしたときは「range end is not HEAD」で、使い捨ての追跡されないファイルを置いたときは「working tree not clean」で、どちらもレビューを始める前に止まった（終了コード 1）。clean な作業ツリーで範囲の終わりが `HEAD` のときは通った。
+-   実地で見つかった手順の不具合を直した。タスクの文書を変えない範囲でタスクを特定できなかった（ブランチの名前からの特定を足した、835e7bc6）。事前の確かめのブロックを zsh で走らせると `path` の変数が `PATH` を書き換えた（`bash` で走らせると書いた、e47b0157）。
+-   `--no-fix` の実行は `reported` で終わり、確認のレビューを走らせない。Critical と Major の指摘は、本ステップの「この PR の範囲で直す」に従い、セッションが共通の手順の「Fixing and verifying」に沿って直し（bf281603、b99db37e）、確認のレビューを Opus で 2 回走らせた。2 回目で Critical と Major が残らなかった。残った Minor（コミットメッセージに位置する指摘の、残した指摘の記録の形がない、ほか）は PR の説明に書く。
+
+**ステップ 1-7（`_checks/moved_checklist.sh`）。** `bash docs/tasks/0081_implementation_model_choice/_checks/moved_checklist.sh 04dc4824145e2243bbf8dcfa82c5ff853c43eb11 1121fb36b589ee11e681024a13f68e48be602a30` の出力（終了コード 0）:
+
+```text
+PASS replacement: 'RANGE="<resolved range>"' -> 'RANGE="<RANGE>"'
+PASS replacement: 'docs/tasks/<task-dir>/' -> '<TASK_DIR>/'
+PASS replacement: 'step-3' -> 'pre-check'
+PASS checklist: 185 lines identical
+PASS pre-check block: 48 lines identical
+```
+
+マージの基点 `04dc4824145e2243bbf8dcfa82c5ff853c43eb11`、比べたコミット `1121fb36b589ee11e681024a13f68e48be602a30`。各チェックを壊して失敗することは、49b7627a のメッセージに書いた。
 
 ### PR-2 の実行の記録
 
