@@ -220,10 +220,17 @@ export async function startViewer(
   // publish answer that was in flight belong to the send it replaced.
   let restarts = 0;
 
+  /** The article the heading was last drawn with. */
+  let headerArticle: Article | undefined;
   const draw = (): void => {
     // The heading shows the server's neutralized values once the article
-    // is done.
-    renderViewerHeader(elements, params, locale, shownArticle(state));
+    // is done. It is drawn again only when the shown article changes, so
+    // the redraw each second keeps a selection in the heading.
+    const article = shownArticle(state);
+    if (article !== headerArticle) {
+      headerArticle = article;
+      renderViewerHeader(elements, params, locale, article);
+    }
     renderViewer(
       elements,
       {

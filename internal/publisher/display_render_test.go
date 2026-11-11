@@ -101,6 +101,9 @@ func TestNeutralizedDisplayMarkdown(t *testing.T) {
 		{"post refusals", articleWith("T", "", "<!channel> <@name> <a|b>\n"), "# T\n\n<!channel> <@" + z + "name> <a|b>\n"},
 		{"look-alike", articleWith("T", "", "＠channel\n"), "# T\n\n＠" + z + "channel\n"},
 		{"two URL paths", articleWith("T", "", "(https://example.com/@a/@b)\n"), "# T\n\n(https://example.com/@a/@b)\n"},
+		{"URL path on the channel name line", articleWith("T", "https://www.youtube.com/@handle", "Body.\n"), "# T\n\nhttps://www.youtube.com/@handle\n\nBody.\n"},
+		{"bracket after the URL start", articleWith("T", "", "https://example.com/[x/@a\n"), "# T\n\nhttps://example.com/[x/@a\n"},
+		{"earlier start open across a refused one", articleWith("T", "", "https://a.example/xhttps://b/@c\n"), "# T\n\nhttps://a.example/xhttps://b/@c\n"},
 
 		// Nothing to neutralize: the display Markdown is returned unchanged.
 		{"no target", validArticle(), "# A title\n\n" + validArticle().Body},
@@ -225,29 +228,41 @@ func TestNeutralizedDisplayMarkdownKeptAts(t *testing.T) {
 // TestNeutralizedDisplayMarkdownLinearTime checks that the time grows
 // linearly with the input: for an input four times as long it must take less
 // than eight times as long (a linear pass takes about four times, a pass that
-// searches back from each '@' about sixteen). The minimum of several runs
-// keeps a slow run from deciding, and no absolute limit is set, because make
-// test runs with the race detector.
+// searches back from each '@' or each URL start about sixteen). The minimum
+// of several runs keeps a slow run from deciding, and no absolute limit is
+// set, because make test runs with the race detector.
 func TestNeutralizedDisplayMarkdownLinearTime(t *testing.T) {
-	// One long line: a pass that searches back to the line start or the text
-	// start for each '@' takes time quadratic in its length.
-	const unit = "x https://a.example/@b/@c @d &#64;e /@f AC/@g ://h [i "
-	timeOf := func(repeat int) time.Duration {
-		a := articleWith("T", "", strings.Repeat(unit, repeat))
-		best := time.Duration(math.MaxInt64)
-		for range 5 {
-			start := time.Now()
-			if _, err := NeutralizedDisplayMarkdown(a); err != nil {
-				t.Fatalf("NeutralizedDisplayMarkdown error = %v", err)
-			}
-			best = min(best, time.Since(start))
-		}
-		return best
+	// Each unit is one long line: a pass that searches back to the line start
+	// or the text start takes time quadratic in its length. Without '[' every
+	// URL start opens and every "/@" is judged inside an open URL; with '['
+	// the starts after the first are refused by condition 5.
+	units := map[string]string{
+		"open URLs":   "x https://a.example/@b/@c @d &#64;e /@f AC/@g ://h ",
+		"after a '['": "x https://a.example/@b/@c @d &#64;e /@f AC/@g ://h [i ",
 	}
-	const n = 1000
-	short, long := timeOf(n), timeOf(4*n)
-	if long >= 8*short {
-		t.Errorf("time for %d units = %v, for %d units = %v: ratio %.1f, want under 8", n, short, 4*n, long, float64(long)/float64(short))
+	for name, unit := range units {
+		t.Run(name, func(t *testing.T) {
+			timeOf := func(repeat int) time.Duration {
+				a := articleWith("T", "", strings.Repeat(unit, repeat))
+				best := time.Duration(math.MaxInt64)
+				// One more run than measured warms up the allocator.
+				for i := range 6 {
+					start := time.Now()
+					if _, err := NeutralizedDisplayMarkdown(a); err != nil {
+						t.Fatalf("NeutralizedDisplayMarkdown error = %v", err)
+					}
+					if i > 0 {
+						best = min(best, time.Since(start))
+					}
+				}
+				return best
+			}
+			const n = 2000
+			short, long := timeOf(n), timeOf(4*n)
+			if long >= 8*short {
+				t.Errorf("time for %d units = %v, for %d units = %v: ratio %.1f, want under 8", n, short, 4*n, long, float64(long)/float64(short))
+			}
+		})
 	}
 }
 

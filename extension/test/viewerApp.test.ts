@@ -765,6 +765,9 @@ describe("startViewer: operations", () => {
     await viewer.host.answer(publishRejected("article_not_found"));
     assert.equal(viewer.elements.publish.disabled, true);
     assert.ok(stateText(viewer).includes(catalogs.en.viewer.lost.text));
+    // The kept article still gives the heading its values.
+    assert.equal(viewer.elements.heading.textContent, article.videoTitle);
+    assert.equal(viewer.elements.channel.textContent, article.channelName);
     viewer.elements.save.click();
     assert.deepEqual(
       viewer.saves.saved.map(({ text }) => text),
@@ -918,6 +921,15 @@ describe("startViewer: operations", () => {
     viewer.elements.copy.click();
     await settle();
     assert.deepEqual(viewer.clipboard.written, []);
+  });
+
+  it("keeps the heading's text through the redraw each second of a running job", async () => {
+    const viewer = await showing(runningJob);
+    const node = viewer.elements.heading.firstChild;
+    assert.ok(node !== null);
+    viewer.clock.advance(3_000);
+    await settle();
+    assert.equal(viewer.elements.heading.firstChild, node);
   });
 
   it("shows the done article's video title and channel name in the heading", async () => {
