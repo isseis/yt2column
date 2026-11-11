@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `draft` |
 | Created | 2026-11-11 |
-| Review date | 2026-11-11 |
-| Reviewer | isseis |
-| Comments | - |
+| Review date | - |
+| Reviewer | - |
+| Comments | 決定の変更で draft に戻した：§3.1.3 に、パッケージ名を隠すローカル変数の改名（`YtDlpSource.Fetch` の `transcript`）を足した |
 
 ## 1. 設計の全体像 (Design Overview)
 
@@ -40,7 +40,7 @@
     -   **パッケージ名。** `ytdlp` にすると、revive の stutter の検査が `ytdlp.YtDlpSource` を拒否する。AC-05 は識別子の改名を許さないので、名前を `ytdlpsource` とした。
     -   **番兵を残す理由。** `internal/transcript/video_id_test.go:87` は、`package transcript` のテストの中で yt-dlp の経路の番兵を参照している。番兵を移すと、このテストは `internal/ytdlpsource` を import できず（import の循環になる）、AC-04 の許す書き換えでは直せない。番兵を残せば、呼び出し側の番兵による判別（`cmd/yt2column/run.go:868`・`internal/job/job_test.go:535`）も変わらない。
     -   ADR: [ADR-0019](../../dev/adr/0019-pipeline-component-interfaces.md) を更新した（構成要素の境界を変える決定で、後のタスクの置き場所を縛るため）。
--   **分割に要る書き換えのために、要件書の AC-04・AC-05 を改めた（H-01）。** 移動・import・修飾の書き換えだけでは移せない箇所が 4 つある。
+-   **分割に要る書き換えのために、要件書の AC-04・AC-05 を改めた（H-01）。** 移動・import・修飾の書き換えだけでは移せない箇所が 4 つある（計画の際に見つけた 5 つ目は §3.1.3 の表にある）。
     -   移す側の `pruneCandidateID`（宣言は `internal/transcript/cache.go:403`）は、残る側の非公開の `videoIDPattern`（`internal/transcript/video_id.go:11`）を使う。
     -   テストの補助の `testVideoID`（宣言は `internal/transcript/test_helpers.go:283`）も、同じ `videoIDPattern` を使う。
     -   テストの補助の `readTestdataFile`（宣言は `internal/transcript/test_helpers.go:232`）は、残る側の `copied_test.go` と、移す側の `info_test.go`・`json3_test.go`・`ytdlp_test.go` が使う。
@@ -332,6 +332,7 @@ func readOverrideFile(src templateSource) ([]byte, error)
 |---|---|---|
 | `pruneCandidateID`（`internal/transcript/cache.go:403`。使う行は `:405`） | 非公開の `videoIDPattern.MatchString(id)` | `transcript.NormalizedVideoURL(id)` の 2 つ目の戻り値。`NormalizedVideoURL` は `videoIDPattern` に一致しないときだけ false を返すので、判定は同じである（`internal/transcript/video_id.go:64`〜`69`） |
 | `testVideoID`（`internal/transcript/test_helpers.go:283`。使う行は `:285`） | 同上 | 同上 |
+| `YtDlpSource.Fetch`（`internal/transcript/ytdlp.go:69`〜`74`） | ローカル変数 `transcript` のスコープの中で `Transcript{}` を返す。移した後に `transcript.Transcript{}` と修飾すると、ローカル変数がパッケージ名を隠してコンパイルできない | ローカル変数を `cached` に改名する。振る舞いは変わらない（計画の際に足した。要件書の「要件定義の際に決めたこと」） |
 | `readTestdataFile`（`internal/transcript/test_helpers.go:232`） | 1 つの定義を両方の側のテストが使う | `internal/transcript` と `internal/ytdlpsource` の両方のテストの補助に、同じ定義を置く |
 | `internal/config/envaccess_test.go` の `internal/transcript/ytdlp.go`（`:69`・`:392`〜`393`・`:412`・`:599`〜`600`・`:611`） | 移す前のパスの文字列 | `internal/ytdlpsource/ytdlp.go`。許可する参照の種類（`call:os.Environ`）と数（1）は変えない |
 
@@ -898,3 +899,4 @@ PoC のコードにはテストを書かない（要件書 §5「受け入れの
 ## 変更履歴
 
 -   2026-11-11 承認（isseis、#820）
+-   2026-11-11 draft への戻し：§3.1.3 に、パッケージ名を隠すローカル変数の改名（`YtDlpSource.Fetch` の `transcript`）を足した（#未記入）

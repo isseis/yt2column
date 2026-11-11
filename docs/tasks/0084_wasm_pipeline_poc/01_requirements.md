@@ -4,12 +4,12 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `draft` |
 | Process | `full` |
 | Created | 2026-11-11 |
-| Review date | 2026-11-11 |
-| Reviewer | isseis |
-| Comments | - |
+| Review date | - |
+| Reviewer | - |
+| Comments | 決定の変更で draft に戻した：AC-05 に、パッケージ名を隠すローカル変数の改名（`YtDlpSource.Fetch` の `transcript`）を足した |
 
 ## 1. 概要 (Overview)
 
@@ -71,6 +71,7 @@
 -   **長い応答は、入口とは別の、測定のためだけの呼び出しで送る（F-002）。** `internal/writer` のテンプレートには、40,000 トークンの近くまで出力させるものがない。issue の「入口を 1 つ」は、記事を作る入口のことである。そこで PoC に、同じ Claude アダプタで長い出力を求める呼び出しを 1 つ足す。PoC のブランチの中だけに置き、`main` には入れない。ADR: なし。
 -   **本番の構成で試す動画は、0008 の評価の 5 本から、字幕の最も長い動画 1 を含む 3 本とし、CLI は実行せずに記事の構造で形式を判定する（AC-20）。** 評価の 5 本は [0008 評価記録](../0008_column_prompt/02_evaluation.md) §3.2 にある。最も長いのは動画 1（`roNZ-rLxhUE`、32:29）で、応答が長くなりやすく、問い 2・3 の条件として厳しい。形式は、記事の構造を CLI の出力の構造と見比べて判定する。同じ 3 本を CLI でも実行すると約 1.1 USD 増え、得られるのは同じコード（`internal/writer`）の出力の比較だけであるためである。ADR: なし。
 -   **yt-dlp の経路を別のパッケージへ移すのに要る書き換えを、AC-04・AC-05 に足す（設計の際、2026-11-11）。** 設計で、yt-dlp の経路を兄弟のパッケージ `internal/ytdlpsource` に移すと決めた（[02_architecture.md](02_architecture.md)）。移す側は、残る側の非公開の `videoIDPattern` を製品のコードとテストの補助で 1 か所ずつ使い、テストの補助の `readTestdataFile` は両方の側のテストが使う。これらは、移動・import・修飾の書き換えだけでは移せない。非公開の名前を公開に改めると、識別子の改名になる。そこで、`videoIDPattern` に一致しないときだけ false を返す公開の `NormalizedVideoURL` を使う形への書き換えと、補助の関数の複製を許すことにした。新しいパッケージに要るパッケージのコメントと、統合テストを動かす `Makefile` の目標のパスの書き換えも、同じ理由で足した。さらに、環境変数の参照を限る検査（`internal/config/envaccess_test.go`、[ADR-0024](../../dev/adr/0024-env-access-in-config.md)）は、`os.Environ` を呼ぶ `internal/transcript/ytdlp.go` をパスの文字列で許可している。ファイルを移すとこの文字列も変える必要があるので、移したファイルを指すパスの文字列の書き換えも許すことにした（許可する参照の種類と数は変えない）。ADR: [ADR-0019](../../dev/adr/0019-pipeline-component-interfaces.md) を更新する（パッケージの分け方の決定は `02_architecture.md` が記録する）。
+-   **パッケージ名を隠すローカル変数の改名を、AC-05 に足す（計画の際、2026-11-11）。** `YtDlpSource.Fetch`（`internal/transcript/ytdlp.go:69`〜`74`）は、ローカル変数を `transcript` と名付け、そのスコープの中で `Transcript{}` を返す。移した後にこれを `transcript.Transcript{}` と修飾すると、ローカル変数がパッケージ名を隠し、コンパイルできない（ファイルを実際に移して試した結果。コミット 4135c266、Go 1.27.1）。移動・import・修飾の書き換えだけでは移せないので、このローカル変数の改名を許すことにした。import に別名を付ける案は、そのファイルのすべての修飾の綴りが変わるので採らなかった。ADR: なし（このタスクの中で閉じる）。
 -   **入口が受け取るモデルと effort は、生成と検証・推敲の 2 組とする（F-002、設計の際、2026-11-11）。** CLI は、字数の調整に生成と同じクライアントを使う（`internal/writer/writer.go` の `ShortenOptions`）。AC-07 は CLI と同じ条件を求めるので、字数の調整のモデルを別に受け取らない。ADR: なし。
 -   **PoC では、ビューアの役割を拡張の別のページが受け持つ（F-003・F-004、設計の際、2026-11-11）。** 本書の F-003・F-004 と用語集の「ビューア」は、PoC では、設計が定める PoC のページ（[02_architecture.md](02_architecture.md)）を指す。今のビューアはサーバに状態を問い合わせる作りで、PoC の処理と混ぜないためである。同じ拡張のタブのページなので、背面のタブの条件は変わらない。ADR: なし。
 -   **PoC に貼り付ける API キーは、テスト用の API キーとする（§4.2）。** テスト用の API キーとそのワークスペース ID は、`YT2COLUMN_TEST_ANTHROPIC_API_KEY`・`YT2COLUMN_TEST_ANTHROPIC_WORKSPACE_ID` に割り当てているものである。そのワークスペースには利用の上限がある（[security.md](../../dev/security.md) §2）。キーが漏れたときや暴走したときの被害をその上限で抑えるために、テスト用の API キーを使う。ADR: なし（例外は PoC の中に限り、`main` の規則を変えない）。
@@ -138,6 +139,7 @@
     -   上書き用のテンプレートのファイルを開く処理の、`js` のビルドとそれ以外のビルドへの分割。`js` 以外のビルドで開くときのフラグ（`internal/writer/template.go:38`）は変わらない。
     -   `js` のビルドで上書き用のテンプレートを指定されたときの扱い（H-02）。
     -   移す側のコードが、残る側の非公開の `videoIDPattern` で動画 ID を確かめる箇所の、公開の `NormalizedVideoURL` を使う等価な形への書き換え（`pruneCandidateID`）。
+    -   移す側のコードで、ローカル変数の名前が残る側のパッケージ名と同じで、そのスコープの中の修飾が解決できない箇所の、ローカル変数の改名（`YtDlpSource.Fetch` の `transcript`）。
     -   新しいパッケージのパッケージのコメント。
     -   移したテストのパッケージのパスを指す `Makefile` の目標の書き換え。
     -   [package_reference.md](../../dev/conventions/package_reference.md) の表の、パッケージの分け方に合わせた行の変更。
@@ -334,3 +336,4 @@ PoC で次の値を測る。実 API を呼ぶ測定は、その都度、人の�
 -   2026-11-11 承認（isseis、#814）
 -   2026-11-11 draft への戻し：AC-04・AC-05 に、yt-dlp の経路を別のパッケージへ移すのに要る書き換えを足し、F-002 のモデルと effort を CLI と同じ 2 組にし、WASM でビルドできることを #772 まで検査で守ることにした（AC-29）（#820）
 -   2026-11-11 承認（isseis、#820）
+-   2026-11-11 draft への戻し：AC-05 に、パッケージ名を隠すローカル変数の改名（`YtDlpSource.Fetch` の `transcript`）を足した（#未記入）
