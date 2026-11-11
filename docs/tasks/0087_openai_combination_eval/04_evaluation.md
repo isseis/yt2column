@@ -140,10 +140,11 @@ rates-compare: same
 exit=0
 ```
 
-**`secretscan.sh`:** リポジトリのルートの `.envrc` を読み込んだ子シェルで実行した（`zsh -c 'set -a; source ./.envrc; set +a; …/secretscan.sh'`）。本番の名前のキーと、`.envrc` が定義するテスト用のキー（`YT2COLUMN_TEST_*`。評価ではテスト用のキーを本番の名前で渡す）の値は、`_eval/` と本書のどちらにもなく、`sk-` の接頭辞もなかった。`OPENAI_API_KEY` は `.envrc` が定義していないので比べていない。評価に使う OpenAI のキーは `YT2COLUMN_TEST_OPENAI_API_KEY` で比べた。PR の作成の後に `_eval/` か本書を変えた場合は、マージの前に実行し直す。
+**`secretscan.sh`:** リポジトリのルートで `direnv exec . docs/tasks/0087_openai_combination_eval/_eval/secretscan.sh` として、今の `.envrc` を読み込んで実行した。本番の名前のキー（`OPENAI_API_KEY` を含む）と、`.envrc` が定義するテスト用のキー（`YT2COLUMN_TEST_*`）の値は、`_eval/` と本書のどちらにもなく、`sk-` の接頭辞もなかった。PR の作成の後に `_eval/` か本書を変えた場合は、マージの前に実行し直す。
 
 ```text
 secretscan: the value of ANTHROPIC_API_KEY is absent
+secretscan: the value of OPENAI_API_KEY is absent
 secretscan: the value of DEEPSEEK_API_KEY is absent
 secretscan: the value of SLACK_WEBHOOK_URL is absent
 secretscan: the value of YT2COLUMN_TEST_ANTHROPIC_API_KEY is absent
