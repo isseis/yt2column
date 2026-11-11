@@ -171,10 +171,18 @@ function blockedReason(name: CallName): string | null {
   return null;
 }
 
-/** Tracks how long the tab was hidden while one call ran. */
-function visibilityTracker(): () => {
+interface VisibilitySummary {
   hiddenMs: number;
   hiddenTransitions: number;
+}
+
+/**
+ * Tracks how long the tab was hidden while one call ran. peek reads the
+ * values so far and keeps tracking; stop reads them and removes the listener.
+ */
+function visibilityTracker(): {
+  peek: () => VisibilitySummary;
+  stop: () => VisibilitySummary;
 } {
   let hiddenSince =
     document.visibilityState === "hidden" ? performance.now() : null;
@@ -190,12 +198,16 @@ function visibilityTracker(): () => {
     }
   };
   document.addEventListener("visibilitychange", listener);
-  return () => {
-    document.removeEventListener("visibilitychange", listener);
-    if (hiddenSince !== null) {
-      hiddenMs += performance.now() - hiddenSince;
-    }
-    return { hiddenMs: Math.round(hiddenMs), hiddenTransitions };
+  const peek = (): VisibilitySummary => {
+    const open = hiddenSince === null ? 0 : performance.now() - hiddenSince;
+    return { hiddenMs: Math.round(hiddenMs + open), hiddenTransitions };
+  };
+  return {
+    peek,
+    stop: () => {
+      document.removeEventListener("visibilitychange", listener);
+      return peek();
+    },
   };
 }
 
@@ -228,7 +240,7 @@ async function runCall(
   element("stages").hidden = true;
   const startedAt = new Date().toISOString();
   const start = performance.now();
-  const stopTracking = visibilityTracker();
+  const tracking = visibilityTracker();
   const limitMs = stallAfterMs[name];
   const stallTimer = setTimeout(() => {
     state.stalled = true;
@@ -243,6 +255,7 @@ async function runCall(
       build: state.build,
       settings,
       stalledAfterMs: limitMs,
+      visibility: tracking.peek(),
     });
   }, limitMs);
   let resultText: string;
@@ -258,7 +271,7 @@ async function runCall(
   clearTimeout(stallTimer);
   const pageElapsedMs = Math.round(performance.now() - start);
   const late = state.stalled;
-  const visibility = stopTracking();
+  const visibility = tracking.stop();
   if (!late) {
     state.running = null;
   }
@@ -441,7 +454,9 @@ function probe(): Promise<void> {
   return runCall(
     "probe",
     () => JSON.stringify(settings),
-    settings,
+    // The URL fields are free text, so only the case is recorded; the probe
+    // server's log records where each request arrived.
+    { probeCase: settings.probeCase },
     (result) => {
       const probed = result as { failure: Failure | null };
       if (probed.failure !== null) {
@@ -494,7 +509,13 @@ async function loadRuntime(): Promise<void> {
       failLoad("the module did not register yt2column");
       return;
     }
-    state.build = JSON.parse(api.buildInfo()) as BuildInfo;
+    const info = JSON.parse(api.buildInfo()) as
+      BuildInfo | { failure: Failure };
+    if ("failure" in info) {
+      failLoad(`buildInfo failed: ${info.failure.message}`);
+      return;
+    }
+    state.build = info;
     state.runtime = "ready";
     state.runtimeReason =
       state.build.vcsModified === false

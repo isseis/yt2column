@@ -115,12 +115,12 @@ func runGenerate(transport *browserTransport, request string) generateResult {
 		Review:  writer.ReviewOptions{Enabled: true, Client: input.review},
 	})
 	if err != nil {
-		return generateResult{OK: false, Failure: classify(err), Stages: notRunStages()}
+		return generateResult{OK: false, Failure: classify(err), Stages: newStageTimer().reports(writer.RunUsage{}, input.requested, time.Now())}
 	}
 	ctx := context.Background()
 	t, err := input.source.Fetch(ctx, input.normalizedURL)
 	if err != nil {
-		return generateResult{OK: false, Failure: classify(err), Stages: notRunStages()}
+		return generateResult{OK: false, Failure: classify(err), Stages: newStageTimer().reports(writer.RunUsage{}, input.requested, time.Now())}
 	}
 	observer := newStageTimer()
 	article, err := articleWriter.WriteWithProgress(ctx, t, observer)
