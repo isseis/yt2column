@@ -42,7 +42,7 @@ flowchart LR
   `claude-opus-5-5` を effort `high` で使う。
   [推奨構成](#推奨構成)と
   [production_profile.md](docs/dev/production_profile.md)（日本語）を参照。
-  DeepSeek も使える。プロバイダは差し替えられる。OpenAI は設定と effort を受理し、アダプタの配線は後続の変更で加える。
+  DeepSeek と OpenAI も使える。プロバイダは差し替えられる。
 - ローカルでの実行を想定している。
 
 > **状態:** 開発の初期段階。まだリリースしていない。
@@ -145,6 +145,7 @@ Estimated cost: unknown
   06:00-10:00 に、別の料金が適用される。サーバは自分の時計の UTC で時間帯を判定し、中国の祝日を知らない。そのため、祝日の呼び出しはオフピークの料金で請求されるが、ピークとして推定され、推定は高めに寄る。
 - 時間帯の境界をまたぐ呼び出しは、プロバイダが請求した時刻とは別の分で判定されることがある。サーバの時刻は応答を読み取って検査した時刻であり、プロバイダの請求の時刻は文書化されていないためである。
 - 時計がずれたマシンのサーバは、時間帯を誤って判定する。
+- OpenAI の料金は、Standard の処理方式と 30 分のプロンプトキャッシュの単価で推定する。応答がそれを示さないときは、トークン数が分かっていても料金は `unknown` になる。入力（キャッシュの読み取りと書き込みを含む）の合計が 272,000 トークンを超える呼び出しには、長い入力の単価を適用する。
 - 料金表が古くなることがある。例えば、プロバイダが料金を変えたときや、`deepseek-flash`
   のエイリアスが料金の異なるモデルを指すようになったときである。各項目は出典と確かめた日付を記録しており、更新の手順は開発者向けの文書にある。
 
@@ -499,7 +500,30 @@ ID の一部とみなしてプロバイダに送ることはない。`+` より�
 `claude` では、effort を要求の effort として送る。`openai` では、要求の `reasoning.effort` として送り、`none` は推論を無効にする。`deepseek` では、要求の `reasoning_effort` として送る。`none`
 は thinking を無効にし、ほかの値は有効にする。
 
-OpenAI の設定は受理して検査するが、OpenAI のアダプタを工程に配線するのはこれとは別の変更である。配線が入るまでは、`openai` を選んだ工程はクライアントの構築で失敗し、記事は生成されない。
+**OpenAI を使う。** `openai` は OpenAI の Responses API を呼ぶ。API の課金が必要で、ChatGPT の契約では使えない。API キーは `OPENAI_API_KEY` に設定する。例えば、生成と字数の調整を
+`gpt-6-astra` の effort `medium` で、検証・推敲を `gpt-6.1-sol` の既定の effort で行うには、CLI では次の環境変数を設定する。
+
+```sh
+export YT2COLUMN_LLM=openai/gpt-6-astra+medium
+export YT2COLUMN_REVIEW_LLM=openai/gpt-6.1-sol
+export OPENAI_API_KEY=<OpenAI の API キー>
+```
+
+サーバでは、同じ名前のキーを設定ファイルに書く。
+
+```text
+YT2COLUMN_LLM=openai/gpt-6-astra+medium
+YT2COLUMN_REVIEW_LLM=openai/gpt-6.1-sol
+OPENAI_API_KEY=<OpenAI の API キー>
+```
+
+effort は上の表の 7 つの値をすべて受け付け、モデルの一覧で絞らない。モデルが対応しない effort やパラメータの組み合わせは、OpenAI の API がエラー（HTTP の状態）として返し、その工程は失敗して記事は生成されない。別のモデルや effort に自動で切り替えることはない。料金を推定できるのは `gpt-6-astra` と `gpt-6.1-sol` だけで、ほかのモデルの料金は `unknown` になる（[推定の料金](#推定の料金)）。
+
+要求は Standard の処理方式（`service_tier` が `default`）、プロンプトキャッシュの最低保持期間 30 分、`store: false` に固定しており、変える設定はない。送るデータと OpenAI の側の保持（`store: false` の効く範囲、監視ログ、プロンプトキャッシュ）は
+[docs/dev/security.md](docs/dev/security.md#4-llm-プロバイダへ送るデータ)（日本語）にある。
+
+出力の上限を要求が指定しないとき、OpenAI のアダプタは推論と回答を合わせて 6,080 トークンを上限として送る。3 つの工程はどれもこの値を使う。値の根拠と測り直し方は
+[docs/dev/guides/openai_output_limit.md](docs/dev/guides/openai_output_limit.md)（日本語）にある。
 
 `YT2COLUMN_LLM` を設定しなければ、生成と字数の調整は
 `claude/claude-opus-5-5` を effort `high` で使う。`YT2COLUMN_REVIEW_LLM` を設定しなければ、検証・推敲の工程は、既定を含めて、生成と同じプロバイダ・モデル・effort を使う。`YT2COLUMN_REVIEW_LLM`

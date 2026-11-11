@@ -20,6 +20,7 @@ import (
 	"github.com/isseis/yt2column/internal/llm"
 	claudetestutil "github.com/isseis/yt2column/internal/llm/claude/testutil"
 	deepseektestutil "github.com/isseis/yt2column/internal/llm/deepseek/testutil"
+	openaitestutil "github.com/isseis/yt2column/internal/llm/openai/testutil"
 	"github.com/isseis/yt2column/internal/pricing"
 	"github.com/isseis/yt2column/internal/publisher"
 	publishertestutil "github.com/isseis/yt2column/internal/publisher/testutil"
@@ -216,6 +217,33 @@ func TestClaudeDocsContract(t *testing.T) {
 	} {
 		requireMentions(t, doc.name, doc.text, values)
 	}
+}
+
+// TestOpenAIDocsContract pins the machine-checkable contract values of the
+// OpenAI integration test: the test key it reads, the opt-in that arms it,
+// the model and effort variables, and the make target. The development
+// guide's OpenAI section names them all and security.md names the key, the
+// opt-in, and the target. The values come from the openai test package's
+// exported constants and the make target constant, not from the documents.
+func TestOpenAIDocsContract(t *testing.T) {
+	development := doctestutil.SectionOutsideBlocks(
+		doctestutil.ReadDoc(t, developmentDocPath), doctestutil.DevOpenAIIntegrationHeading)
+	if development == "" {
+		t.Fatalf("development.md has no %q section", doctestutil.DevOpenAIIntegrationHeading)
+	}
+	target := "make " + openAIIntegrationTarget
+	requireMentions(t, "development.md "+doctestutil.DevOpenAIIntegrationHeading, development, []string{
+		target,
+		openaitestutil.APIKeyEnv,
+		openaitestutil.OptInEnv,
+		openaitestutil.ModelEnv,
+		openaitestutil.EffortEnv,
+	})
+	requireMentions(t, "security.md", doctestutil.ReadDoc(t, securityPath), []string{
+		target,
+		openaitestutil.APIKeyEnv,
+		openaitestutil.OptInEnv,
+	})
 }
 
 // TestDeepSeekDocsContract pins the machine-checkable contract values of the

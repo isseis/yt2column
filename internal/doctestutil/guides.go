@@ -23,6 +23,9 @@ const (
 	// DevDeepSeekIntegrationHeading is development.md's section on the
 	// DeepSeek integration test.
 	DevDeepSeekIntegrationHeading = "### DeepSeek の統合テスト"
+	// DevOpenAIIntegrationHeading is development.md's section on the
+	// OpenAI integration test.
+	DevOpenAIIntegrationHeading = "### OpenAI の統合テスト"
 	// DevCLIIntegrationHeading is development.md's section on the CLI
 	// integration test.
 	DevCLIIntegrationHeading = "### CLI の統合テスト"
