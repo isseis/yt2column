@@ -189,7 +189,7 @@ var (
 )
 
 // strictjsonRowCell returns the responsibility cell of the single row whose
-// first cell names the component, searched in every table whose header names
+// package cell names the component, searched in every table whose header names
 // the package column. It fails when no such table exists, when the row is
 // missing, when the row's table has no responsibility column, or when the row
 // appears more than once (in one table or in different tables). Every error
@@ -202,13 +202,17 @@ func strictjsonRowCell(doc string) (string, error) {
 	var row []string
 	col := -1
 	for _, table := range doctestutil.MarkdownTables(doc) {
-		if len(table) == 0 || doctestutil.ColumnIndex(table[0], packageTableHeader) < 0 {
+		if len(table) == 0 {
+			continue
+		}
+		pkgCol := doctestutil.ColumnIndex(table[0], packageTableHeader)
+		if pkgCol < 0 {
 			continue
 		}
 		tables++
 		tableCol := doctestutil.ColumnIndex(table[0], responsibilityColumn)
 		for _, candidate := range table[1:] {
-			if len(candidate) == 0 || doctestutil.StripBackticks(candidate[0]) != strictjsonPackageName {
+			if pkgCol >= len(candidate) || doctestutil.StripBackticks(candidate[pkgCol]) != strictjsonPackageName {
 				continue
 			}
 			matched++
@@ -465,8 +469,27 @@ func TestStrictjsonRowCell(t *testing.T) {
 			wantMessage: []string{context, column, pkg, "matched rows 0"},
 		},
 		{
+			name:        "table without a package column",
+			doc:         "| Other | Thing |\n|---|---|\n| `internal/strictjson` | x |\n",
+			wantErr:     errNoPackageTable,
+			wantMessage: []string{context, column, pkg, "matched rows 0"},
+		},
+		{
+			name: "package column is not first",
+			doc: "| Responsibility | Package |\n|---|---|\n" +
+				"| the responsibility | `internal/strictjson` |\n",
+			want: "the responsibility",
+		},
+		{
 			name:        "no responsibility column",
 			doc:         "| Package | Other |\n|---|---|\n| `internal/strictjson` | x |\n",
+			wantErr:     errNoResponsibilityColumn,
+			wantMessage: []string{context, column, pkg, "matched rows 1"},
+		},
+		{
+			name: "row is in a table without a responsibility column",
+			doc: header + "| `internal/other` | other |\n\n" +
+				"| Package | Notes |\n|---|---|\n| `internal/strictjson` | x |\n",
 			wantErr:     errNoResponsibilityColumn,
 			wantMessage: []string{context, column, pkg, "matched rows 1"},
 		},

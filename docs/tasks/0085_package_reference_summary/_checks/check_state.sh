@@ -2,7 +2,7 @@
 # Checks the structure of docs/dev/conventions/package_reference.md:
 #
 #   1. the document has exactly six "## " kind headings, and each heading is
-#      followed by exactly one table whose first column is Package;
+#      followed by exactly one table, whose header is Package|Responsibility;
 #   2. every package name in the first column of a table appears on exactly
 #      one row (a duplicated row fails);
 #   3. the document's byte count is printed, and with a maximum on the command
@@ -58,7 +58,7 @@ structure() {
 		function finish_section() {
 			if (section == "") return
 			if (tables != 1) {
-				printf "section %s has %d package tables, want 1\n", section, tables
+				printf "section %s has %d tables, want 1\n", section, tables
 				bad = 1
 			}
 		}
@@ -66,6 +66,11 @@ structure() {
 			cell = line
 			sub(/^\|/, "", cell)
 			sub(/\|.*$/, "", cell)
+			return cell
+		}
+		function plain(cell) {
+			gsub(/`/, "", cell)
+			gsub(/^[[:space:]]+|[[:space:]]+$/, "", cell)
 			return cell
 		}
 		function package_name(cell,   first, last) {
@@ -81,26 +86,37 @@ structure() {
 			sections++
 			section = $0
 			tables = 0
+			in_table = 0
 			next
 		}
 		{
 			line = $0
 			sub(/^[[:space:]]+/, "", line)
-			if (substr(line, 1, 1) != "|") next
-			cell = first_cell(line)
-			header = cell
-			gsub(/`/, "", header)
-			gsub(/^[[:space:]]+|[[:space:]]+$/, "", header)
-			if (header == "Package") {
-				if (section == "") {
-					print "a package table appears before the first kind heading"
+			is_row = substr(line, 1, 1) == "|"
+			if (is_row && !in_table) {
+				# A block of table lines is one table; its first line is the
+				# header, which must be exactly the package table header.
+				tables++
+				header = line
+				sub(/^\|/, "", header)
+				sub(/\|$/, "", header)
+				cells = split(header, parts, "|")
+				for (i = 1; i <= cells; i++) parts[i] = plain(parts[i])
+				if (cells != 2 || tolower(parts[1]) != "package" || tolower(parts[2]) != "responsibility") {
+					printf "table header in %s is not Package|Responsibility: %s\n", section, line
 					bad = 1
 				}
-				tables++
+			}
+			in_table = is_row
+			if (!is_row) next
+			cell = first_cell(line)
+			if (plain(cell) == "Package") next
+			if (cell ~ /^[-: ]+$/) next
+			if (section == "") {
+				print "a table appears before the first kind heading"
+				bad = 1
 				next
 			}
-			if (section == "" || tables == 0) next
-			if (cell ~ /^[-: ]+$/) next
 			name = package_name(cell)
 			if (name == "") {
 				printf "row without a package name: %s\n", line

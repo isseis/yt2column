@@ -81,6 +81,11 @@ check_go_comment_only() {
 	git -C "$root" diff --no-renames --unified=0 --no-color "$base" "$head" -- "$1" |
 		awk '
 		/^\+\+\+ / || /^--- / { next }
+		/^old mode / || /^new mode / || /^new file mode / || /^deleted file mode / {
+			printf "mode change in %s: %s\n", file, $0
+			bad = 1
+			next
+		}
 		/^\+/ || /^-/ {
 			line = substr($0, 2)
 			if (line ~ /^[[:space:]]*$/) next
