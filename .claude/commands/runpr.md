@@ -162,7 +162,8 @@ Every `fixpr.md` and `mergepr.md` run below is given the resolved PR number
     `<type>(<scope>)` in the style of the scoped subjects in
     `git log origin/main`, then a Japanese summary. Also draft a short Japanese
     body from the branch's commits, describing the final state, not the
-    history. When the branch is named for a task (the feature branch
+    history. The title and the body use the terms of the translation
+    glossary, as `_context.md`, "Translation glossary", says. When the branch is named for a task (the feature branch
     convention in `_context.md`) or changes files in a task directory, the
     body contains `Refs #<issue>` for that task's `対応 issue`, as
     `_lib/task-pr-handoff.md` Part B step 3 says. Like that step, the body
