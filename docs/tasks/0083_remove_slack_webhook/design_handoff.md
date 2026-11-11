@@ -8,7 +8,9 @@
 
 **なぜ重要か:** 規則が 2 か所にあると、`docs/dev/security.md` §6 の正本と食い違いうる。issue #770 は、規則が Go の `internal/publisher` にあり、拡張だけの構成（#769）への移行の後は WASM の中でそのまま使えることを挙げている。
 
-**候補:** サーバが `DisplayMarkdown` と同じ記事から、無効化したコピー用の文字列と数を作り、状態の取得の `done` の応答に加える。拡張はそれをそのまま書く。応答の大きさの上限（`maxStatusResponseBytes`、`internal/server/status.go:19`）と、完了の時点の大きさの検査（`article_too_large`）への影響を確かめる。
+要件はビューアの表示も同じ規則で無効化すると決めた（AC-16）ので、表示とコピーが同じ無効化の結果を使うようにする。
+
+**候補:** サーバが `DisplayMarkdown` と同じ記事から、無効化した文字列と数を作り、状態の取得の `done` の応答に入れる（`markdown` の値を無効化した文字列にする案を含む）。拡張は、それを表示にも使い、コピーではそのまま書く。応答の大きさの上限（`maxStatusResponseBytes`、`internal/server/status.go:19`）と、完了の時点の大きさの検査（`article_too_large`）への影響を確かめる。
 
 **関連:** F-002、F-003、AC-03、AC-10、AC-18
 

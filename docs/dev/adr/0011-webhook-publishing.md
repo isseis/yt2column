@@ -52,4 +52,4 @@
 - 2026-10-27 サーバが生成の完了時に続けて投稿していた形を改め、生成・状態の取得・投稿を別の操作に分け、Slack への投稿をビューアからの利用者の操作で行うようにした。生成の完了時には自動で投稿しない。サーバの投稿のジョブは `PostMessages` で送り、CLI の `--slack` は `Publish` を残した。投稿の操作を冪等にし、新しい API の投稿の失敗を Webhook へ通知しない（[0044 要件定義書](../../tasks/0044_article_job_api/01_requirements.md)）
 - 2026-11-04 旧 API（`/articles`）を削除するのに合わせて、旧 API の失敗の通知（`internal/failure`・`SlackFailureNotifier`）を削除した。サーバが Webhook へ送るのは、利用者の投稿の操作が始めた記事だけになった（[0059 要件定義書](../../tasks/0059_remove_legacy_articles_api/01_requirements.md)「issue #526 で決めたこと」）
 - 2026-11-05 CLI の Webhook への投稿（`--slack`）と `SlackWebhookPublisher.Publish` を削除し、Webhook へ投稿するのをサーバの投稿のジョブだけにした。CLI は `SLACK_WEBHOOK_URL` を読まず、`SlackWebhookPublisher` は `Publisher` を満たさない（[0062 要件定義書](../../tasks/0062_remove_cli_slack/01_requirements.md)）
-- 2026-11-11 Webhook への投稿の機能を廃止することにした。メンションの無効化はビューアのコピーに移し、コピーは拒否しない（[0083 要件定義書](../../tasks/0083_remove_slack_webhook/01_requirements.md)「要件定義の際に決めたこと（2026-11-11）」）
+- 2026-11-11 Webhook への投稿の機能を廃止することにした。メンションの無効化はビューアの表示とコピーに移し、コピーは拒否しない（[0083 要件定義書](../../tasks/0083_remove_slack_webhook/01_requirements.md)「要件定義の際に決めたこと（2026-11-11）」）
