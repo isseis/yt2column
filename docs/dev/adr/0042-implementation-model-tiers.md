@@ -18,7 +18,9 @@ Codex の PR レビューは、PR を開いたときに 1 回だけ自動で行�
 
 以下の決定の仕様は、[0081 要件定義書](../../tasks/0081_implementation_model_choice/01_requirements.md) の機能要件と [0081 設計書](../../tasks/0081_implementation_model_choice/02_architecture.md)、値と読み替えを定める [_context.md](../../../.claude/commands/_context.md) の「PR marker conventions」が持つ。手順は、それを使うコマンドの定義（`mkplan2.md`・`mkplan.md`・`runplan.md`・`runpr.md`・`weakreview.md`）と、Opus のレビューの共通の手順（`_lib/opus-review.md`）が持つ。この決定のうち、値を読む側（`_context.md` の値の場所・読み方・読み替えの表、`runplan.md` の案内と実装の記録と PR を開く前の Opus のレビュー、`runpr.md` の示し方、共通の手順の要否の判断と記録の行）と、Opus のレビューの中身と `/weakreview` の振る舞いは、`_context.md`・コマンドの定義・共通の手順に反映されている。反映されていないのは、値を書く側の次のずれである。今の `mkplan2.md` は旧い値（`frontier-required`・`frontier-recommended`・`standard`）を定め、`mkplan.md` と `_lib/simple-process.md` は `mkplan2.md` の手順でその値を書かせる。`mkplan.md` は単一フェーズの計画書に値を書かず、`_context.md` も値を書く場面にそれを挙げない。このずれは [#760](https://github.com/isseis/yt2column/issues/760) の実装で扱う。
 
--   **実装モデル要件の値は `opus`・`sonnet+opus-review`・`sonnet` の 3 つとし、値はとるべき行動を表す。** `opus` は Opus で実装する。`sonnet+opus-review` は Sonnet で実装し、PR を開く前に Opus のレビューを行う。`sonnet` は Sonnet で実装し、追加のレビューはしない。値から、セッションのモデルと、追加のレビューの要否が直接分かるようにするためである（0081 要件定義書の F-001）。
+また、`sonnet` を OpenCode の DeepSeek V4.1 Flash で実装するという決定は、まだ `_context.md` の値とモデルの対応、`runplan.md` の案内、`runpr.md` の示し方に反映していない（どれも Sonnet を示す）。このずれは [#837](https://github.com/isseis/yt2column/issues/837)・[#838](https://github.com/isseis/yt2column/issues/838)（タスク 0088）の実装で扱う。`sonnet` の値については、値からセッションのモデルが直接分かり、名前がモデルのファミリー名を表すという下の 2 項目の理由が成り立たない。値の名前の見直しは #760 で扱う。
+
+-   **実装モデル要件の値は `opus`・`sonnet+opus-review`・`sonnet` の 3 つとし、値はとるべき行動を表す。** `opus` は Opus で実装する。`sonnet+opus-review` は Sonnet で実装し、PR を開く前に Opus のレビューを行う。`sonnet` は OpenCode の DeepSeek V4.1 Flash で実装し、追加のレビューはしない（[ADR-0046](0046-chief-of-staff.md)）。値から、セッションのモデルと、追加のレビューの要否が直接分かるようにするためである（0081 要件定義書の F-001）。`sonnet` を Flash で実装するのは、Opus までは要らないと利用者が判断し、運用がすでにそうなっていたためである（[0088 要件定義書](../../tasks/0088_chief_of_staff/01_requirements.md)「要件定義の際に決めたこと（2026-11-11）」）。
 -   **値の名前は、モデルのファミリー名だけを使い、版を含めない。** モデルの版が上がっても、値と計画書を書き換えずに済むためである（F-001）。
 -   **当てはめる契機は、旧い区分の契機を引き継ぐ。判定理由には、Sonnet に任せると何が起きやすいかを書く。** 契機は設計の判断の材料として使われており、モデルを選ぶ人には Sonnet にしたときの危険が要るためである（F-001）。
 -   **単一フェーズの計画書も、実装モデル要件の値を持つ。** PR マーカーがなくても、モデルを選び、Opus のレビューの要否を決める必要があるためである（F-002）。
@@ -63,7 +65,7 @@ Codex の PR レビューは、PR を開いたときに 1 回だけ自動で行�
 -   **単一フェーズの計画書の値を、フェーズの見出しの直後に書く。** PR マーカーのある計画書と、値を探す場所がそろわない（同上）。
 -   **単一フェーズの計画書の値を、§3 の空いている番号の専用の節に書く。** 節の番号が計画書ごとに変わり、「PR 構成」の節と並んで値の置き場所が二つに見える（同上）。
 -   **phase group の実装の記録をステップの ID で書き、PR のステップがすべて Opus の記録で覆われるかで判断する。** 記録を書いた後の commit と、phase group の外の commit を見落とす（同上）。
--   **DeepSeek-V4.1-Flash など Claude 以外のモデルを、実装モデルの候補にする。** 開発の道具に外部のサービスを加えることになり、確かめていない点も多い。PoC から始める別の issue（[#790](https://github.com/isseis/yt2column/issues/790)）で扱う（同上）。
+-   **DeepSeek V4.1 Flash など Claude 以外のモデルを、`opus`・`sonnet+opus-review` の実装モデルの候補にする。** 開発の道具に外部のサービスを加えることになり、確かめていない点も多い。PoC から始める別の issue（[#790](https://github.com/isseis/yt2column/issues/790)）で扱う（同上）。
 
 ## 結果
 
@@ -72,8 +74,10 @@ Codex の PR レビューは、PR を開いたときに 1 回だけ自動で行�
 -   Opus を使えない間は、Opus のレビューを要する PR を開けない。
 -   計画書を書くコマンドは、新しい値だけを書く。旧い値を読むコマンドは、読み替えの表を使う。読み替えで、承認済みの計画書の `frontier-recommended` の PR は、「Opus が望ましい」から「Sonnet で実装し、Opus のレビューを足す」に意味が変わる。読み替えの表は、PR がまだ作られていない PR マーカーに旧い値を持つ計画書がなくなれば消してよい。
 -   この決定の前に作られた phase group の commit には、実装したモデルの記録がない。そうした commit を含む `sonnet+opus-review`・`opus` の PR は、Opus のレビューを受ける。
+-   値の名前 `sonnet` は、Sonnet ではなく DeepSeek V4.1 Flash を指す。`sonnet` の PR は Opus のレビューを受けないので、Flash の実装の誤りは、`/runplan` の中のレビュー、ローカルの CLI レビュー、Codex の PR レビューで見つける。リポジトリのコードは DeepSeek のサービスへ送られる。
 
 ## 経緯
 
 - 2026-11-10 実装モデル要件を `opus`・`sonnet+opus-review`・`sonnet` の 3 つにし、Sonnet で実装した phase group を含む `sonnet+opus-review`・`opus` の PR では、`/runplan` が PR を開く前に Opus のレビューを行うことにした。`/weakreview` は同じレビューを Opus で行い、既定で直すことにした。旧い値は読み替えの表で読み、単一フェーズの計画書にも値を持たせることにした（[0081 要件定義書](../../tasks/0081_implementation_model_choice/01_requirements.md)）
 - 2026-11-10 Opus のレビューの手順とチェックリストを `/runplan` と `/weakreview` が共有する共通の手順に置き、正しさのレビューをリポジトリの中のチェックリストで行うことにした。Opus で走ったかをサブエージェントの報告するモデル ID で確かめ、実装したモデルとレビューの結果を commit メッセージの行に記録することにした。直しの commit はローカルの CLI レビューにかけ直さず、単一フェーズの計画書の値は「PR 構成」の節に書くことにした（[0081 設計書](../../tasks/0081_implementation_model_choice/02_architecture.md)）
+- 2026-11-11 実装モデル要件が `sonnet` の PR は、OpenCode の DeepSeek V4.1 Flash で実装することにした。DeepSeek V4.1 Flash を候補にしない案は、`sonnet` と `/runpr` については取り下げた（[0088 要件定義書](../../tasks/0088_chief_of_staff/01_requirements.md)「要件定義の際に決めたこと（2026-11-11）」、[ADR-0046](0046-chief-of-staff.md)）
