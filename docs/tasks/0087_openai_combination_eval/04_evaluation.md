@@ -81,7 +81,7 @@ evaltool check-record -record docs/tasks/0087_openai_combination_eval/04_evaluat
 
 ### 2.5. 道具の確かめ（ステップ 1-5）
 
-PR-1 のブランチのコミット `7107df2dacee`（squash merge の前のコミット）で実行した。どれも API を呼ばない。この後に変えたのは本節だけである。
+PR-1 のブランチのコミット `7107df2dacee`（squash merge の前のコミット）で実行した。どれも API を呼ばない。この後に `secretscan.sh`・`selftest.sh` に `.envrc` のテスト用のキーの変数を加え、この 2 つは加えた後のコミットで実行し直した。ほかに変えたのは本節だけである。
 
 **`selftest.sh`:** `evaltool` のテスト（合成の入力だけを使う）・`go vet`・`golangci-lint`（`Makefile` の版）・`gofumpt`、`hashlist.sh` の変更の検出、`secretscan.sh` の検出を確かめた。
 
@@ -98,6 +98,7 @@ selftest: ok   hashlist: changed mode gives a diff
 selftest: ok   secretscan: finds a key value in a file
 selftest: ok   secretscan: finds the sk- prefix
 selftest: ok   secretscan: passes a clean file
+selftest: ok   secretscan: finds a test key value
 selftest: ok   secretscan: fails with no key variable
 selftest: ok   secretscan: fails on a missing path
 selftest: ok   secretscan: fails when grep cannot read a file
@@ -139,12 +140,16 @@ rates-compare: same
 exit=0
 ```
 
-**`secretscan.sh`:** 環境にある API キーの値と `sk-` の接頭辞は、`_eval/` と本書のどちらにもなかった。`OPENAI_API_KEY` はこのときの環境になかったので比べていない。PR の作成の後に `_eval/` か本書を変えた場合は、マージの前に実行し直す。
+**`secretscan.sh`:** リポジトリのルートの `.envrc` を読み込んだ子シェルで実行した（`zsh -c 'set -a; source ./.envrc; set +a; …/secretscan.sh'`）。本番の名前のキーと、`.envrc` が定義するテスト用のキー（`YT2COLUMN_TEST_*`。評価ではテスト用のキーを本番の名前で渡す）の値は、`_eval/` と本書のどちらにもなく、`sk-` の接頭辞もなかった。`OPENAI_API_KEY` は `.envrc` が定義していないので比べていない。評価に使う OpenAI のキーは `YT2COLUMN_TEST_OPENAI_API_KEY` で比べた。PR の作成の後に `_eval/` か本書を変えた場合は、マージの前に実行し直す。
 
 ```text
 secretscan: the value of ANTHROPIC_API_KEY is absent
 secretscan: the value of DEEPSEEK_API_KEY is absent
 secretscan: the value of SLACK_WEBHOOK_URL is absent
+secretscan: the value of YT2COLUMN_TEST_ANTHROPIC_API_KEY is absent
+secretscan: the value of YT2COLUMN_TEST_OPENAI_API_KEY is absent
+secretscan: the value of YT2COLUMN_TEST_DEEPSEEK_API_KEY is absent
+secretscan: the value of YT2COLUMN_TEST_SLACK_WEBHOOK_URL is absent
 secretscan: no sk- key prefix
 exit=0
 ```

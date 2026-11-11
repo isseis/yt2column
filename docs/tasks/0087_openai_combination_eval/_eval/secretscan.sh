@@ -27,7 +27,13 @@ for t in $targets; do
   [[ -e $t ]] || { print -r -- "secretscan: no such path: $t" >&2; exit 2 }
 done
 
-local -a vars=(ANTHROPIC_API_KEY OPENAI_API_KEY DEEPSEEK_API_KEY SLACK_WEBHOOK_URL)
+# The production names and the test names .envrc defines (the evaluation
+# runs with a test key exported under its production name).
+local -a vars=(
+  ANTHROPIC_API_KEY OPENAI_API_KEY DEEPSEEK_API_KEY SLACK_WEBHOOK_URL
+  YT2COLUMN_TEST_ANTHROPIC_API_KEY YT2COLUMN_TEST_OPENAI_API_KEY
+  YT2COLUMN_TEST_DEEPSEEK_API_KEY YT2COLUMN_TEST_SLACK_WEBHOOK_URL
+)
 local v val set_any=0 found=0
 for v in $vars; do
   val=${(P)v-}
