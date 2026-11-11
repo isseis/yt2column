@@ -54,7 +54,7 @@ func stageModels(a writer.Article) []stageModel {
 // the channel name, a blank line, the body, a blank line, and a one-line
 // footnote of the models and the estimated cost.
 //
-// Contract: every '@' that mentionAts reports in the title, the channel name,
+// Contract: every '@' that slackMentionAtsOf reports in the title, the channel name,
 // or the footnote's model names is neutralized; in the body only those outside
 // code are, and none when writer.ProseRanges cannot judge the body (the caller
 // then refuses the post if a target remains). a is not changed. The body's
@@ -105,7 +105,7 @@ func slackFootnote(a writer.Article) string {
 }
 
 // neutralizeMentions returns value with U+200B inserted after each '@' that
-// mentionAts reports for the V3-replaced value, except an '@' that directly
+// slackMentionAtsOf reports for the V3-replaced value, except an '@' that directly
 // follows '/': it may be part of a URL, which U+200B would break, and
 // rejectMention refuses it instead. A look-alike such as U+FF20 is treated as
 // '@' and keeps its own rune, followed by U+200B. A value with no such '@' is
@@ -116,7 +116,7 @@ func neutralizeMentions(value string) string {
 
 // neutralizeProse does the same for a body, but only for the '@' characters
 // whose byte offset in body lies inside one of prose, the ranges outside
-// code. mentionAts reports rune indices of the V3-replaced body; each is
+// code. slackMentionAtsOf reports rune indices of the V3-replaced body; each is
 // converted to the byte offset of the same rune in body before it is compared
 // with prose, because a look-alike such as U+FF20 takes three bytes in body
 // and one after replacement. body must be valid UTF-8. With ProseRanges

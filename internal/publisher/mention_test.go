@@ -23,14 +23,18 @@ func TestMentionAts(t *testing.T) {
 		{"non-ASCII name", "@名前", []int{0}},
 		{"two mentions", "@a @b", []int{0, 3}},
 
+		{"at end", "x @", []int{2}},
+		{"alone", "@", []int{0}},
+		{"followed by a space", "@ name", []int{0}},
+		{"followed by punctuation", "@!", []int{0}},
+		{"followed by emphasis markup", "@**channel**", []int{0}},
+		{"followed by a zero-width space", "@" + zeroWidthSpace + "name", []int{0}},
+
 		{"after a letter", "Tech@Work", nil},
 		{"email address", "user@example.com", nil},
 		{"after a digit", "a1@b", nil},
 		{"after a non-ASCII letter", "さん@xxx", nil},
-		{"at end", "x @", nil},
-		{"followed by a space", "@ name", nil},
-		{"followed by punctuation", "@!", nil},
-		{"followed by a zero-width space", "@" + zeroWidthSpace + "name", nil},
+		{"after a letter at end", "x@", nil},
 		{"empty", "", nil},
 
 		{"after an underscore", "foo_@bar", []int{4}},

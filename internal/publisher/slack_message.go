@@ -151,7 +151,7 @@ func cutSlackFragments(post slackPost) ([]string, error) {
 }
 
 // checkFragmentStarts returns ErrSlackUnsplittable when a fragment after the
-// first starts with an '@' that a cut turned into a mention: mentionAts
+// first starts with an '@' that a cut turned into a mention: slackMentionAtsOf
 // reports it in the fragment's message, where a position marker and a blank
 // line precede it, but not in the joined text, where a letter or a digit
 // does. cutSlackFragments avoids such cuts; this refuses the ones it could
@@ -168,14 +168,14 @@ func checkFragmentStarts(fragments []string) error {
 }
 
 // cutStartsMention reports whether cutting runes before index cut makes
-// mentionAts report the '@' at cut in the next message, where it is preceded
+// slackMentionAtsOf report the '@' at cut in the next message, where it is preceded
 // by a newline, when it does not report it in runes.
 func cutStartsMention(runes []rune, cut int) bool {
 	if cut <= 0 || cut+1 >= len(runes) {
 		return false
 	}
-	inMessage := slices.Contains(mentionAtsOf(runes[cut:cut+2]), 0)
-	inText := slices.Contains(mentionAtsOf(runes[cut-1:cut+2]), 1)
+	inMessage := slices.Contains(slackMentionAtsOf(runes[cut:cut+2]), 0)
+	inText := slices.Contains(slackMentionAtsOf(runes[cut-1:cut+2]), 1)
 	return inMessage && !inText
 }
 
@@ -228,7 +228,7 @@ type mentionMatch struct {
 
 // findMention reports the earliest rune index of text that matches M1-M4.
 // M1 is matched against the inspection string built by inspectMentionText,
-// M2 against the V3-replaced text (mentionAtsOf), and M3 and M4 against text
+// M2 against the V3-replaced text (slackMentionAtsOf), and M3 and M4 against text
 // itself.
 func findMention(text string) (mentionMatch, bool) {
 	raw := []rune(text)
@@ -245,7 +245,7 @@ func findMention(text string) (mentionMatch, bool) {
 	if index, ok := findInspectionMention([]rune(inspected), source); ok {
 		consider(ruleM1, index)
 	}
-	if ats := mentionAtsOf(raw); len(ats) > 0 {
+	if ats := slackMentionAtsOf(raw); len(ats) > 0 {
 		consider(ruleM2, ats[0])
 	}
 	if index, ok := findEntityMention(raw); ok {
@@ -387,4 +387,21 @@ func lineAndColumn(runes []rune, index int) (line, column int) {
 		column++
 	}
 	return line, column
+}
+
+// slackMentionAtsOf returns the indices mentionAtsOf reports for runes, keeping
+// only an '@' that a mention name character follows. The Webhook post keeps
+// this narrower rule, which its neutralization, its cuts, and its refusal were
+// built on: without it, the refusal would read the '@' and U+200B that
+// neutralization leaves as a target and refuse every neutralized post. The
+// look-alikes V3 replaces are not name characters, so checking the original
+// rune after the '@' gives the same answer as checking the replaced one.
+func slackMentionAtsOf(runes []rune) []int {
+	var ats []int
+	for _, i := range mentionAtsOf(runes) {
+		if i+1 < len(runes) && isMentionNameChar(runes[i+1]) {
+			ats = append(ats, i)
+		}
+	}
+	return ats
 }

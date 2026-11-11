@@ -27,19 +27,22 @@ func replaceLookAlike(r rune) rune {
 	}
 }
 
-// mentionAts returns the rune indices of the '@' characters that may start a
-// mention: a name character follows the '@', and the rune before it is not a
-// letter or a digit. text is the V3-replaced form of the checked string (look-
+// mentionAts returns the rune indices of the target '@' characters: an '@'
+// at the start of text or whose preceding rune is not a letter or a digit.
+// What follows the '@' does not matter, so a trailing '@' and an '@' before a
+// space, punctuation, or U+200B are reported too: the Viewer drops markup when
+// a reader selects and copies the rendered article, so "@**channel**" pastes
+// as "@channel". text is the V3-replaced form of the checked string (look-
 // alikes replaced one for one, nothing dropped or unescaped), so an index is
 // also an index of the original string. Format characters and backslashes
 // are word separators here, not stripped, so "a", U+200B, "@here" reports the
-// '@' and "@", U+200B, "name" does not. The rule is wider than Mattermost's
-// word splitting on purpose: it looks only at the rune before the '@', so it
-// also reports "foo_@bar" and "x@@y", and a '@' after emphasis markup.
+// '@'. The rule is wider than Mattermost's word splitting on purpose: it looks
+// only at the rune before the '@', so it also reports "foo_@bar" and "x@@y",
+// and a '@' after emphasis markup.
 func mentionAts(text []rune) []int {
 	var ats []int
-	for i := 0; i+1 < len(text); i++ {
-		if text[i] != '@' || !isMentionNameChar(text[i+1]) {
+	for i, r := range text {
+		if r != '@' {
 			continue
 		}
 		if i > 0 && (unicode.IsLetter(text[i-1]) || unicode.IsNumber(text[i-1])) {
@@ -68,11 +71,12 @@ func isMentionNameChar(r rune) bool {
 	return r == '_' || r == '.' || r == '-' || unicode.IsLetter(r) || unicode.IsNumber(r)
 }
 
-// insertAfterAts inserts U+200B after each target '@' of value that does not
-// follow '/' and whose byte offset in value satisfies inScope.
+// insertAfterAts inserts U+200B after each '@' of value that slackMentionAtsOf
+// reports, that does not follow '/', and whose byte offset in value satisfies
+// inScope.
 func insertAfterAts(value string, inScope func(offset int) bool) string {
 	runes := []rune(value)
-	ats := mentionAtsOf(runes)
+	ats := slackMentionAtsOf(runes)
 	if len(ats) == 0 {
 		return value
 	}
