@@ -367,7 +367,7 @@ Diff record (AC-13):
 -   実地で見つかった手順の不具合を直した。タスクの文書を変えない範囲でタスクを特定できなかった（ブランチの名前からの特定を足した、835e7bc6）。事前の確かめのブロックを zsh で走らせると `path` の変数が `PATH` を書き換えた（`bash` で走らせると書いた、e47b0157）。
 -   `--no-fix` の実行は `reported` で終わり、確認のレビューを走らせない。Critical と Major の指摘は、本ステップの「この PR の範囲で直す」に従い、セッションが共通の手順の「Fixing and verifying」に沿って直し（bf281603、b99db37e）、確認のレビューを Opus で 2 回走らせた。2 回目で Critical と Major が残らなかった。残った Minor（コミットメッセージに位置する指摘の、残した指摘の記録の形がない、ほか）は PR の説明に書く。
 
-**ステップ 1-7（`_checks/moved_checklist.sh`）。** `bash docs/tasks/0081_implementation_model_choice/_checks/moved_checklist.sh 04dc4824145e2243bbf8dcfa82c5ff853c43eb11 49b7627aff9c347c111f2fe29bd6ea6a35ded09b` の出力（終了コード 0）:
+**ステップ 1-7（`_checks/moved_checklist.sh`）。** `bash docs/tasks/0081_implementation_model_choice/_checks/moved_checklist.sh 04dc4824145e2243bbf8dcfa82c5ff853c43eb11 479f508a369a070f94ec7f656f580506ad4c042b` の出力（終了コード 0）:
 
 ```text
 PASS replacement: 'RANGE="<resolved range>"' -> 'RANGE="<RANGE>"'
@@ -377,7 +377,7 @@ PASS checklist: 185 lines identical
 PASS pre-check block: 48 lines identical
 ```
 
-マージの基点 `04dc4824145e2243bbf8dcfa82c5ff853c43eb11`、比べたコミット `49b7627aff9c347c111f2fe29bd6ea6a35ded09b`。各チェックを壊して失敗することは、49b7627a のメッセージに書いた。
+マージの基点 `04dc4824145e2243bbf8dcfa82c5ff853c43eb11`、比べたコミット `479f508a369a070f94ec7f656f580506ad4c042b`。各チェックを壊して失敗することは、49b7627a のメッセージに書いた。
 
 ### PR-2 の実行の記録
 
