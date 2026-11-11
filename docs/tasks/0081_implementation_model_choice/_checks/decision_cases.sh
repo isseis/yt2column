@@ -236,7 +236,7 @@ fixture real "$p.2"; code_commit c1
 expect value-line-twice RUN fail
 
 marker_plan "$p" 1:sonnet
-awk '{ print } /^\*\*reason-field\*\*/ { print "\n```text\n### PR-1 作成ポイント: fake\n**実装モデル要件**: opus\n```" }' "$p" >"$p.2"
+awk '{ print } /^\*\*reason-field\*\*/ { print "\n```text\n### PR-1 作成ポイント: fake\n```" }' "$p" >"$p.2"
 fixture real "$p.2"; code_commit c1
 expect fenced-block-not-read "NONE value-sonnet" ok
 
@@ -346,9 +346,21 @@ fixture real "$p.2"; code_commit c1
 expect marker-crlf-lines "NONE value-sonnet" ok
 
 marker_plan "$p" 1:sonnet
-awk '{ print } /^\*\*reason-field\*\*/ { print "\n~~~text\n**実装モデル要件**: opus\n~~~" }' "$p" >"$p.2"
+awk '{ print } /^\*\*reason-field\*\*/ { print "\n~~~text\n### PR-1 作成ポイント: fake\n~~~" }' "$p" >"$p.2"
 fixture real "$p.2"; code_commit c1
 expect tilde-fence-not-read "NONE value-sonnet" ok
+
+marker_plan "$p" 1:sonnet
+awk '{ print } /^\*\*reason-field\*\*/ { print "\n```text\n**実装モデル要件**: opus\n```" }' "$p" >"$p.2"
+fixture real "$p.2"; code_commit c1
+expect value-inside-fence RUN fail
+
+# A diff record of a list item's fence: its indented fence lines are content,
+# not a closer, so the real value line after the record stays outside fences.
+marker_plan "$p" 1:-
+awk '{ print } /^### PR-1 / { print "\n```diff\n 1. Run:\n    ```bash\n-   make old\n+   make new\n    ```\n```\n\n**実装モデル要件**: opus\n\n```text\nnote\n```" }' "$p" >"$p.2"
+fixture real "$p.2"; code_commit c1
+expect indented-closer-is-content RUN ok
 
 # A 4-backtick fence quoting a 3-backtick one: the inner fence lines are
 # content, so the quoted heading does not end the section.

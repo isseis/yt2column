@@ -213,7 +213,8 @@ The script carries out these rules; this list is their definition.
 
 Any failure returns `RUN`: a git error, an unreadable plan, a BASE that is not
 the merge-base of `origin/main` and `HEAD`, a TARGET of `single` for a plan
-with PR markers, an unclosed fenced code block, two places that could hold
+with PR markers, an unclosed fenced code block, a value line inside a fenced
+code block of the target place, two places that could hold
 the value, or two value lines. A record line is read only from a
 commit of `BASE..HEAD`.
 

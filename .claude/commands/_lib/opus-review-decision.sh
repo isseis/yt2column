@@ -79,12 +79,14 @@ locate_value() {
 	awk -v target="$TARGET" '
 		function trim(s) { sub(/^[ \t\r]+/, "", s); sub(/[ \t\r]+$/, "", s); return s }
 		{ sub(/\r$/, "") }
-		# A fence closes only on a line of the same character, at least as
-		# long as the opening run, with nothing after it; a fence-like line
-		# inside a fence is content.
+		# A fence marker is indented by at most three spaces (no tab). A fence
+		# closes only on a line of the same character, at least as long as
+		# the opening run, with nothing after it; a fence-like line inside a
+		# fence is content. A value line inside a fence in the target section
+		# is a failure, since a fence the parse got wrong could hide it.
 		{
 			t = $0
-			sub(/^[ \t]+/, "", t)
+			if (t ~ /^ ? ? ?[^ \t]/ || t == "") sub(/^ +/, "", t); else t = ""
 			c = substr(t, 1, 1)
 			if (substr(t, 1, 3) == "```" || substr(t, 1, 3) == "~~~") {
 				len = 0
@@ -94,6 +96,7 @@ locate_value() {
 				if (c == fchar && len >= flen && rest ~ /^[ \t]*$/) { fence = 0; next }
 			}
 		}
+		fence && insec && index($0, "**実装モデル要件**: ") == 1 { fenced++ }
 		fence { next }
 		target == "single" && /^### PR-[0-9]+ 作成ポイント/ { markers++ }
 		/^#+[ \t]/ {
@@ -119,7 +122,7 @@ locate_value() {
 			value = trim(substr($0, length("**実装モデル要件**: ") + 1))
 		}
 		END {
-			if (fence || markers) print "MULTIPLE"
+			if (fence || markers || fenced) print "MULTIPLE"
 			else if (sections == 0) print "NOSECTION"
 			else if (sections > 1 || values > 1) print "MULTIPLE"
 			else if (values == 0) print "ABSENT"
