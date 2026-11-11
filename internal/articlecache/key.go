@@ -1,7 +1,7 @@
 // Package articlecache holds the server's in-memory article cache: the article
 // key, each key's record and its state transitions, the record limit with its
-// eviction, and the handles the generation and post jobs report through. It
-// knows nothing of HTTP, LLMs, or the Webhook.
+// eviction, and the handle the generation job reports through. It knows
+// nothing of HTTP or LLMs.
 package articlecache
 
 import (

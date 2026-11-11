@@ -119,7 +119,7 @@ func (ts *testServer) seedDone(t *testing.T, body string) articlecache.Key {
 	if begun.Outcome != articlecache.BeginStarted {
 		t.Fatalf("Begin outcome = %d, want started", begun.Outcome)
 	}
-	begun.Run.CompletePostable(testArticle())
+	begun.Run.Complete(testArticle())
 	return subject.Key()
 }
 

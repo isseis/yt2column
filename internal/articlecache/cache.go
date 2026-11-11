@@ -7,8 +7,8 @@ import (
 )
 
 // DefaultCapacity is the record limit the server uses. It counts running,
-// done, and failed records alike; only done and failed records not being
-// posted can be dropped to make room. It is exported because the server, in
+// done, and failed records alike; only done and failed records can be dropped
+// to make room. It is exported because the server, in
 // another package, passes it to New.
 const DefaultCapacity = 100
 
@@ -31,7 +31,7 @@ type Cache struct {
 	capacity int
 	clock    func() time.Time
 	records  map[Key]*record
-	// nextGen numbers record generations and posts; nextSeq orders the
+	// nextGen numbers record generations; nextSeq orders the
 	// records that ended at the same time.
 	nextGen uint64
 	nextSeq uint64
@@ -91,10 +91,9 @@ type BeginResult struct {
 
 // Eviction describes a dropped record, for the log.
 type Eviction struct {
-	Key     Key
-	State   JobState     // JobDone or JobFailed
-	Publish PublishState // JobDone only
-	Age     time.Duration
+	Key   Key
+	State JobState // JobDone or JobFailed
+	Age   time.Duration
 }
 
 // Begin decides, under the lock, what a generation start does for subject,
@@ -148,9 +147,6 @@ func (c *Cache) Begin(subject Subject, mode StartMode, acquire func() bool) Begi
 	if victimRec != nil {
 		delete(c.records, victim)
 		result.Evicted = &Eviction{Key: victim, State: victimRec.state, Age: now.Sub(victimRec.ended)}
-		if victimRec.state == JobDone {
-			result.Evicted.Publish = victimRec.publish
-		}
 	}
 	c.nextGen++
 	fresh := record{gen: c.nextGen, videoID: subject.videoID, videoTitle: subject.videoTitle, state: JobRunning, accepted: now}
@@ -230,54 +226,4 @@ func (c *Cache) Lookup(key Key) Snapshot {
 		return Snapshot{}
 	}
 	return rec.snapshot()
-}
-
-// PublishBegin is what BeginPublish did. The zero value is
-// PublishBeginNoArticle.
-type PublishBegin int
-
-// The PublishBegin values.
-const (
-	PublishBeginNoArticle  PublishBegin = iota // failed or unknown
-	PublishBeginNotReady                       // running
-	PublishBeginUnpostable                     // done and unpostable
-	PublishBeginAlready                        // done and posting or posted: nothing changed
-	PublishBeginStarted                        // the record is now posting
-)
-
-// BeginPublish moves a done, not-posted or publish-failed record to posting
-// and returns a handle that carries the article and the index of the first
-// message not delivered. The handle is non-nil only for PublishBeginStarted.
-func (c *Cache) BeginPublish(key Key) (PublishBegin, *PublishRun) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	rec, ok := c.records[key]
-	if !ok {
-		return PublishBeginNoArticle, nil
-	}
-	switch rec.state {
-	case JobRunning:
-		return PublishBeginNotReady, nil
-	case JobDone:
-	default:
-		return PublishBeginNoArticle, nil
-	}
-	switch rec.publish {
-	case PublishNotPosted, PublishFailed:
-	case PublishPosting, PublishPosted:
-		return PublishBeginAlready, nil
-	default:
-		return PublishBeginUnpostable, nil
-	}
-	c.nextGen++
-	rec.publish = PublishPosting
-	rec.publishGen = c.nextGen
-	return PublishBeginStarted, &PublishRun{
-		cache:      c,
-		key:        key,
-		gen:        rec.gen,
-		publishGen: rec.publishGen,
-		article:    rec.article,
-		from:       rec.delivered,
-	}
 }

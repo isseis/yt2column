@@ -78,7 +78,7 @@ func (s *Server) completeGeneration(run *articlecache.Run, key articlecache.Key,
 		s.failGeneration(run, key, input, articlecache.FailureArticleTooLarge, errStatusTooLarge)
 		return
 	}
-	duration, ok := run.CompletePostable(article)
+	duration, ok := run.Complete(article)
 	if !ok {
 		s.logGenerationEndedElsewhere(key, input)
 		return
