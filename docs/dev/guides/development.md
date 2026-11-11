@@ -12,6 +12,7 @@ make fmt     # gofumpt on changed files
 make test-integration  # real yt-dlp + network; see below
 make test-integration-deepseek  # real DeepSeek API; see below
 make test-integration-claude  # real Anthropic API; see below
+make test-integration-openai  # real OpenAI API; see below
 make test-integration-cli  # the CLI with the real DeepSeek API; see below
 make test-integration-slack  # posts fixed articles to a real Mattermost test Webhook; see below
 ```
@@ -270,6 +271,17 @@ curl -sS --unix-socket "$socket" -X POST "http://localhost/jobs/$key/publish"
 `ANTHROPIC_WORKSPACE_ID` からは読まない。設定されていなければワークスペース ID を送らない。空の値や形の正しくない値を設定すると、テストは失敗する。ターゲットは、統合テストのためだけに同意の変数
 `YT2COLUMN_CLAUDE_INTEGRATION=1` を export する。これがなければ、テストはその変数を示すメッセージを出して飛ばすので、ただの
 `go test -tags integration` や IDE からの実行は API を呼ばない。1 回の実行は、普通の生成と、`MaxOutputTokens` で打ち切った生成の 2 つを行う。それぞれ 5 分の時間切れで区切るので、ターゲットの `-timeout` は 15 分である。
+
+### OpenAI の統合テスト
+
+`make test-integration-openai` は本物の OpenAI の Responses API を呼ぶので、課金される。`YT2COLUMN_TEST_OPENAI_API_KEY` に、テスト用の OpenAI の API キーを設定する必要がある。これは本番の `OPENAI_API_KEY` とは別のもので、テストは本番のキーを読まない。`YT2COLUMN_TEST_OPENAI_API_KEY` がないか空のときは、その変数を示すメッセージを出してテストを飛ばすので、
+`OPENAI_API_KEY` だけを設定しても実行されない。モデルと effort は
+`YT2COLUMN_TEST_OPENAI_MODEL` と `YT2COLUMN_TEST_OPENAI_EFFORT` から取り、定義されていなければ
+`gpt-6.1-sol` と `medium` になる（空の値はそのまま渡り、テストを失敗させる）。受け付けない effort の値と、`GODEBUG` の HTTP/2 のデバッグの設定も、要求を送らずにテストを失敗させる。ターゲットは、統合テストのためだけに同意の変数
+`YT2COLUMN_OPENAI_INTEGRATION=1` を export する。これがなければ、テストはその変数を示すメッセージを出して飛ばすので、ただの
+`go test -tags integration` や IDE からの実行は API を呼ばない。1 回の実行は、普通の生成と、`MaxOutputTokens` を 16 として打ち切った生成の 2 つを行い、どちらも送り直さない。普通の生成が打ち切られたときや、打ち切るはずの生成が完了したときは、テストの前提が成り立たなかったとして失敗する。ログに出すのはモデル名・effort・トークン数（不明ならその理由）・推定の料金・所要時間だけで、応答の文面は出さない。普通の生成では、応答が Standard の処理方式を示すことも確かめる。それぞれ 5 分の時間切れで区切るので、ターゲットの `-timeout` は 15 分である。
+
+テストが使う応答の実例（`testdata/openai_responses_*.json`）の取得の条件と加工は、[testdata/README.md](../../../testdata/README.md) にある。
 
 ### CLI の統合テスト
 

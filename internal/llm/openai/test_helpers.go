@@ -36,6 +36,9 @@ const (
 	// fakeSecretMarker stands in for a secret or free text that a response
 	// carries in an untrusted value. No result or error may contain it.
 	fakeSecretMarker = "sk-FAKE-SECRET-MARKER-7731" //nolint:gosec // a fake marker, not a credential
+	// Paths to the saved real responses, relative to this package directory.
+	capturedCompletedFixture  = "../../../testdata/openai_responses_completed.json"
+	capturedIncompleteFixture = "../../../testdata/openai_responses_incomplete.json"
 )
 
 // The usage of the base test response and the counts it maps to: 120 input
@@ -361,4 +364,11 @@ func assertBodyRejectedWithResponse(t *testing.T, body []byte, want error, wantU
 	response, err := generateBody(t, body)
 	assertFailure(t, response, err, want, llm.GenerateResponse{Model: testResponseModel, Usage: wantUsage})
 	return err
+}
+
+// DefaultMaxOutputTokensForTest returns the max_output_tokens the adapter
+// sends when a request leaves the output limit to the provider, so a document
+// guard in another package can compare a stated value with the code.
+func DefaultMaxOutputTokensForTest() int {
+	return defaultMaxOutputTokens
 }

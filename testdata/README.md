@@ -1,6 +1,6 @@
 # testdata
 
-このディレクトリには、パーサのテスト用に保存した `yt-dlp` の実出力、コピーした字幕の文字列、YouTube の動画ページの文字起こしパネルの HTML の抜粋、DeepSeek と Claude の API の実応答（後述）がある。`yt-dlp` の出力、コピーした字幕、HTML の抜粋については、**リポジトリに保存してよいのは、再配布が許諾されたライセンスの動画からの出力だけ**とする（通常の YouTube 標準ライセンスの動画の全文字起こしは保存しない）。
+このディレクトリには、パーサのテスト用に保存した `yt-dlp` の実出力、コピーした字幕の文字列、YouTube の動画ページの文字起こしパネルの HTML の抜粋、DeepSeek・Claude・OpenAI の API の実応答（後述）がある。`yt-dlp` の出力、コピーした字幕、HTML の抜粋については、**リポジトリに保存してよいのは、再配布が許諾されたライセンスの動画からの出力だけ**とする（通常の YouTube 標準ライセンスの動画の全文字起こしは保存しない）。
 
 ## 出典とライセンス
 
@@ -122,3 +122,38 @@ CC BY の条件に従い、各動画の出典（動画 URL・チャンネル名�
 
 - `claude_messages_end_turn.json`: モデル `claude-opus-5-5`、effort `high`、短い固定の英文（[02_architecture.md](../docs/tasks/0009_claude_llm_client/02_architecture.md) §1.4 の短いプロンプト）への応答。`stop_reason` は `end_turn`。`content` は `thinking` ブロック（`thinking` は空文字列）と `text` ブロックの 2 つ。
 - `claude_messages_max_tokens.json`: モデル `claude-haiku-5-5`、effort `low`、`max_tokens` 16、user `Explain in several detailed paragraphs how a compiler turns source code into machine code.` への応答。`stop_reason` は `max_tokens`、`content` は途中までの `text` ブロック 1 つ。
+
+## OpenAI の API の実応答
+
+次の 2 ファイルは、OpenAI アダプタ（`internal/llm/openai`）の応答の検証のテスト用に保存した、OpenAI の Responses API の実応答の本文である。`internal/llm/openai/response_test.go` の `TestCapturedResponses` が、製品の解析経路（ループバックのサーバから返した本文を `Generate` で読む）で期待する結果を検証する。取得はタスク 0077 の実装時に、利用者の許可を得た範囲（取得 2 回）で行った。設計は [docs/tasks/0077_openai_llm_client/02_architecture.md](../docs/tasks/0077_openai_llm_client/02_architecture.md) §7.2 にある。
+
+- 取得日: 2026-11-11
+- 出典: `POST https://api.openai.com/v1/responses`（HTTP/2）の応答本文。テスト専用の API キー（`YT2COLUMN_TEST_OPENAI_API_KEY`）を使った
+- モデル名と effort: `gpt-6.1-sol`、`medium`
+- 要求の条件: アダプタが送る要求本文と同じメンバーと値。`stream` と `store` は `false`、`service_tier` は `default`、`prompt_cache_options.ttl` は `30m`
+- プロンプト: system は `You are a concise assistant.`。user はテストのために用意した固定の英文で、字幕・動画由来の文・個人情報を含まない（各ファイルの説明を参照）
+
+- `openai_responses_completed.json`: `max_output_tokens` 2048、user `In one short sentence, why is the sky blue?` への応答。`status` は `completed`。`output` は `phase` が `final_answer` の `message` 1 つ（`output_text` 1 つ）。
+- `openai_responses_incomplete.json`: `max_output_tokens` 16、user `Explain in several detailed paragraphs how a compiler turns source code into machine code.` への応答。`status` は `incomplete`、`incomplete_details.reason` は `max_output_tokens`。`output` は `reasoning` 要素 1 つだけで、文面を含む `message` はない。
+
+生成テキストは固定のプロンプトに対するモデルの出力であり、第三者の著作物を含まない。保存前に、API キー（全体と末尾 8 文字）が含まれないこと、組織・プロジェクトの識別子がないことを確認した。応答本文は受け取ったバイト列のまま保存し（末尾の改行なし）、次の値だけを、同じ長さ・同じ文字種の合成の値に置き換えた。どれも OpenAI の側で取得者と結び付けられうる値で、アダプタは読まない（消費しないメンバー）。JSON の構造、メンバーの順序、そのほかの値は変えていない。
+
+- トップレベルの `id`（応答の識別子）と、`output` の各要素の `id`（`msg_`・`rs_` で始まる要素の識別子）: 接頭辞に続く 16 進数の部分を `0` に置き換えた。
+- `created_at` と `completed_at`（Unix 時刻）: 取得日時を示すため、10 桁の合成の値（`1700000000` 以降）に置き換えた。完了した応答の `created_at` と `completed_at` の差（2 秒）は保った。打ち切られた応答の `completed_at` は元から `null` である。
+- `reasoning` 要素の `encrypted_content`（暗号化された推論の不透明な値）: 末尾の `=` を除く全文字を `A` に置き換えた。
+
+再取得するときは、テスト専用のキーで次の要求本文を 1 回ずつ送り、応答本文だけを保存して、同じ値を同じ規則で置き換える。完了の応答の要求本文は次のとおりである（打ち切りの応答では、user の文を上記のものに、`max_output_tokens` を 16 に替える）。
+
+```json
+{"model":"gpt-6.1-sol","input":[{"role":"system","content":"You are a concise assistant."},{"role":"user","content":"In one short sentence, why is the sky blue?"}],"reasoning":{"effort":"medium"},"max_output_tokens":2048,"stream":false,"store":false,"service_tier":"default","prompt_cache_options":{"ttl":"30m"}}
+```
+
+キーは認証ヘッダーにだけ渡し、コマンドラインの引数やファイルに書かない。今回は、要求本文をファイル（`<request-file>`）に置き、ヘッダーを標準入力から渡して送った。
+
+```sh
+printf 'Authorization: Bearer %s\n' "$YT2COLUMN_TEST_OPENAI_API_KEY" |
+  curl -sS --max-time 300 -o <response-file> -H @- -H 'Content-Type: application/json' \
+    --data-binary @<request-file> https://api.openai.com/v1/responses
+```
+
+応答の形が変わっていれば `TestCapturedResponses` の期待値を本文から手で読み直す。課金されるため、実行には別途許可を得る。打ち切られた応答が完了した場合や、完了を求めた応答が打ち切られた場合は、上限を変えて送り直さず、前提が成立しなかったとして報告する。

@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -20,6 +21,8 @@ import (
 	"github.com/isseis/yt2column/internal/llm"
 	claudetestutil "github.com/isseis/yt2column/internal/llm/claude/testutil"
 	deepseektestutil "github.com/isseis/yt2column/internal/llm/deepseek/testutil"
+	"github.com/isseis/yt2column/internal/llm/openai"
+	openaitestutil "github.com/isseis/yt2column/internal/llm/openai/testutil"
 	"github.com/isseis/yt2column/internal/pricing"
 	"github.com/isseis/yt2column/internal/publisher"
 	publishertestutil "github.com/isseis/yt2column/internal/publisher/testutil"
@@ -216,6 +219,50 @@ func TestClaudeDocsContract(t *testing.T) {
 	} {
 		requireMentions(t, doc.name, doc.text, values)
 	}
+}
+
+// TestOpenAIDocsContract pins the machine-checkable contract values of the
+// OpenAI provider. For the integration test: the test key it reads, the
+// opt-in that arms it, the model and effort variables with the make target's
+// defaults, and the make target; the development guide's OpenAI section names
+// them all and security.md names the key, the opt-in, and the target. For the
+// adapter: the default output limit, which both README versions and
+// project_overview.md state. The values come from the openai packages'
+// exported constants and the make target constant, not from the documents.
+func TestOpenAIDocsContract(t *testing.T) {
+	limit := groupThousands(openai.DefaultMaxOutputTokensForTest())
+	// The number must stand alone, so a longer number that ends in it (such as
+	// 16,080) does not satisfy the check.
+	statesLimit := regexp.MustCompile(`(^|[^0-9,])` + regexp.QuoteMeta(limit) + `([^0-9,]|$)`).MatchString
+	if !statesLimit(doctestutil.ReadDoc(t, projectOverviewPath)) {
+		t.Errorf("project_overview.md does not state the default output limit %s", limit)
+	}
+	readmeVersionsUnder(t, func(t *testing.T, v doctestutil.ReadmeVersion, readme string) {
+		if !statesLimit(readme) {
+			t.Errorf("%s does not state the default output limit %s", v.Path, limit)
+		}
+	})
+
+	development := doctestutil.SectionOutsideBlocks(
+		doctestutil.ReadDoc(t, developmentDocPath), doctestutil.DevOpenAIIntegrationHeading)
+	if development == "" {
+		t.Fatalf("development.md has no %q section", doctestutil.DevOpenAIIntegrationHeading)
+	}
+	target := "make " + openAIIntegrationTarget
+	requireMentions(t, "development.md "+doctestutil.DevOpenAIIntegrationHeading, development, []string{
+		target,
+		openaitestutil.APIKeyEnv,
+		openaitestutil.OptInEnv,
+		openaitestutil.ModelEnv,
+		openaitestutil.EffortEnv,
+		openaitestutil.MakeDefaultModel,
+		openaitestutil.MakeDefaultEffort,
+	})
+	requireMentions(t, "security.md", doctestutil.ReadDoc(t, securityPath), []string{
+		target,
+		openaitestutil.APIKeyEnv,
+		openaitestutil.OptInEnv,
+	})
 }
 
 // TestDeepSeekDocsContract pins the machine-checkable contract values of the
@@ -924,4 +971,18 @@ func TestCostDocsContract(t *testing.T) {
 	if !strings.Contains(overview, costPrefix) {
 		t.Errorf("project_overview.md does not contain %q", costPrefix)
 	}
+}
+
+// groupThousands formats n with a comma between each group of three digits,
+// the way the documents write token counts (6080 is "6,080").
+func groupThousands(n int) string {
+	digits := strconv.Itoa(n)
+	var b strings.Builder
+	for i, r := range digits {
+		if i > 0 && (len(digits)-i)%3 == 0 {
+			b.WriteByte(',')
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
 }

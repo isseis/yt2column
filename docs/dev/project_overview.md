@@ -9,9 +9,9 @@
 - **言語: Go**（ブラウザ拡張は TypeScript。詳細は §「想定ディレクトリ構成」と `docs/tasks/0007_browser_extension_skeleton/`）。依存関係を最小限にし、シングルバイナリで配布する。 [ADR-0026](adr/0026-extension-platform.md)
 - **実行形式: localhost サーバとブラウザ拡張、開発用の CLI**。主経路は、ブラウザ拡張が YouTube の文字起こしパネルからコピーした字幕を、ブラウザが起動する Native Messaging のホスト（`cmd/yt2column-nmhost`・`internal/nmhost`）がソケットへ中継し、localhost サーバ（`cmd/yt2column-server`・`internal/server`）が記事を生成してメモリに保持し、求めに応じて返すか Slack へ投稿する（タスク `0011_localhost_server`・`0044_article_job_api`）。拡張は、サーバのジョブの API（生成の開始・状態の取得・投稿）を使う。拡張の Service Worker が生成の開始を送り、ビューアとポップアップが状態の取得を繰り返し、ビューアが利用者の操作で投稿を送る（タスク `0050_viewer_tab`）。サーバが受け付けるのはジョブの API だけで、Webhook へ送るのは投稿の操作が求めた記事だけである（タスク `0059_remove_legacy_articles_api`）。サーバは TCP を待ち受けず、`HOME` だけから導出したパスの Unix ドメインソケットの上で HTTP を受ける（タスク `0026_native_messaging_relay`）。ホストの manifest は、利用者が `yt2column-nmhost install <browser>` で登録し、`yt2column-nmhost uninstall <browser>` で削除する（`<browser>` は `chrome` か `brave`。`make build` は登録しない）。サーバの起動は手動とし、サーバは `yt-dlp` を呼ばない。サーバは設定を `HOME` だけから導出したパスの設定ファイル（モード `0600`）だけから読み、CLI は環境変数だけから読む（タスク `0066_server_config_file`）。コアロジックは `cmd/` から分離したパッケージとして実装し、両方の入口で共有する。CLI はローカルで実行する。 [ADR-0005](adr/0005-server-architecture.md) [ADR-0008](adr/0008-launch-path.md) [ADR-0027](adr/0027-article-job-api.md) [ADR-0018](adr/0018-server-config-file.md)
 - **字幕取得: 主経路はコピーした字幕、CLI は外部コマンドの `yt-dlp` に委譲する**。主経路では、利用者が YouTube の文字起こしパネルからコピーした字幕の文字列を解析するパーサ（`internal/transcript` で `CopiedSource` が `Raw` を解析する箇所）を使う。これは、パネルが出力する書式に依存する例外である。依存はそのパーサに限り、Go から YouTube のページやパネルを取得・解析しない。CLI は字幕の取得を `yt-dlp` に委譲する。YouTube の非公式な仕様に依存する最も壊れやすい部分を、保守が活発なツールに任せるためであり、Go で字幕取得を自前実装しないこと。書式が変わって拒否が続く間は、`yt-dlp` の経路を代わりの手段として残す。 [ADR-0007](adr/0007-manual-transcript-copy.md)
-- **LLM: 既定は Claude（`claude-opus-5-5`）で、DeepSeek も選べる**。コード上の既定のプロバイダは Claude で、既定で本番の構成になる（[#490](https://github.com/isseis/yt2column/issues/490)・[#171](https://github.com/isseis/yt2column/issues/171)）。本番の構成は [production_profile.md](production_profile.md) にある。どちらも SDK を使わず、標準ライブラリ（`net/http`・`encoding/json`）で呼び出す。Claude は Anthropic Messages API を、DeepSeek は公式 API を直接契約して使う。DeepSeek の API は OpenAI 互換の Chat Completions 形式（`POST https://api.deepseek.com/chat/completions`）である。OpenAI も選択肢に加えつつあり、設定と effort の型は受理する。Responses API を使うアダプタと工程への配線は後続の変更で加える。 [ADR-0001](adr/0001-llm-adapter-stdlib.md) [ADR-0004](adr/0004-production-profile.md)
+- **LLM: 既定は Claude（`claude-opus-5-5`）で、DeepSeek と OpenAI も選べる**。コード上の既定のプロバイダは Claude で、既定で本番の構成になる（[#490](https://github.com/isseis/yt2column/issues/490)・[#171](https://github.com/isseis/yt2column/issues/171)）。本番の構成は [production_profile.md](production_profile.md) にある。どれも SDK を使わず、標準ライブラリ（`net/http`・`encoding/json`）で呼び出す。Claude は Anthropic Messages API を、DeepSeek は公式 API を直接契約して使う。DeepSeek の API は OpenAI 互換の Chat Completions 形式（`POST https://api.deepseek.com/chat/completions`）である。OpenAI は Responses API（`POST https://api.openai.com/v1/responses`）を、Standard の処理方式・プロンプトキャッシュの最低保持期間 30 分・`store: false` に固定して呼ぶ。 [ADR-0001](adr/0001-llm-adapter-stdlib.md) [ADR-0041](adr/0041-openai-api.md) [ADR-0004](adr/0004-production-profile.md)
   - OpenCode Go 経由の利用は採用しない。利用条件が「コーディングエージェントのトラフィック」を前提としており、本ツールの用途に合わないため。
-- **LLM プロバイダは差し替え可能にする**。DeepSeek と Claude を実装済みで、Claude は公式 SDK を使わず標準ライブラリで Anthropic Messages API を呼ぶ（タスク `0009_claude_llm_client` の要件定義書 §2.3）。OpenAI の設定と effort の型も追加しており、アダプタと配線は後続の変更で加える。将来 Gemini（`google.golang.org/genai`）などを追加する前提。プロバイダとモデル名は設定で切り替える。Gemini を追加する場合、旧 SDK の `github.com/google/generative-ai-go` はレガシーなので使わないこと。 [ADR-0001](adr/0001-llm-adapter-stdlib.md)
+- **LLM プロバイダは差し替え可能にする**。DeepSeek・Claude・OpenAI を実装済みで、Claude は公式 SDK を使わず標準ライブラリで Anthropic Messages API を呼ぶ（タスク `0009_claude_llm_client` の要件定義書 §2.3）。OpenAI も同じく標準ライブラリで Responses API を呼ぶ（タスク `0077_openai_llm_client`）。将来 Gemini（`google.golang.org/genai`）などを追加する前提。プロバイダとモデル名は設定で切り替える。Gemini を追加する場合、旧 SDK の `github.com/google/generative-ai-go` はレガシーなので使わないこと。 [ADR-0001](adr/0001-llm-adapter-stdlib.md)
 - **LangChain 相当のフレームワークや、複数プロバイダを束ねる抽象化ライブラリは使わない**。自前の薄い interface で十分。 [ADR-0019](adr/0019-pipeline-component-interfaces.md)
 - **外部ライブラリは必要最小限にする**。HTTP・JSON・CLI 引数・設定は標準ライブラリで書く。追加する場合は理由を明示すること。
 
@@ -118,6 +118,7 @@ internal/llm/deepseek/    # DeepSeek 実装（標準ライブラリで OpenAI �
 internal/llm/claude/      # Claude 実装（標準ライブラリで Anthropic Messages API を呼ぶ）
 internal/llm/claudeparam/ # Claude の effort・ワークスペース ID の型（config と claude が共有）
 internal/llm/deepseekparam/ # DeepSeek の reasoning_effort の型（config と deepseek が共有）
+internal/llm/openai/      # OpenAI 実装（標準ライブラリで Responses API を呼ぶ）
 internal/llm/openaiparam/ # OpenAI の reasoning effort の型（config と openai が共有）
 internal/llm/llmhttp/     # LLM アダプタ共通の HTTP 送信（リダイレクト防止・本文の上限・失敗の分類）
 internal/llm/gemini/      # Gemini 実装（将来追加。google.golang.org/genai）
@@ -162,7 +163,7 @@ CLI は、表の変数を環境変数から読む。localhost サーバは、表
 | `openai` | `none`・`minimal`・`low`・`medium`・`high`・`xhigh`・`max` | `medium` を送る |
 | `deepseek` | `none`・`low`・`high`・`max` | 何も送らない（thinking は API のデフォルト） |
 
-OpenAI の設定は受理して検査するが、OpenAI のアダプタを工程に配線するのは後続の変更である。配線が入るまでは、`openai` を選んだ工程はクライアントの構築で失敗する。
+OpenAI の指定例は、CLI の環境変数では `YT2COLUMN_LLM=openai/gpt-6-astra+medium` と `OPENAI_API_KEY`、サーバの設定ファイルでは同じ名前のキーの行である（README の「設定」）。OpenAI の利用には ChatGPT の契約とは別に API の課金が必要である。effort は 7 つの値をすべて受理し、モデルが対応しない組み合わせは API のエラー（HTTP の状態）としてその工程を失敗させ、別のモデルや effort に切り替えない。料金表にあるのは `gpt-6-astra` と `gpt-6.1-sol` だけである。出力の上限を要求が指定しないときの既定値 6,080 トークンの根拠と測り直し方は [openai_output_limit.md](guides/openai_output_limit.md) にある。
 
 `YT2COLUMN_LLM` が未設定なら、生成と字数の調整は `claude/claude-opus-5-5` を effort `high` で使う。`YT2COLUMN_REVIEW_LLM` が未設定なら、検証・推敲は生成と同じプロバイダ・モデル・effort（既定値を含む）を使う。`YT2COLUMN_REVIEW_LLM` を設定して effort を省けば、生成の effort は受け継がず、上の表の「effort を省いたとき」に従う。どちらも、空の値は既定値や生成の組で補わずに設定エラーにする。
 

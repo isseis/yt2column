@@ -5,6 +5,7 @@ package openai
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -567,4 +568,45 @@ func mustJSON(t *testing.T, value any) []byte {
 		t.Fatalf("encode %v: %v", value, err)
 	}
 	return data
+}
+
+// TestCapturedResponses runs the saved real Responses API bodies through the
+// product path (Generate against a loopback server) and checks what it
+// returns: the completed body's final answer, model, and usage, and the
+// truncated body's rejection, which keeps the model and usage although the
+// body has a reasoning item and no message. testdata/README.md records how
+// the bodies were captured and which values were replaced. The expected
+// values are read from the capture by hand, not from the parser.
+func TestCapturedResponses(t *testing.T) {
+	const capturedModel = "gpt-6.1-sol"
+
+	t.Run("completed", func(t *testing.T) {
+		body, err := os.ReadFile(capturedCompletedFixture)
+		if err != nil {
+			t.Fatalf("read fixture: %v", err)
+		}
+		response := assertAccepted(t, body)
+		const wantText = "The sky is blue because air molecules scatter blue sunlight more strongly than most other colors."
+		if response.Text != wantText {
+			t.Errorf("Text = %q, want %q", response.Text, wantText)
+		}
+		if response.Model != capturedModel {
+			t.Errorf("Model = %q, want %q", response.Model, capturedModel)
+		}
+		if want := standardUsage(t, llm.TokenCounts{Input: 27, Output: 21}); response.Usage != want {
+			t.Errorf("Usage = %+v, want %+v", response.Usage, want)
+		}
+	})
+
+	t.Run("incomplete", func(t *testing.T) {
+		body, err := os.ReadFile(capturedIncompleteFixture)
+		if err != nil {
+			t.Fatalf("read fixture: %v", err)
+		}
+		response, err := generateBody(t, body)
+		assertFailure(t, response, err, llm.ErrTruncated, llm.GenerateResponse{
+			Model: capturedModel,
+			Usage: standardUsage(t, llm.TokenCounts{Input: 31, Output: 16}),
+		})
+	})
 }

@@ -18,6 +18,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - [Package Reference](docs/dev/conventions/package_reference.md) - Detailed package structure
 - [Updating the Pricing Table](docs/dev/guides/pricing_update.md) - How to update the LLM rate table in `internal/pricing`
 - [Claude Output Limit](docs/dev/guides/claude_output_limit.md) - When and how to re-measure the basis of the Claude adapter's default output limit (`max_tokens`)
+- [OpenAI Output Limit](docs/dev/guides/openai_output_limit.md) - When and how to re-measure the basis of the OpenAI adapter's default output limit (`max_output_tokens`)
 - [mergepr Guide](docs/dev/guides/mergepr_guide.md) - Setup, usage, guarantees, and troubleshooting for the `/mergepr` tool
 - [fixprguard Guide](docs/dev/guides/fixprguard_guide.md) - Setup, subcommands, guarantees, scope rules, and recovery for the `fixprguard` guard tool for `/fixpr` and `/runpr`
 
@@ -305,13 +306,16 @@ flowchart LR
   separately configured provider and model, applying the returned list of
   corrections.
 - `LLMClient` (`internal/llm`, implementations in `internal/llm/<provider>`):
-  thin per-provider adapter — system + user prompt in, text out. `deepseek` and
-  `claude` exist today; `internal/llm/llmhttp` holds the HTTP send path they
-  share (redirect refusal, body cap, failure classification),
+  thin per-provider adapter — system + user prompt in, text out. `deepseek`,
+  `claude`, and `openai` (the Responses API) exist today;
+  `internal/llm/llmhttp` holds the HTTP send path they share (redirect
+  refusal, body cap, failure classification),
   `internal/llm/claudeparam` holds the Claude effort and workspace-ID types that
-  `internal/config` and `internal/llm/claude` share, and
+  `internal/config` and `internal/llm/claude` share,
   `internal/llm/deepseekparam` holds the DeepSeek `reasoning_effort` type that
-  `internal/config` and `internal/llm/deepseek` share.
+  `internal/config` and `internal/llm/deepseek` share, and
+  `internal/llm/openaiparam` holds the OpenAI reasoning effort type that
+  `internal/config` and `internal/llm/openai` share.
 - `Publisher` (`internal/publisher`): local file (`FilePublisher`). The Slack
   Incoming Webhook sender, `SlackWebhookPublisher`, is not a `Publisher`: the
   server's post job checks and splits the article with `PrepareSlackMessages`
