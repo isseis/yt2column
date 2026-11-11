@@ -6,7 +6,8 @@ export GOOS=js GOARCH=wasm
 core=(./internal/transcript ./internal/writer ./internal/llm/claude ./internal/pricing)
 module=github.com/isseis/yt2column
 
-# AC-01: the four packages build, and the two with js-only files pass vet.
+# AC-01: the four packages build, and writer (which has a js-only file) and
+# transcript pass vet.
 go build "${core[@]}"
 go vet ./internal/writer ./internal/transcript
 echo "OK AC-01: build of 4 packages and vet of writer and transcript for js/wasm"
