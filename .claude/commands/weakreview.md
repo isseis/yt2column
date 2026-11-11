@@ -82,16 +82,25 @@ to GitHub and never pushes.
    - Stop and report when a command fails, or when the range is empty
      (`git rev-list --count <RANGE>` is `0`).
 
-3. **Identify the task** per `docs/dev/conventions/task_identification.md`,
-   with its rule 1 replaced, because the arguments name a range, not a task:
-   when the files RANGE changes (`git diff --name-only <RANGE> -- docs/tasks/`)
-   lie under exactly one task directory, that is the task. When they lie under
-   none, RANGE's `<head>` is `HEAD`, and the current branch's name follows the
-   feature branch name convention (`_context.md`), the task is the directory
-   under `docs/tasks/` whose name, with each `_` replaced by `-`, equals the
-   name's `<slug>`, when exactly one does; a range that does not end at `HEAD` says nothing about the
-   current branch. Otherwise apply its rules 2 and 3. TASK_DIR is the task
-   directory's repository-relative path (such as
+3. **Identify the task.** The arguments name a range, not a task, so
+   `docs/dev/conventions/task_identification.md` applies only through its
+   rule 2. Take the first of these that gives one task:
+   - the task directory the files RANGE changes lie under
+     (`git diff --name-only <RANGE> -- docs/tasks/`), when they lie under
+     exactly one;
+   - when they lie under none, RANGE's `<head>` is `HEAD`, and the current
+     branch's name follows the feature branch name convention
+     (`_context.md`): the directory under `docs/tasks/` whose name, with each
+     `_` replaced by `-`, equals the name's `<slug>`, when exactly one does.
+     A range that does not end at `HEAD` says nothing about the current
+     branch;
+   - the task of a file open in the IDE (its rule 2);
+   - otherwise ask with AskUserQuestion, offering the task directories RANGE
+     changes as the options, or, when it changes none, asking for the task's
+     number. Do not stop as its rule 3 says: this command takes no task
+     argument.
+
+   TASK_DIR is the task directory's repository-relative path (such as
    `docs/tasks/0081_implementation_model_choice`).
 
 4. **When FIX is `fix`, check before reviewing.** Stop, change nothing, and
@@ -133,3 +142,5 @@ to GitHub and never pushes.
    `stopped-unavailable`, report that the review could not run on Opus and
    that the user can run this command again once Opus is available. On
    `stopped-limit`, report the remaining findings for the user to decide on.
+   On `stopped-error`, report its reason and what the run left (commits, and
+   an uncommitted fix in the working tree, if any).

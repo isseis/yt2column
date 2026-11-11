@@ -363,9 +363,9 @@ Diff record (AC-13):
 -   二つのレビューの出力の最初の行を、`_lib/opus-review.md`「Running on Opus」の確かめ（最初の行だけを書いたファイルに `grep -Eqx 'Model: claude-opus-[!-~]+'`）で判定した。どちらも通った（終了コード 0）。照らした規則は「Record lines」の Opus かどうかの規則（`claude-opus-` で始まる）である。確認のレビュー（2 回）の最初の行も、同じ確かめで通った。
 -   同じ確かめを、Sonnet の ID を書いた行（`Model: claude-sonnet-` で始まる行）と、形の合わない 4 つの行（`:` の後に空白がない、`model:` が小文字、`claude-opus-` の後が空、ID の後に語が続く）に当てた。どれも通らなかった（終了コード 1）。
 -   統合した報告の形: 二つのレビューの指摘を統合し、重複を除いて高い重大度をとった結果は、Critical 1・Major 3・Minor 9 だった。各チェックリストの分類の行（clean・flagged・該当なし）と全体の見立ての 1 行を得た。
--   直すときの止まる条件を、手順の step 4 の確かめを書いたとおりに走らせて確かめた。範囲の終わりを `HEAD~1` にしたときは「range end is not HEAD」で、使い捨ての追跡されないファイルを置いたときは「working tree not clean」で、どちらもレビューを始める前に止まった（終了コード 1）。clean な作業ツリーで範囲の終わりが `HEAD` のときは通った。
+-   直すときの止まる条件は、`/weakreview` を呼び出してではなく、手順の step 4 の確かめのコマンドを書いたとおりに並べたスクリプトで確かめた（報告の文はそのスクリプトのもので、`weakreview.md` の文ではない）。範囲の終わりを `HEAD~1` にしたときは「range end is not HEAD」で、使い捨ての追跡されないファイルを置いたときは「working tree not clean」で、どちらもレビューを始める前に止まった（終了コード 1）。clean な作業ツリーで範囲の終わりが `HEAD` のときは通った。
 -   実地で見つかった手順の不具合を直した。タスクの文書を変えない範囲でタスクを特定できなかった（ブランチの名前からの特定を足した、835e7bc6）。事前の確かめのブロックを zsh で走らせると `path` の変数が `PATH` を書き換えた（`bash` で走らせると書いた、e47b0157）。
--   Critical と Major の指摘は、この PR の範囲で直した（bf281603、b99db37e）。確認のレビューは 2 回走らせ、2 回目で Critical と Major が残らなかった。残った Minor（コミットメッセージに位置する指摘の、残した指摘の記録の形がない、ほか）は PR の説明に書く。
+-   `--no-fix` の実行は `reported` で終わり、確認のレビューを走らせない。Critical と Major の指摘は、本ステップの「この PR の範囲で直す」に従い、セッションが共通の手順の「Fixing and verifying」に沿って直し（bf281603、b99db37e）、確認のレビューを Opus で 2 回走らせた。2 回目で Critical と Major が残らなかった。残った Minor（コミットメッセージに位置する指摘の、残した指摘の記録の形がない、ほか）は PR の説明に書く。
 
 **ステップ 1-7（`_checks/moved_checklist.sh`）。** `bash docs/tasks/0081_implementation_model_choice/_checks/moved_checklist.sh 04dc4824145e2243bbf8dcfa82c5ff853c43eb11 49b7627aff9c347c111f2fe29bd6ea6a35ded09b` の出力（終了コード 0）:
 

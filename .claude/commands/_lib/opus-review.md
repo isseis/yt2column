@@ -73,8 +73,8 @@ commit of record lines), write the message to a file and run
 code `0` means the message contains the mention, and any other code means the
 check failed. When the first run does not exit `1`, remove every `<summary>`
 of a record line and every sentence of the message written from a finding, and
-run the check once more; commit when that run exits `1`, and otherwise stop
-and report instead of committing. Never
+run the check once more; commit when that run exits `1`, and otherwise
+return `stopped-error` instead of committing. Never
 copy a subagent's text into a commit message, fix commits included.
 
 ## Entry 2: the review
@@ -92,7 +92,7 @@ copy a subagent's text into a commit message, fix commits included.
 
 | Output | Meaning |
 |---|---|
-| OUTCOME | `completed` (no Critical or Major finding is left unhandled), `reported` (FIX is `report`), `stopped-unavailable` (a review could not run on Opus), or `stopped-limit` (the pass limit stopped the loop) |
+| OUTCOME | `completed` (no Critical or Major finding is left unhandled), `reported` (FIX is `report`), `stopped-unavailable` (a review could not run on Opus), or `stopped-limit` (the pass limit stopped the loop), or `stopped-error` with its reason (any other stop this file names) |
 | FINDINGS | The merged findings, each with its severity, location, and gist in your own words, and the count for each severity |
 | KEPT | The Critical and Major findings moved past without a fix, each with its reason: the kept lines, and the findings DECISION_CHANGE left unfixed |
 | COMMITS | The fix commits and the commits of record lines this procedure made |
@@ -155,10 +155,10 @@ These are mechanical and cheaper than AI review — catch them here, not in the
 subagent pass. Run them over the changed files in RANGE, with RANGE and
 TASK_DIR put in for `<RANGE>` and `<TASK_DIR>`. First confirm that
 TASK_DIR is a directory (`test -d <TASK_DIR>`): with a bare directory name,
-Check 2 would find no document and print `OK`. When it is not, stop before
-the reviews and report the wrong TASK_DIR; the caller stops too. Write the
-block to a file in the scratchpad and run it with `bash <file>`, not in the
-session's shell: in zsh, the block's `path` variable would replace the command
+Check 2 would find no document and print `OK`. When it is not, return
+`stopped-error` before the reviews. Write the block to a file in the
+scratchpad and run it with `bash <file>` from the top level of the work tree
+(the block's paths are relative to it), not in the session's shell: in zsh, the block's `path` variable would replace the command
 search path. The block's last line exits `1` when no Go file changed; that is
 not a failure.
 
@@ -243,7 +243,8 @@ the verification review alike:
 - One line for each category of the reviewer's checklist, stating whether it
   was clean, flagged, or not applicable to RANGE.
 
-FILES: the documents of step 1 and every file RANGE changes, all as resolved
+FILES: the documents of step 1 and every file RANGE changes and does not
+delete (`git diff --name-only --diff-filter=d <RANGE>`), all as resolved
 absolute paths.
 
 ### Running on Opus
@@ -286,7 +287,10 @@ limit applies as it is.
    asks the human and the human does not approve the change, commit a kept
    line with the reason `decision change declined`.
 4. Fix every other Critical and Major finding. Run the build checks
-   (`_context.md`) and commit, after the mention check ("Record lines").
+   (`_context.md`) and commit, after the mention check ("Record lines"). When
+   the build checks fail and cannot be made to pass within the finding's
+   scope, return `stopped-error`, leaving the uncommitted fix in the working
+   tree for the caller's report.
 5. Do not fix a Minor finding: report it in FINDINGS. Do not record it as an
    issue, as "Convergence" would; this procedure writes nothing to GitHub.
 6. When nothing was fixed (the human rejected every finding, or every finding

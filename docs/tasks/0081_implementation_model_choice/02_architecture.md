@@ -100,6 +100,11 @@ flowchart LR
     class L3 newpkg
 ```
 
+### 1.5. 実装の際に決めたこと（2026-11-11）
+
+1.  **`/weakreview` は、タスクを次の順で特定する。範囲が変える `docs/tasks/` の下のファイルが一つのタスクのディレクトリにだけあれば、そのタスク。どれにもなく、範囲の終わりが `HEAD` で、今のブランチの名前が feature branch の名前の規約に従えば、その名前の `<slug>` に当たるディレクトリがちょうど一つのとき、そのタスク。それでも決まらなければ、IDE で開いているファイルのタスク（`task_identification.md` の規則 2）。それでも決まらなければ、候補のタスクのディレクトリを示して AskUserQuestion で人に尋ねる。** 理由: `/weakreview` の引数は範囲で、タスクではないので、`task_identification.md` の規則 1 は使えない。規則 3 の「タスクを引数に付けて実行し直す」も、タスクの引数を受け付けないので行き止まりになる。範囲の終わりが `HEAD` でないときにブランチの名前を使わないのは、範囲と今のブランチが関係しないからである。採らなかった案: タスクを名指す引数（`--task <id>`）を足す案（AC-32 の受け付ける引数が変わる）と、ブランチの名前から推し量らず、範囲のディレクトリか人に尋ねるかだけにする案（`/runplan` のブランチで、タスクの文書を変えない範囲のたびに尋ねることになる）。人の答え: 推し量り、決まらなければ尋ねる案を選んだ。ADR: なし（`/weakreview` の中で閉じる手順である）。
+2.  **共通の手順の OUTCOME に `stopped-error` を足す。** TASK_DIR がディレクトリでないとき、mention の確かめが 2 回目も通らないとき、直しの後のビルドの確かめを直しの範囲で通せないときは、理由を添えて `stopped-error` を返す。呼ぶ側は、ほかの `stopped-*` と同じく止まり、何も push せずに報告する。理由: 名前のない止まり方があると、呼ぶ側（`/weakreview`、PR-2 の `/runplan`）が、それを `completed` と取り違えうるため。採らなかった案: 4 つの OUTCOME のまま、止まり方を文だけで述べる案。人の答え: `stopped-error` を足す案を選んだ。ADR: なし（ADR-0042 の「止まり、PR を開かず何も push しない」の範囲に収まる）。
+
 ## 2. システム構成 (System Structure)
 
 ### 2.1. 全体構成
@@ -341,13 +346,13 @@ frontmatter の `description` は、ほかの `_lib/` と同じく「Internal: �
 | 入力 | 意味 | `/runplan` | `/weakreview` |
 |---|---|---|---|
 | RANGE | `<base>..<head>` の形の範囲 | `BASE..HEAD`（AC-21） | 引数から解いて、この形にそろえた範囲（3.7、AC-36） |
-| TASK_DIR | タスクのディレクトリ | 対象のタスク | `task_identification.md` で特定したタスク |
+| TASK_DIR | タスクのディレクトリのリポジトリからの相対パス | 対象のタスク | 1.5 の決定 1 の順で特定したタスク |
 | FIX | `fix` か `report` | `fix` | `--no-fix` がなければ `fix`、あれば `report` |
 | DECISION_CHANGE | 直すのに決定の変更が要る指摘の扱い | `runplan.md` step 5 の「Decision change」の規則に従う（AC-24） | 直さずに報告し、人に委ねる（AC-31） |
 
 | 出力 | 意味 |
 |---|---|
-| OUTCOME | `completed`（Critical と Major が残らない）、`reported`（FIX が `report`）、`stopped-unavailable`（Opus で走らせられない）、`stopped-limit`（繰り返しの上限）のどれか |
+| OUTCOME | `completed`（Critical と Major が残らない）、`reported`（FIX が `report`）、`stopped-unavailable`（Opus で走らせられない）、`stopped-limit`（繰り返しの上限）、`stopped-error`（ほかの理由で止まった。理由を添える。1.5 の決定 2）のどれか |
 | FINDINGS | 統合した指摘（重大度・場所・要旨）と、重大度ごとの件数 |
 | KEPT | 直さずに進んだ Critical と Major の指摘と、その理由 |
 | COMMITS | 直しの commit と、記録の行の commit |
@@ -429,7 +434,7 @@ step 5a（`:78-127`）では、グリーンゲートの確認（`:80`）と、�
 
 1.  ブランチ全体のローカル CLI レビューを行う場合（`git log origin/main..HEAD` に `Local CLI review: not run` か `CodeRabbit local review: not run` の行がある場合）は、Part B の LOCAL_REVIEW の規則のとおりに、BASE を `$(git merge-base origin/main HEAD)`、SCOPE をブランチとして、これを先に行う。レビューが止まったときは、何も push せずに `/runplan` も止まる。このレビューの直しの commit も、次の要否の判断と Opus のレビューの範囲（`BASE..HEAD`）に入る。
 2.  共通の手順の要否の判断（入口 1）を走らせる。
-3.  `RUN` のときは、レビュー（入口 2）を RANGE `BASE..HEAD`・FIX `fix` で行う。OUTCOME が `stopped-unavailable` か `stopped-limit` のときは、`/runplan` も止まる。PR を開かず、何も push せず、その旨と、利用者にできること（Opus が使えるようになってから `/runplan` を再び実行する。上限のときは、残った指摘を見て決める）を報告する（AC-22、AC-25）。
+3.  `RUN` のときは、レビュー（入口 2）を RANGE `BASE..HEAD`・FIX `fix` で行う。OUTCOME が `stopped-unavailable`・`stopped-limit`・`stopped-error` のときは、`/runplan` も止まる。PR を開かず、何も push せず、その旨と、利用者にできること（Opus が使えるようになってから `/runplan` を再び実行する。上限のときは、残った指摘を見て決める）を報告する（AC-22、AC-25）。
 4.  直しの commit があれば、グリーンゲートをもう一度通し、最後の PR のときの AC の確かめと、差分の記録の再確認もやり直す。AC の確かめか差分の記録の再確認が、除いてよい commit でもビルドの直し（3.4 の完了の記録の範囲）でもない commit を作ったときは、2 の要否の判断からやり直す。
 5.  最初のチェックボックスの commit のメッセージに、完了の記録を書く（3.4）。チェックボックスが既に `[x]` のとき（前のセッションが付けた後に止まったとき）は、記録の行だけの空の commit を作る。`NONE` と `SKIP` のときは、記録の行を書かない。
 6.  PR_TEXT に、Opus のレビューの結果（3.9）を加える。
@@ -457,7 +462,7 @@ step 5a は Part B に LOCAL_REVIEW = `done` を渡す（ブランチ全体の�
 -   **Purpose:** `code-review` と `simplify` が別に走ることを前提にしない形に書き換える。Opus で正しさのレビューと弱いモデルの失敗のレビューを一度に行い、既定で直すことを述べる（AC-35）。
 -   **引数（AC-32、AC-36）:** 範囲の指定（commit の範囲、PR 番号、省略時の `origin/main...HEAD`）は今と同じに受け付ける。`--no-fix` は報告だけにする。`--fix` は受け入れ、何もしない。`--no-fix` と `--fix` が両方あるとき、範囲の指定が二つ以上あるとき、ほかの引数があるときは、推し量らずに止まり、受け付ける引数を示す。
 -   **範囲のそろえ方:** 受け付けた範囲を、共通の手順の RANGE の形（`<base>..<head>`）にそろえる。省略時は `git fetch origin main` の後に `$(git merge-base origin/main HEAD)..HEAD` とする。`A...B` の形は `$(git merge-base A B)..B` とする。PR 番号は、その PR の base と head から同じ形にする。三つの点の範囲を `git log` に渡すと、両側の commit を含む対称差になるからである。
--   **タスクの特定:** 引数は範囲を名指すので、`task_identification.md` の規則 1 の代わりに、範囲が変える `docs/tasks/` の下のファイルが一つのタスクのディレクトリにだけあれば、そのタスクとする。どのタスクのディレクトリにもなく、範囲の終わりが `HEAD` で、今のブランチの名前が `_context.md` の feature branch の名前の規約に従うときは、その名前の `<slug>` に当たるタスクとする。それ以外は、規則 2・3 に従う。TASK_DIR は、タスクのディレクトリのリポジトリからの相対パスである。
+-   **タスクの特定:** 1.5 の決定 1 の順で特定する。TASK_DIR は、タスクのディレクトリのリポジトリからの相対パスである。
 -   **直すときの確かめ（AC-33）:** FIX が `fix` のとき、共通の手順を呼ぶ前に次を確かめ、成り立たなければ何も変えずに理由を報告して止まる。
     -   ブランチを checkout している（detached HEAD でない）。そのブランチが既定のブランチ（`main`）でない。
     -   RANGE の head が `HEAD` と同じ commit である。範囲の終わりが `HEAD` でないと、直しの commit が、範囲の外の commit の上に積まれるからである。
@@ -722,3 +727,4 @@ PR の切り方は実装計画書が決める。次は目安である。新し�
 - 2026-11-11 承認（isseis、#805）
 - 2026-11-11 draft への戻し：要否の判断を `origin/main` から取り出して走らせるスクリプトに置き、push の前のやり直しを CHECKS で行うことにした（#816）
 - 2026-11-11 承認（isseis、#816）
+- 2026-11-11 セッション中の再承認：`/weakreview` のタスクの特定の順と、共通の手順の OUTCOME の `stopped-error` を決めた（isseis、#未記入）
