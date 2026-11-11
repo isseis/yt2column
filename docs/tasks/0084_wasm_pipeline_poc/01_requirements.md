@@ -4,12 +4,12 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `draft` |
 | Process | `full` |
 | Created | 2026-11-11 |
-| Review date | 2026-11-11 |
-| Reviewer | isseis |
-| Comments | - |
+| Review date | - |
+| Reviewer | - |
+| Comments | 決定の変更で draft に戻した：AC-04・AC-05 に、yt-dlp の経路を別のパッケージへ移すのに要る書き換えを足した |
 
 ## 1. 概要 (Overview)
 
@@ -70,6 +70,7 @@
 -   **問い 3 は、Haiku で上限の近くまで出力させる長い応答を足して確かめる（AC-19）。** 0018 の評価では、10 件の出力が最大でも 13,688 トークンだった（[production_profile.md](../../dev/production_profile.md)「品質の目標と結果」）。本番の 3 本だけでは、40,000 トークンの近くの長さを確かめられない見込みであるためである。ADR: なし。
 -   **長い応答は、入口とは別の、測定のためだけの呼び出しで送る（F-002）。** `internal/writer` のテンプレートには、40,000 トークンの近くまで出力させるものがない。issue の「入口を 1 つ」は、記事を作る入口のことである。そこで PoC に、同じ Claude アダプタで長い出力を求める呼び出しを 1 つ足す。PoC のブランチの中だけに置き、`main` には入れない。ADR: なし。
 -   **本番の構成で試す動画は、0008 の評価の 5 本から、字幕の最も長い動画 1 を含む 3 本とし、CLI は実行せずに記事の構造で形式を判定する（AC-20）。** 評価の 5 本は [0008 評価記録](../0008_column_prompt/02_evaluation.md) §3.2 にある。最も長いのは動画 1（`roNZ-rLxhUE`、32:29）で、応答が長くなりやすく、問い 2・3 の条件として厳しい。形式は、記事の構造を CLI の出力の構造と見比べて判定する。同じ 3 本を CLI でも実行すると約 1.1 USD 増え、得られるのは同じコード（`internal/writer`）の出力の比較だけであるためである。ADR: なし。
+-   **yt-dlp の経路を別のパッケージへ移すのに要る書き換えを、AC-04・AC-05 に足す（設計の際、2026-11-11）。** 設計で、yt-dlp の経路を兄弟のパッケージ `internal/ytdlpsource` に移すと決めた（[02_architecture.md](02_architecture.md)）。移す側は、残る側の非公開の `videoIDPattern` を製品のコードとテストの補助で 1 か所ずつ使い、テストの補助の `readTestdataFile` は両方の側のテストが使う。これらは、移動・import・修飾の書き換えだけでは移せない。非公開の名前を公開に改めると、識別子の改名になる。そこで、`videoIDPattern` に一致しないときだけ false を返す公開の `NormalizedVideoURL` を使う形への書き換えと、補助の関数の複製を許すことにした。新しいパッケージに要るパッケージのコメントと、統合テストを動かす `Makefile` の目標のパスの書き換えも、同じ理由で足した。ADR: [ADR-0019](../../dev/adr/0019-pipeline-component-interfaces.md) を更新する（パッケージの分け方の決定は `02_architecture.md` が記録する）。
 -   **PoC に貼り付ける API キーは、テスト用の API キーとする（§4.2）。** テスト用の API キーとそのワークスペース ID は、`YT2COLUMN_TEST_ANTHROPIC_API_KEY`・`YT2COLUMN_TEST_ANTHROPIC_WORKSPACE_ID` に割り当てているものである。そのワークスペースには利用の上限がある（[security.md](../../dev/security.md) §2）。キーが漏れたときや暴走したときの被害をその上限で抑えるために、テスト用の API キーを使う。ADR: なし（例外は PoC の中に限り、`main` の規則を変えない）。
 
 ## 2. 目的とスコープ (Goals and Scope)
@@ -122,6 +123,8 @@
     -   パッケージ名の行と import の行。
     -   移動に伴う、パッケージの名前で修飾した識別子の書き換え。
     -   ビルドの制約の行。
+    -   移す側のテストの補助が、残る側の非公開の `videoIDPattern` で動画 ID を確かめる箇所の、公開の `NormalizedVideoURL` を使う等価な形への書き換え（`testVideoID`）。
+    -   両方の側のテストが使うテストの補助の関数（`readTestdataFile`）の、移す側への複製。
 
     テストの関数の削除と、アサーションの変更はない。
 -   **AC-05**: テストではない製品のコードの差分は、次のものに限られる。
@@ -131,6 +134,9 @@
     -   ビルドの制約の行。
     -   上書き用のテンプレートのファイルを開く処理の、`js` のビルドとそれ以外のビルドへの分割。`js` 以外のビルドで開くときのフラグ（`internal/writer/template.go:38`）は変わらない。
     -   `js` のビルドで上書き用のテンプレートを指定されたときの扱い（H-02）。
+    -   移す側のコードが、残る側の非公開の `videoIDPattern` で動画 ID を確かめる箇所の、公開の `NormalizedVideoURL` を使う等価な形への書き換え（`pruneCandidateID`）。
+    -   新しいパッケージのパッケージのコメント。
+    -   移したテストのパッケージのパスを指す `Makefile` の目標の書き換え。
     -   [package_reference.md](../../dev/conventions/package_reference.md) の表の、パッケージの分け方に合わせた行の変更。
 -   **AC-06**: `.golangci.yml` の `depguard` の `deps` の規則に、モジュールを加えない（標準ライブラリの外のモジュールを増やさない）。
 
@@ -321,3 +327,4 @@ PoC で次の値を測る。実 API を呼ぶ測定は、その都度、人の�
 ## 変更履歴
 
 -   2026-11-11 承認（isseis、#814）
+-   2026-11-11 draft への戻し：AC-04・AC-05 に、yt-dlp の経路を別のパッケージへ移すのに要る書き換えを足した（#未記入）
