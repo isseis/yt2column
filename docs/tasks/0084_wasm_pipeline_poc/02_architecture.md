@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-11 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 決定の変更で draft に戻した：§3.1.3 に、パッケージ名を隠すローカル変数の改名（`YtDlpSource.Fetch` の `transcript`）を足した |
+| Review date | 2026-11-11 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 設計の全体像 (Design Overview)
 
@@ -901,4 +901,5 @@ PoC のコードにはテストを書かない（要件書 §5「受け入れの
 ## 変更履歴
 
 -   2026-11-11 承認（isseis、#820）
--   2026-11-11 draft への戻し：§3.1.3 に、パッケージ名を隠すローカル変数の改名（`YtDlpSource.Fetch` の `transcript`）を足した（#未記入）
+-   2026-11-11 draft への戻し：§3.1.3 に、パッケージ名を隠すローカル変数の改名（`YtDlpSource.Fetch` の `transcript`）を足した（#830）
+-   2026-11-11 承認（isseis、#830）

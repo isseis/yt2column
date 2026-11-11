@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-11 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-11 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 実装の概要 (Implementation Overview)
@@ -420,3 +420,7 @@ AC-26 の確かめ（ステップ 4-2 で書く）：未記入
 -   本書の承認の後、`/runplan` でフェーズ 1 を進め、PR-1 を開く。
 -   PR-1 のマージの後、対話のセッションでフェーズ 2・3 を進める（§1.3）。その後、`/runplan` でフェーズ 4 を進め、PR-2 を開く。
 -   PR-2 のマージの後、#771 を閉じ、調査記録を根拠に #772 で構成を決める。
+
+## 変更履歴
+
+-   2026-11-11 承認（isseis、#830）
