@@ -64,18 +64,24 @@ OM=$(git rev-parse --verify --quiet 'refs/remotes/origin/main^{commit}') ||
 	run_on_failure "refs/remotes/origin/main names no commit"
 HEAD_ID=$(git rev-parse --verify --quiet 'HEAD^{commit}') || run_on_failure "HEAD names no commit"
 BASE=$(git rev-parse --verify --quiet "${BASE_ARG}^{commit}") || run_on_failure "BASE names no commit"
-git merge-base --is-ancestor "$BASE" "$HEAD_ID" || run_on_failure "BASE is not an ancestor of HEAD"
+# BASE must be the merge-base itself: a narrower range (such as a phase
+# group's PHASE_START) would leave commits out of the decision.
+MB=$(git merge-base "$OM" "$HEAD_ID") || run_on_failure "origin/main and HEAD have no merge-base"
+[ "$BASE" = "$MB" ] || run_on_failure "BASE is not the merge-base of origin/main and HEAD"
 
 # --- Step 1: read the value -------------------------------------------------
 
 # locate_value prints one of: VALUE<TAB><text>, ABSENT, NOSECTION, MULTIPLE.
-# It skips fenced code blocks, so a diff record's content is never read as a
-# heading or as a value line.
+# It skips fenced code blocks (``` or ~~~), so a diff record's content is
+# never read as a heading or as a value line; an unclosed fence, or (for
+# "single") a PR marker heading, prints MULTIPLE, a failure.
 locate_value() {
 	awk -v target="$TARGET" '
 		function trim(s) { sub(/^[ \t\r]+/, "", s); sub(/[ \t\r]+$/, "", s); return s }
-		/^[ \t]*```/ { fence = !fence; next }
+		{ sub(/\r$/, "") }
+		/^[ \t]*(```|~~~)/ { fence = !fence; next }
 		fence { next }
+		target == "single" && /^### PR-[0-9]+ 作成ポイント/ { markers++ }
 		/^#+[ \t]/ {
 			level = match($0, /[^#]/) - 1
 			if (target == "single") {
@@ -99,7 +105,8 @@ locate_value() {
 			value = trim(substr($0, length("**実装モデル要件**: ") + 1))
 		}
 		END {
-			if (sections == 0) print "NOSECTION"
+			if (fence || markers) print "MULTIPLE"
+			else if (sections == 0) print "NOSECTION"
 			else if (sections > 1 || values > 1) print "MULTIPLE"
 			else if (values == 0) print "ABSENT"
 			else printf "VALUE\t%s\n", value
@@ -211,11 +218,15 @@ parent_count() {
 # excludable: one parent, and either empty or changing only PLAN and
 # README.en.md.
 excludable() {
-	local c=$1 path
+	local c=$1 path paths
 	[ "$(parent_count "$c")" = 1 ] || return 1
-	while IFS= read -r -d '' path; do
-		[ "$path" = "$PLAN" ] || [ "$path" = README.en.md ] || return 1
-	done < <(git diff-tree -z --no-commit-id --name-only -r --no-renames "$c")
+	paths=$(
+		set -o pipefail
+		git diff-tree -z --no-commit-id --name-only -r --no-renames "$c" | tr '\0' '\n'
+	) || return 1
+	while IFS= read -r path; do
+		[ -z "$path" ] || [ "$path" = "$PLAN" ] || [ "$path" = README.en.md ] || return 1
+	done <<<"$paths"
 	return 0
 }
 

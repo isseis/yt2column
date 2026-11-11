@@ -182,7 +182,10 @@ output's first line. The output is `RUN` whenever the first or second line
 fails, the third exits with a status other than `0`, or the first line is not
 exactly `RUN`, `NONE value-sonnet`, `NONE value-absent`, `NONE all-opus`, or
 `SKIP ` followed by a done record. Before the script exists on `origin/main`,
-the second line fails, so the output is `RUN`.
+the second line fails, so the output is `RUN`. When the output is `RUN`, also
+show what the script wrote to standard error: a failure (for example a `bash`
+older than 4, which the script requires) reads as `RUN` too, and its reason
+is only there.
 
 ### What the script decides
 
@@ -208,8 +211,10 @@ The script carries out these rules; this list is their definition.
    group, a merge commit, a commit rewritten out of its record's range)
    return `RUN`.
 
-Any failure (a git error, an unreadable plan, two places that could hold the
-value, two value lines) returns `RUN`. A record line is read only from a
+Any failure returns `RUN`: a git error, an unreadable plan, a BASE that is not
+the merge-base of `origin/main` and `HEAD`, a TARGET of `single` for a plan
+with PR markers, an unclosed fenced code block, two places that could hold
+the value, or two value lines. A record line is read only from a
 commit of `BASE..HEAD`.
 
 ## Entry 2: the review

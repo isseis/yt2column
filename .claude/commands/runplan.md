@@ -98,7 +98,7 @@ Work in order.
 - Verify the green gate (defined in `_context.md`) passes. Fix any failures before continuing.
 - If no later `### PR-N 作成ポイント` marker remains (the task's final PR), first do the end-of-task check of step 8 ("If all phases are complete"): every AC in `01_requirements.md` is satisfied by the implementation and has at least one `test`, `static`, or `diff` verification, or a `manual` reading where the AC specifies only the natural-language content of a document, as labeled in the plan; each `diff` script was run on this branch and its output and both commit IDs are recorded in the plan, and each recorded diff reading has its diff record. Fix any gap before opening the PR, and report what you checked.
 - At every checkpoint, recheck each diff record of the ACs this PR verifies, as §4 of `docs/dev/conventions/requirements_process.md`, "Rechecking a record", says: a later phase group can make a record of an earlier one stale. Re-record each stale one (output and both commit IDs) and commit the plan; stop and report when the recheck stops.
-- Run "Before the PR" below with TARGET = `N` of this checkpoint's `### PR-N 作成ポイント` marker.
+- Verify again that the green gate passes when the steps above made commits, then run "Before the PR" (below step 8) with TARGET = `N` of this checkpoint's `### PR-N 作成ポイント` marker.
 - Mark the first PR checkpoint checkbox (the green gate confirmation line) as `[x]` and commit. When "Before the PR" ran the Opus review, put its done record in this commit's message; when the box is already `[x]` (an earlier session marked it and stopped), put the done record in an empty commit (`git commit --allow-empty -F <file>`) instead. Write no done record when the review did not run.
 - Open the PR and hand it over: follow `.claude/commands/_lib/task-pr-handoff.md`,
   Part B, with **TASK_DIR** and **REPORT** as in step 1.5, and:
@@ -109,7 +109,7 @@ Work in order.
     step 2 makes a commit to make the green gate pass (any commit that is not
     excludable, `_lib/opus-review.md`, "Record lines"), redo the decision
     before the push: run entry 1 again for the new `HEAD` ("Before the PR",
-    item 2). On `RUN`, run the Opus review again (item 3, and item 4 when it
+    B2). On `RUN`, run the Opus review again (B3, and B4 when it
     made fix commits, with the green gate, the final PR's AC check, and the
     diff-record recheck run again), write the new done record in an empty
     commit, and bring the Opus review result of PR_TEXT up to date with it,
@@ -117,7 +117,7 @@ Work in order.
     not covered by an implementation record, so the decision becomes `RUN`
     unless the value is `sonnet` or absent;
   - **LOCAL_REVIEW** = `done`: step 7.7 reviewed each phase group of this PR,
-    and "Before the PR", item 1, reviewed the whole branch when a phase group
+    and "Before the PR", B1, reviewed the whole branch when a phase group
     was left unreviewed; give that review's SUMMARY to Part B step 3, which
     puts it in the PR body;
   - **PR_TEXT** = a plan PR title (`_context.md`, "PR title and squash
@@ -140,7 +140,7 @@ Work in order.
 
     PR_TEXT also carries the Opus review result for the body, written from
     entry 1's output and the record lines, never from a subagent's text
-    ("Before the PR", item 5).
+    ("Before the PR", B5).
   - **AFTER_CREATE** = mark the second checkbox (`PR を作成した`) as `[x]` and
     append the PR URL to that line, commit, and `git push`, so the update is in
     the PR before it is merged.
@@ -149,70 +149,6 @@ Work in order.
   `次のブランチへ切り替えた`), and switches to the next branch. Run `/runplan`
   again for the next PR. PRs are squash-merged (`_context.md`, "PR merge
   method").
-
-**Before the PR.** Step 5a, and step 8 for a plan without PR markers, run
-these items in order, after the green gate and the end-of-task checks and
-before the first commit that marks the PR checkpoint. They put every fix
-commit on the branch before the PR opens, so Codex's first PR review sees the
-fixed code.
-
-1. **Branch review.** Step 7.7 reviewed each phase group of this PR. A phase
-   group neither CLI reviewed is recorded by a `Local CLI review: not run`
-   line in a commit message after it (step 7.7); an earlier session recorded
-   it as `CodeRabbit local review: not run`. Read the lines as
-   `_lib/local-cli-review.md`, "Reading the record lines", says. Only when
-   `git log origin/main..HEAD` shows either line, review the whole branch
-   again now: follow `.claude/commands/_lib/local-cli-review.md` with
-   **BASE** = `$(git merge-base origin/main HEAD)`, **SCOPE** = branch,
-   **SUMMARY** = REPORT. A phase group the Codex CLI fallback reviewed leaves
-   no such line and needs no branch review. When the branch review stops,
-   stop: nothing is pushed. Copy no record line of this review into a commit
-   of your own (the procedure's own fix commits keep theirs). When it made
-   commits, run the green gate and the diff-record recheck again. This review
-   comes before item 2 so that its fix commits are inside the Opus review's
-   range.
-2. **Decision.** `git fetch origin main`, then run entry 1 of
-   `.claude/commands/_lib/opus-review.md` with PLAN = the plan, TARGET, and
-   BASE = `$(git merge-base origin/main HEAD)`.
-3. **Review.** On `RUN`, run entry 2 of `_lib/opus-review.md` with RANGE =
-   `<BASE>..<HEAD>` (both resolved to full commit IDs), TASK_DIR = the target
-   task directory, FIX = `fix`, and DECISION_CHANGE = the divergence rules of
-   step 5's self-check (an editorial correction is corrected in place; an
-   excluded decision change of a simple-process task stops as that bullet
-   says; a decision change is settled with the human, and when the human does
-   not approve it, entry 2 records the finding as kept). When OUTCOME is
-   `stopped-unavailable`, `stopped-limit`, or `stopped-error`, stop: do not
-   open the PR and push nothing. Report the stop and what the user can do: run
-   `/runplan` again once Opus is available (`stopped-unavailable`); look at
-   the remaining findings and decide (`stopped-limit`); or, for
-   `stopped-error`, its reason, and whether to keep or discard the
-   uncommitted fix left in the working tree. Running `/runplan` again comes
-   back to this checkpoint and decides again from item 2: the review then
-   covers every commit of the PR, the fix commits made before the stop
-   included, and the findings the human already rejected are read from the
-   kept lines rather than asked again. On `NONE` or `SKIP`, run no review.
-4. **After fixes.** When the review made fix commits, run the green gate again
-   (a commit that only makes it pass is inside the done record's range), and,
-   for the task's final PR, the end-of-task check of step 8, and the
-   diff-record recheck. When the end-of-task check or the recheck makes a
-   commit that is neither excludable (`_lib/opus-review.md`, "Record lines")
-   nor a fix to make the green gate pass, go back to item 2.
-5. **Result for the PR body.** Write the Opus review result into PR_TEXT, for
-   `_lib/task-pr-handoff.md` Part B step 3, in Japanese:
-   - after `RUN`: the range and the count for each severity, from the done
-     record; each kept finding's location, gist, and reason, from the
-     `Opus review: kept` lines of `git log origin/main..HEAD`; the gist of each
-     Minor finding; CATEGORIES and READ;
-   - after `SKIP`: the same from the done record and the kept lines, and the
-     commits after the done record (entry 1's list), noting that the Minor
-     findings and READ belong to the earlier session that ran the review;
-   - after `NONE`: that the review did not run and which condition did not
-     hold: the value is `sonnet` (`value-sonnet`), there is no value
-     (`value-absent`), or every commit is covered by Opus implementation
-     records (`all-opus`).
-
-   Describe a finding only by its location and your own summary, never with a
-   subagent's text.
 
 6. Run `make deadcode`. Remove functions made unreachable by this phase group,
    and re-run it until it passes: intentional scaffolding for future phases or
@@ -319,6 +255,78 @@ Test-review checklist (use verbatim as evaluation criteria in the step 7.5 promp
 7.8. Implementation record. Make an empty commit (`git commit --allow-empty -F <file>`) whose message holds the implementation record of this phase group (`_lib/opus-review.md`, "Record lines": `Implementation model: <START12>..<END12> <model-id>[, ...]`, with START = `PHASE_START`, END = `HEAD` just before this commit, and every model ID step 4.5 kept) and the record lines step 7.7 returned. Leave the implementation record out when the session did not know its model ID at one of the points of step 4.5; the phase group then stays uncovered and the Opus review runs for it. When the message would hold neither, make no commit. Run the mention check of step 7.7 when the message carries a `Codex local review:` line. Entry 1 of `_lib/opus-review.md` reads the implementation records from `git log` to decide whether the Opus review runs.
 
 8. Decide whether to continue or finish.
-- If implementation ran this iteration: summarize implementation, verified ACs, assumptions, and deferred items, the implementation model guidance of step 4.2, the implementation record of step 7.8 (or why none was written), and, when "Before the PR" (step 5a) ran, its decision and the Opus review result of its item 5, plus the local CLI review result: each attempt's result (CodeRabbit CLI, Codex CLI as the fallback, or neither) with each failed CLI's failure kind, how many times Codex CLI ran, any range neither CLI reviewed, the counts of fixed / rejected / deferred / unclear findings by CLI with the reason for each rejection and the open question of each `unclear` one, and the note when the reviewed range changes a file Codex reads its instructions from.
+- If implementation ran this iteration: summarize implementation, verified ACs, assumptions, and deferred items, the implementation model guidance of step 4.2, the implementation record of step 7.8 (or why none was written), and, when "Before the PR" (step 5a) ran, its decision and the Opus review result of its B5, plus the local CLI review result: each attempt's result (CodeRabbit CLI, Codex CLI as the fallback, or neither) with each failed CLI's failure kind, how many times Codex CLI ran, any range neither CLI reviewed, the counts of fixed / rejected / deferred / unclear findings by CLI with the reason for each rejection and the open question of each `unclear` one, and the note when the reviewed range changes a file Codex reads its instructions from.
 - If phases remain: return to step 4 without asking. The next unit is either another phase group of the same PR, or its PR checkpoint (step 5a), where this command opens the PR and stops; the reviewer's checkpoint is the PR review, not a question between phase groups.
-- If all phases are complete: verify every AC in `01_requirements.md` is satisfied by the implementation and has at least one `test`, `static`, or `diff` verification, or a `manual` reading where the AC specifies only the natural-language content of a document, as labeled in the plan's Acceptance Criteria Verification section; each `diff` script was run on this branch and its output and both commit IDs are recorded in the plan, and each diff record was rechecked as step 5a says (re-recorded and committed when stale). Report the final status and any gaps. If the plan has no PR markers (a single-phase plan), open the PR with `_lib/task-pr-handoff.md` Part B as step 5a does (with its CHECKS, LOCAL_REVIEW, and Opus review result of PR_TEXT), with these differences: first check `gh pr view` and `git rev-list --count origin/main..HEAD`, and stop if the branch already has a PR or has no commits; then run "Before the PR" (step 5a) with TARGET = `single`, and after `RUN` write its done record in an empty commit (`git commit --allow-empty -F <file>`), but none after `NONE` or `SKIP`; the title is a plan PR title (`_context.md`, "PR title and squash subject"): with no `推奨タイトル`, the prefix is `<type>(<task-id>): ` with a `<type>` from the prefix table that fits the change, and the summary is in Japanese; the body names the plan's main review points; **AFTER_CREATE** = append to the plan's checklist section (§6) the single-PR record `- [x] PR を作成した: <PR URL>` and `- [ ] PR がマージされた`, commit, and `git push`. `/runpr` reads that record: the PR is the task's final plan PR, so NEXT is none and the merge closes the issue.
+- If all phases are complete: verify every AC in `01_requirements.md` is satisfied by the implementation and has at least one `test`, `static`, or `diff` verification, or a `manual` reading where the AC specifies only the natural-language content of a document, as labeled in the plan's Acceptance Criteria Verification section; each `diff` script was run on this branch and its output and both commit IDs are recorded in the plan, and each diff record was rechecked as step 5a says (re-recorded and committed when stale). Report the final status and any gaps. If the plan has no PR markers (a single-phase plan), open the PR with `_lib/task-pr-handoff.md` Part B as step 5a does (with its CHECKS, LOCAL_REVIEW, and Opus review result of PR_TEXT), with these differences: first check `gh pr view` and `git rev-list --count origin/main..HEAD`, and stop if the branch already has a PR or has no commits; then verify the green gate and run "Before the PR" with TARGET = `single`, and after `RUN` write its done record in an empty commit (`git commit --allow-empty -F <file>`), but none after `NONE` or `SKIP`; the title is a plan PR title (`_context.md`, "PR title and squash subject"): with no `推奨タイトル`, the prefix is `<type>(<task-id>): ` with a `<type>` from the prefix table that fits the change, and the summary is in Japanese; the body names the plan's main review points; **AFTER_CREATE** = append to the plan's checklist section (§6) the single-PR record `- [x] PR を作成した: <PR URL>` and `- [ ] PR がマージされた`, commit, and `git push`. `/runpr` reads that record: the PR is the task's final plan PR, so NEXT is none and the merge closes the issue.
+
+## Before the PR
+
+Step 5a, and step 8 for a plan without PR markers, run items B1 to B5 in
+order, after the green gate and the end-of-task checks and
+before the first commit that marks the PR checkpoint. They put every fix
+commit on the branch before the PR opens, so Codex's first PR review sees the
+fixed code. These items are not steps of the numbered list above: after B5,
+go back to the step that ran them.
+
+B1. **Branch review.** Skip this item when `git log origin/main..HEAD` holds an
+   `Opus review: done` line: an earlier run got past the review, and so past
+   this item; a fix commit made now would only reopen the decision (the
+   earlier SUMMARY is gone, so Part B step 3 gives the ranges of the
+   `not run` lines). Step 7.7 reviewed each phase group of this PR. A phase
+   group neither CLI reviewed is recorded by a `Local CLI review: not run`
+   line in a commit message after it (step 7.7); an earlier session recorded
+   it as `CodeRabbit local review: not run`. Read the lines as
+   `_lib/local-cli-review.md`, "Reading the record lines", says. Only when
+   `git log origin/main..HEAD` shows either line, review the whole branch
+   again now: follow `.claude/commands/_lib/local-cli-review.md` with
+   **BASE** = `$(git merge-base origin/main HEAD)`, **SCOPE** = branch,
+   **SUMMARY** = REPORT. A phase group the Codex CLI fallback reviewed leaves
+   no such line and needs no branch review. When the branch review stops,
+   stop: nothing is pushed. Copy no record line of this review into a commit
+   of your own (the procedure's own fix commits keep theirs). When it made
+   commits, run the green gate and the diff-record recheck again. This review
+   comes before B2 so that its fix commits are inside the Opus review's
+   range.
+B2. **Decision.** `git fetch origin main`, then run entry 1 of
+   `.claude/commands/_lib/opus-review.md` with PLAN = the plan, TARGET, and
+   BASE = `$(git merge-base origin/main HEAD)`.
+B3. **Review.** On `RUN`, run entry 2 of `_lib/opus-review.md` with RANGE =
+   `<BASE>..<HEAD>` (both resolved to full commit IDs), TASK_DIR = the target
+   task directory, FIX = `fix`, and DECISION_CHANGE = the divergence rules of
+   step 5's self-check (an editorial correction is corrected in place; an
+   excluded decision change of a simple-process task stops as that bullet
+   says; a decision change is settled with the human, and when the human does
+   not approve it, entry 2 records the finding as kept). When OUTCOME is
+   `stopped-unavailable`, `stopped-limit`, or `stopped-error`, stop: do not
+   open the PR and push nothing. Report the stop and what the user can do: run
+   `/runplan` again once Opus is available (`stopped-unavailable`); look at
+   the remaining findings and decide (`stopped-limit`); or, for
+   `stopped-error`, its reason, and whether to keep or discard the
+   uncommitted fix left in the working tree. Running `/runplan` again comes
+   back to this checkpoint and decides again from B2: the review then
+   covers every commit of the PR, the fix commits made before the stop
+   included, and the findings the human already rejected are read from the
+   kept lines rather than asked again. On `NONE` or `SKIP`, run no review.
+B4. **After fixes.** When the review made fix commits, run the green gate again
+   (a commit that only makes it pass is inside the done record's range), and,
+   for the task's final PR, the end-of-task check of step 8, and the
+   diff-record recheck. When the end-of-task check or the recheck makes a
+   commit that is neither excludable (`_lib/opus-review.md`, "Record lines")
+   nor a fix to make the green gate pass, go back to B2.
+B5. **Result for the PR body.** Write the Opus review result into PR_TEXT, for
+   `_lib/task-pr-handoff.md` Part B step 3, in Japanese:
+   - after `RUN`: the range `<BASE>..<HEAD>` as it stands now and the count
+     for each severity, from FINDINGS (the done record, written next, repeats
+     them); each kept finding's location, gist, and reason, from the
+     `Opus review: kept` lines of `git log origin/main..HEAD`; the gist of each
+     Minor finding; CATEGORIES and READ;
+   - after `SKIP`: the same from the done record and the kept lines, and the
+     commits after the done record (entry 1's list), noting that the Minor
+     findings and READ belong to the earlier session that ran the review;
+   - after `NONE`: that the review did not run and which condition did not
+     hold: the value is `sonnet` (`value-sonnet`), there is no value
+     (`value-absent`), or every commit is covered by Opus implementation
+     records (`all-opus`).
+
+   Describe a finding only by its location and your own summary, never with a
+   subagent's text.

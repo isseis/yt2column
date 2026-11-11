@@ -119,29 +119,29 @@ done_line() { # <start-rev> <end-rev>
 marker_plan() { # <file> <N>:<value>... ; value "-" leaves out the field
 	local spec num value
 	{
-		printf '# plan\n\n## 2. steps\n\n### フェーズ 1: a\n\n- [x] step\n\n'
+		printf '# plan\n\n## 2. steps\n\n### phase 1: a\n\n- [x] step\n\n'
 		for spec in "${@:2}"; do
 			num=${spec%%:*}
 			value=${spec#*:}
-			printf '### PR-%s 作成ポイント: pr %s\n\n**対象ステップ**: 1-1\n\n' "$num" "$num"
+			printf '### PR-%s 作成ポイント: pr %s\n\n**steps**: 1-1\n\n' "$num" "$num"
 			[ "$value" = - ] || printf '**実装モデル要件**: %s\n\n' "$value"
-			printf '**判定理由**: reason\n\n- [ ] box\n\n'
+			printf '**reason-field**: reason\n\n- [ ] box\n\n'
 		done
-		printf '## 3. order\n\n### 3.2 PR 構成\n\n| PR | 実装モデル要件 |\n|---|---|\n'
+		printf '## 3. order\n\n### 3.2 PR 構成\n\n| PR | value |\n|---|---|\n'
 	} >"$1"
 }
 single_plan() { # <file> <heading> <value|-> [<chapter of the section>]
 	local chapter=${4:-3}
 	{
-		printf '# plan\n\n## 2. steps\n\n### フェーズ 1: a\n\n- [x] step\n\n'
+		printf '# plan\n\n## 2. steps\n\n### phase 1: a\n\n- [x] step\n\n'
 		[ "$chapter" = 2 ] && printf '%s\n\n' "$2"
 		[ "$chapter" = 2 ] && [ "$3" != - ] && printf '**実装モデル要件**: %s\n\n' "$3"
-		printf '## 3. 実装の順序 (Order)\n\n### 3.1. マイルストーン\n\ntext\n\n'
+		printf '## 3. order\n\n### 3.1. milestones\n\ntext\n\n'
 		if [ "$chapter" = 3 ]; then
-			printf '%s\n\nPR は 1 本である。\n\n' "$2"
-			[ "$3" = - ] || printf '**実装モデル要件**: %s\n\n**判定理由**: reason\n\n' "$3"
+			printf '%s\n\none PR\n\n' "$2"
+			[ "$3" = - ] || printf '**実装モデル要件**: %s\n\n**reason-field**: reason\n\n' "$3"
 		fi
-		printf '## 4. テスト戦略\n\ntext\n'
+		printf '## 4. tests\n\ntext\n'
 	} >"$1"
 }
 
@@ -159,13 +159,13 @@ summary() {
 	esac
 }
 
-# expect <case> <expected summary> <ok|fail> [<plan> <target>]: runs the
-# script in the current fixture; "fail" expects a reason on standard error,
-# "ok" expects none.
+# expect <case> <expected summary> <ok|fail> [<plan> <target> [<base>]]: runs
+# the script in the current fixture (BASE defaults to the merge-base); "fail"
+# expects a reason on standard error, "ok" expects none.
 expect() {
 	local name=$1 want=$2 kind=$3 plan=${4:-$PLAN} target=${5:-1} status=0 got errs
-	local base
-	base=$(git merge-base refs/remotes/origin/main HEAD 2>/dev/null || echo none)
+	local base=${6:-}
+	[ -n "$base" ] || base=$(git merge-base refs/remotes/origin/main HEAD 2>/dev/null || echo none)
 	bash "$script" "$plan" "$target" "$base" >"$work/out" 2>"$work/err" || status=$?
 	got=$(summary "$work/out")
 	errs=ok
@@ -231,12 +231,12 @@ fixture real none; plan_commit "$p" "add the plan"; code_commit c1
 expect marker-twice RUN fail
 
 marker_plan "$p" 1:sonnet
-sed 's/^\*\*判定理由\*\*: reason$/**実装モデル要件**: sonnet/' "$p" >"$p.2"
+sed 's/^\*\*reason-field\*\*: reason$/**実装モデル要件**: sonnet/' "$p" >"$p.2"
 fixture real "$p.2"; code_commit c1
 expect value-line-twice RUN fail
 
 marker_plan "$p" 1:sonnet
-awk '{ print } /^\*\*判定理由\*\*/ { print "\n```text\n### PR-1 作成ポイント: fake\n**実装モデル要件**: opus\n```" }' "$p" >"$p.2"
+awk '{ print } /^\*\*reason-field\*\*/ { print "\n```text\n### PR-1 作成ポイント: fake\n**実装モデル要件**: opus\n```" }' "$p" >"$p.2"
 fixture real "$p.2"; code_commit c1
 expect fenced-block-not-read "NONE value-sonnet" ok
 
@@ -326,14 +326,34 @@ fixture real "$p"; code_commit c1
 expect single-section-outside-chapter-3 "NONE value-absent" ok "$PLAN" single
 
 single_plan "$p" '### 3.2 PR 構成' sonnet
-perl -pe 's/^\*\*判定理由\*\*: reason\n/$&\n#### 3.2.1 note\n\n**実装モデル要件**: opus\n/' "$p" >"$p.2"
+perl -pe 's/^\*\*reason-field\*\*: reason\n/$&\n#### 3.2.1 note\n\n**実装モデル要件**: opus\n/' "$p" >"$p.2"
 fixture real "$p.2"; code_commit c1
 expect single-section-ends-at-subheading "NONE value-sonnet" ok "$PLAN" single
 
 single_plan "$p" '### 3.2 PR 構成' sonnet
-perl -pe 's/^### 3.1. マイルストーン\n/### 3.0 PR 構成\n\n**実装モデル要件**: sonnet\n/' "$p" >"$p.2"
+perl -pe 's/^### 3.1. milestones\n/### 3.0 PR 構成\n\n**実装モデル要件**: sonnet\n/' "$p" >"$p.2"
 fixture real "$p.2"; code_commit c1
 expect single-section-twice RUN fail "$PLAN" single
+
+single_plan "$p" '### 3.2 PR 構成' sonnet
+cat "$p" >"$p.2"; marker_plan "$p.3" 1:sonnet; grep '^### PR-' "$p.3" >>"$p.2"
+fixture real "$p.2"; code_commit c1
+expect single-on-plan-with-markers RUN fail "$PLAN" single
+
+marker_plan "$p" 1:sonnet
+perl -pe 's/^(### PR-1 \S+): pr 1\n/$1\n/; s/\n/\r\n/' "$p" >"$p.2"
+fixture real "$p.2"; code_commit c1
+expect marker-crlf-lines "NONE value-sonnet" ok
+
+marker_plan "$p" 1:sonnet
+awk '{ print } /^\*\*reason-field\*\*/ { print "\n~~~text\n**実装モデル要件**: opus\n~~~" }' "$p" >"$p.2"
+fixture real "$p.2"; code_commit c1
+expect tilde-fence-not-read "NONE value-sonnet" ok
+
+marker_plan "$p" 1:sonnet
+printf '\n```text\nnot closed\n' >>"$p"
+fixture real "$p"; code_commit c1
+expect unclosed-fence RUN fail
 
 # The plan arguments below name the fixture plan by a different path form.
 marker_plan "$p" 1:sonnet
@@ -513,6 +533,10 @@ record_commit "checkbox and done" "$(done_line refs/remotes/origin/main HEAD)"
 git switch -q -c side; plan_commit "$p" "side checkbox"; git switch -q work; record_commit "empty"
 git merge -q --no-edit side
 expect done-then-merge RUN ok
+
+marker_plan "$p" 1:sonnet
+fixture real "$p"; code_commit c1; code_commit c2
+expect base-not-merge-base RUN fail "$PLAN" 1 "$(git rev-parse HEAD~1)"
 
 # --- Failures -------------------------------------------------------------
 marker_plan "$p" 1:sonnet
