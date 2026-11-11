@@ -150,7 +150,9 @@ copy a subagent's text into a commit message, fix commits included.
 
 These are mechanical and cheaper than AI review — catch them here, not in the
 subagent pass. Run them over the changed files in RANGE, with RANGE and
-TASK_DIR put in for `<RANGE>` and `<TASK_DIR>`:
+TASK_DIR put in for `<RANGE>` and `<TASK_DIR>`, as a `bash` script: in zsh,
+the block's `path` variable would replace the command search path. The
+block's last line exits `1` when no Go file changed; that is not a failure.
 
 ```bash
 RANGE="<RANGE>"
