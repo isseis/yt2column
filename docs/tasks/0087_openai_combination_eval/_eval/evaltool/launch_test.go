@@ -109,7 +109,11 @@ func TestLaunchPositive(t *testing.T) {
 	}
 	for _, c := range calls {
 		_, rest, _ := strings.Cut(c, " "+launchTokenFlag+" ")
-		token, lock, _ := strings.Cut(rest, " lock=")
+		_, lock, _ := strings.Cut(rest, " lock=")
+		token := strings.Fields(rest)[0]
+		if !strings.Contains(rest, " "+evalRootFlag+" "+filepath.Dir(f.Root)+" ") {
+			t.Errorf("the run was not handed the evaluation root: %q", c)
+		}
 		if token == "" || token != lock {
 			t.Errorf("the run got token %q while the lock held %q", token, lock)
 		}
@@ -166,17 +170,18 @@ func TestLaunchStops(t *testing.T) {
 		{"a target article already has a current run", stopRunState, nil, func(t *testing.T, f *launchFixture) {
 			writeRun(t, f.Root, fakeRun{Config: "C-sol", Article: "zW1RBacSqjk-1", Start: t0, Exit: 0, Log: "x\n"})
 		}},
+		{"a root not named 0087", stopInput, nil, func(_ *testing.T, f *launchFixture) { f.Req.Root = filepath.Dir(f.Root) }},
 		{"another launch holds the lock", stopLock, nil, func(t *testing.T, f *launchFixture) {
 			writeFile(t, filepath.Join(f.Root, launchLockName), "other")
 		}},
 		{"a third retry", stopRetry, nil, func(t *testing.T, f *launchFixture) {
-			for _, n := range []string{"f1", "f2"} {
+			for _, n := range []string{"f1", "f2", "f3"} {
 				writeRun(t, f.Root, fakeRun{Config: "C-sol", Article: "zW1RBacSqjk-1", Attempt: n, Start: t0, Exit: 2, Log: "x\n"})
 			}
 			f.Req.Retry = "zW1RBacSqjk-1"
 		}},
 		{"a full launch over an article that used its retries", stopRetry, nil, func(t *testing.T, f *launchFixture) {
-			for _, n := range []string{"f1", "f2"} {
+			for _, n := range []string{"f1", "f2", "f3"} {
 				writeRun(t, f.Root, fakeRun{Config: "C-sol", Article: "zW1RBacSqjk-1", Attempt: n, Start: t0, Exit: 2, Log: "x\n"})
 			}
 		}},
@@ -281,6 +286,16 @@ func TestLaunchBoundaries(t *testing.T) {
 		calls, err := f.launch(t, f.Req)
 		if err != nil || len(calls) != 1 || !strings.Contains(calls[0], "zW1RBacSqjk-1") {
 			t.Errorf("err = %v, calls = %q", err, calls)
+		}
+	})
+	t.Run("the second retry", func(t *testing.T) {
+		f := newLaunchFixture(t)
+		for _, n := range []string{"f1", "f2"} {
+			writeRun(t, f.Root, fakeRun{Config: "C-sol", Article: "zW1RBacSqjk-1", Attempt: n, Start: t0, Exit: 2, Log: "x\n"})
+		}
+		f.Req.Retry = "zW1RBacSqjk-1"
+		if calls, err := f.launch(t, f.Req); err != nil || len(calls) != 1 {
+			t.Errorf("err = %v, calls = %d", err, len(calls))
 		}
 	})
 	t.Run("B-sol after the stage-1 judgments are confirmed", func(t *testing.T) {

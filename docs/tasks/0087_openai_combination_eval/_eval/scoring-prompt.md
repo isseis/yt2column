@@ -76,7 +76,11 @@ judged by a script, not by you; judge `length` only as `-` (see the output).
    stage that introduced the error (`generation`, `shorten`, or `review`),
    judged from the shorten output and the review log, and the stage that
    left it unfixed (`review` when the review stage saw the text and did not
-   fix it, `-` when no later stage could have).
+   fix it, `-` when no later stage could have). The material has no
+   generation output, so an error already in the shorten output may come
+   from generation or from shorten: answer `unknown` whenever the material
+   does not decide it, and the main session settles it from the saved
+   outputs.
 
 ## Output
 
@@ -94,8 +98,8 @@ name	criterion	interp	literal	introduced	not_fixed	quote	note
 - `interp`, `literal`: `pass` or `fail` for a required criterion; `3`, `2`,
   or `1` for a quality criterion; `yes` or `no` in `interp` and `-` in
   `literal` for a constraint; `-` in both for `length`.
-- `introduced`, `not_fixed`: the stages of item 5 for a fail or a 1, and `-`
-  otherwise.
+- `introduced`, `not_fixed`: the stages of item 5 (or `unknown`) for a fail
+  or a 1, and `-` otherwise.
 - `quote`: a short quote from the article (at most 60 characters) with the
   transcript timestamp it should match, for every fail, every 1 and 2, every
   evidence pass that a reader could doubt, and every constraint answered yes;

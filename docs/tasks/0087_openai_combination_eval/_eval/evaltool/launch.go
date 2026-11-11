@@ -29,8 +29,15 @@ const launchLogName = "launch.log"
 const (
 	launchLockName  = "launch.lock"
 	launchTokenFlag = "--launch-token"
-	launchOutDir    = "launch-output"
-	tokenBytes      = 16
+	// evalRootFlag hands the run script the evaluation root whose 0087
+	// directory launch checked, so the run uses the same approval, lock, and
+	// outputs.
+	evalRootFlag = "--eval-root"
+	// rootBase is the name the 0087 directory must have, the one the run
+	// script derives from the evaluation root.
+	rootBase     = "0087"
+	launchOutDir = "launch-output"
+	tokenBytes   = 16
 	// maxRetries is the number of retries an article may have (requirements
 	// decision 9).
 	maxRetries = 2
@@ -132,6 +139,9 @@ func checkLaunch(q launchRequest) error {
 	if !ok {
 		return stop(stopInput, "%s is not a config", q.Config)
 	}
+	if filepath.Base(q.Root) != rootBase {
+		return stop(stopInput, "-root %s is not a directory named %s", q.Root, rootBase)
+	}
 	if q.Retry != "" && !articleRE.MatchString(q.Retry) {
 		return stop(stopInput, "%q is not an article", q.Retry)
 	}
@@ -176,10 +186,11 @@ func checkLaunch(q launchRequest) error {
 	return checkReservation(q, runs, last.Limit)
 }
 
-// checkRetryLimit refuses to start an article that already has its
-// maxRetries retired attempts, not counting the runs the human confirmed as
-// stopped before payment. It applies to every target, so a full launch cannot
-// start a third retry either.
+// checkRetryLimit refuses to start an article whose first run and all its
+// maxRetries retries already failed: more than maxRetries retired attempts,
+// not counting the runs the human confirmed as stopped before payment. It
+// applies to every target, so a full launch cannot start a third retry
+// either.
 func checkRetryLimit(q launchRequest, runs []run) error {
 	prepay, err := optional(filepath.Join(q.Root, "prepayment.tsv"), parsePrepayment, map[runKey]bool{})
 	if err != nil {
@@ -192,8 +203,8 @@ func checkRetryLimit(q launchRequest, runs []run) error {
 		}
 	}
 	for _, a := range q.targets() {
-		if retired[a] >= maxRetries {
-			return stop(stopRetry, "%s %s already has %d retries", q.Config, a, retired[a])
+		if retired[a] > maxRetries {
+			return stop(stopRetry, "%s %s already failed %d times", q.Config, a, retired[a])
 		}
 	}
 	return nil
@@ -363,7 +374,8 @@ func startRuns(q launchRequest, token string) (map[string]error, error) {
 			waitAll()
 			return nil, err
 		}
-		cmd := exec.CommandContext(context.Background(), q.RunScript, "run", q.Config, a, q.CLI, launchTokenFlag, token) //nolint:gosec // operator's run script
+		cmd := exec.CommandContext(context.Background(), q.RunScript, "run", q.Config, a, q.CLI, //nolint:gosec // operator's run script
+			launchTokenFlag, token, evalRootFlag, filepath.Dir(q.Root))
 		cmd.Stdout, cmd.Stderr = out, out
 		if err := cmd.Start(); err != nil {
 			_ = out.Close()

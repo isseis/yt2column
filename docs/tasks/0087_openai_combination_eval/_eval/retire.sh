@@ -7,7 +7,9 @@
 # Usage: retire.sh <0087 root> <config> <article>
 #   It moves log/<config>/<article>.{txt,when} to log/, work/<config>/<article>
 #   to work/, runcache/<config>/<article> to runcache/, and the article and
-#   review log, when they exist, to out/ and review/.
+#   review log, when they exist, to out/ and review/. A prepayment.tsv line
+#   that confirmed the current run ("cur") is rewritten to the new f<N>, so it
+#   keeps naming the same run.
 
 emulate -L zsh
 set -u
@@ -35,5 +37,11 @@ if [[ -e $R/out/$cfg/$art.md ]]; then
 fi
 if [[ -e $R/review/$cfg/$art.md ]]; then
   mkdir -m 700 $D/review && mv -- $R/review/$cfg/$art.md $D/review/ || die "cannot move the review log"
+fi
+local P=$R/prepayment.tsv
+if [[ -f $P ]] && grep -qxF -- "$cfg"$'\t'"$art"$'\tcur' $P; then
+  awk -F'\t' -v OFS='\t' -v c="$cfg" -v a="$art" -v n="f$n" '$1 == c && $2 == a && $3 == "cur" { $3 = n } { print }' $P > $P.new &&
+    mv -- $P.new $P || die "cannot update $P"
+  print -r -- "retire: prepayment.tsv now names $cfg $art f$n"
 fi
 print -r -- "retire: moved $cfg $art to $D"

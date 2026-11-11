@@ -42,7 +42,13 @@ lint_version=$(sed -n 's/^GOLANGCI_VERSION?=//p' Makefile)
 step "go test $pkg" go test -count=1 $pkg
 step "go vet $pkg" go vet $pkg
 step "golangci-lint $lint_version $pkg" go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$lint_version run $pkg
-step "gofumpt $pkg" test -z "$(gofumpt -l ${pkg#./})"
+# gofumpt_clean: gofumpt must succeed and list no file.
+gofumpt_clean() {
+  local out
+  out=$(gofumpt -l ${pkg#./}) || return 1
+  [[ -z $out ]]
+}
+step "gofumpt $pkg" gofumpt_clean
 
 tmp=$(mktemp -d) || exit 2
 trap 'rm -rf -- $tmp' EXIT

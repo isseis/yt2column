@@ -62,7 +62,12 @@ func TestBuildMaterial(t *testing.T) {
 		}
 		return p, nil
 	}
-	q := materialRequest{Root: root, OutDir: out, Configs: []config{cs, as}, Videos: []string{materialVideo}, Shuffler: reverse}
+	// The first article of the first config has no cache copy (its run
+	// stopped early), and the second video has no article at all.
+	if err := os.RemoveAll(filepath.Join(root, "runcache", "C-sol", materialVideo+"-1")); err != nil {
+		t.Fatal(err)
+	}
+	q := materialRequest{Root: root, OutDir: out, Configs: []config{cs, as}, Videos: []string{materialVideo, "zzzzzzzzzzz"}, Shuffler: reverse}
 	if err := buildMaterial(q); err != nil {
 		t.Fatal(err)
 	}
@@ -92,6 +97,9 @@ func TestBuildMaterial(t *testing.T) {
 	}
 	if len(seen) != 4 {
 		t.Errorf("the mapping does not restore every article: %v", seen)
+	}
+	if _, err := os.Stat(filepath.Join(out, "material", "zzzzzzzzzzz")); err == nil {
+		t.Errorf("a video without an article must get no material")
 	}
 	if _, err := os.Stat(filepath.Join(out, "material", mappingName)); err == nil {
 		t.Errorf("the mapping must sit outside the material directory")

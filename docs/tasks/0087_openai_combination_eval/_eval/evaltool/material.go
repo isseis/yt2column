@@ -76,13 +76,6 @@ func buildMaterial(q materialRequest) error {
 	var mapping strings.Builder
 	mapping.WriteString("name\tconfig\tarticle\n")
 	for _, v := range q.Videos {
-		dir := filepath.Join(materialDir, v)
-		if err := os.MkdirAll(dir, 0o700); err != nil {
-			return err
-		}
-		if err := writeTranscript(q, v, dir, forbidden); err != nil {
-			return err
-		}
 		var items []articleKey
 		for _, c := range q.Configs {
 			for _, n := range []string{"1", "2"} {
@@ -90,6 +83,16 @@ func buildMaterial(q materialRequest) error {
 					items = append(items, articleKey{c.ID, v + "-" + n})
 				}
 			}
+		}
+		if len(items) == 0 {
+			continue // no article of the video was obtained
+		}
+		dir := filepath.Join(materialDir, v)
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			return err
+		}
+		if err := writeTranscript(q, v, items, dir, forbidden); err != nil {
+			return err
 		}
 		perm, err := q.Shuffler(len(items))
 		if err != nil {
@@ -180,15 +183,25 @@ func writeArticleMaterial(q materialRequest, a articleKey, prefix string, forbid
 // writeTranscript writes the video's title, channel, description, and
 // time-stamped transcript, read with the CLI's own cache reader (a yt-dlp path
 // that always fails keeps a cache miss from fetching). The reader locks and
-// may tidy its cache directory, so it reads a temporary copy of the first
-// config's first article's cache copy, never a run's own.
-func writeTranscript(q materialRequest, video, dir string, forbidden []string) error {
+// may tidy its cache directory, so it reads a temporary copy of the cache copy
+// of the first obtained article that has one, never a run's own.
+func writeTranscript(q materialRequest, video string, items []articleKey, dir string, forbidden []string) error {
 	cache, err := os.MkdirTemp("", "evaltool-cache-")
 	if err != nil {
 		return err
 	}
 	defer func() { _ = os.RemoveAll(cache) }()
-	src := filepath.Join(q.Root, "runcache", q.Configs[0].ID, video+"-1")
+	src := ""
+	for _, it := range items {
+		candidate := filepath.Join(q.Root, "runcache", it.Config, it.Article)
+		if _, err := os.Stat(candidate); err == nil {
+			src = candidate
+			break
+		}
+	}
+	if src == "" {
+		return fmt.Errorf("%w: no cache copy of %s", errMaterial, video)
+	}
 	if err := os.CopyFS(cache, os.DirFS(src)); err != nil {
 		return fmt.Errorf("%w: copy the cache of %s: %w", errMaterial, video, err)
 	}

@@ -6,7 +6,7 @@
 # Usage:
 #   run.sh configs
 #       Print the config table: "<id>\t<stage>\t<YT2COLUMN_LLM>\t<YT2COLUMN_REVIEW_LLM>\t<mode>".
-#   run.sh run <config> <article> <cli> [--launch-token <token> | --preflight [--after-review]]
+#   run.sh run <config> <article> <cli> [--eval-root <dir>] [--launch-token <token> | --preflight [--after-review]]
 #       Run <cli> for <article> ("<video ID>-<1|2>") with <config>'s values.
 #       --preflight writes under 0087/preflight/ instead of 0087/ and removes
 #       the API keys from the CLI's environment, so the CLI cannot call an API;
@@ -18,7 +18,8 @@
 # hands the same token with --launch-token; without a match the script stops
 # before copying anything.
 #
-# The evaluation root is $YT2COLUMN_EVAL_ROOT, or ~/yt2column-eval when unset.
+# The evaluation root is --eval-root (launch passes the root it checked), else
+# $YT2COLUMN_EVAL_ROOT, or ~/yt2column-eval when neither is given.
 # The script never reads, writes, or prints an API key's value: the CLI reads
 # the keys from the environment it inherits.
 #
@@ -77,12 +78,13 @@ cmd_run() {
   (( $# >= 3 )) || die "usage: run.sh run <config> <article> <cli> [--preflight [--after-review]]"
   local cfg=$1 art=$2 cli=$3
   shift 3
-  local preflight=0 after_review=0 token=
+  local preflight=0 after_review=0 token= eval_root=
   while (( $# )); do
     case $1 in
       --preflight) preflight=1 ;;
       --after-review) after_review=1 ;;
       --launch-token) (( $# >= 2 )) || die "--launch-token needs a value"; token=$2; shift ;;
+      --eval-root) (( $# >= 2 )) || die "--eval-root needs a value"; eval_root=$2; shift ;;
       *) die "unknown option $1" ;;
     esac
     shift
@@ -100,7 +102,7 @@ cmd_run() {
   (( ${VIDEOS[(Ie)$vid]} )) || die "not a video of the evaluation: $vid"
   [[ -x $cli && -f $cli ]] || die "not an executable CLI: $cli"
 
-  local E=${YT2COLUMN_EVAL_ROOT:-$HOME/yt2column-eval}
+  local E=${eval_root:-${YT2COLUMN_EVAL_ROOT:-$HOME/yt2column-eval}}
   local R=$E/0087
   (( preflight )) && R=$E/0087/preflight
   LIST=$E/0087/hash/1-initial.tsv
