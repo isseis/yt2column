@@ -910,28 +910,6 @@ func (c *gapContext) AfterFunc(f func()) func() bool {
 
 func (c *gapContext) start() { c.schedule() }
 
-// TestApproxMinutes checks the minutes the stop notice names: the nearest
-// minute, half a minute rounded up, and never 0.
-func TestApproxMinutes(t *testing.T) {
-	for _, tc := range []struct {
-		d    time.Duration
-		want int
-	}{
-		{0, 1},
-		{29 * time.Second, 1},
-		{30 * time.Second, 1},
-		{89 * time.Second, 1},
-		{90 * time.Second, 2},
-		{150 * time.Second, 3},
-		{309 * time.Second, 5},
-		{330 * time.Second, 6},
-	} {
-		if got := approxMinutes(tc.d); got != tc.want {
-			t.Errorf("approxMinutes(%v) = %d, want %d", tc.d, got, tc.want)
-		}
-	}
-}
-
 // TestAfterCancel checks that finish waits for the callback whenever ctx was
 // canceled, including when the cancellation has not scheduled the callback
 // yet, and that the callback never runs when ctx was not canceled.

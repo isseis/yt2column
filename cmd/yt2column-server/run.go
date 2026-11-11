@@ -7,7 +7,6 @@ import (
 	"io"
 	"log/slog"
 	"sync"
-	"time"
 
 	"github.com/isseis/yt2column/internal/config"
 	"github.com/isseis/yt2column/internal/llm"
@@ -272,12 +271,6 @@ func stopNoticeLogger(logger *slog.Logger) func() {
 	return func() {
 		logger.Info("stopping: the in-flight generations are canceled and their articles lost; the server exits once their LLM calls return; send the signal again to exit at once")
 	}
-}
-
-// approxMinutes returns d rounded to the nearest minute, and at least 1, so
-// the stop notice never names 0 minutes.
-func approxMinutes(d time.Duration) int {
-	return max(1, int(d.Round(time.Minute)/time.Minute))
 }
 
 // cancelHook runs f once ctx is canceled. Contract: if ctx was canceled
