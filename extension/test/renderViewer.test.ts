@@ -10,10 +10,7 @@ import type {
   PollNotice,
   ViewerState,
 } from "../src/core/jobView.ts";
-import {
-  publishResultMessage,
-  startResultMessage,
-} from "../src/core/sendMessages.ts";
+import { startResultMessage } from "../src/core/sendMessages.ts";
 import {
   renderActionNotice,
   renderViewer,
@@ -47,14 +44,9 @@ const stopped: PollNotice = {
   outcome: { kind: "unexpected", check: "syntax" },
 };
 
-/** A view of state, with the elapsed time, the publishing flag and the existing-article mark. */
-function view(
-  state: ViewerState,
-  elapsedMs = 0,
-  publishing = false,
-  existing = false,
-): ViewerView {
-  return { state, elapsedMs, publishing, existing };
+/** A view of state, with the elapsed time and the existing-article mark. */
+function view(state: ViewerState, elapsedMs = 0, existing = false): ViewerView {
+  return { state, elapsedMs, existing };
 }
 
 /** A job state with no notice. */
@@ -277,10 +269,7 @@ describe("renderViewer states", () => {
     });
 
     it(`shows a done job's article drawn from its Markdown and its operations in ${locale}`, () => {
-      const elements = drawn(
-        view(jobState(doneJob({ state: "not_posted" }))),
-        locale,
-      );
+      const elements = drawn(view(jobState(doneJob)), locale);
       assert.equal(elements.article.hidden, false);
       // The fixture's "# Title\n\nBody", without its heading mark.
       assert.equal(
@@ -292,7 +281,7 @@ describe("renderViewer states", () => {
       assert.equal(elements.copy.disabled, false);
     });
 
-    it(`keeps a lost job's article, saving and copying, but not publishing, in ${locale}`, () => {
+    it(`keeps a lost job's article, saving and copying, in ${locale}`, () => {
       const elements = drawn(
         view(jobState({ kind: "lost", kept: article })),
         locale,
@@ -304,14 +293,10 @@ describe("renderViewer states", () => {
       );
       assert.equal(elements.save.disabled, false);
       assert.equal(elements.copy.disabled, false);
-      assert.equal(elements.publish.disabled, true);
     });
 
     it(`shows a lost job without a kept article without an article or operation in ${locale}`, () => {
-      const elements = drawn(
-        view(jobState(doneJob({ state: "not_posted" }))),
-        locale,
-      );
+      const elements = drawn(view(jobState(doneJob)), locale);
       renderViewer(elements, view(jobState({ kind: "lost" })), locale);
       expectMessage(elements.state, viewer.lost);
       assert.equal(elements.article.hidden, true);
@@ -345,7 +330,7 @@ describe("renderViewer states", () => {
 describe("existing-article notice", () => {
   for (const locale of localeList) {
     it(`shows the notice and its steps, and announces its sentence first, in ${locale}`, () => {
-      const elements = drawn(view(jobState(running), 0, false, true), locale);
+      const elements = drawn(view(jobState(running), 0, true), locale);
       assert.equal(elements.existing.hidden, false);
       expectLocaleMessage(
         elements.existing,
@@ -372,146 +357,17 @@ describe("existing-article notice", () => {
     it(`draws a running job without its elapsed time once the mark is added in ${locale}`, () => {
       const elements = drawn(view(jobState(running), 65_000), locale);
       assert.ok(elements.state.querySelector(".job-elapsed") !== null);
-      renderViewer(
-        elements,
-        view(jobState(running), 66_000, false, true),
-        locale,
-      );
+      renderViewer(elements, view(jobState(running), 66_000, true), locale);
       assert.equal(elements.state.querySelector(".job-elapsed"), null);
       assert.equal(elements.state.querySelectorAll(".step-row").length, 3);
     });
   }
 
   it("keeps the notice's nodes when it is drawn again unchanged", () => {
-    const elements = drawn(view(jobState(running), 0, false, true), "en");
+    const elements = drawn(view(jobState(running), 0, true), "en");
     const text = elements.existing.firstChild;
-    renderViewer(elements, view(loading, 0, false, true), "en");
+    renderViewer(elements, view(loading, 0, true), "en");
     assert.equal(elements.existing.firstChild, text);
-  });
-});
-
-describe("publish rows", () => {
-  /** The rows of the requirements' table, top first, and two that overlap. */
-  const rows: readonly {
-    readonly name: string;
-    readonly job: Extract<JobDisplay, { kind: "done" | "lost" }>;
-    readonly publishing?: boolean;
-    readonly enabled: boolean;
-    readonly messages: (locale: Locale) => Message[];
-  }[] = [
-    {
-      name: "lost",
-      job: { kind: "lost", kept: article },
-      enabled: false,
-      messages: (l) => [{ text: catalogs[l].viewer.lost.text, steps: [] }],
-    },
-    {
-      name: "posted",
-      job: doneJob({ state: "posted" }),
-      enabled: false,
-      messages: (l) => [catalogs[l].publishStates.posted],
-    },
-    {
-      name: "posted without a Webhook",
-      job: doneJob({ state: "posted" }, false),
-      enabled: false,
-      messages: (l) => [catalogs[l].publishStates.posted],
-    },
-    {
-      name: "posting",
-      job: doneJob({ state: "posting" }),
-      enabled: false,
-      messages: (l) => [catalogs[l].publishStates.posting],
-    },
-    {
-      name: "unpostable without a Webhook",
-      job: doneJob({ state: "unpostable", reason: "mention" }, false),
-      enabled: false,
-      messages: (l) => [
-        catalogs[l].publishStates.unpostable,
-        catalogs[l].publishReasons.mention,
-      ],
-    },
-    {
-      name: "unpostable for another reason",
-      job: doneJob({ state: "unpostable", reason: "other" }),
-      enabled: false,
-      messages: (l) => [
-        catalogs[l].publishStates.unpostable,
-        catalogs[l].publishReasons.other,
-      ],
-    },
-    {
-      name: "webhook not configured",
-      job: doneJob({ state: "failed", reason: "webhook" }, false),
-      enabled: false,
-      messages: (l) => [catalogs[l].viewer.webhookNotConfigured],
-    },
-    {
-      name: "failed",
-      job: doneJob({ state: "failed", reason: "internal" }),
-      enabled: true,
-      messages: (l) => [
-        catalogs[l].publishStates.failed,
-        catalogs[l].publishReasons.internal,
-      ],
-    },
-    {
-      name: "failed at Slack",
-      job: doneJob({ state: "failed", reason: "webhook" }),
-      enabled: true,
-      messages: (l) => [
-        catalogs[l].publishStates.failed,
-        catalogs[l].publishReasons.webhook,
-      ],
-    },
-    {
-      name: "not posted",
-      job: doneJob({ state: "not_posted" }),
-      enabled: true,
-      messages: (l) => [catalogs[l].publishStates.not_posted],
-    },
-    {
-      name: "not posted while publishing",
-      job: doneJob({ state: "not_posted" }),
-      publishing: true,
-      enabled: false,
-      messages: (l) => [catalogs[l].publishStates.not_posted],
-    },
-  ];
-
-  for (const locale of localeList) {
-    for (const row of rows) {
-      it(`draws the ${row.name} row ${row.enabled ? "pressable" : "disabled"} with its wording in ${locale}`, () => {
-        const elements = drawn(
-          view(jobState(row.job), 0, row.publishing ?? false),
-          locale,
-        );
-        assert.equal(elements.publish.disabled, !row.enabled);
-        assert.equal(
-          elements.publish.textContent,
-          catalogs[locale].viewer.publish,
-        );
-        // Exactly the applying row's wording: a lower row's never joins it.
-        assert.equal(
-          elements.publishRow.textContent,
-          row
-            .messages(locale)
-            .map((message) => message.text + message.steps.join(""))
-            .join(""),
-        );
-      });
-    }
-  }
-
-  it("disables the button again when a pressable row becomes a disabled one", () => {
-    const elements = drawn(
-      view(jobState(doneJob({ state: "not_posted" }))),
-      "en",
-    );
-    assert.equal(elements.publish.disabled, false);
-    renderViewer(elements, view(jobState(doneJob({ state: "posting" }))), "en");
-    assert.equal(elements.publish.disabled, true);
   });
 });
 
@@ -622,7 +478,7 @@ describe("status regions", () => {
       ],
       [
         "done",
-        jobState(doneJob({ state: "not_posted" })),
+        jobState(doneJob),
         (l: Locale) => catalogs[l].popup.articleReady.text,
       ],
       [
@@ -675,10 +531,7 @@ describe("status regions", () => {
     }
 
     it(`writes an operation's result beside the operations and leaves the state summary in ${locale}`, () => {
-      const elements = drawn(
-        view(jobState(doneJob({ state: "not_posted" }))),
-        locale,
-      );
+      const elements = drawn(view(jobState(doneJob)), locale);
       const summary = elements.stateStatus.firstChild;
       renderActionNotice(
         elements,
@@ -693,14 +546,11 @@ describe("status regions", () => {
     });
 
     it(`keeps the focus where it is when the state changes in ${locale}`, () => {
-      const elements = drawn(
-        view(jobState(doneJob({ state: "not_posted" }))),
-        locale,
-      );
+      const elements = drawn(view(jobState(doneJob)), locale);
       elements.save.focus();
       renderViewer(
         elements,
-        view(jobState(doneJob({ state: "posting" }))),
+        view(jobState({ kind: "lost", kept: article })),
         locale,
       );
       renderActionNotice(elements, { kind: "saved" }, locale);
@@ -709,49 +559,12 @@ describe("status regions", () => {
   }
 });
 
-describe("publish state announcements", () => {
-  for (const locale of localeList) {
-    it(`announces each publish state as the post starts, finishes or fails in ${locale}`, () => {
-      const catalog = catalogs[locale];
-      const elements = viewerElements();
-      for (const [publish, sentences] of [
-        [{ state: "not_posted" }, [catalog.publishStates.not_posted.text]],
-        [{ state: "posting" }, [catalog.publishStates.posting.text]],
-        [{ state: "posted" }, [catalog.publishStates.posted.text]],
-        [
-          { state: "failed", reason: "webhook" },
-          [
-            catalog.publishStates.failed.text,
-            catalog.publishReasons.webhook.text,
-          ],
-        ],
-      ] as const) {
-        renderViewer(elements, view(jobState(doneJob(publish))), locale);
-        assert.deepEqual(
-          Array.from(elements.stateStatus.children, (p) => p.textContent),
-          [catalog.popup.articleReady.text, ...sentences],
-          publish.state,
-        );
-        // A poll that repeats the state, even while a publish is in flight,
-        // writes nothing.
-        const written = elements.stateStatus.firstChild;
-        renderViewer(
-          elements,
-          view(jobState(doneJob(publish)), 0, true),
-          locale,
-        );
-        assert.equal(elements.stateStatus.firstChild, written, publish.state);
-      }
-    });
-  }
-});
-
 describe("article redraw", () => {
-  /** A posting job's view whose article has markdown. */
+  /** A done job's view whose article has markdown. */
   const withMarkdown = (markdown: string): ViewerView =>
     view(
       jobState({
-        ...doneJob({ state: "posting" }),
+        ...doneJob,
         article: { ...article, markdown },
       }),
     );
@@ -814,12 +627,6 @@ describe("article redraw", () => {
     renderViewer(elements, withMarkdown("# Title"), "en");
     assert.ok(drawnWithArticle);
   });
-
-  it("clears the publish row when the article is no longer shown", () => {
-    const elements = drawn(view(jobState(doneJob({ state: "posted" }))), "en");
-    renderViewer(elements, view(loading), "en");
-    assert.equal(elements.publishRow.textContent, "");
-  });
 });
 
 describe("article headings", () => {
@@ -827,7 +634,7 @@ describe("article headings", () => {
     const elements = drawn(
       view(
         jobState({
-          ...doneJob({ state: "not_posted" }),
+          ...doneJob,
           article: {
             ...article,
             markdown: "# Title\n\nBody\n\n## One\n\nText\n\n## Two",
@@ -858,30 +665,6 @@ describe("renderActionNotice", () => {
     readonly message: (locale: Locale) => Message;
   }[] = [
     {
-      notice: { kind: "rejected", reason: "article_not_ready", requestId },
-      message: (l) =>
-        publishResultMessage(
-          { kind: "rejected", reason: "article_not_ready", requestId },
-          l,
-        ),
-    },
-    {
-      notice: { kind: "not-sent", cause: "server-unavailable" },
-      message: (l) =>
-        publishResultMessage(
-          { kind: "not-sent", cause: "server-unavailable" },
-          l,
-        ),
-    },
-    {
-      notice: { kind: "unknown", outcome: { kind: "no-response" } },
-      message: (l) => publishResultMessage({ kind: "no-response" }, l),
-    },
-    {
-      notice: { kind: "unknown", outcome: { kind: "host-failed" } },
-      message: (l) => publishResultMessage({ kind: "host-failed" }, l),
-    },
-    {
       notice: { kind: "saved" },
       message: (l) => ({ text: catalogs[l].viewer.saved, steps: [] }),
     },
@@ -893,14 +676,10 @@ describe("renderActionNotice", () => {
 
   for (const locale of localeList) {
     for (const { notice, message } of notices) {
-      it(`shows the ${notice.kind}${"outcome" in notice ? ` ${notice.outcome.kind}` : ""} result in ${locale}`, () => {
+      it(`shows the ${notice.kind} result in ${locale}`, () => {
         const elements = viewerElements();
         renderActionNotice(elements, notice, locale);
         expectLocaleMessage(elements.actionStatus, locale, message);
-        assert.equal(
-          elements.actionStatus.querySelector(".send-request-id")?.textContent,
-          notice.kind === "rejected" ? requestId : undefined,
-        );
       });
     }
 
@@ -921,7 +700,7 @@ describe("order and controls", () => {
   for (const locale of localeList) {
     const viewer = catalogs[locale].viewer;
 
-    it(`puts the link, then publish, save and copy, in display order without tabindex in ${locale}`, () => {
+    it(`puts the link, then save and copy, in display order without tabindex in ${locale}`, () => {
       const elements = viewerElements();
       renderViewerHeader(
         elements,
@@ -929,17 +708,13 @@ describe("order and controls", () => {
         locale,
         undefined,
       );
-      renderViewer(
-        elements,
-        view(jobState(doneJob({ state: "not_posted" }))),
-        locale,
+      renderViewer(elements, view(jobState(doneJob)), locale);
+      // Compared by id: deepEqual finds two of jsdom's elements equal
+      // whichever elements they are.
+      assert.deepEqual(
+        shownControls(elements).map((control) => control.id),
+        [elements.videoLink.id, elements.save.id, elements.copy.id],
       );
-      assert.deepEqual(shownControls(elements), [
-        elements.videoLink,
-        elements.publish,
-        elements.save,
-        elements.copy,
-      ]);
       assert.equal(
         elements.state.ownerDocument.querySelector("[tabindex]"),
         null,
@@ -947,12 +722,8 @@ describe("order and controls", () => {
     });
 
     it(`names each native button by its visible label in ${locale}`, () => {
-      const elements = drawn(
-        view(jobState(doneJob({ state: "posted" }))),
-        locale,
-      );
+      const elements = drawn(view(jobState(doneJob)), locale);
       for (const [button, label] of [
-        [elements.publish, viewer.publish],
         [elements.save, viewer.save],
         [elements.copy, viewer.copy],
       ] as const) {
@@ -961,8 +732,6 @@ describe("order and controls", () => {
         assert.equal(button.textContent, label);
         assert.equal(button.hasAttribute("aria-label"), false);
       }
-      // A button that cannot be pressed says so to assistive technology.
-      assert.equal(elements.publish.hasAttribute("disabled"), true);
     });
   }
 });

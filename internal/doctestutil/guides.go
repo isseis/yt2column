@@ -45,12 +45,10 @@ const (
 // guard until its locator is added.
 func DevAPICodeTableHeader(name string) (string, bool) {
 	header, ok := map[string]string{
-		"job state":      "ジョブの状態",
-		"step":           "工程",
-		"step state":     "工程の状態",
-		"failure":        "失敗",
-		"publish state":  "投稿の状態",
-		"publish reason": "投稿の理由",
+		"job state":  "ジョブの状態",
+		"step":       "工程",
+		"step state": "工程の状態",
+		"failure":    "失敗",
 	}[name]
 	return header, ok
 }

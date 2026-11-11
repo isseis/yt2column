@@ -390,11 +390,7 @@ macOS の Brave は Chrome の manifest のディレクトリを読むので、C
 | `invalid_body` | 固定のメッセージ |
 | `invalid_video_url` | 固定のメッセージ |
 | `invalid_transcript` | 固定のメッセージ |
-| `webhook_not_configured` | 固定のメッセージ |
 | `invalid_key` | 固定のメッセージ |
-| `article_not_ready` | 固定のメッセージ |
-| `article_not_found` | 固定のメッセージ |
-| `article_not_postable` | 固定のメッセージ |
 | `internal_error` | 固定のメッセージ（`requestId` が空のときは想定外の応答） |
 
 各理由のステータスコードと、`curl` でサーバを確かめる方法は

@@ -2,15 +2,12 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
-  classifyPublish,
   classifyStart,
   classifyStartInquiry,
   classifyStatus,
   parseRequestId,
-  publishLogView,
   startLogView,
   statusLogView,
-  toPublishOutcome,
   toStartOutcome,
   toStatusOutcome,
 } from "../src/core/response.ts";
@@ -60,7 +57,6 @@ function doneBody(): Json {
   return {
     status: "ok",
     requestId,
-    webhookConfigured: true,
     job: {
       state: "done",
       steps: { draft: "done", shorten: "skipped", review: "done" },
@@ -73,7 +69,6 @@ function doneBody(): Json {
         cost: { state: "known", usd: "0.1234" },
         durationMs: 81234,
       },
-      publish: { state: "not_posted" },
     },
   };
 }
@@ -117,7 +112,6 @@ describe("exchange failures", () => {
       assert.deepEqual(classifyStart(failure), failure);
       assert.deepEqual(classifyStartInquiry(failure), failure);
       assert.deepEqual(classifyStatus(failure), failure);
-      assert.deepEqual(classifyPublish(failure), failure);
     });
   }
 });
@@ -349,36 +343,6 @@ describe("an operation's answer given to another operation", () => {
       unexpected("member-set", 202),
     );
   });
-
-  it("refuses a status query's ok as a publish's answer", () => {
-    assert.deepEqual(
-      classifyPublish(json(200, doneBody())),
-      unexpected("member-set", 200),
-    );
-  });
-});
-
-describe("classifyPublish", () => {
-  it("accepts a well-formed accepted response", () => {
-    assert.deepEqual(
-      classifyPublish(json(202, { status: "accepted", requestId })),
-      { kind: "accepted", requestId },
-    );
-  });
-
-  it("refuses an accepted response with a key", () => {
-    assert.deepEqual(
-      classifyPublish(json(202, { status: "accepted", key, requestId })),
-      unexpected("member-set", 202),
-    );
-  });
-
-  it("refuses an accepted response at 200", () => {
-    assert.deepEqual(
-      classifyPublish(json(200, { status: "accepted", requestId })),
-      unexpected("status-pairing", 200),
-    );
-  });
 });
 
 // The reasons each operation's path returns and their status codes, from the
@@ -417,18 +381,6 @@ const reasonTable: {
     classify: classifyStatus,
     reasons: { invalid_key: 400, internal_error: 500 },
   },
-  {
-    name: "classifyPublish",
-    classify: classifyPublish,
-    reasons: {
-      invalid_key: 400,
-      webhook_not_configured: 503,
-      article_not_ready: 409,
-      article_not_found: 404,
-      article_not_postable: 409,
-      internal_error: 500,
-    },
-  },
 ];
 
 // Every reason the server has, with its status code: the ones outside an
@@ -437,7 +389,6 @@ const allReasons: Readonly<Record<string, number>> = {
   ...reasonTable[0]?.reasons,
   ...reasonTable[1]?.reasons,
   ...reasonTable[2]?.reasons,
-  ...reasonTable[3]?.reasons,
   not_found: 404,
   method_not_allowed: 405,
 };
@@ -526,7 +477,6 @@ describe("classifyStatus", () => {
     assert.deepEqual(classifyStatus(json(200, doneBody())), {
       kind: "ok",
       requestId,
-      webhookConfigured: true,
       job: {
         state: "done",
         steps: { draft: "done", shorten: "skipped", review: "done" },
@@ -539,7 +489,6 @@ describe("classifyStatus", () => {
           cost: { state: "known", usd: "0.1234" },
           durationMs: 81234,
         },
-        publish: { state: "not_posted" },
       },
     });
   });
@@ -559,11 +508,10 @@ describe("classifyStatus", () => {
   ];
   for (const { name, job } of jobs) {
     it(`accepts ${name}`, () => {
-      const body = { ...doneBody(), webhookConfigured: false, job };
+      const body = { ...doneBody(), job };
       assert.deepEqual(classifyStatus(json(200, body)), {
         kind: "ok",
         requestId,
-        webhookConfigured: false,
         job,
       });
     });
@@ -603,23 +551,6 @@ describe("classifyStatus", () => {
         at(b, "job", "article").durationMs = Number.MAX_SAFE_INTEGER;
       },
     },
-    ...["posting", "posted"].map((state) => ({
-      name: `a ${state} article`,
-      change: (b: Json) => {
-        at(b, "job").publish = { state };
-      },
-    })),
-    ...[
-      ["failed", "webhook"],
-      ["failed", "internal"],
-      ["unpostable", "mention"],
-      ["unpostable", "other"],
-    ].map(([state, reason]) => ({
-      name: `a ${state} publish for ${reason}`,
-      change: (b: Json) => {
-        at(b, "job").publish = { state, reason };
-      },
-    })),
   ];
   for (const { name, change } of accepted) {
     it(`accepts ${name}`, () => {
@@ -628,7 +559,6 @@ describe("classifyStatus", () => {
       assert.deepEqual(classifyStatus(json(200, body)), {
         kind: "ok",
         requestId,
-        webhookConfigured: true,
         job: body.job,
       });
     });
@@ -673,13 +603,19 @@ describe("classifyStatus refuses each malformed response as unexpected", () => {
     },
     {
       name: "an undeclared step",
-      change: (b) => void (at(b, "job", "steps").publish = "done"),
+      change: (b) => void (at(b, "job", "steps").final = "done"),
+      check: "member-set",
+    },
+    // The members an older server's status response has: the ok response's
+    // webhookConfigured and the done job's publish.
+    {
+      name: "a webhookConfigured member",
+      change: (b) => void (b.webhookConfigured = true),
       check: "member-set",
     },
     {
-      name: "a reason on a not_posted publish",
-      change: (b) =>
-        void (at(b, "job").publish = { state: "not_posted", reason: "other" }),
+      name: "a publish member on a done job",
+      change: (b) => void (at(b, "job").publish = { state: "not_posted" }),
       check: "member-set",
     },
     {
@@ -691,16 +627,6 @@ describe("classifyStatus refuses each malformed response as unexpected", () => {
     {
       name: "a missing status",
       change: (b) => void delete b.status,
-      check: "member-set",
-    },
-    {
-      name: "a missing webhookConfigured",
-      change: (b) => void delete b.webhookConfigured,
-      check: "member-set",
-    },
-    {
-      name: "a missing publish",
-      change: (b) => void delete at(b, "job").publish,
       check: "member-set",
     },
     {
@@ -750,11 +676,6 @@ describe("classifyStatus refuses each malformed response as unexpected", () => {
       change: (b) => void (at(b, "job").state = 1),
       check: "value-shape",
     },
-    {
-      name: "a failed publish without a reason",
-      change: (b) => void (at(b, "job").publish = { state: "failed" }),
-      check: "member-set",
-    },
     // A code outside its closed set.
     {
       name: "an unknown job state",
@@ -769,26 +690,6 @@ describe("classifyStatus refuses each malformed response as unexpected", () => {
     {
       name: "a running step in a done job",
       change: (b) => void (at(b, "job", "steps").review = "running"),
-      check: "value-shape",
-    },
-    {
-      name: "an unknown publish state",
-      change: (b) => void (at(b, "job").publish = { state: "queued" }),
-      check: "value-shape",
-    },
-    {
-      name: "an unpostable reason on a failed publish",
-      change: (b) =>
-        void (at(b, "job").publish = { state: "failed", reason: "mention" }),
-      check: "value-shape",
-    },
-    {
-      name: "a failed reason on an unpostable publish",
-      change: (b) =>
-        void (at(b, "job").publish = {
-          state: "unpostable",
-          reason: "webhook",
-        }),
       check: "value-shape",
     },
     {
@@ -869,11 +770,6 @@ describe("classifyStatus refuses each malformed response as unexpected", () => {
       change: (b: Json) => void (at(b, "job", "article")[name] = null),
       check: "value-shape" as const,
     })),
-    {
-      name: "a webhookConfigured string",
-      change: (b) => void (b.webhookConfigured = "true"),
-      check: "value-shape",
-    },
     {
       name: "a job that is not an object",
       change: (b) => void (b.job = "done"),
@@ -1099,11 +995,7 @@ describe("to...Outcome", () => {
   } as const;
 
   it("drops the status of an unexpected reply and the browser's error text", () => {
-    for (const toOutcome of [
-      toStartOutcome,
-      toStatusOutcome,
-      toPublishOutcome,
-    ]) {
+    for (const toOutcome of [toStartOutcome, toStatusOutcome]) {
       assert.deepEqual(toOutcome(unexpectedLog), {
         kind: "unexpected",
         check: "syntax",
@@ -1185,7 +1077,6 @@ describe("log views", () => {
       job: {
         state: "done",
         steps: { draft: "done", shorten: "skipped", review: "done" },
-        publish: { state: "not_posted" },
         costKnown: true,
       },
     });
@@ -1218,10 +1109,6 @@ describe("log views", () => {
       statusLogView(classifyStatus(json(500, rejected))),
       expected,
     );
-    assert.deepEqual(
-      publishLogView(classifyPublish(json(500, rejected))),
-      expected,
-    );
     const failures: ExchangeFailureLog[] = [
       { kind: "unexpected", check: "syntax", status: 200 },
       { kind: "host-failed", lastError: "Native host has exited." },
@@ -1231,7 +1118,6 @@ describe("log views", () => {
     for (const failure of failures) {
       assert.deepEqual(startLogView(failure), failure);
       assert.deepEqual(statusLogView(failure), failure);
-      assert.deepEqual(publishLogView(failure), failure);
     }
   });
 
@@ -1250,7 +1136,7 @@ describe("log views", () => {
         ...failure,
         key: markedKey,
       } as unknown as StatusOutcomeLog;
-      for (const view of [startLogView, statusLogView, publishLogView]) {
+      for (const view of [startLogView, statusLogView]) {
         assert.deepEqual(view(extra as never), failure);
       }
     });

@@ -11,10 +11,10 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"slices"
 	"strings"
@@ -24,8 +24,6 @@ import (
 
 	"github.com/isseis/yt2column/internal/config"
 	"github.com/isseis/yt2column/internal/llm"
-	"github.com/isseis/yt2column/internal/publisher"
-	"github.com/isseis/yt2column/internal/secret"
 	"github.com/isseis/yt2column/internal/server"
 	"github.com/isseis/yt2column/internal/signalrun"
 	"github.com/isseis/yt2column/internal/udstest"
@@ -62,23 +60,22 @@ const (
 )
 
 // Environment variables that switch the test binary into a server child
-// process (see TestMain) and tell the child's fake Webhook publisher where its
-// markers are.
+// process (see TestMain) and tell the child's blocking fake LLM client where
+// its markers are.
 const (
 	childModeEnv    = "YT2COLUMN_TEST_SERVER_MODE"
-	childReadyEnv   = "YT2COLUMN_TEST_POST_READY"
-	childReleaseEnv = "YT2COLUMN_TEST_POST_RELEASE"
+	childReadyEnv   = "YT2COLUMN_TEST_GENERATION_READY"
+	childReleaseEnv = "YT2COLUMN_TEST_GENERATION_RELEASE"
 )
 
 // Child modes.
 const (
 	// childModeMain runs the production main, so a test observes exactly the
 	// signal handling main installs. No request is sent to it, so its real
-	// LLM client and publisher never send anything.
+	// LLM client never sends anything.
 	childModeMain = "main"
-	// childModeBlock runs signalrun.Run with an LLM client that succeeds at
-	// once and a Webhook publisher whose post waits until the test creates
-	// the release marker.
+	// childModeBlock runs signalrun.Run with an LLM client whose call waits
+	// until the test creates the release marker.
 	childModeBlock = "block"
 )
 
@@ -86,10 +83,10 @@ const (
 const childExitUnknownMode = 99
 
 const (
-	// blockLifetime caps how long the blocking fake publisher waits, so a
-	// leaked child's post job ends by itself (the child then keeps serving
-	// until the cleanup kills it). It is far longer than any bound a test
-	// waits for.
+	// blockLifetime caps how long the blocking fake LLM client waits, so a
+	// leaked child's generation job ends by itself (the child then keeps
+	// serving until the cleanup kills it). It is far longer than any bound a
+	// test waits for.
 	blockLifetime = 3 * time.Minute
 	// readyBound bounds a wait for a server to listen or a fake to signal
 	// readiness.
@@ -101,8 +98,7 @@ const (
 	// childWaitDelay bounds how long Wait drains a child's output after it
 	// exits.
 	childWaitDelay = 10 * time.Second
-	// loopbackTimeout bounds one post to the loopback webhook and one request
-	// to the server.
+	// loopbackTimeout bounds one request to the server.
 	loopbackTimeout = 10 * time.Second
 )
 
@@ -111,10 +107,7 @@ const (
 // HOME, and GODEBUG, is left out; the test sets what the child needs.
 var childEnvAllowlist = []string{"PATH", "TMPDIR"}
 
-var (
-	errBlockExpired      = errors.New("the blocking fake reached its lifetime")
-	errUnexpectedWebhook = errors.New("run passed a webhook URL other than the configured one")
-)
+var errBlockExpired = errors.New("the blocking fake reached its lifetime")
 
 // serverEnv is the setting of one server: its environment (HOME, from which
 // the configuration file's path and the socket path are derived, and GODEBUG)
@@ -275,6 +268,26 @@ func (r *runningServer) waitStderr(t *testing.T, sub string) string {
 	return ""
 }
 
+// logAttrName matches the name of one attribute of a slog text line.
+var logAttrName = regexp.MustCompile(`(?:^| )([A-Za-z][A-Za-z0-9]*)=`)
+
+// logAttrNames returns the sorted names of a slog text line's attributes,
+// without the time, level, and msg the handler adds. It reads the lines these
+// tests write, whose quoted values (the message, a path with a space) hold no
+// word directly followed by "=".
+func logAttrNames(line string) []string {
+	var names []string
+	for _, m := range logAttrName.FindAllStringSubmatch(line, -1) {
+		switch m[1] {
+		case "time", "level", "msg":
+		default:
+			names = append(names, m[1])
+		}
+	}
+	slices.Sort(names)
+	return names
+}
+
 // stderrLine returns the first line of output that contains sub, or "" when
 // there is none.
 func stderrLine(output, sub string) string {
@@ -327,99 +340,14 @@ func reviewLLM() llm.LLMClient {
 	})
 }
 
-// nopPublisher is a Webhook publisher that accepts every post and sends
-// nothing.
-type nopPublisher struct{}
-
-// PostMessages implements server.WebhookPublisher.
-func (nopPublisher) PostMessages(context.Context, publisher.SlackMessages, int, func(int)) error {
-	return nil
-}
-
-// testDeps returns deps that build client for generation, a review client
-// that revises nothing, and a publisher that sends nothing, so no test reaches
-// the LLM API or the webhook the environment names.
+// testDeps returns deps that build client for generation and a review client
+// that revises nothing, so no test reaches the LLM API.
 func testDeps(client llm.LLMClient) deps {
 	return deps{
 		newLLMClient:       func(config.LLMConfig) (llm.LLMClient, error) { return client, nil },
 		newReviewLLMClient: func(config.LLMConfig) (llm.LLMClient, error) { return reviewLLM(), nil },
 		newWriter:          writer.NewProgressWriter,
-		newPublisher:       func(secret.Secret) (server.WebhookPublisher, error) { return nopPublisher{}, nil },
 	}
-}
-
-// loopbackDeps returns testDeps(client) with the real SlackWebhookPublisher
-// posting to serverURL, a loopback webhook. It is built here, in the test
-// goroutine, because its constructor may fail t; the deps return it after
-// checking that run passes the configured webhook URL. The endpoint keeps the
-// configured path, so it carries the same secret path the server redacts.
-func loopbackDeps(t *testing.T, client llm.LLMClient, serverURL string) deps {
-	t.Helper()
-	endpoint := serverURL + testWebhookPath
-	pub := publisher.NewSlackWebhookPublisherForLoopbackTest(t, publisher.SlackTestOptions{Timeout: loopbackTimeout}, endpoint)
-	d := testDeps(client)
-	d.newPublisher = func(webhookURL secret.Secret) (server.WebhookPublisher, error) {
-		if err := requireTestWebhook(webhookURL); err != nil {
-			return nil, err
-		}
-		return pub, nil
-	}
-	return d
-}
-
-// requireTestWebhook reports errUnexpectedWebhook unless webhookURL is
-// testWebhook, the value the test environment configures.
-func requireTestWebhook(webhookURL secret.Secret) error {
-	if value, err := webhookURL.Reveal(); err != nil || value != testWebhook {
-		return errUnexpectedWebhook
-	}
-	return nil
-}
-
-// webhookServer is a loopback webhook that records the text of every message
-// it receives and answers 200 "ok".
-type webhookServer struct {
-	mu    sync.Mutex
-	texts []string
-}
-
-// newWebhookServer starts a webhookServer and returns it with its URL.
-func newWebhookServer(t *testing.T) (*webhookServer, string) {
-	t.Helper()
-	w := &webhookServer{}
-	srv := httptest.NewServer(w)
-	t.Cleanup(srv.Close)
-	return w, srv.URL
-}
-
-// ServeHTTP records the message and answers it.
-func (s *webhookServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	var payload struct {
-		Text string `json:"text"`
-	}
-	body, _ := io.ReadAll(r.Body)
-	_ = json.Unmarshal(body, &payload)
-	s.mu.Lock()
-	s.texts = append(s.texts, payload.Text)
-	s.mu.Unlock()
-	_, _ = io.WriteString(w, "ok")
-}
-
-// messages returns the text of every message received so far.
-func (s *webhookServer) messages() []string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return slices.Clone(s.texts)
-}
-
-// containsAll reports whether s contains every string in subs.
-func containsAll(s string, subs []string) bool {
-	for _, sub := range subs {
-		if !strings.Contains(s, sub) {
-			return false
-		}
-	}
-	return true
 }
 
 // apiResponse is the JSON body the server answers with a rejection.
@@ -446,8 +374,8 @@ func unixClient(path string) *http.Client {
 }
 
 // jobResponse is the part of a job API response the tests read: a rejection's
-// reason, a generation start's key, and a status response's job state,
-// article, and publish state.
+// reason, a generation start's key, and a status response's job state and
+// article.
 type jobResponse struct {
 	Status string `json:"status"`
 	Reason string `json:"reason"`
@@ -461,9 +389,6 @@ type jobResponse struct {
 			ChannelName         *string `json:"channelName"`
 			File                string  `json:"file"`
 		} `json:"article"`
-		Publish *struct {
-			State string `json:"state"`
-		} `json:"publish"`
 	} `json:"job"`
 }
 
@@ -504,58 +429,37 @@ func waitJobDone(t *testing.T, path, key string) jobResponse {
 	}
 }
 
-// waitPublished polls the status of key on the socket at path until its
-// article is no longer posting, and returns its publish state.
-func waitPublished(t *testing.T, path, key string) string {
+// startGeneration sends a generation start for requestBody(testValidRaw) to
+// the socket at path, failing the test unless it is accepted, and returns
+// the job's key.
+func startGeneration(t *testing.T, path string) string {
 	t.Helper()
-	deadline := time.Now().Add(blockLifetime)
-	for {
-		resp := doJobs(t, path, http.MethodGet, server.JobsPath+"/"+key, nil, http.StatusOK)
-		if resp.Job.Publish == nil {
-			t.Fatalf("job = %+v, want a done article with a publish state", resp.Job)
-		}
-		if resp.Job.Publish.State != "posting" || time.Now().After(deadline) {
-			return resp.Job.Publish.State
-		}
-		time.Sleep(pollInterval)
-	}
+	return doJobs(t, path, http.MethodPost, server.JobsPath, strings.NewReader(requestBody(testValidRaw)), http.StatusAccepted).Key
 }
 
-// generateAndPublish generates an article for requestBody(testValidRaw) on
-// the socket at path, waits until it is done, and sends its publish
-// operation, failing the test unless the operation is accepted.
-func generateAndPublish(t *testing.T, path string) {
-	t.Helper()
-	started := doJobs(t, path, http.MethodPost, server.JobsPath, strings.NewReader(requestBody(testValidRaw)), http.StatusAccepted)
-	if done := waitJobDone(t, path, started.Key); done.Job.State != "done" {
-		t.Fatalf("job = %+v, want done", done.Job)
-	}
-	doJobs(t, path, http.MethodPost, server.JobsPath+"/"+started.Key+server.PublishSuffix, nil, http.StatusAccepted)
-}
-
-// blockingPublisher is a Webhook publisher whose post creates ready, then
-// waits until release exists, and then reports every message delivered. It
-// gives up after blockLifetime. It ignores its context, as the server never
-// cancels a post job's context.
-type blockingPublisher struct {
+// blockingLLM is an LLM client whose call creates ready, then waits until
+// release exists, ignoring its context as an LLM call already sent does, and
+// then returns the context's error, or a valid response when the context was
+// not canceled. It gives up after blockLifetime.
+type blockingLLM struct {
 	ready   string
 	release string
 }
 
-// PostMessages implements server.WebhookPublisher.
-func (b blockingPublisher) PostMessages(_ context.Context, m publisher.SlackMessages, from int, delivered func(int)) error {
+// Generate implements llm.LLMClient.
+func (b blockingLLM) Generate(ctx context.Context, _ llm.GenerateRequest) (llm.GenerateResponse, error) {
 	writeMarker(b.ready)
 	deadline := time.Now().Add(blockLifetime)
 	for time.Now().Before(deadline) {
 		if _, err := os.Stat(b.release); err == nil {
-			for i := from; i < m.Len(); i++ {
-				delivered(i)
+			if err := ctx.Err(); err != nil {
+				return llm.GenerateResponse{}, err
 			}
-			return nil
+			return validResponse(), nil
 		}
 		time.Sleep(pollInterval)
 	}
-	return errBlockExpired
+	return llm.GenerateResponse{}, errBlockExpired
 }
 
 // writeMarker creates path by renaming a temporary file, so a reader never
@@ -578,10 +482,7 @@ func runChildMode(mode string) int {
 		main()
 		return exitFailure // main exits; this line is never reached
 	case childModeBlock:
-		d := testDeps(validResponseLLM())
-		d.newPublisher = func(secret.Secret) (server.WebhookPublisher, error) {
-			return blockingPublisher{ready: os.Getenv(childReadyEnv), release: os.Getenv(childReleaseEnv)}, nil
-		}
+		d := testDeps(blockingLLM{ready: os.Getenv(childReadyEnv), release: os.Getenv(childReleaseEnv)})
 		return signalrun.Run(func(ctx context.Context) int {
 			return run(ctx, os.Args[1:], os.LookupEnv, os.Stderr, d)
 		})

@@ -879,11 +879,6 @@ func TestRelayNewFormOperations(t *testing.T) {
 			method: http.MethodGet, requestURI: "/jobs/" + key,
 		},
 		{
-			name: "publish", msg: `{"v":1,"op":"publish","key":"` + key + `"}`, op: "publish",
-			method: http.MethodPost, requestURI: "/jobs/" + key + "/publish",
-			contentLength: "0",
-		},
-		{
 			// The version member's name is written with an escape.
 			name: "escaped version name", msg: `{"\u0076":1,"op":"status","key":"` + key + `"}`, op: "status",
 			method: http.MethodGet, requestURI: "/jobs/" + key,
@@ -955,6 +950,7 @@ func TestRelayNewFormRejections(t *testing.T) {
 		{"operation missing", `{"v":1,"key":"k"}`, ruleOperation},
 		{"operation not in the set", `{"v":1,"op":"delete","key":"k"}`, ruleOperation},
 		{"operation in another case", `{"v":1,"op":"Status","key":"k"}`, ruleOperation},
+		{"removed publish operation", `{"v":1,"op":"publish","key":"k"}`, ruleOperation},
 		{"operation not a string", `{"v":1,"op":1,"key":"k"}`, ruleOperation},
 		{"start without input", `{"v":1,"op":"start"}`, ruleMembers},
 		{"start with a key", `{"v":1,"op":"start","input":{},"key":"k"}`, ruleMembers},
@@ -962,8 +958,6 @@ func TestRelayNewFormRejections(t *testing.T) {
 		{"start input null", `{"v":1,"op":"start","input":null}`, ruleInput},
 		{"status without key", `{"v":1,"op":"status"}`, ruleMembers},
 		{"status with input", `{"v":1,"op":"status","key":"k","input":{}}`, ruleMembers},
-		{"publish without key", `{"v":1,"op":"publish"}`, ruleMembers},
-		{"publish key not a string", `{"v":1,"op":"publish","key":1}`, ruleKey},
 		{"status key null", `{"v":1,"op":"status","key":null}`, ruleKey},
 		// The version is checked before the members, so a message with both
 		// faults breaks the version rule.
@@ -998,7 +992,7 @@ func TestRelayKeyPassedUnchecked(t *testing.T) {
 		"empty":           "",
 		"uppercase":       "ABC",
 		"long":            strings.Repeat("f", 1000),
-		"publish suffix":  "abc/publish",
+		"extra segment":   "abc/publish",
 		"query":           "?x=1",
 		"query inside":    "a?x=1",
 		"dot segment":     "..",
@@ -1010,36 +1004,28 @@ func TestRelayKeyPassedUnchecked(t *testing.T) {
 		"parent and root": "../../articles",
 	}
 	for name, key := range keys {
-		for _, op := range []struct{ name, method, suffix string }{
-			{"status", http.MethodGet, ""},
-			{"publish", http.MethodPost, "/publish"},
-		} {
-			t.Run(name+"/"+op.name, func(t *testing.T) {
-				path, got := recordingServer(t, []byte("{}"))
-				msg := newFormMessage(t, map[string]any{"v": 1, "op": op.name, "key": key})
-				requireResponse(t, runRelay(message(msg), SocketDialer(path), testTimeout).reply(t), http.StatusAccepted, []byte("{}"))
+		t.Run(name, func(t *testing.T) {
+			path, got := recordingServer(t, []byte("{}"))
+			msg := newFormMessage(t, map[string]any{"v": 1, "op": "status", "key": key})
+			requireResponse(t, runRelay(message(msg), SocketDialer(path), testTimeout).reply(t), http.StatusAccepted, []byte("{}"))
 
-				req := got()
-				if req.requests != 1 || req.method != op.method {
-					t.Fatalf("the server received %d requests, the last %s; want one %s", req.requests, req.method, op.method)
-				}
-				segment, ok := strings.CutPrefix(req.requestURI, "/jobs/")
-				if ok {
-					segment, ok = strings.CutSuffix(segment, op.suffix)
-				}
-				if !ok || strings.ContainsAny(segment, "/?") {
-					t.Fatalf("request target = %q, want /jobs/, one path segment, then %q", req.requestURI, op.suffix)
-				}
-				if decoded, err := url.PathUnescape(segment); err != nil || decoded != key {
-					t.Errorf("the segment %q decodes to %q (%v), want the key %q", segment, decoded, err, key)
-				}
-				// The client sends the escaped form as is: it neither
-				// normalizes the path nor escapes it again.
-				if want := "/jobs/" + url.PathEscape(key) + op.suffix; req.requestURI != want {
-					t.Errorf("request target = %q, want %q", req.requestURI, want)
-				}
-			})
-		}
+			req := got()
+			if req.requests != 1 || req.method != http.MethodGet {
+				t.Fatalf("the server received %d requests, the last %s; want one GET", req.requests, req.method)
+			}
+			segment, ok := strings.CutPrefix(req.requestURI, "/jobs/")
+			if !ok || strings.ContainsAny(segment, "/?") {
+				t.Fatalf("request target = %q, want /jobs/ and one path segment", req.requestURI)
+			}
+			if decoded, err := url.PathUnescape(segment); err != nil || decoded != key {
+				t.Errorf("the segment %q decodes to %q (%v), want the key %q", segment, decoded, err, key)
+			}
+			// The client sends the escaped form as is: it neither
+			// normalizes the path nor escapes it again.
+			if want := "/jobs/" + url.PathEscape(key); req.requestURI != want {
+				t.Errorf("request target = %q, want %q", req.requestURI, want)
+			}
+		})
 	}
 }
 
@@ -1047,23 +1033,16 @@ func TestRelayKeyPassedUnchecked(t *testing.T) {
 // answers ends with server_timeout after exactly one request. The status
 // request is TestRelayHostErrors' "server never answers" row.
 func TestRelayNewFormTimeout(t *testing.T) {
-	const key = testKey
-	for _, msg := range []string{
-		`{"v":1,"op":"start","input":{"videoUrl":"x","transcript":"y"}}`,
-		`{"v":1,"op":"publish","key":"` + key + `"}`,
-	} {
-		t.Run(msg, func(t *testing.T) {
-			var requests atomic.Int32
-			path := serveRaw(t, func(conn net.Conn) {
-				requests.Add(1)
-				_, _ = io.Copy(io.Discard, conn)
-			})
-			dial, dials := countDials(SocketDialer(path))
-			requireError(t, runRelay(message([]byte(msg)), dial, shortTimeout).reply(t), HostErrorServerTimeout)
-			if n, d := requests.Load(), dials.Load(); n != 1 || d != 1 {
-				t.Errorf("the server read %d requests over %d dials, want 1 over 1", n, d)
-			}
-		})
+	const msg = `{"v":1,"op":"start","input":{"videoUrl":"x","transcript":"y"}}`
+	var requests atomic.Int32
+	path := serveRaw(t, func(conn net.Conn) {
+		requests.Add(1)
+		_, _ = io.Copy(io.Discard, conn)
+	})
+	dial, dials := countDials(SocketDialer(path))
+	requireError(t, runRelay(message([]byte(msg)), dial, shortTimeout).reply(t), HostErrorServerTimeout)
+	if n, d := requests.Load(), dials.Load(); n != 1 || d != 1 {
+		t.Errorf("the server read %d requests over %d dials, want 1 over 1", n, d)
 	}
 }
 
@@ -1077,7 +1056,6 @@ func TestRelayNewFormLogOmitsMessage(t *testing.T) {
 	tests := []struct{ name, msg, want string }{
 		{"start input", `{"v":1,"op":"start","input":{"transcript":"` + marker + `","` + marker + `":1}}`, "op=start"},
 		{"status key", `{"v":1,"op":"status","key":"` + marker + `"}`, "op=status"},
-		{"publish key", `{"v":1,"op":"publish","key":"` + marker + `"}`, "op=publish"},
 		{"unknown operation", `{"v":1,"op":"` + marker + `","key":"k"}`, "rule=operation"},
 		{"undeclared member", `{"v":1,"op":"status","key":"k","` + marker + `":1}`, "rule=members"},
 		{"version missing", `{"op":"status","key":"` + marker + `"}`, "rule=version"},
@@ -1105,7 +1083,7 @@ func TestRelayNewFormLogOmitsMessage(t *testing.T) {
 func TestRequestRefusesUnroutable(t *testing.T) {
 	for _, dest := range []destination{
 		{},
-		{op: OperationPublish + 1, key: "k"},
+		{op: OperationStatus + 1, key: "k"},
 		{op: -1, body: []byte("{}")},
 	} {
 		if req, err := dest.request(context.Background()); req != nil || !errors.Is(err, errUnroutable) {

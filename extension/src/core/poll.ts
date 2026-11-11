@@ -1,8 +1,8 @@
 // The polling rule: after each status exchange, what the display becomes and
 // whether to fetch again. Polling repeats only what can change by itself (a
-// running job, a posting article) or an exchange that may succeed on a later
-// try; a result that repeating cannot change stops it. A failed exchange
-// never replaces the state shown: it adds a notice beside it.
+// running job) or an exchange that may succeed on a later try; a result that
+// repeating cannot change stops it. A failed exchange never replaces the
+// state shown: it adds a notice beside it.
 
 import { jobArticle } from "./jobView.ts";
 import type { JobDisplay, PollNotice } from "./jobView.ts";
@@ -52,16 +52,8 @@ function afterJob(
       };
     case "done":
       return {
-        // A posting article is polled until it is no longer posting, whoever
-        // started the publish.
-        decision: job.publish.state === "posting" ? "continue" : "stop",
-        job: {
-          kind: "done",
-          steps: job.steps,
-          article: job.article,
-          publish: job.publish,
-          webhookConfigured: outcome.webhookConfigured,
-        },
+        decision: "stop",
+        job: { kind: "done", steps: job.steps, article: job.article },
         notice: noNotice,
       };
     case "failed":

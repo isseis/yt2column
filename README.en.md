@@ -1,4 +1,4 @@
-<!-- translated-from: README.md 1f4b61d65a6123b68aba2d3308d02006821b079b -->
+<!-- translated-from: README.md b1572d2e71261375e552c59fdf14b2e22aca3fd3 -->
 [日本語](README.md)
 
 Developer documents: [Using the CLI](docs/dev/guides/cli.md) · [Development procedures](docs/dev/guides/development.md)
@@ -577,11 +577,7 @@ What the extension shows when the server rejects a request with each reason:
 | `invalid_body` | fixed message |
 | `invalid_video_url` | fixed message |
 | `invalid_transcript` | fixed message |
-| `webhook_not_configured` | fixed message |
 | `invalid_key` | fixed message |
-| `article_not_ready` | fixed message |
-| `article_not_found` | fixed message |
-| `article_not_postable` | fixed message |
 | `internal_error` | fixed message (unexpected reply when `requestId` is empty) |
 
 The status code of each reason, and how to check the server with `curl`, are in

@@ -16,8 +16,8 @@ import (
 
 const (
 	// stillRunningWindow is how long TestSignalWaitsForJob checks that the
-	// child keeps running after the first signal while its post job is
-	// blocked.
+	// child keeps running after the first signal while its generation job's
+	// LLM call is blocked.
 	stillRunningWindow = 500 * time.Millisecond
 	// resendInterval paces repeated signals in TestSecondSignalExitsAtOnce.
 	resendInterval = 100 * time.Millisecond
@@ -32,10 +32,9 @@ func skipIfIgnored(t *testing.T, sig syscall.Signal) {
 	}
 }
 
-// blockingChild starts a server child whose Webhook publisher blocks, has it
-// generate an article and sends the article's publish operation, and returns
-// once the post job is inside its post, with the path that releases it and
-// the child's socket path.
+// blockingChild starts a server child whose LLM client blocks, sends it a
+// generation start, and returns once the generation job is inside its LLM
+// call, with the path that releases the call and the child's socket path.
 func blockingChild(t *testing.T) (child *serverChild, releasePath, socketPath string) {
 	t.Helper()
 	dir := t.TempDir()
@@ -43,7 +42,7 @@ func blockingChild(t *testing.T) (child *serverChild, releasePath, socketPath st
 	release := filepath.Join(dir, "release")
 	e := newServerEnv(t)
 	child = startServerChild(t, childModeBlock, e, map[string]string{childReadyEnv: ready, childReleaseEnv: release})
-	generateAndPublish(t, e.socketPath(t))
+	startGeneration(t, e.socketPath(t))
 	waitForFile(t, ready)
 	return child, release, e.socketPath(t)
 }
@@ -69,10 +68,11 @@ func TestSignalStopsServer(t *testing.T) {
 	}
 }
 
-// TestSignalWaitsForJob checks that the first signal does not end an
-// in-flight post job: the child keeps running until the post finishes, then
-// exits with exitOK, and its socket is gone. That the log counts the post job
-// is internal/server's TestServeShutdownWaitsForPublish.
+// TestSignalWaitsForJob checks that the first signal cancels an in-flight
+// generation job and waits for it: the child keeps running while the job's
+// LLM call is blocked, and once the call returns the job ends as canceled
+// (the fake returns its context's error only when the context was canceled),
+// the child exits with exitOK, and its socket is gone.
 func TestSignalWaitsForJob(t *testing.T) {
 	skipIfIgnored(t, syscall.SIGTERM)
 	child, release, socket := blockingChild(t)
@@ -80,7 +80,7 @@ func TestSignalWaitsForJob(t *testing.T) {
 
 	time.Sleep(stillRunningWindow)
 	if child.exited() {
-		t.Fatalf("the child exited while its post job was blocked\nstderr:\n%s", child.stderr.String())
+		t.Fatalf("the child exited while its generation job was blocked\nstderr:\n%s", child.stderr.String())
 	}
 	writeMarker(release)
 	state := child.wait(t)
@@ -88,8 +88,8 @@ func TestSignalWaitsForJob(t *testing.T) {
 		t.Fatalf("exit status = %v, want exit code %d\nstderr:\n%s", state, exitOK, child.stderr.String())
 	}
 	stderr := child.stderr.String()
-	if !strings.Contains(stderr, "post job succeeded") {
-		t.Errorf("stderr does not report the post job's success:\n%s", stderr)
+	if !strings.Contains(stderr, "generation job canceled by the shutdown") {
+		t.Errorf("stderr does not report the generation job's cancellation:\n%s", stderr)
 	}
 	if _, err := os.Lstat(socket); !errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("the socket %s is still there after a normal stop: %v", socket, err)
@@ -97,10 +97,9 @@ func TestSignalWaitsForJob(t *testing.T) {
 }
 
 // TestSecondSignalExitsAtOnce checks that a second signal ends the child by
-// the signal's default disposition while its post job is still blocked. It
-// repeats cmd/yt2column's TestSecondSignal on purpose: there the CLI's job is
-// canceled, here the server's post job deliberately is not, so this is the
-// case the second signal exists for.
+// the signal's default disposition while its canceled generation job is
+// still inside its LLM call. A canceled generation ends only when its LLM
+// call returns, so this is the case the second signal exists for.
 func TestSecondSignalExitsAtOnce(t *testing.T) {
 	skipIfIgnored(t, syscall.SIGTERM)
 	child, _, _ := blockingChild(t)

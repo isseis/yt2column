@@ -19,18 +19,16 @@ import (
 	"time"
 
 	"github.com/isseis/yt2column/internal/articlecache"
-	publishertestutil "github.com/isseis/yt2column/internal/publisher/testutil"
 	"github.com/isseis/yt2column/internal/udstest"
 	"github.com/isseis/yt2column/internal/writer"
 	writertestutil "github.com/isseis/yt2column/internal/writer/testutil"
 )
 
 // newServer builds a Server with the given collaborators and log output.
-func newServer(t *testing.T, w writer.ProgressWriter, p WebhookPublisher, logs io.Writer) *Server {
+func newServer(t *testing.T, w writer.ProgressWriter, logs io.Writer) *Server {
 	t.Helper()
 	s, err := New(Options{
 		Writer:    w,
-		Webhook:   &WebhookOptions{Publisher: p},
 		LogOutput: logs,
 	})
 	if err != nil {
@@ -62,30 +60,23 @@ func serveUnix(t *testing.T, s *Server) string {
 	return path
 }
 
-// TestNewWebhookOptions checks that New treats a nil Webhook as a server
-// without a Webhook, refuses a WebhookOptions whose publisher is missing, a
-// typed nil included, and still refuses a missing writer or log output.
-func TestNewWebhookOptions(t *testing.T) {
-	pub := &publishertestutil.FakePublisher{}
-	var nilPublisher *publishertestutil.FakePublisher
+// TestNewOptions checks that New accepts complete options and refuses a
+// missing writer or log output, alone or together.
+func TestNewOptions(t *testing.T) {
 	fakeWriter := &writertestutil.FakeArticleWriter{}
 	logs := &bytes.Buffer{}
-	complete := &WebhookOptions{Publisher: pub}
 	// all is every reason New can join, so each row pins the exact set: a
 	// reason the row does not name must be absent.
-	all := []error{errNilArticleWriter, errNilWebhookPublisher, errNilLogOutput}
+	all := []error{errNilArticleWriter, errNilLogOutput}
 	tests := []struct {
 		name string
 		opts Options
 		want []error // empty means New accepts the options
 	}{
-		{"complete", Options{Writer: fakeWriter, Webhook: complete, LogOutput: logs}, nil},
-		{"no_webhook", Options{Writer: fakeWriter, LogOutput: logs}, nil},
-		{"no_publisher", Options{Writer: fakeWriter, Webhook: &WebhookOptions{}, LogOutput: logs}, []error{errNilWebhookPublisher}},
-		{"typed_nil_publisher", Options{Writer: fakeWriter, Webhook: &WebhookOptions{Publisher: nilPublisher}, LogOutput: logs}, []error{errNilWebhookPublisher}},
-		{"nothing", Options{Webhook: &WebhookOptions{}}, []error{errNilArticleWriter, errNilWebhookPublisher, errNilLogOutput}},
-		{"no_writer", Options{Webhook: complete, LogOutput: logs}, []error{errNilArticleWriter}},
-		{"no_log_output", Options{Writer: fakeWriter, Webhook: complete}, []error{errNilLogOutput}},
+		{"complete", Options{Writer: fakeWriter, LogOutput: logs}, nil},
+		{"nothing", Options{}, []error{errNilArticleWriter, errNilLogOutput}},
+		{"no_writer", Options{LogOutput: logs}, []error{errNilArticleWriter}},
+		{"no_log_output", Options{Writer: fakeWriter}, []error{errNilLogOutput}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -109,39 +100,10 @@ func TestNewWebhookOptions(t *testing.T) {
 	}
 }
 
-// TestNewCopiesWebhookOptions checks that the server keeps the publisher it
-// was built with, so a caller that clears its WebhookOptions afterwards
-// changes nothing: a publish operation still posts through that publisher.
-func TestNewCopiesWebhookOptions(t *testing.T) {
-	pub := &publishertestutil.FakePublisher{}
-	webhook := &WebhookOptions{Publisher: pub}
-	s, err := New(Options{
-		Writer:    &writertestutil.FakeArticleWriter{},
-		Webhook:   webhook,
-		LogOutput: &bytes.Buffer{},
-	})
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-
-	webhook.Publisher = nil
-	if !s.webhookConfigured() {
-		t.Error("webhookConfigured() = false after the caller cleared its options")
-	}
-	ts := &testServer{Server: s, publisher: pub}
-	key := ts.seedDone(t, validBody(testValidVideoURL, testValidRaw))
-	rec := ts.publishRequest(key.String())
-	ts.waitJobs()
-	requireAccepted(t, rec)
-	if calls := pub.RecordedPostCalls(); len(calls) != 1 {
-		t.Errorf("PostMessages calls = %d, want 1", len(calls))
-	}
-}
-
 // TestServeOnUnixListener checks that Serve answers a generation start that
 // reaches it over a Unix domain socket listener with the accepted response.
 func TestServeOnUnixListener(t *testing.T) {
-	s := newServer(t, &writertestutil.FakeArticleWriter{}, &publishertestutil.FakePublisher{}, &bytes.Buffer{})
+	s := newServer(t, &writertestutil.FakeArticleWriter{}, &bytes.Buffer{})
 	path := serveUnix(t, s)
 	if key := startOnUnix(t, path, validBody(testValidVideoURL, testValidRaw)); !keyShape.MatchString(key) {
 		t.Errorf("key = %q, want an article key", key)
@@ -151,7 +113,7 @@ func TestServeOnUnixListener(t *testing.T) {
 // TestServeListenerFailureStops checks that when the listener fails, Serve stops
 // and returns the error.
 func TestServeListenerFailureStops(t *testing.T) {
-	s := newServer(t, &writertestutil.FakeArticleWriter{}, &publishertestutil.FakePublisher{}, &bytes.Buffer{})
+	s := newServer(t, &writertestutil.FakeArticleWriter{}, &bytes.Buffer{})
 	listener, _ := listenUnix(t)
 	done := make(chan error, 1)
 	go func() { done <- s.Serve(context.Background(), listener) }()

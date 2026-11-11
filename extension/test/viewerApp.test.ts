@@ -20,15 +20,9 @@ import {
   pollIntervalMs,
   startResultDeadlineMs,
 } from "../src/core/poll.ts";
-import { publishRejectStatus } from "../src/core/response.ts";
-import type { PublishRejectReason } from "../src/core/response.ts";
-import {
-  publishResultMessage,
-  statusNoticeMessage,
-} from "../src/core/sendMessages.ts";
+import { statusNoticeMessage } from "../src/core/sendMessages.ts";
 import { parseViewerUrl, viewerQuery } from "../src/core/viewerUrl.ts";
 import type { ViewerParams } from "../src/core/viewerUrl.ts";
-import { sendTimeoutMs } from "../src/send.ts";
 import { renderViewer } from "../src/ui/renderViewer.ts";
 import { startViewer } from "../src/viewerApp.ts";
 import {
@@ -86,22 +80,12 @@ const failedJob: Json = {
   steps: doneSteps,
   failure: "llm_failed",
 };
-function doneJob(publish: Json): Json {
-  return { state: "done", steps: doneSteps, article, publish };
-}
+const doneJob: Json = { state: "done", steps: doneSteps, article };
 
 /** The host's reply to a status query that found job. */
-function statusReply(job: Json, webhookConfigured = true): NativeReply {
-  return responseReply(
-    200,
-    JSON.stringify({ status: "ok", requestId, webhookConfigured, job }),
-  );
+function statusReply(job: Json): NativeReply {
+  return responseReply(200, JSON.stringify({ status: "ok", requestId, job }));
 }
-
-const publishAccepted = responseReply(
-  202,
-  JSON.stringify({ status: "accepted", requestId }),
-);
 
 /** The host's reply rejecting a status query: polling stops. */
 const statusRejected = responseReply(
@@ -115,13 +99,6 @@ const runningState: ViewerState = {
   job: { kind: "running", steps: runningSteps },
   notice: { kind: "none" },
 };
-
-function publishRejected(reason: PublishRejectReason): NativeReply {
-  return responseReply(
-    publishRejectStatus[reason],
-    JSON.stringify({ status: "rejected", reason, requestId }),
-  );
-}
 
 interface Viewer {
   readonly doc: Document;
@@ -241,11 +218,7 @@ function drawnState(
   existing = false,
 ): string {
   const elements = viewerElements();
-  renderViewer(
-    elements,
-    { state, elapsedMs, publishing: false, existing },
-    "en",
-  );
+  renderViewer(elements, { state, elapsedMs, existing }, "en");
   return elements.state.textContent ?? "";
 }
 
@@ -255,9 +228,9 @@ function stateText(viewer: Viewer): string {
 }
 
 /** A viewer opened on a key URL that has shown job. */
-async function showing(job: Json, webhookConfigured = true): Promise<Viewer> {
+async function showing(job: Json): Promise<Viewer> {
   const viewer = await open({ query: queryOf({ key }) });
-  await viewer.host.answer(statusReply(job, webhookConfigured));
+  await viewer.host.answer(statusReply(job));
   return viewer;
 }
 
@@ -480,7 +453,7 @@ describe("startViewer: display and URL", () => {
     assert.equal(viewer.clock.pending(), 1);
 
     viewer.clock.advance(pollIntervalMs);
-    await viewer.host.answer(statusReply(doneJob({ state: "not_posted" })));
+    await viewer.host.answer(statusReply(doneJob));
     assert.equal(
       viewer.elements.state.querySelector(".job-result dd")?.textContent,
       formatDuration(article.durationMs, "en"),
@@ -548,7 +521,7 @@ describe("startViewer: display and URL", () => {
     viewer.clock.advance(elapsedRedrawMs);
     assert.equal(viewer.elements.stateStatus.firstChild, summary);
     viewer.clock.advance(pollIntervalMs);
-    await viewer.host.answer(statusReply(doneJob({ state: "not_posted" })));
+    await viewer.host.answer(statusReply(doneJob));
     assert.notEqual(viewer.elements.stateStatus.firstChild, summary);
   });
 
@@ -570,18 +543,15 @@ describe("startViewer: operations", () => {
     ["host failed", { kind: "failed", lastError: "host exited" }],
     ["rejected", statusRejected],
   ] as const) {
-    it(`sends neither a start nor a publish on a failed status (${name})`, async () => {
+    it(`sends no start on a failed status (${name})`, async () => {
       // A take-over of a done job restarts its stopped poller, so the status
-      // fails while the not posted row can be pressed: only the viewer's own
-      // restraint keeps it from publishing.
-      const viewer = await showing(doneJob({ state: "not_posted" }));
+      // fails while the article is shown.
+      const viewer = await showing(doneJob);
       await post(viewer, { type: "find", queryId, key });
       await post(viewer, takeOver());
       await viewer.host.answer(reply);
-      assert.equal(viewer.elements.publish.disabled, false);
       viewer.clock.advance(10 * pollIntervalMs);
       await settle();
-      assert.equal(viewer.host.count("publish"), 0);
       assert.deepEqual(viewer.worker.sent, []);
     });
   }
@@ -603,167 +573,13 @@ describe("startViewer: operations", () => {
     assert.equal(viewer.host.count("status"), 3);
   });
 
-  it("publishes once on a press, keeps the button off until the new epoch's status, and polls while posting", async () => {
-    const viewer = await showing(doneJob({ state: "not_posted" }));
-    const { publish } = viewer.elements;
-    assert.equal(publish.disabled, false);
-    publish.click();
-    publish.click();
-    await settle();
-    assert.deepEqual(viewer.host.sent.at(-1), { v: 1, op: "publish", key });
-    assert.equal(viewer.host.count("publish"), 1);
-    assert.equal(publish.disabled, true);
-
-    await viewer.host.answer(publishAccepted);
-    assert.equal(viewer.host.count("status"), 2, "the poller restarts at once");
-    assert.equal(publish.disabled, true);
-    await viewer.host.answer(statusReply(doneJob({ state: "posting" })));
-    assert.equal(publish.disabled, true);
-    viewer.clock.advance(pollIntervalMs);
-    await viewer.host.answer(statusReply(doneJob({ state: "posted" })));
-    viewer.clock.advance(10 * pollIntervalMs);
-    assert.equal(viewer.host.count("status"), 3);
-    assert.equal(viewer.host.count("publish"), 1);
-    assert.equal(publish.disabled, true);
-  });
-
-  it("keeps the button off when a status sent before the publish returns", async () => {
-    const viewer = await showing(doneJob({ state: "not_posted" }));
-    // A take-over of a done job restarts the stopped poller in a new epoch,
-    // so a status query is in flight when the button is pressed.
-    await post(viewer, { type: "find", queryId, key });
-    await post(viewer, takeOver());
-    assert.equal(viewer.host.count("status"), 2);
-    viewer.elements.publish.click();
-    await settle();
-    await viewer.host.answer(publishAccepted, "publish");
-    await viewer.host.answer(statusReply(doneJob({ state: "not_posted" })));
-    assert.equal(viewer.host.count("status"), 3);
-    assert.equal(viewer.elements.publish.disabled, true);
-    await viewer.host.answer(statusReply(doneJob({ state: "posting" })));
-    assert.equal(viewer.elements.publish.disabled, true);
-  });
-
-  it("polls a posting article it did not publish until it is no longer posting", async () => {
-    const viewer = await showing(doneJob({ state: "posting" }));
-    viewer.clock.advance(pollIntervalMs);
-    await viewer.host.answer(statusReply(doneJob({ state: "posted" })));
-    viewer.clock.advance(10 * pollIntervalMs);
-    assert.equal(viewer.host.count("status"), 2);
-    assert.equal(viewer.host.count("publish"), 0);
-  });
-
-  it("enables the button again after a take-over that goes on came between the publish and its first status", async () => {
-    const viewer = await showing(doneJob({ state: "not_posted" }));
-    viewer.elements.publish.click();
-    await settle();
-    await viewer.host.answer(publishAccepted);
-    await post(viewer, { type: "find", queryId, key });
-    await post(viewer, takeOver());
-    await viewer.host.answer(statusReply(doneJob({ state: "posting" })));
-    const stale = viewer.logger.infos.at(-1);
-    assert.equal(stale?.label, "yt2column status result");
-    assert.deepEqual(
-      [
-        (stale?.data as { earlierEpoch: boolean }).earlierEpoch,
-        (stale?.data as { decision: string }).decision,
-      ],
-      [true, "continue"],
-    );
-    await viewer.host.answer(
-      statusReply(doneJob({ state: "failed", reason: "webhook" })),
-    );
-    assert.equal(viewer.elements.publish.disabled, false);
-  });
-
-  it("changes nothing shown for a publish answer that arrives after the send restarted", async () => {
-    // A done job whose polling stopped restarts on a take-over, and its
-    // not posted row can still be pressed.
-    const viewer = await showing(doneJob({ state: "not_posted" }));
-    await post(viewer, { type: "find", queryId, key });
-    await post(viewer, takeOver());
-    await viewer.host.answer(statusRejected);
-    viewer.elements.publish.click();
-    await settle();
-    assert.equal(viewer.host.count("publish"), 1);
-    viewer.elements.copy.click();
-    await settle();
-    assert.equal(
-      viewer.elements.actionStatus.textContent,
-      catalogs.en.viewer.copied,
-    );
-    await post(viewer, { type: "find", queryId, key });
-    await post(viewer, takeOver(sentAt + 60_000));
-    const statuses = viewer.host.count("status");
-    await viewer.host.answer(publishRejected("article_not_found"), "publish");
-    assert.equal(
-      stateText(viewer),
-      drawnState({ kind: "loading", notice: { kind: "none" } }),
-    );
-    assert.equal(viewer.elements.actionStatus.textContent, "");
-    await viewer.host.answer(statusReply(runningJob));
-    assert.ok(viewer.elements.state.querySelector(".step-list") !== null);
-    viewer.clock.advance(pollIntervalMs);
-    assert.equal(viewer.host.count("status"), statuses + 1);
-  });
-
-  it("enables the button again after the new epoch's first status shows a failed post", async () => {
-    const viewer = await showing(doneJob({ state: "not_posted" }));
-    viewer.elements.publish.click();
-    await settle();
-    await viewer.host.answer(publishAccepted);
-    await viewer.host.answer(
-      statusReply(doneJob({ state: "failed", reason: "webhook" })),
-    );
-    assert.equal(viewer.elements.publish.disabled, false);
-  });
-
-  for (const [name, reply, notice, polls] of [
-    [
-      "rejected",
-      publishRejected("article_not_ready"),
-      { kind: "rejected", reason: "article_not_ready", requestId },
-      false,
-    ],
-    [
-      "not sent",
-      errorReply("server_unavailable"),
-      { kind: "not-sent", cause: "server-unavailable" },
-      false,
-    ],
-    [
-      "unknown",
-      { kind: "failed", lastError: "host exited" },
-      { kind: "host-failed" },
-      true,
-    ],
-  ] as const) {
-    it(`does not send a ${name} publish again, and shows its result`, async () => {
-      const viewer = await showing(doneJob({ state: "not_posted" }));
-      viewer.elements.publish.click();
-      await settle();
-      await viewer.host.answer(reply);
-      assert.ok(
-        (viewer.elements.actionStatus.textContent ?? "").includes(
-          publishResultMessage(notice, "en").text,
-        ),
-      );
-      assert.equal(viewer.host.count("status"), polls ? 2 : 1);
-      if (polls) {
-        await viewer.host.answer(statusReply(doneJob({ state: "not_posted" })));
-      }
-      viewer.clock.advance(sendTimeoutMs + 10 * pollIntervalMs);
-      await settle();
-      assert.equal(viewer.host.count("publish"), 1);
-    });
-  }
-
   it("shows the article as lost, still saveable, when the server no longer holds it", async () => {
-    const viewer = await showing(doneJob({ state: "not_posted" }));
-    viewer.elements.publish.click();
-    await settle();
-    await viewer.host.answer(publishRejected("article_not_found"));
-    assert.equal(viewer.elements.publish.disabled, true);
+    // A take-over of a done job restarts its stopped poller, and the server
+    // answers that it holds no job for the key.
+    const viewer = await showing(doneJob);
+    await post(viewer, { type: "find", queryId, key });
+    await post(viewer, takeOver());
+    await viewer.host.answer(statusReply({ state: "unknown" }));
     assert.ok(stateText(viewer).includes(catalogs.en.viewer.lost.text));
     // The kept article still gives the heading its values.
     assert.equal(viewer.elements.heading.textContent, article.videoTitle);
@@ -775,24 +591,8 @@ describe("startViewer: operations", () => {
     );
   });
 
-  for (const [name, publish, webhookConfigured] of [
-    ["posted", { state: "posted" }, true],
-    ["posting", { state: "posting" }, true],
-    ["unpostable", { state: "unpostable", reason: "mention" }, true],
-    ["webhook not configured", { state: "not_posted" }, false],
-  ] as const) {
-    it(`sends no publish for a press on the ${name} row, even if the button were enabled`, async () => {
-      const viewer = await showing(doneJob(publish), webhookConfigured);
-      assert.equal(viewer.elements.publish.disabled, true);
-      viewer.elements.publish.disabled = false;
-      viewer.elements.publish.click();
-      await settle();
-      assert.equal(viewer.host.count("publish"), 0);
-    });
-  }
-
   it("saves the article's file text unchanged under the title's file name", async () => {
-    const viewer = await showing(doneJob({ state: "not_posted" }));
+    const viewer = await showing(doneJob);
     viewer.elements.save.click();
     assert.deepEqual(viewer.saves.saved, [
       { fileName: articleFileName("Video title", "abc"), text: article.file },
@@ -804,7 +604,7 @@ describe("startViewer: operations", () => {
   });
 
   it("copies the display Markdown and says so, without moving focus", async () => {
-    const viewer = await showing(doneJob({ state: "not_posted" }));
+    const viewer = await showing(doneJob);
     const focused = viewer.doc.activeElement;
     viewer.elements.copy.click();
     await settle();
@@ -825,7 +625,7 @@ describe("startViewer: operations", () => {
           finishCopy = resolve;
         }),
     });
-    await viewer.host.answer(statusReply(doneJob({ state: "not_posted" })));
+    await viewer.host.answer(statusReply(doneJob));
     // A done job whose polling stopped restarts on a take-over.
     await post(viewer, { type: "find", queryId, key });
     await post(viewer, takeOver());
@@ -841,7 +641,7 @@ describe("startViewer: operations", () => {
   });
 
   it("says when the copy fails", async () => {
-    const viewer = await showing(doneJob({ state: "not_posted" }));
+    const viewer = await showing(doneJob);
     viewer.clipboard.fail();
     viewer.elements.copy.click();
     await settle();
@@ -859,7 +659,7 @@ describe("startViewer: operations", () => {
       });
       await viewer.host.answer(
         statusReply({
-          ...doneJob({ state: "not_posted" }),
+          ...doneJob,
           article: { ...article, mentionsNeutralized: true },
         }),
       );
@@ -877,7 +677,7 @@ describe("startViewer: operations", () => {
 
   it("does not say a failed copy neutralized mentions", async () => {
     const viewer = await showing({
-      ...doneJob({ state: "not_posted" }),
+      ...doneJob,
       article: { ...article, mentionsNeutralized: true },
     });
     viewer.clipboard.fail();
@@ -892,7 +692,7 @@ describe("startViewer: operations", () => {
   // The viewer has no copy listener: a reader's own copy of a selection
   // must not touch the operation result's region.
   it("leaves the operation result alone when the reader copies a selection", async () => {
-    const viewer = await showing(doneJob({ state: "not_posted" }));
+    const viewer = await showing(doneJob);
     viewer.elements.save.click();
     const status = viewer.elements.actionStatus;
     const before = { text: status.textContent, first: status.firstChild };
@@ -911,7 +711,7 @@ describe("startViewer: operations", () => {
     const older: Json = { ...article };
     delete older.mentionsNeutralized;
     const viewer = await showing({
-      ...doneJob({ state: "not_posted" }),
+      ...doneJob,
       article: older,
     });
     assert.equal(viewer.elements.article.hidden, true);
@@ -938,7 +738,7 @@ describe("startViewer: operations", () => {
     assert.equal(viewer.elements.heading.textContent, "Heading");
     await viewer.host.answer(
       statusReply({
-        ...doneJob({ state: "not_posted" }),
+        ...doneJob,
         article: {
           ...article,
           videoTitle: "Live @\u200bhere",
@@ -1004,7 +804,7 @@ describe("startViewer: queries, take-over and logs", () => {
   // status exchange open.
   for (const [name, setup, restarts] of [
     ["a running job", () => showing(runningJob), false],
-    ["a done job", () => showing(doneJob({ state: "posted" })), false],
+    ["a done job", () => showing(doneJob), false],
     [
       "a first status still awaited after a retryable failure",
       async () => {
@@ -1038,8 +838,11 @@ describe("startViewer: queries, take-over and logs", () => {
     [
       "a done job whose polling stopped",
       async () => {
-        const viewer = await showing(doneJob({ state: "posting" }));
-        viewer.clock.advance(pollIntervalMs);
+        // A done job stops polling at once; a take-over that goes on fetches
+        // again, and that fetch is rejected.
+        const viewer = await showing(doneJob);
+        await post(viewer, { type: "find", queryId, key });
+        await post(viewer, takeOver());
         await viewer.host.answer(statusRejected);
         return viewer;
       },
@@ -1178,13 +981,10 @@ describe("startViewer: queries, take-over and logs", () => {
     });
     await viewer.host.answer(
       statusReply({
-        ...doneJob({ state: "not_posted" }),
+        ...doneJob,
         article: { ...article, markdown: marker, file: marker },
       }),
     );
-    viewer.elements.publish.click();
-    await settle();
-    await viewer.host.answer(publishAccepted);
     await post(viewer, { type: "find", queryId, key: markedKey });
     await post(viewer, takeOver());
     await viewer.host.answer({ kind: "failed", lastError: "host exited" });
@@ -1193,7 +993,6 @@ describe("startViewer: queries, take-over and logs", () => {
       ...viewer.logger.errors,
     ]);
     assert.ok(logged.includes("yt2column status result"));
-    assert.ok(logged.includes("yt2column publish result"));
     assert.ok(logged.includes("yt2column take over"));
     assert.ok(!logged.includes(marker), logged);
     assert.ok(!logged.includes(watchUrl), logged);

@@ -89,8 +89,6 @@ export function viewerElements(doc = viewerDocument()): ViewerElements {
     stateStatus: byId(doc, "state-status"),
     article: byId(doc, "article"),
     actions: byId(doc, "actions"),
-    publish: button("publish"),
-    publishRow: byId(doc, "publish-row"),
     save: button("save"),
     copy: button("copy"),
     actionStatus: byId(doc, "action-status"),

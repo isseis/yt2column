@@ -164,13 +164,7 @@ describe("job state", () => {
       );
       assert.equal(stepRows(root).length, 3);
       assert.equal(root.querySelector(".job-elapsed"), null);
-      renderJobState(
-        root,
-        doneJob({ state: "not_posted" }),
-        none,
-        { kind: "hidden" },
-        locale,
-      );
+      renderJobState(root, doneJob, none, { kind: "hidden" }, locale);
       assert.equal(
         query(root, ".job-result dd").textContent,
         formatDuration(article.durationMs, locale),
@@ -179,13 +173,7 @@ describe("job state", () => {
 
     it(`shows a done job's time taken and cost instead of the elapsed time in ${locale}`, () => {
       const root = container();
-      renderJobState(
-        root,
-        doneJob({ state: "not_posted" }),
-        none,
-        shown(5_000),
-        locale,
-      );
+      renderJobState(root, doneJob, none, shown(5_000), locale);
       assert.equal(root.querySelector(".job-elapsed"), null);
       assert.ok(article.cost.state === "known");
       assert.deepEqual(
@@ -203,7 +191,7 @@ describe("job state", () => {
     it(`shows the unknown cost's wording in ${locale}`, () => {
       const root = container();
       const job: JobDisplay = {
-        ...doneJob({ state: "not_posted" }),
+        ...doneJob,
         article: { ...article, cost: { state: "unknown" } },
       };
       renderJobState(root, job, none, shown(0), locale);

@@ -17,14 +17,7 @@ const sendSameInputStep =
   "ポップアップから同じ入力をもう一度送信できます。サーバがその記事を生成している間か、生成した記事を持っている間は、生成し直さずにその記事を返します。入力が変わった場合、記事が失敗していた場合、サーバが再起動した場合は、生成し直します。";
 const sendAgainStep =
   "ポップアップから同じ入力をもう一度送信すると、記事を生成し直します。";
-const repeatedPostStep =
-  "この記事の前の版を投稿していた場合、新しい記事を投稿すると Slack で重複します。";
 const checksAgainStep = "状態は自動でもう一度取得します。";
-const setWebhookStep =
-  "yt2column-server の設定ファイルに SLACK_WEBHOOK_URL を書いて、yt2column-server を起動し直してください。";
-const publishUnknownStep = "投稿の状態は自動でもう一度取得します。";
-const publishAgainStep =
-  "もう一度押しても二重に投稿されないのは、サーバが記事を投稿中か投稿済みとして持っている場合だけです。投稿が失敗した後にやり直すと、届いたことを確かめられなかった 1 通が重複することがあります。";
 // Button names a step quotes, kept in one place with the button's own name.
 const generateButton = "記事を生成する";
 const generateFromSelectionButton = "現在の選択範囲で生成する";
@@ -127,22 +120,6 @@ export const ja: Catalog = {
         "ポップアップから記事をもう一度送信してください。",
       ],
     },
-    webhook_not_configured: {
-      text: "サーバに Slack の Webhook が設定されていないため、投稿できません。",
-      steps: [setWebhookStep],
-    },
-    article_not_ready: {
-      text: "記事がまだできていないため、投稿できません。",
-      steps: ["記事が表示されてから投稿してください。"],
-    },
-    article_not_found: {
-      text: "サーバがこの記事をもう持っていないため、投稿できません。",
-      steps: [sendAgainStep, repeatedPostStep],
-    },
-    article_not_postable: {
-      text: "サーバがこの記事の投稿を拒否しました。",
-      steps: [],
-    },
     internal_error: {
       text: "サーバで内部エラーが起きました。",
       steps: ["サーバのログを確かめてください。"],
@@ -200,30 +177,6 @@ export const ja: Catalog = {
         sameVersionStep,
         "ポップアップから記事をもう一度送信してください。",
       ],
-    },
-  },
-  publishExchange: {
-    notSent: {
-      "server-unavailable": {
-        text: "yt2column のサーバに接続できなかったため、記事を投稿していません。",
-        steps: [startServerStep, "その後、もう一度投稿してください。"],
-      },
-      "message-too-large": {
-        text: "ホストが投稿のリクエストを大きすぎるとして拒否したため、記事を投稿していません。",
-        steps: [sameVersionStep],
-      },
-    },
-    noResponse: {
-      text: "サーバが投稿のリクエストに時間内に応答しませんでした。記事を投稿している可能性があります。",
-      steps: [publishUnknownStep, publishAgainStep],
-    },
-    hostFailed: {
-      text: "Native Messaging のホストを起動できなかったか、ホストが応答せずに終了しました。投稿のリクエストはすでに送信された可能性があります。",
-      steps: [installHostStep, publishUnknownStep, publishAgainStep],
-    },
-    unexpected: {
-      text: "投稿のリクエストの応答を解釈できませんでした。サーバは記事を投稿している可能性があります。",
-      steps: [sameVersionStep, publishUnknownStep, publishAgainStep],
     },
   },
   startResult: {
@@ -292,36 +245,6 @@ export const ja: Catalog = {
     skipped: "省略",
     failed: "失敗",
   },
-  publishStates: {
-    not_posted: { text: "まだ Slack に投稿していません。", steps: [] },
-    posting: { text: "Slack に投稿しています…", steps: [] },
-    posted: { text: "Slack に投稿しました。", steps: [] },
-    failed: {
-      text: "前回の Slack への投稿は、終わる前に止まりました。",
-      steps: [
-        "もう一度投稿すると、届かなかった最初のメッセージから送ります。届いたことを確かめられなかった 1 通は、2 度届くことがあります。",
-      ],
-    },
-    unpostable: { text: "この記事は Slack に投稿できません。", steps: [] },
-  },
-  publishReasons: {
-    mention: {
-      text: "記事がメンションを含むため、サーバは投稿しません。",
-      steps: [],
-    },
-    other: {
-      text: "投稿の前のサーバの検査が、記事を拒否しました。",
-      steps: [],
-    },
-    webhook: {
-      text: "Slack がメッセージを受け取ったと返しませんでした。",
-      steps: [],
-    },
-    internal: {
-      text: "投稿のジョブが異常に終わりました。",
-      steps: ["サーバのログを確かめてください。"],
-    },
-  },
   viewer: {
     sending: { text: "リクエストをサーバに送信しています…", steps: [] },
     loading: { text: "記事の状態を読み込んでいます…", steps: [] },
@@ -332,7 +255,7 @@ export const ja: Catalog = {
     running: "記事を生成しています",
     lost: {
       text: "サーバがこの記事をもう持っていません。サーバが再起動したか、記事をキャッシュから捨てました。",
-      steps: [sendAgainStep, repeatedPostStep],
+      steps: [sendAgainStep],
     },
     existing: {
       text: "このビューアは、同じ動画の既存の記事を表示しています。現在の選択範囲から生成した記事ではありません。",
@@ -341,16 +264,11 @@ export const ja: Catalog = {
         `選択肢が表示されたら、「${generateFromSelectionButton}」を選んでください。`,
       ],
     },
-    webhookNotConfigured: {
-      text: "サーバに Slack の Webhook が設定されていません。",
-      steps: [setWebhookStep],
-    },
     videoLink: "YouTube で動画を開く",
     elapsed: "経過時間",
     duration: "所要時間",
     cost: "推定の料金",
     costUnknown: "不明",
-    publish: "Slack に投稿する",
     save: ".md で保存する",
     saved: "ダウンロードを始めました。",
     copy: "Markdown をコピーする",

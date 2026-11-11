@@ -90,7 +90,7 @@ body {
 }
 
 /* A button the user presses: the popup's primary and secondary buttons and
-   the viewer's publish, save and copy buttons. Each is at least 44 CSS pixels
+   the viewer's save and copy buttons. Each is at least 44 CSS pixels
    in both directions. The popup's secondary button replaces the colours in
    style.css. */
 #primary,

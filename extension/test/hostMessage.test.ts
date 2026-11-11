@@ -2,11 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import type { ArticleKey } from "../src/core/articleKey.ts";
-import {
-  publishMessage,
-  startMessage,
-  statusMessage,
-} from "../src/core/hostMessage.ts";
+import { startMessage, statusMessage } from "../src/core/hostMessage.ts";
 import { prepareStartInput } from "../src/core/prepare.ts";
 
 // Tests may assert a branded type to build fixtures.
@@ -34,17 +30,11 @@ describe("host messages", () => {
     });
   }
 
-  const keyMessages = [
-    { op: "status", build: statusMessage },
-    { op: "publish", build: publishMessage },
-  ] as const;
-  for (const { op, build } of keyMessages) {
-    it(`builds the ${op} message for a key`, () => {
-      assert.deepEqual(build(key), {
-        v: 1,
-        op,
-        key: "0123456789abcdef0123456789abcdef",
-      });
+  it("builds the status message for a key", () => {
+    assert.deepEqual(statusMessage(key), {
+      v: 1,
+      op: "status",
+      key: "0123456789abcdef0123456789abcdef",
     });
-  }
+  });
 });

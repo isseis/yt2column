@@ -59,55 +59,8 @@ const (
 	failureReasonEnd                              // not a reason: follows the last one
 )
 
-// PublishState is a completed article's publish state. The zero value is
-// PublishUnpostable, which neither sends nor claims a delivery.
-type PublishState int
-
-// The PublishState values.
-const (
-	PublishUnpostable PublishState = iota // the pre-send checks reject the article
-	PublishNotPosted                      // postable and never posted
-	PublishPosting                        // a post job is sending
-	PublishPosted                         // every message was delivered
-	PublishFailed                         // the last post stopped before the end
-	publishStateEnd                       // not a state: follows the last one
-)
-
-// UnpostableReason is why the pre-send checks reject an article. The zero
-// value is UnpostableOther.
-type UnpostableReason int
-
-// The UnpostableReason values.
-const (
-	UnpostableOther     UnpostableReason = iota // any rejection but a mention
-	UnpostableMention                           // the article contains a mention
-	unpostableReasonEnd                         // not a reason: follows the last one
-)
-
-// PublishFailureReason is why a post failed after it started. The zero value
-// is PublishFailureInternal.
-type PublishFailureReason int
-
-// The PublishFailureReason values.
-const (
-	PublishFailureInternal  PublishFailureReason = iota // unclassified, a panic included
-	PublishFailureWebhook                               // the Webhook did not acknowledge a message
-	publishFailureReasonEnd                             // not a reason: follows the last one
-)
-
 // StageStates returns every StageState value, in declaration order.
 func StageStates() []StageState { return enumerate(stageStateEnd) }
-
-// PublishStates returns every PublishState value, in declaration order.
-func PublishStates() []PublishState { return enumerate(publishStateEnd) }
-
-// UnpostableReasons returns every UnpostableReason value, in declaration
-// order.
-func UnpostableReasons() []UnpostableReason { return enumerate(unpostableReasonEnd) }
-
-// PublishFailureReasons returns every PublishFailureReason value, in
-// declaration order.
-func PublishFailureReasons() []PublishFailureReason { return enumerate(publishFailureReasonEnd) }
 
 // enumerate returns the values from the zero value up to, not including, end.
 func enumerate[E ~int](end E) []E {
@@ -119,18 +72,15 @@ func enumerate[E ~int](end E) []E {
 }
 
 // Snapshot is a copy of one record, taken under the cache's lock. Article is
-// never modified after CompletePostable or CompleteUnpostable stores it, so
-// the pointers it shares with the record are safe to read without the lock.
+// never modified after Complete stores it, so the pointers it shares with the
+// record are safe to read without the lock.
 type Snapshot struct {
-	State          JobState
-	Stages         Stages
-	Failure        FailureReason        // JobFailed only
-	Article        writer.Article       // JobDone only; Review.Revisions is always nil
-	VideoTitle     string               // JobDone only; "" when the start sent none
-	Duration       time.Duration        // JobDone only
-	Publish        PublishState         // JobDone only
-	Unpostable     UnpostableReason     // PublishUnpostable only
-	PublishFailure PublishFailureReason // PublishFailed only
+	State      JobState
+	Stages     Stages
+	Failure    FailureReason  // JobFailed only
+	Article    writer.Article // JobDone only; Review.Revisions is always nil
+	VideoTitle string         // JobDone only; "" when the start sent none
+	Duration   time.Duration  // JobDone only
 }
 
 // record is the cache's value for one key. Every field is guarded by the
@@ -139,9 +89,6 @@ type record struct {
 	// gen changes each time the record is created or restarted; a Run acts
 	// only while it matches.
 	gen uint64
-	// publishGen changes each time BeginPublish starts a post; a PublishRun
-	// acts only while it matches and the record is posting.
-	publishGen uint64
 	// videoID is the video the record's input names, from the Subject that
 	// created or restarted it. Begin compares it only for equality, and no
 	// Snapshot carries it.
@@ -161,13 +108,6 @@ type record struct {
 	// ended, then endSeq for records that ended at the same time.
 	ended  time.Time
 	endSeq uint64
-
-	publish        PublishState
-	unpostable     UnpostableReason
-	publishFailure PublishFailureReason
-	// delivered counts the messages that reached the Webhook in a row from
-	// the first one. A retry starts from this index.
-	delivered int
 }
 
 // snapshot copies the fields the record's state gives meaning to.
@@ -180,13 +120,6 @@ func (r *record) snapshot() Snapshot {
 		s.Article = r.article
 		s.VideoTitle = r.videoTitle
 		s.Duration = r.duration()
-		s.Publish = r.publish
-		switch r.publish {
-		case PublishUnpostable:
-			s.Unpostable = r.unpostable
-		case PublishFailed:
-			s.PublishFailure = r.publishFailure
-		}
 	}
 	return s
 }
@@ -197,14 +130,12 @@ func (r *record) duration() time.Duration {
 	return r.ended.Sub(r.accepted)
 }
 
-// evictable reports whether the limit may drop the record: a running record
-// and a done record being posted are never dropped.
+// evictable reports whether the limit may drop the record: a done or failed
+// record may be dropped, a running one never.
 func (r *record) evictable() bool {
 	switch r.state {
-	case JobFailed:
+	case JobDone, JobFailed:
 		return true
-	case JobDone:
-		return r.publish != PublishPosting
 	default:
 		return false
 	}
@@ -244,9 +175,8 @@ func withoutRevisions(a writer.Article) writer.Article {
 
 // Run is the handle a generation job reports through; its stage methods are
 // the ones writer's progress observer is to call. A Run acts only on the
-// record generation it was issued for: after CompletePostable,
-// CompleteUnpostable, or Fail, or once the record was replaced, every method
-// does nothing. A stage outside the three writer stages is ignored.
+// record generation it was issued for: after Complete or Fail, or once the
+// record was replaced, every method does nothing. A stage outside the three writer stages is ignored.
 type Run struct {
 	cache *Cache
 	key   Key
@@ -285,23 +215,12 @@ func (r *Run) StageFinished(s writer.Stage) { r.setStage(s, StageDone) }
 // StageSkipped marks stage s skipped.
 func (r *Run) StageSkipped(s writer.Stage) { r.setStage(s, StageSkipped) }
 
-// CompletePostable stores a, with Review.Revisions dropped, as done and not
-// posted. It returns the generation's duration as it stored it, and false
-// when the Run is no longer valid and nothing changed.
-func (r *Run) CompletePostable(a writer.Article) (time.Duration, bool) {
-	return r.complete(a, PublishNotPosted, UnpostableOther)
-}
-
-// CompleteUnpostable stores a, with Review.Revisions dropped, as done and
-// unpostable. It returns what CompletePostable returns.
-func (r *Run) CompleteUnpostable(a writer.Article, reason UnpostableReason) (time.Duration, bool) {
-	return r.complete(a, PublishUnpostable, reason)
-}
-
-// complete stores a as done and returns the duration it stored, read under
-// the same lock as the transition: once the lock is released a retry or an
-// eviction may replace the record, so the caller never reads it back.
-func (r *Run) complete(a writer.Article, publish PublishState, reason UnpostableReason) (time.Duration, bool) {
+// Complete stores a, with Review.Revisions dropped, as done. It returns the
+// generation's duration as it stored it, read under the same lock as the
+// transition (once the lock is released a retry or an eviction may replace
+// the record, so the caller never reads it back), and false when the Run is
+// no longer valid and nothing changed.
+func (r *Run) Complete(a writer.Article) (time.Duration, bool) {
 	stored := withoutRevisions(a)
 	r.cache.mu.Lock()
 	defer r.cache.mu.Unlock()
@@ -311,9 +230,6 @@ func (r *Run) complete(a writer.Article, publish PublishState, reason Unpostable
 	}
 	rec.state = JobDone
 	rec.article = stored
-	rec.publish = publish
-	rec.unpostable = reason
-	rec.delivered = 0
 	r.cache.end(rec)
 	return rec.duration(), true
 }
@@ -338,77 +254,4 @@ func (r *Run) Fail(reason FailureReason) (Stages, bool) {
 	rec.failure = reason
 	r.cache.end(rec)
 	return rec.stages, true
-}
-
-// PublishRun is the handle a post job reports through, with the same
-// generation rule as Run: after Finish or Fail, or once the record was
-// replaced, every method but Article and From does nothing. Delivered ignores
-// every index but the first message not yet delivered; the cache does not know
-// the message count, so the caller reports only indexes of the article's
-// messages.
-type PublishRun struct {
-	cache      *Cache
-	key        Key
-	gen        uint64
-	publishGen uint64
-	article    writer.Article
-	from       int
-}
-
-// posting returns the record while the PublishRun is valid, or nil. The
-// caller holds the lock.
-func (p *PublishRun) posting() *record {
-	rec, ok := p.cache.records[p.key]
-	if !ok || rec.gen != p.gen || rec.publishGen != p.publishGen ||
-		rec.state != JobDone || rec.publish != PublishPosting {
-		return nil
-	}
-	return rec
-}
-
-// Article returns the article to post.
-func (p *PublishRun) Article() writer.Article { return p.article }
-
-// From returns the index of the first message not delivered when the post
-// began.
-func (p *PublishRun) From() int { return p.from }
-
-// Delivered records that message index reached the Webhook.
-func (p *PublishRun) Delivered(index int) {
-	p.cache.mu.Lock()
-	defer p.cache.mu.Unlock()
-	rec := p.posting()
-	if rec == nil || index != rec.delivered {
-		return
-	}
-	rec.delivered++
-}
-
-// Finish marks the article posted; the caller calls it once every message
-// was delivered. It returns the number of messages recorded as delivered, read
-// under the same lock as the transition, and false when the PublishRun is no
-// longer valid and nothing changed.
-func (p *PublishRun) Finish() (int, bool) {
-	p.cache.mu.Lock()
-	defer p.cache.mu.Unlock()
-	rec := p.posting()
-	if rec == nil {
-		return 0, false
-	}
-	rec.publish = PublishPosted
-	return rec.delivered, true
-}
-
-// Fail marks the post failed. The delivered messages stay recorded, so a retry
-// starts from the first one not delivered. It returns what Finish returns.
-func (p *PublishRun) Fail(reason PublishFailureReason) (int, bool) {
-	p.cache.mu.Lock()
-	defer p.cache.mu.Unlock()
-	rec := p.posting()
-	if rec == nil {
-		return 0, false
-	}
-	rec.publish = PublishFailed
-	rec.publishFailure = reason
-	return rec.delivered, true
 }

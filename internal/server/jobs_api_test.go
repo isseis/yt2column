@@ -119,7 +119,7 @@ func (ts *testServer) seedDone(t *testing.T, body string) articlecache.Key {
 	if begun.Outcome != articlecache.BeginStarted {
 		t.Fatalf("Begin outcome = %d, want started", begun.Outcome)
 	}
-	begun.Run.CompletePostable(testArticle())
+	begun.Run.Complete(testArticle())
 	return subject.Key()
 }
 
@@ -436,39 +436,46 @@ func TestStartCacheFull(t *testing.T) {
 // serve is refused as not_found, closing the connection, whatever the method,
 // without reading a byte of the body or taking a slot: with every generation
 // and reading slot already taken the answer is still not_found, not
-// too_many_requests. No writer or Webhook call and no record follow.
+// too_many_requests. No writer call and no record follow. The removed publish
+// operation's target is one of them.
 func TestUnknownPathTouchesNothing(t *testing.T) {
-	for _, method := range []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete} {
-		t.Run(method, func(t *testing.T) {
-			ts := newJobsTestServer(t, jobsServerOptions{})
-			for range maxInFlight {
-				ts.slots <- struct{}{}
-			}
-			for range maxReading {
-				ts.reading <- struct{}{}
-			}
-			body := &recordingReader{r: strings.NewReader(validBody(testValidVideoURL, testValidRaw))}
-			req := newRequest(method, "/unknown", io.NopCloser(body))
-			rec := ts.serve(req)
-			ts.waitJobs()
-			requireRejected(t, rec, http.StatusNotFound, "not_found")
-			if got := rec.Header().Get("Connection"); got != "close" {
-				t.Errorf("Connection = %q, want close", got)
-			}
-			if body.n != 0 {
-				t.Errorf("read %d bytes of the body, want 0", body.n)
-			}
-			if len(ts.slots) != maxInFlight || len(ts.reading) != maxReading {
-				t.Errorf("slots held: generation %d, reading %d, want the %d and %d the test took",
-					len(ts.slots), len(ts.reading), maxInFlight, maxReading)
-			}
-			if len(ts.writer.Calls) != 0 || len(ts.publisher.PostCalls) != 0 {
-				t.Errorf("side effects: writer=%d post=%d, want none", len(ts.writer.Calls), len(ts.publisher.PostCalls))
-			}
-			if dump := ts.cache.DumpRecordsForTest(); dump != "" {
-				t.Errorf("a rejected request added a record:\n%s", dump)
-			}
-		})
+	targets := map[string]string{
+		"unknown": "/unknown",
+		"publish": JobsPath + "/" + strings.Repeat("0", 64) + "/publish",
+	}
+	for name, target := range targets {
+		for _, method := range []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete} {
+			t.Run(name+"/"+method, func(t *testing.T) {
+				ts := newJobsTestServer(t, jobsServerOptions{})
+				for range maxInFlight {
+					ts.slots <- struct{}{}
+				}
+				for range maxReading {
+					ts.reading <- struct{}{}
+				}
+				body := &recordingReader{r: strings.NewReader(validBody(testValidVideoURL, testValidRaw))}
+				req := newRequest(method, target, io.NopCloser(body))
+				rec := ts.serve(req)
+				ts.waitJobs()
+				requireRejected(t, rec, http.StatusNotFound, "not_found")
+				if got := rec.Header().Get("Connection"); got != "close" {
+					t.Errorf("Connection = %q, want close", got)
+				}
+				if body.n != 0 {
+					t.Errorf("read %d bytes of the body, want 0", body.n)
+				}
+				if len(ts.slots) != maxInFlight || len(ts.reading) != maxReading {
+					t.Errorf("slots held: generation %d, reading %d, want the %d and %d the test took",
+						len(ts.slots), len(ts.reading), maxInFlight, maxReading)
+				}
+				if len(ts.writer.Calls) != 0 {
+					t.Errorf("side effects: writer=%d, want none", len(ts.writer.Calls))
+				}
+				if dump := ts.cache.DumpRecordsForTest(); dump != "" {
+					t.Errorf("a rejected request added a record:\n%s", dump)
+				}
+			})
+		}
 	}
 }
 
@@ -495,6 +502,7 @@ func TestJobsTargetRejections(t *testing.T) {
 		allow   string
 		closeIt bool
 	}{
+		{"publish", http.MethodPost, JobsPath + "/" + key + "/publish", http.StatusNotFound, "not_found", "", true},
 		{"publish_extra_segment", http.MethodGet, JobsPath + "/" + key + "/publish/x", http.StatusNotFound, "not_found", "", true},
 		{"other_segment", http.MethodGet, JobsPath + "/" + key + "/x", http.StatusNotFound, "not_found", "", true},
 		{"status_query", http.MethodGet, JobsPath + "/" + key + "?x", http.StatusNotFound, "not_found", "", true},
@@ -681,8 +689,8 @@ func sameVideoAnswer(t *testing.T, rec *httptest.ResponseRecorder) (key, request
 // TestStartInquirySameVideo checks that an inquiry start for a video that
 // already has a done or a running article under another key is answered
 // with that article's key, whichever URL form names the video and whichever
-// of the transcript and the metadata differs: no generation, no Webhook call,
-// no change to the cache, and one log line that carries the fixed attributes
+// of the transcript and the metadata differs: no generation, no change to the
+// cache, and one log line that carries the fixed attributes
 // and neither the request's URL string nor its text.
 func TestStartInquirySameVideo(t *testing.T) {
 	const sentURL = "https://youtu.be/" + testVideoID
@@ -739,9 +747,6 @@ func TestStartInquirySameVideo(t *testing.T) {
 			}
 			if calls := len(ts.writer.RecordedCalls()); calls != 1 {
 				t.Errorf("writer calls = %d, want only the existing article's 1", calls)
-			}
-			if posts := len(ts.publisher.RecordedPostCalls()); posts != 0 {
-				t.Errorf("Webhook posts = %d, want 0", posts)
 			}
 			wantSlots := 0
 			if tc.running {

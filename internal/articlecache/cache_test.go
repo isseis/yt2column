@@ -93,27 +93,16 @@ func begin(t *testing.T, c *Cache, subject Subject) *Run {
 	return got.Run
 }
 
-// done starts subject and completes it as postable.
+// done starts subject and completes it.
 func done(t *testing.T, c *Cache, subject Subject) {
 	t.Helper()
-	begin(t, c, subject).CompletePostable(testArticle("t"))
+	begin(t, c, subject).Complete(testArticle("t"))
 }
 
 // failed starts subject and fails it.
 func failed(t *testing.T, c *Cache, subject Subject) {
 	t.Helper()
 	begin(t, c, subject).Fail(FailureLLM)
-}
-
-// posting starts subject, completes it, and begins its post.
-func posting(t *testing.T, c *Cache, subject Subject) *PublishRun {
-	t.Helper()
-	done(t, c, subject)
-	outcome, pub := c.BeginPublish(subject.Key())
-	if outcome != PublishBeginStarted {
-		t.Fatalf("BeginPublish outcome = %v, want started", outcome)
-	}
-	return pub
 }
 
 func TestNewOptions(t *testing.T) {
@@ -127,7 +116,7 @@ func TestNewOptions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New(Capacity 1) error = %v", err)
 	}
-	begin(t, c, testSubject(1)).CompletePostable(testArticle("t"))
+	begin(t, c, testSubject(1)).Complete(testArticle("t"))
 	if got := c.Lookup(testKey(1)).Duration; got < 0 || got > time.Minute {
 		t.Errorf("Duration with the default clock = %v, want a short non-negative value", got)
 	}
@@ -194,22 +183,13 @@ func testBeginExistingDoesNotAcquire(t *testing.T) {
 	c, _ := newTestCache(t, 10)
 	begin(t, c, testSubject(1))
 	done(t, c, testSubject(2))
-	posting(t, c, testSubject(3))
-	pub := posting(t, c, testSubject(4))
-	pub.Finish()
-	pub = posting(t, c, testSubject(5))
-	pub.Fail(PublishFailureWebhook)
 
 	cases := map[string]struct {
 		subject Subject
 		state   JobState
-		publish PublishState
 	}{
-		"running":        {testSubject(1), JobRunning, PublishUnpostable},
-		"not posted":     {testSubject(2), JobDone, PublishNotPosted},
-		"posting":        {testSubject(3), JobDone, PublishPosting},
-		"posted":         {testSubject(4), JobDone, PublishPosted},
-		"publish failed": {testSubject(5), JobDone, PublishFailed},
+		"running": {testSubject(1), JobRunning},
+		"done":    {testSubject(2), JobDone},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -222,8 +202,8 @@ func testBeginExistingDoesNotAcquire(t *testing.T) {
 			if *calls != 0 {
 				t.Errorf("acquire calls = %d, want 0", *calls)
 			}
-			if before.State != tc.state || before.Publish != tc.publish {
-				t.Fatalf("setup Lookup = %+v, want state %v and publish %v", before, tc.state, tc.publish)
+			if before.State != tc.state {
+				t.Fatalf("setup Lookup = %+v, want state %v", before, tc.state)
 			}
 			if after := c.Lookup(tc.subject.Key()); after != before {
 				t.Errorf("Lookup after Begin = %+v, want unchanged %+v", after, before)
@@ -265,7 +245,7 @@ func TestDurationFromAcceptance(t *testing.T) {
 	// The duration counts from the restart's acceptance, not the first one's.
 	restarted := begin(t, c, testSubject(1))
 	clock.Advance(3 * time.Second)
-	restarted.CompletePostable(testArticle("t"))
+	restarted.Complete(testArticle("t"))
 	if got := c.Lookup(testKey(1)).Duration; got != 3*time.Second {
 		t.Errorf("Duration = %v, want 3s from the restart", got)
 	}
@@ -280,7 +260,7 @@ func TestSnapshotVideoTitle(t *testing.T) {
 			in := baseKeyInput()
 			in.Title = title
 			subject := NewKeyer(testSecret).Subject(in)
-			begin(t, c, subject).CompletePostable(testArticle("an article title"))
+			begin(t, c, subject).Complete(testArticle("an article title"))
 			if got := c.Lookup(subject.Key()).VideoTitle; got != title {
 				t.Errorf("VideoTitle = %q, want %q", got, title)
 			}
@@ -291,7 +271,7 @@ func TestSnapshotVideoTitle(t *testing.T) {
 func TestBeginFullChangesNothing(t *testing.T) {
 	c, _ := newTestCache(t, 2)
 	begin(t, c, testSubject(1))
-	posting(t, c, testSubject(2))
+	begin(t, c, testSubject(2))
 	acquire, calls := countingAcquire(true)
 	if got := c.Begin(testSubject(3), StartPlain, acquire); got != (BeginResult{}) {
 		t.Fatalf("Begin = %+v; want BeginFull only", got)
@@ -299,7 +279,7 @@ func TestBeginFullChangesNothing(t *testing.T) {
 	if *calls != 0 {
 		t.Errorf("acquire calls = %d, want 0", *calls)
 	}
-	if c.Lookup(testKey(1)).State != JobRunning || c.Lookup(testKey(2)).Publish != PublishPosting ||
+	if c.Lookup(testKey(1)).State != JobRunning || c.Lookup(testKey(2)).State != JobRunning ||
 		c.Lookup(testKey(3)).State != JobUnknown {
 		t.Error("BeginFull changed a record or added one")
 	}
@@ -315,7 +295,7 @@ func TestEvictionOrder(t *testing.T) {
 		clock.Advance(time.Second)
 		second.Fail(FailureLLM)
 		clock.Advance(time.Second)
-		first.CompletePostable(testArticle("t"))
+		first.Complete(testArticle("t"))
 		clock.Advance(5 * time.Second)
 		begin(t, c, testSubject(3))
 
@@ -328,7 +308,7 @@ func TestEvictionOrder(t *testing.T) {
 			t.Error("the evicted record is still held")
 		}
 		evicted = c.Begin(testSubject(5), StartPlain, always).Evicted
-		want = Eviction{Key: testKey(1), State: JobDone, Publish: PublishNotPosted, Age: 5 * time.Second}
+		want = Eviction{Key: testKey(1), State: JobDone, Age: 5 * time.Second}
 		if evicted == nil || *evicted != want {
 			t.Fatalf("second evicted = %+v, want %+v", evicted, want)
 		}
@@ -344,7 +324,7 @@ func TestEvictionOrder(t *testing.T) {
 				c, _ := newTestCache(t, 2)
 				runs := map[int]*Run{1: begin(t, c, testSubject(1)), 2: begin(t, c, testSubject(2))}
 				runs[firstEnded].Fail(FailureLLM)
-				runs[3-firstEnded].CompletePostable(testArticle("t"))
+				runs[3-firstEnded].Complete(testArticle("t"))
 				evicted := c.Begin(testSubject(3), StartPlain, always).Evicted
 				if evicted == nil || evicted.Key != testKey(firstEnded) {
 					t.Fatalf("evicted = %+v, want key %d, which ended first at the same time", evicted, firstEnded)
@@ -354,22 +334,14 @@ func TestEvictionOrder(t *testing.T) {
 	})
 }
 
-func TestEvictionKeepsRunningAndPosting(t *testing.T) {
+func TestEvictionKeepsRunning(t *testing.T) {
 	cases := map[string]struct {
 		prepare func(*testing.T, *Cache)
 		evicted bool
 	}{
-		"running":    {func(t *testing.T, c *Cache) { begin(t, c, testSubject(1)) }, false},
-		"posting":    {func(t *testing.T, c *Cache) { posting(t, c, testSubject(1)) }, false},
-		"failed":     {func(t *testing.T, c *Cache) { failed(t, c, testSubject(1)) }, true},
-		"not posted": {func(t *testing.T, c *Cache) { done(t, c, testSubject(1)) }, true},
-		"posted":     {func(t *testing.T, c *Cache) { posting(t, c, testSubject(1)).Finish() }, true},
-		"publish failed": {func(t *testing.T, c *Cache) {
-			posting(t, c, testSubject(1)).Fail(PublishFailureWebhook)
-		}, true},
-		"unpostable": {func(t *testing.T, c *Cache) {
-			begin(t, c, testSubject(1)).CompleteUnpostable(testArticle("t"), UnpostableOther)
-		}, true},
+		"running": {func(t *testing.T, c *Cache) { begin(t, c, testSubject(1)) }, false},
+		"failed":  {func(t *testing.T, c *Cache) { failed(t, c, testSubject(1)) }, true},
+		"done":    {func(t *testing.T, c *Cache) { done(t, c, testSubject(1)) }, true},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -417,9 +389,8 @@ func TestRunStages(t *testing.T) {
 
 func TestRunEndsAfterFirstOutcome(t *testing.T) {
 	cases := map[string]func(*Run){
-		"complete postable":   func(r *Run) { r.CompletePostable(testArticle("first")) },
-		"complete unpostable": func(r *Run) { r.CompleteUnpostable(testArticle("first"), UnpostableMention) },
-		"fail":                func(r *Run) { r.Fail(FailureArticleTooLarge) },
+		"complete": func(r *Run) { r.Complete(testArticle("first")) },
+		"fail":     func(r *Run) { r.Fail(FailureArticleTooLarge) },
 	}
 	for name, end := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -430,8 +401,7 @@ func TestRunEndsAfterFirstOutcome(t *testing.T) {
 
 			clock.Advance(time.Hour)
 			run.StageStarted(writer.StageGeneration)
-			run.CompletePostable(testArticle("second"))
-			run.CompleteUnpostable(testArticle("second"), UnpostableOther)
+			run.Complete(testArticle("second"))
 			run.Fail(FailureLLM)
 			if got := c.Lookup(testKey(1)); got != want {
 				t.Errorf("Lookup after later calls = %+v, want unchanged %+v", got, want)
@@ -448,11 +418,11 @@ func TestStaleRunAfterRestart(t *testing.T) {
 
 	// A late call from the first job must not touch the restarted record.
 	old.StageStarted(writer.StageGeneration)
-	old.CompletePostable(testArticle("old"))
+	old.Complete(testArticle("old"))
 	if got := c.Lookup(testKey(1)); got.State != JobRunning || got.Stages != (Stages{}) {
 		t.Fatalf("Lookup after stale calls = %+v, want running and untouched", got)
 	}
-	current.CompletePostable(testArticle("current"))
+	current.Complete(testArticle("current"))
 	if got := c.Lookup(testKey(1)).Article.Title; got != "current" {
 		t.Errorf("Article.Title = %q, want current", got)
 	}
@@ -466,8 +436,7 @@ func TestStaleRunAfterEviction(t *testing.T) {
 
 	// While key 1 is absent, every method does nothing and does not panic.
 	stale.StageStarted(writer.StageGeneration)
-	stale.CompletePostable(testArticle("stale"))
-	stale.CompleteUnpostable(testArticle("stale"), UnpostableOther)
+	stale.Complete(testArticle("stale"))
 	stale.Fail(FailureLLM)
 	if got := c.Lookup(testKey(1)).State; got != JobUnknown {
 		t.Fatalf("Lookup state = %v, want JobUnknown: the stale Run recreated a record", got)
@@ -476,35 +445,9 @@ func TestStaleRunAfterEviction(t *testing.T) {
 	if got := c.Begin(testSubject(1), StartPlain, always); got.Outcome != BeginStarted || got.Evicted == nil {
 		t.Fatalf("Begin = %+v; want key 1 recreated by evicting key 2", got)
 	}
-	stale.CompletePostable(testArticle("stale"))
+	stale.Complete(testArticle("stale"))
 	if got := c.Lookup(testKey(1)).State; got != JobRunning {
 		t.Errorf("Lookup state = %v, want running: the stale Run acted on a new record", got)
-	}
-}
-
-func TestStalePublishRunAfterEviction(t *testing.T) {
-	c, _ := newTestCache(t, 1)
-	stale := posting(t, c, testSubject(1))
-	stale.Fail(PublishFailureWebhook)
-	done(t, c, testSubject(2)) // evicts key 1
-
-	// While key 1 is absent, every method does nothing and does not panic.
-	stale.Delivered(0)
-	stale.Finish()
-	stale.Fail(PublishFailureInternal)
-	if got := c.Lookup(testKey(1)).State; got != JobUnknown {
-		t.Fatalf("Lookup state = %v, want JobUnknown", got)
-	}
-
-	current := posting(t, c, testSubject(1)) // evicts key 2 and recreates key 1, posting
-	stale.Delivered(0)
-	current.Fail(PublishFailureWebhook)
-	if _, retry := c.BeginPublish(testKey(1)); retry.From() != 0 {
-		t.Errorf("From = %d, want 0: the stale PublishRun's Delivered reached a new record", retry.From())
-	}
-	stale.Finish()
-	if got := c.Lookup(testKey(1)).Publish; got != PublishPosting {
-		t.Errorf("Publish = %v, want posting: the stale PublishRun acted on a new record", got)
 	}
 }
 
@@ -517,7 +460,7 @@ func TestCompleteDropsRevisions(t *testing.T) {
 		Revisions: []writer.Revision{{Before: "a", Action: writer.ActionDelete, Evidence: marker}},
 	}
 	article.Shorten = &writer.StepModel{Model: "shorten-model"}
-	begin(t, c, testSubject(1)).CompletePostable(article)
+	begin(t, c, testSubject(1)).Complete(article)
 	article.Shorten.Model = "changed"
 
 	got := c.Lookup(testKey(1))
@@ -528,7 +471,7 @@ func TestCompleteDropsRevisions(t *testing.T) {
 		t.Errorf("stored Shorten = %+v, want a copy the caller cannot change", got.Article.Shorten)
 	}
 	if len(article.Review.Revisions) != 1 {
-		t.Error("CompletePostable modified the caller's article")
+		t.Error("Complete modified the caller's article")
 	}
 	dump := c.DumpRecordsForTest()
 	if strings.Contains(dump, marker) {
@@ -536,106 +479,6 @@ func TestCompleteDropsRevisions(t *testing.T) {
 	}
 	if !strings.Contains(dump, "review-model") {
 		t.Errorf("DumpRecordsForTest does not render the stored article: %s", dump)
-	}
-}
-
-func TestCompleteUnpostable(t *testing.T) {
-	c, _ := newTestCache(t, 1)
-	begin(t, c, testSubject(1)).CompleteUnpostable(testArticle("t"), UnpostableMention)
-	got := c.Lookup(testKey(1))
-	if got.State != JobDone || got.Publish != PublishUnpostable || got.Unpostable != UnpostableMention {
-		t.Errorf("Lookup = %+v, want done and unpostable for a mention", got)
-	}
-}
-
-func TestBeginPublishOutcomes(t *testing.T) {
-	c, _ := newTestCache(t, 10)
-	begin(t, c, testSubject(1))
-	failed(t, c, testSubject(2))
-	begin(t, c, testSubject(3)).CompleteUnpostable(testArticle("t"), UnpostableOther)
-	done(t, c, testSubject(4))
-	posting(t, c, testSubject(5))
-	posting(t, c, testSubject(6)).Finish()
-
-	cases := map[string]struct {
-		key     Key
-		want    PublishBegin
-		publish PublishState // after the call, for done records
-	}{
-		"unknown":    {testKey(9), PublishBeginNoArticle, PublishUnpostable},
-		"running":    {testKey(1), PublishBeginNotReady, PublishUnpostable},
-		"failed":     {testKey(2), PublishBeginNoArticle, PublishUnpostable},
-		"unpostable": {testKey(3), PublishBeginUnpostable, PublishUnpostable},
-		"not posted": {testKey(4), PublishBeginStarted, PublishPosting},
-		"posting":    {testKey(5), PublishBeginAlready, PublishPosting},
-		"posted":     {testKey(6), PublishBeginAlready, PublishPosted},
-	}
-	for name, tc := range cases {
-		t.Run(name, func(t *testing.T) {
-			got, pub := c.BeginPublish(tc.key)
-			if got != tc.want {
-				t.Fatalf("BeginPublish = %v, want %v", got, tc.want)
-			}
-			if (pub != nil) != (tc.want == PublishBeginStarted) {
-				t.Errorf("BeginPublish handle = %v, want one only when started", pub)
-			}
-			if after := c.Lookup(tc.key).Publish; after != tc.publish {
-				t.Errorf("Publish after = %v, want %v", after, tc.publish)
-			}
-		})
-	}
-}
-
-func TestPublishResumeFrom(t *testing.T) {
-	c, _ := newTestCache(t, 1)
-	pub := posting(t, c, testSubject(1))
-	if pub.From() != 0 || pub.Article().Title != "t" {
-		t.Fatalf("first post From = %d, Article.Title = %q; want 0 and t", pub.From(), pub.Article().Title)
-	}
-	pub.Delivered(0)
-	pub.Delivered(1)
-	// A gap, a repeat, and a negative or far index are ignored: only the
-	// next undelivered index counts.
-	for _, index := range []int{3, 1, -1, 1 << 30} {
-		pub.Delivered(index)
-	}
-	pub.Fail(PublishFailureWebhook)
-	if got := c.Lookup(testKey(1)); got.Publish != PublishFailed || got.PublishFailure != PublishFailureWebhook {
-		t.Fatalf("Lookup = %+v, want publish failed by the Webhook", got)
-	}
-	// A handle that has failed no longer records deliveries.
-	pub.Delivered(2)
-
-	// The retry starts at the first message not delivered.
-	outcome, retry := c.BeginPublish(testKey(1))
-	if outcome != PublishBeginStarted || retry.From() != 2 {
-		t.Fatalf("retry = %v, From %d; want started from 2", outcome, retry.From())
-	}
-	// The ended handle no longer acts.
-	pub.Delivered(2)
-	retry.Fail(PublishFailureWebhook)
-	outcome, retry = c.BeginPublish(testKey(1))
-	if outcome != PublishBeginStarted || retry.From() != 2 {
-		t.Fatalf("retry after a stale Delivered = %v, From %d; want started from 2", outcome, retry.From())
-	}
-	pub.Finish()
-	if got := c.Lookup(testKey(1)).Publish; got != PublishPosting {
-		t.Fatalf("Publish after a stale Finish = %v, want posting", got)
-	}
-
-	retry.Delivered(2)
-	retry.Fail(PublishFailureInternal)
-	_, again := c.BeginPublish(testKey(1))
-	if again.From() != 3 {
-		t.Errorf("From after an internal failure = %d, want 3: delivered messages are kept", again.From())
-	}
-	again.Finish()
-	if got := c.Lookup(testKey(1)).Publish; got != PublishPosted {
-		t.Errorf("Publish = %v, want posted", got)
-	}
-	again.Fail(PublishFailureWebhook)
-	if got := c.Lookup(testKey(1)).Publish; got != PublishPosted {
-		t.Errorf("Publish after Fail on a finished handle = %v, want posted", got)
 	}
 }
 
@@ -818,11 +661,11 @@ var sameVideoCases = []sameVideoCase{
 		subject: testSubject(2), slot: true, inquiry: BeginSameVideo, sameKey: testKey(1), plain: BeginStarted,
 	},
 	{
-		// A running record and a posting one cannot be dropped.
+		// Running records cannot be dropped.
 		name: "no evictable record", capacity: 2,
 		prepare: func(t *testing.T, c *Cache, _ *fakeClock) {
 			begin(t, c, testSubject(1))
-			posting(t, c, otherVideoSubject(1))
+			begin(t, c, otherVideoSubject(1))
 		},
 		subject: testSubject(2), slot: true, inquiry: BeginSameVideo, sameKey: testKey(1), plain: BeginFull,
 	},
@@ -969,11 +812,11 @@ func TestTransitionsReturnTheirValues(t *testing.T) {
 		c, clock := newTestCache(t, 1)
 		run := begin(t, c, testSubject(1))
 		clock.Advance(5 * time.Minute)
-		if d, ok := run.CompletePostable(testArticle("t")); d != 5*time.Minute || !ok {
-			t.Errorf("CompletePostable = %v, %v; want 5m, true", d, ok)
+		if d, ok := run.Complete(testArticle("t")); d != 5*time.Minute || !ok {
+			t.Errorf("Complete = %v, %v; want 5m, true", d, ok)
 		}
-		if d, ok := run.CompleteUnpostable(testArticle("t"), UnpostableOther); d != 0 || ok {
-			t.Errorf("CompleteUnpostable on an ended Run = %v, %v; want 0, false", d, ok)
+		if d, ok := run.Complete(testArticle("t")); d != 0 || ok {
+			t.Errorf("Complete on an ended Run = %v, %v; want 0, false", d, ok)
 		}
 		if st, ok := run.Fail(FailureLLM); st != (Stages{}) || ok {
 			t.Errorf("Fail on an ended Run = %+v, %v; want zero, false", st, ok)
@@ -981,8 +824,8 @@ func TestTransitionsReturnTheirValues(t *testing.T) {
 
 		retry := begin(t, c, testSubject(2)) // evicts key 1
 		clock.Advance(time.Minute)
-		if d, ok := retry.CompleteUnpostable(testArticle("t"), UnpostableMention); d != time.Minute || !ok {
-			t.Errorf("CompleteUnpostable = %v, %v; want 1m, true", d, ok)
+		if d, ok := retry.Complete(testArticle("t")); d != time.Minute || !ok {
+			t.Errorf("Complete = %v, %v; want 1m, true", d, ok)
 		}
 
 		failing := begin(t, c, testSubject(3)) // evicts key 2
@@ -997,48 +840,4 @@ func TestTransitionsReturnTheirValues(t *testing.T) {
 			t.Errorf("Fail on a replaced Run = %+v, %v; want zero, false", st, ok)
 		}
 	})
-	t.Run("publish_run", func(t *testing.T) {
-		c, _ := newTestCache(t, 1)
-		pub := posting(t, c, testSubject(1))
-		pub.Delivered(0)
-		pub.Delivered(1)
-		if n, ok := pub.Fail(PublishFailureWebhook); n != 2 || !ok {
-			t.Errorf("Fail = %d, %v; want 2, true", n, ok)
-		}
-		if n, ok := pub.Finish(); n != 0 || ok {
-			t.Errorf("Finish on an ended PublishRun = %d, %v; want 0, false", n, ok)
-		}
-		_, retry := c.BeginPublish(testKey(1))
-		retry.Delivered(2)
-		if n, ok := retry.Finish(); n != 3 || !ok {
-			t.Errorf("Finish = %d, %v; want 3, true", n, ok)
-		}
-		if n, ok := retry.Fail(PublishFailureInternal); n != 0 || ok {
-			t.Errorf("Fail on an ended PublishRun = %d, %v; want 0, false", n, ok)
-		}
-	})
-}
-
-func TestBeginPublishConcurrentStartsOnce(t *testing.T) {
-	c, _ := newTestCache(t, 1)
-	done(t, c, testSubject(1))
-	var started, already atomic.Int32
-	var wg sync.WaitGroup
-	gate := make(chan struct{})
-	for range 16 {
-		wg.Go(func() {
-			<-gate
-			switch outcome, _ := c.BeginPublish(testKey(1)); outcome {
-			case PublishBeginStarted:
-				started.Add(1)
-			case PublishBeginAlready:
-				already.Add(1)
-			}
-		})
-	}
-	close(gate)
-	wg.Wait()
-	if started.Load() != 1 || already.Load() != 15 {
-		t.Errorf("started %d, already %d; want 1, 15", started.Load(), already.Load())
-	}
 }

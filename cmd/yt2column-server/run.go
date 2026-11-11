@@ -7,14 +7,11 @@ import (
 	"io"
 	"log/slog"
 	"sync"
-	"time"
 
 	"github.com/isseis/yt2column/internal/config"
 	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/llm/provider"
-	"github.com/isseis/yt2column/internal/publisher"
 	"github.com/isseis/yt2column/internal/redact"
-	"github.com/isseis/yt2column/internal/secret"
 	"github.com/isseis/yt2column/internal/server"
 	"github.com/isseis/yt2column/internal/serversock"
 	"github.com/isseis/yt2column/internal/writer"
@@ -39,15 +36,13 @@ const (
 // logger takes over.
 const programName = "yt2column-server"
 
-// deps are the constructors run substitutes in a test: the two LLM clients
-// and the article publisher, the only components that reach the network, and
-// the writer, so a test can observe the options it is built with. main passes
+// deps are the constructors run substitutes in a test: the two LLM clients,
+// the only components that reach the network, and the writer, so a test can observe the options it is built with. main passes
 // productionDeps().
 type deps struct {
 	newLLMClient       func(config.LLMConfig) (llm.LLMClient, error)
 	newReviewLLMClient func(config.LLMConfig) (llm.LLMClient, error)
 	newWriter          func(llm.LLMClient, writer.Options) (writer.ProgressWriter, error)
-	newPublisher       func(webhookURL secret.Secret) (server.WebhookPublisher, error)
 }
 
 // productionDeps returns the real constructors.
@@ -56,19 +51,7 @@ func productionDeps() deps {
 		newLLMClient:       provider.New,
 		newReviewLLMClient: provider.NewReview,
 		newWriter:          writer.NewProgressWriter,
-		newPublisher:       newPublisher,
 	}
-}
-
-// newPublisher builds the SlackWebhookPublisher the server posts with. It
-// returns a nil interface, never a typed nil, when construction fails, so
-// server.New's nil check is not misled.
-func newPublisher(webhookURL secret.Secret) (server.WebhookPublisher, error) {
-	p, err := publisher.NewSlackWebhookPublisher(webhookURL)
-	if err != nil {
-		return nil, err
-	}
-	return p, nil
 }
 
 // writerOptions returns the writer options of the server: the same as a CLI
@@ -187,7 +170,7 @@ func runServer(ctx context.Context, lookup config.LookupFunc, stderr io.Writer, 
 		return exitUsage
 	}
 	llmCfg := cfg.LLM()
-	webhookURL, webhookConfigured := cfg.WebhookURL()
+	webhookURL, _ := cfg.WebhookURL()
 	secrets := redact.SecretStrings(webhookURL, llmCfg.DeepSeekAPIKey(), llmCfg.AnthropicAPIKey(), llmCfg.OpenAIAPIKey())
 	errOut.secrets = secrets
 	if cfg.HTTP2DebugEnabled() {
@@ -218,13 +201,7 @@ func runServer(ctx context.Context, lookup config.LookupFunc, stderr io.Writer, 
 		"socket", cfg.SocketPath(),
 		"model", llmCfg.Generation().Model(),
 		"reviewModel", llmCfg.Review().Model(),
-		"webhookConfigured", webhookConfigured,
 	)
-	if !webhookConfigured {
-		// The server now starts without the Webhook, where it used to stop, so
-		// a forgotten setting has to show up here instead.
-		logger.Warn("no Webhook is configured, so the publish operation answers webhook_not_configured")
-	}
 
 	// 4: serve until ctx is canceled. The stop notice is logged as soon as
 	// the cancellation arrives, while Serve is still waiting for in-flight
@@ -265,20 +242,13 @@ func releaseLock(errOut *stderrWriter, lock *serversock.Lock) {
 	}
 }
 
-// stopNoticeLogger returns the function that logs the stop notice. The wait
-// it names is the longest one post job can take, publisher.SlackMaxPostDuration:
-// the post jobs run in parallel and are never retried by themselves.
+// stopNoticeLogger returns the function that logs the stop notice. A canceled
+// generation ends only when its LLM call returns, so the notice keeps the way
+// to exit without waiting for that.
 func stopNoticeLogger(logger *slog.Logger) func() {
 	return func() {
-		logger.Info(fmt.Sprintf("stopping: the in-flight generations are canceled and their articles lost; the posts sent from the viewer are allowed to finish, which can take up to about %d minutes; send the signal again to exit at once, which drops them",
-			approxMinutes(publisher.SlackMaxPostDuration)))
+		logger.Info("stopping: the in-flight generations are canceled and their articles lost; the server exits once their LLM calls return; send the signal again to exit at once")
 	}
-}
-
-// approxMinutes returns d rounded to the nearest minute, and at least 1, so
-// the stop notice never names 0 minutes.
-func approxMinutes(d time.Duration) int {
-	return max(1, int(d.Round(time.Minute)/time.Minute))
 }
 
 // cancelHook runs f once ctx is canceled. Contract: if ctx was canceled
@@ -333,22 +303,11 @@ func buildServer(d deps, cfg config.ServerConfig, logOutput io.Writer, secrets [
 	if err != nil {
 		return nil, fmt.Errorf("build the article writer: %w", err)
 	}
-	opts := server.Options{
+	srv, err := server.New(server.Options{
 		Writer:    articleWriter,
 		LogOutput: logOutput,
 		Secrets:   secrets,
-	}
-	// A server without SLACK_WEBHOOK_URL still serves the operations that do
-	// not post, so it is built without a publisher: the publish operation
-	// rejects what needs one.
-	if webhookURL, configured := cfg.WebhookURL(); configured {
-		pub, err := d.newPublisher(webhookURL)
-		if err != nil {
-			return nil, fmt.Errorf("build the publisher: %w", err)
-		}
-		opts.Webhook = &server.WebhookOptions{Publisher: pub}
-	}
-	srv, err := server.New(opts)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("build the server: %w", err)
 	}

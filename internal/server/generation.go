@@ -4,11 +4,9 @@ import (
 	"context"
 	"errors"
 	"runtime/debug"
-	"time"
 
 	"github.com/isseis/yt2column/internal/articlecache"
 	"github.com/isseis/yt2column/internal/llm"
-	"github.com/isseis/yt2column/internal/publisher"
 	"github.com/isseis/yt2column/internal/writer"
 )
 
@@ -29,7 +27,7 @@ func (s *Server) startGeneration(run *articlecache.Run, key articlecache.Key, in
 }
 
 // runGeneration generates the article and ends run with the outcome: done
-// (postable or not) after the completion check, or failed with its reason.
+// after the completion check, or failed with its reason.
 // A panic is recovered and fails run as internal, so the record never stays
 // running. A failure that came from genCtx being canceled, which happens only
 // when the server shuts down, is logged as a cancellation, not a failure.
@@ -63,11 +61,8 @@ func (s *Server) runGeneration(run *articlecache.Run, key articlecache.Key, inpu
 //  2. The status response size: an article whose status response, with the
 //     start's video title, could exceed maxStatusResponseBytes fails as too
 //     large, so no response is ever refused for its size.
-//  3. The Slack pre-send checks: an article they refuse is done but
-//     unpostable, with the mention reason when they refused a mention.
 //
-// The third check runs with or without a Webhook: its result depends on the
-// article alone.
+// An article that passes both is done, whatever mentions or length it has.
 func (s *Server) completeGeneration(run *articlecache.Run, key articlecache.Key, input jobInput, article writer.Article) {
 	if err := article.CheckPublishable(); err != nil {
 		s.failGeneration(run, key, input, articlecache.FailureArticleInvalid, err)
@@ -83,19 +78,7 @@ func (s *Server) completeGeneration(run *articlecache.Run, key articlecache.Key,
 		s.failGeneration(run, key, input, articlecache.FailureArticleTooLarge, errStatusTooLarge)
 		return
 	}
-	publish := articlecache.PublishNotPosted
-	var duration time.Duration
-	var ok bool
-	if _, err := publisher.PrepareSlackMessages(article); err != nil {
-		reason := articlecache.UnpostableOther
-		if errors.Is(err, publisher.ErrSlackMention) {
-			reason = articlecache.UnpostableMention
-		}
-		duration, ok = run.CompleteUnpostable(article, reason)
-		publish = articlecache.PublishUnpostable
-	} else {
-		duration, ok = run.CompletePostable(article)
-	}
+	duration, ok := run.Complete(article)
 	if !ok {
 		s.logGenerationEndedElsewhere(key, input)
 		return
@@ -106,7 +89,6 @@ func (s *Server) completeGeneration(run *articlecache.Run, key articlecache.Key,
 		"model", article.Model,
 		"modelVersion", article.ModelVersion,
 		"duration", duration,
-		"publish", publishStateCode(publish),
 	)
 }
 

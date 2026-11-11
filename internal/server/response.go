@@ -25,11 +25,7 @@ const (
 	reasonInvalidBody
 	reasonInvalidVideoURL
 	reasonInvalidTranscript
-	reasonWebhookNotConfigured
 	reasonInvalidKey
-	reasonArticleNotReady
-	reasonArticleNotFound
-	reasonArticleNotPostable
 	// reasonCount is not a reason: it follows the last one, so the tests
 	// enumerate every reason, including one appended later.
 	reasonCount
@@ -53,16 +49,8 @@ func (r rejectReason) reasonValue() string {
 		return "invalid_video_url"
 	case reasonInvalidTranscript:
 		return "invalid_transcript"
-	case reasonWebhookNotConfigured:
-		return "webhook_not_configured"
 	case reasonInvalidKey:
 		return "invalid_key"
-	case reasonArticleNotReady:
-		return "article_not_ready"
-	case reasonArticleNotFound:
-		return "article_not_found"
-	case reasonArticleNotPostable:
-		return "article_not_postable"
 	default:
 		return "internal_error"
 	}
@@ -71,10 +59,8 @@ func (r rejectReason) reasonValue() string {
 // statusCode returns the HTTP status code of the rejection.
 func (r rejectReason) statusCode() int {
 	switch r {
-	case reasonNotFound, reasonArticleNotFound:
+	case reasonNotFound:
 		return http.StatusNotFound
-	case reasonArticleNotReady, reasonArticleNotPostable:
-		return http.StatusConflict
 	case reasonMethodNotAllowed:
 		return http.StatusMethodNotAllowed
 	case reasonTooManyRequests:
@@ -83,8 +69,6 @@ func (r rejectReason) statusCode() int {
 		return http.StatusRequestEntityTooLarge
 	case reasonInvalidBody, reasonInvalidVideoURL, reasonInvalidTranscript, reasonInvalidKey:
 		return http.StatusBadRequest
-	case reasonWebhookNotConfigured:
-		return http.StatusServiceUnavailable
 	default:
 		return http.StatusInternalServerError
 	}
@@ -92,14 +76,13 @@ func (r rejectReason) statusCode() int {
 
 // forceClose reports whether the rejection adds `Connection: close`. Rejections
 // that may leave the body unread (the target and method checks, the slot and
-// size checks, and a publish operation on a server without a Webhook, which is
-// refused before its body is checked) close the connection, so net/http does
+// size checks) close the connection, so net/http does
 // not read and discard the body to reuse it. An internal error from a request
 // ID failure or a recovered panic also closes the connection, but the handlers
 // pass closeConnection directly for those cases rather than using this method.
 func (r rejectReason) forceClose() bool {
 	switch r {
-	case reasonNotFound, reasonMethodNotAllowed, reasonTooManyRequests, reasonBodyTooLarge, reasonWebhookNotConfigured:
+	case reasonNotFound, reasonMethodNotAllowed, reasonTooManyRequests, reasonBodyTooLarge:
 		return true
 	default:
 		return false
@@ -111,21 +94,17 @@ func (r rejectReason) forceClose() bool {
 type rejectDetail string
 
 const (
-	detailNotFound             rejectDetail = "not_found"
-	detailMethodNotAllowed     rejectDetail = "method_not_allowed"
-	detailReadSlot             rejectDetail = "read_slot"
-	detailGenerationSlot       rejectDetail = "generation_slot"
-	detailCacheFull            rejectDetail = "cache_full"
-	detailBodyTooLarge         rejectDetail = "body_too_large"
-	detailInvalidBody          rejectDetail = "invalid_body"
-	detailInvalidVideoURL      rejectDetail = "invalid_video_url"
-	detailInvalidTranscript    rejectDetail = "invalid_transcript"
-	detailWebhookNotConfigured rejectDetail = "webhook_not_configured"
-	detailInvalidKey           rejectDetail = "invalid_key"
-	detailArticleNotReady      rejectDetail = "article_not_ready"
-	detailArticleNotFound      rejectDetail = "article_not_found"
-	detailArticleNotPostable   rejectDetail = "article_not_postable"
-	detailInternalError        rejectDetail = "internal_error"
+	detailNotFound          rejectDetail = "not_found"
+	detailMethodNotAllowed  rejectDetail = "method_not_allowed"
+	detailReadSlot          rejectDetail = "read_slot"
+	detailGenerationSlot    rejectDetail = "generation_slot"
+	detailCacheFull         rejectDetail = "cache_full"
+	detailBodyTooLarge      rejectDetail = "body_too_large"
+	detailInvalidBody       rejectDetail = "invalid_body"
+	detailInvalidVideoURL   rejectDetail = "invalid_video_url"
+	detailInvalidTranscript rejectDetail = "invalid_transcript"
+	detailInvalidKey        rejectDetail = "invalid_key"
+	detailInternalError     rejectDetail = "internal_error"
 )
 
 // rejection is a response the handler writes plus the detail it logs.
@@ -161,11 +140,6 @@ func newRequestID() (string, error) {
 		return "", fmt.Errorf("generate a request ID: %w", err)
 	}
 	return hex.EncodeToString(buf[:]), nil
-}
-
-// writeAccepted writes the 202 response for an accepted request.
-func writeAccepted(w http.ResponseWriter, requestID string) error {
-	return writeJSON(w, http.StatusAccepted, responseBody{Status: "accepted", RequestID: requestID}, nil)
 }
 
 // writeAcceptedKey writes the 202 response for an accepted generation start,

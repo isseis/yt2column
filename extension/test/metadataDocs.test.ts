@@ -55,7 +55,6 @@ describe("video metadata documentation", () => {
       expectPhrases(section, where, [
         ...Object.values(catalog.popup.primary).map((name) => `**${name}**`),
         `**${catalog.popup.secondary}**`,
-        `**${catalog.viewer.publish}**`,
         `**${catalog.viewer.save}**`,
         `**${catalog.viewer.copy}**`,
         `**${catalog.checkNames.selection}**`,

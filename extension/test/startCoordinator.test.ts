@@ -360,7 +360,7 @@ describe("start request sender checks", () => {
 
   it("ignores a start request of another declared type without checking it", async () => {
     const { runtime, native, tabs, logger } = setup();
-    await runtime.send(popupSender, { ...startRequest(), type: "publish" });
+    await runtime.send(popupSender, { ...startRequest(), type: "other" });
     assert.deepEqual(runtime.returned, [false]);
     assert.deepEqual(native.messages, []);
     assert.deepEqual(tabs.calls, []);

@@ -2,8 +2,6 @@ import type { PreflightReason } from "../prepare.ts";
 import type { NotSentCause } from "../exchange.ts";
 import type {
   FailureCode,
-  PublishReason,
-  PublishState,
   ServerRejectReason,
   StepName,
   StepState,
@@ -59,14 +57,12 @@ export interface Catalog {
   // resolved by sending the same input again: the server returns the article
   // of that input while it is generating or done instead of starting it again.
 
-  /** Server rejection reasons of the three operations; one message per reason, whichever operation returned it. */
+  /** Server rejection reasons of the two operations; one message per reason, whichever operation returned it. */
   readonly jobReject: Readonly<Record<ServerRejectReason, Message>>;
   /** The exchange results of a generation start that are not a server response. */
   readonly startExchange: ExchangeMessages;
   /** The exchange results of a status query that are not a server response. */
   readonly statusExchange: ExchangeMessages;
-  /** The exchange results of a publish operation that are not a server response. */
-  readonly publishExchange: ExchangeMessages;
   /** A generation start accepted, and a wait that ended without its result. */
   readonly startResult: {
     readonly accepted: Message;
@@ -78,10 +74,6 @@ export interface Catalog {
   readonly stepNames: Readonly<Record<StepName, string>>;
   /** The word that tells a step's state; given to assistive technology. */
   readonly stepStates: Readonly<Record<StepState, string>>;
-  /** Publish states, shown beside the publish button. */
-  readonly publishStates: Readonly<Record<PublishState, Message>>;
-  /** Publish reasons of a failed or unpostable article. */
-  readonly publishReasons: Readonly<Record<PublishReason, Message>>;
   /** The viewer page's own texts. */
   readonly viewer: {
     readonly sending: Message;
@@ -94,13 +86,11 @@ export interface Catalog {
      * selection, and the steps that generate from it.
      */
     readonly existing: Message;
-    readonly webhookNotConfigured: Message;
     readonly videoLink: string;
     readonly elapsed: string;
     readonly duration: string;
     readonly cost: string;
     readonly costUnknown: string;
-    readonly publish: string;
     readonly save: string;
     readonly saved: string;
     readonly copy: string;

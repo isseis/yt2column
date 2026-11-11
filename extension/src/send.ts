@@ -1,6 +1,6 @@
 // Sends one message to the native messaging host and classifies what came
 // back. Each message is sent exactly once and never retried: a generation
-// start or a publish is sent again only when the user asks for it. Each call
+// start is sent again only when the user asks for it. Each call
 // starts the host for one message and one reply, so no connection stays open
 // while the job runs. Whatever comes back, or does not, becomes a result
 // value, never a thrown error.

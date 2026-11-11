@@ -6,6 +6,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -73,7 +75,7 @@ func TestGenerationStages(t *testing.T) {
 
 // TestGenerationFailedStep checks that a generation that fails in a step is
 // reported failed, with its reason, the failed step marked failed, the steps
-// before it as they were, and no article or publish state.
+// before it as they were, and no article.
 func TestGenerationFailedStep(t *testing.T) {
 	ts := newJobsTestServer(t, jobsServerOptions{})
 	ts.writer.Progress = []writertestutil.FakeProgressStep{
@@ -91,8 +93,8 @@ func TestGenerationFailedStep(t *testing.T) {
 	if got.State != want.State || got.Failure != want.Failure || got.Steps == nil || *got.Steps != *want.Steps {
 		t.Errorf("job = %+v steps %+v, want %+v steps %+v", got, got.Steps, want, want.Steps)
 	}
-	if got.Article != nil || got.Publish != nil {
-		t.Errorf("a failed job carries article %+v and publish %+v, want neither", got.Article, got.Publish)
+	if got.Article != nil {
+		t.Errorf("a failed job carries article %+v, want none", got.Article)
 	}
 	if line := logLine(ts.logs.String(), "generation job failed"); !strings.Contains(line, "failure=llm_truncated") || !strings.Contains(line, "step=review") {
 		t.Errorf("the failure log line = %q, want failure=llm_truncated and step=review", line)
@@ -142,41 +144,81 @@ func TestGenerationUnpublishable(t *testing.T) {
 	}
 }
 
-// TestGenerationUnpostable checks that an article the Slack pre-send checks
-// refuse is done, with its article, and unpostable with the reason the check
-// gives: mention for a mention, other for a body that cannot be split. The
-// check runs the same with and without a Webhook.
-func TestGenerationUnpostable(t *testing.T) {
+// TestGenerationMentionsDone checks that an article is done, with its
+// article, whatever mentions it holds or however long its body is: a body
+// with a Slack mention and a body longer than one Slack message could carry
+// both complete. The success log line carries exactly the key, the video ID,
+// the model, its version, and the duration.
+func TestGenerationMentionsDone(t *testing.T) {
 	tests := []struct {
-		name   string
-		body   string
-		reason string
+		name string
+		body string
 	}{
-		{"mention", "Hello <!channel>.\n", "mention"},
-		{"unsplittable", strings.Repeat(" ", 20000) + "x\n", "other"},
+		{"mention", "Hello <!channel>.\n"},
+		{"longer than one post", strings.Repeat(" ", 20000) + "x\n"},
 	}
 	for _, tc := range tests {
-		for _, noWebhook := range []bool{false, true} {
-			t.Run(fmt.Sprintf("%s/noWebhook=%v", tc.name, noWebhook), func(t *testing.T) {
-				ts := newJobsTestServer(t, jobsServerOptions{noWebhook: noWebhook})
-				article := testArticle()
-				article.Body = tc.body
-				ts.writer.Result = article
-				key := ts.beginGeneration(t, validBody(testValidVideoURL, testValidRaw))
-				ts.waitJobs()
+		t.Run(tc.name, func(t *testing.T) {
+			ts := newJobsTestServer(t, jobsServerOptions{})
+			article := testArticle()
+			article.Body = tc.body
+			ts.writer.Result = article
+			key := ts.beginGeneration(t, validBody(testValidVideoURL, testValidRaw))
+			ts.waitJobs()
 
-				got := ts.statusOf(t, key).Job
-				if got.State != "done" || got.Article == nil {
-					t.Fatalf("job = %+v, want done with the article", got)
+			got := ts.statusOf(t, key).Job
+			if got.State != "done" || got.Article == nil {
+				t.Fatalf("job = %+v, want done with the article", got)
+			}
+			line := logLine(ts.logs.String(), "generation job succeeded")
+			if line == "" {
+				t.Fatalf("no generation job succeeded line in the log:\n%s", ts.logs.String())
+			}
+			want := []string{"duration", "key", "model", "modelVersion", "videoId"}
+			if attrs := logAttrNames(line); !slices.Equal(attrs, want) {
+				t.Errorf("the success log line's attributes = %v, want %v: %q", attrs, want, line)
+			}
+		})
+	}
+}
+
+// TestGenerationOutcomeAfterRecordMovedOn checks that a generation job whose
+// Run is no longer valid when it reports, because its record failed and was
+// restarted meanwhile, records nothing and logs that the record moved on,
+// whether it ends done or failed: the restarted record keeps running.
+func TestGenerationOutcomeAfterRecordMovedOn(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  error
+	}{
+		{"done", nil},
+		{"failed", llm.ErrTruncated},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ts := newJobsTestServer(t, jobsServerOptions{})
+			ts.writer.Err = tc.err
+			input := ts.validInput(t, validBody(testValidVideoURL, testValidRaw))
+			subject := ts.keyer.Subject(input.key)
+			stale := ts.cache.Begin(subject, articlecache.StartPlain, ts.acquireSlot).Run
+			stale.Fail(articlecache.FailureInternal)
+			if again := ts.cache.Begin(subject, articlecache.StartPlain, ts.acquireSlot); again.Outcome != articlecache.BeginRestarted {
+				t.Fatalf("Begin outcome = %d, want restarted", again.Outcome)
+			}
+			ts.startGeneration(stale, subject.Key(), input)
+			ts.waitJobs()
+
+			if got := ts.cache.Lookup(subject.Key()).State; got != articlecache.JobRunning {
+				t.Errorf("the restarted record's state = %d, want running", got)
+			}
+			if line := logLine(ts.logs.String(), "the record moved on"); line == "" {
+				t.Errorf("no record-moved-on line in the log:\n%s", ts.logs.String())
+			}
+			for _, msg := range []string{"generation job succeeded", "generation job failed"} {
+				if line := logLine(ts.logs.String(), msg); line != "" {
+					t.Errorf("the stale job logged %q: %s", msg, line)
 				}
-				if got.Publish == nil || *got.Publish != (statusPublish{State: "unpostable", Reason: tc.reason}) {
-					t.Errorf("publish = %+v, want unpostable with reason %s", got.Publish, tc.reason)
-				}
-				if line := logLine(ts.logs.String(), "generation job succeeded"); !strings.Contains(line, "publish=unpostable") {
-					t.Errorf("the success log line = %q, want publish=unpostable", line)
-				}
-			})
-		}
+			}
+		})
 	}
 }
 
@@ -283,8 +325,8 @@ func TestGenerationPanic(t *testing.T) {
 // TestStatusResponseWithinLimit checks the size limit at its boundary: an
 // article whose largest status response is exactly maxStatusResponseBytes is
 // done, one a byte larger fails as article_too_large, and the done article's
-// status responses fit the limit in every publish state and reason a done
-// record can hold, with the values the server varies at their longest. The
+// status response fits the limit with the values the server varies at their
+// longest. The
 // second case fills the body and the start's video title with '@' units, so
 // the bytes the neutralization adds and the title must both be counted.
 func TestStatusResponseWithinLimit(t *testing.T) {
@@ -293,10 +335,9 @@ func TestStatusResponseWithinLimit(t *testing.T) {
 		videoTitle string // "" sends no title member
 		line       string // the body starts with lines copies of line
 		lines      int
-		postable   bool
 	}{
-		{"plain", "", strings.Repeat("a", 999) + "\n", 120, true},
-		{"mentions and a long title", strings.Repeat("@t ", 1000), strings.Repeat("@a ", 300) + "\n", 40, false},
+		{"plain", "", strings.Repeat("a", 999) + "\n", 120},
+		{"mentions and a long title", strings.Repeat("@t ", 1000), strings.Repeat("@a ", 300) + "\n", 40},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -312,8 +353,8 @@ func TestStatusResponseWithinLimit(t *testing.T) {
 			key := ts.beginGeneration(t, body)
 			ts.waitJobs()
 			snap := ts.cache.Lookup(key)
-			if snap.State != articlecache.JobDone || (tc.postable && snap.Publish != articlecache.PublishNotPosted) {
-				t.Fatalf("the article at the limit: state %d publish %d, want done", snap.State, snap.Publish)
+			if snap.State != articlecache.JobDone {
+				t.Fatalf("the article at the limit: state %d, want done", snap.State)
 			}
 
 			other := newJobsTestServer(t, jobsServerOptions{})
@@ -326,21 +367,14 @@ func TestStatusResponseWithinLimit(t *testing.T) {
 
 			snap.Duration = 1<<63 - 1
 			snap.Stages = articlecache.Stages{Draft: articlecache.StageSkipped, Shorten: articlecache.StageSkipped, Review: articlecache.StageSkipped}
-			// The enumerations are walked as the server walks them; the values
-			// the server varies are this test's own choice of their longest.
-			for _, publish := range articlecache.PublishStates() {
-				for _, unpostable := range articlecache.UnpostableReasons() {
-					for _, failure := range articlecache.PublishFailureReasons() {
-						snap.Publish, snap.Unpostable, snap.PublishFailure = publish, unpostable, failure
-						data, err := renderStatus(strings.Repeat("f", 2*requestIDBytes), false, snap)
-						if err != nil {
-							t.Fatalf("renderStatus: %v", err)
-						}
-						if len(data) > maxStatusResponseBytes {
-							t.Errorf("publish %d/%d/%d: response is %d bytes, over the %d limit", publish, unpostable, failure, len(data), maxStatusResponseBytes)
-						}
-					}
-				}
+			// The values the server varies are this test's own choice of their
+			// longest.
+			data, err := renderStatus(strings.Repeat("f", 2*requestIDBytes), snap)
+			if err != nil {
+				t.Fatalf("renderStatus: %v", err)
+			}
+			if len(data) > maxStatusResponseBytes {
+				t.Errorf("response is %d bytes, over the %d limit", len(data), maxStatusResponseBytes)
 			}
 		})
 	}
@@ -375,6 +409,26 @@ func articlesAtStatusLimit(t *testing.T, videoTitle, start string) (at, over wri
 		t.Fatalf("the larger article's largest status response is %d bytes, want %d", got, maxStatusResponseBytes+1)
 	}
 	return at, over
+}
+
+// logAttrName matches the name of one attribute of a slog text line.
+var logAttrName = regexp.MustCompile(`(?:^| )([A-Za-z][A-Za-z0-9]*)=`)
+
+// logAttrNames returns the sorted names of a slog text line's attributes,
+// without the time, level, and msg the handler adds. It reads the lines these
+// tests write, whose quoted values (the message) hold no word directly
+// followed by "=".
+func logAttrNames(line string) []string {
+	var names []string
+	for _, m := range logAttrName.FindAllStringSubmatch(line, -1) {
+		switch m[1] {
+		case "time", "level", "msg":
+		default:
+			names = append(names, m[1])
+		}
+	}
+	slices.Sort(names)
+	return names
 }
 
 // logLine returns the first line of logs that contains msg, or "".

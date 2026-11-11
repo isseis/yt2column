@@ -11,15 +11,10 @@ import { unexpectedChecks } from "../src/core/exchange.ts";
 import type { ExchangeFailure, UnexpectedCheck } from "../src/core/exchange.ts";
 import type { ExchangeMessages } from "../src/core/i18n/catalog.ts";
 import type { RetryingStatus, StoppingStatus } from "../src/core/jobView.ts";
-import {
-  publishRejectStatus,
-  startRejectStatus,
-  statusRejectStatus,
-} from "../src/core/response.ts";
+import { startRejectStatus, statusRejectStatus } from "../src/core/response.ts";
 import type { RequestId, ServerRejectReason } from "../src/core/response.ts";
 import {
   jobRejectMessage,
-  publishResultMessage,
   startResultMessage,
   statusNoticeMessage,
 } from "../src/core/sendMessages.ts";
@@ -41,7 +36,6 @@ describe("job API messages", () => {
     ...new Set([
       ...Object.keys(startRejectStatus),
       ...Object.keys(statusRejectStatus),
-      ...Object.keys(publishRejectStatus),
     ]),
   ] as ServerRejectReason[];
   const checks = Object.keys(unexpectedChecks) as UnexpectedCheck[];
@@ -81,11 +75,6 @@ describe("job API messages", () => {
       message: (failure, locale) =>
         statusNoticeMessage(failure as RetryingStatus | StoppingStatus, locale),
       section: (catalog) => catalog.statusExchange,
-    },
-    {
-      name: "publish",
-      message: (failure, locale) => publishResultMessage(failure, locale),
-      section: (catalog) => catalog.publishExchange,
     },
   ];
 
@@ -186,13 +175,6 @@ describe("job API messages", () => {
       for (const reason of reasons(statusRejectStatus)) {
         assert.equal(
           statusNoticeMessage({ kind: "rejected", reason, requestId }, locale),
-          catalog.jobReject[reason],
-          reason,
-        );
-      }
-      for (const reason of reasons(publishRejectStatus)) {
-        assert.equal(
-          publishResultMessage({ kind: "rejected", reason, requestId }, locale),
           catalog.jobReject[reason],
           reason,
         );

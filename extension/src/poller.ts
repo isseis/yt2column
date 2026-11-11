@@ -3,9 +3,9 @@
 // next: whatever starts a fetch cancels that timer, and only a reply the
 // page decides to continue after sets a new one, so repeated triggers never
 // fork the chain. Whether to continue is afterStatus's decision; the poller
-// only adds the epochs: a reply to a fetch sent before a take-over or a
-// publish may update the display but never stops polling, and a fetch of the
-// new epoch follows it at once.
+// only adds the epochs: a reply to a fetch sent before a take-over may update
+// the display but never stops polling, and a fetch of the new epoch follows it
+// at once.
 
 import type { ArticleKey } from "./core/articleKey.ts";
 import { statusMessage } from "./core/hostMessage.ts";
@@ -43,7 +43,7 @@ export interface Poller {
   start(): void;
   /** Fetches at once when not in flight and not stopped; used on visibilitychange. */
   fetchNow(): void;
-  /** Starts a new epoch: while a fetch is in flight, its reply cannot stop polling and a new fetch follows at once; when stopped, starts polling. Used after a take-over and a publish. */
+  /** Starts a new epoch: while a fetch is in flight, its reply cannot stop polling and a new fetch follows at once; when stopped, starts polling. Used after a take-over. */
   bumpEpoch(): void;
   stop(): void;
 }

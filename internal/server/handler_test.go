@@ -6,8 +6,6 @@ import (
 	"net/http"
 	"strings"
 	"testing"
-
-	"github.com/isseis/yt2column/internal/articlecache"
 )
 
 // validHTTPRequest builds a generation start that passes the target and
@@ -18,7 +16,7 @@ func validHTTPRequest(t *testing.T) *http.Request {
 }
 
 // TestRejectHeaders checks every target and method rejection: the status and
-// reason, and that no side effect (no writer or publisher call, no record) and
+// reason, and that no side effect (no writer call, no record) and
 // no slot follows.
 func TestRejectHeaders(t *testing.T) {
 	tests := []struct {
@@ -41,9 +39,8 @@ func TestRejectHeaders(t *testing.T) {
 			if body := decodeBody(t, rec); body.Status != "rejected" || body.Reason != tc.reason {
 				t.Errorf("body = %+v, want rejected %s", body, tc.reason)
 			}
-			if len(ts.writer.Calls) != 0 || len(ts.publisher.PostCalls) != 0 {
-				t.Errorf("a rejected request caused a side effect: writer=%d post=%d",
-					len(ts.writer.Calls), len(ts.publisher.PostCalls))
+			if len(ts.writer.Calls) != 0 {
+				t.Errorf("a rejected request caused a side effect: writer=%d", len(ts.writer.Calls))
 			}
 			if dump := ts.cache.DumpRecordsForTest(); dump != "" {
 				t.Errorf("a rejected request added a record:\n%s", dump)
@@ -93,59 +90,39 @@ func TestRejectStatusCodes(t *testing.T) {
 		reason string
 		allow  bool
 		close  bool
-		// noWebhook builds the server without SLACK_WEBHOOK_URL, as run does.
-		noWebhook bool
 	}{
 		{"not_found", func(_ *testing.T, _ *testServer) *http.Request {
 			return newRequest(http.MethodPost, "/nope", strings.NewReader("{}"))
-		}, http.StatusNotFound, "not_found", false, true, false},
+		}, http.StatusNotFound, "not_found", false, true},
 		{"method_not_allowed", func(_ *testing.T, _ *testServer) *http.Request {
 			return newRequest(http.MethodGet, JobsPath, nil)
-		}, http.StatusMethodNotAllowed, "method_not_allowed", true, true, false},
+		}, http.StatusMethodNotAllowed, "method_not_allowed", true, true},
 		{"too_many_requests", func(t *testing.T, ts *testServer) *http.Request {
 			ts.slots <- struct{}{}
 			ts.slots <- struct{}{}
 			return validHTTPRequest(t)
-		}, http.StatusTooManyRequests, "too_many_requests", false, true, false},
+		}, http.StatusTooManyRequests, "too_many_requests", false, true},
 		{"body_too_large", func(t *testing.T, _ *testServer) *http.Request {
 			req := validHTTPRequest(t)
 			req.ContentLength = maxBodyBytes + 1
 			return req
-		}, http.StatusRequestEntityTooLarge, "body_too_large", false, true, false},
+		}, http.StatusRequestEntityTooLarge, "body_too_large", false, true},
 		{"invalid_body", func(_ *testing.T, _ *testServer) *http.Request {
 			return newRequest(http.MethodPost, JobsPath, strings.NewReader(`{"videoUrl":1,"transcript":"0:00\nHello\n","mode":"plain"}`))
-		}, http.StatusBadRequest, "invalid_body", false, false, false},
+		}, http.StatusBadRequest, "invalid_body", false, false},
 		{"invalid_video_url", func(t *testing.T, _ *testServer) *http.Request {
 			return rejectRequest(t, validBody("http://example.com/video", testValidRaw))
-		}, http.StatusBadRequest, "invalid_video_url", false, false, false},
+		}, http.StatusBadRequest, "invalid_video_url", false, false},
 		{"invalid_transcript", func(t *testing.T, _ *testServer) *http.Request {
 			return rejectRequest(t, validBody(testValidVideoURL, "not a transcript"))
-		}, http.StatusBadRequest, "invalid_transcript", false, false, false},
-		{"webhook_not_configured", func(t *testing.T, ts *testServer) *http.Request {
-			return newRequest(http.MethodPost, publishTarget(publishTestKey(t, ts).String()), nil)
-		}, http.StatusServiceUnavailable, "webhook_not_configured", false, true, true},
+		}, http.StatusBadRequest, "invalid_transcript", false, false},
 		{"invalid_key", func(_ *testing.T, _ *testServer) *http.Request {
 			return newRequest(http.MethodGet, JobsPath+"/not-a-key", nil)
-		}, http.StatusBadRequest, "invalid_key", false, false, false},
-		{"article_not_ready", func(t *testing.T, ts *testServer) *http.Request {
-			ts.cache.Begin(publishTestSubject(t, ts), articlecache.StartPlain, func() bool { return true })
-			return newRequest(http.MethodPost, publishTarget(publishTestKey(t, ts).String()), nil)
-		}, http.StatusConflict, "article_not_ready", false, false, false},
-		{"article_not_found", func(t *testing.T, ts *testServer) *http.Request {
-			return newRequest(http.MethodPost, publishTarget(publishTestKey(t, ts).String()), nil)
-		}, http.StatusNotFound, "article_not_found", false, false, false},
-		{"article_not_postable", func(t *testing.T, ts *testServer) *http.Request {
-			run := ts.cache.Begin(publishTestSubject(t, ts), articlecache.StartPlain, func() bool { return true }).Run
-			run.CompleteUnpostable(testArticle(), articlecache.UnpostableMention)
-			return newRequest(http.MethodPost, publishTarget(publishTestKey(t, ts).String()), nil)
-		}, http.StatusConflict, "article_not_postable", false, false, false},
+		}, http.StatusBadRequest, "invalid_key", false, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ts := newTestServer(t)
-			if tc.noWebhook {
-				ts = newJobsTestServer(t, jobsServerOptions{noWebhook: true})
-			}
 			rec := ts.serve(tc.build(t, ts))
 			ts.waitJobs()
 			if rec.Code != tc.status {

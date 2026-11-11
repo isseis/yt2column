@@ -5,7 +5,6 @@
 import type { JobDisplay } from "../../src/core/jobView.ts";
 import type {
   Article,
-  PublishStatus,
   RequestId,
   Steps,
   UsdAmount,
@@ -35,16 +34,9 @@ export const article: Article = {
   durationMs: 65_000,
 };
 
-/** A done job as displayed, with the given publish status and Webhook setting. */
-export function doneJob(
-  publish: PublishStatus,
-  webhookConfigured = true,
-): Extract<JobDisplay, { kind: "done" }> {
-  return {
-    kind: "done",
-    steps: doneSteps,
-    article,
-    publish,
-    webhookConfigured,
-  };
-}
+/** A done job as displayed. */
+export const doneJob: Extract<JobDisplay, { kind: "done" }> = {
+  kind: "done",
+  steps: doneSteps,
+  article,
+};

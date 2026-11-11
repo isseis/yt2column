@@ -4,8 +4,6 @@ import { describe, it } from "node:test";
 import {
   failureCodes,
   jobStates,
-  publishReasons,
-  publishStates,
   stepNames,
   stepStates,
 } from "../src/core/response.ts";
@@ -50,8 +48,6 @@ describe("job codes match the development guide", () => {
     { header: jobCodeTables.step, codes: stepNames },
     { header: jobCodeTables.stepState, codes: stepStates },
     { header: jobCodeTables.failure, codes: failureCodes },
-    { header: jobCodeTables.publishState, codes: publishStates },
-    { header: jobCodeTables.publishReason, codes: publishReasons },
   ];
 
   for (const { header, codes } of sets) {
