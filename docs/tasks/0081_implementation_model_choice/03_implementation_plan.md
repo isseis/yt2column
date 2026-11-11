@@ -136,32 +136,32 @@
 
 **変更するファイル:** `.claude/commands/_context.md`、`.claude/commands/_lib/opus-review.md`、`.claude/commands/_lib/opus-review-decision.sh`（新規）、`.claude/commands/runplan.md`、`.claude/commands/runpr.md`、`.claude/commands/_lib/task-pr-handoff.md`、`CLAUDE.md`、`docs/dev/adr/0042-implementation-model-tiers.md`、`docs/tasks/0081_implementation_model_choice/_checks/decision_cases.sh`（新規）、本計画
 
--   [ ] **ステップ 2-1**: `_context.md` の PR marker conventions の `:64` の項目を、設計書 3.1 の 5 つ（値・値の場所・読み方・読み替えの表・読んだ結果から勧めるモデルへの対応）に置き換える（AC-09、AC-37 の読む側）。1 の「値を書くコマンド」には、この PR では `mkplan2.md` step 4 だけを挙げる。単一フェーズの計画書を書く `mkplan.md` は、PR-3 で足す（ステップ 3-4）。値の読み方の節は、それを実行する形として判断のスクリプトを名指す。`_context.md` は英語の文書なので、読み替えの表の見出しも英語で書く（判断のスクリプトは表の見出しと照合しない）。
--   [ ] **ステップ 2-2**: 判断のスクリプト `_lib/opus-review-decision.sh` を書く（設計書 3.5.1、3.5.2、§1.3 の決定 1・3・5・7）。
+-   [x] **ステップ 2-1**: `_context.md` の PR marker conventions の `:64` の項目を、設計書 3.1 の 5 つ（値・値の場所・読み方・読み替えの表・読んだ結果から勧めるモデルへの対応）に置き換える（AC-09、AC-37 の読む側）。1 の「値を書くコマンド」には、この PR では `mkplan2.md` step 4 だけを挙げる。単一フェーズの計画書を書く `mkplan.md` は、PR-3 で足す（ステップ 3-4）。値の読み方の節は、それを実行する形として判断のスクリプトを名指す。`_context.md` は英語の文書なので、読み替えの表の見出しも英語で書く（判断のスクリプトは表の見出しと照合しない）。
+-   [x] **ステップ 2-2**: 判断のスクリプト `_lib/opus-review-decision.sh` を書く（設計書 3.5.1、3.5.2、§1.3 の決定 1・3・5・7）。
     -   引数は PLAN・TARGET（`### PR-N 作成ポイント` の `N` か `single`）・BASE。出力は `RUN`・`NONE <reason>`・`SKIP <done-line>` の 1 行と、`SKIP` のときに続く commit の一覧。どの失敗でも `RUN` を出力する。
     -   値は、`origin/main` の PLAN と `HEAD` の PLAN（`git show HEAD:<PLAN>`）の両方から、設計書 3.1 の場所と読み方で読む。計画書のフェンスで囲まれたコードブロックの中は読まない（差分の記録の中身を値の行として読まないため）。旧い値は、`origin/main` の `_context.md` の読み替えの表で読む。
     -   完了の記録と実装の記録は、記録の行の形（設計書 3.4）に完全に合う行だけを読む。除いてよい commit の定義は、設計書の冒頭のとおりである。
     -   冒頭のコメントで、規則の正本（値の読み方と読み替えの表は `_context.md`、記録の行の形と Opus かどうかの規則は `_lib/opus-review.md` の「Record lines」）を名指す。
--   [ ] **ステップ 2-3**: `_lib/opus-review.md` に、実装の記録（`Implementation model:`）と完了の記録（`Opus review: done`）の形、除いてよい commit の定義、入口 1 を足す（設計書 3.4、3.5.1、3.5.2）。入口 1 は、判断のスクリプトの `origin/main` のコピーを作業ツリーの外に取り出して `bash` で走らせること（§1.3 の決定 6）と、取り出せないとき・出力が決まった形でないとき・終了コードが 0 でないときは `RUN` とすることを定める。「Record lines」の節は、判断のスクリプトがそれを読む実行の形であることを名指し、記録の行の種類ごとに具体的な例を一つずつ置く。例のモデル ID は、版を含む実在の ID ではなく、規則だけを満たす架空の ID にする（設計書 3.5.5）。
--   [ ] **ステップ 2-4**: `_checks/decision_cases.sh` を書いて実行する（AC-07、AC-09〜AC-12、AC-18〜AC-20）。作業ツリーの判断のスクリプトを、場合ごとに作る fixture のリポジトリで走らせ、標準出力（`SKIP` の後の commit の一覧を含む）と終了コードが期待どおりかを確かめる。
+-   [x] **ステップ 2-3**: `_lib/opus-review.md` に、実装の記録（`Implementation model:`）と完了の記録（`Opus review: done`）の形、除いてよい commit の定義、入口 1 を足す（設計書 3.4、3.5.1、3.5.2）。入口 1 は、判断のスクリプトの `origin/main` のコピーを作業ツリーの外に取り出して `bash` で走らせること（§1.3 の決定 6）と、取り出せないとき・出力が決まった形でないとき・終了コードが 0 でないときは `RUN` とすることを定める。「Record lines」の節は、判断のスクリプトがそれを読む実行の形であることを名指し、記録の行の種類ごとに具体的な例を一つずつ置く。例のモデル ID は、版を含む実在の ID ではなく、規則だけを満たす架空の ID にする（設計書 3.5.5）。
+-   [x] **ステップ 2-4**: `_checks/decision_cases.sh` を書いて実行する（AC-07、AC-09〜AC-12、AC-18〜AC-20）。作業ツリーの判断のスクリプトを、場合ごとに作る fixture のリポジトリで走らせ、標準出力（`SKIP` の後の commit の一覧を含む）と終了コードが期待どおりかを確かめる。
     -   場合は、設計書 3.1 の読み方の各規則、3.4 の記録の行の各規則、3.5.2 の各条件（除いてよい commit、merge commit、記録の範囲の重なり、完了の記録の条件）、ステップ 2-2 のコードブロックを読まない規則、設計書 4.2 の表のうち判断に関わる行を覆う。判断のコマンドの失敗は、`origin/main` の参照がない、PLAN が読めない、git のリポジトリでない、などで起こす。
     -   各 fixture の `origin/main` の `_context.md` は、比べるコミットの実物（`git show <commit>:.claude/commands/_context.md`）から作る。表がない場合と、表の形が崩れた場合だけ、手で作る。
     -   実物の計画書でも走らせる。比べるコミットの 0077 の計画書（旧い値）と、値の行を持たない単一フェーズの計画書（0071）である。
     -   fixture の記録の行は、比べるコミットの `_lib/opus-review.md` の「Record lines」の例から作る。モデル ID は、Opus かどうかの規則だけを満たす架空の ID（`claude-opus-` で始まるものと、そうでないもの）にし、版を含む実在の ID を書かない。PR-2 と PR-3 の Opus のレビューがこのスクリプトを読むためである（設計書 3.5.5）。
     -   fixture は `mktemp -d` の下に作り、`trap` で消す。git は、利用者の設定を読まないように（`GIT_CONFIG_GLOBAL=/dev/null`・`GIT_CONFIG_NOSYSTEM=1`）、決まった名前と日時で走らせる。出力は、場合ごとの PASS か FAIL と、期待した値と得た値の最初の語にし、fixture の commit の ID は出さない。
     -   各場合が、判断のスクリプトの対応する箇所を壊すと失敗することを確かめ、その結果を commit のメッセージに書く。clean な作業ツリーで実行し、出力・終了コード・コミットの ID・2 つのスクリプトの blob の ID を §7 の「PR-2 の実行の記録」に書く。
--   [ ] **ステップ 2-5**: `runplan.md` を書き換える（設計書 3.6）。
+-   [x] **ステップ 2-5**: `runplan.md` を書き換える（設計書 3.6）。
     -   冒頭の案内（3.6.1）。
     -   step 4 の後、step 4.5 の前の案内の表示（3.6.2）。step 4.5 でのモデル ID の確かめ（3.6.3）。
     -   step 7.7 の後の実装の記録の空の commit（3.6.3）。step 7.7 の「最初の commit」の記述との関係を合わせる。
     -   step 5a と step 8 の、ブランチ全体のローカル CLI レビュー・要否の判断・Opus のレビュー・グリーンゲート・完了の記録・PR_TEXT・LOCAL_REVIEW（3.6.4 の 1〜6）。Opus のレビューが直しの commit を作ったときは、グリーンゲートに加えて、最後の PR のときの AC の確かめ（今の `:85`）と差分の記録の再確認（今の `:86`）もやり直す（§1.4）。それらがビルドの直しでも除いてよい commit でもない commit を作ったときは、要否の判断からやり直す（設計書 3.6.4 の 4）。単一フェーズの計画書の step 8 では、完了の記録を `RUN` のときだけ書く。
     -   push の前のやり直し（3.6.4 の後半）を、step 5a と step 8 が Part B に渡す CHECKS の定義に書く。CHECKS はグリーンゲートであり、Part B step 2 がグリーンゲートを通すために commit を作ったときは、push の前に要否の判断をやり直し、`RUN` のときは Opus のレビュー・完了の記録・PR_TEXT の Opus のレビューの結果も新しい `HEAD` に合わせる。やり直したレビューが直しの commit を作ったときは、グリーンゲート・最後の PR のときの AC の確かめ・差分の記録の再確認もやり直す（設計書 1.2 の決定 11）。今の CHECKS の「ブランチのレビューが commit を作ったら」という文（`:90-92`）は、新しい順序に合わせて書き換える。
     -   再び実行したときの振る舞い（3.6.4 の後半）。
--   [ ] **ステップ 2-6**: `runpr.md` の step 4 と step 5 の `/clear` の案内を書き換える（設計書 3.8）。見出しは変えない。
--   [ ] **ステップ 2-7**: `_lib/task-pr-handoff.md` の PR_TEXT と Part B step 3 の本文の項目を書き換える（設計書 3.9）。step 3 と step 4 の書き出しは変えない。
--   [ ] **ステップ 2-8**: `CLAUDE.md` の PR を作るコマンドの段落に、`/runplan` が条件に応じて Opus のレビューを行うことを足す（設計書 3.11.1 の 2 つ目）。
--   [ ] **ステップ 2-9**: ADR-0042 の食い違いの記述を、残るずれを述べる形に書き換える（§1.3 の決定 4）。残るずれは、PR-2 のブランチの状態に照らして確かめる（`mkplan2.md`・`mkplan.md`・`_lib/simple-process.md` が旧い値を書き、単一フェーズの計画書が値を持たない、など）。issue #760 への完全な URL のリンクは残す。commit のメッセージに訂正の行を書く。
--   [ ] **ステップ 2-10**: AC-13 の差分の記録を書く（§7 の「差分の記録」の PR-2 の欄）。
+-   [x] **ステップ 2-6**: `runpr.md` の step 4 と step 5 の `/clear` の案内を書き換える（設計書 3.8）。見出しは変えない。
+-   [x] **ステップ 2-7**: `_lib/task-pr-handoff.md` の PR_TEXT と Part B step 3 の本文の項目を書き換える（設計書 3.9）。step 3 と step 4 の書き出しは変えない。
+-   [x] **ステップ 2-8**: `CLAUDE.md` の PR を作るコマンドの段落に、`/runplan` が条件に応じて Opus のレビューを行うことを足す（設計書 3.11.1 の 2 つ目）。
+-   [x] **ステップ 2-9**: ADR-0042 の食い違いの記述を、残るずれを述べる形に書き換える（§1.3 の決定 4）。残るずれは、PR-2 のブランチの状態に照らして確かめる（`mkplan2.md`・`mkplan.md`・`_lib/simple-process.md` が旧い値を書き、単一フェーズの計画書が値を持たない、など）。issue #760 への完全な URL のリンクは残す。commit のメッセージに訂正の行を書く。
+-   [x] **ステップ 2-10**: AC-13 の差分の記録を書く（§7 の「差分の記録」の PR-2 の欄）。
 
 **確かめ直し。** ステップ 2-4 の比べたコミットより後に、判断のスクリプト・`_checks/decision_cases.sh`・`_context.md`・`_lib/opus-review.md` の「Record lines」を変える commit が入ったら（PR を作った後の `/fixpr` の修正を含む）、ステップ 2-4 をやり直して §7 の記録を改める。
 
@@ -349,6 +349,13 @@ PR-2:
 Diff record (AC-13):
 
 - Compared paths: `docs/tasks/0073_adr_context_decision_review/03_implementation_plan.md` `docs/tasks/0076_fixpr_local_review_guard/03_implementation_plan.md` `docs/tasks/0077_openai_llm_client/03_implementation_plan.md`
+- Merge-base: `d6678ee92cda0d25dfe95c8ae0b47e0d762eead3`
+- Compared commit: `d43a15c1e202854ca9b42e64f9b013af4f07dfd8`
+
+Path diff:
+
+```text
+```
 
 PR-3:
 
@@ -381,7 +388,82 @@ PASS pre-check block: 48 lines identical
 
 ### PR-2 の実行の記録
 
-（ステップ 2-4 で書く。）
+**ステップ 2-4（`_checks/decision_cases.sh`）。** clean な作業ツリーで `bash docs/tasks/0081_implementation_model_choice/_checks/decision_cases.sh d43a15c1e202854ca9b42e64f9b013af4f07dfd8` を実行した。終了コードは 0。比べたコミットは `d43a15c1e202854ca9b42e64f9b013af4f07dfd8`、判断のスクリプト（`.claude/commands/_lib/opus-review-decision.sh`）の blob は `ad40fb3d92d41a11ebd87aacd2d8a6cd1e607606`、`_checks/decision_cases.sh` の blob は `7df8d2173a7a09855a86729d8698dd57544018d0` である。各場合が判断のスクリプトを壊すと失敗することは、fdbd151a のメッセージに書いた（43 の壊し方。どの壊し方も少なくとも 1 つの場合を失敗させ、どの場合も少なくとも 1 つの壊し方で失敗した）。出力:
+
+```text
+PASS value-opus-uncovered: RUN (ok)
+PASS value-sonnet: NONE value-sonnet (ok)
+PASS value-field-missing: NONE value-absent (ok)
+PASS value-sonnet-opus-review-uncovered: RUN (ok)
+PASS value-surrounding-space: NONE value-sonnet (ok)
+PASS value-unreadable: RUN (ok)
+PASS value-empty-is-unreadable: RUN (ok)
+PASS value-case-differs-is-unreadable: RUN (ok)
+PASS marker-pr1-not-pr10: NONE value-sonnet (ok)
+PASS marker-section-ends-at-next-heading: NONE value-absent (ok)
+PASS marker-missing-at-head: RUN (fail)
+PASS marker-twice: RUN (fail)
+PASS value-line-twice: RUN (fail)
+PASS fenced-block-not-read: NONE value-sonnet (ok)
+PASS value-not-in-first-column: NONE value-absent (ok)
+PASS origin-main-opus-head-sonnet: RUN (ok)
+PASS origin-main-opus-head-absent: RUN (ok)
+PASS origin-main-sonnet-head-absent: NONE value-sonnet (ok)
+PASS origin-main-without-plan: NONE value-sonnet (ok)
+PASS origin-main-without-marker: NONE value-sonnet (ok)
+PASS origin-main-marker-twice: RUN (fail)
+PASS old-standard: NONE value-sonnet (ok)
+PASS old-frontier-recommended: RUN (ok)
+PASS old-frontier-required: RUN (ok)
+PASS old-without-table: RUN (ok)
+PASS old-malformed-row: RUN (ok)
+PASS old-two-rows: RUN (ok)
+PASS old-without-context: RUN (ok)
+PASS empty-value-without-table: RUN (ok)
+PASS single-heading-3.2: NONE value-sonnet (ok)
+PASS single-heading-3.2-dot: NONE value-sonnet (ok)
+PASS single-opus-uncovered: RUN (ok)
+PASS single-section-outside-chapter-3: NONE value-absent (ok)
+PASS single-section-ends-at-subheading: NONE value-sonnet (ok)
+PASS single-section-twice: RUN (fail)
+PASS plan-path-not-canonical: RUN (fail)
+PASS all-opus-with-excludable: NONE all-opus (ok)
+PASS record-mixed-models: RUN (ok)
+PASS record-sonnet: RUN (ok)
+PASS commit-after-record: RUN (ok)
+PASS overlapping-opus-and-sonnet: RUN (ok)
+PASS two-opus-records: NONE all-opus (ok)
+PASS record-indented: RUN (ok)
+PASS record-short-ids: RUN (ok)
+PASS record-without-model: RUN (ok)
+PASS record-comma-without-space: RUN (ok)
+PASS record-trailing-word: RUN (ok)
+PASS record-unknown-start: RUN (ok)
+PASS plan-and-code-not-excludable: RUN (ok)
+PASS merge-commit-covered: RUN (ok)
+PASS rewritten-out-of-range: RUN (ok)
+PASS done-then-excludable: SKIP [checkbox and done,checkbox 2,readme sync] (ok)
+PASS done-then-code: RUN (ok)
+PASS done-with-sonnet-value: NONE value-sonnet (ok)
+PASS last-done-wins: SKIP [new done] (ok)
+PASS last-done-is-newest-commit: RUN (ok)
+PASS done-unknown-start: RUN (ok)
+PASS done-start-after-base: RUN (ok)
+PASS done-end-not-ancestor: RUN (ok)
+PASS done-malformed: RUN (ok)
+PASS done-not-at-line-start: RUN (ok)
+PASS done-then-merge: RUN (ok)
+PASS no-origin-main: RUN (fail)
+PASS plan-missing-at-head: RUN (fail)
+PASS target-not-a-number: RUN (fail)
+PASS base-not-ancestor: RUN (fail)
+PASS not-a-repository: RUN (fail)
+PASS real-0077-pr1-standard: NONE value-sonnet (ok)
+PASS real-0077-pr2-frontier-required: RUN (ok)
+PASS real-0077-pr3-frontier-recommended: RUN (ok)
+PASS real-0071-single: NONE value-absent (ok)
+cases: 70 fixtures, failures: 0
+```
 
 ### PR-3 の実行の記録
 
