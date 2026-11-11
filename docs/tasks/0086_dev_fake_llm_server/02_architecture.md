@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-11 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-11 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 設計の全体像 (Design Overview)
@@ -655,3 +655,7 @@ PR の分け方は実装計画で決める。
 | H-04 | `config.LoadHost` を使い、その説明に開発用のサーバを書き加え、`envaccess_test.go` に行を加え、ADR-0024 を更新する（「設計の際に決めたこと」） |
 | H-05 | 名前と綴り、`flag` の扱い（「設計の際に決めたこと」） |
 | H-06 | 埋め込みの文面、検証・推敲は空の一覧、要素の網羅はレビューで読む（「設計の際に決めたこと」、§3.3） |
+
+## 変更履歴
+
+- 2026-11-11 承認（isseis、#832）
