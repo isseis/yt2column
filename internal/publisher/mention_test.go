@@ -64,12 +64,8 @@ func TestReplaceLookAlike(t *testing.T) {
 		in   rune
 		want rune
 	}{
-		{"full-width at sign", '＠', '@'},
-		{"small commercial at", '﹫', '@'},
-		{"full-width less-than sign", '＜', '<'},
-		{"small less-than sign", '﹤', '<'},
-		{"full-width exclamation mark", '！', '!'},
-		{"small exclamation mark", '﹗', '!'},
+		{"full-width at sign", '\uFF20', '@'},
+		{"small commercial at", '\uFE6B', '@'},
 		{"at sign", '@', '@'},
 		{"letter", 'a', 'a'},
 	}

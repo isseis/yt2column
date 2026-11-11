@@ -12,14 +12,12 @@ import (
 // zeroWidthSpace is inserted after an '@' to keep it from starting a mention.
 const zeroWidthSpace = "\xe2\x80\x8b"
 
+// replaceLookAlike returns '@' for a look-alike of it (the full-width and the
+// small commercial at), and r itself for any other rune.
 func replaceLookAlike(r rune) rune {
 	switch r {
 	case '\uFF20', '\uFE6B':
 		return '@'
-	case '\uFF1C', '\uFE64':
-		return '<'
-	case '\uFF01', '\uFE57':
-		return '!'
 	default:
 		return r
 	}
@@ -30,9 +28,9 @@ func replaceLookAlike(r rune) rune {
 // What follows the '@' does not matter, so a trailing '@' and an '@' before a
 // space, punctuation, or U+200B are reported too: the Viewer drops markup when
 // a reader selects and copies the rendered article, so "@**channel**" pastes
-// as "@channel". text is the V3-replaced form of the checked string (look-
-// alikes replaced one for one, nothing dropped or unescaped), so an index is
-// also an index of the original string. Format characters and backslashes
+// as "@channel". text is the checked string with replaceLookAlike applied
+// (look-alikes replaced one for one, nothing dropped or unescaped), so an
+// index is also an index of the original string. Format characters and backslashes
 // are word separators here, not stripped, so "a", U+200B, "@here" reports the
 // '@'. The rule is wider than Mattermost's word splitting on purpose: it looks
 // only at the rune before the '@', so it also reports "foo_@bar" and "x@@y",
@@ -51,9 +49,9 @@ func mentionAts(text []rune) []int {
 	return ats
 }
 
-// mentionAtsOf applies the V3 replacement to runes and returns mentionAts of
-// the result. Because V3 replaces one rune with one rune, an index is also an
-// index of runes.
+// mentionAtsOf applies replaceLookAlike to runes and returns mentionAts of the
+// result. Because replaceLookAlike replaces one rune with one rune, an index
+// is also an index of runes.
 func mentionAtsOf(runes []rune) []int {
 	replaced := make([]rune, len(runes))
 	for i, r := range runes {
