@@ -83,8 +83,10 @@ to GitHub and never pushes.
 3. **Identify the task** per `docs/dev/conventions/task_identification.md`,
    with its rule 1 replaced, because the arguments name a range, not a task:
    when the files RANGE changes (`git diff --name-only <RANGE> -- docs/tasks/`)
-   lie under exactly one task directory, that is the task. Otherwise apply its
-   rules 2 and 3. TASK_DIR is the task directory.
+   lie under exactly one task directory, that is the task. When they lie under
+   none, and the current branch's name follows the feature branch name
+   convention (`_context.md`), the task is the one the name gives. Otherwise
+   apply its rules 2 and 3. TASK_DIR is the task directory.
 
 4. **When FIX is `fix`, check before reviewing.** Stop, change nothing, and
    report the reason when any of these fails:
