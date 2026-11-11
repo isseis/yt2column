@@ -8,7 +8,6 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -257,9 +256,10 @@ func runProbe(transport *browserTransport, request string) probeResult {
 	return result
 }
 
-// probeOrigin parses raw and accepts it only as http://<host>:<port> with
-// the expected host name, a port, no user information, and no path beyond
-// "/".
+// probeOrigin parses raw and accepts it only as http://<host>:<port> or
+// http://<host>:<port>/ with the expected host name, a port, no user
+// information, and nothing after the origin. Any other form is rejected, not
+// reduced to the origin.
 func probeOrigin(raw, host string) (*url.URL, bool) {
 	parsed, err := url.Parse(raw)
 	if err != nil {
@@ -268,7 +268,8 @@ func probeOrigin(raw, host string) (*url.URL, bool) {
 	if parsed.Scheme != "http" || parsed.User != nil || parsed.Hostname() != host || parsed.Port() == "" {
 		return nil, false
 	}
-	if strings.Trim(parsed.Path, "/") != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
+	if (parsed.Path != "" && parsed.Path != "/") || parsed.RawPath != "" || parsed.ForceQuery ||
+		parsed.RawQuery != "" || parsed.Fragment != "" || parsed.Opaque != "" {
 		return nil, false
 	}
 	return &url.URL{Scheme: parsed.Scheme, Host: parsed.Host}, true

@@ -33,6 +33,15 @@ const llmTimeout = 15 * time.Minute
 // costDecimals is the number of digits after the decimal point of costUsd.
 const costDecimals = 6
 
+// allowedModels are the only models the PoC sends to. claude.New accepts any
+// non-empty model name, and the adapter quotes the model in an HTTP status
+// error, so a key pasted into a model field would be sent and then shown.
+// Rejecting every other value before the send keeps that from happening.
+var allowedModels = map[string]struct{}{
+	"claude-haiku-5-5": {},
+	"claude-opus-5-5":  {},
+}
+
 // apiCall is the validated common part of generate and longOutput.
 type apiCall struct {
 	apiKey              secret.Secret
@@ -54,6 +63,28 @@ type generateInput struct {
 	generation    llm.LLMClient
 	review        llm.LLMClient
 	browserAccess bool
+	// requested names the model each stage was asked to use, which a failed
+	// stage reports when the response named none.
+	requested requestedModels
+}
+
+// requestedModels is the validated model of the generation client (also used
+// by the shorten step) and of the review client.
+type requestedModels struct {
+	generation string
+	review     string
+}
+
+// forStage returns the model stage was configured with.
+func (r requestedModels) forStage(stage writer.Stage) string {
+	switch stage {
+	case writer.StageGeneration, writer.StageShorten:
+		return r.generation
+	case writer.StageReview:
+		return r.review
+	default:
+		return ""
+	}
 }
 
 // generateResult is the GenerateResult of the page interface. It never
@@ -99,9 +130,9 @@ func runGenerate(transport *browserTransport, request string) generateResult {
 		if usageErr, ok := errors.AsType[*writer.TokenUsageError](err); ok {
 			runUsage = usageErr.RunUsage
 		}
-		return generateResult{OK: false, Failure: classify(err), Stages: observer.reports(runUsage, returned)}
+		return generateResult{OK: false, Failure: classify(err), Stages: observer.reports(runUsage, input.requested, returned)}
 	}
-	stages := observer.reports(article.RunUsage, returned)
+	stages := observer.reports(article.RunUsage, input.requested, returned)
 	markdown, err := publisher.DisplayMarkdown(article)
 	if err != nil {
 		return generateResult{OK: false, Failure: &failureReport{Kind: kindUnpublishable, Message: err.Error()}, Stages: stages}
@@ -207,6 +238,7 @@ func validateGenerate(request string) (*generateInput, *failureReport) {
 		generation:    generationClient,
 		review:        reviewClient,
 		browserAccess: call.browserAccessHeader,
+		requested:     requestedModels{generation: generation.model, review: review.model},
 	}, nil
 }
 
@@ -297,9 +329,12 @@ func readModelSetting(members map[string]strictjson.Value, key string) (modelSet
 }
 
 // newClient builds a Claude adapter with the CLI's timeout and the adapter's
-// default max_tokens. Its errors can quote the received values, so only
-// whether it succeeded is returned.
+// default max_tokens, for a model in allowedModels only. Its errors can quote
+// the received values, so only whether it succeeded is returned.
 func newClient(call apiCall, setting modelSetting) (llm.LLMClient, bool) {
+	if _, ok := allowedModels[setting.model]; !ok {
+		return nil, false
+	}
 	effort, err := claudeparam.ParseEffort(setting.effort)
 	if err != nil {
 		return nil, false
@@ -319,13 +354,16 @@ func newClient(call apiCall, setting modelSetting) (llm.LLMClient, bool) {
 
 // stageReport is the StageReport of the page interface.
 type stageReport struct {
-	Stage        string  `json:"stage"`
-	Status       string  `json:"status"`
-	ElapsedMs    *int64  `json:"elapsedMs"`
-	Model        *string `json:"model"`
-	InputTokens  *uint64 `json:"inputTokens"`
-	OutputTokens *uint64 `json:"outputTokens"`
-	CostUSD      *string `json:"costUsd"`
+	Stage     string  `json:"stage"`
+	Status    string  `json:"status"`
+	ElapsedMs *int64  `json:"elapsedMs"`
+	Model     *string `json:"model"` // the model the response reported
+	// RequestedModel is the model the stage was configured with; null only
+	// when validation rejected the request before any stage.
+	RequestedModel *string `json:"requestedModel"`
+	InputTokens    *uint64 `json:"inputTokens"`
+	OutputTokens   *uint64 `json:"outputTokens"`
+	CostUSD        *string `json:"costUsd"`
 }
 
 // reportedStages are the three stages in the order Write runs them.
@@ -377,12 +415,13 @@ func (s *stageTimer) StageSkipped(stage writer.Stage) {
 
 // reports builds each stage's report. A stage that started and never
 // finished failed, and its end is the time Write returned.
-func (s *stageTimer) reports(runUsage writer.RunUsage, returned time.Time) []stageReport {
+func (s *stageTimer) reports(runUsage writer.RunUsage, requested requestedModels, returned time.Time) []stageReport {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	reports := make([]stageReport, 0, len(reportedStages))
 	for _, stage := range reportedStages {
-		report := stageReport{Stage: stage.String(), Status: "not_run"}
+		requestedModel := requested.forStage(stage)
+		report := stageReport{Stage: stage.String(), Status: "not_run", RequestedModel: &requestedModel}
 		start, started := s.started[stage]
 		end, finished := s.finished[stage]
 		_, skipped := s.skipped[stage]

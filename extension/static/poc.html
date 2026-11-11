@@ -61,36 +61,34 @@
       <fieldset>
         <legend>Generation (also used by the shorten step)</legend>
         <label for="generation-model">Model</label>
-        <input
-          id="generation-model"
-          type="text"
-          value="claude-haiku-5-5"
-          spellcheck="false"
-        />
+        <select id="generation-model">
+          <option value="claude-haiku-5-5" selected>claude-haiku-5-5</option>
+          <option value="claude-opus-5-5">claude-opus-5-5</option>
+        </select>
         <label for="generation-effort">Effort</label>
-        <input
-          id="generation-effort"
-          type="text"
-          value="medium"
-          spellcheck="false"
-        />
+        <select id="generation-effort">
+          <option value="low">low</option>
+          <option value="medium" selected>medium</option>
+          <option value="high">high</option>
+          <option value="xhigh">xhigh</option>
+          <option value="max">max</option>
+        </select>
       </fieldset>
       <fieldset>
         <legend>Review</legend>
         <label for="review-model">Model</label>
-        <input
-          id="review-model"
-          type="text"
-          value="claude-haiku-5-5"
-          spellcheck="false"
-        />
+        <select id="review-model">
+          <option value="claude-haiku-5-5" selected>claude-haiku-5-5</option>
+          <option value="claude-opus-5-5">claude-opus-5-5</option>
+        </select>
         <label for="review-effort">Effort</label>
-        <input
-          id="review-effort"
-          type="text"
-          value="medium"
-          spellcheck="false"
-        />
+        <select id="review-effort">
+          <option value="low">low</option>
+          <option value="medium" selected>medium</option>
+          <option value="high">high</option>
+          <option value="xhigh">xhigh</option>
+          <option value="max">max</option>
+        </select>
       </fieldset>
       <button id="generate" class="action-button" type="button">
         Generate
@@ -100,14 +98,18 @@
     <section aria-labelledby="long-heading">
       <h2 id="long-heading">Long output</h2>
       <label for="long-model">Model</label>
-      <input
-        id="long-model"
-        type="text"
-        value="claude-haiku-5-5"
-        spellcheck="false"
-      />
+      <select id="long-model">
+        <option value="claude-haiku-5-5" selected>claude-haiku-5-5</option>
+        <option value="claude-opus-5-5">claude-opus-5-5</option>
+      </select>
       <label for="long-effort">Effort</label>
-      <input id="long-effort" type="text" value="medium" spellcheck="false" />
+      <select id="long-effort">
+        <option value="low">low</option>
+        <option value="medium" selected>medium</option>
+        <option value="high">high</option>
+        <option value="xhigh">xhigh</option>
+        <option value="max">max</option>
+      </select>
       <label for="long-variant">Prompt</label>
       <select id="long-variant">
         <option value="essay">essay (about 30,000 words)</option>
@@ -157,7 +159,8 @@
             <th scope="col">Stage</th>
             <th scope="col">Status</th>
             <th scope="col">Elapsed (ms)</th>
-            <th scope="col">Model</th>
+            <th scope="col">Requested model</th>
+            <th scope="col">Reported model</th>
             <th scope="col">Input tokens</th>
             <th scope="col">Output tokens</th>
             <th scope="col">Cost (USD)</th>

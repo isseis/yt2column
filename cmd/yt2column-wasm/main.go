@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"net/http"
 	"runtime/debug"
+	"strconv"
 	"sync/atomic"
 	"syscall/js"
 )
@@ -32,7 +33,11 @@ func main() {
 
 	api := js.Global().Get("Object").New()
 	api.Set("buildInfo", js.FuncOf(func(js.Value, []js.Value) any {
-		return mustJSON(readBuildInfo())
+		return mustJSON(recoverCall(func(string) any { return readBuildInfo() }, "", func(failure *failureReport) any {
+			return struct {
+				Failure *failureReport `json:"failure"`
+			}{failure}
+		}))
 	}))
 	api.Set("generate", asyncCall(func(request string) any {
 		return runGenerate(transport, request)
@@ -79,8 +84,11 @@ func readBuildInfo() buildInfo {
 			revision := setting.Value
 			result.VCSRevision = &revision
 		case "vcs.modified":
-			modified := setting.Value == "true"
-			result.VCSModified = &modified
+			// A value ParseBool does not read stays null, which the page
+			// treats as not measurable.
+			if modified, err := strconv.ParseBool(setting.Value); err == nil {
+				result.VCSModified = &modified
+			}
 		}
 	}
 	return result

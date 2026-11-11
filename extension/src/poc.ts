@@ -42,6 +42,7 @@ interface StageReport {
   stage: string;
   status: string;
   elapsedMs: number | null;
+  requestedModel: string | null;
   model: string | null;
   inputTokens: number | null;
   outputTokens: number | null;
@@ -52,13 +53,25 @@ interface GenerateResult {
   ok: boolean;
   markdown?: string;
   failure?: Failure;
-  stages: StageReport[];
+  stages?: StageReport[];
 }
 
 type CallName = "generate" | "longOutput" | "probe";
 
-/** A call that has not resolved after this long is shown as stalled. */
-const stallAfterMs = 20 * 60 * 1000;
+/**
+ * A call that has not resolved after this long is shown as stalled. generate
+ * runs up to three LLM calls of at most 15 minutes each, so its limit is past
+ * 45 minutes; longOutput is one such call; a probe call that stalls inside a
+ * response body is expected never to end.
+ */
+const stallAfterMs: Record<CallName, number> = {
+  generate: 50 * 60 * 1000,
+  longOutput: 20 * 60 * 1000,
+  probe: 20 * 60 * 1000,
+};
+
+/** Failure kinds whose call's settings are not recorded (see runCall). */
+const settingsWithheldKinds = new Set(["invalid_input", "invalid_config"]);
 
 const pocGlobal = globalThis as unknown as PocGlobal;
 
@@ -70,7 +83,7 @@ const state = {
   build: null as BuildInfo | null,
   loadMs: null as number | null,
   running: null as CallName | null,
-  /** Set when a call passed stallAfterMs; cleared only by reloading the page. */
+  /** Set when a call passed its stallAfterMs; cleared only by reloading the page. */
   stalled: false,
 };
 
@@ -145,7 +158,7 @@ function blockedReason(name: CallName): string | null {
     return "The build is not from a clean, committed tree; rebuild with make poc-build.";
   }
   if (state.stalled) {
-    return "A call did not finish within 20 minutes. Reload the page before starting another.";
+    return "A call was treated as stalled. Reload the page before starting another.";
   }
   if (state.running !== null) {
     return `A call (${state.running}) is running.`;
@@ -188,9 +201,10 @@ function visibilityTracker(): () => {
 
 /**
  * Runs one call: checks the button rules, marks the page busy, and gives the
- * parsed result to show. A call that passes 20 minutes is marked stalled,
- * which blocks every later call until the page is reloaded, because a send
- * that stalls inside a response body is expected not to end.
+ * parsed result to show. A call that passes its stallAfterMs is marked
+ * stalled, which blocks every later call until the page is reloaded, because
+ * a send that stalls inside a response body is expected not to end. A result
+ * that still arrives after that is shown and recorded in full, marked late.
  */
 async function runCall(
   name: CallName,
@@ -215,22 +229,22 @@ async function runCall(
   const startedAt = new Date().toISOString();
   const start = performance.now();
   const stopTracking = visibilityTracker();
+  const limitMs = stallAfterMs[name];
   const stallTimer = setTimeout(() => {
     state.stalled = true;
     state.running = null;
     setStatus(
       "call-status",
-      `${name} did not finish within 20 minutes; it is treated as stalled. Reload the page.`,
+      `${name} did not finish within ${limitMs / 60000} minutes; it is treated as stalled. Reload the page before starting another call.`,
     );
     appendRecord({
       call: name,
       startedAt,
       build: state.build,
       settings,
-      stalled: true,
-      visibility: stopTracking(),
+      stalledAfterMs: limitMs,
     });
-  }, stallAfterMs);
+  }, limitMs);
   let resultText: string;
   try {
     resultText = await api[name](request());
@@ -238,34 +252,40 @@ async function runCall(
     // The Go side never rejects; reaching here means the runtime is gone.
     resultText = JSON.stringify({
       failure: { kind: "panic", httpStatus: null, message: "the call threw" },
+      stages: [],
     });
   }
   clearTimeout(stallTimer);
   const pageElapsedMs = Math.round(performance.now() - start);
-  if (state.stalled) {
-    // The stall record was already written; keep the page blocked.
-    appendRecord({ call: name, startedAt, lateResultAfterMs: pageElapsedMs });
-    return;
-  }
+  const late = state.stalled;
   const visibility = stopTracking();
-  state.running = null;
+  if (!late) {
+    state.running = null;
+  }
   const parsed = JSON.parse(resultText) as unknown;
   // Set before show, which appends the failure or the result to it.
-  setStatus("call-status", `${name} finished in ${pageElapsedMs} ms.`);
+  setStatus(
+    "call-status",
+    late
+      ? `${name} finished late, in ${pageElapsedMs} ms, after it was treated as stalled. Reload the page before starting another call.`
+      : `${name} finished in ${pageElapsedMs} ms.`,
+  );
   const summary = show(parsed);
-  // An invalid_config failure can mean a key was pasted into a model or
-  // effort field, so the settings of that call are not recorded.
-  const invalidConfig =
-    (parsed as { failure?: { kind?: string } | null }).failure?.kind ===
-    "invalid_config";
+  // A rejected input can be a key pasted into the wrong field, so the
+  // settings of a call rejected by validation are not recorded.
+  const failureKind = (parsed as { failure?: { kind?: string } | null }).failure
+    ?.kind;
+  const withheld =
+    failureKind !== undefined && settingsWithheldKinds.has(failureKind);
   appendRecord({
     call: name,
     startedAt,
     userAgent: navigator.userAgent,
     build: state.build,
     loadMs: state.loadMs,
-    settings: invalidConfig ? "(withheld: invalid_config)" : settings,
+    settings: withheld ? `(withheld: ${failureKind})` : settings,
     pageElapsedMs,
+    late,
     visibility,
     ...summary,
   });
@@ -277,7 +297,10 @@ function showFailure(failure: Failure): void {
     ` Failed: ${failure.kind}${status}: ${failure.message}`;
 }
 
-function showStages(stages: StageReport[]): void {
+function showStages(stages: StageReport[] | undefined): void {
+  if (stages === undefined) {
+    return;
+  }
   const table = element<HTMLTableElement>("stages");
   const body = table.tBodies[0];
   if (body === undefined) {
@@ -290,6 +313,7 @@ function showStages(stages: StageReport[]): void {
       stage.stage,
       stage.status,
       stage.elapsedMs,
+      stage.requestedModel,
       stage.model,
       stage.inputTokens,
       stage.outputTokens,
