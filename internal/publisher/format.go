@@ -20,7 +20,7 @@ func articleCost(runUsage writer.RunUsage) (pricing.Amount, bool) {
 }
 
 // FormatArticleCost returns the article's cost as the --out file's
-// estimated_cost_usd value and the Slack footnote amount, and whether it is
+// estimated_cost_usd value and the status response's cost, and whether it is
 // known. When it is not known, usd is "" and each caller writes its own
 // placeholder.
 func FormatArticleCost(runUsage writer.RunUsage) (usd string, known bool) {

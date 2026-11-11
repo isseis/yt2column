@@ -78,7 +78,6 @@ func (l Locator) In(t testing.TB, lang Lang) string {
 // The README locators. A guard test finds a section, a table, or a labelled
 // line of either version by these.
 var (
-	ReadmeSlackPostHeading         = Locator{JA: "### Slack への投稿", EN: "### The Slack post"}
 	ReadmeServerHeading            = Locator{JA: "## localhost サーバ", EN: "## Localhost server"}
 	ReadmeRunServerHeading         = Locator{JA: "### サーバの起動", EN: "### Running the server"}
 	ReadmeInstallHostHeading       = Locator{JA: "### Native Messaging のホストのインストール", EN: "### Installing the native messaging host"}

@@ -192,3 +192,7 @@ func leadingDigits(line string) int {
 	}
 	return n
 }
+
+func isASCIILetter(r rune) bool {
+	return ('a' <= r && r <= 'z') || ('A' <= r && r <= 'Z')
+}

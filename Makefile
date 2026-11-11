@@ -54,7 +54,7 @@ define format_files_from_list
 	fi
 endef
 
-.PHONY: all build clean test test-ci test-parse-norace readme-sync-check test-integration test-integration-deepseek test-integration-claude test-integration-openai test-integration-cli test-integration-slack lint wasm-check fmt fmt-all deadcode tidy install-mergepr install-fixprguard install-codexreview ext-install ext-typecheck ext-lint ext-fmt-check ext-fmt ext-test ext-build ext-check coverage-compare ext-coverage-compare
+.PHONY: all build clean test test-ci test-parse-norace readme-sync-check test-integration test-integration-deepseek test-integration-claude test-integration-openai test-integration-cli lint wasm-check fmt fmt-all deadcode tidy install-mergepr install-fixprguard install-codexreview ext-install ext-typecheck ext-lint ext-fmt-check ext-fmt ext-test ext-build ext-check coverage-compare ext-coverage-compare
 
 all: build
 
@@ -300,26 +300,10 @@ test-integration-cli:
 	@printf 'test-integration-cli: calls the real DeepSeek API, which incurs charges (model: %s)\n' "$$YT2COLUMN_TEST_DEEPSEEK_MODEL"
 	$(GOTEST) -tags integration -count=1 -timeout $(CLI_INTEGRATION_TIMEOUT) -v ./cmd/yt2column
 
-# Webhook integration test. Posts two fixed articles (no LLM call) to the real
-# Incoming Webhook of a Mattermost test channel, so it is kept out of
-# `make test` by the `integration` build tag and skips unless the opt-in
-# variable below is set. It reads the Webhook URL from
-# YT2COLUMN_TEST_SLACK_WEBHOOK_URL, never from SLACK_WEBHOOK_URL, and fails
-# when that variable is missing. Four messages of at most 30 seconds each
-# (publisher.SlackPostTimeout) one second apart, plus margin.
-SLACK_INTEGRATION_TIMEOUT ?= 5m
-
-# Exported to this target's recipe only.
-test-integration-slack: export YT2COLUMN_SLACK_INTEGRATION := 1
-
-test-integration-slack:
-	@printf 'test-integration-slack: posts to the real test Webhook (YT2COLUMN_TEST_SLACK_WEBHOOK_URL)\n'
-	$(GOTEST) -tags integration -count=1 -timeout $(SLACK_INTEGRATION_TIMEOUT) -v ./internal/publisher
-
 # golangci-lint compiles the integration tests only together with the `test`
 # helpers; vet the `-tags integration` build that `make test-integration`,
 # `make test-integration-deepseek`, `make test-integration-claude`,
-# `make test-integration-openai`, `make test-integration-cli`, and `make test-integration-slack` run, so a
+# `make test-integration-openai`, and `make test-integration-cli` run, so a
 # compile error there fails lint too.
 lint: wasm-check
 	$(GOLINT)
