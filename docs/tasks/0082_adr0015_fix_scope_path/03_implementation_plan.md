@@ -104,7 +104,7 @@ ADR-0015 の直しは、決定の変更として 3 文書の PR で入れる（�
 info: AC-02: 335 bytes inserted at one position (byte 191 of the text after the bold part)
 before: a4d99f7347960476e433689dc2adc7f7cf5210fa
 after:  7963ca20245109649583afc901c5a99499f94439
-check.sh blob: ff76557dafa7ac6fdc1a2dcce65a8ce7ad4f9607
+check.sh blob: 82e7fd670ce75c9db88e045c2e434124ad8e0b78
 RESULT: all checks passed
 ```
 

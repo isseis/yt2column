@@ -20,12 +20,13 @@ failures=0
 fail() { echo "FAIL: $*"; failures=$((failures + 1)); }
 
 # --- AC-06: only the ADR and the task directory change.
+names=$(git diff --no-renames --name-status "$before" "$after") || exit 2
 while IFS=$'\t' read -r status path; do
 	case "$path" in
 	"$adr" | "$taskdir"/*) ;;
 	*) fail "AC-06: unexpected change ($status) outside the ADR and the task directory: $path" ;;
 	esac
-done < <(git diff --no-renames --name-status "$before" "$after")
+done <<<"$names"
 
 # --- Read the ADR at both commits.
 git show "$before:$adr" >"$tmp/old.md" || exit 2
@@ -134,7 +135,7 @@ fi
 
 echo "before: $before"
 echo "after:  $after"
-echo "check.sh blob: $(git hash-object "$0")"
+echo "check.sh blob: $(git hash-object -- "$0")"
 if [ "$failures" -ne 0 ]; then
 	echo "RESULT: $failures check(s) failed"
 	exit 1
