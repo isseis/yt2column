@@ -126,19 +126,19 @@
 
 **変えるファイル:** 設計書 §3.1.4 の表の Go のファイル、`Makefile` の `test-integration` の目標、`docs/dev/conventions/package_reference.md`。
 
--   [ ] `git mv` で、`exec.go`・`ytdlp.go`・`cache.go`・`info.go`・`json3.go` と、そのテスト（`cache_test.go`・`exec_test.go`・`info_test.go`・`json3_test.go`・`ytdlp_test.go`・`integration_test.go`・`test_helpers_cache_seed.go`）を `internal/ytdlpsource/` へ移す。
--   [ ] 移したファイルのパッケージ名の行・import の行・修飾を書き換える。
--   [ ] `YtDlpSource.Fetch` のローカル変数 `transcript` を `cached` に改名する（設計書 §3.1.3）。
--   [ ] `pruneCandidateID` を `transcript.NormalizedVideoURL` の 2 つ目の戻り値で判定する形に書き換える（設計書 §3.1.3）。書き換えた条件の否定を外すと `TestPruneCache`（移す前は `internal/transcript/cache_test.go:56`）が失敗することを確かめ、コミットメッセージに書く。`testVideoID` の失敗する分岐はテストで確かめないが、これはテストの補助なので受け入れる。
--   [ ] `internal/transcript/test_helpers.go` を分ける。§1.4 の分け方のとおり、移す側だけが使う補助を `internal/ytdlpsource/test_helpers.go` へ移し、`readTestdataFile` は両方に置き、`testVideoID` は設計書 §3.1.3 の形にする。ビルドの制約の行（`//go:build test`）は両方に置く。
--   [ ] `json3_test.go` の `TestExportedSentinelErrorsUnchanged` を、`internal/transcript/sentinel_test.go`（新規）へ、本体を変えずに移す。補助の `exportedErrNames` と `parsePackageFile` もそこに複製する。`parsePackageFile` は `internal/ytdlpsource/json3_test.go` の `TestTimestampReadingIsUnified` も使うので残し、`exportedErrNames` はそのテストだけが使うので移す側から外す（設計書 §3.1.3）。
--   [ ] `internal/ytdlpsource/doc.go` に、パッケージの doc コメントを英語で書く。
--   [ ] §1.4 の「移す宣言を使う、パッケージの外の箇所」の 6 か所の import と修飾を書き換える。
--   [ ] `internal/config/envaccess_test.go` のパスの文字列 7 つ（`:69`・`:392`・`:393`・`:412` のキー・`:599`・`:600`・`:611`）だけを `internal/ytdlpsource/ytdlp.go` に書き換える。`:412` のキーに続く偽のソースの本文（`package transcript` で始まる）は変えない。走査は import と呼び出しだけを見るので、この文字列の `package` の行に依らない（`envaccess_test.go:99`〜`135`）。許可する参照の種類と数は変えない。
--   [ ] `docs/dev/conventions/package_reference.md` を移動に合わせる（`TestPackageReferenceListsPackages`・`TestPackageReferenceStrictjsonUsers` がこのステップの `make test` で確かめるため）。`internal/transcript` の行から yt-dlp の経路を外し、`internal/ytdlpsource` の行を足す。書き換える行と足す行は、[ADR-0044](../../dev/adr/0044-package-reference-row-granularity.md) に従い、責務の要約・主な公開の名前・仕様へのリンク（キャッシュは `cache_consistency.md`）だけにする。`internal/strictjson` の行の「Shared by」で、`internal/transcript` を `internal/ytdlpsource` に替える。
--   [ ] `Makefile:216` の `test-integration` のパスを `./internal/ytdlpsource` に書き換える。
--   [ ] `go vet ./docs/tasks/0018_article_quality/_material_check` が通ることを確かめる（`./...` に含まれないため。`go build` は作業ツリーに実行ファイルを残すので使わない）。
--   [ ] `go test -tags integration -list . ./internal/ytdlpsource` で、統合テストが新しい場所で見つかることを確かめる（ネットワークは使わない）。
+-   [x] `git mv` で、`exec.go`・`ytdlp.go`・`cache.go`・`info.go`・`json3.go` と、そのテスト（`cache_test.go`・`exec_test.go`・`info_test.go`・`json3_test.go`・`ytdlp_test.go`・`integration_test.go`・`test_helpers_cache_seed.go`）を `internal/ytdlpsource/` へ移す。
+-   [x] 移したファイルのパッケージ名の行・import の行・修飾を書き換える。
+-   [x] `YtDlpSource.Fetch` のローカル変数 `transcript` を `cached` に改名する（設計書 §3.1.3）。
+-   [x] `pruneCandidateID` を `transcript.NormalizedVideoURL` の 2 つ目の戻り値で判定する形に書き換える（設計書 §3.1.3）。書き換えた条件の否定を外すと `TestPruneCache`（移す前は `internal/transcript/cache_test.go:56`）が失敗することを確かめ、コミットメッセージに書く。`testVideoID` の失敗する分岐はテストで確かめないが、これはテストの補助なので受け入れる。
+-   [x] `internal/transcript/test_helpers.go` を分ける。§1.4 の分け方のとおり、移す側だけが使う補助を `internal/ytdlpsource/test_helpers.go` へ移し、`readTestdataFile` は両方に置き、`testVideoID` は設計書 §3.1.3 の形にする。ビルドの制約の行（`//go:build test`）は両方に置く。
+-   [x] `json3_test.go` の `TestExportedSentinelErrorsUnchanged` を、`internal/transcript/sentinel_test.go`（新規）へ、本体を変えずに移す。補助の `exportedErrNames` と `parsePackageFile` もそこに複製する。`parsePackageFile` は `internal/ytdlpsource/json3_test.go` の `TestTimestampReadingIsUnified` も使うので残し、`exportedErrNames` はそのテストだけが使うので移す側から外す（設計書 §3.1.3）。
+-   [x] `internal/ytdlpsource/doc.go` に、パッケージの doc コメントを英語で書く。
+-   [x] §1.4 の「移す宣言を使う、パッケージの外の箇所」の 6 か所の import と修飾を書き換える。
+-   [x] `internal/config/envaccess_test.go` のパスの文字列 7 つ（`:69`・`:392`・`:393`・`:412` のキー・`:599`・`:600`・`:611`）だけを `internal/ytdlpsource/ytdlp.go` に書き換える。`:412` のキーに続く偽のソースの本文（`package transcript` で始まる）は変えない。走査は import と呼び出しだけを見るので、この文字列の `package` の行に依らない（`envaccess_test.go:99`〜`135`）。許可する参照の種類と数は変えない。
+-   [x] `docs/dev/conventions/package_reference.md` を移動に合わせる（`TestPackageReferenceListsPackages`・`TestPackageReferenceStrictjsonUsers` がこのステップの `make test` で確かめるため）。`internal/transcript` の行から yt-dlp の経路を外し、`internal/ytdlpsource` の行を足す。書き換える行と足す行は、[ADR-0044](../../dev/adr/0044-package-reference-row-granularity.md) に従い、責務の要約・主な公開の名前・仕様へのリンク（キャッシュは `cache_consistency.md`）だけにする。`internal/strictjson` の行の「Shared by」で、`internal/transcript` を `internal/ytdlpsource` に替える。
+-   [x] `Makefile:216` の `test-integration` のパスを `./internal/ytdlpsource` に書き換える。
+-   [x] `go vet ./docs/tasks/0018_article_quality/_material_check` が通ることを確かめる（`./...` に含まれないため。`go build` は作業ツリーに実行ファイルを残すので使わない）。
+-   [x] `go test -tags integration -list . ./internal/ytdlpsource` で、統合テストが新しい場所で見つかることを確かめる（ネットワークは使わない）。
 
 **完了の条件:** `make fmt`・`make test`・`make lint`・`make deadcode` が通る。`go vet -tags test,integration ./internal/ytdlpsource` が通る。
 
@@ -146,9 +146,9 @@
 
 **変えるファイル:** `internal/writer/template.go`、`internal/writer/template_open.go`（新規）、`internal/writer/template_open_js.go`（新規）。
 
--   [ ] `overrideOpenFlags` と `readOverrideFile` を `template.go` から `template_open.go`（`//go:build !js`）へ、中身を変えずに移す（設計書 §3.1.2）。
--   [ ] `template_open_js.go`（`//go:build js`）に、ファイルシステムに触れずに失敗する `readOverrideFile` を書く。エラーは `ErrInvalidTemplate` と `errors.ErrUnsupported` の両方を元のエラーとして含めて返し、文には `templateSource.String` を含める（設計書 §4.1）。
--   [ ] `js` のビルドのこの振る舞いは、ネイティブの `make test` ではコンパイルされないので、Go のテストを足さない。ステップ 1-3 の `make wasm-check` の `go vet` で検査する（設計書 §7.1）。
+-   [x] `overrideOpenFlags` と `readOverrideFile` を `template.go` から `template_open.go`（`//go:build !js`）へ、中身を変えずに移す（設計書 §3.1.2）。
+-   [x] `template_open_js.go`（`//go:build js`）に、ファイルシステムに触れずに失敗する `readOverrideFile` を書く。エラーは `ErrInvalidTemplate` と `errors.ErrUnsupported` の両方を元のエラーとして含めて返し、文には `templateSource.String` を含める（設計書 §4.1）。
+-   [x] `js` のビルドのこの振る舞いは、ネイティブの `make test` ではコンパイルされないので、Go のテストを足さない。ステップ 1-3 の `make wasm-check` の `go vet` で検査する（設計書 §7.1）。
 
 **完了の条件:** `make test`・`make lint`・`GOOS=js GOARCH=wasm go vet ./internal/writer` が通る。`internal/writer` の既存のテンプレートのテスト（`template_test.go`）は変えずに通る。
 
@@ -156,11 +156,11 @@
 
 **変えるファイル:** `Makefile`、`.github/workflows/ci.yml`。
 
--   [ ] `Makefile` に `wasm-check` の目標を足し、`.PHONY` に加える。目標は、AC-01 の 4 つのパッケージを `GOOS=js GOARCH=wasm go build` し、`internal/writer` と `internal/transcript` に `GOOS=js GOARCH=wasm go vet` を掛ける（設計書 §1.2）。
--   [ ] `lint` の目標から `wasm-check` を呼ぶ。
--   [ ] `ci.yml` の `lint` のジョブに、`make wasm-check` を走らせる手順を 1 つ足す。
--   [ ] 目標の中で `$(shell ...)` などを使って、`go` を Makefile の読み込み時に評価しない。`extension/test/repository.test.ts:229`〜`257` が、`go` のない PATH で `make -n build test lint deadcode` を走らせ、標準エラーが空であることを確かめるからである。
--   [ ] 検査が失敗しうることを確かめる。作業用の変更で次のことを 1 つずつ確かめ、変更を捨てる。確かめたことをコミットメッセージに書く（設計書 §7.1）。
+-   [x] `Makefile` に `wasm-check` の目標を足し、`.PHONY` に加える。目標は、AC-01 の 4 つのパッケージを `GOOS=js GOARCH=wasm go build` し、`internal/writer` と `internal/transcript` に `GOOS=js GOARCH=wasm go vet` を掛ける（設計書 §1.2）。
+-   [x] `lint` の目標から `wasm-check` を呼ぶ。
+-   [x] `ci.yml` の `lint` のジョブに、`make wasm-check` を走らせる手順を 1 つ足す。
+-   [x] 目標の中で `$(shell ...)` などを使って、`go` を Makefile の読み込み時に評価しない。`extension/test/repository.test.ts:229`〜`257` が、`go` のない PATH で `make -n build test lint deadcode` を走らせ、標準エラーが空であることを確かめるからである。
+-   [x] 検査が失敗しうることを確かめる。作業用の変更で次のことを 1 つずつ確かめ、変更を捨てる。確かめたことをコミットメッセージに書く（設計書 §7.1）。
     -   `internal/writer/template_open_js.go` を消すと、`make wasm-check` が失敗する。
     -   AC-01 の 4 つのパッケージのそれぞれに、型の誤りを持つ `//go:build js` のファイルを 1 つ足すと、`make wasm-check` が失敗する。
 
@@ -170,14 +170,14 @@
 
 **変えるファイル:** 設計書 §3.1.4 の表の文書と、`docs/dev/adr/0019-pipeline-component-interfaces.md`。
 
--   [ ] `CLAUDE.md`：「Architecture Overview」の `TranscriptSource` の段落の `YtDlpSource` の置き場所を書き換える。「Code Quality」の一覧に `make wasm-check` を足し、`make lint` の説明に `wasm-check` を呼ぶことを足す。
--   [ ] `docs/dev/guides/development.md` の `make` のターゲットの一覧（`:7`〜`17`）に `make wasm-check` を足す。この文書は拡張のテストが読むので、`make ext-test` を走らせる。
--   [ ] `.claude/commands/runplan.md:71`・`.claude/commands/mkplan.md:64` の例の場所を `internal/ytdlpsource` に書き換える。
--   [ ] `docs/dev/project_overview.md:112` のディレクトリの一覧を書き換える。
--   [ ] `docs/dev/cache_consistency.md` のパッケージとファイルの場所（`:3`・`:158`・`:170`）を書き換える。
--   [ ] `docs/dev/adr/0033-transcript-cache-slots.md:24` のパッケージの名前を直す。編集上の訂正として、コミットメッセージに訂正の行を書く。
--   [ ] `docs/dev/adr/0019-pipeline-component-interfaces.md` の 2 つの食い違いの記述（§1.4）を消す。2 つ目の決定の「検査の目標は 0084 設計書が定める」を、`make wasm-check`（`CLAUDE.md`「Code Quality」）を指す形に直す。どちらも編集上の訂正として、コミットメッセージに訂正の行を書く。
--   [ ] 書き換えた文書のパスが HEAD に実在することを、書いたときに `git ls-files` で確かめる（`TestInstructionDocPaths` は `docs/dev/` の外のパスを確かめないため）。
+-   [x] `CLAUDE.md`：「Architecture Overview」の `TranscriptSource` の段落の `YtDlpSource` の置き場所を書き換える。「Code Quality」の一覧に `make wasm-check` を足し、`make lint` の説明に `wasm-check` を呼ぶことを足す。
+-   [x] `docs/dev/guides/development.md` の `make` のターゲットの一覧（`:7`〜`17`）に `make wasm-check` を足す。この文書は拡張のテストが読むので、`make ext-test` を走らせる。
+-   [x] `.claude/commands/runplan.md:71`・`.claude/commands/mkplan.md:64` の例の場所を `internal/ytdlpsource` に書き換える。
+-   [x] `docs/dev/project_overview.md:112` のディレクトリの一覧を書き換える。
+-   [x] `docs/dev/cache_consistency.md` のパッケージとファイルの場所（`:3`・`:158`・`:170`）を書き換える。
+-   [x] `docs/dev/adr/0033-transcript-cache-slots.md:24` のパッケージの名前を直す。編集上の訂正として、コミットメッセージに訂正の行を書く。
+-   [x] `docs/dev/adr/0019-pipeline-component-interfaces.md` の 2 つの食い違いの記述（§1.4）を消す。2 つ目の決定の「検査の目標は 0084 設計書が定める」を、`make wasm-check`（`CLAUDE.md`「Code Quality」）を指す形に直す。どちらも編集上の訂正として、コミットメッセージに訂正の行を書く。
+-   [x] 書き換えた文書のパスが HEAD に実在することを、書いたときに `git ls-files` で確かめる（`TestInstructionDocPaths` は `docs/dev/` の外のパスを確かめないため）。
 
 **完了の条件:** `make test`（`TestInstructionDocPaths` を含む）が通る。
 
@@ -185,20 +185,20 @@
 
 **変えるファイル:** `docs/tasks/0084_wasm_pipeline_poc/_checks/` の下のスクリプト、本書の §7。
 
--   [ ] AC-01・AC-02 を確かめるシェルのスクリプトを書く（設計書 §7.1）。確かめる性質は次の 3 つである。
+-   [x] AC-01・AC-02 を確かめるシェルのスクリプトを書く（設計書 §7.1）。確かめる性質は次の 3 つである。
     -   AC-01 の 4 つのパッケージが `GOOS=js GOARCH=wasm go build` を通る。`internal/writer` と `internal/transcript` が `GOOS=js GOARCH=wasm go vet` を通る。
     -   4 つのパッケージの `GOOS=js GOARCH=wasm go list -deps` に、`internal/ytdlpsource` が含まれない。
     -   依存のうち、このリポジトリのパッケージが、どれも `os/exec` を import しない。
--   [ ] AC-04・AC-05・AC-06 を確かめるシェルのスクリプトを書く。merge-base と PR のコミットを比べ、次の性質を確かめる。
+-   [x] AC-04・AC-05・AC-06 を確かめるシェルのスクリプトを書く。merge-base と PR のコミットを比べ、次の性質を確かめる。
     -   Go のファイル（製品のコードとテストのコード）について、パッケージ名の行・import の行・ビルドの制約の行・移動に伴う修飾を正規化すると、移した宣言と書き換えた呼び出し側の差分がなくなる。正規化の後に残る差分は、設計書 §3.1.3 の表の箇所（ローカル変数の改名と、番兵のテストの移動・補助の複製を含む）と `doc.go` だけである。
     -   2 つに分けた `test_helpers.go` は、正規化した後の行の多重集合（`sort` した行）で比べる。分ける前の行と、分けた後の 2 つのファイルを合わせた行の違いが、`readTestdataFile` の複製と `testVideoID` の書き換えの行だけである。
     -   `internal/writer` の分割は移動として確かめる。`template.go` から消えた行が、`template_open.go` のビルドの制約・パッケージ名・import の行を除いた本文と同じである。新しい内容は `template_open_js.go` だけである。
     -   PR 全体で変わったファイルの一覧（`--name-only --no-renames`）が、設計書 §3.1.4 の表のファイル、`docs/dev/guides/development.md`、ADR-0019・ADR-0033、`docs/tasks/0084_wasm_pipeline_poc/` の下に限られる。
     -   `Makefile` の差分が、`test-integration` のパスの書き換えと、`wasm-check` の目標・`.PHONY` への追加・`lint` からの呼び出しに限られる。`.github/workflows/ci.yml` の差分が、`lint` のジョブに足す 1 つの手順に限られ、その手順が `make wasm-check` を実行する。
     -   `.golangci.yml`・`go.mod`・`go.sum` に差分がない（AC-06）。
--   [ ] どちらのスクリプトも、各検査が少なくとも 1 つの壊し方で失敗することを確かめる。
--   [ ] PR-1 のブランチで 2 つのスクリプトを走らせ、出力と両方のコミットの ID を §7 の「スクリプトの結果」に書く。
--   [ ] AC-05 のうち `docs/dev/conventions/package_reference.md` の差分は、差分の記録を読む形で確かめる（文書の小さな差分のため）。§7 の差分の記録の欄に、記録を書く。
+-   [x] どちらのスクリプトも、各検査が少なくとも 1 つの壊し方で失敗することを確かめる。
+-   [x] PR-1 のブランチで 2 つのスクリプトを走らせ、出力と両方のコミットの ID を §7 の「スクリプトの結果」に書く。
+-   [x] AC-05 のうち `docs/dev/conventions/package_reference.md` の差分は、差分の記録を読む形で確かめる（文書の小さな差分のため）。§7 の差分の記録の欄に、記録を書く。
 
 **完了の条件:** 2 つのスクリプトがどちらも成功を報告し、§7 の AC-01・AC-02・AC-04・AC-05・AC-06 の行に結果が記録されている。
 
@@ -404,12 +404,117 @@ PR の分け方の理由：PR-1 は `main` に入るコードの変更で、そ�
 
 スクリプトの結果（ステップ 1-5 で書く）:
 
--   AC-01・AC-02 のスクリプト：未記入
--   AC-04〜AC-06 のスクリプト：未記入
+-   AC-01・AC-02 のスクリプト（`_checks/check_wasm.sh`、merge-base `a56f085eb59fc2d65e0fd393773067013be3727c`、PR のコミット `8072b8d2c6267a99ee570f24e9fc2953e44f9647`）：成功（終了状態 0）。出力：
+
+    ```text
+    OK AC-01: build of 4 packages and vet of writer and transcript for js/wasm
+    OK AC-02: no ytdlpsource dependency, no repository package imports os/exec
+    ```
+-   AC-04〜AC-06 のスクリプト（`_checks/check_diff.sh`、merge-base `a56f085eb59fc2d65e0fd393773067013be3727c`、PR のコミット `8072b8d2c6267a99ee570f24e9fc2953e44f9647`）：成功（終了状態 0）。出力：
+
+    ```text
+    OK files: every changed file is one the design names
+    OK moved files: 12 files differ only in the designed places
+    OK test_helpers.go: split differs only by the duplicated readTestdataFile and testVideoID
+    OK callers: only import lines, qualifiers, and the envaccess path string changed
+    OK writer: template_open.go holds exactly the lines that left template.go
+    OK Makefile and ci.yml: only the designed lines changed
+    OK AC-06: .golangci.yml, go.mod, go.sum unchanged
+    ```
 
 Diff record (AC-05):
 
 - Compared paths: `docs/dev/conventions/package_reference.md`
+- Merge-base: `a56f085eb59fc2d65e0fd393773067013be3727c`
+- Compared commit: `8072b8d2c6267a99ee570f24e9fc2953e44f9647`
+
+Path diff:
+
+````text
+diff --git a/docs/dev/conventions/package_reference.md b/docs/dev/conventions/package_reference.md
+index 3e5091a8b2b6e94de6672ab7bfa0dc9c7beab224..f0615e25082221509dc149399b411527aa8b3c12 100644
+--- a/docs/dev/conventions/package_reference.md
++++ b/docs/dev/conventions/package_reference.md
+@@ -70,8 +70,9 @@ add a kind here or to widen one of these definitions.
+ | `internal/pipeline` | Runs the three stages in order: `Pipeline`, `Stage`, `StageError`, `ErrNilStage`. |
+ | `internal/pricing` | Estimates what an LLM call cost from its token counts and the providers' published rates, which it holds as constants: `Estimate` returns one stage's `StageCost` (a known amount and `RateBasis`, or an unknown `UnknownReason`), `Totals` sums the stages into a run total and an article total, and `Amount.Format` renders an amount as US dollars. How to update the rates: [pricing update guide](../guides/pricing_update.md). |
+ | `internal/publisher` | Defines the publishing stage: the `Publisher` interface and `FilePublisher`, which writes one article to one new file and never overwrites it. `PrepareSlackMessages` checks an article and splits it into `SlackMessages`, and `SlackWebhookPublisher` posts them to a Slack-compatible Incoming Webhook. `DisplayMarkdown`, `FileContent`, and `FormatArticleCost` expose the same rendering and cost formatting; `ReviewLogWriter` writes a review log. `ErrOutputExists`, `*KeptFileError`, `SlackHTTPStatusError`, and `*SlackPostError` report the failures. File format: [CLI guide](../guides/cli.md); post text, mentions, and splitting: [README](../../../README.md#slack-への投稿). |
+-| `internal/transcript` | Defines the transcript stage (`Transcript`, `Segment`, `TranscriptSource`) and implements it with `YtDlpSource` (a shell-free `yt-dlp` run and a per-video cache) and `CopiedSource` (the transcript a user copies from YouTube's panel). `ValidateVideoURL` and `NormalizedVideoURL` are the video URL rules. The cache's guarantees: [cache consistency](../cache_consistency.md); the `yt-dlp` boundary: [security.md](../security.md). |
++| `internal/transcript` | Defines the transcript stage (`Transcript`, `Segment`, `TranscriptSource`) and implements it with `CopiedSource` (the transcript a user copies from YouTube's panel). `ValidateVideoURL` and `NormalizedVideoURL` are the video URL rules. The `yt-dlp` path lives in `internal/ytdlpsource`. |
+ | `internal/writer` | Defines the article-writing stage: `Article`, the `ArticleWriter` and `ProgressWriter` interfaces, and their implementation. `New` and `NewProgressWriter` validate the options and the prompt templates; `Write` runs the generation, shorten, and review steps, checks each result, and records each stage's token usage in `RunUsage`. `CheckChannelName`, `Article.CheckPublishable`, and `ProseRanges` hold the checks callers share, and `Options.Artifacts` saves and reuses completed stages through a `writer.ArtifactStore`. The template contract: [prompts/README.md](../../../prompts/README.md). |
++| `internal/ytdlpsource` | Implements `transcript.TranscriptSource` with `YtDlpSource`: a shell-free `yt-dlp` run, the json3 and info.json parsers, and a per-video cache (`RemoveCache`, `PruneCache`). It is the development path of the CLI and is not built into the WebAssembly core. The cache's guarantees: [cache consistency](../cache_consistency.md); the `yt-dlp` boundary: [security.md](../security.md). |
+ | `prompts` | Embeds the default prompt templates and returns them: the generation pair with `System` and `User`, and the shorten and review pairs with `ShortenSystem`/`ShortenUser` and `ReviewSystem`/`ReviewUser`. [README](../../../prompts/README.md) documents the template contract and the values each pair may reference. |
+
+ ## Server and Host
+@@ -112,7 +113,7 @@ add a kind here or to widen one of these definitions.
+ | `internal/redact` | Keeps secret values out of output: `Line` renders one line for a terminal, `Writer` redacts each write for output already formatted by `log/slog`, and `SecretStrings` builds the string list from `secret.Secret` values. Depends on `internal/secret` and `internal/slackwebhook`, not on `internal/config`. |
+ | `internal/secret` | Holds a secret (API key, Webhook URL) and guarantees it never appears in `fmt`, `log/slog`, or JSON output. |
+ | `internal/signalrun` | `Run` calls a program's main function under a context that the first subscribed signal cancels: SIGTERM always, and SIGINT and SIGHUP unless each was ignored at startup; the subscription is dropped on that first signal before cancellation, so a second signal terminates the process. |
+-| `internal/strictjson` | Extracts values from JSON documents that passed strict checks: rejects the byte sequences and structural shapes `encoding/json` would silently repair (invalid UTF-8, unpaired surrogate escapes, trailing data, duplicate or `null` consumed members). Main types and methods: `Object.CollectOnly`, `Object.Has`, `Value.AsBool`, `Value.IsNull`, `Value.AsNonNegativeInt64`, `Value.Raw`. The rejected inputs: [0003 design §3.5](../../tasks/0003_deepseek_llm_client/02_architecture.md). Shared by `internal/transcript`, `internal/llm/deepseek`, `internal/llm/claude`, `internal/llm/openai`, `internal/publisher`, `internal/writer`, `internal/artifact`, `internal/fixprguard`, `internal/server`, `internal/nmhost`, `internal/codexreview`, and `internal/coveragecompare` |
++| `internal/strictjson` | Extracts values from JSON documents that passed strict checks: rejects the byte sequences and structural shapes `encoding/json` would silently repair (invalid UTF-8, unpaired surrogate escapes, trailing data, duplicate or `null` consumed members). Main types and methods: `Object.CollectOnly`, `Object.Has`, `Value.AsBool`, `Value.IsNull`, `Value.AsNonNegativeInt64`, `Value.Raw`. The rejected inputs: [0003 design §3.5](../../tasks/0003_deepseek_llm_client/02_architecture.md). Shared by `internal/ytdlpsource`, `internal/llm/deepseek`, `internal/llm/claude`, `internal/llm/openai`, `internal/publisher`, `internal/writer`, `internal/artifact`, `internal/fixprguard`, `internal/server`, `internal/nmhost`, `internal/codexreview`, and `internal/coveragecompare` |
+
+ ## Development Tools
+
+````
+
+File list (only for an AC that limits which files change):
+
+````text
+.claude/commands/mkplan.md
+.claude/commands/runplan.md
+.github/workflows/ci.yml
+CLAUDE.md
+Makefile
+cmd/yt2column/run_test.go
+cmd/yt2column/test_helpers_integration.go
+docs/dev/adr/0019-pipeline-component-interfaces.md
+docs/dev/adr/0033-transcript-cache-slots.md
+docs/dev/cache_consistency.md
+docs/dev/conventions/package_reference.md
+docs/dev/guides/development.md
+docs/dev/project_overview.md
+docs/tasks/0018_article_quality/_material_check/main.go
+docs/tasks/0084_wasm_pipeline_poc/01_requirements.md
+docs/tasks/0084_wasm_pipeline_poc/02_architecture.md
+docs/tasks/0084_wasm_pipeline_poc/03_implementation_plan.md
+docs/tasks/0084_wasm_pipeline_poc/_checks/check_diff.sh
+docs/tasks/0084_wasm_pipeline_poc/_checks/check_wasm.sh
+internal/cachelock/cachelock_test.go
+internal/config/envaccess_test.go
+internal/job/job.go
+internal/job/job_test.go
+internal/transcript/cache.go
+internal/transcript/cache_test.go
+internal/transcript/exec.go
+internal/transcript/exec_test.go
+internal/transcript/info.go
+internal/transcript/info_test.go
+internal/transcript/integration_test.go
+internal/transcript/json3.go
+internal/transcript/json3_test.go
+internal/transcript/sentinel_test.go
+internal/transcript/test_helpers.go
+internal/transcript/test_helpers_cache_seed.go
+internal/transcript/ytdlp.go
+internal/transcript/ytdlp_test.go
+internal/writer/template.go
+internal/writer/template_open.go
+internal/writer/template_open_js.go
+internal/ytdlpsource/cache.go
+internal/ytdlpsource/cache_test.go
+internal/ytdlpsource/doc.go
+internal/ytdlpsource/exec.go
+internal/ytdlpsource/exec_test.go
+internal/ytdlpsource/info.go
+internal/ytdlpsource/info_test.go
+internal/ytdlpsource/integration_test.go
+internal/ytdlpsource/json3.go
+internal/ytdlpsource/json3_test.go
+internal/ytdlpsource/test_helpers.go
+internal/ytdlpsource/test_helpers_cache_seed.go
+internal/ytdlpsource/ytdlp.go
+internal/ytdlpsource/ytdlp_test.go
+````
 
 AC-26 の確かめ（ステップ 4-2 で書く）：未記入
 
