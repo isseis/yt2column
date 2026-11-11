@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-11 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-11 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -343,3 +343,7 @@ chief が行った送信と、行わなかった送信を、人が後から分�
 -   **chief の待ち受け**: chief のセッションが、エージェントの状態の変化を待つこと（F-010）。用語集でサーバが接続を待つことを指す「待ち受け」と区別するため、本書では「chief の待ち受け」の意味で使う。
 -   **実装計画書の PR**: `03_implementation_plan.md` を足す PR。`/runplan` が実装計画書の PR マーカー（PR-N）に従って作る PR は、用語集のとおり「プランの PR」と呼ぶ。
 -   ほかの用語は `docs/translation_glossary.md` と統一する。
+
+## 変更履歴
+
+- 2026-11-11 承認（isseis、#848）
