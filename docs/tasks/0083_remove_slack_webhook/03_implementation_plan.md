@@ -302,7 +302,7 @@
     -   `.golangci.yml` の `publisher-no-server` のコメントと `articlecache-boundaries` の `desc` から Webhook を除く。
     -   `git grep -n -i -E 'webhook|slack' -- '*.go' '*.ts' Makefile .golangci.yml` の残りが、§1.4 の「変えないもの」と、ステップ 4-7 の拒否の確かめだけであることを確かめ、その一覧を commit のメッセージに書く。
 -   [x] **ステップ 4-9**: `_checks/slack_removed.sh` を書いて実行する（AC-06・AC-09）。`Makefile` に `test-integration-slack` のターゲットがないこと、`cmd/`・`internal/`・`Makefile`・`.github/` に `YT2COLUMN_TEST_SLACK_WEBHOOK_URL` と `YT2COLUMN_SLACK_INTEGRATION` がないこと、`internal/config/serverfile.go` の雛形が `SLACK_WEBHOOK_URL` を含まないことを確かめる。シェルで書く。各チェックが少なくとも 1 つの壊し方で失敗することを確かめ、commit のメッセージに書く。出力・終了コード・比べたコミットの ID を §7 の「実行の記録」の PR-4 の欄に書く。
--   [ ] **ステップ 4-10**: `_checks/golden_md_unchanged.sh` を PR-4 の merge-base と最後のコミットで実行し、§7 の「実行の記録」の PR-4 の欄に書く（AC-16a）。
+-   [x] **ステップ 4-10**: `_checks/golden_md_unchanged.sh` を PR-4 の merge-base と最後のコミットで実行し、§7 の「実行の記録」の PR-4 の欄に書く（AC-16a）。
 
 **確かめ直し。** ステップ 4-9・4-10 の比べたコミットより後に、`Makefile`・`cmd/`・`internal/`・`.github/` を変える commit が入ったら（`/fixpr` の修正を含む）、そのステップをやり直して §7 の記録を改める。
 
@@ -507,7 +507,28 @@ exit=0
 
 PR-4:
 
-（ステップ 4-9・4-10 で書く。）
+**`_checks/slack_removed.sh`（AC-06・AC-09）。** 確かめたコミットは PR のブランチの `b63bae99` である（merge-base は `7defcb9ac5a6d0de6a0a88421903619b3c7b7bb2`）。出力と終了コード:
+
+```text
+commit: b63bae99
+OK   the Makefile does not name test-integration-slack
+OK   cmd/, internal/, Makefile, and .github/ name neither YT2COLUMN_TEST_SLACK_WEBHOOK_URL nor YT2COLUMN_SLACK_INTEGRATION
+OK   the template config init writes (31 lines) holds no SLACK_WEBHOOK_URL
+exit=0
+```
+
+壊し方: merge-base `7defcb9a`（Slack のターゲット、統合テストの 2 つの変数、雛形の Webhook の行がまだある）で走らせると、3 つのチェックがどれも `NG` と見つけた行を出し、終了コード `1`。ないコミットを渡すと `is not a commit` で `2`、引数がないと `2`。
+
+**`_checks/golden_md_unchanged.sh`（AC-16a）。** 比べたコミットは、merge-base `7defcb9ac5a6d0de6a0a88421903619b3c7b7bb2` と PR のブランチの `b63bae99` である。出力と終了コード:
+
+```text
+before: 7defcb9ac5a6d0de6a0a88421903619b3c7b7bb2
+after:  b63bae99
+files:  internal/publisher/testdata/golden/*.md
+OK   the same 10 file(s) with the same content at both commits
+OK   all 10 file(s) are byte for byte the same
+exit=0
+```
 
 PR-5:
 
