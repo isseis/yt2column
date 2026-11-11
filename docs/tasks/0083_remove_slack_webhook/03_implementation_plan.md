@@ -471,7 +471,7 @@ OK   all 10 file(s) are byte for byte the same
 exit=0
 ```
 
-壊し方（それぞれ赤くなり、戻した）: ファイルの中身を変えると `NG   <path> changed at HEAD` と `NG   the .md files changed` で終了コード `1`。ファイルを足すと `NG   the files differ:` と前後の一覧で `1`。ファイルを消すと `NG   <path> is missing at HEAD` で `1`。空白を含む名前のファイルを足すと、その名前も一覧に出て `1`（`git ls-tree -z` の NUL で切る）。知らないコミットを渡すと `<ID> is not a commit` で `2`。
+壊し方（それぞれ赤くなり、戻した）: ファイルの中身を変えると `NG   <path> changed at HEAD` と `NG   the .md files changed` で終了コード `1`。ファイルを足すと `NG   the files differ:` と前後の一覧で `1`。ファイルを消すと `NG   <path> is missing at HEAD` で `1`。空白を含む名前のファイルを足すと `1`、そのファイルを両側で変えずに置くと `0`、変えると `1`（名前を NUL とタブで切る）。知らないコミットを渡すと `<ID> is not a commit` で `2`。
 
 **`_checks/coverage`（ステップ 1-1 の変更の確認）。** 2 つの側の profile を `go test -tags test -count=1 -coverpkg=./... -coverprofile=<profile> ./...` で測った（どちらも終了コード `0`、失敗なし）。比べたコミットは `a56f085eb59fc2d65e0fd393773067013be3727c` と `d6c86425` である。出力と終了コード:
 

@@ -10,7 +10,9 @@
 # make test and CI do not run it.
 #
 # git ls-tree separates the path with a tab and -z ends each entry with a NUL,
-# so a path that holds a space stays whole.
+# so a path that holds a space stays whole. A path never holds a tab or a
+# newline, so each entry is kept on one line as "<path><tab><mode> <blob>": the
+# path first, so that a path that holds a space sorts and prints whole.
 
 LC_ALL=C
 export LC_ALL
@@ -23,6 +25,7 @@ fi
 before=$1
 after=$2
 dir=$3
+tab=$(printf '\t')
 
 for commit in "$before" "$after"; do
 	if ! git rev-parse --verify --quiet "$commit^{commit}" >/dev/null; then
@@ -34,11 +37,11 @@ done
 work=$(mktemp -d) || exit 2
 trap 'rm -rf "$work"' EXIT
 
-# list writes "<mode> <blob> <path>" for each .md file of commit at the NUL of
-# the entry, then sorts by path.
+# list writes "<path><tab><mode> <blob>" for each .md file of commit, sorted by
+# path.
 list() {
 	git ls-tree -r -z "$1" -- "$dir" |
-		perl -0nE '$/ = "\0"; while (/\G([0-7]+) \S+ (\S+)\t(.*?)\.md\0/gs) { print "$1 $2 $3.md\n" }' |
+		perl -0nE '$/ = "\0"; while (/\G([0-7]+) \S+ (\S+)\t(.*?)\.md\0/gs) { print "$3.md\t$1 $2\n" }' |
 		LC_ALL=C sort
 }
 
@@ -59,23 +62,38 @@ status=0
 
 # Check 1: the same file names, with the same modes and blob IDs, at both
 # commits.
-awk '{ print $3, $1, $2 }' "$work/before.md" >"$work/before.names"
-awk '{ print $3, $1, $2 }' "$work/after.md" >"$work/after.names"
-count=$(wc -l <"$work/before.names" | tr -d ' ')
-if cmp -s "$work/before.names" "$work/after.names"; then
+count=$(wc -l <"$work/before.md" | tr -d ' ')
+if cmp -s "$work/before.md" "$work/after.md"; then
 	echo "OK   the same $count file(s) with the same content at both commits"
 else
 	echo "NG   the files differ:"
-	sed 's/^/before  /' "$work/before.names"
-	sed 's/^/after   /' "$work/after.names"
+	sed 's/^/before  /' "$work/before.md" | tr '\t' ' '
+	sed 's/^/after   /' "$work/after.md" | tr '\t' ' '
 	status=1
 fi
 
-# Check 2: the bytes of each file at both commits.
+# Check 2: the bytes of each file at both commits. The entry at the after commit
+# is the first entry whose path up to the tab is the whole path, which a file
+# missing from the after commit does not match.
 checked=0
-while read -r mode blob path; do
+while IFS= read -r line; do
+	path=${line%	*}
+	entry=${line#*	}
+	mode=${entry%% *}
+	blob=${entry#* }
 	checked=$((checked + 1))
-	after_blob=$(awk -v p="$path" '$3 == p { print $2 }' "$work/after.md")
+	after_blob=$(awk -v want="$path" -v tab="$tab" '
+		{
+			cut = index($0, tab)
+			if (cut == 0) next
+			p = substr($0, 1, cut - 1)
+			if (p < want) next
+			if (p != want) exit
+			id = substr($0, cut + 1)
+			sub(/^[0-7]+ /, "", id)
+			print id
+			exit
+		}' "$work/after.md")
 	if [ -z "$after_blob" ]; then
 		echo "NG   $path is missing at $after"
 		status=1
