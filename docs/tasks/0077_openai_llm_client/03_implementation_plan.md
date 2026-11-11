@@ -208,24 +208,24 @@
 #### ステップ 4-1：実 API のテストを明示的な実行に限る
 
 **追加ファイル:** `internal/llm/openai/integration_env_test.go`・`integration_test.go`・`makefile_test.go`、`testutil/integration.go`・`integration_settings_test.go`。
-**変更ファイル:** `Makefile`、`internal/pipeline/pipeline_test.go`。
+**変更ファイル:** `Makefile`、`internal/pipeline/pipeline_test.go`、`cmd/yt2column/makefile_test.go`、`docs/dev/conventions/package_reference.md`。
 
-- [ ] 設計書 §7.2 の純粋な設定判定と薄い実行ラッパーを追加する。偽 lookup で未指定・不正・正常伝播を検証し、本番のキーへアクセスしないこと、オプトインと HTTP/2 デバッグの拒否を新規 `TestIntegrationSettings` で確認する。
-- [ ] 課金の注意・呼び出し数・既定モデルと effort・全体の期限を Make ターゲットに定義し、新規 `TestMakeIntegrationOpenAI` で実 API を呼ばず検証する。他のオプトインを有効にしない。
-- [ ] 新規 `TestIntegrationResponses` で独自の短い英語プロンプトによる成功と打ち切りを確認する。前提が成立しない場合は報告し、再送しない。ログの秘密の伏せ字と表示のエスケープを行い、本文を出力しない。
-- [ ] `openaitestutil` の共有ファイルは `test || integration` タグ、非公開の構築口だけを使う補助は `test` タグにする。導入時に実際のタグでコンパイルを確認し、`TestFakesCarryBuildTag` の固定ファイル数とパッケージ参照表の `openai/testutil` 行を同じ PR で更新する。
+- [x] 設計書 §7.2 の純粋な設定判定と薄い実行ラッパーを追加する。偽 lookup で未指定・不正・正常伝播を検証し、本番のキーへアクセスしないこと、オプトインと HTTP/2 デバッグの拒否を新規 `TestIntegrationSettings` で確認する。
+- [x] 課金の注意・呼び出し数・既定モデルと effort・全体の期限を Make ターゲットに定義し、新規 `TestMakeIntegrationOpenAI` で実 API を呼ばず検証する。他のオプトインを有効にしない。
+- [x] 新規 `TestIntegrationResponses` で独自の短い英語プロンプトによる成功と打ち切りを確認する。前提が成立しない場合は報告し、再送しない。ログの秘密の伏せ字と表示のエスケープを行い、本文を出力しない。
+- [x] `openaitestutil` の共有ファイルは `test || integration` タグ、非公開の構築口だけを使う補助は `test` タグにする。導入時に実際のタグでコンパイルを確認し、`TestFakesCarryBuildTag` の固定ファイル数とパッケージ参照表の `openai/testutil` 行を同じ PR で更新する。
 
 #### ステップ 4-2：実応答を取得し、利用案内を同期する
 
 **追加ファイル:** `testdata/openai_responses_completed.json`・`openai_responses_incomplete.json`、`docs/dev/guides/openai_output_limit.md`。
-**変更ファイル:** `testdata/README.md`、`README.md`・`README.en.md`・`CLAUDE.md`、`docs/dev/project_overview.md`・`security.md`・`conventions/package_reference.md`・`guides/development.md`・`guides/cli.md`・`guides/pricing_update.md`、`cmd/yt2column/docs_test.go`。
+**変更ファイル:** `testdata/README.md`、`README.md`・`README.en.md`・`CLAUDE.md`、`docs/dev/project_overview.md`・`security.md`・`guides/development.md`・`guides/pricing_update.md`、`cmd/yt2column/docs_test.go`、`internal/doctestutil/guides.go`、`internal/llm/openai/response_test.go`・`test_helpers.go`。
 
-- [ ] 取得に必要な実行条件・回数・テスト専用キー・加工手順を準備してから、別途その実行の許可を得る。設計時の測定許可は流用しない。
-- [ ] 許可された範囲で独自の短いプロンプトの成功・打ち切りの応答を取得する。API キーと取得者を識別する情報を除き、構造を保つ。取得日・条件・出典・加工箇所・再取得手順を記録する。新規 `TestCapturedResponses` で製品の解析経路から期待する結果を検証する。
-- [ ] 設定・課金・effort・未対応時の失敗・保持の説明・版3/4の互換性・パッケージ参照を実装に合わせる。上限のガイドは設計書 §1.4 の測定結果と再測定条件を参照し、新しい計測を実行しない。
-- [ ] API の値・単価・保持の記述は設計書が挙げる公式出典を再確認して確認日を記す。コマンド例は安全なローカル実行または Make の検査で値と経路を確かめ、有料の例は許可なく実行しない。各文書に実装の参照先を示す。
-- [ ] 既存 `TestEffortValuesDocsContract` 等を拡張し、新規 `TestOpenAIDocsContract` で設定名・effort・統合テストの値を実装と照合する。文の意味は手動で読み、単語の有無を固定しない。
-- [ ] 日本語 README の変更と同じコミットで `/mktrans README.md` により英語版を同期する。日英差分と用語集をレビューする。
+- [x] 取得に必要な実行条件・回数・テスト専用キー・加工手順を準備してから、別途その実行の許可を得る。設計時の測定許可は流用しない。
+- [x] 許可された範囲で独自の短いプロンプトの成功・打ち切りの応答を取得する。API キーと取得者を識別する情報を除き、構造を保つ。取得日・条件・出典・加工箇所・再取得手順を記録する。新規 `TestCapturedResponses` で製品の解析経路から期待する結果を検証する。
+- [x] 設定・課金・effort・未対応時の失敗・保持の説明・版3/4の互換性・パッケージ参照を実装に合わせる。上限のガイドは設計書 §1.4 の測定結果と再測定条件を参照し、新しい計測を実行しない。
+- [x] API の値・単価・保持の記述は設計書が挙げる公式出典を再確認して確認日を記す。コマンド例は安全なローカル実行または Make の検査で値と経路を確かめ、有料の例は許可なく実行しない。各文書に実装の参照先を示す。
+- [x] 既存 `TestEffortValuesDocsContract` 等を拡張し、新規 `TestOpenAIDocsContract` で設定名・effort・統合テストの値を実装と照合する。文の意味は手動で読み、単語の有無を固定しない。
+- [x] 日本語 README の変更と同じコミットで `/mktrans README.md` により英語版を同期する。日英差分と用語集をレビューする。
 
 **完了条件:** 実応答の検証、文書の値のガード、手動の読解、README 同期、グリーンゲートと必要な拡張テストが通る。取得が未許可・未完了なら AC-23 を完了扱いにしない。
 
@@ -290,7 +290,7 @@
 - [x] PR-3 マージ済み（2-3）
 - [x] PR-4 マージ済み（3-1 / 3-2）
 - [ ] PR-5 マージ済み（4-1 / 4-2）
-- [ ] 下表の全 AC の検証結果を記録した
+- [x] 下表の全 AC の検証結果を記録した
 
 ## 7. 受け入れ条件の検証 (Acceptance Criteria Verification)
 
@@ -323,6 +323,8 @@
 | AC-23 | 4-1 / 4-2 | test: `internal/llm/openai/response_test.go::TestCapturedResponses`、`internal/llm/openai/integration_test.go::TestIntegrationResponses`（新規、後者は別途許可）。manual: 出典・取得条件・加工・再取得の記録 |
 | AC-24 | 1-1 / 4-2 | test: `internal/config/config_test.go::TestLoadProductionDefaults`、`make ext-test`。static: `cmd/yt2column/docs_test.go::TestEffortValuesDocsContract`、`TestOpenAIDocsContract`（新規）、`make readme-sync-check`。manual: 日英 README と project_overview・CLAUDE・cli・development・pricing_update・package_reference・上限ガイドを実装と照合 |
 | AC-25 | 4-2 | manual: `docs/dev/security.md` と README の送信データ・保存範囲・監視ログ・キャッシュの説明を公式出典と照合。自然言語の内容だけを定める AC として手動で検証 |
+
+実施した記録（2026-11-11、PR-5）: AC-23 の実応答の取得（2 回）と `make test-integration-openai`（`TestIntegrationResponses`、2 回）は、利用者の許可を得て `gpt-6.1-sol`・`medium` で各 1 回実行し、どちらも成功・打ち切りの前提が成立した。取得条件・加工・再取得の手順は `testdata/README.md` に記した。AC-19・AC-25 の公式の単価・保持の記述は 2026-11-11 に出典を再確認し、`rates.go` の単価と設計書 §5.3 の記述に一致した。AC-10 の上限ガイド（`docs/dev/guides/openai_output_limit.md`）は設計書 §1.4 を現在の根拠として参照する。manual の項目は PR のレビューで読む。
 
 ## 8. 完了条件 (Success Criteria)
 
