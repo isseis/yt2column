@@ -800,7 +800,9 @@ func (d evalData) comparisonRow(c config, s configStats) []string {
 		}
 		failedRuns++
 		sum, unknown := runCost(r.Log)
-		if unknown > 0 || uncosted(r.Log) || (r.Log.hasRunTokens() && (r.Log.TotalRun == nil || !r.Log.TotalRun.Known)) {
+		// The same runs computeSpend counts at their bound, except a run the
+		// human confirmed as stopped before payment, skipped above.
+		if unknown > 0 || uncosted(r.Log) || r.Log.TotalRun == nil || !r.Log.TotalRun.Known {
 			failedUnknown++
 			continue
 		}

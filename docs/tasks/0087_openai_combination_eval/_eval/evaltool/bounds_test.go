@@ -71,10 +71,17 @@ func TestComputeBounds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	found := false
 	for _, b := range bounds {
-		if b.Config == "C-astra" && b.Stage == stageGeneration && b.USD.String() != "7.575000" {
-			t.Errorf("long-input bound = %s, want 300000*25 + 1000*75 per million = 7.575000", b.USD)
+		if b.Config == "C-astra" && b.Stage == stageGeneration {
+			found = true
+			if b.USD.String() != "7.575000" {
+				t.Errorf("long-input bound = %s, want 300000*25 + 1000*75 per million = 7.575000", b.USD)
+			}
 		}
+	}
+	if !found {
+		t.Errorf("no C-astra generation bound")
 	}
 }
 
@@ -87,12 +94,12 @@ func TestComputeBoundsRejects(t *testing.T) {
 	}
 	in := testBoundsInput()
 	in.FixedInput["gpt-6.1-sole"] = in.FixedInput["gpt-6.1-sol"]
-	if _, err := computeBounds(in, typo); !errors.Is(err, errBounds) {
+	if _, err := computeBounds(in, typo); !errors.Is(err, errUnpriced) {
 		t.Errorf("an unpriced model: err = %v", err)
 	}
 	in = testBoundsInput()
 	delete(in.FixedInput["claude-opus-5-5"], stageShorten)
-	if _, err := computeBounds(in, mustConfigs(t)); !errors.Is(err, errBounds) {
+	if _, err := computeBounds(in, mustConfigs(t)); !errors.Is(err, errBounds) || errors.Is(err, errUnpriced) {
 		t.Errorf("a missing fixed input: err = %v", err)
 	}
 }
@@ -108,14 +115,10 @@ func TestEstimates(t *testing.T) {
 	tb := estimateTable(est)
 	ts := []*table{tb}
 	for row, want := range map[string][2]string{
-		"C-sol":        {"0.060000", "0.022500"}, // 10*(0.0035+0.0025), 10*0.00225
-		"A-sol":        {"0.025000", none},       // 10*0.0025
-		"B-sol":        {"1.035000", "0.022500"}, // 10*(0.0035+0.1)
-		"stage1+B-sol": {"", ""},
+		"C-sol": {"0.060000", "0.022500"}, // 10*(0.0035+0.0025), 10*0.00225
+		"A-sol": {"0.025000", none},       // 10*0.0025
+		"B-sol": {"1.035000", "0.022500"}, // 10*(0.0035+0.1)
 	} {
-		if want[0] == "" {
-			continue
-		}
 		if got := cell(t, ts, "estimate", "estimate_usd", row); got != want[0] {
 			t.Errorf("%s estimate = %s, want %s", row, got, want[0])
 		}

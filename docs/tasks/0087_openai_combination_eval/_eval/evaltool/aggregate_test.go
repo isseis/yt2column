@@ -65,7 +65,11 @@ func TestComputeSpend(t *testing.T) {
 	}, "unknown", "unknown", "1.0"))}
 	uncostedRun := run{Config: "C-sol", Article: "f-1", Attempt: attemptCurrent, Log: mustLog(t,
 		"yt2column: tokens: review run known input=1 cache_read=0 cache_write=0 output=1 model=m\nyt2column: cost-total: run known usd=0.000000\n")}
-	for _, r := range []run{unknownTotal, uncostedRun} {
+	// An unknown stage cost with a known total isolates the stage check.
+	unknownStage := run{Config: "C-sol", Article: "g-1", Attempt: attemptCurrent, Log: mustLog(t, logText([]stageLines{
+		{Stage: stageReview, Origin: originRun, USD: "unknown", Model: "gpt-6.1-sol"},
+	}, "known usd=0.000000", "known usd=0.000000", "1.0"))}
+	for _, r := range []run{unknownTotal, uncostedRun, unknownStage} {
 		s, err := computeSpend([]run{r}, testBounds, nil)
 		if err != nil || s.BoundRuns != 1 || s.Total() != testBounds["C-sol"] {
 			t.Errorf("%s: spend = %+v, %v; want the run bound", r.Article, s, err)
@@ -89,10 +93,9 @@ func mustLog(t *testing.T, text string) runLog {
 // evalFixture is a fake evaluation: C-sol and A-sol with ten successful runs
 // each, judged; the 0018 tree; and the files aggregate reads.
 type evalFixture struct {
-	Root, Base0018 string
-	Configs        configTable
-	Bounds         *table
-	Baseline       baseline
+	Root, Base0018           string
+	BoundsPath, BaselinePath string
+	Configs                  configTable
 }
 
 // newEvalFixture writes the fake evaluation.
@@ -135,12 +138,22 @@ func newEvalFixture(t *testing.T) evalFixture {
 	writeFile(t, filepath.Join(f.Root, "log", "C-sol", ".DS_Store"), "x")
 	writeFile(t, filepath.Join(f.Root, "approval"), t0.Add(-time.Minute).Format(time.RFC3339)+"\tC-sol,C-astra,A-sol,A-astra\t30\n")
 	writeJudgments(t, filepath.Join(f.Root, "score", "1", "judgments.tsv"), []string{"C-sol", "A-sol"}, nil)
-	var err error
-	f.Bounds, err = boundsFromTestInput()
+	writeFile(t, filepath.Join(f.Root, launchLogName), t0.Format(time.RFC3339)+"\tC-sol\t"+strings.Join(articles(), ",")+"\n")
+	writeFile(t, filepath.Join(f.Root, "score", "1", "check_article.txt"), "config C-sol\n"+
+		"| file | model | model version | title | sections | length | mechanical checks |\n|---|---|---|---|---|---|---|\n"+
+		"| roNZ-rLxhUE-1.md | m | (none) | Caf\u00e9\\|x | 4 | 3500 | pass |\n")
+	bounds, err := boundsFromTestInput()
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.Baseline = testBaseline()
+	f.BoundsPath = filepath.Join(dir, "bounds.tsv")
+	if err := writeTableFile(f.BoundsPath, bounds); err != nil {
+		t.Fatal(err)
+	}
+	f.BaselinePath = filepath.Join(dir, "baseline.json")
+	writeFile(t, f.BaselinePath, `{"sources": {}, "pass_interp": 8, "pass_literal": 7, "cost_avg_usd": "0.361554",
+"duration_avg_ms": 113400, "required_fail_by_video": {"roNZ-rLxhUE": 0, "18tbwwPM91A": 0, "zW1RBacSqjk": 0,
+"leE02uqgaKg": 1, "EqnGQDU71-Y": 0}, "constraints": {"constraint1": true, "constraint2": true, "constraint3": true}}`)
 	return f
 }
 
@@ -211,38 +224,10 @@ func testBaseline() baseline {
 	}
 }
 
-// load reads the fixture as aggregate does.
+// load reads the fixture with aggregate's own loader.
 func (f evalFixture) load(t *testing.T) (evalData, error) {
 	t.Helper()
-	d := evalData{Configs: f.Configs, Judg: map[int]judgments{}, Checks: map[articleKey]articleCheck{}, Baseline: f.Baseline}
-	var err error
-	if d.Runs, err = loadRuns0087(f.Root, f.Configs); err != nil {
-		return evalData{}, err
-	}
-	if d.D18, err = load0018(f.Base0018); err != nil {
-		return evalData{}, err
-	}
-	if d.Bounds, err = runBounds(f.Bounds); err != nil {
-		return evalData{}, err
-	}
-	d.Prepay, err = optional(filepath.Join(f.Root, "prepayment.tsv"), parsePrepayment, map[runKey]bool{})
-	if err != nil {
-		return evalData{}, err
-	}
-	if d.Approvals, err = optional(filepath.Join(f.Root, "approval"), parseApprovals, nil); err != nil {
-		return evalData{}, err
-	}
-	js, err := optional(filepath.Join(f.Root, "score", "1", "judgments.tsv"), parseJudgments, nil)
-	if err != nil {
-		return evalData{}, err
-	}
-	if js != nil {
-		if err := js.checkComplete(obtained(d.Runs, f.Configs.ids(1))); err != nil {
-			return evalData{}, err
-		}
-		d.Judg[1] = js
-	}
-	return d, d.checkPrepayment()
+	return loadEvalData(f.Root, f.Base0018, f.BoundsPath, f.BaselinePath, f.Configs)
 }
 
 // mustTables aggregates the fixture.
@@ -267,6 +252,9 @@ func cell(t *testing.T, ts []*table, name, column string, keys ...string) string
 		t.Fatalf("no table %s", name)
 	}
 	col := slices.Index(tb.Columns, column)
+	if col < 0 {
+		t.Fatalf("table %s has no column %s", name, column)
+	}
 	for _, row := range tb.Rows {
 		if slices.Equal(row[:len(keys)], keys) {
 			return row[col]
@@ -310,8 +298,13 @@ func TestAggregateComparison(t *testing.T) {
 	if got := cell(t, ts, "spend", "known_usd", "record"); got != "1.945000" {
 		t.Errorf("spend = %s, want C-sol 1.545000 + A-sol 0.400000 (reused stages excluded)", got)
 	}
-	if got := cell(t, ts, "run-conditions", "value", "all_kept_conditions"); got != "yes" {
-		t.Errorf("run conditions = %s", got)
+	if got := cell(t, ts, "launches", "articles", "1"); got != strings.Join(articles(), ",") {
+		t.Errorf("launch 1 articles = %s", got)
+	}
+	// The title "Caf\u00e9|x" has 6 characters (7 bytes) once the table's \|
+	// escape is undone.
+	if got := cell(t, ts, "article-checks", "title_chars", "C-sol", "roNZ-rLxhUE-1"); got != "6" {
+		t.Errorf("title_chars = %s, want 6", got)
 	}
 }
 

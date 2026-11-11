@@ -47,6 +47,39 @@ const cacheGap = 30 * time.Minute
 // errLaunch reports a check that stopped launch before it started any run.
 var errLaunch = errors.New("launch stopped before starting any run")
 
+// stopKind says which check stopped launch.
+type stopKind int
+
+// The checks that can stop launch. The zero value is not a check.
+const (
+	stopInput       stopKind = iota + 1 // a flag or an input file launch reads
+	stopLock                            // another launch holds the lock
+	stopClock                           // -now is far from the system clock
+	stopBounds                          // the bounds table is stale or unpriced
+	stopApproval                        // no approval, or not of this config, or before it
+	stopRunRecords                      // a run record or log cannot be read
+	stopRetry                           // an article has used its retries
+	stopRunState                        // a run has not finished, or a target has a current run
+	stopCacheGap                        // a config sharing an OpenAI model ended too recently
+	stopStage1                          // stage 1's judgments are incomplete or unconfirmed
+	stopReservation                     // the spend plus the bound would exceed the limit
+)
+
+// launchStop is a stop with its check; it wraps errLaunch.
+type launchStop struct {
+	Kind stopKind
+	err  error
+}
+
+func (e *launchStop) Error() string { return e.err.Error() }
+
+func (e *launchStop) Unwrap() error { return e.err }
+
+// stop returns a launchStop of kind with the formatted reason.
+func stop(kind stopKind, format string, args ...any) error {
+	return &launchStop{Kind: kind, err: fmt.Errorf("%w: "+format, append([]any{errLaunch}, args...)...)} //nolint:err113 // wraps errLaunch; every caller passes a constant format
+}
+
 // launchEntry is one line of launch.log.
 type launchEntry struct {
 	At       time.Time
@@ -97,34 +130,34 @@ func (q launchRequest) targets() []string {
 func checkLaunch(q launchRequest) error {
 	cfg, ok := q.Configs.byID(q.Config)
 	if !ok {
-		return fmt.Errorf("%w: %s is not a config", errLaunch, q.Config)
+		return stop(stopInput, "%s is not a config", q.Config)
 	}
 	if q.Retry != "" && !articleRE.MatchString(q.Retry) {
-		return fmt.Errorf("%w: %q is not an article", errLaunch, q.Retry)
+		return stop(stopInput, "%q is not an article", q.Retry)
 	}
 	// The committed bounds table must be the one the current inputs give,
 	// which also stops a model the rate table cannot price.
 	fresh, _, err := estimateAndBounds(q.BoundsInput, q.Configs)
 	if err != nil {
-		return fmt.Errorf("%w: %w", errLaunch, err)
+		return stop(stopBounds, "%w", err)
 	}
 	if !slices.EqualFunc(fresh.Rows, q.Bounds.Rows, slices.Equal[[]string]) {
-		return fmt.Errorf("%w: the bounds table differs from what estimate computes now", errLaunch)
+		return stop(stopBounds, "the bounds table differs from what estimate computes now")
 	}
 	approvals, err := readParsed(filepath.Join(q.Root, "approval"), parseApprovals)
 	if err != nil {
-		return fmt.Errorf("%w: %w", errLaunch, err)
+		return stop(stopApproval, "%w", err)
 	}
 	last := approvals[len(approvals)-1]
 	if !slices.Contains(last.Configs, q.Config) {
-		return fmt.Errorf("%w: the approval does not include %s", errLaunch, q.Config)
+		return stop(stopApproval, "the approval does not include %s", q.Config)
 	}
 	if q.Now.Before(last.At) {
-		return fmt.Errorf("%w: now is before the last approval", errLaunch)
+		return stop(stopApproval, "now is before the last approval")
 	}
 	runs, err := loadRuns0087(q.Root, q.Configs)
 	if err != nil {
-		return fmt.Errorf("%w: %w", errLaunch, err)
+		return stop(stopRunRecords, "%w", err)
 	}
 	if err := checkRetryLimit(q, runs); err != nil {
 		return err
@@ -143,25 +176,25 @@ func checkLaunch(q launchRequest) error {
 	return checkReservation(q, runs, last.Limit)
 }
 
-// checkRetryLimit refuses a retry of an article that already has its
+// checkRetryLimit refuses to start an article that already has its
 // maxRetries retired attempts, not counting the runs the human confirmed as
-// stopped before payment.
+// stopped before payment. It applies to every target, so a full launch cannot
+// start a third retry either.
 func checkRetryLimit(q launchRequest, runs []run) error {
-	if q.Retry == "" {
-		return nil
-	}
 	prepay, err := optional(filepath.Join(q.Root, "prepayment.tsv"), parsePrepayment, map[runKey]bool{})
 	if err != nil {
-		return fmt.Errorf("%w: %w", errLaunch, err)
+		return stop(stopRetry, "%w", err)
 	}
-	n := 0
+	retired := map[string]int{}
 	for _, r := range runs {
-		if r.Config == q.Config && r.Article == q.Retry && r.Attempt != attemptCurrent && !prepay[r.key()] {
-			n++
+		if r.Config == q.Config && r.Attempt != attemptCurrent && !prepay[r.key()] {
+			retired[r.Article]++
 		}
 	}
-	if n >= maxRetries {
-		return fmt.Errorf("%w: %s %s already has %d retries", errLaunch, q.Config, q.Retry, n)
+	for _, a := range q.targets() {
+		if retired[a] >= maxRetries {
+			return stop(stopRetry, "%s %s already has %d retries", q.Config, a, retired[a])
+		}
 	}
 	return nil
 }
@@ -171,10 +204,10 @@ func checkRetryLimit(q launchRequest, runs []run) error {
 func checkRunsState(q launchRequest, runs []run) error {
 	for _, r := range runs {
 		if !r.finished() {
-			return fmt.Errorf("%w: %s %s %s has not finished", errLaunch, r.Config, r.Article, r.Attempt)
+			return stop(stopRunState, "%s %s %s has not finished", r.Config, r.Article, r.Attempt)
 		}
 		if r.Config == q.Config && r.Attempt == attemptCurrent && slices.Contains(q.targets(), r.Article) {
-			return fmt.Errorf("%w: %s %s already has a current run", errLaunch, r.Config, r.Article)
+			return stop(stopRunState, "%s %s already has a current run", r.Config, r.Article)
 		}
 	}
 	return nil
@@ -191,8 +224,8 @@ func checkCacheGap(q launchRequest, cfg config, runs []run) error {
 		other, _ := q.Configs.byID(r.Config)
 		shared := slices.ContainsFunc(other.openAIModels(), func(m string) bool { return slices.Contains(models, m) })
 		if shared && q.Now.Sub(r.When.End) < cacheGap {
-			return fmt.Errorf("%w: %s ended at %s, less than %s before now, and shares an OpenAI model",
-				errLaunch, r.Config, fmtTime(r.When.End), cacheGap)
+			return stop(stopCacheGap, "%s ended at %s, less than %s before now, and shares an OpenAI model",
+				r.Config, fmtTime(r.When.End), cacheGap)
 		}
 	}
 	return nil
@@ -207,23 +240,23 @@ const stage1ConfirmedName = "human-confirmed"
 func checkStage1Confirmed(q launchRequest, runs []run) error {
 	js, err := readParsed(filepath.Join(q.Stage1Dir, "judgments.tsv"), parseJudgments)
 	if err != nil {
-		return fmt.Errorf("%w: stage-1 judgments: %w", errLaunch, err)
+		return stop(stopStage1, "stage-1 judgments: %w", err)
 	}
 	stage1 := q.Configs.ids(1)
 	if err := js.checkComplete(obtained(runs, stage1)); err != nil {
-		return fmt.Errorf("%w: %w", errLaunch, err)
+		return stop(stopStage1, "%w", err)
 	}
 	for _, id := range stage1 {
 		if !slices.ContainsFunc(runs, func(r run) bool { return r.Config == id }) {
-			return fmt.Errorf("%w: stage-1 config %s has not run", errLaunch, id)
+			return stop(stopStage1, "stage-1 config %s has not run", id)
 		}
 	}
 	data, err := os.ReadFile(filepath.Join(q.Stage1Dir, stage1ConfirmedName))
 	if err != nil {
-		return fmt.Errorf("%w: no human confirmation of the stage-1 judgments: %w", errLaunch, err)
+		return stop(stopStage1, "no human confirmation of the stage-1 judgments: %w", err)
 	}
 	if _, err := time.Parse(time.RFC3339, strings.TrimSpace(string(data))); err != nil {
-		return fmt.Errorf("%w: the human confirmation does not hold a time: %w", errLaunch, err)
+		return stop(stopStage1, "the human confirmation does not hold a time: %w", err)
 	}
 	return nil
 }
@@ -233,16 +266,16 @@ func checkStage1Confirmed(q launchRequest, runs []run) error {
 func checkReservation(q launchRequest, runs []run, limit micro) error {
 	bounds, err := runBounds(q.Bounds)
 	if err != nil {
-		return fmt.Errorf("%w: %w", errLaunch, err)
+		return stop(stopReservation, "%w", err)
 	}
 	spent, err := computeSpend(runs, bounds, nil)
 	if err != nil {
-		return fmt.Errorf("%w: %w", errLaunch, err)
+		return stop(stopReservation, "%w", err)
 	}
 	reserve := bounds[q.Config] * micro(len(q.targets()))
 	if spent.Total()+reserve > limit {
-		return fmt.Errorf("%w: spent %s plus the bound %s of the runs exceeds the limit %s",
-			errLaunch, spent.Total(), reserve, limit)
+		return stop(stopReservation, "spent %s plus the bound %s of the runs exceeds the limit %s",
+			spent.Total(), reserve, limit)
 	}
 	return nil
 }
@@ -259,7 +292,7 @@ func acquireLock(root string) (string, func(), error) {
 	path := filepath.Join(root, launchLockName)
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600) //nolint:gosec // path under the operator's root
 	if err != nil {
-		return "", nil, fmt.Errorf("%w: cannot take %s (another launch, or a stale lock): %w", errLaunch, path, err)
+		return "", nil, stop(stopLock, "cannot take %s (another launch, or a stale lock): %w", path, err)
 	}
 	_, err = f.WriteString(token)
 	if cerr := f.Close(); err == nil {
@@ -361,19 +394,19 @@ func runLaunch(args []string, stdout io.Writer) error {
 	}
 	var err error
 	if q.Now, err = time.Parse(time.RFC3339, *now); err != nil {
-		return fmt.Errorf("%w: -now: %w", errLaunch, err)
+		return stop(stopInput, "-now: %w", err)
 	}
 	if d := time.Since(q.Now); d > clockSkew || d < -clockSkew {
-		return fmt.Errorf("%w: -now is more than %s from the system clock", errLaunch, clockSkew)
+		return stop(stopClock, "-now is more than %s from the system clock", clockSkew)
 	}
 	if q.BoundsInput, err = loadBoundsInput(*boundsInputPath); err != nil {
-		return fmt.Errorf("%w: %w", errLaunch, err)
+		return stop(stopInput, "%w", err)
 	}
 	if q.Bounds, err = loadBoundsTable(*boundsPath); err != nil {
-		return fmt.Errorf("%w: %w", errLaunch, err)
+		return stop(stopInput, "%w", err)
 	}
 	if q.Configs, err = loadConfigTable(q.RunScript); err != nil {
-		return fmt.Errorf("%w: %w", errLaunch, err)
+		return stop(stopInput, "%w", err)
 	}
 	results, err := launchRuns(q)
 	if err != nil {

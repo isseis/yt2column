@@ -3,8 +3,10 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -95,6 +97,16 @@ func TestLaunchPositive(t *testing.T) {
 	if len(calls) != 10 || !strings.HasPrefix(calls[0], "run C-sol ") || !strings.Contains(calls[0], " /bin/false "+launchTokenFlag+" ") {
 		t.Errorf("calls = %q", calls)
 	}
+	var started []string
+	for _, c := range calls {
+		started = append(started, strings.Fields(c)[2])
+	}
+	slices.Sort(started)
+	want := slices.Clone(articles())
+	slices.Sort(want)
+	if !slices.Equal(started, want) {
+		t.Errorf("started %v, want each article once", started)
+	}
 	for _, c := range calls {
 		_, rest, _ := strings.Cut(c, " "+launchTokenFlag+" ")
 		token, lock, _ := strings.Cut(rest, " lock=")
@@ -114,67 +126,96 @@ func TestLaunchPositive(t *testing.T) {
 // TestLaunchStops changes one input of the positive control at a time and
 // requires the stub never to start.
 func TestLaunchStops(t *testing.T) {
+	stage1 := []string{"C-sol", "C-astra", "A-sol", "A-astra"}
 	cases := []struct {
 		name string
+		kind stopKind
+		also error // a sentinel the stop must also carry, when one names the cause
 		edit func(t *testing.T, f *launchFixture)
 	}{
-		{"no approval", func(_ *testing.T, f *launchFixture) { _ = os.Remove(filepath.Join(f.Root, "approval")) }},
-		{"broken approval", func(t *testing.T, f *launchFixture) {
+		{"no approval", stopApproval, nil, func(_ *testing.T, f *launchFixture) { _ = os.Remove(filepath.Join(f.Root, "approval")) }},
+		{"broken approval", stopApproval, errApproval, func(t *testing.T, f *launchFixture) {
 			writeFile(t, filepath.Join(f.Root, "approval"), "yesterday\tC-sol\t30\n")
 		}},
-		{"config not approved", func(_ *testing.T, f *launchFixture) { f.Req.Config = "B-astra" }},
-		{"the last approval drops the config", func(t *testing.T, f *launchFixture) {
+		{"stage-1 config not approved", stopApproval, nil, func(t *testing.T, f *launchFixture) {
+			writeFile(t, filepath.Join(f.Root, "approval"), t0.Format(time.RFC3339)+"\tC-sol,C-astra,A-sol\t30\n")
+			f.Req.Config = "A-astra"
+		}},
+		{"the last approval drops the config", stopApproval, nil, func(t *testing.T, f *launchFixture) {
 			writeFile(t, filepath.Join(f.Root, "approval"), t0.Format(time.RFC3339)+"\tC-sol\t30\n"+
 				t0.Add(time.Minute).Format(time.RFC3339)+"\tC-astra\t30\n")
 		}},
-		{"limit one micro below the reservation", func(t *testing.T, f *launchFixture) {
+		{"now before the last approval", stopApproval, nil, func(_ *testing.T, f *launchFixture) { f.Req.Now = t0.Add(-time.Second) }},
+		{"limit one micro below the reservation", stopReservation, nil, func(t *testing.T, f *launchFixture) {
 			writeFile(t, filepath.Join(f.Root, "approval"), t0.Format(time.RFC3339)+"\tC-sol\t"+(10*cSolRunBound-1).String()+"\n")
 		}},
-		{"a log whose spend cannot be read", func(t *testing.T, f *launchFixture) {
+		{"an unknown cost counts the run at its bound", stopReservation, nil, func(t *testing.T, f *launchFixture) {
+			writeRun(t, f.Root, fakeRun{
+				Config: "C-sol", Article: "zW1RBacSqjk-1", Attempt: "f1", Start: t0, Exit: 1,
+				Log: logText([]stageLines{{Stage: stageReview, Origin: originRun, USD: "unknown", Model: "m"}}, "unknown", "unknown", "1.0"),
+			})
+			writeFile(t, filepath.Join(f.Root, "approval"), fmt.Sprintf("%s\tC-sol\t%s\n", t0.Format(time.RFC3339), 2*cSolRunBound-1))
+			f.Req.Retry = "zW1RBacSqjk-1"
+		}},
+		{"a log whose spend cannot be read", stopRunRecords, errLogLine, func(t *testing.T, f *launchFixture) {
 			writeRun(t, f.Root, fakeRun{Config: "C-astra", Article: "roNZ-rLxhUE-1", Start: t0, Exit: 1, Log: "yt2column: cost: broken\n"})
 		}},
-		{"a run that has not finished", func(t *testing.T, f *launchFixture) {
+		{"a run that has not finished", stopRunState, nil, func(t *testing.T, f *launchFixture) {
 			writeRun(t, f.Root, fakeRun{Config: "C-astra", Article: "roNZ-rLxhUE-1", Start: t0, Unfinished: true, Log: ""})
 		}},
-		{"another launch holds the lock", func(t *testing.T, f *launchFixture) {
-			writeFile(t, filepath.Join(f.Root, launchLockName), "other")
-		}},
-		{"now before the last approval", func(_ *testing.T, f *launchFixture) { f.Req.Now = t0.Add(-time.Second) }},
-		{"a target article already has a current run", func(t *testing.T, f *launchFixture) {
+		{"a target article already has a current run", stopRunState, nil, func(t *testing.T, f *launchFixture) {
 			writeRun(t, f.Root, fakeRun{Config: "C-sol", Article: "zW1RBacSqjk-1", Start: t0, Exit: 0, Log: "x\n"})
 		}},
-		{"a third retry", func(t *testing.T, f *launchFixture) {
+		{"another launch holds the lock", stopLock, nil, func(t *testing.T, f *launchFixture) {
+			writeFile(t, filepath.Join(f.Root, launchLockName), "other")
+		}},
+		{"a third retry", stopRetry, nil, func(t *testing.T, f *launchFixture) {
 			for _, n := range []string{"f1", "f2"} {
 				writeRun(t, f.Root, fakeRun{Config: "C-sol", Article: "zW1RBacSqjk-1", Attempt: n, Start: t0, Exit: 2, Log: "x\n"})
 			}
-			writeFile(t, filepath.Join(f.Root, "approval"), t0.Format(time.RFC3339)+"\tC-sol\t30\n")
 			f.Req.Retry = "zW1RBacSqjk-1"
 		}},
-		{"B-sol while a stage-1 config has not run", func(t *testing.T, f *launchFixture) {
-			for _, c := range []string{"C-sol", "C-astra", "A-sol"} {
-				f.finishConfig(t, c, t0)
+		{"a full launch over an article that used its retries", stopRetry, nil, func(t *testing.T, f *launchFixture) {
+			for _, n := range []string{"f1", "f2"} {
+				writeRun(t, f.Root, fakeRun{Config: "C-sol", Article: "zW1RBacSqjk-1", Attempt: n, Start: t0, Exit: 2, Log: "x\n"})
 			}
-			writeJudgments(t, filepath.Join(f.Req.Stage1Dir, "judgments.tsv"), []string{"C-sol", "C-astra", "A-sol"}, nil)
-			writeFile(t, filepath.Join(f.Req.Stage1Dir, stage1ConfirmedName), t0.Format(time.RFC3339)+"\n")
-			f.Req.Config = "B-sol"
 		}},
-		{"stale bounds table", func(_ *testing.T, f *launchFixture) { f.Req.BoundsInput.ArticlePartMaxBytes++ }},
-		{"an unpriced model", func(t *testing.T, f *launchFixture) {
+		{"stale bounds table", stopBounds, nil, func(_ *testing.T, f *launchFixture) { f.Req.BoundsInput.ArticlePartMaxBytes++ }},
+		{"an unpriced model", stopBounds, errUnpriced, func(t *testing.T, f *launchFixture) {
 			c, err := parseConfigTable(strings.NewReader(strings.Replace(testConfigTable, "gpt-6.1-sol+medium\tfull", "gpt-6.1-sole+medium\tfull", 1)))
 			if err != nil {
 				t.Fatal(err)
 			}
 			f.Req.Configs = c
+			// The unpriced model has every input, so only the price stops it.
+			f.Req.BoundsInput.FixedInput["gpt-6.1-sole"] = f.Req.BoundsInput.FixedInput["gpt-6.1-sol"]
+			f.Req.BoundsInput.EstimateTokens["gpt-6.1-sole"] = f.Req.BoundsInput.EstimateTokens["gpt-6.1-sol"]
 		}},
-		{"A-sol within 30 minutes of C-sol", func(t *testing.T, f *launchFixture) {
+		{"A-sol within 30 minutes of C-sol", stopCacheGap, nil, func(t *testing.T, f *launchFixture) {
 			f.finishConfig(t, "C-sol", f.Req.Now.Add(-cacheGap+time.Second))
 			f.Req.Config = "A-sol"
 		}},
-		{"B-sol before the stage-1 judgments are confirmed", func(t *testing.T, f *launchFixture) {
-			for _, c := range []string{"C-sol", "C-astra", "A-sol", "A-astra"} {
+		{"B-sol before the stage-1 judgments are confirmed", stopStage1, nil, func(t *testing.T, f *launchFixture) {
+			for _, c := range stage1 {
 				f.finishConfig(t, c, t0)
 			}
-			writeJudgments(t, filepath.Join(f.Req.Stage1Dir, "judgments.tsv"), []string{"C-sol", "C-astra", "A-sol", "A-astra"}, nil)
+			writeJudgments(t, filepath.Join(f.Req.Stage1Dir, "judgments.tsv"), stage1, nil)
+			f.Req.Config = "B-sol"
+		}},
+		{"B-sol with an incomplete stage-1 judgment", stopStage1, errJudgments, func(t *testing.T, f *launchFixture) {
+			for _, c := range stage1 {
+				f.finishConfig(t, c, t0)
+			}
+			writeJudgments(t, filepath.Join(f.Req.Stage1Dir, "judgments.tsv"), stage1, map[string]string{"A-astra roNZ-rLxhUE-1 notation": ""})
+			writeFile(t, filepath.Join(f.Req.Stage1Dir, stage1ConfirmedName), t0.Format(time.RFC3339)+"\n")
+			f.Req.Config = "B-sol"
+		}},
+		{"B-sol while a stage-1 config has not run", stopStage1, nil, func(t *testing.T, f *launchFixture) {
+			for _, c := range stage1[:3] {
+				f.finishConfig(t, c, t0)
+			}
+			writeJudgments(t, filepath.Join(f.Req.Stage1Dir, "judgments.tsv"), stage1[:3], nil)
+			writeFile(t, filepath.Join(f.Req.Stage1Dir, stage1ConfirmedName), t0.Format(time.RFC3339)+"\n")
 			f.Req.Config = "B-sol"
 		}},
 	}
@@ -183,10 +224,23 @@ func TestLaunchStops(t *testing.T) {
 			f := newLaunchFixture(t)
 			c.edit(t, &f)
 			calls, err := f.launch(t, f.Req)
-			if !errors.Is(err, errLaunch) || len(calls) != 0 {
-				t.Errorf("err = %v, calls = %d; want errLaunch and no run started", err, len(calls))
+			s, ok := errors.AsType[*launchStop](err)
+			if !ok || s.Kind != c.kind || len(calls) != 0 {
+				t.Errorf("err = %v, calls = %d; want a stop of kind %d and no run started", err, len(calls), c.kind)
+			}
+			if c.also != nil && !errors.Is(err, c.also) {
+				t.Errorf("err = %v; want it to carry %v", err, c.also)
 			}
 		})
+	}
+}
+
+// TestLaunchClockSkew refuses a -now far from the system clock before it
+// reads anything else.
+func TestLaunchClockSkew(t *testing.T) {
+	err := runLaunch([]string{"-now", time.Now().Add(-2 * time.Minute).UTC().Format(time.RFC3339)}, io.Discard)
+	if s, ok := errors.AsType[*launchStop](err); !ok || s.Kind != stopClock {
+		t.Errorf("err = %v, want a clock stop", err)
 	}
 }
 
@@ -227,18 +281,6 @@ func TestLaunchBoundaries(t *testing.T) {
 		calls, err := f.launch(t, f.Req)
 		if err != nil || len(calls) != 1 || !strings.Contains(calls[0], "zW1RBacSqjk-1") {
 			t.Errorf("err = %v, calls = %q", err, calls)
-		}
-	})
-	t.Run("an unknown cost counts the run at its bound", func(t *testing.T) {
-		f := newLaunchFixture(t)
-		writeRun(t, f.Root, fakeRun{
-			Config: "C-sol", Article: "zW1RBacSqjk-1", Attempt: "f1", Start: t0, Exit: 1,
-			Log: logText([]stageLines{{Stage: stageReview, Origin: originRun, USD: "unknown", Model: "m"}}, "unknown", "unknown", "1.0"),
-		})
-		writeFile(t, filepath.Join(f.Root, "approval"), fmt.Sprintf("%s\tC-sol\t%s\n", t0.Format(time.RFC3339), 2*cSolRunBound-1))
-		f.Req.Retry = "zW1RBacSqjk-1"
-		if calls, err := f.launch(t, f.Req); !errors.Is(err, errLaunch) || len(calls) != 0 {
-			t.Errorf("the unknown run must count as one bound: err = %v, calls = %d", err, len(calls))
 		}
 	})
 	t.Run("B-sol after the stage-1 judgments are confirmed", func(t *testing.T) {

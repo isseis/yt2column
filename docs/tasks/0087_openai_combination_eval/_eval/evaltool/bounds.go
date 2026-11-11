@@ -44,8 +44,12 @@ type measuredCall struct {
 	Output uint64 `json:"output"`
 }
 
-// errBounds reports bounds input or a bounds table that cannot price a config.
-var errBounds = errors.New("cannot compute the bounds")
+// errBounds reports bounds input or a bounds table that cannot price a config;
+// errUnpriced, which comes with it, a model the rate table cannot price.
+var (
+	errBounds   = errors.New("cannot compute the bounds")
+	errUnpriced = errors.New("model is not priced")
+)
 
 // loadBoundsInput reads bounds-input.json, refusing unknown keys.
 func loadBoundsInput(path string) (boundsInput, error) {
@@ -81,7 +85,7 @@ func priceCall(v llmValue, counts llm.TokenCounts) (pricing.Amount, error) {
 	amount, _, known := pricing.Estimate(v.Model, usage, time.Time{}).Known()
 	if !known {
 		reason, _ := pricing.Estimate(v.Model, usage, time.Time{}).Unknown()
-		return pricing.Amount{}, fmt.Errorf("%w: model %s is not priced (reason %d)", errBounds, v.Model, reason)
+		return pricing.Amount{}, fmt.Errorf("%w: %w: %s (reason %d)", errBounds, errUnpriced, v.Model, reason)
 	}
 	return amount, nil
 }

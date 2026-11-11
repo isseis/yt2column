@@ -17,9 +17,12 @@ import (
 	"github.com/isseis/yt2column/internal/transcript"
 )
 
-// errMaterial reports scoring material that cannot be built without revealing
-// the config, or whose inputs are missing.
-var errMaterial = errors.New("cannot build the scoring material")
+// errMaterial reports scoring material that cannot be built; errLeak, which
+// comes with it, a material text that would reveal a config or model name.
+var (
+	errMaterial = errors.New("cannot build the scoring material")
+	errLeak     = errors.New("material would reveal a config or model name")
+)
 
 // reviewLogModelPrefix starts the review log's model lines (internal/publisher
 // writes "- Review model: ..." and "- Review model version: ..."), which name
@@ -117,7 +120,7 @@ func forbiddenWords(configs []config) []string {
 func writeChecked(path, text string, forbidden []string) error {
 	for _, w := range forbidden {
 		if strings.Contains(text, w) {
-			return fmt.Errorf("%w: %s would contain a config or model name", errMaterial, path)
+			return fmt.Errorf("%w: %w: %s", errMaterial, errLeak, path)
 		}
 	}
 	return os.WriteFile(path, []byte(text), 0o600)

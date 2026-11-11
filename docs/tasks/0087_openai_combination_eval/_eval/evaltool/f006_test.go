@@ -40,12 +40,11 @@ func TestJudgeF006(t *testing.T) {
 		{"over three times the cost fails (iii)", func(s *configStats) { s.PassInterp = 10; s.CostSum = 3*361554*10 + 1 }, true, false, false, false},
 		{"exactly twice the duration meets (iii)", func(s *configStats) { s.DurSum = 2 * 113400 * 10 * time.Millisecond }, false, true, true, true},
 		{"over twice the duration fails (iii)", func(s *configStats) { s.DurSum = (2*113400*10 + 1) * time.Millisecond }, false, true, false, false},
-		{"a missing article fails (ii) and (iii)", func(s *configStats) { s.Usable = 9; s.PassInterp = 10 }, true, false, false, false},
+		{"a missing article fails (ii) and (iii)", func(s *configStats) { s.Usable = 9; s.PassInterp = 10; s.CostSum = 361554 * 8 }, true, false, false, false},
 		{"an unknown cost fails (ii) and (iii)", func(s *configStats) { s.CostUnknown = true }, false, false, false, false},
 	}
 	for _, c := range cases {
 		s := candidateStats()
-		s.FailsByVideo = map[string]int{"leE02uqgaKg": 1}
 		c.edit(&s)
 		r := judgeF006(s, b)
 		if r.CondI != c.i || r.CondII != c.ii || r.CondIII != c.iii || r.Candidate != c.c {

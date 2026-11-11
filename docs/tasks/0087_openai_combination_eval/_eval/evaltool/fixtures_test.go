@@ -90,7 +90,10 @@ func logText(lines []stageLines, totalRun, totalArticle, wall string) string {
 // whenText builds a 0087 run record.
 func whenText(cfg, article, after string, start, end time.Time, exit int, finished bool) string {
 	c := mustConfigsNoT()
-	conf, _ := c.byID(cfg)
+	conf, ok := c.byID(cfg)
+	if !ok {
+		panic("whenText: unknown config " + cfg)
+	}
 	s := fmt.Sprintf("config=%s\narticle=%s\nafter=%s\nllm=%s\nreview_llm=%s\nytdlp_path=/usr/bin/false\nkeep_cache=yes\nbinary_sha256=abc\nstart=%s\n",
 		cfg, article, after, conf.LLM.Raw, conf.ReviewLLM.Raw, start.UTC().Format(time.RFC3339))
 	if finished {

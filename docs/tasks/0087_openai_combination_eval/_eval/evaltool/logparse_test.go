@@ -61,6 +61,7 @@ func TestParseRunLog(t *testing.T) {
 		"total form":        "yt2column: cost-total: run maybe",
 		"duplicate stage":   "yt2column: tokens: review run unknown reason=x nomodel\nyt2column: tokens: review run unknown reason=y nomodel",
 		"duplicate total":   "yt2column: cost-total: run unknown\nyt2column: cost-total: run unknown",
+		"duplicate cost":    "yt2column: cost: review run unknown reason=x at=2026-10-23T13:25:07Z\nyt2column: cost: review run unknown reason=y at=2026-10-23T13:25:07Z",
 		"second time line":  "a 0% cpu 1.0 total\nb 0% cpu 2.0 total",
 		"unterminated name": `yt2column: tokens: review run unknown reason=x model=a\`,
 	} {
@@ -80,6 +81,11 @@ func TestParseClock(t *testing.T) {
 		got, err := parseClock(in)
 		if err != nil || got != want {
 			t.Errorf("parseClock(%q) = %v, %v; want %v", in, got, err, want)
+		}
+	}
+	for _, bad := range []string{"1:x.5", "-1:02.0"} {
+		if _, err := parseClock(bad); !errors.Is(err, errLogLine) {
+			t.Errorf("parseClock(%q): err = %v", bad, err)
 		}
 	}
 }

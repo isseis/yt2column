@@ -127,9 +127,13 @@ func TestBuildMaterialRefusesLeak(t *testing.T) {
 	configs := mustConfigs(t)
 	cs, _ := configs.byID("C-sol")
 	writeMaterialRun(t, root, cs, materialVideo+"-1", false)
-	writeFile(t, filepath.Join(root, "review", "C-sol", materialVideo+"-1.md"), "# Review log\n\n- Note: made by gpt-6.1-sol\n")
 	q := materialRequest{Root: root, OutDir: filepath.Join(root, "score", "1"), Configs: []config{cs}, Videos: []string{materialVideo}, Shuffler: cryptoShuffle}
-	if err := buildMaterial(q); !errors.Is(err, errMaterial) {
-		t.Errorf("err = %v, want errMaterial", err)
+	if err := buildMaterial(q); err != nil {
+		t.Fatalf("the same input without a leak: %v", err)
+	}
+	writeFile(t, filepath.Join(root, "review", "C-sol", materialVideo+"-1.md"), "# Review log\n\n- Note: made by gpt-6.1-sol\n")
+	q.OutDir = filepath.Join(root, "score", "2")
+	if err := buildMaterial(q); !errors.Is(err, errLeak) {
+		t.Errorf("err = %v, want errLeak", err)
 	}
 }
