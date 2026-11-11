@@ -331,10 +331,11 @@ frontmatter の `description` は、ほかの `_lib/` と同じく「Internal: �
 
 #### 3.5.2. 要否の判断の手順（AC-19、AC-20、AC-11、AC-12）
 
-要否の判断は、共通の手順が呼ぶ判断のスクリプトで行い、セッションは出力を読むだけにする。`/runplan` は、スクリプトを `origin/main` から取り出して走らせ、取り出せないとき・出力が決まった形でないとき・終了コードが 0 でないときは `RUN` とする（1.2 の決定 10）。今の `weakreview.md` step 3 の事前の確かめと同じく、決まった処理を文の解釈に任せないためである。判断のスクリプトが失敗したとき（`git` の失敗、計画書を読めない、場所が二つ以上見つかる）は `RUN` とする。
+要否の判断は、共通の手順が呼ぶ判断のスクリプトで行い、セッションは出力を読むだけにする。`/runplan` は、スクリプトを `origin/main` から取り出して走らせ、取り出せないとき・出力が決まった形でないとき・終了コードが 0 でないときは `RUN` とする（1.2 の決定 10）。今の `weakreview.md` step 3 の事前の確かめと同じく、決まった処理を文の解釈に任せないためである。判断のスクリプトが失敗したとき（`git` の失敗、計画書を読めない、場所が二つ以上見つかる、BASE が `origin/main` と `HEAD` の merge-base でない、PR マーカーのある計画書に TARGET `single` が渡された、閉じていないコードブロックがある）は `RUN` とする。
 
 1.  **値を読む:** PLAN を、`git show origin/main:<PLAN>` と `git show HEAD:<PLAN>` の両方から、3.1 の場所と読み方で読む（1.2 の決定 9）。どちらかが `opus`・`sonnet+opus-review`・読めない値なら、レビューを行う側とする。両方が `sonnet` か値がないときだけ、`NONE value-sonnet` か `NONE value-absent` を返す（どちらかが `sonnet` なら `value-sonnet` を理由にする）。`origin/main` に計画書がない、または対象の PR マーカーがないときは、`HEAD` だけで決める。
 2.  **完了の記録を確かめる:** `git log BASE..HEAD` の commit メッセージに、完了の記録があるか探す。最後の完了の記録について、次のすべてが成り立てば `SKIP` を返す。
+    -   その START の commit が存在し、BASE かその祖先である。
     -   その END の commit が存在し、`HEAD` の祖先である。
     -   END から `HEAD` までの commit が、すべて除いてよい commit である。
 3.  **実装の記録で覆われるかを確かめる:** `git rev-list BASE..HEAD` の各 commit について、除いてよい commit でなければ、少なくとも一つの実装の記録の範囲に入り、その commit を範囲に含むすべての実装の記録のモデル ID が Opus の ID であることを確かめる。すべての commit がそうなら `NONE all-opus` を返す。一つでもそうでない commit があれば（記録のない phase group、Opus 以外の記録、phase group の外の commit、merge commit、書き換えられて範囲から外れた commit）、`RUN` を返す。
@@ -432,7 +433,7 @@ step 7.7 の後、step 8 の前に、空の commit を作り、実装の記録�
 
 step 5a（`:78-127`）では、グリーンゲートの確認（`:80`）と、最後の PR のときの AC の確かめ（`:81`）の後、最初のチェックボックスの commit（`:82`）の前に、次を行う。
 
-1.  ブランチ全体のローカル CLI レビューを行う場合（`git log origin/main..HEAD` に `Local CLI review: not run` か `CodeRabbit local review: not run` の行がある場合）は、Part B の LOCAL_REVIEW の規則のとおりに、BASE を `$(git merge-base origin/main HEAD)`、SCOPE をブランチとして、これを先に行う。レビューが止まったときは、何も push せずに `/runplan` も止まる。このレビューの直しの commit も、次の要否の判断と Opus のレビューの範囲（`BASE..HEAD`）に入る。
+1.  ブランチ全体のローカル CLI レビューを行う場合（`git log origin/main..HEAD` に `Local CLI review: not run` か `CodeRabbit local review: not run` の行がある場合）は、Part B の LOCAL_REVIEW の規則のとおりに、BASE を `$(git merge-base origin/main HEAD)`、SCOPE をブランチとして、これを先に行う。ただし、この PR の BASE から始まる完了の記録がブランチにあるとき（前の実行がレビューを終えた後に止まったとき）は行わない。レビューが止まったときは、何も push せずに `/runplan` も止まる。このレビューの直しの commit も、次の要否の判断と Opus のレビューの範囲（`BASE..HEAD`）に入る。
 2.  共通の手順の要否の判断（入口 1）を走らせる。
 3.  `RUN` のときは、レビュー（入口 2）を RANGE `BASE..HEAD`・FIX `fix` で行う。OUTCOME が `stopped-unavailable`・`stopped-limit`・`stopped-error` のときは、`/runplan` も止まる。PR を開かず、何も push せず、その旨と、利用者にできること（Opus が使えるようになってから `/runplan` を再び実行する。上限のときは、残った指摘を見て決める。`stopped-error` のときは、その理由と、作業ツリーに残ったコミットしていない直しを残すか捨てるかを決める）を報告する（AC-22、AC-25）。
 4.  直しの commit があれば、グリーンゲートをもう一度通し、最後の PR のときの AC の確かめと、差分の記録の再確認もやり直す。AC の確かめか差分の記録の再確認が、除いてよい commit でもビルドの直し（3.4 の完了の記録の範囲）でもない commit を作ったときは、2 の要否の判断からやり直す。
@@ -449,7 +450,7 @@ step 5a は Part B に LOCAL_REVIEW = `done` を渡す（ブランチ全体の�
 
 再び実行したとき（AC-25、H-04）は、要否の判断が次のように振る舞う。
 
--   Opus のレビューの途中で止まったとき（Opus が使えない、上限に達した）は、完了の記録がない。step 4 は同じチェックポイントを選び、step 5a が要否の判断からやり直す。これが「Opus のレビューから続ける」ことに当たる。止まる前の直しの commit は残り、レビューは PR のすべての commit を範囲にして走り直す。人が既に退けた指摘は、残した指摘の記録から読み、尋ね直さない（3.5.4）。
+-   Opus のレビューの途中で止まったとき（Opus が使えない、上限に達した）は、完了の記録がない。step 4 は同じチェックポイントを選び、step 5a がブランチ全体のローカル CLI レビュー（`not run` の行があるとき）と要否の判断からやり直す。これが「Opus のレビューから続ける」ことに当たる。止まる前の直しの commit は残り、レビューは PR のすべての commit を範囲にして走り直す。人が既に退けた指摘は、残した指摘の記録から読み、尋ね直さない（3.5.4）。
 -   Part B で止まったとき（グリーンゲートの直しなど、要否の判断の後にコードを変える commit を作ったとき）は、push の前のやり直し（上記）を済ませてあれば完了の記録がある。その後の commit が除いてよい commit だけなら省く。やり直しの前に止まったときは、その commit が実装の記録に覆われないので、判断は `RUN` になる。ただし、値が `sonnet` か値がないときは、3.5.2 の 1 により `NONE` のままである。ブランチ全体のローカル CLI レビューは要否の判断より前に済ませるので、この判断の後にローカルの CLI レビューがコードを変えることはない。
 -   ブランチを書き換えて（rebase など）完了の記録の END が `HEAD` の祖先でなくなったときは、レビューを行う。
 -   利用者が手で `/weakreview` を実行した後でも、`/runplan` は完了の記録を見つけないので、条件が成り立てばレビューを行う（1.2 の決定 4）。

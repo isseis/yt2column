@@ -72,14 +72,28 @@ MB=$(git merge-base "$OM" "$HEAD_ID") || run_on_failure "origin/main and HEAD ha
 # --- Step 1: read the value -------------------------------------------------
 
 # locate_value prints one of: VALUE<TAB><text>, ABSENT, NOSECTION, MULTIPLE.
-# It skips fenced code blocks (``` or ~~~), so a diff record's content is
+# It skips fenced code blocks (``` or ~~~, nested ones included), so a diff record's content is
 # never read as a heading or as a value line; an unclosed fence, or (for
 # "single") a PR marker heading, prints MULTIPLE, a failure.
 locate_value() {
 	awk -v target="$TARGET" '
 		function trim(s) { sub(/^[ \t\r]+/, "", s); sub(/[ \t\r]+$/, "", s); return s }
 		{ sub(/\r$/, "") }
-		/^[ \t]*(```|~~~)/ { fence = !fence; next }
+		# A fence closes only on a line of the same character, at least as
+		# long as the opening run, with nothing after it; a fence-like line
+		# inside a fence is content.
+		{
+			t = $0
+			sub(/^[ \t]+/, "", t)
+			c = substr(t, 1, 1)
+			if (substr(t, 1, 3) == "```" || substr(t, 1, 3) == "~~~") {
+				len = 0
+				while (substr(t, len + 1, 1) == c) len++
+				rest = substr(t, len + 1)
+				if (!fence) { fence = 1; fchar = c; flen = len; next }
+				if (c == fchar && len >= flen && rest ~ /^[ \t]*$/) { fence = 0; next }
+			}
+		}
 		fence { next }
 		target == "single" && /^### PR-[0-9]+ 作成ポイント/ { markers++ }
 		/^#+[ \t]/ {

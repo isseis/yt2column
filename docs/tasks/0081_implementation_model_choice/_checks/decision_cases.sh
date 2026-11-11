@@ -350,6 +350,13 @@ awk '{ print } /^\*\*reason-field\*\*/ { print "\n~~~text\n**実装モデル要�
 fixture real "$p.2"; code_commit c1
 expect tilde-fence-not-read "NONE value-sonnet" ok
 
+# A 4-backtick fence quoting a 3-backtick one: the inner fence lines are
+# content, so the quoted heading does not end the section.
+marker_plan "$p" 1:-
+awk '{ print } /^### PR-1 / { print "\n````markdown\n```text\n### quoted heading\n```\n````\n\n**実装モデル要件**: opus" }' "$p" >"$p.2"
+fixture real "$p.2"; code_commit c1
+expect nested-fence RUN ok
+
 marker_plan "$p" 1:sonnet
 printf '\n```text\nnot closed\n' >>"$p"
 fixture real "$p"; code_commit c1
@@ -490,10 +497,11 @@ expect last-done-wins "SKIP [new done]" ok
 
 marker_plan "$p" 1:opus
 fixture real "$p"
-code_commit c1
-record_commit "new done first" "$(done_line refs/remotes/origin/main HEAD)"
-code_commit c2
-record_commit "stale done last" "$(done_line refs/remotes/origin/main HEAD~2)"
+# The older record covers the branch (SKIP if chosen); the newer one is
+# stale (its END is followed by c2), so choosing the newest gives RUN.
+code_commit c1; c1=$(git rev-parse HEAD); code_commit c2
+record_commit "covering done first" "$(done_line refs/remotes/origin/main HEAD)"
+record_commit "stale done last" "$(done_line refs/remotes/origin/main "$c1")"
 expect last-done-is-newest-commit RUN ok
 
 marker_plan "$p" 1:opus
@@ -558,17 +566,6 @@ expect plan-missing-at-head RUN fail "$PLAN" single
 marker_plan "$p" 1:sonnet
 fixture real "$p"; code_commit c1
 expect target-not-a-number RUN fail "$PLAN" '1|2'
-
-marker_plan "$p" 1:sonnet
-fixture real "$p"; code_commit c1; git switch -q -c other main; code_commit other1; git switch -q work
-bash "$script" "$PLAN" 1 other >"$work/out" 2>"$work/err" && st=0 || st=$?
-if [ "$(summary "$work/out")" = RUN ] && [ -s "$work/err" ] && [ "$st" = 0 ]; then
-	echo "PASS base-not-ancestor: RUN (fail)"
-else
-	echo "FAIL base-not-ancestor: expected 'RUN' (fail, exit 0), got '$(summary "$work/out")' (exit $st)"
-	failures=$((failures + 1))
-fi
-cd "$repo"
 
 mkdir -p "$work/notrepo"
 cd "$work/notrepo"

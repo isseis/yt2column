@@ -268,11 +268,13 @@ commit on the branch before the PR opens, so Codex's first PR review sees the
 fixed code. These items are not steps of the numbered list above: after B5,
 go back to the step that ran them.
 
-B1. **Branch review.** Skip this item when `git log origin/main..HEAD` holds an
-   `Opus review: done` line: an earlier run got past the review, and so past
-   this item; a fix commit made now would only reopen the decision (the
-   earlier SUMMARY is gone, so Part B step 3 gives the ranges of the
-   `not run` lines). Step 7.7 reviewed each phase group of this PR. A phase
+B1. **Branch review.** Skip this item when `git log origin/main..HEAD` holds a
+   done record (`_lib/opus-review.md`, "Record lines", in its full form)
+   whose START is the first 12 characters of
+   `$(git merge-base origin/main HEAD)`: an earlier run got past the review,
+   and so past this item, and a fix commit made now would only reopen the
+   decision (the earlier SUMMARY is gone, so Part B step 3 gives the ranges
+   of the `not run` lines). Step 7.7 reviewed each phase group of this PR. A phase
    group neither CLI reviewed is recorded by a `Local CLI review: not run`
    line in a commit message after it (step 7.7); an earlier session recorded
    it as `CodeRabbit local review: not run`. Read the lines as
@@ -303,7 +305,9 @@ B3. **Review.** On `RUN`, run entry 2 of `_lib/opus-review.md` with RANGE =
    the remaining findings and decide (`stopped-limit`); or, for
    `stopped-error`, its reason, and whether to keep or discard the
    uncommitted fix left in the working tree. Running `/runplan` again comes
-   back to this checkpoint and decides again from B2: the review then
+   back to this checkpoint and runs these items again from B1 (with no done
+   record yet, B1 reviews the branch again while a `not run` line is on it),
+   then decides again in B2: the review then
    covers every commit of the PR, the fix commits made before the stop
    included, and the findings the human already rejected are read from the
    kept lines rather than asked again. On `NONE` or `SKIP`, run no review.
