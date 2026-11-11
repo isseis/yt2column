@@ -189,34 +189,46 @@ var (
 )
 
 // strictjsonRowCell returns the responsibility cell of the single row whose
-// first cell names the component. It fails when the table, the column, or the
-// row is missing, or when the row appears more than once. Every error names
-// the table header, the column, the component, and the number of matching
-// rows.
+// first cell names the component, searched in every table whose header names
+// the package column. It fails when no such table exists, when the row is
+// missing, when the row's table has no responsibility column, or when the row
+// appears more than once (in one table or in different tables). Every error
+// names the table header, the column, the component, and the number of
+// matching rows.
 func strictjsonRowCell(doc string) (string, error) {
 	const context = "table header %q, column %q, package %q, matched rows %d"
-	table := doctestutil.FindTable(doc, packageTableHeader)
-	if table == nil {
-		return "", fmt.Errorf("%w: "+context, errNoPackageTable, packageTableHeader, responsibilityColumn, strictjsonPackageName, 0)
-	}
-	var rows [][]string
-	for _, row := range table[1:] {
-		if len(row) > 0 && doctestutil.StripBackticks(row[0]) == strictjsonPackageName {
-			rows = append(rows, row)
+	tables := 0
+	matched := 0
+	var row []string
+	col := -1
+	for _, table := range doctestutil.MarkdownTables(doc) {
+		if len(table) == 0 || doctestutil.ColumnIndex(table[0], packageTableHeader) < 0 {
+			continue
+		}
+		tables++
+		tableCol := doctestutil.ColumnIndex(table[0], responsibilityColumn)
+		for _, candidate := range table[1:] {
+			if len(candidate) == 0 || doctestutil.StripBackticks(candidate[0]) != strictjsonPackageName {
+				continue
+			}
+			matched++
+			row = candidate
+			col = tableCol
 		}
 	}
-	col := doctestutil.ColumnIndex(table[0], responsibilityColumn)
-	if col < 0 {
-		return "", fmt.Errorf("%w: "+context, errNoResponsibilityColumn, packageTableHeader, responsibilityColumn, strictjsonPackageName, len(rows))
+	if tables == 0 {
+		return "", fmt.Errorf("%w: "+context, errNoPackageTable, packageTableHeader, responsibilityColumn, strictjsonPackageName, 0)
 	}
-	switch len(rows) {
+	switch matched {
 	case 0:
 		return "", fmt.Errorf("%w: "+context, errNoStrictjsonRow, packageTableHeader, responsibilityColumn, strictjsonPackageName, 0)
 	case 1:
 	default:
-		return "", fmt.Errorf("%w: "+context, errDuplicateStrictjsonRow, packageTableHeader, responsibilityColumn, strictjsonPackageName, len(rows))
+		return "", fmt.Errorf("%w: "+context, errDuplicateStrictjsonRow, packageTableHeader, responsibilityColumn, strictjsonPackageName, matched)
 	}
-	row := rows[0]
+	if col < 0 {
+		return "", fmt.Errorf("%w: "+context, errNoResponsibilityColumn, packageTableHeader, responsibilityColumn, strictjsonPackageName, 1)
+	}
 	if col >= len(row) {
 		return "", fmt.Errorf("%w: "+context+", the row has %d cells", errNoResponsibilityColumn, packageTableHeader, responsibilityColumn, strictjsonPackageName, 1, len(row))
 	}
@@ -432,6 +444,19 @@ func TestStrictjsonRowCell(t *testing.T) {
 			name: "one row",
 			doc:  header + "| `internal/strictjson` | the responsibility |\n| `internal/other` | other |\n",
 			want: "the responsibility",
+		},
+		{
+			name: "row in the second table",
+			doc: header + "| `internal/other` | other |\n\n" +
+				header + "| `internal/strictjson` | the second table's responsibility |\n",
+			want: "the second table's responsibility",
+		},
+		{
+			name: "one row in each of two tables",
+			doc: header + "| `internal/strictjson` | first |\n\n" +
+				header + "| `internal/strictjson` | second |\n",
+			wantErr:     errDuplicateStrictjsonRow,
+			wantMessage: []string{context, column, pkg, "matched rows 2"},
 		},
 		{
 			name:        "no table",
