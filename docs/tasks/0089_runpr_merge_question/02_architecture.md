@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-12 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-12 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルの内容は、コミット `41b2d31e` で確かめた。`file:line` の行番号は、このコミットでの行番号である。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md)（以下、設計の申し送り）の項番を指す。設計の申し送りへの対応は付録 A に、受け入れ基準との対応は付録 B にまとめる。
@@ -632,3 +632,7 @@ sequenceDiagram
 | AC-20 | 3.8 |
 | AC-21 | 3.1、3.7、3.8、3.9 |
 | AC-22 | 1.2、7.2、付録 A（画面の行の見積もり） |
+
+## 変更履歴
+
+- 2026-11-12 承認（isseis、#863）
