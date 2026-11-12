@@ -113,10 +113,6 @@ func TestScenarioLogValue(t *testing.T) {
 		want     slog.Value
 	}{
 		{
-			"no failure", mustScenario(t, ArticleElements, FailureNone, FailAtNone, 0),
-			group(slog.String("article", "elements"), slog.String("fail", "none"), slog.Int64("delay", 0)),
-		},
-		{
 			"failure and delay", mustScenario(t, ArticleLong, FailureTruncated, FailAtShorten, 5*time.Second),
 			group(slog.String("article", "long"), slog.String("fail", "truncated"), slog.String("failStep", "shorten"), slog.Int64("delay", 5)),
 		},

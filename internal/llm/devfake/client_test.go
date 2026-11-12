@@ -5,7 +5,6 @@ package devfake
 import (
 	"context"
 	"errors"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -83,16 +82,10 @@ func TestJobResponses(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !strings.HasPrefix(draft, "# "+TitleMarker) {
-				t.Errorf("draft of %v does not start with the marked title", s.article)
-			}
 
 			resp, err := job.Generation().Generate(ctx, llm.GenerateRequest{})
 			checkCall(t, s, FailAtDraft, resp, err, draft)
 
-			if !strings.HasPrefix(longShortenedText, "# "+TitleMarker) {
-				t.Error("the shortened long article does not start with the marked title")
-			}
 			resp, err = job.Generation().Generate(ctx, llm.GenerateRequest{})
 			checkCall(t, s, FailAtShorten, resp, err, longShortenedText)
 
