@@ -173,7 +173,7 @@ type Scenario struct {
 	failure Failure
 	failAt  FailAt
 	delay   time.Duration
-	// wait is nil except in a copy a test made; nil selects waitDelay.
+	// wait is nil except in a copy a test made; nil selects sleepContext.
 	wait waitFunc
 }
 
