@@ -119,6 +119,13 @@
 21. **実地の確かめでの自動送信は、人が通常の `/runpr` でマージする実際のタスクの PR で確かめる。** 確かめのためだけの PR をマージしない。自動送信で送られるのは、そのタスクの本当の次のコマンドで、その後の作業はふだんどおり進める。`make install-chief` はエージェントが行わず、人がこのブランチから行い、マージの後に `main` から入れ直す（ADR-0014 の「道具は `main` からインストールして使う」）。ADR: なし。
 22. **画面のサンプルを pre-commit の空白のフックと git の改行の変換から外す。** `.pre-commit-config.yaml` の trailing-whitespace と end-of-file-fixer の除外（51・53 行）と `.gitattributes` の `-text` に `internal/chief/testdata/screens/` を足す。端末の画面の行末の空白と、入力欄の形が書き換えられないためである。ADR: なし。
 
+23. **PR-1 は、タスク 0089（[#857](https://github.com/isseis/yt2column/issues/857)、`/runpr` のマージの質問を画面に収める）の実装が `main` にマージされてから始める（2026-11-12、人が選んだ）。**
+    -   0089 は、マージの質問を要約と詳細ファイルに分けた単一選択の 1 問にし、その前に deferred の問いを置き、「NEXT をこのセッションで実行する」の選択肢を除く（[0089 要件定義書](../0089_runpr_merge_question/01_requirements.md) の F-001〜F-003、[ADR-0047](../../dev/adr/0047-runpr-merge-question.md)）。PR-1 はこれらの画面の形をサンプルで固定するので、0089 の前に採ると、0089 の後は chief がマージの確認を見分けられなくなる。
+    -   ステップ 1-2 では、0089 の後の画面（deferred の問い、要約だけのマージの質問、自由記述でできる操作の行）を採る。
+    -   0088 要件定義書の AC-30・AC-46 は、0089 で対象を失う。PR-1 の `/runplan` が、ADR-0046 の「この決定は、まだ」で始まる段落のとおり、この 2 つの AC と、それを実装する手順（ステップ 5-2 の除く選択肢のうち「NEXT をこのセッションで実行する」、ステップ 6-3 の AC-46 の場合、§7 の AC-30・AC-46 の行）を、計画の決定の変更として外す。
+
+    理由: 0089 は既存のコマンドの文書だけを変える小さなタスクで、先に終えればサンプルを採り直さずに済む。ADR: なし（0089 が ADR-0046 に書いた道筋に従うだけである）。
+
 本計画で主要な決定（CLAUDE.md の「Design decisions (ADR)」の基準）は決定 9 だけで、ADR-0046 を本 PR で更新する。ほかの決定はこのタスクの中で閉じる。
 
 ### 1.4. 既存コード調査結果
@@ -155,11 +162,12 @@
 **変更するファイル:** `internal/chief/testdata/screens/`（新規）、`internal/chief/testdata/README.md`（新規）、`internal/chief/doc.go`・`sanitize.go`・`screen*.go` とそのテスト（新規）、`.pre-commit-config.yaml`、`.gitattributes`、`CLAUDE.md`、`docs/dev/conventions/package_reference.md`、本計画
 
 -   [ ] **ステップ 1-1**: 採取の準備をする。
+    -   タスク 0089 の実装が `main` にマージされていることを確かめる。されていなければ、何もせずに止まって報告する（決定 23）。
     -   `.pre-commit-config.yaml` と `.gitattributes` に、画面のサンプルのディレクトリを足す（決定 22）。
     -   人に採取用の workspace（Claude Code と OpenCode の pane を 1 つずつ）を用意してもらい、Claude Code・OpenCode・Herdr の版を記録する（設計書 3.4.2）。
     -   `herdr agent read` の `--source`（`visible`・`recent` など）と行数のうち、OpenCode のマージの確認の選択肢が見えるものを確かめて決める（設計書 1.2 の観測）。
 -   [ ] **ステップ 1-2**: 画面と出力を採る（決定 1）。
-    -   設計書 3.4.1 の表のすべての行と、8 章の 1 が挙げる画面を、エージェントごとに採る。
+    -   設計書 3.4.1 の表のすべての行と、8 章の 1 が挙げる画面を、エージェントごとに採る。`/runpr` の画面は、0089 の後の形（deferred の問い、要約だけのマージの質問、自由記述でできる操作の行）を採る（決定 23）。
     -   `herdr agent list`・`get`・`workspace list` の出力を採る。
     -   Claude Code の transcript の置き場所の規則、モデルを切り替えた記録の行、`/clear` の前後の `agent_session` を確かめる。
     -   gh の `pr list`・`pr view`・`pr checks` の `--json` の出力と終了コードを、通った PR、待っている PR、失敗した PR、CI のない PR で採る。このリポジトリの PR を読む読み取り専用の操作で、人の承認を得てから行う。
@@ -468,7 +476,7 @@
 | M6（PR-6） | `wait`・`tick`、自動送信、`**自動送信**` の欄 | 新しい計画書が欄を持つ |
 | M7（PR-7） | `/chief`、settings.json、手引き、CLAUDE.md | chief が使える |
 
-順序は設計書 8 章のとおりで、8 章から動かしたものは §1.3 の決定 3 にすべて挙げた。
+順序は設計書 8 章のとおりで、8 章から動かしたものは §1.3 の決定 3 にすべて挙げた。PR-1 の前提として、タスク 0089 の実装のマージを待つ（決定 23）。
 
 ### 3.2 PR 構成
 
@@ -522,6 +530,7 @@ $ rg -n 'on Sonnet|to Sonnet|implement.*Sonnet|Model to start|model each reading
 
 | リスク | 対策 |
 |---|---|
+| `/runpr` のマージの質問の形が 0089 で変わり、サンプルが合わなくなる | 0089 の実装のマージの後に PR-1 を始める（決定 23） |
 | 採ったサンプルに、採取した人を特定できる情報が残る | ステップ 1-3 の置き換えの規則とテスト。PR-1 のレビュー観点に入れる |
 | サンプルの行末の空白が pre-commit で書き換えられる | 決定 22 |
 | エージェントの版が上がって画面の形が変わる | 合わない画面は「要確認」か「送らない」になる（設計書 3.4.2）。採り直しは新しい PR で行う。settings.json の拒否のため、エージェントが pane へキー入力を送る採り直しは人が行う |
