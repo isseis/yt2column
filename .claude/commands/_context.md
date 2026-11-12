@@ -238,7 +238,7 @@ kind") use this definition.
 |---|---|
 | Project overview | `docs/dev/project_overview.md` |
 | Conditional security guide | `docs/dev/security.md` |
-| Conditional-guide trigger | the feature invokes an external command (`yt-dlp`), handles API keys (`DEEPSEEK_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`), reads or writes the cache directory, sends data over the network (LLM API), or embeds untrusted text (transcript, video metadata) into a prompt or into the article the Viewer displays and copies |
+| Conditional-guide trigger | the feature invokes an external command (`yt-dlp`), handles API keys (`DEEPSEEK_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`), reads or writes the cache directory, sends data over the network (LLM API), or embeds untrusted text (transcript, video metadata) into a prompt or into the article the tool displays, copies, or saves |
 | Target client environments | Mattermost (pasting the Markdown copied in the Viewer). Slack is best effort and not a verification target |
 | Automated reviewer list | `coderabbitai`, `chatgpt-codex-connector` — the automated reviewers, each in the GraphQL `author.login` form (without `[bot]`). `fixpr.md` and `runpr.md` pass every name on this list to `fixprguard`, each as its own `--reviewer`. A Bot's review-thread comments are trusted when its login is any name on this list |
 | Awaited PR reviewer | `chatgpt-codex-connector` — the automated reviewer whose PR review `runpr.md` step 3 and `_lib/task-pr-handoff.md` Part B step 5 wait for (Codex), in the GraphQL `author.login` form. The REST `user.login` form is this name followed by `[bot]`, which they filter the summary comment by |

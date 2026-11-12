@@ -1,4 +1,4 @@
-<!-- translated-from: README.md 7f0a186eec3721fee78679e5056686f1afd7464b -->
+<!-- translated-from: README.md 5f38edaceb59dc24a9fccad6dd7f398e73c4c751 -->
 [日本語](README.md)
 
 Developer documents: [Using the CLI](docs/dev/guides/cli.md) · [Development procedures](docs/dev/guides/development.md)
@@ -945,7 +945,10 @@ any heading: the heading does not vouch for the article's content.
     is copied with the text. When at least one `@` was neutralized, the copy
     notice says so (it shows no count). When no `@` was neutralized, and when
     the copy fails, the notice is as before. When you select the shown article
-    and copy it in the browser, the same text is copied, but no notice appears.
+    and copy it in the browser, the same neutralized characters are copied, but
+    the Markdown symbols (`#`, `**`, and the like) are dropped in rendering and
+    are not included, and no notice appears. Use this button when you want to
+    paste the Markdown itself.
 - **Failed**: the reason of the failure and the steps for that reason.
 - **Article lost**: the server restarted or dropped the article from its cache.
   Sending the same input again from the popup generates the article again. When the
