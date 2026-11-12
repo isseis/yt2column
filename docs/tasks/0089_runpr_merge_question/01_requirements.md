@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-12 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-12 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -251,3 +251,7 @@ deferred のスレッドは、`/fixpr` が 3 回目以降のラウンドで、�
 -   **要約**: マージの質問のとき会話に出すメッセージ（AC-07）。用語集の「要約」（PR の件名の接頭辞の後の部分）とは別の意味で使う。
 -   **NEXT、PRE_MERGE、LAST_REVIEWED、Escalation、LIMITS_NOTE、旧値**: `runpr.md` の定義のとおり。
 -   ほかの用語は `docs/translation_glossary.md` と統一する。
+
+## 変更履歴
+
+- 2026-11-12 承認（isseis、#859）
