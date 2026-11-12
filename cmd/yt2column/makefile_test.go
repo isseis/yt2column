@@ -209,47 +209,79 @@ func TestCLIIntegrationTestBuildTag(t *testing.T) {
 	}
 }
 
-// TestMakeBuildBuildsEveryBinary checks the recipes `make -n` expands for the
-// build and all targets: each builds the CLI, the server, and the Native
-// Messaging host, and no line runs the host binary with install or uninstall,
-// because registering the host is the user's explicit step. The recipes are
-// read after expansion, since the Makefile names the packages through
-// variables.
-func TestMakeBuildBuildsEveryBinary(t *testing.T) {
+// makeDryRun returns what `make -n target` prints, run in the repository root
+// with only PATH and HOME, so the outer make's MAKEFLAGS and variables do not
+// change the expansion.
+func makeDryRun(t *testing.T, target string) string {
+	t.Helper()
 	makePath, err := exec.LookPath("make")
 	if err != nil {
 		t.Fatalf("make is not on PATH: %v", err)
 	}
-	packages := []string{"./cmd/yt2column", "./cmd/yt2column-server", "./cmd/yt2column-nmhost"}
+	cmd := exec.Command(makePath, "-n", target) //nolint:gosec // make from PATH with a fixed target
+	cmd.Dir = repositoryRoot
+	cmd.Env = []string{"PATH=" + os.Getenv("PATH"), "HOME=" + os.Getenv("HOME")}
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("make -n %s error = %v, output:\n%s", target, err, output)
+	}
+	return string(output)
+}
+
+// builtPackages returns the packages and output files of the `go build` lines
+// of a dry run: package to the -o value of its line.
+func builtPackages(output string) map[string]string {
+	built := map[string]string{}
+	for line := range strings.Lines(output) {
+		fields := strings.Fields(line)
+		if len(fields) < 2 || fields[1] != "build" {
+			continue
+		}
+		out := ""
+		for i, field := range fields[:len(fields)-1] {
+			if field == "-o" {
+				out = fields[i+1]
+			}
+		}
+		built[fields[len(fields)-1]] = out
+	}
+	return built
+}
+
+// TestMakeBuildBuildsEveryBinary checks the recipes `make -n` expands for the
+// build and all targets: each builds exactly the CLI, the server, and the
+// Native Messaging host (so the development server is not among them), and no
+// line runs the host binary with install or uninstall, because registering the
+// host is the user's explicit step. The recipes are read after expansion,
+// since the Makefile names the packages through variables.
+func TestMakeBuildBuildsEveryBinary(t *testing.T) {
+	want := []string{"./cmd/yt2column", "./cmd/yt2column-nmhost", "./cmd/yt2column-server"}
 	for _, target := range []string{"build", "all"} {
 		t.Run(target, func(t *testing.T) {
-			cmd := exec.Command(makePath, "-n", target) //nolint:gosec // make from PATH with a fixed target
-			cmd.Dir = repositoryRoot
-			// Only PATH and HOME, so the outer make's MAKEFLAGS and variables
-			// do not change the expansion.
-			cmd.Env = []string{"PATH=" + os.Getenv("PATH"), "HOME=" + os.Getenv("HOME")}
-			output, err := cmd.CombinedOutput()
-			if err != nil {
-				t.Fatalf("make -n %s error = %v, output:\n%s", target, err, output)
-			}
-			built := map[string]struct{}{}
-			for line := range strings.Lines(string(output)) {
+			output := makeDryRun(t, target)
+			for line := range strings.Lines(output) {
 				fields := strings.Fields(line)
-				if len(fields) >= 2 && fields[1] == "build" {
-					built[fields[len(fields)-1]] = struct{}{}
-				}
 				for i, field := range fields[:max(len(fields)-1, 0)] {
 					if strings.HasSuffix(field, "yt2column-nmhost") && (fields[i+1] == "install" || fields[i+1] == "uninstall") {
 						t.Errorf("make -n %s runs the host with %s: %q", target, fields[i+1], strings.TrimSpace(line))
 					}
 				}
 			}
-			for _, pkg := range packages {
-				if _, ok := built[pkg]; !ok {
-					t.Errorf("make -n %s does not build %s; output:\n%s", target, pkg, output)
-				}
+			got := slices.Sorted(maps.Keys(builtPackages(output)))
+			if !slices.Equal(got, want) {
+				t.Errorf("make -n %s builds %v, want exactly %v; output:\n%s", target, got, want, output)
 			}
 		})
+	}
+}
+
+// TestMakeBuildDev checks that build-dev builds only the development server,
+// into build/dev/ and not into build/, where the production binaries are.
+func TestMakeBuildDev(t *testing.T) {
+	output := makeDryRun(t, "build-dev")
+	want := map[string]string{"./cmd/yt2column-devserver": "build/dev/yt2column-devserver"}
+	if got := builtPackages(output); !maps.Equal(got, want) {
+		t.Errorf("make -n build-dev builds %v, want %v; output:\n%s", got, want, output)
 	}
 }
 

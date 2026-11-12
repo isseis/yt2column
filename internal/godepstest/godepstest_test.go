@@ -110,6 +110,36 @@ func TestRoot(t *testing.T) {
 	}
 }
 
+func TestPackagePath(t *testing.T) {
+	root := realRoot(t)
+
+	t.Run("names a main package by its import path", func(t *testing.T) {
+		got, err := PackagePath(root, "./cmd/yt2column")
+		if err != nil || got != module+"/cmd/yt2column" {
+			t.Errorf("PackagePath() = %q, %v, want %q", got, err, module+"/cmd/yt2column")
+		}
+	})
+
+	failures := []struct {
+		name  string
+		setup func(t *testing.T)
+		pkg   string
+	}{
+		{"a package that does not exist", func(*testing.T) {}, "./cmd/doesnotexist"},
+		{"no go on PATH", func(t *testing.T) { t.Setenv("PATH", t.TempDir()) }, "./cmd/yt2column"},
+		{"go prints nothing", func(t *testing.T) { fakeGoOnPath(t, "exit 0\n") }, "./cmd/yt2column"},
+		{"go prints two lines", func(t *testing.T) { fakeGoOnPath(t, "printf 'a\\nb\\n'\n") }, "./cmd/yt2column"},
+	}
+	for _, tc := range failures {
+		t.Run("fails when "+tc.name, func(t *testing.T) {
+			tc.setup(t)
+			if _, err := PackagePath(root, tc.pkg); !errors.Is(err, ErrList) {
+				t.Errorf("PackagePath() error = %v, want ErrList", err)
+			}
+		})
+	}
+}
+
 // TestChildEnv checks that the child go command gets the target OS and the
 // fixed settings, whatever the process environment holds, and keeps the rest.
 func TestChildEnv(t *testing.T) {

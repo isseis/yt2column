@@ -156,6 +156,38 @@ func trackSources(dirs map[string]struct{}) error {
 	return nil
 }
 
+// PackagePath returns the import path of the one package pkg (a pattern such
+// as ./cmd/yt2column-devserver) names, resolved in root. It is how a test names
+// a main package, which has no type to take the path from: the lookup fails
+// when the package does not exist, so a path that was renamed away cannot turn
+// a Forbid into a check of nothing.
+func PackagePath(root, pkg string) (string, error) {
+	out, err := runGo(root, targetOSes[0], "list", "-f", "{{.ImportPath}}", pkg)
+	if err != nil {
+		return "", err
+	}
+	path := strings.TrimSuffix(string(out), "\n")
+	if !importPathLine.MatchString(path) {
+		return "", fmt.Errorf("%w: go list %s did not print one import path", ErrList, pkg)
+	}
+	return path, nil
+}
+
+// MustPackagePath is PackagePath from the module root, failing tb when it
+// cannot name the package.
+func MustPackagePath(tb testing.TB, pkg string) string {
+	tb.Helper()
+	root, err := Root()
+	if err != nil {
+		tb.Fatal(err)
+	}
+	path, err := PackagePath(root, pkg)
+	if err != nil {
+		tb.Fatal(err)
+	}
+	return path
+}
+
 // matches reports whether path is pattern, or, for a pattern ending in
 // "/...", the package before it or one under it.
 func matches(pattern, path string) bool {
