@@ -174,6 +174,7 @@ change, retire, and withdraw an ADR is in the convention,
 
 ### Build Commands
 - `make build` - Build the three binaries (`yt2column`, `yt2column-server`, `yt2column-nmhost`) into `build/`; it installs nothing
+- `make build-dev` - Build the development server (`yt2column-devserver`) into `build/dev/`; it runs on the fake LLM (`internal/llm/devfake`) and is not a production binary
 - `./build/yt2column-nmhost install <browser>` / `./build/yt2column-nmhost uninstall <browser>` - Register or remove the Native Messaging host manifest (`<browser>` is `chrome` or `brave`)
 - `make clean` - Clean build artifacts
 - `make all` - Default build target
@@ -323,6 +324,10 @@ flowchart LR
   `internal/config` and `internal/llm/deepseek` share, and
   `internal/llm/openaiparam` holds the OpenAI reasoning effort type that
   `internal/config` and `internal/llm/openai` share.
+  `internal/llm/devfake` is not a production adapter: it is the fake the
+  development server (`cmd/yt2column-devserver`) links, returning fixed
+  articles and selected failures without an LLM, and no production binary may
+  depend on it.
 - `Publisher` (`internal/publisher`): local file (`FilePublisher`). The package
   also builds the neutralized display Markdown the viewer displays and copies.
 - `internal/pipeline` orchestrates the stages; `internal/config` reads environment

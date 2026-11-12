@@ -6,6 +6,7 @@
 
 ```sh
 make build   # build the three binaries into build/
+make build-dev  # build the development server on the fake LLM into build/dev/
 make test    # unit tests (no network, no yt-dlp)
 make lint    # golangci-lint (pinned version) と make wasm-check
 make wasm-check  # Go の WASM（GOOS=js GOARCH=wasm）でビルドできることの検査
@@ -49,6 +50,45 @@ kill "$server_pid" 2>/dev/null; wait "$server_pid"; rm -rf "$dev_home"
 `config init` が作った雛形はモード `0600` で、`>>` で行を足してもモードは変わらない。`HOME` が異なれば、ワークツリーごとのサーバはほかのサーバと同時に動く。サーバは LLM の設定を専用の `HOME` の下の設定ファイルから読み、利用者の環境変数の設定の値も、利用者の `HOME` の設定ファイルも読まない（Go の標準ライブラリがプロキシの変数を使うことは、README の「設定ファイル」を参照）。設定ファイルに本物の値を書くと、受け付けた生成の開始は LLM を呼んで記事を生成する。上の例のように偽の値（任意の API キー）を書いたときは、ジョブが始まる前に拒否されるリクエストだけを送る。例えば上の誤ったメソッド（`GET /jobs` への `method_not_allowed`）や誤ったパス（`not_found`）である。受け付けられた生成の開始は、LLM の API を呼ぼうとして失敗する。
 
 拡張は、そのようなサーバにはつながらない。ブラウザは本物の `HOME` で Native Messaging のホストを起動するので、ホストは本物の `HOME` で起動したサーバのソケットにだけつなぐ。ホストの manifest はブラウザごとに 1 つのファイル（macOS では Chrome と Brave で共有する 1 つのファイル）なので、あるワークツリーのビルドからホストを登録すると、別のワークツリーが登録した manifest を置き換える。拡張を使ってビルドを確かめるときは、一度に 1 つのワークツリーだけで行う。
+
+## fake の LLM でサーバを動かす
+
+`make build-dev` は、本番の 3 つのバイナリとは別に、fake の LLM で動く開発用のサーバを `build/dev/yt2column-devserver` に作る。LLM の API も API キーも設定ファイルも要らず、記事の種類・失敗・遅れを起動のときに選べる。使うのは `internal/llm/devfake` の fake の LLM と、本番と同じ `internal/server` である。規則は [security.md](../security.md) の §8.2 にある。
+
+```sh
+make build-dev
+```
+
+本番のサーバと同じく `HOME` から導出したソケットのパスで待ち受けるので、本番のサーバとは同時に動かせない。先に動いているサーバがあれば、起動のロックを取れずに終了コード `1` で中止する。開発用のサーバを確かめるときは、本番のサーバを止めるか、[開発用に別のサーバを動かす](#開発用に別のサーバを動かす) のとおり専用の `HOME` を与える。
+
+```sh
+HOME="$dev_home" ./build/dev/yt2column-devserver
+```
+
+引数は次のとおりである。知らない引数・知らない値・繰り返し・余分な語・値の欠けは、何も待ち受けずに、受理する値の案内を標準エラー出力に出して終了コード `2` で終わる。
+
+| 引数 | 意味 | 受理する値 | 省いたとき |
+|---|---|---|---|
+| `-article` | 記事の種類 | `standard`・`long`・`elements` | `standard` |
+| `-fail` | 失敗の種類。`-fail-step` と組で指定する | `empty`・`truncated`・`api-error`・`timeout` | 失敗しない |
+| `-fail-step` | 失敗させる工程。`-fail` と組で指定する | `draft`・`shorten`・`review` | 失敗しない |
+| `-delay` | LLM の呼び出し 1 回ごとの遅れ（秒） | `0` から `600` までの 10 進の整数 | `0` |
+
+`-fail-step shorten` は、本文が 4,000 字を超える `-article long` のときだけ受理する。`-h`・`-help` は案内を出して終了コード `0` で終わる。
+
+記事のタイトルは `[FAKE] ` で始まる。記事のモデル名は `yt2column-devfake` で単価の表にないので、ビューアは料金を不明として表示する。
+
+待ち受けを始めた後に、fake の LLM で動いていることと選んだシナリオを 1 行で標準エラー出力に書く。例えば `-article long -delay 2` のときの行は次のとおりである（時刻と `socket` のパスはその環境による）。
+
+```text
+time=... level=INFO msg=listening socket=/… llm=fake model=yt2column-devfake scenario.article=long scenario.fail=none scenario.delay=2
+```
+
+拡張から確かめるときは、本番のサーバを止めてから開発用のサーバを起動し、本番と同じく拡張のポップアップから生成を始め、ビューアで記事を見る。ホストと拡張は変えない。記事が fake のものであることは、タイトルの印と、料金が不明であることで見分ける。
+
+失敗の後の「やり直す」で成功する流れは確かめられない。シナリオは起動のときに決まるので、同じサーバでやり直しても同じ失敗になり、記事のキャッシュはメモリにあるので、起動し直すと失敗したジョブも消える。
+
+遅れの間も生成の枠（2 つ）を使うので、遅れの長いジョブを 2 つ動かしている間の 3 つ目の生成の開始は、本番と同じく `too_many_requests` で拒否される。
 
 ## 拡張の検査
 

@@ -218,11 +218,11 @@
 
 **変更するファイル:** `docs/dev/security.md`、`docs/dev/guides/development.md`、`cmd/yt2column-devserver/docs_test.go`（新規）、`internal/doctestutil/`（見出しの定数）、`docs/dev/project_overview.md`、`CLAUDE.md`、`docs/dev/adr/0045-dev-fake-llm.md`、本計画（§7 の記録）
 
--   [ ] **ステップ 3-1**: `docs/dev/security.md` §8.2 の「Native Messaging のホスト」の項の前に、「開発用のサーバ（`cmd/yt2column-devserver`・`internal/llm/devfake`）」の項を加え、設計書 §5.3 の 5 つの規則を書く。§8.2 の「残余のリスク（許容する）」の一覧に 1 項を加える（AC-25）。
--   [ ] **ステップ 3-2**: `docs/dev/guides/development.md` の「make のターゲット」の一覧に `make build-dev` を加え、新しい節「fake の LLM でサーバを動かす」を加える（AC-26）。節には、作り方、起動のしかた（引数と受理する値、タイトルの印、起動の行の例）、本番のサーバと同時には動かせないこと、拡張から確かめる手順、やり直しの成功は確かめられないこと、生成の枠（2 つ）が遅れの間も埋まることを書く。引数と値の綴りは `devfake` の `String()` と同じにする。`make ext-test` を走らせる。
+-   [x] **ステップ 3-1**: `docs/dev/security.md` §8.2 の「Native Messaging のホスト」の項の前に、「開発用のサーバ（`cmd/yt2column-devserver`・`internal/llm/devfake`）」の項を加え、設計書 §5.3 の 5 つの規則を書く。§8.2 の「残余のリスク（許容する）」の一覧に 1 項を加える（AC-25）。
+-   [x] **ステップ 3-2**: `docs/dev/guides/development.md` の「make のターゲット」の一覧に `make build-dev` を加え、新しい節「fake の LLM でサーバを動かす」を加える（AC-26）。節には、作り方、起動のしかた（引数と受理する値、タイトルの印、起動の行の例）、本番のサーバと同時には動かせないこと、拡張から確かめる手順、やり直しの成功は確かめられないこと、生成の枠（2 つ）が遅れの間も埋まることを書く。引数と値の綴りは `devfake` の `String()` と同じにする。`make ext-test` を走らせる。
     -   `cmd/yt2column-devserver/docs_test.go::TestDevelopmentDocsDevServer`（§1.3 の決定 8）: 新しい節が、引数の名前、`devfake` の受理する値の一覧の各値、`devfake.TitleMarker`、`make build-dev` を挙げていること。節の見出しの文字列は、`CLAUDE.md`「Go Idioms」の guard-test の literal の例外にもとづき、`internal/doctestutil` に置く。値の 1 つを節から消すとテストが失敗することを確かめる。
--   [ ] **ステップ 3-3**: `docs/dev/project_overview.md` の想定ディレクトリ構成に 2 つのパッケージを加える。`CLAUDE.md` の「Build Commands」に `make build-dev` を加え、「Architecture Overview」の `LLMClient` の項に、`internal/llm/devfake` が本番のアダプタではない開発用の実装であることを書き加える（AC-27）。
--   [ ] **ステップ 3-4**: `docs/dev/adr/0045-dev-fake-llm.md` の「この決定は、まだコードと security.md に反映していない。…」の文を消す（AC-29）。編集上の訂正として、コミットメッセージに訂正の行を書く。
+-   [x] **ステップ 3-3**: `docs/dev/project_overview.md` の想定ディレクトリ構成に 2 つのパッケージを加える。`CLAUDE.md` の「Build Commands」に `make build-dev` を加え、「Architecture Overview」の `LLMClient` の項に、`internal/llm/devfake` が本番のアダプタではない開発用の実装であることを書き加える（AC-27）。
+-   [x] **ステップ 3-4**: `docs/dev/adr/0045-dev-fake-llm.md` の「この決定は、まだコードと security.md に反映していない。…」の文を消す（AC-29）。編集上の訂正として、コミットメッセージに訂正の行を書く。
 -   [ ] **ステップ 3-5**: 拡張からの手での確認を行い、§7「実行の記録」の PR-3 の欄に書く（AC-05）。`development.md` の手順で開発用のサーバを起動し、ホストと拡張を変えずに、拡張から生成の開始と状態の取得ができること、標準・長い・要素を網羅した記事がビューアで表示されること、失敗のシナリオで失敗の表示になること、タイトルの印と、料金が不明であることの表示を確かめる。手順どおりに動かない箇所があれば、`development.md` を直す。
 
 **完了の条件:** 文書と `TestDevelopmentDocsDevServer` が加わり、`make test`・`make lint`・`make ext-test` が通る。§7 に AC-05 の記録がある。
