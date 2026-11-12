@@ -275,7 +275,7 @@ PR-1 のマージの後、新しいブランチで行う（§1.2 の決めたこ
 - [x] F-006 の手順 2 で選んだ構成（候補がなければ「変えない」）を、失敗した実行の回数と費用とともに人に示し、承認を受ける。人が承認しない場合は、その候補を除いて `aggregate` で選び直す（要件 F-006 の手順 3）。
 - [x] 結論と節 1 の要約を書く。
 - [x] PR-2 で `_eval/` を変えた場合は、`selftest.sh`・`reproduce0018.sh`・`repo_impact.sh` を実行し直して記録する。（PR-2 で変えたのは `run.sh` だけで、変えた後のコミット `b435f279` で実行し直し、`04_evaluation.md` §2.7 に記録した。その後 `_eval/` は変えていない）
-- [ ] `check-record` と `secretscan.sh` を実行し、出力・入力の SHA-256・実行したコミットを本書 §7 の「記録」に書く。PR の作成の後に `04_evaluation.md` か `_eval/` を変えた場合は、マージの前に 2 つを実行し直して記録を書き換える。
+- [x] `check-record` と `secretscan.sh` を実行し、出力・入力の SHA-256・実行したコミットを本書 §7 の「記録」に書く。PR の作成の後に `04_evaluation.md` か `_eval/` を変えた場合は、マージの前に 2 つを実行し直して記録を書き換える。
 - [x] 本番の構成を変えない場合は、次をすべて `[-]` にし、理由として `04_evaluation.md` の結論を参照する。ステップ 6-1・6-2 のチェックボックス、PR-3 の作成ポイントの 4 つのチェックボックス、§6 の PR-3 の行、§8 の「本番の構成を変える場合」の行。§7 の AC-24〜AC-30 の行に「該当しない」と書く。
 
 **完了条件:** 評価記録の結論が人の承認を受け、`check-record` が成功している。
@@ -401,7 +401,7 @@ PR-2 は複数のセッションにわたる。`/runplan` は 1 フェーズず�
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5）
 - [ ] PR-2 マージ済み（対象ステップ: 1-6 / 1-7 / 2-1 / 3-1 / 3-2 / 4-1 / 5-1）
 - [-] PR-3 マージ済み（対象ステップ: 6-1 / 6-2）（本番の構成を変えない。`04_evaluation.md` §10 の結論による）
-- [ ] §7 の表のすべての AC の検証結果を記録した
+- [x] §7 の表のすべての AC の検証結果を記録した
 
 ## 7. 受け入れ条件の検証 (Acceptance Criteria Verification)
 
@@ -446,14 +446,36 @@ PR-2 は複数のセッションにわたる。`/runplan` は 1 フェーズず�
 
 AC-24〜AC-30 は、本番の構成を変える場合だけ行う。変えない場合は、ステップ 5-1 で各行に「該当しない」と結論への参照を書く。
 
-**記録:**（`/runplan` が、`check-record` と `secretscan.sh` の出力、比べた入力の SHA-256、実行したコミットを書く）
+**記録:** 2026-11-12 に、PR-2 のブランチのコミット `695435531d909b13ab9ec78702225fd657ce3a5f` で実行した。`check-record` には、同じコミットの `evaltool` の `aggregate`・`estimate`・`rates` の出力をリポジトリの外の作業ディレクトリに書いて渡した。`secretscan.sh` はリポジトリのルートで `direnv exec .` を付けて実行した。
+
+```text
+sha256 15a33f6e9668bc2580dcbd44ba11d5603cb53be5db356357d780cf7318252ebf docs/tasks/0087_openai_combination_eval/04_evaluation.md
+sha256 a32840a3e3ec3b0adc7529f47d1e0b38a9f0fffbf1e58f0580a6fa8495ae4d51 <作業ディレクトリ>/agg.txt
+sha256 c55fce120901d78757c0c0dbef9a67b6457782259a61703b969c60ad07083e13 <作業ディレクトリ>/est.txt
+sha256 4441024ebddce789f8b0ccc23512bf78a776b069fa9b625dc81a67f221c9a097 <作業ディレクトリ>/rates.txt
+check-record: 28 tables match
+exit=0
+```
+
+```text
+secretscan: the value of ANTHROPIC_API_KEY is absent
+secretscan: the value of OPENAI_API_KEY is absent
+secretscan: the value of DEEPSEEK_API_KEY is absent
+secretscan: the value of SLACK_WEBHOOK_URL is absent
+secretscan: the value of YT2COLUMN_TEST_ANTHROPIC_API_KEY is absent
+secretscan: the value of YT2COLUMN_TEST_OPENAI_API_KEY is absent
+secretscan: the value of YT2COLUMN_TEST_DEEPSEEK_API_KEY is absent
+secretscan: the value of YT2COLUMN_TEST_SLACK_WEBHOOK_URL is absent
+secretscan: no sk- key prefix
+exit=0
+```
 
 ## 8. 完了条件 (Success Criteria)
 
 - [x] AC-01〜AC-23 の検証が完了し、評価記録の結論が人の承認を受けている。
 - [x] 実 API を呼んだ実行の推定コストの合計が、承認の上限以下である。
 - [x] 基準の構成の保存した出力と評価用のキャッシュが、評価の前後で変わっていない。
-- [ ] `_eval/` と `04_evaluation.md` に API キーと全文がない（`secretscan.sh` とレビュー）。
+- [x] `_eval/` と `04_evaluation.md` に API キーと全文がない（`secretscan.sh` とレビュー）。
 - [-] 本番の構成を変える場合は、AC-24〜AC-30 の検証が完了している。（本番の構成を変えない。`04_evaluation.md` §10 の結論による）
 
 ## 9. 次のステップ (Next Steps)
