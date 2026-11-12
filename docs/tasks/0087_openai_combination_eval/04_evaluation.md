@@ -80,6 +80,7 @@ evaltool check-record -record docs/tasks/0087_openai_combination_eval/04_evaluat
 - **採点の素材の記事:** 設計 §3.6 の手順 2 は記事のファイルからタイトルと本文を取り出す。`material` は、同じタイトルと本文を検証・推敲の保存した出力から取り、記事のファイルがそのタイトルと本文を含むことを確かめる。記事のファイルの出典の行（日本語の固定の文言）を解析しないためである。字幕は、実行ごとのキャッシュの写しを CLI と同じ読み取り口（`YtDlpSource`）で読み、時刻つきの文にして素材に置く。採点のサブエージェントはファイルを読む道具だけを持ち、json3 を自分で変換できないためである。
 - **キャッシュの間隔:** 設計 §3.5 は、同じ OpenAI のモデルを使う直前の構成の終了から 30 分を待つ。`launch` は、同じ OpenAI のモデルを使うほかのすべての構成の最後の実行の終了から 30 分を待つ。設計より厳しい側である。
 - **起動の関門の強化:** `launch` は、ロックで同時の起動を止め、`run.sh` は `launch` のトークンなしに API を呼ぶ実行を始めない（§2.2）。`launch` は、支払い前と確かめた実行を除いて 2 回やり直した記事の 3 回目のやり直しと、最後の承認より前の時刻を止める。どれも設計の関門（§3.5）を手順の誤りから守るためで、設計の条件は変えない。
+- **人の確認の範囲:** 設計 §3.6 の手順 4 は対象の判定をすべて人が確認するとした。人の求めにより、論点ごと・1 件ずつ・一括の 3 段で確認した（要件の実装の際に決めたこと 1、設計 §1.5。セッション中に再承認を受けた）。段ごとの件数は §7 の冒頭にある。
 - **素材の検査:** `material` は、素材のどのファイルにもその段の構成 ID とモデル ID が含まれないことを確かめ、含まれれば止まる。
 
 ### 2.5. 道具の確かめ（ステップ 1-5）
@@ -419,12 +420,26 @@ exit=0
 
 **採点と人の確認（AC-09〜AC-11）:** 2026-11-12 に、`check_article.py` が 40 件の長さ・節の数・タイトルの字数を判定した（40 件とも `pass`）。`material` で伏せた素材を作り、`yt2column-0087-scorer` のエージェント（モデル ID `claude-opus-5-5`。5 つのエージェントすべてがこの ID を報告した）が、動画ごとに 1 つのサブエージェントで 8 件ずつ採点した（計画 §1.4 の決めたこと 3 のとおり、素材のファイルの名前の一覧をプロンプトに書いた）。採点の全文と、人の確認の記録は `0087/score/1/` にある。
 
-人の確認は次の 3 段で行った。判定の数が多い（設計 §3.6 の手順 4 の対象は 274 判定）ため、人の求めにより、合否と製品の制約の「あり」を左右する判定を個別に、残りを一括で確認した。
-- **論点ごとに決めた判定:** roNZ-rLxhUE の形式の選択（インタビュー記事を選ばなかった記事は不合格）、「ロボットが自衛隊」の読みやすさ（意味が取れないので 1）、EqnGQDU71-Y で未来会議の考えを全体の考えとした「根拠」（解釈で合格、文言どおりで不合格）、leE02uqgaKg の「地球サイズ」を「質量」とした誤り（根拠の不合格）。
-- **個別に示した判定:** 品質の 1、採点者が人の確認を求めた「根拠」の合格、採点者が 2 と 1 の境目とした構成、製品の制約の「あり」。前後の段落と字幕の該当時刻を示し、人が 1 問ずつ答えた。同じ動画で同じ理由の判定はまとめて示した。人が変えたのは、A-sol・A-astra の roNZ-rLxhUE-1 と zW1RBacSqjk-1 の「根拠」の文言どおりの判定（合格から不合格）の 4 判定である。
-- **一括で確認した判定:** 境目と書かれていない品質の 2、採点者が迷わず合格とした「根拠」、ほかの理由ですでに不合格の記事の判定、製品の制約の「なし」。LLM の判定のままとした。
+人の確認の対象は設計 §3.6 の手順 4 の 274 判定である（必須の観点の不合格、品質の 1 と 2、観点「根拠」の合格、製品の制約 1〜3）。数が多いため、人の求めにより、次の 3 段で確認した（計画 §1.4 の決めたこと 4。設計 §3.6 の手順 4 の変更として、セッション中に再承認を受けた）。
 
-1 段目の人の確認の印（`0087/score/1/human-confirmed`）は 2026-11-12T07:48:05Z である。
+- **論点ごとに決めた判定（20 判定）:** roNZ-rLxhUE の形式の選択（インタビュー記事を選ばなかった記事は不合格）、「ロボットが自衛隊」の読みやすさ（意味が取れないので 1）、EqnGQDU71-Y で未来会議の考えを全体の考えとした「根拠」（解釈で合格、文言どおりで不合格）、leE02uqgaKg の「地球サイズ」を「質量」とした誤り（根拠の不合格と制約 1）。
+- **1 問ずつ示した判定（65 判定）:** 前後の段落と字幕の該当時刻を示し、人が答えた。同じ動画で本文と理由が同じ判定はまとめて示した。対象は、品質の 1 のうちほかの理由でまだ不合格になっていない記事のもの、採点者が 2 と 1 の境目とした構成、ほかに不合格の判定がない記事の「根拠」の合格のすべて（採点者が人の確認を求めたかどうかによらない）、製品の制約の「あり」である。
+- **一括で確認した判定（189 判定）:** 境目と書かれていない品質の 2（100）、ほかの理由ですでに不合格の記事の「根拠」の合格（11）と品質の 1（2）、製品の制約の「なし」（76）。人は個々の判定を見ずに、LLM の判定のままとした。
+
+| 種類 | 論点ごと | 1 問ずつ | 一括 |
+|---|---|---|---|
+| 必須の観点の不合格 | 7 | 0 | 0 |
+| 観点「根拠」の合格 | 7 | 18 | 11 |
+| 品質の 1 | 2 | 6 | 2 |
+| 品質の 2 | 0 | 1 | 100 |
+| 製品の制約の「あり」 | 4 | 40 | 0 |
+| 製品の制約の「なし」 | 0 | 0 | 76 |
+
+人が変えたのは、A-sol・A-astra の roNZ-rLxhUE-1 と zW1RBacSqjk-1 の「根拠」の文言どおりの判定（合格から不合格）の 4 判定である。判定ごとの段（論点ごと・1 問ずつ・一括）と理由は `0087/score/1/human-decisions.tsv` にある。判定者の表の `llm+human` は、人の確認の対象で人が変えなかった LLM の判定で、一括で確認した判定を含む。対象の外の判定（品質の 3、「根拠」以外の必須の観点の合格）は `llm` である。
+
+**プロンプトのキャッシュ（AC-14）:** 設計 §3.5 は、同じ構成の 10 件を同時に起動するので同じ動画の 2 件目が 1 件目のキャッシュを読むことは起こりにくいと見込んだ。この見込みは外れた。`C-sol` と `C-astra` では、多くの記事の生成の入力の大部分がキャッシュから読まれた（例: `C-sol` の roNZ-rLxhUE-2 は 17,303 トークンのうち 17,300）。キャッシュを読んだ工程の数と、読んだ入力をキャッシュの書き込みの単価で数え直した補助の推定コストの平均は、§9 の比較の表にある。
+
+1 段目の人の確認の印（`0087/score/1/human-confirmed`）は 2026-11-12T08:04:55Z である（レビューの後に「根拠」の合格 7 判定を 1 問ずつ確認し直したので、最初の印 2026-11-12T07:48:05Z から書き直した）。
 
 ### 7.0. 実行の順序と並列の組（AC-06）
 
@@ -528,21 +543,21 @@ exit=0
 | C-sol | EqnGQDU71-Y-1 | pass/pass | pass/pass | pass/pass | pass/pass | pass/pass | 3/3 | 2/2 | 2/2 | 3/3 | 3/3 | 2/2 | yes | yes |
 | C-sol | EqnGQDU71-Y-2 | pass/pass | pass/pass | pass/fail | pass/pass | pass/pass | 3/3 | 2/2 | 2/2 | 3/3 | 3/3 | 2/2 | yes | no |
 
-**判定者（AC-10）:** `script` はスクリプト、`llm` は LLM、`llm+human` は人が確認して変えなかった LLM の判定、`human` は人が変えた判定である。人が変えた判定と理由は下に書く。
+**判定者（AC-10）:** `script` はスクリプト、`llm` は人の確認の対象の外の LLM の判定、`llm+human` は人の確認の対象で人が変えなかった LLM の判定（一括で確認した判定を含む。§7 の冒頭）、`human` は人が変えた判定である。人が変えた判定と理由は下に書く。
 
 <!-- check-record: judges config=C-sol -->
 | 構成 | 記事 | 形式の選択 | 形式の規則 | 根拠 | 長さ | 表記 | 網羅 | 重要度 | 構成（観点） | 読みやすさ | タイトル・リード文 | 冗長さ | 制約 1 | 制約 2 | 制約 3 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| C-sol | roNZ-rLxhUE-1 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
-| C-sol | roNZ-rLxhUE-2 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
-| C-sol | 18tbwwPM91A-1 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
-| C-sol | 18tbwwPM91A-2 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
-| C-sol | zW1RBacSqjk-1 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
-| C-sol | zW1RBacSqjk-2 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
-| C-sol | leE02uqgaKg-1 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
-| C-sol | leE02uqgaKg-2 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
-| C-sol | EqnGQDU71-Y-1 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
-| C-sol | EqnGQDU71-Y-2 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
+| C-sol | roNZ-rLxhUE-1 | llm+human | llm | llm+human | script | llm | llm+human | llm+human | llm+human | llm | llm | llm+human | llm+human | llm+human | llm+human |
+| C-sol | roNZ-rLxhUE-2 | llm | llm | llm+human | script | llm | llm+human | llm+human | llm+human | llm | llm | llm+human | llm+human | llm+human | llm+human |
+| C-sol | 18tbwwPM91A-1 | llm | llm | llm+human | script | llm | llm+human | llm+human | llm+human | llm | llm+human | llm+human | llm+human | llm+human | llm+human |
+| C-sol | 18tbwwPM91A-2 | llm | llm | llm+human | script | llm | llm+human | llm+human | llm+human | llm | llm | llm+human | llm+human | llm+human | llm+human |
+| C-sol | zW1RBacSqjk-1 | llm | llm | llm+human | script | llm | llm | llm | llm+human | llm+human | llm | llm+human | llm+human | llm+human | llm+human |
+| C-sol | zW1RBacSqjk-2 | llm | llm | llm+human | script | llm | llm | llm | llm+human | llm+human | llm | llm+human | llm+human | llm+human | llm+human |
+| C-sol | leE02uqgaKg-1 | llm | llm | llm+human | script | llm | llm+human | llm | llm+human | llm | llm | llm+human | llm+human | llm+human | llm+human |
+| C-sol | leE02uqgaKg-2 | llm | llm | llm+human | script | llm | llm | llm | llm+human | llm | llm | llm+human | llm+human | llm+human | llm+human |
+| C-sol | EqnGQDU71-Y-1 | llm | llm | llm+human | script | llm | llm | llm+human | llm+human | llm | llm | llm+human | llm+human | llm+human | llm+human |
+| C-sol | EqnGQDU71-Y-2 | llm | llm | llm+human | script | llm | llm | llm+human | llm+human | llm | llm | llm+human | llm+human | llm+human | llm+human |
 
 **機械的な値（AC-09）:** `check_article.py` の出力である。
 
@@ -704,21 +719,21 @@ exit=0
 | C-astra | EqnGQDU71-Y-1 | pass/pass | pass/pass | pass/fail | pass/pass | pass/pass | 3/3 | 2/2 | 2/2 | 3/3 | 3/3 | 2/2 | yes | no |
 | C-astra | EqnGQDU71-Y-2 | pass/pass | pass/pass | pass/fail | pass/pass | pass/pass | 3/3 | 2/2 | 2/2 | 3/3 | 3/3 | 2/2 | yes | no |
 
-**判定者（AC-10）:** `script` はスクリプト、`llm` は LLM、`llm+human` は人が確認して変えなかった LLM の判定、`human` は人が変えた判定である。人が変えた判定と理由は下に書く。
+**判定者（AC-10）:** `script` はスクリプト、`llm` は人の確認の対象の外の LLM の判定、`llm+human` は人の確認の対象で人が変えなかった LLM の判定（一括で確認した判定を含む。§7 の冒頭）、`human` は人が変えた判定である。人が変えた判定と理由は下に書く。
 
 <!-- check-record: judges config=C-astra -->
 | 構成 | 記事 | 形式の選択 | 形式の規則 | 根拠 | 長さ | 表記 | 網羅 | 重要度 | 構成（観点） | 読みやすさ | タイトル・リード文 | 冗長さ | 制約 1 | 制約 2 | 制約 3 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| C-astra | roNZ-rLxhUE-1 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
-| C-astra | roNZ-rLxhUE-2 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
-| C-astra | 18tbwwPM91A-1 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
-| C-astra | 18tbwwPM91A-2 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
-| C-astra | zW1RBacSqjk-1 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
-| C-astra | zW1RBacSqjk-2 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
-| C-astra | leE02uqgaKg-1 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
-| C-astra | leE02uqgaKg-2 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
-| C-astra | EqnGQDU71-Y-1 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
-| C-astra | EqnGQDU71-Y-2 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
+| C-astra | roNZ-rLxhUE-1 | llm+human | llm | llm+human | script | llm | llm+human | llm+human | llm+human | llm | llm | llm+human | llm+human | llm+human | llm+human |
+| C-astra | roNZ-rLxhUE-2 | llm+human | llm | llm+human | script | llm | llm+human | llm+human | llm+human | llm | llm | llm+human | llm+human | llm+human | llm+human |
+| C-astra | 18tbwwPM91A-1 | llm | llm | llm+human | script | llm | llm+human | llm | llm+human | llm | llm+human | llm+human | llm+human | llm+human | llm+human |
+| C-astra | 18tbwwPM91A-2 | llm | llm | llm+human | script | llm | llm+human | llm | llm+human | llm | llm | llm+human | llm+human | llm+human | llm+human |
+| C-astra | zW1RBacSqjk-1 | llm | llm | llm+human | script | llm | llm | llm | llm+human | llm | llm | llm+human | llm+human | llm+human | llm+human |
+| C-astra | zW1RBacSqjk-2 | llm | llm | llm+human | script | llm | llm | llm | llm+human | llm | llm | llm+human | llm+human | llm+human | llm+human |
+| C-astra | leE02uqgaKg-1 | llm | llm | llm+human | script | llm | llm+human | llm | llm | llm | llm | llm+human | llm+human | llm+human | llm+human |
+| C-astra | leE02uqgaKg-2 | llm | llm | llm+human | script | llm | llm+human | llm | llm+human | llm | llm+human | llm+human | llm+human | llm+human | llm+human |
+| C-astra | EqnGQDU71-Y-1 | llm | llm | llm+human | script | llm | llm | llm+human | llm+human | llm | llm | llm+human | llm+human | llm+human | llm+human |
+| C-astra | EqnGQDU71-Y-2 | llm | llm | llm+human | script | llm | llm | llm+human | llm+human | llm | llm | llm+human | llm+human | llm+human | llm+human |
 
 **機械的な値（AC-09）:** `check_article.py` の出力である。
 
@@ -899,21 +914,21 @@ exit=0
 | A-sol | EqnGQDU71-Y-1 | pass/pass | pass/pass | pass/fail | pass/pass | pass/pass | 3/3 | 2/2 | 2/2 | 3/3 | 3/3 | 3/3 | yes | no |
 | A-sol | EqnGQDU71-Y-2 | pass/pass | pass/pass | pass/fail | pass/pass | pass/pass | 3/3 | 2/2 | 2/2 | 3/3 | 3/3 | 3/3 | yes | no |
 
-**判定者（AC-10）:** `script` はスクリプト、`llm` は LLM、`llm+human` は人が確認して変えなかった LLM の判定、`human` は人が変えた判定である。人が変えた判定と理由は下に書く。
+**判定者（AC-10）:** `script` はスクリプト、`llm` は人の確認の対象の外の LLM の判定、`llm+human` は人の確認の対象で人が変えなかった LLM の判定（一括で確認した判定を含む。§7 の冒頭）、`human` は人が変えた判定である。人が変えた判定と理由は下に書く。
 
 <!-- check-record: judges config=A-sol -->
 | 構成 | 記事 | 形式の選択 | 形式の規則 | 根拠 | 長さ | 表記 | 網羅 | 重要度 | 構成（観点） | 読みやすさ | タイトル・リード文 | 冗長さ | 制約 1 | 制約 2 | 制約 3 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| A-sol | roNZ-rLxhUE-1 | llm+human | llm+human | human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
-| A-sol | roNZ-rLxhUE-2 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
-| A-sol | 18tbwwPM91A-1 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
-| A-sol | 18tbwwPM91A-2 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
-| A-sol | zW1RBacSqjk-1 | llm+human | llm+human | human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
-| A-sol | zW1RBacSqjk-2 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
-| A-sol | leE02uqgaKg-1 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
-| A-sol | leE02uqgaKg-2 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
-| A-sol | EqnGQDU71-Y-1 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
-| A-sol | EqnGQDU71-Y-2 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
+| A-sol | roNZ-rLxhUE-1 | llm | llm | human | script | llm | llm | llm+human | llm+human | llm | llm | llm+human | llm+human | llm+human | llm+human |
+| A-sol | roNZ-rLxhUE-2 | llm | llm | llm+human | script | llm | llm | llm+human | llm | llm+human | llm | llm+human | llm+human | llm+human | llm+human |
+| A-sol | 18tbwwPM91A-1 | llm | llm | llm+human | script | llm | llm+human | llm+human | llm+human | llm | llm | llm | llm+human | llm+human | llm+human |
+| A-sol | 18tbwwPM91A-2 | llm | llm | llm+human | script | llm | llm | llm+human | llm+human | llm | llm | llm | llm+human | llm+human | llm+human |
+| A-sol | zW1RBacSqjk-1 | llm | llm | human | script | llm | llm | llm+human | llm+human | llm | llm | llm | llm+human | llm+human | llm+human |
+| A-sol | zW1RBacSqjk-2 | llm | llm | llm+human | script | llm | llm | llm+human | llm+human | llm+human | llm | llm | llm+human | llm+human | llm+human |
+| A-sol | leE02uqgaKg-1 | llm | llm | llm+human | script | llm | llm | llm+human | llm | llm | llm | llm+human | llm+human | llm+human | llm+human |
+| A-sol | leE02uqgaKg-2 | llm | llm | llm+human | script | llm | llm | llm+human | llm | llm | llm | llm | llm+human | llm+human | llm+human |
+| A-sol | EqnGQDU71-Y-1 | llm | llm | llm+human | script | llm | llm | llm+human | llm+human | llm | llm | llm | llm+human | llm+human | llm+human |
+| A-sol | EqnGQDU71-Y-2 | llm | llm | llm+human | script | llm | llm | llm+human | llm+human | llm | llm | llm | llm+human | llm+human | llm+human |
 
 **機械的な値（AC-09）:** `check_article.py` の出力である。
 
@@ -1090,21 +1105,21 @@ exit=0
 | A-astra | EqnGQDU71-Y-1 | pass/pass | pass/pass | pass/fail | pass/pass | pass/pass | 3/3 | 2/2 | 2/2 | 3/3 | 3/3 | 3/3 | yes | no |
 | A-astra | EqnGQDU71-Y-2 | pass/pass | pass/pass | pass/fail | pass/pass | pass/pass | 3/3 | 2/2 | 2/2 | 3/3 | 3/3 | 3/3 | yes | no |
 
-**判定者（AC-10）:** `script` はスクリプト、`llm` は LLM、`llm+human` は人が確認して変えなかった LLM の判定、`human` は人が変えた判定である。人が変えた判定と理由は下に書く。
+**判定者（AC-10）:** `script` はスクリプト、`llm` は人の確認の対象の外の LLM の判定、`llm+human` は人の確認の対象で人が変えなかった LLM の判定（一括で確認した判定を含む。§7 の冒頭）、`human` は人が変えた判定である。人が変えた判定と理由は下に書く。
 
 <!-- check-record: judges config=A-astra -->
 | 構成 | 記事 | 形式の選択 | 形式の規則 | 根拠 | 長さ | 表記 | 網羅 | 重要度 | 構成（観点） | 読みやすさ | タイトル・リード文 | 冗長さ | 制約 1 | 制約 2 | 制約 3 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| A-astra | roNZ-rLxhUE-1 | llm+human | llm+human | human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
-| A-astra | roNZ-rLxhUE-2 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
-| A-astra | 18tbwwPM91A-1 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
-| A-astra | 18tbwwPM91A-2 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
-| A-astra | zW1RBacSqjk-1 | llm+human | llm+human | human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
-| A-astra | zW1RBacSqjk-2 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
-| A-astra | leE02uqgaKg-1 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
-| A-astra | leE02uqgaKg-2 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
-| A-astra | EqnGQDU71-Y-1 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
-| A-astra | EqnGQDU71-Y-2 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
+| A-astra | roNZ-rLxhUE-1 | llm | llm | human | script | llm | llm | llm+human | llm+human | llm | llm | llm+human | llm+human | llm+human | llm+human |
+| A-astra | roNZ-rLxhUE-2 | llm | llm | llm+human | script | llm | llm | llm+human | llm | llm+human | llm | llm+human | llm+human | llm+human | llm+human |
+| A-astra | 18tbwwPM91A-1 | llm | llm | llm+human | script | llm | llm+human | llm+human | llm+human | llm | llm | llm | llm+human | llm+human | llm+human |
+| A-astra | 18tbwwPM91A-2 | llm | llm | llm+human | script | llm | llm | llm+human | llm+human | llm | llm | llm | llm+human | llm+human | llm+human |
+| A-astra | zW1RBacSqjk-1 | llm | llm | human | script | llm | llm | llm+human | llm+human | llm | llm | llm | llm+human | llm+human | llm+human |
+| A-astra | zW1RBacSqjk-2 | llm | llm | llm+human | script | llm | llm | llm+human | llm+human | llm+human | llm | llm | llm+human | llm+human | llm+human |
+| A-astra | leE02uqgaKg-1 | llm | llm | llm+human | script | llm | llm | llm+human | llm | llm | llm | llm+human | llm+human | llm+human | llm+human |
+| A-astra | leE02uqgaKg-2 | llm | llm | llm+human | script | llm | llm | llm+human | llm | llm | llm | llm | llm+human | llm+human | llm+human |
+| A-astra | EqnGQDU71-Y-1 | llm | llm | llm+human | script | llm | llm | llm+human | llm+human | llm | llm | llm | llm+human | llm+human | llm+human |
+| A-astra | EqnGQDU71-Y-2 | llm | llm | llm+human | script | llm | llm | llm+human | llm+human | llm | llm | llm | llm+human | llm+human | llm+human |
 
 **機械的な値（AC-09）:** `check_article.py` の出力である。
 
