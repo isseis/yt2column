@@ -33,18 +33,13 @@ import (
 // Fixed values the tests share. The secrets carry markers, so a test can look
 // for any part of them in the output.
 const (
-	testAPIKey        = "sk-unit-APIKEYVALUE-0123456789-TAIL8KEY" //nolint:gosec // a fake key the redaction checks look for
-	apiKeyMarker      = "APIKEYVALUE"
-	testAnthropicKey  = "sk-ant-ANTHROPICVALUE-0123456789-TAIL8ANT" //nolint:gosec // a fake key the redaction checks look for
-	anthropicMarker   = "ANTHROPICVALUE"
-	testOpenAIKey     = "sk-openai-OPENAIKEYVALUE-0123456789-TAIL8OAI" //nolint:gosec // a fake key the redaction checks look for
-	openAIMarker      = "OPENAIKEYVALUE"
-	webhookPathMarker = "WEBHOOKVALUE"
-	testWebhookPath   = "/services/T0/B0/" + webhookPathMarker + "-TAIL8HKS"
-	// testWebhook passes slackwebhook.ValidURL, as config.LoadServer
-	// requires; the tests never send to it.
-	testWebhook = "https://hooks.slack.com" + testWebhookPath
-	testModel   = "fake-model"
+	testAPIKey       = "sk-unit-APIKEYVALUE-0123456789-TAIL8KEY" //nolint:gosec // a fake key the redaction checks look for
+	apiKeyMarker     = "APIKEYVALUE"
+	testAnthropicKey = "sk-ant-ANTHROPICVALUE-0123456789-TAIL8ANT" //nolint:gosec // a fake key the redaction checks look for
+	anthropicMarker  = "ANTHROPICVALUE"
+	testOpenAIKey    = "sk-openai-OPENAIKEYVALUE-0123456789-TAIL8OAI" //nolint:gosec // a fake key the redaction checks look for
+	openAIMarker     = "OPENAIKEYVALUE"
+	testModel        = "fake-model"
 	// testOpenAIModel and testOpenAIReviewModel are the models of an openai
 	// server configuration.
 	testOpenAIModel       = "gpt-6-astra"
@@ -131,9 +126,8 @@ func newServerEnv(t *testing.T) *serverEnv {
 	return &serverEnv{
 		vars: map[string]string{"HOME": udstest.Dir(t)},
 		file: map[string]string{
-			"YT2COLUMN_LLM":     "deepseek/" + testModel,
-			"DEEPSEEK_API_KEY":  testAPIKey,
-			"SLACK_WEBHOOK_URL": testWebhook,
+			"YT2COLUMN_LLM":    "deepseek/" + testModel,
+			"DEEPSEEK_API_KEY": testAPIKey,
 		},
 	}
 }
@@ -621,10 +615,10 @@ func waitForFile(t *testing.T, path string) {
 }
 
 // requireNoSecret fails the test when output holds any marked part of an API
-// key or the webhook URL.
+// key.
 func requireNoSecret(t *testing.T, name, output string) {
 	t.Helper()
-	for _, s := range []string{apiKeyMarker, anthropicMarker, openAIMarker, webhookPathMarker} {
+	for _, s := range []string{apiKeyMarker, anthropicMarker, openAIMarker} {
 		if strings.Contains(output, s) {
 			t.Errorf("%s holds a secret (%.8s...):\n%s", name, s, output)
 		}

@@ -277,32 +277,32 @@
 
 **変更するファイル:** `internal/publisher/`（Slack のコード、`mention.go`・`mention_test.go`、`golden_test.go`、`testdata/golden/*.slack.txt`、`makefile_test.go`、`test_helpers_slack.go`、`testutil/`）、`internal/writer/markdown.go`・`markdown_test.go`、`internal/slackwebhook/`、`internal/config/`、`internal/redact/`、`cmd/yt2column-server/run.go`・`test_helpers.go`・`run_test.go`、`cmd/yt2column/` のテスト・`run.go`、`cmd/yt2column-nmhost/main_test.go`、`internal/codexreview/run_test.go`、`internal/doctestutil/readme.go`、`Makefile`、`docs/dev/conventions/package_reference.md`（ガードが読む行）、`docs/tasks/0083_remove_slack_webhook/_checks/slack_removed.sh`（新規）
 
--   [ ] **ステップ 4-1（テストのコミット）**: `replaceLookAlike` の `<`・`!` の分岐を確かめるテストを `mention_test.go` に加える。ステップ 4-2 で消すテストだけが網羅していた分岐を、4-2 の比較の前に網羅しておくためである。
--   [ ] **ステップ 4-2（書き換えを伴う削除のコミット）**: `internal/publisher` の投稿のコードを消す（設計書 3.4）。
+-   [x] **ステップ 4-1（テストのコミット）**: `replaceLookAlike` の `<`・`!` の分岐を確かめるテストを `mention_test.go` に加える。ステップ 4-2 で消すテストだけが網羅していた分岐を、4-2 の比較の前に網羅しておくためである。
+-   [x] **ステップ 4-2（書き換えを伴う削除のコミット）**: `internal/publisher` の投稿のコードを消す（設計書 3.4）。
     -   消すファイル: `slack.go`、`slack_errors.go`、`slack_integration_test.go`、`slack_test.go`、`slack_errors_test.go`、`slack_articles_test.go`、`slack_message_test.go`、`slack_render_test.go`、`test_helpers_slack.go`、`makefile_test.go`、`testutil/integration.go`、`testutil/integration_settings_test.go`、`testdata/golden/*.slack.txt`（10 ファイル）。
     -   消す部分: `slack_message.go`・`slack_render.go` の残り（ステップ 2-1 の Slack 専用の包み、`renderSlackPost`・`slackFootnote`・`stageModels`、`neutralizeMentions`・`neutralizeProse`・`inRanges`）、`mention.go` の `insertAfterAts`・`followsSlash`・`isMentionNameChar`、`golden_test.go` の `.slack.txt` の比較と `TestRenderGoldenNeutralized`、`testutil/mocks.go`・`mocks_test.go` の `PostMessages` の偽物（§1.4）。
     -   同じコミットで、`Makefile` から `test-integration-slack`・`SLACK_INTEGRATION_TIMEOUT` と `.PHONY` の項目を消し、`:322` の lint のコメントを改める（設計書 3.11。統合テストと、それを走らせるターゲットを一緒に消す）。
     -   同じコミットで、`cmd/yt2column/docs_test.go::TestSlackDocsContract`、`cmd/yt2column/makefile_test.go` の Slack の行、`cmd/yt2column/output_layout_docs_test.go` の Slack の投稿の例の確かめと `doctestutil.ReadmeSlackPostHeading` を消す。
     -   `_checks/coverage` で確かめる。
--   [ ] **ステップ 4-3（書き換えを伴う削除のコミット）**: `replaceLookAlike` を `@` の見た目の似た文字だけを扱う形に減らし、ステップ 4-1 のテストの `<`・`!` の行を消す（設計書 3.2）。`_checks/coverage` で確かめる。消した文は、消した分岐そのものである。
--   [ ] **ステップ 4-4（テストのコミット）**: `writer.ProseRanges`・`writer.ByteRange` と `internal/writer/markdown_test.go::TestProseRanges` を消す（設計書 3.4）。関数を丸ごと消すだけなので、`make coverage-compare` で確かめる。
--   [ ] **ステップ 4-5（書き換えを伴う削除のコミット）**: `redact.SecretStrings` を `SecretStrings(secrets ...secret.Secret)` にし（§1.5）、`internal/redact/redact_test.go::TestSecretStringsWebhookParts` を消す。`cmd/yt2column-server/run.go` は API キーだけを渡し、`cfg.WebhookURL()` の行を消し、HTTP/2 のデバッグの警告（`run.go:194`）から Webhook の URL を除く。`cmd/yt2column/run.go:302` の呼び出しを合わせる。`TestSecretStrings` を新しい引数に合わせる。CLI は 1 つ目の引数に DeepSeek のキーを渡していたので（§1.4）、書き換えの前後で、CLI が伏せる文字列の集まりを、英字・数字・`-`・`_` からなるキーで比べ、同じであることを commit のメッセージに書く。違えば、要件書 2.3 節（CLI の振る舞いを変えない）に関わるので、止まって人に尋ねる。`_checks/coverage` で確かめる。
--   [ ] **ステップ 4-6（書き換えを伴う削除のコミット）**: Webhook の URL の設定とパッケージを消し、`SLACK_WEBHOOK_URL` の行を知らないキーとして拒否する（設計書 3.9、AC-05・AC-06）。
+-   [x] **ステップ 4-3（書き換えを伴う削除のコミット）**: `replaceLookAlike` を `@` の見た目の似た文字だけを扱う形に減らし、ステップ 4-1 のテストの `<`・`!` の行を消す（設計書 3.2）。`_checks/coverage` で確かめる。消した文は、消した分岐そのものである。
+-   [x] **ステップ 4-4（テストのコミット）**: `writer.ProseRanges`・`writer.ByteRange` と `internal/writer/markdown_test.go::TestProseRanges` を消す（設計書 3.4）。関数を丸ごと消すだけなので、`make coverage-compare` で確かめる。
+-   [x] **ステップ 4-5（書き換えを伴う削除のコミット）**: `redact.SecretStrings` を `SecretStrings(secrets ...secret.Secret)` にし（§1.5）、`internal/redact/redact_test.go::TestSecretStringsWebhookParts` を消す。`cmd/yt2column-server/run.go` は API キーだけを渡し、`cfg.WebhookURL()` の行を消し、HTTP/2 のデバッグの警告（`run.go:194`）から Webhook の URL を除く。`cmd/yt2column/run.go:302` の呼び出しを合わせる。`TestSecretStrings` を新しい引数に合わせる。CLI は 1 つ目の引数に DeepSeek のキーを渡していたので（§1.4）、書き換えの前後で、CLI が伏せる文字列の集まりを、英字・数字・`-`・`_` からなるキーで比べ、同じであることを commit のメッセージに書く。違えば、要件書 2.3 節（CLI の振る舞いを変えない）に関わるので、止まって人に尋ねる。`_checks/coverage` で確かめる。
+-   [x] **ステップ 4-6（書き換えを伴う削除のコミット）**: Webhook の URL の設定とパッケージを消し、`SLACK_WEBHOOK_URL` の行を知らないキーとして拒否する（設計書 3.9、AC-05・AC-06）。
     -   消すもの: `internal/slackwebhook/`（`slackwebhook.go`・`slackwebhook_test.go`）と `package_reference.md` の行（`TestPackageReferenceListsPackages` のため）、`ServerConfig.webhookURL`・`WebhookURL()`・`loadSlackWebhook`・`reasonSlackWebhook`・`slackEnv`・`SlackWebhookEnvForTest`、`serverFileKeys` の `slackEnv`、雛形の 3 行、`config_test.go::TestLoadServerWebhookOptional`・`TestServerConfigOutputRedactsWebhook`、`TestLoadServerValueRejections` の Webhook の行。
     -   書き換えるテストと fixture（消さずに、残るキーに置き換える）: `serverfile_test.go` の `TestParseServerFileAccepts` の `SLACK_WEBHOOK_URL` の行（値に `#` を含む行の解析の確かめは残る）と、`TestParseServerFileRejects` の前置きの行。`config_test.go` の環境の fixture（`:39`・`335`・`1532`）、`TestLoadServerValid` の Webhook の確かめ、`serverEnvWithFile`。`cmd/yt2column-server/test_helpers.go:44`〜`48`・`143` と `cmd/yt2column/docs_test.go:557` の設定。`git grep -n -i -E 'slack|webhook' -- internal/config cmd/yt2column-server cmd/yt2column` の残りを、この一覧と照らす。
     -   `_checks/coverage` で確かめる。
--   [ ] **ステップ 4-7（テストのコミット）**: 拒否の確かめを加える。
+-   [x] **ステップ 4-7（テストのコミット）**: 拒否の確かめを加える。
     -   `internal/config/serverfile_test.go::TestParseServerFileRejects` に、`SLACK_WEBHOOK_URL` の行（値があるとき・空のとき）が `ErrConfigFileFormat` と行の番号で拒否され、エラーの文字列が値を含まない行を加える。`TestParseServerFileAccepts` に、`SLACK_WEBHOOK_URL` を含む `#` の行を受理する行を加える。
     -   `TestServerFileTemplate` に、雛形の `# KEY=` の行がどれも `serverFileKeys` のキーを名指すことを加える（キーと行が 1 対 1 で対応する）。
     -   `cmd/yt2column-server/run_test.go::TestStartupFailures` に、設定ファイルに `SLACK_WEBHOOK_URL` の行があるとサーバが起動せず（終了コード `2`）、標準エラーが値を含まない行を加える。
     -   `serverFileKeys` に `slackEnv` を戻すと、加えた拒否の行と `TestStartupFailures` の加えた行が失敗することを確かめる。
--   [ ] **ステップ 4-8**: 残りの参照を改める。
+-   [x] **ステップ 4-8**: 残りの参照を改める。
     -   `internal/config/envaccess_test.go:59` の `secretEnvNames` から `SLACK_WEBHOOK_URL` を除き、`:553`・`557`・`598` の自己確かめの例を、一覧に残る名前に改める。`cmd/yt2column-nmhost/main_test.go:126` の `fullEnv` と `internal/codexreview/run_test.go:123` から `SLACK_WEBHOOK_URL` を除く。
     -   §1.4 の「Go のコメントだけで Webhook を例に挙げるもの」と `config_test.go:45`・`2243` のコメントから、Webhook と投稿を除く。
     -   `.golangci.yml` の `publisher-no-server` のコメントと `articlecache-boundaries` の `desc` から Webhook を除く。
     -   `git grep -n -i -E 'webhook|slack' -- '*.go' '*.ts' Makefile .golangci.yml` の残りが、§1.4 の「変えないもの」と、ステップ 4-7 の拒否の確かめだけであることを確かめ、その一覧を commit のメッセージに書く。
--   [ ] **ステップ 4-9**: `_checks/slack_removed.sh` を書いて実行する（AC-06・AC-09）。`Makefile` に `test-integration-slack` のターゲットがないこと、`cmd/`・`internal/`・`Makefile`・`.github/` に `YT2COLUMN_TEST_SLACK_WEBHOOK_URL` と `YT2COLUMN_SLACK_INTEGRATION` がないこと、`internal/config/serverfile.go` の雛形が `SLACK_WEBHOOK_URL` を含まないことを確かめる。シェルで書く。各チェックが少なくとも 1 つの壊し方で失敗することを確かめ、commit のメッセージに書く。出力・終了コード・比べたコミットの ID を §7 の「実行の記録」の PR-4 の欄に書く。
--   [ ] **ステップ 4-10**: `_checks/golden_md_unchanged.sh` を PR-4 の merge-base と最後のコミットで実行し、§7 の「実行の記録」の PR-4 の欄に書く（AC-16a）。
+-   [x] **ステップ 4-9**: `_checks/slack_removed.sh` を書いて実行する（AC-06・AC-09）。`Makefile` に `test-integration-slack` のターゲットがないこと、`cmd/`・`internal/`・`Makefile`・`.github/` に `YT2COLUMN_TEST_SLACK_WEBHOOK_URL` と `YT2COLUMN_SLACK_INTEGRATION` がないこと、`internal/config/serverfile.go` の雛形が `SLACK_WEBHOOK_URL` を含まないことを確かめる。シェルで書く。各チェックが少なくとも 1 つの壊し方で失敗することを確かめ、commit のメッセージに書く。出力・終了コード・比べたコミットの ID を §7 の「実行の記録」の PR-4 の欄に書く。
+-   [x] **ステップ 4-10**: `_checks/golden_md_unchanged.sh` を PR-4 の merge-base と最後のコミットで実行し、§7 の「実行の記録」の PR-4 の欄に書く（AC-16a）。
 
 **確かめ直し。** ステップ 4-9・4-10 の比べたコミットより後に、`Makefile`・`cmd/`・`internal/`・`.github/` を変える commit が入ったら（`/fixpr` の修正を含む）、そのステップをやり直して §7 の記録を改める。
 
@@ -321,9 +321,9 @@
 **判定理由**: ステップ 4-5（秘密の伏せ字の対象の書き換え）と 4-6・4-7（秘密を持つ設定の行の起動の拒否）が、同じ PR で振る舞いを狭める側と強める側に同時に変えるセキュリティの関門の変更である（mkplan.md のパネルの契機）。
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/854
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 5: 文書・エージェントの指示と手動の確かめ（設計書 8 章の 5・6）
 
@@ -411,7 +411,7 @@
 -   [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3）
 -   [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7）
 -   [x] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8）
--   [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7 / 4-8 / 4-9 / 4-10）
+-   [x] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7 / 4-8 / 4-9 / 4-10）
 -   [ ] PR-5 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6 / 5-7 / 5-8）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
@@ -507,7 +507,28 @@ exit=0
 
 PR-4:
 
-（ステップ 4-9・4-10 で書く。）
+**`_checks/slack_removed.sh`（AC-06・AC-09）。** 確かめたコミットは、PR の作成ポイントで確かめ直した PR のブランチの `08b99cce` である（merge-base は `7defcb9ac5a6d0de6a0a88421903619b3c7b7bb2`）。出力と終了コード:
+
+```text
+commit: 08b99cce
+OK   the Makefile does not name test-integration-slack
+OK   cmd/, internal/, Makefile, and .github/ name neither YT2COLUMN_TEST_SLACK_WEBHOOK_URL nor YT2COLUMN_SLACK_INTEGRATION
+OK   the template config init writes (31 lines) holds no SLACK_WEBHOOK_URL
+exit=0
+```
+
+壊し方: merge-base `7defcb9a`（Slack のターゲット、統合テストの 2 つの変数、雛形の Webhook の行がまだある）で走らせると、3 つのチェックがどれも `NG` と見つけた行を出し、終了コード `1`。ないコミットを渡すと `is not a commit` で `2`、引数がないと `2`。
+
+**`_checks/golden_md_unchanged.sh`（AC-16a）。** 比べたコミットは、merge-base `7defcb9ac5a6d0de6a0a88421903619b3c7b7bb2` と、PR の作成ポイントで確かめ直した PR のブランチの `08b99cce` である。出力と終了コード:
+
+```text
+before: 7defcb9ac5a6d0de6a0a88421903619b3c7b7bb2
+after:  08b99cce
+files:  internal/publisher/testdata/golden/*.md
+OK   the same 10 file(s) with the same content at both commits
+OK   all 10 file(s) are byte for byte the same
+exit=0
+```
 
 PR-5:
 

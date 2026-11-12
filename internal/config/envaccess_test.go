@@ -56,7 +56,7 @@ var envMethodNames = func() map[string]bool {
 
 // secretEnvNames are the secret variable names that may appear only in
 // internal/config.
-var secretEnvNames = []string{"DEEPSEEK_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "SLACK_WEBHOOK_URL"}
+var secretEnvNames = []string{"DEEPSEEK_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"}
 
 // allowedEnvRefs lists the only production references allowed outside
 // internal/config, by repo-relative slash path and by reference key with the
@@ -550,11 +550,11 @@ import "os"
 
 func f() { _ = os.Getenv("X") }
 
-const _ = "SLACK_WEBHOOK_URL"
+const _ = "ANTHROPIC_API_KEY"
 `,
 		"internal/other/secretname.go": `package other
 
-const key = "SLACK_WEBHOOK_URL"
+const key = "ANTHROPIC_API_KEY"
 `,
 		"internal/other/openaisecret.go": `package other
 
@@ -595,7 +595,7 @@ const openAIKey = "OPENAI_API_KEY"
 		"internal/other/others.go call:os.UserHomeDir",
 		"internal/other/others.go call:syscall.Environ",
 		"internal/other/platform_linux.go call:os.Getenv",
-		"internal/other/secretname.go secret:SLACK_WEBHOOK_URL",
+		"internal/other/secretname.go secret:ANTHROPIC_API_KEY",
 		"internal/ytdlpsource/ytdlp.go call:os.Getenv",
 		"internal/ytdlpsource/ytdlp.go call:syscall.Getenv",
 	}

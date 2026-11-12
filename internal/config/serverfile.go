@@ -13,11 +13,12 @@ import (
 	"github.com/isseis/yt2column/internal/privatefile"
 )
 
-// serverFileKeys are the seven keys the configuration file accepts: the names
-// of the variables the CLI reads, written once at the top of config.go.
+// serverFileKeys are the six keys the configuration file accepts: the names
+// of the variables the CLI reads, written once at the top of config.go. Any
+// other key, SLACK_WEBHOOK_URL included, is rejected as an unknown key.
 var serverFileKeys = []string{
 	llmEnv, reviewLLMEnv, deepSeekAPIKeyEnv,
-	anthropicAPIKeyEnv, openAIAPIKeyEnv, anthropicWorkspaceIDEnv, slackEnv,
+	anthropicAPIKeyEnv, openAIAPIKeyEnv, anthropicWorkspaceIDEnv,
 }
 
 // serverFileMaxSize is the largest configuration file accepted, in bytes.
@@ -441,10 +442,6 @@ const serverFileTemplate = `# yt2column-server configuration file.
 # The Anthropic workspace ID, for an API key not bound to a workspace.
 # When unset, no workspace ID is sent.
 # ` + anthropicWorkspaceIDEnv + `=
-
-# The Incoming Webhook URL (https) the viewer posts an article to.
-# When unset, the server starts but cannot post.
-# ` + slackEnv + `=
 `
 
 // InitResult is what InitServerFile created. LeftoverTemp is the name of the

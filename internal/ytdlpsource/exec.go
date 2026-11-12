@@ -40,7 +40,7 @@ const (
 
 // allowedEnvVars is the fixed set of environment variables passed to yt-dlp.
 // It is an allowlist so a secret added to the parent environment cannot leak
-// into the child; it must never list an API key or the Webhook URL.
+// into the child; it must never list an API key.
 var allowedEnvVars = []string{
 	"PATH",
 	"HOME",

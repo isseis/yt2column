@@ -43,6 +43,7 @@ var errBuildRefused = errors.New("the test refuses to build this component")
 // no secret reaches it, and that the socket path is left as it was: no socket
 // is created where none was, and an existing one is not removed.
 func TestStartupFailures(t *testing.T) {
+	const removedWebhookMarker = "REMOVEDWEBHOOKVALUE"
 	// The argument diagnostic points the user at the configuration document,
 	// which must exist.
 	if _, err := os.Stat(filepath.Join(repositoryRoot, configDocument)); err != nil {
@@ -60,6 +61,8 @@ func TestStartupFailures(t *testing.T) {
 		wantStderr string
 		// hint, when set, is a second part standard error must hold.
 		hint string
+		// absent lists the values standard error must not hold.
+		absent []string
 		// configLines, when set, is how many configuration lines standard
 		// error must hold: one per rejection.
 		configLines int
@@ -172,6 +175,30 @@ func TestStartupFailures(t *testing.T) {
 			},
 			want:        exitUsage,
 			wantStderr:  ": line 1: ",
+			configLines: 1,
+			configError: true,
+		},
+		{
+			// The removed Webhook key is an unknown key whatever its value,
+			// and the rejection names neither the key nor the value.
+			name: "removed Webhook key in the configuration file",
+			setup: func(_ *testing.T, e *serverEnv, _ *deps) {
+				e.file["SLACK_WEBHOOK_URL"] = "https://hooks.example.invalid/services/" + removedWebhookMarker
+			},
+			want:        exitUsage,
+			wantStderr:  "that is not one of",
+			absent:      []string{removedWebhookMarker, "SLACK_WEBHOOK_URL"},
+			configLines: 1,
+			configError: true,
+		},
+		{
+			name: "removed Webhook key in the configuration file, empty",
+			setup: func(_ *testing.T, e *serverEnv, _ *deps) {
+				e.file["SLACK_WEBHOOK_URL"] = ""
+			},
+			want:        exitUsage,
+			wantStderr:  "that is not one of",
+			absent:      []string{"SLACK_WEBHOOK_URL"},
 			configLines: 1,
 			configError: true,
 		},
@@ -323,6 +350,11 @@ func TestStartupFailures(t *testing.T) {
 			if !strings.Contains(stderr.String(), tc.hint) {
 				t.Errorf("stderr does not contain %q:\n%s", tc.hint, stderr.String())
 			}
+			for _, value := range tc.absent {
+				if strings.Contains(stderr.String(), value) {
+					t.Errorf("stderr contains %q:\n%s", value, stderr.String())
+				}
+			}
 			if tc.configLines != 0 {
 				if got := strings.Count(stderr.String(), programName+": configuration: "); got != tc.configLines {
 					t.Errorf("configuration lines = %d, want %d:\n%s", got, tc.configLines, stderr.String())
@@ -471,7 +503,7 @@ func TestModeRejectionChmodCommand(t *testing.T) {
 	}
 }
 
-// TestServerIgnoresEnvSettings checks that the seven keys and the retired LLM
+// TestServerIgnoresEnvSettings checks that the six keys and the retired LLM
 // variables in the environment, empty or not, neither stop the server nor
 // show up on its standard error, and that a key only the environment holds
 // counts as not set in the configuration file.
@@ -587,15 +619,14 @@ func TestStartDuringShutdownRefused(t *testing.T) {
 
 // TestOutputsOmitSecrets checks that the server's log redacts every secret run
 // hands it: the LLM client fails with an error that holds both API keys (the
-// review step uses Claude, so both are configured) and the webhook URL, and
-// the "generation job failed" line that carries that error shows none of
-// them.
+// review step uses Claude, so both are configured), and the "generation job
+// failed" line that carries that error shows neither of them.
 func TestOutputsOmitSecrets(t *testing.T) {
 	e := newServerEnv(t)
 	e.file["YT2COLUMN_REVIEW_LLM"] = "claude/fake-review-model"
 	e.file["ANTHROPIC_API_KEY"] = testAnthropicKey
 	leaking := funcLLM(func(context.Context, llm.GenerateRequest) (llm.GenerateResponse, error) {
-		return llm.GenerateResponse{}, errors.New("leak " + testAPIKey + " " + testAnthropicKey + " " + testWebhook)
+		return llm.GenerateResponse{}, errors.New("leak " + testAPIKey + " " + testAnthropicKey)
 	})
 
 	srv := startServer(t, e, testDeps(leaking))

@@ -86,7 +86,6 @@ add a kind here or to widen one of these definitions.
 | `internal/privatefile` | Reads and creates files only their owner may read: `Read`, `Create`, `MkdirBelow`; `*UnsafeError`, `ErrUnsafe`, `ErrNotExist`, `ErrExist`, `ErrTooLarge`, `ErrBaseMissing`. Rules: [security.md §8.2](../security.md). |
 | `internal/server` | The HTTP server on a Unix domain socket that serves the job API: `New`, `Serve`, `JobsPath`, `PublishSuffix`, `Options`, `WebhookOptions`. Rules: [security.md §8.2](../security.md); API: [development.md](../guides/development.md). |
 | `internal/serversock` | Prepares the server's Unix domain socket and start lock: `Acquire`, `Lock`, `ErrAlreadyRunning`, `ErrInUse`, `*UnsafeError`. Rules: [security.md §8.2](../security.md). |
-| `internal/slackwebhook` | The rule a Slack-compatible Incoming Webhook URL must meet (`ValidURL`) and the parts that must never appear in output (`SensitiveParts`). |
 
 ## LLM
 
@@ -113,7 +112,7 @@ add a kind here or to widen one of these definitions.
 | `internal/redact` | Keeps secret values out of output: `Line`, `Writer`, `SecretStrings`. |
 | `internal/secret` | Holds a secret (API key, Webhook URL) and guarantees it never appears in `fmt`, `log/slog`, or JSON output. |
 | `internal/signalrun` | `Run` calls a program's main function under a context that the first subscribed signal cancels; a second signal terminates the process. |
-| `internal/strictjson` | Extracts values from JSON documents that passed strict checks: `Object.CollectOnly`, `Object.Has`, `Value.AsBool`, `Value.IsNull`, `Value.AsNonNegativeInt64`, `Value.Raw`. The rejected inputs: [0003 design §3.5](../../tasks/0003_deepseek_llm_client/02_architecture.md). Shared by `internal/ytdlpsource`, `internal/llm/deepseek`, `internal/llm/claude`, `internal/llm/openai`, `internal/publisher`, `internal/writer`, `internal/artifact`, `internal/fixprguard`, `internal/server`, `internal/nmhost`, `internal/codexreview`, and `internal/coveragecompare` |
+| `internal/strictjson` | Extracts values from JSON documents that passed strict checks: `Object.CollectOnly`, `Object.Has`, `Value.AsBool`, `Value.IsNull`, `Value.AsNonNegativeInt64`, `Value.Raw`. The rejected inputs: [0003 design §3.5](../../tasks/0003_deepseek_llm_client/02_architecture.md). Shared by `internal/ytdlpsource`, `internal/llm/deepseek`, `internal/llm/claude`, `internal/llm/openai`, `internal/writer`, `internal/artifact`, `internal/fixprguard`, `internal/server`, `internal/nmhost`, `internal/codexreview`, and `internal/coveragecompare` |
 
 ## Development Tools
 

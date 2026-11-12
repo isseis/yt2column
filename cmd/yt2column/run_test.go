@@ -1181,10 +1181,9 @@ func TestRunEscapesUntrustedText(t *testing.T) {
 }
 
 // TestRunGODEBUGWarning checks that http2debug=1 or 2 in GODEBUG is warned
-// about before the LLM call, without the API key or the Webhook URL, and
-// without changing the exit code; any other GODEBUG gives no warning. The
-// warning is one line, about the API key: the CLI sends nothing but the LLM
-// call.
+// about before the LLM call, without the API key, and without changing the
+// exit code; any other GODEBUG gives no warning. The warning is one line,
+// about the API key: the CLI sends nothing but the LLM call.
 func TestRunGODEBUGWarning(t *testing.T) {
 	const (
 		// anyWarning starts every GODEBUG warning line; warning is the

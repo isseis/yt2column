@@ -121,10 +121,9 @@ func (inv invocation) reply(t *testing.T) map[string]any {
 // they are set.
 func fullEnv(home string) map[string]string {
 	env := map[string]string{
-		"YT2COLUMN_LLM":     "deepseek/deepseek-chat",
-		"DEEPSEEK_API_KEY":  "sk-test-key",
-		"SLACK_WEBHOOK_URL": "https://hooks.slack.com/services/T000/B000/XXXX",
-		"XDG_STATE_HOME":    "/xdg-state",
+		"YT2COLUMN_LLM":    "deepseek/deepseek-chat",
+		"DEEPSEEK_API_KEY": "sk-test-key",
+		"XDG_STATE_HOME":   "/xdg-state",
 	}
 	if home != "" {
 		env["HOME"] = home

@@ -57,3 +57,23 @@ func TestMentionAts(t *testing.T) {
 		})
 	}
 }
+
+func TestReplaceLookAlike(t *testing.T) {
+	cases := []struct {
+		name string
+		in   rune
+		want rune
+	}{
+		{"full-width at sign", '\uFF20', '@'},
+		{"small commercial at", '\uFE6B', '@'},
+		{"at sign", '@', '@'},
+		{"letter", 'a', 'a'},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := replaceLookAlike(tc.in); got != tc.want {
+				t.Errorf("replaceLookAlike(%U) = %U, want %U", tc.in, got, tc.want)
+			}
+		})
+	}
+}

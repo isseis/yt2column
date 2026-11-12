@@ -19,10 +19,9 @@ import (
 //	go test -tags test ./internal/publisher -run Golden -update
 var update = flag.Bool("update", false, "rewrite the golden files under testdata/golden/")
 
-// goldenDir holds <case>.md (renderFileArticle) and <case>.slack.txt
-// (renderSlackPost's text) for each case of TestRenderGolden. The files are
-// compared byte for byte, so the pre-commit whitespace hooks skip this
-// directory and .gitattributes marks it -text.
+// goldenDir holds <case>.md (renderFileArticle) for each case of
+// TestRenderGolden. The files are compared byte for byte, so the pre-commit
+// whitespace hooks skip this directory and .gitattributes marks it -text.
 var goldenDir = filepath.Join("testdata", "golden")
 
 // goldenCallTime is a Monday 00:00 UTC: outside deepseek-flash's peak window,
@@ -128,18 +127,15 @@ func goldenCases() []struct {
 		{"channel_heading", channel("# Channel")},
 		{"channel_list", channel("- Channel")},
 		{"channel_trailing_hash", channel("C#")},
-		// mentions.slack.txt holds U+200B after each neutralized '@'; it is
-		// invisible in most editors. TestRenderGoldenNeutralized checks where
-		// it is.
 		{"mentions", mentions},
 		{"mid_word_at", midWord},
 	}
 }
 
-// TestRenderGolden pins the whole output of both renderers for representative
-// articles, so a reviewer can read the finished layout in testdata/golden/ and
-// a change of the layout shows as a diff of those files. It does not replace
-// the per-element tests in file_render_test.go and slack_render_test.go.
+// TestRenderGolden pins the whole output of the file renderer for
+// representative articles, so a reviewer can read the finished layout in
+// testdata/golden/ and a change of the layout shows as a diff of those files.
+// It does not replace the per-element tests in file_render_test.go.
 func TestRenderGolden(t *testing.T) {
 	for _, tc := range goldenCases() {
 		t.Run(tc.name, func(t *testing.T) {
@@ -147,25 +143,7 @@ func TestRenderGolden(t *testing.T) {
 				t.Fatalf("golden input is not publishable: %v", err)
 			}
 			checkGolden(t, tc.name+".md", renderFileArticle(tc.article))
-			checkGolden(t, tc.name+".slack.txt", renderSlackPost(tc.article).text)
 		})
-	}
-}
-
-// TestRenderGoldenNeutralized checks the invisible part of mentions.slack.txt:
-// U+200B follows each target '@' outside code, and nowhere else.
-func TestRenderGoldenNeutralized(t *testing.T) {
-	got := readGolden(t, "mentions.slack.txt")
-	for _, want := range []string{"@\u200balice", "@\u200bteam", "@\u200bbob", "\uff20\u200beveryone"} {
-		if !strings.Contains(got, want) {
-			t.Errorf("mentions.slack.txt lacks %q", want)
-		}
-	}
-	if n := strings.Count(got, zeroWidthSpace); n != 4 {
-		t.Errorf("mentions.slack.txt has %d U+200B, want 4", n)
-	}
-	if strings.Contains(readGolden(t, "mid_word_at.slack.txt"), zeroWidthSpace) {
-		t.Error("mid_word_at.slack.txt has U+200B; a mid-word '@' is not a target")
 	}
 }
 

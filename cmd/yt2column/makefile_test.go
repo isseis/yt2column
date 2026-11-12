@@ -22,7 +22,6 @@ import (
 	deepseektestutil "github.com/isseis/yt2column/internal/llm/deepseek/testutil"
 	openaitestutil "github.com/isseis/yt2column/internal/llm/openai/testutil"
 	"github.com/isseis/yt2column/internal/llm/provider"
-	publishertestutil "github.com/isseis/yt2column/internal/publisher/testutil"
 )
 
 const (
@@ -68,7 +67,6 @@ func TestMakeOptInsAreTargetSpecific(t *testing.T) {
 		deepseektestutil.CLIOptInEnv,
 		claudetestutil.OptInEnv,
 		openaitestutil.OptInEnv,
-		publishertestutil.SlackOptInEnv,
 	}
 	for _, tc := range []struct {
 		target string
@@ -79,11 +77,10 @@ func TestMakeOptInsAreTargetSpecific(t *testing.T) {
 		{target: claudeIntegrationTarget, own: claudetestutil.OptInEnv},
 		{target: openAIIntegrationTarget, own: openaitestutil.OptInEnv},
 		{target: cliIntegrationOptions.MakeTarget, own: deepseektestutil.CLIOptInEnv},
-		{target: publishertestutil.SlackIntegrationOptions.MakeTarget, own: publishertestutil.SlackOptInEnv},
 	} {
 		t.Run(tc.target, func(t *testing.T) {
 			_, invocation := deepseektestutil.RunMakeTarget(t, repositoryRoot, tc.target, nil,
-				claudetestutil.OptInEnv, openaitestutil.OptInEnv, publishertestutil.SlackOptInEnv)
+				claudetestutil.OptInEnv, openaitestutil.OptInEnv)
 			for _, optIn := range optIns {
 				if value, ok := invocation.Env[optIn]; ok && optIn != tc.own {
 					t.Errorf("make %s exported %s=%q", tc.target, optIn, value)

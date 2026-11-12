@@ -24,8 +24,6 @@ import (
 	"github.com/isseis/yt2column/internal/llm/openai"
 	openaitestutil "github.com/isseis/yt2column/internal/llm/openai/testutil"
 	"github.com/isseis/yt2column/internal/pricing"
-	"github.com/isseis/yt2column/internal/publisher"
-	publishertestutil "github.com/isseis/yt2column/internal/publisher/testutil"
 	"github.com/isseis/yt2column/internal/udstest"
 	"github.com/isseis/yt2column/internal/writer"
 )
@@ -161,35 +159,6 @@ func TestREADMEDocumentsFlags(t *testing.T) {
 			}
 		}
 	}
-}
-
-// TestSlackDocsContract pins the machine-checkable contract values of webhook
-// publishing: the test environment variables and the make targets, which the
-// development guide (development.md) and security.md name, and the per-message
-// limit, which README.md and project_overview.md state. The values come from
-// the publisher's exported test constants, not from the documents.
-func TestSlackDocsContract(t *testing.T) {
-	// The documents state the limit with a thousands separator, so the
-	// literal below is pinned to the publisher's own exported test constant:
-	// a changed limit fails this test, not only the integration size check.
-	if publisher.SlackMaxMessageRunesForTest != 16383 {
-		t.Fatalf("the publisher per-message limit is %d, not 16,383; update the documents and this test", publisher.SlackMaxMessageRunesForTest)
-	}
-	values := []string{
-		publishertestutil.SlackOptInEnv,
-		publishertestutil.WebhookURLEnv,
-		publishertestutil.SlackIntegrationOptions.MakeTarget,
-	}
-	requireMentions(t, "development.md", doctestutil.ReadDoc(t, developmentDocPath), values)
-	requireMentions(t, "security.md", doctestutil.ReadDoc(t, securityPath), values)
-	if !strings.Contains(doctestutil.ReadDoc(t, projectOverviewPath), "16,383") {
-		t.Error("project_overview.md does not state the per-message limit 16,383")
-	}
-	readmeVersionsUnder(t, func(t *testing.T, v doctestutil.ReadmeVersion, readme string) {
-		if !strings.Contains(readme, "16,383") {
-			t.Errorf("%s does not state the per-message limit 16,383", v.Path)
-		}
-	})
 }
 
 // requireMentions fails the test for each value that text does not contain.
@@ -546,15 +515,13 @@ func checkConfigBlock(t *testing.T, docName, sectionName, section string, want [
 
 // docsProfileEnv is the closed set of settings the documentation guards load
 // the server configuration from, through config.ServerLookupForTest, which
-// writes the keys to the configuration file under the HOME: a dummy API key,
-// a dummy Webhook URL under the reserved .invalid domain, and a fresh short
-// HOME, because the socket path derived from it must fit the operating
-// system's limit. No key of the process environment reaches LoadServer
-// through it.
+// writes the keys to the configuration file under the HOME: a dummy API key
+// and a fresh short HOME, because the socket path derived from it must fit
+// the operating system's limit. No key of the process environment reaches
+// LoadServer through it.
 func docsProfileEnv(t *testing.T) map[string]string {
 	return map[string]string{
 		config.AnthropicAPIKeyEnvForTest(): "docs-test-api-key",
-		config.SlackWebhookEnvForTest():    "https://example.invalid/webhook",
 		"HOME":                             udstest.Dir(t),
 	}
 }

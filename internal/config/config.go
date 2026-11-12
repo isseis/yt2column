@@ -15,7 +15,6 @@ import (
 	"github.com/isseis/yt2column/internal/llm/deepseekparam"
 	"github.com/isseis/yt2column/internal/llm/openaiparam"
 	"github.com/isseis/yt2column/internal/secret"
-	"github.com/isseis/yt2column/internal/slackwebhook"
 )
 
 // Provider is the LLM provider. Its zero value is ProviderUnset.
@@ -32,7 +31,7 @@ const (
 	ProviderOpenAI
 )
 
-// Names of the environment variables Load reads. The first seven are also the
+// Names of the environment variables Load reads. The first six are also the
 // keys the server's configuration file accepts (serverFileKeys), which
 // LoadServer reads from the file instead of the environment.
 const (
@@ -42,7 +41,6 @@ const (
 	anthropicAPIKeyEnv      = "ANTHROPIC_API_KEY" //nolint:gosec // the variable's name, not a credential value
 	openAIAPIKeyEnv         = "OPENAI_API_KEY"    //nolint:gosec // the variable's name, not a credential value
 	anthropicWorkspaceIDEnv = "ANTHROPIC_WORKSPACE_ID"
-	slackEnv                = "SLACK_WEBHOOK_URL"
 	cacheDirEnv             = "YT2COLUMN_CACHE_DIR"
 	ytDlpEnv                = "YT2COLUMN_YTDLP_PATH"
 	godebugEnv              = "GODEBUG"
@@ -104,7 +102,6 @@ const (
 	reasonLLMEffortSeparator   = `may contain at most one "+" after the first "/", which separates the model ID from the effort`
 	reasonLLMProvider          = `the provider before the first "/" must be exactly "` + providerDeepSeek + `", "` + providerClaude + `", or "` + providerOpenAI + `"`
 	reasonAnthropicWorkspaceID = "must be a non-empty string of printable ASCII characters other than space"
-	reasonSlackWebhook         = "must be an https URL with a host"
 	reasonDirRelative          = "must be an absolute path"
 	reasonCacheDirAbsent       = "no absolute default could be derived from HOME or XDG_CACHE_HOME"
 	reasonSocketPathAbsent     = "no absolute socket path could be derived from HOME"
@@ -329,29 +326,19 @@ func (c Config) HTTP2DebugEnabled() bool {
 }
 
 // ServerConfig is the server configuration. Its fields are unexported, so a
-// non-zero ServerConfig can only come from LoadServer. The LLM settings and
-// the Webhook URL come from the seven keys of the configuration file, never
-// from the environment. LoadServer never reads or checks YT2COLUMN_CACHE_DIR,
-// YT2COLUMN_YTDLP_PATH, or the cache directory defaults.
+// non-zero ServerConfig can only come from LoadServer. The LLM settings come
+// from the six keys of the configuration file, never from the environment.
+// LoadServer never reads or checks YT2COLUMN_CACHE_DIR, YT2COLUMN_YTDLP_PATH,
+// or the cache directory defaults.
 type ServerConfig struct {
 	llm               LLMConfig
-	webhookURL        secret.Secret // zero when SLACK_WEBHOOK_URL is unset
-	socketPath        string        // absolute, within the OS limit
+	socketPath        string // absolute, within the OS limit
 	http2DebugEnabled bool
 }
 
 // LLM returns the validated LLM configuration.
 func (c ServerConfig) LLM() LLMConfig {
 	return c.llm
-}
-
-// WebhookURL returns the Webhook URL and whether one is configured. The server
-// runs without one and rejects what needs it.
-func (c ServerConfig) WebhookURL() (secret.Secret, bool) {
-	if _, err := c.webhookURL.Reveal(); err != nil {
-		return secret.Secret{}, false
-	}
-	return c.webhookURL, true
 }
 
 // SocketPath returns the absolute path of the server's Unix domain socket,
@@ -367,7 +354,7 @@ func (c ServerConfig) HTTP2DebugEnabled() bool {
 }
 
 // LoadServer reads the server configuration. It derives the configuration
-// file's path from HOME, reads and parses the file, and validates the seven
+// file's path from HOME, reads and parses the file, and validates the six
 // keys from it; HOME (the socket path) and GODEBUG (the warning) come from
 // lookup.
 // It reads no other variable. It returns the zero ServerConfig on any error,
@@ -391,8 +378,6 @@ func LoadServer(lookup LookupFunc) (ServerConfig, error) {
 	}
 
 	llm, errs := loadLLM(file.lookup, Need{Generation: true, Review: true})
-	webhook, webhookErr := loadSlackWebhook(file.lookup)
-	errs = append(errs, webhookErr)
 	for i, e := range errs {
 		if varErr, ok := errors.AsType[*VarError](e); ok {
 			errs[i] = file.keyError(varErr)
@@ -409,7 +394,6 @@ func LoadServer(lookup LookupFunc) (ServerConfig, error) {
 	}
 	return ServerConfig{
 		llm:               llm,
-		webhookURL:        webhook,
 		socketPath:        sockPath,
 		http2DebugEnabled: hasHTTP2Debug(lookup),
 	}, nil
@@ -743,28 +727,6 @@ func loadAnthropicWorkspaceID(lookup LookupFunc, cfg *LLMConfig) error {
 		}
 		cfg.anthropicWorkspaceID = workspaceID
 		return nil
-	}
-}
-
-// loadSlackWebhook validates SLACK_WEBHOOK_URL and returns the value and any
-// rejection. Unset is accepted and returns the zero secret; a present value
-// must satisfy slackwebhook.ValidURL. LoadServer treats the zero secret as no
-// Webhook.
-func loadSlackWebhook(lookup LookupFunc) (secret.Secret, error) {
-	value, ok := lookup(slackEnv)
-	switch {
-	case !ok:
-		return secret.Secret{}, nil
-	case value == "":
-		return secret.Secret{}, missingVar(slackEnv)
-	case !slackwebhook.ValidURL(value):
-		return secret.Secret{}, invalidVar(slackEnv, reasonSlackWebhook)
-	default:
-		url, err := secret.New(value)
-		if err != nil {
-			return secret.Secret{}, missingVar(slackEnv)
-		}
-		return url, nil
 	}
 }
 

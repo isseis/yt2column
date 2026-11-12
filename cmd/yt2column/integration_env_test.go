@@ -26,7 +26,7 @@ const (
 // stage to DeepSeek. The CLI integration tests must call only DeepSeek, not the
 // default provider, Claude. The environment is read through
 // a recording LookupFunc, so the test also proves that no Anthropic variable is
-// read. No LLM client is built and nothing is posted to a webhook.
+// read. No LLM client is built.
 func TestIntegrationRunProviderSelection(t *testing.T) {
 	key, err := secret.New(integrationEnvTestKey)
 	if err != nil {

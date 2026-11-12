@@ -63,19 +63,24 @@ func TestParseServerFileAccepts(t *testing.T) {
 			want: map[string]string{},
 		},
 		{
+			name: "comment line naming the removed Webhook key",
+			data: "# SLACK_WEBHOOK_URL=https://example.com/h\n#SLACK_WEBHOOK_URL=\n",
+			want: map[string]string{},
+		},
+		{
 			name: "every key",
 			data: "YT2COLUMN_LLM=deepseek/deepseek-flash\nYT2COLUMN_REVIEW_LLM=claude/claude-opus-5-5+low\n" +
-				"DEEPSEEK_API_KEY=d\nANTHROPIC_API_KEY=a\nOPENAI_API_KEY=o\nANTHROPIC_WORKSPACE_ID=w\nSLACK_WEBHOOK_URL=https://example.com/h\n",
+				"DEEPSEEK_API_KEY=d\nANTHROPIC_API_KEY=a\nOPENAI_API_KEY=o\nANTHROPIC_WORKSPACE_ID=w\n",
 			want: map[string]string{
 				"YT2COLUMN_LLM": "deepseek/deepseek-flash", "YT2COLUMN_REVIEW_LLM": "claude/claude-opus-5-5+low",
 				"DEEPSEEK_API_KEY": "d", "ANTHROPIC_API_KEY": "a", "OPENAI_API_KEY": "o",
-				"ANTHROPIC_WORKSPACE_ID": "w", "SLACK_WEBHOOK_URL": "https://example.com/h",
+				"ANTHROPIC_WORKSPACE_ID": "w",
 			},
 		},
 		{
 			name: "hash without a space and equals signs are part of the value",
-			data: "SLACK_WEBHOOK_URL=https://example.com/hook#x=y\n",
-			want: map[string]string{"SLACK_WEBHOOK_URL": "https://example.com/hook#x=y"},
+			data: "OPENAI_API_KEY=sk-o#x=y\n",
+			want: map[string]string{"OPENAI_API_KEY": "sk-o#x=y"},
 		},
 		{
 			name: "a space inside the value is kept",
@@ -125,7 +130,7 @@ func TestParseServerFileRejects(t *testing.T) {
 	// Three lines before the rejected one, so the line number counts them;
 	// one is an accepted setting, so a rejected file that still returned
 	// accepted values would be detected.
-	const prefix = "# header\n\nSLACK_WEBHOOK_URL=https://example.com/h\n"
+	const prefix = "# header\n\nOPENAI_API_KEY=o\n"
 	cases := []struct {
 		name       string
 		data       string
@@ -141,6 +146,8 @@ func TestParseServerFileRejects(t *testing.T) {
 		{name: "GODEBUG", data: prefix + "GODEBUG=" + fileMark + "\n", wantLine: 4, wantReason: reasonLineUnknownKey},
 		{name: "HOME", data: prefix + "HOME=/" + fileMark + "\n", wantLine: 4, wantReason: reasonLineUnknownKey},
 		{name: "unknown key", data: prefix + fileMark + "=x\n", wantLine: 4, wantReason: reasonLineUnknownKey},
+		{name: "removed Webhook key", data: prefix + "SLACK_WEBHOOK_URL=https://example.com/" + fileMark + "\n", wantLine: 4, wantReason: reasonLineUnknownKey},
+		{name: "removed Webhook key, empty", data: prefix + "SLACK_WEBHOOK_URL=\n", wantLine: 4, wantReason: reasonLineUnknownKey},
 		{name: "ideographic space in the key", data: prefix + "ANTHROPIC_API_KEY\u3000=" + fileMark + "\n", wantLine: 4, wantReason: reasonLineUnknownKey},
 		{name: "no-break space in the key", data: prefix + "ANTHROPIC_API_KEY\u00a0=" + fileMark + "\n", wantLine: 4, wantReason: reasonLineUnknownKey},
 		{name: "space after the key", data: prefix + "ANTHROPIC_API_KEY =" + fileMark + "\n", wantLine: 4, wantReason: reasonLineUnknownKey},
@@ -320,8 +327,10 @@ func TestParseServerFileDuplicate(t *testing.T) {
 }
 
 // TestServerFileTemplate fixes the template's shape: it parses with no
-// rejection and sets no key, so it holds only blank and comment lines, and it
-// has a commented-out "# <KEY>=" line for every accepted key.
+// rejection and sets no key, so it holds only blank and comment lines, and its
+// commented-out "# <KEY>=" lines (an uppercase key) are exactly the accepted
+// keys, in order. Other spellings of a key in the template are not checked
+// here.
 func TestServerFileTemplate(t *testing.T) {
 	file, errs := parseServerFile(testServerFilePath, []byte(serverFileTemplate))
 	if len(errs) != 0 {
@@ -332,11 +341,25 @@ func TestServerFileTemplate(t *testing.T) {
 			t.Errorf("the template sets %s", key)
 		}
 	}
-	lines := strings.Split(serverFileTemplate, "\n")
-	for _, key := range serverFileKeys {
-		if !slices.Contains(lines, "# "+key+"=") {
-			t.Errorf("no %q line", "# "+key+"=")
+	var named []string
+	for line := range strings.SplitSeq(serverFileTemplate, "\n") {
+		rest, ok := strings.CutPrefix(line, "# ")
+		if !ok {
+			continue
 		}
+		key, _, ok := strings.Cut(rest, "=")
+		if ok && key != "" && !strings.ContainsFunc(key, func(r rune) bool {
+			return (r < 'A' || r > 'Z') && (r < '0' || r > '9') && r != '_'
+		}) {
+			named = append(named, line)
+		}
+	}
+	want := make([]string, len(serverFileKeys))
+	for i, key := range serverFileKeys {
+		want[i] = "# " + key + "="
+	}
+	if !slices.Equal(named, want) {
+		t.Errorf("the template's key lines are %q, want %q", named, want)
 	}
 }
 

@@ -18,12 +18,11 @@ import (
 )
 
 // cliFileExampleHeading labels the --out file example in the CLI guide
-// (cli.md); doctestutil.ReadmeSlackPostHeading labels the Slack post example in
-// each README version. The guard finds each example as the first fenced code
-// block after its heading line.
+// (cli.md). The guard finds the example as the first fenced code block after
+// its heading line.
 const cliFileExampleHeading = doctestutil.CLIOutFileHeading
 
-// outputLayoutArticle returns the fixed article the two output examples show:
+// outputLayoutArticle returns the fixed article the output example shows:
 // a channel name, a mixed set of step models, and a known cost. The values are
 // fictional.
 func outputLayoutArticle() writer.Article {
@@ -87,8 +86,8 @@ func firstCodeBlockAfter(doc, heading string) (string, bool) {
 	return "", false
 }
 
-// TestOutputLayoutDocsContract checks that the two output examples equal the
-// real output for the fixed article.
+// TestOutputLayoutDocsContract checks that the --out example equals the real
+// output for the fixed article.
 func TestOutputLayoutDocsContract(t *testing.T) {
 	article := outputLayoutArticle()
 
@@ -106,18 +105,6 @@ func TestOutputLayoutDocsContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	checkDocExample(t, "cli.md", doctestutil.ReadDoc(t, cliDocPath), cliFileExampleHeading, string(written))
-
-	// The Slack example is the single message the article is posted as.
-	messages, err := publisher.SlackMessagesForTest(article)
-	if err != nil {
-		t.Fatalf("SlackMessagesForTest: %v", err)
-	}
-	if len(messages) != 1 {
-		t.Fatalf("the fixed article posts as %d messages, want 1 so the example is the whole post", len(messages))
-	}
-	readmeVersionsUnder(t, func(t *testing.T, v doctestutil.ReadmeVersion, readme string) {
-		checkDocExample(t, v.Path, readme, doctestutil.ReadmeSlackPostHeading.In(t, v.Lang), messages[0])
-	})
 }
 
 // checkDocExample fails the test unless the example under heading in the
