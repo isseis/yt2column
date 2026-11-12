@@ -238,7 +238,7 @@ CLI は、README の
 | `YT2COLUMN_CACHE_DIR` | 字幕と動画の情報（`info.json`）を保存するキャッシュのディレクトリ | macOS では `$HOME/Library/Caches/yt2column`。ほかの Unix では `$XDG_CACHE_HOME/yt2column` か `$HOME/.cache/yt2column` |
 | `YT2COLUMN_YTDLP_PATH` | `yt-dlp` のパス | `PATH` 上の `yt-dlp` |
 
-`yt2column-server` は、`yt-dlp` を呼ばないので、`YT2COLUMN_CACHE_DIR` も `YT2COLUMN_YTDLP_PATH` も読まない。`SLACK_WEBHOOK_URL` は、CLI もサーバも読まない。サーバの設定ファイルにその行が残っていると、サーバは知らないキーとして拒否し、起動しない（README の「設定ファイル」を参照）。
+`yt2column-server` は、`yt-dlp` を呼ばないので、`YT2COLUMN_CACHE_DIR` も `YT2COLUMN_YTDLP_PATH` も読まない。`SLACK_WEBHOOK_URL` は、CLI もサーバも読まない。サーバの設定ファイルに `SLACK_WEBHOOK_URL=...` のキーの行が残っていると、サーバは知らないキーとして拒否し、起動しない（`#` で始まるコメントの行は受理する。README の「設定ファイル」を参照）。
 
 前後に空白のあるモデルの ID は、工程のクライアントを組み立てるときに、リクエストを送る前に拒否する。CLI は実行が始まる前にクライアントを組み立てる。
 
