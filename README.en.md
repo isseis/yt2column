@@ -1,4 +1,4 @@
-<!-- translated-from: README.md b1572d2e71261375e552c59fdf14b2e22aca3fd3 -->
+<!-- translated-from: README.md 5f38edaceb59dc24a9fccad6dd7f398e73c4c751 -->
 [日本語](README.md)
 
 Developer documents: [Using the CLI](docs/dev/guides/cli.md) · [Development procedures](docs/dev/guides/development.md)
@@ -9,13 +9,13 @@ yt2column turns a YouTube video into a magazine-column-style article with an
 LLM. The primary path starts in the browser: the extension collects the
 transcript the user copied from YouTube's transcript panel, the native
 messaging host relays it to the localhost server, and the server generates the
-article. The article is shown in the extension's viewer tab, and posting it to
-the configured Webhook and saving it as a `.md` file are the user's choices in
+article. The article is shown in the extension's viewer tab, and saving it as a
+`.md` file and copying its Markdown to the clipboard are the user's choices in
 the viewer. A CLI is also included as a
 development path: it takes a video URL and fetches the transcript with
 [yt-dlp](https://github.com/yt-dlp/yt-dlp). The LLM call and the article
 generation are developed and checked with the CLI. The CLI writes the article
-to the `--out` file and does not post to the Webhook.
+to the `--out` file.
 
 ```mermaid
 flowchart LR
@@ -65,8 +65,8 @@ the section that explains it in detail.
 1. Build the binaries with `make build`. They are placed in `build/`, and
    nothing is installed. See [Localhost server](#localhost-server).
 2. Create the template of the server's configuration file with
-   `./build/yt2column-server config init`, and write `ANTHROPIC_API_KEY` and,
-   to post the article to Slack, `SLACK_WEBHOOK_URL` in that file. No other key
+   `./build/yt2column-server config init`, and write `ANTHROPIC_API_KEY` in that
+   file. No other key
    is needed: the default is the production profile (see
    [Recommended configuration](#recommended-configuration)). The server does
    not read settings from environment variables. See
@@ -85,7 +85,8 @@ the section that explains it in detail.
 6. Open the video's description ("...more") and its transcript panel, select
    the caption lines, and send from the extension's toolbar icon. The article
    is shown in the viewer tab that opens in the background, from which you can
-   post it to the Webhook's channel. See [Browser extension](#browser-extension).
+   save it as `.md` or copy its Markdown and paste it into a Slack or Mattermost
+   channel. See [Browser extension](#browser-extension).
 
 ## Requirements
 
@@ -96,8 +97,6 @@ the section that explains it in detail.
   the extension)
 - Chrome 110 or later, or Brave on Chromium 110 or later
 - `ANTHROPIC_API_KEY` for the default provider
-- `SLACK_WEBHOOK_URL` (needed to post from the viewer; without it the server
-  still starts and generates articles)
 
 An API key for the selected provider is required: `DEEPSEEK_API_KEY` for
 `deepseek`, `ANTHROPIC_API_KEY` for `claude`, `OPENAI_API_KEY` for `openai`. When the review step uses a
@@ -113,7 +112,7 @@ After the article is generated, two steps run by default.
 1. **Shorten.** If the body is longer than 4,000 characters, the generation
    model shortens the body toward a target of 3,600 characters. If it is still
    over 4,000 characters after shortening or after the review step, the run
-   fails with a length error and the article is neither written nor posted.
+   fails with a length error and the article is not written.
 2. **Review.** The review model compares the article with the video title,
    channel name, description, and transcript, and returns a list of
    corrections. The corrections target claims with no basis in the material,
@@ -134,57 +133,22 @@ resume the steps' output are in
 
 ## Output format
 
-The article is the same text in both outputs, but each output arranges the
-information differently: the reader's part (title, channel name, body, source
-link) comes first, and the development part (models, estimated cost) goes last
-in a Slack post and into the front matter in a file.
+Each output arranges the article's information differently. In a file, the
+reader's part (title, channel name, body, source
+link) comes first, and the development part (models, estimated cost) goes into
+the front matter. The viewer's display and the copied text are the part other than the front matter (the title heading, the channel name line, and the body).
 
 The file the CLI writes is in
 [docs/dev/guides/cli.md](docs/dev/guides/cli.md#--out-のファイル).
 
-### The Slack post
-
-The post starts with the title and the channel name, then the body, and ends
-with a one-line footnote.
-
-```text
-# Caching transcripts by video ID（Example Channel）
-
-The cache key comes from the video ID alone.
-
-## One key per video
-
-Two URLs for one video share one entry.
-
-出典: <https://www.youtube.com/watch?v=abcdefghijk>
-
-Models: deepseek-flash (generation, shorten) · claude-haiku-5-5 (review) · Estimated cost: 0.0094 USD
-```
-
-- Without a channel name, the first line is `# <title>` alone.
-- The footnote names each model once, with the steps that used it, in the order
-  generation, shorten, review. A step the article did not go through (for
-  example the shorten step on a short body, or a disabled review) is not
-  listed. The footnote never shows the model version. The cost is shown with
-  four decimals and `USD`, or as `Estimated cost: unknown`.
-- When the post is longer than one message (see
-  [Webhook publishing](#webhook-publishing)), the first line is in the first
-  message and the footnote is in the last. The last message always holds the
-  last line of the body together with the footnote, so no message is the
-  footnote alone.
-
 ## Estimated cost
 
-Both outputs carry the article's cost, with four decimals, or `unknown`: the
-CLI's `--out` file in its front matter, and the Slack post as the end of its
-footnote.
+The article's cost is in the CLI's `--out` file, in the front matter, with four decimals or `unknown`.
 
 ```text
 Estimated cost: 0.0023 USD
 Estimated cost: unknown
 ```
-
-See [Output format](#output-format) for both layouts.
 
 The estimate is an estimate, not the billed amount. It can differ from the
 provider's invoice.
@@ -210,75 +174,14 @@ provider's invoice.
 
 Check the actual charge in the provider's console.
 
-A Slack post from the localhost server cannot show why an unknown cost is
-unknown, because the server's logs and HTTP responses have not been changed.
-
 The CLI's cost lines on standard error, which give the reason, are in
 [docs/dev/guides/cli.md](docs/dev/guides/cli.md#推定の料金).
-
-## Webhook publishing
-
-The article is posted to the Slack-compatible Incoming Webhook in
-`SLACK_WEBHOOK_URL`. Mattermost is the verified target; a Slack Incoming
-Webhook is accepted too, but is best effort. The URL must parse as an `https`
-URL with a host. A value that does not, for example
-`https://hooks.slack.com/services/%zz`, `https://hooks.slack.com/%`, or a value
-ending in a control character, is rejected as a configuration error with exit
-code `2`.
-
-The article is posted as Markdown, laid out as in [Output format](#output-format).
-A post longer than 16,383 code points (the limit Mattermost counts) is split
-into several messages. Each message is at most 16,383 code points and begins
-with a `(k/N)` marker. An article that cannot be split is rejected before
-anything is sent: it cannot be split when a fragment would be only whitespace,
-when it would need more than ten messages, or when the last line of the body
-and the footnote together do not fit in one message. Each message is sent with
-`silent` set, so Mattermost shows it without a notification, an unread marker,
-or a `New Messages` line. On a Mattermost version that predates `silent`,
-notifications can appear.
-
-Before anything is sent, the post is checked for syntax the receiving server
-would turn into a mention or rewrite. A *target `@`* is an `@` (or a look-alike
-such as the full-width `＠`) followed by a name character (a letter, a digit,
-`_`, `.`, or `-`) when the character before it is not a letter or a digit, so
-`@everyone`, `(@here)`, and `_@name` are targets but `Tech@Work` and
-`user@example.com` are not. What happens depends on where it is.
-
-- A target `@` in the first line (the title and the channel name), in the
-  footnote (the model names), or in the body outside code is posted with
-  U+200B (zero width space) inserted right after the `@`. This keeps the
-  receiving server from reading it as a mention. The article itself is not
-  changed. The U+200B is invisible but is copied with the text.
-- A target `@` inside a code span or a fenced code block of the body, or
-  directly after a `/` (it may be part of a URL such as `youtube.com/@name`),
-  is not changed: the article is rejected. A body whose code blocks cannot be
-  told apart reliably (for example an unclosed fence) is rejected too if it
-  has a target `@`.
-- A `<!` or `<@` sequence, an HTML character reference such as `&#64;`, and a
-  `<a|b>` link are rejected wherever they are.
-- A split never starts a message with the part after an `@` that was in the
-  middle of a word (`x@here` is not cut into `x` and `@here`). When no such cut
-  exists, the post is rejected.
-
-A rejected article is not posted at all. The error gives the line and column
-in the post. Running again generates a different article, which may not have
-the problem. The extension's viewer
-shows an article this check rejected as one that cannot be posted (because it
-contains a mention, or because of another pre-send check), and disables the post button.
-
-If a post fails partway through a split article, the messages already sent stay
-in the channel. In the
-extension's viewer, pressing **Post to Slack** again resumes from the first
-message that did not arrive (the one message whose delivery was not confirmed
-may arrive twice).
 
 ## Localhost server
 
 `yt2column-server` accepts the transcript the browser extension collects,
-generates the article, returns it, and keeps it in memory. Posting it to the
-Slack-compatible Webhook is an operation of its own, which the extension sends
-only when the user asks for it in the viewer. The server's HTTP
-API (the job API, which generates, returns, and posts on request) is in
+generates the article, returns it, and keeps it in memory. The server's HTTP
+API (the job API, which starts a generation and fetches the status) is in
 [docs/dev/guides/development.md](docs/dev/guides/development.md#localhost-サーバの-api).
 A generation start declares, in the body's required member `mode`, whether it
 is an inquiry start (`inquiry`) or a plain start (`plain`). When the article of
@@ -295,13 +198,9 @@ server's socket (see
 `make build` builds `build/yt2column`, `build/yt2column-server`, and
 `build/yt2column-nmhost`; it installs nothing.
 
-The server reads the LLM settings and `SLACK_WEBHOOK_URL` from its
+The server reads the LLM settings from its
 configuration file (see [Configuration file](#configuration-file)).
-`SLACK_WEBHOOK_URL` is optional for the server: without it the server still
-starts and generates articles, but posting is refused with
-`webhook_not_configured`, and the extension's viewer disables the post button
-and shows the step to write `SLACK_WEBHOOK_URL` in the configuration file and
-restart the server. The server never calls `yt-dlp` and reads
+The server never calls `yt-dlp` and reads
 neither `YT2COLUMN_CACHE_DIR` nor `YT2COLUMN_YTDLP_PATH`. It listens on a Unix
 domain socket (UDS) only, never on a TCP port. The socket path is derived from
 `HOME` alone:
@@ -329,11 +228,11 @@ and start it again.
 The server does not read settings from environment variables. From the process
 environment the server's code reads only `HOME`, which determines the socket path and the
 configuration file's path, and `GODEBUG`, for a warning. When `GODEBUG` contains
-`http2debug=1` or `http2debug=2`, Go's HTTP/2 log may write the API key and the
-path of the Webhook URL to standard error, so the server warns about it. The Go standard library,
+`http2debug=1` or `http2debug=2`, Go's HTTP/2 log may write the API key to
+standard error, so the server warns about it. The Go standard library,
 however, uses the proxy variables of the server's environment (`HTTPS_PROXY`,
-`HTTP_PROXY`, `NO_PROXY`) for the requests to the LLM API and the Webhook. When
-environment variables with the names of the seven keys below are set, the server
+`HTTP_PROXY`, `NO_PROXY`) for the requests to the LLM API. When
+environment variables with the names of the six keys below are set, the server
 ignores them: it does not stop and does not warn. The CLI reads environment
 variables as before and does not read the configuration file (see
 [Configuration](#configuration)).
@@ -346,7 +245,7 @@ configuration file. It does not run the server.
 ```
 
 The template consists of blank lines and comment lines only: for each of the
-seven keys, a description and the key's line commented out (for example,
+six keys, a description and the key's line commented out (for example,
 `# ANTHROPIC_API_KEY=`). To set a key, delete the `# ` at the start of its line
 and write the value after `=`. `config init` does not read the values of
 environment variables, so the template holds no value.
@@ -376,15 +275,15 @@ variable is expanded and no quote is interpreted.
 
 - Blank lines and lines starting with `#` (comments) are skipped.
 - The key is everything before the first `=`, and must exactly match one of
-  the seven keys
-  `YT2COLUMN_LLM`, `YT2COLUMN_REVIEW_LLM`, `DEEPSEEK_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_WORKSPACE_ID`, and `SLACK_WEBHOOK_URL`.
+  the six keys
+  `YT2COLUMN_LLM`, `YT2COLUMN_REVIEW_LLM`, `DEEPSEEK_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, and `ANTHROPIC_WORKSPACE_ID`.
   The meaning of each key is in the table in [Configuration](#configuration), and
   any key may be left out. A key left out is treated the same as an unset
   environment variable in the CLI.
 - The value is everything after the first `=`, used without conversion. A `#`
   not preceded by a space, and any further `=`, are part of the value (the value of
-  `SLACK_WEBHOOK_URL=https://example.com/hook#x` is
-  `https://example.com/hook#x`).
+  `ANTHROPIC_API_KEY=sk-xxx#y` is
+  `sk-xxx#y`).
 - A value may be empty (`KEY=`). An empty value is treated the same as an empty
   environment variable in the CLI: it is a configuration error when the key
   is used, and is not rejected for a key of a provider that is not used.
@@ -392,7 +291,7 @@ variable is expanded and no quote is interpreted.
 A file containing any of the following is rejected as a whole. The server never
 starts using only some of its lines.
 
-- A line without `=`, a key other than the seven keys (including a lowercase key
+- A line without `=`, a key other than the six keys (including a lowercase key
   and a line with `export ` in front, such as `export ANTHROPIC_API_KEY=...`)
 - A line starting with a space, or a line with a space before or after the key
   (`ANTHROPIC_API_KEY =x`)
@@ -407,8 +306,16 @@ starts using only some of its lines.
 A format rejection names the configuration file's path, and the line number and
 a fixed reason of each rejected line, one per line up to 20 lines; when there
 are more, it gives the number of the remaining lines. It never shows a value or the
-text of a key other than the seven keys. A duplicate-key rejection names that
+text of a key other than the six keys. A duplicate-key rejection names that
 key.
+
+**`SLACK_WEBHOOK_URL` from an earlier version.** A server before this version
+accepted `SLACK_WEBHOOK_URL`, the destination of the post, as a configuration
+file key. This version removed posting, so it rejects that line as a key other
+than the six keys and does not start (exit code `2`; the message gives the line
+number and a fixed reason and never the value). When the line is still in the
+configuration file, delete it and then start the server. A line starting with
+`#` (a comment) is still accepted even when it contains `SLACK_WEBHOOK_URL`.
 
 **Checks.** Before reading the configuration file, the server checks it. In any
 of the following cases, it stops with exit code `2` without fixing anything (it
@@ -457,7 +364,7 @@ Prepare the [configuration file](#configuration-file) before starting it.
 
 The server writes nothing to standard output. The logs go to standard error, so
 `2>>server.log` keeps a record. The first log line names the socket. Every
-request line carries the `requestId` the response returns, so `grep "$requestId" server.log` finds them. The generation job lines carry the article key and the video ID, and the post job lines the article key, instead of a `requestId`. The extension does not show the key, so find the failure of an article's generation sent from the extension by the time and the video ID.
+request line carries the `requestId` the response returns, so `grep "$requestId" server.log` finds them. The generation job lines carry the article key and the video ID, instead of a `requestId`. The extension does not show the key, so find the failure of an article's generation sent from the extension by the time and the video ID.
 
 On start the server creates the socket directory (`run`) with mode `0700` when
 it is missing, takes the start lock (the file `.yt2column.lock` in the socket
@@ -485,9 +392,7 @@ Exit codes:
 
 The server logs to standard error. The first `SIGINT`, `SIGTERM`, or `SIGHUP`
 (a signal that was ignored at startup is not subscribed to) stops accepting connections,
-removes the socket, and waits for the posts sent from the viewer to finish. It waits up to about
-5 minutes (one post sends up to 10 messages, each within 30 seconds, one second apart). A running generation of an article sent from the viewer is
-cancelled without waiting: that article is lost, and the viewer shows
+removes the socket, cancels the running generations, and waits for the in-flight requests and the canceled generations to finish. A canceled generation ends only when its LLM call returns: that article is lost, and the viewer shows
 **Article lost**. A second signal makes the server exit at once. Until the jobs have finished, a
 new server refuses to start.
 
@@ -498,7 +403,7 @@ host reads one request from the browser, sends it to the server's socket,
 writes the server's response back to the browser, and exits; it starts nothing
 and keeps nothing. The host reads `HOME` as the browser passes it and no other
 variable, so it derives the same socket path as a server started with the same
-`HOME`, and it reads neither the API keys nor the Webhook URL. The host's
+`HOME`, and it reads no API key. The host's
 standard output is the channel to the browser; its log goes to standard error.
 
 The host exits with `0` once it has written its reply (a host error included),
@@ -665,7 +570,7 @@ The server now reads only the configuration file, and does not start without
 it. Migrate with these steps:
 
 1. Create the template with `./build/yt2column-server config init`.
-2. Copy the values you set for the server (the seven keys of
+2. Copy the values you set for the server (the six keys of
    [Configuration file](#configuration-file)) from `.envrc`, `.env`, your shell
    startup files, the script that starts the server, and so on, to the
    matching lines of the template. Delete the `# ` at the start of the line and
@@ -686,7 +591,6 @@ environment variables, so you may keep them for the CLI.
 | `ANTHROPIC_API_KEY` | Anthropic API key | Required when the generation or review provider is `claude` (an error) |
 | `OPENAI_API_KEY` | OpenAI API key (the API is billed separately from a ChatGPT subscription) | Required when the generation or review provider is `openai` (an error) |
 | `ANTHROPIC_WORKSPACE_ID` | Anthropic workspace ID, for an API key not bound to a workspace | No workspace ID is sent |
-| `SLACK_WEBHOOK_URL` | Slack-compatible Incoming Webhook URL (Mattermost is the verified target); only the server reads it | The server starts, but cannot post |
 
 The CLI reads these from environment variables. `yt2column-server` reads keys
 with the same names from its configuration file, and does not read the values
@@ -697,9 +601,7 @@ configuration file is also subject to the format rules of
 [Configuration file](#configuration-file) (for example, a value with a trailing
 space is rejected as a format error before a client is built). "When
 unset" in the table means, for the configuration file, that the key is absent.
-`SLACK_WEBHOOK_URL` is needed only to post, and the server starts without it
-(see [Localhost server](#localhost-server)). The CLI does not read
-`SLACK_WEBHOOK_URL`. The server
+The server
 derives its socket path from `HOME` alone (see
 [Localhost server](#localhost-server)).
 
@@ -1018,9 +920,9 @@ the popup closes, its state display stops too, and a reopened popup starts from
 the screen before sending. The extension stores nothing, so the popup does not
 remember the earlier send.
 
-In every state except an invalid link, the viewer shows the same heading and
-channel name as the popup, and a link to the original video. The heading and the channel name are values
-the viewer's URL holds. A viewer opened from a crafted URL can therefore show
+In every state except an invalid link, the viewer shows a link to the original
+video, and before the article is done it shows the same heading and channel name as the popup. Before the article is done, the heading and the channel name are values
+the viewer's URL holds. After the article is done, the viewer shows the neutralized video title and channel name that the server returns (when the video title was not sent, the title is still the viewer's URL value). A viewer opened from a crafted URL can therefore show
 any heading: the heading does not vouch for the article's content.
 
 - **Sending** and **Loading**: a moving indicator, with text saying which of the
@@ -1030,26 +932,28 @@ any heading: the heading does not vouch for the article's content.
 - **Generated**: the article, laid out with its title and section headings,
   paragraphs, lists, emphasis and the like, with an autolink written as
   `<https://…>` that meets the conditions opening in a new tab, and the
-  estimated cost and the time taken. There are three operations:
-  - **Post to Slack**: posts the article to the server's Webhook. It cannot be pressed for an article that is already posted, is being posted, or cannot be posted, or
-    when `SLACK_WEBHOOK_URL` is not set on the server, and it shows the reason.
-    For an article whose post stopped partway, pressing it again resends from
-    the messages that did not arrive (the one message whose delivery was not
-    confirmed may arrive twice). The extension does not resend a post
-    automatically.
+  estimated cost and the time taken. There are two operations:
   - **Save as .md**: saves the file contents the server returns (the same as
     what `--out` writes) as a browser download. The file name is made from
     the video title, with characters that cannot be used in a file name replaced by `_`,
     and a name that is too long is cut. When there is no video title, or it is
     only whitespace, the name is `<video ID>.md`.
   - **Copy Markdown**: copies the Markdown of the shown article to the
-    clipboard.
+    clipboard. The article's `@` characters are ones the server neutralized by
+    inserting a U+200B (zero width space) right after the `@`, so that it does
+    not become a mention where the text is pasted. The U+200B is invisible but
+    is copied with the text. When at least one `@` was neutralized, the copy
+    notice says so (it shows no count). When no `@` was neutralized, and when
+    the copy fails, the notice is as before. When you select the shown article
+    and copy it in the browser, the same neutralized characters are copied, but
+    the Markdown symbols (`#`, `**`, and the like) are dropped in rendering and
+    are not included, and no notice appears. Use this button when you want to
+    paste the Markdown itself.
 - **Failed**: the reason of the failure and the steps for that reason.
 - **Article lost**: the server restarted or dropped the article from its cache.
-  Sending the same input again from the popup generates the article again. If an
-  earlier article was posted, posting the new one repeats it in Slack. When the
+  Sending the same input again from the popup generates the article again. When the
   article was lost after it was shown, the shown article stays, and it can
-  still be saved and copied (not posted).
+  still be saved and copied.
 - **No key received**: the result of the generation start (rejected, not sent,
   or result unknown), with the reason and the steps.
 - **Invalid link**: the viewer's URL is not in a form it accepts. It shows

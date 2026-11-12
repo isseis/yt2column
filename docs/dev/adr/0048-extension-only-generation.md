@@ -1,4 +1,4 @@
-# ADR-0047: 記事を拡張だけで作り、localhost サーバと Native Messaging のホストを廃止する
+# ADR-0048: 記事を拡張だけで作り、localhost サーバと Native Messaging のホストを廃止する
 
 ## 状態
 

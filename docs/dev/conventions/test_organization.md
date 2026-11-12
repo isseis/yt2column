@@ -32,8 +32,8 @@ Test helper files follow a two-tier classification system based on their scope a
 **Pipeline fakes:** Each pipeline interface (`TranscriptSource`, `LLMClient`,
 `Publisher`, ...) gets a fake implementation in the `testutil/mocks.go` of the
 package that defines the interface (e.g. `internal/llm/testutil/mocks.go`,
-`package llmtestutil`). Unit tests never invoke `yt-dlp`, an LLM API, or a
-Webhook; they use these fakes instead.
+`package llmtestutil`). Unit tests never invoke `yt-dlp` or an LLM API; they use
+these fakes instead.
 
 **testify:** `testutil/testify_mocks.go` applies only once
 `github.com/stretchr/testify` is adopted. Adding it is a dependency decision
@@ -106,11 +106,10 @@ When adding new test helper code, follow this decision tree:
 
 ## Golden Files
 
-`internal/publisher/testdata/golden/` holds the full output of the two article
-renderers for representative articles: `<case>.md` is the `--out` file
-(`renderFileArticle`) and `<case>.slack.txt` is the Slack post text
-(`renderSlackPost`). `TestRenderGolden` (`internal/publisher/golden_test.go`)
-compares them byte for byte; open them to read the finished layout.
+`internal/publisher/testdata/golden/` holds the full `--out` file
+(`renderFileArticle`) of representative articles as `<case>.md`.
+`TestRenderGolden` (`internal/publisher/golden_test.go`) compares them byte for
+byte; open them to read the finished layout.
 
 - **Regenerate** after an intended layout change, then review the diff:
   ```
@@ -122,13 +121,8 @@ compares them byte for byte; open them to read the finished layout.
 - **Do not edit them by hand or let tools rewrite them.** Trailing newlines and
   trailing spaces are part of the comparison. The pre-commit whitespace hooks
   exclude the directory and `.gitattributes` marks it `-text`.
-- **Invisible characters are kept as they are.** `mentions.slack.txt` contains
-  U+200B after each neutralized `@`; `TestRenderGoldenNeutralized` checks where
-  they are.
 - **Golden files supplement the per-element tests; they do not replace them.**
-  Key order, conditional keys, the one-line footnote, and so on keep their own
-  assertions in `file_render_test.go` and `slack_render_test.go`.
-- A post split into several messages (over 16,383 characters) has no golden
-  file; the split tests in `slack_message_test.go` cover it.
+  Key order, conditional keys, the channel name line, and so on keep their own
+  assertions in `file_render_test.go`.
 - Inputs are fictional values, never data from a real video or channel
   (`docs/dev/security.md` §7).

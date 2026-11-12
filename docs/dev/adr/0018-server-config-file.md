@@ -6,8 +6,8 @@
 |---|---|
 | 状態 | `廃止` |
 | 廃止の日付 | 2026-11-12 |
-| 廃止の理由 | localhost サーバを廃止することにし、サーバの設定ファイルが要らなくなるため。CLI が設定を環境変数から読むことは、ADR-0047 が引き継ぐ。設定ファイルのコードは、[#773](https://github.com/isseis/yt2column/issues/773) の実装で撤去するまで残る（[0090 要件定義書](../../tasks/0090_extension_only_architecture/01_requirements.md)） |
-| 代わりの ADR | [ADR-0047](0047-extension-only-generation.md) |
+| 廃止の理由 | localhost サーバを廃止することにし、サーバの設定ファイルが要らなくなるため。CLI が設定を環境変数から読むことは、ADR-0048 が引き継ぐ。設定ファイルのコードは、[#773](https://github.com/isseis/yt2column/issues/773) の実装で撤去するまで残る（[0090 要件定義書](../../tasks/0090_extension_only_architecture/01_requirements.md)） |
+| 代わりの ADR | [ADR-0048](0048-extension-only-generation.md) |
 
 ## 背景
 
@@ -17,7 +17,7 @@
 
 ## 決定
 
--   **サーバは設定ファイルだけから設定を読み、CLI は今までどおり環境変数だけから読む。** 入口ごとに読む場所を 1 つに決め、どの値が効いているかを曖昧にしないためである。CLI を環境変数のままにするのは、設定ファイルが解く問題を CLI が持たないからである。CLI は利用者がシェルから実行するので、`.envrc` の値が毎回届く。CLI は開発の経路で、`YT2COLUMN_LLM=… yt2column …` のように実行ごとに値を変えて試す使い方があり、ファイルだけから読むとそれを失う。二系統を保つコストは、両方が同じキーの表と同じ値の検証（[ADR-0003](0003-llm-config-contract.md)）を通ることで小さく保つ。規則は [0066 要件定義書](../../tasks/0066_server_config_file/01_requirements.md) の F-002、[project_overview.md](../project_overview.md) の「設定（環境変数）」、[security.md](../security.md) の §2「秘密情報（API キー・Webhook URL）」にある。
+-   **サーバは設定ファイルだけから設定を読み、CLI は今までどおり環境変数だけから読む。** 入口ごとに読む場所を 1 つに決め、どの値が効いているかを曖昧にしないためである。CLI を環境変数のままにするのは、設定ファイルが解く問題を CLI が持たないからである。CLI は利用者がシェルから実行するので、`.envrc` の値が毎回届く。CLI は開発の経路で、`YT2COLUMN_LLM=… yt2column …` のように実行ごとに値を変えて試す使い方があり、ファイルだけから読むとそれを失う。二系統を保つコストは、両方が同じキーの表と同じ値の検証（[ADR-0003](0003-llm-config-contract.md)）を通ることで小さく保つ。規則は [0066 要件定義書](../../tasks/0066_server_config_file/01_requirements.md) の F-002、[project_overview.md](../project_overview.md) の「設定（環境変数）」、[security.md](../security.md) の §2「秘密情報（API キー）」にある。
 -   **サーバが環境変数から読むのは、パスを導出する `HOME` と、Go のランタイムが出す HTTP/2 のデバッグログについて警告するための `GODEBUG` だけである。** `GODEBUG` は Go のランタイム自身が環境から読む変数で、ファイルに書いても効かないためである。環境変数を読む場所の規則は [ADR-0024](0024-env-access-in-config.md) が定める。規則は 0066 要件定義書の F-002 と、security.md の §8.2「localhost サーバ（#109）」の「設定ファイル」にある。
 -   **パスは `HOME` だけから導出し、macOS もその他の Unix も `$HOME/.config/yt2column/config.env` にする。** `XDG_CONFIG_HOME` は読まない。`HOME` だけから導出するのは、ソケットのパスと同じ考え方である（[ADR-0005](0005-server-architecture.md)）。macOS でも `~/Library/Application Support` に置かないのは、設定ファイルは利用者が端末から手で編集するもので、macOS の CLI でも `~/.config` が広く使われ、パスが 1 つなら案内が OS によらず同じになり、空白を含まないので案内のコマンドで引用が要らないからである。規則のない OS（Windows など）では、パスを導出せずに止まる。規則は 0066 要件定義書の F-001 と、project_overview.md の「設定（環境変数）」にある。
 -   **書式は Docker の `--env-file` の規則を土台にした `KEY=VALUE` で、それより厳格にする。キーは CLI の環境変数と同じ名前の許可リストに限り、受理する形に合わないものは直さずに拒否する。ファイルはシェルとして実行しない。** Docker の env-file は文書化された規則を持ち、標準ライブラリだけで書け、キーを CLI の環境変数と同じ名前のままにでき、雛形に説明を書けるためである。直さずに拒否するのは、`.envrc` から写した誤りを黙って直さず、拒否で気づかせるためである。シェルとして実行しないのは、設定が検証をすり抜けるためである。受理する形と拒否するものの一覧は、0066 要件定義書の F-003 と、[README](../../../README.md) の「設定ファイル」にあり、OpenAI をサーバでも選べるようにするため、[0077 要件定義書](../../tasks/0077_openai_llm_client/01_requirements.md) F-001 で `OPENAI_API_KEY` を許可するキーに足した。Webhook への投稿の廃止に合わせて、[0083 要件定義書](../../tasks/0083_remove_slack_webhook/01_requirements.md) F-001 で `SLACK_WEBHOOK_URL` を許可するキーから除いた。除いたキーの行は、ほかの知らないキーと同じく拒否し、サーバは起動しない。黙って無視すると設定の誤りを隠すので、拒否する（0083 要件定義書「要件定義の際に決めたこと（2026-11-11）」）。
@@ -27,8 +27,6 @@
 -   **ACL は検査せず、残余リスクとして受け入れる。** サーバは設定ファイルの ACL（macOS の拡張 ACL と Linux の POSIX ACL）を検査せず、`config init` も作ったファイルの ACL を変えない。README で、モードの検査が ACL を見ないことと、確かめ方と取り除き方を示す。ACL を扱うには OS に依存するコードが要り、そのコードは Linux だけで動く CI ではテストできないので、その実装と保守のコストを、防げるリスクと比べて対応しないことにしたためである。規則は 0066 要件定義書の F-004 と、README の「設定ファイル」にある。
 -   **環境に残った設定の変数は無視する。** 許可するキーや廃止した LLM の変数がプロセスの環境にあっても、サーバは読まず、止まらず、警告もしない。読まない変数を検査するためだけのコードは持たない。止めると、CLI のために `.envrc` を読み込んだシェルからサーバを起動できなくなるためである。警告も含めて検査のためだけのコードを持たないのは、レビュアーの判断である。規則は 0066 要件定義書の F-002 にある。
 -   **雛形はサーバのサブコマンド `yt2column-server config init` で作る。** モード `0600` で作り、既存のものは上書きしない。配布するバイナリを増やさないためである。雛形には許可するキーを並べ、`OPENAI_API_KEY` も入れる（[0077 要件定義書](../../tasks/0077_openai_llm_client/01_requirements.md) F-001）。規則は 0066 要件定義書の F-005 と、README の「設定ファイル」にある。
-
-OpenAI のキーはコードと仕様の正本に反映した。`SLACK_WEBHOOK_URL` を除くことは、まだコードと README に反映していない。この差分は [#770](https://github.com/isseis/yt2column/issues/770) の実装で解消する。
 
 ## 採らなかった案
 
@@ -71,4 +69,4 @@ OpenAI のキーはコードと仕様の正本に反映した。`SLACK_WEBHOOK_U
 - 2026-11-06 設定ファイルの空の値の行をどのキーでも拒否するのをやめ、環境変数と同じく値の検証で扱うことにし、CLI を環境変数のままにする理由と見直しの条件を記した（[0066 要件定義書](../../tasks/0066_server_config_file/01_requirements.md)）
 - 2026-11-10 OpenAI をサーバでも選べるように、設定ファイルの許可するキーと雛形に OPENAI_API_KEY を追加することにした（[0077 要件定義書](../../tasks/0077_openai_llm_client/01_requirements.md)）
 - 2026-11-11 Webhook への投稿の廃止に合わせて、設定ファイルの許可するキーと雛形から SLACK_WEBHOOK_URL を除き、その行を知らないキーとして拒否することにした（[0083 要件定義書](../../tasks/0083_remove_slack_webhook/01_requirements.md) F-001）
-- 2026-11-12 localhost サーバを廃止することにし、この ADR を廃止した。CLI が設定を環境変数から読むことは ADR-0047 が引き継ぐ（[0090 要件定義書](../../tasks/0090_extension_only_architecture/01_requirements.md)「issue #769・#772 で決めたこと」）
+- 2026-11-12 localhost サーバを廃止することにし、この ADR を廃止した。CLI が設定を環境変数から読むことは ADR-0048 が引き継ぐ（[0090 要件定義書](../../tasks/0090_extension_only_architecture/01_requirements.md)「issue #769・#772 で決めたこと」）

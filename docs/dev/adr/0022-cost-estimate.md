@@ -30,8 +30,6 @@ LLM の呼び出しは、応答が報告するトークン数から料金を概�
 
 料金の適用条件のコードへの反映は [#568](https://github.com/isseis/yt2column/issues/568) の実装で行う。
 
-Slack の投稿の脚注は、まだコードに残っている。この差分は [#770](https://github.com/isseis/yt2column/issues/770) の実装で解消する。
-
 記事が完成しなかった実行の料金を不明と示すことは、まだコードに反映していない。今のビューアは、失敗した実行の料金を示さない。この差分は [#773](https://github.com/isseis/yt2column/issues/773) の実装で解消する。
 
 ## 採らなかった案

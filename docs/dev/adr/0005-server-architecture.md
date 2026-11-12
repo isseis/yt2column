@@ -7,7 +7,7 @@
 | 状態 | `廃止` |
 | 廃止の日付 | 2026-11-12 |
 | 廃止の理由 | 記事の生成を拡張だけで行うことにし、localhost サーバと Native Messaging のホストを廃止することにしたため。サーバとホストのコードは、[#773](https://github.com/isseis/yt2column/issues/773) の実装で撤去するまで残る（[0090 要件定義書](../../tasks/0090_extension_only_architecture/01_requirements.md)） |
-| 代わりの ADR | [ADR-0047](0047-extension-only-generation.md) |
+| 代わりの ADR | [ADR-0048](0048-extension-only-generation.md) |
 
 ## 背景
 
@@ -27,8 +27,6 @@
 -   **送り先は固定のホスト名 `io.github.isseis.yt2column` とし、ホストを起動できる拡張は manifest の `allowed_origins` に載った固定の拡張だけとする。** 拡張以外からホストを起動させないためである。拡張の ID を manifest の `key` で固定することは ADR-0026 が定め、規則は security.md §8.1「ブラウザ拡張」と §8.2 にある。
 -   **ホストは 1 つのメッセージにつき 1 回起動し、1 つのリクエストを送って 1 つの応答を返し、終了する。** ブラウザが送信のたびにプロセスを起動する仕組みに合わせるためである。規則は security.md §8.2 と、0026 設計書 §3.5.1「起動の形」にある。
 -   **ホストはサーバを起動せず、ジョブはサーバに残る。ブラウザを閉じてもジョブは続く。** 記事の生成をブラウザの寿命から切り離すためである。規則は security.md §8 と、[project_overview.md](../project_overview.md) の「決定済みの方針」にある。
-
-Slack への投稿の処理は、まだコードに残っている。この差分は [#770](https://github.com/isseis/yt2column/issues/770) の実装で解消する。
 
 ## 採らなかった案
 

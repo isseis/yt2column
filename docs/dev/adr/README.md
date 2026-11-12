@@ -52,4 +52,5 @@
 | [ADR-0044](0044-package-reference-row-granularity.md) | package_reference.md の行には責務の要約・主な公開の名前・仕様の置き場所だけを書き、挙動の詳細は doc コメントと仕様の文書に置く | `有効` |
 | [ADR-0045](0045-dev-fake-llm.md) | 本番のバイナリに fake の LLM を入れず、fake の LLM はサーバに依存しない構成要素にして開発用のバイナリから使う | `有効` |
 | [ADR-0046](0046-chief-of-staff.md) | chief は人の判断を待つものを示し、決まった入力だけをほかのエージェントに送り、マージの後の次のコマンドを自動で送る | `有効` |
-| [ADR-0047](0047-extension-only-generation.md) | 記事を拡張だけで作り、localhost サーバと Native Messaging のホストを廃止する | `有効` |
+| [ADR-0047](0047-runpr-merge-question.md) | /runpr のマージの質問は 1 つの単一選択の問いにし、詳細は作業ツリーの外のファイルに書いて会話には要約だけを出し、deferred のスレッドはその前に片付ける | `有効` |
+| [ADR-0048](0048-extension-only-generation.md) | 記事を拡張だけで作り、localhost サーバと Native Messaging のホストを廃止する | `有効` |

@@ -22,8 +22,6 @@
 -   **古い版が保存した値は、読めないまま残ることを受け入れる。** 0020 の版が `chrome.storage.local` に保存した共有トークンとポートは、拡張を更新しても残りうる。拡張は `storage` の権限を持たないので、これを読むことも削除することもできない。サーバはトークンを読まないので、残った値が通用する相手はない。規則は [0026 設計書](../../tasks/0026_native_messaging_relay/02_architecture.md) §3.7.1「manifest」と [security.md](../security.md) §8.1 にある。
 -   **ビューアの URL に持つ値は、ブラウザの履歴に残ることを受け入れる。** URL に持つ値と、コピーした字幕と概要欄を入れない規則は [security.md](../security.md) §8.1 に従う。値を URL に置けば、再読み込み・閉じたタブの復元・履歴からの表示の後も同じ記事を表示できるためである。規則は [security.md](../security.md) §8.1 と [0058 要件定義書](../../tasks/0058_same_video_article/01_requirements.md) F-004 にある。
 
-投稿の状態は、まだコードに残っている。この差分は [#770](https://github.com/isseis/yt2column/issues/770) の実装で解消する。
-
 この決定のうち、API キーと完成した記事を保存する部分は、まだコードと security.md に反映していない。今の拡張は何も保存しない。この差分は [#773](https://github.com/isseis/yt2column/issues/773) の実装で解消する。
 
 ## 採らなかった案
