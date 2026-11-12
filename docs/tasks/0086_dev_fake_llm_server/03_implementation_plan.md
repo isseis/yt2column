@@ -154,7 +154,7 @@
 
 **判定理由**: ステップ 1-3 がジョブをまたぐ並行の呼び出しの排他制御と取り消しを扱う高リスクの手順で、ステップ 1-5 と 1-3 がビルドタグ `test` だけでコンパイルする補助（`internal/godepstest`、`devfake/test_helpers.go`）を加え、mkplan.md の Conditional checks のビルドタグの項と gosec の抑止の項に当たる。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [ ] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
