@@ -175,8 +175,8 @@ Every `fixpr.md` and `mergepr.md` run below is given the resolved PR number
     not linked to the issue, so the PR does not appear in its Development
     section.) Write the title and the body to files in the scratchpad with the
     Write tool (`_context.md`, "Passing a title to `gh`"). Do not pause for the
-    user to adjust them; they can edit them on GitHub, and step 4 is the one
-    question.
+    user to adjust them; they can edit them on GitHub, and step 4's questions
+    are where the user decides.
 - Before checking it out, check that the PR's head is a branch of this
   repository:
 
@@ -335,7 +335,7 @@ head; a record already made counts as made, never as absent.
     `git diff $(git merge-base origin/main HEAD)` inside the document's change
     history), replace the not-yet-filled marker `#未記入` (the rule's "Change history",
     "PR number") with `#<number>`. Change no other line: a marker already on
-    `main` belongs to another PR and is only shown in step 4's question, and
+    `main` belongs to another PR and is only shown in step 4's merge question, and
     the marker's text outside a change history (a quotation of the rule) is not
     a marker, nor is anything inside a diff record's code block
     (`docs/dev/conventions/requirements_process.md` §4, "Diff record form").
@@ -760,8 +760,9 @@ character as 2); the line shapes below are the examples to follow.
   asking, and report what failed and the path. For the merge question, run
   `mergepr discard --state <state-file>` before stopping. Never ask a
   deferred question or merge question that has no detail file.
-- **Reports.** Every report of a stop in this step after the details
-  directory was made, and the final report of step 5, gives its path. A report after the merge
+- **Reports.** Every report of a stop in this run after the details directory
+  was made (a stop in step 2 or step 3 after a fix or a return included), and
+  the final report of step 5, gives its path. A report after the merge
   also gives the path of the detail file of the round that decided the merge,
   with its head commit: that file is the record of what was approved.
 
@@ -865,7 +866,7 @@ character as 2); the line shapes below are the examples to follow.
    When the check fails, do not post: stop and report, with the tracking
    issue's URL when there is one. Nothing is prepared, so there is nothing to
    discard.
-   Add the findings to the issue as a comment
+   Add the findings not skipped to the issue as a comment
    (`gh issue comment <issue> --body-file <file>`), or create it
    (`gh issue create --title "PR #<number> のレビュー指摘の追跡" --body-file <file>`)
    when there is none. Write in Japanese, listing each finding's topic, the
@@ -884,7 +885,10 @@ character as 2); the line shapes below are the examples to follow.
    issue's URL. The tracking issue already lists it, so a rerun of this
    command must not add it to the issue again. For `reply-not-resolved`, the
    reply may be posted: ask the user to resolve the thread by hand, never
-   replying again. Otherwise count again: run
+   replying again. For any other stop, say that the user resolves the thread
+   by hand on GitHub, or chooses "すべて直す" or a number answer for it in a
+   rerun, since the move procedure skips a thread the issue already lists.
+   Otherwise count again: run
 
    ```
    fixprguard list --protocol 6 --reviewer <reviewer> <number>
@@ -906,15 +910,22 @@ character as 2); the line shapes below are the examples to follow.
    For the task's final plan PR, the body ends with `Closes #<issue>` for the
    issue the requirements document names as its own (`対応 issue`); a task
    without one gets no such line.
-3. **Merge question.** Write the subject file, the body file, and the version
-   without the approval line, and check the subject as `mergepr.md` step 2
-   does. Then write `merge-<round>.md` and ask one question, as follows.
+3. **Merge question.** Use the approval message files item 2 wrote and
+   checked (the subject file, the body file, and, when PRE_MERGE has approvals,
+   the body without the approval line); write them again, and check the subject
+   again as `mergepr.md` step 2 does, only on the revising path below. Write
+   `merge-<round>.md` and ask one question, as follows.
    - **Detail file.** It holds what `mergepr.md` step 3 requires and what the
      summary only points to: the PR URL, the base branch, and the CI result;
      the full subject and body, and the body without the approval line when
-     that option is shown, built by concatenating the approval message files
-     into the detail file with `cat` (never retype them), together with the
-     absolute paths of the files the merge takes them from; the record of
+     that option is shown, each part under its own label and built by
+     concatenating the approval message file into the detail file with `cat`,
+     each file followed by a newline of its own so a subject without a trailing
+     newline does not run into the body (never retype them), together with the
+     absolute paths of the files the merge takes them from: the approval
+     message files, and, when PRE_MERGE is not none, the copies item 4 will make
+     (`approved-<round>.subject` and `approved-<round>.body` in the details
+     directory), which the merge uses then; the record of
      which rule decided the subject's prefix; the PRE_MERGE change (which lines
      of which files, the reviewer name and date an approval writes, and the PR
      number fill-in lines separately, since the merge without the approvals
@@ -1185,8 +1196,9 @@ character as 2); the line shapes below are the examples to follow.
 
 4. When the answer records PRE_MERGE (including the merge without the
    approvals, when its PR number fill-in is not none):
-   - Note the prepared `headRefOid`, and copy the approval message files of the
-     round that decided (the subject file and the body file; for the merge
+   - Note the prepared `headRefOid`, and copy (checking first that no file of
+     that name exists, and stopping, after `mergepr discard`, when the copy
+     fails or one exists) the approval message files of the round that decided (the subject file and the body file; for the merge
      without the approvals, the subject file and the body file without the
      approval line) to the details directory as `approved-<round>.subject` and
      `approved-<round>.body` (`mergepr.md` keeps them in the prepared

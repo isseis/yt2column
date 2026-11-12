@@ -154,7 +154,7 @@ review only when `_lib/pr-review-escalation.md` says so or the user asks.
   defers it. Two exceptions, on the PRs of a simple-process task (Phase 1,
   "PR kind"), leave a person's thread unanswered in a round. On a
   three-document PR, an excluded thread (Phase 2) is neither fixed nor
-  replied to: the person answers it in `runpr.md` step 4's question, so a reply
+  replied to: the person answers it in `runpr.md` step 4's merge question, so a reply
   would answer nothing. On an implementation PR, a round that finds an excluded
   thread stops before any fix and replies to no thread: it hands the decision
   to the person.
