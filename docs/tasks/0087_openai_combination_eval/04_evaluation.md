@@ -299,11 +299,11 @@ exit=0
 <!-- check-record: run-conditions -->
 | 項目 | 値 |
 |---|---|
-| runs | 0 |
-| ytdlp_path_false | 0 |
-| keep_cache | 0 |
-| all_kept_conditions | - |
-| binary_sha256 | - |
+| runs | 40 |
+| ytdlp_path_false | 40 |
+| keep_cache | 40 |
+| all_kept_conditions | yes |
+| binary_sha256 | 6a975731b6aa34be0421dc891f9e365d3957b2d7cb1cffa047420b39f2179a09 |
 
 **ハッシュの一覧とバックアップ（AC-04）:** 一覧は §2.3 の `hashlist.sh` の行で作った。対象は `base`（`0018/base/B3/`）・`work`（`0018/work/B3/`）・`cache`（評価用のキャッシュ）である。2 回目と 3 回目（ステップ 3-1・4-1）は、前の一覧との `diff` を記録する。
 
@@ -383,8 +383,8 @@ exit=0
 <!-- check-record: spend -->
 | 範囲 | 分かっている額 | 不明の工程 | 上限で数えた実行 | 上限の額 | 合計 | 除いた実行 | 除いた上限の額 |
 |---|---|---|---|---|---|---|---|
-| launch | 0.000000 | 0 | 0 | 0.000000 | 0.000000 | 0 | 0.000000 |
-| record | 0.000000 | 0 | 0 | 0.000000 | 0.000000 | 0 | 0.000000 |
+| launch | 6.328709 | 0 | 0 | 0.000000 | 6.328709 | 0 | 0.000000 |
+| record | 6.328709 | 0 | 0 | 0.000000 | 6.328709 | 0 | 0.000000 |
 
 **支払い前と確かめて除いた実行（AC-20）:**
 
@@ -417,6 +417,15 @@ exit=0
 
 ## 7. 1 段目の各構成
 
+**採点と人の確認（AC-09〜AC-11）:** 2026-11-12 に、`check_article.py` が 40 件の長さ・節の数・タイトルの字数を判定した（40 件とも `pass`）。`material` で伏せた素材を作り、`yt2column-0087-scorer` のエージェント（モデル ID `claude-opus-5-5`。5 つのエージェントすべてがこの ID を報告した）が、動画ごとに 1 つのサブエージェントで 8 件ずつ採点した（計画 §1.4 の決めたこと 3 のとおり、素材のファイルの名前の一覧をプロンプトに書いた）。採点の全文と、人の確認の記録は `0087/score/1/` にある。
+
+人の確認は次の 3 段で行った。判定の数が多い（設計 §3.6 の手順 4 の対象は 274 判定）ため、人の求めにより、合否と製品の制約の「あり」を左右する判定を個別に、残りを一括で確認した。
+- **論点ごとに決めた判定:** roNZ-rLxhUE の形式の選択（インタビュー記事を選ばなかった記事は不合格）、「ロボットが自衛隊」の読みやすさ（意味が取れないので 1）、EqnGQDU71-Y で未来会議の考えを全体の考えとした「根拠」（解釈で合格、文言どおりで不合格）、leE02uqgaKg の「地球サイズ」を「質量」とした誤り（根拠の不合格）。
+- **個別に示した判定:** 品質の 1、採点者が人の確認を求めた「根拠」の合格、採点者が 2 と 1 の境目とした構成、製品の制約の「あり」。前後の段落と字幕の該当時刻を示し、人が 1 問ずつ答えた。同じ動画で同じ理由の判定はまとめて示した。人が変えたのは、A-sol・A-astra の roNZ-rLxhUE-1 と zW1RBacSqjk-1 の「根拠」の文言どおりの判定（合格から不合格）の 4 判定である。
+- **一括で確認した判定:** 境目と書かれていない品質の 2、採点者が迷わず合格とした「根拠」、ほかの理由ですでに不合格の記事の判定、製品の制約の「なし」。LLM の判定のままとした。
+
+1 段目の人の確認の印（`0087/score/1/human-confirmed`）は 2026-11-12T07:48:05Z である。
+
 ### 7.0. 実行の順序と並列の組（AC-06）
 
 `launch` の起動の記録である。1 行が、同時に起動した 1 つの構成の記事の組である。
@@ -440,18 +449,58 @@ exit=0
 <!-- check-record: runs config=C-sol -->
 | 構成 | 記事 | 回 | `--after` | `YT2COLUMN_LLM` | `YT2COLUMN_REVIEW_LLM` | 開始（UTC） | 終了（UTC） | 終了コード | 生成の識別子 | 字数の調整の識別子 | 検証・推敲の識別子 |
 |---|---|---|---|---|---|---|---|---|---|---|---|
+| C-sol | roNZ-rLxhUE-1 | cur | none | openai/gpt-6.1-sol+medium | openai/gpt-6.1-sol+medium | 2026-11-12T06:17:31Z | 2026-11-12T06:18:43Z | 0 | 636c4210bec438a833c6eb00ed2179060845685f4a28cc5ebd9ed6d97c3b02d2 | - | 6811e0b054c5c154a408c1131c3e9df78cc3023e3448e2c35447d692e48a328c |
+| C-sol | roNZ-rLxhUE-2 | cur | none | openai/gpt-6.1-sol+medium | openai/gpt-6.1-sol+medium | 2026-11-12T06:17:30Z | 2026-11-12T06:18:36Z | 0 | 149cf6df529f57905a115710369f84207f996cc3e362479f7f0fc9da8c952750 | - | 7a5b21fa50d92ba9aa7025852b6667062a2dc2b97c74f1350895516f1a8a7dbf |
+| C-sol | 18tbwwPM91A-1 | cur | none | openai/gpt-6.1-sol+medium | openai/gpt-6.1-sol+medium | 2026-11-12T06:17:30Z | 2026-11-12T06:18:53Z | 0 | 123a06eb629ad5a36f20e34467efebf761aa36952241be85dda84dd2135da99d | - | cbad7a3ffbab280fbbd5b8b033442fcdcd8e0af452293f8a6aefd48e846cb0ec |
+| C-sol | 18tbwwPM91A-2 | cur | none | openai/gpt-6.1-sol+medium | openai/gpt-6.1-sol+medium | 2026-11-12T06:17:30Z | 2026-11-12T06:18:36Z | 0 | 078a57918b0e92a873793025669504e40edd61b02574848047dcf2e03e9dde09 | - | db16f8707c1d6fe944a1c16b0a65e82892d1f73d0acbfb565f004479d4502c57 |
+| C-sol | zW1RBacSqjk-1 | cur | none | openai/gpt-6.1-sol+medium | openai/gpt-6.1-sol+medium | 2026-11-12T06:17:30Z | 2026-11-12T06:18:27Z | 0 | 5a7ce1c329e76d104f4c3633e9aeef2be941ec325ef22a8ec65b487e47d81974 | - | 274d83e12c481a7b2cc0653e55693938ce4923f0a0f0e1147c3d046b316f4422 |
+| C-sol | zW1RBacSqjk-2 | cur | none | openai/gpt-6.1-sol+medium | openai/gpt-6.1-sol+medium | 2026-11-12T06:17:30Z | 2026-11-12T06:18:40Z | 0 | 73fd08924540ba5fc984964c6451b84b7b4bee8801bf4d4d69a46765c26020f1 | - | f52cdeedd65e4fc4f874df2a7d49ef1f624f60a44307617ee39f6e14c2b3e7b2 |
+| C-sol | leE02uqgaKg-1 | cur | none | openai/gpt-6.1-sol+medium | openai/gpt-6.1-sol+medium | 2026-11-12T06:17:30Z | 2026-11-12T06:18:36Z | 0 | e8f6148b06b8bf36df4110e1f4b1fe7ad19c7c992a923bf048746fe290e50a81 | - | d08f1059207b066658dcc0b9faec33473d1f287b8fe2f256e164ce4962ca668e |
+| C-sol | leE02uqgaKg-2 | cur | none | openai/gpt-6.1-sol+medium | openai/gpt-6.1-sol+medium | 2026-11-12T06:17:30Z | 2026-11-12T06:18:40Z | 0 | 9b20df2a2b6b9fa04442343bfb7ba2781b990d6f5e08b3a8d95cafaa4cbf4b7c | - | f5882172117b16ead539588c9c6f7f2aedfc5f337ce32a82a9fe0d3229779d61 |
+| C-sol | EqnGQDU71-Y-1 | cur | none | openai/gpt-6.1-sol+medium | openai/gpt-6.1-sol+medium | 2026-11-12T06:17:30Z | 2026-11-12T06:18:23Z | 0 | aab59732ec16a9bee00e6f2308cc944b84a2a77c10972fd854d39fe6e9597f07 | - | 3faef40b4b1413cdcd12cc6781fc03163eb5c6c4e62d1507a6a74be5adf05893 |
+| C-sol | EqnGQDU71-Y-2 | cur | none | openai/gpt-6.1-sol+medium | openai/gpt-6.1-sol+medium | 2026-11-12T06:17:30Z | 2026-11-12T06:18:21Z | 0 | 147a0a89966e4b5b4d47b7b649575b03b65ab66fb5010a84a523c2c04ba72d10 | - | 06fc4cd59f218f622ff8325987e7fbab512ba4e968d90389fcb90cd98b2c4613 |
 
 **トークン数と推定コスト（AC-14）:** 工程ごとの CLI の値である。「再利用した実行」は、再開で呼ばなかった工程の値の出どころ（B3 の記事）を示す。
 
 <!-- check-record: stage-usage config=C-sol -->
 | 構成 | 記事 | 回 | 工程 | 出どころ | 使用量 | 入力 | キャッシュから読んだ入力 | キャッシュに書いた入力 | 出力 | モデル | 推定コスト（USD） | 不明の理由 | 再利用した実行 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| C-sol | roNZ-rLxhUE-1 | cur | generation | run | known | 3 | 5386 | 11914 | 3143 | gpt-6.1-sol | 0.061760 | - | - |
+| C-sol | roNZ-rLxhUE-1 | cur | review | run | known | 3 | 0 | 15107 | 112 | gpt-6.1-sol | 0.038894 | - | - |
+| C-sol | roNZ-rLxhUE-2 | cur | generation | run | known | 3 | 17300 | 0 | 3056 | gpt-6.1-sol | 0.032296 | - | - |
+| C-sol | roNZ-rLxhUE-2 | cur | review | run | known | 3 | 0 | 14927 | 103 | gpt-6.1-sol | 0.038354 | - | - |
+| C-sol | 18tbwwPM91A-1 | cur | generation | run | known | 3 | 13328 | 0 | 2860 | gpt-6.1-sol | 0.029939 | - | - |
+| C-sol | 18tbwwPM91A-1 | cur | review | run | known | 3 | 0 | 10929 | 627 | gpt-6.1-sol | 0.033599 | - | - |
+| C-sol | 18tbwwPM91A-2 | cur | generation | run | known | 3 | 0 | 13328 | 2677 | gpt-6.1-sol | 0.060096 | - | - |
+| C-sol | 18tbwwPM91A-2 | cur | review | run | known | 3 | 0 | 10798 | 316 | gpt-6.1-sol | 0.030161 | - | - |
+| C-sol | zW1RBacSqjk-1 | cur | generation | run | known | 3 | 5386 | 6468 | 2544 | gpt-6.1-sol | 0.042155 | - | - |
+| C-sol | zW1RBacSqjk-1 | cur | review | run | known | 3 | 0 | 9155 | 150 | gpt-6.1-sol | 0.024394 | - | - |
+| C-sol | zW1RBacSqjk-2 | cur | generation | run | known | 3 | 11854 | 0 | 2764 | gpt-6.1-sol | 0.028831 | - | - |
+| C-sol | zW1RBacSqjk-2 | cur | review | run | known | 3 | 0 | 9323 | 153 | gpt-6.1-sol | 0.024844 | - | - |
+| C-sol | leE02uqgaKg-1 | cur | generation | run | known | 3 | 12384 | 0 | 2744 | gpt-6.1-sol | 0.028684 | - | - |
+| C-sol | leE02uqgaKg-1 | cur | review | run | known | 3 | 0 | 9665 | 65 | gpt-6.1-sol | 0.024819 | - | - |
+| C-sol | leE02uqgaKg-2 | cur | generation | run | known | 3 | 5386 | 6998 | 2710 | gpt-6.1-sol | 0.045140 | - | - |
+| C-sol | leE02uqgaKg-2 | cur | review | run | known | 3 | 0 | 9827 | 437 | gpt-6.1-sol | 0.028944 | - | - |
+| C-sol | EqnGQDU71-Y-1 | cur | generation | run | known | 3 | 5386 | 4111 | 2559 | gpt-6.1-sol | 0.036412 | - | - |
+| C-sol | EqnGQDU71-Y-1 | cur | review | run | known | 3 | 0 | 6855 | 122 | gpt-6.1-sol | 0.018364 | - | - |
+| C-sol | EqnGQDU71-Y-2 | cur | generation | run | known | 3 | 9497 | 0 | 2514 | gpt-6.1-sol | 0.026096 | - | - |
+| C-sol | EqnGQDU71-Y-2 | cur | review | run | known | 3 | 0 | 6651 | 69 | gpt-6.1-sol | 0.017324 | - | - |
 
 **記事ごとの推定コストと所要時間（AC-14・AC-16）:** 所要時間は記事を作った工程の時間の和で、10 件を並列に起動して測った値である（基準の構成と同じ。0018 評価記録 §4.8）。
 
 <!-- check-record: run-costs config=C-sol -->
 | 構成 | 記事 | 回 | 終了コード | この実行（USD） | 記事（USD） | 実行の時間 | 所要時間 | 比較に使う |
 |---|---|---|---|---|---|---|---|---|
+| C-sol | roNZ-rLxhUE-1 | cur | 0 | 0.100653 | 0.100653 | 1:12.7 | 1:12.7 | yes |
+| C-sol | roNZ-rLxhUE-2 | cur | 0 | 0.070650 | 0.070650 | 1:05.5 | 1:05.5 | yes |
+| C-sol | 18tbwwPM91A-1 | cur | 0 | 0.063537 | 0.063537 | 1:22.6 | 1:22.6 | yes |
+| C-sol | 18tbwwPM91A-2 | cur | 0 | 0.090257 | 0.090257 | 1:05.7 | 1:05.7 | yes |
+| C-sol | zW1RBacSqjk-1 | cur | 0 | 0.066548 | 0.066548 | 0:56.3 | 0:56.3 | yes |
+| C-sol | zW1RBacSqjk-2 | cur | 0 | 0.053675 | 0.053675 | 1:09.6 | 1:09.6 | yes |
+| C-sol | leE02uqgaKg-1 | cur | 0 | 0.053503 | 0.053503 | 1:05.8 | 1:05.8 | yes |
+| C-sol | leE02uqgaKg-2 | cur | 0 | 0.074083 | 0.074083 | 1:09.4 | 1:09.4 | yes |
+| C-sol | EqnGQDU71-Y-1 | cur | 0 | 0.054776 | 0.054776 | 0:52.1 | 0:52.1 | yes |
+| C-sol | EqnGQDU71-Y-2 | cur | 0 | 0.043419 | 0.043419 | 0:51.0 | 0:51.0 | yes |
 
 **失敗した実行とやり直し（AC-17）:** 番兵は主セッションが標準エラーを読んで下に記録し、人が確認する。
 
@@ -468,30 +517,104 @@ exit=0
 <!-- check-record: judgments config=C-sol -->
 | 構成 | 記事 | 形式の選択 | 形式の規則 | 根拠 | 長さ | 表記 | 網羅 | 重要度 | 構成（観点） | 読みやすさ | タイトル・リード文 | 冗長さ | 目標（解釈） | 目標（文言） |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| C-sol | roNZ-rLxhUE-1 | fail/fail | pass/pass | pass/pass | pass/pass | pass/pass | 2/2 | 2/2 | 1/1 | 3/3 | 3/3 | 2/2 | no | no |
+| C-sol | roNZ-rLxhUE-2 | pass/pass | pass/pass | pass/fail | pass/pass | pass/pass | 2/2 | 2/2 | 2/2 | 3/3 | 3/3 | 2/2 | yes | no |
+| C-sol | 18tbwwPM91A-1 | pass/pass | pass/pass | pass/pass | pass/pass | pass/pass | 2/2 | 2/2 | 1/1 | 3/3 | 2/2 | 2/2 | no | no |
+| C-sol | 18tbwwPM91A-2 | pass/pass | pass/pass | pass/pass | pass/pass | pass/pass | 2/2 | 2/2 | 1/1 | 3/3 | 3/3 | 2/2 | no | no |
+| C-sol | zW1RBacSqjk-1 | pass/pass | pass/pass | pass/pass | pass/pass | pass/pass | 3/3 | 3/3 | 2/2 | 2/2 | 3/3 | 2/2 | yes | yes |
+| C-sol | zW1RBacSqjk-2 | pass/pass | pass/pass | pass/pass | pass/pass | pass/pass | 3/3 | 3/3 | 2/2 | 2/2 | 3/3 | 2/2 | yes | yes |
+| C-sol | leE02uqgaKg-1 | pass/pass | pass/pass | pass/pass | pass/pass | pass/pass | 2/2 | 3/3 | 2/2 | 3/3 | 3/3 | 2/2 | yes | yes |
+| C-sol | leE02uqgaKg-2 | pass/pass | pass/pass | fail/fail | pass/pass | pass/pass | 3/3 | 3/3 | 2/2 | 3/3 | 3/3 | 2/2 | no | no |
+| C-sol | EqnGQDU71-Y-1 | pass/pass | pass/pass | pass/pass | pass/pass | pass/pass | 3/3 | 2/2 | 2/2 | 3/3 | 3/3 | 2/2 | yes | yes |
+| C-sol | EqnGQDU71-Y-2 | pass/pass | pass/pass | pass/fail | pass/pass | pass/pass | 3/3 | 2/2 | 2/2 | 3/3 | 3/3 | 2/2 | yes | no |
 
 **判定者（AC-10）:** `script` はスクリプト、`llm` は LLM、`llm+human` は人が確認して変えなかった LLM の判定、`human` は人が変えた判定である。人が変えた判定と理由は下に書く。
 
 <!-- check-record: judges config=C-sol -->
 | 構成 | 記事 | 形式の選択 | 形式の規則 | 根拠 | 長さ | 表記 | 網羅 | 重要度 | 構成（観点） | 読みやすさ | タイトル・リード文 | 冗長さ | 制約 1 | 制約 2 | 制約 3 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| C-sol | roNZ-rLxhUE-1 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
+| C-sol | roNZ-rLxhUE-2 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
+| C-sol | 18tbwwPM91A-1 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
+| C-sol | 18tbwwPM91A-2 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
+| C-sol | zW1RBacSqjk-1 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
+| C-sol | zW1RBacSqjk-2 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
+| C-sol | leE02uqgaKg-1 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
+| C-sol | leE02uqgaKg-2 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
+| C-sol | EqnGQDU71-Y-1 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
+| C-sol | EqnGQDU71-Y-2 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
 
 **機械的な値（AC-09）:** `check_article.py` の出力である。
 
 <!-- check-record: article-checks config=C-sol -->
 | 構成 | 記事 | タイトルの字数 | 節の数 | 長さ |
 |---|---|---|---|---|
+| C-sol | roNZ-rLxhUE-1 | 17 | 5 | 3497 |
+| C-sol | roNZ-rLxhUE-2 | 21 | 5 | 3489 |
+| C-sol | 18tbwwPM91A-1 | 21 | 4 | 3243 |
+| C-sol | 18tbwwPM91A-2 | 21 | 4 | 3076 |
+| C-sol | zW1RBacSqjk-1 | 27 | 4 | 3141 |
+| C-sol | zW1RBacSqjk-2 | 25 | 4 | 3390 |
+| C-sol | leE02uqgaKg-1 | 22 | 3 | 2879 |
+| C-sol | leE02uqgaKg-2 | 18 | 4 | 3056 |
+| C-sol | EqnGQDU71-Y-1 | 23 | 4 | 2920 |
+| C-sol | EqnGQDU71-Y-2 | 23 | 3 | 2664 |
 
 **引用が要る判定（AC-12）:** 引用、誤りを入れた工程、直さなかった工程は下に書く。
 
 <!-- check-record: quotes-needed config=C-sol -->
 | 構成 | 記事 | 観点 | 判定 | 種類 |
 |---|---|---|---|---|
+| C-sol | roNZ-rLxhUE-1 | format_choice | both | required-fail |
+| C-sol | roNZ-rLxhUE-1 | structure | both | quality-1 |
+| C-sol | roNZ-rLxhUE-2 | evidence | literal | required-fail |
+| C-sol | 18tbwwPM91A-1 | structure | both | quality-1 |
+| C-sol | 18tbwwPM91A-2 | structure | both | quality-1 |
+| C-sol | leE02uqgaKg-2 | evidence | both | required-fail |
+| C-sol | EqnGQDU71-Y-2 | evidence | literal | required-fail |
 
 **製品の制約 1〜3（AC-13）:** 引用は下に書く。
 
 <!-- check-record: constraints config=C-sol -->
 | 構成 | 記事 | 制約 1 | 制約 2 | 制約 3 |
 |---|---|---|---|---|
+| C-sol | roNZ-rLxhUE-1 | no | yes | no |
+| C-sol | roNZ-rLxhUE-2 | no | yes | no |
+| C-sol | 18tbwwPM91A-1 | no | yes | no |
+| C-sol | 18tbwwPM91A-2 | no | yes | no |
+| C-sol | zW1RBacSqjk-1 | no | yes | no |
+| C-sol | zW1RBacSqjk-2 | no | yes | no |
+| C-sol | leE02uqgaKg-1 | no | yes | no |
+| C-sol | leE02uqgaKg-2 | yes | yes | no |
+| C-sol | EqnGQDU71-Y-1 | no | yes | yes |
+| C-sol | EqnGQDU71-Y-2 | no | yes | yes |
+
+**失敗した実行と番兵（AC-17）:** なし（10 件とも終了コード `0`）。
+**人が変えた判定（AC-10）:** なし。
+
+**引用（AC-12）:** 必須の観点の不合格と品質の 1 である。「入った」は誤りを入れた工程、「残した」は直さなかった工程である。
+- roNZ-rLxhUE-1 形式の選択（fail / fail）: 「小泉がまず警戒するのは、同盟が正式に解消されることだけではない」（字幕 17:55）。入った: 生成、残した: 検証・推敲。
+- roNZ-rLxhUE-1 構成（1 / 1）: 「小泉はGCAPについても、それさえ配備すれば中国の戦闘機を圧倒し」（字幕 09:51）。入った: 生成、残した: 検証・推敲。
+- roNZ-rLxhUE-2 根拠（pass / fail）: 「――機械化は、人員を補う以外にも意味があるのでしょうか。」（字幕 29:35）。入った: 生成、残した: 検証・推敲。
+- 18tbwwPM91A-1 構成（1 / 1）: 「この差は、ボールを捉える感覚にも表れた」（字幕 10:53）。入った: 生成、残した: 検証・推敲。
+- 18tbwwPM91A-2 構成（1 / 1）: 「逆方向への本塁打にも、同じような驚きがある」（字幕 14:03）。入った: 生成、残した: 検証・推敲。
+- leE02uqgaKg-2 根拠（fail / fail）: 「一方、地球や太陽ほどの質量になると、月や惑星の運動を左右する」（字幕 02:13）。入った: 生成、残した: 検証・推敲。
+- EqnGQDU71-Y-2 根拠（pass / fail）: 「計画で大切にされているのは「町民に愛される場所づくり」である」（字幕 06:21-06:36）。入った: 生成、残した: 検証・推敲。
+
+**製品の制約 1〜3 の引用（AC-13）:**
+- roNZ-rLxhUE-1 制約 2: 「小泉はGCAPについても、それさえ配備すれば中国の戦闘機を圧倒し」（字幕 09:51）
+- roNZ-rLxhUE-2 制約 2: 「――中国との関係調整を考える一方、台湾問題にはどう向き合うべきですか。」（字幕 26:23）
+- 18tbwwPM91A-1 制約 2: 「この差は、ボールを捉える感覚にも表れた」（字幕 10:53）
+- 18tbwwPM91A-2 制約 2: 「逆方向への本塁打にも、同じような驚きがある」（字幕 14:03）
+- zW1RBacSqjk-1 制約 2: 「今回の製品を理解するうえで注意したいのが、Foldの名称である。」（字幕 00:44）
+- zW1RBacSqjk-2 制約 2: 「比較の前提として、今回のモデル名には注意が必要だ。」（字幕 00:44）
+- leE02uqgaKg-1 制約 2: 「この限界を越える試みとして紹介されるのが、自然界の四つの相互作用を統一する研究」（字幕 14:25）
+- leE02uqgaKg-2 制約 1: 「地球や太陽ほどの質量になると、月や惑星の運動を左右する」（字幕 02:13）
+- leE02uqgaKg-2 制約 2: 「その先の目標として示されるのが、重力を含む四つの相互作用を統一する「万物の理論」だ」（字幕 14:25）
+- EqnGQDU71-Y-1 制約 2: 「ここに至る道のりは平坦ではなかった。新博物館のプロジェクトは2018年に始まった」（字幕 01:56）
+- EqnGQDU71-Y-1 制約 3: 「目指すのは、観光客を呼び込むだけでなく、町民が繰り返し訪れ」（字幕 04:31-04:45）
+- EqnGQDU71-Y-2 制約 2: 「町内の事業者にも、新施設を待つ声がある。」（字幕 03:06）
+- EqnGQDU71-Y-2 制約 3: 「目指しているのは、観光客を呼び込むだけでなく、町民が繰り返し訪れ」（字幕 04:31-04:45）
 
 ### 7.2. C-astra
 
@@ -502,18 +625,58 @@ exit=0
 <!-- check-record: runs config=C-astra -->
 | 構成 | 記事 | 回 | `--after` | `YT2COLUMN_LLM` | `YT2COLUMN_REVIEW_LLM` | 開始（UTC） | 終了（UTC） | 終了コード | 生成の識別子 | 字数の調整の識別子 | 検証・推敲の識別子 |
 |---|---|---|---|---|---|---|---|---|---|---|---|
+| C-astra | roNZ-rLxhUE-1 | cur | none | openai/gpt-6-astra+medium | openai/gpt-6-astra+medium | 2026-11-12T06:19:07Z | 2026-11-12T06:20:25Z | 0 | b64fda7cb6996514bd8331c88a2f0630fca514a9870443f7ddbfd70ccc470ab2 | - | d2750c985be02f6609b729d0fb0b3f2ca6e9e2a9bd1ce247b6df94fec0563ad3 |
+| C-astra | roNZ-rLxhUE-2 | cur | none | openai/gpt-6-astra+medium | openai/gpt-6-astra+medium | 2026-11-12T06:19:07Z | 2026-11-12T06:20:12Z | 0 | c4d8cf45870dbb80a24f27368d57018e660cbad37d9333f02214469ee14c0bf7 | - | 818b7630d089df29f5caf8cb27cd06437717ef78e8e44b0a2d035299c8c230ea |
+| C-astra | 18tbwwPM91A-1 | cur | none | openai/gpt-6-astra+medium | openai/gpt-6-astra+medium | 2026-11-12T06:19:07Z | 2026-11-12T06:20:28Z | 0 | cc676646dc9814c26725ff145aadb007a1804b38433d5c52c23a32b1b3deae69 | - | 4cb5cf76437144227bce4dd6323fbe85772c51add45def91a79892e48dc082d1 |
+| C-astra | 18tbwwPM91A-2 | cur | none | openai/gpt-6-astra+medium | openai/gpt-6-astra+medium | 2026-11-12T06:19:07Z | 2026-11-12T06:20:19Z | 0 | 64138a3efc1e7622271a8c2e9e5cb25fdf8b95a2c313da4a6e74bdbcc6db4087 | - | ddee41ef47f46e7ecfaf7b4745d3e4de7da43eab3135b4129787dfef51f7817f |
+| C-astra | zW1RBacSqjk-1 | cur | none | openai/gpt-6-astra+medium | openai/gpt-6-astra+medium | 2026-11-12T06:19:07Z | 2026-11-12T06:20:13Z | 0 | 8f6eebd90a68bc38f464d01140729635c452b9f0c0faa4d72bf9bb3926cfd107 | - | bb9b8e3af43e7784b2cc4e4fad69d07aa2d90be24cd97edd770a3b622871c0d4 |
+| C-astra | zW1RBacSqjk-2 | cur | none | openai/gpt-6-astra+medium | openai/gpt-6-astra+medium | 2026-11-12T06:19:07Z | 2026-11-12T06:20:03Z | 0 | 04c3e415d1fb04bf72c2e22d19c68323355ed85343648ed58e957caf88d9afb1 | - | 5cce63cdc46c0f6bbff552fbedd5b1d6fc20f8c1005e62be73c37b4258cdf3f0 |
+| C-astra | leE02uqgaKg-1 | cur | none | openai/gpt-6-astra+medium | openai/gpt-6-astra+medium | 2026-11-12T06:19:07Z | 2026-11-12T06:20:11Z | 0 | bf283c12b8bdab7197fcfde4afdb15f647fb9febf2226533f83991ed916948b3 | - | f1b6d388c24fdc45cf1e22273acd5fd284a0a29297abd3b44e32f678cca410a0 |
+| C-astra | leE02uqgaKg-2 | cur | none | openai/gpt-6-astra+medium | openai/gpt-6-astra+medium | 2026-11-12T06:19:07Z | 2026-11-12T06:20:12Z | 0 | 6880d8f6531c6902da740be1f5f5a4be37377f0bf1ecb5e94d0cde7861e4abe7 | - | 5b43db984f99472254abe5d62a402a46cf83738ae9dd5619c5b24d8c40769485 |
+| C-astra | EqnGQDU71-Y-1 | cur | none | openai/gpt-6-astra+medium | openai/gpt-6-astra+medium | 2026-11-12T06:19:07Z | 2026-11-12T06:19:57Z | 0 | 8a6062128a35bddec1fce1624d48f532b0dc08873fe879aff775163a41eb39a5 | - | ee444d2cd03148b9830076bb3ba4f676d41291258fa3083c9dfe1c2d7fd6cd81 |
+| C-astra | EqnGQDU71-Y-2 | cur | none | openai/gpt-6-astra+medium | openai/gpt-6-astra+medium | 2026-11-12T06:19:07Z | 2026-11-12T06:19:59Z | 0 | 268f484dbcb6761d08b490569a4fed31ef222dc7622f8c9464e600baac722d7f | - | 8ab2fca07f0547be53cbdea56a4e53887cd85b10262c24a0e4bb0594b982aed9 |
 
 **トークン数と推定コスト（AC-14）:** 工程ごとの CLI の値である。「再利用した実行」は、再開で呼ばなかった工程の値の出どころ（B3 の記事）を示す。
 
 <!-- check-record: stage-usage config=C-astra -->
 | 構成 | 記事 | 回 | 工程 | 出どころ | 使用量 | 入力 | キャッシュから読んだ入力 | キャッシュに書いた入力 | 出力 | モデル | 推定コスト（USD） | 不明の理由 | 再利用した実行 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| C-astra | roNZ-rLxhUE-1 | cur | generation | run | known | 3 | 17300 | 0 | 3246 | gpt-6-astra | 0.179630 | - | - |
+| C-astra | roNZ-rLxhUE-1 | cur | review | run | known | 3 | 0 | 15308 | 474 | gpt-6-astra | 0.215080 | - | - |
+| C-astra | roNZ-rLxhUE-2 | cur | generation | run | known | 3 | 5386 | 11914 | 3047 | gpt-6-astra | 0.306691 | - | - |
+| C-astra | roNZ-rLxhUE-2 | cur | review | run | known | 3 | 0 | 15143 | 87 | gpt-6-astra | 0.193668 | - | - |
+| C-astra | 18tbwwPM91A-1 | cur | generation | run | known | 3 | 13328 | 0 | 2901 | gpt-6-astra | 0.158408 | - | - |
+| C-astra | 18tbwwPM91A-1 | cur | review | run | known | 3 | 0 | 11017 | 633 | gpt-6-astra | 0.169393 | - | - |
+| C-astra | 18tbwwPM91A-2 | cur | generation | run | known | 3 | 5386 | 7942 | 2945 | gpt-6-astra | 0.251941 | - | - |
+| C-astra | 18tbwwPM91A-2 | cur | review | run | known | 3 | 0 | 11061 | 374 | gpt-6-astra | 0.156993 | - | - |
+| C-astra | zW1RBacSqjk-1 | cur | generation | run | known | 3 | 11854 | 0 | 2750 | gpt-6-astra | 0.149384 | - | - |
+| C-astra | zW1RBacSqjk-1 | cur | review | run | known | 3 | 0 | 9393 | 281 | gpt-6-astra | 0.131493 | - | - |
+| C-astra | zW1RBacSqjk-2 | cur | generation | run | known | 3 | 5386 | 6468 | 2633 | gpt-6-astra | 0.217916 | - | - |
+| C-astra | zW1RBacSqjk-2 | cur | review | run | known | 3 | 0 | 9282 | 91 | gpt-6-astra | 0.120605 | - | - |
+| C-astra | leE02uqgaKg-1 | cur | generation | run | known | 3 | 0 | 12384 | 2930 | gpt-6-astra | 0.301330 | - | - |
+| C-astra | leE02uqgaKg-1 | cur | review | run | known | 3 | 0 | 10065 | 74 | gpt-6-astra | 0.129543 | - | - |
+| C-astra | leE02uqgaKg-2 | cur | generation | run | known | 3 | 0 | 12384 | 2916 | gpt-6-astra | 0.300630 | - | - |
+| C-astra | leE02uqgaKg-2 | cur | review | run | known | 3 | 0 | 9899 | 67 | gpt-6-astra | 0.127118 | - | - |
+| C-astra | EqnGQDU71-Y-1 | cur | generation | run | known | 3 | 0 | 9497 | 2491 | gpt-6-astra | 0.243293 | - | - |
+| C-astra | EqnGQDU71-Y-1 | cur | review | run | known | 3 | 0 | 6716 | 58 | gpt-6-astra | 0.086880 | - | - |
+| C-astra | EqnGQDU71-Y-2 | cur | generation | run | known | 3 | 9497 | 0 | 2530 | gpt-6-astra | 0.136027 | - | - |
+| C-astra | EqnGQDU71-Y-2 | cur | review | run | known | 3 | 0 | 6724 | 48 | gpt-6-astra | 0.086480 | - | - |
 
 **記事ごとの推定コストと所要時間（AC-14・AC-16）:** 所要時間は記事を作った工程の時間の和で、10 件を並列に起動して測った値である（基準の構成と同じ。0018 評価記録 §4.8）。
 
 <!-- check-record: run-costs config=C-astra -->
 | 構成 | 記事 | 回 | 終了コード | この実行（USD） | 記事（USD） | 実行の時間 | 所要時間 | 比較に使う |
 |---|---|---|---|---|---|---|---|---|
+| C-astra | roNZ-rLxhUE-1 | cur | 0 | 0.394710 | 0.394710 | 1:18.0 | 1:18.0 | yes |
+| C-astra | roNZ-rLxhUE-2 | cur | 0 | 0.500359 | 0.500359 | 1:05.2 | 1:05.2 | yes |
+| C-astra | 18tbwwPM91A-1 | cur | 0 | 0.327801 | 0.327801 | 1:20.4 | 1:20.4 | yes |
+| C-astra | 18tbwwPM91A-2 | cur | 0 | 0.408934 | 0.408934 | 1:12.1 | 1:12.1 | yes |
+| C-astra | zW1RBacSqjk-1 | cur | 0 | 0.280877 | 0.280877 | 1:05.3 | 1:05.3 | yes |
+| C-astra | zW1RBacSqjk-2 | cur | 0 | 0.338521 | 0.338521 | 0:56.1 | 0:56.1 | yes |
+| C-astra | leE02uqgaKg-1 | cur | 0 | 0.430873 | 0.430873 | 1:04.2 | 1:04.2 | yes |
+| C-astra | leE02uqgaKg-2 | cur | 0 | 0.427748 | 0.427748 | 1:04.6 | 1:04.6 | yes |
+| C-astra | EqnGQDU71-Y-1 | cur | 0 | 0.330173 | 0.330173 | 0:49.6 | 0:49.6 | yes |
+| C-astra | EqnGQDU71-Y-2 | cur | 0 | 0.222507 | 0.222507 | 0:51.5 | 0:51.5 | yes |
 
 **失敗した実行とやり直し（AC-17）:** 番兵は主セッションが標準エラーを読んで下に記録し、人が確認する。
 
@@ -530,30 +693,106 @@ exit=0
 <!-- check-record: judgments config=C-astra -->
 | 構成 | 記事 | 形式の選択 | 形式の規則 | 根拠 | 長さ | 表記 | 網羅 | 重要度 | 構成（観点） | 読みやすさ | タイトル・リード文 | 冗長さ | 目標（解釈） | 目標（文言） |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| C-astra | roNZ-rLxhUE-1 | fail/fail | pass/pass | pass/pass | pass/pass | pass/pass | 2/2 | 2/2 | 2/2 | 3/3 | 3/3 | 2/2 | no | no |
+| C-astra | roNZ-rLxhUE-2 | fail/fail | pass/pass | pass/pass | pass/pass | pass/pass | 2/2 | 2/2 | 2/2 | 3/3 | 3/3 | 1/1 | no | no |
+| C-astra | 18tbwwPM91A-1 | pass/pass | pass/pass | pass/pass | pass/pass | pass/pass | 2/2 | 3/3 | 1/1 | 3/3 | 2/2 | 2/2 | no | no |
+| C-astra | 18tbwwPM91A-2 | pass/pass | pass/pass | pass/pass | pass/pass | pass/pass | 2/2 | 3/3 | 1/1 | 3/3 | 3/3 | 2/2 | no | no |
+| C-astra | zW1RBacSqjk-1 | pass/pass | pass/pass | pass/pass | pass/pass | pass/pass | 3/3 | 3/3 | 2/2 | 3/3 | 3/3 | 2/2 | yes | yes |
+| C-astra | zW1RBacSqjk-2 | pass/pass | pass/pass | pass/pass | pass/pass | pass/pass | 3/3 | 3/3 | 2/2 | 3/3 | 3/3 | 2/2 | yes | yes |
+| C-astra | leE02uqgaKg-1 | pass/pass | pass/pass | fail/fail | pass/pass | pass/pass | 2/2 | 3/3 | 3/3 | 3/3 | 3/3 | 2/2 | no | no |
+| C-astra | leE02uqgaKg-2 | pass/pass | pass/pass | pass/pass | pass/pass | pass/pass | 2/2 | 3/3 | 2/2 | 3/3 | 2/2 | 2/2 | yes | yes |
+| C-astra | EqnGQDU71-Y-1 | pass/pass | pass/pass | pass/fail | pass/pass | pass/pass | 3/3 | 2/2 | 2/2 | 3/3 | 3/3 | 2/2 | yes | no |
+| C-astra | EqnGQDU71-Y-2 | pass/pass | pass/pass | pass/fail | pass/pass | pass/pass | 3/3 | 2/2 | 2/2 | 3/3 | 3/3 | 2/2 | yes | no |
 
 **判定者（AC-10）:** `script` はスクリプト、`llm` は LLM、`llm+human` は人が確認して変えなかった LLM の判定、`human` は人が変えた判定である。人が変えた判定と理由は下に書く。
 
 <!-- check-record: judges config=C-astra -->
 | 構成 | 記事 | 形式の選択 | 形式の規則 | 根拠 | 長さ | 表記 | 網羅 | 重要度 | 構成（観点） | 読みやすさ | タイトル・リード文 | 冗長さ | 制約 1 | 制約 2 | 制約 3 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| C-astra | roNZ-rLxhUE-1 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
+| C-astra | roNZ-rLxhUE-2 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
+| C-astra | 18tbwwPM91A-1 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
+| C-astra | 18tbwwPM91A-2 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
+| C-astra | zW1RBacSqjk-1 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
+| C-astra | zW1RBacSqjk-2 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
+| C-astra | leE02uqgaKg-1 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
+| C-astra | leE02uqgaKg-2 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
+| C-astra | EqnGQDU71-Y-1 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
+| C-astra | EqnGQDU71-Y-2 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
 
 **機械的な値（AC-09）:** `check_article.py` の出力である。
 
 <!-- check-record: article-checks config=C-astra -->
 | 構成 | 記事 | タイトルの字数 | 節の数 | 長さ |
 |---|---|---|---|---|
+| C-astra | roNZ-rLxhUE-1 | 19 | 5 | 3712 |
+| C-astra | roNZ-rLxhUE-2 | 19 | 5 | 3541 |
+| C-astra | 18tbwwPM91A-1 | 21 | 4 | 3364 |
+| C-astra | 18tbwwPM91A-2 | 22 | 4 | 3386 |
+| C-astra | zW1RBacSqjk-1 | 22 | 4 | 3483 |
+| C-astra | zW1RBacSqjk-2 | 28 | 4 | 3354 |
+| C-astra | leE02uqgaKg-1 | 15 | 4 | 3395 |
+| C-astra | leE02uqgaKg-2 | 15 | 4 | 3171 |
+| C-astra | EqnGQDU71-Y-1 | 23 | 3 | 2753 |
+| C-astra | EqnGQDU71-Y-2 | 23 | 3 | 2755 |
 
 **引用が要る判定（AC-12）:** 引用、誤りを入れた工程、直さなかった工程は下に書く。
 
 <!-- check-record: quotes-needed config=C-astra -->
 | 構成 | 記事 | 観点 | 判定 | 種類 |
 |---|---|---|---|---|
+| C-astra | roNZ-rLxhUE-1 | format_choice | both | required-fail |
+| C-astra | roNZ-rLxhUE-2 | format_choice | both | required-fail |
+| C-astra | roNZ-rLxhUE-2 | redundancy | both | quality-1 |
+| C-astra | 18tbwwPM91A-1 | structure | both | quality-1 |
+| C-astra | 18tbwwPM91A-2 | structure | both | quality-1 |
+| C-astra | leE02uqgaKg-1 | evidence | both | required-fail |
+| C-astra | EqnGQDU71-Y-1 | evidence | literal | required-fail |
+| C-astra | EqnGQDU71-Y-2 | evidence | literal | required-fail |
 
 **製品の制約 1〜3（AC-13）:** 引用は下に書く。
 
 <!-- check-record: constraints config=C-astra -->
 | 構成 | 記事 | 制約 1 | 制約 2 | 制約 3 |
 |---|---|---|---|---|
+| C-astra | roNZ-rLxhUE-1 | no | yes | no |
+| C-astra | roNZ-rLxhUE-2 | no | yes | no |
+| C-astra | 18tbwwPM91A-1 | no | yes | no |
+| C-astra | 18tbwwPM91A-2 | no | yes | no |
+| C-astra | zW1RBacSqjk-1 | no | yes | no |
+| C-astra | zW1RBacSqjk-2 | yes | yes | no |
+| C-astra | leE02uqgaKg-1 | yes | no | no |
+| C-astra | leE02uqgaKg-2 | no | yes | no |
+| C-astra | EqnGQDU71-Y-1 | no | yes | yes |
+| C-astra | EqnGQDU71-Y-2 | no | yes | yes |
+
+**失敗した実行と番兵（AC-17）:** なし（10 件とも終了コード `0`）。
+**人が変えた判定（AC-10）:** なし。
+
+**引用（AC-12）:** 必須の観点の不合格と品質の 1 である。「入った」は誤りを入れた工程、「残した」は直さなかった工程である。
+- roNZ-rLxhUE-1 形式の選択（fail / fail）: 「小泉が日本の安全保障を考えるうえで重視するのは、米国が…関与を減らしていく可能性だ」（字幕 21:21）。入った: 生成、残した: 検証・推敲。
+- roNZ-rLxhUE-2 形式の選択（fail / fail）: 「小泉は、米国のNATO脱退はあり得るとしつつ、まず懸念するのは同盟の形骸化だと指摘する」（字幕 17:55）。入った: 生成、残した: 検証・推敲。
+- roNZ-rLxhUE-2 冗長さ（1 / 1）: 「各機関が持つ能力を…集約できるようにすることに意義を見いだしている」（字幕 11:24）。入った: 生成、残した: 検証・推敲。
+- 18tbwwPM91A-1 構成（1 / 1）: 「では、その力を打球に伝える際には何を意識していたのか」（字幕 12:15）。入った: 生成、残した: 検証・推敲。
+- 18tbwwPM91A-2 構成（1 / 1）: 「## 「天才」という評価を生んだ意識と動きのずれ」（字幕 08:05）。入った: 生成、残した: 検証・推敲。
+- leE02uqgaKg-1 根拠（fail / fail）: 「一方、地球や太陽ほどの質量になると、月や惑星の運動を左右する力となる」（字幕 02:13）。入った: 生成、残した: 検証・推敲。
+- EqnGQDU71-Y-1 根拠（pass / fail）: 「展示の充実とともに大切にされているのは、学校教育や日々の暮らしの中でも利用できる」（字幕 06:21-07:00）。入った: 生成、残した: 検証・推敲。
+- EqnGQDU71-Y-2 根拠（pass / fail）: 「新しい博物館の計画で大切にされているのは、「町民に愛される場所づくり」だ」（字幕 06:21-06:36）。入った: 生成、残した: 検証・推敲。
+
+**製品の制約 1〜3 の引用（AC-13）:**
+- roNZ-rLxhUE-1 制約 2: 「だからといって、小泉は日本の核保有を望ましい選択肢とは考えていない」（字幕 23:46）
+- roNZ-rLxhUE-2 制約 2: 「小泉は、日本の核保有を望ましい選択肢とは考えていない」（字幕 23:46）
+- 18tbwwPM91A-1 制約 2: 「では、その力を打球に伝える際には何を意識していたのか」（字幕 12:15）
+- 18tbwwPM91A-2 制約 2: 「その違いがよく表れたのが、練習で打球に角度をつけるかどうかという話だった」（字幕 08:05）
+- zW1RBacSqjk-1 制約 2: 「ここで整理しておきたいのが製品名である。」（字幕 00:44）
+- zW1RBacSqjk-2 制約 1: 「別に追加された横長の「Galaxy Z Fold8」（字幕 00:58）
+- zW1RBacSqjk-2 制約 2: 「製品名には注意が必要だ。」（字幕 00:44）
+- leE02uqgaKg-1 制約 1: 「地球や太陽ほどの質量になると、月や惑星の運動を左右する」（字幕 02:13）
+- leE02uqgaKg-2 制約 2: 「一般相対性理論の成果の一つが、重力によって光が曲がって見える現象の説明である」（字幕 13:20）
+- EqnGQDU71-Y-1 制約 2: 「町のにぎわいへの期待もある。」（字幕 03:25）
+- EqnGQDU71-Y-1 制約 3: 「目指すのは、観光客を呼び込むだけでなく、町民が繰り返し訪れ」（字幕 04:31-04:45）
+- EqnGQDU71-Y-2 制約 2: 「町で恐竜を軸に活動する人の期待も大きい。」（字幕 03:25）
+- EqnGQDU71-Y-2 制約 3: 「新しい博物館の計画で大切にされているのは、「町民に愛される場所づくり」だ」（字幕 06:21）
 
 ### 7.3. A-sol
 
@@ -564,24 +803,75 @@ exit=0
 <!-- check-record: runs config=A-sol -->
 | 構成 | 記事 | 回 | `--after` | `YT2COLUMN_LLM` | `YT2COLUMN_REVIEW_LLM` | 開始（UTC） | 終了（UTC） | 終了コード | 生成の識別子 | 字数の調整の識別子 | 検証・推敲の識別子 |
 |---|---|---|---|---|---|---|---|---|---|---|---|
+| A-sol | roNZ-rLxhUE-1 | cur | shorten | claude/claude-opus-5-5+high | openai/gpt-6.1-sol+medium | 2026-11-12T06:49:45Z | 2026-11-12T06:50:08Z | 0 | 03c1ede250eb2c3c47c5852517591a118a9a538bf6dbbed6e1f4f5a0b878d8a2 | 20b0f8a8b5cf47e68aa6bd7f4b5a125a23cf275b34e7b1e850f84d0075d5cf23 | 9e4f68dce0a7642c9a2d77220a5f6a2b6ffabd5f10e9b8ad0228a738ce0c4d7f |
+| A-sol | roNZ-rLxhUE-2 | cur | generation | claude/claude-opus-5-5+high | openai/gpt-6.1-sol+medium | 2026-11-12T06:49:45Z | 2026-11-12T06:50:06Z | 0 | 5bda51c848e127581a5de52775a303e88aaab1764a2eb8490a880ea34ae44590 | - | c0ff520a41c0cdea5fa234fa4ab9b06c739cf6c20e2d767f9e71f99893cd9af2 |
+| A-sol | 18tbwwPM91A-1 | cur | generation | claude/claude-opus-5-5+high | openai/gpt-6.1-sol+medium | 2026-11-12T06:49:45Z | 2026-11-12T06:50:05Z | 0 | 1e3318a27b36f02dd18aca1ddeb8b5b9a0fdaf0f7a5fe7f805bf424d5692180c | - | f243538a753f2e44880392ee31e59142c6e611f6e35cdd618338334e13b0dfa3 |
+| A-sol | 18tbwwPM91A-2 | cur | generation | claude/claude-opus-5-5+high | openai/gpt-6.1-sol+medium | 2026-11-12T06:49:45Z | 2026-11-12T06:50:08Z | 0 | e5fed9a5b44e405ea9118cdaad6c906f97ec3e742dba756298bfaa42f979acfd | - | 97ae484d9bd18f5e0ec493a73419015557253aaf02575bf87b53d066864cb135 |
+| A-sol | zW1RBacSqjk-1 | cur | generation | claude/claude-opus-5-5+high | openai/gpt-6.1-sol+medium | 2026-11-12T06:49:45Z | 2026-11-12T06:49:57Z | 0 | 91df9b370bfebe180a757d97cd616cd6a61be53f4b386b3878ad1379db34d1c0 | - | 3dfed833bebc34ec9973a43cb2d95cfbaca847dfd3555174a462880aabeea343 |
+| A-sol | zW1RBacSqjk-2 | cur | generation | claude/claude-opus-5-5+high | openai/gpt-6.1-sol+medium | 2026-11-12T06:49:45Z | 2026-11-12T06:49:58Z | 0 | 84a90816f744317836154fd3291ad9900385af7d4a86b2a342cef425f6651371 | - | 6c1a83ebc2905f78d7acd3ff92f022a39c258de89da993e9d880207118280ae8 |
+| A-sol | leE02uqgaKg-1 | cur | generation | claude/claude-opus-5-5+high | openai/gpt-6.1-sol+medium | 2026-11-12T06:49:45Z | 2026-11-12T06:49:53Z | 0 | 433784761850152cb0a2bd731486b78ae2c6ced7f8ddde03254610efdeb921da | - | 3c5999215fef189e924209adace17ebf10143a88d4fe134ade35cab38006e8e7 |
+| A-sol | leE02uqgaKg-2 | cur | generation | claude/claude-opus-5-5+high | openai/gpt-6.1-sol+medium | 2026-11-12T06:49:45Z | 2026-11-12T06:49:59Z | 0 | 62e7949eaf11428fb1f882ac95d4b0117d461775758d0c62287c1992c3fe3156 | - | 81055843a5db6dcea6f022130df72362d48735aacbfac0eaa05e61b8e346f5ef |
+| A-sol | EqnGQDU71-Y-1 | cur | generation | claude/claude-opus-5-5+high | openai/gpt-6.1-sol+medium | 2026-11-12T06:49:45Z | 2026-11-12T06:49:55Z | 0 | b4a117332422b30bf1ddb6d2d45e6bbbe10a7536c25b833b95e398ead8f06f84 | - | ae050e8736ee1c8724e527312f91f8c44659e0bd467ee9c076c9932a0c2196d6 |
+| A-sol | EqnGQDU71-Y-2 | cur | generation | claude/claude-opus-5-5+high | openai/gpt-6.1-sol+medium | 2026-11-12T06:49:45Z | 2026-11-12T06:49:53Z | 0 | 5c6d599b6e2401b64cbf8844de7c550848455724bb85401d2b28b7e183d1c4f2 | - | 64fd55e8dba55b01a3524e9d109d5d5e210ca22c0ccdeacf0457cca305dbce7f |
 
 **再開と識別子（AC-03）:** 再利用した保存した出力の識別子が基準の構成と一致すること、字数の調整を実行していないことである。
 
 <!-- check-record: resume-identity config=A-sol -->
 | 構成 | 記事 | `--after` | 生成の一致 | 字数の調整の一致 | 字数の調整を実行 | 手順から外れた |
 |---|---|---|---|---|---|---|
+| A-sol | roNZ-rLxhUE-1 | shorten | yes | yes | no | no |
+| A-sol | roNZ-rLxhUE-2 | generation | yes | - | no | no |
+| A-sol | 18tbwwPM91A-1 | generation | yes | - | no | no |
+| A-sol | 18tbwwPM91A-2 | generation | yes | - | no | no |
+| A-sol | zW1RBacSqjk-1 | generation | yes | - | no | no |
+| A-sol | zW1RBacSqjk-2 | generation | yes | - | no | no |
+| A-sol | leE02uqgaKg-1 | generation | yes | - | no | no |
+| A-sol | leE02uqgaKg-2 | generation | yes | - | no | no |
+| A-sol | EqnGQDU71-Y-1 | generation | yes | - | no | no |
+| A-sol | EqnGQDU71-Y-2 | generation | yes | - | no | no |
 
 **トークン数と推定コスト（AC-14）:** 工程ごとの CLI の値である。「再利用した実行」は、再開で呼ばなかった工程の値の出どころ（B3 の記事）を示す。
 
 <!-- check-record: stage-usage config=A-sol -->
 | 構成 | 記事 | 回 | 工程 | 出どころ | 使用量 | 入力 | キャッシュから読んだ入力 | キャッシュに書いた入力 | 出力 | モデル | 推定コスト（USD） | 不明の理由 | 再利用した実行 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| A-sol | roNZ-rLxhUE-1 | cur | generation | reused | known | 21451 | 0 | 0 | 10986 | claude-opus-5-5 | 0.305524 | - | B3:roNZ-rLxhUE-1 |
+| A-sol | roNZ-rLxhUE-1 | cur | shorten | reused | known | 4663 | 0 | 0 | 7371 | claude-opus-5-5 | 0.166072 | - | B3:roNZ-rLxhUE-1 |
+| A-sol | roNZ-rLxhUE-1 | cur | review | run | known | 3 | 0 | 15213 | 1207 | gpt-6.1-sol | 0.050109 | - | - |
+| A-sol | roNZ-rLxhUE-2 | cur | generation | reused | known | 21451 | 0 | 0 | 11122 | claude-opus-5-5 | 0.308244 | - | B3:roNZ-rLxhUE-2 |
+| A-sol | roNZ-rLxhUE-2 | cur | review | run | known | 3 | 0 | 15101 | 951 | gpt-6.1-sol | 0.047269 | - | - |
+| A-sol | 18tbwwPM91A-1 | cur | generation | reused | known | 16528 | 0 | 0 | 13688 | claude-opus-5-5 | 0.339872 | - | B3:18tbwwPM91A-1 |
+| A-sol | 18tbwwPM91A-1 | cur | review | run | known | 3 | 0 | 11017 | 967 | gpt-6.1-sol | 0.037219 | - | - |
+| A-sol | 18tbwwPM91A-2 | cur | generation | reused | known | 16528 | 0 | 0 | 13442 | claude-opus-5-5 | 0.334952 | - | B3:18tbwwPM91A-2 |
+| A-sol | 18tbwwPM91A-2 | cur | review | run | known | 3 | 0 | 11264 | 1150 | gpt-6.1-sol | 0.039666 | - | - |
+| A-sol | zW1RBacSqjk-1 | cur | generation | reused | known | 14937 | 0 | 0 | 7966 | claude-opus-5-5 | 0.219068 | - | B3:zW1RBacSqjk-1 |
+| A-sol | zW1RBacSqjk-1 | cur | review | run | known | 3 | 0 | 9298 | 437 | gpt-6.1-sol | 0.027621 | - | - |
+| A-sol | zW1RBacSqjk-2 | cur | generation | reused | known | 14937 | 0 | 0 | 7739 | claude-opus-5-5 | 0.214528 | - | B3:zW1RBacSqjk-2 |
+| A-sol | zW1RBacSqjk-2 | cur | review | run | known | 3 | 0 | 9398 | 443 | gpt-6.1-sol | 0.027931 | - | - |
+| A-sol | leE02uqgaKg-1 | cur | generation | reused | known | 15041 | 0 | 0 | 7712 | claude-opus-5-5 | 0.214404 | - | B3:leE02uqgaKg-1 |
+| A-sol | leE02uqgaKg-1 | cur | review | run | known | 3 | 0 | 10287 | 134 | gpt-6.1-sol | 0.027064 | - | - |
+| A-sol | leE02uqgaKg-2 | cur | generation | reused | known | 15041 | 0 | 0 | 5623 | claude-opus-5-5 | 0.172624 | - | B3:leE02uqgaKg-2 |
+| A-sol | leE02uqgaKg-2 | cur | review | run | known | 3 | 0 | 10193 | 578 | gpt-6.1-sol | 0.031269 | - | - |
+| A-sol | EqnGQDU71-Y-1 | cur | generation | reused | known | 11377 | 0 | 0 | 5030 | claude-opus-5-5 | 0.146108 | - | B3:EqnGQDU71-Y-1 |
+| A-sol | EqnGQDU71-Y-1 | cur | review | run | known | 3 | 0 | 6430 | 453 | gpt-6.1-sol | 0.020611 | - | - |
+| A-sol | EqnGQDU71-Y-2 | cur | generation | reused | known | 11377 | 0 | 0 | 5114 | claude-opus-5-5 | 0.147788 | - | B3:EqnGQDU71-Y-2 |
+| A-sol | EqnGQDU71-Y-2 | cur | review | run | known | 3 | 0 | 6422 | 369 | gpt-6.1-sol | 0.019751 | - | - |
 
 **記事ごとの推定コストと所要時間（AC-14・AC-16）:** 所要時間は記事を作った工程の時間の和で、10 件を並列に起動して測った値である（基準の構成と同じ。0018 評価記録 §4.8）。構成 A は B3 の 1 段目の生成の時間を足し、roNZ-rLxhUE-1 には B3 のやり直しの字数の調整の時間も足す。
 
 <!-- check-record: run-costs config=A-sol -->
 | 構成 | 記事 | 回 | 終了コード | この実行（USD） | 記事（USD） | 実行の時間 | 所要時間 | 比較に使う |
 |---|---|---|---|---|---|---|---|---|
+| A-sol | roNZ-rLxhUE-1 | cur | 0 | 0.050109 | 0.521705 | 0:23.0 | 3:03.7 | yes |
+| A-sol | roNZ-rLxhUE-2 | cur | 0 | 0.047269 | 0.355513 | 0:21.3 | 2:07.4 | yes |
+| A-sol | 18tbwwPM91A-1 | cur | 0 | 0.037219 | 0.377091 | 0:20.1 | 2:35.5 | yes |
+| A-sol | 18tbwwPM91A-2 | cur | 0 | 0.039666 | 0.374618 | 0:23.1 | 2:36.2 | yes |
+| A-sol | zW1RBacSqjk-1 | cur | 0 | 0.027621 | 0.246689 | 0:11.9 | 1:27.3 | yes |
+| A-sol | zW1RBacSqjk-2 | cur | 0 | 0.027931 | 0.242459 | 0:12.8 | 1:24.8 | yes |
+| A-sol | leE02uqgaKg-1 | cur | 0 | 0.027064 | 0.241468 | 0:07.8 | 1:19.3 | yes |
+| A-sol | leE02uqgaKg-2 | cur | 0 | 0.031269 | 0.203893 | 0:14.0 | 1:07.0 | yes |
+| A-sol | EqnGQDU71-Y-1 | cur | 0 | 0.020611 | 0.166719 | 0:09.7 | 0:58.9 | yes |
+| A-sol | EqnGQDU71-Y-2 | cur | 0 | 0.019751 | 0.167539 | 0:07.9 | 0:57.6 | yes |
 
 **失敗した実行とやり直し（AC-17）:** 番兵は主セッションが標準エラーを読んで下に記録し、人が確認する。
 
@@ -598,30 +888,102 @@ exit=0
 <!-- check-record: judgments config=A-sol -->
 | 構成 | 記事 | 形式の選択 | 形式の規則 | 根拠 | 長さ | 表記 | 網羅 | 重要度 | 構成（観点） | 読みやすさ | タイトル・リード文 | 冗長さ | 目標（解釈） | 目標（文言） |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| A-sol | roNZ-rLxhUE-1 | pass/pass | pass/pass | pass/fail | pass/pass | pass/pass | 3/3 | 2/2 | 2/2 | 3/3 | 3/3 | 2/2 | yes | no |
+| A-sol | roNZ-rLxhUE-2 | pass/pass | pass/pass | pass/pass | pass/pass | pass/pass | 3/3 | 2/2 | 3/3 | 1/1 | 3/3 | 2/2 | no | no |
+| A-sol | 18tbwwPM91A-1 | pass/pass | pass/pass | pass/pass | pass/pass | pass/pass | 2/2 | 2/2 | 2/2 | 3/3 | 3/3 | 3/3 | yes | yes |
+| A-sol | 18tbwwPM91A-2 | pass/pass | pass/pass | pass/pass | pass/pass | pass/pass | 3/3 | 2/2 | 1/1 | 3/3 | 3/3 | 3/3 | no | no |
+| A-sol | zW1RBacSqjk-1 | pass/pass | pass/pass | pass/fail | pass/pass | pass/pass | 3/3 | 2/2 | 2/2 | 3/3 | 3/3 | 3/3 | yes | no |
+| A-sol | zW1RBacSqjk-2 | pass/pass | pass/pass | pass/pass | pass/pass | pass/pass | 3/3 | 2/2 | 2/2 | 2/2 | 3/3 | 3/3 | yes | yes |
+| A-sol | leE02uqgaKg-1 | pass/pass | pass/pass | pass/pass | pass/pass | pass/pass | 3/3 | 2/2 | 3/3 | 3/3 | 3/3 | 2/2 | yes | yes |
+| A-sol | leE02uqgaKg-2 | pass/pass | pass/pass | fail/fail | pass/pass | pass/pass | 3/3 | 2/2 | 3/3 | 3/3 | 3/3 | 3/3 | no | no |
+| A-sol | EqnGQDU71-Y-1 | pass/pass | pass/pass | pass/fail | pass/pass | pass/pass | 3/3 | 2/2 | 2/2 | 3/3 | 3/3 | 3/3 | yes | no |
+| A-sol | EqnGQDU71-Y-2 | pass/pass | pass/pass | pass/fail | pass/pass | pass/pass | 3/3 | 2/2 | 2/2 | 3/3 | 3/3 | 3/3 | yes | no |
 
 **判定者（AC-10）:** `script` はスクリプト、`llm` は LLM、`llm+human` は人が確認して変えなかった LLM の判定、`human` は人が変えた判定である。人が変えた判定と理由は下に書く。
 
 <!-- check-record: judges config=A-sol -->
 | 構成 | 記事 | 形式の選択 | 形式の規則 | 根拠 | 長さ | 表記 | 網羅 | 重要度 | 構成（観点） | 読みやすさ | タイトル・リード文 | 冗長さ | 制約 1 | 制約 2 | 制約 3 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| A-sol | roNZ-rLxhUE-1 | llm+human | llm+human | human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
+| A-sol | roNZ-rLxhUE-2 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
+| A-sol | 18tbwwPM91A-1 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
+| A-sol | 18tbwwPM91A-2 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
+| A-sol | zW1RBacSqjk-1 | llm+human | llm+human | human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
+| A-sol | zW1RBacSqjk-2 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
+| A-sol | leE02uqgaKg-1 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
+| A-sol | leE02uqgaKg-2 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
+| A-sol | EqnGQDU71-Y-1 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
+| A-sol | EqnGQDU71-Y-2 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
 
 **機械的な値（AC-09）:** `check_article.py` の出力である。
 
 <!-- check-record: article-checks config=A-sol -->
 | 構成 | 記事 | タイトルの字数 | 節の数 | 長さ |
 |---|---|---|---|---|
+| A-sol | roNZ-rLxhUE-1 | 23 | 5 | 3735 |
+| A-sol | roNZ-rLxhUE-2 | 26 | 5 | 3603 |
+| A-sol | 18tbwwPM91A-1 | 28 | 5 | 3392 |
+| A-sol | 18tbwwPM91A-2 | 27 | 5 | 3731 |
+| A-sol | zW1RBacSqjk-1 | 38 | 4 | 3454 |
+| A-sol | zW1RBacSqjk-2 | 38 | 5 | 3642 |
+| A-sol | leE02uqgaKg-1 | 26 | 5 | 3548 |
+| A-sol | leE02uqgaKg-2 | 31 | 5 | 3399 |
+| A-sol | EqnGQDU71-Y-1 | 30 | 4 | 2331 |
+| A-sol | EqnGQDU71-Y-2 | 28 | 4 | 2336 |
 
 **引用が要る判定（AC-12）:** 引用、誤りを入れた工程、直さなかった工程は下に書く。
 
 <!-- check-record: quotes-needed config=A-sol -->
 | 構成 | 記事 | 観点 | 判定 | 種類 |
 |---|---|---|---|---|
+| A-sol | roNZ-rLxhUE-1 | evidence | literal | required-fail |
+| A-sol | roNZ-rLxhUE-2 | readability | both | quality-1 |
+| A-sol | 18tbwwPM91A-2 | structure | both | quality-1 |
+| A-sol | zW1RBacSqjk-1 | evidence | literal | required-fail |
+| A-sol | leE02uqgaKg-2 | evidence | both | required-fail |
+| A-sol | EqnGQDU71-Y-1 | evidence | literal | required-fail |
+| A-sol | EqnGQDU71-Y-2 | evidence | literal | required-fail |
 
 **製品の制約 1〜3（AC-13）:** 引用は下に書く。
 
 <!-- check-record: constraints config=A-sol -->
 | 構成 | 記事 | 制約 1 | 制約 2 | 制約 3 |
 |---|---|---|---|---|
+| A-sol | roNZ-rLxhUE-1 | no | no | no |
+| A-sol | roNZ-rLxhUE-2 | no | no | no |
+| A-sol | 18tbwwPM91A-1 | no | no | no |
+| A-sol | 18tbwwPM91A-2 | no | yes | no |
+| A-sol | zW1RBacSqjk-1 | yes | yes | no |
+| A-sol | zW1RBacSqjk-2 | no | yes | no |
+| A-sol | leE02uqgaKg-1 | no | no | no |
+| A-sol | leE02uqgaKg-2 | yes | no | no |
+| A-sol | EqnGQDU71-Y-1 | no | yes | yes |
+| A-sol | EqnGQDU71-Y-2 | no | yes | yes |
+
+**失敗した実行と番兵（AC-17）:** なし（10 件とも終了コード `0`）。
+**人が変えた判定（AC-10）:**
+- roNZ-rLxhUE-1 の根拠: 英伊が日本と組む動機の推測を、日本が英伊と組む理由として書いている。人が文言どおりの判定を不合格に変えた（LLM は両方合格）。
+- zW1RBacSqjk-1 の根拠: 字幕から確定できない「Elite」の読み替えと、「横開き」を「横に広い」とした言い換え。人が文言どおりの判定を不合格に変えた（LLM は両方合格）。
+
+**引用（AC-12）:** 必須の観点の不合格と品質の 1 である。「入った」は誤りを入れた工程、「残した」は直さなかった工程である。
+- roNZ-rLxhUE-1 根拠（pass / fail）: 「重要な軍事技術を米国に依存し続けるべきでないという考えからでしょう」（字幕 06:42）。入った: 字数の調整（B3 の字数の調整の出力の文）、残した: 検証・推敲。
+- roNZ-rLxhUE-2 読みやすさ（1 / 1）: 「## 徴兵制ではなく「ロボットが自衛隊」を」（字幕 31:03）。入った: 生成、残した: 検証・推敲。
+- 18tbwwPM91A-2 構成（1 / 1）: 「一方、データにはレフト方向への強い打球も残っている」（字幕 13:45）。入った: 生成、残した: 検証・推敲。
+- zW1RBacSqjk-1 根拠（pass / fail）: 「前モデルのSnapdragon 8 Elite for Galaxyに対し」（字幕 05:14）。入った: 生成（B3 の生成の出力の文）、残した: 検証・推敲。
+- leE02uqgaKg-2 根拠（fail / fail）: 「一方、地球ほどの質量になると重力は強大で、月をつなぎとめる」（字幕 02:13）。入った: 生成、残した: 検証・推敲。
+- EqnGQDU71-Y-1 根拠（pass / fail）: 「新博物館は…それ以上に「町民に愛される場所」になることを大切にしている」（字幕 06:21-06:36）。入った: 生成、残した: 検証・推敲。
+- EqnGQDU71-Y-2 根拠（pass / fail）: 「いま関係者が何より大切にしているのは、観光客を呼ぶことに加えて」（字幕 06:21-06:36）。入った: 生成、残した: 検証・推敲。
+
+**製品の制約 1〜3 の引用（AC-13）:**
+- 18tbwwPM91A-2 制約 2: 「一方、データにはレフト方向への強い打球も残っている」（字幕 13:45）
+- zW1RBacSqjk-1 制約 1: 「パスポートのような横に広いタイプ」（字幕 00:58）
+- zW1RBacSqjk-1 制約 2: 「名前の付き方には注意が要る。」（字幕 00:44）
+- zW1RBacSqjk-2 制約 2: 「価格は、ストレージ256GB・メモリー12GBのモデルが19万2680円から」（字幕 12:27）
+- leE02uqgaKg-2 制約 1: 「一方、地球ほどの質量になると重力は強大で」（字幕 02:13）
+- EqnGQDU71-Y-1 制約 2: 「むかわ竜の化石は、2003年4月、当時郵便局員だった堀田良幸」（字幕 00:35）
+- EqnGQDU71-Y-1 制約 3: 「新博物館は…それ以上に「町民に愛される場所」になることを大切に」（字幕 06:21）
+- EqnGQDU71-Y-2 制約 2: 「学校教育ではこれまで以上に博物館を活用してほしいと話す」（字幕 06:43）
+- EqnGQDU71-Y-2 制約 3: 「いま関係者が何より大切にしているのは」（字幕 06:21-06:36）
 
 ### 7.4. A-astra
 
@@ -632,24 +994,75 @@ exit=0
 <!-- check-record: runs config=A-astra -->
 | 構成 | 記事 | 回 | `--after` | `YT2COLUMN_LLM` | `YT2COLUMN_REVIEW_LLM` | 開始（UTC） | 終了（UTC） | 終了コード | 生成の識別子 | 字数の調整の識別子 | 検証・推敲の識別子 |
 |---|---|---|---|---|---|---|---|---|---|---|---|
+| A-astra | roNZ-rLxhUE-1 | cur | shorten | claude/claude-opus-5-5+high | openai/gpt-6-astra+medium | 2026-11-12T06:50:44Z | 2026-11-12T06:51:08Z | 0 | 03c1ede250eb2c3c47c5852517591a118a9a538bf6dbbed6e1f4f5a0b878d8a2 | 20b0f8a8b5cf47e68aa6bd7f4b5a125a23cf275b34e7b1e850f84d0075d5cf23 | 7982b0fbff08585b21afc347dbb94700cb06c6a0cc417f90575499fde516b77b |
+| A-astra | roNZ-rLxhUE-2 | cur | generation | claude/claude-opus-5-5+high | openai/gpt-6-astra+medium | 2026-11-12T06:50:44Z | 2026-11-12T06:51:20Z | 0 | 5bda51c848e127581a5de52775a303e88aaab1764a2eb8490a880ea34ae44590 | - | af7828635c9d1456116517f8fb33d27e778ca25b0201435a8f25743b6992e0a3 |
+| A-astra | 18tbwwPM91A-1 | cur | generation | claude/claude-opus-5-5+high | openai/gpt-6-astra+medium | 2026-11-12T06:50:44Z | 2026-11-12T06:51:09Z | 0 | 1e3318a27b36f02dd18aca1ddeb8b5b9a0fdaf0f7a5fe7f805bf424d5692180c | - | 6c53acff43a1539be537a248d6dad5c30bb871e4ca8f042bb51c6429ee3de7d7 |
+| A-astra | 18tbwwPM91A-2 | cur | generation | claude/claude-opus-5-5+high | openai/gpt-6-astra+medium | 2026-11-12T06:50:44Z | 2026-11-12T06:51:05Z | 0 | e5fed9a5b44e405ea9118cdaad6c906f97ec3e742dba756298bfaa42f979acfd | - | ffce4621954485bd6770cf0dd8b1f648a22908f2395115aa2565aedf55e5b5f6 |
+| A-astra | zW1RBacSqjk-1 | cur | generation | claude/claude-opus-5-5+high | openai/gpt-6-astra+medium | 2026-11-12T06:50:44Z | 2026-11-12T06:50:54Z | 0 | 91df9b370bfebe180a757d97cd616cd6a61be53f4b386b3878ad1379db34d1c0 | - | 25bfd32a947f37a811eb44c6be8987ff1c82fc6698aacebf5aef9b346f059187 |
+| A-astra | zW1RBacSqjk-2 | cur | generation | claude/claude-opus-5-5+high | openai/gpt-6-astra+medium | 2026-11-12T06:50:44Z | 2026-11-12T06:51:02Z | 0 | 84a90816f744317836154fd3291ad9900385af7d4a86b2a342cef425f6651371 | - | 81f6f01659368e07be4db70c6aaaff6a3fc74ace2e9fd70823f0afd1ccf334bd |
+| A-astra | leE02uqgaKg-1 | cur | generation | claude/claude-opus-5-5+high | openai/gpt-6-astra+medium | 2026-11-12T06:50:44Z | 2026-11-12T06:50:49Z | 0 | 433784761850152cb0a2bd731486b78ae2c6ced7f8ddde03254610efdeb921da | - | 45827b6b15c24e7ed475eaa514465d846fde953c97029299116e186fa19f277b |
+| A-astra | leE02uqgaKg-2 | cur | generation | claude/claude-opus-5-5+high | openai/gpt-6-astra+medium | 2026-11-12T06:50:44Z | 2026-11-12T06:50:53Z | 0 | 62e7949eaf11428fb1f882ac95d4b0117d461775758d0c62287c1992c3fe3156 | - | 91b5f354a58c8871f8efa0198a9ee3f63c4d61bf2e7b9fad740c2e139e5a2309 |
+| A-astra | EqnGQDU71-Y-1 | cur | generation | claude/claude-opus-5-5+high | openai/gpt-6-astra+medium | 2026-11-12T06:50:44Z | 2026-11-12T06:50:52Z | 0 | b4a117332422b30bf1ddb6d2d45e6bbbe10a7536c25b833b95e398ead8f06f84 | - | 906db236048b67cd5d504f7f78d2c52086756803f7ab71625afc522d80c9590f |
+| A-astra | EqnGQDU71-Y-2 | cur | generation | claude/claude-opus-5-5+high | openai/gpt-6-astra+medium | 2026-11-12T06:50:44Z | 2026-11-12T06:50:49Z | 0 | 5c6d599b6e2401b64cbf8844de7c550848455724bb85401d2b28b7e183d1c4f2 | - | ef28c3625c9dcd4e48184237fa95bbd5ed98af3464135ce034eda65c4fe5ca3b |
 
 **再開と識別子（AC-03）:** 再利用した保存した出力の識別子が基準の構成と一致すること、字数の調整を実行していないことである。
 
 <!-- check-record: resume-identity config=A-astra -->
 | 構成 | 記事 | `--after` | 生成の一致 | 字数の調整の一致 | 字数の調整を実行 | 手順から外れた |
 |---|---|---|---|---|---|---|
+| A-astra | roNZ-rLxhUE-1 | shorten | yes | yes | no | no |
+| A-astra | roNZ-rLxhUE-2 | generation | yes | - | no | no |
+| A-astra | 18tbwwPM91A-1 | generation | yes | - | no | no |
+| A-astra | 18tbwwPM91A-2 | generation | yes | - | no | no |
+| A-astra | zW1RBacSqjk-1 | generation | yes | - | no | no |
+| A-astra | zW1RBacSqjk-2 | generation | yes | - | no | no |
+| A-astra | leE02uqgaKg-1 | generation | yes | - | no | no |
+| A-astra | leE02uqgaKg-2 | generation | yes | - | no | no |
+| A-astra | EqnGQDU71-Y-1 | generation | yes | - | no | no |
+| A-astra | EqnGQDU71-Y-2 | generation | yes | - | no | no |
 
 **トークン数と推定コスト（AC-14）:** 工程ごとの CLI の値である。「再利用した実行」は、再開で呼ばなかった工程の値の出どころ（B3 の記事）を示す。
 
 <!-- check-record: stage-usage config=A-astra -->
 | 構成 | 記事 | 回 | 工程 | 出どころ | 使用量 | 入力 | キャッシュから読んだ入力 | キャッシュに書いた入力 | 出力 | モデル | 推定コスト（USD） | 不明の理由 | 再利用した実行 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| A-astra | roNZ-rLxhUE-1 | cur | generation | reused | known | 21451 | 0 | 0 | 10986 | claude-opus-5-5 | 0.305524 | - | B3:roNZ-rLxhUE-1 |
+| A-astra | roNZ-rLxhUE-1 | cur | shorten | reused | known | 4663 | 0 | 0 | 7371 | claude-opus-5-5 | 0.166072 | - | B3:roNZ-rLxhUE-1 |
+| A-astra | roNZ-rLxhUE-1 | cur | review | run | known | 3 | 0 | 15213 | 1307 | gpt-6-astra | 0.255543 | - | - |
+| A-astra | roNZ-rLxhUE-2 | cur | generation | reused | known | 21451 | 0 | 0 | 11122 | claude-opus-5-5 | 0.308244 | - | B3:roNZ-rLxhUE-2 |
+| A-astra | roNZ-rLxhUE-2 | cur | review | run | known | 3 | 0 | 15101 | 1303 | gpt-6-astra | 0.253943 | - | - |
+| A-astra | 18tbwwPM91A-1 | cur | generation | reused | known | 16528 | 0 | 0 | 13688 | claude-opus-5-5 | 0.339872 | - | B3:18tbwwPM91A-1 |
+| A-astra | 18tbwwPM91A-1 | cur | review | run | known | 3 | 0 | 11017 | 1269 | gpt-6-astra | 0.201193 | - | - |
+| A-astra | 18tbwwPM91A-2 | cur | generation | reused | known | 16528 | 0 | 0 | 13442 | claude-opus-5-5 | 0.334952 | - | B3:18tbwwPM91A-2 |
+| A-astra | 18tbwwPM91A-2 | cur | review | run | known | 3 | 0 | 11264 | 910 | gpt-6-astra | 0.186330 | - | - |
+| A-astra | zW1RBacSqjk-1 | cur | generation | reused | known | 14937 | 0 | 0 | 7966 | claude-opus-5-5 | 0.219068 | - | B3:zW1RBacSqjk-1 |
+| A-astra | zW1RBacSqjk-1 | cur | review | run | known | 3 | 0 | 9298 | 392 | gpt-6-astra | 0.135855 | - | - |
+| A-astra | zW1RBacSqjk-2 | cur | generation | reused | known | 14937 | 0 | 0 | 7739 | claude-opus-5-5 | 0.214528 | - | B3:zW1RBacSqjk-2 |
+| A-astra | zW1RBacSqjk-2 | cur | review | run | known | 3 | 0 | 9398 | 792 | gpt-6-astra | 0.157105 | - | - |
+| A-astra | leE02uqgaKg-1 | cur | generation | reused | known | 15041 | 0 | 0 | 7712 | claude-opus-5-5 | 0.214404 | - | B3:leE02uqgaKg-1 |
+| A-astra | leE02uqgaKg-1 | cur | review | run | known | 3 | 0 | 10287 | 80 | gpt-6-astra | 0.132618 | - | - |
+| A-astra | leE02uqgaKg-2 | cur | generation | reused | known | 15041 | 0 | 0 | 5623 | claude-opus-5-5 | 0.172624 | - | B3:leE02uqgaKg-2 |
+| A-astra | leE02uqgaKg-2 | cur | review | run | known | 3 | 0 | 10193 | 386 | gpt-6-astra | 0.146743 | - | - |
+| A-astra | EqnGQDU71-Y-1 | cur | generation | reused | known | 11377 | 0 | 0 | 5030 | claude-opus-5-5 | 0.146108 | - | B3:EqnGQDU71-Y-1 |
+| A-astra | EqnGQDU71-Y-1 | cur | review | run | known | 3 | 0 | 6430 | 417 | gpt-6-astra | 0.101255 | - | - |
+| A-astra | EqnGQDU71-Y-2 | cur | generation | reused | known | 11377 | 0 | 0 | 5114 | claude-opus-5-5 | 0.147788 | - | B3:EqnGQDU71-Y-2 |
+| A-astra | EqnGQDU71-Y-2 | cur | review | run | known | 3 | 0 | 6422 | 314 | gpt-6-astra | 0.096005 | - | - |
 
 **記事ごとの推定コストと所要時間（AC-14・AC-16）:** 所要時間は記事を作った工程の時間の和で、10 件を並列に起動して測った値である（基準の構成と同じ。0018 評価記録 §4.8）。構成 A は B3 の 1 段目の生成の時間を足し、roNZ-rLxhUE-1 には B3 のやり直しの字数の調整の時間も足す。
 
 <!-- check-record: run-costs config=A-astra -->
 | 構成 | 記事 | 回 | 終了コード | この実行（USD） | 記事（USD） | 実行の時間 | 所要時間 | 比較に使う |
 |---|---|---|---|---|---|---|---|---|
+| A-astra | roNZ-rLxhUE-1 | cur | 0 | 0.255543 | 0.727139 | 0:23.7 | 3:04.4 | yes |
+| A-astra | roNZ-rLxhUE-2 | cur | 0 | 0.253943 | 0.562187 | 0:35.4 | 2:21.4 | yes |
+| A-astra | 18tbwwPM91A-1 | cur | 0 | 0.201193 | 0.541065 | 0:24.9 | 2:40.4 | yes |
+| A-astra | 18tbwwPM91A-2 | cur | 0 | 0.186330 | 0.521282 | 0:20.4 | 2:33.5 | yes |
+| A-astra | zW1RBacSqjk-1 | cur | 0 | 0.135855 | 0.354923 | 0:09.8 | 1:25.2 | yes |
+| A-astra | zW1RBacSqjk-2 | cur | 0 | 0.157105 | 0.371633 | 0:18.1 | 1:30.1 | yes |
+| A-astra | leE02uqgaKg-1 | cur | 0 | 0.132618 | 0.347022 | 0:04.6 | 1:16.1 | yes |
+| A-astra | leE02uqgaKg-2 | cur | 0 | 0.146743 | 0.319367 | 0:08.8 | 1:01.7 | yes |
+| A-astra | EqnGQDU71-Y-1 | cur | 0 | 0.101255 | 0.247363 | 0:08.1 | 0:57.4 | yes |
+| A-astra | EqnGQDU71-Y-2 | cur | 0 | 0.096005 | 0.243793 | 0:04.9 | 0:54.6 | yes |
 
 **失敗した実行とやり直し（AC-17）:** 番兵は主セッションが標準エラーを読んで下に記録し、人が確認する。
 
@@ -666,30 +1079,102 @@ exit=0
 <!-- check-record: judgments config=A-astra -->
 | 構成 | 記事 | 形式の選択 | 形式の規則 | 根拠 | 長さ | 表記 | 網羅 | 重要度 | 構成（観点） | 読みやすさ | タイトル・リード文 | 冗長さ | 目標（解釈） | 目標（文言） |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| A-astra | roNZ-rLxhUE-1 | pass/pass | pass/pass | pass/fail | pass/pass | pass/pass | 3/3 | 2/2 | 2/2 | 3/3 | 3/3 | 2/2 | yes | no |
+| A-astra | roNZ-rLxhUE-2 | pass/pass | pass/pass | pass/pass | pass/pass | pass/pass | 3/3 | 2/2 | 3/3 | 1/1 | 3/3 | 2/2 | no | no |
+| A-astra | 18tbwwPM91A-1 | pass/pass | pass/pass | pass/pass | pass/pass | pass/pass | 2/2 | 2/2 | 2/2 | 3/3 | 3/3 | 3/3 | yes | yes |
+| A-astra | 18tbwwPM91A-2 | pass/pass | pass/pass | pass/pass | pass/pass | pass/pass | 3/3 | 2/2 | 1/1 | 3/3 | 3/3 | 3/3 | no | no |
+| A-astra | zW1RBacSqjk-1 | pass/pass | pass/pass | pass/fail | pass/pass | pass/pass | 3/3 | 2/2 | 2/2 | 3/3 | 3/3 | 3/3 | yes | no |
+| A-astra | zW1RBacSqjk-2 | pass/pass | pass/pass | pass/pass | pass/pass | pass/pass | 3/3 | 2/2 | 2/2 | 2/2 | 3/3 | 3/3 | yes | yes |
+| A-astra | leE02uqgaKg-1 | pass/pass | pass/pass | pass/pass | pass/pass | pass/pass | 3/3 | 2/2 | 3/3 | 3/3 | 3/3 | 2/2 | yes | yes |
+| A-astra | leE02uqgaKg-2 | pass/pass | pass/pass | fail/fail | pass/pass | pass/pass | 3/3 | 2/2 | 3/3 | 3/3 | 3/3 | 3/3 | no | no |
+| A-astra | EqnGQDU71-Y-1 | pass/pass | pass/pass | pass/fail | pass/pass | pass/pass | 3/3 | 2/2 | 2/2 | 3/3 | 3/3 | 3/3 | yes | no |
+| A-astra | EqnGQDU71-Y-2 | pass/pass | pass/pass | pass/fail | pass/pass | pass/pass | 3/3 | 2/2 | 2/2 | 3/3 | 3/3 | 3/3 | yes | no |
 
 **判定者（AC-10）:** `script` はスクリプト、`llm` は LLM、`llm+human` は人が確認して変えなかった LLM の判定、`human` は人が変えた判定である。人が変えた判定と理由は下に書く。
 
 <!-- check-record: judges config=A-astra -->
 | 構成 | 記事 | 形式の選択 | 形式の規則 | 根拠 | 長さ | 表記 | 網羅 | 重要度 | 構成（観点） | 読みやすさ | タイトル・リード文 | 冗長さ | 制約 1 | 制約 2 | 制約 3 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| A-astra | roNZ-rLxhUE-1 | llm+human | llm+human | human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
+| A-astra | roNZ-rLxhUE-2 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
+| A-astra | 18tbwwPM91A-1 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
+| A-astra | 18tbwwPM91A-2 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
+| A-astra | zW1RBacSqjk-1 | llm+human | llm+human | human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
+| A-astra | zW1RBacSqjk-2 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
+| A-astra | leE02uqgaKg-1 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
+| A-astra | leE02uqgaKg-2 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
+| A-astra | EqnGQDU71-Y-1 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
+| A-astra | EqnGQDU71-Y-2 | llm+human | llm+human | llm+human | script | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human | llm+human |
 
 **機械的な値（AC-09）:** `check_article.py` の出力である。
 
 <!-- check-record: article-checks config=A-astra -->
 | 構成 | 記事 | タイトルの字数 | 節の数 | 長さ |
 |---|---|---|---|---|
+| A-astra | roNZ-rLxhUE-1 | 23 | 5 | 3722 |
+| A-astra | roNZ-rLxhUE-2 | 26 | 5 | 3609 |
+| A-astra | 18tbwwPM91A-1 | 28 | 5 | 3382 |
+| A-astra | 18tbwwPM91A-2 | 27 | 5 | 3735 |
+| A-astra | zW1RBacSqjk-1 | 38 | 4 | 3446 |
+| A-astra | zW1RBacSqjk-2 | 38 | 5 | 3661 |
+| A-astra | leE02uqgaKg-1 | 26 | 5 | 3548 |
+| A-astra | leE02uqgaKg-2 | 31 | 5 | 3404 |
+| A-astra | EqnGQDU71-Y-1 | 30 | 4 | 2338 |
+| A-astra | EqnGQDU71-Y-2 | 28 | 4 | 2336 |
 
 **引用が要る判定（AC-12）:** 引用、誤りを入れた工程、直さなかった工程は下に書く。
 
 <!-- check-record: quotes-needed config=A-astra -->
 | 構成 | 記事 | 観点 | 判定 | 種類 |
 |---|---|---|---|---|
+| A-astra | roNZ-rLxhUE-1 | evidence | literal | required-fail |
+| A-astra | roNZ-rLxhUE-2 | readability | both | quality-1 |
+| A-astra | 18tbwwPM91A-2 | structure | both | quality-1 |
+| A-astra | zW1RBacSqjk-1 | evidence | literal | required-fail |
+| A-astra | leE02uqgaKg-2 | evidence | both | required-fail |
+| A-astra | EqnGQDU71-Y-1 | evidence | literal | required-fail |
+| A-astra | EqnGQDU71-Y-2 | evidence | literal | required-fail |
 
 **製品の制約 1〜3（AC-13）:** 引用は下に書く。
 
 <!-- check-record: constraints config=A-astra -->
 | 構成 | 記事 | 制約 1 | 制約 2 | 制約 3 |
 |---|---|---|---|---|
+| A-astra | roNZ-rLxhUE-1 | no | no | no |
+| A-astra | roNZ-rLxhUE-2 | no | no | no |
+| A-astra | 18tbwwPM91A-1 | no | no | no |
+| A-astra | 18tbwwPM91A-2 | no | yes | no |
+| A-astra | zW1RBacSqjk-1 | yes | yes | no |
+| A-astra | zW1RBacSqjk-2 | no | yes | no |
+| A-astra | leE02uqgaKg-1 | no | no | no |
+| A-astra | leE02uqgaKg-2 | yes | no | no |
+| A-astra | EqnGQDU71-Y-1 | no | yes | yes |
+| A-astra | EqnGQDU71-Y-2 | no | yes | yes |
+
+**失敗した実行と番兵（AC-17）:** なし（10 件とも終了コード `0`）。
+**人が変えた判定（AC-10）:**
+- roNZ-rLxhUE-1 の根拠: 英伊が日本と組む動機の推測を、日本が英伊と組む理由として書いている。人が文言どおりの判定を不合格に変えた（LLM は両方合格）。
+- zW1RBacSqjk-1 の根拠: 字幕から確定できない「Elite」の読み替えと、「横開き」を「横に広い」とした言い換え。人が文言どおりの判定を不合格に変えた（LLM は両方合格）。
+
+**引用（AC-12）:** 必須の観点の不合格と品質の 1 である。「入った」は誤りを入れた工程、「残した」は直さなかった工程である。
+- roNZ-rLxhUE-1 根拠（pass / fail）: 「重要な軍事技術を米国に依存し続けるべきでないという考えからでしょう」（字幕 06:42）。入った: 字数の調整（B3 の字数の調整の出力の文）、残した: 検証・推敲。
+- roNZ-rLxhUE-2 読みやすさ（1 / 1）: 「## 徴兵制ではなく「ロボットが自衛隊」を」（字幕 31:03）。入った: 生成、残した: 検証・推敲。
+- 18tbwwPM91A-2 構成（1 / 1）: 「一方、データにはレフト方向への強い打球も残っている」（字幕 13:45）。入った: 生成、残した: 検証・推敲。
+- zW1RBacSqjk-1 根拠（pass / fail）: 「前モデルのSnapdragon 8 Elite for Galaxyに対し」（字幕 05:14）。入った: 生成（B3 の生成の出力の文）、残した: 検証・推敲。
+- leE02uqgaKg-2 根拠（fail / fail）: 「一方、地球ほどの質量になると重力は強大で、月をつなぎとめる」（字幕 02:13）。入った: 生成、残した: 検証・推敲。
+- EqnGQDU71-Y-1 根拠（pass / fail）: 「新博物館は…それ以上に「町民に愛される場所」になることを大切にしている」（字幕 06:21-06:36）。入った: 生成、残した: 検証・推敲。
+- EqnGQDU71-Y-2 根拠（pass / fail）: 「いま関係者が何より大切にしているのは、観光客を呼ぶことに加えて」（字幕 06:21-06:36）。入った: 生成、残した: 検証・推敲。
+
+**製品の制約 1〜3 の引用（AC-13）:**
+- 18tbwwPM91A-2 制約 2: 「一方、データにはレフト方向への強い打球も残っている」（字幕 13:45）
+- zW1RBacSqjk-1 制約 1: 「パスポートのような横に広いタイプ」（字幕 00:58）
+- zW1RBacSqjk-1 制約 2: 「名前の付き方には注意が要る。」（字幕 00:44）
+- zW1RBacSqjk-2 制約 2: 「価格は、ストレージ256GB・メモリー12GBのモデルが19万2680円から」（字幕 12:27）
+- leE02uqgaKg-2 制約 1: 「一方、地球ほどの質量になると重力は強大で」（字幕 02:13）
+- EqnGQDU71-Y-1 制約 2: 「むかわ竜の化石は、2003年4月、当時郵便局員だった堀田良幸」（字幕 00:35）
+- EqnGQDU71-Y-1 制約 3: 「新博物館は…それ以上に「町民に愛される場所」になることを大切に」（字幕 06:21）
+- EqnGQDU71-Y-2 制約 2: 「学校教育ではこれまで以上に博物館を活用してほしいと話す」（字幕 06:43）
+- EqnGQDU71-Y-2 制約 3: 「いま関係者が何より大切にしているのは」（字幕 06:21-06:36）
 
 ## 8. 2 段目
 
@@ -698,6 +1183,7 @@ exit=0
 <!-- check-record: b-selection -->
 | 行 | C-astra の合格 | C-sol の合格 | B の構成 |
 |---|---|---|---|
+| B | 5 | 6 | B-sol |
 
 （ステップ 4-1 で、作った B の構成ごとに節 7 と同じ形の小節を加える）
 
@@ -708,6 +1194,10 @@ exit=0
 <!-- check-record: comparison -->
 | 構成 | 比較に使う | 得られなかった | 合格（解釈） | 合格（文言） | 品質 1 | 品質 2 | 品質 3 | 推定コストの平均（USD） | 推定コストの最大 | 最大の記事 | 所要時間の平均 | 所要時間の最大 | 最大の記事 | 失敗した実行 | 失敗の推定コスト | 推定コストが不明の失敗 | キャッシュを読んだ工程 | 補助の推定コストの平均 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| C-sol | 10 | 0 | 6 | 4 | 3 | 31 | 26 | 0.067110 | 0.100653 | roNZ-rLxhUE-1 | 1:05.1 | 1:22.6 | 18tbwwPM91A-1 | 0 | 0.000000 | 0 | 9 | 0.087728 |
+| C-astra | 10 | 0 | 5 | 3 | 3 | 28 | 29 | 0.366250 | 0.500359 | roNZ-rLxhUE-2 | 1:04.7 | 1:20.4 | 18tbwwPM91A-1 | 0 | 0.000000 | 0 | 7 | 0.444608 |
+| A-sol | 10 | 0 | 7 | 3 | 2 | 21 | 37 | 0.289769 | 0.521705 | roNZ-rLxhUE-1 | 1:45.8 | 3:03.7 | roNZ-rLxhUE-1 | 0 | 0.000000 | 0 | 0 | - |
+| A-astra | 10 | 0 | 7 | 3 | 2 | 21 | 37 | 0.423577 | 0.727139 | roNZ-rLxhUE-1 | 1:46.5 | 3:04.4 | roNZ-rLxhUE-1 | 0 | 0.000000 | 0 | 0 | - |
 
 ## 10. 結論
 
@@ -716,12 +1206,36 @@ exit=0
 <!-- check-record: f006 -->
 | 構成 | 合格（解釈） | 基準との差 | (i) | 合格が基準以上 | 動画ごとの比較 | 推定コストの平均（USD） | 推定コストが低い | (ii) | 所要時間の平均 | (iii) | 候補 | 補助の値で変わる |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
+| C-sol | 6 | -2 | no | no | no | 0.067110 | yes | no | 1:05.1 | yes | no | no |
+| C-astra | 5 | -3 | no | no | no | 0.366250 | no | no | 1:04.7 | yes | no | no |
+| A-sol | 7 | -1 | no | no | yes | 0.289769 | yes | no | 1:45.8 | yes | no | no |
+| A-astra | 7 | -1 | no | no | yes | 0.423577 | no | no | 1:46.5 | yes | no | no |
 
 **動画ごとの必須の観点の不合格（AC-21）:**
 
 <!-- check-record: f006-video -->
 | 構成 | 動画 | 不合格の記事 | 基準の構成 | 基準以下 |
 |---|---|---|---|---|
+| C-sol | roNZ-rLxhUE | 1 | 0 | no |
+| C-sol | 18tbwwPM91A | 0 | 0 | yes |
+| C-sol | zW1RBacSqjk | 0 | 0 | yes |
+| C-sol | leE02uqgaKg | 1 | 1 | yes |
+| C-sol | EqnGQDU71-Y | 0 | 0 | yes |
+| C-astra | roNZ-rLxhUE | 2 | 0 | no |
+| C-astra | 18tbwwPM91A | 0 | 0 | yes |
+| C-astra | zW1RBacSqjk | 0 | 0 | yes |
+| C-astra | leE02uqgaKg | 1 | 1 | yes |
+| C-astra | EqnGQDU71-Y | 0 | 0 | yes |
+| A-sol | roNZ-rLxhUE | 0 | 0 | yes |
+| A-sol | 18tbwwPM91A | 0 | 0 | yes |
+| A-sol | zW1RBacSqjk | 0 | 0 | yes |
+| A-sol | leE02uqgaKg | 1 | 1 | yes |
+| A-sol | EqnGQDU71-Y | 0 | 0 | yes |
+| A-astra | roNZ-rLxhUE | 0 | 0 | yes |
+| A-astra | 18tbwwPM91A | 0 | 0 | yes |
+| A-astra | zW1RBacSqjk | 0 | 0 | yes |
+| A-astra | leE02uqgaKg | 1 | 1 | yes |
+| A-astra | EqnGQDU71-Y | 0 | 0 | yes |
 
 **選んだ構成（AC-22）:**
 
@@ -736,5 +1250,9 @@ exit=0
 | 構成 | 制約 1 | 制約 2 | 制約 3 |
 |---|---|---|---|
 | B3 | no | no | no |
+| C-sol | no | no | no |
+| C-astra | no | no | no |
+| A-sol | no | no | no |
+| A-astra | no | no | no |
 
 （ステップ 5-1 で、人の承認と除いた候補を書く）
