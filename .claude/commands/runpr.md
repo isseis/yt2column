@@ -1,5 +1,5 @@
 ---
-description: "Drive a PR through Codex's PR review and CI, record its bookkeeping, merge it, and offer the next command, which it runs only when the user chooses"
+description: "Drive a PR through Codex's PR review and CI, record its bookkeeping, merge it, and show the next command, which it does not run"
 argument-hint: "[#PR | branch | task]"
 ---
 
@@ -45,9 +45,10 @@ this command's own text; read them from `_context.md` when you run it.
 return steps of step 4, by number and heading; a change that renumbers them or
 changes what they do checks that file in the same PR.
 
-Drive one PR through Codex's PR review and CI, then ask the user one question
-that decides the bookkeeping and the merge and offers the next command (NEXT)
-when there is one, which this command runs only when the user chooses to.
+Drive one PR through Codex's PR review and CI, then ask the user the question
+that decides the bookkeeping and the merge (the merge question), preceded by
+the deferred question when deferred review threads are left. This command
+shows the next command (NEXT) when there is one, and never runs it.
 
 This is the second half of a task PR. The command that opened it (`mkreq`,
 `mkarch`, `mkplan`, `mkplan2`, or `runplan`; `_lib/task-pr-handoff.md`)
@@ -80,7 +81,7 @@ the repository's interaction limits, a `GET`), and `git ls-remote` — the issue
 `_lib/task-pr-handoff.md` Part A step 4 makes to link the next branch (step
 5), `git ls-remote` to check whether the next branch exists on `origin` when
 step 5 stops before it is ready, and, for the deferred findings the user
-moves to an issue in step 4, `gh issue list`, `gh issue create`, `gh issue comment`, and the thread replies
+moves to an issue in step 4's deferred question, `gh issue list`, `gh issue create`, `gh issue comment`, and the thread replies
 and resolutions. When the user returns a three-document PR to the full
 process in step 4, it also approves the `git push` of the return, the
 operations `fixprguard` makes for `edit-pr` (`gh pr edit`, rewriting the PR's
@@ -88,9 +89,8 @@ title and body), and the thread replies and resolutions of the return. After the
 `gh issue view`, `gh api` (listing sub-issues), and `gh issue close` for its
 `対応 issue` and that issue's link sub-issues (step 5, and step 1's `MERGED`
 case). It also covers what `fixpr.md` and `mergepr.md` authorize when run from
-here, and the next command (NEXT) when the user chooses to run it in step 4.
-It does **not** approve the merge itself: only the user's answer in step 4
-does (`CLAUDE.md`, "Tool Execution Safety"). `coderabbit review` and
+here. It does **not** approve running the next command (NEXT), nor the merge
+itself: only the user's answer to step 4's merge question approves the merge (`CLAUDE.md`, "Tool Execution Safety"). `coderabbit review` and
 `codexreview` have standing approval: the local CLI review runs `codexreview`,
 which runs Codex CLI and sends the diff and what Codex reads to OpenAI's
 service, only when the CodeRabbit CLI fails.
@@ -230,8 +230,9 @@ Every `fixpr.md` and `mergepr.md` run below is given the resolved PR number
   - 期限が近い: show now a warning with the state name, `expiresOn` (UTC),
     and the guide's chapter 10, where the limit is renewed. Keep that one line
     as **LIMITS_NOTE** for the rest of the run, and include it in every report
-    after this step: each stop report, the message of step 4's question, and
-    the final report of step 5.
+    after this step: each stop report, the summary and detail file of each question
+    of step 4 (the state and the date in the summary, the full text in the
+    detail file), and the final report of step 5.
   - 制限なし: the state name, the guide's chapter 10, and what the user does.
   - 制限が弱い: the state name, `expiresOn`, that the limit must be changed to
     `collaborators_only`, the guide's chapter 10, and what the user does.
@@ -560,8 +561,9 @@ finished review observed had and every review in progress lacked, so that a
   split the history), or when `git merge-base` exits with a code other than `0`
   or `1`. The summary comment is rewritten, so an earlier run's markers count
   only while the current summary comment still shows one: LAST_REVIEWED may
-  come out older than it was, never newer. When it is none, step 4's PR-review
-  question treats the PR as having changes Codex has not reviewed, and
+  come out older than it was, never newer. When it is none, step 4's merge
+  question treats the PR as having changes Codex has not reviewed (the "先に PR
+  レビューを依頼" option is shown), and
   Escalation's decision is `ask`, as for a LAST_REVIEWED that is not an
   ancestor of the head.
 - **Requesting the review.** Post a request with
@@ -666,11 +668,13 @@ finished review observed had and every review in progress lacked, so that a
     per PR on this command's own judgement; a later `request` is treated as
     `ask`, so the budget is spent only on the first and on what the user chooses;
   - `skip`: continue;
-  - `ask`: continue, and carry the reason into step 4 (the PR-review question).
+  - `ask`: continue, and carry the reason into step 4: the merge question's
+    "先に PR レビューを依頼" option and its detail file.
 - When the PR is reviewed and no unseen thread is left, look at the
   unresolved threads `fixpr` reported:
-  - `deferred` (past its round cap): keep them for step 4;
-  - excluded, on a three-document PR (step 2): keep them for step 4, with the
+  - `deferred` (past its round cap): keep them for step 4's deferred question;
+  - excluded, on a three-document PR (step 2): keep them for step 4's merge
+    question, with the
     `threadId`, `databaseId`, `fingerprint`, topic, URL, path, and reason the
     latest `fixpr` Final report gave. Only a thread that report lists as
     excluded counts; any other is sorted by the other items of this list.
@@ -688,7 +692,7 @@ finished review observed had and every review in progress lacked, so that a
     and why it is open, so the user can fix, re-classify, or answer it.
 - **Untrusted threads.** While an untrusted thread is unresolved, do not
   merge. When the untrusted threads are the only reason to stop (the
-  `deferred` and excluded ones wait for step 4 and do not count), ask the user once, with
+  `deferred` ones wait for step 4's deferred question and the excluded ones for its merge question, and do not count), ask the user once, with
   one `AskUserQuestion` call, which of them to process (none included). Show
   each thread's URL and its reasons (every `findings` entry of the latest
   `list`); do not fetch or read their content: the user checks them on GitHub.
@@ -711,134 +715,375 @@ finished review observed had and every review in progress lacked, so that a
 
 ## 4. Confirm, record, and merge
 
-Ask the user once, so a reviewer who has already reviewed the PR answers once
-rather than once per decision.
+Ask the user as few times as the PR allows, so a reviewer who has already
+reviewed the PR answers once rather than once per decision: when step 3 left
+`deferred` threads, the deferred question (item 1) comes first and settles
+them; then the merge question (item 3) is asked once. Every arrival at this
+step, including each return to it from step 2 or step 3 after a fix, a PR
+review, or a push that changed the head, starts at item 1.
 
-Each time this step's question is asked, the first time and every time it is
-asked again, read the three mention lists of step 3, "Reading the PR", just
-before it, and apply step 3's "Mentions by other accounts" to them. When it
-stops, stop here: no question, no merge.
+Each time a question of this step is asked, the deferred question or the merge
+question, the first time and every time it is asked again, read the three
+mention lists of step 3, "Reading the PR", just before it, and apply step 3's
+"Mentions by other accounts" to them. When it stops, stop here: no question,
+no merge.
 
-1. Run `.claude/commands/mergepr.md` steps 1–2 for `<number>` (prepare, draft
+**Summary and detail file.** Each question shows the conversation a short
+summary of fixed lines, and puts everything long in a detail file outside the
+work tree, so the question and its options stay on the screen. Write the
+summary, the question, the options, and the detail file in Japanese, one item
+per line, each summary line within 80 display columns (count a full-width
+character as 2); the line shapes below are the examples to follow.
+
+- **Details directory.** Right before the first question of this run, make one
+  details directory with `mktemp -d /tmp/runpr.XXXXXX` (a directory only the
+  user can read, with a name nobody can guess, outside the work tree, so
+  `git status --short` does not change). Use it for every question of this run
+  and make no second one. Do not use the scratchpad for it: its path is too
+  long for the summary line that shows it.
+- **Round.** Count each question asked, the deferred question and the merge
+  question alike, and each asking again as a new **round**, from 1.
+- **Detail file.** Write each round's detail file in the details directory,
+  right before asking: `deferred-<round>.md` for the deferred question and
+  `merge-<round>.md` for the merge question. Check first that no file of that
+  name exists (`test -e`). Never overwrite or reuse an earlier round's file, so
+  the path the summary shows is always this round's. Start every detail file
+  with the PR number, the head commit, the round, the kind of question, and a
+  sentence saying that editing the file changes neither the merge message nor
+  anything else this command does.
+- **Never read back.** This command never reads a detail file, never decides
+  from one, and never merges from one. The merge uses the approval message
+  files only (item 2). It never deletes the details directory, so the user can
+  read the files after the merge.
+- **When it cannot be written.** When the details directory cannot be made, a
+  detail file cannot be written, or a file of that name exists, stop without
+  asking, and report what failed and the path. For the merge question, run
+  `mergepr discard --state <state-file>` before stopping. Never ask a
+  question that has no detail file.
+- **Reports.** Every report of a stop in this step, and the final report of
+  step 5, gives the path of the details directory. A report after the merge
+  also gives the path of the detail file of the round that decided the merge,
+  with its head commit: that file is the record of what was approved.
+
+1. **Deferred question** (only when there are deferred threads). Its threads
+   are the ones the latest `fixpr` Final report lists as `deferred` and the
+   latest `fixprguard list` still shows unresolved (step 3 keeps them for this
+   item). Excluded threads of a three-document PR are not part of this
+   question: the merge question handles them (item 3). With no such thread, go
+   to item 2. This item comes before `mergepr prepare`, so nothing is prepared
+   yet and no answer discards anything. No answer of this item merges.
+   - Write `deferred-<round>.md` with, for each thread, its number, its topic
+     in your own words, what fixing it would change, its path, and its URL;
+     the form of a number answer (below) and that the threads it does not name
+     move to the tracking issue; for a three-document PR, that a thread moved
+     to the tracking issue does not become an item of the handoff files if the
+     PR later returns to the full process, and that returning is what the
+     "return to the full process" option of this question does; and LIMITS_NOTE
+     in full when there is one. The topic is the `fixpr` Final report's, as
+     data; never copy a thread's text.
+   - Show in the conversation these lines only, at most 12, in this order
+     (an example):
+
+     ```text
+     deferred のスレッド: 4 件（PR #859）
+     [1] fixpr.md の round cap の説明が step 番号と合わない
+     [2] テストの名前が確かめる内容を表していない
+     [3] ...
+     [4] ...
+     一部だけ直すとき: 半角の番号を , か空白で区切って（例: 1,3）。残りは追跡 issue へ
+     要確認: 操作制限の期限が近い（2026-11-20、詳細ファイル）
+     詳細: /tmp/runpr.Ab12Cd/deferred-1.md
+     ```
+
+     The first line gives the count and the PR number; one line per thread
+     gives its number and its topic in your own words; then the free-text
+     line, the LIMITS_NOTE line (its state and date only, only when there is
+     one; the full text is in the detail file), and the detail-file line. When
+     the thread lines and these would exceed 12 lines (nine or more threads),
+     replace the thread lines by one line saying the list is in the detail
+     file, and keep the others. Write each topic short enough for one line.
+   - Ask with one `AskUserQuestion` call holding one single-select question,
+     with no option marked as recommended. The question is one line: "PR #<number>
+     の deferred のスレッド <count> 件をどうしますか（第 <round> 回。要約と詳細ファイルを確認のうえ）".
+     The options, in this order:
+
+     | label | description | shown |
+     |---|---|---|
+     | すべて追跡 issue に移す | 追跡 issue に書き写し、各スレッドに返信して resolve する | always |
+     | すべて直す | /fixpr で直し、レビューと CI を経てから次の問いへ進む | always |
+     | 通常の進め方へ戻す | マージせず、要件定義書だけの PR に作り直す | a three-document PR only |
+     | マージせずに止める | 何も投稿せずに止まる | always |
+
+   - **A number answer.** This is the one definition of the form; item 3's
+     excluded-thread numbers use it too. It is a free-text answer made only of
+     ASCII integers from `1` to the number of threads the question shows,
+     separated by ASCII `,` or spaces, each at most once, with no other text.
+     Do not repair anything else: full-width digits or commas (`１，３`,
+     `1、3`) are not a number answer. An answer that is neither an option nor a
+     number answer (a number out of range or repeated, numbers mixed with an
+     option's text or with another sentence) changes nothing: ask the same
+     question again as a new round.
+   - **What each answer does.**
+     - "すべて追跡 issue に移す": move every deferred thread ("Moving threads to
+       the tracking issue" below), which also counts them again; when that
+       does not stop, go to item 2.
+     - A number answer: move the threads it does not name, with the same
+       procedure; if it stops, stop (do not run `fixpr`). Otherwise run
+       `fixpr.md` for `<number>` with the named threads' IDs as its caller
+       override (pass them in the instructions you follow; `fixpr` reads them
+       from this session), and return to step 2. A number answer that names
+       every thread is the same as "すべて直す". When `fixpr` stops after the
+       move, report, besides `fixpr`'s report, the tracking issue's URL, the
+       URLs of the moved threads, and the URLs of the threads left unresolved
+       to be fixed: the next run asks about those again.
+     - "すべて直す": run `fixpr.md` for `<number>` with the IDs of every
+       deferred thread as its caller override, and return to step 2.
+     - "通常の進め方へ戻す": run the return steps (item 3, "When the answer
+       returns the PR to the full process"), entering from this item: there is
+       no preparation yet, so the first return step does not discard one.
+     - "マージせずに止める": post nothing, stop, and report. The deferred
+       threads stay unresolved.
+
+     After step 2 and step 3, a fix or a return comes back to item 1: when
+     deferred threads are still unresolved, ask the deferred question again;
+     otherwise go to item 2.
+
+   **Moving threads to the tracking issue.** Used by the "move" answers of
+   this item, so no deferred thread is silently dropped. Look for this PR's
+   tracking issue
+   (`gh issue list --state open --search "PR #<number> のレビュー指摘の追跡 in:title"`),
+   unless this run already found or created one: keep that issue's number for
+   the rest of the run and use it from then on, without searching again (a
+   search may not find an issue just created, and a second tracking issue must
+   not be created). Skip any finding whose thread URL the issue or its
+   comments already list. Write the issue comment or body to a file outside the
+   work tree, and run the mention check on it before posting it:
+   **Mention check.** Before posting, run `grep -qiF -- '<review-mention>' <file>`
+   on each file of text to post. Post only when it exits `1` for every file: exit
+   code `0` means the text contains the mention, and any other code means the
+   check failed. Never rewrite the text to get past the check.
+   When the check fails, do not post: stop and report, with the tracking
+   issue's URL when there is one. Nothing is prepared, so there is nothing to
+   discard.
+   Add the findings to the issue as a comment
+   (`gh issue comment <issue> --body-file <file>`), or create it
+   (`gh issue create --title "PR #<number> のレビュー指摘の追跡" --body-file <file>`)
+   when there is none. Write in Japanese, listing each finding's topic, the
+   change it asks for, and its thread URL. Then reply to each of those threads
+   in Japanese with the issue URL and resolve it, as `fixpr.md` Phase 5 does:
+   write the reply to a file outside the work tree, run the mention check on
+   it, and only when it passes run, with the `databaseId` and `fingerprint` the
+   latest `fixpr` report gave for the thread,
+
+   ```
+   fixprguard reply --protocol 6 --reviewer <reviewer> --thread-id <threadId> --comment-id <databaseId> --fingerprint <fingerprint> --body-file <reply-file> <number>
+   ```
+
+   If `reply` stops for any thread, or a reply fails the mention check, stop
+   and report each such thread with its URL and stop kind, and the tracking
+   issue's URL. The tracking issue already lists it, so a rerun of this
+   command must not add it to the issue again. For `reply-not-resolved`, the
+   reply may be posted: ask the user to resolve the thread by hand, never
+   replying again. Otherwise count again: run
+
+   ```
+   fixprguard list --protocol 6 --reviewer <reviewer> <number>
+   ```
+
+   and when any thread that was to be moved is still unresolved (for example
+   one a former run stopped on with `reply-not-resolved`, which the steps above
+   skip because the issue already lists it), stop and report its URL and the
+   tracking issue's URL: do not go on to item 2 or call `fixpr` with a thread
+   left that the merge question would no longer show.
+
+2. Run `.claude/commands/mergepr.md` steps 1–2 for `<number>` (prepare, draft
    the squash commit message). When PRE_MERGE has approvals, draft the message
    with a line naming them (e.g. "Approves 01_requirements.md"), and keep a
-   second version without that line for the option that merges without them.
+   second version of the body without that line, written as a file in the
+   prepared directory next to the subject and body files, for the option that
+   merges without them. These files, and the copy item 4 makes of them, are the
+   **approval message files**: the only source of the message the merge uses.
    For the task's final plan PR, the body ends with `Closes #<issue>` for the
    issue the requirements document names as its own (`対応 issue`); a task
    without one gets no such line.
-2. Ask with one `AskUserQuestion` call. In your message, show what
-   `mergepr.md` step 3 requires (PR URL, base branch, CI result, the full
-   subject and body, the record of which rule decided the subject's prefix,
-   and the version without the approval line when it applies), the PRE_MERGE change (which lines of which files, and for an
-   approval the reviewer name and date it writes, and the PR number fill-in
-   lines separately, since the merge without the approvals commits only
-   those), each diff record PRE_MERGE re-records (with the AC's text, the
-   difference between the recorded and the new output, and your judgment
-   that the AC holds on the new output), every editorial correction any `fixpr` run of this session reported
-   it could not append to the PR description (each run's Final report,
-   accumulated across rounds), and, for each task document this PR changes
-   that exists on `origin/main`, the lines of its change history (the rule's
-   "Change history" definition) in `git show origin/main:<document>` that hold
-   the marker `#未記入` (fixing such a marker needs a separate PR, never part
-   of PRE_MERGE, as the rule's "PR number" bullet says), the `deferred` threads (each
-   with its number, topic, what fixing it would change, and its URL), the
-   excluded threads of a three-document PR (step 3; each numbered in the same
-   sequence, marked as excluded, with its topic, the reason, and its URL), and
-   NEXT.
-   When NEXT is `/runplan`, also show the `実装モデル要件` of the PR that
-   NEXT will open, and the model to start the new session with. That PR is
-   the one of the plan's first `### PR-N 作成ポイント` marker whose
-   `PR を作成した` box is unchecked (for a plan PR, a marker after this PR's
-   own; for a task-document PR that first approves the plan, its first
-   marker), or, in a plan without PR markers, the plan itself, whose value is
-   in the `PR 構成` section of its §3. Read the value as `_context.md`, "PR
-   marker conventions", says, and show the model from that section's table:
-   for an old value, show the old value and the value it is read as; for an
-   unreadable value, show its text as written and that it is unreadable, and
-   that no model is recommended; when there is no value, say so and, as far
-   as known, why (the marker has no `実装モデル要件` field, or the plan
-   without PR markers has no `PR 構成` section or no value line in it), and
-   that no model is recommended. The value and the model let the user decide
-   whether this session's model fits and, since step 5 suggests `/clear`
-   before NEXT, which model to start the new session with. Step 5 reuses the
-   value and the model (or their absence) shown here, without reading the
-   plan again; when step 4 is asked more than once, it uses the ones shown in
-   the question that decided the merge. Give LIMITS_NOTE (step 1) when there is one. Each question has two
-   to four options:
-   - **Deferred threads** (only when there are some, counting the excluded
-     threads): with one to three,
-     `multiSelect` with one option per thread plus "fix none"; with more,
-     single-select "fix all" / "fix none", and a subset by number in the
-     free-text answer. An excluded thread's option is labeled as excluded,
-     and "fix all" does not include the excluded threads: one is fixed only
-     when chosen by itself or by its number. Choosing one overrides its
-     exclusion judgment.
-   - **PR review** (only when LAST_REVIEWED is behind the head or none, so
-     changes exist that Codex has not reviewed): single-select "merge without another PR
-     review" / "request a PR review first". Show the Escalation reason in the
-     message, and mark "request a PR review first" as recommended when
-     Escalation said `ask`. This is how the user asks for a review at will.
-   - **Merge**, applying when nothing is chosen to fix. Offer those of these
-     that apply, in this order, and always the last:
-     - record PRE_MERGE and merge, without running NEXT (or "merge" when
-       PRE_MERGE is none). Mark this option, and no other Merge option, as
-       recommended, whether NEXT is set or not and whatever the PR's kind;
-     - record PRE_MERGE, merge, and run NEXT in this session (only when NEXT is
-       set);
-     - merge without the approvals, recording only the PR numbers ("merge
-       without the approvals" when the fill-in is none; only for a
-       task-document PR whose PRE_MERGE has approvals): the documents stay
-       `draft`, PRE_MERGE is reduced to its PR number fill-in (none when no
-       marker is left to fill), the message without the approval line is used,
-       NEXT is none, and step 5 detaches. The fill-in still runs, so this PR's
-       lines do not reach `main` with the marker. A plan PR is
-       never merged without its PRE_MERGE: its record would be missing on
-       `main`, and implementation would merge under a `draft` document.
-       A three-document PR is never offered this option: merged with its
-       documents `draft`, it would leave a task that `/mkarch`, `/mkplan`,
-       and `/runplan` all stop on;
-     - return to the full process (only for a three-document PR, whether or
-       not PRE_MERGE has already approved its documents);
-     - do not merge (revising the message goes through the free-text answer).
+3. **Merge question.** Write the subject file, the body file, and the version
+   without the approval line, and check the subject as `mergepr.md` step 2
+   does. Then write `merge-<round>.md` and ask one question, as follows.
+   - **Detail file.** It holds what `mergepr.md` step 3 requires and what the
+     summary only points to: the PR URL, the base branch, and the CI result;
+     the full subject and body, and the body without the approval line when
+     that option is shown, built by concatenating the approval message files
+     into the detail file with `cat` (never retype them), together with the
+     absolute paths of the files the merge takes them from; the record of
+     which rule decided the subject's prefix; the PRE_MERGE change (which lines
+     of which files, the reviewer name and date an approval writes, and the PR
+     number fill-in lines separately, since the merge without the approvals
+     commits only those); each diff record PRE_MERGE re-records, with the AC's
+     text, the difference between the recorded and the new output, and your
+     judgment that the AC holds on the new output; every editorial correction
+     any `fixpr` run of this session reported it could not append to the PR
+     description (each run's Final report, accumulated across rounds); for
+     each task document this PR changes that exists on `origin/main`, the
+     lines of its change history (the rule's "Change history" definition) in
+     `git show origin/main:<document>` that hold the marker `#未記入` (fixing
+     such a marker needs a separate PR, never part of PRE_MERGE, as the rule's
+     "PR number" bullet says); the excluded threads of a three-document PR
+     (step 3), numbered 1, 2, ... in order, each marked as excluded, with its
+     topic, the reason, and its URL; the Escalation decision and its reason,
+     when there are changes Codex has not reviewed; NEXT, and, when NEXT is
+     `/runplan`, the `実装モデル要件` of the PR that NEXT will open and the
+     model to start the new session with (below); and LIMITS_NOTE in full when
+     there is one.
+   - **NEXT and the model.** When NEXT is `/runplan`, the PR NEXT will open is
+     the one of the plan's first `### PR-N 作成ポイント` marker whose
+     `PR を作成した` box is unchecked (for a plan PR, a marker after this PR's
+     own; for a task-document PR that first approves the plan, its first
+     marker), or, in a plan without PR markers, the plan itself, whose value is
+     in the `PR 構成` section of its §3. Read the value as `_context.md`, "PR
+     marker conventions", says, and take the model from that section's table:
+     for an old value, the old value and the value it is read as; for an
+     unreadable value, its text as written, that it is unreadable, and that no
+     model is recommended; when there is no value, that and, as far as known,
+     why (the marker has no `実装モデル要件` field, or the plan without PR
+     markers has no `PR 構成` section or no value line in it), and that no
+     model is recommended. The value and the model let the user decide whether
+     this session's model fits and, since step 5 suggests `/clear` before NEXT,
+     which model to start the new session with. Step 5 reuses the value and
+     the model (or their absence) shown here, without reading the plan again;
+     when this question is asked more than once, it uses the ones shown in the
+     round that decided the merge.
+   - **Summary.** Show in the conversation these lines only, in this order,
+     each kind at most once (so at most 12 lines, whatever the PR), with the
+     condition in parentheses (an example of each line is given, and the
+     example's words are the fixed text):
 
-     While an excluded thread of a three-document PR is unresolved, the Merge
-     options are only "return to the full process" and "do not merge": the
-     three documents are never merged with one left open.
+     ```text
+     PR #859 → main ／ CI: 成功                                  (always)
+     件名: docs(0089): draft the architecture ... (#859)         (always)
+     PRE_MERGE: 承認 1 件・PR 番号の記入 2 行（2 ファイル）       (always; or "PRE_MERGE: なし")
+     未レビューの変更: あり（Escalation: ask）                    (always; or "未レビューの変更: なし")
+     除外スレッド: 2 件（番号で判定を覆せる）                      (a three-document PR with unresolved excluded threads)
+     NEXT: /runplan 0083（要件 sonnet → Sonnet）                  (always; the forms below)
+     要確認: diff 記録の再記録 1 件（詳細ファイル）                (when PRE_MERGE re-records a diff record)
+     要確認: PR の説明に追記できなかった訂正 2 件（詳細ファイル）  (when there are such corrections)
+     要確認: #未記入 の行 1 件（詳細ファイル）                    (when there are such lines)
+     要確認: 操作制限の期限が近い（2026-11-20、詳細ファイル）      (when there is a LIMITS_NOTE)
+     自由記述: メッセージの修正 ／ 除外スレッドの判定を半角の番号で覆す (always; the second half only with the excluded-threads line)
+     詳細: /tmp/runpr.Ab12Cd/merge-3.md                          (always)
+     ```
+
+     - Line 2 shows the subject in full and has no width limit; the other
+       lines hold only fixed text and short values (numbers, branch, counts,
+       dates, task ID, the requirement value, the model name, the path), so
+       each stays within 80 columns. Write the subject line from the checked
+       subject file; the merge uses the file, not this line.
+     - Line 3 gives the count of approvals and the number of PR-number lines
+       and files; which line of which file is in the detail file. Line 4 says
+       there are changes Codex has not reviewed when LAST_REVIEWED is behind
+       the head or none, with the Escalation decision (`ask`, `skip`, ...) on
+       the same line; the reason is in the detail file.
+     - Lines 7 to 10 appear only for what exists. Lines 7 to 9 give a kind and
+       a count; line 10 gives the state and the expiry date, not a count.
+     - Line 6 is `NEXT: なし` when there is none; `NEXT: /mkarch 0089` for
+       `/mkarch` or `/mkplan`; for `/runplan`,
+       `NEXT: /runplan 0083（要件 sonnet → Sonnet）` for a value that is one of
+       the three, `NEXT: /runplan 0083（要件 standard＝sonnet → Sonnet）` for an
+       old value (the old value, `＝`, the value it is read as),
+       `NEXT: /runplan 0083（要件の値を読めない、推奨モデルなし）` for an
+       unreadable value, and `NEXT: /runplan 0083（要件の値がない、推奨モデルなし）`
+       when there is no value. The unreadable text and the reason there is no
+       value are in the detail file.
+     - Never show in the conversation the body, the record of the prefix rule,
+       or the version without the approval line: they are in the detail file.
+   - **Question.** Ask with one `AskUserQuestion` call holding one single-select
+     question: "PR #<number> をどうしますか（第 <round> 回。要約と詳細ファイルを確認のうえ）",
+     in one line, with none of the summary or the detail file in it. Offer the
+     options that apply, in this order; "recommended" means the label carries
+     the recommended mark:
+
+     | label | description | shown | recommended |
+     |---|---|---|---|
+     | 先に PR レビューを依頼 | Codex に PR レビューを頼み、終わったらこの問いに戻る | LAST_REVIEWED is behind the head or none (changes Codex has not reviewed), and Escalation said `ask` | yes |
+     | PRE_MERGE を記録してマージ ("マージ" when PRE_MERGE is none) | 要約の件名と詳細ファイルの本文でマージする | always | unless the first option is shown and recommended |
+     | 先に PR レビューを依頼 | (as above) | the same changes exist, and Escalation did not say `ask` | no |
+     | 承認なしでマージ ("承認なしでマージ、PR 番号の記入だけ" when its fill-in is not none) | 文書は draft のまま、承認の行のない本文でマージする | a task-document PR whose PRE_MERGE has approvals, not a plan PR, and not a three-document PR | no |
+     | 通常の進め方へ戻す | マージせず、要件定義書だけの PR に作り直す | a three-document PR | no |
+     | マージしない | 何もせずに止まる | always, last | no |
+
+     "先に PR レビューを依頼" is shown once, as the first or the third option,
+     never both. "承認なしでマージ" is not shown for a plan PR, whose record
+     would be missing on `main` and under whose `draft` document implementation
+     would merge, nor for a three-document PR, which merged with its documents
+     `draft` would leave a task that `/mkarch`, `/mkplan`, and `/runplan` all
+     stop on, so at most four options are shown. Mark no other Merge option as
+     recommended, whether NEXT is set or not and whatever the PR's kind. There
+     is no option that merges and runs NEXT: NEXT is only shown.
+
+     "承認なしでマージ" (the merge without the approvals, recording only the PR
+     numbers): the documents stay `draft`, PRE_MERGE is reduced to its PR
+     number fill-in (none when no marker is left to fill), the message without
+     the approval line is used, NEXT is none, and step 5 detaches. The fill-in
+     still runs, so this PR's lines do not reach `main` with the marker.
+
+     While an excluded thread of a three-document PR is unresolved, show only
+     "先に PR レビューを依頼" (only when changes Codex has not reviewed exist;
+     recommended when Escalation said `ask`), "通常の進め方へ戻す", and
+     "マージしない", in this order: the three documents are never merged with
+     one left open.
+   - **Free-text answers.** A free-text answer never merges, and does not count
+     as choosing an option. It is one of these:
+     - A number answer (item 1 defines the form), when there are excluded
+       threads: it names the excluded threads, by their numbers in the detail
+       file, whose exclusion the user overrides. Pass each to `fixpr.md`
+       as `<threadId>=<fingerprint>` with the fingerprint of the `fixpr`
+       Final report the detail file showed (`fixpr.md`, "Overriding an
+       exclusion"): the user's answer is what overrides the judgment, so
+       `fixpr` fixes it without judging it again and records the override.
+       Run `mergepr discard --state <state-file>`, run `fixpr.md` for
+       `<number>` with them, and return to step 2.
+     - An answer made only of digits and separators that is not a number answer
+       (a number out of range or repeated, or any number when there are no
+       excluded threads): change nothing and ask this question again as a new
+       round.
+     - Any other free text revises the message: rewrite the subject and body
+       files (and the version without the approval line), check the subject
+       again as `mergepr.md` step 2 does, and ask this question again as a new
+       round, writing a new `merge-<round>.md` from the new files. The
+       preparation stays, so item 1 and item 2 are not run again. Whatever the
+       text, it only revises and asks again, never merges (not even "fix the
+       subject and merge").
+
+   Each time this question is asked again, whatever the reason, write a new
+   round's detail file and summary from the head and the approval message files
+   as they are then. The ways back to it are the same as before: after a PR
+   review, a fix, a failed push of PRE_MERGE, or a head that moved, the path
+   goes through step 2 and step 3 and starts at item 1, so a new deferred
+   thread is asked about first.
 
    An answer that merges is the explicit approval `mergepr.md` step 3 asks for.
-   Do not merge on anything less. When the free-text answer revises the
-   message, rewrite the subject and body files, check the subject again as
-   `mergepr.md` step 2 does, and ask step 4 again with the revised message.
+   Do not merge on anything less. A merging answer merges with the approval
+   message files of the round that asked (the version without the approval
+   line for the merge without the approvals), never with the detail file.
    When the answer otherwise does not merge, run
-   `mergepr discard --state <state-file>` and stop.
+   `mergepr discard --state <state-file>`, stop, and report.
 
    When the answer requests a PR review first, run
    `mergepr discard --state <state-file>`, ask Codex for a PR review as step 3,
    "Requesting the review", says, with
    `gh pr comment <number> --body "<review-request>"` (the user's request, so
    it does not count against Escalation's one), wait for it and handle what it
-   opens as step 3 says, and return to step 2; then ask step 4 again. Do not
-   merge on this answer.
-
-   When the answer chooses deferred threads to fix now, run
-   `mergepr discard --state <state-file>`, run `fixpr.md` for `<number>` with
-   those thread IDs as its caller override (pass them in the instructions you
-   follow; `fixpr` reads them from this session), and return to step 2; then
-   ask step 4 again. Do not merge on this answer: the fix changes the head, so
-   the message and the merge are confirmed again on the new head. Pass each
-   excluded thread chosen as an override thread instead, as
-   `<threadId>=<fingerprint>` with the fingerprint of the `fixpr` Final report
-   the question showed (`fixpr.md`, "Overriding an exclusion"): the user's
-   answer is what overrides the judgment, so `fixpr` fixes it without judging
-   it again and records the override.
+   opens as step 3 says, and return to step 2; then ask step 4 again, from its
+   item 1. Do not merge on this answer.
 
    When the answer returns the PR to the full process (only a three-document
-   PR is offered it), do not merge. Run the return steps in order; each stop
+   PR is offered it, in item 1 and in this item), do not merge. Run the return steps in order; each stop
    below ends this command, and a later run finishes the return (step 2, "A
    return in progress"):
 
-   1. **Ask first.** First run `mergepr discard --state <state-file>`. Before
-      touching any file, settle everything the return needs. An answer that
+   1. **Ask first.** When entering from this item, first run
+      `mergepr discard --state <state-file>`; when entering from item 1 there
+      is no preparation, so discard nothing. Before touching any file, settle
+      everything the return needs. An answer that
       chooses the return together with anything else (threads to fix, a PR
       review) is not a choice: ask step 4 again, from its item 1. REASON
       is the answer's free text as written, or `理由の記載なし` when it gives
@@ -846,7 +1091,18 @@ stops, stop here: no question, no merge.
       three documents; when one ADR change cannot be split that way, ask the
       user with one `AskUserQuestion` call, and without an answer change
       nothing and stop. THREADS come from the latest `fixpr` Final report
-      (`_lib/simple-process.md`, "Returning to the full process", "Inputs").
+      (`_lib/simple-process.md`, "Returning to the full process", "Inputs"),
+      limited to the threads the latest `fixprguard list` still shows
+      unresolved: run
+
+      ```
+      fixprguard list --protocol 6 --reviewer <reviewer> <number>
+      ```
+
+      and keep only the threads whose `threadId` it lists, taking each one's
+      `databaseId`, `fingerprint`, and the rest from the Final report. A thread
+      moved to the tracking issue in item 1 is resolved and drops out, so the
+      return neither writes it into a handoff file nor replies to it again.
    2. **The return commit.** Follow `_lib/simple-process.md`, "Returning to the
       full process", with REASON, ADR_SPLIT, and THREADS.
    3. **Local review.** Follow `.claude/commands/_lib/local-cli-review.md` with
@@ -921,49 +1177,21 @@ stops, stop here: no question, no merge.
       A later run pushes it (step 2) after a failure that does not move the
       head; for a rejected push (the head moved), report the recovery of
       return step 4.
-   7. Return to step 2, then step 3, and ask step 4 again. The PR is no longer
+   7. Return to step 2, then step 3, and ask step 4 again, from its item 1.
+      The PR is no longer
       a three-document PR, so step 3 runs `fixpr` once more for the excluded
       threads left on `01_requirements.md`, which are now handled as in the
       full process.
 
-   When the answer merges, first move the deferred threads not chosen to an
-   issue, so none is silently dropped. Look for this PR's tracking issue
-   (`gh issue list --state open --search "PR #<number> のレビュー指摘の追跡 in:title"`).
-   Skip any finding whose thread URL the issue or its comments already list.
-   Write the issue comment or body to a file outside the work tree, and run
-   the mention check on it before posting it:
-   **Mention check.** Before posting, run `grep -qiF -- '<review-mention>' <file>`
-   on each file of text to post. Post only when it exits `1` for every file: exit
-   code `0` means the text contains the mention, and any other code means the
-   check failed. Never rewrite the text to get past the check.
-   When the check fails, do not post: run `mergepr discard --state <state-file>`,
-   stop, and report, without merging.
-   Add the others to the issue as a comment
-   (`gh issue comment <issue> --body-file <file>`), or create it
-   (`gh issue create --title "PR #<number> のレビュー指摘の追跡" --body-file <file>`)
-   when there is none. Write in Japanese, listing each finding's topic, the
-   change it asks for, and its thread URL. Then reply to each of those threads
-   in Japanese with the issue URL and resolve it, as `fixpr.md` Phase 5 does:
-   write the reply to a file outside the work tree, run the mention check on
-   it, and only when it passes run, with the `databaseId` and `fingerprint` the
-   latest `fixpr` report gave for the thread,
-
-   ```
-   fixprguard reply --protocol 6 --reviewer <reviewer> --thread-id <threadId> --comment-id <databaseId> --fingerprint <fingerprint> --body-file <reply-file> <number>
-   ```
-
-   If `reply` stops for any thread, or a reply fails the mention check, do not
-   merge: run
-   `mergepr discard --state <state-file>`, stop, and report each such thread
-   with its URL and stop kind. The tracking issue already lists it, so a rerun
-   of this command must not add it to the issue again. For
-   `reply-not-resolved`, the reply may be posted: ask the user to resolve the
-   thread by hand, never replying again. Otherwise continue below.
-3. When the answer records PRE_MERGE (including the merge without the
+4. When the answer records PRE_MERGE (including the merge without the
    approvals, when its PR number fill-in is not none):
-   - Note the prepared `headRefOid`, and copy the approved subject and body
-     files to the scratchpad (`mergepr.md` keeps them in the prepared
-     directory, which `discard` deletes). Then run
+   - Note the prepared `headRefOid`, and copy the approval message files of the
+     round that decided (the subject file and the body file; for the merge
+     without the approvals, the subject file and the body file without the
+     approval line) to the details directory as `approved-<round>.subject` and
+     `approved-<round>.body` (`mergepr.md` keeps them in the prepared
+     directory, which `discard` deletes; the details directory is not the
+     scratchpad, which a session without one cannot write). Then run
      `mergepr discard --state <state-file>`.
    - Make the PRE_MERGE commit and push it. If the push is rejected (someone
      pushed meanwhile), `git pull --rebase` the bookkeeping commit onto the new
@@ -983,14 +1211,16 @@ stops, stop here: no question, no merge.
      merge: discard the preparation and return to step 3, which handles it
      (`fixpr`, or the untrusted-thread question), then step 2, and ask step 4
      again.
-   - Otherwise merge with the approved message files without asking again: the
-     answer approved this message for exactly this head.
-4. Merge with `mergepr.md` step 4, and report as its step 5 says. If the merge
-   is refused because the head moved, discard the preparation and return to
-   step 2 rather than re-running `mergepr.md` from its step 1: the new commits
-   need review, and step 4 asks again.
+   - Otherwise merge with the approved message files (the copies) without
+     asking again: the answer approved this message for exactly this head.
+5. Merge with `mergepr.md` step 4, and report as its step 5 says, adding the
+   path of the details directory and of the detail file of the round that
+   decided the merge, with its head commit (the report convention above). If
+   the merge is refused because the head moved, discard the preparation and
+   return to step 2 rather than re-running `mergepr.md` from its step 1: the
+   new commits need review, and step 4 asks again.
 
-## 5. Switch branch, then run or show NEXT
+## 5. Switch branch, then show NEXT
 
 Once `mergepr.md` reports the merge:
 
@@ -1032,24 +1262,23 @@ Once `mergepr.md` reports the merge:
   merged, which issues are still open, and that running `/runpr <PR>` again
   closes them (step 1's `MERGED` case); a close that failed after its comment
   was posted posts the comment once more on that rerun.
-- End by the answer in step 4 and how this step went. The next branch is
+- End by the answer in step 4 and how this step went. This command never runs
+  NEXT: it shows it. The next branch is
   **ready** once `_lib/task-pr-handoff.md` Part A step 4 has run to its end; a
   branch that exists on `origin` or locally is not ready by that alone. (An
   answer that does not merge stopped in step 4, so this step does not run.)
-  - NEXT is set, the next branch is ready, and the answer chose to run NEXT:
-    run it now. It opens its own PR, pings the reviewer, and stops; this
-    command ends there.
-  - NEXT is set, the next branch is ready, and the answer merged without
-    running NEXT: report the final status with the `/clear` guidance below.
+  - NEXT is set and the next branch is ready: report the final status with the
+    `/clear` guidance below.
   - NEXT is none (including a merge without the approvals): report the final
     status, without the `/clear` guidance.
   - NEXT is set, but this step stopped before the next branch was ready:
-    report as "Stopping before the next branch is ready" below says, whichever
-    Merge option the answer chose, and do not run NEXT.
+    report as "Stopping before the next branch is ready" below says.
 
   Every final report of this step, the stop report below included, is in
-  Japanese, and gives LIMITS_NOTE when there is one, or else the expiry date
-  step 1 kept for the 有効 state, on one line. The `/clear` guidance gives:
+  Japanese, gives the path of the details directory and, when the PR merged,
+  the path of the detail file of the round that decided the merge and its head
+  commit (step 4), and gives LIMITS_NOTE when there is one, or else the expiry
+  date step 1 kept for the 有効 state, on one line. The `/clear` guidance gives:
   1. that the user should run `/clear` and then NEXT;
   2. NEXT with its arguments, ready to run as written (for example
      `/runplan 0015`);

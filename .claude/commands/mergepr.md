@@ -120,10 +120,11 @@ around it with your own shell commands. Work in order; do not skip a step.
    the subject's prefix (step 2), and ask whether to merge with this
    message. Revise it as asked; after revising the subject, check it again as
    step 2 does. Do not merge without an explicit yes. When this
-   command runs inside `runpr.md`, its step 4 asks
-   this question together with the pre-merge bookkeeping and whether to run
-   the next command `runpr.md` offers (when there is one), and says how to
-   re-prepare after the bookkeeping commit.
+   command runs inside `runpr.md`, its step 4 asks this question together with
+   the pre-merge bookkeeping, shows the subject in the conversation, and puts
+   the body and the record of the prefix rule in a detail file outside the work
+   tree; the question does not ask whether to run the next command. `runpr.md`
+   also says how to re-prepare after the bookkeeping commit.
 4. **Merge.** Run
    `mergepr merge --state <state-file> --subject-file <subject-file> --body-file <body-file>`.
    It requires the PR to be still open on the prepared base, then merges with

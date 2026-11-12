@@ -142,8 +142,8 @@ review only when `_lib/pr-review-escalation.md` says so or the user asks.
   Bot whose login is on that list; `begin` records it as `authorType` `Bot`).
   Their findings are fixed in rounds 1 and 2. From round 3, only their `must-fix` findings are fixed; their `worth-fixing` findings
   are `deferred`: left unresolved, not replied to, and listed in the Final
-  report, so the human decides (`runpr.md` step 4 asks whether to fix each one
-  now or move it to an issue). The cap exists to stop the automated review from
+  report, so the human decides (`runpr.md` step 4's deferred question asks
+  whether to fix them or move them to an issue). The cap exists to stop the automated review from
   feeding itself; it never silences a person.
 - **People are always answered**: a trusted thread a person opened
   (`authorType` `User`: its first comment is by a person with write permission)
@@ -165,7 +165,7 @@ review only when `_lib/pr-review-escalation.md` says so or the user asks.
   criterion left unverified, a correctness or security gap — is `must-fix`,
   however small the change looks.
 - **Caller override**: when the caller names threads to fix regardless of the
-  cap (`runpr.md` step 4, the ones the user chose), fix them in this round. The
+  cap (`runpr.md` step 4's deferred question, the ones the user chose), fix them in this round. The
   caller passes their thread IDs in its instructions in this session; the
   command's own argument stays the PR number.
 - **Naming an untrusted thread**: the caller may also name untrusted threads to
