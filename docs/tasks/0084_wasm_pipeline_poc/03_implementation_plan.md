@@ -221,7 +221,7 @@
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した: https://github.com/isseis/yt2column/pull/843
 - [x] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: PoC のコード（PoC のブランチ）
 
@@ -311,15 +311,15 @@ PoC のブランチでは、`make ext-build` が通ることだけを求める�
 
 **変えるファイル:** `docs/research/wasm_pipeline_poc/README.md`（新規）。
 
--   [ ] 設計書 §3.6 の見出しで、3 つの問いへの答え（AC-24）・測定の条件（AC-25）・測った値・確かめていない事項（AC-27）を書く。
--   [ ] PoC のブランチの名前と、測ったコミットの SHA を書く（AC-25・AC-26）。
--   [ ] AC-19 の見積もり（本番の 3 本で観測した Opus の出力の速さから求めた、40,000 トークンの所要時間）を、長い応答の所要時間と並べ、答えと分けて書く（AC-24）。
+-   [x] 設計書 §3.6 の見出しで、3 つの問いへの答え（AC-24）・測定の条件（AC-25）・測った値・確かめていない事項（AC-27）を書く。
+-   [x] PoC のブランチの名前と、測ったコミットの SHA を書く（AC-25・AC-26）。
+-   [x] AC-19 の見積もり（本番の 3 本で観測した Opus の出力の速さから求めた、40,000 トークンの所要時間）を、長い応答の所要時間と並べ、答えと分けて書く（AC-24）。
 
 #### ステップ 4-2: 調査記録を確かめる
 
--   [ ] PoC のブランチが origin にあり、測定の記録と調査記録に書いたすべての SHA がそのブランチから辿れ、`origin/main` からは辿れないことを確かめる。実行したコマンドと出力を、§7 の AC-26 の行に書く。
--   [ ] 調査記録に、API キー・ワークスペース ID・記事と字幕の本文がないことを読んで確かめる（AC-28）。
--   [ ] 調査記録の値が、測定の記録（§1.3）と合っていることを読み合わせる。
+-   [x] PoC のブランチが origin にあり、測定の記録と調査記録に書いたすべての SHA がそのブランチから辿れ、`origin/main` からは辿れないことを確かめる。実行したコマンドと出力を、§7 の AC-26 の行に書く。
+-   [x] 調査記録に、API キー・ワークスペース ID・記事と字幕の本文がないことを読んで確かめる（AC-28）。
+-   [x] 調査記録の値が、測定の記録（§1.3）と合っていることを読み合わせる。
 -   [ ] 読み合わせを終えたら、測定の記録（§1.3）を消す。
 
 ### PR-2 作成ポイント: PoC measurement record
@@ -519,7 +519,30 @@ internal/ytdlpsource/test_helpers_cache_seed.go
 internal/ytdlpsource/ytdlp.go
 internal/ytdlpsource/ytdlp_test.go
 ````
-AC-26 の確かめ（ステップ 4-2 で書く）：未記入
+AC-26 の確かめ（ステップ 4-2、2026-11-12）：PoC のブランチが origin にあり、測定の記録と調査記録に書いた PoC のコミットのすべてが、そのブランチから辿れ、`origin/main`（`03fecb1e2316746bf2606473ee6eb3471baf2c34`）から辿れない。`git merge-base --is-ancestor` の終了状態は、辿れるとき 0、辿れないとき 1 である。測定の記録に書いた分岐の元 247c1d17 は、`origin/main` と PoC のブランチの merge-base そのものなので、対象から除いた。
+
+```bash
+git fetch -q origin main '+refs/heads/poc/0084-wasm-pipeline:refs/remotes/origin/poc/0084-wasm-pipeline'
+git ls-remote --exit-code origin refs/heads/poc/0084-wasm-pipeline
+for c in 2e369055 395f3feb 51b7aafe f016d7c7 5bcc3c4b a7b09d81 83ef12bd; do
+  git merge-base --is-ancestor $c origin/poc/0084-wasm-pipeline; a=$?
+  git merge-base --is-ancestor $c origin/main; m=$?
+  echo "$(git rev-parse --short=8 $c) poc=$a main=$m"
+done
+git merge-base origin/main origin/poc/0084-wasm-pipeline
+```
+
+```text
+83ef12bd019bf1456a0fb77aa7d7f35a2c848c8a	refs/heads/poc/0084-wasm-pipeline
+2e369055 poc=0 main=1
+395f3feb poc=0 main=1
+51b7aafe poc=0 main=1
+f016d7c7 poc=0 main=1
+5bcc3c4b poc=0 main=1
+a7b09d81 poc=0 main=1
+83ef12bd poc=0 main=1
+247c1d172576ca95b0f7895426068202cd6e407d
+```
 
 ## 8. 成功基準 (Success Criteria)
 
