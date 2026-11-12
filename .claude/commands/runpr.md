@@ -866,7 +866,7 @@ character as 2); the line shapes below are the examples to follow.
    When the check fails, do not post: stop and report, with the tracking
    issue's URL when there is one. Nothing is prepared, so there is nothing to
    discard.
-   Add the findings not skipped to the issue as a comment
+   When every finding is skipped, post nothing; otherwise add the findings not skipped to the issue as a comment
    (`gh issue comment <issue> --body-file <file>`), or create it
    (`gh issue create --title "PR #<number> のレビュー指摘の追跡" --body-file <file>`)
    when there is none. Write in Japanese, listing each finding's topic, the
@@ -888,7 +888,7 @@ character as 2); the line shapes below are the examples to follow.
    replying again. For any other stop, say that the user resolves the thread
    by hand on GitHub, or chooses "すべて直す" or a number answer for it in a
    rerun, since the move procedure skips a thread the issue already lists.
-   Otherwise count again: run
+   Otherwise (every reply posted and resolved) count again: run
 
    ```
    fixprguard list --protocol 6 --reviewer <reviewer> <number>
@@ -897,7 +897,8 @@ character as 2); the line shapes below are the examples to follow.
    and when any thread that was to be moved is still unresolved (for example
    one a former run stopped on with `reply-not-resolved`, which the steps above
    skip because the issue already lists it), stop and report its URL and the
-   tracking issue's URL: do not go on to item 2 or call `fixpr` with a thread
+   tracking issue's URL, and that the user resolves it by hand on GitHub or
+   chooses "すべて直す" or a number answer for it in a rerun: do not go on to item 2 or call `fixpr` with a thread
    left that the merge question would no longer show.
 
 2. Run `.claude/commands/mergepr.md` steps 1–2 for `<number>` (prepare, draft
@@ -923,7 +924,7 @@ character as 2); the line shapes below are the examples to follow.
      each file followed by a newline of its own so a subject without a trailing
      newline does not run into the body (never retype them), together with the
      absolute paths of the files the merge takes them from: the approval
-     message files, and, when PRE_MERGE is not none, the copies item 4 will make
+     message files, and, when the answer records PRE_MERGE, the copies item 4 will then make
      (`approved-<round>.subject` and `approved-<round>.body` in the details
      directory), which the merge uses then; the record of
      which rule decided the subject's prefix; the PRE_MERGE change (which lines
