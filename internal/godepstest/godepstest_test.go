@@ -128,7 +128,7 @@ func TestPackagePath(t *testing.T) {
 		{"a package that does not exist", func(*testing.T) {}, "./cmd/doesnotexist"},
 		{"no go on PATH", func(t *testing.T) { t.Setenv("PATH", t.TempDir()) }, "./cmd/yt2column"},
 		{"go prints nothing", func(t *testing.T) { fakeGoOnPath(t, "exit 0\n") }, "./cmd/yt2column"},
-		{"go prints two lines", func(t *testing.T) { fakeGoOnPath(t, "printf 'a\\nb\\n'\n") }, "./cmd/yt2column"},
+		{"go prints two lines", func(t *testing.T) { fakeGoOnPath(t, "printf 'a\\t/x\\nb\\t/y\\n'\n") }, "./cmd/yt2column"},
 	}
 	for _, tc := range failures {
 		t.Run("fails when "+tc.name, func(t *testing.T) {

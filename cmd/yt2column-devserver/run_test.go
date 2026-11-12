@@ -117,6 +117,9 @@ func TestRunArgsRejected(t *testing.T) {
 		{"fractional delay", []string{"-delay", "1.5"}, "decimal digits"},
 		{"delay with a unit", []string{"-delay", "1s"}, "decimal digits"},
 		{"non-printable value", []string{"-article", "a\x1bb"}, "not an accepted value"},
+		// The flag package reports an unknown name raw, so only run's own
+		// escaping of the reason line keeps the escape character out.
+		{"non-printable argument name", []string{"-a\x1bb"}, "flag provided but not defined"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			env := newTestEnv(t)
@@ -371,14 +374,22 @@ func checkCombination(t *testing.T, a devfake.Article, f devfake.Failure, at dev
 		t.Fatalf("a failed job has no steps: %+v", got.Job)
 	}
 	steps := map[string]string{"draft": got.Job.Steps.Draft, "shorten": got.Job.Steps.Shorten, "review": got.Job.Steps.Review}
-	for _, step := range []string{"draft", "shorten", "review"} {
-		switch {
-		case step == at.String() && steps[step] != "failed":
-			t.Errorf("step %s = %q, want failed", step, steps[step])
-		case step != at.String() && slices.Index([]string{"draft", "shorten", "review"}, step) < slices.Index([]string{"draft", "shorten", "review"}, at.String()):
-			if steps[step] != "done" && steps[step] != "skipped" {
-				t.Errorf("step %s before the failed %s = %q, want done or skipped", step, at, steps[step])
-			}
+	if steps[at.String()] != "failed" {
+		t.Errorf("step %s = %q, want failed", at, steps[at.String()])
+	}
+	// The steps before the failed call completed; the shorten step before a
+	// review failure ran only for the long article.
+	before := map[devfake.FailAt]map[string]string{
+		devfake.FailAtDraft:   {},
+		devfake.FailAtShorten: {"draft": "done"},
+		devfake.FailAtReview:  {"draft": "done", "shorten": "skipped"},
+	}[at]
+	if a == devfake.ArticleLong && at == devfake.FailAtReview {
+		before["shorten"] = "done"
+	}
+	for step, want := range before {
+		if steps[step] != want {
+			t.Errorf("step %s = %q, want %q", step, steps[step], want)
 		}
 	}
 }
@@ -617,12 +628,9 @@ func TestStopNotice(t *testing.T) {
 	if code := srv.stop(t); code != exitOK {
 		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, srv.stderr.String())
 	}
-	// run has returned, so every line is already written and in order.
-	out := srv.stderr.String()
-	notice, canceled, stopped := strings.Index(out, "stopping:"), strings.Index(out, "generation job canceled by the shutdown"), strings.Index(out, "msg=stopped")
-	if notice < 0 || canceled < 0 || stopped < 0 || notice > stopped || canceled > stopped {
-		t.Errorf("want the stop notice and the cancellation before the stopped line (at %d, %d, %d):\n%s", notice, canceled, stopped, out)
-	}
+	srv.waitStderr(t, "stopping:")
+	srv.waitStderr(t, "generation job canceled by the shutdown")
+	srv.waitStderr(t, "msg=stopped")
 
 	lock, err := serversock.Acquire(env.socketPath())
 	if err != nil {
@@ -633,9 +641,15 @@ func TestStopNotice(t *testing.T) {
 	}
 }
 
-// TestProductionDeps checks the values main passes: a start with them, whose
-// delay is 0, completes an article without any substituted wait.
+// TestProductionDeps checks the values main passes: the scenario function
+// returns the scenario it is given, and a start with them, whose delay is 0,
+// completes an article without a substituted wait that blocks.
 func TestProductionDeps(t *testing.T) {
+	s := mustScenario(t, devfake.ArticleLong, devfake.FailureEmpty, devfake.FailAtReview, 2*time.Second)
+	if got := productionDeps().scenario(s); got.LogValue().String() != s.LogValue().String() {
+		t.Errorf("scenario(s) = %v, want %v", got.LogValue(), s.LogValue())
+	}
+
 	env := newTestEnv(t)
 	startServer(t, env, productionDeps(), "-article", "long")
 	got := waitJobDone(t, env.socketPath(), startGeneration(t, env.socketPath(), "AAAAAAAAAAA"))

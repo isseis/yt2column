@@ -184,7 +184,7 @@
     -   `run_test.go::TestProductionDeps`: `productionDeps()` のシナリオの関数が、受け取ったシナリオを `LogValue` で同じ値のまま返すこと、遅れが 0 のシナリオで記事が完成すること。
     -   `run_test.go::TestWriterOptionsMatchCLIDefaults`: `perJobWriter` が作る `writer` の設定が `writertestutil.DefaultOptions` と等しいこと（`writer` を作る関数を `deps` で差し替えて観測する）。
     -   `test_helpers.go`（`//go:build test`）: ジョブの API の最小の補助と、`deps` の差し替え。本番のサーバのテストの補助の写しや、本番の `run.go` の写しで `dupl` が報告されたら、構成を変えずに、行を限った `//nolint:dupl` と §1.3 の決定 3（または設計書「設計の際に決めたこと」の 1 つ目）を示す注釈で抑える。
-    -   次のそれぞれの変更を加え、括弧に挙げたテストが失敗することを確かめる。`perJobWriter` がクライアントを共有する（`TestJobsIndependent`）。起動の行を `Acquire` の前に出す（`TestLockHeld`）。環境から `HOME` 以外を引く（`TestIgnoresConfigAndEnv`）。`productionDeps()` のシナリオの関数が待ち方を差し替える（`TestProductionDeps`）。遅れの桁あふれの確かめを外す（`TestRunArgsRejected`）。
+    -   次のそれぞれの変更を加え、括弧に挙げたテストが失敗することを確かめる。`perJobWriter` がクライアントを共有する（`TestJobsIndependent`）。起動の行を `Acquire` の前に出す（`TestLockHeld`）。環境から `HOME` 以外を引く（`TestIgnoresConfigAndEnv`）。`productionDeps()` のシナリオの関数が、呼び出しを止める待ち方を差し替える（`TestProductionDeps`。遅れが 0 のとき、すぐ戻る待ち方への差し替えは観測できない）。遅れの桁あふれの確かめを外す（`TestRunArgsRejected`）。
 -   [x] **ステップ 2-4**: 分離のテストに開発用のサーバを加える（設計書 §7.3）。`internal/godepstest` に、`cmd/yt2column-devserver` のパスを `go list` で求め、見つかることを先に確かめる手段を加える。本番の 3 つの `cmd/` の `TestNoDevDependency` に、`cmd/yt2column-devserver` がないことの確かめを加える。`cmd/yt2column-devserver` のパスの求め方を壊す（存在しないパスを渡す）と、3 つの `TestNoDevDependency` が飛ばずに失敗することを確かめる。
 -   [x] **ステップ 2-5**: `make build-dev` を加える（設計書 §3.5、§1.3 の決定 6、AC-23）。
     -   `build-dev` は `./cmd/yt2column-devserver` を `build/dev/yt2column-devserver` にビルドする。`build` と同じビルドの引数にする。`.PHONY` に加える。`make build` は変えない。

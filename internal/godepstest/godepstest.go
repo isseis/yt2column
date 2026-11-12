@@ -166,8 +166,9 @@ func PackagePath(root, pkg string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	path, dir, ok := strings.Cut(strings.TrimSuffix(string(out), "\n"), "\t")
-	if !ok || !importPathLine.MatchString(path) || dir == "" {
+	line := strings.TrimSuffix(string(out), "\n")
+	path, dir, ok := strings.Cut(line, "\t")
+	if strings.Contains(line, "\n") || !ok || !importPathLine.MatchString(path) || dir == "" {
 		return "", fmt.Errorf("%w: go list %s did not print one import path and directory", ErrList, pkg)
 	}
 	// Read the package's directory from the test process, as List does, so
