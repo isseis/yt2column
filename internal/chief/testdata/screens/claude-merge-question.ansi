@@ -1,0 +1,65 @@
+
+[0m[38;5;9m ▐[0m[38;5;9m[48;5;0m▛███▛█   [0m[1mClaude Code [0m[38;5;8mv2.1.322[0m
+[0m[38;5;9m▝▜[0m[38;5;9m[48;5;0m█████[0m[38;5;9m█▀  [0m[38;5;8mOpus 5.5 · Claude Max[0m
+[0m[38;5;9m ▝▝   ▝▝   [0m[38;5;8m~/.herdr/worktrees/yt2column/chief-poc[0m
+
+
+[0m[38;5;8m[48;5;7m❯[0m[48;5;7m [0m[38;5;0m[48;5;7m/clear[0m[48;5;7m                                                                           [0m
+
+[0m[38;5;8m[48;5;7m❯[0m[48;5;7m [0m[38;5;0m[48;5;7m/model sonnet[0m[48;5;7m                                                                    [0m
+[0m[38;5;8m  ⎿  [0mSet model to [0m[38;5;4mSonnet 5.5 [0mand saved as your default for new sessions
+
+[0m[38;5;8m[48;5;7m❯[0m[48;5;7m [0m[38;5;0m[48;5;7m/model opus[0m[48;5;7m                                                                      [0m
+[0m[38;5;8m  ⎿  [0mSet model to [0m[38;5;4mOpus 5.5 [0mand saved as your default for new sessions
+
+[0m[38;5;8m[48;5;7m❯ [0m[38;5;0m[48;5;7mScreen sample: reproduce /runpr's merge question exactly. First print these [0m[48;5;7m     [0m
+[0m[48;5;7m  [0m[38;5;0m[48;5;7mlines as plain text:[0m[48;5;7m                                                             [0m
+[0m[48;5;7m  [0m[38;5;0m[48;5;7mPR #123 → main ／ CI: 成功[0m[48;5;7m                                                       [0m
+[0m[48;5;7m  [0m[38;5;0m[48;5;7m件名: docs(0123): add the sample (#123)[0m[48;5;7m                                          [0m
+[0m[48;5;7m  [0m[38;5;0m[48;5;7mPRE_MERGE: なし[0m[48;5;7m                                                                  [0m
+[0m[48;5;7m  [0m[38;5;0m[48;5;7m未レビューの変更: なし[0m[48;5;7m                                                           [0m
+[0m[48;5;7m  [0m[38;5;0m[48;5;7mNEXT: /mkarch 0123[0m[48;5;7m                                                               [0m
+[0m[48;5;7m  [0m[38;5;0m[48;5;7m自由記述: メッセージの修正[0m[48;5;7m                                                       [0m
+[0m[48;5;7m  [0m[38;5;0m[48;5;7m詳細: /tmp/runpr.Ab12Cd/merge-1.md[0m[48;5;7m                                               [0m
+[0m[48;5;7m  [0m[38;5;0m[48;5;7mThen call AskUserQuestion once with one single-select question, text "PR #123 [0m[48;5;7m   [0m
+[0m[48;5;7m  [0m[38;5;0m[48;5;7mをどうしますか（第 1 回。要約と詳細ファイルを確認のうえ）", header "マージ", and[0m[48;5;7m [0m
+[0m[48;5;7m  [0m[38;5;0m[48;5;7mthese options in order: label "マージ" description [0m[48;5;7m                              [0m
+[0m[48;5;7m  [0m[38;5;0m[48;5;7m"要約の件名と詳細ファイルの本文でマージする"; label "マージしない" description [0m[48;5;7m  [0m
+[0m[48;5;7m  [0m[38;5;0m[48;5;7m"何もせずに止まる". No other tools.[0m[48;5;7m                                              [0m
+
+[0m[38;5;0m⏺ [0mPR #123 → main ／ CI: 成功
+  件名: docs(0123): add the sample (#123)
+  PRE_MERGE: なし
+  未レビューの変更: なし
+  NEXT: /mkarch 0123
+  自由記述: メッセージの修正
+  詳細: /tmp/runpr.Ab12Cd/merge-1.md
+[0m[38;5;8m───────────────────────────────────────────────────────────────────────────────────[0m
+[0m[38;5;7m[48;5;4m ☐ マージ [0m
+
+[0m[1m[38;5;0mPR #123 をどうしますか（第 1 回。要約と詳細ファイルを確認のうえ）[0m
+
+[0m[38;5;4m❯ [0m[38;5;8m1. [0m[38;5;4mマージ[0m
+     [0m[38;5;8m要約の件名と詳細ファイルの本文でマージする[0m
+  [0m[38;5;8m2. [0mマージしない
+     [0m[38;5;8m何もせずに止まる[0m
+  [0m[38;5;8m3. Type something.[0m
+[0m[38;5;8m───────────────────────────────────────────────────────────────────────────────────[0m
+  4. Chat about this
+
+[0m[38;5;8mEnter to select · ↑/↓ to navigate · Esc to cancel[0m
+ 
+
+ 
+
+
+
+
+
+
+  
+        
+
+
+
+  

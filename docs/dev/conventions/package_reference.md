@@ -122,6 +122,7 @@ add a kind here or to widen one of these definitions.
 | `cmd/coveragecompare` | Entry point of the coverage comparison tool behind `make coverage-compare` and `make ext-coverage-compare`: it parses `go --base <rev>` or `ext --base <rev>` and runs `coveragecompare.Run`. |
 | `cmd/fixprguard` | Entry point of the `fixprguard` guard tool behind `/fixpr` and `/runpr`: it parses the subcommands and orders the `internal/fixprguard` calls. Usage: [fixprguard guide](../guides/fixprguard_guide.md). |
 | `cmd/mergepr` | Entry point of the `/mergepr` developer tool: it prepares a PR for message drafting, then merges and cleans up after the user approves the message. Usage: [mergepr guide](../guides/mergepr_guide.md). |
+| `internal/chief` | The decisions and side effects of the `chief` developer tool; today its screen readers, which read an agent's pane screen into typed results (`Screen`, `Question`, `InputLine`, `RunprNext`), and the sanitizing and read caps for text shown to the human (`Sanitize`, `CapScreen`, `CapDescription`). The design: [0088 design](../../tasks/0088_chief_of_staff/02_architecture.md). |
 | `internal/codexreview` | The checks behind the `codexreview` tool: `Run`, `Result`, `Kind`, `Protocol`. |
 | `internal/coveragecompare` | The coverage comparison tool's core: `Run`, `Write`, `ExitCode`, `StopError`, and the input parsers. |
 | `internal/fixprguard` | The deterministic checks for `/fixpr` and `/runpr`: `GitHub`, `NewGitHub`, `ParseReviewers`, `CheckState`, `Worktree.Baseline`. Usage: [fixprguard guide](../guides/fixprguard_guide.md). |

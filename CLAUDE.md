@@ -477,6 +477,25 @@ for the packages that exist today. The server's startup is documented in the
   kept: only an '@' inside a word and a URL path '/@' that meets every
   condition are left as they are; and the neutralization inserts U+200B and
   changes no other character.
+  Exception: the chief tool's screen readers (the files of `internal/chief`
+  whose names start with `screen`) choose behavior by inspecting the content
+  of an agent's pane screen and of Claude Code's transcript. Scope: they read
+  whether an agent waits on a question and the question's shape
+  (single-select, multi-select, tabbed, permission), the question and option
+  texts, whether it is `/runpr`'s merge question, the unsent text left in the
+  input line, OpenCode's model line and its screen after `/new`, the NEXT of a
+  `/runpr` report, the report of the command that created a PR, and the
+  transcript's record of a model switch; the chief session's summary of that
+  report is in scope too. Every other file of the tool chooses behavior only
+  by the types the screen readers return. Reason: the screens are drawn by
+  Claude Code and OpenCode and the transcript is written by Claude Code,
+  external values the tool cannot express in a type, and OpenCode's question
+  screen cannot be changed. Boundary: a screen that matches no shape read
+  from the real samples under `internal/chief/testdata/screens/` is not read
+  more widely but read as unmatched, which marks the workspace as needing a
+  check or sends nothing; and the trigger of chief's automatic send is the
+  state of GitHub and git, never a screen: a screen reading only stops a send
+  or narrows its conditions.
 - **Enforce invariants with the type, not with convention**: if a value must pass
   validation before use (e.g. a video ID), make the compiler the thing that
   guarantees it — unexported fields plus a mandatory constructor — rather than
@@ -770,6 +789,15 @@ Only the conventions a linter does not check are worth stating:
   document instead would make a mistyped label read as no value, which skips
   the review.
   Boundary: no other `.claude/commands/` script takes this exception.
+- The same exception covers the chief tool's screen readers: a literal in a
+  file of `internal/chief` whose name starts with `screen` (its tests
+  included) that has to equal the fixed text an agent draws on its pane
+  screen, such as a footer, a fixed option label, a title, a mark, the
+  logo, or `/runpr`'s question and report wording. Comments, identifiers, and
+  the text the tool prints stay English, and the screens a test reads are
+  sample files under `internal/chief/testdata/screens/`, not Go literals.
+  Reason: the screen is drawn in that text, so the literal has to equal it,
+  as for a guard test.
 - The same rule applies to the browser extension: its comments, identifiers,
   and string literals are English. There are three exceptions: the messages in
   a catalog file for a language other than English under
