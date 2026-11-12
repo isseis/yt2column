@@ -10,12 +10,12 @@
 | [ADR-0002](0002-post-generation-steps.md) | 生成の後に字数の調整と検証・推敲の 2 つの工程を置き、検証・推敲は直す箇所の一覧だけを返す | `有効` |
 | [ADR-0003](0003-llm-config-contract.md) | LLM のプロバイダ・モデル・effort を 1 つの値 <プロバイダ>/<モデル ID>+<effort> で指定する | `有効` |
 | [ADR-0004](0004-production-profile.md) | 本番の構成を 3 つの工程とも claude-opus-5-5（effort high）とし、品質の目標と製品の制約を共通の文書に置く | `有効` |
-| [ADR-0005](0005-server-architecture.md) | サーバを Native Messaging のホストと常駐サーバに分け、HTTP を Unix ドメインソケットの上で受ける | `有効` |
+| [ADR-0005](0005-server-architecture.md) | サーバを Native Messaging のホストと常駐サーバに分け、HTTP を Unix ドメインソケットの上で受ける | `廃止` |
 | [ADR-0006](0006-threat-model.md) | ブラウザ拡張と localhost サーバの脅威モデルは、同一ユーザーを信頼し、他のユーザーを排除する | `有効` |
 | [ADR-0007](0007-manual-transcript-copy.md) | 字幕は利用者が文字起こしパネルから手動でコピーし、拡張はページを読むだけにする | `有効` |
 | [ADR-0008](0008-launch-path.md) | 拡張の起動の経路をツールバーのポップアップだけにし、生成の開始は利用者のボタンの押下だけで行う | `有効` |
 | [ADR-0009](0009-viewer-opening.md) | ビューアは生成の開始と同時に背面のタブで開き、ポップアップは閉じずに状態を表示する | `有効` |
-| [ADR-0010](0010-extension-stores-nothing.md) | 拡張は何も保存せず、権限も加えず、状態の正しい値をサーバに置く | `有効` |
+| [ADR-0010](0010-extension-stores-nothing.md) | 拡張は API キーをブラウザの再起動の後も残る形で保存し、完成した記事をブラウザの終了まで持つ | `有効` |
 | [ADR-0011](0011-webhook-publishing.md) | 投稿先は Slack 互換の Incoming Webhook とし、投稿は利用者の操作でだけ行う | `廃止` |
 | [ADR-0012](0012-lightweight-check-in-bash.md) | 軽量プロセスの確かめ直しは、origin/main の版の bash スクリプトで行い、Go のツールにしない | `廃止` |
 | [ADR-0013](0013-review-setup.md) | PR レビューは作成時の 1 回だけ Codex に頼み、その後の変更はローカルの CLI レビューで見る | `有効` |
@@ -23,7 +23,7 @@
 | [ADR-0015](0015-untrusted-review-threads.md) | レビューのスレッドと Bot への依頼は信頼せず、書き込み権限・範囲の規則・interaction limits で守る | `有効` |
 | [ADR-0016](0016-document-test-policy.md) | 文書のテストは値・構造・実行できる例だけを確かめ、文の意味は PR のレビューで読む | `有効` |
 | [ADR-0017](0017-viewer-markdown-rendering.md) | ビューアは記事を自前の最小限のレンダラーで描画し、HTML を解釈せず、リンクは https の自動リンクだけにする | `有効` |
-| [ADR-0018](0018-server-config-file.md) | サーバは設定を決まった場所の env-file 形式のファイルだけから読み、CLI は環境変数を読む | `有効` |
+| [ADR-0018](0018-server-config-file.md) | サーバは設定を決まった場所の env-file 形式のファイルだけから読み、CLI は環境変数を読む | `廃止` |
 | [ADR-0019](0019-pipeline-component-interfaces.md) | パイプラインの構成要素を interface にし、構成要素ごとに型を持つパッケージを分け、番兵はプロバイダに依存するかで置き場所を分ける | `有効` |
 | [ADR-0020](0020-strict-json.md) | 厳格な JSON の部品を internal/strictjson に集め、検証済みの値だけを扱う不透明な型にし、負でない整数の規則を 1 つにする | `有効` |
 | [ADR-0021](0021-llm-client-contract.md) | LLMClient の契約は生成テキストにモデル名・モデルの版・使用量を添えて返し、打ち切りなどの失敗でもモデル名と使用量を返す | `有効` |
@@ -53,3 +53,4 @@
 | [ADR-0045](0045-dev-fake-llm.md) | 本番のバイナリに fake の LLM を入れず、fake の LLM はサーバに依存しない構成要素にして開発用のバイナリから使う | `有効` |
 | [ADR-0046](0046-chief-of-staff.md) | chief は人の判断を待つものを示し、決まった入力だけをほかのエージェントに送り、マージの後の次のコマンドを自動で送る | `有効` |
 | [ADR-0047](0047-runpr-merge-question.md) | /runpr のマージの質問は 1 つの単一選択の問いにし、詳細は作業ツリーの外のファイルに書いて会話には要約だけを出し、deferred のスレッドはその前に片付ける | `有効` |
+| [ADR-0048](0048-extension-only-generation.md) | 記事を拡張だけで作り、localhost サーバと Native Messaging のホストを廃止する | `有効` |

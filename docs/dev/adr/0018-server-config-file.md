@@ -4,7 +4,10 @@
 
 | 項目 | 値 |
 |---|---|
-| 状態 | `有効` |
+| 状態 | `廃止` |
+| 廃止の日付 | 2026-11-12 |
+| 廃止の理由 | localhost サーバを廃止することにし、サーバの設定ファイルが要らなくなるため。CLI が設定を環境変数から読むことは、ADR-0048 が引き継ぐ。設定ファイルのコードは、[#773](https://github.com/isseis/yt2column/issues/773) の実装で撤去するまで残る（[0090 要件定義書](../../tasks/0090_extension_only_architecture/01_requirements.md)） |
+| 代わりの ADR | [ADR-0048](0048-extension-only-generation.md) |
 
 ## 背景
 
@@ -66,3 +69,4 @@
 - 2026-11-06 設定ファイルの空の値の行をどのキーでも拒否するのをやめ、環境変数と同じく値の検証で扱うことにし、CLI を環境変数のままにする理由と見直しの条件を記した（[0066 要件定義書](../../tasks/0066_server_config_file/01_requirements.md)）
 - 2026-11-10 OpenAI をサーバでも選べるように、設定ファイルの許可するキーと雛形に OPENAI_API_KEY を追加することにした（[0077 要件定義書](../../tasks/0077_openai_llm_client/01_requirements.md)）
 - 2026-11-11 Webhook への投稿の廃止に合わせて、設定ファイルの許可するキーと雛形から SLACK_WEBHOOK_URL を除き、その行を知らないキーとして拒否することにした（[0083 要件定義書](../../tasks/0083_remove_slack_webhook/01_requirements.md) F-001）
+- 2026-11-12 localhost サーバを廃止することにし、この ADR を廃止した。CLI が設定を環境変数から読むことは ADR-0048 が引き継ぐ（[0090 要件定義書](../../tasks/0090_extension_only_architecture/01_requirements.md)「issue #769・#772 で決めたこと」）
