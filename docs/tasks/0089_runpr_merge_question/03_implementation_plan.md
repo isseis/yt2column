@@ -180,13 +180,13 @@ Diff record (AC-18):
 
 - Compared paths: `.claude/commands/runpr.md`
 - Merge-base: `f72fd25d5b7971a3dc8598caa13ae9019c5b7454`
-- Compared commit: `d413285efd2ba0288a440a4ca1bbad68cb67d4a0`
+- Compared commit: `466dc19056f556fd91c169adeb13f8b043c6da9e`
 
 Path diff:
 
 ````text
 diff --git a/.claude/commands/runpr.md b/.claude/commands/runpr.md
-index 4a0bbbd5f93f4cc0b3cdf99b420c858756fcb96f..3858457ff6d6574d1b86d1172a560ee20f694a16 100644
+index 4a0bbbd5f93f4cc0b3cdf99b420c858756fcb96f..bdcdc6d5fcbdf44cb97e60797331c4d390c2b901 100644
 --- a/.claude/commands/runpr.md
 +++ b/.claude/commands/runpr.md
 @@ -1,5 +1,5 @@
@@ -231,6 +231,17 @@ index 4a0bbbd5f93f4cc0b3cdf99b420c858756fcb96f..3858457ff6d6574d1b86d1172a560ee2
  `codexreview` have standing approval: the local CLI review runs `codexreview`,
  which runs Codex CLI and sends the diff and what Codex reads to OpenAI's
  service, only when the CodeRabbit CLI fails.
+@@ -175,8 +175,8 @@ Every `fixpr.md` and `mergepr.md` run below is given the resolved PR number
+     not linked to the issue, so the PR does not appear in its Development
+     section.) Write the title and the body to files in the scratchpad with the
+     Write tool (`_context.md`, "Passing a title to `gh`"). Do not pause for the
+-    user to adjust them; they can edit them on GitHub, and step 4 is the one
+-    question.
++    user to adjust them; they can edit them on GitHub, and step 4's questions
++    are where the user decides.
+ - Before checking it out, check that the PR's head is a branch of this
+   repository:
+
 @@ -230,8 +230,9 @@ Every `fixpr.md` and `mergepr.md` run below is given the resolved PR number
    - 期限が近い: show now a warning with the state name, `expiresOn` (UTC),
      and the guide's chapter 10, where the limit is renewed. Keep that one line
@@ -243,6 +254,15 @@ index 4a0bbbd5f93f4cc0b3cdf99b420c858756fcb96f..3858457ff6d6574d1b86d1172a560ee2
    - 制限なし: the state name, the guide's chapter 10, and what the user does.
    - 制限が弱い: the state name, `expiresOn`, that the limit must be changed to
      `collaborators_only`, the guide's chapter 10, and what the user does.
+@@ -334,7 +335,7 @@ head; a record already made counts as made, never as absent.
+     `git diff $(git merge-base origin/main HEAD)` inside the document's change
+     history), replace the not-yet-filled marker `#未記入` (the rule's "Change history",
+     "PR number") with `#<number>`. Change no other line: a marker already on
+-    `main` belongs to another PR and is only shown in step 4's question, and
++    `main` belongs to another PR and is only shown in step 4's merge question, and
+     the marker's text outside a change history (a quotation of the rule) is not
+     a marker, nor is anything inside a diff record's code block
+     (`docs/dev/conventions/requirements_process.md` §4, "Diff record form").
 @@ -560,8 +561,9 @@ finished review observed had and every review in progress lacked, so that a
    split the history), or when `git merge-base` exits with a code other than `0`
    or `1`. The summary comment is rewritten, so an earlier run's markers count
@@ -281,7 +301,7 @@ index 4a0bbbd5f93f4cc0b3cdf99b420c858756fcb96f..3858457ff6d6574d1b86d1172a560ee2
    one `AskUserQuestion` call, which of them to process (none included). Show
    each thread's URL and its reasons (every `findings` entry of the latest
    `list`); do not fetch or read their content: the user checks them on GitHub.
-@@ -711,134 +715,375 @@ finished review observed had and every review in progress lacked, so that a
+@@ -711,134 +715,386 @@ finished review observed had and every review in progress lacked, so that a
 
  ## 4. Confirm, record, and merge
 
@@ -332,8 +352,9 @@ index 4a0bbbd5f93f4cc0b3cdf99b420c858756fcb96f..3858457ff6d6574d1b86d1172a560ee2
 +  asking, and report what failed and the path. For the merge question, run
 +  `mergepr discard --state <state-file>` before stopping. Never ask a
 +  deferred question or merge question that has no detail file.
-+- **Reports.** Every report of a stop in this step after the details
-+  directory was made, and the final report of step 5, gives its path. A report after the merge
++- **Reports.** Every report of a stop in this run after the details directory
++  was made (a stop in step 2 or step 3 after a fix or a return included), and
++  the final report of step 5, gives its path. A report after the merge
 +  also gives the path of the detail file of the round that decided the merge,
 +  with its head commit: that file is the record of what was approved.
 +
@@ -437,7 +458,7 @@ index 4a0bbbd5f93f4cc0b3cdf99b420c858756fcb96f..3858457ff6d6574d1b86d1172a560ee2
 +   When the check fails, do not post: stop and report, with the tracking
 +   issue's URL when there is one. Nothing is prepared, so there is nothing to
 +   discard.
-+   Add the findings to the issue as a comment
++   Add the findings not skipped to the issue as a comment
 +   (`gh issue comment <issue> --body-file <file>`), or create it
 +   (`gh issue create --title "PR #<number> のレビュー指摘の追跡" --body-file <file>`)
 +   when there is none. Write in Japanese, listing each finding's topic, the
@@ -460,7 +481,10 @@ index 4a0bbbd5f93f4cc0b3cdf99b420c858756fcb96f..3858457ff6d6574d1b86d1172a560ee2
 +   issue's URL. The tracking issue already lists it, so a rerun of this
 +   command must not add it to the issue again. For `reply-not-resolved`, the
 +   reply may be posted: ask the user to resolve the thread by hand, never
-+   replying again. Otherwise count again: run
++   replying again. For any other stop, say that the user resolves the thread
++   by hand on GitHub, or chooses "すべて直す" or a number answer for it in a
++   rerun, since the move procedure skips a thread the issue already lists.
++   Otherwise count again: run
 
 -1. Run `.claude/commands/mergepr.md` steps 1–2 for `<number>` (prepare, draft
 +   ```
@@ -562,15 +586,22 @@ index 4a0bbbd5f93f4cc0b3cdf99b420c858756fcb96f..3858457ff6d6574d1b86d1172a560ee2
 -     While an excluded thread of a three-document PR is unresolved, the Merge
 -     options are only "return to the full process" and "do not merge": the
 -     three documents are never merged with one left open.
-+3. **Merge question.** Write the subject file, the body file, and the version
-+   without the approval line, and check the subject as `mergepr.md` step 2
-+   does. Then write `merge-<round>.md` and ask one question, as follows.
++3. **Merge question.** Use the approval message files item 2 wrote and
++   checked (the subject file, the body file, and, when PRE_MERGE has approvals,
++   the body without the approval line); write them again, and check the subject
++   again as `mergepr.md` step 2 does, only on the revising path below. Write
++   `merge-<round>.md` and ask one question, as follows.
 +   - **Detail file.** It holds what `mergepr.md` step 3 requires and what the
 +     summary only points to: the PR URL, the base branch, and the CI result;
 +     the full subject and body, and the body without the approval line when
-+     that option is shown, built by concatenating the approval message files
-+     into the detail file with `cat` (never retype them), together with the
-+     absolute paths of the files the merge takes them from; the record of
++     that option is shown, each part under its own label and built by
++     concatenating the approval message file into the detail file with `cat`,
++     each file followed by a newline of its own so a subject without a trailing
++     newline does not run into the body (never retype them), together with the
++     absolute paths of the files the merge takes them from: the approval
++     message files, and, when PRE_MERGE is not none, the copies item 4 will make
++     (`approved-<round>.subject` and `approved-<round>.body` in the details
++     directory), which the merge uses then; the record of
 +     which rule decided the subject's prefix; the PRE_MERGE change (which lines
 +     of which files, the reviewer name and date an approval writes, and the PR
 +     number fill-in lines separately, since the merge without the approvals
@@ -764,7 +795,7 @@ index 4a0bbbd5f93f4cc0b3cdf99b420c858756fcb96f..3858457ff6d6574d1b86d1172a560ee2
        chooses the return together with anything else (threads to fix, a PR
        review) is not a choice: ask step 4 again, from its item 1. REASON
        is the answer's free text as written, or `理由の記載なし` when it gives
-@@ -846,7 +1091,18 @@ stops, stop here: no question, no merge.
+@@ -846,7 +1102,18 @@ stops, stop here: no question, no merge.
        three documents; when one ADR change cannot be split that way, ask the
        user with one `AskUserQuestion` call, and without an answer change
        nothing and stop. THREADS come from the latest `fixpr` Final report
@@ -784,7 +815,7 @@ index 4a0bbbd5f93f4cc0b3cdf99b420c858756fcb96f..3858457ff6d6574d1b86d1172a560ee2
     2. **The return commit.** Follow `_lib/simple-process.md`, "Returning to the
        full process", with REASON, ADR_SPLIT, and THREADS.
     3. **Local review.** Follow `.claude/commands/_lib/local-cli-review.md` with
-@@ -921,49 +1177,21 @@ stops, stop here: no question, no merge.
+@@ -921,49 +1188,22 @@ stops, stop here: no question, no merge.
        A later run pushes it (step 2) after a failure that does not move the
        head; for a rejected push (the head moved), report the recovery of
        return step 4.
@@ -834,8 +865,9 @@ index 4a0bbbd5f93f4cc0b3cdf99b420c858756fcb96f..3858457ff6d6574d1b86d1172a560ee2
 -   - Note the prepared `headRefOid`, and copy the approved subject and body
 -     files to the scratchpad (`mergepr.md` keeps them in the prepared
 -     directory, which `discard` deletes). Then run
-+   - Note the prepared `headRefOid`, and copy the approval message files of the
-+     round that decided (the subject file and the body file; for the merge
++   - Note the prepared `headRefOid`, and copy (checking first that no file of
++     that name exists, and stopping, after `mergepr discard`, when the copy
++     fails or one exists) the approval message files of the round that decided (the subject file and the body file; for the merge
 +     without the approvals, the subject file and the body file without the
 +     approval line) to the details directory as `approved-<round>.subject` and
 +     `approved-<round>.body` (`mergepr.md` keeps them in the prepared
@@ -844,7 +876,7 @@ index 4a0bbbd5f93f4cc0b3cdf99b420c858756fcb96f..3858457ff6d6574d1b86d1172a560ee2
       `mergepr discard --state <state-file>`.
     - Make the PRE_MERGE commit and push it. If the push is rejected (someone
       pushed meanwhile), `git pull --rebase` the bookkeeping commit onto the new
-@@ -983,14 +1211,16 @@ stops, stop here: no question, no merge.
+@@ -983,14 +1223,16 @@ stops, stop here: no question, no merge.
       merge: discard the preparation and return to step 3, which handles it
       (`fixpr`, or the untrusted-thread question), then step 2, and ask step 4
       again.
@@ -868,7 +900,7 @@ index 4a0bbbd5f93f4cc0b3cdf99b420c858756fcb96f..3858457ff6d6574d1b86d1172a560ee2
 
  Once `mergepr.md` reports the merge:
 
-@@ -1032,24 +1262,23 @@ Once `mergepr.md` reports the merge:
+@@ -1032,24 +1274,23 @@ Once `mergepr.md` reports the merge:
    merged, which issues are still open, and that running `/runpr <PR>` again
    closes them (step 1's `MERGED` case); a close that failed after its comment
    was posted posts the comment once more on that rerun.
@@ -908,7 +940,7 @@ Diff record (AC-19):
 
 - Compared paths: `.claude/commands/mergepr.md`
 - Merge-base: `f72fd25d5b7971a3dc8598caa13ae9019c5b7454`
-- Compared commit: `d413285efd2ba0288a440a4ca1bbad68cb67d4a0`
+- Compared commit: `466dc19056f556fd91c169adeb13f8b043c6da9e`
 
 Path diff:
 
