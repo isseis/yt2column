@@ -106,23 +106,14 @@ func TestEnumStrings(t *testing.T) {
 	}
 }
 
+// TestScenarioLogValue checks that LogValue reports the delay in whole
+// seconds, rounded down. TestNewScenario's accepted rows check the other
+// attributes.
 func TestScenarioLogValue(t *testing.T) {
-	tests := []struct {
-		name     string
-		scenario Scenario
-		want     slog.Value
-	}{
-		{
-			"failure and delay", mustScenario(t, ArticleLong, FailureTruncated, FailAtShorten, 5*time.Second),
-			group(slog.String("article", "long"), slog.String("fail", "truncated"), slog.String("failStep", "shorten"), slog.Int64("delay", 5)),
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := tc.scenario.LogValue(); !got.Equal(tc.want) {
-				t.Errorf("LogValue() = %v, want %v", got, tc.want)
-			}
-		})
+	s := mustScenario(t, ArticleLong, FailureTruncated, FailAtShorten, 1500*time.Millisecond)
+	want := group(slog.String("article", "long"), slog.String("fail", "truncated"), slog.String("failStep", "shorten"), slog.Int64("delay", 1))
+	if got := s.LogValue(); !got.Equal(want) {
+		t.Errorf("LogValue() = %v, want %v", got, want)
 	}
 }
 

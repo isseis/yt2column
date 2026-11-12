@@ -162,7 +162,11 @@ func TestJobsIndependent(t *testing.T) {
 			})
 		}
 		for range jobs {
-			<-entered
+			select {
+			case <-entered:
+			case <-time.After(30 * time.Second):
+				t.Fatal("a job did not reach its wait")
+			}
 		}
 		close(release)
 		wg.Wait()
@@ -210,7 +214,7 @@ func TestIgnoresRequest(t *testing.T) {
 					if resp != want[c] || (err != nil) != wantErr[c] {
 						t.Errorf("request %d call %d = (%+v, %v), want the result of the first request", i, c, resp, err)
 					}
-					if err != nil && !errors.Is(err, ErrSimulatedAPIFailure) && !errors.Is(err, ErrUnexpectedCall) {
+					if err != nil && !errors.Is(err, ErrSimulatedAPIFailure) {
 						t.Errorf("request %d call %d error = %v, want the scenario's failure", i, c, err)
 					}
 				}

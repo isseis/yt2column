@@ -7,8 +7,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/isseis/yt2column/internal/articlecache"
 	"github.com/isseis/yt2column/internal/godepstest"
 	"github.com/isseis/yt2column/internal/llm"
+	"github.com/isseis/yt2column/internal/nmhost"
+	"github.com/isseis/yt2column/internal/privatefile"
+	"github.com/isseis/yt2column/internal/server"
+	"github.com/isseis/yt2column/internal/serversock"
 )
 
 // TestDependencies checks that the fake depends on no server-only package and
@@ -19,16 +24,19 @@ func TestDependencies(t *testing.T) {
 	llmPath := reflect.TypeFor[llm.GenerateRequest]().PkgPath()
 	module, ok := strings.CutSuffix(llmPath, "/internal/llm")
 	if !ok {
-		t.Fatalf("llm package path %q does not end in /internal/llm; the forbidden paths below would name no package", llmPath)
+		t.Fatalf("llm package path %q does not end in /internal/llm; the cmd pattern below would name no package", llmPath)
 	}
+	// The server-only paths come from their types, so a rename cannot leave
+	// a pattern that names no package. This test package's imports are not
+	// in the listing: go list -deps runs without -test.
 	godepstest.Check(t, "./internal/llm/devfake",
 		[]string{llmPath},
 		[]string{
-			module + "/internal/server",
-			module + "/internal/articlecache",
-			module + "/internal/serversock",
-			module + "/internal/privatefile",
-			module + "/internal/nmhost",
+			reflect.TypeFor[server.Options]().PkgPath(),
+			reflect.TypeFor[articlecache.Cache]().PkgPath(),
+			reflect.TypeFor[serversock.Lock]().PkgPath(),
+			reflect.TypeFor[privatefile.UnsafeError]().PkgPath(),
+			reflect.TypeFor[nmhost.RelayOptions]().PkgPath(),
 			module + "/cmd/...",
 			"net",
 			"os/exec",

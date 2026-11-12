@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -106,5 +107,29 @@ func TestRoot(t *testing.T) {
 				t.Errorf("Root() error = %v, want ErrList", err)
 			}
 		})
+	}
+}
+
+// TestChildEnv checks that the child go command gets the target OS and the
+// fixed settings, whatever the process environment holds, and keeps the rest.
+func TestChildEnv(t *testing.T) {
+	t.Setenv("GOOS", "windows")
+	t.Setenv("GOFLAGS", "-tags=test")
+	t.Setenv("GOWORK", "/tmp/go.work")
+	t.Setenv("GODEPSTEST_KEPT", "kept")
+	env := childEnv("linux")
+	values := map[string][]string{}
+	for _, kv := range env {
+		name, value, _ := strings.Cut(kv, "=")
+		values[name] = append(values[name], value)
+	}
+	want := map[string]string{
+		"GOOS": "linux", "GOFLAGS": "", "GOWORK": "off", "GOTOOLCHAIN": "local",
+		"GOENV": "off", "GOPROXY": "off", "GODEPSTEST_KEPT": "kept",
+	}
+	for name, value := range want {
+		if got := values[name]; len(got) != 1 || got[0] != value {
+			t.Errorf("%s = %q, want exactly [%q]", name, got, value)
+		}
 	}
 }
