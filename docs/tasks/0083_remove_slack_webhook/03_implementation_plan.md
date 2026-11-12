@@ -343,7 +343,7 @@
 -   [x] **ステップ 5-5**: エージェントの指示を改める。`.claude/commands/_context.md` の「Conditional-guide trigger」と「Target client environments」（AC-24 の文）、`git grep -n -i -E 'webhook|slack' -- .claude .github` が返す指示（`runplan.md`・`mkarch.md`・`mkplan.md`・`_lib/opus-review.md`・`.github/workflows/deepseek-review.yml`）。`mkplan.md`・`runplan.md` の「Domain examples」の例のうち、投稿の機能を前提にするものも改める。
 -   [x] **ステップ 5-6**: ADR を改める（設計書 3.12 の表の ADR の行）。ADR-0005・0006・0008・0010・0018・0022・0027・0028・0031・0034・0043 の #770 へリンクした食い違いの注記を消し、ADR-0009 の背景の投稿の記述を直す。どちらも編集上の訂正として、commit のメッセージに訂正の行を書く（`docs/dev/conventions/adr.md`）。`git grep -n -i -E 'webhook|slack|投稿' -- docs/dev/adr` が返すほかの ADR（ADR-0003・0024・0037 など）は、記述が経緯としての言及か、今の機能の説明かを読んで、今の機能の説明なら直す。`cmd/yt2column/adr_test.go::TestADRRecords` が通ることを確かめる。
 -   [x] **ステップ 5-7**: `git grep -n -i -E 'webhook|slack|投稿' -- docs ':!docs/tasks' ':!docs/research' ':!docs/dev/adr'` の残りを読み、投稿の機能を今の機能として述べる箇所が残っていないことを確かめる。
--   [ ] **ステップ 5-8**: AC-17 の手動の確かめを行い、§7 の「実行の記録」の PR-5 の欄に日付・Mattermost のサーバとデスクトップアプリの版・ブラウザ（Chrome と Brave）を書く（設計書 7.3）。確かめに使う記事の内容は要件書 AC-17 のとおりで、設計書 6.3 の U1〜U6・R1・R2・S1〜S4 の形も同じ手順で貼り付ける。拡張と Native Messaging ホストは PR-5 のブランチから作ったものを使い、サーバの代わりに、PR-5 のブランチから作った `_checks/mattermost_stub/main.go` を使う（§1.6 の決定 1）。通知されたものがあれば、何も直さずに止まり、人に報告する。
+-   [x] **ステップ 5-8**: AC-17 の手動の確かめを行い、§7 の「実行の記録」の PR-5 の欄に日付・Mattermost のサーバとデスクトップアプリの版・ブラウザ（Chrome と Brave）を書く（設計書 7.3）。確かめに使う記事の内容は要件書 AC-17 のとおりで、設計書 6.3 の U1〜U6・R1・R2・S1〜S4 の形も同じ手順で貼り付ける。拡張と Native Messaging ホストは PR-5 のブランチから作ったものを使い、サーバの代わりに、PR-5 のブランチから作った `_checks/mattermost_stub/main.go` を使う（§1.6 の決定 1）。通知されたものがあれば、何も直さずに止まり、人に報告する。
 
 **完了の条件:** 設計書 3.12 の表の各行の文書が改まり、ADR の注記がない。§7 に AC-17 の記録がある。`make test`・`make lint`・`make ext-test` が通る。
 
@@ -539,7 +539,13 @@ exit=0
 
 PR-5:
 
-（ステップ 5-8 で書く。）
+**AC-17 の手動の確かめ（ステップ 5-8）。** 2026-11-12 に行った。
+
+-   Mattermost: サーバ 11.11.3（データベースのスキーマの版 213、ビルド番号 39677079611、PostgreSQL）、デスクトップアプリ 6.3.2。
+-   ブラウザ: Chrome 157.0.8103.51（arm64）、Brave 1.99.56（Chromium 157.0.8103.50、arm64）。
+-   使ったもの: PR-5 のブランチのコミット `cb67c7b7` から作った拡張と Native Messaging ホスト、サーバの代わりに `_checks/mattermost_stub/main.go`（§1.6 の決定 1）。`-user` には、テスト用のチャンネルの 2 つ目のアカウントの名前を与えた。動画のタイトルは、YouTube のページのタイトルの要素を DevTools で `@channel`・`@here`・`@<名前>`・`AC/@<名前>` を含む文字列に書き換えて与えた。
+-   確かめた形: 確認用のサーバの固定の記事が持つ、要件書 AC-17 の形と、設計書 6.3 の U1〜U6・R1・R2・S1〜S3・C の形、見出しの動画のタイトルとチャンネル名（S4）。
+-   結果: コピーのボタンによるコピーと、ビューアのページの全体の選択によるコピー（Chrome と Brave の両方）を、1 つ目のアカウントでテスト用のチャンネルに貼り付けて送信した。どの方法でも、2 つ目のアカウントに通知・メンションの数のバッジ・「最近のメンション」への掲載のどれも起きず、送るときに `@channel` の確かめのダイアログも出なかった。
 
 ## 8. 成功の基準 (Success Criteria)
 
