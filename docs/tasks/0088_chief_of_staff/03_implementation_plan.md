@@ -148,6 +148,11 @@
 | 試作 | この worktree の `.claude/commands/chief.md` と `.claude/chief/`（`hold.tsv` に `0084_wasm_pipeline_poc` の `PR-1` の行）。リポジトリには入っていない | PR-7 で移行する（決定 16） |
 | 画面の読み取り、Herdr の読み書き、状態の区分、送信、中継、待ち受け、記録 | ない | 新しく作る。今ある実装で代わりになるものはない |
 
+### 1.5. 実装の際に決めたこと（2026-11-12）
+
+-   **要件書の AC-30・AC-46 を外したので、それを実装するステップと確かめを除く。** タスク 0089（#866）で、`/runpr` のマージの質問から「NEXT をこのセッションで実行する」答えがなくなった（[ADR-0047](../../dev/adr/0047-runpr-merge-question.md)）。ステップ 5-2 の除く選択肢からその答えを、§7 から AC-30・AC-46 の行を除く。理由: 対象のない振る舞いを実装しないため。ADR: [ADR-0046](../../dev/adr/0046-chief-of-staff.md) の、この 2 つの AC を外すと書いたずれの文を、本 PR で消す（§1.2 の「ずれの記述は、ずれを解いた PR で直す」のとおり）。
+-   **マージの確認のサンプルは、0089 の後の `/runpr` の step 4 の item 3（マージの質問）で採る。item 1 の deferred のスレッドの問いは、ふつうの 1 つを選ぶ問いとして採り、読む（ステップ 1-2・1-6、設計書 1.3）。** 理由: 0089 で step 4 にマージの質問の前の問いが加わり、「マージの確認」の形をどちらの問いで固定するかを決める必要があったため。ADR: なし（画面の扱いはこのタスクの中で閉じるため）。
+
 ## 2. 実装のステップ (Implementation Steps)
 
 ### フェーズ 1: 画面のサンプルと画面の読み取り（設計書 8 章の 1、2 のうち画面の読み取りと文字の無害化）
@@ -159,7 +164,7 @@
     -   人に採取用の workspace（Claude Code と OpenCode の pane を 1 つずつ）を用意してもらい、Claude Code・OpenCode・Herdr の版を記録する（設計書 3.4.2）。
     -   `herdr agent read` の `--source`（`visible`・`recent` など）と行数のうち、OpenCode のマージの確認の選択肢が見えるものを確かめて決める（設計書 1.2 の観測）。
 -   [ ] **ステップ 1-2**: 画面と出力を採る（決定 1）。
-    -   設計書 3.4.1 の表のすべての行と、8 章の 1 が挙げる画面を、エージェントごとに採る。
+    -   設計書 3.4.1 の表のすべての行と、8 章の 1 が挙げる画面を、エージェントごとに採る。マージの確認は 0089 の後の `/runpr` の step 4 の item 3（マージの質問）の画面で採り、item 1 の deferred のスレッドの問いが出ていれば、ふつうの 1 つを選ぶ問いのサンプルとして採る（§1.5）。
     -   `herdr agent list`・`get`・`workspace list` の出力を採る。
     -   Claude Code の transcript の置き場所の規則、モデルを切り替えた記録の行、`/clear` の前後の `agent_session` を確かめる。
     -   gh の `pr list`・`pr view`・`pr checks` の `--json` の出力と終了コードを、通った PR、待っている PR、失敗した PR、CI のない PR で採る。このリポジトリの PR を読む読み取り専用の操作で、人の承認を得てから行う。
@@ -342,7 +347,7 @@
 **変更するファイル:** `internal/chief/relay.go` とそのテスト、`internal/chief/state.go`、`internal/chief/paneinput/`、`cmd/chief/main.go`・`main_test.go`
 
 -   [ ] **ステップ 5-1**: 照合値を作る部品を書く（設計書 3.6）。`snapshot` の出力の中継できる質問に照合値を足し、中継しない質問には照合値を返さない（質問の文と選択肢は PR-3 から返している）。テストは、照合値が `state_change_seq`・セッション・問いの文・選択肢・選択の位置のどれが変わっても変わること、中継しない質問の種類ごとに照合値がないことを確かめる。
--   [ ] **ステップ 5-2**: 入力の型のパッケージに中継のキー入力の型を足し、選択肢の番号とステップ 1-4 で確かめたキー入力からだけ作る。`relay.go` に中継を書く（設計書 3.6）。排他、読み直し、照合値の比較、Claude Code の `blocked` の確かめ、すべての問いの答え、選択肢の範囲、除く選択肢（自分で書く選択肢、マージの確認の「NEXT をこのセッションで実行する」）、送信の記録、送った後の失敗での停止を持つ。
+-   [ ] **ステップ 5-2**: 入力の型のパッケージに中継のキー入力の型を足し、選択肢の番号とステップ 1-4 で確かめたキー入力からだけ作る。`relay.go` に中継を書く（設計書 3.6）。排他、読み直し、照合値の比較、Claude Code の `blocked` の確かめ、すべての問いの答え、選択肢の範囲、除く選択肢（自分で書く選択肢）、送信の記録、送った後の失敗での停止を持つ。
 -   [ ] **ステップ 5-3**: `cmd/chief` に `relay` を足す。テストは次を確かめる。
     -   照合値が違うとき、一部の問いだけに答えたとき、範囲の外の番号、除いた選択肢を選んだときに、何も送らないこと。
     -   キー入力を送り始めた後の失敗で、停止の記録を作ること。
@@ -587,7 +592,6 @@ $ rg -n 'on Sonnet|to Sonnet|implement.*Sonnet|Model to start|model each reading
 | AC-27 | `ic/relay_test.go::TestRelayRequiresAllAnswers` | test | 5-2 | PR-5 |
 | AC-28 | `ic/relay_test.go::TestRelayCheckValueMismatch` | test | 5-2 | PR-5 |
 | AC-29 | `ic/paneinput/paneinput_test.go::TestRelayKeysFromNumbersOnly`、`ic/relay_test.go::TestRelaySendsChosenOption` | test | 5-2 | PR-5 |
-| AC-30 | `ic/relay_test.go::TestRelayExcludedOptions` | test | 5-2 | PR-5 |
 | AC-31 | `ic/paneinput/paneinput_test.go::TestZeroAndOutOfRangeAreUnusable`、`ic/herdr_test.go::TestWriterRefuses`、`cc/docs_test.go::TestSettingsDeniesPaneInput` | test、static | 2-1・4-1・7-3 | PR-2、PR-4、PR-7 |
 | AC-32 | `ic/task_test.go::TestReadModelRequirement`、`ic/markers_parity_test.go::TestMarkerReadingMatchesDecisionScript` | test | 2-4・2-5 | PR-2 |
 | AC-33 | `ic/state_test.go::TestUnreadableRequirementOffersNoRunplan` | test | 3-4 | PR-3 |
@@ -603,7 +607,6 @@ $ rg -n 'on Sonnet|to Sonnet|implement.*Sonnet|Model to start|model each reading
 | AC-43 | `ic/state_test.go::TestNextCommand`（簡易な進め方の 3 文書の後） | test | 3-4 | PR-3 |
 | AC-44 | `ic/autosend_test.go::TestAutoSendOnce`（起動し直し、記録を読めないとき） | test | 6-2・6-3 | PR-6 |
 | AC-45 | `ic/autosend_test.go::TestAutoSendConditions`（満たさなかった条件の提案） | test | 6-3 | PR-6 |
-| AC-46 | `ic/autosend_test.go::TestAutoSendSkipsRunningNext` | test | 6-3 | PR-6 |
 | AC-47 | `ic/autosend_test.go::TestAutoSendNeverMkreqOrRunpr`、`ic/state_test.go::TestClassifyWorkspaceStates`（タスク完了） | test | 3-4・6-3 | PR-3、PR-6 |
 | AC-48 | `cc/docs_test.go::TestMarkerFormsCarryAutoSend`（`mkplan2.md`・`mkplan.md`・`_lib/simple-process.md` の形、`_context.md` の欄の一覧） | static | 6-5・6-6 | PR-6 |
 | AC-49 | `ic/autosend_test.go::TestAutoSendHold` | test | 6-3 | PR-6 |
@@ -646,3 +649,4 @@ $ rg -n 'on Sonnet|to Sonnet|implement.*Sonnet|Model to start|model each reading
 ## 変更履歴
 
 - 2026-11-12 承認（isseis、#855）
+- 2026-11-12 セッション中の再承認：AC-30・AC-46 を実装するステップと確かめを除き、マージの確認のサンプルを 0089 の後のマージの質問で採る（§1.5・1-2・5-2・§7）（isseis、#未記入）
