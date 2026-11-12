@@ -69,91 +69,95 @@ var (
 	mergeLabels = []string{"マージ", "マージしない"}
 )
 
+// claudeScreenWants and openCodeScreenWants give the reading each screen
+// sample must give; every file under testdata/screens has an entry.
+var claudeScreenWants = map[string]wantScreen{
+	"claude-idle.ansi":                   {kind: ScreenPrompt, inputEmpty: true},
+	"claude-working.ansi":                {kind: ScreenPrompt, inputEmpty: true},
+	"claude-after-clear.ansi":            {kind: ScreenPrompt, inputEmpty: true},
+	"claude-after-model.ansi":            {kind: ScreenPrompt, inputEmpty: true},
+	"claude-command-report.ansi":         {kind: ScreenPrompt, inputEmpty: true},
+	"claude-input-left.ansi":             {kind: ScreenPrompt, inputLeft: "unsent draft text"},
+	"claude-question-single.ansi":        claudeFruitSingle,
+	"claude-question-single-cursor.ansi": claudeFruitSingle,
+	"claude-question-multi.ansi": {
+		kind: ScreenQuestion, question: QuestionMulti, relay: RelayBlockMulti,
+		text: "Which colors do you like?", tabs: []string{"Colors"},
+		labels: []string{"Red", "Green", "Blue", "[ ] Type something", "Chat about this"},
+	},
+	"claude-question-tabs.ansi": {
+		kind: ScreenQuestion, question: QuestionTabs, relay: RelayBlockTabs,
+		text: "Which fruit?", tabs: []string{"Fruit", "Drink"},
+		labels: []string{"Apple", "Banana", "Type something.", "Chat about this"},
+	},
+	"claude-question-tabs-second.ansi": {
+		kind: ScreenQuestion, question: QuestionTabs, relay: RelayBlockTabs,
+		text: "Which drink?", tabs: []string{"Fruit", "Drink"},
+		labels: []string{"Tea", "Juice", "Water", "Type something.", "Chat about this"},
+	},
+	"claude-question-tabs-review.ansi": {
+		kind: ScreenQuestion, question: QuestionTabs, relay: RelayBlockTabs,
+		text:   "Review your answers\n ● Which fruit?\n   → Banana\n ● Which drink?\n   → Water\nReady to submit your answers?",
+		tabs:   []string{"Fruit", "Drink"},
+		labels: []string{"Submit answers", "Cancel"},
+	},
+	"claude-permission.ansi": {
+		kind: ScreenQuestion, question: QuestionPermission, relay: RelayBlockPermission,
+		text: "Bash command\nTip: auto mode handles these prompts for you — choose \"switch to auto mode\" below\n" +
+			"Create an empty marker file in /tmp\n" + strings.Repeat("╌", 83) + "\ntouch /tmp/chief-sample-permission-check\n" +
+			strings.Repeat("╌", 83) + "\nDo you want to proceed?",
+		labels: []string{"Yes", "Yes, and always allow access to /tmp from this project", "Yes, and switch to auto mode · auto mode handles these prompts for you", "No"},
+	},
+	"claude-merge-question.ansi": {
+		kind: ScreenQuestion, question: QuestionSingle, relay: RelayAllowed, merge: true,
+		text:      mergeText,
+		labels:    append(append([]string{}, mergeLabels...), "Type something.", "Chat about this"),
+		relayable: mergeLabels,
+	},
+}
+
+var openCodeScreenWants = map[string]wantScreen{
+	"opencode-done.ansi":                   {kind: ScreenPrompt, inputEmpty: true, model: sampleModel},
+	"opencode-after-new.ansi":              {kind: ScreenPrompt, inputEmpty: true, model: sampleModel, newSession: true},
+	"opencode-input-left.ansi":             {kind: ScreenPrompt, inputLeft: "unsent draft text", model: sampleModel},
+	"opencode-runpr-report.txt":            {kind: ScreenPrompt, inputEmpty: true, model: sampleModel},
+	"opencode-question-single.ansi":        openCodeFruitSingle,
+	"opencode-question-single-cursor.ansi": openCodeFruitSingle,
+	"opencode-question-multi.ansi": {
+		kind: ScreenQuestion, question: QuestionMulti, relay: RelayBlockMulti,
+		text: "Which colors do you like?", tabs: []string{"Color preferences"},
+		labels: []string{"Red", "Green", "Blue", "Type your own answer"},
+	},
+	"opencode-question-tabs.ansi": {
+		kind: ScreenQuestion, question: QuestionTabs, relay: RelayBlockTabs,
+		text: "Which fruit?", tabs: []string{"Fruit", "Drink"},
+		labels: []string{"Apple", "Banana", "Type your own answer"},
+	},
+	"opencode-question-tabs-second.ansi": {
+		kind: ScreenQuestion, question: QuestionTabs, relay: RelayBlockTabs,
+		text: "Which drink?", tabs: []string{"Fruit", "Drink"},
+		labels: []string{"Tea", "Juice", "Water", "Type your own answer"},
+	},
+	"opencode-question-tabs-review.ansi": {
+		kind: ScreenQuestion, question: QuestionTabs, relay: RelayBlockTabs,
+		text: "Fruit: Banana\nDrink: Water", tabs: []string{"Fruit", "Drink"},
+	},
+	"opencode-merge-question.ansi": {
+		kind: ScreenQuestion, question: QuestionSingle, relay: RelayAllowed, merge: true,
+		text:      mergeText,
+		labels:    append(append([]string{}, mergeLabels...), "Type your own answer"),
+		relayable: mergeLabels,
+	},
+}
+
 func TestParseScreenSamples(t *testing.T) {
-	claude := map[string]wantScreen{
-		"claude-idle.ansi":                   {kind: ScreenPrompt, inputEmpty: true},
-		"claude-working.ansi":                {kind: ScreenPrompt, inputEmpty: true},
-		"claude-after-clear.ansi":            {kind: ScreenPrompt, inputEmpty: true},
-		"claude-after-model.ansi":            {kind: ScreenPrompt, inputEmpty: true},
-		"claude-command-report.ansi":         {kind: ScreenPrompt, inputEmpty: true},
-		"claude-input-left.ansi":             {kind: ScreenPrompt, inputLeft: "unsent draft text"},
-		"claude-question-single.ansi":        claudeFruitSingle,
-		"claude-question-single-cursor.ansi": claudeFruitSingle,
-		"claude-question-multi.ansi": {
-			kind: ScreenQuestion, question: QuestionMulti, relay: RelayBlockMulti,
-			text: "Which colors do you like?", tabs: []string{"Colors"},
-			labels: []string{"Red", "Green", "Blue", "[ ] Type something", "Chat about this"},
-		},
-		"claude-question-tabs.ansi": {
-			kind: ScreenQuestion, question: QuestionTabs, relay: RelayBlockTabs,
-			text: "Which fruit?", tabs: []string{"Fruit", "Drink"},
-			labels: []string{"Apple", "Banana", "Type something.", "Chat about this"},
-		},
-		"claude-question-tabs-second.ansi": {
-			kind: ScreenQuestion, question: QuestionTabs, relay: RelayBlockTabs,
-			text: "Which drink?", tabs: []string{"Fruit", "Drink"},
-			labels: []string{"Tea", "Juice", "Water", "Type something.", "Chat about this"},
-		},
-		"claude-question-tabs-review.ansi": {
-			kind: ScreenQuestion, question: QuestionTabs, relay: RelayBlockTabs,
-			text:   "Review your answers\n ● Which fruit?\n   → Banana\n ● Which drink?\n   → Water\nReady to submit your answers?",
-			tabs:   []string{"Fruit", "Drink"},
-			labels: []string{"Submit answers", "Cancel"},
-		},
-		"claude-permission.ansi": {
-			kind: ScreenQuestion, question: QuestionPermission, relay: RelayBlockPermission,
-			text: "Bash command\nTip: auto mode handles these prompts for you — choose \"switch to auto mode\" below\n" +
-				"Create an empty marker file in /tmp\n" + strings.Repeat("╌", 83) + "\ntouch /tmp/chief-sample-permission-check\n" +
-				strings.Repeat("╌", 83) + "\nDo you want to proceed?",
-			labels: []string{"Yes", "Yes, and always allow access to /tmp from this project", "Yes, and switch to auto mode · auto mode handles these prompts for you", "No"},
-		},
-		"claude-merge-question.ansi": {
-			kind: ScreenQuestion, question: QuestionSingle, relay: RelayAllowed, merge: true,
-			text:      mergeText,
-			labels:    append(append([]string{}, mergeLabels...), "Type something.", "Chat about this"),
-			relayable: mergeLabels,
-		},
-	}
-	openCode := map[string]wantScreen{
-		"opencode-done.ansi":                   {kind: ScreenPrompt, inputEmpty: true, model: sampleModel},
-		"opencode-after-new.ansi":              {kind: ScreenPrompt, inputEmpty: true, model: sampleModel, newSession: true},
-		"opencode-input-left.ansi":             {kind: ScreenPrompt, inputLeft: "unsent draft text", model: sampleModel},
-		"opencode-runpr-report.txt":            {kind: ScreenPrompt, inputEmpty: true, model: sampleModel},
-		"opencode-question-single.ansi":        openCodeFruitSingle,
-		"opencode-question-single-cursor.ansi": openCodeFruitSingle,
-		"opencode-question-multi.ansi": {
-			kind: ScreenQuestion, question: QuestionMulti, relay: RelayBlockMulti,
-			text: "Which colors do you like?", tabs: []string{"Color preferences"},
-			labels: []string{"Red", "Green", "Blue", "Type your own answer"},
-		},
-		"opencode-question-tabs.ansi": {
-			kind: ScreenQuestion, question: QuestionTabs, relay: RelayBlockTabs,
-			text: "Which fruit?", tabs: []string{"Fruit", "Drink"},
-			labels: []string{"Apple", "Banana", "Type your own answer"},
-		},
-		"opencode-question-tabs-second.ansi": {
-			kind: ScreenQuestion, question: QuestionTabs, relay: RelayBlockTabs,
-			text: "Which drink?", tabs: []string{"Fruit", "Drink"},
-			labels: []string{"Tea", "Juice", "Water", "Type your own answer"},
-		},
-		"opencode-question-tabs-review.ansi": {
-			kind: ScreenQuestion, question: QuestionTabs, relay: RelayBlockTabs,
-			text: "Fruit: Banana\nDrink: Water", tabs: []string{"Fruit", "Drink"},
-		},
-		"opencode-merge-question.ansi": {
-			kind: ScreenQuestion, question: QuestionSingle, relay: RelayAllowed, merge: true,
-			text:      mergeText,
-			labels:    append(append([]string{}, mergeLabels...), "Type your own answer"),
-			relayable: mergeLabels,
-		},
-	}
 	readers := []struct {
 		name         string
 		parse, other func(string) Screen
 		samples      map[string]wantScreen
 	}{
-		{"claude", parseClaudeScreen, parseOpenCodeScreen, claude},
-		{"opencode", parseOpenCodeScreen, parseClaudeScreen, openCode},
+		{"claude", parseClaudeScreen, parseOpenCodeScreen, claudeScreenWants},
+		{"opencode", parseOpenCodeScreen, parseClaudeScreen, openCodeScreenWants},
 	}
 	for _, r := range readers {
 		for name, want := range r.samples {
@@ -291,8 +295,6 @@ func TestParseScreenRejectsNonMatching(t *testing.T) {
 
 	raw := map[string]string{
 		"foreign escape sequence": strings.Replace(readScreenSample(t, cq), "Which fruit", "\x1b[2JWhich fruit", 1),
-		"unknown SGR parameter":   strings.Replace(readScreenSample(t, cq), "Which fruit", "\x1b[58;5;1mWhich fruit", 1),
-		"invalid UTF-8":           strings.Replace(readScreenSample(t, cq), "Which fruit", "\xffWhich fruit", 1),
 		"over the line cap":       strings.Repeat("x\r\n", screenMaxLines) + readScreenSample(t, cq),
 		"over the byte cap":       strings.Repeat(strings.Repeat("x", 1024)+"\r\n", screenMaxBytes/1024) + readScreenSample(t, cq),
 	}
@@ -371,8 +373,8 @@ func TestReadRunprNext(t *testing.T) {
 		"task with a suffix":  {"NEXT: /runplan 0088abc", RunprNext{}},
 		"unpaired backquote":  {"NEXT: `/runplan 0088", RunprNext{}},
 		"disagreeing lines":   {"NEXT: /mkplan 0007\nNEXT: なし", RunprNext{}},
-		"unknown command":     {"NEXT: /runpr 12", RunprNext{}},
-		"five-digit task":     {"NEXT: /runplan 00881", RunprNext{}},
+		"unknown command":     {"NEXT: /runpr 0012", RunprNext{}},
+		"none alone":          {"NEXT: なし", RunprNext{Kind: NextNone}},
 		"three-digit task":    {"NEXT: /runplan 088", RunprNext{}},
 		"free text value":     {"NEXT: see above", RunprNext{}},
 		"NEXT inside a line":  {"the NEXT: /mkplan 0007 line", RunprNext{Kind: NextAbsent}},
@@ -406,6 +408,9 @@ func TestInputEmptyNeedsThePlaceholderForm(t *testing.T) {
 		"claude dim text that is not the placeholder": {parseClaudeScreen, strings.Replace(claude, placeholder, "unsent", 1)},
 		"claude dim placeholder with more text":       {parseClaudeScreen, strings.Replace(claude, placeholder, placeholder+" and more", 1)},
 		"opencode gray text after the prefix":         {parseOpenCodeScreen, strings.Replace(openCode, ocPlaceholder, "Ask anything… rm -rf and push", 1)},
+		// The dim state carries to the next line, so the typed line is dim too.
+		"claude placeholder with a second line":   {parseClaudeScreen, strings.Replace(claude, placeholder, placeholder+"\r\n  typed text", 1)},
+		"opencode placeholder with a second line": {parseOpenCodeScreen, strings.Replace(openCode, ocPlaceholder, ocPlaceholder+"\r\n    ┃  typed text", 1)},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -453,11 +458,17 @@ func TestQuestionShapesNotSampled(t *testing.T) {
 		t.Fatal("the sample does not hold the merge question")
 	}
 	wrapped := merge[:cut] + "要約と詳細\r\n" + merge[cut+len("要約と詳細"):]
-	if got := parseClaudeScreen(merge); !got.Question.Merge {
+	if got := parseClaudeScreen(merge); got.Question == nil || !got.Question.Merge {
 		t.Fatal("the sample does not hold the merge question")
 	}
 	if got := parseClaudeScreen(wrapped); got.Kind != ScreenUnmatched {
-		t.Errorf("a wrapped merge question read as kind %v", got.Kind)
+		t.Errorf("a merge question wrapped inside a word read as kind %v", got.Kind)
+	}
+	// A terminal also wraps at a blank, which the reader then drops.
+	atSpace := strings.LastIndex(merge, "（第 1 回")
+	wrappedAtSpace := merge[:atSpace] + "（第\r\n   1 回" + merge[atSpace+len("（第 1 回"):]
+	if got := parseClaudeScreen(wrappedAtSpace); got.Kind != ScreenUnmatched {
+		t.Errorf("a merge question wrapped at a blank read as kind %v", got.Kind)
 	}
 }
 
@@ -474,6 +485,10 @@ func TestParseANSIScreenBounds(t *testing.T) {
 		target error
 	}{
 		"DEL":                 {"a\x7fb", errScreenEscape},
+		"invalid UTF-8":       {"a\xffb", errScreenEncoding},
+		"foreign escape":      {"\x1b[2Jx", errScreenEscape},
+		"unknown SGR":         {"\x1b[58;5;1mx", errScreenSGR},
+		"text over byte cap":  {strings.Repeat("x", screenMaxBytes), errScreenTooLarge},
 		"C1 control":          {"a\u009bb", errScreenEscape},
 		"color out of range":  {"\x1b[38;2;256;0;0mx", errScreenSGR},
 		"short indexed color": {"\x1b[38;5mx", errScreenSGR},
@@ -486,6 +501,19 @@ func TestParseANSIScreenBounds(t *testing.T) {
 			}
 		})
 	}
+	// The byte cap counts text: one line of screenMaxBytes-1 bytes and its
+	// line end is at the cap, and SGR sequences beyond the cap do not count.
+	if _, err := parseANSIScreen(strings.Repeat("x", screenMaxBytes-1)); err != nil {
+		t.Errorf("text at the byte cap: %v", err)
+	}
+	colored := strings.Repeat("\x1b[38;2;1;2;3mx", screenMaxBytes/len("\x1b[38;2;1;2;3m"))
+	if len(colored) <= screenMaxBytes {
+		t.Fatal("the colored screen is not over the cap in raw bytes")
+	}
+	if _, err := parseANSIScreen(colored); err != nil {
+		t.Errorf("a screen over the cap only by its SGR sequences: %v", err)
+	}
+	// 48;2;1;2;3 consumes four fields, so its "2" does not set dim.
 	lines, err := parseANSIScreen("\x1b[2ma\x1b[22mb\x1b[38;5;1;48;2;1;2;3mc")
 	if err != nil {
 		t.Fatal(err)

@@ -86,16 +86,22 @@ var screenRows = map[string]map[string][]string{
 	},
 }
 
+// TestScreenSamplesCoverEveryRow checks that every row lists only samples
+// with an expected reading, and that every sample is in a row and has one.
 func TestScreenSamplesCoverEveryRow(t *testing.T) {
+	wants := map[string]struct{}{}
+	for name := range claudeScreenWants {
+		wants[name] = struct{}{}
+	}
+	for name := range openCodeScreenWants {
+		wants[name] = struct{}{}
+	}
 	listed := map[string]struct{}{}
 	for row, agents := range screenRows {
 		for agent, files := range agents {
-			if len(files) == 0 {
-				t.Errorf("%s/%s lists no sample", row, agent)
-			}
 			for _, f := range files {
-				if _, err := os.Stat(filepath.Join("testdata", "screens", f)); err != nil {
-					t.Errorf("%s/%s: %v", row, agent, err)
+				if _, ok := wants[f]; !ok {
+					t.Errorf("%s/%s: %s has no expected reading", row, agent, f)
 				}
 				listed[f] = struct{}{}
 			}
@@ -105,14 +111,16 @@ func TestScreenSamplesCoverEveryRow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var unlisted []string
+	var missing []string
 	for _, e := range entries {
-		if _, ok := listed[e.Name()]; !ok {
-			unlisted = append(unlisted, e.Name())
+		_, inRow := listed[e.Name()]
+		_, hasWant := wants[e.Name()]
+		if !inRow || !hasWant {
+			missing = append(missing, e.Name())
 		}
 	}
-	slices.Sort(unlisted)
-	if len(unlisted) > 0 {
-		t.Errorf("samples in no row: %q", unlisted)
+	slices.Sort(missing)
+	if len(missing) > 0 {
+		t.Errorf("samples without a row or an expected reading: %q", missing)
 	}
 }

@@ -104,6 +104,10 @@ type Screen struct {
 // (runpr.md step 4 item 3). The deferred question of item 1 does not match.
 var mergeQuestionText = regexp.MustCompile(`^PR #[1-9][0-9]* をどうしますか（第 [1-9][0-9]* 回。要約と詳細ファイルを確認のうえ）$`)
 
+// mergeQuestionSqueezed matches the merge question with every blank and line
+// break removed, so a wrapped one is found wherever the terminal broke it.
+var mergeQuestionSqueezed = regexp.MustCompile(`^PR#[1-9][0-9]*をどうしますか（第[1-9][0-9]*回。要約と詳細ファイルを確認のうえ）$`)
+
 // numberedOption matches an option line's number and the rest of the line.
 var numberedOption = regexp.MustCompile(`^([1-9][0-9]*)\. (.+)$`)
 
@@ -158,7 +162,7 @@ func finishQuestion(q *Question) bool {
 			return false
 		}
 	}
-	if mergeQuestionText.MatchString(strings.ReplaceAll(q.Text, "\n", "")) && !mergeQuestionText.MatchString(q.Text) {
+	if mergeQuestionSqueezed.MatchString(strings.Join(strings.Fields(q.Text), "")) && !mergeQuestionText.MatchString(q.Text) {
 		return false
 	}
 	if q.Kind == QuestionSingle && q.Relay == RelayAllowed {

@@ -448,9 +448,10 @@ func claudePrompt(lines []screenLine) Screen {
 		left = append(left, b.String())
 	}
 	text := strings.TrimSpace(joinTexts(left))
-	// The input is empty when it holds nothing, or only the placeholder: one
-	// line of the sampled placeholder form, every visible character dim.
-	empty := text == "" || (len(input) == 1 && allDim && claudePlaceholderText.MatchString(text))
+	// The input is empty when it holds nothing, or only the placeholder: the
+	// sampled placeholder form, which has no line break, every visible
+	// character dim.
+	empty := text == "" || (allDim && claudePlaceholderText.MatchString(text))
 	screen := Screen{Kind: ScreenPrompt, Input: InputLine{Empty: empty}}
 	if !empty {
 		screen.Input.Left = text

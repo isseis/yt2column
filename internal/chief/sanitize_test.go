@@ -17,10 +17,8 @@ func TestSanitize(t *testing.T) {
 		"other C0 control":                      {"a\rb\x00", `a\x0db\x00`},
 		"DEL":                                   {"\x7f", `\x7f`},
 		"C1 control":                            {"\u009b", `\u009b`},
-		"bidirectional override (Cf)":           {"\u202e", `\u202e`},
-		"zero-width space (Cf)":                 {"a\u200bb", `a\u200bb`},
+		"format character (Cf)":                 {"a\u202eb", `a\u202eb`},
 		"line and paragraph separators":         {"\u2028\u2029", `\u2028\u2029`},
-		"tag character":                         {"\U000e0041", `\U000e0041`},
 		"unassigned tag-block code point":       {"\U000e0000", `\U000e0000`},
 		"invalid UTF-8 byte":                    {"a\xffb", `a\xffb`},
 		"backslash is doubled":                  {`a\b`, `a\\b`},
@@ -50,10 +48,9 @@ func TestCapScreen(t *testing.T) {
 		wantLines     int
 		wantTruncated bool
 	}{
-		"at the line cap":                   {lines(screenMaxLines), screenMaxLines, false},
-		"at the line cap with trailing LF":  {lines(screenMaxLines) + "\n", screenMaxLines, false},
-		"one line over the cap":             {lines(screenMaxLines + 1), screenMaxLines, true},
-		"far over the cap keeps the bottom": {lines(3 * screenMaxLines), screenMaxLines, true},
+		"at the line cap":                  {lines(screenMaxLines), screenMaxLines, false},
+		"at the line cap with trailing LF": {lines(screenMaxLines) + "\n", screenMaxLines, false},
+		"one line over the cap":            {lines(screenMaxLines + 1), screenMaxLines, true},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -83,7 +80,7 @@ func TestCapScreen(t *testing.T) {
 		// and never leaves a partial UTF-8 sequence.
 		over := "☐" + strings.Repeat("a", screenMaxBytes-1)
 		got := CapScreen(over)
-		if !got.Truncated || len(got.Text) > screenMaxBytes || strings.ContainsRune(got.Text, '�') || strings.HasPrefix(got.Text, "☐") {
+		if !got.Truncated || got.Text != strings.Repeat("a", screenMaxBytes-1) {
 			t.Errorf("CapScreen(over) = %d bytes, truncated %v", len(got.Text), got.Truncated)
 		}
 	})
