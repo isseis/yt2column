@@ -142,7 +142,7 @@
 
 -   [x] フェーズ 1 完了（ステップ 1-1〜1-10）
 -   [x] PR を作成した: https://github.com/isseis/yt2column/pull/866
--   [ ] PR がマージされた
+-   [x] PR がマージされた
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -996,4 +996,4 @@ index dd42d15fe67f7f1dfcc7aaa77c5a27a7cc95babd..63906b2bbe5d2f3029b3f5ec1b813c3a
 ## 変更履歴
 
 - 2026-11-12 承認（isseis、#864）
-- 2026-11-12 セッション中の再承認：AC-22 の手動の確認の環境を、高さ 24 行の pane から利用者が普段使う環境に改めた（isseis、#未記入）
+- 2026-11-12 セッション中の再承認：AC-22 の手動の確認の環境を、高さ 24 行の pane から利用者が普段使う環境に改めた（isseis、#866）
