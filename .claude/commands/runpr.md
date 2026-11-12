@@ -718,7 +718,7 @@ finished review observed had and every review in progress lacked, so that a
 Ask the user as few times as the PR allows, so a reviewer who has already
 reviewed the PR answers once rather than once per decision: when step 3 left
 `deferred` threads, the deferred question (item 1) comes first and settles
-them; then the merge question (item 3) is asked once. Every arrival at this
+them; then the merge question (item 3) is asked once per arrival. Every arrival at this
 step, including each return to it from step 2 or step 3 after a fix, a PR
 review, or a push that changed the head, starts at item 1.
 
@@ -759,9 +759,9 @@ character as 2); the line shapes below are the examples to follow.
   detail file cannot be written, or a file of that name exists, stop without
   asking, and report what failed and the path. For the merge question, run
   `mergepr discard --state <state-file>` before stopping. Never ask a
-  question that has no detail file.
-- **Reports.** Every report of a stop in this step, and the final report of
-  step 5, gives the path of the details directory. A report after the merge
+  deferred question or merge question that has no detail file.
+- **Reports.** Every report of a stop in this step after the details
+  directory was made, and the final report of step 5, gives its path. A report after the merge
   also gives the path of the detail file of the round that decided the merge,
   with its head commit: that file is the record of what was approved.
 
@@ -790,7 +790,7 @@ character as 2); the line shapes below are the examples to follow.
      [2] テストの名前が確かめる内容を表していない
      [3] ...
      [4] ...
-     一部だけ直すとき: 半角の番号を , か空白で区切って（例: 1,3）。残りは追跡 issue へ
+     一部だけ直す: 半角の番号を , か空白で区切る（例: 1,3）。残りは追跡 issue へ
      要確認: 操作制限の期限が近い（2026-11-20、詳細ファイル）
      詳細: /tmp/runpr.Ab12Cd/deferred-1.md
      ```
@@ -982,9 +982,9 @@ character as 2); the line shapes below are the examples to follow.
        there are changes Codex has not reviewed when LAST_REVIEWED is behind
        the head or none, with the Escalation decision (`ask`, `skip`, ...) on
        the same line; the reason is in the detail file.
-     - Lines 7 to 10 appear only for what exists. Lines 7 to 9 give a kind and
-       a count; line 10 gives the state and the expiry date, not a count.
-     - Line 6 is `NEXT: なし` when there is none; `NEXT: /mkarch 0089` for
+     - Kinds 7 to 10 appear only for what exists. Kinds 7 to 9 give a kind and
+       a count; kind 10 gives the state and the expiry date, not a count.
+     - Kind 6 is `NEXT: なし` when there is none; `NEXT: /mkarch 0089` for
        `/mkarch` or `/mkplan`; for `/runplan`,
        `NEXT: /runplan 0083（要件 sonnet → Sonnet）` for a value that is one of
        the three, `NEXT: /runplan 0083（要件 standard＝sonnet → Sonnet）` for an

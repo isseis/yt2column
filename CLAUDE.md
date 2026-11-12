@@ -241,7 +241,7 @@ separate from the PR review's, but the fallback Codex CLI spends the same
 allowance as the PR review. `/runpr` requests another PR review only when
 the changes are of a kind the local review cannot stand in for
 ([pr-review-escalation.md](.claude/commands/_lib/pr-review-escalation.md)) or
-when the user asks in its one question.
+when the user asks in the merge question (its "先に PR レビューを依頼" option).
 
 ### Extension Commands
 
