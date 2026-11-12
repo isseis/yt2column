@@ -107,6 +107,13 @@
 | テスト | `TestEvictionKeepsRunningAndPosting`（`internal/articlecache/cache_test.go`） | `TestEvictionKeepsRunning` | 3-6 |
 | 関数の引数 | `redact.SecretStrings(webhookURL secret.Secret, others ...secret.Secret)` | `redact.SecretStrings(secrets ...secret.Secret)` | 4-5 |
 
+### 1.6. 実装の際に決めたこと（2026-11-12）
+
+1.  **AC-17 の手動の確かめ（ステップ 5-8）では、記事を書く部分だけを固定の記事に差し替えた確認用のサーバ（`_checks/mattermost_stub/main.go`）を使う。** このサーバは、`internal/server` のジョブの API・状態の取得の応答・無効化をそのまま使い、記事を書く部分（`writer.ProgressWriter`）だけを、AC-17 と設計書 6.3 の U1〜U6・R1・R2・S1〜S3・C の形を含む固定の記事を返すものに替える。設定ファイルからはソケットのパスだけを読み、本番のサーバと同じソケットで待ち受ける。拡張と Native Messaging ホストは PR-5 のブランチから作ったものを使い、拡張 → ホスト → サーバ → ビューアの表示・コピー → Mattermost の経路のうち、差し替えるのは LLM による生成だけである。動画のタイトルの `@` は、YouTube のページのタイトルの要素を DevTools で書き換えて与える。理由: 本文は LLM が書くので、書き起こしに形を入れても、`&#64;channel` や `` `x`https://… `` のような形が記事にそのまま残る保証がない。固定の記事なら、LLM の API を呼ばずに、すべての形を同じ記事で、Chrome と Brave の両方で確かめられる。
+    -   採らなかった案: 本番のサーバで、書き起こしに形をそのまま含めるよう指示を入れて生成し、すべての形が残るまでやり直す案。LLM の API の費用がかかり、形が残る保証がない。
+    -   人の答え: 確認用のサーバの案を選んだ。
+    -   ADR: なし（タスクの中で閉じる、手動の確かめの手段である）。
+
 ## 2. 実装のステップ (Implementation Steps)
 
 ### フェーズ 1: 本文の UTF-8 の検査と規則の移動（設計書 8 章の 1・2）
@@ -327,7 +334,7 @@
 
 ### フェーズ 5: 文書・エージェントの指示と手動の確かめ（設計書 8 章の 5・6）
 
-**変更するファイル:** 設計書 3.12 の表の文書、`docs/dev/conventions/test_organization.md`、`docs/dev/guides/cli.md`・`claude_output_limit.md`・`pricing_update.md`・`docs/dev/conventions/mermaid_reference.md`（投稿を今の機能として述べる箇所があれば）、ADR、本計画
+**変更するファイル:** 設計書 3.12 の表の文書、`docs/dev/conventions/test_organization.md`、`docs/dev/guides/cli.md`・`claude_output_limit.md`・`pricing_update.md`・`docs/dev/conventions/mermaid_reference.md`（投稿を今の機能として述べる箇所があれば）、ADR、本計画、`docs/tasks/0083_remove_slack_webhook/_checks/mattermost_stub/main.go`（新規）
 
 -   [x] **ステップ 5-1**: `docs/dev/security.md` を改める（設計書 3.12 の表の行、AC-21）。
 -   [x] **ステップ 5-2**: `README.md` を改め、`/mktrans README.md` で `README.en.md` に写す（設計書 3.12 の表の行、AC-22・AC-23）。ガードのテスト（`TestReadmeSyncMarker`、`metadataDocs.test.ts`、`manifest.test.ts`、`TestReadmeHostExitCodes` ほか）が通ることを、`make test` と `make ext-test` で確かめる。
@@ -336,7 +343,7 @@
 -   [x] **ステップ 5-5**: エージェントの指示を改める。`.claude/commands/_context.md` の「Conditional-guide trigger」と「Target client environments」（AC-24 の文）、`git grep -n -i -E 'webhook|slack' -- .claude .github` が返す指示（`runplan.md`・`mkarch.md`・`mkplan.md`・`_lib/opus-review.md`・`.github/workflows/deepseek-review.yml`）。`mkplan.md`・`runplan.md` の「Domain examples」の例のうち、投稿の機能を前提にするものも改める。
 -   [x] **ステップ 5-6**: ADR を改める（設計書 3.12 の表の ADR の行）。ADR-0005・0006・0008・0010・0018・0022・0027・0028・0031・0034・0043 の #770 へリンクした食い違いの注記を消し、ADR-0009 の背景の投稿の記述を直す。どちらも編集上の訂正として、commit のメッセージに訂正の行を書く（`docs/dev/conventions/adr.md`）。`git grep -n -i -E 'webhook|slack|投稿' -- docs/dev/adr` が返すほかの ADR（ADR-0003・0024・0037 など）は、記述が経緯としての言及か、今の機能の説明かを読んで、今の機能の説明なら直す。`cmd/yt2column/adr_test.go::TestADRRecords` が通ることを確かめる。
 -   [x] **ステップ 5-7**: `git grep -n -i -E 'webhook|slack|投稿' -- docs ':!docs/tasks' ':!docs/research' ':!docs/dev/adr'` の残りを読み、投稿の機能を今の機能として述べる箇所が残っていないことを確かめる。
--   [ ] **ステップ 5-8**: AC-17 の手動の確かめを行い、§7 の「実行の記録」の PR-5 の欄に日付・Mattermost のサーバとデスクトップアプリの版・ブラウザ（Chrome と Brave）を書く（設計書 7.3）。確かめに使う記事の内容は要件書 AC-17 のとおりで、設計書 6.3 の U1〜U6・R1・R2・S1〜S4 の形も同じ手順で貼り付ける。拡張とサーバは PR-5 のブランチから作ったものを使う。通知されたものがあれば、何も直さずに止まり、人に報告する。
+-   [ ] **ステップ 5-8**: AC-17 の手動の確かめを行い、§7 の「実行の記録」の PR-5 の欄に日付・Mattermost のサーバとデスクトップアプリの版・ブラウザ（Chrome と Brave）を書く（設計書 7.3）。確かめに使う記事の内容は要件書 AC-17 のとおりで、設計書 6.3 の U1〜U6・R1・R2・S1〜S4 の形も同じ手順で貼り付ける。拡張と Native Messaging ホストは PR-5 のブランチから作ったものを使い、サーバの代わりに、PR-5 のブランチから作った `_checks/mattermost_stub/main.go` を使う（§1.6 の決定 1）。通知されたものがあれば、何も直さずに止まり、人に報告する。
 
 **完了の条件:** 設計書 3.12 の表の各行の文書が改まり、ADR の注記がない。§7 に AC-17 の記録がある。`make test`・`make lint`・`make ext-test` が通る。
 
@@ -551,3 +558,4 @@ PR-5:
 ## 変更履歴
 
 - 2026-11-11 承認（isseis、状態表から写した）
+- 2026-11-12 セッション中の再承認：AC-17 の手動の確かめに、記事を書く部分を固定の記事に替えた確認用のサーバを使う（isseis、#未記入）
