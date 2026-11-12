@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `draft` |
 | Created | 2026-11-12 |
-| Review date | 2026-11-12 |
-| Reviewer | isseis |
-| Comments | - |
+| Review date | - |
+| Reviewer | - |
+| Comments | 決定の変更で draft に戻した：PR-1 をタスク 0089 の実装のマージの後に始める |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を、節番号は [02_architecture.md](02_architecture.md)（以下、設計書）の節を指す。H-NN は [design_handoff.md](design_handoff.md) の項番で、どれも設計書の付録 A が扱いを記録している。本タスクに `implementation_handoff.md` はない。既存のファイルの内容と `file:line` の行番号は、コミット `88618e43` で確かめた。
 
@@ -655,3 +655,4 @@ $ rg -n 'on Sonnet|to Sonnet|implement.*Sonnet|Model to start|model each reading
 ## 変更履歴
 
 - 2026-11-12 承認（isseis、#855）
+- 2026-11-12 draft への戻し：PR-1 をタスク 0089 の実装のマージの後に始める（#未記入）
