@@ -310,10 +310,11 @@ exit=0
 | 一覧 | 作った日時（UTC） | ファイルの数 | 一覧の SHA-256 | 前の一覧との `diff` |
 |---|---|---|---|---|
 | `0087/hash/1-initial.tsv`（実行の前の確認の前） | 2026-11-12T05:16:13Z | 50（`base` 10、`work` 21、`cache` 19。`cache` は評価の 5 本の各 3 ファイルに、評価に使わない qjAz-VOAdz4 の 3 ファイルとロックのファイル 1 つを含む） | `19694f72398b5e630af2ae816496f79ba1adb191328405fba3a8fe24a482b958` | -（最初の一覧） |
+| `0087/hash/2-stage1.tsv`（1 段目の後） | 2026-11-12T06:51:32Z | 50 | `19694f72398b5e630af2ae816496f79ba1adb191328405fba3a8fe24a482b958` | 空（`hashlist.sh` が `no difference` を出した。一覧の SHA-256 も最初の一覧と同じ） |
 
 - **バックアップ:** 最初の一覧と同時に、`0018/` を起点とする `base/B3` と `work/B3` を `tar -czf` でまとめ、`0087/backup/b3-base-work.tar.gz`（モード `0400`）に置いた。アーカイブの SHA-256 は `8f7cba7b3283960f89ce8a3f14a91b68fef7a97f6e6e67edbf4f734cd75da11c` である。リポジトリの外の一時ディレクトリへ `tar -xpzf`（モードを保つ）で展開し、`hashlist.sh` で作った一覧（31 ファイル）が最初の一覧の `base`・`work` の行と、パス・モード・SHA-256 まで一致した（`diff` が空）。
 
-**拒否された入力（AC-05）:** （ステップ 3-1・4-1 で記録する。拒否がなければ「なし」と書く）
+**拒否された入力（AC-05）:** 1 段目は、なし（40 件とも終了コード `0`。失敗した実行はない）。2 段目は、ステップ 4-1 で記録する。
 
 ## 5. 承認と費用
 
@@ -377,7 +378,7 @@ exit=0
 | 構成 | 記事 | 回 | 開始（UTC） |
 |---|---|---|---|
 
-**使った額（AC-20）:** 「launch」は起動の判定が数える額、「record」は人が支払い前と確かめた実行を除いた、本書の合計である。
+**使った額（AC-20）:** 「launch」は起動の判定が数える額、「record」は人が支払い前と確かめた実行を除いた、本書の合計である。額は CLI の推定コスト（料金表の単価）で、実際の請求額ではない。2026-11-12 の 1 段目の `C-*` の後、OpenAI のコンソールの請求額は CLI の推定よりずっと低く表示された。人によれば、アカウントの無料のトークン枠で相殺されている可能性がある。評価の比較（基準の構成を含む）はすべて CLI の推定コストで行う。
 
 <!-- check-record: spend -->
 | 範囲 | 分かっている額 | 不明の工程 | 上限で数えた実行 | 上限の額 | 合計 | 除いた実行 | 除いた上限の額 |
@@ -423,6 +424,12 @@ exit=0
 <!-- check-record: launches -->
 | 順 | 起動（UTC） | 構成 | 記事 |
 |---|---|---|---|
+| 1 | 2026-11-12T06:17:30Z | C-sol | roNZ-rLxhUE-1,roNZ-rLxhUE-2,18tbwwPM91A-1,18tbwwPM91A-2,zW1RBacSqjk-1,zW1RBacSqjk-2,leE02uqgaKg-1,leE02uqgaKg-2,EqnGQDU71-Y-1,EqnGQDU71-Y-2 |
+| 2 | 2026-11-12T06:19:07Z | C-astra | roNZ-rLxhUE-1,roNZ-rLxhUE-2,18tbwwPM91A-1,18tbwwPM91A-2,zW1RBacSqjk-1,zW1RBacSqjk-2,leE02uqgaKg-1,leE02uqgaKg-2,EqnGQDU71-Y-1,EqnGQDU71-Y-2 |
+| 3 | 2026-11-12T06:49:44Z | A-sol | roNZ-rLxhUE-1,roNZ-rLxhUE-2,18tbwwPM91A-1,18tbwwPM91A-2,zW1RBacSqjk-1,zW1RBacSqjk-2,leE02uqgaKg-1,leE02uqgaKg-2,EqnGQDU71-Y-1,EqnGQDU71-Y-2 |
+| 4 | 2026-11-12T06:50:43Z | A-astra | roNZ-rLxhUE-1,roNZ-rLxhUE-2,18tbwwPM91A-1,18tbwwPM91A-2,zW1RBacSqjk-1,zW1RBacSqjk-2,leE02uqgaKg-1,leE02uqgaKg-2,EqnGQDU71-Y-1,EqnGQDU71-Y-2 |
+
+- **起動の関門で止まった起動:** `A-astra` の最初の `launch`（2026-11-12T06:50 台、上の 4 の前）は、同じ OpenAI のモデルを使う `C-astra` の最後の実行の終了（06:20:28Z）から 30 分に数秒足りず、実行を 1 件も始めずに止まった（`launch.log` に行はない）。30 分が過ぎたことを確かめて起動し直したのが 4 である。
 
 ### 7.1. C-sol
 
