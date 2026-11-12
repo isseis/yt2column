@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-12 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-12 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を、節番号は [02_architecture.md](02_architecture.md)（以下、設計書）の節を指す。H-NN は [design_handoff.md](design_handoff.md) の項番で、どれも設計書の付録 A が扱いを記録している。本タスクに `implementation_handoff.md` はない。既存のファイルの内容と `file:line` の行番号は、コミット `88618e43` で確かめた。
@@ -642,3 +642,7 @@ $ rg -n 'on Sonnet|to Sonnet|implement.*Sonnet|Model to start|model each reading
 -   PR-7 のマージの後、人が `make install-chief` を `main` から行い、chief の workspace で `/chief` を動かす。
 -   試作から移る手順は手引き（`chief_guide.md`）に従う。
 -   `sonnet+opus-review` の `/runplan` を OpenCode・DeepSeek V4.1 Flash に差し替えて比べること、#839（worktree と workspace の作成）、#840（`/runpr` の Opus への切り替え）、#760（値の名前の見直し）は、別のタスクで扱う。
+
+## 変更履歴
+
+- 2026-11-12 承認（isseis、#855）
