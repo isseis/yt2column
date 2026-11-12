@@ -24,7 +24,8 @@ type Capped struct {
 	Truncated bool
 }
 
-// CapScreen keeps the last screenMaxLines lines of a pane screen and at most
+// CapScreen keeps the last screenMaxLines lines of plain screen text (with no
+// SGR sequences, such as a report taken from a screen) and at most
 // screenMaxBytes bytes of them, dropping the head side. The cut never splits
 // a UTF-8 sequence. A trailing newline does not count as a line.
 func CapScreen(screen string) Capped {
@@ -67,7 +68,8 @@ func CapDescription(description string) Capped {
 // controls other than newline and tab, DEL, C1 controls, format characters
 // (Unicode category Cf, which covers bidirectional controls and zero-width
 // characters), the tag block U+E0000..U+E007F, the line and paragraph
-// separators, and bytes that are not valid UTF-8. A terminal escape sequence
+// separators, and bytes that are not valid UTF-8. A backslash is doubled, so
+// an escape cannot be told apart from text that spells one. A terminal escape sequence
 // loses its leading ESC, so it no longer acts. Check values are built from the
 // text as read, never from this output.
 func Sanitize(text string) string {
@@ -78,6 +80,8 @@ func Sanitize(text string) string {
 		switch {
 		case r == utf8.RuneError && size == 1:
 			fmt.Fprintf(&b, `\x%02x`, text[i])
+		case r == '\\':
+			b.WriteString(`\\`)
 		case hiddenRune(r):
 			writeEscape(&b, r)
 		default:

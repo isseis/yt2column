@@ -46,9 +46,12 @@ type sgrState struct {
 
 // parseANSIScreen splits a screen read with "herdr agent read --format ansi"
 // into lines. Contract: it accepts only SGR sequences (ESC [ params m), lines
-// ended by LF with an optional CR before it, and valid UTF-8; and it refuses a
-// screen whose text, with the SGR sequences removed, exceeds screenMaxLines
-// lines or screenMaxBytes bytes, since a cut screen is never read as a shape.
+// ended by LF with an optional CR before it, valid UTF-8, and no character
+// Sanitize would replace other than tab; and it refuses a screen of more than
+// screenMaxLines lines, or whose text (SGR sequences removed, trailing blanks
+// trimmed, one byte per line end) exceeds screenMaxBytes bytes, since a cut
+// screen is never read as a shape. The raw read is capped by the Herdr reader
+// that calls it.
 func parseANSIScreen(raw string) ([]screenLine, error) {
 	if !utf8.ValidString(raw) {
 		return nil, errScreenEncoding
@@ -90,7 +93,7 @@ func parseANSILine(part string, state *sgrState) (screenLine, error) {
 			continue
 		}
 		r, size := utf8.DecodeRuneInString(part[i:])
-		if r < 0x20 && r != '\t' {
+		if hiddenRune(r) && r != '\t' {
 			return screenLine{}, errScreenEscape
 		}
 		cells = append(cells, cell{r: r, dim: state.dim, fg: state.fg})
@@ -166,8 +169,10 @@ func codeSet(codes []int) map[int]struct{} {
 	return set
 }
 
-// applySGRParams applies the parameters of one SGR sequence. Only the
-// parameters the samples showed, and their plain counterparts, are accepted.
+// applySGRParams applies the parameters of one SGR sequence. It accepts the
+// parameters the samples showed and the other attribute and color codes of
+// the same kinds, which change nothing the readers compare except dim (2 and
+// its reset 22) and the 24-bit foreground.
 func applySGRParams(params string, state *sgrState) error {
 	if params == "" {
 		*state = sgrState{}

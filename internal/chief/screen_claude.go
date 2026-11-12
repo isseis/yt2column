@@ -55,6 +55,9 @@ const (
 var (
 	// claudeHeader matches the header chip of a one-question widget.
 	claudeHeader = regexp.MustCompile(`^ ☐ (.+)$`)
+	// claudePlaceholderText matches the placeholder of an empty input line:
+	// one quoted suggestion after "Try".
+	claudePlaceholderText = regexp.MustCompile(`^Try "[^"]+"$`)
 	// claudeTabBar matches the tab bar of a multi-select or tabbed widget.
 	claudeTabBar = regexp.MustCompile(`^←  (.+)  →$`)
 )
@@ -84,10 +87,9 @@ func parseClaudeScreen(raw string) Screen {
 			return claudePrompt(lines)
 		}
 	}
-	if q == nil {
+	if q == nil || !finishQuestion(q) {
 		return unmatched
 	}
-	finishQuestion(q)
 	return Screen{Kind: ScreenQuestion, Question: q}
 }
 
@@ -431,7 +433,7 @@ func claudePrompt(lines []screenLine) Screen {
 	// space, or the continuation indent.
 	lead := len([]rune(claudePromptMark))
 	var left []string
-	empty := true
+	allDim := true
 	for k, l := range input {
 		if k > 0 && !strings.HasPrefix(l.text, claudeStatusIndent) {
 			return unmatched
@@ -440,14 +442,18 @@ func claudePrompt(lines []screenLine) Screen {
 		for _, c := range l.cells[min(len(l.cells), lead):] {
 			b.WriteRune(c.r)
 			if c.r != ' ' && !c.dim {
-				empty = false
+				allDim = false
 			}
 		}
 		left = append(left, b.String())
 	}
+	text := strings.TrimSpace(joinTexts(left))
+	// The input is empty when it holds nothing, or only the placeholder: one
+	// line of the sampled placeholder form, every visible character dim.
+	empty := text == "" || (len(input) == 1 && allDim && claudePlaceholderText.MatchString(text))
 	screen := Screen{Kind: ScreenPrompt, Input: InputLine{Empty: empty}}
 	if !empty {
-		screen.Input.Left = strings.TrimSpace(joinTexts(left))
+		screen.Input.Left = text
 	}
 	return screen
 }

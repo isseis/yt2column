@@ -1,6 +1,7 @@
 package chief
 
 import (
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -9,22 +10,22 @@ import (
 // Fixed lines of OpenCode v2.2.6 screens, as the samples show them. The
 // texts are the contents of a panel line after its bar and two spaces.
 const (
-	openCodeBar             = "┃"
-	openCodePad             = "  "
-	openCodeQuestions       = "Questions"
-	openCodeFooterSingle    = "↑↓ select  enter submit  esc dismiss"
-	openCodeFooterMulti     = "⇆ tab  ↑↓ select  enter toggle  esc dismiss"
-	openCodeFooterTabs      = "⇆ tab  ↑↓ select  enter confirm  esc dismiss"
-	openCodeFooterReview    = "⇆ tab  enter submit  esc dismiss"
-	openCodeFreeText        = "Type your own answer"
-	openCodeTabSubmit       = "Submit"
-	openCodeTabSeparator    = "  "
-	openCodeMultiBox        = "[ ] "
-	openCodeDescIndent      = "   "
-	openCodeMultiDescIndent = "       "
-	openCodeModelSeparator  = " · "
-	openCodePlaceholder     = "Ask anything… "
-	openCodeUpdatePrefix    = "/update to install v"
+	openCodeBar               = "┃"
+	openCodePad               = "  "
+	openCodeQuestions         = "Questions"
+	openCodeFooterSingle      = "↑↓ select  enter submit  esc dismiss"
+	openCodeFooterMulti       = "⇆ tab  ↑↓ select  enter toggle  esc dismiss"
+	openCodeFooterTabs        = "⇆ tab  ↑↓ select  enter confirm  esc dismiss"
+	openCodeFooterReview      = "⇆ tab  enter submit  esc dismiss"
+	openCodeFreeText          = "Type your own answer"
+	openCodeTabSubmit         = "Submit"
+	openCodeTabSeparator      = "  "
+	openCodeMultiBox          = "[ ] "
+	openCodeDescIndent        = "   "
+	openCodeMultiDescIndent   = "       "
+	openCodeModelSeparator    = " · "
+	openCodePlaceholderPrefix = "Ask anything… "
+	openCodeUpdatePrefix      = "/update to install v"
 )
 
 // maxOpenCodeStatusLines is how many non-blank lines OpenCode draws below
@@ -106,10 +107,9 @@ func parseOpenCodeScreen(raw string) Screen {
 		return unmatched
 	}
 	if q, isQuestion := openCodeQuestion(lines); isQuestion {
-		if q == nil {
+		if q == nil || !finishQuestion(q) {
 			return unmatched
 		}
-		finishQuestion(q)
 		return Screen{Kind: ScreenQuestion, Question: q}
 	}
 	return openCodePrompt(lines)
@@ -345,30 +345,40 @@ func openCodePrompt(lines []screenLine) Screen {
 // placeholder color.
 func openCodeInput(box []panelLine) (InputLine, bool) {
 	var texts []string
-	placeholderOnly := true
+	var lines []panelLine
 	for _, p := range box {
 		c, ok := panelContent(p)
 		if !ok {
 			return InputLine{}, false
 		}
-		if c == "" {
-			continue
-		}
-		texts = append(texts, c)
-		if !strings.HasPrefix(c, openCodePlaceholder) {
-			placeholderOnly = false
-			continue
-		}
-		for _, cl := range p.cells[len(openCodePad):] {
-			if cl.r != ' ' && cl.fg != openCodePlaceholderColor {
-				placeholderOnly = false
-			}
+		if c != "" {
+			texts = append(texts, c)
+			lines = append(lines, p)
 		}
 	}
-	if len(texts) == 0 || (placeholderOnly && len(texts) == 1) {
+	if len(texts) == 0 || (len(texts) == 1 && openCodeIsPlaceholder(texts[0], lines[0])) {
 		return InputLine{Empty: true}, true
 	}
 	return InputLine{Left: joinTexts(texts)}, true
+}
+
+// openCodePlaceholderText matches the whole placeholder line the samples
+// show: a fixed prefix and one quoted suggestion.
+var openCodePlaceholderText = regexp.MustCompile(`^Ask anything… "[^"]+"$`)
+
+// openCodeIsPlaceholder reports whether an input line is the placeholder: its
+// whole text has the placeholder form and every visible character is drawn in
+// the placeholder color.
+func openCodeIsPlaceholder(text string, p panelLine) bool {
+	if !strings.HasPrefix(text, openCodePlaceholderPrefix) || !openCodePlaceholderText.MatchString(text) {
+		return false
+	}
+	for _, c := range p.cells[len(openCodePad):] {
+		if c.r != ' ' && c.fg != openCodePlaceholderColor {
+			return false
+		}
+	}
+	return true
 }
 
 // openCodeNewSession reports whether the lines above the input box hold no

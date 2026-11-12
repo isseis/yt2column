@@ -23,6 +23,7 @@ func TestSanitize(t *testing.T) {
 		"tag character":                         {"\U000e0041", `\U000e0041`},
 		"unassigned tag-block code point":       {"\U000e0000", `\U000e0000`},
 		"invalid UTF-8 byte":                    {"a\xffb", `a\xffb`},
+		"backslash is doubled":                  {`a\b`, `a\\b`},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {

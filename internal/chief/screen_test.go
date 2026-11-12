@@ -3,6 +3,8 @@
 package chief
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -261,7 +263,7 @@ func TestParseScreenRejectsNonMatching(t *testing.T) {
 		{"claude multi-select with two tabs", parseClaudeScreen, "claude-question-multi.ansi", "☐ Colors  ✔ Submit", "☐ Colors  ☐ More  ✔ Submit"},
 		{"claude permission without proceed line", parseClaudeScreen, "claude-permission.ansi", " Do you want to proceed?", " Proceed?"},
 		{"claude tab bar without submit", parseClaudeScreen, "claude-question-tabs.ansi", "✔ Submit", "✔ Send"},
-		{"claude prompt without status line", parseClaudeScreen, "claude-idle.ansi", "auto mode on", "auto mode on\nunexpected"},
+		{"claude prompt with a line after the status line", parseClaudeScreen, "claude-idle.ansi", "auto mode on", "auto mode on\nunexpected"},
 		{"opencode option number gap", parseOpenCodeScreen, oq, "2. Banana", "3. Banana"},
 		{"opencode no free-text option", parseOpenCodeScreen, oq, "4. Type your own answer", "4. Durian"},
 		{"opencode no questions title", parseOpenCodeScreen, oq, "┃  Questions", "┃  Question"},
@@ -361,16 +363,19 @@ func TestReadRunprNext(t *testing.T) {
 		text string
 		want RunprNext
 	}{
-		"no NEXT line":       {"done\n", RunprNext{Kind: NextAbsent}},
-		"runplan in quotes":  {"- NEXT: `/runplan 0088`（要件 opus → Opus）", RunprNext{Kind: NextCommand, Command: NextCommandRunplan, Task: "0088"}},
-		"mkplan":             {"NEXT: /mkplan 0007", RunprNext{Kind: NextCommand, Command: NextCommandMkplan, Task: "0007"}},
-		"agreeing lines":     {"NEXT: /mkplan 0007\n  NEXT: /mkplan 0007 を実行", RunprNext{Kind: NextCommand, Command: NextCommandMkplan, Task: "0007"}},
-		"disagreeing lines":  {"NEXT: /mkplan 0007\nNEXT: なし", RunprNext{}},
-		"unknown command":    {"NEXT: /runpr 12", RunprNext{}},
-		"five-digit task":    {"NEXT: /runplan 00881", RunprNext{}},
-		"three-digit task":   {"NEXT: /runplan 088", RunprNext{}},
-		"free text value":    {"NEXT: see above", RunprNext{}},
-		"NEXT inside a line": {"the NEXT: /mkplan 0007 line", RunprNext{Kind: NextAbsent}},
+		"no NEXT line":        {"done\n", RunprNext{Kind: NextAbsent}},
+		"runplan in quotes":   {"- NEXT: `/runplan 0088`（要件 opus → Opus）", RunprNext{Kind: NextCommand, Command: NextCommandRunplan, Task: "0088"}},
+		"mkplan":              {"NEXT: /mkplan 0007", RunprNext{Kind: NextCommand, Command: NextCommandMkplan, Task: "0007"}},
+		"agreeing lines":      {"NEXT: /mkplan 0007\n  - NEXT: `/mkplan 0007`（次）", RunprNext{Kind: NextCommand, Command: NextCommandMkplan, Task: "0007"}},
+		"none with more text": {"NEXT: なしではなく /runplan 0088", RunprNext{}},
+		"task with a suffix":  {"NEXT: /runplan 0088abc", RunprNext{}},
+		"unpaired backquote":  {"NEXT: `/runplan 0088", RunprNext{}},
+		"disagreeing lines":   {"NEXT: /mkplan 0007\nNEXT: なし", RunprNext{}},
+		"unknown command":     {"NEXT: /runpr 12", RunprNext{}},
+		"five-digit task":     {"NEXT: /runplan 00881", RunprNext{}},
+		"three-digit task":    {"NEXT: /runplan 088", RunprNext{}},
+		"free text value":     {"NEXT: see above", RunprNext{}},
+		"NEXT inside a line":  {"the NEXT: /mkplan 0007 line", RunprNext{Kind: NextAbsent}},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -378,5 +383,114 @@ func TestReadRunprNext(t *testing.T) {
 				t.Errorf("readRunprNext(%q) = %+v, want %+v", c.text, got, c.want)
 			}
 		})
+	}
+}
+
+// TestInputEmptyNeedsThePlaceholderForm checks that styled text counts as an
+// empty input only in the placeholder's whole form, on one line.
+func TestInputEmptyNeedsThePlaceholderForm(t *testing.T) {
+	claude := readScreenSample(t, "claude-idle.ansi")
+	const placeholder = `Try "refactor launch.ts"`
+	if !strings.Contains(claude, placeholder) {
+		t.Fatal("the sample does not hold the placeholder")
+	}
+	openCode := readScreenSample(t, "opencode-after-new.ansi")
+	const ocPlaceholder = `Ask anything… "What is the tech stack of this project?"`
+	if !strings.Contains(openCode, ocPlaceholder) {
+		t.Fatal("the sample does not hold the placeholder")
+	}
+	cases := map[string]struct {
+		parse  func(string) Screen
+		screen string
+	}{
+		"claude dim text that is not the placeholder": {parseClaudeScreen, strings.Replace(claude, placeholder, "unsent", 1)},
+		"claude dim placeholder with more text":       {parseClaudeScreen, strings.Replace(claude, placeholder, placeholder+" and more", 1)},
+		"opencode gray text after the prefix":         {parseOpenCodeScreen, strings.Replace(openCode, ocPlaceholder, "Ask anything… rm -rf and push", 1)},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			got := c.parse(c.screen)
+			if got.Kind != ScreenPrompt || got.Input.Empty || got.Input.Left == "" {
+				t.Errorf("read as kind %v input %+v, want unsent text", got.Kind, got.Input)
+			}
+		})
+	}
+}
+
+// TestQuestionShapesNotSampled checks two shapes the samples did not show: an
+// option numbered 10 or more, and a merge question wrapped across lines.
+func TestQuestionShapesNotSampled(t *testing.T) {
+	// Drop the padding blanks so whole lines can be replaced.
+	single := regexp.MustCompile(` +\r\n`).ReplaceAllString(plainSample(t, "opencode-question-single.ansi"), "\r\n")
+	const freeTextLine = "  ┃  4. Type your own answer\r\n"
+	head, rest, ok1 := strings.Cut(single, "  ┃  1. Apple")
+	_, tail, ok2 := strings.Cut(rest, freeTextLine)
+	if !ok1 || !ok2 {
+		t.Fatal("the sample does not hold its options")
+	}
+	// withOptions replaces the sample's options by n options and the
+	// free-text option numbered n+1.
+	withOptions := func(n int) string {
+		var options strings.Builder
+		for k := 1; k <= n; k++ {
+			fmt.Fprintf(&options, "  ┃  %d. Option %d\r\n", k, k)
+		}
+		fmt.Fprintf(&options, "  ┃  %d. Type your own answer\r\n", n+1)
+		return head + options.String() + tail
+	}
+	if got := parseOpenCodeScreen(withOptions(8)); got.Kind != ScreenQuestion {
+		t.Fatalf("options numbered up to 9 read as kind %v", got.Kind)
+	}
+	if got := parseOpenCodeScreen(withOptions(9)); got.Kind != ScreenUnmatched {
+		t.Errorf("an option numbered 10 read as kind %v", got.Kind)
+	}
+
+	merge := plainSample(t, "claude-merge-question.ansi")
+	// Wrap the question line itself, the last place the text appears (the
+	// echoed prompt above it holds the same words).
+	cut := strings.LastIndex(merge, "要約と詳細ファイルを確認のうえ）")
+	if cut < 0 {
+		t.Fatal("the sample does not hold the merge question")
+	}
+	wrapped := merge[:cut] + "要約と詳細\r\n" + merge[cut+len("要約と詳細"):]
+	if got := parseClaudeScreen(merge); !got.Question.Merge {
+		t.Fatal("the sample does not hold the merge question")
+	}
+	if got := parseClaudeScreen(wrapped); got.Kind != ScreenUnmatched {
+		t.Errorf("a wrapped merge question read as kind %v", got.Kind)
+	}
+}
+
+func TestParseANSIScreenBounds(t *testing.T) {
+	atCap := strings.Repeat("x\r\n", screenMaxLines)
+	if _, err := parseANSIScreen(atCap); err != nil {
+		t.Errorf("a screen of %d lines: %v", screenMaxLines, err)
+	}
+	if _, err := parseANSIScreen(atCap + "x"); !errors.Is(err, errScreenTooLarge) {
+		t.Errorf("a screen of %d lines: %v, want errScreenTooLarge", screenMaxLines+1, err)
+	}
+	cases := map[string]struct {
+		screen string
+		target error
+	}{
+		"DEL":                 {"a\x7fb", errScreenEscape},
+		"C1 control":          {"a\u009bb", errScreenEscape},
+		"color out of range":  {"\x1b[38;2;256;0;0mx", errScreenSGR},
+		"short indexed color": {"\x1b[38;5mx", errScreenSGR},
+		"unknown color mode":  {"\x1b[48;3;1mx", errScreenSGR},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			if _, err := parseANSIScreen(c.screen); !errors.Is(err, c.target) {
+				t.Errorf("error = %v, want %v", err, c.target)
+			}
+		})
+	}
+	lines, err := parseANSIScreen("\x1b[2ma\x1b[22mb\x1b[38;5;1;48;2;1;2;3mc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c := lines[0].cells; !c[0].dim || c[1].dim || c[2].dim || c[2].fg.set {
+		t.Errorf("cells = %+v, want dim only on the first", c)
 	}
 }

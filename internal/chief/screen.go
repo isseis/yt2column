@@ -141,16 +141,32 @@ func joinTexts(texts []string) string {
 	return strings.Join(texts, "\n")
 }
 
+// maxOptionNumber is the highest option number a question may have. The
+// samples showed that one digit key selects its option at once, so an option
+// numbered 10 or more could not be chosen by its number.
+const maxOptionNumber = 9
+
 // finishQuestion settles what the readers leave to one place: only a
 // single-select question the reader allowed keeps its relayable options (the
 // reader already marked the free-text and chat ones), and only such a question
-// can be the merge question.
-func finishQuestion(q *Question) {
+// can be the merge question. It returns false for a question the samples did
+// not show: one with an option numbered past maxOptionNumber, or a merge
+// question whose text wraps across lines.
+func finishQuestion(q *Question) bool {
+	for _, o := range q.Options {
+		if o.Number > maxOptionNumber {
+			return false
+		}
+	}
+	if mergeQuestionText.MatchString(strings.ReplaceAll(q.Text, "\n", "")) && !mergeQuestionText.MatchString(q.Text) {
+		return false
+	}
 	if q.Kind == QuestionSingle && q.Relay == RelayAllowed {
 		q.Merge = mergeQuestionText.MatchString(q.Text)
-		return
+		return true
 	}
 	for i := range q.Options {
 		q.Options[i].Relayable = false
 	}
+	return true
 }

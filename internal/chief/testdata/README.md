@@ -70,7 +70,7 @@
 | `opencode-merge-question.ansi` | マージの確認（上の「マージの確認」のとおり再現したもの） |
 | `opencode-runpr-report.txt` | `/runpr` の最後の報告（テキストだけ） |
 
-次のものは採れなかった。OpenCode の権限の確認は、採取に使った OpenCode の設定がどの操作も許していたためである。OpenCode で PR を作ったコマンドの報告は、その画面がどの pane にも残っていなかったためである。Claude Code の `/runpr` の報告は、`/runpr` を OpenCode で走らせるので要らない。Claude Code のモデルの行と `/new` の後の画面は、chief が使わない（Claude Code は transcript と `agent_session` で確かめる）。
+次のものは採れなかった。OpenCode の権限の確認は、採取に使った OpenCode の設定がどの操作も許していたためである。OpenCode で PR を作ったコマンドの報告は、その画面がどの pane にも残っていなかったためである。Claude Code の `/runpr` の報告は、`/runpr` を OpenCode で走らせるので要らない。Claude Code のモデルの行と `/new` の後の画面は、chief が使わない（Claude Code は transcript と `agent_session` で確かめる）。自由に書く答えだけを求める問いには、どちらのエージェントにも専用の画面がない。エージェントが文で尋ねて止まると、入力欄の画面（`*-done.ansi` などと同じ形）になり、質問とは読まない。選択式の問いの「Type something.」「Type your own answer」は、自分で書く答えに移る選択肢として、中継できる選択肢から除く。
 
 ### `herdr/`・`transcript/`・`gh/`
 

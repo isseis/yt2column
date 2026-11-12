@@ -794,8 +794,9 @@ Only the conventions a linter does not check are worth stating:
   included) that has to equal the fixed text an agent draws on its pane
   screen, such as a footer, a fixed option label, a title, a mark, the
   logo, or `/runpr`'s question and report wording. Comments, identifiers, and
-  the text the tool prints stay English, and the screens a test reads are
-  sample files under `internal/chief/testdata/screens/`, not Go literals.
+  the text the tool prints stay English, and the whole screens a test reads
+  are sample files under `internal/chief/testdata/screens/`, not Go
+  literals; a test may still hold a fragment of such text.
   Reason: the screen is drawn in that text, so the literal has to equal it,
   as for a guard test.
 - The same rule applies to the browser extension: its comments, identifiers,

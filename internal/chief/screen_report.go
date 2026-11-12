@@ -51,14 +51,16 @@ var (
 	nextLine = regexp.MustCompile(`^(?:- )?NEXT: (.*)$`)
 	// nextCommand matches a named command and a four-digit task at the start
 	// of a NEXT value, optionally in backquotes.
-	nextCommand = regexp.MustCompile("^`?/(mkarch|mkplan|runplan) ([0-9]{4})(?:`|[^0-9]|$)")
+	nextCommand = regexp.MustCompile("^(`?)/(mkarch|mkplan|runplan) ([0-9]{4})(`?)(?:（|$)")
+	// nextNoneValue matches the value for no next command, alone or followed
+	// by a reason in full-width parentheses.
+	nextNoneValue = regexp.MustCompile(`^なし(?:（|$)`)
 )
 
-// nextNone is the value /runpr writes when there is no next command.
-const nextNone = "なし"
-
-// readRunprNext reads NEXT from the text of a screen. Contract: every NEXT
-// line on the screen must agree; a screen with lines that disagree, or with a
+// readRunprNext reads NEXT from the text of a screen. It reads every line of
+// the screen, earlier reports and echoed prompts included, so an older report
+// that disagrees makes the result unmatched. Contract: every NEXT line on the
+// screen must agree; a screen with lines that disagree, or with a
 // value that is neither "none" nor a known command and task, is
 // NextUnmatched, so a doubtful report never matches the tool's command.
 func readRunprNext(text string) RunprNext {
@@ -79,15 +81,15 @@ func readRunprNext(text string) RunprNext {
 
 // readNextValue reads the value after "NEXT: ".
 func readNextValue(value string) RunprNext {
-	if strings.HasPrefix(value, nextNone) {
+	if nextNoneValue.MatchString(value) {
 		return RunprNext{Kind: NextNone}
 	}
 	m := nextCommand.FindStringSubmatch(value)
-	if m == nil {
+	if m == nil || m[1] != m[4] {
 		return RunprNext{}
 	}
-	next := RunprNext{Kind: NextCommand, Task: m[2]}
-	switch m[1] {
+	next := RunprNext{Kind: NextCommand, Task: m[3]}
+	switch m[2] {
 	case "mkarch":
 		next.Command = NextCommandMkarch
 	case "mkplan":
