@@ -12,8 +12,8 @@
 #       the API keys from the CLI's environment, so the CLI cannot call an API;
 #       --after-review (preflight only) resumes from a copy of B3's complete
 #       artifacts with --after review, whatever the config (design section 3.4 item 1),
-#       and writes under 0087/preflight/review/ instead, so these runs and the
-#       config checks of item 2 do not share an output path.
+#       and writes under 0087/preflight/after-review/ instead, a root of its own,
+#       so these runs and the config checks of item 2 share no output path.
 #
 # A run without --preflight calls a paid API, so it starts only from
 # "evaltool launch": launch holds 0087/launch.lock with a per-launch token and
@@ -109,7 +109,7 @@ cmd_run() {
   local E=${eval_root:-${YT2COLUMN_EVAL_ROOT:-$HOME/yt2column-eval}}
   local R=$E/0087
   (( preflight )) && R=$E/0087/preflight
-  (( after_review )) && R=$E/0087/preflight/review
+  (( after_review )) && R=$E/0087/preflight/after-review
   LIST=$E/0087/hash/1-initial.tsv
   [[ -f $LIST ]] || die "no first hash list $LIST"
   if (( ! preflight )); then

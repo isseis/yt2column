@@ -57,7 +57,7 @@ mkdir -p -m 700 $E/0087/hash
 $X/hashlist.sh $E/0087/hash/1-initial.tsv - base=$E/0018/base/B3 work=$E/0018/work/B3 cache=$E/cache
 # 見積もりと上限の表
 evaltool estimate -input $X/bounds-input.json -runsh $X/run.sh -write-bounds $X/bounds.tsv
-# 実行の前の確認（API キーを外し、0087/preflight/ に出力する。--after-review は 0087/preflight/review/ に出力する）
+# 実行の前の確認（API キーを外し、0087/preflight/ に出力する。--after-review は 0087/preflight/after-review/ に出力する）
 $X/run.sh run <構成 ID> <記事> $E/0087/bin/<コミット>/yt2column --preflight [--after-review]
 # 1 つの構成の 10 件（またはやり直しの 1 件）の起動。API を呼ぶ実行は必ずこれで起動する
 direnv exec . go run ./$X/evaltool launch -root $E/0087 -runsh $X/run.sh \
