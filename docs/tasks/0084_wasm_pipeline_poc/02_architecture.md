@@ -81,6 +81,22 @@
 
 -   **番兵の一覧を固定するテストを、`internal/transcript` のテストに残す（§3.1.3）。** 番兵の一覧を固定するテスト `TestExportedSentinelErrorsUnchanged`（`internal/transcript/json3_test.go`）は、テストを動かすパッケージのディレクトリの、`Err` で始まる公開の名前を走査して、6 つの番兵と照らす。このテストを `internal/ytdlpsource` へ移すと、走査する先の番兵のない側のディレクトリになり、`make test` が失敗する（実際に移して確かめた）。番兵は移した後も `internal/transcript`（`errors.go`）にあるので、このテストは `internal/transcript` のテストに残す。人の答えは「`internal/transcript` へ戻す」である。要件書 AC-04 に、このテストの移動と補助の複製を足した。ADR: なし（このタスクの中で閉じる）。
 
+### 1.2.2. 実装の際に決めたこと（2026-11-12）
+
+PoC のコードを測定の前に Opus でレビューし（`/weakreview --no-fix`）、次の 2 つを人と決めた。どちらも PoC の中に閉じるので、ADR は作らない。
+
+-   **入口が送るモデルを、固定の 2 つに限る（§3.2・§3.4）。**
+    -   **問題。** `claude.New` は、空でなく前後に空白のない UTF-8 の文字列なら、どれもモデル名として受け付ける。アダプタは、HTTP 状態のエラーの文にモデル名を引用する（`model %q`）。そのため、モデルの欄に API キーを誤って貼り付けると、キーが API へ送られ、返った失敗の文を通して画面と記録に出てしまう。`invalid_config` の文を固定にしても、この経路は防げない（AC-14）。
+    -   **決めたこと。** 入口は、モデルを `claude-haiku-5-5` と `claude-opus-5-5` に限り、それ以外を送る前に `invalid_config` で拒否する。ページのモデルと effort の欄も、固定の選択肢にする。
+    -   **採らなかった案。** `http_status` の失敗の文も固定にする案である。キーは画面に出なくなるが、キーが API へ送られることは防げず、400 の失敗の手がかりも画面から消える。
+    -   **あわせて変えたこと。**
+        -   工程ごとの値に、その工程に指定したモデル（`requestedModel`）を加えた。応答がモデル名を返す前に失敗した工程でも、どのモデルを求めたかが分かるようにするためである（AC-11）。
+        -   入力の検査で拒否した回（`invalid_input`・`invalid_config`）は、ページの記録に設定の値を書かない。プローブの回は、URL の欄が自由な文字列なので、記録に試行の種類だけを書く。
+-   **止まった呼び出しとみなすまでの時間を、呼び出しごとに決め、遅れて届いた結果も残す（§3.4）。**
+    -   **問題。** `generate` は、最大 15 分の LLM の呼び出しを 3 回まで続けて行う。正常な呼び出しでも 20 分を超えうるので、20 分で止まったとみなすと、本番の構成の回（AC-20）の結果が「止まった」として失われ、その回の料金も費用の合計（AC-23）から漏れる。
+    -   **決めたこと。** 時間は `generate` が 50 分、`longOutput` と `probe` が 20 分とする。その時間を過ぎた後に結果が届いたときは、遅れて届いたことを付けて、表示して記録する。新しい呼び出しは、これまでどおり、ページを読み込み直すまで始めない。
+    -   **採らなかった案。** 20 分のまま、結果だけを残す案である。`generate` の正常な回が「止まった」と表示される食い違いが残る。
+
 ### 1.3. 概念モデル
 
 矢印 A → B は「A が B を生む、または B の材料になる」を表す。
@@ -396,7 +412,7 @@ interface BuildInfo {
 }
 
 interface ModelSetting {
-  model: string; // e.g. "claude-haiku-5-5"
+  model: "claude-haiku-5-5" | "claude-opus-5-5"; // any other model is invalid_config
   effort: string; // a value claudeparam.ParseEffort accepts
 }
 
@@ -424,7 +440,8 @@ interface StageReport {
   // failed: StageStarted without StageFinished. not_run: none of the three.
   status: "done" | "skipped" | "failed" | "not_run";
   elapsedMs: number | null;
-  model: string | null;
+  requestedModel: string | null; // the model the stage was configured with; null only when validation rejected the request
+  model: string | null; // the model the response reported
   inputTokens: number | null;
   outputTokens: number | null;
   costUsd: string | null; // internal/pricing's estimate; null when unknown
@@ -460,7 +477,7 @@ type GenerateResult =
         5.  `transcript.ValidateVideoURL`。
         6.  `transcript.NewCopiedSource`。
     -   トップレベルの知らないメンバは、サーバと同じく読み飛ばし、宣言したメンバの重複は拒否する。PoC で加えたメンバは必須とし、入れ子のオブジェクト（`generation`・`review`・`setting`）の中では、知らないメンバと重複したメンバを拒否する。加えたメンバは、`apiKey`・`workspaceId`・`browserAccessHeader`・`generation`・`review`（入れ子のオブジェクト）、`longOutput` の `setting`・`variant`、`probe` の全メンバである。`null` と型の違う値も拒否する。
-    -   設定のメンバは、`secret.New`・`claudeparam.ParseWorkspaceID`・`claudeparam.ParseEffort`・`claude.New` で検査する。
+    -   設定のメンバは、`secret.New`・`claudeparam.ParseWorkspaceID`・`claudeparam.ParseEffort`・`claude.New` で検査する。モデルは、その前に `claude-haiku-5-5` と `claude-opus-5-5` のどちらかであることを確かめる（§1.2.2）。
     -   すべての検査が通ってから、最初の LLM の呼び出しを行う。
 -   **CLI と同じ条件（AC-07）。** `writer.NewProgressWriter` に、次のものを渡す。
     -   埋め込みの既定のテンプレート（上書きのパスは空）。
@@ -555,8 +572,9 @@ interface ProbeResult {
     -   WASM が呼べる状態になるまでは、どのボタンも呼び出しを行わず、理由を表示する。
     -   記事の生成と長い応答の測定は、API キーかワークスペース ID の欄が空なら呼ばない。
     -   どれかの呼び出しの実行中は、新しい呼び出しを始めない。
--   **ランタイムの終わり。** ページは `go.run()` の Promise を見る。Go のランタイムが終わったら、実行中の状態を解き、「WASM のランタイムが終了した」と表示して、以後の呼び出しを止める。1 回の呼び出しが 20 分を超えたときは、止まった呼び出しとして表示し、ページを読み込み直すまで新しい呼び出しを始めない。§3.2 の `*_body` の試行のとおり、本文の途中で止まった送信は期限で終わらない見込みで、実行中の状態を解くと、後から再開した呼び出しと新しい呼び出しが重なりうるためである（AC-13）。
+-   **ランタイムの終わり。** ページは `go.run()` の Promise を見る。Go のランタイムが終わったら、実行中の状態を解き、「WASM のランタイムが終了した」と表示して、以後の呼び出しを止める。1 回の呼び出しが、呼び出しごとに決めた時間（`generate` は 50 分、`longOutput` と `probe` は 20 分。§1.2.2）を超えたときは、止まった呼び出しとして表示し、ページを読み込み直すまで新しい呼び出しを始めない。§3.2 の `*_body` の試行のとおり、本文の途中で止まった送信は期限で終わらない見込みで、実行中の状態を解くと、後から再開した呼び出しと新しい呼び出しが重なりうるためである（AC-13）。その時間を過ぎた後に結果が届いたときは、遅れて届いたことを付けて、表示して記録する。
 -   **ビルドの同一性（AC-25・AC-26）。** ページは、`buildInfo()` の Go の版・`vcsRevision`・`vcsModified` を表示し、各回の記録に残す。`vcsModified` が真なら、測定のボタンを押せないようにする。`vcsModified` が示すのは WASM のビルドの作業ツリーの状態だけなので、拡張の側は、上の `Makefile` の目標で WASM と一緒に、変更のない作業ツリーからビルドする。測定の前には毎回この目標でビルドし直す。同じ SHA で別のコードを測るのを防ぐためである。
+-   **モデルと effort の欄（AC-14）。** モデルは `claude-haiku-5-5` と `claude-opus-5-5`、effort は `low`〜`max` の固定の選択肢とし、自由に入力できる欄にしない（§1.2.2）。
 -   **API キーの扱い（AC-14）。**
     -   API キーとワークスペース ID は、入力欄の値と、呼び出しの間だけの変数にだけ置く。`chrome.storage`・Web Storage・IndexedDB・Cookie・URL に書かない。`console` に要求を出さない。
     -   API キーの入力欄は `type=password` とし、`<form>` の中に置かない。ボタンは `type=button` とする。パスワードの保存の確認をブラウザに出させないためである。
@@ -910,3 +928,4 @@ PoC のコードにはテストを書かない（要件書 §5「受け入れの
 -   2026-11-11 draft への戻し：§3.1.3 に、パッケージ名を隠すローカル変数の改名（`YtDlpSource.Fetch` の `transcript`）を足した（#830）
 -   2026-11-11 承認（isseis、#830）
 -   2026-11-11 セッション中の再承認：番兵の一覧を固定するテスト（`TestExportedSentinelErrorsUnchanged`）を `internal/transcript` のテストに残し、その補助の複製を許す（isseis、#843）
+-   2026-11-12 セッション中の再承認：入口が送るモデルを `claude-haiku-5-5` と `claude-opus-5-5` に限り、ページのモデルと effort の欄を固定の選択肢にし、工程ごとの値に指定したモデルを加えた。止まった呼び出しとみなすまでの時間を呼び出しごと（`generate` は 50 分、ほかは 20 分）にし、遅れて届いた結果も表示して記録する（isseis、#未記入）

@@ -49,6 +49,10 @@
 
 -   **番兵の一覧を固定するテストを、`internal/transcript` のテストに残す（ステップ 1-1）。** 番兵の一覧を固定するテスト `TestExportedSentinelErrorsUnchanged`（`internal/transcript/json3_test.go`）は、テストを動かすパッケージのディレクトリの、`Err` で始まる公開の名前を走査して、6 つの番兵と照らす。このテストを `internal/ytdlpsource` へ移すと、走査する先の番兵のない側のディレクトリになり、`make test` が失敗する（実際に移して確かめた）。番兵は移した後も `internal/transcript`（`errors.go`）にあるので、このテストは `internal/transcript` のテストに残す。人の答えは「`internal/transcript` へ戻す」である。要件書 AC-04 と設計書 §3.1.3 に、このテストの移動と補助の複製を足した。ADR: なし（このタスクの中で閉じる）。
 
+**実装の際に決めたこと（2026-11-12）:**
+
+-   **入口が送るモデルを固定の 2 つに限り、止まった呼び出しとみなすまでの時間を呼び出しごとに決める（ステップ 2-2・2-4）。** 測定の前の Opus のレビューで見つかった 2 つの問題への対処である。1 つは、モデルの欄に貼り付けた API キーが、失敗の文を通して画面に出ることである。もう 1 つは、20 分の打ち切りが正常な `generate` より短いことである。人の答えは、「モデルと effort を固定の選択肢に」と「時間を呼び出しごとにし、結果も残す」である。内容と理由は、設計書 §1.2.2 に書いた。ADR: なし（PoC の中に閉じる）。
+
 ### 1.4. 既存コード調査結果
 
 調べたのはコミット 4135c266 の時点のコードで、Go は 1.27.1 である。
@@ -227,42 +231,42 @@ PoC のブランチでは、`make ext-build` が通ることだけを求める�
 
 #### ステップ 2-1: PoC のブランチを作る
 
--   [ ] PR-1 のマージの後の `origin/main` から、`poc/0084-wasm-pipeline` を作る（§1.3）。
+-   [x] PR-1 のマージの後の `origin/main` から、`poc/0084-wasm-pipeline` を作る（§1.3）。
 
 #### ステップ 2-2: WASM の入口（`cmd/yt2column-wasm`）
 
 設計書 §3.2・§4.2・§6.1。
 
--   [ ] `//go:build js && wasm` の `main` パッケージとして作り、`globalThis.yt2column` に `buildInfo`・`generate`・`longOutput`・`probe` を登録する。
--   [ ] `generate` の入力の検査を、`internal/server/request.go:63`〜`122` の `validateBody` と同じ段・同じ順で書く。PoC で加えたメンバの検査も書く（設計書 §3.2「受け付ける形」）。
--   [ ] `writer.NewProgressWriter` を、CLI と同じ条件（埋め込みのテンプレート・字数の調整と検証・推敲を有効・期限 15 分）で作る。15 分の値の出典として、`provider.LLMTimeout` をコメントに書く。
--   [ ] 失敗の種類を、設計書 §4.2 の表のとおり番兵で選ぶ。`invalid_config` の文は固定にする。
--   [ ] 工程ごとの値を、`ProgressObserver` の時刻と `RunUsage`・`pricing.Estimate` から組み立てる（設計書 §2.4・§3.2）。
--   [ ] 4 つの関数で、panic を `recover` で捕まえる。
--   [ ] `browserAccessHeader` のときだけヘッダを足す `http.DefaultTransport` の包みを入れる（設計書 §1.2）。
--   [ ] `longOutput` と `probe` を設計書 §3.2 のとおりに作る。`probe` は送り先を検査してから送る。
+-   [x] `//go:build js && wasm` の `main` パッケージとして作り、`globalThis.yt2column` に `buildInfo`・`generate`・`longOutput`・`probe` を登録する。
+-   [x] `generate` の入力の検査を、`internal/server/request.go:63`〜`122` の `validateBody` と同じ段・同じ順で書く。PoC で加えたメンバの検査も書く（設計書 §3.2「受け付ける形」）。
+-   [x] `writer.NewProgressWriter` を、CLI と同じ条件（埋め込みのテンプレート・字数の調整と検証・推敲を有効・期限 15 分）で作る。15 分の値の出典として、`provider.LLMTimeout` をコメントに書く。
+-   [x] 失敗の種類を、設計書 §4.2 の表のとおり番兵で選ぶ。`invalid_config` の文は固定にする。
+-   [x] 工程ごとの値を、`ProgressObserver` の時刻と `RunUsage`・`pricing.Estimate` から組み立てる（設計書 §2.4・§3.2）。
+-   [x] 4 つの関数で、panic を `recover` で捕まえる。
+-   [x] `browserAccessHeader` のときだけヘッダを足す `http.DefaultTransport` の包みを入れる（設計書 §1.2）。
+-   [x] `longOutput` と `probe` を設計書 §3.2 のとおりに作る。`probe` は送り先を検査してから送る。
 
 #### ステップ 2-3: プローブ用サーバ（`cmd/yt2column-wasmprobe`）
 
--   [ ] 設計書 §3.3 の表の経路と記録を持つ、ネイティブのサーバを作る。`localhost` のポートは `127.0.0.1` と `::1` の両方で待ち受ける。
--   [ ] ログの書き先をリポジトリの外のパスにすることを、`main` の関数の doc コメントに書く（AC-28）。
+-   [x] 設計書 §3.3 の表の経路と記録を持つ、ネイティブのサーバを作る。`localhost` のポートは `127.0.0.1` と `::1` の両方で待ち受ける。
+-   [x] ログの書き先をリポジトリの外のパスにすることを、パッケージの doc コメントに書く（AC-28）。
 
 #### ステップ 2-4: PoC のページとビルド
 
 設計書 §3.4。
 
--   [ ] `extension/static/poc.html` と `extension/src/poc.ts` を作る。ボタンの規則・ランタイムの終わり・20 分の打ち切り・ビルドの同一性・API キーの扱い・表示を、設計書 §3.4 のとおりにする。
--   [ ] 記事を `parseArticleMarkdown` と `buildArticleBody` で描く。失敗の文と工程ごとの値は `textContent` でだけ表示する。
--   [ ] `extension/static/poc/` の成果物を `.gitignore` に入れる。
--   [ ] WASM のビルド・`wasm_exec.js` の写し・拡張のビルドを 1 回で行う `Makefile` の目標を足す。作業ツリーに変更があれば、何もビルドせずに失敗する。
--   [ ] `extension/scripts/check-dist.ts` が `poc/` の成果物を拒否するなら、拒否しないように変える。
+-   [x] `extension/static/poc.html` と `extension/src/poc.ts` を作る。ボタンの規則・ランタイムの終わり・呼び出しごとの打ち切り・モデルと effort の選択肢・ビルドの同一性・API キーの扱い・表示を、設計書 §3.4 のとおりにする。
+-   [x] 記事を `parseArticleMarkdown` と `buildArticleBody` で描く。失敗の文と工程ごとの値は `textContent` でだけ表示する。
+-   [x] `extension/static/poc/` の成果物を `.gitignore` に入れる。
+-   [x] WASM のビルド・`wasm_exec.js` の写し・拡張のビルドを 1 回で行う `Makefile` の目標を足す。作業ツリーに変更があれば、何もビルドせずに失敗する。
+-   [-] `extension/scripts/check-dist.ts` が `poc/` の成果物を拒否するなら、拒否しないように変える。（不要だった：`check-dist.ts` は `static/poc/` の成果物を拒否しなかった。）
 
 #### ステップ 2-5: ビルドと push
 
--   [ ] `make ext-build` と上の `Makefile` の目標が通ることを確かめる。
--   [ ] AC-14 の観点で PoC のコードを読み直す。API キーが保存先・URL・`console`・エラーの表示に流れないことを確かめる。
--   [ ] 測定の前に、PoC のブランチの `origin/main` からの範囲を `/weakreview --no-fix` でレビューし、結果を測定の記録（§1.3）に書く。テスト用の API キーを通す前に、PoC のコードを自分以外の目で読むためである。
--   [ ] PoC のブランチを origin に push する。
+-   [x] `make ext-build` と上の `Makefile` の目標が通ることを確かめる。
+-   [x] AC-14 の観点で PoC のコードを読み直す。API キーが保存先・URL・`console`・エラーの表示に流れないことを確かめる。
+-   [x] 測定の前に、PoC のブランチの `origin/main` からの範囲を `/weakreview --no-fix` でレビューし、結果を測定の記録（§1.3）に書く。テスト用の API キーを通す前に、PoC のコードを自分以外の目で読むためである。
+-   [x] PoC のブランチを origin に push する。
 
 ### フェーズ 3: 測定
 
@@ -270,8 +274,8 @@ PoC のブランチでは、`make ext-build` が通ることだけを求める�
 
 #### ステップ 3-1: 準備
 
--   [ ] 測定のためのブラウザのプロファイルを作り、クラッシュの報告を切る（設計書 §5.2）。
--   [ ] テスト用のワークスペースの利用の上限と、コンソールの使用量の始まりの値を記録する。
+-   [x] 測定のためのブラウザのプロファイルを作り、クラッシュの報告を切る（設計書 §5.2）。
+-   [x] テスト用のワークスペースの利用の上限と、コンソールの使用量の始まりの値を記録する。
 
 #### ステップ 3-2: 設計書 §7.3 の順の測定
 
@@ -283,21 +287,21 @@ PoC のブランチでは、`make ext-build` が通ることだけを求める�
 -   ステップ 2-4 の `Makefile` の目標（設計書 §3.4）でビルドし直す。
 -   測定の記録の各回に、その回のビルドの SHA を書く。
 
--   [ ] 1. プローブ（Chrome・Brave）。
--   [ ] 2. 読み込みと CSP、サイズと読み込みの時間（Chrome・Brave、3 回以上）。
--   [ ] 3. CORS の 3 つの組み合わせ（Haiku）。
--   [ ] 4. 問い 1・2（要件書の背景の 3 つの問いのうち 1 と 2）の試行（AC-17・AC-18・AC-22、Haiku、Chrome・Brave）。
--   [ ] 5. 長い応答（AC-19、Haiku）。
--   [ ] 6. 本番の構成の 3 本（AC-20、Chrome）。動画は 0008 評価記録 §3.2 の 5 本から、動画 1（`roNZ-rLxhUE`）を含む 3 本を選び、字幕は文字起こしパネルからコピーする。
--   [ ] 7. Offscreen Document（AC-21）。問い 2 が失敗したブラウザがあるときだけ行う。作る前に設計書 §3.5 の例外を人に承認してもらい、承認の後に設計書 §3.5 の表のファイルを作って同じ試行を行う。行わなかったときは、その理由を記録する。
--   [ ] 8. 後片付け。テスト用の API キーを失効させ、新しいキーに替える。
+-   [x] 1. プローブ（Chrome・Brave）。
+-   [x] 2. 読み込みと CSP、サイズと読み込みの時間（Chrome・Brave、3 回以上）。
+-   [x] 3. CORS の 3 つの組み合わせ（Haiku）。
+-   [x] 4. 問い 1・2（要件書の背景の 3 つの問いのうち 1 と 2）の試行（AC-17・AC-18・AC-22、Haiku、Chrome・Brave）。
+-   [x] 5. 長い応答（AC-19、Haiku）。
+-   [x] 6. 本番の構成の 3 本（AC-20、Chrome）。動画は 0008 評価記録 §3.2 の 5 本から、動画 1（`roNZ-rLxhUE`）を含む 3 本を選び、字幕は文字起こしパネルからコピーする。
+-   [-] 7. Offscreen Document（AC-21）。問い 2 が失敗したブラウザがあるときだけ行う。作る前に設計書 §3.5 の例外を人に承認してもらい、承認の後に設計書 §3.5 の表のファイルを作って同じ試行を行う。行わなかったときは、その理由を記録する。（行わなかった：Chrome と Brave のどちらにも問い 2 の失敗がなかった。理由は測定の記録に書いた。）
+-   [x] 8. 後片付け。テスト用の API キーを失効させ、新しいキーに替える。（キーは失効させた。新しいキーは、次に要るときに作る。）
 
 #### ステップ 3-3: 測定の後の確かめ
 
--   [ ] PoC のブランチの最後の状態を origin に push する。
--   [ ] 設計書 §7.4 の確かめ（拡張のストレージ・Cookie・パスワードの管理）を行い、結果を記録する。
--   [ ] 測定の途中で取ったログ（`chrome://net-export` の記録・HAR・画面の写し）を消す（AC-28）。
--   [ ] PR-2 のブランチに、フェーズ 2・3 のチェックを付けたコミットを積む（§1.3）。件名は `docs(0084): record the PoC and measurement progress` とし、`docs(0084): draft` で始めない（`/runplan` の作業ブランチの判定が、それを文書のコマンドのコミットとみなすため）。
+-   [x] PoC のブランチの最後の状態を origin に push する。
+-   [x] 設計書 §7.4 の確かめ（拡張のストレージ・Cookie・パスワードの管理）を行い、結果を記録する。
+-   [x] 測定の途中で取ったログ（`chrome://net-export` の記録・HAR・画面の写し）を消す（AC-28）。（`net-export` の記録 2 つを消した。HAR と画面の写しは取っていない。ダミーのキーだけを含むプローブ用サーバのログは、ステップ 4-2 の読み合わせの後に、測定の記録と一緒に消す。）
+-   [x] PR-2 のブランチに、フェーズ 2・3 のチェックを付けたコミットを積む（§1.3）。件名は `docs(0084): record the PoC and measurement progress` とし、`docs(0084): draft` で始めない（`/runplan` の作業ブランチの判定が、それを文書のコマンドのコミットとみなすため）。
 
 ### フェーズ 4: 調査記録（`main`）
 
@@ -444,7 +448,7 @@ index 2c1287bdf692aded1fd47d419de9b0d50110ec5d..b3c7f6ff54d50846e97e73ee7b054403
  | `internal/writer` | Defines the article-writing stage: `Article`, `ArticleWriter`, `ProgressWriter`, `New`, `NewProgressWriter`, `RunUsage`, `CheckChannelName`, `ProseRanges`. The template contract: [prompts/README.md](../../../prompts/README.md). |
 +| `internal/ytdlpsource` | Implements `transcript.TranscriptSource` with `YtDlpSource`: runs `yt-dlp` without a shell and parses its json3 and info.json output. It is the development path of the CLI and is not built into the WebAssembly core. The cache's guarantees: [cache consistency](../cache_consistency.md); the `yt-dlp` boundary: [security.md](../security.md). |
  | `prompts` | Embeds the default prompt templates and returns them: `System`/`User`, `ShortenSystem`/`ShortenUser`, `ReviewSystem`/`ReviewUser`. [README](../../../prompts/README.md) documents the contract. |
- 
+
  ## Server and Host
 @@ -112,7 +113,7 @@ add a kind here or to widen one of these definitions.
  | `internal/redact` | Keeps secret values out of output: `Line`, `Writer`, `SecretStrings`. |
@@ -452,9 +456,9 @@ index 2c1287bdf692aded1fd47d419de9b0d50110ec5d..b3c7f6ff54d50846e97e73ee7b054403
  | `internal/signalrun` | `Run` calls a program's main function under a context that the first subscribed signal cancels; a second signal terminates the process. |
 -| `internal/strictjson` | Extracts values from JSON documents that passed strict checks: `Object.CollectOnly`, `Object.Has`, `Value.AsBool`, `Value.IsNull`, `Value.AsNonNegativeInt64`, `Value.Raw`. The rejected inputs: [0003 design §3.5](../../tasks/0003_deepseek_llm_client/02_architecture.md). Shared by `internal/transcript`, `internal/llm/deepseek`, `internal/llm/claude`, `internal/llm/openai`, `internal/publisher`, `internal/writer`, `internal/artifact`, `internal/fixprguard`, `internal/server`, `internal/nmhost`, `internal/codexreview`, and `internal/coveragecompare` |
 +| `internal/strictjson` | Extracts values from JSON documents that passed strict checks: `Object.CollectOnly`, `Object.Has`, `Value.AsBool`, `Value.IsNull`, `Value.AsNonNegativeInt64`, `Value.Raw`. The rejected inputs: [0003 design §3.5](../../tasks/0003_deepseek_llm_client/02_architecture.md). Shared by `internal/ytdlpsource`, `internal/llm/deepseek`, `internal/llm/claude`, `internal/llm/openai`, `internal/publisher`, `internal/writer`, `internal/artifact`, `internal/fixprguard`, `internal/server`, `internal/nmhost`, `internal/codexreview`, and `internal/coveragecompare` |
- 
+
  ## Development Tools
- 
+
 ````
 
 File list (only for an AC that limits which files change):
@@ -534,3 +538,4 @@ AC-26 の確かめ（ステップ 4-2 で書く）：未記入
 
 -   2026-11-11 承認（isseis、#830）
 -   2026-11-11 セッション中の再承認：番兵の一覧を固定するテスト（`TestExportedSentinelErrorsUnchanged`）を `internal/transcript` のテストに残し、その補助の複製を許す（isseis、#843）
+-   2026-11-12 セッション中の再承認：入口が送るモデルを固定の 2 つに限り、止まった呼び出しとみなすまでの時間を呼び出しごとに決める（ステップ 2-2・2-4。設計書 §1.2.2）（isseis、#未記入）
