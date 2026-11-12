@@ -190,7 +190,7 @@ check-record: 28 tables match
 
 2026-11-12 に、固定した CLI（§2.6）で設計 §3.4 の項目 1〜3 を行った。項目 4 は §3 に記録した。CLI の起動はすべて `run.sh` の preflight の使い方で、`env -u ANTHROPIC_API_KEY -u OPENAI_API_KEY -u DEEPSEEK_API_KEY` を付けて行った。`run.sh` は preflight の起動でもこの 3 つのキーと `ANTHROPIC_WORKSPACE_ID` を外す。どの起動の標準エラーにも `origin` が `run` の `tokens:` の行はなく、CLI は API を一度も呼んでいない。
 
-**`run.sh` の変更:** 項目 1 の `--after-review` の起動と項目 2 の起動は、同じ構成 ID と記事で同じ出力先（`0087/preflight/<種類>/<構成 ID>/<記事>`）を使うので、後から起動したほうが「already exists」で止まった。`--after-review` の起動の出力先を `0087/preflight/review/` に分けた（コミット `436691e4`）。API を呼ぶ実行の出力先は変えていない。
+**`run.sh` の変更:** 項目 1 の `--after-review` の起動と項目 2 の起動は、同じ構成 ID と記事で同じ出力先（`0087/preflight/<種類>/<構成 ID>/<記事>`）を使うので、後から起動したほうが「already exists」で止まった。`--after-review` の起動の出力先を `0087/preflight/after-review/` に分けた（コミット `b435f279`、計画 §1.4 の決めたこと 2）。API を呼ぶ実行の出力先は変えていない。`selftest.sh` はこの分岐を確かめないので、分岐は下の実際の起動だけで確かめた。項目 1・2 と下の確かめは、この変更の後に `0087/preflight/` を空にして（`trial/` を除く）やり直したものである。
 
 **項目 1（保存した出力を今の CLI が読めること）:** 10 件を構成 `C-sol` の名前で `--after review` で再開した（構成の LLM の値は、この再開では使われない）。10 件とも終了コード `0` で記事を書いた。どの記事も、`cost:` の行はすべて `reused known`（roNZ-rLxhUE-1 は生成・字数の調整・検証・推敲の 3 行、ほかは生成と検証・推敲の 2 行）で、`cost-total: run` は `0.000000`、`cost-total: article` の 10 件の和は 3.615544 USD で、B3 の合計（§2.5 の `reproduce0018` の値）と一致した。また、10 件の `base/B3/` の生成の保存した出力は、`work/B3/` の同じファイルと `cmp` でバイト単位で一致した。
 
@@ -207,7 +207,17 @@ check-record: 28 tables match
 - **写し:** `run.sh` は写しのたびに SHA-256 を最初の一覧と比べ、違えば CLI を起動せずに止まる。60 回とも CLI まで進んだので、すべての写しが一覧と一致した。写し先のディレクトリはモード `0700`、ファイルは `0600` だった。項目 1 の起動は写し先に検証・推敲の保存した出力を書いたので、写し先に書き込める。
 - **出力先:** 項目 2 の起動では `out/` と `review/` に何も書かれていない（CLI は記事の生成の前に止まる）。出力先がすでにある記事（`C-sol` の roNZ-rLxhUE-1）を起動し直すと、`run.sh` は `already exists` で終了コード `1` で止まり、ファイルを 1 つも増やさなかった。
 
-**`.when` と設計の表の照合:** 計画は、`.when` の LLM の変数の値を人が設計 §3.1 の表と照合するとしていた。人が、機械的に確かめられるので機械で照合するよう求めた（2026-11-12）。設計書の §3.1 の表の 6 行から構成 ID・`YT2COLUMN_LLM`・`YT2COLUMN_REVIEW_LLM` を `awk` で取り出し、60 の `.when` の `config`・`llm`・`review_llm` の組の一覧（重複を除く）と `diff` した。差はなく、どの構成も 10 の記録を持っていた。
+**`.when` と設計の表の照合（項目 2 の 60 の記録）:** 計画は、`.when` の LLM の変数の値を人が設計 §3.1 の表と照合するとしていた。人が、機械的に確かめられるので機械で照合するよう求めた（2026-11-12）。設計書の §3.1 の表の 6 行から構成 ID・`YT2COLUMN_LLM`・`YT2COLUMN_REVIEW_LLM` を `awk` で取り出し、60 の `.when` の `config`・`llm`・`review_llm` の組の一覧（重複を除く）と `diff` した。差はなく、どの構成も 10 の記録を持っていた。
+
+```sh
+awk '/^### 3\.1\./{f=1;next} /^### /{f=0} f && /^\| `[ABC]-/' docs/tasks/0087_openai_combination_eval/02_architecture.md |
+  awk -F'|' '{for(i=2;i<=4;i++){gsub(/[ `]/,"",$i)}; print $2"\t"$3"\t"$4}' | sort > design.tsv
+for f in $E/0087/preflight/log/*/*.when; do
+  awk -F= '{v[$1]=$2} END{print v["config"]"\t"v["llm"]"\t"v["review_llm"]}' $f
+done | sort | uniq -c | awk '{print $2"\t"$3"\t"$4"\t"$1}' > when.tsv
+cut -f1-3 when.tsv | diff design.tsv - && print "when-vs-design: same"
+awk -F'\t' '$4 != 10 {bad=1} END{exit bad}' when.tsv && print "each config: 10 records"
+```
 
 ```text
 design rows:        6
@@ -216,16 +226,16 @@ when-vs-design: same
 each config: 10 records
 ```
 
-**見積もりの再実行:** PR-2 のブランチのコミット `436691e4` で `estimate` を実行し直した。`bounds.tsv` と出力の見積もりの表は変わらなかったので、§5 は書き換えていない。
+**見積もりの再実行:** PR-2 のブランチのコミット `b435f279` で `estimate` を実行し直した。`bounds.tsv` と出力の見積もりの表は変わらなかったので、§5 は書き換えていない。
 
 **`check_article.py`:** 項目 1 の 10 件の記事に当て、10 件とも読めて `pass` だった。出力の行（ファイル名・モデル・タイトル・節の数・字数・判定）は、B3 の記事（`0018/out/B3/`）に当てた出力と同じだった。
 
-**採点のエージェントの試し:** 項目 1 の roNZ-rLxhUE-2 の記事を 1 件だけ、リポジトリの外の別のディレクトリ（`0087/preflight/trial/`）に写して `material` で伏せ、`yt2column-0087-scorer` のエージェントで採点させた。採点の結果は評価に使わない。
+**採点のエージェントの試し:** 項目 1 の roNZ-rLxhUE-2 の記事を 1 件だけ、記事・保存した出力・キャッシュの写しとともにリポジトリの外の別のディレクトリ（`0087/preflight/trial/`）に写して `material` で伏せ、`yt2column-0087-scorer` のエージェントで採点させた。採点の結果は評価に使わない。`--after review` の再開は検証・推敲の記録を書かないので、`material` が読む検証・推敲の記録には、B3 の同じ記事の記録（`0018/review/B3/roNZ-rLxhUE-2.md`）を写した。試しは最初の `run.sh` の変更の後の起動の記事で行い、やり直した後の記事（`preflight/after-review/`）と `cmp` で同じであることを確かめた。
 - 出力の表は `scoring-prompt.md` の見出しと 14 の観点の行の形で返った。
 - エージェントが報告したモデル ID は `claude-opus-5-5`、使える道具は `Read` だけだった（ほかに、結果を返すためのハーネスの道具がある）。シェルのコマンドの実行と素材のディレクトリへの書き込みを試させたところ、どちらもできなかった。
-- **わかったこと:** エージェントはディレクトリの一覧を取れないので、記事の名前を推測して読んだ（`-a` を見つけ、`-b`・`-c` がないことを確かめて止まった）。1 段目の採点では 1 本の動画に 8 件の記事がある。ステップ 3-2 で起動するときは、主セッションが素材のディレクトリのファイルの名前の一覧をプロンプトに書く。
+- **わかったこと:** エージェントはディレクトリの一覧を取れないので、記事の名前を推測して読んだ（`-a` を見つけ、`-b`・`-c` がないことを確かめて止まった）。1 段目の採点では 1 本の動画に 8 件の記事がある。ステップ 3-2 で起動するときは、主セッションが素材のディレクトリのファイルの名前の一覧をプロンプトに書く（計画 §1.4 の決めたこと 3）。
 
-**道具の確かめの再実行:** ステップ 1-5 の後に `_eval/run.sh` を変えたので、コミット `436691e4` で次を実行し直した。`selftest.sh` は `direnv exec .` で実行し、§2.5 と同じ 17 の確かめがすべて通った（最後の行は `selftest: all checks passed`、`exit=0`）。
+**道具の確かめの再実行:** ステップ 1-5 の後に `_eval/run.sh` を変えたので、コミット `b435f279` で次を実行し直した。`selftest.sh` は `direnv exec .` で実行し、§2.5 と同じ 17 の確かめがすべて通った（最後の行は `selftest: all checks passed`、`exit=0`）。
 
 ```text
 table reproduce0018 keys=1
@@ -241,7 +251,7 @@ exit=0
 repo_impact: same list (42 lines)
 repo_impact: same tests (1256 lines)
 repo_impact: same lint (6 lines)
-repo_impact: base bc7208cd941fabf3635e10067fa4c58c0dbe9441, head 436691e4f0754897f68dbcfe9c327e71ac695fc3
+repo_impact: base bc7208cd941fabf3635e10067fa4c58c0dbe9441, head b435f2795544f29aeb9e15ebe9fcbb247d14e2ae
 exit=0
 ```
 
@@ -394,7 +404,7 @@ exit=0
 | claude-opus-5-5 | le272000 | 4.000000 | 0.200000 | 5.000000 | 20.000000 |
 | claude-opus-5-5 | gt272000 | 4.000000 | 0.200000 | 5.000000 | 20.000000 |
 
-**料金表のコミットと claude-opus-5-5 の単価の比較（AC-15）:** 2026-11-12 に、PR-2 のブランチのコミット `436691e4`（CLI に関わるツリーが固定したコミット `bc7208cd` と同じ。§2.6）で `rates` を実行した。出力は上の表と同じである。`rates-compare.sh` に評価に使うコミット（固定したコミット）を渡した結果は次のとおりで、`claude-opus-5-5` の単価は B3 の CLI のコミット `2fc2e2a` と同じだった。基準の構成の推定コストは求め直さず、`baseline.json` も変えていない。`bc7208cd` の `internal/pricing/rates.go` の各モデルの項目は、`claude-opus-5-5` が 112 行、`gpt-6-astra` が 132 行、`gpt-6.1-sol` が 141 行から始まる。
+**料金表のコミットと claude-opus-5-5 の単価の比較（AC-15）:** 2026-11-12 に、PR-2 のブランチのコミット `b435f279`（CLI に関わるツリーが固定したコミット `bc7208cd` と同じ。§2.6）で `rates` を実行した。出力は上の表と同じである。`rates-compare.sh` に評価に使うコミット（固定したコミット）を渡した結果は次のとおりで、`claude-opus-5-5` の単価は B3 の CLI のコミット `2fc2e2a` と同じだった。基準の構成の推定コストは求め直さず、`baseline.json` も変えていない。`bc7208cd` の `internal/pricing/rates.go` の各モデルの項目は、`claude-opus-5-5` が 112 行、`gpt-6-astra` が 132 行、`gpt-6.1-sol` が 141 行から始まる。
 
 ```text
 evaluation commit bc7208cd941f: base:rates{input:4000000,cacheRead:200000,cacheWrite:5000000,output:20000000},
