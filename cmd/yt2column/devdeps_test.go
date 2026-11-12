@@ -12,9 +12,9 @@ import (
 )
 
 // TestNoDevDependency checks that this production binary does not link the
-// fake LLM. It lists the dependencies of this package, the one its test
-// belongs to, so a change to them invalidates the cached result. The fake's
-// path comes from its type, so a rename cannot empty the check.
+// fake LLM. godepstest reads the sources of the packages it lists, so a
+// change to them, for any target OS, invalidates the cached result. The
+// fake's path comes from its type, so a rename cannot empty the check.
 func TestNoDevDependency(t *testing.T) {
 	godepstest.Check(t, "./cmd/yt2column",
 		[]string{reflect.TypeFor[writer.Article]().PkgPath()},

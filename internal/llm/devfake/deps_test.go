@@ -18,8 +18,9 @@ import (
 
 // TestDependencies checks that the fake depends on no server-only package and
 // no binary, so it stays usable after the server is gone, and on neither the
-// network nor external commands. It lists the dependencies of the package
-// this test belongs to, so a change to them invalidates the cached result.
+// network nor external commands. godepstest reads the sources of the
+// packages it lists, so a change to them, for any target OS, invalidates
+// the cached result.
 func TestDependencies(t *testing.T) {
 	llmPath := reflect.TypeFor[llm.GenerateRequest]().PkgPath()
 	module, ok := strings.CutSuffix(llmPath, "/internal/llm")

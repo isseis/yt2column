@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -92,30 +93,67 @@ func Root() (string, error) {
 	return root, nil
 }
 
+// listFormat prints a package's import path and, for a package outside the
+// standard library, a tab and its directory.
+const listFormat = "{{.ImportPath}}{{if not .Standard}}\t{{.Dir}}{{end}}"
+
 // List lists the transitive dependencies of pkg, a package pattern resolved
-// in root (such as ./cmd/yt2column), on each target OS. Empty output, or a
-// line that is not an import path, is an error.
+// in root (such as ./cmd/yt2column), on each target OS, and reads the sources
+// of every dependency outside the standard library (trackSources). Empty
+// output, or a line that is not an import path, is an error.
 func List(root, pkg string) (Deps, error) {
 	deps := Deps{pkg: pkg, byOS: map[string][]string{}}
+	dirs := map[string]struct{}{}
 	for _, goos := range targetOSes {
-		out, err := runGo(root, goos, "list", "-deps", pkg)
+		out, err := runGo(root, goos, "list", "-deps", "-f", listFormat, pkg)
 		if err != nil {
 			return Deps{}, err
 		}
 		var paths []string
 		for line := range strings.Lines(string(out)) {
-			line = strings.TrimSuffix(line, "\n")
-			if !importPathLine.MatchString(line) {
+			path, dir, hasDir := strings.Cut(strings.TrimSuffix(line, "\n"), "\t")
+			if !importPathLine.MatchString(path) || (hasDir && dir == "") {
 				return Deps{}, fmt.Errorf("%w: go list -deps %s (GOOS=%s) printed a line that is not an import path", ErrList, pkg, goos)
 			}
-			paths = append(paths, line)
+			paths = append(paths, path)
+			if hasDir {
+				dirs[dir] = struct{}{}
+			}
 		}
 		if len(paths) == 0 {
 			return Deps{}, fmt.Errorf("%w: go list -deps %s (GOOS=%s) printed nothing", ErrList, pkg, goos)
 		}
 		deps.byOS[goos] = paths
 	}
+	if err := trackSources(dirs); err != nil {
+		return Deps{}, err
+	}
 	return deps, nil
+}
+
+// trackSources reads each directory and every Go file in it from the test
+// process itself. go test reuses a cached result while the test binary and
+// the files the test process opened are unchanged; the files the child go
+// list reads are not among them, and a file for another target OS is not in
+// the binary, so without this a forbidden import added to such a file would
+// pass on the cached result. Reading them makes a change to any of them, or
+// a file added to or removed from one of the directories, invalidate it.
+func trackSources(dirs map[string]struct{}) error {
+	for dir := range dirs {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			return fmt.Errorf("%w: read package directory: %w", ErrList, err)
+		}
+		for _, entry := range entries {
+			if !entry.Type().IsRegular() || !strings.HasSuffix(entry.Name(), ".go") {
+				continue
+			}
+			if _, err := os.ReadFile(filepath.Join(dir, entry.Name())); err != nil { //nolint:gosec // a directory go list reported for this module, read only to key the test cache
+				return fmt.Errorf("%w: read package source: %w", ErrList, err)
+			}
+		}
+	}
+	return nil
 }
 
 // matches reports whether path is pattern, or, for a pattern ending in
