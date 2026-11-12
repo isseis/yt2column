@@ -33,8 +33,8 @@
 | メンション | mention | Mattermost などのチャットで、`@` に続く名前を通知や強調の対象として扱うもの |
 | 対象の `@` | target `@` | `@` のうち、先頭にあるもの、または直前が文字でも数字でもないもの。`＠` などの見た目の似た文字と、`@` を表しうる文字参照を含む（要件書 §3.1） |
 | メンションの無効化 | mention neutralization | 対象の `@` の直後（文字参照が表す `@` ではその `;` の直後）に U+200B を 1 つ入れること。`@` そのものは変えない（要件書 §3.1） |
-| 表示用の Markdown | display Markdown | 状態の取得の応答の `job.article.markdown` に入る、タイトルの見出しの行・チャンネル名の行・本文。無効化する前の文字列を指す（要件書 §3.1） |
-| 無効化した表示用の Markdown | neutralized display Markdown | 表示用の Markdown の対象の `@` を無効化した文字列。ビューアが表示し、コピーする（`NeutralizedDisplay`） |
+| 表示用の Markdown | display Markdown | タイトルの見出しの行・チャンネル名の行・本文からなる記事の Markdown。無効化する前の文字列を指す（要件書 §3.1） |
+| 無効化した表示用の Markdown | neutralized display Markdown | 表示用の Markdown の対象の `@` を無効化した文字列。状態の取得の応答の `job.article.markdown` に入り、ビューアが表示し、コピーする（`NeutralizedDisplay`） |
 | コピーする文章 | copied text | ビューアの「Markdown をコピーする」がクリップボードに書く文字列。無効化した表示用の Markdown と同じである |
 | 出典リンク | source link | 記事末尾に付与する元動画へのリンク |
 | 投稿先 | publisher | `Publisher` interface |

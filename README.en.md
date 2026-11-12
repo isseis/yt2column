@@ -1,4 +1,4 @@
-<!-- translated-from: README.md 2c7e3361f696fbf8bf5590140ced5169b064e8e0 -->
+<!-- translated-from: README.md 7f0a186eec3721fee78679e5056686f1afd7464b -->
 [日本語](README.md)
 
 Developer documents: [Using the CLI](docs/dev/guides/cli.md) · [Development procedures](docs/dev/guides/development.md)
@@ -920,8 +920,8 @@ the popup closes, its state display stops too, and a reopened popup starts from
 the screen before sending. The extension stores nothing, so the popup does not
 remember the earlier send.
 
-In every state except an invalid link, the viewer shows the same heading and
-channel name as the popup, and a link to the original video. Before the article is done, the heading and the channel name are values
+In every state except an invalid link, the viewer shows a link to the original
+video, and before the article is done it shows the same heading and channel name as the popup. Before the article is done, the heading and the channel name are values
 the viewer's URL holds. After the article is done, the viewer shows the neutralized video title and channel name that the server returns (when the video title was not sent, the title is still the viewer's URL value). A viewer opened from a crafted URL can therefore show
 any heading: the heading does not vouch for the article's content.
 
