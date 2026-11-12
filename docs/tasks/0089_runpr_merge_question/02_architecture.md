@@ -171,7 +171,7 @@ flowchart TD
 | `.claude/commands/_lib/simple-process.md` | 除外スレッドと「fix all」の関係（`:334-339`）、戻す手順を呼ぶ箇所（`:364-367`）、THREADS の入力（`:380-384`） | AC-21、AC-05a |
 | `.claude/commands/_lib/task-pr-handoff.md` | `/runpr` が 1 つの問いで次のコマンドを実行しうると述べる文（`:27-32`） | AC-20 |
 | `CLAUDE.md` | 「Claude Commands」の `/runpr` の行（`:207`）と、その下の流れの説明（`:226-230`） | AC-20 |
-| `docs/dev/conventions/requirements_process.md` | `/runpr` が 1 つの問いで次のコマンドを実行しうると述べる文（`:89`） | AC-20 |
+| `docs/dev/conventions/requirements_process.md` | `/runpr` が 1 つの問いで次のコマンドを実行しうると述べる文（`:89`）と、3 文書の PR を戻せるのはマージの質問の答えだけだと述べる文（`:572-575`） | AC-20、AC-05a |
 | `cmd/yt2column/codex_review_docs_test.go` | 定数 `runprStep5`（`:84`）を新しい見出しに合わせる | AC-16 |
 | `docs/dev/adr/0047-runpr-merge-question.md`、`docs/dev/adr/0046-chief-of-staff.md` | 実装の PR で、0089 の実装を待つずれの記述を直す（3.10） | - |
 
@@ -434,6 +434,7 @@ PR レビューを依頼する答え（`runpr.md:815-821`）、承認なしで�
 -   **`mergepr.md` step 3（AC-19）:** 「When this command runs inside `runpr.md`」で始まる文（`mergepr.md:122-126`）だけを書き直す。新しい文は次の 2 点を述べる。`runpr.md` step 4 は、件名を会話に、本文と接頭辞を決めた規則の記録を作業ツリーの外の詳細ファイルに示してマージの質問を尋ねること。マージの質問は次のコマンドを実行するかを尋ねないこと。PRE_MERGE とあわせて尋ねること、記録の commit の後に準備をやり直す方法を `runpr.md` が述べることは、今の文のまま残す。単独の `/mergepr` の振る舞いを述べる文（`mergepr.md:118-122` の、この文より前の部分）は変えない。
 -   **`fixpr.md`（AC-21）:** `:144-146` の「`runpr.md` step 4 asks whether to fix each one now or move it to an issue」を、step 4 の deferred の問いで尋ねると書き直す。`:167-168` の caller override の呼び出し元「`runpr.md` step 4, the ones the user chose」を、step 4 の deferred の問いで利用者が選んだもの、と書き直す。除外スレッドを述べる `:157`、`:184`、`:494`、`:1192` は、除外スレッドを step 4 のマージの質問で扱う点が変わらないので、変えない。
 -   **`simple-process.md`（AC-21）:** `:334-339` は、除外スレッドを step 4 のマージの質問で示し、判定を覆すスレッドを番号で選ぶことを述べる形にする。「fix all」は deferred の問いの選択肢で、除外スレッドを含まないことを書く（AC-05）。マージの質問で示す選択肢が「通常の進め方へ戻す」と「マージしない」に限られることは、「先に PR レビューを依頼」が加わりうることとあわせて書く（AC-15）。戻す手順を呼ぶ箇所と THREADS は、3.7 のとおりに改める。
+-   **`requirements_process.md`（AC-05a）:** 「Simple Process」の「Returning to the full process」の冒頭（`:572-575`）は、3 文書の PR を通常の進め方へ戻せるのを `/runpr` のマージの質問の答えか `/runpr` への依頼だけとしている。deferred の問いの答えでも戻せることを書き足す。ほかの文は変えない。
 
 ### 3.10. ADR
 
