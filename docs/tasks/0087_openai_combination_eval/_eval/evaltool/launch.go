@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"flag"
@@ -70,6 +71,7 @@ const (
 	stopCacheGap                        // a config sharing an OpenAI model ended too recently
 	stopStage1                          // stage 1's judgments are incomplete or unconfirmed
 	stopReservation                     // the spend plus the bound would exceed the limit
+	stopBinary                          // -cli is not the pinned binary
 )
 
 // launchStop is a stop with its check; it wraps errLaunch.
@@ -115,7 +117,8 @@ func parseLaunchLog(r io.Reader) ([]launchEntry, error) {
 // launchRequest is what launch was asked to start.
 type launchRequest struct {
 	Root, RunScript, CLI string
-	Stage1Dir            string // score/1, which holds the stage-1 judgments
+	CLISHA256            string // the pinned binary's SHA-256
+	Stage1Dir            string // score/1 under Root, set by launchRuns
 	Config               string
 	Retry                string // one article to retry, or "" for all ten
 	Now                  time.Time
@@ -138,6 +141,12 @@ func checkLaunch(q launchRequest) error {
 	cfg, ok := q.Configs.byID(q.Config)
 	if !ok {
 		return stop(stopInput, "%s is not a config", q.Config)
+	}
+	if q.Retry != "" && !slices.Contains(articles(), q.Retry) {
+		return stop(stopInput, "%s is not an article of the evaluation", q.Retry)
+	}
+	if err := checkBinary(q); err != nil {
+		return err
 	}
 	if filepath.Base(q.Root) != rootBase {
 		return stop(stopInput, "-root %s is not a directory named %s", q.Root, rootBase)
@@ -186,6 +195,21 @@ func checkLaunch(q launchRequest) error {
 	return checkReservation(q, runs, last.Limit)
 }
 
+// checkBinary requires -cli to be the pinned binary: its SHA-256 must equal
+// -cli-sha256, the hash recorded when the build was pinned (design section
+// 3.1). The bounds hold only for the binary whose limits they assume.
+func checkBinary(q launchRequest) error {
+	data, err := os.ReadFile(q.CLI)
+	if err != nil {
+		return stop(stopBinary, "%w", err)
+	}
+	sum := sha256.Sum256(data)
+	if q.CLISHA256 == "" || hex.EncodeToString(sum[:]) != q.CLISHA256 {
+		return stop(stopBinary, "%s is not the pinned binary", q.CLI)
+	}
+	return nil
+}
+
 // checkRetryLimit refuses to start an article whose first run and all its
 // maxRetries retries already failed: more than maxRetries retired attempts,
 // not counting the runs the human confirmed as stopped before payment. It
@@ -214,8 +238,8 @@ func checkRetryLimit(q launchRequest, runs []run) error {
 // articles to have no current run (a retry needs its previous run retired).
 func checkRunsState(q launchRequest, runs []run) error {
 	for _, r := range runs {
-		if !r.finished() {
-			return stop(stopRunState, "%s %s %s has not finished", r.Config, r.Article, r.Attempt)
+		if !r.settled() {
+			return stop(stopRunState, "%s %s %s has not finished (retire.sh --unfinished retires a killed run)", r.Config, r.Article, r.Attempt)
 		}
 		if r.Config == q.Config && r.Attempt == attemptCurrent && slices.Contains(q.targets(), r.Article) {
 			return stop(stopRunState, "%s %s already has a current run", r.Config, r.Article)
@@ -234,9 +258,9 @@ func checkCacheGap(q launchRequest, cfg config, runs []run) error {
 		}
 		other, _ := q.Configs.byID(r.Config)
 		shared := slices.ContainsFunc(other.openAIModels(), func(m string) bool { return slices.Contains(models, m) })
-		if shared && q.Now.Sub(r.When.End) < cacheGap {
+		if shared && q.Now.Sub(r.lastActivity()) < cacheGap {
 			return stop(stopCacheGap, "%s ended at %s, less than %s before now, and shares an OpenAI model",
-				r.Config, fmtTime(r.When.End), cacheGap)
+				r.Config, fmtTime(r.lastActivity()), cacheGap)
 		}
 	}
 	return nil
@@ -257,19 +281,56 @@ func checkStage1Confirmed(q launchRequest, runs []run) error {
 	if err := js.checkComplete(obtained(runs, stage1)); err != nil {
 		return stop(stopStage1, "%w", err)
 	}
+	prepay, err := optional(filepath.Join(q.Root, "prepayment.tsv"), parsePrepayment, map[runKey]bool{})
+	if err != nil {
+		return stop(stopStage1, "%w", err)
+	}
 	for _, id := range stage1 {
-		if !slices.ContainsFunc(runs, func(r run) bool { return r.Config == id }) {
-			return stop(stopStage1, "stage-1 config %s has not run", id)
+		for _, a := range articles() {
+			if !articleSettled(runs, prepay, id, a) {
+				return stop(stopStage1, "stage-1 %s %s is neither obtained nor out of retries", id, a)
+			}
+		}
+	}
+	var lastEnd time.Time
+	for _, r := range runs {
+		if slices.Contains(stage1, r.Config) && r.lastActivity().After(lastEnd) {
+			lastEnd = r.lastActivity()
 		}
 	}
 	data, err := os.ReadFile(filepath.Join(q.Stage1Dir, stage1ConfirmedName))
 	if err != nil {
 		return stop(stopStage1, "no human confirmation of the stage-1 judgments: %w", err)
 	}
-	if _, err := time.Parse(time.RFC3339, strings.TrimSpace(string(data))); err != nil {
+	confirmed, err := time.Parse(time.RFC3339, strings.TrimSpace(string(data)))
+	if err != nil {
 		return stop(stopStage1, "the human confirmation does not hold a time: %w", err)
 	}
+	// The confirmation must cover every stage-1 run: a run that ended after
+	// it was not confirmed.
+	if confirmed.Before(lastEnd) || confirmed.After(q.Now) {
+		return stop(stopStage1, "the human confirmation at %s is before the last stage-1 run or after now", fmtTime(confirmed))
+	}
 	return nil
+}
+
+// articleSettled reports whether an article of a config is done: its current
+// run succeeded, or its first run and both retries failed (runs confirmed as
+// stopped before payment not counted).
+func articleSettled(runs []run, prepay map[runKey]bool, cfg, article string) bool {
+	failed := 0
+	for _, r := range runs {
+		if r.Config != cfg || r.Article != article || prepay[r.key()] {
+			continue
+		}
+		switch {
+		case r.Attempt == attemptCurrent && r.succeeded():
+			return true
+		case r.Attempt != attemptCurrent || r.finished():
+			failed++
+		}
+	}
+	return failed > maxRetries
 }
 
 // checkReservation requires the spend so far plus the bound of every run to
@@ -320,6 +381,8 @@ func acquireLock(root string) (string, func(), error) {
 // launchRuns takes the lock, runs every check, and only when they pass
 // starts the runs and waits for them; the lock is held until they exit.
 func launchRuns(q launchRequest) (map[string]error, error) {
+	q.Root = filepath.Clean(q.Root)
+	q.Stage1Dir = filepath.Join(q.Root, "score", "1")
 	if err := os.MkdirAll(q.Root, 0o700); err != nil {
 		return nil, err
 	}
@@ -371,16 +434,14 @@ func startRuns(q launchRequest, token string) (map[string]error, error) {
 	for _, a := range q.targets() {
 		out, err := os.Create(filepath.Join(outDir, stamp+"-"+q.Config+"-"+a+".txt")) //nolint:gosec // path under the operator's root
 		if err != nil {
-			waitAll()
-			return nil, err
+			return waitAll(), err
 		}
 		cmd := exec.CommandContext(context.Background(), q.RunScript, "run", q.Config, a, q.CLI, //nolint:gosec // operator's run script
 			launchTokenFlag, token, evalRootFlag, filepath.Dir(q.Root))
 		cmd.Stdout, cmd.Stderr = out, out
 		if err := cmd.Start(); err != nil {
 			_ = out.Close()
-			waitAll()
-			return nil, fmt.Errorf("start %s: %w", a, err)
+			return waitAll(), fmt.Errorf("start %s: %w", a, err)
 		}
 		started = append(started, a)
 		cmds[a], files[a] = cmd, out
@@ -395,7 +456,7 @@ func runLaunch(args []string, stdout io.Writer) error {
 	fs.StringVar(&q.Root, "root", "", "the 0087 directory")
 	fs.StringVar(&q.RunScript, "runsh", "", "the run script")
 	fs.StringVar(&q.CLI, "cli", "", "the pinned CLI binary")
-	fs.StringVar(&q.Stage1Dir, "stage1", "", "score/1, the stage-1 judgments directory")
+	fs.StringVar(&q.CLISHA256, "cli-sha256", "", "the SHA-256 recorded when the CLI was pinned")
 	fs.StringVar(&q.Config, wordConfig, "", "the config to run")
 	fs.StringVar(&q.Retry, "retry", "", "one article to retry (optional)")
 	boundsInputPath := fs.String("bounds-input", "", "bounds-input.json")
@@ -420,20 +481,24 @@ func runLaunch(args []string, stdout io.Writer) error {
 	if q.Configs, err = loadConfigTable(q.RunScript); err != nil {
 		return stop(stopInput, "%w", err)
 	}
-	results, err := launchRuns(q)
-	if err != nil {
-		return err
-	}
+	results, launchErr := launchRuns(q)
 	failed := 0
 	for _, a := range q.targets() {
+		res, ran := results[a]
+		if !ran {
+			continue // not started
+		}
 		status := "exit 0"
-		if results[a] != nil {
-			status = results[a].Error()
+		if res != nil {
+			status = res.Error()
 			failed++
 		}
 		if _, err := fmt.Fprintf(stdout, "%s %s: %s\n", q.Config, a, status); err != nil {
 			return err
 		}
+	}
+	if launchErr != nil {
+		return launchErr
 	}
 	_, err = fmt.Fprintf(stdout, "%s: %d of %d runs exited non-zero\n", q.Config, failed, len(q.targets()))
 	return err

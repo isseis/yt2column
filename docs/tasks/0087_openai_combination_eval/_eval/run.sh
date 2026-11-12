@@ -100,7 +100,9 @@ cmd_run() {
   [[ $art =~ '^[A-Za-z0-9_-]{11}-[12]$' ]] || die "not an article: $art"
   local vid=${art%-*}
   (( ${VIDEOS[(Ie)$vid]} )) || die "not a video of the evaluation: $vid"
-  [[ -x $cli && -f $cli ]] || die "not an executable CLI: $cli"
+  # An absolute path: the file hashed below is then the file env runs, never
+  # one found through PATH.
+  [[ $cli == /* && -x $cli && -f $cli ]] || die "not an executable CLI given by an absolute path: $cli"
 
   local E=${eval_root:-${YT2COLUMN_EVAL_ROOT:-$HOME/yt2column-eval}}
   local R=$E/0087
@@ -139,8 +141,9 @@ cmd_run() {
   done
   umask 077
   mkdir -p $R/work/$cfg $R/out/$cfg $R/review/$cfg $R/log/$cfg $R/runcache/$cfg || die "cannot create $R"
+  # Before the CLI starts, a failure removes whatever of these this run made.
+  CLEANUP=($W $C $WH)
   mkdir -m 700 $W $C || die "cannot create $W or $C"
-  CLEANUP=($W $C)
 
   # The run's own cache copy: the video's pointer and the slot it names.
   local slot f
@@ -161,8 +164,6 @@ cmd_run() {
 
   local sha
   sha=$(shasum -a 256 -- $cli | cut -d' ' -f1) || die "cannot hash $cli"
-  # From here on the run's files are kept, whatever happens.
-  CLEANUP=()
   {
     print -r -- "config=$cfg"
     print -r -- "article=$art"
@@ -174,6 +175,8 @@ cmd_run() {
     print -r -- "binary_sha256=$sha"
     print -r -- "start=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   } > $WH || die "cannot write $WH"
+  # From here on the run's files are kept, whatever happens.
+  CLEANUP=()
 
   local -a args
   args=($keep --artifacts $W --out $O)
@@ -191,11 +194,25 @@ cmd_run() {
   (( preflight )) && unset ANTHROPIC_API_KEY OPENAI_API_KEY DEEPSEEK_API_KEY
   # zsh's default TIMEFMT, the form of the 0018 logs.
   TIMEFMT='%J  %U user %S system %P cpu %*E total'
-  local rc
+  # The CLI runs in the background so a signal to this script (Ctrl-C, a
+  # TERM, a hangup) reaches the trap: the trap asks the CLI to stop with
+  # SIGTERM, which it answers by writing its usage and cost lines, and the
+  # script still waits for it and closes the run record. Without this, an
+  # interrupted run would leave a record without end and exit lines.
+  local rc pid
   ( time env YT2COLUMN_YTDLP_PATH=$ytdlp YT2COLUMN_CACHE_DIR=$C \
       YT2COLUMN_LLM=$llm YT2COLUMN_REVIEW_LLM=$review \
-      $cli $args "https://www.youtube.com/watch?v=$vid" ) 2> $L
+      $cli $args "https://www.youtube.com/watch?v=$vid" ) 2> $L &
+  pid=$!
+  trap 'pkill -TERM -P $pid 2>/dev/null' INT TERM HUP
+  wait $pid
   rc=$?
+  # A trapped signal ends wait early; wait again until the CLI has exited.
+  while kill -0 $pid 2>/dev/null; do
+    wait $pid
+    rc=$?
+  done
+  trap - INT TERM HUP
   {
     print -r -- "end=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     print -r -- "exit=$rc"

@@ -36,6 +36,8 @@
 - **起動の記録（`0087/launch.log`）:** `launch` が起動の前に `<時刻>\t<構成 ID>\t<記事のカンマ区切り>` を追記する。
 - **起動のロック（`0087/launch.lock`）と各実行の出力（`0087/launch-output/`）:** `launch` は、確かめの前にロックのファイルを排他的に作り、起動ごとのトークンを書く。起動したすべての実行が終わるまで持ち、その後に消す。ロックがあれば `launch` は止まるので、2 つの起動が同じ使った額で上限を確かめることはない。`launch` はトークンを `run.sh` の引数 `--launch-token` で渡し、`run.sh` は、`--preflight` のない実行（API を呼ぶ実行）を、トークンがロックの中身と一致する場合だけ始める。`run.sh` 自身の出力（止まった理由など）は `launch-output/<時刻>-<構成 ID>-<記事>.txt` に残る。`launch` が途中で止まってロックが残った場合は、実行中のものがないことを確かめてから人が消す。`launch` は、確かめた評価のルート（`-root` の親）も `--eval-root` で `run.sh` に渡す。
 - **やり直しの前の移動:** `retire.sh` は、`prepayment.tsv` が今の実行（`cur`）を指していれば、その行を移した先の `f<N>` に書き換える。
+- **中断した実行:** `run.sh` は INT・TERM・HUP を受けると CLI に SIGTERM を送り、CLI が使用量と料金の行を書いて終わるのを待ってから、実行の記録に `end=` と `exit=` を書く。`run.sh` 自体が `kill -9` などで止まって記録に `exit=` がない場合は、CLI のプロセスが残っていないこと（`pgrep -f`）を確かめてから `retire.sh --unfinished` で移す。記録に `retired_unfinished=<時刻>` が加わり、`launch` は `failed/` にあるこの実行を終わったものとして扱う（料金の合計の行がないので、使った額には上限の額で数える）。30 分の間隔は、この時刻から数える。
+- **1 段目の人の確認の印:** 時刻は、1 段目の構成のすべての実行の終了（`retired_unfinished` の実行はその時刻）以後で、起動の時刻以前でなければならない。1 段目の構成のどの記事も、記事を得たか、最初の実行と 2 回のやり直しがすべて失敗した後でなければならない。確認の後に 1 段目でやり直しをした場合は、確認し直して印を書き直す。
 - **支払い前と確かめた実行（`0087/prepayment.tsv`）:** 1 行に 1 つの実行を `<構成 ID>\t<記事>\t<回>` で書く。回は `cur`（今の実行）か `f<N>`（`failed/` に移した実行）である（計画 §1.2 の決めたこと 7）。
 - **判定のファイル（`0087/score/<段>/judgments.tsv`）:** 1 行目は `article	config	criterion	interp	literal	judge	human_check`。観点の鍵は `format_choice`（形式の選択）・`format_rules`（形式の規則）・`evidence`（根拠）・`length`（長さ）・`notation`（表記）・`coverage`（要点の網羅）・`importance`（重要度の順）・`structure`（構成）・`readability`（読みやすさ）・`title_lead`（タイトル・リード文）・`redundancy`（冗長さ）・`constraint1`〜`constraint3`（製品の制約 1〜3）である。判定者は `script`（長さだけ）・`llm`・`human`（人が LLM の判定を変えた）である。
 - **人の確認の印（`0087/score/1/human-confirmed`）:** 1 段目の判定を人が確認した時刻（RFC 3339）を書く。`launch` は、これがなければ `B-*` を起動しない（計画 §1.2 の決めたこと 10）。
@@ -58,11 +60,12 @@ evaltool estimate -input $X/bounds-input.json -runsh $X/run.sh -write-bounds $X/
 # 実行の前の確認（API キーを外し、0087/preflight/ に出力する）
 $X/run.sh run <構成 ID> <記事> $E/0087/bin/<コミット>/yt2column --preflight [--after-review]
 # 1 つの構成の 10 件（またはやり直しの 1 件）の起動。API を呼ぶ実行は必ずこれで起動する
-evaltool launch -root $E/0087 -runsh $X/run.sh -cli $E/0087/bin/<コミット>/yt2column \
-  -stage1 $E/0087/score/1 -bounds-input $X/bounds-input.json -bounds $X/bounds.tsv \
+direnv exec . go run ./$X/evaltool launch -root $E/0087 -runsh $X/run.sh \
+  -cli $E/0087/bin/<コミット>/yt2column -cli-sha256 <固定したときに記録した SHA-256> \
+  -bounds-input $X/bounds-input.json -bounds $X/bounds.tsv \
   -config <構成 ID> [-retry <記事>] -now "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 # やり直しの前の移動
-$X/retire.sh $E/0087 <構成 ID> <記事>
+$X/retire.sh [--unfinished] $E/0087 <構成 ID> <記事>
 # 採点の素材
 evaltool material -root $E/0087 -out $E/0087/score/<段> -runsh $X/run.sh -stage <段>
 # 集計（-exclude は F-006 の手順 3 で除いた候補）
@@ -258,6 +261,12 @@ check-record: 28 tables match
 | B-astra | review | claude-opus-5-5 | 36055 | 40000 | 0.980275 |
 
 **残る危険:** 構成 A・B の検証・推敲の入力の上限は、記事の部分を本文とタイトルの UTF-8 のバイト数の上限（17,000 バイト）で数える。1 トークンが 1 バイト以上に当たることを前提にしており、この前提は確かめていない。外れた場合、1 つの構成の使った額がその上限を超えうる（設計 §3.5）。
+
+**上限のそのほかの前提:** 次の点も、上限が厳密な上限であることを保証しない。
+- **生成などの固定の入力:** 0077 の 1 回の実測（`roNZ-rLxhUE`）をそのまま使い、余裕を足していない。実測は 0077 のアダプタができる前の測定用の入口で行ったので、要求の組み立ての違いで数トークン多くなりうる。超えた分は出力の上限の余裕で吸収される見込みである。ステップ 1-7 の後、1 段目の実行の実際の入力と比べる。
+- **記事のバイト数の上限（17,000）:** 本文 4,000 字の各字を 4 バイトとし、タイトルと改行に 1,000 バイトを見込んだ値である。本文の字数は改行を数えず、タイトルには上限がないので、厳密な上限ではない。日本語の本文は 1 字 3 バイト程度なので、余裕は大きい。
+- **出力の上限:** `bounds-input.json` の 6,080 と 40,000 は、アダプタの既定（`internal/llm/openai/request.go:29`、`internal/llm/claude/request.go:30`）から写した値で、照合する仕組みはない。`launch` は `-cli` が固定したバイナリ（SHA-256）であることを確かめるが、そのバイナリの既定がこの値であることは、ステップ 1-6 で固定したコミットの値と比べて確かめる。
+- **使った額の読み取り:** 工程ごとの料金の行の和を `cost-total: run` の値と照合していない。工程の行が読めなかった場合に、その工程の分だけ少なく数えうる（0018 のログはすべて正しく読めた）。
 
 **承認（AC-19）:** （ステップ 2-1 で、承認の時刻・示した見積もり・上限を書く）
 

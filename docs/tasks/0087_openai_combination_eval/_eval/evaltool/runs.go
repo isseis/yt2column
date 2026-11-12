@@ -55,6 +55,9 @@ type when struct {
 	HasEnd                 bool
 	Exit                   int
 	HasExit                bool
+	// RetiredUnfinished is when retire.sh --unfinished moved a run whose
+	// record had no exit line; zero otherwise.
+	RetiredUnfinished time.Time
 }
 
 // run is one execution of the CLI for one article.
@@ -76,6 +79,19 @@ type runKey struct{ Config, Article, Attempt string }
 // finished reports whether the run record has its end and exit lines.
 func (r run) finished() bool { return r.When.HasEnd && r.When.HasExit }
 
+// settled reports whether no CLI of the run can still be running: it
+// finished, or a human retired it as unfinished after checking that.
+func (r run) settled() bool { return r.finished() || !r.When.RetiredUnfinished.IsZero() }
+
+// lastActivity is the latest time the run is known to have been running: its
+// end, or for a run retired unfinished, when it was retired.
+func (r run) lastActivity() time.Time {
+	if r.When.HasEnd {
+		return r.When.End
+	}
+	return r.When.RetiredUnfinished
+}
+
 // succeeded reports whether the run produced its article: it exited 0 and
 // wrote both cost totals.
 func (r run) succeeded() bool {
@@ -86,7 +102,7 @@ func (r run) succeeded() bool {
 // "<key>=<value>". end and exit are written when the CLI returns.
 var whenKeys0087 = []string{
 	wordConfig, wordArticle, "after", "llm", "review_llm", "ytdlp_path",
-	"keep_cache", "binary_sha256", "start", "end", "exit",
+	"keep_cache", "binary_sha256", "start", "end", "exit", "retired_unfinished",
 }
 
 // parseWhen0087 reads a run record the 0087 run script wrote.
@@ -132,6 +148,11 @@ func parseWhen0087(r io.Reader) (when, error) {
 			return when{}, fmt.Errorf("%w: end: %w", errRunRecord, err)
 		}
 		w.HasEnd = true
+	}
+	if v, ok := values["retired_unfinished"]; ok {
+		if w.RetiredUnfinished, err = time.Parse(time.RFC3339, v); err != nil {
+			return when{}, fmt.Errorf("%w: retired_unfinished: %w", errRunRecord, err)
+		}
 	}
 	if v, ok := values["exit"]; ok {
 		if w.Exit, err = strconv.Atoi(v); err != nil {

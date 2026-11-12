@@ -795,7 +795,7 @@ func (d evalData) comparisonRow(c config, s configStats) []string {
 	failedRuns, failedUnknown := 0, 0
 	var failedUSD micro
 	for _, r := range d.Runs {
-		if r.Config != c.ID || !r.finished() || r.succeeded() || d.Prepay[r.key()] {
+		if r.Config != c.ID || !r.settled() || r.succeeded() || d.Prepay[r.key()] {
 			continue
 		}
 		failedRuns++

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -38,8 +40,11 @@ func newLaunchFixture(t *testing.T) launchFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
+	cli := filepath.Join(dir, "yt2column")
+	writeFile(t, cli, "pinned binary")
+	sum := sha256.Sum256([]byte("pinned binary"))
 	f.Req = launchRequest{
-		Root: f.Root, RunScript: stub, CLI: "/bin/false", Stage1Dir: filepath.Join(f.Root, "score", "1"),
+		Root: f.Root, RunScript: stub, CLI: cli, CLISHA256: hex.EncodeToString(sum[:]), Stage1Dir: filepath.Join(f.Root, "score", "1"),
 		Config: "C-sol", Now: t0.Add(time.Hour), BoundsInput: in, Bounds: boundsTable(bounds), Configs: mustConfigs(t),
 	}
 	return f
@@ -94,7 +99,7 @@ func TestLaunchPositive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(calls) != 10 || !strings.HasPrefix(calls[0], "run C-sol ") || !strings.Contains(calls[0], " /bin/false "+launchTokenFlag+" ") {
+	if len(calls) != 10 || !strings.HasPrefix(calls[0], "run C-sol ") || !strings.Contains(calls[0], " "+f.Req.CLI+" "+launchTokenFlag+" ") {
 		t.Errorf("calls = %q", calls)
 	}
 	var started []string
@@ -171,6 +176,13 @@ func TestLaunchStops(t *testing.T) {
 			writeRun(t, f.Root, fakeRun{Config: "C-sol", Article: "zW1RBacSqjk-1", Start: t0, Exit: 0, Log: "x\n"})
 		}},
 		{"a root not named 0087", stopInput, nil, func(_ *testing.T, f *launchFixture) { f.Req.Root = filepath.Dir(f.Root) }},
+		{"a retry of an article outside the evaluation", stopInput, nil, func(_ *testing.T, f *launchFixture) { f.Req.Retry = "abcdefghijk-1" }},
+		{"a CLI other than the pinned binary", stopBinary, nil, func(t *testing.T, f *launchFixture) {
+			writeFile(t, f.Req.CLI, "rebuilt binary")
+		}},
+		{"a run killed before its record closed", stopRunState, nil, func(t *testing.T, f *launchFixture) {
+			writeRun(t, f.Root, fakeRun{Config: "C-astra", Article: "roNZ-rLxhUE-1", Attempt: "f1", Start: t0, Unfinished: true, Log: ""})
+		}},
 		{"another launch holds the lock", stopLock, nil, func(t *testing.T, f *launchFixture) {
 			writeFile(t, filepath.Join(f.Root, launchLockName), "other")
 		}},
@@ -212,6 +224,40 @@ func TestLaunchStops(t *testing.T) {
 				f.finishConfig(t, c, t0)
 			}
 			writeJudgments(t, filepath.Join(f.Req.Stage1Dir, "judgments.tsv"), stage1, map[string]string{"A-astra roNZ-rLxhUE-1 notation": ""})
+			writeFile(t, filepath.Join(f.Req.Stage1Dir, stage1ConfirmedName), t0.Format(time.RFC3339)+"\n")
+			f.Req.Config = "B-sol"
+		}},
+		{"B-sol with a stage-1 run after the confirmation", stopStage1, nil, func(t *testing.T, f *launchFixture) {
+			for _, c := range stage1 {
+				f.finishConfig(t, c, t0)
+			}
+			writeJudgments(t, filepath.Join(f.Req.Stage1Dir, "judgments.tsv"), stage1, nil)
+			writeFile(t, filepath.Join(f.Req.Stage1Dir, stage1ConfirmedName), t0.Add(-time.Second).Format(time.RFC3339)+"\n")
+			f.Req.Config = "B-sol"
+		}},
+		{"B-sol with a confirmation after now", stopStage1, nil, func(t *testing.T, f *launchFixture) {
+			for _, c := range stage1 {
+				f.finishConfig(t, c, t0)
+			}
+			writeJudgments(t, filepath.Join(f.Req.Stage1Dir, "judgments.tsv"), stage1, nil)
+			writeFile(t, filepath.Join(f.Req.Stage1Dir, stage1ConfirmedName), f.Req.Now.Add(time.Second).Format(time.RFC3339)+"\n")
+			f.Req.Config = "B-sol"
+		}},
+		{"B-sol while a stage-1 article awaits its retry", stopStage1, nil, func(t *testing.T, f *launchFixture) {
+			for _, c := range stage1 {
+				f.finishConfig(t, c, t0)
+			}
+			// A-astra's zW1RBacSqjk-1 failed once and was retired, not retried.
+			_ = os.Remove(filepath.Join(f.Root, "log", "A-astra", "zW1RBacSqjk-1.txt"))
+			_ = os.Remove(filepath.Join(f.Root, "log", "A-astra", "zW1RBacSqjk-1.when"))
+			writeRun(t, f.Root, fakeRun{Config: "A-astra", Article: "zW1RBacSqjk-1", Attempt: "f1", Start: t0.Add(-2 * time.Minute), End: t0.Add(-time.Minute), Exit: 1, Log: "x\n"})
+			// The judgments leave out the article that was not obtained, so
+			// they are complete and only the retry state can stop the launch.
+			omit := map[string]string{}
+			for _, c := range allCriteria {
+				omit["A-astra zW1RBacSqjk-1 "+c] = ""
+			}
+			writeJudgments(t, filepath.Join(f.Req.Stage1Dir, "judgments.tsv"), stage1, omit)
 			writeFile(t, filepath.Join(f.Req.Stage1Dir, stage1ConfirmedName), t0.Format(time.RFC3339)+"\n")
 			f.Req.Config = "B-sol"
 		}},
@@ -295,6 +341,27 @@ func TestLaunchBoundaries(t *testing.T) {
 		}
 		f.Req.Retry = "zW1RBacSqjk-1"
 		if calls, err := f.launch(t, f.Req); err != nil || len(calls) != 1 {
+			t.Errorf("err = %v, calls = %d", err, len(calls))
+		}
+	})
+	t.Run("a root given with a trailing slash", func(t *testing.T) {
+		f := newLaunchFixture(t)
+		f.Req.Root += "/"
+		calls, err := f.launch(t, f.Req)
+		if err != nil || len(calls) != 10 || !strings.Contains(calls[0], " "+evalRootFlag+" "+filepath.Dir(f.Root)+" ") {
+			t.Errorf("err = %v, calls = %q", err, calls)
+		}
+	})
+	t.Run("a run retired unfinished after another config's runs", func(t *testing.T) {
+		f := newLaunchFixture(t)
+		writeRun(t, f.Root, fakeRun{Config: "C-astra", Article: "roNZ-rLxhUE-1", Attempt: "f1", Start: t0, Unfinished: true, Log: ""})
+		path := filepath.Join(f.Root, "failed", "C-astra", "roNZ-rLxhUE-1-f1", "log", "roNZ-rLxhUE-1.when")
+		data, err := os.ReadFile(path) //nolint:gosec // a file the test wrote
+		if err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, path, string(data)+"retired_unfinished="+t0.Format(time.RFC3339)+"\n")
+		if calls, err := f.launch(t, f.Req); err != nil || len(calls) != 10 {
 			t.Errorf("err = %v, calls = %d", err, len(calls))
 		}
 	})
