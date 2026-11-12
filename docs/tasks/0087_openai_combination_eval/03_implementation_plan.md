@@ -449,10 +449,10 @@ PR-2 は複数のセッションにわたる。`/runplan` は 1 フェーズず�
 
 AC-24〜AC-30 は、本番の構成を変える場合だけ行う。変えない場合は、ステップ 5-1 で各行に「該当しない」と結論への参照を書く。
 
-**記録:** 2026-11-12 に、PR-2 のブランチのコミット `3631d85dab0d3654aaf274d0440a0ff3f6ed226a` で実行した（`695435531d90` での最初の実行の後に評価記録を直したので、実行し直した）。`check-record` には、同じコミットの `evaltool` の `aggregate`・`estimate`・`rates` の出力をリポジトリの外の作業ディレクトリに書いて渡した。`secretscan.sh` はリポジトリのルートで `direnv exec .` を付けて実行した。
+**記録:** 2026-11-12 に、PR-2 のブランチのコミット `8b84103592d742ede20806346469705f30b5b440` で実行した（`695435531d90` での最初の実行の後に評価記録を直したので、実行し直した）。`check-record` には、同じコミットの `evaltool` の `aggregate`・`estimate`・`rates` の出力をリポジトリの外の作業ディレクトリに書いて渡した。`secretscan.sh` はリポジトリのルートで `direnv exec .` を付けて実行した。
 
 ```text
-sha256 8f98db3bc650da6e607b50805ac7dabd2a7153ef3e57262727b11ee3cb7dc649 docs/tasks/0087_openai_combination_eval/04_evaluation.md
+sha256 a40c08fba2e33ab4d12c7bbca7e7ecaaef676e825127ad87ab6cbcedf2dc468f docs/tasks/0087_openai_combination_eval/04_evaluation.md
 sha256 a32840a3e3ec3b0adc7529f47d1e0b38a9f0fffbf1e58f0580a6fa8495ae4d51 <作業ディレクトリ>/agg.txt
 sha256 c55fce120901d78757c0c0dbef9a67b6457782259a61703b969c60ad07083e13 <作業ディレクトリ>/est.txt
 sha256 4441024ebddce789f8b0ccc23512bf78a776b069fa9b625dc81a67f221c9a097 <作業ディレクトリ>/rates.txt
