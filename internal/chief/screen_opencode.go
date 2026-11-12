@@ -344,22 +344,26 @@ func openCodePrompt(lines []screenLine) Screen {
 // every line is blank, or when the only text is the placeholder drawn in the
 // placeholder color.
 func openCodeInput(box []panelLine) (InputLine, bool) {
-	var texts []string
-	var lines []panelLine
-	for _, p := range box {
+	contents := make([]string, len(box))
+	first, last := -1, -1
+	for i, p := range box {
 		c, ok := panelContent(p)
 		if !ok {
 			return InputLine{}, false
 		}
+		contents[i] = c
 		if c != "" {
-			texts = append(texts, c)
-			lines = append(lines, p)
+			if first < 0 {
+				first = i
+			}
+			last = i
 		}
 	}
-	if len(texts) == 0 || (len(texts) == 1 && openCodeIsPlaceholder(texts[0], lines[0])) {
+	if first < 0 || (first == last && openCodeIsPlaceholder(contents[first], box[first])) {
 		return InputLine{Empty: true}, true
 	}
-	return InputLine{Left: joinTexts(texts)}, true
+	// Blank lines between typed lines are part of the unsent text.
+	return InputLine{Left: joinTexts(contents[first : last+1])}, true
 }
 
 // openCodePlaceholderText matches the whole placeholder line the samples

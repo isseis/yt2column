@@ -447,7 +447,9 @@ func claudePrompt(lines []screenLine) Screen {
 		}
 		left = append(left, b.String())
 	}
-	text := strings.TrimSpace(joinTexts(left))
+	// Only the terminal's ASCII padding is trimmed: any other blank, such as
+	// a full-width space, is text the human typed.
+	text := strings.Trim(joinTexts(left), " \n")
 	// The input is empty when it holds nothing, or only the placeholder: the
 	// sampled placeholder form, which has no line break, every visible
 	// character dim.

@@ -412,6 +412,7 @@ func TestInputEmptyNeedsThePlaceholderForm(t *testing.T) {
 		"claude placeholder with a second line":        {parseClaudeScreen, strings.Replace(claude, placeholder, placeholder+"\r\n  typed text", 1)},
 		"claude two-line text in the placeholder form": {parseClaudeScreen, strings.Replace(claude, placeholder, `Try "refactor`+"\r\n  "+`more"`, 1)},
 		"opencode placeholder with a second line":      {parseOpenCodeScreen, strings.Replace(openCode, ocPlaceholder, ocPlaceholder+"\r\n    ┃  typed text", 1)},
+		"claude full-width space":                      {parseClaudeScreen, strings.Replace(claude, "\x1b[2m"+placeholder, "\u3000", 1)},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {

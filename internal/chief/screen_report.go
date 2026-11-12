@@ -57,7 +57,8 @@ var (
 	nextNoneValue = regexp.MustCompile(`^なし(?:（|$)`)
 )
 
-// readRunprNext reads NEXT from the text of a screen. It reads every line of
+// readRunprNext reads NEXT from the text of a screen, its SGR sequences
+// already removed (the text of the lines parseANSIScreen returns). It reads every line of
 // the screen, earlier reports and echoed prompts included, so an older report
 // that disagrees makes the result unmatched. Contract: every NEXT line on the
 // screen must agree; a screen with lines that disagree, or with a
