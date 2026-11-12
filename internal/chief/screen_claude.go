@@ -57,7 +57,7 @@ var (
 	claudeHeader = regexp.MustCompile(`^ ☐ (.+)$`)
 	// claudePlaceholderText matches the placeholder of an empty input line:
 	// one quoted suggestion after "Try".
-	claudePlaceholderText = regexp.MustCompile(`^Try "[^"]+"$`)
+	claudePlaceholderText = regexp.MustCompile(`^Try "[^"\n]+"$`)
 	// claudeTabBar matches the tab bar of a multi-select or tabbed widget.
 	claudeTabBar = regexp.MustCompile(`^←  (.+)  →$`)
 )

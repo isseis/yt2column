@@ -409,8 +409,9 @@ func TestInputEmptyNeedsThePlaceholderForm(t *testing.T) {
 		"claude dim placeholder with more text":       {parseClaudeScreen, strings.Replace(claude, placeholder, placeholder+" and more", 1)},
 		"opencode gray text after the prefix":         {parseOpenCodeScreen, strings.Replace(openCode, ocPlaceholder, "Ask anything… rm -rf and push", 1)},
 		// The dim state carries to the next line, so the typed line is dim too.
-		"claude placeholder with a second line":   {parseClaudeScreen, strings.Replace(claude, placeholder, placeholder+"\r\n  typed text", 1)},
-		"opencode placeholder with a second line": {parseOpenCodeScreen, strings.Replace(openCode, ocPlaceholder, ocPlaceholder+"\r\n    ┃  typed text", 1)},
+		"claude placeholder with a second line":        {parseClaudeScreen, strings.Replace(claude, placeholder, placeholder+"\r\n  typed text", 1)},
+		"claude two-line text in the placeholder form": {parseClaudeScreen, strings.Replace(claude, placeholder, `Try "refactor`+"\r\n  "+`more"`, 1)},
+		"opencode placeholder with a second line":      {parseOpenCodeScreen, strings.Replace(openCode, ocPlaceholder, ocPlaceholder+"\r\n    ┃  typed text", 1)},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
