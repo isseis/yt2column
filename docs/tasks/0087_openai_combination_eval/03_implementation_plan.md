@@ -274,7 +274,7 @@ PR-1 のマージの後、新しいブランチで行う（§1.2 の決めたこ
 - [x] `aggregate` の比較の表、使った額、F-006 の判定を、`04_evaluation.md` 節 9・10 に書き写す。プロンプトのキャッシュから読んだ入力のある構成は、補助の推定コストの平均で F-006 の判定が変わるかを書く（設計 §3.5）。
 - [x] F-006 の手順 2 で選んだ構成（候補がなければ「変えない」）を、失敗した実行の回数と費用とともに人に示し、承認を受ける。人が承認しない場合は、その候補を除いて `aggregate` で選び直す（要件 F-006 の手順 3）。
 - [x] 結論と節 1 の要約を書く。
-- [x] PR-2 で `_eval/` を変えた場合は、`selftest.sh`・`reproduce0018.sh`・`repo_impact.sh` を実行し直して記録する。（PR-2 で変えたのは `run.sh` だけで、変えた後のコミット `b435f279` で実行し直し、`04_evaluation.md` §2.7 に記録した。その後 `_eval/` は変えていない）
+- [x] PR-2 で `_eval/` を変えた場合は、`selftest.sh`・`reproduce0018.sh`・`repo_impact.sh` を実行し直して記録する。（PR-2 で変えたのは、`_eval/evaltool/material.go`（`18497a55`）と `run.sh`（`436691e4`・`b435f279`）である。どちらの後でもあるコミット `b435f279` で実行し直し、`04_evaluation.md` §2.7 に記録した。その後 `_eval/` は変えていない）
 - [x] `check-record` と `secretscan.sh` を実行し、出力・入力の SHA-256・実行したコミットを本書 §7 の「記録」に書く。PR の作成の後に `04_evaluation.md` か `_eval/` を変えた場合は、マージの前に 2 つを実行し直して記録を書き換える。
 - [x] 本番の構成を変えない場合は、次をすべて `[-]` にし、理由として `04_evaluation.md` の結論を参照する。ステップ 6-1・6-2 のチェックボックス、PR-3 の作成ポイントの 4 つのチェックボックス、§6 の PR-3 の行、§8 の「本番の構成を変える場合」の行。§7 の AC-24〜AC-30 の行に「該当しない」と書く。
 
@@ -436,13 +436,13 @@ PR-2 は複数のセッションにわたる。`/runplan` は 1 フェーズず�
 | AC-21 | 1-1 / 1-2 / 5-1 | test: evaltool（F-006 の条件の境界）。static: `reproduce0018.sh`（`baseline.json` の平均の値）、`check-record`（F-006 の判定の表）。manual: `baseline.json` の動画ごとの不合格の数と 0008 評価記録 §6.2 の照合 |
 | AC-22 | 1-1 / 5-1 | test: evaltool（手順 2 の選び方と手順 3 の除外）。manual: 人の承認、示した失敗の回数と費用、除いた候補と理由 |
 | AC-23 | 1-1 / 5-1 | test: evaltool（制約が直ったかの判定）。static: `check-record`（制約が直ったかの表）。manual: 基準の構成の値と 0008 評価記録 §6.3 の照合 |
-| AC-24 | 6-1 | test: `internal/config/config_test.go::TestLoadDefaults`・`TestLoadGenerationDefaults`・`TestLoadReviewDefaults`・`TestLoadServerLLMDefaults`・`TestLoadProductionDefaults`・`TestLoadInheritsEffort`、`cmd/yt2column/run_test.go::TestRunDefaultLLMConfig`。A・B では R1 の新しいテスト（ステップ 6-1 で名前を決め、ここに書く） 該当しない（本番の構成を変えない。`04_evaluation.md` §10） |
-| AC-25 | 6-1 | test: `internal/config/config_test.go::TestLoadDefaultProviderVariables`、`cmd/yt2column-server/run_test.go::TestStartupFailures`、CLI のテスト（ステップ 6-1 で名前を決め、ここに書く） 該当しない（本番の構成を変えない。`04_evaluation.md` §10） |
-| AC-26 | 6-2 | static: `cmd/yt2column/docs_test.go::TestLLMDefaultsDocsContract`・`TestProductionProfileDocsContract`、`internal/config/serverfile_test.go::TestServerFileTemplate`。manual: `production_profile.md` の品質・料金・所要時間の値と、`check-record` で確かめた評価記録の表の照合 該当しない（本番の構成を変えない。`04_evaluation.md` §10） |
-| AC-27 | 6-2 | manual: `project_overview.md` のモデル名の例外の項目（自然言語の内容だけを定める） 該当しない（本番の構成を変えない。`04_evaluation.md` §10） |
-| AC-28 | 6-2 | static: `cmd/yt2column/adr_test.go::TestADRRecords`。manual: ADR-0004 の決定・採らなかった案・経緯 該当しない（本番の構成を変えない。`04_evaluation.md` §10） |
-| AC-29 | 6-2 | manual: README の両版と `security.md` の送り先の記述（自然言語の内容だけを定める） 該当しない（本番の構成を変えない。`04_evaluation.md` §10） |
-| AC-30 | 6-2 | static: `make test`・`make lint`・`make ext-test`・`make readme-sync-check` 該当しない（本番の構成を変えない。`04_evaluation.md` §10） |
+| AC-24 | 6-1 | 該当しない（本番の構成を変えない。`04_evaluation.md` §10）。変える場合の検証: test: `internal/config/config_test.go::TestLoadDefaults`・`TestLoadGenerationDefaults`・`TestLoadReviewDefaults`・`TestLoadServerLLMDefaults`・`TestLoadProductionDefaults`・`TestLoadInheritsEffort`、`cmd/yt2column/run_test.go::TestRunDefaultLLMConfig`。A・B では R1 の新しいテスト（ステップ 6-1 で名前を決め、ここに書く） |
+| AC-25 | 6-1 | 該当しない（本番の構成を変えない。`04_evaluation.md` §10）。変える場合の検証: test: `internal/config/config_test.go::TestLoadDefaultProviderVariables`、`cmd/yt2column-server/run_test.go::TestStartupFailures`、CLI のテスト（ステップ 6-1 で名前を決め、ここに書く） |
+| AC-26 | 6-2 | 該当しない（本番の構成を変えない。`04_evaluation.md` §10）。変える場合の検証: static: `cmd/yt2column/docs_test.go::TestLLMDefaultsDocsContract`・`TestProductionProfileDocsContract`、`internal/config/serverfile_test.go::TestServerFileTemplate`。manual: `production_profile.md` の品質・料金・所要時間の値と、`check-record` で確かめた評価記録の表の照合 |
+| AC-27 | 6-2 | 該当しない（本番の構成を変えない。`04_evaluation.md` §10）。変える場合の検証: manual: `project_overview.md` のモデル名の例外の項目（自然言語の内容だけを定める） |
+| AC-28 | 6-2 | 該当しない（本番の構成を変えない。`04_evaluation.md` §10）。変える場合の検証: static: `cmd/yt2column/adr_test.go::TestADRRecords`。manual: ADR-0004 の決定・採らなかった案・経緯 |
+| AC-29 | 6-2 | 該当しない（本番の構成を変えない。`04_evaluation.md` §10）。変える場合の検証: manual: README の両版と `security.md` の送り先の記述（自然言語の内容だけを定める） |
+| AC-30 | 6-2 | 該当しない（本番の構成を変えない。`04_evaluation.md` §10）。変える場合の検証: static: `make test`・`make lint`・`make ext-test`・`make readme-sync-check` |
 
 AC-24〜AC-30 は、本番の構成を変える場合だけ行う。変えない場合は、ステップ 5-1 で各行に「該当しない」と結論への参照を書く。
 
