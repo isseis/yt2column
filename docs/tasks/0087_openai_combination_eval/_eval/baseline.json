@@ -1,0 +1,26 @@
+{
+  "sources": {
+    "pass_interp": "0008 evaluation record 6.2: 8 of 10 articles meet the quality goal by the interpretive reading (requirements F-006)",
+    "pass_literal": "0008 evaluation record 6.2: 7 of 10 by the literal reading",
+    "cost_avg_usd": "production_profile.md and 0018 evaluation record 4.8: B3 average cost per article (requirements F-006); reproduce0018.sh recomputes it from the 0018 logs",
+    "duration_avg_ms": "0018 evaluation record 4.8: B3 average duration 1:53.4 (requirements F-006); reproduce0018.sh recomputes it from the 0018 logs",
+    "required_fail_by_video": "0008 evaluation record 6.2 table, interpretive reading: leE02uqgaKg-2 fails evidence; 18tbwwPM91A-2 fails only the quality criterion structure; EqnGQDU71-Y-2 fails evidence by the literal reading only",
+    "constraints": "0008 evaluation record 6.3: constraint 1 (leE02uqgaKg-2), constraint 2 (18tbwwPM91A-2), and constraint 3 (EqnGQDU71-Y-2) each occur in B3"
+  },
+  "pass_interp": 8,
+  "pass_literal": 7,
+  "cost_avg_usd": "0.361554",
+  "duration_avg_ms": 113400,
+  "required_fail_by_video": {
+    "roNZ-rLxhUE": 0,
+    "18tbwwPM91A": 0,
+    "zW1RBacSqjk": 0,
+    "leE02uqgaKg": 1,
+    "EqnGQDU71-Y": 0
+  },
+  "constraints": {
+    "constraint1": true,
+    "constraint2": true,
+    "constraint3": true
+  }
+}

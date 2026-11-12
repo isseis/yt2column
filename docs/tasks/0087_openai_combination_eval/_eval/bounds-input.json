@@ -1,0 +1,51 @@
+{
+  "sources": {
+    "runs_per_config": "requirements F-001: five videos, two articles each",
+    "output_cap": "the adapters' default output limits: OpenAI 6,080 (0077 architecture 1.4, internal/llm/openai/request.go defaultMaxOutputTokens), Claude 40,000 (production_profile.md, ADR-0025)",
+    "fixed_input.gpt-6-astra": "0077 architecture 1.4, roNZ-rLxhUE rows: input = normal + cache read + cache write (generation 3+0+17,300; shorten 3+0+3,839; review 3+0+15,059)",
+    "fixed_input.gpt-6.1-sol": "0077 architecture 1.4, roNZ-rLxhUE rows (generation 3+0+17,300; shorten 3+0+3,839; review 3+0+14,902)",
+    "fixed_input.claude-opus-5-5": "~/yt2column-eval/0018/log/B3: shorten input of roNZ-rLxhUE-1 (4,663, the only B3 shorten), review input of roNZ-rLxhUE-1 (19,055, the larger of the video's two), with the article part left in (plan 1.3)",
+    "article_part_max_bytes": "design 3.5: the review input's article part when the review model differs, bounded by the UTF-8 bytes of the title and the body: 4,000 body characters (internal/writer/length.go maxBodyChars) at 4 bytes each, plus 1,000 bytes for the title and the line feeds the character count leaves out",
+    "estimate_tokens": "0077 architecture 1.4, roNZ-rLxhUE rows: input as in fixed_input, output as measured",
+    "estimate_stage_usd.claude-opus-5-5.review": "0018 evaluation record 4.7.2: the average review cost of B3's nine first-attempt runs (0.907260 / 9)"
+  },
+  "runs_per_config": 10,
+  "output_cap": {
+    "openai": 6080,
+    "claude": 40000
+  },
+  "fixed_input": {
+    "gpt-6-astra": {
+      "generation": 17303,
+      "shorten": 3842,
+      "review": 15062
+    },
+    "gpt-6.1-sol": {
+      "generation": 17303,
+      "shorten": 3842,
+      "review": 14905
+    },
+    "claude-opus-5-5": {
+      "shorten": 4663,
+      "review": 19055
+    }
+  },
+  "article_part_max_bytes": 17000,
+  "estimate_tokens": {
+    "gpt-6-astra": {
+      "generation": {"input": 17303, "output": 2979},
+      "shorten": {"input": 3842, "output": 2911},
+      "review": {"input": 15062, "output": 1092}
+    },
+    "gpt-6.1-sol": {
+      "generation": {"input": 17303, "output": 2987},
+      "shorten": {"input": 3842, "output": 2799},
+      "review": {"input": 14905, "output": 774}
+    }
+  },
+  "estimate_stage_usd": {
+    "claude-opus-5-5": {
+      "review": "0.100807"
+    }
+  }
+}
