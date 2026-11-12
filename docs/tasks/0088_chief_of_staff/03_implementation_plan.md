@@ -47,7 +47,7 @@
     -   Herdr へ書く部品（8 章の 2）を、それを使う送信の PR-4 に入れる。
     -   `package_reference.md` の行（8 章の 7）を、パッケージを作る PR に入れる（`TestPackageReferenceListsPackages` が求める）。
     -   ADR-0042 のずれの記述（8 章の 7）を、ずれを解く送り先の表の PR-2 で消す（設計書 2.2 の表の最後の行のとおり）。
-    -   CI の `doc-guard` に道具のパッケージを足すこと（決定 18）を PR-2 に入れる。
+    -   CI の `doc-guard` に道具のパッケージを足すこと（決定 18）を、`./internal/chief` は PR-2 に、`./cmd/chief` はそのパッケージを作る PR-3 に入れる（ステップ 2-8・3-6）。
 
     ADR: なし。
 4.  **待ち受けと自動送信の時間の値は次のとおりにする。** `wait` は 3 秒ごとに `herdr agent list` を読み、既定の時間切れを 10 分にする。観測の記録を自動送信の条件に数えるのは、その観測を記録した周から今の周までが 15 分より短いときだけにする。持ち越しの観測は、最初に `MERGED` を見てから 10 分まで数える（設計書 3.7）。理由: `/runpr` はマージの後も数分 pane を動かすことがあり、窓に余裕が要る。ADR: なし（定数の値）。
@@ -73,11 +73,11 @@
     理由: どれも、実地の確かめで観測した遅れに余裕を持たせた値で、変えるときは定数 1 か所を直す。ADR: なし。
 8.  **`--protocol` の番号は 1 から始める。** `internal/doctestutil/protocol.go:17-22` の道具の一覧に `chief` を足す。今の `fixprguard` のガードは `codexreview` のものでないすべての `--protocol` を数える（`cmd/fixprguard/docs_test.go:380-388`）ので、道具が `fixprguard` の呼び出しと、どの道具の呼び出しにも属さない `--protocol` だけを数えるように直す。ADR: なし。
 9.  **`.claude/settings.json` で拒む herdr の呼び出しを、次の 3 つの組とする（2026-11-12、人が選んだ）。**
-    -   pane へ入力を送るか pane でコマンドを走らせる操作: `herdr agent prompt`・`herdr agent send-keys`・`herdr agent start`・`herdr pane send-text`・`herdr pane send-keys`・`herdr pane run`。
+    -   pane へ入力を送るか、pane でコマンドを走らせるか、pane の入力の経路を変える操作: `herdr agent prompt`・`herdr agent send-keys`・`herdr agent start`・`herdr agent attach`・`herdr pane send-text`・`herdr pane send-keys`・`herdr pane run`・`herdr pane input`。`agent attach` はエージェントの端末に直接つなぐ操作、`pane input` は pane の入力の振り分けを設定する操作で、どちらも pane に入力を届ける経路になりうる。
     -   エージェントの状態とセッションを Herdr に報告する操作: `herdr pane report-agent`・`herdr pane report-agent-session`・`herdr pane release-agent`。chief は、入力を受け付ける状態、ロックの持ち主、`/clear` の確かめをこれらの値で行うので、偽られると確かめが外れる。
-    -   サブコマンドの前に `--` で始まる引数を書く形（`herdr --session …` など、`herdr --` で始まるもの）。上の規則の前方一致を外せるため。
+    -   サブコマンドの前に、別のセッションか別の機械を指す引数を書く形: `herdr --session`・`herdr --machine`・`herdr --remote`（`--remote-keybindings` を含む）で始まるもの。上の規則の前方一致を外せるため。`herdr --help`・`--version`・`--skill`・`--default-config` は読み取りなので拒まない。
 
-    読み取りの呼び出し（`list`・`get`・`read`・`api` など）は拒まない。ほかのセッションが読むために使うことがあり、送ることも偽ることもできないためである。どれも Herdr 0.9.1 の `herdr --help`・`herdr agent --help`・`herdr pane --help` で確かめた。パスで書いた呼び出しなど、規則の外の書き方は残る危険とする（設計書 5.2 の残る危険のまとめ）。設計書 3.9・5.2 は入力を送る呼び出しだけを挙げており、この決定はそれを人の選択で広げる。ADR: [ADR-0046](../../dev/adr/0046-chief-of-staff.md) を更新する（リポジトリのすべてのセッションに効く守りの前提であるため）。
+    読み取りの呼び出し（`list`・`get`・`read`・`api`、`--help` など）は拒まない。ほかのセッションが読むために使うことがあり、送ることも偽ることもできないためである。どれも Herdr 0.9.1 の `herdr --help`・`herdr agent --help`・`herdr pane --help` で確かめた。パスで書いた呼び出しなど、規則の外の書き方は残る危険とする（設計書 5.2 の残る危険のまとめ）。設計書 3.9・5.2 は入力を送る呼び出しだけを挙げており、この決定はそれを人の選択で広げる。ADR: [ADR-0046](../../dev/adr/0046-chief-of-staff.md) を更新する（リポジトリのすべてのセッションに効く守りの前提であるため）。
 10. **gh は `GH_REPO` と `GH_HOST` を除いた環境で走らせる。git は `cmdrunner.GitHardening()` の引数と `cmdrunner.GitEnv` の環境で走らせる。**
     -   gh が環境変数の指す別のリポジトリの PR を読み、自動送信の引き金にしてしまわないよう、PR をタスクの worktree の remote から引かせるためである。`fixprguard` がこの 2 つを拒むのと同じ考え方である（`internal/config/envaccess_test.go:70-72` の注記）。
     -   `GitHardening()`（`internal/cmdrunner/git.go:19`）は、ほかのエージェントが書く worktree の設定から、fsmonitor のフックなどが走らないようにする。
@@ -96,6 +96,7 @@
     -   対象は、AC-05 の表の下への表示、AC-13 の「何もしない」、AC-14、AC-16、AC-22 の問い、AC-24 のバックグラウンド、AC-58 の通知の送信、AC-60 の `wait` の失敗の扱いである。これらは `/chief` の定義の手順の文だけで実現する。
     -   エージェントが文に従うかはテストで確かめられず、文の語を探すテストは置かない（ADR-0016、0081 の計画書 §1.2 と同じ扱い）。
     -   道具が出す材料（並べた一覧、質問の文、送り先、排他など）は `test` で確かめる。
+    -   AC-14 と AC-16 は、道具の側に確かめる材料がなく、`manual` だけで確かめる。これは、`test`・`static`・`diff` のどれかを求める `docs/dev/conventions/requirements_process.md` §4 の規則の例外とする。理由は上の 2 つめの箇条のとおりで、この 2 つの AC は `/chief` の定義の文と、セッションがそれに従うことだけで実現するためである。範囲はこの 2 つの AC に限り、ほかの AC は道具の側の `test` を持つ。
 
     ADR: なし。
 15. **`mkreq.md` は変えない。** 確かめた結果、`mkreq.md` は「PR 構成」の節の行を書かず、`_lib/simple-process.md:162-165` と `mkplan.md:175,205-209` がそれを書く（設計書 2.2 が確かめを計画に委ねた）。ADR: なし。
@@ -114,7 +115,7 @@
     -   一時的な git のリポジトリと bash のスクリプトは、`internal/codexreview/testutil` の `NewRepo` と同じく、許した変数だけの環境、一時的な `HOME`、`GIT_CONFIG_NOSYSTEM=1`、署名を切った設定、決めた作者で走らせる。
 
     理由: `make test` と pre-commit のテストは Herdr の pane の中で走り、環境に `HERDR_PANE_ID` があり、本物の `herdr` と、動いている chief のロックもありうる。ADR: なし。
-20. **`git fetch origin main` は周ごとに 1 回、chief の worktree で行い、`git ls-remote` の値がローカルの `origin/main` と同じなら fetch しない。** `refs/remotes/origin/main` はすべての worktree で共有され、マージの直後には `/runpr` と `/mergepr` も同じ参照を fetch する。同時に更新すると、どちらかが参照のロックで失敗しうる。fetch を減らして重なりを小さくし、道具の側が失敗したときは、自動送信の条件を満たさないものとして次の周で確かめ直す（設計書 3.7）。ADR: なし。
+20. **`git fetch origin main` は、workspace ごとではなく周ごとに 1 回、chief の worktree で行う。** `refs/remotes/origin/main` はすべての worktree で共有され、マージの直後には `/runpr` と `/mergepr` も同じ参照を fetch する。同時に更新すると、どちらかが参照のロックで失敗しうる。fetch を周に 1 回にして重なりを小さくする。fetch を省くことはしない（設計書 3.7 の条件「この周の `git fetch origin main` が成功し」を変えないため）。道具の側の fetch が失敗したときは、設計書 3.7 のとおり自動送信の条件を満たさないものとし、次の周で確かめ直す。ADR: なし。
 21. **実地の確かめでの自動送信は、人が通常の `/runpr` でマージする実際のタスクの PR で確かめる。** 確かめのためだけの PR をマージしない。自動送信で送られるのは、そのタスクの本当の次のコマンドで、その後の作業はふだんどおり進める。`make install-chief` はエージェントが行わず、人がこのブランチから行い、マージの後に `main` から入れ直す（ADR-0014 の「道具は `main` からインストールして使う」）。ADR: なし。
 22. **画面のサンプルを pre-commit の空白のフックと git の改行の変換から外す。** `.pre-commit-config.yaml` の trailing-whitespace と end-of-file-fixer の除外（51・53 行）と `.gitattributes` の `-text` に `internal/chief/testdata/screens/` を足す。端末の画面の行末の空白と、入力欄の形が書き換えられないためである。ADR: なし。
 
@@ -198,7 +199,7 @@
 
 ### フェーズ 2: 入力の型、Herdr・タスク・送り先の表の読み取り（設計書 8 章の 2）
 
-**変更するファイル:** `internal/chief/paneinput/`（新規）、`internal/strictjson/strictjson.go`、`internal/chief/runner.go`・`herdr.go`・`task.go`・`routing.go`・`markers_parity_test.go` とそのテスト（新規）、`internal/chief/test_helpers.go`（新規、`//go:build test`）、`.claude/commands/_context.md`・`runplan.md`・`runpr.md`・`mkplan2.md`、`.github/workflows/ci.yml`、`CLAUDE.md`、`docs/dev/conventions/package_reference.md`、`docs/dev/adr/0042-implementation-model-tiers.md`・`0046-chief-of-staff.md`
+**変更するファイル:** `internal/chief/paneinput/`（新規）、`internal/strictjson/strictjson.go`、`internal/chief/screen*.go`（タスクの番号の型の置き換え）、`internal/chief/runner.go`・`herdr.go`・`task.go`・`routing.go`・`markers_parity_test.go` とそのテスト（新規）、`internal/chief/test_helpers.go`（新規、`//go:build test`）、`.claude/commands/_context.md`・`runplan.md`・`runpr.md`・`mkplan2.md`、`.github/workflows/ci.yml`、`CLAUDE.md`、`docs/dev/conventions/package_reference.md`、`docs/dev/adr/0042-implementation-model-tiers.md`・`0046-chief-of-staff.md`
 
 -   [ ] **ステップ 2-1**: `internal/chief/paneinput` を作る（決定 5、設計書 3.1.3）。`Command` とそのコマンドの組み立て、リセットとモデルの切り替えの入力を置く。`PRNumber` は `fixprguard.PRNumber` を使う（決定 2）。ステップ 1-6 のタスクの番号の型をこの `TaskID` に置き換える。テストは、各コンストラクタが不正な値を拒むこと、ゼロ値と範囲の外の列挙の値が送れる入力にならないことを確かめる。`package_reference.md` に行を足す。
 -   [ ] **ステップ 2-2**: `strictjson.ParseArray` を足す（決定 12）。テストは、配列に特有のこと（最上位が配列でないものを拒む、要素の数の上限）だけを確かめ、`ParseObject` と共有する検査は確かめ直さない。`package_reference.md` の `strictjson` の行に `ParseArray` と、利用者の一覧に `internal/chief` を足す。
@@ -218,7 +219,7 @@
     -   `_context.md` に「Command routing」の節を「PR marker conventions」の外に足し、設計書 3.3 の表を置く。
     -   第 5 部の表の「Model to start the session with」の列を、送り先の表の行を名指す形にする。第 1 部の読み手の一覧と、第 3 部の `opus-review-decision.sh` の注記に、chief の読み取りを足す。
     -   `runplan.md:20-21,60` と `runpr.md:749,763,1059` のモデルの案内を、送り先の表を読む形にする。
-    -   `mkplan2.md:41,43-44` の値の意味から、どのモデルで実装するかを外し、送り先の表を名指す（値の意味は、実装の重さと Opus のレビューの有無として残す）。
+    -   `mkplan2.md:41-44` の値の意味から、どのモデルで実装するかを外し、送り先の表を名指す（値の意味は、実装の重さと Opus のレビューの有無として残す）。42 行の `opus` の説明（「implement the PR on Opus」）は §3.3 の検索の語に合わないが、同じくモデルを述べるので直す。
 -   [ ] **ステップ 2-7**: `routing.go` に送り先の表の読み取りを書く（設計書 3.3）。`origin/main` の `_context.md` を `git show` で読み、節・列・行の数と形・モデルの集合を検証して、`RouteKey` から `paneinput.Route` を引く。テストは次を確かめる。
     -   リポジトリの今の `_context.md` が読めること。
     -   形の崩れた表と、集合の外のモデルを拒むこと。
@@ -252,8 +253,9 @@
 **変更するファイル:** `internal/privatefile/privatefile.go`、`internal/chief/records.go`・`workspace.go`・`state.go`・`pending.go`・`network_test.go` など（新規）、`internal/chief/test_helpers.go`、`cmd/chief/main.go`・`main_test.go`（新規）、`internal/config/envaccess_test.go`、`.github/workflows/ci.yml`、`CLAUDE.md`、`docs/dev/conventions/package_reference.md`
 
 -   [ ] **ステップ 3-1**: `privatefile.Remove` を足す（設計書 3.5 の片付け）。決まった形の通常のファイルだけを消し、シンボリックリンクと持ち主か権限の違うファイルを拒む。持ち主の確かめは今の `check` を使い、テストは `Remove` に特有の拒否（シンボリックリンク、通常のファイルでない、権限）だけを確かめる。`package_reference.md` の行に `Remove` を足す。
--   [ ] **ステップ 3-2**: `records.go` に、状態のディレクトリ（設計書 3.5 の場所、決定 13）、記録の作成（`privatefile.Create`）と読み取り（`privatefile.Read`）、chief のロックと引き継ぎ、`start` していないサブコマンドの拒否（`ErrNotStarted`）、通知の記録を書く。周・観測・送信などの記録は、それを使うフェーズで足す。テストは次を確かめる。
+-   [ ] **ステップ 3-2**: `records.go` に、状態のディレクトリ（設計書 3.5 の場所、決定 13）、記録の作成（`privatefile.Create`）と読み取り（`privatefile.Read`）、chief のロックと引き継ぎ、`start` していないサブコマンドの拒否（`ErrNotStarted`）、通知の記録を書く。`start` の片付け（設計書 3.5）は、ここでは終わったセッションの通知の記録を消すところまでを書く（消すのはステップ 3-1 の `privatefile.Remove`）。周・観測・送信などの記録と、その片付けは、それを使うフェーズで足す。テストは次を確かめる。
     -   同じ名前の記録を 2 回作れないこと、読めない記録を読めないとすること。
+    -   `start` が、終わったセッションの通知の記録を消し、今のセッションの通知の記録を残すこと。
     -   生きている持ち主のロックで `start` が拒むこと、持ち主でない呼び出しを拒むこと。
     -   引き継ぎの確かめ直し。テストが状態のディレクトリの排他を持ったまま、引き継ぐ側が古いと見たロックを生きている持ち主のものに置き換え、その後に排他を放すと、引き継ぐ側が引き継ぎを拒むこと。ディレクトリは並行の処理の前に作っておく（`MkdirBelow` は umask を変えるため）。
     -   同じ worktree をシンボリックリンクで指しても、同じ workspace の記録になること（決定 13）。
@@ -291,7 +293,7 @@
 
 ### フェーズ 4: 送信、リセット、送信の停止と `release`、PR の詳細と `detail`（設計書 8 章の 4）
 
-**変更するファイル:** `internal/chief/herdr.go`、`internal/chief/send.go`・`transcript.go`・`reset.go`・`detail.go`・`records.go` とそのテスト、`internal/chief/screen*.go`、`internal/chief/network_test.go`、`cmd/chief/main.go`・`main_test.go`
+**変更するファイル:** `internal/chief/herdr.go`、`internal/chief/send.go`・`transcript.go`・`reset.go`・`detail.go`・`records.go`・`state.go` とそのテスト、`internal/chief/screen*.go`、`internal/chief/network_test.go`、`cmd/chief/main.go`・`main_test.go`
 
 -   [ ] **ステップ 4-1**: `herdr.go` に、`herdr agent prompt`・`send-keys` で書く部品を足す（`--wait` は使わない。決定 7）。引数は入力の型のパッケージの型だけを取り、範囲の外の列挙の値と、chief の workspace の pane を拒む（AC-31）。テストで、どちらも何も送らないことを確かめる。
 -   [ ] **ステップ 4-2**: `send.go` に、送り先の pane の決定と、入力ごとの確かめ（設計書 3.1.3 の表）を書く。OpenCode のモデルの行と `/new` の後の画面は `screen*.go` の読み取りの型で、Claude Code のモデルの切り替えは `screen_transcript.go` の型で確かめる（決定 6）。`transcript.go` には transcript の場所の決定と読み直し（決定 7）だけを置く。送らなかったときは、入力欄の残りの文字を結果に入れる（AC-36）。テストは次を確かめる。
@@ -484,7 +486,7 @@
 
 ### 3.3. 送り先の表へ置き換える箇所の検索
 
-ステップ 2-6 が直す箇所を、コミット `b61a8a1f`（`88618e43` に本計画だけを足したもの）で次のとおり探した。`_lib/review-subagent-pattern.md:109` はレビューのモデルの話で、送り先と関係がないので直さない。
+ステップ 2-6 が直す箇所を、コミット `b61a8a1f`（`88618e43` に本計画だけを足したもの）で次のとおり探した。`_lib/review-subagent-pattern.md:109` はレビューのモデルの話で、送り先と関係がないので直さない。検索の語は Sonnet と「model to start」の形だけを拾うので、`opus` の値の説明でモデルを述べる `mkplan2.md:42` は出力にないが、ステップ 2-6 で直す（`rg -n 'on Opus' .claude/commands` で確かめた。ほかに出る行は、下の出力にある `runplan.md:21` と、Opus のレビューの話で送り先と関係がない行である）。
 
 ```text
 $ rg -n 'on Sonnet|to Sonnet|implement.*Sonnet|Model to start|model each reading recommends|model that reading recommends|recommends none|model to start' .claude/commands docs/dev/project_overview.md CLAUDE.md
@@ -569,9 +571,9 @@ $ rg -n 'on Sonnet|to Sonnet|implement.*Sonnet|Model to start|model each reading
 | AC-11 | 同上（マージの確認のサンプル）、`ic/state_test.go::TestMergeQuestionOffersNoRunpr` | test | 1-6・3-4 | PR-1、PR-3 |
 | AC-12 | `ic/screen_test.go::TestParseScreenRejectsNonMatching`、`ic/state_test.go::TestNeedsCheckReasons`、`ic/send_test.go::TestSendChecksBeforeFirstInput`（合わない画面） | test | 1-6・3-4・4-2 | PR-1、PR-3、PR-4 |
 | AC-13 | `ic/pending_test.go::TestPendingOrder`、`/chief` の定義（「何もしない」） | test、manual | 3-5・7-2 | PR-3、PR-7 |
-| AC-14 | `/chief` の定義と実地の確かめ。並べた一覧は AC-13 の test | manual | 7-2・7-6 | PR-7 |
+| AC-14 | `/chief` の定義と実地の確かめ（§1.3 の決定 14 の例外）。示す順の材料は AC-13 の test | manual | 7-2・7-6 | PR-7 |
 | AC-15 | `ic/network_test.go::TestSnapshotSkipsDetail`（`snapshot` が送らない）、`/chief` の定義 | test、manual | 3-7・7-2 | PR-3、PR-7 |
-| AC-16 | `/chief` の定義と実地の確かめ | manual | 7-2・7-6 | PR-7 |
+| AC-16 | `/chief` の定義と実地の確かめ（§1.3 の決定 14 の例外） | manual | 7-2・7-6 | PR-7 |
 | AC-17 | `ic/detail_test.go::TestDetailItems`、`/chief` の定義（要約） | test、manual | 4-4・7-2 | PR-4、PR-7 |
 | AC-18 | `ic/detail_test.go::TestDetailKeepsCheckBuckets` | test | 4-4 | PR-4 |
 | AC-19 | `ic/detail_test.go::TestDetailReportSource` | test | 4-4 | PR-4 |
