@@ -162,13 +162,19 @@ func trackSources(dirs map[string]struct{}) error {
 // when the package does not exist, so a path that was renamed away cannot turn
 // a Forbid into a check of nothing.
 func PackagePath(root, pkg string) (string, error) {
-	out, err := runGo(root, targetOSes[0], "list", "-f", "{{.ImportPath}}", pkg)
+	out, err := runGo(root, targetOSes[0], "list", "-f", "{{.ImportPath}}\t{{.Dir}}", pkg)
 	if err != nil {
 		return "", err
 	}
-	path := strings.TrimSuffix(string(out), "\n")
-	if !importPathLine.MatchString(path) {
-		return "", fmt.Errorf("%w: go list %s did not print one import path", ErrList, pkg)
+	path, dir, ok := strings.Cut(strings.TrimSuffix(string(out), "\n"), "\t")
+	if !ok || !importPathLine.MatchString(path) || dir == "" {
+		return "", fmt.Errorf("%w: go list %s did not print one import path and directory", ErrList, pkg)
+	}
+	// Read the package's directory from the test process, as List does, so
+	// go test's result cache is keyed on it: renaming or deleting the package
+	// invalidates a cached pass that holds the old path.
+	if err := trackSources(map[string]struct{}{dir: {}}); err != nil {
+		return "", err
 	}
 	return path, nil
 }

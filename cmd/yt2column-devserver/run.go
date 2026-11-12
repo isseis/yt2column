@@ -87,7 +87,9 @@ func (l *lockedWriter) Write(p []byte) (int, error) {
 //
 // The start, the lock, and the stop notice copy the production server's
 // runServer (cmd/yt2column-server/run.go) instead of sharing it; the stop
-// notice is written by context.AfterFunc and may come after Serve returns.
+// notice is written by context.AfterFunc, and run waits for it once it has
+// started, without the production server's guarantee that it ends before
+// Serve returns.
 func run(ctx context.Context, args []string, lookup config.LookupFunc, stderr io.Writer, d deps) int {
 	stderr = &lockedWriter{w: stderr}
 	errOut := &stderrWriter{w: stderr}
@@ -142,10 +144,19 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stderr io
 		"scenario", scenario,
 	)
 
-	context.AfterFunc(ctx, func() {
+	noticed := make(chan struct{})
+	stopNotice := context.AfterFunc(ctx, func() {
+		defer close(noticed)
 		logger.Info("stopping: the in-flight generations are canceled and their articles lost; the server exits once their calls return; send the signal again to exit at once")
 	})
 	err = srv.Serve(ctx, listener)
+	// The notice is written at the cancellation, while Serve waits for the
+	// generations. If the function has started it is waited for, so it never
+	// comes after the lock is released or the stop line; if the context was
+	// not canceled it never runs.
+	if !stopNotice() {
+		<-noticed
+	}
 	releaseLock(errOut, lock)
 	if err != nil {
 		logger.Error("serving failed", "error", err)

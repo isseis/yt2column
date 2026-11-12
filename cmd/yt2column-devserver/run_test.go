@@ -338,12 +338,12 @@ func checkCombination(t *testing.T, a devfake.Article, f devfake.Failure, at dev
 		calls = 1
 	case devfake.FailAtShorten:
 		calls = 2
-	default:
+	default: // no failing call: every call is made
 	}
 	if got := rec.calls(); got != calls {
 		t.Errorf("calls that waited = %d, want %d", got, calls)
 	}
-	for _, d := range rec.delays {
+	for _, d := range rec.recorded() {
 		if d != time.Second {
 			t.Errorf("a call waited %v, want 1s", d)
 		}
@@ -366,6 +366,9 @@ func checkCombination(t *testing.T, a devfake.Article, f devfake.Failure, at dev
 	}
 	if got.Job.Failure != failureCodes[f] {
 		t.Errorf("failure = %q, want %q", got.Job.Failure, failureCodes[f])
+	}
+	if got.Job.Steps == nil {
+		t.Fatalf("a failed job has no steps: %+v", got.Job)
 	}
 	steps := map[string]string{"draft": got.Job.Steps.Draft, "shorten": got.Job.Steps.Shorten, "review": got.Job.Steps.Review}
 	for _, step := range []string{"draft", "shorten", "review"} {
@@ -614,9 +617,12 @@ func TestStopNotice(t *testing.T) {
 	if code := srv.stop(t); code != exitOK {
 		t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, exitOK, srv.stderr.String())
 	}
-	srv.waitStderr(t, "stopping:")
-	srv.waitStderr(t, "generation job canceled by the shutdown")
-	srv.waitStderr(t, "msg=stopped")
+	// run has returned, so every line is already written and in order.
+	out := srv.stderr.String()
+	notice, canceled, stopped := strings.Index(out, "stopping:"), strings.Index(out, "generation job canceled by the shutdown"), strings.Index(out, "msg=stopped")
+	if notice < 0 || canceled < 0 || stopped < 0 || notice > stopped || canceled > stopped {
+		t.Errorf("want the stop notice and the cancellation before the stopped line (at %d, %d, %d):\n%s", notice, canceled, stopped, out)
+	}
 
 	lock, err := serversock.Acquire(env.socketPath())
 	if err != nil {

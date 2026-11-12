@@ -321,6 +321,13 @@ func (w *waitRecorder) calls() int {
 	return len(w.delays)
 }
 
+// recorded returns the delays the calls waited, in call order.
+func (w *waitRecorder) recorded() []time.Duration {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return slices.Clone(w.delays)
+}
+
 // waitCalls waits until n calls have reached the wait since the recorder was
 // made, counting from the arrivals the test has not consumed.
 func (w *waitRecorder) waitCalls(t *testing.T, n int) {
