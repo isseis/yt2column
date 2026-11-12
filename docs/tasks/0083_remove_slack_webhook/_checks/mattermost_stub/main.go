@@ -10,7 +10,7 @@
 //	go build -tags test -o <binary> ./docs/tasks/0083_remove_slack_webhook/_checks/mattermost_stub/ \
 //		&& <binary> -user <a real user name of the Mattermost test channel>
 //
-// It reads the server's configuration file only for the socket path, so it
+// It loads the server's configuration file and uses only its socket path, so it
 // listens where the native messaging host connects, and it takes the same
 // start lock: stop yt2column-server before starting it. The video title the
 // viewer's heading shows comes from the YouTube page, not from here.
@@ -39,8 +39,8 @@ import (
 )
 
 // userNamePattern is the Mattermost user name form: lowercase letters,
-// digits, '.', '-', and '_', starting with a letter.
-var userNamePattern = regexp.MustCompile(`^[a-z][a-z0-9._-]{0,21}$`)
+// digits, '.', '-', and '_', starting with a letter, 3 to 22 characters.
+var userNamePattern = regexp.MustCompile(`^[a-z][a-z0-9._-]{2,21}$`)
 
 func main() {
 	signal.Ignore(syscall.SIGPIPE)
@@ -101,18 +101,23 @@ type fixedWriter struct {
 }
 
 func (w fixedWriter) Write(ctx context.Context, t transcript.Transcript) (writer.Article, error) {
-	return w.WriteWithProgress(ctx, t, nil)
+	return w.WriteWithProgress(ctx, t, nopObserver{})
 }
+
+// nopObserver ignores the progress of a Write, which reports none.
+type nopObserver struct{}
+
+func (nopObserver) StageStarted(writer.Stage)  {}
+func (nopObserver) StageFinished(writer.Stage) {}
+func (nopObserver) StageSkipped(writer.Stage)  {}
 
 // WriteWithProgress reports the stages as a run with the post-generation
 // steps turned off does, so the popup shows a finished generation.
 func (w fixedWriter) WriteWithProgress(_ context.Context, t transcript.Transcript, observer writer.ProgressObserver) (writer.Article, error) {
-	if observer != nil {
-		observer.StageStarted(writer.StageGeneration)
-		observer.StageFinished(writer.StageGeneration)
-		observer.StageSkipped(writer.StageShorten)
-		observer.StageSkipped(writer.StageReview)
-	}
+	observer.StageStarted(writer.StageGeneration)
+	observer.StageFinished(writer.StageGeneration)
+	observer.StageSkipped(writer.StageShorten)
+	observer.StageSkipped(writer.StageReview)
 	a := w.article
 	a.SourceURL = t.VideoURL
 	return a, nil
