@@ -64,6 +64,12 @@
 | 既定に依存するテスト（F-007） | 設計 §3.9.3 のテストはすべて `986449c6` にある（`config_test.go` の `TestLoadDefaults`:102・`TestLoadClaudeEffortDefault`:304・`TestLoadGenerationDefaults`:1358・`TestLoadReviewDefaults`:1399・`TestLoadDefaultProviderVariables`:1488・`TestLoadServerLLMDefaults`:1529・`TestLoadProductionDefaults`:1551・`TestLoadInheritsEffort`:1773、`serverfile_test.go:325` の `TestServerFileTemplate`、`run_test.go:1564` の `TestRunDefaultLLMConfig`、`docs_test.go:310` の `TestLLMDefaultsDocsContract`・`:699` の `TestProductionProfileDocsContract`）。設計 §3.9.3 にないもので、既定のキー（`ANTHROPIC_API_KEY`）だけで起動することを前提にしうるのは、`cmd/yt2column-server/run_test.go` の `TestStartupFailures`:47・`TestServerIgnoresEnvSettings`:488・`TestConfigInitThenStart`:1390 と、`cmd/yt2column/run_test.go:1541` の `TestRunClaudeConfigurationErrorsOneLineEach` である |
 | 既定に依存する文書（F-007） | `claude-opus-5-5`・`YT2COLUMN_REVIEW_LLM`・`本番の構成`・`ANTHROPIC_API_KEY` を `docs/tasks/` の外で検索した（`986449c6`）。設計 §3.9.2 の表にないもので変えうるのは、`docs/dev/adr/0025-claude-output-limit.md`（本番の出力の上限を 40,000 と記録する決定。生成が OpenAI になる C・B で変わる）、`docs/dev/adr/0041-openai-api.md:43`（本番の構成の変更は後続の評価で決めるという記述）、`docs/dev/guides/claude_output_limit.md:7`（本番の構成の工程が変わったら測り直す条件）、`docs/dev/guides/development.md:32`（開発用のサーバの設定が `ANTHROPIC_API_KEY` だけを書く）である。`docs/translation_glossary.md`・`testdata/README.md:123`・`prompts/README.md:9`・`docs/dev/adr/0035-language-policy.md` は既定の値を書いていない。コードの検索結果のうち、アダプタと料金のテスト（`internal/llm/claude/`・`internal/pricing/`・`internal/llm/provider/provider_test.go`・`cmd/yt2column/cost_test.go`）のモデル名は既定ではない |
 
+### 1.4. 実装の際に決めたこと（2026-11-12）
+
+1. **ステップ 1-7 の `.when` の LLM の変数の値は、人ではなく機械で設計 §3.1 の表と照合する。** 設計書の §3.1 の表から構成 ID と 2 つの変数の値を取り出し、preflight の `.when` の値の組と `diff` する。
+    - **理由:** 人が、機械的に確かめられる照合は機械で行うよう求めた。表の値と記録の値の文字列の一致なので、機械の照合は人の照合より見落としがない。
+    - **ADR の判断:** 作らない。このタスクの中で閉じる手順であるためである。
+
 ## 2. 実装手順 (Implementation Steps)
 
 `_eval/` は `docs/tasks/0087_openai_combination_eval/_eval/` を、`evaltool` は `_eval/evaltool/` のパッケージを、`0087/` は `~/yt2column-eval/0087/` を指す。`_eval/` のコメント・識別子・文字列・データのファイルの鍵は英語で書く（`CLAUDE.md`「Language」）。判定の観点も英語の鍵で持ち（例: 「根拠」は `evidence`）、評価記録では日本語の名前で示す。
@@ -193,13 +199,13 @@ PR-1 のマージの後、新しいブランチで行う（§1.2 の決めたこ
 
 #### ステップ 1-7：実行の前の確認
 
-- [ ] 設計 §3.4 の項目 1〜4 を行う。項目 1 と項目 2 の CLI の起動は、すべて `run.sh` の preflight の使い方で行い、API キーを取り除く（`env -u`）。設計 §3.1 の共通の条件（`yt-dlp` を呼ばない設定、キャッシュの写し、`ANTHROPIC_WORKSPACE_ID` を未設定にする）は `run.sh` がすべての起動に当てる。やり直す場合は、`0087/preflight/` を空にしてから始める。
-- [ ] 項目 2 の結果を記録する。主セッションが各起動の標準エラーを読み、足りない変数として示されたのが設計 §3.1 の表のキーだけであり、値の誤りがないことを確かめる。`.when` の LLM の変数の値を、人が設計 §3.1 の表と照合する。
-- [ ] CLI に関わるツリーが、ステップ 1-6 で固定したコミットと同じコミットの `evaltool` で `estimate` を実行し直し、`bounds.tsv` と節 5 の見積もりの表が変わる場合は書き換える。一括の承認は、書き換えた後の見積もりで受ける。
-- [ ] 項目 3 は `rates` と `rates-compare.sh` を評価に使うコミットで実行する。`claude-opus-5-5` の単価が違う場合は、基準の構成の推定コストを今の単価で求め直し、`baseline.json` の値を変えて、`04_evaluation.md` 節 6 に記録する（AC-15）。
-- [ ] `check_article.py` を、項目 1 の `--after review` が書いた記事に当て、今の CLI の記事を読めることを確かめる。
-- [ ] 項目 1 の記事を 1 件だけ `material` で伏せ、`scorer-agent.md` のエージェントで試しに採点させる。出力の表の形、記録されたモデル ID（`claude-opus-5-5`）、`Read` 以外の道具（コマンドの実行と書き込み）を使えないことを確かめる。採点の結果は評価に使わない。
-- [ ] ステップ 1-5 の後に `_eval/` を変えた場合は、`selftest.sh`・`reproduce0018.sh`・`repo_impact.sh` を実行し直して記録する。
+- [x] 設計 §3.4 の項目 1〜4 を行う。項目 1 と項目 2 の CLI の起動は、すべて `run.sh` の preflight の使い方で行い、API キーを取り除く（`env -u`）。設計 §3.1 の共通の条件（`yt-dlp` を呼ばない設定、キャッシュの写し、`ANTHROPIC_WORKSPACE_ID` を未設定にする）は `run.sh` がすべての起動に当てる。やり直す場合は、`0087/preflight/` を空にしてから始める。
+- [x] 項目 2 の結果を記録する。主セッションが各起動の標準エラーを読み、足りない変数として示されたのが設計 §3.1 の表のキーだけであり、値の誤りがないことを確かめる。`.when` の LLM の変数の値を、設計 §3.1 の表から取り出した値と機械的に照合する（人の求めにより、人の照合から変えた）。
+- [x] CLI に関わるツリーが、ステップ 1-6 で固定したコミットと同じコミットの `evaltool` で `estimate` を実行し直し、`bounds.tsv` と節 5 の見積もりの表が変わる場合は書き換える。一括の承認は、書き換えた後の見積もりで受ける。
+- [x] 項目 3 は `rates` と `rates-compare.sh` を評価に使うコミットで実行する。`claude-opus-5-5` の単価が違う場合は、基準の構成の推定コストを今の単価で求め直し、`baseline.json` の値を変えて、`04_evaluation.md` 節 6 に記録する（AC-15）。
+- [x] `check_article.py` を、項目 1 の `--after review` が書いた記事に当て、今の CLI の記事を読めることを確かめる。
+- [x] 項目 1 の記事を 1 件だけ `material` で伏せ、`scorer-agent.md` のエージェントで試しに採点させる。出力の表の形、記録されたモデル ID（`claude-opus-5-5`）、`Read` 以外の道具（コマンドの実行と書き込み）を使えないことを確かめる。採点の結果は評価に使わない。
+- [x] ステップ 1-5 の後に `_eval/` を変えた場合は、`selftest.sh`・`reproduce0018.sh`・`repo_impact.sh` を実行し直して記録する。
 
 **完了条件:** 上の確かめがすべて成功し、`04_evaluation.md` の節 2〜4・6 に記録されている。CLI は API を一度も呼んでいない（項目 2 の起動はすべて終了コード `2`、項目 1 は API を呼ばない再開）。
 
@@ -450,3 +456,4 @@ AC-24〜AC-30 は、本番の構成を変える場合だけ行う。変えない
 ## 変更履歴
 
 - 2026-11-11 承認（isseis、#841）
+- 2026-11-12 セッション中の再承認：ステップ 1-7 の `.when` の LLM の変数の値を、人ではなく機械で設計 §3.1 の表と照合する（1.4・ステップ 1-7）（isseis、#未記入）
