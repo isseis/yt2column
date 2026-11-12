@@ -182,13 +182,13 @@ Diff record (AC-18):
 
 - Compared paths: `.claude/commands/runpr.md`
 - Merge-base: `f72fd25d5b7971a3dc8598caa13ae9019c5b7454`
-- Compared commit: `466dc19056f556fd91c169adeb13f8b043c6da9e`
+- Compared commit: `e29d78e49898efd5499880c969c5499bbe627650`
 
 Path diff:
 
 ````text
 diff --git a/.claude/commands/runpr.md b/.claude/commands/runpr.md
-index 4a0bbbd5f93f4cc0b3cdf99b420c858756fcb96f..bdcdc6d5fcbdf44cb97e60797331c4d390c2b901 100644
+index 4a0bbbd5f93f4cc0b3cdf99b420c858756fcb96f..fc48d82e3bfe8067c607117f9ef9ab2beb0e35f4 100644
 --- a/.claude/commands/runpr.md
 +++ b/.claude/commands/runpr.md
 @@ -1,5 +1,5 @@
@@ -303,7 +303,7 @@ index 4a0bbbd5f93f4cc0b3cdf99b420c858756fcb96f..bdcdc6d5fcbdf44cb97e60797331c4d3
    one `AskUserQuestion` call, which of them to process (none included). Show
    each thread's URL and its reasons (every `findings` entry of the latest
    `list`); do not fetch or read their content: the user checks them on GitHub.
-@@ -711,134 +715,386 @@ finished review observed had and every review in progress lacked, so that a
+@@ -711,134 +715,387 @@ finished review observed had and every review in progress lacked, so that a
 
  ## 4. Confirm, record, and merge
 
@@ -460,7 +460,7 @@ index 4a0bbbd5f93f4cc0b3cdf99b420c858756fcb96f..bdcdc6d5fcbdf44cb97e60797331c4d3
 +   When the check fails, do not post: stop and report, with the tracking
 +   issue's URL when there is one. Nothing is prepared, so there is nothing to
 +   discard.
-+   Add the findings not skipped to the issue as a comment
++   When every finding is skipped, post nothing; otherwise add the findings not skipped to the issue as a comment
 +   (`gh issue comment <issue> --body-file <file>`), or create it
 +   (`gh issue create --title "PR #<number> のレビュー指摘の追跡" --body-file <file>`)
 +   when there is none. Write in Japanese, listing each finding's topic, the
@@ -486,7 +486,7 @@ index 4a0bbbd5f93f4cc0b3cdf99b420c858756fcb96f..bdcdc6d5fcbdf44cb97e60797331c4d3
 +   replying again. For any other stop, say that the user resolves the thread
 +   by hand on GitHub, or chooses "すべて直す" or a number answer for it in a
 +   rerun, since the move procedure skips a thread the issue already lists.
-+   Otherwise count again: run
++   Otherwise (every reply posted and resolved) count again: run
 
 -1. Run `.claude/commands/mergepr.md` steps 1–2 for `<number>` (prepare, draft
 +   ```
@@ -496,7 +496,8 @@ index 4a0bbbd5f93f4cc0b3cdf99b420c858756fcb96f..bdcdc6d5fcbdf44cb97e60797331c4d3
 +   and when any thread that was to be moved is still unresolved (for example
 +   one a former run stopped on with `reply-not-resolved`, which the steps above
 +   skip because the issue already lists it), stop and report its URL and the
-+   tracking issue's URL: do not go on to item 2 or call `fixpr` with a thread
++   tracking issue's URL, and that the user resolves it by hand on GitHub or
++   chooses "すべて直す" or a number answer for it in a rerun: do not go on to item 2 or call `fixpr` with a thread
 +   left that the merge question would no longer show.
 +
 +2. Run `.claude/commands/mergepr.md` steps 1–2 for `<number>` (prepare, draft
@@ -601,7 +602,7 @@ index 4a0bbbd5f93f4cc0b3cdf99b420c858756fcb96f..bdcdc6d5fcbdf44cb97e60797331c4d3
 +     each file followed by a newline of its own so a subject without a trailing
 +     newline does not run into the body (never retype them), together with the
 +     absolute paths of the files the merge takes them from: the approval
-+     message files, and, when PRE_MERGE is not none, the copies item 4 will make
++     message files, and, when the answer records PRE_MERGE, the copies item 4 will then make
 +     (`approved-<round>.subject` and `approved-<round>.body` in the details
 +     directory), which the merge uses then; the record of
 +     which rule decided the subject's prefix; the PRE_MERGE change (which lines
@@ -797,7 +798,7 @@ index 4a0bbbd5f93f4cc0b3cdf99b420c858756fcb96f..bdcdc6d5fcbdf44cb97e60797331c4d3
        chooses the return together with anything else (threads to fix, a PR
        review) is not a choice: ask step 4 again, from its item 1. REASON
        is the answer's free text as written, or `理由の記載なし` when it gives
-@@ -846,7 +1102,18 @@ stops, stop here: no question, no merge.
+@@ -846,7 +1103,18 @@ stops, stop here: no question, no merge.
        three documents; when one ADR change cannot be split that way, ask the
        user with one `AskUserQuestion` call, and without an answer change
        nothing and stop. THREADS come from the latest `fixpr` Final report
@@ -817,7 +818,7 @@ index 4a0bbbd5f93f4cc0b3cdf99b420c858756fcb96f..bdcdc6d5fcbdf44cb97e60797331c4d3
     2. **The return commit.** Follow `_lib/simple-process.md`, "Returning to the
        full process", with REASON, ADR_SPLIT, and THREADS.
     3. **Local review.** Follow `.claude/commands/_lib/local-cli-review.md` with
-@@ -921,49 +1188,22 @@ stops, stop here: no question, no merge.
+@@ -921,49 +1189,22 @@ stops, stop here: no question, no merge.
        A later run pushes it (step 2) after a failure that does not move the
        head; for a rejected push (the head moved), report the recovery of
        return step 4.
@@ -878,7 +879,7 @@ index 4a0bbbd5f93f4cc0b3cdf99b420c858756fcb96f..bdcdc6d5fcbdf44cb97e60797331c4d3
       `mergepr discard --state <state-file>`.
     - Make the PRE_MERGE commit and push it. If the push is rejected (someone
       pushed meanwhile), `git pull --rebase` the bookkeeping commit onto the new
-@@ -983,14 +1223,16 @@ stops, stop here: no question, no merge.
+@@ -983,14 +1224,16 @@ stops, stop here: no question, no merge.
       merge: discard the preparation and return to step 3, which handles it
       (`fixpr`, or the untrusted-thread question), then step 2, and ask step 4
       again.
@@ -902,7 +903,7 @@ index 4a0bbbd5f93f4cc0b3cdf99b420c858756fcb96f..bdcdc6d5fcbdf44cb97e60797331c4d3
 
  Once `mergepr.md` reports the merge:
 
-@@ -1032,24 +1274,23 @@ Once `mergepr.md` reports the merge:
+@@ -1032,24 +1275,23 @@ Once `mergepr.md` reports the merge:
    merged, which issues are still open, and that running `/runpr <PR>` again
    closes them (step 1's `MERGED` case); a close that failed after its comment
    was posted posts the comment once more on that rerun.
@@ -942,7 +943,7 @@ Diff record (AC-19):
 
 - Compared paths: `.claude/commands/mergepr.md`
 - Merge-base: `f72fd25d5b7971a3dc8598caa13ae9019c5b7454`
-- Compared commit: `466dc19056f556fd91c169adeb13f8b043c6da9e`
+- Compared commit: `e29d78e49898efd5499880c969c5499bbe627650`
 
 Path diff:
 
