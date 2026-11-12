@@ -271,12 +271,12 @@ PR-1 のマージの後、新しいブランチで行う（§1.2 の決めたこ
 
 **変更ファイル:** `04_evaluation.md`、本書。
 
-- [ ] `aggregate` の比較の表、使った額、F-006 の判定を、`04_evaluation.md` 節 9・10 に書き写す。プロンプトのキャッシュから読んだ入力のある構成は、補助の推定コストの平均で F-006 の判定が変わるかを書く（設計 §3.5）。
-- [ ] F-006 の手順 2 で選んだ構成（候補がなければ「変えない」）を、失敗した実行の回数と費用とともに人に示し、承認を受ける。人が承認しない場合は、その候補を除いて `aggregate` で選び直す（要件 F-006 の手順 3）。
-- [ ] 結論と節 1 の要約を書く。
-- [ ] PR-2 で `_eval/` を変えた場合は、`selftest.sh`・`reproduce0018.sh`・`repo_impact.sh` を実行し直して記録する。
+- [x] `aggregate` の比較の表、使った額、F-006 の判定を、`04_evaluation.md` 節 9・10 に書き写す。プロンプトのキャッシュから読んだ入力のある構成は、補助の推定コストの平均で F-006 の判定が変わるかを書く（設計 §3.5）。
+- [x] F-006 の手順 2 で選んだ構成（候補がなければ「変えない」）を、失敗した実行の回数と費用とともに人に示し、承認を受ける。人が承認しない場合は、その候補を除いて `aggregate` で選び直す（要件 F-006 の手順 3）。
+- [x] 結論と節 1 の要約を書く。
+- [x] PR-2 で `_eval/` を変えた場合は、`selftest.sh`・`reproduce0018.sh`・`repo_impact.sh` を実行し直して記録する。（PR-2 で変えたのは `run.sh` だけで、変えた後のコミット `b435f279` で実行し直し、`04_evaluation.md` §2.7 に記録した。その後 `_eval/` は変えていない）
 - [ ] `check-record` と `secretscan.sh` を実行し、出力・入力の SHA-256・実行したコミットを本書 §7 の「記録」に書く。PR の作成の後に `04_evaluation.md` か `_eval/` を変えた場合は、マージの前に 2 つを実行し直して記録を書き換える。
-- [ ] 本番の構成を変えない場合は、次をすべて `[-]` にし、理由として `04_evaluation.md` の結論を参照する。ステップ 6-1・6-2 のチェックボックス、PR-3 の作成ポイントの 4 つのチェックボックス、§6 の PR-3 の行、§8 の「本番の構成を変える場合」の行。§7 の AC-24〜AC-30 の行に「該当しない」と書く。
+- [x] 本番の構成を変えない場合は、次をすべて `[-]` にし、理由として `04_evaluation.md` の結論を参照する。ステップ 6-1・6-2 のチェックボックス、PR-3 の作成ポイントの 4 つのチェックボックス、§6 の PR-3 の行、§8 の「本番の構成を変える場合」の行。§7 の AC-24〜AC-30 の行に「該当しない」と書く。
 
 **完了条件:** 評価記録の結論が人の承認を受け、`check-record` が成功している。
 
@@ -305,29 +305,29 @@ PR-1 のマージの後、新しいブランチで行う（§1.2 の決めたこ
 
 **変更ファイル:** `internal/config/config.go`・`config_test.go`・`serverfile.go`・`serverfile_test.go`・`test_helpers.go`、`cmd/yt2column/run_test.go`、`cmd/yt2column-server/run_test.go`。
 
-- [ ] 設計 §3.9.2 の表のとおり既定の定数を変える。C・B では、次の改名の台帳に従う。新しい名前は実装で決め、本書の台帳を同じコミットで埋める。
+- [-] 設計 §3.9.2 の表のとおり既定の定数を変える。C・B では、次の改名の台帳に従う。新しい名前は実装で決め、本書の台帳を同じコミットで埋める。（本番の構成を変えない。`04_evaluation.md` §10 の結論による）
 
     | 変更前の名前 | 変更後の名前 | 場所 |
     |---|---|---|
     | `defaultClaudeModel` | （プロバイダによらない名前） | `internal/config/config.go:76` と §1.3 の `config_test.go` の行 |
     | `DefaultClaudeModelForTest` | （同上に合わせる） | `internal/config/test_helpers.go`、`cmd/yt2column/run_test.go:1583` |
 
-- [ ] A・B では、検証・推敲の既定の定数を加え、`loadLLM` に R1 の分岐を加える。`parseLLM` を通す。`serverfile.go` の雛形の `YT2COLUMN_REVIEW_LLM` の「When unset」の説明を R1 と代償に合わせる。テスト用に検証・推敲の既定を返す関数を `test_helpers.go` に加える。
-- [ ] 設計 §3.9.3 のテストと、§1.3 に挙げた 4 つのテスト（`TestStartupFailures`・`TestServerIgnoresEnvSettings`・`TestConfigInitThenStart`・`TestRunClaudeConfigurationErrorsOneLineEach`）を新しい既定で実行し、失敗するものを直す。
-- [ ] A・B では、R1 の 3 つの分岐と、選んだ構成のプロバイダのキーだけを必須にすることを、`LoadFor` と `LoadServer` の両方で確かめるテストを加える。
-- [ ] 新しい既定で、足りないキーが終了コード `2` と足りないキーの名前で拒否され、API を呼ばないこと、使わないプロバイダのキーを要さないことを、CLI（`cmd/yt2column/run_test.go`）とサーバ（`TestStartupFailures`）のテストで確かめる。既存のテストを広げるか加えるかは実装で決め、§7 の AC-25 の行に名前を書く。
-- [ ] 直したテストと加えたテストが、既定の定数（A・B では R1 の分岐も）を元に戻すと失敗することを確かめ、コミットメッセージに書く。
+- [-] A・B では、検証・推敲の既定の定数を加え、`loadLLM` に R1 の分岐を加える。`parseLLM` を通す。`serverfile.go` の雛形の `YT2COLUMN_REVIEW_LLM` の「When unset」の説明を R1 と代償に合わせる。テスト用に検証・推敲の既定を返す関数を `test_helpers.go` に加える。（本番の構成を変えない。`04_evaluation.md` §10 の結論による）
+- [-] 設計 §3.9.3 のテストと、§1.3 に挙げた 4 つのテスト（`TestStartupFailures`・`TestServerIgnoresEnvSettings`・`TestConfigInitThenStart`・`TestRunClaudeConfigurationErrorsOneLineEach`）を新しい既定で実行し、失敗するものを直す。（本番の構成を変えない。`04_evaluation.md` §10 の結論による）
+- [-] A・B では、R1 の 3 つの分岐と、選んだ構成のプロバイダのキーだけを必須にすることを、`LoadFor` と `LoadServer` の両方で確かめるテストを加える。（本番の構成を変えない。`04_evaluation.md` §10 の結論による）
+- [-] 新しい既定で、足りないキーが終了コード `2` と足りないキーの名前で拒否され、API を呼ばないこと、使わないプロバイダのキーを要さないことを、CLI（`cmd/yt2column/run_test.go`）とサーバ（`TestStartupFailures`）のテストで確かめる。既存のテストを広げるか加えるかは実装で決め、§7 の AC-25 の行に名前を書く。（本番の構成を変えない。`04_evaluation.md` §10 の結論による）
+- [-] 直したテストと加えたテストが、既定の定数（A・B では R1 の分岐も）を元に戻すと失敗することを確かめ、コミットメッセージに書く。（本番の構成を変えない。`04_evaluation.md` §10 の結論による）
 
 #### ステップ 6-2：文書・ガードテスト・ADR
 
 **変更ファイル:** §1.3 と設計 §3.9.2 の文書、`cmd/yt2column/docs_test.go`。
 
-- [ ] `claude-opus-5-5`・`YT2COLUMN_REVIEW_LLM`・`本番の構成`・`ANTHROPIC_API_KEY`・`40,000` を `docs/tasks/` の外で検索し直し、§1.3 の結果と設計 §3.9.2 の表を突き合わせて、変える箇所の一覧を作る。一覧はコミットメッセージに書く。
-- [ ] `docs/dev/production_profile.md`・`docs/dev/project_overview.md`・`docs/dev/security.md`・`docs/dev/conventions/package_reference.md` を、設計 §3.9.2 の表と §3.9.4 のとおりに変える。A・B では `docs/dev/guides/cli.md` も変える。OpenAI を既定に含む場合は `docs/dev/guides/development.md` の開発用のサーバの設定と ADR-0041 の記述を、C・B では `docs/dev/guides/claude_output_limit.md` を変える。品質・料金・所要時間の値は、`check-record` で確かめた評価記録の表から写す。
-- [ ] `README.md` を変え、同じコミットで `/mktrans README.md` で `README.en.md` を同期する。
-- [ ] A・B では、`TestLLMDefaultsDocsContract` を `YT2COLUMN_REVIEW_LLM` の既定の値も照合するように広げ、`TestProductionProfileDocsContract` の `productionProfileVars` に `YT2COLUMN_REVIEW_LLM` を加える。`docsProfileEnv` に OpenAI のキーが要るかを、テストを実行して確かめる（設計 §3.9.3）。
-- [ ] ADR-0004 を更新し、索引の題名を合わせる（AC-28）。A・B では ADR-0003 を、C・B では ADR-0025 を更新する。どれも [adr.md](../../dev/conventions/adr.md) に従う。
-- [ ] `make test`・`make lint`・`make ext-test`・`make readme-sync-check` を実行する。
+- [-] `claude-opus-5-5`・`YT2COLUMN_REVIEW_LLM`・`本番の構成`・`ANTHROPIC_API_KEY`・`40,000` を `docs/tasks/` の外で検索し直し、§1.3 の結果と設計 §3.9.2 の表を突き合わせて、変える箇所の一覧を作る。一覧はコミットメッセージに書く。（本番の構成を変えない。`04_evaluation.md` §10 の結論による）
+- [-] `docs/dev/production_profile.md`・`docs/dev/project_overview.md`・`docs/dev/security.md`・`docs/dev/conventions/package_reference.md` を、設計 §3.9.2 の表と §3.9.4 のとおりに変える。A・B では `docs/dev/guides/cli.md` も変える。OpenAI を既定に含む場合は `docs/dev/guides/development.md` の開発用のサーバの設定と ADR-0041 の記述を、C・B では `docs/dev/guides/claude_output_limit.md` を変える。品質・料金・所要時間の値は、`check-record` で確かめた評価記録の表から写す。（本番の構成を変えない。`04_evaluation.md` §10 の結論による）
+- [-] `README.md` を変え、同じコミットで `/mktrans README.md` で `README.en.md` を同期する。（本番の構成を変えない。`04_evaluation.md` §10 の結論による）
+- [-] A・B では、`TestLLMDefaultsDocsContract` を `YT2COLUMN_REVIEW_LLM` の既定の値も照合するように広げ、`TestProductionProfileDocsContract` の `productionProfileVars` に `YT2COLUMN_REVIEW_LLM` を加える。`docsProfileEnv` に OpenAI のキーが要るかを、テストを実行して確かめる（設計 §3.9.3）。（本番の構成を変えない。`04_evaluation.md` §10 の結論による）
+- [-] ADR-0004 を更新し、索引の題名を合わせる（AC-28）。A・B では ADR-0003 を、C・B では ADR-0025 を更新する。どれも [adr.md](../../dev/conventions/adr.md) に従う。（本番の構成を変えない。`04_evaluation.md` §10 の結論による）
+- [-] `make test`・`make lint`・`make ext-test`・`make readme-sync-check` を実行する。（本番の構成を変えない。`04_evaluation.md` §10 の結論による）
 
 **完了条件:** 上の 4 つの make ターゲットが成功する。
 
@@ -343,10 +343,10 @@ PR-1 のマージの後、新しいブランチで行う（§1.2 の決めたこ
 
 **判定理由**: 6-1 が、すべての利用者の既定の送り先と必須のキーを同時に変える移行（振る舞いを強める変更と弱める変更が同時に起きる）に当たる。
 
-- [ ] グリーンゲート（`make test`・`make lint`）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [-] グリーンゲート（`make test`・`make lint`）がパスしていることを確認した（本番の構成を変えない。`04_evaluation.md` §10 の結論による）
+- [-] PR を作成した（本番の構成を変えない。`04_evaluation.md` §10 の結論による）
+- [-] PR がマージされた（本番の構成を変えない。`04_evaluation.md` §10 の結論による）
+- [-] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）（本番の構成を変えない。`04_evaluation.md` §10 の結論による）
 
 ## 3. 実装順序とマイルストーン (Implementation Order and Milestones)
 
@@ -400,7 +400,7 @@ PR-2 は複数のセッションにわたる。`/runplan` は 1 フェーズず�
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5）
 - [ ] PR-2 マージ済み（対象ステップ: 1-6 / 1-7 / 2-1 / 3-1 / 3-2 / 4-1 / 5-1）
-- [ ] PR-3 マージ済み（対象ステップ: 6-1 / 6-2）
+- [-] PR-3 マージ済み（対象ステップ: 6-1 / 6-2）（本番の構成を変えない。`04_evaluation.md` §10 の結論による）
 - [ ] §7 の表のすべての AC の検証結果を記録した
 
 ## 7. 受け入れ条件の検証 (Acceptance Criteria Verification)
@@ -436,13 +436,13 @@ PR-2 は複数のセッションにわたる。`/runplan` は 1 フェーズず�
 | AC-21 | 1-1 / 1-2 / 5-1 | test: evaltool（F-006 の条件の境界）。static: `reproduce0018.sh`（`baseline.json` の平均の値）、`check-record`（F-006 の判定の表）。manual: `baseline.json` の動画ごとの不合格の数と 0008 評価記録 §6.2 の照合 |
 | AC-22 | 1-1 / 5-1 | test: evaltool（手順 2 の選び方と手順 3 の除外）。manual: 人の承認、示した失敗の回数と費用、除いた候補と理由 |
 | AC-23 | 1-1 / 5-1 | test: evaltool（制約が直ったかの判定）。static: `check-record`（制約が直ったかの表）。manual: 基準の構成の値と 0008 評価記録 §6.3 の照合 |
-| AC-24 | 6-1 | test: `internal/config/config_test.go::TestLoadDefaults`・`TestLoadGenerationDefaults`・`TestLoadReviewDefaults`・`TestLoadServerLLMDefaults`・`TestLoadProductionDefaults`・`TestLoadInheritsEffort`、`cmd/yt2column/run_test.go::TestRunDefaultLLMConfig`。A・B では R1 の新しいテスト（ステップ 6-1 で名前を決め、ここに書く） |
-| AC-25 | 6-1 | test: `internal/config/config_test.go::TestLoadDefaultProviderVariables`、`cmd/yt2column-server/run_test.go::TestStartupFailures`、CLI のテスト（ステップ 6-1 で名前を決め、ここに書く） |
-| AC-26 | 6-2 | static: `cmd/yt2column/docs_test.go::TestLLMDefaultsDocsContract`・`TestProductionProfileDocsContract`、`internal/config/serverfile_test.go::TestServerFileTemplate`。manual: `production_profile.md` の品質・料金・所要時間の値と、`check-record` で確かめた評価記録の表の照合 |
-| AC-27 | 6-2 | manual: `project_overview.md` のモデル名の例外の項目（自然言語の内容だけを定める） |
-| AC-28 | 6-2 | static: `cmd/yt2column/adr_test.go::TestADRRecords`。manual: ADR-0004 の決定・採らなかった案・経緯 |
-| AC-29 | 6-2 | manual: README の両版と `security.md` の送り先の記述（自然言語の内容だけを定める） |
-| AC-30 | 6-2 | static: `make test`・`make lint`・`make ext-test`・`make readme-sync-check` |
+| AC-24 | 6-1 | test: `internal/config/config_test.go::TestLoadDefaults`・`TestLoadGenerationDefaults`・`TestLoadReviewDefaults`・`TestLoadServerLLMDefaults`・`TestLoadProductionDefaults`・`TestLoadInheritsEffort`、`cmd/yt2column/run_test.go::TestRunDefaultLLMConfig`。A・B では R1 の新しいテスト（ステップ 6-1 で名前を決め、ここに書く） 該当しない（本番の構成を変えない。`04_evaluation.md` §10） |
+| AC-25 | 6-1 | test: `internal/config/config_test.go::TestLoadDefaultProviderVariables`、`cmd/yt2column-server/run_test.go::TestStartupFailures`、CLI のテスト（ステップ 6-1 で名前を決め、ここに書く） 該当しない（本番の構成を変えない。`04_evaluation.md` §10） |
+| AC-26 | 6-2 | static: `cmd/yt2column/docs_test.go::TestLLMDefaultsDocsContract`・`TestProductionProfileDocsContract`、`internal/config/serverfile_test.go::TestServerFileTemplate`。manual: `production_profile.md` の品質・料金・所要時間の値と、`check-record` で確かめた評価記録の表の照合 該当しない（本番の構成を変えない。`04_evaluation.md` §10） |
+| AC-27 | 6-2 | manual: `project_overview.md` のモデル名の例外の項目（自然言語の内容だけを定める） 該当しない（本番の構成を変えない。`04_evaluation.md` §10） |
+| AC-28 | 6-2 | static: `cmd/yt2column/adr_test.go::TestADRRecords`。manual: ADR-0004 の決定・採らなかった案・経緯 該当しない（本番の構成を変えない。`04_evaluation.md` §10） |
+| AC-29 | 6-2 | manual: README の両版と `security.md` の送り先の記述（自然言語の内容だけを定める） 該当しない（本番の構成を変えない。`04_evaluation.md` §10） |
+| AC-30 | 6-2 | static: `make test`・`make lint`・`make ext-test`・`make readme-sync-check` 該当しない（本番の構成を変えない。`04_evaluation.md` §10） |
 
 AC-24〜AC-30 は、本番の構成を変える場合だけ行う。変えない場合は、ステップ 5-1 で各行に「該当しない」と結論への参照を書く。
 
@@ -450,11 +450,11 @@ AC-24〜AC-30 は、本番の構成を変える場合だけ行う。変えない
 
 ## 8. 完了条件 (Success Criteria)
 
-- [ ] AC-01〜AC-23 の検証が完了し、評価記録の結論が人の承認を受けている。
-- [ ] 実 API を呼んだ実行の推定コストの合計が、承認の上限以下である。
-- [ ] 基準の構成の保存した出力と評価用のキャッシュが、評価の前後で変わっていない。
+- [x] AC-01〜AC-23 の検証が完了し、評価記録の結論が人の承認を受けている。
+- [x] 実 API を呼んだ実行の推定コストの合計が、承認の上限以下である。
+- [x] 基準の構成の保存した出力と評価用のキャッシュが、評価の前後で変わっていない。
 - [ ] `_eval/` と `04_evaluation.md` に API キーと全文がない（`secretscan.sh` とレビュー）。
-- [ ] 本番の構成を変える場合は、AC-24〜AC-30 の検証が完了している。
+- [-] 本番の構成を変える場合は、AC-24〜AC-30 の検証が完了している。（本番の構成を変えない。`04_evaluation.md` §10 の結論による）
 
 ## 9. 次のステップ (Next Steps)
 
