@@ -176,8 +176,13 @@ check-record: 28 tables match
 | ビルドしたコミット | `bc7208cd941fabf3635e10067fa4c58c0dbe9441`（ビルドの時点の main の先頭。`git merge-base --is-ancestor` で main から到達できることを確かめた） |
 | 置き場所 | `0087/bin/bc7208cd941fabf3635e10067fa4c58c0dbe9441/yt2column`（モード `0555`） |
 | SHA-256 | `6a975731b6aa34be0421dc891f9e365d3957b2d7cb1cffa047420b39f2179a09`（同じディレクトリの `yt2column.sha256` にも置いた） |
+| バイナリが持つビルドの情報 | `go version -m` で `vcs.revision=bc7208cd941fabf3635e10067fa4c58c0dbe9441`・`vcs.modified=false` |
 
-**採点のエージェントの定義:** 2026-11-12 に、人の許可を得て `_eval/scorer-agent.md` を `~/.claude/agents/yt2column-0087-scorer.md` に写した（内容は同じ。計画 §1.2 の決めたこと 9）。2 段目の採点の後に消す（ステップ 4-1）。
+**採点のエージェントの定義:** 2026-11-12 に、人の許可を得て `_eval/scorer-agent.md` を `~/.claude/agents/yt2column-0087-scorer.md` に写した（内容は同じ。計画 §1.2 の決めたこと 9）。2 段目の採点の後に消す（ステップ 4-1）。ディレクトリを新しく作ったので、ステップ 1-7 の前にセッションを開き直す。定義が読み込まれたことは、ステップ 1-7 の試しの採点で確かめる。
+
+**`evaltool` を実行するコミット:** 固定したコミット `bc7208cd` の `_eval/evaltool` はビルドできない。PR-1 のマージの前に、#843 が `YtDlpSource` を `internal/transcript` から `internal/ytdlpsource` に移したためである（`_eval/` は `go list ./...` に入らないので、`make test` も CI もこれを検出しなかった。§2.5 の確かめは squash merge の前のコミット `7107df2dacee` のものである）。PR-2 のブランチのコミット `18497a55` で直した。ステップ 1-7 以後の `evaltool`（`estimate`・`rates`・`launch`・`aggregate`・`material`・`check-record`）は PR-2 のブランチで実行する。単価と上限が固定した CLI と食い違わないように、次を守る。
+- 実行の前に、`git diff --quiet bc7208cd HEAD -- internal cmd prompts go.mod go.sum Makefile` が成功する（CLI に関わるツリーが固定したコミットと同じ）ことを確かめる。
+- PR-2 のブランチには、ステップ 5-1 を終えるまで main を取り込まない。
 
 このコミットのアダプタの出力の上限の既定は、OpenAI が 6,080（`internal/llm/openai/request.go:29`）、Claude が 40,000（`internal/llm/claude/request.go:30`）で、`bounds-input.json` の値と同じである（§5「上限のそのほかの前提」）。
 
@@ -210,7 +215,7 @@ check-record: 28 tables match
 
 **実行の条件の違い（AC-01）:** 基準の構成と本評価では、CLI のコミットと Claude のアダプタの出力の上限の既定が違う。
 - **CLI のコミット:** B3 は `2fc2e2a` のツリーの CLI（`16680de` でビルド。main から到達できない。0018 評価記録 §4.1.2）、本評価は `bc7208cd`（§2.6）である。
-- **Claude のアダプタの出力の上限の既定（`max_tokens`）:** B3 の CLI は 16,000（`2fc2e2a` の `internal/llm/claude/request.go:26`）、本評価の CLI は 40,000（`bc7208cd` の同じファイルの 30 行）である。本評価で Claude が呼ばれるのは、構成 A の字数の調整（走らない見込み。設計 §3.2）と構成 B の検証・推敲である。B3 の検証・推敲の出力は 1,087〜4,777 トークン（0018 評価記録 §4.7.5「実行」）で、16,000 に届いていないので、この違いで B3 の検証・推敲の結果が変わった記事はない。
+- **Claude のアダプタの出力の上限の既定（`max_tokens`）:** B3 の CLI は 16,000（`2fc2e2a` の `internal/llm/claude/request.go:26`）、本評価の CLI は 40,000（`bc7208cd` の同じファイルの 30 行）である。本評価で Claude が呼ばれるのは、構成 A の字数の調整（走らない見込み。設計 §3.2）と構成 B の検証・推敲である。B3 の Claude の呼び出しの出力は、生成が 10 件で最大 13,688、字数の調整が 7,371（成功したやり直し）と 7,837（失敗した 1 回目）、検証・推敲が 1,087〜4,777 トークンで（0018 評価記録 §4.7.2）、どれも 16,000 に届いていない。B3 の出力のうち、上限で切られたものはない。
 
 **動画ごとの必須の観点の不合格の数（AC-21）:** 0008 評価記録 §6.2 の表から、物差し 2 の解釈による判定で数えた。leE02uqgaKg が 1 件（-2 の「根拠」）、残りの 4 本が 0 件である。18tbwwPM91A-2 の不合格は品質の観点「構成」の 1 による。EqnGQDU71-Y-2 の「根拠」は文言どおりの判定だけの不合格である。値は §10 の動画ごとの比較の表の「基準の構成」の列に出る。
 
@@ -235,7 +240,7 @@ check-record: 28 tables match
 
 | 一覧 | 作った日時（UTC） | ファイルの数 | 一覧の SHA-256 | 前の一覧との `diff` |
 |---|---|---|---|---|
-| `0087/hash/1-initial.tsv`（実行の前の確認の前） | 2026-11-12T05:16:13Z | 50（`base` 10、`work` 21、`cache` 19） | `19694f72398b5e630af2ae816496f79ba1adb191328405fba3a8fe24a482b958` | -（最初の一覧） |
+| `0087/hash/1-initial.tsv`（実行の前の確認の前） | 2026-11-12T05:16:13Z | 50（`base` 10、`work` 21、`cache` 19。`cache` は評価の 5 本の各 3 ファイルに、評価に使わない qjAz-VOAdz4 の 3 ファイルとロックのファイル 1 つを含む） | `19694f72398b5e630af2ae816496f79ba1adb191328405fba3a8fe24a482b958` | -（最初の一覧） |
 
 - **バックアップ:** 最初の一覧と同時に、`0018/` を起点とする `base/B3` と `work/B3` を `tar -czf` でまとめ、`0087/backup/b3-base-work.tar.gz`（モード `0400`）に置いた。アーカイブの SHA-256 は `8f7cba7b3283960f89ce8a3f14a91b68fef7a97f6e6e67edbf4f734cd75da11c` である。リポジトリの外の一時ディレクトリへ `tar -xpzf`（モードを保つ）で展開し、`hashlist.sh` で作った一覧（31 ファイル）が最初の一覧の `base`・`work` の行と、パス・モード・SHA-256 まで一致した（`diff` が空）。
 
