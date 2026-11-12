@@ -86,7 +86,7 @@ LLM creates 01_requirements.md from an issue with /mkreq (status: draft)
       → Proceed to writing implementation code with /runplan
 ```
 
-Each document goes through its own PR: `/mkreq`, `/mkarch`, or `/mkplan` (which also designs the PR boundaries) opens it and pings the reviewer; `/mkplan2`, which adds PR boundaries to an older approved plan, returns the plan to `draft` and opens a PR the same way. After reviewing it, the reviewer runs `/runpr`, which asks one question at the merge: approve the document and merge, with the next command offered. On that answer it commits the approval and merges; it runs the next command right away only when the user chooses to (`.claude/commands/runpr.md`, steps 4 and 5).
+Each document goes through its own PR: `/mkreq`, `/mkarch`, or `/mkplan` (which also designs the PR boundaries) opens it and pings the reviewer; `/mkplan2`, which adds PR boundaries to an older approved plan, returns the plan to `draft` and opens a PR the same way. After reviewing it, the reviewer runs `/runpr`, which asks the merge question: approve the document and merge, with the next command shown. On that answer it commits the approval and merges; it never runs the next command (`.claude/commands/runpr.md`, steps 4 and 5).
 
 The flow above is the **full process**. `/mkreq` asks each time it writes a
 `01_requirements.md` whether the task takes the full process or the **simple
@@ -572,7 +572,7 @@ When a decision found later needs an excluded change:
 
 **Returning to the full process.** Before the three-document PR is merged, the
 reviewer can return it to the full process, only by answering `/runpr`'s merge
-question or by telling `/runpr` to; a review thread asking for it never
+question or its deferred question, or by telling `/runpr` to; a review thread asking for it never
 returns it, and no other command changes the process record. After the return:
 
 - the PR holds `01_requirements.md` alone, without `02_architecture.md` and

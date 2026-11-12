@@ -81,7 +81,7 @@ var postingSections = []postingSection{
 // Section headings of runpr.md and _lib/task-pr-handoff.md that only these
 // tests read.
 const (
-	runprStep5       = "## 5. Switch branch, then run or show NEXT"
+	runprStep5       = "## 5. Switch branch, then show NEXT"
 	handoffLinkIssue = "### Choosing the issue to link"
 )
 

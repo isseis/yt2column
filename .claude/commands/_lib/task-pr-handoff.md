@@ -26,10 +26,10 @@ command's own text; read them from `_context.md` when you run it.
 
 These commands do not wait for the review or the merge. The reviewer reviews the
 PR and then runs `/runpr <PR>` by hand, which drives it to the merge. It waits for Codex's PR review and CI, resolves the threads, and then asks
-one question that covers the merge, the bookkeeping committed just before it
-(for a task-document PR, setting the document to `approved`), and the next
-command offered after the merge, which `/runpr` runs only when the user
-chooses to (`runpr.md` steps 2, 4, and 5).
+the merge question, which covers the merge and the bookkeeping committed just
+before it (for a task-document PR, setting the document to `approved`), after
+a deferred question when deferred review threads are left. `/runpr` shows the
+next command after the merge and never runs it (`runpr.md` steps 2, 4, and 5).
 
 ## Inputs the calling command must supply
 

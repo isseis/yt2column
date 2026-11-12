@@ -204,7 +204,7 @@ Project-specific values these commands depend on are defined once in
 - `/mkplan <task>` - Create `03_implementation_plan.md` with its PR boundaries (requires approved architecture) and open its PR; it stops without writing for a task that takes the simple process, whose documents `/mkreq` writes
 - `/mkplan2 <task>` - Embed PR boundaries into an approved plan that lacks them (plans written before `/mkplan` did it) and open its PR
 - `/runplan <task>` - Implement the phase groups of an approved plan up to the next PR checkpoint, then open the PR
-- `/runpr [PR | branch | task]` - Drive a PR through Codex's PR review and CI, record its bookkeeping (a document's approval, a plan checkpoint), merge it, and offer the next command, which it runs only when the user chooses; for a standalone change it also creates the PR
+- `/runpr [PR | branch | task]` - Drive a PR through Codex's PR review and CI, record its bookkeeping (a document's approval, a plan checkpoint), merge it, and show the next command, which it does not run; for a standalone change it also creates the PR
 - `/weakreview [range | PR] [--no-fix | --fix]` - Opus review of a commit range: a correctness review and a weak-model failure review run on Opus in one pass; by default it fixes the Critical and Major findings and commits the fixes on the current branch without pushing, and `--no-fix` only reports
 - `/fixpr [PR]` - Resolve unresolved PR review threads
 - `/mergepr [PR]` - Squash-merge a PR with a generated commit message and clean up its branch
@@ -224,10 +224,10 @@ on Opus, whose Critical and Major findings it fixes) when the PR's
 implementation model requirement is `opus`, `sonnet+opus-review`, or
 unreadable, and some commit of the PR is not recorded as implemented on Opus. After reviewing, the reviewer runs `/runpr`, which drives
 it: it waits for Codex's PR review and CI and resolves the threads with `/fixpr`. It
-then asks one question that decides the bookkeeping (for a document, its
-`approved` status) and the merge with `/mergepr`, and offers the next command
-when there is one. When the user chooses to run it, it runs, opens the next PR,
-and stops again.
+then asks, after a deferred question when deferred review threads are left, the
+merge question that decides the bookkeeping (for a document, its
+`approved` status) and the merge with `/mergepr`, and shows the next command
+when there is one; the user runs it, which opens the next PR and stops again.
 
 Codex does the PR review. Its allowance is shared with the user's other
 ChatGPT use and its size is not published, so a PR gets one PR review, when it
@@ -241,7 +241,7 @@ separate from the PR review's, but the fallback Codex CLI spends the same
 allowance as the PR review. `/runpr` requests another PR review only when
 the changes are of a kind the local review cannot stand in for
 ([pr-review-escalation.md](.claude/commands/_lib/pr-review-escalation.md)) or
-when the user asks in its one question.
+when the user asks in the merge question (its "先に PR レビューを依頼" option).
 
 ### Extension Commands
 
