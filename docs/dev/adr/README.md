@@ -15,7 +15,7 @@
 | [ADR-0007](0007-manual-transcript-copy.md) | 字幕は利用者が文字起こしパネルから手動でコピーし、拡張はページを読むだけにする | `有効` |
 | [ADR-0008](0008-launch-path.md) | 拡張の起動の経路をツールバーのポップアップだけにし、生成の開始は利用者のボタンの押下だけで行う | `有効` |
 | [ADR-0009](0009-viewer-opening.md) | ビューアは生成の開始と同時に背面のタブで開いて Worker で記事を生成し、ポップアップは閉じずに状態を表示する | `有効` |
-| [ADR-0010](0010-extension-stores-nothing.md) | 拡張は API キーを chrome.storage.local に、ジョブの記録を chrome.storage.session に保存し、権限を activeTab・scripting・storage に限る | `有効` |
+| [ADR-0010](0010-extension-stores-nothing.md) | 拡張は API キーを chrome.storage.local に、ジョブの記録を chrome.storage.session に保存し、権限を activeTab・scripting・storage に、送り先を CSP で Anthropic の API に限る | `有効` |
 | [ADR-0011](0011-webhook-publishing.md) | 投稿先は Slack 互換の Incoming Webhook とし、投稿は利用者の操作でだけ行う | `廃止` |
 | [ADR-0012](0012-lightweight-check-in-bash.md) | 軽量プロセスの確かめ直しは、origin/main の版の bash スクリプトで行い、Go のツールにしない | `廃止` |
 | [ADR-0013](0013-review-setup.md) | PR レビューは作成時の 1 回だけ Codex に頼み、その後の変更はローカルの CLI レビューで見る | `有効` |
@@ -54,4 +54,4 @@
 | [ADR-0046](0046-chief-of-staff.md) | chief は人の判断を待つものを示し、決まった入力だけをほかのエージェントに送り、マージの後の次のコマンドを自動で送る | `有効` |
 | [ADR-0047](0047-runpr-merge-question.md) | /runpr のマージの質問は 1 つの単一選択の問いにし、詳細は作業ツリーの外のファイルに書いて会話には要約だけを出し、deferred のスレッドはその前に片付ける | `有効` |
 | [ADR-0048](0048-extension-only-generation.md) | 記事を拡張だけで作り、localhost サーバと Native Messaging のホストを廃止する | `有効` |
-| [ADR-0049](0049-wasm-core-sharing.md) | 記事を作る処理は Go のコアを WebAssembly にして CLI と拡張が共有し、拡張のビルドが WASM と wasm_exec.js を成果物に入れる | `有効` |
+| [ADR-0049](0049-wasm-core-sharing.md) | 記事を作る処理は Go のコアを WebAssembly にして CLI と拡張が共有し、拡張との境界を JSON の文字列にする | `有効` |

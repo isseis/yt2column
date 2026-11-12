@@ -21,11 +21,12 @@
 -   **Go の手順は拡張のディレクトリを含まず、Node.js を呼ばない。拡張のビルド（`make ext-build`）は Go を呼んで WASM の入口をビルドする。** Go の手順の結果を変えないためである。拡張のビルドが Go を呼ぶのは、成果物に WASM の入口を入れるためである（ADR-0049）。規則は [0007 設計書](../../tasks/0007_browser_extension_skeleton/02_architecture.md) §1.1・§3.10「既存のファイルの変更と、Go の手順への影響」と、[0090 設計書](../../tasks/0090_extension_only_architecture/02_architecture.md) の「ビルドと成果物」にある。
 -   **バンドラを使わず、`tsc` だけで TypeScript をビルドする。** ビルドは `tsc` の出力、`static/` の写し、WASM の入口、Go のツールチェーンの `wasm_exec.js` だけを成果物とし、ほかのものが成果物に入らないことを検査する。`wasm_exec.js` は本リポジトリで書いたコードでないので、成果物の検査の例外として宣言し、`go.mod` が定める Go の版のものと中身が一致することを検査する。実行時に読み込む npm のパッケージがなく、まとめる対象がないためである。`wasm_exec.js` を例外にするのは、Go の WASM を読み込むのに要るためである。規則は [0007 設計書](../../tasks/0007_browser_extension_skeleton/02_architecture.md) §3.8・§3.9「成果物の検査」と、0090 設計書の「ビルドと成果物」「方針の例外」にある。
 -   **拡張の ID を manifest の `key` で固定し、Web Store の項目を作るときに Web Store の公開鍵に置き換える。** 今の `key` は RSA 2048 ビットの公開鍵で、ID は `clfmbbcdpnjcefbdihdoahomaifbabkk` になる。ID を固定するのは、開発用に読み込んだ拡張の ID を、読み込んだディレクトリやワークツリーによらず同じにし、保存した API キーを引き継ぐためである。Web Store の公開鍵に置き換えるのは、開発用の拡張と Web Store から導入した拡張の ID を同じにするためである。置き換えは、Web Store の申請を扱う issue の作業にする。鍵の組を作った直後に秘密鍵を削除し、リポジトリに含めない。`key` は公開情報なので、ID は秘密ではない。規則は [0007 設計書](../../tasks/0007_browser_extension_skeleton/02_architecture.md) §3.1「manifest」と、0090 設計書の「ID と対象のブラウザ」「構成を縛る外部の条件（要件書 AC-20）」にある。
+-   **成果物の WASM は、公開用の WASM の入口（`cmd/yt2column-wasm`）からビルドしたものに限る。開発用のビルド（`make ext-build-dev`）は、manifest に `key` を持たず、名前に開発用の印を付けて、別の場所（`extension/dist-dev/`）に置く。** 成果物の検査は、`go version -m` が示す main のパッケージのパスで、WASM の出どころを確かめる。開発用のビルドの ID を公開用と別にし、開発用のビルドで保存したダミーの値が本物の API キーを上書きしないためであり、fake の LLM を含む WASM が公開用の成果物に入らないためである（[ADR-0045](0045-dev-fake-llm.md)）。規則は 0090 設計書の「料金をかけずに拡張を動かす方法」にある。
 -   **対象のブラウザは Chrome と Brave だけにする。** 手動で確認していないブラウザを、確かめないまま対象にしないためである。Brave は、Chrome Web Store の Manifest V3 の拡張が Chrome と同じに動くとしている。規則は [0007 要件定義書](../../tasks/0007_browser_extension_skeleton/01_requirements.md) §1・§2.3 と、0090 設計書の「ID と対象のブラウザ」にある。
 
 拡張が要求する Chrome の最小の版は [ADR-0030](0030-minimum-chrome-version.md) が、拡張の表示の言語は [ADR-0029](0029-extension-ui-languages.md) が定める。拡張の権限と、拡張が保存するものは [ADR-0010](0010-extension-stores-nothing.md) が、起動の経路は [ADR-0008](0008-launch-path.md) が、脅威モデルは [ADR-0006](0006-threat-model.md) が定める。
 
-この決定のうち、拡張のビルドが Go を呼んで WASM の入口と `wasm_exec.js` を成果物に入れることと、成果物の検査の例外は、まだコードと [CLAUDE.md](../../../CLAUDE.md) に反映していない。今の拡張のビルドは Go を呼ばない。この差分は [#773](https://github.com/isseis/yt2column/issues/773) の実装で解消する。
+この決定のうち、拡張のビルドが Go を呼んで WASM の入口と `wasm_exec.js` を成果物に入れること、成果物の検査の例外、開発用のビルドは、まだコードと [CLAUDE.md](../../../CLAUDE.md) に反映していない。今の拡張のビルドは Go を呼ばない。この差分は [#773](https://github.com/isseis/yt2column/issues/773) の実装で解消する。
 
 ## 採らなかった案
 

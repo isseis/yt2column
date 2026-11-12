@@ -10,7 +10,7 @@
 
 ビューアは、記事を作る処理が返し、ジョブの記録に置いた記事（表示用の Markdown）を表示する拡張のページである。記事は LLM の出力で、字幕と動画メタデータを経由したプロンプトインジェクションで、意図しない HTML やリンクを含みうる。拡張のページはすべて同じオリジンで、ビューアから、拡張が保存した利用者の API キーに届く。記事からスクリプトが動けば、API キーを読んで外へ送ることにつながる（[0090 設計書](../../tasks/0090_extension_only_architecture/02_architecture.md) の「オプションページと API キーの保存」）。
 
-拡張が出荷するのはこのリポジトリが書いたコードと、例外として宣言した Go のツールチェーンの `wasm_exec.js` だけで（[ADR-0026](0026-extension-platform.md)）、npm のパッケージは開発用に限るので（[CLAUDE.md](../../../CLAUDE.md)「Dependencies」）、Markdown のライブラリは使えない。記事の書き方は生成のプロンプト（[prompts/system.tmpl](../../../prompts/system.tmpl)）が決める。表示用の Markdown には、記事のほかに、動画の持ち主が決めるチャンネル名の行と、出典の自動リンクの行が入る。
+拡張が出荷するのは本リポジトリで書いたコードと、例外として宣言した Go のツールチェーンの `wasm_exec.js` だけで（[ADR-0026](0026-extension-platform.md)）、npm のパッケージは開発用に限るので（[CLAUDE.md](../../../CLAUDE.md)「Dependencies」）、Markdown のライブラリは使えない。記事の書き方は生成のプロンプト（[prompts/system.tmpl](../../../prompts/system.tmpl)）が決める。表示用の Markdown には、記事のほかに、動画の持ち主が決めるチャンネル名の行と、出典の自動リンクの行が入る。
 
 ## 決定
 

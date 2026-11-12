@@ -16,7 +16,7 @@ LLM の API キーは、ログやエラーメッセージに漏れてはなら�
 
 -   **秘密は `secret.Secret` で持つ。** API キーは、設定を読むところで `secret.Secret` に包み、秘密を使う部品は `secret.Secret` のまま受け取って持つ。漏らさないことを各実装者の注意に頼らず、型で保証するためである（背景）。`internal/secret` の役割は [package_reference.md](../conventions/package_reference.md) の `internal/secret` の行に従う。
 -   **API キーは、送信先へのリクエストを除き、エラー・ログ・標準出力を含むどの出力にも出さない。** 秘密がログやエラーメッセージに漏れてはならないためである（背景）。秘密の扱いは [security.md](../security.md) の §2 に従う。
--   **拡張では、API キーは決めた経路だけを通り、WASM の入口が受け取った直後に `secret.Secret` に包む。** 経路は、オプションページから `chrome.storage.local` へ、そこから記事の生成を実行するビューアのメインスレッドへ、`postMessage` で Worker へ、Worker の中の WASM の入口へ、そして Anthropic の API の要求のヘッダへ、である。設定の検査のときは、オプションページから Worker の検査の関数へも渡る。SW へのメッセージ、ジョブの記録、`BroadcastChannel`、WASM の入口の結果と進み具合、ログ、画面には入れない。TypeScript の側には型の保証がないので、経路を決めた箇所に限ってテストで確かめ、Go の側に入った後は型で守るためである。規則は [0090 設計書](../../tasks/0090_extension_only_architecture/02_architecture.md) の「API キーを出さない先（要件書 AC-06）」にある。
+-   **拡張では、API キーは決めた経路だけを通り、WASM の入口が受け取った直後に `secret.Secret` に包む。** API キーは、オプションページから `chrome.storage.local` へ、そこから記事の生成を実行するビューアのメインスレッドへ、`postMessage` で Worker へ、Worker の中の WASM の入口へと渡り、Anthropic の API のリクエストのヘッダに入る。設定の検査のときは、オプションページから Worker の検査の関数へも渡る。SW へのメッセージ、ジョブの記録、`BroadcastChannel`、WASM の入口の結果と進み具合、ログ、画面には入れない。SW とポップアップは API キーの値を読まず、秘密でない設定済みの印だけを読む（[ADR-0010](0010-extension-stores-nothing.md)）。TypeScript の側は型で守れないので経路を限ってテストで確かめ、Go の側に入った後は型で守るためである。規則は [0090 設計書](../../tasks/0090_extension_only_architecture/02_architecture.md) の「API キーを出さない先（要件書 AC-06）」にある。
 
 拡張が API キーを保存して WASM の入口に渡すことは、まだコードと security.md に反映していない。今の拡張は API キーを持たず、サーバが設定ファイルから読む。この差分は [#773](https://github.com/isseis/yt2column/issues/773) の実装で解消する。
 

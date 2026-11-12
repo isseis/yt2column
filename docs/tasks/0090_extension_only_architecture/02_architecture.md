@@ -12,12 +12,12 @@
 
 ## 1. 設計の全体像 (Design Overview)
 
-本書は、[01_requirements.md](01_requirements.md)（以下、要件書）が定める「拡張だけの構成」を設計する。拡張だけの構成では、localhost サーバと Native Messaging のホストを使わない。ブラウザ拡張が、Go の記事を作る処理を WebAssembly（WASM）にしたものを自分のページで動かし、利用者の API キーで Claude API を直接呼ぶ。本書の決定は ADR に記録する（§3.15）。実装は [#773](https://github.com/isseis/yt2column/issues/773) が行う。本タスクは、`cmd/`・`internal/`・`extension/` を変えない。
+本書は、[01_requirements.md](01_requirements.md)（以下、要件書）が定める「拡張だけの構成」を設計する。拡張だけの構成では、localhost サーバと Native Messaging のホストを使わない。ブラウザ拡張は、記事を作る Go の処理を WebAssembly（WASM）にビルドして自分のページで動かし、利用者の API キーで Claude API を直接呼ぶ。本書の決定は ADR に記録する（§3.15）。実装は [#773](https://github.com/isseis/yt2column/issues/773) が行う。本タスクは、`cmd/`・`internal/`・`extension/` を変えない。
 
 本書の用語は要件書 §6 による。加えて、次の語を使う。
 
 -   **SW:** 拡張の Service Worker。
--   **ジョブ:** 1 つの入力（コピーした字幕と動画メタデータ）についての記事の生成の記録の単位。同じ入力の実行は、同じジョブに属する。
+-   **ジョブ:** 記事の生成を、1 つの入力（コピーした字幕と動画メタデータ）ごとにまとめて記録する単位。同じ入力の実行は、同じジョブに属する。
 -   **ジョブの記録:** ジョブの状態と、完成した記事を持つ値。`chrome.storage.session` に置く（§3.2）。
 -   **ジョブ ID:** ジョブを指す不透明な値。今の記事のキーに当たる（§3.2.2）。
 -   **実行するビューア:** 記事の生成を実行しているビューアのタブ。実行するビューアは、専用の Web Worker（以下、Worker）を 1 つ起動し、その中で WASM を動かす（§3.4）。
@@ -26,7 +26,7 @@
 
 ### 1.1. 設計原則
 
--   **記事を作る規則は、Go の 1 か所に置く。** 入力の検査、字幕の解析、3 つの工程、完了の時点の検査、メンションの無効化、保存するファイルの中身、料金の概算は、CLI と拡張で同じ Go のコードを使う（要件書 AC-12・§4.5）。拡張の TypeScript は、収集、調停、表示、保存の手段だけを持つ。
+-   **記事を作る規則は、Go の 1 か所に置く。** 入力の検査、字幕の解析、3 つの工程、完了の時点の検査、メンションの無効化、保存するファイルの中身、料金の概算は、CLI と拡張で同じ Go のコードを使う（要件書 AC-12・§4.5）。拡張の TypeScript は、収集、調停、表示、保存の手段だけを持つ。TypeScript に残る検査は、集める対象のタブかどうかの判定と、ページの間で受け渡す値の大きさの上限だけである。入力を受理するかどうかの規則は、Go が持つ（§5.2）。
 -   **状態の正しい値は 1 か所に置き、書き手を 1 つにする。** ジョブの記録は `chrome.storage.session` に置き、書き込むのは SW だけにする。同じ入力・同じ動画の判定と記録の追加を、SW の 1 つの直列の処理で行い、二重の生成を防ぐ（§3.3）。
 -   **生成はページの寿命に従う。** 記事の生成は、それを実行するビューアのタブの中の Worker だけが行う。タブが閉じられれば止まり、ほかの場所で続かない（[ADR-0048](../../dev/adr/0048-extension-only-generation.md)、要件書 AC-08）。
 -   **料金のかかる操作は、利用者の明示の操作のときだけ行い、自動で繰り返さない。** 生成を始めるのは、ポップアップのボタンの押下だけである（[ADR-0008](../../dev/adr/0008-launch-path.md)・[ADR-0028](../../dev/adr/0028-no-automatic-resend.md)、要件書 AC-07）。
@@ -36,7 +36,7 @@
 
 ### 1.2. 設計の際に決めたこと（2026-11-12）
 
--   **記事の生成は、ビューアのタブの中の専用の Web Worker で実行し、完成か失敗で Worker を止める（§3.4）。** SW は、ポップアップのボタンが押されると、今と同じくビューアを背面のタブで開く。そのビューアが Worker を 1 つ起動し、Worker が WASM の入口を読み込んで記事を生成する。完成か失敗の後、ビューアは `Worker.terminate()` を呼び、表示するビューアになる。WASM を読み込んだまま開き続けたページは、1 枚ごとに数十 MB のメモリを使い続けるためである（[申し送り](design_handoff.md) H-12）。PoC は、このメモリを、記事の生成を実行したタブの試行の前後で 61.6〜85.8 MB と測った（[調査記録](../../research/wasm_pipeline_poc/README.md)「測定 6：本番の構成（Chrome、`83ef12bd`、背面のまま）」）。採らなかった案は、ビューアのメインスレッドで動かして完成の後に読み込み直す案と、Offscreen Document で動かす案である。前者は、読み込み直すときに画面が切り替わり、状態の知らせが途切れうる。後者は、拡張に 1 つしか置けず、ビューアを閉じても止まらないので、生成の寿命をページの寿命とする決定（ADR-0048）から外れる。背面で開いたまま一度も前面にならないタブで Worker が完走することは、マージの前に確かめる（下の項目）。ADR: [ADR-0009](../../dev/adr/0009-viewer-opening.md) と ADR-0048 を更新した。
+-   **記事の生成は、ビューアのタブの中の専用の Web Worker で実行し、完成か失敗で Worker を止める（§3.4）。** SW は、ポップアップのボタンが押されると、今と同じくビューアを背面のタブで開く。そのビューアが Worker を 1 つ起動し、Worker が WASM の入口を読み込んで記事を生成する。完成か失敗の後、ビューアは `Worker.terminate()` を呼び、表示するビューアになる。WASM のメモリは大きくなるだけで縮まないので、WASM を読み込んだまま開き続けたページは、そのメモリを使い続けるためである（[申し送り](design_handoff.md) H-12）。PoC は、記事の生成を実行したタブ全体のメモリを、試行の前後で 61.6〜85.8 MB と測った。そのうち WASM が占める量は測っていない（[調査記録](../../research/wasm_pipeline_poc/README.md)「測定 6：本番の構成（Chrome、`83ef12bd`、背面のまま）」）。採らなかった案は、ビューアのメインスレッドで動かして完成の後に読み込み直す案と、Offscreen Document で動かす案である。前者は、読み込み直すときに画面が切り替わり、状態の知らせが途切れうる。後者は、拡張に 1 つしか置けず、ビューアを閉じても止まらないので、生成の寿命をページの寿命とする決定（ADR-0048）から外れる。背面で開いたまま一度も前面にならないタブで Worker が完走することは、マージの前に確かめる（下の項目）。ADR: [ADR-0009](../../dev/adr/0009-viewer-opening.md) と ADR-0048 を更新した。
 -   **記事を作る処理は、Go のコアを WASM にして CLI と共有する（§3.1）。** 規則を Go の 1 か所に保ち、要件書 §4.5 の「同じ規則を、Go と TypeScript の両方に書かない」を満たすためである。TypeScript に一本化する案は採らなかった。字幕の解析、メンションの無効化、3 つの工程、料金の概算を TypeScript で書き直すことになり、CLI が Go の同じ規則を持ち続けるので、規則が 2 つになる。WASM のサイズ（17,300,194 バイト、`gzip -9` で 4,138,823 バイト）と読み込みの時間（Chrome で 62.4〜171.2 ms、Brave で 49.9〜206.5 ms）は受け入れる（調査記録「測定 2：読み込みと CSP、サイズと読み込みの時間」）。読み込みは生成 1 回に 1 度で、生成の所要時間（本番の構成で 95〜151 秒。調査記録「測定 6」）に比べて小さいためである。ADR: [ADR-0049](../../dev/adr/0049-wasm-core-sharing.md) を新設し、[ADR-0019](../../dev/adr/0019-pipeline-component-interfaces.md) と [ADR-0026](../../dev/adr/0026-extension-platform.md) を更新した。
 -   **ジョブの記録は `chrome.storage.session` に置き、書き込むのは SW だけにする（§3.2・§3.3）。** 実行するビューアは、工程の進み具合と結果を SW へ知らせる。SW は、同じ入力・同じ動画の判定と記録の追加を、1 つの直列の処理の中で行う。ポップアップとビューアは、記録を読み、`chrome.storage.onChanged` で表示を更新する。状態の取得のポーリングはやめる。探すことと始めることが分かれると、同時に押された 2 つの開始がどちらも記事を見つけず、同じ動画の記事を二重に生成しうるためである（申し送り H-06）。採らなかった案は、処理中の状態を実行するページが持ち、ほかのページが `BroadcastChannel` で尋ねる案である。ページの間の問い合わせが増え、判定の排他を保つのが難しい。ADR: [ADR-0027](../../dev/adr/0027-article-job-api.md)・[ADR-0010](../../dev/adr/0010-extension-stores-nothing.md)・ADR-0008 を更新した。
 -   **API キーとワークスペース ID は、オプションページで設定する（§3.6）。** 記事を描画するビューアとも、生成の操作をするポップアップとも、画面を分けるためである。採らなかった案は、ポップアップの中に設定の欄を置く案である。画面が狭く、生成の操作と混ざる。ADR: ADR-0010 と ADR-0008 を更新した。
@@ -49,12 +49,11 @@
 
 ### 1.3. 概念モデル
 
-拡張だけの構成の主な概念と、その関係を示す。矢印 A → B は、「A が B を持つ、または作る」を表す。
+拡張だけの構成の主な概念と、その関係を示す。矢印 A → B は、「A が B を決める、持つ、使う、または作る」を表し、そのどれかをラベルで示す。
 
 ```mermaid
 flowchart LR
     classDef data fill:#e6f7ff,stroke:#1f77b4,stroke-width:1px,color:#0b3d91;
-    classDef process fill:#fff1e6,stroke:#ff7f0e,stroke-width:1px,color:#8a3e00;
     classDef newpkg fill:#ffe8f5,stroke:#d946ef,stroke-width:2px,color:#701a75;
 
     SET[("設定<br>（API キー・ワークスペース ID）")]
@@ -64,11 +63,12 @@ flowchart LR
     ART[("完成した記事")]
     RES[("実行の結果<br>（完成・失敗・止まった）")]
 
-    INPUT -->|"検査を通ると決まる"| JOB
-    JOB -->|"持つ（最新の 1 回）"| RUN
-    SET -->|"実行が使う"| RUN
+    INPUT -->|"決める（同じ入力は同じジョブ）"| JOB
+    JOB -->|"持つ（最新の 1 回の状態）"| RUN
+    RUN -->|"使う"| SET
     RUN -->|"作る"| RES
-    JOB -->|"持つ（完成したとき）"| ART
+    RES -->|"持つ（完成したとき）"| ART
+    JOB -->|"持つ（最新の結果）"| RES
 
     class SET,INPUT,JOB,ART,RES data
     class RUN newpkg
@@ -105,7 +105,7 @@ flowchart LR
     WORKER["Worker"]
     WASM["WASM の入口<br>（cmd/yt2column-wasm）"]
     OPT["オプションページ"]
-    LOCAL[("chrome.storage.local<br>（API キー・ワークスペース ID）")]
+    LOCAL[("chrome.storage.local<br>（API キー・ワークスペース ID・<br>設定済みの印）")]
     SESSION[("chrome.storage.session<br>（ジョブの記録）")]
     API["Anthropic の API"]
 
@@ -118,6 +118,7 @@ flowchart LR
     SESSION -->|"読む・変更の通知"| POP
     SESSION -->|"読む・変更の通知"| VIEW
     LOCAL -->|"読む"| VIEW
+    LOCAL -->|"設定済みの印だけを読む"| SW
     VIEW -->|"入力と設定"| WORKER
     WORKER -->|"呼ぶ"| WASM
     WASM -->|"リクエスト"| API
@@ -149,12 +150,12 @@ flowchart LR
 | 置き場所 | 役割 | 今との違い |
 |---|---|---|
 | ポップアップ | 起動したタブの選択範囲と動画メタデータを読み、生成の開始を SW に頼む。開始の結果と、ジョブの記録の状態を表示する。同じ動画の記事があれば、既存の記事を表示するか、現在の選択範囲で生成するかを選ばせる | 状態の取得のポーリングをやめ、ジョブの記録を読む。API キーが設定されていないときに、オプションページを開く操作を示す |
-| SW | 生成の開始を、拡張自身のポップアップからだけ受け付ける。ビューアを背面のタブで開き、入力をビューアに渡す。予約（同じ入力・同じ動画の判定と記録の追加）、進み具合と結果の書き込み、止まった実行の判定を、1 つの直列の処理で行う。ジョブの記録の唯一の書き手である | ホストへの送信をやめ、ジョブの記録の書き手と調停役になる |
-| ビューア | 実行するビューアは、Worker を起動して記事を生成し、進み具合と結果を SW に知らせる。表示するビューアは、ジョブの記録を表示し、保存とコピーを行う | 状態の取得のポーリングをやめる。実行するビューアの役割が加わる |
+| SW | 生成の開始を、拡張自身のポップアップからだけ受け付ける。ビューアを背面のタブで開き、入力をビューアに渡す。予約（同じ入力・同じ動画の判定と記録の追加）、進み具合と結果の書き込み、止まった実行の判定を、1 つの直列の処理で行う。ジョブの記録の唯一の書き手である。API キーの値は読まない | ホストへの送信をやめ、ジョブの記録の書き手と調停役になる |
+| ビューア | 実行するビューアは、Worker を起動して記事を生成し、実行の間 SW への Port を保ち、進み具合と結果を SW に知らせる。表示するビューアは、ジョブの記録を表示し、保存とコピーを行う | 状態の取得のポーリングをやめる。実行するビューアの役割が加わる |
 | Worker | 実行するビューアとオプションページが起動する専用の Web Worker。WASM の入口を読み込んで呼ぶ。拡張の API（`chrome.*`）は使わない | 新しい |
-| WASM の入口 | 入力の検査、ジョブを見分ける値の計算、記事の生成、完了の時点の検査、表示とコピーと保存の値の組み立て、設定の検査を行う | 新しい。今の `internal/server` の生成の組み立てを引き継ぐ |
+| WASM の入口 | 入力の検査、ジョブを見分ける値の計算、記事の生成、完了の時点の検査、表示とコピーと保存の値の組み立て、設定の検査を行う。処理は `internal/extjob` にあり、入口は JavaScript への登録だけを持つ | 新しい。今の `internal/server` の生成の組み立てを引き継ぐ |
 | オプションページ | API キーとワークスペース ID を設定・変更・削除する | 新しい |
-| `chrome.storage.local` | API キーとワークスペース ID を、ブラウザの再起動の後も残る形で持つ | 新しい |
+| `chrome.storage.local` | API キーとワークスペース ID と、秘密でない設定済みの印を、ブラウザの再起動の後も残る形で持つ | 新しい |
 | `chrome.storage.session` | ジョブの記録を、ブラウザを終了するまでメモリに持つ | 新しい。今はサーバのメモリの記事のキャッシュ |
 
 ### 2.3. Go のパッケージの構成
@@ -185,13 +186,17 @@ flowchart LR
         WE["cmd/yt2column-wasm"]
         EJ["internal/extjob"]
         CFG["internal/config"]
-        CORE2["internal/transcript<br>internal/writer<br>internal/publisher<br>internal/pricing<br>internal/llm/claude"]
+        CL["internal/llm/claude<br>internal/llm/llmhttp"]
+        CORE2["internal/transcript<br>internal/writer<br>internal/publisher<br>internal/pricing<br>internal/strictjson<br>internal/llm/claudeparam"]
+        PROV["internal/llm/provider"]
         WE --> EJ
         WE --> CFG
+        WE --> CL
         EJ --> CORE2
+        CL --> CORE2
         class WE,EJ newpkg
-        class CFG enhanced
-        class CORE2 process
+        class CFG,CL enhanced
+        class CORE2,PROV process
     end
 
     subgraph Legend["Legend"]
@@ -207,9 +212,11 @@ flowchart LR
 ```
 
 -   **`internal/extjob`（新しい）:** 拡張のジョブ 1 回分の処理を持つ。入力の検査（今の `internal/server` の `validateBody` の規則）、ジョブを見分ける値の計算（今の `internal/articlecache` の記事のキーの計算から、秘密の鍵を除いたもの）、記事の生成と工程の進み具合の通知、完了の時点の検査（今の `completeGeneration`）、結果の組み立て（今の `articleStatus`）、失敗の分類（今の `classifyWrite` に、API キーが拒まれたことを加えたもの）である。CLI は使わない。
--   **`cmd/yt2column-wasm`（新しい）:** `GOOS=js GOARCH=wasm` だけでビルドする `main` のパッケージ。`syscall/js` で JavaScript の関数を登録し、JSON の文字列を厳格に検査して `internal/extjob` と `internal/config` に渡す（§3.1）。
--   **`internal/config`（変える）:** 拡張の入口のために、LLM の設定だけを読む関数を加える。今の `LoadServer` が設定ファイルから LLM の設定を読む部分を引き継ぎ、名前を引く関数として、拡張が保存した 2 つの値だけを渡す（§3.1.3）。サーバとホストの設定の読み込み（`LoadServer`・`LoadHost`・`LoadHostHome`、設定ファイルとソケットのパスの導出）は撤去する。
--   **撤去するパッケージ:** サーバとホストだけが使うもの。`cmd/yt2column-server`・`cmd/yt2column-nmhost`・`internal/server`・`internal/articlecache`・`internal/serversock`・`internal/nmhost`・`internal/privatefile` と、それらだけが使うテストの補助（`internal/udstest` の一部など）である。どのパッケージがサーバとホストだけから使われるかは、#773 が `go list -deps` で確かめてから撤去する。`internal/cachelock`・`internal/signalrun`・`internal/redact` は CLI も使うので残す（`cmd/yt2column` が import する。2026-11-12 の `main`（`28358348`）で確かめた）。
+-   **`cmd/yt2column-wasm`（新しい）:** `GOOS=js GOARCH=wasm` だけでビルドする `main` のパッケージ。`syscall/js` で JavaScript の関数を登録し、受け取った JSON の文字列を `internal/extjob` に渡すことだけを持つ（§3.1）。JSON の解析と組み立ては `internal/extjob` にあり、ネイティブのビルドでテストできる。
+-   **LLM のクライアントの組み立て:** WASM の入口は、読み込んだ設定から `claude.New` で Claude のクライアントを直接作る。`internal/llm/provider` は使わない（図では、WASM の入口からの矢印がない）。`provider` は DeepSeek と OpenAI のアダプタを import し、WASM でビルドできないためである（PoC の `cmd/yt2column-wasm/generate.go` の `llmTimeout` の注記。`origin/poc/0084-wasm-pipeline` の `83ef12bd`）。呼び出しごとの期限は、`provider.LLMTimeout` と同じ 15 分を `internal/extjob` に置く。
+-   **`internal/llm/claude`・`internal/llm/llmhttp`（変える）:** `js` のビルドだけで付けるヘッダとリダイレクトの指定を加える（§5.3）。
+-   **`internal/config`（変える）:** 拡張の入口のために、LLM の設定だけを読む関数を加える。今の `LoadServer` が設定ファイルから LLM の設定を読む部分を引き継ぐ。渡す名前を引く関数は、拡張が保存した 2 つの値だけを返す（§3.1.3）。サーバとホストの設定の読み込み（`LoadServer`・`LoadHost`・`LoadHostHome`、設定ファイルとソケットのパスの導出）は撤去する。
+-   **撤去するパッケージ:** サーバとホストだけが使うもの。`cmd/yt2column-server`・`cmd/yt2column-nmhost`・`internal/server`・`internal/articlecache`・`internal/serversock`・`internal/nmhost`・`internal/privatefile` と、それらだけが使うテストの補助（`internal/udstest` の一部など）である。どのパッケージがサーバとホストだけから使われるかは、#773 が `go list -deps` で確かめてから撤去する。`internal/cachelock`・`internal/signalrun`・`internal/redact` は CLI も使うので残す（`cmd/yt2column` が import する。2026-11-12 の `main`（`ca0570c6`）で確かめた）。
 
 ### 2.4. データの流れ
 
@@ -225,9 +232,9 @@ sequenceDiagram
     participant A as Anthropic の API
 
     P->>S: 生成の開始（入力・送り方）
-    S->>S: 送り手と API キーの有無を確かめる
+    S->>S: 送り手と、API キーの設定済みの印を確かめる
     S->>V: 背面のタブで開く（開始の ID）
-    V->>S: 入力を求める（開始の ID）
+    V->>S: 入力の受け取り（開始の ID）
     S-->>V: 入力
     V->>W: 起動し、入力を渡す
     W-->>V: 検査の結果（ジョブを見分ける値・動画 ID）
@@ -235,7 +242,7 @@ sequenceDiagram
     S->>SS: 判定し、記録を加える
     S-->>V: 予約の結果（新しい実行・既存のジョブ・同じ動画・拒否）
     S-->>P: 開始の結果
-    V->>W: 生成を始める（API キー・ワークスペース ID）
+    V->>W: 生成を始める（ジョブを見分ける値・API キー・ワークスペース ID）
     W->>A: 生成・字数の調整・検証と推敲
     W-->>V: 工程の進み具合
     V->>S: 進み具合
@@ -261,18 +268,18 @@ WASM の入口は、記事を作る処理のうち、次のすべてを Go の�
 | 生成の開始の入力の検査（動画の URL、コピーした字幕、動画のタイトル・チャンネル名・概要欄） | `internal/transcript`・`internal/extjob` | 動画の URL の検査と字幕の解析を共有する |
 | ジョブを見分ける値と動画 ID の計算 | `internal/extjob` | 拡張だけが使う |
 | 3 つの工程（生成、字数の調整、検証・推敲） | `internal/writer`・`internal/llm/claude` | 共有する |
-| 完了の時点の検査（`CheckPublishable` と、結果の大きさの上限） | `internal/writer`・`internal/extjob` | `CheckPublishable` を共有する |
-| メンションの無効化（表示とコピーの値、見出しの値） | `internal/publisher` | 共有する（CLI は使わない） |
+| 完了の時点の検査（`CheckPublishable` と、記事の大きさの上限） | `internal/writer`・`internal/extjob` | `CheckPublishable` を共有する |
+| メンションの無効化（表示とコピーの値、見出しの値） | `internal/publisher` | 部品は CLI と同じパッケージにある。CLI の出力はこの無効化を使わない |
 | 保存するファイルの中身（`--out` と同じバイト列） | `internal/publisher` | 共有する |
 | 料金の概算 | `internal/pricing` | 共有する |
-| API キーとワークスペース ID の検査 | `internal/config`・`internal/llm/llmhttp`・`internal/llm/claudeparam` | 共有する |
+| API キーとワークスペース ID の検査 | `internal/config`・`internal/llm/llmhttp`（`CheckAPIKey`）・`internal/llm/claudeparam`（`ParseWorkspaceID`） | 共有する |
 
 -   要件書 AC-15 の「メンションの無効化、保存するファイルの中身、完了の時点の検査を、共有する処理に含めるかどうか」は、3 つとも含める。今のサーバと同じ値を、同じコードで作るためである（[ADR-0043](../../dev/adr/0043-copy-mention-neutralization.md) の「規則を Go の 1 か所に置き、拡張に同じ規則を二重に書かない」）。
 -   プロンプトのテンプレートは、埋め込みのものだけを使う。WASM の入口は、上書きのファイルを読まない（今のサーバと同じ。[ADR-0034](../../dev/adr/0034-template-allowlist.md)）。
 
 #### 3.1.2. 入口が JavaScript に登録する関数
 
-WASM の入口は、`globalThis` に 1 つの名前空間のオブジェクトを登録し、次の 3 つの関数を持たせる。どの関数も、引数を 1 つの JSON の文字列で受け取り、結果を 1 つの JSON の文字列で返す（`generate` は Promise で返す）。入力の JSON は厳格に検査し（`internal/strictjson`。§5.2）、合わなければ固定の理由で拒否する。結果の JSON の形は、ビューアの TypeScript が受理する形で検査する（§5.2）。
+WASM の入口は、`globalThis` に 1 つの名前空間のオブジェクトを登録し、次の 4 つの関数を持たせる。どの関数も、引数を 1 つの JSON の文字列で受け取り、結果を 1 つの JSON の文字列で返す（`generate` は Promise で返す）。入力の JSON は厳格に検査し（`internal/strictjson`。§5.2）、合わなければ固定の理由で拒否する。結果の JSON の形は、ビューアとオプションページの TypeScript が受理する形で検査する（§5.2）。JSON の解析と組み立ては `internal/extjob` が行い、`cmd/yt2column-wasm` は登録だけを持つ。
 
 ```typescript
 // The functions the WASM entry registers. Each takes and returns one JSON
@@ -280,11 +287,14 @@ WASM の入口は、`globalThis` に 1 つの名前空間のオブジェクト�
 interface Yt2ColumnWasm {
   // Checks the settings the options page is about to save.
   checkSettings(request: string /* SettingsCheckRequest */): string /* SettingsCheckResult */;
-  // Validates a start input and computes the values the reservation needs.
+  // Validates a start input, keeps it in the Worker's Go memory, and returns
+  // the values the reservation needs.
   prepare(request: string /* PrepareRequest */): string /* PrepareResult */;
-  // Runs one generation of a prepared input. onProgress receives a
+  // Runs one generation of the input prepare kept. onProgress receives a
   // ProgressEvent JSON string at each step change.
   generate(request: string /* GenerateRequest */, onProgress: (event: string) => void): Promise<string /* GenerateResult */>;
+  // The build of the WASM entry, for the options page's debug line.
+  buildInfo(): string /* BuildInfo */;
 }
 
 type SettingsCheckRequest = { anthropicApiKey: string; anthropicWorkspaceId: string };
@@ -298,34 +308,102 @@ type PrepareRequest = {
 };
 type PrepareResult =
   | { status: "ok"; inputDigest: string; videoId: string }
-  | { status: "rejected"; reason: StartRejection };
+  | { status: "rejected"; reason: PrepareRejection };
 
-type GenerateRequest = PrepareRequest & {
-  anthropicApiKey: string; anthropicWorkspaceId: string;
+// Only the digest of the kept input and the credentials; never the input.
+type GenerateRequest = {
+  inputDigest: string; anthropicApiKey: string; anthropicWorkspaceId: string;
 };
 type ProgressEvent = { steps: Steps };
 type GenerateResult =
   | { status: "done"; steps: Steps; article: ArticleResult }
-  | { status: "failed"; steps: Steps; failure: Failure };
+  | { status: "failed"; steps: Steps; failure: WasmFailure; internalDetail?: InternalDetail };
 
 type ArticleResult = {
   markdown: string; mentionsNeutralized: boolean;
   videoTitle: string; channelName: string;
   file: string; cost: { state: "known"; usd: string } | { state: "unknown" };
+  durationMs: number;
 };
+
+type BuildInfo = { goVersion: string; vcsRevision: string; vcsModified: boolean };
+```
+
+`internal/extjob` の Go の型と関数の形は次のとおりである。
+
+```go
+// StartInput is a start input as received from the page, before validation.
+type StartInput struct {
+	VideoURL, Transcript, Title, ChannelName, Description string
+}
+
+// Prepared is a validated input. Its fields are unexported; only Prepare
+// builds one, so a Prepared is always a validated input.
+type Prepared struct{ /* unexported */ }
+
+func Prepare(in StartInput) (Prepared, error) // error wraps ErrInvalidInput
+func (p Prepared) InputDigest() string         // 64 lowercase hex
+func (p Prepared) VideoID() string
+
+// Observer receives each step change of a run.
+type Observer interface {
+	StepChanged(steps Steps)
+}
+
+// Deps are what a run needs besides its input: the generation and review
+// clients built from the loaded configuration.
+type Deps struct {
+	Generation llm.LLMClient
+	Review     llm.LLMClient
+}
+
+// Run generates the article of p and returns its result. It never panics
+// to the caller: a panic becomes a Failure of FailureInternal.
+func Run(ctx context.Context, p Prepared, deps Deps, obs Observer) Result
+
+// Result is a run's outcome: an article, or a Failure with its steps.
+type Result struct{ /* unexported; read through methods */ }
+
+// Failure is why a run failed. The zero value is FailureInternal.
+type Failure int
+
+const (
+	FailureInternal Failure = iota
+	FailureTranscriptTooLong
+	FailureLLMTimeout
+	FailureLLMEmpty
+	FailureLLMTruncated
+	FailureLLM
+	FailureArticleInvalid
+	FailureArticleTooLarge
+	FailureAPIKeyRejected
+)
+
+var ErrInvalidInput = errors.New("extjob: the start input is not accepted")
+```
+
+`internal/config` には、拡張の入口用の関数を加える。
+
+```go
+// LoadExtension reads the LLM configuration of the extension's WASM entry
+// through lookup, with the same loaders and checks as Load. lookup answers
+// only ANTHROPIC_API_KEY and ANTHROPIC_WORKSPACE_ID.
+func LoadExtension(lookup LookupFunc) (LLMConfig, error)
 ```
 
 -   `inputDigest` は、検査を通った後の 5 つの値（正規化した動画の URL、字幕、省略を空文字列としたタイトル・チャンネル名・概要欄）から計算する SHA-256 の 64 文字の小文字の 16 進である。今の記事のキーの計算（[0044 設計書](../0044_article_job_api/02_architecture.md) §3.2「記事のキー」）から、秘密の鍵だけを除いた。値は、同じ入力の判定にだけ使い、ジョブの記録の中から外へ出さない（§3.2.2）。
--   `generate` は、`prepare` と同じ検査をもう一度行う。`prepare` の後に入力が変わっていないことを、型ではなく検査で確かめるためである。検査の時間は、生成の時間に比べて小さい。
--   `Steps`・`Failure`・`StartRejection` の値の集合は §4.1 にある。
--   API キーとワークスペース ID は、`generate` の引数の JSON の中にだけ入る。Go の側では、受け取った直後に `secret.Secret` と `claudeparam.WorkspaceID` にし、JSON の文字列は保持しない（[ADR-0031](../../dev/adr/0031-secret-closure.md)）。結果と進み具合の JSON には入らない。
+-   **予約と生成を同じ入力に結びつける。** `prepare` は、検査を通った入力を Worker の Go のメモリに持つ。`generate` は入力を受け取らず、予約に使った `inputDigest` だけを受け取る。WASM の入口は、持っている入力の `inputDigest` と比べ、違えば `internal` の失敗（`internalDetail` は `input_mismatch`）にする。ジョブの記録が、予約した入力と別の入力の記事を持たないためである。
+-   `durationMs` は、WASM の入口が `generate` の始まりから測る。今のサーバは開始を受け付けた時点から数えるので、入力の受け渡しと `prepare` の分（ふつうは 1 秒に満たない）だけ短くなる。
+-   `Steps`・`PrepareRejection`・`WasmFailure`・`InternalDetail` の値の集合は §4.1 にある。
+-   API キーとワークスペース ID は、`checkSettings` と `generate` の引数の JSON の中にだけ入る。Go の側では、受け取った直後に `secret.Secret` と `claudeparam.WorkspaceID` にし、JSON の文字列は保持しない（[ADR-0031](../../dev/adr/0031-secret-closure.md)）。結果と進み具合の JSON には入らない。
 
 #### 3.1.3. 設定の読み込み
 
-WASM の入口は、LLM の設定を `internal/config` の新しい関数で作る。その関数には、名前を引く関数として、`ANTHROPIC_API_KEY` と `ANTHROPIC_WORKSPACE_ID` の 2 つの名前だけに値を返すものを渡す。ほかの名前（`YT2COLUMN_LLM`・`YT2COLUMN_REVIEW_LLM` など）は未設定として扱われる。
+WASM の入口は、LLM の設定を `config.LoadExtension` で作る。名前を引く関数として、`ANTHROPIC_API_KEY` と `ANTHROPIC_WORKSPACE_ID` の 2 つの名前だけに値を返すものを渡す。ワークスペース ID が保存されていないとき（空のとき）は、その名前を未設定として答える。ほかの名前（`YT2COLUMN_LLM`・`YT2COLUMN_REVIEW_LLM` など）には答えないので、それらは未設定になる。
 
 -   3 つの工程のプロバイダとモデルと effort は、コード上の既定、すなわち本番の構成になる（[ADR-0004](../../dev/adr/0004-production-profile.md)）。拡張にモデルや effort を選ぶ設定がなく、本番の構成に固定される（要件書 AC-03）。
--   値の検査は、CLI と同じ関数で行う（[ADR-0003](../../dev/adr/0003-llm-config-contract.md)）。API キーは空でない印字可能な ASCII（0x21〜0x7E）、ワークスペース ID は `claudeparam.ParseWorkspaceID` の規則である。
+-   値の検査は、CLI と同じ関数で行う（[ADR-0003](../../dev/adr/0003-llm-config-contract.md)）。設定の読み込みは、API キーが空でないことと、ワークスペース ID が `claudeparam.ParseWorkspaceID` の規則に合うことを確かめる（`internal/config/config.go:671` と `:724`）。API キーが印字可能な ASCII（0x21〜0x7E）だけであることは、アダプタを作るときに `llmhttp.CheckAPIKey`（`internal/llm/llmhttp/llmhttp.go:46`）が確かめる。`checkSettings` は、この 2 つと同じ関数を呼ぶ。
+-   CLI の「空の値は拒否する」規則は変えない。拡張は空のワークスペース ID を渡さず、未設定として答えるので、この規則に当たらない。
 -   WASM の入口は、プロセスの環境を読まない。`js` のビルドには、読むべき環境がない。[ADR-0024](../../dev/adr/0024-env-access-in-config.md) の「決めた入口」に、WASM の入口を、環境を読まずに名前を引く関数を渡す入口として加える。
 
 #### 3.1.4. ビルドと成果物
@@ -351,17 +429,24 @@ type JobRecord = {
   heading: { videoTitle: string; channelName: string }; // as collected, for the header before completion
   acceptedAt: number;         // ms since the epoch, when this run was reserved
   endedAt?: number;           // done, failed, or stopped only
-  runner?: { tabId: number; instanceId: string }; // running only
+  runner?: { tabId: number; instanceId: string }; // running and stopped
   state: "running" | "done" | "failed" | "stopped";
   steps: Steps;
   article?: ArticleResult;    // done only
-  failure?: Failure;          // failed only
+  failure?: RecordFailure;    // failed only
+  internalDetail?: InternalDetail; // failed with failure "internal" only
+  stopReason?: StopReason;    // stopped only
 };
+
+// Why the service worker marked a run stopped (§6.3).
+type StopReason = "tab_closed" | "page_closed" | "page_reloaded" | "no_contact";
 ```
 
 -   記録は、コピーした字幕と概要欄を持たない（要件書 AC-09）。
 -   `version` は、記録を読み戻すときの検査に使う。拡張の更新で `storage.session` は空になるので（§3.2.4）、版の移行の仕組みは作らない（要件書 AC-13）。
 -   `instanceId` は、実行するビューアのページが読み込みのたびに作る 128 ビットの乱数である。同じタブで読み込み直したページを、元のページと区別する（§6.3）。
+-   `runner` は、止まった記録にも残す。止まった状態にした後に、同じ `runner` から結果が届いたときに受け取るためである（§6.3）。
+-   `stopReason` と `internalDetail` は、止まった理由と内部の失敗の種類を、開発者が記録から読めるようにするための値である。利用者には文として示さない（§4.2）。
 
 #### 3.2.2. ジョブ ID と、ジョブを見分ける値
 
@@ -374,13 +459,14 @@ type JobRecord = {
 
 | 上限 | 値 | 理由 |
 |---|---|---|
-| 記録の件数 | 50 | 今のサーバの 100 件の半分。`storage.session` の容量の中で、大きさの上限と合わせて持てる数にする |
+| 記録の件数 | 50 | 今のサーバの 100 件（`internal/articlecache/cache.go:13`）の半分。`storage.session` の容量の中で、大きさの上限と合わせて持てる数にする |
 | 記録の大きさの合計 | 8 MiB | `storage.session` の容量（§3.13 の (d) の結果）の中に、処理中の記録と書き込みの余裕を残す |
-| 記録 1 つの記事の大きさ | 256 KiB | 今のサーバの状態の応答の上限（`internal/server/status.go:20`）を引き継ぐ。超える記事は `article_too_large` で失敗にする |
-| 同時に走る実行 | 2 | 今のサーバの生成の枠と同じ。Worker 1 つが数十 MB のメモリを使い、料金を一度に多くかけないためである |
+| 記録 1 つの記事の大きさ | 256 KiB | 今のサーバの状態の応答の上限（`internal/server/status.go:20`）の値を引き継ぐ。超える記事は `article_too_large` で失敗にする |
+| 同時に走る実行 | 2 | 今のサーバの生成の枠（`internal/server/jobs_api.go:15`）と同じ。WASM を読み込んだタブは 1 枚で 61.6〜85.8 MB を使い（タブ全体の値。調査記録「測定 6」）、料金を一度に多くかけないためである |
 
 -   大きさは、記録を JSON にした文字列の UTF-8 のバイト数で数える。
--   上限を超える記録を加えるときは、完成・失敗・止まった記録のうち、`endedAt` の最も古いものから捨てる。処理中の記録は捨てない（今のサーバと同じ。ADR-0027）。
+-   記事の大きさは、記録の `article` を JSON にしたものと見出しの値の UTF-8 のバイト数である。WASM の入口が完了の時点の検査で数える。今のサーバが状態の応答の大きさを数える処理（`internal/server/status.go:163`）に代わる。§5.2 の 512 KiB は、ページの間の受け渡しと読み戻しの上限で、この上限より大きい。
+-   上限を超える記録を加えるときは、失敗と止まった記録のうち `endedAt` の最も古いものから捨て、それがなければ完成した記録のうち最も古いものを捨てる。料金のかかった記事を、失敗の記録より先に失わないためである。処理中の記録は捨てない（今のサーバと同じ。ADR-0027）。
 -   捨てられる記録がなく上限を超えるときと、処理中の実行が 2 つあるときは、予約を `too_many_requests` で拒否する。
 -   捨てた記録のジョブ ID を持つビューアは、記事が失われたことを示す（§3.8）。
 -   件数と大きさの値は、(d) の結果で `storage.session` の容量が想定と異なれば、マージの前に直す。
@@ -394,58 +480,124 @@ type JobRecord = {
 | 上限による捨て | 古い記録から消える | §3.2.3 |
 | タブの再読み込みと、閉じたタブの復元 | 残る | 要件書 AC-09 |
 
--   拡張の更新で、完成した記事が失われることは受け入れる。Chrome は、拡張が使われていないときにだけ更新を適用し、拡張のページが開いている間は適用しない（§3.12 の C-06）。そのため、ビューアのタブで実行している生成が、自動の更新で止まることはない。失われるのは、拡張のページを 1 つも開いていない間に更新が適用されたときの、完成した記事と失敗の記録である。`onUpdateAvailable` で更新を遅らせる仕組みは作らない。遅らせても、ブラウザの終了で記事は失われ、守れる時間が短いためである。
+-   拡張の更新で、完成した記事が失われることは受け入れる。Chrome は、拡張が使われていないときにだけ更新を適用し、拡張のページが開いている間は適用しない（§3.12 の C-06）。そのため、ビューアのタブで実行している生成が、自動の更新で止まることはない。失われるのは、拡張のページを 1 つも開いていない間に更新が適用されたときの、完成した記事と失敗の記録である。`onUpdateAvailable` で更新を遅らせる仕組みは作らない。遅らせても、ブラウザの終了で記事は失われ、守れる時間が短いためである。この判断は文書の記述に拠る（§3.13）。
 -   **採らなかった案（記事の持ち方）。** 完成した記事を `chrome.storage.local` か IndexedDB に置く案は、ディスクに書くので採らなかった（要件書 AC-09）。ビューアのページのメモリだけに持つ案は、再読み込みと閉じたタブの復元で記事を失うので採らなかった（同上）。
 
 ### 3.3. SW の調停
 
-SW は、ジョブの記録の唯一の書き手で、次の 5 つの求めを受け付ける。どの求めも、送り手が拡張自身のページであることを確かめる（§5.2）。
+SW は、ジョブの記録の唯一の書き手で、次のリクエストを受け付ける。メッセージの形は §3.3.1 にある。どのリクエストも、送り手が拡張自身のページであることを確かめる（§5.2）。SW は、API キーの値を読まない。
 
-| 求め | 送り手 | 処理 |
+| リクエスト | 送り手 | 処理 |
 |---|---|---|
-| 生成の開始 | ポップアップ（タブを持たず、URL がポップアップのページと完全に一致する） | API キーの有無を確かめ、ビューアを背面のタブで開き、入力を開始の ID とともにメモリに置く。予約の結果を待って応答する |
-| 入力の受け取り | ビューア | 開始の ID に対応する入力を 1 回だけ渡し、メモリから消す |
-| 予約 | ビューア | 同じ入力・同じ動画の判定、上限の判定、記録の追加を行い、結果を返す |
-| 進み具合と結果 | 実行するビューア（記録の `runner` と一致するもの） | 記録を書き換える |
-| 実行の終わりの知らせ | ビューア | 記録の `runner` のページがなくなったことを知らせる。SW が確かめて止まった状態にする（§6.3） |
+| 生成の開始（`start`） | ポップアップ（タブを持たず、URL がポップアップのページと完全に一致する） | 設定済みの印（`anthropic.configured`）を確かめ、ビューアを背面のタブで開き、入力をメモリに、開始の文脈を `storage.session` に置く。予約の結果を待って応答する |
+| 入力の受け取り（`claimInput`） | ビューア（開始の文脈のタブ） | 開始の ID に対応する入力を 1 回だけ渡し、メモリから消す |
+| 検査の拒否（`prepareRejected`） | ビューア（開始の文脈のタブ） | 入力の検査か Worker の読み込みの失敗を、ポップアップへの応答にする。記録は作らない |
+| 予約（`reserve`） | ビューア（開始の文脈のタブ） | 同じ入力・同じ動画の判定、上限の判定、記録の追加を行い、結果を返す |
+| 進み具合（`progress`） | 実行するビューア（記録の `runner` と一致するもの） | 記録を書き換え、書き込みが終わってから応答する |
+| 結果（`result`） | 実行するビューア（記録の `runner` と一致するもの） | 記録を書き換え、書き込みが終わってから応答する |
+| 読み込み直しの知らせ（`runnerReloaded`） | ビューア（記録の `runner` と同じタブ ID で、別の `instanceId`） | 記録を止まった状態（`page_reloaded`）にする |
+| 実行の Port（`runner` の名前の `chrome.runtime.connect`） | 実行するビューア | 実行の間保つ。SW が生きている間に切れたら、記録を止まった状態（`page_closed`）にする（§6.3） |
 
--   **直列の処理。** SW は、受け付けた求めを 1 つずつ順に処理する。前の求めの `storage.session` の読み書きが終わるまで、次の求めを始めない。SW は 1 つの拡張に 1 つだけ動くので、この直列の処理が、記録の判定と書き込みの排他になる。SW が停止して起動し直しても、正しい値は `storage.session` にあり、直列の処理の待ち行列のほかに失うものはない。
+-   **直列の処理。** SW は、受け付けたリクエストを 1 つずつ順に処理する。前のリクエストの `storage.session` の読み書きが終わるまで、次のリクエストを始めない。SW は 1 つの拡張に 1 つだけ動くので、この直列の処理が、記録の判定と書き込みの排他になる。拡張はシークレットモードでは動かさない（§3.7.1）ので、通常のプロファイルの SW が 1 つだけである。SW が停止して起動し直しても、正しい値は `storage.session` にあり、直列の処理の待ち行列のほかに失うものはない。
 -   **予約の判定の順。** 今のサーバの照会付きの生成の開始の順（[development.md](../../dev/guides/development.md)「ジョブの API」の表）を引き継ぐ。
     1.  同じ `inputDigest` の記録が処理中か完成なら、そのジョブ ID を返す（既存のジョブ）。
     2.  送り方が照会付きで、同じ動画 ID の別の記録が処理中か完成なら、そのうち `acceptedAt` の最も新しいものを、同じ動画として返す。記録を変えない。
-    3.  それ以外は、同時に走る実行と上限を確かめ、新しい実行として記録を加える。同じ `inputDigest` の失敗か止まった記録があれば、そのジョブ ID のまま、記録を処理中に戻す。
--   **処理中の記録の生存の確認。** 判定 1・2 と同時に走る実行の数え上げで、処理中の記録を使う前に、その `runner` のページが生きているかを確かめる（§6.3）。生きていない実行を数えて開始を拒否したり、止まった実行を同じ動画の記事として示したりしないためである。
--   **入力をメモリに置く時間。** 開始の ID に対応する入力は、ビューアが受け取るまで SW のメモリにだけ置く。60 秒たっても受け取られなければ捨てる。字幕を `storage.session` に置かないためである。SW がその間に停止すると入力は失われ、ビューアは入力を受け取れなかったことを示す（§3.8）。この場合も、生成は始まらず、料金はかからない。
--   **ポップアップへの応答。** SW は、予約の結果（新しい実行、既存のジョブ、同じ動画、拒否）か、ビューアが入力の検査で拒否した理由を、ポップアップに返す。60 秒たっても予約の結果がなければ、結果不明として返す（§3.8）。
--   **待つ間の SW の停止。** SW は、30 秒の間イベントも拡張の API の呼び出しもなければ止まる（§3.12 の C-11）。開始から予約までの間は、SW のタブの作成と `storage.session` の読み書き、ビューアからの入力の求めと予約の求めが、この時間を延ばす。ビューアは開いてから数秒で入力を求める（WASM の読み込みは 50〜206 ms。調査記録「測定 2」）ので、ふつうは止まらない。それでも止まったときは、ポップアップの求めの応答の経路が閉じ、ポップアップは結果不明として示す。メモリの入力も失われるので、ビューアは入力を受け取れなかったことを示し、生成は始まらない。予約の後に止まったときは、記録が `storage.session` にあるので、ビューアの進み具合の知らせで SW が起き直して続ける。
+    3.  それ以外は、同時に走る実行と上限を確かめ、新しい実行として記録を加える。同じ `inputDigest` の失敗か止まった記録があれば、そのジョブ ID のまま、`runner` を新しいビューアに替えて記録を処理中に戻す。
+-   **処理中の記録の連絡の確認。** 判定 1・2 と同時に走る実行の数え上げで処理中の記録を使うとき、その `runner` の Port が今の SW につながっていなければ、連絡の確認をする。連絡の確認とは、実行するビューアが Port をつなぎ直すかを待って確かめ、つなぎ直さなければ記録を止まった状態にすることである（§6.3）。確かめた結果の書き込みは直列の処理の中で行うが、Port の再接続を待つ時間（最大 10 秒）は直列の処理の外で待つ。待つ間、ほかのリクエストを止めないためである。書き込む前に、直列の処理の中で記録を読み直し、まだ処理中で `runner` が変わっていないときだけ止まった状態にする。待つ間に結果、再接続、予約し直しが届きうるためである。
+-   **書き込みと応答。** 進み具合と結果には、`storage.session` への書き込みが終わってから応答する。書き込みが失敗したときは、§3.2.3 の規則で記録を捨てて 1 回だけ書き直す。それでも失敗すれば、失敗を応答し、記録を `failed`（`internal`、`internalDetail` は `store_failed`）にする試みを 1 回だけ行う。予約の書き込みが失敗したときは、開始を `internal` で拒否する。
+-   **入力と開始の文脈。** 字幕を含む入力は、ビューアが受け取るまで SW のメモリにだけ置く。字幕を `storage.session` に置かないためである。開始の文脈（`start:` と開始の ID を連結した名前の項目。開いたタブの ID、送り方、作った時刻だけを持ち、字幕と動画メタデータを持たない）は `storage.session` に置き、予約の送り手の確かめに使う。予約が済むか 60 秒たてば、入力も開始の文脈も消す。SW が予約の前に停止すると、メモリの入力は失われ、ビューアは入力を受け取れなかったことを示す（§3.8）。開始の文脈は残るので、入力を受け取った後に SW が停止しても、予約は受け付けられる。どの場合も、生成は始まらないか、予約の後に始まり、料金のかかる二重の生成は起きない。
+-   **ポップアップへの応答。** SW は、予約の結果（新しい実行、既存のジョブ、同じ動画、拒否）か、ビューアが知らせた検査の拒否を、ポップアップに返す。60 秒たっても予約の結果がなければ、結果不明として返す（§3.8）。
+-   **待つ間の SW の停止。** SW は、30 秒の間イベントも拡張の API の呼び出しもなければ止まる（§3.12 の C-11）。開始から予約までの間は、SW のタブの作成と `storage.session` の読み書き、ビューアからの入力の受け取りと予約のリクエストが、この時間を延ばす。ビューアは開いてから数秒で入力の受け取りをリクエストする（WASM の読み込みは 50〜206 ms。調査記録「測定 2」）ので、ふつうは止まらない。それでも止まったときは、ポップアップのリクエストの応答の経路が閉じ、ポップアップは結果不明として示す。予約の後に止まったときは、記録が `storage.session` にあり、実行するビューアの Port の再接続と知らせで SW が起き直して続ける。
+-   **ビューアが計算した値を信頼する。** SW は、ビューアが送る `inputDigest` と動画 ID をそのまま使う。ビューアは、同じ拡張のオリジンのページで、信頼の境界の内側にある（§5.1.3）。
+
+#### 3.3.1. ページの間のメッセージ
+
+ページの間のメッセージの型は `extension/src/core/extensionMessages.ts` に置く。どのメッセージも、メンバの閉じた集合を持ち、受け手が形を検査する（§5.2）。
+
+```typescript
+// Requests to the service worker (chrome.runtime.sendMessage) and replies.
+type SwRequest =
+  | { type: "start"; mode: "inquiry" | "plain"; input: StartPayload }
+  | { type: "claimInput"; startId: string }
+  | { type: "prepareRejected"; startId: string; reason: PrepareRejection | "internal"; internalDetail?: InternalDetail }
+  | { type: "reserve"; startId: string; inputDigest: string; videoId: string; instanceId: string;
+      heading: { videoTitle: string; channelName: string } }
+  | { type: "progress"; jobId: string; instanceId: string; steps: Steps }
+  | { type: "result"; jobId: string; instanceId: string; result: RunResult }
+  | { type: "runnerReloaded"; jobId: string; instanceId: string };
+
+type StartPayload = {
+  videoUrl: string; transcript: string;
+  title?: string; channelName?: string; description?: string;
+};
+
+type StartReply =
+  | { status: "accepted"; jobId: string }
+  | { status: "same_video"; jobId: string }
+  | { status: "rejected"; reason: StartRejection }
+  | { status: "unknown" };
+type ClaimInputReply = { status: "ok"; input: StartPayload } | { status: "gone" };
+type ReserveReply =
+  | { status: "new_run"; jobId: string }
+  | { status: "existing"; jobId: string }
+  | { status: "same_video"; jobId: string }
+  | { status: "rejected"; reason: "too_many_requests" | "internal" };
+type WriteReply = { status: "stored" } | { status: "not_stored" } | { status: "not_runner" };
+
+// What a running viewer reports at the end of a run.
+type RunResult =
+  | { state: "done"; steps: Steps; article: ArticleResult }
+  | { state: "failed"; steps: Steps; failure: RecordFailure; internalDetail?: InternalDetail };
+
+// The runner's Port: chrome.runtime.connect({ name: "runner" }), whose first
+// message identifies the run.
+type RunnerHello = { type: "hello"; jobId: string; instanceId: string };
+
+// The Worker <-> page envelope (postMessage). The page sends one call at a
+// time and matches the reply by callId.
+type WorkerCall =
+  | { callId: number; fn: "checkSettings" | "prepare" | "generate" | "buildInfo"; request: string };
+type WorkerMessage =
+  | { callId: number; kind: "reply"; value: string }
+  | { callId: number; kind: "progress"; event: string }
+  | { callId: number; kind: "error" };
+```
+
+-   `WriteReply` の `not_runner` は、送り手が記録の `runner` と一致しないことを表す。実行するビューアは、これを受けたら Worker を止める（§3.4）。
+-   `StartPayload` の大きさは、今のポップアップの上限（4 MiB。`extension/src/core/prepare.ts`）で抑える。これはページの間の受け渡しの上限で、入力を受理するかどうかは `prepare` が決める（§5.2）。
 
 ### 3.4. ビューアと Worker
 
--   **実行するビューア。** SW が開いたビューアは、開始の ID で入力を受け取り、Worker を 1 つ起動して WASM の入口の `prepare` を呼ぶ。検査を通れば SW に予約を求める。新しい実行なら、`chrome.storage.local` から API キーとワークスペース ID を読み、Worker に `generate` を呼ばせる。進み具合と結果を SW に知らせ、結果を知らせた後に Worker を止める。
+-   **実行するビューア。** SW が開いたビューアは、開始の ID で入力を受け取り、Worker を 1 つ起動して WASM の入口の `prepare` を呼ぶ。Worker の読み込みと `prepare` には 30 秒の期限を持ち、期限を過ぎたときと Worker の `error` イベントでは、検査の拒否（`internal`、`internalDetail` は `worker_load`）を SW に知らせる。検査を通れば、SW に予約をリクエストする。新しい実行なら、SW への Port（§3.3）をつなぎ、`chrome.storage.local` から API キーとワークスペース ID を読み、Worker に `generate` を呼ばせる。進み具合と結果を SW に知らせる。
+-   **結果の受け渡し。** 実行するビューアは、Worker から結果を受け取ると Worker を止め、結果をメモリに持ったまま SW に送る。SW が書き込みを終えたと応答するまで、同じ結果を送り直す（ジョブ ID と `instanceId` で同じものと分かるので、二重には書かれない）。自分の記録が結果を持ったと `storage.onChanged` で分かったときも、送り直しをやめる。送り直すのは記録への書き込みで、記事の生成を始め直すことではない（ADR-0028）。SW が書き込みに失敗したと応答したときは、メモリの記事を表示し続け、完成したが保持できなかった状態を示す（§3.8）。
+-   **自分の記録を見張る。** 実行するビューアは、`storage.onChanged` で自分の記録を見張り、記録が消えたときと、`runner` が自分と一致しなくなったとき（同じ入力が別のビューアで予約し直されたとき）に、Worker を止める。記録が止まった状態になっただけでは止めない。連絡の確認の誤りで止まった状態にされても、結果を届ければ記録が完成か失敗に戻る（§6.3）。
+-   **Port の再接続。** 実行するビューアは、実行の間、SW への Port を保ち、切れたらすぐにつなぎ直す。SW が止まると Port は切れ、つなぎ直しが新しい SW を起こす。
+-   **読み込み直しの確認。** 実行するビューアは、実行の間 `beforeunload` で確かめの表示を出す。誤って読み込み直すと、料金のかかった実行が止まるためである。
 -   **表示するビューア。** 既存のジョブや同じ動画を示された開始のビューアと、URL にジョブ ID を持って開かれたビューア（再読み込み、閉じたタブの復元、履歴からの表示）は、Worker を起動しない。ジョブの記録を読んで表示し、`storage.onChanged` で表示を更新する。
 -   **同じジョブのビューアの再利用。** 開始のビューアが既存のジョブを示されたとき、同じジョブ ID のビューアがすでにあれば、今と同じく新しいタブを閉じて既存のビューアに引き継ぐ（ADR-0009）。探す手段は、今の `BroadcastChannel`（`extension/src/viewerQuery.ts`）である。
--   **呼び出し全体の期限。** 実行するビューアは、`generate` を呼んでから 50 分たっても結果がなければ、Worker を止めて `llm_timeout` の失敗にする。50 分は、呼び出しごとの期限（15 分、`internal/llm/provider/provider.go:25`）の 3 工程分に余裕を加えた値で、PoC の「ページが止まった呼び出しとみなすまでの時間」と同じである（調査記録「試行の設定」）。Go の期限は、応答の本文の途中では効かない（申し送り H-02）。Worker を止めると、Worker の中の送信も止まる（(b) で確かめる）。期限のタイマーは、背面のタブでは遅れうる。50 分の期限の数分の遅れは受け入れる。
+-   **呼び出し全体の期限。** 実行するビューアは、`generate` を呼んでから 50 分たっても結果がなければ、Worker を止めて `run_timeout` の失敗にする（呼び出しごとの期限の `llm_timeout` と分ける）。50 分は、呼び出しごとの期限（15 分、`internal/llm/provider/provider.go:25`）の 3 工程分に余裕を加えた値で、PoC の「ページが止まった呼び出しとみなすまでの時間」と同じである（調査記録「試行の設定」）。Go の期限は、応答の本文の途中では効かない（申し送り H-02）。Worker を止めると、Worker の中の送信も止まる（(b) で確かめる）。期限のタイマーは、背面のタブでは遅れうる。50 分の期限の数分の遅れは受け入れる。
 -   **ストリーミングを使わない。** Claude アダプタは、今と同じく応答を 1 回で受け取る（[ADR-0025](../../dev/adr/0025-claude-output-limit.md)）。PoC は、Haiku で 37,555〜37,673 トークンの応答と、本番の構成の 3 本のすべての工程を、ストリーミングなしで背面のまま受け取りきった（調査記録「問い 3：ストリーミングは要るか」「測定 5：長い応答（Haiku、`essay`）」）。採らなかった案は、ストリーミングを加える案である。応答の受け取り、打ち切りと使用量の判定、`fetch` を通した本文の途中の扱いをアダプタに加えることになり、測った範囲では要らなかった。Opus の 40,000 トークンの応答が受け取れないと分かったときは、この決定を変える（§3.13）。
--   **API キーの受け渡し。** Worker は拡張の API を使えないので、実行するビューアのメインスレッドが `chrome.storage.local` から読み、`postMessage` で Worker に渡す。ビューアのメインスレッドは、渡した後に値を持ち続けない。Worker の中では、`generate` の引数の JSON にだけ入る。
+-   **API キーの受け渡し。** Worker は拡張の API を使えないので、実行するビューアのメインスレッドが `chrome.storage.local` から読み、`postMessage` で Worker に渡す。ビューアのメインスレッドは、渡した後に値を持ち続けない。Worker の中では、`generate` の引数の JSON にだけ入る。設定済みの印があるのに API キーがないときは、`generate` を呼ばずに `api_key_missing` の失敗にする（§6.2）。
 
 ### 3.5. ポップアップ
 
--   主ボタンの押下は、今と同じく照会付きの生成の開始を SW に頼む。同じ動画の記事を示されたら、既存の記事を表示するか、現在の選択範囲で生成する（照会なしの生成の開始）かを選ばせる（ADR-0008・ADR-0009）。
+-   主ボタンの押下は、今と同じく照会付きの生成の開始を SW にリクエストする。同じ動画の記事を示されたら、既存の記事を表示するか、現在の選択範囲で生成する（照会なしの生成の開始）かを選ばせる（ADR-0008・ADR-0009）。
 -   開始の結果のジョブ ID で、ジョブの記録を読み、`storage.onChanged` で表示を更新する。状態の取得を送らない。
--   API キーが設定されていないと SW が答えたときは、その旨と、オプションページを開く操作を示す（要件書 AC-02）。オプションページは `chrome.runtime.openOptionsPage` で開く。生成の開始は送らない。
+-   API キーが設定されていないと SW が答えたときは、その旨と、オプションページを開く操作を示す（要件書 AC-02）。オプションページは `chrome.runtime.openOptionsPage` で開く。生成の開始は送らない。ポップアップと SW が読むのは設定済みの印（§3.6）だけで、API キーの値は読まない。
 
 ### 3.6. オプションページと API キーの保存
 
--   **保存の手段。** API キーとワークスペース ID は `chrome.storage.local` に保存する。ディスクに残り、ブラウザを再起動しても残る（要件書 AC-05）。`chrome.storage.sync` は使わない。ほかの端末へ同期させないためである（要件書 AC-06）。
+-   **保存の手段。** API キーとワークスペース ID は `chrome.storage.local` に保存する。あわせて、秘密でない設定済みの印（`anthropic.configured: true`）を保存する。保存した値はディスクに残り、ブラウザを再起動しても残る（要件書 AC-05）。SW とポップアップは、この印だけで API キーがあるかを判断し、API キーの値を読まない。`chrome.storage.local` の値を読まずに名前だけを得る `getKeys` は Chrome 130 からで、最小の版（112）では使えないためである。`chrome.storage.sync` は使わない。ほかの端末へ同期させないためである（要件書 AC-06）。
 -   **採らなかった保存の手段。** `chrome.storage.session` は、ブラウザの終了で消えるので、AC-05 を満たさない。IndexedDB と `localStorage` は、同じオリジンのページから読め、注入したスクリプトから読めないようにする仕組み（`setAccessLevel`）を持たない。ブラウザのパスワードの管理は、拡張から読み書きする API がない。
--   **API キーを、LLM の出力を描画するページと同じオリジンに置くことへの対策。** 拡張のページはすべて同じオリジンなので、ビューアで任意のスクリプトが動けば、`chrome.storage.local` の API キーに届く。対策は、ビューアでスクリプトを動かさないことと、動いた場合に外へ送れないことの 2 つである。ビューアは記事を自前の描画だけで表示し、HTML を解釈しない（[ADR-0017](../../dev/adr/0017-viewer-markdown-rendering.md)）。CSP は `eval` とインラインのスクリプトを許さない（§3.7.2）。`connect-src` が、Anthropic の API のほかの先への送信を止める（§5.3）。設定の画面をビューアと分けても、オリジンが同じなのでこの点は変わらない。分けるのは、画面の操作を混ぜないためである。採らなかった案は、API キーを読むページと記事を描画するページを別のオリジンにする案である。拡張の中でオリジンを分ける手段がない。
+-   **API キーを、LLM の出力を描画するページと同じオリジンに置くことへの対策。** 拡張のページはすべて同じオリジンなので、ビューアで任意のスクリプトが動けば、`chrome.storage.local` の API キーに届く。本当の守りは、ビューアでスクリプトを動かさないことである。ビューアは記事を自前の描画だけで表示し、HTML を解釈しない（[ADR-0017](../../dev/adr/0017-viewer-markdown-rendering.md)）。CSP は `eval` とインラインのスクリプトを許さない（§3.7.2）。CSP の `connect-src`・`img-src`・`frame-src`・`form-action` は、スクリプトが動いた場合に外へ送る経路の一部を狭めるが、ページの移動、`window.open`、`chrome.tabs.create` による送り出しは止めない（§5.1.4）。設定の画面をビューアと分けても、オリジンが同じなのでこの点は変わらない。分けるのは、画面の操作を混ぜないためである。採らなかった案は、API キーを読むページと記事を描画するページを別のオリジンにする案である。拡張の中でオリジンを分ける手段がない。
 -   **項目の名前。** `anthropic.apiKey` と `anthropic.workspaceId` とする。プロバイダの名前を前に付け、プロバイダを足したときに同じ場所に並べられるようにする（申し送り H-10、§3.10）。
--   **読める文脈の限定。** 保存した値を読めるのは、拡張のページと SW に限る。`chrome.storage.local.setAccessLevel` で、注入したスクリプトから読めないようにする。この呼び出しが効くことは (c) で確かめる。効かない場合は §3.13 の決定に従う。
--   **設定・変更・削除の操作。** オプションページは、API キーの欄、ワークスペース ID の欄、保存のボタン、削除のボタンを持つ。保存のボタンは、2 つの値を WASM の入口の `checkSettings` で検査し、通ったときだけ 2 つを 1 回の書き込みで保存する。合わない値は、補正せずに拒否し、どの欄が合わないかを示す（要件書 §3.2）。削除のボタンは、2 つの値を消す。ワークスペース ID の欄が空なら、ワークスペース ID を保存しない（任意の値である）。
+-   **読める文脈の限定。** 保存した値を読めるのは、拡張のページと SW に限る。SW は起動のたびに最上位の処理で、ポップアップは関数を注入する直前に、`chrome.storage.local.setAccessLevel` を呼び、注入したスクリプトから読めないようにする。関数を注入するのはポップアップで、ポップアップを開いたときに SW が動いているとは限らないので、注入する側でも呼ぶ。設定がブラウザの再起動や拡張の更新の後も残るかは文書に書かれていないので、起動のたびに呼ぶことを規則にする。この呼び出しが効くことは (c) で確かめ、再起動の後も効くことは #773 が確かめる。効かない場合は §3.13 の決定に従う。
+-   **設定・変更・削除の操作。** オプションページは、API キーの欄、ワークスペース ID の欄、保存のボタン、削除のボタンを持つ。保存のボタンは、2 つの値を WASM の入口の `checkSettings` で検査し、通ったときだけ、API キー、ワークスペース ID（空でないときだけ）、設定済みの印を 1 回の書き込みで保存する。合わない値は、補正せずに拒否し、どの欄が合わないかを示す（要件書 §3.2）。削除のボタンは、3 つの項目を消す。ワークスペース ID の欄が空なら、ワークスペース ID を保存しない（任意の値である）。
 -   **保存した API キーを画面に再び表示しない。** オプションページは、API キーが設定されているかどうかだけを示す。変えるときは、新しい値を入力し直す。画面に出すと、画面の共有や肩越しの覗き見で漏れうるうえ、拡張のページの DOM に値が残るためである。採らなかった案は、末尾の数文字を示す案である。どのキーかを見分ける助けになるが、値の一部を出すことになり、要件書 AC-06 の「出さない先」に画面を含める判断と合わない。
--   **入力の欄。** API キーの欄は `type="password"` とし、`autocomplete="off"` を付ける。PoC では、この形の欄の値はパスワードの管理に保存されず、閉じたタブを開き直すと空だった（調査記録「測定の後の確かめ（API キーの扱い）」）。
+-   **入力の欄。** 入力の欄を `<form>` に入れず、API キーの欄は `type="text"` に `-webkit-text-security: disc` で文字を伏せ、`autocomplete="off"` と `spellcheck="false"` を付ける。`type="password"` の欄と送信のある `<form>` は、ブラウザがパスワードの保存を勧め、保存した値がアカウントの同期でほかの端末へ渡りうるためである（要件書 AC-06 の「ブラウザの外への同期」）。PoC の確かめは、ログインしていないプロファイルで、保存の操作のないページについてのものだった（調査記録「測定の後の確かめ（API キーの扱い）」）。#773 は、ログインして同期を有効にしたプロファイルで、保存を勧められないことを手で確かめる。
 -   **古い版が保存した値。** 0020 の版が `chrome.storage.local` に保存した共有トークンとポート（`sharedToken`・`serverPort`）は、拡張を更新しても残りうる。`storage` の権限で読めるようになるが、読まず、消しもしない。通用する相手のない値で、消す仕組みは版の移行の仕組みになるためである（要件書 AC-13）。利用者は、拡張を一度削除して読み込み直せば消せる。
 -   **設定の検査の Worker。** オプションページは、`checkSettings` を呼ぶために Worker を起動し、検査が終わると止める。オプションページのメインスレッドに WASM を読み込まない。
+-   **ビルドの情報。** オプションページは、WASM の入口の `buildInfo` が返すコミットと Go の版を、調べものの手がかりとして小さく示す。
 
 ### 3.7. manifest：権限、CSP、ID
 
@@ -462,29 +614,32 @@ SW は、ジョブの記録の唯一の書き手で、次の 5 つの求めを�
 
 -   `content_scripts`・`web_accessible_resources`・`externally_connectable` は、今と同じく宣言しない（ADR-0008・ADR-0010）。
 -   `options_ui` を加え、オプションページを `open_in_tab` で開く。
+-   `"incognito": "not_allowed"` を宣言し、シークレットモードでは動かさない。シークレットモードで動かすと、そのビューアの URL（動画のタイトルと URL）と記録が通常のプロファイルの SW と履歴に渡りうるうえ、SW が 1 つだけという直列の処理の前提（§3.3）が、ブラウザの設定に左右されるためである。
 
 #### 3.7.2. CSP
 
 拡張のページの CSP（`content_security_policy.extension_pages`）を、次の値にする。
 
 ```text
-script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src https://api.anthropic.com
+script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src 'self' https://api.anthropic.com; img-src 'self'; media-src 'none'; frame-src 'none'; form-action 'none'
 ```
 
 | 指示 | 今の既定との違い | 理由 |
 |---|---|---|
 | `script-src 'self' 'wasm-unsafe-eval'` | `'wasm-unsafe-eval'` を加える | WASM を読み込むのに要る（調査記録「測定 2」）。JavaScript の `eval` と `new Function` は今と同じく許さない |
 | `object-src 'self'` | 同じ | MV3 の既定の値を保つ |
-| `connect-src https://api.anthropic.com` | 加える | 拡張のページと Worker からの送信を、Anthropic の API のオリジンだけに限る。リダイレクトの先も含め、ほかの先へ API キーを送らない守りの 2 つ目である（§5.3）。効くことは (b) で確かめる |
+| `connect-src 'self' https://api.anthropic.com` | 加える | 拡張のページと Worker からの送信を、拡張自身のファイルと Anthropic の API のオリジンだけに限る。`'self'` は、Worker がパッケージの WASM を `fetch` で読み込むのに要る。リダイレクトの先も含め、ほかの先へ API キーを送らない守りの 2 つ目である（§5.3）。効くことは (b) で確かめる |
+| `img-src 'self'`・`media-src 'none'`・`frame-src 'none'`・`form-action 'none'` | 加える | 画像、メディア、フレーム、フォームの送信を使って外へ送る経路を閉じる。拡張のページは、パッケージの外の画像もフレームもフォームの送信も使わない |
 
--   CSP は、拡張のページと Worker の両方に当たる（§3.12 の C-05）。`script-src`・`object-src`・`worker-src` に書ける値は限られているが、`connect-src` を加えることは禁じられていない。`connect-src` が実際に送信を止めることは、文書では確かめられなかったので、(b) で確かめる。
+-   CSP は、拡張のページと Worker の両方に当たる（§3.12 の C-05）。`script-src`・`object-src`・`worker-src` に書ける値は限られているが、ほかの指示を加えることは禁じられていない。`connect-src` が実際に送信を止めることは、文書では確かめられなかったので、(b) で確かめる。(b) は `connect-src 'self' http://127.0.0.1:8787` の版で測る。この節の値のままで WASM を読み込み、API を呼べることは、#773 が手で確かめる。
+-   **CSP が守らないもの。** ビューアでスクリプトが動いたときに、ページの移動、`window.open`、`chrome.tabs.create` で値を外へ送ることは、CSP では止められない。本当の守りは、ビューアでスクリプトを動かさないことである（ADR-0017、§3.6）。この経路は受け入れるリスクにする（§5.1.4）。
 -   採らなかった案は、`connect-src` を加えず、Go の送信のリダイレクトの拒否だけに頼る案である。Go の守りが `fetch` の振る舞いに依存し、PoC で一度効かなかったことが分かっている（申し送り H-01）ので、Go に依存しない 2 つ目の守りを置く。
 -   ビューアとオプションページを含むすべての拡張のページに、同じ CSP が当たる。記事を描画するビューアにも `'wasm-unsafe-eval'` が当たるが、許すのは WASM のコンパイルだけで、記事の文字列からスクリプトを動かす経路にはならない（§5.5）。
 
 #### 3.7.3. ID と対象のブラウザ
 
 -   **manifest の `key`：** 今の `key` を残す。ホストの `allowed_origins` がなくなっても、開発用に読み込んだ拡張の ID を固定する理由は残る。ID は `chrome.storage.local` の持ち主で、ID が変わると保存した API キーが引き継がれないためである。Web Store の項目を作るときに、ダッシュボードが示す Web Store の公開鍵に置き換え、開発用と Web Store の拡張の ID を同じにする（§3.12 の C-07）。秘密鍵をリポジトリに含めないことは今と同じである。
--   **対象のブラウザ：** 今と同じく Chrome と Brave だけとする。Brave は、Chrome Web Store の MV3 の拡張が Chrome と同じに動くとしている（§3.12 の C-13）。Brave では、権限なし・ヘッダありの組み合わせで API を呼べた（調査記録「3 つの問いへの答え」の問い 1）。本番の構成での Brave の測定は確かめずに受け入れ、外れたときは Brave を対象から外す（§3.13）。
+-   **対象のブラウザ：** 今と同じく Chrome と Brave だけとする。Brave は、Chrome Web Store の MV3 の拡張が Chrome と同じに動くとしている（§3.12 の C-15）。Brave では、権限なし・ヘッダありの組み合わせで API を呼べた（調査記録「3 つの問いへの答え」の問い 1）。本番の構成での Brave の測定は確かめずに受け入れ、外れたときは Brave を対象から外す（§3.13）。
 -   **Chrome の最小の版：** 112 とする。使う機能の最小の版は、`chrome.storage.session` と `setAccessLevel` が 102、`'wasm-unsafe-eval'` が 102（103 からは CSP に明示が要る）、`storage.session` の約 10 MB の容量が 112 である（§3.12 の C-04・C-05）。`minimum_chrome_version` は、それより古い Chrome への導入と更新を止める。
 
 ### 3.8. 利用者に示す状態の種類
@@ -493,15 +648,16 @@ script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src https://api
 
 | 状態 | いつ | 示すもの | ビューアの再読み込みの後 |
 |---|---|---|---|
-| API キーが設定されていない | 生成の開始で、`anthropic.apiKey` がない | 設定が要ること、オプションページを開く操作。ビューアは開かない | ― |
-| 開始が拒否された | 入力の検査（`prepare`）の拒否、上限の拒否 | 固定の理由（§4.1）と手順 | 示さない（記録を作らない。今と同じく URL にジョブ ID がない） |
+| API キーが設定されていない | 生成の開始で、設定済みの印がない。または、予約の後に API キーがない（失敗 `api_key_missing`） | 設定が要ること、オプションページを開く操作。開始のときはビューアを開かない | 予約の後の失敗は示す |
+| 開始が拒否された | 入力の検査（`prepare`）の拒否、Worker の読み込みの失敗、上限の拒否、内部の失敗 | 固定の理由（§4.1）と手順 | 示さない（記録を作らない。今と同じく URL にジョブ ID がない） |
 | 結果不明 | ポップアップが 60 秒たっても予約の結果を受け取れない | ビューアで状態を確かめる手順と、もう一度押しても処理中か完成の記事は二重に生成されないこと | ― |
 | 入力を受け取れなかった | ビューアが SW から入力を受け取れない | もう一度ボタンを押す手順。料金はかかっていないこと | 示さない |
 | 処理中 | 記録が `running` | 工程の進み具合と経過時間 | 示す（実行するビューア自身の再読み込みでは、止まった状態に変わる） |
 | 完成した | 記録が `done` | 記事、推定の料金 | 示す |
+| 完成したが保持できなかった | 実行するビューアが結果を持つが、SW が記録に書けなかった | 実行するビューアのメモリの記事、推定の料金、読み込み直すと失われること | 示さない（記事が失われた状態になる） |
 | API が API キーを拒んだ | 記録が `failed` で、失敗が `api_key_rejected` | API キーを確かめる手順、オプションページを開く操作。料金は不明 | 示す |
 | 記事の生成が失敗した | 記録が `failed` で、ほかの失敗 | 固定の失敗の理由（§4.1）。料金は不明 | 示す |
-| 記事の生成がページとともに止まった | 記録が `stopped` | 実行するページが閉じられたか読み込み直されて止まったこと。料金は不明 | 示す |
+| 記事の生成がページとともに止まった | 記録が `stopped` | 実行するページが閉じられたか読み込み直されたか、連絡が取れなくなって止まったこと。料金は不明 | 示す |
 | 記事が失われた | URL のジョブ ID の記録がない | ブラウザの終了、拡張の更新、上限による捨てで失われたこと | 示す |
 
 -   **料金を不明と示す状態**は、記事が完成しなかった 3 つ（API キーを拒まれた、失敗した、止まった）である。金額は、工程ごとにも合計でも出さない。0 も出さない（要件書 AC-11、[ADR-0022](../../dev/adr/0022-cost-estimate.md)）。
@@ -510,9 +666,10 @@ script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src https://api
 ### 3.9. 料金をかけずに拡張を動かす方法
 
 -   **開発用のビルド。** `make ext-build-dev` は、fake の LLM（タスク 0086 の PR-1 が作る部品）を使う開発用の WASM の入口をビルドし、`extension/dist-dev/` に置く。公開する成果物（`extension/dist/`）は、fake を含まない。
+-   **開発用のビルドを見分ける。** 開発用のビルドの manifest は `key` を持たず、拡張の名前に開発用の印を付ける。ID が公開用のビルドと別になるので、`chrome.storage.local` も別になり、開発用のビルドで保存したダミーの値が本物の API キーを上書きしない。ポップアップとビューアは、開発用のビルドであることを目に見える印で示す。
 -   **シナリオの選び方。** fake のシナリオは、`make ext-build-dev` の引数で選ぶ。変えるときは、ビルドし直して拡張を読み込み直す。設定の画面や保存した値でシナリオを選べるようにすると、公開する成果物にも開発用の分岐が入るためである。今の 0086 の開発用のサーバが、シナリオの変更に再起動を要するのと同じ水準である（ADR-0045）。
--   **公開する成果物に fake が入らないことの検査。** 公開用の WASM の入口（`cmd/yt2column-wasm`）が fake のパッケージに依存しないことを、ADR-0045 と同じく `go list -deps` のテストで確かめる。開発用の WASM の入口は、別の `main` のパッケージ（`cmd/yt2column-wasm-dev`）に置く。
--   **API キーを要らなくする。** 開発用のビルドは、Anthropic の API を呼ばない。生成の開始の前の API キーの有無の確認は、開発用のビルドでも同じに行う。手動の確認では、形の合うダミーの値を保存する。
+-   **公開する成果物に fake が入らないことの検査。** 公開用の WASM の入口（`cmd/yt2column-wasm`）が fake のパッケージに依存しないことを、ADR-0045 と同じく `go list -deps` のテストで、`GOOS=js GOARCH=wasm` を付けて確かめる。開発用の WASM の入口は、別の `main` のパッケージ（`cmd/yt2column-wasm-dev`）に置く。成果物の検査（`check-dist.ts`）は、`dist/` の WASM が `cmd/yt2column-wasm` からビルドしたものであることを、`go version -m` が示す main のパッケージのパスで確かめる。
+-   **API キーを要らなくする。** 開発用のビルドは、Anthropic の API を呼ばない。生成の開始の前の設定済みの印の確認は、開発用のビルドでも同じに行う。手動の確認では、形の合うダミーの値を保存する。
 
 ### 3.10. プロバイダを足すときに変える箇所（要件書 AC-04）
 
@@ -523,7 +680,11 @@ script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src https://api
 | オプションページ | プロバイダを選ぶ欄と、そのプロバイダの API キーの欄を加える |
 | `chrome.storage.local` | `<プロバイダ>.apiKey` の形の項目を加える（§3.6 の名前の付け方） |
 | WASM の入口の `checkSettings`・`generate` の引数 | そのプロバイダの設定を加える |
-| `internal/config` の拡張の入口用の関数に渡す、名前を引く関数 | `YT2COLUMN_LLM` と、そのプロバイダの API キーの名前を返すようにする（ADR-0003 の文法をそのまま使う） |
+| `config.LoadExtension` に渡す、名前を引く関数 | `YT2COLUMN_LLM` と、そのプロバイダの API キーの名前を返すようにする（ADR-0003 の文法をそのまま使う） |
+| WASM の入口のクライアントの組み立て | そのプロバイダのアダプタを直接組み立てるか、`internal/llm/provider` を WASM でビルドできるようにする（§2.3） |
+| そのプロバイダのアダプタ | `js` のビルドだけのファイルで、ブラウザからの送信に要るヘッダとリダイレクトの指定を付ける（§5.3） |
+| `make wasm-check` の対象 | そのアダプタを加える（WASM の入口の依存になるので、対象の決め方は変わらない） |
+| WASM のサイズ | アダプタの分だけ大きくなる。読み込みの時間とともに測り直す |
 | CSP の `connect-src` | そのプロバイダの API のオリジンを加える |
 | 調査記録・設計 | 拡張のページから直接呼べることを確かめる（CORS、リダイレクトの扱い） |
 | Web Store の説明とプライバシーポリシー | 送り先を加える |
@@ -540,8 +701,9 @@ script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src https://api
 | 新しい | `cmd/yt2column-wasm-dev/` | fake の LLM を使う開発用の WASM の入口（§3.9） |
 | 新しい | `internal/extjob/` | 拡張のジョブ 1 回分の処理（§2.3） |
 | 変える | `internal/config/` | 拡張の入口用の LLM の設定の読み込みを加え、サーバとホストの設定の読み込みを撤去する |
-| 変える | `internal/llm/llmhttp/` | `js` のビルドで、リダイレクトに従わない指定を要求に付ける（§5.3） |
+| 変える | `internal/llm/llmhttp/` | `js` のビルドで、リダイレクトに従わない指定をリクエストに付ける（§5.3） |
 | 変える | `internal/llm/claude/` | `js` のビルドで、`anthropic-dangerous-direct-browser-access` のヘッダを付ける（§5.3） |
+| 変えない | `internal/llm/provider/` | WASM の入口は使わない（§2.3）。CLI は今のまま使う |
 | 撤去 | `cmd/yt2column-server/`・`cmd/yt2column-nmhost/`・`internal/server/`・`internal/articlecache/`・`internal/serversock/`・`internal/nmhost/`・`internal/privatefile/` | サーバとホスト（§2.3） |
 | 変える | `Makefile` | `make build` から 2 つのバイナリを除く。`ext-build` が WASM をビルドする。`ext-build-dev` を加える。`wasm-check` の対象を改める |
 | 変える | `.github/workflows/ci.yml` | 拡張のビルドに Go を用意する。`doc-guard` の対象からサーバとホストのパッケージを除く |
@@ -552,6 +714,12 @@ script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src https://api
 | 変える | `extension/src/startCoordinator.ts`・`extension/src/background.ts` | SW の調停（§3.3） |
 | 変える | `extension/src/viewerApp.ts`・`extension/src/viewer.ts`・`extension/src/popup.ts`・`extension/src/launch.ts` | ジョブの記録を読む表示、実行するビューア（§3.4・§3.5） |
 | 変える | `extension/src/core/viewerUrl.ts`・`extension/src/core/articleKey.ts` | URL の記事のキーをジョブ ID に替える |
+| 変える | `extension/src/core/extensionMessages.ts` | ページの間のメッセージの型と検査（§3.3.1）。今は撤去する `exchange.ts`・`response.ts` を import している |
+| 変える | `extension/src/core/prepare.ts` | 生成の開始の本文を組み立てる処理を、`StartPayload` の大きさの上限（4 MiB）の確かめに改める |
+| 変える | `extension/src/browser/chromeDeps.ts` | ホストの名前（`native.ts`）と送信の依存を除き、`chrome.storage`・`chrome.tabs.onRemoved`・`chrome.runtime.connect` の依存を加える |
+| 変える | `extension/src/viewerQuery.ts` | 同じジョブのビューアを探す問いを、記事のキーからジョブ ID に改める |
+| 変える | `extension/src/ui/renderJob.ts`・`extension/src/ui/renderViewer.ts` | §3.8 の状態の表示。経過時間の表示は `durationMs` と記録の時刻から作る |
+| 変える | `extension/scripts/has-extension-changes.sh` | 拡張の検査を走らせる変更の一覧から `internal/server/response.go` を除き、WASM の入口とその依存（Go のファイル）を加える。Go だけの変更でも拡張の成果物が変わるためである |
 | 変える | `extension/src/core/jobView.ts`・`extension/src/core/popupView.ts`・`extension/src/core/sendMessages.ts`・`extension/src/core/types.ts`・`extension/src/core/i18n/*` | §3.8 の状態の種類と、その文言 |
 | 撤去 | `extension/src/send.ts`・`extension/src/poller.ts`・`extension/src/core/native.ts`・`extension/src/core/hostMessage.ts`・`extension/src/core/exchange.ts`・`extension/src/core/response.ts`・`extension/src/core/poll.ts` | ホストとの送信、応答の検査、ポーリング |
 | 変える | `extension/scripts/check-dist.ts` | 成果物の検査に WASM と `wasm_exec.js` を加える（§3.1.4） |
@@ -565,11 +733,18 @@ script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src https://api
 | `extension/test/checkDist.test.ts` | 成果物が本リポジトリで書いたコードだけであること | WASM と `wasm_exec.js` の例外を加える |
 | `extension/test/native.test.ts`・`send.test.ts`・`hostMessage.test.ts`・`exchange.test.ts`・`response.test.ts`・`poll.test.ts`・`poller.test.ts`・`serverReasons.test.ts` | ホストとの送信、応答の検査、ポーリング、サーバの拒否の理由の表 | 撤去する（テストの削除は CLAUDE.md の手順でカバレッジを比べる） |
 | `extension/test/startCoordinator.test.ts`・`viewerApp.test.ts`・`viewerUrl.test.ts`・`articleKey.test.ts`・`popupView.test.ts` | 今の開始・表示・URL・キー | 新しい調停と表示に合わせて直す |
+| `extension/test/jobCodes.test.ts` | `response.ts` のコードの集合と、development.md の「ジョブの API のコード」の表が一致すること | §4.1 の値の集合と、#773 が書き換える development.md の表に合わせて直す |
+| `extension/test/entryPoints.test.ts` | メッセージを受け取る場所と、ホストへ送る場所 | ホストへの送信の確かめを除き、Port と `storage` の書き込みの場所の確かめを加える |
+| `extension/test/extensionMessages.test.ts`・`viewerQuery.test.ts` | 今のページの間のメッセージと、ビューアの問い | §3.3.1 の形に合わせて直す |
+| `extension/test/ciChanges.test.ts` | `has-extension-changes.sh` が拡張の検査を走らせる変更 | 上のスクリプトの変更に合わせて直す |
+| `extension/test/lintRules.test.ts` | lint の規則（HTML を解釈する API の禁止など） | 対象のファイルにオプションページと Worker を加える（§7.3） |
+| `extension/test/helpers/native.ts` | ホストの応答を作るテストの補助 | 撤去する |
+| `internal/pipeline/strictjson_users_test.go` | package_reference.md の `internal/strictjson` の利用者の行が、import と一致すること | 利用者に `internal/extjob` が加わり、サーバとホストが外れる。#773 が package_reference.md を直す |
 | `internal/pipeline/relay_guard_test.go` | ホストの標準出力の参照の場所 | 撤去する |
 | `cmd/yt2column-nmhost` の `TestReadmeHostExitCodes` | README のホストの終了コード | 撤去する |
 | `internal/config/envaccess_test.go` | 環境を参照してよい入口の一覧 | サーバとホストを除き、WASM の入口を加える |
 
-`make wasm-check` の対象を確かめるテストは、今はない（2026-11-12 の `main`（`28358348`）の `cmd/`・`internal/`・`extension/test/` を `wasm-check` と `WASM_PACKAGES` で検索して確かめた）。
+`make wasm-check` の対象を確かめるテストは、今はない（2026-11-12 の `main`（`ca0570c6`）の `cmd/`・`internal/`・`extension/test/` を `wasm-check` と `WASM_PACKAGES` で検索して確かめた）。
 
 ### 3.12. 構成を縛る外部の条件（要件書 AC-20）
 
@@ -588,7 +763,7 @@ script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src https://api
 | C-09 | `chrome.storage.local`・`sync`・`managed` は、既定でコンテンツスクリプトからも読める。`session` は既定で拡張のページと SW だけが読める。`setAccessLevel` は 102 から使えるが、`local` に効くかは文書に書かれていない | [StorageArea](https://developer.chrome.com/docs/extensions/reference/api/storage/StorageArea) | `chrome.storage.local.setAccessLevel` で読める文脈を限る。効くことは (c) で確かめる（§3.6） | 効かなければ §3.13 の (c) の決定に従う |
 | C-10 | タブの作成・取得・削除の通知は、`tabs` の権限なしで使える。`tabs` の権限が要るのは、URL・タイトル・ファビコンを読むときだけである | [chrome.tabs](https://developer.chrome.com/docs/extensions/reference/api/tabs) | SW は、ビューアのタブを作り、`onRemoved` で実行するビューアのタブが閉じられたことを知る。`tabs` の権限を要求しない（§3.7.1） | ― |
 | C-11 | SW は、30 秒の間何もなければ止まる。イベントと拡張の API の呼び出しで、この時間は延びる | [Service worker lifecycle](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle) | 正しい値を `storage.session` に置き、SW のメモリには入力の受け渡しの 60 秒だけ値を置く（§3.3） | ― |
-| C-12 | ブラウザから Claude API を呼ぶ要求は、`anthropic-dangerous-direct-browser-access: true` のヘッダを付けたときだけ受け付けられる。Anthropic は、API を自分のバックエンドから呼ぶことを勧める。ゼロデータ保持（ZDR）か Compliance API を有効にした組織は、ヘッダを付けてもブラウザから呼べず、401 になる | [Authentication - Browser-based applications](https://platform.claude.com/docs/en/manage-claude/authentication#browser-based-applications) | `js` のビルドでヘッダを付ける（§3.11）。バックエンドから呼ぶ勧めは、開発者の API キーを利用者のブラウザに出さないためのものと読む。この構成では、利用者が自分の API キーを自分のブラウザに置き、Anthropic のほかへ送らない。ZDR・Compliance API の組織の API キーでは使えないことを受け入れ、`api_key_rejected` の文言でその可能性を示す（§3.8） | ブラウザからの呼び出しが受け付けられなくなれば、構成（ADR-0048）が成り立たない |
+| C-12 | ブラウザから Claude API を呼ぶリクエストは、`anthropic-dangerous-direct-browser-access: true` のヘッダを付けたときだけ受け付けられる。Anthropic は、API を自分のバックエンドから呼ぶことを勧める。ゼロデータ保持（ZDR）か Compliance API を有効にした組織は、ヘッダを付けてもブラウザから呼べず、401 になる | [Authentication - Browser-based applications](https://platform.claude.com/docs/en/manage-claude/authentication#browser-based-applications) | `js` のビルドでヘッダを付ける（§3.11）。バックエンドから呼ぶ勧めは、開発者の API キーを利用者のブラウザに出さないためのものと読む。この構成では、利用者が自分の API キーを自分のブラウザに置き、Anthropic のほかへ送らない。ZDR・Compliance API の組織の API キーでは使えないことを受け入れ、`api_key_rejected` の文言でその可能性を示す（§3.8） | ブラウザからの呼び出しが受け付けられなくなれば、構成（ADR-0048）が成り立たない |
 | C-13 | API キーは共有せず、使う人が自分のキーを得る。第三者の道具に API キーを渡すと、その開発者に Console のアカウントへの手段を与えることになる。顧客は、自分のアカウントのもとのすべての利用に責任を持つ | [API key best practices](https://support.claude.com/en/articles/9767949-api-key-best-practices-keeping-your-keys-safe-and-secure)、[Commercial Terms](https://www.anthropic.com/legal/commercial-terms) | 利用者は自分の API キーを設定し、開発者は API キーを提供も受け取りもしない（ADR-0048）。API キーは Anthropic の API のほかへ送らない（§5.3・§5.4）。利用者が自分の API キーを設定する拡張の配布を、特に禁じる条項は見つからなかった | 禁じる条項ができれば、構成（ADR-0048）を見直す |
 | C-14 | API の入力と出力は、明示の許可なく学習に使われない。保持の期間の記述は文書によって異なる（既定では保持しないとするものと、30 日以内に削除するとするもの） | [API and data retention](https://platform.claude.com/docs/en/manage-claude/api-and-data-retention)、[How long do you store my organization's data?](https://privacy.claude.com/en/articles/7996866-how-long-do-you-store-my-organization-s-data) | プライバシーポリシーは、両方の記述を出典とともに示し、長いほうを前提に書く | 記述が変われば、ポリシーと [security.md](../../dev/security.md) §4 を直す |
 | C-15 | Brave は、Chrome Web Store の MV3 の拡張が Chrome と同じに動くとしている | [Using Chrome extensions in Brave](https://brave.com/learn/using-chrome-extensions-in-brave/) | 対象のブラウザを Chrome と Brave にする（§3.7.3） | ― |
@@ -605,10 +780,10 @@ script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src https://api
 | 項目 | 構成の決定に関わるか | 扱い | 理由 | 見込みが外れたときに変わる決定 |
 |---|---|---|---|---|
 | 本番の構成での Brave の測定 | 関わる（対象のブラウザ） | 確かめずに受け入れる | Brave は Chrome と同じ Chromium の版で、Haiku の記事の生成は Brave でも完走した（調査記録「測定 4」）。違いが出るのはモデルの応答の長さで、ブラウザの振る舞いではない | Brave を対象から外す（ADR-0026） |
-| 一度も前面にならなかった背面のタブでの記事の生成 | 関わる（実行の場所） | 確かめる（(a)） | 実行するビューアは背面で開き、前面にならないことがある（ADR-0009） | ビューアを前面で開く（ADR-0009 を改める） |
+| 一度も前面にならなかった背面のタブでの記事の生成 | 関わる（実行の場所） | 確かめる（(a)） | 実行するビューアは背面で開き、前面にならないことがある（ADR-0009） | ビューアを前面で開く（ADR-0009 を改める）。前面で開くとポップアップはすぐに閉じるので、ポップアップが結果を待って示す流れと結果不明の示し方（§3.3・§3.8）も決め直す |
 | Opus で 40,000 トークンを出力する、ストリーミングなしの応答 | 関わる（ストリーミング） | 確かめずに受け入れる | §1.2 | Claude アダプタにストリーミングを加える（ADR-0025） |
 | Offscreen Document | 関わらない | ― | 使わない（§1.2） | ― |
-| ブラウザが自動で行う破棄 | 関わる（実行の場所） | 確かめずに受け入れる | 拡張のページは、スキームの理由で破棄の対象にならなかった（調査記録「測定 4」の 4-4） | 破棄で止まった実行は、止まった状態として示される（§6.3）。生成が止まりやすいなら、実行の場所を決め直す |
+| ブラウザが自動で行う破棄 | 関わる（実行の場所） | 確かめずに受け入れる | 拡張のページは、スキームの理由で破棄の対象にならなかった（調査記録「測定 4」の 4-4） | 破棄で止まった実行は、Port の切断か連絡の確認で止まった状態として示される（§6.3）。生成が止まりやすいなら、実行の場所を決め直す |
 | Brave でタブを閉じて中止した要求の、使用量への計上 | 関わらない | ― | 止まった実行の料金は一律に不明と示す（§3.8） | ― |
 | Brave で、人が破棄を強制する操作を、生成の途中で行う試行 | 関わる（実行の場所） | 確かめずに受け入れる | 自動の破棄と同じ | 自動の破棄と同じ |
 | Brave での、権限とヘッダの組み合わせの試行 | 関わらない | ― | 権限なし・ヘッダありの組み合わせを使い、これは Brave でも通った | ― |
@@ -617,13 +792,14 @@ script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src https://api
 | 背面のタブでの期限の遅れ | 関わる（送信の守り） | 確かめずに受け入れる | 呼び出し全体の期限（50 分）は、数分の遅れを許す（§3.4） | 遅れが大きければ、期限を SW の側の確かめに移す |
 | Anthropic が 401 で返したエラーの種類 | 関わる（状態の種類） | 確かめずに受け入れる | 状態コードだけで `api_key_rejected` にし、本文を読まない（§4.1）。ZDR の組織の 401 も同じ状態にまとめる（§3.12 の C-12） | ― |
 | Haiku の effort の `medium` 以外の値 | 関わらない | ― | 拡張は本番の構成に固定する | ― |
-| 電池で動かしたときの振る舞い | 関わる（実行の場所） | 確かめずに受け入れる | 省エネモードがタイマーを間引いても、送信の応答の受け取りはイベントで進む | 背面のタブが止められるなら、ビューアを前面で開く |
+| 電池で動かしたときの振る舞い（省エネモードによるページの凍結） | 関わる（実行の場所、止まった実行の判定） | 確かめずに受け入れる | 凍結されたページは、イベントを処理せず、Port の再接続もしない。そのため、連絡の確認が誤って止まった状態（`no_contact`）にしうる。凍結が解けて結果が届けば、記録は完成か失敗に戻る（§6.3）。凍結で生成そのものが止まるかは測っていない | 凍結で実行がよく止まるなら、ビューアを前面で開く。前面で開くとポップアップはすぐに閉じるので、ADR-0009 と、ポップアップが結果を待つ流れと結果不明の示し方を決め直す |
 | 測定 3・4 の動画の長さ | 関わらない | ― | 構成の決定の根拠にしない | ― |
 | Worker からの送信と、`terminate()` による送信の中止 | 関わる（実行の場所、送信の守り） | 確かめる（(a)・(b)） | PoC は WASM をメインスレッドで動かした | Worker をやめ、ビューアのメインスレッドで動かして完成の後に読み込み直す（§1.2 の採らなかった案） |
 | `js.fetch:redirect` と CSP の `connect-src` による送り先の制限 | 関わる（送信の守り） | 確かめる（(b)） | `connect-src` の効き目は文書に書かれていない（C-05） | 効かない守りを外し、もう一方の守りだけにして、受け入れるリスクに加える。どちらも効かなければ構成が AC-19 を満たさないので、設計をやり直す |
 | `chrome.storage.local.setAccessLevel` | 関わる（API キーの保存） | 確かめる（(c)） | `local` に効くかは文書に書かれていない（C-09） | 呼び出しをやめ、注入したスクリプトから読めることを受け入れるリスクにする。注入する関数は本リポジトリで書いたもので、ページのスクリプトは注入した関数の世界の拡張の API に届かない（§5.1） |
 | `chrome.storage.session` の容量 | 関わる（記事の上限） | 確かめる（(d)） | 文書の値を実機で確かめる | 上限（§3.2.3）を直す |
-| 背面のタブへの `BroadcastChannel` の問い合わせの応答 | 関わる（止まった実行の判定） | 確かめる（(a) に含める） | 生存の確認が応答の遅れで誤ると、生きている実行を止まった状態にする（§6.3） | 生存の確認の待ち時間を延ばすか、タブの存在の確認だけにする |
+| Port の切断と再接続 | 関わる（止まった実行の判定） | 確かめずに受け入れる | SW が止まると Port は切れ、ページが閉じられても切れる。SW が生きている間に切れたなら、ページが終わったことを表す。SW が止まっている間にページが終わったことは、連絡の確認で分かる（§6.3）。文書の記述（§3.12 の C-11）に拠る | 切断を見逃しても、連絡の確認が止まった状態にする。連絡の確認の誤りは、遅れて届いた結果で戻る |
+| 拡張の更新のライフサイクル（拡張のページが開いている間は更新を適用しない） | 関わる（記事の残り方） | 文書の記述に拠って受け入れる | §3.12 の C-06 | 開いたページがあっても更新が適用されるなら、`onUpdateAvailable` を登録し、処理中の記録がある間は更新を遅らせる |
 
 -   確かめた結果は、調査記録の節「0090 の追加の測定」に追記する（要件書 AC-22）。<!-- 結果を追記したら、この節に結果の要点を書く -->
 
@@ -644,7 +820,7 @@ script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src https://api
 | [security.md](../../dev/security.md) | §2 に、拡張が API キーを `chrome.storage.local` に保存して使うことを加え、サーバの設定ファイルの記述を除く。§8 を、拡張だけの構成の脅威モデル（本書 §5.1）と、権限・CSP・保存・送信の守り・入力の境界（§3.7・§5.2〜§5.4）に書き換える。§8.2 のサーバとホストの節を除く。§6 の無効化の置き場所を、サーバから WASM の入口に改める |
 | [project_overview.md](../../dev/project_overview.md) | 「決定済みの方針」の実行形式と、「前提・制約」のサーバが記事をメモリに持つことを、拡張だけの構成に改める。設定の節から、サーバの設定ファイルを除く |
 | [production_profile.md](../../dev/production_profile.md) | 本番の構成を使う入口を、CLI と拡張にする。拡張では構成を選べないことを書く |
-| README・`README.en.md` | サーバの起動とホストの登録の手順を除き、拡張の導入とオプションページでの API キーの設定の手順を書く。ZDR・Compliance API の組織では使えないこと（§3.12 の C-12）を書く。`README.md` を先に直し、`/mktrans` で `README.en.md` に移す |
+| README・`README.en.md` | サーバの起動とホストの登録の手順を除き、拡張の導入とオプションページでの API キーの設定の手順を書く。ZDR・Compliance API の組織では使えないこと（§3.12 の C-12）を書く。移行の手順として、ホストの manifest の削除（`yt2column-nmhost uninstall`）と、サーバの設定ファイル（`~/.config/yt2column/config.env`。API キーの平文の写しを持つ）の削除を書く。API キーは、月の利用の上限を設けた専用のワークスペースで作ることを勧める（同じ OS ユーザーのプロセスはプロファイルの API キーを読めるため。§5.1.4）。`README.md` を先に直し、`/mktrans` で `README.en.md` に移す |
 | [development.md](../../dev/guides/development.md) | 「localhost サーバの API」「ジョブの API」「ジョブの API のコード」と「開発用に別のサーバを動かす」を除き、ジョブの記録の形、失敗の値の集合（本書 §4.1）、開発用のビルド（§3.9）、`make ext-build` が Go を呼ぶことを書く |
 | [package_reference.md](../../dev/conventions/package_reference.md) | 撤去するパッケージの行を除き、`cmd/yt2column-wasm`・`cmd/yt2column-wasm-dev`・`internal/extjob` の行を加える |
 | [CLAUDE.md](../../../CLAUDE.md) | 「Architecture Overview」の主経路の図と説明、「Build Commands」の 2 つのバイナリとホストの登録、`make wasm-check` の説明、「Development Notes」のサーバの設定ファイルの記述を改める。オプションページを「Accessibility」の対象に含める |
@@ -664,36 +840,36 @@ script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src https://api
 
 本書の決定を、次のとおり ADR に記録する。対象は、有効な ADR のうち、localhost サーバまたはホストがあることを前提にした項目を持つものと、要件の PR が改めた ADR-0010 の決定と合わない記述を持つものである（要件書 AC-24）。`docs/dev/adr/` の有効な ADR を、サーバ・ホスト・ソケット・設定ファイル・ジョブの API・Native Messaging・何も保存しない、の語で検索し、該当する項目を読んで判定した（申し送り H-11）。
 
--   「状態」「背景」「決定」「結果」の記述を改める。「採らなかった案」と「経緯」は、その時点の判断の記録なので、サーバやホストに触れていても書き換えない。
+-   「状態」「背景」「決定」「結果」の記述を改める。「採らなかった案」と「経緯」は、その時点の判断の記録なので、サーバやホストに触れていても書き換えない。ただし、新しい決定が採った案は「採らなかった案」から除き、そのことを「経緯」の 2026-11-12 の項目に書く（ADR-0010）。
 -   決定を変えた ADR は、「経緯」に 2026-11-12 の項目を加える。
 -   決定がまだコードと仕様の文書と食い違う ADR は、「決定」の最後に、[#773](https://github.com/isseis/yt2column/issues/773) にリンクする食い違いの記述を置く（要件書 AC-26）。issue #773 の本文は、それらの ADR の番号を挙げる（設計の PR のマージの前に更新する）。
 
 | ADR | 改める項目 | 扱い |
 |---|---|---|
-| [ADR-0048](../../dev/adr/0048-extension-only-generation.md) | 残りの ADR を設計の PR で改める旨の段落 | 段落を削除する（要件書 AC-25）。記事の生成をビューアの Worker で実行することと、記事を作る処理を WASM で共有すること（ADR-0049）を決定に加える |
-| ADR-0049（新設） | ― | 記事を作る処理を Go のコアの WASM で CLI と拡張が共有すること。WASM の入口の JSON の境界、ビルド（拡張のビルドが Go を呼ぶ）、成果物の `wasm_exec.js` の例外、CSP の `'wasm-unsafe-eval'`、`make wasm-check` を残すこと、WASM のサイズと読み込みの時間を受け入れることを記録する |
-| [ADR-0006](../../dev/adr/0006-threat-model.md) | 題名、背景、決定のすべて（サーバ・UDS・ホストの `allowed_origins` を前提にした脅威モデル） | 拡張だけの構成の脅威モデル（§5.1）に書き換える。主題（拡張の脅威モデル）は続くので、廃止せずに改める |
-| [ADR-0008](../../dev/adr/0008-launch-path.md) | ポップアップとビューアが状態の取得を繰り返すこと。`chrome.storage.session` を持たないこと | ジョブの記録を読んで表示を更新することに改める。`storage.session` は起動の経路には使わず、ジョブの記録に使うことを書く。API キーがないときに生成の開始を送らないことを加える |
-| [ADR-0009](../../dev/adr/0009-viewer-opening.md) | SW が開いたビューアが状態を表示するだけであること。送信ごとの値を URL とページのメモリにだけ置くこと | SW が開いたビューアが記事の生成を実行し、終えると表示するビューアになることに改める。ジョブの記録を `storage.session` に置くことを ADR-0027 への参照で加える |
-| [ADR-0010](../../dev/adr/0010-extension-stores-nothing.md) | 保存の手段・権限・設定の画面・ビューアと同じオリジンの対策を #772 に委ねる記述。権限が `activeTab`・`scripting`・`nativeMessaging` であること。状態の正しい値をサーバに置くこと。古い版の値を読めないこと。背景・採らなかった案のうち改めた決定と合わない記述 | §3.6・§3.7 の決定に改める。状態の正しい値を `storage.session` に置き、SW だけが書くことに改める。古い版の値（`sharedToken`・`serverPort`）は、`storage` の権限で読めるようになるが、読まず、消さないことにする（どこにも通用しない値で、利用者は開発者 1 人である）。背景と結果を、改めた決定に合わせる |
+| [ADR-0048](../../dev/adr/0048-extension-only-generation.md) | 残りの ADR を設計の PR で改める旨の段落 | 段落を削除する（要件書 AC-25）。記事の生成をビューアの Worker で実行すること、記事を作る処理を WASM で共有すること（ADR-0049）、ストリーミングを使わないこと（ADR-0025 への参照）を決定に加える |
+| ADR-0049（新設） | ― | 記事を作る処理を Go のコアの WASM で CLI と拡張が共有すること。JSON の境界と処理を `internal/extjob` に置き、Claude のクライアントを直接組み立てること、WASM のサイズと読み込みの時間を受け入れることを記録する。ビルドと成果物の規則は ADR-0026 に、`make wasm-check` は ADR-0019 に、CSP は ADR-0010 に置き、それぞれへリンクする |
+| [ADR-0006](../../dev/adr/0006-threat-model.md) | 題名、背景、決定のすべて（サーバ・UDS・ホストの `allowed_origins` を前提にした脅威モデル） | 拡張だけの構成の脅威モデル（§5.1）に書き換える。CSP が止めない送り出しの経路を受け入れるリスクに加え、CSP の値は ADR-0010 を参照する。主題（拡張の脅威モデル）は続くので、廃止せずに改める |
+| [ADR-0008](../../dev/adr/0008-launch-path.md) | ポップアップとビューアが状態の取得を繰り返すこと。`chrome.storage.session` を持たないこと | ジョブの記録を読んで表示を更新することに改める。`storage.session` は起動の経路には使わず、ジョブの記録に使うことを書く。API キーがないときに生成の開始を送らないことを加える。SW とポップアップは設定済みの印だけを読み、API キーの値を読まないことを書く |
+| [ADR-0009](../../dev/adr/0009-viewer-opening.md) | SW が開いたビューアが状態を表示するだけであること。送信ごとの値を URL とページのメモリにだけ置くこと | SW が開いたビューアが記事の生成を実行し、終えると表示するビューアになることに改める。ジョブの記録を `storage.session` に置くことを ADR-0027 への参照で加える。実行するビューアが Port を保ち、自分の記録を見張ることを書く。タブを開けなかったときは開始を拒否することに改める（§6.1） |
+| [ADR-0010](../../dev/adr/0010-extension-stores-nothing.md) | 保存の手段・権限・設定の画面・ビューアと同じオリジンの対策を #772 に委ねる記述。権限が `activeTab`・`scripting`・`nativeMessaging` であること。状態の正しい値をサーバに置くこと。古い版の値を読めないこと。背景・採らなかった案のうち改めた決定と合わない記述 | §3.6・§3.7 の決定（権限、CSP の全体、シークレットモードで動かさないこと、設定済みの印）に改める。状態の正しい値を `storage.session` に置き、SW だけが書くことに改める。古い版の値（`sharedToken`・`serverPort`）は、`storage` の権限で読めるようになるが、読まず、消さないことにする（§3.6）。背景と結果を、改めた決定に合わせる。新しい決定が採った案（`storage` の権限、拡張に記事を保存すること）を「採らなかった案」から除く |
 | [ADR-0017](../../dev/adr/0017-viewer-markdown-rendering.md) | 背景の「ビューアは `nativeMessaging` を呼べる」 | ビューアのオリジンから API キーに届くことに改める。HTML を解釈しない理由は強まる |
-| [ADR-0019](../../dev/adr/0019-pipeline-component-interfaces.md) | 背景の「CLI と localhost サーバ」。「#772 が決めるまで」の WASM の検査の規則。サーバの構成を ADR-0005 が定めるという参照 | 検査を、WASM の入口を対象にした恒久の規則に改める（§3.1.4）。参照を ADR-0049 に改める |
+| [ADR-0019](../../dev/adr/0019-pipeline-component-interfaces.md) | 背景の「CLI と localhost サーバ」。「#772 が決めるまで」の WASM の検査の規則。サーバの構成を ADR-0005 が定めるという参照 | 検査を、WASM の入口を対象にした恒久の規則に改める（§3.1.4）。参照を ADR-0049 に改める。`make wasm-check` の規則はこの ADR だけに置く |
 | [ADR-0020](../../dev/adr/0020-strict-json.md) | 背景の「サーバとホストのメッセージ」 | 拡張の WASM の入口が受け取る JSON に改める。WASM の入口の境界の JSON も `internal/strictjson` で読むことを決定に加える（§3.1.2） |
-| [ADR-0003](../../dev/adr/0003-llm-config-contract.md) | サーバが同じ名前のキーを設定ファイルから読むこと。廃止した変数の扱いのうちサーバの理由 | 拡張の WASM の入口が、2 つの名前だけを返す名前を引く関数で同じ検査を通ることに改める（§3.1.3） |
+| [ADR-0003](../../dev/adr/0003-llm-config-contract.md) | サーバが同じ名前のキーを設定ファイルから読むこと。廃止した変数の扱いのうちサーバの理由 | 拡張の WASM の入口が、2 つの名前だけを返す名前を引く関数で同じ検査を通ることに改める（§3.1.3）。拡張は空のワークスペース ID を未設定として答えるので、CLI の空の値の規則は変えないことを書く |
 | [ADR-0004](../../dev/adr/0004-production-profile.md) | 「CLI も localhost サーバも」この構成で動くこと | CLI と拡張に改める。拡張では構成を選べないことを ADR-0048 への参照で書く |
 | [ADR-0007](../../dev/adr/0007-manual-transcript-copy.md) | サーバが `CopiedSource` で解析すること。サーバは `yt-dlp` を呼ばないこと | 拡張の WASM の入口が解析し、`yt-dlp` を呼ばないことに改める |
 | [ADR-0024](../../dev/adr/0024-env-access-in-config.md) | 入口の一覧のサーバ・ホスト・開発用のサーバ。結果の ADR-0018 の記述 | 一覧からサーバ・ホスト・開発用のサーバを除き、環境を読まない WASM の入口を加える（§3.1.3） |
-| [ADR-0026](../../dev/adr/0026-extension-platform.md) | 背景の、ホストの `allowed_origins` が ID を指定すること。成果物を本リポジトリで書いたコードだけにすること。対象のブラウザの理由の、ホストの manifest の登録 | §3.1.4・§3.7.3 の決定に改める。`key` を残す理由を、保存した値の持ち主の ID を固定することに改め、Web Store の公開鍵に置き換えることを加える |
-| [ADR-0027](../../dev/adr/0027-article-job-api.md) | 題名と決定のすべて（ジョブの API、ホストのメッセージ、HMAC のキー、サーバのメモリのキャッシュ） | ジョブの記録（§3.2）と SW の調停（§3.3）に書き換える。主題（記事の生成と状態の受け渡し）は続くので、廃止せずに改める |
-| [ADR-0028](../../dev/adr/0028-no-automatic-resend.md) | ホストとのやり取り、ホストの接続、未送信の確定の規則 | 生成の開始と予約を自動で送り直さないこと、止まった実行を自動で生成し直さないこと、結果不明の扱い（§3.8）に改める |
+| [ADR-0026](../../dev/adr/0026-extension-platform.md) | 背景の、ホストの `allowed_origins` が ID を指定すること。成果物を本リポジトリで書いたコードだけにすること。対象のブラウザの理由の、ホストの manifest の登録 | §3.1.4・§3.7.3 の決定に改める。`key` を残す理由を、保存した値の持ち主の ID を固定することに改め、Web Store の公開鍵に置き換えることを加える。拡張のビルドが Go を呼ぶこと、`wasm_exec.js` を成果物の例外として `go.mod` の版と照らすこと、開発用のビルドが `key` を持たないことを、この ADR だけに置く |
+| [ADR-0027](../../dev/adr/0027-article-job-api.md) | 題名と決定のすべて（ジョブの API、ホストのメッセージ、HMAC のキー、サーバのメモリのキャッシュ） | ジョブの記録（§3.2）と SW の調停（§3.3）に書き換える。主題（記事の生成と状態の受け渡し）は続くので、廃止せずに改める。止まった記録の理由（`stopReason`）、捨てる順、`inputDigest` が外に出ない値であることを書く |
+| [ADR-0028](../../dev/adr/0028-no-automatic-resend.md) | ホストとのやり取り、ホストの接続、未送信の確定の規則 | 生成の開始と予約を自動で送り直さないこと、止まった実行を自動で生成し直さないこと、結果不明の扱い（§3.8）に改める。結果の送り直しは記録への書き込みで、生成を始め直すことではないことを書く |
 | [ADR-0029](../../dev/adr/0029-extension-ui-languages.md) | 言語の設定を持たない理由の「拡張は設定を持たず、何も保存しない」 | 理由を「拡張の設定は API キーとワークスペース ID だけにする（ADR-0048）」に改める。決定（言語はブラウザの UI の言語から決める）は変えない。表示の言語の規則とページの `lang` の規則を当てる画面に、オプションページを加える |
 | [ADR-0030](../../dev/adr/0030-minimum-chrome-version.md) | 最小の版の値 | 112 に改める（§1.2） |
-| [ADR-0031](../../dev/adr/0031-secret-closure.md) | サーバが API キーを出力に流さないこと | 拡張が API キーを保存してから Go の `secret.Secret` にするまでの経路の規則（§5.4）を加え、サーバの記述を除く |
+| [ADR-0031](../../dev/adr/0031-secret-closure.md) | サーバが API キーを出力に流さないこと | 拡張が API キーを保存してから Go の `secret.Secret` にするまでの経路の規則（§5.4）を加え、サーバの記述を除く。SW は API キーの値を読まないことを書く |
 | [ADR-0033](../../dev/adr/0033-transcript-cache-slots.md) | 「localhost サーバは `yt-dlp` を呼ばないので、このキャッシュを使わない」。サーバのメモリの記事のキャッシュへの参照 | 拡張に改め、ジョブの記録への参照（ADR-0027）に改める |
 | [ADR-0034](../../dev/adr/0034-template-allowlist.md) | 背景の「localhost サーバは上書きのファイルを読まず」。出典のブロックが「サーバが返す表示用の Markdown」に付くこと | WASM の入口に改める |
 | [ADR-0038](../../dev/adr/0038-deadcode-and-race-free-timing.md) | 背景と決定の「本番の `yt2column-server` は `-race` なしでビルドされる」と、予算が守るのがサーバの解析であること | 予算が守るのを、CLI と WASM の入口の解析に改める。WASM は `-race` でビルドできないので、本番の WASM の入口も `-race` なしであることを書く。予算はネイティブのビルドで確かめ、WASM での解析の時間は測っていないことを結果に書く（Worker で動くので、長くかかっても画面は止まらない） |
 | [ADR-0043](../../dev/adr/0043-copy-mention-neutralization.md) | 「無効化はサーバで行い」と、状態の取得の応答のメンバ | WASM の入口の Go の部品で行い、結果（§3.1.2 の `ArticleResult`）に入れることに改める。拡張の TypeScript は受け取った文字列を加工しないことは変えない |
-| [ADR-0045](../../dev/adr/0045-dev-fake-llm.md) | 本番のバイナリの一覧のサーバとホスト。開発用のサーバの規則のすべて | 本番の成果物を `yt2column` と公開用の WASM の入口に改める。開発用のサーバの規則を、開発用の拡張のビルドの規則（§3.9）に置き換える。タスク 0086 は PR-1 だけを実装することを書く |
+| [ADR-0045](../../dev/adr/0045-dev-fake-llm.md) | 本番のバイナリの一覧のサーバとホスト。開発用のサーバの規則のすべて | 本番の成果物を `yt2column` と公開用の WASM の入口に改める。開発用のサーバの規則を、開発用の拡張のビルドの規則（§3.9）に置き換える。タスク 0086 は PR-1 だけを実装することを書く。シナリオはビルドの引数で選ぶ |
 
 -   ADR-0001・0002・0013〜0016・0021・0022・0023・0025・0032・0035〜0037・0039〜0042・0044・0046・0047 は、検索で語が当たらないか、当たってもサーバやホストを前提にした項目ではなかった（ADR-0001 の「ホスト」は HTTP の送り先、ADR-0032 と ADR-0046 は別の意味の語だった）。ADR-0022 は要件の PR で改めた決定のままで、本書の決定と合う。
 -   ADR-0005 と ADR-0018 は、要件の PR で廃止した。
@@ -702,34 +878,53 @@ script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src https://api
 
 ### 4.1. 値の集合
 
-ジョブの記録と WASM の入口の結果が持つ値の集合を示す。どれも閉じた集合で、TypeScript の側も Go の側も、知らない値を受理しない。
+WASM の入口の結果、ジョブの記録、SW の応答が持つ値の集合を、作り手ごとに示す。どれも閉じた集合で、TypeScript の側も Go の側も、知らない値を受理しない。
 
 ```typescript
 type StepState = "pending" | "running" | "done" | "skipped" | "failed";
 type Steps = { draft: StepState; shorten: StepState; review: StepState };
 
-// Why a run failed. The values are today's job API failure codes plus
-// api_key_rejected and api_key_missing.
-type Failure =
+// Why prepare rejected a start input. Produced by the WASM entry.
+type PrepareRejection = "invalid_body";
+
+// Why a run failed inside the WASM entry: today's job API failure codes plus
+// api_key_rejected.
+type WasmFailure =
   | "internal" | "transcript_too_long" | "llm_timeout" | "llm_empty"
   | "llm_truncated" | "llm_failed" | "article_invalid" | "article_too_large"
-  | "api_key_rejected" | "api_key_missing";
+  | "api_key_rejected";
 
-// Why a start did not reserve a run.
+// Why a run recorded in a job record failed: the WASM failures plus the two
+// the running viewer decides without the WASM entry.
+type RecordFailure =
+  | WasmFailure
+  | "api_key_missing" // the key was gone when the run was about to call generate
+  | "run_timeout";    // the 50-minute deadline of the whole run passed
+
+// Why a start did not reserve a run. Produced by the service worker.
 type StartRejection =
   | "invalid_body"       // prepare rejected the input
-  | "api_key_missing"    // no API key is saved
-  | "too_many_requests"; // two runs are running, or no record can be evicted
+  | "api_key_missing"    // the configured marker is not saved
+  | "too_many_requests"  // two runs are running, or no record can be evicted
+  | "internal";          // the tab could not be opened, the Worker did not load, or a write failed
+
+// The kind of an internal failure; for the record and the developer log only.
+type InternalDetail =
+  | "panic" | "worker_error" | "worker_load" | "result_shape"
+  | "store_failed" | "input_mismatch";
 ```
 
--   `Failure` は、今のジョブの API の失敗のコード（development.md「ジョブの API のコード」）に `api_key_rejected` と `api_key_missing` を加えたものである。`api_key_missing` は、予約の後に API キーが削除されていたときの失敗で、実行するビューアが `generate` を呼ばずに決める（§6.2）。Go の側では、`internal/extjob` の列挙型で持ち、ゼロ値を `internal` にする（今の `articlecache.FailureReason` と同じ）。
+-   `WasmFailure` は、今のジョブの API の失敗のコード（development.md「ジョブの API のコード」）に `api_key_rejected` を加えたものである。Go の側では、`internal/extjob` の `Failure` で持ち、ゼロ値を `internal` にする（今の `articlecache.FailureReason` と同じ）。
+-   `RecordFailure` の `api_key_missing` と `run_timeout` は、実行するビューアが WASM の入口を経ずに決める。`run_timeout` は呼び出し全体の期限（§3.4）で、呼び出しごとの期限の `llm_timeout` と分ける。
 -   `api_key_rejected` は、Claude アダプタが状態 401 の `HTTPStatusError` を返したときの失敗である（`internal/llm/claude/errors.go`）。判定は、`errors.AsType` で取り出した状態コードで行い、応答の本文を読まない（security.md §3）。403 は、権限とワークスペースの問題を含むので、`llm_failed` のままにする。
+-   `InternalDetail` は、`internal` の失敗と拒否の種類である。ジョブの記録と開発者向けのログにだけ置き、利用者には文として示さない。
 -   今の拒否の理由のうち、サーバの HTTP に固有のもの（`body_too_large`・`invalid_key`・`not_found`・`method_not_allowed`）と、ホストに固有のもの（`server_unavailable`・`message_too_large`・`server_timeout`・`protocol_error`）はなくなる。入力の大きさの上限（4 MiB）は、`prepare` の `invalid_body` に含める。
 
 ### 4.2. 失敗の示し方
 
 -   示す文は、値ごとの固定の文言だけである。Go のエラーの文、Anthropic の応答の本文、ブラウザの例外の文は、利用者に示さない。開発者向けのログには、固定のラベルと値の名前だけを書く（§5.4）。
--   `generate` の Promise が値を返さずに拒否されたとき（WASM の入口の panic、Worker の異常終了）は、`internal` の失敗にする。
+-   `generate` の Promise が値を返さずに拒否されたとき（WASM の入口の panic）は `internal`（`panic`）、Worker が異常終了したときは `internal`（`worker_error`）、結果の JSON が受理する形に合わないときは `internal`（`result_shape`）の失敗にする。
+-   止まった記録は、止まった理由（`stopReason`、§3.2.1）を持つ。開発者は、記録から、どの経路で止まったかを読める。
 
 ## 5. セキュリティ考慮事項 (Security Considerations)
 
@@ -748,7 +943,7 @@ type StartRejection =
 
 #### 5.1.2. 信頼の境界
 
-矢印 A → B は、「A が B へ届く経路がある」を表す。破線の矢印は、構成が止める経路を表す。
+矢印 A → B は、「A が B へ届く経路がある」を表す。破線の矢印は、構成が止める経路を表す。この図の色は、標準の配色を信頼の区分に使い、変更の有無を表さない（Legend のとおり）。
 
 ```mermaid
 flowchart LR
@@ -765,7 +960,7 @@ flowchart LR
     ISO["注入した関数<br>（隔離された世界）"]
     WEB["ウェブページ<br>（YouTube を含む）"]
     EXT["ほかの拡張"]
-    LLMOUT["LLM の出力<br>（記事）"]
+    LLMOUT[("LLM の出力<br>（記事）")]
     OSU["同じ OS ユーザーのプロセス"]
     API["Anthropic の API"]
 
@@ -788,7 +983,7 @@ flowchart LR
     subgraph Legend["Legend"]
         L1[("保存する値")]
         L2["拡張の要素"]
-        L3["信頼の境界の外の相手"]
+        L3["信頼の境界の外の相手と値"]
         L4["送り先と注入した関数"]
     end
     class L1 data
@@ -803,12 +998,13 @@ flowchart LR
 |---|---|---|
 | 同じ OS ユーザーのプロセス（AI Agent を含む） | 信頼する（排除しない） | プロファイルのディレクトリを読めるので、`chrome.storage.local` の API キーを平文で読める。CLI の `.envrc` と同じ水準として受け入れる（ADR-0010、要件書「要件定義の際に決めたこと」）。拡張の側の手段では防げない |
 | 他の OS ユーザーのプロセス | 排除する | プロファイルのディレクトリの権限（OS の既定）による。拡張は確かめない前提である |
-| ウェブページ（YouTube を含む） | 排除する | 拡張のページを開くことも埋め込むこともできない（`web_accessible_resources` を宣言しない）。SW へ送れない（`externally_connectable` を宣言せず、`onMessageExternal` を使わない）。ページが注入した関数の世界を乗っ取れたとしても、その世界からの求めを SW は受け付けない（§5.2 の送り手の確かめ）。`chrome.storage` に届かない。注入した関数の隔離された世界の拡張の API に届かない。ページが偽れるのは、拡張が読む選択範囲と DOM の値だけで、それは信頼できない入力として検査する（§5.2） |
-| 注入した関数 | 拡張のコードだが、隔離された世界で動き、SW への求めは受け付けない | 本リポジトリで書いた関数で、選択範囲と動画メタデータを読んで返すだけで、API キーを読まない。`setAccessLevel` で `chrome.storage.local` を読めないようにする（§3.6）。効かないと (c) で分かったときは、この世界から読めることを受け入れるリスクにする（§3.13・§5.1.4） |
+| ウェブページ（YouTube を含む） | 排除する | 拡張のページを開くことも埋め込むこともできない（`web_accessible_resources` を宣言しない）。SW へ送れない（`externally_connectable` を宣言せず、`onMessageExternal` を使わない）。ページが注入した関数の世界を乗っ取れたとしても、その世界からのリクエストを SW は受け付けない（§5.2 の送り手の確かめ）。`chrome.storage` に届かない。注入した関数の隔離された世界の拡張の API に届かない。ページが偽れるのは、拡張が読む選択範囲と DOM の値だけで、それは信頼できない入力として検査する（§5.2） |
+| 注入した関数 | 拡張のコードだが、隔離された世界で動き、SW へのリクエストは受け付けない | 本リポジトリで書いた関数で、選択範囲と動画メタデータを読んで返すだけで、API キーを読まない。`setAccessLevel` で `chrome.storage.local` を読めないようにする（§3.6）。効かないと (c) で分かったときは、この世界から読めることを受け入れるリスクにする（§3.13・§5.1.4） |
 | ほかの拡張 | 排除する | 別のオリジンで、`chrome.storage` と拡張のページに届かない。メッセージを送れない（`externally_connectable` なし）。`tabs` や `history` の権限を持つ拡張は、ビューアの URL（ジョブ ID・見出しの値）を読める。これは今と同じく受け入れる（ADR-0010） |
-| プロンプトインジェクションで操作された LLM の出力 | 信頼しない | 記事は文字として描画し、HTML を解釈せず、スクリプトを動かせない（ADR-0017）。動いた場合も、CSP の `connect-src` が Anthropic の API のほかへの送信を止める（§5.3）。リンクは `https` の自動リンクだけで、利用者が押したときだけ開く（今と同じ） |
+| プロンプトインジェクションで操作された LLM の出力 | 信頼しない | 記事は文字として描画し、HTML を解釈せず、スクリプトを動かせない（ADR-0017）。これが本当の守りである。スクリプトが動いた場合、CSP は `fetch`・画像・フレーム・フォームによる送り出しを狭めるが、ページの移動・`window.open`・`chrome.tabs.create` による送り出しは止めない（§3.7.2・§5.1.4）。リンクは `https` の自動リンクだけで、利用者が押したときだけ開く（今と同じ） |
 | Anthropic の API | 送り先として信頼する | 利用者が自分の API キーで使う先である。データの扱いは §3.12 の C-14 |
 | ネットワークの途中の相手 | 排除する | `https://api.anthropic.com` へ TLS で送る。ブラウザが証明書を検証する |
+| 拡張のほかのページ（ビューア・ポップアップ・オプションページ） | 信頼する | 同じオリジンで、本リポジトリで書いたコードだけを動かす。SW は、ビューアが計算して送る `inputDigest` と動画 ID をそのまま使う（§3.3） |
 
 #### 5.1.4. 受け入れるリスク
 
@@ -817,36 +1013,40 @@ flowchart LR
 -   記事の `https` の自動リンクは、任意のサイトを指しうる（ADR-0017 の残余のリスクと同じ）。
 -   利用者の組織が ZDR か Compliance API を有効にしていると、拡張を使えない（§3.12 の C-12）。
 -   §3.13 の (c) の結果によっては、注入した関数の世界から `chrome.storage.local` を読める。
+-   ビューアでスクリプトが動いたときの、ページの移動、`window.open`、`chrome.tabs.create` による値の送り出しは、CSP では止められない（§3.7.2）。ビューアでスクリプトを動かさないこと（ADR-0017）に頼る。
+-   `chrome.storage.local.setAccessLevel` の設定がブラウザの再起動で消えても、ポップアップが関数を注入する直前に呼ぶので、注入した関数が設定の前に動くことはない。呼び出しが失敗したときは、ポップアップは注入せず、開始が拒否された状態（`internal`）を示す。
 
 ### 5.2. 信頼できない入力の境界（要件書 AC-18）
 
 どの境界でも、受理する形に合わない値は補正せずに拒否する。拒否の理由と示す文は固定の値で、入力の値を含めない。
 
-| 境界 | 受理する形 | 大きさの上限 | 構造を持つ入力の扱い | 拒否したときに利用者に示すもの |
-|---|---|---|---|---|
-| コピーした字幕と動画メタデータ（ポップアップが読み、WASM の入口の `prepare` が検査する） | 今のサーバの生成の開始の本文と同じ規則（security.md §8.2「受け取る入力の境界」）。動画の URL は `transcript.ValidateVideoURL`、字幕は `transcript.NewCopiedSource`、タイトル・チャンネル名・概要欄は今の規則。ポップアップの側の収集の検査（`acceptedUrl.ts`・`collect.ts`・`metadata.ts`）は今のまま残す | 本文全体で 4 MiB（今と同じ） | `PrepareRequest` のメンバの閉じた集合。知らないメンバと重複したメンバは拒否する（`internal/strictjson`） | 開始が拒否された状態（`invalid_body`）と、今の拒否の理由の文言 |
-| LLM の API の応答 | 今のアダプタと同じ（応答の本文の上限、空の応答と打ち切りは失敗、`usage` は信頼しない）。security.md §3・§6 | 8 MiB（`llmhttp` の上限。`js` のビルドで効くことを測った。調査記録「測定 1」） | 今のアダプタの検査のまま | 記事の生成が失敗した状態と、失敗の値（§4.1） |
-| 利用者が入力する API キーとワークスペース ID（オプションページの `checkSettings`） | API キーは空でない印字可能な ASCII（0x21〜0x7E）。ワークスペース ID は空か、同じ文字の集合。前後の空白を除かない | 各 1 KiB | `SettingsCheckRequest` のメンバの閉じた集合 | どの欄が合わないか。値は示さない |
-| 保存した場所から読み戻す値（`chrome.storage.local` の設定） | 上と同じ規則。WASM の入口が `generate` で検査し直す | 上と同じ | 2 つの項目だけを読む。ほかの項目は読まない | API キーが設定されていない状態として扱い、設定し直す手順を示す。補正して使わない |
-| 保存した場所から読み戻す値（`chrome.storage.session` のジョブの記録） | `JobRecord` の形（§3.2.1）。`version` が 1、メンバの閉じた集合、値の型、列挙の値、ジョブ ID と `inputDigest` の 16 進の桁数、状態ごとに持つメンバ | 記録 1 つ 512 KiB、合計は §3.2.3 | 知らないメンバと、状態に合わないメンバを持つ記録は拒否する | その記録を持たないものとして扱い、記事が失われた状態を示す |
-| ビューアの URL | 今の規則（`viewerUrl.ts`）。記事のキーを、32 文字の小文字の 16 進のジョブ ID に替える | 今と同じ | クエリの名前の閉じた集合、重複の拒否（今と同じ） | 今と同じく、記事を表示せず何も送らない |
-| ページの間のメッセージ（`chrome.runtime.sendMessage`） | 求めごとのメンバの閉じた集合。送り手の確かめ（下） | 生成の開始の入力は 4 MiB | 知らないメンバと重複は拒否する | 何もしない（開発者向けのログに固定のラベルだけを書く） |
-| `BroadcastChannel` のメッセージ | 今の規則（`viewerQuery.ts`）に、生存の確認の問いと答えを加える | 今と同じ | 今と同じ | 何もしない |
-| WASM の入口の結果と進み具合（Worker からビューアへ） | `GenerateResult`・`PrepareResult`・`ProgressEvent`・`SettingsCheckResult` の形（§3.1.2）。TypeScript の側で検査する | 結果は 512 KiB | 知らないメンバと重複は拒否する | `internal` の失敗 |
+| 境界 | 受理する形 | 拒否の理由 | 大きさの上限 | 構造を持つ入力の扱い | 拒否したときに利用者に示すもの |
+|---|---|---|---|---|---|
+| コピーした字幕と動画メタデータ（ポップアップが読み、WASM の入口の `prepare` が検査する） | 今のサーバの生成の開始の本文と同じ規則（security.md §8.2「受け取る入力の境界」）。動画の URL は `transcript.ValidateVideoURL`、字幕は `transcript.NewCopiedSource`、タイトル・チャンネル名・概要欄は今の規則。ポップアップの側の収集の検査（`acceptedUrl.ts`・`collect.ts`・`metadata.ts`）は、集める対象のタブかどうかの判定として今のまま残す。受理するかどうかは Go が決める | `invalid_body` | 本文全体で 4 MiB（今と同じ） | `PrepareRequest` のメンバの閉じた集合。知らないメンバと重複したメンバは拒否する（`internal/strictjson`） | 開始が拒否された状態（`invalid_body`）と、今の拒否の理由の文言 |
+| LLM の API の応答 | 今のアダプタと同じ（応答の本文の上限、空の応答と打ち切りは失敗、`usage` は信頼しない）。security.md §3・§6 | `WasmFailure` の値（§4.1） | 8 MiB（`llmhttp` の上限。`js` のビルドで効くことを測った。調査記録「測定 1」） | 今のアダプタの検査のまま | 記事の生成が失敗した状態と、失敗の値 |
+| 利用者が入力する API キーとワークスペース ID（オプションページの `checkSettings`） | API キーは `llmhttp.CheckAPIKey` の規則（空でない印字可能な ASCII、0x21〜0x7E）。ワークスペース ID は空か、`claudeparam.ParseWorkspaceID` の規則。前後の空白を除かない | 合わない欄の名前（`SettingsCheckResult` の `fields`） | 設けない（CLI と同じ） | `SettingsCheckRequest` のメンバの閉じた集合 | どの欄が合わないか。値は示さない |
+| 保存した場所から読み戻す値（`chrome.storage.local` の設定） | 上と同じ規則。WASM の入口が `generate` で検査し直す | 実行するビューアの `api_key_missing`、WASM の入口の `internal` | 設けない | `anthropic.apiKey`・`anthropic.workspaceId`・`anthropic.configured` の 3 つの項目だけを読む。ほかの項目は読まない | API キーが設定されていない状態として扱い、設定し直す手順を示す。補正して使わない |
+| 保存した場所から読み戻す値（`chrome.storage.session` のジョブの記録と開始の文脈） | `JobRecord` の形（§3.2.1）と開始の文脈の形（§3.3）。`version` が 1、メンバの閉じた集合、値の型、列挙の値、ジョブ ID と `inputDigest` の 16 進の桁数、状態ごとに持つメンバ | 形に合わない記録は、ないものとして扱う | 記録 1 つ 512 KiB（受け渡しの上限で、記事の上限 256 KiB より大きい）、合計は §3.2.3 | 知らないメンバと、状態に合わないメンバを持つ記録は拒否する | その記録を持たないものとして扱い、記事が失われた状態を示す |
+| ビューアの URL | 今の規則（`viewerUrl.ts`）。記事のキーを、32 文字の小文字の 16 進のジョブ ID に替える | 今と同じ | 今と同じ | クエリの名前の閉じた集合、重複の拒否（今と同じ） | 今と同じく、記事を表示せず何も送らない |
+| ページの間のメッセージ（`chrome.runtime.sendMessage` と実行の Port） | §3.3.1 の型。リクエストごとのメンバの閉じた集合。送り手の確かめ（下） | 受け付けない（応答しないか、`not_runner`） | 生成の開始の入力は 4 MiB | 知らないメンバと重複は拒否する | 何もしない（開発者向けのログに固定のラベルだけを書く） |
+| `BroadcastChannel` のメッセージ | 今の規則（`viewerQuery.ts`）。問いの値を記事のキーからジョブ ID に替える | 今と同じ | 今と同じ | 今と同じ | 何もしない |
+| WASM の入口の結果と進み具合（Worker からページへ） | §3.1.2 と §3.3.1 の `WorkerMessage` の形。TypeScript の側で検査する | `internal`（`result_shape`） | 結果は 512 KiB（受け渡しの上限） | 知らないメンバと重複は拒否する | `internal` の失敗 |
 
-**送り手の確かめ。** SW は、どの求めも、送り手が自分の拡張（`sender.id` が自分の ID）であることを確かめる。加えて、求めごとに次を確かめる。
+**送り手の確かめ。** SW は、どのリクエストも、送り手が自分の拡張（`sender.id` が自分の ID）で、URL が拡張のページであることを確かめる。加えて、リクエストごとに次を確かめる。
 
 -   生成の開始：送り手がタブを持たず、URL がポップアップのページと完全に一致する（今と同じ。security.md §8.1）。
--   入力の受け取りと予約：送り手のタブが、その開始の ID のために SW が開いたタブである。
--   進み具合と結果：送り手のタブ ID とページの `instanceId` が、記録の `runner` と一致する。一致しない知らせは捨てる。
+-   入力の受け取り、検査の拒否、予約：送り手のタブが、その開始の ID の開始の文脈（§3.3）にあるタブで、URL がビューアのページである。
+-   進み具合と結果：送り手のタブ ID とページの `instanceId` が、記録の `runner` と一致する。一致しない知らせには `not_runner` を返し、記録を変えない。
+-   読み込み直しの知らせ：送り手のタブ ID が記録の `runner` のタブ ID と同じで、`instanceId` が違う。
+-   実行の Port：名前が `runner` で、送り手が上の進み具合と同じ条件を満たし、最初のメッセージ（`RunnerHello`）のジョブ ID と `instanceId` が記録の `runner` と一致する。合わない Port はすぐに切る。
 
-注入した関数（隔離された世界）は、`chrome.runtime.sendMessage` で SW へ送れる。上の確かめにより、注入した関数からの求めは、どれも受け付けない。
+注入した関数（隔離された世界）は、`chrome.runtime.sendMessage` で SW へ送れる。送り手の URL が拡張のページでないので、上の確かめにより、注入した関数からのリクエストは、どれも受け付けない。
 
 ### 5.3. LLM の API への送信の守り（要件書 AC-19）
 
 | 守り | 今（ネイティブのビルド） | 拡張からの送信での満たし方 | 確かめ |
 |---|---|---|---|
-| リダイレクトに従わない | `CheckRedirect` で拒否する（`internal/llm/llmhttp/llmhttp.go:65`） | 1 つ目：`js` のビルドで、要求に `js.fetch:redirect` を付け、`fetch` にリダイレクトを失敗として扱わせる（値は (b) の結果で `error` か `manual` に決める）。2 つ目：CSP の `connect-src https://api.anthropic.com` が、ほかのオリジンへの送信を、リダイレクトの先を含めて止める | `manual` は、どの先へも送らずに失敗した（調査記録「測定 1」）。Worker からの送信と `connect-src` は (b) で確かめる |
+| リダイレクトに従わない | `CheckRedirect` で拒否する（`internal/llm/llmhttp/llmhttp.go:65`） | 1 つ目：`js` のビルドで、リクエストに `js.fetch:redirect` を付け、`fetch` にリダイレクトを失敗として扱わせる（値は (b) の結果で `error` か `manual` に決める）。2 つ目：CSP の `connect-src 'self' https://api.anthropic.com` が、ほかのオリジンへの送信を、リダイレクトの先を含めて止める | `manual` は、どの先へも送らずに失敗した（調査記録「測定 1」）。Worker からの送信と `connect-src` は (b) で確かめる |
 | 応答の本文の大きさに上限を設ける | 8 MiB で読むのをやめる | 同じコードで効く | 調査記録「測定 1」の `large_body` |
 | 呼び出しに期限を設ける | 呼び出しごとに 15 分で、本文の読み込みまで覆う | 応答ヘッダの前は、Go の期限が効く。本文の途中は効かないので、実行するビューアが呼び出し全体に 50 分の期限を持ち、過ぎたら Worker を止める（§3.4） | Go の期限は調査記録「測定 1」の `stall_header`。Worker を止めたときの送信の中止は (b) で確かめる |
 | 取り消し | 文脈の取り消しで止める | タブを閉じると送信が止まる（調査記録「測定 4」の 4-5）。Worker を止めても止まる（(b)） | 同上 |
@@ -856,7 +1056,7 @@ flowchart LR
 
 ### 5.4. API キーを出さない先（要件書 AC-06）
 
-API キーが通る経路は、次の 4 つだけである。オプションページの入力の欄から `chrome.storage.local` へ、`chrome.storage.local` から実行するビューアのメインスレッドへ、そこから `postMessage` で Worker へ、Worker の中で Go の `secret.Secret` を経て Anthropic の API の要求の `x-api-key` のヘッダへ。設定の検査のときは、オプションページから Worker の `checkSettings` へも渡る。
+API キーが通る経路は、次の 4 つだけである。オプションページの入力の欄から `chrome.storage.local` へ、`chrome.storage.local` から実行するビューアのメインスレッドへ、そこから `postMessage` で Worker へ、Worker の中で Go の `secret.Secret` を経て Anthropic の API のリクエストの `x-api-key` のヘッダへ。設定の検査のときは、オプションページから Worker の `checkSettings` へも渡る。SW とポップアップは、API キーの値を読まず、設定済みの印だけを読む（§3.6）。
 
 | 出さない先 | 守り方 |
 |---|---|
@@ -865,8 +1065,8 @@ API キーが通る経路は、次の 4 つだけである。オプションペ�
 | ビューアの URL | ジョブ ID と見出しの値だけを持つ（§5.2） |
 | 保存するファイル、コピーする文章 | WASM の入口が記事の値だけから作る。API キーは `ArticleResult` に入らない |
 | LLM に送るプロンプト | 今と同じく、字幕・動画メタデータ・生成した文面・テンプレートだけから作る（security.md §4） |
-| ブラウザの外への同期 | `chrome.storage.sync` を使わない |
-| `chrome.storage.session` と、SW へのメッセージ | API キーを入れない。SW は API キーを読まない（有無だけを確かめる） |
+| ブラウザの外への同期 | `chrome.storage.sync` を使わない。入力の欄をパスワードの欄として扱わせず、パスワードの管理への保存を勧められないようにする（§3.6） |
+| `chrome.storage.session` と、SW へのメッセージ | API キーを入れない。SW は API キーの値を読まず、設定済みの印だけを読む |
 | `BroadcastChannel` | API キーを入れない |
 | WASM の入口の結果と進み具合 | API キーを入れない（§3.1.2） |
 | 画面 | 保存した API キーを再び表示しない（§3.6） |
@@ -877,12 +1077,12 @@ API キーが通る経路は、次の 4 つだけである。オプションペ�
 
 | 今の方針と置き場所 | 例外にする理由 | 今の振る舞いを確かめているテスト |
 |---|---|---|
-| 拡張のページの既定の CSP を緩めない（security.md §8.1、[0063 要件定義書](../0063_viewer_markdown/01_requirements.md)） | WASM を読み込むのに `'wasm-unsafe-eval'` が要る（§3.7.2）。許すのは WASM のコンパイルだけで、JavaScript の `eval` とインラインのスクリプトは今と同じく許さない。`connect-src` を加えて、送信は今より狭める | `extension/test/manifest.test.ts`（manifest の最上位のキーの集合が決めた一覧と一致すること。`content_security_policy` と `options_ui` を加えると失敗する） |
+| 拡張のページの既定の CSP を緩めない（security.md §8.1、[0063 要件定義書](../0063_viewer_markdown/01_requirements.md)） | WASM を読み込むのに `'wasm-unsafe-eval'` が要る（§3.7.2）。許すのは WASM のコンパイルだけで、JavaScript の `eval` とインラインのスクリプトは今と同じく許さない。`connect-src` などを加えて、送り出しの経路は今より狭める | `extension/test/manifest.test.ts`（manifest の最上位のキーの集合が決めた一覧と一致すること。`content_security_policy`・`options_ui`・`incognito` を加えると失敗する） |
 | 成果物は本リポジトリで書いたコードだけにする（ADR-0026、[0007 設計書](../0007_browser_extension_skeleton/02_architecture.md) §3.9） | Go の WASM を読み込むのに、Go のツールチェーンの `wasm_exec.js` が要る。中身は `go.mod` が定める版のものと一致することを検査する（§3.1.4）。WASM は本リポジトリの Go のコードからビルドする | `extension/test/checkDist.test.ts` |
 | 拡張は何も保存しない、`storage` の権限を持たない（ADR-0010、security.md §8.1） | 要件の PR で改めた（ADR-0010）。本書は保存の手段を決める | `extension/test/manifest.test.ts`（権限が 3 つであること）、`extension/test/secretsAbsent.test.ts`（拡張のソースが `api key`・`ANTHROPIC_API_KEY` などの語を含まないこと） |
 | ポップアップとビューアは状態の取得を繰り返す（ADR-0008、[0050 設計書](../0050_viewer_tab/02_architecture.md)） | 状態の正しい値がサーバからジョブの記録に移る（§1.2） | `extension/test/poll.test.ts`・`poller.test.ts` |
 | 記事のキーはサーバの秘密を鍵とする HMAC で計算する（ADR-0027、[0044 設計書](../0044_article_job_api/02_architecture.md) §3.2） | 秘密を持つプロセスがなくなる。ジョブ ID を乱数にし、入力の判定を `inputDigest` に分ける（§3.2.2） | `internal/articlecache` のテスト（撤去する）、`extension/test/articleKey.test.ts` |
-| 拡張は Native Messaging のホストだけに送り、ネットワークへ要求を送らない（security.md §8.1、[0026 設計書](../0026_native_messaging_relay/02_architecture.md)） | 構成の決定（ADR-0048）による | `extension/test/manifest.test.ts`、`extension/test/send.test.ts`・`native.test.ts` |
+| 拡張は Native Messaging のホストだけに送り、ネットワークへリクエストを送らない（security.md §8.1、[0026 設計書](../0026_native_messaging_relay/02_architecture.md)） | 構成の決定（ADR-0048）による | `extension/test/manifest.test.ts`、`extension/test/send.test.ts`・`native.test.ts` |
 
 `extension/test/secretsAbsent.test.ts` は、拡張が API キーを持たないことを、語の不在で確かめている。拡張が API キーを持つ構成では成り立たないので、#773 は、API キーの経路を §5.4 の 4 つに限ることを確かめるテストに置き換える。
 
@@ -900,22 +1100,22 @@ sequenceDiagram
     P->>S: 生成の開始（入力・送り方）
     alt 送り手がポップアップでない
         S-->>P: 何も返さない
-    else API キーがない
+    else 設定済みの印がない
         S-->>P: 拒否（api_key_missing）
     else
-        S->>S: 開始の ID を作り、入力をメモリに置く
+        S->>S: 開始の ID を作り、入力をメモリに、開始の文脈を storage.session に置く
         S->>V: 背面のタブで開く（URL に開始の ID と見出しの値）
-        V->>S: 入力を求める（開始の ID）
+        V->>S: 入力の受け取り（開始の ID）
         S-->>V: 入力（1 回だけ。メモリから消す）
-        V->>W: 起動し、prepare
-        alt 検査で拒否
-            W-->>V: rejected（invalid_body）
-            V->>S: 拒否を知らせる
-            S-->>P: 拒否（invalid_body）
+        V->>W: 起動し、prepare（30 秒の期限）
+        alt 検査で拒否、または Worker を読み込めない
+            W-->>V: rejected（invalid_body）、または期限切れ・error
+            V->>S: 検査の拒否を知らせる（invalid_body か internal）
+            S-->>P: 拒否（invalid_body か internal）
             V->>V: Worker を止め、理由を示す
         else 検査を通る
-            W-->>V: inputDigest・videoId
-            V->>S: 予約（inputDigest・videoId・送り方・見出し・instanceId）
+            W-->>V: inputDigest・videoId（入力は Worker が持つ）
+            V->>S: 予約（inputDigest・videoId・見出し・instanceId）
             S->>S: 直列の処理で判定し、記録を書く
             alt 新しい実行
                 S-->>V: 新しい実行（ジョブ ID）
@@ -941,6 +1141,7 @@ sequenceDiagram
 ```
 
 -   ポップアップは、同じ動画を示されたら、今と同じく選択の状態を示す。「現在の選択範囲で生成する」は、照会なしの生成の開始として、この流れをもう一度行う。
+-   送り方は、SW が開始の文脈から読む。ビューアは送り方を送らない。
 -   ビューアのタブを開けなかったときは、SW は入力を捨て、ポップアップに結果不明ではなく拒否（`internal`）を返す。生成は始まっていない。今は、タブを開けなくても生成の開始を送る（ADR-0009）が、拡張だけの構成では生成を実行するのがそのタブなので、開けなければ生成できない。
 
 ### 6.2. 実行と完了
@@ -953,40 +1154,47 @@ sequenceDiagram
     participant SS as storage.session
     participant A as Anthropic の API
 
+    V->>S: Port をつなぐ（hello・jobId・instanceId）
     V->>V: storage.local から API キーとワークスペース ID を読む
     alt API キーがない
-        V->>S: 結果（failed・api_key_missing を示す）
+        V->>S: 結果（failed・api_key_missing）
     else
-        V->>W: generate（入力と設定）
+        V->>W: generate（inputDigest・API キー・ワークスペース ID）
         V->>V: 50 分の期限を始める
         loop 工程ごと
-            W->>A: 要求
+            W->>A: リクエスト
             A-->>W: 応答
             W-->>V: 進み具合
             V->>S: 進み具合（jobId・instanceId）
             S->>SS: 書く
+            S-->>V: stored
         end
         alt 完成
             W-->>V: done（記事・料金）
         else 失敗
             W-->>V: failed（失敗の値）
         else 期限を過ぎた
-            V->>V: llm_timeout の失敗にする
+            V->>V: run_timeout の失敗にする
         end
         V->>W: terminate()
-        V->>S: 結果（jobId・instanceId）
-        S->>S: 大きさの上限を確かめ、古い記録を捨てる
-        S->>SS: 書く（done・failed）
+        loop stored を受け取るか、記録が結果を持つまで
+            V->>S: 結果（jobId・instanceId）
+            S->>S: 大きさの上限を確かめ、捨てる記録を選ぶ
+            S->>SS: 書く（done・failed）
+            S-->>V: stored か not_stored
+        end
+        Note over V: not_stored なら送り直さず、<br>完成したが保持できなかった状態を示す
         SS-->>V: 変更の通知（表示するビューアとして表示する）
     end
 ```
 
 -   予約から `generate` の呼び出しまでの間に API キーが削除されていたときは、失敗の値を `api_key_missing` にする（§4.1）。予約で記録を加えたので、記録は `failed` で残り、API キーが設定されていない状態と同じ手順を示す。
--   SW は、記録の `runner` と一致しない進み具合と結果を捨てる。止まった状態にした後に、遅れて届いた知らせで記録を戻さないためである。
+-   SW は、記録の `runner` と一致しない進み具合と結果に `not_runner` を返し、記録を変えない。同じ入力が別のビューアで予約し直された後に、古い実行の知らせで記録を書き換えないためである。`runner` が一致すれば、記録が止まった状態でも受け取る（§6.3）。
+-   SW が書き込みに失敗して `not_stored` を返したときは、実行するビューアは記事を表示し続け、完成したが保持できなかった状態を示す（§3.3・§3.8）。
 
 ### 6.3. 止まった実行の判定
 
-実行するビューアがなくなったことを、次の 3 つの経路で知る。どの経路でも、記録を `stopped` にするのは SW だけである。
+実行するビューアがなくなったことを、次の 4 つの経路で知る。どの経路でも、記録を `stopped` にするのは SW だけで、止まった理由を `stopReason` に書く。
 
 ```mermaid
 flowchart TD
@@ -995,21 +1203,27 @@ flowchart TD
 
     CLOSE["タブが閉じられた"]
     RELOAD["実行するビューアを読み込み直した"]
-    OBSERVE["処理中の記録を<br>使うか表示する"]
+    GONE["実行するページがなくなった<br>（SW が生きている間）"]
+    NEED["SW が処理中の記録を使う"]
     ONREM["SW の tabs.onRemoved"]
-    SELF["読み込み直したビューアが<br>同じタブ ID・別の instanceId の<br>処理中の記録を見つけて知らせる"]
-    CHECK{"SW がタブの存在と<br>BroadcastChannel の応答で<br>生存を確かめる"}
+    SELF["読み込み直したビューアの知らせ"]
+    DISC["SW が Port の切断を受ける"]
+    PORT{"runner の Port が<br>今の SW につながっているか"}
+    WAIT{"10 秒以内に再接続するか、<br>tabs.get でタブがあるか"}
     STOP["SW が記録を stopped にする"]
     KEEP["処理中のまま"]
 
-    CLOSE --> ONREM --> STOP
-    RELOAD --> SELF --> CHECK
-    OBSERVE --> CHECK
-    CHECK -->|"タブがない、または応答がない"| STOP
-    CHECK -->|"応答がある"| KEEP
+    CLOSE --> ONREM -->|"tab_closed"| STOP
+    RELOAD --> SELF -->|"page_reloaded"| STOP
+    GONE --> DISC -->|"page_closed"| STOP
+    NEED --> PORT
+    PORT -->|"つながっている"| KEEP
+    PORT -->|"つながっていない"| WAIT
+    WAIT -->|"再接続した"| KEEP
+    WAIT -->|"再接続せず、タブもない、<br>またはタブはあるが再接続しない"| STOP
 
-    class CLOSE,RELOAD,OBSERVE process
-    class ONREM,SELF,CHECK,STOP,KEEP enhanced
+    class CLOSE,RELOAD,GONE,NEED process
+    class ONREM,SELF,DISC,PORT,WAIT,STOP,KEEP enhanced
 
     subgraph Legend["Legend"]
         L1["できごと"]
@@ -1019,13 +1233,14 @@ flowchart TD
     class L2 enhanced
 ```
 
-矢印 A → B は、「A の後に B が起きる」を表す。
+矢印 A → B は、「A の後に B が起きる」を表す。ラベルは、その経路で書く `stopReason` か、分かれ道の条件である。この図の色は、標準の配色を「できごと」と「拡張の処理」の区分に使い、変更の有無を表さない（Legend のとおり）。
 
--   **タブが閉じられた。** SW は `chrome.tabs.onRemoved` で、記録の `runner` のタブ ID を持つ処理中の記録を止まった状態にする。`onRemoved` は `tabs` の権限なしで使える（§3.12 の C-10）。
--   **実行するビューアを読み込み直した。** 読み込み直したページは、URL のジョブ ID の記録が処理中で、`runner` のタブ ID が自分のタブ ID と同じで `instanceId` が違うとき、元のページがなくなったと SW に知らせる。再読み込みで生成を始め直さない（要件書 AC-07）。
--   **処理中の記録を使うか表示する。** SW が予約の判定（§3.3）で処理中の記録を使うとき、ポップアップかビューアが処理中の記録を表示し始めたときは、SW が生存を確かめる。確かめ方は、`chrome.tabs.get` で `runner` のタブがあることと、`BroadcastChannel` でジョブ ID と `instanceId` を問い、10 秒以内に実行するビューアが答えることである。答えがなければ止まった状態にする。タブを別の URL へ移した場合と、タブの描画が異常終了した場合は、この経路で分かる。
--   止まった記録は、料金を一律に不明と示す（§3.8）。止まった実行の結果は残らない（要件書 AC-08）。
--   生存の確認の応答の時間は (a) で測る。背面のタブの応答が 10 秒を超えうるなら、待ち時間を直す（§3.13）。
+-   **タブが閉じられた（`tab_closed`）。** SW は `chrome.tabs.onRemoved` で、記録の `runner` のタブ ID を持つ処理中の記録を止まった状態にする。`onRemoved` は `tabs` の権限なしで使える（§3.12 の C-10）。
+-   **実行するビューアを読み込み直した（`page_reloaded`）。** 読み込み直したページは、URL のジョブ ID の記録が処理中で、`runner` のタブ ID が自分のタブ ID と同じで `instanceId` が違うとき、`runnerReloaded` を SW に送る。再読み込みで生成を始め直さない（要件書 AC-07）。
+-   **実行するページがなくなった（`page_closed`）。** 実行するビューアは、実行の間 SW への Port を保つ（§3.4）。SW が生きている間に Port が切れたら、ページがなくなったとして止まった状態にする。タブを別の URL へ移した場合と、タブの描画が異常終了した場合も、この経路で分かる。SW が止まって Port が切れたときは、SW の側ではこの処理が走らず、実行するビューアがつなぎ直す。
+-   **連絡の確認（`no_contact`）。** SW が予約の判定（§3.3）と同時に走る実行の数え上げで処理中の記録を使うとき、その `runner` の Port が今の SW につながっていなければ、直列の処理の外で最大 10 秒、再接続を待つ。再接続がなく、`chrome.tabs.get` でタブがないか、タブがあっても再接続しないときは、直列の処理の中で記録を読み直し、まだ処理中で `runner` が変わっていなければ止まった状態にする。SW が止まっている間にページがなくなった場合は、この経路で分かる。
+-   **誤った判定からの戻り。** 凍結されたページは、イベントを処理せず再接続もしないので、連絡の確認は生きている実行を止まった状態にしうる（§3.13）。SW は、止まった記録でも、同じ入力が予約し直されていなければ、記録の `runner` からの進み具合と結果を受け取る。結果が届けば、記録は完成か失敗になる。実行するビューアは、記録が止まった状態になっただけでは Worker を止めず、`runner` が自分でなくなったときに止める（§3.4）。同じ入力をもう一度予約すると `runner` が替わるので、古い実行は止まり、同じ入力の料金が並んでかかり続けることはない。
+-   止まった記録は、料金を一律に不明と示す（§3.8）。本当に止まった実行は、完成した記事として残らない（要件書 AC-08）。完成に戻るのは、誤って止まった状態にされた実行が結果を届けたときだけである。
 
 ### 6.4. API キーの設定
 
@@ -1041,14 +1256,14 @@ sequenceDiagram
     W-->>O: ok か rejected（合わない欄）
     O->>W: terminate()
     alt ok
-        O->>L: 2 つの値を 1 回で書く
+        O->>L: API キー・ワークスペース ID・設定済みの印を 1 回で書く
         O->>O: 入力の欄を空にし、設定されていることを示す
     else rejected
         O->>O: 合わない欄を示す。何も書かない
     end
 ```
 
--   削除のボタンは、2 つの値を消し、設定されていないことを示す。
+-   削除のボタンは、3 つの項目を消し、設定されていないことを示す。
 -   保存の後、入力の欄を空にするのは、保存した API キーを画面に残さないためである（§3.6）。
 
 ## 7. テスト戦略 (Test Strategy)
@@ -1056,33 +1271,34 @@ sequenceDiagram
 ### 7.1. 単体テスト
 
 -   **Go の `internal/extjob`。** fake の `LLMClient` で、入力の検査（今の `internal/server` の `request_test.go` の行を引き継ぐ）、`inputDigest` が同じ入力で同じで、どの値を変えても変わること、工程の進み具合の通知、完了の時点の検査、失敗の分類（401 の `api_key_rejected` を含む）、結果の組み立て（今の `status_test.go` の行を引き継ぐ）を確かめる。ネイティブのビルドで実行する。
--   **Go の WASM の入口の JSON の境界。** JSON の解析と組み立ては `js` のビルドに依存しない関数に置き、ネイティブのビルドで、知らないメンバ・重複・型の違いの拒否と、結果に API キーが入らないことを確かめる。`syscall/js` に触れる薄い登録の部分は、ビルドと手動の確認で確かめる。Go の手順は Node.js を呼ばない（ADR-0026）ので、`GOOS=js` のテストは走らせない。
--   **Go の `internal/config`。** 拡張の入口用の関数が、2 つの名前のほかを読まず、本番の構成になり、CLI と同じ値を拒否することを確かめる。
--   **Go の `internal/llm/llmhttp`・`internal/llm/claude`。** `js` のビルドだけで付ける要求の指定とヘッダは、`js` のビルドのファイルに置き、ネイティブのビルドの要求が変わらないことを今のテストで確かめる。`js` のファイルが付ける値は、`make wasm-check` のビルドと手動の確認で確かめる。
--   **TypeScript の SW の調停。** `chrome.storage.session` と `chrome.tabs` の fake で、予約の判定の順（§3.3）、直列の処理（同時の 2 つの開始で二重に記録を加えないこと）、上限と捨てる記録、`runner` と一致しない知らせを捨てること、止まった実行の 3 つの経路を確かめる。
+-   **Go の WASM の入口の JSON の境界。** JSON の解析と組み立ては `internal/extjob` に置き、ネイティブのビルドで、知らないメンバ・重複・型の違いの拒否、`generate` の `inputDigest` が持っている入力と違うときの `input_mismatch`、結果に API キーが入らないことを確かめる。`syscall/js` に触れる薄い登録の部分は、ビルドと手動の確認で確かめる。Go の手順は Node.js を呼ばない（ADR-0026）ので、`GOOS=js` のテストは走らせない。
+-   **Go の `internal/config`。** `LoadExtension` が、2 つの名前のほかを読まず、本番の構成になり、CLI と同じ値を拒否することを確かめる。
+-   **Go の `internal/llm/llmhttp`・`internal/llm/claude`。** `js` のビルドだけで付けるリクエストの指定とヘッダは、`js` のビルドのファイルに置き、ネイティブのビルドのリクエストが変わらないことを今のテストで確かめる。`js` のファイルが付ける値は、`make wasm-check` のビルドと手動の確認で確かめる。
+-   **TypeScript の SW の調停。** `chrome.storage.session`・`chrome.tabs`・Port の fake で、予約の判定の順（§3.3）、直列の処理（同時の 2 つの開始で二重に記録を加えないこと）、上限と捨てる記録の順、`runner` と一致しない知らせに `not_runner` を返すこと、書き込みが終わってから応答すること、止まった実行の 4 つの経路、止まった記録が同じ `runner` の結果で完成に戻ること、SW が API キーの値を読まないことを確かめる。
 -   **TypeScript のジョブの記録の検査。** 形に合わない記録（知らないメンバ、状態に合わないメンバ、桁数の違うジョブ ID）を、記録がないものとして扱うことを確かめる。
--   **TypeScript のビューアとオプションページ。** Worker の fake で、実行の流れ（§6.2）、50 分の期限、`terminate()` を呼ぶこと、設定の検査の結果で書くか書かないかを確かめる。
+-   **TypeScript のビューアとオプションページ。** Worker の fake で、実行の流れ（§6.2）、30 秒と 50 分の期限、`terminate()` を呼ぶこと、`runner` が替わったときに Worker を止めること、結果の送り直し、設定の検査の結果で書くか書かないかを確かめる。
 
 ### 7.2. 結合のテストと手動の確認
 
 -   **開発用のビルド（§3.9）での手動の確認。** fake の LLM で、§3.8 のすべての状態を画面で確かめる。料金はかからない。
 -   **本番の構成での手動の確認。** Chrome と Brave で 1 本ずつ、背面のまま記事を完成させる。費用の目安は 1 本あたり約 0.33〜0.46 USD である（調査記録「測定 6」）。
 -   Claude アダプタの統合テスト（`make test-integration-claude`）は今のまま残す。
+-   **手動の確認に加えるもの。** §3.7.2 の CSP の値のままで WASM を読み込み API を呼べること、ログインして同期を有効にしたプロファイルでパスワードの保存を勧められないこと（§3.6）、ブラウザを再起動した後も注入した関数から `chrome.storage.local` を読めないこと（§3.6）。
 
 ### 7.3. セキュリティのテスト
 
--   **manifest。** 権限が `activeTab`・`scripting`・`storage` の 3 つで、`host_permissions` がなく、CSP が §3.7.2 の値で、`minimum_chrome_version` が `"112"` であることを確かめる（`extension/test/manifest.test.ts` を直す）。
--   **成果物。** `extension/dist/` が、`tsc` の出力、`static/` の写し、WASM の入口、`go.mod` の版の `wasm_exec.js` だけであることを確かめる（`check-dist.ts`）。
--   **fake が公開する成果物に入らないこと。** `cmd/yt2column-wasm` と `cmd/yt2column` の `go list -deps` に fake の部品が出ないことを確かめる（ADR-0045）。
--   **API キーの経路。** API キーを `chrome.storage.local` から読むのが実行するビューアとオプションページの決まったファイルだけであること、`chrome.storage.sync` を使わないこと、ログの関数に API キーを渡さないことを、lint かソースの検査で確かめる（`secretsAbsent.test.ts` を置き換える。§5.5）。
+-   **manifest。** 権限が `activeTab`・`scripting`・`storage` の 3 つで、`host_permissions` がなく、CSP が §3.7.2 の値で、`incognito` が `"not_allowed"` で、`minimum_chrome_version` が `"112"` であることを確かめる（`extension/test/manifest.test.ts` を直す）。
+-   **成果物。** `extension/dist/` が、`tsc` の出力、`static/` の写し、WASM の入口、`go.mod` の版の `wasm_exec.js` だけであり、WASM の main のパッケージが `cmd/yt2column-wasm` であることを確かめる（`check-dist.ts`）。
+-   **fake が公開する成果物に入らないこと。** `cmd/yt2column` の `go list -deps` と、`GOOS=js GOARCH=wasm` を付けた `cmd/yt2column-wasm` の `go list -deps` に fake の部品が出ないことを確かめる（ADR-0045）。
+-   **API キーの経路。** API キー（`anthropic.apiKey`）を `chrome.storage.local` から読むのが実行するビューアの決まったファイルだけで、書くのがオプションページの決まったファイルだけであること、SW とポップアップが読むのが設定済みの印だけであること、`chrome.storage.sync` を使わないこと、ログの関数に API キーを渡さないことを、lint かソースの検査で確かめる（`secretsAbsent.test.ts` を置き換える。§5.5）。
 -   **HTML を解釈しないこと。** 今の lint の禁止（ADR-0017）を、オプションページと Worker のファイルにも当てる。
--   **送り手の確かめ。** SW が、ポップアップのほか、注入したスクリプト、ほかのタブ、`runner` と一致しないページからの求めを受け付けないことを、単体テストで確かめる。
+-   **送り手の確かめ。** SW が、ポップアップのほか、注入したスクリプト、ほかのタブ、`runner` と一致しないページからのリクエストと Port を受け付けないことを、単体テストで確かめる。
 
 ## 8. 実装の優先順位 (Implementation Priorities)
 
 #773 の計画で PR の区切りを決める。依存の順は次のとおりである。新旧の経路を併存させる仕組みは作らない（要件書 AC-13）ので、拡張がサーバとホストを使わなくなる変更は 1 つの PR で行う。それより前の PR は、Go の部品と、まだ使われない拡張の部品を加えるだけにする。
 
-1.  **Go の部品。** `internal/extjob`、`internal/config` の拡張の入口用の関数、`llmhttp` と Claude アダプタの `js` のビルドの指定、`cmd/yt2column-wasm`、`make wasm-check` の対象の改め。サーバは動いたまま。
+1.  **Go の部品。** `internal/extjob`、`internal/config` の拡張の入口用の関数、`llmhttp` と Claude アダプタの `js` のビルドの指定、`cmd/yt2column-wasm`、`make wasm-check` の対象の改め。サーバは動いたまま。今の `internal/config` は、`serverfile.go` が `//go:build unix` だけの `internal/privatefile` を import するので、`GOOS=js` でビルドできない（`GOOS=js GOARCH=wasm go list -deps ./internal/config` が失敗する。`ca0570c6` で確かめた）。この段階では、サーバとホストの設定の読み込みのファイルに `!js` のビルドタグを付けるか、拡張の入口用の関数を `privatefile` に依存しない場所に置き、4 の撤去でタグを外す。
 2.  **拡張のビルド。** `make ext-build` が WASM と `wasm_exec.js` を成果物に入れること、成果物の検査、開発用のビルド（タスク 0086 の PR-1 の後）。
 3.  **切り替え。** manifest、オプションページ、SW の調停、実行するビューアと Worker、ジョブの記録を読む表示を入れ、ホストとの送信とポーリングを撤去する。
 4.  **撤去と文書。** サーバとホストとそれだけが使うパッケージの撤去、仕様の文書の書き換え（§3.14）、ADR の食い違いの記述の削除。3 と同じ PR にするかは、#773 の計画で決める。
