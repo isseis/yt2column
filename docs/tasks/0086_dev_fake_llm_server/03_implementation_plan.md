@@ -163,16 +163,16 @@
 
 **変更するファイル:** `cmd/yt2column-devserver/`（新規。`main.go`・`run.go` などの Go のファイル、テスト、`test_helpers.go`）、`cmd/yt2column/devdeps_test.go`・`cmd/yt2column-server/devdeps_test.go`・`cmd/yt2column-nmhost/devdeps_test.go`、`internal/godepstest/`、`Makefile`、`cmd/yt2column/makefile_test.go`、`internal/config/config.go`・`envaccess_test.go`、`docs/dev/conventions/package_reference.md`
 
--   [ ] **ステップ 2-1**: 引数の解析を書く（設計書 §3.4・§4.3、§1.3 の決定 4、AC-08・AC-09）。
+-   [x] **ステップ 2-1**: 引数の解析を書く（設計書 §3.4・§4.3、§1.3 の決定 4、AC-08・AC-09）。
     -   `flag.FlagSet` と引数ごとの `flag.Value` の型で、`-article`・`-fail`・`-fail-step`・`-delay` を受理する。綴りは `devfake` の列挙型の `String()` と照合する。2 回目の指定、値の欠け、解析の後に残る語を拒否する。`-delay` は 10 進の数字だけを受理し、先頭が `0` で 2 桁以上の値と、空の値を拒否する。秒数を `time.Duration` に変える前に、`MaxDelay` の秒数を超える値（整数に収まらない値を含む）を拒否する。秒数を掛ける変換が桁あふれして範囲内の値になり、`NewScenario` の範囲の検査をすり抜けるのを防ぐためである。引数の組み合わせの検査と、`time.Duration` にした後の範囲の検査は `devfake.NewScenario` に任せる。`-h`・`-help` は `flag.ErrHelp` で受け、案内を出して終了コード `0` にする。
     -   拒否の理由の行は `redact.Line` を通し、続けて `-h` と同じ案内を出す。`flag` が自分で出す案内は出さない。
--   [ ] **ステップ 2-2**: 起動の手順と `perJobWriter` を書く（設計書 §3.4・§6.1、設計書「設計の際に決めたこと」の 1 つ目、§1.3 の決定 2・4）。
+-   [x] **ステップ 2-2**: 起動の手順と `perJobWriter` を書く（設計書 §3.4・§6.1、設計書「設計の際に決めたこと」の 1 つ目、§1.3 の決定 2・4）。
     -   `main.go`: `SIGPIPE` を無視し、`signalrun.Run` に `run` を渡す。`os.Args[1:]`・`os.LookupEnv`・`os.Stderr`・`productionDeps()` を渡すのはここだけにする。`productionDeps()`（本番の `cmd/yt2column-server/run.go:54` と同じ形）は、シナリオを変えずに返す関数と、本物の `writer.NewProgressWriter` を返す。
     -   `run`: 引数 → `NewScenario` → `deps` のシナリオを包む関数 → `config.LoadHost` → 起動のときの `writer` の確かめ → `server.New`（記事の作成は `perJobWriter`、ログの出力先は直列化した標準エラー出力、秘密は空）→ `serversock.Acquire`・`Listen` → 起動の行 → `Serve` → ロックの解放、の順。終了コードは設計書 §3.4 のとおりにする。停止の案内は `context.AfterFunc` で書き、文は 0083 の後の本番の案内に合わせる。
     -   起動の行の属性は §1.3 の決定 4 のとおりにする。
     -   `perJobWriter`: `Write`・`WriteWithProgress` のたびに `NewJob` で新しいクライアントの組を作り、`writer.NewProgressWriter` で本番と同じ設定の `writer` を作って呼ぶ。作るのに失敗したら、使用量が空の `*writer.TokenUsageError` で返す。
--   [ ] **ステップ 2-3**: 開発用のサーバのテストを書く（設計書 §7.2、§1.3 の決定 3）。テストは `run` に一時ディレクトリの `HOME`（`udstest.Dir`）と環境を引く関数を渡して起動し、ソケットにジョブの API のリクエストを送る。
-    -   `run_test.go::TestRunArgs`（AC-08・AC-09）: 受理する指定と拒否する指定の表。拒否では終了コード `2`、標準エラー出力に受理する値の案内があること、`HOME` の下に何も作らないこと。`-h`・`-help` では終了コード `0`、案内があること、何も作らないこと。要件書 AC-09 の各項（知らない引数・知らない値・余分な語・繰り返し・値の欠け・片方だけの失敗の指定・遅れの各形・長い記事でない記事での字数の調整の失敗）について、表に 1 行以上を置く。加えて、`-fail none`・`-fail-step none`（§1.3 の決定 4）、`-delay 600` の受理と `-delay 601` の拒否、`time.Duration` への掛け算で桁があふれる値（例えば `18446744074`）と整数に収まらない値の拒否の行を置く。
+-   [x] **ステップ 2-3**: 開発用のサーバのテストを書く（設計書 §7.2、§1.3 の決定 3）。テストは `run` に一時ディレクトリの `HOME`（`udstest.Dir`）と環境を引く関数を渡して起動し、ソケットにジョブの API のリクエストを送る。
+    -   `run_test.go::TestRunArgsAccepted`・`::TestRunArgsRejected`・`::TestRunHelp`（AC-08・AC-09）: 受理する指定の表（`parseArgs` が `NewScenario` の作るシナリオを返すこと）と、拒否する指定の表（`run` で確かめる）、`-h`・`-help` の確かめに分ける。拒否では終了コード `2`、標準エラー出力に受理する値の案内があること、`HOME` の下に何も作らないこと。`-h`・`-help` では終了コード `0`、案内があること、何も作らないこと。要件書 AC-09 の各項（知らない引数・知らない値・余分な語・繰り返し・値の欠け・片方だけの失敗の指定・遅れの各形・長い記事でない記事での字数の調整の失敗）について、表に 1 行以上を置く。加えて、`-fail none`・`-fail-step none`（§1.3 の決定 4）、`-delay 600` の受理と `-delay 601` の拒否、`time.Duration` への掛け算で桁があふれる値（例えば `18446744074`）と整数に収まらない値の拒否の行を置く。
     -   `run_test.go::TestStartupFailures`（設計書 §3.4・§7.2「写したコード」）: `HOME` がない・相対のときの終了コード `2`、起動のときの `writer` の作成の失敗（`deps` で差し替える）の `2`、ソケットのディレクトリが受理されない形のときの `1` と案内、拒否の理由の行が非表示の文字をエスケープすること。前例は `cmd/yt2column-server/run_test.go:47` の `TestStartupFailures`。
     -   `run_test.go::TestScenarioCombinations`（AC-24・AC-12〜AC-19）: 組み合わせは、`devfake` の受理する値の一覧と失敗なしを掛け合わせ、`NewScenario` が受理するものだけを残して作り、その数が 31 であることを先に確かめる。サブテストごとに `udstest.Dir` の別の `HOME` で起動し、遅れを 1 秒にし、待ち方を差し替えて実時間を待たずに、生成の開始と状態の取得を行う。差し替えた待ち方の記録は、サーバの goroutine とテストの間で排他制御する。完成するシナリオでは、タイトルの印と `cost.state` が `unknown` であること、失敗するシナリオでは、失敗の工程と理由のコード（要件書 AC-17）が期待どおりであること、前の工程が完了していること、記事がないこと。待ち方が呼ばれた回数がシナリオの呼び出しの回数（要件書 AC-19）と一致すること。
     -   `run_test.go::TestJobsIndependent`（AC-04）: 別の動画の別の入力を `plain` の送り方で 2 つ送り、待ち方の差し替えで両方を呼び出しの中で止めてから進める。2 つが終わった後に別の入力で 3 つ目を送る。3 つが同じ結果になること。失敗のシナリオ（例えば字数の調整での失敗）でも行う。
@@ -184,16 +184,16 @@
     -   `run_test.go::TestProductionDeps`: `productionDeps()` のシナリオの関数が、受け取ったシナリオを `LogValue` で同じ値のまま返すこと、遅れが 0 のシナリオで記事が完成すること。
     -   `run_test.go::TestWriterOptionsMatchCLIDefaults`: `perJobWriter` が作る `writer` の設定が `writertestutil.DefaultOptions` と等しいこと（`writer` を作る関数を `deps` で差し替えて観測する）。
     -   `test_helpers.go`（`//go:build test`）: ジョブの API の最小の補助と、`deps` の差し替え。本番のサーバのテストの補助の写しや、本番の `run.go` の写しで `dupl` が報告されたら、構成を変えずに、行を限った `//nolint:dupl` と §1.3 の決定 3（または設計書「設計の際に決めたこと」の 1 つ目）を示す注釈で抑える。
-    -   次のそれぞれの変更を加え、括弧に挙げたテストが失敗することを確かめる。`perJobWriter` がクライアントを共有する（`TestJobsIndependent`）。起動の行を `Acquire` の前に出す（`TestLockHeld`）。環境から `HOME` 以外を引く（`TestIgnoresConfigAndEnv`）。`productionDeps()` のシナリオの関数が待ち方を差し替える（`TestProductionDeps`）。遅れの桁あふれの確かめを外す（`TestRunArgs`）。
--   [ ] **ステップ 2-4**: 分離のテストに開発用のサーバを加える（設計書 §7.3）。`internal/godepstest` に、`cmd/yt2column-devserver` のパスを `go list` で求め、見つかることを先に確かめる手段を加える。本番の 3 つの `cmd/` の `TestNoDevDependency` に、`cmd/yt2column-devserver` がないことの確かめを加える。`cmd/yt2column-devserver` のパスの求め方を壊す（存在しないパスを渡す）と、3 つの `TestNoDevDependency` が飛ばずに失敗することを確かめる。
--   [ ] **ステップ 2-5**: `make build-dev` を加える（設計書 §3.5、§1.3 の決定 6、AC-23）。
+    -   次のそれぞれの変更を加え、括弧に挙げたテストが失敗することを確かめる。`perJobWriter` がクライアントを共有する（`TestJobsIndependent`）。起動の行を `Acquire` の前に出す（`TestLockHeld`）。環境から `HOME` 以外を引く（`TestIgnoresConfigAndEnv`）。`productionDeps()` のシナリオの関数が、呼び出しを止める待ち方を差し替える（`TestProductionDeps`。遅れが 0 のとき、すぐ戻る待ち方への差し替えは観測できない）。遅れの桁あふれの確かめを外す（`TestRunArgsRejected`）。
+-   [x] **ステップ 2-4**: 分離のテストに開発用のサーバを加える（設計書 §7.3）。`internal/godepstest` に、`cmd/yt2column-devserver` のパスを `go list` で求め、見つかることを先に確かめる手段を加える。本番の 3 つの `cmd/` の `TestNoDevDependency` に、`cmd/yt2column-devserver` がないことの確かめを加える。`cmd/yt2column-devserver` のパスの求め方を壊す（存在しないパスを渡す）と、3 つの `TestNoDevDependency` が飛ばずに失敗することを確かめる。
+-   [x] **ステップ 2-5**: `make build-dev` を加える（設計書 §3.5、§1.3 の決定 6、AC-23）。
     -   `build-dev` は `./cmd/yt2column-devserver` を `build/dev/yt2column-devserver` にビルドする。`build` と同じビルドの引数にする。`.PHONY` に加える。`make build` は変えない。
     -   `cmd/yt2column/makefile_test.go`: `TestMakeBuildBuildsEveryBinary` の確かめを、`build` と `all` がビルドするパッケージの集まりが本番の 3 つとちょうど等しいことに改める。`TestMakeBuildDev` を加え、`make -n build-dev` がビルドするパッケージの集まりが `./cmd/yt2column-devserver` の 1 つだけで、出力先が `build/dev/yt2column-devserver` であることを確かめる（§1.3 の決定 6）。`build` のレシピに `./cmd/yt2column-devserver` を足すと前者が失敗することを確かめる。
     -   `make build` と `make build-dev` を実行し、`build/` の直下にできたファイルと `build/dev/` の中身を §7「実行の記録」の PR-2 の欄に書く。
--   [ ] **ステップ 2-6**: `internal/config` の説明と環境の検査を変える（設計書 §3.5、H-04）。
+-   [x] **ステップ 2-6**: `internal/config` の説明と環境の検査を変える（設計書 §3.5、H-04）。
     -   `internal/config/config.go` の `HostConfig` と `LoadHost` の説明に、開発用のサーバも使うことと、「`HOME` だけを読む」契約が 2 つの入口を縛ることを書き加える。振る舞いは変えない。
     -   `internal/config/envaccess_test.go` の `allowedEnvRefs` に `cmd/yt2column-devserver/main.go` の `value:os.LookupEnv` を 1 回加え、`TestEnvAccessConfined` の観測の検査に同じ行を加える。`main.go` から `os.LookupEnv` を外すと観測の検査が失敗することを確かめる。
--   [ ] **ステップ 2-7**: `docs/dev/conventions/package_reference.md` に `cmd/yt2column-devserver` の行を加える（`TestPackageReferenceListsPackages`）。
+-   [x] **ステップ 2-7**: `docs/dev/conventions/package_reference.md` に `cmd/yt2column-devserver` の行を加える（`TestPackageReferenceListsPackages`）。
 
 **完了の条件:** 上のテストを加え、すべて通る。§7 に AC-23 の実行の記録がある。`make test`・`make lint`・`make deadcode` が通る。
 
@@ -209,10 +209,10 @@
 
 **判定理由**: ステップ 2-2・2-3 がソケット・ロック・シグナルの起動の手順と並行のジョブを扱い、mkplan.md の Conditional checks のうち、繰り返し起動する CLI の起動の検査と、外部の状態（ソケット・ロック）の後始末の 2 つに当たる。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/868
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 3: 文書と手での確認（設計書 §8 の 3）
 
@@ -290,7 +290,7 @@
 ## 6. 実装チェックリスト (Implementation Checklist)
 
 -   [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7）
--   [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7）
+-   [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7）
 -   [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
@@ -310,8 +310,8 @@
 | AC-05 | `cmd/yt2column-devserver/run_test.go::TestListeningLine`（`HOME` から導出したソケットのパス）、`::TestScenarioCombinations`（そのソケットで生成の開始と状態の取得）、拡張からの手での確認（ステップ 3-5） | test、manual | ステップ 2-2・2-3・3-5 | PR-2、PR-3 |
 | AC-06 | `cmd/yt2column-devserver/run_test.go::TestIgnoresConfigAndEnv` | test | ステップ 2-3 | PR-2 |
 | AC-07 | `cmd/yt2column-devserver/run_test.go::TestIgnoresConfigAndEnv`、`internal/config/envaccess_test.go::TestEnvAccessConfined` | test | ステップ 2-3・2-6 | PR-2 |
-| AC-08 | `cmd/yt2column-devserver/run_test.go::TestRunArgs`、`internal/llm/devfake/scenario_test.go::TestEnumStrings`、`cmd/yt2column-devserver/docs_test.go::TestDevelopmentDocsDevServer`（`development.md` の綴り） | test | ステップ 1-2・2-1・3-2 | PR-1、PR-2、PR-3 |
-| AC-09 | `cmd/yt2column-devserver/run_test.go::TestRunArgs`・`::TestStartupFailures`、`internal/llm/devfake/scenario_test.go::TestNewScenario` | test | ステップ 1-2・2-1・2-3 | PR-1、PR-2 |
+| AC-08 | `cmd/yt2column-devserver/run_test.go::TestRunArgsAccepted`・`::TestRunArgsRejected`・`::TestRunHelp`、`internal/llm/devfake/scenario_test.go::TestEnumStrings`、`cmd/yt2column-devserver/docs_test.go::TestDevelopmentDocsDevServer`（`development.md` の綴り） | test | ステップ 1-2・2-1・3-2 | PR-1、PR-2、PR-3 |
+| AC-09 | `cmd/yt2column-devserver/run_test.go::TestRunArgsRejected`・`::TestStartupFailures`、`internal/llm/devfake/scenario_test.go::TestNewScenario` | test | ステップ 1-2・2-1・2-3 | PR-1、PR-2 |
 | AC-10 | `cmd/yt2column-devserver/run_test.go::TestListeningLine`、`internal/llm/devfake/scenario_test.go::TestScenarioLogValue` | test | ステップ 1-2・2-2 | PR-1、PR-2 |
 | AC-11 | `cmd/yt2column-devserver/run_test.go::TestLockHeld`。逆向き（本番のサーバ）は、本番が同じ `serversock.Acquire` を使うことと `internal/serversock` のロックのテスト | test | ステップ 2-2・2-3 | PR-2 |
 | AC-12 | `internal/llm/devfake/articles_test.go::TestArticlesPassWriter`、`cmd/yt2column-devserver/run_test.go::TestScenarioCombinations` | test | ステップ 1-4・2-3 | PR-1、PR-2 |
@@ -385,7 +385,10 @@ AC-14 の対応表。行番号は `internal/llm/devfake/articles/elements.md` �
 
 PR-2:
 
-（ステップ 2-5 で、AC-23 の `make build`・`make build-dev` の実行の結果を書く。）
+AC-23 の `make build`・`make build-dev` の実行（`rm -rf build` の後に実行した）。
+
+-   `make build` の後、`build/` の直下にできたファイルは `yt2column`・`yt2column-nmhost`・`yt2column-server` の 3 つだけで、`build/dev/` はなかった。
+-   続けて `make build-dev` を実行した後、`build/` の直下は同じ 3 つのファイルと `dev/` だけで、`build/dev/` の中身は `yt2column-devserver` の 1 つだけだった。`build/dev/yt2column-devserver` は `.gitignore` の `build/` に当たる（`git check-ignore` が報告した）。
 
 PR-3:
 

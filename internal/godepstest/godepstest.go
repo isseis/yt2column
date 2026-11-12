@@ -156,6 +156,45 @@ func trackSources(dirs map[string]struct{}) error {
 	return nil
 }
 
+// PackagePath returns the import path of the one package pkg (a pattern such
+// as ./cmd/yt2column-devserver) names, resolved in root. It is how a test names
+// a main package, which has no type to take the path from: the lookup fails
+// when the package does not exist, so a path that was renamed away cannot turn
+// a Forbid into a check of nothing.
+func PackagePath(root, pkg string) (string, error) {
+	out, err := runGo(root, targetOSes[0], "list", "-f", "{{.ImportPath}}\t{{.Dir}}", pkg)
+	if err != nil {
+		return "", err
+	}
+	line := strings.TrimSuffix(string(out), "\n")
+	path, dir, ok := strings.Cut(line, "\t")
+	if strings.Contains(line, "\n") || !ok || !importPathLine.MatchString(path) || dir == "" {
+		return "", fmt.Errorf("%w: go list %s did not print one import path and directory", ErrList, pkg)
+	}
+	// Read the package's directory from the test process, as List does, so
+	// go test's result cache is keyed on it: renaming or deleting the package
+	// invalidates a cached pass that holds the old path.
+	if err := trackSources(map[string]struct{}{dir: {}}); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+// MustPackagePath is PackagePath from the module root, failing tb when it
+// cannot name the package.
+func MustPackagePath(tb testing.TB, pkg string) string {
+	tb.Helper()
+	root, err := Root()
+	if err != nil {
+		tb.Fatal(err)
+	}
+	path, err := PackagePath(root, pkg)
+	if err != nil {
+		tb.Fatal(err)
+	}
+	return path
+}
+
 // matches reports whether path is pattern, or, for a pattern ending in
 // "/...", the package before it or one under it.
 func matches(pattern, path string) bool {

@@ -79,6 +79,7 @@ add a kind here or to widen one of these definitions.
 
 | Package | Responsibility |
 |---|---|
+| `cmd/yt2column-devserver` | Entry point of the development server, not a production binary (`make build-dev`, into `build/dev/`): the production server's HTTP server, socket, and start lock with a fake LLM (`internal/llm/devfake`) chosen by `-article`, `-fail`, `-fail-step`, and `-delay`; it reads no configuration file and only `HOME` from the environment. Rules: [security.md §8.2](../security.md). |
 | `cmd/yt2column-nmhost` | Entry point of the Native Messaging host: relays one request with `nmhost.Relay`, and `install`/`uninstall` manage the browser manifest. Rules: [security.md §8.2](../security.md). |
 | `cmd/yt2column-server` | Entry point of the localhost server and of `yt2column-server config init`. Startup and configuration rules: [security.md §8.2](../security.md). |
 | `internal/articlecache` | The server's in-memory article cache: `Cache`, `Keyer`, `Subject`, `StartMode`, `Run`, `Snapshot`, `Eviction`; `ParseKey`. Rules: [security.md §8.2](../security.md); API: [development.md](../guides/development.md). |
@@ -135,7 +136,7 @@ add a kind here or to widen one of these definitions.
 | `internal/cmdrunner/testutil` | Test double `Fake` for `cmdrunner.InputRunner`: replays a scripted command sequence, records standard input, and runs a side-effect function per step. |
 | `internal/codexreview/testutil` | The fake Codex CLI and clean `PATH`, `HOME`, and `TMPDIR` a `codexreview` test runs with: `Main`, `NewFake`, `Fake.Set`, `Starts`, `Args`, `Env`. |
 | `internal/doctestutil` | The Markdown helpers the document guard tests share: `ReadDoc`, `ScanDocLines`, `FencedBlocks`, `SectionByHeading`, `ParseStructure`, `CompareStructures`, `FindTable`, `ProtocolFlags`. |
-| `internal/godepstest` | Lists a package's transitive dependencies with `go list -deps` on each target OS and checks them, failing rather than skipping when it cannot list: `Check`, `Root`, `List`, `Deps.Require`, `Deps.Forbid`. |
+| `internal/godepstest` | Lists a package's transitive dependencies with `go list -deps` on each target OS and checks them, failing rather than skipping when it cannot list: `Check`, `Root`, `List`, `PackagePath`, `MustPackagePath`, `Deps.Require`, `Deps.Forbid`. |
 | `internal/llm/claude/testutil` | What the Anthropic integration test needs: `SettingsFrom` decides from the environment whether it runs, skips, or fails. |
 | `internal/llm/deepseek/testutil` | What the DeepSeek integration tests share: `SettingsFrom` for the opt-in, and `RunMakeTarget`, `CheckChargedTarget`, `FirstLineIs` for the make targets that keep them out of `make test`. |
 | `internal/llm/llmhttp/llmhttptest` | The test servers and loopback listeners shared by `internal/llm/llmhttp` and the LLM adapter tests: a request recorder, fixed-response and stalling servers, and a blackhole proxy. |
