@@ -344,6 +344,8 @@ wasm-check:
 # runs. The flags are fixed (-trimpath, default -buildvcs) and recorded in the
 # research record. The artifacts under extension/static/poc/ are git-ignored.
 POC_DIR = extension/static/poc
+POC_CSP ?=
+POC_CSP_CONNECT_POLICY = script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src 'self' http://127.0.0.1:8787
 poc-build:
 	@if [ -n "$$(git status --porcelain)" ]; then \
 		echo "poc-build: the working tree has changes; commit or remove them first"; \
@@ -353,6 +355,19 @@ poc-build:
 	GOOS=js GOARCH=wasm $(GOCMD) build -trimpath -o $(POC_DIR)/yt2column.wasm ./cmd/yt2column-wasm
 	cp "$$($(GOCMD) env GOROOT)/lib/wasm/wasm_exec.js" $(POC_DIR)/wasm_exec.js
 	@$(MAKE) --no-print-directory ext-build
+	@# 0090: dist/manifest.json is rewritten after the dist check, so
+	@# static/manifest.json (which main's documentation guards read) keeps its
+	@# permissions. Every build adds the storage permission the 0090 checks use.
+	@# POC_CSP=connect also limits connections from extension pages and their
+	@# workers to the extension itself and the probe's origin A.
+	@case "$(POC_CSP)" in \
+		"") jq '.permissions += ["storage"]' extension/dist/manifest.json > extension/dist/manifest.json.tmp ;; \
+		connect) jq --arg csp "$(POC_CSP_CONNECT_POLICY)" '.permissions += ["storage"] | .content_security_policy.extension_pages = $$csp' extension/dist/manifest.json > extension/dist/manifest.json.tmp ;; \
+		*) echo "poc-build: POC_CSP must be empty or connect"; exit 1 ;; \
+	esac
+	@mv extension/dist/manifest.json.tmp extension/dist/manifest.json
+	@echo "poc-build: permissions $$(jq -c '.permissions' extension/dist/manifest.json)"
+	@echo "poc-build: extension_pages CSP $$(jq -r '.content_security_policy.extension_pages' extension/dist/manifest.json)"
 	@echo "poc-build: revision $$(git rev-parse HEAD)"
 	@echo "poc-build: yt2column.wasm $$(wc -c < $(POC_DIR)/yt2column.wasm | tr -d ' ') bytes, gzip -9 $$(gzip -9 -c $(POC_DIR)/yt2column.wasm | wc -c | tr -d ' ') bytes"
 

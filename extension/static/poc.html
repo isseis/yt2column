@@ -141,6 +141,9 @@
         <option value="redirect_same">redirect_same</option>
         <option value="redirect_foreign">redirect_foreign</option>
         <option value="redirect_manual">redirect_manual</option>
+        <option value="redirect_error">redirect_error (0090)</option>
+        <option value="direct_same">direct_same (0090)</option>
+        <option value="direct_foreign">direct_foreign (0090)</option>
         <option value="large_body">large_body</option>
         <option value="stall_header">stall_header</option>
         <option value="stall_body">stall_body</option>
@@ -148,6 +151,67 @@
         <option value="cancel_body">cancel_body</option>
       </select>
       <button id="probe" class="action-button" type="button">Run probe</button>
+    </section>
+
+    <section aria-labelledby="background-heading">
+      <h2 id="background-heading">
+        0090 (a)(b): background runner tab with a dedicated worker
+      </h2>
+      <p>
+        The service worker opens an inactive runner tab, which runs the call in
+        a worker. Generate uses the fields above; probe uses the probe fields.
+        Do not switch to the runner tab.
+      </p>
+      <label for="worker-form">Worker form</label>
+      <select id="worker-form">
+        <option value="classic" selected>classic (importScripts)</option>
+        <option value="module">module (static import)</option>
+      </select>
+      <label for="deadline-sec"
+        >Page-side deadline in seconds (empty: none)</label
+      >
+      <input id="deadline-sec" type="text" inputmode="numeric" value="" />
+      <button id="bg-generate" class="action-button" type="button">
+        Generate in background runner
+      </button>
+      <button id="bg-probe" class="action-button" type="button">
+        Probe in background runner
+      </button>
+      <div id="bg-status" role="status"></div>
+      <label for="ping-run-id">Run ID to ping (empty: the latest run)</label>
+      <input
+        id="ping-run-id"
+        type="text"
+        autocomplete="off"
+        spellcheck="false"
+      />
+      <button id="ping-runner" class="action-button" type="button">
+        Ping runner
+      </button>
+      <h3>Pings from this page</h3>
+      <pre id="ping-result"></pre>
+      <h3>Runs (chrome.storage.session)</h3>
+      <pre id="runs"></pre>
+    </section>
+
+    <section aria-labelledby="access-heading">
+      <h2 id="access-heading">0090 (c): chrome.storage.local access level</h2>
+      <p>
+        Open http://127.0.0.1:8787/ (the probe server) in another tab first. The
+        check writes a dummy value only.
+      </p>
+      <button id="access-check" class="action-button" type="button">
+        Run the access-level check
+      </button>
+      <pre id="access-result"></pre>
+    </section>
+
+    <section aria-labelledby="quota-heading">
+      <h2 id="quota-heading">0090 (d): chrome.storage.session quota</h2>
+      <button id="quota-check" class="action-button" type="button">
+        Run the quota check
+      </button>
+      <pre id="quota-result"></pre>
     </section>
 
     <section aria-labelledby="result-heading">

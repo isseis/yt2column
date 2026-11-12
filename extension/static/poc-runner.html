@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>yt2column PoC runner</title>
+    <link rel="stylesheet" href="theme.css" />
+    <link rel="stylesheet" href="poc.css" />
+  </head>
+  <body>
+    <h1>yt2column PoC runner (0090)</h1>
+    <p>
+      PoC branch only. The service worker opened this tab in the background. Do
+      not switch to it until the control page shows the run as finished.
+    </p>
+    <div id="runner-status" role="status"></div>
+    <h2>Record (no key, no workspace ID, no article or transcript text)</h2>
+    <pre id="runner-record"></pre>
+    <script type="module" src="pocRunner.js"></script>
+  </body>
+</html>

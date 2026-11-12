@@ -12,6 +12,8 @@ import {
   listenForMessages,
 } from "./browser/chromeDeps.ts";
 import { createStartCoordinator } from "./startCoordinator.ts";
+// 0090 PoC: registers the background-runner listener when imported.
+import "./pocBackground.ts";
 
 listenForMessages(
   chrome.runtime,

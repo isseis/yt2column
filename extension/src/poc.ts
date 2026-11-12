@@ -3,10 +3,14 @@
 // pressed, and shows the result. The API key and the workspace ID are read
 // from their fields at the press and passed to the call; they are never
 // written to chrome.storage, Web Storage, IndexedDB, a cookie, the URL, the
-// console, or the record shown on the page. Nothing here sends a message to
-// the service worker: the work runs and ends with this tab.
+// console, or the record shown on the page. The 0084 calls send no message to
+// the service worker. The 0090 additions at the end do: a background run
+// passes its request (with the key, for generate) to the service worker's
+// memory, and the access-level check writes a dummy value to storage.local.
+/* eslint-disable no-restricted-syntax -- PoC: the 0090 checks use chrome.storage. */
 import { parseArticleMarkdown } from "./core/articleMarkdown.ts";
 import { buildArticleBody } from "./ui/articleBody.ts";
+import { pingRunner } from "./pocPing.ts";
 
 interface BuildInfo {
   goVersion: string;
@@ -353,8 +357,12 @@ function apiCallMembers(): {
   };
 }
 
-function generate(): Promise<void> {
-  const settings = {
+function generateSettings(): {
+  generation: { model: string; effort: string };
+  review: { model: string; effort: string };
+  browserAccessHeader: boolean;
+} {
+  return {
     generation: {
       model: fieldValue("generation-model"),
       effort: fieldValue("generation-effort"),
@@ -365,29 +373,38 @@ function generate(): Promise<void> {
     },
     browserAccessHeader: element<HTMLInputElement>("browser-access").checked,
   };
+}
+
+/** The generate request. It holds the API key: never record or log it. */
+function generateRequest(
+  settings: ReturnType<typeof generateSettings>,
+): string {
+  const request: Record<string, unknown> = {
+    ...apiCallMembers(),
+    videoUrl: fieldValue("video-url"),
+    transcript: fieldValue("transcript"),
+    generation: settings.generation,
+    review: settings.review,
+  };
+  // Absent optional members, as the extension sends them to the server.
+  for (const [key, id] of [
+    ["title", "title"],
+    ["channelName", "channel-name"],
+    ["description", "description"],
+  ] as const) {
+    const value = fieldValue(id);
+    if (value !== "") {
+      request[key] = value;
+    }
+  }
+  return JSON.stringify(request);
+}
+
+function generate(): Promise<void> {
+  const settings = generateSettings();
   return runCall(
     "generate",
-    () => {
-      const request: Record<string, unknown> = {
-        ...apiCallMembers(),
-        videoUrl: fieldValue("video-url"),
-        transcript: fieldValue("transcript"),
-        generation: settings.generation,
-        review: settings.review,
-      };
-      // Absent optional members, as the extension sends them to the server.
-      for (const [key, id] of [
-        ["title", "title"],
-        ["channelName", "channel-name"],
-        ["description", "description"],
-      ] as const) {
-        const value = fieldValue(id);
-        if (value !== "") {
-          request[key] = value;
-        }
-      }
-      return JSON.stringify(request);
-    },
+    () => generateRequest(settings),
     { ...settings, transcriptChars: fieldValue("transcript").length },
     (result) => {
       const generated = result as GenerateResult;
@@ -549,6 +566,230 @@ async function loadRuntime(): Promise<void> {
     showRuntime();
   });
 }
+
+// ---- 0090 additions -------------------------------------------------------
+// The background-runner runs, the storage.local access-level check, and the
+// storage.session quota check. The run payload sent to the service worker
+// holds the API key for a generate run; it stays in the service worker's
+// memory until the runner claims it and is never stored. The run records in
+// chrome.storage.session are written by the service worker from the runner's
+// reports and never hold the key, the workspace ID, or any text.
+
+/** Why a background run may not start now, or null. */
+function backgroundBlockedReason(kind: "generate" | "probe"): string | null {
+  if (state.runtime !== "ready" || state.build?.vcsModified !== false) {
+    return "The page's WebAssembly module must be ready and built from a clean, committed tree.";
+  }
+  if (kind === "generate") {
+    if (fieldValue("api-key") === "" || fieldValue("workspace-id") === "") {
+      return "Enter the API key and the workspace ID.";
+    }
+  }
+  return null;
+}
+
+/** The deadline field: empty is none; anything but a positive integer is refused. */
+function deadlineSec(): number | null | "invalid" {
+  const raw = fieldValue("deadline-sec");
+  if (raw === "") {
+    return null;
+  }
+  return /^[1-9][0-9]{0,4}$/.test(raw) ? Number(raw) : "invalid";
+}
+
+async function startBackground(kind: "generate" | "probe"): Promise<void> {
+  const reason = backgroundBlockedReason(kind);
+  const deadline = deadlineSec();
+  if (reason !== null || deadline === "invalid") {
+    setStatus(
+      "bg-status",
+      reason ?? "The deadline must be empty or a positive integer.",
+    );
+    return;
+  }
+  const workerForm =
+    fieldValue("worker-form") === "module" ? "module" : "classic";
+  let request: string;
+  let settings: Record<string, unknown>;
+  if (kind === "generate") {
+    const generation = generateSettings();
+    request = generateRequest(generation);
+    settings = {
+      ...generation,
+      transcriptChars: fieldValue("transcript").length,
+    };
+  } else {
+    const probeCase = fieldValue("probe-case");
+    request = JSON.stringify({
+      baseUrl: fieldValue("probe-base"),
+      foreignUrl: fieldValue("probe-foreign"),
+      probeCase,
+    });
+    settings = { probeCase };
+  }
+  settings = {
+    ...settings,
+    build: state.build,
+    userAgent: navigator.userAgent,
+  };
+  const answer = (await chrome.runtime.sendMessage({
+    poc: "pocStart",
+    payload: { kind, request, workerForm, deadlineSec: deadline, settings },
+  })) as { runId?: string; error?: string } | undefined;
+  setStatus(
+    "bg-status",
+    answer?.runId !== undefined
+      ? `Started run ${answer.runId} (${kind}, ${workerForm}).`
+      : `Could not start: ${answer?.error ?? "no answer"}`,
+  );
+}
+
+async function runRecords(): Promise<
+  { runId?: string; requestedAt?: string }[]
+> {
+  const all = await chrome.storage.session.get(null);
+  return Object.entries(all)
+    .filter(([key]) => key.startsWith("pocRun:"))
+    .map(([, value]) => value as { runId?: string; requestedAt?: string })
+    .sort((a, b) => (a.requestedAt ?? "").localeCompare(b.requestedAt ?? ""));
+}
+
+/** Pings a runner from this (foreground) page and appends the result. */
+async function pingFromPage(): Promise<void> {
+  let runId = fieldValue("ping-run-id");
+  if (runId === "") {
+    runId = (await runRecords()).at(-1)?.runId ?? "";
+  }
+  if (runId === "") {
+    element("ping-result").textContent += "no run to ping\n";
+    return;
+  }
+  const result = await pingRunner(runId);
+  element("ping-result").textContent +=
+    `${JSON.stringify({ runId, ...result })}\n`;
+}
+
+async function showRuns(): Promise<void> {
+  const runs = await runRecords();
+  element("runs").textContent = runs
+    .map((run) => JSON.stringify(run))
+    .join("\n");
+}
+
+const accessDummyKey = "poc0090AccessDummy";
+const accessDummyValue = "dummy-0090-not-a-secret";
+
+/** Reads chrome.storage.local from the probe server's tab, in the isolated world. */
+async function readFromInjected(tabId: number): Promise<unknown> {
+  try {
+    const [injection] = await chrome.scripting.executeScript({
+      target: { tabId },
+      args: [accessDummyKey],
+      func: async (key: string) => {
+        const local = (
+          globalThis as unknown as {
+            chrome?: {
+              storage?: {
+                local?: { get(k: string): Promise<Record<string, unknown>> };
+              };
+            };
+          }
+        ).chrome?.storage?.local;
+        if (local === undefined) {
+          return { kind: "no-api" };
+        }
+        try {
+          const got = await local.get(key);
+          return { kind: "value", value: got[key] ?? null };
+        } catch (error) {
+          return { kind: "error", message: String(error) };
+        }
+      },
+    });
+    return injection?.result ?? { kind: "no-result" };
+  } catch (error) {
+    return { kind: "inject-failed", message: String(error) };
+  }
+}
+
+async function accessCheck(): Promise<void> {
+  const out: Record<string, unknown> = { userAgent: navigator.userAgent };
+  const show = (): void => {
+    element("access-result").textContent = JSON.stringify(out, null, 2);
+  };
+  const [tab] = await chrome.tabs.query({ url: "http://127.0.0.1/*" });
+  if (tab?.id === undefined) {
+    out["error"] = "Open http://127.0.0.1:8787/ in a tab first.";
+    show();
+    return;
+  }
+  const local = chrome.storage.local as unknown as {
+    setAccessLevel?: (options: { accessLevel: string }) => Promise<void>;
+  };
+  await chrome.storage.local.set({ [accessDummyKey]: accessDummyValue });
+  out["injectedBefore"] = await readFromInjected(tab.id);
+  out["setAccessLevelType"] = typeof local.setAccessLevel;
+  try {
+    await local.setAccessLevel?.({ accessLevel: "TRUSTED_CONTEXTS" });
+    out["setAccessLevel"] = "resolved";
+  } catch (error) {
+    out["setAccessLevel"] = `threw: ${String(error)}`;
+  }
+  out["injectedAfter"] = await readFromInjected(tab.id);
+  // Restore the default and remove the dummy value.
+  try {
+    await local.setAccessLevel?.({
+      accessLevel: "TRUSTED_AND_UNTRUSTED_CONTEXTS",
+    });
+    out["restore"] = "resolved";
+  } catch (error) {
+    out["restore"] = `threw: ${String(error)}`;
+  }
+  await chrome.storage.local.remove(accessDummyKey);
+  show();
+}
+
+async function quotaCheck(): Promise<void> {
+  const out: Record<string, unknown> = {
+    userAgent: navigator.userAgent,
+    quotaBytes: (chrome.storage.session as unknown as { QUOTA_BYTES?: number })
+      .QUOTA_BYTES,
+  };
+  const chunk = "a".repeat(256 * 1024);
+  const keys: string[] = [];
+  let failure: string | null = null;
+  for (let i = 0; i < 200; i += 1) {
+    const key = `pocQuota:${i}`;
+    try {
+      await chrome.storage.session.set({ [key]: chunk });
+      keys.push(key);
+    } catch (error) {
+      failure = String(error);
+      break;
+    }
+  }
+  out["recordsWritten"] = keys.length;
+  out["bytesInUseAtStop"] = await chrome.storage.session.getBytesInUse(null);
+  out["stopReason"] = failure ?? "reached 200 records without an error";
+  await chrome.storage.session.remove(keys);
+  out["bytesInUseAfterClear"] =
+    await chrome.storage.session.getBytesInUse(null);
+  element("quota-result").textContent = JSON.stringify(out, null, 2);
+}
+
+element("bg-generate").addEventListener(
+  "click",
+  () => void startBackground("generate"),
+);
+element("bg-probe").addEventListener(
+  "click",
+  () => void startBackground("probe"),
+);
+element("ping-runner").addEventListener("click", () => void pingFromPage());
+element("access-check").addEventListener("click", () => void accessCheck());
+element("quota-check").addEventListener("click", () => void quotaCheck());
+chrome.storage.session.onChanged.addListener(() => void showRuns());
+void showRuns();
 
 element("generate").addEventListener("click", () => void generate());
 element("long-output").addEventListener("click", () => void longOutput());

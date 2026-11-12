@@ -132,25 +132,32 @@ const (
 	probeCancelAfter    = 2 * time.Second
 )
 
-// probeCase is one row of the probe table: the server path on the base URL,
-// the adapter timeout, whether the context is canceled after the send, and
-// whether fetch is told not to follow redirects.
+// probeCase is one row of the probe table: the server path, the adapter
+// timeout, whether the context is canceled after the send, the fetch redirect
+// mode given through the js.fetch:redirect header ("" leaves fetch's default,
+// follow), and whether the path is on the foreign origin instead of the base.
 type probeCase struct {
-	path           string
-	timeout        time.Duration
-	cancel         bool
-	manualRedirect bool
+	path         string
+	timeout      time.Duration
+	cancel       bool
+	redirectMode string
+	foreign      bool
 }
 
 var probeCases = map[string]probeCase{
 	"redirect_same":    {path: "/redirect/same", timeout: probeDefaultTimeout},
 	"redirect_foreign": {path: "/redirect/foreign", timeout: probeDefaultTimeout},
-	"redirect_manual":  {path: "/redirect/foreign", timeout: probeDefaultTimeout, manualRedirect: true},
-	"large_body":       {path: "/large", timeout: probeDefaultTimeout},
-	"stall_header":     {path: "/stall/header", timeout: probeStallTimeout},
-	"stall_body":       {path: "/stall/body", timeout: probeStallTimeout},
-	"cancel_header":    {path: "/stall/header", timeout: probeCancelTimeout, cancel: true},
-	"cancel_body":      {path: "/stall/body", timeout: probeCancelTimeout, cancel: true},
+	"redirect_manual":  {path: "/redirect/foreign", timeout: probeDefaultTimeout, redirectMode: "manual"},
+	// 0090: fetch's "error" redirect mode, and direct sends to each origin
+	// for the CSP connect-src variant of the extension.
+	"redirect_error": {path: "/redirect/foreign", timeout: probeDefaultTimeout, redirectMode: "error"},
+	"direct_same":    {path: "/target", timeout: probeDefaultTimeout},
+	"direct_foreign": {path: "/target", timeout: probeDefaultTimeout, foreign: true},
+	"large_body":     {path: "/large", timeout: probeDefaultTimeout},
+	"stall_header":   {path: "/stall/header", timeout: probeStallTimeout},
+	"stall_body":     {path: "/stall/body", timeout: probeStallTimeout},
+	"cancel_header":  {path: "/stall/header", timeout: probeCancelTimeout, cancel: true},
+	"cancel_body":    {path: "/stall/body", timeout: probeCancelTimeout, cancel: true},
 }
 
 // probeResult is the ProbeResult of the page interface.
@@ -201,13 +208,17 @@ func runProbe(transport *browserTransport, request string) probeResult {
 		result.Failure = newFailure(kindInvalidInput, "baseUrl must be http://127.0.0.1:<port>")
 		return result
 	}
-	// foreignUrl is checked even though only the server uses its port, so a
+	// foreignUrl is checked even for the cases that do not send to it, so a
 	// request naming another host is refused before anything is sent.
-	if _, ok := probeOrigin(rawForeign, "localhost"); !ok {
+	foreign, ok := probeOrigin(rawForeign, "localhost")
+	if !ok {
 		result.Failure = newFailure(kindInvalidInput, "foreignUrl must be http://localhost:<port>")
 		return result
 	}
 	target := base.JoinPath(pc.path).String()
+	if pc.foreign {
+		target = foreign.JoinPath(pc.path).String()
+	}
 
 	transport.setCall(false)
 	defer transport.setCall(false)
@@ -228,9 +239,9 @@ func runProbe(transport *browserTransport, request string) probeResult {
 			}
 			req.Header.Set("content-type", "application/json")
 			req.Header.Set("x-api-key", probeDummyKey)
-			if pc.manualRedirect {
+			if pc.redirectMode != "" {
 				// Go's js transport turns this header into fetch's redirect option.
-				req.Header.Set("js.fetch:redirect", "manual")
+				req.Header.Set("js.fetch:redirect", pc.redirectMode)
 			}
 			return req, nil
 		},
