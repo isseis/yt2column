@@ -14,5 +14,8 @@
     "default_popup": "popup.html"
   },
   "permissions": ["activeTab", "scripting", "nativeMessaging"],
-  "host_permissions": ["http://127.0.0.1/*"]
+  "host_permissions": ["http://127.0.0.1/*"],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  }
 }
