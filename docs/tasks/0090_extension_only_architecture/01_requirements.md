@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-12 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-12 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -252,3 +252,7 @@
 -   **食い違いの記述:** ADR の決定が、仕様の文書やコードとまだ食い違っていることを述べ、それを解消する issue にリンクする記述（[adr.md](../../dev/conventions/adr.md)「Writing an ADR」）。
 -   **要件の PR:** 本書を加える PR。
 -   **設計の PR:** 本タスクの `02_architecture.md` を加える PR。
+
+## 変更履歴
+
+- 2026-11-12 承認（isseis、#862）
