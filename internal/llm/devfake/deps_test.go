@@ -17,7 +17,10 @@ import (
 // this test belongs to, so a change to them invalidates the cached result.
 func TestDependencies(t *testing.T) {
 	llmPath := reflect.TypeFor[llm.GenerateRequest]().PkgPath()
-	module := strings.TrimSuffix(llmPath, "/internal/llm")
+	module, ok := strings.CutSuffix(llmPath, "/internal/llm")
+	if !ok {
+		t.Fatalf("llm package path %q does not end in /internal/llm; the forbidden paths below would name no package", llmPath)
+	}
 	godepstest.Check(t, "./internal/llm/devfake",
 		[]string{llmPath},
 		[]string{

@@ -69,10 +69,10 @@ type generationClient struct {
 	counter  callCounter
 }
 
-// Generate returns the draft on the first call and the long article's
-// shortened draft on the second (only the long draft is over the body limit,
-// so the writer makes the second call for no other article), after the delay, or the scenario's failure at its call. A third
-// call is ErrUnexpectedCall.
+// Generate returns, after the delay, the draft on the first call and the long
+// article's shortened draft on the second, or the scenario's failure at its
+// call. Only the long draft is over the body limit, so the writer makes the
+// second call for no other article. A third call is ErrUnexpectedCall.
 func (c *generationClient) Generate(ctx context.Context, _ llm.GenerateRequest) (llm.GenerateResponse, error) {
 	n := c.counter.next()
 	if err := c.scenario.waitDelay(ctx); err != nil {

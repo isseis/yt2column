@@ -35,8 +35,8 @@ package that defines the interface (e.g. `internal/llm/testutil/mocks.go`,
 `package llmtestutil`). Unit tests never invoke `yt-dlp` or an LLM API; they use
 these fakes instead.
 
-Exception: `internal/llm/devfake`, the fake LLM a development binary links
-(`cmd/yt2column-devserver`). Scope: only that package, a fake component built
+Exception: `internal/llm/devfake`, the fake LLM a development binary links.
+Scope: only that package, a fake component built
 into a development binary; the unit-test fakes stay in `testutil/mocks.go`
 with the `test` build tag. Reason: a binary cannot use a file that compiles
 only with the `test` build tag, so the package carries no build tag and is

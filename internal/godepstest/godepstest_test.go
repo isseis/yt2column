@@ -88,3 +88,23 @@ func TestRequireAndForbid(t *testing.T) {
 		t.Errorf("Forbid(a prefix that is not a path element) error = %v, want nil", err)
 	}
 }
+
+func TestRoot(t *testing.T) {
+	failures := []struct {
+		name  string
+		setup func(t *testing.T)
+	}{
+		{"no go on PATH", func(t *testing.T) { t.Setenv("PATH", t.TempDir()) }},
+		{"go prints nothing", func(t *testing.T) { fakeGoOnPath(t, "exit 0\n") }},
+		{"go prints two lines", func(t *testing.T) { fakeGoOnPath(t, "printf '/a\\n/b\\n'\n") }},
+		{"go fails", func(t *testing.T) { fakeGoOnPath(t, "exit 1\n") }},
+	}
+	for _, tc := range failures {
+		t.Run("fails when "+tc.name, func(t *testing.T) {
+			tc.setup(t)
+			if _, err := Root(); !errors.Is(err, ErrList) {
+				t.Errorf("Root() error = %v, want ErrList", err)
+			}
+		})
+	}
+}
