@@ -15,7 +15,6 @@ make test-integration-deepseek  # real DeepSeek API; see below
 make test-integration-claude  # real Anthropic API; see below
 make test-integration-openai  # real OpenAI API; see below
 make test-integration-cli  # the CLI with the real DeepSeek API; see below
-make test-integration-slack  # posts fixed articles to a real Mattermost test Webhook; see below
 ```
 
 開発は、受け入れ基準を明示した、要件定義 → 設計 → 実装計画の手順で進める。[CLAUDE.md](../../../CLAUDE.md) と
@@ -30,7 +29,7 @@ make test-integration-slack  # posts fixed articles to a real Mattermost test We
 ```sh
 dev_home="$(mktemp -d /tmp/y2c.XXXXXX)"
 HOME="$dev_home" ./build/yt2column-server config init
-printf '%s\n' 'ANTHROPIC_API_KEY=dev-dummy-key' 'SLACK_WEBHOOK_URL=https://example.invalid/hook' \
+printf '%s\n' 'ANTHROPIC_API_KEY=dev-dummy-key' \
   >>"$dev_home/.config/yt2column/config.env"
 HOME="$dev_home" ./build/yt2column-server 2>>"$dev_home/server.log" &
 server_pid=$!
@@ -47,7 +46,7 @@ kill "$server_pid" 2>/dev/null; wait "$server_pid"; rm -rf "$dev_home"
 
 待機のループは、サーバが起動の途中で終了したとき（設定の誤り、またはその `HOME` の起動のロックを別のサーバが持っているとき）に待つのをやめる。そのときは、最後の行がログを消すので、リクエストを送る代わりにログを表示する。最後の行は、サーバがまだ動いていてもいなくても実行できる。
 
-`config init` が作った雛形はモード `0600` で、`>>` で行を足してもモードは変わらない。`HOME` が異なれば、ワークツリーごとのサーバはほかのサーバと同時に動く。サーバは LLM と Webhook の設定を専用の `HOME` の下の設定ファイルから読み、利用者の環境変数の設定の値も、利用者の `HOME` の設定ファイルも読まない（Go の標準ライブラリがプロキシの変数を使うことは、README の「設定ファイル」を参照）。設定ファイルに本物の値を書くと、受け付けた生成の開始は LLM を呼んで記事を生成し、受け付けた投稿の操作は Webhook へ投稿する。上の例のように偽の値（任意の API キーと、`https://example.invalid/hook` のような `https` の Webhook の URL）を書いたときは、ジョブが始まる前に拒否されるリクエストだけを送る。例えば上の誤ったメソッド（`GET /jobs` への `method_not_allowed`）や誤ったパス（`not_found`）である。受け付けられた生成の開始は、LLM の API を呼ぼうとして失敗する。
+`config init` が作った雛形はモード `0600` で、`>>` で行を足してもモードは変わらない。`HOME` が異なれば、ワークツリーごとのサーバはほかのサーバと同時に動く。サーバは LLM の設定を専用の `HOME` の下の設定ファイルから読み、利用者の環境変数の設定の値も、利用者の `HOME` の設定ファイルも読まない（Go の標準ライブラリがプロキシの変数を使うことは、README の「設定ファイル」を参照）。設定ファイルに本物の値を書くと、受け付けた生成の開始は LLM を呼んで記事を生成する。上の例のように偽の値（任意の API キー）を書いたときは、ジョブが始まる前に拒否されるリクエストだけを送る。例えば上の誤ったメソッド（`GET /jobs` への `method_not_allowed`）や誤ったパス（`not_found`）である。受け付けられた生成の開始は、LLM の API を呼ぼうとして失敗する。
 
 拡張は、そのようなサーバにはつながらない。ブラウザは本物の `HOME` で Native Messaging のホストを起動するので、ホストは本物の `HOME` で起動したサーバのソケットにだけつなぐ。ホストの manifest はブラウザごとに 1 つのファイル（macOS では Chrome と Brave で共有する 1 つのファイル）なので、あるワークツリーのビルドからホストを登録すると、別のワークツリーが登録した manifest を置き換える。拡張を使ってビルドを確かめるときは、一度に 1 つのワークツリーだけで行う。
 
@@ -111,7 +110,7 @@ curl -sS --unix-socket "$socket" -X POST http://localhost/jobs \
 
 ### ジョブの API
 
-サーバの API は、生成と投稿を分ける 3 つの操作（ジョブの API）である。記事を生成して返し、求められたときに投稿する。拡張のビューアが記事を表示し、利用者が求めたときだけ投稿できるようにするためである。生成の開始は拡張の Service Worker が、状態の取得はポップアップとビューアが、投稿はビューアが送る。
+サーバの API は、生成の開始と状態の取得の 2 つの操作（ジョブの API）である。記事を生成して返す。生成の開始は拡張の Service Worker が、状態の取得はポップアップとビューアが送る。
 
 | 操作 | リクエスト | 成功の応答 |
 |---|---|---|
@@ -130,13 +129,13 @@ curl -sS --unix-socket "$socket" -X POST http://localhost/jobs \
 
 照会なしの生成の開始は、同じ動画の記事があっても今の入力の記事を生成し、同じ動画の応答を返さない。同じ動画の応答は、記事の状態を持たない。状態は、返したキーで状態の取得を送って知る。拡張・ホスト・サーバは同じ版で使う。`mode` を知らない前の版のサーバは、照会付きの生成の開始を照会なしとして受け付け、前の版の拡張が送る `mode` のない本文は、このサーバが `invalid_body` で拒否する。
 
-`<key>` は記事のキーである。不透明な値なので、生成の開始が返したものをそのまま送り返し、その形にも計算方法にも依存しない。キーはサーバのプロセスごとにも異なる。再起動の後は同じ入力に新しいキーが付くので、新しい生成の開始が返すキーを使う。受け付けない形のキーを指定した状態の取得と投稿のリクエストは
-`invalid_key` で拒否する。どちらの操作も本文を取らない。クエリの付いたジョブの API のリクエストには `not_found` を返す。
+`<key>` は記事のキーである。不透明な値なので、生成の開始が返したものをそのまま送り返し、その形にも計算方法にも依存しない。キーはサーバのプロセスごとにも異なる。再起動の後は同じ入力に新しいキーが付くので、新しい生成の開始が返すキーを使う。受け付けない形のキーを指定した状態の取得のリクエストは
+`invalid_key` で拒否する。この操作は本文を取らない。クエリの付いたジョブの API のリクエストには `not_found` を返す。
 
 状態の取得の応答は、ジョブの状態を下のコードのいずれかで示す。`running` のジョブは
 `steps` を持つ。`done` のジョブは `steps`（`done` か `skipped` だけ）、
 `article` を持つ。`failed` のジョブは `steps` と、失敗のコードである `failure` を持つ。工程が `failed` になるのは、生成がその工程で失敗したときだけである。完了の時点の検査の失敗（`article_invalid`・`article_too_large`）と、工程より前の失敗は、どの工程も `failed` にしない。`unknown` のキーは `state` のほかにメンバを持たない。
-`article` は、`markdown`（表示用の Markdown）、
+`article` は、`markdown`（無効化した表示用の Markdown）、`mentionsNeutralized`（`markdown` に U+200B を 1 つ以上入れたか）、`videoTitle`・`channelName`（無効化した見出しの値。ないときは空文字列）、
 `file`（`--out` が書くものとバイト単位で同じ）、`cost`、`durationMs` のメンバを持つ。`durationMs` は、記事を生成した開始を受け付けた時点から、または失敗の後の再試行を受け付けた時点から数える。`cost` は `{"state":"known","usd":"…"}` か `{"state":"unknown"}` である。
 
 ```json
@@ -148,6 +147,9 @@ curl -sS --unix-socket "$socket" -X POST http://localhost/jobs \
     "steps": { "draft": "done", "shorten": "skipped", "review": "done" },
     "article": {
       "markdown": "# …",
+      "mentionsNeutralized": true,
+      "videoTitle": "…",
+      "channelName": "…",
       "file": "---\n…",
       "cost": { "state": "known", "usd": "0.1234" },
       "durationMs": 81234
@@ -156,26 +158,22 @@ curl -sS --unix-socket "$socket" -X POST http://localhost/jobs \
 }
 ```
 
-同じ入力をもう一度送ると、その記事を生成している間か生成し終えた後は、LLM を呼ばずに同じキーを返す。失敗したキーは生成し直す。同時に走る生成は最大 2 つで、この生成の枠を数えるのはジョブの API の生成のジョブだけである（投稿のジョブは枠を取らない）。生成の開始は 2 つの読み込みの枠の範囲で本文を読むので、同時に読む本文は最大 2 つである。開始は、読み込みの枠が埋まっているとき、生成の枠が埋まっているとき、またはキャッシュが埋まっていて落とせる記録がないときに拒否する。拒否した開始には
+同じ入力をもう一度送ると、その記事を生成している間か生成し終えた後は、LLM を呼ばずに同じキーを返す。失敗したキーは生成し直す。同時に走る生成は最大 2 つで、この生成の枠を数えるのはジョブの API の生成のジョブだけである。生成の開始は 2 つの読み込みの枠の範囲で本文を読むので、同時に読む本文は最大 2 つである。開始は、読み込みの枠が埋まっているとき、生成の枠が埋まっているとき、またはキャッシュが埋まっていて落とせる記録がないときに拒否する。拒否した開始には
 `too_many_requests` を返し、ジョブは始まらない。
 
-記事はサーバのメモリにだけある。記事のキャッシュが持つ記録は最大 100 で、埋まると、完了した記事か失敗のうち最も古いものを落とす。生成中や投稿中の記録は落とさない。再起動するとすべての記事と投稿の状態が失われるので、その後の状態の取得は `unknown` を返す。送る前の検査が拒否する記事は、投稿の状態が `unpostable` になり、投稿できない。そのような記事も `done` として返る（表示も保存もできる）。投稿できる記事になるのは、再起動の後か、その記録をキャッシュが落とした後に生成し直したときだけである。
-
-投稿の操作は Webhook の返事を待たずに `202` を返し、同じ記事を 2 度投稿しない。`posting` か `posted` の記事をもう一度投稿しても何も送らず、`failed` の投稿は最初に届かなかったメッセージから再開する（そのメッセージは 2 度届くことがある）。投稿には `SLACK_WEBHOOK_URL` が要る。なければ、投稿の操作は `webhook_not_configured` を返し、状態の取得の応答は
-`"webhookConfigured": false` を持つ。`SLACK_WEBHOOK_URL` なしで起動したサーバも記事は生成するが、投稿の操作は
-`webhook_not_configured` で拒否する。
+記事はサーバのメモリにだけある。記事のキャッシュが持つ記録は最大 100 で、埋まると、完了した記事か失敗のうち最も古いものを落とす。生成中の記録は落とさない。再起動するとすべての記事が失われるので、その後の状態の取得は `unknown` を返す。完了の時点の検査を通らない記事（`article_invalid`・`article_too_large`）は `failed` になる。
 
 受け付けた生成の開始のログの行は、`requestId`・`key`・`videoId`・`outcome`（`started`・`restarted`・`existing`）と送り方 `mode`（`inquiry` か `plain`）を持つ。同じ動画の応答を返した生成の開始は、`generation start answered with a same-video article` の 1 行を書き、`requestId`、今の入力のキー `key`、`videoId`、`outcome=same_video`、`mode=inquiry`、返した記事のキー `sameVideoKey` を持つ。本文・字幕・`videoUrl` の文字列・動画メタデータは書かない。`grep "$key" server.log` は、返した記事のジョブの行と、それを返した照会の行の両方を見つける。
 
-受け付けて応答した状態の取得はログに書かない。ビューアが数秒ごとに問い合わせるためで、その応答の `requestId` に対応するログの行はない。拒否した状態の取得は、その拒否をログに書く。ほかの操作はどれも `requestId` を付けた行をログに書き、生成と投稿のジョブはキーを書く。
+受け付けて応答した状態の取得はログに書かない。ビューアが数秒ごとに問い合わせるためで、その応答の `requestId` に対応するログの行はない。拒否した状態の取得は、その拒否をログに書く。ほかの操作はどれも `requestId` を付けた行をログに書き、生成のジョブはキーを書く。
 
 サーバのログのリクエストの行は、応答が返す `requestId` を持つ（README の [サーバの起動](../../../README.md#サーバの起動) を参照）。
-生成と投稿のジョブは、代わりに記事のキーをログに書くので、1 つのジョブは
+生成のジョブは、代わりに記事のキーをログに書くので、1 つのジョブは
 `grep "$key" server.log` で追う。
 
-最初のシグナルで、サーバは実行中の生成を取り消し（その LLM の呼び出しは止まる。サーバが終わればキャッシュも消えるので、その記事は失われる）、投稿のジョブは終わるまで待つ。1 つの投稿のジョブの送信は、最大 10 通を 1 通 30 秒以内、1 秒の間隔で送るので最長 309 秒かかる。投稿のジョブはそれぞれ並行して送るので、待つのは最長でおよそ 5 分である。
+最初のシグナルで、サーバは実行中の生成を取り消し（その LLM の呼び出しは戻るまで待つ。サーバが終わればキャッシュも消えるので、その記事は失われる）、処理中のリクエストと取り消した生成が終わるまで待つ。
 
-「curl でサーバを確かめる」のソケットと `request.json` の本文を使うと、3 つの操作は次のとおりである。
+「curl でサーバを確かめる」のソケットと `request.json` の本文を使うと、2 つの操作は次のとおりである。
 
 ```sh
 curl -sS --unix-socket "$socket" -X POST http://localhost/jobs --data-binary @request.json
@@ -266,9 +264,3 @@ curl -sS --unix-socket "$socket" -X GET "http://localhost/jobs/$key"
 `YT2COLUMN_TEST_DEEPSEEK_API_KEY` を読み、`YT2COLUMN_TEST_DEEPSEEK_MODEL` が定義されていなければ
 `deepseek-flash` を使い、同意の変数
 `YT2COLUMN_CLI_INTEGRATION=1` をこのターゲットのためだけに export する。DeepSeek の統合テストと違い、テスト用の API キーがないときはテストを飛ばさずに失敗させるので、同意した実行が API を呼ばずに通ることはない。
-
-### Webhook の統合テスト
-
-`make test-integration-slack` は、固定の 2 つの記事（LLM は呼ばない）を、それぞれ `PrepareSlackMessages` で検査・分割してから `PostMessages` で、Mattermost のテスト用のチャンネルの本物の Incoming Webhook に投稿するので、
-`YT2COLUMN_TEST_SLACK_WEBHOOK_URL` にそのチャンネルの Webhook の URL を設定する必要がある。これは本番の `SLACK_WEBHOOK_URL` とは別のもので、テストは本番の URL を読まない。
-ターゲットは、統合テストのためだけに同意の変数 `YT2COLUMN_SLACK_INTEGRATION=1` を export する。これがなければ、テストはその変数を示すメッセージを出して飛ばすので、ただの `go test -tags integration` や IDE からの実行は投稿しない。テスト用の Webhook の URL がないか正しくないとき、または `GODEBUG` が `http2debug` を有効にしているときは、テストを飛ばさずに失敗させ、何も投稿しない。投稿するメッセージの本文は URL を含まない。失敗のメッセージでは、URL、そのパス・クエリ・userinfo、URL の末尾の 8 文字を伏せる。通信の失敗のメッセージには宛先のホストとポートが出ることがあるが、ホストとポートは秘密情報として扱わない。

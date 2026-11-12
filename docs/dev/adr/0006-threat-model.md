@@ -18,8 +18,6 @@
 -   **Native Messaging のホストを起動できる拡張を固定する。** ホストの `allowed_origins` は固定した拡張 ID のオリジンだけとする。ブラウザはページから UDS へ接続できず、拡張以外の相手にホストを起動させないためである。拡張の ID を manifest の `key` で固定することは [ADR-0026](0026-extension-platform.md) が定め、規則は [security.md](../security.md) §8.1「ブラウザ拡張」と、0026 要件定義書 §4.2「セキュリティ (Security)」にある。
 -   **拡張 ID は送り元の認証にならない。** 同じ `key` を使えば誰でも同じ ID の拡張を読み込めるので、`allowed_origins` は同じ ID の拡張を読み込める同一ユーザーを排除しない。規則は security.md §8.1 と §8.2 にある。秘密の持ち方と、秘密を出力に流さないことは [ADR-0031](0031-secret-closure.md) が定める。
 
-Webhook URL と Slack への投稿は、まだコードと security.md に残っている。この差分は [#770](https://github.com/isseis/yt2column/issues/770) の実装で解消する。
-
 ## 採らなかった案
 
 -   **共有トークンで認証する。** 同一ユーザーのフル権限プロセスはトークンも `.envrc` も読めるので、トークンを残しても防げない（[0026 要件定義書](../../tasks/0026_native_messaging_relay/01_requirements.md) §4.2）。

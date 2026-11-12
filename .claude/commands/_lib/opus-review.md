@@ -641,8 +641,8 @@ attack-vector list against this diff even where no AC mentions it explicitly)
       tokens through to a log line or notification payload — check what the
       wrapped struct actually serializes to, not whether the code "looks
       like" it redacts.
-- [ ] Any new external-endpoint resolution (redirect following, webhook target
-      validation, YouTube URL / video-ID validation) fails closed on
+- [ ] Any new external-endpoint resolution (redirect following, YouTube URL
+      / video-ID validation) fails closed on
       mismatch/ambiguity rather than falling back to a default or a
       best-effort continue.
 - [ ] Any new retry/backoff loop has a bounded ceiling (attempts or elapsed

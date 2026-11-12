@@ -28,8 +28,6 @@ LLM の呼び出しは、応答が報告するトークン数から料金を概�
 
 料金の適用条件のコードへの反映は [#568](https://github.com/isseis/yt2column/issues/568) の実装で行う。
 
-Slack の投稿の脚注は、まだコードに残っている。この差分は [#770](https://github.com/isseis/yt2column/issues/770) の実装で解消する。
-
 ## 採らなかった案
 
 -   **`float64` で算出する。** 0.5 の境界の四捨五入で、表示の値が手で計算した値と食い違い得る（[0022 設計書](../../tasks/0022_cost_estimate/02_architecture.md) 付録 A）。
