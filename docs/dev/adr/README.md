@@ -15,7 +15,7 @@
 | [ADR-0007](0007-manual-transcript-copy.md) | 字幕は利用者が文字起こしパネルから手動でコピーし、拡張はページを読むだけにする | `有効` |
 | [ADR-0008](0008-launch-path.md) | 拡張の起動の経路をツールバーのポップアップだけにし、生成の開始は利用者のボタンの押下だけで行う | `有効` |
 | [ADR-0009](0009-viewer-opening.md) | ビューアは生成の開始と同時に背面のタブで開き、ポップアップは閉じずに状態を表示する | `有効` |
-| [ADR-0010](0010-extension-stores-nothing.md) | 拡張が保存するものを API キーと完成した記事に限る | `有効` |
+| [ADR-0010](0010-extension-stores-nothing.md) | 拡張は API キーをブラウザの再起動の後も残る形で保存し、完成した記事をブラウザの終了まで持つ | `有効` |
 | [ADR-0011](0011-webhook-publishing.md) | 投稿先は Slack 互換の Incoming Webhook とし、投稿は利用者の操作でだけ行う | `廃止` |
 | [ADR-0012](0012-lightweight-check-in-bash.md) | 軽量プロセスの確かめ直しは、origin/main の版の bash スクリプトで行い、Go のツールにしない | `廃止` |
 | [ADR-0013](0013-review-setup.md) | PR レビューは作成時の 1 回だけ Codex に頼み、その後の変更はローカルの CLI レビューで見る | `有効` |

@@ -23,7 +23,7 @@
 -   **拡張の ID を manifest の `key` で固定する。** `key` には RSA 2048 ビットの公開鍵を置き、ID はこの公開鍵から決まる `clfmbbcdpnjcefbdihdoahomaifbabkk` になる。ホストの `allowed_origins` が ID を指定するので、ID はどの環境でも同じでなければならない。鍵の組を作った直後に秘密鍵を削除し、リポジトリに含めない。`key` は公開情報なので、ID は秘密ではない。規則は [0007 設計書](../../tasks/0007_browser_extension_skeleton/02_architecture.md) §3.1「manifest」にある。
 -   **対象のブラウザは Chrome と Brave だけにする。** Native Messaging のホストの manifest を登録・削除するコマンドが受け付けるブラウザは、`chrome` と `brave` だけである。登録先は、それぞれのブラウザの決まった置き場所だけで、ほかのブラウザ向けに置き場所を指定する手段は持たない。手動で確認していないブラウザ向けの手段を、確かめないまま提供しないためである。規則は [0007 要件定義書](../../tasks/0007_browser_extension_skeleton/01_requirements.md) §1・§2.3 と [0026 設計書](../../tasks/0026_native_messaging_relay/02_architecture.md) §3.6「manifest の install/uninstall」、[internal/nmhost/manifest.go](../../../internal/nmhost/manifest.go) にある。
 
-拡張が要求する Chrome の最小の版は [ADR-0030](0030-minimum-chrome-version.md) が、拡張の表示の言語は [ADR-0029](0029-extension-ui-languages.md) が定める。拡張の権限と、何も保存しないことは [ADR-0010](0010-extension-stores-nothing.md) が、起動の経路は [ADR-0008](0008-launch-path.md) が定める。ホストを起動できる拡張を、固定した ID の拡張だけにすること（`allowed_origins`）は、ホストの中継として [ADR-0005](0005-server-architecture.md) が、脅威モデルとして [ADR-0006](0006-threat-model.md) が定める。
+拡張が要求する Chrome の最小の版は [ADR-0030](0030-minimum-chrome-version.md) が、拡張の表示の言語は [ADR-0029](0029-extension-ui-languages.md) が定める。拡張の権限と、拡張が保存するものは [ADR-0010](0010-extension-stores-nothing.md) が、起動の経路は [ADR-0008](0008-launch-path.md) が定める。ホストを起動できる拡張を、固定した ID の拡張だけにすること（`allowed_origins`）は、ホストの中継として [ADR-0005](0005-server-architecture.md) が、脅威モデルとして [ADR-0006](0006-threat-model.md) が定める。
 
 ## 採らなかった案
 
