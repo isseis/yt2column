@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-12 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-12 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を、節番号は [02_architecture.md](02_architecture.md)（以下、設計書）の節を指す。H-NN は [design_handoff.md](design_handoff.md) の項番で、どれも設計書の付録 A が扱いを記録している。本タスクに `implementation_handoff.md` はない。用語（マージの質問・deferred のスレッド・deferred の問い・除外スレッド・追跡 issue・詳細ファイル・詳細ディレクトリ・要約・問いの回・承認のメッセージのファイル・番号の答え・NEXT・PRE_MERGE・LAST_REVIEWED・Escalation・LIMITS_NOTE・旧値）は、要件書 6 章と設計書の冒頭と同じ意味で使う。
@@ -199,3 +199,7 @@ Diff record (AC-19):
 
 -   本計画の承認の後、`/runplan 0089` でフェーズ 1 を実装し、PR を作る。
 -   マージの後、0088 の実装（#837・#838）が、ADR-0046 のとおり 0088 の AC-30・AC-46 を計画の決定の変更として外す。
+
+## 変更履歴
+
+- 2026-11-12 承認（isseis、#864）
