@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/isseis/yt2column/internal/transcript"
+	"github.com/isseis/yt2column/internal/ytdlpsource"
 )
 
 // errMaterial reports scoring material that cannot be built; errLeak, which
@@ -205,7 +206,7 @@ func writeTranscript(q materialRequest, video string, items []articleKey, dir st
 	if err := os.CopyFS(cache, os.DirFS(src)); err != nil {
 		return fmt.Errorf("%w: copy the cache of %s: %w", errMaterial, video, err)
 	}
-	source, err := transcript.NewYtDlpSource(transcript.Options{CacheDir: cache, YtDlpPath: "/usr/bin/false", Timeout: time.Minute})
+	source, err := ytdlpsource.NewYtDlpSource(ytdlpsource.Options{CacheDir: cache, YtDlpPath: "/usr/bin/false", Timeout: time.Minute})
 	if err != nil {
 		return err
 	}

@@ -64,6 +64,21 @@
 | 既定に依存するテスト（F-007） | 設計 §3.9.3 のテストはすべて `986449c6` にある（`config_test.go` の `TestLoadDefaults`:102・`TestLoadClaudeEffortDefault`:304・`TestLoadGenerationDefaults`:1358・`TestLoadReviewDefaults`:1399・`TestLoadDefaultProviderVariables`:1488・`TestLoadServerLLMDefaults`:1529・`TestLoadProductionDefaults`:1551・`TestLoadInheritsEffort`:1773、`serverfile_test.go:325` の `TestServerFileTemplate`、`run_test.go:1564` の `TestRunDefaultLLMConfig`、`docs_test.go:310` の `TestLLMDefaultsDocsContract`・`:699` の `TestProductionProfileDocsContract`）。設計 §3.9.3 にないもので、既定のキー（`ANTHROPIC_API_KEY`）だけで起動することを前提にしうるのは、`cmd/yt2column-server/run_test.go` の `TestStartupFailures`:47・`TestServerIgnoresEnvSettings`:488・`TestConfigInitThenStart`:1390 と、`cmd/yt2column/run_test.go:1541` の `TestRunClaudeConfigurationErrorsOneLineEach` である |
 | 既定に依存する文書（F-007） | `claude-opus-5-5`・`YT2COLUMN_REVIEW_LLM`・`本番の構成`・`ANTHROPIC_API_KEY` を `docs/tasks/` の外で検索した（`986449c6`）。設計 §3.9.2 の表にないもので変えうるのは、`docs/dev/adr/0025-claude-output-limit.md`（本番の出力の上限を 40,000 と記録する決定。生成が OpenAI になる C・B で変わる）、`docs/dev/adr/0041-openai-api.md:43`（本番の構成の変更は後続の評価で決めるという記述）、`docs/dev/guides/claude_output_limit.md:7`（本番の構成の工程が変わったら測り直す条件）、`docs/dev/guides/development.md:32`（開発用のサーバの設定が `ANTHROPIC_API_KEY` だけを書く）である。`docs/translation_glossary.md`・`testdata/README.md:123`・`prompts/README.md:9`・`docs/dev/adr/0035-language-policy.md` は既定の値を書いていない。コードの検索結果のうち、アダプタと料金のテスト（`internal/llm/claude/`・`internal/pricing/`・`internal/llm/provider/provider_test.go`・`cmd/yt2column/cost_test.go`）のモデル名は既定ではない |
 
+### 1.4. 実装の際に決めたこと（2026-11-12）
+
+1. **ステップ 1-7 の `.when` の LLM の変数の値は、人ではなく機械で設計 §3.1 の表と照合する。** 設計書の §3.1 の表から構成 ID と 2 つの変数の値を取り出し、preflight の `.when` の値の組と `diff` する。
+    - **理由:** 人が、機械的に確かめられる照合は機械で行うよう求めた。表の値と記録の値の文字列の一致なので、機械の照合は人の照合より見落としがない。
+    - **ADR の判断:** 作らない。このタスクの中で閉じる手順であるためである。
+
+次の 2・3 は、承認済みの文書の範囲で実装の際に決めたもので、人には尋ねていない。いずれも ADR は作らない。このタスクの中で閉じる手順であるためである。
+
+2. **`run.sh` の `--after review` の preflight の起動は、`0087/preflight/after-review/` に出力する。** 設計 §3.4 の項目 1 の起動と項目 2 の起動は、同じ構成 ID と記事で同じ出力先を使い、後から起動したほうが止まるためである。設計 §2.2 の「`preflight/` の下に出力する」の範囲に収まる。
+3. **採点のサブエージェントを起動するときは、主セッションが素材のディレクトリのファイルの名前の一覧をプロンプトに書く。** ステップ 1-7 の試しの採点で、エージェントの道具（`Read` だけ）ではディレクトリの一覧を取れず、記事の名前を推測して読むことがわかったためである。1 段目では 1 本の動画に 8 件の記事がある。
+
+4. **人の確認は、論点ごと・1 件ずつ・一括の 3 段で行う。** 要件の実装の際に決めたこと 1、設計 §1.5 の決めたこと 1 のとおりである（ステップ 3-2・4-1）。人が求め、セッション中に再承認を受けた。
+
+5. **本番の構成を変えないので、ADR-0004 に採らなかった案と経緯を加える。** 要件の実装の際に決めたこと 2 のとおりである（ステップ 5-1）。人が評価の後に求め、セッション中に再承認を受けた。
+
 ## 2. 実装手順 (Implementation Steps)
 
 `_eval/` は `docs/tasks/0087_openai_combination_eval/_eval/` を、`evaltool` は `_eval/evaltool/` のパッケージを、`0087/` は `~/yt2column-eval/0087/` を指す。`_eval/` のコメント・識別子・文字列・データのファイルの鍵は英語で書く（`CLAUDE.md`「Language」）。判定の観点も英語の鍵で持ち（例: 「根拠」は `evidence`）、評価記録では日本語の名前で示す。
@@ -135,7 +150,7 @@
 **追加ファイル:** `_eval/run.sh`、`evaltool` の `launch` のソースとテスト。
 
 - [x] `run.sh`（zsh）を作る。設計 §3.1 の構成の変数の表（ここだけに置く）、§3.2 の再開の工程、§3.3 の写しの作り方とハッシュの照合、出力先と `runcache/` がすでにあれば起動しないこと、`.when` の内容（設計 §3.1 の項目に、`YT2COLUMN_YTDLP_PATH` の値と `--keep-cache` を加える）を実装する。API キーの値を読まず、書かず、表示しない。
-- [x] `run.sh` に 2 つの使い方を加える。構成 ID を与えると構成の変数の表を出す使い方（§1.2 の決めたこと 5）と、出力の根のディレクトリを `0087/` の代わりに `0087/preflight/` にする使い方（ステップ 1-7）である。preflight の使い方は、どの構成 ID でも `--after review` を受け付ける（設計 §3.4 の項目 1）。
+- [x] `run.sh` に 2 つの使い方を加える。構成 ID を与えると構成の変数の表を出す使い方（§1.2 の決めたこと 5）と、出力の根のディレクトリを `0087/` の代わりに `0087/preflight/`（`--after review` の起動は `0087/preflight/after-review/`。§1.4 の決めたこと 2）にする使い方（ステップ 1-7）である。preflight の使い方は、どの構成 ID でも `--after review` を受け付ける（設計 §3.4 の項目 1）。
 - [x] `launch` サブコマンドを作る。次の確認がすべて通った場合だけ、`run.sh` を 1 つの構成の 10 件（またはやり直しの 1 件）について並列に起動し、全件の終了を待つ。
     - 設計 §3.5 の確認: 承認の記録に起動する構成があること、同じ OpenAI のモデルを使う直前の構成の終了から 30 分たったこと、使った額と起動する実行の上限の和が最後の上限以下であること。
     - §1.2 の決めたこと 10 の確認。
@@ -185,21 +200,21 @@
 
 PR-1 のマージの後、新しいブランチで行う（§1.2 の決めたこと 3）。
 
-- [ ] CLI のビルドを固定する（設計 §3.1）。未コミットの変更のない作業ツリーで `make build` を 1 回行い、`0087/bin/<コミット>/` に写し、SHA-256 を記録する。ビルドするコミットは main の先頭とし、main から到達できることを記録する。
-- [ ] `hashlist.sh` で最初のハッシュの一覧を作り、バックアップを作って別の場所へ展開して一覧と照合し、アーカイブのハッシュを記録する（設計 §3.3）。
-- [ ] 人の許可を得て `scorer-agent.md` を `~/.claude/agents/` に写し、セッションを開き直す（§1.2 の決めたこと 9）。
+- [x] CLI のビルドを固定する（設計 §3.1）。未コミットの変更のない作業ツリーで `make build` を 1 回行い、`0087/bin/<コミット>/` に写し、SHA-256 を記録する。ビルドするコミットは main の先頭とし、main から到達できることを記録する。
+- [x] `hashlist.sh` で最初のハッシュの一覧を作り、バックアップを作って別の場所へ展開して一覧と照合し、アーカイブのハッシュを記録する（設計 §3.3）。
+- [x] 人の許可を得て `scorer-agent.md` を `~/.claude/agents/` に写し、セッションを開き直す（§1.2 の決めたこと 9）。
 
 **完了条件:** バイナリの SHA-256、最初の一覧、アーカイブのハッシュが `04_evaluation.md` 節 2・4 に記録されている。
 
 #### ステップ 1-7：実行の前の確認
 
-- [ ] 設計 §3.4 の項目 1〜4 を行う。項目 1 と項目 2 の CLI の起動は、すべて `run.sh` の preflight の使い方で行い、API キーを取り除く（`env -u`）。設計 §3.1 の共通の条件（`yt-dlp` を呼ばない設定、キャッシュの写し、`ANTHROPIC_WORKSPACE_ID` を未設定にする）は `run.sh` がすべての起動に当てる。やり直す場合は、`0087/preflight/` を空にしてから始める。
-- [ ] 項目 2 の結果を記録する。主セッションが各起動の標準エラーを読み、足りない変数として示されたのが設計 §3.1 の表のキーだけであり、値の誤りがないことを確かめる。`.when` の LLM の変数の値を、人が設計 §3.1 の表と照合する。
-- [ ] ステップ 1-6 で固定したコミットの `evaltool` で `estimate` を実行し直し、`bounds.tsv` と節 5 の見積もりの表が変わる場合は書き換える。一括の承認は、書き換えた後の見積もりで受ける。
-- [ ] 項目 3 は `rates` と `rates-compare.sh` を評価に使うコミットで実行する。`claude-opus-5-5` の単価が違う場合は、基準の構成の推定コストを今の単価で求め直し、`baseline.json` の値を変えて、`04_evaluation.md` 節 6 に記録する（AC-15）。
-- [ ] `check_article.py` を、項目 1 の `--after review` が書いた記事に当て、今の CLI の記事を読めることを確かめる。
-- [ ] 項目 1 の記事を 1 件だけ `material` で伏せ、`scorer-agent.md` のエージェントで試しに採点させる。出力の表の形、記録されたモデル ID（`claude-opus-5-5`）、`Read` 以外の道具（コマンドの実行と書き込み）を使えないことを確かめる。採点の結果は評価に使わない。
-- [ ] ステップ 1-5 の後に `_eval/` を変えた場合は、`selftest.sh`・`reproduce0018.sh`・`repo_impact.sh` を実行し直して記録する。
+- [x] 設計 §3.4 の項目 1〜4 を行う。項目 1 と項目 2 の CLI の起動は、すべて `run.sh` の preflight の使い方で行い、API キーを取り除く（`env -u`）。設計 §3.1 の共通の条件（`yt-dlp` を呼ばない設定、キャッシュの写し、`ANTHROPIC_WORKSPACE_ID` を未設定にする）は `run.sh` がすべての起動に当てる。やり直す場合は、`0087/preflight/` を空にしてから始める。
+- [x] 項目 2 の結果を記録する。主セッションが各起動の標準エラーを読み、足りない変数として示されたのが設計 §3.1 の表のキーだけであり、値の誤りがないことを確かめる。`.when` の LLM の変数の値を、設計 §3.1 の表から取り出した値と機械的に照合する（人の求めにより、人の照合から変えた）。
+- [x] CLI に関わるツリーが、ステップ 1-6 で固定したコミットと同じコミットの `evaltool` で `estimate` を実行し直し、`bounds.tsv` と節 5 の見積もりの表が変わる場合は書き換える。一括の承認は、書き換えた後の見積もりで受ける。
+- [x] 項目 3 は `rates` と `rates-compare.sh` を評価に使うコミットで実行する。`claude-opus-5-5` の単価が違う場合は、基準の構成の推定コストを今の単価で求め直し、`baseline.json` の値を変えて、`04_evaluation.md` 節 6 に記録する（AC-15）。
+- [x] `check_article.py` を、項目 1 の `--after review` が書いた記事に当て、今の CLI の記事を読めることを確かめる。
+- [x] 項目 1 の記事を 1 件だけ `material` で伏せ、`scorer-agent.md` のエージェントで試しに採点させる。出力の表の形、記録されたモデル ID（`claude-opus-5-5`）、`Read` 以外の道具（コマンドの実行と書き込み）を使えないことを確かめる。採点の結果は評価に使わない。
+- [x] ステップ 1-5 の後に `_eval/` を変えた場合は、`selftest.sh`・`reproduce0018.sh`・`repo_impact.sh` を実行し直して記録する。
 
 **完了条件:** 上の確かめがすべて成功し、`04_evaluation.md` の節 2〜4・6 に記録されている。CLI は API を一度も呼んでいない（項目 2 の起動はすべて終了コード `2`、項目 1 は API を呼ばない再開）。
 
@@ -209,8 +224,8 @@ PR-1 のマージの後、新しいブランチで行う（§1.2 の決めたこ
 
 **変更ファイル:** `04_evaluation.md`（リポジトリの外では `0087/approval`）。
 
-- [ ] `04_evaluation.md` 節 5 の見積もりの表（1 段目と 2 段目の構成・回数・推定コスト）と上限 30 USD を示し、人の承認を受ける（要件 F-005）。
-- [ ] 承認の時刻・構成・上限を `0087/approval` に書き（§1.2 の決めたこと 8）、`04_evaluation.md` 節 5 に記録する。
+- [x] `04_evaluation.md` 節 5 の見積もりの表（1 段目と 2 段目の構成・回数・推定コスト）と上限 30 USD を示し、人の承認を受ける（要件 F-005）。
+- [x] 承認の時刻・構成・上限を `0087/approval` に書き（§1.2 の決めたこと 8）、`04_evaluation.md` 節 5 に記録する。
 
 **完了条件:** 承認の記録がある。この時点まで、API キーを渡した CLI の起動はない。
 
@@ -220,10 +235,10 @@ PR-1 のマージの後、新しいブランチで行う（§1.2 の決めたこ
 
 **変更ファイル:** `04_evaluation.md`。
 
-- [ ] `launch` で `C-sol` → `C-astra` → `A-sol` → `A-astra` の順に、1 構成ずつ実行する（設計 §3.5）。`launch` が止まった場合は、その理由を人に示す。上限による停止では、人の承認を改めて受け、`0087/approval` に追記する。
-- [ ] 失敗した実行は、設計 §4 の表で扱いを決める。やり直す場合は `retire.sh` の後に `launch` で 1 件を起動する。番兵は主セッションが標準エラーを読んで記録し、人が確認する。
-- [ ] 入力が拒否された実行は、設計 §3.3「拒否された入力」の手順で、元の入力のハッシュを一覧と比べ、変わっていればバックアップから元のモードのまま戻して確かめ、`04_evaluation.md` 節 4 に記録する。
-- [ ] 1 段目の後に `hashlist.sh` で一覧を作り、最初の一覧との `diff` が空であることを節 4 に記録する。
+- [x] `launch` で `C-sol` → `C-astra` → `A-sol` → `A-astra` の順に、1 構成ずつ実行する（設計 §3.5）。`launch` が止まった場合は、その理由を人に示す。上限による停止では、人の承認を改めて受け、`0087/approval` に追記する。
+- [-] 失敗した実行は、設計 §4 の表で扱いを決める。（1 段目に失敗した実行はなかった）やり直す場合は `retire.sh` の後に `launch` で 1 件を起動する。番兵は主セッションが標準エラーを読んで記録し、人が確認する。
+- [-] 入力が拒否された実行は、設計 §3.3「拒否された入力」の手順で、元の入力のハッシュを一覧と比べ、変わっていればバックアップから元のモードのまま戻して確かめ、`04_evaluation.md` 節 4 に記録する。（1 段目に拒否はなかった。節 4 に「なし」と記録した）
+- [x] 1 段目の後に `hashlist.sh` で一覧を作り、最初の一覧との `diff` が空であることを節 4 に記録する。
 
 **完了条件:** 4 構成の 10 件それぞれについて、記事を得たか、得られなかったことが記録されている。
 
@@ -231,10 +246,10 @@ PR-1 のマージの後、新しいブランチで行う（§1.2 の決めたこ
 
 **変更ファイル:** `04_evaluation.md`。
 
-- [ ] `check_article.py` で長さ・節の数・タイトルの字数を判定し、出力を `0087/score/1/check_article.txt` に置く。
-- [ ] `material` で 1 段目の伏せた素材を作り、`scorer-agent.md` のエージェントで、動画ごとに 1 つのサブエージェントが採点する（設計 §3.6 の手順 3）。採点の全文は `0087/score/1/` に置く。
-- [ ] 採点を構成ごとの表に戻し、設計 §3.6 の手順 4 の項目を人に確認してもらう。人が変えた判定と理由を記録し、判定のファイルを書く。
-- [ ] `aggregate` の値を `04_evaluation.md` 節 7 に書き写し、不合格・品質の 1 の引用、製品の制約 1〜3 の引用、番兵、採点に使ったモデル ID を書く。
+- [x] `check_article.py` で長さ・節の数・タイトルの字数を判定し、出力を `0087/score/1/check_article.txt` に置く。
+- [x] `material` で 1 段目の伏せた素材を作り、`scorer-agent.md` のエージェントで、動画ごとに 1 つのサブエージェントが採点する（設計 §3.6 の手順 3）。サブエージェントはディレクトリの一覧を取れないので、主セッションが素材のディレクトリのファイルの名前の一覧をプロンプトに書く（§1.4 の決めたこと 3）。採点の全文は `0087/score/1/` に置く。
+- [x] 採点を構成ごとの表に戻し、設計 §3.6 の手順 4 の項目を、§1.4 の決めたこと 4 の 3 段で人に確認してもらう。人が変えた判定と理由を記録し、判定のファイルを書く。
+- [x] `aggregate` の値を `04_evaluation.md` 節 7 に書き写し、不合格・品質の 1 の引用、製品の制約 1〜3 の引用、番兵、採点に使ったモデル ID を書く。
 
 **完了条件:** 1 段目の 4 構成の判定が人の確認を終え、記録されている。
 
@@ -244,11 +259,11 @@ PR-1 のマージの後、新しいブランチで行う（§1.2 の決めたこ
 
 **変更ファイル:** `04_evaluation.md`。
 
-- [ ] `aggregate` が出す B のモデルの選択を `04_evaluation.md` 節 8 に記録する。
-- [ ] `launch` で `B-<モデル>` を実行する（同数なら `B-sol` → `B-astra`）。失敗と拒否の扱いはステップ 3-1 と同じである。
-- [ ] 2 段目の後に `hashlist.sh` で一覧を作り、`diff` が空であることを記録する。
-- [ ] ステップ 3-2 と同じ手順で採点し（出力は `0087/score/2/`）、人の確認を受け、節 8 に記録する。
-- [ ] 採点がすべて終わった後、`~/.claude/agents/` に写したエージェントの定義を消す。
+- [x] `aggregate` が出す B のモデルの選択を `04_evaluation.md` 節 8 に記録する。
+- [x] `launch` で `B-<モデル>` を実行する（同数なら `B-sol` → `B-astra`）。失敗と拒否の扱いはステップ 3-1 と同じである。
+- [x] 2 段目の後に `hashlist.sh` で一覧を作り、`diff` が空であることを記録する。
+- [x] ステップ 3-2 と同じ手順で採点し（出力は `0087/score/2/`）、人の確認を受け、節 8 に記録する。
+- [x] 採点がすべて終わった後、`~/.claude/agents/` に写したエージェントの定義を消す。
 
 **完了条件:** B の各構成の判定が人の確認を終え、記録されている。
 
@@ -258,12 +273,13 @@ PR-1 のマージの後、新しいブランチで行う（§1.2 の決めたこ
 
 **変更ファイル:** `04_evaluation.md`、本書。
 
-- [ ] `aggregate` の比較の表、使った額、F-006 の判定を、`04_evaluation.md` 節 9・10 に書き写す。プロンプトのキャッシュから読んだ入力のある構成は、補助の推定コストの平均で F-006 の判定が変わるかを書く（設計 §3.5）。
-- [ ] F-006 の手順 2 で選んだ構成（候補がなければ「変えない」）を、失敗した実行の回数と費用とともに人に示し、承認を受ける。人が承認しない場合は、その候補を除いて `aggregate` で選び直す（要件 F-006 の手順 3）。
-- [ ] 結論と節 1 の要約を書く。
-- [ ] PR-2 で `_eval/` を変えた場合は、`selftest.sh`・`reproduce0018.sh`・`repo_impact.sh` を実行し直して記録する。
-- [ ] `check-record` と `secretscan.sh` を実行し、出力・入力の SHA-256・実行したコミットを本書 §7 の「記録」に書く。PR の作成の後に `04_evaluation.md` か `_eval/` を変えた場合は、マージの前に 2 つを実行し直して記録を書き換える。
-- [ ] 本番の構成を変えない場合は、次をすべて `[-]` にし、理由として `04_evaluation.md` の結論を参照する。ステップ 6-1・6-2 のチェックボックス、PR-3 の作成ポイントの 4 つのチェックボックス、§6 の PR-3 の行、§8 の「本番の構成を変える場合」の行。§7 の AC-24〜AC-30 の行に「該当しない」と書く。
+- [x] `aggregate` の比較の表、使った額、F-006 の判定を、`04_evaluation.md` 節 9・10 に書き写す。プロンプトのキャッシュから読んだ入力のある構成は、補助の推定コストの平均で F-006 の判定が変わるかを書く（設計 §3.5）。
+- [x] F-006 の手順 2 で選んだ構成（候補がなければ「変えない」）を、失敗した実行の回数と費用とともに人に示し、承認を受ける。人が承認しない場合は、その候補を除いて `aggregate` で選び直す（要件 F-006 の手順 3）。
+- [x] 結論と節 1 の要約を書く。
+- [x] PR-2 で `_eval/` を変えた場合は、`selftest.sh`・`reproduce0018.sh`・`repo_impact.sh` を実行し直して記録する。（PR-2 で変えたのは、`_eval/evaltool/material.go`（`18497a55`）と `run.sh`（`436691e4`・`b435f279`）である。どちらの後でもあるコミット `b435f279` で実行し直し、`04_evaluation.md` §2.7 に記録した。その後 `_eval/` は変えていない）
+- [x] `check-record` と `secretscan.sh` を実行し、出力・入力の SHA-256・実行したコミットを本書 §7 の「記録」に書く。PR の作成の後に `04_evaluation.md` か `_eval/` を変えた場合は、マージの前に 2 つを実行し直して記録を書き換える。
+- [x] 本番の構成を変えないので、ADR-0004 の採らなかった案に構成 C・A・B を、経緯に変えないと決めたことを加え、結果の節を更新する（§1.4 の決めたこと 5）。
+- [x] 本番の構成を変えない場合は、次をすべて `[-]` にし、理由として `04_evaluation.md` の結論を参照する。ステップ 6-1・6-2 のチェックボックス、PR-3 の作成ポイントの 4 つのチェックボックス、§6 の PR-3 の行、§8 の「本番の構成を変える場合」の行。§7 の AC-24〜AC-30 の行に「該当しない」と書く。
 
 **完了条件:** 評価記録の結論が人の承認を受け、`check-record` が成功している。
 
@@ -279,10 +295,10 @@ PR-1 のマージの後、新しいブランチで行う（§1.2 の決めたこ
 
 **判定理由**: 3-1・4-1 が実 API を呼ぶ有料の実行を含み、外部の資源に重く触れる。
 
-- [ ] グリーンゲート（`make test`・`make lint`）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`make test`・`make lint`）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/867
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 6：本番の構成の変更（変える場合だけ）
 
@@ -292,29 +308,29 @@ PR-1 のマージの後、新しいブランチで行う（§1.2 の決めたこ
 
 **変更ファイル:** `internal/config/config.go`・`config_test.go`・`serverfile.go`・`serverfile_test.go`・`test_helpers.go`、`cmd/yt2column/run_test.go`、`cmd/yt2column-server/run_test.go`。
 
-- [ ] 設計 §3.9.2 の表のとおり既定の定数を変える。C・B では、次の改名の台帳に従う。新しい名前は実装で決め、本書の台帳を同じコミットで埋める。
+- [-] 設計 §3.9.2 の表のとおり既定の定数を変える。C・B では、次の改名の台帳に従う。新しい名前は実装で決め、本書の台帳を同じコミットで埋める。（本番の構成を変えない。`04_evaluation.md` §10 の結論による）
 
     | 変更前の名前 | 変更後の名前 | 場所 |
     |---|---|---|
     | `defaultClaudeModel` | （プロバイダによらない名前） | `internal/config/config.go:76` と §1.3 の `config_test.go` の行 |
     | `DefaultClaudeModelForTest` | （同上に合わせる） | `internal/config/test_helpers.go`、`cmd/yt2column/run_test.go:1583` |
 
-- [ ] A・B では、検証・推敲の既定の定数を加え、`loadLLM` に R1 の分岐を加える。`parseLLM` を通す。`serverfile.go` の雛形の `YT2COLUMN_REVIEW_LLM` の「When unset」の説明を R1 と代償に合わせる。テスト用に検証・推敲の既定を返す関数を `test_helpers.go` に加える。
-- [ ] 設計 §3.9.3 のテストと、§1.3 に挙げた 4 つのテスト（`TestStartupFailures`・`TestServerIgnoresEnvSettings`・`TestConfigInitThenStart`・`TestRunClaudeConfigurationErrorsOneLineEach`）を新しい既定で実行し、失敗するものを直す。
-- [ ] A・B では、R1 の 3 つの分岐と、選んだ構成のプロバイダのキーだけを必須にすることを、`LoadFor` と `LoadServer` の両方で確かめるテストを加える。
-- [ ] 新しい既定で、足りないキーが終了コード `2` と足りないキーの名前で拒否され、API を呼ばないこと、使わないプロバイダのキーを要さないことを、CLI（`cmd/yt2column/run_test.go`）とサーバ（`TestStartupFailures`）のテストで確かめる。既存のテストを広げるか加えるかは実装で決め、§7 の AC-25 の行に名前を書く。
-- [ ] 直したテストと加えたテストが、既定の定数（A・B では R1 の分岐も）を元に戻すと失敗することを確かめ、コミットメッセージに書く。
+- [-] A・B では、検証・推敲の既定の定数を加え、`loadLLM` に R1 の分岐を加える。`parseLLM` を通す。`serverfile.go` の雛形の `YT2COLUMN_REVIEW_LLM` の「When unset」の説明を R1 と代償に合わせる。テスト用に検証・推敲の既定を返す関数を `test_helpers.go` に加える。（本番の構成を変えない。`04_evaluation.md` §10 の結論による）
+- [-] 設計 §3.9.3 のテストと、§1.3 に挙げた 4 つのテスト（`TestStartupFailures`・`TestServerIgnoresEnvSettings`・`TestConfigInitThenStart`・`TestRunClaudeConfigurationErrorsOneLineEach`）を新しい既定で実行し、失敗するものを直す。（本番の構成を変えない。`04_evaluation.md` §10 の結論による）
+- [-] A・B では、R1 の 3 つの分岐と、選んだ構成のプロバイダのキーだけを必須にすることを、`LoadFor` と `LoadServer` の両方で確かめるテストを加える。（本番の構成を変えない。`04_evaluation.md` §10 の結論による）
+- [-] 新しい既定で、足りないキーが終了コード `2` と足りないキーの名前で拒否され、API を呼ばないこと、使わないプロバイダのキーを要さないことを、CLI（`cmd/yt2column/run_test.go`）とサーバ（`TestStartupFailures`）のテストで確かめる。既存のテストを広げるか加えるかは実装で決め、§7 の AC-25 の行に名前を書く。（本番の構成を変えない。`04_evaluation.md` §10 の結論による）
+- [-] 直したテストと加えたテストが、既定の定数（A・B では R1 の分岐も）を元に戻すと失敗することを確かめ、コミットメッセージに書く。（本番の構成を変えない。`04_evaluation.md` §10 の結論による）
 
 #### ステップ 6-2：文書・ガードテスト・ADR
 
 **変更ファイル:** §1.3 と設計 §3.9.2 の文書、`cmd/yt2column/docs_test.go`。
 
-- [ ] `claude-opus-5-5`・`YT2COLUMN_REVIEW_LLM`・`本番の構成`・`ANTHROPIC_API_KEY`・`40,000` を `docs/tasks/` の外で検索し直し、§1.3 の結果と設計 §3.9.2 の表を突き合わせて、変える箇所の一覧を作る。一覧はコミットメッセージに書く。
-- [ ] `docs/dev/production_profile.md`・`docs/dev/project_overview.md`・`docs/dev/security.md`・`docs/dev/conventions/package_reference.md` を、設計 §3.9.2 の表と §3.9.4 のとおりに変える。A・B では `docs/dev/guides/cli.md` も変える。OpenAI を既定に含む場合は `docs/dev/guides/development.md` の開発用のサーバの設定と ADR-0041 の記述を、C・B では `docs/dev/guides/claude_output_limit.md` を変える。品質・料金・所要時間の値は、`check-record` で確かめた評価記録の表から写す。
-- [ ] `README.md` を変え、同じコミットで `/mktrans README.md` で `README.en.md` を同期する。
-- [ ] A・B では、`TestLLMDefaultsDocsContract` を `YT2COLUMN_REVIEW_LLM` の既定の値も照合するように広げ、`TestProductionProfileDocsContract` の `productionProfileVars` に `YT2COLUMN_REVIEW_LLM` を加える。`docsProfileEnv` に OpenAI のキーが要るかを、テストを実行して確かめる（設計 §3.9.3）。
-- [ ] ADR-0004 を更新し、索引の題名を合わせる（AC-28）。A・B では ADR-0003 を、C・B では ADR-0025 を更新する。どれも [adr.md](../../dev/conventions/adr.md) に従う。
-- [ ] `make test`・`make lint`・`make ext-test`・`make readme-sync-check` を実行する。
+- [-] `claude-opus-5-5`・`YT2COLUMN_REVIEW_LLM`・`本番の構成`・`ANTHROPIC_API_KEY`・`40,000` を `docs/tasks/` の外で検索し直し、§1.3 の結果と設計 §3.9.2 の表を突き合わせて、変える箇所の一覧を作る。一覧はコミットメッセージに書く。（本番の構成を変えない。`04_evaluation.md` §10 の結論による）
+- [-] `docs/dev/production_profile.md`・`docs/dev/project_overview.md`・`docs/dev/security.md`・`docs/dev/conventions/package_reference.md` を、設計 §3.9.2 の表と §3.9.4 のとおりに変える。A・B では `docs/dev/guides/cli.md` も変える。OpenAI を既定に含む場合は `docs/dev/guides/development.md` の開発用のサーバの設定と ADR-0041 の記述を、C・B では `docs/dev/guides/claude_output_limit.md` を変える。品質・料金・所要時間の値は、`check-record` で確かめた評価記録の表から写す。（本番の構成を変えない。`04_evaluation.md` §10 の結論による）
+- [-] `README.md` を変え、同じコミットで `/mktrans README.md` で `README.en.md` を同期する。（本番の構成を変えない。`04_evaluation.md` §10 の結論による）
+- [-] A・B では、`TestLLMDefaultsDocsContract` を `YT2COLUMN_REVIEW_LLM` の既定の値も照合するように広げ、`TestProductionProfileDocsContract` の `productionProfileVars` に `YT2COLUMN_REVIEW_LLM` を加える。`docsProfileEnv` に OpenAI のキーが要るかを、テストを実行して確かめる（設計 §3.9.3）。（本番の構成を変えない。`04_evaluation.md` §10 の結論による）
+- [-] ADR-0004 を更新し、索引の題名を合わせる（AC-28）。A・B では ADR-0003 を、C・B では ADR-0025 を更新する。どれも [adr.md](../../dev/conventions/adr.md) に従う。（本番の構成を変えない。`04_evaluation.md` §10 の結論による）
+- [-] `make test`・`make lint`・`make ext-test`・`make readme-sync-check` を実行する。（本番の構成を変えない。`04_evaluation.md` §10 の結論による）
 
 **完了条件:** 上の 4 つの make ターゲットが成功する。
 
@@ -330,10 +346,10 @@ PR-1 のマージの後、新しいブランチで行う（§1.2 の決めたこ
 
 **判定理由**: 6-1 が、すべての利用者の既定の送り先と必須のキーを同時に変える移行（振る舞いを強める変更と弱める変更が同時に起きる）に当たる。
 
-- [ ] グリーンゲート（`make test`・`make lint`）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [-] グリーンゲート（`make test`・`make lint`）がパスしていることを確認した（本番の構成を変えない。`04_evaluation.md` §10 の結論による）
+- [-] PR を作成した（本番の構成を変えない。`04_evaluation.md` §10 の結論による）
+- [-] PR がマージされた（本番の構成を変えない。`04_evaluation.md` §10 の結論による）
+- [-] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）（本番の構成を変えない。`04_evaluation.md` §10 の結論による）
 
 ## 3. 実装順序とマイルストーン (Implementation Order and Milestones)
 
@@ -376,7 +392,7 @@ PR-2 は複数のセッションにわたる。`/runplan` は 1 フェーズず�
 |---|---|
 | 承認の範囲を超えて費用がかかる | `launch` が起動の前に、使った額と起動する実行の上限の和が最後の上限を超えないかを確かめ、超える場合と使った額を求められない場合は止まる（ステップ 1-4）。上限の前提（1 トークンが 1 バイト以上）が外れる危険は評価記録に書く（設計 §3.5） |
 | 基準の構成の保存した出力を書き換える | 写しだけを CLI に渡し、ハッシュの一覧を 3 回比べ、バックアップを持つ（ステップ 1-4・1-6・3-1・4-1） |
-| 構成のモデル ID の打ち間違いで、有料の実行が別のモデルを呼ぶ、または失敗する | 料金表にないモデルで見積もりと起動が止まる（§1.2 の決めたこと 5）。`.when` の値を人が設計 §3.1 の表と照合する（ステップ 1-7） |
+| 構成のモデル ID の打ち間違いで、有料の実行が別のモデルを呼ぶ、または失敗する | 料金表にないモデルで見積もりと起動が止まる（§1.2 の決めたこと 5）。`.when` の値を設計 §3.1 の表と機械的に照合する（ステップ 1-7、§1.4 の決めたこと 1） |
 | 10 件の並列でレート制限（HTTP 429）が起きる | 工程の失敗としてやり直し、内容による失敗と分けて記録する（設計 §3.5）。所要時間に注記する |
 | 採点が構成やプロバイダの名前に引きずられる、素材の指示に操られる | 伏せた素材と、`Read` だけを持つエージェントで採点し、人が不合格と「根拠」の合格を確認する（ステップ 3-2） |
 | 評価記録への書き写しの誤り | `check-record` で照合する（ステップ 5-1） |
@@ -386,9 +402,9 @@ PR-2 は複数のセッションにわたる。`/runplan` は 1 フェーズず�
 ## 6. 実装チェックリスト (Implementation Checklist)
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5）
-- [ ] PR-2 マージ済み（対象ステップ: 1-6 / 1-7 / 2-1 / 3-1 / 3-2 / 4-1 / 5-1）
-- [ ] PR-3 マージ済み（対象ステップ: 6-1 / 6-2）
-- [ ] §7 の表のすべての AC の検証結果を記録した
+- [x] PR-2 マージ済み（対象ステップ: 1-6 / 1-7 / 2-1 / 3-1 / 3-2 / 4-1 / 5-1）
+- [-] PR-3 マージ済み（対象ステップ: 6-1 / 6-2）（本番の構成を変えない。`04_evaluation.md` §10 の結論による）
+- [x] §7 の表のすべての AC の検証結果を記録した
 
 ## 7. 受け入れ条件の検証 (Acceptance Criteria Verification)
 
@@ -423,25 +439,47 @@ PR-2 は複数のセッションにわたる。`/runplan` は 1 フェーズず�
 | AC-21 | 1-1 / 1-2 / 5-1 | test: evaltool（F-006 の条件の境界）。static: `reproduce0018.sh`（`baseline.json` の平均の値）、`check-record`（F-006 の判定の表）。manual: `baseline.json` の動画ごとの不合格の数と 0008 評価記録 §6.2 の照合 |
 | AC-22 | 1-1 / 5-1 | test: evaltool（手順 2 の選び方と手順 3 の除外）。manual: 人の承認、示した失敗の回数と費用、除いた候補と理由 |
 | AC-23 | 1-1 / 5-1 | test: evaltool（制約が直ったかの判定）。static: `check-record`（制約が直ったかの表）。manual: 基準の構成の値と 0008 評価記録 §6.3 の照合 |
-| AC-24 | 6-1 | test: `internal/config/config_test.go::TestLoadDefaults`・`TestLoadGenerationDefaults`・`TestLoadReviewDefaults`・`TestLoadServerLLMDefaults`・`TestLoadProductionDefaults`・`TestLoadInheritsEffort`、`cmd/yt2column/run_test.go::TestRunDefaultLLMConfig`。A・B では R1 の新しいテスト（ステップ 6-1 で名前を決め、ここに書く） |
-| AC-25 | 6-1 | test: `internal/config/config_test.go::TestLoadDefaultProviderVariables`、`cmd/yt2column-server/run_test.go::TestStartupFailures`、CLI のテスト（ステップ 6-1 で名前を決め、ここに書く） |
-| AC-26 | 6-2 | static: `cmd/yt2column/docs_test.go::TestLLMDefaultsDocsContract`・`TestProductionProfileDocsContract`、`internal/config/serverfile_test.go::TestServerFileTemplate`。manual: `production_profile.md` の品質・料金・所要時間の値と、`check-record` で確かめた評価記録の表の照合 |
-| AC-27 | 6-2 | manual: `project_overview.md` のモデル名の例外の項目（自然言語の内容だけを定める） |
-| AC-28 | 6-2 | static: `cmd/yt2column/adr_test.go::TestADRRecords`。manual: ADR-0004 の決定・採らなかった案・経緯 |
-| AC-29 | 6-2 | manual: README の両版と `security.md` の送り先の記述（自然言語の内容だけを定める） |
-| AC-30 | 6-2 | static: `make test`・`make lint`・`make ext-test`・`make readme-sync-check` |
+| AC-24 | 6-1 | 該当しない（本番の構成を変えない。`04_evaluation.md` §10）。変える場合の検証: test: `internal/config/config_test.go::TestLoadDefaults`・`TestLoadGenerationDefaults`・`TestLoadReviewDefaults`・`TestLoadServerLLMDefaults`・`TestLoadProductionDefaults`・`TestLoadInheritsEffort`、`cmd/yt2column/run_test.go::TestRunDefaultLLMConfig`。A・B では R1 の新しいテスト（ステップ 6-1 で名前を決め、ここに書く） |
+| AC-25 | 6-1 | 該当しない（本番の構成を変えない。`04_evaluation.md` §10）。変える場合の検証: test: `internal/config/config_test.go::TestLoadDefaultProviderVariables`、`cmd/yt2column-server/run_test.go::TestStartupFailures`、CLI のテスト（ステップ 6-1 で名前を決め、ここに書く） |
+| AC-26 | 6-2 | 該当しない（本番の構成を変えない。`04_evaluation.md` §10）。変える場合の検証: static: `cmd/yt2column/docs_test.go::TestLLMDefaultsDocsContract`・`TestProductionProfileDocsContract`、`internal/config/serverfile_test.go::TestServerFileTemplate`。manual: `production_profile.md` の品質・料金・所要時間の値と、`check-record` で確かめた評価記録の表の照合 |
+| AC-27 | 6-2 | 該当しない（本番の構成を変えない。`04_evaluation.md` §10）。変える場合の検証: manual: `project_overview.md` のモデル名の例外の項目（自然言語の内容だけを定める） |
+| AC-28 | 6-2 | 該当しない（本番の構成を変えない。`04_evaluation.md` §10）。変える場合の検証: static: `cmd/yt2column/adr_test.go::TestADRRecords`。manual: ADR-0004 の決定・採らなかった案・経緯 |
+| AC-29 | 6-2 | 該当しない（本番の構成を変えない。`04_evaluation.md` §10）。変える場合の検証: manual: README の両版と `security.md` の送り先の記述（自然言語の内容だけを定める） |
+| AC-30 | 6-2 | 該当しない（本番の構成を変えない。`04_evaluation.md` §10）。変える場合の検証: static: `make test`・`make lint`・`make ext-test`・`make readme-sync-check` |
 
 AC-24〜AC-30 は、本番の構成を変える場合だけ行う。変えない場合は、ステップ 5-1 で各行に「該当しない」と結論への参照を書く。
 
-**記録:**（`/runplan` が、`check-record` と `secretscan.sh` の出力、比べた入力の SHA-256、実行したコミットを書く）
+**記録:** 2026-11-12 に、PR-2 のブランチのコミット `8b84103592d742ede20806346469705f30b5b440` で実行した（`695435531d90` での最初の実行の後に評価記録を直したので、実行し直した）。`check-record` には、同じコミットの `evaltool` の `aggregate`・`estimate`・`rates` の出力をリポジトリの外の作業ディレクトリに書いて渡した。`secretscan.sh` はリポジトリのルートで `direnv exec .` を付けて実行した。
+
+```text
+sha256 a40c08fba2e33ab4d12c7bbca7e7ecaaef676e825127ad87ab6cbcedf2dc468f docs/tasks/0087_openai_combination_eval/04_evaluation.md
+sha256 a32840a3e3ec3b0adc7529f47d1e0b38a9f0fffbf1e58f0580a6fa8495ae4d51 <作業ディレクトリ>/agg.txt
+sha256 c55fce120901d78757c0c0dbef9a67b6457782259a61703b969c60ad07083e13 <作業ディレクトリ>/est.txt
+sha256 4441024ebddce789f8b0ccc23512bf78a776b069fa9b625dc81a67f221c9a097 <作業ディレクトリ>/rates.txt
+check-record: 28 tables match
+exit=0
+```
+
+```text
+secretscan: the value of ANTHROPIC_API_KEY is absent
+secretscan: the value of OPENAI_API_KEY is absent
+secretscan: the value of DEEPSEEK_API_KEY is absent
+secretscan: the value of SLACK_WEBHOOK_URL is absent
+secretscan: the value of YT2COLUMN_TEST_ANTHROPIC_API_KEY is absent
+secretscan: the value of YT2COLUMN_TEST_OPENAI_API_KEY is absent
+secretscan: the value of YT2COLUMN_TEST_DEEPSEEK_API_KEY is absent
+secretscan: the value of YT2COLUMN_TEST_SLACK_WEBHOOK_URL is absent
+secretscan: no sk- key prefix
+exit=0
+```
 
 ## 8. 完了条件 (Success Criteria)
 
-- [ ] AC-01〜AC-23 の検証が完了し、評価記録の結論が人の承認を受けている。
-- [ ] 実 API を呼んだ実行の推定コストの合計が、承認の上限以下である。
-- [ ] 基準の構成の保存した出力と評価用のキャッシュが、評価の前後で変わっていない。
-- [ ] `_eval/` と `04_evaluation.md` に API キーと全文がない（`secretscan.sh` とレビュー）。
-- [ ] 本番の構成を変える場合は、AC-24〜AC-30 の検証が完了している。
+- [x] AC-01〜AC-23 の検証が完了し、評価記録の結論が人の承認を受けている。
+- [x] 実 API を呼んだ実行の推定コストの合計が、承認の上限以下である。
+- [x] 基準の構成の保存した出力と評価用のキャッシュが、評価の前後で変わっていない。
+- [x] `_eval/` と `04_evaluation.md` に API キーと全文がない（`secretscan.sh` とレビュー）。
+- [-] 本番の構成を変える場合は、AC-24〜AC-30 の検証が完了している。（本番の構成を変えない。`04_evaluation.md` §10 の結論による）
 
 ## 9. 次のステップ (Next Steps)
 
@@ -450,3 +488,6 @@ AC-24〜AC-30 は、本番の構成を変える場合だけ行う。変えない
 ## 変更履歴
 
 - 2026-11-11 承認（isseis、#841）
+- 2026-11-12 セッション中の再承認：ステップ 1-7 の `.when` の LLM の変数の値を、人ではなく機械で設計 §3.1 の表と照合する（1.4・ステップ 1-7）（isseis、#867）
+- 2026-11-12 セッション中の再承認：人の確認を、論点ごと・1 件ずつ・一括の 3 段で行う（1.4・ステップ 3-2）（isseis、#867）
+- 2026-11-12 セッション中の再承認：本番の構成を変えない場合も、ADR-0004 に採らなかった案と経緯を加える（1.4・ステップ 5-1）（isseis、#867）
