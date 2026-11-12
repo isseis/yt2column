@@ -1,6 +1,6 @@
 # CLI の使い方
 
-CLI は補助の経路である。LLM の呼び出しと記事の生成を開発し確かめるために使う。CLI は記事を `--out` のファイルに書き、Webhook には投稿しない。主経路は
+CLI は補助の経路である。LLM の呼び出しと記事の生成を開発し確かめるために使う。CLI は記事を `--out` のファイルに書く。主経路は
 [クイックスタート](../../../README.md#クイックスタート)の経路である。
 
 本書は、CLI だけが使う、または CLI だけが示すものを説明する。CLI が localhost サーバと共有する設定の変数は README の
@@ -111,9 +111,6 @@ LLM を 1 度も呼ばずに終わった実行（使い方または設定の誤�
 
 CLI の出力は `--out` のファイルだけである。読み手のための部分（タイトル、チャンネル名、本文、出典リンク）を先に置き、開発のための部分（モデル、推定の料金）はフロントマターに置く。
 
-localhost サーバが同じ記事を Webhook に投稿するときの書式は、README の
-[Slack への投稿](../../../README.md#slack-への投稿)にある。
-
 ### `--out` のファイル
 
 ファイルは YAML のフロントマターで始まり、タイトル、チャンネル名（あるとき）、本文が続く。
@@ -186,13 +183,10 @@ yt2column: cost-total: article unknown
 ```
 
 `--out` のファイルは記事の料金を、小数 4 桁か `unknown` で、フロントマターのキー `estimated_cost_usd`（`"0.0023"` か
-`"unknown"`）として持つ（並びは[出力の書式](#出力の書式)を参照）。localhost サーバの Slack への投稿は、同じ料金を脚注の末尾として持つ。脚注の形は README の
-[推定の料金](../../../README.md#推定の料金)にある。
+`"unknown"`）として持つ（並びは[出力の書式](#出力の書式)を参照）。
 
 推定がプロバイダの請求額と異なりうる理由は、README の
 [推定の料金](../../../README.md#推定の料金)にある。再利用した工程の料金は、出力を保存した CLI ではなく、再開した CLI の料金表で求める。そのため、料金が変わった後に再開した実行は、同じ保存した出力から異なる記事の料金を示す。保存した出力が記録するのは呼び出しの時刻であり、料金ではない。
-
-localhost サーバからの Slack への投稿は、不明な料金がなぜ不明かを示せない。理由を調べるには、同じモデルの設定で CLI を実行し、料金の行の `reason` の語を読む。
 
 ## キャッシュと同時実行
 
@@ -244,9 +238,7 @@ CLI は、README の
 | `YT2COLUMN_CACHE_DIR` | 字幕と動画の情報（`info.json`）を保存するキャッシュのディレクトリ | macOS では `$HOME/Library/Caches/yt2column`。ほかの Unix では `$XDG_CACHE_HOME/yt2column` か `$HOME/.cache/yt2column` |
 | `YT2COLUMN_YTDLP_PATH` | `yt-dlp` のパス | `PATH` 上の `yt-dlp` |
 
-`yt2column-server` は、`yt-dlp` を呼ばないので、`YT2COLUMN_CACHE_DIR` も `YT2COLUMN_YTDLP_PATH` も読まない。
-
-CLI は `SLACK_WEBHOOK_URL` を読まない。設定されていても値を検査せず、実行は変わらない。この名前のキーを読むのは localhost サーバだけで、サーバは設定ファイルから読む。
+`yt2column-server` は、`yt-dlp` を呼ばないので、`YT2COLUMN_CACHE_DIR` も `YT2COLUMN_YTDLP_PATH` も読まない。`SLACK_WEBHOOK_URL` は、CLI もサーバも読まない。
 
 前後に空白のあるモデルの ID は、工程のクライアントを組み立てるときに、リクエストを送る前に拒否する。CLI は実行が始まる前にクライアントを組み立てる。
 

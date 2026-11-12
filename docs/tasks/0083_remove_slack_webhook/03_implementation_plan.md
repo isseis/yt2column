@@ -329,13 +329,13 @@
 
 **変更するファイル:** 設計書 3.12 の表の文書、`docs/dev/conventions/test_organization.md`、`docs/dev/guides/cli.md`・`claude_output_limit.md`・`pricing_update.md`・`docs/dev/conventions/mermaid_reference.md`（投稿を今の機能として述べる箇所があれば）、ADR、本計画
 
--   [ ] **ステップ 5-1**: `docs/dev/security.md` を改める（設計書 3.12 の表の行、AC-21）。
--   [ ] **ステップ 5-2**: `README.md` を改め、`/mktrans README.md` で `README.en.md` に写す（設計書 3.12 の表の行、AC-22・AC-23）。ガードのテスト（`TestReadmeSyncMarker`、`metadataDocs.test.ts`、`manifest.test.ts`、`TestReadmeHostExitCodes` ほか）が通ることを、`make test` と `make ext-test` で確かめる。
--   [ ] **ステップ 5-3**: `docs/dev/guides/development.md` の残り（ジョブの API の 2 つの操作、状態の取得の応答の形）を改める。
--   [ ] **ステップ 5-4**: `CLAUDE.md`（「Architecture Overview」「Tool Execution Safety」「Commands」「Development Notes」の `16,383` の記述と `make test-integration-slack`）、`AGENTS.md`、`docs/dev/project_overview.md`、`docs/dev/production_profile.md`、`docs/dev/conventions/package_reference.md`、`docs/dev/conventions/test_organization.md`（「Golden Files」の節の `.slack.txt` と `TestRenderGoldenNeutralized`）、`docs/translation_glossary.md`（要件書 6 章）を改める。
--   [ ] **ステップ 5-5**: エージェントの指示を改める。`.claude/commands/_context.md` の「Conditional-guide trigger」と「Target client environments」（AC-24 の文）、`git grep -n -i -E 'webhook|slack' -- .claude .github` が返す指示（`runplan.md`・`mkarch.md`・`mkplan.md`・`_lib/opus-review.md`・`.github/workflows/deepseek-review.yml`）。`mkplan.md`・`runplan.md` の「Domain examples」の例のうち、投稿の機能を前提にするものも改める。
--   [ ] **ステップ 5-6**: ADR を改める（設計書 3.12 の表の ADR の行）。ADR-0005・0006・0008・0010・0018・0022・0027・0028・0031・0034・0043 の #770 へリンクした食い違いの注記を消し、ADR-0009 の背景の投稿の記述を直す。どちらも編集上の訂正として、commit のメッセージに訂正の行を書く（`docs/dev/conventions/adr.md`）。`git grep -n -i -E 'webhook|slack|投稿' -- docs/dev/adr` が返すほかの ADR（ADR-0003・0024・0037 など）は、記述が経緯としての言及か、今の機能の説明かを読んで、今の機能の説明なら直す。`cmd/yt2column/adr_test.go::TestADRRecords` が通ることを確かめる。
--   [ ] **ステップ 5-7**: `git grep -n -i -E 'webhook|slack|投稿' -- docs ':!docs/tasks' ':!docs/research' ':!docs/dev/adr'` の残りを読み、投稿の機能を今の機能として述べる箇所が残っていないことを確かめる。
+-   [x] **ステップ 5-1**: `docs/dev/security.md` を改める（設計書 3.12 の表の行、AC-21）。
+-   [x] **ステップ 5-2**: `README.md` を改め、`/mktrans README.md` で `README.en.md` に写す（設計書 3.12 の表の行、AC-22・AC-23）。ガードのテスト（`TestReadmeSyncMarker`、`metadataDocs.test.ts`、`manifest.test.ts`、`TestReadmeHostExitCodes` ほか）が通ることを、`make test` と `make ext-test` で確かめる。
+-   [x] **ステップ 5-3**: `docs/dev/guides/development.md` の残り（ジョブの API の 2 つの操作、状態の取得の応答の形）を改める。
+-   [x] **ステップ 5-4**: `CLAUDE.md`（「Architecture Overview」「Tool Execution Safety」「Commands」「Development Notes」の `16,383` の記述と `make test-integration-slack`）、`AGENTS.md`、`docs/dev/project_overview.md`、`docs/dev/production_profile.md`、`docs/dev/conventions/package_reference.md`、`docs/dev/conventions/test_organization.md`（「Golden Files」の節の `.slack.txt` と `TestRenderGoldenNeutralized`）、`docs/translation_glossary.md`（要件書 6 章）を改める。
+-   [x] **ステップ 5-5**: エージェントの指示を改める。`.claude/commands/_context.md` の「Conditional-guide trigger」と「Target client environments」（AC-24 の文）、`git grep -n -i -E 'webhook|slack' -- .claude .github` が返す指示（`runplan.md`・`mkarch.md`・`mkplan.md`・`_lib/opus-review.md`・`.github/workflows/deepseek-review.yml`）。`mkplan.md`・`runplan.md` の「Domain examples」の例のうち、投稿の機能を前提にするものも改める。
+-   [x] **ステップ 5-6**: ADR を改める（設計書 3.12 の表の ADR の行）。ADR-0005・0006・0008・0010・0018・0022・0027・0028・0031・0034・0043 の #770 へリンクした食い違いの注記を消し、ADR-0009 の背景の投稿の記述を直す。どちらも編集上の訂正として、commit のメッセージに訂正の行を書く（`docs/dev/conventions/adr.md`）。`git grep -n -i -E 'webhook|slack|投稿' -- docs/dev/adr` が返すほかの ADR（ADR-0003・0024・0037 など）は、記述が経緯としての言及か、今の機能の説明かを読んで、今の機能の説明なら直す。`cmd/yt2column/adr_test.go::TestADRRecords` が通ることを確かめる。
+-   [x] **ステップ 5-7**: `git grep -n -i -E 'webhook|slack|投稿' -- docs ':!docs/tasks' ':!docs/research' ':!docs/dev/adr'` の残りを読み、投稿の機能を今の機能として述べる箇所が残っていないことを確かめる。
 -   [ ] **ステップ 5-8**: AC-17 の手動の確かめを行い、§7 の「実行の記録」の PR-5 の欄に日付・Mattermost のサーバとデスクトップアプリの版・ブラウザ（Chrome と Brave）を書く（設計書 7.3）。確かめに使う記事の内容は要件書 AC-17 のとおりで、設計書 6.3 の U1〜U6・R1・R2・S1〜S4 の形も同じ手順で貼り付ける。拡張とサーバは PR-5 のブランチから作ったものを使う。通知されたものがあれば、何も直さずに止まり、人に報告する。
 
 **完了の条件:** 設計書 3.12 の表の各行の文書が改まり、ADR の注記がない。§7 に AC-17 の記録がある。`make test`・`make lint`・`make ext-test` が通る。
@@ -352,7 +352,7 @@
 
 **判定理由**: 文書の改訂と手動の確かめで、mkplan.md のパネルの契機にも Conditional checks にも当たらない。
 
-- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [ ] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）

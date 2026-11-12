@@ -25,8 +25,6 @@
 
 ビューアが出典の自動リンクをリンクとして描画することは [ADR-0017](0017-viewer-markdown-rendering.md) が定める。
 
-Webhook への投稿は、まだコードに残っている。この差分は [#770](https://github.com/isseis/yt2column/issues/770) の実装で解消する。
-
 ## 採らなかった案
 
 -   **制御構造をすべて拒否し、`{{.Name}}` の形の参照だけを許す。** 構築時の検査を通り展開時に失敗するテンプレート（`{{index .Title 100}}`）を書けなくなり、概要欄の有無に応じた文面（`if`）も書けなくなる（[0004 設計書](../../tasks/0004_article_writer/02_architecture.md) §3.4「代替案」）。

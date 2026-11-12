@@ -21,8 +21,6 @@ LLM の API キーは、ログやエラーメッセージに漏れてはなら�
 -   **元の値を取り出す経路は `Reveal()` だけにする。** 空の値からは作れず、ゼロ値の `Reveal()` はエラーを返す。`Reveal()` を呼ぶのは、送信先へのリクエストの組み立てなど、値そのものが要る箇所に限る。値そのものが要る箇所を限り、秘密が漏れる経路を狭めるためである。規則は 0001 要件定義書 F-005・§5「制約条件 (Constraints)」と、0001 設計書 §3.3「秘密情報型 `Secret`」にある。
 -   **公開のメソッドの集合は、テストで固定する。** 秘密を取り出す経路が増えたことを、テストで検出するためである。規則は `internal/secret` と、[`internal/pipeline/pipeline_test.go`](../../../internal/pipeline/pipeline_test.go) の `TestSecretRevealExclusive` にある。
 
-Webhook URL を秘密として持つコードは、まだ残っている。この差分は [#770](https://github.com/isseis/yt2column/issues/770) の実装で解消する。
-
 ## 採らなかった案
 
 -   **元の値を素の文字列のフィールドで持ち、`Format`・`String()` などのメソッドだけで隠す。** `fmt` と slog の TextHandler は、構造体の非公開フィールドではメソッドを呼ばずにリフレクションで表示するので、メソッドの実装だけでは隠せない（[0001 要件定義書](../../tasks/0001_pipeline_skeleton/01_requirements.md) §5、[0001 設計書](../../tasks/0001_pipeline_skeleton/02_architecture.md) §3.3）。

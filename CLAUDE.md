@@ -264,8 +264,8 @@ yt2column turns a YouTube video into a magazine-column-style article with an
 LLM. The primary path starts in the browser: the extension collects the transcript
 copied from YouTube's transcript panel, the native messaging host relays it to
 the localhost server, and the server generates the article. The extension shows
-the article in its viewer page, from which the user chooses to post it to the
-Webhook or save it as a Markdown file. The CLI is the development path: it takes a video URL and fetches the
+the article in its viewer page, from which the user chooses to save it as a
+Markdown file or copy its Markdown. The CLI is the development path: it takes a video URL and fetches the
 transcript with `yt-dlp`.
 
 ```mermaid
@@ -323,10 +323,8 @@ flowchart LR
   `internal/config` and `internal/llm/deepseek` share, and
   `internal/llm/openaiparam` holds the OpenAI reasoning effort type that
   `internal/config` and `internal/llm/openai` share.
-- `Publisher` (`internal/publisher`): local file (`FilePublisher`). The Slack
-  Incoming Webhook sender, `SlackWebhookPublisher`, is not a `Publisher`: the
-  server's post job checks and splits the article with `PrepareSlackMessages`
-  and sends the messages with `PostMessages`.
+- `Publisher` (`internal/publisher`): local file (`FilePublisher`). The package
+  also builds the neutralized display Markdown the viewer displays and copies.
 - `internal/pipeline` orchestrates the stages; `internal/config` reads environment
   variables for the CLI and the configuration file for the server;
   `cmd/yt2column` wires everything together.
@@ -334,10 +332,9 @@ flowchart LR
 Two entry points share the stages: the CLI (`cmd/yt2column`, above), which runs
 them through the pipeline, and a localhost server (`cmd/yt2column-server` +
 `internal/server`) that takes a copied transcript from the browser extension
-over HTTP on a Unix domain socket, generates the article, returns it on request,
-and posts it to the Webhook when asked. The extension uses the server's job API: its service worker sends
-the generation start, the popup and the viewer poll the status, and the viewer
-sends a publish on the user's press. The server's supporting packages are
+over HTTP on a Unix domain socket, generates the article, and returns it on
+request. The extension uses the server's job API: its service worker sends
+the generation start and the popup and the viewer poll the status. The server's supporting packages are
 `internal/serversock` (the socket directory, the start lock, and the socket
 itself), `internal/privatefile` (the checked read and the safe creation of the
 server's configuration file, which the server reads its settings from and
@@ -570,7 +567,7 @@ missing criteria without one as a defect.
 
 ### Testing Strategy
 
-Unit tests never invoke `yt-dlp`, an LLM API, or a Webhook. Each pipeline
+Unit tests never invoke `yt-dlp` or an LLM API. Each pipeline
 interface has a fake (see the Test Organization Guide); `ArticleWriter` is tested
 with a fake `LLMClient`, HTTP code with `net/http/httptest`, and the json3 /
 info.json parsers with real samples under `testdata/`.
@@ -663,8 +660,8 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
   extension ID, the `ext-` targets in this file, the two coverage-compare
   targets in its commands sections (`TestCoverageCompareDocumented`), the
   manifest permissions, the
-  `project_overview.md` notes (the environment variable names, `costPrefix`, and
-  `16,383`), the production profile's configuration block and step table in
+  `project_overview.md` notes (the environment variable names and
+  `costPrefix`), the production profile's configuration block and step table in
   `docs/dev/production_profile.md`, the configuration block of both READMEs,
   the values `cli.md` and `development.md` hold, the
   `/fixpr` and `/runpr` command documents, the `codexreview`
@@ -688,7 +685,7 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
   `--jq` filters of `runpr.md` step 3, `_lib/task-pr-handoff.md` Part B step
   5, and `fixpr.md` Phase 6 with it, and fail instead of skipping when it is
   missing. The `doc-guard` CI job runs these tests too.
-- Secrets (`DEEPSEEK_API_KEY`, `ANTHROPIC_API_KEY`, `SLACK_WEBHOOK_URL`, ...) go in `.envrc` / `.env`,
+- Secrets (`DEEPSEEK_API_KEY`, `ANTHROPIC_API_KEY`, ...) go in `.envrc` / `.env`,
   which are git-ignored, for the CLI; the localhost server reads them only from
   its configuration file, `$HOME/.config/yt2column/config.env` (mode `0600`,
   outside the repository). Never commit them and never print them.
@@ -821,8 +818,6 @@ section of the Requirements Process Guide.
   - commands interacting with network, e.g. git pull
   - merging pull requests on GitHub
   - running the CLI against real services (LLM API calls)
-  - posting to a real Webhook (the server's publish job driven from the
-    extension's viewer, `make test-integration-slack`)
 - `git commit` and `git push` may be executed without explicit approval
 - `coderabbit review` (the local CodeRabbit CLI, a development tool used on every
   change) may be executed without explicit approval, although it sends the diff to

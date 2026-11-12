@@ -44,8 +44,8 @@ code is the source of truth, and the detail stays out of the row.
   passes: the stages, their data types, and the CLI entry point and templates
   that supply them.
 - **Server and host** serve the browser extension: the localhost server, its
-  job API, cache, and socket, the configuration file it reads, the Webhook URL
-  rule, and the Native Messaging host that relays to it.
+  job API, cache, and socket, the configuration file it reads, and the Native
+  Messaging host that relays to it.
 - **LLM** packages define the provider-independent client contract, the
   shared HTTP send path and provider factory, and the adapter and parameter
   types of each provider.
@@ -69,9 +69,9 @@ add a kind here or to widen one of these definitions.
 | `internal/job` | Runs one job end to end, from the output checks and the cache lock through publishing: `Run`, `Request`, `Result`, `*ReviewLogError`. Output rules: [CLI guide](../guides/cli.md). |
 | `internal/pipeline` | Runs the three stages in order: `Pipeline`, `Stage`, `StageError`, `ErrNilStage`. |
 | `internal/pricing` | Estimates an LLM call's cost from its token counts and the providers' published rates: `Estimate`, `Totals`, `StageCost`, `Amount`, `RateBasis`, `UnknownReason`. Updating the rates: [pricing update guide](../guides/pricing_update.md). |
-| `internal/publisher` | Defines the publishing stage: `Publisher`, `FilePublisher`, `SlackWebhookPublisher`, `PrepareSlackMessages`, `FileContent`, `ReviewLogWriter`; `ErrOutputExists`, `*KeptFileError`, `SlackHTTPStatusError`, `*SlackPostError`. File format: [CLI guide](../guides/cli.md); post text: [README](../../../README.md#slack-への投稿). |
+| `internal/publisher` | Defines the publishing stage: `Publisher`, `FilePublisher`, `FileContent`, `ReviewLogWriter`, `FormatArticleCost`, and the mention neutralization of the display Markdown (`NeutralizedDisplay`, `NeutralizedDisplayMarkdown`, `NeutralizeHeading`); `ErrOutputExists`, `*KeptFileError`. File format: [CLI guide](../guides/cli.md); neutralization rule: [security.md](../security.md). |
 | `internal/transcript` | Defines the transcript stage (`Transcript`, `TranscriptSource`) with `CopiedSource`; `ValidateVideoURL` and `NormalizedVideoURL` are the video URL rules. The `yt-dlp` path and its cache live in `internal/ytdlpsource`. |
-| `internal/writer` | Defines the article-writing stage: `Article`, `ArticleWriter`, `ProgressWriter`, `New`, `NewProgressWriter`, `RunUsage`, `CheckChannelName`, `ProseRanges`. The template contract: [prompts/README.md](../../../prompts/README.md). |
+| `internal/writer` | Defines the article-writing stage: `Article`, `ArticleWriter`, `ProgressWriter`, `New`, `NewProgressWriter`, `RunUsage`, `CheckChannelName`. The template contract: [prompts/README.md](../../../prompts/README.md). |
 | `internal/ytdlpsource` | Implements `transcript.TranscriptSource` with `YtDlpSource`: runs `yt-dlp` without a shell and parses its json3 and info.json output. It is the development path of the CLI and is not built into the WebAssembly core. The cache's guarantees: [cache consistency](../cache_consistency.md); the `yt-dlp` boundary: [security.md](../security.md). |
 | `prompts` | Embeds the default prompt templates and returns them: `System`/`User`, `ShortenSystem`/`ShortenUser`, `ReviewSystem`/`ReviewUser`. [README](../../../prompts/README.md) documents the contract. |
 
@@ -81,10 +81,10 @@ add a kind here or to widen one of these definitions.
 |---|---|
 | `cmd/yt2column-nmhost` | Entry point of the Native Messaging host: relays one request with `nmhost.Relay`, and `install`/`uninstall` manage the browser manifest. Rules: [security.md §8.2](../security.md). |
 | `cmd/yt2column-server` | Entry point of the localhost server and of `yt2column-server config init`. Startup and configuration rules: [security.md §8.2](../security.md). |
-| `internal/articlecache` | The server's in-memory article cache: `Cache`, `Keyer`, `Subject`, `StartMode`, `Run`, `PublishRun`; `ParseKey`, `PublishStates`, `UnpostableReasons`, `PublishFailureReasons`. Rules: [security.md §8.2](../security.md); API: [development.md](../guides/development.md). |
+| `internal/articlecache` | The server's in-memory article cache: `Cache`, `Keyer`, `Subject`, `StartMode`, `Run`, `Snapshot`, `Eviction`; `ParseKey`. Rules: [security.md §8.2](../security.md); API: [development.md](../guides/development.md). |
 | `internal/nmhost` | The Native Messaging host's relay and manifest management: `Relay`, `SocketDialer`, `HostError`, `Install`, `Uninstall`. Rules: [security.md §8.2](../security.md). |
 | `internal/privatefile` | Reads and creates files only their owner may read: `Read`, `Create`, `MkdirBelow`; `*UnsafeError`, `ErrUnsafe`, `ErrNotExist`, `ErrExist`, `ErrTooLarge`, `ErrBaseMissing`. Rules: [security.md §8.2](../security.md). |
-| `internal/server` | The HTTP server on a Unix domain socket that serves the job API: `New`, `Serve`, `JobsPath`, `PublishSuffix`, `Options`, `WebhookOptions`. Rules: [security.md §8.2](../security.md); API: [development.md](../guides/development.md). |
+| `internal/server` | The HTTP server on a Unix domain socket that serves the job API: `New`, `Serve`, `JobsPath`, `Options`. Rules: [security.md §8.2](../security.md); API: [development.md](../guides/development.md). |
 | `internal/serversock` | Prepares the server's Unix domain socket and start lock: `Acquire`, `Lock`, `ErrAlreadyRunning`, `ErrInUse`, `*UnsafeError`. Rules: [security.md §8.2](../security.md). |
 
 ## LLM
@@ -110,7 +110,7 @@ add a kind here or to widen one of these definitions.
 | `internal/config` | Reads and validates the process configuration: `Load`, `LoadFor`, `LoadServer`, `InitServerFile`, `LoadHost`, `LoadHostHome`, `LLMConfig`, `Need`; `*VarError`, `*FileError`, `ErrMissing`, `ErrInvalid`. Reference: [README](../../../README.md#設定); the server file: [security.md](../security.md). |
 | `internal/nilcheck` | Reports whether a value is nil, including a typed nil held in an interface (`IsNil`). |
 | `internal/redact` | Keeps secret values out of output: `Line`, `Writer`, `SecretStrings`. |
-| `internal/secret` | Holds a secret (API key, Webhook URL) and guarantees it never appears in `fmt`, `log/slog`, or JSON output. |
+| `internal/secret` | Holds a secret (API key) and guarantees it never appears in `fmt`, `log/slog`, or JSON output. |
 | `internal/signalrun` | `Run` calls a program's main function under a context that the first subscribed signal cancels; a second signal terminates the process. |
 | `internal/strictjson` | Extracts values from JSON documents that passed strict checks: `Object.CollectOnly`, `Object.Has`, `Value.AsBool`, `Value.IsNull`, `Value.AsNonNegativeInt64`, `Value.Raw`. The rejected inputs: [0003 design §3.5](../../tasks/0003_deepseek_llm_client/02_architecture.md). Shared by `internal/ytdlpsource`, `internal/llm/deepseek`, `internal/llm/claude`, `internal/llm/openai`, `internal/writer`, `internal/artifact`, `internal/fixprguard`, `internal/server`, `internal/nmhost`, `internal/codexreview`, and `internal/coveragecompare` |
 
@@ -142,7 +142,7 @@ add a kind here or to widen one of these definitions.
 | `internal/loopbacktest` | The rule a test endpoint must meet so a loopback constructor cannot be pointed at an external host: `ValidateURL`. |
 | `internal/maketestutil` | Checks the make targets that run charged integration tests: `RunTarget`, `CheckChargedTarget`, `RecordedNames`, `FirstLineIs`. |
 | `internal/pricing/testutil` | Formats a stage's estimated cost as one log line: `CostSummary`. |
-| `internal/publisher/testutil` | Test double `FakePublisher` for the publisher and the server's Webhook sender, and what the Webhook integration test uses: `SettingsFrom`, `SlackIntegrationOptions`, `IntegrationArticles`. |
+| `internal/publisher/testutil` | Test double `FakePublisher` for the publisher and the pipeline. |
 | `internal/transcript/testutil` | Test fixtures the other packages share: `FakeTranscriptSource` and fake `yt-dlp` scripts. |
 | `internal/udstest` | Short directories and listeners for tests that use Unix domain sockets: `Dir`, `Listen`. |
 | `internal/writer/testutil` | Test double `FakeArticleWriter` for `writer.ProgressWriter`, and `DefaultOptions`, the default `writer.Options` a run uses. |
