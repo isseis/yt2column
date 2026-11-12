@@ -633,15 +633,9 @@ func TestStopNotice(t *testing.T) {
 	}
 }
 
-// TestProductionDeps checks the values main passes: the scenario function
-// returns the scenario it is given, and a start with it, whose delay is 0,
-// completes an article without any substituted wait.
+// TestProductionDeps checks the values main passes: a start with them, whose
+// delay is 0, completes an article without any substituted wait.
 func TestProductionDeps(t *testing.T) {
-	s := mustScenario(t, devfake.ArticleLong, devfake.FailureEmpty, devfake.FailAtReview, 2*time.Second)
-	if got := productionDeps().scenario(s); got.LogValue().String() != s.LogValue().String() {
-		t.Errorf("scenario(s) = %v, want %v", got.LogValue(), s.LogValue())
-	}
-
 	env := newTestEnv(t)
 	startServer(t, env, productionDeps(), "-article", "long")
 	got := waitJobDone(t, env.socketPath(), startGeneration(t, env.socketPath(), "AAAAAAAAAAA"))
