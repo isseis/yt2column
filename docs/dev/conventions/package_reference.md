@@ -96,6 +96,7 @@ add a kind here or to widen one of these definitions.
 | `internal/llm/claudeparam` | The Claude adapter's parameter types `Effort` and `WorkspaceID`, used by the adapter and `internal/config`; standard library only. |
 | `internal/llm/deepseek` | Implements `llm.LLMClient` against the DeepSeek Chat Completions API: `New`; `ErrHTTPStatus`, `ErrInvalidResponse`, `ErrTransport`, `ErrPaddedModel`. |
 | `internal/llm/deepseekparam` | The DeepSeek adapter's parameter type `Effort`, used by the adapter and `internal/config`; standard library only. |
+| `internal/llm/devfake` | The fake LLM of the development builds, not a production adapter: `NewScenario` checks a `Scenario` (`Article`, `Failure`, `FailAt`, delay), and `Scenario.NewJob` returns the clients of one generation job, which return fixed articles or the selected failure; `ModelName`, `TitleMarker`, `MaxDelay`. It depends on `internal/llm` and the standard library only, and no production binary links it. |
 | `internal/llm/llmhttp` | Performs one HTTP POST for an LLM adapter: `Post`, `NewClient`, `CheckAPIKey`, `MaxResponseBytes`; `ErrZeroAPIKey`, `ErrInvalidAPIKey`. It defines no send-failure sentinel of its own and reports a failure with the adapter's sentinel. |
 | `internal/llm/openai` | Implements `llm.LLMClient` against the OpenAI Responses API: `New`; `ErrHTTPStatus`, `ErrInvalidResponse`, `ErrTransport`. The default output limit: [OpenAI output limit guide](../guides/openai_output_limit.md). |
 | `internal/llm/openaiparam` | The OpenAI adapter's parameter type `Effort` (with `EffortNone` to turn reasoning off), used by the adapter and `internal/config`; standard library only. |
@@ -134,6 +135,7 @@ add a kind here or to widen one of these definitions.
 | `internal/cmdrunner/testutil` | Test double `Fake` for `cmdrunner.InputRunner`: replays a scripted command sequence, records standard input, and runs a side-effect function per step. |
 | `internal/codexreview/testutil` | The fake Codex CLI and clean `PATH`, `HOME`, and `TMPDIR` a `codexreview` test runs with: `Main`, `NewFake`, `Fake.Set`, `Starts`, `Args`, `Env`. |
 | `internal/doctestutil` | The Markdown helpers the document guard tests share: `ReadDoc`, `ScanDocLines`, `FencedBlocks`, `SectionByHeading`, `ParseStructure`, `CompareStructures`, `FindTable`, `ProtocolFlags`. |
+| `internal/godepstest` | Lists a package's transitive dependencies with `go list -deps` on each target OS and checks them, failing rather than skipping when it cannot list: `Check`, `Root`, `List`, `Deps.Require`, `Deps.Forbid`. |
 | `internal/llm/claude/testutil` | What the Anthropic integration test needs: `SettingsFrom` decides from the environment whether it runs, skips, or fails. |
 | `internal/llm/deepseek/testutil` | What the DeepSeek integration tests share: `SettingsFrom` for the opt-in, and `RunMakeTarget`, `CheckChargedTarget`, `FirstLineIs` for the make targets that keep them out of `make test`. |
 | `internal/llm/llmhttp/llmhttptest` | The test servers and loopback listeners shared by `internal/llm/llmhttp` and the LLM adapter tests: a request recorder, fixed-response and stalling servers, and a blackhole proxy. |

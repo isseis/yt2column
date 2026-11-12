@@ -539,6 +539,7 @@ func TestSecretRevealExclusive(t *testing.T) {
 // package.
 var testOnlyPackageDirs = []string{
 	"internal/doctestutil",
+	"internal/godepstest",
 	"internal/loopbacktest",
 	"internal/llm/llmhttp/llmhttptest",
 	"internal/maketestutil",
