@@ -4,7 +4,10 @@
 
 | 項目 | 値 |
 |---|---|
-| 状態 | `有効` |
+| 状態 | `廃止` |
+| 廃止の日付 | 2026-11-12 |
+| 廃止の理由 | 記事の生成を拡張だけで行うことにし、localhost サーバと Native Messaging のホストを廃止することにしたため。サーバとホストのコードは、[#773](https://github.com/isseis/yt2column/issues/773) の実装で撤去するまで残る（[0090 要件定義書](../../tasks/0090_extension_only_architecture/01_requirements.md)） |
+| 代わりの ADR | [ADR-0047](0047-extension-only-generation.md) |
 
 ## 背景
 
@@ -48,3 +51,4 @@ Slack への投稿の処理は、まだコードに残っている。この差�
 - 2026-10-15 拡張が、loopback の TCP の API へ共有トークンを付けて HTTP を送るクライアントを加えた。サーバの構成は変えていない（[0020 要件定義書](../../tasks/0020_extension_send/01_requirements.md)）
 - 2026-10-19 待ち受けを TCP から UDS に変え、ブラウザが起動する Native Messaging のホストが中継する形にした。共有トークン・ポートの設定・ヘッダの検査を削除し、HTTP/1.1 を UDS の上で再利用した（[0026 設計書](../../tasks/0026_native_messaging_relay/02_architecture.md)）
 - 2026-11-11 Webhook への投稿の機能の廃止に合わせて、サーバが CLI と共有する処理から Slack への投稿を除いた（[0083 要件定義書](../../tasks/0083_remove_slack_webhook/01_requirements.md) F-001）
+- 2026-11-12 記事の生成を拡張だけで行うことにし、localhost サーバと Native Messaging のホストを廃止することにした。この ADR を廃止した（[0090 要件定義書](../../tasks/0090_extension_only_architecture/01_requirements.md)「issue #769・#772 で決めたこと」）
