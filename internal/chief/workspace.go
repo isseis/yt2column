@@ -84,7 +84,7 @@ func NewGitReader(cmds Commands) GitReader { return GitReader{cmds: cmds} }
 // and /mergepr fetch it too, so one fetch per workspace would collide with
 // them more often.
 func (g GitReader) Fetch(ctx context.Context, chiefTree string) error {
-	_, err := g.cmds.git(ctx, chiefTree, "fetch", "origin", "main")
+	_, err := g.cmds.gitLimit(ctx, gitFetchTimeout, chiefTree, "fetch", "origin", "main")
 	return err
 }
 
@@ -205,7 +205,7 @@ func FindTaskWorkspaces(ctx context.Context, git GitReader, cmds Commands, agent
 			if err != nil {
 				continue
 			}
-			found = append(found, TaskWorkspace{ID: id, Label: labels[id], Worktree: tree, Agents: byWorkspace[id]})
+			found = append(found, TaskWorkspace{ID: id, Label: labels[id], Worktree: tree.String(), Agents: byWorkspace[id]})
 			break
 		}
 	}

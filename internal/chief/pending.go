@@ -2,8 +2,6 @@ package chief
 
 import (
 	"cmp"
-	"crypto/sha256"
-	"encoding/hex"
 	"slices"
 	"strconv"
 	"strings"
@@ -68,8 +66,7 @@ type PendingItem struct {
 // itemID builds an opaque identity from parts. The parts are joined with a
 // byte no part holds, so two different part lists never give one string.
 func itemID(parts ...string) ItemID {
-	sum := sha256.Sum256([]byte(strings.Join(parts, "\x00")))
-	return ItemID(hex.EncodeToString(sum[:16]))
+	return ItemID(hashName(strings.Join(parts, "\x00")))
 }
 
 // questionID is a question's identity: the workspace and the question and

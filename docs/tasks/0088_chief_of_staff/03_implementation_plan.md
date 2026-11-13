@@ -599,7 +599,7 @@ $ rg -n 'on Sonnet|to Sonnet|implement.*Sonnet|Model to start|model each reading
 | AC-34 | `ic/send_test.go::TestClaudeModelSwitchCheck` | test | 4-2 | PR-4 |
 | AC-35 | `ic/send_test.go::TestOpenCodeModelMatch` | test | 4-2 | PR-4 |
 | AC-36 | `ic/send_test.go::TestSendChecksBeforeFirstInput`（残りの文字を返す） | test | 4-2 | PR-4 |
-| AC-37 | `ic/send_test.go::TestSendFailureAfterInputStops`、`ic/records_test.go::TestUnfinishedSendBecomesStop`、`ic/records_test.go::TestStopSurvivesRestart`、`ic/records_test.go::TestReleaseClearsStop`、`ic/records_test.go::TestWorkspaceKeyIsCanonical` | test | 3-2・4-2・4-3 | PR-3、PR-4 |
+| AC-37 | `ic/send_test.go::TestSendFailureAfterInputStops`、`ic/records_test.go::TestUnfinishedSendBecomesStop`、`ic/records_test.go::TestStopSurvivesRestart`、`ic/records_test.go::TestReleaseClearsStop`、`ic/records_test.go::TestCanonicalWorktreeResolvesLinks` | test | 3-2・4-2・4-3 | PR-3、PR-4 |
 | AC-38 | `ic/send_test.go::TestMkreqTarget` | test | 4-5 | PR-4 |
 | AC-39 | `ic/routing_test.go::TestRoutingRowChangesOneRoute` | test | 2-7 | PR-2 |
 | AC-40 | `ic/task_test.go::TestBranchPlanStepsDone`、`ic/snapshot_test.go::TestTakeoverProposal`、`ic/send_test.go::TestSendArgumentValidation`（`runplan-takeover`） | test | 2-4・3-4・4-5 | PR-2、PR-3、PR-4 |

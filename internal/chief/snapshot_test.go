@@ -8,6 +8,9 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/isseis/yt2column/internal/chief/paneinput"
 )
 
 const (
@@ -197,6 +200,9 @@ func TestNextCommandRules(t *testing.T) {
 		{"plan approved", fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-opus.md")}, TaskNextRunplan, "/runplan 0001"},
 		{"simple process after the three documents", fakeDocs{Dir: taskDir, Req: simple, Arch: archApproved, Plan: planSample(t, "marker-opus.md")}, TaskNextRunplan, "/runplan 0001"},
 		{"requirements draft", fakeDocs{Dir: taskDir, Req: draft}, TaskNextNone, ""},
+		{"architecture draft", fakeDocs{Dir: taskDir, Req: reqApproved, Arch: draft}, TaskNextNone, ""},
+		{"plan draft after an approved architecture", fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: []byte(strings.Replace(string(planSample(t, "marker-opus.md")), "`approved`", "`draft`", 1))}, TaskNextNone, ""},
+		{"process record unreadable", fakeDocs{Dir: taskDir, Req: statusDoc("| Status | `approved` |\n| Process | full |\n")}, TaskNextNone, ""},
 		{"simple process without architecture", fakeDocs{Dir: taskDir, Req: simple}, TaskNextNone, ""},
 	}
 	for _, c := range cases {
@@ -344,5 +350,116 @@ func TestTakeSnapshotOrder(t *testing.T) {
 		if p.New {
 			t.Errorf("%v announced twice in one session", p.Kind)
 		}
+	}
+}
+
+// TestTakeoverRefusals removes each takeover condition that the state order
+// would otherwise hide, by asking takeoverProposal directly: classify returns
+// earlier for a running agent or an open PR, so the proposal's own checks
+// are reached only here.
+func TestTakeoverRefusals(t *testing.T) {
+	task := taskID(t, "0001")
+	cmd, err := paneinput.NewRunplan(task, paneinput.RouteRunplanOpus)
+	if err != nil {
+		t.Fatal(err)
+	}
+	routing, err := ParseRouting([]byte(strings.Replace(string(repoContext(t)), "| `runplan-opus` | `/runplan` for the requirement `opus` | Claude Code | `opus` |", "| `runplan-opus` | `/runplan` for the requirement `opus` | OpenCode | `DeepSeek V4.1 Flash 1017 OpenCode Go` |", 1)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	next := &Next{Kind: TaskNextRunplan, Text: "/runplan 0001", Command: &cmd, Agent: paneinput.AgentOpenCode, Key: "2"}
+	agent := func(kind paneinput.AgentKind, status AgentStatus) agentFacts {
+		return agentFacts{Agent: Agent{Kind: kind, Status: status}}
+	}
+	base := func() workspaceFacts {
+		return workspaceFacts{
+			Task:     task,
+			Agents:   []agentFacts{agent(paneinput.AgentOpenCode, AgentIdle), agent(paneinput.AgentClaudeCode, AgentIdle)},
+			Routing:  routing,
+			Takeover: takeoverFacts{Read: true, Ahead: 1, StepsDone: true},
+		}
+	}
+	if takeoverProposal(base(), next) == nil {
+		t.Fatal("the base facts do not give a proposal; the removals below prove nothing")
+	}
+	removals := map[string]func(f *workspaceFacts){
+		"an open PR":           func(f *workspaceFacts) { f.PR = &OpenPR{Number: 1} },
+		"a working agent":      func(f *workspaceFacts) { f.Agents[0] = agent(paneinput.AgentOpenCode, AgentWorking) },
+		"no Claude Code agent": func(f *workspaceFacts) { f.Agents = f.Agents[:1] },
+		"facts not read":       func(f *workspaceFacts) { f.Takeover.Read = false },
+		"no commits ahead":     func(f *workspaceFacts) { f.Takeover.Ahead = 0 },
+		"steps not done":       func(f *workspaceFacts) { f.Takeover.StepsDone = false },
+		"something unreadable": func(f *workspaceFacts) { f.Unreadable = []string{"x"} },
+	}
+	for name, remove := range removals {
+		f := base()
+		remove(&f)
+		if got := takeoverProposal(f, next); got != nil {
+			t.Errorf("proposal made without %s: %+v", name, got)
+		}
+	}
+	if got := takeoverProposal(base(), next); got.Key != "2" {
+		t.Errorf("the takeover lost the next PR's key: %+v", got)
+	}
+}
+
+// TestTakeoverReadFailures checks that a failed read behind the takeover
+// proposal makes the workspace need a check instead of meaning "no takeover".
+func TestTakeoverReadFailures(t *testing.T) {
+	boom := errors.New("boom")
+	for name, breakIt := range map[string]func(w *world, tree string){
+		"commits ahead": func(w *world, tree string) {
+			w.rec.failIn(tree, "git rev-list --count refs/remotes/origin/main..HEAD", boom)
+		},
+		"the branch plan": func(w *world, tree string) {
+			w.rec.failIn(tree, "git show HEAD:docs/tasks/"+taskDir+"/"+planFile, boom)
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			w, tree := takeoverSetup(t)
+			breakIt(w, tree)
+			r := rowOf(t, take(t, w), "ws")
+			if r.State != StateNeedsCheck || len(r.Unreadable) != 1 || r.Takeover != nil {
+				t.Errorf("row = %+v, want needs check with one reason", r)
+			}
+		})
+	}
+}
+
+// TestFetchUsesItsOwnTimeLimit checks that the network fetch gets the longer
+// limit and the local reads the shorter one.
+func TestFetchUsesItsOwnTimeLimit(t *testing.T) {
+	w := newWorld(t)
+	w.add(fakeWorkspace{ID: "w1", Label: "ws", Branch: "main"})
+	take(t, w)
+	for _, c := range w.rec.recorded() {
+		long := c.line() == "git fetch origin main"
+		if long != (c.limit > gitTimeout) {
+			t.Errorf("%s ran with a limit of %v", c.line(), c.limit)
+		}
+	}
+}
+
+// TestRowOrderRules checks the order of rows by state, by waiting time inside
+// one state, and plain questions before merge confirmations.
+func TestRowOrderRules(t *testing.T) {
+	w := newWorld(t)
+	// The earlier sighting has the later path, so only the waiting time puts it first.
+	w.add(fakeWorkspace{ID: "w9", Label: "review-old", Branch: taskBranch, PRs: openPRJSON})
+	w.add(fakeWorkspace{ID: "w5", Label: "needs-check", Branch: taskBranch})
+	w.add(fakeWorkspace{ID: "w6", Label: "done", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-all-merged.md")}})
+	w.add(fakeWorkspace{ID: "w7", Label: "merge", Branch: taskBranch, Status: "blocked", Screen: "claude-merge-question.ansi"})
+	take(t, w)
+	w.now = w.now.Add(time.Hour)
+	w.add(fakeWorkspace{ID: "w1", Label: "review-new", Branch: taskBranch, PRs: openPRJSON})
+	w.add(fakeWorkspace{ID: "w8", Label: "question", Branch: taskBranch, Status: "blocked", Screen: "claude-question-single.ansi"})
+	snap := take(t, w)
+	var labels []string
+	for _, r := range snap.Rows {
+		labels = append(labels, r.Label)
+	}
+	want := []string{"question", "merge", "review-old", "review-new", "needs-check", "done"}
+	if !slices.Equal(labels, want) {
+		t.Errorf("row order = %v, want %v", labels, want)
 	}
 }

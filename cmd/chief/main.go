@@ -117,8 +117,10 @@ func run(ctx context.Context, args []string, env chief.Env, environ []string, fa
 	switch subcommand {
 	case cmdStart:
 		return runStart(ctx, stdout, stderr, store, cmds, owner, now, refuse, fail)
-	default:
+	case cmdSnapshot:
 		return runSnapshot(ctx, stdout, stderr, store, cmds, env, owner, now, refuse, fail)
+	default:
+		return fail(errUsage)
 	}
 }
 

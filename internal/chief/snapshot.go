@@ -63,15 +63,15 @@ func TakeSnapshot(ctx context.Context, deps Deps, owner Owner) (Snapshot, error)
 	}
 	snap := Snapshot{StateDir: deps.Store.Dir()}
 	fetchFailed := false
-	if err := git.Fetch(ctx, chiefTree); err != nil {
+	if err := git.Fetch(ctx, chiefTree.String()); err != nil {
 		fetchFailed = true
 		snap.Problems = append(snap.Problems, "git fetch origin main failed: "+err.Error())
 	}
-	routing, routingErr := ReadRouting(ctx, deps.Cmds, chiefTree)
+	routing, routingErr := ReadRouting(ctx, deps.Cmds, chiefTree.String())
 	if routingErr != nil {
 		snap.Problems = append(snap.Problems, "the routing table cannot be read: "+routingErr.Error())
 	}
-	old, oldErr := readOldValues(ctx, tasks, chiefTree)
+	old, oldErr := readOldValues(ctx, tasks, chiefTree.String())
 	if oldErr != nil {
 		snap.Problems = append(snap.Problems, "the old-value table cannot be read: "+oldErr.Error())
 	}
@@ -177,6 +177,16 @@ func classifyWorkspace(ctx context.Context, git GitReader, tasks Tasks, f worksp
 	return classify(f)
 }
 
+// mergeOnlyRank is 1 for a row whose questions are all merge confirmations,
+// which list after the rows with another question (the order of pending
+// items), and 0 otherwise.
+func mergeOnlyRank(r Row) int {
+	if r.State == StateQuestion && r.MergeQuestion && !slices.ContainsFunc(r.Questions, func(q QuestionItem) bool { return !q.Question.Merge }) {
+		return 1
+	}
+	return 0
+}
+
 // sortRows orders the rows as the table is shown: by state, then, for the
 // states that wait on the human, by how long their first item has waited,
 // then by workspace path. pending must already carry its times.
@@ -190,6 +200,7 @@ func sortRows(rows []Row, pending []PendingItem) {
 	slices.SortStableFunc(rows, func(a, b Row) int {
 		return cmp.Or(
 			cmp.Compare(a.State.rank(), b.State.rank()),
+			cmp.Compare(mergeOnlyRank(a), mergeOnlyRank(b)),
 			first[a.Workspace].Compare(first[b.Workspace]),
 			strings.Compare(a.Workspace, b.Workspace),
 		)

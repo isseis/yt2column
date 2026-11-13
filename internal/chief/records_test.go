@@ -130,7 +130,9 @@ func TestStartTakesAndRefusesTheLock(t *testing.T) {
 	})
 	t.Run("an unreadable lock is not taken over", func(t *testing.T) {
 		store := newStore(t)
-		if err := os.WriteFile(filepath.Join(store.Dir(), lockFile), []byte(`{"pane":"x"}`), 0o644); err != nil {
+		// A well-formed record of mode 0600 that names no owner: only the
+		// owner check can refuse it.
+		if err := store.create(lockFile, lockRecord{Started: now}); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := store.Start(ctx, herdrWith(t), ownerB(), now); !errors.Is(err, ErrLockUnverifiable) {
@@ -259,7 +261,7 @@ func TestCanonicalWorktreeResolvesLinks(t *testing.T) {
 	rec.reply("git rev-parse --show-toplevel", []byte(link+"\n"))
 	cmds := rec.commands(nil)
 	canonical, err := CanonicalWorktree(context.Background(), cmds, target)
-	if err != nil || canonical != target {
+	if err != nil || canonical.String() != target {
 		t.Fatalf("CanonicalWorktree = %q, %v; want %q", canonical, err, target)
 	}
 	store := newStore(t)
@@ -292,5 +294,18 @@ func TestTakeoverNeedsTheExclusion(t *testing.T) {
 	}
 	if err := store.Require(ownerA()); err != nil {
 		t.Errorf("the lock changed without the exclusion: %v", err)
+	}
+}
+
+// TestObserveUnreadableRecord checks that a notice record that exists but
+// cannot be read is not announced again on every snapshot.
+func TestObserveUnreadableRecord(t *testing.T) {
+	store := newStore(t)
+	now := time.Date(2026, 11, 14, 9, 0, 0, 0, time.UTC)
+	if _, err := privatefile.Create(filepath.Join(store.Dir(), noticeName("s", "item")), []byte("not json")); err != nil {
+		t.Fatal(err)
+	}
+	if _, isNew, err := store.Observe("s", "item", now); err == nil || isNew {
+		t.Errorf("Observe = new %v, error %v; want an error and not new", isNew, err)
 	}
 }

@@ -366,9 +366,10 @@ func (s Store) Observe(session string, item ItemID, now time.Time) (first time.T
 	if err := s.create(name, noticeRecord{Session: session, Item: item, FirstSeen: now.UTC()}); err != nil {
 		if errors.Is(err, privatefile.ErrExist) {
 			// Another chief process made it first; read what it wrote.
-			if rerr := s.read(name, &rec); rerr == nil {
-				return rec.FirstSeen, false, nil
+			if rerr := s.read(name, &rec); rerr != nil {
+				return now, false, rerr
 			}
+			return rec.FirstSeen, false, nil
 		}
 		return now, true, err
 	}
@@ -400,27 +401,41 @@ func (s Store) removeFinishedNotices(session string) (int, error) {
 	return removed, errors.Join(errs...)
 }
 
+// Worktree is a worktree path made canonical by CanonicalWorktree: absolute,
+// with links resolved. Only CanonicalWorktree makes one, so a record keyed by
+// a worktree cannot be looked up with a path that was never made canonical.
+type Worktree struct {
+	path string
+}
+
+// String returns the path.
+func (w Worktree) String() string { return w.path }
+
 // CanonicalWorktree returns the worktree that contains dir as an absolute
 // path with its symbolic links resolved. Contract: the same worktree reached
 // through a link (macOS's /private among them) gives one path, so a record
 // kept under its name is found again.
-func CanonicalWorktree(ctx context.Context, cmds Commands, dir string) (string, error) {
+func CanonicalWorktree(ctx context.Context, cmds Commands, dir string) (Worktree, error) {
 	out, err := cmds.git(ctx, dir, "rev-parse", "--show-toplevel")
 	if err != nil {
-		return "", err
+		return Worktree{}, err
 	}
 	top := strings.TrimSpace(string(out))
 	if !filepath.IsAbs(top) {
-		return "", fmt.Errorf("%w: git rev-parse --show-toplevel gave %q", errGitOutput, top)
+		return Worktree{}, fmt.Errorf("%w: git rev-parse --show-toplevel gave %q", errGitOutput, top)
 	}
-	return filepath.EvalSymlinks(top)
+	resolved, err := filepath.EvalSymlinks(top)
+	if err != nil {
+		return Worktree{}, err
+	}
+	return Worktree{path: resolved}, nil
 }
 
 // WorkspaceDir returns the directory of the records of one worktree, creating
 // it. The name is the hex SHA-256 of the canonical path, so a record and the
 // exclusion kept in it follow the worktree and not the way it was reached.
-func (s Store) WorkspaceDir(canonical string) (string, error) {
-	sum := sha256.Sum256([]byte(canonical))
+func (s Store) WorkspaceDir(canonical Worktree) (string, error) {
+	sum := sha256.Sum256([]byte(canonical.path))
 	name := hex.EncodeToString(sum[:])
 	if err := privatefile.MkdirBelow(s.dir, []string{name}); err != nil {
 		return "", err
