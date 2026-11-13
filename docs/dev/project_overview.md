@@ -98,6 +98,7 @@ flowchart LR
 cmd/yt2column/main.go     # CLI エントリポイント
 cmd/yt2column-server/     # localhost サーバのエントリポイント（main.go・run.go）
 cmd/yt2column-nmhost/     # Native Messaging のホストのエントリポイント（中継・install・uninstall）
+cmd/yt2column-devserver/  # 開発用のサーバのエントリポイント（fake の LLM で動く。本番のバイナリには入らない）
 internal/pipeline/        # 3 つのステージを束ねるオーケストレーション
 internal/server/          # localhost サーバ（HTTP の受け口・検査・応答・ジョブ）
 internal/articlecache/    # 記事のキャッシュ（キー・記録の状態遷移・件数の上限と破棄。HTTP も LLM も知らない）
@@ -112,6 +113,7 @@ internal/strictjson/      # 検証を通った JSON 文書から値を取り出�
 internal/nilcheck/        # typed nil を含む nil の判定
 internal/writer/          # ArticleWriter（プロバイダ非依存）
 internal/llm/             # LLMClient interface と共通型
+internal/llm/devfake/     # fake の LLM（開発用のバイナリが使う。サーバに依存せず WASM でビルドできる）
 internal/llm/deepseek/    # DeepSeek 実装（標準ライブラリで OpenAI 互換 API を呼ぶ）
 internal/llm/claude/      # Claude 実装（標準ライブラリで Anthropic Messages API を呼ぶ）
 internal/llm/claudeparam/ # Claude の effort・ワークスペース ID の型（config と claude が共有）
