@@ -20,7 +20,7 @@
 -   **ジョブの記録（生成の状態と完成した記事）は、`chrome.storage.session` に置き、書き込むのは SW だけにする。** ブラウザを終了するまで持ち、ディスクに書かない。SW の停止で正しい値を失わず、書き手を 1 つにして判定の排他を保つためである。記録の形、上限、消えるときは [ADR-0027](0027-article-job-api.md) が定める。
 -   **ほかの値は保存しない。** コピーした字幕と概要欄は、記録にも URL にも入れない。送信ごとの値は、ジョブの記録、ビューアの URL、各ページのメモリにだけ置く。保存した値を管理する範囲を、要るものに限るためである。規則は 0090 設計書の「記録の形」にある。
 -   **要求する権限は `activeTab`・`scripting`・`storage` の 3 つだけにする。** `host_permissions`・`tabs`・`history`・`downloads`・`clipboardWrite`・`unlimitedStorage`・`offscreen` を加えず、`content_scripts`・`web_accessible_resources`・`externally_connectable` を宣言しない（起動の経路は [ADR-0008](0008-launch-path.md)）。`host_permissions` がなくても、事前の確認を 1 往復増やすだけで Claude API を呼べる。閲覧内容全般に及ぶ権限を持たず、Web Store で説明する権限を減らすためである。規則は 0090 設計書の「権限」にある。
--   **シークレットモードでは動かさない（`"incognito": "not_allowed"`）。** シークレットモードのビューアの URL と記録が通常のプロファイルに渡らず、SW を 1 つに保つためである。規則は 0090 設計書の「権限」にある。
+-   **シークレットモードでは動かさない（`"incognito": "not_allowed"`）。** 既定の `spanning` でシークレットモードを許すと、ビューアが通常のウィンドウで開き、動画のタイトルと URL を持つビューアの URL が通常のプロファイルの履歴に残り、ジョブの記録も通常のプロファイルと共有されるためである。シークレットモードで使うことは [#874](https://github.com/isseis/yt2column/issues/874) で扱う。規則は 0090 設計書の「権限」にある。
 -   **拡張のページの CSP は `script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src 'self' https://api.anthropic.com; img-src 'self'; media-src 'none'; frame-src 'none'; form-action 'none'` にする。** `'wasm-unsafe-eval'` は、記事を作る処理の WASM（[ADR-0049](0049-wasm-core-sharing.md)）を読み込むのに要る。JavaScript の `eval` とインラインのスクリプトは許さない。`connect-src` は、拡張のページと Worker からの送信を、拡張自身のファイルと Anthropic の API に限り、リダイレクトの先を含め、ほかの先へ API キーを送らない守りの 1 つにする。画像・メディア・フレーム・フォームの指示は、外へ送る経路を閉じる。ページの移動、`window.open`、`chrome.tabs.create` による送り出しは CSP では止められないので、ビューアでスクリプトを動かさないこと（[ADR-0017](0017-viewer-markdown-rendering.md)）が本当の守りである。規則は 0090 設計書の「CSP」にある。
 -   **権限を広げずに、ビューアを開き、保存し、コピーする。** ビューアのタブは `chrome.tabs` の権限の要らない操作で開き、`chrome.windows.update` で前面に出す。記事の保存は拡張のページからの Blob のダウンロードで、コピーは利用者の操作の中のクリップボードへの書き込みで行う。権限を広げずに要件を満たすためである。規則は 0090 設計書の「権限」にある。
 -   **古い版が保存した値は、読まず、消さない。** 0020 の版が `chrome.storage.local` に保存した共有トークンとポート（`sharedToken`・`serverPort`）は、`storage` の権限で読めるようになるが、拡張は読まず、消す処理も持たない。どこにも通用しない値で、消す仕組みは版の移行の仕組みになり、利用者は開発者 1 人であるためである。規則は 0090 設計書の「オプションページと API キーの保存」にある。
@@ -30,6 +30,7 @@
 
 ## 採らなかった案
 
+-   **`"incognito": "split"` にして、シークレットモードで使えるようにする。** ビューアをシークレットモードのタブで開けるが、`chrome.storage` は通常とシークレットモードで共有されるので、記録の名前を側ごとに分けて閉じたら消す設計が要り、確かめていない振る舞いも増える。拡張だけの構成への移行の要件ではないので、[#874](https://github.com/isseis/yt2column/issues/874) で扱う（[0090 設計書](../../tasks/0090_extension_only_architecture/02_architecture.md)「権限」）。
 -   **古い版が保存した値を、更新時に削除する。** 残しても害がない。サーバはトークンを読まないので、残った値が通用する相手はない。値はプロファイルのディレクトリにあり、読めるのは同一ユーザーのプロセスだけである（[0026 設計書](../../tasks/0026_native_messaging_relay/02_architecture.md) §3.7.1）。
 -   **`downloads`・`clipboardWrite`・`tabs`・host permission を加えて、保存・コピー・ビューアを実装する。** 権限の範囲を今より広げないためである（[0050 要件定義書](../../tasks/0050_viewer_tab/01_requirements.md) §1）。
 -   **入力の欄を `type="password"` にする。** ブラウザがパスワードの管理への保存を勧め、保存した値がアカウントの同期でほかの端末へ渡りうる（0090 設計書「オプションページと API キーの保存」）。
