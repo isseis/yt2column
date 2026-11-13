@@ -12,7 +12,7 @@
 
 同じ規則を Go と TypeScript の両方に書くと、片方だけを直す誤りが起きる（[0090 要件定義書](../../tasks/0090_extension_only_architecture/01_requirements.md) §4.5「保守性 (Maintainability)」）。
 
-Go のパイプラインを WASM にしたものは、拡張のページから Claude API を呼んで記事を完成させた。WASM は 17,300,194 バイト（`gzip -9` で 4,138,823 バイト）で、ページの読み込みの開始から入口を呼べるようになるまで、Chrome で 62.4〜171.2 ms、Brave で 49.9〜206.5 ms だった。WASM を読み込むには、拡張のページの CSP に `'wasm-unsafe-eval'` が要った（[調査記録](../../research/wasm_pipeline_poc/README.md)「3 つの問いへの答え」「測定 2：読み込みと CSP、サイズと読み込みの時間」）。本番の構成での記事の生成は 95〜151 秒かかった（同「測定 6：本番の構成（Chrome、`83ef12bd`、背面のまま）」）。
+Go のパイプラインを WASM にしたものは、拡張のページから Claude API を呼んで記事を完成させた。WASM は 17,300,194 バイト（`gzip -9` で 4,138,823 バイト）で、ページの読み込みの開始から入口を呼べるようになるまで、Chrome で 62.4〜171.2 ms、Brave で 49.9〜206.5 ms だった。WASM を読み込むには、拡張のページの CSP に `'wasm-unsafe-eval'` が要った（[調査記録](../../research/wasm_pipeline_poc/README.md)「3 つの問いへの答え」「測定 2：読み込みと CSP、サイズと読み込みの時間」）。本番の構成での記事の生成は 95〜151 秒かかった（同「測定 6：本番の構成（Chrome、`83ef12bd`、背面のまま）」）。専用の Web Worker の中でも、WASM は 30.5〜68.3 ms で読み込め、Chrome と Brave で記事を完成させた（同「測定 7：一度も前面にならなかった背面のタブでの記事の生成（Worker）」「測定 8：Worker からの送信の守り（プローブ、ダミーのキー）」）。
 
 ## 決定
 
