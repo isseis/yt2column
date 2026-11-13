@@ -43,7 +43,7 @@
 -   **API キーとワークスペース ID は、オプションページで設定する（§3.6）。** 記事を描画するビューアとも、生成の操作をするポップアップとも、画面を分けるためである。採らなかった案は、ポップアップの中に設定の欄を置く案である。画面が狭く、生成の操作と混ざる。ADR: ADR-0010 と ADR-0008 を更新した。
 -   **確かめていない事項のうち、構成の前提になる 4 つを、設計の PR のマージの前に PoC で確かめる（§3.13）。** (a) 一度も前面にならなかった背面のビューアのタブで、Worker の中の WASM が記事を完成させるか。(b) Worker からの送信で、リダイレクトの拒否と、CSP の `connect-src` による送り先の制限が効くか。(c) `chrome.storage.local` を、注入したスクリプトから読めなくできるか。(d) `chrome.storage.session` の容量の上限。ほかの項目は確かめずに受け入れ、外れたときに変わる決定を記録する。前提が外れたまま #773 が実装すると、構成を作り直すことになるためである。確かめるためのコードは、PoC のブランチ `poc/0090-extension-only-checks` に置き、`main` には入れない（要件書 AC-22）。2026-11-12〜13 に Chrome と Brave で測り、4 つとも見込みどおりだった（§3.13、[調査記録](../../research/wasm_pipeline_poc/README.md)「0090 の追加の測定」）。ADR: なし（確かめ方の決定で、本タスクの中で閉じる。結果は、ADR-0048 と ADR-0049 の背景に根拠として引用する）。
 -   **Opus で 40,000 トークンを出力する長さの、ストリーミングなしの応答は、確かめずに受け入れる（§3.13）。** 見積もりは約 313〜408 秒で、呼び出しごとの期限（15 分）の半分以下である（調査記録「問い 3：ストリーミングは要るか」）。外れたときは、Claude アダプタにストリーミングを加える。ADR: なし（受け入れの判断で、外れたときの決定は [ADR-0025](../../dev/adr/0025-claude-output-limit.md) を改める決定になる）。
--   **タスク 0086 は、PR-1（fake の LLM の部品と依存の検査）だけを実装し、開発用のサーバ（PR-2）と、その文書と手動の確認（PR-3）は行わない（§3.9）。** fake の部品を開発用の拡張のビルドにつなぐのは、#773 が行う。開発用のサーバは、廃止するサーバの上に作る計画で、#773 で撤去するまでの短い間しか使わないためである。0086 の計画の書き換えは、0086 の側の PR で行う。ADR: [ADR-0045](../../dev/adr/0045-dev-fake-llm.md) を更新した。
+-   **タスク 0086 の開発用のサーバは、#773 で本番のサーバとホストと一緒に撤去し、開発用の拡張のビルドに置き換える（§3.9、2026-11-13 に改めた）。** 0086 は計画の 3 つの PR をすべて実装した。fake の LLM の部品（`internal/llm/devfake`）と本番のバイナリの依存の検査（`internal/godepstest`、#865）、開発用のサーバ（`cmd/yt2column-devserver`）と `make build-dev`（#868）、その文書と手動の確認（#872）である。#773 は、開発用のサーバ、`make build-dev`、その文書を、本番のサーバとホストと一緒に撤去する。開発用のサーバは本番のサーバの API を真似るもので、サーバを撤去した後は拡張から使えないためである。撤去までの間は、開発用のサーバで拡張を料金をかけずに確かめられる。fake の部品は残し、開発用の記事生成モジュール（`cmd/yt2column-wasm-dev`）から使う。11 月 12 日の時点では、0086 を PR-1 だけにすることにしていたが、0086 が 3 つの PR を終えたので、撤去の時期を #773 に合わせる形に改めた。ADR: [ADR-0045](../../dev/adr/0045-dev-fake-llm.md) を更新した。
 -   **拡張が要求する Chrome の最小の版は、決める日の 1 年前の時点の安定版とし、今は 142 にする（§3.7.3、2026-11-13 に決めた）。** 使う機能がそれより新しい版を要するときだけ、その版に上げる。Chrome はセキュリティの修正を最新の安定版にだけ入れ、延長の安定版も 1 つ前の版を約 8 週支えるだけなので、1 年以上前の版のブラウザは、拡張と関係なく危険である。古い版の利用者を守っても守れるものがなく、決まった規則にすれば機能を足すたびに版を調べずに済む。最小の版を上げても更新は強いず、古い版への導入と更新を止めるだけである（§3.12 の C-16）。2026-11-13 の 1 年前（2025-11-13）の安定版は Chrome 142（2025-10-28）である（[Chromium Dash](https://chromiumdash.appspot.com/schedule)、2026-11-13 に確かめた）。採らなかった案は、使う機能が要る版（今なら `getKeys()` の 130）にする案と、`chrome.storage.session` の容量に合わせて 112 にする案である。前者は、機能を足すたびに要る版を調べることになり、守れるものがない。後者は、`getKeys()` を使えず、API キーの有無を値を読まずに確かめるための秘密でない印を別に保存することになる。ADR: [ADR-0030](../../dev/adr/0030-minimum-chrome-version.md) を更新した。
 -   **manifest の `key` は残し、Web Store の項目を作るときに Web Store の公開鍵に置き換える（§3.7.3）。** 置き換えは、Web Store の申請を扱う issue（§3.12）の作業にする。開発用に読み込んだ拡張の ID を、ワークツリーによらず同じにし、Web Store から導入した拡張の ID とも同じにするためである。ID が変わると、`chrome.storage.local` に保存した API キーは引き継がれない。採らなかった案は、`key` を除く案である。読み込んだディレクトリごとに ID が変わり、ワークツリーを替えるたびに API キーを入れ直すことになる。ADR: ADR-0026 を更新した。
 -   **ビューアの URL は、ジョブ ID（予約の前は開始の ID）、動画の URL、既存の記事の印だけを持つ（§5.2、2026-11-13 に決めた）。** 予約の前は `r`（開始の ID）と `u`（動画の URL）、予約の後は `k`（ジョブ ID）と `u` と、同じ動画の既存の記事なら `e=1` を持つ。見出し・チャンネル名・動画のタイトル・送信の時刻（今の `h`・`c`・`t`・`s`）は URL から除く。今の URL は、日本語のタイトルと見出しを URL の形に直すと最大で約 18 KB になり、表示の値はすでに `storage.session`（開始の文脈とジョブの記録）にあるためである。履歴に残るのは、乱数の ID と、YouTube の履歴にもある動画の URL だけになる。動画の URL を残すのは、記事が失われた後も、ビューアから動画を開いて作り直せるようにするためである。採らなかった案は 4 つである。ID だけを持つ案は、記事が失われた後に動画へのリンクを示せず、利用者が動画を探し直すことになる。今のまますべての値を持つ案は、URL が長く、動画のタイトルが URL として履歴に残る。短く切ったタイトルを足す案は、ページのタイトル（次の項目）が同じ役目を果たすので要らない。乱数の ID の代わりに入力の値のハッシュを持つ案は、入力から計算できる値を外に出すことになる（CLAUDE.md「Keep internals unobservable」）。入力を見分ける `inputDigest` は、記録の中にだけ置く。ADR: [ADR-0010](../../dev/adr/0010-extension-stores-nothing.md) を更新した。
@@ -679,9 +679,10 @@ script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src 'self' http
 
 ### 3.9. 料金をかけずに拡張を動かす方法
 
--   **開発用のビルド。** `make ext-build-dev` は、fake の LLM（タスク 0086 の PR-1 が作る部品）を使う開発用の記事生成モジュールをビルドし、`extension/dist-dev/` に置く。公開する成果物（`extension/dist/`）は、fake を含まない。
+-   **開発用のビルド。** `make ext-build-dev` は、fake の LLM（タスク 0086 が作った `internal/llm/devfake`）を使う開発用の記事生成モジュールをビルドし、`extension/dist-dev/` に置く。公開する成果物（`extension/dist/`）は、fake を含まない。
 -   **開発用のビルドを見分ける。** 開発用のビルドの manifest は `key` を持たず、拡張の名前に開発用の印を付ける。ID が公開用のビルドと別になるので、`chrome.storage.local` も別になり、開発用のビルドで保存したダミーの値が本物の API キーを上書きしない。ポップアップとビューアは、開発用のビルドであることを目に見える印で示す。
 -   **シナリオの選び方。** fake のシナリオは、`make ext-build-dev` の引数で選ぶ。変えるときは、ビルドし直して拡張を読み込み直す。設定の画面や保存した値でシナリオを選べるようにすると、公開する成果物にも開発用の分岐が入るためである。今の 0086 の開発用のサーバが、シナリオの変更に再起動を要するのと同じ水準である（ADR-0045）。
+-   **開発用のサーバの撤去。** 今は、0086 が作った開発用のサーバ（`cmd/yt2column-devserver`）と `make build-dev` で、本番のサーバの代わりに fake の記事を返して拡張を確かめられる。開発用のサーバは本番のサーバの API を真似るので、#773 でサーバとホストを撤去するときに一緒に撤去し、開発用の拡張のビルドに置き換える（§3.11・§3.14.2）。
 -   **公開する成果物に fake が入らないことの検査。** 公開用の記事生成モジュール（`cmd/yt2column-wasm`）が fake のパッケージに依存しないことを、ADR-0045 と同じく `go list -deps` のテストで、`GOOS=js GOARCH=wasm` を付けて確かめる。開発用の記事生成モジュールは、別の `main` のパッケージ（`cmd/yt2column-wasm-dev`）に置く。成果物の検査（`check-dist.ts`）は、`dist/` の WASM が `cmd/yt2column-wasm` からビルドしたものであることを、`go version -m` が示す main のパッケージのパスで確かめる。
 -   **API キーを要らなくする。** 開発用のビルドは、Anthropic の API を呼ばない。生成の開始の前の API キーの有無の確認は、開発用のビルドでも同じに行う。手動の確認では、形の合うダミーの値を保存する。
 
@@ -720,7 +721,9 @@ script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src 'self' http
 | 変える | `internal/llm/claude/` | `js` のビルドで、`anthropic-dangerous-direct-browser-access` のヘッダを付ける（§5.3）。保存の前のキーの確かめのために、Models API を 1 回呼んで状態コードだけを返す小さな関数を、アダプタの隣に加える（§3.6） |
 | 変えない | `internal/llm/provider/` | 記事生成モジュールは使わない（§2.3）。CLI は今のまま使う |
 | 撤去 | `cmd/yt2column-server/`・`cmd/yt2column-nmhost/`・`internal/server/`・`internal/articlecache/`・`internal/serversock/`・`internal/nmhost/`・`internal/privatefile/` | サーバとホスト（§2.3） |
-| 変える | `Makefile` | `make build` から 2 つのバイナリを除く。`ext-build` が WASM をビルドする。`ext-build-dev` を加える。`wasm-check` の対象を改める |
+| 変える | `Makefile` | `make build` から 2 つのバイナリを除く。`build-dev`（開発用のサーバのビルド）を除く。`ext-build` が WASM をビルドする。`ext-build-dev` を加える。`wasm-check` の対象を改める |
+| 撤去 | `cmd/yt2column-devserver/` | タスク 0086 の開発用のサーバ。本番のサーバとホストと一緒に撤去し、開発用の拡張のビルド（§3.9）に置き換える |
+| 変える | `internal/godepstest/` の使い手（`cmd/yt2column/devdeps_test.go`・`cmd/yt2column-server/devdeps_test.go`・`cmd/yt2column-nmhost/devdeps_test.go`） | 本番の成果物に fake が入らないことの検査。サーバとホストの検査を撤去し、公開用の記事生成モジュール（`cmd/yt2column-wasm`、`GOOS=js GOARCH=wasm`）の検査を加え、許さない依存の一覧から開発用のサーバを除いて開発用の記事生成モジュール（`cmd/yt2column-wasm-dev`）と開発用のコマンド（`cmd/yt2column-extjob`）を加える（ADR-0045） |
 | 変える | `.github/workflows/ci.yml` | 拡張のビルドに Go を用意する。`doc-guard` の対象からサーバとホストのパッケージを除く |
 | 変える | `extension/static/manifest.json` | §3.7 |
 | 新しい | `extension/static/options.html`・`extension/src/options.ts` | オプションページ（§3.6） |
@@ -756,8 +759,9 @@ script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src 'self' http
 | `extension/test/helpers/native.ts` | ホストの応答を作るテストの補助 | 撤去する |
 | `internal/pipeline/strictjson_users_test.go` | package_reference.md の `internal/strictjson` の利用者の行が、import と一致すること | 利用者に `internal/extjob` が加わり、サーバとホストが外れる。#773 が package_reference.md を直す |
 | `internal/pipeline/relay_guard_test.go` | ホストの標準出力の参照の場所 | 撤去する |
+| `cmd/yt2column-devserver/docs_test.go` と、`internal/doctestutil/guides.go` の開発用のサーバの節の見出しと表の列の名前 | development.md の開発用のサーバの節と引数の表が、開発用のサーバの引数と合うこと | 開発用のサーバと一緒に撤去する |
 | `cmd/yt2column-nmhost` の `TestReadmeHostExitCodes` | README のホストの終了コード | 撤去する |
-| `internal/config/envaccess_test.go` | 環境を参照してよい入口の一覧 | サーバとホストを除き、記事生成モジュールを加える |
+| `internal/config/envaccess_test.go` | 環境を参照してよい入口の一覧 | サーバ・ホスト・開発用のサーバ（`cmd/yt2column-devserver/main.go`）を除き、開発用のコマンド（`cmd/yt2column-extjob`）を加える。記事生成モジュールは環境を参照しない |
 
 `make wasm-check` の対象を確かめるテストは、今はない（2026-11-12 の `main`（`ca0570c6`）の `cmd/`・`internal/`・`extension/test/` を `wasm-check` と `WASM_PACKAGES` で検索して確かめた）。
 
@@ -839,13 +843,13 @@ script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src 'self' http
 
 | 文書 | 書き換える内容の要点 |
 |---|---|
-| [security.md](../../dev/security.md) | §2 に、拡張が API キーを `chrome.storage.local` に保存して使うことを加え、サーバの設定ファイルの記述を除く。§8 を、拡張だけの構成の脅威モデル（本書 §5.1）と、権限・CSP・保存・送信の守り・入力の境界（§3.7・§5.2〜§5.4）に書き換える。§8.2 のサーバとホストの節を除く。§6 の無効化の置き場所を、サーバから記事生成モジュールに改める§3 に、LLM の API へのリクエストがリダイレクトに従わないことを明記する。今は 0003 要件定義書の AC-08 と `internal/llm/llmhttp` にだけあり、security.md に書かれていない。費用の小さいうちは保ち、費用が大きくなれば外すことを検討する多層の防御として位置づける（TLS が守れない、送り先の側の予期しないリダイレクトと将来のコードの誤りに備えるもので、防げる範囲は狭い）。 |
-| [project_overview.md](../../dev/project_overview.md) | 「決定済みの方針」の実行形式と、「前提・制約」のサーバが記事をメモリに持つことを、拡張だけの構成に改める。設定の節から、サーバの設定ファイルを除く |
+| [security.md](../../dev/security.md) | §2 に、拡張が API キーを `chrome.storage.local` に保存して使うことを加え、サーバの設定ファイルの記述を除く。§8 を、拡張だけの構成の脅威モデル（本書 §5.1）と、権限・CSP・保存・送信の守り・入力の境界（§3.7・§5.2〜§5.4）に書き換える。§8.2 のサーバとホストの節を除く。§6 の無効化の置き場所を、サーバから記事生成モジュールに改める§3 に、LLM の API へのリクエストがリダイレクトに従わないことを明記する。今は 0003 要件定義書の AC-08 と `internal/llm/llmhttp` にだけあり、security.md に書かれていない。費用の小さいうちは保ち、費用が大きくなれば外すことを検討する多層の防御として位置づける（TLS が守れない、送り先の側の予期しないリダイレクトと将来のコードの誤りに備えるもので、防げる範囲は狭い）。§8.2 の開発用のサーバ（`cmd/yt2column-devserver`・`internal/llm/devfake`）の項目と、その残余のリスクを除き、開発用の拡張のビルド（本書 §3.9）の規則に置き換える。 |
+| [project_overview.md](../../dev/project_overview.md) | 「決定済みの方針」の実行形式と、「前提・制約」のサーバが記事をメモリに持つことを、拡張だけの構成に改める。設定の節から、サーバの設定ファイルを除くディレクトリの構成から `cmd/yt2column-devserver/` を除き、`cmd/yt2column-wasm`・`cmd/yt2column-wasm-dev`・`cmd/yt2column-extjob` を加える。 |
 | [production_profile.md](../../dev/production_profile.md) | 本番の構成を使う入口を、CLI と拡張にする。拡張では構成を選べないことを書く |
 | README・`README.en.md` | サーバの起動とホストの登録の手順を除き、拡張の導入とオプションページでの API キーの設定の手順を書く。ZDR・Compliance API の組織では使えないこと（§3.12 の C-12）を書く。移行の手順として、ホストの manifest の削除（`yt2column-nmhost uninstall`）と、サーバの設定ファイル（`~/.config/yt2column/config.env`。API キーの平文の写しを持つ）の削除を書く。API キーは、月の利用の上限を設けた専用のワークスペースで作ることを勧める（同じ OS ユーザーのプロセスはプロファイルの API キーを読めるため。§5.1.4）。`README.md` を先に直し、`/mktrans` で `README.en.md` に移す |
-| [development.md](../../dev/guides/development.md) | 「localhost サーバの API」「ジョブの API」「ジョブの API のコード」と「開発用に別のサーバを動かす」を除き、ジョブの記録の形、失敗の値の集合（本書 §4.1）、開発用のビルド（§3.9）、`make ext-build` が Go を呼ぶことを書く |
+| [development.md](../../dev/guides/development.md) | 「localhost サーバの API」「ジョブの API」「ジョブの API のコード」と「開発用に別のサーバを動かす」を除き、ジョブの記録の形、失敗の値の集合（本書 §4.1）、開発用のビルド（§3.9）、`make ext-build` が Go を呼ぶことを書く「fake の LLM でサーバを動かす」の節と `make build-dev` の記述を除き、開発用の拡張のビルドに置き換える。 |
 | [package_reference.md](../../dev/conventions/package_reference.md) | 撤去するパッケージの行を除き、`cmd/yt2column-wasm`・`cmd/yt2column-wasm-dev`・`internal/extjob` の行を加える |
-| [CLAUDE.md](../../../CLAUDE.md) | 「Architecture Overview」の主経路の図と説明、「Build Commands」の 2 つのバイナリとホストの登録、`make wasm-check` の説明、「Development Notes」のサーバの設定ファイルの記述を改める。オプションページを「Accessibility」の対象に含める |
+| [CLAUDE.md](../../../CLAUDE.md) | 「Architecture Overview」の主経路の図と説明、「Build Commands」の 2 つのバイナリとホストの登録、`make wasm-check` の説明、「Development Notes」のサーバの設定ファイルの記述を改める。オプションページを「Accessibility」の対象に含める`make build-dev` と開発用のサーバ（`yt2column-devserver`）の記述を除き、`make ext-build-dev` と開発用のコマンドを加える。 |
 
 #### 3.14.3. #773 の受け入れ基準に引き継ぐもの
 
@@ -885,7 +889,7 @@ script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src 'self' http
 | [ADR-0003](../../dev/adr/0003-llm-config-contract.md) | サーバが同じ名前のキーを設定ファイルから読むこと。廃止した変数の扱いのうちサーバの理由 | 拡張の記事生成モジュールが、2 つの名前だけを返す名前を引く関数で同じ検査を通ることに改める（§3.1.3）。拡張は空のワークスペース ID を未設定として答えるので、CLI の空の値の規則は変えないことを書く |
 | [ADR-0004](../../dev/adr/0004-production-profile.md) | 「CLI も localhost サーバも」この構成で動くこと | CLI と拡張に改める。拡張では構成を選べないことを ADR-0048 への参照で書く |
 | [ADR-0007](../../dev/adr/0007-manual-transcript-copy.md) | サーバが `CopiedSource` で解析すること。サーバは `yt-dlp` を呼ばないこと | 拡張の記事生成モジュールが解析し、`yt-dlp` を呼ばないことに改める |
-| [ADR-0024](../../dev/adr/0024-env-access-in-config.md) | 入口の一覧のサーバ・ホスト・開発用のサーバ。結果の ADR-0018 の記述 | 一覧からサーバ・ホスト・開発用のサーバを除き、環境を読まない記事生成モジュールを加える（§3.1.3）。環境変数から LLM の設定を読む開発用のコマンド `cmd/yt2column-extjob` を、CLI と同じ種類の入口として加える（§7.2） |
+| [ADR-0024](../../dev/adr/0024-env-access-in-config.md) | 入口の一覧のサーバ・ホスト・開発用のサーバ。結果の ADR-0018 の記述 | 一覧からサーバ・ホスト・開発用のサーバ（今ある。#773 で撤去する）を除き、環境を読まない記事生成モジュールを加える（§3.1.3）。環境変数から LLM の設定を読む開発用のコマンド `cmd/yt2column-extjob` を、CLI と同じ種類の入口として加える（§7.2） |
 | [ADR-0026](../../dev/adr/0026-extension-platform.md) | 背景の、ホストの `allowed_origins` が ID を指定すること。成果物を本リポジトリで書いたコードだけにすること。対象のブラウザの理由の、ホストの manifest の登録 | §3.1.4・§3.7.3 の決定に改める。`key` を残す理由を、保存した値の持ち主の ID を固定することに改め、Web Store の公開鍵に置き換えることを加える。拡張のビルドが Go を呼ぶこと、`wasm_exec.js` を成果物の例外として `go.mod` の版と照らすこと、開発用のビルドが `key` を持たないことを、この ADR だけに置く |
 | [ADR-0027](../../dev/adr/0027-article-job-api.md) | 題名と決定のすべて（ジョブの API、ホストのメッセージ、HMAC のキー、サーバのメモリのキャッシュ） | ジョブの記録（§3.2）と SW の調停（§3.3）に書き換える。主題（記事の生成と状態の受け渡し）は続くので、廃止せずに改める。止まった記録の理由（`stopReason`）、捨てる順、`inputDigest` が外に出ない値であることを書く |
 | [ADR-0028](../../dev/adr/0028-no-automatic-resend.md) | ホストとのやり取り、ホストの接続、未送信の確定の規則 | 生成の開始と予約を自動で送り直さないこと、止まった実行を自動で生成し直さないこと、結果不明の扱い（§3.8）に改める。結果の送り直しは記録への書き込みで、生成を始め直すことではないことを書く |
@@ -896,7 +900,7 @@ script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src 'self' http
 | [ADR-0034](../../dev/adr/0034-template-allowlist.md) | 背景の「localhost サーバは上書きのファイルを読まず」。出典のブロックが「サーバが返す表示用の Markdown」に付くこと | 記事生成モジュールに改める |
 | [ADR-0038](../../dev/adr/0038-deadcode-and-race-free-timing.md) | 背景と決定の「本番の `yt2column-server` は `-race` なしでビルドされる」と、予算が守るのがサーバの解析であること | 予算が守るのを、CLI と記事生成モジュールの解析に改める。WASM は `-race` でビルドできないので、本番の記事生成モジュールも `-race` なしであることを書く。予算はネイティブのビルドで確かめ、WASM での解析の時間は測っていないことを結果に書く（Worker で動くので、長くかかっても画面は止まらない） |
 | [ADR-0043](../../dev/adr/0043-copy-mention-neutralization.md) | 「無効化はサーバで行い」と、状態の取得の応答のメンバ | 記事生成モジュールの Go の部品で行い、結果（§3.1.2 の `ArticleResult`）に入れることに改める。拡張の TypeScript は受け取った文字列を加工しないことは変えない |
-| [ADR-0045](../../dev/adr/0045-dev-fake-llm.md) | 本番のバイナリの一覧のサーバとホスト。開発用のサーバの規則のすべて | 本番の成果物を `yt2column` と公開用の記事生成モジュールに改める。開発用のサーバの規則を、開発用の拡張のビルドの規則（§3.9）に置き換える。タスク 0086 は PR-1 だけを実装することを書く。シナリオはビルドの引数で選ぶ |
+| [ADR-0045](../../dev/adr/0045-dev-fake-llm.md) | 本番のバイナリの一覧のサーバとホスト。開発用のサーバの規則のすべて | 本番の成果物を `yt2column` と公開用の記事生成モジュールに改める。開発用のサーバの規則を、開発用の拡張のビルドの規則（§3.9）に置き換え、今ある開発用のサーバと `make build-dev` は #773 で本番のサーバと一緒に撤去することを書く。シナリオはビルドの引数で選ぶ |
 
 -   ADR-0001・0002・0013〜0016・0021・0022・0023・0025・0032・0035〜0037・0039〜0042・0044・0046・0047 は、検索で語が当たらないか、当たってもサーバやホストを前提にした項目ではなかった（ADR-0001 の「ホスト」は HTTP の送り先、ADR-0032 と ADR-0046 は別の意味の語だった）。ADR-0022 は要件の PR で改めた決定のままで、本書の決定と合う。
 -   ADR-0005 と ADR-0018 は、要件の PR で廃止した。
@@ -1336,7 +1340,7 @@ sequenceDiagram
 #773 の計画で PR の区切りを決める。依存の順は次のとおりである。新旧の経路を併存させる仕組みは作らない（要件書 AC-13）ので、拡張がサーバとホストを使わなくなる変更は 1 つの PR で行う。それより前の PR は、Go の部品と、まだ使われない拡張の部品を加えるだけにする。
 
 1.  **Go の部品。** `internal/extjob`、`internal/config` の記事生成モジュール用の関数、`llmhttp` と Claude アダプタの `js` のビルドの指定、`cmd/yt2column-wasm`、`make wasm-check` の対象の改め。サーバは動いたまま。今の `internal/config` は、`serverfile.go` が `//go:build unix` だけの `internal/privatefile` を import するので、`GOOS=js` でビルドできない（`GOOS=js GOARCH=wasm go list -deps ./internal/config` が失敗する。`ca0570c6` で確かめた）。この段階では、サーバとホストの設定の読み込みのファイルに `!js` のビルドタグを付けるか、記事生成モジュール用の関数を `privatefile` に依存しない場所に置き、4 の撤去でタグを外す。
-2.  **拡張のビルド。** `make ext-build` が WASM と `wasm_exec.js` を成果物に入れること、成果物の検査、開発用のビルド（タスク 0086 の PR-1 の後）。
+2.  **拡張のビルド。** `make ext-build` が WASM と `wasm_exec.js` を成果物に入れること、成果物の検査、開発用のビルド（タスク 0086 の fake の部品を使う）。
 3.  **切り替え。** manifest、オプションページ、SW の調停、実行するビューアと Worker、ジョブの記録を読む表示を入れ、ホストとの送信とポーリングを撤去する。
 4.  **撤去と文書。** サーバとホストとそれだけが使うパッケージの撤去、仕様の文書の書き換え（§3.14）、ADR の食い違いの記述の削除。3 と同じ PR にするかは、#773 の計画で決める。
 
