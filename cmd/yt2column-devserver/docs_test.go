@@ -18,9 +18,11 @@ const developmentDocPath = "../../docs/dev/guides/development.md"
 // TestDevelopmentDocsDevServer pins the values of the development guide's
 // section on the development server to the code: the argument names, the
 // values each argument accepts, the longest delay, the model name, the title
-// marker, and the make target. The accepted-values cells of the arguments
-// table must list exactly the values the code accepts, in any order, so a
-// wrong, misplaced, or extra value fails the test. The values come from this
+// marker, and the make target. Each argument has exactly one row, and no row
+// names an argument the code does not have. The accepted-values cells of the
+// three enumeration rows must list exactly the values the code accepts, in any
+// order, so a wrong, misplaced, or extra value fails the test; the delay row
+// must name the two endpoints of the code's range. The values come from this
 // package's argument names and its delay bound and from devfake; the make
 // target is a literal, because the guide's rule and the Makefile rule share
 // only a name that TestMakeBuildDev checks.
@@ -39,13 +41,33 @@ func TestDevelopmentDocsDevServer(t *testing.T) {
 		t.Fatalf("development.md %q arguments table has no %q column", doctestutil.DevServerHeading, doctestutil.DevAcceptedColumn)
 	}
 
+	known := map[string]struct{}{
+		"-" + argArticle:  {},
+		"-" + argFail:     {},
+		"-" + argFailStep: {},
+		"-" + argDelay:    {},
+	}
+	rowsFor := map[string][][]string{}
+	for _, row := range table[1:] {
+		if len(row) == 0 {
+			continue
+		}
+		name := doctestutil.StripBackticks(row[0])
+		if _, ok := known[name]; !ok {
+			t.Errorf("development.md %q has a row for unknown argument %q", doctestutil.DevServerHeading, name)
+			continue
+		}
+		rowsFor[name] = append(rowsFor[name], row)
+	}
+
 	checkAccepted := func(arg string, want []string) {
 		t.Helper()
-		row := doctestutil.TableRow(table, "-"+arg)
-		if row == nil {
-			t.Errorf("development.md %q has no -%s row", doctestutil.DevServerHeading, arg)
+		rows := rowsFor["-"+arg]
+		if len(rows) != 1 {
+			t.Errorf("development.md %q has %d rows for -%s, want 1", doctestutil.DevServerHeading, len(rows), arg)
 			return
 		}
+		row := rows[0]
 		if len(row) <= accepted {
 			t.Errorf("development.md -%s row has too few cells: %q", arg, row)
 			return
