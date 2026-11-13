@@ -240,7 +240,7 @@
 **判定理由**: 文書の追加と、値の有無を確かめる 1 つのガードのテストと、手での確認で、mkplan.md のパネルの契機にも Conditional checks にも当たらない。
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/872
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
