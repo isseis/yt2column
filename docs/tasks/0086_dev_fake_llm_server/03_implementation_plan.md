@@ -223,7 +223,7 @@
     -   `cmd/yt2column-devserver/docs_test.go::TestDevelopmentDocsDevServer`（§1.3 の決定 8）: 新しい節が、引数の名前、`devfake` の受理する値の一覧の各値、`devfake.TitleMarker`、`make build-dev` を挙げていること。節の見出しの文字列は、`CLAUDE.md`「Go Idioms」の guard-test の literal の例外にもとづき、`internal/doctestutil` に置く。値の 1 つを節から消すとテストが失敗することを確かめる。
 -   [x] **ステップ 3-3**: `docs/dev/project_overview.md` の想定ディレクトリ構成に 2 つのパッケージを加える。`CLAUDE.md` の「Build Commands」に `make build-dev` を加え、「Architecture Overview」の `LLMClient` の項に、`internal/llm/devfake` が本番のアダプタではない開発用の実装であることを書き加える（AC-27）。
 -   [x] **ステップ 3-4**: `docs/dev/adr/0045-dev-fake-llm.md` の「この決定は、まだコードと security.md に反映していない。…」の文を消す（AC-29）。編集上の訂正として、コミットメッセージに訂正の行を書く。
--   [ ] **ステップ 3-5**: 拡張からの手での確認を行い、§7「実行の記録」の PR-3 の欄に書く（AC-05）。`development.md` の手順で開発用のサーバを起動し、ホストと拡張を変えずに、拡張から生成の開始と状態の取得ができること、標準・長い・要素を網羅した記事がビューアで表示されること、失敗のシナリオで失敗の表示になること、タイトルの印と、料金が不明であることの表示を確かめる。手順どおりに動かない箇所があれば、`development.md` を直す。
+-   [x] **ステップ 3-5**: 拡張からの手での確認を行い、§7「実行の記録」の PR-3 の欄に書く（AC-05）。`development.md` の手順で開発用のサーバを起動し、ホストと拡張を変えずに、拡張から生成の開始と状態の取得ができること、標準・長い・要素を網羅した記事がビューアで表示されること、失敗のシナリオで失敗の表示になること、タイトルの印と、料金が不明であることの表示を確かめる。手順どおりに動かない箇所があれば、`development.md` を直す。
 
 **完了の条件:** 文書と `TestDevelopmentDocsDevServer` が加わり、`make test`・`make lint`・`make ext-test` が通る。§7 に AC-05 の記録がある。
 
@@ -392,7 +392,18 @@ AC-23 の `make build`・`make build-dev` の実行（`rm -rf build` の後に�
 
 PR-3:
 
-（ステップ 3-5 で、AC-05 の拡張からの確認の結果を書く。）
+AC-05 の拡張からの確認（2026-11-13、isseis）。`make build-dev` でビルドした `build/dev/yt2column-devserver` を、登録済みの Native Messaging のホストとビルド済みの拡張を変えずに使い、動画ページの文字起こしパネルで字幕の行を選び、拡張のポップアップから生成を開始して、ビューアで記事を確かめた。確かめたコミットは 7962effc である。
+
+| シナリオ | 起動の指定 | 結果 |
+|---|---|---|
+| 標準 | `-article standard` | 記事がビューアに表示された。タイトルは `[FAKE] ` で始まり、料金は不明と表示された。 |
+| 長い | `-article long` | 記事がビューアに表示された。見出しが標準の記事より多く、字数の調整を経た文面だった。タイトルと料金の表示は標準と同じだった。 |
+| 要素を網羅 | `-article elements` | 見出し・箇条書き・番号付きリスト・コードブロック・強調・自動リンクを含む記事が、崩れずに表示された。起動の行は `scenario.article=elements` だった。 |
+| 失敗 | `-fail empty -fail-step draft` | 記事は表示されず、失敗が表示された。起動の行は `scenario.fail=empty scenario.failStep=draft` で、ログの失敗の行は `failure=llm_empty step=draft` だった。 |
+
+失敗の後にもう一度生成を開始すると、同じシナリオなので同じ失敗になり、やり直しで成功する流れは確かめられなかった（ログの 2 回目の失敗の行も `failure=llm_empty step=draft` だった）。
+
+手順どおりに動かなかった箇所はなかったので、`development.md` は直していない。
 
 ## 8. 成功の基準 (Success Criteria)
 
