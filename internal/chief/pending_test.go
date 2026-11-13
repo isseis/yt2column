@@ -77,3 +77,15 @@ func TestNeedsCheckRowIsNotPending(t *testing.T) {
 		t.Errorf("items = %+v", items)
 	}
 }
+
+// TestProposalIdentityFollowsTheNextPR checks that the same command line for
+// the next plan PR is a new item, so it is announced again.
+func TestProposalIdentityFollowsTheNextPR(t *testing.T) {
+	row := func(key string) Row {
+		return Row{Workspace: "/w", State: StateProposeNext, Next: &Next{Kind: TaskNextRunplan, Text: "/runplan 0001", Key: key}}
+	}
+	a, b := buildPending([]Row{row("1")}), buildPending([]Row{row("2")})
+	if len(a) != 1 || len(b) != 1 || a[0].ID == b[0].ID {
+		t.Errorf("identities = %v and %v, want two different ones", a, b)
+	}
+}

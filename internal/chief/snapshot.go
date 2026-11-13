@@ -152,8 +152,12 @@ func classifyWorkspace(ctx context.Context, git GitReader, tasks Tasks, f worksp
 		ahead, err := git.Ahead(ctx, f.Workspace)
 		pr, ok := f.Docs.Plan.NextPR()
 		switch {
-		case err != nil || !ok || oldErr != nil:
+		case err != nil:
 			f.Unreadable = append(f.Unreadable, "commits ahead of origin/main")
+		case !ok:
+			f.Unreadable = append(f.Unreadable, "the next PR of the plan")
+		case ahead > 0 && oldErr != nil:
+			f.Unreadable = append(f.Unreadable, "the old-value table of origin/main")
 		case ahead > 0:
 			plan, err := tasks.BranchPlan(ctx, f.Workspace, *f.Docs, old)
 			if err != nil {

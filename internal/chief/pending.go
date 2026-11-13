@@ -116,7 +116,7 @@ func buildPending(rows []Row) []PendingItem {
 				if n == nil {
 					continue
 				}
-				add(PendingItem{ID: itemID("proposal", r.Workspace, strconv.Itoa(int(n.Kind)), n.Text), Kind: PendingProposal, Workspace: r.Workspace, Label: r.Label, Proposal: n})
+				add(PendingItem{ID: itemID("proposal", r.Workspace, strconv.Itoa(int(n.Kind)), n.Text, n.Key), Kind: PendingProposal, Workspace: r.Workspace, Label: r.Label, Proposal: n})
 			}
 		}
 	}

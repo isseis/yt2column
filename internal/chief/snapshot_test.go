@@ -61,6 +61,13 @@ func TestTakeSnapshotStates(t *testing.T) {
 				t.Errorf("merge question row = %+v, want it marked and with no command offered", r)
 			}
 		}},
+		{"opencode question while idle", fakeWorkspace{Kind: "opencode", Branch: "main", Status: "idle", Screen: "opencode-question-single.ansi"}, StateQuestion, nil},
+		{"opencode prompt", fakeWorkspace{Kind: "opencode", Branch: "main", Status: "done", Screen: "opencode-done.ansi"}, StateProposeNext, nil},
+		{"idle on a screen of no known shape", fakeWorkspace{Branch: "main", Status: "idle", Screen: "opencode-done.ansi"}, StateNeedsCheck, func(t *testing.T, r Row) {
+			if len(r.Unreadable) != 1 || !strings.Contains(r.Unreadable[0], "w1:p1") {
+				t.Errorf("unreadable = %v", r.Unreadable)
+			}
+		}},
 		{"blocked on an unknown shape", fakeWorkspace{Branch: taskBranch, Status: "blocked", Screen: "claude-idle.ansi"}, StateNeedsCheck, func(t *testing.T, r Row) {
 			if len(r.Unreadable) != 1 || !strings.Contains(r.Unreadable[0], "w1:p1") {
 				t.Errorf("unreadable = %v", r.Unreadable)

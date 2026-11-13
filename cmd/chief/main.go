@@ -132,7 +132,11 @@ func runStart(ctx context.Context, stdout, stderr io.Writer, store chief.Store, 
 	case err != nil:
 		return fail(err)
 	}
-	return write(stdout, stderr, result{Protocol: chief.Protocol, Outcome: "started", StateDir: store.Dir(), TookOver: res.TookOver, Removed: res.Removed}, exitOK)
+	out := result{Protocol: chief.Protocol, Outcome: "started", StateDir: store.Dir(), TookOver: res.TookOver, Removed: res.Removed}
+	if res.CleanupError != nil {
+		out.Message = "a finished session's notice record could not be removed: " + chief.Sanitize(res.CleanupError.Error())
+	}
+	return write(stdout, stderr, out, exitOK)
 }
 
 func runSnapshot(ctx context.Context, stdout, stderr io.Writer, store chief.Store, cmds chief.Commands, env chief.Env, owner chief.Owner, now func() time.Time, refuse func(string, string) int, fail func(error) int) int {

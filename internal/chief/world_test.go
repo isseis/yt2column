@@ -62,6 +62,8 @@ func statusDoc(rows string) []byte { return []byte(fmt.Sprintf(fakeTable, rows))
 // fakeWorkspace is one task workspace of a fake Herdr.
 type fakeWorkspace struct {
 	ID, Label, Branch string
+	// Kind is the agent name, "claude" when empty.
+	Kind string
 	// Status is the status of its one Claude Code agent.
 	Status string
 	// Screen is the name of the screen sample the agent shows.
@@ -142,7 +144,11 @@ func (w *world) add(ws fakeWorkspace) string {
 	if status == "" {
 		status = "idle"
 	}
-	w.agents = append(w.agents, fakeAgent{Pane: pane, Workspace: ws.ID, Kind: "claude", Status: status, Session: "00000000-0000-4000-8000-" + fmt.Sprintf("%012d", len(w.agents)), Dir: tree, Seq: 10})
+	kind := ws.Kind
+	if kind == "" {
+		kind = "claude"
+	}
+	w.agents = append(w.agents, fakeAgent{Pane: pane, Workspace: ws.ID, Kind: kind, Status: status, Session: "00000000-0000-4000-8000-" + fmt.Sprintf("%012d", len(w.agents)), Dir: tree, Seq: 10})
 	w.labels = append(w.labels, [2]string{ws.ID, ws.Label})
 	w.git(tree, "rev-parse --show-toplevel", tree)
 	w.git(tree, "rev-parse --path-format=absolute --git-common-dir", w.common)

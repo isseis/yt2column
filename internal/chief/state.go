@@ -88,6 +88,10 @@ type Next struct {
 	// when no route is known.
 	Agent paneinput.AgentKind
 	Model string
+	// Key distinguishes this proposal from the same command line proposed
+	// again later (the target of the next plan PR); it is part of the
+	// item's identity, never shown.
+	Key string
 	// Problem is why Command is nil although a command is due; empty
 	// otherwise.
 	Problem string
@@ -270,7 +274,9 @@ func nextFromPlan(f workspaceFacts, plan *Plan) (next *Next, done bool, why stri
 	if err != nil {
 		return nil, false, "the /runplan command cannot be built"
 	}
-	return makeNext(TaskNextRunplan, cmd, key, f.Routing, f.RoutingErr), false, ""
+	n := makeNext(TaskNextRunplan, cmd, key, f.Routing, f.RoutingErr)
+	n.Key = pr.Target
+	return n, false, ""
 }
 
 // needsTakeoverCheck reports whether the takeover proposal's other
@@ -326,10 +332,15 @@ func classify(f workspaceFacts) Row {
 			if a.Screen.Question.Merge {
 				row.MergeQuestion = true
 			}
-		case a.Agent.Status == AgentBlocked:
-			// Blocked in Herdr but the screen shows no known question shape:
-			// whether it is a question cannot be told.
-			unreadable = append(unreadable, "question shape on pane "+a.Agent.Pane.String())
+		case a.Agent.Status == AgentWorking:
+			// A working agent's screen is output in progress; it is not read
+			// for a question.
+		case a.Screen.Kind == ScreenPrompt && a.Agent.Status != AgentBlocked:
+			// An agent that waits for input and shows its prompt.
+		default:
+			// Blocked without a known question shape, or a screen of no known
+			// shape: whether a question waits cannot be told.
+			unreadable = append(unreadable, "screen of pane "+a.Agent.Pane.String()+" matches no known shape")
 		}
 	}
 	if len(unreadable) > 0 {

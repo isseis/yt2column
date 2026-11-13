@@ -274,3 +274,26 @@ func TestWorkspaceDirFollowsTheWorktree(t *testing.T) {
 		t.Errorf("records directory = %v, %v; want mode 0700", info, err)
 	}
 }
+
+// TestTakeoverNeedsTheExclusion holds the state directory's exclusion for the
+// whole takeover while the lock is stale: the takeover must refuse and leave
+// the lock as it was.
+func TestTakeoverNeedsTheExclusion(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 11, 14, 9, 0, 0, 0, time.UTC)
+	store := newStore(t)
+	if _, err := store.Start(ctx, herdrWith(t, liveAgent(ownerA())), ownerA(), now); err != nil {
+		t.Fatal(err)
+	}
+	excl, err := cachelock.Acquire(store.Dir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = excl.Close() }()
+	if _, err := store.Start(ctx, herdrWith(t, liveAgent(ownerB())), ownerB(), now); !errors.Is(err, ErrLockHeld) {
+		t.Fatalf("Start = %v, want ErrLockHeld while the exclusion is held", err)
+	}
+	if err := store.Require(ownerA()); err != nil {
+		t.Errorf("the lock changed without the exclusion: %v", err)
+	}
+}

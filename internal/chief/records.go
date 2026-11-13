@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -140,7 +141,7 @@ func (s Store) read(name string, v any) error {
 	if err := dec.Decode(v); err != nil {
 		return fmt.Errorf("record %s: %w", name, err)
 	}
-	if dec.More() {
+	if dec.Decode(&struct{}{}) != io.EOF {
 		return fmt.Errorf("%w: record %s: trailing data", errRecord, name)
 	}
 	return nil
@@ -181,6 +182,9 @@ func ResolveOwner(ctx context.Context, herdr Herdr, paneID string) (Owner, error
 type StartResult struct {
 	// TookOver is true when a stale lock was replaced.
 	TookOver bool
+	// CleanupError is why some finished session's notice record could not be
+	// removed; the lock is taken regardless.
+	CleanupError error
 	// Removed counts the notice records of finished sessions that were
 	// removed.
 	Removed int
@@ -210,7 +214,10 @@ func (s Store) Start(ctx context.Context, herdr Herdr, caller Owner, now time.Ti
 	}
 	removed, err := s.removeFinishedNotices(caller.Session)
 	res.Removed = removed
-	return res, err
+	// A notice record that cannot be removed does not undo the lock; it is
+	// reported and left for the human.
+	res.CleanupError = err
+	return res, nil
 }
 
 // settleExistingLock handles a lock that already exists: the caller's own
@@ -236,8 +243,11 @@ func (s Store) settleExistingLock(ctx context.Context, herdr Herdr, caller Owner
 	// The exclusion is held for the whole takeover, so the lock read and
 	// judged below is the one that is replaced.
 	excl, err := cachelock.Acquire(s.dir)
-	if err != nil {
+	if errors.Is(err, cachelock.ErrLocked) {
 		return false, fmt.Errorf("%w: %w", ErrLockHeld, err)
+	}
+	if err != nil {
+		return false, err
 	}
 	defer func() { _ = excl.Close() }()
 	held, err = s.readLock()
@@ -256,6 +266,10 @@ func (s Store) settleExistingLock(ctx context.Context, herdr Herdr, caller Owner
 			return false, err
 		}
 		if err := s.create(lockFile, rec); err != nil {
+			if errors.Is(err, privatefile.ErrExist) {
+				// Another chief created its lock first.
+				return false, ErrLockHeld
+			}
 			return false, err
 		}
 		return true, nil
@@ -340,6 +354,7 @@ func (s Store) Observe(session string, item ItemID, now time.Time) (first time.T
 	if err == nil {
 		return rec.FirstSeen, false, nil
 	}
+	now = now.UTC()
 	if !errors.Is(err, privatefile.ErrNotExist) {
 		return now, false, err
 	}
