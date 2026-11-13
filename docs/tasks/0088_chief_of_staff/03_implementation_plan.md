@@ -566,7 +566,7 @@ $ rg -n 'on Sonnet|to Sonnet|implement.*Sonnet|Model to start|model each reading
 |---|---|---|---|---|
 | AC-01 | `ic/workspace_test.go::TestFindTaskWorkspaces` | test | 3-3・3-4 | PR-3 |
 | AC-02 | `ic/snapshot_test.go::TestTakeSnapshotStates`（実行中の行は送信の記録から） | test | 3-4・4-6 | PR-3、PR-4 |
-| AC-03 | `ic/snapshot_test.go::TestTakeSnapshotOrder` | test | 3-4 | PR-3 |
+| AC-03 | `ic/snapshot_test.go::TestTakeSnapshotOrder`、`ic/snapshot_test.go::TestRowOrderRules` | test | 3-4 | PR-3 |
 | AC-04 | `ic/network_test.go::TestSnapshotRunsOnlyReadsInTheRightPlaces`、`/chief` の定義 | test、manual | 3-7・7-2 | PR-3、PR-7 |
 | AC-05 | `ic/snapshot_test.go::TestTakeSnapshotStates`、`/chief` の定義 | test、manual | 1-6・3-4・7-2 | PR-1、PR-3、PR-7 |
 | AC-06 | `ic/snapshot_test.go::TestTakeSnapshotUnreadable` | test | 3-3・3-4 | PR-3 |
@@ -576,7 +576,7 @@ $ rg -n 'on Sonnet|to Sonnet|implement.*Sonnet|Model to start|model each reading
 | AC-10 | 同上（OpenCode の質問のサンプル） | test | 1-6・3-4 | PR-1、PR-3 |
 | AC-11 | 同上（マージの確認のサンプル）、`ic/snapshot_test.go::TestTakeSnapshotStates`（マージの確認の行は次のコマンドを持たない） | test | 1-6・3-4 | PR-1、PR-3 |
 | AC-12 | `ic/screen_test.go::TestParseScreenRejectsNonMatching`、`ic/snapshot_test.go::TestTakeSnapshotStates`（画面が合わない場合）、`ic/send_test.go::TestSendChecksBeforeFirstInput`（合わない画面） | test | 1-6・3-4・4-2 | PR-1、PR-3、PR-4 |
-| AC-13 | `ic/pending_test.go::TestSortPending`、`ic/snapshot_test.go::TestTakeSnapshotOrder`、`/chief` の定義（「何もしない」） | test、manual | 3-5・7-2 | PR-3、PR-7 |
+| AC-13 | `ic/pending_test.go::TestSortPending`、`ic/snapshot_test.go::TestTakeSnapshotOrder`、`ic/snapshot_test.go::TestRowOrderRules`、`/chief` の定義（「何もしない」） | test、manual | 3-5・7-2 | PR-3、PR-7 |
 | AC-14 | `/chief` の定義と実地の確かめ（§1.3 の決定 14 の例外）。示す順の材料は AC-13 の test | manual | 7-2・7-6 | PR-7 |
 | AC-15 | `ic/network_test.go::TestSnapshotRunsOnlyReadsInTheRightPlaces`（`snapshot` が送らない）、`/chief` の定義 | test、manual | 3-7・7-2 | PR-3、PR-7 |
 | AC-16 | `/chief` の定義と実地の確かめ（§1.3 の決定 14 の例外） | manual | 7-2・7-6 | PR-7 |

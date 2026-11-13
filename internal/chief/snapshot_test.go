@@ -448,6 +448,8 @@ func TestRowOrderRules(t *testing.T) {
 	w.add(fakeWorkspace{ID: "w9", Label: "review-old", Branch: taskBranch, PRs: openPRJSON})
 	w.add(fakeWorkspace{ID: "w5", Label: "needs-check", Branch: taskBranch})
 	w.add(fakeWorkspace{ID: "w6", Label: "done", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-all-merged.md")}})
+	w.add(fakeWorkspace{ID: "w4", Label: "running", Branch: taskBranch, Status: "working"})
+	w.add(fakeWorkspace{ID: "w3", Label: "proposal", Branch: "main"})
 	w.add(fakeWorkspace{ID: "w7", Label: "merge", Branch: taskBranch, Status: "blocked", Screen: "claude-merge-question.ansi"})
 	take(t, w)
 	w.now = w.now.Add(time.Hour)
@@ -458,7 +460,7 @@ func TestRowOrderRules(t *testing.T) {
 	for _, r := range snap.Rows {
 		labels = append(labels, r.Label)
 	}
-	want := []string{"question", "merge", "review-old", "review-new", "needs-check", "done"}
+	want := []string{"question", "merge", "review-old", "review-new", "proposal", "needs-check", "running", "done"}
 	if !slices.Equal(labels, want) {
 		t.Errorf("row order = %v, want %v", labels, want)
 	}
