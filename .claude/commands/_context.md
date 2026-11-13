@@ -114,7 +114,8 @@ PR boundary markers embedded in the implementation plan use these labels:
      session starts with. `runplan.md` and `runpr.md` take the agent and
      model from that row, by naming it rather than repeating its values;
      `chief` maps each reading to the same row in its code
-     (`internal/chief`) and reads the row's values from the table. The Opus review column is decided in detail by entry 1 of
+     (`internal/chief`) and reads the row's values from the table. The
+     Opus review column is decided in detail by entry 1 of
      `_lib/opus-review.md`.
 
      | Reading | Command routing row | Opus review |

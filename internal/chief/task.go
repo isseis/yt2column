@@ -515,7 +515,7 @@ var (
 	// progressLike is any checkbox line with a progress label; one that is
 	// not in a form above makes the plan unreadable rather than read as no
 	// checkbox.
-	progressLike = regexp.MustCompile(`^[ \t]*[-*+][ \t]*\[[^\]]*\][ \t]*PR ?(?:を作成した|がマージされた)`)
+	progressLike = regexp.MustCompile(`^[ \t>]*(?:[-*+]|[0-9]+[.)])[ \t\x{3000}]*\[[^\]]*\][ \t\x{3000}]*PR[ \t\x{3000}]*(?:を作成した|がマージされた)`)
 	// stepBox is a step's checkbox: done, skipped, or not started.
 	stepBox = regexp.MustCompile(`^-[ \t]+\[([ x-])\][ \t]+\*\*ステップ ([0-9]+-[0-9]+)\*\*`)
 	// stepID is one step of a marker's target step list.

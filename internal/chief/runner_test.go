@@ -70,6 +70,19 @@ func TestCommandsEnvironment(t *testing.T) {
 	}
 }
 
+// TestHerdrEnvironmentNeverInherited checks that herdr gets the environment
+// passed in even when it is empty: a nil one would inherit the process's.
+func TestHerdrEnvironmentNeverInherited(t *testing.T) {
+	rec := newRecorder(t)
+	rec.reply("herdr agent list", nil)
+	if _, err := rec.commands(nil).herdr(context.Background(), "agent", "list"); err != nil {
+		t.Fatal(err)
+	}
+	if env := rec.recorded()[0].env; env == nil || len(env) != 0 {
+		t.Errorf("env = %#v, want an empty non-nil environment", env)
+	}
+}
+
 // TestCommandsRejectRelativeDir checks that git and gh never run in a
 // directory given relative to chief's own.
 func TestCommandsRejectRelativeDir(t *testing.T) {
