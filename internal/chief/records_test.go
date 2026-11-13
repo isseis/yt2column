@@ -243,9 +243,9 @@ func TestObserve(t *testing.T) {
 	})
 }
 
-// TestWorkspaceDirFollowsTheWorktree checks that the same worktree reached
+// TestCanonicalWorktreeResolvesLinks checks that the same worktree reached
 // through a symbolic link has one records directory.
-func TestWorkspaceDirFollowsTheWorktree(t *testing.T) {
+func TestCanonicalWorktreeResolvesLinks(t *testing.T) {
 	target, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -262,13 +262,9 @@ func TestWorkspaceDirFollowsTheWorktree(t *testing.T) {
 		t.Fatalf("CanonicalWorktree = %q, %v; want %q", canonical, err, target)
 	}
 	store := newStore(t)
-	viaLink, err := store.WorkspaceDir(canonical)
+	direct, err := store.WorkspaceDir(canonical)
 	if err != nil {
 		t.Fatal(err)
-	}
-	direct, err := store.WorkspaceDir(target)
-	if err != nil || viaLink != direct {
-		t.Errorf("records directories differ: %q and %q (%v)", viaLink, direct, err)
 	}
 	if info, err := os.Stat(direct); err != nil || info.Mode().Perm() != 0o700 {
 		t.Errorf("records directory = %v, %v; want mode 0700", info, err)

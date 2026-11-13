@@ -106,13 +106,13 @@ func newHarness(t *testing.T) *harness {
 	if err := os.MkdirAll(filepath.Join(dir, ".git"), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	context, err := os.ReadFile(filepath.Join("..", "..", ".claude", "commands", "_context.md"))
+	contextDoc, err := os.ReadFile(filepath.Join("..", "..", ".claude", "commands", "_context.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	return &harness{
 		t:     t,
-		fake:  &fakeHerdr{t: t, dir: dir, context: context},
+		fake:  &fakeHerdr{t: t, dir: dir, context: contextDoc},
 		env:   chief.Env{PaneID: testPane, XDGStateHome: filepath.Join(root, "state"), Home: root},
 		state: filepath.Join(root, "state"),
 	}

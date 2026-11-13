@@ -279,7 +279,11 @@ func TestTakeoverProposal(t *testing.T) {
 			w.rec.replyIn(tree, "gh pr list --head "+taskBranch+" --state open --json headRefName,number,title,url", []byte(openPRJSON))
 		},
 		"an agent that does not accept input": func(w *world, _ string) {
-			w.agents[1].Status = "working"
+			for i := range w.agents {
+				if w.agents[i].Pane == "w1:p1" {
+					w.agents[i].Status = "working"
+				}
+			}
 		},
 		"steps not done": func(w *world, tree string) {
 			w.rec.replyIn(tree, "git show HEAD:docs/tasks/"+taskDir+"/"+planFile, planSample(t, "marker-opus-steps-open.md"))
