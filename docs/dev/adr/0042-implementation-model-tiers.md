@@ -18,7 +18,7 @@ Codex の PR レビューは、PR を開いたときに 1 回だけ自動で行�
 
 以下の決定の仕様は、[0081 要件定義書](../../tasks/0081_implementation_model_choice/01_requirements.md) の機能要件と [0081 設計書](../../tasks/0081_implementation_model_choice/02_architecture.md)、値と読み替えを定める [_context.md](../../../.claude/commands/_context.md) の「PR marker conventions」が持つ。手順は、それを使うコマンドの定義（`mkplan2.md`・`mkplan.md`・`runplan.md`・`runpr.md`・`weakreview.md`）と、Opus のレビューの共通の手順（`_lib/opus-review.md`）が持つ。
 
-また、`sonnet` を OpenCode の DeepSeek V4.1 Flash で実装するという決定は、まだ `_context.md` の値とモデルの対応、`runplan.md` の案内、`runpr.md` の示し方に反映していない（どれも Sonnet を示す）。このずれは [#837](https://github.com/isseis/yt2column/issues/837)・[#838](https://github.com/isseis/yt2column/issues/838)（タスク 0088）の実装で扱う。`sonnet` の値については、値からセッションのモデルが直接分かり、名前がモデルのファミリー名を表すという下の 2 項目の理由が成り立たない。値の名前の見直しは #760 で扱う。
+また、`sonnet` の値については、値からセッションのモデルが直接分かり、名前がモデルのファミリー名を表すという下の 2 項目の理由が成り立たない。値の名前の見直しは #760 で扱う。
 
 -   **実装モデル要件の値は `opus`・`sonnet+opus-review`・`sonnet` の 3 つとし、値はとるべき行動を表す。** `opus` は Opus で実装する。`sonnet+opus-review` は Sonnet で実装し、PR を開く前に Opus のレビューを行う。`sonnet` は OpenCode の DeepSeek V4.1 Flash で実装し、追加のレビューはしない（[ADR-0046](0046-chief-of-staff.md)）。値から、セッションのモデルと、追加のレビューの要否が直接分かるようにするためである（0081 要件定義書の F-001）。`sonnet` を Flash で実装するのは、Opus までは要らないと利用者が判断し、運用がすでにそうなっていたためである（[0088 要件定義書](../../tasks/0088_chief_of_staff/01_requirements.md)「要件定義の際に決めたこと（2026-11-11）」）。
 -   **値の名前は、モデルのファミリー名だけを使い、版を含めない。** モデルの版が上がっても、値と計画書を書き換えずに済むためである（F-001）。

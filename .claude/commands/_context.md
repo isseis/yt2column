@@ -70,8 +70,10 @@ PR boundary markers embedded in the implementation plan use these labels:
      each value, when it applies, and how its `**判定理由**` is written are
      defined there only, not here. They are read by `runplan.md` (its
      guidance before a phase group), by `_lib/opus-review.md` (entry 1, which
-     decides whether the Opus review runs), and by `runpr.md` (the merge
-     question of step 4 and the `/clear` guidance of step 5).
+     decides whether the Opus review runs), by `runpr.md` (the merge
+     question of step 4 and the `/clear` guidance of step 5), and by the
+     `chief` tool (`internal/chief/task.go`, which chooses the `/runplan` row
+     of "Command routing" below from it).
   2. **Where the value is.** In a plan with PR markers, the PR marker's
      section: from its `### PR-N 作成ポイント` heading to the next heading of
      any level. In a plan without PR markers (a single-phase plan), the
@@ -93,7 +95,9 @@ PR boundary markers embedded in the implementation plan use these labels:
 
      `_lib/opus-review-decision.sh` is the executable form of parts 2 to 4
      for entry 1 of `_lib/opus-review.md`; it reads part 4 from
-     `origin/main`'s copy of this file.
+     `origin/main`'s copy of this file. The `chief` tool reads parts 2 to 4
+     in Go (`internal/chief/task.go`), also with part 4 from `origin/main`,
+     and a test runs both readings on the same plans.
   4. **Old values.** Plans written before these values existed carry the
      old values, which are read as follows. This table is the only place
      that maps them. It may be removed once no plan has an old value in a PR
@@ -105,18 +109,50 @@ PR boundary markers embedded in the implementation plan use these labels:
      | `frontier-recommended` | `sonnet+opus-review` |
      | `standard` | `sonnet` |
 
-  5. **What a reading recommends.** `runplan.md` and `runpr.md` show the
-     model to start a session with from this table, by naming it rather than
-     repeating it. The Opus review column is decided in detail by entry 1 of
+  5. **What a reading recommends.** This table names, for each reading,
+     the row of "Command routing" below whose agent and model a `/runplan`
+     session starts with. `runplan.md`, `runpr.md`, and `chief` take the
+     agent and model from that row, by naming it rather than repeating its
+     values. The Opus review column is decided in detail by entry 1 of
      `_lib/opus-review.md`.
 
-     | Reading | Model to start the session with | Opus review |
+     | Reading | Command routing row | Opus review |
      |---|---|---|
-     | `opus` | Opus | decided by entry 1: runs when a commit is not covered by an Opus implementation record |
-     | `sonnet+opus-review` | Sonnet | decided by entry 1, as for `opus` |
-     | `sonnet` | Sonnet | does not run |
+     | `opus` | `runplan-opus` | decided by entry 1: runs when a commit is not covered by an Opus implementation record |
+     | `sonnet+opus-review` | `runplan-sonnet+opus-review` | decided by entry 1, as for `opus` |
+     | `sonnet` | `runplan-sonnet` | does not run |
      | unreadable value | none (show the text and that it is unreadable) | treated as for `sonnet+opus-review` |
      | no value | none (show that there is no value) | does not run |
+
+### Command routing
+
+The agent and model each task command is sent to, or a session for it is
+started with. This table is the only place that holds them: `runplan.md` and
+`runpr.md` show them from here, and the `chief` tool
+(`internal/chief/routing.go`) reads this table from `origin/main`'s copy of
+this file to choose the pane and the model it sends a command to. To move a
+command to another agent or model, edit its row here; nothing else changes.
+
+This section stays outside "PR marker conventions", whose two-cell rows
+`_lib/opus-review-decision.sh` reads as old values.
+
+| Row | Command | Agent | Model |
+|---|---|---|---|
+| `task-documents` | `/mkreq`, `/mkarch`, `/mkplan` | Claude Code | `opus` |
+| `runplan-opus` | `/runplan` for the requirement `opus` | Claude Code | `opus` |
+| `runplan-sonnet+opus-review` | `/runplan` for the requirement `sonnet+opus-review` | Claude Code | `sonnet` |
+| `runplan-sonnet` | `/runplan` for the requirement `sonnet` | OpenCode | `DeepSeek V4.1 Flash 1017 OpenCode Go` |
+| `runplan-takeover` | `/runplan` handed back to open the PR after an OpenCode run stopped before it | Claude Code | `sonnet` |
+| `runpr` | `/runpr` | OpenCode | `DeepSeek V4.1 Flash 1017 OpenCode Go` |
+
+- **Row** is the name the other tables and `chief` use for the row; `chief`
+  reads every row, so each of the six rows above must stay, once.
+- **Agent** is `Claude Code` or `OpenCode`.
+- **Model** is, for Claude Code, the argument of `/model` (`opus` or
+  `sonnet`); for OpenCode, the whole text its status line shows between the
+  first and the last ` · `, printable ASCII words separated by single spaces.
+- A table `chief` cannot read (a missing or repeated row, another column, an
+  agent or a model outside these sets) makes it send nothing.
 
 ### PR title and squash subject
 

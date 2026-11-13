@@ -750,3 +750,52 @@ func TestCollectErrorIsDuplicate(t *testing.T) {
 		t.Errorf("Collect error = %v, want errDuplicateMember", err)
 	}
 }
+
+// TestParseArray covers what ParseArray adds to the checks it shares with
+// ParseObject (the encoding and trailing-data checks, tested there): a
+// top-level array is read into its elements, any other top-level value is
+// rejected, and the element cap applies to the top level too.
+func TestParseArray(t *testing.T) {
+	t.Run("reads the elements in order", func(t *testing.T) {
+		values, err := ParseArray([]byte(`[{"n":1},"x"]`))
+		if err != nil {
+			t.Fatalf("ParseArray error = %v", err)
+		}
+		if len(values) != 2 {
+			t.Fatalf("ParseArray returned %d values, want 2", len(values))
+		}
+		object, err := values[0].AsObject()
+		if err != nil || !object.Has("n") {
+			t.Errorf("element 0 = %v, %v; want an object with n", object, err)
+		}
+		if s, err := values[1].AsString(); err != nil || s != "x" {
+			t.Errorf("element 1 = %q, %v; want x", s, err)
+		}
+	})
+
+	t.Run("reads an empty array", func(t *testing.T) {
+		values, err := ParseArray([]byte(`[]`))
+		if err != nil || len(values) != 0 {
+			t.Errorf("ParseArray([]) = %v, %v; want no values", values, err)
+		}
+	})
+
+	for name, data := range map[string]string{
+		"object": `{"a":[]}`,
+		"string": `"[]"`,
+		"null":   `null`,
+	} {
+		t.Run("rejects a top-level "+name, func(t *testing.T) {
+			if _, err := ParseArray([]byte(data)); !errors.Is(err, errNotArray) {
+				t.Errorf("ParseArray error = %v, want errNotArray", err)
+			}
+		})
+	}
+
+	t.Run("rejects one element above the limit", func(t *testing.T) {
+		document := "[" + strings.Repeat("0,", maxArrayElements) + "0]"
+		if _, err := ParseArray([]byte(document)); !errors.Is(err, errTooManyElements) {
+			t.Errorf("ParseArray error = %v, want errTooManyElements", err)
+		}
+	})
+}

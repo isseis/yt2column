@@ -54,9 +54,10 @@ type Object struct {
 	members []jsonMember
 }
 
-// Value is one JSON value inside a document that passed ParseObject's checks.
-// It can only be obtained from an Object or another Value. The zero value has
-// no content, and its accessors return an error.
+// Value is one JSON value inside a document that passed ParseObject's or
+// ParseArray's checks. It can only be obtained from an Object, from
+// ParseArray, or from another Value. The zero value has no content, and its
+// accessors return an error.
 type Value struct {
 	raw json.RawMessage
 }
@@ -302,13 +303,38 @@ func (v Value) AsObject() (Object, error) {
 	return Object{members: members}, nil
 }
 
+// ParseArray rejects invalid UTF-8 and unpaired surrogate escapes anywhere in
+// data, then decodes exactly one top-level JSON array with no trailing data. It
+// applies the element cap of AsArray. Each element is a Value, read with the
+// same accessors as an object's members.
+func ParseArray(data []byte) ([]Value, error) {
+	if err := validateJSONEncoding(data); err != nil {
+		return nil, err
+	}
+	decoder := newRawDecoder(data)
+	values, err := decodeArray(decoder)
+	if err != nil {
+		return nil, err
+	}
+	if err := ensureNoTrailingJSON(decoder); err != nil {
+		return nil, err
+	}
+	return values, nil
+}
+
 // AsArray returns the value as an array, rejecting null and other kinds, and an
 // array with more than maxArrayElements elements.
 func (v Value) AsArray() ([]Value, error) {
 	if v.raw == nil {
 		return nil, errZeroValue
 	}
-	decoder := newRawDecoder(v.raw)
+	return decodeArray(newRawDecoder(v.raw))
+}
+
+// decodeArray reads exactly one JSON array and returns its elements, rejecting
+// an array with more than maxArrayElements elements. The caller's decoder must
+// be positioned before the array.
+func decodeArray(decoder *json.Decoder) ([]Value, error) {
 	token, err := decoder.Token()
 	if err != nil {
 		return nil, err

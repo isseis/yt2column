@@ -207,31 +207,31 @@
 
 **変更するファイル:** `internal/chief/paneinput/`（新規）、`internal/strictjson/strictjson.go`、`internal/chief/screen*.go`（タスクの番号の型の置き換え）、`internal/chief/runner.go`・`herdr.go`・`task.go`・`routing.go`・`markers_parity_test.go` とそのテスト（新規）、`internal/chief/test_helpers.go`（新規、`//go:build test`）、`.claude/commands/_context.md`・`runplan.md`・`runpr.md`・`mkplan2.md`、`.github/workflows/ci.yml`、`CLAUDE.md`、`docs/dev/conventions/package_reference.md`、`docs/dev/adr/0042-implementation-model-tiers.md`・`0046-chief-of-staff.md`
 
--   [ ] **ステップ 2-1**: `internal/chief/paneinput` を作る（決定 5、設計書 3.1.3）。`Command` とそのコマンドの組み立て、リセットとモデルの切り替えの入力を置く。`PRNumber` は `fixprguard.PRNumber` を使う（決定 2）。ステップ 1-6 のタスクの番号の型をこの `TaskID` に置き換える。テストは、各コンストラクタが不正な値を拒むこと、ゼロ値と範囲の外の列挙の値が送れる入力にならないことを確かめる。`package_reference.md` に行を足す。
--   [ ] **ステップ 2-2**: `strictjson.ParseArray` を足す（決定 12）。テストは、配列に特有のこと（最上位が配列でないものを拒む、要素の数の上限）だけを確かめ、`ParseObject` と共有する検査は確かめ直さない。`package_reference.md` の `strictjson` の行に `ParseArray` と、利用者の一覧に `internal/chief` を足す。
--   [ ] **ステップ 2-3**: `runner.go` に、外部のコマンドの runner を作る唯一の経路（決定 7 の時間の上限、決定 10 の git と gh の引数と環境）を書く。`test_helpers.go` に呼び出しの記録係と、一時的な git のリポジトリの補助を書く（決定 19）。`herdr.go` に Herdr の読み取りを書く（設計書 3.1.2）。`herdr agent list`・`get`・`read`・`workspace list` の出力を、`AgentStatus`（ゼロ値は読めない）、エージェントの種類、`agent_session`、作業ディレクトリ、`state_change_seq`、workspace の名前（決定 11）の型に読む。テストは、ステップ 1-2 の実物の出力と、未知の状態の値・欠けた項目・形の崩れた JSON を読めないとすることを確かめる。
--   [ ] **ステップ 2-4**: `task.go` にタスクの読み取りを書く（設計書 3.1.4 のタスクの決め方、`_context.md` の「PR marker conventions」の第 2〜4 部）。
+-   [x] **ステップ 2-1**: `internal/chief/paneinput` を作る（決定 5、設計書 3.1.3）。`Command` とそのコマンドの組み立て、リセットとモデルの切り替えの入力を置く。`PRNumber` は `fixprguard.PRNumber` を使う（決定 2）。ステップ 1-6 のタスクの番号の型をこの `TaskID` に置き換える。テストは、各コンストラクタが不正な値を拒むこと、ゼロ値と範囲の外の列挙の値が送れる入力にならないことを確かめる。`package_reference.md` に行を足す。
+-   [x] **ステップ 2-2**: `strictjson.ParseArray` を足す（決定 12）。テストは、配列に特有のこと（最上位が配列でないものを拒む、要素の数の上限）だけを確かめ、`ParseObject` と共有する検査は確かめ直さない。`package_reference.md` の `strictjson` の行に `ParseArray` と、利用者の一覧に `internal/chief` を足す。
+-   [x] **ステップ 2-3**: `runner.go` に、外部のコマンドの runner を作る唯一の経路（決定 7 の時間の上限、決定 10 の git と gh の引数と環境）を書く。`test_helpers.go` に呼び出しの記録係と、一時的な git のリポジトリの補助を書く（決定 19）。`herdr.go` に Herdr の読み取りを書く（設計書 3.1.2）。`herdr agent list`・`get`・`read`・`workspace list` の出力を、`AgentStatus`（ゼロ値は読めない）、エージェントの種類、`agent_session`、作業ディレクトリ、`state_change_seq`、workspace の名前（決定 11）の型に読む。テストは、ステップ 1-2 の実物の出力と、未知の状態の値・欠けた項目・形の崩れた JSON を読めないとすることを確かめる。
+-   [x] **ステップ 2-4**: `task.go` にタスクの読み取りを書く（設計書 3.1.4 のタスクの決め方、`_context.md` の「PR marker conventions」の第 2〜4 部）。
     -   ブランチ名からのタスク、`origin/main` の文書の Status と Process（requirements_process.md の「Cell text」）を読む。
     -   `### PR-N 作成ポイント` と「PR 構成」の節の値（コードブロックの中を読まない）、旧い値の表、`PR を作成した`・`PR がマージされた` の記録、次に作るプランの PR を読む。
     -   `**自動送信**` の欄（設計書 3.8。欄がなければ `auto`、2 つ以上か値が違えば読めない）を読む。
     -   AC-40 のために、ブランチの計画書で、次に作るプランの PR の対象ステップがすべて済んでいるかを読む。
     -   CLAUDE.md の「Go Idioms」の例外に計画書の部分を足す（決定 17）。テストの計画書は `testdata/plans/` に置き、各読み取りの場合と読めない場合を確かめる。`opus` と `sonnet+opus-review` を取り違えないことは、このテストが受け持つ（ステップ 2-5 の比較では区別できないため）。
--   [ ] **ステップ 2-5**: PR マーカーの読み方を `opus-review-decision.sh` と比べるテスト `markers_parity_test.go` を書く（設計書 3.8、7.1）。
+-   [x] **ステップ 2-5**: PR マーカーの読み方を `opus-review-decision.sh` と比べるテスト `markers_parity_test.go` を書く（設計書 3.8、7.1）。
     -   一時的な git のリポジトリ（決定 19 の環境）で、`refs/remotes/origin/main` と HEAD に同じ計画書を置き、`origin/main` の `_context.md` はリポジトリの今のファイルとする。HEAD は `origin/main` より 1 つ先で、計画書と `README.en.md` 以外のファイルを変え、実装の記録の行と Opus のレビューの記録の行を持たない。BASE はマージの基点とする。この形でないと、スクリプトは値に依らない判断を返す（`opus-review-decision.sh:70,208-217,320-331`）。
     -   スクリプトが区別するのは、`sonnet`（`NONE value-sonnet`）、値がない（`NONE value-absent`）、それ以外（`opus`・`sonnet+opus-review`・読めない値・置き場所が 2 つ以上、どれも `RUN`）の 3 つである。道具の読み取りがこの 3 つのどれに当たるかを、サンプルごとに比べる。
     -   リポジトリの今の `_context.md` を使うので、送り先の表と `**自動送信**` の説明を旧い値の表として読まないことも確かめられる。
     -   bash は PATH のものを使い、版が 4 より古ければ失敗にする。
--   [ ] **ステップ 2-6**: `_context.md` と案内を送り先の表に合わせる（設計書 3.3）。直す箇所は §3.3 の検索の結果のすべてである。
+-   [x] **ステップ 2-6**: `_context.md` と案内を送り先の表に合わせる（設計書 3.3）。直す箇所は §3.3 の検索の結果のすべてである。
     -   `_context.md` に「Command routing」の節を「PR marker conventions」の外に足し、設計書 3.3 の表を置く。
     -   第 5 部の表の「Model to start the session with」の列を、送り先の表の行を名指す形にする。第 1 部の読み手の一覧と、第 3 部の `opus-review-decision.sh` の注記に、chief の読み取りを足す。
     -   `runplan.md:20-21,60` と `runpr.md:749,763,1059` のモデルの案内を、送り先の表を読む形にする。
     -   `mkplan2.md:41-44` の値の意味から、どのモデルで実装するかを外し、送り先の表を名指す（値の意味は、実装の重さと Opus のレビューの有無として残す）。42 行の `opus` の説明（「implement the PR on Opus」）は §3.3 の検索の語に合わないが、同じくモデルを述べるので直す。
--   [ ] **ステップ 2-7**: `routing.go` に送り先の表の読み取りを書く（設計書 3.3）。`origin/main` の `_context.md` を `git show` で読み、節・列・行の数と形・モデルの集合を検証して、`RouteKey` から `paneinput.Route` を引く。テストは次を確かめる。
+-   [x] **ステップ 2-7**: `routing.go` に送り先の表の読み取りを書く（設計書 3.3）。`origin/main` の `_context.md` を `git show` で読み、節・列・行の数と形・モデルの集合を検証して、`RouteKey` から `paneinput.Route` を引く。テストは次を確かめる。
     -   リポジトリの今の `_context.md` が読めること。
     -   形の崩れた表と、集合の外のモデルを拒むこと。
     -   `sonnet+opus-review` の行を OpenCode・`DeepSeek V4.1 Flash 1017 OpenCode Go` に変えた写しで、その `RouteKey` の送り先だけが変わること（AC-39）。
--   [ ] **ステップ 2-8**: `.github/workflows/ci.yml` の `doc-guard` に `./internal/chief` を足し、CLAUDE.md の「Development Notes」の一覧と、PATH の bash が 4 以上であるという前提を書く（決定 18）。`./cmd/chief` は、パッケージを作るステップ 3-6 で足す。
--   [ ] **ステップ 2-9**: ADR を直す。どちらも commit のメッセージと PR の説明に訂正を書く。
+-   [x] **ステップ 2-8**: `.github/workflows/ci.yml` の `doc-guard` に `./internal/chief` を足し、CLAUDE.md の「Development Notes」の一覧と、PATH の bash が 4 以上であるという前提を書く（決定 18）。`./cmd/chief` は、パッケージを作るステップ 3-6 で足す。
+-   [x] **ステップ 2-9**: ADR を直す。どちらも commit のメッセージと PR の説明に訂正を書く。
     -   ADR-0042 の 21 行のずれの記述のうち、`_context.md`・`runplan.md`・`runpr.md` に反映していないという文を消す。値の名前の見直し（#760）の文は残す。
     -   ADR-0046 の「この決定は、まだ」で始まるずれの記述を、このマージの後に残るずれ（道具、コマンドの定義、CLAUDE.md の一部、`**自動送信**` の欄、settings.json）を述べる形に書き換える。
 
