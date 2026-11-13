@@ -35,7 +35,7 @@
 | [ADR-0027](0027-article-job-api.md) | 記事の生成の状態と完成した記事を、拡張の SW だけが書くジョブの記録として chrome.storage.session に持つ | `有効` |
 | [ADR-0028](0028-no-automatic-resend.md) | 結果が分からないときも、止まった実行も、記事の生成を自動で始め直さない | `有効` |
 | [ADR-0029](0029-extension-ui-languages.md) | 拡張の UI を英語と日本語の 2 言語にし、表示の言語は resolveLocale の 1 か所で決める | `有効` |
-| [ADR-0030](0030-minimum-chrome-version.md) | 拡張の minimum_chrome_version を 112 にする | `有効` |
+| [ADR-0030](0030-minimum-chrome-version.md) | 拡張の minimum_chrome_version は決める日の 1 年前の安定版とし、今は 142 にする | `有効` |
 | [ADR-0031](0031-secret-closure.md) | 秘密を secret.Secret 型のクロージャで持ち、送信先へのリクエストを除くどの出力にも流さない | `有効` |
 | [ADR-0032](0032-testdata-license.md) | testdata に置く実データは再配布できるライセンスの動画のものに限り、取得した人を特定できないようにする | `有効` |
 | [ADR-0033](0033-transcript-cache-slots.md) | 字幕のキャッシュを 2 つのスロットとポインタで持ち、記事を出した後は既定で消す | `有効` |
