@@ -593,7 +593,7 @@ $ rg -n 'on Sonnet|to Sonnet|implement.*Sonnet|Model to start|model each reading
 | AC-27 | `ic/screen_test.go::TestParseScreenSamples`（タブの画面は中継できない）、`ic/relay_test.go::TestRelayRefusesTabbedQuestion` | test | 1-6・5-2 | PR-1、PR-5 |
 | AC-28 | `ic/relay_test.go::TestRelayCheckValueMismatch` | test | 5-2 | PR-5 |
 | AC-29 | `ic/paneinput/paneinput_test.go::TestRelayKeysFromNumbersOnly`、`ic/relay_test.go::TestRelaySendsChosenOption` | test | 5-2 | PR-5 |
-| AC-31 | `ic/paneinput/paneinput_test.go::TestZeroAndOutOfRangeAreUnusable`、`ic/herdr_test.go::TestWriterRefuses`、`cc/docs_test.go::TestSettingsDeniesPaneInput` | test、static | 2-1・4-1・7-3 | PR-2、PR-4、PR-7 |
+| AC-31 | `ic/paneinput/paneinput_test.go::TestZeroValuesAreUnusable`、`ic/paneinput/paneinput_test.go::TestConstructorsRejectInvalid`、`ic/herdr_test.go::TestWriterRefuses`、`cc/docs_test.go::TestSettingsDeniesPaneInput` | test、static | 2-1・4-1・7-3 | PR-2、PR-4、PR-7 |
 | AC-32 | `ic/task_test.go::TestReadModelRequirement`、`ic/markers_parity_test.go::TestMarkerReadingMatchesDecisionScript` | test | 2-4・2-5 | PR-2 |
 | AC-33 | `ic/state_test.go::TestUnreadableRequirementOffersNoRunplan` | test | 3-4 | PR-3 |
 | AC-34 | `ic/send_test.go::TestClaudeModelSwitchCheck` | test | 4-2 | PR-4 |

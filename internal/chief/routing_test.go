@@ -39,6 +39,36 @@ func TestRoutingReadsRepositoryContext(t *testing.T) {
 	}
 }
 
+// TestRoutingRowsMapToTheirKeys gives every row of a table a distinct model
+// and checks that each route key gets its own row's.
+func TestRoutingRowsMapToTheirKeys(t *testing.T) {
+	rows := map[paneinput.RouteKey]string{
+		paneinput.RouteTaskDocuments:       "task-documents",
+		paneinput.RouteRunplanOpus:         "runplan-opus",
+		paneinput.RouteRunplanSonnetReview: "runplan-sonnet+opus-review",
+		paneinput.RouteRunplanSonnet:       "runplan-sonnet",
+		paneinput.RouteRunplanTakeover:     "runplan-takeover",
+		paneinput.RouteRunpr:               "runpr",
+	}
+	doc := "### Command routing\n\n| Row | Command | Agent | Model |\n|---|---|---|---|\n"
+	for _, name := range rows {
+		doc += "| `" + name + "` | x | OpenCode | `Model " + name + "` |\n"
+	}
+	routing, err := ParseRouting([]byte(doc))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, name := range rows {
+		route, err := routing.Route(key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got, _ := route.ModelText(); got != "Model "+name {
+			t.Errorf("route %d has the model of %q, want row %q", key, got, name)
+		}
+	}
+}
+
 // TestRoutingRowChangesOneRoute moves the sonnet+opus-review row to OpenCode
 // in a copy of _context.md and checks that only that route changes.
 func TestRoutingRowChangesOneRoute(t *testing.T) {
@@ -90,7 +120,7 @@ func TestRoutingRejects(t *testing.T) {
 		"OpenCode model blank": {"`DeepSeek V4.1 Flash 1017 OpenCode Go` |\n| `runplan-takeover`", "`DeepSeek  V4.1` |\n| `runplan-takeover`"},
 		"empty command":        {"| `runpr` | `/runpr` |", "| `runpr` |  |"},
 		"header changed":       {"| Row | Command | Agent | Model |", "| Row | Command | Model | Agent |"},
-		"heading twice":        {"### Command routing\n", "### Command routing\n\n### Command routing\n"},
+		"heading twice":        {"### PR title and squash subject\n", "### Command routing\n\n| Row | Command | Agent | Model |\n|---|---|---|---|\n\n### PR title and squash subject\n"},
 		"heading missing":      {"### Command routing\n", "### Command table\n"},
 	}
 	for name, edit := range edits {

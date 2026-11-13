@@ -48,6 +48,9 @@ func TestCommandsEnvironment(t *testing.T) {
 		{calls[1], "/work/tree", gitTimeout, []string{"KEEP=1", "GH_REPO=other/repo", "GIT_OPTIONAL_LOCKS=0"}, []string{"GIT_DIR=/elsewhere"}},
 		{calls[2], "", herdrTimeout, environ, nil},
 	}
+	if !slices.Equal(calls[2].env, environ) {
+		t.Errorf("herdr env = %v, want exactly %v", calls[2].env, environ)
+	}
 	for _, c := range cases {
 		t.Run(c.call.name, func(t *testing.T) {
 			if c.call.dir != c.dir {

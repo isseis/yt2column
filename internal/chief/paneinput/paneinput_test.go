@@ -155,10 +155,10 @@ func TestConstructorsRejectInvalid(t *testing.T) {
 	}
 }
 
-// TestZeroAndOutOfRangeAreUnusable checks that a value no constructor made
-// yields no text to type: the zero values, and enumeration values converted
-// from an integer outside their range.
-func TestZeroAndOutOfRangeAreUnusable(t *testing.T) {
+// TestZeroValuesAreUnusable checks that the zero values, which no
+// constructor makes, yield no text to type. Enumeration values outside their
+// range are rejected by the constructors (TestConstructorsRejectInvalid).
+func TestZeroValuesAreUnusable(t *testing.T) {
 	if _, err := (paneinput.Command{}).Text(); !errors.Is(err, paneinput.ErrInvalid) {
 		t.Errorf("zero Command Text error = %v, want ErrInvalid", err)
 	}

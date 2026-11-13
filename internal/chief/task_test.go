@@ -11,6 +11,17 @@ import (
 	"testing"
 )
 
+// testOldValues is an old-value table for the tests that read plans, so they
+// do not depend on the old values _context.md still lists.
+var testOldValues = OldValues{
+	"frontier-required": RequirementOpus,
+	"standard":          RequirementSonnet,
+}
+
+// testContext is a _context.md holding only an old-value table, the part of
+// it that TestTasksRead's plan reading uses.
+const testContext = "### PR marker conventions\n\n| `standard` | `sonnet` |\n"
+
 // repoContext returns the repository's current _context.md.
 func repoContext(t *testing.T) []byte {
 	t.Helper()
@@ -21,23 +32,9 @@ func repoContext(t *testing.T) []byte {
 	return data
 }
 
-// TestParseOldValues reads the old-value table from the repository's
-// _context.md, and drops an old value with two rows.
+// TestParseOldValues reads an old-value table as the script does: rows of
+// the section only, an old value with two rows or a blank dropped.
 func TestParseOldValues(t *testing.T) {
-	old := ParseOldValues(repoContext(t))
-	want := OldValues{
-		"frontier-required":    RequirementOpus,
-		"frontier-recommended": RequirementSonnetReview,
-		"standard":             RequirementSonnet,
-	}
-	if len(old) != len(want) {
-		t.Errorf("old values = %v, want %v", old, want)
-	}
-	for k, v := range want {
-		if old[k] != v {
-			t.Errorf("old[%q] = %d, want %d", k, old[k], v)
-		}
-	}
 	doubled := []byte("### PR marker conventions\n\n| `a` | `opus` |\n| `a` | `sonnet` |\n| `b` | `sonnet` |\n| `d e` | `opus` |\n\n### Next\n\n| `c` | `opus` |\n")
 	if got := ParseOldValues(doubled); len(got) != 1 || got["b"] != RequirementSonnet {
 		t.Errorf("ParseOldValues(doubled) = %v, want only b (a twice, d e with a blank, c outside)", got)
@@ -48,7 +45,7 @@ func TestParseOldValues(t *testing.T) {
 // PR (PR-2, or the plan itself without markers), so opus and
 // sonnet+opus-review are told apart here, which the parity test cannot do.
 func TestReadModelRequirement(t *testing.T) {
-	old := ParseOldValues(repoContext(t))
+	old := testOldValues
 	cases := map[string]struct {
 		target string
 		want   RequirementReading
@@ -107,7 +104,7 @@ func TestReadAutoSendField(t *testing.T) {
 
 // TestParsePlanProgress checks the next plan PR and task completion.
 func TestParsePlanProgress(t *testing.T) {
-	old := ParseOldValues(repoContext(t))
+	old := testOldValues
 	cases := map[string]struct {
 		next string // "" when there is none
 		done bool
@@ -128,7 +125,11 @@ func TestParsePlanProgress(t *testing.T) {
 				t.Fatal(err)
 			}
 			next, ok := plan.NextPR()
-			if got := map[bool]string{true: next.Target, false: ""}[ok]; got != c.next {
+			got := ""
+			if ok {
+				got = next.Target
+			}
+			if got != c.next {
 				t.Errorf("NextPR = %q, want %q", got, c.next)
 			}
 			if plan.Done() != c.done {
@@ -167,6 +168,9 @@ func TestParsePlanRejects(t *testing.T) {
 		"marker number 0":      strings.Replace(base, "### PR-3 ", "### PR-03 ", 1),
 		"merged box missing":   string(planSample(t, "marker-no-merged-box.md")),
 		"near-miss checkbox":   string(planSample(t, "single-near-miss.md")),
+		"quoted checkbox":      string(planSample(t, "single-near-miss-quoted.md")),
+		"numbered checkbox":    string(planSample(t, "single-near-miss-numbered.md")),
+		"full-width blank":     string(planSample(t, "single-near-miss-wide-blank.md")),
 		"unclosed fence":       base + "\n```\n",
 		"Status without a row": strings.Replace(base, "| Status | `approved` |\n", "", 1),
 	}
@@ -296,7 +300,7 @@ func TestTasksRead(t *testing.T) {
 		rec.reply(lsDir, []byte("docs/tasks/0001_test_task/01_requirements.md\x00docs/tasks/0001_test_task/03_implementation_plan.md\x00"))
 		rec.reply("git show refs/remotes/origin/main:docs/tasks/0001_test_task/01_requirements.md", req)
 		rec.reply("git show refs/remotes/origin/main:docs/tasks/0001_test_task/03_implementation_plan.md", planSample(t, "marker-old-standard.md"))
-		rec.reply("git show refs/remotes/origin/main:.claude/commands/_context.md", repoContext(t))
+		rec.reply("git show refs/remotes/origin/main:.claude/commands/_context.md", []byte(testContext))
 		docs, err := NewTasks(rec.commands(nil)).Read(context.Background(), wt, "user/0001-test-task-02")
 		if err != nil {
 			t.Fatal(err)
