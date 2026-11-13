@@ -1,0 +1,26 @@
+
+[0m[38;5;9m ▐[0m[38;5;9m[48;5;0m▛███▛█   [0m[1mClaude Code [0m[38;5;8mv2.1.322[0m
+[0m[38;5;9m▝▜[0m[38;5;9m[48;5;0m█████[0m[38;5;9m█▀  [0m[38;5;8mOpus 5.5 · Claude Max[0m
+[0m[38;5;9m ▝▝   ▝▝   [0m[38;5;8m~/.herdr/worktrees/yt2column/chief-poc[0m
+
+
+[0m[38;5;8m[48;5;7m❯ [0m[38;5;0m[48;5;7mThis is a screen-sampling session. Use the AskUserQuestion tool now to ask me [0m[48;5;7m   [0m
+[0m[48;5;7m  [0m[38;5;0m[48;5;7mexactly one single-select question: question 'Which fruit do you prefer?', [0m[48;5;7m      [0m
+[0m[48;5;7m  [0m[38;5;0m[48;5;7mheader 'Fruit', options 'Apple' (A red fruit), 'Banana' (A yellow fruit), [0m[48;5;7m       [0m
+[0m[48;5;7m  [0m[38;5;0m[48;5;7m'Cherry' (A small red fruit). Do not run any other tool and do not write files.[0m[48;5;7m  [0m
+[0m[38;5;8m───────────────────────────────────────────────────────────────────────────────────[0m
+[0m[38;5;7m[48;5;4m ☐ Fruit [0m
+
+[0m[1m[38;5;0mWhich fruit do you prefer?[0m
+
+  [0m[38;5;8m1. [0mApple
+     [0m[38;5;8mA red fruit[0m
+  [0m[38;5;8m2. [0mBanana
+     [0m[38;5;8mA yellow fruit[0m
+[0m[38;5;4m❯ [0m[38;5;8m3. [0m[38;5;4mCherry[0m
+     [0m[38;5;8mA small red fruit[0m
+  [0m[38;5;8m4. Type something.[0m
+[0m[38;5;8m───────────────────────────────────────────────────────────────────────────────────[0m
+  5. Chat about this
+
+[0m[38;5;8mEnter to select · ↑/↓ to navigate · Esc to cancel[0m
