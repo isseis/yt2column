@@ -20,6 +20,13 @@ const (
 	// HTTP API: the curl examples, the rejection-reason table, and the job
 	// API and its code tables.
 	DevAPIHeading = "## localhost サーバの API"
+	// DevServerHeading is development.md's section on running the server on
+	// the fake LLM.
+	DevServerHeading = "## fake の LLM でサーバを動かす"
+	// DevArgumentColumn and DevAcceptedColumn head development.md's table of
+	// the development server's arguments and the values each accepts.
+	DevArgumentColumn = "引数"
+	DevAcceptedColumn = "受理する値"
 	// DevDeepSeekIntegrationHeading is development.md's section on the
 	// DeepSeek integration test.
 	DevDeepSeekIntegrationHeading = "### DeepSeek の統合テスト"
