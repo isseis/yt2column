@@ -11,9 +11,37 @@ import (
 	"github.com/isseis/yt2column/internal/chief/paneinput"
 )
 
-// sonnetReviewRow is the routing row of sonnet+opus-review in the
-// repository's _context.md.
-const sonnetReviewRow = "| `runplan-sonnet+opus-review` | `/runplan` for the requirement `sonnet+opus-review` | Claude Code | `sonnet` |"
+// repositoryRow returns the row of the repository's routing table whose Row
+// cell is rowName, so a test finds a route without pinning the row's other
+// text: the agent and model of a row are values the table is free to change.
+func repositoryRow(t *testing.T, rowName string) string {
+	t.Helper()
+	for line := range strings.SplitSeq(string(repoContext(t)), "\n") {
+		if strings.HasPrefix(line, "| `"+rowName+"` |") {
+			return line
+		}
+	}
+	t.Fatalf("_context.md has no row %q", rowName)
+	return ""
+}
+
+// rowWithCell returns a routing row with cell i replaced, cells being numbered
+// from the Row cell at 0.
+func rowWithCell(t *testing.T, row string, i int, cell string) string {
+	t.Helper()
+	cells := strings.Split(row, " | ")
+	if len(cells) != 4 || i < 0 || i > 3 {
+		t.Fatalf("row %q cannot be edited at cell %d", row, i)
+	}
+	cells[i] = cell
+	if i == 0 {
+		cells[0] = "| " + cell
+	}
+	if i == 3 {
+		cells[3] = cell + " |"
+	}
+	return strings.Join(cells, " | ")
+}
 
 // TestRoutingReadsRepositoryContext reads the routing table of the
 // repository's own _context.md: every route key has a route.
@@ -69,18 +97,31 @@ func TestRoutingRowsMapToTheirKeys(t *testing.T) {
 	}
 }
 
-// TestRoutingRowChangesOneRoute moves the sonnet+opus-review row to OpenCode
-// in a copy of _context.md and checks that only that route changes.
+// TestRoutingRowChangesOneRoute moves the sonnet+opus-review row to the other
+// agent in a copy of _context.md and checks that only that route changes.
 func TestRoutingRowChangesOneRoute(t *testing.T) {
 	doc := string(repoContext(t))
-	moved := strings.Replace(sonnetReviewRow, "| Claude Code | `sonnet` |", "| OpenCode | `DeepSeek V4.1 Flash 1017 OpenCode Go` |", 1)
-	edited := strings.Replace(doc, sonnetReviewRow, moved, 1)
-	if edited == doc {
-		t.Fatalf("_context.md has no row %q", sonnetReviewRow)
-	}
 	before, err := ParseRouting([]byte(doc))
 	if err != nil {
 		t.Fatal(err)
+	}
+	current, err := before.Route(paneinput.RouteRunplanSonnetReview)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Move the route to the other agent, so the edit changes the row whichever
+	// agent the table currently sends it to.
+	agent, model := "OpenCode", "DeepSeek V4.1 Flash 1017 OpenCode Go"
+	wantAgent := paneinput.AgentOpenCode
+	if current.Agent() == paneinput.AgentOpenCode {
+		agent, model = "Claude Code", "opus"
+		wantAgent = paneinput.AgentClaudeCode
+	}
+	row := repositoryRow(t, "runplan-sonnet+opus-review")
+	moved := rowWithCell(t, rowWithCell(t, row, 2, agent), 3, "`"+model+"`")
+	edited := strings.Replace(doc, row, moved, 1)
+	if edited == doc {
+		t.Fatalf("_context.md has no row for runplan-sonnet+opus-review")
 	}
 	after, err := ParseRouting([]byte(edited))
 	if err != nil {
@@ -95,8 +136,8 @@ func TestRoutingRowChangesOneRoute(t *testing.T) {
 		}
 	}
 	now, _ := after.Route(paneinput.RouteRunplanSonnetReview)
-	if text, _ := now.ModelText(); now.Agent() != paneinput.AgentOpenCode || text != "DeepSeek V4.1 Flash 1017 OpenCode Go" {
-		t.Errorf("moved route = %d %q", now.Agent(), text)
+	if text, _ := now.ModelText(); now.Agent() != wantAgent || text != model {
+		t.Errorf("moved route = %d %q, want %d %q", now.Agent(), text, wantAgent, model)
 	}
 }
 
@@ -104,21 +145,21 @@ func TestRoutingRowChangesOneRoute(t *testing.T) {
 // must reject as a whole.
 func TestRoutingRejects(t *testing.T) {
 	doc := string(repoContext(t))
-	row := func(model string) string {
-		return strings.Replace(sonnetReviewRow, "`sonnet` |", model+" |", 1)
-	}
+	review := repositoryRow(t, "runplan-sonnet+opus-review")
+	sonnet := repositoryRow(t, "runplan-sonnet")
+	runpr := repositoryRow(t, "runpr")
 	edits := map[string][2]string{
-		"missing row":          {sonnetReviewRow + "\n", ""},
-		"repeated row":         {sonnetReviewRow, sonnetReviewRow + "\n" + sonnetReviewRow},
-		"unknown row":          {sonnetReviewRow, sonnetReviewRow + "\n| `runpr-fast` | `/runpr` | OpenCode | `a` |"},
-		"row name not code":    {sonnetReviewRow, sonnetReviewRow + "\n| runpr | `/runpr` | OpenCode | `a` |"},
-		"extra column":         {sonnetReviewRow, sonnetReviewRow + " x |"},
-		"other agent":          {"| `runpr` | `/runpr` | OpenCode |", "| `runpr` | `/runpr` | Codex |"},
-		"Claude model outside": {sonnetReviewRow, row("`haiku`")},
-		"Claude model as name": {sonnetReviewRow, row("`claude-sonnet-5-5`")},
-		"model not code":       {sonnetReviewRow, row("sonnet")},
-		"OpenCode model blank": {"`DeepSeek V4.1 Flash 1017 OpenCode Go` |\n| `runplan-takeover`", "`DeepSeek  V4.1` |\n| `runplan-takeover`"},
-		"empty command":        {"| `runpr` | `/runpr` |", "| `runpr` |  |"},
+		"missing row":          {review + "\n", ""},
+		"repeated row":         {review, review + "\n" + review},
+		"unknown row":          {review, review + "\n| `runpr-fast` | `/runpr` | OpenCode | `a` |"},
+		"row name not code":    {review, rowWithCell(t, review, 0, "runplan-sonnet+opus-review")},
+		"extra column":         {review, review + " x |"},
+		"other agent":          {runpr, rowWithCell(t, runpr, 2, "Codex")},
+		"Claude model outside": {review, rowWithCell(t, rowWithCell(t, review, 2, "Claude Code"), 3, "`haiku`")},
+		"Claude model as name": {review, rowWithCell(t, rowWithCell(t, review, 2, "Claude Code"), 3, "`claude-sonnet-5-5`")},
+		"model not code":       {review, rowWithCell(t, rowWithCell(t, review, 2, "Claude Code"), 3, "sonnet")},
+		"OpenCode model blank": {sonnet, rowWithCell(t, rowWithCell(t, sonnet, 2, "OpenCode"), 3, "`DeepSeek  V4.1`")},
+		"empty command":        {runpr, rowWithCell(t, runpr, 1, "")},
 		"header changed":       {"| Row | Command | Agent | Model |", "| Row | Command | Model | Agent |"},
 		"heading twice":        {"### PR title and squash subject\n", "### Command routing\n\n| Row | Command | Agent | Model |\n|---|---|---|---|\n\n### PR title and squash subject\n"},
 		"heading missing":      {"### Command routing\n", "### Command table\n"},
