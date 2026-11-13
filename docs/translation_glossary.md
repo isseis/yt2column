@@ -194,3 +194,4 @@
 | 設定 | Configuration | README と `cli.md` の見出し。CLI では環境変数、サーバでは設定ファイルによる設定 |
 | 環境変数からの移行 | Migrating from environment variables | README の見出し |
 | ブラウザ拡張 | Browser extension | README の見出し。本文では "browser extension"、文脈が明らかなら "extension" |
+| 記事生成モジュール | article generation module | `cmd/yt2column-wasm`（Go の `main` パッケージ）を WebAssembly にビルドした `.wasm` ファイル。拡張の Worker が読み込み、記事を作る関数を JavaScript に公開する。Go で書かれ WASM にコンパイルされたことを強調するときは「WASM にコンパイルされた記事生成モジュール」と修飾する（0090 設計書） |

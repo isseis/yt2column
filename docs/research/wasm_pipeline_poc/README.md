@@ -324,7 +324,7 @@ PoC の入口から、`llmhttp.Post` を、ダミーのキーを付けた要求�
 | 権限 | 0084 の権限に `storage` を加えた。`host_permissions` は加えていない |
 | モデル | 記事の生成は、生成と検証・推敲とも `claude-haiku-5-5`・`medium` |
 
-PoC の仕組みは、0090 の設計の流れをなぞった。操作のページ（前面）のボタンで、Service Worker が入力をメモリに持ち、実行のページを `active: false` のタブで開く。実行のページは入力を受け取り、専用の Web Worker で WASM の入口を動かし、結果を Service Worker に知らせる。Service Worker は記録を `chrome.storage.session` に書く。実行のページは、終わると Worker を `terminate()` する。
+PoC の仕組みは、0090 の設計の流れをなぞった。操作のページ（前面）のボタンで、Service Worker が入力をメモリに持ち、実行のページを `active: false` のタブで開く。実行のページは入力を受け取り、専用の Web Worker で WASM にコンパイルした記事生成モジュールを動かし、結果を Service Worker に知らせる。Service Worker は記録を `chrome.storage.session` に書く。実行のページは、終わると Worker を `terminate()` する。
 
 ブラウザは、ユーザエージェントでは区別できないので、人の操作で記録した。測定の記録はリポジトリの外に置き、ここには値だけを書く。
 

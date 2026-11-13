@@ -15,12 +15,12 @@ CLI は字幕の取得を `yt-dlp` に委譲しているが、`yt-dlp` は YouTu
 ## 決定
 
 -   **主経路の字幕の入力は、利用者が文字起こしパネルで選択した文字列とする。** 拡張は、起動したタブの選択範囲を `window.getSelection()` で読み、その文字列と動画の URL を記事を作る処理に渡す。拡張はクリップボードを読まず、パネルの DOM も読まない。利用者の選択を書き換えず、パネルを開く操作もしない。`yt-dlp` の HTTP 429 と、パネルの DOM の変種に依存しないためである。規則は [0015 要件定義書](../../tasks/0015_copied_transcript_source/01_requirements.md) §1「概要 (Overview)」にある。
--   **拡張の WASM の入口は、受け取った文字列を `CopiedSource` で解析する。** 解析は `NewCopiedSource` の構築時に 1 回だけ行い、`Fetch` では再解析しない。書式の誤りを、記事の生成を予約する前の入力の検査で拒否し、記事の作成は既存のパイプラインをそのまま使えるようにするためである。拡張は `yt-dlp` を呼ばない（[ADR-0049](0049-wasm-core-sharing.md)）。入力の検査は [0090 設計書](../../tasks/0090_extension_only_architecture/02_architecture.md) の「WASM の入口と、CLI と共有する処理」にある。受理する書式は [0015 設計書](../../tasks/0015_copied_transcript_source/02_architecture.md) と [0024 要件定義書](../../tasks/0024_copied_transcript_panel_lines/01_requirements.md) F-001・F-007・F-008 が定め、解析を構築時に行う規則は [0011 設計書](../../tasks/0011_localhost_server/02_architecture.md) §3.7「#107 の `TranscriptSource` の使い方」にある。
+-   **拡張の記事生成モジュールは、受け取った文字列を `CopiedSource` で解析する。** 解析は `NewCopiedSource` の構築時に 1 回だけ行い、`Fetch` では再解析しない。書式の誤りを、記事の生成を予約する前の入力の検査で拒否し、記事の作成は既存のパイプラインをそのまま使えるようにするためである。拡張は `yt-dlp` を呼ばない（[ADR-0049](0049-wasm-core-sharing.md)）。入力の検査は [0090 設計書](../../tasks/0090_extension_only_architecture/02_architecture.md) の「記事生成モジュールと、CLI と共有する処理」にある。受理する書式は [0015 設計書](../../tasks/0015_copied_transcript_source/02_architecture.md) と [0024 要件定義書](../../tasks/0024_copied_transcript_panel_lines/01_requirements.md) F-001・F-007・F-008 が定め、解析を構築時に行う規則は [0011 設計書](../../tasks/0011_localhost_server/02_architecture.md) §3.7「#107 の `TranscriptSource` の使い方」にある。
 -   **拡張はページを読むだけで、ページを操作しない。** 動画タイトル・チャンネル名・概要欄は、収集が成功したときだけ、起動したタブの DOM から読む。クリック・スクロール・フォーカス・入力を行わず、概要欄の「…もっと見る」も開かない。読む時点のページの URL が収集した URL と一致しない場合は、別の動画の値を混ぜないよう 3 つの値をすべて省略する。取得に失敗しても起動を失敗させず、値を省略する。ページを操作すると、読むだけという拡張の振る舞いが変わるためである。規則は [0025 要件定義書](../../tasks/0025_extension_video_metadata/01_requirements.md) §1「概要 (Overview)」・§2.3「スコープ外 (Out of Scope)」と [security.md](../security.md) §8.1「ブラウザ拡張」にある。
 -   **パーサは、観測した 2 つの形だけを受理する。** 形 A と形 B をそれぞれ定義し、前置き、形 A のチャプターの見出し、形 B の時刻を期待する位置の見出し、末尾の操作ラベルを読み飛ばす。形 A では、定めた行以外のセグメントでない行を拒否し、未知の表記を推測で受理しない。表記の揺れを補正せず、受理しない入力は `ErrCopiedTranscriptFormat` で拒否する。ゆるく受理すると本文の分割が黙ってずれ、誤った分割は気づかれないまま記事の生成に流れるためである。規則は 0015 設計書 §3.2.4「形 A と形 B」と、0024 要件定義書 F-008 にある。
 -   **CLI は `yt-dlp` の経路を代わりの手段として残す。** パネルの書式が変わって拒否が続く間は、`YtDlpSource` を使う CLI の経路で字幕を取得できる。規則は [project_overview.md](../project_overview.md) の「決定済みの方針」の字幕取得と「パイプライン」にある。
 
-拡張の WASM の入口が字幕を解析することは、まだコードに反映していない。今は localhost サーバが生成の開始の本文を解析する。この差分は [#773](https://github.com/isseis/yt2column/issues/773) の実装で解消する。
+拡張の記事生成モジュールが字幕を解析することは、まだコードに反映していない。今は localhost サーバが生成の開始の本文を解析する。この差分は [#773](https://github.com/isseis/yt2column/issues/773) の実装で解消する。
 
 ## 採らなかった案
 
@@ -48,4 +48,4 @@ CLI は字幕の取得を `yt-dlp` に委譲しているが、`yt-dlp` は YouTu
 - 2026-10-17 拡張が動画ページの DOM から動画タイトル・チャンネル名・概要欄を読むが、ページを操作せず、取得できた値だけを送るようにした（[0025 要件定義書](../../tasks/0025_extension_video_metadata/01_requirements.md)）
 - 2026-10-18 パーサが、前置き・チャプターの見出し・末尾の領域を明示的に定義して読み飛ばし、形 A の未知の行は拒否するようにした（[0024 要件定義書](../../tasks/0024_copied_transcript_panel_lines/01_requirements.md) F-001・F-007・F-008）
 - 2026-10-20 文字起こしパネルの DOM から字幕を読む案を、観測のゲートの結果を受けて取り下げ、字幕の取得は利用者の手動の選択に任せ続けた（[0029 の観測のゲートのレビュー](../../tasks/0029_transcript_panel_read/observation_gate_review.md)）
-- 2026-11-12 コピーした字幕を解析する場所を、localhost サーバから拡張の WASM の入口に移した（[0090 設計書](../../tasks/0090_extension_only_architecture/02_architecture.md)）
+- 2026-11-12 コピーした字幕を解析する場所を、localhost サーバから拡張の記事生成モジュールに移した（[0090 設計書](../../tasks/0090_extension_only_architecture/02_architecture.md)）

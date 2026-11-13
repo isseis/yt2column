@@ -8,7 +8,7 @@
 
 ## 背景
 
-LLM の API の応答、字幕の json3 と info.json、中間生成物、拡張のページから WASM の入口へ渡す JSON など、外部から受け取る JSON を読む箇所が複数ある。標準ライブラリの `encoding/json` は、不正な UTF-8、対になっていないサロゲートのエスケープ、後続のデータ、重複したメンバー、`null` を黙って補正することがある。補正された値をそのまま使うと、検証した値と実際に受理される値がずれる。
+LLM の API の応答、字幕の json3 と info.json、中間生成物、拡張のページから記事生成モジュールへ渡す JSON など、外部から受け取る JSON を読む箇所が複数ある。標準ライブラリの `encoding/json` は、不正な UTF-8、対になっていないサロゲートのエスケープ、後続のデータ、重複したメンバー、`null` を黙って補正することがある。補正された値をそのまま使うと、検証した値と実際に受理される値がずれる。
 
 負でない整数の検査を各利用者が書くと、`-0` や小数の扱いが箇所ごとにずれる。
 
@@ -21,9 +21,9 @@ LLM の API の応答、字幕の json3 と info.json、中間生成物、拡張
 -   **負でない整数が要る箇所では `Value.AsInt64` を使わない。** `AsInt64` は符号と `-0` を受理するためである。規則は [0023 設計書](../../tasks/0023_non_negative_int_unification/02_architecture.md) の「1. 設計の全体像 (Design Overview)」にある。
 -   **この部品を使うパッケージの一覧は [package_reference.md](../conventions/package_reference.md) が持つ。** 同じ一覧をほかの文書にも書くと、利用者が増えるたびに何か所も直すことになるためである（[0068 要件定義書](../../tasks/0068_strictjson_package_reference/01_requirements.md) の「1. 概要 (Overview)」）。一覧は [package_reference.md](../conventions/package_reference.md) の `internal/strictjson` の行にある。
 
--   **拡張のページから WASM の入口へ渡す JSON も、この部品で読む。** 受け取るメンバの集合を閉じ、知らないメンバと重複したメンバを拒否する。入口の境界で、検証した値と受理する値をずらさないためである。規則は [0090 設計書](../../tasks/0090_extension_only_architecture/02_architecture.md) の「信頼できない入力の境界（要件書 AC-18）」にある。
+-   **拡張のページから記事生成モジュールへ渡す JSON も、この部品で読む。** 受け取るメンバの集合を閉じ、知らないメンバと重複したメンバを拒否する。入口の境界で、検証した値と受理する値をずらさないためである。規則は [0090 設計書](../../tasks/0090_extension_only_architecture/02_architecture.md) の「信頼できない入力の境界（要件書 AC-18）」にある。
 
-WASM の入口がこの部品で JSON を読むことは、まだコードに反映していない。今は localhost サーバが生成の開始の本文をこの部品で読む。この差分は [#773](https://github.com/isseis/yt2column/issues/773) の実装で解消する。
+記事生成モジュールがこの部品で JSON を読むことは、まだコードに反映していない。今は localhost サーバが生成の開始の本文をこの部品で読む。この差分は [#773](https://github.com/isseis/yt2column/issues/773) の実装で解消する。
 
 部品の置き場所と、LLM のアダプタとの関係は [ADR-0001](0001-llm-adapter-stdlib.md) が定める。
 
@@ -49,4 +49,4 @@ WASM の入口がこの部品で JSON を読むことは、まだコードに反
 - 2026-10-16 字幕の `tStartMs` の読み取りを `Value.AsNonNegativeInt64` に一本化し、自前の負の値の検査を削除した（[0023 設計書](../../tasks/0023_non_negative_int_unification/02_architecture.md)）
 - 2026-10-27 ホストがサーバへ本文をそのまま中継できるように `Value.Raw` を加え、`Object.Has` を振る舞いの選択に使える契約に改めた（[0044 設計書](../../tasks/0044_article_job_api/02_architecture.md)）
 - 2026-11-09 `package_reference.md` の利用者の一覧をコードに合わせ、一覧とコードのずれを `make test` で見つけるテストを加えた（[0068 設計書](../../tasks/0068_strictjson_package_reference/02_architecture.md)）
-- 2026-11-12 拡張だけの構成で、拡張のページから WASM の入口へ渡す JSON もこの部品で読むことにした（[0090 設計書](../../tasks/0090_extension_only_architecture/02_architecture.md)）
+- 2026-11-12 拡張だけの構成で、拡張のページから記事生成モジュールへ渡す JSON もこの部品で読むことにした（[0090 設計書](../../tasks/0090_extension_only_architecture/02_architecture.md)）

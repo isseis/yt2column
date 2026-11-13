@@ -22,7 +22,7 @@
 -   **ジョブ ID:** ジョブを指す不透明な値。今の記事のキーに当たる（§3.2.2）。
 -   **実行するビューア:** 記事の生成を実行しているビューアのタブ。実行するビューアは、専用の Web Worker（以下、Worker）を 1 つ起動し、その中で WASM を動かす（§3.4）。
 -   **表示するビューア:** 記事の生成を実行せず、ジョブの記録を表示するだけのビューアのタブ。実行するビューアは、実行を終えると表示するビューアになる。
--   **WASM の入口:** Go の `cmd/yt2column-wasm` を WASM にしたもの。拡張のページは、JavaScript の関数として呼ぶ（§3.1）。
+-   **記事生成モジュール:** `cmd/yt2column-wasm`（Go の `main` パッケージ）を WebAssembly にビルドした `.wasm` ファイル。拡張の Worker が読み込み、記事を作る関数（§3.1.2）を JavaScript に公開する。Go で書かれ WASM にコンパイルされたことを強調するときは、「WASM にコンパイルされた記事生成モジュール」と修飾する。
 
 ### 1.1. 設計原則
 
@@ -36,7 +36,7 @@
 
 ### 1.2. 設計の際に決めたこと（2026-11-12）
 
--   **記事の生成は、ビューアのタブの中の専用の Web Worker で実行し、完成か失敗で Worker を止める（§3.4）。** SW は、ポップアップのボタンが押されると、今と同じくビューアを背面のタブで開く。そのビューアが Worker を 1 つ起動し、Worker が WASM の入口を読み込んで記事を生成する。完成か失敗の後、ビューアは `Worker.terminate()` を呼び、表示するビューアになる。WASM のメモリは大きくなるだけで縮まないので、WASM を読み込んだまま開き続けたページは、そのメモリを使い続けるためである（[申し送り](design_handoff.md) H-12）。PoC は、記事の生成を実行したタブ全体のメモリを、試行の前後で 61.6〜85.8 MB と測った。そのうち WASM が占める量は測っていない（[調査記録](../../research/wasm_pipeline_poc/README.md)「測定 6：本番の構成（Chrome、`83ef12bd`、背面のまま）」）。採らなかった案は、ビューアのメインスレッドで動かして完成の後に読み込み直す案と、Offscreen Document で動かす案である。前者は、読み込み直すときに画面が切り替わり、状態の知らせが途切れうる。後者は、拡張に 1 つしか置けず、ビューアを閉じても止まらないので、生成の寿命をページの寿命とする決定（ADR-0048）から外れる。背面で開いたまま一度も前面にならないタブで Worker が完走することは、マージの前に確かめる（下の項目）。ADR: [ADR-0009](../../dev/adr/0009-viewer-opening.md) と ADR-0048 を更新した。
+-   **記事の生成は、ビューアのタブの中の専用の Web Worker で実行し、完成か失敗で Worker を止める（§3.4）。** SW は、ポップアップのボタンが押されると、今と同じくビューアを背面のタブで開く。そのビューアが Worker を 1 つ起動し、Worker が記事生成モジュールを読み込んで記事を生成する。完成か失敗の後、ビューアは `Worker.terminate()` を呼び、表示するビューアになる。WASM のメモリは大きくなるだけで縮まないので、WASM を読み込んだまま開き続けたページは、そのメモリを使い続けるためである（[申し送り](design_handoff.md) H-12）。PoC は、記事の生成を実行したタブ全体のメモリを、試行の前後で 61.6〜85.8 MB と測った。そのうち WASM が占める量は測っていない（[調査記録](../../research/wasm_pipeline_poc/README.md)「測定 6：本番の構成（Chrome、`83ef12bd`、背面のまま）」）。採らなかった案は、ビューアのメインスレッドで動かして完成の後に読み込み直す案と、Offscreen Document で動かす案である。前者は、読み込み直すときに画面が切り替わり、状態の知らせが途切れうる。後者は、拡張に 1 つしか置けず、ビューアを閉じても止まらないので、生成の寿命をページの寿命とする決定（ADR-0048）から外れる。背面で開いたまま一度も前面にならないタブで Worker が完走することは、マージの前に確かめる（下の項目）。ADR: [ADR-0009](../../dev/adr/0009-viewer-opening.md) と ADR-0048 を更新した。
 -   **記事を作る処理は、Go のコアを WASM にして CLI と共有する（§3.1）。** 規則を Go の 1 か所に保ち、要件書 §4.5 の「同じ規則を、Go と TypeScript の両方に書かない」を満たすためである。TypeScript に一本化する案は採らなかった。字幕の解析、メンションの無効化、3 つの工程、料金の概算を TypeScript で書き直すことになり、CLI が Go の同じ規則を持ち続けるので、規則が 2 つになる。WASM のサイズ（17,300,194 バイト、`gzip -9` で 4,138,823 バイト）と読み込みの時間（Chrome で 62.4〜171.2 ms、Brave で 49.9〜206.5 ms）は受け入れる（調査記録「測定 2：読み込みと CSP、サイズと読み込みの時間」）。読み込みは生成 1 回に 1 度で、生成の所要時間（本番の構成で 95〜151 秒。調査記録「測定 6」）に比べて小さいためである。ADR: [ADR-0049](../../dev/adr/0049-wasm-core-sharing.md) を新設し、[ADR-0019](../../dev/adr/0019-pipeline-component-interfaces.md) と [ADR-0026](../../dev/adr/0026-extension-platform.md) を更新した。
 -   **ジョブの記録は `chrome.storage.session` に置き、書き込むのは SW だけにする（§3.2・§3.3）。** 実行するビューアは、工程の進み具合と結果を SW へ知らせる。SW は、同じ入力・同じ動画の判定と記録の追加を、1 つの直列の処理の中で行う。ポップアップとビューアは、記録を読み、`chrome.storage.onChanged` で表示を更新する。状態の取得のポーリングはやめる。探すことと始めることが分かれると、同時に押された 2 つの開始がどちらも記事を見つけず、同じ動画の記事を二重に生成しうるためである（申し送り H-06）。採らなかった案は、処理中の状態を実行するページが持ち、ほかのページが `BroadcastChannel` で尋ねる案である。ページの間の問い合わせが増え、判定の排他を保つのが難しい。ADR: [ADR-0027](../../dev/adr/0027-article-job-api.md)・[ADR-0010](../../dev/adr/0010-extension-stores-nothing.md)・ADR-0008 を更新した。
 -   **API キーとワークスペース ID は、オプションページで設定する（§3.6）。** 記事を描画するビューアとも、生成の操作をするポップアップとも、画面を分けるためである。採らなかった案は、ポップアップの中に設定の欄を置く案である。画面が狭く、生成の操作と混ざる。ADR: ADR-0010 と ADR-0008 を更新した。
@@ -103,7 +103,7 @@ flowchart LR
     SW["Service Worker"]
     VIEW["ビューア"]
     WORKER["Worker"]
-    WASM["WASM の入口<br>（cmd/yt2column-wasm）"]
+    WASM["記事生成モジュール<br>（cmd/yt2column-wasm）"]
     OPT["オプションページ"]
     LOCAL[("chrome.storage.local<br>（API キー・ワークスペース ID・<br>設定済みの印）")]
     SESSION[("chrome.storage.session<br>（ジョブの記録）")]
@@ -142,7 +142,7 @@ flowchart LR
     class L4 newpkg
 ```
 
--   オプションページも、設定の検査のために Worker を 1 つ起動して WASM の入口を呼ぶ。図では、オプションページから WASM の入口への矢印にまとめた（§3.6）。
+-   オプションページも、設定の検査のために Worker を 1 つ起動して記事生成モジュールを呼ぶ。図では、オプションページから記事生成モジュールへの矢印にまとめた（§3.6）。
 -   今の構成の Native Messaging のホスト（`cmd/yt2column-nmhost`）と localhost サーバ（`cmd/yt2column-server`）は、この図にない。#773 が撤去する（§3.14）。
 
 ### 2.2. コンポーネント配置
@@ -152,8 +152,8 @@ flowchart LR
 | ポップアップ | 起動したタブの選択範囲と動画メタデータを読み、生成の開始を SW に頼む。開始の結果と、ジョブの記録の状態を表示する。同じ動画の記事があれば、既存の記事を表示するか、現在の選択範囲で生成するかを選ばせる | 状態の取得のポーリングをやめ、ジョブの記録を読む。API キーが設定されていないときに、オプションページを開く操作を示す |
 | SW | 生成の開始を、拡張自身のポップアップからだけ受け付ける。ビューアを背面のタブで開き、入力をビューアに渡す。予約（同じ入力・同じ動画の判定と記録の追加）、進み具合と結果の書き込み、止まった実行の判定を、1 つの直列の処理で行う。ジョブの記録の唯一の書き手である。API キーの値は読まない | ホストへの送信をやめ、ジョブの記録の書き手と調停役になる |
 | ビューア | 実行するビューアは、Worker を起動して記事を生成し、実行の間 SW への Port を保ち、進み具合と結果を SW に知らせる。表示するビューアは、ジョブの記録を表示し、保存とコピーを行う | 状態の取得のポーリングをやめる。実行するビューアの役割が加わる |
-| Worker | 実行するビューアとオプションページが起動する専用の Web Worker。WASM の入口を読み込んで呼ぶ。拡張の API（`chrome.*`）は使わない | 新しい |
-| WASM の入口 | 入力の検査、ジョブを見分ける値の計算、記事の生成、完了の時点の検査、表示とコピーと保存の値の組み立て、設定の検査を行う。処理は `internal/extjob` にあり、入口は JavaScript への登録だけを持つ | 新しい。今の `internal/server` の生成の組み立てを引き継ぐ |
+| Worker | 実行するビューアとオプションページが起動する専用の Web Worker。記事生成モジュールを読み込んで呼ぶ。拡張の API（`chrome.*`）は使わない | 新しい |
+| 記事生成モジュール | 入力の検査、ジョブを見分ける値の計算、記事の生成、完了の時点の検査、表示とコピーと保存の値の組み立て、設定の検査を行う。処理は `internal/extjob` にあり、`cmd/yt2column-wasm` は JavaScript への関数の登録だけを持つ | 新しい。今の `internal/server` の生成の組み立てを引き継ぐ |
 | オプションページ | API キーとワークスペース ID を設定・変更・削除する | 新しい |
 | `chrome.storage.local` | API キーとワークスペース ID と、秘密でない設定済みの印を、ブラウザの再起動の後も残る形で持つ | 新しい |
 | `chrome.storage.session` | ジョブの記録を、ブラウザを終了するまでメモリに持つ | 新しい。今はサーバのメモリの記事のキャッシュ |
@@ -213,9 +213,9 @@ flowchart LR
 
 -   **`internal/extjob`（新しい）:** 拡張のジョブ 1 回分の処理を持つ。入力の検査（今の `internal/server` の `validateBody` の規則）、ジョブを見分ける値の計算（今の `internal/articlecache` の記事のキーの計算から、秘密の鍵を除いたもの）、記事の生成と工程の進み具合の通知、完了の時点の検査（今の `completeGeneration`）、結果の組み立て（今の `articleStatus`）、失敗の分類（今の `classifyWrite` に、API キーが拒まれたことを加えたもの）である。CLI は使わない。
 -   **`cmd/yt2column-wasm`（新しい）:** `GOOS=js GOARCH=wasm` だけでビルドする `main` のパッケージ。`syscall/js` で JavaScript の関数を登録し、受け取った JSON の文字列を `internal/extjob` に渡すことだけを持つ（§3.1）。JSON の解析と組み立ては `internal/extjob` にあり、ネイティブのビルドでテストできる。
--   **LLM のクライアントの組み立て:** WASM の入口は、読み込んだ設定から `claude.New` で Claude のクライアントを直接作る。`internal/llm/provider` は使わない（図では、WASM の入口からの矢印がない）。`provider` は DeepSeek と OpenAI のアダプタを import し、WASM でビルドできないためである（PoC の `cmd/yt2column-wasm/generate.go` の `llmTimeout` の注記。`origin/poc/0084-wasm-pipeline` の `83ef12bd`）。呼び出しごとの期限は、`provider.LLMTimeout` と同じ 15 分を `internal/extjob` に置く。
+-   **LLM のクライアントの組み立て:** 記事生成モジュールは、読み込んだ設定から `claude.New` で Claude のクライアントを直接作る。`internal/llm/provider` は使わない（図では、記事生成モジュールからの矢印がない）。`provider` は DeepSeek と OpenAI のアダプタを import し、WASM でビルドできないためである（PoC の `cmd/yt2column-wasm/generate.go` の `llmTimeout` の注記。`origin/poc/0084-wasm-pipeline` の `83ef12bd`）。呼び出しごとの期限は、`provider.LLMTimeout` と同じ 15 分を `internal/extjob` に置く。
 -   **`internal/llm/claude`・`internal/llm/llmhttp`（変える）:** `js` のビルドだけで付けるヘッダとリダイレクトの指定を加える（§5.3）。
--   **`internal/config`（変える）:** 拡張の入口のために、LLM の設定だけを読む関数を加える。今の `LoadServer` が設定ファイルから LLM の設定を読む部分を引き継ぐ。渡す名前を引く関数は、拡張が保存した 2 つの値だけを返す（§3.1.3）。サーバとホストの設定の読み込み（`LoadServer`・`LoadHost`・`LoadHostHome`、設定ファイルとソケットのパスの導出）は撤去する。
+-   **`internal/config`（変える）:** 記事生成モジュールのために、LLM の設定だけを読む関数を加える。今の `LoadServer` が設定ファイルから LLM の設定を読む部分を引き継ぐ。渡す名前を引く関数は、拡張が保存した 2 つの値だけを返す（§3.1.3）。サーバとホストの設定の読み込み（`LoadServer`・`LoadHost`・`LoadHostHome`、設定ファイルとソケットのパスの導出）は撤去する。
 -   **撤去するパッケージ:** サーバとホストだけが使うもの。`cmd/yt2column-server`・`cmd/yt2column-nmhost`・`internal/server`・`internal/articlecache`・`internal/serversock`・`internal/nmhost`・`internal/privatefile` と、それらだけが使うテストの補助（`internal/udstest` の一部など）である。どのパッケージがサーバとホストだけから使われるかは、#773 が `go list -deps` で確かめてから撤去する。`internal/cachelock`・`internal/signalrun`・`internal/redact` は CLI も使うので残す（`cmd/yt2column` が import する。2026-11-12 の `main`（`ca0570c6`）で確かめた）。
 
 ### 2.4. データの流れ
@@ -227,7 +227,7 @@ sequenceDiagram
     participant P as ポップアップ
     participant S as SW
     participant V as ビューア（実行する）
-    participant W as Worker（WASM の入口）
+    participant W as Worker（記事生成モジュール）
     participant SS as storage.session
     participant A as Anthropic の API
 
@@ -257,11 +257,11 @@ sequenceDiagram
 
 ## 3. コンポーネント設計 (Component Design)
 
-### 3.1. WASM の入口と、CLI と共有する処理
+### 3.1. 記事生成モジュールと、CLI と共有する処理
 
 #### 3.1.1. 共有する処理の範囲
 
-WASM の入口は、記事を作る処理のうち、次のすべてを Go のコードで行う。拡張の TypeScript は、これらの規則を持たない。
+記事生成モジュールは、記事を作る処理のうち、次のすべてを Go のコードで行う。拡張の TypeScript は、これらの規則を持たない。
 
 | 処理 | 置き場所 | CLI との共有 |
 |---|---|---|
@@ -275,14 +275,14 @@ WASM の入口は、記事を作る処理のうち、次のすべてを Go の�
 | API キーとワークスペース ID の検査 | `internal/config`・`internal/llm/llmhttp`（`CheckAPIKey`）・`internal/llm/claudeparam`（`ParseWorkspaceID`） | 共有する |
 
 -   要件書 AC-15 の「メンションの無効化、保存するファイルの中身、完了の時点の検査を、共有する処理に含めるかどうか」は、3 つとも含める。今のサーバと同じ値を、同じコードで作るためである（[ADR-0043](../../dev/adr/0043-copy-mention-neutralization.md) の「規則を Go の 1 か所に置き、拡張に同じ規則を二重に書かない」）。
--   プロンプトのテンプレートは、埋め込みのものだけを使う。WASM の入口は、上書きのファイルを読まない（今のサーバと同じ。[ADR-0034](../../dev/adr/0034-template-allowlist.md)）。
+-   プロンプトのテンプレートは、埋め込みのものだけを使う。記事生成モジュールは、上書きのファイルを読まない（今のサーバと同じ。[ADR-0034](../../dev/adr/0034-template-allowlist.md)）。
 
-#### 3.1.2. 入口が JavaScript に登録する関数
+#### 3.1.2. 記事生成モジュールが JavaScript に公開する関数
 
-WASM の入口は、`globalThis` に 1 つの名前空間のオブジェクトを登録し、次の 4 つの関数を持たせる。どの関数も、引数を 1 つの JSON の文字列で受け取り、結果を 1 つの JSON の文字列で返す（`generate` は Promise で返す）。入力の JSON は厳格に検査し（`internal/strictjson`。§5.2）、合わなければ固定の理由で拒否する。結果の JSON の形は、ビューアとオプションページの TypeScript が受理する形で検査する（§5.2）。JSON の解析と組み立ては `internal/extjob` が行い、`cmd/yt2column-wasm` は登録だけを持つ。
+記事生成モジュールは、`globalThis` に 1 つの名前空間のオブジェクトを登録し、次の 4 つの関数を持たせる。どの関数も、引数を 1 つの JSON の文字列で受け取り、結果を 1 つの JSON の文字列で返す（`generate` は Promise で返す）。入力の JSON は厳格に検査し（`internal/strictjson`。§5.2）、合わなければ固定の理由で拒否する。結果の JSON の形は、ビューアとオプションページの TypeScript が受理する形で検査する（§5.2）。JSON の解析と組み立ては `internal/extjob` が行い、`cmd/yt2column-wasm` は登録だけを持つ。
 
 ```typescript
-// The functions the WASM entry registers. Each takes and returns one JSON
+// The functions the article generation module registers. Each takes and returns one JSON
 // string; the shapes below are the JSON values, not JS objects.
 interface Yt2ColumnWasm {
   // Checks the settings the options page is about to save.
@@ -293,7 +293,7 @@ interface Yt2ColumnWasm {
   // Runs one generation of the input prepare kept. onProgress receives a
   // ProgressEvent JSON string at each step change.
   generate(request: string /* GenerateRequest */, onProgress: (event: string) => void): Promise<string /* GenerateResult */>;
-  // The build of the WASM entry, for the options page's debug line.
+  // The build of the article generation module, for the options page's debug line.
   buildInfo(): string /* BuildInfo */;
 }
 
@@ -382,35 +382,35 @@ const (
 var ErrInvalidInput = errors.New("extjob: the start input is not accepted")
 ```
 
-`internal/config` には、拡張の入口用の関数を加える。
+`internal/config` には、記事生成モジュール用の関数を加える。
 
 ```go
-// LoadExtension reads the LLM configuration of the extension's WASM entry
+// LoadExtension reads the LLM configuration of the article generation module
 // through lookup, with the same loaders and checks as Load. lookup answers
 // only ANTHROPIC_API_KEY and ANTHROPIC_WORKSPACE_ID.
 func LoadExtension(lookup LookupFunc) (LLMConfig, error)
 ```
 
 -   `inputDigest` は、検査を通った後の 5 つの値（正規化した動画の URL、字幕、省略を空文字列としたタイトル・チャンネル名・概要欄）から計算する SHA-256 の 64 文字の小文字の 16 進である。今の記事のキーの計算（[0044 設計書](../0044_article_job_api/02_architecture.md) §3.2「記事のキー」）から、秘密の鍵だけを除いた。値は、同じ入力の判定にだけ使い、ジョブの記録の中から外へ出さない（§3.2.2）。
--   **予約と生成を同じ入力に結びつける。** `prepare` は、検査を通った入力を Worker の Go のメモリに持つ。`generate` は入力を受け取らず、予約に使った `inputDigest` だけを受け取る。WASM の入口は、持っている入力の `inputDigest` と比べ、違えば `internal` の失敗（`internalDetail` は `input_mismatch`）にする。ジョブの記録が、予約した入力と別の入力の記事を持たないためである。
--   `durationMs` は、WASM の入口が `generate` の始まりから測る。今のサーバは開始を受け付けた時点から数えるので、入力の受け渡しと `prepare` の分（ふつうは 1 秒に満たない）だけ短くなる。
+-   **予約と生成を同じ入力に結びつける。** `prepare` は、検査を通った入力を Worker の Go のメモリに持つ。`generate` は入力を受け取らず、予約に使った `inputDigest` だけを受け取る。記事生成モジュールは、持っている入力の `inputDigest` と比べ、違えば `internal` の失敗（`internalDetail` は `input_mismatch`）にする。ジョブの記録が、予約した入力と別の入力の記事を持たないためである。
+-   `durationMs` は、記事生成モジュールが `generate` の始まりから測る。今のサーバは開始を受け付けた時点から数えるので、入力の受け渡しと `prepare` の分（ふつうは 1 秒に満たない）だけ短くなる。
 -   `Steps`・`PrepareRejection`・`WasmFailure`・`InternalDetail` の値の集合は §4.1 にある。
 -   API キーとワークスペース ID は、`checkSettings` と `generate` の引数の JSON の中にだけ入る。Go の側では、受け取った直後に `secret.Secret` と `claudeparam.WorkspaceID` にし、JSON の文字列は保持しない（[ADR-0031](../../dev/adr/0031-secret-closure.md)）。結果と進み具合の JSON には入らない。
 
 #### 3.1.3. 設定の読み込み
 
-WASM の入口は、LLM の設定を `config.LoadExtension` で作る。名前を引く関数として、`ANTHROPIC_API_KEY` と `ANTHROPIC_WORKSPACE_ID` の 2 つの名前だけに値を返すものを渡す。ワークスペース ID が保存されていないとき（空のとき）は、その名前を未設定として答える。ほかの名前（`YT2COLUMN_LLM`・`YT2COLUMN_REVIEW_LLM` など）には答えないので、それらは未設定になる。
+記事生成モジュールは、LLM の設定を `config.LoadExtension` で作る。名前を引く関数として、`ANTHROPIC_API_KEY` と `ANTHROPIC_WORKSPACE_ID` の 2 つの名前だけに値を返すものを渡す。ワークスペース ID が保存されていないとき（空のとき）は、その名前を未設定として答える。ほかの名前（`YT2COLUMN_LLM`・`YT2COLUMN_REVIEW_LLM` など）には答えないので、それらは未設定になる。
 
 -   3 つの工程のプロバイダとモデルと effort は、コード上の既定、すなわち本番の構成になる（[ADR-0004](../../dev/adr/0004-production-profile.md)）。拡張にモデルや effort を選ぶ設定がなく、本番の構成に固定される（要件書 AC-03）。
 -   値の検査は、CLI と同じ関数で行う（[ADR-0003](../../dev/adr/0003-llm-config-contract.md)）。設定の読み込みは、API キーが空でないことと、ワークスペース ID が `claudeparam.ParseWorkspaceID` の規則に合うことを確かめる（`internal/config/config.go:671` と `:724`）。API キーが印字可能な ASCII（0x21〜0x7E）だけであることは、アダプタを作るときに `llmhttp.CheckAPIKey`（`internal/llm/llmhttp/llmhttp.go:46`）が確かめる。`checkSettings` は、この 2 つと同じ関数を呼ぶ。
 -   CLI の「空の値は拒否する」規則は変えない。拡張は空のワークスペース ID を渡さず、未設定として答えるので、この規則に当たらない。
--   WASM の入口は、プロセスの環境を読まない。`js` のビルドには、読むべき環境がない。[ADR-0024](../../dev/adr/0024-env-access-in-config.md) の「決めた入口」に、WASM の入口を、環境を読まずに名前を引く関数を渡す入口として加える。
+-   記事生成モジュールは、プロセスの環境を読まない。`js` のビルドには、読むべき環境がない。[ADR-0024](../../dev/adr/0024-env-access-in-config.md) の「決めた入口」に、記事生成モジュールを、環境を読まずに名前を引く関数を渡す入口として加える。
 
 #### 3.1.4. ビルドと成果物
 
 -   `make ext-build` は、`GOOS=js GOARCH=wasm go build -trimpath` で `cmd/yt2column-wasm` をビルドして `extension/dist/` に置き、Go のツールチェーンの `wasm_exec.js` を同じ場所に写す。拡張のビルドが Go を呼ぶ。Go の手順（`make test`・`make lint` など）は、今までどおり拡張のディレクトリを含まず、Node.js を呼ばない（ADR-0026）。
--   成果物の検査（`extension/scripts/check-dist.ts`）は、成果物を「`tsc` の出力、`static/` の写し、WASM の入口、Go のツールチェーンの `wasm_exec.js`」に限る。`wasm_exec.js` は本リポジトリで書いたコードでないので、ADR-0026 の「成果物は本リポジトリで書いたコードだけ」の例外として宣言する。中身は、`go.mod` が定める Go の版のツールチェーンのものと一致することを検査する。理由は §5.5 にある。
--   `make wasm-check` は残す。対象を、今の 4 つのパッケージから、WASM の入口（`cmd/yt2column-wasm`）とその依存に改め、ADR-0019 の「#772 が決めるまで」という期限を除く。WASM の入口がビルドできなくなる変更を、拡張のビルドを待たずに Go の CI で止めるためである。fake の LLM の部品も、開発用の WASM の入口とともにこの検査の対象に入れる（ADR-0045、§3.9）。
+-   成果物の検査（`extension/scripts/check-dist.ts`）は、成果物を「`tsc` の出力、`static/` の写し、記事生成モジュール、Go のツールチェーンの `wasm_exec.js`」に限る。`wasm_exec.js` は本リポジトリで書いたコードでないので、ADR-0026 の「成果物は本リポジトリで書いたコードだけ」の例外として宣言する。中身は、`go.mod` が定める Go の版のツールチェーンのものと一致することを検査する。理由は §5.5 にある。
+-   `make wasm-check` は残す。対象を、今の 4 つのパッケージから、記事生成モジュール（`cmd/yt2column-wasm`）とその依存に改め、ADR-0019 の「#772 が決めるまで」という期限を除く。記事生成モジュールがビルドできなくなる変更を、拡張のビルドを待たずに Go の CI で止めるためである。fake の LLM の部品も、開発用の記事生成モジュールとともにこの検査の対象に入れる（ADR-0045、§3.9）。
 -   成果物は、リモートのコードを読み込まない。WASM と `wasm_exec.js` は拡張のパッケージに入り、実行時にネットワークから取得するコードはない（§3.12）。
 
 ### 3.2. ジョブの記録と `chrome.storage.session`
@@ -451,7 +451,7 @@ type StopReason = "tab_closed" | "page_closed" | "page_reloaded" | "no_contact";
 #### 3.2.2. ジョブ ID と、ジョブを見分ける値
 
 -   **ジョブ ID は、SW が予約のときに作る 128 ビットの乱数（`crypto.getRandomValues`）の 32 文字の小文字の 16 進とする。** 不透明な値で、ビューアの URL とページの間のメッセージに入る。ほかの値から計算できず、入力の中身も表さない。
--   **同じ入力の判定は、`inputDigest` の比較で行う。** `inputDigest` は WASM の入口が計算し、ジョブの記録の中にだけ置く。URL にもメッセージの応答にも出さない。
+-   **同じ入力の判定は、`inputDigest` の比較で行う。** `inputDigest` は記事生成モジュールが計算し、ジョブの記録の中にだけ置く。URL にもメッセージの応答にも出さない。
 -   採らなかった案は、今のキーと同じく入力から計算した値をジョブ ID にする案である。今のキーが秘密の鍵を使うのは、公開しない計算方法に利用者と拡張を依存させないためだった（ADR-0027）。拡張だけの構成では秘密を持つプロセスがなく、入力から計算した値を URL に置くと、計算方法に依存されうる（CLAUDE.md「Keep internals unobservable」）。乱数の ID なら、計算方法がない。
 -   今のキーの計算にあった「秘密を使って、生成を始めずにキーを計算されることを防ぐ」という目的は、すでに当てにしていない（[security.md](../../dev/security.md) §8 の照会の再評価）。拡張だけの構成でも、ジョブの記録を読めるのは同じ拡張のページだけである（§5.1）。
 
@@ -465,7 +465,7 @@ type StopReason = "tab_closed" | "page_closed" | "page_reloaded" | "no_contact";
 | 同時に走る実行 | 2 | 今のサーバの生成の枠（`internal/server/jobs_api.go:15`）と同じ。WASM を読み込んだタブは 1 枚で 61.6〜85.8 MB を使い（タブ全体の値。調査記録「測定 6」）、料金を一度に多くかけないためである |
 
 -   大きさは、記録を JSON にした文字列の UTF-8 のバイト数で数える。
--   記事の大きさは、記録の `article` を JSON にしたものと見出しの値の UTF-8 のバイト数である。WASM の入口が完了の時点の検査で数える。今のサーバが状態の応答の大きさを数える処理（`internal/server/status.go:163`）に代わる。§5.2 の 512 KiB は、ページの間の受け渡しと読み戻しの上限で、この上限より大きい。
+-   記事の大きさは、記録の `article` を JSON にしたものと見出しの値の UTF-8 のバイト数である。記事生成モジュールが完了の時点の検査で数える。今のサーバが状態の応答の大きさを数える処理（`internal/server/status.go:163`）に代わる。§5.2 の 512 KiB は、ページの間の受け渡しと読み戻しの上限で、この上限より大きい。
 -   上限を超える記録を加えるときは、失敗と止まった記録のうち `endedAt` の最も古いものから捨て、それがなければ完成した記録のうち最も古いものを捨てる。料金のかかった記事を、失敗の記録より先に失わないためである。処理中の記録は捨てない（今のサーバと同じ。ADR-0027）。
 -   捨てられる記録がなく上限を超えるときと、処理中の実行が 2 つあるときは、予約を `too_many_requests` で拒否する。
 -   捨てた記録のジョブ ID を持つビューアは、記事が失われたことを示す（§3.8）。
@@ -569,7 +569,7 @@ type WorkerMessage =
 
 ### 3.4. ビューアと Worker
 
--   **実行するビューア。** SW が開いたビューアは、開始の ID で入力を受け取り、Worker を 1 つ起動して WASM の入口の `prepare` を呼ぶ。Worker の読み込みと `prepare` には 30 秒の期限を持ち、期限を過ぎたときと Worker の `error` イベントでは、検査の拒否（`internal`、`internalDetail` は `worker_load`）を SW に知らせる。検査を通れば、SW に予約をリクエストする。新しい実行なら、SW への Port（§3.3）をつなぎ、`chrome.storage.local` から API キーとワークスペース ID を読み、Worker に `generate` を呼ばせる。進み具合と結果を SW に知らせる。
+-   **実行するビューア。** SW が開いたビューアは、開始の ID で入力を受け取り、Worker を 1 つ起動して記事生成モジュールの `prepare` を呼ぶ。Worker の読み込みと `prepare` には 30 秒の期限を持ち、期限を過ぎたときと Worker の `error` イベントでは、検査の拒否（`internal`、`internalDetail` は `worker_load`）を SW に知らせる。検査を通れば、SW に予約をリクエストする。新しい実行なら、SW への Port（§3.3）をつなぎ、`chrome.storage.local` から API キーとワークスペース ID を読み、Worker に `generate` を呼ばせる。進み具合と結果を SW に知らせる。
 -   **結果の受け渡し。** 実行するビューアは、Worker から結果を受け取ると Worker を止め、結果をメモリに持ったまま SW に送る。SW が書き込みを終えたと応答するまで、同じ結果を送り直す（ジョブ ID と `instanceId` で同じものと分かるので、二重には書かれない）。自分の記録が結果を持ったと `storage.onChanged` で分かったときも、送り直しをやめる。送り直すのは記録への書き込みで、記事の生成を始め直すことではない（ADR-0028）。SW が書き込みに失敗したと応答したときは、メモリの記事を表示し続け、完成したが保持できなかった状態を示す（§3.8）。
 -   **自分の記録を見張る。** 実行するビューアは、`storage.onChanged` で自分の記録を見張り、記録が消えたときと、`runner` が自分と一致しなくなったとき（同じ入力が別のビューアで予約し直されたとき）に、Worker を止める。記録が止まった状態になっただけでは止めない。連絡の確認の誤りで止まった状態にされても、結果を届ければ記録が完成か失敗に戻る（§6.3）。
 -   **Port の再接続。** 実行するビューアは、実行の間、SW への Port を保ち、切れたらすぐにつなぎ直す。SW が止まると Port は切れ、つなぎ直しが新しい SW を起こす。
@@ -593,12 +593,12 @@ type WorkerMessage =
 -   **API キーを、LLM の出力を描画するページと同じオリジンに置くことへの対策。** 拡張のページはすべて同じオリジンなので、ビューアで任意のスクリプトが動けば、`chrome.storage.local` の API キーに届く。本当の守りは、ビューアでスクリプトを動かさないことである。ビューアは記事を自前の描画だけで表示し、HTML を解釈しない（[ADR-0017](../../dev/adr/0017-viewer-markdown-rendering.md)）。CSP は `eval` とインラインのスクリプトを許さない（§3.7.2）。CSP の `connect-src`・`img-src`・`frame-src`・`form-action` は、スクリプトが動いた場合に外へ送る経路の一部を狭めるが、ページの移動、`window.open`、`chrome.tabs.create` による送り出しは止めない（§5.1.4）。設定の画面をビューアと分けても、オリジンが同じなのでこの点は変わらない。分けるのは、画面の操作を混ぜないためである。採らなかった案は、API キーを読むページと記事を描画するページを別のオリジンにする案である。拡張の中でオリジンを分ける手段がない。
 -   **項目の名前。** `anthropic.apiKey` と `anthropic.workspaceId` とする。プロバイダの名前を前に付け、プロバイダを足したときに同じ場所に並べられるようにする（申し送り H-10、§3.10）。
 -   **読める文脈の限定。** 保存した値を読めるのは、拡張のページと SW に限る。SW は起動のたびに最上位の処理で、ポップアップは関数を注入する直前に、`chrome.storage.local.setAccessLevel` を呼び、注入したスクリプトから読めないようにする。関数を注入するのはポップアップで、ポップアップを開いたときに SW が動いているとは限らないので、注入する側でも呼ぶ。設定がブラウザの再起動や拡張の更新の後も残るかは文書に書かれていないので、起動のたびに呼ぶことを規則にする。この呼び出しが `local` に効くことは、Chrome と Brave で確かめた（§3.13 の (c)、調査記録「測定 9」）。再起動の後も効いていることは、#773 が確かめる。
--   **設定・変更・削除の操作。** オプションページは、API キーの欄、ワークスペース ID の欄、保存のボタン、削除のボタンを持つ。保存のボタンは、2 つの値を WASM の入口の `checkSettings` で検査し、通ったときだけ、API キー、ワークスペース ID（空でないときだけ）、設定済みの印を 1 回の書き込みで保存する。合わない値は、補正せずに拒否し、どの欄が合わないかを示す（要件書 §3.2）。削除のボタンは、3 つの項目を消す。ワークスペース ID の欄が空なら、ワークスペース ID を保存せず、保存済みのワークスペース ID があれば消す（任意の値で、空にしたことは指定の取り消しである）。
+-   **設定・変更・削除の操作。** オプションページは、API キーの欄、ワークスペース ID の欄、保存のボタン、削除のボタンを持つ。保存のボタンは、2 つの値を記事生成モジュールの `checkSettings` で検査し、通ったときだけ、API キー、ワークスペース ID（空でないときだけ）、設定済みの印を 1 回の書き込みで保存する。合わない値は、補正せずに拒否し、どの欄が合わないかを示す（要件書 §3.2）。削除のボタンは、3 つの項目を消す。ワークスペース ID の欄が空なら、ワークスペース ID を保存せず、保存済みのワークスペース ID があれば消す（任意の値で、空にしたことは指定の取り消しである）。
 -   **保存した API キーを画面に再び表示しない。** オプションページは、API キーが設定されているかどうかだけを示す。変えるときは、新しい値を入力し直す。画面に出すと、画面の共有や肩越しの覗き見で漏れうるうえ、拡張のページの DOM に値が残るためである。採らなかった案は、末尾の数文字を示す案である。どのキーかを見分ける助けになるが、値の一部を出すことになり、要件書 AC-06 の「出さない先」に画面を含める判断と合わない。
 -   **入力の欄。** 入力の欄を `<form>` に入れず、API キーの欄は `type="text"` に `-webkit-text-security: disc` で文字を伏せ、`autocomplete="off"` と `spellcheck="false"` を付ける。`type="password"` の欄と送信のある `<form>` は、ブラウザがパスワードの保存を勧め、保存した値がアカウントの同期でほかの端末へ渡りうるためである（要件書 AC-06 の「ブラウザの外への同期」）。PoC の確かめは、ログインしていないプロファイルで、保存の操作のないページについてのものだった（調査記録「測定の後の確かめ（API キーの扱い）」）。#773 は、ログインして同期を有効にしたプロファイルで、保存を勧められないことを手で確かめる。
 -   **古い版が保存した値。** 0020 の版が `chrome.storage.local` に保存した共有トークンとポート（`sharedToken`・`serverPort`）は、拡張を更新しても残りうる。`storage` の権限で読めるようになるが、読まず、消しもしない。通用する相手のない値で、消す仕組みは版の移行の仕組みになるためである（要件書 AC-13）。利用者は、拡張を一度削除して読み込み直せば消せる。
 -   **設定の検査の Worker。** オプションページは、`checkSettings` を呼ぶために Worker を起動し、検査が終わると止める。オプションページのメインスレッドに WASM を読み込まない。
--   **ビルドの情報。** オプションページは、WASM の入口の `buildInfo` が返すコミットと Go の版を、調べものの手がかりとして小さく示す。
+-   **ビルドの情報。** オプションページは、記事生成モジュールの `buildInfo` が返すコミットと Go の版を、調べものの手がかりとして小さく示す。
 
 ### 3.7. manifest：権限、CSP、ID
 
@@ -666,10 +666,10 @@ script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src 'self' http
 
 ### 3.9. 料金をかけずに拡張を動かす方法
 
--   **開発用のビルド。** `make ext-build-dev` は、fake の LLM（タスク 0086 の PR-1 が作る部品）を使う開発用の WASM の入口をビルドし、`extension/dist-dev/` に置く。公開する成果物（`extension/dist/`）は、fake を含まない。
+-   **開発用のビルド。** `make ext-build-dev` は、fake の LLM（タスク 0086 の PR-1 が作る部品）を使う開発用の記事生成モジュールをビルドし、`extension/dist-dev/` に置く。公開する成果物（`extension/dist/`）は、fake を含まない。
 -   **開発用のビルドを見分ける。** 開発用のビルドの manifest は `key` を持たず、拡張の名前に開発用の印を付ける。ID が公開用のビルドと別になるので、`chrome.storage.local` も別になり、開発用のビルドで保存したダミーの値が本物の API キーを上書きしない。ポップアップとビューアは、開発用のビルドであることを目に見える印で示す。
 -   **シナリオの選び方。** fake のシナリオは、`make ext-build-dev` の引数で選ぶ。変えるときは、ビルドし直して拡張を読み込み直す。設定の画面や保存した値でシナリオを選べるようにすると、公開する成果物にも開発用の分岐が入るためである。今の 0086 の開発用のサーバが、シナリオの変更に再起動を要するのと同じ水準である（ADR-0045）。
--   **公開する成果物に fake が入らないことの検査。** 公開用の WASM の入口（`cmd/yt2column-wasm`）が fake のパッケージに依存しないことを、ADR-0045 と同じく `go list -deps` のテストで、`GOOS=js GOARCH=wasm` を付けて確かめる。開発用の WASM の入口は、別の `main` のパッケージ（`cmd/yt2column-wasm-dev`）に置く。成果物の検査（`check-dist.ts`）は、`dist/` の WASM が `cmd/yt2column-wasm` からビルドしたものであることを、`go version -m` が示す main のパッケージのパスで確かめる。
+-   **公開する成果物に fake が入らないことの検査。** 公開用の記事生成モジュール（`cmd/yt2column-wasm`）が fake のパッケージに依存しないことを、ADR-0045 と同じく `go list -deps` のテストで、`GOOS=js GOARCH=wasm` を付けて確かめる。開発用の記事生成モジュールは、別の `main` のパッケージ（`cmd/yt2column-wasm-dev`）に置く。成果物の検査（`check-dist.ts`）は、`dist/` の WASM が `cmd/yt2column-wasm` からビルドしたものであることを、`go version -m` が示す main のパッケージのパスで確かめる。
 -   **API キーを要らなくする。** 開発用のビルドは、Anthropic の API を呼ばない。生成の開始の前の設定済みの印の確認は、開発用のビルドでも同じに行う。手動の確認では、形の合うダミーの値を保存する。
 
 ### 3.10. プロバイダを足すときに変える箇所（要件書 AC-04）
@@ -680,11 +680,11 @@ script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src 'self' http
 |---|---|
 | オプションページ | プロバイダを選ぶ欄と、そのプロバイダの API キーの欄を加える |
 | `chrome.storage.local` | `<プロバイダ>.apiKey` の形の項目を加える（§3.6 の名前の付け方） |
-| WASM の入口の `checkSettings`・`generate` の引数 | そのプロバイダの設定を加える |
+| 記事生成モジュールの `checkSettings`・`generate` の引数 | そのプロバイダの設定を加える |
 | `config.LoadExtension` に渡す、名前を引く関数 | `YT2COLUMN_LLM` と、そのプロバイダの API キーの名前を返すようにする（ADR-0003 の文法をそのまま使う） |
-| WASM の入口のクライアントの組み立て | そのプロバイダのアダプタを直接組み立てるか、`internal/llm/provider` を WASM でビルドできるようにする（§2.3） |
+| 記事生成モジュールのクライアントの組み立て | そのプロバイダのアダプタを直接組み立てるか、`internal/llm/provider` を WASM でビルドできるようにする（§2.3） |
 | そのプロバイダのアダプタ | `js` のビルドだけのファイルで、ブラウザからの送信に要るヘッダとリダイレクトの指定を付ける（§5.3） |
-| `make wasm-check` の対象 | そのアダプタを加える（WASM の入口の依存になるので、対象の決め方は変わらない） |
+| `make wasm-check` の対象 | そのアダプタを加える（記事生成モジュールの依存になるので、対象の決め方は変わらない） |
 | WASM のサイズ | アダプタの分だけ大きくなる。読み込みの時間とともに測り直す |
 | CSP の `connect-src` | そのプロバイダの API のオリジンを加える |
 | 調査記録・設計 | 拡張のページから直接呼べることを確かめる（CORS、リダイレクトの扱い） |
@@ -698,19 +698,19 @@ script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src 'self' http
 
 | 区分 | 対象 | 責務または変更 |
 |---|---|---|
-| 新しい | `cmd/yt2column-wasm/` | WASM の入口（§3.1.2） |
-| 新しい | `cmd/yt2column-wasm-dev/` | fake の LLM を使う開発用の WASM の入口（§3.9） |
+| 新しい | `cmd/yt2column-wasm/` | 記事生成モジュール（§3.1.2） |
+| 新しい | `cmd/yt2column-wasm-dev/` | fake の LLM を使う開発用の記事生成モジュール（§3.9） |
 | 新しい | `internal/extjob/` | 拡張のジョブ 1 回分の処理（§2.3） |
-| 変える | `internal/config/` | 拡張の入口用の LLM の設定の読み込みを加え、サーバとホストの設定の読み込みを撤去する |
+| 変える | `internal/config/` | 記事生成モジュール用の LLM の設定の読み込みを加え、サーバとホストの設定の読み込みを撤去する |
 | 変える | `internal/llm/llmhttp/` | `js` のビルドで、リダイレクトに従わない指定をリクエストに付ける（§5.3） |
 | 変える | `internal/llm/claude/` | `js` のビルドで、`anthropic-dangerous-direct-browser-access` のヘッダを付ける（§5.3） |
-| 変えない | `internal/llm/provider/` | WASM の入口は使わない（§2.3）。CLI は今のまま使う |
+| 変えない | `internal/llm/provider/` | 記事生成モジュールは使わない（§2.3）。CLI は今のまま使う |
 | 撤去 | `cmd/yt2column-server/`・`cmd/yt2column-nmhost/`・`internal/server/`・`internal/articlecache/`・`internal/serversock/`・`internal/nmhost/`・`internal/privatefile/` | サーバとホスト（§2.3） |
 | 変える | `Makefile` | `make build` から 2 つのバイナリを除く。`ext-build` が WASM をビルドする。`ext-build-dev` を加える。`wasm-check` の対象を改める |
 | 変える | `.github/workflows/ci.yml` | 拡張のビルドに Go を用意する。`doc-guard` の対象からサーバとホストのパッケージを除く |
 | 変える | `extension/static/manifest.json` | §3.7 |
 | 新しい | `extension/static/options.html`・`extension/src/options.ts` | オプションページ（§3.6） |
-| 新しい | `extension/src/worker.ts`（または同等のもの） | Worker の中で `wasm_exec.js` と WASM の入口を読み込み、メッセージで関数を呼ぶ |
+| 新しい | `extension/src/worker.ts`（または同等のもの） | Worker の中で `wasm_exec.js` と記事生成モジュールを読み込み、メッセージで関数を呼ぶ |
 | 新しい | `extension/src/core/jobRecord.ts`（または同等のもの） | ジョブの記録の型と、読み戻すときの検査（§5.2） |
 | 変える | `extension/src/startCoordinator.ts`・`extension/src/background.ts` | SW の調停（§3.3） |
 | 変える | `extension/src/viewerApp.ts`・`extension/src/viewer.ts`・`extension/src/popup.ts`・`extension/src/launch.ts` | ジョブの記録を読む表示、実行するビューア（§3.4・§3.5） |
@@ -720,7 +720,7 @@ script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src 'self' http
 | 変える | `extension/src/browser/chromeDeps.ts` | ホストの名前（`native.ts`）と送信の依存を除き、`chrome.storage`・`chrome.tabs.onRemoved`・`chrome.runtime.connect` の依存を加える |
 | 変える | `extension/src/viewerQuery.ts` | 同じジョブのビューアを探す問いを、記事のキーからジョブ ID に改める |
 | 変える | `extension/src/ui/renderJob.ts`・`extension/src/ui/renderViewer.ts` | §3.8 の状態の表示。経過時間の表示は `durationMs` と記録の時刻から作る |
-| 変える | `extension/scripts/has-extension-changes.sh` | 拡張の検査を走らせる変更の一覧から `internal/server/response.go` を除き、WASM の入口とその依存（Go のファイル）を加える。Go だけの変更でも拡張の成果物が変わるためである |
+| 変える | `extension/scripts/has-extension-changes.sh` | 拡張の検査を走らせる変更の一覧から `internal/server/response.go` を除き、記事生成モジュールとその依存（Go のファイル）を加える。Go だけの変更でも拡張の成果物が変わるためである |
 | 変える | `extension/src/core/jobView.ts`・`extension/src/core/popupView.ts`・`extension/src/core/sendMessages.ts`・`extension/src/core/types.ts`・`extension/src/core/i18n/*` | §3.8 の状態の種類と、その文言 |
 | 撤去 | `extension/src/send.ts`・`extension/src/poller.ts`・`extension/src/core/native.ts`・`extension/src/core/hostMessage.ts`・`extension/src/core/exchange.ts`・`extension/src/core/response.ts`・`extension/src/core/poll.ts` | ホストとの送信、応答の検査、ポーリング |
 | 変える | `extension/scripts/check-dist.ts` | 成果物の検査に WASM と `wasm_exec.js` を加える（§3.1.4） |
@@ -743,7 +743,7 @@ script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src 'self' http
 | `internal/pipeline/strictjson_users_test.go` | package_reference.md の `internal/strictjson` の利用者の行が、import と一致すること | 利用者に `internal/extjob` が加わり、サーバとホストが外れる。#773 が package_reference.md を直す |
 | `internal/pipeline/relay_guard_test.go` | ホストの標準出力の参照の場所 | 撤去する |
 | `cmd/yt2column-nmhost` の `TestReadmeHostExitCodes` | README のホストの終了コード | 撤去する |
-| `internal/config/envaccess_test.go` | 環境を参照してよい入口の一覧 | サーバとホストを除き、WASM の入口を加える |
+| `internal/config/envaccess_test.go` | 環境を参照してよい入口の一覧 | サーバとホストを除き、記事生成モジュールを加える |
 
 `make wasm-check` の対象を確かめるテストは、今はない（2026-11-12 の `main`（`ca0570c6`）の `cmd/`・`internal/`・`extension/test/` を `wasm-check` と `WASM_PACKAGES` で検索して確かめた）。
 
@@ -821,7 +821,7 @@ script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src 'self' http
 
 | 文書 | 書き換える内容の要点 |
 |---|---|
-| [security.md](../../dev/security.md) | §2 に、拡張が API キーを `chrome.storage.local` に保存して使うことを加え、サーバの設定ファイルの記述を除く。§8 を、拡張だけの構成の脅威モデル（本書 §5.1）と、権限・CSP・保存・送信の守り・入力の境界（§3.7・§5.2〜§5.4）に書き換える。§8.2 のサーバとホストの節を除く。§6 の無効化の置き場所を、サーバから WASM の入口に改める |
+| [security.md](../../dev/security.md) | §2 に、拡張が API キーを `chrome.storage.local` に保存して使うことを加え、サーバの設定ファイルの記述を除く。§8 を、拡張だけの構成の脅威モデル（本書 §5.1）と、権限・CSP・保存・送信の守り・入力の境界（§3.7・§5.2〜§5.4）に書き換える。§8.2 のサーバとホストの節を除く。§6 の無効化の置き場所を、サーバから記事生成モジュールに改める |
 | [project_overview.md](../../dev/project_overview.md) | 「決定済みの方針」の実行形式と、「前提・制約」のサーバが記事をメモリに持つことを、拡張だけの構成に改める。設定の節から、サーバの設定ファイルを除く |
 | [production_profile.md](../../dev/production_profile.md) | 本番の構成を使う入口を、CLI と拡張にする。拡張では構成を選べないことを書く |
 | README・`README.en.md` | サーバの起動とホストの登録の手順を除き、拡張の導入とオプションページでの API キーの設定の手順を書く。ZDR・Compliance API の組織では使えないこと（§3.12 の C-12）を書く。移行の手順として、ホストの manifest の削除（`yt2column-nmhost uninstall`）と、サーバの設定ファイル（`~/.config/yt2column/config.env`。API キーの平文の写しを持つ）の削除を書く。API キーは、月の利用の上限を設けた専用のワークスペースで作ることを勧める（同じ OS ユーザーのプロセスはプロファイルの API キーを読めるため。§5.1.4）。`README.md` を先に直し、`/mktrans` で `README.en.md` に移す |
@@ -857,12 +857,12 @@ script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src 'self' http
 | [ADR-0009](../../dev/adr/0009-viewer-opening.md) | SW が開いたビューアが状態を表示するだけであること。送信ごとの値を URL とページのメモリにだけ置くこと | SW が開いたビューアが記事の生成を実行し、終えると表示するビューアになることに改める。ジョブの記録を `storage.session` に置くことを ADR-0027 への参照で加える。実行するビューアが Port を保ち、自分の記録を見張ることを書く。タブを開けなかったときは開始を拒否することに改める（§6.1） |
 | [ADR-0010](../../dev/adr/0010-extension-stores-nothing.md) | 保存の手段・権限・設定の画面・ビューアと同じオリジンの対策を #772 に委ねる記述。権限が `activeTab`・`scripting`・`nativeMessaging` であること。状態の正しい値をサーバに置くこと。古い版の値を読めないこと。背景・採らなかった案のうち改めた決定と合わない記述 | §3.6・§3.7 の決定（権限、CSP の全体、シークレットモードで動かさないこと、設定済みの印）に改める。状態の正しい値を `storage.session` に置き、SW だけが書くことに改める。古い版の値（`sharedToken`・`serverPort`）は、`storage` の権限で読めるようになるが、読まず、消さないことにする（§3.6）。背景と結果を、改めた決定に合わせる。新しい決定が採った案（`storage` の権限、拡張に記事を保存すること）を「採らなかった案」から除く |
 | [ADR-0017](../../dev/adr/0017-viewer-markdown-rendering.md) | 背景の「ビューアは `nativeMessaging` を呼べる」 | ビューアのオリジンから API キーに届くことに改める。HTML を解釈しない理由は強まる |
-| [ADR-0019](../../dev/adr/0019-pipeline-component-interfaces.md) | 背景の「CLI と localhost サーバ」。「#772 が決めるまで」の WASM の検査の規則。サーバの構成を ADR-0005 が定めるという参照 | 検査を、WASM の入口を対象にした恒久の規則に改める（§3.1.4）。参照を ADR-0049 に改める。`make wasm-check` の規則はこの ADR だけに置く |
-| [ADR-0020](../../dev/adr/0020-strict-json.md) | 背景の「サーバとホストのメッセージ」 | 拡張の WASM の入口が受け取る JSON に改める。WASM の入口の境界の JSON も `internal/strictjson` で読むことを決定に加える（§3.1.2） |
-| [ADR-0003](../../dev/adr/0003-llm-config-contract.md) | サーバが同じ名前のキーを設定ファイルから読むこと。廃止した変数の扱いのうちサーバの理由 | 拡張の WASM の入口が、2 つの名前だけを返す名前を引く関数で同じ検査を通ることに改める（§3.1.3）。拡張は空のワークスペース ID を未設定として答えるので、CLI の空の値の規則は変えないことを書く |
+| [ADR-0019](../../dev/adr/0019-pipeline-component-interfaces.md) | 背景の「CLI と localhost サーバ」。「#772 が決めるまで」の WASM の検査の規則。サーバの構成を ADR-0005 が定めるという参照 | 検査を、記事生成モジュールを対象にした恒久の規則に改める（§3.1.4）。参照を ADR-0049 に改める。`make wasm-check` の規則はこの ADR だけに置く |
+| [ADR-0020](../../dev/adr/0020-strict-json.md) | 背景の「サーバとホストのメッセージ」 | 拡張の記事生成モジュールが受け取る JSON に改める。記事生成モジュールの境界の JSON も `internal/strictjson` で読むことを決定に加える（§3.1.2） |
+| [ADR-0003](../../dev/adr/0003-llm-config-contract.md) | サーバが同じ名前のキーを設定ファイルから読むこと。廃止した変数の扱いのうちサーバの理由 | 拡張の記事生成モジュールが、2 つの名前だけを返す名前を引く関数で同じ検査を通ることに改める（§3.1.3）。拡張は空のワークスペース ID を未設定として答えるので、CLI の空の値の規則は変えないことを書く |
 | [ADR-0004](../../dev/adr/0004-production-profile.md) | 「CLI も localhost サーバも」この構成で動くこと | CLI と拡張に改める。拡張では構成を選べないことを ADR-0048 への参照で書く |
-| [ADR-0007](../../dev/adr/0007-manual-transcript-copy.md) | サーバが `CopiedSource` で解析すること。サーバは `yt-dlp` を呼ばないこと | 拡張の WASM の入口が解析し、`yt-dlp` を呼ばないことに改める |
-| [ADR-0024](../../dev/adr/0024-env-access-in-config.md) | 入口の一覧のサーバ・ホスト・開発用のサーバ。結果の ADR-0018 の記述 | 一覧からサーバ・ホスト・開発用のサーバを除き、環境を読まない WASM の入口を加える（§3.1.3） |
+| [ADR-0007](../../dev/adr/0007-manual-transcript-copy.md) | サーバが `CopiedSource` で解析すること。サーバは `yt-dlp` を呼ばないこと | 拡張の記事生成モジュールが解析し、`yt-dlp` を呼ばないことに改める |
+| [ADR-0024](../../dev/adr/0024-env-access-in-config.md) | 入口の一覧のサーバ・ホスト・開発用のサーバ。結果の ADR-0018 の記述 | 一覧からサーバ・ホスト・開発用のサーバを除き、環境を読まない記事生成モジュールを加える（§3.1.3） |
 | [ADR-0026](../../dev/adr/0026-extension-platform.md) | 背景の、ホストの `allowed_origins` が ID を指定すること。成果物を本リポジトリで書いたコードだけにすること。対象のブラウザの理由の、ホストの manifest の登録 | §3.1.4・§3.7.3 の決定に改める。`key` を残す理由を、保存した値の持ち主の ID を固定することに改め、Web Store の公開鍵に置き換えることを加える。拡張のビルドが Go を呼ぶこと、`wasm_exec.js` を成果物の例外として `go.mod` の版と照らすこと、開発用のビルドが `key` を持たないことを、この ADR だけに置く |
 | [ADR-0027](../../dev/adr/0027-article-job-api.md) | 題名と決定のすべて（ジョブの API、ホストのメッセージ、HMAC のキー、サーバのメモリのキャッシュ） | ジョブの記録（§3.2）と SW の調停（§3.3）に書き換える。主題（記事の生成と状態の受け渡し）は続くので、廃止せずに改める。止まった記録の理由（`stopReason`）、捨てる順、`inputDigest` が外に出ない値であることを書く |
 | [ADR-0028](../../dev/adr/0028-no-automatic-resend.md) | ホストとのやり取り、ホストの接続、未送信の確定の規則 | 生成の開始と予約を自動で送り直さないこと、止まった実行を自動で生成し直さないこと、結果不明の扱い（§3.8）に改める。結果の送り直しは記録への書き込みで、生成を始め直すことではないことを書く |
@@ -870,10 +870,10 @@ script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src 'self' http
 | [ADR-0030](../../dev/adr/0030-minimum-chrome-version.md) | 最小の版の値 | 112 に改める（§1.2） |
 | [ADR-0031](../../dev/adr/0031-secret-closure.md) | サーバが API キーを出力に流さないこと | 拡張が API キーを保存してから Go の `secret.Secret` にするまでの経路の規則（§5.4）を加え、サーバの記述を除く。SW は API キーの値を読まないことを書く |
 | [ADR-0033](../../dev/adr/0033-transcript-cache-slots.md) | 「localhost サーバは `yt-dlp` を呼ばないので、このキャッシュを使わない」。サーバのメモリの記事のキャッシュへの参照 | 拡張に改め、ジョブの記録への参照（ADR-0027）に改める |
-| [ADR-0034](../../dev/adr/0034-template-allowlist.md) | 背景の「localhost サーバは上書きのファイルを読まず」。出典のブロックが「サーバが返す表示用の Markdown」に付くこと | WASM の入口に改める |
-| [ADR-0038](../../dev/adr/0038-deadcode-and-race-free-timing.md) | 背景と決定の「本番の `yt2column-server` は `-race` なしでビルドされる」と、予算が守るのがサーバの解析であること | 予算が守るのを、CLI と WASM の入口の解析に改める。WASM は `-race` でビルドできないので、本番の WASM の入口も `-race` なしであることを書く。予算はネイティブのビルドで確かめ、WASM での解析の時間は測っていないことを結果に書く（Worker で動くので、長くかかっても画面は止まらない） |
-| [ADR-0043](../../dev/adr/0043-copy-mention-neutralization.md) | 「無効化はサーバで行い」と、状態の取得の応答のメンバ | WASM の入口の Go の部品で行い、結果（§3.1.2 の `ArticleResult`）に入れることに改める。拡張の TypeScript は受け取った文字列を加工しないことは変えない |
-| [ADR-0045](../../dev/adr/0045-dev-fake-llm.md) | 本番のバイナリの一覧のサーバとホスト。開発用のサーバの規則のすべて | 本番の成果物を `yt2column` と公開用の WASM の入口に改める。開発用のサーバの規則を、開発用の拡張のビルドの規則（§3.9）に置き換える。タスク 0086 は PR-1 だけを実装することを書く。シナリオはビルドの引数で選ぶ |
+| [ADR-0034](../../dev/adr/0034-template-allowlist.md) | 背景の「localhost サーバは上書きのファイルを読まず」。出典のブロックが「サーバが返す表示用の Markdown」に付くこと | 記事生成モジュールに改める |
+| [ADR-0038](../../dev/adr/0038-deadcode-and-race-free-timing.md) | 背景と決定の「本番の `yt2column-server` は `-race` なしでビルドされる」と、予算が守るのがサーバの解析であること | 予算が守るのを、CLI と記事生成モジュールの解析に改める。WASM は `-race` でビルドできないので、本番の記事生成モジュールも `-race` なしであることを書く。予算はネイティブのビルドで確かめ、WASM での解析の時間は測っていないことを結果に書く（Worker で動くので、長くかかっても画面は止まらない） |
+| [ADR-0043](../../dev/adr/0043-copy-mention-neutralization.md) | 「無効化はサーバで行い」と、状態の取得の応答のメンバ | 記事生成モジュールの Go の部品で行い、結果（§3.1.2 の `ArticleResult`）に入れることに改める。拡張の TypeScript は受け取った文字列を加工しないことは変えない |
+| [ADR-0045](../../dev/adr/0045-dev-fake-llm.md) | 本番のバイナリの一覧のサーバとホスト。開発用のサーバの規則のすべて | 本番の成果物を `yt2column` と公開用の記事生成モジュールに改める。開発用のサーバの規則を、開発用の拡張のビルドの規則（§3.9）に置き換える。タスク 0086 は PR-1 だけを実装することを書く。シナリオはビルドの引数で選ぶ |
 
 -   ADR-0001・0002・0013〜0016・0021・0022・0023・0025・0032・0035〜0037・0039〜0042・0044・0046・0047 は、検索で語が当たらないか、当たってもサーバやホストを前提にした項目ではなかった（ADR-0001 の「ホスト」は HTTP の送り先、ADR-0032 と ADR-0046 は別の意味の語だった）。ADR-0022 は要件の PR で改めた決定のままで、本書の決定と合う。
 -   ADR-0005 と ADR-0018 は、要件の PR で廃止した。
@@ -882,16 +882,16 @@ script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src 'self' http
 
 ### 4.1. 値の集合
 
-WASM の入口の結果、ジョブの記録、SW の応答が持つ値の集合を、作り手ごとに示す。どれも閉じた集合で、TypeScript の側も Go の側も、知らない値を受理しない。
+記事生成モジュールの結果、ジョブの記録、SW の応答が持つ値の集合を、作り手ごとに示す。どれも閉じた集合で、TypeScript の側も Go の側も、知らない値を受理しない。
 
 ```typescript
 type StepState = "pending" | "running" | "done" | "skipped" | "failed";
 type Steps = { draft: StepState; shorten: StepState; review: StepState };
 
-// Why prepare rejected a start input. Produced by the WASM entry.
+// Why prepare rejected a start input. Produced by the article generation module.
 type PrepareRejection = "invalid_body";
 
-// Why a run failed inside the WASM entry: today's job API failure codes plus
+// Why a run failed inside the article generation module: today's job API failure codes plus
 // api_key_rejected.
 type WasmFailure =
   | "internal" | "transcript_too_long" | "llm_timeout" | "llm_empty"
@@ -899,7 +899,7 @@ type WasmFailure =
   | "api_key_rejected";
 
 // Why a run recorded in a job record failed: the WASM failures plus the two
-// the running viewer decides without the WASM entry.
+// the running viewer decides without the article generation module.
 type RecordFailure =
   | WasmFailure
   | "api_key_missing" // the key was gone when the run was about to call generate
@@ -919,7 +919,7 @@ type InternalDetail =
 ```
 
 -   `WasmFailure` は、今のジョブの API の失敗のコード（development.md「ジョブの API のコード」）に `api_key_rejected` を加えたものである。Go の側では、`internal/extjob` の `Failure` で持ち、ゼロ値を `internal` にする（今の `articlecache.FailureReason` と同じ）。
--   `RecordFailure` の `api_key_missing` と `run_timeout` は、実行するビューアが WASM の入口を経ずに決める。`run_timeout` は呼び出し全体の期限（§3.4）で、呼び出しごとの期限の `llm_timeout` と分ける。
+-   `RecordFailure` の `api_key_missing` と `run_timeout` は、実行するビューアが記事生成モジュールを経ずに決める。`run_timeout` は呼び出し全体の期限（§3.4）で、呼び出しごとの期限の `llm_timeout` と分ける。
 -   `api_key_rejected` は、Claude アダプタが状態 401 の `HTTPStatusError` を返したときの失敗である（`internal/llm/claude/errors.go`）。判定は、`errors.AsType` で取り出した状態コードで行い、応答の本文を読まない（security.md §3）。403 は、権限とワークスペースの問題を含むので、`llm_failed` のままにする。
 -   `InternalDetail` は、`internal` の失敗と拒否の種類である。ジョブの記録と開発者向けのログにだけ置き、利用者には文として示さない。
 -   今の拒否の理由のうち、サーバの HTTP に固有のもの（`body_too_large`・`invalid_key`・`not_found`・`method_not_allowed`）と、ホストに固有のもの（`server_unavailable`・`message_too_large`・`server_timeout`・`protocol_error`）はなくなる。入力の大きさの上限（4 MiB）は、`prepare` の `invalid_body` に含める。
@@ -927,7 +927,7 @@ type InternalDetail =
 ### 4.2. 失敗の示し方
 
 -   示す文は、値ごとの固定の文言だけである。Go のエラーの文、Anthropic の応答の本文、ブラウザの例外の文は、利用者に示さない。開発者向けのログには、固定のラベルと値の名前だけを書く（§5.4）。
--   `generate` の Promise が値を返さずに拒否されたとき（WASM の入口の panic）は `internal`（`panic`）、Worker が異常終了したときは `internal`（`worker_error`）、結果の JSON が受理する形に合わないときは `internal`（`result_shape`）の失敗にする。
+-   `generate` の Promise が値を返さずに拒否されたとき（記事生成モジュールの panic）は `internal`（`panic`）、Worker が異常終了したときは `internal`（`worker_error`）、結果の JSON が受理する形に合わないときは `internal`（`result_shape`）の失敗にする。
 -   止まった記録は、止まった理由（`stopReason`、§3.2.1）を持つ。開発者は、記録から、どの経路で止まったかを読める。
 
 ## 5. セキュリティ考慮事項 (Security Considerations)
@@ -1026,15 +1026,15 @@ flowchart LR
 
 | 境界 | 受理する形 | 拒否の理由 | 大きさの上限 | 構造を持つ入力の扱い | 拒否したときに利用者に示すもの |
 |---|---|---|---|---|---|
-| コピーした字幕と動画メタデータ（ポップアップが読み、WASM の入口の `prepare` が検査する） | 今のサーバの生成の開始の本文と同じ規則（security.md §8.2「受け取る入力の境界」）。動画の URL は `transcript.ValidateVideoURL`、字幕は `transcript.NewCopiedSource`、タイトル・チャンネル名・概要欄は今の規則。ポップアップの側の収集の検査（`acceptedUrl.ts`・`collect.ts`・`metadata.ts`）は、集める対象のタブかどうかの判定として今のまま残す。受理するかどうかは Go が決める | `invalid_body` | 本文全体で 4 MiB（今と同じ） | `PrepareRequest` のメンバの閉じた集合。知らないメンバと重複したメンバは拒否する（`internal/strictjson`） | 開始が拒否された状態（`invalid_body`）と、今の拒否の理由の文言 |
+| コピーした字幕と動画メタデータ（ポップアップが読み、記事生成モジュールの `prepare` が検査する） | 今のサーバの生成の開始の本文と同じ規則（security.md §8.2「受け取る入力の境界」）。動画の URL は `transcript.ValidateVideoURL`、字幕は `transcript.NewCopiedSource`、タイトル・チャンネル名・概要欄は今の規則。ポップアップの側の収集の検査（`acceptedUrl.ts`・`collect.ts`・`metadata.ts`）は、集める対象のタブかどうかの判定として今のまま残す。受理するかどうかは Go が決める | `invalid_body` | 本文全体で 4 MiB（今と同じ） | `PrepareRequest` のメンバの閉じた集合。知らないメンバと重複したメンバは拒否する（`internal/strictjson`） | 開始が拒否された状態（`invalid_body`）と、今の拒否の理由の文言 |
 | LLM の API の応答 | 今のアダプタと同じ（応答の本文の上限、空の応答と打ち切りは失敗、`usage` は信頼しない）。security.md §3・§6 | `WasmFailure` の値（§4.1） | 8 MiB（`llmhttp` の上限。`js` のビルドで効くことを測った。調査記録「測定 1」） | 今のアダプタの検査のまま | 記事の生成が失敗した状態と、失敗の値 |
 | 利用者が入力する API キーとワークスペース ID（オプションページの `checkSettings`） | API キーは `llmhttp.CheckAPIKey` の規則（空でない印字可能な ASCII、0x21〜0x7E）。ワークスペース ID は空か、`claudeparam.ParseWorkspaceID` の規則。前後の空白を除かない | 合わない欄の名前（`SettingsCheckResult` の `fields`） | 設けない（CLI と同じ） | `SettingsCheckRequest` のメンバの閉じた集合 | どの欄が合わないか。値は示さない |
-| 保存した場所から読み戻す値（`chrome.storage.local` の設定） | 上と同じ規則。WASM の入口が `generate` で検査し直す | 実行するビューアの `api_key_missing`、WASM の入口の `internal` | 設けない | `anthropic.apiKey`・`anthropic.workspaceId`・`anthropic.configured` の 3 つの項目だけを読む。ほかの項目は読まない | API キーが設定されていない状態として扱い、設定し直す手順を示す。補正して使わない |
+| 保存した場所から読み戻す値（`chrome.storage.local` の設定） | 上と同じ規則。記事生成モジュールが `generate` で検査し直す | 実行するビューアの `api_key_missing`、記事生成モジュールの `internal` | 設けない | `anthropic.apiKey`・`anthropic.workspaceId`・`anthropic.configured` の 3 つの項目だけを読む。ほかの項目は読まない | API キーが設定されていない状態として扱い、設定し直す手順を示す。補正して使わない |
 | 保存した場所から読み戻す値（`chrome.storage.session` のジョブの記録と開始の文脈） | `JobRecord` の形（§3.2.1）と開始の文脈の形（§3.3）。`version` が 1、メンバの閉じた集合、値の型、列挙の値、ジョブ ID と `inputDigest` の 16 進の桁数、状態ごとに持つメンバ | 形に合わない記録は、ないものとして扱う | 記録 1 つ 512 KiB（受け渡しの上限で、記事の上限 256 KiB より大きい）、合計は §3.2.3 | 知らないメンバと、状態に合わないメンバを持つ記録は拒否する | その記録を持たないものとして扱い、記事が失われた状態を示す |
 | ビューアの URL | 今の規則（`viewerUrl.ts`）。記事のキーを、32 文字の小文字の 16 進のジョブ ID に替える | 今と同じ | 今と同じ | クエリの名前の閉じた集合、重複の拒否（今と同じ） | 今と同じく、記事を表示せず何も送らない |
 | ページの間のメッセージ（`chrome.runtime.sendMessage` と実行の Port） | §3.3.1 の型。リクエストごとのメンバの閉じた集合。送り手の確かめ（下） | 受け付けない（応答しないか、`not_runner`） | 生成の開始の入力は 4 MiB | 知らないメンバと重複は拒否する | 何もしない（開発者向けのログに固定のラベルだけを書く） |
 | `BroadcastChannel` のメッセージ | 今の規則（`viewerQuery.ts`）。問いの値を記事のキーからジョブ ID に替える | 今と同じ | 今と同じ | 今と同じ | 何もしない |
-| WASM の入口の結果と進み具合（Worker からページへ） | §3.1.2 と §3.3.1 の `WorkerMessage` の形。TypeScript の側で検査する | `internal`（`result_shape`） | 結果は 512 KiB（受け渡しの上限） | 知らないメンバと重複は拒否する | `internal` の失敗 |
+| 記事生成モジュールの結果と進み具合（Worker からページへ） | §3.1.2 と §3.3.1 の `WorkerMessage` の形。TypeScript の側で検査する | `internal`（`result_shape`） | 結果は 512 KiB（受け渡しの上限） | 知らないメンバと重複は拒否する | `internal` の失敗 |
 
 **送り手の確かめ。** SW は、どのリクエストも、送り手が自分の拡張（`sender.id` が自分の ID）で、URL が拡張のページであることを確かめる。加えて、リクエストごとに次を確かめる。
 
@@ -1067,12 +1067,12 @@ API キーが通る経路は、次の 4 つだけである。オプションペ�
 | ログ（SW・ポップアップ・ビューア・オプションページ・Worker の開発者向けのログ） | 固定のラベル、状態、数、経過時間だけを書く（今の security.md §8.1「開発者向けのログに値を出さない」を引き継ぐ）。Go の側は `secret.Secret` で持ち、エラーに秘密を含めない（ADR-0031） |
 | エラーの表示 | 固定の文言だけを示す（§4.2） |
 | ビューアの URL | ジョブ ID と見出しの値だけを持つ（§5.2） |
-| 保存するファイル、コピーする文章 | WASM の入口が記事の値だけから作る。API キーは `ArticleResult` に入らない |
+| 保存するファイル、コピーする文章 | 記事生成モジュールが記事の値だけから作る。API キーは `ArticleResult` に入らない |
 | LLM に送るプロンプト | 今と同じく、字幕・動画メタデータ・生成した文面・テンプレートだけから作る（security.md §4） |
 | ブラウザの外への同期 | `chrome.storage.sync` を使わない。入力の欄をパスワードの欄として扱わせず、パスワードの管理への保存を勧められないようにする（§3.6） |
 | `chrome.storage.session` と、SW へのメッセージ | API キーを入れない。SW は API キーの値を読まず、設定済みの印だけを読む |
 | `BroadcastChannel` | API キーを入れない |
-| WASM の入口の結果と進み具合 | API キーを入れない（§3.1.2） |
+| 記事生成モジュールの結果と進み具合 | API キーを入れない（§3.1.2） |
 | 画面 | 保存した API キーを再び表示しない（§3.6） |
 
 ### 5.5. 方針の例外
@@ -1275,7 +1275,7 @@ sequenceDiagram
 ### 7.1. 単体テスト
 
 -   **Go の `internal/extjob`。** fake の `LLMClient` で、入力の検査（今の `internal/server` の `request_test.go` の行を引き継ぐ）、`inputDigest` が同じ入力で同じで、どの値を変えても変わること、工程の進み具合の通知、完了の時点の検査、失敗の分類（401 の `api_key_rejected` を含む）、結果の組み立て（今の `status_test.go` の行を引き継ぐ）を確かめる。ネイティブのビルドで実行する。
--   **Go の WASM の入口の JSON の境界。** JSON の解析と組み立ては `internal/extjob` に置き、ネイティブのビルドで、知らないメンバ・重複・型の違いの拒否、`generate` の `inputDigest` が持っている入力と違うときの `input_mismatch`、結果に API キーが入らないことを確かめる。`syscall/js` に触れる薄い登録の部分は、ビルドと手動の確認で確かめる。Go の手順は Node.js を呼ばない（ADR-0026）ので、`GOOS=js` のテストは走らせない。
+-   **記事生成モジュールの JSON の境界。** JSON の解析と組み立ては `internal/extjob` に置き、ネイティブのビルドで、知らないメンバ・重複・型の違いの拒否、`generate` の `inputDigest` が持っている入力と違うときの `input_mismatch`、結果に API キーが入らないことを確かめる。`syscall/js` に触れる薄い登録の部分は、ビルドと手動の確認で確かめる。Go の手順は Node.js を呼ばない（ADR-0026）ので、`GOOS=js` のテストは走らせない。
 -   **Go の `internal/config`。** `LoadExtension` が、2 つの名前のほかを読まず、本番の構成になり、CLI と同じ値を拒否することを確かめる。
 -   **Go の `internal/llm/llmhttp`・`internal/llm/claude`。** `js` のビルドだけで付けるリクエストの指定とヘッダは、`js` のビルドのファイルに置き、ネイティブのビルドのリクエストが変わらないことを今のテストで確かめる。`js` のファイルが付ける値は、`make wasm-check` のビルドと手動の確認で確かめる。
 -   **TypeScript の SW の調停。** `chrome.storage.session`・`chrome.tabs`・Port の fake で、予約の判定の順（§3.3）、直列の処理（同時の 2 つの開始で二重に記録を加えないこと）、上限と捨てる記録の順、`runner` と一致しない知らせに `not_runner` を返すこと、書き込みが終わってから応答すること、止まった実行の 4 つの経路、止まった記録が同じ `runner` の結果で完成に戻ること、SW が API キーの値を読まないことを確かめる。
@@ -1292,7 +1292,7 @@ sequenceDiagram
 ### 7.3. セキュリティのテスト
 
 -   **manifest。** 権限が `activeTab`・`scripting`・`storage` の 3 つで、`host_permissions` がなく、CSP が §3.7.2 の値で、`incognito` が `"not_allowed"` で、`minimum_chrome_version` が `"112"` であることを確かめる（`extension/test/manifest.test.ts` を直す）。
--   **成果物。** `extension/dist/` が、`tsc` の出力、`static/` の写し、WASM の入口、`go.mod` の版の `wasm_exec.js` だけであり、WASM の main のパッケージが `cmd/yt2column-wasm` であることを確かめる（`check-dist.ts`）。
+-   **成果物。** `extension/dist/` が、`tsc` の出力、`static/` の写し、記事生成モジュール、`go.mod` の版の `wasm_exec.js` だけであり、WASM の main のパッケージが `cmd/yt2column-wasm` であることを確かめる（`check-dist.ts`）。
 -   **fake が公開する成果物に入らないこと。** `cmd/yt2column` の `go list -deps` と、`GOOS=js GOARCH=wasm` を付けた `cmd/yt2column-wasm` の `go list -deps` に fake の部品が出ないことを確かめる（ADR-0045）。
 -   **API キーの経路。** API キー（`anthropic.apiKey`）を `chrome.storage.local` から読むのが実行するビューアの決まったファイルだけで、書くのがオプションページの決まったファイルだけであること、SW とポップアップが読むのが設定済みの印だけであること、`chrome.storage.sync` を使わないこと、ログの関数に API キーを渡さないことを、lint かソースの検査で確かめる（`secretsAbsent.test.ts` を置き換える。§5.5）。
 -   **HTML を解釈しないこと。** 今の lint の禁止（ADR-0017）を、オプションページと Worker のファイルにも当てる。
@@ -1302,7 +1302,7 @@ sequenceDiagram
 
 #773 の計画で PR の区切りを決める。依存の順は次のとおりである。新旧の経路を併存させる仕組みは作らない（要件書 AC-13）ので、拡張がサーバとホストを使わなくなる変更は 1 つの PR で行う。それより前の PR は、Go の部品と、まだ使われない拡張の部品を加えるだけにする。
 
-1.  **Go の部品。** `internal/extjob`、`internal/config` の拡張の入口用の関数、`llmhttp` と Claude アダプタの `js` のビルドの指定、`cmd/yt2column-wasm`、`make wasm-check` の対象の改め。サーバは動いたまま。今の `internal/config` は、`serverfile.go` が `//go:build unix` だけの `internal/privatefile` を import するので、`GOOS=js` でビルドできない（`GOOS=js GOARCH=wasm go list -deps ./internal/config` が失敗する。`ca0570c6` で確かめた）。この段階では、サーバとホストの設定の読み込みのファイルに `!js` のビルドタグを付けるか、拡張の入口用の関数を `privatefile` に依存しない場所に置き、4 の撤去でタグを外す。
+1.  **Go の部品。** `internal/extjob`、`internal/config` の記事生成モジュール用の関数、`llmhttp` と Claude アダプタの `js` のビルドの指定、`cmd/yt2column-wasm`、`make wasm-check` の対象の改め。サーバは動いたまま。今の `internal/config` は、`serverfile.go` が `//go:build unix` だけの `internal/privatefile` を import するので、`GOOS=js` でビルドできない（`GOOS=js GOARCH=wasm go list -deps ./internal/config` が失敗する。`ca0570c6` で確かめた）。この段階では、サーバとホストの設定の読み込みのファイルに `!js` のビルドタグを付けるか、記事生成モジュール用の関数を `privatefile` に依存しない場所に置き、4 の撤去でタグを外す。
 2.  **拡張のビルド。** `make ext-build` が WASM と `wasm_exec.js` を成果物に入れること、成果物の検査、開発用のビルド（タスク 0086 の PR-1 の後）。
 3.  **切り替え。** manifest、オプションページ、SW の調停、実行するビューアと Worker、ジョブの記録を読む表示を入れ、ホストとの送信とポーリングを撤去する。
 4.  **撤去と文書。** サーバとホストとそれだけが使うパッケージの撤去、仕様の文書の書き換え（§3.14）、ADR の食い違いの記述の削除。3 と同じ PR にするかは、#773 の計画で決める。
@@ -1310,7 +1310,7 @@ sequenceDiagram
 ## 9. 将来の拡張性 (Future Extensibility)
 
 -   **プロバイダの追加。** §3.10 の箇所を変える。記事を作る処理とジョブの記録は変えない。
--   **ストリーミング。** Opus の長い応答が受け取れないと分かったときに、Claude アダプタにだけ加える（§3.13）。WASM の入口とジョブの記録の形は変えない。
+-   **ストリーミング。** Opus の長い応答が受け取れないと分かったときに、Claude アダプタにだけ加える（§3.13）。記事生成モジュールとジョブの記録の形は変えない。
 -   **Web Store での公開。** 掲載の文面、プライバシーポリシー、`key` の置き換え、審査への説明は、§3.12 の issue が扱う。公開の後の自動の更新でも、開いているビューアの生成は止まらない（§3.12 の C-06）。
 -   **記事を長く持つこと。** ブラウザの終了の後も記事を残したくなったときは、ディスクに書くことになり、要件書 AC-09 の決定を変える。そのときは、削除の操作と上限の設計が要る（要件書「要件定義の際に決めたこと」）。
 -   **ZDR の組織の利用者。** ブラウザから呼べないので、使えるようにするには、利用者の側で API を中継する手段が要る。これは ADR-0048 の「ネイティブのバイナリを導入させない」と合わないので、要望が出たときに構成から決め直す。
@@ -1328,7 +1328,7 @@ sequenceDiagram
 | H-07 | 採った。背面で開いたまま一度も前面にならないタブでの完走を、マージの前に確かめる（(a)） | §1.2・§3.13 |
 | H-08 | 採った。開発用のビルドだけが fake を含み、公開する成果物に入らないことを確かめる。シナリオはビルドの引数で選ぶ | §3.9 |
 | H-09 | 採った。`key` を残し、Web Store の公開鍵に置き換える | §1.2・§3.7.3 |
-| H-10 | 採った。保存する値の名前にプロバイダを付け、WASM の入口は CLI と同じ設定の検査を通る。プロバイダを選ぶ設定は作らない | §3.6・§3.1.3・§3.10 |
+| H-10 | 採った。保存する値の名前にプロバイダを付け、記事生成モジュールは CLI と同じ設定の検査を通る。プロバイダを選ぶ設定は作らない | §3.6・§3.1.3・§3.10 |
 | H-11 | 採った。検索と判定の結果を表にした | §3.15 |
 | H-12 | 採った。Worker で動かし、完成か失敗で止める。ビューアを読み込み直す案は採らなかった | §1.2・§3.4 |
 

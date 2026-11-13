@@ -12,16 +12,16 @@
 
 到達できない関数の報告は、ほかの `main` パッケージやほかのパッケージのテストから届く関数まで含むと数百件のノイズになり、本当に到達できない関数を見逃す。報告があっても失敗しなければ、タスクの完了の条件に使えない（[0047 要件定義書](../../tasks/0047_deadcode_scope/01_requirements.md) §1）。
 
-コピーした字幕のパーサには、記事の生成を始める前の入力の検査の中で解析を終えるための予算がある（[0015 設計書](../../tasks/0015_copied_transcript_source/02_architecture.md) §7.3）。`make test` と CI の `Test` ジョブは全パッケージを `-race` 付きで実行するが、`-race` 付きのビルドでは長い入力の解析が手元の計測で約 23〜31 倍遅くなる。本番の CLI と拡張の WASM の入口は `-race` なしでビルドされる。WASM は `-race` でビルドできない（[0039 要件定義書](../../tasks/0039_large_input_test_timeout/01_requirements.md) §1、[0090 設計書](../../tasks/0090_extension_only_architecture/02_architecture.md)）。
+コピーした字幕のパーサには、記事の生成を始める前の入力の検査の中で解析を終えるための予算がある（[0015 設計書](../../tasks/0015_copied_transcript_source/02_architecture.md) §7.3）。`make test` と CI の `Test` ジョブは全パッケージを `-race` 付きで実行するが、`-race` 付きのビルドでは長い入力の解析が手元の計測で約 23〜31 倍遅くなる。本番の CLI と拡張の記事生成モジュールは `-race` なしでビルドされる。WASM は `-race` でビルドできない（[0039 要件定義書](../../tasks/0039_large_input_test_timeout/01_requirements.md) §1、[0090 設計書](../../tasks/0090_extension_only_architecture/02_architecture.md)）。
 
 ## 決定
 
 -   **`make deadcode` は、モジュール全体と、`test`・`integration` のタグのテストを起点に、到達できない関数を報告する。出力があれば失敗する。** どの `main` パッケージから届く関数も、どのテストから届く関数も到達できると数え、本当に到達できない関数をノイズに紛れさせないためである。失敗させるのは、報告の有無を終了コードで示し、タスクの完了の条件に使えるようにするためである（[0047 要件定義書](../../tasks/0047_deadcode_scope/01_requirements.md)「issue #361 で決めたこと」「要件定義の際に決めたこと（2026-10-28）」）。合否は終了コードと出力の有無だけで決め、出力の中身を読まない。解析の範囲と失敗の条件は、[CLAUDE.md](../../../CLAUDE.md) の「Code Quality」の `make deadcode` の項に従う。
 -   **`make deadcode` は手元で実行するターゲットで、CI では実行しない。** CI で実行するには、CI の環境に `deadcode` コマンドを入れる手順とその版の固定が要り、issue がそれを求めていなかったためである（0047 要件定義書「要件定義の際に決めたこと（2026-10-28）」）。
--   **パーサの時間の期限は、`-race` なしのビルドだけで確かめる。** `make test` は、`-race` 付きの実行の後に `make test-parse-norace` を実行し、そこで時間を確かめる。CI の `Test` ジョブも別の手順として同じターゲットを実行する（[.github/workflows/ci.yml](../../../.github/workflows/ci.yml)）。期限が守るのは本番の解析（拡張の WASM の入口と CLI）で、本番は `-race` なしでビルドされ、`-race` 付きのビルドの時間は本番のパーサの性能を表さないためである（[0039 要件定義書](../../tasks/0039_large_input_test_timeout/01_requirements.md)「要件定義の際に決めたこと（2026-10-23）」）。`make test` と `make test-parse-norace` の振る舞いは、[CLAUDE.md](../../../CLAUDE.md) の「Test Commands」の `make test` と `make test-parse-norace` の項に従う。
+-   **パーサの時間の期限は、`-race` なしのビルドだけで確かめる。** `make test` は、`-race` 付きの実行の後に `make test-parse-norace` を実行し、そこで時間を確かめる。CI の `Test` ジョブも別の手順として同じターゲットを実行する（[.github/workflows/ci.yml](../../../.github/workflows/ci.yml)）。期限が守るのは本番の解析（拡張の記事生成モジュールと CLI）で、本番は `-race` なしでビルドされ、`-race` 付きのビルドの時間は本番のパーサの性能を表さないためである（[0039 要件定義書](../../tasks/0039_large_input_test_timeout/01_requirements.md)「要件定義の際に決めたこと（2026-10-23）」）。`make test` と `make test-parse-norace` の振る舞いは、[CLAUDE.md](../../../CLAUDE.md) の「Test Commands」の `make test` と `make test-parse-norace` の項に従う。
 -   **`-race` 付きのビルドでも、時間以外は確かめ続ける。** どちらのビルドでも、解析の成功、セグメントの数、メモリの確保量の上限を確かめる。ビルドごとに違う値は、ビルドタグ `race` と `!race` のテストのファイルに置く。手元の計測ではメモリの確保量が単独の実行と並行の実行で 1% 未満しか違わず、0015 が確かめようとした性質（メモリの確保量が入力の長さに比例すること）を、時間の上限を持たずに確かめ続けられるためである（0039 要件定義書「要件定義の際に決めたこと（2026-10-23）」）。
 
-拡張の WASM の入口は、まだコードにない。今、予算が守るのは localhost サーバの解析である。この差分は [#773](https://github.com/isseis/yt2column/issues/773) の実装で解消する。
+拡張の記事生成モジュールは、まだコードにない。今、予算が守るのは localhost サーバの解析である。この差分は [#773](https://github.com/isseis/yt2column/issues/773) の実装で解消する。
 
 ## 採らなかった案
 
@@ -45,7 +45,7 @@
 -   `-race` 付きのビルドでは解析の時間を比べないので、解析が止まらないときは `go test` のパッケージのタイムアウトで失敗する。時間の劣化は `-race` なしの確認で見つける。
 -   時間の確認は、`-run` で絞った 1 回の `go test` だけで行われる。テストの名前、`-race` の有無、`-count=1`、`make test` と CI からの呼び出しが変わると、確認が黙って行われなくなる。これを `internal/transcript` のレシピのガードのテストが確かめる。
 -   期限は 7 つの入力に共通の 1 つの値で、入力の長さの 2 乗に比例するような桁の違う劣化だけを見つける。手元で `make test` をほかの重い処理と同時に実行すると、時間の確認がその負荷を受けうる。
--   期限はネイティブのビルドで確かめる。拡張の WASM の入口での解析の時間は測っていない。WASM の解析はネイティブより遅くなりうるが、桁の違う劣化を見つけるという期限の目的は変わらない。
+-   期限はネイティブのビルドで確かめる。拡張の記事生成モジュールでの解析の時間は測っていない。WASM の解析はネイティブより遅くなりうるが、桁の違う劣化を見つけるという期限の目的は変わらない。
 
 ## 経緯
 
@@ -53,4 +53,4 @@
 - 2026-10-23 時間の上限を `-race` なしのビルドだけで確かめ、CI でも実行することにした。`-race` 付きのビルドでは、解析の成功・セグメントの数・メモリの確保量だけを確かめ続ける。0015 の決定を改めた（[0039 要件定義書](../../tasks/0039_large_input_test_timeout/01_requirements.md)「要件定義の際に決めたこと（2026-10-23）」）
 - 2026-10-23 `-race` なしの確認を、新しいターゲット `test-parse-norace` として `make test` のレシピと CI の `Test` ジョブの別の手順から実行し、時間を確かめるかどうかをビルドタグのファイルの定数で定めることにした（[0039 設計書](../../tasks/0039_large_input_test_timeout/02_architecture.md)「1.2. 設計の際に決めたこと（2026-10-23）」）
 - 2026-10-28 `make deadcode` の解析の起点をモジュール全体にし、`-test` を残し、`test` と `integration` のタグで解析することにした。報告か想定外の出力が 1 件でもあれば失敗させる。CI への組み込みはしない（[0047 要件定義書](../../tasks/0047_deadcode_scope/01_requirements.md)「要件定義の際に決めたこと（2026-10-28）」）
-- 2026-11-12 パーサの時間の予算が守る解析を、localhost サーバのリクエストの中の解析から、拡張の WASM の入口と CLI の解析に改めた（[0090 設計書](../../tasks/0090_extension_only_architecture/02_architecture.md)）
+- 2026-11-12 パーサの時間の予算が守る解析を、localhost サーバのリクエストの中の解析から、拡張の記事生成モジュールと CLI の解析に改めた（[0090 設計書](../../tasks/0090_extension_only_architecture/02_architecture.md)）

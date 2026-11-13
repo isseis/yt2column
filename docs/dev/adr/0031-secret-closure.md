@@ -16,9 +16,9 @@ LLM の API キーは、ログやエラーメッセージに漏れてはなら�
 
 -   **秘密は `secret.Secret` で持つ。** API キーは、設定を読むところで `secret.Secret` に包み、秘密を使う部品は `secret.Secret` のまま受け取って持つ。漏らさないことを各実装者の注意に頼らず、型で保証するためである（背景）。`internal/secret` の役割は [package_reference.md](../conventions/package_reference.md) の `internal/secret` の行に従う。
 -   **API キーは、送信先へのリクエストを除き、エラー・ログ・標準出力を含むどの出力にも出さない。** 秘密がログやエラーメッセージに漏れてはならないためである（背景）。秘密の扱いは [security.md](../security.md) の §2 に従う。
--   **拡張では、API キーは決めた経路だけを通り、WASM の入口が受け取った直後に `secret.Secret` に包む。** API キーは、オプションページから `chrome.storage.local` へ、そこから記事の生成を実行するビューアのメインスレッドへ、`postMessage` で Worker へ、Worker の中の WASM の入口へと渡り、Anthropic の API のリクエストのヘッダに入る。設定の検査のときは、オプションページから Worker の検査の関数へも渡る。SW へのメッセージ、ジョブの記録、`BroadcastChannel`、WASM の入口の結果と進み具合、ログ、画面には入れない。SW とポップアップは API キーの値を読まず、秘密でない設定済みの印だけを読む（[ADR-0010](0010-extension-stores-nothing.md)）。TypeScript の側は型で守れないので経路を限ってテストで確かめ、Go の側に入った後は型で守るためである。規則は [0090 設計書](../../tasks/0090_extension_only_architecture/02_architecture.md) の「API キーを出さない先（要件書 AC-06）」にある。
+-   **拡張では、API キーは決めた経路だけを通り、記事生成モジュールが受け取った直後に `secret.Secret` に包む。** API キーは、オプションページから `chrome.storage.local` へ、そこから記事の生成を実行するビューアのメインスレッドへ、`postMessage` で Worker へ、Worker の中の記事生成モジュールへと渡り、Anthropic の API のリクエストのヘッダに入る。設定の検査のときは、オプションページから Worker の検査の関数へも渡る。SW へのメッセージ、ジョブの記録、`BroadcastChannel`、記事生成モジュールの結果と進み具合、ログ、画面には入れない。SW とポップアップは API キーの値を読まず、秘密でない設定済みの印だけを読む（[ADR-0010](0010-extension-stores-nothing.md)）。TypeScript の側は型で守れないので経路を限ってテストで確かめ、Go の側に入った後は型で守るためである。規則は [0090 設計書](../../tasks/0090_extension_only_architecture/02_architecture.md) の「API キーを出さない先（要件書 AC-06）」にある。
 
-拡張が API キーを保存して WASM の入口に渡すことは、まだコードと security.md に反映していない。今の拡張は API キーを持たず、サーバが設定ファイルから読む。この差分は [#773](https://github.com/isseis/yt2column/issues/773) の実装で解消する。
+拡張が API キーを保存して記事生成モジュールに渡すことは、まだコードと security.md に反映していない。今の拡張は API キーを持たず、サーバが設定ファイルから読む。この差分は [#773](https://github.com/isseis/yt2column/issues/773) の実装で解消する。
 
 -   **元の値は、型の唯一のフィールドであるクロージャに閉じ込める。** リフレクションが見られるのは関数のアドレスだけなので、`secret.Secret` を非公開フィールドに持つ構造体を出力しても、元の値は現れない。`fmt` と `log/slog` は非公開フィールドに対してメソッドを呼ばず、リフレクションで中身を表示するためである。規則は [0001 要件定義書](../../tasks/0001_pipeline_skeleton/01_requirements.md) §5「制約条件 (Constraints)」と、[0001 設計書](../../tasks/0001_pipeline_skeleton/02_architecture.md) §3.3「秘密情報型 `Secret`」にある。正本の文書はこの設計を述べないので、この ADR がコードの振る舞いとして述べる。
 -   **`fmt`・`log/slog`・`encoding/json` が呼ぶメソッドは、元の値の代わりに固定の伏せ字を出す。** 型を経た出力に元の値が現れないようにするためである。規則は 0001 設計書 §3.3「秘密情報型 `Secret`」にある。
@@ -40,4 +40,4 @@ LLM の API キーは、ログやエラーメッセージに漏れてはなら�
 
 - 2026-09-29 秘密を持つ型 `Secret` を `internal/secret` に置いた。元の値を `func() string` のクロージャで持ち、`fmt`・`log/slog`・`encoding/json` のどの経路でも元の値を出さず、元の値は `Reveal()` でだけ取り出せる。空の値とゼロ値は拒否する（[0001 要件定義書](../../tasks/0001_pipeline_skeleton/01_requirements.md) F-005・§5）
 - 2026-11-11 Webhook への投稿の機能の廃止に合わせて、秘密から Webhook URL を除いた（[0083 要件定義書](../../tasks/0083_remove_slack_webhook/01_requirements.md) F-001）
-- 2026-11-12 拡張が API キーを保存して使う構成で、API キーが通る経路を決め、WASM の入口が受け取った直後に `secret.Secret` に包むことにした（[0090 設計書](../../tasks/0090_extension_only_architecture/02_architecture.md)）
+- 2026-11-12 拡張が API キーを保存して使う構成で、API キーが通る経路を決め、記事生成モジュールが受け取った直後に `secret.Secret` に包むことにした（[0090 設計書](../../tasks/0090_extension_only_architecture/02_architecture.md)）
