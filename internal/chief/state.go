@@ -390,5 +390,7 @@ func takeoverProposal(f workspaceFacts, next *Next) *Next {
 	if err != nil {
 		return nil
 	}
-	return makeNext(TaskNextRunplanTakeover, cmd, paneinput.RouteRunplanTakeover, f.Routing, f.RoutingErr)
+	n := makeNext(TaskNextRunplanTakeover, cmd, paneinput.RouteRunplanTakeover, f.Routing, f.RoutingErr)
+	n.Key = next.Key
+	return n
 }

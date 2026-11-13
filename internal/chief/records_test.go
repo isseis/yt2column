@@ -199,15 +199,16 @@ func TestStartCleansFinishedSessionNotices(t *testing.T) {
 	if _, _, err := store.Observe(ownerA().Session, "item-2", now); err != nil {
 		t.Fatal(err)
 	}
-	other := filepath.Join(store.Dir(), "notes.txt")
-	if err := os.WriteFile(other, []byte("x"), 0o600); err != nil {
-		t.Fatal(err)
+	for _, name := range []string{"notes.txt", "notice-backup.json"} {
+		if err := os.WriteFile(filepath.Join(store.Dir(), name), []byte("x"), 0o600); err != nil {
+			t.Fatal(err)
+		}
 	}
 	res, err := store.Start(ctx, herdrWith(t, liveAgent(ownerA())), ownerA(), now)
 	if err != nil || res.Removed != 1 {
 		t.Fatalf("Start = %+v, %v; want one notice removed", res, err)
 	}
-	for _, name := range []string{noticeName(ownerA().Session, "item-2"), "notes.txt", lockFile} {
+	for _, name := range []string{noticeName(ownerA().Session, "item-2"), "notes.txt", "notice-backup.json", lockFile} {
 		if _, err := os.Lstat(filepath.Join(store.Dir(), name)); err != nil {
 			t.Errorf("%s was removed: %v", name, err)
 		}

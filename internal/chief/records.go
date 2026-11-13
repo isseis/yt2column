@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -334,6 +335,10 @@ func noticeName(session string, item ItemID) string {
 	return noticePrefix + hashName(session) + "-" + hashName(string(item)) + recordSuffix
 }
 
+// noticeFileName is the exact form noticeName makes, so a file of another
+// kind in the directory is never taken for a notice record.
+var noticeFileName = regexp.MustCompile(`^notice-[0-9a-f]{32}-[0-9a-f]{32}\.json$`)
+
 // noticeRecord is the content of a notice record.
 type noticeRecord struct {
 	Session   string    `json:"session"`
@@ -383,7 +388,7 @@ func (s Store) removeFinishedNotices(session string) (int, error) {
 	var errs []error
 	for _, e := range entries {
 		name := e.Name()
-		if !strings.HasPrefix(name, noticePrefix) || !strings.HasSuffix(name, recordSuffix) || strings.HasPrefix(name, keep) {
+		if !noticeFileName.MatchString(name) || strings.HasPrefix(name, keep) {
 			continue
 		}
 		if err := privatefile.Remove(filepath.Join(s.dir, name)); err != nil && !errors.Is(err, privatefile.ErrNotExist) {
