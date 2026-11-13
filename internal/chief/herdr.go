@@ -288,7 +288,7 @@ func parseAgent(v strictjson.Value) (Agent, error) {
 	if err != nil {
 		return Agent{}, fmt.Errorf("%w: state_change_seq: %w", errHerdrOutput, err)
 	}
-	session, err := parseAgentSession(members)
+	session, err := parseAgentSession(members, strs["agent"])
 	if err != nil {
 		return Agent{}, err
 	}
@@ -303,10 +303,15 @@ func parseAgent(v strictjson.Value) (Agent, error) {
 	}, nil
 }
 
+// sessionIDForm is the shape of the session IDs the samples showed (a UUID).
+// Claude Code's transcript path is built from the ID, so no other shape is
+// read.
+var sessionIDForm = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
+
 // parseAgentSession reads the optional agent_session member: absent or null is
-// no session; otherwise it must be an object of kind "id" with a non-empty
-// value, the only shape the samples showed.
-func parseAgentSession(members map[string]strictjson.Value) (string, error) {
+// no session; otherwise it must be an object of kind "id", for the pane's own
+// agent, with a UUID value, the only shape the samples showed.
+func parseAgentSession(members map[string]strictjson.Value, agent string) (string, error) {
 	value, ok := members["agent_session"]
 	if !ok || value.IsNull() {
 		return "", nil
@@ -315,7 +320,7 @@ func parseAgentSession(members map[string]strictjson.Value) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("%w: agent_session: %w", errHerdrOutput, err)
 	}
-	session, err := object.Collect("kind", "value")
+	session, err := object.Collect("agent", "kind", "value")
 	if err != nil {
 		return "", fmt.Errorf("%w: agent_session: %w", errHerdrOutput, err)
 	}
@@ -323,9 +328,13 @@ func parseAgentSession(members map[string]strictjson.Value) (string, error) {
 	if err != nil || kind != "id" {
 		return "", fmt.Errorf("%w: agent_session kind", errHerdrOutput)
 	}
+	owner, err := strictjson.RequiredString(session, "agent")
+	if err != nil || owner != agent {
+		return "", fmt.Errorf("%w: agent_session agent", errHerdrOutput)
+	}
 	id, err := strictjson.RequiredString(session, "value")
-	if err != nil {
-		return "", fmt.Errorf("%w: agent_session value: %w", errHerdrOutput, err)
+	if err != nil || !sessionIDForm.MatchString(id) {
+		return "", fmt.Errorf("%w: agent_session value", errHerdrOutput)
 	}
 	return id, nil
 }

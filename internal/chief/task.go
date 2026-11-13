@@ -292,6 +292,11 @@ func ParseOldValues(contextDoc []byte) OldValues {
 			continue
 		}
 		if m := oldValueRow.FindStringSubmatch(line); m != nil {
+			if strings.ContainsAny(m[1], " \t") {
+				// The script splits an old value on blanks, so it never
+				// matches one that holds a blank; neither does the tool.
+				continue
+			}
 			counts[m[1]]++
 			values[m[1]] = requirementValues[m[2]]
 		}
@@ -487,6 +492,9 @@ type PlanPR struct {
 	Merged  bool
 	// Steps are the marker's target steps; nil for a plan without markers.
 	Steps []string
+	// stepsErr is why the marker's target steps could not be read; only the
+	// check that they are done needs them, so it alone fails.
+	stepsErr error
 }
 
 // Plan is what an implementation plan says about its PRs.
@@ -498,10 +506,16 @@ type Plan struct {
 }
 
 var (
-	// createdBox and mergedBox are a PR's two progress checkboxes; the
-	// created one may carry the PR's URL.
-	createdBox = regexp.MustCompile(`^- \[([ x])\] PR を作成した(?:: .*)?$`)
-	mergedBox  = regexp.MustCompile(`^- \[([ x])\] PR がマージされた$`)
+	// createdBox and mergedBox are a PR's two progress checkboxes in the
+	// forms the plans on main use: not started, done, or skipped, with any
+	// list indent, and the label alone or followed by ": " (the PR's URL) or
+	// a note in full-width parentheses.
+	createdBox = regexp.MustCompile(`^-[ \t]+\[([ x-])\][ \t]+PR を作成した(?:$|: |（)`)
+	mergedBox  = regexp.MustCompile(`^-[ \t]+\[([ x-])\][ \t]+PR がマージされた(?:$|（)`)
+	// progressLike is any checkbox line with a progress label; one that is
+	// not in a form above makes the plan unreadable rather than read as no
+	// checkbox.
+	progressLike = regexp.MustCompile(`^[ \t]*[-*+][ \t]*\[[^\]]*\][ \t]*PR ?(?:を作成した|がマージされた)`)
 	// stepBox is a step's checkbox: done, skipped, or not started.
 	stepBox = regexp.MustCompile(`^-[ \t]+\[([ x-])\][ \t]+\*\*ステップ ([0-9]+-[0-9]+)\*\*`)
 	// stepID is one step of a marker's target step list.
@@ -579,9 +593,7 @@ func ParsePlan(doc []byte, old OldValues) (Plan, error) {
 		if pr.Created, pr.Merged, err = progress(sections[i], true); err != nil {
 			return Plan{}, fmt.Errorf("PR-%s: %w", target, err)
 		}
-		if pr.Steps, err = markerSteps(sections[i]); err != nil {
-			return Plan{}, fmt.Errorf("PR-%s: %w", target, err)
-		}
+		pr.Steps, pr.stepsErr = markerSteps(sections[i])
 		plan.PRs = append(plan.PRs, pr)
 	}
 	return plan, nil
@@ -603,6 +615,7 @@ func singlePR(doc []byte, lines []docLine, old OldValues) (PlanPR, error) {
 
 // progress reads a PR's two progress checkboxes from lines. In a marker both
 // must appear once; a single-PR record may be absent, before the PR exists.
+// Created and merged are true for a done or a skipped box.
 func progress(lines []docLine, marker bool) (created, merged bool, err error) {
 	var createdRows, mergedRows []string
 	for _, l := range lines {
@@ -611,9 +624,10 @@ func progress(lines []docLine, marker bool) (created, merged bool, err error) {
 		}
 		if m := createdBox.FindStringSubmatch(l.text); m != nil {
 			createdRows = append(createdRows, m[1])
-		}
-		if m := mergedBox.FindStringSubmatch(l.text); m != nil {
+		} else if m := mergedBox.FindStringSubmatch(l.text); m != nil {
 			mergedRows = append(mergedRows, m[1])
+		} else if progressLike.MatchString(l.text) {
+			return false, false, fmt.Errorf("%w: progress checkbox %q", errTaskDocument, l.text)
 		}
 	}
 	if !marker && len(createdRows) == 0 && len(mergedRows) == 0 {
@@ -622,7 +636,9 @@ func progress(lines []docLine, marker bool) (created, merged bool, err error) {
 	if len(createdRows) != 1 || len(mergedRows) != 1 {
 		return false, false, fmt.Errorf("%w: %d created and %d merged checkboxes", errTaskDocument, len(createdRows), len(mergedRows))
 	}
-	return createdRows[0] == "x", mergedRows[0] == "x", nil
+	// A skipped box ("-") is settled like a done one: the PR is not to be
+	// created, so it is never the next PR.
+	return createdRows[0] != " ", mergedRows[0] != " ", nil
 }
 
 // markerSteps reads a marker's target steps: one line, the step IDs
@@ -683,6 +699,9 @@ func (p Plan) StepsDone(target string) (bool, error) {
 	if i < 0 {
 		return false, fmt.Errorf("%w: no PR %s", errTaskDocument, target)
 	}
+	if err := p.PRs[i].stepsErr; err != nil {
+		return false, fmt.Errorf("PR-%s: %w", target, err)
+	}
 	steps := p.PRs[i].Steps
 	if target == singleTarget {
 		if len(p.steps) == 0 {
@@ -704,7 +723,8 @@ func (p Plan) StepsDone(target string) (bool, error) {
 
 // featureBranch is the feature branch name of _context.md: a GitHub user
 // name, the task directory name with "_" replaced by "-", and a two-digit
-// sequence number.
+// sequence number. A branch follows the convention only when its slug is the
+// directory's name, so Read checks the directory it finds against it.
 var featureBranch = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?/(([0-9]{4})(?:-[a-z0-9]+)+)-[0-9]{2}$`)
 
 // taskDirName is the form of a task directory name.

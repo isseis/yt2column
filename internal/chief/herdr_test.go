@@ -5,7 +5,6 @@ package chief
 import (
 	"context"
 	"errors"
-	"slices"
 	"strings"
 	"testing"
 
@@ -29,7 +28,7 @@ func TestReadHerdrSamples(t *testing.T) {
 			Status:         AgentIdle,
 			Session:        "00000000-0000-4000-8000-000000000002",
 			Dir:            "/Users/user/.herdr/worktrees/yt2column/chief-poc",
-			StateChangeSeq: agents[9].StateChangeSeq,
+			StateChangeSeq: 3054,
 		}
 		if agents[9] != want {
 			t.Errorf("agent 9 = %+v, want %+v", agents[9], want)
@@ -76,17 +75,23 @@ func TestReadHerdrSamples(t *testing.T) {
 func TestHerdrRejectsUnknownShapes(t *testing.T) {
 	sample := string(readTestdata(t, "herdr/agent-get-claude-blocked.json"))
 	edits := map[string][2]string{
-		"unknown status":        {`"agent_status":"blocked"`, `"agent_status":"sleeping"`},
-		"missing status":        {`"agent_status":"blocked",`, ``},
-		"negative seq":          {`"state_change_seq":3013`, `"state_change_seq":-1`},
-		"missing seq":           {`"state_change_seq":3013,`, ``},
-		"option-like pane":      {`"pane_id":"w1N:p3"`, `"pane_id":"--source"`},
-		"relative cwd":          {`"cwd":"/Users/user/.herdr/worktrees/yt2column/chief-poc"`, `"cwd":"chief-poc"`},
-		"session of other kind": {`"kind":"id"`, `"kind":"name"`},
-		"empty session value":   {`"value":"00000000-0000-4000-8000-000000000001"`, `"value":""`},
-		"another envelope":      {`"cli:agent:get"`, `"cli:agent:list"`},
-		"another result type":   {`"type":"agent_info"`, `"type":"agent_list"`},
-		"trailing data":         {`"type":"agent_info"}}`, `"type":"agent_info"}}{}`},
+		"unknown status":         {`"agent_status":"blocked"`, `"agent_status":"sleeping"`},
+		"missing status":         {`"agent_status":"blocked",`, ``},
+		"negative seq":           {`"state_change_seq":3013`, `"state_change_seq":-1`},
+		"missing seq":            {`"state_change_seq":3013,`, ``},
+		"option-like pane":       {`"pane_id":"w1N:p3"`, `"pane_id":"--source"`},
+		"relative cwd":           {`"cwd":"/Users/user/.herdr/worktrees/yt2column/chief-poc"`, `"cwd":"chief-poc"`},
+		"session of other kind":  {`"kind":"id"`, `"kind":"name"`},
+		"empty session value":    {`"value":"00000000-0000-4000-8000-000000000001"`, `"value":""`},
+		"path session value":     {`"value":"00000000-0000-4000-8000-000000000001"`, `"value":"../../x"`},
+		"session of other agent": {`"agent":"claude","kind"`, `"agent":"opencode","kind"`},
+		"missing cwd":            {`"cwd":"/Users/user/.herdr/worktrees/yt2column/chief-poc",`, ``},
+		"missing agent":          {`"agent":"claude","agent_session"`, `"agent_session"`},
+		"fractional seq":         {`"state_change_seq":3013`, `"state_change_seq":30.5`},
+		"malformed workspace":    {`"workspace_id":"w1N"`, `"workspace_id":"w1N:p3"`},
+		"another envelope":       {`"cli:agent:get"`, `"cli:agent:list"`},
+		"another result type":    {`"type":"agent_info"`, `"type":"agent_list"`},
+		"trailing data":          {`"type":"agent_info"}}`, `"type":"agent_info"}}{}`},
 	}
 	for name, edit := range edits {
 		t.Run(name, func(t *testing.T) {
@@ -114,7 +119,7 @@ func TestHerdrRejectsUnknownShapes(t *testing.T) {
 // TestHerdrUnknownAgentIsNoTarget checks that an agent of a name chief does
 // not route to is listed with no kind, not rejected.
 func TestHerdrUnknownAgentIsNoTarget(t *testing.T) {
-	sample := strings.Replace(string(readTestdata(t, "herdr/agent-get-claude-idle.json")), `"agent":"claude","agent_session"`, `"agent":"codex","agent_session"`, 1)
+	sample := strings.Replace(string(readTestdata(t, "herdr/agent-get-opencode-done.json")), `"agent":"opencode"`, `"agent":"codex"`, 1)
 	a, err := parseAgentGet([]byte(sample))
 	if err != nil {
 		t.Fatal(err)
@@ -132,6 +137,7 @@ func TestHerdrCommandLines(t *testing.T) {
 	rec.reply("herdr agent get w1N:p3", readTestdata(t, "herdr/agent-get-claude-blocked.json"))
 	rec.reply("herdr workspace list", readTestdata(t, "herdr/workspace-list.json"))
 	rec.reply("herdr agent read w1N:p3 --source visible --lines 200 --format ansi", []byte("screen"))
+	rec.reply("herdr agent read w1N:p3 --source recent --lines 200 --format ansi", []byte("recent"))
 	h := NewHerdr(rec.commands(nil))
 	ctx := context.Background()
 	agents, err := h.Agents(ctx)
@@ -149,6 +155,9 @@ func TestHerdrCommandLines(t *testing.T) {
 	if err != nil || screen != "screen" {
 		t.Errorf("Screen = %q, %v", screen, err)
 	}
+	if recent, err := h.Screen(ctx, pane, ScreenRecent); err != nil || recent != "recent" {
+		t.Errorf("Screen(recent) = %q, %v", recent, err)
+	}
 	before := len(rec.recorded())
 	if _, err := h.Screen(ctx, pane, ScreenSourceUnknown); !errors.Is(err, errHerdrOutput) {
 		t.Errorf("Screen without a source: %v", err)
@@ -161,12 +170,5 @@ func TestHerdrCommandLines(t *testing.T) {
 	}
 	if calls := rec.recorded(); len(calls) != before {
 		t.Errorf("the rejected reads ran %v", calls[before:])
-	}
-	lines := make([]string, 0, before)
-	for _, c := range rec.recorded() {
-		lines = append(lines, c.line())
-	}
-	if !slices.Contains(lines, "herdr agent read w1N:p3 --source visible --lines 200 --format ansi") {
-		t.Errorf("command lines = %v", lines)
 	}
 }

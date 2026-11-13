@@ -986,7 +986,8 @@ character as 2); the line shapes below are the examples to follow.
      詳細: /tmp/runpr.Ab12Cd/merge-3.md                          (always)
      ```
 
-     - Line 2 shows the subject in full and has no width limit; the other
+     - Line 2 shows the subject in full and has no width limit, and so does
+       kind 6, whose model is the routing table's text in full; the other
        lines hold only fixed text and short values (numbers, branch, counts,
        dates, task ID, the requirement value, the agent and model, the path), so
        each stays within 80 columns. Write the subject line from the checked

@@ -21,12 +21,6 @@ func repoContext(t *testing.T) []byte {
 	return data
 }
 
-// planSample returns a plan under testdata/plans.
-func planSample(t *testing.T, name string) []byte {
-	t.Helper()
-	return readTestdata(t, "plans/"+name)
-}
-
 // TestParseOldValues reads the old-value table from the repository's
 // _context.md, and drops an old value with two rows.
 func TestParseOldValues(t *testing.T) {
@@ -44,9 +38,9 @@ func TestParseOldValues(t *testing.T) {
 			t.Errorf("old[%q] = %d, want %d", k, old[k], v)
 		}
 	}
-	doubled := []byte("### PR marker conventions\n\n| `a` | `opus` |\n| `a` | `sonnet` |\n| `b` | `sonnet` |\n\n### Next\n\n| `c` | `opus` |\n")
+	doubled := []byte("### PR marker conventions\n\n| `a` | `opus` |\n| `a` | `sonnet` |\n| `b` | `sonnet` |\n| `d e` | `opus` |\n\n### Next\n\n| `c` | `opus` |\n")
 	if got := ParseOldValues(doubled); len(got) != 1 || got["b"] != RequirementSonnet {
-		t.Errorf("ParseOldValues(doubled) = %v, want only b", got)
+		t.Errorf("ParseOldValues(doubled) = %v, want only b (a twice, d e with a blank, c outside)", got)
 	}
 }
 
@@ -68,6 +62,8 @@ func TestReadModelRequirement(t *testing.T) {
 		"marker-absent.md":                {"2", RequirementReading{Value: RequirementAbsent}},
 		"marker-two-values.md":            {"2", RequirementReading{Value: RequirementUnreadable}},
 		"marker-fenced-value.md":          {"2", RequirementReading{Value: RequirementUnreadable}},
+		"marker-tilde-fence.md":           {"2", RequirementReading{Value: RequirementUnreadable}},
+		"marker-sonnet.md crlf":           {"2", RequirementReading{RequirementSonnet, "sonnet"}},
 		"marker-duplicate.md":             {"2", RequirementReading{Value: RequirementUnreadable}},
 		"single-sonnet.md":                {singleTarget, RequirementReading{RequirementSonnet, "sonnet"}},
 		"single-no-section.md":            {singleTarget, RequirementReading{Value: RequirementAbsent}},
@@ -76,7 +72,7 @@ func TestReadModelRequirement(t *testing.T) {
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			file, _, _ := strings.Cut(name, " ")
+			file := strings.TrimSuffix(name, " as single")
 			if got := readRequirement(planSample(t, file), c.target, old); got != c.want {
 				t.Errorf("readRequirement = %+v, want %+v", got, c.want)
 			}
@@ -121,6 +117,8 @@ func TestParsePlanProgress(t *testing.T) {
 		"single-sonnet.md":       {singleTarget, false},
 		"single-no-section.md":   {singleTarget, false},
 		"single-recorded.md":     {"", true},
+		"single-real-record.md":  {"", true},
+		"marker-real-forms.md":   {"3", false},
 		"marker-old-standard.md": {"2", false},
 	}
 	for name, c := range cases {
@@ -167,9 +165,9 @@ func TestParsePlanRejects(t *testing.T) {
 	cases := map[string]string{
 		"duplicate marker":     string(planSample(t, "marker-duplicate.md")),
 		"marker number 0":      strings.Replace(base, "### PR-3 ", "### PR-03 ", 1),
-		"merged box missing":   strings.Replace(base, "- [ ] PR \xe3\x81\x8c", "- [ ] PR x", 1),
+		"merged box missing":   string(planSample(t, "marker-no-merged-box.md")),
+		"near-miss checkbox":   string(planSample(t, "single-near-miss.md")),
 		"unclosed fence":       base + "\n```\n",
-		"bad target step":      strings.Replace(base, "2-1 / 2-2", "2-1, 2-2", 1),
 		"Status without a row": strings.Replace(base, "| Status | `approved` |\n", "", 1),
 	}
 	for name, doc := range cases {
@@ -208,6 +206,16 @@ func TestBranchPlanStepsDone(t *testing.T) {
 			}
 		})
 	}
+	t.Run("an unreadable target step list", func(t *testing.T) {
+		doc := strings.Replace(string(planSample(t, "marker-opus.md")), "2-1 / 2-2", "2-1, 2-2", 1)
+		plan, err := ParsePlan([]byte(doc), nil)
+		if err != nil {
+			t.Fatalf("the plan was rejected for its step list: %v", err)
+		}
+		if _, err := plan.StepsDone("2"); !errors.Is(err, errTaskDocument) {
+			t.Errorf("error = %v, want errTaskDocument", err)
+		}
+	})
 	t.Run("a target step without a checkbox", func(t *testing.T) {
 		doc := strings.Replace(string(planSample(t, "marker-opus.md")), "2-1 / 2-2", "2-1 / 2-9", 1)
 		plan, err := ParsePlan([]byte(doc), nil)

@@ -80,8 +80,8 @@ func TestRoutingRejects(t *testing.T) {
 	edits := map[string][2]string{
 		"missing row":          {sonnetReviewRow + "\n", ""},
 		"repeated row":         {sonnetReviewRow, sonnetReviewRow + "\n" + sonnetReviewRow},
-		"unknown row":          {"| `runpr` |", "| `runpr-fast` |"},
-		"row name not code":    {"| `runpr` |", "| runpr |"},
+		"unknown row":          {sonnetReviewRow, sonnetReviewRow + "\n| `runpr-fast` | `/runpr` | OpenCode | `a` |"},
+		"row name not code":    {sonnetReviewRow, sonnetReviewRow + "\n| runpr | `/runpr` | OpenCode | `a` |"},
 		"extra column":         {sonnetReviewRow, sonnetReviewRow + " x |"},
 		"other agent":          {"| `runpr` | `/runpr` | OpenCode |", "| `runpr` | `/runpr` | Codex |"},
 		"Claude model outside": {sonnetReviewRow, row("`haiku`")},

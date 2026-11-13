@@ -301,6 +301,17 @@ func readTestdata(t *testing.T, rel string) []byte {
 	return data
 }
 
+// planSample returns a plan under testdata/plans. A name ending in
+// " crlf" returns that plan with CRLF line ends, which a sample file would
+// lose to the repository's whitespace hooks.
+func planSample(t *testing.T, name string) []byte {
+	t.Helper()
+	if file, ok := strings.CutSuffix(name, " crlf"); ok {
+		return bytes.ReplaceAll(readTestdata(t, "plans/"+file), []byte("\n"), []byte("\r\n"))
+	}
+	return readTestdata(t, "plans/"+name)
+}
+
 // taskID returns the task number s, failing the test when it is malformed.
 func taskID(t *testing.T, s string) paneinput.TaskID {
 	t.Helper()

@@ -67,7 +67,9 @@ var errRelativeDir = errors.New("command directory is not absolute")
 
 // herdr runs herdr with args and returns its standard output.
 func (c Commands) herdr(ctx context.Context, args ...string) ([]byte, error) {
-	return c.run(ctx, herdrTimeout, "", slices.Clone(c.environ), herdrProgram, args)
+	// A nil Env would let herdr inherit the process environment; the
+	// environment passed in is the whole of it, even when empty.
+	return c.run(ctx, herdrTimeout, "", append([]string{}, c.environ...), herdrProgram, args)
 }
 
 // git runs git in dir with the hardening options before args and with the git

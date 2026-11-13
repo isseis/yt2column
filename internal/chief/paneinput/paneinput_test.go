@@ -168,11 +168,6 @@ func TestZeroAndOutOfRangeAreUnusable(t *testing.T) {
 	if _, err := (paneinput.Route{}).ModelText(); !errors.Is(err, paneinput.ErrInvalid) {
 		t.Errorf("zero Route ModelText error = %v, want ErrInvalid", err)
 	}
-	for _, m := range []paneinput.ClaudeModel{paneinput.ClaudeModelUnknown, paneinput.ClaudeModel(3), paneinput.ClaudeModel(-2)} {
-		if _, err := paneinput.SwitchModel(m); !errors.Is(err, paneinput.ErrInvalid) {
-			t.Errorf("SwitchModel(%d) error = %v, want ErrInvalid", m, err)
-		}
-	}
 }
 
 // TestPromptText checks the line each prompt types.

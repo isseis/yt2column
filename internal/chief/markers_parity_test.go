@@ -73,6 +73,8 @@ func TestMarkerReadingMatchesDecisionScript(t *testing.T) {
 		{"marker-absent.md", "2"},
 		{"marker-two-values.md", "2"},
 		{"marker-fenced-value.md", "2"},
+		{"marker-tilde-fence.md", "2"},
+		{"marker-sonnet.md crlf", "2"},
 		{"marker-duplicate.md", "2"},
 		{"single-sonnet.md", singleTarget},
 		{"single-no-section.md", singleTarget},
