@@ -258,25 +258,25 @@
 
 **変更するファイル:** `internal/privatefile/privatefile.go`、`internal/chief/records.go`・`workspace.go`・`state.go`・`pending.go`・`network_test.go` など（新規）、`internal/chief/test_helpers.go`、`cmd/chief/main.go`・`main_test.go`（新規）、`internal/config/envaccess_test.go`、`.github/workflows/ci.yml`、`CLAUDE.md`、`docs/dev/conventions/package_reference.md`
 
--   [ ] **ステップ 3-1**: `privatefile.Remove` を足す（設計書 3.5 の片付け）。決まった形の通常のファイルだけを消し、シンボリックリンクと持ち主か権限の違うファイルを拒む。持ち主の確かめは今の `check` を使い、テストは `Remove` に特有の拒否（シンボリックリンク、通常のファイルでない、権限）だけを確かめる。`package_reference.md` の行に `Remove` を足す。
--   [ ] **ステップ 3-2**: `records.go` に、状態のディレクトリ（設計書 3.5 の場所、決定 13）、記録の作成（`privatefile.Create`）と読み取り（`privatefile.Read`）、chief のロックと引き継ぎ、`start` していないサブコマンドの拒否（`ErrNotStarted`）、通知の記録を書く。`start` の片付け（設計書 3.5）は、ここでは終わったセッションの通知の記録を消すところまでを書く（消すのはステップ 3-1 の `privatefile.Remove`）。周・観測・送信などの記録と、その片付けは、それを使うフェーズで足す。テストは次を確かめる。
+-   [x] **ステップ 3-1**: `privatefile.Remove` を足す（設計書 3.5 の片付け）。決まった形の通常のファイルだけを消し、シンボリックリンクと持ち主か権限の違うファイルを拒む。持ち主の確かめは今の `check` を使い、テストは `Remove` に特有の拒否（シンボリックリンク、通常のファイルでない、権限）だけを確かめる。`package_reference.md` の行に `Remove` を足す。
+-   [x] **ステップ 3-2**: `records.go` に、状態のディレクトリ（設計書 3.5 の場所、決定 13）、記録の作成（`privatefile.Create`）と読み取り（`privatefile.Read`）、chief のロックと引き継ぎ、`start` していないサブコマンドの拒否（`ErrNotStarted`）、通知の記録を書く。`start` の片付け（設計書 3.5）は、ここでは終わったセッションの通知の記録を消すところまでを書く（消すのはステップ 3-1 の `privatefile.Remove`）。周・観測・送信などの記録と、その片付けは、それを使うフェーズで足す。テストは次を確かめる。
     -   同じ名前の記録を 2 回作れないこと、読めない記録を読めないとすること。
     -   `start` が、終わったセッションの通知の記録を消し、今のセッションの通知の記録を残すこと。
     -   生きている持ち主のロックで `start` が拒むこと、持ち主でない呼び出しを拒むこと。
     -   引き継ぎの確かめ直し。テストが状態のディレクトリの排他を持ったまま、引き継ぐ側が古いと見たロックを生きている持ち主のものに置き換え、その後に排他を放すと、引き継ぐ側が引き継ぎを拒むこと。ディレクトリは並行の処理の前に作っておく（`MkdirBelow` は umask を変えるため）。
     -   同じ worktree をシンボリックリンクで指しても、同じ workspace の記録になること（決定 13）。
--   [ ] **ステップ 3-3**: `workspace.go` に、chief の workspace とタスクの workspace の見分け（設計書 3.1.4、git の共通ディレクトリで比べる）、worktree の git の状態の読み取り、ブランチの開いている PR の読み取り、周ごとの fetch（決定 20）を書く。workspace は決まった順で並べて読む。テストは、見分けの各場合と、git と gh の失敗が「要確認」の理由になることを確かめる。
--   [ ] **ステップ 3-4**: `state.go` に、状態の区分、行の中身と並べ方、次のコマンド、送り先の表が読めないときの扱い、AC-40 の引き継ぎの提案を書く（設計書 3.1.4）。「質問で停止」の行には、質問の文と選択肢と pane を入れる（AC-05）。テストは次を確かめる。
+-   [x] **ステップ 3-3**: `workspace.go` に、chief の workspace とタスクの workspace の見分け（設計書 3.1.4、git の共通ディレクトリで比べる）、worktree の git の状態の読み取り、ブランチの開いている PR の読み取り、周ごとの fetch（決定 20）を書く。workspace は決まった順で並べて読む。テストは、見分けの各場合と、git と gh の失敗が「要確認」の理由になることを確かめる。
+-   [x] **ステップ 3-4**: `state.go` に、状態の区分、行の中身と並べ方、次のコマンド、送り先の表が読めないときの扱い、AC-40 の引き継ぎの提案を書く（設計書 3.1.4）。「質問で停止」の行には、質問の文と選択肢と pane を入れる（AC-05）。テストは次を確かめる。
     -   状態ごと、要確認の理由ごと。
     -   次のコマンドの規則の行ごと（簡易な進め方の 3 文書のマージの後を含む）。
     -   実装モデル要件が読めないとき、またはないときに `/runplan` を示さないこと。
     -   AC-40 の条件を 1 つずつ外した場合。
--   [ ] **ステップ 3-5**: `pending.go` に、人の判断を待つものの並べ方と新しい通知を書く（設計書 3.1.5）。テストは、種類の順、待っている時間の順、同じ項目をセッションの中で 2 回通知しないこと、記録を作れないときの時刻の扱いを確かめる。
--   [ ] **ステップ 3-6**: `cmd/chief/main.go` に、サブコマンドの解析、`--protocol`（決定 8）、終了コード（設計書 3.1.1）、出力の JSON（3.1.8）、`start` と `snapshot` を書く。
+-   [x] **ステップ 3-5**: `pending.go` に、人の判断を待つものの並べ方と新しい通知を書く（設計書 3.1.5）。テストは、種類の順、待っている時間の順、同じ項目をセッションの中で 2 回通知しないこと、記録を作れないときの時刻の扱いを確かめる。
+-   [x] **ステップ 3-6**: `cmd/chief/main.go` に、サブコマンドの解析、`--protocol`（決定 8）、終了コード（設計書 3.1.1）、出力の JSON（3.1.8）、`start` と `snapshot` を書く。
     -   環境（`HERDR_PANE_ID`・`XDG_STATE_HOME`・`HOME`・`CLAUDE_CONFIG_DIR` と、子プロセスに渡す環境）は `main` でだけ読み、決定 19 の形で処理に渡す。`internal/config/envaccess_test.go` の一覧に足す。
     -   テストは、Herdr の外で起動したとき何も読まずに 3 で終わること、拒む理由ごとの終了コード、`--protocol` の食い違い、使い方の誤りを確かめる。
     -   `package_reference.md` に `cmd/chief` の行を、`ci.yml` の `doc-guard` と CLAUDE.md の一覧に `./cmd/chief` を足す（ステップ 2-8）。
--   [ ] **ステップ 3-7**: `network_test.go` に、呼び出しの記録係が、道具が走らせた gh と git がすべて読み取りの操作の一覧にあり、gh の環境に `GH_REPO`・`GH_HOST` がなく、git がタスクの worktree か chief の worktree で走ったことを確かめるテストを書く（AC-61、決定 10）。`snapshot` が `gh pr checks` を呼ばず、PR の詳細を集めないことも確かめる（AC-04）。
+-   [x] **ステップ 3-7**: `network_test.go` に、呼び出しの記録係が、道具が走らせた gh と git がすべて読み取りの操作の一覧にあり、gh の環境に `GH_REPO`・`GH_HOST` がなく、git がタスクの worktree か chief の worktree で走ったことを確かめるテストを書く（AC-61、決定 10）。`snapshot` が `gh pr checks` を呼ばず、PR の詳細を集めないことも確かめる（AC-04）。
 
 **完了の条件:** `chief start` と `chief snapshot` が fake の外部コマンドで動き、設計書 3.1.4・3.1.5・3.5 のロックと通知の記録がそろっている。`make test`・`make lint`・`make deadcode` が通る。
 
@@ -564,21 +564,21 @@ $ rg -n 'on Sonnet|to Sonnet|implement.*Sonnet|Model to start|model each reading
 
 | AC | 確かめ | 種類 | 実装 | PR |
 |---|---|---|---|---|
-| AC-01 | `ic/state_test.go::TestSnapshotExcludesChiefWorkspace`、`ic/workspace_test.go::TestTaskWorkspaces` | test | 3-3・3-4 | PR-3 |
-| AC-02 | `ic/state_test.go::TestRowContents`（実行中の行は送信の記録から） | test | 3-4・4-6 | PR-3、PR-4 |
-| AC-03 | `ic/state_test.go::TestRowOrder` | test | 3-4 | PR-3 |
-| AC-04 | `ic/network_test.go::TestSnapshotSkipsDetail`、`/chief` の定義 | test、manual | 3-7・7-2 | PR-3、PR-7 |
-| AC-05 | `ic/state_test.go::TestQuestionInRow`、`/chief` の定義 | test、manual | 1-6・3-4・7-2 | PR-1、PR-3、PR-7 |
-| AC-06 | `ic/state_test.go::TestNeedsCheckReasons`、`ic/workspace_test.go::TestWorkspaceReadFailures` | test | 3-3・3-4 | PR-3 |
-| AC-07 | `cc/main_test.go::TestStartOutsideHerdr` | test | 3-6 | PR-3 |
-| AC-08 | `ic/records_test.go::TestStartRefusesLiveOwner`、`ic/records_test.go::TestLockTakeoverRecheck` | test | 3-2 | PR-3 |
-| AC-09 | `ic/screen_test.go::TestParseScreenSamples`、`ic/state_test.go::TestClassifyWorkspaceStates` | test | 1-6・3-4 | PR-1、PR-3 |
+| AC-01 | `ic/workspace_test.go::TestFindTaskWorkspaces` | test | 3-3・3-4 | PR-3 |
+| AC-02 | `ic/snapshot_test.go::TestTakeSnapshotStates`（実行中の行は送信の記録から） | test | 3-4・4-6 | PR-3、PR-4 |
+| AC-03 | `ic/snapshot_test.go::TestTakeSnapshotOrder` | test | 3-4 | PR-3 |
+| AC-04 | `ic/network_test.go::TestSnapshotRunsOnlyReadsInTheRightPlaces`、`/chief` の定義 | test、manual | 3-7・7-2 | PR-3、PR-7 |
+| AC-05 | `ic/snapshot_test.go::TestTakeSnapshotStates`、`/chief` の定義 | test、manual | 1-6・3-4・7-2 | PR-1、PR-3、PR-7 |
+| AC-06 | `ic/snapshot_test.go::TestTakeSnapshotUnreadable` | test | 3-3・3-4 | PR-3 |
+| AC-07 | `cc/main_test.go::TestRunOutsideHerdrReadsNothing` | test | 3-6 | PR-3 |
+| AC-08 | `ic/records_test.go::TestStartTakesAndRefusesTheLock`、`ic/records_test.go::TestTakeoverRechecksUnderTheExclusion` | test | 3-2 | PR-3 |
+| AC-09 | `ic/screen_test.go::TestParseScreenSamples`、`ic/snapshot_test.go::TestTakeSnapshotStates` | test | 1-6・3-4 | PR-1、PR-3 |
 | AC-10 | 同上（OpenCode の質問のサンプル） | test | 1-6・3-4 | PR-1、PR-3 |
-| AC-11 | 同上（マージの確認のサンプル）、`ic/state_test.go::TestMergeQuestionOffersNoRunpr` | test | 1-6・3-4 | PR-1、PR-3 |
-| AC-12 | `ic/screen_test.go::TestParseScreenRejectsNonMatching`、`ic/state_test.go::TestNeedsCheckReasons`、`ic/send_test.go::TestSendChecksBeforeFirstInput`（合わない画面） | test | 1-6・3-4・4-2 | PR-1、PR-3、PR-4 |
-| AC-13 | `ic/pending_test.go::TestPendingOrder`、`/chief` の定義（「何もしない」） | test、manual | 3-5・7-2 | PR-3、PR-7 |
+| AC-11 | 同上（マージの確認のサンプル）、`ic/snapshot_test.go::TestTakeSnapshotStates`（マージの確認の行は次のコマンドを持たない） | test | 1-6・3-4 | PR-1、PR-3 |
+| AC-12 | `ic/screen_test.go::TestParseScreenRejectsNonMatching`、`ic/snapshot_test.go::TestTakeSnapshotStates`（画面が合わない場合）、`ic/send_test.go::TestSendChecksBeforeFirstInput`（合わない画面） | test | 1-6・3-4・4-2 | PR-1、PR-3、PR-4 |
+| AC-13 | `ic/pending_test.go::TestSortPending`、`ic/snapshot_test.go::TestTakeSnapshotOrder`、`/chief` の定義（「何もしない」） | test、manual | 3-5・7-2 | PR-3、PR-7 |
 | AC-14 | `/chief` の定義と実地の確かめ（§1.3 の決定 14 の例外）。示す順の材料は AC-13 の test | manual | 7-2・7-6 | PR-7 |
-| AC-15 | `ic/network_test.go::TestSnapshotSkipsDetail`（`snapshot` が送らない）、`/chief` の定義 | test、manual | 3-7・7-2 | PR-3、PR-7 |
+| AC-15 | `ic/network_test.go::TestSnapshotRunsOnlyReadsInTheRightPlaces`（`snapshot` が送らない）、`/chief` の定義 | test、manual | 3-7・7-2 | PR-3、PR-7 |
 | AC-16 | `/chief` の定義と実地の確かめ（§1.3 の決定 14 の例外） | manual | 7-2・7-6 | PR-7 |
 | AC-17 | `ic/detail_test.go::TestDetailItems`、`/chief` の定義（要約） | test、manual | 4-4・7-2 | PR-4、PR-7 |
 | AC-18 | `ic/detail_test.go::TestDetailKeepsCheckBuckets` | test | 4-4 | PR-4 |
@@ -595,20 +595,20 @@ $ rg -n 'on Sonnet|to Sonnet|implement.*Sonnet|Model to start|model each reading
 | AC-29 | `ic/paneinput/paneinput_test.go::TestRelayKeysFromNumbersOnly`、`ic/relay_test.go::TestRelaySendsChosenOption` | test | 5-2 | PR-5 |
 | AC-31 | `ic/paneinput/paneinput_test.go::TestZeroValuesAreUnusable`、`ic/paneinput/paneinput_test.go::TestConstructorsRejectInvalid`、`ic/herdr_test.go::TestWriterRefuses`、`cc/docs_test.go::TestSettingsDeniesPaneInput` | test、static | 2-1・4-1・7-3 | PR-2、PR-4、PR-7 |
 | AC-32 | `ic/task_test.go::TestReadModelRequirement`、`ic/markers_parity_test.go::TestMarkerReadingMatchesDecisionScript` | test | 2-4・2-5 | PR-2 |
-| AC-33 | `ic/state_test.go::TestUnreadableRequirementOffersNoRunplan` | test | 3-4 | PR-3 |
+| AC-33 | `ic/snapshot_test.go::TestRunplanRouting` | test | 3-4 | PR-3 |
 | AC-34 | `ic/send_test.go::TestClaudeModelSwitchCheck` | test | 4-2 | PR-4 |
 | AC-35 | `ic/send_test.go::TestOpenCodeModelMatch` | test | 4-2 | PR-4 |
 | AC-36 | `ic/send_test.go::TestSendChecksBeforeFirstInput`（残りの文字を返す） | test | 4-2 | PR-4 |
 | AC-37 | `ic/send_test.go::TestSendFailureAfterInputStops`、`ic/records_test.go::TestUnfinishedSendBecomesStop`、`ic/records_test.go::TestStopSurvivesRestart`、`ic/records_test.go::TestReleaseClearsStop`、`ic/records_test.go::TestWorkspaceKeyIsCanonical` | test | 3-2・4-2・4-3 | PR-3、PR-4 |
 | AC-38 | `ic/send_test.go::TestMkreqTarget` | test | 4-5 | PR-4 |
 | AC-39 | `ic/routing_test.go::TestRoutingRowChangesOneRoute` | test | 2-7 | PR-2 |
-| AC-40 | `ic/task_test.go::TestBranchPlanStepsDone`、`ic/state_test.go::TestTakeoverProposal`、`ic/send_test.go::TestSendArgumentValidation`（`runplan-takeover`） | test | 2-4・3-4・4-5 | PR-2、PR-3、PR-4 |
+| AC-40 | `ic/task_test.go::TestBranchPlanStepsDone`、`ic/snapshot_test.go::TestTakeoverProposal`、`ic/send_test.go::TestSendArgumentValidation`（`runplan-takeover`） | test | 2-4・3-4・4-5 | PR-2、PR-3、PR-4 |
 | AC-41 | `ic/autosend_test.go::TestAutoSendConditions` | test | 6-3 | PR-6 |
 | AC-42 | `ic/autosend_test.go::TestAutoSendReportMismatch` | test | 6-3 | PR-6 |
-| AC-43 | `ic/state_test.go::TestNextCommand`（簡易な進め方の 3 文書の後） | test | 3-4 | PR-3 |
+| AC-43 | `ic/snapshot_test.go::TestNextCommandRules`（簡易な進め方の 3 文書の後） | test | 3-4 | PR-3 |
 | AC-44 | `ic/autosend_test.go::TestAutoSendOnce`（起動し直し、記録を読めないとき） | test | 6-2・6-3 | PR-6 |
 | AC-45 | `ic/autosend_test.go::TestAutoSendConditions`（満たさなかった条件の提案） | test | 6-3 | PR-6 |
-| AC-47 | `ic/autosend_test.go::TestAutoSendNeverMkreqOrRunpr`、`ic/state_test.go::TestClassifyWorkspaceStates`（タスク完了） | test | 3-4・6-3 | PR-3、PR-6 |
+| AC-47 | `ic/autosend_test.go::TestAutoSendNeverMkreqOrRunpr`、`ic/snapshot_test.go::TestTakeSnapshotStates`（タスク完了） | test | 3-4・6-3 | PR-3、PR-6 |
 | AC-48 | `cc/docs_test.go::TestMarkerFormsCarryAutoSend`（`mkplan2.md`・`mkplan.md`・`_lib/simple-process.md` の形、`_context.md` の欄の一覧） | static | 6-5・6-6 | PR-6 |
 | AC-49 | `ic/autosend_test.go::TestAutoSendHold` | test | 6-3 | PR-6 |
 | AC-50 | `ic/task_test.go::TestReadAutoSendField`（欄がない場合）、`ic/autosend_test.go::TestAutoSendConditions` | test | 2-4・6-3 | PR-2、PR-6 |
@@ -619,10 +619,10 @@ $ rg -n 'on Sonnet|to Sonnet|implement.*Sonnet|Model to start|model each reading
 | AC-55 | `ic/reset_test.go::TestDetailSavedBeforeReset`、`ic/detail_test.go::TestDetailAfterReset` | test | 4-4・4-5 | PR-4 |
 | AC-56 | `ic/wait_test.go::TestWaitReturnsOnChange`、`ic/autosend_test.go::TestAutoSendConditions`、実地の確かめ | test、manual | 6-1・6-3・7-6 | PR-6、PR-7 |
 | AC-57 | `ic/wait_test.go::TestWaitKeepsWaitingOnBlocked`、`ic/wait_test.go::TestWaitIgnoresChiefWorkspace` | test | 6-1 | PR-6 |
-| AC-58 | `ic/pending_test.go::TestNoticesOncePerSession`、`/chief` の定義（通知の送信） | test、manual | 3-5・7-2 | PR-3、PR-7 |
+| AC-58 | `ic/pending_test.go::TestPendingWaitsFromTheFirstSighting`、`ic/records_test.go::TestObserve`、`/chief` の定義（通知の送信） | test、manual | 3-5・7-2 | PR-3、PR-7 |
 | AC-59 | `ic/autosend_test.go::TestAutoSendUnobservedMerge` | test | 6-3 | PR-6 |
-| AC-60 | `ic/state_test.go::TestNeedsCheckReasons`（Herdr の失敗）、`ic/wait_test.go::TestWaitFailure`、`/chief` の定義 | test、manual | 3-4・6-1・7-2 | PR-3、PR-6、PR-7 |
-| AC-61 | `ic/network_test.go::TestNetworkCommandsAreReadOnly`（呼び出しの記録係がすべてのテストで確かめる一覧を含む） | test | 3-7・4-6・6-4（記録係は 2-3） | PR-3、PR-4、PR-6 |
+| AC-60 | `ic/snapshot_test.go::TestTakeSnapshotUnreadable`（Herdr の失敗）、`ic/wait_test.go::TestWaitFailure`、`/chief` の定義 | test、manual | 3-4・6-1・7-2 | PR-3、PR-6、PR-7 |
+| AC-61 | `ic/network_test.go::TestSnapshotRunsOnlyReadsInTheRightPlaces`（呼び出しの記録係がすべてのテストで確かめる一覧を含む） | test | 3-7・4-6・6-4（記録係は 2-3） | PR-3、PR-4、PR-6 |
 | AC-62 | `ic/send_test.go::TestActionResults`、`ic/relay_test.go::TestRelaySendsChosenOption`、`ic/autosend_test.go::TestAutoSendConditions` | test | 4-7・5-3・6-3 | PR-4、PR-5、PR-6 |
 | AC-63 | `ic/send_test.go::TestActionResults` | test | 4-7 | PR-4 |
 

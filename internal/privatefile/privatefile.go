@@ -468,3 +468,30 @@ func setDirMode(dir string) error {
 	}
 	return file.Chmod(DirMode)
 }
+
+// opRemove is the operation an *fs.PathError from Remove names.
+const opRemove = "remove"
+
+// Remove deletes the file at path when it is a regular file, not a symbolic
+// link, owned by the effective user, with exactly Mode: the same shape Read
+// accepts. Any other shape is refused with the *UnsafeError Read would give,
+// and nothing is deleted.
+//
+// Contract: only the file this package's other functions create is removed;
+// a link, a directory, a file of another owner, or a file of another mode is
+// never touched. The shape is judged by the path's Lstat just before the
+// unlink, so a name replaced between the two can still be removed; the
+// directory is the user's own, which is the same trust Create relies on.
+func Remove(path string) error {
+	info, err := os.Lstat(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return &fs.PathError{Op: opRemove, Path: path, Err: ErrNotExist}
+	}
+	if err != nil {
+		return err
+	}
+	if err := refusal(path, info); err != nil {
+		return err
+	}
+	return os.Remove(path)
+}

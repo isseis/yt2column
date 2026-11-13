@@ -697,7 +697,7 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
   does not run it: the local `make test`, and the CI `test` job when the change
   includes code, do. A change to the READMEs alone is therefore checked by
   neither CI job for this test. The `doc-guard` CI job runs the other guards
-  (`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./cmd/codexreview ./internal/pipeline ./internal/chief`)
+  (`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./cmd/codexreview ./cmd/chief ./internal/pipeline ./internal/chief`)
   on every pull request, so a documentation-only change is checked in CI by
   those guards even though `check-changes` classifies it as non-code.
 - A change that touches only `.gitignore` can still break the extension's

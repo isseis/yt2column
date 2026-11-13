@@ -1055,3 +1055,58 @@ func TestMkdirBelowSwap(t *testing.T) {
 		})
 	}
 }
+
+// TestRemove removes the file shape Read accepts and refuses every other
+// shape without deleting it.
+func TestRemove(t *testing.T) {
+	skipIfRoot(t)
+	dir := t.TempDir()
+
+	t.Run("regular file", func(t *testing.T) {
+		path := filepath.Join(dir, "record")
+		writeFile(t, path, []byte("x"), Mode)
+		if err := Remove(path); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := os.Lstat(path); !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("file still there after Remove: %v", err)
+		}
+	})
+	t.Run("missing", func(t *testing.T) {
+		if err := Remove(filepath.Join(dir, "none")); !errors.Is(err, ErrNotExist) {
+			t.Errorf("Remove(missing) = %v, want ErrNotExist", err)
+		}
+	})
+	refused := map[string]struct {
+		make   func(path string)
+		reason UnsafeReason
+	}{
+		"symlink": {func(path string) {
+			target := filepath.Join(dir, "target")
+			writeFile(t, target, []byte("x"), Mode)
+			if err := os.Symlink(target, path); err != nil {
+				t.Fatal(err)
+			}
+		}, ReasonSymlink},
+		"directory": {func(path string) {
+			if err := os.Mkdir(path, 0o700); err != nil {
+				t.Fatal(err)
+			}
+		}, ReasonNotRegular},
+		"wrong mode": {func(path string) { writeFile(t, path, []byte("x"), 0o644) }, ReasonMode},
+	}
+	for name, c := range refused {
+		t.Run(name, func(t *testing.T) {
+			path := filepath.Join(dir, strings.ReplaceAll(name, " ", "-"))
+			c.make(path)
+			err := Remove(path)
+			unsafe, ok := errors.AsType[*UnsafeError](err)
+			if !ok || unsafe.Reason != c.reason {
+				t.Fatalf("Remove = %v, want an *UnsafeError with reason %v", err, c.reason)
+			}
+			if _, err := os.Lstat(path); err != nil {
+				t.Errorf("a refused path was removed: %v", err)
+			}
+		})
+	}
+}

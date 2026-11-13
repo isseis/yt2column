@@ -206,7 +206,7 @@ var errNoReply = errors.New("no reply recorded for the command")
 // or types into a pane. The recorder fails a test that runs anything else.
 var readOnlyCommands = map[string][][]string{
 	herdrProgram: {{herdrAgent, "list"}, {herdrAgent, "get"}, {herdrAgent, "read"}, {"workspace", "list"}}, //nolint:goconst // each pair names one herdr operation
-	gitProgram:   {{"show"}, {"ls-tree"}, {"rev-parse"}},
+	gitProgram:   {{"show"}, {"ls-tree"}, {"rev-parse"}, {"rev-list", "--count"}, {"fetch", "origin", "main"}},
 	ghProgram:    {{"pr", "list"}, {"pr", "view"}, {"pr", "checks"}},
 }
 
@@ -219,10 +219,13 @@ type recorder struct {
 	mu      sync.Mutex
 	calls   []recordedCall
 	replies map[string]reply
+	// dirReplies are replies for a command line run in one directory; they
+	// win over replies for the line alone.
+	dirReplies map[string]reply
 }
 
 func newRecorder(t *testing.T) *recorder {
-	return &recorder{t: t, replies: map[string]reply{}}
+	return &recorder{t: t, replies: map[string]reply{}, dirReplies: map[string]reply{}}
 }
 
 // reply sets what the command line writes to its standard output when it
@@ -231,6 +234,27 @@ func (r *recorder) reply(line string, out []byte) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.replies[line] = reply{out: out}
+}
+
+// replyIn sets what the command line writes when it runs in dir.
+func (r *recorder) replyIn(dir, line string, out []byte) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.dirReplies[dir+"\x00"+line] = reply{out: out}
+}
+
+// fail makes the command line fail with err, wherever it runs.
+func (r *recorder) fail(line string, err error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.replies[line] = reply{err: err}
+}
+
+// failIn makes the command line fail with err when it runs in dir.
+func (r *recorder) failIn(dir, line string, err error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.dirReplies[dir+"\x00"+line] = reply{err: err}
 }
 
 // commands returns the Commands under test, running through the recorder
@@ -273,7 +297,10 @@ func (rr recordingRunner) Run(ctx context.Context, name string, args ...string) 
 	}
 	r.mu.Lock()
 	r.calls = append(r.calls, call)
-	rep, ok := r.replies[call.line()]
+	rep, ok := r.dirReplies[call.dir+"\x00"+call.line()]
+	if !ok {
+		rep, ok = r.replies[call.line()]
+	}
 	r.mu.Unlock()
 	if !ok {
 		r.t.Errorf("no reply for %q", call.line())
