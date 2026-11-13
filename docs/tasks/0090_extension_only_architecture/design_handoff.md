@@ -25,7 +25,7 @@
 
 **懸念:** アダプタは、`http.Client` の `CheckRedirect` でリダイレクトを拒否する（`internal/llm/llmhttp/llmhttp.go:65`）。WASM のビルドでは `net/http` が `fetch` に変換され、`fetch` がリダイレクトに従うので、この拒否は効かなかった。リダイレクトの先が `host_permissions` の内か、事前の確認を許す先なら、API キーのヘッダと本文がそのまま転送された（[調査記録](../../research/wasm_pipeline_poc/README.md)「測定 1：プローブ（アダプタの守り）」）。
 
-**理由:** [security.md](../../dev/security.md) §3 は、リダイレクトに従わないことを定める。拡張だけの構成でこれが働かないと、API キーが Anthropic のほかの先へ送られうる。
+**理由:** リダイレクトに従わないことは、[0003 要件定義書](../0003_deepseek_llm_client/01_requirements.md) の AC-08 が定め、`internal/llm/llmhttp` が全アダプタの送信で行う。拡張だけの構成でこれが働かないと、API キーが Anthropic のほかの先へ送られうる。
 
 **候補:** 要求に `js.fetch:redirect: manual` のヘッダを付ける。PoC では、どの先へも送られず、状態 0 の失敗になった（同上）。TypeScript に一本化するなら、`fetch` の `redirect: "manual"` か `"error"` を指定する。
 
