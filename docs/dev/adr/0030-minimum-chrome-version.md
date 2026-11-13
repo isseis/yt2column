@@ -16,7 +16,7 @@ Service Worker（SW）は、生成の開始を受けてから、ビューアが�
 
 ## 決定
 
--   **manifest の `minimum_chrome_version` は `"112"` とする。** 完成した記事を持つ上限を、`chrome.storage.session` の約 10 MB の容量に合わせた 1 つの値にするためである。Chrome 111 以前に合わせると、記事を 1 MB しか持てず、上限を版ごとに変えることになる。待つ間に SW が止められないことも、今までどおり Chrome 110 以降の振る舞いに頼る。規則は [extension/static/manifest.json](../../../extension/static/manifest.json) の `minimum_chrome_version` と、[0090 設計書](../../tasks/0090_extension_only_architecture/02_architecture.md) の「ID と対象のブラウザ」「設計の際に決めたこと（2026-11-12）」にある。
+-   **manifest の `minimum_chrome_version` は `"112"` とする。** 完成した記事を持つ上限を、`chrome.storage.session` の約 10 MB の容量に合わせた 1 つの値にするためである。Chrome 111 以前に合わせると、記事を 1 MB しか持てず、上限を版ごとに変えることになる。生成の開始から予約までの待ちの間は、タブの作成と `chrome.storage.session` の読み書き、ビューアからのリクエストが SW の止まるまでの時間を延ばす（拡張の API の呼び出しがこの時間を延ばすのは Chrome 110 から）。それでも SW が止まったときは、ポップアップは結果不明として示す。規則は [extension/static/manifest.json](../../../extension/static/manifest.json) の `minimum_chrome_version` と、[0090 設計書](../../tasks/0090_extension_only_architecture/02_architecture.md) の「ID と対象のブラウザ」「設計の際に決めたこと（2026-11-12）」にある。
 -   **両方の README は、必要なブラウザとして Chrome 112 以降と、Chromium 112 以降の Brave を記す。** `README.md` と `README.en.md` は、同じ値を利用者向けに書く。[extension/test/manifest.test.ts](../../../extension/test/manifest.test.ts) は、manifest の値と、両方の README が書く版が manifest の値と等しいことを確かめる。利用者が読み込める版を知り、文書と manifest の値が食い違わないようにするためである。
 -   **`:dir()`（Chrome 120 以降）を使うポップアップの末尾のプレビューの規則は、最小の版を上げずに使う。** Chrome 119 以前では、その規則だけが捨てられる。右から左の文字だけの末尾のプレビューで最後の文字が隠れることは、保証の外とする。Chrome 119 以前で捨てられるのはその規則だけで、保証の外とした範囲が少し広がるだけだからである（[0046 設計書](../../tasks/0046_popup_redesign/02_architecture.md)「設計の際に決めたこと（2026-10-28）」）。
 
