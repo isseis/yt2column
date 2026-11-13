@@ -944,7 +944,7 @@ character as 2); the line shapes below are the examples to follow.
      topic, the reason, and its URL; the Escalation decision and its reason,
      when there are changes Codex has not reviewed; NEXT, and, when NEXT is
      `/runplan`, the `実装モデル要件` of the PR that NEXT will open and the
-     model to start the new session with (below); and LIMITS_NOTE in full when
+     agent and model to start the new session with (below); and LIMITS_NOTE in full when
      there is one.
    - **NEXT and the model.** When NEXT is `/runplan`, the PR NEXT will open is
      the one of the plan's first `### PR-N 作成ポイント` marker whose
@@ -952,16 +952,18 @@ character as 2); the line shapes below are the examples to follow.
      own; for a task-document PR that first approves the plan, its first
      marker), or, in a plan without PR markers, the plan itself, whose value is
      in the `PR 構成` section of its §3. Read the value as `_context.md`, "PR
-     marker conventions", says, and take the model from that section's table:
+     marker conventions", says, and take the agent and model from the row of
+     `_context.md`, "Command routing", that the section's table names:
      for an old value, the old value and the value it is read as; for an
      unreadable value, its text as written, that it is unreadable, and that no
      model is recommended; when there is no value, that and, as far as known,
      why (the marker has no `実装モデル要件` field, or the plan without PR
      markers has no `PR 構成` section or no value line in it), and that no
-     model is recommended. The value and the model let the user decide whether
-     this session's model fits and, since step 5 suggests `/clear` before NEXT,
-     which model to start the new session with. Step 5 reuses the value and
-     the model (or their absence) shown here, without reading the plan again;
+     model is recommended. The value and the agent and model let the user
+     decide whether this session's agent and model fit and, since step 5
+     suggests `/clear` before NEXT, which agent and model to start the new
+     session with. Step 5 reuses the value and the agent and model (or their
+     absence) shown here, without reading the plan again;
      when this question is asked more than once, it uses the ones shown in the
      round that decided the merge.
    - **Summary.** Show in the conversation these lines only, in this order,
@@ -975,7 +977,7 @@ character as 2); the line shapes below are the examples to follow.
      PRE_MERGE: 承認 1 件・PR 番号の記入 2 行（2 ファイル）       (always; or "PRE_MERGE: なし")
      未レビューの変更: あり（Escalation: ask）                    (always; or "未レビューの変更: なし")
      除外スレッド: 2 件（番号で判定を覆せる）                      (a three-document PR with unresolved excluded threads)
-     NEXT: /runplan 0083（要件 sonnet → Sonnet）                  (always; the forms below)
+     NEXT: /runplan 0083（要件 sonnet+opus-review → Claude Code・sonnet） (always; the forms below)
      要確認: diff 記録の再記録 1 件（詳細ファイル）                (when PRE_MERGE re-records a diff record)
      要確認: PR の説明に追記できなかった訂正 2 件（詳細ファイル）  (when there are such corrections)
      要確認: #未記入 の行 1 件（詳細ファイル）                    (when there are such lines)
@@ -984,9 +986,10 @@ character as 2); the line shapes below are the examples to follow.
      詳細: /tmp/runpr.Ab12Cd/merge-3.md                          (always)
      ```
 
-     - Line 2 shows the subject in full and has no width limit; the other
+     - Line 2 shows the subject in full and has no width limit, and so does
+       kind 6, whose model is the routing table's text in full; the other
        lines hold only fixed text and short values (numbers, branch, counts,
-       dates, task ID, the requirement value, the model name, the path), so
+       dates, task ID, the requirement value, the agent and model, the path), so
        each stays within 80 columns. Write the subject line from the checked
        subject file; the merge uses the file, not this line.
      - Line 3 gives the count of approvals and the number of PR-number lines
@@ -998,9 +1001,11 @@ character as 2); the line shapes below are the examples to follow.
        a count; kind 10 gives the state and the expiry date, not a count.
      - Kind 6 is `NEXT: なし` when there is none; `NEXT: /mkarch 0089` for
        `/mkarch` or `/mkplan`; for `/runplan`,
-       `NEXT: /runplan 0083（要件 sonnet → Sonnet）` for a value that is one of
-       the three, `NEXT: /runplan 0083（要件 standard＝sonnet → Sonnet）` for an
-       old value (the old value, `＝`, the value it is read as),
+       `NEXT: /runplan 0083（要件 sonnet+opus-review → Claude Code・sonnet）`
+       for a value that is one of the three (the agent and the model of its
+       "Command routing" row, joined by `・`),
+       `NEXT: /runplan 0083（要件 frontier-required＝opus → Claude Code・opus）`
+       for an old value (the old value, `＝`, the value it is read as),
        `NEXT: /runplan 0083（要件の値を読めない、推奨モデルなし）` for an
        unreadable value, and `NEXT: /runplan 0083（要件の値がない、推奨モデルなし）`
        when there is no value. The unreadable text and the reason there is no
@@ -1298,8 +1303,8 @@ Once `mergepr.md` reports the merge:
   3. the next branch's name and the path of this worktree: NEXT is to run in
      this worktree with that branch checked out. Run anywhere else, NEXT would
      create another branch with Part A step 4 and leave this one unused;
-  4. when NEXT is `/runplan`, the `実装モデル要件` and the model to start the
-     new session with, shown in step 4, or that there is none and why, as
+  4. when NEXT is `/runplan`, the `実装モデル要件` and the agent and model to
+     start the new session with, shown in step 4, or that there is none and why, as
      step 4 showed them.
 
 **Stopping before the next branch is ready.** When NEXT is set and this step

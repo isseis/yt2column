@@ -344,10 +344,11 @@ const (
 	ClaudeModelSonnet
 )
 
-// OpenCodeModel is the model name an OpenCode status line shows, compared
-// word by word; only the routing-table reader builds one.
+// OpenCodeModel is the whole text an OpenCode status line shows between its
+// first and last " · ", compared whole (1.3); only the routing-table reader
+// builds one.
 type OpenCodeModel struct {
-	words []string
+	name string
 }
 
 // Route is one parsed row of the routing table.

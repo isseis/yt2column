@@ -358,7 +358,7 @@ func TestReadRunprNext(t *testing.T) {
 		t.Errorf("report sample: %+v, want none", got)
 	}
 	merge := plainSample(t, "claude-merge-question.ansi")
-	if got := readRunprNext(merge); got != (RunprNext{Kind: NextCommand, Command: NextCommandMkarch, Task: "0123"}) {
+	if got := readRunprNext(merge); got != (RunprNext{Kind: NextCommand, Command: NextCommandMkarch, Task: taskID(t, "0123")}) {
 		t.Errorf("merge question sample: %+v", got)
 	}
 	cases := map[string]struct {
@@ -366,9 +366,9 @@ func TestReadRunprNext(t *testing.T) {
 		want RunprNext
 	}{
 		"no NEXT line":              {"done\n", RunprNext{Kind: NextAbsent}},
-		"runplan in quotes":         {"- NEXT: `/runplan 0088`（要件 opus → Opus）", RunprNext{Kind: NextCommand, Command: NextCommandRunplan, Task: "0088"}},
-		"mkplan":                    {"NEXT: /mkplan 0007", RunprNext{Kind: NextCommand, Command: NextCommandMkplan, Task: "0007"}},
-		"agreeing lines":            {"NEXT: /mkplan 0007\n  - NEXT: `/mkplan 0007`（次）", RunprNext{Kind: NextCommand, Command: NextCommandMkplan, Task: "0007"}},
+		"runplan in quotes":         {"- NEXT: `/runplan 0088`（要件 opus → Opus）", RunprNext{Kind: NextCommand, Command: NextCommandRunplan, Task: taskID(t, "0088")}},
+		"mkplan":                    {"NEXT: /mkplan 0007", RunprNext{Kind: NextCommand, Command: NextCommandMkplan, Task: taskID(t, "0007")}},
+		"agreeing lines":            {"NEXT: /mkplan 0007\n  - NEXT: `/mkplan 0007`（次）", RunprNext{Kind: NextCommand, Command: NextCommandMkplan, Task: taskID(t, "0007")}},
 		"none with more text":       {"NEXT: なしではなく /runplan 0088", RunprNext{}},
 		"task with a suffix":        {"NEXT: /runplan 0088abc", RunprNext{}},
 		"unpaired backquote":        {"NEXT: `/runplan 0088", RunprNext{}},

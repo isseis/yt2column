@@ -17,9 +17,8 @@ argument-hint: "<task>"
 > `### PR-N 作成ポイント` marker covering it, or, in a plan without PR markers,
 > the field of the `PR 構成` section of the plan's §3. `_context.md`, "PR
 > marker conventions", says where the value is, how it is read (an old value
-> through its table), and which model each reading recommends: start the
-> session on Opus for `opus`, and on Sonnet for `sonnet+opus-review` and
-> `sonnet`. The value also decides whether the Opus review
+> through its table), and which row of `_context.md`, "Command routing", each
+> reading names: start the session with that row's agent and model. The value also decides whether the Opus review
 > (`_lib/opus-review.md`) runs before the PR opens (step 5a, step 8): for
 > `opus`, `sonnet+opus-review`, or an unreadable value it runs when some
 > commit of the PR is not covered by a record of an Opus implementation
@@ -57,7 +56,7 @@ Work in order.
 
 4.2. Show the implementation model guidance when step 4 selected a phase group or a PR checkpoint. The PR is the one whose `### PR-N 作成ポイント` marker covers the selected unit (TARGET = `N`), or, in a plan without PR markers, the plan itself (TARGET = `single`). Show, without stopping whatever they say:
    - the PR's value, read as `_context.md`, "PR marker conventions", says: for an old value, the old value and the value it is read as; for an unreadable value, its text and that it is unreadable; or that there is no value;
-   - the model that reading recommends (the same section's table), or that it recommends none;
+   - the agent and model to start the session with: the row of `_context.md`, "Command routing", that the same section's table names for the reading, or that it names none;
    - this session's model ID, the one Claude Code gives in its system prompt, or that it is unknown;
    - the forecast of the Opus review: run entry 1 of `.claude/commands/_lib/opus-review.md` now (PLAN = the plan, TARGET, BASE = `$(git merge-base origin/main HEAD)`; step 3 fetched `origin/main`) and show its output. Before this phase group is implemented, its commits are not recorded yet, so the decision before the PR can differ: when the output is `NONE all-opus` or `SKIP`, say that the review runs anyway unless every phase group of the PR, this one included, is recorded as implemented on Opus; when it is `RUN`, say that it may not run if this session is Opus and every other phase group of the PR is recorded as Opus. Step 5a or step 8 decides again before the PR opens.
 

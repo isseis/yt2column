@@ -3,6 +3,8 @@ package chief
 import (
 	"regexp"
 	"strings"
+
+	"github.com/isseis/yt2column/internal/chief/paneinput"
 )
 
 // NextKind is what /runpr's report says about the next command. The zero
@@ -42,7 +44,7 @@ const (
 type RunprNext struct {
 	Kind    NextKind
 	Command NextCommandKind
-	Task    string
+	Task    paneinput.TaskID
 }
 
 var (
@@ -95,7 +97,11 @@ func readNextValue(value string) RunprNext {
 	if m == nil || m[1] != m[4] {
 		return RunprNext{}
 	}
-	next := RunprNext{Kind: NextCommand, Task: m[3]}
+	task, err := paneinput.ParseTaskID(m[3])
+	if err != nil {
+		return RunprNext{}
+	}
+	next := RunprNext{Kind: NextCommand, Task: task}
 	switch m[2] {
 	case "mkarch":
 		next.Command = NextCommandMkarch

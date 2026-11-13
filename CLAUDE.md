@@ -690,13 +690,14 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
   the values `cli.md` and `development.md` hold, the
   `/fixpr` and `/runpr` command documents, the `codexreview`
   permission and command-document checks, the ADR guard
-  `TestADRRecords`) are Go tests included
+  `TestADRRecords`, and `internal/chief`'s readings of the routing table and
+  the PR markers) are Go tests included
   in `make test` and need no node. `cmd/yt2column-nmhost`'s
   `TestReadmeHostExitCodes` reads both READMEs too, but the `doc-guard` job
   does not run it: the local `make test`, and the CI `test` job when the change
   includes code, do. A change to the READMEs alone is therefore checked by
   neither CI job for this test. The `doc-guard` CI job runs the other guards
-  (`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./cmd/codexreview ./internal/pipeline`)
+  (`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./cmd/codexreview ./internal/pipeline ./internal/chief`)
   on every pull request, so a documentation-only change is checked in CI by
   those guards even though `check-changes` classifies it as non-code.
 - A change that touches only `.gitignore` can still break the extension's
@@ -709,6 +710,12 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
   `--jq` filters of `runpr.md` step 3, `_lib/task-pr-handoff.md` Part B step
   5, and `fixpr.md` Phase 6 with it, and fail instead of skipping when it is
   missing. The `doc-guard` CI job runs these tests too.
+- `make test` needs bash 4 or later as the first `bash` on `PATH` (macOS's
+  `/bin/bash` is 3.2): `TestMarkerReadingMatchesDecisionScript` in
+  `internal/chief` runs `.claude/commands/_lib/opus-review-decision.sh`, which
+  requires it, and fails instead of skipping when bash is missing or older.
+  The `doc-guard` CI job runs this test too, because `internal/chief` reads
+  `_context.md` and the plans' PR markers.
 - Secrets (`DEEPSEEK_API_KEY`, `ANTHROPIC_API_KEY`, ...) go in `.envrc` / `.env`,
   which are git-ignored, for the CLI; the localhost server reads them only from
   its configuration file, `$HOME/.config/yt2column/config.env` (mode `0600`,
@@ -804,6 +811,16 @@ Only the conventions a linter does not check are worth stating:
   literals; a test may still hold a fragment of such text.
   Reason: the screen is drawn in that text, so the literal has to equal it,
   as for a guard test.
+- The same exception covers the chief tool's task reader,
+  `internal/chief/task.go`: a literal that has to equal a heading's text or a
+  fixed part of it, a field label, a value line's prefix, or a checkbox's text
+  in an implementation plan (such as `作成ポイント`, `**実装モデル要件**: `,
+  `**自動送信**: `, `PR 構成`, and `PR を作成した`), which it reads to find
+  a plan's PRs, their values, and their progress. Comments, identifiers, and
+  the text the tool prints stay English, and the plans its tests read are
+  sample files under `internal/chief/testdata/plans/`, not Go literals.
+  Reason: the plan is a Japanese document, so the literal has to equal its
+  text, as for `opus-review-decision.sh`, whose reading the tool's must match.
 - The same rule applies to the browser extension: its comments, identifiers,
   and string literals are English. There are three exceptions: the messages in
   a catalog file for a language other than English under
