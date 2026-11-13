@@ -365,19 +365,22 @@ func TestReadRunprNext(t *testing.T) {
 		text string
 		want RunprNext
 	}{
-		"no NEXT line":        {"done\n", RunprNext{Kind: NextAbsent}},
-		"runplan in quotes":   {"- NEXT: `/runplan 0088`（要件 opus → Opus）", RunprNext{Kind: NextCommand, Command: NextCommandRunplan, Task: "0088"}},
-		"mkplan":              {"NEXT: /mkplan 0007", RunprNext{Kind: NextCommand, Command: NextCommandMkplan, Task: "0007"}},
-		"agreeing lines":      {"NEXT: /mkplan 0007\n  - NEXT: `/mkplan 0007`（次）", RunprNext{Kind: NextCommand, Command: NextCommandMkplan, Task: "0007"}},
-		"none with more text": {"NEXT: なしではなく /runplan 0088", RunprNext{}},
-		"task with a suffix":  {"NEXT: /runplan 0088abc", RunprNext{}},
-		"unpaired backquote":  {"NEXT: `/runplan 0088", RunprNext{}},
-		"disagreeing lines":   {"NEXT: /mkplan 0007\nNEXT: なし", RunprNext{}},
-		"unknown command":     {"NEXT: /runpr 0012", RunprNext{}},
-		"none alone":          {"NEXT: なし", RunprNext{Kind: NextNone}},
-		"three-digit task":    {"NEXT: /runplan 088", RunprNext{}},
-		"free text value":     {"NEXT: see above", RunprNext{}},
-		"NEXT inside a line":  {"the NEXT: /mkplan 0007 line", RunprNext{Kind: NextAbsent}},
+		"no NEXT line":              {"done\n", RunprNext{Kind: NextAbsent}},
+		"runplan in quotes":         {"- NEXT: `/runplan 0088`（要件 opus → Opus）", RunprNext{Kind: NextCommand, Command: NextCommandRunplan, Task: "0088"}},
+		"mkplan":                    {"NEXT: /mkplan 0007", RunprNext{Kind: NextCommand, Command: NextCommandMkplan, Task: "0007"}},
+		"agreeing lines":            {"NEXT: /mkplan 0007\n  - NEXT: `/mkplan 0007`（次）", RunprNext{Kind: NextCommand, Command: NextCommandMkplan, Task: "0007"}},
+		"none with more text":       {"NEXT: なしではなく /runplan 0088", RunprNext{}},
+		"task with a suffix":        {"NEXT: /runplan 0088abc", RunprNext{}},
+		"unpaired backquote":        {"NEXT: `/runplan 0088", RunprNext{}},
+		"disagreeing lines":         {"NEXT: /mkplan 0007\nNEXT: なし", RunprNext{}},
+		"unknown command":           {"NEXT: /runpr 0012", RunprNext{}},
+		"none alone":                {"NEXT: なし", RunprNext{Kind: NextNone}},
+		"three-digit task":          {"NEXT: /runplan 088", RunprNext{}},
+		"free text value":           {"NEXT: see above", RunprNext{}},
+		"NEXT inside a line":        {"the NEXT: /mkplan 0007 line", RunprNext{Kind: NextAbsent}},
+		"empty NEXT alone":          {"NEXT:", RunprNext{}},
+		"empty NEXT after a value":  {"NEXT: /runplan 0088\nNEXT:", RunprNext{}},
+		"empty NEXT before a value": {"NEXT:\nNEXT: /runplan 0088", RunprNext{}},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {

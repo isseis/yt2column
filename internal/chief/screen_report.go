@@ -47,8 +47,9 @@ type RunprNext struct {
 
 var (
 	// nextLine matches a report line that gives NEXT, with an optional list
-	// bullet before it.
-	nextLine = regexp.MustCompile(`^(?:- )?NEXT: (.*)$`)
+	// bullet before it. The value may be missing, which is still a NEXT line,
+	// but one that cannot be read.
+	nextLine = regexp.MustCompile(`^(?:- )?NEXT:(?: (.*))?$`)
 	// nextCommand matches a named command and a four-digit task at the start
 	// of a NEXT value, optionally in backquotes.
 	nextCommand = regexp.MustCompile("^(`?)/(mkarch|mkplan|runplan) ([0-9]{4})(`?)(?:（|$)")
@@ -80,8 +81,13 @@ func readRunprNext(text string) RunprNext {
 	return result
 }
 
-// readNextValue reads the value after "NEXT: ".
+// readNextValue reads the value after "NEXT: ". A line without a value cannot
+// be read, so it is unmatched like any other value that is neither "none" nor
+// a known command and task.
 func readNextValue(value string) RunprNext {
+	if value == "" {
+		return RunprNext{}
+	}
 	if nextNoneValue.MatchString(value) {
 		return RunprNext{Kind: NextNone}
 	}
