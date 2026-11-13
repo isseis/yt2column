@@ -148,31 +148,37 @@
 | 試作 | この worktree の `.claude/commands/chief.md` と `.claude/chief/`（`hold.tsv` に `0084_wasm_pipeline_poc` の `PR-1` の行）。リポジトリには入っていない | PR-7 で移行する（決定 16） |
 | 画面の読み取り、Herdr の読み書き、状態の区分、送信、中継、待ち受け、記録 | ない | 新しく作る。今ある実装で代わりになるものはない |
 
+### 1.5. 実装の際に決めたこと（2026-11-12）
+
+-   **要件書の AC-30・AC-46 を外したので、それを実装するステップと確かめを除く。** タスク 0089（#866）で、`/runpr` のマージの質問から「NEXT をこのセッションで実行する」答えがなくなった（[ADR-0047](../../dev/adr/0047-runpr-merge-question.md)）。ステップ 5-2 の除く選択肢からその答えを、§7 から AC-30・AC-46 の行を除く。理由: 対象のない振る舞いを実装しないため。ADR: [ADR-0046](../../dev/adr/0046-chief-of-staff.md) の、この 2 つの AC を外すと書いたずれの文を、本 PR で消す（§1.2 の「ずれの記述は、ずれを解いた PR で直す」のとおり）。
+-   **マージの確認のサンプルは、0089 の後の `/runpr` の step 4 の item 3（マージの質問）で採る。item 1 の deferred のスレッドの問いは、ふつうの 1 つを選ぶ問いとして採り、読む（ステップ 1-2・1-6、設計書 1.3）。** 理由: 0089 で step 4 にマージの質問の前の問いが加わり、「マージの確認」の形をどちらの問いで固定するかを決める必要があったため。ADR: なし（画面の扱いはこのタスクの中で閉じるため）。
+-   **1 つの画面に複数の問い（タブ）がある質問は中継しない。OpenCode のモデルは、状態の行の最初と最後の ` · ` の間の文字列全体を送り先の表の値と完全に一致させて確かめ、表の値もその形で書く。Claude Code の `/model` が利用者の既定のモデルを書き換えることは、既知の影響として受け入れ、手引きに書く（設計書 1.3）。** どれも、ステップ 1-2・1-4 の採取で設計の前提と違う事実が出たので、人と決めた（§7 の「PR-1 の実行の記録」）。ステップ 2-6 は送り先の表をこの形で書き、ステップ 4-2 はこの比べ方で確かめ、ステップ 5-2・5-3 は問いが 1 つの質問だけを中継し、ステップ 7-4 は手引きに既定のモデルのことを書く。ADR: なし（設計書 1.3 の各項のとおり）。
+
 ## 2. 実装のステップ (Implementation Steps)
 
 ### フェーズ 1: 画面のサンプルと画面の読み取り（設計書 8 章の 1、2 のうち画面の読み取りと文字の無害化）
 
 **変更するファイル:** `internal/chief/testdata/screens/`（新規）、`internal/chief/testdata/README.md`（新規）、`internal/chief/doc.go`・`sanitize.go`・`screen*.go` とそのテスト（新規）、`.pre-commit-config.yaml`、`.gitattributes`、`CLAUDE.md`、`docs/dev/conventions/package_reference.md`、本計画
 
--   [ ] **ステップ 1-1**: 採取の準備をする。
+-   [x] **ステップ 1-1**: 採取の準備をする。
     -   `.pre-commit-config.yaml` と `.gitattributes` に、画面のサンプルのディレクトリを足す（決定 22）。
     -   人に採取用の workspace（Claude Code と OpenCode の pane を 1 つずつ）を用意してもらい、Claude Code・OpenCode・Herdr の版を記録する（設計書 3.4.2）。
     -   `herdr agent read` の `--source`（`visible`・`recent` など）と行数のうち、OpenCode のマージの確認の選択肢が見えるものを確かめて決める（設計書 1.2 の観測）。
--   [ ] **ステップ 1-2**: 画面と出力を採る（決定 1）。
-    -   設計書 3.4.1 の表のすべての行と、8 章の 1 が挙げる画面を、エージェントごとに採る。
+-   [x] **ステップ 1-2**: 画面と出力を採る（決定 1）。
+    -   設計書 3.4.1 の表のすべての行と、8 章の 1 が挙げる画面を、エージェントごとに採る。マージの確認は 0089 の後の `/runpr` の step 4 の item 3（マージの質問）の画面で採り、item 1 の deferred のスレッドの問いが出ていれば、ふつうの 1 つを選ぶ問いのサンプルとして採る（§1.5）。
     -   `herdr agent list`・`get`・`workspace list` の出力を採る。
     -   Claude Code の transcript の置き場所の規則、モデルを切り替えた記録の行、`/clear` の前後の `agent_session` を確かめる。
     -   gh の `pr list`・`pr view`・`pr checks` の `--json` の出力と終了コードを、通った PR、待っている PR、失敗した PR、CI のない PR で採る。このリポジトリの PR を読む読み取り専用の操作で、人の承認を得てから行う。
--   [ ] **ステップ 1-3**: 採ったものから、採取した人を特定できる情報（利用者の名前、ホームのパス、ホスト名、セッション ID）を置き換える（security.md §7、ADR-0032）。置き換えの規則、版、採った日を `testdata/README.md` に書く。サンプルが置き換えの規則に従っていること（ホームの絶対パスがない、など）と、設計書 3.4.1 の表の各行のサンプルがエージェントごとにあることを確かめるテストを書く。
--   [ ] **ステップ 1-4**: 選択肢を選ぶキー入力をエージェントごとに確かめる（設計書 3.4.2）。採取用の workspace の pane に実際に送り、今の選択の位置に依らずに同じ選択肢が選ばれることを確かめる。確かめられないエージェントは、中継の選択肢を示さないものとして記録する。
--   [ ] **ステップ 1-5**: `sanitize.go` に、文字の無害化と読む量の上限を書く（設計書 3.4.3）。テストは、置き換える文字の種類ごとと上限の境界で、置き換えと切ったことの印を確かめる。
--   [ ] **ステップ 1-6**: `screen*.go` に画面の読み取りを書く（設計書 3.4.1・3.4.2、決定 6）。
+-   [x] **ステップ 1-3**: 採ったものから、採取した人を特定できる情報（利用者の名前、ホームのパス、ホスト名、セッション ID）を置き換える（security.md §7、ADR-0032）。置き換えの規則、版、採った日を `testdata/README.md` に書く。サンプルが置き換えの規則に従っていること（ホームの絶対パスがない、など）と、設計書 3.4.1 の表の各行のサンプルがエージェントごとにあることを確かめるテストを書く。
+-   [x] **ステップ 1-4**: 選択肢を選ぶキー入力をエージェントごとに確かめる（設計書 3.4.2）。採取用の workspace の pane に実際に送り、今の選択の位置に依らずに同じ選択肢が選ばれることを確かめる。確かめられないエージェントは、中継の選択肢を示さないものとして記録する。
+-   [x] **ステップ 1-5**: `sanitize.go` に、文字の無害化と読む量の上限を書く（設計書 3.4.3）。テストは、置き換える文字の種類ごとと上限の境界で、置き換えと切ったことの印を確かめる。
+-   [x] **ステップ 1-6**: `screen*.go` に画面の読み取りを書く（設計書 3.4.1・3.4.2、決定 6）。
     -   返す型の列挙のゼロ値を「合わない」にし、サンプルで確かめた形だけを受け付ける。
     -   質問は、中継するかどうかに依らず、問いごとの文と選択肢と、中継できない理由の種類を返す（AC-05・AC-25・AC-26）。入力欄の残りの文字は文字列で返す（AC-36・AC-54）。
     -   `/runpr` の報告の NEXT は、コマンドの種類とタスクの番号の型で返す（タスクの番号の型は、PR-2 で入力の型のパッケージの `TaskID` に置き換える）。
     -   テストは、サンプルごとの読み取りと、合わない画面（一部だけ合う、2 つの形に合う、上限で切った）が「合わない」になることを確かめる。
--   [ ] **ステップ 1-7**: CLAUDE.md の「Declare, don't infer」の例外（範囲は決定 6、理由と境界は要件書 5 章と設計書 5.2）と、「Go Idioms」の日本語の literal の例外のうち画面の部分（決定 17）を足す。`package_reference.md` に `internal/chief` の行を足す。
--   [ ] **ステップ 1-8**: §7 の「PR-1 の実行の記録」に次を書く。設計書と違う事実が出たら、設計書の誤りとして人に示し、計画と設計書を直してから先へ進む。
+-   [x] **ステップ 1-7**: CLAUDE.md の「Declare, don't infer」の例外（範囲は決定 6、理由と境界は要件書 5 章と設計書 5.2）と、「Go Idioms」の日本語の literal の例外のうち画面の部分（決定 17）を足す。`package_reference.md` に `internal/chief` の行を足す。
+-   [x] **ステップ 1-8**: §7 の「PR-1 の実行の記録」に次を書く。設計書と違う事実が出たら、設計書の誤りとして人に示し、計画と設計書を直してから先へ進む。
     -   版、`herdr agent read` の引数、画面の行数（200 行で足りたか。足りなければ値と理由）
     -   キー入力
     -   transcript の規則と行の形
@@ -192,10 +198,10 @@
 
 **判定理由**: ステップ 1-2・1-4 が、外部の画面の形とキー入力を本物の Herdr で確かめる実現性の確かめ（Phase 0 型の調査）である。Sonnet で進めると、形の見落としや選択の位置に依るキー入力を確かめたものとして記録しやすい。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/870
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: 入力の型、Herdr・タスク・送り先の表の読み取り（設計書 8 章の 2）
 
@@ -223,7 +229,7 @@
 -   [ ] **ステップ 2-7**: `routing.go` に送り先の表の読み取りを書く（設計書 3.3）。`origin/main` の `_context.md` を `git show` で読み、節・列・行の数と形・モデルの集合を検証して、`RouteKey` から `paneinput.Route` を引く。テストは次を確かめる。
     -   リポジトリの今の `_context.md` が読めること。
     -   形の崩れた表と、集合の外のモデルを拒むこと。
-    -   `sonnet+opus-review` の行を OpenCode・`DeepSeek V4.1 Flash` に変えた写しで、その `RouteKey` の送り先だけが変わること（AC-39）。
+    -   `sonnet+opus-review` の行を OpenCode・`DeepSeek V4.1 Flash 1017 OpenCode Go` に変えた写しで、その `RouteKey` の送り先だけが変わること（AC-39）。
 -   [ ] **ステップ 2-8**: `.github/workflows/ci.yml` の `doc-guard` に `./internal/chief` を足し、CLAUDE.md の「Development Notes」の一覧と、PATH の bash が 4 以上であるという前提を書く（決定 18）。`./cmd/chief` は、パッケージを作るステップ 3-6 で足す。
 -   [ ] **ステップ 2-9**: ADR を直す。どちらも commit のメッセージと PR の説明に訂正を書く。
     -   ADR-0042 の 21 行のずれの記述のうち、`_context.md`・`runplan.md`・`runpr.md` に反映していないという文を消す。値の名前の見直し（#760）の文は残す。
@@ -342,9 +348,9 @@
 **変更するファイル:** `internal/chief/relay.go` とそのテスト、`internal/chief/state.go`、`internal/chief/paneinput/`、`cmd/chief/main.go`・`main_test.go`
 
 -   [ ] **ステップ 5-1**: 照合値を作る部品を書く（設計書 3.6）。`snapshot` の出力の中継できる質問に照合値を足し、中継しない質問には照合値を返さない（質問の文と選択肢は PR-3 から返している）。テストは、照合値が `state_change_seq`・セッション・問いの文・選択肢・選択の位置のどれが変わっても変わること、中継しない質問の種類ごとに照合値がないことを確かめる。
--   [ ] **ステップ 5-2**: 入力の型のパッケージに中継のキー入力の型を足し、選択肢の番号とステップ 1-4 で確かめたキー入力からだけ作る。`relay.go` に中継を書く（設計書 3.6）。排他、読み直し、照合値の比較、Claude Code の `blocked` の確かめ、すべての問いの答え、選択肢の範囲、除く選択肢（自分で書く選択肢、マージの確認の「NEXT をこのセッションで実行する」）、送信の記録、送った後の失敗での停止を持つ。
+-   [ ] **ステップ 5-2**: 入力の型のパッケージに中継のキー入力の型を足し、選択肢の番号とステップ 1-4 で確かめたキー入力からだけ作る。`relay.go` に中継を書く（設計書 3.6）。排他、読み直し、照合値の比較、Claude Code の `blocked` の確かめ、問いが 1 つであること、選択肢の範囲、除く選択肢（自分で書く選択肢）、送信の記録、送った後の失敗での停止を持つ。
 -   [ ] **ステップ 5-3**: `cmd/chief` に `relay` を足す。テストは次を確かめる。
-    -   照合値が違うとき、一部の問いだけに答えたとき、範囲の外の番号、除いた選択肢を選んだときに、何も送らないこと。
+    -   照合値が違うとき、複数の問い（タブ）の質問、範囲の外の番号、除いた選択肢を選んだときに、何も送らないこと。
     -   キー入力を送り始めた後の失敗で、停止の記録を作ること。
     -   送った結果を返すこと。
 
@@ -425,7 +431,7 @@
     -   `cmd/chief/docs_test.go` に、許可の規則と、拒否の規則の決まった形のそれぞれがあることを確かめるガードを書く（設計書 7.2 の 3 項目め）。
 -   [ ] **ステップ 7-4**: 文書と導入の手順を足す。
     -   `Makefile` に `install-chief` を足し、`cmd/chief/docs_test.go` に `cmd/codexreview/docs_test.go:655` と同じ形のガードを書く。
-    -   `docs/dev/guides/chief_guide.md` を書く（設計書 2.2 の表の行）。手引きが持つ値（サブコマンド、終了コード、`--protocol`、状態のディレクトリ）を道具の定義と比べるガードを `cmd/chief/docs_test.go` に書く。
+    -   `docs/dev/guides/chief_guide.md` を書く（設計書 2.2 の表の行）。chief の `/model` が利用者の Claude Code の既定のモデルも書き換えることを書く（§1.5）。手引きが持つ値（サブコマンド、終了コード、`--protocol`、状態のディレクトリ）を道具の定義と比べるガードを `cmd/chief/docs_test.go` に書く。
     -   `CLAUDE.md` の「Quick Links」「Build Commands」「Claude Commands」「Tool Execution Safety」（設計書 3.9）を直し、`/chief` の定義が手引きを参照するときは「Japanese guides an agent reads」の一覧を直す。
 -   [ ] **ステップ 7-5**: ADR-0014 の 19 行のずれの記述を消し、道具の一覧とインストールの項目に `chief` を足す。ADR-0046 の「この決定は、まだ」で始まるずれの記述を消す。どちらも commit のメッセージと PR の説明に訂正を書く。
 -   [ ] **ステップ 7-6**: 実地の確かめを行う（設計書 7.3、決定 21）。結果を §7 の「PR-7 の実行の記録」に書く。
@@ -538,7 +544,7 @@ $ rg -n 'on Sonnet|to Sonnet|implement.*Sonnet|Model to start|model each reading
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
--   [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8）
+-   [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8）
 -   [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7 / 2-8 / 2-9）
 -   [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7）
 -   [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7）
@@ -582,12 +588,11 @@ $ rg -n 'on Sonnet|to Sonnet|implement.*Sonnet|Model to start|model each reading
 | AC-22 | `ic/detail_test.go::TestDetailItems`（送り先の表示）、`/chief` の定義（問い） | test、manual | 4-4・7-2 | PR-4、PR-7 |
 | AC-23 | `ic/detail_test.go::TestReviewSkippable` | test | 4-4 | PR-4 |
 | AC-24 | `ic/records_test.go::TestWorkspaceBusy`、`/chief` の定義（バックグラウンド） | test、manual | 4-3・7-2 | PR-4、PR-7 |
-| AC-25 | `ic/sanitize_test.go::TestSanitize`、`ic/screen_test.go::TestParseScreenSamples`（すべての問い） | test | 1-5・1-6 | PR-1 |
+| AC-25 | `ic/sanitize_test.go::TestSanitize`、`ic/screen_test.go::TestParseScreenSamples`（タブの画面は見える問いとほかの問いがあること） | test | 1-5・1-6 | PR-1 |
 | AC-26 | `ic/screen_test.go::TestParseScreenRejectsNonMatching`、`ic/relay_test.go::TestNoCheckValueForUnrelayable` | test | 1-6・5-1 | PR-1、PR-5 |
-| AC-27 | `ic/relay_test.go::TestRelayRequiresAllAnswers` | test | 5-2 | PR-5 |
+| AC-27 | `ic/screen_test.go::TestParseScreenSamples`（タブの画面は中継できない）、`ic/relay_test.go::TestRelayRefusesTabbedQuestion` | test | 1-6・5-2 | PR-1、PR-5 |
 | AC-28 | `ic/relay_test.go::TestRelayCheckValueMismatch` | test | 5-2 | PR-5 |
 | AC-29 | `ic/paneinput/paneinput_test.go::TestRelayKeysFromNumbersOnly`、`ic/relay_test.go::TestRelaySendsChosenOption` | test | 5-2 | PR-5 |
-| AC-30 | `ic/relay_test.go::TestRelayExcludedOptions` | test | 5-2 | PR-5 |
 | AC-31 | `ic/paneinput/paneinput_test.go::TestZeroAndOutOfRangeAreUnusable`、`ic/herdr_test.go::TestWriterRefuses`、`cc/docs_test.go::TestSettingsDeniesPaneInput` | test、static | 2-1・4-1・7-3 | PR-2、PR-4、PR-7 |
 | AC-32 | `ic/task_test.go::TestReadModelRequirement`、`ic/markers_parity_test.go::TestMarkerReadingMatchesDecisionScript` | test | 2-4・2-5 | PR-2 |
 | AC-33 | `ic/state_test.go::TestUnreadableRequirementOffersNoRunplan` | test | 3-4 | PR-3 |
@@ -603,7 +608,6 @@ $ rg -n 'on Sonnet|to Sonnet|implement.*Sonnet|Model to start|model each reading
 | AC-43 | `ic/state_test.go::TestNextCommand`（簡易な進め方の 3 文書の後） | test | 3-4 | PR-3 |
 | AC-44 | `ic/autosend_test.go::TestAutoSendOnce`（起動し直し、記録を読めないとき） | test | 6-2・6-3 | PR-6 |
 | AC-45 | `ic/autosend_test.go::TestAutoSendConditions`（満たさなかった条件の提案） | test | 6-3 | PR-6 |
-| AC-46 | `ic/autosend_test.go::TestAutoSendSkipsRunningNext` | test | 6-3 | PR-6 |
 | AC-47 | `ic/autosend_test.go::TestAutoSendNeverMkreqOrRunpr`、`ic/state_test.go::TestClassifyWorkspaceStates`（タスク完了） | test | 3-4・6-3 | PR-3、PR-6 |
 | AC-48 | `cc/docs_test.go::TestMarkerFormsCarryAutoSend`（`mkplan2.md`・`mkplan.md`・`_lib/simple-process.md` の形、`_context.md` の欄の一覧） | static | 6-5・6-6 | PR-6 |
 | AC-49 | `ic/autosend_test.go::TestAutoSendHold` | test | 6-3 | PR-6 |
@@ -624,7 +628,18 @@ $ rg -n 'on Sonnet|to Sonnet|implement.*Sonnet|Model to start|model each reading
 
 ### PR-1 の実行の記録
 
-（ステップ 1-8 で書く）
+2026-11-12 に、人が用意した採取用の workspace（Claude Code と OpenCode の pane が 1 つずつ）で採った。採り方、置き換えの規則、ファイルの一覧は `internal/chief/testdata/README.md` にある。
+
+-   **版。** Herdr 0.9.1、Claude Code 2.1.322、OpenCode v2.2.6（モデル `DeepSeek V4.1 Flash 1017`、提供元 `OpenCode Go`）、gh 2.96.0。設計の時点の版と同じである。
+-   **`herdr agent read` の引数。** `--format ansi` で読む。入力欄の案内文は、Claude Code では薄い字（SGR 2）、OpenCode では灰色（`38;2;138;138;138`）で描かれ、打った文字と区別するのに色と属性が要るためである。Herdr は、エージェントが `blocked` の間は `--source recent` を拒む（`agent_not_idle`）。質問の画面は `--source visible --lines 200`（pane に見えている行だけ）で、それ以外は `--source recent --lines 200` で読む。
+-   **画面の行数と上限。** 採ったどの質問も、pane に見えている行の中に収まった。`--lines 200` を渡しても、Herdr は pane の高さ（採った pane では 26 行か 65 行）までしか返さなかったので、200 行で足りないものはなかった。OpenCode の ANSI の出力は 65 行で 12〜18 KB あり、そのうち色と属性の制御が大半を占める。制御の量は画面の色の数で変わり、文字の量を表さないので、200 行と 64 KiB の上限は、色と属性の制御を除いた文字に当てる（`parseANSIScreen`）。外部のコマンドの出力の上限（PR-2 の Herdr の読み取り）は、これとは別に決める。
+-   **キー入力（ステップ 1-4）。** Claude Code も OpenCode も、番号のキー（`1`〜）が、選択の位置に依らずにその番号の選択肢を選び、Enter は要らない。選択の位置を矢印で 3 に動かしてから `1` を送り、1 が選ばれることを両方で確かめた。OpenCode の選択の位置は色だけで示される。矢印の移動では `state_change_seq` は変わらない。タブの質問は、問いごとの番号の後に確認の画面が出て、Claude Code は `1`、OpenCode は Enter で送る（タブの質問は中継しないと決めた。§1.5）。
+-   **Herdr の状態。** 今の Herdr は OpenCode の質問も `blocked` と報告した（設計の時点では報告しなかった）。`/clear` で `agent_session` が変わり、`/clear`・`/model`・`/new` のどれでも `state_change_seq` は変わらなかった。`/new` の後の OpenCode は `done` のままで、画面はロゴと灰色の案内文になる。`herdr agent list` は `label` を持たず、`herdr workspace list` が持つ（決定 11 のとおり）。
+-   **transcript（設計書 3.1.7）。** 置き場所は `~/.claude/projects/<作業ディレクトリの / と . を - に替えた名前>/<agent_session>.jsonl` である。`/model` の結果は、`type` が `user` で `message.content` が `<local-command-stdout>Set model to `Sonnet 5.5` and saved as your default for new sessions</local-command-stdout>` の行になる。`/model` の結果は画面にも残った。`/model` は利用者の既定のモデルも書き換える（§1.5）。
+-   **gh の出力と終了コード。** `gh pr list --json` と `gh pr checks --json` は配列を返す（決定 12 のとおり）。`gh pr checks --json` は、失敗したジョブと待っているジョブがあっても終了コード 0 で、`bucket` に `pass`・`skipping`・`fail`・`pending` が出る。ない PR の `gh pr view` は終了コード 1 で、標準エラーに GraphQL のエラーを出す。CI のジョブのない PR は、採った時点のこのリポジトリになかった。
+-   **報告。** `/runpr` の報告は LLM の書く文で、NEXT は `- NEXT: なし（…）` の行だった。OpenCode は自分で行を折り返すので、報告の中の PR の URL が 2 行に分かれる（`--source recent-unwrapped` でもつながらない）。PR を作ったコマンドの報告を URL で探す部品（PR-4）は、折り返しをつないで照らす。
+-   **設計の前提と違った事実と、人と決めたこと（§1.5）。** タブの画面には今のタブの問いだけが描かれる（中継しない）。OpenCode の状態の行はモデル名の後に版と提供元が続く（区切りの間を完全一致で比べる）。`/model` は既定のモデルを書き換える（受け入れて手引きに書く）。
+-   **採れなかったもの。** OpenCode の権限の確認（採取に使った OpenCode の設定がどの操作も許していた）、OpenCode で PR を作ったコマンドの報告（その画面がどの pane にも残っていなかった）、本物の `/runpr` のマージの質問（どの workspace にも出ていなかったので、採取用の pane で同じ文と選択肢の問いを出させて採った）。合わない画面は「要確認」か「送らない」になるので、どれも安全側に倒れる。PR を作ったコマンドの OpenCode の報告は、それを使う PR-4 で、出ている画面から採り足す。
 
 ### PR-7 の実行の記録
 
@@ -646,3 +661,5 @@ $ rg -n 'on Sonnet|to Sonnet|implement.*Sonnet|Model to start|model each reading
 ## 変更履歴
 
 - 2026-11-12 承認（isseis、#855）
+- 2026-11-12 セッション中の再承認：AC-30・AC-46 を実装するステップと確かめを除き、マージの確認のサンプルを 0089 の後のマージの質問で採る（§1.5・1-2・5-2・§7）（isseis、#870）
+- 2026-11-12 セッション中の再承認：採取の結果、タブの質問を中継せず、OpenCode のモデルを状態の行の区切りの間の完全一致で確かめ、`/model` が既定のモデルを書き換えることを受け入れる（§1.5・2-6・2-7・5-2・5-3・7-4・§7）（isseis、#870）

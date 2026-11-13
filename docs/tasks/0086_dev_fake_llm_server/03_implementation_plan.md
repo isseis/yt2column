@@ -83,18 +83,18 @@
 
 **変更するファイル:** `internal/llm/devfake/`（新規。Go のファイル、文面のファイル 4 つ、テスト、`test_helpers.go`）、`internal/godepstest/`（新規）、`cmd/yt2column/`・`cmd/yt2column-server/`・`cmd/yt2column-nmhost/` の分離のテスト（各 1 つ、新規）、`internal/pipeline/pipeline_test.go`（`testOnlyPackageDirs`）、`Makefile`（`wasm-check`）、`docs/dev/conventions/package_reference.md`、`docs/dev/conventions/test_organization.md`
 
--   [ ] **ステップ 1-1**: 着手の条件を確かめる（設計書 §1.1）。`origin/main` で、次の 2 つが成り立つことを確かめる。どちらかが成り立たなければ、何も書かずに止まって人に報告する。
+-   [x] **ステップ 1-1**: 着手の条件を確かめる（設計書 §1.1）。`origin/main` で、次の 2 つが成り立つことを確かめる。どちらかが成り立たなければ、何も書かずに止まって人に報告する。
     -   0083 の最後の実装の PR が入っている（`docs/tasks/0083_remove_slack_webhook/03_implementation_plan.md` の最後の PR の「PR がマージされた」に印がある。`internal/server` に `WebhookPublisher` がない）。
     -   #771 の F-001 の `make wasm-check` がある（`Makefile` にターゲットがあり、`make lint` から呼ばれる）。#772 が TS への一本化を決めて `make wasm-check` を置かなかった場合は、設計書 §1.1 のとおり #772 の見直しの結果に従うので、止まって人に報告する。
 
     あわせて、§1.4 の行番号を、着手のときのコードで読み直す。設計書の前提と食い違う箇所があれば、決定の変更として人に確かめる（`requirements_process.md`「Editing an approved document」）。
--   [ ] **ステップ 1-2**: `devfake` の型と `NewScenario` を書く（設計書 §3.1・§4.1）。
+-   [x] **ステップ 1-2**: `devfake` の型と `NewScenario` を書く（設計書 §3.1・§4.1）。
     -   列挙型 `Article`・`Failure`・`FailAt`、定数 `MaxDelay`・`ModelName`・`TitleMarker`、`Scenario`・`NewScenario`、番兵 `ErrInvalidScenario`・`ErrSimulatedAPIFailure`・`ErrUnexpectedCall`。
     -   3 つの列挙型に `String()`（引数の綴り。設計書「設計の際に決めたこと」の綴り）と、受理する値の一覧を持たせる（§1.3 の決定 4）。`Scenario` に `LogValue` を持たせる。範囲の外の列挙値の `String()` は、受理する綴りのどれとも一致しない値を返す。
     -   テスト `internal/llm/devfake/scenario_test.go::TestNewScenario`: 受理と拒否の表（列挙値の外、失敗の種類か失敗させる呼び出しの片方だけの指定、長い記事でない記事での `FailAtShorten`、負の遅れ、`MaxDelay` を超える遅れ、`MaxDelay` ちょうどと 0 の受理）。拒否は `errors.Is(err, ErrInvalidScenario)` で確かめる。`Scenario` は待ち方の関数を持つので（ステップ 1-3）、テストは `Scenario` を `==` や `reflect.DeepEqual` で比べず、`LogValue` で比べる。
     -   テスト `scenario_test.go::TestEnumStrings`: 3 つの列挙型の受理する値の一覧と `String()` が、設計書の綴りの表とちょうど等しく、重複がないこと。一覧が `FailureNone` と `FailAtNone` を含まないこと。範囲の外の値の `String()` が受理する綴りのどれとも一致しないこと。`TestScenarioLogValue`: `LogValue` の属性の名前と値（§1.3 の決定 4）。
     -   `NewScenario` の検査を 1 つずつ外し、そのたびに該当する行が失敗することを確かめる。
--   [ ] **ステップ 1-3**: `Job` と 2 つのクライアントを書く（設計書 §3.2・§4.2、§1.3 の決定 2）。
+-   [x] **ステップ 1-3**: `Job` と 2 つのクライアントを書く（設計書 §3.2・§4.2、§1.3 の決定 2）。
     -   `Scenario.NewJob`・`Job.Generation`・`Job.Review`。生成のクライアントは呼ばれた回数を排他制御のもとで数える。応答と失敗は設計書 §3.2 の表のとおりにする。`switch` の `default` は `ErrUnexpectedCall` を含めたエラーを返す。
     -   遅れ: 呼び出しのたびに、応答の前に待ち方を呼ぶ。待ち方は `Scenario` の非公開のフィールドで、空なら本物の待ち方（遅れが 0 ならタイマーを使わない。遅れがあれば、タイマーと `ctx.Done()` のうち先に来るほうで戻る）を使う。待った後に `ctx.Err()` を確かめる。
     -   `internal/llm/devfake/test_helpers.go`（`//go:build test`）に、`NewScenario` が受理した `Scenario` を受け取り、待ち方だけを差し替えた写しを返す `…ForTest` の関数を置く。生の値から `Scenario` を作る補助は置かない。
@@ -113,7 +113,7 @@
         -   本物の待ち方で、遅れを `MaxDelay` にし、短い期限（例えば 100 ミリ秒）の `ctx` で呼ぶと、`context.DeadlineExceeded` が返ること。呼び出しは別の goroutine で行い、テストの側の上限（`-race` でも十分な、例えば 30 秒）を超えたら失敗にする。
         -   遅れが 0 で取り消し済みの `ctx` でも `ctx.Err()` が返ること。
     -   次のそれぞれの変更を加え、括弧に挙げたテストが失敗することを確かめる。生成のクライアントの数え方をジョブの間で共有する（`TestJobsIndependent`）。待ち方の呼び出しを遅れが 0 のときに飛ばす（`TestDelayAndCancel` の回数）。タイマーと `ctx.Done()` の待ちを `time.Sleep` に変える（`TestDelayAndCancel` の期限の行）。待った後の `ctx.Err()` の確かめを外す（`TestDelayAndCancel` の取り消し済みの行）。
--   [ ] **ステップ 1-4**: 4 つの決まった記事の文面を書いて埋め込み、`writer` を通るテストを書く（設計書 §3.3、AC-12〜AC-15）。
+-   [x] **ステップ 1-4**: 4 つの決まった記事の文面を書いて埋め込み、`writer` を通るテストを書く（設計書 §3.3、AC-12〜AC-15）。
     -   ファイルは `internal/llm/devfake/articles/` に置く（標準・長い記事の生成・長い記事の字数の調整の後・要素を網羅、の 4 つ）。ファイル名は実装の際に決める。文面は作文で、実在の動画・人物・団体の内容を含まない（`docs/dev/security.md` §7）。
     -   要素を網羅した記事は、0063 の §3.2 の規則のうち、`writer` の検査（`checkBodyMarkdown`、`internal/writer/markdown.go:108`）を通る入力で現れうるものを、それぞれ 1 つ以上含む。規則ごとの該当の箇所の対応表を §7「実行の記録」の PR-1 の欄に書く（§1.3 の決定 7）。
     -   テスト `articles_test.go::TestArticlesPassWriter`（外部のテストのパッケージ `devfake_test`）: 3 つの記事の種類ごとに、本物の `writer.NewProgressWriter` を `writertestutil.DefaultOptions` の設定で作り、ジョブのクライアントで記事を完成させる。本文の字数（4,000 以下）は数え直さず、記事が完成することで確かめる。`writer` は字数の調整の後も最後の検査でも、4,000 字を超える本文を拒否するためである（`internal/writer/shorten.go:37`、`writer.go:481`、756d2f37）。あわせて次の 5 点を確かめる。
@@ -123,7 +123,7 @@
         -   完成した長い記事の見出しが、標準の記事より多いこと。
         -   標準の記事と要素を網羅した記事では、字数の調整が動かないこと（`Article.Shorten` が nil）。
     -   長い記事の生成の文面の本文を 4,000 字以下に縮めると、このテストが失敗することを確かめる。
--   [ ] **ステップ 1-5**: 分離のテストの共通の補助と、`devfake` の部分を書く（設計書 §7.3、§1.3 の決定 5、AC-02・AC-21・AC-22）。
+-   [x] **ステップ 1-5**: 分離のテストの共通の補助と、`devfake` の部分を書く（設計書 §7.3、§1.3 の決定 5、AC-02・AC-21・AC-22）。
     -   `internal/godepstest`（`//go:build test`）: 1 つのパッケージの推移的な依存を、ビルドタグを付けずに `GOOS=darwin` と `GOOS=linux` のそれぞれで `go list -deps` で求める。
         -   子の `go` には、`os.Environ()` に `COVERAGE_COMPARE_GOENV`（`Makefile:146`）の 5 つを上書きした環境を与え、作業ディレクトリをモジュールのルート（`go list -m -f {{.Dir}}` で求める）にする。
         -   `go` が見つからない、終了コードが 0 でない、出力が空か読めない場合は、`t.Skip` にせず失敗にする。`-e` は付けない。
@@ -135,8 +135,8 @@
     -   `internal/llm/devfake/deps_test.go::TestDependencies`（AC-02・AC-01）: `devfake` の依存に `internal/llm` があり、`internal/server`・`internal/articlecache`・`internal/serversock`・`internal/privatefile`・`internal/nmhost`・`cmd/` の下のパッケージ・`net`・`os/exec` がないこと。
     -   本番の 3 つの `cmd/` のそれぞれのテスト（`cmd/yt2column/devdeps_test.go`・`cmd/yt2column-server/devdeps_test.go`・`cmd/yt2column-nmhost/devdeps_test.go` の `TestNoDevDependency`、AC-21・AC-22）: 自分のパッケージの依存に、必ずあるはずのパッケージ（CLI は `internal/writer`、サーバは `internal/server`、ホストは `internal/nmhost`）があり、`devfake` がないこと。`devfake` のパスは `devfake` の型から求める（設計書 §7.3）。
     -   次のそれぞれの変更を加え、括弧に挙げたテストが失敗することを確かめる（設計書 §7.3）。本番の 3 つの `cmd/` のそれぞれに `devfake` の import を足す（その `cmd/` の `TestNoDevDependency`）。`internal/server` に `devfake` の import を足す（`cmd/yt2column-server/devdeps_test.go::TestNoDevDependency`）。`devfake` に `internal/server` の import を足す（`TestDependencies`）。
--   [ ] **ステップ 1-6**: `make wasm-check` のビルドの対象に `./internal/llm/devfake` を加える（AC-03、設計書 §3.5）。ステップ 1-1 で読んだ #771 の F-001 のターゲットの形に合わせる。`devfake` の外部のテストのパッケージは `internal/writer`（`GOOS=js` でビルドできない `internal/transcript` に依存する）を import するので、ターゲットがテストのファイルをコンパイルする形（`go vet` や `go test -c` を `devfake` にかける形）なら、加えずに止まって人に確かめる。`devfake` に `GOOS=js` でビルドできないファイルを一時的に足すと `make wasm-check` が失敗することを確かめる。
--   [ ] **ステップ 1-7**: 文書の行を加える。
+-   [x] **ステップ 1-6**: `make wasm-check` のビルドの対象に `./internal/llm/devfake` を加える（AC-03、設計書 §3.5）。ステップ 1-1 で読んだ #771 の F-001 のターゲットの形に合わせる。`devfake` の外部のテストのパッケージは `internal/writer`（`GOOS=js` でビルドできない `internal/transcript` に依存する）を import するので、ターゲットがテストのファイルをコンパイルする形（`go vet` や `go test -c` を `devfake` にかける形）なら、加えずに止まって人に確かめる。`devfake` に `GOOS=js` でビルドできないファイルを一時的に足すと `make wasm-check` が失敗することを確かめる。
+-   [x] **ステップ 1-7**: 文書の行を加える。
     -   `docs/dev/conventions/package_reference.md` に `internal/llm/devfake` と `internal/godepstest` の行を加える（`TestPackageReferenceListsPackages`）。
     -   `docs/dev/conventions/test_organization.md` の「Pipeline fakes」に、`internal/llm/devfake` が例外であることを、範囲（開発用のバイナリに組み込む fake の構成要素だけ）と理由（ビルドタグ `test` のファイルにはバイナリから使えない）とともに書く（AC-28）。英語で書く。`devfake` の Go のファイルを一時的に `testutil/` の下に動かすと `TestFakesCarryBuildTag` が失敗することを確かめ、コミットメッセージに書く。
 
@@ -154,25 +154,25 @@
 
 **判定理由**: ステップ 1-3 がジョブをまたぐ並行の呼び出しの排他制御と取り消しを扱う高リスクの手順で、ステップ 1-5 と 1-3 がビルドタグ `test` だけでコンパイルする補助（`internal/godepstest`、`devfake/test_helpers.go`）を加え、mkplan.md の Conditional checks のビルドタグの項と gosec の抑止の項に当たる。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/865
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: 開発用のサーバ（設計書 §8 の 2）
 
 **変更するファイル:** `cmd/yt2column-devserver/`（新規。`main.go`・`run.go` などの Go のファイル、テスト、`test_helpers.go`）、`cmd/yt2column/devdeps_test.go`・`cmd/yt2column-server/devdeps_test.go`・`cmd/yt2column-nmhost/devdeps_test.go`、`internal/godepstest/`、`Makefile`、`cmd/yt2column/makefile_test.go`、`internal/config/config.go`・`envaccess_test.go`、`docs/dev/conventions/package_reference.md`
 
--   [ ] **ステップ 2-1**: 引数の解析を書く（設計書 §3.4・§4.3、§1.3 の決定 4、AC-08・AC-09）。
+-   [x] **ステップ 2-1**: 引数の解析を書く（設計書 §3.4・§4.3、§1.3 の決定 4、AC-08・AC-09）。
     -   `flag.FlagSet` と引数ごとの `flag.Value` の型で、`-article`・`-fail`・`-fail-step`・`-delay` を受理する。綴りは `devfake` の列挙型の `String()` と照合する。2 回目の指定、値の欠け、解析の後に残る語を拒否する。`-delay` は 10 進の数字だけを受理し、先頭が `0` で 2 桁以上の値と、空の値を拒否する。秒数を `time.Duration` に変える前に、`MaxDelay` の秒数を超える値（整数に収まらない値を含む）を拒否する。秒数を掛ける変換が桁あふれして範囲内の値になり、`NewScenario` の範囲の検査をすり抜けるのを防ぐためである。引数の組み合わせの検査と、`time.Duration` にした後の範囲の検査は `devfake.NewScenario` に任せる。`-h`・`-help` は `flag.ErrHelp` で受け、案内を出して終了コード `0` にする。
     -   拒否の理由の行は `redact.Line` を通し、続けて `-h` と同じ案内を出す。`flag` が自分で出す案内は出さない。
--   [ ] **ステップ 2-2**: 起動の手順と `perJobWriter` を書く（設計書 §3.4・§6.1、設計書「設計の際に決めたこと」の 1 つ目、§1.3 の決定 2・4）。
+-   [x] **ステップ 2-2**: 起動の手順と `perJobWriter` を書く（設計書 §3.4・§6.1、設計書「設計の際に決めたこと」の 1 つ目、§1.3 の決定 2・4）。
     -   `main.go`: `SIGPIPE` を無視し、`signalrun.Run` に `run` を渡す。`os.Args[1:]`・`os.LookupEnv`・`os.Stderr`・`productionDeps()` を渡すのはここだけにする。`productionDeps()`（本番の `cmd/yt2column-server/run.go:54` と同じ形）は、シナリオを変えずに返す関数と、本物の `writer.NewProgressWriter` を返す。
     -   `run`: 引数 → `NewScenario` → `deps` のシナリオを包む関数 → `config.LoadHost` → 起動のときの `writer` の確かめ → `server.New`（記事の作成は `perJobWriter`、ログの出力先は直列化した標準エラー出力、秘密は空）→ `serversock.Acquire`・`Listen` → 起動の行 → `Serve` → ロックの解放、の順。終了コードは設計書 §3.4 のとおりにする。停止の案内は `context.AfterFunc` で書き、文は 0083 の後の本番の案内に合わせる。
     -   起動の行の属性は §1.3 の決定 4 のとおりにする。
     -   `perJobWriter`: `Write`・`WriteWithProgress` のたびに `NewJob` で新しいクライアントの組を作り、`writer.NewProgressWriter` で本番と同じ設定の `writer` を作って呼ぶ。作るのに失敗したら、使用量が空の `*writer.TokenUsageError` で返す。
--   [ ] **ステップ 2-3**: 開発用のサーバのテストを書く（設計書 §7.2、§1.3 の決定 3）。テストは `run` に一時ディレクトリの `HOME`（`udstest.Dir`）と環境を引く関数を渡して起動し、ソケットにジョブの API のリクエストを送る。
-    -   `run_test.go::TestRunArgs`（AC-08・AC-09）: 受理する指定と拒否する指定の表。拒否では終了コード `2`、標準エラー出力に受理する値の案内があること、`HOME` の下に何も作らないこと。`-h`・`-help` では終了コード `0`、案内があること、何も作らないこと。要件書 AC-09 の各項（知らない引数・知らない値・余分な語・繰り返し・値の欠け・片方だけの失敗の指定・遅れの各形・長い記事でない記事での字数の調整の失敗）について、表に 1 行以上を置く。加えて、`-fail none`・`-fail-step none`（§1.3 の決定 4）、`-delay 600` の受理と `-delay 601` の拒否、`time.Duration` への掛け算で桁があふれる値（例えば `18446744074`）と整数に収まらない値の拒否の行を置く。
+-   [x] **ステップ 2-3**: 開発用のサーバのテストを書く（設計書 §7.2、§1.3 の決定 3）。テストは `run` に一時ディレクトリの `HOME`（`udstest.Dir`）と環境を引く関数を渡して起動し、ソケットにジョブの API のリクエストを送る。
+    -   `run_test.go::TestRunArgsAccepted`・`::TestRunArgsRejected`・`::TestRunHelp`（AC-08・AC-09）: 受理する指定の表（`parseArgs` が `NewScenario` の作るシナリオを返すこと）と、拒否する指定の表（`run` で確かめる）、`-h`・`-help` の確かめに分ける。拒否では終了コード `2`、標準エラー出力に受理する値の案内があること、`HOME` の下に何も作らないこと。`-h`・`-help` では終了コード `0`、案内があること、何も作らないこと。要件書 AC-09 の各項（知らない引数・知らない値・余分な語・繰り返し・値の欠け・片方だけの失敗の指定・遅れの各形・長い記事でない記事での字数の調整の失敗）について、表に 1 行以上を置く。加えて、`-fail none`・`-fail-step none`（§1.3 の決定 4）、`-delay 600` の受理と `-delay 601` の拒否、`time.Duration` への掛け算で桁があふれる値（例えば `18446744074`）と整数に収まらない値の拒否の行を置く。
     -   `run_test.go::TestStartupFailures`（設計書 §3.4・§7.2「写したコード」）: `HOME` がない・相対のときの終了コード `2`、起動のときの `writer` の作成の失敗（`deps` で差し替える）の `2`、ソケットのディレクトリが受理されない形のときの `1` と案内、拒否の理由の行が非表示の文字をエスケープすること。前例は `cmd/yt2column-server/run_test.go:47` の `TestStartupFailures`。
     -   `run_test.go::TestScenarioCombinations`（AC-24・AC-12〜AC-19）: 組み合わせは、`devfake` の受理する値の一覧と失敗なしを掛け合わせ、`NewScenario` が受理するものだけを残して作り、その数が 31 であることを先に確かめる。サブテストごとに `udstest.Dir` の別の `HOME` で起動し、遅れを 1 秒にし、待ち方を差し替えて実時間を待たずに、生成の開始と状態の取得を行う。差し替えた待ち方の記録は、サーバの goroutine とテストの間で排他制御する。完成するシナリオでは、タイトルの印と `cost.state` が `unknown` であること、失敗するシナリオでは、失敗の工程と理由のコード（要件書 AC-17）が期待どおりであること、前の工程が完了していること、記事がないこと。待ち方が呼ばれた回数がシナリオの呼び出しの回数（要件書 AC-19）と一致すること。
     -   `run_test.go::TestJobsIndependent`（AC-04）: 別の動画の別の入力を `plain` の送り方で 2 つ送り、待ち方の差し替えで両方を呼び出しの中で止めてから進める。2 つが終わった後に別の入力で 3 つ目を送る。3 つが同じ結果になること。失敗のシナリオ（例えば字数の調整での失敗）でも行う。
@@ -184,16 +184,16 @@
     -   `run_test.go::TestProductionDeps`: `productionDeps()` のシナリオの関数が、受け取ったシナリオを `LogValue` で同じ値のまま返すこと、遅れが 0 のシナリオで記事が完成すること。
     -   `run_test.go::TestWriterOptionsMatchCLIDefaults`: `perJobWriter` が作る `writer` の設定が `writertestutil.DefaultOptions` と等しいこと（`writer` を作る関数を `deps` で差し替えて観測する）。
     -   `test_helpers.go`（`//go:build test`）: ジョブの API の最小の補助と、`deps` の差し替え。本番のサーバのテストの補助の写しや、本番の `run.go` の写しで `dupl` が報告されたら、構成を変えずに、行を限った `//nolint:dupl` と §1.3 の決定 3（または設計書「設計の際に決めたこと」の 1 つ目）を示す注釈で抑える。
-    -   次のそれぞれの変更を加え、括弧に挙げたテストが失敗することを確かめる。`perJobWriter` がクライアントを共有する（`TestJobsIndependent`）。起動の行を `Acquire` の前に出す（`TestLockHeld`）。環境から `HOME` 以外を引く（`TestIgnoresConfigAndEnv`）。`productionDeps()` のシナリオの関数が待ち方を差し替える（`TestProductionDeps`）。遅れの桁あふれの確かめを外す（`TestRunArgs`）。
--   [ ] **ステップ 2-4**: 分離のテストに開発用のサーバを加える（設計書 §7.3）。`internal/godepstest` に、`cmd/yt2column-devserver` のパスを `go list` で求め、見つかることを先に確かめる手段を加える。本番の 3 つの `cmd/` の `TestNoDevDependency` に、`cmd/yt2column-devserver` がないことの確かめを加える。`cmd/yt2column-devserver` のパスの求め方を壊す（存在しないパスを渡す）と、3 つの `TestNoDevDependency` が飛ばずに失敗することを確かめる。
--   [ ] **ステップ 2-5**: `make build-dev` を加える（設計書 §3.5、§1.3 の決定 6、AC-23）。
+    -   次のそれぞれの変更を加え、括弧に挙げたテストが失敗することを確かめる。`perJobWriter` がクライアントを共有する（`TestJobsIndependent`）。起動の行を `Acquire` の前に出す（`TestLockHeld`）。環境から `HOME` 以外を引く（`TestIgnoresConfigAndEnv`）。`productionDeps()` のシナリオの関数が、呼び出しを止める待ち方を差し替える（`TestProductionDeps`。遅れが 0 のとき、すぐ戻る待ち方への差し替えは観測できない）。遅れの桁あふれの確かめを外す（`TestRunArgsRejected`）。
+-   [x] **ステップ 2-4**: 分離のテストに開発用のサーバを加える（設計書 §7.3）。`internal/godepstest` に、`cmd/yt2column-devserver` のパスを `go list` で求め、見つかることを先に確かめる手段を加える。本番の 3 つの `cmd/` の `TestNoDevDependency` に、`cmd/yt2column-devserver` がないことの確かめを加える。`cmd/yt2column-devserver` のパスの求め方を壊す（存在しないパスを渡す）と、3 つの `TestNoDevDependency` が飛ばずに失敗することを確かめる。
+-   [x] **ステップ 2-5**: `make build-dev` を加える（設計書 §3.5、§1.3 の決定 6、AC-23）。
     -   `build-dev` は `./cmd/yt2column-devserver` を `build/dev/yt2column-devserver` にビルドする。`build` と同じビルドの引数にする。`.PHONY` に加える。`make build` は変えない。
     -   `cmd/yt2column/makefile_test.go`: `TestMakeBuildBuildsEveryBinary` の確かめを、`build` と `all` がビルドするパッケージの集まりが本番の 3 つとちょうど等しいことに改める。`TestMakeBuildDev` を加え、`make -n build-dev` がビルドするパッケージの集まりが `./cmd/yt2column-devserver` の 1 つだけで、出力先が `build/dev/yt2column-devserver` であることを確かめる（§1.3 の決定 6）。`build` のレシピに `./cmd/yt2column-devserver` を足すと前者が失敗することを確かめる。
     -   `make build` と `make build-dev` を実行し、`build/` の直下にできたファイルと `build/dev/` の中身を §7「実行の記録」の PR-2 の欄に書く。
--   [ ] **ステップ 2-6**: `internal/config` の説明と環境の検査を変える（設計書 §3.5、H-04）。
+-   [x] **ステップ 2-6**: `internal/config` の説明と環境の検査を変える（設計書 §3.5、H-04）。
     -   `internal/config/config.go` の `HostConfig` と `LoadHost` の説明に、開発用のサーバも使うことと、「`HOME` だけを読む」契約が 2 つの入口を縛ることを書き加える。振る舞いは変えない。
     -   `internal/config/envaccess_test.go` の `allowedEnvRefs` に `cmd/yt2column-devserver/main.go` の `value:os.LookupEnv` を 1 回加え、`TestEnvAccessConfined` の観測の検査に同じ行を加える。`main.go` から `os.LookupEnv` を外すと観測の検査が失敗することを確かめる。
--   [ ] **ステップ 2-7**: `docs/dev/conventions/package_reference.md` に `cmd/yt2column-devserver` の行を加える（`TestPackageReferenceListsPackages`）。
+-   [x] **ステップ 2-7**: `docs/dev/conventions/package_reference.md` に `cmd/yt2column-devserver` の行を加える（`TestPackageReferenceListsPackages`）。
 
 **完了の条件:** 上のテストを加え、すべて通る。§7 に AC-23 の実行の記録がある。`make test`・`make lint`・`make deadcode` が通る。
 
@@ -209,10 +209,10 @@
 
 **判定理由**: ステップ 2-2・2-3 がソケット・ロック・シグナルの起動の手順と並行のジョブを扱い、mkplan.md の Conditional checks のうち、繰り返し起動する CLI の起動の検査と、外部の状態（ソケット・ロック）の後始末の 2 つに当たる。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/868
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 3: 文書と手での確認（設計書 §8 の 3）
 
@@ -289,8 +289,8 @@
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
--   [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7）
--   [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7）
+-   [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7）
+-   [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7）
 -   [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
@@ -310,8 +310,8 @@
 | AC-05 | `cmd/yt2column-devserver/run_test.go::TestListeningLine`（`HOME` から導出したソケットのパス）、`::TestScenarioCombinations`（そのソケットで生成の開始と状態の取得）、拡張からの手での確認（ステップ 3-5） | test、manual | ステップ 2-2・2-3・3-5 | PR-2、PR-3 |
 | AC-06 | `cmd/yt2column-devserver/run_test.go::TestIgnoresConfigAndEnv` | test | ステップ 2-3 | PR-2 |
 | AC-07 | `cmd/yt2column-devserver/run_test.go::TestIgnoresConfigAndEnv`、`internal/config/envaccess_test.go::TestEnvAccessConfined` | test | ステップ 2-3・2-6 | PR-2 |
-| AC-08 | `cmd/yt2column-devserver/run_test.go::TestRunArgs`、`internal/llm/devfake/scenario_test.go::TestEnumStrings`、`cmd/yt2column-devserver/docs_test.go::TestDevelopmentDocsDevServer`（`development.md` の綴り） | test | ステップ 1-2・2-1・3-2 | PR-1、PR-2、PR-3 |
-| AC-09 | `cmd/yt2column-devserver/run_test.go::TestRunArgs`・`::TestStartupFailures`、`internal/llm/devfake/scenario_test.go::TestNewScenario` | test | ステップ 1-2・2-1・2-3 | PR-1、PR-2 |
+| AC-08 | `cmd/yt2column-devserver/run_test.go::TestRunArgsAccepted`・`::TestRunArgsRejected`・`::TestRunHelp`、`internal/llm/devfake/scenario_test.go::TestEnumStrings`、`cmd/yt2column-devserver/docs_test.go::TestDevelopmentDocsDevServer`（`development.md` の綴り） | test | ステップ 1-2・2-1・3-2 | PR-1、PR-2、PR-3 |
+| AC-09 | `cmd/yt2column-devserver/run_test.go::TestRunArgsRejected`・`::TestStartupFailures`、`internal/llm/devfake/scenario_test.go::TestNewScenario` | test | ステップ 1-2・2-1・2-3 | PR-1、PR-2 |
 | AC-10 | `cmd/yt2column-devserver/run_test.go::TestListeningLine`、`internal/llm/devfake/scenario_test.go::TestScenarioLogValue` | test | ステップ 1-2・2-2 | PR-1、PR-2 |
 | AC-11 | `cmd/yt2column-devserver/run_test.go::TestLockHeld`。逆向き（本番のサーバ）は、本番が同じ `serversock.Acquire` を使うことと `internal/serversock` のロックのテスト | test | ステップ 2-2・2-3 | PR-2 |
 | AC-12 | `internal/llm/devfake/articles_test.go::TestArticlesPassWriter`、`cmd/yt2column-devserver/run_test.go::TestScenarioCombinations` | test | ステップ 1-4・2-3 | PR-1、PR-2 |
@@ -339,11 +339,56 @@
 
 PR-1:
 
-（ステップ 1-4 で、AC-14 の対応表を書く。0063 の §3.2 の規則ごとに、要素を網羅した記事の文面の該当の箇所を挙げ、`writer` の検査を通らないので現れない規則はその理由を書く。）
+AC-14 の対応表。行番号は `internal/llm/devfake/articles/elements.md` の行で、1 行目がタイトルの行である。`writer` はこの文面の 1 行目の `# ` を除いた残りをタイトルにし、2 行目以降を本文にする。表示用の Markdown は、タイトルの行・本文・出典の行の順に並ぶので、規則の当てはまり方は文面のとおりである。完成することは `TestArticlesPassWriter` が確かめる。
+
+| 規則（0063 の §3.2） | 該当の箇所 |
+|---|---|
+| B-1 空行 | 2 行目ほか、ブロックの間の空の行 |
+| B-2 見出し（`#`） | 1 行目（記事のタイトルの見出し） |
+| B-2 見出し（`#` とタブ） | 34 行目 |
+| B-2 見出し（`##` と U+0020） | 5・32・38・49・60・75 行目 |
+| B-2 見出し（`##` とタブ） | 30 行目 |
+| B-2 見出しの文字列へのインラインの規則 | 32 行目（強調とコードスパン） |
+| B-2 見出しにならない行（`#` が 3 つ以上） | 18 行目 |
+| B-2 見出しにならない行（`#` の直後に空白がない） | 20 行目 |
+| B-3 コードブロック（`` ` ``、情報文字列あり） | 62〜65 行目。中の 63 行目の記法と 64 行目の行頭の空白は、そのまま表示される |
+| B-3 コードブロック（`~`） | 67〜69 行目 |
+| B-3 閉じる行（行頭の空白と、開いた並びより長い並び） | 71〜73 行目 |
+| B-4 箇条書き（`-`、空行をはさんだ同じリスト） | 40・41・44 行目 |
+| B-4 箇条書き（記号が変わると新しいリスト） | 46 行目（`*`）、47 行目（`+`） |
+| B-5 番号付きリスト（`.`） | 51〜53 行目 |
+| B-5 番号付きリスト（`)`、区切りが変わると新しいリスト、7 から始まる番号） | 55・56 行目 |
+| B-5 項目にならない行 | 28 行目（10 桁の数字）、58 行目（`1\.` で始まる） |
+| B-6 項目の継続 | 42 行目（行頭に空白のある、41 行目の項目の続き） |
+| B-7 段落（複数の行の段落） | 7・8 行目 |
+| 空白を詰めない表示 | 36 行目（連続した U+0020 と U+3000） |
+| I-1 エスケープ（区切り文字の前の `\`） | 10 行目（`\*`）、16 行目（`\#`）、26 行目（`\**` の 1 つ目）、58 行目（`\.`） |
+| I-1 エスケープ（区切り文字でない文字の前の `\` は文字のまま） | 26 行目（`\あ`、`C:\path`、空白の前の `\`） |
+| I-2 コードスパン | 12 行目（1 個の並びと、中に `` ` `` を含む 2 個の並び）、79 行目 |
+| I-2 閉じる並びのない `` ` `` | 22 行目 |
+| I-3 強い強調 | 10 行目 |
+| I-4 強調 | 10・32 行目、26 行目（`\**記号*` の 2 つ目以降） |
+| I-3・I-4 の閉じない記号と 3 個以上の並び | 14 行目 |
+| I-5 自動リンク（リンクになる） | 77 行目 |
+| I-5 自動リンク（F-003 を満たさず、文字のまま） | 79 行目（`<https://example.com>`。直列化で末尾に `/` が補われる）、81 行目（大文字のスキーム、ホストが空、ユーザー名とパスワード、パスの `\`、全角の文字を含むドメイン名） |
+| I-5 に当たらない `<` | 81 行目（`<http://`）、83 行目（`<3`、`a < b`） |
+| `_` は強調の記号ではない | 83 行目 |
+| 入れ子（強い強調の中では I-1 だけ） | 24 行目（中のコードスパンと自動リンクは記法にならない） |
+
+現れない規則と形:
+
+-   B-3 の閉じる行がないコードブロックは、`writer` が閉じないコードブロックを拒否する（`internal/writer/markdown.go` の `proseLines`）ので現れない。情報文字列に `` ` `` を含む `` ` `` の並びの行と、行頭に空白のあるコードブロックらしい行も、`writer` がコードブロックに似た行として拒否する（`looksLikeFence`）ので現れない。
+-   I-5 の形のうち、`<` の直後が英字で自動リンクの文法を満たさないもの（空白・制御文字を含むものなど）は、`writer` が生の HTML として拒否する（`checkLineHTML`）ので現れない。
+-   B-2 の「記号を除いた残りが空」の行（`## ` で終わる行）は、`writer` の検査は通るが、文面に入れていない。行末の空白を pre-commit の `trailing-whitespace` が取り除き、ファイルに残せないためである。取り除いた後の `##` は、20 行目と同じく「`#` の直後に空白がない行」になる。
+
+確かめたコミットは、この表を加えたコミットである。
 
 PR-2:
 
-（ステップ 2-5 で、AC-23 の `make build`・`make build-dev` の実行の結果を書く。）
+AC-23 の `make build`・`make build-dev` の実行（`rm -rf build` の後に実行した）。
+
+-   `make build` の後、`build/` の直下にできたファイルは `yt2column`・`yt2column-nmhost`・`yt2column-server` の 3 つだけで、`build/dev/` はなかった。
+-   続けて `make build-dev` を実行した後、`build/` の直下は同じ 3 つのファイルと `dev/` だけで、`build/dev/` の中身は `yt2column-devserver` の 1 つだけだった。`build/dev/yt2column-devserver` は `.gitignore` の `build/` に当たる（`git check-ignore` が報告した）。
 
 PR-3:
 

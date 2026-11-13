@@ -79,6 +79,7 @@ add a kind here or to widen one of these definitions.
 
 | Package | Responsibility |
 |---|---|
+| `cmd/yt2column-devserver` | Entry point of the development server, not a production binary (`make build-dev`, into `build/dev/`): the production server's HTTP server, socket, and start lock with a fake LLM (`internal/llm/devfake`) chosen by `-article`, `-fail`, `-fail-step`, and `-delay`; it reads no configuration file and only `HOME` from the environment. Rules: [security.md §8.2](../security.md). |
 | `cmd/yt2column-nmhost` | Entry point of the Native Messaging host: relays one request with `nmhost.Relay`, and `install`/`uninstall` manage the browser manifest. Rules: [security.md §8.2](../security.md). |
 | `cmd/yt2column-server` | Entry point of the localhost server and of `yt2column-server config init`. Startup and configuration rules: [security.md §8.2](../security.md). |
 | `internal/articlecache` | The server's in-memory article cache: `Cache`, `Keyer`, `Subject`, `StartMode`, `Run`, `Snapshot`, `Eviction`; `ParseKey`. Rules: [security.md §8.2](../security.md); API: [development.md](../guides/development.md). |
@@ -96,6 +97,7 @@ add a kind here or to widen one of these definitions.
 | `internal/llm/claudeparam` | The Claude adapter's parameter types `Effort` and `WorkspaceID`, used by the adapter and `internal/config`; standard library only. |
 | `internal/llm/deepseek` | Implements `llm.LLMClient` against the DeepSeek Chat Completions API: `New`; `ErrHTTPStatus`, `ErrInvalidResponse`, `ErrTransport`, `ErrPaddedModel`. |
 | `internal/llm/deepseekparam` | The DeepSeek adapter's parameter type `Effort`, used by the adapter and `internal/config`; standard library only. |
+| `internal/llm/devfake` | The fake LLM of the development builds, not a production adapter: `NewScenario` checks a `Scenario` (`Article`, `Failure`, `FailAt`, delay), and `Scenario.NewJob` returns the clients of one generation job, which return fixed articles or the selected failure; `Articles`, `Failures`, and `FailAts` list the values a caller may select; `ModelName`, `TitleMarker`, `MaxDelay`; `ErrInvalidScenario`, `ErrSimulatedAPIFailure`, `ErrUnexpectedCall`. It depends on `internal/llm` and the standard library only, and no production binary links it. |
 | `internal/llm/llmhttp` | Performs one HTTP POST for an LLM adapter: `Post`, `NewClient`, `CheckAPIKey`, `MaxResponseBytes`; `ErrZeroAPIKey`, `ErrInvalidAPIKey`. It defines no send-failure sentinel of its own and reports a failure with the adapter's sentinel. |
 | `internal/llm/openai` | Implements `llm.LLMClient` against the OpenAI Responses API: `New`; `ErrHTTPStatus`, `ErrInvalidResponse`, `ErrTransport`. The default output limit: [OpenAI output limit guide](../guides/openai_output_limit.md). |
 | `internal/llm/openaiparam` | The OpenAI adapter's parameter type `Effort` (with `EffortNone` to turn reasoning off), used by the adapter and `internal/config`; standard library only. |
@@ -122,6 +124,7 @@ add a kind here or to widen one of these definitions.
 | `cmd/coveragecompare` | Entry point of the coverage comparison tool behind `make coverage-compare` and `make ext-coverage-compare`: it parses `go --base <rev>` or `ext --base <rev>` and runs `coveragecompare.Run`. |
 | `cmd/fixprguard` | Entry point of the `fixprguard` guard tool behind `/fixpr` and `/runpr`: it parses the subcommands and orders the `internal/fixprguard` calls. Usage: [fixprguard guide](../guides/fixprguard_guide.md). |
 | `cmd/mergepr` | Entry point of the `/mergepr` developer tool: it prepares a PR for message drafting, then merges and cleans up after the user approves the message. Usage: [mergepr guide](../guides/mergepr_guide.md). |
+| `internal/chief` | The decisions and side effects of the `chief` developer tool; today its screen readers, which read an agent's pane screen into typed results (`Screen`, `Question`, `InputLine`, `RunprNext`), and the sanitizing and read caps for text shown to the human (`Sanitize`, `CapScreen`, `CapDescription`). The design: [0088 design](../../tasks/0088_chief_of_staff/02_architecture.md). |
 | `internal/codexreview` | The checks behind the `codexreview` tool: `Run`, `Result`, `Kind`, `Protocol`. |
 | `internal/coveragecompare` | The coverage comparison tool's core: `Run`, `Write`, `ExitCode`, `StopError`, and the input parsers. |
 | `internal/fixprguard` | The deterministic checks for `/fixpr` and `/runpr`: `GitHub`, `NewGitHub`, `ParseReviewers`, `CheckState`, `Worktree.Baseline`. Usage: [fixprguard guide](../guides/fixprguard_guide.md). |
@@ -134,6 +137,7 @@ add a kind here or to widen one of these definitions.
 | `internal/cmdrunner/testutil` | Test double `Fake` for `cmdrunner.InputRunner`: replays a scripted command sequence, records standard input, and runs a side-effect function per step. |
 | `internal/codexreview/testutil` | The fake Codex CLI and clean `PATH`, `HOME`, and `TMPDIR` a `codexreview` test runs with: `Main`, `NewFake`, `Fake.Set`, `Starts`, `Args`, `Env`. |
 | `internal/doctestutil` | The Markdown helpers the document guard tests share: `ReadDoc`, `ScanDocLines`, `FencedBlocks`, `SectionByHeading`, `ParseStructure`, `CompareStructures`, `FindTable`, `ProtocolFlags`. |
+| `internal/godepstest` | Lists a package's transitive dependencies with `go list -deps` on each target OS and checks them, failing rather than skipping when it cannot list: `Check`, `Root`, `List`, `PackagePath`, `MustPackagePath`, `Deps.Require`, `Deps.Forbid`. |
 | `internal/llm/claude/testutil` | What the Anthropic integration test needs: `SettingsFrom` decides from the environment whether it runs, skips, or fails. |
 | `internal/llm/deepseek/testutil` | What the DeepSeek integration tests share: `SettingsFrom` for the opt-in, and `RunMakeTarget`, `CheckChargedTarget`, `FirstLineIs` for the make targets that keep them out of `make test`. |
 | `internal/llm/llmhttp/llmhttptest` | The test servers and loopback listeners shared by `internal/llm/llmhttp` and the LLM adapter tests: a request recorder, fixed-response and stalling servers, and a blackhole proxy. |

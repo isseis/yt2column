@@ -399,8 +399,10 @@ func LoadServer(lookup LookupFunc) (ServerConfig, error) {
 	}, nil
 }
 
-// HostConfig is the Native Messaging host's relay configuration. Its field is
-// unexported, so a non-zero HostConfig can only come from LoadHost.
+// HostConfig is the relay configuration of the Native Messaging host and of the
+// development server (cmd/yt2column-devserver), which needs the server's socket
+// path and nothing else. Its field is unexported, so a non-zero HostConfig can
+// only come from LoadHost.
 type HostConfig struct {
 	socketPath string // absolute, within the OS limit
 }
@@ -414,8 +416,12 @@ func (c HostConfig) SocketPath() string {
 // LoadHost reads HOME, and nothing else, through lookup. Contract: it derives
 // the socket path with the same function as LoadServer, so a host the browser
 // starts and a server started from a shell reach one socket whenever they see
-// the same HOME. It returns a *VarError naming HOME, and the zero HostConfig,
-// when HOME is unusable or the derived path exceeds the OS limit.
+// the same HOME. The development server is the second caller; that it reads
+// HOME only is what keeps it from reading the server's configuration file or
+// any secret, so a change that makes LoadHost read another variable changes
+// what both entry points read. It returns a *VarError naming HOME, and the
+// zero HostConfig, when HOME is unusable or the derived path exceeds the OS
+// limit.
 func LoadHost(lookup LookupFunc) (HostConfig, error) {
 	sockPath, err := socketPath(runtime.GOOS, lookup)
 	if err != nil {
