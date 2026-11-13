@@ -3,8 +3,10 @@
 package main
 
 import (
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/isseis/yt2column/internal/doctestutil"
 	"github.com/isseis/yt2column/internal/llm/devfake"
@@ -15,17 +17,19 @@ const developmentDocPath = "../../docs/dev/guides/development.md"
 
 // TestDevelopmentDocsDevServer pins the values of the development guide's
 // section on the development server to the code: the argument names, every
-// value the arguments accept, the title marker, and the make target. The
-// values come from this package's argument names and from devfake, so a value
-// that changes in the code fails this test until the guide follows, and a
-// guide that states a wrong value fails it too.
+// value the arguments accept, the longest delay, the model name, the title
+// marker, and the make target. The values come from this package's argument
+// names and from devfake (except the make target, which names a Makefile
+// rule), so a value that changes in the code fails this test until the guide
+// follows, and a guide that states a wrong value fails it too.
 func TestDevelopmentDocsDevServer(t *testing.T) {
 	development := doctestutil.ReadDoc(t, developmentDocPath)
-	section := doctestutil.SectionByHeading(development, doctestutil.DevServerHeading)
+	section := doctestutil.SectionOutsideBlocks(development, doctestutil.DevServerHeading)
 	if section == "" {
 		t.Fatalf("development.md has no %q section", doctestutil.DevServerHeading)
 	}
 
+	maxDelay := int(devfake.MaxDelay / time.Second)
 	var documented []string
 	for _, name := range []string{argArticle, argFail, argFailStep, argDelay} {
 		documented = append(documented, "`-"+name+"`")
@@ -40,6 +44,8 @@ func TestDevelopmentDocsDevServer(t *testing.T) {
 		documented = append(documented, "`"+failAt.String()+"`")
 	}
 	documented = append(documented,
+		"`0` から `"+strconv.Itoa(maxDelay)+"` まで",
+		"`"+devfake.ModelName+"`",
 		"`"+devfake.TitleMarker+"`",
 		"`make build-dev`",
 	)
