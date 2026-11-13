@@ -3,10 +3,10 @@
 package main
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/isseis/yt2column/internal/doctestutil"
 	"github.com/isseis/yt2column/internal/llm/devfake"
@@ -16,43 +16,87 @@ import (
 const developmentDocPath = "../../docs/dev/guides/development.md"
 
 // TestDevelopmentDocsDevServer pins the values of the development guide's
-// section on the development server to the code: the argument names, every
-// value the arguments accept, the longest delay, the model name, the title
-// marker, and the make target. The values come from this package's argument
-// names and from devfake (except the make target, which names a Makefile
-// rule), so a value that changes in the code fails this test until the guide
-// follows, and a guide that states a wrong value fails it too.
+// section on the development server to the code: the argument names, the
+// values each argument accepts, the longest delay, the model name, the title
+// marker, and the make target. The accepted-values cells of the arguments
+// table must list exactly the values the code accepts, in any order, so a
+// wrong, misplaced, or extra value fails the test. The values come from this
+// package's argument names and its delay bound and from devfake; the make
+// target is a literal, because the guide's rule and the Makefile rule share
+// only a name that TestMakeBuildDev checks.
 func TestDevelopmentDocsDevServer(t *testing.T) {
 	development := doctestutil.ReadDoc(t, developmentDocPath)
 	section := doctestutil.SectionOutsideBlocks(development, doctestutil.DevServerHeading)
 	if section == "" {
 		t.Fatalf("development.md has no %q section", doctestutil.DevServerHeading)
 	}
-
-	maxDelay := int(devfake.MaxDelay / time.Second)
-	var documented []string
-	for _, name := range []string{argArticle, argFail, argFailStep, argDelay} {
-		documented = append(documented, "`-"+name+"`")
+	table := doctestutil.FindTable(section, doctestutil.DevArgumentColumn)
+	if table == nil {
+		t.Fatalf("development.md %q has no arguments table", doctestutil.DevServerHeading)
 	}
+	accepted := doctestutil.ColumnIndex(table[0], doctestutil.DevAcceptedColumn)
+	if accepted < 0 {
+		t.Fatalf("development.md %q arguments table has no %q column", doctestutil.DevServerHeading, doctestutil.DevAcceptedColumn)
+	}
+
+	checkAccepted := func(arg string, want []string) {
+		t.Helper()
+		row := doctestutil.TableRow(table, "-"+arg)
+		if row == nil {
+			t.Errorf("development.md %q has no -%s row", doctestutil.DevServerHeading, arg)
+			return
+		}
+		if len(row) <= accepted {
+			t.Errorf("development.md -%s row has too few cells: %q", arg, row)
+			return
+		}
+		got := backticked(row[accepted])
+		slices.Sort(got)
+		slices.Sort(want)
+		if !slices.Equal(got, want) {
+			t.Errorf("development.md -%s accepts %v, want exactly %v", arg, got, want)
+		}
+	}
+
+	var articles, failures, failAts []string
 	for _, article := range devfake.Articles() {
-		documented = append(documented, "`"+article.String()+"`")
+		articles = append(articles, article.String())
 	}
 	for _, failure := range devfake.Failures() {
-		documented = append(documented, "`"+failure.String()+"`")
+		failures = append(failures, failure.String())
 	}
 	for _, failAt := range devfake.FailAts() {
-		documented = append(documented, "`"+failAt.String()+"`")
+		failAts = append(failAts, failAt.String())
 	}
-	documented = append(documented,
-		"`0` から `"+strconv.Itoa(maxDelay)+"` まで",
-		"`"+devfake.ModelName+"`",
-		"`"+devfake.TitleMarker+"`",
-		"`make build-dev`",
-	)
+	checkAccepted(argArticle, articles)
+	checkAccepted(argFail, failures)
+	checkAccepted(argFailStep, failAts)
+	checkAccepted(argDelay, []string{"0", strconv.FormatUint(maxDelaySeconds, 10)})
 
-	for _, want := range documented {
+	for _, want := range []string{
+		"`" + devfake.ModelName + "`",
+		"`" + devfake.TitleMarker + "`",
+		"`make build-dev`",
+	} {
 		if !strings.Contains(section, want) {
 			t.Errorf("development.md %q does not mention %s", doctestutil.DevServerHeading, want)
 		}
+	}
+}
+
+// backticked returns the code spans of a table cell, in order.
+func backticked(cell string) []string {
+	var spans []string
+	for {
+		_, rest, found := strings.Cut(cell, "`")
+		if !found {
+			return spans
+		}
+		span, rest, found := strings.Cut(rest, "`")
+		if !found {
+			return spans
+		}
+		spans = append(spans, span)
+		cell = rest
 	}
 }
