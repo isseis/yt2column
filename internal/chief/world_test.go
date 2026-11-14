@@ -96,10 +96,10 @@ const worldChiefPane = "wc:p1"
 // replies chief's own worktree needs.
 func newWorld(t *testing.T) *world {
 	t.Helper()
-	// The root is not t.TempDir(): its name holds the test's name with "_"
-	// for blanks, and a Claude Code transcript is looked for only under a
-	// working directory of the sampled characters.
-	tmp, err := os.MkdirTemp("", "chief-world-")
+	// The root is under /tmp and not t.TempDir() or $TMPDIR, whose names may
+	// hold "_": a Claude Code transcript is looked for only under a working
+	// directory of the sampled characters.
+	tmp, err := os.MkdirTemp("/tmp", "chief-world-")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,6 +107,9 @@ func newWorld(t *testing.T) *world {
 	root, err := filepath.EvalSymlinks(tmp)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if !transcriptDirChars.MatchString(root) {
+		t.Fatalf("the test root %q holds a character the transcript rule refuses", root)
 	}
 	w := &world{
 		t:         t,
