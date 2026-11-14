@@ -760,9 +760,15 @@ func (h *HeldWorkspace) cleanup(now time.Time) (int, error) {
 		removed++
 	}
 	for _, id := range starts {
-		if _, ok := ends[id]; ok {
+		if _, ok := ends[id]; !ok {
+			continue
+		}
+		// The start goes first: an end left alone is harmless, while a
+		// start left alone would stop the workspace at the next settle.
+		before := removed
+		remove(sendPrefix + id + startSuffix)
+		if removed > before {
 			remove(sendPrefix + id + endSuffix)
-			remove(sendPrefix + id + startSuffix)
 		}
 	}
 	entries, err := os.ReadDir(h.dir)

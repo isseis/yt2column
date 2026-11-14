@@ -230,6 +230,13 @@ type paneCheck struct {
 	// model asks that an OpenCode pane shows the route's model: before the
 	// first input and before the command after /new.
 	model paneinput.OpenCodeModel
+	// session, when set, asks that the pane still has this agent session:
+	// the one the previous input left, so a session changed by anyone else
+	// between two inputs stops the send.
+	session string
+	// seq, when set, asks that the pane's state has not changed since it
+	// was read: a reset sends only to the pane whose report it just read.
+	seq *int64
 }
 
 // checkFailure is a failed check: its reason, what it was about, and the
@@ -254,6 +261,12 @@ func (s sendContext) checkPane(ctx context.Context, target Agent, check paneChec
 	}
 	if a.Workspace != target.Workspace || a.Kind != target.Kind {
 		return a, &checkFailure{reason: NotSentUnreadable, detail: "the pane is no longer the same agent of the workspace", agent: a}
+	}
+	if check.session != "" && a.Session != check.session {
+		return a, &checkFailure{reason: NotSentPaneChanged, detail: "the pane's agent session changed", agent: a}
+	}
+	if check.seq != nil && a.StateChangeSeq != *check.seq {
+		return a, &checkFailure{reason: NotSentPaneChanged, detail: "the pane's state changed since it was read", agent: a}
 	}
 	raw, err := s.herdr.Screen(ctx, a.Pane, ScreenVisible)
 	if err != nil {
@@ -383,7 +396,7 @@ func (s sendContext) run(ctx context.Context, res ActionResult, target Agent, st
 	last := StepUnknown
 	for _, st := range steps {
 		if last != StepUnknown {
-			check := paneCheck{}
+			check := paneCheck{session: agent.Session}
 			if st.kind == StepCommand && route.Agent() == paneinput.AgentOpenCode {
 				check.model = route.OpenCodeModel()
 			}

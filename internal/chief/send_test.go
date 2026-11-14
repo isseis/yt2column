@@ -9,7 +9,9 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 
 	"github.com/isseis/yt2column/internal/chief/paneinput"
 	"github.com/isseis/yt2column/internal/fixprguard"
@@ -257,6 +259,13 @@ func TestSendStopsBetweenInputs(t *testing.T) {
 			p.Workspace = "w9"
 			return err
 		}, 1, StepClear, NotSentUnreadable},
+		{"the session changes after /model", func(sw *sendWorld, p *simPane, text string) error {
+			err := sw.realReact(p, text)
+			if strings.HasPrefix(text, "/model ") {
+				p.Session = sw.newSession()
+			}
+			return err
+		}, 2, StepModel, NotSentPaneChanged},
 		{"/clear keeps the session", func(sw *sendWorld, p *simPane, text string) error {
 			if text == "/clear" {
 				return nil
@@ -727,5 +736,30 @@ func TestSendStopUnwritten(t *testing.T) {
 	}
 	if stop, _ := sc.held.Stopped(); stop == nil {
 		t.Error("the start did not stop the workspace")
+	}
+}
+
+// TestTranscriptFIFORefused checks that a FIFO in the transcript's place is
+// refused at once instead of blocking the open until a writer comes.
+func TestTranscriptFIFORefused(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "session.jsonl")
+	if err := syscall.Mkfifo(path, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 2)
+	go func() {
+		done <- transcriptOpens(path)
+		_, err := readTranscript(path)
+		done <- err
+	}()
+	for range 2 {
+		select {
+		case err := <-done:
+			if !errors.Is(err, errTranscript) {
+				t.Errorf("err = %v, want errTranscript", err)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("the open of a FIFO blocked")
+		}
 	}
 }

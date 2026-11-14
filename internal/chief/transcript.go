@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -89,7 +90,9 @@ func transcriptOpens(path string) error {
 
 // openTranscript opens a transcript that is a regular file.
 func openTranscript(path string) (*os.File, error) {
-	f, err := os.Open(path) //nolint:gosec // the path is built by transcriptPath from checked parts
+	// O_NONBLOCK keeps the open of a FIFO from waiting for a writer; the
+	// check below then refuses it.
+	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0) //nolint:gosec // the path is built by transcriptPath from checked parts
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", errTranscript, err)
 	}

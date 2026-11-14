@@ -105,5 +105,6 @@ func (s sendContext) resetAfterRunpr(ctx context.Context, runprPane string, pr O
 	if _, ok := readCommandReport(a.Kind, raw, pr.URL); !ok {
 		return notSent(res, NotSentNoReport, "the pane no longer shows the PR's report")
 	}
-	return s.run(ctx, res, a, []step{st}, paneCheck{}, route)
+	seq := a.StateChangeSeq
+	return s.run(ctx, res, a, []step{st}, paneCheck{session: a.Session, seq: &seq}, route)
 }

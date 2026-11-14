@@ -77,6 +77,23 @@ func TestResetAfterRunpr(t *testing.T) {
 			sw.byPane["w1:p1"].Seq++
 			return sw.realReact(p, text)
 		}, NotSentPaneChanged},
+		{"the pane changes after its report was read", "", nil, func(sw *sendWorld, p *simPane, text string) error {
+			// The reset reads the pane's agent twice (for the report, then
+			// before /clear); its state changes between the two.
+			if text == "/runpr 42" {
+				pane, reads := sw.byPane["w1:p1"], 0
+				sw.rec.replyFunc("herdr agent get w1:p1", func() reply {
+					sw.mu.Lock()
+					defer sw.mu.Unlock()
+					reads++
+					if reads == 2 {
+						pane.Seq++
+					}
+					return reply{out: agentGetOutput(pane.fakeAgent)}
+				})
+			}
+			return sw.realReact(p, text)
+		}, NotSentPaneChanged},
 		{"the report left the screen", "", nil, func(sw *sendWorld, p *simPane, text string) error {
 			sw.byPane["w1:p1"].screen = readScreenSample(sw.t, "claude-idle.ansi")
 			return sw.realReact(p, text)
@@ -167,9 +184,10 @@ func TestDetailSavedBeforeReset(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	kept := false
+	kept, checked := false, false
 	sw.react = func(p *simPane, text string) error {
-		if !kept {
+		if !checked {
+			checked = true
 			rec, ok, err := records.readDetail(42, prHead)
 			kept = err == nil && ok && rec.Source == ReportFromScreen.String() && rec.Pane == "w1:p1"
 		}
