@@ -1,8 +1,9 @@
-//go:build test
+//go:build test && unix
 
 package chief
 
 import (
+	"context"
 	"slices"
 	"strings"
 	"testing"
@@ -50,5 +51,53 @@ func TestSnapshotRunsOnlyReadsInTheRightPlaces(t *testing.T) {
 	}
 	if !sawGH || !sawGit {
 		t.Fatalf("the snapshot ran gh=%v git=%v; the test reached nothing", sawGH, sawGit)
+	}
+}
+
+// TestDetailAndSendRunOnlyReadsInTheRightPlaces runs a detail and a send of
+// /runpr with its reset, with the target-redirecting variables set, and
+// checks every command: git and gh only read (the recorder fails anything
+// outside its read-only list), gh reads only PRs and never sees GH_REPO or
+// GH_HOST, both run only in the task worktree or chief's own, and the only
+// writes are prompts to the task workspace's panes.
+func TestDetailAndSendRunOnlyReadsInTheRightPlaces(t *testing.T) {
+	t.Setenv("GH_REPO", "other/repo")
+	t.Setenv("GH_HOST", "ghe.example.com")
+	sw, tree := detailWorld(t)
+	deps := sw.finish()
+	sw.firstPane().screen = reportScreen(t, prURL)
+	if _, err := Detail(context.Background(), deps, tree); err != nil {
+		t.Fatal(err)
+	}
+	out := sendRunpr(t, deps, tree)
+	if len(out.Actions) != 2 || out.Actions[1].Outcome != OutcomeSent {
+		t.Fatalf("actions = %+v; the test reached no reset", out.Actions)
+	}
+	places := []string{sw.chiefTree, tree}
+	sawChecks := false
+	for _, c := range sw.rec.recorded() {
+		switch c.name {
+		case ghProgram:
+			if len(c.args) < 2 || c.args[0] != "pr" || !slices.Contains([]string{"list", "view", "checks"}, c.args[1]) {
+				t.Errorf("gh ran %v", c.args)
+			}
+			sawChecks = sawChecks || c.args[1] == "checks"
+			for _, e := range c.env {
+				if name, _, _ := strings.Cut(e, "="); name == "GH_REPO" || name == "GH_HOST" {
+					t.Errorf("%s ran with %s", c.line(), name)
+				}
+			}
+		case herdrProgram:
+			if isPrompt(c) && !strings.HasPrefix(c.args[2], "w1:") {
+				t.Errorf("a prompt went to %s", c.args[2])
+			}
+			continue
+		}
+		if !slices.Contains(places, c.dir) {
+			t.Errorf("%s ran in %q", c.line(), c.dir)
+		}
+	}
+	if !sawChecks {
+		t.Error("no gh pr checks ran; the test reached no detail")
 	}
 }

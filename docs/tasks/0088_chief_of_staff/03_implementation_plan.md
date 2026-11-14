@@ -303,30 +303,30 @@
 
 ### フェーズ 4: 送信、リセット、送信の停止と `release`、PR の詳細と `detail`（設計書 8 章の 4）
 
-**変更するファイル:** `internal/chief/herdr.go`、`internal/chief/send.go`・`transcript.go`・`reset.go`・`detail.go`・`records.go`・`state.go` とそのテスト、`internal/chief/screen*.go`、`internal/chief/network_test.go`、`cmd/chief/main.go`・`main_test.go`
+**変更するファイル:** `internal/chief/herdr.go`、`internal/chief/send.go`・`request.go`・`transcript.go`・`reset.go`・`detail.go`・`records.go`・`state.go`・`snapshot.go`・`output.go`・`task.go`・`workspace.go` とそのテスト、`internal/chief/screen*.go`、`internal/chief/network_test.go`・`sim_test.go`・`test_helpers.go`、`cmd/chief/main.go`・`main_test.go`
 
--   [ ] **ステップ 4-1**: `herdr.go` に、`herdr agent prompt`・`send-keys` で書く部品を足す（`--wait` は使わない。決定 7）。引数は入力の型のパッケージの型だけを取り、範囲の外の列挙の値と、chief の workspace の pane を拒む（AC-31）。テストで、どちらも何も送らないことを確かめる。
--   [ ] **ステップ 4-2**: `send.go` に、送り先の pane の決定と、入力ごとの確かめ（設計書 3.1.3 の表）を書く。OpenCode のモデルの行と `/new` の後の画面は `screen*.go` の読み取りの型で、Claude Code のモデルの切り替えは `screen_transcript.go` の型で確かめる（決定 6）。`transcript.go` には transcript の場所の決定と読み直し（決定 7）だけを置く。送らなかったときは、入力欄の残りの文字を結果に入れる（AC-36）。テストは次を確かめる。
+-   [x] **ステップ 4-1**: `herdr.go` に、`herdr agent prompt` で書く部品を足す（`--wait` は使わない。決定 7）。引数は入力の型のパッケージの型だけを取り、範囲の外の列挙の値と、chief の workspace の pane を拒む（AC-31）。テストで、拒んだ入力を何も送らないことを確かめる。`send-keys` で書く部品は、その引数の型（中継のキー入力）を足すステップ 5-2 で足す。
+-   [x] **ステップ 4-2**: `send.go` に、送り先の pane の決定と、入力ごとの確かめ（設計書 3.1.3 の表）を書く。OpenCode のモデルの行と `/new` の後の画面は `screen*.go` の読み取りの型で、Claude Code のモデルの切り替えは `screen_transcript.go` の型で確かめる（決定 6）。`transcript.go` には transcript の場所の決定と読み取り、読み直しの回数と間隔（決定 7）だけを置き、読み直しは `send.go` の確かめが行う。送らなかったときは、入力欄の残りの文字を結果に入れる（AC-36）。テストは次を確かめる。
     -   送り先の種類の pane が 0 か 2 つ以上のとき送らないこと。
     -   最初の入力の前の確かめのそれぞれ（画面が合わないときを含む。AC-12）で何も送らないこと。
     -   入力の間で確かめが外れたとき残りを送らないこと。
     -   モデルの確かめのそれぞれ。
--   [ ] **ステップ 4-3**: `records.go` に、送信の記録（始めと終わり）、送信の停止、workspace ごとの排他、終わり方の分からない送信の扱い、`release` を足す（設計書 3.5）。`start` の片付けに送信の記録を足す。テストは次を確かめる。
+-   [x] **ステップ 4-3**: `records.go` に、送信の記録（始めと終わり）、送信の停止、workspace ごとの排他、終わり方の分からない送信の扱い、`release` を足す（設計書 3.5）。`start` の片付けに送信の記録を足す。テストは次を確かめる。
     -   送った後の失敗で送り直さず、停止の記録を作ること。
     -   終わりの記録のない始めの記録が停止になること。始めの記録は記録の部品で直接作るか、途中で止まったものとして扱う道具が持っていた workspace の排他を閉じてから確かめる（同じプロセスの中では flock が残るため）。
     -   道具を作り直しても停止が残ること、`release` が停止を解くこと。
     -   テストが workspace の排他を持っている間は、送信が `NotSentBusy` を返すこと。
--   [ ] **ステップ 4-4**: `detail.go` に PR の詳細を書く（設計書 3.1.6）。PR を作ったコマンドの報告は `screen*.go` の読み取りの型で受け取る。`gh pr checks` が待っているジョブで 8、失敗したジョブか CI のないとき 1 で終わることを、ステップ 1-2 の記録のとおりに扱い、標準出力が厳格に読めれば結果とする。テストは次を確かめる。
+-   [x] **ステップ 4-4**: `detail.go` に PR の詳細を書く（設計書 3.1.6）。PR を作ったコマンドの報告は `screen*.go` の読み取りの型で受け取る。OpenCode で PR を作ったコマンドの報告は、PR-4 の時点でもどの pane にも出ておらず採れなかったので、合わない画面として読まず、PR の説明から要約する（設計書 3.4.2 の、サンプルで確かめた形だけを受け付ける規則のとおり）。`gh pr checks` が待っているジョブで 8、失敗したジョブか CI のないとき 1 で終わることを、ステップ 1-2 の記録のとおりに扱い、標準出力が厳格に読めれば結果とする。テストは次を確かめる。
     -   CI の結果をまとめずに返すこと（終了コード 8 と 1 の場合を含む）。
     -   レビューの本文を出力に含めないこと。
     -   報告と PR の説明の出どころ、項目ごとの「取得できなかった」、「レビュー省略可」の判定、`/runpr` の送り先の表示。
     -   PR と head ごとの控え（`start` の片付けに 14 日より古い控えを足す）と、pane を空にした後の `detail` が控えた報告を返すこと（AC-55）。
--   [ ] **ステップ 4-5**: `send` の引数の検証とコマンドの組み立て（設計書 3.1.1）、`/mkreq` の条件（3.1.4）、`runplan-takeover`、`/runpr` の後のリセット（3.1.3、`reset.go`）を書き、`cmd/chief` に `send`・`detail`・`release` を足す。テストは次を確かめる。
+-   [x] **ステップ 4-5**: `send` の引数の検証とコマンドの組み立て（設計書 3.1.1、`request.go`）、`/mkreq` の条件（3.1.4）、`runplan-takeover`、`/runpr` の後のリセット（3.1.3、`reset.go`）を書き、`cmd/chief` に `send`・`detail`・`release` を足す。テストは次を確かめる。
     -   引数の組み合わせの誤り、開いていない PR の番号、今のタスクの workspace に当たらない `--workspace`。
     -   タスクのある workspace への `/mkreq`。
     -   リセットの候補の条件のそれぞれ（同じ pane、報告がない、`state_change_seq` が変わった、入力欄に文字がある）と、リセットの前に控えを作ること。
--   [ ] **ステップ 4-6**: 行の「実行中」の表示を、送信の記録から示す形にする（設計書 3.1.4 の行の中身）。`network_test.go` に `detail` と `send` の経路を足す。
--   [ ] **ステップ 4-7**: `ActionResult` の結果（送らなかった・送った後に失敗した・送った）を、送信とリセットの各経路でテストする（AC-62・AC-63）。
+-   [x] **ステップ 4-6**: 行の「実行中」の表示を、送信の記録から示す形にする（設計書 3.1.4 の行の中身）。行には送信の停止も示す（設計書 4.2）。`network_test.go` に `detail` と `send` の経路を足す。
+-   [x] **ステップ 4-7**: `ActionResult` の結果（送らなかった・送った後に失敗した・送った）を、送信とリセットの各経路でテストする（AC-62・AC-63）。
 
 **完了の条件:** 設計書 3.1.3・3.1.6・3.1.7 と 3.5 の送信の記録・送信の停止・workspace ごとの排他がそろっている。`make test`・`make lint`・`make deadcode` が通る。
 
@@ -352,7 +352,7 @@
 **変更するファイル:** `internal/chief/relay.go` とそのテスト、`internal/chief/state.go`、`internal/chief/paneinput/`、`cmd/chief/main.go`・`main_test.go`
 
 -   [ ] **ステップ 5-1**: 照合値を作る部品を書く（設計書 3.6）。`snapshot` の出力の中継できる質問に照合値を足し、中継しない質問には照合値を返さない（質問の文と選択肢は PR-3 から返している）。テストは、照合値が `state_change_seq`・セッション・問いの文・選択肢・選択の位置のどれが変わっても変わること、中継しない質問の種類ごとに照合値がないことを確かめる。
--   [ ] **ステップ 5-2**: 入力の型のパッケージに中継のキー入力の型を足し、選択肢の番号とステップ 1-4 で確かめたキー入力からだけ作る。`relay.go` に中継を書く（設計書 3.6）。排他、読み直し、照合値の比較、Claude Code の `blocked` の確かめ、問いが 1 つであること、選択肢の範囲、除く選択肢（自分で書く選択肢）、送信の記録、送った後の失敗での停止を持つ。
+-   [ ] **ステップ 5-2**: 入力の型のパッケージに中継のキー入力の型を足し、選択肢の番号とステップ 1-4 で確かめたキー入力からだけ作る。`herdr.go` に、その型だけを取り `herdr agent send-keys` で書く部品を足す（ステップ 4-1 と同じく、chief の workspace の pane を拒む）。`relay.go` に中継を書く（設計書 3.6）。排他、読み直し、照合値の比較、Claude Code の `blocked` の確かめ、問いが 1 つであること、選択肢の範囲、除く選択肢（自分で書く選択肢）、送信の記録、送った後の失敗での停止を持つ。
 -   [ ] **ステップ 5-3**: `cmd/chief` に `relay` を足す。テストは次を確かめる。
     -   照合値が違うとき、複数の問い（タブ）の質問、範囲の外の番号、除いた選択肢を選んだときに、何も送らないこと。
     -   キー入力を送り始めた後の失敗で、停止の記録を作ること。
@@ -570,7 +570,7 @@ $ rg -n 'on Sonnet|to Sonnet|implement.*Sonnet|Model to start|model each reading
 | AC | 確かめ | 種類 | 実装 | PR |
 |---|---|---|---|---|
 | AC-01 | `ic/workspace_test.go::TestFindTaskWorkspaces` | test | 3-3・3-4 | PR-3 |
-| AC-02 | `ic/snapshot_test.go::TestTakeSnapshotStates`（実行中の行は送信の記録から） | test | 3-4・4-6 | PR-3、PR-4 |
+| AC-02 | `ic/snapshot_test.go::TestTakeSnapshotStates`、`ic/snapshot_test.go::TestRunningRowShowsTheLastSend`（実行中の行は送信の記録から） | test | 3-4・4-6 | PR-3、PR-4 |
 | AC-03 | `ic/snapshot_test.go::TestTakeSnapshotOrder`、`ic/snapshot_test.go::TestRowOrderRules` | test | 3-4 | PR-3 |
 | AC-04 | `ic/network_test.go::TestSnapshotRunsOnlyReadsInTheRightPlaces`、`/chief` の定義 | test、manual | 3-7・7-2 | PR-3、PR-7 |
 | AC-05 | `ic/snapshot_test.go::TestTakeSnapshotStates`、`/chief` の定義 | test、manual | 1-6・3-4・7-2 | PR-1、PR-3、PR-7 |
@@ -607,7 +607,7 @@ $ rg -n 'on Sonnet|to Sonnet|implement.*Sonnet|Model to start|model each reading
 | AC-37 | `ic/send_test.go::TestSendFailureAfterInputStops`、`ic/records_test.go::TestUnfinishedSendBecomesStop`、`ic/records_test.go::TestStopSurvivesRestart`、`ic/records_test.go::TestReleaseClearsStop`、`ic/records_test.go::TestCanonicalWorktreeResolvesLinks` | test | 3-2・4-2・4-3 | PR-3、PR-4 |
 | AC-38 | `ic/send_test.go::TestMkreqTarget` | test | 4-5 | PR-4 |
 | AC-39 | `ic/routing_test.go::TestRoutingRowChangesOneRoute` | test | 2-7 | PR-2 |
-| AC-40 | `ic/task_test.go::TestBranchPlanStepsDone`、`ic/snapshot_test.go::TestTakeoverProposal`、`ic/send_test.go::TestSendArgumentValidation`（`runplan-takeover`） | test | 2-4・3-4・4-5 | PR-2、PR-3、PR-4 |
+| AC-40 | `ic/task_test.go::TestBranchPlanStepsDone`、`ic/snapshot_test.go::TestTakeoverProposal`、`ic/send_test.go::TestSendArgumentValidation`（`runplan-takeover`）、`ic/send_test.go::TestSendTakeover` | test | 2-4・3-4・4-5 | PR-2、PR-3、PR-4 |
 | AC-41 | `ic/autosend_test.go::TestAutoSendConditions` | test | 6-3 | PR-6 |
 | AC-42 | `ic/autosend_test.go::TestAutoSendReportMismatch` | test | 6-3 | PR-6 |
 | AC-43 | `ic/snapshot_test.go::TestNextCommandRules`（簡易な進め方の 3 文書の後） | test | 3-4 | PR-3 |
@@ -627,7 +627,7 @@ $ rg -n 'on Sonnet|to Sonnet|implement.*Sonnet|Model to start|model each reading
 | AC-58 | `ic/pending_test.go::TestPendingWaitsFromTheFirstSighting`、`ic/records_test.go::TestObserve`、`/chief` の定義（通知の送信） | test、manual | 3-5・7-2 | PR-3、PR-7 |
 | AC-59 | `ic/autosend_test.go::TestAutoSendUnobservedMerge` | test | 6-3 | PR-6 |
 | AC-60 | `ic/snapshot_test.go::TestTakeSnapshotUnreadable`（Herdr の失敗）、`ic/wait_test.go::TestWaitFailure`、`/chief` の定義 | test、manual | 3-4・6-1・7-2 | PR-3、PR-6、PR-7 |
-| AC-61 | `ic/network_test.go::TestSnapshotRunsOnlyReadsInTheRightPlaces`（呼び出しの記録係がすべてのテストで確かめる一覧を含む） | test | 3-7・4-6・6-4（記録係は 2-3） | PR-3、PR-4、PR-6 |
+| AC-61 | `ic/network_test.go::TestSnapshotRunsOnlyReadsInTheRightPlaces`、`ic/network_test.go::TestDetailAndSendRunOnlyReadsInTheRightPlaces`（呼び出しの記録係がすべてのテストで確かめる一覧を含む） | test | 3-7・4-6・6-4（記録係は 2-3） | PR-3、PR-4、PR-6 |
 | AC-62 | `ic/send_test.go::TestActionResults`、`ic/relay_test.go::TestRelaySendsChosenOption`、`ic/autosend_test.go::TestAutoSendConditions` | test | 4-7・5-3・6-3 | PR-4、PR-5、PR-6 |
 | AC-63 | `ic/send_test.go::TestActionResults` | test | 4-7 | PR-4 |
 

@@ -246,3 +246,22 @@ func byteParam(s string) (uint8, error) {
 	}
 	return uint8(v), nil
 }
+
+// screenSummaryLines is how many lines of a screen a stop or a result keeps.
+const screenSummaryLines = 40
+
+// screenSummary returns the last screenSummaryLines lines of a screen's text,
+// its colors and attributes removed, for showing what a pane showed when a
+// send failed. A screen the reader cannot split gives "".
+func screenSummary(raw string) string {
+	lines, err := parseANSIScreen(raw)
+	if err != nil {
+		return ""
+	}
+	lines = trimmedLines(lines)
+	texts := make([]string, 0, screenSummaryLines)
+	for _, l := range lines[max(0, len(lines)-screenSummaryLines):] {
+		texts = append(texts, l.text)
+	}
+	return joinTexts(texts)
+}

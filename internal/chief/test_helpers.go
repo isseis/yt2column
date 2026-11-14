@@ -222,10 +222,17 @@ type recorder struct {
 	// dirReplies are replies for a command line run in one directory; they
 	// win over replies for the line alone.
 	dirReplies map[string]reply
+	// dynamic are replies computed when the line runs, for a fake whose state
+	// changes; they win over the fixed replies.
+	dynamic map[string]func() reply
+	// onPrompt, when set, allows `herdr agent prompt` (the only write the
+	// tool makes) and answers it; a test that leaves it nil fails on any
+	// write.
+	onPrompt func(pane, text string) error
 }
 
 func newRecorder(t *testing.T) *recorder {
-	return &recorder{t: t, replies: map[string]reply{}, dirReplies: map[string]reply{}}
+	return &recorder{t: t, replies: map[string]reply{}, dirReplies: map[string]reply{}, dynamic: map[string]func() reply{}}
 }
 
 // reply sets what the command line writes to its standard output when it
@@ -241,6 +248,29 @@ func (r *recorder) replyIn(dir, line string, out []byte) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.dirReplies[dir+"\x00"+line] = reply{out: out}
+}
+
+// replyFunc sets a reply computed each time the command line runs.
+func (r *recorder) replyFunc(line string, f func() reply) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.dynamic[line] = f
+}
+
+// prompts returns the inputs typed into panes so far, as "pane text".
+func (r *recorder) prompts() []string {
+	var out []string
+	for _, c := range r.recorded() {
+		if isPrompt(c) {
+			out = append(out, c.args[2]+" "+c.args[3])
+		}
+	}
+	return out
+}
+
+// isPrompt reports whether c is `herdr agent prompt <pane> <text>`.
+func isPrompt(c recordedCall) bool {
+	return c.name == herdrProgram && len(c.args) == 4 && c.args[0] == herdrAgent && c.args[1] == "prompt"
 }
 
 // fail makes the command line fail with err, wherever it runs.
@@ -292,16 +322,26 @@ func (rr recordingRunner) Run(ctx context.Context, name string, args ...string) 
 			call.args = slices.Clone(args[len(hardening):])
 		}
 	}
+	r.mu.Lock()
+	onPrompt := r.onPrompt
+	r.calls = append(r.calls, call)
+	r.mu.Unlock()
+	if isPrompt(call) && onPrompt != nil {
+		return nil, onPrompt(call.args[2], call.args[3])
+	}
 	if !isReadOnly(call) {
 		r.t.Errorf("the tool ran a command outside the read-only list: %s", call.line())
 	}
 	r.mu.Lock()
-	r.calls = append(r.calls, call)
+	dyn, isDynamic := r.dynamic[call.line()]
 	rep, ok := r.dirReplies[call.dir+"\x00"+call.line()]
 	if !ok {
 		rep, ok = r.replies[call.line()]
 	}
 	r.mu.Unlock()
+	if isDynamic {
+		rep, ok = dyn(), true
+	}
 	if !ok {
 		r.t.Errorf("no reply for %q", call.line())
 		return nil, errNoReply

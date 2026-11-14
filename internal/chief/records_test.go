@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -307,5 +308,200 @@ func TestObserveUnreadableRecord(t *testing.T) {
 	}
 	if _, isNew, err := store.Observe("s", "item", now); err == nil || isNew {
 		t.Errorf("Observe = new %v, error %v; want an error and not new", isNew, err)
+	}
+}
+
+// heldRecords returns the records of a worktree with its exclusion held.
+func heldRecords(t *testing.T, store Store, path string) *HeldWorkspace {
+	t.Helper()
+	records, err := store.Records(Worktree{path: path})
+	if err != nil {
+		t.Fatal(err)
+	}
+	held, err := records.Lock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = held.Close() })
+	return held
+}
+
+// TestUnfinishedSendBecomesStop checks that a send whose end was never
+// written stops its workspace: once its writer's exclusion is closed, the
+// next holder's settle and start both turn it into a stop, and the start
+// record is kept.
+func TestUnfinishedSendBecomesStop(t *testing.T) {
+	now := time.Date(2026, 11, 14, 9, 0, 0, 0, time.UTC)
+	write := func(t *testing.T, store Store) {
+		t.Helper()
+		held := heldRecords(t, store, "/work/a")
+		if _, err := held.BeginSend(SendRecord{Pane: "w1:p1"}, now); err != nil {
+			t.Fatal(err)
+		}
+		if err := held.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Run("settle", func(t *testing.T) {
+		store := newStore(t)
+		write(t, store)
+		held := heldRecords(t, store, "/work/a")
+		if n, err := held.SettleUnfinished(now); err != nil || n != 1 {
+			t.Fatalf("SettleUnfinished = %d, %v; want 1", n, err)
+		}
+		if stop, err := held.Stopped(); err != nil || stop == nil {
+			t.Fatalf("Stopped = %v, %v; want a stop", stop, err)
+		}
+		if starts, _, err := held.sendFiles(); err != nil || len(starts) != 1 {
+			t.Errorf("starts = %v, %v; want the start kept", starts, err)
+		}
+	})
+	t.Run("start", func(t *testing.T) {
+		store := newStore(t)
+		write(t, store)
+		res, err := store.Start(context.Background(), herdrWith(t, liveAgent(ownerA())), ownerA(), now)
+		if err != nil || res.Stopped != 1 {
+			t.Fatalf("Start = %+v, %v; want one send stopped", res, err)
+		}
+		records, err := store.Records(Worktree{path: "/work/a"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if stop, err := records.Stopped(); err != nil || stop == nil {
+			t.Errorf("Stopped = %v, %v; want a stop", stop, err)
+		}
+	})
+}
+
+// TestStopSurvivesRestart checks that a stop is read again by a store opened
+// anew on the same directory.
+func TestStopSurvivesRestart(t *testing.T) {
+	dir := t.TempDir()
+	store, err := OpenStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	held := heldRecords(t, store, "/work/a")
+	if err := held.Stop("why", "screen", "", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if err := held.Close(); err != nil {
+		t.Fatal(err)
+	}
+	again, err := OpenStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	records, err := again.Records(Worktree{path: "/work/a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stop, err := records.Stopped()
+	if err != nil || stop == nil || stop.Reason != "why" || stop.Screen != "screen" {
+		t.Errorf("Stopped = %+v, %v; want the stop kept", stop, err)
+	}
+}
+
+// TestReleaseClearsStop checks that release removes the stop and gives
+// every unfinished send an end, so the same start does not stop the
+// workspace again.
+func TestReleaseClearsStop(t *testing.T) {
+	now := time.Date(2026, 11, 14, 9, 0, 0, 0, time.UTC)
+	store := newStore(t)
+	held := heldRecords(t, store, "/work/a")
+	if _, err := held.BeginSend(SendRecord{Pane: "w1:p1"}, now); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := held.SettleUnfinished(now); err != nil || n != 1 {
+		t.Fatalf("SettleUnfinished = %d, %v", n, err)
+	}
+	released, err := held.Release(now)
+	if err != nil || !released {
+		t.Fatalf("Release = %v, %v; want released", released, err)
+	}
+	if stop, err := held.Stopped(); err != nil || stop != nil {
+		t.Errorf("Stopped after release = %v, %v; want none", stop, err)
+	}
+	if n, err := held.SettleUnfinished(now); err != nil || n != 0 {
+		t.Errorf("SettleUnfinished after release = %d, %v; want 0", n, err)
+	}
+	if stop, _ := held.Stopped(); stop != nil {
+		t.Errorf("the released start stopped the workspace again: %+v", stop)
+	}
+	if released, err := held.Release(now); err != nil || released {
+		t.Errorf("a second Release = %v, %v; want nothing released", released, err)
+	}
+}
+
+// TestWorkspaceBusy checks that a send to a workspace whose exclusion the
+// test holds types nothing and says another send is under way.
+func TestWorkspaceBusy(t *testing.T) {
+	sw := newSendWorld(t)
+	tree := sw.addTask(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-opus.md")}}, "claude")
+	deps := sw.finish()
+	heldRecords(t, deps.Store, tree)
+	req, err := ParseSendRequest(tree, "runplan", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := Send(context.Background(), deps, req)
+	if err != nil || len(out.Actions) != 1 || out.Actions[0].Outcome != OutcomeNotSent || out.Actions[0].Reason != NotSentBusy {
+		t.Fatalf("Send = %+v, %v; want not sent, busy", out, err)
+	}
+	if got := sw.rec.prompts(); len(got) != 0 {
+		t.Errorf("typed %v", got)
+	}
+}
+
+// TestStartCleansSendsAndDetails checks start's cleanup: a finished send's
+// records and a detail older than the kept days are removed, while an
+// unfinished send's start, a recent detail, and a stop stay.
+func TestStartCleansSendsAndDetails(t *testing.T) {
+	now := time.Date(2026, 11, 14, 9, 0, 0, 0, time.UTC)
+	store := newStore(t)
+	held := heldRecords(t, store, "/work/a")
+	done, err := held.BeginSend(SendRecord{Pane: "w1:p1"}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := held.EndSend(done, OutcomeSent.String(), "", now); err != nil {
+		t.Fatal(err)
+	}
+	open, err := held.BeginSend(SendRecord{Pane: "w1:p1"}, now.Add(time.Second))
+	if err != nil {
+		t.Fatal(err)
+	}
+	head := strings.Repeat("a", 40)
+	for pr, saved := range map[int]time.Time{1: now.Add(-detailMaxAge - time.Hour), 2: now.Add(-detailMaxAge + time.Hour)} {
+		if err := held.store().create(detailName(pr, head), detailRecord{PR: pr, Head: head, Saved: saved, Source: ReportNone.String()}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := held.Close(); err != nil {
+		t.Fatal(err)
+	}
+	res, err := store.Start(context.Background(), herdrWith(t, liveAgent(ownerA())), ownerA(), now)
+	if err != nil || res.CleanupError != nil {
+		t.Fatalf("Start = %+v, %v", res, err)
+	}
+	if res.RemovedSends != 3 || res.Stopped != 1 {
+		t.Errorf("Start = %+v; want 3 records removed and 1 send stopped", res)
+	}
+	records, err := store.Records(Worktree{path: "/work/a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	starts, ends, err := records.sendFiles()
+	if err != nil || !slices.Equal(starts, []string{open}) || len(ends) != 0 {
+		t.Errorf("send records = %v %v %v; want only the unfinished start", starts, ends, err)
+	}
+	if _, ok, _ := records.readDetail(1, head); ok {
+		t.Error("the old detail was kept")
+	}
+	if _, ok, err := records.readDetail(2, head); !ok || err != nil {
+		t.Errorf("the recent detail: %v, %v; want it kept", ok, err)
+	}
+	if stop, _ := records.Stopped(); stop == nil {
+		t.Error("the stop of the unfinished send is missing")
 	}
 }
