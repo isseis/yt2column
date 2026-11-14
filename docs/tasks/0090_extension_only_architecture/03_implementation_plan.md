@@ -151,7 +151,6 @@ PR を作る直前に、`/runplan` はこの 3 つを確かめる。どれかが
 実行の記録（ステップ 1-4 で書く）：
 
 -   **#773 の本文の `diff`。** 本文を `gh issue view 773 --json body,updatedAt` で読み（`updatedAt` は `2026-11-12T11:28:11Z`、本文の blob は `6dfe182d5d6914771a13934108a9033ac1ce5eef`）、ステップ 1-3 の 1 か所だけを置き換えて書き戻した。読み戻した本文（`updatedAt` は `2026-11-14T15:23:35Z`、blob は `087cf0b2d214934d71db942f4a53c7586e434cb9`）と直す前の本文の `diff` は次のとおりで、削除 1 行と追加 1 行だけである。
--   **スクリプトの実行。** `_checks/check.sh`（blob は `7f56fd91b25ff964902e6ab2d6d42bfddacbcc57`）を、次の 4 つの組で実行した。すべて終了コード 0 である。実装の PR の組だけ、読み戻した本文のファイルを渡した。
 
 ````text
 --- 773.txt（直す前）
@@ -166,6 +165,8 @@ PR を作る直前に、`/runplan` はこの 3 つを確かめる。どれかが
 
  タスク 0090 の設計の PR で、拡張だけの構成の決定を記録し、実装まで食い違いの記述を置いた ADR：ADR-0003・ADR-0004・ADR-0006・ADR-0007・ADR-0008・ADR-0009・ADR-0010・ADR-0017・ADR-0019・ADR-0020・ADR-0024・ADR-0026・ADR-0027・ADR-0028・ADR-0029・ADR-0030・ADR-0031・ADR-0033・ADR-0034・ADR-0038・ADR-0043・ADR-0045・ADR-0048・ADR-0049。実装の PR で、解消した範囲の記述を除く。何を実装し、どの仕様の文書を書き換えるかは、[0090 設計書](https://github.com/isseis/yt2column/blob/main/docs/tasks/0090_extension_only_architecture/02_architecture.md)の「#773 への引き継ぎ（要件書 AC-28）」にある。
 ````
+
+-   **スクリプトの実行。** `_checks/check.sh`（blob は `7f56fd91b25ff964902e6ab2d6d42bfddacbcc57`）を、次の 4 つの組で実行した。すべて終了コード 0 である。実装の PR の組だけ、読み戻した本文のファイルを渡した。
 
 **要件の PR #862（`f72fd25d5b7971a3dc8598caa13ae9019c5b7454` と `283583489ad908d980508cb4909d011ef5f6edaa`）。** 終了コード 0。
 
