@@ -1,12 +1,13 @@
 #!/bin/sh
 # One-off diff verification for task 0090: which files a change touches, and
-# whether the ADR list in issue #773 matches the ADRs that still record a
-# discrepancy to the code.
+# whether the ADR list in issue #773 matches the ADRs that still link to it
+# from their decision section.
 #
 # Usage: check.sh <before-commit> <after-commit> [issue-body-file]
 #
-# Run from the top level of the work tree. It exits 0 when every check holds,
-# 1 when a check fails (each failure is named), and 2 on a usage or git error.
+# It runs from the top level of the work tree, whatever the current
+# directory. It exits 0 when every check holds, 1 when a check fails (each
+# failure is named), and 2 on a usage or git error.
 set -u
 
 TASK_PREFIX=docs/tasks/0090_extension_only_architecture/
@@ -20,6 +21,24 @@ if [ "$#" -ne 2 ] && [ "$#" -ne 3 ]; then
 	die "usage: check.sh <before-commit> <after-commit> [issue-body-file]"
 fi
 
+# Both the script and the issue body are named before the change of directory.
+script=$0
+case "$script" in
+/*) ;;
+*) script=$(pwd)/$script ;;
+esac
+body_file=
+if [ "$#" -eq 3 ]; then
+	body_file=$3
+	case "$body_file" in
+	/*) ;;
+	*) body_file=$(pwd)/$body_file ;;
+	esac
+fi
+
+top=$(git rev-parse --show-toplevel) || die "not in a git work tree"
+cd "$top" || die "cannot change to $top"
+
 before=$(git rev-parse --verify --quiet "$1^{commit}") ||
 	die "not a commit: $1"
 after=$(git rev-parse --verify --quiet "$2^{commit}") ||
@@ -32,7 +51,7 @@ status=0
 
 printf 'before commit: %s\n' "$before"
 printf 'after commit: %s\n' "$after"
-printf 'script blob: %s\n' "$(git hash-object -- "$0")"
+printf 'script blob: %s\n' "$(git hash-object -- "$script")"
 
 # Check 1: the change stays inside the four locations task 0090 is limited to.
 
@@ -59,13 +78,15 @@ else
 	printf '  (none)\n'
 fi
 
-# Check 2: the issue body names the active ADRs whose decision section still
-# links to #773. Only run when the body file is given.
+# Check 2: the issue body names the active ADRs whose decision section links
+# to #773. Only run when the body file is given. An ADR the script cannot read
+# as one of the two states, or whose decision section it cannot find, stops
+# the run: a check that silently skips a file it cannot parse can pass while
+# the sets differ.
 
-if [ "$#" -eq 3 ]; then
-	body=$3
-	[ -f "$body" ] || die "no such issue body file: $body"
-	printf 'issue body blob: %s\n' "$(git hash-object -- "$body")"
+if [ -n "$body_file" ]; then
+	[ -f "$body_file" ] || die "no such issue body file: $body_file"
+	printf 'issue body blob: %s\n' "$(git hash-object -- "$body_file")"
 
 	: >"$tmp/adr-set"
 	git ls-tree -r --name-only "$after" -- docs/dev/adr/ >"$tmp/adr-files" ||
@@ -77,14 +98,20 @@ if [ "$#" -eq 3 ]; then
 		esac
 		git show "$after:$adr" >"$tmp/adr" ||
 			die "cannot read $adr at $after"
-		# A retired ADR has no decision in effect.
-		if ! awk '
+		grep -qxF -- '## 状態' "$tmp/adr" ||
+			die "no state section: $adr at $after"
+		state_row=$(awk '
 			$0 == "## 状態" { inside = 1; next }
 			inside && /^## / { exit }
-			inside { print }
-		' "$tmp/adr" | grep -Eq '^\| 状態 \| `有効` \|$'; then
-			continue
-		fi
+			inside && /^\| 状態 \|/ { print; exit }
+		' "$tmp/adr")
+		case "$state_row" in
+		'| 状態 | `有効` |') ;;
+		'| 状態 | `廃止` |') continue ;;
+		*) die "no usable state row ($state_row): $adr at $after" ;;
+		esac
+		grep -qxF -- '## 決定' "$tmp/adr" ||
+			die "no decision section: $adr at $after"
 		# A link whose number merely starts with 773 is a different issue.
 		if ! awk '
 			$0 == "## 決定" { inside = 1; next }
@@ -105,7 +132,7 @@ if [ "$#" -eq 3 ]; then
 			if ($0 ~ /食い違いの記述を置いた/) { inside = 1; next }
 		}
 		inside { print }
-	' "$body" >"$tmp/body-section"
+	' "$body_file" >"$tmp/body-section"
 	grep -oE 'ADR-[0-9]{4}' "$tmp/body-section" | sort -u >"$tmp/body-set"
 
 	printf '\nADRs active at %s that link to issue 773 in their decision section:\n' "$after"
