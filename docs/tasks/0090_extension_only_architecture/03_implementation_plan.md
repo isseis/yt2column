@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-14 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-14 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を、§ の付いた節番号は [02_architecture.md](02_architecture.md)（以下、設計書）の節を指す。本タスクには [design_handoff.md](design_handoff.md) があり、その各項目の扱いは設計書の付録 A にある。`implementation_handoff.md` はない。
@@ -163,3 +163,7 @@ PR を作る直前に、`/runplan` はこの 3 つを確かめる。どれかが
 
 -   実装の PR のマージの後、`/runpr` が本タスクの issue #772 を閉じる。
 -   拡張だけの構成の実装は、#773 のタスクとして `/mkreq 773` から始める。設計書 §3.14 が、#773 が実装するもの、書き換える仕様の文書、受け入れ基準に引き継ぐものを挙げる。
+
+## 変更履歴
+
+- 2026-11-14 承認（isseis、#877）
