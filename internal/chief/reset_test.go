@@ -56,28 +56,34 @@ func sendRunpr(t *testing.T, deps Deps, tree string) SendOutcome {
 // TestResetAfterRunpr checks the reset after /runpr: the pane of the
 // command that created the PR is emptied only when it is another pane than
 // /runpr's, its report was kept by the detail, its state has not changed,
-// and it still shows the report; otherwise it is left as it is, with the
-// reason.
+// it still shows the report, and the last line the human typed into its
+// session is the command that created the PR, for the task; otherwise it is
+// left as it is, with the reason.
 func TestResetAfterRunpr(t *testing.T) {
 	cases := []struct {
-		name   string
-		plan   string
-		setup  func(sw *sendWorld)
-		react  func(sw *sendWorld, p *simPane, text string) error
-		reason NotSentReason
+		name string
+		plan string
+		// ran is the command the pane last ran, when not detailWorld's.
+		ran string
+		// typed is text the human typed after it.
+		typed    string
+		noReport bool
+		react    func(sw *sendWorld, p *simPane, text string) error
+		reason   NotSentReason
 	}{
-		{"a task-document PR's pane", "", nil, nil, 0},
-		{"a plan PR made on Claude Code", "opus", nil, nil, 0},
-		{"a plan PR made on OpenCode, the pane /runpr went to", "sonnet", nil, nil, NotSentSamePane},
-		{"a plan PR whose requirement has no route", "unknown-value", nil, nil, NotSentUnreadable},
-		{"no report on the pane", "", func(sw *sendWorld) {
-			sw.firstPane().screen = readScreenSample(sw.t, "claude-idle.ansi")
-		}, nil, NotSentNoReport},
-		{"the pane changed after the detail", "", nil, func(sw *sendWorld, p *simPane, text string) error {
+		{name: "a task-document PR's pane"},
+		{name: "a plan PR made on Claude Code", plan: "opus", ran: "/runplan 0001"},
+		{name: "a plan PR whose pane last ran another command", plan: "opus", reason: NotSentOtherInput},
+		{name: "text typed after the command", typed: "what is the state of PR 42?", reason: NotSentOtherInput},
+		{name: "the command of another task", ran: "/mkarch 0002", reason: NotSentOtherInput},
+		{name: "a plan PR made on OpenCode, the pane /runpr went to", plan: "sonnet", reason: NotSentSamePane},
+		{name: "a plan PR whose requirement has no route", plan: "unknown-value", reason: NotSentUnreadable},
+		{name: "no report on the pane", noReport: true, reason: NotSentNoReport},
+		{name: "the pane changed after the detail", react: func(sw *sendWorld, p *simPane, text string) error {
 			sw.byPane["w1:p1"].Seq++
 			return sw.realReact(p, text)
-		}, NotSentPaneChanged},
-		{"the pane changes after its report was read", "", nil, func(sw *sendWorld, p *simPane, text string) error {
+		}, reason: NotSentPaneChanged},
+		{name: "the pane changes after its report was read", react: func(sw *sendWorld, p *simPane, text string) error {
 			// The reset reads the pane's agent twice (for the report, then
 			// before /clear); its state changes between the two.
 			if text == "/runpr 42" {
@@ -93,11 +99,11 @@ func TestResetAfterRunpr(t *testing.T) {
 				})
 			}
 			return sw.realReact(p, text)
-		}, NotSentPaneChanged},
-		{"the report left the screen", "", nil, func(sw *sendWorld, p *simPane, text string) error {
+		}, reason: NotSentPaneChanged},
+		{name: "the report left the screen", react: func(sw *sendWorld, p *simPane, text string) error {
 			sw.byPane["w1:p1"].screen = readScreenSample(sw.t, "claude-idle.ansi")
 			return sw.realReact(p, text)
-		}, NotSentNoReport},
+		}, reason: NotSentNoReport},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -105,10 +111,18 @@ func TestResetAfterRunpr(t *testing.T) {
 			if c.plan != "" {
 				sw.docs(tree, *planPRDocs(t, sw, tree, c.plan))
 			}
+			if c.ran != "" {
+				sw.firstPane().ran = c.ran
+			}
 			deps := sw.finish()
-			sw.firstPane().screen = reportScreen(t, prURL)
-			if c.setup != nil {
-				c.setup(sw)
+			p := sw.firstPane()
+			if c.typed != "" {
+				if err := sw.writeTranscript(p, p.Session, typedLine(c.typed)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if !c.noReport {
+				p.screen = reportScreen(t, prURL)
 			}
 			if c.react != nil {
 				sw.react = func(p *simPane, text string) error { return c.react(sw, p, text) }

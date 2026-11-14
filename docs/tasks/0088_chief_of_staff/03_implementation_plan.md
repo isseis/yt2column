@@ -158,6 +158,10 @@
 
 -   **長く走るサブコマンド（`wait`・`tick`）は、ロックの持ち主を周ごとに確かめ直し、`/clear` の前のセッションが走らせたプロセスが新しいセッションの持ち主として動かないようにする（ステップ 6-4）。** PR-3 の道具は、呼ばれるたびに `ResolveOwner` で、pane の今のセッションを Herdr から引いて持ち主とする（`cmd/chief/main.go:110`）。`/clear` の後に新しいセッションが `start` でロックを引き継ぐと、古いセッションが走らせたままのプロセスも、次に持ち主を引いたときに新しいセッションとして `Require` を通り、2 つの待ち受けが同じ持ち主として動きうる。PR-3 には長く走るサブコマンドがないので起こらないが、PR-6 で `wait` と `tick` を書くときに、起動したときの持ち主を保持して周ごとにその持ち主で `Require` し直すか、`/clear` でバックグラウンドの処理が止まることを確かめてその前提を書くかを決める。理由: chief を 1 つに限る（AC-08）守りを、長く走るプロセスでも保つため。ADR: なし（ロックの持ち主の確かめ方は設計書 3.5 のとおりで、この PR の中で閉じるため）。
 
+### 1.7. 実装の際に決めたこと（2026-11-15）
+
+-   **`/runpr` の後のリセットに、候補の Claude Code のセッションで人が最後に入力した行が PR を作ったコマンドであるという条件を足す（ステップ 4-5、設計書 1.3.2）。** PR-4 のコードレビューで、画面の最後のメッセージが PR の URL を含むだけで報告と読むため、PR を作った後に人が同じ pane で始めた会話を消しうることが分かり、人と決めた。人の入力は、transcript が行ごとに宣言する `origin` の `kind` で見分ける。そのサンプル `internal/chief/testdata/transcript/claude-human-input.jsonl` は、PR-4 の `/runplan` のセッションの transcript から採った。理由: 人が対話に使っている pane の文脈を黙って失わないため。ADR: [ADR-0046](../../dev/adr/0046-chief-of-staff.md) を更新する。
+
 ## 2. 実装のステップ (Implementation Steps)
 
 ### フェーズ 1: 画面のサンプルと画面の読み取り（設計書 8 章の 1、2 のうち画面の読み取りと文字の無害化）
@@ -324,7 +328,7 @@
 -   [x] **ステップ 4-5**: `send` の引数の検証とコマンドの組み立て（設計書 3.1.1、`request.go`）、`/mkreq` の条件（3.1.4）、`runplan-takeover`、`/runpr` の後のリセット（3.1.3、`reset.go`）を書き、`cmd/chief` に `send`・`detail`・`release` を足す。テストは次を確かめる。
     -   引数の組み合わせの誤り、開いていない PR の番号、今のタスクの workspace に当たらない `--workspace`。
     -   タスクのある workspace への `/mkreq`。
-    -   リセットの候補の条件のそれぞれ（同じ pane、報告がない、`state_change_seq` が変わった、入力欄に文字がある）と、リセットの前に控えを作ること。
+    -   リセットの候補の条件のそれぞれ（同じ pane、報告がない、`state_change_seq` が変わった、入力欄に文字がある、候補のセッションで人が最後に入力した行が PR を作ったコマンドでない）と、リセットの前に控えを作ること。
 -   [x] **ステップ 4-6**: 行の「実行中」の表示を、送信の記録から示す形にする（設計書 3.1.4 の行の中身）。行には送信の停止も示す（設計書 4.2）。`network_test.go` に `detail` と `send` の経路を足す。
 -   [x] **ステップ 4-7**: `ActionResult` の結果（送らなかった・送った後に失敗した・送った）を、送信とリセットの各経路でテストする（AC-62・AC-63）。
 
@@ -618,7 +622,7 @@ $ rg -n 'on Sonnet|to Sonnet|implement.*Sonnet|Model to start|model each reading
 | AC-49 | `ic/autosend_test.go::TestAutoSendHold` | test | 6-3 | PR-6 |
 | AC-50 | `ic/task_test.go::TestReadAutoSendField`（欄がない場合）、`ic/autosend_test.go::TestAutoSendConditions` | test | 2-4・6-3 | PR-2、PR-6 |
 | AC-51 | `ic/task_test.go::TestReadAutoSendField`（2 つ以上、値が違う場合）、`ic/autosend_test.go::TestAutoSendConditions` | test | 2-4・6-3 | PR-2、PR-6 |
-| AC-52 | `ic/reset_test.go::TestResetAfterRunpr` | test | 4-5 | PR-4 |
+| AC-52 | `ic/reset_test.go::TestResetAfterRunpr`、`ic/screen_test.go::TestReadLastHumanInput` | test | 4-5 | PR-4 |
 | AC-53 | `ic/autosend_test.go::TestResetAfterAutoSend` | test | 6-3 | PR-6 |
 | AC-54 | `ic/reset_test.go::TestResetChecks`（残りの文字を返す） | test | 4-5 | PR-4 |
 | AC-55 | `ic/reset_test.go::TestDetailSavedBeforeReset`、`ic/detail_test.go::TestDetailAfterReset` | test | 4-4・4-5 | PR-4 |
@@ -669,3 +673,4 @@ $ rg -n 'on Sonnet|to Sonnet|implement.*Sonnet|Model to start|model each reading
 - 2026-11-12 セッション中の再承認：AC-30・AC-46 を実装するステップと確かめを除き、マージの確認のサンプルを 0089 の後のマージの質問で採る（§1.5・1-2・5-2・§7）（isseis、#870）
 - 2026-11-12 セッション中の再承認：採取の結果、タブの質問を中継せず、OpenCode のモデルを状態の行の区切りの間の完全一致で確かめ、`/model` が既定のモデルを書き換えることを受け入れる（§1.5・2-6・2-7・5-2・5-3・7-4・§7）（isseis、#870）
 - 2026-11-14 セッション中の再承認：長く走るサブコマンドがロックの持ち主を周ごとに確かめ直す申し送りを PR-6 に足す（§1.6・6-4）（isseis、#876）
+- 2026-11-15 セッション中の再承認：`/runpr` の後のリセットに、候補の Claude Code のセッションで人が最後に入力した行が PR を作ったコマンドであるという条件を足す（§1.7・4-5・§7）（isseis、#880）

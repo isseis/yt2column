@@ -16,9 +16,14 @@ import (
 // decided or that cannot be read; nothing is sent while it cannot be.
 var errTranscript = errors.New("the Claude Code transcript cannot be read")
 
-// transcriptLimit caps a transcript read. Chief reads only the transcript of
-// the session /clear has just started, which holds a few lines.
-const transcriptLimit = 1 << 20
+// The caps of a transcript read. The session /clear has just started holds
+// a few lines; the session of a pane to reset holds the whole run of the
+// command that created a PR, which reached megabytes in the samples, and its
+// last human input may be at its start.
+const (
+	transcriptLimit      = 1 << 20
+	resetTranscriptLimit = 64 << 20
+)
 
 // The re-reads of the transcript after /model: Claude Code writes the record
 // a moment after the command, so it is read again at this interval up to
@@ -58,19 +63,19 @@ func transcriptPath(env Env, dir, session string) (string, error) {
 	return filepath.Join(config, "projects", name, session+".jsonl"), nil
 }
 
-// readTranscript reads a transcript file: a regular file, at most
-// transcriptLimit bytes.
-func readTranscript(path string) ([]byte, error) {
+// readTranscript reads a transcript file: a regular file, at most limit
+// bytes.
+func readTranscript(path string, limit int64) ([]byte, error) {
 	f, err := openTranscript(path)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = f.Close() }()
-	data, err := io.ReadAll(io.LimitReader(f, transcriptLimit+1))
+	data, err := io.ReadAll(io.LimitReader(f, limit+1))
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", errTranscript, err)
 	}
-	if len(data) > transcriptLimit {
+	if int64(len(data)) > limit {
 		return nil, fmt.Errorf("%w: %s exceeds the read cap", errTranscript, path)
 	}
 	return data, nil

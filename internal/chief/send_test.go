@@ -749,7 +749,7 @@ func TestTranscriptFIFORefused(t *testing.T) {
 	done := make(chan error, 2)
 	go func() {
 		done <- transcriptOpens(path)
-		_, err := readTranscript(path)
+		_, err := readTranscript(path, transcriptLimit)
 		done <- err
 	}()
 	for range 2 {

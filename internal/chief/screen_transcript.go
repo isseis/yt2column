@@ -109,3 +109,103 @@ func routingModelOf(name string) paneinput.ClaudeModel {
 	}
 	return found
 }
+
+// HumanInputKind is what the last human input of a Claude Code session was.
+// The zero value is HumanInputUnreadable: a line of the transcript could not
+// be read, so the last human input cannot be told.
+type HumanInputKind int
+
+const (
+	// HumanInputUnreadable is a transcript with a line that is not a JSON
+	// object.
+	HumanInputUnreadable HumanInputKind = iota
+	// HumanInputNone is a session the human typed nothing into.
+	HumanInputNone
+	// HumanInputCommand is a custom command, such as /mkarch 0088.
+	HumanInputCommand
+	// HumanInputOther is any other human input: free text, or a line of
+	// another shape.
+	HumanInputOther
+)
+
+// HumanInput is the last line of a session the human typed. Name and Args are
+// set for HumanInputCommand: the command's name without its slash, and its
+// arguments.
+type HumanInput struct {
+	Kind HumanInputKind
+	Name string
+	Args string
+}
+
+// customCommandRecord matches the message content Claude Code 2.1.325 wrote
+// for a custom command the human typed, as the sample shows it: its name
+// twice and its arguments.
+var customCommandRecord = regexp.MustCompile(`^<command-message>([a-z0-9-]+)</command-message>\n<command-name>/([a-z0-9-]+)</command-name>\n<command-args>([^<\n]*)</command-args>$`)
+
+// humanOrigin is the origin kind Claude Code declares on a line the human
+// typed; a peer's message and a task notification declare others.
+const humanOrigin = "human"
+
+// readLastHumanInput reads the last line of a transcript the human typed.
+// Contract: a line is the human's only when Claude Code declares it so (a
+// "user" line whose origin kind is "human"), never by its text; a line that
+// is not one JSON object makes the whole transcript HumanInputUnreadable; the
+// last human line is a command only in the sampled form with its two names
+// equal, and any other human line is HumanInputOther.
+func readLastHumanInput(transcript []byte) HumanInput {
+	result := HumanInput{Kind: HumanInputNone}
+	for line := range bytes.SplitSeq(transcript, []byte("\n")) {
+		if len(bytes.TrimSpace(line)) == 0 {
+			continue
+		}
+		object, err := strictjson.ParseObject(line)
+		if err != nil {
+			return HumanInput{}
+		}
+		if in, ok := humanInputOf(object); ok {
+			result = in
+		}
+	}
+	return result
+}
+
+// humanInputOf returns the human input of a line, and false for a line that
+// is not the human's.
+func humanInputOf(object strictjson.Object) (HumanInput, bool) {
+	members, err := object.Collect("type", "origin", "message")
+	if err != nil {
+		return HumanInput{}, false
+	}
+	if kind, err := strictjson.RequiredString(members, "type"); err != nil || kind != "user" {
+		return HumanInput{}, false
+	}
+	originValue, ok := members["origin"]
+	if !ok {
+		return HumanInput{}, false
+	}
+	if origin, err := objectString(originValue, "kind"); err != nil || origin != humanOrigin {
+		return HumanInput{}, false
+	}
+	other := HumanInput{Kind: HumanInputOther}
+	messageValue, err := strictjson.Required(members, "message")
+	if err != nil {
+		return other, true
+	}
+	message, err := messageValue.AsObject()
+	if err != nil {
+		return other, true
+	}
+	fields, err := message.Collect("content")
+	if err != nil {
+		return other, true
+	}
+	content, err := strictjson.RequiredString(fields, "content")
+	if err != nil {
+		return other, true
+	}
+	m := customCommandRecord.FindStringSubmatch(content)
+	if m == nil || m[1] != m[2] {
+		return other, true
+	}
+	return HumanInput{Kind: HumanInputCommand, Name: m[2], Args: m[3]}, true
+}

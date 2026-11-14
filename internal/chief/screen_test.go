@@ -627,3 +627,32 @@ func reportScreen(t *testing.T, text string) string {
 func isSampleReport(text string) bool {
 	return strings.HasPrefix(text, "ADR-0004 を改訂し") && strings.HasSuffix(text, "を実行してください。")
 }
+
+// TestReadLastHumanInput reads the last human input of the sampled
+// transcript and of its prefixes: only a line Claude Code declares the
+// human's counts, so a peer's message or a task notification after a command
+// leaves the command the last input; a command is read in the sampled form
+// alone; a line that is not JSON makes the transcript unreadable.
+func TestReadLastHumanInput(t *testing.T) {
+	sample := strings.TrimSpace(string(readTestdata(t, "transcript/claude-human-input.jsonl")))
+	lines := strings.Split(sample, "\n")
+	command := HumanInput{Kind: HumanInputCommand, Name: "runplan", Args: "0088"}
+	cases := []struct {
+		name string
+		text string
+		want HumanInput
+	}{
+		{"the whole sample, ending in typed text", sample, HumanInput{Kind: HumanInputOther}},
+		{"up to the lines after the command", strings.Join(lines[:len(lines)-1], "\n"), command},
+		{"up to the command", strings.Join(lines[:3], "\n"), command},
+		{"before any human line", strings.Join(lines[:2], "\n"), HumanInput{Kind: HumanInputNone}},
+		{"a broken line", sample + "\n{\"type\":", HumanInput{}},
+		{"two names that differ", strings.Replace(strings.Join(lines[:3], "\n"), "<command-message>runplan<", "<command-message>mkplan<", 1), HumanInput{Kind: HumanInputOther}},
+		{"the command line without its human origin", strings.Replace(strings.Join(lines[:3], "\n"), `"origin":{"kind":"human"},`, "", 1), HumanInput{Kind: HumanInputNone}},
+	}
+	for _, c := range cases {
+		if got := readLastHumanInput([]byte(c.text)); got != c.want {
+			t.Errorf("%s: readLastHumanInput = %+v, want %+v", c.name, got, c.want)
+		}
+	}
+}

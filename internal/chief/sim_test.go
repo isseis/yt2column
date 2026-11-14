@@ -18,6 +18,9 @@ import (
 type simPane struct {
 	fakeAgent
 	screen string
+	// ran is a command the pane's first session ran before the test, such as
+	// "/mkarch 0001"; finish records it as the session's human input.
+	ran string
 }
 
 // sendWorld is a world whose task panes change when chief types into them,
@@ -110,6 +113,19 @@ func switchLine(shown string) string {
 	return fmt.Sprintf(`{"type":"user","message":{"role":"user","content":"<local-command-stdout>Set model to `+"`%s`"+` and saved as your default for new sessions</local-command-stdout>"}}`, shown)
 }
 
+// commandLine is the transcript record of a custom command the human typed,
+// in the sampled form.
+func commandLine(command string) string {
+	name, args, _ := strings.Cut(strings.TrimPrefix(command, "/"), " ")
+	content := fmt.Sprintf("<command-message>%s</command-message>\n<command-name>/%s</command-name>\n<command-args>%s</command-args>", name, name, args)
+	return fmt.Sprintf(`{"type":"user","origin":{"kind":"human"},"turnOrigin":"human","message":{"role":"user","content":%q}}`, content)
+}
+
+// typedLine is the transcript record of free text the human typed.
+func typedLine(text string) string {
+	return fmt.Sprintf(`{"type":"user","origin":{"kind":"human"},"promptSource":"typed","turnOrigin":"human","message":{"role":"user","content":%q}}`, text)
+}
+
 // modelNames are the display names /model reported in the samples.
 var modelNames = map[string]string{"opus": "Opus 5.5", "sonnet": "Sonnet 5.5"}
 
@@ -130,6 +146,7 @@ func (sw *sendWorld) realReact(p *simPane, text string) error {
 		p.Status, p.Seq = "working", p.Seq+1
 		if p.Kind == "claude" {
 			p.screen = readScreenSample(sw.t, "claude-working.ansi")
+			return sw.writeTranscript(p, p.Session, commandLine(text))
 		}
 		return nil
 	}
@@ -153,7 +170,11 @@ func (sw *sendWorld) finish() Deps {
 	deps := sw.world.finish()
 	for _, p := range sw.panes {
 		if p.Kind == "claude" {
-			if err := sw.writeTranscript(p, p.Session, modeLine(p.Session)); err != nil {
+			lines := []string{modeLine(p.Session)}
+			if p.ran != "" {
+				lines = append(lines, commandLine(p.ran))
+			}
+			if err := sw.writeTranscript(p, p.Session, lines...); err != nil {
 				sw.t.Fatal(err)
 			}
 		}

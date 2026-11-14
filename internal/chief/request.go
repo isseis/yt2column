@@ -38,12 +38,21 @@ const (
 	RequestRunpr
 )
 
+// The names of the task commands, without their slash: the --command
+// values and the names a transcript records.
+const (
+	nameMkreq   = "mkreq"
+	nameMkarch  = "mkarch"
+	nameMkplan  = "mkplan"
+	nameRunplan = "runplan"
+)
+
 // requestKinds are the --command values.
 var requestKinds = map[string]RequestKind{
-	"mkreq":            RequestMkreq,
-	"mkarch":           RequestMkarch,
-	"mkplan":           RequestMkplan,
-	"runplan":          RequestRunplan,
+	nameMkreq:          RequestMkreq,
+	nameMkarch:         RequestMkarch,
+	nameMkplan:         RequestMkplan,
+	nameRunplan:        RequestRunplan,
 	"runplan-takeover": RequestRunplanTakeover,
 	"runpr":            RequestRunpr,
 }
@@ -233,16 +242,24 @@ func Send(ctx context.Context, deps Deps, req SendRequest) (SendOutcome, error) 
 	res := sc.sendCommand(ctx, cmd, route)
 	out := SendOutcome{Actions: []ActionResult{res}}
 	if req.kind == RequestRunpr && res.Outcome == OutcomeSent {
-		// A send that ended without its end record stopped the workspace;
-		// the reset is a send too and does not go to a stopped workspace.
-		if stop, err := held.Stopped(); err != nil || stop != nil {
-			out.Actions = append(out.Actions, notSent(ActionResult{Workspace: loc.ws.Worktree, Input: InputReset}, NotSentStopped, "the workspace was stopped by the /runpr send"))
-			return out, nil
-		}
-		key, why := prMakerRoute(ctx, tasks, loc.ws.Worktree, f.Docs, old, oldErr, row.PR.URL)
-		out.Actions = append(out.Actions, sc.resetAfterRunpr(ctx, res.Pane, *row.PR, rec, key, why, routing))
+		out.Actions = append(out.Actions, sc.resetMaker(ctx, tasks, f, old, oldErr, res.Pane, *row.PR, rec, routing))
 	}
 	return out, nil
+}
+
+// resetMaker resets the pane of the command that created pr after /runpr
+// went to runprPane. A send that ended without its end record stopped the
+// workspace; the reset is a send too and does not go to a stopped workspace.
+func (s sendContext) resetMaker(ctx context.Context, tasks Tasks, f workspaceFacts, old OldValues, oldErr error, runprPane string, pr OpenPR, rec *detailRecord, routing Routing) ActionResult {
+	if stop, err := s.held.Stopped(); err != nil || stop != nil {
+		return notSent(ActionResult{Workspace: s.ws.Worktree, Input: InputReset}, NotSentStopped, "the workspace was stopped by the /runpr send")
+	}
+	key, why := prMakerRoute(ctx, tasks, s.ws.Worktree, f.Docs, old, oldErr, pr.URL)
+	task := paneinput.TaskID{}
+	if f.Docs != nil {
+		task = f.Docs.Task
+	}
+	return s.resetAfterRunpr(ctx, runprPane, pr, rec, key, why, task, routing)
 }
 
 // offered returns the command of req when the workspace's row offers it, or

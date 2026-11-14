@@ -490,15 +490,17 @@ for the packages that exist today. The server's startup is documented in the
   texts, whether it is `/runpr`'s merge question, the unsent text left in the
   input line, OpenCode's model line and its screen after `/new`, the NEXT of a
   `/runpr` report, the report of the command that created a PR, and the
-  transcript's record of a model switch; the chief session's summary of that
-  report is in scope too. Every other file of the tool chooses behavior only
+  transcript's record of a model switch and of the human's last command (a
+  line is the human's only by the origin Claude Code declares on it, never by
+  its text); the chief session's summary of that report is in scope too. Every other file of the tool chooses behavior only
   by the types the screen readers return. Reason: the screens are drawn by
   Claude Code and OpenCode and the transcript is written by Claude Code,
   external values the tool cannot express in a type, and OpenCode's question
   screen cannot be changed. Boundary: a screen that matches no shape read
   from the real samples under `internal/chief/testdata/screens/` is not read
   more widely but read as unmatched, which marks the workspace as needing a
-  check or sends nothing; and the trigger of chief's automatic send is the
+  check or sends nothing (a transcript line likewise, from the samples under
+  `internal/chief/testdata/transcript/`); and the trigger of chief's automatic send is the
   state of GitHub and git, never a screen: a screen reading only stops a send
   or narrows its conditions.
 - **Enforce invariants with the type, not with convention**: if a value must pass

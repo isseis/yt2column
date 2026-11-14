@@ -47,6 +47,8 @@ func detailWorld(t *testing.T) (*sendWorld, string) {
 	sw.rec.replyIn(tree, "gh pr view 42 --json "+prViewFields, viewOf(t, "pr-view-867-open.json", nil))
 	sw.rec.replyIn(tree, "gh pr checks 42 --json "+prChecksFields, readTestdata(t, "gh/pr-checks-200-fail.json"))
 	sw.git(tree, "rev-parse HEAD", prHead+"\n")
+	// The Claude Code pane is the one that created the PR.
+	sw.byPane["w1:p1"].ran = "/mkarch 0001"
 	return sw, tree
 }
 

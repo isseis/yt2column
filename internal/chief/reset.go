@@ -45,6 +45,52 @@ func prMakerRoute(ctx context.Context, tasks Tasks, worktree string, docs *TaskD
 	return key, ""
 }
 
+// makerCommands names, for each route, the commands that create its PRs and
+// whether each takes the task as its argument (/mkreq takes an issue).
+func makerCommands(key paneinput.RouteKey) map[string]bool {
+	switch key {
+	case paneinput.RouteTaskDocuments:
+		return map[string]bool{nameMkreq: false, nameMkarch: true, nameMkplan: true, "mkplan2": true}
+	case paneinput.RouteRunplanOpus, paneinput.RouteRunplanSonnetReview, paneinput.RouteRunplanSonnet, paneinput.RouteRunplanTakeover:
+		return map[string]bool{nameRunplan: true}
+	default:
+		return nil
+	}
+}
+
+// lastInputMadePR checks that the last line the human typed into the
+// candidate's Claude Code session is a command that creates PRs of the
+// route, for the task: a pane the human went on using after that command is
+// never emptied, even when its last message still names the PR. It returns
+// NotSentUnknown when the check passes.
+func (s sendContext) lastInputMadePR(a Agent, key paneinput.RouteKey, task paneinput.TaskID) (NotSentReason, string) {
+	if a.Kind != paneinput.AgentClaudeCode {
+		return NotSentNoReport, "only a Claude Code session records its human input"
+	}
+	path, err := transcriptPath(s.deps.Env, a.Dir, a.Session)
+	if err != nil {
+		return NotSentNoTranscript, err.Error()
+	}
+	data, err := readTranscript(path, resetTranscriptLimit)
+	if err != nil {
+		return NotSentNoTranscript, err.Error()
+	}
+	in := readLastHumanInput(data)
+	if in.Kind == HumanInputUnreadable {
+		return NotSentNoTranscript, "a line of the transcript cannot be read"
+	}
+	takesTask, ok := makerCommands(key)[in.Name]
+	switch {
+	case in.Kind != HumanInputCommand || !ok:
+		return NotSentOtherInput, "the session's last human input is not the command that created the PR"
+	case takesTask && (task.IsZero() || in.Args != task.String()):
+		return NotSentOtherInput, "the session's last command is for another task"
+	case !takesTask && in.Args == "":
+		return NotSentOtherInput, "the session's last command has no argument"
+	}
+	return NotSentUnknown, ""
+}
+
 // resetPrompt returns the input that empties a pane of agent and its step.
 func resetPrompt(agent paneinput.AgentKind) (step, bool) {
 	switch agent {
@@ -64,7 +110,7 @@ func resetPrompt(agent paneinput.AgentKind) (step, bool) {
 // read the PR's report from it, its state has not changed since, and its
 // screen still shows that report; every other case is OutcomeNotSent with
 // its reason. The reset is checked and recorded like any send.
-func (s sendContext) resetAfterRunpr(ctx context.Context, runprPane string, pr OpenPR, rec *detailRecord, key paneinput.RouteKey, why string, routing Routing) ActionResult {
+func (s sendContext) resetAfterRunpr(ctx context.Context, runprPane string, pr OpenPR, rec *detailRecord, key paneinput.RouteKey, why string, task paneinput.TaskID, routing Routing) ActionResult {
 	res := ActionResult{Workspace: s.ws.Worktree, Input: InputReset}
 	if key == paneinput.RouteUnknown {
 		return notSent(res, NotSentUnreadable, "the command that created the PR is not known: "+why)
@@ -104,6 +150,9 @@ func (s sendContext) resetAfterRunpr(ctx context.Context, runprPane string, pr O
 	}
 	if _, ok := readCommandReport(a.Kind, raw, pr.URL); !ok {
 		return notSent(res, NotSentNoReport, "the pane no longer shows the PR's report")
+	}
+	if reason, detail := s.lastInputMadePR(a, key, task); reason != NotSentUnknown {
+		return notSent(res, reason, detail)
 	}
 	seq := a.StateChangeSeq
 	return s.run(ctx, res, a, []step{st}, paneCheck{session: a.Session, seq: &seq}, route)

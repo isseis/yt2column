@@ -103,11 +103,11 @@ func readNextValue(value string) RunprNext {
 	}
 	next := RunprNext{Kind: NextCommand, Task: task}
 	switch m[2] {
-	case "mkarch":
+	case nameMkarch:
 		next.Command = NextCommandMkarch
-	case "mkplan":
+	case nameMkplan:
 		next.Command = NextCommandMkplan
-	case "runplan":
+	case nameRunplan:
 		next.Command = NextCommandRunplan
 	default:
 		return RunprNext{}

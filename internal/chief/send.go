@@ -112,6 +112,10 @@ const (
 	// NotSentNoStep is an input that did not finish: /clear kept the
 	// session, /new showed no new session, or the command did not start.
 	NotSentNoStep
+	// NotSentOtherInput is a reset candidate whose session's last human
+	// input is not the command that created the PR: the human went on in
+	// that pane after it.
+	NotSentOtherInput
 )
 
 // String names the reason for the output.
@@ -131,6 +135,7 @@ func (r NotSentReason) String() string {
 		NotSentNoReport:      "no_report",
 		NotSentPaneChanged:   "pane_changed",
 		NotSentNoStep:        "step_not_finished",
+		NotSentOtherInput:    "other_input",
 	}
 	if name, ok := names[r]; ok {
 		return name
@@ -519,7 +524,7 @@ func (s sendContext) awaitModel(ctx context.Context, before Agent, want paneinpu
 		if err := s.deps.Sleep(ctx, transcriptInterval); err != nil {
 			return before, &checkFailure{reason: NotSentNoTranscript, detail: err.Error(), agent: before}
 		}
-		data, err := readTranscript(path)
+		data, err := readTranscript(path, transcriptLimit)
 		if err != nil {
 			why = err.Error()
 			continue
