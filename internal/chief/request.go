@@ -242,7 +242,7 @@ func Send(ctx context.Context, deps Deps, req SendRequest) (SendOutcome, error) 
 	res := sc.sendCommand(ctx, cmd, route)
 	out := SendOutcome{Actions: []ActionResult{res}}
 	if req.kind == RequestRunpr && res.Outcome == OutcomeSent {
-		out.Actions = append(out.Actions, sc.resetMaker(ctx, tasks, f, old, oldErr, res.Pane, *row.PR, rec, routing))
+		out.Actions = append(out.Actions, sc.resetMaker(ctx, f, res.Pane, *row.PR, rec, routing))
 	}
 	return out, nil
 }
@@ -250,16 +250,12 @@ func Send(ctx context.Context, deps Deps, req SendRequest) (SendOutcome, error) 
 // resetMaker resets the pane of the command that created pr after /runpr
 // went to runprPane. A send that ended without its end record stopped the
 // workspace; the reset is a send too and does not go to a stopped workspace.
-func (s sendContext) resetMaker(ctx context.Context, tasks Tasks, f workspaceFacts, old OldValues, oldErr error, runprPane string, pr OpenPR, rec *detailRecord, routing Routing) ActionResult {
+func (s sendContext) resetMaker(ctx context.Context, f workspaceFacts, runprPane string, pr OpenPR, rec *detailRecord, routing Routing) ActionResult {
 	if stop, err := s.held.Stopped(); err != nil || stop != nil {
 		return notSent(ActionResult{Workspace: s.ws.Worktree, Input: InputReset}, NotSentStopped, "the workspace was stopped by the /runpr send")
 	}
-	key, why := prMakerRoute(ctx, tasks, s.ws.Worktree, f.Docs, old, oldErr, pr.URL)
-	task := paneinput.TaskID{}
-	if f.Docs != nil {
-		task = f.Docs.Task
-	}
-	return s.resetAfterRunpr(ctx, runprPane, pr, rec, key, why, task, routing)
+	made, why := prMaker(f)
+	return s.resetAfterRunpr(ctx, runprPane, pr, rec, made, why, routing)
 }
 
 // offered returns the command of req when the workspace's row offers it, or

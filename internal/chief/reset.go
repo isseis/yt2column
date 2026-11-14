@@ -2,68 +2,53 @@ package chief
 
 import (
 	"context"
-	"fmt"
+	"strings"
 
 	"github.com/isseis/yt2column/internal/chief/paneinput"
 )
 
-// prMakerRoute returns the route of the command that created the workspace's
-// PR at url: the /runplan route of the plan PR whose created checkbox names
-// url on the branch, or the task-document route for any other PR of a task
-// branch (/mkreq, /mkarch, /mkplan, /mkplan2 create those). Contract: the
-// kind is read from the branch's own plan and never from a screen; a plan
-// that cannot be read, and a plan PR whose model requirement has no route,
-// give RouteUnknown, so no pane is emptied.
-func prMakerRoute(ctx context.Context, tasks Tasks, worktree string, docs *TaskDocs, old OldValues, oldErr error, url string) (paneinput.RouteKey, string) {
-	if docs == nil {
-		return paneinput.RouteUnknown, "the branch names no task"
-	}
-	if docs.Dir == "" {
-		return paneinput.RouteTaskDocuments, ""
-	}
-	present, err := tasks.onHead(ctx, worktree, docs.Dir+"/"+planFile)
-	switch {
-	case err != nil:
-		return paneinput.RouteUnknown, "the plan on the branch cannot be listed: " + err.Error()
-	case !present:
-		return paneinput.RouteTaskDocuments, ""
-	case oldErr != nil:
-		return paneinput.RouteUnknown, "the old-value table cannot be read"
-	}
-	plan, err := tasks.BranchPlan(ctx, worktree, *docs, old)
-	if err != nil {
-		return paneinput.RouteUnknown, "the plan on the branch cannot be read: " + err.Error()
-	}
-	pr, ok := plan.CreatedAs(url)
-	if !ok {
-		return paneinput.RouteTaskDocuments, ""
-	}
-	key := routeKeyOf(pr.Requirement.Value)
-	if key == paneinput.RouteUnknown {
-		return key, fmt.Sprintf("the model requirement of PR-%s has no route", pr.Target)
-	}
-	return key, ""
+// maker is the command that created a workspace's open PR: the route its
+// agent comes from, and its name and argument as the transcript records
+// them. An empty args means any non-empty argument (/mkreq's issue, which no
+// document names).
+type maker struct {
+	route paneinput.RouteKey
+	name  string
+	args  string
 }
 
-// makerCommands names, for each route, the commands that create its PRs and
-// whether each takes the task as its argument (/mkreq takes an issue).
-func makerCommands(key paneinput.RouteKey) map[string]bool {
-	switch key {
-	case paneinput.RouteTaskDocuments:
-		return map[string]bool{nameMkreq: false, nameMkarch: true, nameMkplan: true, "mkplan2": true}
-	case paneinput.RouteRunplanOpus, paneinput.RouteRunplanSonnetReview, paneinput.RouteRunplanSonnet, paneinput.RouteRunplanTakeover:
-		return map[string]bool{nameRunplan: true}
-	default:
-		return nil
+// prMaker returns the command that created the workspace's open PR. Contract:
+// while the PR is open it is not on origin/main, so the next command that
+// origin/main's documents give the task (the rules of the status table) is
+// the command that created it; a task branch whose task origin/main does not
+// have yet was opened by /mkreq. When no next command is decided (a PR of
+// /mkplan2 or of /runpr, documents that cannot be read, a route that cannot
+// be read) there is no maker, so no pane is emptied.
+func prMaker(f workspaceFacts) (maker, string) {
+	if f.Docs != nil && f.Docs.Dir == "" && !f.Task.IsZero() {
+		return maker{route: paneinput.RouteTaskDocuments, name: nameMkreq}, ""
 	}
+	next, _, why := decideNext(f)
+	if next == nil || next.Command == nil {
+		if why == "" && next != nil {
+			why = next.Problem
+		}
+		return maker{}, "no command of the documents created the PR: " + why
+	}
+	text, err := next.Command.Text()
+	if err != nil {
+		return maker{}, err.Error()
+	}
+	name, args, _ := strings.Cut(strings.TrimPrefix(text, "/"), " ")
+	return maker{route: next.Command.Route(), name: name, args: args}, ""
 }
 
 // lastInputMadePR checks that the last line the human typed into the
-// candidate's Claude Code session is a command that creates PRs of the
-// route, for the task: a pane the human went on using after that command is
-// never emptied, even when its last message still names the PR. It returns
-// NotSentUnknown when the check passes.
-func (s sendContext) lastInputMadePR(a Agent, key paneinput.RouteKey, task paneinput.TaskID) (NotSentReason, string) {
+// candidate's Claude Code session is the command that created the PR, its
+// name and argument compared whole: a pane the human went on using after
+// that command, even with another command of the same task, is never
+// emptied. It returns NotSentUnknown when the check passes.
+func (s sendContext) lastInputMadePR(a Agent, made maker) (NotSentReason, string) {
 	if a.Kind != paneinput.AgentClaudeCode {
 		return NotSentNoReport, "only a Claude Code session records its human input"
 	}
@@ -76,17 +61,13 @@ func (s sendContext) lastInputMadePR(a Agent, key paneinput.RouteKey, task panei
 		return NotSentNoTranscript, err.Error()
 	}
 	in := readLastHumanInput(data)
-	if in.Kind == HumanInputUnreadable {
-		return NotSentNoTranscript, "a line of the transcript cannot be read"
-	}
-	takesTask, ok := makerCommands(key)[in.Name]
 	switch {
-	case in.Kind != HumanInputCommand || !ok:
+	case in.Kind == HumanInputUnreadable:
+		return NotSentNoTranscript, "a line of the transcript cannot be read"
+	case in.Kind != HumanInputCommand || in.Name != made.name:
 		return NotSentOtherInput, "the session's last human input is not the command that created the PR"
-	case takesTask && (task.IsZero() || in.Args != task.String()):
-		return NotSentOtherInput, "the session's last command is for another task"
-	case !takesTask && in.Args == "":
-		return NotSentOtherInput, "the session's last command has no argument"
+	case made.args == "" && in.Args == "", made.args != "" && in.Args != made.args:
+		return NotSentOtherInput, "the session's last command has another argument than the command that created the PR"
 	}
 	return NotSentUnknown, ""
 }
@@ -110,12 +91,12 @@ func resetPrompt(agent paneinput.AgentKind) (step, bool) {
 // read the PR's report from it, its state has not changed since, and its
 // screen still shows that report; every other case is OutcomeNotSent with
 // its reason. The reset is checked and recorded like any send.
-func (s sendContext) resetAfterRunpr(ctx context.Context, runprPane string, pr OpenPR, rec *detailRecord, key paneinput.RouteKey, why string, task paneinput.TaskID, routing Routing) ActionResult {
+func (s sendContext) resetAfterRunpr(ctx context.Context, runprPane string, pr OpenPR, rec *detailRecord, made maker, why string, routing Routing) ActionResult {
 	res := ActionResult{Workspace: s.ws.Worktree, Input: InputReset}
-	if key == paneinput.RouteUnknown {
+	if made.route == paneinput.RouteUnknown {
 		return notSent(res, NotSentUnreadable, "the command that created the PR is not known: "+why)
 	}
-	route, err := routing.Route(key)
+	route, err := routing.Route(made.route)
 	if err != nil {
 		return notSent(res, NotSentUnreadable, "the routing table has no route for the command that created the PR")
 	}
@@ -151,7 +132,7 @@ func (s sendContext) resetAfterRunpr(ctx context.Context, runprPane string, pr O
 	if _, ok := readCommandReport(a.Kind, raw, pr.URL); !ok {
 		return notSent(res, NotSentNoReport, "the pane no longer shows the PR's report")
 	}
-	if reason, detail := s.lastInputMadePR(a, key, task); reason != NotSentUnknown {
+	if reason, detail := s.lastInputMadePR(a, made); reason != NotSentUnknown {
 		return notSent(res, reason, detail)
 	}
 	seq := a.StateChangeSeq

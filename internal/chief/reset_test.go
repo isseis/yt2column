@@ -24,21 +24,6 @@ func withInput(t *testing.T, screen, text string) string {
 	return ""
 }
 
-// planPRDocs returns task documents whose plan records PR 42 as its PR-1,
-// with model requirement requirement, on origin/main and on the branch.
-func planPRDocs(t *testing.T, sw *sendWorld, tree, requirement string) *fakeDocs {
-	t.Helper()
-	plan := string(planSample(t, "marker-sonnet.md"))
-	plan = strings.Replace(plan, "https://github.com/owner/repo/pull/1", prURL, 1)
-	// PR-1's model requirement is the plan's first value line ending in
-	// ": opus".
-	plan = strings.Replace(plan, ": opus\n", ": "+requirement+"\n", 1)
-	path := "docs/tasks/" + taskDir + "/" + planFile
-	sw.git(tree, "ls-tree -z --name-only HEAD -- "+path, path+"\x00")
-	sw.git(tree, "show HEAD:"+path, plan)
-	return &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: []byte(plan)}
-}
-
 // sendRunpr sends /runpr 42 to the workspace at tree.
 func sendRunpr(t *testing.T, deps Deps, tree string) SendOutcome {
 	t.Helper()
@@ -53,15 +38,18 @@ func sendRunpr(t *testing.T, deps Deps, tree string) SendOutcome {
 	return out
 }
 
-// TestResetAfterRunpr checks the reset after /runpr: the pane of the
-// command that created the PR is emptied only when it is another pane than
-// /runpr's, its report was kept by the detail, its state has not changed,
-// it still shows the report, and the last line the human typed into its
-// session is the command that created the PR, for the task; otherwise it is
-// left as it is, with the reason.
+// TestResetAfterRunpr checks the reset after /runpr: the command that created
+// the PR is the next command origin/main's documents give while the PR is
+// open, and its pane is emptied only when it is another pane than /runpr's,
+// its report was kept by the detail, its state has not changed, it still
+// shows the report, and the last line the human typed into its session is
+// that command, its name and argument whole; otherwise it is left as it is,
+// with the reason.
 func TestResetAfterRunpr(t *testing.T) {
 	cases := []struct {
 		name string
+		// plan is the plan sample origin/main holds, or "none" for no task
+		// documents at all; empty keeps detailWorld's requirements.
 		plan string
 		// ran is the command the pane last ran, when not detailWorld's.
 		ran string
@@ -72,12 +60,15 @@ func TestResetAfterRunpr(t *testing.T) {
 		reason   NotSentReason
 	}{
 		{name: "a task-document PR's pane"},
-		{name: "a plan PR made on Claude Code", plan: "opus", ran: "/runplan 0001"},
-		{name: "a plan PR whose pane last ran another command", plan: "opus", reason: NotSentOtherInput},
+		{name: "a /mkreq PR's pane", plan: "none", ran: "/mkreq 12"},
+		{name: "a plan PR made on Claude Code", plan: "marker-opus.md", ran: "/runplan 0001"},
+		{name: "another document command of the task", ran: "/mkplan 0001", reason: NotSentOtherInput},
+		{name: "a plan PR whose pane last ran another command", plan: "marker-opus.md", reason: NotSentOtherInput},
 		{name: "text typed after the command", typed: "what is the state of PR 42?", reason: NotSentOtherInput},
 		{name: "the command of another task", ran: "/mkarch 0002", reason: NotSentOtherInput},
-		{name: "a plan PR made on OpenCode, the pane /runpr went to", plan: "sonnet", reason: NotSentSamePane},
-		{name: "a plan PR whose requirement has no route", plan: "unknown-value", reason: NotSentUnreadable},
+		{name: "/mkreq without an issue", plan: "none", ran: "/mkreq", reason: NotSentOtherInput},
+		{name: "a plan PR made on OpenCode, the pane /runpr went to", plan: "marker-sonnet.md", reason: NotSentSamePane},
+		{name: "a plan PR whose requirement has no route", plan: "marker-unreadable.md", reason: NotSentUnreadable},
 		{name: "no report on the pane", noReport: true, reason: NotSentNoReport},
 		{name: "the pane changed after the detail", react: func(sw *sendWorld, p *simPane, text string) error {
 			sw.byPane["w1:p1"].Seq++
@@ -108,8 +99,12 @@ func TestResetAfterRunpr(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			sw, tree := detailWorld(t)
-			if c.plan != "" {
-				sw.docs(tree, *planPRDocs(t, sw, tree, c.plan))
+			switch c.plan {
+			case "":
+			case "none":
+				sw.rec.replyIn(tree, "git ls-tree -z --name-only refs/remotes/origin/main -- docs/tasks/", nil)
+			default:
+				sw.docs(tree, fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, c.plan)})
 			}
 			if c.ran != "" {
 				sw.firstPane().ran = c.ran

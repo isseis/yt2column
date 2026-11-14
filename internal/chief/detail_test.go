@@ -43,7 +43,8 @@ func viewOf(t *testing.T, sample string, edit func(map[string]any)) []byte {
 func detailWorld(t *testing.T) (*sendWorld, string) {
 	t.Helper()
 	sw := newSendWorld(t)
-	tree := sw.addTask(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch, PRs: openPRJSON}, "claude", "opencode")
+	// origin/main has the approved requirements, so the open PR is /mkarch's.
+	tree := sw.addTask(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch, PRs: openPRJSON, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved}}, "claude", "opencode")
 	sw.rec.replyIn(tree, "gh pr view 42 --json "+prViewFields, viewOf(t, "pr-view-867-open.json", nil))
 	sw.rec.replyIn(tree, "gh pr checks 42 --json "+prChecksFields, readTestdata(t, "gh/pr-checks-200-fail.json"))
 	sw.git(tree, "rev-parse HEAD", prHead+"\n")
