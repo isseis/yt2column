@@ -142,6 +142,8 @@ type workspaceFacts struct {
 	// Unreadable collects what the readers could not read (git, gh, task
 	// documents), each as a short name.
 	Unreadable []string
+	// Head is what the worktree's HEAD is; a task is read only from a branch.
+	Head headState
 	// Task is the task of the branch, zero when the branch names none.
 	Task paneinput.TaskID
 	// Docs is origin/main's documents of the task, nil when there is no task.
@@ -157,6 +159,21 @@ type workspaceFacts struct {
 	// other conditions hold.
 	Takeover takeoverFacts
 }
+
+// headState is what a worktree's HEAD is. The zero value is headUnread, the
+// reading that assumes least: no next command is decided from it.
+type headState int
+
+const (
+	// headUnread is a HEAD that was not read.
+	headUnread headState = iota
+	// headBranch is a checked-out branch.
+	headBranch
+	// headDetached is a detached HEAD. /runpr leaves one both after a task's
+	// final PR and when it stopped before creating the next branch of the
+	// task, so the worktree names no task and cannot be told to have none.
+	headDetached
+)
 
 // takeoverFacts are the reads behind the takeover proposal.
 type takeoverFacts struct {
@@ -212,11 +229,29 @@ func makeNext(kind TaskNextKind, cmd paneinput.Command, key paneinput.RouteKey, 
 	return next
 }
 
+// headProblem returns why no next command can be decided from a HEAD, empty
+// for a checked-out branch, the only HEAD a task is read from.
+func headProblem(h headState) string {
+	switch h {
+	case headBranch:
+		return ""
+	case headDetached:
+		return "HEAD is detached, so no branch tells whether the worktree has a task"
+	case headUnread:
+		return "the HEAD of the worktree was not read"
+	default:
+		return fmt.Sprintf("the HEAD of the worktree is of no known kind: %d", h)
+	}
+}
+
 // decideNext decides the next command of a task from origin/main's documents
 // (rules of the design, 3.1.4). Contract: the first matching rule wins and
 // none matching returns TaskNextNone with a reason in why; it never guesses a
 // command from a document it could not read.
 func decideNext(f workspaceFacts) (next *Next, done bool, why string) {
+	if why := headProblem(f.Head); why != "" {
+		return nil, false, why
+	}
 	if f.Task.IsZero() {
 		return &Next{Kind: TaskNextMkreq, Text: "/mkreq"}, false, ""
 	}

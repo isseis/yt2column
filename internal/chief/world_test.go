@@ -158,7 +158,7 @@ func (w *world) add(ws fakeWorkspace) string {
 		screen = "claude-idle.ansi"
 	}
 	w.rec.reply("herdr agent read "+pane+" --source visible --lines 200 --format ansi", []byte(readScreenSample(w.t, screen)))
-	if ws.Branch != "" {
+	if ws.Branch != "" && ws.Branch != detachedHead {
 		prs := ws.PRs
 		if prs == "" {
 			prs = "[]"

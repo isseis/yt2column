@@ -121,16 +121,19 @@ func readWorkspace(ctx context.Context, herdr Herdr, git GitReader, tasks Tasks,
 		f.Unreadable = append(f.Unreadable, "branch of the worktree")
 		return f
 	}
-	if branch != "" {
-		prs, err := git.OpenPRs(ctx, w.Worktree, branch)
-		switch {
-		case err != nil:
-			f.Unreadable = append(f.Unreadable, "open pull requests of the branch")
-		case len(prs) > 1:
-			f.Unreadable = append(f.Unreadable, "more than one open pull request on the branch")
-		case len(prs) == 1:
-			f.PR = &prs[0]
-		}
+	if branch == "" {
+		f.Head = headDetached
+		return f
+	}
+	f.Head = headBranch
+	prs, err := git.OpenPRs(ctx, w.Worktree, branch)
+	switch {
+	case err != nil:
+		f.Unreadable = append(f.Unreadable, "open pull requests of the branch")
+	case len(prs) > 1:
+		f.Unreadable = append(f.Unreadable, "more than one open pull request on the branch")
+	case len(prs) == 1:
+		f.PR = &prs[0]
 	}
 	if task, ok := taskOfBranch(branch); ok {
 		f.Task = task

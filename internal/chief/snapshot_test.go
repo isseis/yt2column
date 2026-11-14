@@ -93,6 +93,12 @@ func TestTakeSnapshotStates(t *testing.T) {
 			}
 		}},
 		{"task without documents", fakeWorkspace{Branch: taskBranch}, StateNeedsCheck, nil},
+		{"detached HEAD", fakeWorkspace{Branch: detachedHead}, StateNeedsCheck, func(t *testing.T, r Row) {
+			if r.Next != nil || len(r.Unreadable) != 1 || !strings.Contains(r.Unreadable[0], "detached") {
+				t.Errorf("row = %+v, want no command and the detached HEAD named", r)
+			}
+		}},
+		{"detached HEAD with a question", fakeWorkspace{Branch: detachedHead, Status: "blocked", Screen: "claude-question-single.ansi"}, StateQuestion, nil},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -463,5 +469,13 @@ func TestRowOrderRules(t *testing.T) {
 	want := []string{"question", "merge", "review-old", "review-new", "proposal", "needs-check", "running", "done"}
 	if !slices.Equal(labels, want) {
 		t.Errorf("row order = %v, want %v", labels, want)
+	}
+}
+
+// TestClassifyZeroFacts checks classify's contract that facts nobody read
+// assume nothing: no HEAD read gives no next command.
+func TestClassifyZeroFacts(t *testing.T) {
+	if r := classify(workspaceFacts{}); r.State != StateNeedsCheck || r.Next != nil {
+		t.Errorf("zero facts = %+v, want StateNeedsCheck with no command", r)
 	}
 }
