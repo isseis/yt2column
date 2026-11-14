@@ -219,14 +219,20 @@ func TestDetailPartialFailure(t *testing.T) {
 			t.Errorf("detail = %+v; want the checks unavailable and the rest given", d)
 		}
 	})
-	t.Run("a view of another PR", func(t *testing.T) {
-		sw, tree := detailWorld(t)
-		sw.rec.replyIn(tree, "gh pr view 42 --json "+prViewFields, viewOf(t, "pr-view-867-open.json", func(v map[string]any) { v["state"] = "MERGED" }))
-		d := detailOf(t, sw.finish(), tree)
-		if d.ViewErr == "" || d.View != nil {
-			t.Errorf("detail = %+v; want the view rejected", d)
-		}
-	})
+	for name, edit := range map[string]func(map[string]any){
+		"a view of another number": func(v map[string]any) { v["number"] = 43 },
+		"a view of another URL":    func(v map[string]any) { v["url"] = prURL + "0" },
+		"a view of a merged PR":    func(v map[string]any) { v["state"] = "MERGED" },
+	} {
+		t.Run(name, func(t *testing.T) {
+			sw, tree := detailWorld(t)
+			sw.rec.replyIn(tree, "gh pr view 42 --json "+prViewFields, viewOf(t, "pr-view-867-open.json", edit))
+			d := detailOf(t, sw.finish(), tree)
+			if d.ViewErr == "" || d.View != nil {
+				t.Errorf("detail = %+v; want the view rejected", d)
+			}
+		})
+	}
 }
 
 // TestReviewSkippable checks the rule of "review skippable": every changed

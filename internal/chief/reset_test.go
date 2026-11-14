@@ -183,3 +183,32 @@ func TestDetailSavedBeforeReset(t *testing.T) {
 		t.Errorf("actions = %+v; want the reset sent", out.Actions)
 	}
 }
+
+// TestResetFailureAfterClear checks a reset whose /clear keeps the session:
+// the output says the reset input was sent and then failed after clear, and
+// the workspace is stopped.
+func TestResetFailureAfterClear(t *testing.T) {
+	sw, tree := detailWorld(t)
+	deps := sw.finish()
+	sw.firstPane().screen = reportScreen(t, prURL)
+	sw.react = func(p *simPane, text string) error {
+		if text == "/clear" {
+			return nil
+		}
+		return sw.realReact(p, text)
+	}
+	out := sendRunpr(t, deps, tree).Output()
+	if len(out.Actions) != 2 {
+		t.Fatalf("actions = %+v", out.Actions)
+	}
+	if got := out.Actions[1]; got.Input != "reset" || got.Outcome != "sent_then_failed" || got.Step != "clear" || got.Pane != "w1:p1" {
+		t.Errorf("reset = %+v, want sent then failed after clear", got)
+	}
+	records, err := deps.Store.Records(Worktree{path: tree})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stop, _ := records.Stopped(); stop == nil {
+		t.Error("the workspace was not stopped")
+	}
+}

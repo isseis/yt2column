@@ -106,6 +106,11 @@ type Store struct {
 	// the directory's exclusion is taken; the takeover tests use it to place
 	// a live owner's lock in that gap. It is nil outside the tests.
 	betweenStaleReadAndLock func()
+	// beforeCreate runs before each record is created and fails the
+	// creation when it returns an error; the send tests use it to see the
+	// order of a send's records and to make one fail. It is nil outside the
+	// tests.
+	beforeCreate func(name string) error
 }
 
 // OpenStore creates the state directory $base/yt2column/chief when it is
@@ -126,6 +131,11 @@ func (s Store) Dir() string { return s.dir }
 
 // create writes a new record; a record of that name is never replaced.
 func (s Store) create(name string, v any) error {
+	if s.beforeCreate != nil {
+		if err := s.beforeCreate(name); err != nil {
+			return err
+		}
+	}
 	data, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -494,6 +504,8 @@ const detailMaxAge = 14 * 24 * time.Hour
 // its stop, and its PR details.
 type WorkspaceRecords struct {
 	dir string
+	// beforeCreate is the store's test hook, carried to the records.
+	beforeCreate func(name string) error
 }
 
 // Records returns the records of a worktree, creating their directory.
@@ -502,7 +514,7 @@ func (s Store) Records(w Worktree) (WorkspaceRecords, error) {
 	if err != nil {
 		return WorkspaceRecords{}, err
 	}
-	return WorkspaceRecords{dir: dir}, nil
+	return WorkspaceRecords{dir: dir, beforeCreate: s.beforeCreate}, nil
 }
 
 // existingRecords returns the records of a worktree without creating
@@ -518,10 +530,10 @@ func (s Store) existingRecords(w Worktree) (WorkspaceRecords, bool, error) {
 	case !info.IsDir():
 		return WorkspaceRecords{}, false, fmt.Errorf("%w: %s is not a directory", errRecord, dir)
 	}
-	return WorkspaceRecords{dir: dir}, true, nil
+	return WorkspaceRecords{dir: dir, beforeCreate: s.beforeCreate}, true, nil
 }
 
-func (r WorkspaceRecords) store() Store { return Store{dir: r.dir} }
+func (r WorkspaceRecords) store() Store { return Store{dir: r.dir, beforeCreate: r.beforeCreate} }
 
 // HeldWorkspace is a worktree's records while its exclusion is held. Only
 // Lock makes one, so a send record, a stop, or a release is written only
@@ -786,7 +798,7 @@ func (s Store) settleWorkspaces(now time.Time) (stopped, removed int, err error)
 		if !e.IsDir() || !workspaceDirName.MatchString(e.Name()) {
 			continue
 		}
-		held, err := WorkspaceRecords{dir: filepath.Join(s.dir, e.Name())}.Lock()
+		held, err := WorkspaceRecords{dir: filepath.Join(s.dir, e.Name()), beforeCreate: s.beforeCreate}.Lock()
 		if errors.Is(err, ErrWorkspaceBusy) {
 			continue
 		}

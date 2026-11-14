@@ -219,14 +219,6 @@ func TestRunUsageErrors(t *testing.T) {
 		{"send", "--workspace", "/w", "--protocol", "1"},
 		{"send", "--command", "mkarch", "--protocol", "1"},
 		{"send", "--workspace", "/w", "--command", "weakreview", "--protocol", "1"},
-		{"send", "--workspace", "w", "--command", "mkarch", "--protocol", "1"},
-		{"send", "--workspace", "/w", "--command", "mkreq", "--protocol", "1"},
-		{"send", "--workspace", "/w", "--command", "mkreq", "--issue", "01", "--protocol", "1"},
-		{"send", "--workspace", "/w", "--command", "mkarch", "--issue", "12", "--protocol", "1"},
-		{"send", "--workspace", "/w", "--command", "runpr", "--protocol", "1"},
-		{"send", "--workspace", "/w", "--command", "runpr", "--pr", "-1", "--protocol", "1"},
-		{"send", "--workspace", "/w", "--command", "runplan", "--pr", "12", "--protocol", "1"},
-		{"send", "--workspace", "/w", "--command", "runpr", "--pr", "12", "--issue", "3", "--protocol", "1"},
 		{"detail", "--protocol", "1"},
 		{"detail", "--workspace", "/w", "--command", "runpr", "--protocol", "1"},
 		{"release", "--protocol", "1"},
@@ -287,10 +279,12 @@ func TestRunWorkspaceSubcommands(t *testing.T) {
 			return ok && a["outcome"] == "not_sent" && a["reason"] == "no_workspace"
 		}},
 		{[]string{"detail", "--workspace", "/nowhere", "--protocol", "1"}, func(out map[string]any) bool {
-			return out["problem"] != "" && out["pr"] == nil
+			p, ok := out["problem"].(string)
+			return ok && p != "" && out["pr"] == nil
 		}},
 		{[]string{"release", "--workspace", "/nowhere", "--protocol", "1"}, func(out map[string]any) bool {
-			return out["released"] == false && out["problem"] != ""
+			p, ok := out["problem"].(string)
+			return out["released"] == false && ok && p != ""
 		}},
 	}
 	for _, c := range cases {

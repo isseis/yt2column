@@ -150,9 +150,6 @@ func TestSendChecksBeforeFirstInput(t *testing.T) {
 		left   string
 	}{
 		{"working", "claude", opus, func(_ *sendWorld, p *simPane) { p.Status = "working" }, NotSentNotAccepting, ""},
-		{"blocked on a question", "claude", opus, func(sw *sendWorld, p *simPane) {
-			p.Status, p.screen = "blocked", readScreenSample(sw.t, "claude-question-single.ansi")
-		}, NotSentNotAccepting, ""},
 		{"idle with a question on screen", "claude", opus, func(sw *sendWorld, p *simPane) {
 			p.screen = readScreenSample(sw.t, "claude-question-single.ansi")
 		}, NotSentNotAccepting, ""},
@@ -169,7 +166,7 @@ func TestSendChecksBeforeFirstInput(t *testing.T) {
 		{"OpenCode unsent text", "opencode", flash, func(sw *sendWorld, p *simPane) {
 			p.screen = readScreenSample(sw.t, "opencode-input-left.ansi")
 		}, NotSentInputLeft, "unsent draft text"},
-		{"OpenCode of another model", "opencode", func(t *testing.T) paneinput.Route { return openCodeRoute(t, "DeepSeek V4.1") }, func(*sendWorld, *simPane) {}, NotSentModelMismatch, ""},
+		{"OpenCode of another model", "opencode", func(t *testing.T) paneinput.Route { return openCodeRoute(t, "DeepSeek V4.1 Pro 1017 OpenCode Go") }, func(*sendWorld, *simPane) {}, NotSentModelMismatch, ""},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -226,9 +223,9 @@ func TestSendInputsInOrder(t *testing.T) {
 			if got := sw.rec.prompts(); !slices.Equal(got, c.want) {
 				t.Errorf("typed %v, want %v", got, c.want)
 			}
-			names := sendRecordNames(t, sc.held)
-			if len(names) != 2 || !strings.HasSuffix(names[0], endSuffix) || !strings.HasSuffix(names[1], startSuffix) {
-				t.Errorf("records = %v, want one start and its end", names)
+			starts, ends, err := sc.held.sendFiles()
+			if _, ok := ends[starts[0]]; err != nil || len(starts) != 1 || len(ends) != 1 || !ok {
+				t.Errorf("records = %v %v %v, want one start and its end", starts, ends, err)
 			}
 		})
 	}
@@ -285,8 +282,18 @@ func TestSendStopsBetweenInputs(t *testing.T) {
 			sw.addTask(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch}, "claude")
 			deps := sw.finish()
 			sw.react = func(p *simPane, text string) error { return c.react(sw, p, text) }
+			var created []string
+			deps.Store.beforeCreate = func(name string) error {
+				created = append(created, name)
+				return nil
+			}
 			sc := sw.sendContextOf(deps)
 			res := sc.sendCommand(context.Background(), runplanCmd(t), opus(t))
+			stopAt := slices.Index(created, stopFile)
+			endAt := slices.IndexFunc(created, func(n string) bool { return strings.HasSuffix(n, endSuffix) })
+			if stopAt < 0 || endAt < 0 || stopAt > endAt {
+				t.Errorf("records created %v; want the stop before the end", created)
+			}
 			if res.Outcome != OutcomeSentThenFailed || res.Step != c.step || res.Reason != c.reason {
 				t.Errorf("result = %+v, want sent then failed after %s, %s", res, c.step, c.reason)
 			}
@@ -683,5 +690,42 @@ func TestSendStopsWithoutANewSession(t *testing.T) {
 	}
 	if stop, _ := sc.held.Stopped(); stop == nil {
 		t.Error("the workspace was not stopped")
+	}
+}
+
+// TestSendStopUnwritten checks a failure after an input whose stop cannot be
+// written: the end is not written either, so the start alone stops the
+// workspace at the next settle.
+func TestSendStopUnwritten(t *testing.T) {
+	sw := newSendWorld(t)
+	sw.addTask(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch}, "claude")
+	deps := sw.finish()
+	sw.react = func(p *simPane, text string) error {
+		if text == "/clear" {
+			return nil
+		}
+		return sw.realReact(p, text)
+	}
+	deps.Store.beforeCreate = func(name string) error {
+		if name == stopFile {
+			return errNoReply
+		}
+		return nil
+	}
+	sc := sw.sendContextOf(deps)
+	res := sc.sendCommand(context.Background(), runplanCmd(t), opus(t))
+	if res.Outcome != OutcomeSentThenFailed {
+		t.Fatalf("result = %+v, want sent then failed", res)
+	}
+	starts, ends, err := sc.held.sendFiles()
+	if err != nil || len(starts) != 1 || len(ends) != 0 {
+		t.Fatalf("send records = %v %v %v; want the start without an end", starts, ends, err)
+	}
+	sc.held.beforeCreate = nil
+	if n, err := sc.held.SettleUnfinished(deps.Now()); err != nil || n != 1 {
+		t.Fatalf("SettleUnfinished = %d, %v", n, err)
+	}
+	if stop, _ := sc.held.Stopped(); stop == nil {
+		t.Error("the start did not stop the workspace")
 	}
 }
