@@ -636,6 +636,7 @@ func isSampleReport(text string) bool {
 func TestReadLastHumanInput(t *testing.T) {
 	sample := strings.TrimSpace(string(readTestdata(t, "transcript/claude-human-input.jsonl")))
 	lines := strings.Split(sample, "\n")
+	queued := strings.Split(strings.TrimSpace(string(readTestdata(t, "transcript/claude-queued-input.jsonl"))), "\n")
 	command := HumanInput{Kind: HumanInputCommand, Name: "runplan", Args: "0088"}
 	cases := []struct {
 		name string
@@ -650,6 +651,10 @@ func TestReadLastHumanInput(t *testing.T) {
 		{"two names that differ", strings.Replace(strings.Join(lines[:3], "\n"), "<command-message>runplan<", "<command-message>mkplan<", 1), HumanInput{Kind: HumanInputOther}},
 		{"the command line without its human origin", strings.Replace(strings.Join(lines[:3], "\n"), `"origin":{"kind":"human"},`, "", 1), HumanInput{Kind: HumanInputNone}},
 		{"a later line of an unsampled origin", strings.Join(lines[:3], "\n") + "\n" + strings.Replace(lines[len(lines)-1], `"kind":"human"`, `"kind":"scheduled"`, 1), HumanInput{}},
+		{"a message the human typed while the agent worked", strings.Join(lines[:3], "\n") + "\n" + queued[2], HumanInput{Kind: HumanInputOther}},
+		{"a peer's message and a task notification delivered while the agent worked", strings.Join(lines[:3], "\n") + "\n" + queued[0] + "\n" + queued[1], command},
+		{"a queued command of an unsampled origin", strings.Join(lines[:3], "\n") + "\n" + strings.Replace(queued[2], `"kind":"human"`, `"kind":"coordinator"`, 1), HumanInput{}},
+		{"a queued command without an origin", strings.Join(lines[:3], "\n") + "\n" + strings.Replace(queued[2], `"origin":{"kind":"human"},`, "", 1), HumanInput{}},
 		{"a later human line repeating a member", strings.Join(lines[:3], "\n") + "\n" + strings.Replace(lines[len(lines)-1], `"type":"user",`, `"type":"user","type":"user",`, 1), HumanInput{}},
 	}
 	for _, c := range cases {

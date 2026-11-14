@@ -54,7 +54,10 @@ func TestResetAfterRunpr(t *testing.T) {
 		// ran is the command the pane last ran, when not detailWorld's.
 		ran string
 		// typed is text the human typed after it.
-		typed    string
+		typed string
+		// queued adds the sampled message the human typed while the agent
+		// worked, after the command.
+		queued   bool
 		noReport bool
 		react    func(sw *sendWorld, p *simPane, text string) error
 		reason   NotSentReason
@@ -65,6 +68,7 @@ func TestResetAfterRunpr(t *testing.T) {
 		{name: "another document command of the task", ran: "/mkplan 0001", reason: NotSentOtherInput},
 		{name: "a plan PR whose pane last ran another command", plan: "marker-opus.md", reason: NotSentOtherInput},
 		{name: "text typed after the command", typed: "what is the state of PR 42?", reason: NotSentOtherInput},
+		{name: "text typed while the command worked", queued: true, reason: NotSentOtherInput},
 		{name: "the command of another task", ran: "/mkarch 0002", reason: NotSentOtherInput},
 		{name: "/mkreq without an issue", plan: "none", ran: "/mkreq", reason: NotSentOtherInput},
 		{name: "a plan PR made on OpenCode, the pane /runpr went to", plan: "marker-sonnet.md", reason: NotSentSamePane},
@@ -113,6 +117,12 @@ func TestResetAfterRunpr(t *testing.T) {
 			p := sw.firstPane()
 			if c.typed != "" {
 				if err := sw.writeTranscript(p, p.Session, typedLine(c.typed)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if c.queued {
+				queued := strings.Split(strings.TrimSpace(string(readTestdata(t, "transcript/claude-queued-input.jsonl"))), "\n")
+				if err := sw.writeTranscript(p, p.Session, queued[2]); err != nil {
 					t.Fatal(err)
 				}
 			}

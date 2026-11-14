@@ -152,9 +152,16 @@ const humanOrigin = "human"
 // otherOrigins are the sampled origin kinds of lines the human did not type.
 var otherOrigins = []string{"peer", "task-notification"}
 
+// queuedCommand is the attachment type of a message delivered while the
+// agent works: the human's text typed mid-turn, a peer's message, or a task
+// notification, told apart by the attachment's own origin.
+const queuedCommand = "queued_command"
+
 // readLastHumanInput reads the last line of a transcript the human typed.
 // Contract: a line is the human's only when Claude Code declares it so (a
-// "user" line whose origin kind is "human"), never by its text; a line that
+// "user" line whose origin kind is "human", or a queued-command attachment
+// whose own origin kind is "human", the text typed while the agent worked),
+// never by its text; a line that
 // is not one JSON object, that repeats a member read here, or whose origin is
 // of no sampled kind makes the whole transcript HumanInputUnreadable, so a
 // line that might be the human's is never skipped; the last human line is a
@@ -181,11 +188,59 @@ func readLastHumanInput(transcript []byte) HumanInput {
 	return result
 }
 
+// humanOriginOf reads an origin object: human is true for the human's kind;
+// ok is false for an origin of no sampled kind.
+func humanOriginOf(v strictjson.Value) (human, ok bool) {
+	origin, err := objectString(v, "kind")
+	switch {
+	case err != nil:
+		return false, false
+	case origin == humanOrigin:
+		return true, true
+	case slices.Contains(otherOrigins, origin):
+		return false, true
+	default:
+		return false, false
+	}
+}
+
+// queuedInput reads an attachment line: a queued command is the human's
+// when its own origin says so, and the human's text typed while the agent
+// worked is never a command of the sampled form, so it is HumanInputOther; a
+// queued command without an origin of a sampled kind cannot be told.
+// Attachments of other types are not the human's.
+func queuedInput(members map[string]strictjson.Value) (HumanInput, bool, bool) {
+	value, ok := members["attachment"]
+	if !ok {
+		return HumanInput{}, false, false
+	}
+	attachment, err := value.AsObject()
+	if err != nil {
+		return HumanInput{}, false, false
+	}
+	fields, err := attachment.Collect("type", "origin")
+	if err != nil {
+		return HumanInput{}, false, false
+	}
+	if kind, err := strictjson.RequiredString(fields, "type"); err != nil || kind != queuedCommand {
+		return HumanInput{}, false, err == nil
+	}
+	originValue, ok := fields["origin"]
+	if !ok {
+		return HumanInput{}, false, false
+	}
+	human, ok := humanOriginOf(originValue)
+	if !ok || !human {
+		return HumanInput{}, false, ok
+	}
+	return HumanInput{Kind: HumanInputOther}, true, true
+}
+
 // humanInputOf returns the human input of a line and whether the line is
 // the human's; ok is false for a line that cannot be told to be or not to
 // be the human's.
 func humanInputOf(object strictjson.Object) (in HumanInput, human, ok bool) {
-	members, err := object.Collect("type", "origin", "message")
+	members, err := object.Collect("type", "origin", "message", "attachment")
 	if err != nil {
 		return HumanInput{}, false, false
 	}
@@ -193,18 +248,15 @@ func humanInputOf(object strictjson.Object) (in HumanInput, human, ok bool) {
 	if err != nil {
 		return HumanInput{}, false, false
 	}
+	if kind == "attachment" {
+		return queuedInput(members)
+	}
 	originValue, hasOrigin := members["origin"]
 	if kind != "user" || !hasOrigin {
 		return HumanInput{}, false, true
 	}
-	origin, err := objectString(originValue, "kind")
-	switch {
-	case err != nil:
-		return HumanInput{}, false, false
-	case slices.Contains(otherOrigins, origin):
-		return HumanInput{}, false, true
-	case origin != humanOrigin:
-		return HumanInput{}, false, false
+	if human, ok := humanOriginOf(originValue); !ok || !human {
+		return HumanInput{}, false, ok
 	}
 	other := HumanInput{Kind: HumanInputOther}
 	messageValue, err := strictjson.Required(members, "message")

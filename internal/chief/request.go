@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strconv"
 
 	"github.com/isseis/yt2column/internal/chief/paneinput"
@@ -112,7 +113,8 @@ type located struct {
 // locate finds the task workspace whose worktree is path. Contract: path is
 // compared with the canonical worktrees of the current task workspaces after
 // its own links are resolved, and git never runs in it; a path that is no
-// current task workspace's worktree is not found.
+// current task workspace's worktree, or that more than one Herdr workspace
+// holds, is not found.
 func locate(ctx context.Context, deps Deps, path string) (located, error) {
 	herdr := NewHerdr(deps.Cmds)
 	chiefPane, err := ParsePaneID(deps.Env.PaneID)
@@ -144,11 +146,16 @@ func locate(ctx context.Context, deps Deps, path string) (located, error) {
 	if err != nil {
 		return loc, nil
 	}
+	matches := 0
 	for _, w := range found {
 		if w.Worktree == resolved {
-			loc.ws, loc.found = w, true
+			loc.ws = w
+			matches++
 		}
 	}
+	// A worktree two Herdr workspaces hold names no one workspace, so none
+	// is chosen between them.
+	loc.found = matches == 1
 	return loc, nil
 }
 
@@ -179,7 +186,7 @@ func Send(ctx context.Context, deps Deps, req SendRequest) (SendOutcome, error) 
 	one := func(r ActionResult) SendOutcome { return SendOutcome{Actions: []ActionResult{r}} }
 	base := ActionResult{Workspace: req.workspace, Input: InputCommand}
 	if !loc.found {
-		return one(notSent(base, NotSentNoWorkspace, "the path is no current task workspace's worktree")), nil
+		return one(notSent(base, NotSentNoWorkspace, "the path is no current task workspace's worktree, or more than one Herdr workspace holds it")), nil
 	}
 	base.Workspace = loc.ws.Worktree
 	routing, routingErr := ReadRouting(ctx, deps.Cmds, loc.chiefTree.String())
@@ -211,6 +218,13 @@ func Send(ctx context.Context, deps Deps, req SendRequest) (SendOutcome, error) 
 	tasks := NewTasks(deps.Cmds)
 	git := NewGitReader(deps.Cmds)
 	herdr := NewHerdr(deps.Cmds)
+	// The agents were listed before the exclusion was taken; the row is
+	// classified from a list read under it.
+	agents, err := herdr.Agents(ctx)
+	if err != nil {
+		return one(notSent(base, NotSentUnreadable, "herdr agent list failed: "+err.Error())), nil
+	}
+	loc.ws.Agents = slices.DeleteFunc(agents, func(a Agent) bool { return a.Workspace != loc.ws.ID })
 	old, oldErr := readOldValues(ctx, tasks, loc.chiefTree.String())
 	f := readWorkspace(ctx, herdr, git, tasks, loc.ws)
 	f.Routing = routing

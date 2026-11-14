@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/isseis/yt2column/internal/chief/paneinput"
@@ -311,16 +313,17 @@ func (s sendContext) checkPane(ctx context.Context, target Agent, check paneChec
 	return a, nil
 }
 
-// targetPane returns the one agent of kind in the workspace. Contract: zero
-// or several agents of the kind is no target, so a pane the human may be
-// talking to is never chosen among several; chief's own workspace is never a
-// task workspace, so its panes are never among them.
+// targetPane returns the one agent of kind in the workspace that works in
+// its worktree. Contract: zero or several such agents is no target, so a
+// pane the human may be talking to is never chosen among several; a pane
+// whose directory is outside the worktree is never one; chief's own
+// workspace is never a task workspace, so its panes are never among them.
 func targetPane(ws TaskWorkspace, kind paneinput.AgentKind) (Agent, []string, bool) {
 	var found []Agent
 	var panes []string
 	for _, a := range ws.Agents {
 		panes = append(panes, a.Pane.String()+" "+agentLabel(a.Kind))
-		if a.Kind == kind && kind != paneinput.AgentUnknown {
+		if a.Kind == kind && kind != paneinput.AgentUnknown && inWorktree(a.Dir, ws.Worktree) {
 			found = append(found, a)
 		}
 	}
@@ -328,6 +331,16 @@ func targetPane(ws TaskWorkspace, kind paneinput.AgentKind) (Agent, []string, bo
 		return Agent{}, panes, false
 	}
 	return found[0], panes, true
+}
+
+// inWorktree reports whether dir, its links resolved, is the worktree or a
+// directory below it.
+func inWorktree(dir, worktree string) bool {
+	resolved, err := filepath.EvalSymlinks(dir)
+	if err != nil || worktree == "" {
+		return false
+	}
+	return resolved == worktree || strings.HasPrefix(resolved, worktree+string(filepath.Separator))
 }
 
 // sendCommand sends cmd by route to the workspace: the agent's reset, its

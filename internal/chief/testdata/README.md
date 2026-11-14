@@ -79,6 +79,7 @@
 | `herdr/agent-get-*.json` | `herdr agent get` の出力（`blocked`・`idle`・`done` の各状態） |
 | `herdr/agent-list.json`・`herdr/workspace-list.json` | `herdr agent list`・`herdr workspace list` の出力 |
 | `transcript/claude-clear-model.jsonl` | Claude Code の transcript |
+| `transcript/claude-queued-input.jsonl` | Claude Code がエージェントの作業中に届いた入力を記録する行（人の文、ほかのエージェントからの報告、タスクの通知）。下の「人の入力の transcript」のとおり採った |
 | `transcript/claude-human-input.jsonl` | Claude Code の transcript の、人の入力とそれ以外の行。下の「人の入力の transcript」のとおり採った |
 | `gh/pr-list-*.json` | `gh pr list --head <ブランチ> --json number,state,headRefName,title,url` |
 | `gh/pr-view-*.json` | `gh pr view <番号> --json state,number,title,url,headRefName,headRefOid,additions,deletions,changedFiles,commits,files,body,reviews` |
@@ -90,3 +91,5 @@ CI のジョブのない PR は、採った時点のこのリポジトリにな�
 ### 人の入力の transcript
 
 `transcript/claude-human-input.jsonl` は、タスク 0088 の PR-4 で、2026-11-15 に Claude Code 2.1.325 の transcript から採った。PR-4 の `/runplan` のセッションの transcript で、行の種類（人が打ったカスタムコマンド、人が打った文、`/clear` の記録、ほかのエージェントからの報告、タスクの通知、ツールの結果、エージェントの応答）ごとに最初の 1 行を、順序を保って取った。各行は、chief が読む項目（`type`・`origin` の `kind`・`message`）と、行の種類を表す項目（`isMeta`・`promptSource`・`turnOrigin`）だけに絞った。人が打った 2 行の `message` は採ったままである。それ以外の行の `message` は、長い本文や作業ディレクトリのパスを含むので、同じ形の短い文に置き換えた。ID は上の表の規則で置き換えた。
+
+`transcript/claude-queued-input.jsonl` は、同じ日に、このプロジェクトのほかの worktree の Claude Code 2.1.304・2.1.305 の transcript から採った。エージェントの作業中に届いた入力は、`type` が `attachment` で、`attachment` の `type` が `queued_command` の行になり、`attachment` の中の `origin` の `kind` が届けたものを示す。`kind` が `human`・`peer`・`task-notification` の行を 1 行ずつ取り、`attachment` の `type`・`commandMode`・`origin` の `kind`・`prompt` に絞り、`prompt` は同じ形の短い文に置き換えた。2.1.322〜2.1.325 の transcript にも同じ形の行があることを確かめた。

@@ -763,3 +763,77 @@ func TestTranscriptFIFORefused(t *testing.T) {
 		}
 	}
 }
+
+// TestSendRereadsAgentsUnderTheLock checks that the row is classified from
+// the agents as Herdr lists them once the exclusion is held: an agent that
+// starts working between the first list and the lock makes the row running,
+// so the command is not offered and nothing is typed.
+func TestSendRereadsAgentsUnderTheLock(t *testing.T) {
+	sw := newSendWorld(t)
+	tree := sw.addTask(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-opus.md")}}, "claude")
+	deps := sw.finish()
+	lists := 0
+	sw.rec.replyFunc("herdr agent list", func() reply {
+		sw.mu.Lock()
+		defer sw.mu.Unlock()
+		lists++
+		if lists == 2 {
+			sw.byPane["w1:p1"].Status = "working"
+		}
+		agents := []fakeAgent{sw.chief}
+		for _, p := range sw.panes {
+			agents = append(agents, p.fakeAgent)
+		}
+		return reply{out: agentListOutput(agents)}
+	})
+	out, err := Send(context.Background(), deps, sendReq(t, tree, "runplan", "", ""))
+	if err != nil || out.Actions[0].Outcome != OutcomeNotSent || out.Actions[0].Reason != NotSentNotOffered {
+		t.Fatalf("Send = %+v, %v; want not offered", out, err)
+	}
+	if got := sw.rec.prompts(); len(got) != 0 {
+		t.Errorf("typed %v", got)
+	}
+}
+
+// TestSendRefusesAWorktreeOfTwoWorkspaces checks that a worktree two Herdr
+// workspaces hold gets nothing: neither workspace is chosen.
+func TestSendRefusesAWorktreeOfTwoWorkspaces(t *testing.T) {
+	sw := newSendWorld(t)
+	tree := sw.addTask(fakeWorkspace{ID: "w1", Label: "one", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-opus.md")}}, "claude")
+	p := &simPane{fakeAgent: fakeAgent{Pane: "w2:p1", Workspace: "w2", Kind: "claude", Status: "idle", Session: sw.newSession(), Dir: tree, Seq: 10}, screen: readScreenSample(t, "claude-idle.ansi")}
+	sw.panes = append(sw.panes, p)
+	sw.byPane[p.Pane] = p
+	sw.labels = append(sw.labels, [2]string{"w2", "two"})
+	deps := sw.finish()
+	out, err := Send(context.Background(), deps, sendReq(t, tree, "runplan", "", ""))
+	if err != nil || out.Actions[0].Outcome != OutcomeNotSent || out.Actions[0].Reason != NotSentNoWorkspace {
+		t.Fatalf("Send = %+v, %v; want no workspace", out, err)
+	}
+	if got := sw.rec.prompts(); len(got) != 0 {
+		t.Errorf("typed %v", got)
+	}
+}
+
+// TestTargetPaneStaysInTheWorktree checks that a pane whose directory is
+// outside the workspace's worktree is never a target, and one below it is.
+func TestTargetPaneStaysInTheWorktree(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	tree, other, below := filepath.Join(root, "tree"), filepath.Join(root, "tree-other"), filepath.Join(root, "tree", "sub")
+	for _, d := range []string{tree, other, below} {
+		if err := os.MkdirAll(d, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	agent := func(pane, dir string) Agent {
+		return Agent{Pane: PaneID{id: pane}, Workspace: "w1", Kind: paneinput.AgentOpenCode, Dir: dir}
+	}
+	if _, _, ok := targetPane(TaskWorkspace{Worktree: tree, Agents: []Agent{agent("w1:p1", other)}}, paneinput.AgentOpenCode); ok {
+		t.Error("a pane in another worktree was chosen")
+	}
+	if a, _, ok := targetPane(TaskWorkspace{Worktree: tree, Agents: []Agent{agent("w1:p1", below)}}, paneinput.AgentOpenCode); !ok || a.Pane.id != "w1:p1" {
+		t.Errorf("a pane below the worktree was not chosen: %v %v", a, ok)
+	}
+}
