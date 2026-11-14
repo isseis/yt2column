@@ -434,7 +434,9 @@ func TestReleaseClearsStop(t *testing.T) {
 }
 
 // TestWorkspaceBusy checks that a send to a workspace whose exclusion the
-// test holds types nothing and says another send is under way.
+// test holds types nothing and says another send is under way, and that it
+// read nothing of the workspace's row first: the row is read only under the
+// exclusion, so no send acts on a row read before another sent.
 func TestWorkspaceBusy(t *testing.T) {
 	sw := newSendWorld(t)
 	tree := sw.addTask(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-opus.md")}}, "claude")
@@ -450,6 +452,11 @@ func TestWorkspaceBusy(t *testing.T) {
 	}
 	if got := sw.rec.prompts(); len(got) != 0 {
 		t.Errorf("typed %v", got)
+	}
+	for _, c := range sw.rec.recorded() {
+		if c.name == ghProgram || (c.name == gitProgram && c.dir == tree && slices.Contains(c.args, "--abbrev-ref")) {
+			t.Errorf("the row was read before the exclusion: %s", c.line())
+		}
 	}
 }
 

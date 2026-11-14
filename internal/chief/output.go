@@ -174,7 +174,7 @@ func (s Snapshot) Output() SnapshotOutput {
 			PR:            prOutput(r.PR),
 		}
 		if r.Running != nil {
-			row.Running = &RunningOutput{Pane: r.Running.Pane, Command: Sanitize(r.Running.Command), Agent: Sanitize(r.Running.Agent), Model: Sanitize(r.Running.Model), Started: r.Running.Started}
+			row.Running = &RunningOutput{Pane: Sanitize(r.Running.Pane), Command: Sanitize(r.Running.Command), Agent: Sanitize(r.Running.Agent), Model: Sanitize(r.Running.Model), Started: r.Running.Started}
 		}
 		if r.Stopped != nil {
 			row.Stopped = &StopOutput{Reason: Sanitize(r.Stopped.Reason), Screen: Sanitize(r.Stopped.Screen), At: r.Stopped.At}
@@ -324,8 +324,8 @@ func actionOutput(a ActionResult) ActionOutput {
 		status = statusName(a.Status)
 	}
 	return ActionOutput{
-		Workspace: a.Workspace,
-		Pane:      a.Pane,
+		Workspace: Sanitize(a.Workspace),
+		Pane:      Sanitize(a.Pane),
 		Input:     a.Input.String(),
 		Command:   a.Command,
 		Agent:     agentLabel(a.Agent),
@@ -357,7 +357,7 @@ func (o DetailOutcome) Output() DetailOutput {
 	if d == nil {
 		return out
 	}
-	out.Workspace, out.Label, out.Task = d.Workspace, Sanitize(d.Label), d.Task
+	out.Workspace, out.Label, out.Task = Sanitize(d.Workspace), Sanitize(d.Label), d.Task
 	out.PR = prOutput(&d.PR)
 	out.ViewError, out.ChecksError, out.RecordError = Sanitize(d.ViewErr), Sanitize(d.ChecksErr), Sanitize(d.RecordErr)
 	if d.View != nil {

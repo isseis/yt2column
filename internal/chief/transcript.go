@@ -31,7 +31,7 @@ const (
 // transcript directory to be decided: the sampled rule replaces "/" and "."
 // with "-", and a directory with another character could be named by a rule
 // the samples did not show.
-var transcriptDirChars = regexp.MustCompile(`^/[A-Za-z0-9/._-]*$`)
+var transcriptDirChars = regexp.MustCompile(`^/[A-Za-z0-9/.-]*$`)
 
 // transcriptPath returns the transcript of session for an agent working in
 // dir: <config>/projects/<dir with "/" and "." replaced by "-">/<session>.jsonl,
@@ -60,18 +60,11 @@ func transcriptPath(env Env, dir, session string) (string, error) {
 // readTranscript reads a transcript file: a regular file, at most
 // transcriptLimit bytes.
 func readTranscript(path string) ([]byte, error) {
-	f, err := os.Open(path) //nolint:gosec // the path is built by transcriptPath from checked parts
+	f, err := openTranscript(path)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", errTranscript, err)
+		return nil, err
 	}
 	defer func() { _ = f.Close() }()
-	info, err := f.Stat()
-	if err != nil {
-		return nil, fmt.Errorf("%w: %w", errTranscript, err)
-	}
-	if !info.Mode().IsRegular() {
-		return nil, fmt.Errorf("%w: %s is not a regular file", errTranscript, path)
-	}
 	data, err := io.ReadAll(io.LimitReader(f, transcriptLimit+1))
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", errTranscript, err)
@@ -87,17 +80,27 @@ func readTranscript(path string) ([]byte, error) {
 // larger than the read cap, and only its place is checked before the first
 // input.
 func transcriptOpens(path string) error {
+	f, err := openTranscript(path)
+	if err != nil {
+		return err
+	}
+	return f.Close()
+}
+
+// openTranscript opens a transcript that is a regular file.
+func openTranscript(path string) (*os.File, error) {
 	f, err := os.Open(path) //nolint:gosec // the path is built by transcriptPath from checked parts
 	if err != nil {
-		return fmt.Errorf("%w: %w", errTranscript, err)
+		return nil, fmt.Errorf("%w: %w", errTranscript, err)
 	}
-	defer func() { _ = f.Close() }()
 	info, err := f.Stat()
 	if err != nil {
-		return fmt.Errorf("%w: %w", errTranscript, err)
+		_ = f.Close()
+		return nil, fmt.Errorf("%w: %w", errTranscript, err)
 	}
 	if !info.Mode().IsRegular() {
-		return fmt.Errorf("%w: %s is not a regular file", errTranscript, path)
+		_ = f.Close()
+		return nil, fmt.Errorf("%w: %s is not a regular file", errTranscript, path)
 	}
-	return nil
+	return f, nil
 }

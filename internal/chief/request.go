@@ -155,7 +155,9 @@ type SendOutcome struct {
 // /mkreq to a workspace without a task, or /runpr of the branch's open PR of
 // that number); the route comes from origin/main's routing table; the send
 // holds the workspace's exclusion, settles unfinished sends first, and sends
-// nothing to a stopped workspace; after /runpr the detail is kept before the
+// nothing to a stopped workspace; the workspace's row is read and the
+// command checked only once the exclusion is held, so two sends cannot both
+// act on a row read before either sent; after /runpr the detail is kept before the
 // send and the maker's pane is reset only as resetAfterRunpr allows.
 func Send(ctx context.Context, deps Deps, req SendRequest) (SendOutcome, error) {
 	if req.kind == RequestUnknown {
@@ -175,24 +177,6 @@ func Send(ctx context.Context, deps Deps, req SendRequest) (SendOutcome, error) 
 	if routingErr != nil {
 		return one(notSent(base, NotSentUnreadable, "the routing table cannot be read: "+routingErr.Error())), nil
 	}
-	tasks := NewTasks(deps.Cmds)
-	git := NewGitReader(deps.Cmds)
-	herdr := NewHerdr(deps.Cmds)
-	old, oldErr := readOldValues(ctx, tasks, loc.chiefTree.String())
-	f := readWorkspace(ctx, herdr, git, tasks, loc.ws)
-	f.Routing = routing
-	row := classifyWorkspace(ctx, git, tasks, f, old, oldErr)
-	cmd, why := offered(row, req)
-	if why != "" {
-		return one(notSent(base, NotSentNotOffered, why)), nil
-	}
-	base.Command, _ = cmd.Text()
-	route, err := routing.Route(cmd.Route())
-	if err != nil {
-		return one(notSent(base, NotSentUnreadable, "the routing table has no route for the command")), nil
-	}
-	base.Agent = route.Agent()
-	base.Model, _ = route.ModelText()
 	records, err := deps.Store.Records(loc.ws.Tree)
 	if err != nil {
 		return one(notSent(base, NotSentUnreadable, "the workspace's records cannot be opened: "+err.Error())), nil
@@ -215,6 +199,24 @@ func Send(ctx context.Context, deps Deps, req SendRequest) (SendOutcome, error) 
 	case stop != nil:
 		return one(notSent(base, NotSentStopped, "the workspace is stopped until release: "+stop.Reason)), nil
 	}
+	tasks := NewTasks(deps.Cmds)
+	git := NewGitReader(deps.Cmds)
+	herdr := NewHerdr(deps.Cmds)
+	old, oldErr := readOldValues(ctx, tasks, loc.chiefTree.String())
+	f := readWorkspace(ctx, herdr, git, tasks, loc.ws)
+	f.Routing = routing
+	row := classifyWorkspace(ctx, git, tasks, f, old, oldErr)
+	cmd, why := offered(row, req)
+	if why != "" {
+		return one(notSent(base, NotSentNotOffered, why)), nil
+	}
+	base.Command, _ = cmd.Text()
+	route, err := routing.Route(cmd.Route())
+	if err != nil {
+		return one(notSent(base, NotSentUnreadable, "the routing table has no route for the command")), nil
+	}
+	base.Agent = route.Agent()
+	base.Model, _ = route.ModelText()
 	writer, err := NewPaneWriter(deps.Cmds, loc.chiefPane, loc.chief.Workspace)
 	if err != nil {
 		return SendOutcome{}, err

@@ -96,7 +96,15 @@ const worldChiefPane = "wc:p1"
 // replies chief's own worktree needs.
 func newWorld(t *testing.T) *world {
 	t.Helper()
-	root, err := filepath.EvalSymlinks(t.TempDir())
+	// The root is not t.TempDir(): its name holds the test's name with "_"
+	// for blanks, and a Claude Code transcript is looked for only under a
+	// working directory of the sampled characters.
+	tmp, err := os.MkdirTemp("", "chief-world-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(tmp) })
+	root, err := filepath.EvalSymlinks(tmp)
 	if err != nil {
 		t.Fatal(err)
 	}

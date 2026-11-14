@@ -255,6 +255,11 @@ func TestSendStopsBetweenInputs(t *testing.T) {
 			p.Status = "working"
 			return err
 		}, 1, StepClear, NotSentNotAccepting},
+		{"the pane moves to another workspace during the wait", func(sw *sendWorld, p *simPane, text string) error {
+			err := sw.realReact(p, text)
+			p.Workspace = "w9"
+			return err
+		}, 1, StepClear, NotSentUnreadable},
 		{"/clear keeps the session", func(sw *sendWorld, p *simPane, text string) error {
 			if text == "/clear" {
 				return nil
@@ -439,7 +444,8 @@ func TestTranscriptPath(t *testing.T) {
 		want    string
 	}{
 		{Env{Home: "/home/u"}, "/work/a.b/c", session, "/home/u/.claude/projects/-work-a-b-c/" + session + ".jsonl"},
-		{Env{Home: "/home/u", ClaudeConfigDir: "/cfg"}, "/work/x_y", session, "/cfg/projects/-work-x_y/" + session + ".jsonl"},
+		{Env{Home: "/home/u", ClaudeConfigDir: "/cfg"}, "/work/x-y", session, "/cfg/projects/-work-x-y/" + session + ".jsonl"},
+		{Env{Home: "/home/u"}, "/work/x_y", session, ""},
 		{Env{Home: "/home/u"}, "/work/a b", session, ""},
 		{Env{Home: "/home/u"}, "relative", session, ""},
 		{Env{Home: "/home/u"}, "/work", "", ""},
@@ -631,5 +637,51 @@ func TestSendTakeover(t *testing.T) {
 	want := []string{"w1:p1 /clear", "w1:p1 /model sonnet", "w1:p1 /runplan 0001"}
 	if got := sw.rec.prompts(); !slices.Equal(got, want) {
 		t.Errorf("typed %v, want %v", got, want)
+	}
+}
+
+// TestSendWriterRefusalSendsNothing checks that a prompt the writer refuses
+// before anything was typed ends the send as not sent, without a stop.
+func TestSendWriterRefusalSendsNothing(t *testing.T) {
+	sw := newSendWorld(t)
+	sw.addTask(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch}, "claude")
+	deps := sw.finish()
+	sc := sw.sendContextOf(deps)
+	var err error
+	// A writer that takes w1 for chief's workspace refuses every pane of it.
+	if sc.writer, err = NewPaneWriter(deps.Cmds, PaneID{id: worldChiefPane}, "w1"); err != nil {
+		t.Fatal(err)
+	}
+	res := sc.sendCommand(context.Background(), runplanCmd(t), opus(t))
+	if res.Outcome != OutcomeNotSent || len(sw.rec.prompts()) != 0 {
+		t.Fatalf("result = %+v, typed %v; want not sent", res, sw.rec.prompts())
+	}
+	if stop, err := sc.held.Stopped(); err != nil || stop != nil {
+		t.Errorf("Stopped = %+v, %v; want no stop", stop, err)
+	}
+	if starts, ends, err := sc.held.sendFiles(); err != nil || len(starts) != 1 || len(ends) != 1 {
+		t.Errorf("send records = %v %v %v; want the start and its end", starts, ends, err)
+	}
+}
+
+// TestSendStopsWithoutANewSession checks that an OpenCode pane that shows no
+// new session after /new gets no command and stops the workspace.
+func TestSendStopsWithoutANewSession(t *testing.T) {
+	sw := newSendWorld(t)
+	sw.addTask(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch}, "opencode")
+	deps := sw.finish()
+	sw.react = func(p *simPane, text string) error {
+		if text == "/new" {
+			return nil
+		}
+		return sw.realReact(p, text)
+	}
+	sc := sw.sendContextOf(deps)
+	res := sc.sendCommand(context.Background(), runprCmd(t), flash(t))
+	if res.Outcome != OutcomeSentThenFailed || res.Step != StepNew || res.Reason != NotSentNoStep || len(sw.rec.prompts()) != 1 {
+		t.Errorf("result = %+v, typed %v; want sent then failed after /new, the step not finished", res, sw.rec.prompts())
+	}
+	if stop, _ := sc.held.Stopped(); stop == nil {
+		t.Error("the workspace was not stopped")
 	}
 }

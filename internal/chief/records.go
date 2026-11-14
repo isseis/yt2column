@@ -85,8 +85,10 @@ func StateBase(env Env) (string, error) {
 	return "", fmt.Errorf("%w: neither XDG_STATE_HOME nor HOME is an absolute path", ErrNoStateBase)
 }
 
-// recordLimit caps a record read. The records are small JSON objects.
-const recordLimit = 64 << 10
+// recordLimit caps a record read. The largest record is a PR detail, whose
+// text is capped at 64 KiB; JSON escapes a character into at most six
+// bytes, so the cap leaves room for a text of only escaped characters.
+const recordLimit = 512 << 10
 
 // lockFile is the chief lock's file name; noticePrefix starts a notice
 // record's.
@@ -441,12 +443,18 @@ func CanonicalWorktree(ctx context.Context, cmds Commands, dir string) (Worktree
 	return Worktree{path: resolved}, nil
 }
 
+// workspaceDirOf is the name of a worktree's directory: the hex SHA-256 of
+// its canonical path.
+func workspaceDirOf(w Worktree) string {
+	sum := sha256.Sum256([]byte(w.path))
+	return hex.EncodeToString(sum[:])
+}
+
 // WorkspaceDir returns the directory of the records of one worktree, creating
 // it. The name is the hex SHA-256 of the canonical path, so a record and the
 // exclusion kept in it follow the worktree and not the way it was reached.
 func (s Store) WorkspaceDir(canonical Worktree) (string, error) {
-	sum := sha256.Sum256([]byte(canonical.path))
-	name := hex.EncodeToString(sum[:])
+	name := workspaceDirOf(canonical)
 	if err := privatefile.MkdirBelow(s.dir, []string{name}); err != nil {
 		return "", err
 	}
@@ -500,8 +508,7 @@ func (s Store) Records(w Worktree) (WorkspaceRecords, error) {
 // existingRecords returns the records of a worktree without creating
 // anything: ok is false when the worktree has no directory yet.
 func (s Store) existingRecords(w Worktree) (WorkspaceRecords, bool, error) {
-	sum := sha256.Sum256([]byte(w.path))
-	dir := filepath.Join(s.dir, hex.EncodeToString(sum[:]))
+	dir := filepath.Join(s.dir, workspaceDirOf(w))
 	info, err := os.Lstat(dir)
 	switch {
 	case errors.Is(err, os.ErrNotExist):

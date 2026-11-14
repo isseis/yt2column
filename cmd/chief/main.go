@@ -82,6 +82,11 @@ type result struct {
 	StateDir string `json:"state_dir,omitempty"`
 	TookOver bool   `json:"took_over,omitempty"`
 	Removed  int    `json:"removed_notices,omitempty"`
+	// Stopped counts the workspaces' sends found without an end, each of
+	// which stopped its workspace; RemovedSends the send and detail records
+	// removed.
+	Stopped      int `json:"stopped_sends,omitempty"`
+	RemovedSends int `json:"removed_sends,omitempty"`
 }
 
 // parse returns the subcommand and its flags. Contract: every flag is one of
@@ -233,9 +238,9 @@ func runStart(ctx context.Context, stdout, stderr io.Writer, store chief.Store, 
 	case err != nil:
 		return fail(err)
 	}
-	out := result{Protocol: chief.Protocol, Outcome: "started", StateDir: store.Dir(), TookOver: res.TookOver, Removed: res.Removed}
+	out := result{Protocol: chief.Protocol, Outcome: "started", StateDir: store.Dir(), TookOver: res.TookOver, Removed: res.Removed, Stopped: res.Stopped, RemovedSends: res.RemovedSends}
 	if res.CleanupError != nil {
-		out.Message = "a finished session's notice record could not be removed: " + chief.Sanitize(res.CleanupError.Error())
+		out.Message = "a record could not be settled or removed: " + chief.Sanitize(res.CleanupError.Error())
 	}
 	return write(stdout, stderr, out, exitOK)
 }

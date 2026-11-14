@@ -393,6 +393,15 @@ func (s sendContext) run(ctx context.Context, res ActionResult, target Agent, st
 			}
 		}
 		if err := s.writer.Prompt(ctx, agent, st.prompt); err != nil {
+			if errors.Is(err, errWriteRefused) && last == StepUnknown {
+				// The writer refused before running herdr: nothing reached
+				// the pane.
+				res = notSent(res, NotSentUnreadable, err.Error())
+				if eerr := s.held.EndSend(id, res.Outcome.String(), err.Error(), s.deps.Now()); eerr != nil {
+					res.Detail += "; the end record cannot be written, so the workspace will stop: " + eerr.Error()
+				}
+				return res
+			}
 			// Herdr may have typed the input before it failed, so a failed
 			// write counts as typed.
 			return s.fail(res, id, st.kind, &checkFailure{reason: NotSentUnreadable, detail: "herdr agent prompt failed: " + err.Error(), agent: agent})
@@ -467,6 +476,9 @@ func (s sendContext) poll(ctx context.Context, before Agent, why string, done fu
 		a, err := s.herdr.Agent(ctx, before.Pane)
 		if err != nil {
 			continue
+		}
+		if a.Workspace != before.Workspace || a.Kind != before.Kind {
+			return a, &checkFailure{reason: NotSentUnreadable, detail: "the pane is no longer the same agent of the workspace", agent: a}
 		}
 		last = a
 		raw, err = s.herdr.Screen(ctx, a.Pane, ScreenVisible)

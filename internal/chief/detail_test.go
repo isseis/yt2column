@@ -273,3 +273,19 @@ func TestDetailAfterReset(t *testing.T) {
 		t.Errorf("second detail = %s %q, want the kept report", second.Report, second.ReportText)
 	}
 }
+
+// TestDetailKeepsALargeDescription checks that a detail whose description
+// is at the read cap and made of characters JSON escapes is kept and read
+// back, so a later detail and the reset still find it.
+func TestDetailKeepsALargeDescription(t *testing.T) {
+	sw, tree := detailWorld(t)
+	big := strings.Repeat("<", descriptionMaxBytes+10)
+	sw.rec.replyIn(tree, "gh pr view 42 --json "+prViewFields, viewOf(t, "pr-view-867-open.json", func(v map[string]any) { v["body"] = big }))
+	deps := sw.finish()
+	for i := range 2 {
+		d := detailOf(t, deps, tree)
+		if d.RecordErr != "" || d.record == nil || d.Report != ReportFromDescription || !d.ReportTruncated || len(d.ReportText) != descriptionMaxBytes {
+			t.Fatalf("detail %d: record error %q, source %s, %d bytes", i, d.RecordErr, d.Report, len(d.ReportText))
+		}
+	}
+}
