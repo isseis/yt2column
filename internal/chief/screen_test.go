@@ -649,6 +649,8 @@ func TestReadLastHumanInput(t *testing.T) {
 		{"a broken line", sample + "\n{\"type\":", HumanInput{}},
 		{"two names that differ", strings.Replace(strings.Join(lines[:3], "\n"), "<command-message>runplan<", "<command-message>mkplan<", 1), HumanInput{Kind: HumanInputOther}},
 		{"the command line without its human origin", strings.Replace(strings.Join(lines[:3], "\n"), `"origin":{"kind":"human"},`, "", 1), HumanInput{Kind: HumanInputNone}},
+		{"a later line of an unsampled origin", strings.Join(lines[:3], "\n") + "\n" + strings.Replace(lines[len(lines)-1], `"kind":"human"`, `"kind":"scheduled"`, 1), HumanInput{}},
+		{"a later human line repeating a member", strings.Join(lines[:3], "\n") + "\n" + strings.Replace(lines[len(lines)-1], `"type":"user",`, `"type":"user","type":"user",`, 1), HumanInput{}},
 	}
 	for _, c := range cases {
 		if got := readLastHumanInput([]byte(c.text)); got != c.want {

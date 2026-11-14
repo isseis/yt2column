@@ -3,6 +3,7 @@ package chief
 import (
 	"bytes"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/isseis/yt2column/internal/chief/paneinput"
@@ -143,15 +144,22 @@ type HumanInput struct {
 var customCommandRecord = regexp.MustCompile(`^<command-message>([a-z0-9-]+)</command-message>\n<command-name>/([a-z0-9-]+)</command-name>\n<command-args>([^<\n]*)</command-args>$`)
 
 // humanOrigin is the origin kind Claude Code declares on a line the human
-// typed; a peer's message and a task notification declare others.
+// typed; a peer's message and a task notification declare the others the
+// sample shows. A line of another kind is not read more widely: it makes the
+// transcript unreadable.
 const humanOrigin = "human"
+
+// otherOrigins are the sampled origin kinds of lines the human did not type.
+var otherOrigins = []string{"peer", "task-notification"}
 
 // readLastHumanInput reads the last line of a transcript the human typed.
 // Contract: a line is the human's only when Claude Code declares it so (a
 // "user" line whose origin kind is "human"), never by its text; a line that
-// is not one JSON object makes the whole transcript HumanInputUnreadable; the
-// last human line is a command only in the sampled form with its two names
-// equal, and any other human line is HumanInputOther.
+// is not one JSON object, that repeats a member read here, or whose origin is
+// of no sampled kind makes the whole transcript HumanInputUnreadable, so a
+// line that might be the human's is never skipped; the last human line is a
+// command only in the sampled form with its two names equal, and any other
+// human line is HumanInputOther.
 func readLastHumanInput(transcript []byte) HumanInput {
 	result := HumanInput{Kind: HumanInputNone}
 	for line := range bytes.SplitSeq(transcript, []byte("\n")) {
@@ -162,50 +170,62 @@ func readLastHumanInput(transcript []byte) HumanInput {
 		if err != nil {
 			return HumanInput{}
 		}
-		if in, ok := humanInputOf(object); ok {
+		in, human, ok := humanInputOf(object)
+		if !ok {
+			return HumanInput{}
+		}
+		if human {
 			result = in
 		}
 	}
 	return result
 }
 
-// humanInputOf returns the human input of a line, and false for a line that
-// is not the human's.
-func humanInputOf(object strictjson.Object) (HumanInput, bool) {
+// humanInputOf returns the human input of a line and whether the line is
+// the human's; ok is false for a line that cannot be told to be or not to
+// be the human's.
+func humanInputOf(object strictjson.Object) (in HumanInput, human, ok bool) {
 	members, err := object.Collect("type", "origin", "message")
 	if err != nil {
-		return HumanInput{}, false
+		return HumanInput{}, false, false
 	}
-	if kind, err := strictjson.RequiredString(members, "type"); err != nil || kind != "user" {
-		return HumanInput{}, false
+	kind, err := strictjson.RequiredString(members, "type")
+	if err != nil {
+		return HumanInput{}, false, false
 	}
-	originValue, ok := members["origin"]
-	if !ok {
-		return HumanInput{}, false
+	originValue, hasOrigin := members["origin"]
+	if kind != "user" || !hasOrigin {
+		return HumanInput{}, false, true
 	}
-	if origin, err := objectString(originValue, "kind"); err != nil || origin != humanOrigin {
-		return HumanInput{}, false
+	origin, err := objectString(originValue, "kind")
+	switch {
+	case err != nil:
+		return HumanInput{}, false, false
+	case slices.Contains(otherOrigins, origin):
+		return HumanInput{}, false, true
+	case origin != humanOrigin:
+		return HumanInput{}, false, false
 	}
 	other := HumanInput{Kind: HumanInputOther}
 	messageValue, err := strictjson.Required(members, "message")
 	if err != nil {
-		return other, true
+		return other, true, true
 	}
 	message, err := messageValue.AsObject()
 	if err != nil {
-		return other, true
+		return other, true, true
 	}
 	fields, err := message.Collect("content")
 	if err != nil {
-		return other, true
+		return other, true, true
 	}
 	content, err := strictjson.RequiredString(fields, "content")
 	if err != nil {
-		return other, true
+		return other, true, true
 	}
 	m := customCommandRecord.FindStringSubmatch(content)
 	if m == nil || m[1] != m[2] {
-		return other, true
+		return other, true, true
 	}
-	return HumanInput{Kind: HumanInputCommand, Name: m[2], Args: m[3]}, true
+	return HumanInput{Kind: HumanInputCommand, Name: m[2], Args: m[3]}, true, true
 }
