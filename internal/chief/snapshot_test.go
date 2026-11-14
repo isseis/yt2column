@@ -86,6 +86,11 @@ func TestTakeSnapshotStates(t *testing.T) {
 				t.Errorf("next = %+v", r.Next)
 			}
 		}},
+		{"plan PR left with no step left", fakeWorkspace{Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-steps-all-done.md")}}, StateNeedsCheck, func(t *testing.T, r Row) {
+			if r.Next != nil || len(r.Unreadable) != 1 || !strings.Contains(r.Unreadable[0], "no step left") {
+				t.Errorf("row = %+v, want no command and the reason", r)
+			}
+		}},
 		{"task done", fakeWorkspace{Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-all-merged.md")}}, StateTaskDone, nil},
 		{"no task", fakeWorkspace{Branch: "main"}, StateProposeNext, func(t *testing.T, r Row) {
 			if r.Next == nil || r.Next.Kind != TaskNextMkreq || r.Next.Command != nil {

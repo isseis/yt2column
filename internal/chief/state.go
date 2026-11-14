@@ -297,6 +297,11 @@ func nextFromPlan(f workspaceFacts, plan *Plan) (next *Next, done bool, why stri
 	if !ok {
 		return nil, false, "the plan has no PR left to create and is not complete"
 	}
+	// /runpr offers no /runplan for a plan with no step left to do, so a
+	// plan PR left to create without one is not guessed to be a /runplan.
+	if !plan.StepsLeft() {
+		return nil, false, "the plan has a PR left to create but no step left to do"
+	}
 	key := routeKeyOf(pr.Requirement.Value)
 	if key == paneinput.RouteUnknown {
 		problem := "the model requirement of the next PR is absent"
