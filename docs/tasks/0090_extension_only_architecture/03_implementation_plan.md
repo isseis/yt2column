@@ -126,7 +126,7 @@ PR を作る直前に、`/runplan` はこの 3 つを確かめる。どれかが
 ## 6. 実装チェックリスト (Implementation Checklist)
 
 -   [x] フェーズ 1（ステップ 1-1〜1-4）
--   [ ] PR を作成した
+-   [x] PR を作成した: https://github.com/isseis/yt2column/pull/881
 -   [ ] PR がマージされた
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
