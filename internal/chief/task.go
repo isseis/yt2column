@@ -490,6 +490,9 @@ type PlanPR struct {
 	// record.
 	Created bool
 	Merged  bool
+	// CreatedURL is the text after the label and ": " of a done created
+	// checkbox, the PR's URL; empty when the line names none.
+	CreatedURL string
 	// Steps are the marker's target steps; nil for a plan without markers.
 	Steps []string
 	// stepsErr is why the marker's target steps could not be read; only the
@@ -510,7 +513,7 @@ var (
 	// forms the plans on main use: not started, done, or skipped, with any
 	// list indent, and the label alone or followed by ": " (the PR's URL) or
 	// a note in full-width parentheses.
-	createdBox = regexp.MustCompile(`^-[ \t]+\[([ x-])\][ \t]+PR を作成した(?:$|: |（)`)
+	createdBox = regexp.MustCompile(`^-[ \t]+\[([ x-])\][ \t]+PR を作成した(?:$|: (.*)|（)`)
 	mergedBox  = regexp.MustCompile(`^-[ \t]+\[([ x-])\][ \t]+PR がマージされた(?:$|（)`)
 	// progressLike is any checkbox line with a progress label; one that is
 	// not in a form above makes the plan unreadable rather than read as no
@@ -590,7 +593,7 @@ func ParsePlan(doc []byte, old OldValues) (Plan, error) {
 			Requirement: readRequirement(doc, target, old),
 			AutoSend:    readAutoSend(doc, target),
 		}
-		if pr.Created, pr.Merged, err = progress(sections[i], true); err != nil {
+		if pr.Created, pr.Merged, pr.CreatedURL, err = progress(sections[i], true); err != nil {
 			return Plan{}, fmt.Errorf("PR-%s: %w", target, err)
 		}
 		pr.Steps, pr.stepsErr = markerSteps(sections[i])
@@ -609,36 +612,40 @@ func singlePR(doc []byte, lines []docLine, old OldValues) (PlanPR, error) {
 		AutoSend:    readAutoSend(doc, singleTarget),
 	}
 	var err error
-	pr.Created, pr.Merged, err = progress(lines, false)
+	pr.Created, pr.Merged, pr.CreatedURL, err = progress(lines, false)
 	return pr, err
 }
 
 // progress reads a PR's two progress checkboxes from lines. In a marker both
 // must appear once; a single-PR record may be absent, before the PR exists.
 // Created and merged are true for a done or a skipped box.
-func progress(lines []docLine, marker bool) (created, merged bool, err error) {
-	var createdRows, mergedRows []string
+func progress(lines []docLine, marker bool) (created, merged bool, url string, err error) {
+	var createdRows, mergedRows, urls []string
 	for _, l := range lines {
 		if l.fenced {
 			continue
 		}
 		if m := createdBox.FindStringSubmatch(l.text); m != nil {
 			createdRows = append(createdRows, m[1])
+			urls = append(urls, strings.TrimSpace(m[2]))
 		} else if m := mergedBox.FindStringSubmatch(l.text); m != nil {
 			mergedRows = append(mergedRows, m[1])
 		} else if progressLike.MatchString(l.text) {
-			return false, false, fmt.Errorf("%w: progress checkbox %q", errTaskDocument, l.text)
+			return false, false, "", fmt.Errorf("%w: progress checkbox %q", errTaskDocument, l.text)
 		}
 	}
 	if !marker && len(createdRows) == 0 && len(mergedRows) == 0 {
-		return false, false, nil
+		return false, false, "", nil
 	}
 	if len(createdRows) != 1 || len(mergedRows) != 1 {
-		return false, false, fmt.Errorf("%w: %d created and %d merged checkboxes", errTaskDocument, len(createdRows), len(mergedRows))
+		return false, false, "", fmt.Errorf("%w: %d created and %d merged checkboxes", errTaskDocument, len(createdRows), len(mergedRows))
 	}
 	// A skipped box ("-") is settled like a done one: the PR is not to be
 	// created, so it is never the next PR.
-	return createdRows[0] != " ", mergedRows[0] != " ", nil
+	if createdRows[0] == "x" {
+		url = urls[0]
+	}
+	return createdRows[0] != " ", mergedRows[0] != " ", url, nil
 }
 
 // markerSteps reads a marker's target steps: one line, the step IDs
@@ -663,6 +670,17 @@ func markerSteps(lines []docLine) ([]string, error) {
 		return nil, fmt.Errorf("%w: %d target step lines", errTaskDocument, found)
 	}
 	return steps, nil
+}
+
+// CreatedAs returns the PR whose created checkbox is done with url, the
+// whole URL compared; ok is false when no PR of the plan names it.
+func (p Plan) CreatedAs(url string) (PlanPR, bool) {
+	for _, pr := range p.PRs {
+		if url != "" && pr.CreatedURL == url {
+			return pr, true
+		}
+	}
+	return PlanPR{}, false
 }
 
 // NextPR returns the next plan PR to create, the definition /runpr uses: the
@@ -878,6 +896,15 @@ func (t Tasks) listTree(ctx context.Context, worktree, prefix string) ([]string,
 		}
 	}
 	return names, nil
+}
+
+// onHead reports whether path is a file at HEAD of worktree.
+func (t Tasks) onHead(ctx context.Context, worktree, path string) (bool, error) {
+	out, err := t.cmds.git(ctx, worktree, "ls-tree", "-z", "--name-only", "HEAD", "--", path)
+	if err != nil {
+		return false, err
+	}
+	return strings.TrimSuffix(string(out), "\x00") == path, nil
 }
 
 // show returns the blob at path in rev.

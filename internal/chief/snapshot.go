@@ -17,6 +17,22 @@ type Deps struct {
 	Cmds  Commands
 	Store Store
 	Now   func() time.Time
+	// Sleep waits between the reads after an input; it returns early with
+	// the context's error. Tests pass one that does not wait.
+	Sleep func(context.Context, time.Duration) error
+}
+
+// SleepContext waits for d or until ctx is done, the Sleep of the entry
+// point.
+func SleepContext(ctx context.Context, d time.Duration) error {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-t.C:
+		return nil
+	}
 }
 
 // Snapshot is what `chief snapshot` returns: the rows of the status table,
@@ -82,7 +98,11 @@ func TakeSnapshot(ctx context.Context, deps Deps, owner Owner) (Snapshot, error)
 	for _, w := range found {
 		f := readWorkspace(ctx, herdr, git, tasks, w)
 		f.Routing, f.RoutingErr, f.FetchFailed = routing, routingErr, fetchFailed
-		snap.Rows = append(snap.Rows, classifyWorkspace(ctx, git, tasks, f, old, oldErr))
+		row := classifyWorkspace(ctx, git, tasks, f, old, oldErr)
+		if err := addRecords(deps.Store, w, &row); err != nil {
+			snap.Problems = append(snap.Problems, "the records of "+w.Worktree+" cannot be read: "+err.Error())
+		}
+		snap.Rows = append(snap.Rows, row)
 	}
 	snap.Pending = buildPending(snap.Rows)
 	for _, err := range stampPending(deps.Store, owner.Session, snap.Pending, deps.Now()) {
@@ -91,6 +111,38 @@ func TakeSnapshot(ctx context.Context, deps Deps, owner Owner) (Snapshot, error)
 	sortPending(snap.Pending)
 	sortRows(snap.Rows, snap.Pending)
 	return snap, nil
+}
+
+// addRecords shows a workspace's stop and, on a running row, what chief last
+// sent to its working pane. It reads records only; a workspace never sent
+// to has no records and nothing is created for it.
+func addRecords(store Store, w TaskWorkspace, row *Row) error {
+	records, ok, err := store.existingRecords(w.Tree)
+	if err != nil || !ok {
+		return err
+	}
+	stop, err := records.Stopped()
+	if err != nil {
+		return err
+	}
+	row.Stopped = stop
+	if row.State != StateRunning {
+		return nil
+	}
+	for _, a := range w.Agents {
+		if a.Status != AgentWorking {
+			continue
+		}
+		rec, err := records.LastSend(a.Pane.String())
+		if err != nil {
+			return err
+		}
+		if rec != nil {
+			row.Running = rec
+			return nil
+		}
+	}
+	return nil
 }
 
 // readOldValues reads the old-value table of origin/main's _context.md.

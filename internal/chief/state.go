@@ -74,6 +74,8 @@ const (
 	// TaskNextRunplanTakeover is /runplan <task> handed to Claude Code after an
 	// OpenCode run stopped before it opened the PR.
 	TaskNextRunplanTakeover
+	// TaskNextRunpr is /runpr <PR>, offered with a PR's detail.
+	TaskNextRunpr
 )
 
 // Next is a command chief can offer for a workspace. Command is nil when
@@ -123,6 +125,11 @@ type Row struct {
 	MergeQuestion bool
 	Questions     []QuestionItem
 	PR            *OpenPR
+	// Running is chief's last send to a working pane, nil when chief sent
+	// it nothing; it is shown only, never read to decide.
+	Running *SendRecord
+	// Stopped is the workspace's stop, nil when it takes input.
+	Stopped *StopRecord
 }
 
 // agentFacts is one agent with the reading of its screen.

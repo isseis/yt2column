@@ -96,9 +96,20 @@ const worldChiefPane = "wc:p1"
 // replies chief's own worktree needs.
 func newWorld(t *testing.T) *world {
 	t.Helper()
-	root, err := filepath.EvalSymlinks(t.TempDir())
+	// The root is under /tmp and not t.TempDir() or $TMPDIR, whose names may
+	// hold "_": a Claude Code transcript is looked for only under a working
+	// directory of the sampled characters.
+	tmp, err := os.MkdirTemp("/tmp", "chief-world-")
 	if err != nil {
 		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(tmp) })
+	root, err := filepath.EvalSymlinks(tmp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !transcriptDirChars.MatchString(root) {
+		t.Fatalf("the test root %q holds a character the transcript rule refuses", root)
 	}
 	w := &world{
 		t:         t,
@@ -131,14 +142,11 @@ func newWorld(t *testing.T) *world {
 // git sets the reply of a git command line in dir.
 func (w *world) git(dir, line, out string) { w.rec.replyIn(dir, "git "+line, []byte(out)) }
 
-// add adds a task workspace and returns its worktree.
+// add adds a task workspace with one agent showing its screen sample and
+// returns its worktree.
 func (w *world) add(ws fakeWorkspace) string {
 	w.t.Helper()
-	tree := filepath.Join(filepath.Dir(w.chiefTree), "tree-"+ws.ID)
-	if err := os.MkdirAll(tree, 0o700); err != nil {
-		w.t.Fatal(err)
-	}
-	w.trees[ws.ID] = tree
+	tree := w.addTree(ws)
 	pane := ws.ID + ":p1"
 	status := ws.Status
 	if status == "" {
@@ -149,15 +157,28 @@ func (w *world) add(ws fakeWorkspace) string {
 		kind = "claude"
 	}
 	w.agents = append(w.agents, fakeAgent{Pane: pane, Workspace: ws.ID, Kind: kind, Status: status, Session: "00000000-0000-4000-8000-" + fmt.Sprintf("%012d", len(w.agents)), Dir: tree, Seq: 10})
-	w.labels = append(w.labels, [2]string{ws.ID, ws.Label})
-	w.git(tree, "rev-parse --show-toplevel", tree)
-	w.git(tree, "rev-parse --path-format=absolute --git-common-dir", w.common)
-	w.git(tree, "rev-parse --abbrev-ref HEAD", ws.Branch+"\n")
 	screen := ws.Screen
 	if screen == "" {
 		screen = "claude-idle.ansi"
 	}
 	w.rec.reply("herdr agent read "+pane+" --source visible --lines 200 --format ansi", []byte(readScreenSample(w.t, screen)))
+	return tree
+}
+
+// addTree adds a workspace's worktree with the replies of its git state, its
+// open PRs, and its task documents, and returns it; its agents are added by
+// the caller.
+func (w *world) addTree(ws fakeWorkspace) string {
+	w.t.Helper()
+	tree := filepath.Join(filepath.Dir(w.chiefTree), "tree-"+ws.ID)
+	if err := os.MkdirAll(tree, 0o700); err != nil {
+		w.t.Fatal(err)
+	}
+	w.trees[ws.ID] = tree
+	w.labels = append(w.labels, [2]string{ws.ID, ws.Label})
+	w.git(tree, "rev-parse --show-toplevel", tree)
+	w.git(tree, "rev-parse --path-format=absolute --git-common-dir", w.common)
+	w.git(tree, "rev-parse --abbrev-ref HEAD", ws.Branch+"\n")
 	if ws.Branch != "" && ws.Branch != detachedHead {
 		prs := ws.PRs
 		if prs == "" {

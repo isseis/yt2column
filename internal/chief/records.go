@@ -3,6 +3,7 @@ package chief
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -12,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -83,8 +85,10 @@ func StateBase(env Env) (string, error) {
 	return "", fmt.Errorf("%w: neither XDG_STATE_HOME nor HOME is an absolute path", ErrNoStateBase)
 }
 
-// recordLimit caps a record read. The records are small JSON objects.
-const recordLimit = 64 << 10
+// recordLimit caps a record read. The largest record is a PR detail, whose
+// text is capped at 64 KiB; JSON escapes a character into at most six
+// bytes, so the cap leaves room for a text of only escaped characters.
+const recordLimit = 512 << 10
 
 // lockFile is the chief lock's file name; noticePrefix starts a notice
 // record's.
@@ -102,6 +106,11 @@ type Store struct {
 	// the directory's exclusion is taken; the takeover tests use it to place
 	// a live owner's lock in that gap. It is nil outside the tests.
 	betweenStaleReadAndLock func()
+	// beforeCreate runs before each record is created and fails the
+	// creation when it returns an error; the send tests use it to see the
+	// order of a send's records and to make one fail. It is nil outside the
+	// tests.
+	beforeCreate func(name string) error
 }
 
 // OpenStore creates the state directory $base/yt2column/chief when it is
@@ -122,6 +131,11 @@ func (s Store) Dir() string { return s.dir }
 
 // create writes a new record; a record of that name is never replaced.
 func (s Store) create(name string, v any) error {
+	if s.beforeCreate != nil {
+		if err := s.beforeCreate(name); err != nil {
+			return err
+		}
+	}
 	data, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -189,6 +203,11 @@ type StartResult struct {
 	// Removed counts the notice records of finished sessions that were
 	// removed.
 	Removed int
+	// Stopped counts the sends found without an end, each of which stopped
+	// its workspace.
+	Stopped int
+	// RemovedSends counts the send and detail records removed.
+	RemovedSends int
 }
 
 // Start takes the chief lock for caller and cleans up records of finished
@@ -196,8 +215,9 @@ type StartResult struct {
 // owner is another live chief is ErrLockHeld; a stale lock is replaced only
 // while the exclusion of the state directory is held, and it is judged stale
 // again under that exclusion, so two chiefs that start at once cannot both
-// win; Herdr unreadable is ErrLockUnverifiable. The stale-send handling of
-// the design (3.5) belongs to the phase that creates send records.
+// win; Herdr unreadable is ErrLockUnverifiable. After the lock, every send
+// left without an end becomes a stop of its workspace before any record is
+// removed.
 func (s Store) Start(ctx context.Context, herdr Herdr, caller Owner, now time.Time) (StartResult, error) {
 	var res StartResult
 	rec := lockRecord{Owner: caller, Started: now.UTC()}
@@ -213,11 +233,13 @@ func (s Store) Start(ctx context.Context, herdr Herdr, caller Owner, now time.Ti
 	default:
 		return res, err
 	}
+	stopped, removedSends, settleErr := s.settleWorkspaces(now)
+	res.Stopped, res.RemovedSends = stopped, removedSends
 	removed, err := s.removeFinishedNotices(caller.Session)
 	res.Removed = removed
-	// A notice record that cannot be removed does not undo the lock; it is
-	// reported and left for the human.
-	res.CleanupError = err
+	// A record that cannot be settled or removed does not undo the lock; it
+	// is reported and left for the human.
+	res.CleanupError = errors.Join(settleErr, err)
 	return res, nil
 }
 
@@ -431,14 +453,381 @@ func CanonicalWorktree(ctx context.Context, cmds Commands, dir string) (Worktree
 	return Worktree{path: resolved}, nil
 }
 
+// workspaceDirOf is the name of a worktree's directory: the hex SHA-256 of
+// its canonical path.
+func workspaceDirOf(w Worktree) string {
+	sum := sha256.Sum256([]byte(w.path))
+	return hex.EncodeToString(sum[:])
+}
+
 // WorkspaceDir returns the directory of the records of one worktree, creating
 // it. The name is the hex SHA-256 of the canonical path, so a record and the
 // exclusion kept in it follow the worktree and not the way it was reached.
 func (s Store) WorkspaceDir(canonical Worktree) (string, error) {
-	sum := sha256.Sum256([]byte(canonical.path))
-	name := hex.EncodeToString(sum[:])
+	name := workspaceDirOf(canonical)
 	if err := privatefile.MkdirBelow(s.dir, []string{name}); err != nil {
 		return "", err
 	}
 	return filepath.Join(s.dir, name), nil
+}
+
+// ErrWorkspaceBusy reports that another send holds the workspace's
+// exclusion, so nothing is sent to it now.
+var ErrWorkspaceBusy = errors.New("another send holds the workspace")
+
+// Record file names in a workspace's directory.
+const (
+	stopFile     = "stop.json"
+	sendPrefix   = "send-"
+	startSuffix  = "-start.json"
+	endSuffix    = "-end.json"
+	detailPrefix = "detail-"
+)
+
+var (
+	// sendFileName is a send record's name: the send's ID (the start time in
+	// nanoseconds, then random hex, so names sort by time) and its half.
+	sendFileName = regexp.MustCompile(`^send-([0-9]{20}-[0-9a-f]{16})-(start|end)\.json$`)
+	// detailFileName is a PR detail record's name: the PR number and the
+	// head commit.
+	detailFileName = regexp.MustCompile(`^detail-([1-9][0-9]*)-([0-9a-f]{40})\.json$`)
+	// workspaceDirName is the name WorkspaceDir gives a worktree's
+	// directory.
+	workspaceDirName = regexp.MustCompile(`^[0-9a-f]{64}$`)
+)
+
+// detailMaxAge is how long a PR detail record is kept; start removes older
+// ones.
+const detailMaxAge = 14 * 24 * time.Hour
+
+// WorkspaceRecords is the directory of one worktree's records: its sends,
+// its stop, and its PR details.
+type WorkspaceRecords struct {
+	dir string
+	// beforeCreate is the store's test hook, carried to the records.
+	beforeCreate func(name string) error
+}
+
+// Records returns the records of a worktree, creating their directory.
+func (s Store) Records(w Worktree) (WorkspaceRecords, error) {
+	dir, err := s.WorkspaceDir(w)
+	if err != nil {
+		return WorkspaceRecords{}, err
+	}
+	return WorkspaceRecords{dir: dir, beforeCreate: s.beforeCreate}, nil
+}
+
+// existingRecords returns the records of a worktree without creating
+// anything: ok is false when the worktree has no directory yet.
+func (s Store) existingRecords(w Worktree) (WorkspaceRecords, bool, error) {
+	dir := filepath.Join(s.dir, workspaceDirOf(w))
+	info, err := os.Lstat(dir)
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		return WorkspaceRecords{}, false, nil
+	case err != nil:
+		return WorkspaceRecords{}, false, err
+	case !info.IsDir():
+		return WorkspaceRecords{}, false, fmt.Errorf("%w: %s is not a directory", errRecord, dir)
+	}
+	return WorkspaceRecords{dir: dir, beforeCreate: s.beforeCreate}, true, nil
+}
+
+func (r WorkspaceRecords) store() Store { return Store{dir: r.dir, beforeCreate: r.beforeCreate} }
+
+// HeldWorkspace is a worktree's records while its exclusion is held. Only
+// Lock makes one, so a send record, a stop, or a release is written only
+// under the exclusion.
+type HeldWorkspace struct {
+	WorkspaceRecords
+	lock *cachelock.Lock
+}
+
+// Lock takes the worktree's exclusion without waiting. Contract: a held
+// exclusion is ErrWorkspaceBusy and nothing else is done; the holder closes
+// the result, which ends the exclusion.
+func (r WorkspaceRecords) Lock() (*HeldWorkspace, error) {
+	lock, err := cachelock.Acquire(r.dir)
+	if errors.Is(err, cachelock.ErrLocked) {
+		return nil, fmt.Errorf("%w: %w", ErrWorkspaceBusy, err)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &HeldWorkspace{WorkspaceRecords: r, lock: lock}, nil
+}
+
+// Close ends the exclusion.
+func (h *HeldWorkspace) Close() error { return h.lock.Close() }
+
+// SendRecord is the start of one send: the pane, what is typed in order,
+// and the agent and model it goes to.
+type SendRecord struct {
+	ID      string    `json:"id"`
+	Pane    string    `json:"pane"`
+	Input   string    `json:"input"`
+	Command string    `json:"command"`
+	Agent   string    `json:"agent"`
+	Model   string    `json:"model"`
+	Prompts []string  `json:"prompts"`
+	Started time.Time `json:"started"`
+}
+
+// sendEnd is the end of one send.
+type sendEnd struct {
+	ID      string    `json:"id"`
+	Outcome string    `json:"outcome"`
+	Reason  string    `json:"reason"`
+	Ended   time.Time `json:"ended"`
+}
+
+// StopRecord is why a workspace takes no input from chief until release:
+// the reason, the tail of the pane's screen, and when.
+type StopRecord struct {
+	Reason string    `json:"reason"`
+	Screen string    `json:"screen"`
+	Send   string    `json:"send"`
+	At     time.Time `json:"at"`
+}
+
+// unknownName is the output's name of any value that is not one of its
+// kind's known values.
+const unknownName = "unknown"
+
+// outcomeUnknown is the end a send gets when its own end was never written:
+// whether it was sent cannot be told.
+const outcomeUnknown = unknownName
+
+// newSendID returns an ID for a send started at now; IDs sort by time.
+func newSendID(now time.Time) (string, error) {
+	var b [8]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%020d-%s", now.UnixNano(), hex.EncodeToString(b[:])), nil
+}
+
+// BeginSend writes the start of a send before its first input and returns
+// its ID. Contract: nothing may be typed when it fails, since a send with no
+// start record could not be found if the tool stopped halfway.
+func (h *HeldWorkspace) BeginSend(rec SendRecord, now time.Time) (string, error) {
+	id, err := newSendID(now)
+	if err != nil {
+		return "", err
+	}
+	rec.ID = id
+	rec.Started = now.UTC()
+	if err := h.store().create(sendPrefix+id+startSuffix, rec); err != nil {
+		return "", err
+	}
+	return id, nil
+}
+
+// EndSend writes the end of the send id with its outcome.
+func (h *HeldWorkspace) EndSend(id, outcome, reason string, now time.Time) error {
+	return h.store().create(sendPrefix+id+endSuffix, sendEnd{ID: id, Outcome: outcome, Reason: reason, Ended: now.UTC()})
+}
+
+// Stop writes the workspace's stop. A stop that exists already is kept as it
+// is: the first reason is the one the human needs.
+func (h *HeldWorkspace) Stop(reason, screen, send string, now time.Time) error {
+	err := h.store().create(stopFile, StopRecord{Reason: reason, Screen: screen, Send: send, At: now.UTC()})
+	if errors.Is(err, privatefile.ErrExist) {
+		return nil
+	}
+	return err
+}
+
+// Stopped returns the workspace's stop, or nil when it has none. A stop
+// that cannot be read is an error, which the caller treats as stopped.
+func (r WorkspaceRecords) Stopped() (*StopRecord, error) {
+	var rec StopRecord
+	err := r.store().read(stopFile, &rec)
+	switch {
+	case errors.Is(err, privatefile.ErrNotExist):
+		return nil, nil
+	case err != nil:
+		return nil, err
+	}
+	return &rec, nil
+}
+
+// sendFiles lists the IDs of the sends with a start record, oldest first,
+// and the set of IDs with an end record.
+func (r WorkspaceRecords) sendFiles() (starts []string, ends map[string]struct{}, err error) {
+	entries, err := os.ReadDir(r.dir)
+	if err != nil {
+		return nil, nil, err
+	}
+	ends = map[string]struct{}{}
+	for _, e := range entries {
+		m := sendFileName.FindStringSubmatch(e.Name())
+		if m == nil {
+			continue
+		}
+		if m[2] == "start" {
+			starts = append(starts, m[1])
+		} else {
+			ends[m[1]] = struct{}{}
+		}
+	}
+	return starts, ends, nil
+}
+
+// SettleUnfinished turns every send whose end was never written into a stop
+// of the workspace and returns how many there were. The exclusion is held, so
+// the process that wrote such a start has ended without its end: whether its
+// input reached the pane cannot be told, and sending again could run the
+// same command twice. The start record is kept, so the stop stays explained.
+func (h *HeldWorkspace) SettleUnfinished(now time.Time) (int, error) {
+	starts, ends, err := h.sendFiles()
+	if err != nil {
+		return 0, err
+	}
+	n := 0
+	for _, id := range starts {
+		if _, ok := ends[id]; ok {
+			continue
+		}
+		n++
+		if err := h.Stop("a send ended without its end record, so whether its input was sent is unknown", "", id, now); err != nil {
+			return n, err
+		}
+	}
+	return n, nil
+}
+
+// Release lifts the workspace's stop at the human's choice. Contract: every
+// send without an end first gets an end saying its outcome is unknown, so
+// the same start does not stop the workspace again; when one of those ends
+// cannot be written, the stop is kept.
+func (h *HeldWorkspace) Release(now time.Time) (bool, error) {
+	starts, ends, err := h.sendFiles()
+	if err != nil {
+		return false, err
+	}
+	for _, id := range starts {
+		if _, ok := ends[id]; ok {
+			continue
+		}
+		if err := h.EndSend(id, outcomeUnknown, "released by the human", now); err != nil && !errors.Is(err, privatefile.ErrExist) {
+			return false, err
+		}
+	}
+	err = privatefile.Remove(filepath.Join(h.dir, stopFile))
+	switch {
+	case errors.Is(err, privatefile.ErrNotExist):
+		return false, nil
+	case err != nil:
+		return false, err
+	}
+	return true, nil
+}
+
+// LastSend returns the newest send record to pane, or nil when there is
+// none. It is used only to show what is running; it never decides a send.
+func (r WorkspaceRecords) LastSend(pane string) (*SendRecord, error) {
+	starts, _, err := r.sendFiles()
+	if err != nil {
+		return nil, err
+	}
+	for _, id := range slices.Backward(starts) {
+		var rec SendRecord
+		if err := r.store().read(sendPrefix+id+startSuffix, &rec); err != nil {
+			return nil, err
+		}
+		if rec.Pane == pane {
+			return &rec, nil
+		}
+	}
+	return nil, nil
+}
+
+// cleanup removes the sends whose start and end are both written and the PR
+// details older than detailMaxAge. A start without an end is never removed.
+func (h *HeldWorkspace) cleanup(now time.Time) (int, error) {
+	starts, ends, err := h.sendFiles()
+	if err != nil {
+		return 0, err
+	}
+	removed := 0
+	var errs []error
+	remove := func(name string) {
+		if err := privatefile.Remove(filepath.Join(h.dir, name)); err != nil && !errors.Is(err, privatefile.ErrNotExist) {
+			errs = append(errs, err)
+			return
+		}
+		removed++
+	}
+	for _, id := range starts {
+		if _, ok := ends[id]; !ok {
+			continue
+		}
+		// The start goes first: an end left alone is harmless, while a
+		// start left alone would stop the workspace at the next settle.
+		before := removed
+		remove(sendPrefix + id + startSuffix)
+		if removed > before {
+			remove(sendPrefix + id + endSuffix)
+		}
+	}
+	entries, err := os.ReadDir(h.dir)
+	if err != nil {
+		return removed, errors.Join(append(errs, err)...)
+	}
+	for _, e := range entries {
+		if !detailFileName.MatchString(e.Name()) {
+			continue
+		}
+		var rec detailRecord
+		if err := h.store().read(e.Name(), &rec); err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		if now.Sub(rec.Saved) > detailMaxAge {
+			remove(e.Name())
+		}
+	}
+	return removed, errors.Join(errs...)
+}
+
+// settleWorkspaces turns the unfinished sends of every worktree into stops,
+// then removes the finished sends and old details. A worktree whose
+// exclusion is held is skipped: a send is under way there.
+func (s Store) settleWorkspaces(now time.Time) (stopped, removed int, err error) {
+	entries, err := os.ReadDir(s.dir)
+	if err != nil {
+		return 0, 0, err
+	}
+	var errs []error
+	for _, e := range entries {
+		if !e.IsDir() || !workspaceDirName.MatchString(e.Name()) {
+			continue
+		}
+		held, err := WorkspaceRecords{dir: filepath.Join(s.dir, e.Name()), beforeCreate: s.beforeCreate}.Lock()
+		if errors.Is(err, ErrWorkspaceBusy) {
+			continue
+		}
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		n, err := held.SettleUnfinished(now)
+		stopped += n
+		if err != nil {
+			errs = append(errs, err)
+		} else {
+			// Only a settled workspace is cleaned: a send left unfinished
+			// must become a stop before anything near it is removed.
+			r, err := held.cleanup(now)
+			removed += r
+			if err != nil {
+				errs = append(errs, err)
+			}
+		}
+		if err := held.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return stopped, removed, errors.Join(errs...)
 }

@@ -379,3 +379,48 @@ func ParsePaneID(s string) (PaneID, error) {
 	}
 	return PaneID{id: s}, nil
 }
+
+// errWriteRefused reports an input the pane writer would not send: a pane
+// with no ID, a pane of chief's own workspace, or a prompt no constructor of
+// paneinput made. Nothing reaches Herdr when it is returned.
+var errWriteRefused = errors.New("the pane writer refused the input")
+
+// PaneWriter types into task agents' panes. It is the only part of the tool
+// that writes to Herdr. Contract: it takes a paneinput.Prompt and never a
+// string, so only an input of the routing table's kinds can be typed; it
+// refuses chief's own pane and every pane of chief's workspace; and it never
+// passes --wait, whose wait ends at the first matching state after the input
+// and so says nothing about the input's own run.
+type PaneWriter struct {
+	cmds           Commands
+	chiefPane      PaneID
+	chiefWorkspace string
+}
+
+// NewPaneWriter returns the writer for the chief that runs in chiefPane of
+// chiefWorkspace. Both must be known: without them no pane could be told
+// apart from chief's own.
+func NewPaneWriter(cmds Commands, chiefPane PaneID, chiefWorkspace string) (PaneWriter, error) {
+	if chiefPane.id == "" || !workspaceIDForm.MatchString(chiefWorkspace) {
+		return PaneWriter{}, fmt.Errorf("%w: chief's pane or workspace is unknown", errWriteRefused)
+	}
+	return PaneWriter{cmds: cmds, chiefPane: chiefPane, chiefWorkspace: chiefWorkspace}, nil
+}
+
+// Prompt types p into target's pane with `herdr agent prompt`, which submits
+// it. target is the agent as Herdr reported it just before; its workspace is
+// what tells it from chief's.
+func (w PaneWriter) Prompt(ctx context.Context, target Agent, p paneinput.Prompt) error {
+	if w.chiefPane.id == "" {
+		return fmt.Errorf("%w: the writer was not made by NewPaneWriter", errWriteRefused)
+	}
+	if target.Pane.id == "" || target.Pane == w.chiefPane || target.Workspace == "" || target.Workspace == w.chiefWorkspace {
+		return fmt.Errorf("%w: pane %q of workspace %q", errWriteRefused, target.Pane.id, target.Workspace)
+	}
+	text, err := p.Text()
+	if err != nil {
+		return fmt.Errorf("%w: %w", errWriteRefused, err)
+	}
+	_, err = w.cmds.herdr(ctx, herdrAgent, "prompt", target.Pane.id, text)
+	return err
+}

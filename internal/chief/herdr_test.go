@@ -172,3 +172,72 @@ func TestHerdrCommandLines(t *testing.T) {
 		t.Errorf("the rejected reads ran %v", calls[before:])
 	}
 }
+
+// TestWriterRefuses checks that the pane writer types only a constructed
+// prompt into a task pane: the zero prompt, chief's own pane, another pane of chief's workspace, a pane without an ID,
+// and a writer no constructor made all send nothing, while a valid prompt is
+// submitted without --wait.
+func TestWriterRefuses(t *testing.T) {
+	ctx := context.Background()
+	chiefPane := PaneID{id: "wc:p1"}
+	task := Agent{Pane: PaneID{id: "w1:p2"}, Workspace: "w1"}
+	clearPrompt := paneinput.ClearSession()
+	cases := []struct {
+		name   string
+		writer func(Commands) PaneWriter
+		target Agent
+		prompt paneinput.Prompt
+	}{
+		{"zero prompt", nil, task, paneinput.Prompt{}},
+		{"chief's pane", nil, Agent{Pane: chiefPane, Workspace: "wc"}, clearPrompt},
+		{"chief's pane named in another workspace", nil, Agent{Pane: chiefPane, Workspace: "w1"}, clearPrompt},
+		{"another pane of chief's workspace", nil, Agent{Pane: PaneID{id: "wc:p2"}, Workspace: "wc"}, clearPrompt},
+		{"a pane without an ID", nil, Agent{Workspace: "w1"}, clearPrompt},
+		{"a pane without a workspace", nil, Agent{Pane: PaneID{id: "w1:p2"}}, clearPrompt},
+		{"a writer no constructor made", func(c Commands) PaneWriter { return PaneWriter{cmds: c} }, task, clearPrompt},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			rec := newRecorder(t)
+			rec.onPrompt = func(string, string) error { return nil }
+			w, err := NewPaneWriter(rec.commands(nil), chiefPane, "wc")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if c.writer != nil {
+				w = c.writer(rec.commands(nil))
+			}
+			if err := w.Prompt(ctx, c.target, c.prompt); !errors.Is(err, errWriteRefused) {
+				t.Errorf("Prompt = %v, want errWriteRefused", err)
+			}
+			if calls := rec.recorded(); len(calls) != 0 {
+				t.Errorf("the writer ran %v", calls)
+			}
+		})
+	}
+	t.Run("a constructed prompt is submitted", func(t *testing.T) {
+		rec := newRecorder(t)
+		rec.onPrompt = func(string, string) error { return nil }
+		w, err := NewPaneWriter(rec.commands(nil), chiefPane, "wc")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := w.Prompt(ctx, task, clearPrompt); err != nil {
+			t.Fatal(err)
+		}
+		calls := rec.recorded()
+		if len(calls) != 1 || calls[0].line() != "herdr agent prompt w1:p2 /clear" {
+			t.Errorf("calls = %v, want one prompt without --wait", calls)
+		}
+	})
+	t.Run("a writer needs chief's pane and workspace", func(t *testing.T) {
+		for _, args := range []struct {
+			pane PaneID
+			ws   string
+		}{{PaneID{}, "wc"}, {chiefPane, ""}, {chiefPane, "-x"}} {
+			if _, err := NewPaneWriter(Commands{}, args.pane, args.ws); !errors.Is(err, errWriteRefused) {
+				t.Errorf("NewPaneWriter(%v, %q) = %v, want errWriteRefused", args.pane, args.ws, err)
+			}
+		}
+	})
+}

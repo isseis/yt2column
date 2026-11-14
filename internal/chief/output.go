@@ -32,6 +32,8 @@ type RowOutput struct {
 	MergeQuestion bool             `json:"merge_question"`
 	Questions     []QuestionOutput `json:"questions"`
 	PR            *PROutput        `json:"pr"`
+	Running       *RunningOutput   `json:"running"`
+	Stopped       *StopOutput      `json:"stopped"`
 }
 
 // NextOutput is a command offered for a workspace.
@@ -98,7 +100,7 @@ func questionKindName(k QuestionKind) string {
 	case QuestionPermission:
 		return "permission"
 	default:
-		return "unknown"
+		return unknownName
 	}
 }
 
@@ -171,6 +173,12 @@ func (s Snapshot) Output() SnapshotOutput {
 			Questions:     []QuestionOutput{},
 			PR:            prOutput(r.PR),
 		}
+		if r.Running != nil {
+			row.Running = &RunningOutput{Pane: Sanitize(r.Running.Pane), Command: Sanitize(r.Running.Command), Agent: Sanitize(r.Running.Agent), Model: Sanitize(r.Running.Model), Started: r.Running.Started}
+		}
+		if r.Stopped != nil {
+			row.Stopped = &StopOutput{Reason: Sanitize(r.Stopped.Reason), Screen: Sanitize(r.Stopped.Screen), At: r.Stopped.At}
+		}
 		for _, q := range r.Questions {
 			row.Questions = append(row.Questions, questionOutput(q))
 		}
@@ -197,4 +205,183 @@ func (s Snapshot) Output() SnapshotOutput {
 		}
 	}
 	return out
+}
+
+// RunningOutput is what chief last sent to a working pane, shown on a
+// running row; it comes only from chief's send record, never from a screen.
+type RunningOutput struct {
+	Pane    string    `json:"pane"`
+	Command string    `json:"command"`
+	Agent   string    `json:"agent"`
+	Model   string    `json:"model"`
+	Started time.Time `json:"started"`
+}
+
+// StopOutput is a workspace's stop: why, what its pane showed, and when.
+type StopOutput struct {
+	Reason string    `json:"reason"`
+	Screen string    `json:"screen"`
+	At     time.Time `json:"at"`
+}
+
+// ActionOutput is one send or reset.
+type ActionOutput struct {
+	Workspace string   `json:"workspace"`
+	Pane      string   `json:"pane"`
+	Input     string   `json:"input"`
+	Command   string   `json:"command"`
+	Agent     string   `json:"agent"`
+	Model     string   `json:"model"`
+	Outcome   string   `json:"outcome"`
+	Reason    string   `json:"reason"`
+	Step      string   `json:"step"`
+	Detail    string   `json:"detail"`
+	Left      string   `json:"left"`
+	Panes     []string `json:"panes"`
+	Status    string   `json:"status"`
+	Screen    string   `json:"screen"`
+}
+
+// SendOutput is the output of `chief send`.
+type SendOutput struct {
+	Protocol int            `json:"protocol"`
+	Actions  []ActionOutput `json:"actions"`
+}
+
+// CheckOutput is one CI job, its bucket as gh gave it.
+type CheckOutput struct {
+	Name     string `json:"name"`
+	Workflow string `json:"workflow"`
+	State    string `json:"state"`
+	Bucket   string `json:"bucket"`
+}
+
+// ReviewOutput is one PR review's author and state.
+type ReviewOutput struct {
+	Author string `json:"author"`
+	State  string `json:"state"`
+}
+
+// DetailOutput is the output of `chief detail`. An item that could not be
+// read is null with its *_error set.
+type DetailOutput struct {
+	Protocol     int            `json:"protocol"`
+	Problem      string         `json:"problem"`
+	Workspace    string         `json:"workspace"`
+	Label        string         `json:"label"`
+	Task         string         `json:"task"`
+	PR           *PROutput      `json:"pr"`
+	Size         *SizeOutput    `json:"size"`
+	Reviews      []ReviewOutput `json:"reviews"`
+	ViewError    string         `json:"view_error"`
+	Checks       []CheckOutput  `json:"checks"`
+	ChecksError  string         `json:"checks_error"`
+	ReportSource string         `json:"report_source"`
+	Report       string         `json:"report"`
+	ReportCut    bool           `json:"report_truncated"`
+	RecordError  string         `json:"record_error"`
+	Skippable    bool           `json:"review_skippable"`
+	Runpr        *NextOutput    `json:"runpr"`
+}
+
+// SizeOutput is a PR's size.
+type SizeOutput struct {
+	ChangedFiles int `json:"changed_files"`
+	Additions    int `json:"additions"`
+	Deletions    int `json:"deletions"`
+	Commits      int `json:"commits"`
+}
+
+// ReleaseOutput is the output of `chief release`.
+type ReleaseOutput struct {
+	Protocol int    `json:"protocol"`
+	Released bool   `json:"released"`
+	Problem  string `json:"problem"`
+}
+
+// statusName names an agent status for the output.
+func statusName(s AgentStatus) string {
+	for name, v := range agentStatuses {
+		if v == s {
+			return name
+		}
+	}
+	return unknownName
+}
+
+// Output converts a send's results into the JSON types.
+func (o SendOutcome) Output() SendOutput {
+	out := SendOutput{Protocol: Protocol, Actions: []ActionOutput{}}
+	for _, a := range o.Actions {
+		out.Actions = append(out.Actions, actionOutput(a))
+	}
+	return out
+}
+
+func actionOutput(a ActionResult) ActionOutput {
+	status := ""
+	if a.Status != AgentStatusUnknown {
+		status = statusName(a.Status)
+	}
+	return ActionOutput{
+		Workspace: Sanitize(a.Workspace),
+		Pane:      Sanitize(a.Pane),
+		Input:     a.Input.String(),
+		Command:   a.Command,
+		Agent:     agentLabel(a.Agent),
+		Model:     Sanitize(a.Model),
+		Outcome:   a.Outcome.String(),
+		Reason:    reasonName(a),
+		Step:      a.Step.String(),
+		Detail:    Sanitize(a.Detail),
+		Left:      Sanitize(a.Left),
+		Panes:     sanitizeAll(a.Panes),
+		Status:    status,
+		Screen:    Sanitize(a.Screen),
+	}
+}
+
+// reasonName is the reason of a result that did not send everything; a sent
+// result has none.
+func reasonName(a ActionResult) string {
+	if a.Outcome == OutcomeSent {
+		return ""
+	}
+	return a.Reason.String()
+}
+
+// Output converts a detail into the JSON types.
+func (o DetailOutcome) Output() DetailOutput {
+	out := DetailOutput{Protocol: Protocol, Problem: Sanitize(o.Problem), Reviews: []ReviewOutput{}, Checks: []CheckOutput{}}
+	d := o.Detail
+	if d == nil {
+		return out
+	}
+	out.Workspace, out.Label, out.Task = Sanitize(d.Workspace), Sanitize(d.Label), d.Task
+	out.PR = prOutput(&d.PR)
+	out.ViewError, out.ChecksError, out.RecordError = Sanitize(d.ViewErr), Sanitize(d.ChecksErr), Sanitize(d.RecordErr)
+	if d.View != nil {
+		out.Size = &SizeOutput{ChangedFiles: d.View.ChangedFiles, Additions: d.View.Additions, Deletions: d.View.Deletions, Commits: d.View.Commits}
+		for _, r := range d.View.Reviews {
+			out.Reviews = append(out.Reviews, ReviewOutput{Author: Sanitize(r.Author), State: Sanitize(r.State)})
+		}
+	}
+	if d.ChecksErr != "" {
+		out.Checks = nil
+	}
+	for _, c := range d.Checks {
+		out.Checks = append(out.Checks, CheckOutput{Name: Sanitize(c.Name), Workflow: Sanitize(c.Workflow), State: Sanitize(c.State), Bucket: Sanitize(c.Bucket)})
+	}
+	if d.ViewErr != "" {
+		out.Reviews = nil
+	}
+	out.ReportSource, out.Report, out.ReportCut = d.Report.String(), Sanitize(d.ReportText), d.ReportTruncated
+	out.Skippable = d.ReviewSkippable
+	out.Runpr = nextOutput(d.Runpr)
+	return out
+}
+
+// Output converts a release into the JSON type.
+func (o ReleaseOutcome) Output() ReleaseOutput {
+	return ReleaseOutput{Protocol: Protocol, Released: o.Released, Problem: Sanitize(o.Problem)}
 }
