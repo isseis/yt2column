@@ -370,3 +370,12 @@ func parseWorkspaceList(out []byte) ([]Workspace, error) {
 	}
 	return workspaces, nil
 }
+
+// ParsePaneID returns the pane ID s, such as the HERDR_PANE_ID the entry
+// point read. An ID of another shape than Herdr writes is rejected.
+func ParsePaneID(s string) (PaneID, error) {
+	if !paneIDForm.MatchString(s) {
+		return PaneID{}, fmt.Errorf("%w: pane ID %q", errHerdrOutput, s)
+	}
+	return PaneID{id: s}, nil
+}

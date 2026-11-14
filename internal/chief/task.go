@@ -677,6 +677,17 @@ func (p Plan) NextPR() (PlanPR, bool) {
 	return PlanPR{}, false
 }
 
+// StepsLeft reports whether some step of the plan is not started. A plan
+// with no step checkbox has none left.
+func (p Plan) StepsLeft() bool {
+	for _, done := range p.steps {
+		if !done {
+			return true
+		}
+	}
+	return false
+}
+
 // Done reports whether the task is complete: the plan is approved and every
 // PR, or the single-PR record, is merged.
 func (p Plan) Done() bool {

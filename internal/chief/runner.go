@@ -37,7 +37,9 @@ func NewCommands(newRunner RunnerFactory, environ []string) Commands {
 const (
 	herdrTimeout = 10 * time.Second
 	gitTimeout   = 30 * time.Second
-	ghTimeout    = 30 * time.Second
+	// gitFetchTimeout is longer: a fetch crosses the network.
+	gitFetchTimeout = 120 * time.Second
+	ghTimeout       = 30 * time.Second
 )
 
 // commandMaxOutput caps each of a command's standard output and standard
@@ -77,11 +79,16 @@ func (c Commands) herdr(ctx context.Context, args ...string) ([]byte, error) {
 // without an absolute dir, never with an inherited GIT_* variable, and never
 // without cmdrunner.GitHardening's options before the subcommand.
 func (c Commands) git(ctx context.Context, dir string, args ...string) ([]byte, error) {
+	return c.gitLimit(ctx, gitTimeout, dir, args...)
+}
+
+// gitLimit is git with a time limit of its own.
+func (c Commands) gitLimit(ctx context.Context, limit time.Duration, dir string, args ...string) ([]byte, error) {
 	if !filepath.IsAbs(dir) {
 		return nil, fmt.Errorf("git in %q: %w", dir, errRelativeDir)
 	}
 	full := append(cmdrunner.GitHardening(), args...)
-	return c.run(ctx, gitTimeout, dir, cmdrunner.GitEnv(c.environ), gitProgram, full)
+	return c.run(ctx, limit, dir, cmdrunner.GitEnv(c.environ), gitProgram, full)
 }
 
 // gh runs gh in dir and returns its standard output. Contract: gh never runs

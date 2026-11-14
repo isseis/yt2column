@@ -81,6 +81,12 @@ var allowedEnvRefs = map[string]map[string]int{
 	// coveragecompare.Run, which gives git all of it minus GIT_* and the test
 	// suites only the variables it names.
 	"cmd/coveragecompare/main.go": {"call:os.Environ": 1},
+	// The chief developer tool reads HERDR_PANE_ID, XDG_STATE_HOME, HOME,
+	// and CLAUDE_CONFIG_DIR with os.LookupEnv (passed as a value to
+	// chief.ReadEnv) and passes its environment to the commands it runs
+	// (herdr, git, gh), minus GIT_* for git and gh and minus GH_REPO and
+	// GH_HOST for gh, as fixprguard does.
+	"cmd/chief/main.go": {"call:os.Environ": 1, "value:os.LookupEnv": 1},
 }
 
 // envAccessReport is the result of one scan.

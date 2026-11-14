@@ -3,6 +3,8 @@ package chief
 import (
 	"regexp"
 	"strings"
+
+	"github.com/isseis/yt2column/internal/chief/paneinput"
 )
 
 // ScreenKind is what a pane screen shows. The zero value is ScreenUnmatched,
@@ -173,4 +175,17 @@ func finishQuestion(q *Question) bool {
 		q.Options[i].Relayable = false
 	}
 	return true
+}
+
+// readScreen reads the screen of an agent's pane with the reader of its
+// agent. An agent chief does not know is never read: ScreenUnmatched.
+func readScreen(agent paneinput.AgentKind, raw string) Screen {
+	switch agent {
+	case paneinput.AgentClaudeCode:
+		return parseClaudeScreen(raw)
+	case paneinput.AgentOpenCode:
+		return parseOpenCodeScreen(raw)
+	default:
+		return unmatched
+	}
 }
