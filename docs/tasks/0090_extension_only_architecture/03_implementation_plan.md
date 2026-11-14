@@ -151,7 +151,7 @@ PR を作る直前に、`/runplan` はこの 3 つを確かめる。どれかが
 実行の記録（ステップ 1-4 で書く）：
 
 -   **#773 の本文の `diff`。** 本文を `gh issue view 773 --json body,updatedAt` で読み（`updatedAt` は `2026-11-12T11:28:11Z`、本文の blob は `6dfe182d5d6914771a13934108a9033ac1ce5eef`）、ステップ 1-3 の 1 か所だけを置き換えて書き戻した。読み戻した本文（`updatedAt` は `2026-11-14T15:23:35Z`、blob は `087cf0b2d214934d71db942f4a53c7586e434cb9`）と直す前の本文の `diff` は次のとおりで、削除 1 行と追加 1 行だけである。
--   **スクリプトの実行。** `_checks/check.sh`（blob は `30d9e1a41d8667a13195becff9b4ba423273ca84`）を、次の 4 つの組で実行した。すべて終了コード 0 である。実装の PR の組だけ、読み戻した本文のファイルを渡した。
+-   **スクリプトの実行。** `_checks/check.sh`（blob は `7f56fd91b25ff964902e6ab2d6d42bfddacbcc57`）を、次の 4 つの組で実行した。すべて終了コード 0 である。実装の PR の組だけ、読み戻した本文のファイルを渡した。
 
 ````text
 --- 773.txt（直す前）
@@ -164,7 +164,7 @@ PR を作る直前に、`/runplan` はこの 3 つを確かめる。どれかが
 +タスク 0090 の要件の PR（#862）で決定を改め、実装まで食い違いの記述を置いた ADR：ADR-0010・ADR-0022・ADR-0027・ADR-0048。実装の PR で、それぞれの記述を除く。
 
 
-タスク 0090 の設計の PR で、拡張だけの構成の決定を記録し、実装まで食い違いの記述を置いた ADR：ADR-0003・ADR-0004・ADR-0006・ADR-0007・ADR-0008・ADR-0009・ADR-0010・ADR-0017・ADR-0019・ADR-0020・ADR-0024・ADR-0026・ADR-0027・ADR-0028・ADR-0029・ADR-0030・ADR-0031・ADR-0033・ADR-0034・ADR-0038・ADR-0043・ADR-0045・ADR-0048・ADR-0049。実装の PR で、解消した範囲の記述を除く。何を実装し、どの仕様の文書を書き換えるかは、[0090 設計書](https://github.com/isseis/yt2column/blob/main/docs/tasks/0090_extension_only_architecture/02_architecture.md)の「#773 への引き継ぎ（要件書 AC-28）」にある。
+ タスク 0090 の設計の PR で、拡張だけの構成の決定を記録し、実装まで食い違いの記述を置いた ADR：ADR-0003・ADR-0004・ADR-0006・ADR-0007・ADR-0008・ADR-0009・ADR-0010・ADR-0017・ADR-0019・ADR-0020・ADR-0024・ADR-0026・ADR-0027・ADR-0028・ADR-0029・ADR-0030・ADR-0031・ADR-0033・ADR-0034・ADR-0038・ADR-0043・ADR-0045・ADR-0048・ADR-0049。実装の PR で、解消した範囲の記述を除く。何を実装し、どの仕様の文書を書き換えるかは、[0090 設計書](https://github.com/isseis/yt2column/blob/main/docs/tasks/0090_extension_only_architecture/02_architecture.md)の「#773 への引き継ぎ（要件書 AC-28）」にある。
 ````
 
 **要件の PR #862（`f72fd25d5b7971a3dc8598caa13ae9019c5b7454` と `283583489ad908d980508cb4909d011ef5f6edaa`）。** 終了コード 0。
@@ -172,7 +172,7 @@ PR を作る直前に、`/runplan` はこの 3 つを確かめる。どれかが
 ```text
 before commit: f72fd25d5b7971a3dc8598caa13ae9019c5b7454
 after commit: 283583489ad908d980508cb4909d011ef5f6edaa
-script blob: 30d9e1a41d8667a13195becff9b4ba423273ca84
+script blob: 7f56fd91b25ff964902e6ab2d6d42bfddacbcc57
 
 changed files:
   docs/dev/adr/0005-server-architecture.md
@@ -197,7 +197,7 @@ result: ok
 ```text
 before commit: 0f37161a904714db68b006dafa5a8d5de2082f68
 after commit: 63ee516a036541556ec1fac71037067564a3fd2f
-script blob: 30d9e1a41d8667a13195becff9b4ba423273ca84
+script blob: 7f56fd91b25ff964902e6ab2d6d42bfddacbcc57
 
 changed files:
   docs/dev/adr/0003-llm-config-contract.md
@@ -242,7 +242,7 @@ result: ok
 ```text
 before commit: 2dcd097bcd6f14c05aee45ab6c4d5d1032a951ed
 after commit: 9f5f89c48d4681288c5fa4b1d5af2eac82fd241d
-script blob: 30d9e1a41d8667a13195becff9b4ba423273ca84
+script blob: 7f56fd91b25ff964902e6ab2d6d42bfddacbcc57
 
 changed files:
   docs/tasks/0090_extension_only_architecture/03_implementation_plan.md
@@ -253,21 +253,22 @@ changed files outside docs/tasks/0090_extension_only_architecture/, docs/dev/adr
 result: ok
 ```
 
-**実装の PR（merge-base `9f5f89c48d4681288c5fa4b1d5af2eac82fd241d` と `HEAD` の `d556e044659b49b8f1fe2b589eba5923f7292774`）。** 終了コード 0。読み戻した本文のファイル（blob は `087cf0b2d214934d71db942f4a53c7586e434cb9`）を渡した。
+**実装の PR（merge-base `9f5f89c48d4681288c5fa4b1d5af2eac82fd241d` と `HEAD` の `25e32da31ffefa1d12b708251e78c070c4edf73c`）。** 終了コード 0。読み戻した本文のファイル（blob は `087cf0b2d214934d71db942f4a53c7586e434cb9`）を渡した。
 
 ```text
 before commit: 9f5f89c48d4681288c5fa4b1d5af2eac82fd241d
-after commit: d556e044659b49b8f1fe2b589eba5923f7292774
-script blob: 30d9e1a41d8667a13195becff9b4ba423273ca84
+after commit: 25e32da31ffefa1d12b708251e78c070c4edf73c
+script blob: 7f56fd91b25ff964902e6ab2d6d42bfddacbcc57
 
 changed files:
+  docs/tasks/0090_extension_only_architecture/03_implementation_plan.md
   docs/tasks/0090_extension_only_architecture/_checks/check.sh
 
 changed files outside docs/tasks/0090_extension_only_architecture/, docs/dev/adr/, docs/translation_glossary.md, docs/research/:
   (none)
 issue body blob: 087cf0b2d214934d71db942f4a53c7586e434cb9
 
-ADRs active at d556e044659b49b8f1fe2b589eba5923f7292774 that link to issue 773 in their decision section:
+ADRs active at 25e32da31ffefa1d12b708251e78c070c4edf73c that link to issue 773 in their decision section:
   ADR-0003
   ADR-0004
   ADR-0006
