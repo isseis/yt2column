@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-12 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-14 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 設計の全体像 (Design Overview)
@@ -1399,3 +1399,7 @@ sequenceDiagram
 | AC-27 | 本タスクの PR の差分（`docs/tasks/0090_extension_only_architecture/`・`docs/dev/adr/`・`docs/research/`） |
 | AC-28 | §3.14 |
 | AC-29 | §3.12 |
+
+## 変更履歴
+
+- 2026-11-14 承認（isseis、#871）
