@@ -230,3 +230,28 @@ func TestResetFailureAfterClear(t *testing.T) {
 		t.Error("the workspace was not stopped")
 	}
 }
+
+// TestNoResetAfterAnUnrecordedRunpr checks that when /runpr is sent but its
+// end record cannot be written, which stops the workspace, no pane of it is
+// reset.
+func TestNoResetAfterAnUnrecordedRunpr(t *testing.T) {
+	sw, tree := detailWorld(t)
+	deps := sw.finish()
+	sw.firstPane().screen = reportScreen(t, prURL)
+	deps.Store.beforeCreate = func(name string) error {
+		if strings.HasSuffix(name, endSuffix) {
+			return errNoReply
+		}
+		return nil
+	}
+	out := sendRunpr(t, deps, tree)
+	if len(out.Actions) != 2 || out.Actions[0].Outcome != OutcomeSent {
+		t.Fatalf("actions = %+v", out.Actions)
+	}
+	if reset := out.Actions[1]; reset.Outcome != OutcomeNotSent || reset.Reason != NotSentStopped {
+		t.Errorf("reset = %+v, want not sent, stopped", reset)
+	}
+	if typed := sw.rec.prompts(); len(typed) != 2 {
+		t.Errorf("typed %v; want only /new and /runpr", typed)
+	}
+}

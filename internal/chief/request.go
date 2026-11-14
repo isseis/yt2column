@@ -233,6 +233,12 @@ func Send(ctx context.Context, deps Deps, req SendRequest) (SendOutcome, error) 
 	res := sc.sendCommand(ctx, cmd, route)
 	out := SendOutcome{Actions: []ActionResult{res}}
 	if req.kind == RequestRunpr && res.Outcome == OutcomeSent {
+		// A send that ended without its end record stopped the workspace;
+		// the reset is a send too and does not go to a stopped workspace.
+		if stop, err := held.Stopped(); err != nil || stop != nil {
+			out.Actions = append(out.Actions, notSent(ActionResult{Workspace: loc.ws.Worktree, Input: InputReset}, NotSentStopped, "the workspace was stopped by the /runpr send"))
+			return out, nil
+		}
 		key, why := prMakerRoute(ctx, tasks, loc.ws.Worktree, f.Docs, old, oldErr, row.PR.URL)
 		out.Actions = append(out.Actions, sc.resetAfterRunpr(ctx, res.Pane, *row.PR, rec, key, why, routing))
 	}
