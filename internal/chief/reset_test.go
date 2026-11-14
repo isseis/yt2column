@@ -95,6 +95,12 @@ func TestResetAfterRunpr(t *testing.T) {
 			}
 			return sw.realReact(p, text)
 		}, reason: NotSentPaneChanged},
+		{name: "the pane's directory changed after it was listed", react: func(sw *sendWorld, p *simPane, text string) error {
+			if text == "/runpr 42" {
+				sw.byPane["w1:p1"].Dir += "-other"
+			}
+			return sw.realReact(p, text)
+		}, reason: NotSentUnreadable},
 		{name: "the report left the screen", react: func(sw *sendWorld, p *simPane, text string) error {
 			sw.byPane["w1:p1"].screen = readScreenSample(sw.t, "claude-idle.ansi")
 			return sw.realReact(p, text)

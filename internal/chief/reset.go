@@ -122,7 +122,7 @@ func (s sendContext) resetAfterRunpr(ctx context.Context, runprPane string, pr O
 	if err != nil {
 		return notSent(res, NotSentUnreadable, "herdr agent get failed: "+err.Error())
 	}
-	if a.Workspace != candidate.Workspace || a.Kind != candidate.Kind {
+	if !sameAgent(a, candidate) {
 		return notSent(res, NotSentUnreadable, "the pane is no longer the same agent of the workspace")
 	}
 	if a.StateChangeSeq != rec.Seq {

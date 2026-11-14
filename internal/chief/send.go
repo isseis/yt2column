@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/isseis/yt2column/internal/chief/paneinput"
@@ -266,7 +265,7 @@ func (s sendContext) checkPane(ctx context.Context, target Agent, check paneChec
 	if err != nil {
 		return target, &checkFailure{reason: NotSentUnreadable, detail: "herdr agent get failed: " + err.Error(), agent: target}
 	}
-	if a.Workspace != target.Workspace || a.Kind != target.Kind {
+	if !sameAgent(a, target) {
 		return a, &checkFailure{reason: NotSentUnreadable, detail: "the pane is no longer the same agent of the workspace", agent: a}
 	}
 	if check.session != "" && a.Session != check.session {
@@ -316,7 +315,7 @@ func (s sendContext) checkPane(ctx context.Context, target Agent, check paneChec
 // targetPane returns the one agent of kind in the workspace that works in
 // its worktree. Contract: zero or several such agents is no target, so a
 // pane the human may be talking to is never chosen among several; a pane
-// whose directory is outside the worktree is never one; chief's own
+// whose directory is not the worktree's root is never one; chief's own
 // workspace is never a task workspace, so its panes are never among them.
 func targetPane(ws TaskWorkspace, kind paneinput.AgentKind) (Agent, []string, bool) {
 	var found []Agent
@@ -333,14 +332,19 @@ func targetPane(ws TaskWorkspace, kind paneinput.AgentKind) (Agent, []string, bo
 	return found[0], panes, true
 }
 
-// inWorktree reports whether dir, its links resolved, is the worktree or a
-// directory below it.
+// sameAgent reports whether a fresh reading of a pane is still the agent it
+// was: the same workspace, agent, and working directory.
+func sameAgent(a, was Agent) bool {
+	return a.Workspace == was.Workspace && a.Kind == was.Kind && a.Dir == was.Dir
+}
+
+// inWorktree reports whether dir, its links resolved, is the worktree's root.
+// A directory below the root is not accepted: another worktree may be nested
+// there, and telling it apart would take git in a directory chosen by the
+// pane.
 func inWorktree(dir, worktree string) bool {
 	resolved, err := filepath.EvalSymlinks(dir)
-	if err != nil || worktree == "" {
-		return false
-	}
-	return resolved == worktree || strings.HasPrefix(resolved, worktree+string(filepath.Separator))
+	return err == nil && worktree != "" && resolved == worktree
 }
 
 // sendCommand sends cmd by route to the workspace: the agent's reset, its
@@ -508,7 +512,7 @@ func (s sendContext) poll(ctx context.Context, before Agent, why string, done fu
 		if err != nil {
 			continue
 		}
-		if a.Workspace != before.Workspace || a.Kind != before.Kind {
+		if !sameAgent(a, before) {
 			return a, &checkFailure{reason: NotSentUnreadable, detail: "the pane is no longer the same agent of the workspace", agent: a}
 		}
 		last = a

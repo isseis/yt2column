@@ -254,6 +254,11 @@ func TestSendStopsBetweenInputs(t *testing.T) {
 			p.Status = "working"
 			return err
 		}, 1, StepClear, NotSentNotAccepting},
+		{"the pane's directory changes during the wait", func(sw *sendWorld, p *simPane, text string) error {
+			err := sw.realReact(p, text)
+			p.Dir += "-other"
+			return err
+		}, 1, StepClear, NotSentUnreadable},
 		{"the pane moves to another workspace during the wait", func(sw *sendWorld, p *simPane, text string) error {
 			err := sw.realReact(p, text)
 			p.Workspace = "w9"
@@ -814,8 +819,9 @@ func TestSendRefusesAWorktreeOfTwoWorkspaces(t *testing.T) {
 	}
 }
 
-// TestTargetPaneStaysInTheWorktree checks that a pane whose directory is
-// outside the workspace's worktree is never a target, and one below it is.
+// TestTargetPaneStaysInTheWorktree checks that only a pane whose directory is
+// the workspace's worktree root is a target: not one in another worktree,
+// and not one below the root, where another worktree may be nested.
 func TestTargetPaneStaysInTheWorktree(t *testing.T) {
 	root, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
@@ -833,7 +839,10 @@ func TestTargetPaneStaysInTheWorktree(t *testing.T) {
 	if _, _, ok := targetPane(TaskWorkspace{Worktree: tree, Agents: []Agent{agent("w1:p1", other)}}, paneinput.AgentOpenCode); ok {
 		t.Error("a pane in another worktree was chosen")
 	}
-	if a, _, ok := targetPane(TaskWorkspace{Worktree: tree, Agents: []Agent{agent("w1:p1", below)}}, paneinput.AgentOpenCode); !ok || a.Pane.id != "w1:p1" {
-		t.Errorf("a pane below the worktree was not chosen: %v %v", a, ok)
+	if _, _, ok := targetPane(TaskWorkspace{Worktree: tree, Agents: []Agent{agent("w1:p1", below)}}, paneinput.AgentOpenCode); ok {
+		t.Error("a pane below the worktree's root was chosen; another worktree may be nested there")
+	}
+	if a, _, ok := targetPane(TaskWorkspace{Worktree: tree, Agents: []Agent{agent("w1:p1", tree)}}, paneinput.AgentOpenCode); !ok || a.Pane.id != "w1:p1" {
+		t.Errorf("the pane at the worktree's root was not chosen: %v %v", a, ok)
 	}
 }
