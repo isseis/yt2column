@@ -61,18 +61,18 @@
 
 **変更するファイル:** `docs/tasks/0090_extension_only_architecture/_checks/check.sh`（新規）、本計画（§7 の記録）。GitHub の issue #773 の本文（リポジトリの外）。
 
--   [ ] **ステップ 1-1**: 確認のスクリプトを `_checks/check.sh` に書く。引数は、比べる 2 つのコミット（変更の前と後）と、省略できる #773 の本文のファイルである。次を確かめる。
+-   [x] **ステップ 1-1**: 確認のスクリプトを `_checks/check.sh` に書く。引数は、比べる 2 つのコミット（変更の前と後）と、省略できる #773 の本文のファイルである。次を確かめる。
     -   2 つのコミットの間で追加・削除・変更されたファイルが、すべて `docs/tasks/0090_extension_only_architecture/`・`docs/dev/adr/`・`docs/translation_glossary.md`・`docs/research/` の下にある（AC-27）。ファイルの一覧は、`requirements_process.md` §4「Fixed commands」にある一覧用のコマンド（名前の変更を検出しない）で取る。外にあるファイルを出力する。
     -   本文のファイルを渡したときだけ、AC-26 を確かめる。後のコミットで、状態が `有効` で、「決定」の節に #773 の URL（`issues/773` の後に数字が続かないもの）を持つ ADR の番号を集める。その集合が、本文のファイルの「食い違いの記述を置いた ADR」の節（その見出しから次の見出しまで）に現れる ADR の番号（`ADR-NNNN`）の集合と等しいことを確かめる。両方の集合と、片方にだけある番号を出力する。ADR の側の集合は「#773 にリンクする食い違いの記述を持つ ADR」の近似で、集合の各 ADR が実際に食い違いの記述を持つことは §7 の `manual` の行で読んで確かめる。
 
     違反があれば 0 でない終了コードで終わる。違反の有無にかかわらず、2 つのコミットの完全な ID と `check.sh` の blob の ID を出力し、本文のファイルを渡したときはその blob の ID（`git hash-object`）も出力する。コメントと文字列リテラルは英語で書く。ただし、日本語の文書の文面と一致しなければならないリテラル（`## 決定` などの見出し、本文の節の見出し、`有効`）は除く（CLAUDE.md「Go Idioms」の `_checks/` の例外）。
--   [ ] **ステップ 1-2**: スクリプトの各確認が、少なくとも 1 つの壊し方で失敗することを確かめる。壊し方は、本文のファイルの写しを変えるか、使い捨てのブランチの一時的なコミットで作る。使い捨てのブランチは push せず、確かめた後に消す。壊し方ごとの結果は、ステップ 1-4 のコミットのメッセージに書く。
--   [ ] **ステップ 1-3**: #773 の本文を直す。人の承認を得てから、`gh issue view 773 --json body,updatedAt` で本文と最後の更新の時刻を読み、本文をスクラッチパッドのファイルに書き出して、直す前の本文として残す。書き出すときは、本文の文字列のとおりにし、出力の道具が足す末尾の改行を加えない。次の文がちょうど 1 回現れることを確かめる。
+-   [x] **ステップ 1-2**: スクリプトの各確認が、少なくとも 1 つの壊し方で失敗することを確かめる。壊し方は、本文のファイルの写しを変えるか、使い捨てのブランチの一時的なコミットで作る。使い捨てのブランチは push せず、確かめた後に消す。壊し方ごとの結果は、ステップ 1-4 のコミットのメッセージに書く。
+-   [x] **ステップ 1-3**: #773 の本文を直す。人の承認を得てから、`gh issue view 773 --json body,updatedAt` で本文と最後の更新の時刻を読み、本文をスクラッチパッドのファイルに書き出して、直す前の本文として残す。書き出すときは、本文の文字列のとおりにし、出力の道具が足す末尾の改行を加えない。次の文がちょうど 1 回現れることを確かめる。
     -   直す前：`タスク 0090 の要件の PR（#862）で決定を改め、実装まで食い違いの記述を置いた ADR：ADR-0010・ADR-0022・ADR-0027・ADR-0047。実装の PR で、それぞれの記述を除く。`
     -   直した後：`タスク 0090 の要件の PR（#862）で決定を改め、実装まで食い違いの記述を置いた ADR：ADR-0010・ADR-0022・ADR-0027・ADR-0048。実装の PR で、それぞれの記述を除く。`
 
     書き出したファイルとは別に写しを作り、写しのこの 1 か所だけを置き換えて、`gh issue edit 773 --body-file <写し>` で書き戻す。書き戻す前に、写しが `_context.md` の「PR review request」の言及を含まないことを、`_lib/task-pr-handoff.md` の mention check で確かめる。書き戻す直前に `updatedAt` をもう一度読み、最初に読んだ値と同じことを確かめる。文が見つからないか 2 回以上現れるとき、または `updatedAt` が変わっていたときは、書き戻さずに止まって人に報告する。
--   [ ] **ステップ 1-4**: 人の承認を得てから、直した後の本文を `gh issue view 773 --json body --jq .body` でもう一度書き出す。ステップ 1-3 と同じ書き出し方で書き出し、直す前の本文のファイルとの `diff` を取る。出力が、削除 1 行と追加 1 行だけで、削除した行がステップ 1-3 の直す前の文そのもの、追加した行が直した後の文そのものであることを確かめる（今の本文では、この段落は 1 行がちょうどその文である）。ほかの差分（末尾の改行を含む）が出たときは、止まって人に報告する。そのうえで、確認のスクリプトを次の 4 組のコミットで実行する。
+-   [x] **ステップ 1-4**: 人の承認を得てから、直した後の本文を `gh issue view 773 --json body --jq .body` でもう一度書き出す。ステップ 1-3 と同じ書き出し方で書き出し、直す前の本文のファイルとの `diff` を取る。出力が、削除 1 行と追加 1 行だけで、削除した行がステップ 1-3 の直す前の文そのもの、追加した行が直した後の文そのものであることを確かめる（今の本文では、この段落は 1 行がちょうどその文である）。ほかの差分（末尾の改行を含む）が出たときは、止まって人に報告する。そのうえで、確認のスクリプトを次の 4 組のコミットで実行する。
     -   要件の PR #862 のスカッシュのコミットの親とそのコミット（`28358348`）。
     -   設計の PR #871 のスカッシュのコミットの親とそのコミット（`63ee516a`）。
     -   本計画の PR のスカッシュのコミットの親とそのコミット。
@@ -125,9 +125,10 @@ PR を作る直前に、`/runplan` はこの 3 つを確かめる。どれかが
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
--   [ ] フェーズ 1（ステップ 1-1〜1-4）
--   [ ] PR を作成した
--   [ ] PR がマージされた
+-   [x] フェーズ 1（ステップ 1-1〜1-4）
+-   [x] PR を作成した: https://github.com/isseis/yt2column/pull/881
+-   [x] PR がマージされた
+-   [-] 次のブランチへ切り替えた（最終の PR のため）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -150,7 +151,185 @@ PR を作る直前に、`/runplan` はこの 3 つを確かめる。どれかが
 
 実行の記録（ステップ 1-4 で書く）：
 
--   （未実行）
+-   **#773 の本文の `diff`。** 本文を `gh issue view 773 --json body,updatedAt` で読み（`updatedAt` は `2026-11-12T11:28:11Z`、本文の blob は `6dfe182d5d6914771a13934108a9033ac1ce5eef`）、ステップ 1-3 の 1 か所だけを置き換えて書き戻した。読み戻した本文（`updatedAt` は `2026-11-14T15:23:35Z`、blob は `087cf0b2d214934d71db942f4a53c7586e434cb9`）と直す前の本文の `diff` は次のとおりで、削除 1 行と追加 1 行だけである。この出力は、2 つの本文を `diff -u --label '773.txt（直す前）' --label '773.txt（直した後）'` で比べて再現できる（2026-11-15 に取り直して確かめた。出力の blob は `9e8a880dcb6b6d1c55aa07efcc2ce98f4d0fd4f1`）。出力の空の文脈行は空白 1 文字だが、リポジトリの `trailing-whitespace` フックがその空白を除くため、下の記録では空行になっている。
+
+````text
+--- 773.txt（直す前）
++++ 773.txt（直した後）
+@@ -19,7 +19,7 @@
+
+ ## 食い違いの記述を置いた ADR
+
+-タスク 0090 の要件の PR（#862）で決定を改め、実装まで食い違いの記述を置いた ADR：ADR-0010・ADR-0022・ADR-0027・ADR-0047。実装の PR で、それぞれの記述を除く。
++タスク 0090 の要件の PR（#862）で決定を改め、実装まで食い違いの記述を置いた ADR：ADR-0010・ADR-0022・ADR-0027・ADR-0048。実装の PR で、それぞれの記述を除く。
+
+
+ タスク 0090 の設計の PR で、拡張だけの構成の決定を記録し、実装まで食い違いの記述を置いた ADR：ADR-0003・ADR-0004・ADR-0006・ADR-0007・ADR-0008・ADR-0009・ADR-0010・ADR-0017・ADR-0019・ADR-0020・ADR-0024・ADR-0026・ADR-0027・ADR-0028・ADR-0029・ADR-0030・ADR-0031・ADR-0033・ADR-0034・ADR-0038・ADR-0043・ADR-0045・ADR-0048・ADR-0049。実装の PR で、解消した範囲の記述を除く。何を実装し、どの仕様の文書を書き換えるかは、[0090 設計書](https://github.com/isseis/yt2column/blob/main/docs/tasks/0090_extension_only_architecture/02_architecture.md)の「#773 への引き継ぎ（要件書 AC-28）」にある。
+````
+
+-   **スクリプトの実行。** `_checks/check.sh`（blob は `7f56fd91b25ff964902e6ab2d6d42bfddacbcc57`）を、次の 4 つの組で実行した。すべて終了コード 0 である。実装の PR の組だけ、読み戻した本文のファイルを渡した。
+
+**要件の PR #862（`f72fd25d5b7971a3dc8598caa13ae9019c5b7454` と `283583489ad908d980508cb4909d011ef5f6edaa`）。** 終了コード 0。
+
+```text
+before commit: f72fd25d5b7971a3dc8598caa13ae9019c5b7454
+after commit: 283583489ad908d980508cb4909d011ef5f6edaa
+script blob: 7f56fd91b25ff964902e6ab2d6d42bfddacbcc57
+
+changed files:
+  docs/dev/adr/0005-server-architecture.md
+  docs/dev/adr/0010-extension-stores-nothing.md
+  docs/dev/adr/0018-server-config-file.md
+  docs/dev/adr/0022-cost-estimate.md
+  docs/dev/adr/0026-extension-platform.md
+  docs/dev/adr/0027-article-job-api.md
+  docs/dev/adr/0048-extension-only-generation.md
+  docs/dev/adr/README.md
+  docs/tasks/0090_extension_only_architecture/01_requirements.md
+  docs/tasks/0090_extension_only_architecture/design_handoff.md
+
+changed files outside docs/tasks/0090_extension_only_architecture/, docs/dev/adr/, docs/translation_glossary.md, docs/research/:
+  (none)
+
+result: ok
+```
+
+**設計の PR #871（`0f37161a904714db68b006dafa5a8d5de2082f68` と `63ee516a036541556ec1fac71037067564a3fd2f`）。** 終了コード 0。
+
+```text
+before commit: 0f37161a904714db68b006dafa5a8d5de2082f68
+after commit: 63ee516a036541556ec1fac71037067564a3fd2f
+script blob: 7f56fd91b25ff964902e6ab2d6d42bfddacbcc57
+
+changed files:
+  docs/dev/adr/0003-llm-config-contract.md
+  docs/dev/adr/0004-production-profile.md
+  docs/dev/adr/0006-threat-model.md
+  docs/dev/adr/0007-manual-transcript-copy.md
+  docs/dev/adr/0008-launch-path.md
+  docs/dev/adr/0009-viewer-opening.md
+  docs/dev/adr/0010-extension-stores-nothing.md
+  docs/dev/adr/0017-viewer-markdown-rendering.md
+  docs/dev/adr/0019-pipeline-component-interfaces.md
+  docs/dev/adr/0020-strict-json.md
+  docs/dev/adr/0024-env-access-in-config.md
+  docs/dev/adr/0026-extension-platform.md
+  docs/dev/adr/0027-article-job-api.md
+  docs/dev/adr/0028-no-automatic-resend.md
+  docs/dev/adr/0029-extension-ui-languages.md
+  docs/dev/adr/0030-minimum-chrome-version.md
+  docs/dev/adr/0031-secret-closure.md
+  docs/dev/adr/0033-transcript-cache-slots.md
+  docs/dev/adr/0034-template-allowlist.md
+  docs/dev/adr/0038-deadcode-and-race-free-timing.md
+  docs/dev/adr/0043-copy-mention-neutralization.md
+  docs/dev/adr/0045-dev-fake-llm.md
+  docs/dev/adr/0048-extension-only-generation.md
+  docs/dev/adr/0049-wasm-core-sharing.md
+  docs/dev/adr/README.md
+  docs/research/wasm_pipeline_poc/README.md
+  docs/tasks/0090_extension_only_architecture/01_requirements.md
+  docs/tasks/0090_extension_only_architecture/02_architecture.md
+  docs/tasks/0090_extension_only_architecture/design_handoff.md
+  docs/translation_glossary.md
+
+changed files outside docs/tasks/0090_extension_only_architecture/, docs/dev/adr/, docs/translation_glossary.md, docs/research/:
+  (none)
+
+result: ok
+```
+
+**本計画の PR #877（`2dcd097bcd6f14c05aee45ab6c4d5d1032a951ed` と `9f5f89c48d4681288c5fa4b1d5af2eac82fd241d`）。** 終了コード 0。
+
+```text
+before commit: 2dcd097bcd6f14c05aee45ab6c4d5d1032a951ed
+after commit: 9f5f89c48d4681288c5fa4b1d5af2eac82fd241d
+script blob: 7f56fd91b25ff964902e6ab2d6d42bfddacbcc57
+
+changed files:
+  docs/tasks/0090_extension_only_architecture/03_implementation_plan.md
+
+changed files outside docs/tasks/0090_extension_only_architecture/, docs/dev/adr/, docs/translation_glossary.md, docs/research/:
+  (none)
+
+result: ok
+```
+
+**実装の PR（merge-base `9f5f89c48d4681288c5fa4b1d5af2eac82fd241d` と `HEAD` の `25e32da31ffefa1d12b708251e78c070c4edf73c`）。** 終了コード 0。読み戻した本文のファイル（blob は `087cf0b2d214934d71db942f4a53c7586e434cb9`）を渡した。
+
+```text
+before commit: 9f5f89c48d4681288c5fa4b1d5af2eac82fd241d
+after commit: 25e32da31ffefa1d12b708251e78c070c4edf73c
+script blob: 7f56fd91b25ff964902e6ab2d6d42bfddacbcc57
+
+changed files:
+  docs/tasks/0090_extension_only_architecture/03_implementation_plan.md
+  docs/tasks/0090_extension_only_architecture/_checks/check.sh
+
+changed files outside docs/tasks/0090_extension_only_architecture/, docs/dev/adr/, docs/translation_glossary.md, docs/research/:
+  (none)
+issue body blob: 087cf0b2d214934d71db942f4a53c7586e434cb9
+
+ADRs active at 25e32da31ffefa1d12b708251e78c070c4edf73c that link to issue 773 in their decision section:
+  ADR-0003
+  ADR-0004
+  ADR-0006
+  ADR-0007
+  ADR-0008
+  ADR-0009
+  ADR-0010
+  ADR-0017
+  ADR-0019
+  ADR-0020
+  ADR-0022
+  ADR-0024
+  ADR-0026
+  ADR-0027
+  ADR-0028
+  ADR-0029
+  ADR-0030
+  ADR-0031
+  ADR-0033
+  ADR-0034
+  ADR-0038
+  ADR-0043
+  ADR-0045
+  ADR-0048
+  ADR-0049
+
+ADRs the issue body names in its discrepancy section:
+  ADR-0003
+  ADR-0004
+  ADR-0006
+  ADR-0007
+  ADR-0008
+  ADR-0009
+  ADR-0010
+  ADR-0017
+  ADR-0019
+  ADR-0020
+  ADR-0022
+  ADR-0024
+  ADR-0026
+  ADR-0027
+  ADR-0028
+  ADR-0029
+  ADR-0030
+  ADR-0031
+  ADR-0033
+  ADR-0034
+  ADR-0038
+  ADR-0043
+  ADR-0045
+  ADR-0048
+  ADR-0049
+
+ADRs only in the ADR files:
+
+ADRs only in the issue body:
+
+result: ok
+```
 
 ## 8. 成功の基準 (Success Criteria)
 
