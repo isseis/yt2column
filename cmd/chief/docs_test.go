@@ -212,41 +212,37 @@ func TestDocumentedProtocolMatches(t *testing.T) {
 	}
 }
 
-// placeholderValues are the values a call's placeholders stand for, by the
-// flag they follow: each passes the tool's own check of that flag.
+// placeholderValues are the values the definition's placeholders stand for,
+// by name: each passes the tool's own check of the flag it is written in.
 var placeholderValues = map[string]string{
-	flagWorkspace: "/w",
-	flagCommand:   "mkarch",
-	flagIssue:     "12",
-	flagPR:        "34",
-	flagCheck:     strings.Repeat("a", 64),
-	flagAnswer:    "1=1",
-	flagSince:     strings.Repeat("b", 64),
-	flagTimeout:   "60",
+	"<workspace>": "/w",
+	"<request>":   "mkarch",
+	"<issue>":     "12",
+	"<pr>":        "34",
+	"<check>":     strings.Repeat("a", 64),
+	"<number>":    "1",
+	"<baseline>":  strings.Repeat("b", 64),
 }
 
 // placeholder is a value a document leaves for the session to fill in, such
 // as <workspace>, alone or inside a value such as 1=<number>.
 var placeholder = regexp.MustCompile(`<[A-Za-z_]+>`)
 
-// fillPlaceholders returns args with each value that holds a placeholder
-// replaced by the value its flag stands for, failing t for a placeholder
-// after a flag that has none.
+// fillPlaceholders returns args with each placeholder replaced by the value
+// it stands for, keeping the text around it, so a call whose fixed part is
+// wrong (such as invalid=<number>) still fails the tool's check. It fails t
+// for a placeholder with no value.
 func fillPlaceholders(t *testing.T, args []string) []string {
 	t.Helper()
 	filled := slices.Clone(args)
 	for i := range filled {
-		if !placeholder.MatchString(filled[i]) {
-			continue
-		}
-		value, ok := "", i > 0
-		if ok {
-			value, ok = placeholderValues[filled[i-1]]
-		}
-		if !ok {
-			t.Errorf("%q: no value for the placeholder %q", args, filled[i])
-		}
-		filled[i] = value
+		filled[i] = placeholder.ReplaceAllStringFunc(filled[i], func(p string) string {
+			value, ok := placeholderValues[p]
+			if !ok {
+				t.Errorf("%q: no value for the placeholder %s", args, p)
+			}
+			return value
+		})
 	}
 	return filled
 }
