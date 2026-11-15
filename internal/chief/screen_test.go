@@ -134,6 +134,21 @@ var claudeScreenWants = map[string]wantScreen{
 			"Contains brace with quote character (expansion obfuscation)\n\nDo you want to proceed?",
 		labels: []string{"Yes", "Yes, and switch to auto mode · auto mode handles these prompts for you", "No"},
 	},
+	// A permission prompt whose second option's label wraps onto a line
+	// indented to the label's column.
+	"claude-permission-wrapped.ansi": {
+		kind: ScreenQuestion, question: QuestionPermission, relay: RelayBlockPermission,
+		text: "Bash command\nTip: auto mode handles these prompts for you — choose \"switch to auto mode\" below\n" +
+			"Fetch main, fast-forward, show latest commit and task identification guide\n" + strings.Repeat("╌", 83) + "\n" +
+			"│ git fetch origin main 2>&1 | tail -2; git merge --ff-only origin/main 2>&1 |\n" +
+			"│ tail -2; git log --oneline -1 --no-show-signature; cat\n" +
+			"│ docs/dev/conventions/task_identification.md | head -40\n" + strings.Repeat("╌", 83) + "\n" +
+			"This command requires approval\n\nDo you want to proceed?",
+		labels: []string{
+			"Yes", "Yes, and don't ask again for git merge and git log commands in /Users/user/.herdr/worktrees/yt2column/chief-poc",
+			"Yes, and switch to auto mode · auto mode handles these prompts for you", "No",
+		},
+	},
 	"claude-merge-question.ansi": {
 		kind: ScreenQuestion, question: QuestionSingle, relay: RelayAllowed, merge: true,
 		text:      mergeText,
@@ -367,6 +382,8 @@ func TestParseScreenRejectsNonMatching(t *testing.T) {
 		{"claude multi-select with two tabs", parseClaudeScreen, "claude-question-multi.ansi", "☐ Colors  ✔ Submit", "☐ Colors  ☐ More  ✔ Submit"},
 		{"claude permission without proceed line", parseClaudeScreen, "claude-permission.ansi", " Do you want to proceed?", " Proceed?"},
 		{"claude permission with an unindented warning", parseClaudeScreen, "claude-permission-warning.ansi", " Contains brace", "Contains brace"},
+		{"claude permission with a wrapped label left of its column", parseClaudeScreen, "claude-permission-wrapped.ansi", "      /Users/user", "     /Users/user"},
+		{"claude permission with a wrapped label right of its column", parseClaudeScreen, "claude-permission-wrapped.ansi", "      /Users/user", "       /Users/user"},
 		{"claude tab bar without submit", parseClaudeScreen, "claude-question-tabs.ansi", "✔ Submit", "✔ Send"},
 		{"claude prompt with a line after the status line", parseClaudeScreen, "claude-idle.ansi", "auto mode on", "auto mode on\nunexpected"},
 		{"opencode option number gap", parseOpenCodeScreen, oq, "2. Banana", "3. Banana"},

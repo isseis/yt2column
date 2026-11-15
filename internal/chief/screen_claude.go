@@ -28,6 +28,7 @@ const (
 	claudeMultiDescIndent  = "         "
 	claudeMultiBox         = "[ ] "
 	claudePermissionIndent = " "
+	claudePermissionWrap   = "      "
 	claudeTabSubmit        = "✔ Submit"
 	claudeTabOpen          = "☐ "
 	claudeTabAnswered      = "☒ "
@@ -366,8 +367,9 @@ func claudeTabsReview(lines []screenLine) *Question {
 }
 
 // claudePermission reads a permission prompt: from a rule, a tool header and
-// its details (blank lines among them), the proceed line, numbered options indented by one space, a
-// blank line, and the footer.
+// its details (blank lines among them), the proceed line, numbered options indented by one space
+// (a long label wrapped onto lines indented to its column), a blank line,
+// and the footer.
 func claudePermission(lines []screenLine) *Question {
 	end := len(lines) - claudePermissionTail
 	if end < 1 || lines[end].text != "" {
@@ -375,7 +377,8 @@ func claudePermission(lines []screenLine) *Question {
 	}
 	first := end
 	for first > 0 {
-		if _, ok := claudeOption(lines[first-1].text, claudePermissionIndent); !ok {
+		text := lines[first-1].text
+		if _, ok := claudeOption(text, claudePermissionIndent); !ok && !isPermissionWrap(text) {
 			break
 		}
 		first--
@@ -401,6 +404,17 @@ func claudePermission(lines []screenLine) *Question {
 	q.Text = joinTexts(text)
 	cursors := 0
 	for _, l := range lines[first:end] {
+		if isPermissionWrap(l.text) {
+			// The rest of the previous option's label, as in
+			// claude-permission-wrapped.ansi; the terminal broke it at a
+			// blank.
+			if len(q.Options) == 0 {
+				return nil
+			}
+			last := &q.Options[len(q.Options)-1]
+			last.Label += " " + strings.TrimPrefix(l.text, claudePermissionWrap)
+			continue
+		}
 		o, _ := claudeOption(l.text, claudePermissionIndent)
 		if o.number != len(q.Options)+1 {
 			return nil
@@ -412,6 +426,13 @@ func claudePermission(lines []screenLine) *Question {
 		return nil
 	}
 	return q
+}
+
+// isPermissionWrap reports whether text continues a permission option's
+// label: indented to the label's column, then a non-blank character.
+func isPermissionWrap(text string) bool {
+	rest, ok := strings.CutPrefix(text, claudePermissionWrap)
+	return ok && rest != "" && rest[0] != ' '
 }
 
 // claudePrompt reads the input box at the bottom of a Claude Code screen: a

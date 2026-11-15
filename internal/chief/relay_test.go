@@ -135,6 +135,7 @@ func TestNoCheckValueForUnrelayable(t *testing.T) {
 		"claude-question-tabs-review.ansi":     false,
 		"claude-permission.ansi":               false,
 		"claude-permission-warning.ansi":       false,
+		"claude-permission-wrapped.ansi":       false,
 		"opencode-question-multi.ansi":         false,
 		"opencode-question-tabs.ansi":          false,
 		"opencode-question-tabs-second.ansi":   false,
@@ -347,7 +348,7 @@ func TestRelayRefusesTabbedQuestion(t *testing.T) {
 	for _, sample := range []string{
 		"claude-question-tabs.ansi", "claude-question-tabs-second.ansi", "claude-question-tabs-review.ansi",
 		"opencode-question-tabs.ansi", "opencode-question-tabs-second.ansi", "opencode-question-tabs-review.ansi",
-		"claude-question-multi.ansi", "opencode-question-multi.ansi", "claude-permission.ansi", "claude-permission-warning.ansi",
+		"claude-question-multi.ansi", "opencode-question-multi.ansi", "claude-permission.ansi", "claude-permission-warning.ansi", "claude-permission-wrapped.ansi",
 	} {
 		t.Run(sample, func(t *testing.T) {
 			sw := newSendWorld(t)
