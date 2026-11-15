@@ -116,22 +116,28 @@ type relayTarget struct {
 }
 
 // findRelayTarget reads every agent pane of the workspace again and returns
-// the one whose question gives check now. Contract: each pane's screen is
+// the one whose question gives check now, or whether a read failed when none
+// does. Contract: each pane's screen is
 // read before its agent, and the value is made from that agent reading, so a
 // question answered and asked again with the same text before its screen was
 // read carries the new state_change_seq and does not match the value of the
 // first; a pane whose directory is not the worktree's root is never read.
-func (s sendContext) findRelayTarget(ctx context.Context, check CheckValue) (relayTarget, bool) {
+func (s sendContext) findRelayTarget(ctx context.Context, check CheckValue) (target relayTarget, found, readFailed bool) {
 	for _, listed := range s.ws.Agents {
 		if listed.Kind == paneinput.AgentUnknown || !inWorktree(listed.Dir, s.ws.Worktree) {
 			continue
 		}
 		raw, err := s.herdr.Screen(ctx, listed.Pane, ScreenVisible)
 		if err != nil {
+			readFailed = true
 			continue
 		}
 		after, err := s.herdr.Agent(ctx, listed.Pane)
-		if err != nil || !sameAgent(after, listed) {
+		if err != nil {
+			readFailed = true
+			continue
+		}
+		if !sameAgent(after, listed) {
 			continue
 		}
 		screen := readScreen(after.Kind, raw)
@@ -139,18 +145,18 @@ func (s sendContext) findRelayTarget(ctx context.Context, check CheckValue) (rel
 			continue
 		}
 		if checkValue(after, *screen.Question) == check {
-			return relayTarget{agent: after, question: *screen.Question}, true
+			return relayTarget{agent: after, question: *screen.Question}, true, false
 		}
 	}
-	return relayTarget{}, false
+	return relayTarget{}, false, readFailed
 }
 
 // Relay sends the option the human chose to the question a snapshot showed
 // (the design, 3.6). Contract: it holds the workspace's exclusion, settles
 // unfinished sends, and sends nothing to a stopped workspace; it reads the
 // panes again and sends only to the one pane whose question gives the check
-// value now; it sends only to a relayable question, a Claude Code agent only
-// while Herdr reports it blocked, and only an option the question has and
+// value now; it sends only to a relayable question, only while Herdr reports
+// the agent blocked, and only an option the question has and
 // relays; what it sends is the key of the option's number, never a text; the
 // start record is written before the key, and a failure once the key may
 // have been pressed is never retried but stops the workspace.
@@ -183,8 +189,11 @@ func Relay(ctx context.Context, deps Deps, req RelayRequest) (SendOutcome, error
 
 // relay checks the target and presses its key, for Relay.
 func (s sendContext) relay(ctx context.Context, res ActionResult, req RelayRequest) ActionResult {
-	target, ok := s.findRelayTarget(ctx, req.check)
-	if !ok {
+	target, ok, readFailed := s.findRelayTarget(ctx, req.check)
+	switch {
+	case !ok && readFailed:
+		return notSent(res, NotSentUnreadable, "no pane shows the question as it was shown, and a pane could not be read")
+	case !ok:
 		return notSent(res, NotSentCheckMismatch, "no pane shows the question as it was shown: it changed, was answered, or the agent moved")
 	}
 	a, q := target.agent, target.question
@@ -192,11 +201,11 @@ func (s sendContext) relay(ctx context.Context, res ActionResult, req RelayReque
 	if !relayable(a, q) {
 		return notSent(res, NotSentNotRelayable, "the question is not a single-select question chief relays; answer it in the pane")
 	}
-	switch {
-	case a.Kind == paneinput.AgentClaudeCode && a.Status != AgentBlocked:
-		return notSent(res, NotSentNotAccepting, "the Claude Code agent is not blocked on the question")
-	case a.Status == AgentWorking:
-		return notSent(res, NotSentNotAccepting, "the agent is working")
+	// Herdr reported both agents blocked on their questions when sampled,
+	// so an agent in any other state is not sent the key: a digit typed into
+	// an input line would be text the human did not choose.
+	if a.Status != AgentBlocked {
+		return notSent(res, NotSentNotAccepting, "the agent is not blocked on the question")
 	}
 	i := slices.IndexFunc(q.Options, func(o Option) bool { return o.Number == req.option })
 	if i < 0 {

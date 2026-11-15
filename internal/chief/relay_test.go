@@ -58,8 +58,8 @@ func (sw *sendWorld) questionPane(kind, sample string) *simPane {
 }
 
 // TestCheckValueChanges checks that the check value changes with each part
-// it is made of, and only with them: the same pane and question give the
-// same value.
+// it is made of, and not with the agent's status, which a snapshot reads
+// from the agent list and a relay from the agent itself.
 func TestCheckValueChanges(t *testing.T) {
 	base := Agent{Pane: PaneID{id: "w1:p1"}, Workspace: "w1", Kind: paneinput.AgentClaudeCode, Status: AgentBlocked, Session: "00000000-0000-4000-8000-000000000001", Dir: "/w", StateChangeSeq: 10}
 	question := func() Question {
@@ -89,6 +89,11 @@ func TestCheckValueChanges(t *testing.T) {
 		"one option fewer":      func(_ *Agent, q *Question) { q.Options = q.Options[:len(q.Options)-1] },
 		"selection position":    func(_ *Agent, q *Question) { q.Cursor = 3 },
 		"text moved to a label": func(_ *Agent, q *Question) { q.Options[0].Label = q.Text + q.Options[0].Label; q.Text = "" },
+	}
+	idle := base
+	idle.Status = AgentIdle
+	if got := checkValue(idle, question()); got != want {
+		t.Errorf("changing the status changed the value")
 	}
 	seen := map[CheckValue]string{want: "base"}
 	for name, change := range cases {
@@ -174,7 +179,7 @@ func TestRelaySendsChosenOption(t *testing.T) {
 			p := sw.questionPane(kind, kind+"-question-single-cursor.ansi")
 			deps := sw.finish()
 			res := sw.relay(deps, sw.checkOf(p), "1=1")
-			if res.Outcome != OutcomeSent || res.Input != InputRelay || res.Pane != "w1:p1" || res.Command != "1. Apple" || res.Agent == paneinput.AgentUnknown {
+			if res.Outcome != OutcomeSent || res.Input != InputRelay || res.Workspace != sw.trees["w1"] || res.Pane != "w1:p1" || res.Command != "1. Apple" || res.Agent == paneinput.AgentUnknown {
 				t.Errorf("result = %+v, want option 1 relayed to w1:p1", res)
 			}
 			if got := sw.rec.keys(); !slices.Equal(got, []string{"w1:p1 1"}) {
@@ -190,7 +195,12 @@ func TestRelaySendsChosenOption(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if rec, err := records.LastSend("w1:p1"); err != nil || rec == nil || rec.Input != "relay" || !slices.Equal(rec.Prompts, []string{"key 1"}) {
+			starts, ends, err := records.sendFiles()
+			if err != nil || len(starts) != 1 || len(ends) != 1 {
+				t.Fatalf("send records: %d starts, %d ends, %v; want one send", len(starts), len(ends), err)
+			}
+			var rec SendRecord
+			if err := records.store().read(sendPrefix+starts[0]+startSuffix, &rec); err != nil || rec.Input != "relay" || !slices.Equal(rec.Prompts, []string{"key 1"}) {
 				t.Errorf("send record = %+v, %v; want the relay's key", rec, err)
 			}
 			if stop, err := records.Stopped(); err != nil || stop != nil {
@@ -311,33 +321,133 @@ func TestRelayRefusesOption(t *testing.T) {
 	}
 }
 
-// TestRelayNeedsAnAgentOnTheQuestion checks that a relay sends nothing to a
-// Claude Code agent Herdr does not report blocked, nor to a working agent.
+// TestRelayNeedsAnAgentOnTheQuestion checks that a relay sends nothing to an
+// agent Herdr does not report blocked, whatever its screen shows.
 func TestRelayNeedsAnAgentOnTheQuestion(t *testing.T) {
-	for _, c := range []struct{ kind, status string }{{"claude", "idle"}, {"claude", "done"}, {"opencode", "working"}} {
-		t.Run(c.kind+" "+c.status, func(t *testing.T) {
+	for _, kind := range []string{"claude", "opencode"} {
+		for _, status := range []string{"idle", "done", "working"} {
+			t.Run(kind+" "+status, func(t *testing.T) {
+				sw := newSendWorld(t)
+				p := sw.questionPane(kind, kind+"-question-single.ansi")
+				p.Status = status
+				deps := sw.finish()
+				res := sw.relay(deps, sw.checkOf(p), "1=1")
+				if res.Outcome != OutcomeNotSent || res.Reason != NotSentNotAccepting {
+					t.Errorf("result = %+v, want not sent, not accepting", res)
+				}
+				if got := sw.rec.keys(); len(got) != 0 {
+					t.Errorf("keys = %v", got)
+				}
+			})
+		}
+	}
+}
+
+// TestRelayTakesTheSnapshotsValue checks the whole path: the check value a
+// snapshot prints relays the chosen option to the pane that shows the
+// question, among the workspace's panes, and the running row then still
+// shows the command chief sent before, not the relay.
+func TestRelayTakesTheSnapshotsValue(t *testing.T) {
+	for _, c := range []struct{ asking, other, sample string }{
+		{"opencode", "claude", "opencode-question-single.ansi"},
+		{"claude", "opencode", "claude-merge-question.ansi"},
+	} {
+		t.Run(c.asking, func(t *testing.T) {
 			sw := newSendWorld(t)
-			p := sw.questionPane(c.kind, c.kind+"-question-single.ansi")
-			p.Status = c.status
+			tree := sw.addTask(fakeWorkspace{ID: "w1", Label: "ws", Branch: detachedHead}, c.other, c.asking)
+			p := sw.byPane["w1:p2"]
+			sw.ask(p, c.sample)
 			deps := sw.finish()
-			res := sw.relay(deps, sw.checkOf(p), "1=1")
-			if res.Outcome != OutcomeNotSent || res.Reason != NotSentNotAccepting {
-				t.Errorf("result = %+v, want not sent, not accepting", res)
+			records, err := deps.Store.Records(Worktree{path: tree})
+			if err != nil {
+				t.Fatal(err)
 			}
-			if got := sw.rec.keys(); len(got) != 0 {
+			held, err := records.Lock()
+			if err != nil {
+				t.Fatal(err)
+			}
+			id, err := held.BeginSend(SendRecord{Pane: "w1:p2", Input: InputCommand.String(), Command: "/runpr 42", Model: "m"}, sw.now)
+			if err == nil {
+				err = held.EndSend(id, OutcomeSent.String(), "", sw.now)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := held.Close(); err != nil {
+				t.Fatal(err)
+			}
+			snap, err := TakeSnapshot(context.Background(), deps, sw.owner())
+			if err != nil {
+				t.Fatal(err)
+			}
+			out := snap.Output()
+			if len(out.Rows) != 1 || len(out.Rows[0].Questions) != 1 || out.Rows[0].Questions[0].Pane != "w1:p2" {
+				t.Fatalf("rows = %+v, want one question in w1:p2", out.Rows)
+			}
+			res := sw.relay(deps, out.Rows[0].Questions[0].Check, "1=2")
+			if res.Outcome != OutcomeSent || res.Pane != "w1:p2" || res.Workspace != tree {
+				t.Fatalf("result = %+v, want option 2 sent to w1:p2 of %s", res, tree)
+			}
+			if got := sw.rec.keys(); !slices.Equal(got, []string{"w1:p2 2"}) {
 				t.Errorf("keys = %v", got)
+			}
+			snap, err = TakeSnapshot(context.Background(), deps, sw.owner())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if r := snap.Rows[0]; r.State != StateRunning || r.Running == nil || r.Running.Command != "/runpr 42" {
+				t.Errorf("row after the relay = %+v, running %+v; want the command sent before", r, r.Running)
 			}
 		})
 	}
-	t.Run("opencode idle on its question", func(t *testing.T) {
-		sw := newSendWorld(t)
-		p := sw.questionPane("opencode", "opencode-question-single.ansi")
-		p.Status = "idle"
-		deps := sw.finish()
-		if res := sw.relay(deps, sw.checkOf(p), "1=2"); res.Outcome != OutcomeSent {
-			t.Errorf("result = %+v, want sent", res)
-		}
+}
+
+// TestRelayUnreadablePane checks that a pane that cannot be read is reported
+// as unreadable, not as a changed question.
+func TestRelayUnreadablePane(t *testing.T) {
+	sw := newSendWorld(t)
+	p := sw.questionPane("claude", "claude-question-single.ansi")
+	deps := sw.finish()
+	check := sw.checkOf(p)
+	sw.rec.replyFunc("herdr agent read w1:p1 --source visible --lines 200 --format ansi", func() reply {
+		return reply{err: errors.New("herdr failed")}
 	})
+	res := sw.relay(deps, check, "1=1")
+	if res.Outcome != OutcomeNotSent || res.Reason != NotSentUnreadable {
+		t.Errorf("result = %+v, want not sent, unreadable", res)
+	}
+	if got := sw.rec.keys(); len(got) != 0 {
+		t.Errorf("keys = %v", got)
+	}
+}
+
+// TestParseRelayRequest checks the argument grammar of chief relay.
+func TestParseRelayRequest(t *testing.T) {
+	check := strings.Repeat("a", 64)
+	for _, answer := range []string{"1=1", "1=9"} {
+		if _, err := ParseRelayRequest("/w", check, answer); err != nil {
+			t.Errorf("ParseRelayRequest(%q) = %v", answer, err)
+		}
+	}
+	bad := []struct{ ws, check, answer string }{
+		{"w", check, "1=1"},
+		{"/w", check[:63], "1=1"},
+		{"/w", strings.ToUpper(check), "1=1"},
+		{"/w", check + "a", "1=1"},
+		{"/w", check, "1=10"},
+		{"/w", check, "1=a"},
+		{"/w", check, "1="},
+		{"/w", check, "=1"},
+		{"/w", check, "1"},
+		{"/w", check, "1=0"},
+		{"/w", check, "2=1"},
+		{"/w", check, "01=1"},
+	}
+	for _, b := range bad {
+		if _, err := ParseRelayRequest(b.ws, b.check, b.answer); !errors.Is(err, ErrBadRequest) {
+			t.Errorf("ParseRelayRequest(%q, %q, %q) = %v, want ErrBadRequest", b.ws, b.check, b.answer, err)
+		}
+	}
 }
 
 // TestRelayFailureAfterKeyStops checks that a failure once the key may have

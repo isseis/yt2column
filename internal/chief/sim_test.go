@@ -60,6 +60,10 @@ func (sw *sendWorld) realKeyReact(p *simPane, _ string) error {
 	p.Status, p.Seq = "working", p.Seq+1
 	if p.Kind == "claude" {
 		p.screen = readScreenSample(sw.t, "claude-working.ansi")
+	} else {
+		// No working OpenCode screen was sampled; its prompt screen stands
+		// for the question gone.
+		p.screen = readScreenSample(sw.t, "opencode-done.ansi")
 	}
 	return nil
 }

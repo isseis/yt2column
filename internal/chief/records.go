@@ -724,8 +724,10 @@ func (h *HeldWorkspace) Release(now time.Time) (bool, error) {
 	return true, nil
 }
 
-// LastSend returns the newest send record to pane, or nil when there is
-// none. It is used only to show what is running; it never decides a send.
+// LastSend returns the newest send record to pane that is not a relay, or
+// nil when there is none. It is used only to show what is running; it never
+// decides a send. A relay is skipped: the key answers a question of the run
+// an earlier command started, which goes on running.
 func (r WorkspaceRecords) LastSend(pane string) (*SendRecord, error) {
 	starts, _, err := r.sendFiles()
 	if err != nil {
@@ -736,7 +738,7 @@ func (r WorkspaceRecords) LastSend(pane string) (*SendRecord, error) {
 		if err := r.store().read(sendPrefix+id+startSuffix, &rec); err != nil {
 			return nil, err
 		}
-		if rec.Pane == pane {
+		if rec.Pane == pane && rec.Input != InputRelay.String() {
 			return &rec, nil
 		}
 	}
