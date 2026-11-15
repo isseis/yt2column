@@ -19,6 +19,8 @@ type SnapshotOutput struct {
 	// NewNotices lists the items not announced before in this session.
 	NewNotices []ItemID `json:"new_notices"`
 	Problems   []string `json:"problems"`
+	// Baseline is the value `chief wait --since` takes.
+	Baseline WaitBaseline `json:"baseline"`
 }
 
 // RowOutput is one row of the status table.
@@ -88,8 +90,11 @@ type PendingOutput struct {
 	Question  *QuestionOutput `json:"question"`
 	PR        *PROutput       `json:"pr"`
 	Proposal  *NextOutput     `json:"proposal"`
-	FirstSeen time.Time       `json:"first_seen"`
-	New       bool            `json:"new"`
+	// Reasons are the conditions of the automatic send that did not hold
+	// for a proposal after a merge.
+	Reasons   []string  `json:"reasons"`
+	FirstSeen time.Time `json:"first_seen"`
+	New       bool      `json:"new"`
 }
 
 // questionKindName names a question shape for the output.
@@ -164,6 +169,7 @@ func (s Snapshot) Output() SnapshotOutput {
 		Pending:    []PendingOutput{},
 		NewNotices: []ItemID{},
 		Problems:   sanitizeAll(s.Problems),
+		Baseline:   s.Baseline,
 	}
 	for _, r := range s.Rows {
 		row := RowOutput{
@@ -197,6 +203,7 @@ func (s Snapshot) Output() SnapshotOutput {
 			Label:     Sanitize(p.Label),
 			PR:        prOutput(p.PR),
 			Proposal:  nextOutput(p.Proposal),
+			Reasons:   sanitizeAll(p.Reasons),
 			FirstSeen: p.FirstSeen,
 			New:       p.New,
 		}
@@ -397,4 +404,48 @@ func (o DetailOutcome) Output() DetailOutput {
 // Output converts a release into the JSON type.
 func (o ReleaseOutcome) Output() ReleaseOutput {
 	return ReleaseOutput{Protocol: Protocol, Released: o.Released, Problem: Sanitize(o.Problem)}
+}
+
+// TickOutput is the output of `chief tick`: the snapshot's members and the
+// merged PRs an automatic send was considered for.
+type TickOutput struct {
+	SnapshotOutput
+	AutoSends []AutoSendOutput `json:"auto_sends"`
+}
+
+// AutoSendOutput is one merged PR an automatic send was considered for. An
+// empty Reasons with a sent command action is an automatic send.
+type AutoSendOutput struct {
+	Workspace string         `json:"workspace"`
+	Label     string         `json:"label"`
+	PR        int            `json:"pr"`
+	Task      string         `json:"task"`
+	Proposal  *NextOutput    `json:"proposal"`
+	Reasons   []string       `json:"reasons"`
+	Actions   []ActionOutput `json:"actions"`
+}
+
+// Output converts a tick into the JSON types. Lists are never nil.
+func (o TickOutcome) Output() TickOutput {
+	out := TickOutput{SnapshotOutput: o.Snapshot.Output(), AutoSends: []AutoSendOutput{}}
+	for _, r := range o.AutoSends {
+		a := AutoSendOutput{Workspace: Sanitize(r.Workspace), Label: Sanitize(r.Label), PR: r.PR, Task: Sanitize(r.Task), Proposal: nextOutput(r.Proposal), Reasons: sanitizeAll(r.Reasons), Actions: []ActionOutput{}}
+		for _, act := range r.Actions {
+			a.Actions = append(a.Actions, actionOutput(act))
+		}
+		out.AutoSends = append(out.AutoSends, a)
+	}
+	return out
+}
+
+// WaitOutput is the output of `chief wait` when something changed.
+type WaitOutput struct {
+	Protocol int          `json:"protocol"`
+	Outcome  string       `json:"outcome"`
+	Baseline WaitBaseline `json:"baseline"`
+}
+
+// Output converts a wait into the JSON type.
+func (o WaitOutcome) Output() WaitOutput {
+	return WaitOutput{Protocol: Protocol, Outcome: "changed", Baseline: o.Baseline}
 }

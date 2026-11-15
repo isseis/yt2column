@@ -48,6 +48,11 @@ Work in the following order.
      Write the `**判定理由**` as a one-line Japanese justification. For `opus` and `sonnet+opus-review`, name the trigger that decided the value (the step ID and its unprecedented design decision, the panel-mode trigger it matches, the competing approaches in `既存コード調査結果`, or the Conditional checks it matches) together with what is likely to go wrong when Sonnet implements the step. For `sonnet`, state that no trigger matched.
 
      Derive these values in the same analysis pass as **Risk isolation** — they read the same signals (step risk, complexity, external surface). Do not re-analyse the steps a second time for labelling.
+   - **Auto-send**: Decide whether the `chief` tool may send each PR's `/runplan` by itself after the previous PR is merged. Label each PR with one value:
+     - `hold` — the plan puts work outside `/runplan` between the previous PR's merge and this PR's `/runplan`: an interactive session, or a check done by hand.
+     - `auto` — everything else.
+
+     `_context.md`, "PR marker conventions", says how the field is read ("Auto-send field").
 
    Decide whether any steps need to be reordered within their phase to align with the PR groupings. Only reorder steps when necessary — do not change step order unless it is required to make a PR group coherent.
 
@@ -71,6 +76,8 @@ Work in the following order.
 
    **判定理由**: <one line>
 
+   **自動送信**: auto | hold
+
    - [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
    - [ ] PR を作成した
    - [ ] PR がマージされた
@@ -87,16 +94,17 @@ Work in the following order.
    - `**レビュー観点**` lists 2–4 key review points in Japanese.
    - `**実装モデル要件**` is exactly one of `opus`, `sonnet+opus-review`, or `sonnet`, chosen by applying the **Model requirement** principle in step 4 to the steps this PR covers.
    - `**判定理由**` is a one-line Japanese justification written as the **Model requirement** principle in step 4 says.
+   - `**自動送信**` is exactly one of `auto` or `hold`, chosen by applying the **Auto-send** principle in step 4 to this PR.
 
 7. Add or update a `### 3.2 PR 構成` subsection under §3 (or whichever section covers the implementation overview/test strategy) with a summary table:
 
    ```markdown
    ### 3.2 PR 構成
 
-   | PR | 対象ステップ | 主な変更内容 | 実装モデル要件 |
-   |---|---|---|---|
-   | PR-1 | 1-1 / 1-2 / 1-3 | … | opus |
-   | PR-2 | 1-4 / 1-5 / 1-6 | … | sonnet |
+   | PR | 対象ステップ | 主な変更内容 | 実装モデル要件 | 自動送信 |
+   |---|---|---|---|---|
+   | PR-1 | 1-1 / 1-2 / 1-3 | … | opus | auto |
+   | PR-2 | 1-4 / 1-5 / 1-6 | … | sonnet | hold |
    …
    ```
 
@@ -128,6 +136,7 @@ Work in the following order.
 - [ ] High-risk or complex steps (recovery, concurrency, state machines) are isolated in their own PR or placed last in a PR so they do not block review of simpler changes.
 - [ ] Every PR marker's `実装モデル要件` label is consistent with its risk-isolation status — a PR containing an isolated high-risk step is not labeled `sonnet`.
 - [ ] Every PR marker has a `判定理由` line that names the specific trigger behind its `実装モデル要件` value and, for `opus` and `sonnet+opus-review`, what is likely to go wrong when Sonnet implements the step (or states that no trigger matched, for `sonnet`).
+- [ ] Every PR marker has a `**自動送信**` line whose value is `auto` or `hold`, and `hold` only for a PR whose `/runplan` the plan precedes with work outside `/runplan` (an interactive session, or a check done by hand).
 - [ ] The `**対象ステップ**` field in each PR marker lists exactly the steps in that group and no others.
 - [ ] The `### 3.2 PR 構成` table is present and consistent with the PR marker sections.
 - [ ] §6 checklist entries reference PRs (not phases) and are consistent with the PR markers.

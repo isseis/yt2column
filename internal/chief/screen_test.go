@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -738,5 +740,103 @@ func TestReadLastHumanInput(t *testing.T) {
 		if got := readLastHumanInput([]byte(c.text)); got != c.want {
 			t.Errorf("%s: readLastHumanInput = %+v, want %+v", c.name, got, c.want)
 		}
+	}
+}
+
+// runprNoneLine is the NEXT line of the sampled OpenCode /runpr report.
+const runprNoneLine = "     - NEXT: なし（タスク 0087 の最終 PR のため）。worktree は origin/"
+
+// runprReportScreen returns the sampled OpenCode /runpr report with its PR
+// number replaced by pr and, unless next is empty, its NEXT value replaced
+// by next.
+func runprReportScreen(t *testing.T, pr int, next string) string {
+	t.Helper()
+	screen := readScreenSample(t, "opencode-runpr-report.txt")
+	if !strings.Contains(screen, runprNoneLine) {
+		t.Fatal("the /runpr report sample no longer holds its NEXT line")
+	}
+	if next != "" {
+		screen = strings.Replace(screen, runprNoneLine, "     - NEXT: "+next, 1)
+	}
+	return strings.ReplaceAll(screen, "867", strconv.Itoa(pr))
+}
+
+// TestReadRunprReport reads the last report of the sampled OpenCode /runpr
+// report and Claude Code command report, and checks that a screen whose last
+// response is not in the sampled shape gives none.
+func TestReadRunprReport(t *testing.T) {
+	report, ok := readRunprReport(paneinput.AgentOpenCode, readScreenSample(t, "opencode-runpr-report.txt"))
+	if !ok || report.Next != (RunprNext{Kind: NextNone}) || !slices.Contains(report.PRs, 867) {
+		t.Fatalf("OpenCode report = %+v, %v; want NEXT none naming #867", report, ok)
+	}
+	if slices.Contains(report.PRs, 86) || slices.Contains(report.PRs, 1013033322) {
+		t.Errorf("OpenCode report PRs = %v; a number outside the last report or a part of one was read", report.PRs)
+	}
+	report, ok = readRunprReport(paneinput.AgentOpenCode, runprReportScreen(t, 42, "`/runplan 0088`（要件 opus → Opus）"))
+	if !ok || report.Next != (RunprNext{Kind: NextCommand, Command: NextCommandRunplan, Task: taskID(t, "0088")}) || !slices.Contains(report.PRs, 42) {
+		t.Errorf("edited OpenCode report = %+v, %v", report, ok)
+	}
+	spaced := strings.Replace(runprReportScreen(t, 42, ""), "PR #42 のマージまで", "PR #42 1 件のマージまで", 1)
+	if report, ok := readRunprReport(paneinput.AgentOpenCode, spaced); !ok || !slices.Contains(report.PRs, 42) || slices.Contains(report.PRs, 421) {
+		t.Errorf("a number after a space = %+v, %v; want #42 and not #421", report, ok)
+	}
+	// Only this line names #42; the sample's other mentions stay #867.
+	split := strings.Replace(readScreenSample(t, "opencode-runpr-report.txt"), "     PR #867 のマージまで完了しました。\n", "     PR #42\n     1 件のマージまで完了しました。\n", 1)
+	if report, ok := readRunprReport(paneinput.AgentOpenCode, split); !ok || !slices.Contains(report.PRs, 42) {
+		t.Errorf("a number at a line end followed by a line of digits = %+v, %v; want #42", report, ok)
+	}
+	report, ok = readRunprReport(paneinput.AgentClaudeCode, readScreenSample(t, "claude-command-report.ansi"))
+	if !ok || report.Next.Kind != NextAbsent || !slices.Contains(report.PRs, 867) {
+		t.Errorf("Claude Code report = %+v, %v; want no NEXT naming #867", report, ok)
+	}
+	plain := readScreenSample(t, "opencode-runpr-report.txt")
+	end := "     Build · DeepSeek V4.1 Flash 1017 · 31m 33s · 59.8 tok/s\n"
+	if !strings.Contains(plain, end) {
+		t.Fatal("the sample no longer holds its response end line")
+	}
+	thought := "     + Thought · 9.6s\n"
+	i, j := strings.LastIndex(plain, thought), strings.Index(plain, end)
+	if i < 0 || j < i {
+		t.Fatal("the sample no longer holds its last thought line before the end line")
+	}
+	for name, screen := range map[string]string{
+		"a response of a thought only": plain[:i+len(thought)] + plain[j:],
+		"no end line":                  strings.Replace(plain, end, "", 1),
+		"an unindented report line":    strings.Replace(plain, "     PR レビューと CI\n", "PR レビューと CI\n", 1),
+		"the report under the input":   strings.Replace(plain, end, end+"  ┃\n", 1),
+	} {
+		if screen == plain {
+			t.Fatalf("%s: the edit changed nothing", name)
+		}
+		if got, ok := readRunprReport(paneinput.AgentOpenCode, screen); ok {
+			t.Errorf("%s: read as %+v", name, got)
+		}
+	}
+	for name, c := range map[string]struct {
+		agent  paneinput.AgentKind
+		sample string
+	}{
+		"an OpenCode screen read as Claude Code": {paneinput.AgentClaudeCode, "opencode-runpr-report.txt"},
+		"a Claude Code screen with no message":   {paneinput.AgentClaudeCode, "claude-idle.ansi"},
+		"an agent chief does not know":           {paneinput.AgentUnknown, "claude-command-report.ansi"},
+	} {
+		if got, ok := readRunprReport(c.agent, readScreenSample(t, c.sample)); ok {
+			t.Errorf("%s: read as %+v", name, got)
+		}
+	}
+}
+
+// TestReadScreenNext checks that the NEXT lines of a whole ANSI screen are
+// read, and that a screen the ANSI reader refuses gives none.
+func TestReadScreenNext(t *testing.T) {
+	next, ok := readScreenNext(readScreenSample(t, "claude-merge-question.ansi"))
+	if !ok || next != (RunprNext{Kind: NextCommand, Command: NextCommandMkarch, Task: taskID(t, "0123")}) {
+		t.Errorf("merge question = %+v, %v", next, ok)
+	}
+	if next, ok := readScreenNext(readScreenSample(t, "claude-idle.ansi")); !ok || next.Kind != NextAbsent {
+		t.Errorf("idle screen = %+v, %v; want no NEXT", next, ok)
+	}
+	if _, ok := readScreenNext("NEXT: /mkplan 0007\x1b[2J"); ok {
+		t.Error("a screen with a non-SGR escape was read")
 	}
 }

@@ -56,6 +56,9 @@ const (
 	// OutcomeSentThenFailed is an input typed, then a step failed; the
 	// workspace is stopped until release.
 	OutcomeSentThenFailed
+	// OutcomeRecordedNotSent is an automatic send whose record was written
+	// and then nothing was typed: the merge's automatic send is used up.
+	OutcomeRecordedNotSent
 )
 
 // String names the outcome for the output and the records.
@@ -67,6 +70,8 @@ func (o ActionOutcome) String() string {
 		return "not_sent"
 	case OutcomeSentThenFailed:
 		return "sent_then_failed"
+	case OutcomeRecordedNotSent:
+		return "recorded_not_sent"
 	default:
 		return outcomeUnknown
 	}
@@ -134,6 +139,12 @@ const (
 	// NotSentBadOption is a relay of an option number the question does not
 	// have, or of an option that is not relayed (free text, chat).
 	NotSentBadOption
+	// NotSentAutoSendRecord is an automatic send whose record could not be
+	// written, or existed already: the merge's automatic send is not made.
+	NotSentAutoSendRecord
+	// NotSentConditions is an automatic send whose conditions no longer held
+	// once the workspace's exclusion was taken.
+	NotSentConditions
 )
 
 // String names the reason for the output.
@@ -158,6 +169,8 @@ func (r NotSentReason) String() string {
 		NotSentCheckMismatch:   "check_mismatch",
 		NotSentNotRelayable:    "not_relayable",
 		NotSentBadOption:       "bad_option",
+		NotSentAutoSendRecord:  "auto_send_record",
+		NotSentConditions:      "conditions",
 	}
 	if name, ok := names[r]; ok {
 		return name
@@ -250,6 +263,11 @@ type sendContext struct {
 	writer PaneWriter
 	held   *HeldWorkspace
 	ws     TaskWorkspace
+	// beforeBegin, when set, runs once the check before the first input
+	// passed and before the send record is written; an error sends nothing
+	// and is reported with the reason returned. The automatic send checks
+	// chief's owner and writes its own record there.
+	beforeBegin func() (NotSentReason, error)
 }
 
 // paneCheck is what the check before an input asks for besides a pane that
@@ -427,6 +445,11 @@ func (s sendContext) run(ctx context.Context, res ActionResult, target Agent, st
 		res = notSent(res, failed.reason, failed.detail)
 		res.Left, res.Status = failed.left, failed.agent.Status
 		return res
+	}
+	if s.beforeBegin != nil {
+		if reason, err := s.beforeBegin(); err != nil {
+			return notSent(res, reason, err.Error())
+		}
 	}
 	var prompts []string
 	for _, st := range steps {

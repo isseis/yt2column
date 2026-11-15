@@ -2,6 +2,8 @@ package chief
 
 import (
 	"regexp"
+	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/isseis/yt2column/internal/chief/paneinput"
@@ -135,13 +137,39 @@ func readCommandReport(agent paneinput.AgentKind, raw, url string) (string, bool
 	if agent != paneinput.AgentClaudeCode || url == "" {
 		return "", false
 	}
+	texts, ok := claudeLastMessage(raw)
+	if !ok {
+		return "", false
+	}
+	report := strings.TrimSpace(joinTexts(texts))
+	if !namesURL(squeeze(texts), url) {
+		return "", false
+	}
+	return report, true
+}
+
+// squeeze joins texts with each one's blanks at both ends removed, so a URL
+// or a PR number the terminal wrapped across lines is whole again.
+func squeeze(texts []string) string {
+	var joined strings.Builder
+	for _, t := range texts {
+		joined.WriteString(strings.TrimSpace(t))
+	}
+	return joined.String()
+}
+
+// claudeLastMessage returns the lines of the last message of a Claude Code
+// screen in the sampled shape: the message under its mark, the run's done
+// line, and the input box, with nothing else between them. Each line has its
+// mark or indent removed.
+func claudeLastMessage(raw string) ([]string, bool) {
 	all, err := parseANSIScreen(raw)
 	if err != nil {
-		return "", false
+		return nil, false
 	}
 	lines := trimmedLines(all)
 	if claudePrompt(lines).Kind != ScreenPrompt {
-		return "", false
+		return nil, false
 	}
 	top := lastRuleBefore(lines, lastRuleBefore(lines, len(lines)))
 	done := -1
@@ -150,7 +178,7 @@ func readCommandReport(agent paneinput.AgentKind, raw, url string) (string, bool
 		case strings.HasPrefix(text, claudeDoneMark):
 			done = i
 		case text != "" && !strings.HasPrefix(text, claudeIndent):
-			return "", false
+			return nil, false
 		}
 	}
 	start := -1
@@ -159,25 +187,152 @@ func readCommandReport(agent paneinput.AgentKind, raw, url string) (string, bool
 		case strings.HasPrefix(text, claudeMessageMark):
 			start = i
 		case text != "" && !strings.HasPrefix(text, claudeIndent):
-			return "", false
+			return nil, false
 		}
 	}
 	if done < 0 || start < 0 {
-		return "", false
+		return nil, false
 	}
 	texts := []string{strings.TrimPrefix(lines[start].text, claudeMessageMark)}
 	for _, l := range lines[start+1 : done] {
 		texts = append(texts, strings.TrimPrefix(l.text, claudeIndent))
 	}
-	report := strings.TrimSpace(joinTexts(texts))
-	var joined strings.Builder
-	for _, t := range texts {
-		joined.WriteString(strings.TrimSpace(t))
+	return texts, true
+}
+
+// Fixed parts of an OpenCode v2.2.6 screen around the last response, as the
+// /runpr report sample shows them: the response's lines are indented, a
+// thought line may come before them, and a line naming the mode, the model,
+// the time, and the rate ends them, above the input panel.
+const (
+	openCodeMessageIndent = "     "
+	openCodeThoughtMark   = "+ Thought · "
+)
+
+// openCodeResponseEnd matches the line that ends an OpenCode response: the
+// mode, the model, the time, and the rate in tokens per second, separated by
+// the middle dots OpenCode draws, as the /runpr report sample shows it.
+var openCodeResponseEnd = regexp.MustCompile(`^\S+ · .+ · .+ · [0-9]+(?:\.[0-9]+)? tok/s$`)
+
+// openCodeLastMessage returns the lines of the last response of an OpenCode
+// screen in the sampled shape: the input panel at the bottom, the response's
+// end line right above it, and the indented response lines above that up to
+// the panel before them, a leading thought line left out. Each line has its
+// indent removed.
+func openCodeLastMessage(raw string) ([]string, bool) {
+	all, err := parseANSIScreen(raw)
+	if err != nil {
+		return nil, false
 	}
-	if !namesURL(joined.String(), url) {
-		return "", false
+	lines := trimmedLines(all)
+	if openCodePrompt(lines).Kind != ScreenPrompt {
+		return nil, false
+	}
+	// The input panel and its footer: the panel lines at the bottom, then the
+	// lines below the last panel line.
+	end := len(lines)
+	for end > 0 {
+		if _, ok := asPanel(lines[end-1]); ok {
+			break
+		}
+		end--
+	}
+	for end > 0 {
+		if _, ok := asPanel(lines[end-1]); !ok {
+			break
+		}
+		end--
+	}
+	for end > 0 && lines[end-1].text == "" {
+		end--
+	}
+	if end == 0 || !openCodeResponseEnd.MatchString(strings.TrimSpace(lines[end-1].text)) {
+		return nil, false
+	}
+	start := end - 1
+	for start > 0 {
+		if _, ok := asPanel(lines[start-1]); ok {
+			break
+		}
+		start--
+	}
+	var texts []string
+	for _, l := range lines[start : end-1] {
+		switch {
+		case l.text == "":
+			if len(texts) > 0 {
+				texts = append(texts, "")
+			}
+		case !strings.HasPrefix(l.text, openCodeMessageIndent):
+			return nil, false
+		case len(texts) == 0 && strings.HasPrefix(strings.TrimPrefix(l.text, openCodeMessageIndent), openCodeThoughtMark):
+			// The thought line before the response.
+		default:
+			texts = append(texts, strings.TrimPrefix(l.text, openCodeMessageIndent))
+		}
+	}
+	if len(texts) == 0 {
+		return nil, false
+	}
+	return texts, true
+}
+
+// RunprReport is the last report on a pane: its NEXT and the PR numbers it
+// names. It is used only to compare with what the tool decided from GitHub
+// and git; it never decides what is sent.
+type RunprReport struct {
+	Next RunprNext
+	// PRs are the numbers the report names as "#N" or as a PR URL's
+	// "/pull/N", read from each line and from the lines joined again, since a
+	// line break may be the terminal's wrap or the report's own.
+	PRs []int
+}
+
+// prReference matches a PR number written as "#N" or "/pull/N"; the digits
+// are taken whole, so "#42" is never read from "#421".
+var prReference = regexp.MustCompile(`(?:#|/pull/)([1-9][0-9]*)`)
+
+// readRunprReport reads the last report on an agent's pane, by the sampled
+// shape of the agent's last message. Contract: a screen of any other shape,
+// or of an agent chief does not know, gives false; the report's NEXT is read
+// as readRunprNext reads it, from the report alone.
+func readRunprReport(agent paneinput.AgentKind, raw string) (RunprReport, bool) {
+	var texts []string
+	var ok bool
+	switch agent {
+	case paneinput.AgentClaudeCode:
+		texts, ok = claudeLastMessage(raw)
+	case paneinput.AgentOpenCode:
+		texts, ok = openCodeLastMessage(raw)
+	}
+	if !ok {
+		return RunprReport{}, false
+	}
+	report := RunprReport{Next: readRunprNext(joinTexts(texts))}
+	for _, text := range append(slices.Clone(texts), squeeze(texts)) {
+		for _, m := range prReference.FindAllStringSubmatch(text, -1) {
+			n, err := strconv.Atoi(m[1])
+			if err == nil && !slices.Contains(report.PRs, n) {
+				report.PRs = append(report.PRs, n)
+			}
+		}
 	}
 	return report, true
+}
+
+// readScreenNext reads every NEXT line of a whole pane screen, its SGR
+// sequences removed, as readRunprNext does: earlier reports and echoed
+// prompts included. It gives false when the screen cannot be parsed.
+func readScreenNext(raw string) (RunprNext, bool) {
+	all, err := parseANSIScreen(raw)
+	if err != nil {
+		return RunprNext{}, false
+	}
+	texts := make([]string, len(all))
+	for i, l := range all {
+		texts[i] = l.text
+	}
+	return readRunprNext(joinTexts(texts)), true
 }
 
 // namesURL reports whether text holds url not followed by a digit, so the

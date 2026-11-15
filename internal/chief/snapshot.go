@@ -46,6 +46,29 @@ type Snapshot struct {
 	// or the old-value table cannot be read, `git fetch` failed, a notice
 	// record could not be made.
 	Problems []string
+	// Baseline is what `chief wait` compares against: the agents of the
+	// task workspaces as this round read them.
+	Baseline WaitBaseline
+}
+
+// roundView is one reading of every task workspace: chief's own pane and
+// worktree, the agents, the task workspaces with the facts read of each and
+// the row classified from them, and what concerns the whole round.
+type roundView struct {
+	chiefPane PaneID
+	chief     Agent
+	chiefTree Worktree
+	agents    []Agent
+	found     []TaskWorkspace
+	// facts and rows are parallel to found.
+	facts       []workspaceFacts
+	rows        []Row
+	routing     Routing
+	routingErr  error
+	old         OldValues
+	oldErr      error
+	fetchFailed bool
+	problems    []string
 }
 
 // TakeSnapshot reads every task workspace and classifies it. Contract: it
@@ -54,63 +77,83 @@ type Snapshot struct {
 // workspace StateNeedsCheck instead of failing the round, unless Herdr's own
 // list or chief's worktree cannot be read, which fails the call.
 func TakeSnapshot(ctx context.Context, deps Deps, owner Owner) (Snapshot, error) {
+	view, err := readRound(ctx, deps)
+	if err != nil {
+		return Snapshot{}, err
+	}
+	return finishSnapshot(deps, owner, view, nil), nil
+}
+
+// readRound reads Herdr, fetches origin/main once, reads the routing and
+// old-value tables, and reads and classifies every task workspace. It
+// creates no record.
+func readRound(ctx context.Context, deps Deps) (roundView, error) {
 	herdr := NewHerdr(deps.Cmds)
 	git := NewGitReader(deps.Cmds)
 	tasks := NewTasks(deps.Cmds)
 	chiefPane, err := ParsePaneID(deps.Env.PaneID)
 	if err != nil {
-		return Snapshot{}, err
+		return roundView{}, err
 	}
 	agents, err := herdr.Agents(ctx)
 	if err != nil {
-		return Snapshot{}, err
+		return roundView{}, err
 	}
 	workspaces, err := herdr.Workspaces(ctx)
 	if err != nil {
-		return Snapshot{}, err
+		return roundView{}, err
 	}
-	chiefIdx := slices.IndexFunc(agents, func(a Agent) bool { return a.Pane == chiefPane })
-	if chiefIdx < 0 {
-		return Snapshot{}, fmt.Errorf("%w: the chief pane %s is not among Herdr's agents", errHerdrOutput, chiefPane)
-	}
-	chiefTree, err := CanonicalWorktree(ctx, deps.Cmds, agents[chiefIdx].Dir)
+	chief, err := chiefWorkspaceOf(agents, chiefPane)
 	if err != nil {
-		return Snapshot{}, fmt.Errorf("read the chief worktree: %w", err)
+		return roundView{}, fmt.Errorf("%w: %w", errHerdrOutput, err)
 	}
-	snap := Snapshot{StateDir: deps.Store.Dir()}
-	fetchFailed := false
+	chiefTree, err := CanonicalWorktree(ctx, deps.Cmds, chief.Dir)
+	if err != nil {
+		return roundView{}, fmt.Errorf("read the chief worktree: %w", err)
+	}
+	view := roundView{chiefPane: chiefPane, chief: chief, chiefTree: chiefTree, agents: agents}
 	if err := git.Fetch(ctx, chiefTree.String()); err != nil {
-		fetchFailed = true
-		snap.Problems = append(snap.Problems, "git fetch origin main failed: "+err.Error())
+		view.fetchFailed = true
+		view.problems = append(view.problems, "git fetch origin main failed: "+err.Error())
 	}
-	routing, routingErr := ReadRouting(ctx, deps.Cmds, chiefTree.String())
-	if routingErr != nil {
-		snap.Problems = append(snap.Problems, "the routing table cannot be read: "+routingErr.Error())
+	view.routing, view.routingErr = ReadRouting(ctx, deps.Cmds, chiefTree.String())
+	if view.routingErr != nil {
+		view.problems = append(view.problems, "the routing table cannot be read: "+view.routingErr.Error())
 	}
-	old, oldErr := readOldValues(ctx, tasks, chiefTree.String())
-	if oldErr != nil {
-		snap.Problems = append(snap.Problems, "the old-value table cannot be read: "+oldErr.Error())
+	view.old, view.oldErr = readOldValues(ctx, tasks, chiefTree.String())
+	if view.oldErr != nil {
+		view.problems = append(view.problems, "the old-value table cannot be read: "+view.oldErr.Error())
 	}
-	found, err := FindTaskWorkspaces(ctx, git, deps.Cmds, agents, workspaces, chiefPane)
+	view.found, err = FindTaskWorkspaces(ctx, git, deps.Cmds, agents, workspaces, chiefPane)
 	if err != nil {
-		return Snapshot{}, err
+		return roundView{}, err
 	}
-	for _, w := range found {
+	for _, w := range view.found {
 		f := readWorkspace(ctx, herdr, git, tasks, w)
-		f.Routing, f.RoutingErr, f.FetchFailed = routing, routingErr, fetchFailed
-		row := classifyWorkspace(ctx, git, tasks, f, old, oldErr)
+		f.Routing, f.RoutingErr, f.FetchFailed = view.routing, view.routingErr, view.fetchFailed
+		row := classifyWorkspace(ctx, git, tasks, f, view.old, view.oldErr)
 		if err := addRecords(deps.Store, w, &row); err != nil {
-			snap.Problems = append(snap.Problems, "the records of "+w.Worktree+" cannot be read: "+err.Error())
+			view.problems = append(view.problems, "the records of "+w.Worktree+" cannot be read: "+err.Error())
 		}
-		snap.Rows = append(snap.Rows, row)
+		view.facts = append(view.facts, f)
+		view.rows = append(view.rows, row)
 	}
-	snap.Pending = buildPending(snap.Rows)
+	return view, nil
+}
+
+// finishSnapshot lists the pending items of the round's rows with extra
+// (proposals a tick made, merged into the row's item of the same identity),
+// stamps them with the notice records of owner's session, and orders the
+// items and the rows.
+func finishSnapshot(deps Deps, owner Owner, view roundView, extra []PendingItem) Snapshot {
+	snap := Snapshot{StateDir: deps.Store.Dir(), Rows: view.rows, Problems: view.problems, Baseline: baselineOf(view.agents, workspaceIDs(view.found))}
+	snap.Pending = mergePending(buildPending(snap.Rows), extra)
 	for _, err := range stampPending(deps.Store, owner.Session, snap.Pending, deps.Now()) {
 		snap.Problems = append(snap.Problems, "a notice record failed: "+err.Error())
 	}
 	sortPending(snap.Pending)
 	sortRows(snap.Rows, snap.Pending)
-	return snap, nil
+	return snap
 }
 
 // addRecords shows a workspace's stop and, on a running row, what chief last
@@ -177,7 +220,7 @@ func readWorkspace(ctx context.Context, herdr Herdr, git GitReader, tasks Tasks,
 		f.Head = headDetached
 		return f
 	}
-	f.Head = headBranch
+	f.Head, f.Branch = headBranch, branch
 	prs, err := git.OpenPRs(ctx, w.Worktree, branch)
 	switch {
 	case err != nil:

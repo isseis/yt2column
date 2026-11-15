@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 // TestSnapshotRunsOnlyReadsInTheRightPlaces runs a whole snapshot over a
@@ -100,5 +101,58 @@ func TestDetailAndSendRunOnlyReadsInTheRightPlaces(t *testing.T) {
 	}
 	if !sawChecks {
 		t.Error("no gh pr checks ran; the test reached no detail")
+	}
+}
+
+// TestTickRunsOnlyReadsInTheRightPlaces runs the ticks around a merge up to
+// its automatic send and the reset, with the target-redirecting variables
+// set, and checks every command: git and gh only read (the recorder fails
+// anything outside its read-only list), gh reads only PRs and never sees
+// GH_REPO or GH_HOST, the remote is read only from chief's worktree, both
+// run only in the task worktree or chief's own, and the only writes are
+// prompts to the task workspace's panes.
+func TestTickRunsOnlyReadsInTheRightPlaces(t *testing.T) {
+	t.Setenv("GH_REPO", "other/repo")
+	t.Setenv("GH_HOST", "ghe.example.com")
+	mw := newMergeWorld(t, mkarchDocs)
+	mw.tick(time.Minute)
+	mw.merge(nextBranch, "`/mkarch 0001`")
+	if res := only(t, mw.tick(time.Minute)); !sentCommand(res) {
+		t.Fatalf("auto send = %+v; the test reached no send", res)
+	}
+	places := []string{mw.chiefTree, mw.tree}
+	sawView, sawRemote := false, false
+	for _, c := range mw.rec.recorded() {
+		switch c.name {
+		case ghProgram:
+			if len(c.args) < 2 || c.args[0] != "pr" || !slices.Contains([]string{"list", "view"}, c.args[1]) {
+				t.Errorf("gh ran %v", c.args)
+				continue
+			}
+			sawView = sawView || c.args[1] == "view"
+			for _, e := range c.env {
+				if name, _, _ := strings.Cut(e, "="); name == "GH_REPO" || name == "GH_HOST" {
+					t.Errorf("%s ran with %s", c.line(), name)
+				}
+			}
+		case gitProgram:
+			if c.args[0] == "ls-remote" {
+				sawRemote = true
+				if c.dir != mw.chiefTree {
+					t.Errorf("%s ran in %q, not in chief's worktree", c.line(), c.dir)
+				}
+			}
+		case herdrProgram:
+			if isPrompt(c) && !strings.HasPrefix(c.args[2], "w1:") {
+				t.Errorf("a prompt went to %s", c.args[2])
+			}
+			continue
+		}
+		if !slices.Contains(places, c.dir) {
+			t.Errorf("%s ran in %q", c.line(), c.dir)
+		}
+	}
+	if !sawView || !sawRemote {
+		t.Errorf("gh pr view ran %v, git ls-remote ran %v; the test reached no merge check", sawView, sawRemote)
 	}
 }

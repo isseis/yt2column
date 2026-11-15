@@ -234,3 +234,112 @@ func taskOfBranch(branch string) (paneinput.TaskID, bool) {
 	task, _, ok := branchTask(branch)
 	return task, ok
 }
+
+// Clean reports whether worktree has no uncommitted change and no untracked
+// file that is not ignored, by `git status --porcelain`. Untracked files are
+// asked for by the option, so a configuration that hides them does not make
+// a worktree read as clean.
+func (g GitReader) Clean(ctx context.Context, worktree string) (bool, error) {
+	out, err := g.cmds.git(ctx, worktree, "status", "--porcelain", "--untracked-files=all")
+	if err != nil {
+		return false, err
+	}
+	return len(out) == 0, nil
+}
+
+// OriginMain returns the commit origin/main points at, as worktree sees it.
+func (g GitReader) OriginMain(ctx context.Context, worktree string) (string, error) {
+	out, err := g.cmds.git(ctx, worktree, "rev-parse", originMain)
+	if err != nil {
+		return "", err
+	}
+	id := strings.TrimSpace(string(out))
+	if !commitID.MatchString(id) {
+		return "", fmt.Errorf("%w: origin/main %q", errGitOutput, id)
+	}
+	return id, nil
+}
+
+// remoteMainRef is the ref `git ls-remote` is asked for.
+const remoteMainRef = "refs/heads/main"
+
+// RemoteMain returns the commit main points at on the remote, read with
+// `git ls-remote` in chief's worktree. Contract: the output is exactly one
+// line naming that ref, or it is rejected.
+func (g GitReader) RemoteMain(ctx context.Context, chiefTree string) (string, error) {
+	out, err := g.cmds.git(ctx, chiefTree, "ls-remote", "origin", remoteMainRef)
+	if err != nil {
+		return "", err
+	}
+	line, ok := strings.CutSuffix(string(out), "\n")
+	id, ref, tab := strings.Cut(line, "\t")
+	if !ok || !tab || ref != remoteMainRef || !commitID.MatchString(id) || strings.Contains(line, "\n") {
+		return "", fmt.Errorf("%w: git ls-remote gave %q", errGitOutput, string(out))
+	}
+	return id, nil
+}
+
+// PRState is a PR's state on GitHub. The zero value is PRStateUnknown, which
+// no reader returns: a state of another value is unreadable.
+type PRState int
+
+const (
+	// PRStateUnknown is no state.
+	PRStateUnknown PRState = iota
+	// PRStateOpen is an open PR.
+	PRStateOpen
+	// PRStateMerged is a merged PR.
+	PRStateMerged
+	// PRStateClosed is a PR closed without a merge.
+	PRStateClosed
+)
+
+// prStates maps gh's state values.
+var prStates = map[string]PRState{"OPEN": PRStateOpen, "MERGED": PRStateMerged, "CLOSED": PRStateClosed}
+
+// prStateFields are the fields PRStateOf asks gh for.
+const prStateFields = "number,state,headRefName"
+
+// PRStateOf returns the state and the head branch of the PR number, read by
+// gh in dir. Contract: the output must name that number, a known state, and
+// a head branch, or it is rejected.
+func (g GitReader) PRStateOf(ctx context.Context, dir string, number int) (PRState, string, error) {
+	out, err := g.cmds.gh(ctx, dir, "pr", "view", strconv.Itoa(number), "--json", prStateFields)
+	if err != nil {
+		return PRStateUnknown, "", err
+	}
+	return parsePRState(out, number)
+}
+
+// parsePRState reads `gh pr view --json number,state,headRefName`.
+func parsePRState(out []byte, number int) (PRState, string, error) {
+	object, err := strictjson.ParseObject(out)
+	if err != nil {
+		return PRStateUnknown, "", fmt.Errorf("%w: %w", errGHOutput, err)
+	}
+	fields, err := object.Collect("number", "state", "headRefName")
+	if err != nil {
+		return PRStateUnknown, "", fmt.Errorf("%w: %w", errGHOutput, err)
+	}
+	numberValue, err := strictjson.Required(fields, "number")
+	if err != nil {
+		return PRStateUnknown, "", fmt.Errorf("%w: %w", errGHOutput, err)
+	}
+	n, err := numberValue.AsNonNegativeInt64()
+	if err != nil || n != int64(number) {
+		return PRStateUnknown, "", fmt.Errorf("%w: the view is not of #%d", errGHOutput, number)
+	}
+	stateText, err := strictjson.RequiredString(fields, "state")
+	if err != nil {
+		return PRStateUnknown, "", fmt.Errorf("%w: %w", errGHOutput, err)
+	}
+	state, ok := prStates[stateText]
+	if !ok {
+		return PRStateUnknown, "", fmt.Errorf("%w: unknown PR state %q", errGHOutput, stateText)
+	}
+	head, err := strictjson.RequiredString(fields, "headRefName")
+	if err != nil {
+		return PRStateUnknown, "", fmt.Errorf("%w: %w", errGHOutput, err)
+	}
+	return state, head, nil
+}

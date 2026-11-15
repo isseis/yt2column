@@ -59,7 +59,7 @@ what changes under which condition:
 PR boundary markers embedded in the implementation plan use these labels:
 
 - Section heading: `### PR-N 作成ポイント: <scope label in English>`
-- Fields: `**対象ステップ**`, `**推奨タイトル**`, `**レビュー観点**`, `**実装モデル要件**`, `**判定理由**`
+- Fields: `**対象ステップ**`, `**推奨タイトル**`, `**レビュー観点**`, `**実装モデル要件**`, `**判定理由**`, `**自動送信**`
 - `**推奨タイトル**`: the source `runplan.md` step 5a writes the PR title from. It is a PR title, not a squash subject (`mergepr.md` writes that at the merge); its form is in "PR title and squash subject" below
 - Implementation model requirement (`**実装モデル要件**`), in five parts:
   1. **Values.** `opus`, `sonnet+opus-review`, and `sonnet`. `mkplan2.md`
@@ -125,6 +125,21 @@ PR boundary markers embedded in the implementation plan use these labels:
      | `sonnet` | `runplan-sonnet` | does not run |
      | unreadable value | none (show the text and that it is unreadable) | treated as for `sonnet+opus-review` |
      | no value | none (show that there is no value) | does not run |
+
+- Auto-send field (`**自動送信**`): whether the `chief` tool may send the
+  `/runplan` that creates the PR by itself, after the previous PR's merge.
+  Its values are `auto` and `hold`; `mkplan2.md` step 4, "Auto-send",
+  assigns them and says when `hold` applies. It is read from the place of
+  the implementation model requirement (its part 2) by the line rule of its
+  part 3: the line that starts in its first column with `**自動送信**: `,
+  the rest of the line with the leading and trailing white space removed.
+  A section without such a line, and a single-phase plan with no `PR 構成`
+  section, read as `auto`, so a plan written before the field existed is
+  sent as before. Any other value, two such lines, two places that could
+  hold the field, a value line inside a fenced code block of the place, or
+  a code fence the plan never closes is unreadable, and `chief` sends nothing by itself for that PR; there are
+  no old values. Only `chief` reads the field (`internal/chief/task.go`);
+  `_lib/opus-review-decision.sh` does not.
 
 ### Command routing
 

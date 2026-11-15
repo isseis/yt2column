@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -197,11 +198,11 @@ func ResolveOwner(ctx context.Context, herdr Herdr, paneID string) (Owner, error
 type StartResult struct {
 	// TookOver is true when a stale lock was replaced.
 	TookOver bool
-	// CleanupError is why some finished session's notice record could not be
+	// CleanupError is why some finished session's record could not be
 	// removed; the lock is taken regardless.
 	CleanupError error
-	// Removed counts the notice records of finished sessions that were
-	// removed.
+	// Removed counts the notice, round, and observation records of finished
+	// sessions that were removed.
 	Removed int
 	// Stopped counts the sends found without an end, each of which stopped
 	// its workspace.
@@ -235,7 +236,7 @@ func (s Store) Start(ctx context.Context, herdr Herdr, caller Owner, now time.Ti
 	}
 	stopped, removedSends, settleErr := s.settleWorkspaces(now)
 	res.Stopped, res.RemovedSends = stopped, removedSends
-	removed, err := s.removeFinishedNotices(caller.Session)
+	removed, err := s.removeFinishedSessions(caller.Session)
 	res.Removed = removed
 	// A record that cannot be settled or removed does not undo the lock; it
 	// is reported and left for the human.
@@ -398,27 +399,40 @@ func (s Store) Observe(session string, item ItemID, now time.Time) (first time.T
 	return now, true, nil
 }
 
-// removeFinishedNotices removes the notice records of sessions other than
-// session. A name that is not a notice record, and a record of the current
-// session, are left alone.
-func (s Store) removeFinishedNotices(session string) (int, error) {
+// sessionRecordKinds are the records kept per chief session, each with the
+// exact form of its name and the prefix its session's hash follows. A
+// session's records of these kinds are removed by the start of another.
+var sessionRecordKinds = []struct {
+	prefix string
+	form   *regexp.Regexp
+}{
+	{noticePrefix, noticeFileName},
+	{roundPrefix, roundFileName},
+	{observePrefix, observeFileName},
+}
+
+// removeFinishedSessions removes the notice, round, and observation records
+// of sessions other than session. A name of no such form, and a record of
+// the current session, are left alone.
+func (s Store) removeFinishedSessions(session string) (int, error) {
 	entries, err := os.ReadDir(s.dir)
 	if err != nil {
 		return 0, err
 	}
-	keep := noticePrefix + hashName(session) + "-"
 	removed := 0
 	var errs []error
 	for _, e := range entries {
 		name := e.Name()
-		if !noticeFileName.MatchString(name) || strings.HasPrefix(name, keep) {
-			continue
+		for _, kind := range sessionRecordKinds {
+			if !kind.form.MatchString(name) || strings.HasPrefix(name, kind.prefix+hashName(session)+"-") {
+				continue
+			}
+			if err := privatefile.Remove(filepath.Join(s.dir, name)); err != nil && !errors.Is(err, privatefile.ErrNotExist) {
+				errs = append(errs, err)
+				continue
+			}
+			removed++
 		}
-		if err := privatefile.Remove(filepath.Join(s.dir, name)); err != nil && !errors.Is(err, privatefile.ErrNotExist) {
-			errs = append(errs, err)
-			continue
-		}
-		removed++
 	}
 	return removed, errors.Join(errs...)
 }
@@ -745,8 +759,48 @@ func (r WorkspaceRecords) LastSend(pane string) (*SendRecord, error) {
 	return nil, nil
 }
 
-// cleanup removes the sends whose start and end are both written and the PR
-// details older than detailMaxAge. A start without an end is never removed.
+// SentSince reports whether a send to the workspace started at t or later.
+// A send's ID begins with its start time, so no record is read.
+func (r WorkspaceRecords) SentSince(t time.Time) (bool, error) {
+	starts, _, err := r.sendFiles()
+	if err != nil {
+		return false, err
+	}
+	since := fmt.Sprintf("%020d", t.UnixNano())
+	return slices.ContainsFunc(starts, func(id string) bool { return id >= since }), nil
+}
+
+// SentCommandSince reports whether a send of the command line started at t
+// or later.
+func (r WorkspaceRecords) SentCommandSince(t time.Time, command string) (bool, error) {
+	starts, _, err := r.sendFiles()
+	if err != nil {
+		return false, err
+	}
+	since := fmt.Sprintf("%020d", t.UnixNano())
+	for _, id := range starts {
+		if id < since {
+			continue
+		}
+		var rec SendRecord
+		if err := r.store().read(sendPrefix+id+startSuffix, &rec); err != nil {
+			return false, err
+		}
+		if rec.Command == command {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// sendKeepAge is how long a finished send is kept: the automatic send reads
+// the sends since the round that last saw a PR open, which is less than
+// observeWindow plus carryWindow before the round that sends.
+const sendKeepAge = observeWindow + carryWindow
+
+// cleanup removes the sends whose start and end are both written and that
+// started more than sendKeepAge before now, and the PR details older than
+// detailMaxAge. A start without an end is never removed.
 func (h *HeldWorkspace) cleanup(now time.Time) (int, error) {
 	starts, ends, err := h.sendFiles()
 	if err != nil {
@@ -761,8 +815,9 @@ func (h *HeldWorkspace) cleanup(now time.Time) (int, error) {
 		}
 		removed++
 	}
+	keepFrom := fmt.Sprintf("%020d", now.Add(-sendKeepAge).UnixNano())
 	for _, id := range starts {
-		if _, ok := ends[id]; !ok {
+		if _, ok := ends[id]; !ok || id >= keepFrom {
 			continue
 		}
 		// The start goes first: an end left alone is harmless, while a
@@ -832,4 +887,225 @@ func (s Store) settleWorkspaces(now time.Time) (stopped, removed int, err error)
 		}
 	}
 	return stopped, removed, errors.Join(errs...)
+}
+
+// The prefixes of the records of the rounds of `chief tick`, their
+// observations, and the automatic sends.
+const (
+	roundPrefix    = "round-"
+	observePrefix  = "observe-"
+	autoSendPrefix = "autosend-"
+)
+
+var (
+	// roundFileName is a round record's name: the hash of its session, then
+	// the round's ID (its time in nanoseconds and random hex, so names sort
+	// by time).
+	roundFileName = regexp.MustCompile(`^round-([0-9a-f]{32})-([0-9]{20}-[0-9a-f]{16})\.json$`)
+	// observeFileName is an observation record's name: the hash of its
+	// session, its round's ID, and the hash of its worktree and PR.
+	observeFileName = regexp.MustCompile(`^observe-([0-9a-f]{32})-([0-9]{20}-[0-9a-f]{16})-([0-9a-f]{32})\.json$`)
+)
+
+// Round is one round of `chief tick` in a chief session.
+type Round struct {
+	ID string    `json:"id"`
+	At time.Time `json:"at"`
+}
+
+// roundRecord is the content of a round record.
+type roundRecord struct {
+	Session string    `json:"session"`
+	ID      string    `json:"id"`
+	At      time.Time `json:"at"`
+}
+
+// sessionRounds lists the IDs of session's round records, oldest first.
+func (s Store) sessionRounds(session string) ([]string, error) {
+	entries, err := os.ReadDir(s.dir)
+	if err != nil {
+		return nil, err
+	}
+	var ids []string
+	for _, e := range entries {
+		m := roundFileName.FindStringSubmatch(e.Name())
+		if m != nil && m[1] == hashName(session) {
+			ids = append(ids, m[2])
+		}
+	}
+	slices.Sort(ids)
+	return ids, nil
+}
+
+// RoundStart is a new round and the round before it.
+type RoundStart struct {
+	// Prev is the session's previous round, nil when it has none.
+	Prev *Round
+	Cur  Round
+	// PruneErr is why some record of an older round could not be removed;
+	// the round is begun regardless.
+	PruneErr error
+}
+
+// BeginRound records a new round of session at now and returns it with the
+// round before it. Contract: the previous round is the newest round record of
+// the same session, read before the new one is created, and a round record
+// that cannot be read is an error, never skipped: an older round taken for
+// the previous one would let an observation outside the window count. The
+// records of the session's rounds before the previous one are removed
+// afterwards, since no later round reads them.
+func (s Store) BeginRound(session string, now time.Time) (RoundStart, error) {
+	var start RoundStart
+	ids, err := s.sessionRounds(session)
+	if err != nil {
+		return RoundStart{}, err
+	}
+	if len(ids) > 0 {
+		var rec roundRecord
+		last := ids[len(ids)-1]
+		if err := s.read(roundPrefix+hashName(session)+"-"+last+recordSuffix, &rec); err != nil {
+			return RoundStart{}, err
+		}
+		if rec.Session != session || rec.ID != last {
+			return RoundStart{}, fmt.Errorf("%w: round %s names another round", errRecord, last)
+		}
+		start.Prev = &Round{ID: rec.ID, At: rec.At}
+	}
+	if start.Prev != nil && !now.After(start.Prev.At) {
+		return RoundStart{}, fmt.Errorf("%w: the clock is not after the previous round", errRecord)
+	}
+	id, err := newSendID(now)
+	if err != nil {
+		return RoundStart{}, err
+	}
+	start.Cur = Round{ID: id, At: now.UTC()}
+	if err := s.create(roundPrefix+hashName(session)+"-"+id+recordSuffix, roundRecord{Session: session, ID: id, At: start.Cur.At}); err != nil {
+		return RoundStart{}, err
+	}
+	if start.Prev != nil {
+		start.PruneErr = s.pruneRounds(session, start.Prev.ID)
+	}
+	return start, nil
+}
+
+// pruneRounds removes session's round and observation records of the rounds
+// before keep.
+func (s Store) pruneRounds(session, keep string) error {
+	entries, err := os.ReadDir(s.dir)
+	if err != nil {
+		return err
+	}
+	var errs []error
+	for _, e := range entries {
+		round := ""
+		if m := roundFileName.FindStringSubmatch(e.Name()); m != nil && m[1] == hashName(session) {
+			round = m[2]
+		} else if m := observeFileName.FindStringSubmatch(e.Name()); m != nil && m[1] == hashName(session) {
+			round = m[2]
+		}
+		if round == "" || round >= keep {
+			continue
+		}
+		if err := privatefile.Remove(filepath.Join(s.dir, e.Name())); err != nil && !errors.Is(err, privatefile.ErrNotExist) {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// Observation is what one round saw of one open PR in one workspace: the PR,
+// the worktree, its task, and the PR's head branch. MergedSince is set on an
+// observation carried into a round after the PR was seen merged: the time
+// that was first seen, kept as it was through every carry. OpenAt is set
+// with it: when the round that last saw the PR open began, kept likewise.
+type Observation struct {
+	Session     string     `json:"session"`
+	Round       string     `json:"round"`
+	PR          int        `json:"pr"`
+	Worktree    string     `json:"worktree"`
+	Task        string     `json:"task"`
+	Branch      string     `json:"branch"`
+	MergedSince *time.Time `json:"merged_since,omitempty"`
+	OpenAt      *time.Time `json:"open_at,omitempty"`
+}
+
+// observeName is the file name of an observation of pr in worktree.
+func observeName(session, round, worktree string, pr int) string {
+	return observePrefix + hashName(session) + "-" + round + "-" + hashName(worktree+"\x00"+strconv.Itoa(pr)) + recordSuffix
+}
+
+// RecordObservation writes an observation. An observation of the same PR in
+// the same worktree and round that exists already is kept as it is.
+func (s Store) RecordObservation(o Observation) error {
+	err := s.create(observeName(o.Session, o.Round, o.Worktree, o.PR), o)
+	if errors.Is(err, privatefile.ErrExist) {
+		return nil
+	}
+	return err
+}
+
+// Observations returns session's observations of round. Contract: a record
+// that cannot be read, or that names another session or round than its file
+// name, is not returned but reported in errs, so it never becomes a
+// candidate for an automatic send.
+func (s Store) Observations(session, round string) (obs []Observation, errs []error) {
+	entries, err := os.ReadDir(s.dir)
+	if err != nil {
+		return nil, []error{err}
+	}
+	for _, e := range entries {
+		m := observeFileName.FindStringSubmatch(e.Name())
+		if m == nil || m[1] != hashName(session) || m[2] != round {
+			continue
+		}
+		var o Observation
+		if err := s.read(e.Name(), &o); err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		if o.Session != session || o.Round != round || observeName(session, round, o.Worktree, o.PR) != e.Name() {
+			errs = append(errs, fmt.Errorf("%w: observation %s names another round or PR", errRecord, e.Name()))
+			continue
+		}
+		obs = append(obs, o)
+	}
+	return obs, errs
+}
+
+// autoSendRecord is the record of the automatic send after one merged PR.
+type autoSendRecord struct {
+	PR       int       `json:"pr"`
+	Worktree string    `json:"worktree"`
+	Task     string    `json:"task"`
+	Command  string    `json:"command"`
+	Round    string    `json:"round"`
+	At       time.Time `json:"at"`
+}
+
+// autoSendName is the file name of the automatic-send record of pr.
+func autoSendName(pr int) string {
+	return autoSendPrefix + strconv.Itoa(pr) + recordSuffix
+}
+
+// AutoSent reports whether the automatic send after pr was recorded. A
+// record that exists but cannot be read is an error, which the caller treats
+// as recorded: nothing is sent when it cannot be told.
+func (s Store) AutoSent(pr int) (bool, error) {
+	var rec autoSendRecord
+	err := s.read(autoSendName(pr), &rec)
+	switch {
+	case errors.Is(err, privatefile.ErrNotExist):
+		return false, nil
+	case err != nil:
+		return true, err
+	}
+	return true, nil
+}
+
+// recordAutoSend writes the automatic-send record of rec.PR. Contract: a
+// record that exists already fails with privatefile.ErrExist and is never
+// replaced, so of two processes that try at once only one may send.
+func (s Store) recordAutoSend(rec autoSendRecord) error {
+	rec.At = rec.At.UTC()
+	return s.create(autoSendName(rec.PR), rec)
 }
