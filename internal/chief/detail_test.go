@@ -298,3 +298,31 @@ func TestDetailKeepsALargeDescription(t *testing.T) {
 		}
 	}
 }
+
+// TestDetailMarksCappedCommits checks that a PR for which gh returns its cap
+// of commits is shown as having that many or more, with where the total is,
+// and one below the cap is not.
+func TestDetailMarksCappedCommits(t *testing.T) {
+	for _, c := range []struct {
+		commits int
+		capped  bool
+	}{{ghCommitsCap - 1, false}, {ghCommitsCap, true}} {
+		sw, tree := detailWorld(t)
+		sw.rec.replyIn(tree, "gh pr view 42 --json "+prViewFields, viewOf(t, "pr-view-867-open.json", func(v map[string]any) {
+			one := v["commits"].([]any)[0]
+			commits := make([]any, c.commits)
+			for i := range commits {
+				commits[i] = one
+			}
+			v["commits"] = commits
+		}))
+		out, err := Detail(context.Background(), sw.finish(), tree)
+		if err != nil {
+			t.Fatal(err)
+		}
+		size := out.Output().Size
+		if size == nil || size.Commits != c.commits || size.CommitsAtLeast != c.capped || (size.CommitsNote != "") != c.capped {
+			t.Errorf("%d commits: size = %+v, want capped %v", c.commits, size, c.capped)
+		}
+	}
+}

@@ -113,6 +113,9 @@ const (
 	// NotSentNoStep is an input that did not finish: /clear kept the
 	// session, /new showed no new session, or the command did not start.
 	NotSentNoStep
+	// NotSentPathUnsupported is a Claude Code pane whose working directory
+	// holds a character the transcript rule does not cover, such as "_".
+	NotSentPathUnsupported
 	// NotSentOtherInput is a reset candidate whose session's last human
 	// input is not the command that created the PR: the human went on in
 	// that pane after it.
@@ -122,21 +125,22 @@ const (
 // String names the reason for the output.
 func (r NotSentReason) String() string {
 	names := map[NotSentReason]string{
-		NotSentNotAccepting:  "not_accepting",
-		NotSentInputLeft:     "input_left",
-		NotSentModelMismatch: "model_mismatch",
-		NotSentNoTranscript:  "no_transcript",
-		NotSentPaneAmbiguous: "pane_ambiguous",
-		NotSentUnreadable:    "unreadable",
-		NotSentStopped:       "stopped",
-		NotSentBusy:          "busy",
-		NotSentNotOffered:    "not_offered",
-		NotSentNoWorkspace:   "no_workspace",
-		NotSentSamePane:      "same_pane",
-		NotSentNoReport:      "no_report",
-		NotSentPaneChanged:   "pane_changed",
-		NotSentNoStep:        "step_not_finished",
-		NotSentOtherInput:    "other_input",
+		NotSentNotAccepting:    "not_accepting",
+		NotSentInputLeft:       "input_left",
+		NotSentModelMismatch:   "model_mismatch",
+		NotSentNoTranscript:    "no_transcript",
+		NotSentPaneAmbiguous:   "pane_ambiguous",
+		NotSentUnreadable:      "unreadable",
+		NotSentStopped:         "stopped",
+		NotSentBusy:            "busy",
+		NotSentNotOffered:      "not_offered",
+		NotSentNoWorkspace:     "no_workspace",
+		NotSentSamePane:        "same_pane",
+		NotSentNoReport:        "no_report",
+		NotSentPaneChanged:     "pane_changed",
+		NotSentNoStep:          "step_not_finished",
+		NotSentOtherInput:      "other_input",
+		NotSentPathUnsupported: "unsupported_path",
 	}
 	if name, ok := names[r]; ok {
 		return name
@@ -303,7 +307,7 @@ func (s sendContext) checkPane(ctx context.Context, target Agent, check paneChec
 			err = transcriptOpens(path)
 		}
 		if err != nil {
-			return fail(NotSentNoTranscript, err.Error())
+			return fail(transcriptFailure(err))
 		}
 	}
 	if check.model != (paneinput.OpenCodeModel{}) && !check.model.Matches(screen.OpenCodeModel) {

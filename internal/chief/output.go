@@ -1,6 +1,7 @@
 package chief
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -290,6 +291,10 @@ type SizeOutput struct {
 	Additions    int `json:"additions"`
 	Deletions    int `json:"deletions"`
 	Commits      int `json:"commits"`
+	// CommitsAtLeast is true when Commits is gh's cap: the PR has that many
+	// or more, and CommitsNote says where the total is.
+	CommitsAtLeast bool   `json:"commits_at_least"`
+	CommitsNote    string `json:"commits_note"`
 }
 
 // ReleaseOutput is the output of `chief release`.
@@ -362,6 +367,10 @@ func (o DetailOutcome) Output() DetailOutput {
 	out.ViewError, out.ChecksError, out.RecordError = Sanitize(d.ViewErr), Sanitize(d.ChecksErr), Sanitize(d.RecordErr)
 	if d.View != nil {
 		out.Size = &SizeOutput{ChangedFiles: d.View.ChangedFiles, Additions: d.View.Additions, Deletions: d.View.Deletions, Commits: d.View.Commits}
+		if d.View.CommitsCapped {
+			out.Size.CommitsAtLeast = true
+			out.Size.CommitsNote = fmt.Sprintf("gh returns at most %d commits, so the PR has %d or more; the total is on the PR's page on GitHub (gh pr view %d --web)", ghCommitsCap, ghCommitsCap, d.PR.Number)
+		}
 		for _, r := range d.View.Reviews {
 			out.Reviews = append(out.Reviews, ReviewOutput{Author: Sanitize(r.Author), State: Sanitize(r.State)})
 		}

@@ -454,8 +454,10 @@ func TestOpenCodeModelMatch(t *testing.T) {
 	})
 }
 
-// TestTranscriptPath checks where a transcript is looked for, and that a
-// place the sampled rule does not decide is an error.
+// TestTranscriptPath checks where a transcript is looked for, that a place
+// the sampled rule does not decide is an error, and that a directory with a
+// character the rule does not cover gets its own reason with the remedy (the
+// remedy's wording is checked because it is what the human is shown).
 func TestTranscriptPath(t *testing.T) {
 	session := sessionPrefix + "01"
 	cases := []struct {
@@ -466,7 +468,7 @@ func TestTranscriptPath(t *testing.T) {
 	}{
 		{Env{Home: "/home/u"}, "/work/a.b/c", session, "/home/u/.claude/projects/-work-a-b-c/" + session + ".jsonl"},
 		{Env{Home: "/home/u", ClaudeConfigDir: "/cfg"}, "/work/x-y", session, "/cfg/projects/-work-x-y/" + session + ".jsonl"},
-		{Env{Home: "/home/u"}, "/work/x_y", session, ""},
+		{Env{Home: "/home/u"}, "/work/x_y", session, "unsupported"},
 		{Env{Home: "/home/u"}, "/work/a b", session, ""},
 		{Env{Home: "/home/u"}, "relative", session, ""},
 		{Env{Home: "/home/u"}, "/work", "", ""},
@@ -476,6 +478,13 @@ func TestTranscriptPath(t *testing.T) {
 	}
 	for _, c := range cases {
 		got, err := transcriptPath(c.env, c.dir, c.session)
+		if c.want == "unsupported" {
+			reason, detail := transcriptFailure(err)
+			if !errors.Is(err, errTranscript) || reason != NotSentPathUnsupported || !strings.Contains(detail, "type the command in the pane yourself") {
+				t.Errorf("transcriptPath(%q) = %q, %v; failure %s; want the unsupported path with its remedy", c.dir, got, err, reason)
+			}
+			continue
+		}
 		if c.want == "" {
 			if !errors.Is(err, errTranscript) {
 				t.Errorf("transcriptPath(%+v, %q, %q) = %q, %v; want errTranscript", c.env, c.dir, c.session, got, err)

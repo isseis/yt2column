@@ -36,6 +36,10 @@ const (
 // result only when its standard output reads strictly.
 var prChecksExitCodes = []int{1, 8}
 
+// ghCommitsCap is how many commits gh 2.96.0 returns for --json commits (its
+// query asks for the first 100), so a PR with more shows this many.
+const ghCommitsCap = 100
+
 // commitID is the form of a head commit.
 var commitID = regexp.MustCompile(`^[0-9a-f]{40}$`)
 
@@ -65,9 +69,12 @@ type prView struct {
 	Deletions    int
 	ChangedFiles int
 	Commits      int
-	Files        []string
-	Body         string
-	Reviews      []Review
+	// CommitsCapped is true when gh returned ghCommitsCap commits: the PR
+	// has that many or more.
+	CommitsCapped bool
+	Files         []string
+	Body          string
+	Reviews       []Review
 }
 
 // parsePRView reads `gh pr view --json prViewFields`. Contract: every field
@@ -127,6 +134,7 @@ func parsePRView(out []byte) (prView, error) {
 		return prView{}, err
 	}
 	v.Commits = len(commits)
+	v.CommitsCapped = v.Commits >= ghCommitsCap
 	files, err := requiredGHArray(m, "files")
 	if err != nil {
 		return prView{}, err

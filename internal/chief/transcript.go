@@ -16,6 +16,11 @@ import (
 // decided or that cannot be read; nothing is sent while it cannot be.
 var errTranscript = errors.New("the Claude Code transcript cannot be read")
 
+// errUnsupportedPath reports a working directory whose transcript directory
+// cannot be decided: it holds a character the sampled rule does not cover.
+// It is wrapped in errTranscript.
+var errUnsupportedPath = errors.New("the working directory holds a character other than letters, digits, '/', '.', and '-'")
+
 // The caps of a transcript read. The session /clear has just started holds
 // a few lines; the session of a pane to reset holds the whole run of the
 // command that created a PR, which reached megabytes in the samples, and its
@@ -50,7 +55,7 @@ func transcriptPath(env Env, dir, session string) (string, error) {
 		return "", fmt.Errorf("%w: no agent session", errTranscript)
 	}
 	if !transcriptDirChars.MatchString(dir) {
-		return "", fmt.Errorf("%w: the working directory %q has no known transcript directory", errTranscript, dir)
+		return "", fmt.Errorf("%w: %w: %q", errTranscript, errUnsupportedPath, dir)
 	}
 	config := env.ClaudeConfigDir
 	if config == "" && filepath.IsAbs(env.Home) {
@@ -61,6 +66,17 @@ func transcriptPath(env Env, dir, session string) (string, error) {
 	}
 	name := strings.NewReplacer("/", "-", ".", "-").Replace(dir)
 	return filepath.Join(config, "projects", name, session+".jsonl"), nil
+}
+
+// transcriptFailure is the reason and the detail of a send that stops
+// because the transcript of a Claude Code pane cannot be found or read. A
+// path the rule does not cover gets a reason of its own, with what the
+// human can do about it.
+func transcriptFailure(err error) (NotSentReason, string) {
+	if errors.Is(err, errUnsupportedPath) {
+		return NotSentPathUnsupported, err.Error() + "; chief cannot find this pane's Claude Code transcript, so it sends nothing to the pane. Use a worktree whose path has only letters, digits, '/', '.', and '-', or type the command in the pane yourself"
+	}
+	return NotSentNoTranscript, err.Error()
 }
 
 // readTranscript reads a transcript file: a regular file, at most limit

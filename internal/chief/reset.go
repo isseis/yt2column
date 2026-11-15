@@ -54,7 +54,7 @@ func (s sendContext) lastInputMadePR(a Agent, made maker) (NotSentReason, string
 	}
 	path, err := transcriptPath(s.deps.Env, a.Dir, a.Session)
 	if err != nil {
-		return NotSentNoTranscript, err.Error()
+		return transcriptFailure(err)
 	}
 	data, err := readTranscript(path, resetTranscriptLimit)
 	if err != nil {
