@@ -484,3 +484,49 @@ func TestClassifyZeroFacts(t *testing.T) {
 		t.Errorf("zero facts = %+v, want StateNeedsCheck with no command", r)
 	}
 }
+
+// TestRunningRowShowsTheLastSend checks that a running row shows the command
+// and model of chief's last send to the working pane, that a row chief sent
+// nothing shows none, and that a stopped workspace's row carries its stop.
+func TestRunningRowShowsTheLastSend(t *testing.T) {
+	w := newWorld(t)
+	sent := w.add(fakeWorkspace{ID: "w1", Label: "sent", Branch: taskBranch, Status: "working"})
+	w.add(fakeWorkspace{ID: "w2", Label: "unsent", Branch: taskBranch, Status: "working"})
+	records, err := w.store.Records(Worktree{path: sent})
+	if err != nil {
+		t.Fatal(err)
+	}
+	held, err := records.Lock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, cmd := range []string{"/mkplan 0001", "/runplan 0001"} {
+		id, err := held.BeginSend(SendRecord{Pane: "w1:p1", Command: cmd, Agent: "claude_code", Model: "opus"}, w.now.Add(time.Duration(i)*time.Second))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := held.EndSend(id, OutcomeSent.String(), "", w.now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := held.Stop("why", "", "", w.now); err != nil {
+		t.Fatal(err)
+	}
+	if err := held.Close(); err != nil {
+		t.Fatal(err)
+	}
+	snap := take(t, w)
+	row := rowOf(t, snap, "sent")
+	if row.State != StateRunning || row.Running == nil || row.Running.Command != "/runplan 0001" || row.Running.Model != "opus" {
+		t.Errorf("sent row = %+v, running %+v; want the last send shown", row, row.Running)
+	}
+	if row.Stopped == nil || row.Stopped.Reason != "why" {
+		t.Errorf("sent row stop = %+v, want the stop", row.Stopped)
+	}
+	if other := rowOf(t, snap, "unsent"); other.Running != nil || other.Stopped != nil {
+		t.Errorf("unsent row = %+v; want nothing shown", other)
+	}
+	if len(snap.Problems) != 0 {
+		t.Errorf("problems = %v", snap.Problems)
+	}
+}

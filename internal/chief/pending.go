@@ -43,7 +43,7 @@ func (k PendingKind) String() string {
 	case PendingProposal:
 		return "proposal"
 	default:
-		return "unknown"
+		return unknownName
 	}
 }
 

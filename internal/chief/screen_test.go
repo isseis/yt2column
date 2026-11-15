@@ -11,6 +11,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/isseis/yt2column/internal/chief/paneinput"
 )
 
 // readScreenSample returns a screen sample under testdata/screens.
@@ -525,5 +527,139 @@ func TestParseANSIScreenBounds(t *testing.T) {
 	}
 	if c := lines[0].cells; !c[0].dim || c[1].dim || c[2].dim || c[2].fg.set {
 		t.Errorf("cells = %+v, want dim only on the first", c)
+	}
+}
+
+// TestReadCommandReport reads the final report of a command from the
+// sampled Claude Code screen: found only when it names the PR's URL (also
+// wrapped across lines, and not as a prefix of another PR's), and never on
+// an OpenCode screen or a screen of another shape.
+func TestReadCommandReport(t *testing.T) {
+	const url = "https://github.com/owner/repo/pull/42"
+	sample := readScreenSample(t, "claude-command-report.ansi")
+	reportScreen(t, "")
+	with := func(text string) string { return strings.Replace(sample, reportMention, text, 1) }
+	cases := []struct {
+		name   string
+		agent  paneinput.AgentKind
+		screen string
+		url    string
+		want   bool
+	}{
+		{"the sample, which names no URL", paneinput.AgentClaudeCode, sample, url, false},
+		{"the URL in the report", paneinput.AgentClaudeCode, with(url + " に push しました"), url, true},
+		{"the URL wrapped", paneinput.AgentClaudeCode, with("https://github.com/owner/\n  repo/pull/42 に push しました"), url, true},
+		{"a longer PR number", paneinput.AgentClaudeCode, with(url + "0 に push しました"), url, false},
+		{"the URL of another PR named too", paneinput.AgentClaudeCode, with(url + "0 と " + url + " に push しました"), url, true},
+		{"an OpenCode screen", paneinput.AgentOpenCode, with(url), url, false},
+		{"no URL asked", paneinput.AgentClaudeCode, with(url), "", false},
+		{"a question screen", paneinput.AgentClaudeCode, readScreenSample(t, "claude-question-single.ansi"), url, false},
+		{"a line outside the report's indent", paneinput.AgentClaudeCode, with(url + "\nunindented"), url, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			report, ok := readCommandReport(c.agent, c.screen, c.url)
+			if ok != c.want {
+				t.Fatalf("readCommandReport = %q, %v; want %v", report, ok, c.want)
+			}
+			if ok && !isSampleReport(report) {
+				t.Errorf("report = %q, want the last message alone", report)
+			}
+		})
+	}
+}
+
+// TestReadModelSwitch reads the /model records of the sampled transcript and
+// of variants: the last record decides, its model is a whole word of the
+// display name, and a line that is not JSON makes the transcript unreadable.
+func TestReadModelSwitch(t *testing.T) {
+	sample := readTestdata(t, "transcript/claude-clear-model.jsonl")
+	if got := readModelSwitch(sample); got != (ModelSwitch{Kind: SwitchFound, Model: paneinput.ClaudeModelOpus}) {
+		t.Errorf("the sample = %+v, want the last switch, to Opus", got)
+	}
+	lines := strings.Split(strings.TrimSpace(string(sample)), "\n")
+	cases := []struct {
+		name string
+		text string
+		want ModelSwitch
+	}{
+		{"up to the switch to Sonnet", strings.Join(lines[:len(lines)-3], "\n"), ModelSwitch{Kind: SwitchFound, Model: paneinput.ClaudeModelSonnet}},
+		{"no switch", strings.Join(lines[:3], "\n"), ModelSwitch{Kind: SwitchNone}},
+		{"a broken line", string(sample) + "{\"type\":", ModelSwitch{}},
+		{"an empty transcript", "", ModelSwitch{Kind: SwitchNone}},
+	}
+	for _, c := range cases {
+		if got := readModelSwitch([]byte(c.text)); got != c.want {
+			t.Errorf("%s: readModelSwitch = %+v, want %+v", c.name, got, c.want)
+		}
+	}
+	for name, want := range map[string]paneinput.ClaudeModel{
+		"Opus 5.5":    paneinput.ClaudeModelOpus,
+		"Sonnet 5.5":  paneinput.ClaudeModelSonnet,
+		"opus":        paneinput.ClaudeModelOpus,
+		"Opus Sonnet": paneinput.ClaudeModelUnknown,
+		"Opus4.6":     paneinput.ClaudeModelUnknown,
+		"Haiku 5.5":   paneinput.ClaudeModelUnknown,
+	} {
+		if got := routingModelOf(name); got != want {
+			t.Errorf("routingModelOf(%q) = %d, want %d", name, got, want)
+		}
+	}
+}
+
+// reportMention is the PR mention of the sampled Claude Code report, which
+// the tests replace with the URL of the PR under test.
+const reportMention = "PR #867 に push しました"
+
+// reportScreen returns the sampled Claude Code report with its PR mention
+// replaced by text, such as the URL of the PR under test.
+func reportScreen(t *testing.T, text string) string {
+	t.Helper()
+	screen := readScreenSample(t, "claude-command-report.ansi")
+	if !strings.Contains(screen, reportMention) {
+		t.Fatal("the report sample no longer holds its PR mention")
+	}
+	return strings.Replace(screen, reportMention, text+" に push しました", 1)
+}
+
+// isSampleReport reports whether text is the last message of the sampled
+// report, from its first line to its last and nothing around it.
+func isSampleReport(text string) bool {
+	return strings.HasPrefix(text, "ADR-0004 を改訂し") && strings.HasSuffix(text, "を実行してください。")
+}
+
+// TestReadLastHumanInput reads the last human input of the sampled
+// transcript and of its prefixes: only a line Claude Code declares the
+// human's counts, so a peer's message or a task notification after a command
+// leaves the command the last input; a command is read in the sampled form
+// alone; a line that is not JSON makes the transcript unreadable.
+func TestReadLastHumanInput(t *testing.T) {
+	sample := strings.TrimSpace(string(readTestdata(t, "transcript/claude-human-input.jsonl")))
+	lines := strings.Split(sample, "\n")
+	queued := strings.Split(strings.TrimSpace(string(readTestdata(t, "transcript/claude-queued-input.jsonl"))), "\n")
+	command := HumanInput{Kind: HumanInputCommand, Name: "runplan", Args: "0088"}
+	cases := []struct {
+		name string
+		text string
+		want HumanInput
+	}{
+		{"the whole sample, ending in typed text", sample, HumanInput{Kind: HumanInputOther}},
+		{"up to the lines after the command", strings.Join(lines[:len(lines)-1], "\n"), command},
+		{"up to the command", strings.Join(lines[:3], "\n"), command},
+		{"before any human line", strings.Join(lines[:2], "\n"), HumanInput{Kind: HumanInputNone}},
+		{"a broken line", sample + "\n{\"type\":", HumanInput{}},
+		{"two names that differ", strings.Replace(strings.Join(lines[:3], "\n"), "<command-message>runplan<", "<command-message>mkplan<", 1), HumanInput{Kind: HumanInputOther}},
+		{"the command line without its human origin", strings.Replace(strings.Join(lines[:3], "\n"), `"origin":{"kind":"human"},`, "", 1), HumanInput{Kind: HumanInputNone}},
+		{"a later line of an unsampled origin", strings.Join(lines[:3], "\n") + "\n" + strings.Replace(lines[len(lines)-1], `"kind":"human"`, `"kind":"scheduled"`, 1), HumanInput{}},
+		{"a message the human typed while the agent worked", strings.Join(lines[:3], "\n") + "\n" + queued[2], HumanInput{Kind: HumanInputOther}},
+		{"a peer's message and a task notification delivered while the agent worked", strings.Join(lines[:3], "\n") + "\n" + queued[0] + "\n" + queued[1], command},
+		{"a queued command of an unsampled origin", strings.Join(lines[:3], "\n") + "\n" + strings.Replace(queued[2], `"kind":"human"`, `"kind":"coordinator"`, 1), HumanInput{}},
+		{"a queued command without an origin", strings.Join(lines[:3], "\n") + "\n" + strings.Replace(queued[2], `"origin":{"kind":"human"},`, "", 1), HumanInput{}},
+		{"a later human line repeating a member", strings.Join(lines[:3], "\n") + "\n" + strings.Replace(lines[len(lines)-1], `"type":"user",`, `"type":"user","type":"user",`, 1), HumanInput{}},
+	}
+	for _, c := range cases {
+		if got := readLastHumanInput([]byte(c.text)); got != c.want {
+			t.Errorf("%s: readLastHumanInput = %+v, want %+v", c.name, got, c.want)
+		}
 	}
 }

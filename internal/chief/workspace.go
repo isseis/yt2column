@@ -123,6 +123,19 @@ func (g GitReader) Branch(ctx context.Context, worktree string) (string, error) 
 	return branch, nil
 }
 
+// Head returns the commit at HEAD of worktree.
+func (g GitReader) Head(ctx context.Context, worktree string) (string, error) {
+	out, err := g.cmds.git(ctx, worktree, "rev-parse", "HEAD")
+	if err != nil {
+		return "", err
+	}
+	head := strings.TrimSpace(string(out))
+	if !commitID.MatchString(head) {
+		return "", fmt.Errorf("%w: HEAD %q", errGitOutput, head)
+	}
+	return head, nil
+}
+
 // OpenPRs returns the open pull requests whose head is branch, read by gh in
 // worktree so the repository is the worktree's own remote.
 func (g GitReader) OpenPRs(ctx context.Context, worktree, branch string) ([]OpenPR, error) {
@@ -151,8 +164,10 @@ func (g GitReader) Ahead(ctx context.Context, worktree string) (int, error) {
 type TaskWorkspace struct {
 	ID    string
 	Label string
-	// Worktree is the canonical path of the workspace's worktree.
+	// Worktree is the canonical path of the workspace's worktree, and Tree
+	// the same path as the type records are kept by.
 	Worktree string
+	Tree     Worktree
 	// Agents are the workspace's agents in Herdr's order.
 	Agents []Agent
 }
@@ -205,7 +220,7 @@ func FindTaskWorkspaces(ctx context.Context, git GitReader, cmds Commands, agent
 			if err != nil {
 				continue
 			}
-			found = append(found, TaskWorkspace{ID: id, Label: labels[id], Worktree: tree.String(), Agents: byWorkspace[id]})
+			found = append(found, TaskWorkspace{ID: id, Label: labels[id], Worktree: tree.String(), Tree: tree, Agents: byWorkspace[id]})
 			break
 		}
 	}
