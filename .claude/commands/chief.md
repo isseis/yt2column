@@ -152,6 +152,10 @@ Offer the `pending` items as the human's choices, in the tool's order, with
   `mkreq`, show its `problem` and say that it cannot be sent now.
 
 When workspaces are stopped, also offer `停止を解く: <label>` for each.
+For each unanswered question to send again after a model switch (step 4),
+also offer `送り直す: <label>` and `送り直さない: <label>`. These choices
+have no number from the tool: list each as its own line, chosen by its
+label, before 何もしない.
 
 How to offer them depends on the argument:
 
