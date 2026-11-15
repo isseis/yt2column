@@ -127,6 +127,7 @@ func TestTickRunsOnlyReadsInTheRightPlaces(t *testing.T) {
 		case ghProgram:
 			if len(c.args) < 2 || c.args[0] != "pr" || !slices.Contains([]string{"list", "view"}, c.args[1]) {
 				t.Errorf("gh ran %v", c.args)
+				continue
 			}
 			sawView = sawView || c.args[1] == "view"
 			for _, e := range c.env {

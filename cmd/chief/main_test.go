@@ -72,7 +72,7 @@ func (f *fakeHerdr) Run(_ context.Context, name string, args ...string) ([]byte,
 		pane := args[len(args)-1]
 		return []byte(`{"id":"cli:agent:get","result":{"agent":` + f.agent(pane, sessions[pane]) + `,"type":"agent_info"}}`), nil
 	case name == "herdr" && has("agent", "list"):
-		agents := f.agent(testPane, testSession)
+		agents := f.agent(testPane, sessions[testPane])
 		if f.both {
 			agents += "," + f.agent(otherPane, otherSession)
 		}
@@ -316,6 +316,34 @@ func TestStartThenTickAndWait(t *testing.T) {
 	}
 	if code != exitFailure || res["outcome"] != "timeout" || sleeps != 2 {
 		t.Errorf("wait = %d, %v after %d sleeps; want exit 1, timeout, after 2", code, res, sleeps)
+	}
+}
+
+// TestWaitRefusedForANewSession checks that a wait whose pane gets another
+// session while it runs (a cleared chief session left it running) exits 3
+// with not_owner, like any subcommand its caller does not own.
+func TestWaitRefusedForANewSession(t *testing.T) {
+	h := newHarness(t)
+	if code, out := h.run("start", "--protocol", "1"); code != exitOK {
+		t.Fatalf("start = %d, %v", code, out)
+	}
+	_, out := h.run("snapshot", "--protocol", "1")
+	baseline, _ := out["baseline"].(string)
+	clock := time.Date(2026, 11, 14, 9, 0, 0, 0, time.UTC)
+	t.Cleanup(func() { sessions[testPane] = testSession })
+	sleep := func(_ context.Context, d time.Duration) error {
+		clock = clock.Add(d)
+		sessions[testPane] = otherSession
+		return nil
+	}
+	var stdout, stderr bytes.Buffer
+	code := run(context.Background(), []string{"wait", "--since", baseline, "--timeout", "60", "--protocol", "1"}, h.env, nil, h.fake.factory, func() time.Time { return clock }, sleep, &stdout, &stderr)
+	var res map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &res); err != nil {
+		t.Fatalf("wait output %q: %v", stdout.String(), err)
+	}
+	if code != exitRefused || res["reason"] != "not_owner" {
+		t.Errorf("wait = %d, %v; want exit 3, not_owner", code, res)
 	}
 }
 

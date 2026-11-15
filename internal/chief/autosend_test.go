@@ -47,10 +47,6 @@ func TestAutoSendConditions(t *testing.T) {
 		t.Fatalf("the passing facts give %v", why)
 	}
 	errRead := errors.New("read failed")
-	mkreq, err := paneinput.NewMkreq(paneinput.IssueNumber{})
-	if err == nil {
-		t.Fatalf("a /mkreq of no issue was built: %+v", mkreq)
-	}
 	cases := map[string]func(*autoSendFacts){
 		"the carry ran out":                     func(f *autoSendFacts) { f.expired = true },
 		"the workspace is gone":                 func(f *autoSendFacts) { f.present = false },
@@ -75,7 +71,6 @@ func TestAutoSendConditions(t *testing.T) {
 		"detached, the next is not /runplan":    func(f *autoSendFacts) { f.head, f.next.Kind = headDetached, TaskNextMkplan },
 		"an agent runs or waits":                func(f *autoSendFacts) { f.quietWhy = "an agent of the workspace is running" },
 		"no next command":                       func(f *autoSendFacts) { f.next, f.nextWhy = nil, "no rule" },
-		"the task is complete":                  func(f *autoSendFacts) { f.next, f.done = nil, true },
 		"the next is /mkreq":                    func(f *autoSendFacts) { f.next.Kind = TaskNextMkreq },
 		"the next is /runpr":                    func(f *autoSendFacts) { f.next.Kind = TaskNextRunpr },
 		"the next is the takeover":              func(f *autoSendFacts) { f.next.Kind = TaskNextRunplanTakeover },
@@ -83,7 +78,7 @@ func TestAutoSendConditions(t *testing.T) {
 		"the plan PR holds":                     func(f *autoSendFacts) { f.autoSend = AutoSendHold },
 		"the plan PR's field is unreadable":     func(f *autoSendFacts) { f.autoSend = AutoSendUnreadable },
 		"already sent":                          func(f *autoSendFacts) { f.sent = true },
-		"the automatic-send record is unread":   func(f *autoSendFacts) { f.sent, f.sentErr = true, errRead },
+		"the automatic-send record is unread":   func(f *autoSendFacts) { f.sentErr = errRead },
 		"a /runpr report disagrees":             func(f *autoSendFacts) { f.reportWhy = "the report says none" },
 		"the workspace is stopped":              func(f *autoSendFacts) { f.stopped = true },
 		"another send started during the round": func(f *autoSendFacts) { f.laterSend = true },
@@ -97,6 +92,13 @@ func TestAutoSendConditions(t *testing.T) {
 			}
 		})
 	}
+	t.Run("the task is complete", func(t *testing.T) {
+		f := passingFacts(t)
+		f.next, f.done = nil, true
+		if why := autoSendConditions(f); !slices.Equal(why, []string{"the task is complete"}) {
+			t.Errorf("a complete task gave %q", why)
+		}
+	})
 	t.Run("the hold field is not read for /mkarch", func(t *testing.T) {
 		f := passingFacts(t)
 		f.next.Kind, f.autoSend = TaskNextMkarch, AutoSendHold
@@ -330,6 +332,9 @@ func TestAutoSendTaskMismatch(t *testing.T) {
 	if sentCommand(res) || len(mw.rec.prompts()) != 0 {
 		t.Fatalf("a PR of another task was sent: %+v", res)
 	}
+	if !slices.ContainsFunc(res.Reasons, func(r string) bool { return strings.HasPrefix(r, `the head branch "user/0002-other-task-01"`) }) {
+		t.Errorf("reasons = %q; want the head branch's", res.Reasons)
+	}
 }
 
 // TestAutoSendDetached checks a detached HEAD: /runplan is sent when the one
@@ -346,6 +351,9 @@ func TestAutoSendDetached(t *testing.T) {
 		res := only(t, mw.tick(time.Minute))
 		if sentCommand(res) != sends {
 			t.Errorf("a report naming #%d: sent %v, want %v (%+v)", pr, sentCommand(res), sends, res)
+		}
+		if !sends && !slices.ContainsFunc(res.Reasons, func(r string) bool { return strings.HasPrefix(r, "HEAD is detached and") }) {
+			t.Errorf("a report naming #%d: reasons %q; want the detached HEAD's", pr, res.Reasons)
 		}
 	}
 }
@@ -372,6 +380,26 @@ func TestAutoSendNextRound(t *testing.T) {
 		if !sends && len(mw.rec.prompts()) != 0 {
 			t.Errorf("typed %v after the carry ran out", mw.rec.prompts())
 		}
+		if !sends {
+			if out := mw.tick(time.Minute); len(out.AutoSends) != 0 {
+				t.Errorf("the merge was carried after its window ran out: %+v", out.AutoSends)
+			}
+		}
+	}
+}
+
+// TestAutoSendTaskComplete checks that the merge of a task's last PR sends
+// nothing, says the task is complete, and is not carried.
+func TestAutoSendTaskComplete(t *testing.T) {
+	mw := newMergeWorld(t, runplanDocs(t, "marker-all-merged.md"))
+	mw.tick(time.Minute)
+	mw.merge(nextBranch, "")
+	res := only(t, mw.tick(time.Minute))
+	if sentCommand(res) || !slices.Contains(res.Reasons, "the task is complete") {
+		t.Fatalf("the last PR's merge = %+v; want the task complete", res)
+	}
+	if out := mw.tick(time.Minute); len(out.AutoSends) != 0 {
+		t.Errorf("a complete task's merge was carried: %+v", out.AutoSends)
 	}
 }
 
@@ -504,38 +532,48 @@ func TestResetAfterAutoSend(t *testing.T) {
 }
 
 // TestAutoSendStopsForANewOwner checks that a tick whose chief session was
-// cleared and taken over while it ran sends nothing: the owner is checked
-// again under the workspace's exclusion, before the first input.
+// replaced while it ran sends nothing: the owner is checked again under the
+// workspace's exclusion, before the first input, by the lock (another
+// session took it over) and, on its own, by the session chief's pane has
+// now (the session was cleared and nothing took the lock yet).
 func TestAutoSendStopsForANewOwner(t *testing.T) {
-	mw := newMergeWorld(t, mkarchDocs)
-	mw.tick(time.Minute)
-	mw.merge(nextBranch, "`/mkarch 0001`")
-	// The takeover comes while the tick reads the merged PR, after it read
-	// the previous round's observations and before it takes the exclusion.
-	took := false
-	mw.rec.replyFunc(prStateLine, func() reply {
-		if !took {
-			took = true
-			mw.chief.Session = "00000000-0000-4000-8000-0000000000c9"
-			mw.rec.reply("herdr agent get "+worldChiefPane, agentGetOutput(mw.chief))
-			if _, err := mw.store.Start(context.Background(), herdrWith(t, mw.chief), Owner{Pane: mw.chief.Pane, Session: mw.chief.Session}, mw.now); err != nil {
-				t.Error(err)
+	for _, paneToo := range []bool{false, true} {
+		t.Run(map[bool]string{false: "the lock is taken over", true: "only the pane's session changes"}[paneToo], func(t *testing.T) {
+			mw := newMergeWorld(t, mkarchDocs)
+			mw.tick(time.Minute)
+			mw.merge(nextBranch, "`/mkarch 0001`")
+			old := mw.owner()
+			// The change comes while the tick reads the merged PR, after
+			// it read the previous round's observations and before it takes
+			// the exclusion.
+			took := false
+			mw.rec.replyFunc(prStateLine, func() reply {
+				if !took {
+					took = true
+					cleared := mw.chief
+					cleared.Session = "00000000-0000-4000-8000-0000000000c9"
+					if paneToo {
+						mw.chief = cleared
+						mw.rec.reply("herdr agent get "+worldChiefPane, agentGetOutput(cleared))
+					} else if _, err := mw.store.Start(context.Background(), herdrWith(t, cleared), Owner{Pane: cleared.Pane, Session: cleared.Session}, mw.now); err != nil {
+						t.Error(err)
+					}
+				}
+				return reply{out: []byte(prMergedJSON)}
+			})
+			mw.now = mw.now.Add(time.Minute)
+			out, err := Tick(context.Background(), mw.deps, old)
+			if err != nil {
+				t.Fatal(err)
 			}
-		}
-		return reply{out: []byte(prMergedJSON)}
-	})
-	old := Owner{Pane: worldChiefPane, Session: "00000000-0000-4000-8000-0000000000c1"}
-	mw.now = mw.now.Add(time.Minute)
-	out, err := Tick(context.Background(), mw.deps, old)
-	if err != nil {
-		t.Fatal(err)
-	}
-	res := only(t, out)
-	if !took || len(res.Actions) != 1 || res.Actions[0].Reason != NotSentConditions || len(mw.rec.prompts()) != 0 {
-		t.Fatalf("auto send of the replaced owner = %+v (took over %v), prompts %v", res, took, mw.rec.prompts())
-	}
-	if sent, _ := mw.store.AutoSent(42); sent {
-		t.Error("the replaced owner recorded the automatic send")
+			res := only(t, out)
+			if !took || len(res.Actions) != 1 || res.Actions[0].Reason != NotSentConditions || len(mw.rec.prompts()) != 0 {
+				t.Fatalf("auto send of the replaced owner = %+v (took over %v), prompts %v", res, took, mw.rec.prompts())
+			}
+			if sent, _ := mw.store.AutoSent(42); sent {
+				t.Error("the replaced owner recorded the automatic send")
+			}
+		})
 	}
 }
 
@@ -632,7 +670,7 @@ func TestParsePRState(t *testing.T) {
 	}
 	for name, c := range cases {
 		got, head, err := parsePRState([]byte(c.out), 42)
-		if got != c.want || (err != nil) != c.wantErr || (err == nil && head != taskBranch) {
+		if got != c.want || errors.Is(err, errGHOutput) != c.wantErr || (err == nil && head != taskBranch) {
 			t.Errorf("%s: %d, %q, %v; want %d, error %v", name, got, head, err, c.want, c.wantErr)
 		}
 	}
@@ -737,9 +775,10 @@ func TestAutoSendCarryKeepsTheFirstSighting(t *testing.T) {
 func TestAutoSendAfterAFailedTick(t *testing.T) {
 	mw := newMergeWorld(t, mkarchDocs)
 	mw.tick(time.Minute)
-	mw.rec.fail("herdr workspace list", errors.New("herdr is busy"))
+	errBusy := errors.New("herdr is busy")
+	mw.rec.fail("herdr workspace list", errBusy)
 	mw.now = mw.now.Add(time.Minute)
-	if _, err := Tick(context.Background(), mw.deps, mw.owner()); err == nil {
+	if _, err := Tick(context.Background(), mw.deps, mw.owner()); !errors.Is(err, errBusy) {
 		t.Fatal("the tick with a failing Herdr did not fail")
 	}
 	mw.rec.reply("herdr workspace list", workspaceListOutput(mw.labels))
@@ -813,6 +852,11 @@ func TestAutoSendFailureAfterInput(t *testing.T) {
 	if row := rowOf(t, out.Snapshot, "ws"); row.State != StateNeedsCheck {
 		t.Errorf("row = %+v; want needs check", row)
 	}
+	if records, ok, err := mw.store.existingRecords(Worktree{path: mw.tree}); err != nil || !ok {
+		t.Fatalf("records = %v, %v", ok, err)
+	} else if stop, err := records.Stopped(); err != nil || stop == nil {
+		t.Errorf("stop = %+v, %v; want the workspace stopped", stop, err)
+	}
 	before := len(mw.rec.prompts())
 	if out := mw.tick(time.Minute); len(out.AutoSends) != 0 || len(mw.rec.prompts()) != before {
 		t.Errorf("the failed send was tried again: %+v", out.AutoSends)
@@ -820,14 +864,14 @@ func TestAutoSendFailureAfterInput(t *testing.T) {
 }
 
 // TestAutoSendStateUnreadable checks that a merge whose state cannot be read
-// is proposed with the reason and not carried to the next round.
+// is not sent, gives that reason, and is not carried to the next round.
 func TestAutoSendStateUnreadable(t *testing.T) {
 	mw := newMergeWorld(t, mkarchDocs)
 	mw.tick(time.Minute)
 	mw.merge(nextBranch, "`/mkarch 0001`")
 	mw.rec.failIn(mw.tree, prStateLine, errors.New("gh failed"))
-	if res := only(t, mw.tick(time.Minute)); sentCommand(res) {
-		t.Fatalf("sent without the PR's state: %+v", res)
+	if res := only(t, mw.tick(time.Minute)); sentCommand(res) || !slices.ContainsFunc(res.Reasons, func(r string) bool { return strings.HasPrefix(r, "the state of #42 cannot be read") }) {
+		t.Fatalf("auto send without the PR's state = %+v; want its reason", res)
 	}
 	mw.rec.replyIn(mw.tree, prStateLine, []byte(prMergedJSON))
 	if out := mw.tick(time.Minute); len(out.AutoSends) != 0 {

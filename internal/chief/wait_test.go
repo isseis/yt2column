@@ -180,28 +180,28 @@ func TestWaitFailure(t *testing.T) {
 }
 
 // TestWaitStopsForANewOwner checks that a wait left running by a chief
-// session that was cleared stops: when chief's pane has another session, and
-// when another session took the lock over with start, the next read refuses
-// with ErrNotOwner instead of waiting on as the old owner.
+// session that was cleared stops at its next read with ErrNotOwner: when
+// chief's pane shows another session (the lock unchanged), and when another
+// session took the lock over with start (the pane's session unchanged in the
+// wait's reads).
 func TestWaitStopsForANewOwner(t *testing.T) {
 	for _, takeOver := range []bool{false, true} {
-		ww := newWaitWorld(t, fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch, PRs: openPRJSON})
-		since := ww.baseline()
-		cleared := ww.chief
-		cleared.Session = "00000000-0000-4000-8000-0000000000c2"
-		ww.changeAgents(func(read int) []fakeAgent {
-			agents := append([]fakeAgent{}, ww.agents...)
-			if read >= 2 {
-				agents[0] = cleared
-			}
-			return agents
-		})
-		if takeOver {
+		t.Run(map[bool]string{false: "the pane's session changes", true: "the lock is taken over"}[takeOver], func(t *testing.T) {
+			ww := newWaitWorld(t, fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch, PRs: openPRJSON})
+			since := ww.baseline()
+			cleared := ww.chief
+			cleared.Session = "00000000-0000-4000-8000-0000000000c2"
+			ww.changeAgents(func(read int) []fakeAgent {
+				agents := append([]fakeAgent{}, ww.agents...)
+				if !takeOver && read >= 2 {
+					agents[0] = cleared
+				}
+				return agents
+			})
 			ww.deps.Sleep = func(_ context.Context, d time.Duration) error {
 				ww.sleeps++
 				ww.now = ww.now.Add(d)
-				if ww.sleeps == 2 {
-					ww.rec.reply("herdr agent get "+worldChiefPane, agentGetOutput(cleared))
+				if takeOver && ww.sleeps == 1 {
 					newOwner := Owner{Pane: cleared.Pane, Session: cleared.Session}
 					if _, err := ww.store.Start(context.Background(), herdrWith(t, cleared), newOwner, ww.now); err != nil {
 						t.Fatal(err)
@@ -209,13 +209,13 @@ func TestWaitStopsForANewOwner(t *testing.T) {
 				}
 				return nil
 			}
-		}
-		if _, err := ww.wait(since, "60"); !errors.Is(err, ErrNotOwner) {
-			t.Errorf("take over %v: Wait = %v; want ErrNotOwner", takeOver, err)
-		}
-		if ww.sleeps > 2 {
-			t.Errorf("take over %v: the wait slept %d times after its owner changed", takeOver, ww.sleeps)
-		}
+			if _, err := ww.wait(since, "60"); !errors.Is(err, ErrNotOwner) {
+				t.Fatalf("Wait = %v; want ErrNotOwner", err)
+			}
+			if ww.sleeps != 1 {
+				t.Errorf("the wait slept %d times; want it to stop at the read after the first sleep", ww.sleeps)
+			}
+		})
 	}
 }
 
