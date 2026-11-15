@@ -384,27 +384,27 @@
 
 ### フェーズ 6: 待ち受けと自動送信、PR マーカーの `**自動送信**` の欄（設計書 8 章の 6）
 
-**変更するファイル:** `internal/chief/wait.go`・`tick.go`・`autosend.go`・`records.go` とそのテスト、`internal/chief/network_test.go`、`cmd/chief/main.go`・`main_test.go`・`docs_test.go`（新規）、`.claude/commands/_context.md`・`mkplan2.md`・`mkplan.md`・`_lib/simple-process.md`、`docs/dev/adr/0046-chief-of-staff.md`
+**変更するファイル:** `internal/chief/wait.go`・`tick.go`・`autosend.go`・`records.go` とそのテスト、`internal/chief/screen_report.go`（`/runpr` の報告の読み取り）と `screen_test.go`、`internal/chief/snapshot.go`・`state.go`・`pending.go`・`output.go`・`send.go`・`workspace.go`（周の読み取りの共有、提案の理由、出力、自動送信の記録の差し込み、git と gh の読み取り）、`internal/chief/test_helpers.go`・`network_test.go`、`cmd/chief/main.go`・`main_test.go`・`docs_test.go`（新規）、`.claude/commands/_context.md`・`mkplan2.md`・`mkplan.md`・`_lib/simple-process.md`、`docs/dev/adr/0046-chief-of-staff.md`
 
--   [ ] **ステップ 6-1**: `wait.go` に `wait` を書く（設計書 3.1.1、決定 4）。基準は不透明な値とし、タスクの workspace のエージェントの状態か `state_change_seq` が変わると戻り、chief の workspace の変化では戻らない。テストは次を確かめる。
+-   [x] **ステップ 6-1**: `wait.go` に `wait` を書く（設計書 3.1.1、決定 4）。基準は不透明な値とし、タスクの workspace のエージェントの状態か `state_change_seq` が変わると戻り、chief の workspace の変化では戻らない。テストは次を確かめる。
     -   変化のある場合とない場合、`blocked` のまま変わらないエージェントで戻らないこと。
     -   時間切れ、herdr の失敗で失敗の終了コードになること。
--   [ ] **ステップ 6-2**: `records.go` に、周の記録、観測の記録（持ち越しを含む）、自動送信の記録を足す（設計書 3.5）。`start` の片付けに、終わったセッションの周・観測の記録を足す。
--   [ ] **ステップ 6-3**: `autosend.go` に自動送信を書く（設計書 3.7）。
+-   [x] **ステップ 6-2**: `records.go` に、周の記録、観測の記録（持ち越しを含む）、自動送信の記録を足す（設計書 3.5）。`start` の片付けに、終わったセッションの周・観測の記録を足す。周を始めるときには、同じセッションの直前の周より前の周と観測の記録を消す（その後のどの周も読まないため）。
+-   [x] **ステップ 6-3**: `autosend.go` に自動送信を書く（設計書 3.7）。
     -   AC-41 の条件の表、タスクと workspace の確かめ直し、報告の照合（NEXT は `screen*.go` の読み取りの型で受け取る）、ブランチのない状態の規則を持つ。
     -   順序（排他、読み直し、最初の確かめ、自動送信の記録、送信）、満たさないときの提案と持ち越し、自動送信の後のリセットを持つ。
     -   テストは、AC-41 の条件を 1 つずつ外した入力の表で送らないことと、設計書 7.1 の 3 項目めが挙げる場合を確かめる（直前の周より前の観測、タスクの違い、ブランチのない状態で報告の PR の番号が違う、持ち越しの時間切れ、マージの直後の周で実行中だったときに次の周で送れる）。
--   [ ] **ステップ 6-4**: `tick.go` に `tick` を書き、`cmd/chief` に `tick` と `wait` を足す。`network_test.go` に `tick` の経路を足す。
+-   [x] **ステップ 6-4**: `tick.go` に `tick` を書き、`cmd/chief` に `tick` と `wait` を足す。`network_test.go` に `tick` の経路を足す。
     -   `wait` と `tick` は、起動したときのロックの持ち主を保持して周ごとに確かめ直すか、`/clear` でバックグラウンドの処理が止まる前提を確かめて書く（§1.6）。保持する場合は、`/clear` の後に新しいセッションが `start` したとき、古いプロセスが次の周で拒まれることをテストで確かめる。
--   [ ] **ステップ 6-5**: `**自動送信**` の欄を文書に足す（設計書 3.8）。直す箇所は次のとおりで、「PR marker conventions」の節に 2 つのセルの表を置かない（`opus-review-decision.sh:134-150` が旧い値の表として読むため）。
+-   [x] **ステップ 6-5**: `**自動送信**` の欄を文書に足す（設計書 3.8）。直す箇所は次のとおりで、「PR marker conventions」の節に 2 つのセルの表を置かない（`opus-review-decision.sh:134-150` が旧い値の表として読むため）。
     -   `_context.md` の「PR marker conventions」：欄の一覧と、読み方の規則（第 2〜3 部と同じ場所と行の形、欠けたら `auto`、2 つ以上か値が違えば読めない）。
     -   `mkplan2.md`：step 4（`hold` にする場合）、step 6 の形、step 7 の表の例、step 9 のチェックリスト。
     -   `mkplan.md`：step 8.5 の単一フェーズの節の行（行の順と空行の規則を、3 つの行に合わせて直す）と、step 8 のチェックリストの単一フェーズの項目（`mkplan.md:175,205-209`）。
-    -   `_lib/simple-process.md`：「Writing the three documents」（162-165 行）と「Reviewing the three documents」。
--   [ ] **ステップ 6-6**: `cmd/chief/docs_test.go` に、次の形を道具の `**自動送信**` の読み取り（ステップ 2-4）で読めることと、`_context.md` の欄の一覧に `**自動送信**` があることを確かめるテストを書く（設計書 7.2 の 2 項目め）。
+    -   `_lib/simple-process.md`：「Writing the three documents」（162-165 行）。「Reviewing the three documents」は `mkplan.md` の step 8 と `mkplan2.md` の step 9 のチェックリストをそのまま写すので、そのチェックリストを直せば足り、節の文は変えない。
+-   [x] **ステップ 6-6**: `cmd/chief/docs_test.go` に、次の形を道具の `**自動送信**` の読み取り（ステップ 2-4）で読めることと、`_context.md` の欄の一覧に `**自動送信**` があることを確かめるテストを書く（設計書 7.2 の 2 項目め）。
     -   `mkplan2.md` の step 6 の PR マーカーの形のコードブロック。
-    -   `mkplan.md` の step 8.5 と `_lib/simple-process.md` が書かせる「PR 構成」の節の行の形。
--   [ ] **ステップ 6-7**: ADR-0046 の「この決定は、まだ」で始まるずれの記述を、このマージの後に残るずれ（コマンドの定義、CLAUDE.md の一部、道具のインストール、settings.json）を述べる形に書き換え、commit のメッセージと PR の説明に訂正を書く。
+    -   `mkplan.md` の step 8.5 が書かせる「PR 構成」の節の行の形。`_lib/simple-process.md` は step 8.5 のとおりに書かせ、形を自分では書かないので、この形で確かめる。
+-   [x] **ステップ 6-7**: ADR-0046 の「この決定は、まだ」で始まるずれの記述を、このマージの後に残るずれ（コマンドの定義、CLAUDE.md の一部、道具のインストール、settings.json）を述べる形に書き換え、commit のメッセージと PR の説明に訂正を書く。
 
 **完了の条件:** 設計書 3.1.1 の `wait`・`tick`、3.5 の周・観測・自動送信の記録、3.7・3.8 の項目がそろっている。`make test`・`make lint`・`make deadcode` が通る。
 
@@ -617,9 +617,9 @@ $ rg -n 'on Sonnet|to Sonnet|implement.*Sonnet|Model to start|model each reading
 | AC-42 | `ic/autosend_test.go::TestAutoSendReportMismatch` | test | 6-3 | PR-6 |
 | AC-43 | `ic/snapshot_test.go::TestNextCommandRules`（簡易な進め方の 3 文書の後） | test | 3-4 | PR-3 |
 | AC-44 | `ic/autosend_test.go::TestAutoSendOnce`（起動し直し、記録を読めないとき） | test | 6-2・6-3 | PR-6 |
-| AC-45 | `ic/autosend_test.go::TestAutoSendConditions`（満たさなかった条件の提案） | test | 6-3 | PR-6 |
-| AC-47 | `ic/autosend_test.go::TestAutoSendNeverMkreqOrRunpr`、`ic/snapshot_test.go::TestTakeSnapshotStates`（タスク完了） | test | 3-4・6-3 | PR-3、PR-6 |
-| AC-48 | `cc/docs_test.go::TestMarkerFormsCarryAutoSend`（`mkplan2.md`・`mkplan.md`・`_lib/simple-process.md` の形、`_context.md` の欄の一覧） | static | 6-5・6-6 | PR-6 |
+| AC-45 | `ic/autosend_test.go::TestAutoSendConditions`（満たさなかった条件）、`ic/autosend_test.go::TestAutoSendReportMismatch`（その条件とともに示す提案） | test | 6-3 | PR-6 |
+| AC-47 | `ic/autosend_test.go::TestAutoSendConditions`（次のコマンドが `/mkreq`・`/runpr` のとき、タスク完了のとき）、`ic/snapshot_test.go::TestTakeSnapshotStates`（タスク完了） | test | 3-4・6-3 | PR-3、PR-6 |
+| AC-48 | `cc/docs_test.go::TestMarkerFormsCarryAutoSend`（`mkplan2.md`・`mkplan.md` の形（`_lib/simple-process.md` は `mkplan.md` の形で書かせる）、`_context.md` の欄の一覧） | static | 6-5・6-6 | PR-6 |
 | AC-49 | `ic/autosend_test.go::TestAutoSendHold` | test | 6-3 | PR-6 |
 | AC-50 | `ic/task_test.go::TestReadAutoSendField`（欄がない場合）、`ic/autosend_test.go::TestAutoSendConditions` | test | 2-4・6-3 | PR-2、PR-6 |
 | AC-51 | `ic/task_test.go::TestReadAutoSendField`（2 つ以上、値が違う場合）、`ic/autosend_test.go::TestAutoSendConditions` | test | 2-4・6-3 | PR-2、PR-6 |
@@ -632,8 +632,8 @@ $ rg -n 'on Sonnet|to Sonnet|implement.*Sonnet|Model to start|model each reading
 | AC-58 | `ic/pending_test.go::TestPendingWaitsFromTheFirstSighting`、`ic/records_test.go::TestObserve`、`/chief` の定義（通知の送信） | test、manual | 3-5・7-2 | PR-3、PR-7 |
 | AC-59 | `ic/autosend_test.go::TestAutoSendUnobservedMerge` | test | 6-3 | PR-6 |
 | AC-60 | `ic/snapshot_test.go::TestTakeSnapshotUnreadable`（Herdr の失敗）、`ic/wait_test.go::TestWaitFailure`、`/chief` の定義 | test、manual | 3-4・6-1・7-2 | PR-3、PR-6、PR-7 |
-| AC-61 | `ic/network_test.go::TestSnapshotRunsOnlyReadsInTheRightPlaces`、`ic/network_test.go::TestDetailAndSendRunOnlyReadsInTheRightPlaces`（呼び出しの記録係がすべてのテストで確かめる一覧を含む） | test | 3-7・4-6・6-4（記録係は 2-3） | PR-3、PR-4、PR-6 |
-| AC-62 | `ic/send_test.go::TestActionResults`、`ic/relay_test.go::TestRelaySendsChosenOption`、`ic/autosend_test.go::TestAutoSendConditions` | test | 4-7・5-3・6-3 | PR-4、PR-5、PR-6 |
+| AC-61 | `ic/network_test.go::TestSnapshotRunsOnlyReadsInTheRightPlaces`、`ic/network_test.go::TestDetailAndSendRunOnlyReadsInTheRightPlaces`、`ic/network_test.go::TestTickRunsOnlyReadsInTheRightPlaces`（呼び出しの記録係がすべてのテストで確かめる一覧を含む） | test | 3-7・4-6・6-4（記録係は 2-3） | PR-3、PR-4、PR-6 |
+| AC-62 | `ic/send_test.go::TestActionResults`、`ic/relay_test.go::TestRelaySendsChosenOption`、`ic/autosend_test.go::TestAutoSendAfterMerge` | test | 4-7・5-3・6-3 | PR-4、PR-5、PR-6 |
 | AC-63 | `ic/send_test.go::TestActionResults` | test | 4-7 | PR-4 |
 
 ### PR-1 の実行の記録
