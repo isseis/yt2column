@@ -227,16 +227,26 @@ var placeholderValues = map[string]string{
 
 // placeholder is a value a document leaves for the session to fill in, such
 // as <workspace>, alone or inside a value such as 1=<number>.
-var placeholder = regexp.MustCompile(`<[a-z_]+>`)
+var placeholder = regexp.MustCompile(`<[A-Za-z_]+>`)
 
 // fillPlaceholders returns args with each value that holds a placeholder
-// replaced by the value its flag stands for.
-func fillPlaceholders(args []string) []string {
+// replaced by the value its flag stands for, failing t for a placeholder
+// after a flag that has none.
+func fillPlaceholders(t *testing.T, args []string) []string {
+	t.Helper()
 	filled := slices.Clone(args)
-	for i := 1; i < len(filled); i++ {
-		if placeholder.MatchString(filled[i]) {
-			filled[i] = placeholderValues[filled[i-1]]
+	for i := range filled {
+		if !placeholder.MatchString(filled[i]) {
+			continue
 		}
+		value, ok := "", i > 0
+		if ok {
+			value, ok = placeholderValues[filled[i-1]]
+		}
+		if !ok {
+			t.Errorf("%q: no value for the placeholder %q", args, filled[i])
+		}
+		filled[i] = value
 	}
 	return filled
 }
@@ -255,13 +265,13 @@ func TestDocumentedInvocationsParse(t *testing.T) {
 			if !doctestutil.PromptFree(call, toolWord) {
 				t.Errorf("%s: %q %s %q is not the bare tool name alone in its command", rel, call.Lead, call.Word, call.Args)
 			}
-			args := fillPlaceholders(call.Args)
+			args := fillPlaceholders(t, call.Args)
 			subcommand, flags, err := parse(args)
 			if err != nil {
 				t.Errorf("%s: %s %q is a usage error: %v", rel, toolWord, call.Args, err)
 				continue
 			}
-			if err := checkRequest(subcommand, flags); err != nil {
+			if _, err := parseRequests(subcommand, flags); err != nil {
 				t.Errorf("%s: %s %q is a malformed request: %v", rel, toolWord, call.Args, err)
 			}
 			if rel == definitionPath {
@@ -274,21 +284,6 @@ func TestDocumentedInvocationsParse(t *testing.T) {
 			t.Errorf("%s writes no call of %s %s", definitionPath, toolWord, subcommand)
 		}
 	}
-}
-
-// checkRequest runs the request check run gives the subcommands that take
-// one.
-func checkRequest(subcommand string, flags map[string]string) error {
-	var err error
-	switch subcommand {
-	case cmdSend:
-		_, err = chief.ParseSendRequest(flags[flagWorkspace], flags[flagCommand], flags[flagIssue], flags[flagPR])
-	case cmdRelay:
-		_, err = chief.ParseRelayRequest(flags[flagWorkspace], flags[flagCheck], flags[flagAnswer])
-	case cmdWait:
-		_, err = chief.ParseWaitRequest(flags[flagSince], flags[flagTimeout])
-	}
-	return err
 }
 
 // TestNoDirectHerdrInvocation: no command document writes herdr as a command
@@ -391,7 +386,8 @@ func TestInstallTargetInMakefile(t *testing.T) {
 const guidePath = "docs/dev/guides/chief_guide.md"
 
 // TestGuideValuesMatchTool: the guide's table of subcommands names exactly
-// the tool's subcommands, its table of exit codes exactly the tool's codes,
+// the tool's subcommands, its table of exit codes exactly the four codes the
+// tool defines (a code added to main.go must be added here),
 // its protocol number is the tool's Protocol, and the state directory it
 // names is the one the tool opens below XDG_STATE_HOME, so the guide is not
 // left describing another version of the tool.

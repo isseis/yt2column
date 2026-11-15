@@ -543,8 +543,8 @@ func TestRequestNameSendsTheOffer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Every kind of offer but none, listed by name so a kind added later
-	// fails here until it is given a value.
+	// Every kind of offer but none; a kind added to TaskNextKind must be
+	// added here.
 	kinds := []TaskNextKind{TaskNextMkreq, TaskNextMkarch, TaskNextMkplan, TaskNextRunplan, TaskNextRunplanTakeover, TaskNextRunpr}
 	for _, kind := range kinds {
 		offer := &Next{Kind: kind, Command: &cmd}
